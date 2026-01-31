@@ -1,0 +1,24 @@
+{
+  "name": "notee",
+  "version": "1.0.0",
+  "description": "Multi-page web application with news calendar and more",
+  "scripts": {
+    "install-news": "cd news-calendar && npm install",
+    "build-news": "cd news-calendar && npm run build",
+    "dev-news": "cd news-calendar && npm run dev",
+    "start-backend": "cd news-calendar/backend && pm2 start ecosystem.config.cjs",
+    "stop-backend": "cd news-calendar/backend && pm2 stop ecosystem.config.cjs",
+    "restart-backend": "cd news-calendar/backend && pm2 restart ecosystem.config.cjs",
+    "install-all": "npm run install-news",
+    "build-all": "npm run build-news",
+    "deploy": "npm run build-all && npm run restart-backend"
+  },
+  "keywords": ["news", "calendar", "web-app", "multi-page", "notee"],
+  "author": "Notee Team",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/th500x/notee.git"
+  },
+  "homepage": "https://notee.vip"
+}
