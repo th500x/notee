@@ -115,9 +115,13 @@ function App() {
               <p className="text-gray-600 mt-2">点击日期查看当天的重要新闻</p>
             </div>
             <div className="flex items-center space-x-4">
-              <div className="text-sm text-gray-500">
+              <a 
+                href="/" 
+                className="text-sm text-gray-500 hover:text-gray-700 cursor-pointer transition-colors"
+                title="返回主页"
+              >
                 🍺 LOVE & PEACE!
-              </div>
+              </a>
             </div>
           </div>
         </div>
