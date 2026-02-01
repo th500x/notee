@@ -54,8 +54,16 @@
                     <p class="text-gray-600 mt-2">多功能网页应用平台</p>
                 </div>
                 <div class="flex items-center space-x-4">
-                    <div class="text-sm text-gray-500">
+                    <div 
+                        class="text-sm text-gray-500 hover:text-blue-600 cursor-pointer transition-colors relative group"
+                        onclick="shareWebsite()"
+                        title="分享本站"
+                    >
                         🍺 LOVE & PEACE!
+                        <!-- 悬停提示 -->
+                        <div class="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                            分享本站
+                        </div>
                     </div>
                 </div>
             </div>
@@ -149,6 +157,66 @@
         
         function showComingSoon(featureName) {
             alert(`${featureName}功能即将上线，敬请期待！`);
+        }
+        
+        function shareWebsite() {
+            const url = window.location.origin;
+            
+            // 尝试使用现代的 Clipboard API
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(url).then(() => {
+                    showNotification('网站链接已复制到剪贴板！', 'success');
+                }).catch(() => {
+                    fallbackCopyText(url);
+                });
+            } else {
+                // 降级方案
+                fallbackCopyText(url);
+            }
+        }
+        
+        function fallbackCopyText(text) {
+            const textArea = document.createElement('textarea');
+            textArea.value = text;
+            textArea.style.position = 'fixed';
+            textArea.style.left = '-999999px';
+            textArea.style.top = '-999999px';
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            
+            try {
+                document.execCommand('copy');
+                showNotification('网站链接已复制到剪贴板！', 'success');
+            } catch (err) {
+                showNotification('复制失败，请手动复制：' + text, 'error');
+            }
+            
+            document.body.removeChild(textArea);
+        }
+        
+        function showNotification(message, type) {
+            // 创建通知元素
+            const notification = document.createElement('div');
+            notification.className = `fixed top-4 right-4 px-6 py-3 rounded-lg shadow-lg z-50 transition-all duration-300 transform translate-x-full ${
+                type === 'success' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
+            }`;
+            notification.textContent = message;
+            
+            document.body.appendChild(notification);
+            
+            // 显示动画
+            setTimeout(() => {
+                notification.classList.remove('translate-x-full');
+            }, 100);
+            
+            // 3秒后自动消失
+            setTimeout(() => {
+                notification.classList.add('translate-x-full');
+                setTimeout(() => {
+                    document.body.removeChild(notification);
+                }, 300);
+            }, 3000);
         }
     </script>
 </body>
