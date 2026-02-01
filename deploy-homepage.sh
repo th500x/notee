@@ -7,10 +7,9 @@ echo "🚀 开始部署 Notee 主页..."
 echo "📥 从 GitHub 拉取最新代码..."
 git pull origin main
 
-# 更新 nginx 配置
+# 更新 nginx 配置 (宝塔面板)
 echo "⚙️  更新 Nginx 配置..."
-sudo cp nginx.conf /etc/nginx/sites-available/notee
-sudo ln -sf /etc/nginx/sites-available/notee /etc/nginx/sites-enabled/
+sudo cp nginx.conf /www/server/panel/vhost/nginx/notee.vip.conf
 
 # 测试 nginx 配置
 echo "🔍 测试 Nginx 配置..."

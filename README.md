@@ -71,14 +71,14 @@ pm2 start ecosystem.config.cjs
 
 ## 🚀 Deployment
 
-### Standard Deployment Process
+### Standard Deployment Process (宝塔面板)
 ```bash
 # 1. Pull latest code from GitHub
 cd /www/wwwroot/notee
 git pull origin main
 
-# 2. Update nginx configuration
-sudo cp nginx.conf /etc/nginx/sites-available/notee
+# 2. Update nginx configuration (宝塔面板)
+sudo cp nginx.conf /www/server/panel/vhost/nginx/notee.vip.conf
 
 # 3. Test and reload nginx
 sudo nginx -t && sudo nginx -s reload
