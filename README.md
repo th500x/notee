@@ -4,6 +4,12 @@ A comprehensive web application with multiple functional pages.
 
 ## 🌟 Current Features
 
+### 🏠 Homepage (`/`)
+- Clean and modern landing page
+- Four feature cards layout
+- Consistent design with news calendar
+- Easy navigation to all sub-applications
+
 ### 📅 News Calendar (`/news-calendar`)
 - Interactive calendar with news display
 - Emoji reaction system (🍺👍👎)
@@ -60,7 +66,35 @@ npm run build
 
 # Start the backend service
 cd backend
-pm2start ecosystem.config.cjs
+pm2 start ecosystem.config.cjs
+```
+
+## 🚀 Deployment
+
+### Homepage Deployment
+```bash
+# Copy homepage to server
+sudo cp index.html /www/wwwroot/notee/
+
+# Update nginx configuration
+sudo cp nginx.conf /etc/nginx/sites-available/notee
+sudo nginx -t && sudo nginx -s reload
+```
+
+### News Calendar Deployment
+```bash
+# Build and deploy news calendar
+npm run build-news
+npm run restart-backend
+```
+
+### Quick Deploy Script
+```bash
+# Make deploy script executable (Linux/Mac)
+chmod +x deploy-homepage.sh
+
+# Run deployment
+./deploy-homepage.sh
 ```
 
 ## 🔧 Development

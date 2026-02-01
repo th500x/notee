@@ -11,7 +11,8 @@
     "restart-backend": "cd news-calendar/backend && pm2 restart ecosystem.config.cjs",
     "install-all": "npm run install-news",
     "build-all": "npm run build-news",
-    "deploy": "npm run build-all && npm run restart-backend"
+    "deploy": "npm run build-all && npm run restart-backend",
+    "deploy-homepage": "sudo cp index.html /www/wwwroot/notee/ && sudo nginx -s reload"
   },
   "keywords": ["news", "calendar", "web-app", "multi-page", "notee"],
   "author": "Notee Team",

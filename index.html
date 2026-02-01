@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Notee - 多功能网页应用</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+                'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+                sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        
+        .card-hover {
+            transition: all 0.3s ease;
+        }
+        
+        .card-hover:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        }
+        
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        
+        .news-gradient {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        }
+        
+        .page2-gradient {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+        }
+        
+        .page3-gradient {
+            background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+        }
+        
+        .page4-gradient {
+            background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+        }
+    </style>
+</head>
+<body class="min-h-screen bg-gray-50">
+    <!-- Header -->
+    <header class="bg-white shadow-sm border-b">
+        <div class="max-w-7xl mx-auto px-4 py-6">
+            <div class="flex justify-between items-center">
+                <div>
+                    <h1 class="text-3xl font-bold text-gray-900">Notee</h1>
+                    <p class="text-gray-600 mt-2">多功能网页应用平台</p>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <div class="text-sm text-gray-500">
+                        🍺 LOVE & PEACE!
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto px-4 py-16">
+        <div class="text-center mb-16">
+            <h2 class="text-4xl font-bold text-gray-900 mb-4">欢迎来到 Notee</h2>
+            <p class="text-xl text-gray-600 max-w-2xl mx-auto">
+                一个集成多种实用功能的网页应用平台，为您提供便捷的在线服务
+            </p>
+        </div>
+
+        <!-- Feature Cards Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+            <!-- 新聞筆記 Card -->
+            <div class="card-hover bg-white rounded-xl shadow-lg overflow-hidden cursor-pointer" onclick="navigateToNews()">
+                <div class="news-gradient h-32 flex items-center justify-center">
+                    <div class="text-white text-center">
+                        <div class="text-4xl mb-2">📰</div>
+                        <h3 class="text-2xl font-bold">新聞筆記</h3>
+                    </div>
+                </div>
+                <div class="p-6">
+                    <p class="text-gray-600 text-center">
+                        浏览每日重要新闻，了解世界动态<br>
+                        支持日历视图和热门新闻排行
+                    </p>
+                </div>
+            </div>
+
+            <!-- Page 2 Card -->
+            <div class="card-hover bg-white rounded-xl shadow-lg overflow-hidden cursor-pointer opacity-50" onclick="showComingSoon('功能二')">
+                <div class="page2-gradient h-32 flex items-center justify-center">
+                    <div class="text-white text-center">
+                        <div class="text-4xl mb-2">🚀</div>
+                        <h3 class="text-2xl font-bold">功能二</h3>
+                    </div>
+                </div>
+                <div class="p-6">
+                    <p class="text-gray-600 text-center">
+                        敬请期待...<br>
+                        更多精彩功能即将上线
+                    </p>
+                </div>
+            </div>
+
+            <!-- Page 3 Card -->
+            <div class="card-hover bg-white rounded-xl shadow-lg overflow-hidden cursor-pointer opacity-50" onclick="showComingSoon('功能三')">
+                <div class="page3-gradient h-32 flex items-center justify-center">
+                    <div class="text-white text-center">
+                        <div class="text-4xl mb-2">⚡</div>
+                        <h3 class="text-2xl font-bold">功能三</h3>
+                    </div>
+                </div>
+                <div class="p-6">
+                    <p class="text-gray-600 text-center">
+                        敬请期待...<br>
+                        更多精彩功能即将上线
+                    </p>
+                </div>
+            </div>
+
+            <!-- Page 4 Card -->
+            <div class="card-hover bg-white rounded-xl shadow-lg overflow-hidden cursor-pointer opacity-50" onclick="showComingSoon('功能四')">
+                <div class="page4-gradient h-32 flex items-center justify-center">
+                    <div class="text-white text-center">
+                        <div class="text-4xl mb-2">🎯</div>
+                        <h3 class="text-2xl font-bold">功能四</h3>
+                    </div>
+                </div>
+                <div class="p-6">
+                    <p class="text-gray-600 text-center">
+                        敬请期待...<br>
+                        更多精彩功能即将上线
+                    </p>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-white border-t mt-16">
+        <div class="max-w-7xl mx-auto px-4 py-8">
+            <div class="text-center text-gray-500">
+                <p>&copy; 2026 Notee. Built with passion for creating useful web applications.</p>
+                <p class="mt-2">🍺 LOVE & PEACE!</p>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        function navigateToNews() {
+            window.location.href = '/news-calendar/';
+        }
+        
+        function showComingSoon(featureName) {
+            alert(`${featureName}功能即将上线，敬请期待！`);
+        }
+    </script>
+</body>
+</html>
