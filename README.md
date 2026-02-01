@@ -71,21 +71,17 @@ pm2 start ecosystem.config.cjs
 
 ## 🚀 Deployment
 
-### Homepage Deployment
+### Standard Deployment Process
 ```bash
-# Copy homepage to server
-sudo cp index.html /www/wwwroot/notee/
+# 1. Pull latest code from GitHub
+cd /www/wwwroot/notee
+git pull origin main
 
-# Update nginx configuration
+# 2. Update nginx configuration
 sudo cp nginx.conf /etc/nginx/sites-available/notee
-sudo nginx -t && sudo nginx -s reload
-```
 
-### News Calendar Deployment
-```bash
-# Build and deploy news calendar
-npm run build-news
-npm run restart-backend
+# 3. Test and reload nginx
+sudo nginx -t && sudo nginx -s reload
 ```
 
 ### Quick Deploy Script
@@ -93,8 +89,15 @@ npm run restart-backend
 # Make deploy script executable (Linux/Mac)
 chmod +x deploy-homepage.sh
 
-# Run deployment
+# Run deployment (includes git pull)
 ./deploy-homepage.sh
+```
+
+### News Calendar Deployment
+```bash
+# Build and deploy news calendar
+npm run build-news
+npm run restart-backend
 ```
 
 ## 🔧 Development

@@ -3,11 +3,11 @@
 # Deploy Notee Homepage Script
 echo "🚀 开始部署 Notee 主页..."
 
-# 复制主页文件到服务器目录
-echo "📁 复制主页文件..."
-sudo cp index.html /www/wwwroot/notee/
+# 从 GitHub 拉取最新代码
+echo "📥 从 GitHub 拉取最新代码..."
+git pull origin main
 
-# 复制更新的 nginx 配置
+# 更新 nginx 配置
 echo "⚙️  更新 Nginx 配置..."
 sudo cp nginx.conf /etc/nginx/sites-available/notee
 sudo ln -sf /etc/nginx/sites-available/notee /etc/nginx/sites-enabled/
