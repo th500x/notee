@@ -1,0 +1,113 @@
+/* 周日历样式 */
+.weekly-calendar {
+  width: 100% !important;
+  border: none !important;
+  font-family: inherit !important;
+}
+
+.week-tile {
+  position: relative;
+  padding: 0.75rem 0.5rem !important;
+  background: none !important;
+  border: 1px solid #e5e7eb !important;
+  transition: all 0.2s ease !important;
+  cursor: pointer;
+  min-height: 60px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.week-tile:hover {
+  background-color: #f3f4f6 !important;
+}
+
+.week-tile--active {
+  background-color: #3b82f6 !important;
+  color: white !important;
+}
+
+.week-tile--current {
+  background-color: #fef3c7 !important;
+  color: #92400e !important;
+}
+
+.week-tile--current:hover {
+  background-color: #fde68a !important;
+}
+
+/* 周数据指示器样式 */
+.week-indicator {
+  position: absolute;
+  bottom: 4px;
+  right: 4px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.week-indicator--bullish {
+  background-color: #10b981; /* 绿色 - 涨 */
+}
+
+.week-indicator--bearish {
+  background-color: #ef4444; /* 红色 - 跌 */
+}
+
+/* 年份导航样式 */
+.year-navigation {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.year-nav-button {
+  padding: 0.5rem;
+  border: 1px solid #d1d5db;
+  background: white;
+  border-radius: 0.375rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.year-nav-button:hover:not(:disabled) {
+  background-color: #f3f4f6;
+}
+
+.year-nav-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.year-display {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #374151;
+  min-width: 80px;
+  text-align: center;
+}
+
+/* 响应式调整 */
+@media (max-width: 1024px) {
+  .week-tile {
+    padding: 0.5rem 0.25rem !important;
+    font-size: 0.875rem !important;
+    min-height: 50px;
+  }
+}
+
+@media (max-width: 640px) {
+  .week-tile {
+    padding: 0.375rem 0.125rem !important;
+    font-size: 0.75rem !important;
+    min-height: 40px;
+  }
+  
+  .week-indicator {
+    width: 6px;
+    height: 6px;
+  }
+}

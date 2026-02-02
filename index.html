@@ -90,17 +90,17 @@
             </div>
 
             <!-- Page 2 Card -->
-            <div class="card-hover bg-white rounded-xl shadow-lg overflow-hidden cursor-pointer opacity-50" onclick="showComingSoon('功能二')">
+            <div class="card-hover bg-white rounded-xl shadow-lg overflow-hidden cursor-pointer" onclick="navigateToCoinIndex()">
                 <div class="page2-gradient h-32 flex items-center justify-center">
                     <div class="text-white text-center">
-                        <div class="text-4xl mb-2">🚀</div>
-                        <h3 class="text-2xl font-bold">功能二</h3>
+                        <div class="text-4xl mb-2">📊</div>
+                        <h3 class="text-2xl font-bold">區塊指標</h3>
                     </div>
                 </div>
                 <div class="p-6">
                     <p class="text-gray-600 text-center">
-                        敬请期待...<br>
-                        更多精彩功能即将上线
+                        区块链市场数据分析<br>
+                        周度指标追踪和趋势分析
                     </p>
                 </div>
             </div>
@@ -151,7 +151,11 @@
 
     <script>
         function navigateToNews() {
-            window.location.href = '/news-calendar/';
+            window.location.href = '/01-news-calendar/';
+        }
+        
+        function navigateToCoinIndex() {
+            window.location.href = '/04-coin-index/';
         }
         
         function showComingSoon(featureName) {
