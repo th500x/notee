@@ -78,6 +78,7 @@ jspm_packages/
 .cache/
 public
 !news-calendar/public
+!01-news-calendar/public
 
 # Storybook build outputs
 .out
