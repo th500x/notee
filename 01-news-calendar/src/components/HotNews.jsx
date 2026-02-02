@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react'
 import { loadMonthlyNewsData } from '../utils/newsData'
-import { formatDateKey } from '../utils/dateUtils'
 
 const NEWS_CATEGORIES = {
   world_politics: { title: '世界政治新闻', color: 'bg-red-100 text-red-800' },
@@ -19,7 +18,6 @@ function HotNews({ refreshTrigger }) {
     try {
       setLoading(true)
       
-      // Get hot news ranking with timestamp to avoid cache
       const timestamp = Date.now()
       const apiUrl = `http://47.113.185.170:3001/api/emoji/hot/ranking?t=${timestamp}`
       
@@ -34,23 +32,15 @@ function HotNews({ refreshTrigger }) {
       
       const result = await response.json()
       
-      if (!result.success) {
-        console.error('Get hot news failed:', result.error)
+      if (!result.success || !result.data || result.data.length === 0) {
         setHotNews([])
         return
       }
       
-      // Check if data is empty
-      if (!result.data || result.data.length === 0) {
-        setHotNews([])
-        return
-      }
-      
-      // Determine which months we need based on the newsIds
+      // 确定需要加载的月份
       const monthsNeeded = new Set()
       result.data.forEach(hotItem => {
-        const newsId = hotItem.news_id
-        const parsedId = parseNewsId(newsId)
+        const parsedId = parseNewsId(hotItem.news_id)
         if (parsedId) {
           const date = new Date(parsedId.date)
           const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
@@ -58,7 +48,7 @@ function HotNews({ refreshTrigger }) {
         }
       })
       
-      // Load news data for all needed months
+      // 加载所需月份的新闻数据
       let allNewsData = {}
       for (const monthKey of monthsNeeded) {
         const [year, month] = monthKey.split('-')
@@ -72,31 +62,24 @@ function HotNews({ refreshTrigger }) {
         }
       }
       
-      // Parse newsId and match news content
+      // 解析newsId并匹配新闻内容
       const hotNewsWithContent = []
       
-      for (let i = 0; i < result.data.length; i++) {
-        const hotItem = result.data[i]
-        const newsId = hotItem.news_id
+      for (const hotItem of result.data) {
+        const parsedId = parseNewsId(hotItem.news_id)
         
-        const parsedId = parseNewsId(newsId)
-        
-        if (!parsedId) {
-          continue
-        }
+        if (!parsedId) continue
         
         const { date, category, index } = parsedId
         const dayNews = allNewsData[date]
         
-        if (!dayNews || !dayNews[category] || !dayNews[category][index]) {
-          continue
-        }
+        if (!dayNews || !dayNews[category] || !dayNews[category][index]) continue
         
         const newsItem = dayNews[category][index]
         
         hotNewsWithContent.push({
           ...newsItem,
-          newsId: newsId,
+          newsId: hotItem.news_id,
           totalReactions: hotItem.total_reactions,
           topEmoji: hotItem.top_emoji || '🍺',
           emojiBreakdown: hotItem.emoji_breakdown || {},
@@ -120,16 +103,14 @@ function HotNews({ refreshTrigger }) {
     fetchHotNews()
   }, [refreshTrigger])
 
-  // Parse newsId format, support both old and new formats
+  // 解析newsId格式，支持新旧格式
   const parseNewsId = (newsId) => {
     try {
-      // Check if it's new format: "2026-01-31-thailand_politics-0"
+      // 新格式: "2026-01-31-thailand_politics-0"
       if (newsId.match(/^\d{4}-\d{2}-\d{2}-/)) {
         const parts = newsId.split('-')
         
-        if (parts.length < 4) {
-          return null
-        }
+        if (parts.length < 4) return null
         
         const index = parseInt(parts[parts.length - 1])
         const category = parts.slice(3, -1).join('-') || parts[3]
@@ -141,28 +122,22 @@ function HotNews({ refreshTrigger }) {
         return { date: standardDate, category, index }
       }
       
-      // Handle old format: "2026年1月30日星期五-world_economy-0"
+      // 旧格式: "2026年1月30日星期五-world_economy-0"
       const lastDashIndex = newsId.lastIndexOf('-')
-      if (lastDashIndex === -1) {
-        return null
-      }
+      if (lastDashIndex === -1) return null
       
       const index = parseInt(newsId.substring(lastDashIndex + 1))
       const remaining = newsId.substring(0, lastDashIndex)
       
       const secondLastDashIndex = remaining.lastIndexOf('-')
-      if (secondLastDashIndex === -1) {
-        return null
-      }
+      if (secondLastDashIndex === -1) return null
       
       const category = remaining.substring(secondLastDashIndex + 1)
       const dateStr = remaining.substring(0, secondLastDashIndex)
       
-      // Convert Chinese date to standard format
+      // 转换中文日期为标准格式
       const dateMatch = dateStr.match(/(\d{4})年(\d{1,2})月(\d{1,2})日/)
-      if (!dateMatch) {
-        return null
-      }
+      if (!dateMatch) return null
       
       const year = dateMatch[1]
       const month = dateMatch[2].padStart(2, '0')
@@ -171,7 +146,6 @@ function HotNews({ refreshTrigger }) {
       
       return { date: standardDate, category, index }
     } catch (error) {
-      console.error('Parse newsId failed:', newsId, error)
       return null
     }
   }
