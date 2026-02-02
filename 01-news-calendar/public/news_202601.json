@@ -265,7 +265,13 @@
     ]
   },
   "2026-01-20": {
-    "world_politics": [],
+    "world_politics": [
+      {
+        "title": "特朗普在达沃斯论坛发表重要讲话",
+        "summary": "美国总统特朗普在2025年达沃斯世界经济论坛上发表讲话，强调美国优先政策和对全球化的新看法。他表示将重新审视国际贸易协议，并呼吁各国在经济合作中承担更多责任，引发全球政商界热议。",
+        "link": "https://www.caixinglobal.com/2025-01-25/weekly-preview-caixins-direct-coverage-of-davos-how-globalization-adapts-to-major-shifts-in-the-world-102283436.html"
+      }
+    ],
     "world_economy": [],
     "asia_politics": [
       {
@@ -311,13 +317,7 @@
     ]
   },
   "2026-01-17": {
-    "world_politics": [
-      {
-        "title": "特朗普重申对格陵兰岛的主权要求",
-        "summary": "美国总统特朗普在1月初再次表示，美国拥有和控制格陵兰岛\"是绝对必要的\"，并威胁要\"收回\"巴拿马运河。这一表态引发国际社会广泛关注，丹麦政府重申格陵兰岛的自治地位不容侵犯。",
-        "link": "https://finance.sina.com.cn/wm/2025-01-08/doc-ineehrzp0272868.shtml"
-      }
-    ],
+    "world_politics": [],
     "world_economy": [],
     "asia_politics": [],
     "asia_economy": [],
@@ -422,11 +422,6 @@
         "title": "特朗普对伊朗实施贸易禁运和25%关税",
         "summary": "特朗普宣布对与伊朗做生意的任何国家征收25%关税，同时威胁对伊朗采取空袭行动。此举是对伊朗抗议镇压的强硬回应，伊朗抗议死亡人数持续攀升，国际制裁进一步加剧。",
         "link": "https://nypost.com/2026/01/12/us-news/trump-weighing-airstrikes-against-iran-as-death-toll-climbs-in-protests/"
-      },
-      {
-        "title": "特朗普在达沃斯论坛发表重要讲话",
-        "summary": "美国总统特朗普在2025年达沃斯世界经济论坛上发表讲话，强调美国优先政策和对全球化的新看法。他表示将重新审视国际贸易协议，并呼吁各国在经济合作中承担更多责任，引发全球政商界热议。",
-        "link": "https://www.caixinglobal.com/2025-01-25/weekly-preview-caixins-direct-coverage-of-davos-how-globalization-adapts-to-major-shifts-in-the-world-102283436.html"
       }
     ],
     "world_economy": [],
@@ -483,6 +478,11 @@
   },
   "2026-01-07": {
     "world_politics": [
+      {
+        "title": "特朗普重申对格陵兰岛的主权要求",
+        "summary": "美国总统特朗普在1月7日新闻发布会上再次表示，美国拥有和控制格陵兰岛\"是绝对必要的\"，并威胁要\"收回\"巴拿马运河。这一表态引发国际社会广泛关注，丹麦政府重申格陵兰岛的自治地位不容侵犯。",
+        "link": "https://finance.sina.com.cn/wm/2025-01-08/doc-ineehrzp0272868.shtml"
+      },
       {
         "title": "法国总统马克龙宣布可能向乌克兰派遣数千士兵",
         "summary": "马克龙表示数千名法国士兵可能被部署到乌克兰维持和平，强调这些部队不会参与战斗，而是作为安抚力量。此举标志着法国对乌克兰支持的重大升级，引发国际关注。",
