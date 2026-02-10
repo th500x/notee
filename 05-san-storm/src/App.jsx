@@ -22,7 +22,7 @@ import TroopCardExample from '@/components/troop/TroopCardExample';
 
 function App() {
   return (
-    <Router>
+    <Router basename="/05-san-storm">
       <div className="min-h-screen bg-gray-50">
         {/* 顶部导航 */}
         <nav className="bg-white shadow-md">
