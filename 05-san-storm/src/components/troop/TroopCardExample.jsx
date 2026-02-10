@@ -3,6 +3,34 @@ import TroopCard from './TroopCard';
 import { loadSharedData } from '@/utils/dataLoader';
 
 /**
+ * 根据部队ID推断势力
+ * @param {string} troopId - 部队ID (如 troop_san_1101)
+ * @returns {string} 势力名称
+ */
+const getFactionFromTroopId = (troopId) => {
+  // 提取ID中的前两位数字来判断势力
+  // troop_san_1101 -> 11 -> 刘备
+  // troop_san_1001 -> 10 -> 通用
+  const match = troopId.match(/troop_san_(\d{2})/);
+  if (!match) return '通用';
+  
+  const factionCode = match[1];
+  const factionMap = {
+    '10': '通用',  // 通用部队
+    '11': '刘备',  // 幽州
+    '12': '曹操',  // 兖州
+    '13': '孙坚',  // 徐州
+    '14': '袁绍',  // 冀州
+    '15': '董卓',  // 并州
+    '16': '汉室',  // 司隶
+    '17': '黄巾',  // 黄巾
+    '18': '其他',  // 其他势力（凉州等）
+  };
+  
+  return factionMap[factionCode] || '通用';
+};
+
+/**
  * 部队卡牌示例页面
  * 用于展示和测试部队卡牌组件
  */
@@ -11,6 +39,7 @@ const TroopCardExample = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [filters, setFilters] = useState({
+    faction: 'all',
     troopType: 'all',
     rarity: 'all',
     search: '',
@@ -21,7 +50,12 @@ const TroopCardExample = () => {
     // 加载部队数据
     loadSharedData('troops')
       .then(data => {
-        setTroops(data.troops || []);
+        // 为每个部队添加faction字段
+        const troopsWithFaction = (data.troops || []).map(troop => ({
+          ...troop,
+          faction: getFactionFromTroopId(troop.id)
+        }));
+        setTroops(troopsWithFaction);
         setLoading(false);
       })
       .catch(err => {
@@ -40,6 +74,11 @@ const TroopCardExample = () => {
       filtered = filtered.filter(t => 
         t.name.toLowerCase().includes(filters.search.toLowerCase())
       );
+    }
+
+    // 势力过滤
+    if (filters.faction !== 'all') {
+      filtered = filtered.filter(t => t.faction === filters.faction);
     }
 
     // 兵种过滤
@@ -114,7 +153,7 @@ const TroopCardExample = () => {
 
       {/* 筛选和排序控制 */}
       <div className="bg-white rounded-lg shadow-md p-4 mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
           {/* 搜索 */}
           <input
             type="text"
@@ -123,6 +162,23 @@ const TroopCardExample = () => {
             onChange={(e) => setFilters({ ...filters, search: e.target.value })}
             className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
+          
+          {/* 势力筛选 */}
+          <select
+            value={filters.faction}
+            onChange={(e) => setFilters({ ...filters, faction: e.target.value })}
+            className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="all">全部势力</option>
+            <option value="通用">通用</option>
+            <option value="刘备">刘备</option>
+            <option value="曹操">曹操</option>
+            <option value="孙坚">孙坚</option>
+            <option value="袁绍">袁绍</option>
+            <option value="董卓">董卓</option>
+            <option value="汉室">汉室</option>
+            <option value="黄巾">黄巾</option>
+          </select>
           
           {/* 兵种筛选 */}
           <select

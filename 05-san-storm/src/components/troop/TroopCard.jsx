@@ -81,10 +81,10 @@ const TroopCard = ({ troop, showDetails = true }) => {
   };
 
   return (
-    <div className="relative w-[256px] h-[384px] group">
-      {/* 卡牌容器 - 2:3比例 */}
+    <div className="relative w-[256px] group">
+      {/* 卡牌容器 - 2:3比例，有描述时自适应高度 */}
       <div className={`
-        relative w-full h-full
+        relative w-full ${troop.description ? 'min-h-[384px]' : 'h-[384px]'}
         bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900
         rounded-xl overflow-hidden
         border-2 ${rarity.border}
@@ -294,6 +294,19 @@ const TroopCard = ({ troop, showDetails = true }) => {
             </div>
           </div>
         )}
+
+        {/* 描述区域 - 新增 */}
+        {showDetails && troop.description && (
+          <div className="relative px-3 py-2 bg-gray-800/90 backdrop-blur-sm border-t border-gray-700">
+            <div className="flex items-center gap-1 mb-1">
+              <span className="text-amber-400 text-xs">📜</span>
+              <span className="text-gray-400 text-xs font-medium">描述</span>
+            </div>
+            <p className="text-gray-300 text-xs leading-relaxed">
+              {troop.description}
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -319,7 +332,8 @@ TroopCard.propTypes = {
     hillAdapt: PropTypes.number,
     forestAdapt: PropTypes.number,
     siegeAdapt: PropTypes.number,
-    skills: PropTypes.arrayOf(PropTypes.string)
+    skills: PropTypes.arrayOf(PropTypes.string),
+    description: PropTypes.string // 部队描述
   }).isRequired,
   showDetails: PropTypes.bool
 };

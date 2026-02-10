@@ -1,17 +1,77 @@
 ﻿troop_id,troop_name,rarity,troop_type,max_troops,range,attack,defense,speed,movement,plain_adapt,hill_adapt,forest_adapt,siege_adapt,counter_type,countered_by,counter_multiplier,skill_3,skill_4,description
-,民兵,common,infantry,200,1,60,80,4,2,1.0,1.0,1.0,0.6,cavalry,archer,,,,
-,刀盾兵,rare,infantry,400,1,70,90,5,2,1.0,1.0,1.0,0.6,cavalry,archer,,,,
-,重装步兵,epic,infantry,600,1,80,100,5,2,1.0,1.0,1.0,0.6,cavalry,archer,,,,
-,陷阵营,legendary,infantry,800,1,90,110,6,2,1.0,1.0,1.0,0.6,cavalry,archer,,,,
-,白毦兵,core,infantry,999,1,100,120,6,2,1.0,1.0,1.0,0.6,cavalry,archer,,,,
-,轻骑兵,common,cavalry,200,1,80,60,7,3,1.0,0.8,0.7,0.5,archer,infantry,,,,
-,突骑兵,rare,cavalry,400,1,90,70,8,3,1.0,0.8,0.7,0.5,archer,infantry,,,,
-,虎豹骑,epic,cavalry,600,1,100,80,8,3,1.0,0.8,0.7,0.5,archer,infantry,,,,
-,白马义从,legendary,cavalry,800,1,110,90,9,4,1.0,0.8,0.7,0.5,archer,infantry,,,,
-,飞熊军,core,cavalry,999,1,120,100,9,4,1.0,0.8,0.7,0.5,archer,infantry,,,,
-,弓箭手,common,archer,200,3,70,50,5,2,1.0,1.1,0.9,0.6,infantry,cavalry,,,,
-,强弩兵,rare,archer,400,3,80,60,6,2,1.0,1.1,0.9,0.6,infantry,cavalry,,,,
-,神臂弩,epic,archer,600,3,90,70,6,2,1.0,1.1,0.9,0.6,infantry,cavalry,,,,
-,虎贲弩,legendary,archer,800,4,100,80,7,2,1.0,1.1,0.9,0.6,infantry,cavalry,,,,
-,先登死士,core,archer,999,4,110,90,7,2,1.0,1.1,0.9,0.6,infantry,cavalry,,,,
+troop_san_1101,冀州部曲,common,infantry,200,1,60,80,4,2,1.0,1.0,1.0,0.6,cavalry,archer,,,,
+troop_san_1102,冀州轻弓,common,archer,200,1,60,80,5,2,1.0,1.0,1.0,0.6,cavalry,archer,,,,
+troop_san_1103,冀州轻骑,rare,cavalry,400,1,60,80,5,2,1.0,1.0,1.0,0.6,cavalry,archer,,,,
+troop_san_1104,平原义军,epic,infantry,600,1,60,80,6,2,1.0,1.0,1.0,0.6,cavalry,archer,,,,
+troop_san_1105,平原强弓,epic,archer,600,1,60,80,6,2,1.0,1.0,1.0,0.6,cavalry,archer,,,,
+troop_san_1106,丹阳兵,legendary,infantry,800,1,60,80,7,3,1.0,0.8,0.7,0.5,archer,infantry,,,,陶谦、刘备、曹操、何进江淮劲卒，悍勇善战，汉末最强步兵来源之一
+troop_san_1107,燕云十八,legendary,cavalry,18,1,60,80,8,3,1.0,0.8,0.7,0.5,archer,infantry,,,,张飞亲卫十八骑，骁勇敢死。技能万人敌
+troop_san_1108,胡氏卫队,epic,cavalry,200,1,60,80,8,3,1.0,0.8,0.7,0.5,archer,infantry,,,,关羽正妻，关平生母（民间设定）
+troop_san_1201,兖州部曲,common,infantry,200,1,60,80,9,4,1.0,0.8,0.7,0.5,archer,infantry,,,,
+troop_san_1202,兖州轻弓,common,archer,200,1,60,80,9,4,1.0,0.8,0.7,0.5,archer,infantry,,,,
+troop_san_1203,兖州轻骑,rare,cavalry,400,3,60,80,5,2,1.0,1.1,0.9,0.6,infantry,cavalry,,,,
+troop_san_1204,宗族近卫,epic,infantry,600,3,60,80,6,2,1.0,1.1,0.9,0.6,infantry,cavalry,,,,
+troop_san_1205,宗族强弓,epic,archer,600,3,60,80,6,2,1.0,1.1,0.9,0.6,infantry,cavalry,,,,
+troop_san_1206,虎卫军,legendary,infantry,800,4,60,80,7,2,1.0,1.1,0.9,0.6,infantry,cavalry,,,,曹操（典韦、许褚）近卫精锐，由猛将统领
+troop_san_1207,虎豹骑,legendary,cavalry,800,4,60,80,7,2,1.0,1.1,0.9,0.6,infantry,cavalry,,,,中央精锐重骑兵，曹氏宗亲统领
+troop_san_1208,丁氏卫队,epic,cavalry,200,4,60,80,7,2,1.0,1.1,0.9,0.6,infantry,cavalry,,,,丁氏（曹操正妻）
+troop_san_1209,卞氏卫队,epic,cavalry,200,4,60,80,7,2,1.0,1.1,0.9,0.6,infantry,cavalry,,,,卞夫人（曹操侧室）
+troop_san_1301,徐州部曲,common,infantry,200,4,60,80,7,2,1.0,1.1,0.9,0.6,infantry,cavalry,,,,
+troop_san_1302,徐州轻弓,common,archer,200,4,60,80,7,2,1.0,1.1,0.9,0.6,infantry,cavalry,,,,
+troop_san_1303,徐州轻骑,rare,cavalry,400,4,60,80,7,2,1.0,1.1,0.9,0.6,infantry,cavalry,,,,
+troop_san_1304,持刀水匪,epic,infantry,600,4,60,80,7,2,1.0,1.1,0.9,0.6,infantry,cavalry,,,,
+troop_san_1305,马刀突骑,epic,cavalry,600,4,60,80,7,2,1.0,1.1,0.9,0.6,infantry,cavalry,,,,
+troop_san_1306,解烦卫,legendary,infantry,800,4,60,80,7,2,1.0,1.1,0.9,0.6,infantry,cavalry,,,,孙十万解烦近卫
+troop_san_1307,锦帆卫,legendary,archer,800,4,60,80,7,2,1.0,1.1,0.9,0.6,infantry,cavalry,,,,甘宁江湖水贼出身，精锐水军
+troop_san_1308,吴氏卫队,epic,archer,200,4,60,80,7,2,1.0,1.1,0.9,0.6,infantry,cavalry,,,,吴氏（孙坚妻）
+troop_san_1401,冀州部曲,common,infantry,200,4,60,80,7,2,1.0,1.1,0.9,0.6,infantry,cavalry,,,,
+troop_san_1402,冀州轻弓,common,archer,200,4,60,80,7,2,1.0,1.1,0.9,0.6,infantry,cavalry,,,,
+troop_san_1403,冀州轻骑,rare,cavalry,400,4,60,80,7,2,1.0,1.1,0.9,0.6,infantry,cavalry,,,,
+troop_san_1404,大戟士,epic,infantry,600,4,60,80,7,2,1.0,1.1,0.9,0.6,infantry,cavalry,,,,袁绍（张郃）重步兵大戟队，袁绍近卫
+troop_san_1405,乌巢骑,epic,cavalry,600,4,60,80,7,2,1.0,1.1,0.9,0.6,infantry,cavalry,,,,
+troop_san_1406,先登死士,legendary,infantry,800,4,60,80,7,2,1.0,1.1,0.9,0.6,infantry,cavalry,,,,袁绍（麴义）攻坚先锋，专克骑兵
+troop_san_1407,虎贲神射,legendary,archer,800,4,60,80,7,2,1.0,1.1,0.9,0.6,infantry,cavalry,,,,
+troop_san_1408,刘氏卫队,epic,cavalry,200,4,60,80,7,2,1.0,1.1,0.9,0.6,infantry,cavalry,,,,刘氏（袁绍正妻）
+troop_san_1409,冯氏卫队,epic,cavalry,200,4,60,80,7,2,1.0,1.1,0.9,0.6,infantry,cavalry,,,,冯氏，袁术妾
+troop_san_1501,并州部曲,common,infantry,200,4,60,80,7,2,1.0,1.1,0.9,0.6,infantry,cavalry,,,,
+troop_san_1502,并州轻弓,common,archer,200,4,60,80,7,2,1.0,1.1,0.9,0.6,infantry,cavalry,,,,
+troop_san_1503,飞熊兵,rare,cavalry,400,4,60,80,7,2,1.0,1.1,0.9,0.6,infantry,cavalry,,,,董卓（李傕 / 郭汜）西凉精锐铁骑，象征董卓霸权
+troop_san_1504,泰山兵,epic,infantry,600,4,60,80,7,2,1.0,1.1,0.9,0.6,infantry,cavalry,,,,泰山豪杰，彪悍耐战
+troop_san_1505,白波兵,epic,archer,600,4,60,80,7,2,1.0,1.1,0.9,0.6,infantry,cavalry,,,,黄巾余部组成
+troop_san_1506,陷阵营,legendary,infantry,800,4,60,80,7,2,1.0,1.1,0.9,0.6,infantry,cavalry,,,,高顺 吕布
+troop_san_1507,并州铁骑,legendary,cavalry,800,4,60,80,7,2,1.0,1.1,0.9,0.6,infantry,cavalry,,,,丁原、吕布、董卓并州边地精骑，骁勇善战
+troop_san_1508,貂蝉卫队,epic,cavalry,200,4,60,80,7,2,1.0,1.1,0.9,0.6,infantry,cavalry,,,,
+troop_san_1601,司隶部曲,common,infantry,200,4,60,80,7,2,1.0,1.1,0.9,0.6,infantry,cavalry,,,,
+troop_san_1602,司隶轻弓,common,archer,200,4,60,80,7,2,1.0,1.1,0.9,0.6,infantry,cavalry,,,,
+troop_san_1603,司隶轻骑,rare,cavalry,400,4,60,80,7,2,1.0,1.1,0.9,0.6,infantry,cavalry,,,,
+troop_san_1604,三辅强弓,epic,archer,600,4,60,80,7,2,1.0,1.1,0.9,0.6,infantry,cavalry,,,,三辅地区
+troop_san_1605,三辅义从,epic,cavalry,600,4,60,80,7,2,1.0,1.1,0.9,0.6,infantry,cavalry,,,,三辅地区
+troop_san_1606,京畿铁卫,legendary,infantry,800,4,60,80,7,2,1.0,1.1,0.9,0.6,infantry,cavalry,,,,
+troop_san_1607,京畿重弩,legendary,archer,800,4,60,80,7,2,1.0,1.1,0.9,0.6,infantry,cavalry,,,,
+troop_san_1608,文姬卫队,epic,cavalry,200,4,60,80,7,2,1.0,1.1,0.9,0.6,infantry,cavalry,,,,
+troop_san_1701,青州天兵,common,infantry,200,4,60,80,7,2,1.0,1.1,0.9,0.6,infantry,cavalry,,,,
+troop_san_1702,青州神射,common,archer,200,4,60,80,7,2,1.0,1.1,0.9,0.6,infantry,cavalry,,,,
+troop_san_1703,豫州天兵,rare,infantry,400,4,60,80,7,2,1.0,1.1,0.9,0.6,infantry,cavalry,,,,
+troop_san_1704,豫州神射,rare,archer,400,4,60,80,7,2,1.0,1.1,0.9,0.6,infantry,cavalry,,,,
+troop_san_1705,黑山轻骑,rare,cavalry,400,4,60,80,7,2,1.0,1.1,0.9,0.6,infantry,cavalry,,,,
+troop_san_1706,黑山劫匪,epic,infantry,600,4,60,80,7,2,1.0,1.1,0.9,0.6,infantry,cavalry,,,,
+troop_san_1707,黑山猎手,epic,archer,600,4,60,80,7,2,1.0,1.1,0.9,0.6,infantry,cavalry,,,,
+troop_san_1708,南阳精锐,epic,infantry,600,4,60,80,7,2,1.0,1.1,0.9,0.6,infantry,cavalry,,,,
+troop_san_1709,南阳突骑,epic,cavalry,600,4,60,80,7,2,1.0,1.1,0.9,0.6,infantry,cavalry,,,,
+troop_san_1710,地公枪卫,legendary,infantry,800,4,60,80,7,2,1.0,1.1,0.9,0.6,infantry,cavalry,,,,
+troop_san_1711,人公箭卫,legendary,archer,800,4,60,80,7,2,1.0,1.1,0.9,0.6,infantry,cavalry,,,,
+troop_san_1712,天公亲卫,legendary,cavalry,800,4,60,80,7,2,1.0,1.1,0.9,0.6,infantry,cavalry,,,,张角亲卫骑兵
+troop_san_1001,五斗米道,rare,infantry,400,4,60,80,7,2,1.0,1.1,0.9,0.6,infantry,cavalry,,,,宗教武装，政道合一
+troop_san_1002,五斗游侠,rare,archer,400,4,60,80,7,2,1.0,1.1,0.9,0.6,infantry,cavalry,,,,
+troop_san_1003,羌族劫匪,epic,infantry,600,4,60,80,7,2,1.0,1.1,0.9,0.6,infantry,cavalry,,,,羌胡
+troop_san_1004,羌族猎手,epic,archer,600,4,60,80,7,2,1.0,1.1,0.9,0.6,infantry,cavalry,,,,羌胡
+troop_san_1005,湟中义从,epic,cavalry,600,4,60,80,7,2,1.0,1.1,0.9,0.6,infantry,cavalry,,,,北宫伯玉、韩遂、马腾、董卓凉州羌胡精锐骑兵 扰乱凉州的胡人突骑
+troop_san_1006,凉州铁骑,legendary,cavalry,800,4,60,80,7,2,1.0,1.1,0.9,0.6,infantry,cavalry,,,,马腾 马超
+troop_san_1007,柳氏卫队,epic,archer,200,4,60,80,7,2,1.0,1.1,0.9,0.6,infantry,cavalry,,,,柳氏（韩遂夫人）
+troop_san_1008,王氏卫队,epic,archer,200,4,60,80,7,2,1.0,1.1,0.9,0.6,infantry,cavalry,,,,王氏（马腾正妻）
+troop_san_1009,北军枪卫(S1),core,infantry,999,4,60,80,7,2,1.0,1.1,0.9,0.6,infantry,cavalry,,,,冀州 天下无双技能
+troop_san_1010,北军铁骑(S1),core,cavalry,999,4,60,80,7,2,1.0,1.1,0.9,0.6,infantry,cavalry,,,,冀州 天下无双技能
+troop_san_1011,御林铁卫(S1),core,infantry,999,4,60,80,7,2,1.0,1.1,0.9,0.6,infantry,cavalry,,,,司隶 天下无双技能
+troop_san_1012,白马义从(S1),core,cavalry,999,4,60,80,7,2,1.0,1.1,0.9,0.6,infantry,cavalry,,,,幽州 天下无双技能，王牌轻骑，白马为号，威震蛮夷
+,,,,,,,,,,,,,,,,,,,
 
