@@ -362,10 +362,24 @@
                 minute: '2-digit'
             });
             
-            // 隐藏IP的部分数字
-            const maskedIP = message.ip.split('.').map((part, index) => 
-                index < 2 ? part : '***'
-            ).join('.');
+            // 处理IP显示
+            let maskedIP = message.ip;
+            
+            // 处理本地IP
+            if (message.ip === '::1' || message.ip === '127.0.0.1' || message.ip === 'localhost') {
+                maskedIP = '本地访问';
+            } 
+            // 处理IPv4
+            else if (message.ip.includes('.')) {
+                maskedIP = message.ip.split('.').map((part, index) => 
+                    index < 2 ? part : '***'
+                ).join('.');
+            }
+            // 处理IPv6
+            else if (message.ip.includes(':')) {
+                const parts = message.ip.split(':');
+                maskedIP = parts.slice(0, 2).join(':') + ':***:***';
+            }
             
             return `
                 <div class="bg-gray-50 rounded-lg p-4 hover:bg-gray-100 transition-colors">
