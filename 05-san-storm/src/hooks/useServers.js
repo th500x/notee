@@ -1,0 +1,71 @@
+/**
+ * 服务器数据Hook
+ * 
+ * @description 封装服务器数据获取逻辑
+ * @module hooks/useServers
+ */
+
+import { useState, useEffect } from 'react';
+import { loadSeasonData } from '@/utils/dataLoader';
+import { SERVER_STATUS, GAME_CONFIG } from '@/utils/constants';
+
+/**
+ * 获取服务器状态
+ * @param {number} activePlayerCount - 激活玩家数
+ * @returns {string} 服务器状态
+ */
+function getServerStatus(activePlayerCount) {
+  if (activePlayerCount >= GAME_CONFIG.MAX_PLAYERS_PER_SERVER) {
+    return SERVER_STATUS.FULL;
+  } else if (activePlayerCount >= GAME_CONFIG.SERVER_CROWDED_THRESHOLD) {
+    return SERVER_STATUS.CROWDED;
+  } else if (activePlayerCount > GAME_CONFIG.SERVER_IDLE_THRESHOLD) {
+    return SERVER_STATUS.POPULAR;
+  } else {
+    return SERVER_STATUS.IDLE;
+  }
+}
+
+/**
+ * 使用服务器数据
+ * @param {string} season - 赛季标识（默认's1'）
+ * @returns {Object} { servers, loading, error, refetch }
+ */
+export function useServers(season = 's1') {
+  const [servers, setServers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  const fetchServers = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const data = await loadSeasonData(season, 'servers');
+      
+      // 处理服务器数据，确保状态正确
+      const processedServers = data.servers.map(server => ({
+        ...server,
+        status: getServerStatus(server.activePlayerCount),
+      }));
+      
+      setServers(processedServers);
+    } catch (err) {
+      console.error('[useServers] 加载失败:', err);
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchServers();
+  }, [season]);
+
+  return {
+    servers,
+    loading,
+    error,
+    refetch: fetchServers,
+  };
+}

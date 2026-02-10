@@ -32,7 +32,11 @@
             background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
         }
         
-        .page2-gradient {
+        .tale-gradient {
+            background: linear-gradient(135deg, #8B4513 0%, #D2691E 100%);
+        }
+        
+        .coin-gradient {
             background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
         }
         
@@ -90,18 +94,18 @@
                 </div>
             </div>
 
-            <!-- Page 2 Card -->
-            <div class="card-hover bg-white rounded-xl shadow-lg overflow-hidden cursor-pointer" onclick="navigateToCoinIndex()">
-                <div class="page2-gradient h-32 flex items-center justify-center">
+            <!-- 佚事雜錄 Card -->
+            <div class="card-hover bg-white rounded-xl shadow-lg overflow-hidden cursor-pointer" onclick="navigateToTaleHistorical()">
+                <div class="tale-gradient h-32 flex items-center justify-center">
                     <div class="text-white text-center">
-                        <div class="text-4xl mb-2">📊</div>
-                        <h3 class="text-2xl font-bold">區塊指標</h3>
+                        <div class="text-4xl mb-2">📚</div>
+                        <h3 class="text-2xl font-bold">佚事雜錄</h3>
                     </div>
                 </div>
                 <div class="p-6">
                     <p class="text-gray-600 text-center">
-                        区块链市场数据分析<br>
-                        周度指标追踪和趋势分析
+                        游戏人生的点滴记录<br>
+                        支持阅读进度记忆和PDF导出
                     </p>
                 </div>
             </div>
@@ -122,18 +126,18 @@
                 </div>
             </div>
 
-            <!-- Page 4 Card -->
-            <div class="card-hover bg-white rounded-xl shadow-lg overflow-hidden cursor-pointer opacity-50" onclick="showComingSoon('功能四')">
-                <div class="page4-gradient h-32 flex items-center justify-center">
+            <!-- 區塊指標 Card -->
+            <div class="card-hover bg-white rounded-xl shadow-lg overflow-hidden cursor-pointer" onclick="navigateToCoinIndex()">
+                <div class="coin-gradient h-32 flex items-center justify-center">
                     <div class="text-white text-center">
-                        <div class="text-4xl mb-2">🎯</div>
-                        <h3 class="text-2xl font-bold">功能四</h3>
+                        <div class="text-4xl mb-2">📊</div>
+                        <h3 class="text-2xl font-bold">區塊指標</h3>
                     </div>
                 </div>
                 <div class="p-6">
                     <p class="text-gray-600 text-center">
-                        敬请期待...<br>
-                        更多精彩功能即将上线
+                        区块链市场数据分析<br>
+                        周度指标追踪和趋势分析
                     </p>
                 </div>
             </div>
@@ -153,6 +157,10 @@
     <script>
         function navigateToNews() {
             window.location.href = '/01-news-calendar/';
+        }
+        
+        function navigateToTaleHistorical() {
+            window.location.href = '/02-tale-historical/';
         }
         
         function navigateToCoinIndex() {

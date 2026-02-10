@@ -1,0 +1,17 @@
+﻿troop_id,troop_name,rarity,troop_type,max_troops,range,attack,defense,speed,movement,plain_adapt,hill_adapt,forest_adapt,siege_adapt,counter_type,countered_by,counter_multiplier,skill_3,skill_4,description
+,民兵,common,infantry,200,1,60,80,4,2,1.0,1.0,1.0,0.6,cavalry,archer,,,,
+,刀盾兵,rare,infantry,400,1,70,90,5,2,1.0,1.0,1.0,0.6,cavalry,archer,,,,
+,重装步兵,epic,infantry,600,1,80,100,5,2,1.0,1.0,1.0,0.6,cavalry,archer,,,,
+,陷阵营,legendary,infantry,800,1,90,110,6,2,1.0,1.0,1.0,0.6,cavalry,archer,,,,
+,白毦兵,core,infantry,999,1,100,120,6,2,1.0,1.0,1.0,0.6,cavalry,archer,,,,
+,轻骑兵,common,cavalry,200,1,80,60,7,3,1.0,0.8,0.7,0.5,archer,infantry,,,,
+,突骑兵,rare,cavalry,400,1,90,70,8,3,1.0,0.8,0.7,0.5,archer,infantry,,,,
+,虎豹骑,epic,cavalry,600,1,100,80,8,3,1.0,0.8,0.7,0.5,archer,infantry,,,,
+,白马义从,legendary,cavalry,800,1,110,90,9,4,1.0,0.8,0.7,0.5,archer,infantry,,,,
+,飞熊军,core,cavalry,999,1,120,100,9,4,1.0,0.8,0.7,0.5,archer,infantry,,,,
+,弓箭手,common,archer,200,3,70,50,5,2,1.0,1.1,0.9,0.6,infantry,cavalry,,,,
+,强弩兵,rare,archer,400,3,80,60,6,2,1.0,1.1,0.9,0.6,infantry,cavalry,,,,
+,神臂弩,epic,archer,600,3,90,70,6,2,1.0,1.1,0.9,0.6,infantry,cavalry,,,,
+,虎贲弩,legendary,archer,800,4,100,80,7,2,1.0,1.1,0.9,0.6,infantry,cavalry,,,,
+,先登死士,core,archer,999,4,110,90,7,2,1.0,1.1,0.9,0.6,infantry,cavalry,,,,
+

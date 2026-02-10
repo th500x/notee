@@ -1,0 +1,36 @@
+﻿bond_id,bond_name,min_characters,effect_type,effect_value,description
+bond_1_5001,无双,2,active,,Krio no.1
+bond_1_5002,旷世,2,active,,Krio no.2
+bond_2_5001,桃园,2,passive,,Krio no.3
+bond_2_5002,五虎,2,passive,,Krio no.4
+bond_2_3001,蜀汉文臣,2,passive,,Krio no.5
+bond_2_5003,夏侯,2,passive,,Krio no.6
+bond_2_5004,魏武,2,passive,,Krio no.7
+bond_2_5005,五子良将,2,passive,,Krio no.8
+bond_2_4001,曹氏,2,passive,,Krio no.9
+bond_2_4002,江东,2,passive,,Krio no.10
+bond_2_5006,四世三公,2,passive,,Krio no.11
+bond_2_4003,袁氏,2,passive,,Krio no.12
+bond_2_4004,酒池肉林,2,passive,,Krio no.13
+bond_2_4005,董卓四将,2,passive,,Krio no.14
+bond_2_3002,东汉名仕,2,passive,,Krio no.15
+bond_2_3003,汉末忠烈,2,passive,,Krio no.16
+bond_2_4006,汉室宗亲,2,passive,,Krio no.17
+bond_2_4007,汉末三将,2,passive,,Krio no.18
+bond_2_3004,十常侍,2,passive,,Krio no.19
+bond_2_5007,太平道,2,passive,,Krio no.20
+bond_2_3005,太平弟子,2,passive,,Krio no.21
+bond_2_4008,西凉军阀,2,passive,,Krio no.22
+bond_2_3006,东汉十三州,2,passive,,Krio no.23
+bond_2_3007,东汉隐士,2,passive,,Krio no.24
+bond_2_3008,东汉俊秀,2,passive,,Krio no.25
+bond_2_3009,五斗米道,2,passive,,Krio no.26
+bond_2_4009,白马,2,passive,,Krio no.27
+,,,,,
+,,,,,
+,,,,,
+,,,,,
+,,,,,
+,,,,,
+,,,,,
+

@@ -1,0 +1,130 @@
+@import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 自定义字体和样式 */
+
+body {
+  font-family: 'Noto Serif SC', 'SimSun', serif;
+  background: linear-gradient(135deg, #f4f1e8 0%, #e8e2d5 100%);
+  min-height: 100vh;
+}
+
+/* 书架样式 */
+.bookshelf {
+  background: linear-gradient(180deg, #8b4513 0%, #a0522d 50%, #8b4513 100%);
+  box-shadow: inset 0 0 20px rgba(0,0,0,0.3);
+}
+
+.bookshelf-shelf {
+  background: linear-gradient(180deg, #654321 0%, #8b4513 100%);
+  box-shadow: 
+    0 2px 4px rgba(0,0,0,0.3),
+    inset 0 1px 0 rgba(255,255,255,0.1);
+}
+
+/* 书本样式 */
+.book {
+  background: linear-gradient(90deg, var(--book-color-start) 0%, var(--book-color-end) 100%);
+  box-shadow: 
+    2px 0 4px rgba(0,0,0,0.3),
+    inset -2px 0 2px rgba(0,0,0,0.2),
+    inset 2px 0 2px rgba(255,255,255,0.1);
+  transition: all 0.3s ease;
+  cursor: pointer;
+  position: relative;
+}
+
+.book:hover {
+  transform: translateY(-5px) rotateY(-5deg);
+  box-shadow: 
+    4px 5px 15px rgba(0,0,0,0.4),
+    inset -2px 0 2px rgba(0,0,0,0.2),
+    inset 2px 0 2px rgba(255,255,255,0.1);
+}
+
+.book::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.3) 50%, transparent 100%);
+}
+
+.book::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, transparent 0%, rgba(0,0,0,0.3) 50%, transparent 100%);
+}
+
+/* 书本标题样式 */
+.book-title {
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  font-family: 'KaiTi', 'Noto Serif SC', serif;
+  font-weight: 600;
+  text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+  color: #f4f1e8;
+  letter-spacing: 2px;
+}
+
+/* 阅读页面样式 */
+.reading-page {
+  background: #fefcf7;
+  box-shadow: 
+    0 0 20px rgba(0,0,0,0.1),
+    inset 0 0 60px rgba(218,165,32,0.1);
+}
+
+.chapter-content {
+  color: #2c1810;
+}
+
+.chapter-content p {
+  margin: 1rem 0;
+  text-indent: 2em;
+}
+
+/* 翻页动画 */
+.page-turn-enter {
+  opacity: 0;
+  transform: rotateY(-90deg);
+}
+
+.page-turn-enter-active {
+  opacity: 1;
+  transform: rotateY(0deg);
+  transition: all 0.6s ease;
+}
+
+.page-turn-exit {
+  opacity: 1;
+  transform: rotateY(0deg);
+}
+
+.page-turn-exit-active {
+  opacity: 0;
+  transform: rotateY(90deg);
+  transition: all 0.6s ease;
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+  .book-title {
+    writing-mode: horizontal-tb;
+    text-orientation: mixed;
+    font-size: 0.875rem;
+  }
+  
+  .chapter-content p {
+    text-indent: 1.5em;
+  }
+}
