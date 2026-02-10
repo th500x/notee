@@ -141,17 +141,20 @@ export const SEASON_LABELS = {
 };
 
 // ==================== 数据路径 ====================
+// 获取base路径（用于部署到子路径）
+const BASE_PATH = import.meta.env.BASE_URL || '/';
+
 export const DATA_PATHS = {
   // 共享数据
-  CHARACTERS: '/data/shared/characters.json',
-  POSITIONS: '/data/shared/positions.json',
-  TROOPS: '/data/shared/troops.json',
-  SKILLS: '/data/shared/skills.json',
+  CHARACTERS: `${BASE_PATH}data/shared/characters.json`,
+  POSITIONS: `${BASE_PATH}data/shared/positions.json`,
+  TROOPS: `${BASE_PATH}data/shared/troops.json`,
+  SKILLS: `${BASE_PATH}data/shared/skills.json`,
   
   // 赛季数据（需要拼接赛季标识）
-  FACTIONS: (season) => `/data/seasons/${season}/factions.json`,
-  SERVERS: (season) => `/data/seasons/${season}/servers.json`,
-  EVENTS: (season) => `/data/seasons/${season}/events.json`,
+  FACTIONS: (season) => `${BASE_PATH}data/seasons/${season}/factions.json`,
+  SERVERS: (season) => `${BASE_PATH}data/seasons/${season}/servers.json`,
+  EVENTS: (season) => `${BASE_PATH}data/seasons/${season}/events.json`,
 };
 
 // ==================== 筛选选项 ====================
