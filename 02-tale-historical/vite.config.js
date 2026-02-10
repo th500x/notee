@@ -8,6 +8,8 @@ export default defineConfig({
     port: 5174
   },
   build: {
-    sourcemap: false // 禁用 source map 以避免警告
+    outDir: 'dist',
+    assetsDir: 'assets',
+    sourcemap: false
   }
 })
