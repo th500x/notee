@@ -151,17 +151,18 @@ function App() {
 
           {/* 新闻显示区域 */}
           <div className="lg:col-span-2">
-            {/* 手机端热门新闻 */}
-            <div className="lg:hidden mb-6">
-              <HotNews refreshTrigger={hotNewsRefresh} />
-            </div>
-            
-            <div className="bg-white rounded-lg shadow-md p-6">
+            {/* 当天新闻内容 - 移动端优先显示 */}
+            <div className="bg-white rounded-lg shadow-md p-6 mb-6">
               <NewsDisplay 
                 selectedDate={selectedDate}
                 newsData={selectedDateNews}
                 onEmojiUpdate={refreshHotNews}
               />
+            </div>
+            
+            {/* 手机端热门新闻 - 显示在新闻内容之后 */}
+            <div className="lg:hidden">
+              <HotNews refreshTrigger={hotNewsRefresh} />
             </div>
           </div>
         </div>
