@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { loadSharedData } from '@/utils/dataLoader';
 
 /**
  * 羁绊数据 Hook
@@ -13,11 +14,10 @@ export function useBonds() {
   useEffect(() => {
     async function loadBonds() {
       try {
-        const response = await fetch('/data/shared/bonds.json');
-        if (!response.ok) {
-          throw new Error('Failed to load bonds data');
-        }
-        const data = await response.json();
+        setLoading(true);
+        setError(null);
+        
+        const data = await loadSharedData('bonds');
         setBonds(data);
         
         // 创建 ID 映射
@@ -33,10 +33,10 @@ export function useBonds() {
         });
         
         setBondsMap({ ...idMap, ...nameMap });
-        setLoading(false);
       } catch (err) {
-        console.error('Error loading bonds:', err);
+        console.error('[useBonds] 加载失败:', err);
         setError(err.message);
+      } finally {
         setLoading(false);
       }
     }

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { loadSharedData } from '@/utils/dataLoader';
 
 /**
  * 部队数据 Hook
@@ -13,17 +14,12 @@ export const useTroops = () => {
     const loadTroops = async () => {
       try {
         setLoading(true);
-        const response = await fetch('/data/shared/troops.json');
-        
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        
-        const data = await response.json();
-        setTroops(data.troops || []);
         setError(null);
+        
+        const data = await loadSharedData('troops');
+        setTroops(data.troops || []);
       } catch (err) {
-        console.error('加载部队数据失败:', err);
+        console.error('[useTroops] 加载失败:', err);
         setError(err.message);
         setTroops([]);
       } finally {

@@ -6,6 +6,7 @@
  */
 
 import { useState, useEffect } from 'react';
+import { loadSharedData } from '@/utils/dataLoader';
 
 /**
  * 技能数据Hook
@@ -29,12 +30,7 @@ export function useSkills() {
       setLoading(true);
       setError(null);
 
-      const response = await fetch('/data/shared/skills.json');
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
+      const data = await loadSharedData('skills');
       setSkills(data);
 
       // 创建技能ID到技能对象的映射
@@ -45,7 +41,7 @@ export function useSkills() {
       setSkillsMap(map);
 
     } catch (err) {
-      console.error('加载技能数据失败:', err);
+      console.error('[useSkills] 加载失败:', err);
       setError(err.message);
     } finally {
       setLoading(false);
