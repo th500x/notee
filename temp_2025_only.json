@@ -1,0 +1,441 @@
+{
+  "2025-W46-test": {
+    "weekId": "2025-W46-test",
+    "year": 2025,
+    "weekNumber": 46,
+    "weekStart": "2025-11-09",
+    "weekEnd": "2025-11-10",
+    "btcWeeklyChange": 3.54,
+    "btcWeeklyAvgPrice": 105309.38,
+    "ethWeeklyAvgPrice": 3570.43,
+    "fearGreedIndex": 51,
+    "mayerMultiple": 1.5,
+    "ahr999": 1,
+    "ethBtcRatio": 0.033657,
+    "btcFromATH": -10,
+    "marketTrend": "bullish",
+    "updatedAt": "2026-02-01T14:03:46.806Z",
+    "dataSource": "coingecko_api_incremental",
+    "rawData": {
+      "btc": {
+        "average": 105309.38,
+        "prices": [
+          104709.67861656273,
+          105909.07272321742
+        ],
+        "dates": [
+          "2025-11-09",
+          "2025-11-10"
+        ],
+        "dataPoints": 2
+      },
+      "eth": {
+        "average": 3570.43,
+        "prices": [
+          3576.2547046627064,
+          3564.6105957999334
+        ],
+        "dates": [
+          "2025-11-09",
+          "2025-11-10"
+        ],
+        "dataPoints": 2
+      },
+      "fearGreed": {
+        "average": 51,
+        "values": [
+          50,
+          52
+        ],
+        "dates": [
+          "2025-11-09",
+          "2025-11-10"
+        ],
+        "dataPoints": 2
+      },
+      "weeklyChangeData": {
+        "currentWeekEnd": "2025-11-10",
+        "previousWeekEnd": "2025-11-08",
+        "weeklyChange": 3.54
+      },
+      "ratioData": {
+        "calculationDate": "2025-11-10",
+        "ethBtcRatio": 0.033657
+      }
+    }
+  },
+  "2025-W47-test": {
+    "weekId": "2025-W47-test",
+    "year": 2025,
+    "weekNumber": 47,
+    "weekStart": "2025-11-16",
+    "weekEnd": "2025-11-17",
+    "btcWeeklyChange": 0,
+    "btcWeeklyAvgPrice": 93224.03,
+    "ethWeeklyAvgPrice": 3061.49,
+    "fearGreedIndex": 50,
+    "mayerMultiple": 1.5,
+    "ahr999": 1,
+    "ethBtcRatio": 0.03284,
+    "btcFromATH": -10,
+    "marketTrend": "bullish",
+    "updatedAt": "2026-02-01T12:36:33.953Z",
+    "dataSource": "coingecko_api_25s_delay",
+    "rawData": {
+      "btc": {
+        "average": 93224.03,
+        "prices": [
+          94411.32947182967,
+          92036.7255045672
+        ],
+        "dates": [
+          "2025-11-16",
+          "2025-11-17"
+        ],
+        "dataPoints": 2
+      },
+      "eth": {
+        "average": 3061.49,
+        "prices": [
+          3101.686799467,
+          3021.3021576301335
+        ],
+        "dates": [
+          "2025-11-16",
+          "2025-11-17"
+        ],
+        "dataPoints": 2
+      }
+    }
+  },
+  "2025-W48-test": {
+    "weekId": "2025-W48-test",
+    "year": 2025,
+    "weekNumber": 48,
+    "weekStart": "2025-11-23",
+    "weekEnd": "2025-11-25",
+    "btcWeeklyChange": 0,
+    "btcWeeklyAvgPrice": 87441.18,
+    "ethWeeklyAvgPrice": 2954.19,
+    "fearGreedIndex": 50,
+    "mayerMultiple": 1.5,
+    "ahr999": 1,
+    "ethBtcRatio": 0.033785,
+    "btcFromATH": -10,
+    "marketTrend": "bullish",
+    "updatedAt": "2026-02-01T11:06:57.625Z",
+    "rawData": {
+      "btc": {
+        "average": 87441.18,
+        "prices": [
+          86783.84766839583,
+          88229.35740719768,
+          87310.33159950442
+        ],
+        "dates": [
+          "2025-11-23",
+          "2025-11-24",
+          "2025-11-25"
+        ],
+        "dataPoints": 3
+      },
+      "eth": {
+        "average": 2954.19,
+        "prices": [
+          2953.327645752226,
+          2955.046469321271
+        ],
+        "dates": [
+          "2025-11-24",
+          "2025-11-25"
+        ],
+        "dataPoints": 2
+      }
+    }
+  },
+  "2025-W49": {
+    "weekId": "2025-W49",
+    "year": 2025,
+    "weekNumber": 49,
+    "weekStart": "2025-11-30",
+    "weekEnd": "2025-12-06",
+    "btcWeeklyChange": 0,
+    "btcWeeklyAvgPrice": 90166.63,
+    "ethWeeklyAvgPrice": 3007.51,
+    "fearGreedIndex": 50,
+    "mayerMultiple": 1.5,
+    "ahr999": 1,
+    "ethBtcRatio": 0.033355,
+    "btcFromATH": -10,
+    "marketTrend": "bullish",
+    "updatedAt": "2026-02-01T11:02:02.652Z",
+    "rawData": {
+      "btc": {
+        "average": 90166.63,
+        "prices": [
+          90406.28448571145,
+          86281.49519776918,
+          93619.43750817103,
+          92140.70419795791,
+          89307.09154512963,
+          89244.7620814118
+        ],
+        "dates": [
+          "2025-11-30",
+          "2025-12-01",
+          "2025-12-03",
+          "2025-12-04",
+          "2025-12-05",
+          "2025-12-06"
+        ],
+        "dataPoints": 6
+      },
+      "eth": {
+        "average": 3007.51,
+        "prices": [
+          2992.8341859495977,
+          2799.0367919901605,
+          2995.751149322771,
+          3195.4089919085554,
+          3022.6564205232035,
+          3039.358573133242
+        ],
+        "dates": [
+          "2025-11-30",
+          "2025-12-01",
+          "2025-12-02",
+          "2025-12-03",
+          "2025-12-05",
+          "2025-12-06"
+        ],
+        "dataPoints": 6
+      }
+    }
+  },
+  "2025-W49-test": {
+    "weekId": "2025-W49-test",
+    "year": 2025,
+    "weekNumber": 49,
+    "weekStart": "2025-11-30",
+    "weekEnd": "2025-12-01",
+    "btcWeeklyChange": 0,
+    "btcWeeklyAvgPrice": 88343.89,
+    "ethWeeklyAvgPrice": 2895.94,
+    "fearGreedIndex": 50,
+    "mayerMultiple": 1.5,
+    "ahr999": 1,
+    "ethBtcRatio": 0.03278,
+    "btcFromATH": -10,
+    "marketTrend": "bullish",
+    "updatedAt": "2026-02-01T10:54:36.394Z",
+    "rawData": {
+      "btc": {
+        "average": 88343.89,
+        "prices": [
+          90406.28448571145,
+          86281.49519776918
+        ],
+        "dates": [
+          "2025-11-30",
+          "2025-12-01"
+        ],
+        "dataPoints": 2
+      },
+      "eth": {
+        "average": 2895.94,
+        "prices": [
+          2992.8341859495977,
+          2799.0367919901605
+        ],
+        "dates": [
+          "2025-11-30",
+          "2025-12-01"
+        ],
+        "dataPoints": 2
+      }
+    }
+  },
+  "2025-W50": {
+    "weekId": "2025-W50",
+    "year": 2025,
+    "weekNumber": 50,
+    "weekStart": "2025-12-07",
+    "weekEnd": "2025-12-13",
+    "btcWeeklyChange": 0,
+    "btcWeeklyAvgPrice": 91224.03,
+    "ethWeeklyAvgPrice": 3194.92,
+    "fearGreedIndex": 50,
+    "mayerMultiple": 1.5,
+    "ahr999": 1,
+    "ethBtcRatio": 0.035023,
+    "btcFromATH": -10,
+    "btcFourYearIndex": 0.8,
+    "personalRating": 3,
+    "marketTrend": "bullish",
+    "updatedAt": "2026-02-01T14:40:53.285Z",
+    "rawData": {
+      "btc": {
+        "average": 91224.03,
+        "prices": [
+          90162.90714007126,
+          90618.0535204608,
+          92723.21372069631,
+          92005.13714957413,
+          92494.17691640415,
+          90307.26028567803,
+          90257.4292885891
+        ],
+        "dates": [
+          "2025-12-07",
+          "2025-12-08",
+          "2025-12-09",
+          "2025-12-10",
+          "2025-12-11",
+          "2025-12-12",
+          "2025-12-13"
+        ],
+        "dataPoints": 7
+      },
+      "eth": {
+        "average": 3194.92,
+        "prices": [
+          3125.321462183988,
+          3322.469217836626,
+          3326.260211637518,
+          3085.316694358101,
+          3115.225428835284
+        ],
+        "dates": [
+          "2025-12-08",
+          "2025-12-09",
+          "2025-12-10",
+          "2025-12-12",
+          "2025-12-13"
+        ],
+        "dataPoints": 5
+      }
+    }
+  },
+  "2025-W51": {
+    "weekId": "2025-W51",
+    "year": 2025,
+    "weekNumber": 51,
+    "weekStart": "2025-12-14",
+    "weekEnd": "2025-12-20",
+    "btcWeeklyChange": 0,
+    "btcWeeklyAvgPrice": 87014.29,
+    "ethWeeklyAvgPrice": 2962.67,
+    "fearGreedIndex": 35,
+    "mayerMultiple": 1.42,
+    "ahr999": 0.88,
+    "ethBtcRatio": 0.034048,
+    "btcFromATH": -10,
+    "btcFourYearIndex": 0.75,
+    "personalRating": 3,
+    "marketTrend": "bullish",
+    "updatedAt": "2026-02-01T14:40:53.286Z",
+    "rawData": {
+      "btc": {
+        "average": 87014.29,
+        "prices": [
+          88230.77409367911,
+          86413.9190195637,
+          87821.88919109134,
+          86064.94716216,
+          85450.3312009302,
+          88103.86075721023
+        ],
+        "dates": [
+          "2025-12-14",
+          "2025-12-15",
+          "2025-12-16",
+          "2025-12-17",
+          "2025-12-18",
+          "2025-12-19"
+        ],
+        "dataPoints": 6
+      },
+      "eth": {
+        "average": 2962.67,
+        "prices": [
+          3065.4912355563642,
+          2964.488557692104,
+          2964.2627915054686,
+          2827.8041755024283,
+          2976.796869557769,
+          2977.162263207443
+        ],
+        "dates": [
+          "2025-12-14",
+          "2025-12-15",
+          "2025-12-16",
+          "2025-12-17",
+          "2025-12-19",
+          "2025-12-20"
+        ],
+        "dataPoints": 6
+      }
+    }
+  },
+  "2025-W52": {
+    "weekId": "2025-W52",
+    "year": 2025,
+    "weekNumber": 52,
+    "weekStart": "2025-12-21",
+    "weekEnd": "2025-12-27",
+    "btcWeeklyChange": 0,
+    "btcWeeklyAvgPrice": 87802.95,
+    "ethWeeklyAvgPrice": 2948.77,
+    "fearGreedIndex": 42,
+    "mayerMultiple": 1.45,
+    "ahr999": 0.92,
+    "ethBtcRatio": 0.033584,
+    "btcFromATH": -10,
+    "btcFourYearIndex": 0.78,
+    "personalRating": 3,
+    "marketTrend": "bullish",
+    "updatedAt": "2026-02-01T14:40:53.286Z",
+    "rawData": {
+      "btc": {
+        "average": 87802.95,
+        "prices": [
+          88577.42038358838,
+          88491.12020788102,
+          87406.43636737975,
+          87229.78066010943,
+          87305.95655961394,
+          87807.003210775
+        ],
+        "dates": [
+          "2025-12-21",
+          "2025-12-22",
+          "2025-12-23",
+          "2025-12-25",
+          "2025-12-26",
+          "2025-12-27"
+        ],
+        "dataPoints": 6
+      },
+      "eth": {
+        "average": 2948.77,
+        "prices": [
+          3001.6008377810244,
+          2965.193660040505,
+          2945.9878145019857,
+          2904.252344599994,
+          2926.695639112761,
+          2948.8621262576116
+        ],
+        "dates": [
+          "2025-12-21",
+          "2025-12-23",
+          "2025-12-24",
+          "2025-12-25",
+          "2025-12-26",
+          "2025-12-27"
+        ],
+        "dataPoints": 6
+      }
+    }
+  }
+}

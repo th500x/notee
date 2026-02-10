@@ -6,6 +6,7 @@
  */
 
 import { useState, useEffect } from 'react';
+import { loadSharedData } from '@/utils/dataLoader';
 
 /**
  * 加载生涯数据
@@ -20,13 +21,7 @@ export function useLifeStages() {
     async function loadLifeStages() {
       try {
         setLoading(true);
-        const response = await fetch('/data/shared/life-stages.json');
-        
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        
-        const data = await response.json();
+        const data = await loadSharedData('life-stages');
         setLifeStages(data.lifeStages || {});
         setError(null);
       } catch (err) {

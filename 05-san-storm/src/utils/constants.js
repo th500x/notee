@@ -150,6 +150,8 @@ export const DATA_PATHS = {
   POSITIONS: `${BASE_PATH}data/shared/positions.json`,
   TROOPS: `${BASE_PATH}data/shared/troops.json`,
   SKILLS: `${BASE_PATH}data/shared/skills.json`,
+  'LIFE-STAGES': `${BASE_PATH}data/shared/life-stages.json`,
+  BONDS: `${BASE_PATH}data/shared/bonds.json`,
   
   // 赛季数据（需要拼接赛季标识）
   FACTIONS: (season) => `${BASE_PATH}data/seasons/${season}/factions.json`,

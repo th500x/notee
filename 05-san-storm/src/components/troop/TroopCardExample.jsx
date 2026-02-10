@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import TroopCard from './TroopCard';
+import { loadSharedData } from '@/utils/dataLoader';
 
 /**
  * 部队卡牌示例页面
@@ -18,8 +19,7 @@ const TroopCardExample = () => {
 
   useEffect(() => {
     // 加载部队数据
-    fetch('/data/shared/troops.json')
-      .then(res => res.json())
+    loadSharedData('troops')
       .then(data => {
         setTroops(data.troops || []);
         setLoading(false);
