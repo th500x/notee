@@ -16,7 +16,7 @@
 | 01 | SEASON_SYSTEM.md | 赛季系统设计（S1-S9完整规划） | ✅ 完成 |
 | 02 | MILESTONES_S1.md | S1赛季开发里程碑和进度 | ✅ 完成 |
 
-### 开发规范（91-95）
+### 开发规范（91-99）
 
 | 编号 | 文档 | 说明 | 状态 |
 |------|------|------|------|
@@ -24,6 +24,9 @@
 | 92 | ID_NAMING_GUIDE.md | ID命名规范 | ✅ 完成 |
 | 93 | ART_GUIDE.md | 美术设计指南 | ✅ 完成 |
 | 94 | SERVER_GUIDE.md | 服务器开发指南 | ✅ 完成 |
+| 95 | CARD_SYSTEM_REUSABILITY.md | 卡牌系统复用性设计 | ✅ 完成 |
+| 96 | MAP_ART_STRATEGY.md | 地图美术策略 | ✅ 完成 |
+| 97 | DEPLOYMENT_STANDARDS.md | 部署标准与编码规范 | ✅ 完成 |
 
 ---
 
@@ -105,6 +108,20 @@
 
 ---
 
+### 97-DEPLOYMENT_STANDARDS.md
+**部署标准与编码规范**
+
+- Vite配置规范
+- React Router配置规范
+- 数据加载规范
+- 编码规范
+- 部署检查清单
+- 常见错误与解决方案
+
+**适用人群**: 前端开发、运维
+
+---
+
 ## 📚 使用建议
 
 ### 新成员入职
@@ -117,6 +134,7 @@
 - 创建数据时参考 **92-ID_NAMING_GUIDE.md**
 - 设计UI时参考 **93-ART_GUIDE.md**
 - 开发API时参考 **94-SERVER_GUIDE.md**
+- 部署项目时参考 **97-DEPLOYMENT_STANDARDS.md**
 
 ### 规划讨论
 - 参考 **01-SEASON_SYSTEM.md** 规划未来内容
