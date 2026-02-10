@@ -362,23 +362,49 @@
                 minute: '2-digit'
             });
             
-            // 处理IP显示
-            let maskedIP = message.ip;
+            // 处理IP和位置显示
+            let displayText = '';
             
             // 处理本地IP
             if (message.ip === '::1' || message.ip === '127.0.0.1' || message.ip === 'localhost') {
-                maskedIP = '本地访问';
+                displayText = '本地访问';
             } 
-            // 处理IPv4
-            else if (message.ip.includes('.')) {
-                maskedIP = message.ip.split('.').map((part, index) => 
-                    index < 2 ? part : '***'
-                ).join('.');
+            // 有地理位置信息
+            else if (message.location && message.location.city) {
+                let maskedIP = '';
+                
+                // 处理IPv4
+                if (message.ip.includes('.')) {
+                    maskedIP = message.ip.split('.').map((part, index) => 
+                        index < 2 ? part : '***'
+                    ).join('.');
+                }
+                // 处理IPv6
+                else if (message.ip.includes(':')) {
+                    const parts = message.ip.split(':');
+                    maskedIP = parts.slice(0, 2).join(':') + ':***:***';
+                }
+                
+                // 组合显示：IP + 城市
+                if (message.location.city === '本地') {
+                    displayText = '本地访问';
+                } else {
+                    displayText = `${maskedIP} ${message.location.city}的网友`;
+                }
             }
-            // 处理IPv6
-            else if (message.ip.includes(':')) {
-                const parts = message.ip.split(':');
-                maskedIP = parts.slice(0, 2).join(':') + ':***:***';
+            // 没有地理位置信息，只显示IP
+            else {
+                // 处理IPv4
+                if (message.ip.includes('.')) {
+                    displayText = message.ip.split('.').map((part, index) => 
+                        index < 2 ? part : '***'
+                    ).join('.');
+                }
+                // 处理IPv6
+                else if (message.ip.includes(':')) {
+                    const parts = message.ip.split(':');
+                    displayText = parts.slice(0, 2).join(':') + ':***:***';
+                }
             }
             
             return `
@@ -391,7 +417,7 @@
                     </div>
                     <p class="text-gray-800 mb-2">${escapeHtml(message.content)}</p>
                     <div class="text-xs text-gray-400">
-                        来自 ${maskedIP}
+                        来自 ${displayText}
                     </div>
                 </div>
             `;

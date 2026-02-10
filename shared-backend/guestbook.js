@@ -8,6 +8,7 @@
 const express = require('express');
 const fs = require('fs').promises;
 const path = require('path');
+const https = require('https');
 const router = express.Router();
 
 // 数据文件路径
@@ -27,6 +28,49 @@ const MODULES = [
   { id: '05-san-storm', name: '真三風雲' },
   { id: 'general', name: '綜合留言' }
 ];
+
+/**
+ * 查询IP地理位置
+ * 使用免费的ip-api.com服务
+ */
+async function getIPLocation(ip) {
+  // 本地IP直接返回
+  if (ip === '::1' || ip === '127.0.0.1' || ip === 'localhost' || ip.startsWith('192.168.') || ip.startsWith('10.')) {
+    return { city: '本地', country: '本地' };
+  }
+  
+  return new Promise((resolve) => {
+    const url = `http://ip-api.com/json/${ip}?lang=zh-CN&fields=status,country,city`;
+    
+    https.get(url, (res) => {
+      let data = '';
+      
+      res.on('data', (chunk) => {
+        data += chunk;
+      });
+      
+      res.on('end', () => {
+        try {
+          const result = JSON.parse(data);
+          if (result.status === 'success') {
+            resolve({
+              country: result.country || '未知',
+              city: result.city || '未知'
+            });
+          } else {
+            resolve({ city: '未知', country: '未知' });
+          }
+        } catch (error) {
+          console.error('解析IP位置失败:', error);
+          resolve({ city: '未知', country: '未知' });
+        }
+      });
+    }).on('error', (error) => {
+      console.error('查询IP位置失败:', error);
+      resolve({ city: '未知', country: '未知' });
+    });
+  });
+}
 
 /**
  * 初始化数据文件
@@ -175,12 +219,16 @@ router.post('/messages', async (req, res) => {
     // 获取IP
     const ip = getClientIP(req);
     
+    // 查询IP地理位置
+    const location = await getIPLocation(ip);
+    
     // 创建留言对象
     const message = {
       id: Date.now().toString(),
       module,
       content: content.trim(),
       ip,
+      location,  // 添加地理位置信息
       timestamp: new Date().toISOString(),
     };
     
