@@ -21,6 +21,8 @@ import { LifeStageExample } from '@/components/character/LifeStageExample';
 import TroopCardExample from '@/components/troop/TroopCardExample';
 
 function App() {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
   return (
     <Router basename="/05-san-storm">
       <div className="min-h-screen bg-gray-50">
@@ -28,57 +30,136 @@ function App() {
         <nav className="bg-white shadow-md">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex justify-between h-16">
+              {/* Logo */}
               <div className="flex items-center">
-                <h1 className="text-2xl font-bold text-gray-900">
-                  真三风云 <span className="text-sm text-gray-500">San Storm</span>
+                <h1 className="text-xl sm:text-2xl font-bold text-gray-900">
+                  真三风云 <span className="text-xs sm:text-sm text-gray-500">San Storm</span>
                 </h1>
               </div>
-              <div className="flex items-center space-x-4">
+
+              {/* 桌面端导航 */}
+              <div className="hidden lg:flex items-center space-x-4">
                 <Link 
                   to="/" 
-                  className="text-gray-700 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
+                  className="text-gray-700 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium whitespace-nowrap"
                 >
                   首页
                 </Link>
                 <Link 
                   to="/servers" 
-                  className="text-gray-700 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
+                  className="text-gray-700 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium whitespace-nowrap"
                 >
                   服务器选择
                 </Link>
                 <Link 
                   to="/factions" 
-                  className="text-gray-700 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
+                  className="text-gray-700 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium whitespace-nowrap"
                 >
                   势力系统
                 </Link>
                 <Link 
                   to="/positions" 
-                  className="text-gray-700 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
+                  className="text-gray-700 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium whitespace-nowrap"
                 >
                   官职设定
                 </Link>
                 <Link 
                   to="/characters" 
-                  className="text-gray-700 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
+                  className="text-gray-700 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium whitespace-nowrap"
                 >
                   角色系统
                 </Link>
                 <Link 
                   to="/life-stages" 
-                  className="text-gray-700 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
+                  className="text-gray-700 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium whitespace-nowrap"
                 >
                   生涯设定
                 </Link>
                 <Link 
                   to="/troop-cards" 
-                  className="text-gray-700 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
+                  className="text-gray-700 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium whitespace-nowrap"
+                >
+                  部队系统
+                </Link>
+              </div>
+
+              {/* 移动端菜单按钮 */}
+              <div className="flex items-center lg:hidden">
+                <button
+                  onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                  className="inline-flex items-center justify-center p-2 rounded-md text-gray-700 hover:text-gray-900 hover:bg-gray-100 focus:outline-none"
+                >
+                  <span className="sr-only">打开菜单</span>
+                  {mobileMenuOpen ? (
+                    <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  ) : (
+                    <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                    </svg>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* 移动端菜单 */}
+          {mobileMenuOpen && (
+            <div className="lg:hidden border-t border-gray-200">
+              <div className="px-2 pt-2 pb-3 space-y-1">
+                <Link 
+                  to="/" 
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="block text-gray-700 hover:text-gray-900 hover:bg-gray-50 px-3 py-2 rounded-md text-base font-medium"
+                >
+                  首页
+                </Link>
+                <Link 
+                  to="/servers" 
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="block text-gray-700 hover:text-gray-900 hover:bg-gray-50 px-3 py-2 rounded-md text-base font-medium"
+                >
+                  服务器选择
+                </Link>
+                <Link 
+                  to="/factions" 
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="block text-gray-700 hover:text-gray-900 hover:bg-gray-50 px-3 py-2 rounded-md text-base font-medium"
+                >
+                  势力系统
+                </Link>
+                <Link 
+                  to="/positions" 
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="block text-gray-700 hover:text-gray-900 hover:bg-gray-50 px-3 py-2 rounded-md text-base font-medium"
+                >
+                  官职设定
+                </Link>
+                <Link 
+                  to="/characters" 
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="block text-gray-700 hover:text-gray-900 hover:bg-gray-50 px-3 py-2 rounded-md text-base font-medium"
+                >
+                  角色系统
+                </Link>
+                <Link 
+                  to="/life-stages" 
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="block text-gray-700 hover:text-gray-900 hover:bg-gray-50 px-3 py-2 rounded-md text-base font-medium"
+                >
+                  生涯设定
+                </Link>
+                <Link 
+                  to="/troop-cards" 
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="block text-gray-700 hover:text-gray-900 hover:bg-gray-50 px-3 py-2 rounded-md text-base font-medium"
                 >
                   部队系统
                 </Link>
               </div>
             </div>
-          </div>
+          )}
         </nav>
 
         {/* 主内容区 */}
