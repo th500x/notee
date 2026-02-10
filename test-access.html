@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>访问测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        .test-item {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <h1>项目访问测试</h1>
+    
+    <div class="test-item">
+        <h3>测试1: 直接访问HTML文件</h3>
+        <button onclick="testUrl('http://47.113.185.170/02-tale-historical/index.html')">
+            测试02项目HTML
+        </button>
+        <button onclick="testUrl('http://47.113.185.170/05-san-storm/index.html')">
+            测试05项目HTML
+        </button>
+        <div id="result1"></div>
+    </div>
+
+    <div class="test-item">
+        <h3>测试2: 访问项目根路径</h3>
+        <button onclick="window.open('http://47.113.185.170/02-tale-historical/', '_blank')">
+            打开02项目
+        </button>
+        <button onclick="window.open('http://47.113.185.170/05-san-storm/', '_blank')">
+            打开05项目
+        </button>
+    </div>
+
+    <div class="test-item">
+        <h3>测试3: 检查资源文件</h3>
+        <button onclick="checkAssets()">检查资源文件</button>
+        <div id="result3"></div>
+    </div>
+
+    <div class="test-item">
+        <h3>当前浏览器信息</h3>
+        <p>User Agent: <code id="ua"></code></p>
+        <p>当前URL: <code id="currentUrl"></code></p>
+    </div>
+
+    <script>
+        document.getElementById('ua').textContent = navigator.userAgent;
+        document.getElementById('currentUrl').textContent = window.location.href;
+
+        function testUrl(url) {
+            fetch(url)
+                .then(response => {
+                    const result = document.getElementById('result1');
+                    if (response.ok) {
+                        result.innerHTML = `<p class="success">✅ ${url} 可以访问 (状态码: ${response.status})</p>`;
+                    } else {
+                        result.innerHTML = `<p class="error">❌ ${url} 访问失败 (状态码: ${response.status})</p>`;
+                    }
+                })
+                .catch(error => {
+                    const result = document.getElementById('result1');
+                    result.innerHTML = `<p class="error">❌ ${url} 访问出错: ${error.message}</p>`;
+                });
+        }
+
+        function checkAssets() {
+            const assets = [
+                'http://47.113.185.170/02-tale-historical/assets/index-CMh59NOJ.js',
+                'http://47.113.185.170/02-tale-historical/assets/index-Buhhrqcf.css',
+                'http://47.113.185.170/05-san-storm/assets/index-BsEJOdNL.js',
+                'http://47.113.185.170/05-san-storm/assets/index-DqaB4pSS.css'
+            ];
+
+            const result = document.getElementById('result3');
+            result.innerHTML = '<p>检查中...</p>';
+
+            Promise.all(assets.map(url => 
+                fetch(url)
+                    .then(response => ({ url, status: response.status, ok: response.ok }))
+                    .catch(error => ({ url, status: 'error', ok: false, error: error.message }))
+            )).then(results => {
+                let html = '<ul>';
+                results.forEach(r => {
+                    const status = r.ok ? '✅' : '❌';
+                    const className = r.ok ? 'success' : 'error';
+                    html += `<li class="${className}">${status} ${r.url} - 状态: ${r.status}</li>`;
+                });
+                html += '</ul>';
+                result.innerHTML = html;
+            });
+        }
+    </script>
+</body>
+</html>
