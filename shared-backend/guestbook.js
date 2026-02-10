@@ -8,7 +8,7 @@
 const express = require('express');
 const fs = require('fs').promises;
 const path = require('path');
-const https = require('https');
+const http = require('http');
 const router = express.Router();
 
 // 数据文件路径
@@ -40,9 +40,10 @@ async function getIPLocation(ip) {
   }
   
   return new Promise((resolve) => {
+    const http = require('http');  // 使用http而不是https
     const url = `http://ip-api.com/json/${ip}?lang=zh-CN&fields=status,country,city`;
     
-    https.get(url, (res) => {
+    http.get(url, (res) => {
       let data = '';
       
       res.on('data', (chunk) => {
