@@ -19,7 +19,7 @@
 ### 系统文档
 
 #### 核心系统层（10-19）- 游戏逻辑
-- **[docs/system/10-core-system/11-FACTION_SYSTEM.md](./docs/system/10-core-system/11-FACTION_SYSTEM.md)** - 势力系统
+- **[docs/system/10-core-system/11-FACTION_SYSTEM_S1.md](./docs/system/10-core-system/11-FACTION_SYSTEM_S1.md)** - 势力系统（S1）
 - **[docs/system/10-core-system/12-AI_FACTION_SYSTEM.md](./docs/system/10-core-system/12-AI_FACTION_SYSTEM.md)** - AI势力系统
 - **[docs/system/10-core-system/13-AI_PLAYER_SYSTEM.md](./docs/system/10-core-system/13-AI_PLAYER_SYSTEM.md)** - AI玩家系统
 - **[docs/system/10-core-system/14-PLAYER_SYSTEM.md](./docs/system/10-core-system/14-PLAYER_SYSTEM.md)** - 玩家系统

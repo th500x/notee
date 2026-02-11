@@ -943,7 +943,7 @@ function onCityCapture(player, city) {
 
 ## 十、相关文档
 
-- [11-FACTION_SYSTEM.md](./11-FACTION_SYSTEM.md) - 势力系统
+- [11-FACTION_SYSTEM_S1.md](./11-FACTION_SYSTEM_S1.md) - 势力系统（S1）
 - [14-PLAYER_SYSTEM.md](./14-PLAYER_SYSTEM.md) - 玩家系统
 - [16-EVENT_SYSTEM.md](./16-EVENT_SYSTEM.md) - 事件系统
 - [17-QUEST_SYSTEM.md](./17-QUEST_SYSTEM.md) - 任务系统

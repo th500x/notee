@@ -2019,7 +2019,7 @@ export function CharacterCard({
 ### 11.3 其他文档
 
 - [01-SEASON_SYSTEM.md](../../base/01-SEASON_SYSTEM.md) - 赛季系统
-- [11-FACTION_SYSTEM.md](../10-core-system/11-FACTION_SYSTEM.md) - 势力系统
+- [11-FACTION_SYSTEM_S1.md](../10-core-system/11-FACTION_SYSTEM_S1.md) - 势力系统（S1）
 - [14-PLAYER_SYSTEM.md](../10-core-system/14-PLAYER_SYSTEM.md) - 玩家系统（包含官职系统）
 
 ---

@@ -1,6 +1,6 @@
 # 部署标准与编码规范
 
-**版本**: v1.0  
+**版本**: v1.1  
 **更新时间**: 2026-02-10  
 **适用范围**: 真三风云项目及所有子路径部署的React项目
 
@@ -8,11 +8,182 @@
 
 ## 📋 目录
 
-1. [配置规范](#配置规范)
-2. [编码规范](#编码规范)
-3. [数据加载规范](#数据加载规范)
-4. [路由配置规范](#路由配置规范)
+1. [文件编码规范](#文件编码规范)（⚠️ 重要！）
+2. [配置规范](#配置规范)
+3. [编码规范](#编码规范)
+4. [数据加载规范](#数据加载规范)
 5. [部署检查清单](#部署检查清单)
+
+---
+
+## ⚠️ 文件编码规范（重要！必读！）
+
+### 强制要求
+
+**所有文本文件必须使用UTF-8编码（无BOM）**
+
+#### 为什么重要？
+- ❌ 错误的编码会导致中文乱码
+- ❌ 乱码文件无法正常编辑和查看
+- ❌ 会影响git提交和团队协作
+- ❌ 修复乱码非常耗时且容易出错
+
+#### 适用文件类型
+以下文件类型必须严格遵守UTF-8编码：
+- ✅ Markdown文档（.md）
+- ✅ JavaScript/JSX文件（.js, .jsx）
+- ✅ JSON数据文件（.json）
+- ✅ CSV数据文件（.csv）
+- ✅ 配置文件（.config.js, .json）
+
+### 创建新文件的正确方式
+
+#### 方法1：使用Kiro AI的fsWrite工具（推荐）
+```javascript
+// fsWrite会自动使用UTF-8编码
+fsWrite({
+  path: "05-san-storm/docs/new-file.md",
+  text: "# 标题\n\n内容..."
+});
+```
+
+#### 方法2：使用VS Code
+- 右下角选择"UTF-8"
+- 确保没有BOM（Byte Order Mark）
+- 保存文件
+
+#### 方法3：使用PowerShell（Windows）
+```powershell
+# 正确方式：使用.NET方法（无BOM）
+$utf8NoBom = New-Object System.Text.UTF8Encoding $false
+[System.IO.File]::WriteAllText($path, $content, $utf8NoBom)
+
+# 或者明确指定UTF8
+$content | Set-Content -Path "file.md" -Encoding UTF8
+```
+
+### 修改现有文件的正确方式
+
+#### ❌ 错误方式（会导致乱码）
+```powershell
+# 不要这样做！
+Set-Content -Path "file.md" -Value $content  # 默认编码可能不是UTF-8
+Get-Content "file.md" | Set-Content "file.md"  # 可能改变编码
+```
+
+#### ✅ 正确方式
+```powershell
+# 方式1：明确指定UTF-8
+$content = Get-Content "file.md" -Raw -Encoding UTF8
+$content = $content -replace 'old', 'new'
+Set-Content -Path "file.md" -Value $content -Encoding UTF8
+
+# 方式2：使用.NET方法（推荐，无BOM）
+$content = Get-Content "file.md" -Raw -Encoding UTF8
+$content = $content -replace 'old', 'new'
+$utf8NoBom = New-Object System.Text.UTF8Encoding $false
+[System.IO.File]::WriteAllText((Resolve-Path "file.md"), $content, $utf8NoBom)
+```
+
+### 检测和修复乱码文件
+
+#### 如何识别乱码
+```bash
+# 正常文本
+玩家系统文档
+
+# 乱码文本（如果看到这样的字符，说明文件已乱码）
+鐜╁绯荤粺鏂囨。
+```
+
+#### 修复步骤
+
+**步骤1：从git恢复（最佳方案）**
+```bash
+git checkout HEAD -- path/to/file.md
+```
+
+**步骤2：如果git中也是乱码，删除并重新创建**
+```bash
+# 1. 删除乱码文件
+rm path/to/file.md
+
+# 2. 使用Kiro AI的fsWrite重新创建
+# 3. 确保内容正确且使用UTF-8编码
+```
+
+**步骤3：使用Python转换编码（备用方案）**
+```python
+# 尝试多种编码读取
+encodings = ['utf-8', 'gbk', 'gb2312', 'gb18030']
+for enc in encodings:
+    try:
+        with open(file, 'r', encoding=enc) as f:
+            content = f.read()
+        # 检查是否包含中文
+        if '系统' in content or '文档' in content:
+            # 写回UTF-8
+            with open(file, 'w', encoding='utf-8') as f:
+                f.write(content)
+            print(f"✅ 成功用 {enc} 读取并转换为UTF-8")
+            break
+    except:
+        continue
+```
+
+### Git提交前检查清单
+
+#### 必须检查
+- [ ] 文件在编辑器中显示正常（无乱码）
+- [ ] 中文字符显示正确
+- [ ] `git diff`显示正常
+- [ ] 文件大小合理（乱码文件通常会变大）
+
+#### Git配置（确保使用UTF-8）
+```bash
+git config --global core.quotepath false
+git config --global gui.encoding utf-8
+git config --global i18n.commit.encoding utf-8
+git config --global i18n.logoutputencoding utf-8
+```
+
+### 常见错误和解决方案
+
+| 错误现象 | 原因 | 解决方案 |
+|---------|------|---------|
+| 中文显示为乱码 | 编码不是UTF-8 | 从git恢复或重新创建 |
+| PowerShell显示乱码 | 终端编码问题 | 使用`chcp 65001`切换到UTF-8 |
+| git diff显示乱码 | git配置问题 | 配置git使用UTF-8 |
+| 文件无法读取 | 编码混乱 | 删除并重新创建 |
+| 保存后变乱码 | 编辑器编码设置错误 | 检查编辑器设置 |
+
+### VS Code配置（推荐）
+
+```json
+// settings.json
+{
+  "files.encoding": "utf8",
+  "files.autoGuessEncoding": false,
+  "files.eol": "\n"
+}
+```
+
+### 预防措施
+
+1. **始终使用UTF-8**
+   - 创建文件时明确指定UTF-8
+   - 修改文件时保持UTF-8编码
+   - 不要使用记事本等简单编辑器
+
+2. **定期检查**
+   - 每次提交前检查文件编码
+   - 发现乱码立即修复
+   - 不要提交乱码文件
+
+3. **团队协作**
+   - 统一使用支持UTF-8的编辑器
+   - 配置编辑器默认使用UTF-8
+   - 发现问题及时通知团队
 
 ---
 
@@ -49,12 +220,6 @@ export default defineConfig({
     assetsDir: 'assets',  // 统一资源目录名称
     sourcemap: false,     // 生产环境禁用sourcemap
   },
-  
-  // 开发服务器配置
-  server: {
-    port: 3000,
-    open: true,
-  },
 });
 ```
 
@@ -62,11 +227,8 @@ export default defineConfig({
 - ✅ `base` 必须以 `/` 开头和结尾
 - ✅ `assetsDir` 统一使用 `assets`
 - ✅ `outDir` 统一使用 `dist`
-- ❌ 不要使用相对路径作为base（如 `./`）
 
----
-
-### 2. 路由配置标准
+### 2. React Router配置
 
 **文件**: `src/App.jsx`
 
@@ -79,21 +241,13 @@ function App() {
     <Router basename="/05-san-storm">
       <Routes>
         <Route path="/" element={<HomePage />} />
-        <Route path="/servers" element={<ServersPage />} />
       </Routes>
     </Router>
   );
 }
 ```
 
-**关键规则**：
-- ✅ `basename` 必须与 `vite.config.js` 的 `base` 一致
-- ✅ 路由路径使用相对路径（如 `/servers`）
-- ❌ 不要在路由路径中包含basename（如 `/05-san-storm/servers`）
-
----
-
-### 3. 数据路径配置标准
+### 3. 数据路径配置
 
 **文件**: `src/utils/constants.js`
 
@@ -102,25 +256,10 @@ function App() {
 const BASE_PATH = import.meta.env.BASE_URL || '/';
 
 export const DATA_PATHS = {
-  // 共享数据
-  CHARACTERS: `${BASE_PATH}data/shared/characters.json`,
-  POSITIONS: `${BASE_PATH}data/shared/positions.json`,
   TROOPS: `${BASE_PATH}data/shared/troops.json`,
-  SKILLS: `${BASE_PATH}data/shared/skills.json`,
-  'LIFE-STAGES': `${BASE_PATH}data/shared/life-stages.json`,
-  BONDS: `${BASE_PATH}data/shared/bonds.json`,
-  
-  // 赛季数据（函数形式）
-  FACTIONS: (season) => `${BASE_PATH}data/seasons/${season}/factions.json`,
-  SERVERS: (season) => `${BASE_PATH}data/seasons/${season}/servers.json`,
-  EVENTS: (season) => `${BASE_PATH}data/seasons/${season}/events.json`,
+  CHARACTERS: `${BASE_PATH}data/shared/characters.json`,
 };
 ```
-
-**关键规则**：
-- ✅ 使用 `import.meta.env.BASE_URL` 获取base路径
-- ✅ 所有数据路径都通过 `DATA_PATHS` 统一管理
-- ❌ 不要使用硬编码的绝对路径（如 `/data/...`）
 
 ---
 
@@ -131,515 +270,86 @@ export const DATA_PATHS = {
 #### ✅ 正确方式：使用统一的dataLoader
 
 ```javascript
-// src/utils/dataLoader.js
-import { DATA_PATHS } from './constants.js';
-
-/**
- * 加载共享数据
- * @param {string} resource - 资源名称
- * @returns {Promise<Object>}
- */
-export async function loadSharedData(resource) {
-  const path = DATA_PATHS[resource.toUpperCase()];
-  const response = await fetch(path);
-  
-  if (!response.ok) {
-    throw new Error(`HTTP error! status: ${response.status}`);
-  }
-  
-  return response.json();
-}
-
-/**
- * 加载赛季数据
- * @param {string} season - 赛季标识
- * @param {string} resource - 资源名称
- * @returns {Promise<Object>}
- */
-export async function loadSeasonData(season, resource) {
-  const path = DATA_PATHS[resource.toUpperCase()](season);
-  const response = await fetch(path);
-  
-  if (!response.ok) {
-    throw new Error(`HTTP error! status: ${response.status}`);
-  }
-  
-  return response.json();
-}
-```
-
-#### 在组件中使用
-
-```javascript
 import { loadSharedData } from '@/utils/dataLoader';
 
-// ✅ 正确方式
+// 正确
 useEffect(() => {
   loadSharedData('troops')
     .then(data => setTroops(data.troops || []))
     .catch(err => setError(err.message));
 }, []);
+```
 
-// ❌ 错误方式：直接使用fetch
+#### ❌ 错误方式：直接使用fetch
+
+```javascript
+// 错误：硬编码路径
 useEffect(() => {
-  fetch('/data/shared/troops.json')  // ❌ 硬编码路径
+  fetch('/data/shared/troops.json')
     .then(res => res.json())
     .then(data => setTroops(data.troops));
 }, []);
 ```
 
-**关键规则**：
-- ✅ 所有数据加载必须使用 `dataLoader`
-- ✅ 统一错误处理
-- ✅ 统一路径管理
-- ❌ 不要直接使用 `fetch`
-- ❌ 不要硬编码数据路径
-
----
-
-### 2. 自定义Hook规范
-
-#### 标准Hook模板
-
-```javascript
-/**
- * 数据Hook模板
- * @param {string} param - 参数说明
- * @returns {Object} { data, loading, error, refetch }
- */
-export function useDataHook(param = 'default') {
-  const [data, setData] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-
-  const fetchData = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      
-      // ✅ 使用dataLoader
-      const result = await loadSharedData('resource');
-      setData(result.data || []);
-    } catch (err) {
-      console.error('[useDataHook] 加载失败:', err);
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchData();
-  }, [param]);
-
-  return {
-    data,
-    loading,
-    error,
-    refetch: fetchData,
-  };
-}
-```
-
-**关键规则**：
-- ✅ 返回 `{ data, loading, error, refetch }` 标准结构
-- ✅ 使用 `dataLoader` 加载数据
-- ✅ 统一错误处理
-- ✅ 提供 `refetch` 方法
-- ✅ 添加JSDoc注释
-
----
-
-### 3. 组件规范
-
-#### 组件文件结构
+### 2. 组件规范
 
 ```javascript
 /**
  * 组件名称
- * 
- * @description 组件功能描述
- * @module components/category/ComponentName
- */
-
-import React from 'react';
-import PropTypes from 'prop-types';
-
-/**
- * 组件主函数
  * @param {Object} props - 组件属性
- * @param {string} props.name - 属性说明
  */
 export function ComponentName({ name }) {
-  return (
-    <div>
-      {/* 组件内容 */}
-    </div>
-  );
+  return <div>{name}</div>;
 }
 
 // ✅ 必须：PropTypes验证
 ComponentName.propTypes = {
   name: PropTypes.string.isRequired,
 };
-
-// ✅ 可选：默认属性
-ComponentName.defaultProps = {
-  name: 'Default',
-};
 ```
-
-**关键规则**：
-- ✅ 添加JSDoc注释
-- ✅ 使用PropTypes验证
-- ✅ 导出命名函数（不使用default export）
-- ✅ 组件名使用PascalCase
-
----
-
-### 4. 路径引用规范
-
-#### 使用路径别名
-
-```javascript
-// ✅ 正确：使用别名
-import { loadSharedData } from '@/utils/dataLoader';
-import { CharacterCard } from '@/components/character/CharacterCard';
-import { useCharacters } from '@/hooks/useCharacters';
-
-// ❌ 错误：使用相对路径
-import { loadSharedData } from '../../utils/dataLoader';
-import { CharacterCard } from '../character/CharacterCard';
-```
-
-**关键规则**：
-- ✅ 使用 `@/` 别名引用src目录
-- ✅ 使用 `@components/` 引用组件
-- ✅ 使用 `@hooks/` 引用hooks
-- ✅ 使用 `@utils/` 引用工具
-- ❌ 避免使用 `../../` 相对路径
-
----
-
-### 5. 资源引用规范
-
-#### 图片资源
-
-```javascript
-// ✅ 正确：使用import导入
-import logoImage from '@/assets/logo.png';
-
-function Component() {
-  return <img src={logoImage} alt="Logo" />;
-}
-
-// ❌ 错误：硬编码路径
-function Component() {
-  return <img src="/assets/logo.png" alt="Logo" />;
-}
-```
-
-#### public目录资源
-
-```javascript
-// ✅ 正确：使用BASE_URL
-const BASE_PATH = import.meta.env.BASE_URL;
-
-function Component() {
-  return <img src={`${BASE_PATH}data/image.png`} alt="Image" />;
-}
-
-// ❌ 错误：硬编码路径
-function Component() {
-  return <img src="/data/image.png" alt="Image" />;
-}
-```
-
-**关键规则**：
-- ✅ src/assets 中的资源使用 `import` 导入
-- ✅ public 中的资源使用 `BASE_URL` 拼接
-- ❌ 不要使用硬编码的绝对路径
 
 ---
 
 ## 数据加载规范
 
-### 1. 统一的数据加载流程
+### 统一的数据加载流程
 
 ```
 用户请求 → Hook → dataLoader → constants.DATA_PATHS → fetch → 返回数据
 ```
 
-### 2. 数据加载层次
+### 关键规则
 
-```
-┌─────────────────────────────────────┐
-│         组件层 (Component)           │
-│  - 使用Hook获取数据                  │
-│  - 处理UI渲染                        │
-└─────────────────────────────────────┘
-              ↓
-┌─────────────────────────────────────┐
-│         Hook层 (useXxx)              │
-│  - 管理状态 (data, loading, error)   │
-│  - 调用dataLoader                    │
-│  - 提供refetch方法                   │
-└─────────────────────────────────────┘
-              ↓
-┌─────────────────────────────────────┐
-│      数据加载层 (dataLoader)         │
-│  - 统一的fetch封装                   │
-│  - 错误处理                          │
-│  - 缓存管理（可选）                  │
-└─────────────────────────────────────┘
-              ↓
-┌─────────────────────────────────────┐
-│      配置层 (constants)              │
-│  - DATA_PATHS路径配置                │
-│  - 使用BASE_URL动态构建              │
-└─────────────────────────────────────┘
-```
-
-### 3. 数据加载示例
-
-#### 完整示例：加载部队数据
-
-```javascript
-// 1. constants.js - 配置层
-const BASE_PATH = import.meta.env.BASE_URL || '/';
-export const DATA_PATHS = {
-  TROOPS: `${BASE_PATH}data/shared/troops.json`,
-};
-
-// 2. dataLoader.js - 数据加载层
-export async function loadSharedData(resource) {
-  const path = DATA_PATHS[resource.toUpperCase()];
-  const response = await fetch(path);
-  if (!response.ok) {
-    throw new Error(`HTTP error! status: ${response.status}`);
-  }
-  return response.json();
-}
-
-// 3. useTroops.js - Hook层
-export function useTroops() {
-  const [troops, setTroops] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-
-  const fetchTroops = async () => {
-    try {
-      setLoading(true);
-      const data = await loadSharedData('troops');
-      setTroops(data.troops || []);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchTroops();
-  }, []);
-
-  return { troops, loading, error, refetch: fetchTroops };
-}
-
-// 4. TroopList.jsx - 组件层
-export function TroopList() {
-  const { troops, loading, error } = useTroops();
-
-  if (loading) return <div>加载中...</div>;
-  if (error) return <div>错误: {error}</div>;
-
-  return (
-    <div>
-      {troops.map(troop => (
-        <TroopCard key={troop.id} troop={troop} />
-      ))}
-    </div>
-  );
-}
-```
-
----
-
-## 路由配置规范
-
-### 1. 路由结构
-
-```javascript
-<Router basename="/05-san-storm">
-  <Routes>
-    {/* 一级路由 */}
-    <Route path="/" element={<HomePage />} />
-    <Route path="/servers" element={<ServersPage />} />
-    
-    {/* 二级路由 */}
-    <Route path="/characters" element={<CharactersLayout />}>
-      <Route index element={<CharacterList />} />
-      <Route path=":id" element={<CharacterDetail />} />
-    </Route>
-  </Routes>
-</Router>
-```
-
-### 2. 导航链接
-
-```javascript
-import { Link } from 'react-router-dom';
-
-// ✅ 正确：使用相对路径
-<Link to="/">首页</Link>
-<Link to="/servers">服务器</Link>
-<Link to="/characters/char_san_1101">刘备</Link>
-
-// ❌ 错误：包含basename
-<Link to="/05-san-storm/">首页</Link>
-<Link to="/05-san-storm/servers">服务器</Link>
-```
-
-### 3. 编程式导航
-
-```javascript
-import { useNavigate } from 'react-router-dom';
-
-function Component() {
-  const navigate = useNavigate();
-
-  const handleClick = () => {
-    // ✅ 正确：使用相对路径
-    navigate('/servers');
-    
-    // ❌ 错误：包含basename
-    navigate('/05-san-storm/servers');
-  };
-}
-```
+1. ✅ 所有数据加载必须使用 `dataLoader`
+2. ✅ 统一错误处理
+3. ✅ 统一路径管理
+4. ❌ 不要直接使用 `fetch`
+5. ❌ 不要硬编码数据路径
 
 ---
 
 ## 部署检查清单
 
-### 本地开发检查
+### 本地检查
+- [ ] vite.config.js配置了base路径
+- [ ] Router配置了basename
+- [ ] 所有数据加载使用dataLoader
+- [ ] 所有文件使用UTF-8编码（⚠️ 重要）
+- [ ] 本地构建成功：`npm run build`
 
-- [ ] `vite.config.js` 配置了正确的 `base` 路径
-- [ ] `vite.config.js` 配置了 `build.assetsDir: 'assets'`
-- [ ] `Router` 配置了正确的 `basename`
-- [ ] 所有数据加载使用 `dataLoader`
-- [ ] 没有硬编码的绝对路径
-- [ ] 使用路径别名（`@/`）而不是相对路径
-- [ ] 所有组件有 `PropTypes` 验证
-- [ ] 所有函数有 JSDoc 注释
-- [ ] `public` 目录在 git 版本控制中
+### 服务器检查
+- [ ] 代码已同步：`git pull`
+- [ ] 构建成功：`npm run build`
+- [ ] dist目录完整
+- [ ] nginx配置正确
+- [ ] 所有文件编码正确（无乱码）
 
-### 构建前检查
-
-- [ ] 运行 `npm run build` 成功
-- [ ] 检查 `dist/` 目录结构完整
-- [ ] 检查 `dist/assets/` 目录存在
-- [ ] 检查 `dist/data/` 目录存在（如果需要）
-- [ ] 检查 `dist/index.html` 中的资源路径正确
-
-### 部署后检查
-
-- [ ] 主页能正常访问
-- [ ] 所有导航链接正常工作
-- [ ] 数据加载正常，无404错误
-- [ ] 图片资源加载正常
+### 功能测试
+- [ ] 主页能访问
+- [ ] 导航链接正常
+- [ ] 数据加载正常
 - [ ] 浏览器控制台无错误
-- [ ] Network 标签无404错误
-
----
-
-## 常见错误与解决方案
-
-### 错误1: 数据加载404
-
-**症状**: 
-```
-Failed to load resource: the server responded with a status of 404
-```
-
-**原因**: 使用了硬编码的绝对路径
-
-**解决方案**:
-```javascript
-// ❌ 错误
-fetch('/data/shared/troops.json')
-
-// ✅ 正确
-import { loadSharedData } from '@/utils/dataLoader';
-loadSharedData('troops');
-```
-
----
-
-### 错误2: 路由跳转到根路径
-
-**症状**: 点击导航链接跳转到网站根路径
-
-**原因**: Router 没有配置 basename
-
-**解决方案**:
-```javascript
-// ❌ 错误
-<Router>
-
-// ✅ 正确
-<Router basename="/05-san-storm">
-```
-
----
-
-### 错误3: 静态资源404
-
-**症状**: JS/CSS文件返回404
-
-**原因**: Nginx 全局正则规则覆盖
-
-**解决方案**: 删除 nginx 配置中的全局静态资源规则
-
----
-
-### 错误4: public目录未部署
-
-**症状**: 构建后 dist 目录缺少 data 文件夹
-
-**原因**: `.gitignore` 忽略了 public 目录
-
-**解决方案**:
-```gitignore
-# .gitignore
-public
-!05-san-storm/public
-```
-
----
-
-## 代码审查检查点
-
-### 配置文件审查
-
-- [ ] `vite.config.js` 的 `base` 配置正确
-- [ ] `Router` 的 `basename` 与 `base` 一致
-- [ ] `constants.js` 使用 `BASE_URL` 构建路径
-
-### 代码质量审查
-
-- [ ] 所有数据加载使用 `dataLoader`
-- [ ] 没有硬编码的路径
-- [ ] 使用路径别名
-- [ ] 组件有 `PropTypes`
-- [ ] 函数有 JSDoc 注释
-
-### 性能审查
-
-- [ ] 使用 `useMemo` 优化计算
-- [ ] 使用 `useCallback` 优化回调
-- [ ] 避免不必要的重渲染
-- [ ] 图片使用适当的格式和大小
+- [ ] 中文显示正常（无乱码）
 
 ---
 
@@ -647,10 +357,10 @@ public
 
 ### 核心原则
 
-1. **配置一致性**: vite base、Router basename、数据路径保持一致
-2. **统一工具**: 使用 dataLoader 统一处理数据加载
-3. **避免硬编码**: 使用 BASE_URL 动态构建路径
-4. **代码规范**: 遵循命名规范、添加注释、使用 PropTypes
+1. **文件编码**：始终使用UTF-8（无BOM）⚠️
+2. **配置一致性**：vite base、Router basename、数据路径保持一致
+3. **统一工具**：使用 dataLoader 统一处理数据加载
+4. **避免硬编码**：使用 BASE_URL 动态构建路径
 
 ### 最佳实践
 
@@ -659,19 +369,21 @@ public
 3. ✅ 添加完整的类型检查
 4. ✅ 编写清晰的注释
 5. ✅ 遵循组件规范
+6. ✅ 确保文件编码正确
 
 ### 避免的错误
 
-1. ❌ 硬编码绝对路径
-2. ❌ 直接使用 fetch
-3. ❌ 混用不同的数据加载方法
-4. ❌ 忽略 PropTypes 验证
-5. ❌ 缺少错误处理
+1. ❌ 使用错误的文件编码（导致乱码）
+2. ❌ 硬编码绝对路径
+3. ❌ 直接使用 fetch
+4. ❌ 混用不同的数据加载方法
+5. ❌ 忽略 PropTypes 验证
+6. ❌ 缺少错误处理
 
 ---
 
-**文档版本**: v1.0  
-**创建时间**: 2026-02-10  
+**文档版本**: v1.1  
+**创建日期**: 2026-02-10  
+**最后更新**: 2026-02-10  
 **维护者**: Kiro AI Assistant  
 **适用项目**: 真三风云 (05-san-storm)
-

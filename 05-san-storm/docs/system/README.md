@@ -187,7 +187,7 @@
 ### 按功能查找
 
 **势力相关**:
-- 11-FACTION_SYSTEM.md - 势力基础系统
+- 11-FACTION_SYSTEM_S1.md - 势力基础系统（S1）
 - 12-AI_FACTION_SYSTEM.md - AI势力决策
 
 **玩家相关**:
