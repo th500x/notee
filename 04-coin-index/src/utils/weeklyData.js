@@ -155,8 +155,8 @@ const mockWeeklyData = {
 // 加载指定年份的所有周数据
 export const loadWeeklyData = async (year) => {
   try {
-    // 模拟API调用延迟
-    await new Promise(resolve => setTimeout(resolve, 100))
+    // 确保数据已加载
+    await ensureDataLoaded()
     
     // 优先使用真实数据
     const dataSource = Object.keys(realWeeklyData).length > 0 ? realWeeklyData : mockWeeklyData
@@ -180,13 +180,13 @@ export const loadWeeklyData = async (year) => {
 // 加载所有年份的数据（用于模拟演练和年终总结）
 export const loadAllWeeklyData = async () => {
   try {
-    // 模拟API调用延迟
-    await new Promise(resolve => setTimeout(resolve, 100))
+    // 确保数据已加载
+    await ensureDataLoaded()
     
     // 优先使用真实数据
     const dataSource = Object.keys(realWeeklyData).length > 0 ? realWeeklyData : mockWeeklyData
     
-    console.log(`📊 加载所有数据:`, Object.keys(dataSource).length, '周')
+    console.log(`📊 加载所有数据:`, Object.keys(dataSource).length, '周', '数据源:', Object.keys(realWeeklyData).length > 0 ? '真实数据' : '模拟数据')
     return dataSource
   } catch (error) {
     console.error('加载所有周数据失败:', error)
@@ -197,8 +197,8 @@ export const loadAllWeeklyData = async () => {
 // 获取指定周的数据 - 优先使用真实数据
 export const getWeeklyData = async (weekId) => {
   try {
-    // 模拟API调用延迟
-    await new Promise(resolve => setTimeout(resolve, 50))
+    // 确保数据已加载
+    await ensureDataLoaded()
     
     // 优先返回真实数据
     if (realWeeklyData[weekId]) {
