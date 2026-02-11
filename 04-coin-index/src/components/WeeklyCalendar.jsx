@@ -17,8 +17,8 @@ function WeeklyCalendar({
   // 获取当前周ID - 修复日期比较逻辑
   useEffect(() => {
     const getCurrentWeekId = () => {
-      // 硬编码当前日期为2026-02-01进行测试
-      const testDate = new Date(2026, 1, 1) // 2026年2月1日 (月份从0开始，所以1代表2月)
+      // 硬编码当前日期为2026-02-11（今天）
+      const testDate = new Date(2026, 1, 11) // 2026年2月11日 (月份从0开始，所以1代表2月)
       
       // 检查2025年W53 (跨年周)
       const week2025W53Start = new Date(2025, 11, 29) // 12月29日

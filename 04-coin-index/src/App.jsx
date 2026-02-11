@@ -18,8 +18,8 @@ function App() {
   // 获取当前周ID并设置为默认选中周
   useEffect(() => {
     const getCurrentWeekId = () => {
-      // 硬编码当前日期为2026-02-01
-      const testDate = new Date(2026, 1, 1) // 2026年2月1日
+      // 硬编码当前日期为2026-02-11（今天）
+      const testDate = new Date(2026, 1, 11) // 2026年2月11日
       
       // 检查2025年W53 (跨年周)
       const week2025W53Start = new Date(2025, 11, 29) // 12月29日
@@ -35,6 +35,8 @@ function App() {
         { start: new Date(2026, 0, 12), end: new Date(2026, 0, 18), id: '2026-W02' },
         { start: new Date(2026, 0, 19), end: new Date(2026, 0, 25), id: '2026-W03' },
         { start: new Date(2026, 0, 26), end: new Date(2026, 1, 1), id: '2026-W04' },
+        { start: new Date(2026, 1, 2), end: new Date(2026, 1, 8), id: '2026-W05' },
+        { start: new Date(2026, 1, 9), end: new Date(2026, 1, 15), id: '2026-W06' },
       ]
       
       for (const week of specialWeeks) {
@@ -50,6 +52,7 @@ function App() {
     
     if (!selectedWeek) {
       const currentWeekId = getCurrentWeekId()
+      console.log('📍 App.jsx - 设置初始选中周:', currentWeekId)
       setSelectedWeek(currentWeekId)
     }
   }, [selectedWeek])
