@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import './App.css'
 import WeeklyCalendar from './components/WeeklyCalendar'
 import DataDisplay from './components/DataDisplay'
+import SimulationTable from './components/SimulationTable'
+import YearSummary from './components/YearSummary'
 import { getWeeklyData, loadWeeklyData } from './utils/weeklyData'
 
 function App() {
@@ -10,6 +12,9 @@ function App() {
   const [weeklyData, setWeeklyData] = useState({}) // 存储所有周数据
   const [weekIndicators, setWeekIndicators] = useState(new Set()) // 存储有数据的周
   const [selectedWeekData, setSelectedWeekData] = useState({}) // 存储当前选中周的数据
+  const [showSimulation, setShowSimulation] = useState(false) // 控制模拟演练显示
+  const [showSummary, setShowSummary] = useState(false) // 控制年终总结显示
+  const [simulationData, setSimulationData] = useState([]) // 存储模拟演练数据
 
   // 设置年份范围：只支持2025和2026年
   const minYear = 2025
@@ -155,6 +160,21 @@ function App() {
               </a>
               <p className="text-gray-600 mt-2">点击周数查看当周的区块链市场指标</p>
             </div>
+            {/* 功能按钮 */}
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowSimulation(true)}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                📊 模拟演练
+              </button>
+              <button
+                onClick={() => setShowSummary(true)}
+                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+              >
+                📈 年终总结
+              </button>
+            </div>
           </div>
         </div>
       </header>
@@ -187,6 +207,34 @@ function App() {
           </div>
         </div>
       </main>
+
+      {/* 模拟演练模态框 */}
+      {showSimulation && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-6xl w-full max-h-[90vh] overflow-auto">
+            <SimulationTable
+              weeklyData={weeklyData}
+              selectedYear={currentYear}
+              onClose={() => setShowSimulation(false)}
+              onDataGenerated={(data) => setSimulationData(data)}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* 年终总结模态框 */}
+      {showSummary && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-6xl w-full max-h-[90vh] overflow-auto">
+            <YearSummary
+              weeklyData={weeklyData}
+              selectedYear={currentYear}
+              simulationData={simulationData}
+              onClose={() => setShowSummary(false)}
+            />
+          </div>
+        </div>
+      )}
     </div>
   )
 }
