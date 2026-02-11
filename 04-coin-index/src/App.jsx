@@ -4,12 +4,13 @@ import WeeklyCalendar from './components/WeeklyCalendar'
 import DataDisplay from './components/DataDisplay'
 import SimulationTable from './components/SimulationTable'
 import YearSummary from './components/YearSummary'
-import { getWeeklyData, loadWeeklyData } from './utils/weeklyData'
+import { getWeeklyData, loadWeeklyData, loadAllWeeklyData } from './utils/weeklyData'
 
 function App() {
   const [selectedWeek, setSelectedWeek] = useState(null) // 初始为null，等待当前周计算
   const [currentYear, setCurrentYear] = useState(2026)
-  const [weeklyData, setWeeklyData] = useState({}) // 存储所有周数据
+  const [weeklyData, setWeeklyData] = useState({}) // 存储当前年份的周数据
+  const [allWeeklyData, setAllWeeklyData] = useState({}) // 存储所有年份的周数据（用于模拟演练和年终总结）
   const [weekIndicators, setWeekIndicators] = useState(new Set()) // 存储有数据的周
   const [selectedWeekData, setSelectedWeekData] = useState({}) // 存储当前选中周的数据
   const [showSimulation, setShowSimulation] = useState(false) // 控制模拟演练显示
@@ -76,6 +77,22 @@ function App() {
     
     loadData()
   }, [currentYear])
+
+  // 加载所有年份的数据（用于模拟演练和年终总结）
+  useEffect(() => {
+    const loadAllData = async () => {
+      try {
+        const data = await loadAllWeeklyData()
+        setAllWeeklyData(data)
+        console.log('📊 已加载所有年份数据:', Object.keys(data).length, '周')
+      } catch (error) {
+        console.error('加载所有数据失败:', error)
+        setAllWeeklyData({})
+      }
+    }
+    
+    loadAllData()
+  }, []) // 只在组件挂载时加载一次
 
   // 当选中周改变时，加载对应的数据
   useEffect(() => {
@@ -213,7 +230,7 @@ function App() {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg max-w-6xl w-full max-h-[90vh] overflow-auto">
             <SimulationTable
-              weeklyData={weeklyData}
+              weeklyData={allWeeklyData}
               selectedYear={currentYear}
               onClose={() => setShowSimulation(false)}
               onDataGenerated={(data) => setSimulationData(data)}
@@ -227,7 +244,7 @@ function App() {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg max-w-6xl w-full max-h-[90vh] overflow-auto">
             <YearSummary
-              weeklyData={weeklyData}
+              weeklyData={allWeeklyData}
               selectedYear={currentYear}
               simulationData={simulationData}
               onClose={() => setShowSummary(false)}

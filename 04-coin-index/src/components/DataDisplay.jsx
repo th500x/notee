@@ -184,20 +184,55 @@ function DataDisplay({ selectedWeek, weeklyData }) {
           </div>
         </div>
 
-        {/* 个人评级 */}
+        {/* 美联储利率 */}
+        <div className="bg-gray-50 rounded-lg p-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-medium text-gray-700">美联储利率</h3>
+            <span className="text-xs text-gray-500">%</span>
+          </div>
+          <div className="text-2xl font-bold mt-2 text-gray-900">
+            {weeklyData.fedRate !== undefined && weeklyData.fedRate !== null 
+              ? formatNumber(weeklyData.fedRate, 2) 
+              : '--'}
+          </div>
+          <div className="text-xs text-gray-500 mt-1">
+            联邦基金利率
+          </div>
+        </div>
+
+        {/* 日央行利率 */}
+        <div className="bg-gray-50 rounded-lg p-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-medium text-gray-700">日央行利率</h3>
+            <span className="text-xs text-gray-500">%</span>
+          </div>
+          <div className="text-2xl font-bold mt-2 text-gray-900">
+            {weeklyData.bojRate !== undefined && weeklyData.bojRate !== null 
+              ? formatNumber(weeklyData.bojRate, 2) 
+              : '--'}
+          </div>
+          <div className="text-xs text-gray-500 mt-1">
+            日本央行利率
+          </div>
+        </div>
+
+        {/* 个人评级 - 移到最后一位 */}
         <div className="bg-gray-50 rounded-lg p-4">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-medium text-gray-700">个人评级</h3>
             <span className="text-xs text-gray-500">★</span>
           </div>
-          <div className="text-2xl font-bold mt-2 text-gray-900">
-            {weeklyData.personalRating ? `${weeklyData.personalRating}★` : '--'}
+          <div className={`text-2xl font-bold mt-2 ${getChangeColorClass(weeklyData.personalRating)}`}>
+            {weeklyData.personalRating !== undefined && weeklyData.personalRating !== null 
+              ? `${weeklyData.personalRating > 0 ? '+' : ''}${weeklyData.personalRating}★` 
+              : '--'}
           </div>
           <div className="text-xs text-gray-500 mt-1">
-            {weeklyData.personalRating >= 4 ? '强烈推荐' : 
-             weeklyData.personalRating >= 3 ? '推荐' :
-             weeklyData.personalRating >= 2 ? '观望' :
-             weeklyData.personalRating >= 1 ? '谨慎' : '暂无评级'}
+            {weeklyData.personalRating >= 10 ? '极度看多' :
+             weeklyData.personalRating >= 4 ? '看多' :
+             weeklyData.personalRating >= -3 ? '中性' :
+             weeklyData.personalRating >= -9 ? '看空' :
+             weeklyData.personalRating <= -10 ? '极度看空' : '暂无评级'}
           </div>
         </div>
 

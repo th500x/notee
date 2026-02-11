@@ -151,17 +151,38 @@ export const loadWeeklyData = async (year) => {
     // 模拟API调用延迟
     await new Promise(resolve => setTimeout(resolve, 100))
     
+    // 优先使用真实数据
+    const dataSource = Object.keys(realWeeklyData).length > 0 ? realWeeklyData : mockWeeklyData
+    
     // 过滤出指定年份的数据
     const yearData = {}
-    Object.keys(mockWeeklyData).forEach(weekId => {
-      if (mockWeeklyData[weekId].year === year) {
-        yearData[weekId] = mockWeeklyData[weekId]
+    Object.keys(dataSource).forEach(weekId => {
+      if (dataSource[weekId].year === year) {
+        yearData[weekId] = dataSource[weekId]
       }
     })
     
+    console.log(`📊 加载 ${year} 年数据:`, Object.keys(yearData).length, '周')
     return yearData
   } catch (error) {
     console.error('加载周数据失败:', error)
+    return {}
+  }
+}
+
+// 加载所有年份的数据（用于模拟演练和年终总结）
+export const loadAllWeeklyData = async () => {
+  try {
+    // 模拟API调用延迟
+    await new Promise(resolve => setTimeout(resolve, 100))
+    
+    // 优先使用真实数据
+    const dataSource = Object.keys(realWeeklyData).length > 0 ? realWeeklyData : mockWeeklyData
+    
+    console.log(`📊 加载所有数据:`, Object.keys(dataSource).length, '周')
+    return dataSource
+  } catch (error) {
+    console.error('加载所有周数据失败:', error)
     return {}
   }
 }
