@@ -12,6 +12,7 @@ function WeeklyCalendar({
 }) {
   const [weeks, setWeeks] = useState([])
   const [currentWeekId, setCurrentWeekId] = useState('')
+  const [weekStatuses, setWeekStatuses] = useState({}) // 存储所有周的状态
 
   // 获取当前周ID - 修复日期比较逻辑
   useEffect(() => {
@@ -183,6 +184,26 @@ function WeeklyCalendar({
       return null
     }
   }
+  
+  // 加载所有周的状态
+  useEffect(() => {
+    const loadWeekStatuses = async () => {
+      const statuses = {}
+      for (const week of weeks) {
+        if (weekIndicators.has(week.id)) {
+          const status = await getWeekStatus(week.id)
+          if (status) {
+            statuses[week.id] = status
+          }
+        }
+      }
+      setWeekStatuses(statuses)
+    }
+    
+    if (weeks.length > 0) {
+      loadWeekStatuses()
+    }
+  }, [weeks, weekIndicators])
 
   // 处理年份导航
   const handlePrevYear = () => {
@@ -224,15 +245,7 @@ function WeeklyCalendar({
           const isSelected = selectedWeek === week.id
           const isCurrent = currentWeekId === week.id
           const hasData = weekIndicators.has(week.id)
-          
-          // 简化状态获取逻辑，直接从模拟数据判断
-          const getSimpleWeekStatus = (weekId) => {
-            if (!hasData) return null
-            const weekNum = parseInt(weekId.split('-W')[1])
-            return weekNum % 2 === 0 ? 'bullish' : 'bearish'
-          }
-          
-          const weekStatus = getSimpleWeekStatus(week.id)
+          const weekStatus = weekStatuses[week.id] || null
           
           return (
             <div
