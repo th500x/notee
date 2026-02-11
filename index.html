@@ -162,6 +162,22 @@
                     </p>
                 </div>
             </div>
+
+            <!-- 留言板 Card -->
+            <div class="card-hover bg-white rounded-xl shadow-lg overflow-hidden cursor-pointer" onclick="scrollToGuestbook()">
+                <div class="page4-gradient h-32 flex items-center justify-center">
+                    <div class="text-white text-center">
+                        <div class="text-4xl mb-2">💬</div>
+                        <h3 class="text-2xl font-bold">留言板</h3>
+                    </div>
+                </div>
+                <div class="p-6">
+                    <p class="text-gray-600 text-center">
+                        分享你的想法和建议<br>
+                        点击查看和发表留言
+                    </p>
+                </div>
+            </div>
         </div>
     </main>
 
@@ -507,6 +523,13 @@
         
         function navigateToSanStorm() {
             window.location.href = '/05-san-storm/';
+        }
+        
+        function scrollToGuestbook() {
+            document.getElementById('guestbook').scrollIntoView({ 
+                behavior: 'smooth',
+                block: 'start'
+            });
         }
         
         function showComingSoon(featureName) {
