@@ -37,8 +37,8 @@ function App() {
                   className="text-xl sm:text-2xl font-bold text-gray-900 hover:text-blue-600 transition-colors cursor-pointer relative group"
                 >
                   真三风云 <span className="text-xs sm:text-sm text-gray-500">San Storm</span>
-                  {/* 悬停提示 */}
-                  <span className="absolute bottom-full left-0 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                  {/* 悬停提示 - 改为显示在下方 */}
+                  <span className="absolute top-full left-0 mt-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50">
                     返回主页
                   </span>
                 </a>
