@@ -3,7 +3,7 @@
 // 尝试加载真实数据，如果失败则使用模拟数据
 let realWeeklyData = {}
 
-// 异步加载真实数据
+// 异步加载真实数据 - 返回Promise以便等待
 const loadRealData = async () => {
   try {
     // 尝试多个可能的路径
@@ -20,7 +20,7 @@ const loadRealData = async () => {
         if (response.ok) {
           realWeeklyData = await response.json()
           console.log('📊 已加载真实周数据:', Object.keys(realWeeklyData).length, '周', `来源: ${path}`)
-          return
+          return true
         }
       } catch (error) {
         console.log(`❌ 路径 ${path} 加载失败:`, error.message)
@@ -28,13 +28,20 @@ const loadRealData = async () => {
     }
     
     console.log('⚠️ 所有路径都失败，使用模拟数据')
+    return false
   } catch (error) {
     console.log('⚠️ 数据加载异常，使用模拟数据:', error.message)
+    return false
   }
 }
 
-// 初始化时加载数据
-loadRealData()
+// 数据加载Promise - 供外部等待
+let dataLoadPromise = loadRealData()
+
+// 确保数据已加载
+export const ensureDataLoaded = async () => {
+  await dataLoadPromise
+}
 
 // 模拟数据 - 后续会替换为真实API调用 - UPDATED
 const mockWeeklyData = {
@@ -215,6 +222,8 @@ export const getWeeklyData = async (weekId) => {
 // 检查指定周是否有数据 - 检查真实数据和模拟数据
 export const hasDataForWeek = async (weekId) => {
   try {
+    // 确保数据已加载
+    await ensureDataLoaded()
     return !!(realWeeklyData[weekId] || mockWeeklyData[weekId])
   } catch (error) {
     console.error('检查周数据失败:', error)

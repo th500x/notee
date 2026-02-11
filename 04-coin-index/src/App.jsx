@@ -125,20 +125,28 @@ function App() {
     }
   }
 
-  // 检查当前年份的所有周是否有数据
+  // 检查当前年份的所有周是否有数据 - 并行检查提高速度
   useEffect(() => {
     const checkYearData = async () => {
       const indicators = new Set()
       
-      // 检查当年每一周是否有数据
+      // 并行检查所有周
+      const checkPromises = []
       for (let week = 1; week <= 53; week++) {
         const weekId = `${currentYear}-W${week.toString().padStart(2, '0')}`
-        const hasData = await hasDataForWeek(weekId)
+        checkPromises.push(
+          hasDataForWeek(weekId).then(hasData => ({ weekId, hasData }))
+        )
+      }
+      
+      const results = await Promise.all(checkPromises)
+      results.forEach(({ weekId, hasData }) => {
         if (hasData) {
           indicators.add(weekId)
         }
-      }
+      })
       
+      console.log(`📊 ${currentYear}年有数据的周:`, Array.from(indicators).sort())
       setWeekIndicators(indicators)
     }
     
