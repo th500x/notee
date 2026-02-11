@@ -163,8 +163,8 @@
                 </div>
             </div>
 
-            <!-- 留言板 Card -->
-            <div class="card-hover bg-white rounded-xl shadow-lg overflow-hidden cursor-pointer" onclick="scrollToGuestbook()">
+            <!-- 留言板 Card - 直接包含留言功能 -->
+            <div class="bg-white rounded-xl shadow-lg overflow-hidden">
                 <div class="page4-gradient h-32 flex items-center justify-center">
                     <div class="text-white text-center">
                         <div class="text-4xl mb-2">💬</div>
@@ -172,102 +172,78 @@
                     </div>
                 </div>
                 <div class="p-6">
-                    <p class="text-gray-600 text-center">
-                        分享你的想法和建议<br>
-                        点击查看和发表留言
-                    </p>
+                    <!-- 留言表单 -->
+                    <form id="guestbookForm" onsubmit="submitMessage(event)" class="mb-6">
+                        <!-- 模块选择 -->
+                        <div class="mb-3">
+                            <select 
+                                id="moduleSelect" 
+                                class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                required
+                            >
+                                <option value="">选择模块...</option>
+                                <option value="general">綜合留言</option>
+                                <option value="01-news-calendar">新聞筆記</option>
+                                <option value="02-tale-historical">佚事雜錄</option>
+                                <option value="04-coin-index">區塊指標</option>
+                                <option value="05-san-storm">真三風雲</option>
+                            </select>
+                        </div>
+
+                        <!-- 留言内容 -->
+                        <div class="mb-3">
+                            <textarea 
+                                id="messageContent"
+                                class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                                rows="3"
+                                maxlength="50"
+                                placeholder="说点什么吧..."
+                                required
+                            ></textarea>
+                            <div class="text-right text-xs text-gray-500 mt-1">
+                                <span id="charCount">0</span>/50
+                            </div>
+                        </div>
+
+                        <!-- 提交按钮 -->
+                        <button 
+                            type="submit"
+                            class="w-full bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium py-2 px-4 rounded-lg transition-colors duration-200"
+                        >
+                            提交留言
+                        </button>
+                    </form>
+
+                    <!-- 留言列表 -->
+                    <div>
+                        <div class="flex justify-between items-center mb-3">
+                            <h4 class="text-sm font-bold text-gray-900">最新留言</h4>
+                            <select 
+                                id="filterModule"
+                                class="px-2 py-1 border border-gray-300 rounded text-xs"
+                                onchange="loadMessages()"
+                            >
+                                <option value="all">全部</option>
+                                <option value="general">綜合</option>
+                                <option value="01-news-calendar">新聞</option>
+                                <option value="02-tale-historical">佚事</option>
+                                <option value="04-coin-index">區塊</option>
+                                <option value="05-san-storm">真三</option>
+                            </select>
+                        </div>
+
+                        <!-- 留言列表容器 -->
+                        <div id="messagesList" class="space-y-2 max-h-96 overflow-y-auto">
+                            <!-- 加载中 -->
+                            <div class="text-center py-4 text-gray-500 text-sm">
+                                加载中...
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
     </main>
-
-    <!-- 留言板区域 -->
-    <section id="guestbook" class="max-w-4xl mx-auto px-4 py-12">
-        <div class="bg-white rounded-xl shadow-lg p-8">
-            <!-- 标题 -->
-            <div class="text-center mb-8">
-                <h2 class="text-3xl font-bold text-gray-900 mb-2">💬 留言板</h2>
-                <p class="text-gray-600">分享你的想法和建议</p>
-            </div>
-
-            <!-- 留言表单 -->
-            <div class="mb-8 p-6 bg-gray-50 rounded-lg">
-                <form id="guestbookForm" onsubmit="submitMessage(event)">
-                    <!-- 模块选择 -->
-                    <div class="mb-4">
-                        <label class="block text-sm font-medium text-gray-700 mb-2">
-                            选择模块
-                        </label>
-                        <select 
-                            id="moduleSelect" 
-                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                            required
-                        >
-                            <option value="">请选择...</option>
-                            <option value="general">綜合留言</option>
-                            <option value="01-news-calendar">新聞筆記</option>
-                            <option value="02-tale-historical">佚事雜錄</option>
-                            <option value="04-coin-index">區塊指標</option>
-                            <option value="05-san-storm">真三風雲</option>
-                        </select>
-                    </div>
-
-                    <!-- 留言内容 -->
-                    <div class="mb-4">
-                        <label class="block text-sm font-medium text-gray-700 mb-2">
-                            留言内容 <span class="text-gray-500">(最多50字)</span>
-                        </label>
-                        <textarea 
-                            id="messageContent"
-                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-                            rows="3"
-                            maxlength="50"
-                            placeholder="说点什么吧..."
-                            required
-                        ></textarea>
-                        <div class="text-right text-sm text-gray-500 mt-1">
-                            <span id="charCount">0</span>/50
-                        </div>
-                    </div>
-
-                    <!-- 提交按钮 -->
-                    <button 
-                        type="submit"
-                        class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-6 rounded-lg transition-colors duration-200"
-                    >
-                        提交留言
-                    </button>
-                </form>
-            </div>
-
-            <!-- 留言列表 -->
-            <div>
-                <div class="flex justify-between items-center mb-4">
-                    <h3 class="text-xl font-bold text-gray-900">最新留言</h3>
-                    <select 
-                        id="filterModule"
-                        class="px-3 py-1 border border-gray-300 rounded-lg text-sm"
-                        onchange="loadMessages()"
-                    >
-                        <option value="all">全部模块</option>
-                        <option value="general">綜合留言</option>
-                        <option value="01-news-calendar">新聞筆記</option>
-                        <option value="02-tale-historical">佚事雜錄</option>
-                        <option value="04-coin-index">區塊指標</option>
-                        <option value="05-san-storm">真三風雲</option>
-                    </select>
-                </div>
-
-                <!-- 留言列表容器 -->
-                <div id="messagesList" class="space-y-4">
-                    <!-- 加载中 -->
-                    <div class="text-center py-8 text-gray-500">
-                        加载中...
-                    </div>
-                </div>
-            </div>
-        </div>
-    </section>
 
     <!-- Footer -->
     <footer class="bg-white border-t mt-16">
@@ -379,17 +355,16 @@
         // 创建留言卡片
         function createMessageCard(message) {
             const moduleNames = {
-                'general': '綜合留言',
-                '01-news-calendar': '新聞筆記',
-                '02-tale-historical': '佚事雜錄',
-                '04-coin-index': '區塊指標',
-                '05-san-storm': '真三風雲'
+                'general': '綜合',
+                '01-news-calendar': '新聞',
+                '02-tale-historical': '佚事',
+                '04-coin-index': '區塊',
+                '05-san-storm': '真三'
             };
             
             const moduleName = moduleNames[message.module] || message.module;
             const date = new Date(message.timestamp);
             const timeStr = date.toLocaleString('zh-CN', {
-                year: 'numeric',
                 month: '2-digit',
                 day: '2-digit',
                 hour: '2-digit',
@@ -401,66 +376,38 @@
             
             // 处理本地IP
             if (message.ip === '::1' || message.ip === '127.0.0.1' || message.ip === 'localhost') {
-                displayText = '本地访问';
+                displayText = '本地';
             } 
             // 有地理位置信息
             else if (message.location && message.location.city) {
-                let maskedIP = '';
-                
-                // 处理IPv4
-                if (message.ip.includes('.')) {
-                    maskedIP = message.ip.split('.').map((part, index) => 
-                        index < 2 ? part : '***'
-                    ).join('.');
-                }
-                // 处理IPv6
-                else if (message.ip.includes(':')) {
-                    const parts = message.ip.split(':');
-                    maskedIP = parts.slice(0, 2).join(':') + ':***:***';
-                }
-                
-                // 组合显示：IP + 城市
                 if (message.location.city === '本地') {
-                    displayText = '本地访问';
+                    displayText = '本地';
                 } else {
-                    displayText = `${maskedIP} ${message.location.city}的网友`;
+                    displayText = message.location.city;
                 }
             }
-            // 没有地理位置信息，只显示IP
+            // 没有地理位置信息
             else {
-                // 处理IPv4
-                if (message.ip.includes('.')) {
-                    displayText = message.ip.split('.').map((part, index) => 
-                        index < 2 ? part : '***'
-                    ).join('.');
-                }
-                // 处理IPv6
-                else if (message.ip.includes(':')) {
-                    const parts = message.ip.split(':');
-                    displayText = parts.slice(0, 2).join(':') + ':***:***';
-                }
+                displayText = 'IP用户';
             }
             
             return `
-                <div class="bg-gray-50 rounded-lg p-4 hover:bg-gray-100 transition-colors">
-                    <div class="flex justify-between items-start mb-2">
-                        <span class="inline-block px-3 py-1 bg-blue-100 text-blue-800 text-xs font-medium rounded-full">
+                <div class="bg-gray-50 rounded-lg p-3 hover:bg-gray-100 transition-colors text-xs">
+                    <div class="flex justify-between items-start mb-1">
+                        <span class="inline-block px-2 py-0.5 bg-blue-100 text-blue-800 text-xs font-medium rounded">
                             ${moduleName}
                         </span>
-                        <div class="flex items-center gap-2">
-                            <span class="text-xs text-gray-500">${timeStr}</span>
-                            <button 
-                                onclick="deleteMessage('${message.id}')"
-                                class="text-red-500 hover:text-red-700 text-xs px-2 py-1 rounded hover:bg-red-50"
-                                title="删除留言"
-                            >
-                                🗑️
-                            </button>
-                        </div>
+                        <button 
+                            onclick="deleteMessage('${message.id}')"
+                            class="text-red-500 hover:text-red-700 text-xs"
+                            title="删除"
+                        >
+                            🗑️
+                        </button>
                     </div>
-                    <p class="text-gray-800 mb-2">${escapeHtml(message.content)}</p>
+                    <p class="text-gray-800 mb-1 text-xs">${escapeHtml(message.content)}</p>
                     <div class="text-xs text-gray-400">
-                        来自 ${displayText}
+                        ${displayText} · ${timeStr}
                     </div>
                 </div>
             `;
@@ -523,13 +470,6 @@
         
         function navigateToSanStorm() {
             window.location.href = '/05-san-storm/';
-        }
-        
-        function scrollToGuestbook() {
-            document.getElementById('guestbook').scrollIntoView({ 
-                behavior: 'smooth',
-                block: 'start'
-            });
         }
         
         function showComingSoon(featureName) {
