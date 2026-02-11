@@ -1,18 +1,270 @@
 # 部署标准与编码规范
 
-**版本**: v1.1  
-**更新时间**: 2026-02-10  
+**版本**: v1.2  
+**更新时间**: 2026-02-11  
 **适用范围**: 真三风云项目及所有子路径部署的React项目
 
 ---
 
 ## 📋 目录
 
-1. [文件编码规范](#文件编码规范)（⚠️ 重要！）
-2. [配置规范](#配置规范)
-3. [编码规范](#编码规范)
-4. [数据加载规范](#数据加载规范)
-5. [部署检查清单](#部署检查清单)
+1. [Nginx配置规范](#nginx配置规范)（⚠️ 重要！必读！）
+2. [文件编码规范](#文件编码规范)（⚠️ 重要！）
+3. [配置规范](#配置规范)
+4. [编码规范](#编码规范)
+5. [数据加载规范](#数据加载规范)
+6. [部署检查清单](#部署检查清单)
+
+---
+
+## ⚠️ Nginx配置规范（重要！必读！）
+
+### 🚨 关键错误：全局静态资源规则导致404
+
+#### 问题描述
+在nginx配置中添加全局的静态资源缓存规则会导致子项目的JS/CSS文件返回404，页面显示空白。
+
+#### ❌ 错误配置（会导致空白页）
+```nginx
+server {
+    listen 443 ssl;
+    server_name notee.vip;
+    root /www/wwwroot/notee;
+    
+    # 子项目配置
+    location /02-tale-historical/ {
+        alias /www/wwwroot/notee/02-tale-historical/dist/;
+        try_files $uri $uri/ /02-tale-historical/index.html;
+    }
+    
+    # ❌ 错误：这个规则会拦截所有.js/.css文件
+    # 导致子项目的assets/index.js返回404
+    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        access_log off;
+    }
+}
+```
+
+#### 为什么会出错？
+1. nginx按照配置顺序匹配location
+2. 正则表达式location（`~*`）的优先级高于前缀location
+3. 当访问 `/02-tale-historical/assets/index.js` 时：
+   - 先匹配到 `~* \.(js|...)$` 规则
+   - 这个规则没有指定root或alias
+   - 导致nginx在错误的路径查找文件
+   - 返回404错误
+
+#### ✅ 正确配置方案
+
+**方案1：删除全局静态资源规则（推荐）**
+```nginx
+server {
+    listen 443 ssl;
+    server_name notee.vip;
+    root /www/wwwroot/notee;
+    
+    # 主页
+    location = / {
+        try_files /index.html =404;
+    }
+    
+    # 子项目配置
+    location /01-news-calendar/ {
+        alias /www/wwwroot/notee/01-news-calendar/dist/;
+        try_files $uri $uri/ /01-news-calendar/index.html;
+    }
+    
+    location /02-tale-historical/ {
+        alias /www/wwwroot/notee/02-tale-historical/dist/;
+        try_files $uri $uri/ /02-tale-historical/index.html;
+    }
+    
+    location /05-san-storm/ {
+        alias /www/wwwroot/notee/05-san-storm/dist/;
+        try_files $uri $uri/ /05-san-storm/index.html;
+    }
+    
+    # ✅ 不添加全局静态资源规则
+    # 让每个location自己处理静态文件
+}
+```
+
+**方案2：在每个location内部添加缓存（如果需要）**
+```nginx
+location /02-tale-historical/ {
+    alias /www/wwwroot/notee/02-tale-historical/dist/;
+    try_files $uri $uri/ /02-tale-historical/index.html;
+    
+    # ✅ 在location内部添加缓存头
+    location ~ \.(js|css|png|jpg|jpeg|gif|ico|svg)$ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+}
+```
+
+**方案3：使用^~前缀提高优先级**
+```nginx
+# 使用^~确保子项目location优先匹配
+location ^~ /02-tale-historical/ {
+    alias /www/wwwroot/notee/02-tale-historical/dist/;
+    try_files $uri $uri/ /02-tale-historical/index.html;
+}
+
+# 全局静态资源规则放在最后
+location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg)$ {
+    expires 1y;
+    add_header Cache-Control "public, immutable";
+}
+```
+
+### Nginx Location匹配优先级
+
+理解优先级可以避免配置错误：
+
+```
+1. = 精确匹配（最高优先级）
+   location = /path
+
+2. ^~ 前缀匹配（高优先级，匹配后不再检查正则）
+   location ^~ /path/
+
+3. ~ 和 ~* 正则匹配（按配置顺序）
+   location ~ \.js$
+   location ~* \.(js|css)$
+
+4. 普通前缀匹配（最低优先级）
+   location /path/
+```
+
+### 诊断步骤
+
+当子项目显示空白页时：
+
+**步骤1：检查浏览器控制台**
+- 按F12打开开发者工具
+- 查看Console标签是否有错误
+- 查看Network标签，找到404的请求
+
+**步骤2：测试文件访问**
+```bash
+# 测试index.html（应该返回200）
+curl -I https://notee.vip/02-tale-historical/
+
+# 测试JS文件（应该返回200，如果返回404就是nginx配置问题）
+curl -I https://notee.vip/02-tale-historical/assets/index-xxx.js
+```
+
+**步骤3：检查nginx配置**
+```bash
+# 查看配置
+cat /www/server/panel/vhost/nginx/your-site.conf
+
+# 查找全局静态资源规则
+grep -n "location.*\.(js|css" /www/server/panel/vhost/nginx/your-site.conf
+```
+
+**步骤4：修复配置**
+```bash
+# 编辑配置
+nano /www/server/panel/vhost/nginx/your-site.conf
+
+# 删除或注释掉全局静态资源规则
+# location ~* \.(js|css|...)$ { ... }
+
+# 测试配置
+nginx -t
+
+# 重载nginx
+nginx -s reload
+```
+
+### 经验教训总结
+
+| 问题 | 原因 | 解决方案 | 预防措施 |
+|------|------|---------|---------|
+| 子项目空白页 | 全局静态资源规则拦截 | 删除全局规则 | 不添加全局正则location |
+| JS/CSS返回404 | location优先级问题 | 使用^~提高优先级 | 理解nginx匹配顺序 |
+| 部分文件404 | alias路径配置错误 | 检查alias末尾斜杠 | 统一使用末尾斜杠 |
+
+### 标准Nginx配置模板
+
+```nginx
+# HTTP重定向到HTTPS
+server {
+    listen 80;
+    server_name notee.vip www.notee.vip;
+    return 301 https://notee.vip$request_uri;
+}
+
+# HTTPS服务器
+server {
+    listen 443 ssl http2;
+    server_name notee.vip www.notee.vip;
+    
+    root /www/wwwroot/notee;
+    index index.html;
+    
+    # SSL证书
+    ssl_certificate /path/to/cert.pem;
+    ssl_certificate_key /path/to/key.pem;
+    
+    # SSL优化
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
+    ssl_prefer_server_ciphers on;
+    
+    # 安全头部
+    add_header Strict-Transport-Security "max-age=31536000" always;
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    
+    # 主页
+    location = / {
+        try_files /index.html =404;
+    }
+    
+    # 子项目（使用^~确保优先匹配）
+    location ^~ /01-news-calendar/ {
+        alias /www/wwwroot/notee/01-news-calendar/dist/;
+        try_files $uri $uri/ /01-news-calendar/index.html;
+    }
+    
+    location ^~ /02-tale-historical/ {
+        alias /www/wwwroot/notee/02-tale-historical/dist/;
+        try_files $uri $uri/ /02-tale-historical/index.html;
+    }
+    
+    location ^~ /05-san-storm/ {
+        alias /www/wwwroot/notee/05-san-storm/dist/;
+        try_files $uri $uri/ /05-san-storm/index.html;
+    }
+    
+    # API代理
+    location /api/ {
+        proxy_pass http://127.0.0.1:3001/api/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+    
+    # ⚠️ 不要添加全局静态资源规则！
+    # ❌ location ~* \.(js|css|...)$ { ... }
+}
+```
+
+### 关键要点
+
+1. ✅ **不要添加全局静态资源正则规则**
+2. ✅ **使用^~前缀提高子项目location优先级**
+3. ✅ **location和alias路径末尾统一加斜杠**
+4. ✅ **每次修改后测试：nginx -t && nginx -s reload**
+5. ✅ **遇到空白页先检查JS/CSS是否404**
+
+---
 
 ---
 
@@ -341,12 +593,23 @@ ComponentName.propTypes = {
 - [ ] 代码已同步：`git pull`
 - [ ] 构建成功：`npm run build`
 - [ ] dist目录完整
-- [ ] nginx配置正确
+- [ ] nginx配置正确（⚠️ 检查是否有全局静态资源规则）
 - [ ] 所有文件编码正确（无乱码）
+
+### Nginx配置检查（⚠️ 重要）
+- [ ] 没有全局静态资源正则规则（`location ~* \.(js|css|...)`）
+- [ ] 子项目location使用^~前缀
+- [ ] location和alias路径末尾有斜杠
+- [ ] try_files的fallback路径正确
+- [ ] nginx -t 测试通过
+- [ ] nginx -s reload 重载成功
 
 ### 功能测试
 - [ ] 主页能访问
 - [ ] 导航链接正常
+- [ ] 子项目页面不是空白（⚠️ 重要）
+- [ ] 浏览器Network标签无404错误（⚠️ 重要）
+- [ ] JS/CSS文件正常加载
 - [ ] 数据加载正常
 - [ ] 浏览器控制台无错误
 - [ ] 中文显示正常（无乱码）
@@ -357,33 +620,39 @@ ComponentName.propTypes = {
 
 ### 核心原则
 
-1. **文件编码**：始终使用UTF-8（无BOM）⚠️
-2. **配置一致性**：vite base、Router basename、数据路径保持一致
-3. **统一工具**：使用 dataLoader 统一处理数据加载
-4. **避免硬编码**：使用 BASE_URL 动态构建路径
+1. **Nginx配置**：不要添加全局静态资源正则规则⚠️
+2. **文件编码**：始终使用UTF-8（无BOM）⚠️
+3. **配置一致性**：vite base、Router basename、数据路径保持一致
+4. **统一工具**：使用 dataLoader 统一处理数据加载
+5. **避免硬编码**：使用 BASE_URL 动态构建路径
 
 ### 最佳实践
 
-1. ✅ 使用路径别名（`@/`）
-2. ✅ 统一数据加载方法
-3. ✅ 添加完整的类型检查
-4. ✅ 编写清晰的注释
-5. ✅ 遵循组件规范
-6. ✅ 确保文件编码正确
+1. ✅ 使用^~前缀提高location优先级
+2. ✅ 使用路径别名（`@/`）
+3. ✅ 统一数据加载方法
+4. ✅ 添加完整的类型检查
+5. ✅ 编写清晰的注释
+6. ✅ 遵循组件规范
+7. ✅ 确保文件编码正确
 
 ### 避免的错误
 
-1. ❌ 使用错误的文件编码（导致乱码）
-2. ❌ 硬编码绝对路径
-3. ❌ 直接使用 fetch
-4. ❌ 混用不同的数据加载方法
-5. ❌ 忽略 PropTypes 验证
-6. ❌ 缺少错误处理
+1. ❌ 添加全局静态资源正则规则（导致空白页）⚠️
+2. ❌ 使用错误的文件编码（导致乱码）
+3. ❌ 硬编码绝对路径
+4. ❌ 直接使用 fetch
+5. ❌ 混用不同的数据加载方法
+6. ❌ 忽略 PropTypes 验证
+7. ❌ 缺少错误处理
 
 ---
 
-**文档版本**: v1.1  
+**文档版本**: v1.2  
 **创建日期**: 2026-02-10  
-**最后更新**: 2026-02-10  
+**最后更新**: 2026-02-11  
 **维护者**: Kiro AI Assistant  
 **适用项目**: 真三风云 (05-san-storm)
+
+**重要更新**：
+- v1.2 (2026-02-11): 添加Nginx配置规范，记录全局静态资源规则导致空白页的问题
