@@ -32,9 +32,17 @@ function App() {
             <div className="flex justify-between h-16">
               {/* Logo */}
               <div className="flex items-center">
-                <h1 className="text-xl sm:text-2xl font-bold text-gray-900">
+                <a 
+                  href="/"
+                  className="text-xl sm:text-2xl font-bold text-gray-900 hover:text-blue-600 transition-colors cursor-pointer relative group"
+                  title="返回主页"
+                >
                   真三风云 <span className="text-xs sm:text-sm text-gray-500">San Storm</span>
-                </h1>
+                  {/* 悬停提示 */}
+                  <span className="absolute bottom-full left-0 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                    返回主页
+                  </span>
+                </a>
               </div>
 
               {/* 桌面端导航 */}

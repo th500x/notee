@@ -12,17 +12,18 @@ function App() {
           <div className="max-w-7xl mx-auto px-4 py-6">
             <div className="flex justify-between items-center">
               <div>
-                <h1 className="text-3xl font-bold text-ink font-title">佚事雜錄</h1>
-                <p className="text-gray-600 mt-2">游戏人生的点滴记录</p>
-              </div>
-              <div className="flex items-center space-x-4">
                 <a 
-                  href="/" 
-                  className="text-sm text-gray-500 hover:text-gray-700 cursor-pointer transition-colors"
+                  href="/"
+                  className="text-3xl font-bold text-ink font-title hover:text-blue-600 transition-colors cursor-pointer relative group inline-block"
                   title="返回主页"
                 >
-                  🍺 LOVE & PEACE!
+                  佚事雜錄
+                  {/* 悬停提示 */}
+                  <span className="absolute bottom-full left-0 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                    返回主页
+                  </span>
                 </a>
+                <p className="text-gray-600 mt-2">游戏人生的点滴记录</p>
               </div>
             </div>
           </div>
