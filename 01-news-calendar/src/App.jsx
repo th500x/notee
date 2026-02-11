@@ -114,7 +114,6 @@ function App() {
               <a 
                 href="/"
                 className="text-3xl font-bold text-gray-900 hover:text-blue-600 transition-colors cursor-pointer relative group inline-block"
-                title="返回主页"
               >
                 新聞筆記
                 {/* 悬停提示 */}

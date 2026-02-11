@@ -15,7 +15,6 @@ function App() {
                 <a 
                   href="/"
                   className="text-3xl font-bold text-ink font-title hover:text-blue-600 transition-colors cursor-pointer relative group inline-block"
-                  title="返回主页"
                 >
                   佚事雜錄
                   {/* 悬停提示 */}

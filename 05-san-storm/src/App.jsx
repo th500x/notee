@@ -35,7 +35,6 @@ function App() {
                 <a 
                   href="/"
                   className="text-xl sm:text-2xl font-bold text-gray-900 hover:text-blue-600 transition-colors cursor-pointer relative group"
-                  title="返回主页"
                 >
                   真三风云 <span className="text-xs sm:text-sm text-gray-500">San Storm</span>
                   {/* 悬停提示 */}
