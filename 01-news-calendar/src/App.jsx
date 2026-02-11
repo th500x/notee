@@ -30,6 +30,9 @@ function App() {
 
   // 设置最早可访问的日期为2026年1月1日
   const minDate = new Date(2026, 0, 1) // 2026年1月1日
+  
+  // 设置最晚可访问的日期为2026年1月31日（当前有数据的最后一天）
+  const maxDate = new Date(2026, 0, 31) // 2026年1月31日
 
   // Refresh hot news function
   const refreshHotNews = () => {
@@ -152,6 +155,7 @@ function App() {
                 onActiveStartDateChange={handleActiveStartDateChange}
                 tileContent={tileContent}
                 minDate={minDate}
+                maxDate={maxDate}
                 className="w-full"
                 locale="zh-CN"
               />
