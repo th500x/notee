@@ -80,6 +80,7 @@ public
 !news-calendar/public
 !01-news-calendar/public
 !02-tale-historical/public
+!04-coin-index/public
 !05-san-storm/public
 
 # Storybook build outputs
