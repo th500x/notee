@@ -2,9 +2,19 @@
 const getApiBaseUrl = () => {
   if (typeof window !== 'undefined') {
     const { protocol, hostname } = window.location
+    // 如果是生产环境（notee.vip），使用相对路径
+    if (hostname === 'notee.vip' || hostname === 'www.notee.vip') {
+      return `${protocol}//${hostname}/api`
+    }
+    // 本地开发环境
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+      return `${protocol}//${hostname}:3001/api`
+    }
+    // 其他情况（如IP访问）
     return `${protocol}//${hostname}:3001/api`
   }
-  return 'http://47.113.185.170:3001/api'
+  // 服务端渲染默认值
+  return 'https://notee.vip/api'
 }
 
 const API_BASE_URL = getApiBaseUrl()

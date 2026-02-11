@@ -15,10 +15,37 @@ const __dirname = dirname(__filename)
 const app = express()
 const PORT = process.env.PORT || 3001
 
-// CORS配置 - 添加所有必要的头
+// CORS配置 - 支持域名和本地开发
+const allowedOrigins = [
+  'https://notee.vip',
+  'https://www.notee.vip',
+  'http://notee.vip',
+  'http://www.notee.vip',
+  'http://localhost:5173',
+  'http://localhost:5174',
+  'http://127.0.0.1:5173',
+  'http://127.0.0.1:5174',
+  'http://47.113.185.170'
+]
+
 app.use(cors({
-  origin: '*',
-  credentials: false,
+  origin: function (origin, callback) {
+    // 允许没有origin的请求（如Postman、服务器端请求）
+    if (!origin) return callback(null, true)
+    
+    // 检查origin是否在允许列表中
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true)
+    } else {
+      // 开发环境允许所有origin
+      if (process.env.NODE_ENV !== 'production') {
+        callback(null, true)
+      } else {
+        callback(new Error('Not allowed by CORS'))
+      }
+    }
+  },
+  credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: [
     'Content-Type', 

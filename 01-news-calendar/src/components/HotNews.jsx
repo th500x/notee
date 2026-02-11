@@ -19,7 +19,8 @@ function HotNews({ refreshTrigger }) {
       setLoading(true)
       
       const timestamp = Date.now()
-      const apiUrl = `http://47.113.185.170:3001/api/emoji/hot/ranking?t=${timestamp}`
+      // 使用相对路径，自动适配域名
+      const apiUrl = `/api/emoji/hot/ranking?t=${timestamp}`
       
       const response = await fetch(apiUrl, {
         method: 'GET',
