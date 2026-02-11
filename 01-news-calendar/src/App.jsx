@@ -7,8 +7,22 @@ import HotNews from './components/HotNews'
 import { getNewsForDate, loadNewsData } from './utils/newsData'
 
 function App() {
-  const [selectedDate, setSelectedDate] = useState(new Date())
-  const [currentMonth, setCurrentMonth] = useState(new Date())
+  // 计算上个月的首日作为初始选中日期
+  const getLastMonthFirstDay = () => {
+    const today = new Date()
+    const year = today.getFullYear()
+    const month = today.getMonth()
+    
+    // 如果当前是1月，则上个月是去年12月
+    if (month === 0) {
+      return new Date(year - 1, 11, 1) // 去年12月1日
+    } else {
+      return new Date(year, month - 1, 1) // 上个月1日
+    }
+  }
+  
+  const [selectedDate, setSelectedDate] = useState(getLastMonthFirstDay())
+  const [currentMonth, setCurrentMonth] = useState(getLastMonthFirstDay())
   const [newsData, setNewsData] = useState({}) // 存储所有新闻数据
   const [newsIndicators, setNewsIndicators] = useState(new Set()) // 存储有新闻的日期
   const [selectedDateNews, setSelectedDateNews] = useState({}) // 存储当前选中日期的新闻
