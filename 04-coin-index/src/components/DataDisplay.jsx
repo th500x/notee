@@ -5,7 +5,7 @@ function DataDisplay({ selectedWeek, weeklyData }) {
   const formatWeekDisplay = (weekId) => {
     if (!weekId) return ''
     const [year, week] = weekId.split('-W')
-    return `${year}年第${parseInt(week)}周`
+    return `${year}年第${week}周` // 保持原始格式，不使用parseInt
   }
 
   // 格式化百分比

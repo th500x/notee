@@ -171,38 +171,45 @@ function WeeklyCalendar({
     return `${start}-${end}`
   }
 
-  // 获取周的状态（涨跌）
-  const getWeekStatus = async (weekId) => {
-    if (!weekIndicators.has(weekId)) return null
-    
-    try {
-      const { getWeeklyData, getWeekTrend } = await import('../utils/weeklyData')
-      const weekData = await getWeeklyData(weekId)
-      return getWeekTrend(weekData)
-    } catch (error) {
-      console.error('获取周状态失败:', error)
-      return null
-    }
-  }
-  
-  // 加载所有周的状态
+  // 加载所有周的状态 - 并行加载提高速度
   useEffect(() => {
     const loadWeekStatuses = async () => {
-      const statuses = {}
-      for (const week of weeks) {
-        if (weekIndicators.has(week.id)) {
-          const status = await getWeekStatus(week.id)
-          if (status) {
-            statuses[week.id] = status
+      if (weeks.length === 0) return
+      
+      try {
+        const { getWeeklyData, getWeekTrend } = await import('../utils/weeklyData')
+        
+        // 并行加载所有周的数据
+        const statusPromises = weeks
+          .filter(week => weekIndicators.has(week.id))
+          .map(async (week) => {
+            try {
+              const weekData = await getWeeklyData(week.id)
+              const status = getWeekTrend(weekData)
+              return { weekId: week.id, status }
+            } catch (error) {
+              console.error(`获取周 ${week.id} 状态失败:`, error)
+              return null
+            }
+          })
+        
+        const results = await Promise.all(statusPromises)
+        
+        // 构建状态对象
+        const statuses = {}
+        results.forEach(result => {
+          if (result && result.status) {
+            statuses[result.weekId] = result.status
           }
-        }
+        })
+        
+        setWeekStatuses(statuses)
+      } catch (error) {
+        console.error('加载周状态失败:', error)
       }
-      setWeekStatuses(statuses)
     }
     
-    if (weeks.length > 0) {
-      loadWeekStatuses()
-    }
+    loadWeekStatuses()
   }, [weeks, weekIndicators])
 
   // 处理年份导航
@@ -256,7 +263,7 @@ function WeeklyCalendar({
               onClick={() => onWeekChange(week.id)}
               title={`第${week.weekNumber}周 (${formatDateRange(week.startDate, week.endDate)})`}
             >
-              <div className="text-sm font-medium">W{week.weekNumber}</div>
+              <div className="text-sm font-medium">W{week.weekNumber.toString().padStart(2, '0')}</div>
               <div className="text-xs text-gray-500 mt-1">
                 {formatDateRange(week.startDate, week.endDate)}
               </div>
