@@ -1,12 +1,19 @@
 /**
  * 游戏注册登录系统组件
  * 
- * @description M2验证模块-2 - 简化注册登录系统
+ * @description M2验证模块-2 - 简化注册登录系统（带密码尝试限制）
  */
 
 import { useState, useEffect } from 'react';
 import { useServers } from '@/hooks/useServers';
 import { ServerCard } from '@/components/server/ServerCard';
+import {
+  checkLockStatus,
+  recordFailedAttempt,
+  recordSuccessfulAttempt,
+  getLockoutMessage,
+  getErrorMessage
+} from '@/utils/passwordAttemptLimiter';
 
 // 新的分批次ID生成系统
 const generateBatchIds = (batchNumber) => {
@@ -257,7 +264,7 @@ const GameAuthSystem = () => {
     }
   };
 
-  // 登录提交
+  // 登录提交（带密码尝试限制）
   const handleLoginSubmit = async () => {
     if (!loginId || !loginPassword) {
       setError('请输入ID和密码');
@@ -270,6 +277,14 @@ const GameAuthSystem = () => {
       return;
     }
 
+    // 检查是否被锁定
+    const identifier = `game_login_${loginId}`;
+    const lockStatus = checkLockStatus(identifier);
+    if (lockStatus.isLocked) {
+      setError(getLockoutMessage(lockStatus.remainingTime));
+      return;
+    }
+
     setLoading(true);
     
     try {
@@ -277,10 +292,15 @@ const GameAuthSystem = () => {
       const user = users.find(u => u.id === loginId && u.password === loginPassword);
       
       if (!user) {
-        setError('ID或密码错误');
+        // 密码错误，记录失败尝试
+        const result = recordFailedAttempt(identifier);
+        setError(getErrorMessage(result));
         setLoading(false);
         return;
       }
+
+      // 登录成功，清除尝试记录
+      recordSuccessfulAttempt(identifier);
 
       // 更新最后登录时间
       user.lastLoginAt = new Date().toISOString();

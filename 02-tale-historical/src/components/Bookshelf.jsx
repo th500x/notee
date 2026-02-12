@@ -48,7 +48,9 @@ function Bookshelf() {
   }
 
   const handlePasswordSubmit = () => {
-    if (verifyGlobalPassword(passwordInput)) {
+    const result = verifyGlobalPassword(passwordInput);
+    
+    if (result.success) {
       // 密码正确，解锁分类
       setUnlockedCategories(prev => new Set([...prev, pendingCategory]))
       setSelectedCategory(pendingCategory)
@@ -56,8 +58,9 @@ function Bookshelf() {
       setPasswordInput('')
       setPasswordError('')
     } else {
-      // 密码错误
-      setPasswordError('密码错误，请重试')
+      // 密码错误，显示错误信息（包含剩余尝试次数或锁定时间）
+      setPasswordError(result.message)
+      setPasswordInput('')
     }
   }
 

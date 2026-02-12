@@ -1,7 +1,7 @@
 /**
- * 武将卡片组件 V2 - 卡牌风格
+ * 将领卡片组件 V2 - 卡牌风格
  * 
- * @description 展示单个武将的信息卡片，采用部队卡牌风格
+ * @description 展示单个将领的信息卡片，采用部队卡牌风格
  * @module components/character/CharacterCard
  * 
  * 尺寸: 256 × 384 px (2:3比例)
@@ -81,9 +81,9 @@ function getStageText(stage) {
 }
 
 /**
- * 武将卡片组件
+ * 将领卡片组件
  * @param {Object} props
- * @param {Object} props.character - 武将数据
+ * @param {Object} props.character - 将领数据
  * @param {Object} props.skillsMap - 技能映射
  * @param {Object} props.bondsMap - 羁绊映射
  * @param {boolean} props.showDetails - 是否显示详细信息
@@ -124,7 +124,7 @@ export function CharacterCard({ character, skillsMap = {}, bondsMap = {}, showDe
       `}
       >
         
-        {/* 顶部：武将名称 */}
+        {/* 顶部：将领名称 */}
         <div className={`
           relative h-[40px] px-3 py-2
           bg-gradient-to-r ${rarityConfig.gradient}
@@ -145,7 +145,7 @@ export function CharacterCard({ character, skillsMap = {}, bondsMap = {}, showDe
           </div>
         </div>
 
-        {/* 中间：武将信息区域 */}
+        {/* 中间：将领信息区域 */}
         <div className="relative h-[100px] bg-gradient-to-b from-gray-800 to-gray-900">
           {/* 背景装饰 */}
           <div className="absolute inset-0 opacity-10">
@@ -153,7 +153,7 @@ export function CharacterCard({ character, skillsMap = {}, bondsMap = {}, showDe
           </div>
 
           <div className="relative h-full flex items-center p-3 gap-3">
-            {/* 左侧：武将图标占位 */}
+            {/* 左侧：将领图标占位 */}
             <div className="relative w-[80px] h-[80px] flex-shrink-0">
               <div className={`
                 absolute inset-0 rounded-lg
@@ -162,7 +162,7 @@ export function CharacterCard({ character, skillsMap = {}, bondsMap = {}, showDe
                 flex items-center justify-center
                 overflow-hidden
               `}>
-                {/* 武将头像占位符 */}
+                {/* 将领头像占位符 */}
                 <div className="w-full h-full flex items-center justify-center flex-col gap-1 text-gray-500">
                   <span className="text-4xl">👤</span>
                   <span className="text-[10px]">待添加</span>

@@ -1,7 +1,7 @@
 /**
  * 部队编组系统组件
  * 
- * @description M2验证模块 - 武将+部队卡组合机制
+ * @description M2验证模块 - 将领+部队卡组合机制
  */
 
 import React, { useState, useMemo } from 'react';
@@ -36,13 +36,46 @@ const RARITY_LEVELS = {
   'core': 5       // 核心
 };
 
-// 检查武将是否可以装备部队
-const canEquipTroop = (characterRarity, troopRarity) => {
+// TODO: 官职等级限制 - 正式系统上线后需要实现
+// 官职等级决定可使用的部队卡稀有度上限
+// 参考文档: 05-san-storm/docs/system/10-core-system/14-PLAYER_SYSTEM.md
+const POSITION_RARITY_LIMITS = {
+  1: 'common',      // 1级军候：只能使用白色部队
+  2: 'rare',        // 2级都尉：可使用白色、蓝色部队
+  3: 'rare',        // 3级校尉：可使用白色、蓝色部队
+  4: 'epic',        // 4级中郎将：可使用白色、蓝色、紫色部队
+  5: 'legendary',   // 5级将军：可使用白色、蓝色、紫色、橙色部队
+  6: 'legendary',   // 6级四方将军：可使用白色、蓝色、紫色、橙色部队
+  7: 'legendary',   // 7级骠骑/车骑：可使用白色、蓝色、紫色、橙色部队
+  8: 'legendary',   // 8级大将军/大司马：可使用白色、蓝色、紫色、橙色部队
+  9: 'core'         // 9级君主（AI专属）：可使用所有部队包括金色
+};
+
+// TODO: 当前临时设置玩家官职等级为8级（测试用）
+// 正式系统上线后，需要从玩家数据中读取真实官职等级
+const TEMP_PLAYER_POSITION_LEVEL = 8;
+
+// 检查将领是否可以装备部队（考虑稀有度和官职限制）
+const canEquipTroop = (characterRarity, troopRarity, positionLevel = TEMP_PLAYER_POSITION_LEVEL) => {
   const charLevel = RARITY_LEVELS[characterRarity] || 1;
   const troopLevel = RARITY_LEVELS[troopRarity] || 1;
   
-  // 武将可以装备同等级及以下的部队，或高一级的部队（有惩罚）
-  return troopLevel <= charLevel + 1;
+  // 规则1: 将领稀有度限制
+  // 将领可以装备同等级及以下的部队，或高一级的部队（有惩罚）
+  const passCharacterCheck = troopLevel <= charLevel + 1;
+  
+  // 规则2: 官职等级限制（TODO: 正式系统上线后启用）
+  // 官职等级决定可使用的部队卡稀有度上限
+  // 例如：1级军候只能使用白色部队，2级都尉可使用白色和蓝色部队
+  const maxAllowedRarity = POSITION_RARITY_LIMITS[positionLevel] || 'common';
+  const maxAllowedLevel = RARITY_LEVELS[maxAllowedRarity] || 1;
+  const passPositionCheck = troopLevel <= maxAllowedLevel;
+  
+  // TODO: 正式系统上线后，取消下面的注释，启用官职限制
+  // return passCharacterCheck && passPositionCheck;
+  
+  // 当前只检查将领稀有度限制，不检查官职限制（测试阶段）
+  return passCharacterCheck;
 };
 
 // 检查是否有稀有度惩罚
@@ -131,15 +164,24 @@ const FormationCard = ({ formation, index, onRemove, onOpenSelector }) => {
       </div>
       
       <div className="space-y-4">
-        {/* 武将选择 */}
+        {/* 将领选择 */}
         <div 
-          className="border rounded-lg p-3 cursor-pointer hover:border-blue-400 hover:bg-blue-50/50 transition-all duration-200 hover:shadow-md"
-          onClick={() => onOpenSelector(index, 'character')}
+          className={`border rounded-lg p-3 ${
+            formation.isPlayerFormation 
+              ? 'cursor-not-allowed bg-gray-50' 
+              : 'cursor-pointer hover:border-blue-400 hover:bg-blue-50/50'
+          } transition-all duration-200 ${!formation.isPlayerFormation && 'hover:shadow-md'}`}
+          onClick={() => !formation.isPlayerFormation && onOpenSelector(index, 'character')}
+          title={formation.isPlayerFormation ? '玩家编组固定使用玩家自己的将领' : '点击选择将领'}
         >
           <div className="flex items-center gap-2 mb-2">
             <PlaceholderIcon type="character" size="w-6 h-6" />
-            <span className="text-sm font-medium text-gray-700">武将</span>
-            <span className="text-xs text-gray-500 ml-auto">点击选择</span>
+            <span className="text-sm font-medium text-gray-700">
+              {formation.isPlayerFormation ? '玩家将领（固定）' : '将领'}
+            </span>
+            {!formation.isPlayerFormation && (
+              <span className="text-xs text-gray-500 ml-auto">点击选择</span>
+            )}
           </div>
           {formation.character ? (
             <div className="bg-blue-50 rounded p-2">
@@ -171,7 +213,7 @@ const FormationCard = ({ formation, index, onRemove, onOpenSelector }) => {
             </div>
           ) : (
             <div className="text-gray-500 text-sm py-4 text-center border-2 border-dashed border-gray-300 rounded">
-              点击选择武将
+              点击选择将领
             </div>
           )}
         </div>
@@ -328,7 +370,7 @@ const CharacterSelector = ({ characters, onSelect, selectedIds = [] }) => {
       <div className="flex gap-2">
         <input
           type="text"
-          placeholder="搜索武将..."
+          placeholder="搜索将领..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm"
@@ -463,7 +505,7 @@ const TroopSelector = ({ troops, onSelect, selectedIds = [], characterRarity = '
           <div className="text-center py-8 text-gray-500">
             <div className="text-4xl mb-2">🚫</div>
             <p>没有可装备的部队</p>
-            <p className="text-xs mt-1">武将稀有度限制了可选择的部队</p>
+            <p className="text-xs mt-1">将领稀有度限制了可选择的部队</p>
           </div>
         )}
       </div>
@@ -476,10 +518,17 @@ const TroopFormationSystem = () => {
   const { characters, loading: charactersLoading } = useCharacters();
   const { troops, loading: troopsLoading } = useTroops();
   
+  // TODO: 正式系统上线后，将 PLAYER_CHARACTER_ID 改为玩家自己的将领ID
+  // 当前写死为刘备（char_san_1101）作为玩家将领
+  const PLAYER_CHARACTER_ID = 'char_san_1101';
+  
+  // 获取玩家将领
+  const playerCharacter = characters.find(c => c.id === PLAYER_CHARACTER_ID);
+  
   const [formations, setFormations] = useState([
-    { character: null, troops: [null], name: '玩家编组' },
-    { character: null, troops: [null, null], name: '编组 1' },
-    { character: null, troops: [null, null], name: '编组 2' }
+    { character: playerCharacter || null, troops: [null], name: '玩家编组', isPlayerFormation: true },
+    { character: null, troops: [null, null], name: '将领编组 1', isPlayerFormation: false },
+    { character: null, troops: [null, null], name: '将领编组 2', isPlayerFormation: false }
   ]);
   const [showCharacterSelector, setShowCharacterSelector] = useState(false);
   const [showTroopSelector, setShowTroopSelector] = useState(false);
@@ -501,7 +550,7 @@ const TroopFormationSystem = () => {
   //   }
   // };
 
-  // 选择武将
+  // 选择将领
   const selectCharacter = (character) => {
     const newFormations = [...formations];
     newFormations[currentFormationIndex].character = character;
@@ -525,6 +574,11 @@ const TroopFormationSystem = () => {
       return;
     }
     
+    // 玩家编组（index=0）不允许选择将领
+    if (index === 0 && type === 'character') {
+      return; // 直接返回，不打开选择器
+    }
+    
     setCurrentFormationIndex(index);
     setCurrentTroopIndex(troopIndex);
     setSelectionType(type);
@@ -539,6 +593,30 @@ const TroopFormationSystem = () => {
 
   // 一键编组单个编组
   const autoSingleFormation = (index) => {
+    // 玩家编组（index=0）的将领已固定，只需分配部队
+    if (index === 0) {
+      const playerFormation = formations[0];
+      if (!playerFormation.character) return; // 玩家将领未加载
+      
+      const availableTroops = troops.filter(troop => 
+        !formations.some(f => f.troops.some(t => t?.id === troop.id)) &&
+        canEquipTroop(playerFormation.character.rarity, troop.rarity)
+      );
+
+      if (availableTroops.length >= playerFormation.troops.length) {
+        const newFormations = [...formations];
+        newFormations[0] = {
+          ...newFormations[0],
+          troops: playerFormation.troops.map((_, troopIndex) => 
+            availableTroops[troopIndex] || null
+          )
+        };
+        setFormations(newFormations);
+      }
+      return;
+    }
+    
+    // 将领编组的一键编组逻辑
     const availableCharacters = characters.filter(char => 
       !formations.some(f => f.character?.id === char.id)
     );
@@ -546,7 +624,7 @@ const TroopFormationSystem = () => {
     if (availableCharacters.length > 0) {
       const selectedCharacter = availableCharacters[0];
       
-      // 根据武将稀有度筛选可用部队
+      // 根据将领稀有度筛选可用部队
       const availableTroops = troops.filter(troop => 
         !formations.some(f => f.troops.some(t => t?.id === troop.id)) &&
         canEquipTroop(selectedCharacter.rarity, troop.rarity)
@@ -566,6 +644,15 @@ const TroopFormationSystem = () => {
     }
   };
 
+  // 当玩家将领数据加载完成后，更新玩家编组
+  React.useEffect(() => {
+    if (playerCharacter && !formations[0].character) {
+      const newFormations = [...formations];
+      newFormations[0].character = playerCharacter;
+      setFormations(newFormations);
+    }
+  }, [playerCharacter]);
+
   const selectedCharacterIds = formations.map(f => f.character?.id).filter(Boolean);
   const selectedTroopIds = formations.flatMap(f => f.troops.map(t => t?.id)).filter(Boolean);
 
@@ -584,7 +671,7 @@ const TroopFormationSystem = () => {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">部队编组系统</h2>
-          <p className="text-gray-600">武将 + 部队卡组合机制验证</p>
+          <p className="text-gray-600">将领 + 部队卡组合机制验证</p>
         </div>
       </div>
 
@@ -601,12 +688,12 @@ const TroopFormationSystem = () => {
         ))}
       </div>
 
-      {/* 武将选择器模态框 */}
+      {/* 将领选择器模态框 */}
       {showCharacterSelector && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[80vh] overflow-hidden">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold">选择武将</h3>
+              <h3 className="text-lg font-semibold">选择将领</h3>
               <button
                 onClick={() => setShowCharacterSelector(false)}
                 className="text-gray-500 hover:text-gray-700"

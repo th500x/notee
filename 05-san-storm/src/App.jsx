@@ -105,7 +105,7 @@ function App() {
                   to="/characters" 
                   className="text-gray-700 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium whitespace-nowrap"
                 >
-                  角色系统
+                  将领系统
                 </Link>
                 <Link 
                   to="/troop-cards" 
@@ -194,7 +194,7 @@ function App() {
                   onClick={() => setMobileMenuOpen(false)}
                   className="block text-gray-700 hover:text-gray-900 hover:bg-gray-50 px-3 py-2 rounded-md text-base font-medium"
                 >
-                  角色系统
+                  将领系统
                 </Link>
                 <Link 
                   to="/troop-cards" 
@@ -329,8 +329,8 @@ function HomePage() {
         />
         <FeatureCard 
           icon="👤"
-          title="角色系统"
-          description="浏览所有角色，查看生涯详情"
+          title="将领系统"
+          description="浏览所有将领，查看生涯详情"
           link="/characters"
         />
         <FeatureCard 
@@ -593,7 +593,7 @@ function CharactersPage() {
     return (
       <div className="text-center py-12">
         <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-        <p className="mt-4 text-gray-600">加载武将列表...</p>
+        <p className="mt-4 text-gray-600">加载将领列表...</p>
       </div>
     );
   }
@@ -608,7 +608,7 @@ function CharactersPage() {
 
   return (
     <div>
-      <h2 className="text-3xl font-bold text-gray-900 mb-6">武将列表</h2>
+      <h2 className="text-3xl font-bold text-gray-900 mb-6">将领列表</h2>
       
       {/* 筛选和排序控制 */}
       <div className="bg-white rounded-lg shadow-md p-4 mb-6">
@@ -616,7 +616,7 @@ function CharactersPage() {
           {/* 搜索 */}
           <input
             type="text"
-            placeholder="搜索武将名字..."
+            placeholder="搜索将领名字..."
             value={filters.search}
             onChange={(e) => setFilters({ ...filters, search: e.target.value })}
             className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -676,14 +676,14 @@ function CharactersPage() {
         
         {/* 结果统计 */}
         <div className="mt-3 text-sm text-gray-600">
-          共找到 <span className="font-medium text-gray-900">{displayedCharacters.length}</span> 位武将
+          共找到 <span className="font-medium text-gray-900">{displayedCharacters.length}</span> 位将领
         </div>
       </div>
 
-      {/* 武将卡片网格 */}
+      {/* 将领卡片网格 */}
       {displayedCharacters.length === 0 ? (
         <div className="bg-white rounded-lg shadow-md p-12 text-center">
-          <p className="text-gray-500">没有找到符合条件的武将</p>
+          <p className="text-gray-500">没有找到符合条件的将领</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 justify-items-center">
@@ -860,17 +860,23 @@ function UserManagerPage() {
   const adminAccess = hasAdminAccess();
   const isDev = process.env.NODE_ENV === 'development';
   
-  // 全局密码（与其他项目统一）
-  const GLOBAL_ADMIN_PASSWORD = 'notee.vip.2026';
-  
-  // 验证密码
-  const handlePasswordSubmit = (e) => {
+  // 验证密码（带尝试次数限制）
+  const handlePasswordSubmit = async (e) => {
     e.preventDefault();
-    if (passwordInput === GLOBAL_ADMIN_PASSWORD) {
-      setPasswordVerified(true);
-      setPasswordError('');
-    } else {
-      setPasswordError('密码错误，请重试');
+    
+    try {
+      const { verifyGlobalPassword } = await import('@/utils/globalAuth');
+      const result = verifyGlobalPassword(passwordInput);
+      
+      if (result.success) {
+        setPasswordVerified(true);
+        setPasswordError('');
+      } else {
+        setPasswordError(result.message);
+        setPasswordInput('');
+      }
+    } catch (error) {
+      setPasswordError('验证失败，请重试');
       setPasswordInput('');
     }
   };
@@ -941,7 +947,8 @@ function UserManagerPage() {
             <div className="mt-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-left">
               <p className="text-xs text-yellow-800">
                 <strong>开发提示：</strong><br/>
-                全局管理员密码：{GLOBAL_ADMIN_PASSWORD}
+                全局管理员密码：notee.vip.2026<br/>
+                尝试限制：5次/10分钟
               </p>
             </div>
           )}
