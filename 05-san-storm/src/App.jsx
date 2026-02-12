@@ -67,7 +67,7 @@ function App() {
                   href="/"
                   className="text-xl sm:text-2xl font-bold text-gray-900 hover:text-blue-600 transition-colors cursor-pointer relative group"
                 >
-                  真三风云 <span className="text-xs sm:text-sm text-gray-500">San Storm</span>
+                  真三風雲 <span className="text-xs sm:text-sm text-gray-500">San Storm</span>
                   {/* 悬停提示 - 改为显示在下方 */}
                   <span className="absolute top-full left-0 mt-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50">
                     返回主页
@@ -252,7 +252,7 @@ function App() {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
             <div className="text-center space-y-2">
               <p className="text-gray-900 font-medium">
-                真三风云 San Storm
+                真三風雲 San Storm
               </p>
               <p className="text-sm text-gray-600">
                 版本 0.1.0 - 里程碑1核心原型
@@ -297,7 +297,7 @@ function HomePage() {
       {/* 游戏标题和介绍 */}
       <div className="text-center py-12 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg">
         <h2 className="text-4xl font-bold text-gray-900 mb-4">
-          欢迎来到真三风云
+          欢迎来到真三風雲
         </h2>
         <p className="text-xl text-gray-600 mb-2">
           三国策略战棋游戏 - 里程碑1核心原型
@@ -367,7 +367,7 @@ function HomePage() {
 
       {/* 版权信息 */}
       <div className="text-center text-sm text-gray-500 py-4">
-        <p>真三风云 San Storm © 2026 Notee.vip</p>
+        <p>真三風雲 San Storm © 2026 Notee.vip</p>
         <p className="mt-1">里程碑1 - 核心原型展示</p>
       </div>
     </div>

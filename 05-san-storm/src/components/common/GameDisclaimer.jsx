@@ -97,7 +97,7 @@ export function GameDisclaimer({ showFull = false }) {
           <div className="mt-6 pt-6 border-t border-gray-200">
             <h4 className="text-lg font-bold text-gray-900 mb-3">© 版权申明</h4>
             <div className="bg-gray-50 rounded-lg p-4 font-mono text-xs text-gray-700 whitespace-pre-line">
-{`真三风云 (San Storm)
+{`真三風雲 (San Storm)
 版本：0.1.0
 Copyright © 2026 Notee.vip
 保留所有权利
@@ -123,7 +123,7 @@ export function DisclaimerModal({ isOpen, onAccept, onCancel }) {
       <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
         <div className="p-6">
           <h2 className="text-2xl font-bold text-gray-900 mb-4">
-            欢迎来到真三风云
+            欢迎来到真三風雲
           </h2>
           
           <p className="text-gray-600 mb-6">
