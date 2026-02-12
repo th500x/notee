@@ -6,20 +6,61 @@
 
 import React, { useState, useEffect } from 'react';
 
+// 获取当前批次信息的函数（与注册系统相同）
+const getCurrentBatchInfo = () => {
+  const registeredIds = JSON.parse(localStorage.getItem('registeredIds') || '[]');
+  const idBatches = JSON.parse(localStorage.getItem('idBatches') || '{}');
+  
+  // 检查当前批次 (0-9)
+  for (let batch = 0; batch <= 9; batch++) {
+    if (!idBatches[batch]) {
+      // 如果批次不存在，说明还没开始使用这个批次
+      return {
+        currentBatch: batch,
+        availableIds: [],
+        totalInBatch: 46656, // 36^3
+        usedInBatch: 0
+      };
+    }
+    
+    // 检查这个批次是否还有可用ID
+    const availableInBatch = idBatches[batch].filter(id => !registeredIds.includes(id));
+    if (availableInBatch.length > 0) {
+      return {
+        currentBatch: batch,
+        availableIds: availableInBatch,
+        totalInBatch: idBatches[batch].length,
+        usedInBatch: idBatches[batch].length - availableInBatch.length
+      };
+    }
+  }
+  
+  // 所有批次都用完了
+  return {
+    currentBatch: -1,
+    availableIds: [],
+    totalInBatch: 46656,
+    usedInBatch: 46656
+  };
+};
+
 const UserManager = () => {
   const [users, setUsers] = useState([]);
   const [registeredIds, setRegisteredIds] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
+  const [batchInfo, setBatchInfo] = useState(null);
 
   // 加载用户数据
   const loadUserData = () => {
     const gameUsers = JSON.parse(localStorage.getItem('gameUsers') || '[]');
     const regIds = JSON.parse(localStorage.getItem('registeredIds') || '[]');
     const current = JSON.parse(localStorage.getItem('gameUser') || 'null');
+    const batch = getCurrentBatchInfo();
     
     setUsers(gameUsers);
     setRegisteredIds(regIds);
     setCurrentUser(current);
+    setBatchInfo(batch);
   };
 
   useEffect(() => {
@@ -64,7 +105,16 @@ const UserManager = () => {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">用户管理</h2>
-          <p className="text-gray-600">查看和管理已注册用户</p>
+          <div className="flex items-center gap-4 mt-2 text-sm">
+            <div className="bg-blue-50 px-3 py-1 rounded-full">
+              <span className="text-blue-600 font-medium">注册用户数: </span>
+              <span className="text-blue-900 font-bold">{users.length}</span>
+            </div>
+            <div className="bg-green-50 px-3 py-1 rounded-full">
+              <span className="text-green-600 font-medium">登录用户数: </span>
+              <span className="text-green-900 font-bold">{currentUser ? '1' : '0'}</span>
+            </div>
+          </div>
         </div>
         <div className="flex gap-2">
           <button
@@ -82,23 +132,53 @@ const UserManager = () => {
         </div>
       </div>
 
-      {/* 统计信息 */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-blue-50 rounded-lg p-4">
-          <div className="text-2xl font-bold text-blue-900">{users.length}</div>
-          <div className="text-blue-700">已注册用户</div>
-        </div>
-        <div className="bg-green-50 rounded-lg p-4">
-          <div className="text-2xl font-bold text-green-900">{registeredIds.length}</div>
-          <div className="text-green-700">已占用ID</div>
-        </div>
-        <div className="bg-purple-50 rounded-lg p-4">
-          <div className="text-2xl font-bold text-purple-900">
-            {currentUser ? '1' : '0'}
+      {/* 批次信息详情 */}
+      {batchInfo && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <h3 className="text-lg font-semibold text-blue-900 mb-3">📊 ID批次使用情况</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="bg-white rounded-lg p-3 border">
+              <div className="text-sm text-blue-600">当前批次</div>
+              <div className="font-bold text-blue-900">
+                {batchInfo.currentBatch === -1 ? '全部批次已满' : `第 ${batchInfo.currentBatch} 批`}
+              </div>
+            </div>
+            <div className="bg-white rounded-lg p-3 border">
+              <div className="text-sm text-blue-600">批次进度</div>
+              <div className="font-bold text-blue-900">
+                {batchInfo.usedInBatch.toLocaleString()} / {batchInfo.totalInBatch.toLocaleString()}
+              </div>
+            </div>
+            <div className="bg-white rounded-lg p-3 border">
+              <div className="text-sm text-blue-600">使用率</div>
+              <div className="font-bold text-blue-900">
+                {((batchInfo.usedInBatch / batchInfo.totalInBatch) * 100).toFixed(2)}%
+              </div>
+            </div>
           </div>
-          <div className="text-purple-700">当前登录用户</div>
+          
+          {/* 进度条 */}
+          <div className="mt-4">
+            <div className="flex justify-between text-sm text-blue-700 mb-1">
+              <span>批次使用进度</span>
+              <span>{batchInfo.availableIds.length.toLocaleString()} 个ID剩余</span>
+            </div>
+            <div className="bg-blue-100 rounded-full h-3">
+              <div 
+                className="bg-blue-600 h-3 rounded-full transition-all duration-300"
+                style={{ width: `${(batchInfo.usedInBatch / batchInfo.totalInBatch * 100)}%` }}
+              ></div>
+            </div>
+          </div>
+          
+          {batchInfo.currentBatch === -1 && (
+            <div className="mt-3 p-3 bg-red-100 border border-red-200 rounded-lg">
+              <p className="text-red-800 font-medium">⚠️ 所有批次已满</p>
+              <p className="text-red-700 text-sm">总计 466,560 个ID已全部分配完毕</p>
+            </div>
+          )}
         </div>
-      </div>
+      )}
 
       {/* 当前登录用户 */}
       {currentUser && (
@@ -203,25 +283,6 @@ const UserManager = () => {
                 ))}
               </tbody>
             </table>
-          </div>
-        )}
-      </div>
-
-      {/* 已占用ID列表 */}
-      <div className="bg-white rounded-lg shadow-md p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">已占用ID列表</h3>
-        {registeredIds.length === 0 ? (
-          <div className="text-gray-500">暂无已占用ID</div>
-        ) : (
-          <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-2">
-            {registeredIds.map(id => (
-              <div
-                key={id}
-                className="px-3 py-2 bg-gray-100 rounded text-center font-mono text-sm"
-              >
-                {id}
-              </div>
-            ))}
           </div>
         )}
       </div>

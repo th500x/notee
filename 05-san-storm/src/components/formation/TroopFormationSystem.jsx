@@ -27,7 +27,51 @@ const PlaceholderIcon = ({ type, size = 'w-8 h-8' }) => {
   );
 };
 
-// 解析适应性字符串
+// 稀有度等级定义（从低到高）
+const RARITY_LEVELS = {
+  'common': 1,    // 普通
+  'rare': 2,      // 稀有
+  'epic': 3,      // 史诗
+  'legendary': 4, // 传奇
+  'core': 5       // 核心
+};
+
+// 检查武将是否可以装备部队
+const canEquipTroop = (characterRarity, troopRarity) => {
+  const charLevel = RARITY_LEVELS[characterRarity] || 1;
+  const troopLevel = RARITY_LEVELS[troopRarity] || 1;
+  
+  // 武将可以装备同等级及以下的部队，或高一级的部队（有惩罚）
+  return troopLevel <= charLevel + 1;
+};
+
+// 检查是否有稀有度惩罚
+const hasRarityPenalty = (characterRarity, troopRarity) => {
+  const charLevel = RARITY_LEVELS[characterRarity] || 1;
+  const troopLevel = RARITY_LEVELS[troopRarity] || 1;
+  
+  // 装备高一级稀有度部队时有-10%惩罚
+  return troopLevel === charLevel + 1;
+};
+
+// 按稀有度排序（从高到低）
+const sortByRarity = (items) => {
+  return [...items].sort((a, b) => {
+    const aLevel = RARITY_LEVELS[a.rarity] || 1;
+    const bLevel = RARITY_LEVELS[b.rarity] || 1;
+    return bLevel - aLevel; // 从高到低排序
+  });
+};
+const applyRarityPenalty = (troop, hasPenalty) => {
+  if (!hasPenalty) return troop;
+  
+  return {
+    ...troop,
+    attack: Math.floor((troop.attack || 0) * 0.9),
+    defense: Math.floor((troop.defense || 0) * 0.9),
+    // maxTroops 不受惩罚影响
+  };
+};
 const parseAffinityString = (affinityStr) => {
   const affinities = {};
   if (!affinityStr) return affinities;
@@ -55,36 +99,21 @@ const getAffinityLevel = (bonus) => {
   return { level: '不适应', color: 'text-gray-600' };
 };
 
-// 战力计算函数（更新版）
-const calculateFormationPower = (formations) => {
-  return formations.reduce((total, formation) => {
-    if (!formation.character || !formation.troops.some(troop => troop)) return total;
-    
-    // 基础战力 = 武将属性
-    const characterPower = (formation.character.combat || 0) + 
-                          (formation.character.command || 0) + 
-                          (formation.character.intelligence || 0);
-    
-    // 计算所有部队的战力
-    let formationPower = characterPower;
-    
-    formation.troops.forEach(troop => {
-      if (troop) {
-        const troopPower = (troop.attack || 0) + (troop.defense || 0) + (troop.health || 0);
-        const basePower = characterPower + troopPower;
-        
-        // 兵种适应性加成
-        const affinityBonus = getAffinityBonus(formation.character.troopAffinity, troop.troopType);
-        const finalPower = Math.floor(basePower * (1 + affinityBonus / 100));
-        
-        formationPower += finalPower - characterPower; // 只加部队部分的战力
-      }
-    });
-    
-    return total + formationPower;
-  }, 0);
+// 计算粮草消耗
+const calculateFoodConsumption = (formation) => {
+  if (!formation.character || !formation.troops.some(troop => troop)) return 0;
+  
+  let totalTroops = 0;
+  formation.troops.forEach(troop => {
+    if (troop) {
+      // 兵力数不受稀有度惩罚影响
+      totalTroops += troop.maxTroops || 0;
+    }
+  });
+  
+  // 每20兵力消耗1粮草，向上取整
+  return Math.ceil(totalTroops / 20);
 };
-
 // 单个编组卡片组件
 const FormationCard = ({ formation, index, onRemove, onOpenSelector }) => {
   return (
@@ -164,9 +193,23 @@ const FormationCard = ({ formation, index, onRemove, onOpenSelector }) => {
               </div>
               {troop ? (
                 <div className="bg-green-50 rounded p-2">
-                  <div className="font-medium text-green-900">{troop.name}</div>
+                  <div className="font-medium text-green-900 flex items-center gap-2">
+                    {troop.name}
+                    {formation.character && hasRarityPenalty(formation.character.rarity, troop.rarity) && (
+                      <span className="text-xs bg-orange-200 text-orange-800 px-2 py-1 rounded-full">
+                        -10%
+                      </span>
+                    )}
+                  </div>
                   <div className="text-xs text-green-700">
-                    攻击:{troop.attack} 防御:{troop.defense} 生命:{troop.health}
+                    {(() => {
+                      if (formation.character) {
+                        const hasPenalty = hasRarityPenalty(formation.character.rarity, troop.rarity);
+                        const effectiveTroop = applyRarityPenalty(troop, hasPenalty);
+                        return `攻击:${effectiveTroop.attack} 防御:${effectiveTroop.defense} 兵力:${effectiveTroop.maxTroops}`;
+                      }
+                      return `攻击:${troop.attack} 防御:${troop.defense} 兵力:${troop.maxTroops}`;
+                    })()}
                   </div>
                   <div className="text-xs text-green-600 mt-1">
                     {troop.troopType} | {troop.rarity}
@@ -181,73 +224,82 @@ const FormationCard = ({ formation, index, onRemove, onOpenSelector }) => {
           ))}
         </div>
 
-        {/* 组合战力 */}
+        {/* 组合战力和粮草消耗 */}
         <div className="bg-yellow-50 rounded-lg p-3">
-          <div className="flex items-center gap-2 mb-1">
-            <PlaceholderIcon type="power" size="w-5 h-5" />
-            <span className="text-sm font-medium text-yellow-800">组合战力</span>
-          </div>
-          {formation.character && formation.troops.some(troop => troop) ? (
-            <div>
-              <div className="text-lg font-bold text-yellow-900">
-                {(() => {
-                  const characterPower = (formation.character.combat || 0) + (formation.character.command || 0) + (formation.character.intelligence || 0);
-                  let totalPower = characterPower;
-                  let totalBonus = 0;
-                  
-                  formation.troops.forEach(troop => {
-                    if (troop) {
-                      const troopPower = (troop.attack || 0) + (troop.defense || 0) + (troop.health || 0);
-                      const basePower = characterPower + troopPower;
-                      const affinityBonus = getAffinityBonus(formation.character.troopAffinity, troop.troopType);
-                      const finalPower = Math.floor(basePower * (1 + affinityBonus / 100));
-                      const bonusPower = finalPower - basePower;
-                      
-                      totalPower += troopPower + bonusPower;
-                      totalBonus += bonusPower;
-                    }
-                  });
-                  
-                  return (
-                    <div>
-                      <div>{Math.floor(totalPower)}</div>
-                      {totalBonus > 0 && (
-                        <div className="text-xs text-yellow-700">
-                          基础:{(totalPower - totalBonus).toFixed(1)} + 适应性:{totalBonus.toFixed(1)}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })()}
+          <div className="flex items-center justify-between">
+            {/* 组合战力 */}
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-1">
+                <PlaceholderIcon type="power" size="w-5 h-5" />
+                <span className="text-sm font-medium text-yellow-800">组合战力</span>
               </div>
-              
-              {/* 适应性显示 */}
+              {formation.character && formation.troops.some(troop => troop) ? (
+                <div>
+                  <div className="text-lg font-bold text-yellow-900">
+                    {(() => {
+                      const characterPower = (formation.character.combat || 0) + (formation.character.command || 0) + (formation.character.intelligence || 0);
+                      let totalPower = characterPower;
+                      let totalBonus = 0;
+                      
+                      formation.troops.forEach(troop => {
+                        if (troop) {
+                          // 应用稀有度惩罚
+                          const hasPenalty = formation.character ? hasRarityPenalty(formation.character.rarity, troop.rarity) : false;
+                          const effectiveTroop = applyRarityPenalty(troop, hasPenalty);
+                          
+                          const troopPower = (effectiveTroop.attack || 0) + (effectiveTroop.defense || 0) + (effectiveTroop.maxTroops || 0);
+                          const basePower = characterPower + troopPower;
+                          const affinityBonus = getAffinityBonus(formation.character.troopAffinity, troop.troopType);
+                          const finalPower = Math.floor(basePower * (1 + affinityBonus / 100));
+                          const bonusPower = finalPower - basePower;
+                          
+                          totalPower += troopPower + bonusPower;
+                          totalBonus += bonusPower;
+                        }
+                      });
+                      
+                      return (
+                        <div>
+                          <div>{Math.floor(totalPower)}</div>
+                          {totalBonus > 0 && (
+                            <div className="text-xs text-yellow-700">
+                              基础:{(totalPower - totalBonus).toFixed(1)} + 适应性:{totalBonus.toFixed(1)}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                </div>
+              ) : (
+                <div className="text-lg font-bold text-yellow-900">0</div>
+              )}
+            </div>
+            
+            {/* 粮草消耗 */}
+            <div className="flex-1 text-right">
+              <div className="flex items-center justify-end gap-2 mb-1">
+                <span className="text-sm font-medium text-orange-800">粮草消耗</span>
+                <span className="text-lg">🌾</span>
+              </div>
+              <div className="text-lg font-bold text-orange-900">
+                {calculateFoodConsumption(formation)}
+              </div>
               {formation.character && formation.troops.some(troop => troop) && (
-                <div className="mt-2 text-xs space-y-1">
-                  {formation.troops.map((troop, troopIndex) => {
-                    if (!troop) return null;
-                    const affinityBonus = getAffinityBonus(formation.character.troopAffinity, troop.troopType);
-                    if (affinityBonus === 0) return null;
-                    
-                    const { level, color } = getAffinityLevel(affinityBonus);
-                    const troopTypeMap = {
-                      infantry: '🛡️步兵',
-                      cavalry: '🐎骑兵', 
-                      archer: '🏹弓兵'
-                    };
-                    
-                    return (
-                      <div key={troopIndex} className={`${color} font-medium`}>
-                        {troopTypeMap[troop.troopType] || troop.troopType} 适应性 +{affinityBonus}%
-                      </div>
-                    );
-                  })}
+                <div className="text-xs text-orange-700">
+                  {(() => {
+                    let totalTroops = 0;
+                    formation.troops.forEach(troop => {
+                      if (troop) {
+                        totalTroops += troop.maxTroops || 0; // 使用maxTroops
+                      }
+                    });
+                    return `${totalTroops} ÷ 20`;
+                  })()}
                 </div>
               )}
             </div>
-          ) : (
-            <div className="text-lg font-bold text-yellow-900">0</div>
-          )}
+          </div>
         </div>
       </div>
     </div>
@@ -260,12 +312,15 @@ const CharacterSelector = ({ characters, onSelect, selectedIds = [] }) => {
   const [factionFilter, setFactionFilter] = useState('all');
   
   const filteredCharacters = useMemo(() => {
-    return characters.filter(char => {
+    const filtered = characters.filter(char => {
       const matchesSearch = char.name.toLowerCase().includes(search.toLowerCase());
       const matchesFaction = factionFilter === 'all' || char.faction === factionFilter;
       const notSelected = !selectedIds.includes(char.id);
       return matchesSearch && matchesFaction && notSelected;
     });
+    
+    // 按稀有度从高到低排序
+    return sortByRarity(filtered);
   }, [characters, search, factionFilter, selectedIds]);
 
   return (
@@ -302,6 +357,9 @@ const CharacterSelector = ({ characters, onSelect, selectedIds = [] }) => {
             <div className="text-sm text-gray-600">
               {char.faction} | 攻击:{char.combat} 防御:{char.command} 智力:{char.intelligence}
             </div>
+            <div className="text-xs text-gray-500 mt-1">
+              稀有度: {char.rarity}
+            </div>
             {/* 显示适应性预览 */}
             {char.troopAffinity && (
               <div className="text-xs text-gray-500 mt-1">
@@ -322,18 +380,26 @@ const CharacterSelector = ({ characters, onSelect, selectedIds = [] }) => {
   );
 };
 
-const TroopSelector = ({ troops, onSelect, selectedIds = [] }) => {
+const TroopSelector = ({ troops, onSelect, selectedIds = [], characterRarity = 'common' }) => {
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
   
   const filteredTroops = useMemo(() => {
-    return troops.filter(troop => {
-      const matchesSearch = troop.name.toLowerCase().includes(search.toLowerCase());
-      const matchesType = typeFilter === 'all' || troop.troopType === typeFilter;
-      const notSelected = !selectedIds.includes(troop.id);
-      return matchesSearch && matchesType && notSelected;
+    const filtered = troops.filter(troop => {
+      // 基础筛选条件
+      if (selectedIds.includes(troop.id)) return false;
+      if (typeFilter !== 'all' && troop.troopType !== typeFilter) return false;
+      if (search && !troop.name.toLowerCase().includes(search.toLowerCase())) return false;
+      
+      // 稀有度限制
+      const charLevel = RARITY_LEVELS[characterRarity] || 1;
+      const troopLevel = RARITY_LEVELS[troop.rarity] || 1;
+      return troopLevel <= charLevel + 1;
     });
-  }, [troops, search, typeFilter, selectedIds]);
+    
+    // 按稀有度从高到低排序
+    return sortByRarity(filtered);
+  }, [troops, search, typeFilter, selectedIds, characterRarity]);
 
   return (
     <div className="space-y-4">
@@ -358,18 +424,48 @@ const TroopSelector = ({ troops, onSelect, selectedIds = [] }) => {
       </div>
       
       <div className="max-h-60 overflow-y-auto space-y-2">
-        {filteredTroops.map(troop => (
-          <div
-            key={troop.id}
-            onClick={() => onSelect(troop)}
-            className="p-3 border rounded-lg hover:bg-green-50 cursor-pointer transition-colors"
-          >
-            <div className="font-medium">{troop.name}</div>
-            <div className="text-sm text-gray-600">
-              {troop.troopType} | 攻击:{troop.attack} 防御:{troop.defense} 生命:{troop.health}
+        {filteredTroops.map(troop => {
+          const hasPenalty = hasRarityPenalty(characterRarity, troop.rarity);
+          const effectiveTroop = applyRarityPenalty(troop, hasPenalty);
+          
+          return (
+            <div
+              key={troop.id}
+              onClick={() => onSelect(troop)}
+              className={`p-3 border rounded-lg hover:bg-green-50 cursor-pointer transition-colors ${
+                hasPenalty ? 'border-orange-300 bg-orange-50' : ''
+              }`}
+            >
+              <div className="font-medium flex items-center gap-2">
+                {troop.name}
+                {hasPenalty && (
+                  <span className="text-xs bg-orange-200 text-orange-800 px-2 py-1 rounded-full">
+                    -10%惩罚
+                  </span>
+                )}
+              </div>
+              <div className="text-sm text-gray-600">
+                {troop.troopType} | 攻击:{effectiveTroop.attack} 防御:{effectiveTroop.defense} 兵力:{effectiveTroop.maxTroops}
+                {hasPenalty && (
+                  <span className="text-orange-600 ml-2">
+                    (原: 攻击:{troop.attack} 防御:{troop.defense})
+                  </span>
+                )}
+              </div>
+              <div className="text-xs text-gray-500 mt-1">
+                稀有度: {troop.rarity}
+              </div>
             </div>
+          );
+        })}
+        
+        {filteredTroops.length === 0 && (
+          <div className="text-center py-8 text-gray-500">
+            <div className="text-4xl mb-2">🚫</div>
+            <p>没有可装备的部队</p>
+            <p className="text-xs mt-1">武将稀有度限制了可选择的部队</p>
           </div>
-        ))}
+        )}
       </div>
     </div>
   );
@@ -446,24 +542,30 @@ const TroopFormationSystem = () => {
     const availableCharacters = characters.filter(char => 
       !formations.some(f => f.character?.id === char.id)
     );
-    const availableTroops = troops.filter(troop => 
-      !formations.some(f => f.troops.some(t => t?.id === troop.id))
-    );
+    
+    if (availableCharacters.length > 0) {
+      const selectedCharacter = availableCharacters[0];
+      
+      // 根据武将稀有度筛选可用部队
+      const availableTroops = troops.filter(troop => 
+        !formations.some(f => f.troops.some(t => t?.id === troop.id)) &&
+        canEquipTroop(selectedCharacter.rarity, troop.rarity)
+      );
 
-    if (availableCharacters.length > 0 && availableTroops.length >= formations[index].troops.length) {
-      const newFormations = [...formations];
-      newFormations[index] = {
-        ...newFormations[index],
-        character: availableCharacters[0],
-        troops: formations[index].troops.map((_, troopIndex) => 
-          availableTroops[troopIndex] || null
-        )
-      };
-      setFormations(newFormations);
+      if (availableTroops.length >= formations[index].troops.length) {
+        const newFormations = [...formations];
+        newFormations[index] = {
+          ...newFormations[index],
+          character: selectedCharacter,
+          troops: formations[index].troops.map((_, troopIndex) => 
+            availableTroops[troopIndex] || null
+          )
+        };
+        setFormations(newFormations);
+      }
     }
   };
 
-  const totalPower = calculateFormationPower(formations);
   const selectedCharacterIds = formations.map(f => f.character?.id).filter(Boolean);
   const selectedTroopIds = formations.flatMap(f => f.troops.map(t => t?.id)).filter(Boolean);
 
@@ -483,17 +585,6 @@ const TroopFormationSystem = () => {
         <div>
           <h2 className="text-2xl font-bold text-gray-900">部队编组系统</h2>
           <p className="text-gray-600">武将 + 部队卡组合机制验证</p>
-        </div>
-      </div>
-
-      {/* 总战力显示 */}
-      <div className="bg-gradient-to-r from-purple-50 to-blue-50 rounded-lg p-6">
-        <div className="flex items-center justify-center gap-4">
-          <PlaceholderIcon type="formation" size="w-12 h-12" />
-          <div className="text-center">
-            <div className="text-sm text-gray-600">总战力</div>
-            <div className="text-4xl font-bold text-purple-900">{totalPower}</div>
-          </div>
         </div>
       </div>
 
@@ -549,6 +640,7 @@ const TroopFormationSystem = () => {
               troops={troops}
               onSelect={selectTroop}
               selectedIds={selectedTroopIds}
+              characterRarity={formations[currentFormationIndex]?.character?.rarity || 'common'}
             />
           </div>
         </div>

@@ -1224,3 +1224,1431 @@ const battleTeam = {
 **创建日期**: 2026-02-07  
 **最后更新**: 2026-02-09  
 **文档版本**: v2.1.0
+
+---
+
+## 🗺️ 战斗地图系统
+
+### 地图尺寸标准
+
+战斗地图根据战斗规模和类型采用不同尺寸：
+
+| 地图类型 | 尺寸 | 格数 | 适用场景 | 预计时长 |
+|---------|------|------|---------|---------|
+| **小型地图** | 4x6 | 24格 | 日常战斗（≤2部队） | 3-5分钟 |
+| **中型地图** | 6x8 | 48格 | 日常战斗（>2部队） | 5-8分钟 |
+| **大型地图** | 8x10 | 80格 | 战役地图 | 8-12分钟 |
+| **超大地图** | 10x12 | 120格 | 核心城市攻城 | 10-15分钟 |
+
+### 地图生成方式
+
+#### AI随机生成（日常/事件战斗）
+- **小型地图（4x6）**: 玩家部队数≤2时使用
+- **中型地图（6x8）**: 玩家部队数>2时使用
+- **生成规则**: 基于预设模板和算法自动生成
+- **地形类型**: 平原、森林、山地、河流、道路
+
+#### 手工设计（重要战斗）
+- **战役地图（8x10）**: 赛季特殊挑战，手工精心设计
+- **核心城市（10x12）**: 多人协作攻城，复杂城防设施
+
+### 视角设计
+
+**俯视角（Top-down View）** ✅ 确定方案
+- 开发效率高，AI绘图工作量小
+- 信息展示清晰，适合策略思考
+- 参考《文明6》战略地图风格
+- 重点突出游戏性而非视觉特效
+
+---
+
+## 👥 多人协作战斗系统
+
+### 核心城市攻城战
+
+#### 基本配置
+- **地图尺寸**: 10x12 (120格)
+- **参战人数**: 2-3名玩家协作 vs AI防守
+- **战斗时长**: 10-15分钟
+- **回合限制**: 20回合
+
+#### 部队配置
+```javascript
+// 2人协作模式
+玩家A: 最多5支部队
+玩家B: 最多5支部队
+AI防守: 6-8支部队
+总兵力对比: 10v6-8
+
+// 3人协作模式  
+玩家A: 最多5支部队
+玩家B: 最多4支部队
+玩家C: 最多4支部队
+AI防守: 7-8支部队
+总兵力对比: 13v7-8
+```
+
+#### 回合制协作机制
+
+**轮流行动制（推荐）**:
+```
+行动顺序: 玩家A → 玩家B → 玩家C → AI → 循环
+行动时间: 每人15秒
+决策机制: 可以看到队友行动后再决策
+配合效果: 更有策略性和配合感
+```
+
+**同时行动制**:
+```
+行动方式: 所有玩家同时下达指令
+思考时间: 30秒
+执行方式: 指令同时执行
+适用场景: 快节奏战斗
+```
+
+#### 胜利条件
+1. **占领城门**: 控制城门3回合
+2. **消灭守军**: 消灭80%的AI部队  
+3. **时间限制**: 20回合内达成目标
+
+#### 失败条件
+1. **全军覆没**: 所有玩家部队被消灭
+2. **时间耗尽**: 20回合后未达成胜利条件
+
+#### 奖励分配机制
+```javascript
+贡献度计算 = {
+  伤害输出: 40%,
+  承受伤害: 20%, 
+  战术配合: 20%,
+  目标贡献: 20%
+}
+
+奖励类型 = {
+  基础奖励: "所有参与者获得",
+  贡献奖励: "按贡献度比例分配", 
+  MVP奖励: "贡献度最高者额外奖励"
+}
+```
+
+### 房间系统设计
+```javascript
+const siegeRoom = {
+  roomId: "siege_001",
+  cityId: "core_city_luoyang", 
+  maxPlayers: 3,
+  currentPlayers: 2,
+  status: "waiting", // waiting/in_battle/finished
+  players: [
+    { playerId: "player_001", ready: true },
+    { playerId: "player_002", ready: false }
+  ],
+  battleConfig: {
+    mapSize: "10x12",
+    maxRounds: 20,
+    aiDifficulty: "hard"
+  }
+}
+```
+
+### 技术实现要点
+- **WebSocket实时同步**: 保证多人操作同步
+- **断线重连机制**: 处理网络异常
+- **观战模式**: 其他玩家可观看战斗
+- **聊天系统**: 队友间战术沟通
+
+---
+
+## 🎮 战斗体验优化
+
+### 快节奏设计目标
+- **小型战斗**: 3-5分钟解决
+- **中型战斗**: 5-8分钟解决  
+- **大型战斗**: 8-12分钟解决
+- **攻城战**: 10-15分钟解决
+
+### 地图平衡性
+- **AI生成地图**: 算法保证公平性和战术多样性
+- **手工地图**: 精心设计，确保平衡和趣味性
+- **地形效果**: 不同地形提供战术选择
+- **出生点**: 确保双方起始位置公平
+
+### 社交体验
+- **多人协作**: 增加游戏社交性
+- **实时配合**: 考验团队协作能力
+- **贡献统计**: 公平的奖励分配机制
+- **观战功能**: 增加游戏观赏性
+---
+
+## ⏰ 回合时间系统
+
+### 回合时间规则
+
+根据不同的战斗模式，采用不同的时间限制策略：
+
+| 战斗模式 | 行动时间限制 | 超时处理 | 说明 |
+|---------|-------------|---------|------|
+| **玩家 vs AI** | 无限制 | - | 单人模式，可以慢慢思考 |
+| **多人协作 vs AI** | 10秒/人 | 自动待机 | 2-3人协作攻城 |
+| **玩家 vs 玩家** | 20秒/人 | 自动待机 | PVP对战 |
+
+### 详细规则说明
+
+#### 玩家 vs AI（单人模式）
+```javascript
+const singlePlayerMode = {
+  timeLimit: null,           // 无时间限制
+  pauseAllowed: true,        // 允许暂停
+  thinkingTime: "unlimited", // 无限思考时间
+  targetDuration: "5-8分钟"  // 目标战斗时长
+}
+```
+
+**特点**：
+- ✅ 无时间压力，适合新手学习
+- ✅ 可以仔细规划战术
+- ✅ 适合复杂的战役地图挑战
+
+#### 多人协作 vs AI（攻城模式）
+```javascript
+const coopMode = {
+  timeLimit: 10,             // 10秒行动时间
+  playerCount: "2-3人",      // 参与人数
+  turnOrder: "轮流行动",      // 玩家A→玩家B→玩家C→AI
+  timeoutAction: "待机",     // 超时自动待机
+  totalDuration: "10-15分钟" // 总战斗时长
+}
+```
+
+**回合流程**：
+```
+1. 玩家A行动（10秒倒计时）
+   ├─ 有操作：执行指令
+   └─ 无操作：所有部队自动待机
+   
+2. 玩家B行动（10秒倒计时）
+   ├─ 有操作：执行指令  
+   └─ 无操作：所有部队自动待机
+   
+3. 玩家C行动（10秒倒计时）
+   ├─ 有操作：执行指令
+   └─ 无操作：所有部队自动待机
+   
+4. AI行动（2-3秒思考时间）
+   └─ 执行AI策略
+   
+5. 回到步骤1，开始下一轮
+```
+
+#### 玩家 vs 玩家（PVP模式）
+```javascript
+const pvpMode = {
+  timeLimit: 20,             // 20秒行动时间
+  playerCount: "1v1",        // 对战人数
+  turnOrder: "轮流行动",      // 玩家A→玩家B
+  timeoutAction: "待机",     // 超时自动待机
+  totalDuration: "8-12分钟"  // 总战斗时长
+}
+```
+
+**回合流程**：
+```
+1. 玩家A行动（20秒倒计时）
+   ├─ 有操作：执行指令
+   └─ 无操作：所有部队自动待机
+   
+2. 玩家B行动（20秒倒计时）
+   ├─ 有操作：执行指令
+   └─ 无操作：所有部队自动待机
+   
+3. 回到步骤1，开始下一轮
+```
+
+### 行动顺序系统
+
+#### 速度属性影响
+每个部队都有**速度属性**，决定在回合内的行动顺序：
+
+```javascript
+// 部队速度示例
+const troopSpeeds = {
+  "轻骑兵": 8,    // 速度最快，优先行动
+  "弓箭手": 6,    // 中等速度
+  "轻步兵": 5,    // 中等速度
+  "重步兵": 4,    // 较慢
+  "重骑兵": 7,    // 骑兵相对较快
+  "攻城器械": 2   // 最慢
+}
+```
+
+#### 行动顺序计算
+```javascript
+function calculateTurnOrder(playerTroops) {
+  // 1. 收集所有部队
+  const allTroops = [];
+  playerTroops.forEach(troop => {
+    allTroops.push({
+      troopId: troop.id,
+      playerId: troop.playerId,
+      speed: troop.speed,
+      name: troop.name
+    });
+  });
+  
+  // 2. 按速度排序（速度高的先行动）
+  allTroops.sort((a, b) => b.speed - a.speed);
+  
+  // 3. 速度相同时，随机决定顺序
+  return allTroops;
+}
+```
+
+#### 回合内行动顺序示例
+```
+玩家A的回合（10秒）：
+1. 轻骑兵（速度8）先行动
+2. 重骑兵（速度7）次行动  
+3. 弓箭手（速度6）再行动
+4. 重步兵（速度4）最后行动
+
+玩家B的回合（10秒）：
+1. 轻骑兵（速度8）先行动
+2. 轻步兵（速度5）次行动
+3. 攻城器械（速度2）最后行动
+```
+
+### 超时处理机制
+
+#### 自动待机规则
+```javascript
+function handleTimeout(player, troops) {
+  troops.forEach(troop => {
+    if (!troop.hasActed) {
+      // 自动执行待机指令
+      troop.action = "wait";
+      troop.hasActed = true;
+      
+      // 记录超时次数
+      player.timeoutCount++;
+      
+      // 显示提示信息
+      showMessage(`${troop.name} 超时待机`);
+    }
+  });
+}
+```
+
+#### 超时惩罚（可选）
+```javascript
+const timeoutPenalty = {
+  // 连续超时3次，下回合行动时间-2秒
+  consecutiveTimeouts: 3,
+  timePenalty: -2,
+  
+  // 单场战斗超时5次，战斗结束后经验-10%
+  totalTimeouts: 5,
+  expPenalty: -0.1
+}
+```
+
+### UI界面设计
+
+#### 倒计时显示
+```jsx
+function TurnTimer({ timeLeft, maxTime, currentPlayer }) {
+  const percentage = (timeLeft / maxTime) * 100;
+  
+  return (
+    <div className="turn-timer">
+      <div className="timer-bar">
+        <div 
+          className="timer-fill"
+          style={{ width: `${percentage}%` }}
+        />
+      </div>
+      <div className="timer-text">
+        {currentPlayer}行动中: {timeLeft}秒
+      </div>
+    </div>
+  );
+}
+```
+
+#### 行动顺序显示
+```jsx
+function TurnOrderDisplay({ turnOrder, currentTurn }) {
+  return (
+    <div className="turn-order">
+      <h4>行动顺序</h4>
+      {turnOrder.map((troop, index) => (
+        <div 
+          key={troop.id}
+          className={`turn-item ${index === currentTurn ? 'active' : ''}`}
+        >
+          <span className="speed">⚡{troop.speed}</span>
+          <span className="name">{troop.name}</span>
+          <span className="player">{troop.playerName}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+```
+
+### 平衡性考虑
+
+#### 时间设计理由
+
+**10秒（多人协作）**：
+- ✅ 足够做出基本决策
+- ✅ 保持游戏节奏
+- ✅ 避免其他玩家等待过久
+- ✅ 考验快速决策能力
+
+**20秒（PVP对战）**：
+- ✅ 允许更深入的战术思考
+- ✅ 平衡策略性和节奏感
+- ✅ 给予足够时间分析对手
+- ✅ 避免冲动决策
+
+**无限制（单人）**：
+- ✅ 学习和练习模式
+- ✅ 适合复杂战役挑战
+- ✅ 无社交压力
+- ✅ 专注战术研究
+
+#### 速度属性平衡
+```javascript
+// 速度属性设计原则
+const speedBalance = {
+  "轻单位": "高速度，低防御",     // 8-9速度
+  "重单位": "低速度，高防御",     // 3-4速度  
+  "远程单位": "中等速度",        // 5-6速度
+  "骑兵单位": "较高速度",        // 6-8速度
+  "攻城单位": "极低速度，高攻击" // 1-2速度
+}
+```
+
+### 技术实现要点
+
+#### WebSocket同步
+```javascript
+// 回合时间同步
+socket.emit('turn_start', {
+  playerId: currentPlayer,
+  timeLimit: getTimeLimit(gameMode),
+  turnOrder: calculateTurnOrder(troops)
+});
+
+// 超时处理
+socket.on('turn_timeout', (data) => {
+  handleTimeout(data.playerId, data.troops);
+  nextTurn();
+});
+```
+
+#### 断线重连
+```javascript
+// 玩家断线时暂停计时
+function handleDisconnect(playerId) {
+  if (currentPlayer === playerId) {
+    pauseTimer();
+    showMessage(`${playerId} 断线，等待重连...`);
+  }
+}
+
+// 重连后恢复计时
+function handleReconnect(playerId) {
+  if (currentPlayer === playerId) {
+    resumeTimer();
+    showMessage(`${playerId} 重连成功`);
+  }
+}
+```
+
+### 总结
+
+这个回合时间系统设计具有以下特点：
+
+1. **差异化设计**：不同模式不同时间限制
+2. **公平性**：速度属性决定行动顺序
+3. **用户友好**：超时自动待机，不会卡住游戏
+4. **节奏控制**：保证战斗在合理时间内结束
+5. **策略深度**：时间压力增加决策挑战
+
+**实现优先级**：
+- **M2阶段**：基础计时器和超时处理
+- **M3阶段**：速度系统和行动顺序
+- **后续版本**：超时惩罚和高级功能
+---
+
+## 🎯 部队布阵系统
+
+### 布阵方式
+
+玩家可以通过两种方式布置部队：
+
+| 布阵方式 | 说明 | 适用场景 |
+|---------|------|---------|
+| **手动布阵** | 玩家逐个拖拽部队到指定位置 | 精确战术布局 |
+| **一键布阵** | 系统自动根据部队类型智能布阵 | 快速开始战斗 |
+
+### 一键布阵算法
+
+#### 布阵优先级
+```javascript
+const deploymentPriority = {
+  1: "尝试匹配经典阵型",
+  2: "根据部队类型分组布置", 
+  3: "居中靠前安置（兜底方案）"
+}
+```
+
+#### 阵型匹配规则
+
+**锋矢阵（3-5支部队）**：
+```javascript
+const wedgeFormation = {
+  requiredTroops: 3,
+  preferredTypes: ["cavalry", "infantry"],
+  layout: {
+    3: [
+      "  🐎  ",    // 前锋：骑兵
+      " 🛡️🛡️ "     // 后排：步兵
+    ],
+    4: [
+      "  🐎  ",    // 前锋：骑兵
+      " 🛡️🛡️ ",    // 中排：步兵
+      "  🏹️  "     // 后排：弓兵
+    ],
+    5: [
+      "  🐎  ",    // 前锋：骑兵
+      " 🛡️🛡️ ",    // 中排：步兵
+      " 🏹️🏹️ "     // 后排：弓兵
+    ]
+  }
+}
+```
+
+**鹤翼阵（4-5支部队）**：
+```javascript
+const craneWingFormation = {
+  requiredTroops: 4,
+  preferredTypes: ["mixed"],
+  layout: {
+    4: [
+      "🏹️  🏹️",    // 两翼：弓兵
+      " 🛡️🛡️ "     // 中央：步兵
+    ],
+    5: [
+      "🏹️  🏹️",    // 两翼：弓兵
+      " 🛡️🐎 ",    // 中央：步兵+骑兵
+      "  🛡️  "     // 后排：步兵
+    ]
+  }
+}
+```
+
+**鱼鳞阵（3-4支部队）**：
+```javascript
+const fishScaleFormation = {
+  requiredTroops: 3,
+  preferredTypes: ["infantry", "archer"],
+  layout: {
+    3: [
+      " 🛡️ ",      // 前排：重步兵
+      "🏹️🏹️"       // 后排：弓兵
+    ],
+    4: [
+      " 🛡️🛡️ ",    // 前排：重步兵
+      " 🏹️🏹️ "     // 后排：弓兵
+    ]
+  }
+}
+```
+
+#### 部队类型识别
+```javascript
+function identifyTroopTypes(troops) {
+  const types = {
+    cavalry: [],    // 骑兵
+    infantry: [],   // 步兵
+    archer: [],     // 弓兵
+    siege: []       // 攻城器械
+  };
+  
+  troops.forEach(troop => {
+    if (troop.type.includes('cavalry')) {
+      types.cavalry.push(troop);
+    } else if (troop.type.includes('archer')) {
+      types.archer.push(troop);
+    } else if (troop.type.includes('siege')) {
+      types.siege.push(troop);
+    } else {
+      types.infantry.push(troop);
+    }
+  });
+  
+  return types;
+}
+```
+
+#### 阵型选择算法
+```javascript
+function selectFormation(troops) {
+  const troopCount = troops.length;
+  const types = identifyTroopTypes(troops);
+  
+  // 1. 根据部队数量和类型选择阵型
+  if (troopCount >= 3 && types.cavalry.length >= 1) {
+    return 'wedge';        // 锋矢阵：有骑兵，适合突击
+  } else if (troopCount >= 4 && types.archer.length >= 2) {
+    return 'craneWing';    // 鹤翼阵：弓兵多，适合包围
+  } else if (troopCount >= 3 && types.infantry.length >= 1) {
+    return 'fishScale';    // 鱼鳞阵：步兵为主，适合防守
+  } else {
+    return 'default';      // 默认布阵：居中靠前
+  }
+}
+```
+
+#### 布阵实现算法
+```javascript
+function autoDeployTroops(troops, mapSize, playerSide) {
+  const formation = selectFormation(troops);
+  const deploymentZone = getDeploymentZone(mapSize, playerSide);
+  
+  switch (formation) {
+    case 'wedge':
+      return deployWedgeFormation(troops, deploymentZone);
+    case 'craneWing':
+      return deployCraneWingFormation(troops, deploymentZone);
+    case 'fishScale':
+      return deployFishScaleFormation(troops, deploymentZone);
+    default:
+      return deployDefaultFormation(troops, deploymentZone);
+  }
+}
+
+// 默认布阵：居中靠前
+function deployDefaultFormation(troops, zone) {
+  const positions = [];
+  const centerX = Math.floor(zone.width / 2);
+  const startY = zone.startY;
+  
+  troops.forEach((troop, index) => {
+    const offsetX = index - Math.floor(troops.length / 2);
+    positions.push({
+      troopId: troop.id,
+      x: Math.max(0, Math.min(zone.width - 1, centerX + offsetX)),
+      y: startY + Math.floor(index / zone.width)
+    });
+  });
+  
+  return positions;
+}
+```
+
+### 部署区域定义
+
+#### 不同地图尺寸的部署区域
+```javascript
+const deploymentZones = {
+  // 小型地图 4x6
+  small: {
+    player: { startY: 4, endY: 5, width: 4 },    // 玩家：底部2行
+    enemy: { startY: 0, endY: 1, width: 4 }      // 敌人：顶部2行
+  },
+  
+  // 中型地图 6x8  
+  medium: {
+    player: { startY: 6, endY: 7, width: 6 },    // 玩家：底部2行
+    enemy: { startY: 0, endY: 1, width: 6 }      // 敌人：顶部2行
+  },
+  
+  // 大型地图 8x10
+  large: {
+    player: { startY: 8, endY: 9, width: 8 },    // 玩家：底部2行
+    enemy: { startY: 0, endY: 1, width: 8 }      // 敌人：顶部2行
+  },
+  
+  // 超大地图 10x12（多人协作）
+  xlarge: {
+    playerA: { startY: 10, endY: 11, width: 3 }, // 玩家A：左下角
+    playerB: { startY: 10, endY: 11, width: 3, offsetX: 7 }, // 玩家B：右下角
+    playerC: { startY: 9, endY: 9, width: 4, offsetX: 3 },   // 玩家C：中下
+    enemy: { startY: 0, endY: 1, width: 10 }     // 敌人：顶部2行
+  }
+}
+```
+
+### UI界面设计
+
+#### 布阵界面
+```jsx
+function DeploymentInterface({ troops, mapSize, onDeploymentComplete }) {
+  const [deploymentMode, setDeploymentMode] = useState('auto');
+  const [positions, setPositions] = useState([]);
+  
+  const handleAutoDeployment = () => {
+    const autoPositions = autoDeployTroops(troops, mapSize, 'player');
+    setPositions(autoPositions);
+  };
+  
+  return (
+    <div className="deployment-interface">
+      <div className="deployment-controls">
+        <button 
+          className={`btn ${deploymentMode === 'auto' ? 'active' : ''}`}
+          onClick={() => setDeploymentMode('auto')}
+        >
+          一键布阵
+        </button>
+        <button 
+          className={`btn ${deploymentMode === 'manual' ? 'active' : ''}`}
+          onClick={() => setDeploymentMode('manual')}
+        >
+          手动布阵
+        </button>
+      </div>
+      
+      {deploymentMode === 'auto' && (
+        <div className="auto-deployment">
+          <button onClick={handleAutoDeployment}>
+            🎯 智能布阵
+          </button>
+          <div className="formation-preview">
+            预计阵型: {getFormationName(selectFormation(troops))}
+          </div>
+        </div>
+      )}
+      
+      <div className="battlefield-preview">
+        {/* 地图预览和部队位置 */}
+        <BattlefieldGrid 
+          positions={positions}
+          troops={troops}
+          onPositionChange={setPositions}
+          readonly={deploymentMode === 'auto'}
+        />
+      </div>
+      
+      <button 
+        className="btn-primary"
+        onClick={() => onDeploymentComplete(positions)}
+        disabled={positions.length !== troops.length}
+      >
+        开始战斗
+      </button>
+    </div>
+  );
+}
+```
+
+#### 阵型说明提示
+```jsx
+function FormationTooltip({ formation }) {
+  const formationInfo = {
+    wedge: {
+      name: "锋矢阵",
+      description: "骑兵前锋，步兵支援，适合突击",
+      advantage: "攻击力+20%，突破力+30%"
+    },
+    craneWing: {
+      name: "鹤翼阵", 
+      description: "两翼包抄，中央坚守，适合包围",
+      advantage: "包围伤害+25%，侧翼防护+20%"
+    },
+    fishScale: {
+      name: "鱼鳞阵",
+      description: "层层防御，步步为营，适合防守", 
+      advantage: "防御力+20%，反击伤害+20%"
+    },
+    default: {
+      name: "散兵布阵",
+      description: "居中靠前，灵活机动",
+      advantage: "无特殊加成，但布阵灵活"
+    }
+  };
+  
+  const info = formationInfo[formation];
+  
+  return (
+    <div className="formation-tooltip">
+      <h4>{info.name}</h4>
+      <p>{info.description}</p>
+      <div className="advantage">{info.advantage}</div>
+    </div>
+  );
+}
+```
+
+### 布阵验证规则
+
+#### 合法性检查
+```javascript
+function validateDeployment(positions, deploymentZone) {
+  const errors = [];
+  
+  positions.forEach((pos, index) => {
+    // 检查是否在部署区域内
+    if (pos.y < deploymentZone.startY || pos.y > deploymentZone.endY) {
+      errors.push(`部队${index + 1}不在部署区域内`);
+    }
+    
+    // 检查是否重叠
+    const overlapping = positions.find((other, otherIndex) => 
+      otherIndex !== index && other.x === pos.x && other.y === pos.y
+    );
+    if (overlapping) {
+      errors.push(`部队${index + 1}位置重叠`);
+    }
+  });
+  
+  return errors;
+}
+```
+
+### 实现优先级
+
+#### M2阶段（基础功能）
+- ✅ 手动拖拽布阵
+- ✅ 一键布阵（默认居中靠前）
+- ✅ 部署区域限制
+- ✅ 位置合法性验证
+
+#### M3阶段（阵型系统）
+- [ ] 3种经典阵型实现
+- [ ] 部队类型识别算法
+- [ ] 阵型选择逻辑
+- [ ] 阵型效果加成
+
+#### 后续版本（高级功能）
+- [ ] 更多阵型选择
+- [ ] 自定义阵型保存
+- [ ] 阵型克制关系
+- [ ] AI阵型识别和应对
+
+### 总结
+
+一键布阵系统的设计特点：
+
+1. **智能化**：根据部队类型自动选择最适合的阵型
+2. **兜底机制**：无法布阵时居中靠前安置
+3. **用户友好**：既支持快速开始，也支持精确控制
+4. **战术深度**：不同阵型提供不同的战斗加成
+5. **可扩展性**：后续可以添加更多阵型和功能
+
+这个系统将大大提升游戏的易用性和战术深度！
+---
+
+## 🎮 回合时间系统设计
+
+**更新日期**: 2026-02-11  
+**设计状态**: ✅ 已确定
+
+### 回合时间规则
+
+根据不同战斗模式，采用不同的回合时间限制：
+
+#### 1. 玩家 vs AI
+```javascript
+const playerVsAI = {
+  timeLimit: null,           // 无时间限制
+  description: "玩家可以充分思考策略",
+  autoAction: false,         // 不会自动行动
+  reason: "单机模式，不影响其他玩家"
+};
+```
+
+#### 2. 多人协作 vs AI
+```javascript
+const multiPlayerVsAI = {
+  timeLimit: 10,             // 10秒/人
+  description: "每个玩家有10秒思考时间",
+  autoAction: "standby",     // 超时自动待机
+  reason: "避免其他玩家长时间等待"
+};
+```
+
+#### 3. 玩家 vs 玩家（PVP）
+```javascript
+const playerVsPlayer = {
+  timeLimit: 20,             // 20秒/人
+  description: "每个玩家有20秒思考时间",
+  autoAction: "standby",     // 超时自动待机
+  reason: "平衡策略深度和游戏节奏"
+};
+```
+
+### 行动顺序系统
+
+#### 速度属性影响
+```javascript
+// 行动顺序计算
+const calculateActionOrder = (units) => {
+  return units.sort((a, b) => {
+    // 主要按速度排序
+    if (a.speed !== b.speed) {
+      return b.speed - a.speed;  // 速度高的先行动
+    }
+    
+    // 速度相同时按运气排序
+    if (a.luck !== b.luck) {
+      return b.luck - a.luck;
+    }
+    
+    // 都相同时随机决定
+    return Math.random() - 0.5;
+  });
+};
+```
+
+#### 行动顺序示例
+```javascript
+// 战斗单位示例
+const battleUnits = [
+  { name: "赵云", speed: 8.8, luck: 8.8, type: "player" },
+  { name: "关羽", speed: 7.0, luck: 7.0, type: "player" },
+  { name: "张飞", speed: 6.8, luck: 6.8, type: "player" },
+  { name: "敌将A", speed: 7.5, luck: 6.0, type: "ai" },
+  { name: "敌将B", speed: 6.5, luck: 7.0, type: "ai" }
+];
+
+// 排序后的行动顺序
+const actionOrder = [
+  "赵云",    // 速度8.8，最快
+  "敌将A",   // 速度7.5，第二快
+  "关羽",    // 速度7.0，第三
+  "张飞",    // 速度6.8，第四
+  "敌将B"    // 速度6.5，最慢
+];
+```
+
+### UI界面设计
+
+#### 时间显示
+```javascript
+const timeDisplayUI = {
+  // 倒计时显示
+  countdown: {
+    position: "屏幕右上角",
+    format: "剩余时间: 08秒",
+    color: {
+      normal: "text-blue-600",      // 正常时间（>5秒）
+      warning: "text-yellow-600",   // 警告时间（3-5秒）
+      danger: "text-red-600"        // 危险时间（<3秒）
+    },
+    animation: "最后3秒闪烁提醒"
+  },
+  
+  // 行动顺序显示
+  actionOrder: {
+    position: "屏幕左侧",
+    format: "头像列表，当前行动者高亮",
+    indicator: "箭头指向当前行动单位"
+  }
+};
+```
+
+#### 超时处理
+```javascript
+const timeoutHandling = {
+  // 超时警告
+  warning: {
+    at: 3,                    // 剩余3秒时警告
+    effect: "屏幕边缘红色闪烁",
+    sound: "滴答声提醒"
+  },
+  
+  // 超时执行
+  timeout: {
+    action: "standby",        // 自动待机
+    message: "时间到！自动待机",
+    duration: 2,              // 提示显示2秒
+    nextTurn: true            // 立即切换到下一个单位
+  }
+};
+```
+
+### 技术实现要点
+
+#### 计时器管理
+```javascript
+class TurnTimer {
+  constructor(timeLimit) {
+    this.timeLimit = timeLimit;
+    this.remainingTime = timeLimit;
+    this.isRunning = false;
+    this.timer = null;
+  }
+  
+  start() {
+    if (!this.timeLimit) return; // 无限制模式
+    
+    this.isRunning = true;
+    this.timer = setInterval(() => {
+      this.remainingTime--;
+      
+      // 更新UI显示
+      this.updateUI();
+      
+      // 检查超时
+      if (this.remainingTime <= 0) {
+        this.timeout();
+      }
+    }, 1000);
+  }
+  
+  stop() {
+    if (this.timer) {
+      clearInterval(this.timer);
+      this.timer = null;
+      this.isRunning = false;
+    }
+  }
+  
+  timeout() {
+    this.stop();
+    // 执行超时操作（待机）
+    this.executeStandby();
+  }
+  
+  executeStandby() {
+    // 自动待机逻辑
+    console.log("时间到！自动待机");
+    // 切换到下一个行动单位
+    this.nextTurn();
+  }
+}
+```
+
+#### 网络同步（多人模式）
+```javascript
+const networkSync = {
+  // 发送行动
+  sendAction: (action) => {
+    const actionData = {
+      playerId: currentPlayer.id,
+      action: action,
+      timestamp: Date.now(),
+      turnId: currentTurn.id
+    };
+    
+    websocket.send(JSON.stringify(actionData));
+  },
+  
+  // 接收行动
+  receiveAction: (actionData) => {
+    // 验证行动有效性
+    if (validateAction(actionData)) {
+      executeAction(actionData);
+      nextTurn();
+    }
+  },
+  
+  // 同步计时器
+  syncTimer: (timeData) => {
+    turnTimer.remainingTime = timeData.remainingTime;
+    turnTimer.updateUI();
+  }
+};
+```
+
+### 平衡性考虑
+
+#### 时间限制设计理念
+```javascript
+const designPhilosophy = {
+  // 玩家 vs AI：无限制
+  playerVsAI: {
+    reason: "单机体验，允许充分思考",
+    benefit: "新手友好，策略深度"
+  },
+  
+  // 多人协作：10秒
+  cooperation: {
+    reason: "避免其他玩家等待过久",
+    benefit: "保持游戏节奏，团队配合"
+  },
+  
+  // 玩家对战：20秒
+  pvp: {
+    reason: "平衡策略思考和游戏节奏",
+    benefit: "足够思考时间，避免拖沓"
+  }
+};
+```
+
+#### 速度属性价值
+```javascript
+const speedValue = {
+  importance: "高",
+  reason: "决定行动顺序，影响战斗主动权",
+  
+  // 速度差异影响
+  speedDifference: {
+    small: "0.1-0.5差异，影响较小",
+    medium: "0.6-1.0差异，明显优势", 
+    large: "1.1+差异，压倒性优势"
+  },
+  
+  // 与其他属性平衡
+  balance: {
+    vs_attack: "速度高但攻击低 vs 攻击高但速度低",
+    vs_defense: "先手攻击 vs 后手反击",
+    vs_luck: "行动顺序 vs 闪避能力"
+  }
+};
+```
+
+---
+
+## 🏰 战斗地图与部署系统
+
+**更新日期**: 2026-02-11  
+**设计状态**: ✅ 已确定
+
+### 地图尺寸标准
+
+采用俯视角（Top-down）视角，根据战斗规模设定不同地图尺寸：
+
+#### 地图尺寸分类
+```javascript
+const mapSizes = {
+  small: {
+    size: "4x6",
+    gridCount: 24,
+    description: "小型战斗",
+    playerCount: "2-4人",
+    troopCount: "6-10支部队",
+    useCase: "快速战斗、教学关卡"
+  },
+  
+  medium: {
+    size: "6x8", 
+    gridCount: 48,
+    description: "中型战斗",
+    playerCount: "4-6人",
+    troopCount: "10-15支部队",
+    useCase: "标准战斗、多数关卡"
+  },
+  
+  large: {
+    size: "8x10",
+    gridCount: 80,
+    description: "大型战斗", 
+    playerCount: "6-8人",
+    troopCount: "15-20支部队",
+    useCase: "重要战役、团队战"
+  },
+  
+  xlarge: {
+    size: "10x12",
+    gridCount: 120,
+    description: "超大型战斗",
+    playerCount: "8-12人", 
+    troopCount: "20-30支部队",
+    useCase: "史诗战役、赛季决战"
+  }
+};
+```
+
+### 部署位置系统
+
+#### 部署区域设计
+```javascript
+const deploymentZones = {
+  // 标准6x8地图示例
+  playerZone: {
+    area: "底部2行（第7-8行）",
+    positions: [
+      [6,0], [6,1], [6,2], [6,3], [6,4], [6,5],
+      [7,0], [7,1], [7,2], [7,3], [7,4], [7,5]
+    ],
+    maxUnits: 12,
+    description: "玩家部队部署区域"
+  },
+  
+  enemyZone: {
+    area: "顶部2行（第0-1行）", 
+    positions: [
+      [0,0], [0,1], [0,2], [0,3], [0,4], [0,5],
+      [1,0], [1,1], [1,2], [1,3], [1,4], [1,5]
+    ],
+    maxUnits: 12,
+    description: "敌方部队部署区域"
+  },
+  
+  neutralZone: {
+    area: "中间4行（第2-5行）",
+    positions: "战斗区域，不可部署",
+    description: "战斗进行区域"
+  }
+};
+```
+
+#### 部署规则
+```javascript
+const deploymentRules = {
+  // 基础规则
+  basic: {
+    oneUnitPerGrid: true,      // 每格只能部署一个单位
+    withinZone: true,          // 必须在指定区域内
+    noOverlap: true,           // 不能重叠部署
+    mustDeploy: true           // 必须部署所有可用单位
+  },
+  
+  // 部署限制
+  restrictions: {
+    maxUnitsPerRow: 6,         // 每行最多6个单位
+    minDistance: 0,            // 最小间距（相邻可以）
+    specialPositions: [],      // 特殊位置限制
+    terrainRestrictions: []    // 地形限制
+  },
+  
+  // 部署顺序
+  order: {
+    phase: "战斗开始前",
+    timeLimit: 60,             // 60秒部署时间
+    playerFirst: true,         // 玩家先部署
+    simultaneous: false        // 非同时部署
+  }
+};
+```
+
+### 一键布阵系统
+
+#### 自动布阵逻辑
+```javascript
+const autoDeployment = {
+  // 布阵优先级
+  priority: {
+    1: "根据部队类型选择阵型",
+    2: "优先布阵型（如有合适部队）",
+    3: "兜底方案：居中靠前安置"
+  },
+  
+  // 阵型选择算法
+  formationSelection: {
+    // 锋矢阵：适合骑兵多的情况
+    wedge: {
+      condition: "骑兵数量 >= 总数的50%",
+      pattern: "三角形尖锐阵型",
+      effect: "增强突击能力"
+    },
+    
+    // 鹤翼阵：适合弓兵多的情况  
+    crane: {
+      condition: "弓兵数量 >= 总数的40%",
+      pattern: "展开翼状阵型",
+      effect: "增强射击覆盖"
+    },
+    
+    // 鱼鳞阵：适合步兵多的情况
+    scale: {
+      condition: "步兵数量 >= 总数的60%",
+      pattern: "层次防御阵型", 
+      effect: "增强防御能力"
+    },
+    
+    // 兜底方案：居中靠前
+    default: {
+      condition: "无特定兵种优势",
+      pattern: "居中靠前排列",
+      effect: "均衡布局"
+    }
+  }
+};
+```
+
+#### 布阵算法实现
+```javascript
+class AutoDeployment {
+  constructor(troops, mapSize) {
+    this.troops = troops;
+    this.mapSize = mapSize;
+    this.deploymentZone = this.getDeploymentZone();
+  }
+  
+  // 分析部队构成
+  analyzeTroopComposition() {
+    const composition = {
+      infantry: 0,
+      cavalry: 0, 
+      archer: 0,
+      total: this.troops.length
+    };
+    
+    this.troops.forEach(troop => {
+      composition[troop.type]++;
+    });
+    
+    return {
+      infantry: composition.infantry / composition.total,
+      cavalry: composition.cavalry / composition.total,
+      archer: composition.archer / composition.total
+    };
+  }
+  
+  // 选择阵型
+  selectFormation() {
+    const composition = this.analyzeTroopComposition();
+    
+    if (composition.cavalry >= 0.5) {
+      return 'wedge';      // 锋矢阵
+    } else if (composition.archer >= 0.4) {
+      return 'crane';      // 鹤翼阵
+    } else if (composition.infantry >= 0.6) {
+      return 'scale';      // 鱼鳞阵
+    } else {
+      return 'default';    // 默认阵型
+    }
+  }
+  
+  // 执行布阵
+  deploy() {
+    const formation = this.selectFormation();
+    const positions = this.calculatePositions(formation);
+    
+    return this.assignTroopsToPositions(positions);
+  }
+  
+  // 计算位置
+  calculatePositions(formation) {
+    switch(formation) {
+      case 'wedge':
+        return this.calculateWedgePositions();
+      case 'crane':
+        return this.calculateCranePositions();
+      case 'scale':
+        return this.calculateScalePositions();
+      default:
+        return this.calculateDefaultPositions();
+    }
+  }
+  
+  // 默认布阵：居中靠前
+  calculateDefaultPositions() {
+    const positions = [];
+    const centerX = Math.floor(this.mapSize.width / 2);
+    const startY = this.deploymentZone.startY;
+    
+    // 优先前排，然后后排
+    let currentX = centerX;
+    let currentY = startY;
+    let direction = 1; // 1为右，-1为左
+    
+    for (let i = 0; i < this.troops.length; i++) {
+      positions.push([currentY, currentX]);
+      
+      // 计算下一个位置
+      currentX += direction;
+      direction *= -1;
+      
+      if (Math.abs(currentX - centerX) > Math.floor(this.mapSize.width / 2)) {
+        currentY++;
+        currentX = centerX;
+        direction = 1;
+      }
+    }
+    
+    return positions;
+  }
+}
+```
+
+### 地图生成策略
+
+#### 地图类型
+```javascript
+const mapGeneration = {
+  // AI随机生成（小地图）
+  aiGenerated: {
+    mapTypes: ["4x6", "6x8"],
+    features: ["基础地形", "简单障碍"],
+    generation: "程序化生成",
+    useCase: "日常战斗、练习关卡"
+  },
+  
+  // 手工设计（重要地图）
+  handCrafted: {
+    mapTypes: ["8x10", "10x12"],
+    features: ["复杂地形", "战略要点", "特殊机制"],
+    generation: "人工设计",
+    useCase: "重要战役、剧情关卡"
+  }
+};
+```
+
+#### 地形要素
+```javascript
+const terrainElements = {
+  // 基础地形
+  basic: {
+    plain: "平原（无影响）",
+    forest: "森林（弓兵+1攻击，骑兵-1移动）",
+    hill: "丘陵（所有单位+1防御）",
+    river: "河流（移动消耗+1）"
+  },
+  
+  // 战略要素
+  strategic: {
+    bridge: "桥梁（控制要点）",
+    fortress: "要塞（防御+2）",
+    tower: "箭塔（范围攻击）",
+    gate: "城门（可破坏障碍）"
+  }
+};
+```
+
+### 视角与美术
+
+#### 俯视角优势
+```javascript
+const topDownAdvantages = {
+  development: {
+    aiArt: "AI绘图工作量较小",
+    consistency: "风格统一性好",
+    speed: "制作速度快"
+  },
+  
+  gameplay: {
+    clarity: "战场情况一目了然",
+    strategy: "便于战术规划",
+    ui: "UI元素布局简单"
+  },
+  
+  technical: {
+    performance: "渲染性能好",
+    responsive: "适配不同屏幕",
+    development: "开发难度低"
+  }
+};
+```
+
+#### 美术资源策略
+```javascript
+const artStrategy = {
+  // 优先级1：免费素材库
+  freeAssets: {
+    source: "OpenGameArt, Kenney.nl等",
+    usage: "快速验证功能",
+    replacement: "后续可替换为原创"
+  },
+  
+  // 优先级2：AI生成
+  aiGenerated: {
+    source: "Stable Diffusion, Midjourney等",
+    usage: "补充缺失素材",
+    style: "保持风格统一"
+  },
+  
+  // 优先级3：原创制作
+  original: {
+    source: "专业美术师",
+    usage: "核心角色、重要场景",
+    timing: "商业化后考虑"
+  }
+};
+```

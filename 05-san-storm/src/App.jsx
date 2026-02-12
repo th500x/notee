@@ -12,12 +12,13 @@ import { useCharacters } from '@/hooks/useCharacters';
 import { usePositions } from '@/hooks/usePositions';
 import { useSkills } from '@/hooks/useSkills';
 import { useBonds } from '@/hooks/useBonds';
+import { useLifeStages } from '@/hooks/useLifeStages';
 import { ServerCard } from '@/components/server/ServerCard';
 import { FactionCardExample } from '@/components/faction/FactionCardExample';
 import { CharacterCard } from '@/components/character/CharacterCard';
 import { PositionCard } from '@/components/position/PositionCard';
 import { GameDisclaimer } from '@/components/common/GameDisclaimer';
-import { LifeStageExample } from '@/components/character/LifeStageExample';
+import { LifeStageCard } from '@/components/character/LifeStageDetail';
 import TroopCardExample from '@/components/troop/TroopCardExample';
 import TroopFormationSystem from '@/components/formation/TroopFormationSystem';
 import GameAuthSystem from '@/components/auth/GameAuthSystem';
@@ -105,12 +106,6 @@ function App() {
                   className="text-gray-700 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium whitespace-nowrap"
                 >
                   角色系统
-                </Link>
-                <Link 
-                  to="/life-stages" 
-                  className="text-gray-700 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium whitespace-nowrap"
-                >
-                  生涯设定
                 </Link>
                 <Link 
                   to="/troop-cards" 
@@ -202,13 +197,6 @@ function App() {
                   角色系统
                 </Link>
                 <Link 
-                  to="/life-stages" 
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="block text-gray-700 hover:text-gray-900 hover:bg-gray-50 px-3 py-2 rounded-md text-base font-medium"
-                >
-                  生涯设定
-                </Link>
-                <Link 
                   to="/troop-cards" 
                   onClick={() => setMobileMenuOpen(false)}
                   className="block text-gray-700 hover:text-gray-900 hover:bg-gray-50 px-3 py-2 rounded-md text-base font-medium"
@@ -252,7 +240,6 @@ function App() {
             <Route path="/factions" element={<FactionCardExample />} />
             <Route path="/positions" element={<PositionsPage />} />
             <Route path="/characters" element={<CharactersPage />} />
-            <Route path="/life-stages" element={<LifeStageExample />} />
             <Route path="/troop-cards" element={<TroopCardExample />} />
             <Route path="/m2-verification" element={<M2VerificationPage />} />
             <Route path="/m2-verification-2" element={<M2Verification2Page />} />
@@ -343,14 +330,8 @@ function HomePage() {
         <FeatureCard 
           icon="👤"
           title="角色系统"
-          description="浏览所有角色，查看详细属性"
+          description="浏览所有角色，查看生涯详情"
           link="/characters"
-        />
-        <FeatureCard 
-          icon="📈"
-          title="生涯设定"
-          description="查看角色在不同赛季的成长轨迹"
-          link="/life-stages"
         />
         <FeatureCard 
           icon="🛡️"
@@ -444,6 +425,149 @@ function ServersPage() {
   );
 }
 
+// 生涯详情弹窗组件
+function CharacterLifeStageModal({ character, onClose }) {
+  const { lifeStages, loading, getCharacterLifeStage } = useLifeStages();
+  
+  if (loading) {
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="bg-white rounded-lg p-8 text-center">
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+          <p className="mt-4 text-gray-600">加载生涯数据...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // 查找该角色的生涯数据 - lifeStages 是对象，需要通过 character.id 查找
+  const characterLifeData = getCharacterLifeStage(character.id);
+  
+  if (!characterLifeData) {
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={onClose}>
+        <div className="bg-white rounded-lg shadow-2xl max-w-md w-full p-6" onClick={(e) => e.stopPropagation()}>
+          <div className="text-center">
+            <p className="text-xl mb-4">😔</p>
+            <p className="text-gray-600 mb-4">暂无 {character.name} 的生涯数据</p>
+            <button
+              onClick={onClose}
+              className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              关闭
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // 计算生涯阶段范围
+  const calculateStageRanges = (seasons) => {
+    const ranges = { early: null, peak: null, late: null, death: null };
+    if (!seasons || seasons.length === 0) return ranges;
+
+    const sortedSeasons = [...seasons].sort((a, b) => {
+      const seasonNumA = parseInt(a.season.replace('S', ''));
+      const seasonNumB = parseInt(b.season.replace('S', ''));
+      return seasonNumA - seasonNumB;
+    });
+
+    ['early', 'peak', 'late'].forEach(stage => {
+      const stageSeasons = sortedSeasons.filter(s => s.stage === stage);
+      if (stageSeasons.length > 0) {
+        const first = stageSeasons[0].season;
+        const last = stageSeasons[stageSeasons.length - 1].season;
+        ranges[stage] = first === last ? first : `${first}-${last}`;
+      }
+    });
+
+    const deathSeasons = sortedSeasons.filter(s => s.stage === 'death');
+    if (deathSeasons.length > 0) {
+      ranges.death = deathSeasons[0].season;
+    }
+
+    return ranges;
+  };
+
+  const stageRanges = calculateStageRanges(characterLifeData.seasons);
+
+  // 计算成长轨迹统计
+  const stageStats = {
+    early: characterLifeData.seasons.filter(s => s.stage === 'early').length,
+    peak: characterLifeData.seasons.filter(s => s.stage === 'peak').length,
+    late: characterLifeData.seasons.filter(s => s.stage === 'late').length,
+    death: characterLifeData.seasons.filter(s => s.stage === 'death').length,
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div className="bg-white rounded-lg shadow-2xl max-w-xl w-full" onClick={(e) => e.stopPropagation()}>
+        {/* 头部 */}
+        <div className="border-b-2 border-gray-200 p-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-bold text-gray-900 mb-1">
+                {characterLifeData.name} - 生涯详情
+              </h2>
+              <p className="text-xs text-gray-500">
+                {characterLifeData.birthYear}年生 - {characterLifeData.deathYear}年卒
+              </p>
+            </div>
+            <button
+              onClick={onClose}
+              className="text-gray-400 hover:text-gray-600 text-2xl font-bold leading-none"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+
+        {/* 生涯阶段卡片 - 2x2网格 */}
+        <div className="p-4">
+          <div className="grid grid-cols-2 gap-3">
+            {/* 茅庐期 */}
+            <div className="bg-green-50 border-2 border-green-400 rounded-lg p-4 text-center">
+              <div className="text-3xl mb-2">🌱</div>
+              <h3 className="text-sm font-bold text-gray-700 mb-1">茅庐期</h3>
+              <p className="text-2xl font-bold text-gray-900">
+                {stageRanges.early || '-'}
+              </p>
+            </div>
+
+            {/* 巅峰期 */}
+            <div className="bg-yellow-50 border-2 border-yellow-400 rounded-lg p-4 text-center">
+              <div className="text-3xl mb-2">⭐</div>
+              <h3 className="text-sm font-bold text-gray-700 mb-1">巅峰期</h3>
+              <p className="text-2xl font-bold text-gray-900">
+                {stageRanges.peak || '-'}
+              </p>
+            </div>
+
+            {/* 不惑期 */}
+            <div className="bg-purple-50 border-2 border-purple-400 rounded-lg p-4 text-center">
+              <div className="text-3xl mb-2">🧙</div>
+              <h3 className="text-sm font-bold text-gray-700 mb-1">不惑期</h3>
+              <p className="text-2xl font-bold text-gray-900">
+                {stageRanges.late || '-'}
+              </p>
+            </div>
+
+            {/* 卒 */}
+            <div className="bg-gray-50 border-2 border-gray-400 rounded-lg p-4 text-center">
+              <div className="text-3xl mb-2">💀</div>
+              <h3 className="text-sm font-bold text-gray-700 mb-1">卒</h3>
+              <p className="text-2xl font-bold text-gray-900">
+                {stageRanges.death || '-'}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function CharactersPage() {
   const { characters, loading, error, filterCharacters, sortCharacters } = useCharacters();
   const { skillsMap, loading: skillsLoading } = useSkills();
@@ -457,6 +581,7 @@ function CharactersPage() {
   });
   const [sortBy, setSortBy] = useState('rarity'); // 默认按稀有度排序
   const [sortOrder, setSortOrder] = useState('desc'); // 默认降序
+  const [selectedCharacter, setSelectedCharacter] = useState(null); // 选中的角色（用于显示生涯详情）
 
   // 应用筛选和排序
   const displayedCharacters = useMemo(() => {
@@ -563,15 +688,23 @@ function CharactersPage() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 justify-items-center">
           {displayedCharacters.map(character => (
-            <CharacterCard 
-              key={character.id} 
-              character={character}
-              skillsMap={skillsMap}
-              bondsMap={bondsMap}
-              onSelect={(char) => alert(`选择了武将: ${char.name}`)}
-            />
+            <div key={character.id} onClick={() => setSelectedCharacter(character)} className="cursor-pointer">
+              <CharacterCard 
+                character={character}
+                skillsMap={skillsMap}
+                bondsMap={bondsMap}
+              />
+            </div>
           ))}
         </div>
+      )}
+
+      {/* 生涯详情弹窗 */}
+      {selectedCharacter && (
+        <CharacterLifeStageModal 
+          character={selectedCharacter}
+          onClose={() => setSelectedCharacter(null)}
+        />
       )}
     </div>
   );
@@ -721,32 +854,10 @@ function M2Verification2Page() {
 
 // 用户管理页面（受保护）
 function UserManagerPage() {
-  const [showPasswordModal, setShowPasswordModal] = useState(false);
-  const [passwordInput, setPasswordInput] = useState('');
-  const [passwordError, setPasswordError] = useState('');
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  
   const adminAccess = hasAdminAccess();
+  const isDev = process.env.NODE_ENV === 'development';
   
-  // 全局密码验证（优先使用环境变量）
-  const GLOBAL_ADMIN_PASSWORD = process.env.REACT_APP_GLOBAL_ADMIN_PASSWORD || 'notee.vip.2026';
-  
-  const verifyPassword = () => {
-    if (passwordInput === GLOBAL_ADMIN_PASSWORD) {
-      setIsAuthenticated(true);
-      setShowPasswordModal(false);
-      setPasswordInput('');
-      setPasswordError('');
-    } else {
-      setPasswordError('密码错误，请重试');
-    }
-  };
-  
-  const handlePasswordCancel = () => {
-    setShowPasswordModal(false);
-    setPasswordInput('');
-    setPasswordError('');
-  };
+  console.log('UserManagerPage 渲染中...', { adminAccess, isDev });
   
   // 如果没有管理员权限，显示无权限页面
   if (!adminAccess) {
@@ -768,47 +879,6 @@ function UserManagerPage() {
       </div>
     );
   }
-  
-  // 如果有管理员权限但未通过密码验证，显示密码输入
-  if (!isAuthenticated) {
-    return (
-      <div className="text-center py-12">
-        <div className="max-w-md mx-auto">
-          <div className="text-6xl mb-4">🔐</div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">管理员验证</h2>
-          <p className="text-gray-600 mb-6">请输入管理员密码以访问用户管理功能</p>
-          
-          <div className="space-y-4">
-            <input
-              type="password"
-              value={passwordInput}
-              onChange={(e) => setPasswordInput(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && verifyPassword()}
-              placeholder="请输入管理员密码"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-            {passwordError && (
-              <p className="text-red-600 text-sm">{passwordError}</p>
-            )}
-            <div className="flex gap-2">
-              <button
-                onClick={verifyPassword}
-                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                验证
-              </button>
-              <Link
-                to="/"
-                className="flex-1 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors text-center"
-              >
-                返回
-              </Link>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div>
@@ -817,7 +887,7 @@ function UserManagerPage() {
           <span className="text-red-600">🔒</span>
           <span className="text-red-800 font-medium">管理员模式</span>
           <span className="text-red-600 text-sm">
-            - 当前环境: {process.env.NODE_ENV === 'development' ? '开发环境' : '生产环境'}
+            - 当前环境: {isDev ? '开发环境' : '生产环境'}
           </span>
         </div>
       </div>

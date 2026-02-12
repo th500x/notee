@@ -4,22 +4,84 @@
  * @description M2验证模块-2 - 简化注册登录系统
  */
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useServers } from '@/hooks/useServers';
 import { ServerCard } from '@/components/server/ServerCard';
 
-// 模拟数据库中的可用ID池（实际应该从后端获取）
-const generateAvailableIds = () => {
+// 新的分批次ID生成系统
+const generateBatchIds = (batchNumber) => {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
   const ids = [];
-  for (let i = 0; i < 10000; i++) {
-    let id = '';
-    for (let j = 0; j < 4; j++) {
-      id += chars.charAt(Math.floor(Math.random() * chars.length));
+  const prefix = batchNumber.toString(); // 0, 1, 2, ..., 9
+  
+  // 生成所有可能的3位组合 (36^3 = 46,656个)
+  for (let i = 0; i < chars.length; i++) {
+    for (let j = 0; j < chars.length; j++) {
+      for (let k = 0; k < chars.length; k++) {
+        const id = prefix + chars[i] + chars[j] + chars[k];
+        ids.push(id);
+      }
     }
-    ids.push(id);
   }
+  
+  // 打乱顺序
+  for (let i = ids.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [ids[i], ids[j]] = [ids[j], ids[i]];
+  }
+  
   return ids;
+};
+
+// 验证ID格式
+const validateIdFormat = (id) => {
+  if (!id || id.length !== 4) return false;
+  
+  const firstChar = id[0];
+  const restChars = id.slice(1);
+  
+  // 首位必须是0-9
+  if (!/^[0-9]$/.test(firstChar)) return false;
+  
+  // 后三位必须是A-Z或0-9
+  if (!/^[A-Z0-9]{3}$/.test(restChars)) return false;
+  
+  return true;
+};
+
+// 获取当前批次和可用ID
+const getCurrentBatchInfo = () => {
+  const registeredIds = JSON.parse(localStorage.getItem('registeredIds') || '[]');
+  const idBatches = JSON.parse(localStorage.getItem('idBatches') || '{}');
+  
+  // 检查当前批次 (0-9)
+  for (let batch = 0; batch <= 9; batch++) {
+    if (!idBatches[batch]) {
+      // 生成新批次
+      const batchIds = generateBatchIds(batch);
+      idBatches[batch] = batchIds;
+      localStorage.setItem('idBatches', JSON.stringify(idBatches));
+    }
+    
+    // 检查这个批次是否还有可用ID
+    const availableInBatch = idBatches[batch].filter(id => !registeredIds.includes(id));
+    if (availableInBatch.length > 0) {
+      return {
+        currentBatch: batch,
+        availableIds: availableInBatch,
+        totalInBatch: idBatches[batch].length,
+        usedInBatch: idBatches[batch].length - availableInBatch.length
+      };
+    }
+  }
+  
+  // 所有批次都用完了
+  return {
+    currentBatch: -1,
+    availableIds: [],
+    totalInBatch: 0,
+    usedInBatch: 0
+  };
 };
 
 // 获取机器指纹（简化版）
@@ -63,6 +125,7 @@ const GameAuthSystem = () => {
   const [currentStep, setCurrentStep] = useState('serverSelect'); // serverSelect, authChoice, register, login, game
   const [selectedServer, setSelectedServer] = useState(null);
   const [availableIds, setAvailableIds] = useState([]);
+  const [batchInfo, setBatchInfo] = useState(null);
   const [selectedId, setSelectedId] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -81,10 +144,23 @@ const GameAuthSystem = () => {
 
   // 生成可用ID列表
   const generateIdOptions = () => {
-    const allIds = generateAvailableIds();
-    const registeredIds = JSON.parse(localStorage.getItem('registeredIds') || '[]');
-    const available = allIds.filter(id => !registeredIds.includes(id));
-    return available.slice(0, 5); // 返回5个可用ID
+    const batchInfo = getCurrentBatchInfo();
+    
+    if (batchInfo.availableIds.length === 0) {
+      return { ids: [], batchInfo }; // 所有ID都用完了
+    }
+    
+    // 随机返回5个可用ID
+    const shuffled = [...batchInfo.availableIds];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    
+    return { 
+      ids: shuffled.slice(0, 5),
+      batchInfo
+    };
   };
 
   // 选择服务器
@@ -95,8 +171,9 @@ const GameAuthSystem = () => {
 
   // 开始注册流程
   const handleStartRegister = () => {
-    const ids = generateIdOptions();
-    setAvailableIds(ids);
+    const result = generateIdOptions();
+    setAvailableIds(result.ids);
+    setBatchInfo(result.batchInfo);
     setCurrentStep('register');
     setError('');
   };
@@ -184,6 +261,12 @@ const GameAuthSystem = () => {
   const handleLoginSubmit = async () => {
     if (!loginId || !loginPassword) {
       setError('请输入ID和密码');
+      return;
+    }
+
+    // 验证ID格式
+    if (!validateIdFormat(loginId)) {
+      setError('ID格式错误：应为4位字符，首位为数字0-9，后三位为字母A-Z或数字0-9');
       return;
     }
 
@@ -303,20 +386,54 @@ const GameAuthSystem = () => {
           <div className="bg-white rounded-lg shadow-md p-6">
             <h2 className="text-xl font-bold text-gray-900 mb-4 text-center">注册新账号</h2>
             
+
+            
             {!selectedId ? (
               <div>
-                <p className="text-gray-600 mb-4">请选择你的游戏ID：</p>
-                <div className="space-y-2 mb-6">
-                  {availableIds.map(id => (
+                {availableIds.length === 0 ? (
+                  <div className="text-center py-8">
+                    <div className="text-6xl mb-4">😱</div>
+                    <h3 className="text-lg font-bold text-red-900 mb-2">所有ID已用完！</h3>
+                    <p className="text-red-700 text-sm mb-4">
+                      所有10批次的ID都已被注册完毕<br/>
+                      (总计 466,560 个ID)
+                    </p>
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                      <h4 className="font-bold text-red-800 mb-2">批次使用情况:</h4>
+                      <div className="text-xs text-red-700 space-y-1">
+                        {Array.from({length: 10}, (_, i) => (
+                          <div key={i} className="flex justify-between">
+                            <span>批次 {i}: {i}XXX</span>
+                            <span className="font-mono">46,656 / 46,656 (100%)</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <p className="text-gray-600 mb-4">请选择你的游戏ID：</p>
+                    <div className="space-y-2 mb-6">
+                      {availableIds.map(id => (
+                        <button
+                          key={id}
+                          onClick={() => handleIdSelect(id)}
+                          className="w-full py-3 px-4 border-2 border-gray-300 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-colors text-left font-mono text-lg"
+                        >
+                          <span className="text-blue-600 font-bold">{id[0]}</span>
+                          <span className="text-gray-800">{id.slice(1)}</span>
+                        </button>
+                      ))}
+                    </div>
+                    
                     <button
-                      key={id}
-                      onClick={() => handleIdSelect(id)}
-                      className="w-full py-3 px-4 border-2 border-gray-300 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-colors text-left font-mono text-lg"
+                      onClick={handleStartRegister}
+                      className="w-full py-2 px-4 text-blue-600 hover:text-blue-800 border border-blue-300 rounded-lg hover:bg-blue-50 transition-colors text-sm"
                     >
-                      {id}
+                      🔄 刷新ID选项
                     </button>
-                  ))}
-                </div>
+                  </div>
+                )}
               </div>
             ) : (
               <div>

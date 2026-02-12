@@ -15,7 +15,7 @@
 - 🛣️ 道路：官道、小路、水路
 - 🎨 装饰：云雾、边界、图标
 
-**视角**: 俯视45度或纯俯视
+**视角**: 俯视角（Top-down）✅ 确定方案
 **风格**: 古风地图、水墨风格、策略游戏风格
 
 ### 2. 战斗地图（战术地图）
@@ -27,8 +27,32 @@
 - 🎯 标记：格子、移动范围、攻击范围
 - ⚔️ 特效：技能特效、战斗动画
 
-**视角**: 俯视45度（类似《三国志》战棋）
+**视角**: 俯视角（Top-down）✅ 确定方案
 **风格**: 写实风格、卡通风格、像素风格
+
+**地图尺寸标准**:
+- **小型**: 4x6 (24格) - 日常战斗（≤2部队）
+- **中型**: 6x8 (48格) - 日常战斗（>2部队）
+- **大型**: 8x10 (80格) - 战役地图
+- **超大**: 10x12 (120格) - 核心城市攻城战
+
+### 3. 战役地图（特殊挑战）
+**用途**: 赛季特殊战役，排名竞技
+
+**特点**:
+- 手工设计，非随机生成
+- 统一使用8x10尺寸
+- 复杂地形和战术要素
+- 支持特殊胜利条件
+
+### 4. 多人协作地图（核心城市）
+**用途**: 2-3人协作攻城
+
+**特点**:
+- 10x12超大尺寸
+- 支持多玩家同时参战
+- 复杂的城防设施
+- 协作战术机制
 
 ## 二、AI绘图实现方案
 
@@ -44,20 +68,26 @@
 - ✅ 文件体积小，复用率高
 - ✅ 易于编辑和扩展
 - ✅ 性能优秀
+- ✅ 支持AI随机地图生成
+
+**AI随机地图生成**:
+- 小型战斗地图（4x6, 6x8）使用AI算法随机生成
+- 根据预设模板和规则自动拼接瓦片
+- 确保地形合理性和战术平衡性
 
 **AI生成提示词示例**:
 ```
-# 草地瓦片
-"isometric grass tile, 2D game asset, seamless, top-down view, 
-ancient China style, soft colors, no shadows, flat design"
+# 草地瓦片（俯视角）
+"top-down grass tile, 2D game asset, seamless, flat view, 
+ancient China style, soft colors, no shadows, strategy game style"
 
-# 山地瓦片
-"isometric mountain tile, 2D game asset, seamless, top-down view,
-ancient China style, rocky terrain, strategic game style"
+# 山地瓦片（俯视角）
+"top-down mountain tile, 2D game asset, seamless, flat view,
+ancient China style, rocky terrain, strategy game style"
 
-# 森林瓦片
-"isometric forest tile, 2D game asset, seamless, top-down view,
-ancient China style, pine trees, strategic game style"
+# 森林瓦片（俯视角）
+"top-down forest tile, 2D game asset, seamless, flat view,
+ancient China style, pine trees, strategy game style"
 ```
 
 **瓦片类型清单**:
@@ -541,3 +571,412 @@ const layer = map.createLayer('terrain', tileset, 0, 0);
 ---
 
 **结论**: AI绘图不仅可以做出地图元素，而且可以做得很好！关键是要有清晰的规划和规范的流程。建议从简单的瓦片系统开始，逐步完善。
+
+## 十、AI随机地图生成系统
+
+### 地图生成逻辑分层
+
+#### 1. 地图基础参数
+```javascript
+const MapGenerationConfig = {
+  // 地图尺寸
+  sizes: {
+    small: { width: 4, height: 6 },    // 24格，适合≤2部队
+    medium: { width: 6, height: 8 },   // 48格，适合>2部队
+    large: { width: 8, height: 10 },   // 80格，战役地图
+    xlarge: { width: 10, height: 12 }, // 120格，核心城市
+  },
+  
+  // 地形类型及其属性
+  terrains: {
+    plains: { 
+      symbol: '🟩', 
+      moveCost: 1, 
+      defenseBonus: 0,
+      spawnWeight: 40 
+    },
+    forest: { 
+      symbol: '🌲', 
+      moveCost: 2, 
+      defenseBonus: 1,
+      spawnWeight: 20 
+    },
+    hills: { 
+      symbol: '⛰️', 
+      moveCost: 2, 
+      defenseBonus: 2,
+      spawnWeight: 15 
+    },
+    river: { 
+      symbol: '🌊', 
+      moveCost: 3, 
+      defenseBonus: 0,
+      spawnWeight: 10 
+    },
+    road: { 
+      symbol: '🛤️', 
+      moveCost: 0.5, 
+      defenseBonus: 0,
+      spawnWeight: 15 
+    },
+  }
+}
+```
+
+#### 2. 战斗类型模板
+```javascript
+const BattleTemplates = {
+  // 平原遭遇战
+  plains_encounter: {
+    terrainDistribution: {
+      plains: 70,
+      road: 20,
+      forest: 10
+    },
+    spawnPattern: 'opposite_sides',
+    tacticalElements: ['supply_point']
+  },
+  
+  // 森林伏击战
+  forest_ambush: {
+    terrainDistribution: {
+      forest: 60,
+      plains: 30,
+      hills: 10
+    },
+    spawnPattern: 'ambush_positions',
+    tacticalElements: ['hidden_paths', 'chokepoints']
+  },
+  
+  // 渡河作战
+  river_crossing: {
+    terrainDistribution: {
+      river: 30,
+      plains: 50,
+      road: 20
+    },
+    spawnPattern: 'river_sides',
+    tacticalElements: ['bridge', 'ford']
+  },
+  
+  // 山地防守
+  hill_defense: {
+    terrainDistribution: {
+      hills: 40,
+      plains: 40,
+      forest: 20
+    },
+    spawnPattern: 'high_low_ground',
+    tacticalElements: ['watchtower', 'narrow_pass']
+  }
+}
+```
+
+#### 3. 应用场景
+- **日常战斗**: 使用AI随机生成4x6或6x8地图
+- **事件战斗**: 使用AI随机生成，根据事件类型选择模板
+- **战役地图**: 手工设计8x10地图
+- **核心城市**: 手工设计10x12多人协作地图
+
+### 多人协作攻城地图设计
+
+#### 核心城市地图特点
+- **尺寸**: 10x12 (120格)
+- **参战人数**: 2-3名玩家 vs AI
+- **城防设施**: 城墙、箭塔、护城河
+- **协作机制**: 轮流行动制或同时行动制
+
+#### 地图布局示例
+```
+🏰🏰🏰🏰🏰🏰🏰🏰🏰🏰  ← AI城墙防线
+🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴  ← AI部队
+🟫🟫🟫🟫🟫🟫🟫🟫🟫🟫  
+🟫🟫🟫🟫🟫🟫🟫🟫🟫🟫  ← 战场区域
+🟫🟫🟫🟫🟫🟫🟫🟫🟫🟫  
+🟫🟫🟫🟫🟫🟫🟫🟫🟫🟫  
+🟫🟫🟫🟫🟫🟫🟫🟫🟫🟫  
+🟫🟫🟫🟫🟫🟫🟫🟫🟫🟫  
+🟫🟫🟫🟫🟫🟫🟫🟫🟫🟫  
+🔵🔵🔵🟫🟫🟫🟫🔵🔵🔵  ← 玩家A    玩家B
+🔵🔵🔵🟫🔵🔵🔵🟫🔵🔵🔵  ← 出生区  (玩家C)  出生区
+🔵🔵🔵🟫🔵🔵🔵🟫🔵🔵🔵  
+```
+
+### 实现优势
+1. **减少工作量**: 小地图AI自动生成
+2. **增加变化性**: 每次战斗体验不同
+3. **平衡性保证**: 算法确保公平性
+4. **可控制性**: 模板控制生成结果
+5. **社交体验**: 多人协作攻城
+## 十一、战斗单位UI设计
+
+### 兵力显示系统
+
+#### 设计理念
+在俯视角战斗地图上，每个部队单位下方显示直观的兵力血条，让玩家一目了然地掌握战场态势。
+
+#### 显示规则
+- **每100兵力 = 1个绿色格子**
+- **损失50兵力 = 格子一半变空（或灰色）**
+- **完全损失100兵力 = 整个格子变灰**
+
+#### 视觉效果示例
+```
+部队单位图标
+┌─────────────┐
+│    🛡️ 轻步兵   │  ← 部队图标和名称
+│             │
+└─────────────┘
+🟩🟩🟩🟩🟩🟩    ← 600兵力 = 6个满格
+
+战斗中兵力变化：
+初始: 🟩🟩🟩🟩🟩🟩 (600兵力)
+     ↓ 受到攻击，损失150兵力
+变为: 🟩🟩🟩🟩⬜🔲 (450兵力)
+     ↓ 继续受攻击，损失100兵力  
+变为: 🟩🟩🟩⬜🔲🔲 (350兵力)
+```
+
+### 技术实现方案
+
+#### 方案1：CSS + React（推荐）
+
+**React组件实现**：
+```jsx
+function TroopHealthBar({ currentTroops, maxTroops }) {
+  const maxBars = Math.ceil(maxTroops / 100); // 最大格子数
+  const bars = [];
+  
+  for (let i = 0; i < maxBars; i++) {
+    const barMinTroops = i * 100;
+    const barMaxTroops = (i + 1) * 100;
+    const barCurrentTroops = Math.max(0, Math.min(100, currentTroops - barMinTroops));
+    
+    let barType;
+    if (barCurrentTroops >= 100) {
+      barType = 'full';     // 🟩 满格
+    } else if (barCurrentTroops >= 50) {
+      barType = 'half';     // ⬜ 半格
+    } else if (barCurrentTroops > 0) {
+      barType = 'quarter';  // 🔲 四分之一格
+    } else {
+      barType = 'empty';    // ⚫ 空格
+    }
+    
+    bars.push(
+      <div 
+        key={i} 
+        className={`health-bar ${barType}`}
+        title={`${barMinTroops}-${barMaxTroops}: ${barCurrentTroops}兵力`}
+      />
+    );
+  }
+  
+  return (
+    <div className="troop-health-container">
+      {bars}
+    </div>
+  );
+}
+```
+
+**CSS样式**：
+```css
+.troop-health-container {
+  display: flex;
+  gap: 2px;
+  margin-top: 4px;
+  justify-content: center;
+}
+
+.health-bar {
+  width: 12px;
+  height: 8px;
+  border: 1px solid #333;
+  border-radius: 2px;
+  transition: background-color 0.3s ease;
+}
+
+.health-bar.full {
+  background-color: #22c55e; /* 绿色满格 */
+}
+
+.health-bar.half {
+  background: linear-gradient(to right, #22c55e 50%, #e5e7eb 50%);
+}
+
+.health-bar.quarter {
+  background: linear-gradient(to right, #22c55e 25%, #e5e7eb 25%);
+}
+
+.health-bar.empty {
+  background-color: #6b7280; /* 灰色空格 */
+}
+
+/* 受到伤害时闪红效果 */
+.health-bar.damaged {
+  animation: damage-flash 0.5s ease;
+}
+
+@keyframes damage-flash {
+  0% { background-color: #ef4444; }
+  100% { background-color: #22c55e; }
+}
+```
+
+#### 方案2：Canvas绘制
+
+```javascript
+function drawTroopHealthBar(ctx, x, y, currentTroops, maxTroops) {
+  const barWidth = 12;
+  const barHeight = 8;
+  const barGap = 2;
+  const maxBars = Math.ceil(maxTroops / 100);
+  
+  for (let i = 0; i < maxBars; i++) {
+    const barX = x + i * (barWidth + barGap);
+    const barY = y;
+    
+    const barCurrentTroops = Math.max(0, Math.min(100, currentTroops - i * 100));
+    const fillRatio = barCurrentTroops / 100;
+    
+    // 绘制边框
+    ctx.strokeStyle = '#333';
+    ctx.strokeRect(barX, barY, barWidth, barHeight);
+    
+    // 绘制填充
+    if (fillRatio > 0) {
+      ctx.fillStyle = '#22c55e';
+      ctx.fillRect(barX + 1, barY + 1, (barWidth - 2) * fillRatio, barHeight - 2);
+    }
+    
+    // 绘制空白部分
+    if (fillRatio < 1) {
+      ctx.fillStyle = '#e5e7eb';
+      ctx.fillRect(
+        barX + 1 + (barWidth - 2) * fillRatio, 
+        barY + 1, 
+        (barWidth - 2) * (1 - fillRatio), 
+        barHeight - 2
+      );
+    }
+  }
+}
+```
+
+### 美术资源需求
+
+#### 难度等级：🟢 简单
+
+**制作方式**：
+- **方案A**：纯CSS实现，无需美术资源 ✅ 推荐
+- **方案B**：简单PNG图片（4种状态各1张）
+- **方案C**：SVG矢量图（可缩放，文件小）
+
+**如需图片资源**：
+```
+health_bar_full.png    (12x8px, 绿色满格)
+health_bar_half.png    (12x8px, 绿色+灰色半格)
+health_bar_quarter.png (12x8px, 绿色+灰色四分之一)
+health_bar_empty.png   (12x8px, 灰色空格)
+```
+
+### 显示效果规范
+
+#### 不同兵力的显示效果
+```
+1000兵力: 🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩 (10格满)
+ 850兵力: 🟩🟩🟩🟩🟩🟩🟩🟩⬜🔲 (8满+1半+1空)
+ 650兵力: 🟩🟩🟩🟩🟩🟩⬜🔲🔲🔲 (6满+1半+3空)
+ 300兵力: 🟩🟩🟩🔲🔲🔲🔲🔲🔲🔲 (3满+7空)
+ 150兵力: 🟩⬜🔲🔲🔲🔲🔲🔲🔲🔲 (1满+1半+8空)
+  50兵力: ⬜🔲🔲🔲🔲🔲🔲🔲🔲🔲 (1半+9空)
+   0兵力: 🔲🔲🔲🔲🔲🔲🔲🔲🔲🔲 (10空，单位阵亡)
+```
+
+#### 在地图上的整体效果
+```
+┌─────────────┐  ┌─────────────┐  ┌─────────────┐
+│   🛡️ 重步兵   │  │   🏹️ 弓箭手   │  │   🐎 轻骑兵   │
+│             │  │             │  │             │
+└─────────────┘  └─────────────┘  └─────────────┘
+🟩🟩🟩🟩🟩🟩🟩🟩  🟩🟩🟩⬜🔲🔲    🟩🟩⬜🔲🔲
+  800/800        350/600        250/500
+```
+
+### 用户体验优化
+
+#### 交互增强
+```jsx
+<div 
+  className="health-bar"
+  onMouseEnter={() => setShowTooltip(true)}
+  onMouseLeave={() => setShowTooltip(false)}
+>
+  {showTooltip && (
+    <div className="tooltip">
+      兵力: {currentTroops}/{maxTroops}
+      损失: {maxTroops - currentTroops}
+      损失率: {((maxTroops - currentTroops) / maxTroops * 100).toFixed(1)}%
+    </div>
+  )}
+</div>
+```
+
+#### 颜色方案
+```css
+/* 基础颜色 */
+--health-full: #22c55e;    /* 绿色 - 健康 */
+--health-empty: #e5e7eb;   /* 浅灰 - 空白 */
+--health-border: #333;     /* 深灰 - 边框 */
+
+/* 状态颜色 */
+--health-critical: #ef4444; /* 红色 - 危险（<25%） */
+--health-warning: #f59e0b;  /* 橙色 - 警告（25-50%） */
+--health-good: #22c55e;     /* 绿色 - 良好（>50%） */
+```
+
+#### 动态效果
+- **受伤闪烁**：受到攻击时短暂闪红
+- **恢复动画**：兵力恢复时格子逐渐变绿
+- **阵亡效果**：兵力归零时整体变灰并可能添加X标记
+
+### 性能考虑
+
+#### 渲染性能
+- **CSS方案**：性能最好，浏览器原生优化
+- **Canvas方案**：适合大量单位，批量绘制
+- **SVG方案**：矢量图，缩放不失真
+
+#### 内存占用
+- 每个血条组件：< 1KB内存
+- 100个单位同时显示：< 100KB
+- 对游戏性能影响微乎其微
+
+### 实现优先级
+
+#### MVP版本（M2）
+- ✅ 基础CSS血条显示
+- ✅ 4种状态（满、半、四分之一、空）
+- ✅ 鼠标悬停显示详细信息
+
+#### 完善版本（M3）
+- [ ] 受伤闪烁动画
+- [ ] 颜色状态区分（危险/警告/良好）
+- [ ] 阵亡特效
+
+#### 优化版本（后续）
+- [ ] Canvas批量渲染优化
+- [ ] 更丰富的动画效果
+- [ ] 自定义主题颜色
+
+### 总结
+
+这个兵力显示UI设计具有以下优势：
+1. **直观性**：一眼就能看出部队状态
+2. **实用性**：帮助玩家做出战术决策
+3. **简单性**：技术实现简单，美术需求低
+4. **性能好**：对游戏性能影响极小
+5. **可扩展**：后续可以添加更多视觉效果
+
+**推荐在M2阶段实现基础版本，为战斗系统提供重要的视觉反馈。**

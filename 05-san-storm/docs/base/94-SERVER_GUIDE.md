@@ -1107,3 +1107,301 @@ Copyright © 2026 [你的名字/团队]
 **创建日期**: 2026-02-09  
 **最后更新**: 2026-02-09  
 **文档版本**: v1.1.0
+
+---
+
+## 七、服务器性能分析与压力测试
+
+**基于**: PERFORMANCE_ANALYSIS.md v1.0.0  
+**测试场景**: 极限压力测试（400人在线，300人同时战斗）
+
+### 7.1 测试场景设定
+
+#### 基础参数
+- **同时在线**: 400人
+- **同时战斗**: 300人
+- **战斗时长**: 平均2分钟/场
+- **战斗频率**: 150场/分钟（300人÷2分钟）
+
+#### 单场战斗数据量估算
+```javascript
+const singleBattleSize = {
+  battleBasic: 1,            // 1KB - 战斗基础信息
+  playerData: 4,             // 4KB - 双方玩家数据（2×2KB）
+  troopData: 5,              // 5KB - 部队数据（10支×0.5KB）
+  roundData: 30,             // 30KB - 回合数据（15回合×2KB）
+  actionData: 15,            // 15KB - 动作数据（150个×0.1KB）
+  statisticsUpdate: 2,       // 2KB - 统计数据更新
+  total: 57,                 // 总计约57KB/场
+};
+```
+
+### 7.2 极限压力测试分析
+
+#### 数据写入压力
+```
+每分钟数据量: 150场 × 57KB = 8.35MB/分钟
+每秒数据量: 142.5KB/秒
+每小时数据量: 501MB/小时
+每天数据量（高峰6小时）: 3GB/天
+```
+
+#### 数据库操作压力
+```javascript
+const writeOperations = {
+  battleCreate: 1,           // 创建战斗记录
+  roundUpdate: 15,           // 15回合更新
+  battleComplete: 1,         // 完成战斗记录
+  playerStatsUpdate: 2,      // 更新双方统计数据
+  troopUpdate: 10,           // 更新部队兵力
+  resourceUpdate: 2,         // 更新资源
+  questProgress: 2,          // 更新任务进度
+  achievementCheck: 2,       // 检查成就
+  total: 35,                 // 总计35次写入操作/场
+};
+
+// 每秒数据库操作
+// 写入: 87.5次/秒
+// 读取: 75次/秒
+// 总计: 162.5次/秒
+```
+
+### 7.3 数据库性能评估
+
+#### MongoDB性能基准（2核2G配置）
+- **单机性能**: 500-1,500 ops/秒（共享资源）
+- **我们的需求**: 162.5 ops/秒（未优化）
+- **性能余量**: 500 ÷ 162.5 = 3.08倍
+
+**结论**: ⚠️ 性能余量较小，必须优化
+
+### 7.4 优化策略详解
+
+#### 批量写入优化
+```javascript
+// ❌ 不好的做法：每个动作都写入
+for (let i = 0; i < 15; i++) {
+  await db.battles.updateOne({ battleId }, { $push: { rounds: roundData } });
+}
+
+// ✅ 好的做法：批量写入
+const rounds = [];
+for (let i = 0; i < 15; i++) {
+  rounds.push(roundData);
+}
+await db.battles.updateOne({ battleId }, { $push: { rounds: { $each: rounds } } });
+```
+
+**优化效果**: 15次写入 → 1次写入（减少93%）
+
+#### 缓存策略优化
+```javascript
+const playerCache = {
+  ttl: 300,                  // 5分钟过期
+  
+  async getPlayer(playerId) {
+    // 1. 先从Redis读取
+    let player = await redis.get(`player:${playerId}`);
+    
+    if (player) {
+      return JSON.parse(player);
+    }
+    
+    // 2. Redis没有，从MongoDB读取
+    player = await db.players.findOne({ playerId });
+    
+    // 3. 写入Redis缓存
+    await redis.setex(`player:${playerId}`, this.ttl, JSON.stringify(player));
+    
+    return player;
+  }
+};
+```
+
+**优化效果**: 缓存命中率90%时，数据库读取减少90%
+
+#### 异步写入优化
+```javascript
+async function completeBattle(battleId) {
+  // 1. 立即返回战斗结果给玩家
+  const result = calculateBattleResult(battleId);
+  sendToClient(result);
+  
+  // 2. 异步更新统计数据（不阻塞玩家）
+  updateStatisticsAsync(battleId).catch(err => {
+    logger.error('Statistics update failed', err);
+  });
+}
+```
+
+**优化效果**: 玩家体验流畅，统计数据延迟更新
+
+### 7.5 优化后的性能估算
+
+#### 优化效果计算
+```javascript
+const optimized = {
+  // 1. 批量写入：15次 → 1次
+  writeReduction: 0.93,      // 减少93%
+  
+  // 2. 缓存命中：90%读取从缓存
+  readReduction: 0.90,       // 减少90%
+  
+  // 3. 异步更新：统计数据异步
+  asyncUpdate: 0.30,         // 减少30%阻塞
+  
+  // 最终结果
+  databaseOps: 162.5 * (1 - 0.93) * (1 - 0.90) = 1.14, // ops/秒
+  dataWrite: 142.5 * (1 - 0.30) = 99.75, // KB/秒
+};
+```
+
+#### 优化后性能评估
+- **数据库操作**: 162.5 ops/秒 → **1.14 ops/秒**（减少99.3%）
+- **数据写入**: 142.5KB/秒 → **99.75KB/秒**（减少30%）
+- **性能余量**: 500 ÷ 1.14 = **438倍**
+
+### 7.6 2核2G配置最终评估
+
+#### 未优化情况
+- ⚠️ **数据库压力**: 162.5 ops/秒（性能余量3.08倍，较小）
+- ⚠️ **带宽压力**: 1.76Mbps（58.7%使用率）
+- ⚠️ **内存压力**: 紧张
+
+#### 优化后情况
+- ✅ **数据库压力**: 1.14 ops/秒（性能余量438倍）
+- ✅ **带宽压力**: 0.47Mbps（15.7%使用率）
+- ✅ **内存压力**: 刚好够用
+
+#### 实际承载能力（优化后）
+```javascript
+const capacity = {
+  // 数据库瓶颈
+  dbLimit: 500 / 1.14,       // 438人
+  
+  // 带宽瓶颈
+  bandwidthLimit: 3 / 0.47 * 300, // 1,915人
+  
+  // 内存瓶颈
+  memoryLimit: 400 / 35 * 1000, // 11,428人（缓存限制）
+  
+  // 实际瓶颈（取最小值）
+  actualLimit: 438,          // 438人
+  
+  // 安全余量（80%）
+  safeLimit: 438 * 0.8,      // 350人
+};
+```
+
+#### 推荐配置
+- **最大在线**: 300人
+- **同时战斗**: 200人
+- **性能余量**: 充足
+- **扩展方式**: 横向扩展（多服务器）
+
+### 7.7 必须优化项（2核2G配置）
+
+#### 高优先级（必须）
+1. ✅ **Redis缓存** - 减少90%数据库读取
+2. ✅ **批量写入** - 减少93%数据库写入
+3. ✅ **数据压缩** - 节省73%带宽
+4. ✅ **异步更新** - 统计数据不阻塞战斗
+
+#### 中优先级（推荐）
+1. ✅ **战斗排队** - 避免峰值超载
+2. ✅ **内存限制** - Redis最大400MB
+3. ✅ **连接池限制** - MongoDB最大20连接
+
+### 7.8 监控指标
+
+#### 关键指标
+```javascript
+const metrics = {
+  // 数据库
+  dbOpsPerSecond: 0,         // 数据库操作/秒
+  dbResponseTime: 0,         // 数据库响应时间
+  
+  // 缓存
+  cacheHitRate: 0,           // 缓存命中率
+  cacheMemoryUsage: 0,       // 缓存内存使用
+  
+  // 战斗
+  activeBattles: 0,          // 活跃战斗数
+  avgBattleTime: 0,          // 平均战斗时长
+  
+  // 玩家
+  onlinePlayers: 0,          // 在线玩家数
+  concurrentBattles: 0,      // 并发战斗数
+};
+```
+
+#### 告警阈值
+```javascript
+const alerts = {
+  dbOpsPerSecond: 1000,      // 超过1000 ops/秒告警
+  dbResponseTime: 100,       // 超过100ms告警
+  cacheHitRate: 0.80,        // 低于80%告警
+  onlinePlayers: 450,        // 超过450人告警（接近上限）
+};
+```
+
+### 7.9 最终结论
+
+#### 当前配置评估（2核2G）
+
+**未优化情况**：
+- ⚠️ 数据库：性能余量3倍（较小）
+- ⚠️ 带宽：峰值可能超出
+- ⚠️ 内存：紧张
+
+**优化后情况**：
+- ✅ 数据库：性能余量438倍（充足）
+- ✅ 带宽：性能余量6.4倍（充足）
+- ✅ 内存：刚好够用
+
+#### 实际承载能力
+
+**保守估算**：
+- 最大在线：350人
+- 同时战斗：230人
+
+**推荐配置**：
+- 最大在线：300人
+- 同时战斗：200人
+- 服务器上限：300人/服
+
+#### 风险评估
+
+**技术风险**：中等
+- 需要做好优化
+- 需要监控性能
+
+**性能风险**：低
+- 优化后性能充足
+- 有一定余量
+
+**扩展风险**：低
+- 可以横向扩展（多服务器）
+- 可以垂直扩展（升级配置）
+
+#### 最终建议
+
+**阶段1：初期（0-100人）**
+- 当前配置足够
+- 基础优化即可
+
+**阶段2：成长期（100-300人）**
+- 启用所有优化
+- 密切监控性能
+
+**阶段3：扩展期（300+人）**
+- 考虑升级到4核4GB
+- 或者开设第二个服务器
+
+**结论**：2核2G配置经过优化后，可以稳定支持300人在线、200人同时战斗。只要做好优化，完全够用！💪
+
+---
+
+**性能分析文档整合完成**  
+**原文档**: PERFORMANCE_ANALYSIS.md v1.0.0  
+**整合日期**: 2026-02-11
