@@ -46,9 +46,12 @@ const getMachineFingerprint = () => {
  * @returns {boolean} 是否为开发环境
  */
 export const isDevelopment = () => {
-  return process.env.NODE_ENV === 'development' || 
-         window.location.hostname === 'localhost' || 
-         window.location.hostname === '127.0.0.1';
+  // 只有在本地开发时才返回true
+  return window.location.hostname === 'localhost' || 
+         window.location.hostname === '127.0.0.1' ||
+         window.location.hostname === '192.168.1.1' ||  // 本地IP
+         window.location.port === '5173' ||  // Vite开发服务器端口
+         window.location.port === '3000';    // 常见开发端口
 };
 
 /**
