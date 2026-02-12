@@ -53,6 +53,48 @@ const RARITY_CONFIG = {
 };
 
 /**
+ * 性格特质配置
+ */
+const TRAIT_CONFIG = {
+  brave: {
+    name: '勇猛',
+    icon: '⚔️',
+    color: 'text-yellow-400',
+    description: '始终保持高昂，不易气馁'
+  },
+  reckless: {
+    name: '无惧',
+    icon: '🔥',
+    color: 'text-orange-500',
+    description: '无所畏惧，士气极高'
+  },
+  calm: {
+    name: '冷静',
+    icon: '🧊',
+    color: 'text-blue-400',
+    description: '稳定发挥，不受波动'
+  },
+  normal: {
+    name: '平凡',
+    icon: '⭐',
+    color: 'text-gray-400',
+    description: '标准表现，无特殊修正'
+  },
+  cautious: {
+    name: '谨慎',
+    icon: '🛡️',
+    color: 'text-green-400',
+    description: '略显保守，需要鼓舞'
+  },
+  timid: {
+    name: '怯懦',
+    icon: '💧',
+    color: 'text-purple-400',
+    description: '容易恐惧，需要保护'
+  }
+};
+
+/**
  * 生涯阶段映射
  */
 const STAGE_MAP = {
@@ -146,15 +188,15 @@ export function CharacterCard({ character, skillsMap = {}, bondsMap = {}, showDe
         </div>
 
         {/* 中间：将领信息区域 */}
-        <div className="relative h-[100px] bg-gradient-to-b from-gray-800 to-gray-900">
+        <div className="relative h-[90px] bg-gradient-to-b from-gray-800 to-gray-900">
           {/* 背景装饰 */}
           <div className="absolute inset-0 opacity-10">
             <div className={`absolute inset-0 bg-gradient-to-br ${rarityConfig.gradient}`} />
           </div>
 
-          <div className="relative h-full flex items-center p-3 gap-3">
+          <div className="relative h-full flex items-center p-2 gap-2">
             {/* 左侧：将领图标占位 */}
-            <div className="relative w-[80px] h-[80px] flex-shrink-0">
+            <div className="relative w-[70px] h-[70px] flex-shrink-0">
               <div className={`
                 absolute inset-0 rounded-lg
                 border-2 ${rarityConfig.border}
@@ -183,7 +225,7 @@ export function CharacterCard({ character, skillsMap = {}, bondsMap = {}, showDe
             </div>
 
             {/* 右侧：核心属性 - 4行布局，固定宽度对齐 */}
-            <div className="flex-1 flex flex-col justify-center gap-1.5">
+            <div className="flex-1 flex flex-col justify-center gap-1">
               {/* 第一行：运、勇 */}
               <div className="flex items-center gap-2 text-xs">
                 <div className="flex items-center gap-1">
@@ -226,62 +268,95 @@ export function CharacterCard({ character, skillsMap = {}, bondsMap = {}, showDe
                 </div>
               </div>
               
-              {/* 第四行：魅、兵种适应性 */}
+              {/* 第四行：魅 */}
               <div className="flex items-center gap-2 text-xs">
                 <div className="flex items-center gap-1">
                   <span className="text-indigo-400">✨</span>
                   <span className="text-gray-400">魅</span>
                   <span className="text-white font-bold w-6">{character.charisma}</span>
                 </div>
-                {/* 兵种适应性显示 */}
-                {character.troopAffinity && (
-                  <div className="flex items-center gap-1">
-                    {(() => {
-                      // 解析兵种适应性
-                      const parseAffinity = (affinityStr) => {
-                        const affinities = {};
-                        if (!affinityStr) return affinities;
-                        affinityStr.split(';').forEach(pair => {
-                          const [troopType, bonus] = pair.split(':');
-                          affinities[troopType] = parseInt(bonus) || 0;
-                        });
-                        return affinities;
-                      };
-                      
-                      const affinities = parseAffinity(character.troopAffinity);
-                      const troopIcons = { infantry: '🛡️', cavalry: '🐎', archer: '🏹' };
-                      
-                      return Object.entries(affinities)
-                        .filter(([_, bonus]) => bonus > 0)
-                        .map(([type, bonus]) => (
-                          <span key={type} className="text-yellow-400 font-bold text-xs">
-                            {troopIcons[type]}{bonus}%
-                          </span>
-                        ));
-                    })()}
-                  </div>
-                )}
               </div>
             </div>
           </div>
         </div>
 
-        {/* 技能区域 - 固定2个技能 */}
+        {/* 特性区域 - 兵种适应性和性格 */}
+        {showDetails && (
+          <div className="relative px-3 py-1.5 bg-gray-800/90 backdrop-blur-sm border-t border-gray-700">
+            <div className="flex items-center gap-1 mb-0.5">
+              <span className="text-cyan-400 text-xs">⚡</span>
+              <span className="text-gray-400 text-xs font-medium">特性</span>
+            </div>
+            <div className="grid grid-cols-3 gap-1.5 text-xs">
+              {/* 兵种适应性 */}
+              {character.troopAffinity && (
+                <>
+                  {(() => {
+                    // 解析兵种适应性
+                    const parseAffinity = (affinityStr) => {
+                      const affinities = {};
+                      if (!affinityStr) return affinities;
+                      affinityStr.split(';').forEach(pair => {
+                        const [troopType, bonus] = pair.split(':');
+                        affinities[troopType] = parseInt(bonus) || 0;
+                      });
+                      return affinities;
+                    };
+                    
+                    const affinities = parseAffinity(character.troopAffinity);
+                    const troopIcons = { infantry: '🛡️', cavalry: '🐎', archer: '🏹' };
+                    const troopNames = { infantry: '步', cavalry: '骑', archer: '弓' };
+                    
+                    return Object.entries(affinities)
+                      .filter(([_, bonus]) => bonus > 0)
+                      .map(([type, bonus]) => (
+                        <div key={type} className="flex items-center justify-center gap-0.5 px-1.5 py-0.5 rounded bg-yellow-900/30 border border-yellow-500/30">
+                          <span className="text-yellow-400">{troopIcons[type]}</span>
+                          <span className="text-gray-300">{troopNames[type]}</span>
+                          <span className="text-yellow-400 font-bold">+{bonus}%</span>
+                        </div>
+                      ));
+                  })()}
+                </>
+              )}
+              
+              {/* 性格特质 */}
+              {character.trait && TRAIT_CONFIG[character.trait] && (
+                <div 
+                  className="flex items-center justify-center gap-0.5 px-1.5 py-0.5 rounded bg-gray-900/50 border border-gray-600/30"
+                  title={TRAIT_CONFIG[character.trait].description}
+                >
+                  <span className="text-xs">{TRAIT_CONFIG[character.trait].icon}</span>
+                  <span className={`text-xs font-medium ${TRAIT_CONFIG[character.trait].color}`}>
+                    {TRAIT_CONFIG[character.trait].name[0]}
+                  </span>
+                  {character.traitModifier !== 0 && (
+                    <span className={`text-xs font-bold ${character.traitModifier > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                      {character.traitModifier > 0 ? '+' : ''}{character.traitModifier}%
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* 技能区域 - 每行3个技能 */}
         {showDetails && character.skills && character.skills.length > 0 && (
-          <div className="relative px-3 py-2 bg-gray-800/90 backdrop-blur-sm border-t border-gray-700">
-            <div className="flex items-center gap-1 mb-1.5">
+          <div className="relative px-3 py-1.5 bg-gray-800/90 backdrop-blur-sm border-t border-gray-700">
+            <div className="flex items-center gap-1 mb-0.5">
               <span className="text-purple-400 text-xs">⚔️</span>
               <span className="text-gray-400 text-xs font-medium">技能</span>
             </div>
-            <div className="grid grid-cols-2 gap-2">
-              {character.skills.slice(0, 2).map((skillId, index) => {
+            <div className="grid grid-cols-3 gap-1.5">
+              {character.skills.slice(0, 3).map((skillId, index) => {
                 const skill = skillsMap[skillId];
                 const isActive = skillId.startsWith('skill_1_');
                 return (
                   <div 
                     key={index} 
                     className={`
-                      px-2 py-1 rounded text-xs
+                      px-1.5 py-0.5 rounded text-xs text-center
                       ${isActive 
                         ? 'bg-red-900/30 border border-red-500/30 text-red-300' 
                         : 'bg-blue-900/30 border border-blue-500/30 text-blue-300'
@@ -299,23 +374,23 @@ export function CharacterCard({ character, skillsMap = {}, bondsMap = {}, showDe
           </div>
         )}
 
-        {/* 羁绊区域 - 2列布局，最多显示4个 */}
+        {/* 羁绊区域 - 每行3个羁绊 */}
         {showDetails && (
-          <div className="relative px-3 py-2 bg-gray-900/90 backdrop-blur-sm border-t border-gray-700">
-            <div className="flex items-center gap-1 mb-1.5">
+          <div className="relative px-3 py-1.5 bg-gray-900/90 backdrop-blur-sm border-t border-gray-700">
+            <div className="flex items-center gap-1 mb-0.5">
               <span className="text-amber-400 text-xs">🔗</span>
               <span className="text-gray-400 text-xs font-medium">羁绊</span>
             </div>
             {bonds.length > 0 ? (
-              <div className="grid grid-cols-2 gap-2">
-                {bonds.slice(0, 4).map((bondName, index) => {
+              <div className="grid grid-cols-3 gap-1.5">
+                {bonds.slice(0, 6).map((bondName, index) => {
                   const bond = bondsMap[bondName];
                   const isActive = bond && bond.type === 'active';
                   return (
                     <div 
                       key={index} 
                       className={`
-                        px-2 py-1 rounded text-xs
+                        px-1.5 py-0.5 rounded text-xs text-center
                         ${isActive 
                           ? 'bg-amber-900/30 border border-amber-500/30 text-amber-300' 
                           : 'bg-teal-900/30 border border-teal-500/30 text-teal-300'
@@ -331,7 +406,7 @@ export function CharacterCard({ character, skillsMap = {}, bondsMap = {}, showDe
                 })}
               </div>
             ) : (
-              <div className="text-center text-gray-500 text-xs py-1">
+              <div className="text-center text-gray-500 text-xs py-0.5">
                 无羁绊
               </div>
             )}
@@ -355,9 +430,9 @@ export function CharacterCard({ character, skillsMap = {}, bondsMap = {}, showDe
                 )}
               </div>
             </div>
-            {/* 角色描述 */}
+            {/* 角色描述 - 固定高度，不裁剪 */}
             {character.description && (
-              <div className="text-gray-400 text-xs leading-relaxed">
+              <div className="text-gray-400 text-xs leading-relaxed min-h-[3rem]">
                 {character.description}
               </div>
             )}
@@ -380,6 +455,8 @@ CharacterCard.propTypes = {
     intelligence: PropTypes.number.isRequired,
     politics: PropTypes.number.isRequired,
     charisma: PropTypes.number.isRequired,
+    trait: PropTypes.string,
+    traitModifier: PropTypes.number,
     skills: PropTypes.arrayOf(PropTypes.string),
     bonds: PropTypes.oneOfType([
       PropTypes.arrayOf(PropTypes.string),

@@ -648,9 +648,9 @@ export function getSkillByName(name) {
   return SKILLS_DATABASE[name];
 }
 
-export function getSkillsByHolder(heroName) {
+export function getSkillsByHolder(characterName) {
   return Object.values(SKILLS_DATABASE).filter(skill => 
-    skill.holders.includes(heroName)
+    skill.holders.includes(characterName)
   );
 }
 
