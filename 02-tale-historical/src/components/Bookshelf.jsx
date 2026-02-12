@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom'
 import { useBook } from '../contexts/BookContext'
 import { useState } from 'react'
+import { verifyGlobalPassword } from '../config/announcement'
 
 function Bookshelf() {
   const navigate = useNavigate()
@@ -27,18 +28,6 @@ function Bookshelf() {
   // 需要密码验证的分类
   const protectedCategories = ['游戏文本', '个人私密']
 
-  // 生成今日密码
-  const generateTodayPassword = () => {
-    const today = new Date()
-    const year = today.getFullYear()
-    const month = String(today.getMonth() + 1).padStart(2, '0')
-    const day = String(today.getDate()).padStart(2, '0')
-    const weekDays = ['su', 'mo', 'tu', 'we', 'th', 'fr', 'sa']
-    const weekDay = weekDays[today.getDay()]
-    
-    return `${year}${month}${day}${weekDay}`
-  }
-
   // 公告内容（可自定义）
   const announcement = {
     date: '2026/02/04',
@@ -59,9 +48,7 @@ function Bookshelf() {
   }
 
   const handlePasswordSubmit = () => {
-    const correctPassword = generateTodayPassword()
-    
-    if (passwordInput === correctPassword) {
+    if (verifyGlobalPassword(passwordInput)) {
       // 密码正确，解锁分类
       setUnlockedCategories(prev => new Set([...prev, pendingCategory]))
       setSelectedCategory(pendingCategory)

@@ -226,13 +226,41 @@ export function CharacterCard({ character, skillsMap = {}, bondsMap = {}, showDe
                 </div>
               </div>
               
-              {/* 第四行：魅 */}
+              {/* 第四行：魅、兵种适应性 */}
               <div className="flex items-center gap-2 text-xs">
                 <div className="flex items-center gap-1">
                   <span className="text-indigo-400">✨</span>
                   <span className="text-gray-400">魅</span>
                   <span className="text-white font-bold w-6">{character.charisma}</span>
                 </div>
+                {/* 兵种适应性显示 */}
+                {character.troopAffinity && (
+                  <div className="flex items-center gap-1">
+                    {(() => {
+                      // 解析兵种适应性
+                      const parseAffinity = (affinityStr) => {
+                        const affinities = {};
+                        if (!affinityStr) return affinities;
+                        affinityStr.split(';').forEach(pair => {
+                          const [troopType, bonus] = pair.split(':');
+                          affinities[troopType] = parseInt(bonus) || 0;
+                        });
+                        return affinities;
+                      };
+                      
+                      const affinities = parseAffinity(character.troopAffinity);
+                      const troopIcons = { infantry: '🛡️', cavalry: '🐎', archer: '🏹' };
+                      
+                      return Object.entries(affinities)
+                        .filter(([_, bonus]) => bonus > 0)
+                        .map(([type, bonus]) => (
+                          <span key={type} className="text-yellow-400 font-bold text-xs">
+                            {troopIcons[type]}{bonus}%
+                          </span>
+                        ));
+                    })()}
+                  </div>
+                )}
               </div>
             </div>
           </div>

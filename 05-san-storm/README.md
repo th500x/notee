@@ -47,6 +47,13 @@
 - 🔄 完善部队卡牌
 - 🔄 其他元素卡牌化
 
+### 里程碑2：部队编组系统（新增）
+- ✅ M2验证模块创建
+- ✅ 武将+部队卡组合机制
+- ✅ 实时战力计算系统
+- ✅ 一键自动编组功能
+- ✅ 临时占位符图标系统
+
 详见 [docs/base/02-MILESTONES_S1.md](./docs/base/02-MILESTONES_S1.md)
 
 ---
@@ -110,6 +117,7 @@ Vercel（前端） + 自有服务器（后端）
 │   ├── components/                  # UI组件
 │   │   ├── character/               # 角色相关组件
 │   │   ├── faction/                 # 势力相关组件
+│   │   ├── formation/               # 部队编组相关组件（M2验证模块）
 │   │   ├── position/                # 官职相关组件
 │   │   ├── server/                  # 服务器相关组件
 │   │   ├── troop/                   # 部队相关组件
@@ -152,9 +160,10 @@ Vercel（前端） + 自有服务器（后端）
 │   └── styles/                      # 样式文件
 │       └── index.css                # 全局样式
 │
-├── tools/                           # 开发工具
-│   ├── hero-csv-to-json.cjs         # 武将CSV转JSON
-│   ├── troop-csv-to-json.cjs        # 部队CSV转JSON
+├── docs/                           # 文档和开发工具
+│   ├── tools/                       # 开发工具
+│   │   ├── hero-csv-to-json.cjs     # 武将CSV转JSON
+│   │   ├── troop-csv-to-json.cjs    # 部队CSV转JSON
 │   ├── faction-csv-to-json.cjs      # 势力CSV转JSON
 │   ├── skill-csv-to-json.cjs        # 技能CSV转JSON
 │   ├── bond-csv-to-json.cjs         # 羁绊CSV转JSON
@@ -302,22 +311,22 @@ npm run build
 
 ```bash
 # 导入武将数据
-node tools/hero-csv-to-json.cjs
+node docs/tools/hero-csv-to-json.cjs
 
 # 导入部队数据
-node tools/troop-csv-to-json.cjs
+node docs/tools/troop-csv-to-json.cjs
 
 # 导入势力数据
-node tools/faction-csv-to-json.cjs
+node docs/tools/faction-csv-to-json.cjs
 
 # 导入技能数据
-node tools/skill-csv-to-json.cjs
+node docs/tools/skill-csv-to-json.cjs
 
 # 导入羁绊数据
-node tools/bond-csv-to-json.cjs
+node docs/tools/bond-csv-to-json.cjs
 ```
 
-CSV模板文件位于 `tools/*-template.csv`
+CSV模板文件位于 `docs/tools/*-template.csv`
 
 ---
 

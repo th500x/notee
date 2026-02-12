@@ -25,13 +25,12 @@
         "skill_1_5003",
         "skill_2_5004"
       ],
-      "troopAffinity": "infantry:5",
       "bonds": [
         "桃园",
         "汉室宗亲"
       ],
       "biography": "《先主传》",
-      "description": "昭烈仁主。字玄德，184 年讨黄巾起兵，终建蜀汉，夷陵兵败崩于白帝城。"
+      "description": "汉室宗亲。中山靖王之后，少孤贩履。灵帝末讨黄巾有功，除安喜尉，后弃官。"
     },
     {
       "id": "char_san_1102",
@@ -58,14 +57,13 @@
         "skill_1_4004",
         "skill_2_4012"
       ],
-      "troopAffinity": "cavalry:7",
       "bonds": [
         "桃园",
         "五虎",
         "无双"
       ],
       "biography": "《关羽传》",
-      "description": "忠义武圣。字云长，随刘备起兵，威震华夏，后失荆州，为孙权擒杀。"
+      "description": "义薄云天。字云长，河东解人。亡命奔涿郡，随刘备起兵，与张飞为御侮。"
     },
     {
       "id": "char_san_1103",
@@ -92,14 +90,13 @@
         "skill_1_4002",
         "skill_2_4012"
       ],
-      "troopAffinity": "cavalry:7",
       "bonds": [
         "桃园",
         "五虎",
         "无双"
       ],
       "biography": "《张飞传》",
-      "description": "万人敌将。字益德，从刘备征战，勇冠三军，后被部将范强、张达刺杀。"
+      "description": "喝断长坂。字益德，涿郡人。少与关羽俱事先主，羽年长数岁，飞兄事之。"
     },
     {
       "id": "char_san_1104",
@@ -126,12 +123,11 @@
         "skill_1_3006",
         "skill_2_3004"
       ],
-      "troopAffinity": "",
       "bonds": [
         "蜀汉文臣"
       ],
       "biography": "《文臣合传》",
-      "description": "昭德辩士。字宪和，早年追随刘备，常为说客，官至昭德将军善终。"
+      "description": "字宪和，涿郡人。少与刘备善，随从周旋，为昭德将军。"
     },
     {
       "id": "char_san_1105",
@@ -158,7 +154,6 @@
         "skill_1_2006",
         "skill_2_2001"
       ],
-      "troopAffinity": "",
       "bonds": [],
       "biography": "《三国志》",
       "description": "演义衍生人物"
@@ -188,7 +183,6 @@
         "skill_1_2003",
         "skill_2_2003"
       ],
-      "troopAffinity": "",
       "bonds": [],
       "biography": "《三国志》",
       "description": "演义衍生人物"
@@ -218,7 +212,6 @@
         "skill_1_1006",
         "skill_2_1004"
       ],
-      "troopAffinity": "",
       "bonds": [],
       "biography": "《三国志》",
       "description": "演义衍生人物"
@@ -248,7 +241,6 @@
         "skill_1_1005",
         "skill_2_1005"
       ],
-      "troopAffinity": "",
       "bonds": [],
       "biography": "《三国志》",
       "description": "演义衍生人物"
@@ -278,7 +270,6 @@
         "skill_1_1001",
         "skill_2_1003"
       ],
-      "troopAffinity": "",
       "bonds": [],
       "biography": "《三国志》",
       "description": "演义衍生人物"
@@ -308,7 +299,6 @@
         "skill_1_1001",
         "skill_2_1001"
       ],
-      "troopAffinity": "",
       "bonds": [],
       "biography": "《三国志》",
       "description": "演义衍生人物"
@@ -338,13 +328,12 @@
         "skill_1_5003",
         "skill_2_5003"
       ],
-      "troopAffinity": "cavalry:5",
       "bonds": [
         "魏武",
         "曹氏"
       ],
       "biography": "《武帝纪》",
-      "description": "魏武雄才。字孟德。184 年讨黄巾起家，迎献帝平定北方，封魏王，身后追尊为魏武帝。"
+      "description": "乱世奸雄。字孟德，沛国谯人。灵帝时拜骑都尉，讨颍川黄巾，迁济南相，后为典军校尉。"
     },
     {
       "id": "char_san_1202",
@@ -371,14 +360,13 @@
         "skill_1_4003",
         "skill_2_4007"
       ],
-      "troopAffinity": "cavalry:5",
       "bonds": [
         "魏武",
         "夏侯",
         "曹氏"
       ],
       "biography": "《夏侯惇传》",
-      "description": "元让忠勇。字元让。184 年从操起兵，其后官至大将军，魏文帝时病逝，谥忠侯。"
+      "description": "曹操族弟。 字元让，沛国谯人。太祖初起，惇常为裨将，从征伐。"
     },
     {
       "id": "char_san_1203",
@@ -405,14 +393,13 @@
         "skill_1_4002",
         "skill_2_4002"
       ],
-      "troopAffinity": "archer:5",
       "bonds": [
         "魏武",
         "夏侯",
         "曹氏"
       ],
       "biography": "《夏侯渊传》",
-      "description": "妙才骁锐。字妙才。184 年随操征伐，镇守关中凉州，定军山为黄忠斩杀，谥愍侯。"
+      "description": "曹操族弟。字妙才，惇族弟。太祖起兵，以别部司马、骑都尉从。"
     },
     {
       "id": "char_san_1204",
@@ -439,12 +426,11 @@
         "skill_1_3005",
         "skill_2_3002"
       ],
-      "troopAffinity": "",
       "bonds": [
         "曹氏"
       ],
       "biography": "《曹仁传》",
-      "description": "子孝持重。字子孝。184 年从操举兵，长于守御，官至大司马，魏明帝时病逝，谥忠侯。"
+      "description": "太祖从弟。字子孝，少好弓马，后豪杰并起，阴结少年从太祖。"
     },
     {
       "id": "char_san_1205",
@@ -471,12 +457,11 @@
         "skill_1_3006",
         "skill_2_3004"
       ],
-      "troopAffinity": "",
       "bonds": [
         "曹氏"
       ],
       "biography": "《曹仁传》",
-      "description": "虎骑精锐。字子和。184 年随操，督虎豹骑，北征乌桓南破荆州，建安末年病逝，谥威侯。"
+      "description": "曹仁之弟"
     },
     {
       "id": "char_san_1206",
@@ -503,12 +488,11 @@
         "skill_1_3002",
         "skill_2_3006"
       ],
-      "troopAffinity": "",
       "bonds": [
         "曹氏"
       ],
       "biography": "《曹洪传》",
-      "description": "子廉救主。字子廉。184 年从操起兵，数次救主危难，官至骠骑将军，明帝时卒，谥恭侯。"
+      "description": "太祖从弟。字子廉，太祖讨董卓败于荥阳，洪以马与太祖，得脱。"
     },
     {
       "id": "char_san_1207",
@@ -535,13 +519,12 @@
         "skill_1_2002",
         "skill_2_2001"
       ],
-      "troopAffinity": "",
       "bonds": [
         "魏武",
         "五子良将"
       ],
       "biography": "《乐进传》",
-      "description": "文谦骁果。字文谦。184 年投曹操，每战先登陷阵，战功卓著，建安末病逝，谥威侯。"
+      "description": "曹操部将。字文谦，阳平卫国人。从曹操起兵，每战先登，迁右将军。"
     },
     {
       "id": "char_san_1208",
@@ -568,13 +551,12 @@
         "skill_1_2005",
         "skill_2_2003"
       ],
-      "troopAffinity": "",
       "bonds": [
         "魏武",
         "五子良将"
       ],
       "biography": "《于禁传》",
-      "description": "文则严整。字文则。184 年归曹操，治军严明，晚节降关羽，归魏后惭恨而死，谥厉侯。"
+      "description": "曹操部将。字文则，泰山钜平人。曹操麾下名将，襄樊之战兵败投降关羽，后羞愧而死。"
     },
     {
       "id": "char_san_1209",
@@ -601,13 +583,70 @@
         "skill_1_1001",
         "skill_2_1003"
       ],
-      "troopAffinity": "",
       "bonds": [],
       "biography": "《吕虔传》",
-      "description": "子恪镇抚。字子恪。184 年平定泰山之乱归操，镇守青徐，封亭侯，治绩卓著，后善终。"
+      "description": "曹操部将"
     },
     {
       "id": "char_san_1210",
+      "name": "张邈",
+      "rarity": "common",
+      "faction": "曹操",
+      "season": "S1",
+      "birthYear": 150,
+      "deathYear": 195,
+      "age": 34,
+      "stage": "peak",
+      "characterType": "military",
+      "luck": 6.4,
+      "courage": 7.9,
+      "command": 6.2,
+      "combat": 7.6,
+      "intelligence": 7.5,
+      "politics": 5.5,
+      "charisma": 4.5,
+      "morale": 50,
+      "skill_1": "skill_1_1006",
+      "skill_2": "skill_2_1002",
+      "skills": [
+        "skill_1_1006",
+        "skill_2_1002"
+      ],
+      "bonds": [],
+      "biography": "《张邈传》",
+      "description": "曹操盟友。字孟卓，东平寿张人。灵帝时为陈留太守，以侠闻。"
+    },
+    {
+      "id": "char_san_1211",
+      "name": "张超",
+      "rarity": "common",
+      "faction": "曹操",
+      "season": "S1",
+      "birthYear": 152,
+      "deathYear": 195,
+      "age": 32,
+      "stage": "peak",
+      "characterType": "military",
+      "luck": 7.5,
+      "courage": 7.9,
+      "command": 7.1,
+      "combat": 6.6,
+      "intelligence": 5.9,
+      "politics": 4.5,
+      "charisma": 7,
+      "morale": 50,
+      "skill_1": "skill_1_1001",
+      "skill_2": "skill_2_1003",
+      "skills": [
+        "skill_1_1001",
+        "skill_2_1003"
+      ],
+      "bonds": [],
+      "biography": "《张超传》",
+      "description": "张邈之弟"
+    },
+    {
+      "id": "char_san_1212",
       "name": "卫兹",
       "rarity": "common",
       "faction": "曹操",
@@ -631,13 +670,12 @@
         "skill_1_1006",
         "skill_2_1006"
       ],
-      "troopAffinity": "",
       "bonds": [],
       "biography": "《三国志》",
-      "description": "子许倾资。字子许。184 年后倾资助曹操起兵，讨董战于荥阳，力战阵亡，操深痛惜。"
+      "description": "资曹起兵"
     },
     {
-      "id": "char_san_1211",
+      "id": "char_san_1213",
       "name": "丁斐",
       "rarity": "common",
       "faction": "曹操",
@@ -661,13 +699,12 @@
         "skill_1_1001",
         "skill_2_1003"
       ],
-      "troopAffinity": "",
       "bonds": [],
       "biography": "《三国志》",
-      "description": "文侯从龙。字文侯。184 年随曹操，典掌内外，曾救操脱险，以功终老，魏人追念其功。"
+      "description": "曹操同乡"
     },
     {
-      "id": "char_san_1212",
+      "id": "char_san_1214",
       "name": "裴潜",
       "rarity": "common",
       "faction": "曹操",
@@ -691,10 +728,9 @@
         "skill_1_1002",
         "skill_2_1005"
       ],
-      "troopAffinity": "",
       "bonds": [],
       "biography": "《三国志》",
-      "description": "文行清恪。字文行。184 年避乱荆州，后归曹魏，镇守北疆代郡，官至光禄大夫，善终。"
+      "description": "曹魏后期重臣"
     },
     {
       "id": "char_san_1301",
@@ -721,12 +757,11 @@
         "skill_1_5001",
         "skill_2_5003"
       ],
-      "troopAffinity": "infantry:7",
       "bonds": [
         "江东"
       ],
       "biography": "《孙破虏传》",
-      "description": "江东猛虎。字文台。184 年讨黄巾平乱，讨董屡破董卓军，征刘表时被黄祖部曲射杀。"
+      "description": "江东之虎。字文台，吴郡富春人。少以勇闻，讨黄巾、区星，拜长沙太守，封乌程侯。"
     },
     {
       "id": "char_san_1302",
@@ -753,12 +788,11 @@
         "skill_1_4001",
         "skill_2_4008"
       ],
-      "troopAffinity": "archer:5",
       "bonds": [
         "江东"
       ],
       "biography": "《太史慈传》",
-      "description": "神亭骁将。字子义。先归刘繇，后降孙策孙权，镇守建昌抚山越，壮年病逝。"
+      "description": "神射太史慈。字子义，东莱黄人。初为刘繇部下，后归孙策，助其平定江东，官至建昌都尉。"
     },
     {
       "id": "char_san_1303",
@@ -785,12 +819,11 @@
         "skill_1_3002",
         "skill_2_3004"
       ],
-      "troopAffinity": "",
       "bonds": [
         "江东"
       ],
       "biography": "《黄盖传》",
-      "description": "江表虎臣。字公覆。从孙坚起兵，历仕三主，赤壁献火攻奇计，官至偏将军善终。"
+      "description": "江东宿将。字公覆，零陵泉陵人。初为郡吏，察孝廉，孙坚举义兵，盖从之。"
     },
     {
       "id": "char_san_1304",
@@ -817,12 +850,11 @@
         "skill_1_3006",
         "skill_2_3003"
       ],
-      "troopAffinity": "",
       "bonds": [
         "江东"
       ],
       "biography": "《程普传》",
-      "description": "三世宿将。字德谋。随孙坚讨黄巾伐董卓，辅佐孙策、孙权，为江东元勋终老。"
+      "description": "江东宿将。字德谋，右北平土垠人。初随孙坚征伐，讨黄巾、破董卓，皆有功。"
     },
     {
       "id": "char_san_1305",
@@ -849,12 +881,11 @@
         "skill_1_3001",
         "skill_2_3004"
       ],
-      "troopAffinity": "",
       "bonds": [
         "江东"
       ],
       "biography": "《韩当传》",
-      "description": "勤苦虎臣。字义公。追随孙坚征伐四方，辅佐孙氏三代，官至昭武将军病逝。"
+      "description": "江东宿将。字义公，辽西令支人。便弓马，有膂力，幸于孙坚，从征伐周旋。"
     },
     {
       "id": "char_san_1306",
@@ -881,45 +912,14 @@
         "skill_1_3001",
         "skill_2_3003"
       ],
-      "troopAffinity": "",
       "bonds": [
         "江东"
       ],
       "biography": "《朱治传》",
-      "description": "安国元勋。字君理。从孙坚孙策平乱，辅定江东，镇守吴郡，封毗陵侯善终。"
+      "description": "江东宿将。"
     },
     {
       "id": "char_san_1307",
-      "name": "孙贲",
-      "rarity": "rare",
-      "faction": "孙坚",
-      "season": "S1",
-      "birthYear": 150,
-      "deathYear": 210,
-      "age": 34,
-      "stage": "peak",
-      "characterType": "military",
-      "luck": 6.4,
-      "courage": 8.4,
-      "command": 8.4,
-      "combat": 7.2,
-      "intelligence": 5.5,
-      "politics": 7.6,
-      "charisma": 7,
-      "morale": 50,
-      "skill_1": "skill_1_2001",
-      "skill_2": "skill_2_2005",
-      "skills": [
-        "skill_1_2001",
-        "skill_2_2005"
-      ],
-      "troopAffinity": "",
-      "bonds": [],
-      "biography": "《三国志》",
-      "description": "宗室骁将。字伯阳。孙坚之侄，随坚讨董卓，后辅孙策，领豫章太守封侯。"
-    },
-    {
-      "id": "char_san_1308",
       "name": "祖茂",
       "rarity": "rare",
       "faction": "孙坚",
@@ -943,10 +943,38 @@
         "skill_1_2007",
         "skill_2_2006"
       ],
-      "troopAffinity": "",
       "bonds": [],
       "biography": "《三国志》",
-      "description": "忠勇护主。字大荣。孙坚部将，讨董时为救主引开敌军，最终力战阵亡。"
+      "description": "孙坚移屯梁东，为卓军所攻，令茂著帻诱敌，坚得间道脱走。"
+    },
+    {
+      "id": "char_san_1308",
+      "name": "孙贲",
+      "rarity": "rare",
+      "faction": "孙坚",
+      "season": "S1",
+      "birthYear": 150,
+      "deathYear": 210,
+      "age": 34,
+      "stage": "peak",
+      "characterType": "military",
+      "luck": 6.4,
+      "courage": 8.4,
+      "command": 8.4,
+      "combat": 7.2,
+      "intelligence": 5.5,
+      "politics": 7.6,
+      "charisma": 7,
+      "morale": 50,
+      "skill_1": "skill_1_2001",
+      "skill_2": "skill_2_2005",
+      "skills": [
+        "skill_1_2001",
+        "skill_2_2005"
+      ],
+      "bonds": [],
+      "biography": "《三国志》",
+      "description": ""
     },
     {
       "id": "char_san_1309",
@@ -973,10 +1001,9 @@
         "skill_1_2002",
         "skill_2_2005"
       ],
-      "troopAffinity": "",
       "bonds": [],
       "biography": "《三国志》",
-      "description": "丹阳镇将。无字号。孙坚妻弟，随坚征伐，领丹阳太守，辅佐孙策平定江东。"
+      "description": ""
     },
     {
       "id": "char_san_1310",
@@ -1003,10 +1030,9 @@
         "skill_1_2002",
         "skill_2_2004"
       ],
-      "troopAffinity": "",
       "bonds": [],
       "biography": "《三国志》",
-      "description": "吴地勋贵。无字号。孙坚姻亲，随坚讨黄巾，从孙策平江东，后征战中阵亡。"
+      "description": ""
     },
     {
       "id": "char_san_1401",
@@ -1033,13 +1059,12 @@
         "skill_1_5002",
         "skill_2_5003"
       ],
-      "troopAffinity": "",
       "bonds": [
         "四世三公",
         "袁氏"
       ],
       "biography": "《袁绍传》",
-      "description": "河北霸主。字本初。189 年起兵讨董，据四州称雄，官渡大败，不久忧病而死。"
+      "description": "四世三公。字本初，汝南汝阳人。灵帝时为中军校尉，与何进谋诛宦官。"
     },
     {
       "id": "char_san_1402",
@@ -1066,13 +1091,12 @@
         "skill_1_4002",
         "skill_2_4009"
       ],
-      "troopAffinity": "infantry:7",
       "bonds": [
         "魏武",
         "五子良将"
       ],
       "biography": "《张郃传》",
-      "description": "巧变良将。字儁乂。初投袁绍，官渡归曹，屡立战功，木门道中伏身死。"
+      "description": "用兵巧变。字儁乂，河间鄚人。初属袁绍，后归曹操，为征西车骑将军，街亭之战破马谡。"
     },
     {
       "id": "char_san_1403",
@@ -1099,82 +1123,15 @@
         "skill_1_3003",
         "skill_2_3006"
       ],
-      "troopAffinity": "",
       "bonds": [
         "四世三公",
         "袁氏"
       ],
       "biography": "《袁术传》",
-      "description": "淮南僭主。字公路。袁绍堂弟，据淮南称帝，众叛亲离，兵败呕血而亡。"
+      "description": "四世三公。字公路，汝南汝阳人，绍从弟。灵帝时为虎贲中郎将。"
     },
     {
       "id": "char_san_1404",
-      "name": "袁逢",
-      "rarity": "epic",
-      "faction": "袁绍",
-      "season": "S1",
-      "birthYear": 120,
-      "deathYear": 184,
-      "age": 64,
-      "stage": "late",
-      "characterType": "strategist",
-      "luck": 7.5,
-      "courage": 6.7,
-      "command": 7.2,
-      "combat": 6,
-      "intelligence": 7.9,
-      "politics": 9.4,
-      "charisma": 8.4,
-      "morale": 50,
-      "skill_1": "skill_1_3003",
-      "skill_2": "skill_2_3006",
-      "skills": [
-        "skill_1_3003",
-        "skill_2_3006"
-      ],
-      "troopAffinity": "",
-      "bonds": [
-        "四世三公",
-        "袁氏"
-      ],
-      "biography": "《三国志》",
-      "description": "三公重臣。字周阳。袁绍、袁术生父，官至司空，汉末名门重臣，终老于位。"
-    },
-    {
-      "id": "char_san_1405",
-      "name": "袁隗",
-      "rarity": "epic",
-      "faction": "袁绍",
-      "season": "S1",
-      "birthYear": 125,
-      "deathYear": 190,
-      "age": 59,
-      "stage": "late",
-      "characterType": "strategist",
-      "luck": 9.4,
-      "courage": 6.2,
-      "command": 7.7,
-      "combat": 8.1,
-      "intelligence": 8.8,
-      "politics": 9.2,
-      "charisma": 6.3,
-      "morale": 50,
-      "skill_1": "skill_1_3005",
-      "skill_2": "skill_2_3005",
-      "skills": [
-        "skill_1_3005",
-        "skill_2_3005"
-      ],
-      "troopAffinity": "",
-      "bonds": [
-        "四世三公",
-        "袁氏"
-      ],
-      "biography": "《三国志》",
-      "description": "太傅辅政。字次阳。袁绍叔父，官至太傅，因袁绍反董，被董卓灭族。"
-    },
-    {
-      "id": "char_san_1406",
       "name": "袁基",
       "rarity": "epic",
       "faction": "袁绍",
@@ -1198,13 +1155,76 @@
         "skill_1_3003",
         "skill_2_3004"
       ],
-      "troopAffinity": "",
       "bonds": [
         "四世三公",
         "袁氏"
       ],
       "biography": "《三国志》",
-      "description": "汝南清流。字士纪。袁逢长子，身居显职，后因袁绍袁术反，被董卓诛杀。"
+      "description": "四世三公"
+    },
+    {
+      "id": "char_san_1405",
+      "name": "袁逢",
+      "rarity": "epic",
+      "faction": "袁绍",
+      "season": "S1",
+      "birthYear": 120,
+      "deathYear": 184,
+      "age": 64,
+      "stage": "late",
+      "characterType": "strategist",
+      "luck": 7.5,
+      "courage": 6.7,
+      "command": 7.2,
+      "combat": 6,
+      "intelligence": 7.9,
+      "politics": 9.4,
+      "charisma": 8.4,
+      "morale": 50,
+      "skill_1": "skill_1_3003",
+      "skill_2": "skill_2_3006",
+      "skills": [
+        "skill_1_3003",
+        "skill_2_3006"
+      ],
+      "bonds": [
+        "四世三公",
+        "袁氏"
+      ],
+      "biography": "《三国志》",
+      "description": "四世三公"
+    },
+    {
+      "id": "char_san_1406",
+      "name": "袁隗",
+      "rarity": "epic",
+      "faction": "袁绍",
+      "season": "S1",
+      "birthYear": 125,
+      "deathYear": 190,
+      "age": 59,
+      "stage": "late",
+      "characterType": "strategist",
+      "luck": 9.4,
+      "courage": 6.2,
+      "command": 7.7,
+      "combat": 8.1,
+      "intelligence": 8.8,
+      "politics": 9.2,
+      "charisma": 6.3,
+      "morale": 50,
+      "skill_1": "skill_1_3005",
+      "skill_2": "skill_2_3005",
+      "skills": [
+        "skill_1_3005",
+        "skill_2_3005"
+      ],
+      "bonds": [
+        "四世三公",
+        "袁氏"
+      ],
+      "biography": "《三国志》",
+      "description": "四世三公"
     },
     {
       "id": "char_san_1407",
@@ -1231,12 +1251,11 @@
         "skill_1_3005",
         "skill_2_3004"
       ],
-      "troopAffinity": "cavalry:3",
       "bonds": [
         "袁氏"
       ],
       "biography": "《颜良传》",
-      "description": "河北骁勇。无字号。袁绍麾下大将，官渡之战，被关羽临阵斩杀。"
+      "description": "河北名将。袁绍部将，骁勇善战，白马之战被关羽斩杀。"
     },
     {
       "id": "char_san_1408",
@@ -1263,12 +1282,11 @@
         "skill_1_3002",
         "skill_2_3001"
       ],
-      "troopAffinity": "cavalry:3",
       "bonds": [
         "袁氏"
       ],
       "biography": "《文丑传》",
-      "description": "河北猛将。无字号。袁绍帐下骁将，延津之战，兵败遭曹军击杀。"
+      "description": "河北名将。袁绍部将，与颜良齐名，延津之战中曹军埋伏被杀。"
     },
     {
       "id": "char_san_1409",
@@ -1295,12 +1313,11 @@
         "skill_1_2006",
         "skill_2_2001"
       ],
-      "troopAffinity": "",
       "bonds": [
         "袁氏"
       ],
       "biography": "《三国志》",
-      "description": "袁绍智囊"
+      "description": "袁绍智囊，多献良策，未被采纳，后被曹操俘虏，拒降被杀。"
     },
     {
       "id": "char_san_1410",
@@ -1327,12 +1344,11 @@
         "skill_1_2008",
         "skill_2_2005"
       ],
-      "troopAffinity": "",
       "bonds": [
         "袁氏"
       ],
       "biography": "《三国志》",
-      "description": "袁绍智囊"
+      "description": "袁绍智囊，因谏阻袁绍伐曹而入狱，官渡之战后被杀。"
     },
     {
       "id": "char_san_1411",
@@ -1359,7 +1375,6 @@
         "skill_1_2004",
         "skill_2_2002"
       ],
-      "troopAffinity": "",
       "bonds": [
         "袁氏"
       ],
@@ -1391,7 +1406,6 @@
         "skill_1_2007",
         "skill_2_2005"
       ],
-      "troopAffinity": "",
       "bonds": [
         "袁氏"
       ],
@@ -1423,7 +1437,6 @@
         "skill_1_1005",
         "skill_2_1001"
       ],
-      "troopAffinity": "",
       "bonds": [],
       "biography": "《三国志》",
       "description": "袁绍谋士"
@@ -1453,7 +1466,6 @@
         "skill_1_1005",
         "skill_2_1006"
       ],
-      "troopAffinity": "",
       "bonds": [],
       "biography": "《三国志》",
       "description": "袁绍谋士"
@@ -1483,7 +1495,6 @@
         "skill_1_1006",
         "skill_2_1002"
       ],
-      "troopAffinity": "",
       "bonds": [],
       "biography": "《三国志》",
       "description": "袁绍谋士"
@@ -1513,7 +1524,6 @@
         "skill_1_1005",
         "skill_2_1001"
       ],
-      "troopAffinity": "",
       "bonds": [],
       "biography": "《三国志》",
       "description": "袁绍谋士"
@@ -1543,12 +1553,11 @@
         "skill_1_5002",
         "skill_2_5004"
       ],
-      "troopAffinity": "",
       "bonds": [
         "酒池肉林"
       ],
       "biography": "《董卓传》",
-      "description": "西凉暴权。字仲颖，189 年入京废帝专权，祸乱朝纲，终为吕布刺杀身亡。"
+      "description": "西凉军阀。字仲颖，陇西临洮人。少好侠，尝游羌中，以健侠知名。灵帝时为并州牧。"
     },
     {
       "id": "char_san_1502",
@@ -1575,13 +1584,12 @@
         "skill_1_4001",
         "skill_2_4009"
       ],
-      "troopAffinity": "cavalry:5",
       "bonds": [
         "无双",
         "酒池肉林"
       ],
       "biography": "《三国志》",
-      "description": "西凉骁锐。无字号，董卓麾下最强嫡系，曾破曹操、孙坚，后兵败战死。"
+      "description": "董卓最强嫡系"
     },
     {
       "id": "char_san_1503",
@@ -1608,12 +1616,11 @@
         "skill_1_3005",
         "skill_2_3003"
       ],
-      "troopAffinity": "",
       "bonds": [
         "酒池肉林"
       ],
       "biography": "《三国志》",
-      "description": "董氏亲族。字叔颖，董卓之弟，随卓入京掌兵，卓败后被王允、吕布诛杀。"
+      "description": "董卓亲弟"
     },
     {
       "id": "char_san_1504",
@@ -1640,12 +1647,11 @@
         "skill_1_3001",
         "skill_2_3005"
       ],
-      "troopAffinity": "",
       "bonds": [
         "酒池肉林"
       ],
       "biography": "《三国志》",
-      "description": "董门女婿。无字号，董卓女婿，镇守陕地，卓死兵败，为部下所杀。"
+      "description": "董卓女婿"
     },
     {
       "id": "char_san_1505",
@@ -1672,12 +1678,11 @@
         "skill_1_3001",
         "skill_2_3003"
       ],
-      "troopAffinity": "",
       "bonds": [
         "酒池肉林"
       ],
       "biography": "《华雄传》",
-      "description": "关西悍将。无字号，董卓部将，镇守关隘，与孙坚交战，兵败被斩。"
+      "description": "董卓部将。董卓部将，骁勇善战，关东联军讨董卓时，被孙坚所杀。"
     },
     {
       "id": "char_san_1506",
@@ -1704,12 +1709,11 @@
         "skill_1_3004",
         "skill_2_3002"
       ],
-      "troopAffinity": "",
       "bonds": [
         "酒池肉林"
       ],
       "biography": "《三国志》",
-      "description": "董氏谋主。字文优，为董卓心腹谋士，助其乱政，卓败后不知所终。"
+      "description": "董卓谋士"
     },
     {
       "id": "char_san_1507",
@@ -1736,12 +1740,11 @@
         "skill_1_2005",
         "skill_2_2005"
       ],
-      "troopAffinity": "",
       "bonds": [
         "董卓四将"
       ],
       "biography": "《李傕传》",
-      "description": "董卓四将之一"
+      "description": "董卓四将之首"
     },
     {
       "id": "char_san_1508",
@@ -1768,7 +1771,6 @@
         "skill_1_2001",
         "skill_2_2002"
       ],
-      "troopAffinity": "",
       "bonds": [
         "董卓四将"
       ],
@@ -1800,7 +1802,6 @@
         "skill_1_2006",
         "skill_2_2006"
       ],
-      "troopAffinity": "",
       "bonds": [
         "董卓四将"
       ],
@@ -1809,7 +1810,7 @@
     },
     {
       "id": "char_san_1510",
-      "name": "张汲",
+      "name": "张济",
       "rarity": "rare",
       "faction": "董卓",
       "season": "S1",
@@ -1832,11 +1833,10 @@
         "skill_1_2005",
         "skill_2_2004"
       ],
-      "troopAffinity": "",
       "bonds": [
         "董卓四将"
       ],
-      "biography": "《张汲传》",
+      "biography": "《张济传》",
       "description": "董卓四将之四"
     },
     {
@@ -1864,10 +1864,9 @@
         "skill_1_1002",
         "skill_2_1001"
       ],
-      "troopAffinity": "",
       "bonds": [],
       "biography": "《三国志》",
-      "description": "董卓凉州部将"
+      "description": "凉州部将"
     },
     {
       "id": "char_san_1512",
@@ -1894,10 +1893,9 @@
         "skill_1_1001",
         "skill_2_1001"
       ],
-      "troopAffinity": "",
       "bonds": [],
       "biography": "《三国志》",
-      "description": "董卓凉州部将"
+      "description": "凉州部将"
     },
     {
       "id": "char_san_1513",
@@ -1924,10 +1922,9 @@
         "skill_1_1001",
         "skill_2_1001"
       ],
-      "troopAffinity": "",
       "bonds": [],
       "biography": "《三国志》",
-      "description": "董卓凉州部将"
+      "description": "凉州部将"
     },
     {
       "id": "char_san_1514",
@@ -1954,10 +1951,9 @@
         "skill_1_1005",
         "skill_2_1001"
       ],
-      "troopAffinity": "",
       "bonds": [],
       "biography": "《三国志》",
-      "description": "董卓凉州部将"
+      "description": "凉州部将"
     },
     {
       "id": "char_san_1515",
@@ -1984,10 +1980,9 @@
         "skill_1_1006",
         "skill_2_1002"
       ],
-      "troopAffinity": "",
       "bonds": [],
       "biography": "《三国志》",
-      "description": "董卓凉州部将"
+      "description": "凉州部将"
     },
     {
       "id": "char_san_1516",
@@ -2014,10 +2009,9 @@
         "skill_1_1001",
         "skill_2_1003"
       ],
-      "troopAffinity": "",
       "bonds": [],
       "biography": "《三国志》",
-      "description": "董卓凉州部将"
+      "description": "凉州部将"
     },
     {
       "id": "char_san_1517",
@@ -2044,10 +2038,9 @@
         "skill_1_1006",
         "skill_2_1002"
       ],
-      "troopAffinity": "",
       "bonds": [],
       "biography": "《三国志》",
-      "description": "董卓凉州部将"
+      "description": "凉州部将"
     },
     {
       "id": "char_san_1518",
@@ -2074,10 +2067,9 @@
         "skill_1_1001",
         "skill_2_1005"
       ],
-      "troopAffinity": "",
       "bonds": [],
       "biography": "《三国志》",
-      "description": "董卓凉州部将"
+      "description": "凉州部将"
     },
     {
       "id": "char_san_1519",
@@ -2104,10 +2096,9 @@
         "skill_1_1005",
         "skill_2_1006"
       ],
-      "troopAffinity": "",
       "bonds": [],
       "biography": "《三国志》",
-      "description": "董卓凉州部将"
+      "description": "凉州部将"
     },
     {
       "id": "char_san_1520",
@@ -2134,10 +2125,9 @@
         "skill_1_1006",
         "skill_2_1003"
       ],
-      "troopAffinity": "",
       "bonds": [],
       "biography": "《三国志》",
-      "description": "董卓凉州支系"
+      "description": "支系部将"
     },
     {
       "id": "char_san_1521",
@@ -2164,10 +2154,9 @@
         "skill_1_1005",
         "skill_2_1003"
       ],
-      "troopAffinity": "",
       "bonds": [],
       "biography": "《三国志》",
-      "description": "董卓凉州支系"
+      "description": "支系部将"
     },
     {
       "id": "char_san_1522",
@@ -2194,10 +2183,9 @@
         "skill_1_1001",
         "skill_2_1003"
       ],
-      "troopAffinity": "",
       "bonds": [],
       "biography": "《三国志》",
-      "description": "董卓凉州支系"
+      "description": "支系部将"
     },
     {
       "id": "char_san_1523",
@@ -2224,10 +2212,9 @@
         "skill_1_1002",
         "skill_2_1005"
       ],
-      "troopAffinity": "",
       "bonds": [],
       "biography": "《三国志》",
-      "description": "董卓凉州支系"
+      "description": "支系部将"
     },
     {
       "id": "char_san_1524",
@@ -2254,10 +2241,9 @@
         "skill_1_1002",
         "skill_2_1002"
       ],
-      "troopAffinity": "",
       "bonds": [],
       "biography": "《三国志》",
-      "description": "董卓凉州支系"
+      "description": "支系部将"
     },
     {
       "id": "char_san_1525",
@@ -2284,10 +2270,9 @@
         "skill_1_1006",
         "skill_2_1002"
       ],
-      "troopAffinity": "",
       "bonds": [],
       "biography": "《三国志》",
-      "description": "董卓凉州支系"
+      "description": "支系部将"
     },
     {
       "id": "char_san_1526",
@@ -2314,10 +2299,9 @@
         "skill_1_1006",
         "skill_2_1002"
       ],
-      "troopAffinity": "",
       "bonds": [],
       "biography": "《三国志》",
-      "description": "董卓凉州支系"
+      "description": "支系部将"
     },
     {
       "id": "char_san_1601",
@@ -2344,12 +2328,11 @@
         "skill_1_5001",
         "skill_2_5003"
       ],
-      "troopAffinity": "",
       "bonds": [
         "汉室宗亲"
       ],
       "biography": "《灵帝纪》",
-      "description": "灵帝昏庸。字号无。184 年黄巾乱起，宠信宦官卖官乱政，189 年驾崩，东汉自此倾危。"
+      "description": "肃宗玄孙。孝灵皇帝，在位宠信宦官，朝政日乱，黄巾起。"
     },
     {
       "id": "char_san_1602",
@@ -2376,12 +2359,11 @@
         "skill_1_3002",
         "skill_2_3002"
       ],
-      "troopAffinity": "",
       "bonds": [
         "东汉名仕"
       ],
       "biography": "《何进传》",
-      "description": "外戚秉权。字遂高。184 年总督平黄巾，189 年谋诛宦官事泄被杀，引董卓入京乱政。"
+      "description": "汉大将军。字遂高，南阳宛人。以异妹为皇后，拜大将军，谋诛宦官，事泄被杀。"
     },
     {
       "id": "char_san_1603",
@@ -2408,15 +2390,43 @@
         "skill_1_3001",
         "skill_2_3005"
       ],
-      "troopAffinity": "",
-      "bonds": [
-        "十常侍"
-      ],
+      "bonds": [],
       "biography": "《三国志》",
-      "description": "车骑庸碌。字号无。何进之弟，184 年参与平乱，189 年因通宦官被部众攻杀。"
+      "description": "何进之弟，为车骑将军，与宦官交通，后为乱兵所杀。"
     },
     {
       "id": "char_san_1604",
+      "name": "丁原",
+      "rarity": "epic",
+      "faction": "汉室",
+      "season": "S1",
+      "birthYear": 150,
+      "deathYear": 189,
+      "age": 34,
+      "stage": "peak",
+      "characterType": "military",
+      "luck": 9.4,
+      "courage": 7.3,
+      "command": 9.4,
+      "combat": 7.2,
+      "intelligence": 6.4,
+      "politics": 6.4,
+      "charisma": 6.7,
+      "morale": 50,
+      "skill_1": "skill_1_3002",
+      "skill_2": "skill_2_3005",
+      "skills": [
+        "skill_1_3002",
+        "skill_2_3005"
+      ],
+      "bonds": [
+        "东汉名仕"
+      ],
+      "biography": "《丁原传》",
+      "description": "字建阳，本出自寒家，为人粗略，有武勇。灵帝崩，将兵诣洛阳，与何进谋诛宦官。后任并州刺史。"
+    },
+    {
+      "id": "char_san_1605",
       "name": "皇甫嵩",
       "rarity": "epic",
       "faction": "汉室",
@@ -2440,16 +2450,15 @@
         "skill_1_3005",
         "skill_2_3006"
       ],
-      "troopAffinity": "",
       "bonds": [
         "汉末三将",
         "东汉名仕"
       ],
       "biography": "《皇甫嵩传》",
-      "description": "荡寇名将。字义真。184 年横扫黄巾主力，屡立大功，官至太尉，为汉末忠将善终。"
+      "description": "汉末三将。字义真，安定朝那人。为左中郎将，破黄巾，威震天下。"
     },
     {
-      "id": "char_san_1605",
+      "id": "char_san_1606",
       "name": "朱儁",
       "rarity": "epic",
       "faction": "汉室",
@@ -2473,16 +2482,15 @@
         "skill_1_3005",
         "skill_2_3004"
       ],
-      "troopAffinity": "",
       "bonds": [
         "汉末三将",
         "东汉名仕"
       ],
       "biography": "《朱儁传》",
-      "description": "平南骁将。字公伟。184 年破南阳黄巾，讨叛功著，后拒从李傕，愤懑发病而死。"
+      "description": "汉末三将。字公伟，会稽上虞人。与皇甫嵩共讨黄巾，拜右车骑将军。"
     },
     {
-      "id": "char_san_1606",
+      "id": "char_san_1607",
       "name": "卢植",
       "rarity": "epic",
       "faction": "汉室",
@@ -2506,16 +2514,15 @@
         "skill_1_3001",
         "skill_2_3006"
       ],
-      "troopAffinity": "",
       "bonds": [
         "汉末三将",
         "东汉名仕"
       ],
       "biography": "《卢植传》",
-      "description": "儒将忠烈。字子干。184 年大破张角，遭谗免官，守正不阿，为汉末名臣终老。"
+      "description": "汉末三将。字子干，涿郡涿人。灵帝时为北中郎将，讨张角，后以谏争免官。刘备恩师。"
     },
     {
-      "id": "char_san_1607",
+      "id": "char_san_1608",
       "name": "张让",
       "rarity": "epic",
       "faction": "汉室",
@@ -2539,15 +2546,14 @@
         "skill_1_3002",
         "skill_2_3001"
       ],
-      "troopAffinity": "",
       "bonds": [
         "十常侍"
       ],
       "biography": "《三国志》",
-      "description": "宦竖乱政。字号无。灵帝宠宦，184 年专权祸国，189 年劫少帝后投河自尽。"
+      "description": "颍川人，灵帝时中常侍，封列侯，与赵忠等擅权。"
     },
     {
-      "id": "char_san_1608",
+      "id": "char_san_1609",
       "name": "赵忠",
       "rarity": "epic",
       "faction": "汉室",
@@ -2571,15 +2577,14 @@
         "skill_1_3001",
         "skill_2_3005"
       ],
-      "troopAffinity": "",
       "bonds": [
         "十常侍"
       ],
       "biography": "《三国志》",
-      "description": "阉党祸国。字号无。与张让弄权乱朝，189 年被袁绍率军入宫捕杀。"
+      "description": "安平人，灵帝时中常侍，与张让并贵。"
     },
     {
-      "id": "char_san_1609",
+      "id": "char_san_1610",
       "name": "杨彪",
       "rarity": "epic",
       "faction": "汉室",
@@ -2603,15 +2608,14 @@
         "skill_1_3004",
         "skill_2_3004"
       ],
-      "troopAffinity": "",
       "bonds": [
         "东汉名仕"
       ],
       "biography": "《杨彪传》",
-      "description": "汉廷柱石。字文先。历仕汉末四朝，四世三公，守正不屈，魏初拜大夫善终。"
+      "description": "字文先，弘农华阴人。灵帝时累迁司徒、司空。"
     },
     {
-      "id": "char_san_1610",
+      "id": "char_san_1611",
       "name": "刘陶",
       "rarity": "epic",
       "faction": "汉室",
@@ -2635,15 +2639,14 @@
         "skill_1_3002",
         "skill_2_3006"
       ],
-      "troopAffinity": "",
       "bonds": [
         "东汉名仕"
       ],
       "biography": "《刘陶传》",
-      "description": "忠谏殒身。字子奇。184 年痛陈宦官乱政，直言遭诬，下狱绝食自尽，忠烈留名。"
+      "description": "汉室宗亲、名士，以直言敢谏著称"
     },
     {
-      "id": "char_san_1611",
+      "id": "char_san_1612",
       "name": "张温",
       "rarity": "epic",
       "faction": "汉室",
@@ -2667,16 +2670,15 @@
         "skill_1_3006",
         "skill_2_3001"
       ],
-      "troopAffinity": "",
       "bonds": [
-        "汉末三公",
-        "东汉名仕"
+        "东汉名仕",
+        "汉末忠烈"
       ],
       "biography": "《张温传》",
-      "description": "太尉督军。字伯慎。184 年督师讨凉州叛军，官至太尉，后被董卓诬陷处死。"
+      "description": "东汉三公太尉"
     },
     {
-      "id": "char_san_1612",
+      "id": "char_san_1613",
       "name": "陈耽",
       "rarity": "epic",
       "faction": "汉室",
@@ -2700,16 +2702,15 @@
         "skill_1_3006",
         "skill_2_3003"
       ],
-      "troopAffinity": "",
       "bonds": [
-        "汉末三公",
-        "东汉名仕"
+        "东汉名仕",
+        "汉末忠烈"
       ],
       "biography": "《陈耽传》",
-      "description": "司徒直臣。字汉公。上疏弹劾宦官祸国，忠言遭忌，被诬下狱，惨死狱中。"
+      "description": "东汉三公司徒"
     },
     {
-      "id": "char_san_1613",
+      "id": "char_san_1614",
       "name": "张济",
       "rarity": "epic",
       "faction": "汉室",
@@ -2733,16 +2734,15 @@
         "skill_1_3002",
         "skill_2_3003"
       ],
-      "troopAffinity": "",
       "bonds": [
-        "汉末三公",
-        "东汉名仕"
+        "东汉名仕",
+        "汉末忠烈"
       ],
       "biography": "《张济传》",
-      "description": "司空清直。字号无。184 年任司空，上书请讨张角，不久病卒，追赠车骑将军。"
+      "description": "东汉三公司空"
     },
     {
-      "id": "char_san_1614",
+      "id": "char_san_1615",
       "name": "傅燮",
       "rarity": "rare",
       "faction": "汉室",
@@ -2752,147 +2752,28 @@
       "age": 34,
       "stage": "peak",
       "characterType": "military",
-      "luck": 7.1,
-      "courage": 7.1,
-      "command": 7.1,
-      "combat": 7.1,
-      "intelligence": 7.1,
-      "politics": 7.1,
-      "charisma": 7.1,
+      "luck": 7.8,
+      "courage": 5.9,
+      "command": 8.4,
+      "combat": 8.2,
+      "intelligence": 6.9,
+      "politics": 5.1,
+      "charisma": 6.8,
       "morale": 50,
-      "skill_1": "skill_1_2002",
-      "skill_2": "skill_2_2008",
+      "skill_1": "skill_1_2005",
+      "skill_2": "skill_2_2003",
       "skills": [
-        "skill_1_2002",
-        "skill_2_2008"
+        "skill_1_2005",
+        "skill_2_2003"
       ],
-      "troopAffinity": "",
-      "bonds": [],
+      "bonds": [
+        "汉末忠烈"
+      ],
       "biography": "《傅燮传》",
-      "description": "沙场忠勇。字南容。184 年平黄巾功高不赏，后守汉阳，城陷力战殉国。"
-    },
-    {
-      "id": "char_san_1615",
-      "name": "丁原",
-      "rarity": "rare",
-      "faction": "汉室",
-      "season": "S1",
-      "birthYear": 150,
-      "deathYear": 189,
-      "age": 34,
-      "stage": "peak",
-      "characterType": "military",
-      "luck": 7,
-      "courage": 7,
-      "command": 7,
-      "combat": 7,
-      "intelligence": 7,
-      "politics": 7,
-      "charisma": 7,
-      "morale": 50,
-      "skill_1": "skill_1_2007",
-      "skill_2": "skill_2_2008",
-      "skills": [
-        "skill_1_2007",
-        "skill_2_2008"
-      ],
-      "troopAffinity": "",
-      "bonds": [],
-      "biography": "《丁原传》",
-      "description": "并州雄主。字建阳。189 年入京为执金吾，被吕布背叛刺杀，并州军溃散。"
+      "description": ""
     },
     {
       "id": "char_san_1616",
-      "name": "张杨",
-      "rarity": "rare",
-      "faction": "汉室",
-      "season": "S1",
-      "birthYear": 150,
-      "deathYear": 198,
-      "age": 34,
-      "stage": "peak",
-      "characterType": "military",
-      "luck": 7.3,
-      "courage": 7.3,
-      "command": 7.3,
-      "combat": 7.3,
-      "intelligence": 7.3,
-      "politics": 7.3,
-      "charisma": 7.3,
-      "morale": 50,
-      "skill_1": "skill_1_2004",
-      "skill_2": "skill_2_2004",
-      "skills": [
-        "skill_1_2004",
-        "skill_2_2004"
-      ],
-      "troopAffinity": "",
-      "bonds": [],
-      "biography": "《张杨传》",
-      "description": "河内守义。字稚叔。割据河内，迎护献帝，后遭部将杨丑刺杀，势力覆灭。"
-    },
-    {
-      "id": "char_san_1617",
-      "name": "张济",
-      "rarity": "rare",
-      "faction": "汉室",
-      "season": "S1",
-      "birthYear": 153,
-      "deathYear": 196,
-      "age": 31,
-      "stage": "peak",
-      "characterType": "military",
-      "luck": 7.1,
-      "courage": 7.1,
-      "command": 7.1,
-      "combat": 7.1,
-      "intelligence": 7.1,
-      "politics": 7.1,
-      "charisma": 7.1,
-      "morale": 50,
-      "skill_1": "skill_1_2006",
-      "skill_2": "skill_2_2005",
-      "skills": [
-        "skill_1_2006",
-        "skill_2_2005"
-      ],
-      "troopAffinity": "",
-      "bonds": [],
-      "biography": "《张绣传》",
-      "description": "西凉骁将。字号无。董卓旧部，189 年后屯弘农，攻南阳时中流矢阵亡。"
-    },
-    {
-      "id": "char_san_1618",
-      "name": "张绣",
-      "rarity": "rare",
-      "faction": "汉室",
-      "season": "S1",
-      "birthYear": 160,
-      "deathYear": 207,
-      "age": 24,
-      "stage": "early",
-      "characterType": "military",
-      "luck": 6.9,
-      "courage": 8.4,
-      "command": 8.4,
-      "combat": 8.4,
-      "intelligence": 4.7,
-      "politics": 4.5,
-      "charisma": 5.1,
-      "morale": 50,
-      "skill_1": "skill_1_2004",
-      "skill_2": "skill_2_2001",
-      "skills": [
-        "skill_1_2004",
-        "skill_2_2001"
-      ],
-      "troopAffinity": "",
-      "bonds": [],
-      "biography": "《张绣传》",
-      "description": "宛城雄踞。字号无。继张济统部，据宛城抗曹，后归降曹魏，得以善终。"
-    },
-    {
-      "id": "char_san_1619",
       "name": "臧洪",
       "rarity": "rare",
       "faction": "汉室",
@@ -2902,144 +2783,273 @@
       "age": 24,
       "stage": "early",
       "characterType": "military",
-      "luck": 5.5,
+      "luck": 8.3,
       "courage": 8.4,
-      "command": 8.4,
-      "combat": 8.4,
-      "intelligence": 4.3,
-      "politics": 5.5,
-      "charisma": 4.4,
+      "command": 7.3,
+      "combat": 7,
+      "intelligence": 6,
+      "politics": 5.9,
+      "charisma": 8.2,
       "morale": 50,
-      "skill_1": "skill_1_2002",
-      "skill_2": "skill_2_2006",
+      "skill_1": "skill_1_2006",
+      "skill_2": "skill_2_2007",
       "skills": [
-        "skill_1_2002",
-        "skill_2_2006"
+        "skill_1_2006",
+        "skill_2_2007"
       ],
-      "troopAffinity": "",
-      "bonds": [],
+      "bonds": [
+        "汉末忠烈"
+      ],
       "biography": "《臧洪传》",
-      "description": "义烈无双。字子源。184 年讨黄巾，为张超功曹，盟誓讨卓，后守东郡拒曹操，城破殉节。"
+      "description": ""
     },
     {
-      "id": "char_san_1620",
-      "name": "臧霸",
+      "id": "char_san_1617",
+      "name": "孟佗",
       "rarity": "rare",
       "faction": "汉室",
       "season": "S1",
-      "birthYear": 165,
-      "deathYear": 227,
-      "age": 19,
-      "stage": "early",
-      "characterType": "military",
+      "birthYear": 145,
+      "deathYear": 190,
+      "age": 39,
+      "stage": "peak",
+      "characterType": "balanced",
       "luck": 8,
-      "courage": 8.2,
-      "command": 8.4,
-      "combat": 8.4,
-      "intelligence": 5.2,
-      "politics": 4.8,
-      "charisma": 4.2,
+      "courage": 7.4,
+      "command": 6.9,
+      "combat": 8.1,
+      "intelligence": 7.1,
+      "politics": 6.6,
+      "charisma": 8.4,
       "morale": 50,
-      "skill_1": "skill_1_2005",
-      "skill_2": "skill_2_2004",
+      "skill_1": "skill_1_2002",
+      "skill_2": "skill_2_2005",
       "skills": [
-        "skill_1_2005",
-        "skill_2_2004"
+        "skill_1_2002",
+        "skill_2_2005"
       ],
-      "troopAffinity": "",
-      "bonds": [],
-      "biography": "《臧霸传》",
-      "description": "青徐砥柱。字宣高。184 年从陶谦破黄巾，割据青徐，后归曹操镇守东线，终得善终。"
+      "bonds": [
+        "东汉十三州"
+      ],
+      "biography": "《孟佗传》",
+      "description": "司隶校尉部，遭受黄巾之乱之扰"
     },
     {
-      "id": "char_san_1621",
-      "name": "张邈",
-      "rarity": "common",
+      "id": "char_san_1618",
+      "name": "郭勋",
+      "rarity": "rare",
       "faction": "汉室",
       "season": "S1",
       "birthYear": 150,
-      "deathYear": 195,
+      "deathYear": 184,
       "age": 34,
       "stage": "peak",
-      "characterType": "military",
-      "luck": 6.4,
-      "courage": 7.9,
-      "command": 6.2,
-      "combat": 7.6,
-      "intelligence": 7.5,
-      "politics": 5.5,
-      "charisma": 4.5,
+      "characterType": "balanced",
+      "luck": 7.7,
+      "courage": 7.2,
+      "command": 8.2,
+      "combat": 7.7,
+      "intelligence": 8.4,
+      "politics": 7.1,
+      "charisma": 7.1,
       "morale": 50,
-      "skill_1": "skill_1_1006",
-      "skill_2": "skill_2_1002",
+      "skill_1": "skill_1_2002",
+      "skill_2": "skill_2_2004",
       "skills": [
-        "skill_1_1006",
-        "skill_2_1002"
+        "skill_1_2002",
+        "skill_2_2004"
       ],
-      "troopAffinity": "",
-      "bonds": [],
-      "biography": "《张邈传》",
-      "description": "孟卓义士。字孟卓。184 年讨黄巾，后叛曹操附吕布，兵败被部下所杀，宗族被诛。"
+      "bonds": [
+        "东汉十三州"
+      ],
+      "biography": "《郭勋传》",
+      "description": "冀州刺史，遭受黄巾之乱之扰"
+    },
+    {
+      "id": "char_san_1619",
+      "name": "张懿",
+      "rarity": "rare",
+      "faction": "汉室",
+      "season": "S1",
+      "birthYear": 153,
+      "deathYear": 188,
+      "age": 31,
+      "stage": "peak",
+      "characterType": "balanced",
+      "luck": 6.6,
+      "courage": 7.7,
+      "command": 7.7,
+      "combat": 7.4,
+      "intelligence": 6.5,
+      "politics": 8.2,
+      "charisma": 7.9,
+      "morale": 50,
+      "skill_1": "skill_1_2006",
+      "skill_2": "skill_2_2006",
+      "skills": [
+        "skill_1_2006",
+        "skill_2_2006"
+      ],
+      "bonds": [
+        "东汉十三州"
+      ],
+      "biography": "《张懿传》",
+      "description": "并州刺史，遭受黄巾之乱之扰，后调任凉州刺史"
+    },
+    {
+      "id": "char_san_1620",
+      "name": "焦和",
+      "rarity": "rare",
+      "faction": "汉室",
+      "season": "S1",
+      "birthYear": 155,
+      "deathYear": 189,
+      "age": 29,
+      "stage": "peak",
+      "characterType": "balanced",
+      "luck": 7.3,
+      "courage": 6.6,
+      "command": 7.2,
+      "combat": 8.1,
+      "intelligence": 7.7,
+      "politics": 7.9,
+      "charisma": 7,
+      "morale": 50,
+      "skill_1": "skill_1_2006",
+      "skill_2": "skill_2_2006",
+      "skills": [
+        "skill_1_2006",
+        "skill_2_2006"
+      ],
+      "bonds": [
+        "东汉十三州"
+      ],
+      "biography": "《焦和传》",
+      "description": "青州刺史，遭受黄巾之乱之扰"
+    },
+    {
+      "id": "char_san_1621",
+      "name": "桥瑁",
+      "rarity": "rare",
+      "faction": "汉室",
+      "season": "S1",
+      "birthYear": 150,
+      "deathYear": 191,
+      "age": 34,
+      "stage": "peak",
+      "characterType": "balanced",
+      "luck": 6.8,
+      "courage": 7.9,
+      "command": 7.3,
+      "combat": 8,
+      "intelligence": 7.5,
+      "politics": 6.4,
+      "charisma": 6.6,
+      "morale": 50,
+      "skill_1": "skill_1_2007",
+      "skill_2": "skill_2_2005",
+      "skills": [
+        "skill_1_2007",
+        "skill_2_2005"
+      ],
+      "bonds": [
+        "东汉十三州"
+      ],
+      "biography": "《桥瑁传》",
+      "description": "兖州刺史，遭受黄巾之乱之扰"
     },
     {
       "id": "char_san_1622",
-      "name": "张超",
-      "rarity": "common",
+      "name": "王允",
+      "rarity": "rare",
       "faction": "汉室",
       "season": "S1",
-      "birthYear": 152,
-      "deathYear": 195,
-      "age": 32,
-      "stage": "peak",
-      "characterType": "military",
-      "luck": 7.5,
+      "birthYear": 137,
+      "deathYear": 192,
+      "age": 47,
+      "stage": "late",
+      "characterType": "balanced",
+      "luck": 7.9,
       "courage": 7.9,
-      "command": 7.1,
-      "combat": 6.6,
-      "intelligence": 5.9,
-      "politics": 4.5,
-      "charisma": 7,
+      "command": 7.7,
+      "combat": 6.7,
+      "intelligence": 6.5,
+      "politics": 8,
+      "charisma": 6.8,
       "morale": 50,
-      "skill_1": "skill_1_1001",
-      "skill_2": "skill_2_1003",
+      "skill_1": "skill_1_2005",
+      "skill_2": "skill_2_2006",
       "skills": [
-        "skill_1_1001",
-        "skill_2_1003"
+        "skill_1_2005",
+        "skill_2_2006"
       ],
-      "troopAffinity": "",
-      "bonds": [],
-      "biography": "《张超传》",
-      "description": "景仲忠烈。字景仲。184 年举兵讨董，守雍丘抗曹操，城破自刎，一门尽忠死难。"
+      "bonds": [
+        "东汉十三州"
+      ],
+      "biography": "《王允传》",
+      "description": "豫州刺史，遭受黄巾之乱之扰，后调任司隶校尉部"
     },
     {
       "id": "char_san_1623",
-      "name": "陈登",
-      "rarity": "common",
+      "name": "陶谦",
+      "rarity": "rare",
       "faction": "汉室",
       "season": "S1",
-      "birthYear": 167,
-      "deathYear": 201,
-      "age": 17,
-      "stage": "early",
-      "characterType": "military",
-      "luck": 5.6,
-      "courage": 7.9,
-      "command": 7.5,
-      "combat": 7.9,
-      "intelligence": 5.8,
-      "politics": 6,
-      "charisma": 4.9,
+      "birthYear": 132,
+      "deathYear": 194,
+      "age": 52,
+      "stage": "late",
+      "characterType": "balanced",
+      "luck": 7.8,
+      "courage": 7.1,
+      "command": 6.7,
+      "combat": 7.7,
+      "intelligence": 7.6,
+      "politics": 6.7,
+      "charisma": 7.7,
       "morale": 50,
-      "skill_1": "skill_1_1005",
-      "skill_2": "skill_2_1005",
+      "skill_1": "skill_1_2006",
+      "skill_2": "skill_2_2004",
       "skills": [
-        "skill_1_1005",
-        "skill_2_1005"
+        "skill_1_2006",
+        "skill_2_2004"
       ],
-      "troopAffinity": "",
-      "bonds": [],
-      "biography": "《三国志》",
-      "description": "江淮英略。字元龙。184 年后辅陶谦、刘备，镇守广陵屡破孙策，智略过人壮年病逝。"
+      "bonds": [
+        "东汉十三州"
+      ],
+      "biography": "《陶谦传》",
+      "description": "徐州刺史，遭受黄巾之乱之扰"
+    },
+    {
+      "id": "char_san_1418",
+      "name": "孔伷",
+      "rarity": "rare",
+      "faction": "汉室",
+      "season": "S1",
+      "birthYear": 150,
+      "deathYear": 192,
+      "age": 34,
+      "stage": "peak",
+      "characterType": "balanced",
+      "luck": 8.4,
+      "courage": 7.6,
+      "command": 7,
+      "combat": 8.2,
+      "intelligence": 7,
+      "politics": 7.1,
+      "charisma": 6.9,
+      "morale": 50,
+      "skill_1": "skill_1_2008",
+      "skill_2": "skill_2_2002",
+      "skills": [
+        "skill_1_2008",
+        "skill_2_2002"
+      ],
+      "bonds": [
+        "东汉十三州"
+      ],
+      "biography": "《孔伷传》",
+      "description": "调任豫州刺史"
     },
     {
       "id": "char_san_1624",
@@ -3066,10 +3076,9 @@
         "skill_1_1006",
         "skill_2_1003"
       ],
-      "troopAffinity": "",
       "bonds": [],
       "biography": "《三国志》",
-      "description": "破虏平叛。无字号。184 年征讨幽州黄巾，刘备曾隶其麾下，后官至北军中侯。"
+      "description": ""
     },
     {
       "id": "char_san_1625",
@@ -3096,13 +3105,41 @@
         "skill_1_1005",
         "skill_2_1004"
       ],
-      "troopAffinity": "",
       "bonds": [],
       "biography": "《三国志》",
-      "description": "死战破贼。无字号。184 年任钜鹿太守，与皇甫嵩合攻下曲阳，阵斩张宝平定冀州。"
+      "description": ""
     },
     {
       "id": "char_san_1626",
+      "name": "刘陶",
+      "rarity": "common",
+      "faction": "汉室",
+      "season": "S1",
+      "birthYear": 125,
+      "deathYear": 185,
+      "age": 59,
+      "stage": "late",
+      "characterType": "military",
+      "luck": 7.5,
+      "courage": 7.9,
+      "command": 7,
+      "combat": 6.7,
+      "intelligence": 4.8,
+      "politics": 5.5,
+      "charisma": 6.7,
+      "morale": 50,
+      "skill_1": "skill_1_1001",
+      "skill_2": "skill_2_1001",
+      "skills": [
+        "skill_1_1001",
+        "skill_2_1001"
+      ],
+      "bonds": [],
+      "biography": "《三国志》",
+      "description": ""
+    },
+    {
+      "id": "char_san_1627",
       "name": "夏育",
       "rarity": "common",
       "faction": "汉室",
@@ -3126,13 +3163,12 @@
         "skill_1_1005",
         "skill_2_1002"
       ],
-      "troopAffinity": "",
       "bonds": [],
       "biography": "《三国志》",
-      "description": "陇右边将。无字号。184 年复任护羌校尉镇抚陇右，早年败于鲜卑，后事迹不显。"
+      "description": ""
     },
     {
-      "id": "char_san_1627",
+      "id": "char_san_1629",
       "name": "徐璆",
       "rarity": "common",
       "faction": "汉室",
@@ -3156,13 +3192,12 @@
         "skill_1_1001",
         "skill_2_1004"
       ],
-      "troopAffinity": "",
       "bonds": [],
       "biography": "《三国志》",
-      "description": "清直忠节。字孟玉。184 年与朱儁破宛城黄巾，历守州郡，得玉玺归朝官至太常。"
+      "description": ""
     },
     {
-      "id": "char_san_1628",
+      "id": "char_san_1630",
       "name": "赵谦",
       "rarity": "common",
       "faction": "汉室",
@@ -3186,13 +3221,12 @@
         "skill_1_1006",
         "skill_2_1002"
       ],
-      "troopAffinity": "",
       "bonds": [],
       "biography": "《三国志》",
-      "description": "蜀郡重臣。字彦信。184 年任汝南太守讨黄巾，后历位三公，卒于任上谥号忠侯。"
+      "description": ""
     },
     {
-      "id": "char_san_1629",
+      "id": "char_san_1631",
       "name": "吕强",
       "rarity": "common",
       "faction": "汉室",
@@ -3216,13 +3250,99 @@
         "skill_1_1002",
         "skill_2_1004"
       ],
-      "troopAffinity": "",
       "bonds": [],
       "biography": "《三国志》",
-      "description": "清忠宦者。字汉盛。184 年黄巾起谏诛奸佞，遭宦官诬陷构害，愤而自杀殉国。"
+      "description": ""
     },
     {
-      "id": "char_san_1630",
+      "id": "char_san_1632",
+      "name": "张杨",
+      "rarity": "common",
+      "faction": "汉室",
+      "season": "S1",
+      "birthYear": 150,
+      "deathYear": 198,
+      "age": 34,
+      "stage": "peak",
+      "characterType": "military",
+      "luck": 7.9,
+      "courage": 7.9,
+      "command": 7.3,
+      "combat": 6.4,
+      "intelligence": 4.6,
+      "politics": 7.4,
+      "charisma": 5.5,
+      "morale": 50,
+      "skill_1": "skill_1_1002",
+      "skill_2": "skill_2_1003",
+      "skills": [
+        "skill_1_1002",
+        "skill_2_1003"
+      ],
+      "bonds": [],
+      "biography": "《张杨传》",
+      "description": "张懿麾下"
+    },
+    {
+      "id": "char_san_1633",
+      "name": "张济",
+      "rarity": "common",
+      "faction": "汉室",
+      "season": "S1",
+      "birthYear": 153,
+      "deathYear": 196,
+      "age": 31,
+      "stage": "peak",
+      "characterType": "military",
+      "luck": 7.9,
+      "courage": 7.6,
+      "command": 5.9,
+      "combat": 7.2,
+      "intelligence": 7.9,
+      "politics": 4.5,
+      "charisma": 4.5,
+      "morale": 50,
+      "skill_1": "skill_1_1006",
+      "skill_2": "skill_2_1001",
+      "skills": [
+        "skill_1_1006",
+        "skill_2_1001"
+      ],
+      "bonds": [],
+      "biography": "《张济传》",
+      "description": "张懿麾下"
+    },
+    {
+      "id": "char_san_1634",
+      "name": "张绣",
+      "rarity": "common",
+      "faction": "汉室",
+      "season": "S1",
+      "birthYear": 160,
+      "deathYear": 207,
+      "age": 24,
+      "stage": "early",
+      "characterType": "military",
+      "luck": 5.7,
+      "courage": 7.3,
+      "command": 7.9,
+      "combat": 6.8,
+      "intelligence": 5,
+      "politics": 5.1,
+      "charisma": 7.9,
+      "morale": 50,
+      "skill_1": "skill_1_1002",
+      "skill_2": "skill_2_1001",
+      "skills": [
+        "skill_1_1002",
+        "skill_2_1001"
+      ],
+      "bonds": [],
+      "biography": "《张绣传》",
+      "description": "张懿麾下，北地枪王"
+    },
+    {
+      "id": "char_san_1635",
       "name": "刘卫",
       "rarity": "common",
       "faction": "汉室",
@@ -3246,73 +3366,12 @@
         "skill_1_1005",
         "skill_2_1002"
       ],
-      "troopAffinity": "",
       "bonds": [],
       "biography": "《三国志》",
-      "description": "汉末偏将。无字号。184 年随军征讨黄巾，参与平叛作战，正史记载简略无考。"
+      "description": "巨鹿太守"
     },
     {
-      "id": "char_san_1631",
-      "name": "鲍信",
-      "rarity": "common",
-      "faction": "汉室",
-      "season": "S1",
-      "birthYear": 151,
-      "deathYear": 192,
-      "age": 33,
-      "stage": "peak",
-      "characterType": "military",
-      "luck": 6,
-      "courage": 6,
-      "command": 7.4,
-      "combat": 7.9,
-      "intelligence": 4.5,
-      "politics": 4.6,
-      "charisma": 7.9,
-      "morale": 50,
-      "skill_1": "skill_1_1001",
-      "skill_2": "skill_2_1004",
-      "skills": [
-        "skill_1_1001",
-        "skill_2_1004"
-      ],
-      "troopAffinity": "",
-      "bonds": [],
-      "biography": "《三国志》",
-      "description": "济北忠烈。字允诚。184 年领兵讨黄巾，迎曹操入兖州，战黄巾于寿张力战阵亡。"
-    },
-    {
-      "id": "char_san_1632",
-      "name": "鲍忠",
-      "rarity": "common",
-      "faction": "汉室",
-      "season": "S1",
-      "birthYear": 153,
-      "deathYear": 192,
-      "age": 31,
-      "stage": "peak",
-      "characterType": "military",
-      "luck": 6.1,
-      "courage": 6.6,
-      "command": 7.9,
-      "combat": 6.6,
-      "intelligence": 4.4,
-      "politics": 7.9,
-      "charisma": 4.5,
-      "morale": 50,
-      "skill_1": "skill_1_1001",
-      "skill_2": "skill_2_1003",
-      "skills": [
-        "skill_1_1001",
-        "skill_2_1003"
-      ],
-      "troopAffinity": "",
-      "bonds": [],
-      "biography": "《三国志》",
-      "description": "骁勇早亡。字叔义。鲍信之弟，184 年随兄平乱，后讨董战华雄，阵前捐躯。"
-    },
-    {
-      "id": "char_san_1633",
+      "id": "char_san_1636",
       "name": "李旻",
       "rarity": "common",
       "faction": "汉室",
@@ -3336,73 +3395,12 @@
         "skill_1_1001",
         "skill_2_1003"
       ],
-      "troopAffinity": "",
       "bonds": [],
       "biography": "《三国志》",
-      "description": "汝南死节。无字号。184 年任汝南太守征讨黄巾，兵败不敌，力战殉国身死。"
+      "description": "颍川太守"
     },
     {
-      "id": "char_san_1634",
-      "name": "褚贡",
-      "rarity": "common",
-      "faction": "汉室",
-      "season": "S1",
-      "birthYear": 150,
-      "deathYear": 184,
-      "age": 34,
-      "stage": "peak",
-      "characterType": "military",
-      "luck": 7.3,
-      "courage": 7.9,
-      "command": 6.4,
-      "combat": 7,
-      "intelligence": 5.4,
-      "politics": 5.4,
-      "charisma": 5.1,
-      "morale": 50,
-      "skill_1": "skill_1_1006",
-      "skill_2": "skill_2_1004",
-      "skills": [
-        "skill_1_1006",
-        "skill_2_1004"
-      ],
-      "troopAffinity": "",
-      "bonds": [],
-      "biography": "《三国志》",
-      "description": "宛城殉难。无字号。184 年任南阳太守，守宛城拒张曼成，城破遇害。"
-    },
-    {
-      "id": "char_san_1635",
-      "name": "秦颉",
-      "rarity": "common",
-      "faction": "汉室",
-      "season": "S1",
-      "birthYear": 150,
-      "deathYear": 186,
-      "age": 34,
-      "stage": "peak",
-      "characterType": "military",
-      "luck": 7.5,
-      "courage": 6.8,
-      "command": 5.6,
-      "combat": 7.9,
-      "intelligence": 4.9,
-      "politics": 6.9,
-      "charisma": 6.5,
-      "morale": 50,
-      "skill_1": "skill_1_1001",
-      "skill_2": "skill_2_1001",
-      "skills": [
-        "skill_1_1001",
-        "skill_2_1001"
-      ],
-      "troopAffinity": "",
-      "bonds": [],
-      "biography": "《三国志》",
-      "description": "平蛮斩贼。字初起。184 年继褚贡平南阳黄巾，击杀张曼成，后为叛将赵慈所杀。"
-    },
-    {
-      "id": "char_san_1636",
+      "id": "char_san_1637",
       "name": "牵招",
       "rarity": "common",
       "faction": "汉室",
@@ -3426,70 +3424,98 @@
         "skill_1_1006",
         "skill_2_1004"
       ],
-      "troopAffinity": "",
       "bonds": [],
       "biography": "《三国志》",
-      "description": "北疆名将。字子经。184 年后与刘备相交，后归曹魏镇守边陲，抚夷破虏功勋卓著。"
-    },
-    {
-      "id": "char_san_1637",
-      "name": "贾龙",
-      "rarity": "common",
-      "faction": "汉室",
-      "season": "S1",
-      "birthYear": 160,
-      "deathYear": 191,
-      "age": 24,
-      "stage": "early",
-      "characterType": "military",
-      "luck": 6.4,
-      "courage": 7.9,
-      "command": 5.6,
-      "combat": 7.9,
-      "intelligence": 6.2,
-      "politics": 4.6,
-      "charisma": 6.3,
-      "morale": 50,
-      "skill_1": "skill_1_1006",
-      "skill_2": "skill_2_1001",
-      "skills": [
-        "skill_1_1006",
-        "skill_2_1001"
-      ],
-      "troopAffinity": "",
-      "bonds": [],
-      "biography": "《三国志》",
-      "description": "益州骁骑。无字号。188 年平定益州黄巾迎刘焉，后反其割据，兵败被杀。"
+      "description": "冀州都尉"
     },
     {
       "id": "char_san_1638",
-      "name": "任岐",
+      "name": "鲍信",
       "rarity": "common",
       "faction": "汉室",
       "season": "S1",
-      "birthYear": 150,
-      "deathYear": 191,
-      "age": 34,
+      "birthYear": 151,
+      "deathYear": 192,
+      "age": 33,
       "stage": "peak",
       "characterType": "military",
-      "luck": 7.5,
-      "courage": 7.9,
-      "command": 7,
-      "combat": 6.7,
-      "intelligence": 4.8,
-      "politics": 5.5,
-      "charisma": 6.7,
+      "luck": 6,
+      "courage": 6,
+      "command": 7.4,
+      "combat": 7.9,
+      "intelligence": 4.5,
+      "politics": 4.6,
+      "charisma": 7.9,
       "morale": 50,
       "skill_1": "skill_1_1001",
-      "skill_2": "skill_2_1001",
+      "skill_2": "skill_2_1004",
       "skills": [
         "skill_1_1001",
-        "skill_2_1001"
+        "skill_2_1004"
       ],
-      "troopAffinity": "",
       "bonds": [],
       "biography": "《三国志》",
-      "description": "犍为守将。无字号。188 年任犍为太守平叛，后与贾龙共反刘焉，兵败身死。"
+      "description": "济北都尉"
+    },
+    {
+      "id": "char_san_1639",
+      "name": "鲍忠",
+      "rarity": "common",
+      "faction": "汉室",
+      "season": "S1",
+      "birthYear": 153,
+      "deathYear": 192,
+      "age": 31,
+      "stage": "peak",
+      "characterType": "military",
+      "luck": 6.1,
+      "courage": 6.6,
+      "command": 7.9,
+      "combat": 6.6,
+      "intelligence": 4.4,
+      "politics": 7.9,
+      "charisma": 4.5,
+      "morale": 50,
+      "skill_1": "skill_1_1001",
+      "skill_2": "skill_2_1003",
+      "skills": [
+        "skill_1_1001",
+        "skill_2_1003"
+      ],
+      "bonds": [],
+      "biography": "《三国志》",
+      "description": "鲍信之弟"
+    },
+    {
+      "id": "char_san_1640",
+      "name": "臧霸",
+      "rarity": "common",
+      "faction": "汉室",
+      "season": "S1",
+      "birthYear": 165,
+      "deathYear": 227,
+      "age": 19,
+      "stage": "early",
+      "characterType": "military",
+      "luck": 7.9,
+      "courage": 5.9,
+      "command": 7.3,
+      "combat": 6.5,
+      "intelligence": 7.9,
+      "politics": 4.4,
+      "charisma": 5.3,
+      "morale": 50,
+      "skill_1": "skill_1_1005",
+      "skill_2": "skill_2_1001",
+      "skills": [
+        "skill_1_1005",
+        "skill_2_1001"
+      ],
+      "bonds": [
+        "《臧霸传》"
+      ],
+      "biography": "《三国志》",
+      "description": "东海都尉"
     },
     {
       "id": "char_san_1701",
@@ -3516,12 +3542,11 @@
         "skill_1_5004",
         "skill_2_5002"
       ],
-      "troopAffinity": "infantry:3",
       "bonds": [
         "太平道"
       ],
       "biography": "《张角传》",
-      "description": "黄巾首魁。号天公将军。184 年率太平道起义，席卷天下，不久病亡，起义旋败。"
+      "description": "黄巾首领。巨鹿人，奉事黄老道，号 “太平道”，中平元年起兵，自称天公将军。"
     },
     {
       "id": "char_san_1702",
@@ -3548,12 +3573,11 @@
         "skill_1_3003",
         "skill_2_3005"
       ],
-      "troopAffinity": "infantry:3",
       "bonds": [
         "太平道"
       ],
       "biography": "《张宝传》",
-      "description": "地公渠帅。张角之弟，184 年称地公将军，守下曲阳，被皇甫嵩、郭典攻破战死。"
+      "description": "张角之弟。称地公将军，与嵩战于下曲阳，兵败被杀。"
     },
     {
       "id": "char_san_1703",
@@ -3580,12 +3604,11 @@
         "skill_1_3003",
         "skill_2_3003"
       ],
-      "troopAffinity": "infantry:3",
       "bonds": [
         "太平道"
       ],
       "biography": "《张梁传》",
-      "description": "人公猛将。张角之弟，184 年称人公将军，据广宗拒官军，兵败被皇甫嵩阵斩。"
+      "description": "张角之弟。称人公将军，与嵩战于广宗，夜溃，梁战死。"
     },
     {
       "id": "char_san_1704",
@@ -3612,7 +3635,6 @@
         "skill_1_2002",
         "skill_2_2006"
       ],
-      "troopAffinity": "",
       "bonds": [
         "太平弟子"
       ],
@@ -3644,7 +3666,6 @@
         "skill_1_2006",
         "skill_2_2004"
       ],
-      "troopAffinity": "",
       "bonds": [
         "太平弟子"
       ],
@@ -3676,7 +3697,6 @@
         "skill_1_2006",
         "skill_2_2004"
       ],
-      "troopAffinity": "",
       "bonds": [
         "太平弟子"
       ],
@@ -3708,7 +3728,6 @@
         "skill_1_2006",
         "skill_2_2006"
       ],
-      "troopAffinity": "",
       "bonds": [
         "太平弟子"
       ],
@@ -3740,7 +3759,6 @@
         "skill_1_2006",
         "skill_2_2007"
       ],
-      "troopAffinity": "",
       "bonds": [
         "太平弟子"
       ],
@@ -3772,7 +3790,6 @@
         "skill_1_2002",
         "skill_2_2008"
       ],
-      "troopAffinity": "",
       "bonds": [
         "太平弟子"
       ],
@@ -3804,7 +3821,6 @@
         "skill_1_2002",
         "skill_2_2008"
       ],
-      "troopAffinity": "",
       "bonds": [
         "太平弟子"
       ],
@@ -3836,7 +3852,6 @@
         "skill_1_2005",
         "skill_2_2004"
       ],
-      "troopAffinity": "",
       "bonds": [
         "太平弟子"
       ],
@@ -3854,91 +3869,26 @@
       "age": 34,
       "stage": "peak",
       "characterType": "military",
-      "luck": 7,
-      "courage": 7,
-      "command": 7,
-      "combat": 7,
-      "intelligence": 7,
-      "politics": 7,
-      "charisma": 7,
+      "luck": 8.4,
+      "courage": 8.4,
+      "command": 6.5,
+      "combat": 7.3,
+      "intelligence": 8.3,
+      "politics": 5.5,
+      "charisma": 6,
       "morale": 50,
-      "skill_1": "skill_1_2005",
-      "skill_2": "skill_2_2004",
+      "skill_1": "skill_1_2008",
+      "skill_2": "skill_2_2005",
       "skills": [
-        "skill_1_2005",
-        "skill_2_2004"
+        "skill_1_2008",
+        "skill_2_2005"
       ],
-      "troopAffinity": "",
       "bonds": [],
       "biography": "《张燕传》",
-      "description": "黑山雄主。无字号。184 年聚众为黑山军，雄踞河北，后降曹封将善终。"
+      "description": "分支渠帅"
     },
     {
       "id": "char_san_1713",
-      "name": "张修",
-      "rarity": "rare",
-      "faction": "黄巾",
-      "season": "S1",
-      "birthYear": 140,
-      "deathYear": 191,
-      "age": 44,
-      "stage": "peak",
-      "characterType": "strategist",
-      "luck": 8.4,
-      "courage": 5,
-      "command": 6.3,
-      "combat": 8.4,
-      "intelligence": 8.4,
-      "politics": 7.7,
-      "charisma": 6.1,
-      "morale": 50,
-      "skill_1": "skill_1_2005",
-      "skill_2": "skill_2_2008",
-      "skills": [
-        "skill_1_2005",
-        "skill_2_2008"
-      ],
-      "troopAffinity": "",
-      "bonds": [
-        "五斗米道"
-      ],
-      "biography": "《张修传》",
-      "description": "米道渠帅。无字号。184 年巴郡起兵应黄巾，188 年降刘焉为司马，后被张鲁袭杀，势力覆灭。"
-    },
-    {
-      "id": "char_san_1714",
-      "name": "张鲁",
-      "rarity": "rare",
-      "faction": "黄巾",
-      "season": "S1",
-      "birthYear": 160,
-      "deathYear": 216,
-      "age": 24,
-      "stage": "early",
-      "characterType": "strategist",
-      "luck": 5.6,
-      "courage": 5.7,
-      "command": 5,
-      "combat": 8.4,
-      "intelligence": 7.7,
-      "politics": 8.4,
-      "charisma": 8.4,
-      "morale": 50,
-      "skill_1": "skill_1_2006",
-      "skill_2": "skill_2_2003",
-      "skills": [
-        "skill_1_2006",
-        "skill_2_2003"
-      ],
-      "troopAffinity": "",
-      "bonds": [
-        "五斗米道"
-      ],
-      "biography": "《张鲁传》",
-      "description": "汉中雄主。字公祺。188 年附刘焉取汉中，杀张鲁割据，后降曹封镇南将军，得以善终。"
-    },
-    {
-      "id": "char_san_1715",
       "name": "张牛角",
       "rarity": "common",
       "faction": "黄巾",
@@ -3962,13 +3912,12 @@
         "skill_1_1006",
         "skill_2_1003"
       ],
-      "troopAffinity": "",
       "bonds": [],
       "biography": "《三国志》",
-      "description": "黄巾分支渠帅"
+      "description": "分支渠帅"
     },
     {
-      "id": "char_san_1716",
+      "id": "char_san_1714",
       "name": "梁仲宁",
       "rarity": "common",
       "faction": "黄巾",
@@ -3992,13 +3941,12 @@
         "skill_1_1005",
         "skill_2_1003"
       ],
-      "troopAffinity": "",
       "bonds": [],
       "biography": "《三国志》",
-      "description": "黄巾分支渠帅"
+      "description": "分支渠帅"
     },
     {
-      "id": "char_san_1717",
+      "id": "char_san_1715",
       "name": "张伯",
       "rarity": "common",
       "faction": "黄巾",
@@ -4022,13 +3970,12 @@
         "skill_1_1005",
         "skill_2_1006"
       ],
-      "troopAffinity": "",
       "bonds": [],
       "biography": "《三国志》",
-      "description": "黄巾分支渠帅"
+      "description": "分支渠帅"
     },
     {
-      "id": "char_san_1718",
+      "id": "char_san_1716",
       "name": "孙夏",
       "rarity": "common",
       "faction": "黄巾",
@@ -4052,10 +3999,9 @@
         "skill_1_1002",
         "skill_2_1006"
       ],
-      "troopAffinity": "",
       "bonds": [],
       "biography": "《三国志》",
-      "description": "黄巾分支渠帅"
+      "description": "分支渠帅"
     },
     {
       "id": "char_san_1001",
@@ -4082,12 +4028,11 @@
         "skill_1_4001",
         "skill_2_4007"
       ],
-      "troopAffinity": "archer:7",
       "bonds": [
         "五虎"
       ],
       "biography": "《黄忠传》",
-      "description": "老将虎威。字汉升。先归刘表、韩玄，后投刘备，定军山阵斩夏侯渊，封后将军旋即病逝。"
+      "description": "字汉升，南阳人。长沙都尉，初属刘表，后归刘备，定军山斩夏侯渊，迁后将军。"
     },
     {
       "id": "char_san_1002",
@@ -4114,14 +4059,13 @@
         "skill_1_4004",
         "skill_2_4002"
       ],
-      "troopAffinity": "cavalry:7",
       "bonds": [
         "五虎",
         "无双",
         "白马"
       ],
       "biography": "《赵云传》",
-      "description": "一身是胆。字子龙。初从公孙瓒，后归刘备，长坂救主、屡立战功，名将终老。"
+      "description": "一身是胆"
     },
     {
       "id": "char_san_1003",
@@ -4148,12 +4092,11 @@
         "skill_1_3003",
         "skill_2_3005"
       ],
-      "troopAffinity": "",
       "bonds": [
         "白马"
       ],
       "biography": "《公孙瓒传》",
-      "description": "白马雄主。字伯圭。184 年讨黄巾、镇乌桓，割据幽州，与袁绍相争兵败自焚。"
+      "description": "白马将军。字伯珪，辽西令支人。灵帝时为涿令，讨黄巾有功，迁骑都尉。"
     },
     {
       "id": "char_san_1004",
@@ -4180,12 +4123,11 @@
         "skill_1_3001",
         "skill_2_3006"
       ],
-      "troopAffinity": "",
       "bonds": [
         "西凉军阀"
       ],
       "biography": "《三国志》",
-      "description": "羌渠叛首。无字号。184 年联合边章、韩遂于凉州起兵，攻略陇右，为汉末叛帅。"
+      "description": "湟中义从胡二号首领，184 年与北宫伯玉共同发起凉州叛乱，劫持边章、韩遂为名义领袖，掌叛乱军先锋战力，186 年联军内斗中被韩遂斩杀。"
     },
     {
       "id": "char_san_1005",
@@ -4212,12 +4154,11 @@
         "skill_1_3006",
         "skill_2_3006"
       ],
-      "troopAffinity": "",
       "bonds": [
         "西凉军阀"
       ],
       "biography": "《三国志》",
-      "description": "凉州乱首。无字号。184 年偕同羌胡举兵反汉，进犯三辅，后兵败身死。"
+      "description": "凉州士族名士、前新安令，184 年被北宫伯玉、李文侯劫持，成为凉州叛乱的名义领袖，仅负责造势无实际兵权，186 年联军内斗中遭韩遂杀害。"
     },
     {
       "id": "char_san_1006",
@@ -4244,12 +4185,11 @@
         "skill_1_3006",
         "skill_2_3002"
       ],
-      "troopAffinity": "",
       "bonds": [
         "西凉军阀"
       ],
       "biography": "《三国志》",
-      "description": "西凉枭雄。字文约。184 年起兵叛汉，割据凉州三十余年，与曹操作战，晚年病逝。"
+      "description": "凉州知名士族，184 年被裹挟入凉州叛乱，186 年诛杀边章、北宫伯玉等人夺权，187 年与马腾结盟形成韩马联军成为凉州核心反汉势力，割据凉州三十余年，215 年败于曹魏后被部下所杀。"
     },
     {
       "id": "char_san_1007",
@@ -4276,271 +4216,14 @@
         "skill_1_3006",
         "skill_2_3003"
       ],
-      "troopAffinity": "",
       "bonds": [
         "西凉军阀"
       ],
       "biography": "《三国志》",
-      "description": "西凉忠烈。字寿成。184 年平定羌乱，割据凉州，后入许都，因马超起兵被曹操处死。"
+      "description": "凉州军司马。字寿成，扶风茂陵人。马超之父，后为曹操所杀。"
     },
     {
       "id": "char_san_1008",
-      "name": "孟佗",
-      "rarity": "rare",
-      "faction": "通用",
-      "season": "S1",
-      "birthYear": 145,
-      "deathYear": 190,
-      "age": 39,
-      "stage": "peak",
-      "characterType": "balanced",
-      "luck": 8,
-      "courage": 7.4,
-      "command": 6.9,
-      "combat": 8.1,
-      "intelligence": 7.1,
-      "politics": 6.6,
-      "charisma": 8.4,
-      "morale": 50,
-      "skill_1": "skill_1_2002",
-      "skill_2": "skill_2_2005",
-      "skills": [
-        "skill_1_2002",
-        "skill_2_2005"
-      ],
-      "troopAffinity": "",
-      "bonds": [
-        "东汉十三州"
-      ],
-      "biography": "《孟佗传》",
-      "description": "司隶校尉部，遭受黄巾之乱之扰"
-    },
-    {
-      "id": "char_san_1009",
-      "name": "郭勋",
-      "rarity": "rare",
-      "faction": "通用",
-      "season": "S1",
-      "birthYear": 150,
-      "deathYear": 184,
-      "age": 34,
-      "stage": "peak",
-      "characterType": "balanced",
-      "luck": 7.7,
-      "courage": 7.2,
-      "command": 8.2,
-      "combat": 7.7,
-      "intelligence": 8.4,
-      "politics": 7.1,
-      "charisma": 7.1,
-      "morale": 50,
-      "skill_1": "skill_1_2002",
-      "skill_2": "skill_2_2004",
-      "skills": [
-        "skill_1_2002",
-        "skill_2_2004"
-      ],
-      "troopAffinity": "",
-      "bonds": [
-        "东汉十三州"
-      ],
-      "biography": "《郭勋传》",
-      "description": "冀州刺史，遭受黄巾之乱之扰"
-    },
-    {
-      "id": "char_san_1010",
-      "name": "张懿",
-      "rarity": "rare",
-      "faction": "通用",
-      "season": "S1",
-      "birthYear": 153,
-      "deathYear": 188,
-      "age": 31,
-      "stage": "peak",
-      "characterType": "balanced",
-      "luck": 6.6,
-      "courage": 7.7,
-      "command": 7.7,
-      "combat": 7.4,
-      "intelligence": 6.5,
-      "politics": 8.2,
-      "charisma": 7.9,
-      "morale": 50,
-      "skill_1": "skill_1_2006",
-      "skill_2": "skill_2_2006",
-      "skills": [
-        "skill_1_2006",
-        "skill_2_2006"
-      ],
-      "troopAffinity": "",
-      "bonds": [
-        "东汉十三州"
-      ],
-      "biography": "《张懿传》",
-      "description": "并州刺史，遭受黄巾之乱之扰，后调任凉州刺史"
-    },
-    {
-      "id": "char_san_1011",
-      "name": "焦和",
-      "rarity": "rare",
-      "faction": "通用",
-      "season": "S1",
-      "birthYear": 155,
-      "deathYear": 189,
-      "age": 29,
-      "stage": "peak",
-      "characterType": "balanced",
-      "luck": 7.3,
-      "courage": 6.6,
-      "command": 7.2,
-      "combat": 8.1,
-      "intelligence": 7.7,
-      "politics": 7.9,
-      "charisma": 7,
-      "morale": 50,
-      "skill_1": "skill_1_2006",
-      "skill_2": "skill_2_2006",
-      "skills": [
-        "skill_1_2006",
-        "skill_2_2006"
-      ],
-      "troopAffinity": "",
-      "bonds": [
-        "东汉十三州"
-      ],
-      "biography": "《焦和传》",
-      "description": "青州刺史，遭受黄巾之乱之扰"
-    },
-    {
-      "id": "char_san_1012",
-      "name": "桥瑁",
-      "rarity": "rare",
-      "faction": "通用",
-      "season": "S1",
-      "birthYear": 150,
-      "deathYear": 191,
-      "age": 34,
-      "stage": "peak",
-      "characterType": "balanced",
-      "luck": 6.8,
-      "courage": 7.9,
-      "command": 7.3,
-      "combat": 8,
-      "intelligence": 7.5,
-      "politics": 6.4,
-      "charisma": 6.6,
-      "morale": 50,
-      "skill_1": "skill_1_2007",
-      "skill_2": "skill_2_2005",
-      "skills": [
-        "skill_1_2007",
-        "skill_2_2005"
-      ],
-      "troopAffinity": "",
-      "bonds": [
-        "东汉十三州"
-      ],
-      "biography": "《桥瑁传》",
-      "description": "兖州刺史，遭受黄巾之乱之扰"
-    },
-    {
-      "id": "char_san_1013",
-      "name": "王允",
-      "rarity": "rare",
-      "faction": "通用",
-      "season": "S1",
-      "birthYear": 137,
-      "deathYear": 192,
-      "age": 47,
-      "stage": "late",
-      "characterType": "balanced",
-      "luck": 7.9,
-      "courage": 7.9,
-      "command": 7.7,
-      "combat": 6.7,
-      "intelligence": 6.5,
-      "politics": 8,
-      "charisma": 6.8,
-      "morale": 50,
-      "skill_1": "skill_1_2005",
-      "skill_2": "skill_2_2006",
-      "skills": [
-        "skill_1_2005",
-        "skill_2_2006"
-      ],
-      "troopAffinity": "",
-      "bonds": [
-        "东汉十三州"
-      ],
-      "biography": "《王允传》",
-      "description": "豫州刺史，遭受黄巾之乱之扰，后调任司隶校尉部"
-    },
-    {
-      "id": "char_san_1014",
-      "name": "陶谦",
-      "rarity": "rare",
-      "faction": "通用",
-      "season": "S1",
-      "birthYear": 132,
-      "deathYear": 194,
-      "age": 52,
-      "stage": "late",
-      "characterType": "balanced",
-      "luck": 7.8,
-      "courage": 7.1,
-      "command": 6.7,
-      "combat": 7.7,
-      "intelligence": 7.6,
-      "politics": 6.7,
-      "charisma": 7.7,
-      "morale": 50,
-      "skill_1": "skill_1_2006",
-      "skill_2": "skill_2_2004",
-      "skills": [
-        "skill_1_2006",
-        "skill_2_2004"
-      ],
-      "troopAffinity": "",
-      "bonds": [
-        "东汉十三州"
-      ],
-      "biography": "《陶谦传》",
-      "description": "徐州刺史，遭受黄巾之乱之扰"
-    },
-    {
-      "id": "char_san_1015",
-      "name": "孔伷",
-      "rarity": "rare",
-      "faction": "通用",
-      "season": "S1",
-      "birthYear": 150,
-      "deathYear": 192,
-      "age": 34,
-      "stage": "peak",
-      "characterType": "balanced",
-      "luck": 8.4,
-      "courage": 7.6,
-      "command": 7,
-      "combat": 8.2,
-      "intelligence": 7,
-      "politics": 7.1,
-      "charisma": 6.9,
-      "morale": 50,
-      "skill_1": "skill_1_2008",
-      "skill_2": "skill_2_2002",
-      "skills": [
-        "skill_1_2008",
-        "skill_2_2002"
-      ],
-      "troopAffinity": "",
-      "bonds": [
-        "东汉十三州"
-      ],
-      "biography": "《孔伷传》",
-      "description": "调任豫州刺史"
-    },
-    {
-      "id": "char_san_1016",
       "name": "刘虞",
       "rarity": "rare",
       "faction": "通用",
@@ -4564,7 +4247,6 @@
         "skill_1_2005",
         "skill_2_2005"
       ],
-      "troopAffinity": "",
       "bonds": [
         "东汉十三州"
       ],
@@ -4572,7 +4254,7 @@
       "description": "幽州刺史"
     },
     {
-      "id": "char_san_1017",
+      "id": "char_san_1009",
       "name": "王叡",
       "rarity": "rare",
       "faction": "通用",
@@ -4596,7 +4278,6 @@
         "skill_1_2001",
         "skill_2_2002"
       ],
-      "troopAffinity": "",
       "bonds": [
         "东汉十三州"
       ],
@@ -4604,7 +4285,7 @@
       "description": "荆州刺史"
     },
     {
-      "id": "char_san_1018",
+      "id": "char_san_1010",
       "name": "臧旻",
       "rarity": "rare",
       "faction": "通用",
@@ -4628,7 +4309,6 @@
         "skill_1_2007",
         "skill_2_2006"
       ],
-      "troopAffinity": "",
       "bonds": [
         "东汉十三州"
       ],
@@ -4636,7 +4316,7 @@
       "description": "扬州刺史"
     },
     {
-      "id": "char_san_1019",
+      "id": "char_san_1011",
       "name": "郤俭",
       "rarity": "rare",
       "faction": "通用",
@@ -4660,7 +4340,6 @@
         "skill_1_2008",
         "skill_2_2007"
       ],
-      "troopAffinity": "",
       "bonds": [
         "东汉十三州"
       ],
@@ -4668,7 +4347,7 @@
       "description": "益州刺史"
     },
     {
-      "id": "char_san_1020",
+      "id": "char_san_1012",
       "name": "梁鹄",
       "rarity": "rare",
       "faction": "通用",
@@ -4692,7 +4371,6 @@
         "skill_1_2005",
         "skill_2_2002"
       ],
-      "troopAffinity": "",
       "bonds": [
         "东汉十三州"
       ],
@@ -4700,7 +4378,7 @@
       "description": "凉州刺史"
     },
     {
-      "id": "char_san_1021",
+      "id": "char_san_1013",
       "name": "朱符",
       "rarity": "rare",
       "faction": "通用",
@@ -4724,7 +4402,6 @@
         "skill_1_2006",
         "skill_2_2002"
       ],
-      "troopAffinity": "",
       "bonds": [
         "东汉十三州"
       ],
@@ -4732,7 +4409,7 @@
       "description": "交州刺史"
     },
     {
-      "id": "char_san_1022",
+      "id": "char_san_1014",
       "name": "韩馥",
       "rarity": "rare",
       "faction": "通用",
@@ -4756,7 +4433,6 @@
         "skill_1_2006",
         "skill_2_2007"
       ],
-      "troopAffinity": "",
       "bonds": [
         "东汉十三州"
       ],
@@ -4764,7 +4440,7 @@
       "description": "冀州州牧"
     },
     {
-      "id": "char_san_1023",
+      "id": "char_san_1015",
       "name": "刘岱",
       "rarity": "rare",
       "faction": "通用",
@@ -4788,7 +4464,6 @@
         "skill_1_2005",
         "skill_2_2004"
       ],
-      "troopAffinity": "",
       "bonds": [
         "东汉十三州"
       ],
@@ -4796,7 +4471,7 @@
       "description": "兖州州牧"
     },
     {
-      "id": "char_san_1024",
+      "id": "char_san_1016",
       "name": "黄琬",
       "rarity": "rare",
       "faction": "通用",
@@ -4820,15 +4495,14 @@
         "skill_1_2004",
         "skill_2_2008"
       ],
-      "troopAffinity": "",
       "bonds": [
         "东汉十三州"
       ],
       "biography": "《黄琬传》",
-      "description": "豫州州牧，治绩天下第一"
+      "description": "豫州州牧，治绩天下第一，清廉著称"
     },
     {
-      "id": "char_san_1025",
+      "id": "char_san_1017",
       "name": "刘表",
       "rarity": "rare",
       "faction": "通用",
@@ -4852,7 +4526,6 @@
         "skill_1_2007",
         "skill_2_2004"
       ],
-      "troopAffinity": "",
       "bonds": [
         "东汉十三州"
       ],
@@ -4860,7 +4533,7 @@
       "description": "荆州州牧"
     },
     {
-      "id": "char_san_1026",
+      "id": "char_san_1018",
       "name": "陈温",
       "rarity": "rare",
       "faction": "通用",
@@ -4884,7 +4557,6 @@
         "skill_1_2007",
         "skill_2_2002"
       ],
-      "troopAffinity": "",
       "bonds": [
         "东汉十三州"
       ],
@@ -4892,7 +4564,7 @@
       "description": "扬州州牧"
     },
     {
-      "id": "char_san_1027",
+      "id": "char_san_1019",
       "name": "刘焉",
       "rarity": "rare",
       "faction": "通用",
@@ -4916,15 +4588,14 @@
         "skill_1_2001",
         "skill_2_2005"
       ],
-      "troopAffinity": "",
       "bonds": [
         "东汉十三州"
       ],
       "biography": "《刘焉传》",
-      "description": "益州州牧，进言废史立牧"
+      "description": "益州州牧，建议 “废史立牧”。"
     },
     {
-      "id": "char_san_1028",
+      "id": "char_san_1020",
       "name": "刘璋",
       "rarity": "rare",
       "faction": "通用",
@@ -4948,15 +4619,14 @@
         "skill_1_2008",
         "skill_2_2001"
       ],
-      "troopAffinity": "",
       "bonds": [
         "东汉十三州"
       ],
       "biography": "《刘璋传》",
-      "description": "继任益州州牧"
+      "description": "继任益州州牧，刘焉之子，后降刘备。"
     },
     {
-      "id": "char_san_1029",
+      "id": "char_san_1021",
       "name": "来达",
       "rarity": "rare",
       "faction": "通用",
@@ -4980,7 +4650,6 @@
         "skill_1_2008",
         "skill_2_2006"
       ],
-      "troopAffinity": "",
       "bonds": [
         "东汉十三州"
       ],
@@ -4988,7 +4657,7 @@
       "description": "交州州牧"
     },
     {
-      "id": "char_san_1030",
+      "id": "char_san_1022",
       "name": "贾琮",
       "rarity": "rare",
       "faction": "通用",
@@ -5012,7 +4681,6 @@
         "skill_1_2004",
         "skill_2_2001"
       ],
-      "troopAffinity": "",
       "bonds": [
         "东汉十三州"
       ],
@@ -5020,39 +4688,7 @@
       "description": "继任交州州牧"
     },
     {
-      "id": "char_san_1031",
-      "name": "士燮",
-      "rarity": "rare",
-      "faction": "通用",
-      "season": "S1",
-      "birthYear": 137,
-      "deathYear": 226,
-      "age": 47,
-      "stage": "late",
-      "characterType": "balanced",
-      "luck": 7,
-      "courage": 6.4,
-      "command": 6.5,
-      "combat": 7.1,
-      "intelligence": 6.5,
-      "politics": 6.8,
-      "charisma": 7.7,
-      "morale": 50,
-      "skill_1": "skill_1_2007",
-      "skill_2": "skill_2_2006",
-      "skills": [
-        "skill_1_2007",
-        "skill_2_2006"
-      ],
-      "troopAffinity": "",
-      "bonds": [
-        "南蛮王"
-      ],
-      "biography": "《士燮传》",
-      "description": "交州雄主。字威彦。割据交州安抚一方，归附孙权受封重职，保境安民，高寿善终。"
-    },
-    {
-      "id": "char_san_1032",
+      "id": "char_san_1023",
       "name": "郑玄",
       "rarity": "rare",
       "faction": "通用",
@@ -5076,15 +4712,14 @@
         "skill_1_2004",
         "skill_2_2006"
       ],
-      "troopAffinity": "",
       "bonds": [
         "东汉隐士"
       ],
       "biography": "《三国志》",
-      "description": "经学宗师。字康成。潜心注经遍注群籍，闭门授徒不仕乱世，为汉末儒学泰斗终老。"
+      "description": "东汉顶级经学大师，无正式官职，隐居治学授徒，坚拒朝廷征辟，门徒数百千人。"
     },
     {
-      "id": "char_san_1033",
+      "id": "char_san_1024",
       "name": "管宁",
       "rarity": "rare",
       "faction": "通用",
@@ -5108,15 +4743,14 @@
         "skill_1_2007",
         "skill_2_2001"
       ],
-      "troopAffinity": "",
       "bonds": [
         "东汉隐士"
       ],
-      "biography": "《三国志》",
-      "description": "辽东高隐。字幼安。避乱辽东讲学修身，曹魏屡征坚辞不仕，以高洁节操传世。"
+      "biography": "《管宁传》",
+      "description": "北海名门，经学大家，隐居治学授徒，拒绝州郡征辟，以孝义教化乡里"
     },
     {
-      "id": "char_san_1034",
+      "id": "char_san_1025",
       "name": "邴原",
       "rarity": "rare",
       "faction": "通用",
@@ -5140,15 +4774,14 @@
         "skill_1_2008",
         "skill_2_2007"
       ],
-      "troopAffinity": "",
       "bonds": [
         "东汉隐士"
       ],
       "biography": "《三国志》",
-      "description": "北海名儒。字根矩。避乱游学守正清节，归魏历任显官，以德行才学名重当时。"
+      "description": "寒门名士，精通《春秋》，隐居治学，与管宁齐名，拒绝朝廷及地方征辟"
     },
     {
-      "id": "char_san_1035",
+      "id": "char_san_1026",
       "name": "王烈",
       "rarity": "rare",
       "faction": "通用",
@@ -5172,15 +4805,14 @@
         "skill_1_2004",
         "skill_2_2006"
       ],
-      "troopAffinity": "",
       "bonds": [
         "东汉隐士"
       ],
       "biography": "《三国志》",
-      "description": "辽东义士。字彦方。避乱辽东以德化人，不仕乱世，深受边民敬服，寿终辽东。"
+      "description": "北海名士，以经学、孝义著称，辞官隐居，拒绝一切官方征辟"
     },
     {
-      "id": "char_san_1036",
+      "id": "char_san_1027",
       "name": "庞德公",
       "rarity": "rare",
       "faction": "通用",
@@ -5204,15 +4836,14 @@
         "skill_1_2008",
         "skill_2_2003"
       ],
-      "troopAffinity": "",
       "bonds": [
         "东汉隐士"
       ],
       "biography": "《三国志》",
-      "description": "襄阳隐者。字尚长。隐居岘山不慕荣禄，与贤士交游，躬耕终老，高节传世。"
+      "description": "荆州隐士领袖，耕读为生，拒绝一切官方征辟，为荆州士林标杆"
     },
     {
-      "id": "char_san_1037",
+      "id": "char_san_1028",
       "name": "司马徽",
       "rarity": "rare",
       "faction": "通用",
@@ -5236,15 +4867,14 @@
         "skill_1_2006",
         "skill_2_2002"
       ],
-      "troopAffinity": "",
       "bonds": [
         "东汉隐士"
       ],
       "biography": "《三国志》",
-      "description": "水镜高士。字德操。隐于襄阳知人荐才，举荐卧龙凤雏，终身不仕安度晚年。"
+      "description": "号 “水镜先生”，颍川名士避乱南下，隐居授徒，精通经学、识人，谦厚不评人短长"
     },
     {
-      "id": "char_san_1038",
+      "id": "char_san_1029",
       "name": "黄承彦",
       "rarity": "rare",
       "faction": "通用",
@@ -5268,15 +4898,14 @@
         "skill_1_2007",
         "skill_2_2006"
       ],
-      "troopAffinity": "",
       "bonds": [
         "东汉隐士"
       ],
       "biography": "《三国志》",
-      "description": "沔南高贤。无字号。襄阳隐士，诸葛亮岳父，清雅守志，隐居林泉以终其身。"
+      "description": "荆州士族名士，隐居不仕，与庞德公、司马徽为至交，诸葛亮岳父"
     },
     {
-      "id": "char_san_1039",
+      "id": "char_san_1030",
       "name": "崔钧",
       "rarity": "rare",
       "faction": "通用",
@@ -5300,15 +4929,14 @@
         "skill_1_2005",
         "skill_2_2003"
       ],
-      "troopAffinity": "",
       "bonds": [
         "东汉隐士"
       ],
       "biography": "《三国志》",
-      "description": "博陵名士。字州平。与诸葛亮为友交游，清高守志隐居不仕，乱世中逍遥终老。"
+      "description": "博陵崔氏世家，不满宦官专权辞官，避黄巾之乱南下襄阳"
     },
     {
-      "id": "char_san_1040",
+      "id": "char_san_1031",
       "name": "石韬",
       "rarity": "rare",
       "faction": "通用",
@@ -5332,15 +4960,14 @@
         "skill_1_2008",
         "skill_2_2003"
       ],
-      "troopAffinity": "",
       "bonds": [
         "东汉隐士"
       ],
       "biography": "《三国志》",
-      "description": "颍川雅士。字广元。与诸葛亮游学相知，后仕曹魏历职郡守，以才学显名终老。"
+      "description": "颍川名士，避黄巾之乱南下，隐居治学，与诸葛亮同窗交游"
     },
     {
-      "id": "char_san_1041",
+      "id": "char_san_1032",
       "name": "孟建",
       "rarity": "rare",
       "faction": "通用",
@@ -5364,15 +4991,14 @@
         "skill_1_2006",
         "skill_2_2007"
       ],
-      "troopAffinity": "",
       "bonds": [
         "东汉隐士"
       ],
       "biography": "《三国志》",
-      "description": "汝南才士。字公威。与诸葛亮同游求学，后归曹魏官至凉州刺史，镇抚一方善终。"
+      "description": "汝南名士，避黄巾之乱南下，隐居治学，与诸葛亮、石韬同窗"
     },
     {
-      "id": "char_san_1042",
+      "id": "char_san_1033",
       "name": "周舒",
       "rarity": "rare",
       "faction": "通用",
@@ -5396,15 +5022,14 @@
         "skill_1_2005",
         "skill_2_2001"
       ],
-      "troopAffinity": "",
       "bonds": [
         "东汉隐士"
       ],
       "biography": "《三国志》",
-      "description": "蜀地术士。字叔布。精于图谶之学，隐居不仕，为蜀中术数名家，终老于家。"
+      "description": "益州本土顶级经学大家，隐居治学，拒绝一切官方征辟"
     },
     {
-      "id": "char_san_1043",
+      "id": "char_san_1034",
       "name": "董扶",
       "rarity": "rare",
       "faction": "通用",
@@ -5428,15 +5053,14 @@
         "skill_1_2003",
         "skill_2_2001"
       ],
-      "troopAffinity": "",
       "bonds": [
         "东汉隐士"
       ],
       "biography": "《三国志》",
-      "description": "益州术师。字茂安。精图谶言益州有天子气，随刘焉入蜀，不久病逝蜀中。"
+      "description": "经学大家，曾为东汉侍中，不满宦官专权归蜀隐居，拒绝征辟"
     },
     {
-      "id": "char_san_1044",
+      "id": "char_san_1035",
       "name": "任安",
       "rarity": "rare",
       "faction": "通用",
@@ -5460,15 +5084,14 @@
         "skill_1_2007",
         "skill_2_2005"
       ],
-      "troopAffinity": "",
       "bonds": [
         "东汉隐士"
       ],
       "biography": "《三国志》",
-      "description": "蜀中儒宗。字定祖。潜心教学培育弟子，为蜀中大儒，朝廷屡征不仕终老。"
+      "description": "益州本土隐士，经学大家，隐居授徒，拒绝一切官方征辟，与董扶齐名"
     },
     {
-      "id": "char_san_1045",
+      "id": "char_san_1036",
       "name": "许劭",
       "rarity": "rare",
       "faction": "通用",
@@ -5492,15 +5115,14 @@
         "skill_1_2006",
         "skill_2_2002"
       ],
-      "troopAffinity": "",
       "bonds": [
         "东汉隐士"
       ],
       "biography": "《三国志》",
-      "description": "月旦评主。字子将。善品评人物名重天下，避乱广陵坚守名节，以识鉴著称。"
+      "description": "汝南名士，无正式官职，坚拒官府一切征辟，主持 “月旦评” 为士林标杆"
     },
     {
-      "id": "char_san_1046",
+      "id": "char_san_1037",
       "name": "袁闳",
       "rarity": "rare",
       "faction": "通用",
@@ -5524,15 +5146,14 @@
         "skill_1_2008",
         "skill_2_2002"
       ],
-      "troopAffinity": "",
       "bonds": [
         "东汉隐士"
       ],
       "biography": "《三国志》",
-      "description": "汝南隐士。字夏甫。不慕仕宦隐居土室，杜绝交游，汉末乱世守节终身不出。"
+      "description": "汝南袁氏世家（袁绍、袁术从弟），拒绝世家荫蔽，隐居躬耕，不涉宗族事务"
     },
     {
-      "id": "char_san_1047",
+      "id": "char_san_1038",
       "name": "韩康",
       "rarity": "rare",
       "faction": "通用",
@@ -5556,15 +5177,14 @@
         "skill_1_2006",
         "skill_2_2003"
       ],
-      "troopAffinity": "",
       "bonds": [
         "东汉隐士"
       ],
       "biography": "《三国志》",
-      "description": "卖药隐者。字伯休。卖药长安口不二价，避名入山隐遁，终身不与俗世相交。"
+      "description": "东汉著名隐士，精通医药，隐居采药卖药，坚守本心，拒绝一切朝廷征辟"
     },
     {
-      "id": "char_san_1048",
+      "id": "char_san_1039",
       "name": "孔融",
       "rarity": "rare",
       "faction": "通用",
@@ -5588,15 +5208,14 @@
         "skill_1_2003",
         "skill_2_2008"
       ],
-      "troopAffinity": "",
       "bonds": [
-        "东汉名仕"
+        "东汉俊秀"
       ],
-      "biography": "《三国志》",
-      "description": "北海义烈。字文举。孔子后裔守北海，刚直忤逆曹操，被构陷处死，名传后世。"
+      "biography": "《孔融传》",
+      "description": "孔子后人。字文举，鲁国人，孔子二十世孙。灵帝时辟司徒杨赐府。"
     },
     {
-      "id": "char_san_1049",
+      "id": "char_san_1040",
       "name": "边让",
       "rarity": "rare",
       "faction": "通用",
@@ -5620,15 +5239,14 @@
         "skill_1_2006",
         "skill_2_2003"
       ],
-      "troopAffinity": "",
       "bonds": [
-        "东汉名仕"
+        "东汉俊秀"
       ],
       "biography": "《三国志》",
-      "description": "陈留俊才。字文礼。汉末才士名重一时，因轻慢曹操，被曹操借机诛杀。"
+      "description": "陈留浚仪人，与孔融、陶丘洪并称 “俊秀”，时任大将军何进府令史（何进征辟）"
     },
     {
-      "id": "char_san_1050",
+      "id": "char_san_1041",
       "name": "陶丘洪",
       "rarity": "rare",
       "faction": "通用",
@@ -5652,12 +5270,220 @@
         "skill_1_2005",
         "skill_2_2004"
       ],
-      "troopAffinity": "",
       "bonds": [
-        "东汉名仕"
+        "东汉俊秀"
       ],
       "biography": "《三国志》",
-      "description": "青州名士。字子休。明辨有才举荐贤才，为州中俊彦，乱世守志终老。"
+      "description": "与孔融、边让同列 “后进冠盖”"
+    },
+    {
+      "id": "char_san_1042",
+      "name": "张修",
+      "rarity": "rare",
+      "faction": "通用",
+      "season": "S1",
+      "birthYear": 140,
+      "deathYear": 191,
+      "age": 44,
+      "stage": "peak",
+      "characterType": "strategist",
+      "luck": 8.4,
+      "courage": 5,
+      "command": 6.3,
+      "combat": 8.4,
+      "intelligence": 8.4,
+      "politics": 7.7,
+      "charisma": 6.1,
+      "morale": 50,
+      "skill_1": "skill_1_2005",
+      "skill_2": "skill_2_2008",
+      "skills": [
+        "skill_1_2005",
+        "skill_2_2008"
+      ],
+      "bonds": [
+        "五斗米道"
+      ],
+      "biography": "《三国志》",
+      "description": "五斗米道首领，号 “五斗米师”"
+    },
+    {
+      "id": "char_san_1043",
+      "name": "张鲁",
+      "rarity": "rare",
+      "faction": "通用",
+      "season": "S1",
+      "birthYear": 160,
+      "deathYear": 216,
+      "age": 24,
+      "stage": "early",
+      "characterType": "strategist",
+      "luck": 5.6,
+      "courage": 5.7,
+      "command": 5,
+      "combat": 8.4,
+      "intelligence": 7.7,
+      "politics": 8.4,
+      "charisma": 8.4,
+      "morale": 50,
+      "skill_1": "skill_1_2006",
+      "skill_2": "skill_2_2003",
+      "skills": [
+        "skill_1_2006",
+        "skill_2_2003"
+      ],
+      "bonds": [
+        "五斗米道"
+      ],
+      "biography": "《张鲁传》",
+      "description": "汉中教主。字公祺，沛国丰人。继任五斗米道首领，割据汉中，后降曹操。"
+    },
+    {
+      "id": "char_san_1044",
+      "name": "士燮",
+      "rarity": "common",
+      "faction": "通用",
+      "season": "S1",
+      "birthYear": 137,
+      "deathYear": 226,
+      "age": 47,
+      "stage": "late",
+      "characterType": "military",
+      "luck": 7.9,
+      "courage": 5.4,
+      "command": 6.6,
+      "combat": 7.9,
+      "intelligence": 4.5,
+      "politics": 5.9,
+      "charisma": 7.9,
+      "morale": 50,
+      "skill_1": "skill_1_1006",
+      "skill_2": "skill_2_1005",
+      "skills": [
+        "skill_1_1006",
+        "skill_2_1005"
+      ],
+      "bonds": [
+        "《士燮传》"
+      ],
+      "biography": "《三国志》",
+      "description": "交趾太守"
+    },
+    {
+      "id": "char_san_1045",
+      "name": "秦颉",
+      "rarity": "common",
+      "faction": "通用",
+      "season": "S1",
+      "birthYear": 150,
+      "deathYear": 186,
+      "age": 34,
+      "stage": "peak",
+      "characterType": "military",
+      "luck": 7.5,
+      "courage": 6.8,
+      "command": 5.6,
+      "combat": 7.9,
+      "intelligence": 4.9,
+      "politics": 6.9,
+      "charisma": 6.5,
+      "morale": 50,
+      "skill_1": "skill_1_1001",
+      "skill_2": "skill_2_1001",
+      "skills": [
+        "skill_1_1001",
+        "skill_2_1001"
+      ],
+      "bonds": [],
+      "biography": "《三国志》",
+      "description": "南阳太守"
+    },
+    {
+      "id": "char_san_1046",
+      "name": "褚贡",
+      "rarity": "common",
+      "faction": "通用",
+      "season": "S1",
+      "birthYear": 150,
+      "deathYear": 184,
+      "age": 34,
+      "stage": "peak",
+      "characterType": "military",
+      "luck": 7.3,
+      "courage": 7.9,
+      "command": 6.4,
+      "combat": 7,
+      "intelligence": 5.4,
+      "politics": 5.4,
+      "charisma": 5.1,
+      "morale": 50,
+      "skill_1": "skill_1_1006",
+      "skill_2": "skill_2_1004",
+      "skills": [
+        "skill_1_1006",
+        "skill_2_1004"
+      ],
+      "bonds": [],
+      "biography": "《三国志》",
+      "description": "南阳太守"
+    },
+    {
+      "id": "char_san_1047",
+      "name": "陈登",
+      "rarity": "common",
+      "faction": "通用",
+      "season": "S1",
+      "birthYear": 167,
+      "deathYear": 201,
+      "age": 17,
+      "stage": "early",
+      "characterType": "military",
+      "luck": 5.6,
+      "courage": 7.9,
+      "command": 7.5,
+      "combat": 7.9,
+      "intelligence": 5.8,
+      "politics": 6,
+      "charisma": 4.9,
+      "morale": 50,
+      "skill_1": "skill_1_1005",
+      "skill_2": "skill_2_1005",
+      "skills": [
+        "skill_1_1005",
+        "skill_2_1005"
+      ],
+      "bonds": [],
+      "biography": "《三国志》",
+      "description": "东郡都尉"
+    },
+    {
+      "id": "char_san_1048",
+      "name": "贾龙",
+      "rarity": "common",
+      "faction": "通用",
+      "season": "S1",
+      "birthYear": 160,
+      "deathYear": 191,
+      "age": 24,
+      "stage": "early",
+      "characterType": "military",
+      "luck": 6.4,
+      "courage": 7.9,
+      "command": 5.6,
+      "combat": 7.9,
+      "intelligence": 6.2,
+      "politics": 4.6,
+      "charisma": 6.3,
+      "morale": 50,
+      "skill_1": "skill_1_1006",
+      "skill_2": "skill_2_1001",
+      "skills": [
+        "skill_1_1006",
+        "skill_2_1001"
+      ],
+      "bonds": [],
+      "biography": "《三国志》",
+      "description": "益州校尉"
     }
   ]
 }

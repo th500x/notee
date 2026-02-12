@@ -35,3 +35,15 @@ export const categories = [
     icon: '🔒'
   }
 ]
+
+// 全局密码验证系统（优先使用环境变量）
+export const GLOBAL_ADMIN_PASSWORD = process.env.REACT_APP_GLOBAL_ADMIN_PASSWORD || 'notee.vip.2026';
+
+/**
+ * 验证全局管理员密码
+ * @param {string} inputPassword - 用户输入的密码
+ * @returns {boolean} 密码是否正确
+ */
+export const verifyGlobalPassword = (inputPassword) => {
+  return inputPassword === GLOBAL_ADMIN_PASSWORD;
+};
