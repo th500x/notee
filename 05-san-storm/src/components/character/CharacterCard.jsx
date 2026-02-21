@@ -224,57 +224,55 @@ export function CharacterCard({ character, skillsMap = {}, bondsMap = {}, showDe
               </div>
             </div>
 
-            {/* 右侧：核心属性 - 4行布局，固定宽度对齐 */}
-            <div className="flex-1 flex flex-col justify-center gap-1">
-              {/* 第一行：运、勇 */}
-              <div className="flex items-center gap-2 text-xs">
-                <div className="flex items-center gap-1">
-                  <span className="text-yellow-400">🎲</span>
-                  <span className="text-gray-400">运</span>
-                  <span className="text-white font-bold w-6">{character.luck}</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <span className="text-pink-400">💪</span>
-                  <span className="text-gray-400">勇</span>
-                  <span className="text-white font-bold w-6">{character.courage}</span>
-                </div>
+            {/* 右侧：核心属性 - 使用Grid布局平分左右两列 */}
+            <div className="flex-1 grid grid-cols-2 gap-x-2 gap-y-1 text-xs">
+              {/* 左列第一行：运 */}
+              <div className="flex items-center gap-1">
+                <span className="text-yellow-400">🎲</span>
+                <span className="text-gray-400">运</span>
+                <span className="text-white font-bold">{character.luck}</span>
               </div>
               
-              {/* 第二行：统、武 */}
-              <div className="flex items-center gap-2 text-xs">
-                <div className="flex items-center gap-1">
-                  <span className="text-red-400">⚔️</span>
-                  <span className="text-gray-400">统</span>
-                  <span className="text-white font-bold w-6">{character.command}</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <span className="text-blue-400">🗡️</span>
-                  <span className="text-gray-400">武</span>
-                  <span className="text-white font-bold w-6">{character.combat}</span>
-                </div>
+              {/* 右列第一行：勇 */}
+              <div className="flex items-center gap-1">
+                <span className="text-pink-400">💪</span>
+                <span className="text-gray-400">勇</span>
+                <span className="text-white font-bold">{character.courage}</span>
               </div>
               
-              {/* 第三行：智、政 */}
-              <div className="flex items-center gap-2 text-xs">
-                <div className="flex items-center gap-1">
-                  <span className="text-green-400">📚</span>
-                  <span className="text-gray-400">智</span>
-                  <span className="text-white font-bold w-6">{character.intelligence}</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <span className="text-purple-400">📜</span>
-                  <span className="text-gray-400">政</span>
-                  <span className="text-white font-bold w-6">{character.politics}</span>
-                </div>
+              {/* 左列第二行：统 */}
+              <div className="flex items-center gap-1">
+                <span className="text-red-400">⚔️</span>
+                <span className="text-gray-400">统</span>
+                <span className="text-white font-bold">{character.command}</span>
               </div>
               
-              {/* 第四行：魅 */}
-              <div className="flex items-center gap-2 text-xs">
-                <div className="flex items-center gap-1">
-                  <span className="text-indigo-400">✨</span>
-                  <span className="text-gray-400">魅</span>
-                  <span className="text-white font-bold w-6">{character.charisma}</span>
-                </div>
+              {/* 右列第二行：武 */}
+              <div className="flex items-center gap-1">
+                <span className="text-blue-400">🗡️</span>
+                <span className="text-gray-400">武</span>
+                <span className="text-white font-bold">{character.combat}</span>
+              </div>
+              
+              {/* 左列第三行：智 */}
+              <div className="flex items-center gap-1">
+                <span className="text-green-400">📚</span>
+                <span className="text-gray-400">智</span>
+                <span className="text-white font-bold">{character.intelligence}</span>
+              </div>
+              
+              {/* 右列第三行：政 */}
+              <div className="flex items-center gap-1">
+                <span className="text-purple-400">📜</span>
+                <span className="text-gray-400">政</span>
+                <span className="text-white font-bold">{character.politics}</span>
+              </div>
+              
+              {/* 左列第四行：魅 */}
+              <div className="flex items-center gap-1">
+                <span className="text-indigo-400">✨</span>
+                <span className="text-gray-400">魅</span>
+                <span className="text-white font-bold">{character.charisma}</span>
               </div>
             </div>
           </div>
