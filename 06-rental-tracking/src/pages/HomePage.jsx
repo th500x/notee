@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { updateProjectInfo } from '../utils/dataManagerAPI'
+import * as api from '../utils/apiClient'
 
 /**
  * 主页组件
@@ -45,8 +46,8 @@ function HomePage({ projects, onProjectSelect, onAddProject, onDeleteProject, on
   }
 
   // 解锁项目
-  const handleUnlockProject = (project) => {
-    if (!project.password) {
+  const handleUnlockProject = async (project) => {
+    if (!project.hasPassword) {
       // 没有密码的项目直接解锁
       const newUnlocked = { ...unlockedProjects, [project.id]: true }
       saveUnlockedProjects(newUnlocked)
@@ -58,14 +59,22 @@ function HomePage({ projects, onProjectSelect, onAddProject, onDeleteProject, on
       return false // 用户取消输入，返回解锁失败
     }
 
-    if (inputPassword === project.password) {
-      const newUnlocked = { ...unlockedProjects, [project.id]: true }
-      saveUnlockedProjects(newUnlocked)
-      alert('✅ 解锁成功')
-      return true // 返回解锁成功
-    } else {
+    // 通过后端API验证密码
+    try {
+      const response = await api.getProject(project.id, inputPassword)
+      if (response.success) {
+        const newUnlocked = { ...unlockedProjects, [project.id]: true }
+        saveUnlockedProjects(newUnlocked)
+        alert('✅ 解锁成功')
+        return true // 返回解锁成功
+      } else {
+        alert('❌ 密码错误')
+        return false // 密码错误，返回解锁失败
+      }
+    } catch (error) {
+      console.error('验证密码失败:', error)
       alert('❌ 密码错误')
-      return false // 密码错误，返回解锁失败
+      return false
     }
   }
 
@@ -125,13 +134,13 @@ function HomePage({ projects, onProjectSelect, onAddProject, onDeleteProject, on
     }
   }
   // 选择项目（检查密码保护）
-  const handleSelectProject = (project) => {
+  const handleSelectProject = async (project) => {
     // 管理员或已解锁的项目可以直接访问
     if (isAdmin || isProjectUnlocked(project.id)) {
       onProjectSelect(project)
-    } else if (project.password) {
+    } else if (project.hasPassword) {
       // 有密码的项目需要先解锁
-      const unlocked = handleUnlockProject(project)
+      const unlocked = await handleUnlockProject(project)
       // 只有解锁成功才进入项目
       if (unlocked) {
         onProjectSelect(project)
