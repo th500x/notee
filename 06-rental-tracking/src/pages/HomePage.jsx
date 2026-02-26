@@ -20,16 +20,22 @@ function HomePage({ projects, onProjectSelect, onAddProject, onDeleteProject, on
 
   // 从 sessionStorage 加载已解锁的项目
   useEffect(() => {
+    console.log('useEffect triggered, isAdmin:', isAdmin)
     try {
       const saved = sessionStorage.getItem('rental-tracking-unlocked-projects')
+      console.log('sessionStorage value:', saved)
       if (saved) {
-        setUnlockedProjects(JSON.parse(saved))
+        const parsed = JSON.parse(saved)
+        console.log('Setting unlockedProjects to:', parsed)
+        setUnlockedProjects(parsed)
       } else {
         // 如果 sessionStorage 中没有数据，清空状态
+        console.log('sessionStorage is empty, clearing unlockedProjects')
         setUnlockedProjects({})
       }
     } catch (error) {
       console.error('加载解锁状态失败:', error)
+      setUnlockedProjects({})
     }
   }, [isAdmin]) // 当 isAdmin 变化时重新加载
 
