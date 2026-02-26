@@ -63,13 +63,15 @@ function HomePage({ projects, onProjectSelect, onAddProject, onDeleteProject, on
 
   // 检查项目是否已解锁（管理员自动解锁所有项目）
   const isProjectUnlocked = (project) => {
-    console.log('isProjectUnlocked called:', { 
-      projectId: project.id, 
-      projectName: project.name,
-      hasPassword: project.hasPassword, 
-      isAdmin, 
-      unlockedProjects 
-    })
+    console.log('=== isProjectUnlocked DEBUG ===')
+    console.log('project:', project)
+    console.log('project.id:', project.id)
+    console.log('project.hasPassword:', project.hasPassword)
+    console.log('typeof project.hasPassword:', typeof project.hasPassword)
+    console.log('isAdmin:', isAdmin)
+    console.log('unlockedProjects:', unlockedProjects)
+    console.log('unlockedProjects[project.id]:', unlockedProjects[project.id])
+    console.log('unlockedProjects[project.id] === true:', unlockedProjects[project.id] === true)
     
     if (isAdmin) {
       console.log('  -> Admin mode, returning true')
@@ -78,7 +80,8 @@ function HomePage({ projects, onProjectSelect, onAddProject, onDeleteProject, on
     
     // 检查是否在已解锁列表中
     const unlocked = unlockedProjects[project.id] === true
-    console.log('  -> Unlocked status:', unlocked)
+    console.log('  -> Final unlocked status:', unlocked)
+    console.log('===============================')
     return unlocked
   }
 
