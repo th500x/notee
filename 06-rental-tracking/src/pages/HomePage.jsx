@@ -284,7 +284,7 @@ function HomePage({ projects, onProjectSelect, onAddProject, onDeleteProject, on
             {visibleProjects.map(project => {
               const stats = getProjectStats(project)
               const isUnlocked = isProjectUnlocked(project.id)
-              const hasPassword = !!project.password
+              const hasPassword = project.hasPassword // 使用后端返回的 hasPassword 字段
               
               return (
                 <ProjectCard
