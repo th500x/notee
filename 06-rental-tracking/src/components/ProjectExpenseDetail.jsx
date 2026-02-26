@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import PhotoViewer from './PhotoViewer'
 
 /**
  * 项目开支详情组件
@@ -8,8 +9,12 @@ import { useState } from 'react'
  * - 记录和显示收支明细
  * - 支持月度和年度视图
  * - 管理员功能：添加/删除记录
+ * - 支持上传和查看照片凭证
  */
 function ProjectExpenseDetail({ expense, project, selectedYear, selectedMonth, viewMode, onExpenseUpdate, isAdmin }) {
+  const [showPhotoViewer, setShowPhotoViewer] = useState(false)
+  const [viewerPhotos, setViewerPhotos] = useState([])
+  const [viewerInitialIndex, setViewerInitialIndex] = useState(0)
   // 如果没有选中项目开支，显示提示
   if (!expense) {
     return (
@@ -24,7 +29,7 @@ function ProjectExpenseDetail({ expense, project, selectedYear, selectedMonth, v
   }
 
   // 添加收支记录（管理员功能）
-  const addRecord = () => {
+  const addRecord = async () => {
     if (!isAdmin) {
       alert('请先登录管理员账号')
       return
@@ -42,14 +47,104 @@ function ProjectExpenseDetail({ expense, project, selectedYear, selectedMonth, v
 
     const note = prompt('备注（可选）：', '')
 
-    const newRecord = {
-      date: dateStr,
-      income: parseFloat(income) || 0,
-      expenses: parseFloat(expenses) || 0,
-      note: note || ''
+    // 创建文件选择器
+    const fileInput = document.createElement('input')
+    fileInput.type = 'file'
+    fileInput.accept = 'image/*'
+    fileInput.multiple = true
+    
+    fileInput.onchange = async (e) => {
+      const files = Array.from(e.target.files)
+      
+      // 限制最多3张照片
+      if (files.length > 3) {
+        alert('最多只能上传3张照片')
+        return
+      }
+
+      // 检查文件大小（每张不超过2MB）
+      const oversizedFiles = files.filter(f => f.size > 2 * 1024 * 1024)
+      if (oversizedFiles.length > 0) {
+        alert('照片大小不能超过2MB，请压缩后再上传')
+        return
+      }
+
+      // 转换为Base64
+      const photos = await Promise.all(
+        files.map(file => new Promise((resolve) => {
+          const reader = new FileReader()
+          reader.onload = (e) => {
+            resolve({
+              id: `photo-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+              data: e.target.result,
+              name: file.name,
+              size: file.size,
+              uploadedAt: new Date().toISOString()
+            })
+          }
+          reader.readAsDataURL(file)
+        }))
+      )
+
+      const newRecord = {
+        date: dateStr,
+        income: parseFloat(income) || 0,
+        expenses: parseFloat(expenses) || 0,
+        note: note || '',
+        photos: photos
+      }
+
+      const updatedRecords = [...(expense.records || []), newRecord]
+      onExpenseUpdate({
+        ...expense,
+        records: updatedRecords
+      })
     }
 
-    const updatedRecords = [...(expense.records || []), newRecord]
+    // 询问是否上传照片
+    if (confirm('是否要上传照片凭证？（最多3张，每张不超过2MB）')) {
+      fileInput.click()
+    } else {
+      // 不上传照片，直接保存
+      const newRecord = {
+        date: dateStr,
+        income: parseFloat(income) || 0,
+        expenses: parseFloat(expenses) || 0,
+        note: note || '',
+        photos: []
+      }
+
+      const updatedRecords = [...(expense.records || []), newRecord]
+      onExpenseUpdate({
+        ...expense,
+        records: updatedRecords
+      })
+    }
+  }
+
+  // 查看照片
+  const viewPhotos = (photos, initialIndex = 0) => {
+    setViewerPhotos(photos)
+    setViewerInitialIndex(initialIndex)
+    setShowPhotoViewer(true)
+  }
+
+  // 删除照片
+  const deletePhoto = (recordIndex, photoId) => {
+    if (!isAdmin) {
+      alert('请先登录管理员账号')
+      return
+    }
+
+    if (!confirm('确定要删除这张照片吗？')) return
+
+    const record = expense.records[recordIndex]
+    const updatedPhotos = record.photos.filter(p => p.id !== photoId)
+    
+    const updatedRecords = expense.records.map((r, i) => 
+      i === recordIndex ? { ...r, photos: updatedPhotos } : r
+    )
+
     onExpenseUpdate({
       ...expense,
       records: updatedRecords
@@ -177,7 +272,39 @@ function ProjectExpenseDetail({ expense, project, selectedYear, selectedMonth, v
                       </span>
                     </div>
                     {record.note && (
-                      <p className="text-sm text-gray-600">备注: {record.note}</p>
+                      <p className="text-sm text-gray-600 mb-2">备注: {record.note}</p>
+                    )}
+                    
+                    {/* 照片缩略图 */}
+                    {record.photos && record.photos.length > 0 && (
+                      <div className="flex gap-2 mt-2">
+                        {record.photos.map((photo, photoIndex) => (
+                          <div key={photo.id} className="relative group">
+                            <img
+                              src={photo.data}
+                              alt={photo.name || '照片'}
+                              className="w-20 h-20 object-cover rounded-md cursor-pointer border-2 border-gray-200 hover:border-blue-500 transition-colors"
+                              onClick={() => viewPhotos(record.photos, photoIndex)}
+                              title="点击查看大图"
+                            />
+                            {isAdmin && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  deletePhoto(index, photo.id)
+                                }}
+                                className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 text-xs opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                                title="删除照片"
+                              >
+                                ✕
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                        <div className="flex items-center text-xs text-gray-500">
+                          📷 {record.photos.length} 张
+                        </div>
+                      </div>
                     )}
                   </div>
                   {isAdmin && (
@@ -195,6 +322,15 @@ function ProjectExpenseDetail({ expense, project, selectedYear, selectedMonth, v
           )}
         </div>
       </div>
+
+      {/* 照片查看器 */}
+      {showPhotoViewer && (
+        <PhotoViewer
+          photos={viewerPhotos}
+          initialIndex={viewerInitialIndex}
+          onClose={() => setShowPhotoViewer(false)}
+        />
+      )}
     </div>
   )
 }
