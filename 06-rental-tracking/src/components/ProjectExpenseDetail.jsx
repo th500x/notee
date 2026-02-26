@@ -50,8 +50,27 @@ function ProjectExpenseDetail({ expense, project, selectedYear, selectedMonth, v
     // 询问是否上传照片
     const uploadPhoto = confirm('是否要上传照片凭证？（最多3张，每张不超过2MB）')
     
-    if (uploadPhoto) {
-      // 创建文件选择器
+    if (!uploadPhoto) {
+      // 不上传照片，直接保存
+      const newRecord = {
+        date: dateStr,
+        income: parseFloat(income) || 0,
+        expenses: parseFloat(expenses) || 0,
+        note: note || '',
+        photos: []
+      }
+
+      const updatedRecords = [...(expense.records || []), newRecord]
+      onExpenseUpdate({
+        ...expense,
+        records: updatedRecords
+      })
+      return
+    }
+
+    // 用户选择上传照片
+    // 使用 setTimeout 延迟触发，避免浏览器安全限制
+    setTimeout(() => {
       const fileInput = document.createElement('input')
       fileInput.type = 'file'
       fileInput.accept = 'image/*'
@@ -130,22 +149,7 @@ function ProjectExpenseDetail({ expense, project, selectedYear, selectedMonth, v
 
       // 触发文件选择
       fileInput.click()
-    } else {
-      // 不上传照片，直接保存
-      const newRecord = {
-        date: dateStr,
-        income: parseFloat(income) || 0,
-        expenses: parseFloat(expenses) || 0,
-        note: note || '',
-        photos: []
-      }
-
-      const updatedRecords = [...(expense.records || []), newRecord]
-      onExpenseUpdate({
-        ...expense,
-        records: updatedRecords
-      })
-    }
+    }, 100) // 延迟100毫秒
   }
 
   // 查看照片
