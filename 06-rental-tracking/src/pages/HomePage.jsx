@@ -238,16 +238,22 @@ function HomePage({ projects, onProjectSelect, onAddProject, onDeleteProject, on
             {visibleProjects.map(project => {
               const stats = getProjectStats(project)
               
+              // 调试：打印所有项目信息
+              console.log('=== Project Debug ===');
+              console.log('Name:', project.name);
+              console.log('ID:', project.id);
+              console.log('hasPassword:', project.hasPassword);
+              console.log('typeof hasPassword:', typeof project.hasPassword);
+              console.log('isAdmin:', isAdmin);
+              console.log('====================');
+              
               // 简单规则：
               // 1. 管理员 -> 显示为已解锁
               // 2. 非管理员 + 有密码 -> 显示为锁定
               // 3. 非管理员 + 无密码 -> 显示为已解锁
               const shouldShowUnlocked = isAdmin || !project.hasPassword
               
-              // 强制日志
-              if (project.hasPassword) {
-                console.log(`[${project.name}] isAdmin=${isAdmin}, hasPassword=${project.hasPassword}, shouldShowUnlocked=${shouldShowUnlocked}`)
-              }
+              console.log('shouldShowUnlocked:', shouldShowUnlocked);
               
               return (
                 <ProjectCard
