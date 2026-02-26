@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { getPropertyStatus, getCurrentPropertyStatus, getStatusText, getStatusClassName } from '../utils/propertyStatus'
 
 /**
  * 房源详情组件
@@ -15,6 +16,13 @@ import { useState } from 'react'
 function PropertyDetail({ property, project, selectedYear, selectedMonth, viewMode, onPropertyUpdate, isAdmin }) {
   const [isEditingTenant, setIsEditingTenant] = useState(false)
   const [isEditingProperty, setIsEditingProperty] = useState(false)
+  
+  // 获取当前查看月份的状态
+  const currentViewMonth = viewMode === 'month' 
+    ? `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`
+    : `${selectedYear}-01`
+  const currentStatus = property ? getPropertyStatus(property, currentViewMonth) : 'vacant'
+  
   const [tenantForm, setTenantForm] = useState({
     name: '',
     phone: '',
@@ -24,8 +32,7 @@ function PropertyDetail({ property, project, selectedYear, selectedMonth, viewMo
   const [propertyForm, setPropertyForm] = useState({
     name: '',
     monthlyRent: 0,
-    deposit: 0,
-    status: 'vacant'
+    deposit: 0
   })
 
   // 如果没有选中房源，显示提示
@@ -121,8 +128,7 @@ function PropertyDetail({ property, project, selectedYear, selectedMonth, viewMo
     setPropertyForm({
       name: property.name,
       monthlyRent: property.monthlyRent,
-      deposit: property.deposit || 0,
-      status: property.status
+      deposit: property.deposit || 0
     })
     setIsEditingProperty(true)
   }
@@ -153,8 +159,7 @@ function PropertyDetail({ property, project, selectedYear, selectedMonth, viewMo
       ...property,
       name: propertyForm.name,
       monthlyRent: parseFloat(propertyForm.monthlyRent),
-      deposit: parseFloat(propertyForm.deposit),
-      status: propertyForm.status
+      deposit: parseFloat(propertyForm.deposit)
     })
     setIsEditingProperty(false)
   }
@@ -284,18 +289,6 @@ function PropertyDetail({ property, project, selectedYear, selectedMonth, viewMo
                 placeholder="请输入押金"
               />
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">房源状态</label>
-              <select
-                value={propertyForm.status}
-                onChange={(e) => setPropertyForm({ ...propertyForm, status: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                <option value="rented">出租中</option>
-                <option value="new-contract">新合同</option>
-                <option value="vacant">空置中</option>
-              </select>
-            </div>
             <div className="flex gap-2">
               <button
                 onClick={savePropertyInfo}
@@ -327,14 +320,8 @@ function PropertyDetail({ property, project, selectedYear, selectedMonth, viewMo
             </div>
             <div>
               <p className="text-sm text-gray-600">房源状态</p>
-              <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${
-                property.status === 'rented'
-                  ? 'bg-green-100 text-green-800'
-                  : property.status === 'new-contract'
-                  ? 'bg-blue-100 text-blue-800'
-                  : 'bg-gray-100 text-gray-800'
-              }`}>
-                {property.status === 'rented' ? '出租中' : property.status === 'new-contract' ? '新合同' : '空置中'}
+              <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${getStatusClassName(currentStatus)}`}>
+                {getStatusText(currentStatus)}
               </span>
             </div>
           </div>
@@ -342,11 +329,11 @@ function PropertyDetail({ property, project, selectedYear, selectedMonth, viewMo
       </div>
 
       {/* 租客信息卡片 */}
-      {((property.status === 'rented' || property.status === 'new-contract') || isEditingTenant) && (
+      {((currentStatus === 'rented' || currentStatus === 'new-contract') || isEditingTenant) && (
         <div className="bg-white rounded-lg shadow-md p-6">
           <div className="flex justify-between items-center mb-4">
             <h3 className="text-lg font-bold text-gray-900">租客信息</h3>
-            {(property.status === 'rented' || property.status === 'new-contract') && !isEditingTenant && isAdmin && (
+            {(currentStatus === 'rented' || currentStatus === 'new-contract') && !isEditingTenant && isAdmin && (
               <button
                 onClick={editTenantInfo}
                 className="px-3 py-1 bg-gray-600 text-white text-sm rounded-md hover:bg-gray-700 transition-colors"

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { updateProjectInfo } from '../utils/dataManagerAPI'
 import * as api from '../utils/apiClient'
+import { getCurrentPropertyStatus } from '../utils/propertyStatus'
 
 /**
  * 主页组件
@@ -161,9 +162,12 @@ function HomePage({ projects, onProjectSelect, onAddProject, onDeleteProject, on
     
     const totalProperties = properties.length
     
-    // 计算缴租率（出租中 + 新合同）
+    // 计算缴租率（出租中 + 新合同）- 使用当前状态
     const rentedAndNewContract = properties.filter(
-      p => p.status === 'rented' || p.status === 'new-contract'
+      p => {
+        const status = getCurrentPropertyStatus(p)
+        return status === 'rented' || status === 'new-contract'
+      }
     ).length
     
     // 计算本月收支
@@ -177,8 +181,9 @@ function HomePage({ projects, onProjectSelect, onAddProject, onDeleteProject, on
     
     // 统计房源收支和缴租情况
     properties.forEach(property => {
-      // 只统计出租中和新合同的房源
-      if (property.status === 'rented' || property.status === 'new-contract') {
+      // 只统计出租中和新合同的房源 - 使用当前状态
+      const status = getCurrentPropertyStatus(property)
+      if (status === 'rented' || status === 'new-contract') {
         const hasPaid = property.records?.some(record => 
           record.date === currentMonthStr && (record.income || 0) > 0
         )

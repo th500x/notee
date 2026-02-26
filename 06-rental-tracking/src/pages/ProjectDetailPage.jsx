@@ -4,6 +4,7 @@ import PropertyDetail from '../components/PropertyDetail'
 import ProjectExpenseDetail from '../components/ProjectExpenseDetail'
 import StatisticsPanel from '../components/StatisticsPanel'
 import TimeSelector from '../components/TimeSelector'
+import { getCurrentPropertyStatus, getStatusText, getStatusClassName } from '../utils/propertyStatus'
 
 /**
  * 项目详情页组件
@@ -47,7 +48,6 @@ function ProjectDetailPage({ project, onBack, onProjectUpdate, isAdmin }) {
     const newProperty = {
       id: `property-${Date.now()}`,
       name: propertyName,
-      status: 'vacant',
       monthlyRent: parseFloat(monthlyRent),
       deposit: parseFloat(deposit),
       tenant: null,
@@ -397,14 +397,8 @@ function PropertyListPanel({ project, selectedProperty, onPropertySelect, onAddP
                 
                 {/* 右列：状态 + 删除按钮 */}
                 <div className="flex items-center justify-end gap-2">
-                  <span className={`px-2 py-0.5 rounded text-xs font-medium ${
-                    property.status === 'rented'
-                      ? 'bg-green-100 text-green-700'
-                      : property.status === 'new-contract'
-                      ? 'bg-blue-100 text-blue-700'
-                      : 'bg-gray-100 text-gray-700'
-                  }`}>
-                    {property.status === 'rented' ? '出租中' : property.status === 'new-contract' ? '新合同' : '空置中'}
+                  <span className={`px-2 py-0.5 rounded text-xs font-medium ${getStatusClassName(getCurrentPropertyStatus(property))}`}>
+                    {getStatusText(getCurrentPropertyStatus(property))}
                   </span>
                   {isAdmin && (
                     <button
@@ -432,19 +426,19 @@ function PropertyListPanel({ project, selectedProperty, onPropertySelect, onAddP
             <div className="text-center p-2 bg-green-50 rounded">
               <div className="text-xs text-gray-600">出租中</div>
               <div className="text-lg font-bold text-green-600">
-                {project.properties.filter(p => p.status === 'rented').length}
+                {project.properties.filter(p => getCurrentPropertyStatus(p) === 'rented').length}
               </div>
             </div>
             <div className="text-center p-2 bg-blue-50 rounded">
               <div className="text-xs text-gray-600">新合同</div>
               <div className="text-lg font-bold text-blue-600">
-                {project.properties.filter(p => p.status === 'new-contract').length}
+                {project.properties.filter(p => getCurrentPropertyStatus(p) === 'new-contract').length}
               </div>
             </div>
             <div className="text-center p-2 bg-gray-50 rounded">
               <div className="text-xs text-gray-600">空置中</div>
               <div className="text-lg font-bold text-gray-600">
-                {project.properties.filter(p => p.status === 'vacant').length}
+                {project.properties.filter(p => getCurrentPropertyStatus(p) === 'vacant').length}
               </div>
             </div>
           </div>
