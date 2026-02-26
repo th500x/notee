@@ -5,8 +5,11 @@
  */
 
 // API 基础 URL
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3002';
-const API_PREFIX = '/api/rental-tracking';
+// 生产环境使用相对路径 /rental-api/，开发环境使用 localhost:3003
+const API_BASE_URL = import.meta.env.PROD 
+  ? '/rental-api' // 生产环境使用 Nginx 代理路径
+  : (import.meta.env.VITE_API_URL || 'http://localhost:3003');
+const API_PREFIX = '';
 
 /**
  * 发送 API 请求

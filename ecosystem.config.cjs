@@ -17,18 +17,42 @@ module.exports = {
       autorestart: true,
       max_restarts: 10,
       min_uptime: '10s'
+    },
+    {
+      name: 'notee-guestbook',
+      script: './backend/server.js',
+      cwd: '/www/wwwroot/notee',
+      instances: 1,
+      exec_mode: 'fork',
+      env: {
+        NODE_ENV: 'production',
+        PORT: 3002
+      },
+      error_file: './logs/guestbook-error.log',
+      out_file: './logs/guestbook-out.log',
+      log_file: './logs/guestbook.log',
+      time: true,
+      autorestart: true,
+      max_restarts: 10,
+      min_uptime: '10s'
+    },
+    {
+      name: 'notee-rental-tracking',
+      script: './backend/rental-tracking-server.js',
+      cwd: '/www/wwwroot/notee',
+      instances: 1,
+      exec_mode: 'fork',
+      env: {
+        NODE_ENV: 'production',
+        PORT: 3003
+      },
+      error_file: './logs/rental-tracking-error.log',
+      out_file: './logs/rental-tracking-out.log',
+      log_file: './logs/rental-tracking.log',
+      time: true,
+      autorestart: true,
+      max_restarts: 10,
+      min_uptime: '10s'
     }
-    // Future pages can be added here
-    // {
-    //   name: 'notee-page2',
-    //   script: './page2/backend/server.js',
-    //   cwd: '/www/wwwroot/notee',
-    //   instances: 1,
-    //   exec_mode: 'fork',
-    //   env: {
-    //     NODE_ENV: 'production',
-    //     PORT: 3002
-    //   }
-    // }
   ]
 }
