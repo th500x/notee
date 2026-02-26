@@ -14,8 +14,8 @@ import {
   getErrorMessage
 } from './passwordAttemptLimiter.js';
 
-// 全局管理员密码（优先使用环境变量）
-const GLOBAL_ADMIN_PASSWORD = process.env.GLOBAL_ADMIN_PASSWORD || 'notee.vip.2026';
+// 全局管理员密码
+const GLOBAL_ADMIN_PASSWORD = 'notee.vip.2026';
 
 // 密码尝试标识符
 const IDENTIFIER = 'global_admin';
@@ -58,9 +58,6 @@ export const verifyGlobalPassword = (inputPassword) => {
  * @returns {string} 全局密码
  */
 export const getGlobalPassword = () => {
-  if (process.env.NODE_ENV === 'development') {
-    return GLOBAL_ADMIN_PASSWORD;
-  }
   return '***';
 };
 
