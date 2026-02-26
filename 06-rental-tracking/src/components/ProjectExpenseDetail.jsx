@@ -15,7 +15,7 @@ function ProjectExpenseDetail({ expense, project, selectedYear, selectedMonth, v
   const [showPhotoViewer, setShowPhotoViewer] = useState(false)
   const [viewerPhotos, setViewerPhotos] = useState([])
   const [viewerInitialIndex, setViewerInitialIndex] = useState(0)
-  const [pendingRecordData, setPendingRecordData] = useState(null)
+  const [uploadingRecordIndex, setUploadingRecordIndex] = useState(null)
   const fileInputRef = useRef(null)
   // 如果没有选中项目开支，显示提示
   if (!expense) {
@@ -34,21 +34,11 @@ function ProjectExpenseDetail({ expense, project, selectedYear, selectedMonth, v
   const handleFileSelect = async (e) => {
     const files = Array.from(e.target.files)
     
-    if (!pendingRecordData) return
+    if (uploadingRecordIndex === null) return
     
-    // 如果用户取消选择，保存不带照片的记录
+    // 如果用户取消选择，直接返回
     if (files.length === 0) {
-      const newRecord = {
-        ...pendingRecordData,
-        photos: []
-      }
-      const updatedRecords = [...(expense.records || []), newRecord]
-      onExpenseUpdate({
-        ...expense,
-        records: updatedRecords
-      })
-      setPendingRecordData(null)
-      // 重置文件输入
+      setUploadingRecordIndex(null)
       e.target.value = ''
       return
     }
@@ -75,7 +65,7 @@ function ProjectExpenseDetail({ expense, project, selectedYear, selectedMonth, v
           const reader = new FileReader()
           reader.onload = (e) => {
             resolve({
-              id: `photo-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+              id: `photo-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`,
               data: e.target.result,
               name: file.name,
               size: file.size,
@@ -87,17 +77,22 @@ function ProjectExpenseDetail({ expense, project, selectedYear, selectedMonth, v
         }))
       )
 
-      const newRecord = {
-        ...pendingRecordData,
-        photos: photos
-      }
+      // 获取当前记录并添加照片
+      const record = expense.records[uploadingRecordIndex]
+      const existingPhotos = record.photos || []
+      const updatedPhotos = [...existingPhotos, ...photos]
 
-      const updatedRecords = [...(expense.records || []), newRecord]
+      // 更新记录
+      const updatedRecords = expense.records.map((r, i) => 
+        i === uploadingRecordIndex ? { ...r, photos: updatedPhotos } : r
+      )
+
       onExpenseUpdate({
         ...expense,
         records: updatedRecords
       })
-      setPendingRecordData(null)
+      
+      setUploadingRecordIndex(null)
     } catch (error) {
       console.error('照片上传失败:', error)
       alert('照片上传失败，请重试')
@@ -105,6 +100,15 @@ function ProjectExpenseDetail({ expense, project, selectedYear, selectedMonth, v
     
     // 重置文件输入
     e.target.value = ''
+  }
+
+  // 触发照片上传
+  const triggerPhotoUpload = (recordIndex) => {
+    setUploadingRecordIndex(recordIndex)
+    // 直接触发文件选择
+    if (fileInputRef.current) {
+      fileInputRef.current.click()
+    }
   }
 
   // 添加收支记录（管理员功能）
@@ -126,39 +130,19 @@ function ProjectExpenseDetail({ expense, project, selectedYear, selectedMonth, v
 
     const note = prompt('备注（可选）：', '')
 
-    const recordData = {
+    const newRecord = {
       date: dateStr,
       income: parseFloat(income) || 0,
       expenses: parseFloat(expenses) || 0,
-      note: note || ''
+      note: note || '',
+      photos: []
     }
 
-    // 询问是否上传照片
-    const uploadPhoto = confirm('是否要上传照片凭证？（最多3张，每张不超过2MB）')
-    
-    if (!uploadPhoto) {
-      // 不上传照片，直接保存
-      const newRecord = {
-        ...recordData,
-        photos: []
-      }
-      const updatedRecords = [...(expense.records || []), newRecord]
-      onExpenseUpdate({
-        ...expense,
-        records: updatedRecords
-      })
-      return
-    }
-
-    // 保存待处理的记录数据
-    setPendingRecordData(recordData)
-    
-    // 触发文件选择
-    setTimeout(() => {
-      if (fileInputRef.current) {
-        fileInputRef.current.click()
-      }
-    }, 100)
+    const updatedRecords = [...(expense.records || []), newRecord]
+    onExpenseUpdate({
+      ...expense,
+      records: updatedRecords
+    })
   }
 
   // 查看照片
@@ -347,13 +331,22 @@ function ProjectExpenseDetail({ expense, project, selectedYear, selectedMonth, v
                     )}
                   </div>
                   {isAdmin && (
-                    <button
-                      onClick={() => deleteRecord(index)}
-                      className="text-red-500 hover:text-red-700 ml-4"
-                      title="删除记录"
-                    >
-                      🗑️
-                    </button>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => triggerPhotoUpload(index)}
+                        className="text-blue-500 hover:text-blue-700"
+                        title="上传照片"
+                      >
+                        📷
+                      </button>
+                      <button
+                        onClick={() => deleteRecord(index)}
+                        className="text-red-500 hover:text-red-700"
+                        title="删除记录"
+                      >
+                        🗑️
+                      </button>
+                    </div>
                   )}
                 </div>
               </div>
