@@ -269,7 +269,19 @@ function HomePage({ projects, onProjectSelect, onAddProject, onDeleteProject, on
               // 2. 没有密码 -> 显示为已解锁
               // 3. 有密码且已解锁 -> 显示为已解锁
               // 4. 有密码且未解锁 -> 显示为锁定
+              
+              console.log('=== Rendering ProjectCard ===');
+              console.log('Project:', project.name, project.id);
+              console.log('hasPassword:', project.hasPassword);
+              console.log('isAdmin:', isAdmin);
+              console.log('unlockedProjects:', unlockedProjects);
+              console.log('unlockedProjects.has(project.id):', unlockedProjects.has(project.id));
+              console.log('isProjectUnlocked(project.id):', isProjectUnlocked(project.id));
+              
               const shouldShowUnlocked = isAdmin || !project.hasPassword || isProjectUnlocked(project.id)
+              
+              console.log('shouldShowUnlocked:', shouldShowUnlocked);
+              console.log('============================');
               
               return (
                 <ProjectCard
