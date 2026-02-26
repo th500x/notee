@@ -17,6 +17,18 @@ function HomePage({ projects, onProjectSelect, onAddProject, onDeleteProject, on
   const [editingProject, setEditingProject] = useState(null)
   const [showEditDialog, setShowEditDialog] = useState(false)
   const [unlockedProjects, setUnlockedProjects] = useState({}) // 记录已解锁的项目
+  const [prevIsAdmin, setPrevIsAdmin] = useState(isAdmin) // 记录上一次的 isAdmin 状态
+
+  // 监听 isAdmin 变化，立即清空解锁状态
+  if (prevIsAdmin !== isAdmin) {
+    console.log('isAdmin changed from', prevIsAdmin, 'to', isAdmin)
+    setPrevIsAdmin(isAdmin)
+    if (!isAdmin) {
+      // 退出管理员时，立即清空解锁状态
+      console.log('Clearing unlockedProjects immediately')
+      setUnlockedProjects({})
+    }
+  }
 
   // 从 sessionStorage 加载已解锁的项目
   useEffect(() => {
@@ -37,7 +49,7 @@ function HomePage({ projects, onProjectSelect, onAddProject, onDeleteProject, on
       console.error('加载解锁状态失败:', error)
       setUnlockedProjects({})
     }
-  }, [isAdmin]) // 当 isAdmin 变化时重新加载
+  }, []) // 只在组件挂载时加载一次
 
   // 保存已解锁的项目到 sessionStorage
   const saveUnlockedProjects = (unlocked) => {
