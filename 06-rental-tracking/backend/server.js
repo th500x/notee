@@ -98,10 +98,10 @@ app.get('/projects', async (req, res) => {
         // 返回完整项目数据，但隐藏密码字段，并确保 hasPassword 是布尔值
         const { password, hasPassword: _, ...projectData } = project;
         return {
-          hasPassword: !!password, // 先设置 hasPassword
-          ...projectData, // 再展开其他数据
+          ...projectData, // 先展开其他数据
           properties: project.properties || [],
-          expenses: project.expenses || []
+          expenses: project.expenses || [],
+          hasPassword: !!password // 最后设置 hasPassword，确保覆盖任何旧值
         };
       }
       return null;
