@@ -87,9 +87,9 @@ function PropertyDetail({ property, project, selectedYear, selectedMonth, viewMo
       return
     }
 
+    // 保持原有状态，不自动改变
     onPropertyUpdate({
       ...property,
-      status: 'rented',
       tenant: tenantForm
     })
     setIsEditingTenant(false)
@@ -386,7 +386,16 @@ function PropertyDetail({ property, project, selectedYear, selectedMonth, viewMo
                     type="date"
                     value={tenantForm.startDate}
                     onChange={(e) => setTenantForm({ ...tenantForm, startDate: e.target.value })}
+                    onKeyDown={(e) => {
+                      // 当输入完整日期后，按Enter键自动跳转到下一个字段
+                      if (e.key === 'Enter' && tenantForm.startDate) {
+                        e.preventDefault()
+                        const endDateInput = e.target.parentElement.nextElementSibling?.querySelector('input')
+                        if (endDateInput) endDateInput.focus()
+                      }
+                    }}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="YYYY-MM-DD"
                   />
                 </div>
                 <div>
@@ -396,6 +405,7 @@ function PropertyDetail({ property, project, selectedYear, selectedMonth, viewMo
                     value={tenantForm.endDate}
                     onChange={(e) => setTenantForm({ ...tenantForm, endDate: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="YYYY-MM-DD"
                   />
                 </div>
               </div>
