@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import PhotoViewer from './PhotoViewer'
 
 /**
@@ -15,6 +15,8 @@ function ProjectExpenseDetail({ expense, project, selectedYear, selectedMonth, v
   const [showPhotoViewer, setShowPhotoViewer] = useState(false)
   const [viewerPhotos, setViewerPhotos] = useState([])
   const [viewerInitialIndex, setViewerInitialIndex] = useState(0)
+  const [pendingRecordData, setPendingRecordData] = useState(null)
+  const fileInputRef = useRef(null)
   // 如果没有选中项目开支，显示提示
   if (!expense) {
     return (
@@ -28,8 +30,85 @@ function ProjectExpenseDetail({ expense, project, selectedYear, selectedMonth, v
     )
   }
 
+  // 处理文件选择
+  const handleFileSelect = async (e) => {
+    const files = Array.from(e.target.files)
+    
+    if (!pendingRecordData) return
+    
+    // 如果用户取消选择，保存不带照片的记录
+    if (files.length === 0) {
+      const newRecord = {
+        ...pendingRecordData,
+        photos: []
+      }
+      const updatedRecords = [...(expense.records || []), newRecord]
+      onExpenseUpdate({
+        ...expense,
+        records: updatedRecords
+      })
+      setPendingRecordData(null)
+      // 重置文件输入
+      e.target.value = ''
+      return
+    }
+    
+    // 限制最多3张照片
+    if (files.length > 3) {
+      alert('最多只能上传3张照片')
+      e.target.value = ''
+      return
+    }
+
+    // 检查文件大小（每张不超过2MB）
+    const oversizedFiles = files.filter(f => f.size > 2 * 1024 * 1024)
+    if (oversizedFiles.length > 0) {
+      alert('照片大小不能超过2MB，请压缩后再上传')
+      e.target.value = ''
+      return
+    }
+
+    // 转换为Base64
+    try {
+      const photos = await Promise.all(
+        files.map(file => new Promise((resolve, reject) => {
+          const reader = new FileReader()
+          reader.onload = (e) => {
+            resolve({
+              id: `photo-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+              data: e.target.result,
+              name: file.name,
+              size: file.size,
+              uploadedAt: new Date().toISOString()
+            })
+          }
+          reader.onerror = reject
+          reader.readAsDataURL(file)
+        }))
+      )
+
+      const newRecord = {
+        ...pendingRecordData,
+        photos: photos
+      }
+
+      const updatedRecords = [...(expense.records || []), newRecord]
+      onExpenseUpdate({
+        ...expense,
+        records: updatedRecords
+      })
+      setPendingRecordData(null)
+    } catch (error) {
+      console.error('照片上传失败:', error)
+      alert('照片上传失败，请重试')
+    }
+    
+    // 重置文件输入
+    e.target.value = ''
+  }
+
   // 添加收支记录（管理员功能）
-  const addRecord = async () => {
+  const addRecord = () => {
     if (!isAdmin) {
       alert('请先登录管理员账号')
       return
@@ -47,19 +126,22 @@ function ProjectExpenseDetail({ expense, project, selectedYear, selectedMonth, v
 
     const note = prompt('备注（可选）：', '')
 
+    const recordData = {
+      date: dateStr,
+      income: parseFloat(income) || 0,
+      expenses: parseFloat(expenses) || 0,
+      note: note || ''
+    }
+
     // 询问是否上传照片
     const uploadPhoto = confirm('是否要上传照片凭证？（最多3张，每张不超过2MB）')
     
     if (!uploadPhoto) {
       // 不上传照片，直接保存
       const newRecord = {
-        date: dateStr,
-        income: parseFloat(income) || 0,
-        expenses: parseFloat(expenses) || 0,
-        note: note || '',
+        ...recordData,
         photos: []
       }
-
       const updatedRecords = [...(expense.records || []), newRecord]
       onExpenseUpdate({
         ...expense,
@@ -68,88 +150,15 @@ function ProjectExpenseDetail({ expense, project, selectedYear, selectedMonth, v
       return
     }
 
-    // 用户选择上传照片
-    // 使用 setTimeout 延迟触发，避免浏览器安全限制
+    // 保存待处理的记录数据
+    setPendingRecordData(recordData)
+    
+    // 触发文件选择
     setTimeout(() => {
-      const fileInput = document.createElement('input')
-      fileInput.type = 'file'
-      fileInput.accept = 'image/*'
-      fileInput.multiple = true
-      
-      fileInput.onchange = async (e) => {
-        const files = Array.from(e.target.files)
-        
-        // 如果用户取消选择，保存不带照片的记录
-        if (files.length === 0) {
-          const newRecord = {
-            date: dateStr,
-            income: parseFloat(income) || 0,
-            expenses: parseFloat(expenses) || 0,
-            note: note || '',
-            photos: []
-          }
-          const updatedRecords = [...(expense.records || []), newRecord]
-          onExpenseUpdate({
-            ...expense,
-            records: updatedRecords
-          })
-          return
-        }
-        
-        // 限制最多3张照片
-        if (files.length > 3) {
-          alert('最多只能上传3张照片')
-          return
-        }
-
-        // 检查文件大小（每张不超过2MB）
-        const oversizedFiles = files.filter(f => f.size > 2 * 1024 * 1024)
-        if (oversizedFiles.length > 0) {
-          alert('照片大小不能超过2MB，请压缩后再上传')
-          return
-        }
-
-        // 转换为Base64
-        try {
-          const photos = await Promise.all(
-            files.map(file => new Promise((resolve, reject) => {
-              const reader = new FileReader()
-              reader.onload = (e) => {
-                resolve({
-                  id: `photo-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-                  data: e.target.result,
-                  name: file.name,
-                  size: file.size,
-                  uploadedAt: new Date().toISOString()
-                })
-              }
-              reader.onerror = reject
-              reader.readAsDataURL(file)
-            }))
-          )
-
-          const newRecord = {
-            date: dateStr,
-            income: parseFloat(income) || 0,
-            expenses: parseFloat(expenses) || 0,
-            note: note || '',
-            photos: photos
-          }
-
-          const updatedRecords = [...(expense.records || []), newRecord]
-          onExpenseUpdate({
-            ...expense,
-            records: updatedRecords
-          })
-        } catch (error) {
-          console.error('照片上传失败:', error)
-          alert('照片上传失败，请重试')
-        }
+      if (fileInputRef.current) {
+        fileInputRef.current.click()
       }
-
-      // 触发文件选择
-      fileInput.click()
-    }, 100) // 延迟100毫秒
+    }, 100)
   }
 
   // 查看照片
@@ -352,6 +361,16 @@ function ProjectExpenseDetail({ expense, project, selectedYear, selectedMonth, v
           )}
         </div>
       </div>
+
+      {/* 隐藏的文件输入 */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        multiple
+        onChange={handleFileSelect}
+        style={{ display: 'none' }}
+      />
 
       {/* 照片查看器 */}
       {showPhotoViewer && (
