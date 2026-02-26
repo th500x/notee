@@ -1,0 +1,261 @@
+/**
+ * 数据管理工具 - API 版本
+ * 
+ * 功能：
+ * - 从后端 API 加载数据
+ * - 保存数据到后端 API
+ * - 提供与 localStorage 版本兼容的接口
+ */
+
+import * as api from './apiClient';
+
+// 缓存管理员密码（仅在会话期间）
+let cachedAdminPassword = null;
+
+/**
+ * 设置管理员密码缓存
+ */
+export function setAdminPassword(password) {
+  cachedAdminPassword = password;
+  if (password) {
+    sessionStorage.setItem('rental-tracking-admin-pwd', password);
+  } else {
+    sessionStorage.removeItem('rental-tracking-admin-pwd');
+  }
+}
+
+/**
+ * 获取缓存的管理员密码
+ */
+export function getAdminPassword() {
+  if (!cachedAdminPassword) {
+    cachedAdminPassword = sessionStorage.getItem('rental-tracking-admin-pwd');
+  }
+  return cachedAdminPassword;
+}
+
+/**
+ * 清除管理员密码缓存
+ */
+export function clearAdminPassword() {
+  cachedAdminPassword = null;
+  sessionStorage.removeItem('rental-tracking-admin-pwd');
+}
+
+/**
+ * 从 API 加载数据
+ */
+export const loadRentalData = async () => {
+  try {
+    const adminPassword = getAdminPassword();
+    const response = await api.getProjects(adminPassword);
+    
+    if (response.success) {
+      return { projects: response.projects };
+    }
+    
+    console.error('加载数据失败:', response.error);
+    return { projects: [] };
+  } catch (error) {
+    console.error('加载数据失败:', error);
+    // 如果 API 不可用，返回空数据
+    return { projects: [] };
+  }
+};
+
+/**
+ * 保存数据到 API
+ * 注意：这个函数保存整个数据结构，实际使用中应该使用更细粒度的 API
+ */
+export const saveRentalData = async (data) => {
+  try {
+    const adminPassword = getAdminPassword();
+    
+    // 遍历所有项目并更新
+    for (const project of data.projects) {
+      try {
+        await api.updateProjectData(project.id, project, adminPassword);
+      } catch (error) {
+        console.error(`保存项目 ${project.id} 失败:`, error);
+      }
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('保存数据失败:', error);
+    alert('保存数据失败，请检查网络连接');
+    return false;
+  }
+};
+
+/**
+ * 创建新项目
+ */
+export const createProject = async (projectData) => {
+  try {
+    const adminPassword = getAdminPassword();
+    if (!adminPassword) {
+      throw new Error('需要管理员权限');
+    }
+    
+    const response = await api.createProject(projectData, adminPassword);
+    
+    if (response.success) {
+      return response.project;
+    }
+    
+    throw new Error(response.error || '创建项目失败');
+  } catch (error) {
+    console.error('创建项目失败:', error);
+    throw error;
+  }
+};
+
+/**
+ * 更新项目信息
+ */
+export const updateProjectInfo = async (projectId, projectData) => {
+  try {
+    const adminPassword = getAdminPassword();
+    if (!adminPassword) {
+      throw new Error('需要管理员权限');
+    }
+    
+    const response = await api.updateProject(projectId, projectData, adminPassword);
+    
+    if (response.success) {
+      return response.project;
+    }
+    
+    throw new Error(response.error || '更新项目失败');
+  } catch (error) {
+    console.error('更新项目失败:', error);
+    throw error;
+  }
+};
+
+/**
+ * 删除项目
+ */
+export const deleteProject = async (projectId) => {
+  try {
+    const adminPassword = getAdminPassword();
+    if (!adminPassword) {
+      throw new Error('需要管理员权限');
+    }
+    
+    const response = await api.deleteProject(projectId, adminPassword);
+    
+    if (response.success) {
+      return true;
+    }
+    
+    throw new Error(response.error || '删除项目失败');
+  } catch (error) {
+    console.error('删除项目失败:', error);
+    throw error;
+  }
+};
+
+/**
+ * 更新项目数据（包括房源、开支等）
+ */
+export const updateProjectData = async (project) => {
+  try {
+    const adminPassword = getAdminPassword();
+    const response = await api.updateProjectData(project.id, project, adminPassword);
+    
+    if (response.success) {
+      return true;
+    }
+    
+    throw new Error(response.error || '更新项目数据失败');
+  } catch (error) {
+    console.error('更新项目数据失败:', error);
+    throw error;
+  }
+};
+
+/**
+ * 获取项目详情（需要密码）
+ */
+export const getProjectDetail = async (projectId, projectPassword = null) => {
+  try {
+    const adminPassword = getAdminPassword();
+    const response = await api.getProject(projectId, projectPassword, adminPassword);
+    
+    if (response.success) {
+      return response.project;
+    }
+    
+    throw new Error(response.error || '获取项目详情失败');
+  } catch (error) {
+    console.error('获取项目详情失败:', error);
+    throw error;
+  }
+};
+
+/**
+ * 导出数据为 JSON 文件
+ */
+export const exportData = (data) => {
+  try {
+    const dataStr = JSON.stringify(data, null, 2);
+    const blob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `rental-tracking-${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    return true;
+  } catch (error) {
+    console.error('导出数据失败:', error);
+    alert('导出数据失败');
+    return false;
+  }
+};
+
+/**
+ * 导入数据从 JSON 文件
+ */
+export const importData = (file) => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    
+    reader.onload = (e) => {
+      try {
+        const data = JSON.parse(e.target.result);
+        // 验证数据结构
+        if (data && Array.isArray(data.projects)) {
+          resolve(data);
+        } else {
+          reject(new Error('无效的数据格式'));
+        }
+      } catch (error) {
+        reject(error);
+      }
+    };
+    
+    reader.onerror = () => {
+      reject(new Error('读取文件失败'));
+    };
+    
+    reader.readAsText(file);
+  });
+};
+
+/**
+ * 健康检查
+ */
+export const checkAPIHealth = async () => {
+  try {
+    const response = await api.healthCheck();
+    return response.status === 'ok';
+  } catch (error) {
+    console.error('API健康检查失败:', error);
+    return false;
+  }
+};

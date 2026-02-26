@@ -9,6 +9,7 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const guestbookRouter = require('./guestbook');
+const rentalTrackingRouter = require('./rental-tracking');
 
 const app = express();
 const PORT = process.env.PORT || 3002;
@@ -21,8 +22,12 @@ const allowedOrigins = [
   'http://www.notee.vip',
   'http://localhost:5173',
   'http://localhost:5174',
+  'http://localhost:5175',
+  'http://localhost:5176',
   'http://127.0.0.1:5173',
   'http://127.0.0.1:5174',
+  'http://127.0.0.1:5175',
+  'http://127.0.0.1:5176',
   'http://47.113.185.170'
 ];
 
@@ -54,6 +59,9 @@ app.use(express.json({ limit: '1mb' }));
 // 留言板路由
 app.use('/api/guestbook', guestbookRouter);
 
+// 租赁追踪路由
+app.use('/api/rental-tracking', rentalTrackingRouter);
+
 // 健康检查
 app.get('/api/health', (req, res) => {
   res.json({ 
@@ -84,6 +92,7 @@ app.use('*', (req, res) => {
 app.listen(PORT, () => {
   console.log(`🚀 共享后端服务运行在 http://localhost:${PORT}`);
   console.log(`📝 留言板API: http://localhost:${PORT}/api/guestbook`);
+  console.log(`🏠 租赁追踪API: http://localhost:${PORT}/api/rental-tracking`);
   console.log(`💚 健康检查: http://localhost:${PORT}/api/health`);
 });
 

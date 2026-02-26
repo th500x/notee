@@ -117,13 +117,39 @@ const getMachineFingerprint = () => {
   return Math.abs(hash).toString(36);
 };
 
-// 获取IP地址（模拟）
-const getClientIP = async () => {
+// 获取IP地址和地理位置
+const getClientIPAndLocation = async () => {
   try {
-    // 实际项目中应该通过后端API获取
-    return '192.168.1.100'; // 模拟IP
+    // 使用免费的IP地理位置API
+    const response = await fetch('https://ipapi.co/json/');
+    const data = await response.json();
+    
+    return {
+      ip: data.ip || 'unknown',
+      province: data.region || '未知', // region字段通常是省份
+      city: data.city || '未知',
+      country: data.country_name || '未知'
+    };
   } catch (error) {
-    return 'unknown';
+    console.error('获取IP地理位置失败:', error);
+    // 如果API失败，尝试备用方案
+    try {
+      const response = await fetch('https://api.ipify.org?format=json');
+      const data = await response.json();
+      return {
+        ip: data.ip || 'unknown',
+        province: '未知',
+        city: '未知',
+        country: '未知'
+      };
+    } catch (err) {
+      return {
+        ip: 'unknown',
+        province: '未知',
+        city: '未知',
+        country: '未知'
+      };
+    }
   }
 };
 
@@ -215,14 +241,14 @@ const GameAuthSystem = () => {
     setLoading(true);
     
     try {
-      // 获取机器指纹和IP
+      // 获取机器指纹、IP和地理位置
       const machineId = getMachineFingerprint();
-      const clientIP = await getClientIP();
+      const locationData = await getClientIPAndLocation();
       
       // 检查是否已经注册过
       const existingUsers = JSON.parse(localStorage.getItem('gameUsers') || '[]');
       const duplicateUser = existingUsers.find(user => 
-        user.machineId === machineId || user.clientIP === clientIP
+        user.machineId === machineId || user.clientIP === locationData.ip
       );
       
       if (duplicateUser) {
@@ -237,8 +263,10 @@ const GameAuthSystem = () => {
         password: password, // 实际项目中应该加密
         serverId: selectedServer.id,
         serverName: selectedServer.name,
+        province: locationData.province, // 自动获取的省份
+        city: locationData.city, // 城市信息
         machineId: machineId,
-        clientIP: clientIP,
+        clientIP: locationData.ip,
         registeredAt: new Date().toISOString(),
         lastLoginAt: new Date().toISOString()
       };

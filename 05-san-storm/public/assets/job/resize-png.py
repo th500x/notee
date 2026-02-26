@@ -3,7 +3,7 @@
 """
 PNG图片批量缩放脚本
 功能：
-1. 将当前目录（仅本目录，不包括子文件夹）中的所有PNG图片缩放到64x64
+1. 将当前目录（仅本目录，不包括子文件夹）中的所有PNG图片缩放到指定分辨率
 2. 保持透明背景
 3. 直接覆盖原文件
 
@@ -17,9 +17,20 @@ import os
 from pathlib import Path
 from PIL import Image
 
+# 分辨率选项
+RESOLUTION_OPTIONS = {
+    "1": (64, 64, "64x64 - 瓦片/小图标"),
+    "2": (256, 256, "256x256 - 中等图片"),
+    "3": (384, 384, "384x384 - 大图片"),
+    "4": (512, 512, "512x512 - 超大图片"),
+    "5": (128, 64, "128x64 - 功能图片"),
+    "6": (256, 128, "256x128 - 功能图片"),
+    "7": (36, 36, "36x36 - 功能图片"),
+}
+
 def main():
     print("=" * 50)
-    print("PNG图片批量缩放到64x64")
+    print("PNG图片批量缩放工具")
     print("=" * 50)
     print()
     
@@ -48,22 +59,28 @@ def main():
         print(f"  {i}. {file_path.name}")
     print()
     
-    # 询问用户是否继续
-    print("即将处理以下操作：")
-    print("1. 缩放所有PNG到 64x64 分辨率")
-    print("2. 保持透明背景")
-    print("3. 直接覆盖原文件")
-    print()
-    print("⚠️  警告：此操作会覆盖原文件，请确保已备份重要文件！")
+    # 选择分辨率
+    print("请选择目标分辨率：")
+    for key, (width, height, desc) in RESOLUTION_OPTIONS.items():
+        print(f"  {key}. {desc}")
     print()
     
-    confirm = input("是否继续？(Y/N): ").strip().upper()
+    while True:
+        choice = input("请输入选项 (1/2/3/4/5/6/7): ").strip()
+        if choice in RESOLUTION_OPTIONS:
+            target_width, target_height, desc = RESOLUTION_OPTIONS[choice]
+            break
+        else:
+            print("无效选项，请重新输入！")
     
-    if confirm != "Y":
-        print("操作已取消")
-        input("\n按回车键退出...")
-        return
+    print()
+    print(f"已选择: {desc}")
+    print()
     
+
+
+
+
     print()
     print("开始处理...")
     print()
@@ -84,9 +101,9 @@ def main():
                 original_size = img.size
                 print(f"  原始尺寸: {original_size[0]}x{original_size[1]}")
                 
-                # 如果已经是64x64，跳过
-                if original_size == (64, 64):
-                    print(f"  -> 跳过（已经是64x64）")
+                # 如果已经是目标尺寸，跳过
+                if original_size == (target_width, target_height):
+                    print(f"  -> 跳过（已经是{target_width}x{target_height}）")
                     skip_count += 1
                     continue
                 
@@ -96,17 +113,17 @@ def main():
                     if img.mode != 'RGBA':
                         img = img.convert('RGBA')
                     
-                    # 缩放到64x64（使用高质量重采样）
-                    resized_img = img.resize((64, 64), Image.Resampling.LANCZOS)
+                    # 缩放到目标尺寸（使用高质量重采样）
+                    resized_img = img.resize((target_width, target_height), Image.Resampling.LANCZOS)
                     
                     # 保存为PNG，保持透明度
                     resized_img.save(file_path, "PNG", optimize=True)
                 else:
                     # 没有透明通道的图片
-                    resized_img = img.resize((64, 64), Image.Resampling.LANCZOS)
+                    resized_img = img.resize((target_width, target_height), Image.Resampling.LANCZOS)
                     resized_img.save(file_path, "PNG", optimize=True)
             
-            print(f"  -> 成功: 已缩放到 64x64")
+            print(f"  -> 成功: 已缩放到 {target_width}x{target_height}")
             success_count += 1
             
         except Exception as e:

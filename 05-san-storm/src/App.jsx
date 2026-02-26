@@ -22,6 +22,8 @@ import { LifeStageCard } from '@/components/character/LifeStageDetail';
 import TroopCardExample from '@/components/troop/TroopCardExample';
 import TroopFormationSystem from '@/components/formation/TroopFormationSystem';
 import GameAuthSystem from '@/components/auth/GameAuthSystem';
+import CampaignDisplay from '@/components/campaign/CampaignDisplay';
+import CampaignList from '@/components/campaign/CampaignList';
 import UserManager from '@/components/admin/UserManager';
 import AdminSetup from '@/components/admin/AdminSetup';
 import { hasAdminAccess } from '@/utils/adminAuth';
@@ -125,6 +127,12 @@ function App() {
                 >
                   M2验证模块-2
                 </Link>
+                <Link 
+                  to="/m2-verification-3" 
+                  className="text-gray-700 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium whitespace-nowrap"
+                >
+                  M2验证模块-3
+                </Link>
                 {isAdminUser && (
                   <Link 
                     to="/user-manager" 
@@ -217,6 +225,13 @@ function App() {
                 >
                   M2验证模块-2
                 </Link>
+                <Link 
+                  to="/m2-verification-3" 
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="block text-gray-700 hover:text-gray-900 hover:bg-gray-50 px-3 py-2 rounded-md text-base font-medium"
+                >
+                  M2验证模块-3
+                </Link>
                 {isAdminUser && (
                   <Link 
                     to="/user-manager" 
@@ -243,6 +258,8 @@ function App() {
             <Route path="/troop-cards" element={<TroopCardExample />} />
             <Route path="/m2-verification" element={<M2VerificationPage />} />
             <Route path="/m2-verification-2" element={<M2Verification2Page />} />
+            <Route path="/m2-verification-3" element={<CampaignList />} />
+            <Route path="/m2-verification-3/:campaignId" element={<CampaignDisplay />} />
             <Route path="/user-manager" element={<UserManagerPage />} />
           </Routes>
         </main>
@@ -345,6 +362,7 @@ function WeeklyReportModal({ onClose }) {
                   <ul className="space-y-1 text-gray-600">
                     <li>• M2验证模块-1（部队编组系统）</li>
                     <li>• M2验证模块-2（用户注册系统）</li>
+                    <li>• M2验证模块-3（战役地图展示）</li>
                     <li>• 用户管理模块</li>
                   </ul>
                 </div>
@@ -531,6 +549,12 @@ function HomePage() {
           title="M2验证模块-2"
           description="游戏注册登录系统验证"
           link="/m2-verification-2"
+        />
+        <FeatureCard 
+          icon="🗺️"
+          title="M2验证模块-3"
+          description="战役地图展示系统验证"
+          link="/m2-verification-3"
         />
         {isAdminUser && (
           <FeatureCard 

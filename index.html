@@ -134,23 +134,6 @@
                 </div>
             </div>
 
-            <!-- 區塊指標 Card - 注释掉超链接 -->
-            <div class="card-hover bg-white rounded-xl shadow-lg overflow-hidden cursor-pointer opacity-50 self-start" onclick="showComingSoon('區塊指標')">
-            <!-- <div class="card-hover bg-white rounded-xl shadow-lg overflow-hidden cursor-pointer" onclick="navigateToCoinIndex()"> -->
-                <div class="coin-gradient h-32 flex items-center justify-center">
-                    <div class="text-white text-center">
-                        <div class="text-4xl mb-2">📊</div>
-                        <h3 class="text-2xl font-bold">區塊指標</h3>
-                    </div>
-                </div>
-                <div class="p-6">
-                    <p class="text-gray-600 text-center">
-                        区块链市场数据分析<br>
-                        周度指标追踪和趋势分析
-                    </p>
-                </div>
-            </div>
-
             <!-- Page 3 Card -->
             <div class="card-hover bg-white rounded-xl shadow-lg overflow-hidden cursor-pointer opacity-50 self-start" onclick="showComingSoon('功能三')">
                 <div class="page3-gradient h-32 flex items-center justify-center">
@@ -167,18 +150,18 @@
                 </div>
             </div>
 
-            <!-- Page 6 Card -->
-            <div class="card-hover bg-white rounded-xl shadow-lg overflow-hidden cursor-pointer opacity-50 self-start" onclick="showComingSoon('功能六')">
+            <!-- 租賃追蹤 Card -->
+            <div class="card-hover bg-white rounded-xl shadow-lg overflow-hidden cursor-pointer" onclick="navigateToRentalTracking()">
                 <div class="page6-gradient h-32 flex items-center justify-center">
                     <div class="text-white text-center">
-                        <div class="text-4xl mb-2">🎯</div>
-                        <h3 class="text-2xl font-bold">功能六</h3>
+                        <div class="text-4xl mb-2">🏠</div>
+                        <h3 class="text-2xl font-bold">租賃追蹤</h3>
                     </div>
                 </div>
                 <div class="p-6">
                     <p class="text-gray-600 text-center">
-                        敬请期待...<br>
-                        更多精彩功能即将上线
+                        房源租赁管理与收支追踪<br>
+                        支持多项目和详细统计
                     </p>
                 </div>
             </div>
@@ -490,6 +473,10 @@
         
         function navigateToSanStorm() {
             window.location.href = '/05-san-storm/';
+        }
+        
+        function navigateToRentalTracking() {
+            window.location.href = '/06-rental-tracking/';
         }
         
         function showComingSoon(featureName) {

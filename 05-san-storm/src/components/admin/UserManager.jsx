@@ -194,6 +194,13 @@ const UserManager = () => {
               <span className="ml-2">{currentUser.serverName}</span>
             </div>
             <div>
+              <span className="font-medium">地理位置:</span> 
+              <span className="ml-2">
+                {currentUser.province || '未知'}
+                {currentUser.city && ` - ${currentUser.city}`}
+              </span>
+            </div>
+            <div>
               <span className="font-medium">注册时间:</span> 
               <span className="ml-2">{formatTime(currentUser.registeredAt)}</span>
             </div>
@@ -227,6 +234,9 @@ const UserManager = () => {
                     服务器
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    地理位置
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     注册时间
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -258,6 +268,12 @@ const UserManager = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       {user.serverName}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      <div>
+                        <div className="font-medium">{user.province || '未知'}</div>
+                        {user.city && <div className="text-xs text-gray-500">{user.city}</div>}
+                      </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {formatTime(user.registeredAt)}
