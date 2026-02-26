@@ -19,23 +19,9 @@ const DATA_FILE = path.join(__dirname, 'data', 'rental-tracking.json');
 // 全局管理员密码
 const GLOBAL_ADMIN_PASSWORD = process.env.GLOBAL_ADMIN_PASSWORD || 'notee.vip.2026';
 
-// CORS配置
-const allowedOrigins = [
-  'https://notee.vip',
-  'https://www.notee.vip',
-  'http://localhost:5176',
-  'http://127.0.0.1:5176'
-];
-
+// CORS配置 - 开发环境允许所有来源
 app.use(cors({
-  origin: function (origin, callback) {
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV !== 'production') {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
+  origin: true, // 允许所有来源（开发环境）
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
