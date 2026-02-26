@@ -185,7 +185,7 @@ function HomePage({ projects, onProjectSelect, onAddProject, onDeleteProject, on
       {/* 欢迎区域 */}
       <div className="text-center py-12 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg">
         <h2 className="text-4xl font-bold text-gray-900 mb-4">
-          欢迎使用租賃追蹤系统
+          欢迎使用租賃追蹤系统 v2.0
         </h2>
         <p className="text-xl text-gray-600">
           房源租赁管理与收支追踪
