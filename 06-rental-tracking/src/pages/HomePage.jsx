@@ -24,11 +24,14 @@ function HomePage({ projects, onProjectSelect, onAddProject, onDeleteProject, on
       const saved = sessionStorage.getItem('rental-tracking-unlocked-projects')
       if (saved) {
         setUnlockedProjects(JSON.parse(saved))
+      } else {
+        // 如果 sessionStorage 中没有数据，清空状态
+        setUnlockedProjects({})
       }
     } catch (error) {
       console.error('加载解锁状态失败:', error)
     }
-  }, [])
+  }, [isAdmin]) // 当 isAdmin 变化时重新加载
 
   // 保存已解锁的项目到 sessionStorage
   const saveUnlockedProjects = (unlocked) => {
@@ -139,6 +142,14 @@ function HomePage({ projects, onProjectSelect, onAddProject, onDeleteProject, on
   }
   // 选择项目（检查密码保护）
   const handleSelectProject = async (project) => {
+    console.log('=== handleSelectProject Debug ===')
+    console.log('project:', project)
+    console.log('project.hasPassword:', project.hasPassword)
+    console.log('isAdmin:', isAdmin)
+    console.log('isProjectUnlocked(project):', isProjectUnlocked(project))
+    console.log('unlockedProjects:', unlockedProjects)
+    console.log('================================')
+    
     // 管理员或已解锁的项目可以直接访问
     if (isAdmin || isProjectUnlocked(project)) {
       onProjectSelect(project)
