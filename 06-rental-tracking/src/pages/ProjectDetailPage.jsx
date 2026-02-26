@@ -38,11 +38,18 @@ function ProjectDetailPage({ project, onBack, onProjectUpdate, isAdmin }) {
       return
     }
 
+    const deposit = prompt('请输入押金：', monthlyRent) // 默认押金等于租金
+    if (!deposit || isNaN(deposit)) {
+      alert('请输入有效的押金金额')
+      return
+    }
+
     const newProperty = {
       id: `property-${Date.now()}`,
       name: propertyName,
       status: 'vacant',
       monthlyRent: parseFloat(monthlyRent),
+      deposit: parseFloat(deposit),
       tenant: null,
       records: []
     }
@@ -369,16 +376,23 @@ function PropertyListPanel({ project, selectedProperty, onPropertySelect, onAddP
                   : 'bg-gray-50 hover:bg-gray-100 border-2 border-transparent'
               }`}
             >
-              {/* 3列布局：房源编号 | 租金 | 状态 */}
-              <div className="grid grid-cols-3 gap-2 items-center">
+              {/* 4列布局：房源编号 | 租金 | 押金 | 状态 */}
+              <div className="grid grid-cols-4 gap-2 items-center">
                 {/* 左列：房源编号 */}
                 <div className="text-sm font-medium truncate">
                   {property.name}
                 </div>
                 
-                {/* 中列：租金 */}
+                {/* 第二列：租金 */}
                 <div className="text-xs text-gray-600 text-center">
-                  ฿{property.monthlyRent}
+                  <div className="text-[10px] text-gray-500">租金</div>
+                  <div>฿{property.monthlyRent}</div>
+                </div>
+                
+                {/* 第三列：押金 */}
+                <div className="text-xs text-gray-600 text-center">
+                  <div className="text-[10px] text-gray-500">押金</div>
+                  <div>฿{property.deposit || 0}</div>
                 </div>
                 
                 {/* 右列：状态 + 删除按钮 */}

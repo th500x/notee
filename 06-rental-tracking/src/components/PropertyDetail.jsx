@@ -24,6 +24,7 @@ function PropertyDetail({ property, project, selectedYear, selectedMonth, viewMo
   const [propertyForm, setPropertyForm] = useState({
     name: '',
     monthlyRent: 0,
+    deposit: 0,
     status: 'vacant'
   })
 
@@ -120,6 +121,7 @@ function PropertyDetail({ property, project, selectedYear, selectedMonth, viewMo
     setPropertyForm({
       name: property.name,
       monthlyRent: property.monthlyRent,
+      deposit: property.deposit || 0,
       status: property.status
     })
     setIsEditingProperty(true)
@@ -142,10 +144,16 @@ function PropertyDetail({ property, project, selectedYear, selectedMonth, viewMo
       return
     }
 
+    if (!propertyForm.deposit || propertyForm.deposit < 0) {
+      alert('请填写有效的押金')
+      return
+    }
+
     onPropertyUpdate({
       ...property,
       name: propertyForm.name,
       monthlyRent: parseFloat(propertyForm.monthlyRent),
+      deposit: parseFloat(propertyForm.deposit),
       status: propertyForm.status
     })
     setIsEditingProperty(false)
@@ -266,6 +274,17 @@ function PropertyDetail({ property, project, selectedYear, selectedMonth, viewMo
               />
             </div>
             <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">押金 *</label>
+              <input
+                type="number"
+                min="0"
+                value={propertyForm.deposit}
+                onChange={(e) => setPropertyForm({ ...propertyForm, deposit: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="请输入押金"
+              />
+            </div>
+            <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">房源状态</label>
               <select
                 value={propertyForm.status}
@@ -293,14 +312,18 @@ function PropertyDetail({ property, project, selectedYear, selectedMonth, viewMo
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div>
               <p className="text-sm text-gray-600">房源编号</p>
               <p className="text-base font-medium">{property.name}</p>
             </div>
             <div>
-              <p className="text-sm text-gray-600">月租金</p>
+              <p className="text-sm text-gray-600">租金</p>
               <p className="text-base font-medium text-blue-600">฿{property.monthlyRent.toLocaleString()}</p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-600">押金</p>
+              <p className="text-base font-medium text-purple-600">฿{(property.deposit || 0).toLocaleString()}</p>
             </div>
             <div>
               <p className="text-sm text-gray-600">房源状态</p>
