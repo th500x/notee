@@ -4,7 +4,7 @@ import PropertyDetail from '../components/PropertyDetail'
 import ProjectExpenseDetail from '../components/ProjectExpenseDetail'
 import StatisticsPanel from '../components/StatisticsPanel'
 import TimeSelector from '../components/TimeSelector'
-import { getCurrentPropertyStatus, getStatusText, getStatusClassName } from '../utils/propertyStatus'
+import { getCurrentPropertyStatus, getStatusText, getStatusClassName, getCurrentPropertyBackgroundColor } from '../utils/propertyStatus'
 
 /**
  * 项目详情页组件
@@ -366,16 +366,18 @@ function PropertyListPanel({ project, selectedProperty, onPropertySelect, onAddP
             </p>
           </div>
         ) : (
-          project.properties.map(property => (
-            <div
-              key={property.id}
-              onClick={() => onPropertySelect(property)}
-              className={`px-3 py-3 rounded-md cursor-pointer transition-colors ${
-                selectedProperty?.id === property.id
-                  ? 'bg-blue-100 border-2 border-blue-500'
-                  : 'bg-gray-50 hover:bg-gray-100 border-2 border-transparent'
-              }`}
-            >
+          project.properties.map(property => {
+            const bgColor = getCurrentPropertyBackgroundColor(property)
+            return (
+              <div
+                key={property.id}
+                onClick={() => onPropertySelect(property)}
+                className={`px-3 py-3 rounded-md cursor-pointer transition-colors ${
+                  selectedProperty?.id === property.id
+                    ? 'bg-blue-100 border-2 border-blue-500'
+                    : `${bgColor} border-2 border-transparent`
+                }`}
+              >
               {/* 4列布局：房源编号 | 租金 | 押金 | 状态 */}
               <div className="grid grid-cols-4 gap-2 items-center">
                 {/* 左列：房源编号 */}
@@ -415,7 +417,8 @@ function PropertyListPanel({ project, selectedProperty, onPropertySelect, onAddP
                 </div>
               </div>
             </div>
-          ))
+            )
+          })
         )}
       </div>
 

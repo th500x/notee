@@ -98,6 +98,61 @@ export function setPropertyStatus(property, targetMonth, status) {
 }
 
 /**
+ * 检查房源在指定月份是否已缴租
+ * 
+ * @param {Object} property - 房源对象
+ * @param {string} targetMonth - 目标月份 (格式: YYYY-MM)
+ * @returns {boolean} 是否已缴租
+ */
+export function hasPropertyPaid(property, targetMonth) {
+  const record = property.records?.find(r => r.date === targetMonth)
+  return record && (record.income || 0) > 0
+}
+
+/**
+ * 获取房源在指定月份的背景色类名
+ * 优先级：未缴租（红色）> 新合同（蓝色）> 空置中（灰色）> 出租中（白色）
+ * 
+ * @param {Object} property - 房源对象
+ * @param {string} targetMonth - 目标月份 (格式: YYYY-MM)
+ * @returns {string} Tailwind CSS 类名
+ */
+export function getPropertyBackgroundColor(property, targetMonth) {
+  const status = getPropertyStatus(property, targetMonth)
+  const hasPaid = hasPropertyPaid(property, targetMonth)
+  
+  // 优先级1：如果是出租中或新合同，但未缴租 → 淡红色
+  if ((status === 'rented' || status === 'new-contract') && !hasPaid) {
+    return 'bg-red-50 hover:bg-red-100'
+  }
+  
+  // 优先级2：新合同 → 淡蓝色
+  if (status === 'new-contract') {
+    return 'bg-blue-50 hover:bg-blue-100'
+  }
+  
+  // 优先级3：空置中 → 淡灰色
+  if (status === 'vacant') {
+    return 'bg-gray-50 hover:bg-gray-100'
+  }
+  
+  // 默认：出租中且已缴租 → 白色
+  return 'bg-white hover:bg-gray-50'
+}
+
+/**
+ * 获取房源当前月份的背景色类名
+ * 
+ * @param {Object} property - 房源对象
+ * @returns {string} Tailwind CSS 类名
+ */
+export function getCurrentPropertyBackgroundColor(property) {
+  const now = new Date()
+  const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+  return getPropertyBackgroundColor(property, currentMonth)
+}
+
+/**
  * 获取状态的显示文本
  * 
  * @param {string} status - 状态
