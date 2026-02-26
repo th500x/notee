@@ -50,18 +50,22 @@ function HomePage({ projects, onProjectSelect, onAddProject, onDeleteProject, on
       // 没有密码的项目直接解锁
       const newUnlocked = { ...unlockedProjects, [project.id]: true }
       saveUnlockedProjects(newUnlocked)
-      return
+      return true // 返回解锁成功
     }
 
     const inputPassword = prompt(`请输入项目"${project.name}"的访问密码：`)
-    if (!inputPassword) return
+    if (!inputPassword) {
+      return false // 用户取消输入，返回解锁失败
+    }
 
     if (inputPassword === project.password) {
       const newUnlocked = { ...unlockedProjects, [project.id]: true }
       saveUnlockedProjects(newUnlocked)
       alert('✅ 解锁成功')
+      return true // 返回解锁成功
     } else {
       alert('❌ 密码错误')
+      return false // 密码错误，返回解锁失败
     }
   }
 
@@ -127,7 +131,11 @@ function HomePage({ projects, onProjectSelect, onAddProject, onDeleteProject, on
       onProjectSelect(project)
     } else if (project.password) {
       // 有密码的项目需要先解锁
-      handleUnlockProject(project)
+      const unlocked = handleUnlockProject(project)
+      // 只有解锁成功才进入项目
+      if (unlocked) {
+        onProjectSelect(project)
+      }
     } else {
       // 没有密码的项目直接解锁并访问
       const newUnlocked = { ...unlockedProjects, [project.id]: true }
