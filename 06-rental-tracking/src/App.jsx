@@ -135,6 +135,13 @@ function App() {
       sessionStorage.removeItem('rental-tracking-admin')
       // 清除所有已解锁的项目
       sessionStorage.removeItem('rental-tracking-unlocked-projects')
+      
+      // 如果当前在项目详情页，强制返回主页
+      if (currentView === 'project-detail') {
+        setCurrentView('home')
+        setSelectedProject(null)
+      }
+      
       alert('已退出管理员模式')
       // 重新加载数据以过滤隐藏的项目
       reloadData()
