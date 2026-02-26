@@ -16,26 +16,8 @@ import { getCurrentPropertyStatus } from '../utils/propertyStatus'
 function HomePage({ projects, onProjectSelect, onAddProject, onDeleteProject, onUpdateProject, isAdmin }) {
   const [editingProject, setEditingProject] = useState(null)
   const [showEditDialog, setShowEditDialog] = useState(false)
-  const [unlockedProjects, setUnlockedProjects] = useState(new Set()) // 使用 Set 存储已解锁的项目ID
 
-  // 检查项目是否已解锁
-  const isProjectUnlocked = (projectId) => {
-    return unlockedProjects.has(projectId)
-  }
-
-  // 解锁项目
-  const unlockProject = (projectId) => {
-    setUnlockedProjects(prev => new Set([...prev, projectId]))
-  }
-
-  // 当 isAdmin 变化时，清空解锁列表
-  useEffect(() => {
-    if (!isAdmin) {
-      setUnlockedProjects(new Set())
-    }
-  }, [isAdmin])
-
-  // 解锁项目
+  // 解锁项目（验证密码）
   const handleUnlockProject = async (project) => {
     const inputPassword = prompt(`请输入项目"${project.name}"的访问密码：`)
     if (!inputPassword) {
@@ -45,8 +27,9 @@ function HomePage({ projects, onProjectSelect, onAddProject, onDeleteProject, on
     try {
       const response = await api.getProject(project.id, inputPassword)
       if (response.success) {
-        unlockProject(project.id)
-        alert('✅ 解锁成功')
+        alert('✅ 密码正确')
+        // 直接进入项目，不保存解锁状态
+        onProjectSelect(project)
         return true
       } else {
         alert('❌ 密码错误')
@@ -121,17 +104,8 @@ function HomePage({ projects, onProjectSelect, onAddProject, onDeleteProject, on
       return
     }
     
-    // 有密码的项目，检查是否已解锁
-    if (isProjectUnlocked(project.id)) {
-      onProjectSelect(project)
-      return
-    }
-    
-    // 未解锁，需要输入密码
-    const unlocked = await handleUnlockProject(project)
-    if (unlocked) {
-      onProjectSelect(project)
-    }
+    // 有密码的项目，每次都需要输入密码
+    await handleUnlockProject(project)
   }
 
   // 计算项目统计数据
@@ -264,24 +238,11 @@ function HomePage({ projects, onProjectSelect, onAddProject, onDeleteProject, on
             {visibleProjects.map(project => {
               const stats = getProjectStats(project)
               
-              // 判断是否应该显示为已解锁状态
+              // 简单规则：
               // 1. 管理员 -> 显示为已解锁
-              // 2. 没有密码 -> 显示为已解锁
-              // 3. 有密码且已解锁 -> 显示为已解锁
-              // 4. 有密码且未解锁 -> 显示为锁定
-              
-              console.log('=== Rendering ProjectCard ===');
-              console.log('Project:', project.name, project.id);
-              console.log('hasPassword:', project.hasPassword);
-              console.log('isAdmin:', isAdmin);
-              console.log('unlockedProjects:', unlockedProjects);
-              console.log('unlockedProjects.has(project.id):', unlockedProjects.has(project.id));
-              console.log('isProjectUnlocked(project.id):', isProjectUnlocked(project.id));
-              
-              const shouldShowUnlocked = isAdmin || !project.hasPassword || isProjectUnlocked(project.id)
-              
-              console.log('shouldShowUnlocked:', shouldShowUnlocked);
-              console.log('============================');
+              // 2. 非管理员 + 有密码 -> 显示为锁定
+              // 3. 非管理员 + 无密码 -> 显示为已解锁
+              const shouldShowUnlocked = isAdmin || !project.hasPassword
               
               return (
                 <ProjectCard
