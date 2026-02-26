@@ -1,7 +1,7 @@
 ﻿# 部署标准与编码规范
 
-**版本**: v1.3  
-**更新时间**: 2026-02-11  
+**版本**: v1.4  
+**更新时间**: 2026-02-26  
 **适用范围**: 真三风云项目及所有子路径部署的React项目
 
 ---
@@ -11,10 +11,11 @@
 1. [Git同步规范](#git同步规范)（⚠️ 重要！必读！）
 2. [Nginx配置规范](#nginx配置规范)（⚠️ 重要！必读！）
 3. [文件编码规范](#文件编码规范)（⚠️ 重要！）
-4. [配置规范](#配置规范)
-5. [编码规范](#编码规范)
-6. [数据加载规范](#数据加载规范)
-7. [部署检查清单](#部署检查清单)
+4. [密码管理规范](#密码管理规范)（⚠️ 重要！必读！）
+5. [配置规范](#配置规范)
+6. [编码规范](#编码规范)
+7. [数据加载规范](#数据加载规范)
+8. [部署检查清单](#部署检查清单)
 
 ---
 
@@ -366,6 +367,293 @@ server {
 3. ✅ **location和alias路径末尾统一加斜杠**
 4. ✅ **每次修改后测试：nginx -t && nginx -s reload**
 5. ✅ **遇到空白页先检查JS/CSS是否404**
+
+---
+
+## ⚠️ 密码管理规范（重要！必读！）
+
+### 🚨 关键教训：密码字段的保存和加载问题
+
+#### 问题案例（2026-02-26 - 租赁追踪系统）
+
+**症状**：
+- 退出管理员后，有密码的项目直接显示完整信息，没有显示锁定状态（🔒）
+- 编辑项目时，密码输入框显示为空
+- 用户以为密码没有保存，实际上是前端逻辑问题
+
+**根本原因**：
+1. **后端安全措施**：API返回项目列表时，为了安全会移除 `password` 字段，只返回 `hasPassword` 布尔值
+2. **前端编辑逻辑错误**：编辑项目时直接使用 `project.password`，但这个字段已经被后端移除了
+3. **保存逻辑错误**：保存时如果密码字段为空，会把现有密码清空
+
+#### ❌ 错误的实现方式
+
+```javascript
+// ❌ 错误1：编辑时直接使用 project.password（已被后端移除）
+const handleEditProject = (project) => {
+  setEditingProject({
+    ...project,
+    password: project.password || '',  // ❌ project.password 是 undefined
+  })
+}
+
+// ❌ 错误2：保存时总是更新密码字段（即使为空）
+const handleSaveProject = async () => {
+  await updateProjectInfo(projectId, {
+    name: editingProject.name,
+    password: editingProject.password,  // ❌ 空字符串会清空现有密码
+  })
+}
+
+// ❌ 错误3：后端无条件更新密码
+router.put('/projects/:id', async (req, res) => {
+  const { password } = req.body;
+  project.password = password;  // ❌ 空字符串会清空现有密码
+})
+```
+
+#### ✅ 正确的实现方式
+
+**前端：编辑项目时**
+```javascript
+// ✅ 正确：不显示现有密码，提供清晰的提示
+const handleEditProject = (project) => {
+  setEditingProject({
+    ...project,
+    password: '',  // 留空，不显示现有密码
+    passwordPlaceholder: project.hasPassword 
+      ? '留空表示不修改密码'  // 有密码的项目
+      : '留空表示无需密码',   // 无密码的项目
+  })
+}
+```
+
+**前端：保存项目时**
+```javascript
+// ✅ 正确：只有当密码输入框有内容时才更新密码
+const handleSaveProject = async () => {
+  const updateData = {
+    name: editingProject.name,
+    description: editingProject.description,
+  }
+  
+  // 只有当密码输入框有内容时才更新密码
+  if (editingProject.password) {
+    updateData.password = editingProject.password
+  }
+  
+  await updateProjectInfo(projectId, updateData)
+}
+```
+
+**前端：密码输入框UI**
+```jsx
+{/* ✅ 正确：使用动态提示文本 */}
+<input
+  type="password"
+  value={project.password || ''}
+  onChange={(e) => onChange({ ...project, password: e.target.value })}
+  placeholder={project.passwordPlaceholder || '留空表示无需密码'}
+/>
+<p className="text-xs text-gray-500 mt-1">
+  {project.passwordPlaceholder || '设置后，访问此项目需要输入密码'}
+</p>
+```
+
+**后端：更新项目时**
+```javascript
+// ✅ 正确：只有当 password 字段存在时才更新
+router.put('/projects/:id', async (req, res) => {
+  const { password } = req.body;
+  
+  // 只有当 password 字段存在时才更新密码
+  // undefined = 不更新，空字符串 = 清除密码
+  if (password !== undefined) {
+    project.password = password;
+  }
+})
+```
+
+**后端：返回项目列表时**
+```javascript
+// ✅ 正确：移除密码字段，返回 hasPassword 布尔值
+router.get('/projects', async (req, res) => {
+  const projects = data.projects.map(project => {
+    const { password, ...projectData } = project;
+    return {
+      ...projectData,
+      hasPassword: !!password  // 转换为布尔值
+    };
+  });
+  
+  res.json({ success: true, projects });
+})
+```
+
+### 密码管理的核心原则
+
+#### 1. 前后端分离原则
+
+| 层级 | 职责 | 不应该做 |
+|------|------|---------|
+| 后端 | 存储和验证密码 | ❌ 返回明文密码 |
+| 前端 | 显示密码状态（有/无） | ❌ 存储明文密码 |
+| API | 传输 hasPassword 布尔值 | ❌ 传输密码明文 |
+
+#### 2. 编辑密码的UX原则
+
+```
+新建项目：
+- 密码输入框：空
+- 提示文本："留空表示无需密码"
+- 保存逻辑：保存输入的密码（可以为空）
+
+编辑项目（有密码）：
+- 密码输入框：空（不显示现有密码）
+- 提示文本："留空表示不修改密码"
+- 保存逻辑：只有输入新密码时才更新
+
+编辑项目（无密码）：
+- 密码输入框：空
+- 提示文本："留空表示无需密码"
+- 保存逻辑：只有输入密码时才设置
+```
+
+#### 3. 密码验证的状态管理
+
+```javascript
+// ✅ 正确：不保存解锁状态，每次都重新验证
+const handleSelectProject = async (project) => {
+  // 管理员直接访问
+  if (isAdmin) {
+    onProjectSelect(project)
+    return
+  }
+  
+  // 没有密码的项目直接访问
+  if (!project.hasPassword) {
+    onProjectSelect(project)
+    return
+  }
+  
+  // 有密码的项目，每次都需要输入密码
+  await handleUnlockProject(project)
+}
+
+// ❌ 错误：保存解锁状态（会导致退出管理员后仍然显示为解锁）
+const [unlockedProjects, setUnlockedProjects] = useState(new Set())
+```
+
+### 常见错误和解决方案
+
+| 错误现象 | 原因 | 解决方案 |
+|---------|------|---------|
+| 编辑项目时密码框为空 | 后端不返回密码字段 | ✅ 正常现象，添加提示文本 |
+| 保存后密码被清空 | 前端总是发送空密码 | ✅ 只有输入新密码时才发送 |
+| 退出管理员后仍显示解锁 | 保存了解锁状态 | ✅ 不保存状态，每次验证 |
+| 无法设置密码 | 后端忽略空字符串 | ✅ 区分 undefined 和空字符串 |
+
+### 调试密码问题的步骤
+
+**步骤1：检查后端返回的数据**
+```javascript
+// 在浏览器控制台查看
+console.log('Project data:', project);
+console.log('hasPassword:', project.hasPassword);
+console.log('password field:', project.password);  // 应该是 undefined
+```
+
+**步骤2：检查前端状态**
+```javascript
+// 在编辑对话框打开时查看
+console.log('Editing project:', editingProject);
+console.log('Password value:', editingProject.password);
+console.log('Placeholder:', editingProject.passwordPlaceholder);
+```
+
+**步骤3：检查保存请求**
+```javascript
+// 在保存时查看发送的数据
+console.log('Update data:', updateData);
+// 应该只在有新密码时包含 password 字段
+```
+
+**步骤4：检查后端日志**
+```javascript
+// 在后端路由中添加日志
+console.log('Received update:', req.body);
+console.log('Password field:', req.body.password);
+console.log('Password is undefined:', req.body.password === undefined);
+```
+
+### 安全最佳实践
+
+#### 1. 密码传输
+```javascript
+// ✅ 正确：使用HTTPS传输
+// ✅ 正确：密码字段使用 type="password"
+// ✅ 正确：不在URL中传递密码
+// ✅ 正确：使用POST/PUT请求体传递密码
+
+// ❌ 错误：在URL中传递密码
+fetch(`/api/projects?password=${password}`)  // ❌ 不安全
+
+// ✅ 正确：在请求体中传递密码
+fetch('/api/projects', {
+  method: 'POST',
+  body: JSON.stringify({ password })
+})
+```
+
+#### 2. 密码存储
+```javascript
+// ✅ 推荐：使用bcrypt等加密算法（生产环境）
+const bcrypt = require('bcrypt');
+const hashedPassword = await bcrypt.hash(password, 10);
+
+// ⚠️ 可接受：明文存储（仅用于简单项目）
+// 注意：不要在生产环境使用明文密码
+```
+
+#### 3. 密码验证
+```javascript
+// ✅ 正确：每次访问都验证密码
+// ✅ 正确：管理员可以绕过密码验证
+// ✅ 正确：验证失败返回明确的错误信息
+
+// ❌ 错误：保存解锁状态在localStorage
+// ❌ 错误：使用前端验证代替后端验证
+```
+
+### 参考实现
+
+可以参考以下项目的密码管理实现：
+- `02-tale-historical`：分类密码保护，使用 `unlockedCategories` 状态
+- `06-rental-tracking`：项目密码保护，每次访问都验证
+
+### 经验教训总结
+
+1. **不要假设后端返回密码字段**
+   - 后端为了安全会移除密码字段
+   - 使用 `hasPassword` 布尔值判断是否有密码
+
+2. **编辑时不显示现有密码**
+   - 提供清晰的提示文本
+   - 只有输入新密码时才更新
+
+3. **不要保存解锁状态**
+   - 每次访问都重新验证密码
+   - 退出管理员时自动上锁
+
+4. **区分 undefined 和空字符串**
+   - `undefined`：不更新密码
+   - 空字符串：清除密码
+   - 非空字符串：设置新密码
+
+5. **提供良好的用户体验**
+   - 清晰的提示文本
+   - 合理的默认行为
+   - 明确的错误信息
 
 ---
 
@@ -723,11 +1011,13 @@ ComponentName.propTypes = {
 
 ### 核心原则
 
-1. **Nginx配置**：不要添加全局静态资源正则规则⚠️
-2. **文件编码**：始终使用UTF-8（无BOM）⚠️
-3. **配置一致性**：vite base、Router basename、数据路径保持一致
-4. **统一工具**：使用 dataLoader 统一处理数据加载
-5. **避免硬编码**：使用 BASE_URL 动态构建路径
+1. **Git同步**：每次修改后立即同步，不要积累多个修改⚠️
+2. **Nginx配置**：不要添加全局静态资源正则规则⚠️
+3. **文件编码**：始终使用UTF-8（无BOM）⚠️
+4. **密码管理**：不显示现有密码，只在输入新密码时更新⚠️
+5. **配置一致性**：vite base、Router basename、数据路径保持一致
+6. **统一工具**：使用 dataLoader 统一处理数据加载
+7. **避免硬编码**：使用 BASE_URL 动态构建路径
 
 ### 最佳实践
 
@@ -741,21 +1031,25 @@ ComponentName.propTypes = {
 
 ### 避免的错误
 
-1. ❌ 添加全局静态资源正则规则（导致空白页）⚠️
-2. ❌ 使用错误的文件编码（导致乱码）
-3. ❌ 硬编码绝对路径
-4. ❌ 直接使用 fetch
-5. ❌ 混用不同的数据加载方法
-6. ❌ 忽略 PropTypes 验证
-7. ❌ 缺少错误处理
+1. ❌ 不完整的Git同步（导致代码丢失）⚠️
+2. ❌ 添加全局静态资源正则规则（导致空白页）⚠️
+3. ❌ 使用错误的文件编码（导致乱码）⚠️
+4. ❌ 编辑时总是更新密码字段（导致密码被清空）⚠️
+5. ❌ 硬编码绝对路径
+6. ❌ 直接使用 fetch
+7. ❌ 混用不同的数据加载方法
+8. ❌ 忽略 PropTypes 验证
+9. ❌ 缺少错误处理
 
 ---
 
-**文档版本**: v1.2  
+**文档版本**: v1.4  
 **创建日期**: 2026-02-10  
-**最后更新**: 2026-02-11  
+**最后更新**: 2026-02-26  
 **维护者**: Kiro AI Assistant  
-**适用项目**: 真三风云 (05-san-storm)
+**适用项目**: 真三风云 (05-san-storm)、租赁追踪 (06-rental-tracking)
 
 **重要更新**：
+- v1.4 (2026-02-26): 添加密码管理规范，记录密码保存和加载的常见问题
+- v1.3 (2026-02-11): 添加Git同步规范，强调完整同步的重要性
 - v1.2 (2026-02-11): 添加Nginx配置规范，记录全局静态资源规则导致空白页的问题
