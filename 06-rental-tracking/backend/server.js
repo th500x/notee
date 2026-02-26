@@ -92,16 +92,16 @@ app.get('/projects', async (req, res) => {
     
     const isAdmin = adminPassword && verifyAdminPassword(adminPassword);
     
+    // 返回完整的项目数据（包括 properties 和 expenses）
     const projects = data.projects.map(project => {
-      if (isAdmin || project.visible) {
+      if (isAdmin || project.visible !== false) {
+        // 返回完整项目数据，但隐藏密码字段
+        const { password, ...projectData } = project;
         return {
-          id: project.id,
-          name: project.name,
-          description: project.description,
-          visible: project.visible,
-          hasPassword: !!project.password,
-          createdAt: project.createdAt,
-          updatedAt: project.updatedAt
+          ...projectData,
+          hasPassword: !!password,
+          properties: project.properties || [],
+          expenses: project.expenses || []
         };
       }
       return null;
