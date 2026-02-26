@@ -47,62 +47,88 @@ function ProjectExpenseDetail({ expense, project, selectedYear, selectedMonth, v
 
     const note = prompt('备注（可选）：', '')
 
-    // 创建文件选择器
-    const fileInput = document.createElement('input')
-    fileInput.type = 'file'
-    fileInput.accept = 'image/*'
-    fileInput.multiple = true
-    
-    fileInput.onchange = async (e) => {
-      const files = Array.from(e.target.files)
-      
-      // 限制最多3张照片
-      if (files.length > 3) {
-        alert('最多只能上传3张照片')
-        return
-      }
-
-      // 检查文件大小（每张不超过2MB）
-      const oversizedFiles = files.filter(f => f.size > 2 * 1024 * 1024)
-      if (oversizedFiles.length > 0) {
-        alert('照片大小不能超过2MB，请压缩后再上传')
-        return
-      }
-
-      // 转换为Base64
-      const photos = await Promise.all(
-        files.map(file => new Promise((resolve) => {
-          const reader = new FileReader()
-          reader.onload = (e) => {
-            resolve({
-              id: `photo-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-              data: e.target.result,
-              name: file.name,
-              size: file.size,
-              uploadedAt: new Date().toISOString()
-            })
-          }
-          reader.readAsDataURL(file)
-        }))
-      )
-
-      const newRecord = {
-        date: dateStr,
-        income: parseFloat(income) || 0,
-        expenses: parseFloat(expenses) || 0,
-        note: note || '',
-        photos: photos
-      }
-
-      const updatedRecords = [...(expense.records || []), newRecord]
-      onExpenseUpdate({
-        ...expense,
-        records: updatedRecords
-      })
-    }
-
     // 询问是否上传照片
-    if (confirm('是否要上传照片凭证？（最多3张，每张不超过2MB）')) {
+    const uploadPhoto = confirm('是否要上传照片凭证？（最多3张，每张不超过2MB）')
+    
+    if (uploadPhoto) {
+      // 创建文件选择器
+      const fileInput = document.createElement('input')
+      fileInput.type = 'file'
+      fileInput.accept = 'image/*'
+      fileInput.multiple = true
+      
+      fileInput.onchange = async (e) => {
+        const files = Array.from(e.target.files)
+        
+        // 如果用户取消选择，保存不带照片的记录
+        if (files.length === 0) {
+          const newRecord = {
+            date: dateStr,
+            income: parseFloat(income) || 0,
+            expenses: parseFloat(expenses) || 0,
+            note: note || '',
+            photos: []
+          }
+          const updatedRecords = [...(expense.records || []), newRecord]
+          onExpenseUpdate({
+            ...expense,
+            records: updatedRecords
+          })
+          return
+        }
+        
+        // 限制最多3张照片
+        if (files.length > 3) {
+          alert('最多只能上传3张照片')
+          return
+        }
+
+        // 检查文件大小（每张不超过2MB）
+        const oversizedFiles = files.filter(f => f.size > 2 * 1024 * 1024)
+        if (oversizedFiles.length > 0) {
+          alert('照片大小不能超过2MB，请压缩后再上传')
+          return
+        }
+
+        // 转换为Base64
+        try {
+          const photos = await Promise.all(
+            files.map(file => new Promise((resolve, reject) => {
+              const reader = new FileReader()
+              reader.onload = (e) => {
+                resolve({
+                  id: `photo-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                  data: e.target.result,
+                  name: file.name,
+                  size: file.size,
+                  uploadedAt: new Date().toISOString()
+                })
+              }
+              reader.onerror = reject
+              reader.readAsDataURL(file)
+            }))
+          )
+
+          const newRecord = {
+            date: dateStr,
+            income: parseFloat(income) || 0,
+            expenses: parseFloat(expenses) || 0,
+            note: note || '',
+            photos: photos
+          }
+
+          const updatedRecords = [...(expense.records || []), newRecord]
+          onExpenseUpdate({
+            ...expense,
+            records: updatedRecords
+          })
+        } catch (error) {
+          console.error('照片上传失败:', error)
+          alert('照片上传失败，请重试')
+        }
+      }
+
+      // 触发文件选择
       fileInput.click()
     } else {
       // 不上传照片，直接保存
