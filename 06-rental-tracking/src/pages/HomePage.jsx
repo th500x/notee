@@ -16,113 +16,47 @@ import { getCurrentPropertyStatus } from '../utils/propertyStatus'
 function HomePage({ projects, onProjectSelect, onAddProject, onDeleteProject, onUpdateProject, isAdmin }) {
   const [editingProject, setEditingProject] = useState(null)
   const [showEditDialog, setShowEditDialog] = useState(false)
-  const [unlockedProjects, setUnlockedProjects] = useState({}) // 记录已解锁的项目
-  const [prevIsAdmin, setPrevIsAdmin] = useState(isAdmin) // 记录上一次的 isAdmin 状态
+  const [unlockedProjects, setUnlockedProjects] = useState(new Set()) // 使用 Set 存储已解锁的项目ID
 
-  // 监听 isAdmin 变化，立即清空解锁状态
-  if (prevIsAdmin !== isAdmin) {
-    console.log('isAdmin changed from', prevIsAdmin, 'to', isAdmin)
-    setPrevIsAdmin(isAdmin)
-    if (!isAdmin) {
-      // 退出管理员时，立即清空解锁状态
-      console.log('Clearing unlockedProjects immediately')
-      setUnlockedProjects({})
-    }
-  }
-
-  // 从 sessionStorage 加载已解锁的项目
-  useEffect(() => {
-    console.log('useEffect triggered, isAdmin:', isAdmin)
-    try {
-      const saved = sessionStorage.getItem('rental-tracking-unlocked-projects')
-      console.log('sessionStorage value:', saved)
-      if (saved) {
-        const parsed = JSON.parse(saved)
-        console.log('Setting unlockedProjects to:', parsed)
-        setUnlockedProjects(parsed)
-      } else {
-        // 如果 sessionStorage 中没有数据，清空状态
-        console.log('sessionStorage is empty, clearing unlockedProjects')
-        setUnlockedProjects({})
-      }
-    } catch (error) {
-      console.error('加载解锁状态失败:', error)
-      setUnlockedProjects({})
-    }
-  }, []) // 只在组件挂载时加载一次
-
-  // 保存已解锁的项目到 sessionStorage
-  const saveUnlockedProjects = (unlocked) => {
-    try {
-      sessionStorage.setItem('rental-tracking-unlocked-projects', JSON.stringify(unlocked))
-      setUnlockedProjects(unlocked)
-    } catch (error) {
-      console.error('保存解锁状态失败:', error)
-    }
-  }
-
-  // 检查项目是否已解锁（管理员自动解锁所有项目）
-  const isProjectUnlocked = (project) => {
-    console.log('=== isProjectUnlocked DEBUG ===')
-    console.log('project:', project)
-    console.log('project.id:', project.id)
-    console.log('project.hasPassword:', project.hasPassword)
-    console.log('typeof project.hasPassword:', typeof project.hasPassword)
-    console.log('isAdmin:', isAdmin)
-    console.log('unlockedProjects:', unlockedProjects)
-    console.log('unlockedProjects[project.id]:', unlockedProjects[project.id])
-    console.log('unlockedProjects[project.id] === true:', unlockedProjects[project.id] === true)
-    
-    if (isAdmin) {
-      console.log('  -> Admin mode, returning true')
-      return true
-    }
-    
-    // 检查是否在已解锁列表中
-    const unlocked = unlockedProjects[project.id] === true
-    console.log('  -> Final unlocked status:', unlocked)
-    console.log('===============================')
-    return unlocked
+  // 检查项目是否已解锁
+  const isProjectUnlocked = (projectId) => {
+    return unlockedProjects.has(projectId)
   }
 
   // 解锁项目
-  const handleUnlockProject = async (project) => {
-    if (!project.hasPassword) {
-      // 没有密码的项目直接解锁
-      const newUnlocked = { ...unlockedProjects, [project.id]: true }
-      saveUnlockedProjects(newUnlocked)
-      return true // 返回解锁成功
-    }
+  const unlockProject = (projectId) => {
+    setUnlockedProjects(prev => new Set([...prev, projectId]))
+  }
 
+  // 当 isAdmin 变化时，清空解锁列表
+  useEffect(() => {
+    if (!isAdmin) {
+      setUnlockedProjects(new Set())
+    }
+  }, [isAdmin])
+
+  // 解锁项目
+  const handleUnlockProject = async (project) => {
     const inputPassword = prompt(`请输入项目"${project.name}"的访问密码：`)
     if (!inputPassword) {
-      return false // 用户取消输入，返回解锁失败
+      return false
     }
 
-    // 通过后端API验证密码
     try {
       const response = await api.getProject(project.id, inputPassword)
       if (response.success) {
-        const newUnlocked = { ...unlockedProjects, [project.id]: true }
-        saveUnlockedProjects(newUnlocked)
+        unlockProject(project.id)
         alert('✅ 解锁成功')
-        return true // 返回解锁成功
+        return true
       } else {
         alert('❌ 密码错误')
-        return false // 密码错误，返回解锁失败
+        return false
       }
     } catch (error) {
       console.error('验证密码失败:', error)
       alert('❌ 密码错误')
       return false
     }
-  }
-
-  // 锁定项目（仅用于测试，实际使用中可以移除）
-  const handleLockProject = (projectId) => {
-    const newUnlocked = { ...unlockedProjects }
-    delete newUnlocked[projectId]
-    saveUnlockedProjects(newUnlocked)
   }
 
   // 打开编辑对话框
@@ -175,43 +109,28 @@ function HomePage({ projects, onProjectSelect, onAddProject, onDeleteProject, on
   }
   // 选择项目（检查密码保护）
   const handleSelectProject = async (project) => {
-    console.log('=== handleSelectProject Debug ===')
-    console.log('project:', project)
-    console.log('project.hasPassword:', project.hasPassword)
-    console.log('isAdmin:', isAdmin)
-    console.log('isProjectUnlocked(project):', isProjectUnlocked(project))
-    console.log('unlockedProjects:', unlockedProjects)
-    console.log('================================')
-    
-    // 如果是管理员，直接访问
+    // 管理员直接访问
     if (isAdmin) {
-      console.log('Admin access granted')
       onProjectSelect(project)
       return
     }
     
-    // 如果项目没有密码，直接访问
+    // 没有密码的项目直接访问
     if (!project.hasPassword) {
-      console.log('No password required, access granted')
       onProjectSelect(project)
       return
     }
     
-    // 如果项目有密码，检查是否已解锁
-    if (isProjectUnlocked(project)) {
-      console.log('Project already unlocked, access granted')
+    // 有密码的项目，检查是否已解锁
+    if (isProjectUnlocked(project.id)) {
       onProjectSelect(project)
       return
     }
     
-    // 项目有密码且未解锁，需要输入密码
-    console.log('Project locked, requesting password')
+    // 未解锁，需要输入密码
     const unlocked = await handleUnlockProject(project)
     if (unlocked) {
-      console.log('Unlock successful, access granted')
       onProjectSelect(project)
-    } else {
-      console.log('Unlock failed, access denied')
     }
   }
 
@@ -344,23 +263,13 @@ function HomePage({ projects, onProjectSelect, onAddProject, onDeleteProject, on
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {visibleProjects.map(project => {
               const stats = getProjectStats(project)
-              const hasPassword = project.hasPassword // 使用后端返回的 hasPassword 字段
               
               // 判断是否应该显示为已解锁状态
               // 1. 管理员 -> 显示为已解锁
               // 2. 没有密码 -> 显示为已解锁
               // 3. 有密码且已解锁 -> 显示为已解锁
               // 4. 有密码且未解锁 -> 显示为锁定
-              const shouldShowUnlocked = isAdmin || !hasPassword || isProjectUnlocked(project)
-              
-              console.log('ProjectCard render:', {
-                projectId: project.id,
-                projectName: project.name,
-                hasPassword,
-                isAdmin,
-                isProjectUnlocked: isProjectUnlocked(project),
-                shouldShowUnlocked
-              })
+              const shouldShowUnlocked = isAdmin || !project.hasPassword || isProjectUnlocked(project.id)
               
               return (
                 <ProjectCard
@@ -368,7 +277,7 @@ function HomePage({ projects, onProjectSelect, onAddProject, onDeleteProject, on
                   project={project}
                   stats={stats}
                   isUnlocked={shouldShowUnlocked}
-                  hasPassword={hasPassword}
+                  hasPassword={project.hasPassword}
                   onSelect={() => handleSelectProject(project)}
                   onUnlock={() => handleUnlockProject(project)}
                   onEdit={() => handleEditProject(project)}
