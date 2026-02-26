@@ -441,16 +441,17 @@ router.put('/projects/:id/data', async (req, res) => {
       });
     }
     
-    // 保留原有的元数据
+    // 保留原有的元数据和密码
+    // 明确排除 password 字段，防止前端意外覆盖
     const { id: _, createdAt, password, ...projectData } = updatedProject;
     
-    // 更新项目数据
+    // 更新项目数据，但保留原有的密码
     data.projects[projectIndex] = {
       ...project,
       ...projectData,
       id: project.id,
       createdAt: project.createdAt,
-      password: project.password,
+      password: project.password,  // 始终保留原密码，不受前端影响
       updatedAt: new Date().toISOString()
     };
     
