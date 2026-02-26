@@ -41,9 +41,12 @@ function HomePage({ projects, onProjectSelect, onAddProject, onDeleteProject, on
   }
 
   // 检查项目是否已解锁（管理员自动解锁所有项目）
-  const isProjectUnlocked = (projectId) => {
+  const isProjectUnlocked = (project) => {
     if (isAdmin) return true
-    return unlockedProjects[projectId] === true
+    // 如果项目没有密码，始终显示为已解锁
+    if (!project.hasPassword) return true
+    // 如果项目有密码，检查是否已解锁
+    return unlockedProjects[project.id] === true
   }
 
   // 解锁项目
@@ -137,7 +140,7 @@ function HomePage({ projects, onProjectSelect, onAddProject, onDeleteProject, on
   // 选择项目（检查密码保护）
   const handleSelectProject = async (project) => {
     // 管理员或已解锁的项目可以直接访问
-    if (isAdmin || isProjectUnlocked(project.id)) {
+    if (isAdmin || isProjectUnlocked(project)) {
       onProjectSelect(project)
     } else if (project.hasPassword) {
       // 有密码的项目需要先解锁
@@ -147,9 +150,7 @@ function HomePage({ projects, onProjectSelect, onAddProject, onDeleteProject, on
         onProjectSelect(project)
       }
     } else {
-      // 没有密码的项目直接解锁并访问
-      const newUnlocked = { ...unlockedProjects, [project.id]: true }
-      saveUnlockedProjects(newUnlocked)
+      // 没有密码的项目直接访问（这个分支理论上不会执行，因为isProjectUnlocked已经处理了）
       onProjectSelect(project)
     }
   }
@@ -283,7 +284,7 @@ function HomePage({ projects, onProjectSelect, onAddProject, onDeleteProject, on
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {visibleProjects.map(project => {
               const stats = getProjectStats(project)
-              const isUnlocked = isProjectUnlocked(project.id)
+              const isUnlocked = isProjectUnlocked(project) // 传入完整的 project 对象
               const hasPassword = project.hasPassword // 使用后端返回的 hasPassword 字段
               
               return (
