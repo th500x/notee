@@ -244,6 +244,11 @@ function HomePage({ projects, onProjectSelect, onAddProject, onDeleteProject, on
               // 3. 非管理员 + 无密码 -> 显示为已解锁
               const shouldShowUnlocked = isAdmin || !project.hasPassword
               
+              // 强制日志
+              if (project.hasPassword) {
+                console.log(`[${project.name}] isAdmin=${isAdmin}, hasPassword=${project.hasPassword}, shouldShowUnlocked=${shouldShowUnlocked}`)
+              }
+              
               return (
                 <ProjectCard
                   key={project.id}
