@@ -138,10 +138,14 @@ function HomePage({ projects, onProjectSelect, onAddProject, onDeleteProject, on
 
   // 计算项目统计数据
   const getProjectStats = (project) => {
-    const totalProperties = project.properties.length
+    // 确保 properties 和 expenses 存在
+    const properties = project.properties || []
+    const expenses = project.expenses || []
+    
+    const totalProperties = properties.length
     
     // 计算缴租率（出租中 + 新合同）
-    const rentedAndNewContract = project.properties.filter(
+    const rentedAndNewContract = properties.filter(
       p => p.status === 'rented' || p.status === 'new-contract'
     ).length
     
@@ -155,7 +159,7 @@ function HomePage({ projects, onProjectSelect, onAddProject, onDeleteProject, on
     let paidProperties = 0
     
     // 统计房源收支和缴租情况
-    project.properties.forEach(property => {
+    properties.forEach(property => {
       // 只统计出租中和新合同的房源
       if (property.status === 'rented' || property.status === 'new-contract') {
         const hasPaid = property.records?.some(record => 
@@ -175,7 +179,6 @@ function HomePage({ projects, onProjectSelect, onAddProject, onDeleteProject, on
     })
     
     // 统计项目开支
-    const expenses = project.expenses || []
     expenses.forEach(expense => {
       expense.records?.forEach(record => {
         if (record.date === currentMonthStr) {
