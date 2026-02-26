@@ -14,8 +14,16 @@ import { getPropertyStatus, getCurrentPropertyStatus, getStatusText, getStatusCl
  * 注意：tenant.phone 字段存储的是租客人数（历史原因保留字段名）
  */
 function PropertyDetail({ property, project, selectedYear, selectedMonth, viewMode, onPropertyUpdate, isAdmin }) {
-  const [isEditingTenant, setIsEditingTenant] = useState(false)
   const [isEditingProperty, setIsEditingProperty] = useState(false)
+  const [isEditingTenant, setIsEditingTenant] = useState(false)
+  const [showRecordDialog, setShowRecordDialog] = useState(false)
+  const [recordForm, setRecordForm] = useState({
+    date: '',
+    income: 0,
+    expenses: 0,
+    note: '',
+    status: '' // 手动设置的状态（可选）
+  })
   
   // 获取当前查看月份的状态
   const currentViewMonth = viewMode === 'month' 
@@ -173,21 +181,33 @@ function PropertyDetail({ property, project, selectedYear, selectedMonth, viewMo
 
     const dateStr = viewMode === 'month' 
       ? `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`
-      : `${selectedYear}-01` // 年度视图默认添加1月
+      : `${selectedYear}-01`
 
-    const income = prompt('请输入收入金额（元）：', property.monthlyRent || 0)
-    if (income === null) return
+    // 获取该月的自动推断状态
+    const autoStatus = getPropertyStatus(property, dateStr)
 
-    const expenses = prompt('请输入支出金额（元）：', 0)
-    if (expenses === null) return
-
-    const note = prompt('备注（可选）：', '')
-
-    const newRecord = {
+    setRecordForm({
       date: dateStr,
-      income: parseFloat(income) || 0,
-      expenses: parseFloat(expenses) || 0,
-      note: note || ''
+      income: property.monthlyRent || 0,
+      expenses: 0,
+      note: '',
+      status: autoStatus // 默认使用自动推断的状态
+    })
+    setShowRecordDialog(true)
+  }
+
+  // 保存收支记录
+  const saveRecord = () => {
+    const newRecord = {
+      date: recordForm.date,
+      income: parseFloat(recordForm.income) || 0,
+      expenses: parseFloat(recordForm.expenses) || 0,
+      note: recordForm.note || ''
+    }
+
+    // 如果手动设置了状态，添加到记录中
+    if (recordForm.status) {
+      newRecord.status = recordForm.status
     }
 
     const updatedRecords = [...(property.records || []), newRecord]
@@ -195,6 +215,7 @@ function PropertyDetail({ property, project, selectedYear, selectedMonth, viewMo
       ...property,
       records: updatedRecords
     })
+    setShowRecordDialog(false)
   }
 
   // 删除记录（管理员功能）
@@ -512,6 +533,110 @@ function PropertyDetail({ property, project, selectedYear, selectedMonth, viewMo
           )}
         </div>
       </div>
+
+      {/* 添加/编辑记录对话框 */}
+      {showRecordDialog && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
+            <div className="p-6">
+              <h3 className="text-xl font-bold text-gray-900 mb-4">添加收支记录</h3>
+              
+              <div className="space-y-4">
+                {/* 日期 */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    日期
+                  </label>
+                  <input
+                    type="text"
+                    value={recordForm.date}
+                    disabled
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50"
+                  />
+                </div>
+
+                {/* 收入 */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    收入（฿）
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={recordForm.income}
+                    onChange={(e) => setRecordForm({ ...recordForm, income: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+
+                {/* 支出 */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    支出（฿）
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={recordForm.expenses}
+                    onChange={(e) => setRecordForm({ ...recordForm, expenses: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+
+                {/* 房源状态（手动覆盖） */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    房源状态（可选覆盖）
+                  </label>
+                  <select
+                    value={recordForm.status}
+                    onChange={(e) => setRecordForm({ ...recordForm, status: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="">自动推断（推荐）</option>
+                    <option value="vacant">空置中</option>
+                    <option value="new-contract">新合同</option>
+                    <option value="rented">出租中</option>
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">
+                    默认根据租客信息自动推断，如有特殊情况可手动选择
+                  </p>
+                </div>
+
+                {/* 备注 */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    备注
+                  </label>
+                  <textarea
+                    value={recordForm.note}
+                    onChange={(e) => setRecordForm({ ...recordForm, note: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    rows="2"
+                    placeholder="可选"
+                  />
+                </div>
+              </div>
+
+              {/* 按钮 */}
+              <div className="mt-6 flex gap-2">
+                <button
+                  onClick={saveRecord}
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                >
+                  保存
+                </button>
+                <button
+                  onClick={() => setShowRecordDialog(false)}
+                  className="flex-1 px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 transition-colors"
+                >
+                  取消
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
