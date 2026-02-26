@@ -95,11 +95,11 @@ app.get('/projects', async (req, res) => {
     // 返回完整的项目数据（包括 properties 和 expenses）
     const projects = data.projects.map(project => {
       if (isAdmin || project.visible !== false) {
-        // 返回完整项目数据，但隐藏密码字段
-        const { password, ...projectData } = project;
+        // 返回完整项目数据，但隐藏密码字段，并确保 hasPassword 是布尔值
+        const { password, hasPassword, ...projectData } = project;
         return {
           ...projectData,
-          hasPassword: !!password,
+          hasPassword: !!password, // 强制转换为布尔值
           properties: project.properties || [],
           expenses: project.expenses || []
         };
