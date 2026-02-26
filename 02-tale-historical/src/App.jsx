@@ -14,7 +14,7 @@ function App() {
               <div>
                 <a 
                   href="/"
-                  className="text-3xl font-bold text-ink font-title hover:text-blue-600 transition-colors cursor-pointer relative group inline-block"
+                  className="text-3xl font-bold text-ink hover:text-blue-600 transition-colors cursor-pointer relative group inline-block"
                 >
                   佚事雜錄
                   {/* 悬停提示 */}
