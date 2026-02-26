@@ -16,6 +16,14 @@ import { getCurrentPropertyStatus } from '../utils/propertyStatus'
 function HomePage({ projects, onProjectSelect, onAddProject, onDeleteProject, onUpdateProject, isAdmin }) {
   const [editingProject, setEditingProject] = useState(null)
   const [showEditDialog, setShowEditDialog] = useState(false)
+  
+  // 使用 key 来强制重新渲染，当 isAdmin 改变时
+  const [renderKey, setRenderKey] = useState(0)
+  
+  useEffect(() => {
+    // 当 isAdmin 改变时，强制重新渲染所有项目卡片
+    setRenderKey(prev => prev + 1)
+  }, [isAdmin])
 
   // 解锁项目（验证密码）
   const handleUnlockProject = async (project) => {
@@ -46,7 +54,8 @@ function HomePage({ projects, onProjectSelect, onAddProject, onDeleteProject, on
   const handleEditProject = (project) => {
     setEditingProject({
       ...project,
-      password: project.password || '',
+      password: '', // 不显示现有密码，留空表示不修改
+      passwordPlaceholder: project.hasPassword ? '留空表示不修改密码' : '留空表示无需密码',
       visible: project.visible !== false // 默认显示
     })
     setShowEditDialog(true)
@@ -66,12 +75,19 @@ function HomePage({ projects, onProjectSelect, onAddProject, onDeleteProject, on
     }
     
     try {
-      await updateProjectInfo(editingProject.id, {
+      // 只有当密码输入框有内容时才更新密码
+      const updateData = {
         name: editingProject.name,
         description: editingProject.description,
-        password: editingProject.password,
         visible: editingProject.visible
-      })
+      }
+      
+      // 如果密码输入框有内容，则更新密码
+      if (editingProject.password) {
+        updateData.password = editingProject.password
+      }
+      
+      await updateProjectInfo(editingProject.id, updateData)
       
       // 调用父组件的更新函数重新加载数据
       onUpdateProject(editingProject)
@@ -234,26 +250,15 @@ function HomePage({ projects, onProjectSelect, onAddProject, onDeleteProject, on
         }
         
         return (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" key={renderKey}>
             {visibleProjects.map(project => {
               const stats = getProjectStats(project)
-              
-              // 调试：打印所有项目信息
-              console.log('=== Project Debug ===');
-              console.log('Name:', project.name);
-              console.log('ID:', project.id);
-              console.log('hasPassword:', project.hasPassword);
-              console.log('typeof hasPassword:', typeof project.hasPassword);
-              console.log('isAdmin:', isAdmin);
-              console.log('====================');
               
               // 简单规则：
               // 1. 管理员 -> 显示为已解锁
               // 2. 非管理员 + 有密码 -> 显示为锁定
               // 3. 非管理员 + 无密码 -> 显示为已解锁
               const shouldShowUnlocked = isAdmin || !project.hasPassword
-              
-              console.log('shouldShowUnlocked:', shouldShowUnlocked);
               
               return (
                 <ProjectCard
@@ -479,10 +484,10 @@ function ProjectEditDialog({ project, onSave, onDelete, onClose, onChange }) {
                 value={project.password || ''}
                 onChange={(e) => onChange({ ...project, password: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="留空表示无需密码"
+                placeholder={project.passwordPlaceholder || '留空表示无需密码'}
               />
               <p className="text-xs text-gray-500 mt-1">
-                设置后，访问此项目需要输入密码
+                {project.passwordPlaceholder || '设置后，访问此项目需要输入密码'}
               </p>
             </div>
 

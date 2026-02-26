@@ -340,6 +340,7 @@ router.put('/projects/:id', async (req, res) => {
     const project = data.projects[projectIndex];
     if (name !== undefined) project.name = name.trim();
     if (description !== undefined) project.description = description.trim();
+    // 只有当 password 字段存在时才更新密码（允许设置为空字符串来清除密码）
     if (password !== undefined) project.password = password;
     if (visible !== undefined) project.visible = visible;
     project.updatedAt = new Date().toISOString();
