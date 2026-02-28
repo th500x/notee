@@ -26,6 +26,7 @@ RESOLUTION_OPTIONS = {
     "5": (128, 64, "128x64 - 功能图片"),
     "6": (256, 128, "256x128 - 功能图片"),
     "7": (36, 36, "36x36 - 功能图片"),
+    "8": (48, 48, "48x48 - 功能图片"),
 }
 
 def main():
@@ -66,7 +67,7 @@ def main():
     print()
     
     while True:
-        choice = input("请输入选项 (1/2/3/4/5/6/7): ").strip()
+        choice = input("请输入选项 (1/2/3/4/5/6/7/8): ").strip()
         if choice in RESOLUTION_OPTIONS:
             target_width, target_height, desc = RESOLUTION_OPTIONS[choice]
             break

@@ -98,7 +98,7 @@ function PropertyDetail({ property, project, selectedYear, selectedMonth, viewMo
     }
 
     if (!tenantForm.name || !tenantForm.startDate) {
-      alert('请填写租客姓名和起租日期')
+      alert('请选择租住时长和起租日期')
       return
     }
 
@@ -367,25 +367,30 @@ function PropertyDetail({ property, project, selectedYear, selectedMonth, viewMo
           {isEditingTenant ? (
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">租客姓名 *</label>
-                <input
-                  type="text"
+                <label className="block text-sm font-medium text-gray-700 mb-1">租住时长 *</label>
+                <select
                   value={tenantForm.name}
                   onChange={(e) => setTenantForm({ ...tenantForm, name: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="请输入租客姓名"
-                />
+                >
+                  <option value="">请选择租住时长</option>
+                  <option value="<1年">&lt;1年</option>
+                  <option value="1-2年">1-2年</option>
+                  <option value=">2年">&gt;2年</option>
+                </select>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">租客人数</label>
-                <input
-                  type="number"
-                  min="1"
+                <select
                   value={tenantForm.phone}
                   onChange={(e) => setTenantForm({ ...tenantForm, phone: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="请输入租客人数"
-                />
+                >
+                  <option value="">请选择租客人数</option>
+                  <option value="1">1人</option>
+                  <option value="2">2人</option>
+                  <option value="3">3人</option>
+                </select>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -435,7 +440,7 @@ function PropertyDetail({ property, project, selectedYear, selectedMonth, viewMo
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <p className="text-sm text-gray-600">租客姓名</p>
+                <p className="text-sm text-gray-600">租住时长</p>
                 <p className="text-base font-medium">{property.tenant?.name || '-'}</p>
               </div>
               <div>
