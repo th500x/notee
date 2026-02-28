@@ -5,6 +5,7 @@ import ProjectExpenseDetail from '../components/ProjectExpenseDetail'
 import StatisticsPanel from '../components/StatisticsPanel'
 import TimeSelector from '../components/TimeSelector'
 import { getCurrentPropertyStatus, getStatusText, getStatusClassName, getCurrentPropertyBackgroundColor } from '../utils/propertyStatus'
+import { updateProjectRecords } from '../utils/dataManagerAPI'
 
 /**
  * 项目详情页组件
@@ -89,9 +90,6 @@ function ProjectDetailPage({ project, onBack, onProjectUpdate, isAdmin }) {
       const updatedProperties = project.properties.map(prop =>
         prop.id === updatedProperty.id ? updatedProperty : prop
       )
-      
-      // 导入 updateProjectRecords 函数
-      const { updateProjectRecords } = await import('../utils/dataManagerAPI')
       
       // 只更新 properties，不触碰 expenses 和其他基本信息
       await updateProjectRecords(project.id, { 
@@ -179,9 +177,6 @@ function ProjectDetailPage({ project, onBack, onProjectUpdate, isAdmin }) {
       const updatedExpenses = (project.expenses || []).map(exp =>
         exp.id === updatedExpense.id ? updatedExpense : exp
       )
-      
-      // 导入 updateProjectRecords 函数
-      const { updateProjectRecords } = await import('../utils/dataManagerAPI')
       
       // 只更新 expenses，不触碰 properties 和其他基本信息
       await updateProjectRecords(project.id, { 
