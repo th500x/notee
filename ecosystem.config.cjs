@@ -35,24 +35,6 @@ module.exports = {
       autorestart: true,
       max_restarts: 10,
       min_uptime: '10s'
-    },
-    {
-      name: 'notee-rental-tracking',
-      script: './backend/rental-tracking-server.js',
-      cwd: '/www/wwwroot/notee',
-      instances: 1,
-      exec_mode: 'fork',
-      env: {
-        NODE_ENV: 'production',
-        PORT: 3003
-      },
-      error_file: './logs/rental-tracking-error.log',
-      out_file: './logs/rental-tracking-out.log',
-      log_file: './logs/rental-tracking.log',
-      time: true,
-      autorestart: true,
-      max_restarts: 10,
-      min_uptime: '10s'
     }
   ]
 }
