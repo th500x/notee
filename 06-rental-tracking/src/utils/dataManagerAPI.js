@@ -177,6 +177,25 @@ export const updateProjectData = async (project) => {
 };
 
 /**
+ * 只更新项目的收支记录（不触碰基本信息如密码、名称等）
+ */
+export const updateProjectRecords = async (projectId, records, projectPassword = null) => {
+  try {
+    const adminPassword = getAdminPassword();
+    const response = await api.updateProjectRecords(projectId, records, adminPassword, projectPassword);
+    
+    if (response.success) {
+      return true;
+    }
+    
+    throw new Error(response.error || '更新收支记录失败');
+  } catch (error) {
+    console.error('更新收支记录失败:', error);
+    throw error;
+  }
+};
+
+/**
  * 获取项目详情（需要密码）
  */
 export const getProjectDetail = async (projectId, projectPassword = null) => {

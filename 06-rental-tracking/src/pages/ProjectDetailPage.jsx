@@ -83,15 +83,32 @@ function ProjectDetailPage({ project, onBack, onProjectUpdate, isAdmin }) {
   }
 
   // 更新房源信息
-  const handlePropertyUpdate = (updatedProperty) => {
-    const updatedProject = {
-      ...project,
-      properties: project.properties.map(prop =>
+  const handlePropertyUpdate = async (updatedProperty) => {
+    try {
+      // 使用新的 API：只更新收支记录，不触碰基本信息
+      const updatedProperties = project.properties.map(prop =>
         prop.id === updatedProperty.id ? updatedProperty : prop
       )
+      
+      // 导入 updateProjectRecords 函数
+      const { updateProjectRecords } = await import('../utils/dataManagerAPI')
+      
+      // 只更新 properties，不触碰 expenses 和其他基本信息
+      await updateProjectRecords(project.id, { 
+        properties: updatedProperties 
+      })
+      
+      // 更新本地状态
+      const updatedProject = {
+        ...project,
+        properties: updatedProperties
+      }
+      onProjectUpdate(updatedProject)
+      setSelectedProperty(updatedProperty)
+    } catch (error) {
+      console.error('更新房源失败:', error)
+      alert('更新房源失败：' + error.message)
     }
-    onProjectUpdate(updatedProject)
-    setSelectedProperty(updatedProperty)
   }
 
   // 选择房源
@@ -156,15 +173,32 @@ function ProjectDetailPage({ project, onBack, onProjectUpdate, isAdmin }) {
   }
 
   // 更新项目开支信息
-  const handleExpenseUpdate = (updatedExpense) => {
-    const updatedProject = {
-      ...project,
-      expenses: (project.expenses || []).map(exp =>
+  const handleExpenseUpdate = async (updatedExpense) => {
+    try {
+      // 使用新的 API：只更新收支记录，不触碰基本信息
+      const updatedExpenses = (project.expenses || []).map(exp =>
         exp.id === updatedExpense.id ? updatedExpense : exp
       )
+      
+      // 导入 updateProjectRecords 函数
+      const { updateProjectRecords } = await import('../utils/dataManagerAPI')
+      
+      // 只更新 expenses，不触碰 properties 和其他基本信息
+      await updateProjectRecords(project.id, { 
+        expenses: updatedExpenses 
+      })
+      
+      // 更新本地状态
+      const updatedProject = {
+        ...project,
+        expenses: updatedExpenses
+      }
+      onProjectUpdate(updatedProject)
+      setSelectedExpense(updatedExpense)
+    } catch (error) {
+      console.error('更新项目开支失败:', error)
+      alert('更新项目开支失败：' + error.message)
     }
-    onProjectUpdate(updatedProject)
-    setSelectedExpense(updatedExpense)
   }
 
   // 将项目数据转换为 rentalData 格式（用于统计面板）

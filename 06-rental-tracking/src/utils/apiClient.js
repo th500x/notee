@@ -133,6 +133,24 @@ export async function updateProjectData(projectId, project, adminPassword = null
 }
 
 /**
+ * 只更新项目的收支记录（不触碰基本信息如密码、名称等）
+ * @param {string} projectId - 项目ID
+ * @param {object} records - 收支记录数据 { properties, expenses }
+ * @param {string} adminPassword - 管理员密码（可选）
+ * @param {string} projectPassword - 项目密码（可选）
+ */
+export async function updateProjectRecords(projectId, records, adminPassword = null, projectPassword = null) {
+  return apiRequest(`/projects/${projectId}/records`, {
+    method: 'PUT',
+    body: JSON.stringify({
+      ...records,
+      adminPassword,
+      projectPassword
+    })
+  });
+}
+
+/**
  * 健康检查
  */
 export async function healthCheck() {

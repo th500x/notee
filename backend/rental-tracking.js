@@ -470,6 +470,63 @@ router.put('/projects/:id/data', async (req, res) => {
   }
 });
 
+/**
+ * 只更新项目的收支记录（不触碰基本信息）
+ * PUT /api/rental-tracking/projects/:id/records
+ * Body: { properties, expenses, adminPassword, projectPassword }
+ */
+router.put('/projects/:id/records', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { properties, expenses, adminPassword, projectPassword } = req.body;
+    
+    const data = await readData();
+    const projectIndex = data.projects.findIndex(p => p.id === id);
+    
+    if (projectIndex === -1) {
+      return res.status(404).json({ 
+        success: false, 
+        error: '项目不存在' 
+      });
+    }
+    
+    const project = data.projects[projectIndex];
+    
+    // 检查权限
+    const isAdmin = adminPassword && verifyAdminPassword(adminPassword);
+    const hasProjectAccess = isAdmin || verifyProjectPassword(project, projectPassword);
+    
+    if (!hasProjectAccess) {
+      return res.status(403).json({ 
+        success: false, 
+        error: '密码错误或无权限访问' 
+      });
+    }
+    
+    // 只更新 properties 和 expenses，保留其他所有字段（包括密码、名称等）
+    if (properties !== undefined) {
+      data.projects[projectIndex].properties = properties;
+    }
+    if (expenses !== undefined) {
+      data.projects[projectIndex].expenses = expenses;
+    }
+    data.projects[projectIndex].updatedAt = new Date().toISOString();
+    
+    await writeData(data);
+    
+    res.json({ 
+      success: true, 
+      message: '收支记录更新成功' 
+    });
+  } catch (error) {
+    console.error('更新收支记录失败:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: '更新收支记录失败' 
+    });
+  }
+});
+
 // 初始化
 initDataFile().catch(console.error);
 

@@ -194,21 +194,25 @@ function ProjectExpenseDetail({ expense, project, selectedYear, selectedMonth, v
   const getDisplayRecords = () => {
     if (!expense.records) return []
 
-    return expense.records.filter(record => {
-      const [year, month] = record.date.split('-').map(Number)
-      if (viewMode === 'month') {
-        return year === selectedYear && month === selectedMonth
-      } else {
-        return year === selectedYear
-      }
-    }).sort((a, b) => b.date.localeCompare(a.date))
+    // 返回记录和原始索引
+    return expense.records
+      .map((record, originalIndex) => ({ record, originalIndex }))
+      .filter(({ record }) => {
+        const [year, month] = record.date.split('-').map(Number)
+        if (viewMode === 'month') {
+          return year === selectedYear && month === selectedMonth
+        } else {
+          return year === selectedYear
+        }
+      })
+      .sort((a, b) => b.record.date.localeCompare(a.record.date))
   }
 
   const displayRecords = getDisplayRecords()
 
   // 计算当前视图的总计
   const calculateTotals = () => {
-    return displayRecords.reduce((acc, record) => ({
+    return displayRecords.reduce((acc, { record }) => ({
       income: acc.income + (record.income || 0),
       expenses: acc.expenses + (record.expenses || 0)
     }), { income: 0, expenses: 0 })
@@ -279,8 +283,8 @@ function ProjectExpenseDetail({ expense, project, selectedYear, selectedMonth, v
               {isAdmin && <p className="text-sm mt-2">点击上方按钮添加收支记录</p>}
             </div>
           ) : (
-            displayRecords.map((record, index) => (
-              <div key={index} className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors">
+            displayRecords.map(({ record, originalIndex }) => (
+              <div key={originalIndex} className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors">
                 <div className="flex justify-between items-start">
                   <div className="flex-1">
                     <div className="flex items-center gap-4 mb-2">
@@ -314,7 +318,7 @@ function ProjectExpenseDetail({ expense, project, selectedYear, selectedMonth, v
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation()
-                                  deletePhoto(index, photo.id)
+                                  deletePhoto(originalIndex, photo.id)
                                 }}
                                 className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 text-xs opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
                                 title="删除照片"
@@ -333,14 +337,14 @@ function ProjectExpenseDetail({ expense, project, selectedYear, selectedMonth, v
                   {isAdmin && (
                     <div className="flex gap-2">
                       <button
-                        onClick={() => triggerPhotoUpload(index)}
+                        onClick={() => triggerPhotoUpload(originalIndex)}
                         className="text-blue-500 hover:text-blue-700"
                         title="上传照片"
                       >
                         📷
                       </button>
                       <button
-                        onClick={() => deleteRecord(index)}
+                        onClick={() => deleteRecord(originalIndex)}
                         className="text-red-500 hover:text-red-700"
                         title="删除记录"
                       >
