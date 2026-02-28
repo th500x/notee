@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { getPropertyStatus, getCurrentPropertyStatus, getStatusText, getStatusClassName } from '../utils/propertyStatus'
+import PhotoViewer from './PhotoViewer'
 
 /**
  * 房源详情组件
@@ -17,6 +18,11 @@ function PropertyDetail({ property, project, selectedYear, selectedMonth, viewMo
   const [isEditingProperty, setIsEditingProperty] = useState(false)
   const [isEditingTenant, setIsEditingTenant] = useState(false)
   const [showRecordDialog, setShowRecordDialog] = useState(false)
+  const [showPhotoViewer, setShowPhotoViewer] = useState(false)
+  const [viewerPhotos, setViewerPhotos] = useState([])
+  const [viewerInitialIndex, setViewerInitialIndex] = useState(0)
+  const [uploadingRecordIndex, setUploadingRecordIndex] = useState(null)
+  const fileInputRef = useRef(null)
   const [recordForm, setRecordForm] = useState({
     date: '',
     income: 0,
@@ -228,6 +234,116 @@ function PropertyDetail({ property, project, selectedYear, selectedMonth, viewMo
     if (!confirm('确定要删除这条记录吗？')) return
 
     const updatedRecords = property.records.filter((_, i) => i !== index)
+    onPropertyUpdate({
+      ...property,
+      records: updatedRecords
+    })
+  }
+
+  // 处理文件选择
+  const handleFileSelect = async (e) => {
+    const files = Array.from(e.target.files)
+    
+    if (uploadingRecordIndex === null) return
+    
+    // 如果用户取消选择，直接返回
+    if (files.length === 0) {
+      setUploadingRecordIndex(null)
+      e.target.value = ''
+      return
+    }
+    
+    // 限制最多3张照片
+    if (files.length > 3) {
+      alert('最多只能上传3张照片')
+      e.target.value = ''
+      return
+    }
+
+    // 检查文件大小（每张不超过2MB）
+    const oversizedFiles = files.filter(f => f.size > 2 * 1024 * 1024)
+    if (oversizedFiles.length > 0) {
+      alert('照片大小不能超过2MB，请压缩后再上传')
+      e.target.value = ''
+      return
+    }
+
+    // 转换为Base64
+    try {
+      const photos = await Promise.all(
+        files.map(file => new Promise((resolve, reject) => {
+          const reader = new FileReader()
+          reader.onload = (e) => {
+            resolve({
+              id: `photo-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`,
+              data: e.target.result,
+              name: file.name,
+              size: file.size,
+              uploadedAt: new Date().toISOString()
+            })
+          }
+          reader.onerror = reject
+          reader.readAsDataURL(file)
+        }))
+      )
+
+      // 获取当前记录并添加照片
+      const record = property.records[uploadingRecordIndex]
+      const existingPhotos = record.photos || []
+      const updatedPhotos = [...existingPhotos, ...photos]
+
+      // 更新记录
+      const updatedRecords = property.records.map((r, i) => 
+        i === uploadingRecordIndex ? { ...r, photos: updatedPhotos } : r
+      )
+
+      onPropertyUpdate({
+        ...property,
+        records: updatedRecords
+      })
+      
+      setUploadingRecordIndex(null)
+    } catch (error) {
+      console.error('照片上传失败:', error)
+      alert('照片上传失败，请重试')
+    }
+    
+    // 重置文件输入
+    e.target.value = ''
+  }
+
+  // 触发照片上传
+  const triggerPhotoUpload = (recordIndex) => {
+    setUploadingRecordIndex(recordIndex)
+    // 直接触发文件选择
+    if (fileInputRef.current) {
+      fileInputRef.current.click()
+    }
+  }
+
+  // 查看照片
+  const viewPhotos = (photos, initialIndex = 0) => {
+    setViewerPhotos(photos)
+    setViewerInitialIndex(initialIndex)
+    setShowPhotoViewer(true)
+  }
+
+  // 删除照片
+  const deletePhoto = (recordIndex, photoId) => {
+    if (!isAdmin) {
+      alert('请先登录管理员账号')
+      return
+    }
+
+    if (!confirm('确定要删除这张照片吗？')) return
+
+    const record = property.records[recordIndex]
+    const updatedPhotos = record.photos.filter(p => p.id !== photoId)
+    
+    const updatedRecords = property.records.map((r, i) => 
+      i === recordIndex ? { ...r, photos: updatedPhotos } : r
+    )
+
     onPropertyUpdate({
       ...property,
       records: updatedRecords
@@ -520,17 +636,58 @@ function PropertyDetail({ property, project, selectedYear, selectedMonth, viewMo
                       </span>
                     </div>
                     {record.note && (
-                      <p className="text-sm text-gray-600">备注: {record.note}</p>
+                      <p className="text-sm text-gray-600 mb-2">备注: {record.note}</p>
+                    )}
+                    
+                    {/* 照片缩略图 */}
+                    {record.photos && record.photos.length > 0 && (
+                      <div className="flex gap-2 mt-2">
+                        {record.photos.map((photo, photoIndex) => (
+                          <div key={photo.id} className="relative group">
+                            <img
+                              src={photo.data}
+                              alt={photo.name || '照片'}
+                              className="w-20 h-20 object-cover rounded-md cursor-pointer border-2 border-gray-200 hover:border-blue-500 transition-colors"
+                              onClick={() => viewPhotos(record.photos, photoIndex)}
+                              title="点击查看大图"
+                            />
+                            {isAdmin && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  deletePhoto(index, photo.id)
+                                }}
+                                className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 text-xs opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                                title="删除照片"
+                              >
+                                ✕
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                        <div className="flex items-center text-xs text-gray-500">
+                          📷 {record.photos.length} 张
+                        </div>
+                      </div>
                     )}
                   </div>
                   {isAdmin && (
-                    <button
-                      onClick={() => deleteRecord(index)}
-                      className="text-red-500 hover:text-red-700 ml-4"
-                      title="删除记录"
-                    >
-                      🗑️
-                    </button>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => triggerPhotoUpload(index)}
+                        className="text-blue-500 hover:text-blue-700"
+                        title="上传照片"
+                      >
+                        📷
+                      </button>
+                      <button
+                        onClick={() => deleteRecord(index)}
+                        className="text-red-500 hover:text-red-700"
+                        title="删除记录"
+                      >
+                        🗑️
+                      </button>
+                    </div>
                   )}
                 </div>
               </div>
@@ -641,6 +798,25 @@ function PropertyDetail({ property, project, selectedYear, selectedMonth, viewMo
             </div>
           </div>
         </div>
+      )}
+
+      {/* 隐藏的文件输入 */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        multiple
+        onChange={handleFileSelect}
+        style={{ display: 'none' }}
+      />
+
+      {/* 照片查看器 */}
+      {showPhotoViewer && (
+        <PhotoViewer
+          photos={viewerPhotos}
+          initialIndex={viewerInitialIndex}
+          onClose={() => setShowPhotoViewer(false)}
+        />
       )}
     </div>
   )
