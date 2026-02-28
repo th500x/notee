@@ -51,11 +51,11 @@ function HomePage({ projects, onProjectSelect, onAddProject, onDeleteProject, on
   }
 
   // 打开编辑对话框
+  // 打开编辑对话框
   const handleEditProject = (project) => {
     setEditingProject({
       ...project,
-      password: '', // 不显示现有密码，留空表示不修改
-      passwordPlaceholder: project.hasPassword ? '留空表示不修改密码' : '留空表示无需密码',
+      password: project.password || '', // 显示现有密码
       visible: project.visible !== false // 默认显示
     })
     setShowEditDialog(true)
@@ -75,16 +75,12 @@ function HomePage({ projects, onProjectSelect, onAddProject, onDeleteProject, on
     }
     
     try {
-      // 只有当密码输入框有内容时才更新密码
+      // 构建更新数据，明确包含所有字段
       const updateData = {
         name: editingProject.name,
         description: editingProject.description,
+        password: editingProject.password || '', // 明确传递密码（可以是空字符串）
         visible: editingProject.visible
-      }
-      
-      // 如果密码输入框有内容，则更新密码
-      if (editingProject.password) {
-        updateData.password = editingProject.password
       }
       
       await updateProjectInfo(editingProject.id, updateData)
@@ -480,14 +476,14 @@ function ProjectEditDialog({ project, onSave, onDelete, onClose, onChange }) {
                 访问密码（可选）
               </label>
               <input
-                type="password"
+                type="text"
                 value={project.password || ''}
                 onChange={(e) => onChange({ ...project, password: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder={project.passwordPlaceholder || '留空表示无需密码'}
+                placeholder="留空表示无需密码"
               />
               <p className="text-xs text-gray-500 mt-1">
-                {project.passwordPlaceholder || '设置后，访问此项目需要输入密码'}
+                留空表示无需密码
               </p>
             </div>
 
