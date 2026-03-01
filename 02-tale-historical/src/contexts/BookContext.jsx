@@ -4,6 +4,7 @@ import { book_02_02_diary_chao } from '../data/books/book-02-02-diary-chao'
 import { book_02_03_review_map } from '../data/books/book-02-03-review-map'
 import { book_02_04_review_game } from '../data/books/book-02-04-review-game'
 import { book_02_11_story_thailand } from '../data/books/book-02-11-story-thailand'
+import { STORAGE_KEYS, LOG_PREFIX } from '../constants'
 
 const BookContext = createContext()
 
@@ -22,6 +23,8 @@ export const BookProvider = ({ children }) => {
 
   // 初始化书籍数据
   useEffect(() => {
+    console.log(`${LOG_PREFIX.BOOK_CONTEXT} 初始化书籍数据`)
+    
     const initialBooks = [
       book_02_01_san_nanyang,
       book_02_02_diary_chao,
@@ -34,15 +37,25 @@ export const BookProvider = ({ children }) => {
     setBooks(initialBooks)
     
     // 从本地存储加载阅读进度
-    const savedProgress = localStorage.getItem('tale-reading-progress')
+    const savedProgress = localStorage.getItem(STORAGE_KEYS.READING_PROGRESS)
     if (savedProgress) {
-      setReadingProgress(JSON.parse(savedProgress))
+      try {
+        setReadingProgress(JSON.parse(savedProgress))
+        console.log(`${LOG_PREFIX.BOOK_CONTEXT} 加载阅读进度成功`)
+      } catch (e) {
+        console.error(`${LOG_PREFIX.BOOK_CONTEXT} 加载阅读进度失败:`, e)
+      }
     }
     
     // 从本地存储加载书签
-    const savedBookmarks = localStorage.getItem('tale-bookmarks')
+    const savedBookmarks = localStorage.getItem(STORAGE_KEYS.BOOKMARKS)
     if (savedBookmarks) {
-      setBookmarks(JSON.parse(savedBookmarks))
+      try {
+        setBookmarks(JSON.parse(savedBookmarks))
+        console.log(`${LOG_PREFIX.BOOK_CONTEXT} 加载书签成功`)
+      } catch (e) {
+        console.error(`${LOG_PREFIX.BOOK_CONTEXT} 加载书签失败:`, e)
+      }
     }
   }, [])
 
@@ -57,7 +70,12 @@ export const BookProvider = ({ children }) => {
           lastRead: new Date().toISOString()
         }
       }
-      localStorage.setItem('tale-reading-progress', JSON.stringify(newProgress))
+      try {
+        localStorage.setItem(STORAGE_KEYS.READING_PROGRESS, JSON.stringify(newProgress))
+        console.log(`${LOG_PREFIX.BOOK_CONTEXT} 保存阅读进度:`, bookId, chapterId)
+      } catch (e) {
+        console.error(`${LOG_PREFIX.BOOK_CONTEXT} 保存阅读进度失败:`, e)
+      }
       return newProgress
     })
   }, [])
@@ -78,7 +96,12 @@ export const BookProvider = ({ children }) => {
           }
         }
       }
-      localStorage.setItem('tale-bookmarks', JSON.stringify(newBookmarks))
+      try {
+        localStorage.setItem(STORAGE_KEYS.BOOKMARKS, JSON.stringify(newBookmarks))
+        console.log(`${LOG_PREFIX.BOOK_CONTEXT} 添加书签:`, bookId, chapterId)
+      } catch (e) {
+        console.error(`${LOG_PREFIX.BOOK_CONTEXT} 添加书签失败:`, e)
+      }
       return newBookmarks
     })
   }, [])
@@ -98,12 +121,13 @@ export const BookProvider = ({ children }) => {
   // 获取阅读进度
   const getReadingProgress = useCallback((bookId) => {
     // 直接从 localStorage 读取最新数据，避免依赖状态
-    const stored = localStorage.getItem('tale-reading-progress')
+    const stored = localStorage.getItem(STORAGE_KEYS.READING_PROGRESS)
     if (stored) {
       try {
         const progress = JSON.parse(stored)
         return progress[bookId] || null
       } catch (e) {
+        console.error(`${LOG_PREFIX.BOOK_CONTEXT} 获取阅读进度失败:`, e)
         return null
       }
     }
@@ -113,12 +137,13 @@ export const BookProvider = ({ children }) => {
   // 获取书签
   const getBookmarks = useCallback((bookId) => {
     // 直接从 localStorage 读取最新数据，避免依赖状态
-    const stored = localStorage.getItem('tale-bookmarks')
+    const stored = localStorage.getItem(STORAGE_KEYS.BOOKMARKS)
     if (stored) {
       try {
         const marks = JSON.parse(stored)
         return marks[bookId] || {}
       } catch (e) {
+        console.error(`${LOG_PREFIX.BOOK_CONTEXT} 获取书签失败:`, e)
         return {}
       }
     }

@@ -1,80 +1,11 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useBook } from '../contexts/BookContext'
+import { useReadingSettings } from '../hooks/useReadingSettings'
+import { splitContentIntoPages } from '../utils/contentPagination'
+import { LOG_PREFIX } from '../constants'
 import ChapterNavigation from './ChapterNavigation'
 import ReadingToolbar from './ReadingToolbar'
-
-// 分页函数
-const splitIntoPages = (content, charsPerPage = 1800) => {
-  if (!content) return []
-  
-  const blocks = []
-  let currentBlock = ''
-  const lines = content.split('\n')
-  
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i]
-    
-    if (line.startsWith('#') || line.trim() === '* * *') {
-      if (currentBlock.trim()) {
-        blocks.push(currentBlock)
-        currentBlock = ''
-      }
-      blocks.push(line)
-    } else if (line.trim() === '' && currentBlock.trim()) {
-      blocks.push(currentBlock)
-      currentBlock = ''
-    } else if (line.trim()) {
-      currentBlock += (currentBlock ? '\n' : '') + line
-    }
-  }
-  
-  if (currentBlock.trim()) {
-    blocks.push(currentBlock)
-  }
-  
-  const pages = []
-  let currentPageContent = []
-  let currentPageChars = 0
-  
-  for (const block of blocks) {
-    const blockChars = block.length
-    
-    // 遇到二级标题(##)且当前页已有内容(超过300字符),强制分页
-    if (block.startsWith('##') && currentPageChars > 300) {
-      if (currentPageContent.length > 0) {
-        pages.push(currentPageContent.join('\n\n'))
-        currentPageContent = []
-        currentPageChars = 0
-      }
-    }
-    
-    // 遇到一级标题(#)或图片,且当前页已有一定内容,强制分页
-    if ((block.startsWith('#') || block.includes('*（')) && currentPageChars > charsPerPage * 0.5) {
-      if (currentPageContent.length > 0) {
-        pages.push(currentPageContent.join('\n\n'))
-        currentPageContent = []
-        currentPageChars = 0
-      }
-    }
-    
-    // 如果当前块加入后会超过页面限制,且当前页已有内容,则分页
-    if (currentPageChars + blockChars > charsPerPage && currentPageContent.length > 0) {
-      pages.push(currentPageContent.join('\n\n'))
-      currentPageContent = [block]
-      currentPageChars = blockChars
-    } else {
-      currentPageContent.push(block)
-      currentPageChars += blockChars
-    }
-  }
-  
-  if (currentPageContent.length > 0) {
-    pages.push(currentPageContent.join('\n\n'))
-  }
-  
-  return pages.length > 0 ? pages : [content]
-}
 
 function BookReader() {
   const { bookId, chapterId } = useParams()
@@ -84,27 +15,27 @@ function BookReader() {
   const [currentBook, setCurrentBook] = useState(null)
   const [showNavigation, setShowNavigation] = useState(false)
   const [globalPageIndex, setGlobalPageIndex] = useState(0)
-  const [fontSize, setFontSize] = useState(16)
-  const [lineHeight, setLineHeight] = useState(1.8)
-  const [fontFamily, setFontFamily] = useState('heiti')
 
-  const fontOptions = [
-    { value: 'fangsong', label: '仿宋', family: "'FangSong', 'STFangsong', serif" },
-    { value: 'kaiti', label: '楷体', family: "'KaiTi', 'STKaiti', serif" },
-    { value: 'heiti', label: '黑体', family: "'SimHei', 'STHeiti', sans-serif" }
-  ]
-
-  const getCurrentFont = () => {
-    return fontOptions.find(f => f.value === fontFamily)?.family || fontOptions[0].family
-  }
+  // 使用阅读设置Hook
+  const {
+    fontSize,
+    lineHeight,
+    fontFamily,
+    fontOptions,
+    setFontSize,
+    setLineHeight,
+    setFontFamily,
+    getCurrentFont
+  } = useReadingSettings()
 
   // 构建全局页面列表
   const allPages = useMemo(() => {
     if (!currentBook) return []
     
+    console.log(`${LOG_PREFIX.BOOK_READER} 构建页面列表`)
     const pages = []
     currentBook.chapters.forEach((chapter) => {
-      const chapterPages = splitIntoPages(chapter.content)
+      const chapterPages = splitContentIntoPages(chapter.content)
       chapterPages.forEach((pageContent) => {
         pages.push({
           chapterId: chapter.id,
@@ -114,6 +45,7 @@ function BookReader() {
       })
     })
     
+    console.log(`${LOG_PREFIX.BOOK_READER} 总页数: ${pages.length}`)
     return pages
   }, [currentBook])
 
@@ -121,8 +53,10 @@ function BookReader() {
   const currentPageData = allPages[globalPageIndex]
 
   useEffect(() => {
+    console.log(`${LOG_PREFIX.BOOK_READER} 加载书籍: ${bookId}, 章节: ${chapterId}`)
     const book = getBook(bookId)
     if (!book) {
+      console.warn(`${LOG_PREFIX.BOOK_READER} 书籍不存在: ${bookId}`)
       navigate('/', { replace: true })
       return
     }
@@ -136,9 +70,10 @@ function BookReader() {
         // 计算该章节在全局页面中的起始索引
         let pageIndex = 0
         for (let i = 0; i < chapterIndex; i++) {
-          const chapterPages = splitIntoPages(book.chapters[i].content)
+          const chapterPages = splitContentIntoPages(book.chapters[i].content)
           pageIndex += chapterPages.length
         }
+        console.log(`${LOG_PREFIX.BOOK_READER} 跳转到章节页面: ${pageIndex}`)
         setGlobalPageIndex(pageIndex)
         saveReadingProgress(bookId, chapterId)
       }

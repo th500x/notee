@@ -2,31 +2,22 @@ import { useNavigate } from 'react-router-dom'
 import { useBook } from '../contexts/BookContext'
 import { useState } from 'react'
 import { verifyGlobalPassword } from '../config/announcement'
+import { BOOK_CATEGORIES, CATEGORY_ICONS, PROTECTED_CATEGORIES } from '../constants'
 
 function Bookshelf() {
   const navigate = useNavigate()
   const { books, readingProgress, getReadingProgress } = useBook()
-  const [selectedCategory, setSelectedCategory] = useState('全部')
+  const [selectedCategory, setSelectedCategory] = useState(BOOK_CATEGORIES.ALL)
   const [showPasswordModal, setShowPasswordModal] = useState(false)
   const [passwordInput, setPasswordInput] = useState('')
   const [passwordError, setPasswordError] = useState('')
-  const [unlockedCategories, setUnlockedCategories] = useState(new Set(['全部', '游戏史记', '游记杂谈']))
+  const [unlockedCategories, setUnlockedCategories] = useState(
+    new Set([BOOK_CATEGORIES.ALL, BOOK_CATEGORIES.GAME_HISTORY, BOOK_CATEGORIES.TRAVEL])
+  )
   const [pendingCategory, setPendingCategory] = useState('')
 
-  // 定义分类
-  const categories = ['全部', '游戏史记', '游记杂谈', '游戏文本', '个人私密']
-  
-  // 定义分类图标
-  const categoryIcons = {
-    '全部': '📚',
-    '游戏史记': '🎮',
-    '游戏文本': '📖',
-    '游记杂谈': '✈️',
-    '个人私密': '🔒'
-  }
-
-  // 需要密码验证的分类
-  const protectedCategories = ['游戏文本', '个人私密']
+  // 定义分类列表
+  const categories = Object.values(BOOK_CATEGORIES)
 
   // 公告内容（可自定义）
   const announcement = {
@@ -37,7 +28,7 @@ function Bookshelf() {
 
   const handleCategoryClick = (category) => {
     // 如果是受保护的分类且未解锁
-    if (protectedCategories.includes(category) && !unlockedCategories.has(category)) {
+    if (PROTECTED_CATEGORIES.includes(category) && !unlockedCategories.has(category)) {
       setPendingCategory(category)
       setShowPasswordModal(true)
       setPasswordInput('')
@@ -103,7 +94,7 @@ function Bookshelf() {
   }
 
   // 根据选中的分类过滤书籍
-  const filteredBooks = selectedCategory === '全部' 
+  const filteredBooks = selectedCategory === BOOK_CATEGORIES.ALL 
     ? books.filter(book => !book.requirePassword) // "全部"标签不显示加密书籍
     : books.filter(book => book.category === selectedCategory)
 
@@ -127,9 +118,9 @@ function Bookshelf() {
             className={`category-tab ${selectedCategory === category ? 'active' : ''}`}
             onClick={() => handleCategoryClick(category)}
           >
-            <span className="category-icon">{categoryIcons[category]}</span>
+            <span className="category-icon">{CATEGORY_ICONS[category]}</span>
             <span className="category-name">{category}</span>
-            {protectedCategories.includes(category) && !unlockedCategories.has(category) && (
+            {PROTECTED_CATEGORIES.includes(category) && !unlockedCategories.has(category) && (
               <span className="lock-icon">🔒</span>
             )}
           </button>
@@ -200,7 +191,7 @@ function Bookshelf() {
         })}
         
         {/* 添加新书的占位符 - 只在游戏史记和游记杂谈分类显示 */}
-        {(selectedCategory === '游戏史记' || selectedCategory === '游记杂谈') && (
+        {(selectedCategory === BOOK_CATEGORIES.GAME_HISTORY || selectedCategory === BOOK_CATEGORIES.TRAVEL) && (
           <div className="book-item book-item-placeholder">
             <div className="book-cover-wrapper">
               <div className="book-cover-3d placeholder-cover">

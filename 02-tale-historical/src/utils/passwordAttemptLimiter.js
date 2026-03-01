@@ -14,10 +14,12 @@
  * - 10分钟后自动解锁
  */
 
+import { PASSWORD_ATTEMPT_CONFIG, STORAGE_KEYS } from '../constants'
+
 // 配置常量
-const MAX_ATTEMPTS = 5;           // 最大尝试次数
-const LOCKOUT_DURATION = 10 * 60 * 1000;  // 锁定时长（10分钟，单位：毫秒）
-const STORAGE_KEY_PREFIX = 'pwd_attempt_';  // localStorage键前缀
+const MAX_ATTEMPTS = PASSWORD_ATTEMPT_CONFIG.MAX_ATTEMPTS
+const LOCKOUT_DURATION = PASSWORD_ATTEMPT_CONFIG.LOCKOUT_DURATION
+const STORAGE_KEY_PREFIX = STORAGE_KEYS.PASSWORD_ATTEMPT
 
 /**
  * 获取尝试记录
@@ -25,23 +27,24 @@ const STORAGE_KEY_PREFIX = 'pwd_attempt_';  // localStorage键前缀
  * @returns {Object} 尝试记录
  */
 function getAttemptRecord(identifier) {
-  const key = STORAGE_KEY_PREFIX + identifier;
-  const record = localStorage.getItem(key);
+  const key = STORAGE_KEY_PREFIX + identifier
+  const record = localStorage.getItem(key)
   
   if (!record) {
     return {
       attempts: 0,
       lockedUntil: null
-    };
+    }
   }
   
   try {
-    return JSON.parse(record);
+    return JSON.parse(record)
   } catch (e) {
+    console.error('[passwordAttemptLimiter] 解析记录失败:', e)
     return {
       attempts: 0,
       lockedUntil: null
-    };
+    }
   }
 }
 
@@ -51,8 +54,12 @@ function getAttemptRecord(identifier) {
  * @param {Object} record - 尝试记录
  */
 function saveAttemptRecord(identifier, record) {
-  const key = STORAGE_KEY_PREFIX + identifier;
-  localStorage.setItem(key, JSON.stringify(record));
+  const key = STORAGE_KEY_PREFIX + identifier
+  try {
+    localStorage.setItem(key, JSON.stringify(record))
+  } catch (e) {
+    console.error('[passwordAttemptLimiter] 保存记录失败:', e)
+  }
 }
 
 /**
@@ -61,25 +68,25 @@ function saveAttemptRecord(identifier, record) {
  * @returns {Object} { isLocked: boolean, remainingTime: number }
  */
 export function checkLockStatus(identifier) {
-  const record = getAttemptRecord(identifier);
+  const record = getAttemptRecord(identifier)
   
   if (!record.lockedUntil) {
-    return { isLocked: false, remainingTime: 0 };
+    return { isLocked: false, remainingTime: 0 }
   }
   
-  const now = Date.now();
-  const remainingTime = record.lockedUntil - now;
+  const now = Date.now()
+  const remainingTime = record.lockedUntil - now
   
   // 如果锁定时间已过，自动解锁
   if (remainingTime <= 0) {
     saveAttemptRecord(identifier, {
       attempts: 0,
       lockedUntil: null
-    });
-    return { isLocked: false, remainingTime: 0 };
+    })
+    return { isLocked: false, remainingTime: 0 }
   }
   
-  return { isLocked: true, remainingTime };
+  return { isLocked: true, remainingTime }
 }
 
 /**
@@ -88,32 +95,32 @@ export function checkLockStatus(identifier) {
  * @returns {Object} { isLocked: boolean, remainingAttempts: number, remainingTime: number }
  */
 export function recordFailedAttempt(identifier) {
-  const record = getAttemptRecord(identifier);
+  const record = getAttemptRecord(identifier)
   
   // 增加尝试次数
-  record.attempts += 1;
+  record.attempts += 1
   
   // 检查是否达到最大尝试次数
   if (record.attempts >= MAX_ATTEMPTS) {
     // 锁定账号
-    record.lockedUntil = Date.now() + LOCKOUT_DURATION;
-    saveAttemptRecord(identifier, record);
+    record.lockedUntil = Date.now() + LOCKOUT_DURATION
+    saveAttemptRecord(identifier, record)
     
     return {
       isLocked: true,
       remainingAttempts: 0,
       remainingTime: LOCKOUT_DURATION
-    };
+    }
   }
   
   // 未达到最大次数，保存记录
-  saveAttemptRecord(identifier, record);
+  saveAttemptRecord(identifier, record)
   
   return {
     isLocked: false,
     remainingAttempts: MAX_ATTEMPTS - record.attempts,
     remainingTime: 0
-  };
+  }
 }
 
 /**
@@ -124,7 +131,7 @@ export function recordSuccessfulAttempt(identifier) {
   saveAttemptRecord(identifier, {
     attempts: 0,
     lockedUntil: null
-  });
+  })
 }
 
 /**
@@ -133,8 +140,8 @@ export function recordSuccessfulAttempt(identifier) {
  * @returns {string} 格式化的时间字符串
  */
 export function formatRemainingTime(milliseconds) {
-  const minutes = Math.ceil(milliseconds / 60000);
-  return `${minutes}分钟`;
+  const minutes = Math.ceil(milliseconds / 60000)
+  return `${minutes}分钟`
 }
 
 /**
@@ -144,11 +151,11 @@ export function formatRemainingTime(milliseconds) {
  */
 export function getErrorMessage(result) {
   if (result.isLocked) {
-    const timeStr = formatRemainingTime(result.remainingTime);
-    return `密码错误次数过多，请${timeStr}后重试`;
+    const timeStr = formatRemainingTime(result.remainingTime)
+    return `密码错误次数过多，请${timeStr}后重试`
   }
   
-  return `密码错误，还可以尝试 ${result.remainingAttempts} 次`;
+  return `密码错误，还可以尝试 ${result.remainingAttempts} 次`
 }
 
 /**
@@ -157,13 +164,9 @@ export function getErrorMessage(result) {
  * @returns {string} 锁定提示信息
  */
 export function getLockoutMessage(remainingTime) {
-  const timeStr = formatRemainingTime(remainingTime);
-  return `密码错误次数过多，请${timeStr}后重试`;
+  const timeStr = formatRemainingTime(remainingTime)
+  return `密码错误次数过多，请${timeStr}后重试`
 }
 
 // 导出配置常量（供外部使用）
-export const PASSWORD_ATTEMPT_CONFIG = {
-  MAX_ATTEMPTS,
-  LOCKOUT_DURATION,
-  LOCKOUT_DURATION_MINUTES: LOCKOUT_DURATION / 60000
-};
+export { PASSWORD_ATTEMPT_CONFIG }
