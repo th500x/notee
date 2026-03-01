@@ -45,10 +45,27 @@ const limiter = rateLimit({
   skip: (req) => req.path === '/api/health'
 })
 
-// Emoji反应的严格限流（防止刷票）
+// Emoji反应的限流（防止刷票，但不能太严格）
 const emojiLimiter = rateLimit({
   windowMs: 1 * 60 * 1000, // 1分钟
-  max: isProduction ? 10 : 100, // 生产环境1分钟10次，开发环境100次
+  max: isProduction ? 60 : 200, // 生产环境1分钟60次，开发环境200次
+  message: { 
+    success: false, 
+    error: '操作过于频繁，请稍后再试' 
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => {
+    return req.clientIP || req.ip
+  },
+  // 只对POST请求（添加反应）严格限流
+  skip: (req) => req.method === 'GET'
+})
+
+// POST请求的严格限流（防止刷票）
+const emojiPostLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000, // 1分钟
+  max: isProduction ? 10 : 100, // 生产环境1分钟10次
   message: { 
     success: false, 
     error: '操作过于频繁，请稍后再试' 
@@ -177,7 +194,10 @@ app.use((req, res, next) => {
 
 // 路由
 app.use('/api/news', newsRoutes)
-app.use('/api/emoji', emojiLimiter, emojiRoutes) // Emoji路由使用严格限流
+app.use('/api/emoji', emojiLimiter, emojiRoutes) // Emoji GET请求宽松限流
+
+// 为POST请求添加额外的严格限流
+app.post('/api/emoji', emojiPostLimiter)
 
 // 健康检查
 app.get('/api/health', (req, res) => {
@@ -241,8 +261,9 @@ async function startServer() {
     app.listen(PORT, () => {
       console.log(`🚀 服务器运行在 http://localhost:${PORT}`)
       console.log(`🔒 安全模式: ${isProduction ? '生产环境' : '开发环境'}`)
-      console.log(`⚡ 限流配置: ${isProduction ? '100次/15分钟' : '1000次/15分钟'}`)
-      console.log(`🛡️  Emoji限流: ${isProduction ? '10次/分钟' : '100次/分钟'}`)
+      console.log(`⚡ 全局限流: ${isProduction ? '100次/15分钟' : '1000次/15分钟'}`)
+      console.log(`🛡️  Emoji GET限流: ${isProduction ? '60次/分钟' : '200次/分钟'}`)
+      console.log(`🛡️  Emoji POST限流: ${isProduction ? '10次/分钟' : '100次/分钟'}`)
       console.log(`📊 健康检查: http://localhost:${PORT}/api/health`)
     })
   } catch (error) {
