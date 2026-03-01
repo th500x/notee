@@ -27,9 +27,19 @@ class SimpleCache {
    * @param {string} key - 缓存键
    * @param {any} value - 缓存值
    * @param {number} ttl - 过期时间（毫秒），默认使用defaultTTL
+   * @throws {TypeError} 如果参数类型不正确
    */
   set(key, value, ttl = this.defaultTTL) {
-    // 如果超过最大容量，删除最旧的项
+    // 参数验证
+    if (typeof key !== 'string' || key.length === 0) {
+      throw new TypeError('Cache key must be a non-empty string')
+    }
+    
+    if (typeof ttl !== 'number' || ttl < 0 || !isFinite(ttl)) {
+      throw new TypeError('TTL must be a non-negative finite number')
+    }
+    
+    // 如果超过最大容量，删除最旧的项（FIFO策略）
     if (this.cache.size >= this.maxSize) {
       const firstKey = this.cache.keys().next().value
       this.cache.delete(firstKey)
@@ -46,8 +56,13 @@ class SimpleCache {
    * 获取缓存
    * @param {string} key - 缓存键
    * @returns {any|null} 缓存值，如果不存在或已过期返回null
+   * @throws {TypeError} 如果key不是字符串
    */
   get(key) {
+    if (typeof key !== 'string') {
+      throw new TypeError('Cache key must be a string')
+    }
+    
     const item = this.cache.get(key)
     if (!item) return null
     
