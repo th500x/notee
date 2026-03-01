@@ -11,7 +11,7 @@ const path = require('path');
 const guestbookRouter = require('./guestbook');
 
 const app = express();
-const PORT = process.env.PORT || 3002;
+const PORT = process.env.PORT || 3001;
 
 // CORS配置 - 支持域名和本地开发
 const allowedOrigins = [

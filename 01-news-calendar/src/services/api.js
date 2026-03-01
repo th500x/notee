@@ -8,10 +8,10 @@ const getApiBaseUrl = () => {
     }
     // 本地开发环境
     if (hostname === 'localhost' || hostname === '127.0.0.1') {
-      return `${protocol}//${hostname}:3001/api`
+      return `${protocol}//${hostname}:3002/api`
     }
     // 其他情况（如IP访问）
-    return `${protocol}//${hostname}:3001/api`
+    return `${protocol}//${hostname}:3002/api`
   }
   // 服务端渲染默认值
   return 'https://notee.vip/api'

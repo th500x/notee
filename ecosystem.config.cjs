@@ -8,7 +8,7 @@ module.exports = {
       exec_mode: 'fork',
       env: {
         NODE_ENV: 'production',
-        PORT: 3002
+        PORT: 3001
       },
       error_file: './logs/notee-backend-error.log',
       out_file: './logs/notee-backend-out.log',
