@@ -13,10 +13,12 @@ const NEWS_CATEGORIES = {
 function HotNews({ refreshTrigger }) {
   const [hotNews, setHotNews] = useState([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
 
   const fetchHotNews = async () => {
     try {
       setLoading(true)
+      setError(null)
       
       const timestamp = Date.now()
       // 使用相对路径，自动适配域名
@@ -93,7 +95,8 @@ function HotNews({ refreshTrigger }) {
       setHotNews(hotNewsWithContent)
       
     } catch (error) {
-      console.error('Fetch hot news failed:', error)
+      console.error('[HotNews] 加载失败:', error)
+      setError(error.message || '加载热门新闻失败')
       setHotNews([])
     } finally {
       setLoading(false)
@@ -160,6 +163,28 @@ function HotNews({ refreshTrigger }) {
         <div className="text-center py-4 text-gray-500">
           <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900 mx-auto"></div>
           <p className="mt-2 text-sm">Loading...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="bg-white rounded-lg shadow-md p-4">
+        <h3 className="text-lg font-semibold mb-3 flex items-center">
+          🔥 Hot News This Month
+        </h3>
+        <div className="text-center py-4">
+          <svg className="w-8 h-8 text-red-500 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <p className="text-red-600 text-sm mb-2">{error}</p>
+          <button 
+            onClick={fetchHotNews}
+            className="px-3 py-1 bg-blue-500 text-white text-sm rounded hover:bg-blue-600 transition-colors"
+          >
+            重试
+          </button>
         </div>
       </div>
     )
