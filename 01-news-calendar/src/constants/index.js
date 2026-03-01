@@ -65,6 +65,8 @@ export const EMOJI_CONSTANTS = {
   THUMBS_DOWN: '👎',
   // 有效的emoji列表
   VALID_EMOJIS: ['🍺', '👍', '👎'],
+  // Emoji更新延迟（毫秒）
+  UPDATE_DELAY: 300,
 }
 
 /**

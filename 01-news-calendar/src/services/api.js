@@ -1,4 +1,4 @@
-import { API_CONSTANTS } from '../constants'
+import { API_CONSTANTS, LOG_PREFIX } from '../constants'
 
 // 根据环境自动选择API地址
 const getApiBaseUrl = () => {
@@ -24,6 +24,13 @@ const API_BASE_URL = getApiBaseUrl()
 // 存储活跃的请求控制器，用于取消请求
 const activeRequests = new Map()
 
+// 重试配置
+const RETRY_CONFIG = {
+  maxRetries: 3, // 最大重试次数
+  retryDelay: 1000, // 初始重试延迟（毫秒）
+  retryableStatuses: [408, 429, 500, 502, 503, 504], // 可重试的HTTP状态码
+}
+
 /**
  * 取消指定端点的所有活跃请求
  * @param {string} endpoint - API端点
@@ -45,13 +52,43 @@ export function cancelAllRequests() {
 }
 
 /**
- * API请求封装（带超时和取消机制）
+ * 延迟函数（用于重试）
+ * @param {number} ms - 延迟毫秒数
+ * @returns {Promise<void>}
+ */
+function delay(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms))
+}
+
+/**
+ * 判断错误是否可重试
+ * @param {Error} error - 错误对象
+ * @param {number} status - HTTP状态码
+ * @returns {boolean}
+ */
+function isRetryableError(error, status) {
+  // 网络错误可重试
+  if (error.name === 'TypeError' && error.message.includes('fetch')) {
+    return true
+  }
+  
+  // 特定HTTP状态码可重试
+  if (status && RETRY_CONFIG.retryableStatuses.includes(status)) {
+    return true
+  }
+  
+  return false
+}
+
+/**
+ * API请求封装（带超时、取消和重试机制）
  * @param {string} endpoint - API端点
  * @param {Object} options - fetch选项
  * @param {number} timeout - 超时时间（毫秒），默认30秒
+ * @param {number} retryCount - 当前重试次数（内部使用）
  * @returns {Promise<Object>} API响应
  */
-async function apiRequest(endpoint, options = {}, timeout = API_CONSTANTS.TIMEOUT) {
+async function apiRequest(endpoint, options = {}, timeout = API_CONSTANTS.TIMEOUT, retryCount = 0) {
   const url = `${API_BASE_URL}${endpoint}`
   
   // 创建AbortController用于超时和取消
@@ -78,6 +115,14 @@ async function apiRequest(endpoint, options = {}, timeout = API_CONSTANTS.TIMEOU
     const data = await response.json()
     
     if (!response.ok) {
+      // 检查是否可重试
+      if (retryCount < RETRY_CONFIG.maxRetries && isRetryableError(new Error(data.error), response.status)) {
+        const retryDelay = RETRY_CONFIG.retryDelay * Math.pow(2, retryCount) // 指数退避
+        console.warn(`${LOG_PREFIX.API} ${endpoint} 请求失败，${retryDelay}ms后重试 (${retryCount + 1}/${RETRY_CONFIG.maxRetries})`)
+        await delay(retryDelay)
+        return apiRequest(endpoint, options, timeout, retryCount + 1)
+      }
+      
       throw new Error(data.error || `HTTP error! status: ${response.status}`)
     }
     
@@ -91,7 +136,15 @@ async function apiRequest(endpoint, options = {}, timeout = API_CONSTANTS.TIMEOU
       throw new Error('请求超时或已取消，请检查网络连接')
     }
     
-    console.error(`${endpoint} API请求失败:`, error)
+    // 网络错误重试
+    if (retryCount < RETRY_CONFIG.maxRetries && isRetryableError(error)) {
+      const retryDelay = RETRY_CONFIG.retryDelay * Math.pow(2, retryCount) // 指数退避
+      console.warn(`${LOG_PREFIX.API} ${endpoint} 网络错误，${retryDelay}ms后重试 (${retryCount + 1}/${RETRY_CONFIG.maxRetries})`)
+      await delay(retryDelay)
+      return apiRequest(endpoint, options, timeout, retryCount + 1)
+    }
+    
+    console.error(`${LOG_PREFIX.API} ${endpoint} 请求失败:`, error)
     throw error
   }
 }

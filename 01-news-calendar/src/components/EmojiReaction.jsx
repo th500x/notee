@@ -1,16 +1,41 @@
 import { useState, useEffect } from 'react'
 import { emojiAPI } from '../services/api'
+import { EMOJI_CONSTANTS } from '../constants'
 
 const EMOJIS = [
-  { emoji: '🍺', label: '精彩' },
-  { emoji: '👍', label: '赞' },
-  { emoji: '👎', label: '踩' }
+  { emoji: EMOJI_CONSTANTS.BEER, label: '精彩' },
+  { emoji: EMOJI_CONSTANTS.THUMBS_UP, label: '赞' },
+  { emoji: EMOJI_CONSTANTS.THUMBS_DOWN, label: '踩' }
 ]
 
 function EmojiReaction({ newsId, onUpdate }) {
   const [reactions, setReactions] = useState({ '🍺': 0, '👍': 0, '👎': 0 })
   const [userReaction, setUserReaction] = useState(null)
   const [loading, setLoading] = useState(false)
+
+  // 加载数据的函数（提取出来供多处使用）
+  const loadData = async () => {
+    if (!newsId) return
+    
+    try {
+      const [reactionsRes, userRes] = await Promise.all([
+        emojiAPI.getReactions(newsId),
+        emojiAPI.getUserReaction(newsId)
+      ])
+      
+      if (reactionsRes.success) {
+        setReactions(reactionsRes.data)
+      }
+      
+      if (userRes.success) {
+        setUserReaction(userRes.data.emoji)
+      }
+    } catch (error) {
+      console.error('加载emoji反应失败:', error)
+      setReactions({ '🍺': 0, '👍': 0, '👎': 0 })
+      setUserReaction(null)
+    }
+  }
 
   // 当newsId改变时，重新加载数据
   useEffect(() => {
@@ -23,7 +48,7 @@ function EmojiReaction({ newsId, onUpdate }) {
     setUserReaction(null)
     
     // 并行加载数据，提升性能
-    const loadData = async () => {
+    const loadDataWithCancel = async () => {
       try {
         const [reactionsRes, userRes] = await Promise.all([
           emojiAPI.getReactions(newsId),
@@ -49,7 +74,7 @@ function EmojiReaction({ newsId, onUpdate }) {
       }
     }
     
-    loadData()
+    loadDataWithCancel()
     
     // Cleanup函数：组件卸载或newsId变化时取消请求
     return () => {
@@ -69,11 +94,11 @@ function EmojiReaction({ newsId, onUpdate }) {
         
         if (response.success) {
           setUserReaction(null)
-          await loadReactions()
+          await loadData()
           if (onUpdate) {
             setTimeout(() => {
               onUpdate()
-            }, 300)
+            }, EMOJI_CONSTANTS.UPDATE_DELAY)
           }
         }
       } else {
@@ -82,11 +107,11 @@ function EmojiReaction({ newsId, onUpdate }) {
         
         if (response.success) {
           setUserReaction(emoji)
-          await loadReactions()
+          await loadData()
           if (onUpdate) {
             setTimeout(() => {
               onUpdate()
-            }, 300)
+            }, EMOJI_CONSTANTS.UPDATE_DELAY)
           }
         }
       }

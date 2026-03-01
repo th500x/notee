@@ -53,7 +53,7 @@ class SimpleCache {
   }
   
   /**
-   * 获取缓存
+   * 获取缓存（LRU策略：更新访问时间）
    * @param {string} key - 缓存键
    * @returns {any|null} 缓存值，如果不存在或已过期返回null
    * @throws {TypeError} 如果key不是字符串
@@ -71,6 +71,13 @@ class SimpleCache {
       this.cache.delete(key)
       return null
     }
+    
+    // LRU策略：将访问的项移到最后（最近使用）
+    this.cache.delete(key)
+    this.cache.set(key, {
+      ...item,
+      lastAccessed: Date.now()
+    })
     
     return item.value
   }
