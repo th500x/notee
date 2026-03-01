@@ -14,44 +14,48 @@ function EmojiReaction({ newsId, onUpdate }) {
 
   // 当newsId改变时，重新加载数据
   useEffect(() => {
-    if (newsId) {
-      // 重置状态，避免显示上一个新闻的数据
-      setReactions({ '🍺': 0, '👍': 0, '👎': 0 })
-      setUserReaction(null)
-      
-      // 加载新的数据
-      loadReactions()
-      loadUserReaction()
+    if (!newsId) return
+    
+    let cancelled = false
+    
+    // 重置状态，避免显示上一个新闻的数据
+    setReactions({ '🍺': 0, '👍': 0, '👎': 0 })
+    setUserReaction(null)
+    
+    // 并行加载数据，提升性能
+    const loadData = async () => {
+      try {
+        const [reactionsRes, userRes] = await Promise.all([
+          emojiAPI.getReactions(newsId),
+          emojiAPI.getUserReaction(newsId)
+        ])
+        
+        // 检查是否已取消（防止竞态条件）
+        if (cancelled) return
+        
+        if (reactionsRes.success) {
+          setReactions(reactionsRes.data)
+        }
+        
+        if (userRes.success) {
+          setUserReaction(userRes.data.emoji)
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.error('加载emoji反应失败:', error)
+          setReactions({ '🍺': 0, '👍': 0, '👎': 0 })
+          setUserReaction(null)
+        }
+      }
+    }
+    
+    loadData()
+    
+    // Cleanup函数：组件卸载或newsId变化时取消请求
+    return () => {
+      cancelled = true
     }
   }, [newsId])
-
-  const loadReactions = async () => {
-    if (!newsId) return
-    
-    try {
-      const response = await emojiAPI.getReactions(newsId)
-      if (response.success) {
-        setReactions(response.data)
-      }
-    } catch (error) {
-      console.error('加载emoji反应失败:', error)
-      setReactions({ '🍺': 0, '👍': 0, '👎': 0 })
-    }
-  }
-
-  const loadUserReaction = async () => {
-    if (!newsId) return
-    
-    try {
-      const response = await emojiAPI.getUserReaction(newsId)
-      if (response.success) {
-        setUserReaction(response.data.emoji)
-      }
-    } catch (error) {
-      console.error('加载用户反应失败:', error)
-      setUserReaction(null)
-    }
-  }
 
   const handleEmojiClick = async (emoji) => {
     if (loading || !newsId) return

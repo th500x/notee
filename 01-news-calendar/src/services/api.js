@@ -1,3 +1,5 @@
+import { API_CONSTANTS } from '../constants'
+
 // 根据环境自动选择API地址
 const getApiBaseUrl = () => {
   if (typeof window !== 'undefined') {
@@ -19,20 +21,60 @@ const getApiBaseUrl = () => {
 
 const API_BASE_URL = getApiBaseUrl()
 
-// API请求封装
-async function apiRequest(endpoint, options = {}) {
+// 存储活跃的请求控制器，用于取消请求
+const activeRequests = new Map()
+
+/**
+ * 取消指定端点的所有活跃请求
+ * @param {string} endpoint - API端点
+ */
+export function cancelRequest(endpoint) {
+  const controller = activeRequests.get(endpoint)
+  if (controller) {
+    controller.abort()
+    activeRequests.delete(endpoint)
+  }
+}
+
+/**
+ * 取消所有活跃请求
+ */
+export function cancelAllRequests() {
+  activeRequests.forEach(controller => controller.abort())
+  activeRequests.clear()
+}
+
+/**
+ * API请求封装（带超时和取消机制）
+ * @param {string} endpoint - API端点
+ * @param {Object} options - fetch选项
+ * @param {number} timeout - 超时时间（毫秒），默认30秒
+ * @returns {Promise<Object>} API响应
+ */
+async function apiRequest(endpoint, options = {}, timeout = API_CONSTANTS.TIMEOUT) {
   const url = `${API_BASE_URL}${endpoint}`
+  
+  // 创建AbortController用于超时和取消
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), timeout)
+  
+  // 存储控制器，用于外部取消
+  activeRequests.set(endpoint, controller)
   
   const config = {
     headers: {
       'Content-Type': 'application/json',
       ...options.headers
     },
+    signal: controller.signal,
     ...options
   }
   
   try {
     const response = await fetch(url, config)
+    clearTimeout(timeoutId)
+    activeRequests.delete(endpoint)
+    
     const data = await response.json()
     
     if (!response.ok) {
@@ -41,7 +83,15 @@ async function apiRequest(endpoint, options = {}) {
     
     return data
   } catch (error) {
-    console.error('API请求失败:', error)
+    clearTimeout(timeoutId)
+    activeRequests.delete(endpoint)
+    
+    // 处理不同类型的错误
+    if (error.name === 'AbortError') {
+      throw new Error('请求超时或已取消，请检查网络连接')
+    }
+    
+    console.error(`${endpoint} API请求失败:`, error)
     throw error
   }
 }
