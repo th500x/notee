@@ -1,9 +1,9 @@
 module.exports = {
   apps: [
     {
-      name: 'backend',
+      name: 'news-calendar-backend',
       script: './backend/server.js',
-      cwd: '/www/wwwroot/website-news',
+      cwd: '/www/wwwroot/notee/01-news-calendar',
       instances: 1,
       autorestart: true,
       watch: false,
