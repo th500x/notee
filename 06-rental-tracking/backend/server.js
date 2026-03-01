@@ -1,23 +1,67 @@
 /**
  * 租赁追踪系统 - 后端服务器
  * 
- * @description 独立的后端 API 服务
+ * @description 独立的后端 API 服务，使用MySQL数据库
  * @module 06-rental-tracking/backend/server
  */
 
 const express = require('express');
 const cors = require('cors');
-const fs = require('fs').promises;
-const path = require('path');
+const mysql = require('mysql2/promise');
 
 const app = express();
 const PORT = process.env.PORT || 3003;
 
-// 数据文件路径
-const DATA_FILE = path.join(__dirname, 'data', 'rental-tracking.json');
-
 // 全局管理员密码
 const GLOBAL_ADMIN_PASSWORD = process.env.GLOBAL_ADMIN_PASSWORD || 'notee.vip.2026';
+
+// MySQL数据库连接配置
+const dbConfig = {
+  host: process.env.DB_HOST || 'localhost',
+  user: process.env.DB_USER || 'root',
+  password: process.env.DB_PASSWORD || '',
+  database: process.env.DB_NAME || 'notee_rental_tracking',
+  waitForConnections: true,
+  connectionLimit: 10,
+  queueLimit: 0
+};
+
+// 创建数据库连接池
+let pool;
+
+/**
+ * 初始化数据库连接
+ */
+async function initDatabase() {
+  try {
+    pool = mysql.createPool(dbConfig);
+    
+    // 测试连接
+    const connection = await pool.getConnection();
+    console.log('✓ MySQL数据库连接成功');
+    
+    // 创建表（如果不存在）
+    await connection.query(`
+      CREATE TABLE IF NOT EXISTS projects (
+        id VARCHAR(50) PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        description TEXT,
+        password VARCHAR(255),
+        visible BOOLEAN DEFAULT TRUE,
+        properties JSON,
+        expenses JSON,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+    
+    console.log('✓ 数据库表已初始化');
+    connection.release();
+  } catch (error) {
+    console.error('✗ 数据库连接失败:', error.message);
+    throw error;
+  }
+}
 
 // CORS配置 - 开发环境允许所有来源
 app.use(cors({
@@ -27,43 +71,7 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
-app.use(express.json({ limit: '1mb' }));
-
-/**
- * 初始化数据文件
- */
-async function initDataFile() {
-  try {
-    await fs.access(DATA_FILE);
-  } catch {
-    const dataDir = path.dirname(DATA_FILE);
-    await fs.mkdir(dataDir, { recursive: true });
-    
-    const initialData = {
-      projects: [],
-      lastUpdated: new Date().toISOString()
-    };
-    
-    await fs.writeFile(DATA_FILE, JSON.stringify(initialData, null, 2), 'utf-8');
-    console.log('✓ 数据文件已初始化');
-  }
-}
-
-/**
- * 读取数据
- */
-async function readData() {
-  const content = await fs.readFile(DATA_FILE, 'utf-8');
-  return JSON.parse(content);
-}
-
-/**
- * 写入数据
- */
-async function writeData(data) {
-  data.lastUpdated = new Date().toISOString();
-  await fs.writeFile(DATA_FILE, JSON.stringify(data, null, 2), 'utf-8');
-}
+app.use(express.json({ limit: '10mb' })); // 增加限制以支持照片上传
 
 /**
  * 验证管理员密码
@@ -88,20 +96,24 @@ function verifyProjectPassword(project, password) {
 app.get('/projects', async (req, res) => {
   try {
     const { adminPassword } = req.query;
-    const data = await readData();
-    
     const isAdmin = adminPassword && verifyAdminPassword(adminPassword);
     
-    // 返回完整的项目数据（包括 properties 和 expenses）
-    const projects = data.projects.map(project => {
-      if (isAdmin || project.visible !== false) {
-        // 返回完整项目数据，但隐藏密码字段，并确保 hasPassword 是布尔值
-        const { password, hasPassword: _, ...projectData } = project;
+    const [rows] = await pool.query('SELECT * FROM projects ORDER BY created_at DESC');
+    
+    const projects = rows.map(project => {
+      // 解析JSON字段
+      const projectData = {
+        ...project,
+        properties: JSON.parse(project.properties || '[]'),
+        expenses: JSON.parse(project.expenses || '[]'),
+        visible: Boolean(project.visible)
+      };
+      
+      if (isAdmin || projectData.visible !== false) {
+        const { password, ...safeProject } = projectData;
         return {
-          ...projectData, // 先展开其他数据
-          properties: project.properties || [],
-          expenses: project.expenses || [],
-          hasPassword: !!password // 最后设置 hasPassword，确保覆盖任何旧值
+          ...safeProject,
+          hasPassword: !!password
         };
       }
       return null;
@@ -121,12 +133,19 @@ app.get('/projects/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const { password, adminPassword } = req.query;
-    const data = await readData();
     
-    const project = data.projects.find(p => p.id === id);
-    if (!project) {
+    const [rows] = await pool.query('SELECT * FROM projects WHERE id = ?', [id]);
+    
+    if (rows.length === 0) {
       return res.status(404).json({ success: false, error: '项目不存在' });
     }
+    
+    const project = {
+      ...rows[0],
+      properties: JSON.parse(rows[0].properties || '[]'),
+      expenses: JSON.parse(rows[0].expenses || '[]'),
+      visible: Boolean(rows[0].visible)
+    };
     
     const isAdmin = adminPassword && verifyAdminPassword(adminPassword);
     const hasAccess = isAdmin || verifyProjectPassword(project, password);
@@ -153,20 +172,28 @@ app.post('/projects', async (req, res) => {
       return res.status(403).json({ success: false, error: '管理员密码错误' });
     }
     
-    const data = await readData();
     const newProject = {
       id: `project-${Date.now()}`,
-      ...projectData,
-      properties: [],
-      expenses: [],
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
+      name: projectData.name || '未命名项目',
+      description: projectData.description || '',
+      password: projectData.password || null,
+      visible: projectData.visible !== false,
+      properties: JSON.stringify([]),
+      expenses: JSON.stringify([])
     };
     
-    data.projects.push(newProject);
-    await writeData(data);
+    await pool.query(
+      'INSERT INTO projects (id, name, description, password, visible, properties, expenses) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [newProject.id, newProject.name, newProject.description, newProject.password, newProject.visible, newProject.properties, newProject.expenses]
+    );
     
-    res.json({ success: true, project: newProject });
+    const result = {
+      ...newProject,
+      properties: [],
+      expenses: []
+    };
+    
+    res.json({ success: true, project: result });
   } catch (error) {
     console.error('创建项目失败:', error);
     res.status(500).json({ success: false, error: '创建项目失败' });
@@ -174,7 +201,7 @@ app.post('/projects', async (req, res) => {
 });
 
 /**
- * 更新项目信息
+ * 更新项目基本信息（名称、描述、密码等）
  */
 app.put('/projects/:id', async (req, res) => {
   try {
@@ -185,21 +212,51 @@ app.put('/projects/:id', async (req, res) => {
       return res.status(403).json({ success: false, error: '管理员密码错误' });
     }
     
-    const data = await readData();
-    const projectIndex = data.projects.findIndex(p => p.id === id);
+    const [rows] = await pool.query('SELECT * FROM projects WHERE id = ?', [id]);
     
-    if (projectIndex === -1) {
+    if (rows.length === 0) {
       return res.status(404).json({ success: false, error: '项目不存在' });
     }
     
-    data.projects[projectIndex] = {
-      ...data.projects[projectIndex],
-      ...updates,
-      updatedAt: new Date().toISOString()
+    // 构建更新字段
+    const updateFields = [];
+    const updateValues = [];
+    
+    if (updates.name !== undefined) {
+      updateFields.push('name = ?');
+      updateValues.push(updates.name);
+    }
+    if (updates.description !== undefined) {
+      updateFields.push('description = ?');
+      updateValues.push(updates.description);
+    }
+    if (updates.password !== undefined) {
+      updateFields.push('password = ?');
+      updateValues.push(updates.password);
+    }
+    if (updates.visible !== undefined) {
+      updateFields.push('visible = ?');
+      updateValues.push(updates.visible);
+    }
+    
+    if (updateFields.length > 0) {
+      updateValues.push(id);
+      await pool.query(
+        `UPDATE projects SET ${updateFields.join(', ')} WHERE id = ?`,
+        updateValues
+      );
+    }
+    
+    // 获取更新后的项目
+    const [updatedRows] = await pool.query('SELECT * FROM projects WHERE id = ?', [id]);
+    const project = {
+      ...updatedRows[0],
+      properties: JSON.parse(updatedRows[0].properties || '[]'),
+      expenses: JSON.parse(updatedRows[0].expenses || '[]'),
+      visible: Boolean(updatedRows[0].visible)
     };
     
-    await writeData(data);
-    res.json({ success: true, project: data.projects[projectIndex] });
+    res.json({ success: true, project });
   } catch (error) {
     console.error('更新项目失败:', error);
     res.status(500).json({ success: false, error: '更新项目失败' });
@@ -218,15 +275,11 @@ app.delete('/projects/:id', async (req, res) => {
       return res.status(403).json({ success: false, error: '管理员密码错误' });
     }
     
-    const data = await readData();
-    const projectIndex = data.projects.findIndex(p => p.id === id);
+    const [result] = await pool.query('DELETE FROM projects WHERE id = ?', [id]);
     
-    if (projectIndex === -1) {
+    if (result.affectedRows === 0) {
       return res.status(404).json({ success: false, error: '项目不存在' });
     }
-    
-    data.projects.splice(projectIndex, 1);
-    await writeData(data);
     
     res.json({ success: true, message: '项目已删除' });
   } catch (error) {
@@ -236,19 +289,24 @@ app.delete('/projects/:id', async (req, res) => {
 });
 
 /**
- * 更新项目完整数据
+ * 更新项目完整数据（包括properties和expenses）
  */
 app.put('/projects/:id/data', async (req, res) => {
   try {
     const { id } = req.params;
     const { project, adminPassword, projectPassword } = req.body;
     
-    const data = await readData();
-    const existingProject = data.projects.find(p => p.id === id);
+    const [rows] = await pool.query('SELECT * FROM projects WHERE id = ?', [id]);
     
-    if (!existingProject) {
+    if (rows.length === 0) {
       return res.status(404).json({ success: false, error: '项目不存在' });
     }
+    
+    const existingProject = {
+      ...rows[0],
+      properties: JSON.parse(rows[0].properties || '[]'),
+      expenses: JSON.parse(rows[0].expenses || '[]')
+    };
     
     const isAdmin = adminPassword && verifyAdminPassword(adminPassword);
     const hasAccess = isAdmin || verifyProjectPassword(existingProject, projectPassword);
@@ -257,14 +315,28 @@ app.put('/projects/:id/data', async (req, res) => {
       return res.status(403).json({ success: false, error: '密码错误或无权限' });
     }
     
-    const projectIndex = data.projects.findIndex(p => p.id === id);
-    data.projects[projectIndex] = {
-      ...project,
-      updatedAt: new Date().toISOString()
+    await pool.query(
+      'UPDATE projects SET name = ?, description = ?, password = ?, visible = ?, properties = ?, expenses = ? WHERE id = ?',
+      [
+        project.name,
+        project.description,
+        project.password,
+        project.visible,
+        JSON.stringify(project.properties || []),
+        JSON.stringify(project.expenses || []),
+        id
+      ]
+    );
+    
+    const [updatedRows] = await pool.query('SELECT * FROM projects WHERE id = ?', [id]);
+    const updatedProject = {
+      ...updatedRows[0],
+      properties: JSON.parse(updatedRows[0].properties || '[]'),
+      expenses: JSON.parse(updatedRows[0].expenses || '[]'),
+      visible: Boolean(updatedRows[0].visible)
     };
     
-    await writeData(data);
-    res.json({ success: true, project: data.projects[projectIndex] });
+    res.json({ success: true, project: updatedProject });
   } catch (error) {
     console.error('更新项目数据失败:', error);
     res.status(500).json({ success: false, error: '更新项目数据失败' });
@@ -272,19 +344,25 @@ app.put('/projects/:id/data', async (req, res) => {
 });
 
 /**
- * 只更新项目的收支记录（不触碰基本信息）
+ * 只更新项目的收支记录（不触碰基本信息如密码、名称等）
+ * 这是关键API，用于上传/删除照片、添加/删除收支记录
  */
 app.put('/projects/:id/records', async (req, res) => {
   try {
     const { id } = req.params;
     const { properties, expenses, adminPassword, projectPassword } = req.body;
     
-    const data = await readData();
-    const existingProject = data.projects.find(p => p.id === id);
+    const [rows] = await pool.query('SELECT * FROM projects WHERE id = ?', [id]);
     
-    if (!existingProject) {
+    if (rows.length === 0) {
       return res.status(404).json({ success: false, error: '项目不存在' });
     }
+    
+    const existingProject = {
+      ...rows[0],
+      properties: JSON.parse(rows[0].properties || '[]'),
+      expenses: JSON.parse(rows[0].expenses || '[]')
+    };
     
     const isAdmin = adminPassword && verifyAdminPassword(adminPassword);
     const hasAccess = isAdmin || verifyProjectPassword(existingProject, projectPassword);
@@ -293,18 +371,27 @@ app.put('/projects/:id/records', async (req, res) => {
       return res.status(403).json({ success: false, error: '密码错误或无权限' });
     }
     
-    const projectIndex = data.projects.findIndex(p => p.id === id);
+    // 只更新 properties 和 expenses，不触碰其他字段（包括密码、名称等）
+    const updateFields = [];
+    const updateValues = [];
     
-    // 只更新 properties 和 expenses，保留其他所有字段（包括密码、名称等）
     if (properties !== undefined) {
-      data.projects[projectIndex].properties = properties;
+      updateFields.push('properties = ?');
+      updateValues.push(JSON.stringify(properties));
     }
     if (expenses !== undefined) {
-      data.projects[projectIndex].expenses = expenses;
+      updateFields.push('expenses = ?');
+      updateValues.push(JSON.stringify(expenses));
     }
-    data.projects[projectIndex].updatedAt = new Date().toISOString();
     
-    await writeData(data);
+    if (updateFields.length > 0) {
+      updateValues.push(id);
+      await pool.query(
+        `UPDATE projects SET ${updateFields.join(', ')} WHERE id = ?`,
+        updateValues
+      );
+    }
+    
     res.json({ success: true, message: '收支记录更新成功' });
   } catch (error) {
     console.error('更新收支记录失败:', error);
@@ -315,12 +402,24 @@ app.put('/projects/:id/records', async (req, res) => {
 /**
  * 健康检查
  */
-app.get('/health', (req, res) => {
-  res.json({ 
-    status: 'ok', 
-    service: 'rental-tracking',
-    timestamp: new Date().toISOString()
-  });
+app.get('/health', async (req, res) => {
+  try {
+    await pool.query('SELECT 1');
+    res.json({ 
+      status: 'ok', 
+      service: 'rental-tracking',
+      database: 'connected',
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      status: 'error', 
+      service: 'rental-tracking',
+      database: 'disconnected',
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
 });
 
 // 错误处理
@@ -335,11 +434,12 @@ app.use('*', (req, res) => {
 });
 
 // 启动服务器
-initDataFile().then(() => {
+initDatabase().then(() => {
   app.listen(PORT, () => {
     console.log(`🏠 租赁追踪系统后端服务运行在 http://localhost:${PORT}`);
     console.log(`📊 API端点: http://localhost:${PORT}/projects`);
     console.log(`💚 健康检查: http://localhost:${PORT}/health`);
+    console.log(`🗄️  数据库: MySQL (${dbConfig.database})`);
   });
 }).catch(error => {
   console.error('初始化失败:', error);

@@ -1,21 +1,395 @@
 ﻿# 部署标准与编码规范
 
-**版本**: v1.4  
-**更新时间**: 2026-02-26  
-**适用范围**: 真三风云项目及所有子路径部署的React项目
+**版本**: v1.6  
+**更新时间**: 2026-02-28  
+**适用范围**: notee.vip 所有项目
 
 ---
 
 ## 📋 目录
 
-1. [Git同步规范](#git同步规范)（⚠️ 重要！必读！）
-2. [Nginx配置规范](#nginx配置规范)（⚠️ 重要！必读！）
-3. [文件编码规范](#文件编码规范)（⚠️ 重要！）
-4. [密码管理规范](#密码管理规范)（⚠️ 重要！必读！）
-5. [配置规范](#配置规范)
-6. [编码规范](#编码规范)
-7. [数据加载规范](#数据加载规范)
-8. [部署检查清单](#部署检查清单)
+1. [文件管理规范](#文件管理规范)（🔥 最重要！必读！）
+2. [Git同步规范](#git同步规范)（⚠️ 重要！必读！）
+3. [Nginx配置规范](#nginx配置规范)（⚠️ 重要！必读！）
+4. [文件编码规范](#文件编码规范)（⚠️ 重要！）
+5. [密码管理规范](#密码管理规范)（⚠️ 重要！必读！）
+6. [配置规范](#配置规范)
+7. [编码规范](#编码规范)
+8. [数据加载规范](#数据加载规范)
+9. [部署检查清单](#部署检查清单)
+
+---
+
+## 🔥 文件管理规范（最重要！必读！）
+
+### 🚨 铁律：项目文件必须且只能放在项目目录下
+
+> **这是最重要的规范！违反此规范会导致严重的问题，浪费大量时间！**
+
+---
+
+### 问题案例（2026-02-28 - 租赁追踪系统）
+
+#### 症状
+- ❌ 新添加的 API 路由返回 404
+- ❌ 代码明明已经写好并同步到 GitHub
+- ❌ 服务重启后仍然无法访问新路由
+- ❌ 浪费大量时间排查问题
+
+#### 根本原因
+1. **文件放错位置**：
+   - 错误地在 `/notee/backend/` 目录下创建了 `rental-tracking.js` 和 `rental-tracking-server.js`
+   - 这些文件不属于根目录的共享后端服务
+
+2. **实际运行的文件**：
+   - PM2 运行的是 `/notee/06-rental-tracking/backend/server.js`
+   - 这才是租赁追踪系统真正使用的后端文件
+
+3. **修改了错误的文件**：
+   - 一直在修改 `/notee/backend/rental-tracking.js`
+   - 但这个文件根本没有被使用
+   - 导致所有修改都无效
+
+4. **配置混乱**：
+   - 根目录的 `ecosystem.config.cjs` 包含了错误的租赁追踪配置
+   - 应该使用 `06-rental-tracking/ecosystem.config.cjs`
+
+---
+
+### ✅ 正确的文件组织结构
+
+```
+/notee/                          # 根目录
+├── backend/                     # 🔵 共享后端（仅用于跨项目服务）
+│   ├── server.js               # 留言板服务器（端口3002）
+│   └── guestbook.js            # 留言板路由
+│
+├── 01-news-calendar/           # 📰 新闻日历项目
+│   ├── backend/                # ✅ 项目专属后端
+│   │   └── server.js          # 新闻日历服务器（端口3001）
+│   ├── src/                    # ✅ 项目前端代码
+│   ├── dist/                   # ✅ 项目构建输出
+│   └── ecosystem.config.cjs    # ✅ 项目PM2配置
+│
+├── 06-rental-tracking/         # 🏠 租赁追踪项目
+│   ├── backend/                # ✅ 项目专属后端
+│   │   ├── server.js          # ✅ 租赁追踪服务器（端口3003）
+│   │   └── data/              # ✅ 项目数据文件
+│   ├── src/                    # ✅ 项目前端代码
+│   │   ├── components/        # ✅ 项目组件
+│   │   ├── pages/             # ✅ 项目页面
+│   │   └── utils/             # ✅ 项目工具函数
+│   ├── dist/                   # ✅ 项目构建输出
+│   ├── ecosystem.config.cjs    # ✅ 项目PM2配置
+│   └── package.json           # ✅ 项目依赖
+│
+├── ecosystem.config.cjs        # 🔵 根目录PM2配置（仅包含共享服务）
+├── index.html                  # 🔵 主页
+└── package.json               # 🔵 根目录依赖
+```
+
+### ❌ 错误的文件组织（导致严重问题）
+
+```
+/notee/
+├── backend/
+│   ├── server.js
+│   ├── guestbook.js
+│   ├── rental-tracking.js       # ❌ 严重错误！不属于这里！
+│   ├── rental-tracking-server.js # ❌ 严重错误！不属于这里！
+│   └── test-routes.js           # ❌ 严重错误！测试文件不应该在这里！
+│
+├── 06-rental-tracking/
+│   ├── backend/
+│   │   └── server.js            # ✅ 这才是实际运行的文件
+│   └── ...
+│
+├── rental-tracking-config.js    # ❌ 严重错误！应该在06-rental-tracking/下
+└── ecosystem.config.cjs          # ❌ 包含了错误的租赁追踪配置
+```
+
+**为什么这样组织是错误的？**
+1. 文件位置混乱，无法快速定位
+2. 修改了错误的文件，浪费时间
+3. PM2运行的不是修改的文件
+4. 配置文件引用错误
+5. 团队协作困难
+
+### 核心原则
+
+#### 1. 项目独立性原则
+
+**每个项目的所有文件必须放在项目目录下**
+
+```
+✅ 正确：
+/notee/06-rental-tracking/backend/server.js
+/notee/06-rental-tracking/src/App.jsx
+/notee/06-rental-tracking/ecosystem.config.cjs
+
+❌ 错误：
+/notee/backend/rental-tracking.js        # 不要放在根目录backend下
+/notee/rental-tracking-config.js         # 不要放在根目录下
+/notee/ecosystem.config.cjs              # 不要在根配置中包含子项目
+```
+
+#### 2. 后端服务分离原则
+
+| 服务类型 | 位置 | 端口 | 说明 |
+|---------|------|------|------|
+| 共享服务 | `/notee/backend/` | 3002 | 留言板等跨项目服务 |
+| 项目服务 | `/notee/XX-project/backend/` | 独立端口 | 每个项目独立后端 |
+
+**示例**：
+```
+留言板服务：/notee/backend/server.js (端口 3002)
+新闻日历：/notee/01-news-calendar/backend/server.js (端口 3001)
+租赁追踪：/notee/06-rental-tracking/backend/server.js (端口 3003)
+```
+
+#### 3. PM2配置分离原则
+
+**根目录 `ecosystem.config.cjs`**：
+```javascript
+module.exports = {
+  apps: [
+    // ✅ 只包含共享服务
+    {
+      name: 'notee-guestbook',
+      script: './backend/server.js',
+      cwd: '/www/wwwroot/notee',
+      env: { PORT: 3002 }
+    }
+  ]
+}
+```
+
+**项目目录 `06-rental-tracking/ecosystem.config.cjs`**：
+```javascript
+module.exports = {
+  apps: [
+    // ✅ 只包含本项目服务
+    {
+      name: 'rental-tracking-backend',
+      script: './backend/server.js',
+      cwd: '/www/wwwroot/notee/06-rental-tracking',
+      env: { PORT: 3003 }
+    }
+  ]
+}
+```
+
+### 文件创建和修改规范
+
+#### 创建新文件时
+
+**步骤1：确认文件应该放在哪里**
+```
+问自己：这个文件属于哪个项目？
+- 如果是06项目的后端代码 → /notee/06-rental-tracking/backend/
+- 如果是06项目的前端代码 → /notee/06-rental-tracking/src/
+- 如果是06项目的配置文件 → /notee/06-rental-tracking/
+- 如果是跨项目的共享代码 → /notee/backend/ 或 /notee/shared/
+```
+
+**步骤2：使用正确的路径创建**
+```javascript
+// ✅ 正确
+fsWrite({
+  path: "06-rental-tracking/backend/server.js",
+  text: "..."
+});
+
+// ❌ 错误
+fsWrite({
+  path: "backend/rental-tracking.js",  // 不要放在根目录backend下
+  text: "..."
+});
+```
+
+#### 修改现有文件时
+
+**步骤1：确认要修改的文件**
+```bash
+# 查找实际运行的文件
+pm2 describe rental-tracking-backend | grep script
+
+# 输出示例：
+# script: /www/wwwroot/notee/06-rental-tracking/backend/server.js
+```
+
+**步骤2：修改正确的文件**
+```javascript
+// ✅ 正确：修改实际运行的文件
+strReplace({
+  path: "06-rental-tracking/backend/server.js",
+  oldStr: "...",
+  newStr: "..."
+});
+
+// ❌ 错误：修改了不相关的文件
+strReplace({
+  path: "backend/rental-tracking.js",  // 这个文件根本没有被使用
+  oldStr: "...",
+  newStr: "..."
+});
+```
+
+### 诊断文件位置问题
+
+#### 症状识别
+
+| 症状 | 可能原因 |
+|------|---------|
+| API返回404但代码已写好 | 修改了错误的文件 |
+| 重启服务后问题依旧 | PM2运行的不是修改的文件 |
+| 本地测试正常但服务器不行 | 文件位置不一致 |
+| 找不到模块或文件 | 文件放错了目录 |
+
+#### 诊断步骤
+
+**步骤1：确认PM2运行的文件**
+```bash
+pm2 list  # 查看所有进程
+pm2 describe <process-name>  # 查看详细信息
+```
+
+**步骤2：检查文件是否存在**
+```bash
+ls -la /www/wwwroot/notee/06-rental-tracking/backend/
+```
+
+**步骤3：检查文件内容**
+```bash
+grep -n "router.put('/projects/:id/records'" /www/wwwroot/notee/06-rental-tracking/backend/server.js
+```
+
+**步骤4：检查PM2配置**
+```bash
+cat /www/wwwroot/notee/06-rental-tracking/ecosystem.config.cjs
+```
+
+### 清理错误文件
+
+#### 识别错误文件
+
+```bash
+# 查找可能放错位置的文件
+find /www/wwwroot/notee/backend -name "*rental*"
+find /www/wwwroot/notee -maxdepth 1 -name "*rental*"
+```
+
+#### 删除错误文件
+
+```javascript
+// 删除放错位置的文件
+deleteFile({ targetFile: "backend/rental-tracking.js" });
+deleteFile({ targetFile: "backend/rental-tracking-server.js" });
+```
+
+#### 更新配置文件
+
+```javascript
+// 从根目录ecosystem.config.cjs中删除子项目配置
+strReplace({
+  path: "ecosystem.config.cjs",
+  oldStr: "包含rental-tracking的配置",
+  newStr: "删除该配置"
+});
+```
+
+### 预防措施
+
+#### 1. 创建文件前先思考
+
+```
+创建文件前问自己：
+1. 这个文件属于哪个项目？
+2. 这个项目的根目录在哪里？
+3. 这类文件应该放在项目的哪个子目录？
+4. 是否有类似的文件可以参考位置？
+```
+
+#### 2. 使用项目相对路径
+
+```javascript
+// ✅ 正确：使用项目相对路径
+const projectRoot = "06-rental-tracking";
+fsWrite({
+  path: `${projectRoot}/backend/server.js`,
+  text: "..."
+});
+
+// ❌ 错误：使用根目录相对路径
+fsWrite({
+  path: "backend/server.js",  // 不清楚是哪个项目的backend
+  text: "..."
+});
+```
+
+#### 3. 验证文件位置
+
+```javascript
+// 创建文件后验证
+listDirectory({ path: "06-rental-tracking/backend" });
+
+// 确认文件在正确的位置
+readFile({ path: "06-rental-tracking/backend/server.js" });
+```
+
+#### 4. 文档化项目结构
+
+在项目README中明确说明文件组织：
+
+```markdown
+## 项目结构
+
+```
+06-rental-tracking/
+├── backend/          # 后端服务（端口3003）
+│   ├── server.js    # Express服务器
+│   └── data/        # 数据文件
+├── src/             # 前端源代码
+├── dist/            # 构建输出
+└── ecosystem.config.cjs  # PM2配置
+```
+
+所有项目文件必须放在 `06-rental-tracking/` 目录下！
+```
+
+### 常见错误和解决方案
+
+| 错误 | 原因 | 解决方案 | 预防措施 |
+|------|------|---------|---------|
+| API 404但代码存在 | 修改了错误的文件 | 检查PM2运行的文件路径 | 创建前确认文件位置 |
+| 模块找不到 | 文件放错目录 | 移动到正确的项目目录 | 使用项目相对路径 |
+| 配置不生效 | 使用了错误的配置文件 | 使用项目专属配置 | 分离项目配置 |
+| 服务启动失败 | 路径引用错误 | 检查require/import路径 | 使用相对路径 |
+
+### 经验教训总结
+
+1. **永远不要把项目文件放在根目录**
+   - 每个项目的文件必须在项目目录下
+   - 包括后端代码、配置文件、数据文件
+
+2. **修改前先确认文件位置**
+   - 检查PM2实际运行的文件
+   - 不要假设文件在某个位置
+
+3. **保持项目独立性**
+   - 每个项目有自己的backend目录
+   - 每个项目有自己的PM2配置
+   - 每个项目有自己的端口
+
+4. **定期清理错误文件**
+   - 删除放错位置的文件
+   - 更新错误的配置引用
+   - 保持目录结构清晰
+
+5. **文档化项目结构**
+   - 在README中说明文件组织
+   - 提供文件位置示例
+   - 标注关键文件路径
 
 ---
 

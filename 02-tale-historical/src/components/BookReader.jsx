@@ -83,21 +83,59 @@ function BookReader() {
     
     setCurrentBook(book)
     
-    // 如果指定了章节，跳到该章节的第一页
+    // 如果指定了章节，跳到该章节
     if (chapterId && book) {
       const chapterIndex = book.chapters.findIndex(c => c.id === chapterId)
       if (chapterIndex >= 0) {
-        let pageIndex = 0
+        // 计算该章节在全局页面中的起始索引
+        let chapterStartPage = 0
         for (let i = 0; i < chapterIndex; i++) {
           const chapterPages = splitContentIntoPages(book.chapters[i].content)
-          pageIndex += chapterPages.length
+          chapterStartPage += chapterPages.length
         }
-        console.log(`${LOG_PREFIX.BOOK_READER} 跳转到章节页面: ${pageIndex}`)
-        setGlobalPageIndex(pageIndex)
-        saveReadingProgress(bookId, chapterId)
+        
+        // 尝试恢复之前的阅读进度
+        const savedProgress = getReadingProgress(bookId)
+        let targetPage = chapterStartPage // 默认跳到章节第一页
+        
+        if (savedProgress && savedProgress.currentChapter === chapterId) {
+          // 如果保存的进度是当前章节，恢复到保存的页码
+          const savedPosition = savedProgress.position || 0
+          targetPage = chapterStartPage + savedPosition
+          console.log(`${LOG_PREFIX.BOOK_READER} 恢复阅读进度到第 ${targetPage + 1} 页`)
+        } else {
+          console.log(`${LOG_PREFIX.BOOK_READER} 跳转到章节第一页: ${targetPage + 1}`)
+        }
+        
+        setGlobalPageIndex(targetPage)
       }
     }
-  }, [bookId, chapterId, getBook, navigate, saveReadingProgress])
+  }, [bookId, chapterId, getBook, navigate, getReadingProgress])
+
+  // 保存阅读进度（当页码变化时）
+  useEffect(() => {
+    if (!currentBook || !currentPageData) return
+    
+    // 计算当前页在当前章节中的相对位置
+    const currentChapterId = currentPageData.chapterId
+    const chapterIndex = currentBook.chapters.findIndex(c => c.id === currentChapterId)
+    
+    if (chapterIndex >= 0) {
+      // 计算该章节的起始页码
+      let chapterStartPage = 0
+      for (let i = 0; i < chapterIndex; i++) {
+        const chapterPages = splitContentIntoPages(currentBook.chapters[i].content)
+        chapterStartPage += chapterPages.length
+      }
+      
+      // 当前页在章节中的相对位置
+      const positionInChapter = globalPageIndex - chapterStartPage
+      
+      // 保存进度
+      saveReadingProgress(bookId, currentChapterId, positionInChapter)
+      console.log(`${LOG_PREFIX.BOOK_READER} 保存进度: 章节 ${currentChapterId}, 位置 ${positionInChapter}`)
+    }
+  }, [globalPageIndex, currentBook, currentPageData, bookId, saveReadingProgress])
 
   // 键盘快捷键
   useEffect(() => {
