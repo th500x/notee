@@ -25,6 +25,7 @@ function App() {
   const [currentMonth, setCurrentMonth] = useState(getLastMonthFirstDay())
   const [newsData, setNewsData] = useState({}) // 存储所有新闻数据
   const [newsIndicators, setNewsIndicators] = useState(new Set()) // 存储有新闻的日期
+  const [indicatorsLoaded, setIndicatorsLoaded] = useState(false) // 标记指示器是否已加载
   const [selectedDateNews, setSelectedDateNews] = useState({}) // 存储当前选中日期的新闻
   const [hotNewsRefresh, setHotNewsRefresh] = useState(0) // 热门新闻刷新触发器
 
@@ -83,6 +84,7 @@ function App() {
   // 检查日历当前月份的所有日期是否有新闻
   useEffect(() => {
     const checkMonthNews = async () => {
+      setIndicatorsLoaded(false) // 开始加载时设置为false
       const year = currentMonth.getFullYear()
       const month = currentMonth.getMonth()
       const daysInMonth = new Date(year, month + 1, 0).getDate()
@@ -98,6 +100,7 @@ function App() {
       }
       
       setNewsIndicators(indicators)
+      setIndicatorsLoaded(true) // 加载完成后设置为true
     }
     
     checkMonthNews()
@@ -127,8 +130,8 @@ function App() {
     if (view === 'month') {
       // 检查日期是否在有效范围内
       if (date >= minDate && date <= maxDate) {
-        // 如果没有新闻，添加灰色底色类
-        if (!newsIndicators.has(date.toDateString())) {
+        // 只有在指示器加载完成后才应用灰色样式
+        if (indicatorsLoaded && !newsIndicators.has(date.toDateString())) {
           return 'no-news-date'
         }
       }
