@@ -1,14 +1,6 @@
 import { useState, useEffect } from 'react'
 import { loadMonthlyNewsData } from '../utils/newsData'
-
-const NEWS_CATEGORIES = {
-  world_politics: { title: '世界政治新闻', color: 'bg-red-100 text-red-800' },
-  world_economy: { title: '世界经济新闻', color: 'bg-blue-100 text-blue-800' },
-  asia_politics: { title: '亚洲政治新闻', color: 'bg-yellow-100 text-yellow-800' },
-  asia_economy: { title: '亚洲经济新闻', color: 'bg-green-100 text-green-800' },
-  thailand_politics: { title: '中泰政治新闻', color: 'bg-purple-100 text-purple-800' },
-  thailand_society: { title: '中泰民生新闻', color: 'bg-pink-100 text-pink-800' }
-}
+import { CATEGORY_INFO, UI_CONSTANTS, LOG_PREFIX } from '../constants'
 
 function HotNews({ refreshTrigger }) {
   const [hotNews, setHotNews] = useState([])
@@ -88,14 +80,14 @@ function HotNews({ refreshTrigger }) {
           emojiBreakdown: hotItem.emoji_breakdown || {},
           category: category,
           date: date,
-          categoryInfo: NEWS_CATEGORIES[category]
+          categoryInfo: CATEGORY_INFO[category]
         })
       }
       
       setHotNews(hotNewsWithContent)
       
     } catch (error) {
-      console.error('[HotNews] 加载失败:', error)
+      console.error(`${LOG_PREFIX.HOT_NEWS} 加载失败:`, error)
       setError(error.message || '加载热门新闻失败')
       setHotNews([])
     } finally {
@@ -211,7 +203,7 @@ function HotNews({ refreshTrigger }) {
       </h3>
       
       <div className="space-y-3">
-        {hotNews.slice(0, 3).map((news, index) => (
+        {hotNews.slice(0, UI_CONSTANTS.HOT_NEWS_LIMIT).map((news, index) => (
           <div key={news.newsId} className="border-l-4 border-orange-400 pl-3 py-2">
             <div className="flex items-center justify-between mb-1">
               <div className="flex items-center space-x-2">

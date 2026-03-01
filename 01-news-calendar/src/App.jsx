@@ -5,6 +5,7 @@ import './App.css'
 import NewsDisplay from './components/NewsDisplay'
 import HotNews from './components/HotNews'
 import { getNewsForDate, loadNewsData } from './utils/newsData'
+import { DATE_CONSTANTS, LOG_PREFIX } from './constants'
 
 function App() {
   const [selectedDate, setSelectedDate] = useState(null) // 初始为null，等待动态计算
@@ -21,11 +22,9 @@ function App() {
   const [selectedDateLoading, setSelectedDateLoading] = useState(false)
   const [selectedDateError, setSelectedDateError] = useState(null)
 
-  // 设置最早可访问的日期为2026年1月1日
-  const minDate = new Date(2026, 0, 1) // 2026年1月1日
-  
-  // 设置最晚可访问的日期为2026年1月31日（当前有数据的最后一天）
-  const maxDate = new Date(2026, 0, 31) // 2026年1月31日
+  // 使用配置常量设置日期范围
+  const minDate = DATE_CONSTANTS.MIN_DATE
+  const maxDate = DATE_CONSTANTS.MAX_DATE
 
   // Refresh hot news function
   const refreshHotNews = () => {
@@ -63,7 +62,7 @@ function App() {
         
         setNewsIndicators(indicators)
         setIndicatorsLoaded(true)
-        console.log(`[App] 加载完成，共有 ${indicators.size} 天有新闻`)
+        console.log(`${LOG_PREFIX.APP} 加载完成，共有 ${indicators.size} 天有新闻`)
         
         // 动态计算默认日期：优先当前月份，其次上个月，最后是最新有新闻的日期
         if (datesWithNews.length > 0) {
@@ -81,7 +80,7 @@ function App() {
             const defaultDate = new Date(currentYear, currentMonthNum, 1)
             setSelectedDate(defaultDate)
             setCurrentMonth(defaultDate)
-            console.log(`[App] 默认日期：当前月份 ${defaultDate.toLocaleDateString()}`)
+            console.log(`${LOG_PREFIX.APP} 默认日期：当前月份 ${defaultDate.toLocaleDateString()}`)
           } else {
             // 当前月份没有新闻，检查上个月
             const lastMonthNum = currentMonthNum === 0 ? 11 : currentMonthNum - 1
@@ -96,14 +95,14 @@ function App() {
               const defaultDate = new Date(lastMonthYear, lastMonthNum, 1)
               setSelectedDate(defaultDate)
               setCurrentMonth(defaultDate)
-              console.log(`[App] 默认日期：上个月 ${defaultDate.toLocaleDateString()}`)
+              console.log(`${LOG_PREFIX.APP} 默认日期：上个月 ${defaultDate.toLocaleDateString()}`)
             } else {
               // 当前月和上个月都没有新闻，选择最新有新闻的日期
               const latestDate = datesWithNews.sort((a, b) => b - a)[0]
               const firstDayOfMonth = new Date(latestDate.getFullYear(), latestDate.getMonth(), 1)
               setSelectedDate(firstDayOfMonth)
               setCurrentMonth(firstDayOfMonth)
-              console.log(`[App] 默认日期：最新有新闻的月份 ${firstDayOfMonth.toLocaleDateString()}`)
+              console.log(`${LOG_PREFIX.APP} 默认日期：最新有新闻的月份 ${firstDayOfMonth.toLocaleDateString()}`)
             }
           }
         } else {
@@ -111,10 +110,10 @@ function App() {
           const fallbackDate = new Date(2026, 0, 1)
           setSelectedDate(fallbackDate)
           setCurrentMonth(fallbackDate)
-          console.log(`[App] 默认日期：后备日期 ${fallbackDate.toLocaleDateString()}`)
+          console.log(`${LOG_PREFIX.APP} 默认日期：后备日期 ${fallbackDate.toLocaleDateString()}`)
         }
       } catch (error) {
-        console.error('[App] 加载新闻数据失败:', error)
+        console.error(`${LOG_PREFIX.APP} 加载新闻数据失败:`, error)
         setError(error.message || '加载新闻数据失败，请稍后重试')
         // 出错时也设置后备日期，以便用户可以看到界面
         const fallbackDate = new Date(2026, 0, 1)
@@ -141,7 +140,7 @@ function App() {
         const news = await getNewsForDate(selectedDate)
         setSelectedDateNews(news)
       } catch (error) {
-        console.error('[App] 加载选中日期新闻失败:', error)
+        console.error(`${LOG_PREFIX.APP} 加载选中日期新闻失败:`, error)
         setSelectedDateError(error.message || '加载新闻失败')
         setSelectedDateNews({})
       } finally {

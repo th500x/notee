@@ -1,12 +1,25 @@
+import { CACHE_CONSTANTS } from '../constants'
+
 /**
  * 简单的内存缓存工具
  * 用于缓存API响应数据，减少重复请求
+ * 
+ * @class SimpleCache
+ * @example
+ * const cache = new SimpleCache(50, 5 * 60 * 1000)
+ * cache.set('key', 'value')
+ * const value = cache.get('key')
  */
 class SimpleCache {
-  constructor(maxSize = 50, defaultTTL = 5 * 60 * 1000) {
+  /**
+   * 创建缓存实例
+   * @param {number} maxSize - 最大缓存项数，默认50
+   * @param {number} defaultTTL - 默认过期时间（毫秒），默认5分钟
+   */
+  constructor(maxSize = CACHE_CONSTANTS.MAX_SIZE, defaultTTL = CACHE_CONSTANTS.DURATION) {
     this.cache = new Map()
     this.maxSize = maxSize
-    this.defaultTTL = defaultTTL // 默认5分钟过期
+    this.defaultTTL = defaultTTL
   }
   
   /**
