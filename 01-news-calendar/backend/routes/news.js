@@ -13,7 +13,7 @@ function getMonthlyFileName(date) {
   if (!date) return null
   const year = date.substring(0, 4)
   const month = date.substring(5, 7)
-  return `news_${year}${month}.json`
+  return `news-calendar-${year}${month}.json`
 }
 
 // 读取指定月份的新闻数据
@@ -37,7 +37,7 @@ async function readAllNews() {
   const months = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12']
   
   for (const month of months) {
-    const fileName = `news_2026${month}.json`
+    const fileName = `news-calendar-2026${month}.json`
     const monthNews = await readMonthlyNews(fileName)
     Object.assign(allNews, monthNews)
   }
