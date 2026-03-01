@@ -7,11 +7,8 @@ import HotNews from './components/HotNews'
 import { getNewsForDate, loadNewsData } from './utils/newsData'
 
 function App() {
-  // 默认选中2026年1月1日（有新闻数据的月份）
-  const defaultDate = new Date(2026, 0, 1) // 2026年1月1日
-  
-  const [selectedDate, setSelectedDate] = useState(defaultDate)
-  const [currentMonth, setCurrentMonth] = useState(defaultDate)
+  const [selectedDate, setSelectedDate] = useState(null) // 初始为null，等待动态计算
+  const [currentMonth, setCurrentMonth] = useState(null) // 初始为null，等待动态计算
   const [newsData, setNewsData] = useState({}) // 存储所有新闻数据
   const [newsIndicators, setNewsIndicators] = useState(new Set()) // 存储有新闻的日期
   const [indicatorsLoaded, setIndicatorsLoaded] = useState(false) // 标记指示器是否已加载
@@ -38,6 +35,8 @@ function App() {
         
         // 从新闻数据中提取所有有新闻的日期
         const indicators = new Set()
+        const datesWithNews = []
+        
         Object.keys(data).forEach(dateKey => {
           const newsForDate = data[dateKey]
           // 检查该日期是否有任何分类的新闻
@@ -49,16 +48,70 @@ function App() {
             const [year, month, day] = dateKey.split('-')
             const date = new Date(year, month - 1, day)
             indicators.add(date.toDateString())
+            datesWithNews.push(date)
           }
         })
         
         setNewsIndicators(indicators)
         setIndicatorsLoaded(true)
         console.log(`[App] 加载完成，共有 ${indicators.size} 天有新闻`)
+        
+        // 动态计算默认日期：优先当前月份，其次上个月，最后是最新有新闻的日期
+        if (datesWithNews.length > 0) {
+          const today = new Date()
+          const currentYear = today.getFullYear()
+          const currentMonthNum = today.getMonth()
+          
+          // 检查当前月份是否有新闻
+          const currentMonthNews = datesWithNews.find(date => 
+            date.getFullYear() === currentYear && date.getMonth() === currentMonthNum
+          )
+          
+          if (currentMonthNews) {
+            // 当前月份有新闻，选择当前月份的第一天
+            const defaultDate = new Date(currentYear, currentMonthNum, 1)
+            setSelectedDate(defaultDate)
+            setCurrentMonth(defaultDate)
+            console.log(`[App] 默认日期：当前月份 ${defaultDate.toLocaleDateString()}`)
+          } else {
+            // 当前月份没有新闻，检查上个月
+            const lastMonthNum = currentMonthNum === 0 ? 11 : currentMonthNum - 1
+            const lastMonthYear = currentMonthNum === 0 ? currentYear - 1 : currentYear
+            
+            const lastMonthNews = datesWithNews.find(date => 
+              date.getFullYear() === lastMonthYear && date.getMonth() === lastMonthNum
+            )
+            
+            if (lastMonthNews) {
+              // 上个月有新闻，选择上个月的第一天
+              const defaultDate = new Date(lastMonthYear, lastMonthNum, 1)
+              setSelectedDate(defaultDate)
+              setCurrentMonth(defaultDate)
+              console.log(`[App] 默认日期：上个月 ${defaultDate.toLocaleDateString()}`)
+            } else {
+              // 当前月和上个月都没有新闻，选择最新有新闻的日期
+              const latestDate = datesWithNews.sort((a, b) => b - a)[0]
+              const firstDayOfMonth = new Date(latestDate.getFullYear(), latestDate.getMonth(), 1)
+              setSelectedDate(firstDayOfMonth)
+              setCurrentMonth(firstDayOfMonth)
+              console.log(`[App] 默认日期：最新有新闻的月份 ${firstDayOfMonth.toLocaleDateString()}`)
+            }
+          }
+        } else {
+          // 没有任何新闻数据，使用2026年1月1日作为后备
+          const fallbackDate = new Date(2026, 0, 1)
+          setSelectedDate(fallbackDate)
+          setCurrentMonth(fallbackDate)
+          console.log(`[App] 默认日期：后备日期 ${fallbackDate.toLocaleDateString()}`)
+        }
       } catch (error) {
         console.error('加载新闻数据失败:', error)
         setNewsData({})
         setIndicatorsLoaded(true)
+        // 出错时使用后备日期
+        const fallbackDate = new Date(2026, 0, 1)
+        setSelectedDate(fallbackDate)
+        setCurrentMonth(fallbackDate)
       }
     }
     
@@ -67,6 +120,9 @@ function App() {
 
   // 当选中日期改变时，加载对应的新闻数据
   useEffect(() => {
+    // 等待 selectedDate 被设置后再加载
+    if (!selectedDate) return
+    
     const loadSelectedDateNews = async () => {
       try {
         const news = await getNewsForDate(selectedDate)
@@ -136,7 +192,13 @@ function App() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* 数据加载中显示 */}
+        {!selectedDate ? (
+          <div className="flex justify-center items-center h-64">
+            <div className="text-gray-500">加载中...</div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* 日历区域 */}
           <div className="lg:col-span-1">
             <div className="bg-white rounded-lg shadow-md p-6 mb-8">
@@ -176,6 +238,7 @@ function App() {
             </div>
           </div>
         </div>
+        )}
       </main>
     </div>
   )
