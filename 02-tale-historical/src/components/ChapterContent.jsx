@@ -1,12 +1,41 @@
 /**
  * 章节内容渲染组件
  * 负责将Markdown格式的内容渲染为React元素
+ * 
+ * @component
+ * @param {Object} props - 组件属性
+ * @param {string} props.content - 章节内容（Markdown格式）
+ * @param {number} props.fontSize - 字号
+ * @param {number} props.lineHeight - 行高
+ * @param {string} props.fontFamily - 字体CSS值
+ * @param {Object} props.book - 书籍对象（用于获取图片）
+ * 
+ * @description
+ * 支持的Markdown语法：
+ * - 一级标题：# 标题
+ * - 二级标题：## 标题
+ * - 加粗：**文本**
+ * - 图片：*（图片键名）*
+ * 
+ * 性能优化：
+ * - 使用useMemo缓存样式计算
+ * - 使用useMemo缓存内容渲染
+ * 
+ * @example
+ * <ChapterContent
+ *   content={chapter.content}
+ *   fontSize={16}
+ *   lineHeight={1.8}
+ *   fontFamily="'SimHei', sans-serif"
+ *   book={currentBook}
+ * />
  */
 
 import { useMemo } from 'react'
 
 /**
  * 处理Markdown加粗语法
+ * @private
  * @param {string} text - 文本内容
  * @returns {Array} React元素数组
  */
@@ -37,10 +66,11 @@ function processMarkdown(text) {
 
 /**
  * 渲染段落内容
+ * @private
  * @param {Array} paragraphLines - 段落行数组
- * @param {string} keyPrefix - key前缀
+ * @param {string} keyPrefix - React key前缀
  * @param {Object} style - 样式对象
- * @returns {JSX.Element}
+ * @returns {JSX.Element} 段落元素
  */
 function renderParagraph(paragraphLines, keyPrefix, style) {
   return (

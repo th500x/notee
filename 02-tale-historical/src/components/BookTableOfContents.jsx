@@ -1,6 +1,29 @@
 /**
  * 书籍目录组件
  * 显示书籍信息和章节列表
+ * 
+ * @component
+ * @param {Object} props - 组件属性
+ * @param {Object} props.book - 书籍对象
+ * @param {string} props.book.title - 书籍标题
+ * @param {string} props.book.description - 书籍描述
+ * @param {Array<Object>} props.book.chapters - 章节列表
+ * @param {Object} [props.progress] - 阅读进度
+ * @param {string} props.progress.currentChapter - 当前章节ID
+ * @param {Function} props.onChapterSelect - 章节选择回调
+ * @param {Function} props.onBackToShelf - 返回书架回调
+ * 
+ * @description
+ * 显示书籍的基本信息、章节列表和阅读进度。
+ * 如果有阅读进度，会显示"继续阅读"按钮。
+ * 
+ * @example
+ * <BookTableOfContents
+ *   book={currentBook}
+ *   progress={readingProgress}
+ *   onChapterSelect={(chapterId) => navigate(`/chapter/${chapterId}`)}
+ *   onBackToShelf={() => navigate('/')}
+ * />
  */
 
 function BookTableOfContents({ book, progress, onChapterSelect, onBackToShelf }) {

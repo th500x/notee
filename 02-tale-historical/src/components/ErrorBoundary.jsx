@@ -1,6 +1,38 @@
 /**
  * 错误边界组件
  * 捕获子组件中的JavaScript错误，显示友好的错误UI
+ * 
+ * @component
+ * @extends React.Component
+ * 
+ * @description
+ * React错误边界组件，用于捕获渲染过程中的错误。
+ * 
+ * 捕获的错误类型：
+ * - React组件渲染错误
+ * - 生命周期方法错误
+ * - 构造函数错误
+ * 
+ * 不捕获的错误类型：
+ * - 事件处理器错误（需要try-catch）
+ * - 异步代码错误（需要Promise.catch）
+ * - 服务器端渲染错误
+ * - 错误边界自身的错误
+ * 
+ * 环境差异：
+ * - 开发环境：显示详细错误信息和堆栈
+ * - 生产环境：仅显示友好提示
+ * 
+ * @example
+ * // 包裹整个应用
+ * <ErrorBoundary>
+ *   <App />
+ * </ErrorBoundary>
+ * 
+ * // 包裹关键组件
+ * <ErrorBoundary>
+ *   <BookReader />
+ * </ErrorBoundary>
  */
 
 import { Component } from 'react'

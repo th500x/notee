@@ -1,16 +1,40 @@
 /**
  * 应用常量定义
  * 统一管理所有魔法数字和字符串常量
+ * 
+ * @module constants
+ * @description
+ * 集中定义应用中使用的所有常量，包括：
+ * - 分页配置
+ * - 字体配置
+ * - 书籍分类
+ * - 存储键名
+ * - 密码配置
+ * - 日志前缀
+ * - PDF配置
+ * 
+ * @example
+ * import { PAGINATION_CONFIG, FONT_OPTIONS, STORAGE_KEYS } from './constants'
+ * 
+ * // 使用分页配置
+ * const pages = splitContent(content, PAGINATION_CONFIG.CHARS_PER_PAGE)
+ * 
+ * // 使用存储键
+ * localStorage.getItem(STORAGE_KEYS.READING_PROGRESS)
  */
 
 // 分页配置
 export const PAGINATION_CONFIG = {
   CHARS_PER_PAGE: 1800,           // 每页字符数限制
-  MIN_CHARS_FOR_BREAK: 300,       // 最小分页字符数
+  MIN_CHARS_FOR_BREAK: 300,       // 最小分页字符数（遇到标题时的最小页面内容）
   HEADING_BREAK_THRESHOLD: 0.5,   // 标题分页阈值（页面容量的50%）
 }
 
 // 字体配置
+/**
+ * 可用字体选项
+ * @type {Array<{value: string, label: string, family: string}>}
+ */
 export const FONT_OPTIONS = [
   { value: 'fangsong', label: '仿宋', family: "'FangSong', 'STFangsong', serif" },
   { value: 'kaiti', label: '楷体', family: "'KaiTi', 'STKaiti', serif" },
@@ -18,21 +42,33 @@ export const FONT_OPTIONS = [
 ]
 
 // 字体大小范围
+/**
+ * 字体大小配置
+ * @type {{MIN: number, MAX: number, DEFAULT: number}}
+ */
 export const FONT_SIZE_RANGE = {
-  MIN: 12,
-  MAX: 24,
-  DEFAULT: 16
+  MIN: 12,      // 最小字号（px）
+  MAX: 24,      // 最大字号（px）
+  DEFAULT: 16   // 默认字号（px）
 }
 
 // 行高范围
+/**
+ * 行高配置
+ * @type {{MIN: number, MAX: number, DEFAULT: number, STEP: number}}
+ */
 export const LINE_HEIGHT_RANGE = {
-  MIN: 1.2,
-  MAX: 2.5,
-  DEFAULT: 1.8,
-  STEP: 0.1
+  MIN: 1.2,       // 最小行高
+  MAX: 2.5,       // 最大行高
+  DEFAULT: 1.8,   // 默认行高
+  STEP: 0.1       // 调整步长
 }
 
 // 书籍分类
+/**
+ * 书籍分类常量
+ * @type {{ALL: string, GAME_HISTORY: string, GAME_TEXT: string, TRAVEL: string, PERSONAL: string}}
+ */
 export const BOOK_CATEGORIES = {
   ALL: '全部',
   GAME_HISTORY: '游戏史记',
@@ -42,6 +78,10 @@ export const BOOK_CATEGORIES = {
 }
 
 // 分类图标
+/**
+ * 分类对应的emoji图标
+ * @type {Object<string, string>}
+ */
 export const CATEGORY_ICONS = {
   [BOOK_CATEGORIES.ALL]: '📚',
   [BOOK_CATEGORIES.GAME_HISTORY]: '🎮',
@@ -51,26 +91,42 @@ export const CATEGORY_ICONS = {
 }
 
 // 需要密码保护的分类
+/**
+ * 需要密码验证的分类列表
+ * @type {string[]}
+ */
 export const PROTECTED_CATEGORIES = [
   BOOK_CATEGORIES.GAME_TEXT,
   BOOK_CATEGORIES.PERSONAL
 ]
 
 // 存储键名
+/**
+ * localStorage键名常量
+ * @type {{READING_PROGRESS: string, BOOKMARKS: string, PASSWORD_ATTEMPT: string}}
+ */
 export const STORAGE_KEYS = {
-  READING_PROGRESS: 'tale-reading-progress',
-  BOOKMARKS: 'tale-bookmarks',
-  PASSWORD_ATTEMPT: 'pwd_attempt_'
+  READING_PROGRESS: 'tale-reading-progress',  // 阅读进度
+  BOOKMARKS: 'tale-bookmarks',                // 书签
+  PASSWORD_ATTEMPT: 'pwd_attempt_'            // 密码尝试记录（前缀）
 }
 
 // 密码尝试限制配置
+/**
+ * 密码尝试限制配置
+ * @type {{MAX_ATTEMPTS: number, LOCKOUT_DURATION: number, LOCKOUT_DURATION_MINUTES: number}}
+ */
 export const PASSWORD_ATTEMPT_CONFIG = {
   MAX_ATTEMPTS: 5,                    // 最大尝试次数
-  LOCKOUT_DURATION: 10 * 60 * 1000,   // 锁定时长（10分钟）
+  LOCKOUT_DURATION: 10 * 60 * 1000,   // 锁定时长（毫秒）
   LOCKOUT_DURATION_MINUTES: 10        // 锁定时长（分钟）
 }
 
 // 日志前缀
+/**
+ * 日志前缀常量，用于统一日志格式
+ * @type {{BOOK_CONTEXT: string, BOOK_READER: string, BOOKSHELF: string, PDF_EXPORT: string, PASSWORD: string}}
+ */
 export const LOG_PREFIX = {
   BOOK_CONTEXT: '[BookContext]',
   BOOK_READER: '[BookReader]',
@@ -80,9 +136,13 @@ export const LOG_PREFIX = {
 }
 
 // PDF导出配置
+/**
+ * PDF导出配置
+ * @type {{PAGE_WIDTH: number, PAGE_HEIGHT: number, SCALE: number, QUALITY: number}}
+ */
 export const PDF_CONFIG = {
   PAGE_WIDTH: 210,    // A4宽度（mm）
   PAGE_HEIGHT: 297,   // A4高度（mm）
   SCALE: 1.5,         // 渲染缩放比例
-  QUALITY: 1.0        // JPEG质量
+  QUALITY: 1.0        // JPEG质量（0-1）
 }

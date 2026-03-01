@@ -1,8 +1,32 @@
 /**
  * 阅读设置面板组件
- * 提供字体、字号、行高等阅读设置
+ * 提供字体、字号、行高等阅读设置的UI控制
+ * 
+ * @component
+ * @param {Object} props - 组件属性
+ * @param {number} props.fontSize - 当前字号（12-24）
+ * @param {number} props.lineHeight - 当前行高（1.2-2.5）
+ * @param {string} props.fontFamily - 当前字体（fangsong/kaiti/heiti）
+ * @param {Array<Object>} props.fontOptions - 可用字体列表
+ * @param {Function} props.onFontSizeChange - 字号变化回调
+ * @param {Function} props.onLineHeightChange - 行高变化回调
+ * @param {Function} props.onFontFamilyChange - 字体变化回调
+ * 
+ * @description
+ * 固定在右上角的设置面板，仅在大屏幕（lg及以上）显示。
+ * 提供直观的+/-按钮和下拉选择器。
+ * 
+ * @example
+ * <ReadingSettingsPanel
+ *   fontSize={16}
+ *   lineHeight={1.8}
+ *   fontFamily="heiti"
+ *   fontOptions={FONT_OPTIONS}
+ *   onFontSizeChange={setFontSize}
+ *   onLineHeightChange={setLineHeight}
+ *   onFontFamilyChange={setFontFamily}
+ * />
  */
-
 function ReadingSettingsPanel({
   fontSize,
   lineHeight,
