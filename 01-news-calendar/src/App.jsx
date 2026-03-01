@@ -7,22 +7,11 @@ import HotNews from './components/HotNews'
 import { getNewsForDate, loadNewsData } from './utils/newsData'
 
 function App() {
-  // 计算上个月的首日作为初始选中日期
-  const getLastMonthFirstDay = () => {
-    const today = new Date()
-    const year = today.getFullYear()
-    const month = today.getMonth()
-    
-    // 如果当前是1月，则上个月是去年12月
-    if (month === 0) {
-      return new Date(year - 1, 11, 1) // 去年12月1日
-    } else {
-      return new Date(year, month - 1, 1) // 上个月1日
-    }
-  }
+  // 默认选中2026年1月1日（有新闻数据的月份）
+  const defaultDate = new Date(2026, 0, 1) // 2026年1月1日
   
-  const [selectedDate, setSelectedDate] = useState(getLastMonthFirstDay())
-  const [currentMonth, setCurrentMonth] = useState(getLastMonthFirstDay())
+  const [selectedDate, setSelectedDate] = useState(defaultDate)
+  const [currentMonth, setCurrentMonth] = useState(defaultDate)
   const [newsData, setNewsData] = useState({}) // 存储所有新闻数据
   const [newsIndicators, setNewsIndicators] = useState(new Set()) // 存储有新闻的日期
   const [indicatorsLoaded, setIndicatorsLoaded] = useState(false) // 标记指示器是否已加载
@@ -40,15 +29,36 @@ function App() {
     setHotNewsRefresh(prev => prev + 1)
   }
 
-  // 加载新闻数据
+  // 加载新闻数据并提取有新闻的日期
   useEffect(() => {
     const loadNews = async () => {
       try {
         const data = await loadNewsData()
         setNewsData(data)
+        
+        // 从新闻数据中提取所有有新闻的日期
+        const indicators = new Set()
+        Object.keys(data).forEach(dateKey => {
+          const newsForDate = data[dateKey]
+          // 检查该日期是否有任何分类的新闻
+          const hasNews = Object.values(newsForDate).some(categoryNews => 
+            Array.isArray(categoryNews) && categoryNews.length > 0
+          )
+          if (hasNews) {
+            // 将日期字符串转换为Date对象的toDateString格式
+            const [year, month, day] = dateKey.split('-')
+            const date = new Date(year, month - 1, day)
+            indicators.add(date.toDateString())
+          }
+        })
+        
+        setNewsIndicators(indicators)
+        setIndicatorsLoaded(true)
+        console.log(`[App] 加载完成，共有 ${indicators.size} 天有新闻`)
       } catch (error) {
         console.error('加载新闻数据失败:', error)
         setNewsData({})
+        setIndicatorsLoaded(true)
       }
     }
     
@@ -69,42 +79,6 @@ function App() {
     
     loadSelectedDateNews()
   }, [selectedDate])
-
-  // 检查某个日期是否有新闻
-  const hasNewsForDate = async (date) => {
-    try {
-      const { hasNewsForDate: checkNews } = await import('./utils/newsData')
-      return await checkNews(date)
-    } catch (error) {
-      console.error('检查新闻失败:', error)
-      return false
-    }
-  }
-
-  // 检查日历当前月份的所有日期是否有新闻
-  useEffect(() => {
-    const checkMonthNews = async () => {
-      setIndicatorsLoaded(false) // 开始加载时设置为false
-      const year = currentMonth.getFullYear()
-      const month = currentMonth.getMonth()
-      const daysInMonth = new Date(year, month + 1, 0).getDate()
-      const indicators = new Set()
-      
-      // 检查当月每一天是否有新闻
-      for (let day = 1; day <= daysInMonth; day++) {
-        const date = new Date(year, month, day)
-        const hasNews = await hasNewsForDate(date)
-        if (hasNews) {
-          indicators.add(date.toDateString())
-        }
-      }
-      
-      setNewsIndicators(indicators)
-      setIndicatorsLoaded(true) // 加载完成后设置为true
-    }
-    
-    checkMonthNews()
-  }, [currentMonth])
 
   const handleDateChange = (date) => {
     setSelectedDate(date)
