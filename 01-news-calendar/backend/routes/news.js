@@ -31,15 +31,20 @@ async function readMonthlyNews(monthFileName) {
   }
 }
 
-// 读取所有月份的新闻数据
+// 读取所有月份的新闻数据（只读取存在的文件）
 async function readAllNews() {
   const allNews = {}
   const months = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12']
   
   for (const month of months) {
     const fileName = `news-calendar-2026${month}.json`
-    const monthNews = await readMonthlyNews(fileName)
-    Object.assign(allNews, monthNews)
+    const newsPath = join(__dirname, '../../public', fileName)
+    
+    // 只读取存在的文件
+    if (existsSync(newsPath)) {
+      const monthNews = await readMonthlyNews(fileName)
+      Object.assign(allNews, monthNews)
+    }
   }
   
   return allNews
