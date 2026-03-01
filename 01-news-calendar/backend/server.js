@@ -19,20 +19,10 @@ const PORT = process.env.PORT || 3002
 const isProduction = process.env.NODE_ENV === 'production'
 
 // 安全头部配置
+// 注意：由于前端是独立的Vite应用，CSP策略会干扰前端运行
+// 因此我们禁用CSP，只保留其他安全头部
 app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'"],
-      scriptSrc: ["'self'"],
-      imgSrc: ["'self'", "data:", "https:"],
-      connectSrc: ["'self'", "https://notee.vip", "http://localhost:*"],
-      fontSrc: ["'self'", "data:"],
-      objectSrc: ["'none'"],
-      mediaSrc: ["'self'"],
-      frameSrc: ["'none'"],
-    },
-  },
+  contentSecurityPolicy: false, // 禁用CSP，避免干扰前端
   crossOriginEmbedderPolicy: false,
   crossOriginResourcePolicy: { policy: "cross-origin" },
 }))
