@@ -51,23 +51,61 @@ export async function initDatabase() {
     `
     
     database.serialize(() => {
+      // 创建新闻表
       database.run(createNewsTable, (err) => {
         if (err) {
           console.error('创建新闻表失败:', err.message)
           reject(err)
           return
         }
-        console.log('新闻表创建成功')
+        console.log('✅ 新闻表创建成功')
       })
       
+      // 创建emoji反应表
       database.run(createEmojiReactionsTable, (err) => {
         if (err) {
           console.error('创建emoji反应表失败:', err.message)
           reject(err)
           return
         }
-        console.log('emoji反应表创建成功')
-        resolve()
+        console.log('✅ emoji反应表创建成功')
+      })
+      
+      // 添加索引优化查询性能
+      database.run(`
+        CREATE INDEX IF NOT EXISTS idx_emoji_reactions_news_id 
+        ON emoji_reactions(news_id)
+      `, (err) => {
+        if (err) {
+          console.error('创建news_id索引失败:', err.message)
+        } else {
+          console.log('✅ news_id索引创建成功')
+        }
+      })
+      
+      database.run(`
+        CREATE INDEX IF NOT EXISTS idx_emoji_reactions_created_at 
+        ON emoji_reactions(created_at)
+      `, (err) => {
+        if (err) {
+          console.error('创建created_at索引失败:', err.message)
+        } else {
+          console.log('✅ created_at索引创建成功')
+        }
+      })
+      
+      // 创建复合索引用于热门新闻查询
+      database.run(`
+        CREATE INDEX IF NOT EXISTS idx_emoji_reactions_composite 
+        ON emoji_reactions(news_id, emoji, created_at)
+      `, (err) => {
+        if (err) {
+          console.error('创建复合索引失败:', err.message)
+          reject(err)
+        } else {
+          console.log('✅ 复合索引创建成功')
+          resolve()
+        }
       })
     })
   })
