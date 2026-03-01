@@ -3,6 +3,83 @@ import { getDatabase } from '../database.js'
 
 const router = express.Router()
 
+// 日志脱敏函数
+function sanitizeLog(data) {
+  if (!data || typeof data !== 'object') return data
+  
+  const sanitized = { ...data }
+  
+  // 脱敏IP地址（只显示前两段）
+  if (sanitized.ip && typeof sanitized.ip === 'string') {
+    const parts = sanitized.ip.split('.')
+    if (parts.length === 4) {
+      sanitized.ip = `${parts[0]}.${parts[1]}.***.***.***`
+    }
+  }
+  
+  return sanitized
+}
+
+// 输入验证中间件
+function validateNewsId(req, res, next) {
+  const newsId = req.params.newsId || req.body.newsId
+  
+  if (!newsId) {
+    return res.status(400).json({
+      success: false,
+      error: '新闻ID不能为空'
+    })
+  }
+  
+  // 验证newsId格式（防止SQL注入和路径遍历）
+  if (typeof newsId !== 'string' || newsId.length > 200) {
+    return res.status(400).json({
+      success: false,
+      error: '无效的新闻ID格式'
+    })
+  }
+  
+  // 防止路径遍历攻击
+  if (newsId.includes('..') || newsId.includes('/') || newsId.includes('\\')) {
+    console.warn('[Security] 检测到路径遍历攻击尝试:', sanitizeLog({ 
+      newsId, 
+      ip: req.clientIP 
+    }))
+    return res.status(400).json({
+      success: false,
+      error: '无效的新闻ID格式'
+    })
+  }
+  
+  next()
+}
+
+// 验证emoji
+function validateEmoji(req, res, next) {
+  const { emoji } = req.body
+  
+  if (!emoji) {
+    return res.status(400).json({
+      success: false,
+      error: 'Emoji不能为空'
+    })
+  }
+  
+  const validEmojis = ['🍺', '👍', '👎']
+  if (!validEmojis.includes(emoji)) {
+    console.warn('[Security] 无效的emoji尝试:', sanitizeLog({ 
+      emoji, 
+      ip: req.clientIP 
+    }))
+    return res.status(400).json({
+      success: false,
+      error: '无效的emoji'
+    })
+  }
+  
+  next()
+}
+
 /**
  * 将数据库回调转换为Promise
  * @param {Object} db - 数据库实例
@@ -126,10 +203,18 @@ router.get('/hot/ranking', async (req, res) => {
       data: hotNews
     })
   } catch (error) {
-    console.error('[Emoji] 获取热门新闻失败:', error)
+    console.error('[Emoji] 获取热门新闻失败:', sanitizeLog({ 
+      error: error.message,
+      ip: req.clientIP 
+    }))
+    
+    const errorMessage = process.env.NODE_ENV === 'production'
+      ? '获取热门新闻失败，请稍后重试'
+      : `获取热门新闻失败: ${error.message}`
+    
     res.status(500).json({
       success: false,
-      error: '获取热门新闻失败'
+      error: errorMessage
     })
   }
 })
@@ -144,7 +229,7 @@ router.get('/test', (req, res) => {
 })
 
 // Get emoji reactions for a news item
-router.get('/:newsId', async (req, res) => {
+router.get('/:newsId', validateNewsId, async (req, res) => {
   const { newsId } = req.params
   const db = getDatabase()
   
@@ -177,16 +262,25 @@ router.get('/:newsId', async (req, res) => {
       data: reactions
     })
   } catch (error) {
-    console.error('[Emoji] 获取emoji反应失败:', error)
+    console.error('[Emoji] 获取emoji反应失败:', sanitizeLog({ 
+      error: error.message,
+      newsId,
+      ip: req.clientIP 
+    }))
+    
+    const errorMessage = process.env.NODE_ENV === 'production'
+      ? '获取emoji反应失败，请稍后重试'
+      : `获取emoji反应失败: ${error.message}`
+    
     res.status(500).json({
       success: false,
-      error: '获取emoji反应失败'
+      error: errorMessage
     })
   }
 })
 
 // 获取用户对特定新闻的反应
-router.get('/:newsId/user', async (req, res) => {
+router.get('/:newsId/user', validateNewsId, async (req, res) => {
   const { newsId } = req.params
   const clientIP = req.clientIP
   const db = getDatabase()
@@ -207,36 +301,27 @@ router.get('/:newsId/user', async (req, res) => {
       }
     })
   } catch (error) {
-    console.error('[Emoji] 获取用户反应失败:', error)
+    console.error('[Emoji] 获取用户反应失败:', sanitizeLog({ 
+      error: error.message,
+      newsId,
+      ip: req.clientIP 
+    }))
+    
+    const errorMessage = process.env.NODE_ENV === 'production'
+      ? '获取用户反应失败，请稍后重试'
+      : `获取用户反应失败: ${error.message}`
+    
     res.status(500).json({
       success: false,
-      error: '获取用户反应失败'
+      error: errorMessage
     })
   }
 })
 
 // Add or update emoji reaction
-router.post('/', async (req, res) => {
+router.post('/', validateNewsId, validateEmoji, async (req, res) => {
   const { newsId, emoji } = req.body
   const clientIP = req.clientIP
-  
-  // Validate input
-  if (!newsId || !emoji) {
-    return res.status(400).json({
-      success: false,
-      error: 'News ID and emoji cannot be empty'
-    })
-  }
-  
-  // Validate emoji
-  const validEmojis = ['🍺', '👍', '👎']
-  if (!validEmojis.includes(emoji)) {
-    return res.status(400).json({
-      success: false,
-      error: 'Invalid emoji'
-    })
-  }
-  
   const db = getDatabase()
   
   try {
@@ -250,19 +335,29 @@ router.post('/', async (req, res) => {
     
     res.json({
       success: true,
-      message: 'Emoji reaction added successfully'
+      message: 'Emoji反应添加成功'
     })
   } catch (error) {
-    console.error('[Emoji] 添加emoji反应失败:', error)
+    console.error('[Emoji] 添加emoji反应失败:', sanitizeLog({ 
+      error: error.message,
+      newsId,
+      emoji,
+      ip: req.clientIP 
+    }))
+    
+    const errorMessage = process.env.NODE_ENV === 'production'
+      ? '添加emoji反应失败，请稍后重试'
+      : `添加emoji反应失败: ${error.message}`
+    
     res.status(500).json({
       success: false,
-      error: '添加emoji反应失败'
+      error: errorMessage
     })
   }
 })
 
 // Delete emoji reaction
-router.delete('/:newsId', async (req, res) => {
+router.delete('/:newsId', validateNewsId, async (req, res) => {
   const { newsId } = req.params
   const clientIP = req.clientIP
   const db = getDatabase()
@@ -278,19 +373,28 @@ router.delete('/:newsId', async (req, res) => {
     if (result.changes === 0) {
       return res.status(404).json({
         success: false,
-        error: 'No reaction found to delete'
+        error: '未找到要删除的反应'
       })
     }
     
     res.json({
       success: true,
-      message: 'Emoji reaction deleted successfully'
+      message: 'Emoji反应删除成功'
     })
   } catch (error) {
-    console.error('[Emoji] 删除emoji反应失败:', error)
+    console.error('[Emoji] 删除emoji反应失败:', sanitizeLog({ 
+      error: error.message,
+      newsId,
+      ip: req.clientIP 
+    }))
+    
+    const errorMessage = process.env.NODE_ENV === 'production'
+      ? '删除emoji反应失败，请稍后重试'
+      : `删除emoji反应失败: ${error.message}`
+    
     res.status(500).json({
       success: false,
-      error: '删除emoji反应失败'
+      error: errorMessage
     })
   }
 })
