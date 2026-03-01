@@ -14,6 +14,12 @@ function App() {
   const [indicatorsLoaded, setIndicatorsLoaded] = useState(false) // 标记指示器是否已加载
   const [selectedDateNews, setSelectedDateNews] = useState({}) // 存储当前选中日期的新闻
   const [hotNewsRefresh, setHotNewsRefresh] = useState(0) // 热门新闻刷新触发器
+  
+  // 错误和加载状态
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+  const [selectedDateLoading, setSelectedDateLoading] = useState(false)
+  const [selectedDateError, setSelectedDateError] = useState(null)
 
   // 设置最早可访问的日期为2026年1月1日
   const minDate = new Date(2026, 0, 1) // 2026年1月1日
@@ -30,6 +36,9 @@ function App() {
   useEffect(() => {
     const loadNews = async () => {
       try {
+        setLoading(true)
+        setError(null)
+        
         const data = await loadNewsData()
         setNewsData(data)
         
@@ -105,13 +114,15 @@ function App() {
           console.log(`[App] 默认日期：后备日期 ${fallbackDate.toLocaleDateString()}`)
         }
       } catch (error) {
-        console.error('加载新闻数据失败:', error)
-        setNewsData({})
-        setIndicatorsLoaded(true)
-        // 出错时使用后备日期
+        console.error('[App] 加载新闻数据失败:', error)
+        setError(error.message || '加载新闻数据失败，请稍后重试')
+        // 出错时也设置后备日期，以便用户可以看到界面
         const fallbackDate = new Date(2026, 0, 1)
         setSelectedDate(fallbackDate)
         setCurrentMonth(fallbackDate)
+        setIndicatorsLoaded(true)
+      } finally {
+        setLoading(false)
       }
     }
     
@@ -125,11 +136,16 @@ function App() {
     
     const loadSelectedDateNews = async () => {
       try {
+        setSelectedDateLoading(true)
+        setSelectedDateError(null)
         const news = await getNewsForDate(selectedDate)
         setSelectedDateNews(news)
       } catch (error) {
-        console.error('加载选中日期新闻失败:', error)
+        console.error('[App] 加载选中日期新闻失败:', error)
+        setSelectedDateError(error.message || '加载新闻失败')
         setSelectedDateNews({})
+      } finally {
+        setSelectedDateLoading(false)
       }
     }
     
@@ -169,8 +185,49 @@ function App() {
     return null
   }
 
+  // 重新加载数据的函数
+  const handleRetry = () => {
+    window.location.reload()
+  }
+
+  // 显示加载状态
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-500 mx-auto mb-4"></div>
+          <p className="text-gray-600 text-lg">加载中...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // 显示错误状态（但仍然显示界面，只是在顶部显示错误提示）
+  const errorBanner = error && (
+    <div className="bg-red-50 border-l-4 border-red-500 p-4">
+      <div className="flex items-center justify-between max-w-7xl mx-auto">
+        <div className="flex items-center">
+          <svg className="w-6 h-6 text-red-500 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <div>
+            <p className="text-red-800 font-medium">加载失败</p>
+            <p className="text-red-600 text-sm">{error}</p>
+          </div>
+        </div>
+        <button 
+          onClick={handleRetry}
+          className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 transition-colors text-sm"
+        >
+          重新加载
+        </button>
+      </div>
+    </div>
+  )
+
   return (
     <div className="min-h-screen bg-gray-50">
+      {errorBanner}
       <header className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 py-6">
           <div className="flex justify-between items-center">
@@ -225,11 +282,31 @@ function App() {
           <div className="lg:col-span-2">
             {/* 当天新闻内容 - 移动端优先显示 */}
             <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-              <NewsDisplay 
-                selectedDate={selectedDate}
-                newsData={selectedDateNews}
-                onEmojiUpdate={refreshHotNews}
-              />
+              {selectedDateLoading ? (
+                <div className="text-center py-8">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+                  <p className="text-gray-600">加载新闻中...</p>
+                </div>
+              ) : selectedDateError ? (
+                <div className="text-center py-8">
+                  <svg className="w-12 h-12 text-red-500 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <p className="text-red-600 mb-4">{selectedDateError}</p>
+                  <button 
+                    onClick={() => setSelectedDate(new Date(selectedDate))}
+                    className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+                  >
+                    重试
+                  </button>
+                </div>
+              ) : (
+                <NewsDisplay 
+                  selectedDate={selectedDate}
+                  newsData={selectedDateNews}
+                  onEmojiUpdate={refreshHotNews}
+                />
+              )}
             </div>
             
             {/* 手机端热门新闻 - 显示在新闻内容之后 */}
