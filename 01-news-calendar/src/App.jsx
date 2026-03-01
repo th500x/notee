@@ -122,6 +122,20 @@ function App() {
     return null
   }
 
+  // 为日历tile添加自定义类名
+  const tileClassName = ({ date, view }) => {
+    if (view === 'month') {
+      // 检查日期是否在有效范围内
+      if (date >= minDate && date <= maxDate) {
+        // 如果没有新闻，添加灰色底色类
+        if (!newsIndicators.has(date.toDateString())) {
+          return 'no-news-date'
+        }
+      }
+    }
+    return null
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white shadow-sm border-b">
@@ -154,6 +168,7 @@ function App() {
                 value={selectedDate}
                 onActiveStartDateChange={handleActiveStartDateChange}
                 tileContent={tileContent}
+                tileClassName={tileClassName}
                 minDate={minDate}
                 maxDate={maxDate}
                 className="w-full"

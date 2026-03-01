@@ -46,6 +46,28 @@
   background-color: #fbbf24;
 }
 
+/* 没有新闻的日期样式 */
+.no-news-date {
+  background-color: #f3f4f6 !important;
+  color: #9ca3af !important;
+}
+
+.no-news-date:hover {
+  background-color: #e5e7eb !important;
+}
+
+/* 选中的没有新闻的日期 */
+.react-calendar__tile--active.no-news-date {
+  background-color: #3b82f6 !important;
+  color: white !important;
+}
+
+/* 今天但没有新闻的日期 */
+.react-calendar__tile--now.no-news-date {
+  background-color: #fef3c7 !important;
+  color: #92400e !important;
+}
+
 /* 文本截断样式 */
 .line-clamp-2 {
   display: -webkit-box;
