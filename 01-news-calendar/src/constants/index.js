@@ -90,3 +90,34 @@ export const LOG_PREFIX = {
   CACHE: '[Cache]',
   API: '[API]',
 }
+
+/**
+ * 分类信息配置
+ * 包含每个分类的显示标题和颜色样式
+ */
+export const CATEGORY_INFO = {
+  world_politics: { 
+    title: '世界政治新闻', 
+    color: 'bg-red-100 text-red-800' 
+  },
+  world_economy: { 
+    title: '世界经济新闻', 
+    color: 'bg-blue-100 text-blue-800' 
+  },
+  asia_politics: { 
+    title: '亚洲政治新闻', 
+    color: 'bg-yellow-100 text-yellow-800' 
+  },
+  asia_economy: { 
+    title: '亚洲经济新闻', 
+    color: 'bg-green-100 text-green-800' 
+  },
+  thailand_politics: { 
+    title: '中泰政治新闻', 
+    color: 'bg-purple-100 text-purple-800' 
+  },
+  thailand_society: { 
+    title: '中泰民生新闻', 
+    color: 'bg-pink-100 text-pink-800' 
+  },
+}
