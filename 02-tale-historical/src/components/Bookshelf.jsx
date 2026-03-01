@@ -3,6 +3,7 @@ import { useBook } from '../contexts/BookContext'
 import { useState } from 'react'
 import { verifyGlobalPassword } from '../config/announcement'
 import { BOOK_CATEGORIES, CATEGORY_ICONS, PROTECTED_CATEGORIES } from '../constants'
+import { validatePassword } from '../utils/inputValidation'
 
 function Bookshelf() {
   const navigate = useNavigate()
@@ -39,7 +40,14 @@ function Bookshelf() {
   }
 
   const handlePasswordSubmit = () => {
-    const result = verifyGlobalPassword(passwordInput);
+    // 验证输入
+    const validation = validatePassword(passwordInput)
+    if (!validation.valid) {
+      setPasswordError(validation.error)
+      return
+    }
+
+    const result = verifyGlobalPassword(passwordInput.trim())
     
     if (result.success) {
       // 密码正确，解锁分类
