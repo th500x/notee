@@ -20,6 +20,7 @@
  * 性能优化：
  * - 使用useMemo缓存样式计算
  * - 使用useMemo缓存内容渲染
+ * - 图片懒加载，减少初始加载时间
  * 
  * @example
  * <ChapterContent
@@ -31,7 +32,7 @@
  * />
  */
 
-import { useMemo } from 'react'
+import { useMemo, useEffect, useRef } from 'react'
 
 /**
  * 处理Markdown加粗语法
@@ -89,6 +90,40 @@ function renderParagraph(paragraphLines, keyPrefix, style) {
  * 章节内容组件
  */
 function ChapterContent({ content, fontSize, lineHeight, fontFamily, book }) {
+  const imageRefs = useRef([])
+
+  // 图片懒加载
+  useEffect(() => {
+    // 使用Intersection Observer实现懒加载
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            const img = entry.target
+            const src = img.dataset.src
+            if (src) {
+              img.src = src
+              img.removeAttribute('data-src')
+              observer.unobserve(img)
+            }
+          }
+        })
+      },
+      {
+        rootMargin: '50px' // 提前50px开始加载
+      }
+    )
+
+    // 观察所有图片
+    imageRefs.current.forEach((img) => {
+      if (img) observer.observe(img)
+    })
+
+    return () => {
+      observer.disconnect()
+    }
+  }, [content])
+
   // 计算样式
   const styles = useMemo(() => {
     const baseFontSize = fontSize
@@ -135,6 +170,7 @@ function ChapterContent({ content, fontSize, lineHeight, fontFamily, book }) {
     
     const imageRegex = /\*（(.*?)）\*/g
     const parts = content.split(imageRegex)
+    let imageIndex = 0
     
     return parts.map((part, index) => {
       // 处理图片
@@ -143,13 +179,19 @@ function ChapterContent({ content, fontSize, lineHeight, fontFamily, book }) {
         const imageUrl = book?.images?.[imageKey]
         
         if (imageUrl) {
+          const currentImageIndex = imageIndex++
           return (
             <div key={`img-${index}`} className="my-8 text-center">
               <img 
-                src={imageUrl} 
+                ref={(el) => (imageRefs.current[currentImageIndex] = el)}
+                data-src={imageUrl}
                 alt={imageKey}
                 className="max-w-full h-auto rounded-lg shadow-lg mx-auto"
-                style={{ maxHeight: '600px' }}
+                style={{ 
+                  maxHeight: '600px',
+                  minHeight: '200px',
+                  backgroundColor: '#f3f4f6'
+                }}
                 onError={(e) => {
                   console.warn(`[ChapterContent] 图片加载失败: ${imageKey}`)
                   e.target.style.display = 'none'

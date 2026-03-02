@@ -14,7 +14,7 @@ const router = express.Router();
 // 从环境变量读取配置
 const GLOBAL_PASSWORD_HASH = process.env.GLOBAL_PASSWORD_HASH;
 const JWT_SECRET = process.env.JWT_SECRET || 'notee-default-secret-change-this';
-const TOKEN_EXPIRY = '7d';
+const TOKEN_EXPIRY = '30d'; // 单用户场景，设置为30天
 
 /**
  * 全局密码登录
@@ -64,7 +64,7 @@ router.post('/login', async (req, res) => {
       res.json({ 
         success: true, 
         token,
-        expiresIn: 7 * 24 * 60 * 60 // 7天（秒）
+        expiresIn: 30 * 24 * 60 * 60 // 30天（秒）
       });
     } else {
       console.warn('[Auth] ❌ 全局密码验证失败');
@@ -176,7 +176,7 @@ router.post('/refresh', (req, res) => {
     res.json({ 
       success: true, 
       token: newToken,
-      expiresIn: 7 * 24 * 60 * 60
+      expiresIn: 30 * 24 * 60 * 60 // 30天（秒）
     });
   } catch (error) {
     res.status(401).json({ 

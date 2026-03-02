@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { login, isLoggedIn } from '../services/authService'
 import { BOOK_CATEGORIES, CATEGORY_ICONS, PROTECTED_CATEGORIES } from '../constants'
 import { validatePassword } from '../utils/inputValidation'
+import { announcement } from '../config/announcement'
 
 function Bookshelf() {
   const navigate = useNavigate()
@@ -27,13 +28,6 @@ function Bookshelf() {
 
   // 定义分类列表
   const categories = Object.values(BOOK_CATEGORIES)
-
-  // 公告内容（可自定义）
-  const announcement = {
-    date: '2026/02/04',
-    content: '欢迎来到佚事雜錄！这里记录着游戏世界的点点滴滴，每一段文字都承载着独特的记忆...',
-    enabled: true
-  }
 
   const handleCategoryClick = (category) => {
     // 如果是受保护的分类且未解锁

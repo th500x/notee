@@ -116,26 +116,17 @@ function BookReader() {
   useEffect(() => {
     if (!currentBook || !currentPageData) return
     
-    // 计算当前页在当前章节中的相对位置
+    // 直接从currentPageData获取章节ID
     const currentChapterId = currentPageData.chapterId
-    const chapterIndex = currentBook.chapters.findIndex(c => c.id === currentChapterId)
     
-    if (chapterIndex >= 0) {
-      // 计算该章节的起始页码
-      let chapterStartPage = 0
-      for (let i = 0; i < chapterIndex; i++) {
-        const chapterPages = splitContentIntoPages(currentBook.chapters[i].content)
-        chapterStartPage += chapterPages.length
-      }
-      
-      // 当前页在章节中的相对位置
-      const positionInChapter = globalPageIndex - chapterStartPage
-      
-      // 保存进度
-      saveReadingProgress(bookId, currentChapterId, positionInChapter)
-      console.log(`${LOG_PREFIX.BOOK_READER} 保存进度: 章节 ${currentChapterId}, 位置 ${positionInChapter}`)
-    }
-  }, [globalPageIndex, currentBook, currentPageData, bookId, saveReadingProgress])
+    // 利用allPages直接计算当前页在章节中的相对位置
+    const chapterStartIndex = allPages.findIndex(p => p.chapterId === currentChapterId)
+    const positionInChapter = globalPageIndex - chapterStartIndex
+    
+    // 保存进度
+    saveReadingProgress(bookId, currentChapterId, positionInChapter)
+    console.log(`${LOG_PREFIX.BOOK_READER} 保存进度: 章节 ${currentChapterId}, 位置 ${positionInChapter}`)
+  }, [globalPageIndex, currentPageData, bookId, saveReadingProgress, allPages])
 
   // 键盘快捷键
   useEffect(() => {

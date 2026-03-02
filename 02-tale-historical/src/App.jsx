@@ -1,9 +1,13 @@
 import { Routes, Route } from 'react-router-dom'
+import { lazy, Suspense } from 'react'
 import './App.css'
-import Bookshelf from './components/Bookshelf'
-import BookReader from './components/BookReader'
 import ErrorBoundary from './components/ErrorBoundary'
+import Loading from './components/Loading'
 import { BookProvider } from './contexts/BookContext'
+
+// 代码分割 - 懒加载路由组件
+const Bookshelf = lazy(() => import('./components/Bookshelf'))
+const BookReader = lazy(() => import('./components/BookReader'))
 
 function App() {
   return (
@@ -31,11 +35,13 @@ function App() {
           </header>
 
           <main className="max-w-7xl mx-auto px-4 py-8">
-            <Routes>
-              <Route path="/" element={<Bookshelf />} />
-              <Route path="/book/:bookId" element={<BookReader />} />
-              <Route path="/book/:bookId/chapter/:chapterId" element={<BookReader />} />
-            </Routes>
+            <Suspense fallback={<Loading message="加载中..." />}>
+              <Routes>
+                <Route path="/" element={<Bookshelf />} />
+                <Route path="/book/:bookId" element={<BookReader />} />
+                <Route path="/book/:bookId/chapter/:chapterId" element={<BookReader />} />
+              </Routes>
+            </Suspense>
           </main>
         </div>
       </BookProvider>

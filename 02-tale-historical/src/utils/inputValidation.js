@@ -21,14 +21,22 @@ export function validatePassword(password) {
 
   // 检查类型
   if (typeof password !== 'string') {
-    console.warn(`${LOG_PREFIX.PASSWORD} 密码类型错误:`, typeof password)
+    console.warn(`${LOG_PREFIX.AUTH} 密码类型错误:`, typeof password)
     return {
       valid: false,
       error: '密码格式错误'
     }
   }
 
-  // 检查长度
+  // 检查最小长度
+  if (password.trim().length < 6) {
+    return {
+      valid: false,
+      error: '密码长度不能少于6个字符'
+    }
+  }
+
+  // 检查最大长度
   if (password.length > 100) {
     return {
       valid: false,
@@ -39,7 +47,7 @@ export function validatePassword(password) {
   // 检查是否包含危险字符（基本XSS防护）
   const dangerousChars = /<|>|&|"|'|`/g
   if (dangerousChars.test(password)) {
-    console.warn(`${LOG_PREFIX.PASSWORD} 密码包含危险字符`)
+    console.warn(`${LOG_PREFIX.AUTH} 密码包含危险字符`)
     return {
       valid: false,
       error: '密码包含非法字符'

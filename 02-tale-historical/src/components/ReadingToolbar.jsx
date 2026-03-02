@@ -13,6 +13,7 @@ function ReadingToolbar({
   canGoNext 
 }) {
   const [isExporting, setIsExporting] = useState(false)
+  const [exportProgress, setExportProgress] = useState(0)
 
   // 导出PDF功能 - 使用canvas截图方式支持中文
   const handleExportPDF = async () => {
@@ -21,6 +22,7 @@ function ReadingToolbar({
     }
 
     setIsExporting(true)
+    setExportProgress(0)
     
     try {
       const pdf = new jsPDF('p', 'mm', 'a4')
@@ -41,6 +43,7 @@ function ReadingToolbar({
       document.body.appendChild(tempContainer)
       
       // 添加标题页
+      setExportProgress(5)
       tempContainer.innerHTML = `
         <div style="text-align: center; padding: 100px 40px;">
           <h1 style="font-size: 32px; margin-bottom: 20px; color: #2c1810;">${book.title}</h1>
@@ -59,6 +62,7 @@ function ReadingToolbar({
       pdf.addImage(titleImgData, 'JPEG', 0, 0, pageWidth, Math.min(titleImgHeight, pageHeight))
       
       // 添加目录
+      setExportProgress(10)
       pdf.addPage()
       tempContainer.innerHTML = `
         <div style="padding: 40px;">
@@ -79,8 +83,17 @@ function ReadingToolbar({
       pdf.addImage(tocImgData, 'JPEG', 0, 0, pageWidth, Math.min(tocImgHeight, pageHeight))
       
       // 添加每个章节
-      for (let i = 0; i < book.chapters.length; i++) {
+      const totalChapters = book.chapters.length
+      for (let i = 0; i < totalChapters; i++) {
         const chap = book.chapters[i]
+        
+        // 更新进度 (10% + 85% * 章节进度)
+        const chapterProgress = 10 + Math.round((85 * (i + 1)) / totalChapters)
+        setExportProgress(chapterProgress)
+        
+        // 让UI有机会更新
+        await new Promise(resolve => setTimeout(resolve, 10))
+        
         pdf.addPage()
         
         // 渲染章节内容
@@ -143,7 +156,11 @@ function ReadingToolbar({
       document.body.removeChild(tempContainer)
       
       // 保存PDF
+      setExportProgress(95)
       pdf.save(`${book.title}.pdf`)
+      
+      setExportProgress(100)
+      await new Promise(resolve => setTimeout(resolve, 500))
       
       alert('PDF导出成功！')
     } catch (error) {
@@ -151,6 +168,7 @@ function ReadingToolbar({
       alert('PDF导出失败，请稍后重试。\n\n错误信息：' + error.message)
     } finally {
       setIsExporting(false)
+      setExportProgress(0)
     }
   }
 
@@ -214,10 +232,31 @@ function ReadingToolbar({
             className="toolbar-button disabled:opacity-50"
             title="导出PDF"
           >
-            {isExporting ? '📄 导出中...' : '📄 导出'}
+            {isExporting ? `📄 ${exportProgress}%` : '📄 导出'}
           </button>
         </div>
       </div>
+
+      {/* PDF导出进度提示 */}
+      {isExporting && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white p-6 rounded-lg shadow-xl max-w-sm w-full mx-4">
+            <h3 className="text-lg font-semibold mb-4 text-center">正在导出PDF</h3>
+            <div className="mb-4">
+              <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-blue-600 transition-all duration-300"
+                  style={{ width: `${exportProgress}%` }}
+                />
+              </div>
+              <p className="text-center text-sm text-gray-600 mt-2">{exportProgress}%</p>
+            </div>
+            <p className="text-xs text-gray-500 text-center">
+              请耐心等待，不要关闭页面
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* 移动端简化工具栏 */}
       <div className="lg:hidden">
@@ -258,7 +297,7 @@ function ReadingToolbar({
             disabled={isExporting}
             className="text-sm px-3 py-1 rounded-full bg-gray-100 hover:bg-gray-200 disabled:opacity-50"
           >
-            📄
+            {isExporting ? `${exportProgress}%` : '📄'}
           </button>
         </div>
       </div>

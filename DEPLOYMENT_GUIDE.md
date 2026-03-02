@@ -14,18 +14,31 @@ npm install
 # 3. 生成密码哈希
 node scripts/generate-password-hash.js "notee.vip.2026"
 
-# 输出示例：
-# GLOBAL_PASSWORD_HASH=$2b$10$TTVNhiZ5SIcuQuq2POxb3OeLbwwhPckij3simGde7Q0ISGW1FK8.e
-# JWT_SECRET=9d32e81d7918a009d0e94fdab625bf85a1575bbcc59d237217b0b2daaeb6be5b
+✅ 密码哈希生成成功！
+
+请将以下内容添加到 backend/.env 文件中：
+
+GLOBAL_PASSWORD_HASH=$2b$10$lJI6hrPJcXRZFLyD2t2rJexETe34CAxcykLYDY158eIyOjDxxHW3.
+JWT_SECRET=cb4509f774ef608e3295be1b8214f78d3247848952925ab6420fc0a2246f24a0
+
+
 
 # 4. 编辑.env文件
 nano .env
-# 或
-vim .env
 
-# 添加以下内容：
-# GLOBAL_PASSWORD_HASH=$2b$10$TTVNhiZ5SIcuQuq2POxb3OeLbwwhPckij3simGde7Q0ISGW1FK8.e
-# JWT_SECRET=9d32e81d7918a009d0e94fdab625bf85a1575bbcc59d237217b0b2daaeb6be5b
+GLOBAL_PASSWORD_HASH=$2b$10$lJI6hrPJcXRZFLyD2t2rJexETe34CAxcykLYDY158eIyOjDxxHW3.
+JWT_SECRET=cb4509f774ef608e3295be1b8214f78d3247848952925ab6420fc0a2246f24a0
+
+保存文件：
+
+按 Ctrl + O（字母O，不是数字0）
+会提示 "File Name to Write: backend/.env"
+直接按 Enter 确认
+退出编辑器：
+
+按 Ctrl + X
+
+
 
 # 5. 重启后端服务
 pm2 restart notee-backend
@@ -44,10 +57,10 @@ cp .env.example .env
 nano .env
 
 # 生产环境配置：
-# VITE_AUTH_API_URL=https://notee.vip/api/auth
+VITE_AUTH_API_URL=https://notee.vip/api/auth
 
 # 或开发环境：
-# VITE_AUTH_API_URL=http://localhost:3001/api/auth
+VITE_AUTH_API_URL=http://localhost:3001/api/auth
 
 # 4. 重新构建
 npm run build

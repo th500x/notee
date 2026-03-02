@@ -45,6 +45,13 @@ import { STORAGE_KEYS, LOG_PREFIX } from '../constants'
  */
 export function saveReadingProgress(bookId, chapterId, position = 0) {
   try {
+    // 检查存储配额
+    const quota = checkStorageQuota()
+    if (quota.status === 'full') {
+      console.warn(`${LOG_PREFIX.BOOK_CONTEXT} ${quota.message}，开始清理`)
+      cleanOldProgress()
+    }
+    
     const stored = localStorage.getItem(STORAGE_KEYS.READING_PROGRESS)
     const progress = stored ? JSON.parse(stored) : {}
     
@@ -65,7 +72,8 @@ export function saveReadingProgress(bookId, chapterId, position = 0) {
       cleanOldProgress()
       // 重试一次
       try {
-        localStorage.setItem(STORAGE_KEYS.READING_PROGRESS, JSON.stringify({ [bookId]: progress[bookId] }))
+        const progress = { [bookId]: { currentChapter: chapterId, position, lastRead: new Date().toISOString() } }
+        localStorage.setItem(STORAGE_KEYS.READING_PROGRESS, JSON.stringify(progress))
         return true
       } catch (retryError) {
         return false
@@ -251,5 +259,54 @@ export function getStorageInfo() {
     }
   } catch (error) {
     return { used: 0, usedKB: '0', usedMB: '0' }
+  }
+}
+
+/**
+ * 检查存储配额状态
+ * 
+ * @returns {Object} 配额状态
+ * @returns {string} return.status - 状态（ok/warning/full）
+ * @returns {string} return.usedMB - 已使用MB
+ * @returns {string} return.message - 状态描述
+ * 
+ * @description
+ * 主动检查localStorage使用情况，提前预警。
+ * - ok: 使用量 < 8MB
+ * - warning: 8MB <= 使用量 < 9MB
+ * - full: 使用量 >= 9MB
+ * 
+ * @example
+ * const quota = checkStorageQuota()
+ * if (quota.status === 'warning') {
+ *   console.warn(quota.message)
+ * }
+ */
+export function checkStorageQuota() {
+  const info = getStorageInfo()
+  const usedMB = parseFloat(info.usedMB)
+  const QUOTA_WARNING_THRESHOLD = 8 // MB
+  const QUOTA_LIMIT = 9 // MB (localStorage通常5-10MB，保守估计9MB)
+  
+  if (usedMB >= QUOTA_LIMIT) {
+    console.warn(`${LOG_PREFIX.BOOK_CONTEXT} 存储空间已满: ${usedMB}MB`)
+    return { 
+      status: 'full', 
+      usedMB: info.usedMB,
+      message: `存储空间已满 (${info.usedMB}MB)，将自动清理旧数据`
+    }
+  } else if (usedMB >= QUOTA_WARNING_THRESHOLD) {
+    console.warn(`${LOG_PREFIX.BOOK_CONTEXT} 存储空间即将用完: ${usedMB}MB`)
+    return { 
+      status: 'warning', 
+      usedMB: info.usedMB,
+      message: `存储空间即将用完 (${info.usedMB}MB)`
+    }
+  }
+  
+  return { 
+    status: 'ok', 
+    usedMB: info.usedMB,
+    message: `存储空间充足 (${info.usedMB}MB)`
   }
 }
