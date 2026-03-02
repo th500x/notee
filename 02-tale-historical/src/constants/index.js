@@ -103,12 +103,21 @@ export const PROTECTED_CATEGORIES = [
 // 存储键名
 /**
  * localStorage键名常量
- * @type {{READING_PROGRESS: string, BOOKMARKS: string}}
+ * @type {{READING_PROGRESS: string, BOOKMARKS: string, ADMIN_TOKEN: string, TOKEN_EXPIRY: string}}
  */
 export const STORAGE_KEYS = {
   READING_PROGRESS: 'tale-reading-progress',  // 阅读进度
-  BOOKMARKS: 'tale-bookmarks'                 // 书签
+  BOOKMARKS: 'tale-bookmarks',                // 书签
+  ADMIN_TOKEN: 'notee-admin-token',           // 管理员Token（统一认证）
+  TOKEN_EXPIRY: 'notee-token-expiry'          // Token过期时间
 }
+
+// Token配置
+/**
+ * Token有效期配置
+ * @type {number}
+ */
+export const TOKEN_DURATION = 30 * 24 * 60 * 60 * 1000  // 30天（毫秒）
 
 // 日志前缀
 /**

@@ -1,0 +1,123 @@
+import { useState, useEffect } from 'react'
+import { authAPI } from '../services/api'
+import { tokenManager } from '../utils/tokenManager'
+import { logger } from '../utils/errorHandler'
+
+/**
+ * 管理员认证自定义 Hook
+ * 管理管理员的登录状态、登录和登出功能
+ * 自动检查 localStorage 中的 Token 以恢复登录状态
+ * 
+ * @returns {Object} 管理员状态和操作方法
+ * @returns {boolean} returns.isLoggedIn - 是否已登录
+ * @returns {boolean} returns.loading - 登录操作是否正在进行中
+ * @returns {Function} returns.login - 登录方法，返回 Promise<{success, error?}>
+ * @returns {Function} returns.logout - 登出方法
+ * 
+ * @example
+ * // 基础使用
+ * const { isLoggedIn, loading, login, logout } = useAdmin()
+ * 
+ * // 登录
+ * const handleLogin = async (password) => {
+ *   const result = await login(password)
+ *   if (result.success) {
+ *     showNotification('登录成功', 'success')
+ *   } else {
+ *     showNotification(result.error, 'error')
+ *   }
+ * }
+ * 
+ * // 登出
+ * const handleLogout = () => {
+ *   logout()
+ *   showNotification('已登出', 'info')
+ * }
+ * 
+ * // 根据登录状态显示不同内容
+ * {isLoggedIn ? (
+ *   <button onClick={handleLogout}>登出</button>
+ * ) : (
+ *   <button onClick={() => setShowLoginModal(true)}>登录</button>
+ * )}
+ */
+export function useAdmin() {
+  const [isLoggedIn, setIsLoggedIn] = useState(false)
+  const [loading, setLoading] = useState(false)
+  
+  /**
+   * 检查登录状态
+   */
+  useEffect(() => {
+    const isValid = tokenManager.isValid()
+    setIsLoggedIn(isValid)
+    
+    if (isValid) {
+      logger.info('useAdmin', '已登录')
+    }
+  }, [])
+  
+  /**
+   * 管理员登录
+   * 验证密码并保存 Token，登录成功后状态会持久化到 localStorage
+   * 
+   * @param {string} password - 管理员密码
+   * @returns {Promise<Object>} 登录结果
+   * @returns {boolean} returns.success - 是否登录成功
+   * @returns {string} [returns.error] - 错误消息（仅在失败时存在）
+   * 
+   * @example
+   * const result = await login('notee.vip.2026')
+   * if (result.success) {
+   *   console.log('登录成功，Token 已保存')
+   * } else {
+   *   console.error('登录失败:', result.error)
+   * }
+   */
+  const login = async (password) => {
+    try {
+      setLoading(true)
+      
+      logger.info('useAdmin', '尝试登录')
+      
+      const result = await authAPI.login(password, 'tale-historical')
+      
+      if (result.success) {
+        setIsLoggedIn(true)
+        logger.info('useAdmin', '登录成功')
+        return { success: true }
+      } else {
+        logger.warn('useAdmin', '登录失败', result.error)
+        return { success: false, error: result.error }
+      }
+    } catch (err) {
+      logger.error('useAdmin', '登录异常', err)
+      return { success: false, error: '登录失败，请重试' }
+    } finally {
+      setLoading(false)
+    }
+  }
+  
+  /**
+   * 管理员登出
+   * 清除 Token 并更新登录状态
+   * 
+   * @returns {void}
+   * 
+   * @example
+   * logout()
+   * console.log('已登出，Token 已清除')
+   */
+  const logout = () => {
+    authAPI.logout()
+    setIsLoggedIn(false)
+    logger.info('useAdmin', '已登出')
+  }
+  
+  return {
+    isLoggedIn,
+    loading,
+    login,
+    logout
+  }
+}

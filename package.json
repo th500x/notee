@@ -2,17 +2,32 @@
   "name": "notee",
   "version": "1.0.0",
   "description": "Multi-page web application with news calendar and more",
+  "type": "module",
   "scripts": {
-    "install-news": "cd news-calendar && npm install",
-    "build-news": "cd news-calendar && npm run build",
-    "dev-news": "cd news-calendar && npm run dev",
-    "start-backend": "cd news-calendar/backend && pm2 start ecosystem.config.cjs",
-    "stop-backend": "cd news-calendar/backend && pm2 stop ecosystem.config.cjs",
-    "restart-backend": "cd news-calendar/backend && pm2 restart ecosystem.config.cjs",
-    "install-all": "npm run install-news",
-    "build-all": "npm run build-news",
-    "deploy": "npm run build-all && npm run restart-backend",
-    "deploy-homepage": "sudo cp index.html /www/wwwroot/notee/ && sudo nginx -s reload"
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "install-news": "cd 01-news-calendar && npm install",
+    "build-news": "cd 01-news-calendar && npm run build",
+    "dev-news": "cd 01-news-calendar && npm run dev",
+    "start-backend": "cd backend && node server.js",
+    "install-all": "npm install && npm run install-news",
+    "build-all": "npm run build && npm run build-news",
+    "deploy": "npm run build-all",
+    "deploy-homepage": "npm run build && sudo cp -r dist/* /www/wwwroot/notee/ && sudo nginx -s reload"
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "@vitejs/plugin-react": "^4.2.1",
+    "autoprefixer": "^10.4.16",
+    "postcss": "^8.4.32",
+    "tailwindcss": "^3.4.0",
+    "vite": "^5.0.8"
   },
   "keywords": ["news", "calendar", "web-app", "multi-page", "notee"],
   "author": "Notee Team",

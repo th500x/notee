@@ -9,6 +9,7 @@ const express = require('express');
 const fs = require('fs').promises;
 const path = require('path');
 const http = require('http');
+const { verifyToken } = require('./middleware/auth');
 const router = express.Router();
 
 // 数据文件路径
@@ -256,23 +257,16 @@ router.post('/messages', async (req, res) => {
 });
 
 /**
- * 删除留言（管理员功能，需要密码）
+ * 删除留言（管理员功能，需要JWT token）
  * DELETE /api/guestbook/messages/:id
- * Body: { password }
+ * Header: Authorization: Bearer <token>
  */
-router.delete('/messages/:id', async (req, res) => {
+router.delete('/messages/:id', verifyToken, async (req, res) => {
   try {
     const { id } = req.params;
-    const { password } = req.body;
     
-    // 使用环境变量或默认全局密码验证
-    const GLOBAL_ADMIN_PASSWORD = process.env.GLOBAL_ADMIN_PASSWORD || 'notee.vip.2026';
-    if (password !== GLOBAL_ADMIN_PASSWORD) {
-      return res.status(403).json({ 
-        success: false, 
-        error: '密码错误' 
-      });
-    }
+    // token已通过verifyToken中间件验证
+    console.log('[Guestbook] 删除留言请求 - ID:', id);
     
     const data = await readMessages();
     const index = data.messages.findIndex(msg => msg.id === id);
@@ -287,12 +281,14 @@ router.delete('/messages/:id', async (req, res) => {
     data.messages.splice(index, 1);
     await writeMessages(data);
     
+    console.log('[Guestbook] ✅ 留言删除成功 - ID:', id);
+    
     res.json({ 
       success: true, 
       message: '留言已删除' 
     });
   } catch (error) {
-    console.error('删除留言失败:', error);
+    console.error('[Guestbook] 删除留言失败:', error);
     res.status(500).json({ 
       success: false, 
       error: '删除留言失败' 

@@ -1,90 +1,27 @@
 import { useNavigate } from 'react-router-dom'
 import { useBook } from '../contexts/BookContext'
-import { useState, useEffect } from 'react'
-import { login, isLoggedIn } from '../services/authService'
+import { useState } from 'react'
+import { useAdmin } from '../hooks/useAdmin'
 import { BOOK_CATEGORIES, CATEGORY_ICONS, PROTECTED_CATEGORIES } from '../constants'
-import { validatePassword } from '../utils/inputValidation'
 import { announcement } from '../config/announcement'
 
 function Bookshelf() {
   const navigate = useNavigate()
   const { books, readingProgress, getReadingProgress } = useBook()
+  const { isLoggedIn } = useAdmin()
   const [selectedCategory, setSelectedCategory] = useState(BOOK_CATEGORIES.ALL)
-  const [showPasswordModal, setShowPasswordModal] = useState(false)
-  const [passwordInput, setPasswordInput] = useState('')
-  const [passwordError, setPasswordError] = useState('')
-  const [isAuthenticating, setIsAuthenticating] = useState(false)
-  const [unlockedCategories, setUnlockedCategories] = useState(
-    new Set([BOOK_CATEGORIES.ALL, BOOK_CATEGORIES.GAME_HISTORY, BOOK_CATEGORIES.TRAVEL])
-  )
-  const [pendingCategory, setPendingCategory] = useState('')
 
-  // 检查是否已登录，自动解锁所有分类
-  useEffect(() => {
-    if (isLoggedIn()) {
-      setUnlockedCategories(new Set(Object.values(BOOK_CATEGORIES)))
+  // 定义分类列表 - 根据登录状态过滤
+  const categories = Object.values(BOOK_CATEGORIES).filter(category => {
+    // 如果未登录，隐藏受保护的分类
+    if (!isLoggedIn && PROTECTED_CATEGORIES.includes(category)) {
+      return false
     }
-  }, [])
-
-  // 定义分类列表
-  const categories = Object.values(BOOK_CATEGORIES)
+    return true
+  })
 
   const handleCategoryClick = (category) => {
-    // 如果是受保护的分类且未解锁
-    if (PROTECTED_CATEGORIES.includes(category) && !unlockedCategories.has(category)) {
-      setPendingCategory(category)
-      setShowPasswordModal(true)
-      setPasswordInput('')
-      setPasswordError('')
-    } else {
-      setSelectedCategory(category)
-    }
-  }
-
-  const handlePasswordSubmit = async () => {
-    // 验证输入
-    const validation = validatePassword(passwordInput)
-    if (!validation.valid) {
-      setPasswordError(validation.error)
-      return
-    }
-
-    setIsAuthenticating(true)
-    setPasswordError('')
-
-    try {
-      const result = await login(passwordInput.trim())
-      
-      if (result.success) {
-        // 密码正确，解锁所有分类
-        setUnlockedCategories(new Set(Object.values(BOOK_CATEGORIES)))
-        setSelectedCategory(pendingCategory)
-        setShowPasswordModal(false)
-        setPasswordInput('')
-        setPasswordError('')
-      } else {
-        // 密码错误，显示错误信息
-        setPasswordError(result.error || '密码错误')
-        setPasswordInput('')
-      }
-    } catch (error) {
-      setPasswordError('验证失败，请稍后重试')
-    } finally {
-      setIsAuthenticating(false)
-    }
-  }
-
-  const handlePasswordCancel = () => {
-    setShowPasswordModal(false)
-    setPasswordInput('')
-    setPasswordError('')
-    setPendingCategory('')
-  }
-
-  const handlePasswordKeyPress = (e) => {
-    if (e.key === 'Enter') {
-      handlePasswordSubmit()
-    }
+    setSelectedCategory(category)
   }
 
   const handleBookClick = (bookId) => {
@@ -139,9 +76,6 @@ function Bookshelf() {
           >
             <span className="category-icon">{CATEGORY_ICONS[category]}</span>
             <span className="category-name">{category}</span>
-            {PROTECTED_CATEGORIES.includes(category) && !unlockedCategories.has(category) && (
-              <span className="lock-icon">🔒</span>
-            )}
           </button>
         ))}
       </div>
@@ -234,49 +168,6 @@ function Bookshelf() {
           <div className="empty-icon">📚</div>
           <div className="empty-text">该分类暂无书籍</div>
           <div className="empty-hint">敬请期待更多精彩内容</div>
-        </div>
-      )}
-
-      {/* 密码验证弹窗 */}
-      {showPasswordModal && (
-        <div className="password-modal-overlay" onClick={handlePasswordCancel}>
-          <div className="password-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="password-modal-header">
-              <h3 className="password-modal-title">🔒 需要验证</h3>
-              <button className="password-modal-close" onClick={handlePasswordCancel}>×</button>
-            </div>
-            <div className="password-modal-body">
-              <label htmlFor="category-password-input" className="password-modal-hint">
-                请输入密码以访问「{pendingCategory}」分类
-              </label>
-              <input
-                id="category-password-input"
-                name="categoryPassword"
-                type="password"
-                className="password-input"
-                placeholder="请输入密码"
-                value={passwordInput}
-                onChange={(e) => setPasswordInput(e.target.value)}
-                onKeyPress={handlePasswordKeyPress}
-                autoFocus
-              />
-              {passwordError && (
-                <p className="password-error">{passwordError}</p>
-              )}
-            </div>
-            <div className="password-modal-footer">
-              <button className="password-btn password-btn-cancel" onClick={handlePasswordCancel}>
-                取消
-              </button>
-              <button 
-                className="password-btn password-btn-submit" 
-                onClick={handlePasswordSubmit}
-                disabled={isAuthenticating}
-              >
-                {isAuthenticating ? '验证中...' : '确认'}
-              </button>
-            </div>
-          </div>
         </div>
       )}
     </div>
