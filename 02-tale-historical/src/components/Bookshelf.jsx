@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom'
 import { useBook } from '../contexts/BookContext'
-import { useState } from 'react'
-import { verifyGlobalPassword } from '../config/announcement'
+import { useState, useEffect } from 'react'
+import { login, isLoggedIn } from '../services/authService'
 import { BOOK_CATEGORIES, CATEGORY_ICONS, PROTECTED_CATEGORIES } from '../constants'
 import { validatePassword } from '../utils/inputValidation'
 
@@ -12,10 +12,18 @@ function Bookshelf() {
   const [showPasswordModal, setShowPasswordModal] = useState(false)
   const [passwordInput, setPasswordInput] = useState('')
   const [passwordError, setPasswordError] = useState('')
+  const [isAuthenticating, setIsAuthenticating] = useState(false)
   const [unlockedCategories, setUnlockedCategories] = useState(
     new Set([BOOK_CATEGORIES.ALL, BOOK_CATEGORIES.GAME_HISTORY, BOOK_CATEGORIES.TRAVEL])
   )
   const [pendingCategory, setPendingCategory] = useState('')
+
+  // 检查是否已登录，自动解锁所有分类
+  useEffect(() => {
+    if (isLoggedIn()) {
+      setUnlockedCategories(new Set(Object.values(BOOK_CATEGORIES)))
+    }
+  }, [])
 
   // 定义分类列表
   const categories = Object.values(BOOK_CATEGORIES)
@@ -39,7 +47,7 @@ function Bookshelf() {
     }
   }
 
-  const handlePasswordSubmit = () => {
+  const handlePasswordSubmit = async () => {
     // 验证输入
     const validation = validatePassword(passwordInput)
     if (!validation.valid) {
@@ -47,19 +55,28 @@ function Bookshelf() {
       return
     }
 
-    const result = verifyGlobalPassword(passwordInput.trim())
-    
-    if (result.success) {
-      // 密码正确，解锁分类
-      setUnlockedCategories(prev => new Set([...prev, pendingCategory]))
-      setSelectedCategory(pendingCategory)
-      setShowPasswordModal(false)
-      setPasswordInput('')
-      setPasswordError('')
-    } else {
-      // 密码错误，显示错误信息（包含剩余尝试次数或锁定时间）
-      setPasswordError(result.message)
-      setPasswordInput('')
+    setIsAuthenticating(true)
+    setPasswordError('')
+
+    try {
+      const result = await login(passwordInput.trim())
+      
+      if (result.success) {
+        // 密码正确，解锁所有分类
+        setUnlockedCategories(new Set(Object.values(BOOK_CATEGORIES)))
+        setSelectedCategory(pendingCategory)
+        setShowPasswordModal(false)
+        setPasswordInput('')
+        setPasswordError('')
+      } else {
+        // 密码错误，显示错误信息
+        setPasswordError(result.error || '密码错误')
+        setPasswordInput('')
+      }
+    } catch (error) {
+      setPasswordError('验证失败，请稍后重试')
+    } finally {
+      setIsAuthenticating(false)
     }
   }
 
@@ -257,8 +274,12 @@ function Bookshelf() {
               <button className="password-btn password-btn-cancel" onClick={handlePasswordCancel}>
                 取消
               </button>
-              <button className="password-btn password-btn-submit" onClick={handlePasswordSubmit}>
-                确认
+              <button 
+                className="password-btn password-btn-submit" 
+                onClick={handlePasswordSubmit}
+                disabled={isAuthenticating}
+              >
+                {isAuthenticating ? '验证中...' : '确认'}
               </button>
             </div>
           </div>

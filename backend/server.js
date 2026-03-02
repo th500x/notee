@@ -9,6 +9,7 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const guestbookRouter = require('./guestbook');
+const authRouter = require('./routes/auth');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -58,12 +59,16 @@ app.use(express.json({ limit: '1mb' }));
 // 留言板路由
 app.use('/api/guestbook', guestbookRouter);
 
+// 全局认证路由
+app.use('/api/auth', authRouter);
+
 // 健康检查
 app.get('/api/health', (req, res) => {
   res.json({ 
     status: 'ok', 
     service: 'notee-backend',
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    features: ['guestbook', 'auth']
   });
 });
 
@@ -88,6 +93,7 @@ app.use('*', (req, res) => {
 app.listen(PORT, () => {
   console.log(`🚀 Notee 后端服务运行在 http://localhost:${PORT}`);
   console.log(`📝 留言板API: http://localhost:${PORT}/api/guestbook`);
+  console.log(`🔐 认证API: http://localhost:${PORT}/api/auth`);
   console.log(`💚 健康检查: http://localhost:${PORT}/api/health`);
 });
 

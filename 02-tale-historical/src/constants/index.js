@@ -103,36 +103,24 @@ export const PROTECTED_CATEGORIES = [
 // 存储键名
 /**
  * localStorage键名常量
- * @type {{READING_PROGRESS: string, BOOKMARKS: string, PASSWORD_ATTEMPT: string}}
+ * @type {{READING_PROGRESS: string, BOOKMARKS: string}}
  */
 export const STORAGE_KEYS = {
   READING_PROGRESS: 'tale-reading-progress',  // 阅读进度
-  BOOKMARKS: 'tale-bookmarks',                // 书签
-  PASSWORD_ATTEMPT: 'pwd_attempt_'            // 密码尝试记录（前缀）
-}
-
-// 密码尝试限制配置
-/**
- * 密码尝试限制配置
- * @type {{MAX_ATTEMPTS: number, LOCKOUT_DURATION: number, LOCKOUT_DURATION_MINUTES: number}}
- */
-export const PASSWORD_ATTEMPT_CONFIG = {
-  MAX_ATTEMPTS: 5,                    // 最大尝试次数
-  LOCKOUT_DURATION: 10 * 60 * 1000,   // 锁定时长（毫秒）
-  LOCKOUT_DURATION_MINUTES: 10        // 锁定时长（分钟）
+  BOOKMARKS: 'tale-bookmarks'                 // 书签
 }
 
 // 日志前缀
 /**
  * 日志前缀常量，用于统一日志格式
- * @type {{BOOK_CONTEXT: string, BOOK_READER: string, BOOKSHELF: string, PDF_EXPORT: string, PASSWORD: string}}
+ * @type {{BOOK_CONTEXT: string, BOOK_READER: string, BOOKSHELF: string, PDF_EXPORT: string, AUTH: string}}
  */
 export const LOG_PREFIX = {
   BOOK_CONTEXT: '[BookContext]',
   BOOK_READER: '[BookReader]',
   BOOKSHELF: '[Bookshelf]',
   PDF_EXPORT: '[PDF Export]',
-  PASSWORD: '[Password]'
+  AUTH: '[Auth]'
 }
 
 // PDF导出配置
