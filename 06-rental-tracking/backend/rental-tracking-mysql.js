@@ -100,9 +100,17 @@ router.get('/', async (req, res) => {
     // 处理JSON字段
     const projects = rows.map(row => ({
       ...row,
-      properties: row.properties ? JSON.parse(row.properties) : [],
-      propertyGroups: row.property_groups ? JSON.parse(row.property_groups) : [],  // 改为数组
-      expenses: row.expenses ? JSON.parse(row.expenses) : [],
+      // MySQL的JSON类型会自动解析，不需要JSON.parse
+      // 如果是字符串才需要解析
+      properties: typeof row.properties === 'string' 
+        ? JSON.parse(row.properties) 
+        : (row.properties || []),
+      propertyGroups: typeof row.property_groups === 'string'
+        ? JSON.parse(row.property_groups)
+        : (row.property_groups || []),
+      expenses: typeof row.expenses === 'string'
+        ? JSON.parse(row.expenses)
+        : (row.expenses || []),
       // 移除密码字段（安全）
       password: undefined,
       property_groups: undefined,
@@ -164,9 +172,15 @@ router.post('/verify-password', async (req, res) => {
     // 处理JSON字段
     const projects = accessibleProjects.map(row => ({
       ...row,
-      properties: row.properties ? JSON.parse(row.properties) : [],
-      propertyGroups: row.property_groups ? JSON.parse(row.property_groups) : [],
-      expenses: row.expenses ? JSON.parse(row.expenses) : [],
+      properties: typeof row.properties === 'string' 
+        ? JSON.parse(row.properties) 
+        : (row.properties || []),
+      propertyGroups: typeof row.property_groups === 'string'
+        ? JSON.parse(row.property_groups)
+        : (row.property_groups || []),
+      expenses: typeof row.expenses === 'string'
+        ? JSON.parse(row.expenses)
+        : (row.expenses || []),
       // 移除密码字段（安全）
       password: undefined,
       property_groups: undefined,
@@ -226,9 +240,15 @@ router.get('/:id', async (req, res) => {
     // 处理JSON字段
     const result = {
       ...project,
-      properties: project.properties ? JSON.parse(project.properties) : [],
-      propertyGroups: project.property_groups ? JSON.parse(project.property_groups) : [],  // 改为数组
-      expenses: project.expenses ? JSON.parse(project.expenses) : [],
+      properties: typeof project.properties === 'string' 
+        ? JSON.parse(project.properties) 
+        : (project.properties || []),
+      propertyGroups: typeof project.property_groups === 'string'
+        ? JSON.parse(project.property_groups)
+        : (project.property_groups || []),
+      expenses: typeof project.expenses === 'string'
+        ? JSON.parse(project.expenses)
+        : (project.expenses || []),
       // 移除密码字段
       password: undefined,
       property_groups: undefined,
