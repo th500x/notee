@@ -15,9 +15,10 @@ function getApiBaseUrl() {
     return import.meta.env.VITE_API_URL
   }
   
-  // 生产环境使用 Nginx 代理路径
+  // 生产环境：空字符串，直接使用根路径
+  // 因为 Nginx 已经配置了 /api/rental-tracking/ 代理
   if (import.meta.env.PROD) {
-    return '/rental-api'
+    return ''
   }
   
   // 本地开发环境
@@ -33,6 +34,11 @@ function getUploadApiBaseUrl() {
   // 优先使用环境变量
   if (import.meta.env.VITE_UPLOAD_API_URL) {
     return import.meta.env.VITE_UPLOAD_API_URL
+  }
+  
+  // 生产环境：空字符串，直接使用根路径
+  if (import.meta.env.PROD) {
+    return ''
   }
   
   // 本地开发环境
