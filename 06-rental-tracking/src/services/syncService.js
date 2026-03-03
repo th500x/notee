@@ -12,7 +12,7 @@ export const syncService = {
    */
   exportLocal: async () => {
     try {
-      const response = await fetch(`${config.api.baseUrl}/api/sync/export`)
+      const response = await fetch(`${config.api.baseUrl}/api/rental-tracking/sync/export`)
       const result = await response.json()
       
       if (!result.success) {
@@ -34,7 +34,7 @@ export const syncService = {
    */
   importLocal: async (data, mode = 'merge') => {
     try {
-      const response = await fetch(`${config.api.baseUrl}/api/sync/import`, {
+      const response = await fetch(`${config.api.baseUrl}/api/rental-tracking/sync/import`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -61,7 +61,7 @@ export const syncService = {
    */
   getLocalStats: async () => {
     try {
-      const response = await fetch(`${config.api.baseUrl}/api/sync/stats`)
+      const response = await fetch(`${config.api.baseUrl}/api/rental-tracking/sync/stats`)
       const result = await response.json()
       
       if (!result.success) {
@@ -82,7 +82,7 @@ export const syncService = {
    */
   exportProduction: async (productionUrl) => {
     try {
-      const response = await fetch(`${productionUrl}/api/sync/export`)
+      const response = await fetch(`${productionUrl}/api/rental-tracking/sync/export`)
       const result = await response.json()
       
       if (!result.success) {
@@ -105,7 +105,7 @@ export const syncService = {
    */
   importProduction: async (productionUrl, data, mode = 'merge') => {
     try {
-      const response = await fetch(`${productionUrl}/api/sync/import`, {
+      const response = await fetch(`${productionUrl}/api/rental-tracking/sync/import`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -133,7 +133,7 @@ export const syncService = {
    */
   getProductionStats: async (productionUrl) => {
     try {
-      const response = await fetch(`${productionUrl}/api/sync/stats`)
+      const response = await fetch(`${productionUrl}/api/rental-tracking/sync/stats`)
       const result = await response.json()
       
       if (!result.success) {
