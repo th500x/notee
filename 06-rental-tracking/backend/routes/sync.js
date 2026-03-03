@@ -15,7 +15,7 @@ router.get('/export', async (req, res) => {
   try {
     console.log('[Sync] 导出数据');
     
-    const [projects] = await db.query(
+    const projects = await db.query(
       'SELECT * FROM projects ORDER BY created_at DESC'
     );
     
@@ -90,7 +90,7 @@ router.post('/import', async (req, res) => {
     for (const project of data.projects) {
       try {
         // 检查项目是否已存在
-        const [existing] = await db.query(
+        const existing = await db.query(
           'SELECT id FROM projects WHERE id = ?',
           [project.id]
         );
@@ -183,7 +183,7 @@ router.post('/import', async (req, res) => {
  */
 router.get('/stats', async (req, res) => {
   try {
-    const [projects] = await db.query('SELECT * FROM projects');
+    const projects = await db.query('SELECT * FROM projects');
     
     let totalProperties = 0;
     let totalRecords = 0;
