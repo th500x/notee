@@ -43,7 +43,7 @@ app.use('/api/upload', uploadRouter);
  * 数据同步路由
  */
 const syncRouter = require('./routes/sync');
-app.use('/api/sync', syncRouter);
+app.use('/api/rental-tracking/sync', syncRouter);
 
 /**
  * 健康检查
