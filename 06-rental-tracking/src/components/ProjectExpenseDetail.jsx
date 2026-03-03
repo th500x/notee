@@ -1,5 +1,8 @@
 import { useState, useRef } from 'react'
 import PhotoViewer from './PhotoViewer'
+import { AddRecordModal } from './AddRecordModal'
+import { config } from '../config'
+import { uploadService } from '../services'
 
 /**
  * 项目开支详情组件
@@ -16,6 +19,8 @@ function ProjectExpenseDetail({ expense, project, selectedYear, selectedMonth, v
   const [viewerPhotos, setViewerPhotos] = useState([])
   const [viewerInitialIndex, setViewerInitialIndex] = useState(0)
   const [uploadingRecordIndex, setUploadingRecordIndex] = useState(null)
+  const [showAddRecordModal, setShowAddRecordModal] = useState(false)
+  const [addRecordLoading, setAddRecordLoading] = useState(false)
   const fileInputRef = useRef(null)
   // 如果没有选中项目开支，显示提示
   if (!expense) {
@@ -43,44 +48,16 @@ function ProjectExpenseDetail({ expense, project, selectedYear, selectedMonth, v
       return
     }
     
-    // 限制最多3张照片
-    if (files.length > 3) {
-      alert('最多只能上传3张照片')
-      e.target.value = ''
-      return
-    }
-
-    // 检查文件大小（每张不超过2MB）
-    const oversizedFiles = files.filter(f => f.size > 2 * 1024 * 1024)
-    if (oversizedFiles.length > 0) {
-      alert('照片大小不能超过2MB，请压缩后再上传')
-      e.target.value = ''
-      return
-    }
-
-    // 转换为Base64
+    // 上传到OSS
     try {
-      const photos = await Promise.all(
-        files.map(file => new Promise((resolve, reject) => {
-          const reader = new FileReader()
-          reader.onload = (e) => {
-            resolve({
-              id: `photo-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`,
-              data: e.target.result,
-              name: file.name,
-              size: file.size,
-              uploadedAt: new Date().toISOString()
-            })
-          }
-          reader.onerror = reject
-          reader.readAsDataURL(file)
-        }))
-      )
-
+      // 使用uploadService批量上传
+      const results = await uploadService.uploadPhotos(files)
+      
       // 获取当前记录并添加照片
       const record = expense.records[uploadingRecordIndex]
       const existingPhotos = record.photos || []
-      const updatedPhotos = [...existingPhotos, ...photos]
+      const newPhotos = results.map(r => r.photo)
+      const updatedPhotos = [...existingPhotos, ...newPhotos]
 
       // 更新记录
       const updatedRecords = expense.records.map((r, i) => 
@@ -95,7 +72,7 @@ function ProjectExpenseDetail({ expense, project, selectedYear, selectedMonth, v
       setUploadingRecordIndex(null)
     } catch (error) {
       console.error('照片上传失败:', error)
-      alert('照片上传失败，请重试')
+      alert(`照片上传失败: ${error.message}`)
     }
     
     // 重置文件输入
@@ -117,32 +94,40 @@ function ProjectExpenseDetail({ expense, project, selectedYear, selectedMonth, v
       alert('请先登录管理员账号')
       return
     }
+    
+    setShowAddRecordModal(true)
+  }
+  
+  // 确认添加收支记录
+  const handleConfirmAddRecord = async (formData) => {
+    setAddRecordLoading(true)
+    
+    try {
+      const newRecord = {
+        date: formData.date,
+        income: formData.income,
+        expenses: formData.expenses,
+        note: formData.note,
+        photos: []
+      }
 
-    const dateStr = viewMode === 'month' 
-      ? `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`
-      : `${selectedYear}-01` // 年度视图默认添加1月
-
-    const income = prompt('请输入收入金额（元）：', 0)
-    if (income === null) return
-
-    const expenses = prompt('请输入支出金额（元）：', 0)
-    if (expenses === null) return
-
-    const note = prompt('备注（可选）：', '')
-
-    const newRecord = {
-      date: dateStr,
-      income: parseFloat(income) || 0,
-      expenses: parseFloat(expenses) || 0,
-      note: note || '',
-      photos: []
+      const updatedRecords = [...(expense.records || []), newRecord]
+      onExpenseUpdate({
+        ...expense,
+        records: updatedRecords
+      })
+      
+      setShowAddRecordModal(false)
+      return { success: true }
+    } catch (error) {
+      console.error('添加记录失败:', error)
+      return {
+        success: false,
+        error: error.message || '添加记录失败'
+      }
+    } finally {
+      setAddRecordLoading(false)
     }
-
-    const updatedRecords = [...(expense.records || []), newRecord]
-    onExpenseUpdate({
-      ...expense,
-      records: updatedRecords
-    })
   }
 
   // 查看照片
@@ -308,7 +293,7 @@ function ProjectExpenseDetail({ expense, project, selectedYear, selectedMonth, v
                         {record.photos.map((photo, photoIndex) => (
                           <div key={photo.id} className="relative group">
                             <img
-                              src={photo.data}
+                              src={photo.url}
                               alt={photo.name || '照片'}
                               className="w-20 h-20 object-cover rounded-md cursor-pointer border-2 border-gray-200 hover:border-blue-500 transition-colors"
                               onClick={() => viewPhotos(record.photos, photoIndex)}
@@ -377,6 +362,19 @@ function ProjectExpenseDetail({ expense, project, selectedYear, selectedMonth, v
           onClose={() => setShowPhotoViewer(false)}
         />
       )}
+      
+      {/* 添加收支记录对话框 */}
+      <AddRecordModal
+        isOpen={showAddRecordModal}
+        onClose={() => setShowAddRecordModal(false)}
+        onAdd={handleConfirmAddRecord}
+        loading={addRecordLoading}
+        defaultDate={viewMode === 'month' 
+          ? `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`
+          : `${selectedYear}-01`}
+        propertyRecords={expense.records || []}
+        showPaidOption={false}
+      />
     </div>
   )
 }

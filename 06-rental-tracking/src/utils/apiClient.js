@@ -4,12 +4,11 @@
  * @description 与后端 API 通信的工具函数
  */
 
-// API 基础 URL
-// 生产环境使用相对路径 /rental-api/，开发环境使用 localhost:3003
-const API_BASE_URL = import.meta.env.PROD 
-  ? '/rental-api' // 生产环境使用 Nginx 代理路径
-  : (import.meta.env.VITE_API_URL || 'http://localhost:3003');
-const API_PREFIX = '';
+import { config } from '../config'
+
+// API 基础 URL 和前缀
+const API_BASE_URL = config.api.baseUrl
+const API_PREFIX = config.api.prefix
 
 /**
  * 发送 API 请求
@@ -53,7 +52,18 @@ async function apiRequest(endpoint, options = {}) {
  */
 export async function getProjects(adminPassword = null) {
   const query = adminPassword ? `?adminPassword=${encodeURIComponent(adminPassword)}` : '';
-  return apiRequest(`/projects${query}`);
+  return apiRequest(`/${query}`);
+}
+
+/**
+ * 验证密码并获取可访问的项目列表
+ * @param {string} password - 项目密码
+ */
+export async function verifyPasswordAndGetProjects(password) {
+  return apiRequest('/verify-password', {
+    method: 'POST',
+    body: JSON.stringify({ password })
+  });
 }
 
 /**
@@ -68,7 +78,7 @@ export async function getProject(projectId, password = null, adminPassword = nul
   if (adminPassword) params.append('adminPassword', adminPassword);
   
   const query = params.toString() ? `?${params.toString()}` : '';
-  return apiRequest(`/projects/${projectId}${query}`);
+  return apiRequest(`/${projectId}${query}`);
 }
 
 /**
@@ -77,7 +87,7 @@ export async function getProject(projectId, password = null, adminPassword = nul
  * @param {string} adminPassword - 管理员密码
  */
 export async function createProject(projectData, adminPassword) {
-  return apiRequest('/projects', {
+  return apiRequest('/', {
     method: 'POST',
     body: JSON.stringify({
       ...projectData,
@@ -93,7 +103,7 @@ export async function createProject(projectData, adminPassword) {
  * @param {string} adminPassword - 管理员密码
  */
 export async function updateProject(projectId, projectData, adminPassword) {
-  return apiRequest(`/projects/${projectId}`, {
+  return apiRequest(`/${projectId}`, {
     method: 'PUT',
     body: JSON.stringify({
       ...projectData,
@@ -108,7 +118,7 @@ export async function updateProject(projectId, projectData, adminPassword) {
  * @param {string} adminPassword - 管理员密码
  */
 export async function deleteProject(projectId, adminPassword) {
-  return apiRequest(`/projects/${projectId}`, {
+  return apiRequest(`/${projectId}`, {
     method: 'DELETE',
     body: JSON.stringify({ adminPassword })
   });
@@ -122,7 +132,7 @@ export async function deleteProject(projectId, adminPassword) {
  * @param {string} projectPassword - 项目密码（可选）
  */
 export async function updateProjectData(projectId, project, adminPassword = null, projectPassword = null) {
-  return apiRequest(`/projects/${projectId}/data`, {
+  return apiRequest(`/${projectId}/data`, {
     method: 'PUT',
     body: JSON.stringify({
       project,
@@ -140,7 +150,7 @@ export async function updateProjectData(projectId, project, adminPassword = null
  * @param {string} projectPassword - 项目密码（可选）
  */
 export async function updateProjectRecords(projectId, records, adminPassword = null, projectPassword = null) {
-  return apiRequest(`/projects/${projectId}/records`, {
+  return apiRequest(`/${projectId}/records`, {
     method: 'PUT',
     body: JSON.stringify({
       ...records,

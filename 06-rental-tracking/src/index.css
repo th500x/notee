@@ -30,3 +30,82 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: #555;
 }
+
+/* 弹窗动画 */
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-slideUp {
+  animation: slideUp 0.3s ease-out;
+}
+
+/* 移动端优化 */
+@media (max-width: 768px) {
+  /* 触摸目标最小尺寸 */
+  button, a, input, select {
+    min-height: 44px;
+  }
+  
+  /* 移动端字体大小调整 */
+  body {
+    font-size: 16px; /* 防止 iOS 自动缩放 */
+  }
+  
+  /* 移动端间距优化 */
+  .container {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+  
+  /* 移动端卡片优化 */
+  .card-mobile {
+    margin-bottom: 1rem;
+  }
+  
+  /* 移动端表格优化 - 横向滚动 */
+  .table-container {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  /* 移动端模态框优化 */
+  .modal-mobile {
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+}
+
+/* 平板优化 */
+@media (min-width: 768px) and (max-width: 1024px) {
+  .grid-responsive {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* 触摸设备优化 */
+@media (hover: none) and (pointer: coarse) {
+  /* 增加触摸区域 */
+  button, a {
+    padding: 0.75rem 1rem;
+  }
+  
+  /* 移除 hover 效果 */
+  button:hover, a:hover {
+    transform: none;
+  }
+  
+  /* 添加触摸反馈 */
+  button:active, a:active {
+    opacity: 0.7;
+    transform: scale(0.98);
+  }
+}
+

@@ -1,6 +1,8 @@
 import { useState, useRef } from 'react'
 import { getPropertyStatus, getCurrentPropertyStatus, getStatusText, getStatusClassName } from '../utils/propertyStatus'
 import PhotoViewer from './PhotoViewer'
+import { config } from '../config'
+import { uploadService } from '../services'
 
 /**
  * 房源详情组件
@@ -18,17 +20,19 @@ function PropertyDetail({ property, project, selectedYear, selectedMonth, viewMo
   const [isEditingProperty, setIsEditingProperty] = useState(false)
   const [isEditingTenant, setIsEditingTenant] = useState(false)
   const [showRecordDialog, setShowRecordDialog] = useState(false)
+  const [editingRecordIndex, setEditingRecordIndex] = useState(null)  // 正在编辑的记录索引
   const [showPhotoViewer, setShowPhotoViewer] = useState(false)
   const [viewerPhotos, setViewerPhotos] = useState([])
   const [viewerInitialIndex, setViewerInitialIndex] = useState(0)
   const [uploadingRecordIndex, setUploadingRecordIndex] = useState(null)
+  const [showMoveDialog, setShowMoveDialog] = useState(false)  // 移动对话框
   const fileInputRef = useRef(null)
   const [recordForm, setRecordForm] = useState({
     date: '',
     income: 0,
     expenses: 0,
     note: '',
-    status: '' // 手动设置的状态（可选）
+    isPaid: false // 是否已缴租
   })
   
   // 获取当前查看月份的状态
@@ -164,18 +168,34 @@ function PropertyDetail({ property, project, selectedYear, selectedMonth, viewMo
       return
     }
 
-    if (!propertyForm.deposit || propertyForm.deposit < 0) {
-      alert('请填写有效的押金')
+    if (propertyForm.deposit !== '' && propertyForm.deposit < 0) {
+      alert('押金不能为负数')
       return
     }
 
+    // 直接更新房源信息（不包括状态，状态在收支记录中修改）
     onPropertyUpdate({
       ...property,
       name: propertyForm.name,
       monthlyRent: parseFloat(propertyForm.monthlyRent),
-      deposit: parseFloat(propertyForm.deposit)
+      deposit: propertyForm.deposit && propertyForm.deposit !== '' ? parseFloat(propertyForm.deposit) : 0
     })
     setIsEditingProperty(false)
+  }
+
+  // 移动房源到其他分组（管理员功能）
+  const handleMoveProperty = (targetGroupId) => {
+    if (!isAdmin) {
+      alert('请先登录管理员账号')
+      return
+    }
+    
+    // 通过 project 的 onPropertyUpdate 回调来处理移动
+    // 这里需要传递特殊的标记，让父组件知道这是移动操作
+    if (window.movePropertyToGroup) {
+      window.movePropertyToGroup(property.id, targetGroupId)
+      setShowMoveDialog(false)
+    }
   }
 
   // 添加收支记录（管理员功能）
@@ -189,15 +209,46 @@ function PropertyDetail({ property, project, selectedYear, selectedMonth, viewMo
       ? `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`
       : `${selectedYear}-01`
 
-    // 获取该月的自动推断状态
-    const autoStatus = getPropertyStatus(property, dateStr)
+    // 检查当月是否已有缴租记录
+    const hasMonthPaidRecord = property.records?.some(record => 
+      record.date === dateStr && record.isPaid === true
+    )
 
+    setEditingRecordIndex(null)  // 清空编辑索引，表示是新增
     setRecordForm({
       date: dateStr,
       income: property.monthlyRent || 0,
       expenses: 0,
       note: '',
-      status: autoStatus // 默认使用自动推断的状态
+      isPaid: false,
+      _hasMonthPaidRecord: hasMonthPaidRecord // 用于UI判断
+    })
+    setShowRecordDialog(true)
+  }
+  
+  // 编辑收支记录（管理员功能）
+  const editRecord = (index) => {
+    if (!isAdmin) {
+      alert('请先登录管理员账号')
+      return
+    }
+    
+    const record = property.records[index]
+    
+    // 检查当月是否已有其他缴租记录
+    const hasMonthPaidRecord = property.records?.some((r, i) => 
+      i !== index && r.date === record.date && r.isPaid === true
+    )
+    
+    setEditingRecordIndex(index)
+    setRecordForm({
+      date: record.date,
+      income: record.income || 0,
+      expenses: record.expenses || 0,
+      note: record.note || '',
+      isPaid: record.isPaid || false,
+      status: record.status || property.status || 'vacant',  // 添加status字段
+      _hasMonthPaidRecord: hasMonthPaidRecord
     })
     setShowRecordDialog(true)
   }
@@ -208,20 +259,50 @@ function PropertyDetail({ property, project, selectedYear, selectedMonth, viewMo
       date: recordForm.date,
       income: parseFloat(recordForm.income) || 0,
       expenses: parseFloat(recordForm.expenses) || 0,
-      note: recordForm.note || ''
+      note: recordForm.note || '',
+      isPaid: recordForm.isPaid || false,
+      status: recordForm.status || property.status || 'vacant'  // 该月的独立状态
     }
 
-    // 如果手动设置了状态，添加到记录中
-    if (recordForm.status) {
-      newRecord.status = recordForm.status
+    let updatedRecords
+    let shouldUpdateGlobalStatus = false
+    let newGlobalStatus = property.status
+    
+    if (editingRecordIndex !== null) {
+      // 编辑模式：更新现有记录
+      updatedRecords = property.records.map((record, i) => 
+        i === editingRecordIndex ? newRecord : record
+      )
+    } else {
+      // 新增模式：添加新记录
+      updatedRecords = [...(property.records || []), newRecord]
+      
+      // 🎯 智能逻辑：如果是新房源的第一条"新合同"记录，自动设置全局状态为"出租中"
+      // 条件：
+      // 1. 当前是新增记录（不是编辑）
+      // 2. 新记录的状态是"新合同"
+      // 3. 房源当前全局状态是"空置中"（说明是新房源）
+      // 4. 这是第一条有状态的记录
+      if (newRecord.status === 'new-contract' && property.status === 'vacant') {
+        // 检查是否是第一条有状态的记录
+        const hasOtherStatusRecords = (property.records || []).some(r => r.status && r.status !== 'vacant')
+        
+        if (!hasOtherStatusRecords) {
+          shouldUpdateGlobalStatus = true
+          newGlobalStatus = 'rented'  // 设置为"出租中"
+        }
+      }
     }
-
-    const updatedRecords = [...(property.records || []), newRecord]
+    
+    // 更新房源数据
     onPropertyUpdate({
       ...property,
-      records: updatedRecords
+      records: updatedRecords,
+      status: shouldUpdateGlobalStatus ? newGlobalStatus : property.status
     })
+    
     setShowRecordDialog(false)
+    setEditingRecordIndex(null)
   }
 
   // 删除记录（管理员功能）
@@ -260,37 +341,16 @@ function PropertyDetail({ property, project, selectedYear, selectedMonth, viewMo
       return
     }
 
-    // 检查文件大小（每张不超过2MB）
-    const oversizedFiles = files.filter(f => f.size > 2 * 1024 * 1024)
-    if (oversizedFiles.length > 0) {
-      alert('照片大小不能超过2MB，请压缩后再上传')
-      e.target.value = ''
-      return
-    }
-
-    // 转换为Base64
+    // 上传到OSS
     try {
-      const photos = await Promise.all(
-        files.map(file => new Promise((resolve, reject) => {
-          const reader = new FileReader()
-          reader.onload = (e) => {
-            resolve({
-              id: `photo-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`,
-              data: e.target.result,
-              name: file.name,
-              size: file.size,
-              uploadedAt: new Date().toISOString()
-            })
-          }
-          reader.onerror = reject
-          reader.readAsDataURL(file)
-        }))
-      )
-
+      // 使用uploadService批量上传
+      const results = await uploadService.uploadPhotos(files)
+      
       // 获取当前记录并添加照片
       const record = property.records[uploadingRecordIndex]
       const existingPhotos = record.photos || []
-      const updatedPhotos = [...existingPhotos, ...photos]
+      const newPhotos = results.map(r => r.photo)
+      const updatedPhotos = [...existingPhotos, ...newPhotos]
 
       // 更新记录
       const updatedRecords = property.records.map((r, i) => 
@@ -305,7 +365,7 @@ function PropertyDetail({ property, project, selectedYear, selectedMonth, viewMo
       setUploadingRecordIndex(null)
     } catch (error) {
       console.error('照片上传失败:', error)
-      alert('照片上传失败，请重试')
+      alert(`照片上传失败: ${error.message}`)
     }
     
     // 重置文件输入
@@ -329,7 +389,7 @@ function PropertyDetail({ property, project, selectedYear, selectedMonth, viewMo
   }
 
   // 删除照片
-  const deletePhoto = (recordIndex, photoId) => {
+  const deletePhoto = async (recordIndex, photoId) => {
     if (!isAdmin) {
       alert('请先登录管理员账号')
       return
@@ -337,17 +397,26 @@ function PropertyDetail({ property, project, selectedYear, selectedMonth, viewMo
 
     if (!confirm('确定要删除这张照片吗？')) return
 
-    const record = property.records[recordIndex]
-    const updatedPhotos = record.photos.filter(p => p.id !== photoId)
-    
-    const updatedRecords = property.records.map((r, i) => 
-      i === recordIndex ? { ...r, photos: updatedPhotos } : r
-    )
+    try {
+      // 使用uploadService删除照片
+      await uploadService.deletePhoto(photoId)
 
-    onPropertyUpdate({
-      ...property,
-      records: updatedRecords
-    })
+      // 从记录中移除照片
+      const record = property.records[recordIndex]
+      const updatedPhotos = record.photos.filter(p => p.id !== photoId)
+      
+      const updatedRecords = property.records.map((r, i) => 
+        i === recordIndex ? { ...r, photos: updatedPhotos } : r
+      )
+
+      onPropertyUpdate({
+        ...property,
+        records: updatedRecords
+      })
+    } catch (error) {
+      console.error('删除照片失败:', error)
+      alert(`删除照片失败: ${error.message}`)
+    }
   }
 
   // 获取显示的记录（根据视图模式过滤）
@@ -386,14 +455,24 @@ function PropertyDetail({ property, project, selectedYear, selectedMonth, viewMo
       <div className="bg-white rounded-lg shadow-md p-6">
         <div className="flex justify-between items-center mb-4">
           <h3 className="text-lg font-bold text-gray-900">房源信息</h3>
-          {!isEditingProperty && isAdmin && (
-            <button
-              onClick={editPropertyInfo}
-              className="px-3 py-1 bg-gray-600 text-white text-sm rounded-md hover:bg-gray-700 transition-colors"
-            >
-              编辑
-            </button>
-          )}
+          <div className="flex gap-2">
+            {!isEditingProperty && isAdmin && (
+              <>
+                <button
+                  onClick={() => setShowMoveDialog(true)}
+                  className="px-3 py-1 bg-purple-600 text-white text-sm rounded-md hover:bg-purple-700 transition-colors"
+                >
+                  移动
+                </button>
+                <button
+                  onClick={editPropertyInfo}
+                  className="px-3 py-1 bg-gray-600 text-white text-sm rounded-md hover:bg-gray-700 transition-colors"
+                >
+                  编辑
+                </button>
+              </>
+            )}
+          </div>
         </div>
 
         {isEditingProperty ? (
@@ -420,14 +499,14 @@ function PropertyDetail({ property, project, selectedYear, selectedMonth, viewMo
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">押金 *</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">押金</label>
               <input
                 type="number"
                 min="0"
                 value={propertyForm.deposit}
                 onChange={(e) => setPropertyForm({ ...propertyForm, deposit: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="请输入押金"
+                placeholder="请输入押金（可选）"
               />
             </div>
             <div className="flex gap-2">
@@ -649,7 +728,7 @@ function PropertyDetail({ property, project, selectedYear, selectedMonth, viewMo
                         {record.photos.map((photo, photoIndex) => (
                           <div key={photo.id} className="relative group">
                             <img
-                              src={photo.data}
+                              src={photo.url}
                               alt={photo.name || '照片'}
                               className="w-20 h-20 object-cover rounded-md cursor-pointer border-2 border-gray-200 hover:border-blue-500 transition-colors"
                               onClick={() => viewPhotos(record.photos, photoIndex)}
@@ -685,6 +764,13 @@ function PropertyDetail({ property, project, selectedYear, selectedMonth, viewMo
                         📷
                       </button>
                       <button
+                        onClick={() => editRecord(originalIndex)}
+                        className="text-gray-600 hover:text-gray-800"
+                        title="编辑记录"
+                      >
+                        ✏️
+                      </button>
+                      <button
                         onClick={() => deleteRecord(originalIndex)}
                         className="text-red-500 hover:text-red-700"
                         title="删除记录"
@@ -705,7 +791,9 @@ function PropertyDetail({ property, project, selectedYear, selectedMonth, viewMo
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
             <div className="p-6">
-              <h3 className="text-xl font-bold text-gray-900 mb-4">添加收支记录</h3>
+              <h3 className="text-xl font-bold text-gray-900 mb-4">
+                {editingRecordIndex !== null ? '编辑收支记录' : '添加收支记录'}
+              </h3>
               
               <div className="space-y-4">
                 {/* 日期 */}
@@ -749,26 +837,6 @@ function PropertyDetail({ property, project, selectedYear, selectedMonth, viewMo
                   />
                 </div>
 
-                {/* 房源状态（手动覆盖） */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    房源状态（可选覆盖）
-                  </label>
-                  <select
-                    value={recordForm.status}
-                    onChange={(e) => setRecordForm({ ...recordForm, status: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  >
-                    <option value="">自动推断（推荐）</option>
-                    <option value="vacant">空置中</option>
-                    <option value="new-contract">新合同</option>
-                    <option value="rented">出租中</option>
-                  </select>
-                  <p className="text-xs text-gray-500 mt-1">
-                    默认根据租客信息自动推断，如有特殊情况可手动选择
-                  </p>
-                </div>
-
                 {/* 备注 */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -782,6 +850,85 @@ function PropertyDetail({ property, project, selectedYear, selectedMonth, viewMo
                     placeholder="可选"
                   />
                 </div>
+
+                {/* 已缴租复选框 */}
+                <div>
+                  <label className="flex items-center gap-3 p-3 border-2 border-gray-200 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={recordForm.isPaid}
+                      onChange={(e) => setRecordForm({ ...recordForm, isPaid: e.target.checked })}
+                      disabled={recordForm._hasMonthPaidRecord}
+                      className="w-5 h-5 text-green-600 border-gray-300 rounded focus:ring-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                    />
+                    <div className="flex-1">
+                      <span className={`text-sm font-medium ${recordForm._hasMonthPaidRecord ? 'text-gray-400' : 'text-gray-700'}`}>
+                        已缴租
+                      </span>
+                      {recordForm._hasMonthPaidRecord && (
+                        <p className="text-xs text-gray-500 mt-1">
+                          ⚠️ 本月已有缴租记录，无法重复标记
+                        </p>
+                      )}
+                    </div>
+                  </label>
+                </div>
+
+                {/* 房源状态 - 单选框 */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    房源状态
+                  </label>
+                  <div className="space-y-2">
+                    {/* 空置中 */}
+                    <label className="flex items-center gap-3 p-3 border-2 border-gray-200 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer">
+                      <input
+                        type="radio"
+                        name="propertyStatus"
+                        value="vacant"
+                        checked={(recordForm.status || property.status || 'vacant') === 'vacant'}
+                        onChange={(e) => setRecordForm({ ...recordForm, status: e.target.value })}
+                        className="w-5 h-5 text-gray-600 border-gray-300 focus:ring-2 focus:ring-gray-500"
+                      />
+                      <div className="flex-1">
+                        <span className="text-sm font-medium text-gray-700">空置中</span>
+                        <p className="text-xs text-gray-500 mt-0.5">灰色背景显示</p>
+                      </div>
+                    </label>
+
+                    {/* 新合同 */}
+                    <label className="flex items-center gap-3 p-3 border-2 border-gray-200 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer">
+                      <input
+                        type="radio"
+                        name="propertyStatus"
+                        value="new-contract"
+                        checked={(recordForm.status || property.status || 'vacant') === 'new-contract'}
+                        onChange={(e) => setRecordForm({ ...recordForm, status: e.target.value })}
+                        className="w-5 h-5 text-blue-600 border-gray-300 focus:ring-2 focus:ring-blue-500"
+                      />
+                      <div className="flex-1">
+                        <span className="text-sm font-medium text-gray-700">新合同</span>
+                        <p className="text-xs text-gray-500 mt-0.5">蓝色背景显示</p>
+                      </div>
+                    </label>
+
+                    {/* 出租中 */}
+                    <label className="flex items-center gap-3 p-3 border-2 border-gray-200 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer">
+                      <input
+                        type="radio"
+                        name="propertyStatus"
+                        value="rented"
+                        checked={(recordForm.status || property.status || 'vacant') === 'rented'}
+                        onChange={(e) => setRecordForm({ ...recordForm, status: e.target.value })}
+                        className="w-5 h-5 text-green-600 border-gray-300 focus:ring-2 focus:ring-green-500"
+                      />
+                      <div className="flex-1">
+                        <span className="text-sm font-medium text-gray-700">出租中</span>
+                        <p className="text-xs text-gray-500 mt-0.5">白色背景显示</p>
+                      </div>
+                    </label>
+                  </div>
+                </div>
               </div>
 
               {/* 按钮 */}
@@ -793,7 +940,10 @@ function PropertyDetail({ property, project, selectedYear, selectedMonth, viewMo
                   保存
                 </button>
                 <button
-                  onClick={() => setShowRecordDialog(false)}
+                  onClick={() => {
+                    setShowRecordDialog(false)
+                    setEditingRecordIndex(null)
+                  }}
                   className="flex-1 px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 transition-colors"
                 >
                   取消
@@ -821,6 +971,67 @@ function PropertyDetail({ property, project, selectedYear, selectedMonth, viewMo
           initialIndex={viewerInitialIndex}
           onClose={() => setShowPhotoViewer(false)}
         />
+      )}
+      
+      {/* 移动房源对话框 */}
+      {showMoveDialog && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+          onClick={() => setShowMoveDialog(false)}
+        >
+          <div 
+            className="bg-white rounded-2xl shadow-2xl max-w-md w-full"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between p-6 border-b">
+              <h3 className="text-xl font-semibold text-gray-900">
+                🔄 移动房源
+              </h3>
+              <button
+                onClick={() => setShowMoveDialog(false)}
+                className="text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded p-2 transition-colors"
+              >
+                <span className="text-2xl leading-none">×</span>
+              </button>
+            </div>
+            
+            <div className="p-6">
+              <p className="text-sm text-gray-600 mb-4">
+                将房源 <span className="font-medium text-gray-900">{property.name}</span> 移动到：
+              </p>
+              
+              <div className="space-y-2">
+                {(() => {
+                  const groups = [
+                    { id: 'default', name: '房源列表（默认）' }
+                  ]
+                  if (project.propertyGroups && project.propertyGroups.length > 0) {
+                    groups.push(...project.propertyGroups.map(g => ({ id: g.id, name: g.name })))
+                  }
+                  
+                  return groups.map(group => (
+                    <button
+                      key={group.id}
+                      onClick={() => handleMoveProperty(group.id)}
+                      className="w-full px-4 py-3 text-left bg-gray-50 hover:bg-blue-50 border border-gray-200 hover:border-blue-300 rounded-lg transition-colors"
+                    >
+                      📁 {group.name}
+                    </button>
+                  ))
+                })()}
+              </div>
+            </div>
+            
+            <div className="p-6 border-t">
+              <button
+                onClick={() => setShowMoveDialog(false)}
+                className="w-full px-6 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium"
+              >
+                取消
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

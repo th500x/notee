@@ -28,7 +28,7 @@ function PhotoViewer({ photos, initialIndex = 0, onClose }) {
   const handleDownload = (e) => {
     e.stopPropagation()
     const link = document.createElement('a')
-    link.href = currentPhoto.data
+    link.href = currentPhoto.url
     link.download = currentPhoto.name || `photo-${currentIndex + 1}.jpg`
     document.body.appendChild(link)
     link.click()
@@ -85,7 +85,7 @@ function PhotoViewer({ photos, initialIndex = 0, onClose }) {
         onClick={(e) => e.stopPropagation()}
       >
         <img
-          src={currentPhoto.data}
+          src={currentPhoto.url}
           alt={currentPhoto.name || '照片'}
           className="max-w-full max-h-[90vh] object-contain rounded-lg"
         />
@@ -119,7 +119,7 @@ function PhotoViewer({ photos, initialIndex = 0, onClose }) {
               }`}
             >
               <img
-                src={photo.data}
+                src={photo.url}
                 alt={`缩略图 ${index + 1}`}
                 className="w-full h-full object-cover"
               />

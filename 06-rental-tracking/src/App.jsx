@@ -1,16 +1,16 @@
 import { useState, useEffect } from 'react'
 import HomePage from './pages/HomePage'
 import ProjectDetailPage from './pages/ProjectDetailPage'
+import AdminSyncPage from './pages/AdminSyncPage'
+import { ProjectFormModal } from './components/ProjectFormModal'
 import { 
   loadRentalData, 
   saveRentalData,
-  setAdminPassword,
-  clearAdminPassword,
   createProject as apiCreateProject,
   deleteProject as apiDeleteProject,
   updateProjectData as apiUpdateProjectData
 } from './utils/dataManagerAPI'
-import { verifyGlobalPassword } from './utils/globalAuth'
+import { useAdmin } from './hooks/useAdmin'
 
 /**
  * 租赁追踪主应用组件
@@ -18,7 +18,7 @@ import { verifyGlobalPassword } from './utils/globalAuth'
  * 功能架构：
  * - 主页：显示所有项目的卡片列表
  * - 项目详情页：显示选中项目的房源管理和收支追踪
- * - 管理员权限：通过全局密码验证
+ * - 管理员权限：通过notee主页统一验证
  * 
  * 数据结构：
  * {
@@ -44,12 +44,24 @@ import { verifyGlobalPassword } from './utils/globalAuth'
  * }
  */
 function App() {
+  // 检查是否是同步页面路由
+  const isAdminSyncPage = window.location.pathname.includes('/admin/sync')
+  
+  // 如果是同步页面，直接渲染同步页面
+  if (isAdminSyncPage) {
+    return <AdminSyncPage />
+  }
+  
+  // 使用统一的管理员验证
+  const { isLoggedIn: isAdmin } = useAdmin()
+  
   // 状态管理
   const [rentalData, setRentalData] = useState({ projects: [] })
   const [currentView, setCurrentView] = useState('home') // 'home' | 'project-detail'
   const [selectedProject, setSelectedProject] = useState(null)
-  const [isAdmin, setIsAdmin] = useState(false) // 管理员状态
   const [isLoading, setIsLoading] = useState(true) // 加载状态
+  const [showCreateModal, setShowCreateModal] = useState(false) // 创建项目对话框
+  const [createLoading, setCreateLoading] = useState(false) // 创建项目加载状态
 
   // 加载数据
   useEffect(() => {
@@ -67,12 +79,6 @@ function App() {
     }
     
     loadData()
-    
-    // 检查是否已经登录过管理员（从sessionStorage）
-    const adminStatus = sessionStorage.getItem('rental-tracking-admin')
-    if (adminStatus === 'true') {
-      setIsAdmin(true)
-    }
   }, [])
 
   // 保存数据
@@ -108,70 +114,43 @@ function App() {
     setSelectedProject(null)
   }
 
-  // 管理员登录
-  const handleAdminLogin = () => {
-    const password = prompt('请输入管理员密码：')
-    if (!password) return
-
-    const result = verifyGlobalPassword(password)
-    
-    if (result.success) {
-      setIsAdmin(true)
-      setAdminPassword(password) // 缓存密码用于 API 调用
-      sessionStorage.setItem('rental-tracking-admin', 'true')
-      alert('✅ 管理员登录成功')
-      // 重新加载数据以获取所有项目（包括隐藏的）
-      reloadData()
-    } else {
-      alert('❌ ' + result.message)
-    }
-  }
-
-  // 管理员登出
-  const handleAdminLogout = () => {
-    if (confirm('确定要退出管理员模式吗？')) {
-      setIsAdmin(false)
-      clearAdminPassword() // 清除密码缓存
-      sessionStorage.removeItem('rental-tracking-admin')
-      // 清除所有已解锁的项目
-      sessionStorage.removeItem('rental-tracking-unlocked-projects')
-      
-      // 如果当前在项目详情页，强制返回主页
-      if (currentView === 'project-detail') {
-        setCurrentView('home')
-        setSelectedProject(null)
-      }
-      
-      alert('已退出管理员模式')
-      // 重新加载数据以过滤隐藏的项目
-      reloadData()
-    }
-  }
-
   // 添加新项目（管理员功能）
-  const handleAddProject = async () => {
+  const handleAddProject = () => {
     if (!isAdmin) {
       alert('请先登录管理员账号')
       return
     }
-
-    const projectName = prompt('请输入项目名称：')
-    if (!projectName) return
-
-    const projectDesc = prompt('请输入项目描述（可选）：') || ''
-
+    
+    setShowCreateModal(true)
+  }
+  
+  // 创建项目
+  const handleCreateProject = async (formData) => {
+    setCreateLoading(true)
+    
     try {
       await apiCreateProject({
-        name: projectName,
-        description: projectDesc
+        name: formData.name,
+        description: formData.description,
+        password: formData.password,
+        visible: formData.visible,
+        propertyGroups: formData.propertyGroups || []  // 包含房源分组
       })
       
       // 重新加载数据
       await reloadData()
+      setShowCreateModal(false)
       alert('✅ 项目创建成功')
+      
+      return { success: true }
     } catch (error) {
       console.error('创建项目失败:', error)
-      alert('❌ 创建项目失败：' + error.message)
+      return { 
+        success: false, 
+        error: error.message || '创建项目失败'
+      }
+    } finally {
+      setCreateLoading(false)
     }
   }
 
@@ -237,29 +216,6 @@ function App() {
               </a>
               <p className="text-gray-600 mt-2">房源租赁管理与收支追踪</p>
             </div>
-            
-            {/* 系统管理按钮 */}
-            <div>
-              {isAdmin ? (
-                <button
-                  onClick={handleAdminLogout}
-                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium border border-red-700 flex items-center gap-2"
-                  title="退出管理员模式"
-                >
-                  <span>🔓</span>
-                  <span>退出管理</span>
-                </button>
-              ) : (
-                <button
-                  onClick={handleAdminLogin}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium border border-blue-700 flex items-center gap-2"
-                  title="登录管理员账号"
-                >
-                  <span>🔒</span>
-                  <span>系统管理</span>
-                </button>
-              )}
-            </div>
           </div>
         </div>
       </header>
@@ -294,6 +250,15 @@ function App() {
           )
         )}
       </main>
+      
+      {/* 创建项目对话框 */}
+      <ProjectFormModal
+        isOpen={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        onSubmit={handleCreateProject}
+        loading={createLoading}
+        mode="create"
+      />
     </div>
   )
 }
