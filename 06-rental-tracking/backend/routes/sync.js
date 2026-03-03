@@ -29,9 +29,16 @@ router.get('/export', async (req, res) => {
         description: project.description,
         password: project.password,
         visible: project.visible,
-        properties: project.properties,
-        property_groups: project.property_groups,
-        expenses: project.expenses,
+        // MySQL 返回的是 JSON 字符串，需要解析
+        properties: typeof project.properties === 'string' 
+          ? JSON.parse(project.properties) 
+          : (project.properties || []),
+        property_groups: typeof project.property_groups === 'string'
+          ? JSON.parse(project.property_groups)
+          : (project.property_groups || []),
+        expenses: typeof project.expenses === 'string'
+          ? JSON.parse(project.expenses)
+          : (project.expenses || []),
         version: project.version,
         created_at: project.created_at,
         updated_at: project.updated_at
@@ -182,7 +189,11 @@ router.get('/stats', async (req, res) => {
     let totalRecords = 0;
     
     projects.forEach(project => {
-      const properties = project.properties || [];
+      // MySQL 返回的是 JSON 字符串，需要解析
+      const properties = typeof project.properties === 'string' 
+        ? JSON.parse(project.properties) 
+        : (project.properties || []);
+      
       totalProperties += properties.length;
       
       properties.forEach(property => {
