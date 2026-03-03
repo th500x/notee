@@ -129,6 +129,12 @@ router.post('/import', async (req, res) => {
           }
         } else {
           // 插入新项目
+          // 转换日期格式：ISO -> MySQL datetime
+          const createdAt = project.created_at 
+            ? new Date(project.created_at).toISOString().slice(0, 19).replace('T', ' ')
+            : new Date().toISOString().slice(0, 19).replace('T', ' ');
+          const updatedAt = new Date().toISOString().slice(0, 19).replace('T', ' ');
+          
           await db.query(
             `INSERT INTO projects (
               id, name, description, password, visible,
@@ -145,8 +151,8 @@ router.post('/import', async (req, res) => {
               JSON.stringify(project.property_groups),
               JSON.stringify(project.expenses),
               project.version,
-              project.created_at || new Date(),
-              new Date()
+              createdAt,
+              updatedAt
             ]
           );
           importedCount++;
