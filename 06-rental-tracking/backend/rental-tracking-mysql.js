@@ -298,7 +298,7 @@ router.post('/', verifyToken, validate(createProjectSchema), async (req, res) =>
       hashedPassword,
       visible !== false,
       '[]',
-      '{}',
+      '[]',
       '[]',
       1
     ]);
@@ -312,7 +312,7 @@ router.post('/', verifyToken, validate(createProjectSchema), async (req, res) =>
         visible: visible !== false,
         hasPassword: !!password,
         properties: [],
-        propertyGroups: {},
+        propertyGroups: [],
         expenses: [],
         version: 1
       }
