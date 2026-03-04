@@ -69,36 +69,42 @@ router.get('/health', (req, res) => {
  */
 router.get('/', async (req, res) => {
   try {
-    const { adminPassword } = req.query;
-    const isAdmin = adminPassword && verifyAdminPassword(adminPassword);
+    // 管理员通过 Token 验证，不再使用密码参数
+    // Token 验证在需要管理员权限的路由中使用 verifyToken 中间件
     
-    // 查询项目列表
-    const sql = isAdmin
-      ? 'SELECT * FROM projects ORDER BY created_at DESC'
-      : 'SELECT * FROM projects WHERE visible = TRUE ORDER BY created_at DESC';
+    // 查询所有可见项目
+    const sql = 'SELECT * FROM projects WHERE visible = TRUE ORDER BY created_at DESC';
     
     const [rows] = await pool.execute(sql);
     
-    // 处理JSON字段
-    const projects = rows.map(row => ({
-      ...row,
-      // MySQL的JSON类型会自动解析，不需要JSON.parse
-      // 如果是字符串才需要解析
-      properties: typeof row.properties === 'string' 
-        ? JSON.parse(row.properties) 
-        : (row.properties || []),
-      propertyGroups: typeof row.property_groups === 'string'
-        ? JSON.parse(row.property_groups)
-        : (row.property_groups || []),
-      expenses: typeof row.expenses === 'string'
-        ? JSON.parse(row.expenses)
-        : (row.expenses || []),
-      // 移除密码字段（安全）
-      password: undefined,
-      property_groups: undefined,
-      // 添加hasPassword标志
-      hasPassword: !!row.password
-    }));
+    // 处理JSON字段 - MySQL2 可能返回字符串或已解析的对象
+    const projects = rows.map(row => {
+      // 统一处理函数：确保返回解析后的对象
+      const parseJSON = (value, defaultValue) => {
+        if (!value) return defaultValue;
+        if (typeof value === 'string') {
+          try {
+            return JSON.parse(value);
+          } catch (e) {
+            console.error('[JSON Parse Error]', e);
+            return defaultValue;
+          }
+        }
+        return value;
+      };
+
+      return {
+        ...row,
+        properties: parseJSON(row.properties, []),
+        propertyGroups: parseJSON(row.property_groups, []),
+        expenses: parseJSON(row.expenses, []),
+        // 移除密码字段（安全）
+        password: undefined,
+        property_groups: undefined,
+        // 添加hasPassword标志
+        hasPassword: !!row.password
+      };
+    });
     
     res.json({
       success: true,
@@ -151,18 +157,25 @@ router.post('/verify-password', async (req, res) => {
       }
     }
     
-    // 处理JSON字段
+    // 处理JSON字段 - MySQL2 可能返回字符串或已解析的对象
+    const parseJSON = (value, defaultValue) => {
+      if (!value) return defaultValue;
+      if (typeof value === 'string') {
+        try {
+          return JSON.parse(value);
+        } catch (e) {
+          console.error('[JSON Parse Error]', e);
+          return defaultValue;
+        }
+      }
+      return value;
+    };
+
     const projects = accessibleProjects.map(row => ({
       ...row,
-      properties: typeof row.properties === 'string' 
-        ? JSON.parse(row.properties) 
-        : (row.properties || []),
-      propertyGroups: typeof row.property_groups === 'string'
-        ? JSON.parse(row.property_groups)
-        : (row.property_groups || []),
-      expenses: typeof row.expenses === 'string'
-        ? JSON.parse(row.expenses)
-        : (row.expenses || []),
+      properties: parseJSON(row.properties, []),
+      propertyGroups: parseJSON(row.property_groups, []),
+      expenses: parseJSON(row.expenses, []),
       // 移除密码字段（安全）
       password: undefined,
       property_groups: undefined,
@@ -191,7 +204,7 @@ router.post('/verify-password', async (req, res) => {
 router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { password, adminPassword } = req.query;
+    const { password } = req.query;
     
     // 查询项目
     const [rows] = await pool.execute(
@@ -208,29 +221,35 @@ router.get('/:id', async (req, res) => {
     
     const project = rows[0];
     
-    // 验证权限
-    const isAdmin = adminPassword && verifyAdminPassword(adminPassword);
+    // 验证项目密码
     const hasProjectPassword = await verifyProjectPassword(id, password);
     
-    if (!isAdmin && !hasProjectPassword) {
+    if (!hasProjectPassword) {
       return res.status(403).json({
         success: false,
         error: '密码错误或无权限访问'
       });
     }
     
-    // 处理JSON字段
+    // 处理JSON字段 - MySQL2 可能返回字符串或已解析的对象
+    const parseJSON = (value, defaultValue) => {
+      if (!value) return defaultValue;
+      if (typeof value === 'string') {
+        try {
+          return JSON.parse(value);
+        } catch (e) {
+          console.error('[JSON Parse Error]', e);
+          return defaultValue;
+        }
+      }
+      return value;
+    };
+
     const result = {
       ...project,
-      properties: typeof project.properties === 'string' 
-        ? JSON.parse(project.properties) 
-        : (project.properties || []),
-      propertyGroups: typeof project.property_groups === 'string'
-        ? JSON.parse(project.property_groups)
-        : (project.property_groups || []),
-      expenses: typeof project.expenses === 'string'
-        ? JSON.parse(project.expenses)
-        : (project.expenses || []),
+      properties: parseJSON(project.properties, []),
+      propertyGroups: parseJSON(project.property_groups, []),
+      expenses: parseJSON(project.expenses, []),
       // 移除密码字段
       password: undefined,
       property_groups: undefined,
@@ -417,13 +436,12 @@ router.delete('/:id', verifyToken, async (req, res) => {
 router.put('/:id/data', validate(projectDataSchema), async (req, res) => {
   try {
     const { id } = req.params;
-    const { project, adminPassword, projectPassword } = req.body;
+    const { project, projectPassword } = req.body;
     
-    // 验证权限
-    const isAdmin = adminPassword && verifyAdminPassword(adminPassword);
+    // 验证项目密码
     const hasProjectPassword = await verifyProjectPassword(id, projectPassword);
     
-    if (!isAdmin && !hasProjectPassword) {
+    if (!hasProjectPassword) {
       return res.status(403).json({
         success: false,
         error: '密码错误或无权限访问'
@@ -489,13 +507,12 @@ router.put('/:id/data', validate(projectDataSchema), async (req, res) => {
 router.put('/:id/records', validate(recordsSchema), async (req, res) => {
   try {
     const { id } = req.params;
-    const { properties, expenses, adminPassword, projectPassword } = req.body;
+    const { properties, expenses, projectPassword } = req.body;
     
-    // 验证权限
-    const isAdmin = adminPassword && verifyAdminPassword(adminPassword);
+    // 验证项目密码
     const hasProjectPassword = await verifyProjectPassword(id, projectPassword);
     
-    if (!isAdmin && !hasProjectPassword) {
+    if (!hasProjectPassword) {
       return res.status(403).json({
         success: false,
         error: '密码错误或无权限访问'

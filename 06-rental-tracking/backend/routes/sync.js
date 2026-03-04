@@ -19,6 +19,20 @@ router.get('/export', async (req, res) => {
       'SELECT * FROM projects ORDER BY created_at DESC'
     );
     
+    // 统一的 JSON 解析函数
+    const parseJSON = (value, defaultValue) => {
+      if (!value) return defaultValue;
+      if (typeof value === 'string') {
+        try {
+          return JSON.parse(value);
+        } catch (e) {
+          console.error('[JSON Parse Error]', e);
+          return defaultValue;
+        }
+      }
+      return value;
+    };
+
     const exportData = {
       version: '2.0',
       exportTime: new Date().toISOString(),
@@ -29,16 +43,9 @@ router.get('/export', async (req, res) => {
         description: project.description,
         password: project.password,
         visible: project.visible,
-        // MySQL 返回的是 JSON 字符串，需要解析
-        properties: typeof project.properties === 'string' 
-          ? JSON.parse(project.properties) 
-          : (project.properties || []),
-        property_groups: typeof project.property_groups === 'string'
-          ? JSON.parse(project.property_groups)
-          : (project.property_groups || []),
-        expenses: typeof project.expenses === 'string'
-          ? JSON.parse(project.expenses)
-          : (project.expenses || []),
+        properties: parseJSON(project.properties, []),
+        property_groups: parseJSON(project.property_groups, []),
+        expenses: parseJSON(project.expenses, []),
         version: project.version,
         created_at: project.created_at,
         updated_at: project.updated_at
@@ -191,14 +198,25 @@ router.get('/stats', async (req, res) => {
   try {
     const projects = await db.query('SELECT * FROM projects');
     
+    // 统一的 JSON 解析函数
+    const parseJSON = (value, defaultValue) => {
+      if (!value) return defaultValue;
+      if (typeof value === 'string') {
+        try {
+          return JSON.parse(value);
+        } catch (e) {
+          console.error('[JSON Parse Error]', e);
+          return defaultValue;
+        }
+      }
+      return value;
+    };
+
     let totalProperties = 0;
     let totalRecords = 0;
     
     projects.forEach(project => {
-      // MySQL 返回的是 JSON 字符串，需要解析
-      const properties = typeof project.properties === 'string' 
-        ? JSON.parse(project.properties) 
-        : (project.properties || []);
+      const properties = parseJSON(project.properties, []);
       
       totalProperties += properties.length;
       
