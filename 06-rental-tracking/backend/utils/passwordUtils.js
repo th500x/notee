@@ -37,12 +37,6 @@ async function verifyPassword(password, hash) {
   }
   
   try {
-    // 检查是否为旧的明文密码（兼容性处理）
-    if (hash === password) {
-      console.log('[PasswordUtils] 检测到旧密码格式，建议升级');
-      return true;
-    }
-    
     // bcrypt 验证
     const isMatch = await bcrypt.compare(password, hash);
     return isMatch;

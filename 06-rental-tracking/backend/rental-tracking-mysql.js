@@ -166,6 +166,16 @@ router.post('/verify-password', async (req, res) => {
       const isValid = await verifyPassword(password, row.password);
       if (isValid) {
         accessibleProjects.push(row);
+        
+        // 如果密码正确且需要升级（从明文升级到加密）
+        if (needsUpgrade(row.password)) {
+          console.log('[Auth] 自动升级项目密码为加密格式:', row.id);
+          const hashedPassword = await hashPassword(password);
+          await pool.execute(
+            'UPDATE projects SET password = ? WHERE id = ?',
+            [hashedPassword, row.id]
+          );
+        }
       }
     }
     

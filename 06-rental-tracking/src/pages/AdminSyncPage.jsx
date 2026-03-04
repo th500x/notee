@@ -11,6 +11,10 @@ export default function AdminSyncPage() {
   const [password, setPassword] = useState('')
   const [loginLoading, setLoginLoading] = useState(false)
   
+  // 本地开发环境自动登录
+  const isDev = import.meta.env.DEV
+  const [autoLoggedIn, setAutoLoggedIn] = useState(isDev)
+  
   // 生产环境配置
   const [productionUrl, setProductionUrl] = useState(
     localStorage.getItem('production_url') || 'https://notee.vip'
@@ -31,10 +35,10 @@ export default function AdminSyncPage() {
 
   // 加载统计数据
   useEffect(() => {
-    if (isLoggedIn) {
+    if (isLoggedIn || autoLoggedIn) {
       loadStats()
     }
-  }, [isLoggedIn])
+  }, [isLoggedIn, autoLoggedIn])
 
   // 保存生产环境地址
   useEffect(() => {
@@ -162,8 +166,8 @@ export default function AdminSyncPage() {
     }
   }
 
-  // 如果未登录，显示登录表单
-  if (!isLoggedIn) {
+  // 如果未登录，显示登录表单（生产环境）
+  if (!isLoggedIn && !autoLoggedIn) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
         <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-8">
