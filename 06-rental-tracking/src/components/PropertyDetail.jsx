@@ -282,12 +282,14 @@ function PropertyDetail({ property, project, selectedYear, selectedMonth, viewMo
       // 1. 当前是新增记录（不是编辑）
       // 2. 新记录的状态是"新合同"
       // 3. 房源当前全局状态是"空置中"（说明是新房源）
-      // 4. 这是第一条有状态的记录
+      // 4. 这是第一条"新合同"或"出租中"的记录（忽略前序所有"空置中"的记录）
       if (newRecord.status === 'new-contract' && property.status === 'vacant') {
-        // 检查是否是第一条有状态的记录
-        const hasOtherStatusRecords = (property.records || []).some(r => r.status && r.status !== 'vacant')
+        // 检查是否已有"新合同"或"出租中"的记录（忽略"空置中"的记录）
+        const hasActiveStatusRecords = (property.records || []).some(r => 
+          r.status && (r.status === 'new-contract' || r.status === 'rented')
+        )
         
-        if (!hasOtherStatusRecords) {
+        if (!hasActiveStatusRecords) {
           shouldUpdateGlobalStatus = true
           newGlobalStatus = 'rented'  // 设置为"出租中"
         }
