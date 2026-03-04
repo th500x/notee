@@ -13,6 +13,7 @@ const { validate, createProjectSchema, updateProjectSchema, projectDataSchema, r
 const { auditLog } = require('./middleware/auditLog');
 const { hashPassword, verifyPassword } = require('./utils/passwordUtils');
 const { verifyToken } = require('./middleware/auth');
+const { parseJSON } = require('./utils/jsonParser');
 
 /**
  * 验证项目密码（支持 bcrypt 加密）
@@ -79,20 +80,6 @@ router.get('/', async (req, res) => {
     
     // 处理JSON字段 - MySQL2 可能返回字符串或已解析的对象
     const projects = rows.map(row => {
-      // 统一处理函数：确保返回解析后的对象
-      const parseJSON = (value, defaultValue) => {
-        if (!value) return defaultValue;
-        if (typeof value === 'string') {
-          try {
-            return JSON.parse(value);
-          } catch (e) {
-            console.error('[JSON Parse Error]', e);
-            return defaultValue;
-          }
-        }
-        return value;
-      };
-
       return {
         ...row,
         properties: parseJSON(row.properties, []),
@@ -157,20 +144,7 @@ router.post('/verify-password', async (req, res) => {
       }
     }
     
-    // 处理JSON字段 - MySQL2 可能返回字符串或已解析的对象
-    const parseJSON = (value, defaultValue) => {
-      if (!value) return defaultValue;
-      if (typeof value === 'string') {
-        try {
-          return JSON.parse(value);
-        } catch (e) {
-          console.error('[JSON Parse Error]', e);
-          return defaultValue;
-        }
-      }
-      return value;
-    };
-
+    // 处理JSON字段 - 使用统一的 parseJSON 工具函数
     const projects = accessibleProjects.map(row => ({
       ...row,
       properties: parseJSON(row.properties, []),
@@ -231,20 +205,7 @@ router.get('/:id', async (req, res) => {
       });
     }
     
-    // 处理JSON字段 - MySQL2 可能返回字符串或已解析的对象
-    const parseJSON = (value, defaultValue) => {
-      if (!value) return defaultValue;
-      if (typeof value === 'string') {
-        try {
-          return JSON.parse(value);
-        } catch (e) {
-          console.error('[JSON Parse Error]', e);
-          return defaultValue;
-        }
-      }
-      return value;
-    };
-
+    // 处理JSON字段 - 使用统一的 parseJSON 工具函数
     const result = {
       ...project,
       properties: parseJSON(project.properties, []),

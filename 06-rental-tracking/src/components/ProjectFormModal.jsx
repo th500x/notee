@@ -39,8 +39,10 @@ export function ProjectFormModal({
           description: initialData.description || '',
           password: initialData.password || '',
           visible: initialData.visible !== false,
-          propertyGroups: initialData.propertyGroups || [],
-          properties: initialData.properties || []
+          // 确保 propertyGroups 是数组
+          propertyGroups: Array.isArray(initialData.propertyGroups) ? initialData.propertyGroups : [],
+          // 确保 properties 是数组
+          properties: Array.isArray(initialData.properties) ? initialData.properties : []
         })
       } else {
         setFormData({

@@ -1005,7 +1005,8 @@ function PropertyDetail({ property, project, selectedYear, selectedMonth, viewMo
                   const groups = [
                     { id: 'default', name: '房源列表（默认）' }
                   ]
-                  if (project.propertyGroups && project.propertyGroups.length > 0) {
+                  // 确保 propertyGroups 是数组
+                  if (Array.isArray(project.propertyGroups) && project.propertyGroups.length > 0) {
                     groups.push(...project.propertyGroups.map(g => ({ id: g.id, name: g.name })))
                   }
                   
