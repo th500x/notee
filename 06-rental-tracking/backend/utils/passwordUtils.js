@@ -37,12 +37,6 @@ async function verifyPassword(password, hash) {
   }
   
   try {
-    // 检查是否为旧的明文密码（临时兼容，用于自动升级）
-    if (hash === password) {
-      console.log('[PasswordUtils] 检测到旧密码格式，将自动升级');
-      return true;
-    }
-    
     // bcrypt 验证
     const isMatch = await bcrypt.compare(password, hash);
     return isMatch;
@@ -52,20 +46,7 @@ async function verifyPassword(password, hash) {
   }
 }
 
-/**
- * 检查密码是否需要升级（从明文升级到加密）
- * @param {string} hash - 当前存储的密码
- * @returns {boolean} 是否需要升级
- */
-function needsUpgrade(hash) {
-  if (!hash) return false;
-  
-  // bcrypt 哈希总是以 $2a$, $2b$, 或 $2y$ 开头
-  return !hash.startsWith('$2');
-}
-
 module.exports = {
   hashPassword,
-  verifyPassword,
-  needsUpgrade
+  verifyPassword
 };

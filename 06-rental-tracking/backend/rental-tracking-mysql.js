@@ -11,7 +11,7 @@ const router = express.Router();
 const { pool } = require('./database/connection');
 const { validate, createProjectSchema, updateProjectSchema, projectDataSchema, recordsSchema } = require('./middleware/validation');
 const { auditLog } = require('./middleware/auditLog');
-const { hashPassword, verifyPassword, needsUpgrade } = require('./utils/passwordUtils');
+const { hashPassword, verifyPassword } = require('./utils/passwordUtils');
 
 /**
  * 验证管理员密码
@@ -42,19 +42,8 @@ async function verifyProjectPassword(projectId, password) {
       return true;
     }
     
-    // 使用 bcrypt 验证密码（兼容旧的明文密码）
+    // 使用 bcrypt 验证密码
     const isValid = await verifyPassword(password, project.password);
-    
-    // 如果密码正确且需要升级（从明文升级到加密）
-    if (isValid && needsUpgrade(project.password)) {
-      console.log('[Auth] 自动升级项目密码为加密格式:', projectId);
-      const hashedPassword = await hashPassword(password);
-      await pool.execute(
-        'UPDATE projects SET password = ? WHERE id = ?',
-        [hashedPassword, projectId]
-      );
-    }
-    
     return isValid;
   } catch (error) {
     console.error('[Auth] 验证项目密码失败:', error);
@@ -166,16 +155,6 @@ router.post('/verify-password', async (req, res) => {
       const isValid = await verifyPassword(password, row.password);
       if (isValid) {
         accessibleProjects.push(row);
-        
-        // 如果密码正确且需要升级（从明文升级到加密）
-        if (needsUpgrade(row.password)) {
-          console.log('[Auth] 自动升级项目密码为加密格式:', row.id);
-          const hashedPassword = await hashPassword(password);
-          await pool.execute(
-            'UPDATE projects SET password = ? WHERE id = ?',
-            [hashedPassword, row.id]
-          );
-        }
       }
     }
     
