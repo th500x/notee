@@ -432,21 +432,14 @@ router.delete('/:id', verifyToken, async (req, res) => {
 /**
  * 更新整个项目数据（包括房源、开支等）
  * PUT /api/rental-tracking/:id/data
+ * 仅管理员可访问（需要 Token）
  */
-router.put('/:id/data', validate(projectDataSchema), async (req, res) => {
+router.put('/:id/data', verifyToken, validate(projectDataSchema), async (req, res) => {
   try {
     const { id } = req.params;
-    const { project, projectPassword } = req.body;
+    const { project } = req.body;
     
-    // 验证项目密码
-    const hasProjectPassword = await verifyProjectPassword(id, projectPassword);
-    
-    if (!hasProjectPassword) {
-      return res.status(403).json({
-        success: false,
-        error: '密码错误或无权限访问'
-      });
-    }
+    // Token 已通过 verifyToken 中间件验证
     
     // 获取当前项目（用于版本控制）
     const [rows] = await pool.execute(
@@ -503,21 +496,14 @@ router.put('/:id/data', validate(projectDataSchema), async (req, res) => {
 /**
  * 只更新项目的收支记录
  * PUT /api/rental-tracking/:id/records
+ * 仅管理员可访问（需要 Token）
  */
-router.put('/:id/records', validate(recordsSchema), async (req, res) => {
+router.put('/:id/records', verifyToken, validate(recordsSchema), async (req, res) => {
   try {
     const { id } = req.params;
-    const { properties, expenses, projectPassword } = req.body;
+    const { properties, expenses } = req.body;
     
-    // 验证项目密码
-    const hasProjectPassword = await verifyProjectPassword(id, projectPassword);
-    
-    if (!hasProjectPassword) {
-      return res.status(403).json({
-        success: false,
-        error: '密码错误或无权限访问'
-      });
-    }
+    // Token 已通过 verifyToken 中间件验证
     
     // 更新收支记录
     const sql = `
