@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
+import { YEAR_RANGE } from '../constants'
 
 // 模拟演练表格组件
-function SimulationTable({ weeklyData, selectedYear = 2025, onClose, onDataGenerated }) {
+function SimulationTable({ weeklyData, selectedYear = YEAR_RANGE.DEFAULT, onClose, onDataGenerated }) {
   const [simulationData, setSimulationData] = useState([])
   const [loading, setLoading] = useState(true)
 

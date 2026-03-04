@@ -1,4 +1,4 @@
-// DataDisplay 组件 - 更新版本 v2.0
+// DataDisplay 组件 - 更新版本 v3.0
 function DataDisplay({ selectedWeek, weeklyData }) {
   
   // 格式化周ID显示
@@ -25,6 +25,113 @@ function DataDisplay({ selectedWeek, weeklyData }) {
   const getChangeColorClass = (value) => {
     if (value === null || value === undefined) return 'text-gray-500'
     return value >= 0 ? 'text-green-600' : 'text-red-600'
+  }
+
+  // 计算各指标评分
+  const calculateScore = (indicator, value) => {
+    if (value === null || value === undefined) return null
+    
+    switch (indicator) {
+      case 'btcWeeklyChange':
+        if (value <= -20) return 2
+        if (value <= -10) return 1
+        if (value <= 10) return 0
+        if (value <= 20) return -1
+        return -2
+      
+      case 'btcFromATH':
+        if (value <= -40) return 2
+        if (value <= -20) return 1
+        if (value <= 20) return 0
+        if (value <= 40) return -1
+        return -2
+      
+      case 'fearGreedIndex':
+        if (value <= 20) return 2
+        if (value <= 40) return 1
+        if (value <= 60) return 0
+        if (value <= 80) return -1
+        return -2
+      
+      case 'mayerMultiple':
+        if (value <= 0.8) return 2
+        if (value <= 0.9) return 1
+        if (value <= 1.1) return 0
+        if (value <= 1.2) return -1
+        return -2
+      
+      case 'ahr999':
+        if (value <= 0.4) return 2
+        if (value <= 0.8) return 1
+        if (value <= 1.2) return 0
+        if (value <= 1.6) return -1
+        return -2
+      
+      case 'btcFourYearIndex':
+        if (value <= 1.6) return 2
+        if (value <= 1.8) return 1
+        if (value <= 2.0) return 0
+        if (value <= 2.2) return -1
+        return -2
+      
+      case 'fedRate':
+        if (value <= 1.5) return 2
+        if (value <= 2.5) return 1
+        if (value <= 3.5) return 0
+        if (value <= 4.5) return -1
+        return -2
+      
+      case 'bojRate':
+        if (value <= 0) return 2
+        if (value <= 1) return 1
+        if (value <= 2) return 0
+        if (value <= 3) return -1
+        return -2
+      
+      default:
+        return null
+    }
+  }
+
+  // 格式化评分显示
+  const formatScore = (score) => {
+    if (score === null || score === undefined) return ''
+    const sign = score > 0 ? '+' : ''
+    return `${sign}${score}分`
+  }
+
+  // 获取评分颜色类名
+  const getScoreColorClass = (score) => {
+    if (score === null || score === undefined) return 'text-gray-500'
+    if (score > 0) return 'text-green-600'
+    if (score < 0) return 'text-red-600'
+    return 'text-gray-600'
+  }
+
+  // 计算个人评级总分（如果数据中没有提供）
+  const calculateTotalRating = () => {
+    // 优先使用数据中的personalRating
+    if (weeklyData.personalRating !== undefined && weeklyData.personalRating !== null) {
+      return weeklyData.personalRating
+    }
+    
+    // 如果没有，则计算各指标评分的总和
+    const scores = [
+      calculateScore('btcWeeklyChange', weeklyData.btcWeeklyChange),
+      calculateScore('btcFromATH', weeklyData.btcFromATH),
+      calculateScore('fearGreedIndex', weeklyData.fearGreedIndex),
+      calculateScore('mayerMultiple', weeklyData.mayerMultiple),
+      calculateScore('ahr999', weeklyData.ahr999),
+      calculateScore('btcFourYearIndex', weeklyData.btcFourYearIndex),
+      calculateScore('fedRate', weeklyData.fedRate),
+      calculateScore('bojRate', weeklyData.bojRate)
+    ]
+    
+    // 过滤掉null值并求和
+    const validScores = scores.filter(score => score !== null)
+    if (validScores.length === 0) return null
+    
+    return validScores.reduce((sum, score) => sum + score, 0)
   }
 
   if (!selectedWeek) {
@@ -74,6 +181,11 @@ function DataDisplay({ selectedWeek, weeklyData }) {
           <div className={`text-2xl font-bold mt-2 ${getChangeColorClass(weeklyData.btcWeeklyChange)}`}>
             {formatPercentage(weeklyData.btcWeeklyChange)}
           </div>
+          {calculateScore('btcWeeklyChange', weeklyData.btcWeeklyChange) !== null && (
+            <div className={`text-sm font-medium mt-1 text-right ${getScoreColorClass(calculateScore('btcWeeklyChange', weeklyData.btcWeeklyChange))}`}>
+              {formatScore(calculateScore('btcWeeklyChange', weeklyData.btcWeeklyChange))}
+            </div>
+          )}
         </div>
 
         {/* BTC周均价 */}
@@ -118,6 +230,11 @@ function DataDisplay({ selectedWeek, weeklyData }) {
           <div className={`text-2xl font-bold mt-2 ${getChangeColorClass(weeklyData.btcFromATH)}`}>
             {formatPercentage(weeklyData.btcFromATH)}
           </div>
+          {calculateScore('btcFromATH', weeklyData.btcFromATH) !== null && (
+            <div className={`text-sm font-medium mt-1 text-right ${getScoreColorClass(calculateScore('btcFromATH', weeklyData.btcFromATH))}`}>
+              {formatScore(calculateScore('btcFromATH', weeklyData.btcFromATH))}
+            </div>
+          )}
         </div>
 
         {/* 恐惧贪婪指数 - 调整到第六位 */}
@@ -129,11 +246,18 @@ function DataDisplay({ selectedWeek, weeklyData }) {
           <div className="text-2xl font-bold mt-2 text-gray-900">
             {formatNumber(weeklyData.fearGreedIndex, 0)}
           </div>
-          <div className="text-xs text-gray-500 mt-1">
-            {weeklyData.fearGreedIndex >= 75 ? '极度贪婪' : 
-             weeklyData.fearGreedIndex >= 55 ? '贪婪' :
-             weeklyData.fearGreedIndex >= 45 ? '中性' :
-             weeklyData.fearGreedIndex >= 25 ? '恐惧' : '极度恐惧'}
+          <div className="flex items-center justify-between mt-1">
+            <div className="text-xs text-gray-500">
+              {weeklyData.fearGreedIndex <= 20 ? '极度恐惧' : 
+               weeklyData.fearGreedIndex <= 40 ? '恐惧' :
+               weeklyData.fearGreedIndex <= 60 ? '中性' :
+               weeklyData.fearGreedIndex <= 80 ? '贪婪' : '极度贪婪'}
+            </div>
+            {calculateScore('fearGreedIndex', weeklyData.fearGreedIndex) !== null && (
+              <div className={`text-sm font-medium ${getScoreColorClass(calculateScore('fearGreedIndex', weeklyData.fearGreedIndex))}`}>
+                {formatScore(calculateScore('fearGreedIndex', weeklyData.fearGreedIndex))}
+              </div>
+            )}
           </div>
         </div>
 
@@ -146,9 +270,18 @@ function DataDisplay({ selectedWeek, weeklyData }) {
           <div className="text-2xl font-bold mt-2 text-gray-900">
             {formatNumber(weeklyData.mayerMultiple)}
           </div>
-          <div className="text-xs text-gray-500 mt-1">
-            {weeklyData.mayerMultiple >= 2.4 ? '高估' : 
-             weeklyData.mayerMultiple >= 1.0 ? '正常' : '低估'}
+          <div className="flex items-center justify-between mt-1">
+            <div className="text-xs text-gray-500">
+              {weeklyData.mayerMultiple <= 0.8 ? '极度低估' : 
+               weeklyData.mayerMultiple <= 0.9 ? '低估' :
+               weeklyData.mayerMultiple <= 1.1 ? '中性' :
+               weeklyData.mayerMultiple <= 1.2 ? '高估' : '极度高估'}
+            </div>
+            {calculateScore('mayerMultiple', weeklyData.mayerMultiple) !== null && (
+              <div className={`text-sm font-medium ${getScoreColorClass(calculateScore('mayerMultiple', weeklyData.mayerMultiple))}`}>
+                {formatScore(calculateScore('mayerMultiple', weeklyData.mayerMultiple))}
+              </div>
+            )}
           </div>
         </div>
 
@@ -161,9 +294,18 @@ function DataDisplay({ selectedWeek, weeklyData }) {
           <div className="text-2xl font-bold mt-2 text-gray-900">
             {formatNumber(weeklyData.ahr999)}
           </div>
-          <div className="text-xs text-gray-500 mt-1">
-            {weeklyData.ahr999 <= 0.45 ? '抄底区间' : 
-             weeklyData.ahr999 <= 1.2 ? '定投区间' : '观望区间'}
+          <div className="flex items-center justify-between mt-1">
+            <div className="text-xs text-gray-500">
+              {weeklyData.ahr999 <= 0.4 ? '抄底区间' : 
+               weeklyData.ahr999 <= 0.8 ? '定投区间' :
+               weeklyData.ahr999 <= 1.2 ? '观望区间' :
+               weeklyData.ahr999 <= 1.6 ? '谨慎区间' : '风险区间'}
+            </div>
+            {calculateScore('ahr999', weeklyData.ahr999) !== null && (
+              <div className={`text-sm font-medium ${getScoreColorClass(calculateScore('ahr999', weeklyData.ahr999))}`}>
+                {formatScore(calculateScore('ahr999', weeklyData.ahr999))}
+              </div>
+            )}
           </div>
         </div>
 
@@ -176,11 +318,18 @@ function DataDisplay({ selectedWeek, weeklyData }) {
           <div className="text-2xl font-bold mt-2 text-gray-900">
             {formatNumber(weeklyData.btcFourYearIndex)}
           </div>
-          <div className="text-xs text-gray-500 mt-1">
-            {weeklyData.btcFourYearIndex <= 0.3 ? '极度低估' : 
-             weeklyData.btcFourYearIndex <= 0.6 ? '低估' :
-             weeklyData.btcFourYearIndex <= 1.0 ? '合理' :
-             weeklyData.btcFourYearIndex <= 1.5 ? '高估' : '极度高估'}
+          <div className="flex items-center justify-between mt-1">
+            <div className="text-xs text-gray-500">
+              {weeklyData.btcFourYearIndex <= 1.6 ? '极度低估' : 
+               weeklyData.btcFourYearIndex <= 1.8 ? '低估' :
+               weeklyData.btcFourYearIndex <= 2.0 ? '中性' :
+               weeklyData.btcFourYearIndex <= 2.2 ? '高估' : '极度高估'}
+            </div>
+            {calculateScore('btcFourYearIndex', weeklyData.btcFourYearIndex) !== null && (
+              <div className={`text-sm font-medium ${getScoreColorClass(calculateScore('btcFourYearIndex', weeklyData.btcFourYearIndex))}`}>
+                {formatScore(calculateScore('btcFourYearIndex', weeklyData.btcFourYearIndex))}
+              </div>
+            )}
           </div>
         </div>
 
@@ -195,8 +344,18 @@ function DataDisplay({ selectedWeek, weeklyData }) {
               ? formatNumber(weeklyData.fedRate, 2) 
               : '--'}
           </div>
-          <div className="text-xs text-gray-500 mt-1">
-            联邦基金利率
+          <div className="flex items-center justify-between mt-1">
+            <div className="text-xs text-gray-500">
+              {weeklyData.fedRate <= 1.5 ? '极度宽松' :
+               weeklyData.fedRate <= 2.5 ? '宽松' :
+               weeklyData.fedRate <= 3.5 ? '中性' :
+               weeklyData.fedRate <= 4.5 ? '紧缩' : '极度紧缩'}
+            </div>
+            {calculateScore('fedRate', weeklyData.fedRate) !== null && (
+              <div className={`text-sm font-medium ${getScoreColorClass(calculateScore('fedRate', weeklyData.fedRate))}`}>
+                {formatScore(calculateScore('fedRate', weeklyData.fedRate))}
+              </div>
+            )}
           </div>
         </div>
 
@@ -211,8 +370,18 @@ function DataDisplay({ selectedWeek, weeklyData }) {
               ? formatNumber(weeklyData.bojRate, 2) 
               : '--'}
           </div>
-          <div className="text-xs text-gray-500 mt-1">
-            日本央行利率
+          <div className="flex items-center justify-between mt-1">
+            <div className="text-xs text-gray-500">
+              {weeklyData.bojRate <= 0 ? '极度宽松' :
+               weeklyData.bojRate <= 1 ? '宽松' :
+               weeklyData.bojRate <= 2 ? '中性' :
+               weeklyData.bojRate <= 3 ? '紧缩' : '极度紧缩'}
+            </div>
+            {calculateScore('bojRate', weeklyData.bojRate) !== null && (
+              <div className={`text-sm font-medium ${getScoreColorClass(calculateScore('bojRate', weeklyData.bojRate))}`}>
+                {formatScore(calculateScore('bojRate', weeklyData.bojRate))}
+              </div>
+            )}
           </div>
         </div>
 
@@ -222,17 +391,21 @@ function DataDisplay({ selectedWeek, weeklyData }) {
             <h3 className="text-sm font-medium text-gray-700">个人评级</h3>
             <span className="text-xs text-gray-500">★</span>
           </div>
-          <div className={`text-2xl font-bold mt-2 ${getChangeColorClass(weeklyData.personalRating)}`}>
-            {weeklyData.personalRating !== undefined && weeklyData.personalRating !== null 
-              ? `${weeklyData.personalRating > 0 ? '+' : ''}${weeklyData.personalRating}★` 
+          <div className={`text-2xl font-bold mt-2 ${getChangeColorClass(calculateTotalRating())}`}>
+            {calculateTotalRating() !== null 
+              ? `${calculateTotalRating() > 0 ? '+' : ''}${calculateTotalRating()}★` 
               : '--'}
           </div>
           <div className="text-xs text-gray-500 mt-1">
-            {weeklyData.personalRating >= 10 ? '极度看多' :
-             weeklyData.personalRating >= 4 ? '看多' :
-             weeklyData.personalRating >= -3 ? '中性' :
-             weeklyData.personalRating >= -9 ? '看空' :
-             weeklyData.personalRating <= -10 ? '极度看空' : '暂无评级'}
+            {(() => {
+              const rating = calculateTotalRating()
+              if (rating === null) return '暂无评级'
+              if (rating >= 10) return '极度看多'
+              if (rating >= 4) return '看多'
+              if (rating >= -3) return '中性'
+              if (rating >= -9) return '看空'
+              return '极度看空'
+            })()}
           </div>
         </div>
 
@@ -249,5 +422,3 @@ function DataDisplay({ selectedWeek, weeklyData }) {
 }
 
 export default DataDisplay
-
-// 强制更新 - 2026-02-01

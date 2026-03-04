@@ -123,59 +123,96 @@ const processMultipleRows = (data) => {
 }
 const calculatePersonalRating = (weekData) => {
   try {
-    // 指标权重配置
-    const weights = {
-      fearGreed: 0.25,      // 恐惧&贪婪指数权重 25%
-      mayer: 0.25,          // 梅耶倍数权重 25%
-      ahr999: 0.25,         // Ahr999指标权重 25%
-      fourYear: 0.25        // BTC四年指数权重 25%
-    }
+    // 按照COMPLETE_GUIDE.md定义的评分标准计算各指标评分
+    const scores = {}
     
-    // 指标标准化函数 (转换为0-1分数，1=最佳投资时机)
-    const normalizeIndicators = (data) => {
-      // 恐惧&贪婪指数：越低越好 (恐惧时买入)
-      const fearGreedScore = Math.max(0, Math.min(1, (100 - data.fearGreedIndex) / 100))
-      
-      // 梅耶倍数：越低越好 (<1.0最佳，>2.4过高)
-      const mayerScore = data.mayerMultiple <= 1.0 ? 1.0 : 
-                        data.mayerMultiple <= 2.4 ? (2.4 - data.mayerMultiple) / 1.4 : 0
-      
-      // Ahr999指标：越低越好 (≤0.45最佳，≤1.2可接受)
-      const ahr999Score = data.ahr999 <= 0.45 ? 1.0 :
-                         data.ahr999 <= 1.2 ? (1.2 - data.ahr999) / 0.75 : 0
-      
-      // BTC四年指数：越低越好 (≤0.6最佳，≤1.0可接受)
-      const fourYearScore = data.btcFourYearIndex <= 0.6 ? 1.0 :
-                           data.btcFourYearIndex <= 1.0 ? (1.0 - data.btcFourYearIndex) / 0.4 : 0
-      
-      return {
-        fearGreedScore,
-        mayerScore,
-        ahr999Score,
-        fourYearScore
-      }
-    }
+    // 1. BTC周涨跌幅评分 (-2到+2)
+    const btcChange = weekData.btcWeeklyChange
+    if (btcChange <= -20) scores.btcWeeklyChange = 2
+    else if (btcChange <= -10) scores.btcWeeklyChange = 1
+    else if (btcChange <= 10) scores.btcWeeklyChange = 0
+    else if (btcChange <= 20) scores.btcWeeklyChange = -1
+    else scores.btcWeeklyChange = -2
     
-    // 计算标准化分数
-    const scores = normalizeIndicators(weekData)
+    // 2. BTC距ATH回撤评分 (-2到+2)
+    const btcFromATH = weekData.btcFromATH
+    if (btcFromATH <= -40) scores.btcFromATH = 2
+    else if (btcFromATH <= -20) scores.btcFromATH = 1
+    else if (btcFromATH <= 20) scores.btcFromATH = 0
+    else if (btcFromATH <= 40) scores.btcFromATH = -1
+    else scores.btcFromATH = -2
     
-    // 加权平均计算
-    const weightedScore = 
-      scores.fearGreedScore * weights.fearGreed +
-      scores.mayerScore * weights.mayer +
-      scores.ahr999Score * weights.ahr999 +
-      scores.fourYearScore * weights.fourYear
+    // 3. 恐惧&贪婪指数评分 (-2到+2)
+    const fearGreed = weekData.fearGreedIndex
+    if (fearGreed <= 20) scores.fearGreedIndex = 2
+    else if (fearGreed <= 40) scores.fearGreedIndex = 1
+    else if (fearGreed <= 60) scores.fearGreedIndex = 0
+    else if (fearGreed <= 80) scores.fearGreedIndex = -1
+    else scores.fearGreedIndex = -2
     
-    // 转换为1-5星评级
-    const rating = Math.max(1, Math.min(5, Math.round(weightedScore * 4 + 1)))
+    // 4. 梅耶倍数评分 (-2到+2)
+    const mayer = weekData.mayerMultiple
+    if (mayer <= 0.8) scores.mayerMultiple = 2
+    else if (mayer <= 0.9) scores.mayerMultiple = 1
+    else if (mayer <= 1.1) scores.mayerMultiple = 0
+    else if (mayer <= 1.2) scores.mayerMultiple = -1
+    else scores.mayerMultiple = -2
     
-    console.log(`📊 评级计算 - 恐惧贪婪:${scores.fearGreedScore.toFixed(2)} 梅耶:${scores.mayerScore.toFixed(2)} Ahr999:${scores.ahr999Score.toFixed(2)} 四年:${scores.fourYearScore.toFixed(2)} → ${rating}★`)
+    // 5. Ahr999指标评分 (-2到+2)
+    const ahr = weekData.ahr999
+    if (ahr <= 0.4) scores.ahr999 = 2
+    else if (ahr <= 0.8) scores.ahr999 = 1
+    else if (ahr <= 1.2) scores.ahr999 = 0
+    else if (ahr <= 1.6) scores.ahr999 = -1
+    else scores.ahr999 = -2
     
-    return rating
+    // 6. BTC四年指数评分 (-2到+2)
+    const fourYear = weekData.btcFourYearIndex
+    if (fourYear <= 1.6) scores.btcFourYearIndex = 2
+    else if (fourYear <= 1.8) scores.btcFourYearIndex = 1
+    else if (fourYear <= 2.0) scores.btcFourYearIndex = 0
+    else if (fourYear <= 2.2) scores.btcFourYearIndex = -1
+    else scores.btcFourYearIndex = -2
+    
+    // 7. 美联储利率评分 (-2到+2)
+    const fedRate = weekData.fedRate
+    if (fedRate <= 1.5) scores.fedRate = 2
+    else if (fedRate <= 2.5) scores.fedRate = 1
+    else if (fedRate <= 3.5) scores.fedRate = 0
+    else if (fedRate <= 4.5) scores.fedRate = -1
+    else scores.fedRate = -2
+    
+    // 8. 日央行利率评分 (-2到+2)
+    const bojRate = weekData.bojRate
+    if (bojRate <= 0) scores.bojRate = 2
+    else if (bojRate <= 1) scores.bojRate = 1
+    else if (bojRate <= 2) scores.bojRate = 0
+    else if (bojRate <= 3) scores.bojRate = -1
+    else scores.bojRate = -2
+    
+    // 计算总分 (范围: -16到+16)
+    const totalScore = Object.values(scores).reduce((sum, score) => sum + score, 0)
+    
+    // 保存各指标评分到weekData
+    weekData.indicatorScores = scores
+    weekData.totalScore = totalScore
+    
+    console.log(`📊 评级计算:`)
+    console.log(`  BTC周涨跌幅: ${btcChange.toFixed(2)}% → ${scores.btcWeeklyChange}分`)
+    console.log(`  BTC距ATH: ${btcFromATH.toFixed(2)}% → ${scores.btcFromATH}分`)
+    console.log(`  恐惧贪婪: ${fearGreed} → ${scores.fearGreedIndex}分`)
+    console.log(`  梅耶倍数: ${mayer.toFixed(2)} → ${scores.mayerMultiple}分`)
+    console.log(`  Ahr999: ${ahr.toFixed(2)} → ${scores.ahr999}分`)
+    console.log(`  四年指数: ${fourYear.toFixed(2)} → ${scores.btcFourYearIndex}分`)
+    console.log(`  美联储利率: ${fedRate}% → ${scores.fedRate}分`)
+    console.log(`  日央行利率: ${bojRate}% → ${scores.bojRate}分`)
+    console.log(`  总分: ${totalScore}分`)
+    
+    return totalScore
     
   } catch (error) {
     console.error('❌ 评级计算失败:', error.message)
-    return 3 // 默认3星
+    return 0 // 默认0分
   }
 }
 

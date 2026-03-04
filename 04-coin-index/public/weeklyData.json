@@ -16,7 +16,7 @@
     "btcFourYearIndex": 1.6,
     "personalRating": 7,
     "marketTrend": "bullish",
-    "updatedAt": "2026-02-08T18:38:22.850Z",
+    "updatedAt": "2026-03-04T10:15:02.445Z",
     "dataSource": "coingecko_api_recovery",
     "rawData": {
       "btc": {
@@ -105,7 +105,7 @@
     "btcFourYearIndex": 1.65,
     "personalRating": 5,
     "marketTrend": "bullish",
-    "updatedAt": "2026-02-08T18:38:22.850Z",
+    "updatedAt": "2026-03-04T10:15:02.445Z",
     "dataSource": "coingecko_api_recovery",
     "rawData": {
       "btc": {
@@ -194,7 +194,7 @@
     "btcFourYearIndex": 1.55,
     "personalRating": 7,
     "marketTrend": "bearish",
-    "updatedAt": "2026-02-08T18:38:22.850Z",
+    "updatedAt": "2026-03-04T10:15:02.445Z",
     "dataSource": "coingecko_api_recovery",
     "rawData": {
       "btc": {
@@ -283,7 +283,7 @@
     "btcFourYearIndex": 1.46,
     "personalRating": 7,
     "marketTrend": "bearish",
-    "updatedAt": "2026-02-08T18:38:22.850Z",
+    "updatedAt": "2026-03-04T10:15:02.445Z",
     "dataSource": "coingecko_api_recovery",
     "rawData": {
       "btc": {
@@ -372,7 +372,7 @@
     "btcFourYearIndex": 1.23,
     "personalRating": 12,
     "marketTrend": "bearish",
-    "updatedAt": "2026-02-08T18:38:22.862Z",
+    "updatedAt": "2026-03-04T10:15:02.445Z",
     "dataSource": "coingecko_api_v2_with_retry",
     "rawData": {
       "btc": {
@@ -462,7 +462,7 @@
     "btcFourYearIndex": 2.24,
     "personalRating": -5,
     "marketTrend": "bullish",
-    "updatedAt": "2026-02-08T18:38:22.861Z",
+    "updatedAt": "2026-03-04T10:15:02.438Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -554,7 +554,7 @@
     "btcFourYearIndex": 2.23,
     "personalRating": -5,
     "marketTrend": "bullish",
-    "updatedAt": "2026-02-08T18:38:22.861Z",
+    "updatedAt": "2026-03-04T10:15:02.439Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -646,7 +646,7 @@
     "btcFourYearIndex": 2.32,
     "personalRating": -6,
     "marketTrend": "bullish",
-    "updatedAt": "2026-02-08T18:38:22.861Z",
+    "updatedAt": "2026-03-04T10:15:02.440Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -738,7 +738,7 @@
     "btcFourYearIndex": 2.39,
     "personalRating": -6,
     "marketTrend": "bearish",
-    "updatedAt": "2026-02-08T18:38:22.862Z",
+    "updatedAt": "2026-03-04T10:15:02.440Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -830,7 +830,7 @@
     "btcFourYearIndex": 2.33,
     "personalRating": -5,
     "marketTrend": "bearish",
-    "updatedAt": "2026-02-08T18:38:22.862Z",
+    "updatedAt": "2026-03-04T10:15:02.440Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -922,7 +922,7 @@
     "btcFourYearIndex": 2.22,
     "personalRating": -4,
     "marketTrend": "bearish",
-    "updatedAt": "2026-02-08T18:38:22.850Z",
+    "updatedAt": "2026-03-04T10:15:02.440Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -1012,9 +1012,9 @@
     "mayerMultiple": 1.22,
     "ahr999": 1.2,
     "btcFourYearIndex": 2.2,
-    "personalRating": -3,
+    "personalRating": -2,
     "marketTrend": "bearish",
-    "updatedAt": "2026-02-08T18:38:22.851Z",
+    "updatedAt": "2026-03-04T10:15:02.440Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -1083,11 +1083,11 @@
       "fearGreedIndex": 0,
       "mayerMultiple": -2,
       "ahr999": 0,
-      "btcFourYearIndex": -2,
+      "btcFourYearIndex": -1,
       "fedRate": -1,
       "bojRate": 1
     },
-    "totalScore": -3
+    "totalScore": -2
   },
   "2025-W08": {
     "weekId": "2025-W08",
@@ -1104,9 +1104,9 @@
     "mayerMultiple": 1.2,
     "ahr999": 1.16,
     "btcFourYearIndex": 2.18,
-    "personalRating": -2,
+    "personalRating": -1,
     "marketTrend": "bearish",
-    "updatedAt": "2026-02-08T18:38:22.851Z",
+    "updatedAt": "2026-03-04T10:15:02.441Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -1173,13 +1173,13 @@
       "btcWeeklyChange": 0,
       "btcFromATH": 1,
       "fearGreedIndex": 0,
-      "mayerMultiple": -2,
+      "mayerMultiple": -1,
       "ahr999": 0,
       "btcFourYearIndex": -1,
       "fedRate": -1,
       "bojRate": 1
     },
-    "totalScore": -2
+    "totalScore": -1
   },
   "2025-W09": {
     "weekId": "2025-W09",
@@ -1198,7 +1198,7 @@
     "btcFourYearIndex": 1.97,
     "personalRating": 2,
     "marketTrend": "bearish",
-    "updatedAt": "2026-02-08T18:38:22.851Z",
+    "updatedAt": "2026-03-04T10:15:02.441Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -1290,7 +1290,7 @@
     "btcFourYearIndex": 1.95,
     "personalRating": 2,
     "marketTrend": "bearish",
-    "updatedAt": "2026-02-08T18:38:22.851Z",
+    "updatedAt": "2026-03-04T10:15:02.441Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -1382,7 +1382,7 @@
     "btcFourYearIndex": 1.84,
     "personalRating": 3,
     "marketTrend": "bullish",
-    "updatedAt": "2026-02-08T18:38:22.852Z",
+    "updatedAt": "2026-03-04T10:15:02.441Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -1474,7 +1474,7 @@
     "btcFourYearIndex": 1.88,
     "personalRating": 2,
     "marketTrend": "bullish",
-    "updatedAt": "2026-02-08T18:38:22.852Z",
+    "updatedAt": "2026-03-04T10:15:02.441Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -1564,9 +1564,9 @@
     "mayerMultiple": 1.01,
     "ahr999": 0.84,
     "btcFourYearIndex": 1.89,
-    "personalRating": 1,
+    "personalRating": 2,
     "marketTrend": "bearish",
-    "updatedAt": "2026-02-08T18:38:22.852Z",
+    "updatedAt": "2026-03-04T10:15:02.441Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -1632,14 +1632,14 @@
     "indicatorScores": {
       "btcWeeklyChange": 0,
       "btcFromATH": 1,
-      "fearGreedIndex": 0,
+      "fearGreedIndex": 1,
       "mayerMultiple": 0,
       "ahr999": 0,
       "btcFourYearIndex": 0,
       "fedRate": -1,
       "bojRate": 1
     },
-    "totalScore": 1
+    "totalScore": 2
   },
   "2025-W14": {
     "weekId": "2025-W14",
@@ -1658,7 +1658,7 @@
     "btcFourYearIndex": 1.82,
     "personalRating": 3,
     "marketTrend": "bearish",
-    "updatedAt": "2026-02-08T18:38:22.853Z",
+    "updatedAt": "2026-03-04T10:15:02.442Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -1750,7 +1750,7 @@
     "btcFourYearIndex": 1.78,
     "personalRating": 4,
     "marketTrend": "bullish",
-    "updatedAt": "2026-02-08T18:38:22.853Z",
+    "updatedAt": "2026-03-04T10:15:02.442Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -1842,7 +1842,7 @@
     "btcFourYearIndex": 1.84,
     "personalRating": 3,
     "marketTrend": "bullish",
-    "updatedAt": "2026-02-08T18:38:22.853Z",
+    "updatedAt": "2026-03-04T10:15:02.442Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -1934,7 +1934,7 @@
     "btcFourYearIndex": 2.02,
     "personalRating": 0,
     "marketTrend": "bullish",
-    "updatedAt": "2026-02-08T18:38:22.853Z",
+    "updatedAt": "2026-03-04T10:15:02.442Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -2026,7 +2026,7 @@
     "btcFourYearIndex": 2.05,
     "personalRating": 0,
     "marketTrend": "bullish",
-    "updatedAt": "2026-02-08T18:38:22.853Z",
+    "updatedAt": "2026-03-04T10:15:02.442Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -2118,7 +2118,7 @@
     "btcFourYearIndex": 2.14,
     "personalRating": -2,
     "marketTrend": "bullish",
-    "updatedAt": "2026-02-08T18:38:22.854Z",
+    "updatedAt": "2026-03-04T10:15:02.442Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -2210,7 +2210,7 @@
     "btcFourYearIndex": 2.21,
     "personalRating": -4,
     "marketTrend": "bullish",
-    "updatedAt": "2026-02-08T18:38:22.854Z",
+    "updatedAt": "2026-03-04T10:15:02.442Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -2302,7 +2302,7 @@
     "btcFourYearIndex": 2.28,
     "personalRating": -4,
     "marketTrend": "bearish",
-    "updatedAt": "2026-02-08T18:38:22.854Z",
+    "updatedAt": "2026-03-04T10:15:02.442Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -2394,7 +2394,7 @@
     "btcFourYearIndex": 2.23,
     "personalRating": -4,
     "marketTrend": "bearish",
-    "updatedAt": "2026-02-08T18:38:22.854Z",
+    "updatedAt": "2026-03-04T10:15:02.442Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -2486,7 +2486,7 @@
     "btcFourYearIndex": 2.18,
     "personalRating": -1,
     "marketTrend": "bullish",
-    "updatedAt": "2026-02-08T18:38:22.854Z",
+    "updatedAt": "2026-03-04T10:15:02.443Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -2578,7 +2578,7 @@
     "btcFourYearIndex": 2.22,
     "personalRating": -3,
     "marketTrend": "bearish",
-    "updatedAt": "2026-02-08T18:38:22.855Z",
+    "updatedAt": "2026-03-04T10:15:02.443Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -2670,7 +2670,7 @@
     "btcFourYearIndex": 2.13,
     "personalRating": -1,
     "marketTrend": "bullish",
-    "updatedAt": "2026-02-08T18:38:22.855Z",
+    "updatedAt": "2026-03-04T10:15:02.443Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -2762,7 +2762,7 @@
     "btcFourYearIndex": 2.18,
     "personalRating": -1,
     "marketTrend": "bullish",
-    "updatedAt": "2026-02-08T18:38:22.855Z",
+    "updatedAt": "2026-03-04T10:15:02.443Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -2854,7 +2854,7 @@
     "btcFourYearIndex": 2.19,
     "personalRating": -3,
     "marketTrend": "bullish",
-    "updatedAt": "2026-02-08T18:38:22.855Z",
+    "updatedAt": "2026-03-04T10:15:02.443Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -2946,7 +2946,7 @@
     "btcFourYearIndex": 2.29,
     "personalRating": -4,
     "marketTrend": "bullish",
-    "updatedAt": "2026-02-08T18:38:22.856Z",
+    "updatedAt": "2026-03-04T10:15:02.443Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -3038,7 +3038,7 @@
     "btcFourYearIndex": 2.37,
     "personalRating": -6,
     "marketTrend": "bearish",
-    "updatedAt": "2026-02-08T18:38:22.856Z",
+    "updatedAt": "2026-03-04T10:15:02.443Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -3128,9 +3128,9 @@
     "mayerMultiple": 1.2,
     "ahr999": 1.21,
     "btcFourYearIndex": 2.35,
-    "personalRating": -6,
+    "personalRating": -5,
     "marketTrend": "bearish",
-    "updatedAt": "2026-02-08T18:38:22.856Z",
+    "updatedAt": "2026-03-04T10:15:02.443Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -3197,13 +3197,13 @@
       "btcWeeklyChange": 0,
       "btcFromATH": 0,
       "fearGreedIndex": -1,
-      "mayerMultiple": -2,
+      "mayerMultiple": -1,
       "ahr999": -1,
       "btcFourYearIndex": -2,
       "fedRate": -1,
       "bojRate": 1
     },
-    "totalScore": -6
+    "totalScore": -5
   },
   "2025-W31": {
     "weekId": "2025-W31",
@@ -3222,7 +3222,7 @@
     "btcFourYearIndex": 2.28,
     "personalRating": -4,
     "marketTrend": "bearish",
-    "updatedAt": "2026-02-08T18:38:22.856Z",
+    "updatedAt": "2026-03-04T10:15:02.443Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -3314,7 +3314,7 @@
     "btcFourYearIndex": 2.28,
     "personalRating": -4,
     "marketTrend": "bullish",
-    "updatedAt": "2026-02-08T18:38:22.856Z",
+    "updatedAt": "2026-03-04T10:15:02.443Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -3406,7 +3406,7 @@
     "btcFourYearIndex": 2.32,
     "personalRating": -4,
     "marketTrend": "bearish",
-    "updatedAt": "2026-02-08T18:38:22.857Z",
+    "updatedAt": "2026-03-04T10:15:02.443Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -3498,7 +3498,7 @@
     "btcFourYearIndex": 2.22,
     "personalRating": -3,
     "marketTrend": "bearish",
-    "updatedAt": "2026-02-08T18:38:22.857Z",
+    "updatedAt": "2026-03-04T10:15:02.443Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -3590,7 +3590,7 @@
     "btcFourYearIndex": 2.12,
     "personalRating": -1,
     "marketTrend": "bearish",
-    "updatedAt": "2026-02-08T18:38:22.857Z",
+    "updatedAt": "2026-03-04T10:15:02.444Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -3682,7 +3682,7 @@
     "btcFourYearIndex": 2.12,
     "personalRating": -1,
     "marketTrend": "bullish",
-    "updatedAt": "2026-02-08T18:38:22.857Z",
+    "updatedAt": "2026-03-04T10:15:02.444Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -3774,7 +3774,7 @@
     "btcFourYearIndex": 2.18,
     "personalRating": -2,
     "marketTrend": "bullish",
-    "updatedAt": "2026-02-08T18:38:22.857Z",
+    "updatedAt": "2026-03-04T10:15:02.444Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -3866,7 +3866,7 @@
     "btcFourYearIndex": 2.21,
     "personalRating": -3,
     "marketTrend": "bearish",
-    "updatedAt": "2026-02-08T18:38:22.858Z",
+    "updatedAt": "2026-03-04T10:15:02.444Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -3958,7 +3958,7 @@
     "btcFourYearIndex": 2.1,
     "personalRating": 0,
     "marketTrend": "bullish",
-    "updatedAt": "2026-02-08T18:38:22.858Z",
+    "updatedAt": "2026-03-04T10:15:02.444Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -4050,7 +4050,7 @@
     "btcFourYearIndex": 2.25,
     "personalRating": -3,
     "marketTrend": "bullish",
-    "updatedAt": "2026-02-08T18:38:22.858Z",
+    "updatedAt": "2026-03-04T10:15:02.444Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -4142,7 +4142,7 @@
     "btcFourYearIndex": 2.22,
     "personalRating": -3,
     "marketTrend": "bearish",
-    "updatedAt": "2026-02-08T18:38:22.858Z",
+    "updatedAt": "2026-03-04T10:15:02.444Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -4234,7 +4234,7 @@
     "btcFourYearIndex": 2.04,
     "personalRating": 0,
     "marketTrend": "bearish",
-    "updatedAt": "2026-02-08T18:38:22.858Z",
+    "updatedAt": "2026-03-04T10:15:02.444Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -4326,7 +4326,7 @@
     "btcFourYearIndex": 2.04,
     "personalRating": 0,
     "marketTrend": "bullish",
-    "updatedAt": "2026-02-08T18:38:22.859Z",
+    "updatedAt": "2026-03-04T10:15:02.444Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -4416,9 +4416,9 @@
     "mayerMultiple": 1.02,
     "ahr999": 0.87,
     "btcFourYearIndex": 2.04,
-    "personalRating": -1,
+    "personalRating": 0,
     "marketTrend": "bearish",
-    "updatedAt": "2026-02-08T18:38:22.859Z",
+    "updatedAt": "2026-03-04T10:15:02.444Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -4484,14 +4484,14 @@
     "indicatorScores": {
       "btcWeeklyChange": 0,
       "btcFromATH": 0,
-      "fearGreedIndex": 0,
+      "fearGreedIndex": 1,
       "mayerMultiple": 0,
       "ahr999": 0,
       "btcFourYearIndex": -1,
       "fedRate": -1,
       "bojRate": 1
     },
-    "totalScore": -1
+    "totalScore": 0
   },
   "2025-W45": {
     "weekId": "2025-W45",
@@ -4508,9 +4508,9 @@
     "mayerMultiple": 0.95,
     "ahr999": 0.75,
     "btcFourYearIndex": 1.89,
-    "personalRating": 2,
+    "personalRating": 3,
     "marketTrend": "bearish",
-    "updatedAt": "2026-02-08T18:38:22.859Z",
+    "updatedAt": "2026-03-04T10:15:02.444Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -4575,7 +4575,7 @@
     "bojRate": 0.5,
     "indicatorScores": {
       "btcWeeklyChange": 0,
-      "btcFromATH": 0,
+      "btcFromATH": 1,
       "fearGreedIndex": 1,
       "mayerMultiple": 0,
       "ahr999": 1,
@@ -4583,7 +4583,7 @@
       "fedRate": -1,
       "bojRate": 1
     },
-    "totalScore": 2
+    "totalScore": 3
   },
   "2025-W46": {
     "weekId": "2025-W46",
@@ -4600,9 +4600,9 @@
     "mayerMultiple": 0.91,
     "ahr999": 0.7,
     "btcFourYearIndex": 1.8,
-    "personalRating": 5,
+    "personalRating": 6,
     "marketTrend": "bearish",
-    "updatedAt": "2026-02-08T18:38:22.859Z",
+    "updatedAt": "2026-03-04T10:15:02.444Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -4671,11 +4671,11 @@
       "fearGreedIndex": 2,
       "mayerMultiple": 0,
       "ahr999": 1,
-      "btcFourYearIndex": 0,
+      "btcFourYearIndex": 1,
       "fedRate": -1,
       "bojRate": 1
     },
-    "totalScore": 5
+    "totalScore": 6
   },
   "2025-W47": {
     "weekId": "2025-W47",
@@ -4694,7 +4694,7 @@
     "btcFourYearIndex": 1.6,
     "personalRating": 7,
     "marketTrend": "bearish",
-    "updatedAt": "2026-02-08T18:38:22.860Z",
+    "updatedAt": "2026-03-04T10:15:02.444Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -4786,7 +4786,7 @@
     "btcFourYearIndex": 1.62,
     "personalRating": 5,
     "marketTrend": "bullish",
-    "updatedAt": "2026-02-08T18:38:22.860Z",
+    "updatedAt": "2026-03-04T10:15:02.445Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -4878,7 +4878,7 @@
     "btcFourYearIndex": 1.62,
     "personalRating": 5,
     "marketTrend": "bullish",
-    "updatedAt": "2026-02-08T18:38:22.860Z",
+    "updatedAt": "2026-03-04T10:15:02.445Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -4970,7 +4970,7 @@
     "btcFourYearIndex": 1.62,
     "personalRating": 6,
     "marketTrend": "bearish",
-    "updatedAt": "2026-02-08T18:38:22.860Z",
+    "updatedAt": "2026-03-04T10:15:02.445Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -5062,7 +5062,7 @@
     "btcFourYearIndex": 1.55,
     "personalRating": 8,
     "marketTrend": "bullish",
-    "updatedAt": "2026-02-08T18:38:22.860Z",
+    "updatedAt": "2026-03-04T10:15:02.445Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -5154,7 +5154,7 @@
     "btcFourYearIndex": 1.55,
     "personalRating": 7,
     "marketTrend": "bullish",
-    "updatedAt": "2026-02-08T18:38:22.861Z",
+    "updatedAt": "2026-03-04T10:15:02.445Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -5246,7 +5246,7 @@
     "btcFourYearIndex": 1.57,
     "personalRating": 7,
     "marketTrend": "bullish",
-    "updatedAt": "2026-02-08T18:38:22.861Z",
+    "updatedAt": "2026-03-04T10:15:02.445Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {

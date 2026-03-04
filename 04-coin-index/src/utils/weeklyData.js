@@ -1,56 +1,63 @@
-// 周数据处理工具函数 - 更新版本 v3.0 (支持真实API数据)
+/**
+ * 周数据处理工具函数 - v4.0
+ * 支持真实API数据，添加输入验证和统一错误处理
+ */
 
-// 尝试加载真实数据，如果失败则使用模拟数据
+import { config } from '../config'
+import { DATA_PATHS } from '../constants'
+import { validateWeekId, validateYear, isValidWeekId } from './validation'
+import { handleDataLoad, logDebug, logWarning, logError } from './errorHandler'
+
+// 数据缓存
 let realWeeklyData = {}
+let dataLoadPromise = null
 
-// 异步加载真实数据 - 返回Promise以便等待
+/**
+ * 异步加载真实数据
+ * @returns {Promise<boolean>} 加载成功返回true
+ */
 const loadRealData = async () => {
-  try {
-    // 尝试多个可能的路径
-    const possiblePaths = [
-      '/04-coin-index/weeklyData.json',  // 生产环境路径
-      '/weeklyData.json',                // 开发环境路径
-      './weeklyData.json'                // 相对路径
-    ]
+  return handleDataLoad(async () => {
+    const paths = config.data.fallbackPaths
     
-    for (const path of possiblePaths) {
+    for (const path of paths) {
       try {
-        console.log(`🔍 尝试加载数据: ${path}`)
+        logDebug('DataLoader', `尝试加载数据: ${path}`)
+        
         const response = await fetch(path)
         if (response.ok) {
           realWeeklyData = await response.json()
-          console.log('📊 已加载真实周数据:', Object.keys(realWeeklyData).length, '周', `来源: ${path}`)
+          logDebug('DataLoader', `已加载真实周数据: ${Object.keys(realWeeklyData).length}周`, { source: path })
           return true
         }
       } catch (error) {
-        console.log(`❌ 路径 ${path} 加载失败:`, error.message)
+        logDebug('DataLoader', `路径 ${path} 加载失败: ${error.message}`)
       }
     }
     
-    console.log('⚠️ 所有路径都失败，使用模拟数据')
+    logWarning('DataLoader', '所有路径都失败，将使用模拟数据')
     return false
-  } catch (error) {
-    console.log('⚠️ 数据加载异常，使用模拟数据:', error.message)
-    return false
-  }
+  }, 'loadRealData')
 }
 
-// 数据加载Promise - 供外部等待
-let dataLoadPromise = loadRealData()
-
-// 确保数据已加载
+/**
+ * 确保数据已加载
+ * @returns {Promise<void>}
+ */
 export const ensureDataLoaded = async () => {
+  if (!dataLoadPromise) {
+    dataLoadPromise = loadRealData()
+  }
   await dataLoadPromise
 }
 
-// 模拟数据 - 后续会替换为真实API调用 - UPDATED
+// 模拟数据（开发环境回退使用）
 const mockWeeklyData = {
-  // 2025年数据
   '2025-W53': {
     weekId: '2025-W53',
     year: 2025,
     weekNumber: 53,
-    weekStart: '2025-12-29',  // 2025年最后一周，跨年到2026年
+    weekStart: '2025-12-29',
     weekEnd: '2026-01-04',
     btcWeeklyChange: 3.8,
     btcWeeklyAvgPrice: 98750,
@@ -63,13 +70,11 @@ const mockWeeklyData = {
     marketTrend: 'bullish',
     updatedAt: '2026-01-04T23:59:59Z'
   },
-  
-  // 2026年数据
   '2026-W01': {
     weekId: '2026-W01',
     year: 2026,
     weekNumber: 1,
-    weekStart: '2026-01-05',  // 修正：2026年第1周从1月5日开始
+    weekStart: '2026-01-05',
     weekEnd: '2026-01-11',
     btcWeeklyChange: -5.2,
     btcWeeklyAvgPrice: 95420,
@@ -86,7 +91,7 @@ const mockWeeklyData = {
     weekId: '2026-W02',
     year: 2026,
     weekNumber: 2,
-    weekStart: '2026-01-12',  // 第2周从1月12日开始
+    weekStart: '2026-01-12',
     weekEnd: '2026-01-18',
     btcWeeklyChange: 8.7,
     btcWeeklyAvgPrice: 103750,
@@ -103,7 +108,7 @@ const mockWeeklyData = {
     weekId: '2026-W03',
     year: 2026,
     weekNumber: 3,
-    weekStart: '2026-01-19',  // 第3周从1月19日开始
+    weekStart: '2026-01-19',
     weekEnd: '2026-01-25',
     btcWeeklyChange: -2.1,
     btcWeeklyAvgPrice: 101580,
@@ -120,7 +125,7 @@ const mockWeeklyData = {
     weekId: '2026-W04',
     year: 2026,
     weekNumber: 4,
-    weekStart: '2026-01-26',  // 第4周从1月26日开始
+    weekStart: '2026-01-26',
     weekEnd: '2026-02-01',
     btcWeeklyChange: 2.3,
     btcWeeklyAvgPrice: 104200,
@@ -137,7 +142,7 @@ const mockWeeklyData = {
     weekId: '2026-W52',
     year: 2026,
     weekNumber: 52,
-    weekStart: '2026-12-28',  // 2026年最后一周，跨年到2027年
+    weekStart: '2026-12-28',
     weekEnd: '2027-01-03',
     btcWeeklyChange: 4.5,
     btcWeeklyAvgPrice: 125680,
@@ -152,14 +157,36 @@ const mockWeeklyData = {
   }
 }
 
-// 加载指定年份的所有周数据
+/**
+ * 获取数据源（真实数据或模拟数据）
+ * @returns {Object} 数据源对象
+ */
+const getDataSource = () => {
+  const hasRealData = Object.keys(realWeeklyData).length > 0
+  
+  // 生产环境只使用真实数据
+  if (!config.features.enableMockData) {
+    return realWeeklyData
+  }
+  
+  // 开发环境回退到模拟数据
+  return hasRealData ? realWeeklyData : mockWeeklyData
+}
+
+/**
+ * 加载指定年份的所有周数据
+ * @param {number} year - 年份
+ * @returns {Promise<Object>} 年份数据对象
+ */
 export const loadWeeklyData = async (year) => {
-  try {
+  return handleDataLoad(async () => {
+    // 验证年份
+    validateYear(year)
+    
     // 确保数据已加载
     await ensureDataLoaded()
     
-    // 优先使用真实数据
-    const dataSource = Object.keys(realWeeklyData).length > 0 ? realWeeklyData : mockWeeklyData
+    const dataSource = getDataSource()
     
     // 过滤出指定年份的数据
     const yearData = {}
@@ -169,69 +196,86 @@ export const loadWeeklyData = async (year) => {
       }
     })
     
-    console.log(`📊 加载 ${year} 年数据:`, Object.keys(yearData).length, '周')
+    logDebug('DataLoader', `加载 ${year} 年数据: ${Object.keys(yearData).length}周`)
     return yearData
-  } catch (error) {
-    console.error('加载周数据失败:', error)
-    return {}
-  }
+  }, `loadWeeklyData(${year})`)
 }
 
-// 加载所有年份的数据（用于模拟演练和年终总结）
+/**
+ * 加载所有年份的数据
+ * @returns {Promise<Object>} 所有数据对象
+ */
 export const loadAllWeeklyData = async () => {
-  try {
-    // 确保数据已加载
+  return handleDataLoad(async () => {
     await ensureDataLoaded()
     
-    // 优先使用真实数据
-    const dataSource = Object.keys(realWeeklyData).length > 0 ? realWeeklyData : mockWeeklyData
+    const dataSource = getDataSource()
+    const isRealData = Object.keys(realWeeklyData).length > 0
     
-    console.log(`📊 加载所有数据:`, Object.keys(dataSource).length, '周', '数据源:', Object.keys(realWeeklyData).length > 0 ? '真实数据' : '模拟数据')
+    logDebug('DataLoader', `加载所有数据: ${Object.keys(dataSource).length}周`, {
+      source: isRealData ? '真实数据' : '模拟数据'
+    })
+    
     return dataSource
-  } catch (error) {
-    console.error('加载所有周数据失败:', error)
-    return {}
-  }
+  }, 'loadAllWeeklyData')
 }
 
-// 获取指定周的数据 - 优先使用真实数据
+/**
+ * 获取指定周的数据
+ * @param {string} weekId - 周ID，格式：YYYY-WNN
+ * @returns {Promise<Object|null>} 周数据对象，不存在返回null
+ */
 export const getWeeklyData = async (weekId) => {
-  try {
+  return handleDataLoad(async () => {
+    // 验证weekId格式
+    validateWeekId(weekId)
+    
     // 确保数据已加载
     await ensureDataLoaded()
     
-    // 优先返回真实数据
-    if (realWeeklyData[weekId]) {
-      console.log(`📊 使用真实数据: ${weekId}`)
-      return realWeeklyData[weekId]
+    const dataSource = getDataSource()
+    const data = dataSource[weekId]
+    
+    if (!data) {
+      logWarning('DataLoader', `周数据不存在: ${weekId}`)
+      return null
     }
     
-    // 回退到模拟数据
-    if (mockWeeklyData[weekId]) {
-      console.log(`🎭 使用模拟数据: ${weekId}`)
-      return mockWeeklyData[weekId]
-    }
+    const isRealData = realWeeklyData[weekId] !== undefined
+    logDebug('DataLoader', `获取周数据: ${weekId}`, {
+      source: isRealData ? '真实数据' : '模拟数据'
+    })
     
-    return {}
-  } catch (error) {
-    console.error('获取周数据失败:', error)
-    return {}
-  }
+    return data
+  }, `getWeeklyData(${weekId})`)
 }
 
-// 检查指定周是否有数据 - 检查真实数据和模拟数据
+/**
+ * 检查指定周是否有数据
+ * @param {string} weekId - 周ID
+ * @returns {Promise<boolean>} 有数据返回true
+ */
 export const hasDataForWeek = async (weekId) => {
   try {
-    // 确保数据已加载
+    // 验证weekId格式（不抛出错误）
+    if (!isValidWeekId(weekId)) {
+      return false
+    }
+    
     await ensureDataLoaded()
-    return !!(realWeeklyData[weekId] || mockWeeklyData[weekId])
+    const dataSource = getDataSource()
+    return !!dataSource[weekId]
   } catch (error) {
-    console.error('检查周数据失败:', error)
+    logError('DataLoader', error, { weekId })
     return false
   }
 }
 
-// 获取周的涨跌状态
+/**
+ * 获取周的涨跌状态
+ * @param {Object} weekData - 周数据对象
+ * @returns {string|null} 'bullish' | 'bearish' | null
+ */
 export const getWeekTrend = (weekData) => {
   if (!weekData || weekData.btcWeeklyChange === null || weekData.btcWeeklyChange === undefined) {
     return null
@@ -239,21 +283,33 @@ export const getWeekTrend = (weekData) => {
   return weekData.btcWeeklyChange >= 0 ? 'bullish' : 'bearish'
 }
 
-// 格式化周ID
+/**
+ * 格式化周ID
+ * @param {number} year - 年份
+ * @param {number} weekNumber - 周数
+ * @returns {string} 格式化的周ID
+ */
 export const formatWeekId = (year, weekNumber) => {
   return `${year}-W${weekNumber.toString().padStart(2, '0')}`
 }
 
-// 解析周ID
+/**
+ * 解析周ID
+ * @param {string} weekId - 周ID
+ * @returns {{ year: number, weekNumber: number }} 解析结果
+ */
 export const parseWeekId = (weekId) => {
-  const [year, week] = weekId.split('-W')
+  const { year, week } = validateWeekId(weekId)
   return {
-    year: parseInt(year),
-    weekNumber: parseInt(week)
+    year,
+    weekNumber: week
   }
 }
 
-// 获取当前周ID (UTC+8时区)
+/**
+ * 获取当前周ID (UTC+8时区)
+ * @returns {string} 当前周ID
+ */
 export const getCurrentWeekId = () => {
   const now = new Date()
   // 转换为UTC+8时间
@@ -270,8 +326,15 @@ export const getCurrentWeekId = () => {
   return formatWeekId(year, weekNumber)
 }
 
-// 获取周的日期范围
+/**
+ * 获取周的日期范围
+ * @param {number} year - 年份
+ * @param {number} weekNumber - 周数
+ * @returns {{ start: Date, end: Date }} 日期范围
+ */
 export const getWeekDateRange = (year, weekNumber) => {
+  validateYear(year)
+  
   const firstDay = new Date(year, 0, 1)
   let currentMonday = new Date(firstDay)
   

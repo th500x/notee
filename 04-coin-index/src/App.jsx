@@ -4,166 +4,63 @@ import WeeklyCalendar from './components/WeeklyCalendar'
 import DataDisplay from './components/DataDisplay'
 import SimulationTable from './components/SimulationTable'
 import YearSummary from './components/YearSummary'
-import { getWeeklyData, loadWeeklyData, loadAllWeeklyData } from './utils/weeklyData'
+import { useWeeklyData, useYearlyData, useSelectedWeekData } from './hooks/useWeeklyData'
+import { useCurrentWeek } from './hooks/useCurrentWeek'
+import { YEAR_RANGE } from './constants'
 
 function App() {
-  const [selectedWeek, setSelectedWeek] = useState(null) // 初始为null，等待当前周计算
-  const [currentYear, setCurrentYear] = useState(2026)
-  const [weeklyData, setWeeklyData] = useState({}) // 存储当前年份的周数据
-  const [allWeeklyData, setAllWeeklyData] = useState({}) // 存储所有年份的周数据（用于模拟演练和年终总结）
-  const [weekIndicators, setWeekIndicators] = useState(new Set()) // 存储有数据的周
-  const [selectedWeekData, setSelectedWeekData] = useState({}) // 存储当前选中周的数据
-  const [showSimulation, setShowSimulation] = useState(false) // 控制模拟演练显示
-  const [showSummary, setShowSummary] = useState(false) // 控制年终总结显示
-  const [simulationData, setSimulationData] = useState([]) // 存储模拟演练数据
+  // 使用自定义Hooks管理数据
+  const { allWeeklyData, loading } = useWeeklyData()
+  const currentWeekId = useCurrentWeek()
+  
+  // 状态管理
+  const [selectedWeek, setSelectedWeek] = useState(null)
+  const [currentYear, setCurrentYear] = useState(YEAR_RANGE.DEFAULT)
+  const [showSimulation, setShowSimulation] = useState(false)
+  const [showSummary, setShowSummary] = useState(false)
+  const [simulationDataByYear, setSimulationDataByYear] = useState({}) // 按年份存储模拟数据
 
-  // 设置年份范围：只支持2025和2026年
-  const minYear = 2025
-  const maxYear = 2026
+  // 从allWeeklyData计算派生数据
+  const weeklyData = useYearlyData(allWeeklyData, currentYear)
+  const selectedWeekData = useSelectedWeekData(allWeeklyData, selectedWeek)
 
-  // 获取当前周ID并设置为默认选中周
+  // 年份范围
+  const minYear = YEAR_RANGE.MIN
+  const maxYear = YEAR_RANGE.MAX
+
+  // 设置初始选中周
   useEffect(() => {
-    const getCurrentWeekId = () => {
-      // 硬编码当前日期为2026-02-11（今天）
-      const testDate = new Date(2026, 1, 11) // 2026年2月11日
-      
-      // 检查2025年W53 (跨年周)
-      const week2025W53Start = new Date(2025, 11, 29) // 12月29日
-      const week2025W53End = new Date(2026, 0, 4)     // 1月4日
-      
-      if (testDate >= week2025W53Start && testDate <= week2025W53End) {
-        return '2025-W53'
-      }
-      
-      // 检查2026年的周 - 使用与WeeklyCalendar相同的逻辑
-      const specialWeeks = [
-        { start: new Date(2026, 0, 5), end: new Date(2026, 0, 11), id: '2026-W01' },
-        { start: new Date(2026, 0, 12), end: new Date(2026, 0, 18), id: '2026-W02' },
-        { start: new Date(2026, 0, 19), end: new Date(2026, 0, 25), id: '2026-W03' },
-        { start: new Date(2026, 0, 26), end: new Date(2026, 1, 1), id: '2026-W04' },
-        { start: new Date(2026, 1, 2), end: new Date(2026, 1, 8), id: '2026-W05' },
-        { start: new Date(2026, 1, 9), end: new Date(2026, 1, 15), id: '2026-W06' },
-      ]
-      
-      for (const week of specialWeeks) {
-        if (testDate >= week.start && testDate <= week.end) {
-          console.log('🔍 App.jsx - 找到当前周:', week.id)
-          return week.id
-        }
-      }
-      
-      // 默认返回W01如果没找到
-      return '2026-W01'
-    }
-    
-    if (!selectedWeek) {
-      const currentWeekId = getCurrentWeekId()
-      console.log('📍 App.jsx - 设置初始选中周:', currentWeekId)
+    if (!selectedWeek && currentWeekId) {
       setSelectedWeek(currentWeekId)
     }
-  }, [selectedWeek])
+  }, [selectedWeek, currentWeekId])
 
-  // 加载周数据
-  useEffect(() => {
-    const loadData = async () => {
-      try {
-        const data = await loadWeeklyData(currentYear)
-        setWeeklyData(data)
-      } catch (error) {
-        console.error('加载周数据失败:', error)
-        setWeeklyData({})
-      }
-    }
-    
-    loadData()
-  }, [currentYear])
-
-  // 加载所有年份的数据（用于模拟演练和年终总结）
-  useEffect(() => {
-    const loadAllData = async () => {
-      try {
-        const data = await loadAllWeeklyData()
-        setAllWeeklyData(data)
-        console.log('📊 已加载所有年份数据:', Object.keys(data).length, '周')
-      } catch (error) {
-        console.error('加载所有数据失败:', error)
-        setAllWeeklyData({})
-      }
-    }
-    
-    loadAllData()
-  }, []) // 只在组件挂载时加载一次
-
-  // 当选中周改变时，加载对应的数据
-  useEffect(() => {
-    const loadSelectedWeekData = async () => {
-      if (!selectedWeek) return
-      
-      console.log('🔍 App.jsx - 加载选中周数据:', selectedWeek)
-      
-      try {
-        const data = await getWeeklyData(selectedWeek)
-        console.log('📊 App.jsx - 获取到的数据:', data)
-        setSelectedWeekData(data)
-      } catch (error) {
-        console.error('❌ App.jsx - 加载选中周数据失败:', error)
-        setSelectedWeekData({})
-      }
-    }
-    
-    loadSelectedWeekData()
-  }, [selectedWeek])
-
-  // 检查某个周是否有数据
-  const hasDataForWeek = async (weekId) => {
-    try {
-      const { hasDataForWeek: checkData } = await import('./utils/weeklyData')
-      return await checkData(weekId)
-    } catch (error) {
-      console.error('检查周数据失败:', error)
-      return false
-    }
-  }
-
-  // 检查当前年份的所有周是否有数据 - 并行检查提高速度
-  useEffect(() => {
-    const checkYearData = async () => {
-      const indicators = new Set()
-      
-      // 并行检查所有周
-      const checkPromises = []
-      for (let week = 1; week <= 53; week++) {
-        const weekId = `${currentYear}-W${week.toString().padStart(2, '0')}`
-        checkPromises.push(
-          hasDataForWeek(weekId).then(hasData => ({ weekId, hasData }))
-        )
-      }
-      
-      const results = await Promise.all(checkPromises)
-      results.forEach(({ weekId, hasData }) => {
-        if (hasData) {
-          indicators.add(weekId)
-        }
-      })
-      
-      console.log(`📊 ${currentYear}年有数据的周:`, Array.from(indicators).sort())
-      setWeekIndicators(indicators)
-    }
-    
-    checkYearData()
-  }, [currentYear])
-
+  // 处理周切换
   const handleWeekChange = (weekId) => {
     setSelectedWeek(weekId)
   }
 
+  // 处理年份切换
   const handleYearChange = (year) => {
-    // 限制在2025-2026年范围内
+    // 限制在年份范围内
     if (year < minYear || year > maxYear) {
       return
     }
     setCurrentYear(year)
-    setSelectedWeek(null) // 清除选中的周，让useEffect重新计算当前周
+    setSelectedWeek(null) // 清除选中的周，让useEffect重新设置
+  }
+
+  // 加载中状态
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-6xl mb-4">📊</div>
+          <h3 className="text-xl font-medium text-gray-900 mb-2">加载数据中...</h3>
+          <p className="text-sm text-gray-600">请稍候</p>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -204,16 +101,15 @@ function App() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           {/* 周日历区域 */}
-          <div className="lg:col-span-1">
+          <div className="lg:col-span-5">
             <div className="bg-white rounded-lg shadow-md p-6">
               <WeeklyCalendar
                 currentYear={currentYear}
                 selectedWeek={selectedWeek}
                 onWeekChange={handleWeekChange}
                 onYearChange={handleYearChange}
-                weekIndicators={weekIndicators}
                 minYear={minYear}
                 maxYear={maxYear}
               />
@@ -221,7 +117,7 @@ function App() {
           </div>
 
           {/* 数据显示区域 */}
-          <div className="lg:col-span-2">
+          <div className="lg:col-span-7">
             <div className="bg-white rounded-lg shadow-md p-6">
               <DataDisplay 
                 selectedWeek={selectedWeek}
@@ -240,7 +136,13 @@ function App() {
               weeklyData={allWeeklyData}
               selectedYear={currentYear}
               onClose={() => setShowSimulation(false)}
-              onDataGenerated={(data) => setSimulationData(data)}
+              onDataGenerated={(data) => {
+                // 按年份存储模拟数据
+                setSimulationDataByYear(prev => ({
+                  ...prev,
+                  [currentYear]: data
+                }))
+              }}
             />
           </div>
         </div>
@@ -253,7 +155,7 @@ function App() {
             <YearSummary
               weeklyData={allWeeklyData}
               selectedYear={currentYear}
-              simulationData={simulationData}
+              simulationData={simulationDataByYear[currentYear] || []}
               onClose={() => setShowSummary(false)}
             />
           </div>

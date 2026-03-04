@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
+import { YEAR_RANGE } from '../constants'
 
 // 年终总结组件
-function YearSummary({ weeklyData, selectedYear = 2025, simulationData, onClose }) {
+function YearSummary({ weeklyData, selectedYear = YEAR_RANGE.DEFAULT, simulationData, onClose }) {
   const [summaryData, setSummaryData] = useState(null)
   const [loading, setLoading] = useState(true)
 
