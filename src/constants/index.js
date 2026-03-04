@@ -61,14 +61,6 @@ export const PROJECTS = [
     path: '/02-tale-historical/'
   },
   {
-    id: '04-coin-index',
-    name: '區塊指標',
-    icon: '📊',
-    description: '区块链市场指标分析\n12个核心指标综合评级',
-    gradient: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-    path: '/04-coin-index/'
-  },
-  {
     id: 'page3',
     name: '功能三',
     icon: '⚡',
