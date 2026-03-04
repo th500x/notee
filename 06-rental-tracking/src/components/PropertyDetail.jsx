@@ -221,6 +221,7 @@ function PropertyDetail({ property, project, selectedYear, selectedMonth, viewMo
       expenses: 0,
       note: '',
       isPaid: false,
+      photos: [],  // 初始化照片数组
       _hasMonthPaidRecord: hasMonthPaidRecord // 用于UI判断
     })
     setShowRecordDialog(true)
@@ -248,6 +249,7 @@ function PropertyDetail({ property, project, selectedYear, selectedMonth, viewMo
       note: record.note || '',
       isPaid: record.isPaid || false,
       status: record.status || property.status || 'vacant',  // 添加status字段
+      photos: record.photos || [],  // 保留照片数据
       _hasMonthPaidRecord: hasMonthPaidRecord
     })
     setShowRecordDialog(true)
@@ -261,7 +263,8 @@ function PropertyDetail({ property, project, selectedYear, selectedMonth, viewMo
       expenses: parseFloat(recordForm.expenses) || 0,
       note: recordForm.note || '',
       isPaid: recordForm.isPaid || false,
-      status: recordForm.status || property.status || 'vacant'  // 该月的独立状态
+      status: recordForm.status || property.status || 'vacant',  // 该月的独立状态
+      photos: recordForm.photos || []  // 保留照片数据
     }
 
     let updatedRecords
