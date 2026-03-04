@@ -34,10 +34,13 @@ async function uploadPhoto(fileBuffer, fileName) {
     // 上传到OSS
     const result = await client.put(uniqueFileName, fileBuffer);
     
+    // 强制使用 HTTPS URL（避免 Mixed Content 警告）
+    const httpsUrl = result.url.replace(/^http:/, 'https:');
+    
     // 返回结果
     return {
       id: uniqueFileName, // 使用OSS路径作为ID，方便删除
-      url: result.url, // OSS URL
+      url: httpsUrl, // 使用 HTTPS URL
       name: fileName, // 原始文件名
       size: fileBuffer.length,
       uploadedAt: new Date().toISOString()
