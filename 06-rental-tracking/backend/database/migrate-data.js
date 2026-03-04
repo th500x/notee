@@ -58,7 +58,7 @@ async function migrateProject(project) {
     project.password || null,
     project.visible !== false,
     JSON.stringify(project.properties || []),
-    JSON.stringify(project.propertyGroups || {}),
+    JSON.stringify(project.propertyGroups || []),
     JSON.stringify(project.expenses || []),
     project.version || 1,
     project.createdAt || new Date().toISOString(),
