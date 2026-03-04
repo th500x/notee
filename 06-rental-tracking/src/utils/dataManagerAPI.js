@@ -48,15 +48,6 @@ export const saveRentalData = async (data) => {
     throw error;
   }
 };
-    }
-    
-    return true;
-  } catch (error) {
-    console.error('保存数据失败:', error);
-    alert('保存数据失败，请检查网络连接');
-    return false;
-  }
-};
 
 /**
  * 创建新项目
