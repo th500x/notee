@@ -26,11 +26,7 @@ const createProjectSchema = Joi.object({
       'string.min': '项目密码至少6个字符',
       'string.max': '项目密码不能超过50个字符'
     }),
-  visible: Joi.boolean().optional(),
-  adminPassword: Joi.string().required()
-    .messages({
-      'any.required': '需要管理员密码'
-    })
+  visible: Joi.boolean().optional()
 });
 
 /**
@@ -51,11 +47,7 @@ const updateProjectSchema = Joi.object({
       'string.min': '项目密码至少6个字符',
       'string.max': '项目密码不能超过50个字符'
     }),
-  visible: Joi.boolean().optional(),
-  adminPassword: Joi.string().required()
-    .messages({
-      'any.required': '需要管理员密码'
-    })
+  visible: Joi.boolean().optional()
 });
 
 /**
@@ -173,7 +165,6 @@ const projectDataSchema = Joi.object({
     updatedAt: Joi.string().optional(),
     version: Joi.number().optional()  // 添加version字段
   }).required(),
-  adminPassword: Joi.string().allow('').allow(null).optional(),
   projectPassword: Joi.string().allow('').allow(null).optional()
 }).options({ allowUnknown: true });
 
@@ -200,7 +191,6 @@ const recordsSchema = Joi.object({
       ).default([])
     })
   ).optional(),
-  adminPassword: Joi.string().allow('').allow(null).optional(),
   projectPassword: Joi.string().allow('').allow(null).optional()
 }).options({ allowUnknown: true });
 

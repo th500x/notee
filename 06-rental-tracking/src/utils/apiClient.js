@@ -5,7 +5,7 @@
  */
 
 import { config } from '../config'
-import { getToken } from './tokenManager'
+import { tokenManager } from './tokenManager'
 
 // API 基础 URL 和前缀
 const API_BASE_URL = config.api.baseUrl
@@ -18,7 +18,7 @@ async function apiRequest(endpoint, options = {}) {
   const url = `${API_BASE_URL}${API_PREFIX}${endpoint}`;
   
   // 获取 Token
-  const token = getToken();
+  const token = tokenManager.get();
   
   const defaultOptions = {
     headers: {

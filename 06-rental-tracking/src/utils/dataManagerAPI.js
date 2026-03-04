@@ -135,8 +135,7 @@ export const updateProjectData = async (project) => {
  */
 export const updateProjectRecords = async (projectId, records, projectPassword = null) => {
   try {
-    const adminPassword = getAdminPassword();
-    const response = await api.updateProjectRecords(projectId, records, adminPassword, projectPassword);
+    const response = await api.updateProjectRecords(projectId, records, projectPassword);
     
     if (response.success) {
       return true;
