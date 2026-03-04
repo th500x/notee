@@ -12,14 +12,7 @@ const { pool } = require('./database/connection');
 const { validate, createProjectSchema, updateProjectSchema, projectDataSchema, recordsSchema } = require('./middleware/validation');
 const { auditLog } = require('./middleware/auditLog');
 const { hashPassword, verifyPassword } = require('./utils/passwordUtils');
-
-/**
- * 验证管理员密码
- */
-function verifyAdminPassword(password) {
-  const ADMIN_PASSWORD = process.env.GLOBAL_ADMIN_PASSWORD || 'notee.vip.2026';
-  return password === ADMIN_PASSWORD;
-}
+const { verifyToken } = require('./middleware/auth');
 
 /**
  * 验证项目密码（支持 bcrypt 加密）
@@ -261,17 +254,11 @@ router.get('/:id', async (req, res) => {
  * 创建新项目
  * POST /api/rental-tracking/
  */
-router.post('/', validate(createProjectSchema), async (req, res) => {
+router.post('/', verifyToken, validate(createProjectSchema), async (req, res) => {
   try {
-    const { name, description, password, visible, adminPassword } = req.body;
+    const { name, description, password, visible } = req.body;
     
-    // 验证管理员权限
-    if (!adminPassword || !verifyAdminPassword(adminPassword)) {
-      return res.status(403).json({
-        success: false,
-        error: '需要管理员权限'
-      });
-    }
+    // Token 已通过 verifyToken 中间件验证
     
     // 生成项目ID
     const id = `project-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -324,18 +311,12 @@ router.post('/', validate(createProjectSchema), async (req, res) => {
  * 更新项目基本信息
  * PUT /api/rental-tracking/:id
  */
-router.put('/:id', validate(updateProjectSchema), async (req, res) => {
+router.put('/:id', verifyToken, validate(updateProjectSchema), async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, description, password, visible, adminPassword } = req.body;
+    const { name, description, password, visible } = req.body;
     
-    // 验证管理员权限
-    if (!adminPassword || !verifyAdminPassword(adminPassword)) {
-      return res.status(403).json({
-        success: false,
-        error: '需要管理员权限'
-      });
-    }
+    // Token 已通过 verifyToken 中间件验证
     
     // 构建动态SQL：只有提供了新密码才更新密码字段
     let sql;
@@ -397,18 +378,11 @@ router.put('/:id', validate(updateProjectSchema), async (req, res) => {
  * 删除项目
  * DELETE /api/rental-tracking/:id
  */
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', verifyToken, async (req, res) => {
   try {
     const { id } = req.params;
-    const { adminPassword } = req.body;
     
-    // 验证管理员权限
-    if (!adminPassword || !verifyAdminPassword(adminPassword)) {
-      return res.status(403).json({
-        success: false,
-        error: '需要管理员权限'
-      });
-    }
+    // Token 已通过 verifyToken 中间件验证
     
     // 删除项目
     const [result] = await pool.execute(

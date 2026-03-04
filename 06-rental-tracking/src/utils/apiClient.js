@@ -5,6 +5,7 @@
  */
 
 import { config } from '../config'
+import { getToken } from './tokenManager'
 
 // API 基础 URL 和前缀
 const API_BASE_URL = config.api.baseUrl
@@ -16,9 +17,13 @@ const API_PREFIX = config.api.prefix
 async function apiRequest(endpoint, options = {}) {
   const url = `${API_BASE_URL}${API_PREFIX}${endpoint}`;
   
+  // 获取 Token
+  const token = getToken();
+  
   const defaultOptions = {
     headers: {
       'Content-Type': 'application/json',
+      ...(token ? { 'Authorization': `Bearer ${token}` } : {})
     },
   };
   
@@ -48,11 +53,9 @@ async function apiRequest(endpoint, options = {}) {
 
 /**
  * 获取所有项目列表
- * @param {string} adminPassword - 管理员密码（可选）
  */
-export async function getProjects(adminPassword = null) {
-  const query = adminPassword ? `?adminPassword=${encodeURIComponent(adminPassword)}` : '';
-  return apiRequest(`/${query}`);
+export async function getProjects() {
+  return apiRequest('/');
 }
 
 /**
@@ -70,12 +73,10 @@ export async function verifyPasswordAndGetProjects(password) {
  * 获取单个项目详情
  * @param {string} projectId - 项目ID
  * @param {string} password - 项目密码（可选）
- * @param {string} adminPassword - 管理员密码（可选）
  */
-export async function getProject(projectId, password = null, adminPassword = null) {
+export async function getProject(projectId, password = null) {
   const params = new URLSearchParams();
   if (password) params.append('password', password);
-  if (adminPassword) params.append('adminPassword', adminPassword);
   
   const query = params.toString() ? `?${params.toString()}` : '';
   return apiRequest(`/${projectId}${query}`);
@@ -84,15 +85,11 @@ export async function getProject(projectId, password = null, adminPassword = nul
 /**
  * 创建新项目
  * @param {object} projectData - 项目数据
- * @param {string} adminPassword - 管理员密码
  */
-export async function createProject(projectData, adminPassword) {
+export async function createProject(projectData) {
   return apiRequest('/', {
     method: 'POST',
-    body: JSON.stringify({
-      ...projectData,
-      adminPassword
-    })
+    body: JSON.stringify(projectData)
   });
 }
 
@@ -100,27 +97,21 @@ export async function createProject(projectData, adminPassword) {
  * 更新项目信息
  * @param {string} projectId - 项目ID
  * @param {object} projectData - 项目数据
- * @param {string} adminPassword - 管理员密码
  */
-export async function updateProject(projectId, projectData, adminPassword) {
+export async function updateProject(projectId, projectData) {
   return apiRequest(`/${projectId}`, {
     method: 'PUT',
-    body: JSON.stringify({
-      ...projectData,
-      adminPassword
-    })
+    body: JSON.stringify(projectData)
   });
 }
 
 /**
  * 删除项目
  * @param {string} projectId - 项目ID
- * @param {string} adminPassword - 管理员密码
  */
-export async function deleteProject(projectId, adminPassword) {
+export async function deleteProject(projectId) {
   return apiRequest(`/${projectId}`, {
-    method: 'DELETE',
-    body: JSON.stringify({ adminPassword })
+    method: 'DELETE'
   });
 }
 
@@ -128,15 +119,13 @@ export async function deleteProject(projectId, adminPassword) {
  * 更新整个项目数据（包括房源、开支等）
  * @param {string} projectId - 项目ID
  * @param {object} project - 完整的项目数据
- * @param {string} adminPassword - 管理员密码（可选）
  * @param {string} projectPassword - 项目密码（可选）
  */
-export async function updateProjectData(projectId, project, adminPassword = null, projectPassword = null) {
+export async function updateProjectData(projectId, project, projectPassword = null) {
   return apiRequest(`/${projectId}/data`, {
     method: 'PUT',
     body: JSON.stringify({
       project,
-      adminPassword,
       projectPassword
     })
   });
@@ -146,15 +135,13 @@ export async function updateProjectData(projectId, project, adminPassword = null
  * 只更新项目的收支记录（不触碰基本信息如密码、名称等）
  * @param {string} projectId - 项目ID
  * @param {object} records - 收支记录数据 { properties, expenses }
- * @param {string} adminPassword - 管理员密码（可选）
  * @param {string} projectPassword - 项目密码（可选）
  */
-export async function updateProjectRecords(projectId, records, adminPassword = null, projectPassword = null) {
+export async function updateProjectRecords(projectId, records, projectPassword = null) {
   return apiRequest(`/${projectId}/records`, {
     method: 'PUT',
     body: JSON.stringify({
       ...records,
-      adminPassword,
       projectPassword
     })
   });

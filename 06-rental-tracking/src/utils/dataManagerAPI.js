@@ -9,46 +9,12 @@
 
 import * as api from './apiClient';
 
-// 缓存管理员密码（仅在会话期间）
-let cachedAdminPassword = null;
-
-/**
- * 设置管理员密码缓存
- */
-export function setAdminPassword(password) {
-  cachedAdminPassword = password;
-  if (password) {
-    sessionStorage.setItem('rental-tracking-admin-pwd', password);
-  } else {
-    sessionStorage.removeItem('rental-tracking-admin-pwd');
-  }
-}
-
-/**
- * 获取缓存的管理员密码
- */
-export function getAdminPassword() {
-  if (!cachedAdminPassword) {
-    cachedAdminPassword = sessionStorage.getItem('rental-tracking-admin-pwd');
-  }
-  return cachedAdminPassword;
-}
-
-/**
- * 清除管理员密码缓存
- */
-export function clearAdminPassword() {
-  cachedAdminPassword = null;
-  sessionStorage.removeItem('rental-tracking-admin-pwd');
-}
-
 /**
  * 从 API 加载数据
  */
 export const loadRentalData = async () => {
   try {
-    const adminPassword = getAdminPassword();
-    const response = await api.getProjects(adminPassword);
+    const response = await api.getProjects();
     
     if (response.success) {
       return { projects: response.projects };
@@ -69,15 +35,19 @@ export const loadRentalData = async () => {
  */
 export const saveRentalData = async (data) => {
   try {
-    const adminPassword = getAdminPassword();
-    
     // 遍历所有项目并更新
     for (const project of data.projects) {
       try {
-        await api.updateProjectData(project.id, project, adminPassword);
+        await api.updateProjectData(project.id, project);
       } catch (error) {
         console.error(`保存项目 ${project.id} 失败:`, error);
       }
+    }
+  } catch (error) {
+    console.error('保存数据失败:', error);
+    throw error;
+  }
+};
     }
     
     return true;
@@ -93,12 +63,7 @@ export const saveRentalData = async (data) => {
  */
 export const createProject = async (projectData) => {
   try {
-    const adminPassword = getAdminPassword();
-    if (!adminPassword) {
-      throw new Error('需要管理员权限');
-    }
-    
-    const response = await api.createProject(projectData, adminPassword);
+    const response = await api.createProject(projectData);
     
     if (response.success) {
       return response.project;
@@ -116,12 +81,7 @@ export const createProject = async (projectData) => {
  */
 export const updateProjectInfo = async (projectId, projectData) => {
   try {
-    const adminPassword = getAdminPassword();
-    if (!adminPassword) {
-      throw new Error('需要管理员权限');
-    }
-    
-    const response = await api.updateProject(projectId, projectData, adminPassword);
+    const response = await api.updateProject(projectId, projectData);
     
     if (response.success) {
       return response.project;
@@ -139,12 +99,7 @@ export const updateProjectInfo = async (projectId, projectData) => {
  */
 export const deleteProject = async (projectId) => {
   try {
-    const adminPassword = getAdminPassword();
-    if (!adminPassword) {
-      throw new Error('需要管理员权限');
-    }
-    
-    const response = await api.deleteProject(projectId, adminPassword);
+    const response = await api.deleteProject(projectId);
     
     if (response.success) {
       return true;
@@ -162,8 +117,7 @@ export const deleteProject = async (projectId) => {
  */
 export const updateProjectData = async (project) => {
   try {
-    const adminPassword = getAdminPassword();
-    const response = await api.updateProjectData(project.id, project, adminPassword);
+    const response = await api.updateProjectData(project.id, project);
     
     if (response.success) {
       return true;
@@ -200,8 +154,7 @@ export const updateProjectRecords = async (projectId, records, projectPassword =
  */
 export const getProjectDetail = async (projectId, projectPassword = null) => {
   try {
-    const adminPassword = getAdminPassword();
-    const response = await api.getProject(projectId, projectPassword, adminPassword);
+    const response = await api.getProject(projectId, projectPassword);
     
     if (response.success) {
       return response.project;
