@@ -1,4 +1,4 @@
-﻿{
+{
   "troops": [
     {
       "id": "san_1_troop_1001",
@@ -582,7 +582,7 @@
     },
     {
       "id": "san_1_troop_3004",
-      "name": "持刀水匪",
+      "name": "持刀悍匪",
       "rarity": "epic",
       "troopType": "infantry",
       "range": 1,
@@ -1597,7 +1597,7 @@
     },
     {
       "id": "san_1_troop_7006",
-      "name": "黑山劫匪",
+      "name": "黑山悍匪",
       "rarity": "epic",
       "troopType": "infantry",
       "range": 1,
@@ -1799,35 +1799,6 @@
       "description": "天公将军，精锐近卫"
     },
     {
-      "id": "san_1_troop_17x4",
-      "name": "流民(女)",
-      "rarity": "common",
-      "troopType": "infantry",
-      "range": 1,
-      "attack": 0,
-      "defense": 0,
-      "speed": 2,
-      "movement": 2,
-      "maxTroops": 990,
-      "infantryCounter": 0.8,
-      "cavalryCounter": 0.8,
-      "archerCounter": 0.7,
-      "siegeCounter": 1,
-      "plainAdapt": 1,
-      "hillAdapt": 1,
-      "forestAdapt": 1,
-      "siegeAdapt": 1.1,
-      "skill_3": "",
-      "skill_4": "TBD",
-      "skills": [
-        "TBD"
-      ],
-      "attackEffect": "fx_02",
-      "projectileSprite": "",
-      "hitEffect": "fx_19",
-      "description": "尚无记载"
-    },
-    {
       "id": "san_1_troop_0001",
       "name": "武装义军",
       "rarity": "rare",
@@ -1887,7 +1858,7 @@
     },
     {
       "id": "san_1_troop_0003",
-      "name": "羌族劫匪",
+      "name": "羌族悍匪",
       "rarity": "epic",
       "troopType": "infantry",
       "range": 1,
