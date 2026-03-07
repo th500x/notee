@@ -10,7 +10,7 @@ import { useAdmin } from '@/hooks/useAdmin';
 import UserManager from '@/components/admin/UserManager';
 
 function UserManagerPage() {
-  const { isLoggedIn, loading, login, logout } = useAdmin();
+  const { isLoggedIn, loading, login } = useAdmin();
   const [passwordInput, setPasswordInput] = useState('');
   const [passwordError, setPasswordError] = useState('');
   const isDev = import.meta.env.DEV;
@@ -96,17 +96,12 @@ function UserManagerPage() {
   return (
     <div>
       <div className="mb-6 bg-green-50 border border-green-200 rounded-lg p-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="text-green-600">✅</span>
-            <span className="text-green-800 font-medium">管理员模式</span>
-          </div>
-          <button
-            onClick={logout}
-            className="px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-          >
-            登出
-          </button>
+        <div className="flex items-center gap-2">
+          <span className="text-green-600">✅</span>
+          <span className="text-green-800 font-medium">管理员模式</span>
+          <span className="text-gray-600 text-sm ml-2">
+            （登出请返回主页）
+          </span>
         </div>
       </div>
       
