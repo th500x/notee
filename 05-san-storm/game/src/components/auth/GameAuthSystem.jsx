@@ -91,7 +91,7 @@ const getCurrentBatchInfo = () => {
   };
 };
 
-// 获取机器指纹（简化版）
+// 获取机器指纹（改进版 - 更稳定）
 const getMachineFingerprint = () => {
   const canvas = document.createElement('canvas');
   const ctx = canvas.getContext('2d');
@@ -100,11 +100,13 @@ const getMachineFingerprint = () => {
   ctx.fillText('Machine fingerprint', 2, 2);
   
   const fingerprint = [
-    navigator.userAgent,
-    navigator.language,
-    screen.width + 'x' + screen.height,
-    new Date().getTimezoneOffset(),
-    canvas.toDataURL()
+    navigator.language,                    // 浏览器语言（稳定）
+    screen.colorDepth,                     // 色深（稳定）
+    screen.width + 'x' + screen.height,    // 屏幕分辨率（较稳定）
+    new Date().getTimezoneOffset(),        // 时区（稳定）
+    navigator.hardwareConcurrency || 0,    // CPU核心数（稳定）
+    canvas.toDataURL()                     // Canvas指纹（辅助）
+    // 注意：不使用 userAgent（浏览器升级会变）
   ].join('|');
   
   // 简单hash
@@ -245,14 +247,19 @@ const GameAuthSystem = () => {
       const machineId = getMachineFingerprint();
       const locationData = await getClientIPAndLocation();
       
-      // 检查是否已经注册过
+      // 检查是否已经注册过（IP或机器指纹任一重复即禁止）
       const existingUsers = JSON.parse(localStorage.getItem('gameUsers') || '[]');
-      const duplicateUser = existingUsers.find(user => 
-        user.machineId === machineId || user.clientIP === locationData.ip
-      );
+      const duplicateByMachine = existingUsers.find(user => user.machineId === machineId);
+      const duplicateByIP = existingUsers.find(user => user.clientIP === locationData.ip);
       
-      if (duplicateUser) {
-        setError('检测到重复注册，每个设备只能注册一个账号');
+      if (duplicateByMachine) {
+        setError('检测到重复注册：此设备已注册过账号');
+        setLoading(false);
+        return;
+      }
+      
+      if (duplicateByIP) {
+        setError('检测到重复注册：此IP地址已注册过账号');
         setLoading(false);
         return;
       }
