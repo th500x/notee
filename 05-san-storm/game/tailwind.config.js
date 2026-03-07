@@ -39,7 +39,8 @@ export default {
         'server-full': '#F44336',      // 满编-红色
       },
       fontFamily: {
-        sans: ['Microsoft YaHei', 'PingFang SC', 'Helvetica Neue', 'Arial', 'sans-serif'],
+        sans: ['JYHPHS', 'Microsoft YaHei', 'PingFang SC', 'Helvetica Neue', 'Arial', 'sans-serif'],
+        jyhphs: ['JYHPHS', 'KaiTi', 'serif'],
       },
     },
   },

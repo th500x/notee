@@ -157,7 +157,7 @@ const CampaignDisplay = () => {
           </div>
 
           {/* 文字覆盖在背景图上方区域 (上方576px) - 在信息卡片下方 */}
-          <div className="absolute left-0 right-0 p-6" style={{ top: '100px', height: 'calc(42.86% - 100px)' }}>
+          <div className="absolute left-0 right-0 p-6 overflow-y-auto" style={{ top: '100px', height: 'calc(42.86% - 100px)' }}>
             <h2 className="text-2xl font-bold text-gray-900 mb-3">
               {campaignData.name}
             </h2>

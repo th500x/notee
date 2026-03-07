@@ -157,17 +157,20 @@ const getClientIPAndLocation = async () => {
 
 const GameAuthSystem = () => {
   const { servers, loading: serversLoading } = useServers();
-  const [currentStep, setCurrentStep] = useState('serverSelect'); // serverSelect, authChoice, register, login, game
+  const [currentStep, setCurrentStep] = useState('serverSelect'); // serverSelect, authChoice, register, login, game, serverWarning
   const [selectedServer, setSelectedServer] = useState(null);
   const [availableIds, setAvailableIds] = useState([]);
   const [batchInfo, setBatchInfo] = useState(null);
   const [selectedId, setSelectedId] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [birthMonth, setBirthMonth] = useState(''); // 新增：生日月份
   const [loginId, setLoginId] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [serverSwitchUser, setServerSwitchUser] = useState(null); // 需要切换服务器的用户
+  const [confirmCount, setConfirmCount] = useState(0); // 确认次数
 
   // 检查用户是否已登录
   useEffect(() => {
@@ -239,6 +242,11 @@ const GameAuthSystem = () => {
       setError('两次输入的密码不一致');
       return;
     }
+    
+    if (!birthMonth) {
+      setError('请选择生日月份');
+      return;
+    }
 
     setLoading(true);
     
@@ -268,14 +276,18 @@ const GameAuthSystem = () => {
       const newUser = {
         id: selectedId,
         password: password, // 实际项目中应该加密
+        birthMonth: parseInt(birthMonth), // 生日月份（1-12）
         serverId: selectedServer.id,
         serverName: selectedServer.name,
         province: locationData.province, // 自动获取的省份
         city: locationData.city, // 城市信息
         machineId: machineId,
         clientIP: locationData.ip,
+        status: 'active', // 账号状态
+        loginCount: 1, // 登录次数
         registeredAt: new Date().toISOString(),
-        lastLoginAt: new Date().toISOString()
+        lastLoginAt: new Date().toISOString(),
+        lastActiveAt: new Date().toISOString()
       };
 
       // 保存到localStorage（模拟数据库）
@@ -337,8 +349,20 @@ const GameAuthSystem = () => {
       // 登录成功，清除尝试记录
       recordSuccessfulAttempt(identifier);
 
-      // 更新最后登录时间
+      // 检查用户的服务器是否与当前选择的服务器一致
+      if (user.serverId !== selectedServer.id) {
+        // 服务器不一致，显示警告
+        setServerSwitchUser(user);
+        setConfirmCount(0);
+        setCurrentStep('serverWarning');
+        setLoading(false);
+        return;
+      }
+
+      // 服务器一致，正常登录
       user.lastLoginAt = new Date().toISOString();
+      user.lastActiveAt = new Date().toISOString();
+      user.loginCount = (user.loginCount || 0) + 1;
       const updatedUsers = users.map(u => u.id === user.id ? user : u);
       localStorage.setItem('gameUsers', JSON.stringify(updatedUsers));
       localStorage.setItem('gameUser', JSON.stringify(user));
@@ -350,6 +374,61 @@ const GameAuthSystem = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  // 确认切换服务器
+  const handleConfirmServerSwitch = () => {
+    if (confirmCount === 0) {
+      // 第一次确认
+      setConfirmCount(1);
+      setError('');
+    } else if (confirmCount === 1) {
+      // 第二次确认，执行切换
+      const users = JSON.parse(localStorage.getItem('gameUsers') || '[]');
+      const user = serverSwitchUser;
+      
+      // 更新用户的服务器信息
+      user.serverId = selectedServer.id;
+      user.serverName = selectedServer.name;
+      user.lastLoginAt = new Date().toISOString();
+      user.lastActiveAt = new Date().toISOString();
+      user.loginCount = (user.loginCount || 0) + 1;
+      
+      // TODO: 清除用户的当前赛季游戏数据（部队、装备等）
+      // 注意：不清除历史赛季的继承数据（season_inheritances表）
+      // 目前M2阶段只有基础账号信息，暂时不需要清除
+      // 
+      // 未来实现时需要清除的数据：
+      // - player_cards 表中的当前赛季卡牌
+      // - player_equipment 表中的装备槽
+      // - player_progress 表中的任务进度
+      // - players 表中的资源、声望等（保留基础属性）
+      // 
+      // 不清除的数据：
+      // - users 表（账号基础信息）
+      // - season_inheritances 表（历史赛季继承物，跨服务器）
+      // - season_records 表（历史赛季统计，用于成绩展示）
+      
+      const updatedUsers = users.map(u => u.id === user.id ? user : u);
+      localStorage.setItem('gameUsers', JSON.stringify(updatedUsers));
+      localStorage.setItem('gameUser', JSON.stringify(user));
+      
+      setCurrentStep('game');
+      setError('');
+      setServerSwitchUser(null);
+      setConfirmCount(0);
+    }
+  };
+
+  // 取消切换服务器
+  const handleCancelServerSwitch = () => {
+    setServerSwitchUser(null);
+    setConfirmCount(0);
+    setCurrentStep('serverSelect');
+    setSelectedServer(null);
+    setLoginId('');
+    setLoginPassword('');
+    setError('');
   };
 
   // 退出登录
@@ -524,6 +603,25 @@ const GameAuthSystem = () => {
                     />
                   </div>
                   
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      生日月份 <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      value={birthMonth}
+                      onChange={(e) => setBirthMonth(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">请选择生日月份</option>
+                      {Array.from({ length: 12 }, (_, i) => i + 1).map(month => (
+                        <option key={month} value={month}>
+                          {month}月
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-gray-500 mt-1">用于每月自动发放生日礼物</p>
+                  </div>
+                  
                   {error && (
                     <div className="text-red-600 text-sm">{error}</div>
                   )}
@@ -609,6 +707,109 @@ const GameAuthSystem = () => {
             >
               ← 返回
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* 服务器切换警告 */}
+      {currentStep === 'serverWarning' && serverSwitchUser && (
+        <div className="max-w-2xl mx-auto">
+          <div className="bg-white rounded-lg shadow-md p-6">
+            <div className="text-center mb-6">
+              <div className="text-6xl mb-4">⚠️</div>
+              <h2 className="text-2xl font-bold text-red-900 mb-2">服务器切换警告</h2>
+            </div>
+            
+            <div className="bg-red-50 border-2 border-red-300 rounded-lg p-6 mb-6">
+              <div className="space-y-4 text-left">
+                <div className="flex items-start gap-3">
+                  <span className="text-red-600 text-xl mt-1">🔴</span>
+                  <div>
+                    <p className="font-bold text-red-900 mb-1">当前账号信息：</p>
+                    <p className="text-red-800">
+                      用户ID: <span className="font-mono font-bold">{serverSwitchUser.id}</span>
+                    </p>
+                    <p className="text-red-800">
+                      原服务器: <span className="font-bold">{serverSwitchUser.serverName}</span>
+                    </p>
+                    <p className="text-red-800">
+                      目标服务器: <span className="font-bold">{selectedServer.name}</span>
+                    </p>
+                  </div>
+                </div>
+                
+                <div className="flex items-start gap-3">
+                  <span className="text-red-600 text-xl mt-1">⚡</span>
+                  <div>
+                    <p className="font-bold text-red-900 mb-1">将被清除的数据：</p>
+                    <p className="text-red-800">
+                      切换服务器后，您在原服务器的<span className="font-bold underline">当前赛季</span>游戏数据将被永久清除，包括：
+                    </p>
+                    <ul className="list-disc list-inside text-red-800 mt-2 space-y-1 ml-4">
+                      <li>当前赛季的所有部队卡牌</li>
+                      <li>当前赛季的所有将领卡牌</li>
+                      <li>当前赛季的所有装备和道具</li>
+                      <li>当前赛季的游戏进度和任务</li>
+                      <li>当前赛季的资源（粮草、银两、贡献等）</li>
+                    </ul>
+                  </div>
+                </div>
+                
+                <div className="flex items-start gap-3">
+                  <span className="text-green-600 text-xl mt-1">✅</span>
+                  <div>
+                    <p className="font-bold text-green-900 mb-1">保留的数据：</p>
+                    <ul className="list-disc list-inside text-green-800 mt-2 space-y-1 ml-4">
+                      <li>账号基础信息（用户ID、密码、生日月份等）</li>
+                      <li className="font-bold">历史赛季的继承物（装备卡、成就卡、称号卡、宝物卡等）</li>
+                    </ul>
+                    <p className="text-green-700 text-sm mt-2 italic">
+                      💡 您的赛季继承物是跨服务器的，不会因为切换服务器而丢失
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            {confirmCount === 0 && (
+              <div className="bg-yellow-50 border border-yellow-300 rounded-lg p-4 mb-6">
+                <p className="text-yellow-900 font-medium text-center">
+                  ⚠️ 此操作不可撤销！请仔细考虑后再继续
+                </p>
+              </div>
+            )}
+            
+            {confirmCount === 1 && (
+              <div className="bg-orange-50 border-2 border-orange-400 rounded-lg p-4 mb-6 animate-pulse">
+                <p className="text-orange-900 font-bold text-center text-lg">
+                  🚨 最后确认：您确定要清除所有游戏数据并切换服务器吗？
+                </p>
+              </div>
+            )}
+            
+            <div className="space-y-3">
+              <button
+                onClick={handleConfirmServerSwitch}
+                className={`w-full py-3 px-4 rounded-lg font-bold transition-colors ${
+                  confirmCount === 0 
+                    ? 'bg-yellow-600 text-white hover:bg-yellow-700' 
+                    : 'bg-red-600 text-white hover:bg-red-700 animate-pulse'
+                }`}
+              >
+                {confirmCount === 0 ? '⚠️ 我已了解，继续切换（1/2）' : '🚨 确认清除数据并切换服务器（2/2）'}
+              </button>
+              
+              <button
+                onClick={handleCancelServerSwitch}
+                className="w-full py-3 px-4 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors font-medium"
+              >
+                ← 取消，返回服务器选择
+              </button>
+            </div>
+            
+            <div className="mt-6 text-center text-sm text-gray-500">
+              <p>💡 提示：如果您想在多个服务器游玩，请注册不同的账号</p>
+            </div>
           </div>
         </div>
       )}

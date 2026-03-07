@@ -194,6 +194,27 @@ const UserManager = () => {
               <span className="ml-2">{currentUser.serverName}</span>
             </div>
             <div>
+              <span className="font-medium">生日月份:</span> 
+              <span className="ml-2 px-2 py-1 bg-purple-100 text-purple-800 rounded-full text-xs">
+                {currentUser.birthMonth || '-'}月
+              </span>
+            </div>
+            <div>
+              <span className="font-medium">账号状态:</span> 
+              <span className={`ml-2 px-2 py-1 rounded-full text-xs ${
+                currentUser.status === 'active' ? 'bg-green-100 text-green-800' :
+                currentUser.status === 'inactive' ? 'bg-gray-100 text-gray-800' :
+                'bg-red-100 text-red-800'
+              }`}>
+                {currentUser.status === 'active' ? '活跃' : 
+                 currentUser.status === 'inactive' ? '未激活' : '封禁'}
+              </span>
+            </div>
+            <div>
+              <span className="font-medium">登录次数:</span> 
+              <span className="ml-2 font-bold">{currentUser.loginCount || 1}</span> 次
+            </div>
+            <div>
               <span className="font-medium">地理位置:</span> 
               <span className="ml-2">
                 {currentUser.province || '未知'}
@@ -234,6 +255,15 @@ const UserManager = () => {
                     服务器
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    生日月份
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    账号状态
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    登录次数
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     地理位置
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -268,6 +298,24 @@ const UserManager = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       {user.serverName}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      <span className="px-2 py-1 bg-purple-100 text-purple-800 rounded-full text-xs font-medium">
+                        {user.birthMonth || '-'}月
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                        user.status === 'active' ? 'bg-green-100 text-green-800' :
+                        user.status === 'inactive' ? 'bg-gray-100 text-gray-800' :
+                        'bg-red-100 text-red-800'
+                      }`}>
+                        {user.status === 'active' ? '活跃' : 
+                         user.status === 'inactive' ? '未激活' : '封禁'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      <span className="font-medium">{user.loginCount || 1}</span> 次
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       <div>

@@ -3,6 +3,15 @@
 @tailwind components;
 @tailwind utilities;
 
+/* 自定义字体 - 江湖豪派黑宋 */
+@font-face {
+  font-family: 'JYHPHS';
+  src: url('/fonts/JYHPHS.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
 /* CSS变量定义 */
 :root {
   /* 稀有度颜色 */
@@ -47,7 +56,7 @@
 }
 
 body {
-  font-family: 'Microsoft YaHei', 'PingFang SC', 'Helvetica Neue', Arial, sans-serif;
+  font-family: 'JYHPHS', 'Microsoft YaHei', 'PingFang SC', 'Helvetica Neue', Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   background-color: #f5f5f5;
