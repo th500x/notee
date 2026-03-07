@@ -76,14 +76,13 @@ const TroopCard = ({ troop, skillsMap = {}, showDetails = true }) => {
     if (troop.iconPath) {
       return troop.iconPath;
     }
-    // 否则使用默认路径: /assets/troops/{troop_id}.png
-    return `/assets/troops/${troop.id}.png`;
+    // 否则使用默认路径，使用 BASE_URL 确保路径正确
+    return `${import.meta.env.BASE_URL}assets/troops/${troop.id}.png`;
   };
 
   // 获取卡面背景图片路径
   const getCardBackground = () => {
     const bgPath = `/assets/ui/card_bg_${troop.rarity}.png`;
-    console.log('Card background path:', bgPath, 'for troop:', troop.name, 'rarity:', troop.rarity);
     return bgPath;
   };
 
@@ -100,7 +99,7 @@ const TroopCard = ({ troop, skillsMap = {}, showDetails = true }) => {
           hover:scale-105 hover:shadow-2xl
         `}
         style={{
-          backgroundImage: `url(/05-san-storm/assets/ui/card_bg_${troop.rarity}.png)`,
+          backgroundImage: `url(${getCardBackground()})`,
           backgroundSize: 'cover',
           backgroundPosition: 'center',
           backgroundColor: '#1f2937'

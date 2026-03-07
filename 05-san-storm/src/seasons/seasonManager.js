@@ -4,7 +4,7 @@
  * 负责赛季的加载、切换、数据继承等功能
  */
 
-import { S1_CONFIG } from './s1/config.js';
+import { S1_CONFIG } from './san_1/config.js';
 
 class SeasonManager {
   constructor() {
@@ -133,14 +133,16 @@ class SeasonManager {
 
     try {
       // 动态导入赛季模块
+      // seasonId 's1' -> 'san_1'
       const seasonNumber = seasonId.slice(1);  // 's1' -> '1'
+      const seasonDir = `san_${seasonNumber}`;  // 'san_1'
       
       const modules = await Promise.all([
-        import(`./s${seasonNumber}/map/mapData.js`).catch(() => null),
-        import(`./s${seasonNumber}/map/cities.js`).catch(() => null),
-        import(`./s${seasonNumber}/characters/index.js`).catch(() => null),
-        import(`./s${seasonNumber}/troops/index.js`).catch(() => null),
-        import(`./s${seasonNumber}/events/seasonEvents.js`).catch(() => null),
+        import(`./san_${seasonNumber}/map/mapData.js`).catch(() => null),
+        import(`./san_${seasonNumber}/map/cities.js`).catch(() => null),
+        import(`./san_${seasonNumber}/characters/index.js`).catch(() => null),
+        import(`./san_${seasonNumber}/troops/index.js`).catch(() => null),
+        import(`./san_${seasonNumber}/events/seasonEvents.js`).catch(() => null),
       ]);
 
       return {

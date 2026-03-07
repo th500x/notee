@@ -1,65 +1,88 @@
 {
   "positions": [
     {
-      "id": "position_monarch",
+      "id": "san_1_position_junzhu",
       "name": "君主",
-      "level": 9,
+      "level": 0,
       "icon": "👑",
       "rank": 0,
-      "requirement": "",
+      "rarity": "core",
+      "requirement": "AI",
       "bonuses": {
         "resourceBonus": 1,
         "prestigeBonus": 1
       },
       "permissions": [
-        "战略决策",
+        "镇守首都",
         "资源分配"
       ],
       "color": "#ef4444",
       "description": "势力君主"
     },
     {
-      "id": "position_general",
+      "id": "san_1_position_dajiangjun",
       "name": "大将军",
-      "level": 8,
+      "level": 1,
       "icon": "⭐⭐⭐",
       "rank": 1,
+      "rarity": "core",
       "requirement": "待定",
       "bonuses": {
         "resourceBonus": 0.5,
         "prestigeBonus": 0.5
       },
       "permissions": [
-        "外交建议",
+        "州府太守",
         "军事管理"
       ],
       "color": "#f97316",
       "description": "最高统帅，军权"
     },
     {
-      "id": "position_dasima",
+      "id": "san_1_position_dasima",
       "name": "大司马",
-      "level": 8,
+      "level": 1,
       "icon": "⭐⭐⭐",
       "rank": 2,
+      "rarity": "core",
       "requirement": "待定",
       "bonuses": {
         "resourceBonus": 0.5,
         "prestigeBonus": 0.5
       },
       "permissions": [
-        "外交建议",
+        "州府太守",
         "内政管理"
       ],
       "color": "#f97316",
       "description": "最高统帅，内政"
     },
     {
-      "id": "position_piaoqi",
-      "name": "骠骑将军",
-      "level": 7,
-      "icon": "⭐⭐",
+      "id": "san_1_position_dasikong",
+      "name": "大司空",
+      "level": 1,
+      "icon": "⭐⭐⭐",
       "rank": 3,
+      "rarity": "core",
+      "requirement": "AI",
+      "bonuses": {
+        "resourceBonus": 0.5,
+        "prestigeBonus": 0.5
+      },
+      "permissions": [
+        "镇守副都",
+        "发布事件"
+      ],
+      "color": "#f97316",
+      "description": "势力权臣"
+    },
+    {
+      "id": "san_1_position_piaoqi",
+      "name": "骠骑将军",
+      "level": 2,
+      "icon": "⭐⭐",
+      "rank": 4,
+      "rarity": "core",
       "requirement": "待定",
       "bonuses": {
         "resourceBonus": 0.3,
@@ -67,18 +90,19 @@
         "infantryBonus": 0.15
       },
       "permissions": [
-        "外交建议",
+        "州府太守",
         "任命官职"
       ],
-      "color": "#eab308",
+      "color": "#f97316",
       "description": "重号将军，步兵专精"
     },
     {
-      "id": "position_cheqi",
+      "id": "san_1_position_cheqi",
       "name": "车骑将军",
-      "level": 7,
+      "level": 2,
       "icon": "⭐⭐",
-      "rank": 4,
+      "rank": 5,
+      "rarity": "core",
       "requirement": "待定",
       "bonuses": {
         "resourceBonus": 0.3,
@@ -86,104 +110,95 @@
         "cavalryBonus": 0.15
       },
       "permissions": [
-        "外交建议",
+        "州府太守",
         "任命官职"
       ],
-      "color": "#eab308",
+      "color": "#f97316",
       "description": "重号将军，骑兵专精"
     },
     {
-      "id": "position_sian",
+      "id": "san_1_position_sian",
       "name": "四安将军",
-      "level": 6,
-      "icon": "🏛️",
-      "rank": 5,
-      "requirement": "待定",
-      "bonuses": {
-        "resourceBonus": 0.25,
-        "prestigeBonus": 0.25
-      },
-      "permissions": [
-        "势力决策投票"
-      ],
-      "color": "#10b981",
-      "description": "四方将军，综合型"
-    },
-    {
-      "id": "position_siping",
-      "name": "四平将军",
-      "level": 6,
+      "level": 3,
       "icon": "🏛️",
       "rank": 6,
+      "rarity": "core",
       "requirement": "待定",
       "bonuses": {
         "resourceBonus": 0.25,
         "prestigeBonus": 0.25
       },
       "permissions": [
-        "势力决策投票"
+        "郡县太守",
+        "组织军团"
       ],
-      "color": "#10b981",
+      "color": "#8b5cf6",
       "description": "四方将军，综合型"
     },
     {
-      "id": "position_sizhen",
-      "name": "四镇将军",
-      "level": 6,
+      "id": "san_1_position_siping",
+      "name": "四平将军",
+      "level": 3,
       "icon": "🏛️",
       "rank": 7,
+      "rarity": "core",
       "requirement": "待定",
       "bonuses": {
         "resourceBonus": 0.25,
         "prestigeBonus": 0.25
       },
       "permissions": [
-        "势力决策投票"
+        "郡县太守",
+        "组织军团"
       ],
-      "color": "#10b981",
+      "color": "#8b5cf6",
       "description": "四方将军，综合型"
     },
     {
-      "id": "position_sizheng",
-      "name": "四征将军",
-      "level": 6,
+      "id": "san_1_position_sizhen",
+      "name": "四镇将军",
+      "level": 3,
       "icon": "🏛️",
       "rank": 8,
+      "rarity": "core",
       "requirement": "待定",
       "bonuses": {
         "resourceBonus": 0.25,
         "prestigeBonus": 0.25
       },
       "permissions": [
-        "势力决策投票"
+        "郡县太守",
+        "组织军团"
       ],
-      "color": "#10b981",
+      "color": "#8b5cf6",
       "description": "四方将军，综合型"
     },
     {
-      "id": "position_taolu",
-      "name": "讨虏将军",
-      "level": 5,
-      "icon": "⚔️",
+      "id": "san_1_position_sizheng",
+      "name": "四征将军",
+      "level": 3,
+      "icon": "🏛️",
       "rank": 9,
+      "rarity": "core",
       "requirement": "待定",
       "bonuses": {
-        "resourceBonus": 0.2,
-        "prestigeBonus": 0.2,
-        "infantryBonus": 0.1
+        "resourceBonus": 0.25,
+        "prestigeBonus": 0.25
       },
       "permissions": [
-        "势力决策投票"
+        "郡县太守",
+        "组织军团"
       ],
-      "color": "#3b82f6",
-      "description": "征伐将军，攻击型"
+      "color": "#8b5cf6",
+      "description": "四方将军，综合型"
     },
     {
-      "id": "position_polu",
-      "name": "破虏将军",
-      "level": 5,
+      "id": "san_1_position_taolu",
+      "name": "讨虏将军",
+      "level": 4,
       "icon": "⚔️",
       "rank": 10,
+      "rarity": "legendary",
       "requirement": "待定",
       "bonuses": {
         "resourceBonus": 0.2,
@@ -191,17 +206,18 @@
         "infantryBonus": 0.1
       },
       "permissions": [
-        "势力决策投票"
+        "郡县太守"
       ],
       "color": "#3b82f6",
       "description": "征伐将军，攻击型"
     },
     {
-      "id": "position_dangkou",
-      "name": "荡寇将军",
-      "level": 5,
+      "id": "san_1_position_polu",
+      "name": "破虏将军",
+      "level": 4,
       "icon": "⚔️",
       "rank": 11,
+      "rarity": "legendary",
       "requirement": "待定",
       "bonuses": {
         "resourceBonus": 0.2,
@@ -209,17 +225,18 @@
         "infantryBonus": 0.1
       },
       "permissions": [
-        "势力决策投票"
+        "郡县太守"
       ],
       "color": "#3b82f6",
       "description": "征伐将军，攻击型"
     },
     {
-      "id": "position_pinglu",
-      "name": "平虏将军",
-      "level": 5,
+      "id": "san_1_position_dangkou",
+      "name": "荡寇将军",
+      "level": 4,
       "icon": "⚔️",
       "rank": 12,
+      "rarity": "legendary",
       "requirement": "待定",
       "bonuses": {
         "resourceBonus": 0.2,
@@ -227,17 +244,18 @@
         "infantryBonus": 0.1
       },
       "permissions": [
-        "势力决策投票"
+        "郡县太守"
       ],
       "color": "#3b82f6",
       "description": "征伐将军，攻击型"
     },
     {
-      "id": "position_zhenglu",
-      "name": "征虏将军",
-      "level": 5,
+      "id": "san_1_position_pinglu",
+      "name": "平虏将军",
+      "level": 4,
       "icon": "⚔️",
       "rank": 13,
+      "rarity": "legendary",
       "requirement": "待定",
       "bonuses": {
         "resourceBonus": 0.2,
@@ -245,17 +263,18 @@
         "infantryBonus": 0.1
       },
       "permissions": [
-        "势力决策投票"
+        "郡县太守"
       ],
       "color": "#3b82f6",
       "description": "征伐将军，攻击型"
     },
     {
-      "id": "position_jiaokou",
-      "name": "剿寇将军",
-      "level": 5,
+      "id": "san_1_position_zhenglu",
+      "name": "征虏将军",
+      "level": 4,
       "icon": "⚔️",
       "rank": 14,
+      "rarity": "legendary",
       "requirement": "待定",
       "bonuses": {
         "resourceBonus": 0.2,
@@ -263,36 +282,37 @@
         "infantryBonus": 0.1
       },
       "permissions": [
-        "势力决策投票"
+        "郡县太守"
       ],
       "color": "#3b82f6",
       "description": "征伐将军，攻击型"
     },
     {
-      "id": "position_fenwei",
-      "name": "奋威将军",
-      "level": 5,
+      "id": "san_1_position_jiaokou",
+      "name": "剿寇将军",
+      "level": 4,
       "icon": "⚔️",
       "rank": 15,
+      "rarity": "legendary",
       "requirement": "待定",
       "bonuses": {
         "resourceBonus": 0.2,
         "prestigeBonus": 0.2,
-        "infantryBonus": 0.05,
-        "cavalryBonus": 0.05
+        "infantryBonus": 0.1
       },
       "permissions": [
-        "势力决策投票"
+        "郡县太守"
       ],
       "color": "#3b82f6",
-      "description": "勇武将军，攻防型"
+      "description": "征伐将军，攻击型"
     },
     {
-      "id": "position_xiaoqi",
-      "name": "骁骑将军",
-      "level": 5,
+      "id": "san_1_position_fenwei",
+      "name": "奋威将军",
+      "level": 4,
       "icon": "⚔️",
       "rank": 16,
+      "rarity": "legendary",
       "requirement": "待定",
       "bonuses": {
         "resourceBonus": 0.2,
@@ -301,17 +321,18 @@
         "cavalryBonus": 0.05
       },
       "permissions": [
-        "势力决策投票"
+        "郡县太守"
       ],
       "color": "#3b82f6",
       "description": "勇武将军，攻防型"
     },
     {
-      "id": "position_yangwu",
-      "name": "扬武将军",
-      "level": 5,
+      "id": "san_1_position_xiaoqi",
+      "name": "骁骑将军",
+      "level": 4,
       "icon": "⚔️",
       "rank": 17,
+      "rarity": "legendary",
       "requirement": "待定",
       "bonuses": {
         "resourceBonus": 0.2,
@@ -320,17 +341,18 @@
         "cavalryBonus": 0.05
       },
       "permissions": [
-        "势力决策投票"
+        "郡县太守"
       ],
       "color": "#3b82f6",
       "description": "勇武将军，攻防型"
     },
     {
-      "id": "position_jianwu",
-      "name": "建武将军",
-      "level": 5,
+      "id": "san_1_position_yangwu",
+      "name": "扬武将军",
+      "level": 4,
       "icon": "⚔️",
       "rank": 18,
+      "rarity": "legendary",
       "requirement": "待定",
       "bonuses": {
         "resourceBonus": 0.2,
@@ -339,17 +361,18 @@
         "cavalryBonus": 0.05
       },
       "permissions": [
-        "势力决策投票"
+        "郡县太守"
       ],
       "color": "#3b82f6",
       "description": "勇武将军，攻防型"
     },
     {
-      "id": "position_liewu",
-      "name": "烈武将军",
-      "level": 5,
+      "id": "san_1_position_jianwu",
+      "name": "建武将军",
+      "level": 4,
       "icon": "⚔️",
       "rank": 19,
+      "rarity": "legendary",
       "requirement": "待定",
       "bonuses": {
         "resourceBonus": 0.2,
@@ -358,17 +381,18 @@
         "cavalryBonus": 0.05
       },
       "permissions": [
-        "势力决策投票"
+        "郡县太守"
       ],
       "color": "#3b82f6",
       "description": "勇武将军，攻防型"
     },
     {
-      "id": "position_ruiwu",
-      "name": "锐武将军",
-      "level": 5,
+      "id": "san_1_position_liewu",
+      "name": "烈武将军",
+      "level": 4,
       "icon": "⚔️",
       "rank": 20,
+      "rarity": "legendary",
       "requirement": "待定",
       "bonuses": {
         "resourceBonus": 0.2,
@@ -377,35 +401,38 @@
         "cavalryBonus": 0.05
       },
       "permissions": [
-        "势力决策投票"
+        "郡县太守"
       ],
       "color": "#3b82f6",
       "description": "勇武将军，攻防型"
     },
     {
-      "id": "position_zhenjun",
-      "name": "镇军将军",
-      "level": 5,
+      "id": "san_1_position_ruiwu",
+      "name": "锐武将军",
+      "level": 4,
       "icon": "⚔️",
       "rank": 21,
+      "rarity": "legendary",
       "requirement": "待定",
       "bonuses": {
         "resourceBonus": 0.2,
         "prestigeBonus": 0.2,
-        "archerBonus": 0.1
+        "infantryBonus": 0.05,
+        "cavalryBonus": 0.05
       },
       "permissions": [
-        "势力决策投票"
+        "郡县太守"
       ],
       "color": "#3b82f6",
-      "description": "镇抚将军，防守型"
+      "description": "勇武将军，攻防型"
     },
     {
-      "id": "position_anhan",
-      "name": "安汉将军",
-      "level": 5,
+      "id": "san_1_position_zhenjun",
+      "name": "镇军将军",
+      "level": 4,
       "icon": "⚔️",
       "rank": 22,
+      "rarity": "legendary",
       "requirement": "待定",
       "bonuses": {
         "resourceBonus": 0.2,
@@ -413,17 +440,18 @@
         "archerBonus": 0.1
       },
       "permissions": [
-        "势力决策投票"
+        "郡县太守"
       ],
       "color": "#3b82f6",
       "description": "镇抚将军，防守型"
     },
     {
-      "id": "position_fubian",
-      "name": "抚边将军",
-      "level": 5,
+      "id": "san_1_position_anhan",
+      "name": "安汉将军",
+      "level": 4,
       "icon": "⚔️",
       "rank": 23,
+      "rarity": "legendary",
       "requirement": "待定",
       "bonuses": {
         "resourceBonus": 0.2,
@@ -431,17 +459,18 @@
         "archerBonus": 0.1
       },
       "permissions": [
-        "势力决策投票"
+        "郡县太守"
       ],
       "color": "#3b82f6",
       "description": "镇抚将军，防守型"
     },
     {
-      "id": "position_ningshuo",
-      "name": "宁朔将军",
-      "level": 5,
+      "id": "san_1_position_fubian",
+      "name": "抚边将军",
+      "level": 4,
       "icon": "⚔️",
       "rank": 24,
+      "rarity": "legendary",
       "requirement": "待定",
       "bonuses": {
         "resourceBonus": 0.2,
@@ -449,17 +478,18 @@
         "archerBonus": 0.1
       },
       "permissions": [
-        "势力决策投票"
+        "郡县太守"
       ],
       "color": "#3b82f6",
       "description": "镇抚将军，防守型"
     },
     {
-      "id": "position_zhendong",
-      "name": "镇东将军",
-      "level": 5,
+      "id": "san_1_position_ningshuo",
+      "name": "宁朔将军",
+      "level": 4,
       "icon": "⚔️",
       "rank": 25,
+      "rarity": "legendary",
       "requirement": "待定",
       "bonuses": {
         "resourceBonus": 0.2,
@@ -467,17 +497,18 @@
         "archerBonus": 0.1
       },
       "permissions": [
-        "势力决策投票"
+        "郡县太守"
       ],
       "color": "#3b82f6",
       "description": "镇抚将军，防守型"
     },
     {
-      "id": "position_anguo",
-      "name": "安国将军",
-      "level": 5,
+      "id": "san_1_position_zhendong",
+      "name": "镇东将军",
+      "level": 4,
       "icon": "⚔️",
       "rank": 26,
+      "rarity": "legendary",
       "requirement": "待定",
       "bonuses": {
         "resourceBonus": 0.2,
@@ -485,17 +516,37 @@
         "archerBonus": 0.1
       },
       "permissions": [
-        "势力决策投票"
+        "郡县太守"
       ],
       "color": "#3b82f6",
       "description": "镇抚将军，防守型"
     },
     {
-      "id": "position_wuguan",
-      "name": "五官中郎将",
+      "id": "san_1_position_anguo",
+      "name": "安国将军",
       "level": 4,
-      "icon": "🎖️",
+      "icon": "⚔️",
       "rank": 27,
+      "rarity": "legendary",
+      "requirement": "待定",
+      "bonuses": {
+        "resourceBonus": 0.2,
+        "prestigeBonus": 0.2,
+        "archerBonus": 0.1
+      },
+      "permissions": [
+        "郡县太守"
+      ],
+      "color": "#3b82f6",
+      "description": "镇抚将军，防守型"
+    },
+    {
+      "id": "san_1_position_wuguan_zhonglang",
+      "name": "五官中郎将",
+      "level": 5,
+      "icon": "🎖️",
+      "rank": 28,
+      "rarity": "epic",
       "requirement": "待定",
       "bonuses": {
         "resourceBonus": 0.15,
@@ -504,15 +555,16 @@
       "permissions": [
         "无"
       ],
-      "color": "#8b5cf6",
+      "color": "#10b981",
       "description": "中郎将，综合型"
     },
     {
-      "id": "position_huben",
+      "id": "san_1_position_huben_zhonglang",
       "name": "虎贲中郎将",
-      "level": 4,
+      "level": 5,
       "icon": "🎖️",
-      "rank": 28,
+      "rank": 29,
+      "rarity": "epic",
       "requirement": "待定",
       "bonuses": {
         "resourceBonus": 0.15,
@@ -522,15 +574,16 @@
       "permissions": [
         "无"
       ],
-      "color": "#8b5cf6",
+      "color": "#10b981",
       "description": "中郎将，步兵专精"
     },
     {
-      "id": "position_yulin",
+      "id": "san_1_position_yulin_zhonglang",
       "name": "羽林中郎将",
-      "level": 4,
+      "level": 5,
       "icon": "🎖️",
-      "rank": 29,
+      "rank": 30,
+      "rarity": "epic",
       "requirement": "待定",
       "bonuses": {
         "resourceBonus": 0.15,
@@ -540,15 +593,16 @@
       "permissions": [
         "无"
       ],
-      "color": "#8b5cf6",
+      "color": "#10b981",
       "description": "中郎将，骑兵专精"
     },
     {
-      "id": "position_bubing_xiaowei",
+      "id": "san_1_position_bubing_xiaowei",
       "name": "步兵校尉",
-      "level": 3,
+      "level": 6,
       "icon": "▲",
-      "rank": 30,
+      "rank": 31,
+      "rarity": "rare",
       "requirement": "待定",
       "bonuses": {
         "resourceBonus": 0.1,
@@ -562,11 +616,12 @@
       "description": "校尉，步兵专精"
     },
     {
-      "id": "position_qibing_xiaowei",
+      "id": "san_1_position_qibing_xiaowei",
       "name": "骑兵校尉",
-      "level": 3,
+      "level": 6,
       "icon": "▲",
-      "rank": 31,
+      "rank": 32,
+      "rarity": "rare",
       "requirement": "待定",
       "bonuses": {
         "resourceBonus": 0.1,
@@ -580,11 +635,12 @@
       "description": "校尉，骑兵专精"
     },
     {
-      "id": "position_bubing_duwei",
+      "id": "san_1_position_bubing_duwei",
       "name": "步兵都尉",
-      "level": 2,
+      "level": 7,
       "icon": "▲",
-      "rank": 32,
+      "rank": 33,
+      "rarity": "rare",
       "requirement": "待定",
       "bonuses": {
         "resourceBonus": 0.05,
@@ -598,11 +654,12 @@
       "description": "都尉，步兵专精"
     },
     {
-      "id": "position_qibing_duwei",
+      "id": "san_1_position_qibing_duwei",
       "name": "骑兵都尉",
-      "level": 2,
+      "level": 7,
       "icon": "▲",
-      "rank": 33,
+      "rank": 34,
+      "rarity": "rare",
       "requirement": "待定",
       "bonuses": {
         "resourceBonus": 0.05,
@@ -616,11 +673,12 @@
       "description": "都尉，骑兵专精"
     },
     {
-      "id": "position_junhou",
+      "id": "san_1_position_junhou",
       "name": "军候",
-      "level": 1,
+      "level": 8,
       "icon": "●",
-      "rank": 34,
+      "rank": 35,
+      "rarity": "common",
       "requirement": "初始官职",
       "bonuses": {},
       "permissions": [

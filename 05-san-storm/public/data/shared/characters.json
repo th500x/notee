@@ -1,7 +1,7 @@
 {
   "characters": [
     {
-      "id": "char_san_1101",
+      "id": "san_1_char_1001",
       "name": "刘备",
       "courtesyName": "玄德",
       "rarity": "core",
@@ -37,7 +37,7 @@
       "description": "昭烈仁主。字玄德，184 年讨黄巾起兵，终建蜀汉，夷陵兵败崩于白帝城。"
     },
     {
-      "id": "char_san_1102",
+      "id": "san_1_char_1002",
       "name": "关羽",
       "courtesyName": "云长",
       "rarity": "legendary",
@@ -74,7 +74,7 @@
       "description": "忠义武圣。字云长，随刘备起兵，威震华夏，后失荆州，为孙权擒杀。"
     },
     {
-      "id": "char_san_1103",
+      "id": "san_1_char_1003",
       "name": "张飞",
       "courtesyName": "益德",
       "rarity": "legendary",
@@ -92,8 +92,8 @@
       "intelligence": 7,
       "politics": 6.7,
       "charisma": 7.1,
-      "trait": "brave",
-      "traitModifier": 5,
+      "trait": "reckless",
+      "traitModifier": 8,
       "morale": 50,
       "skill_1": "skill_1_4002",
       "skill_2": "skill_2_4012",
@@ -111,7 +111,7 @@
       "description": "万人敌将。字益德，从刘备征战，勇冠三军，后被部将范强、张达刺杀。"
     },
     {
-      "id": "char_san_1104",
+      "id": "san_1_char_1004",
       "name": "简雍",
       "courtesyName": "宪和",
       "rarity": "epic",
@@ -146,7 +146,7 @@
       "description": "昭德辩士。字宪和，早年追随刘备，常为说客，官至昭德将军善终。"
     },
     {
-      "id": "char_san_1105",
+      "id": "san_1_char_1005",
       "name": "苏双",
       "courtesyName": "刘",
       "rarity": "rare",
@@ -179,7 +179,7 @@
       "description": "演义衍生人物"
     },
     {
-      "id": "char_san_1106",
+      "id": "san_1_char_1006",
       "name": "张世平",
       "courtesyName": "刘",
       "rarity": "rare",
@@ -212,7 +212,7 @@
       "description": "演义衍生人物"
     },
     {
-      "id": "char_san_1107",
+      "id": "san_1_char_1007",
       "name": "李立",
       "courtesyName": "刘",
       "rarity": "common",
@@ -245,7 +245,7 @@
       "description": "演义衍生人物"
     },
     {
-      "id": "char_san_1108",
+      "id": "san_1_char_1008",
       "name": "郭常",
       "courtesyName": "刘",
       "rarity": "common",
@@ -278,7 +278,7 @@
       "description": "演义衍生人物"
     },
     {
-      "id": "char_san_1109",
+      "id": "san_1_char_1009",
       "name": "刘辟",
       "courtesyName": "刘",
       "rarity": "common",
@@ -311,7 +311,7 @@
       "description": "演义衍生人物"
     },
     {
-      "id": "char_san_1110",
+      "id": "san_1_char_1010",
       "name": "龚都",
       "courtesyName": "刘",
       "rarity": "common",
@@ -344,7 +344,7 @@
       "description": "演义衍生人物"
     },
     {
-      "id": "char_san_1201",
+      "id": "san_1_char_2001",
       "name": "曹操",
       "courtesyName": "孟德",
       "rarity": "core",
@@ -380,7 +380,7 @@
       "description": "魏武雄才。字孟德。184 年讨黄巾起家，迎献帝并平定北方，封魏王，身后追尊为魏武帝。"
     },
     {
-      "id": "char_san_1202",
+      "id": "san_1_char_2002",
       "name": "夏侯惇",
       "courtesyName": "元让",
       "rarity": "legendary",
@@ -414,10 +414,10 @@
         "曹氏"
       ],
       "biography": "《夏侯惇传》",
-      "description": "元让忠勇。字元让。184 年从操起兵，其后官至大将军，魏文帝时病逝，谥忠侯。"
+      "description": "元让忠勇。字元让。184 年随操起兵，其后官至大将军，魏文帝时病逝，谥忠侯。"
     },
     {
-      "id": "char_san_1203",
+      "id": "san_1_char_2003",
       "name": "夏侯渊",
       "courtesyName": "妙才",
       "rarity": "legendary",
@@ -454,7 +454,7 @@
       "description": "妙才骁锐。字妙才。184 年随操征伐，镇守关中凉州，定军山为黄忠斩杀，谥愍侯。"
     },
     {
-      "id": "char_san_1204",
+      "id": "san_1_char_2004",
       "name": "曹仁",
       "courtesyName": "子孝",
       "rarity": "epic",
@@ -486,10 +486,10 @@
         "曹氏"
       ],
       "biography": "《曹仁传》",
-      "description": "子孝持重。字子孝。184 年从操举兵，长于守御，后官至大司马，魏明帝时病逝，谥忠侯。"
+      "description": "子孝持重。字子孝。184 年随操举兵，长于守御，后官至大司马，魏明帝时病逝，谥忠侯。"
     },
     {
-      "id": "char_san_1205",
+      "id": "san_1_char_2005",
       "name": "曹洪",
       "courtesyName": "子廉",
       "rarity": "epic",
@@ -521,10 +521,10 @@
         "曹氏"
       ],
       "biography": "《曹洪传》",
-      "description": "子廉救主。字子廉。184 年从操起兵，数次救主危难，官至骠骑将军，明帝时卒，谥恭侯。"
+      "description": "子廉救主。字子廉。184 年随操起兵，数次救主危难，官至骠骑将军，明帝时卒，谥恭侯。"
     },
     {
-      "id": "char_san_1206",
+      "id": "san_1_char_2006",
       "name": "曹纯",
       "courtesyName": "子和",
       "rarity": "epic",
@@ -559,7 +559,7 @@
       "description": "虎骑精锐。字子和。184 年随操，督虎豹骑，北征乌桓南破荆州，建安末年病逝，谥威侯。"
     },
     {
-      "id": "char_san_1207",
+      "id": "san_1_char_2007",
       "name": "乐进",
       "courtesyName": "曹",
       "rarity": "rare",
@@ -592,10 +592,10 @@
         "五子"
       ],
       "biography": "《乐进传》",
-      "description": "文谦骁果。字文谦。184 年投曹操，每战先登，战功卓著，建安末病逝，谥威侯。"
+      "description": "文谦骁果。字文谦。184 年归操，每战先登，战功卓著，建安末病逝，谥威侯。"
     },
     {
-      "id": "char_san_1208",
+      "id": "san_1_char_2008",
       "name": "于禁",
       "courtesyName": "曹",
       "rarity": "rare",
@@ -628,10 +628,10 @@
         "五子"
       ],
       "biography": "《于禁传》",
-      "description": "文则严整。字文则。184 年归曹操，治军严明，后降关羽，归魏后惭恨而死，谥厉侯。"
+      "description": "文则严整。字文则。184 年归操，治军严明，后降关羽，归魏惭恨而死，谥厉侯。"
     },
     {
-      "id": "char_san_1209",
+      "id": "san_1_char_2009",
       "name": "吕虔",
       "courtesyName": "曹",
       "rarity": "common",
@@ -661,10 +661,10 @@
       "troopAffinity": "",
       "bonds": [],
       "biography": "《三国志》",
-      "description": "子恪镇抚。字子恪。184 年平泰山之乱归操，镇守青徐，封亭侯，治绩卓著，后善终。"
+      "description": "子恪镇抚。字子恪。184 年平泰山之乱归操，镇守青徐，封亭侯，治绩卓著善终。"
     },
     {
-      "id": "char_san_1210",
+      "id": "san_1_char_2010",
       "name": "卫兹",
       "courtesyName": "曹",
       "rarity": "common",
@@ -697,7 +697,7 @@
       "description": "子许倾资。字子许。184 年后倾资助操起兵，讨董战于荥阳，力战阵亡，操深痛惜。"
     },
     {
-      "id": "char_san_1211",
+      "id": "san_1_char_2011",
       "name": "丁斐",
       "courtesyName": "曹",
       "rarity": "common",
@@ -727,10 +727,10 @@
       "troopAffinity": "",
       "bonds": [],
       "biography": "《三国志》",
-      "description": "文侯从龙。字文侯。184 年随操，典掌内外，曾救操脱困，以功终老，魏人追念其功。"
+      "description": "文侯从龙。字文侯。184 年随操，典掌内外，救操脱困，以功终老，魏人追念其功。"
     },
     {
-      "id": "char_san_1212",
+      "id": "san_1_char_2012",
       "name": "裴潜",
       "courtesyName": "曹",
       "rarity": "common",
@@ -763,7 +763,7 @@
       "description": "文行清恪。字文行。184 年避乱荆州，后归曹魏，镇守北疆，官至光禄大夫，善终。"
     },
     {
-      "id": "char_san_1301",
+      "id": "san_1_char_3001",
       "name": "孙坚",
       "courtesyName": "文台",
       "rarity": "core",
@@ -792,13 +792,14 @@
       ],
       "troopAffinity": "infantry:8",
       "bonds": [
-        "江东"
+        "江东",
+        "孙氏"
       ],
       "biography": "《孙破虏传》",
-      "description": "江东猛虎。字文台。184 年讨黄巾平乱，讨董屡破董卓军，征讨刘表时被黄祖部曲射杀。"
+      "description": "江东猛虎。字文台。184 年讨黄巾平乱，讨董屡破董卓军，征刘表被黄祖部曲射杀。"
     },
     {
-      "id": "char_san_1302",
+      "id": "san_1_char_3002",
       "name": "太史慈",
       "courtesyName": "子义",
       "rarity": "legendary",
@@ -825,50 +826,16 @@
         "skill_1_4001",
         "skill_2_4008"
       ],
-      "troopAffinity": "archer:5",
+      "troopAffinity": "archer:8",
       "bonds": [
-        "江东"
+        "江东",
+        "神射"
       ],
       "biography": "《太史慈传》",
       "description": "神亭骁将。字子义。先归刘繇，后降孙策孙权，镇守建昌抚山越，壮年病逝。"
     },
     {
-      "id": "char_san_1303",
-      "name": "黄盖",
-      "courtesyName": "公覆",
-      "rarity": "epic",
-      "faction": "孙坚",
-      "season": "S1",
-      "birthYear": 150,
-      "deathYear": 215,
-      "age": 34,
-      "stage": "peak",
-      "characterType": "military",
-      "luck": 8.5,
-      "courage": 9.4,
-      "command": 7.6,
-      "combat": 7.6,
-      "intelligence": 6.4,
-      "politics": 6.7,
-      "charisma": 6.4,
-      "trait": "brave",
-      "traitModifier": 5,
-      "morale": 50,
-      "skill_1": "skill_1_3002",
-      "skill_2": "skill_2_3004",
-      "skills": [
-        "skill_1_3002",
-        "skill_2_3004"
-      ],
-      "troopAffinity": "",
-      "bonds": [
-        "江东"
-      ],
-      "biography": "《黄盖传》",
-      "description": "江表虎臣。字公覆。从孙坚起兵，历仕三主，赤壁献火攻奇计，官至偏将军善终。"
-    },
-    {
-      "id": "char_san_1304",
+      "id": "san_1_char_3003",
       "name": "程普",
       "courtesyName": "德谋",
       "rarity": "epic",
@@ -903,7 +870,42 @@
       "description": "三世宿将。字德谋。随孙坚讨黄巾伐董卓，辅佐孙策、孙权，为江东元勋终老。"
     },
     {
-      "id": "char_san_1305",
+      "id": "san_1_char_3004",
+      "name": "黄盖",
+      "courtesyName": "公覆",
+      "rarity": "epic",
+      "faction": "孙坚",
+      "season": "S1",
+      "birthYear": 150,
+      "deathYear": 215,
+      "age": 34,
+      "stage": "peak",
+      "characterType": "military",
+      "luck": 8.5,
+      "courage": 9.4,
+      "command": 7.6,
+      "combat": 7.6,
+      "intelligence": 6.4,
+      "politics": 6.7,
+      "charisma": 6.4,
+      "trait": "brave",
+      "traitModifier": 5,
+      "morale": 50,
+      "skill_1": "skill_1_3002",
+      "skill_2": "skill_2_3004",
+      "skills": [
+        "skill_1_3002",
+        "skill_2_3004"
+      ],
+      "troopAffinity": "",
+      "bonds": [
+        "江东"
+      ],
+      "biography": "《黄盖传》",
+      "description": "江表虎臣。字公覆。从孙坚起兵，历仕三主，赤壁献火攻奇计，官至偏将军善终。"
+    },
+    {
+      "id": "san_1_char_3005",
       "name": "韩当",
       "courtesyName": "义公",
       "rarity": "epic",
@@ -938,7 +940,7 @@
       "description": "勤苦虎臣。字义公。追随孙坚征伐四方，辅佐孙氏三代，官至昭武将军病逝。"
     },
     {
-      "id": "char_san_1306",
+      "id": "san_1_char_3006",
       "name": "朱治",
       "courtesyName": "君理",
       "rarity": "epic",
@@ -973,7 +975,7 @@
       "description": "安国元勋。字君理。从孙坚孙策平乱，辅定江东，镇守吴郡，封毗陵侯善终。"
     },
     {
-      "id": "char_san_1307",
+      "id": "san_1_char_3007",
       "name": "孙贲",
       "courtesyName": "孙",
       "rarity": "rare",
@@ -1006,7 +1008,7 @@
       "description": "宗室骁将。字伯阳。孙坚之侄，随坚讨董卓，后辅孙策，领豫章太守封侯。"
     },
     {
-      "id": "char_san_1308",
+      "id": "san_1_char_3008",
       "name": "祖茂",
       "courtesyName": "孙",
       "rarity": "rare",
@@ -1039,7 +1041,7 @@
       "description": "忠勇护主。字大荣。孙坚部将，讨董时为救主引开敌军，最终力战阵亡。"
     },
     {
-      "id": "char_san_1309",
+      "id": "san_1_char_3009",
       "name": "吴景",
       "courtesyName": "孙",
       "rarity": "rare",
@@ -1072,7 +1074,7 @@
       "description": "丹阳镇将。无字号。孙坚妻弟，随坚征伐，领丹阳太守，辅佐孙策平定江东。"
     },
     {
-      "id": "char_san_1310",
+      "id": "san_1_char_3010",
       "name": "徐琨",
       "courtesyName": "孙",
       "rarity": "rare",
@@ -1105,7 +1107,7 @@
       "description": "吴地勋贵。无字号。孙坚姻亲，随坚讨黄巾，从孙策平江东，后征战中阵亡。"
     },
     {
-      "id": "char_san_1401",
+      "id": "san_1_char_4001",
       "name": "袁绍",
       "courtesyName": "本初",
       "rarity": "core",
@@ -1141,7 +1143,7 @@
       "description": "河北霸主。字本初。189 年起兵讨董，据四州称雄，官渡大败，不久忧病而死。"
     },
     {
-      "id": "char_san_1402",
+      "id": "san_1_char_4002",
       "name": "张郃",
       "courtesyName": "儁乂",
       "rarity": "legendary",
@@ -1174,10 +1176,10 @@
         "五子"
       ],
       "biography": "《张郃传》",
-      "description": "巧变良将。字儁乂。初投袁绍，官渡归曹，屡立战功，木门道中伏身死。"
+      "description": "巧变良将。字儁乂。初投袁绍，官渡归操，屡立战功，木门道中伏身死。"
     },
     {
-      "id": "char_san_1403",
+      "id": "san_1_char_4003",
       "name": "袁术",
       "courtesyName": "公路",
       "rarity": "epic",
@@ -1213,7 +1215,7 @@
       "description": "淮南僭主。字公路。袁绍堂弟，据淮南称帝，众叛亲离，兵败呕血而亡。"
     },
     {
-      "id": "char_san_1404",
+      "id": "san_1_char_4004",
       "name": "袁逢",
       "courtesyName": "逢",
       "rarity": "epic",
@@ -1249,7 +1251,7 @@
       "description": "三公重臣。字周阳。袁绍、袁术生父，官至司空，汉末名门重臣，终老于位。"
     },
     {
-      "id": "char_san_1405",
+      "id": "san_1_char_4005",
       "name": "袁隗",
       "courtesyName": "隗",
       "rarity": "epic",
@@ -1285,7 +1287,7 @@
       "description": "太傅辅政。字次阳。袁绍叔父，官至太傅，因袁绍反董，被董卓灭族。"
     },
     {
-      "id": "char_san_1406",
+      "id": "san_1_char_4006",
       "name": "袁基",
       "courtesyName": "基",
       "rarity": "epic",
@@ -1321,7 +1323,7 @@
       "description": "汝南清流。字士纪。袁逢长子，身居显职，后因袁绍袁术反，被董卓诛杀。"
     },
     {
-      "id": "char_san_1407",
+      "id": "san_1_char_4007",
       "name": "颜良",
       "courtesyName": "良",
       "rarity": "epic",
@@ -1356,7 +1358,7 @@
       "description": "河北骁勇。无字号。袁绍麾下大将，官渡之战，被关羽临阵斩杀。"
     },
     {
-      "id": "char_san_1408",
+      "id": "san_1_char_4008",
       "name": "文丑",
       "courtesyName": "丑",
       "rarity": "epic",
@@ -1391,7 +1393,7 @@
       "description": "河北猛将。无字号。袁绍帐下骁将，延津之战，兵败遭曹军击杀。"
     },
     {
-      "id": "char_san_1409",
+      "id": "san_1_char_4009",
       "name": "沮授",
       "courtesyName": "袁",
       "rarity": "rare",
@@ -1426,7 +1428,7 @@
       "description": "袁绍智囊"
     },
     {
-      "id": "char_san_1410",
+      "id": "san_1_char_4010",
       "name": "田丰",
       "courtesyName": "袁",
       "rarity": "rare",
@@ -1461,7 +1463,7 @@
       "description": "袁绍智囊"
     },
     {
-      "id": "char_san_1411",
+      "id": "san_1_char_4011",
       "name": "审配",
       "courtesyName": "袁",
       "rarity": "rare",
@@ -1496,7 +1498,7 @@
       "description": "袁绍智囊"
     },
     {
-      "id": "char_san_1412",
+      "id": "san_1_char_4012",
       "name": "逢纪",
       "courtesyName": "袁",
       "rarity": "rare",
@@ -1531,7 +1533,7 @@
       "description": "袁绍智囊"
     },
     {
-      "id": "char_san_1413",
+      "id": "san_1_char_4013",
       "name": "郭图",
       "courtesyName": "袁",
       "rarity": "common",
@@ -1564,7 +1566,7 @@
       "description": "袁绍谋士"
     },
     {
-      "id": "char_san_1414",
+      "id": "san_1_char_4014",
       "name": "许攸",
       "courtesyName": "袁",
       "rarity": "common",
@@ -1597,7 +1599,7 @@
       "description": "袁绍谋士"
     },
     {
-      "id": "char_san_1415",
+      "id": "san_1_char_4015",
       "name": "辛评",
       "courtesyName": "袁",
       "rarity": "common",
@@ -1630,7 +1632,7 @@
       "description": "袁绍谋士"
     },
     {
-      "id": "char_san_1416",
+      "id": "san_1_char_4016",
       "name": "辛毗",
       "courtesyName": "袁",
       "rarity": "common",
@@ -1663,7 +1665,7 @@
       "description": "袁绍谋士"
     },
     {
-      "id": "char_san_1501",
+      "id": "san_1_char_5001",
       "name": "董卓",
       "courtesyName": "仲颖",
       "rarity": "core",
@@ -1698,7 +1700,7 @@
       "description": "西凉暴权。字仲颖，189 年入京废帝专权，祸乱朝纲，终为吕布刺杀身亡。"
     },
     {
-      "id": "char_san_1502",
+      "id": "san_1_char_5002",
       "name": "徐荣",
       "courtesyName": "子节",
       "rarity": "legendary",
@@ -1727,13 +1729,14 @@
       ],
       "troopAffinity": "cavalry:5",
       "bonds": [
+        "酒池",
         "无双"
       ],
       "biography": "《董卓传》",
       "description": "西凉骁锐。字子节，董卓麾下最强嫡系，曾破曹操、孙坚，后因内乱，同僚倒戈致兵败战死。"
     },
     {
-      "id": "char_san_1503",
+      "id": "san_1_char_5003",
       "name": "华雄",
       "courtesyName": "雄",
       "rarity": "epic",
@@ -1768,7 +1771,7 @@
       "description": "关西悍将。无字号，董卓部将，镇守关隘，与孙坚交战，兵败被斩。"
     },
     {
-      "id": "char_san_1504",
+      "id": "san_1_char_5004",
       "name": "董旻",
       "courtesyName": "旻",
       "rarity": "epic",
@@ -1803,7 +1806,7 @@
       "description": "董氏亲族。字叔颖，董卓之弟，随卓入京掌兵，卓败后被王允、吕布诛杀。"
     },
     {
-      "id": "char_san_1505",
+      "id": "san_1_char_5005",
       "name": "牛辅",
       "courtesyName": "辅",
       "rarity": "epic",
@@ -1838,7 +1841,7 @@
       "description": "董门女婿。无字号，董卓女婿，镇守陕地，卓死兵败，为部下所杀。"
     },
     {
-      "id": "char_san_1506",
+      "id": "san_1_char_5006",
       "name": "李儒",
       "courtesyName": "文优",
       "rarity": "epic",
@@ -1873,7 +1876,7 @@
       "description": "董氏谋主。字文优，为董卓心腹谋士，助其乱政，卓败后不知所终。"
     },
     {
-      "id": "char_san_1507",
+      "id": "san_1_char_5007",
       "name": "李傕",
       "courtesyName": "董",
       "rarity": "rare",
@@ -1908,7 +1911,7 @@
       "description": "董卓四将之一"
     },
     {
-      "id": "char_san_1508",
+      "id": "san_1_char_5008",
       "name": "郭汜",
       "courtesyName": "董",
       "rarity": "rare",
@@ -1943,7 +1946,7 @@
       "description": "董卓四将之二"
     },
     {
-      "id": "char_san_1509",
+      "id": "san_1_char_5009",
       "name": "樊稠",
       "courtesyName": "董",
       "rarity": "rare",
@@ -1978,7 +1981,7 @@
       "description": "董卓四将之三"
     },
     {
-      "id": "char_san_1510",
+      "id": "san_1_char_5010",
       "name": "张汲",
       "courtesyName": "董",
       "rarity": "rare",
@@ -2013,7 +2016,7 @@
       "description": "董卓四将之四"
     },
     {
-      "id": "char_san_1511",
+      "id": "san_1_char_5011",
       "name": "胡轸",
       "courtesyName": "董",
       "rarity": "common",
@@ -2046,7 +2049,7 @@
       "description": "董卓凉州嫡系"
     },
     {
-      "id": "char_san_1512",
+      "id": "san_1_char_5012",
       "name": "段煨",
       "courtesyName": "董",
       "rarity": "common",
@@ -2079,7 +2082,7 @@
       "description": "董卓凉州嫡系"
     },
     {
-      "id": "char_san_1513",
+      "id": "san_1_char_5013",
       "name": "董越",
       "courtesyName": "董",
       "rarity": "common",
@@ -2112,7 +2115,7 @@
       "description": "董卓凉州嫡系"
     },
     {
-      "id": "char_san_1514",
+      "id": "san_1_char_5014",
       "name": "董璜",
       "courtesyName": "董",
       "rarity": "common",
@@ -2145,7 +2148,7 @@
       "description": "董卓凉州嫡系"
     },
     {
-      "id": "char_san_1515",
+      "id": "san_1_char_5015",
       "name": "李蒙",
       "courtesyName": "董",
       "rarity": "common",
@@ -2178,7 +2181,7 @@
       "description": "董卓凉州嫡系"
     },
     {
-      "id": "char_san_1516",
+      "id": "san_1_char_5016",
       "name": "王方",
       "courtesyName": "董",
       "rarity": "common",
@@ -2211,7 +2214,7 @@
       "description": "董卓凉州嫡系"
     },
     {
-      "id": "char_san_1517",
+      "id": "san_1_char_5017",
       "name": "杨定",
       "courtesyName": "董",
       "rarity": "common",
@@ -2244,7 +2247,7 @@
       "description": "董卓凉州嫡系"
     },
     {
-      "id": "char_san_1518",
+      "id": "san_1_char_5018",
       "name": "伍习",
       "courtesyName": "董",
       "rarity": "common",
@@ -2277,7 +2280,7 @@
       "description": "董卓凉州嫡系"
     },
     {
-      "id": "char_san_1519",
+      "id": "san_1_char_5019",
       "name": "胡赤儿",
       "courtesyName": "董",
       "rarity": "common",
@@ -2310,7 +2313,7 @@
       "description": "董卓凉州嫡系"
     },
     {
-      "id": "char_san_1520",
+      "id": "san_1_char_5020",
       "name": "刘靖",
       "courtesyName": "董",
       "rarity": "common",
@@ -2343,7 +2346,7 @@
       "description": "董卓凉州支系"
     },
     {
-      "id": "char_san_1521",
+      "id": "san_1_char_5021",
       "name": "杨奉",
       "courtesyName": "董",
       "rarity": "common",
@@ -2376,7 +2379,7 @@
       "description": "董卓凉州支系"
     },
     {
-      "id": "char_san_1522",
+      "id": "san_1_char_5022",
       "name": "韩暹",
       "courtesyName": "董",
       "rarity": "common",
@@ -2409,7 +2412,7 @@
       "description": "董卓凉州支系"
     },
     {
-      "id": "char_san_1523",
+      "id": "san_1_char_5023",
       "name": "李乐",
       "courtesyName": "董",
       "rarity": "common",
@@ -2442,7 +2445,7 @@
       "description": "董卓凉州支系"
     },
     {
-      "id": "char_san_1524",
+      "id": "san_1_char_5024",
       "name": "胡才",
       "courtesyName": "董",
       "rarity": "common",
@@ -2475,7 +2478,7 @@
       "description": "董卓凉州支系"
     },
     {
-      "id": "char_san_1525",
+      "id": "san_1_char_5025",
       "name": "周慎",
       "courtesyName": "董",
       "rarity": "common",
@@ -2508,7 +2511,7 @@
       "description": "董卓凉州支系"
     },
     {
-      "id": "char_san_1526",
+      "id": "san_1_char_5026",
       "name": "董承",
       "courtesyName": "董",
       "rarity": "common",
@@ -2541,7 +2544,7 @@
       "description": "董卓凉州支系"
     },
     {
-      "id": "char_san_1601",
+      "id": "san_1_char_6001",
       "name": "刘宏",
       "courtesyName": "灵帝",
       "rarity": "core",
@@ -2576,7 +2579,7 @@
       "description": "灵帝昏庸。字号无。184 年黄巾乱起，宠信宦官卖官乱政，189 年驾崩，东汉自此倾危。"
     },
     {
-      "id": "char_san_1602",
+      "id": "san_1_char_6002",
       "name": "何进",
       "courtesyName": "遂高",
       "rarity": "epic",
@@ -2611,7 +2614,7 @@
       "description": "外戚秉权。字遂高。184 年总督平黄巾，189 年谋诛宦官事泄被杀，终引董卓入京乱政。"
     },
     {
-      "id": "char_san_1603",
+      "id": "san_1_char_6003",
       "name": "何苗",
       "courtesyName": "苗",
       "rarity": "epic",
@@ -2644,7 +2647,7 @@
       "description": "车骑庸碌。字号无。何进之弟，184 年参与平乱，189 年因通宦官被部众攻杀。"
     },
     {
-      "id": "char_san_1604",
+      "id": "san_1_char_6004",
       "name": "皇甫嵩",
       "courtesyName": "义真",
       "rarity": "epic",
@@ -2680,7 +2683,7 @@
       "description": "荡寇名将。字义真。184 年横扫黄巾主力，屡立大功，官至太尉，汉末忠将善终。"
     },
     {
-      "id": "char_san_1605",
+      "id": "san_1_char_6005",
       "name": "朱儁",
       "courtesyName": "公伟",
       "rarity": "epic",
@@ -2716,7 +2719,7 @@
       "description": "平南骁将。字公伟。184 年破南阳黄巾，讨叛功著，后拒从李傕，愤懑发病而死。"
     },
     {
-      "id": "char_san_1606",
+      "id": "san_1_char_6006",
       "name": "卢植",
       "courtesyName": "子干",
       "rarity": "epic",
@@ -2752,7 +2755,7 @@
       "description": "儒将忠烈。字子干。184 年大破张角，遭谗免官，守正不阿，为汉末名臣终老。"
     },
     {
-      "id": "char_san_1607",
+      "id": "san_1_char_6007",
       "name": "张让",
       "courtesyName": "让",
       "rarity": "epic",
@@ -2787,7 +2790,7 @@
       "description": "宦竖乱政。字号无。灵帝宠宦，184 年专权祸国，189 年劫少帝后投河自尽。"
     },
     {
-      "id": "char_san_1608",
+      "id": "san_1_char_6008",
       "name": "赵忠",
       "courtesyName": "忠",
       "rarity": "epic",
@@ -2822,7 +2825,7 @@
       "description": "阉党祸国。字号无。与张让弄权乱朝，189 年被袁绍率军入宫捕杀。"
     },
     {
-      "id": "char_san_1609",
+      "id": "san_1_char_6009",
       "name": "杨彪",
       "courtesyName": "文先",
       "rarity": "epic",
@@ -2857,7 +2860,7 @@
       "description": "汉廷柱石。字文先。历仕汉末四朝，四世三公，守正不屈，魏初拜大夫善终。"
     },
     {
-      "id": "char_san_1610",
+      "id": "san_1_char_6010",
       "name": "刘陶",
       "courtesyName": "子奇",
       "rarity": "epic",
@@ -2892,7 +2895,7 @@
       "description": "忠谏殒身。字子奇。184 年痛陈宦官乱政，直言遭诬，下狱绝食自尽，忠烈留名。"
     },
     {
-      "id": "char_san_1611",
+      "id": "san_1_char_6011",
       "name": "张温",
       "courtesyName": "伯慎",
       "rarity": "epic",
@@ -2928,7 +2931,7 @@
       "description": "太尉督军。字伯慎。184 年督师讨凉州叛军，官至太尉，后被董卓诬陷处死。"
     },
     {
-      "id": "char_san_1612",
+      "id": "san_1_char_6012",
       "name": "陈耽",
       "courtesyName": "汉公",
       "rarity": "epic",
@@ -2964,7 +2967,7 @@
       "description": "司徒直臣。字汉公。上疏弹劾宦官祸国，忠言遭忌，被诬下狱，惨死狱中。"
     },
     {
-      "id": "char_san_1613",
+      "id": "san_1_char_6013",
       "name": "张济",
       "courtesyName": "元江",
       "rarity": "epic",
@@ -3000,7 +3003,7 @@
       "description": "司空清直。字元江。184 年任司空，上书请讨张角，不久病卒，追赠车骑将军。"
     },
     {
-      "id": "char_san_1614",
+      "id": "san_1_char_6014",
       "name": "丁原",
       "courtesyName": "汉",
       "rarity": "rare",
@@ -3035,7 +3038,7 @@
       "description": "并州雄主。字建阳。189 年入京为执金吾，被吕布背叛刺杀，并州军溃散。"
     },
     {
-      "id": "char_san_1615",
+      "id": "san_1_char_6015",
       "name": "傅燮",
       "courtesyName": "汉",
       "rarity": "rare",
@@ -3070,7 +3073,7 @@
       "description": "沙场忠勇。字南容。184 年平黄巾功高不赏，后守汉阳，城陷力战殉国。"
     },
     {
-      "id": "char_san_1616",
+      "id": "san_1_char_6016",
       "name": "张杨",
       "courtesyName": "汉",
       "rarity": "rare",
@@ -3105,7 +3108,7 @@
       "description": "河内守义。字稚叔。割据河内，迎护献帝，后遭部将杨丑刺杀，势力覆灭。"
     },
     {
-      "id": "char_san_1617",
+      "id": "san_1_char_6017",
       "name": "臧洪",
       "courtesyName": "汉",
       "rarity": "rare",
@@ -3138,7 +3141,7 @@
       "description": "义烈无双。字子源。184 年讨黄巾，又盟誓讨卓，后守东郡拒曹操，城破殉节。"
     },
     {
-      "id": "char_san_1618",
+      "id": "san_1_char_6018",
       "name": "臧霸",
       "courtesyName": "汉",
       "rarity": "rare",
@@ -3168,10 +3171,10 @@
       "troopAffinity": "",
       "bonds": [],
       "biography": "《三国志》",
-      "description": "青徐砥柱。字宣高。184 年破黄巾，割据青徐，后归曹操镇守东线，终得善终。"
+      "description": "青徐砥柱。字宣高。184 年破黄巾，割据青徐，后归操镇守东线，终得善终。"
     },
     {
-      "id": "char_san_1619",
+      "id": "san_1_char_6019",
       "name": "孔融",
       "courtesyName": "汉",
       "rarity": "rare",
@@ -3204,7 +3207,7 @@
       "description": "青州义烈。字文举。孔子后裔守北海，刚直忤逆曹操，被构陷处死，名传后世。"
     },
     {
-      "id": "char_san_1620",
+      "id": "san_1_char_6020",
       "name": "陶丘洪",
       "courtesyName": "汉",
       "rarity": "rare",
@@ -3237,7 +3240,7 @@
       "description": "青州名士。字子休。明辨有才举荐贤才，为州中俊彦，乱世守志终老。"
     },
     {
-      "id": "char_san_1621",
+      "id": "san_1_char_6021",
       "name": "张邈",
       "courtesyName": "汉",
       "rarity": "common",
@@ -3270,7 +3273,7 @@
       "description": "孟卓义士。字孟卓。184 年讨黄巾，后叛曹操附吕布，兵败被部下所杀，宗族被诛。"
     },
     {
-      "id": "char_san_1622",
+      "id": "san_1_char_6022",
       "name": "张超",
       "courtesyName": "汉",
       "rarity": "common",
@@ -3303,7 +3306,7 @@
       "description": "景仲忠烈。字景仲。184 年举兵讨董，守雍丘抗曹操，城破自刎，一门尽忠死难。"
     },
     {
-      "id": "char_san_1623",
+      "id": "san_1_char_6023",
       "name": "陈登",
       "courtesyName": "汉",
       "rarity": "common",
@@ -3336,7 +3339,7 @@
       "description": "江淮英略。字元龙。184 年辅陶谦、刘备，镇守广陵屡破孙策，智略过人壮年病逝。"
     },
     {
-      "id": "char_san_1624",
+      "id": "san_1_char_6024",
       "name": "邹靖",
       "courtesyName": "汉",
       "rarity": "common",
@@ -3369,7 +3372,7 @@
       "description": "破虏平叛。无字号。184 年征讨幽州黄巾，刘备曾隶其麾下，后官至北军中侯。"
     },
     {
-      "id": "char_san_1625",
+      "id": "san_1_char_6025",
       "name": "郭典",
       "courtesyName": "汉",
       "rarity": "common",
@@ -3402,7 +3405,7 @@
       "description": "死战破贼。无字号。184 年任钜鹿太守，与皇甫嵩合攻下曲阳，阵斩张宝平定冀州。"
     },
     {
-      "id": "char_san_1626",
+      "id": "san_1_char_6026",
       "name": "夏育",
       "courtesyName": "汉",
       "rarity": "common",
@@ -3435,7 +3438,7 @@
       "description": "陇右边将。无字号。184 年复任护羌校尉镇抚陇右，早年败于鲜卑，后事迹不显。"
     },
     {
-      "id": "char_san_1627",
+      "id": "san_1_char_6027",
       "name": "徐璆",
       "courtesyName": "汉",
       "rarity": "common",
@@ -3468,7 +3471,7 @@
       "description": "清直忠节。字孟玉。184 年与朱儁破宛城黄巾，历守州郡，得玉玺归朝官至太常。"
     },
     {
-      "id": "char_san_1628",
+      "id": "san_1_char_6028",
       "name": "赵谦",
       "courtesyName": "汉",
       "rarity": "common",
@@ -3501,7 +3504,7 @@
       "description": "蜀郡重臣。字彦信。184 年任汝南太守讨黄巾，后历位三公，卒于任上谥号忠侯。"
     },
     {
-      "id": "char_san_1629",
+      "id": "san_1_char_6029",
       "name": "吕强",
       "courtesyName": "汉",
       "rarity": "common",
@@ -3534,7 +3537,7 @@
       "description": "清忠宦者。字汉盛。184 年黄巾起谏诛奸佞，遭宦官诬陷构害，愤而自杀殉国。"
     },
     {
-      "id": "char_san_1630",
+      "id": "san_1_char_6030",
       "name": "刘卫",
       "courtesyName": "汉",
       "rarity": "common",
@@ -3567,7 +3570,7 @@
       "description": "汉末偏将。无字号。184 年随军征讨黄巾，参与平叛作战，正史记载简略无考。"
     },
     {
-      "id": "char_san_1631",
+      "id": "san_1_char_6031",
       "name": "鲍信",
       "courtesyName": "汉",
       "rarity": "common",
@@ -3600,7 +3603,7 @@
       "description": "济北忠烈。字允诚。184 年领兵讨黄巾，迎曹操入兖州，战黄巾于寿张力战阵亡。"
     },
     {
-      "id": "char_san_1632",
+      "id": "san_1_char_6032",
       "name": "鲍忠",
       "courtesyName": "汉",
       "rarity": "common",
@@ -3633,7 +3636,7 @@
       "description": "骁勇早亡。字叔义。鲍信之弟，184 年随兄平乱，后讨董战华雄，阵前捐躯。"
     },
     {
-      "id": "char_san_1633",
+      "id": "san_1_char_6033",
       "name": "李旻",
       "courtesyName": "汉",
       "rarity": "common",
@@ -3666,7 +3669,7 @@
       "description": "汝南死节。无字号。184 年任汝南太守征讨黄巾，兵败不敌，力战殉国身死。"
     },
     {
-      "id": "char_san_1634",
+      "id": "san_1_char_6034",
       "name": "褚贡",
       "courtesyName": "汉",
       "rarity": "common",
@@ -3699,7 +3702,7 @@
       "description": "宛城殉难。无字号。184 年任南阳太守，守宛城拒张曼成，城破遇害。"
     },
     {
-      "id": "char_san_1635",
+      "id": "san_1_char_6035",
       "name": "秦颉",
       "courtesyName": "汉",
       "rarity": "common",
@@ -3732,7 +3735,7 @@
       "description": "平蛮斩贼。字初起。184 年继褚贡平南阳黄巾，击杀张曼成，后为叛将赵慈所杀。"
     },
     {
-      "id": "char_san_1636",
+      "id": "san_1_char_6036",
       "name": "牵招",
       "courtesyName": "汉",
       "rarity": "common",
@@ -3765,7 +3768,7 @@
       "description": "北疆名将。字子经。184 年与刘备相交，后归曹魏镇守边陲，抚夷破虏功勋卓著。"
     },
     {
-      "id": "char_san_1637",
+      "id": "san_1_char_6037",
       "name": "贾龙",
       "courtesyName": "汉",
       "rarity": "common",
@@ -3798,7 +3801,7 @@
       "description": "益州骁骑。无字号。188 年平定益州黄巾迎刘焉，后反其割据，兵败被杀。"
     },
     {
-      "id": "char_san_1638",
+      "id": "san_1_char_6038",
       "name": "任岐",
       "courtesyName": "汉",
       "rarity": "common",
@@ -3831,7 +3834,7 @@
       "description": "犍为守将。无字号。188 年任犍为太守平叛，后与贾龙共反刘焉，兵败身死。"
     },
     {
-      "id": "char_san_1701",
+      "id": "san_1_char_7001",
       "name": "张角",
       "courtesyName": "天公",
       "rarity": "core",
@@ -3866,7 +3869,7 @@
       "description": "黄巾首魁。号天公将军。184 年率太平道起义，席卷天下，不久病亡，起义旋败。"
     },
     {
-      "id": "char_san_1702",
+      "id": "san_1_char_7002",
       "name": "张宝",
       "courtesyName": "地公",
       "rarity": "epic",
@@ -3901,7 +3904,7 @@
       "description": "地公渠帅。张角之弟，184 年称地公将军，守下曲阳，被皇甫嵩、郭典攻破战死。"
     },
     {
-      "id": "char_san_1703",
+      "id": "san_1_char_7003",
       "name": "张梁",
       "courtesyName": "人公",
       "rarity": "epic",
@@ -3936,7 +3939,7 @@
       "description": "人公猛将。张角之弟，184 年称人公将军，据广宗拒官军，兵败被皇甫嵩阵斩。"
     },
     {
-      "id": "char_san_1704",
+      "id": "san_1_char_7004",
       "name": "马元义",
       "courtesyName": "黄",
       "rarity": "rare",
@@ -3971,7 +3974,7 @@
       "description": "张角八大弟子"
     },
     {
-      "id": "char_san_1705",
+      "id": "san_1_char_7005",
       "name": "张曼成",
       "courtesyName": "黄",
       "rarity": "rare",
@@ -4006,7 +4009,7 @@
       "description": "张角八大弟子"
     },
     {
-      "id": "char_san_1706",
+      "id": "san_1_char_7006",
       "name": "波才",
       "courtesyName": "黄",
       "rarity": "rare",
@@ -4041,7 +4044,7 @@
       "description": "张角八大弟子"
     },
     {
-      "id": "char_san_1707",
+      "id": "san_1_char_7007",
       "name": "彭脱",
       "courtesyName": "黄",
       "rarity": "rare",
@@ -4076,7 +4079,7 @@
       "description": "张角八大弟子"
     },
     {
-      "id": "char_san_1708",
+      "id": "san_1_char_7008",
       "name": "卜己",
       "courtesyName": "黄",
       "rarity": "rare",
@@ -4111,7 +4114,7 @@
       "description": "张角八大弟子"
     },
     {
-      "id": "char_san_1709",
+      "id": "san_1_char_7009",
       "name": "赵弘",
       "courtesyName": "黄",
       "rarity": "rare",
@@ -4146,7 +4149,7 @@
       "description": "张角八大弟子"
     },
     {
-      "id": "char_san_1710",
+      "id": "san_1_char_7010",
       "name": "韩忠",
       "courtesyName": "黄",
       "rarity": "rare",
@@ -4181,7 +4184,7 @@
       "description": "张角八大弟子"
     },
     {
-      "id": "char_san_1711",
+      "id": "san_1_char_7011",
       "name": "唐周",
       "courtesyName": "黄",
       "rarity": "rare",
@@ -4216,7 +4219,7 @@
       "description": "张角八大弟子"
     },
     {
-      "id": "char_san_1712",
+      "id": "san_1_char_7012",
       "name": "张燕",
       "courtesyName": "黄",
       "rarity": "rare",
@@ -4249,7 +4252,7 @@
       "description": "黑山雄主。无字号。184 年聚众为黑山军，雄踞河北，后降曹封将善终。"
     },
     {
-      "id": "char_san_1713",
+      "id": "san_1_char_7013",
       "name": "张修",
       "courtesyName": "黄",
       "rarity": "rare",
@@ -4282,7 +4285,7 @@
       "description": "米道渠帅。无字号。184 年巴郡起兵应黄巾，188 年降刘焉为司马，后被张鲁袭杀，势力覆灭。"
     },
     {
-      "id": "char_san_1714",
+      "id": "san_1_char_7014",
       "name": "张鲁",
       "courtesyName": "黄",
       "rarity": "rare",
@@ -4315,7 +4318,7 @@
       "description": "米道传人。字公祺。188 年附刘焉取汉中，杀张鲁割据，后降曹封镇南将军，得以善终。"
     },
     {
-      "id": "char_san_1715",
+      "id": "san_1_char_7015",
       "name": "张牛角",
       "courtesyName": "黄",
       "rarity": "common",
@@ -4348,7 +4351,7 @@
       "description": "黄巾分支渠帅"
     },
     {
-      "id": "char_san_1716",
+      "id": "san_1_char_7016",
       "name": "梁仲宁",
       "courtesyName": "黄",
       "rarity": "common",
@@ -4381,7 +4384,7 @@
       "description": "黄巾分支渠帅"
     },
     {
-      "id": "char_san_1717",
+      "id": "san_1_char_7017",
       "name": "张伯",
       "courtesyName": "黄",
       "rarity": "common",
@@ -4414,7 +4417,7 @@
       "description": "黄巾分支渠帅"
     },
     {
-      "id": "char_san_1718",
+      "id": "san_1_char_7018",
       "name": "孙夏",
       "courtesyName": "黄",
       "rarity": "common",
@@ -4447,7 +4450,7 @@
       "description": "黄巾分支渠帅"
     },
     {
-      "id": "char_san_1001",
+      "id": "san_1_char_0001",
       "name": "黄忠",
       "courtesyName": "汉升",
       "rarity": "legendary",
@@ -4474,15 +4477,16 @@
         "skill_1_4001",
         "skill_2_4007"
       ],
-      "troopAffinity": "archer:8",
+      "troopAffinity": "archer:5",
       "bonds": [
-        "五虎"
+        "五虎",
+        "神射"
       ],
       "biography": "《黄忠传》",
       "description": "老将虎威。字汉升。先归刘表、韩玄，后投刘备，定军山阵斩夏侯渊，封后将军，旋即病逝。"
     },
     {
-      "id": "char_san_1002",
+      "id": "san_1_char_0002",
       "name": "赵云",
       "courtesyName": "子龙",
       "rarity": "legendary",
@@ -4519,7 +4523,7 @@
       "description": "一身是胆。字子龙。初从公孙瓒，后归刘备，长坂救主、屡立战功，名将终老。"
     },
     {
-      "id": "char_san_1003",
+      "id": "san_1_char_0003",
       "name": "公孙瓒",
       "courtesyName": "伯圭",
       "rarity": "epic",
@@ -4554,7 +4558,7 @@
       "description": "白马雄主。字伯圭。184 年讨黄巾、镇乌桓，割据幽州，与袁绍相争兵败自焚。"
     },
     {
-      "id": "char_san_1004",
+      "id": "san_1_char_0004",
       "name": "李文侯",
       "courtesyName": "侯",
       "rarity": "epic",
@@ -4589,7 +4593,7 @@
       "description": "羌渠叛首。无字号。184 年联合边章、韩遂于凉州起兵，攻略陇右，为汉末叛帅。"
     },
     {
-      "id": "char_san_1005",
+      "id": "san_1_char_0005",
       "name": "边章",
       "courtesyName": "章",
       "rarity": "epic",
@@ -4624,7 +4628,7 @@
       "description": "凉州乱首。无字号。184 年偕同羌胡举兵反汉，进犯三辅，后兵败身死。"
     },
     {
-      "id": "char_san_1006",
+      "id": "san_1_char_0006",
       "name": "韩遂",
       "courtesyName": "文约",
       "rarity": "epic",
@@ -4659,7 +4663,7 @@
       "description": "西凉枭雄。字文约。184 年起兵叛汉，割据凉州三十余年，与曹操作战，晚年病逝。"
     },
     {
-      "id": "char_san_1007",
+      "id": "san_1_char_0007",
       "name": "马腾",
       "courtesyName": "寿成",
       "rarity": "epic",
@@ -4694,7 +4698,7 @@
       "description": "西凉忠烈。字寿成。184 年平定羌乱，割据凉州，后入许都，因马超起兵牵连，被曹操处死。"
     },
     {
-      "id": "char_san_1008",
+      "id": "san_1_char_0008",
       "name": "张济",
       "courtesyName": "济",
       "rarity": "epic",
@@ -4729,7 +4733,7 @@
       "description": "西凉骁将。字号无。董卓旧部，189 年后屯弘农，攻南阳时中流矢阵亡。"
     },
     {
-      "id": "char_san_1009",
+      "id": "san_1_char_0009",
       "name": "张绣",
       "courtesyName": "绣",
       "rarity": "epic",
@@ -4764,7 +4768,7 @@
       "description": "宛城雄踞。字号无。继张济统部，据宛城抗曹，后归降曹魏，得以善终。"
     },
     {
-      "id": "char_san_1010",
+      "id": "san_1_char_0010",
       "name": "曹嵩",
       "courtesyName": "野",
       "rarity": "rare",
@@ -4793,13 +4797,14 @@
       ],
       "troopAffinity": "",
       "bonds": [
-        "州府"
+        "州府",
+        "曹氏"
       ],
       "biography": "《曹嵩传》",
       "description": "司隶校尉部，遭受黄巾之乱之扰，曹操之父"
     },
     {
-      "id": "char_san_1011",
+      "id": "san_1_char_0011",
       "name": "郭勋",
       "courtesyName": "野",
       "rarity": "rare",
@@ -4834,7 +4839,7 @@
       "description": "冀州刺史，遭受黄巾之乱之扰"
     },
     {
-      "id": "char_san_1012",
+      "id": "san_1_char_0012",
       "name": "张懿",
       "courtesyName": "野",
       "rarity": "rare",
@@ -4869,7 +4874,7 @@
       "description": "并州刺史，遭受黄巾之乱之扰"
     },
     {
-      "id": "char_san_1013",
+      "id": "san_1_char_0013",
       "name": "焦和",
       "courtesyName": "野",
       "rarity": "rare",
@@ -4904,7 +4909,7 @@
       "description": "青州刺史，遭受黄巾之乱之扰"
     },
     {
-      "id": "char_san_1014",
+      "id": "san_1_char_0014",
       "name": "桥瑁",
       "courtesyName": "野",
       "rarity": "rare",
@@ -4939,7 +4944,7 @@
       "description": "兖州刺史，遭受黄巾之乱之扰"
     },
     {
-      "id": "char_san_1015",
+      "id": "san_1_char_0015",
       "name": "陶谦",
       "courtesyName": "野",
       "rarity": "rare",
@@ -4974,7 +4979,7 @@
       "description": "徐州刺史，遭受黄巾之乱之扰"
     },
     {
-      "id": "char_san_1016",
+      "id": "san_1_char_0016",
       "name": "王允",
       "courtesyName": "野",
       "rarity": "rare",
@@ -5009,7 +5014,7 @@
       "description": "豫州刺史，遭受黄巾之乱之扰"
     },
     {
-      "id": "char_san_1017",
+      "id": "san_1_char_0017",
       "name": "孔伷",
       "courtesyName": "野",
       "rarity": "rare",
@@ -5044,7 +5049,7 @@
       "description": "继任豫州刺史"
     },
     {
-      "id": "char_san_1018",
+      "id": "san_1_char_0018",
       "name": "刘虞",
       "courtesyName": "野",
       "rarity": "rare",
@@ -5079,7 +5084,7 @@
       "description": "幽州刺史"
     },
     {
-      "id": "char_san_1019",
+      "id": "san_1_char_0019",
       "name": "王叡",
       "courtesyName": "野",
       "rarity": "rare",
@@ -5114,7 +5119,7 @@
       "description": "荆州刺史"
     },
     {
-      "id": "char_san_1020",
+      "id": "san_1_char_0020",
       "name": "臧旻",
       "courtesyName": "野",
       "rarity": "rare",
@@ -5149,7 +5154,7 @@
       "description": "扬州刺史"
     },
     {
-      "id": "char_san_1021",
+      "id": "san_1_char_0021",
       "name": "郤俭",
       "courtesyName": "野",
       "rarity": "rare",
@@ -5184,7 +5189,7 @@
       "description": "益州刺史"
     },
     {
-      "id": "char_san_1022",
+      "id": "san_1_char_0022",
       "name": "梁鹄",
       "courtesyName": "野",
       "rarity": "rare",
@@ -5219,7 +5224,7 @@
       "description": "凉州刺史"
     },
     {
-      "id": "char_san_1023",
+      "id": "san_1_char_0023",
       "name": "杨雍",
       "courtesyName": "野",
       "rarity": "rare",
@@ -5254,7 +5259,7 @@
       "description": "继任凉州刺史"
     },
     {
-      "id": "char_san_1024",
+      "id": "san_1_char_0024",
       "name": "朱符",
       "courtesyName": "野",
       "rarity": "rare",
@@ -5289,7 +5294,7 @@
       "description": "交州刺史"
     },
     {
-      "id": "char_san_1025",
+      "id": "san_1_char_0025",
       "name": "韩馥",
       "courtesyName": "野",
       "rarity": "rare",
@@ -5324,7 +5329,7 @@
       "description": "冀州州牧"
     },
     {
-      "id": "char_san_1026",
+      "id": "san_1_char_0026",
       "name": "刘岱",
       "courtesyName": "野",
       "rarity": "rare",
@@ -5359,7 +5364,7 @@
       "description": "兖州州牧"
     },
     {
-      "id": "char_san_1027",
+      "id": "san_1_char_0027",
       "name": "黄琬",
       "courtesyName": "野",
       "rarity": "rare",
@@ -5394,7 +5399,7 @@
       "description": "豫州州牧，治绩天下第一"
     },
     {
-      "id": "char_san_1028",
+      "id": "san_1_char_0028",
       "name": "刘表",
       "courtesyName": "野",
       "rarity": "rare",
@@ -5429,7 +5434,7 @@
       "description": "荆州州牧"
     },
     {
-      "id": "char_san_1029",
+      "id": "san_1_char_0029",
       "name": "陈温",
       "courtesyName": "野",
       "rarity": "rare",
@@ -5464,7 +5469,7 @@
       "description": "扬州州牧"
     },
     {
-      "id": "char_san_1030",
+      "id": "san_1_char_0030",
       "name": "刘焉",
       "courtesyName": "野",
       "rarity": "rare",
@@ -5499,7 +5504,7 @@
       "description": "益州州牧，进言废史立牧"
     },
     {
-      "id": "char_san_1031",
+      "id": "san_1_char_0031",
       "name": "刘璋",
       "courtesyName": "野",
       "rarity": "rare",
@@ -5534,7 +5539,7 @@
       "description": "继任益州州牧"
     },
     {
-      "id": "char_san_1032",
+      "id": "san_1_char_0032",
       "name": "来达",
       "courtesyName": "野",
       "rarity": "rare",
@@ -5569,7 +5574,7 @@
       "description": "交州州牧"
     },
     {
-      "id": "char_san_1033",
+      "id": "san_1_char_0033",
       "name": "贾琮",
       "courtesyName": "野",
       "rarity": "rare",
@@ -5604,7 +5609,7 @@
       "description": "继任交州州牧"
     },
     {
-      "id": "char_san_1034",
+      "id": "san_1_char_0034",
       "name": "士燮",
       "courtesyName": "野",
       "rarity": "rare",
@@ -5633,13 +5638,13 @@
       ],
       "troopAffinity": "",
       "bonds": [
-        "蛮地"
+        "蛮荒"
       ],
       "biography": "《士燮传》",
       "description": "交州雄主。字威彦。割据交州安抚一方，归附孙权受封重职，保境安民，高寿善终。"
     },
     {
-      "id": "char_san_1035",
+      "id": "san_1_char_0035",
       "name": "郑玄",
       "courtesyName": "野",
       "rarity": "rare",
@@ -5674,7 +5679,7 @@
       "description": "经学宗师。字康成。潜心注经遍注群籍，闭门授徒不仕乱世，为汉末儒学泰斗终老。"
     },
     {
-      "id": "char_san_1036",
+      "id": "san_1_char_0036",
       "name": "管宁",
       "courtesyName": "野",
       "rarity": "rare",
@@ -5709,7 +5714,7 @@
       "description": "辽东高隐。字幼安。避乱辽东讲学修身，曹魏屡征坚辞不仕，以高洁节操传世。"
     },
     {
-      "id": "char_san_1037",
+      "id": "san_1_char_0037",
       "name": "邴原",
       "courtesyName": "野",
       "rarity": "rare",
@@ -5744,7 +5749,7 @@
       "description": "北海名儒。字根矩。避乱游学守正清节，归魏历任显官，以德行才学名重当时。"
     },
     {
-      "id": "char_san_1038",
+      "id": "san_1_char_0038",
       "name": "王烈",
       "courtesyName": "野",
       "rarity": "rare",
@@ -5779,7 +5784,7 @@
       "description": "辽东义士。字彦方。避乱辽东以德化人，不仕乱世，深受边民敬服，寿终辽东。"
     },
     {
-      "id": "char_san_1039",
+      "id": "san_1_char_0039",
       "name": "庞德公",
       "courtesyName": "野",
       "rarity": "rare",
@@ -5814,7 +5819,7 @@
       "description": "襄阳隐者。字尚长。隐居岘山不慕荣禄，与贤士交游，躬耕终老，高节传世。"
     },
     {
-      "id": "char_san_1040",
+      "id": "san_1_char_0040",
       "name": "司马徽",
       "courtesyName": "野",
       "rarity": "rare",
@@ -5849,7 +5854,7 @@
       "description": "水镜高士。字德操。隐于襄阳知人荐才，举荐卧龙凤雏，终身不仕安度晚年。"
     },
     {
-      "id": "char_san_1041",
+      "id": "san_1_char_0041",
       "name": "黄承彦",
       "courtesyName": "野",
       "rarity": "rare",
@@ -5884,7 +5889,7 @@
       "description": "沔南高贤。无字号。襄阳隐士，诸葛亮岳父，清雅守志，隐居林泉以终其身。"
     },
     {
-      "id": "char_san_1042",
+      "id": "san_1_char_0042",
       "name": "崔钧",
       "courtesyName": "野",
       "rarity": "rare",
@@ -5919,7 +5924,7 @@
       "description": "博陵名士。字州平。与诸葛亮为友交游，清高守志隐居不仕，乱世中逍遥终老。"
     },
     {
-      "id": "char_san_1043",
+      "id": "san_1_char_0043",
       "name": "石韬",
       "courtesyName": "野",
       "rarity": "rare",
@@ -5954,7 +5959,7 @@
       "description": "颍川雅士。字广元。与诸葛亮游学相知，后仕曹魏历职郡守，以才学显名终老。"
     },
     {
-      "id": "char_san_1044",
+      "id": "san_1_char_0044",
       "name": "孟建",
       "courtesyName": "野",
       "rarity": "rare",
@@ -5989,7 +5994,7 @@
       "description": "汝南才士。字公威。与诸葛亮同游求学，后归曹魏官至凉州刺史，镇抚一方善终。"
     },
     {
-      "id": "char_san_1045",
+      "id": "san_1_char_0045",
       "name": "周舒",
       "courtesyName": "野",
       "rarity": "rare",
@@ -6024,7 +6029,7 @@
       "description": "蜀地术士。字叔布。精于图谶之学，隐居不仕，为蜀中术数名家，终老于家。"
     },
     {
-      "id": "char_san_1046",
+      "id": "san_1_char_0046",
       "name": "董扶",
       "courtesyName": "野",
       "rarity": "rare",
@@ -6059,7 +6064,7 @@
       "description": "益州术师。字茂安。精图谶言益州有天子气，随刘焉入蜀，不久病逝蜀中。"
     },
     {
-      "id": "char_san_1047",
+      "id": "san_1_char_0047",
       "name": "任安",
       "courtesyName": "野",
       "rarity": "rare",
@@ -6094,7 +6099,7 @@
       "description": "蜀中儒宗。字定祖。潜心教学培育弟子，为蜀中大儒，朝廷屡征不仕终老。"
     },
     {
-      "id": "char_san_1048",
+      "id": "san_1_char_0048",
       "name": "许劭",
       "courtesyName": "野",
       "rarity": "rare",
@@ -6129,7 +6134,7 @@
       "description": "月旦评主。字子将。善品评人物名重天下，避乱广陵坚守名节，以识鉴著称。"
     },
     {
-      "id": "char_san_1049",
+      "id": "san_1_char_0049",
       "name": "袁闳",
       "courtesyName": "野",
       "rarity": "rare",
@@ -6164,7 +6169,7 @@
       "description": "汝南隐士。字夏甫。不慕仕宦隐居土室，杜绝交游，汉末乱世守节终身不出。"
     },
     {
-      "id": "char_san_1050",
+      "id": "san_1_char_0050",
       "name": "韩康",
       "courtesyName": "野",
       "rarity": "rare",
