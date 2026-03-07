@@ -1,6 +1,6 @@
 /**
  * 统一API服务层
- * 提供认证相关的API调用
+ * 提供认证相关的API调用和数据加载
  */
 
 import { tokenManager } from '../utils/tokenManager';
@@ -25,6 +25,27 @@ async function fetchWithTimeout(url, options = {}, timeout = API_CONFIG.TIMEOUT)
     if (error.name === 'AbortError') {
       throw new Error('请求超时，请检查网络连接后重试');
     }
+    throw error;
+  }
+}
+
+/**
+ * GET 请求 - 用于加载数据文件
+ */
+export async function get(url, options = {}) {
+  try {
+    const response = await fetchWithTimeout(url, {
+      ...options,
+      method: 'GET'
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error('[API] GET请求失败:', url, error);
     throw error;
   }
 }
