@@ -5,8 +5,10 @@ import UserManagerPage from '@/pages/UserManagerPage';
 import ServersPage from '@/pages/ServersPage';
 import CampaignDisplay from '@/components/campaign/CampaignDisplay';
 import CampaignList from '@/components/campaign/CampaignList';
+import { useAdmin } from '@/hooks/useAdmin';
 
 function App() {
+  const { isLoggedIn } = useAdmin();
   return (
     <Router basename="/05-san-storm/game">
       <div className="min-h-screen bg-gray-50">
@@ -64,11 +66,13 @@ function App() {
                     <h3 className="text-lg font-semibold text-gray-900 mb-2">战役地图</h3>
                     <p className="text-sm text-gray-600">M2验证模块-3</p>
                   </a>
-                  <a href={`${import.meta.env.BASE_URL}user-manager`} className="block p-6 bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow border-2 border-red-300">
-                    <div className="text-4xl mb-4">👥</div>
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2">用户管理</h3>
-                    <p className="text-sm text-gray-600">管理员专用</p>
-                  </a>
+                  {isLoggedIn && (
+                    <a href={`${import.meta.env.BASE_URL}user-manager`} className="block p-6 bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow border-2 border-red-300">
+                      <div className="text-4xl mb-4">👥</div>
+                      <h3 className="text-lg font-semibold text-gray-900 mb-2">用户管理</h3>
+                      <p className="text-sm text-gray-600">管理员专用</p>
+                    </a>
+                  )}
                 </div>
               </div>
             } />
