@@ -86,6 +86,8 @@ public
 !02-tale-historical/public
 !04-coin-index/public
 !05-san-storm/public
+!05-san-storm/game/public
+!05-san-storm/wiki/public
 
 # Storybook build outputs
 .out
