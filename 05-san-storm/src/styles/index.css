@@ -6,7 +6,7 @@
 /* 自定义字体 - 江湖豪派黑宋 */
 @font-face {
   font-family: 'JYHPHS';
-  src: url('/fonts/JYHPHS.woff2') format('woff2');
+  src: url('/05-san-storm/fonts/JYHPHS.woff2') format('woff2');
   font-weight: normal;
   font-style: normal;
   font-display: swap;
