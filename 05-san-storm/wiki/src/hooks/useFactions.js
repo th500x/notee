@@ -6,14 +6,13 @@
  */
 
 import { useState, useEffect } from 'react';
-import { loadSeasonData } from '@/services/dataService';
+import { loadSharedData } from '@/services/dataService';
 
 /**
  * 使用势力数据
- * @param {string} season - 赛季标识（默认's1'）
  * @returns {Object} { factions, loading, error, refetch }
  */
-export function useFactions(season = 's1') {
+export function useFactions() {
   const [factions, setFactions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -23,7 +22,7 @@ export function useFactions(season = 's1') {
       setLoading(true);
       setError(null);
       
-      const data = await loadSeasonData(season, 'factions');
+      const data = await loadSharedData('factions');
       setFactions(data.factions);
     } catch (err) {
       console.error('[useFactions] 加载失败:', err);
@@ -35,7 +34,7 @@ export function useFactions(season = 's1') {
 
   useEffect(() => {
     fetchFactions();
-  }, [season]);
+  }, []);
 
   return {
     factions,

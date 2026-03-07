@@ -35,7 +35,7 @@ function San1Page() {
     },
     {
       title: '赛季玩法',
-      content: '赛季末进行豪华终局评定\n赛季保留物品：\n成就/称号/宝物\n所有金色部队卡\n最多10个橙色部队卡\n最多10个紫色部队卡\n1套全装装备卡',
+      content: '赛季末进行豪华终局评定\n赛季保留物品：\n称号/成就/宝物\n1套全装装备卡\n所有金色部队卡\n最多10个橙色部队卡\n最多10个紫色部队卡',
       color: 'from-pink-400 to-pink-500',
       borderColor: 'border-pink-400'
     },
