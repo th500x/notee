@@ -10,10 +10,10 @@ import { loadSeasonData } from '@/services/dataService';
 
 /**
  * 使用势力数据
- * @param {string} season - 赛季标识（默认's1'）
+ * @param {string} season - 赛季标识（默认'san_1'）
  * @returns {Object} { factions, loading, error, refetch }
  */
-export function useFactions(season = 's1') {
+export function useFactions(season = 'san_1') {
   const [factions, setFactions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);

@@ -2,8 +2,8 @@
  * S1 地图数据 - 东汉末年（公元184年）
  */
 
-export const S1_MAP = {
-  id: 'map_s1_china_184',
+export const SAN_1_MAP = {
+  id: 'map_san_1_china_184',
   name: '东汉末年',
   historicalYear: 184,
   
@@ -229,4 +229,4 @@ export const S1_MAP = {
   },
 };
 
-export default S1_MAP;
+export default SAN_1_MAP;

@@ -47,8 +47,8 @@ export function useCharacters() {
 
       // 按赛季筛选
       if (filters.season && filters.season !== 'all') {
-        // 从ID中提取赛季信息：char_san_1101 -> 第一个数字1代表S1
-        const seasonNumber = filters.season.replace('S', ''); // 'S1' -> '1'
+        // 从ID中提取赛季信息：char_san_1101 -> 第一个数字1代表san_1
+        const seasonNumber = filters.season.replace('san_', ''); // 'san_1' -> '1'
         filtered = filtered.filter(char => {
           // 提取ID中的赛季数字（第一个数字）
           const match = char.id.match(/char_\w+_(\d)/);

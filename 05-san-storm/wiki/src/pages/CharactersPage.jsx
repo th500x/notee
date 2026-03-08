@@ -72,9 +72,9 @@ function CharactersPage() {
             className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             <option value="all">全部赛季</option>
-            <option value="S1">S1 黄巾之乱</option>
-            <option value="S2">S2 董卓之乱</option>
-            <option value="S3">S3 群雄割据</option>
+            <option value="san_1">san_1 黄巾之乱</option>
+            <option value="san_2">san_2 董卓之乱</option>
+            <option value="san_3">san_3 群雄割据</option>
           </select>
           
           {/* 势力筛选 */}

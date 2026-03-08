@@ -8,7 +8,7 @@
  * - 不同势力之间存在对抗关系
  */
 
-export const S1_FACTIONS = [
+export const SAN_1_FACTIONS = [
   // ==================== 1. 刘备势力 ====================
   {
     id: 'san_1_faction_1001',
@@ -450,21 +450,21 @@ export const S1_FACTIONS = [
  * 根据ID获取势力信息
  */
 export function getFactionById(factionId) {
-  return S1_FACTIONS.find(f => f.id === factionId);
+  return SAN_1_FACTIONS.find(f => f.id === factionId);
 }
 
 /**
  * 根据名称获取势力信息
  */
 export function getFactionByName(name) {
-  return S1_FACTIONS.find(f => f.name === name);
+  return SAN_1_FACTIONS.find(f => f.name === name);
 }
 
 /**
  * 获取玩家可选择的势力列表（根据等级和条件）
  */
 export function getAvailableFactions(playerLevel, playerAchievements = []) {
-  return S1_FACTIONS.filter(faction => {
+  return SAN_1_FACTIONS.filter(faction => {
     // 检查等级要�?
     if (playerLevel < faction.unlockConditions.level) {
       return false;
@@ -499,19 +499,19 @@ export function getFactionRelation(factionId1, factionId2) {
  */
 export function getFactionStats() {
   return {
-    total: S1_FACTIONS.length,
+    total: SAN_1_FACTIONS.length,
     byTier: {
-      S: S1_FACTIONS.filter(f => f.tier === 'S').length,
-      A: S1_FACTIONS.filter(f => f.tier === 'A').length,
-      B: S1_FACTIONS.filter(f => f.tier === 'B').length,
-      C: S1_FACTIONS.filter(f => f.tier === 'C').length,
+      S: SAN_1_FACTIONS.filter(f => f.tier === 'S').length,
+      A: SAN_1_FACTIONS.filter(f => f.tier === 'A').length,
+      B: SAN_1_FACTIONS.filter(f => f.tier === 'B').length,
+      C: SAN_1_FACTIONS.filter(f => f.tier === 'C').length,
     },
     byDifficulty: {
-      easy: S1_FACTIONS.filter(f => f.difficulty === 'easy').length,
-      medium: S1_FACTIONS.filter(f => f.difficulty === 'medium').length,
-      hard: S1_FACTIONS.filter(f => f.difficulty === 'hard').length,
+      easy: SAN_1_FACTIONS.filter(f => f.difficulty === 'easy').length,
+      medium: SAN_1_FACTIONS.filter(f => f.difficulty === 'medium').length,
+      hard: SAN_1_FACTIONS.filter(f => f.difficulty === 'hard').length,
     },
   };
 }
 
-export default S1_FACTIONS;
+export default SAN_1_FACTIONS;

@@ -5,7 +5,7 @@
  * 完整版应包含89个城市
  */
 
-export const S1_CITIES = [
+export const SAN_1_CITIES = [
   // === 幽州 ===
   {
     id: 'city_youzhou_0002',
@@ -267,4 +267,4 @@ export const BUILDING_TYPES = {
   palace: { name: '皇宫', effect: { prestige: 2.0 } },
 };
 
-export default S1_CITIES;
+export default SAN_1_CITIES;

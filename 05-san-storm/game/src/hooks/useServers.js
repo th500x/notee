@@ -29,10 +29,10 @@ function getServerStatus(activePlayerCount) {
 
 /**
  * 使用服务器数据
- * @param {string} season - 赛季标识（默认's1'）
+ * @param {string} season - 赛季标识（默认'san_1'）
  * @returns {Object} { servers, loading, error, refetch }
  */
-export function useServers(season = 's1') {
+export function useServers(season = 'san_1') {
   const [servers, setServers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);

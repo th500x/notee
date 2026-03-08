@@ -3,9 +3,9 @@
  * 历史时期：公元184年
  */
 
-export const S1_CONFIG = {
+export const SAN_1_CONFIG = {
   // 基础信息
-  id: 's1',
+  id: 'san_1',
   name: '黄巾之乱',
   subtitle: '苍天已死，黄天当立',
   version: '0.1.0',
@@ -21,7 +21,7 @@ export const S1_CONFIG = {
   
   // 地图配置
   map: {
-    id: 'map_s1_china_184',
+    id: 'map_san_1_china_184',
     name: '东汉末年',
     size: { width: 2000, height: 1500 },
     regions: 13,  // 十三州
@@ -163,4 +163,4 @@ export const S1_CONFIG = {
   },
 };
 
-export default S1_CONFIG;
+export default SAN_1_CONFIG;

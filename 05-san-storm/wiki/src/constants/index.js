@@ -130,9 +130,9 @@ export const SERVER_STATUS_COLORS = {
 
 // ==================== 赛季 ====================
 export const SEASONS = {
-  S1: 's1',
-  S2: 's2',
-  S3: 's3',
+  SAN_1: 'san_1',
+  SAN_2: 'san_2',
+  SAN_3: 'san_3',
 };
 
 export const SEASON_LABELS = {

@@ -20,7 +20,7 @@ export function LifeStageExample() {
   
   // 筛选和排序状态
   const [filters, setFilters] = useState({
-    season: 'S1', // 默认显示S1
+    season: 'san_1', // 默认显示san_1
     faction: 'all',
     rarity: 'all',
     stage: 'all',
@@ -92,9 +92,9 @@ export function LifeStageExample() {
               onChange={(e) => setFilters({ ...filters, season: e.target.value })}
               className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              <option value="S1">S1 黄巾之乱</option>
-              <option value="S2">S2 董卓之乱</option>
-              <option value="S3">S3 群雄割据</option>
+              <option value="san_1">san_1 黄巾之乱</option>
+              <option value="san_2">san_2 董卓之乱</option>
+              <option value="san_3">san_3 群雄割据</option>
               <option value="S4">S4 官渡之战</option>
               <option value="S5">S5 三顾茅庐</option>
               <option value="S6">S6 赤壁之战</option>

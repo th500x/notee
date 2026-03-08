@@ -48,7 +48,7 @@ export function useLifeStages() {
   /**
    * 获取指定武将在指定赛季的数据
    * @param {string} characterId - 武将ID
-   * @param {string} seasonId - 赛季ID（如 'S1', 'S2'）
+   * @param {string} seasonId - 赛季ID（如 'san_1', 'san_2'）
    * @returns {Object|null} 赛季数据
    */
   const getSeasonData = (characterId, seasonId) => {
