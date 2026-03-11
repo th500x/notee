@@ -14,15 +14,27 @@
  * @returns {string} 状态: 'vacant' | 'new-contract' | 'rented'
  */
 export function getPropertyStatus(property, targetMonth) {
+  // 🔍 调试日志
+  console.log('=== getPropertyStatus 调试 ===')
+  console.log('targetMonth:', targetMonth)
+  console.log('property.records:', property.records)
+  
   // 优先从该月份的记录中获取状态
   if (property.records && property.records.length > 0) {
     const record = property.records.find(r => r.date === targetMonth)
+    console.log('找到的记录:', record)
+    console.log('记录的日期:', property.records.map(r => r.date))
+    
     if (record && record.status) {
+      console.log('返回记录状态:', record.status)
+      console.log('==============================')
       return record.status
     }
   }
   
   // 如果该月份没有记录或记录中没有状态，返回房源的默认状态
+  console.log('返回默认状态:', property.status || 'vacant')
+  console.log('==============================')
   return property.status || 'vacant'
 }
 
