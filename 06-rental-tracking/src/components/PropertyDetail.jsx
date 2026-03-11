@@ -46,7 +46,12 @@ function PropertyDetail({ property, project, selectedYear, selectedMonth, viewMo
   console.log('currentViewMonth:', currentViewMonth)
   console.log('currentStatus:', currentStatus)
   console.log('property.status:', property?.status)
-  console.log('property.records:', property?.records)
+  console.log('property.records:', property?.records?.map((r, i) => ({
+    index: i,
+    date: r.date,
+    status: r.status,
+    income: r.income
+  })))
   console.log('=================================')
   
   const [tenantForm, setTenantForm] = useState({
