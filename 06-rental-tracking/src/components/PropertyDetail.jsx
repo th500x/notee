@@ -41,19 +41,6 @@ function PropertyDetail({ property, project, selectedYear, selectedMonth, viewMo
     : `${selectedYear}-01`
   const currentStatus = property ? getPropertyStatus(property, currentViewMonth) : 'vacant'
   
-  // 🔍 调试日志
-  console.log('=== PropertyDetail 状态调试 ===')
-  console.log('currentViewMonth:', currentViewMonth)
-  console.log('currentStatus:', currentStatus)
-  console.log('property.status:', property?.status)
-  console.log('property.records:', property?.records?.map((r, i) => ({
-    index: i,
-    date: r.date,
-    status: r.status,
-    income: r.income
-  })))
-  console.log('=================================')
-  
   const [tenantForm, setTenantForm] = useState({
     name: '',
     phone: '',
@@ -271,12 +258,6 @@ function PropertyDetail({ property, project, selectedYear, selectedMonth, viewMo
 
   // 保存收支记录
   const saveRecord = () => {
-    // 🔍 调试日志
-    console.log('=== saveRecord 调试信息 ===')
-    console.log('recordForm.status:', recordForm.status)
-    console.log('property.status:', property.status)
-    console.log('editingRecordIndex:', editingRecordIndex)
-    
     const newRecord = {
       date: recordForm.date,
       income: parseFloat(recordForm.income) || 0,
@@ -286,61 +267,23 @@ function PropertyDetail({ property, project, selectedYear, selectedMonth, viewMo
       status: recordForm.status || property.status || 'vacant',  // 该月的独立状态
       photos: recordForm.photos || []  // 保留照片数据
     }
-    
-    console.log('newRecord.status:', newRecord.status)
-    console.log('=========================')
 
     let updatedRecords
-    let shouldUpdateGlobalStatus = false
-    let newGlobalStatus = property.status
     
     if (editingRecordIndex !== null) {
       // 编辑模式：更新现有记录
       updatedRecords = property.records.map((record, i) => 
         i === editingRecordIndex ? newRecord : record
       )
-      
-      // 🎯 增强：编辑模式也支持智能逻辑
-      // 如果编辑后的记录状态变为"新合同"，且房源当前是"空置中"
-      if (newRecord.status === 'new-contract' && property.status === 'vacant') {
-        // 检查除了当前编辑的记录外，是否已有其他"新合同"或"出租中"的记录
-        const hasOtherActiveStatusRecords = (property.records || []).some((r, i) => 
-          i !== editingRecordIndex && r.status && (r.status === 'new-contract' || r.status === 'rented')
-        )
-        
-        if (!hasOtherActiveStatusRecords) {
-          shouldUpdateGlobalStatus = true
-          newGlobalStatus = 'rented'  // 设置为"出租中"
-        }
-      }
     } else {
       // 新增模式：添加新记录
       updatedRecords = [...(property.records || []), newRecord]
-      
-      // 🎯 智能逻辑：如果是新房源的第一条"新合同"记录，自动设置全局状态为"出租中"
-      // 条件：
-      // 1. 当前是新增记录（不是编辑）
-      // 2. 新记录的状态是"新合同"
-      // 3. 房源当前全局状态是"空置中"（说明是新房源）
-      // 4. 这是第一条"新合同"或"出租中"的记录（忽略前序所有"空置中"的记录）
-      if (newRecord.status === 'new-contract' && property.status === 'vacant') {
-        // 检查是否已有"新合同"或"出租中"的记录（忽略"空置中"的记录）
-        const hasActiveStatusRecords = (property.records || []).some(r => 
-          r.status && (r.status === 'new-contract' || r.status === 'rented')
-        )
-        
-        if (!hasActiveStatusRecords) {
-          shouldUpdateGlobalStatus = true
-          newGlobalStatus = 'rented'  // 设置为"出租中"
-        }
-      }
     }
     
     // 更新房源数据
     onPropertyUpdate({
       ...property,
-      records: updatedRecords,
-      status: shouldUpdateGlobalStatus ? newGlobalStatus : property.status
+      records: updatedRecords
     })
     
     setShowRecordDialog(false)
