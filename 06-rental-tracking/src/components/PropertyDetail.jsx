@@ -221,6 +221,7 @@ function PropertyDetail({ property, project, selectedYear, selectedMonth, viewMo
       expenses: 0,
       note: '',
       isPaid: false,
+      status: property.status || 'vacant',  // 初始化状态字段
       photos: [],  // 初始化照片数组
       _hasMonthPaidRecord: hasMonthPaidRecord // 用于UI判断
     })
@@ -276,6 +277,20 @@ function PropertyDetail({ property, project, selectedYear, selectedMonth, viewMo
       updatedRecords = property.records.map((record, i) => 
         i === editingRecordIndex ? newRecord : record
       )
+      
+      // 🎯 增强：编辑模式也支持智能逻辑
+      // 如果编辑后的记录状态变为"新合同"，且房源当前是"空置中"
+      if (newRecord.status === 'new-contract' && property.status === 'vacant') {
+        // 检查除了当前编辑的记录外，是否已有其他"新合同"或"出租中"的记录
+        const hasOtherActiveStatusRecords = (property.records || []).some((r, i) => 
+          i !== editingRecordIndex && r.status && (r.status === 'new-contract' || r.status === 'rented')
+        )
+        
+        if (!hasOtherActiveStatusRecords) {
+          shouldUpdateGlobalStatus = true
+          newGlobalStatus = 'rented'  // 设置为"出租中"
+        }
+      }
     } else {
       // 新增模式：添加新记录
       updatedRecords = [...(property.records || []), newRecord]
