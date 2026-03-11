@@ -41,6 +41,14 @@ function PropertyDetail({ property, project, selectedYear, selectedMonth, viewMo
     : `${selectedYear}-01`
   const currentStatus = property ? getPropertyStatus(property, currentViewMonth) : 'vacant'
   
+  // 🔍 调试日志
+  console.log('=== PropertyDetail 状态调试 ===')
+  console.log('currentViewMonth:', currentViewMonth)
+  console.log('currentStatus:', currentStatus)
+  console.log('property.status:', property?.status)
+  console.log('property.records:', property?.records)
+  console.log('=================================')
+  
   const [tenantForm, setTenantForm] = useState({
     name: '',
     phone: '',
