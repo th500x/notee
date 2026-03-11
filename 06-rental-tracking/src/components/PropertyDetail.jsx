@@ -258,6 +258,12 @@ function PropertyDetail({ property, project, selectedYear, selectedMonth, viewMo
 
   // 保存收支记录
   const saveRecord = () => {
+    // 🔍 调试日志
+    console.log('=== saveRecord 调试信息 ===')
+    console.log('recordForm.status:', recordForm.status)
+    console.log('property.status:', property.status)
+    console.log('editingRecordIndex:', editingRecordIndex)
+    
     const newRecord = {
       date: recordForm.date,
       income: parseFloat(recordForm.income) || 0,
@@ -267,6 +273,9 @@ function PropertyDetail({ property, project, selectedYear, selectedMonth, viewMo
       status: recordForm.status || property.status || 'vacant',  // 该月的独立状态
       photos: recordForm.photos || []  // 保留照片数据
     }
+    
+    console.log('newRecord.status:', newRecord.status)
+    console.log('=========================')
 
     let updatedRecords
     let shouldUpdateGlobalStatus = false
