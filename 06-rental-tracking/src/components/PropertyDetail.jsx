@@ -773,8 +773,8 @@ function PropertyDetail({ property, project, selectedYear, selectedMonth, viewMo
 
       {/* 添加/编辑记录对话框 */}
       {showRecordDialog && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-start justify-center z-50 p-4 overflow-y-auto">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full my-8">
             <div className="p-6">
               <h3 className="text-xl font-bold text-gray-900 mb-4">
                 {editingRecordIndex !== null ? '编辑收支记录' : '添加收支记录'}
@@ -961,11 +961,11 @@ function PropertyDetail({ property, project, selectedYear, selectedMonth, viewMo
       {/* 移动房源对话框 */}
       {showMoveDialog && (
         <div 
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-start justify-center z-50 p-4 overflow-y-auto"
           onClick={() => setShowMoveDialog(false)}
         >
           <div 
-            className="bg-white rounded-2xl shadow-2xl max-w-md w-full"
+            className="bg-white rounded-2xl shadow-2xl max-w-md w-full my-8"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between p-6 border-b">

@@ -169,11 +169,11 @@ export function ProjectFormModal({
   
   return (
     <div 
-      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+      className="fixed inset-0 bg-black bg-opacity-50 flex items-start justify-center z-50 p-4 overflow-y-auto"
       onClick={onClose}
     >
       <div 
-        className="bg-white rounded-2xl shadow-2xl max-w-md w-full animate-slideUp"
+        className="bg-white rounded-2xl shadow-2xl max-w-md w-full animate-slideUp my-8"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
