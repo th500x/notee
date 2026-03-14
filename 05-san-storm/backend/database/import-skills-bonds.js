@@ -29,7 +29,8 @@ async function importSkills(connection) {
   
   const filePath = path.join(DATA_DIR, 'skills.json');
   const fileContent = await fs.readFile(filePath, 'utf8');
-  const skills = JSON.parse(fileContent);
+  const data = JSON.parse(fileContent);
+  const skills = data.skills || data;
   
   let imported = 0;
   let skipped = 0;
