@@ -22,6 +22,14 @@ const dbConfig = {
 const DATA_DIR = path.join(__dirname, '../../public/data/shared');
 
 /**
+ * 从ID中提取赛季信息
+ */
+function extractSeason(id) {
+  const match = id.match(/^(san_\d+)/);
+  return match ? match[1] : null;
+}
+
+/**
  * 导入技能配置数据
  */
 async function importSkills(connection) {
