@@ -267,11 +267,13 @@ router.get('/:playerId/factions/available', async (req, res) => {
     // 查询可用势力
     const [factions] = await pool.query(`
       SELECT 
-        faction_id, faction_name, icon, color,
-        style, max_players, faction_bonuses, description, difficulty
-      FROM config_factions
-      WHERE season = ?
-      ORDER BY faction_id ASC
+        f.faction_id, f.faction_name, f.faction_leader, f.icon, f.color,
+        f.style, f.max_players, f.faction_bonuses, f.description, f.difficulty,
+        c.character_name as leader_name
+      FROM config_factions f
+      LEFT JOIN config_characters c ON f.faction_leader = c.character_id
+      WHERE f.season = ?
+      ORDER BY f.faction_id ASC
     `, [targetSeason]);
     console.log('[Factions] 查询到势力数量:', factions.length);
 

@@ -467,11 +467,11 @@ const CharacterCreationPage = ({ user, onComplete }) => {
   return (
     <div className="max-w-4xl mx-auto">
       {/* 进度指示器 */}
-      <div className="mb-8">
-        <div className="flex items-center justify-center space-x-4">
+      <div className="mb-8 overflow-x-auto">
+        <div className="flex items-center justify-center space-x-2 sm:space-x-4 min-w-0">
           {[1, 2, 3, 4, 5].map((step) => (
             <div key={step} className="flex items-center">
-              <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${
+              <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center font-bold text-sm sm:text-base ${
                 step === currentStep 
                   ? 'bg-blue-600 text-white' 
                   : step < currentStep 
@@ -481,17 +481,17 @@ const CharacterCreationPage = ({ user, onComplete }) => {
                 {step < currentStep ? '✓' : step}
               </div>
               {step < 5 && (
-                <div className={`w-12 h-1 ${step < currentStep ? 'bg-green-600' : 'bg-gray-300'}`} />
+                <div className={`w-6 sm:w-12 h-1 ${step < currentStep ? 'bg-green-600' : 'bg-gray-300'}`} />
               )}
             </div>
           ))}
         </div>
-        <div className="flex justify-center mt-4 space-x-12 text-sm text-gray-600">
-          <span className={currentStep === 1 ? 'font-bold text-blue-600' : ''}>选择势力</span>
-          <span className={currentStep === 2 ? 'font-bold text-blue-600' : ''}>选择形象</span>
-          <span className={currentStep === 3 ? 'font-bold text-blue-600' : ''}>角色名</span>
-          <span className={currentStep === 4 ? 'font-bold text-blue-600' : ''}>属性随机</span>
-          <span className={currentStep === 5 ? 'font-bold text-blue-600' : ''}>初始部队</span>
+        <div className="flex justify-center mt-4 space-x-4 sm:space-x-12 text-xs sm:text-sm text-gray-600">
+          <span className={currentStep === 1 ? 'font-bold text-blue-600' : ''}>选择{'\n'}势力</span>
+          <span className={currentStep === 2 ? 'font-bold text-blue-600' : ''}>选择{'\n'}形象</span>
+          <span className={currentStep === 3 ? 'font-bold text-blue-600' : ''}>角色{'\n'}名</span>
+          <span className={currentStep === 4 ? 'font-bold text-blue-600' : ''}>属性{'\n'}随机</span>
+          <span className={currentStep === 5 ? 'font-bold text-blue-600' : ''}>初始{'\n'}部队</span>
         </div>
       </div>
 
@@ -507,12 +507,12 @@ const CharacterCreationPage = ({ user, onComplete }) => {
         <div className="bg-white rounded-lg shadow-md p-6">
           <h2 className="text-2xl font-bold text-gray-900 mb-6 text-center">选择你的势力</h2>
           
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-8 gap-y-10 justify-items-center pb-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-x-6 gap-y-8 justify-items-center pb-4">
             {factions.map((faction) => (
               <FactionCard
                 key={faction.faction_id}
                 faction={faction}
-                leaderName={faction.faction_name}
+                leaderName={faction.leader_name || faction.faction_name}
                 selected={selectedFaction?.faction_id === faction.faction_id}
                 disabled={faction.is_full}
                 onClick={(f) => handleFactionSelect(f)}
@@ -543,12 +543,12 @@ const CharacterCreationPage = ({ user, onComplete }) => {
               <p>加载头像中...</p>
             </div>
           ) : (
-            <div className="grid grid-cols-4 md:grid-cols-6 gap-4 justify-items-center mb-6">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 justify-items-center mb-6">
               {avatarList.map((avatar, index) => (
                 <div
                   key={index}
                   onClick={() => handleAvatarSelect(avatar)}
-                  className={`w-[128px] h-[128px] rounded-lg cursor-pointer transition-all border-2 overflow-hidden ${
+                  className={`w-[100px] h-[100px] sm:w-[128px] sm:h-[128px] rounded-lg cursor-pointer transition-all border-2 overflow-hidden ${
                     selectedAvatar === avatar
                       ? 'border-blue-500 ring-4 ring-blue-300 scale-105'
                       : 'border-gray-300 hover:border-blue-300 hover:scale-105'
@@ -592,7 +592,7 @@ const CharacterCreationPage = ({ user, onComplete }) => {
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 角色名（1-3个中文字符）
               </label>
-              <div className="flex space-x-2">
+              <div className="flex flex-col sm:flex-row gap-2">
                 <input
                   type="text"
                   value={characterName}

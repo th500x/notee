@@ -63,8 +63,18 @@ function AuthFlowPage() {
     );
   }
 
+  // 已登录但玩家数据加载中 - 显示加载状态（防止闪烁到认证页面）
+  if (currentUser && playerLoading) {
+    return (
+      <div className="text-center py-12">
+        <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <p className="mt-4 text-gray-600">加载角色数据...</p>
+      </div>
+    );
+  }
+
   // 已登录且有角色 - 显示游戏主界面
-  if (currentUser && !playerLoading && hasCharacter && player) {
+  if (currentUser && hasCharacter && player) {
     return (
       <div className="text-center">
         <div className="bg-green-50 border border-green-200 rounded-lg p-6 mb-6">
@@ -91,7 +101,7 @@ function AuthFlowPage() {
   }
 
   // 已登录但没有角色 - 显示角色创建页面
-  if (currentUser && !playerLoading && !hasCharacter) {
+  if (currentUser && !hasCharacter) {
     return (
       <div>
         <div className="mb-6 text-center">
