@@ -276,6 +276,14 @@ router.get('/:playerId/factions/available', async (req, res) => {
       ORDER BY f.faction_id ASC
     `, [targetSeason]);
     console.log('[Factions] 查询到势力数量:', factions.length);
+    // 调试：打印第一个势力的完整数据
+    if (factions.length > 0) {
+      console.log('[Factions] 第一个势力完整数据:', JSON.stringify(factions[0], null, 2));
+      console.log('[Factions] faction_bonuses 类型:', typeof factions[0].faction_bonuses);
+      console.log('[Factions] description:', factions[0].description);
+      console.log('[Factions] style:', factions[0].style);
+      console.log('[Factions] difficulty:', factions[0].difficulty);
+    }
 
     // 查询每个势力的当前玩家数，推导 recommended
     for (const faction of factions) {

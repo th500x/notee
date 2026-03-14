@@ -191,6 +191,23 @@ const CharacterCreationPage = ({ user, onComplete }) => {
       console.log('[CharacterCreation] API返回结果:', result);
       if (result.success) {
         console.log('[CharacterCreation] 设置势力数据:', result.data.factions);
+        // 调试：打印第一个势力的详细字段
+        if (result.data.factions.length > 0) {
+          const f = result.data.factions[0];
+          console.log('[CharacterCreation] 第一个势力详细:', {
+            faction_name: f.faction_name,
+            leader_name: f.leader_name,
+            faction_bonuses: f.faction_bonuses,
+            bonuses_type: typeof f.faction_bonuses,
+            bonuses_isArray: Array.isArray(f.faction_bonuses),
+            description: f.description,
+            style: f.style,
+            difficulty: f.difficulty,
+            max_players: f.max_players,
+            icon: f.icon,
+            all_keys: Object.keys(f)
+          });
+        }
         setFactions(result.data.factions);
       } else {
         console.error('[CharacterCreation] API返回失败:', result);
