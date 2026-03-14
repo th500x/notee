@@ -1099,9 +1099,18 @@ CREATE TABLE IF NOT EXISTS raids (
 -- ==========================================
 -- 扩展 battles 表以支持讨伐系统
 -- ==========================================
--- 添加 raid_id 字段
-ALTER TABLE battles ADD COLUMN IF NOT EXISTS raid_id VARCHAR(50) COMMENT '讨伐ID（可选，NULL表示非讨伐战斗）';
-ALTER TABLE battles ADD INDEX IF NOT EXISTS idx_raid_id (raid_id);
+-- 添加 raid_id 字段（使用存储过程兼容低版本MySQL）
+SET @col_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'battles' AND COLUMN_NAME = 'raid_id');
+SET @sql = IF(@col_exists = 0, 'ALTER TABLE battles ADD COLUMN raid_id VARCHAR(50) COMMENT ''讨伐ID（可选，NULL表示非讨伐战斗）''', 'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @idx_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'battles' AND INDEX_NAME = 'idx_raid_id');
+SET @sql = IF(@idx_exists = 0, 'ALTER TABLE battles ADD INDEX idx_raid_id (raid_id)', 'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 
 -- 修改 battle_type 枚举，添加 pve_raid 类型
 ALTER TABLE battles MODIFY COLUMN battle_type ENUM(
