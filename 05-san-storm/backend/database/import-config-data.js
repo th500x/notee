@@ -7,12 +7,15 @@ const mysql = require('mysql2/promise');
 const fs = require('fs').promises;
 const path = require('path');
 
-// 数据库配置
+// 加载环境变量
+require('dotenv').config({ path: path.join(__dirname, '../.env') });
+
+// 数据库配置（优先使用.env，兼容本地开发默认值）
 const dbConfig = {
-  host: 'localhost',
-  user: 'root',
-  password: '',
-  database: '05_san_storm',
+  host: process.env.DB_HOST || 'localhost',
+  user: process.env.DB_USER || 'root',
+  password: process.env.DB_PASSWORD || '',
+  database: process.env.DB_NAME || '05_san_storm',
   charset: 'utf8mb4'
 };
 
