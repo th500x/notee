@@ -73,8 +73,7 @@ M1完成，进入M2阶段
       content: `完成数据库文档
 完成架构文档
 完成创建角色流程
-网站迁移数据库
-xxxxxx`,
+网站迁移数据库`,
       color: 'from-pink-400 to-pink-500',
       borderColor: 'border-pink-400'
     }

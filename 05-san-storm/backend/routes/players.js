@@ -427,11 +427,11 @@ router.get('/:playerId/creation-progress', async (req, res) => {
 
     const progress = rows[0];
     
-    // 解析JSON字段
-    if (progress.random_batches) {
+    // 解析JSON字段（mysql2可能已自动解析JSON类型字段）
+    if (progress.random_batches && typeof progress.random_batches === 'string') {
       progress.random_batches = JSON.parse(progress.random_batches);
     }
-    if (progress.selected_troops) {
+    if (progress.selected_troops && typeof progress.selected_troops === 'string') {
       progress.selected_troops = JSON.parse(progress.selected_troops);
     }
 
@@ -538,7 +538,9 @@ router.post('/:playerId/generate-attributes-batch', async (req, res) => {
     }
 
     const { remaining_silver, random_cost, random_batches } = rows[0];
-    const batches = random_batches ? JSON.parse(random_batches) : [];
+    const batches = random_batches 
+      ? (typeof random_batches === 'string' ? JSON.parse(random_batches) : random_batches) 
+      : [];
     const batchNumber = batches.length + 1;
     const cost = batchNumber === 1 ? 0 : random_cost; // 第一批免费
 

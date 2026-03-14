@@ -61,12 +61,12 @@ function FactionCard({ faction, leaderName, selected = false, disabled = false, 
     try { bonuses = JSON.parse(bonuses); } catch { bonuses = []; }
   }
 
-  const config = difficultyConfig[faction.difficulty] || difficultyConfig['中等'];
+  const config = difficultyConfig[faction.difficulty] || difficultyConfig['中级'];
   const displayLeaderName = leaderName || faction.leader;
 
   return (
     <div 
-      className={`relative w-[256px] h-[384px] group ${onClick ? 'cursor-pointer' : ''} ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+      className={`relative w-[256px] min-h-[384px] group hover:z-10 ${onClick ? 'cursor-pointer' : ''} ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
       onClick={() => !disabled && onClick && onClick(faction)}
     >
       {/* 选中指示器 */}
@@ -75,7 +75,7 @@ function FactionCard({ faction, leaderName, selected = false, disabled = false, 
       )}
       {/* 卡牌容器 */}
       <div className={`
-        relative w-full h-full
+        relative w-full min-h-full
         bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900
         rounded-xl overflow-hidden
         border-2 ${selected ? 'border-blue-400' : config.border}
