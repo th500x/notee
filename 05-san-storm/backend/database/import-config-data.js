@@ -348,7 +348,7 @@ async function importFactions(connection) {
         faction.color || null,
         faction.style || null,
         faction.max_players,
-        JSON.stringify(faction.bonuses || []),
+        JSON.stringify(faction.faction_bonuses || []),
         faction.description || null,
         faction.difficulty || '中级'
       ]);

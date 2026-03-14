@@ -56,7 +56,7 @@ function FactionCard({ faction, leaderName, selected = false, disabled = false, 
   const recommended = faction.recommended ?? (faction.difficulty === '简单');
 
   // faction_bonuses 可能是 JSON 字符串（从API）或数组（从JSON文件）
-  let bonuses = faction.faction_bonuses || faction.bonuses || [];
+  let bonuses = faction.faction_bonuses || [];
   if (typeof bonuses === 'string') {
     try { bonuses = JSON.parse(bonuses); } catch { bonuses = []; }
   }
