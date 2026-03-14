@@ -8,7 +8,7 @@
       "rank": 0,
       "rarity": "core",
       "requirement": "AI",
-      "bonuses": {
+      "position_bonuses": {
         "resourceBonus": 1,
         "prestigeBonus": 1
       },
@@ -27,7 +27,7 @@
       "rank": 1,
       "rarity": "core",
       "requirement": "待定",
-      "bonuses": {
+      "position_bonuses": {
         "resourceBonus": 0.5,
         "prestigeBonus": 0.5
       },
@@ -46,7 +46,7 @@
       "rank": 2,
       "rarity": "core",
       "requirement": "待定",
-      "bonuses": {
+      "position_bonuses": {
         "resourceBonus": 0.5,
         "prestigeBonus": 0.5
       },
@@ -65,7 +65,7 @@
       "rank": 3,
       "rarity": "core",
       "requirement": "AI",
-      "bonuses": {
+      "position_bonuses": {
         "resourceBonus": 0.5,
         "prestigeBonus": 0.5
       },
@@ -84,7 +84,7 @@
       "rank": 4,
       "rarity": "core",
       "requirement": "待定",
-      "bonuses": {
+      "position_bonuses": {
         "resourceBonus": 0.3,
         "prestigeBonus": 0.3,
         "infantryBonus": 0.15
@@ -104,7 +104,7 @@
       "rank": 5,
       "rarity": "core",
       "requirement": "待定",
-      "bonuses": {
+      "position_bonuses": {
         "resourceBonus": 0.3,
         "prestigeBonus": 0.3,
         "cavalryBonus": 0.15
@@ -124,7 +124,7 @@
       "rank": 6,
       "rarity": "core",
       "requirement": "待定",
-      "bonuses": {
+      "position_bonuses": {
         "resourceBonus": 0.25,
         "prestigeBonus": 0.25
       },
@@ -143,7 +143,7 @@
       "rank": 7,
       "rarity": "core",
       "requirement": "待定",
-      "bonuses": {
+      "position_bonuses": {
         "resourceBonus": 0.25,
         "prestigeBonus": 0.25
       },
@@ -162,7 +162,7 @@
       "rank": 8,
       "rarity": "core",
       "requirement": "待定",
-      "bonuses": {
+      "position_bonuses": {
         "resourceBonus": 0.25,
         "prestigeBonus": 0.25
       },
@@ -181,7 +181,7 @@
       "rank": 9,
       "rarity": "core",
       "requirement": "待定",
-      "bonuses": {
+      "position_bonuses": {
         "resourceBonus": 0.25,
         "prestigeBonus": 0.25
       },
@@ -200,7 +200,7 @@
       "rank": 10,
       "rarity": "legendary",
       "requirement": "待定",
-      "bonuses": {
+      "position_bonuses": {
         "resourceBonus": 0.2,
         "prestigeBonus": 0.2,
         "infantryBonus": 0.1
@@ -219,7 +219,7 @@
       "rank": 11,
       "rarity": "legendary",
       "requirement": "待定",
-      "bonuses": {
+      "position_bonuses": {
         "resourceBonus": 0.2,
         "prestigeBonus": 0.2,
         "infantryBonus": 0.1
@@ -238,7 +238,7 @@
       "rank": 12,
       "rarity": "legendary",
       "requirement": "待定",
-      "bonuses": {
+      "position_bonuses": {
         "resourceBonus": 0.2,
         "prestigeBonus": 0.2,
         "infantryBonus": 0.1
@@ -257,7 +257,7 @@
       "rank": 13,
       "rarity": "legendary",
       "requirement": "待定",
-      "bonuses": {
+      "position_bonuses": {
         "resourceBonus": 0.2,
         "prestigeBonus": 0.2,
         "infantryBonus": 0.1
@@ -276,7 +276,7 @@
       "rank": 14,
       "rarity": "legendary",
       "requirement": "待定",
-      "bonuses": {
+      "position_bonuses": {
         "resourceBonus": 0.2,
         "prestigeBonus": 0.2,
         "infantryBonus": 0.1
@@ -295,7 +295,7 @@
       "rank": 15,
       "rarity": "legendary",
       "requirement": "待定",
-      "bonuses": {
+      "position_bonuses": {
         "resourceBonus": 0.2,
         "prestigeBonus": 0.2,
         "infantryBonus": 0.1
@@ -314,7 +314,7 @@
       "rank": 16,
       "rarity": "legendary",
       "requirement": "待定",
-      "bonuses": {
+      "position_bonuses": {
         "resourceBonus": 0.2,
         "prestigeBonus": 0.2,
         "infantryBonus": 0.05,
@@ -334,7 +334,7 @@
       "rank": 17,
       "rarity": "legendary",
       "requirement": "待定",
-      "bonuses": {
+      "position_bonuses": {
         "resourceBonus": 0.2,
         "prestigeBonus": 0.2,
         "infantryBonus": 0.05,
@@ -354,7 +354,7 @@
       "rank": 18,
       "rarity": "legendary",
       "requirement": "待定",
-      "bonuses": {
+      "position_bonuses": {
         "resourceBonus": 0.2,
         "prestigeBonus": 0.2,
         "infantryBonus": 0.05,
@@ -374,7 +374,7 @@
       "rank": 19,
       "rarity": "legendary",
       "requirement": "待定",
-      "bonuses": {
+      "position_bonuses": {
         "resourceBonus": 0.2,
         "prestigeBonus": 0.2,
         "infantryBonus": 0.05,
@@ -394,7 +394,7 @@
       "rank": 20,
       "rarity": "legendary",
       "requirement": "待定",
-      "bonuses": {
+      "position_bonuses": {
         "resourceBonus": 0.2,
         "prestigeBonus": 0.2,
         "infantryBonus": 0.05,
@@ -414,7 +414,7 @@
       "rank": 21,
       "rarity": "legendary",
       "requirement": "待定",
-      "bonuses": {
+      "position_bonuses": {
         "resourceBonus": 0.2,
         "prestigeBonus": 0.2,
         "infantryBonus": 0.05,
@@ -434,7 +434,7 @@
       "rank": 22,
       "rarity": "legendary",
       "requirement": "待定",
-      "bonuses": {
+      "position_bonuses": {
         "resourceBonus": 0.2,
         "prestigeBonus": 0.2,
         "archerBonus": 0.1
@@ -453,7 +453,7 @@
       "rank": 23,
       "rarity": "legendary",
       "requirement": "待定",
-      "bonuses": {
+      "position_bonuses": {
         "resourceBonus": 0.2,
         "prestigeBonus": 0.2,
         "archerBonus": 0.1
@@ -472,7 +472,7 @@
       "rank": 24,
       "rarity": "legendary",
       "requirement": "待定",
-      "bonuses": {
+      "position_bonuses": {
         "resourceBonus": 0.2,
         "prestigeBonus": 0.2,
         "archerBonus": 0.1
@@ -491,7 +491,7 @@
       "rank": 25,
       "rarity": "legendary",
       "requirement": "待定",
-      "bonuses": {
+      "position_bonuses": {
         "resourceBonus": 0.2,
         "prestigeBonus": 0.2,
         "archerBonus": 0.1
@@ -510,7 +510,7 @@
       "rank": 26,
       "rarity": "legendary",
       "requirement": "待定",
-      "bonuses": {
+      "position_bonuses": {
         "resourceBonus": 0.2,
         "prestigeBonus": 0.2,
         "archerBonus": 0.1
@@ -529,7 +529,7 @@
       "rank": 27,
       "rarity": "legendary",
       "requirement": "待定",
-      "bonuses": {
+      "position_bonuses": {
         "resourceBonus": 0.2,
         "prestigeBonus": 0.2,
         "archerBonus": 0.1
@@ -548,7 +548,7 @@
       "rank": 28,
       "rarity": "epic",
       "requirement": "待定",
-      "bonuses": {
+      "position_bonuses": {
         "resourceBonus": 0.15,
         "prestigeBonus": 0.15
       },
@@ -566,7 +566,7 @@
       "rank": 29,
       "rarity": "epic",
       "requirement": "待定",
-      "bonuses": {
+      "position_bonuses": {
         "resourceBonus": 0.15,
         "prestigeBonus": 0.15,
         "infantryBonus": 0.08
@@ -585,7 +585,7 @@
       "rank": 30,
       "rarity": "epic",
       "requirement": "待定",
-      "bonuses": {
+      "position_bonuses": {
         "resourceBonus": 0.15,
         "prestigeBonus": 0.15,
         "cavalryBonus": 0.08
@@ -604,7 +604,7 @@
       "rank": 31,
       "rarity": "rare",
       "requirement": "待定",
-      "bonuses": {
+      "position_bonuses": {
         "resourceBonus": 0.1,
         "prestigeBonus": 0.1,
         "infantryBonus": 0.05
@@ -623,7 +623,7 @@
       "rank": 32,
       "rarity": "rare",
       "requirement": "待定",
-      "bonuses": {
+      "position_bonuses": {
         "resourceBonus": 0.1,
         "prestigeBonus": 0.1,
         "cavalryBonus": 0.05
@@ -642,7 +642,7 @@
       "rank": 33,
       "rarity": "rare",
       "requirement": "待定",
-      "bonuses": {
+      "position_bonuses": {
         "resourceBonus": 0.05,
         "prestigeBonus": 0.05,
         "infantryBonus": 0.03
@@ -661,7 +661,7 @@
       "rank": 34,
       "rarity": "rare",
       "requirement": "待定",
-      "bonuses": {
+      "position_bonuses": {
         "resourceBonus": 0.05,
         "prestigeBonus": 0.05,
         "cavalryBonus": 0.03
@@ -680,7 +680,7 @@
       "rank": 35,
       "rarity": "common",
       "requirement": "初始官职",
-      "bonuses": {
+      "position_bonuses": {
         "infantryBonus": 0.01,
         "cavalryBonus": 0.01
       },

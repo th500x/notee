@@ -217,23 +217,23 @@ function PositionCard({ position, showDetails = true }) {
             <div className="space-y-1">
               {/* 第一行：资源 + 声望（固定显示） */}
               <div className="flex items-center text-xs bg-gray-900/50 rounded px-2 py-1 min-h-[24px]">
-                {position.bonuses && (position.bonuses.resourceBonus > 0 || position.bonuses.prestigeBonus > 0) ? (
+                {position.position_bonuses && (position.position_bonuses.resourceBonus > 0 || position.position_bonuses.prestigeBonus > 0) ? (
                   <div className="flex items-center gap-3">
-                    {position.bonuses.resourceBonus > 0 && (
+                    {position.position_bonuses.resourceBonus > 0 && (
                       <div className="flex items-center gap-1">
                         <span className="text-yellow-400">💰</span>
                         <span className="text-gray-400">资源</span>
                         <span className="text-yellow-400 font-bold">
-                          +{(position.bonuses.resourceBonus * 100).toFixed(0)}%
+                          +{(position.position_bonuses.resourceBonus * 100).toFixed(0)}%
                         </span>
                       </div>
                     )}
-                    {position.bonuses.prestigeBonus > 0 && (
+                    {position.position_bonuses.prestigeBonus > 0 && (
                       <div className="flex items-center gap-1">
                         <span className="text-purple-400">⭐</span>
                         <span className="text-gray-400">声望</span>
                         <span className="text-purple-400 font-bold">
-                          +{(position.bonuses.prestigeBonus * 100).toFixed(0)}%
+                          +{(position.position_bonuses.prestigeBonus * 100).toFixed(0)}%
                         </span>
                       </div>
                     )}
@@ -245,32 +245,32 @@ function PositionCard({ position, showDetails = true }) {
               
               {/* 第二行：兵种加成（固定显示） */}
               <div className="flex items-center text-xs bg-gray-900/50 rounded px-2 py-1 min-h-[24px]">
-                {position.bonuses && (position.bonuses.infantryBonus > 0 || position.bonuses.cavalryBonus > 0 || position.bonuses.archerBonus > 0) ? (
+                {position.position_bonuses && (position.position_bonuses.infantryBonus > 0 || position.position_bonuses.cavalryBonus > 0 || position.position_bonuses.archerBonus > 0) ? (
                   <div className="flex items-center gap-3">
-                    {position.bonuses.infantryBonus > 0 && (
+                    {position.position_bonuses.infantryBonus > 0 && (
                       <div className="flex items-center gap-1">
                         <span className="text-red-400">🛡️</span>
                         <span className="text-gray-400">步兵</span>
                         <span className="text-red-400 font-bold">
-                          +{(position.bonuses.infantryBonus * 100).toFixed(0)}%
+                          +{(position.position_bonuses.infantryBonus * 100).toFixed(0)}%
                         </span>
                       </div>
                     )}
-                    {position.bonuses.cavalryBonus > 0 && (
+                    {position.position_bonuses.cavalryBonus > 0 && (
                       <div className="flex items-center gap-1">
                         <span className="text-green-400">🐎</span>
                         <span className="text-gray-400">骑兵</span>
                         <span className="text-green-400 font-bold">
-                          +{(position.bonuses.cavalryBonus * 100).toFixed(0)}%
+                          +{(position.position_bonuses.cavalryBonus * 100).toFixed(0)}%
                         </span>
                       </div>
                     )}
-                    {position.bonuses.archerBonus > 0 && (
+                    {position.position_bonuses.archerBonus > 0 && (
                       <div className="flex items-center gap-1">
                         <span className="text-blue-400">🏹</span>
                         <span className="text-gray-400">弓兵</span>
                         <span className="text-blue-400 font-bold">
-                          +{(position.bonuses.archerBonus * 100).toFixed(0)}%
+                          +{(position.position_bonuses.archerBonus * 100).toFixed(0)}%
                         </span>
                       </div>
                     )}
@@ -347,7 +347,7 @@ PositionCard.propTypes = {
     rank: PropTypes.number.isRequired,
     requirement: PropTypes.string,
     description: PropTypes.string,
-    bonuses: PropTypes.shape({
+    position_bonuses: PropTypes.shape({
       resourceBonus: PropTypes.number,
       prestigeBonus: PropTypes.number,
       infantryBonus: PropTypes.number,

@@ -56,7 +56,7 @@ async function importFactions() {
           faction.color,
           faction.style,
           faction.max_players,
-          JSON.stringify(faction.bonuses),
+          JSON.stringify(faction.faction_bonuses),
           faction.description,
           faction.difficulty,
           '1.0.0'
