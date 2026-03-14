@@ -11,7 +11,7 @@ function App() {
             <div className="flex justify-between items-center">
               <div>
                 <a 
-                  href="/"
+                  href="/05-san-storm/"
                   className="text-3xl font-bold text-gray-900 hover:text-blue-600 transition-colors cursor-pointer relative group inline-block"
                 >
                   真三風雲 - 主页面
