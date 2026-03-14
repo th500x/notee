@@ -1,20 +1,21 @@
 /**
  * 将领列表页面
  * 
- * @description 展示所有将领，支持筛选、排序和查看生涯详情
+ * @description 展示所有将领，支持筛选、排序，点击卡牌可翻转查看生涯
  */
 
 import React, { useState, useMemo } from 'react';
 import { useCharacters } from '@/hooks/useCharacters';
 import { useSkills } from '@/hooks/useSkills';
 import { useBonds } from '@/hooks/useBonds';
-import { CharacterCard } from '@/components/character/CharacterCard';
-import CharacterLifeStageModal from '@/components/character/CharacterLifeStageModal';
+import { useLifeStages } from '@/hooks/useLifeStages';
+import CharacterCard from '@shared/components/card/CharacterCard';
 
 function CharactersPage() {
   const { characters, loading, error, filterCharacters, sortCharacters } = useCharacters();
   const { skillsMap, loading: skillsLoading } = useSkills();
   const { bondsMap, loading: bondsLoading } = useBonds();
+  const { getCharacterLifeStage, loading: lifeStagesLoading } = useLifeStages();
   const [filters, setFilters] = useState({
     season: 'all',
     faction: 'all',
@@ -24,7 +25,6 @@ function CharactersPage() {
   });
   const [sortBy, setSortBy] = useState('rarity'); // 默认按稀有度排序
   const [sortOrder, setSortOrder] = useState('desc'); // 默认降序
-  const [selectedCharacter, setSelectedCharacter] = useState(null); // 选中的角色（用于显示生涯详情）
 
   // 应用筛选和排序
   const displayedCharacters = useMemo(() => {
@@ -32,7 +32,7 @@ function CharactersPage() {
     return sortCharacters(filtered, sortBy, sortOrder);
   }, [characters, filters, sortBy, sortOrder, filterCharacters, sortCharacters]);
 
-  if (loading || skillsLoading || bondsLoading) {
+  if (loading || skillsLoading || bondsLoading || lifeStagesLoading) {
     return (
       <div className="text-center py-12">
         <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
@@ -131,23 +131,16 @@ function CharactersPage() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 justify-items-center">
           {displayedCharacters.map(character => (
-            <div key={character.id} onClick={() => setSelectedCharacter(character)} className="cursor-pointer">
-              <CharacterCard 
-                character={character}
-                skillsMap={skillsMap}
-                bondsMap={bondsMap}
-              />
-            </div>
+            <CharacterCard 
+              key={character.id}
+              character={character}
+              skillsMap={skillsMap}
+              bondsMap={bondsMap}
+              baseUrl={import.meta.env.BASE_URL}
+              lifeStageData={getCharacterLifeStage(character.id)}
+            />
           ))}
         </div>
-      )}
-
-      {/* 生涯详情弹窗 */}
-      {selectedCharacter && (
-        <CharacterLifeStageModal 
-          character={selectedCharacter}
-          onClose={() => setSelectedCharacter(null)}
-        />
       )}
     </div>
   );

@@ -49,54 +49,58 @@ export function ServerCard({ server, onSelect }) {
 
   return (
     <div className="relative w-[256px] h-[384px] group">
-      {/* 卡牌容器 */}
-      <div className={`
-        relative w-full h-full
-        bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900
-        rounded-xl overflow-hidden
-        border-2 ${statusBorders[server.status]}
-        shadow-xl ${statusGlows[server.status]}
-        transition-all duration-300
-        ${isFull ? 'opacity-75' : 'hover:scale-105 hover:shadow-2xl cursor-pointer'}
-      `}
-      onClick={() => !isFull && onSelect && onSelect(server)}
+      {/* 炫彩金色边框（渐变背景作为边框） */}
+      <div 
+        className={`
+          relative w-full h-full
+          rounded-xl p-[3px]
+          shadow-xl
+          transition-all duration-300
+          ${isFull ? 'opacity-75' : 'hover:scale-105 hover:shadow-2xl cursor-pointer'}
+        `}
+        style={{
+          background: 'linear-gradient(135deg, #d4a017, #f5d060, #b8860b, #f5d060, #d4a017, #f5d060, #b8860b)',
+        }}
+        onClick={() => !isFull && onSelect && onSelect(server)}
       >
+      {/* 卡牌内容 */}
+      <div className="relative w-full h-full rounded-[10px] overflow-hidden bg-[#f8f6f0]">
         
         {/* 顶部：服务器名称 */}
         <div className={`
-          relative h-[40px] px-3 py-2
-          bg-gradient-to-r ${statusGradients[server.status]}
+          relative h-[40px] px-5 py-2
+          bg-black/10 backdrop-blur-sm
           flex items-center justify-between
         `}>
           <div className="flex items-center gap-2">
             <span className="text-xl">🎮</span>
-            <h3 className="text-white font-bold text-base truncate">
+            <h3 className="text-gray-900 font-bold text-base truncate">
               {server.name}
             </h3>
           </div>
           <div className={`
             px-2 py-0.5 rounded
-            bg-black/30 backdrop-blur-sm
-            text-xs font-medium text-white
+            bg-black/20 backdrop-blur-sm
+            text-xs font-medium text-gray-900
           `}>
             {statusIcon}
           </div>
         </div>
 
         {/* 中间：服务器图标区域 */}
-        <div className="relative h-[120px] bg-gradient-to-b from-gray-800 to-gray-900">
+        <div className="relative h-[120px]">
           {/* 背景装饰 */}
-          <div className="absolute inset-0 opacity-10">
+          <div className="absolute inset-0 opacity-5">
             <div className={`absolute inset-0 bg-gradient-to-br ${statusGradients[server.status]}`} />
           </div>
 
-          <div className="relative h-full flex items-center p-3 gap-3">
+          <div className="relative h-full flex items-center px-5 py-3 gap-3">
             {/* 左侧：服务器图标 */}
             <div className="relative w-[100px] h-[100px] flex-shrink-0">
               <div className={`
                 absolute inset-0 rounded-lg
-                border-2 ${statusBorders[server.status]}
-                bg-gray-900/50 backdrop-blur-sm
+                border-2 border-gray-500
+                bg-gray-700/80 backdrop-blur-sm
                 flex items-center justify-center
                 overflow-hidden
               `}>
@@ -108,29 +112,16 @@ export function ServerCard({ server, onSelect }) {
                   {server.status === 'full' && '🔒'}
                 </div>
               </div>
-
-              {/* 状态标识 */}
-              <div className={`
-                absolute -top-1 -right-1
-                w-8 h-8 rounded-full
-                bg-gradient-to-br ${statusGradients[server.status]}
-                border-2 ${statusBorders[server.status]}
-                flex items-center justify-center
-                text-lg
-                shadow-lg
-              `}>
-                {statusIcon}
-              </div>
             </div>
 
             {/* 右侧：服务器信息 */}
-            <div className="flex-1 flex flex-col justify-center gap-2">
+            <div className="flex-1 flex flex-col justify-center items-start gap-2">
               {/* 在线人数 */}
               <div className="flex items-center gap-2">
                 <span className="text-blue-400 text-xl">👥</span>
-                <div className="flex flex-col">
-                  <span className="text-gray-400 text-[10px]">在线</span>
-                  <span className="text-white font-bold text-sm">
+                <div className="flex flex-col items-start">
+                  <span className="text-gray-700 text-sm">在线</span>
+                  <span className="text-gray-900 font-bold text-sm">
                     {server.onlinePlayerCount}
                   </span>
                 </div>
@@ -139,9 +130,9 @@ export function ServerCard({ server, onSelect }) {
               {/* 负载 */}
               <div className="flex items-center gap-2">
                 <span className="text-purple-400 text-xl">📊</span>
-                <div className="flex flex-col">
-                  <span className="text-gray-400 text-[10px]">负载</span>
-                  <span className="text-white font-bold text-sm">
+                <div className="flex flex-col items-start">
+                  <span className="text-gray-700 text-sm">负载</span>
+                  <span className="text-gray-900 font-bold text-sm">
                     {loadPercentage.toFixed(0)}%
                   </span>
                 </div>
@@ -151,41 +142,38 @@ export function ServerCard({ server, onSelect }) {
         </div>
 
         {/* 服务器详情区域 */}
-        <div className="relative px-3 py-2 bg-gray-900/90 backdrop-blur-sm">
-          <div className="space-y-2">
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-gray-400">赛季</span>
-              <span className="text-white font-medium">{server.description}</span>
-            </div>
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-gray-400">状态</span>
-              <span className="font-medium" style={{ color: statusColor }}>
-                {statusLabel}
-              </span>
-            </div>
+        <div className="relative px-5 py-2 border-t-2 border-gray-400/40">
+          <div className="flex items-center justify-start text-sm">
+            <span className="text-gray-900 font-medium">{server.description}</span>
           </div>
         </div>
 
         {/* 负载进度条区域 */}
-        <div className="relative px-3 py-2 bg-gray-800/90 backdrop-blur-sm border-t border-gray-700">
+        <div className="relative px-5 py-2 border-t-2 border-gray-400/40">
           <div className="mb-2">
-            <div className="flex items-center justify-between text-xs mb-1">
-              <span className="text-gray-400">玩家容量</span>
-              <span className="text-white font-medium">
+            <div className="flex items-center justify-between text-sm mb-1">
+              <span className="text-gray-700">玩家容量</span>
+              <span className="text-gray-900 font-medium">
                 {server.activePlayerCount}/{server.maxPlayers}
               </span>
             </div>
-            <div className="w-full bg-gray-700 rounded-full h-2">
+            <div className="w-full bg-gray-700/30 rounded-full h-2">
               <div 
                 className={`h-2 rounded-full transition-all bg-gradient-to-r ${statusGradients[server.status]}`}
                 style={{ width: `${loadPercentage}%` }}
               />
             </div>
           </div>
+          
+          {/* AI玩家数 */}
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-gray-700">AI玩家数</span>
+            <span className="text-gray-900 font-medium">990</span>
+          </div>
         </div>
 
         {/* 操作按钮区域 */}
-        <div className="relative px-3 py-3 bg-gray-900/90 backdrop-blur-sm border-t border-gray-700">
+        <div className="relative px-5 py-3 border-t-2 border-gray-400/40">
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -194,19 +182,20 @@ export function ServerCard({ server, onSelect }) {
             disabled={isFull}
             className={`
               w-full py-2 px-4 rounded-lg font-medium transition-all
+              border-2 border-yellow-600
               ${isFull
                 ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
-                : `bg-gradient-to-r ${statusGradients[server.status]} text-white hover:shadow-lg`
+                : 'bg-transparent text-gray-900 hover:bg-yellow-600/20 hover:shadow-lg'
               }
             `}
           >
-            {isFull ? '🔒 服务器已满' : '⚔️ 进入服务器'}
+            {isFull ? '🔒 服务器已满' : '⚔️ 选择服务器'}
           </button>
         </div>
 
         {/* 已满遮罩 */}
         {isFull && (
-          <div className="absolute inset-0 bg-gray-900/50 backdrop-blur-sm flex items-center justify-center">
+          <div className="absolute inset-0 bg-gray-900/50 backdrop-blur-sm flex items-center justify-center rounded-[10px]">
             <div className="text-center">
               <div className="text-6xl mb-2">🔒</div>
               <div className="text-white font-bold text-lg">服务器已满</div>
@@ -214,6 +203,7 @@ export function ServerCard({ server, onSelect }) {
             </div>
           </div>
         )}
+      </div>
       </div>
     </div>
   );

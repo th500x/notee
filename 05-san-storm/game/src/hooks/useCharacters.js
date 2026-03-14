@@ -66,7 +66,7 @@ export function useCharacters() {
         filtered = filtered.filter(char => char.rarity === filters.rarity);
       }
 
-      // 按人生阶段筛选
+      // 按生涯筛选
       if (filters.stage && filters.stage !== 'all') {
         filtered = filtered.filter(char => char.stage === filters.stage);
       }

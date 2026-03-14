@@ -6,7 +6,7 @@
 
 import React from 'react';
 import { usePositions } from '@/hooks/usePositions';
-import { PositionCard } from '@/components/position/PositionCard';
+import PositionCard from '@shared/components/card/PositionCard';
 
 function PositionsPage() {
   const { positions, loading, error } = usePositions();

@@ -28,7 +28,7 @@ export const RARITY_COLORS = {
   [RARITY.COMMON]: '#4CAF50',
 };
 
-// ==================== 人生阶段 ====================
+// ==================== 生涯 ====================
 export const STAGE = {
   MAOLU: '茅庐',
   PRIME: '巅峰',
@@ -65,7 +65,7 @@ export const ATTRIBUTES = {
 export const ATTRIBUTE_LABELS = {
   [ATTRIBUTES.LUCK]: '运气',
   [ATTRIBUTES.COURAGE]: '勇气',
-  [ATTRIBUTES.COMMAND]: '统率',
+  [ATTRIBUTES.COMMAND]: '统帅',
   [ATTRIBUTES.COMBAT]: '武力',
   [ATTRIBUTES.INTELLIGENCE]: '智力',
   [ATTRIBUTES.POLITICS]: '政治',
@@ -163,7 +163,7 @@ export const SORT_OPTIONS = [
   { value: 'id', label: '默认排序' },
   { value: 'combat', label: '武力排序' },
   { value: 'intelligence', label: '智力排序' },
-  { value: 'command', label: '统率排序' },
+  { value: 'command', label: '统帅排序' },
   { value: 'charisma', label: '魅力排序' },
   { value: 'age', label: '年龄排序' },
 ];

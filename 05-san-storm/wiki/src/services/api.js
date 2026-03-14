@@ -76,7 +76,10 @@ export async function apiCall(url, options = {}) {
  * @returns {Promise<any>} API 响应数据
  */
 export async function get(url, options = {}) {
-  return apiCall(url, {
+  // 添加缓存破坏参数（仅用于静态JSON文件）
+  const cacheBuster = url.includes('.json') ? `?_t=${Date.now()}` : '';
+  
+  return apiCall(url + cacheBuster, {
     ...options,
     method: 'GET',
   });

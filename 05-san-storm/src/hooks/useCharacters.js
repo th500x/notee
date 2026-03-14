@@ -90,7 +90,7 @@ export function useCharacters() {
         );
       }
 
-      // 按人生阶段筛选
+      // 按生涯筛选
       if (safeFilters.stage && safeFilters.stage !== 'all') {
         filtered = filtered.filter(char => 
           char && char.stage === safeFilters.stage

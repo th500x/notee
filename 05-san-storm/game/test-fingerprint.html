@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>机器指纹API测试</title>
+  <style>
+    body { font-family: monospace; padding: 20px; }
+    .test { margin: 10px 0; padding: 10px; border: 1px solid #ccc; }
+    .pass { background: #d4edda; }
+    .fail { background: #f8d7da; }
+  </style>
+</head>
+<body>
+  <h1>机器指纹API测试</h1>
+  <div id="results"></div>
+  
+  <script>
+    const results = [];
+    
+    // 测试1: navigator.language
+    try {
+      const lang = navigator.language;
+      results.push({
+        name: 'navigator.language',
+        value: lang,
+        status: lang ? 'pass' : 'fail',
+        note: '浏览器语言'
+      });
+    } catch (e) {
+      results.push({ name: 'navigator.language', status: 'fail', error: e.message });
+    }
+    
+    // 测试2: screen.colorDepth
+    try {
+      const depth = screen.colorDepth;
+      results.push({
+        name: 'screen.colorDepth',
+        value: depth,
+        status: depth ? 'pass' : 'fail',
+        note: '色深'
+      });
+    } catch (e) {
+      results.push({ name: 'screen.colorDepth', status: 'fail', error: e.message });
+    }
+    
+    // 测试3: screen resolution
+    try {
+      const resolution = screen.width + 'x' + screen.height;
+      results.push({
+        name: 'screen.width × screen.height',
+        value: resolution,
+        status: resolution ? 'pass' : 'fail',
+        note: '屏幕分辨率'
+      });
+    } catch (e) {
+      results.push({ name: 'screen resolution', status: 'fail', error: e.message });
+    }
+    
+    // 测试4: timezone
+    try {
+      const tz = new Date().getTimezoneOffset();
+      results.push({
+        name: 'new Date().getTimezoneOffset()',
+        value: tz,
+        status: typeof tz === 'number' ? 'pass' : 'fail',
+        note: '时区偏移（分钟）'
+      });
+    } catch (e) {
+      results.push({ name: 'timezone', status: 'fail', error: e.message });
+    }
+    
+    // 测试5: CPU cores
+    try {
+      const cores = navigator.hardwareConcurrency || 0;
+      results.push({
+        name: 'navigator.hardwareConcurrency',
+        value: cores,
+        status: cores > 0 ? 'pass' : 'fail',
+        note: 'CPU核心数'
+      });
+    } catch (e) {
+      results.push({ name: 'hardwareConcurrency', status: 'fail', error: e.message });
+    }
+    
+    // 生成指纹
+    const fingerprint = [
+      navigator.language,
+      screen.colorDepth,
+      screen.width + 'x' + screen.height,
+      new Date().getTimezoneOffset(),
+      navigator.hardwareConcurrency || 0
+    ].join('|');
+    
+    let hash = 0;
+    for (let i = 0; i < fingerprint.length; i++) {
+      const char = fingerprint.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash;
+    }
+    const machineId = Math.abs(hash).toString(36);
+    
+    // 显示结果
+    const container = document.getElementById('results');
+    results.forEach(r => {
+      const div = document.createElement('div');
+      div.className = `test ${r.status}`;
+      div.innerHTML = `
+        <strong>${r.name}</strong>: ${r.status === 'pass' ? '✅' : '❌'}<br>
+        ${r.value !== undefined ? `值: ${r.value}<br>` : ''}
+        ${r.note ? `说明: ${r.note}<br>` : ''}
+        ${r.error ? `错误: ${r.error}` : ''}
+      `;
+      container.appendChild(div);
+    });
+    
+    // 显示最终指纹
+    const finalDiv = document.createElement('div');
+    finalDiv.className = 'test';
+    finalDiv.style.background = '#fff3cd';
+    finalDiv.innerHTML = `
+      <h2>最终机器指纹</h2>
+      <strong>原始字符串:</strong><br>
+      <code>${fingerprint}</code><br><br>
+      <strong>Hash值:</strong><br>
+      <code>${machineId}</code>
+    `;
+    container.appendChild(finalDiv);
+  </script>
+</body>
+</html>

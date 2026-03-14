@@ -31,13 +31,18 @@ export function useSkills() {
       setError(null);
 
       const data = await loadSharedData('skills');
-      setSkills(data);
+      
+      // 提取skills数组（数据结构是 { skills: [...] }）
+      const skillsArray = data.skills || data;
+      
+      setSkills(skillsArray);
 
       // 创建技能ID到技能对象的映射
       const map = {};
-      data.forEach(skill => {
+      skillsArray.forEach(skill => {
         map[skill.id] = skill;
       });
+      
       setSkillsMap(map);
 
     } catch (err) {

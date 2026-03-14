@@ -23,6 +23,11 @@ export default defineConfig({
   server: {
     port: 3000,
     open: true,
+    // 配置静态资源缓存响应头（开发环境）
+    headers: {
+      // 字体文件缓存 1 年
+      'Cache-Control': 'public, max-age=31536000, immutable',
+    },
   },
   build: {
     outDir: 'dist',

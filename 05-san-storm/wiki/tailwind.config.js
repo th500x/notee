@@ -3,6 +3,7 @@ export default {
   content: [
     "./index.html",
     "./src/**/*.{js,jsx,ts,tsx}",
+    "../shared/**/*.{js,jsx,ts,tsx}",
   ],
   theme: {
     extend: {
@@ -16,7 +17,7 @@ export default {
         // 属性颜色
         luck: '#FFD700',       // 运气-金色
         courage: '#FF4444',    // 勇气-红色
-        command: '#9C27B0',    // 统率-紫色
+        command: '#9C27B0',    // 统帅-紫色
         combat: '#F44336',     // 武力-红色
         intelligence: '#2196F3', // 智力-蓝色
         politics: '#4CAF50',   // 政治-绿色

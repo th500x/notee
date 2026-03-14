@@ -61,9 +61,6 @@ export const featureFlags = {
 
 // ==================== 认证配置 ====================
 export const authConfig = {
-  // 全局管理员密码（从环境变量读取）
-  globalAdminPassword: import.meta.env.VITE_GLOBAL_ADMIN_PASSWORD || '',
-  
   // Token 有效期（毫秒）
   tokenExpiry: 30 * 24 * 60 * 60 * 1000, // 30天
   

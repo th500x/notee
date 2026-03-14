@@ -116,7 +116,7 @@ export function getFactorDescription(factorName) {
     courage: '勇气',
     
     // 核心五维
-    command: '统率',
+    command: '统帅',
     combat: '武力',
     intelligence: '智力',
     politics: '政治',

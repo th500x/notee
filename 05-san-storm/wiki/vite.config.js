@@ -18,11 +18,18 @@ export default defineConfig({
       '@config': path.resolve(__dirname, './src/config'),
       '@styles': path.resolve(__dirname, './src/styles'),
       '@types': path.resolve(__dirname, './src/types'),
+      '@shared': path.resolve(__dirname, '../shared'),
     },
+    dedupe: ['react', 'react-dom'],
   },
   server: {
-    port: 3000,
+    port: 3001,
     open: true,
+    // 配置静态资源缓存响应头（开发环境）
+    headers: {
+      // 字体文件缓存 1 年
+      'Cache-Control': 'public, max-age=31536000, immutable',
+    },
   },
   build: {
     outDir: 'dist',

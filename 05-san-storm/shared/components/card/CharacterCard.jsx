@@ -1,0 +1,776 @@
+/**
+ * 将领卡片组件（共享版本）
+ * 
+ * @description 展示单个将领的信息卡片，采用卡牌风格，支持翻牌查看生涯
+ * 
+ * 尺寸: 256 × 384 px (2:3比例)
+ * 布局: 竖版卡牌
+ * 
+ * @param {Object} character - 将领数据对象
+ * @param {string} character.id - 将领ID
+ * @param {string} character.name - 将领名称
+ * @param {string} character.rarity - 稀有度 (core/legendary/epic/rare/common/mythic)
+ * @param {string} character.stage - 生涯阶段 (early/peak/late/dead)
+ * @param {number} character.luck - 运气值
+ * @param {number} character.courage - 勇猛
+ * @param {number} character.command - 统率
+ * @param {number} character.combat - 武力
+ * @param {number} character.intelligence - 智力
+ * @param {number} character.politics - 政治
+ * @param {number} character.charm - 魅力
+ * @param {string} [character.trait] - 性格特质
+ * @param {number} [character.traitModifier] - 性格修正值
+ * @param {string} [character.troopAffinity] - 兵种适应性
+ * @param {string[]} [character.skills] - 技能ID数组
+ * @param {string[]|string} [character.bonds] - 羁绊数组或字符串
+ * @param {string} [character.bond] - 羁绊字符串（兼容旧格式）
+ * @param {string} [character.biography] - 传记
+ * @param {string} [character.description] - 角色描述
+ * 
+ * @param {Object} [skillsMap={}] - 技能映射对象
+ * @param {Object} [bondsMap={}] - 羁绊映射对象
+ * @param {boolean} [showDetails=true] - 是否显示详细信息
+ * @param {string} [baseUrl=''] - 资源基础路径
+ * @param {Object} [lifeStageData] - 生涯数据（用于翻牌）
+ * @param {Function} [onSelect] - 选择回调函数
+ * @param {boolean} [isSelected=false] - 是否选中（用于角色创建）
+ * @param {string} [characterType] - 将领类型标签（military/strategist/balanced，用于角色创建）
+ * @param {string} [totalPoints] - 总点数（用于角色创建）
+ * 
+ * @example
+ * <CharacterCard 
+ *   character={characterData}
+ *   skillsMap={skills}
+ *   bondsMap={bonds}
+ *   showDetails={true}
+ *   baseUrl="/05-san-storm/"
+ *   lifeStageData={lifeStages}
+ *   onSelect={(char) => console.log(char)}
+ * />
+ */
+
+import { useState } from 'react';
+import PropTypes from 'prop-types';
+
+/**
+ * 稀有度配置
+ */
+const RARITY_CONFIG = {
+  core: {
+    name: '核心',
+    gradient: 'from-yellow-200 to-yellow-300',
+    border: 'border-yellow-400',
+    glow: 'shadow-yellow-300/50',
+  },
+  legendary: {
+    name: '传奇',
+    gradient: 'from-orange-200 to-orange-300',
+    border: 'border-orange-400',
+    glow: 'shadow-orange-300/50',
+  },
+  epic: {
+    name: '史诗',
+    gradient: 'from-purple-200 to-purple-300',
+    border: 'border-purple-400',
+    glow: 'shadow-purple-300/50',
+  },
+  rare: {
+    name: '稀有',
+    gradient: 'from-blue-200 to-blue-300',
+    border: 'border-blue-400',
+    glow: 'shadow-blue-300/50',
+  },
+  common: {
+    name: '普通',
+    gradient: 'from-gray-200 to-gray-300',
+    border: 'border-gray-400',
+    glow: 'shadow-gray-300/50',
+  },
+  mythic: {
+    name: '神话',
+    gradient: 'from-red-200 to-red-300',
+    border: 'border-red-400',
+    glow: 'shadow-red-300/50',
+  }
+};
+
+/**
+ * 性格特质配置
+ */
+const TRAIT_CONFIG = {
+  brave: {
+    name: '勇猛',
+    icon: '⚔️',
+    color: 'text-yellow-400',
+    description: '始终保持高昂，不易气馁'
+  },
+  reckless: {
+    name: '无惧',
+    icon: '🔥',
+    color: 'text-orange-500',
+    description: '无所畏惧，士气极高'
+  },
+  calm: {
+    name: '冷静',
+    icon: '🧊',
+    color: 'text-blue-400',
+    description: '稳定发挥，不受波动'
+  },
+  normal: {
+    name: '平凡',
+    icon: '⭐',
+    color: 'text-gray-400',
+    description: '标准表现，无特殊修正'
+  },
+  cautious: {
+    name: '谨慎',
+    icon: '🛡️',
+    color: 'text-green-400',
+    description: '略显保守，需要鼓舞'
+  },
+  timid: {
+    name: '怯懦',
+    icon: '💧',
+    color: 'text-purple-400',
+    description: '容易恐惧，需要保护'
+  }
+};
+
+/**
+ * 生涯阶段映射
+ */
+const STAGE_MAP = {
+  'early': '茅庐',
+  'peak': '巅峰',
+  'late': '不惑',
+  'dead': '卒',
+  '茅庐': '茅庐',
+  '巅峰': '巅峰',
+  '不惑': '不惑',
+  '卒': '卒',
+};
+
+/**
+ * 获取稀有度配置
+ */
+function getRarityConfig(rarity) {
+  return RARITY_CONFIG[rarity] || RARITY_CONFIG.common;
+}
+
+/**
+ * 获取生涯文本
+ */
+function getStageText(stage) {
+  return STAGE_MAP[stage] || stage;
+}
+
+/**
+ * 将领卡片组件
+ */
+function CharacterCard({ 
+  character, 
+  skillsMap = {}, 
+  bondsMap = {}, 
+  showDetails = true,
+  baseUrl = '',
+  lifeStageData = null,
+  onSelect,
+  isSelected = false,
+  characterType = null,
+  totalPoints = null
+}) {
+  const [isFlipped, setIsFlipped] = useState(false);
+  const rarityConfig = getRarityConfig(character.rarity);
+  
+  // 计算生涯阶段范围
+  const calculateStageRanges = (seasons) => {
+    const ranges = { early: null, peak: null, late: null, death: null };
+    if (!seasons || seasons.length === 0) return ranges;
+
+    const sortedSeasons = [...seasons].sort((a, b) => {
+      const seasonNumA = parseInt(a.season.replace('S', ''));
+      const seasonNumB = parseInt(b.season.replace('S', ''));
+      return seasonNumA - seasonNumB;
+    });
+
+    ['early', 'peak', 'late'].forEach(stage => {
+      const stageSeasons = sortedSeasons.filter(s => s.stage === stage);
+      if (stageSeasons.length > 0) {
+        const first = stageSeasons[0].season;
+        const last = stageSeasons[stageSeasons.length - 1].season;
+        ranges[stage] = first === last ? first : `${first}-${last}`;
+      }
+    });
+
+    const deathSeasons = sortedSeasons.filter(s => s.stage === 'death');
+    if (deathSeasons.length > 0) {
+      ranges.death = deathSeasons[0].season;
+    }
+
+    return ranges;
+  };
+  
+  const stageRanges = lifeStageData ? calculateStageRanges(lifeStageData.seasons) : null;
+  
+  // 生涯阶段配置
+  const stageConfigs = {
+    early: { name: '茅庐期', icon: '🌱', gradient: 'from-green-400 to-green-600', border: 'border-green-500' },
+    peak: { name: '巅峰期', icon: '⭐', gradient: 'from-yellow-400 to-yellow-600', border: 'border-yellow-500' },
+    late: { name: '不惑期', icon: '🧙', gradient: 'from-purple-400 to-purple-600', border: 'border-purple-500' },
+    death: { name: '卒', icon: '💀', gradient: 'from-gray-400 to-gray-600', border: 'border-gray-500' },
+  };
+  
+  // 解析羁绊
+  let bonds = [];
+  if (Array.isArray(character.bonds)) {
+    bonds = character.bonds;
+  } else if (character.bond) {
+    bonds = character.bond.split(';').map(b => b.trim()).filter(b => b);
+  }
+  
+  // 判断传记加成
+  const imperialBiographies = ['《先主传》', '《武帝纪》', '《灵帝纪》'];
+  const isImperialBiography = character.biography && imperialBiographies.includes(character.biography);
+  const hasBiographyBonus = character.biography && character.biography !== '《三国志》';
+  const biographyBonus = isImperialBiography ? '+1' : (hasBiographyBonus ? '+0.5' : null);
+  
+  // 获取卡面背景图片路径
+  const getCardBackground = () => {
+    const rarityToFilename = {
+      'common': 'bg_r1',
+      'rare': 'bg_r2',
+      'epic': 'bg_r3',
+      'legendary': 'bg_r4',
+      'core': 'bg_r5'
+    };
+    
+    const filename = rarityToFilename[character.rarity] || 'bg_r1';
+    return `${baseUrl}assets/san_1_ui_card/bg/${filename}.png`;
+  };
+
+  // 处理点击事件
+  const handleClick = () => {
+    if (lifeStageData) {
+      setIsFlipped(!isFlipped);
+    }
+    if (onSelect) {
+      onSelect(character);
+    }
+  };
+  
+  return (
+    <div 
+      className={`relative w-[256px] h-[384px] group ${(lifeStageData || onSelect) ? 'cursor-pointer' : ''}`}
+      style={{ perspective: '1000px' }}
+      onClick={handleClick}
+    >
+      {/* 翻牌容器 */}
+      <div 
+        className="relative w-full h-full transition-transform duration-700"
+        style={{
+          transformStyle: 'preserve-3d',
+          transform: isFlipped ? 'rotateY(180deg)' : 'rotateY(0deg)'
+        }}
+      >
+        {/* 正面 */}
+        <div 
+          className="absolute w-full h-full"
+          style={{ backfaceVisibility: 'hidden' }}
+        >
+          {renderCardFront()}
+        </div>
+
+        {/* 背面 */}
+        {lifeStageData && (
+          <div 
+            className="absolute w-full h-full"
+            style={{ 
+              backfaceVisibility: 'hidden',
+              transform: 'rotateY(180deg)'
+            }}
+          >
+            {renderCardBack()}
+          </div>
+        )}
+      </div>
+      
+      {/* 选中标记（用于角色创建） */}
+      {isSelected && (
+        <div className="absolute top-2 right-2 w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white font-bold shadow-lg z-10">
+          ✓
+        </div>
+      )}
+    </div>
+  );
+  
+  // 渲染卡牌正面
+  function renderCardFront() {
+    return (
+      <div 
+        className={`
+          relative w-full h-full
+          rounded-xl overflow-hidden
+          border-2 ${rarityConfig.border}
+          shadow-xl ${rarityConfig.glow}
+          transition-all duration-300
+          hover:scale-105 hover:shadow-2xl
+          ${isSelected ? 'ring-4 ring-blue-400 scale-105' : ''}
+        `}
+        style={{
+          backgroundImage: `url(${getCardBackground()})`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          backgroundColor: '#1f2937'
+        }}
+      >
+        
+        {/* 顶部：将领名称 */}
+        <div className={`
+          relative h-[40px] px-4 py-2
+          bg-black/10 backdrop-blur-sm
+          flex items-center justify-between
+        `}>
+          <div className="flex items-center gap-2">
+            <span className="text-xl">👤</span>
+            <h3 className="text-gray-900 font-bold text-base truncate">
+              {character.name}
+            </h3>
+          </div>
+          <div className="flex items-center gap-2">
+            {/* 类型标签（用于角色创建或Wiki显示） */}
+            {(characterType || character.characterType) && (
+              <div className={`
+                px-2 py-0.5 rounded
+                bg-gray-200/90 backdrop-blur-sm
+                border border-gray-300
+                text-xs font-bold text-gray-900
+                shadow-lg
+              `}>
+                {(() => {
+                  const type = characterType || character.characterType;
+                  const typeMap = {
+                    'Military': '武官', 'military': '武官', '武官': '武官',
+                    'Strategist': '文官', 'strategist': '文官', '文官': '文官',
+                    'Balanced': '文武', 'balanced': '文武', '文武': '文武',
+                  };
+                  return typeMap[type] || type;
+                })()}
+              </div>
+            )}
+            {/* 总点数（用于角色创建） */}
+            {totalPoints && (
+              <div className={`
+                px-2 py-0.5 rounded
+                bg-black/20 backdrop-blur-sm
+                text-xs font-medium text-gray-900
+              `}>
+                {totalPoints}
+              </div>
+            )}
+            {/* 稀有度（默认显示） */}
+            {!characterType && !character.characterType && !totalPoints && (
+              <div className={`
+                px-2 py-0.5 rounded
+                bg-black/20 backdrop-blur-sm
+                text-xs font-medium text-gray-900
+              `}>
+                {rarityConfig.name}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* 中间：将领信息区域 */}
+        <div className="relative h-[90px]">
+          <div className="absolute inset-0 opacity-5">
+            <div className={`absolute inset-0 bg-gradient-to-br ${rarityConfig.gradient}`} />
+          </div>
+
+          <div className="relative h-full flex items-center px-4 py-3 gap-2">
+            {/* 左侧：将领图标占位 */}
+            <div className="relative w-[70px] h-[70px] flex-shrink-0">
+              <div className={`
+                absolute inset-0 rounded-lg
+                border-2 ${rarityConfig.border}
+                bg-gray-900/50 backdrop-blur-sm
+                flex items-center justify-center
+                overflow-hidden
+              `}>
+                {character.avatar ? (
+                  <img 
+                    src={`${baseUrl}${character.avatar}`}
+                    alt={character.name}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center flex-col gap-1 text-gray-500">
+                    <span className="text-4xl">👤</span>
+                    <span className="text-[10px]">待添加</span>
+                  </div>
+                )}
+              </div>
+
+              {/* 生涯标识 */}
+              <div className={`
+                absolute -top-1 -right-1
+                px-1.5 py-0 rounded-full
+                bg-gray-200/90 backdrop-blur-sm
+                border border-gray-300
+                text-[10px] font-bold text-gray-900
+                shadow-lg
+              `}>
+                {getStageText(character.stage)}
+              </div>
+
+              {/* 运气标识 - 右下角 */}
+              <div className={`
+                absolute -bottom-1 -right-1
+                px-1 py-0.5 rounded-full
+                bg-gray-200/90 backdrop-blur-sm
+                border border-gray-300
+                text-[11px] font-bold text-gray-900
+                shadow-lg
+                flex items-center gap-0.5
+              `}>
+                <span className="text-gray-700">🎲</span>
+                <span>{character.luck}</span>
+              </div>
+            </div>
+
+            {/* 右侧：核心属性 */}
+            <div className="flex-1 grid grid-cols-2 gap-x-2 gap-y-1 text-xs">
+              <div className="flex items-center gap-1">
+                <span className="text-pink-400">💪</span>
+                <span className="text-gray-700">勇</span>
+                <span className="text-gray-900 font-bold">{character.courage}</span>
+              </div>
+              
+              <div className="flex items-center gap-1">
+                <span className="text-green-400">📚</span>
+                <span className="text-gray-700">智</span>
+                <span className="text-gray-900 font-bold">{character.intelligence}</span>
+              </div>
+              
+              <div className="flex items-center gap-1">
+                <span className="text-blue-400">🗡️</span>
+                <span className="text-gray-700">武</span>
+                <span className="text-gray-900 font-bold">{character.combat}</span>
+              </div>
+              
+              <div className="flex items-center gap-1">
+                <span className="text-purple-400">📜</span>
+                <span className="text-gray-700">政</span>
+                <span className="text-gray-900 font-bold">{character.politics}</span>
+              </div>
+              
+              <div className="flex items-center gap-1">
+                <span className="text-red-400">⚔️</span>
+                <span className="text-gray-700">统</span>
+                <span className="text-gray-900 font-bold">{character.command}</span>
+              </div>
+              
+              <div className="flex items-center gap-1">
+                <span className="text-indigo-400">✨</span>
+                <span className="text-gray-700">魅</span>
+                <span className="text-gray-900 font-bold">{character.charm}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* 特性区域 */}
+        {showDetails && (
+          <div className="relative px-4 py-1 border-t-2 border-gray-400/40">
+            <div className="flex items-center gap-1 mb-0.5">
+              <span className="text-cyan-400 text-xs">⚡</span>
+              <span className="text-gray-700 text-xs font-medium">特性</span>
+            </div>
+            <div className="grid grid-cols-3 gap-1.5 text-xs">
+              {/* 如果没有特性数据，显示两个"暂无"框 */}
+              {!character.troopAffinity && !character.trait ? (
+                <>
+                  <div className="flex items-center justify-center gap-0.5 px-1.5 py-0.5 rounded bg-gray-200/80 border border-gray-300 text-[11px]">
+                    <span>⭐</span>
+                    <span className={`font-bold text-gray-400`}>无</span>
+                  </div>
+                  <div className="flex items-center justify-center gap-0.5 px-1.5 py-0.5 rounded bg-gray-200/80 border border-gray-300 text-[11px]">
+                    <span>⭐</span>
+                    <span className={`font-bold text-gray-400`}>无</span>
+                  </div>
+                </>
+              ) : (
+                <>
+                  {/* 兵种适应性 */}
+                  {character.troopAffinity && (
+                    <>
+                      {(() => {
+                        const parseAffinity = (affinityStr) => {
+                          const affinities = {};
+                          if (!affinityStr) return affinities;
+                          affinityStr.split(';').forEach(pair => {
+                            const [troopType, bonus] = pair.split(':');
+                            affinities[troopType] = parseInt(bonus) || 0;
+                          });
+                          return affinities;
+                        };
+                        
+                        const affinities = parseAffinity(character.troopAffinity);
+                        const troopIcons = { infantry: '🛡️', cavalry: '🐎', archer: '🏹' };
+                        const troopNames = { infantry: '步', cavalry: '骑', archer: '弓' };
+                        
+                        return Object.entries(affinities)
+                          .filter(([_, bonus]) => bonus > 0)
+                          .map(([type, bonus]) => (
+                            <div key={type} className="flex items-center justify-center gap-0.5 px-1.5 py-0.5 rounded bg-gray-200/80 border border-gray-300 text-[11px]">
+                              <span className="text-yellow-600">{troopIcons[type]}</span>
+                              <span className="text-gray-700 font-bold">{troopNames[type]}</span>
+                              <span className="text-yellow-600 font-bold">+{bonus}%</span>
+                            </div>
+                          ));
+                      })()}
+                    </>
+                  )}
+                  
+                  {/* 性格特质 */}
+                  {character.trait && TRAIT_CONFIG[character.trait] && (
+                    <div 
+                      className="flex items-center justify-center gap-0.5 px-1.5 py-0.5 rounded bg-gray-200/80 border border-gray-300 text-[11px]"
+                      title={TRAIT_CONFIG[character.trait].description}
+                    >
+                      <span>{TRAIT_CONFIG[character.trait].icon}</span>
+                      <span className={`font-bold ${TRAIT_CONFIG[character.trait].color}`}>
+                        {TRAIT_CONFIG[character.trait].name[0]}
+                      </span>
+                      {character.traitModifier !== 0 && (
+                        <span className={`font-bold ${character.traitModifier > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                          {character.traitModifier > 0 ? '+' : ''}{character.traitModifier}%
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* 技能区域 */}
+        {showDetails && character.skills && character.skills.length > 0 && (
+          <div className="relative px-4 py-1 border-t-2 border-gray-400/40">
+            <div className="flex items-center gap-1 mb-0.5">
+              <span className="text-purple-400 text-xs">⚔️</span>
+              <span className="text-gray-700 text-xs font-medium">技能</span>
+            </div>
+            <div className="grid grid-cols-3 gap-1.5">
+              {character.skills.slice(0, 3).map((skillId, index) => {
+                const skill = skillsMap[skillId];
+                const isActive = skillId && typeof skillId === 'string' && skillId.startsWith('san_1_skill_1_');
+                const skillRarityConfig = skill ? getRarityConfig(skill.rarity) : rarityConfig;
+                
+                return (
+                  <div 
+                    key={index} 
+                    className={`
+                      px-1.5 py-1 rounded text-[10px] text-center
+                      bg-gradient-to-r ${skillRarityConfig.gradient} bg-opacity-20 border ${skillRarityConfig.border} border-opacity-40
+                    `}
+                    title={skill ? skill.description : ''}
+                  >
+                    <span className="font-bold truncate block text-gray-900">
+                      {isActive ? '⚔️' : '🛡️'} {skill ? skill.name : skillId}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* 羁绊区域 */}
+        {showDetails && (
+          <div className="relative px-4 py-1 border-t-2 border-gray-400/40">
+            <div className="flex items-center gap-1 mb-0.5">
+              <span className="text-amber-400 text-xs">🔗</span>
+              <span className="text-gray-700 text-xs font-medium">羁绊</span>
+            </div>
+            {bonds.length > 0 ? (
+              <div className="grid grid-cols-3 gap-1.5">
+                {bonds.slice(0, 6).map((bondName, index) => {
+                  const bond = bondsMap[bondName];
+                  const isActive = bond && bond.type === 'active';
+                  const bondRarityConfig = bond ? getRarityConfig(bond.rarity) : rarityConfig;
+                  
+                  return (
+                    <div 
+                      key={index} 
+                      className={`
+                        px-1.5 py-1 rounded text-[10px] text-center
+                        bg-gradient-to-r ${bondRarityConfig.gradient} bg-opacity-20 border ${bondRarityConfig.border} border-opacity-40
+                      `}
+                      title={bond ? bond.description : ''}
+                    >
+                      <span className="font-bold truncate block text-gray-900">
+                        {isActive ? '🔗' : '🤝'} {bondName}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="text-center text-gray-600 text-xs py-0.5">
+                无羁绊
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* 传记区域 */}
+        {showDetails && character.biography && (
+          <div className="relative px-4 py-2 border-t-2 border-gray-400/40">
+            <div className="flex items-center justify-between text-xs mb-1.5">
+              <div className="flex items-center gap-1">
+                <span className={hasBiographyBonus ? 'text-emerald-400' : 'text-gray-700'}>📖</span>
+                <span className="text-gray-700 font-bold">传记</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="text-gray-900 font-bold">
+                  {character.biography}
+                </span>
+                {biographyBonus && (
+                  <span className="text-gray-900 font-bold">{biographyBonus}</span>
+                )}
+              </div>
+            </div>
+            {character.description && (
+              <div className="text-gray-800 text-xs leading-relaxed min-h-[3rem]">
+                {character.description}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
+  
+  // 渲染卡牌背面（生涯信息）
+  function renderCardBack() {
+    return (
+      <div 
+        className={`
+          relative w-full h-full
+          rounded-xl overflow-hidden
+          border-2 ${rarityConfig.border}
+          shadow-xl ${rarityConfig.glow}
+        `}
+        style={{
+          backgroundImage: `url(${getCardBackground()})`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          backgroundColor: '#1f2937'
+        }}
+      >
+        {/* 顶部：将领名称 + 生涯标题 */}
+        <div className={`
+          relative h-[40px] px-4 py-2
+          bg-black/10 backdrop-blur-sm
+          flex items-center justify-between
+        `}>
+          <div className="flex items-center gap-2">
+            <span className="text-xl">📜</span>
+            <h3 className="text-gray-900 font-bold text-base truncate">
+              {character.name} 生涯
+            </h3>
+          </div>
+          <div className={`
+            px-2 py-0.5 rounded
+            bg-black/20 backdrop-blur-sm
+            text-xs font-medium text-gray-900
+          `}>
+            {rarityConfig.name}
+          </div>
+        </div>
+
+        {/* 中间：2x2生涯阶段网格 */}
+        <div className="relative px-4 py-4">
+          <div className="grid grid-cols-2 gap-3">
+            {Object.entries(stageConfigs).map(([stage, config]) => (
+              <div 
+                key={stage}
+                className={`
+                  relative
+                  rounded-lg overflow-hidden
+                  border-2 ${config.border}
+                  bg-gray-900/50 backdrop-blur-sm
+                  shadow-md
+                `}
+              >
+                <div className={`
+                  h-[32px] px-2 py-1
+                  bg-gradient-to-r ${config.gradient}
+                  flex items-center justify-center gap-1
+                `}>
+                  <span className="text-lg">{config.icon}</span>
+                  <span className="text-white font-bold text-sm">{config.name}</span>
+                </div>
+
+                <div className="p-3 text-center">
+                  <div className="text-white font-bold text-xl">
+                    {stageRanges[stage] || '-'}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* 底部：生涯说明 */}
+        <div className="absolute bottom-0 left-0 right-0 px-4 py-3 bg-black/20 backdrop-blur-sm border-t-2 border-gray-400/40">
+          <div className="text-gray-900 text-xs leading-relaxed space-y-0.5">
+            <p>🌱 茅庐：年龄&lt;25岁，属性修正95%</p>
+            <p>⭐ 巅峰：年龄25-45岁，属性修正100%</p>
+            <p>🧙 不惑：年龄&gt;45岁，属性修正90%</p>
+            <p>💀 卒：已故，启用不定，属性修正80%</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+}
+
+CharacterCard.propTypes = {
+  character: PropTypes.shape({
+    id: PropTypes.string.isRequired,
+    name: PropTypes.string.isRequired,
+    rarity: PropTypes.string.isRequired,
+    stage: PropTypes.string.isRequired,
+    luck: PropTypes.number.isRequired,
+    courage: PropTypes.number.isRequired,
+    command: PropTypes.number.isRequired,
+    combat: PropTypes.number.isRequired,
+    intelligence: PropTypes.number.isRequired,
+    politics: PropTypes.number.isRequired,
+    charm: PropTypes.number.isRequired,
+    trait: PropTypes.string,
+    traitModifier: PropTypes.number,
+    troopAffinity: PropTypes.string,
+    skills: PropTypes.arrayOf(PropTypes.string),
+    bonds: PropTypes.oneOfType([
+      PropTypes.arrayOf(PropTypes.string),
+      PropTypes.string
+    ]),
+    bond: PropTypes.string,
+    biography: PropTypes.string,
+    description: PropTypes.string
+  }).isRequired,
+  skillsMap: PropTypes.object,
+  bondsMap: PropTypes.object,
+  showDetails: PropTypes.bool,
+  baseUrl: PropTypes.string,
+  lifeStageData: PropTypes.object,
+  onSelect: PropTypes.func,
+  isSelected: PropTypes.bool,
+  characterType: PropTypes.string,
+  totalPoints: PropTypes.string
+};
+
+export default CharacterCard;

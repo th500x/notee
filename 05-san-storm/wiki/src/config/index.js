@@ -8,7 +8,7 @@
 // ==================== API 配置 ====================
 export const apiConfig = {
   // API 基础路径
-  baseUrl: import.meta.env.VITE_API_BASE_URL || 'http://localhost:3002',
+  baseUrl: import.meta.env.VITE_API_BASE_URL || 'http://localhost:3005',
   
   // 请求超时时间（毫秒）
   timeout: 30000,
@@ -61,9 +61,6 @@ export const featureFlags = {
 
 // ==================== 认证配置 ====================
 export const authConfig = {
-  // 全局管理员密码（从环境变量读取）
-  globalAdminPassword: import.meta.env.VITE_GLOBAL_ADMIN_PASSWORD || '',
-  
   // Token 有效期（毫秒）
   tokenExpiry: 30 * 24 * 60 * 60 * 1000, // 30天
   

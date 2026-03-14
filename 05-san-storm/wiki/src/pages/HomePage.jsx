@@ -27,7 +27,7 @@ function HomePage() {
           icon="📜"
           title="黄巾之乱剧本"
           description="了解S1赛季剧本背景和玩法"
-          link="/san-1"
+          link="/san_1"
         />
         <FeatureCard 
           icon="🏛️"
@@ -51,7 +51,7 @@ function HomePage() {
           icon="🛡️"
           title="部队系统"
           description="查看所有部队卡牌和属性"
-          link="/troop-cards"
+          link="/troops"
         />
       </div>
     </div>

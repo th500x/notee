@@ -1,0 +1,128 @@
+/**
+ * 登录步骤
+ */
+
+import { useState } from 'react';
+import { gameUserAPI } from '@/services/api';
+import { validateIdFormat } from '@/pages/steps/authUtils';
+import {
+  checkLockStatus,
+  recordFailedAttempt,
+  recordSuccessfulAttempt,
+  getLockoutMessage,
+  getErrorMessage
+} from '@/utils/passwordAttemptLimiter';
+
+export function LoginStep({ selectedServer, onLoginSuccess, onServerMismatch, onBack }) {
+  const [loginId, setLoginId] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async () => {
+    if (!loginId || !loginPassword) {
+      setError('请输入ID和密码');
+      return;
+    }
+
+    if (!validateIdFormat(loginId)) {
+      setError('ID格式错误：应为4位字符，首位为数字0-9，后三位为字母A-Z或数字0-9');
+      return;
+    }
+
+    const identifier = `game_login_${loginId}`;
+    const lockStatus = checkLockStatus(identifier);
+    if (lockStatus.isLocked) {
+      setError(getLockoutMessage(lockStatus.remainingTime));
+      return;
+    }
+
+    setLoading(true);
+    
+    try {
+      const result = await gameUserAPI.login(loginId, loginPassword);
+      
+      if (!result.success) {
+        const attemptResult = recordFailedAttempt(identifier);
+        setError(result.error || getErrorMessage(attemptResult));
+        setLoading(false);
+        return;
+      }
+
+      recordSuccessfulAttempt(identifier);
+      const user = result.data;
+
+      if (user.serverId !== selectedServer.id) {
+        onServerMismatch(user);
+        setLoading(false);
+        return;
+      }
+
+      const userData = {
+        ...user,
+        serverName: selectedServer.name
+      };
+      
+      onLoginSuccess(userData);
+      setError('');
+    } catch (err) {
+      setError('登录失败，请重试');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="max-w-md mx-auto">
+      <div className="bg-white rounded-lg shadow-md p-6">
+        <h2 className="text-xl font-bold text-gray-900 mb-4 text-center">账号登录</h2>
+        
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              游戏ID
+            </label>
+            <input
+              type="text"
+              value={loginId}
+              onChange={(e) => setLoginId(e.target.value.toUpperCase())}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+              placeholder="请输入4位游戏ID"
+              maxLength={4}
+            />
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              密码
+            </label>
+            <input
+              type="password"
+              value={loginPassword}
+              onChange={(e) => setLoginPassword(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="请输入密码"
+            />
+          </div>
+          
+          {error && <div className="text-red-600 text-sm">{error}</div>}
+          
+          <button
+            onClick={handleSubmit}
+            disabled={loading}
+            className="w-full py-3 px-4 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 transition-colors font-medium"
+          >
+            {loading ? '登录中...' : '登录'}
+          </button>
+        </div>
+        
+        <button
+          onClick={onBack}
+          className="w-full mt-4 py-2 px-4 text-gray-600 hover:text-gray-800 transition-colors"
+        >
+          ← 返回
+        </button>
+      </div>
+    </div>
+  );
+}

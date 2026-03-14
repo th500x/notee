@@ -88,7 +88,7 @@ export const EVENT_CONFIG = {
     
     // 技能相关
     STRATEGY: 'strategy',           // 谋略
-    COMMAND: 'command',             // 统率
+    COMMAND: 'command',             // 统帅
     DIPLOMACY: 'diplomacy',         // 外交
   },
 };

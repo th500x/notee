@@ -6,7 +6,7 @@
  */
 
 import { get } from './api';
-import { dataConfig } from '@/config';
+import { dataConfig, apiConfig } from '@/config';
 
 // 数据缓存
 const cache = new Map();
@@ -79,19 +79,45 @@ export function clearCache(key = null) {
 /**
  * 加载共享数据
  * @param {string} resource - 资源名称（如：characters, troops）
+ * @param {Object} options - 加载选项
+ * @param {string} options.season - 赛季过滤（可选）
  * @returns {Promise<any>} 数据
  */
-export async function loadSharedData(resource) {
-  const cacheKey = getCacheKey(resource);
+export async function loadSharedData(resource, options = {}) {
+  const { season = null } = options;
+  const cacheKey = getCacheKey(resource, season);
   
   // 检查缓存
   if (isCacheValid(cacheKey)) {
     return getCache(cacheKey);
   }
   
-  // 加载数据
-  const url = `${dataConfig.basePath}data/shared/${resource}.json`;
-  const data = await get(url);
+  let data;
+  
+  // 部队和将领数据从API加载
+  if (resource === 'troops') {
+    const apiUrl = `${apiConfig.baseUrl}/api/config/troops${season ? `?season=${season}` : ''}`;
+    const response = await get(apiUrl);
+    
+    if (!response.success) {
+      throw new Error(response.message || 'API加载失败');
+    }
+    
+    data = { troops: response.troops };
+  } else if (resource === 'characters') {
+    const apiUrl = `${apiConfig.baseUrl}/api/config/characters${season ? `?season=${season}` : ''}`;
+    const response = await get(apiUrl);
+    
+    if (!response.success) {
+      throw new Error(response.message || 'API加载失败');
+    }
+    
+    data = { characters: response.characters };
+  } else {
+    // 其他数据从JSON文件加载
+    const url = `${dataConfig.basePath}data/shared/${resource}.json`;
+    data = await get(url);
+  }
   
   // 缓存数据
   setCache(cacheKey, data);

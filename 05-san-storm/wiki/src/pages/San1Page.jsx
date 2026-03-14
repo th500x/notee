@@ -41,7 +41,7 @@ function San1Page() {
     },
     {
       title: '创作团队',
-      content: '策划：Notee.vip\n文档：Notee.vip\n测试：Notee.vip + 南阳伙伴\n编程：Kiro AI\n美术：ComfyUI + SDXL 1.0\n音效：TBD\n鸣谢：TBD',
+      content: '策划：Notee.vip\n文档：Notee.vip\n测试：Notee.vip + 南阳伙伴\n编程：Kiro AI\n美术：ComfyUI + SDXL 1.0\n音效：TBD\n鸣谢：极影字体',
       color: 'from-purple-400 to-purple-500',
       borderColor: 'border-purple-400'
     }

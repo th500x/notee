@@ -66,6 +66,17 @@ M1完成，进入M2阶段
 项目周报改版`,
       color: 'from-pink-400 to-pink-500',
       borderColor: 'border-pink-400'
+    },
+	{
+      week: 'W06(归乡中)',
+      date: '3月9日-3月15日',
+      content: `完成数据库文档
+完成架构文档
+完成创建角色流程
+网站迁移数据库
+xxxxxx`,
+      color: 'from-pink-400 to-pink-500',
+      borderColor: 'border-pink-400'
     }
   ];
 
@@ -148,8 +159,7 @@ M1完成，进入M2阶段
             <div className="space-y-2 text-left">
               <p className="text-xl font-bold text-orange-600">[测试奖励P1阶段]</p>
               <p className="text-base text-gray-700 font-semibold mt-3">条件：</p>
-              <p className="text-base text-gray-600 ml-4">1. [参与M2测试]</p>
-              <p className="text-base text-gray-600 ml-4">2. [参与M3测试]</p>
+              <p className="text-base text-gray-600 ml-4">1. [参与M1/M2/M3/M4测试]</p>
               <p className="text-base text-gray-700 font-semibold mt-3">名额：10人</p>
               <p className="text-base text-gray-600 ml-4">• 测试积分最高入选5人</p>
               <p className="text-base text-gray-600 ml-4">• 通过抽奖程序入选5人</p>

@@ -3,8 +3,8 @@ import HomePage from '@/pages/HomePage';
 import CharactersPage from '@/pages/CharactersPage';
 import PositionsPage from '@/pages/PositionsPage';
 import San1Page from '@/pages/San1Page';
-import { FactionCardExample } from '@/components/faction/FactionCardExample';
-import TroopCardExample from '@/components/troop/TroopCardExample';
+import FactionsPage from '@/pages/FactionsPage';
+import TroopsPage from '@/pages/TroopsPage';
 
 function App() {
   return (
@@ -31,11 +31,11 @@ function App() {
         <main className="max-w-7xl mx-auto px-4 py-8">
           <Routes>
             <Route path="/" element={<HomePage />} />
-            <Route path="/san-1" element={<San1Page />} />
-            <Route path="/factions" element={<FactionCardExample />} />
+            <Route path="/san_1" element={<San1Page />} />
+            <Route path="/factions" element={<FactionsPage />} />
             <Route path="/positions" element={<PositionsPage />} />
             <Route path="/characters" element={<CharactersPage />} />
-            <Route path="/troop-cards" element={<TroopCardExample />} />
+            <Route path="/troops" element={<TroopsPage />} />
           </Routes>
         </main>
         <footer className="bg-white border-t border-gray-200 mt-12">

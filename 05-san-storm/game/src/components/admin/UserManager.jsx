@@ -5,6 +5,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { gameUserAPI } from '@/services/api';
 
 // 获取当前批次信息的函数（与注册系统相同）
 const getCurrentBatchInfo = () => {
@@ -49,18 +50,45 @@ const UserManager = () => {
   const [registeredIds, setRegisteredIds] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
   const [batchInfo, setBatchInfo] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   // 加载用户数据
-  const loadUserData = () => {
-    const gameUsers = JSON.parse(localStorage.getItem('gameUsers') || '[]');
-    const regIds = JSON.parse(localStorage.getItem('registeredIds') || '[]');
-    const current = JSON.parse(localStorage.getItem('gameUser') || 'null');
-    const batch = getCurrentBatchInfo();
+  const loadUserData = async () => {
+    setLoading(true);
+    setError('');
     
-    setUsers(gameUsers);
-    setRegisteredIds(regIds);
-    setCurrentUser(current);
-    setBatchInfo(batch);
+    try {
+      // 从API获取用户列表
+      const result = await gameUserAPI.getAllUsers();
+      
+      if (result.success) {
+        setUsers(result.data);
+        
+        // 提取所有已注册的ID
+        const ids = result.data.map(user => user.id);
+        setRegisteredIds(ids);
+        
+        // 同步到localStorage（用于ID生成系统）
+        localStorage.setItem('registeredIds', JSON.stringify(ids));
+      } else {
+        setError(result.error || '加载用户数据失败');
+      }
+      
+      // 获取当前登录用户
+      const current = JSON.parse(localStorage.getItem('gameUser') || 'null');
+      setCurrentUser(current);
+      
+      // 获取批次信息
+      const batch = getCurrentBatchInfo();
+      setBatchInfo(batch);
+      
+    } catch (err) {
+      setError('加载用户数据失败');
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -68,30 +96,107 @@ const UserManager = () => {
   }, []);
 
   // 清除所有用户数据
-  const clearAllUsers = () => {
-    if (window.confirm('确定要清除所有用户数据吗？此操作不可恢复！')) {
-      localStorage.removeItem('gameUsers');
+  const clearAllUsers = async () => {
+    if (!window.confirm('⚠️ 警告：此操作将删除所有注册用户数据，且不可恢复！\n\n确定要继续吗？')) {
+      return;
+    }
+    
+    if (!window.confirm('⚠️ 最后确认：真的要删除所有用户数据吗？')) {
+      return;
+    }
+    
+    setLoading(true);
+    const result = await gameUserAPI.deleteAllUsers();
+    setLoading(false);
+    
+    if (result.success) {
+      alert(`成功删除 ${result.deletedCount} 个用户`);
+      // 清除localStorage
       localStorage.removeItem('registeredIds');
+      localStorage.removeItem('idBatches');
       localStorage.removeItem('gameUser');
+      // 重新加载数据
       loadUserData();
+    } else {
+      alert('清除失败：' + result.error);
     }
   };
 
   // 删除单个用户
-  const deleteUser = (userId) => {
-    if (window.confirm(`确定要删除用户 ${userId} 吗？`)) {
-      const updatedUsers = users.filter(user => user.id !== userId);
-      const updatedIds = registeredIds.filter(id => id !== userId);
+  const deleteUser = async (userId) => {
+    if (!window.confirm(`确定要删除用户 ${userId} 吗？\n\n此操作不可恢复！`)) {
+      return;
+    }
+    
+    setLoading(true);
+    const result = await gameUserAPI.deleteUser(userId);
+    setLoading(false);
+    
+    if (result.success) {
+      alert('删除成功');
       
-      localStorage.setItem('gameUsers', JSON.stringify(updatedUsers));
-      localStorage.setItem('registeredIds', JSON.stringify(updatedIds));
-      
-      // 如果删除的是当前用户，也要清除当前用户缓存
+      // 如果删除的是当前登录用户，清除登录状态
       if (currentUser && currentUser.id === userId) {
         localStorage.removeItem('gameUser');
+        setCurrentUser(null);
       }
       
+      // 从localStorage中移除该ID
+      const ids = JSON.parse(localStorage.getItem('registeredIds') || '[]');
+      const newIds = ids.filter(id => id !== userId);
+      localStorage.setItem('registeredIds', JSON.stringify(newIds));
+      
+      // 重新加载数据
       loadUserData();
+    } else {
+      alert('删除失败：' + result.error);
+    }
+  };
+
+  // 封禁用户
+  const banUser = async (userId) => {
+    const reason = prompt('请输入封禁原因：', '违反用户协议');
+    if (!reason) return;
+    
+    const durationStr = prompt('请输入封禁天数（0表示永久封禁）：', '7');
+    const duration = parseInt(durationStr);
+    
+    if (isNaN(duration) || duration < 0) {
+      alert('封禁天数必须是非负整数');
+      return;
+    }
+    
+    if (!window.confirm(`确定要封禁用户 ${userId} 吗？\n原因：${reason}\n时长：${duration === 0 ? '永久' : duration + '天'}`)) {
+      return;
+    }
+    
+    setLoading(true);
+    const result = await gameUserAPI.banUser(userId, reason, duration === 0 ? null : duration);
+    setLoading(false);
+    
+    if (result.success) {
+      alert('封禁成功');
+      loadUserData();
+    } else {
+      alert('封禁失败：' + result.error);
+    }
+  };
+
+  // 解封用户
+  const unbanUser = async (userId) => {
+    if (!window.confirm(`确定要解封用户 ${userId} 吗？`)) {
+      return;
+    }
+    
+    setLoading(true);
+    const result = await gameUserAPI.unbanUser(userId);
+    setLoading(false);
+    
+    if (result.success) {
+      alert('解封成功');
+      loadUserData();
+    } else {
+      alert('解封失败：' + result.error);
     }
   };
 
@@ -102,38 +207,63 @@ const UserManager = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900">用户管理</h2>
-          <div className="flex items-center gap-4 mt-2 text-sm">
-            <div className="bg-blue-50 px-3 py-1 rounded-full">
-              <span className="text-blue-600 font-medium">注册用户数: </span>
-              <span className="text-blue-900 font-bold">{users.length}</span>
-            </div>
-            <div className="bg-green-50 px-3 py-1 rounded-full">
-              <span className="text-green-600 font-medium">登录用户数: </span>
-              <span className="text-green-900 font-bold">{currentUser ? '1' : '0'}</span>
-            </div>
-          </div>
+      {/* 加载状态 */}
+      {loading && (
+        <div className="text-center py-8">
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+          <p className="mt-4 text-gray-600">加载用户数据...</p>
         </div>
-        <div className="flex gap-2">
+      )}
+      
+      {/* 错误提示 */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <p className="text-red-800">❌ {error}</p>
           <button
             onClick={loadUserData}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            className="mt-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm"
           >
-            🔄 刷新数据
-          </button>
-          <button
-            onClick={clearAllUsers}
-            className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-          >
-            🗑️ 清除所有数据
+            重试
           </button>
         </div>
-      </div>
+      )}
+      
+      {!loading && !error && (
+        <>
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-2xl font-bold text-gray-900">用户管理</h2>
+              <div className="flex items-center gap-4 mt-2 text-sm">
+                <div className="bg-blue-50 px-3 py-1 rounded-full">
+                  <span className="text-blue-600 font-medium">注册用户数: </span>
+                  <span className="text-blue-900 font-bold">{users.length}</span>
+                </div>
+                <div className="bg-green-50 px-3 py-1 rounded-full">
+                  <span className="text-green-600 font-medium">登录用户数: </span>
+                  <span className="text-green-900 font-bold">{currentUser ? '1' : '0'}</span>
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={loadUserData}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                🔄 刷新数据
+              </button>
+              <button
+                onClick={clearAllUsers}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+              >
+                🗑️ 清除所有数据
+              </button>
+            </div>
+          </div>
+        </>
+      )}
 
       {/* 批次信息详情 */}
-      {batchInfo && (
+      {!loading && !error && batchInfo && (
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
           <h3 className="text-lg font-semibold text-blue-900 mb-3">📊 ID批次使用情况</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -336,12 +466,29 @@ const UserManager = () => {
                       {user.clientIP}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <button
-                        onClick={() => deleteUser(user.id)}
-                        className="text-red-600 hover:text-red-900 transition-colors"
-                      >
-                        删除
-                      </button>
+                      <div className="flex gap-2">
+                        {user.status === 'banned' ? (
+                          <button
+                            onClick={() => unbanUser(user.id)}
+                            className="text-green-600 hover:text-green-900 transition-colors"
+                          >
+                            解封
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => banUser(user.id)}
+                            className="text-orange-600 hover:text-orange-900 transition-colors"
+                          >
+                            封禁
+                          </button>
+                        )}
+                        <button
+                          onClick={() => deleteUser(user.id)}
+                          className="text-red-600 hover:text-red-900 transition-colors"
+                        >
+                          删除
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}

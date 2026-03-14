@@ -13,18 +13,16 @@ const ADMIN_FINGERPRINTS = [
 // 获取机器指纹（与注册系统相同的算法）
 const getMachineFingerprint = () => {
   try {
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-    ctx.textBaseline = 'top';
-    ctx.font = '14px Arial';
-    ctx.fillText('Machine fingerprint', 2, 2);
-    
+    // 只使用最稳定的特征
     const fingerprint = [
-      navigator.userAgent,
-      navigator.language,
-      screen.width + 'x' + screen.height,
-      new Date().getTimezoneOffset(),
-      canvas.toDataURL()
+      navigator.language,                    // 浏览器语言（稳定）
+      screen.colorDepth,                     // 色深（稳定）
+      screen.width + 'x' + screen.height,    // 屏幕分辨率（较稳定）
+      new Date().getTimezoneOffset(),        // 时区（稳定）
+      navigator.hardwareConcurrency || 0,    // CPU核心数（稳定）
+      // 注意：不使用 userAgent（浏览器升级会变）
+      // 注意：不使用 Canvas（重启后可能变化）
+      // 注意：不使用 platform（已弃用的API）
     ].join('|');
     
     // 简单hash

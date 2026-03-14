@@ -1,15 +1,32 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import M2VerificationPage from '@/pages/M2VerificationPage';
-import M2Verification2Page from '@/pages/M2Verification2Page';
-import UserManagerPage from '@/pages/UserManagerPage';
-import ServersPage from '@/pages/ServersPage';
-import CampaignDisplay from '@/components/campaign/CampaignDisplay';
-import CampaignList from '@/components/campaign/CampaignList';
+import { useState } from 'react';
+import M2VerificationPage from '@/pages/verification/M2VerificationPage';
+import AuthFlowPage from '@/pages/AuthFlowPage';
+import UserManagerPage from '@/pages/admin/UserManagerPage';
+import CampaignListPage from '@/pages/campaign/CampaignListPage';
+import CampaignDetailPage from '@/pages/campaign/CampaignDetailPage';
 import { useAdmin } from '@/hooks/useAdmin';
 
 function App() {
-  const { isLoggedIn } = useAdmin();
+  const { isLoggedIn, loading, login, logout } = useAdmin();
   const showUserManager = isLoggedIn;
+  
+  // 管理员登录对话框状态
+  const [showLoginDialog, setShowLoginDialog] = useState(false);
+  const [password, setPassword] = useState('');
+  const [loginError, setLoginError] = useState('');
+  
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setLoginError('');
+    const result = await login(password);
+    if (result.success) {
+      setShowLoginDialog(false);
+      setPassword('');
+    } else {
+      setLoginError(result.error || '登录失败');
+    }
+  };
   return (
     <Router basename="/05-san-storm/game">
       <div className="min-h-screen bg-gray-50">
@@ -27,6 +44,23 @@ function App() {
                   </span>
                 </a>
                 <p className="text-gray-600 mt-2">三国策略战棋游戏 - 游戏功能模块</p>
+              </div>
+              <div>
+                {isLoggedIn ? (
+                  <button
+                    onClick={logout}
+                    className="px-3 py-1.5 text-sm bg-red-50 text-red-600 rounded hover:bg-red-100 transition-colors"
+                  >
+                    🔓 登出管理
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => setShowLoginDialog(true)}
+                    className="px-3 py-1.5 text-sm bg-gray-100 text-gray-500 rounded hover:bg-gray-200 transition-colors"
+                  >
+                    🔒 管理员
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -47,41 +81,37 @@ function App() {
 
                 {/* 功能导航 */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-4xl mx-auto">
-                  <a href={`${import.meta.env.BASE_URL}servers`} className="block p-6 bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow">
-                    <div className="text-4xl mb-4">🎮</div>
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2">服务器选择</h3>
-                    <p className="text-sm text-gray-600">选择游戏服务器</p>
-                  </a>
-                  <a href={`${import.meta.env.BASE_URL}m2-verification`} className="block p-6 bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow">
-                    <div className="text-4xl mb-4">⚔️</div>
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2">部队编组</h3>
-                    <p className="text-sm text-gray-600">M2验证模块-1</p>
-                  </a>
-                  <a href={`${import.meta.env.BASE_URL}m2-verification-2`} className="block p-6 bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow">
+                  <a href={`${import.meta.env.BASE_URL}san_1`} className="block p-6 bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow">
                     <div className="text-4xl mb-4">🎯</div>
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2">用户注册</h3>
-                    <p className="text-sm text-gray-600">M2验证模块-2</p>
-                  </a>
-                  <a href={`${import.meta.env.BASE_URL}m2-verification-3`} className="block p-6 bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow">
-                    <div className="text-4xl mb-4">🗺️</div>
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2">战役地图</h3>
-                    <p className="text-sm text-gray-600">M2验证模块-3</p>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">[黄巾之乱]</h3>
+                    <p className="text-sm text-gray-600">真三风云 - 赛季1</p>
                   </a>
                   {showUserManager && (
-                    <a href={`${import.meta.env.BASE_URL}user-manager`} className="block p-6 bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow border-2 border-red-300">
-                      <div className="text-4xl mb-4">👥</div>
-                      <h3 className="text-lg font-semibold text-gray-900 mb-2">用户管理</h3>
-                      <p className="text-sm text-gray-600">管理员专用</p>
-                    </a>
+                    <>
+                      <a href={`${import.meta.env.BASE_URL}m2-verification`} className="block p-6 bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow border-2 border-red-300">
+                        <div className="text-4xl mb-4">⚔️</div>
+                        <h3 className="text-lg font-semibold text-gray-900 mb-2">部队编组</h3>
+                        <p className="text-sm text-gray-600">M2验证模块-1</p>
+                      </a>
+                      <a href={`${import.meta.env.BASE_URL}m2-verification-3`} className="block p-6 bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow border-2 border-red-300">
+                        <div className="text-4xl mb-4">🗺️</div>
+                        <h3 className="text-lg font-semibold text-gray-900 mb-2">战役地图</h3>
+                        <p className="text-sm text-gray-600">M2验证模块-3</p>
+                      </a>
+                      <a href={`${import.meta.env.BASE_URL}user-manager`} className="block p-6 bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow border-2 border-red-300">
+                        <div className="text-4xl mb-4">👥</div>
+                        <h3 className="text-lg font-semibold text-gray-900 mb-2">用户管理</h3>
+                        <p className="text-sm text-gray-600">管理员专用</p>
+                      </a>
+                    </>
                   )}
                 </div>
               </div>
             } />
-            <Route path="/servers" element={<ServersPage />} />
             <Route path="/m2-verification" element={<M2VerificationPage />} />
-            <Route path="/m2-verification-2" element={<M2Verification2Page />} />
-            <Route path="/m2-verification-3" element={<CampaignList />} />
-            <Route path="/m2-verification-3/:campaignId" element={<CampaignDisplay />} />
+            <Route path="/san_1" element={<AuthFlowPage />} />
+            <Route path="/m2-verification-3" element={<CampaignListPage />} />
+            <Route path="/m2-verification-3/:campaignId" element={<CampaignDetailPage />} />
             <Route path="/user-manager" element={<UserManagerPage />} />
           </Routes>
         </main>
@@ -95,6 +125,44 @@ function App() {
             </div>
           </div>
         </footer>
+
+        {/* 管理员登录对话框 */}
+        {showLoginDialog && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowLoginDialog(false)}>
+            <div className="bg-white rounded-lg shadow-xl p-6 w-80" onClick={e => e.stopPropagation()}>
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">🔒 管理员认证</h3>
+              <form onSubmit={handleLogin}>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  placeholder="请输入管理员密码"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 mb-3"
+                  autoFocus
+                />
+                {loginError && (
+                  <p className="text-sm text-red-500 mb-3">{loginError}</p>
+                )}
+                <div className="flex gap-2">
+                  <button
+                    type="submit"
+                    disabled={loading || !password}
+                    className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                  >
+                    {loading ? '验证中...' : '登录'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setShowLoginDialog(false); setPassword(''); setLoginError(''); }}
+                    className="px-4 py-2 bg-gray-100 text-gray-600 rounded-md hover:bg-gray-200 transition-colors"
+                  >
+                    取消
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
       </div>
     </Router>
   );
