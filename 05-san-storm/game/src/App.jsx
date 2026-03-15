@@ -9,7 +9,9 @@ import { useAdmin } from '@/hooks/useAdmin';
 
 function App() {
   const { isLoggedIn, loading, login, logout } = useAdmin();
-  const showUserManager = isLoggedIn;
+  // 本地开发：跳过管理员认证，所有卡片直接可见
+  const isDev = import.meta.env.DEV;
+  const showUserManager = isDev || isLoggedIn;
   
   // 管理员登录对话框状态
   const [showLoginDialog, setShowLoginDialog] = useState(false);
