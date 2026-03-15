@@ -119,6 +119,12 @@ const UserManager = () => {
         const result = await gameUserAPI.deleteBannedUsers();
         if (result.success) {
           alert(`成功删除 ${result.deletedCount} 个封禁账号`);
+          // 如果当前登录用户是banned状态，清除登录状态
+          const current = JSON.parse(localStorage.getItem('gameUser') || 'null');
+          if (current && current.status === 'banned') {
+            localStorage.removeItem('gameUser');
+            setCurrentUser(null);
+          }
           loadUserData();
         } else {
           alert('操作失败：' + result.error);
@@ -141,6 +147,12 @@ const UserManager = () => {
     setLoading(false);
     if (result.success) {
       alert('删除成功');
+      // 如果删除的是当前登录用户，清除登录状态
+      const current = JSON.parse(localStorage.getItem('gameUser') || 'null');
+      if (current && current.id === userId) {
+        localStorage.removeItem('gameUser');
+        setCurrentUser(null);
+      }
       loadUserData();
     } else {
       alert('删除失败：' + result.error);
