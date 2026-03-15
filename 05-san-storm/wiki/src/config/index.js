@@ -7,8 +7,8 @@
 
 // ==================== API 配置 ====================
 export const apiConfig = {
-  // API 基础路径
-  baseUrl: import.meta.env.VITE_API_BASE_URL || 'http://localhost:3005',
+  // API 基础路径（生产环境走nginx代理 /api/san-storm → localhost:3005/api）
+  baseUrl: import.meta.env.VITE_API_BASE_URL || (import.meta.env.PROD ? '/api/san-storm' : 'http://localhost:3005/api'),
   
   // 请求超时时间（毫秒）
   timeout: 30000,

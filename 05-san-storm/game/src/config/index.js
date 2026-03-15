@@ -5,21 +5,6 @@
  * @module config
  */
 
-// ==================== API 配置 ====================
-export const apiConfig = {
-  // API 基础路径
-  baseUrl: import.meta.env.VITE_API_BASE_URL || 'http://localhost:3002',
-  
-  // 请求超时时间（毫秒）
-  timeout: 30000,
-  
-  // 重试次数
-  retryCount: 3,
-  
-  // 重试延迟（毫秒）
-  retryDelay: 1000,
-};
-
 // ==================== 游戏配置 ====================
 export const gameConfig = {
   // 服务器配置
@@ -101,7 +86,6 @@ export const uiConfig = {
 
 // ==================== 导出统一配置对象 ====================
 export const config = {
-  api: apiConfig,
   game: gameConfig,
   features: featureFlags,
   auth: authConfig,

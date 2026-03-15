@@ -96,7 +96,7 @@ export async function loadSharedData(resource, options = {}) {
   
   // 部队和将领数据从API加载
   if (resource === 'troops') {
-    const apiUrl = `${apiConfig.baseUrl}/api/config/troops${season ? `?season=${season}` : ''}`;
+    const apiUrl = `${apiConfig.baseUrl}/config/troops${season ? `?season=${season}` : ''}`;
     const response = await get(apiUrl);
     
     if (!response.success) {
@@ -105,7 +105,7 @@ export async function loadSharedData(resource, options = {}) {
     
     data = { troops: response.troops };
   } else if (resource === 'characters') {
-    const apiUrl = `${apiConfig.baseUrl}/api/config/characters${season ? `?season=${season}` : ''}`;
+    const apiUrl = `${apiConfig.baseUrl}/config/characters${season ? `?season=${season}` : ''}`;
     const response = await get(apiUrl);
     
     if (!response.success) {
