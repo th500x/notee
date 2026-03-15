@@ -389,8 +389,9 @@ CREATE TABLE IF NOT EXISTS legions (
 -- 军团成员表 (legion_members)
 -- ==========================================
 CREATE TABLE IF NOT EXISTS legion_members (
-  legion_id VARCHAR(50) COMMENT '军团ID',
-  player_id VARCHAR(4) COMMENT '玩家ID',
+  id INT AUTO_INCREMENT PRIMARY KEY COMMENT '成员记录ID',
+  legion_id VARCHAR(50) NOT NULL COMMENT '军团ID',
+  player_id VARCHAR(4) COMMENT '玩家ID（玩家被清除后为NULL，显示"未知玩家"）',
   
   -- 成员角色
   role ENUM('commander', 'member') DEFAULT 'member' COMMENT '角色（长官/成员）',
@@ -398,9 +399,9 @@ CREATE TABLE IF NOT EXISTS legion_members (
   -- 时间戳
   joined_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '加入时间',
   
-  PRIMARY KEY (legion_id, player_id),
+  UNIQUE INDEX idx_legion_player (legion_id, player_id),
   FOREIGN KEY (legion_id) REFERENCES legions(legion_id) ON DELETE CASCADE,
-  FOREIGN KEY (player_id) REFERENCES players(player_id) ON DELETE CASCADE,
+  FOREIGN KEY (player_id) REFERENCES players(player_id) ON DELETE SET NULL,
   INDEX idx_player (player_id),
   INDEX idx_role (role)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='军团成员表';
@@ -925,7 +926,7 @@ CREATE TABLE IF NOT EXISTS memorial_images (
 -- ==========================================
 CREATE TABLE IF NOT EXISTS battles (
   battle_id VARCHAR(50) PRIMARY KEY COMMENT '战斗ID',
-  player_id VARCHAR(4) NOT NULL COMMENT '玩家ID',
+  player_id VARCHAR(4) COMMENT '玩家ID（玩家被清除后为NULL，显示"未知玩家"）',
   war_id VARCHAR(50) COMMENT '战事ID（可选，NULL表示非战事战斗）',
   
   -- 战斗类型（精简分类）
@@ -969,7 +970,7 @@ CREATE TABLE IF NOT EXISTS battles (
   
   battle_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '战斗时间',
   
-  FOREIGN KEY (player_id) REFERENCES players(player_id) ON DELETE CASCADE,
+  FOREIGN KEY (player_id) REFERENCES players(player_id) ON DELETE SET NULL,
   INDEX idx_player (player_id),
   INDEX idx_war_id (war_id),
   INDEX idx_battle_type (battle_type),

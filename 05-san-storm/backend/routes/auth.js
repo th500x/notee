@@ -92,10 +92,17 @@ router.post('/register', async (req, res) => {
       city || null
     ]);
 
+    // 查询完整的账号信息返回给前端（与登录接口一致）
+    const [newAccount] = await pool.query(
+      'SELECT * FROM accounts WHERE id = ?',
+      [id]
+    );
+    const { password: _, ...accountData } = newAccount[0];
+
     res.json({ 
       success: true, 
       message: '注册成功',
-      data: { id, serverId }
+      data: accountData
     });
 
   } catch (error) {
@@ -295,6 +302,89 @@ router.post('/unban', async (req, res) => {
 });
 
 /**
+ * DELETE /api/auth/user/:userId/game-data
+ * 清除用户游戏数据（保留账号、纪念图片、赛季继承）
+ */
+router.delete('/user/:userId/game-data', async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    if (!userId) {
+      return res.status(400).json({ success: false, error: '缺少用户ID' });
+    }
+
+    // 检查用户是否存在
+    const [users] = await pool.query(
+      'SELECT id FROM accounts WHERE id = ?',
+      [userId]
+    );
+
+    if (users.length === 0) {
+      return res.status(404).json({ success: false, error: '用户不存在' });
+    }
+
+    // === 玩家级别（10张）：直接删除 ===
+    const playerTables = [
+      'player_cards',
+      'player_equipment_slots',
+      'player_events',
+      'player_garrison_slots',
+      'player_progress',
+      'player_synthesis',
+      'statistics',
+      'season_records',
+      'temp_character_creation',
+      'players'  // players 最后删（其他表有外键依赖）
+    ];
+
+    const deletedCounts = {};
+    for (const table of playerTables) {
+      try {
+        const [result] = await pool.query(`DELETE FROM ${table} WHERE player_id = ?`, [userId]);
+        deletedCounts[table] = result.affectedRows;
+      } catch (err) {
+        // 表可能还不存在（如 player_synthesis），跳过
+        deletedCounts[table] = 0;
+      }
+    }
+
+    // === 势力/世界级别：player_id 设为 NULL（显示"未知玩家"）===
+    const worldTables = [
+      { table: 'legion_members', column: 'player_id' },
+      { table: 'battles', column: 'player_id' },
+      { table: 'texts', column: 'sender_id' },
+      { table: 'chats', column: 'sender_id' }
+    ];
+
+    const nullifiedCounts = {};
+    for (const { table, column } of worldTables) {
+      try {
+        const [result] = await pool.query(`UPDATE ${table} SET ${column} = NULL WHERE ${column} = ?`, [userId]);
+        nullifiedCounts[table] = result.affectedRows;
+      } catch (err) {
+        // 表可能还不存在，跳过
+        nullifiedCounts[table] = 0;
+      }
+    }
+
+    res.json({ 
+      success: true, 
+      message: '游戏数据已清除',
+      deletedCounts,
+      nullifiedCounts
+    });
+
+  } catch (error) {
+    console.error('[Auth] 清除用户游戏数据失败:', error);
+    res.status(500).json({ 
+      success: false,
+      error: '清除游戏数据失败',
+      message: error.message 
+    });
+  }
+});
+
+/**
  * DELETE /api/auth/user/:userId
  * 删除用户（管理员功能）
  */
@@ -335,27 +425,89 @@ router.delete('/user/:userId', async (req, res) => {
 });
 
 /**
- * DELETE /api/auth/users/all
- * 清除所有用户（管理员功能 - 危险操作）
+ * DELETE /api/auth/users/banned
+ * 一键删除所有banned状态的账号（管理员功能）
  */
-router.delete('/users/all', async (req, res) => {
+router.delete('/users/banned', async (req, res) => {
   try {
-    // 删除所有账号（级联删除会自动删除关联的玩家数据）
-    const [result] = await pool.query('DELETE FROM accounts');
+    // 查询所有banned账号
+    const [bannedUsers] = await pool.query('SELECT id FROM accounts WHERE status = ?', ['banned']);
+    
+    if (bannedUsers.length === 0) {
+      return res.json({ success: true, message: '没有被封禁的账号', deletedCount: 0 });
+    }
+
+    const bannedIds = bannedUsers.map(u => u.id);
+
+    // 势力/世界级别表：player_id SET NULL
+    const worldTables = [
+      { table: 'legion_members', column: 'player_id' },
+      { table: 'battles', column: 'player_id' },
+      { table: 'texts', column: 'sender_id' },
+      { table: 'chats', column: 'sender_id' }
+    ];
+    for (const { table, column } of worldTables) {
+      try {
+        await pool.query(`UPDATE ${table} SET ${column} = NULL WHERE ${column} IN (?)`, [bannedIds]);
+      } catch (err) { /* 表可能不存在 */ }
+    }
+
+    // 删除banned账号（CASCADE会自动删除玩家级别数据）
+    const [result] = await pool.query('DELETE FROM accounts WHERE status = ?', ['banned']);
 
     res.json({ 
       success: true, 
-      message: '所有用户已清除',
+      message: `已删除 ${result.affectedRows} 个封禁账号`,
       deletedCount: result.affectedRows
     });
 
   } catch (error) {
-    console.error('[Auth] 清除所有用户失败:', error);
-    res.status(500).json({ 
-      success: false,
-      error: '清除所有用户失败',
-      message: error.message 
-    });
+    console.error('[Auth] 一键删除封禁账号失败:', error);
+    res.status(500).json({ success: false, error: '操作失败', message: error.message });
+  }
+});
+
+/**
+ * DELETE /api/auth/users/purge-all
+ * 一键清除所有用户的玩家数据（管理员功能）
+ */
+router.delete('/users/purge-all', async (req, res) => {
+  try {
+    const deletedCounts = {};
+    const nullifiedCounts = {};
+
+    // 玩家级别表：全部清空
+    const playerTables = [
+      'player_cards', 'player_equipment_slots', 'player_events',
+      'player_garrison_slots', 'player_progress', 'player_synthesis',
+      'statistics', 'season_records', 'temp_character_creation', 'players'
+    ];
+    for (const table of playerTables) {
+      try {
+        const [result] = await pool.query(`DELETE FROM ${table}`);
+        deletedCounts[table] = result.affectedRows;
+      } catch (err) { deletedCounts[table] = 0; }
+    }
+
+    // 势力/世界级别表：player_id 全部 SET NULL
+    const worldTables = [
+      { table: 'legion_members', column: 'player_id' },
+      { table: 'battles', column: 'player_id' },
+      { table: 'texts', column: 'sender_id' },
+      { table: 'chats', column: 'sender_id' }
+    ];
+    for (const { table, column } of worldTables) {
+      try {
+        const [result] = await pool.query(`UPDATE ${table} SET ${column} = NULL WHERE ${column} IS NOT NULL`);
+        nullifiedCounts[table] = result.affectedRows;
+      } catch (err) { nullifiedCounts[table] = 0; }
+    }
+
+    res.json({ success: true, message: '所有用户的玩家数据已清除', deletedCounts, nullifiedCounts });
+
+  } catch (error) {
+    console.error('[Auth] 一键清除所有玩家数据失败:', error);
+    res.status(500).json({ success: false, error: '操作失败', message: error.message });
   }
 });
 

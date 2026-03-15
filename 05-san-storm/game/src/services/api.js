@@ -360,13 +360,13 @@ export const gameUserAPI = {
   },
 
   /**
-   * 清除所有用户（管理员功能 - 危险操作）
+   * 清除用户游戏数据（管理员功能，保留账号）
    */
-  deleteAllUsers: async () => {
+  clearUserData: async (userId) => {
     try {
-      console.log('[GameUserAPI] 清除所有用户');
+      console.log('[GameUserAPI] 清除用户游戏数据', { userId });
       
-      const response = await fetchWithTimeout(`${API_CONFIG.BASE_URL}/auth/users/all`, {
+      const response = await fetchWithTimeout(`${API_CONFIG.BASE_URL}/auth/user/${userId}/game-data`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json'
@@ -376,8 +376,8 @@ export const gameUserAPI = {
       const data = await response.json();
       
       if (data.success) {
-        console.log('[GameUserAPI] 清除成功', data.deletedCount);
-        return { success: true, deletedCount: data.deletedCount };
+        console.log('[GameUserAPI] 清除成功', data.deletedCounts);
+        return { success: true, deletedCounts: data.deletedCounts };
       } else {
         console.warn('[GameUserAPI] 清除失败', data.error);
         return { 
@@ -391,6 +391,64 @@ export const gameUserAPI = {
         success: false, 
         error: '网络错误，请检查后端服务是否运行' 
       };
+    }
+  },
+
+  /**
+   * 一键删除所有banned账号（管理员功能）
+   */
+  deleteBannedUsers: async () => {
+    try {
+      console.log('[GameUserAPI] 一键删除封禁账号');
+      
+      const response = await fetchWithTimeout(`${API_CONFIG.BASE_URL}/auth/users/banned`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        console.log('[GameUserAPI] 删除封禁账号成功', data.deletedCount);
+        return { success: true, deletedCount: data.deletedCount, message: data.message };
+      } else {
+        console.warn('[GameUserAPI] 删除封禁账号失败', data.error);
+        return { success: false, error: data.error || '操作失败' };
+      }
+    } catch (error) {
+      console.error('[GameUserAPI] 删除封禁账号请求失败', error);
+      return { success: false, error: '网络错误，请检查后端服务是否运行' };
+    }
+  },
+
+  /**
+   * 一键清除所有用户的玩家数据（管理员功能）
+   */
+  purgeAllUsers: async () => {
+    try {
+      console.log('[GameUserAPI] 一键清除所有玩家数据');
+      
+      const response = await fetchWithTimeout(`${API_CONFIG.BASE_URL}/auth/users/purge-all`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        console.log('[GameUserAPI] 一键清除成功');
+        return { success: true, deletedCounts: data.deletedCounts, nullifiedCounts: data.nullifiedCounts };
+      } else {
+        console.warn('[GameUserAPI] 一键清除失败', data.error);
+        return { success: false, error: data.error || '操作失败' };
+      }
+    } catch (error) {
+      console.error('[GameUserAPI] 一键清除请求失败', error);
+      return { success: false, error: '网络错误，请检查后端服务是否运行' };
     }
   },
 

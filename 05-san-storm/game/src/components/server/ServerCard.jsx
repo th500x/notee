@@ -152,7 +152,7 @@ export function ServerCard({ server, onSelect }) {
         <div className="relative px-5 py-2 border-t-2 border-gray-400/40">
           <div className="mb-2">
             <div className="flex items-center justify-between text-sm mb-1">
-              <span className="text-gray-700">玩家容量</span>
+              <span className="text-gray-700">玩家数量</span>
               <span className="text-gray-900 font-medium">
                 {server.activePlayerCount}/{server.maxPlayers}
               </span>

@@ -482,7 +482,7 @@ const CharacterCreationPage = ({ user, onComplete }) => {
   }
 
   return (
-    <div className="max-w-4xl mx-auto">
+    <div className="max-w-6xl mx-auto">
       {/* 进度指示器 */}
       <div className="mb-8 overflow-x-auto">
         <div className="flex items-center justify-center space-x-2 sm:space-x-4 min-w-0">
@@ -524,7 +524,7 @@ const CharacterCreationPage = ({ user, onComplete }) => {
         <div className="bg-white rounded-lg shadow-md p-6">
           <h2 className="text-2xl font-bold text-gray-900 mb-6 text-center">选择你的势力</h2>
           
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-x-6 gap-y-8 justify-items-center pb-4">
+          <div className="flex flex-wrap justify-center gap-6 pb-4">
             {factions.map((faction) => (
               <FactionCard
                 key={faction.faction_id}
@@ -746,7 +746,7 @@ const CharacterCreationPage = ({ user, onComplete }) => {
                   character={characterData}
                   skillsMap={skillsMap}  // 传入技能映射
                   showDetails={true}  // 显示技能
-                  baseUrl="/05-san-storm/game/"
+                  baseUrl={import.meta.env.BASE_URL}
                   onSelect={() => handleAttributeSelect(option, index)}
                   isSelected={isSelected}
                   characterType={option.type}  // 显示类型标签（武官/文官/文武）
