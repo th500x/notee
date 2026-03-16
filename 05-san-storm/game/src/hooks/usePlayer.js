@@ -38,6 +38,11 @@ export function usePlayer(playerId) {
       }
     } catch (err) {
       console.error('加载玩家失败:', err);
+      // 如果是404或网络错误，可能用户已被删除，清除本地登录状态
+      if (err.message?.includes('404') || err.message?.includes('不存在')) {
+        console.warn('[usePlayer] 用户可能已被删除，清除本地登录状态');
+        localStorage.removeItem('gameUser');
+      }
       setError(err.message);
       setPlayer(null);
     } finally {

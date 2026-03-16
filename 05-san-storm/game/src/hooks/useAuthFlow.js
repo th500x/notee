@@ -5,6 +5,7 @@
  */
 
 import { useState, useEffect } from 'react';
+import { gameUserAPI } from '@/services/api';
 
 export function useAuthFlow() {
   const [currentStep, setCurrentStep] = useState('serverSelect');
@@ -13,12 +14,25 @@ export function useAuthFlow() {
   const [serverSwitchUser, setServerSwitchUser] = useState(null);
   const [confirmCount, setConfirmCount] = useState(0);
 
-  // 检查用户是否已登录
+  // 检查用户是否已登录，并验证账号是否仍然存在
   useEffect(() => {
     const savedUser = localStorage.getItem('gameUser');
     if (savedUser) {
       const user = JSON.parse(savedUser);
-      setCurrentUser(user);
+      // 向后端验证账号是否仍然存在
+      gameUserAPI.verifyUser(user.id).then(result => {
+        if (result.success && result.exists) {
+          setCurrentUser(user);
+        } else {
+          // 账号已被删除，清除本地缓存
+          console.warn('[useAuthFlow] 本地缓存的账号已不存在，清除登录状态');
+          localStorage.removeItem('gameUser');
+          setCurrentUser(null);
+        }
+      }).catch(() => {
+        // 网络错误时仍然使用本地缓存（离线容错）
+        setCurrentUser(user);
+      });
     }
   }, []);
 

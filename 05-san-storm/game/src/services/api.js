@@ -120,6 +120,23 @@ export const authAPI = {
  */
 export const gameUserAPI = {
   /**
+   * 验证账号是否存在（轻量级，用于恢复登录状态时校验）
+   */
+  verifyUser: async (userId) => {
+    try {
+      const response = await fetchWithTimeout(`${API_CONFIG.BASE_URL}/auth/verify/${userId}`, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('[GameUserAPI] 验证账号失败', error);
+      throw error;
+    }
+  },
+
+  /**
    * 用户注册
    */
   register: async (userData) => {

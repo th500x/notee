@@ -116,6 +116,27 @@ router.post('/register', async (req, res) => {
 });
 
 /**
+ * GET /api/auth/verify/:id
+ * 验证账号是否存在（轻量级，用于前端恢复登录状态时校验）
+ */
+router.get('/verify/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const [rows] = await pool.query(
+      'SELECT id, status FROM accounts WHERE id = ?',
+      [id]
+    );
+    if (rows.length === 0) {
+      return res.json({ success: true, exists: false });
+    }
+    return res.json({ success: true, exists: true, status: rows[0].status });
+  } catch (error) {
+    console.error('验证账号失败:', error);
+    return res.status(500).json({ success: false, error: '服务器错误' });
+  }
+});
+
+/**
  * POST /api/auth/login
  * 用户登录
  */
