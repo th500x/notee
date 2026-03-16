@@ -13,7 +13,7 @@ const router = express.Router();
 
 /**
  * GET /api/players/avatars
- * 获取可用头像列表
+ * 获取可用头像列表（按分类分组）
  */
 router.get('/avatars', async (req, res) => {
   try {
@@ -26,19 +26,47 @@ router.get('/avatars', async (req, res) => {
     if (!fs.existsSync(avatarDir)) {
       return res.json({
         success: true,
-        data: { avatars: [] }
+        data: { categories: [] }
       });
     }
     
-    const files = fs.readdirSync(avatarDir)
-      .filter(f => /\.(png|jpg|jpeg|gif|webp)$/i.test(f))
-      .sort();
+    // 分类中文名映射
+    const categoryLabels = {
+      '01_elder_male_scholar': '白须儒雅',
+      '02_elder_male_warrior': '白须老将',
+      '03_elder_female_noble': '年上贵妇',
+      '04_elder_female_folk': '年上内助',
+      '05_mid_male_scholar': '中年谋士',
+      '06_mid_male_warrior': '中年将军',
+      '07_mid_female_noble': '人妻少妇',
+      '08_mid_female_warrior': '人妻女将',
+      '09_young_male_scholar': '青年书生',
+      '10_young_male_warrior': '青年将官',
+      '11_young_female_scholar': '青年才女',
+      '12_young_female_warrior': '青年女侠'
+    };
     
-    const avatars = files.map(f => `assets/san_1_ui_card/avatar/${f}`);
+    // 读取子目录
+    const dirs = fs.readdirSync(avatarDir, { withFileTypes: true })
+      .filter(d => d.isDirectory())
+      .sort((a, b) => a.name.localeCompare(b.name));
+    
+    const categories = dirs.map(dir => {
+      const dirPath = path.join(avatarDir, dir.name);
+      const files = fs.readdirSync(dirPath)
+        .filter(f => /\.(png|jpg|jpeg|gif|webp)$/i.test(f))
+        .sort();
+      
+      return {
+        id: dir.name,
+        label: categoryLabels[dir.name] || dir.name,
+        avatars: files.map(f => `assets/san_1_ui_card/avatar/${dir.name}/${f}`)
+      };
+    }).filter(c => c.avatars.length > 0);
     
     res.json({
       success: true,
-      data: { avatars }
+      data: { categories }
     });
   } catch (error) {
     console.error('[Players] 获取头像列表失败:', error);

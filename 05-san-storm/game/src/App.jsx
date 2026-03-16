@@ -1,10 +1,12 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { useState } from 'react';
-import M2VerificationPage from '@/pages/verification/M2VerificationPage';
+import M2VerificationPage from '@/pages/demo/M2VerificationPage';
 import AuthFlowPage from '@/pages/AuthFlowPage';
 import UserManagerPage from '@/pages/admin/UserManagerPage';
-import CampaignListPage from '@/pages/campaign/CampaignListPage';
-import CampaignDetailPage from '@/pages/campaign/CampaignDetailPage';
+import CampaignListPage from '@/pages/demo/CampaignListPage';
+import CampaignDetailPage from '@/pages/demo/CampaignDetailPage';
+import AncientModalDemo from '@/pages/demo/AncientModalDemo';
+import GameIntroDemo from '@/pages/demo/GameIntroDemo';
 import { useAdmin } from '@/hooks/useAdmin';
 
 function App() {
@@ -100,12 +102,24 @@ function App() {
                         <h3 className="text-lg font-semibold text-gray-900 mb-2">战役地图</h3>
                         <p className="text-sm text-gray-600">M2验证模块-3</p>
                       </a>
-                      <a href={`${import.meta.env.BASE_URL}user-manager`} className="block p-6 bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow border-2 border-red-300">
-                        <div className="text-4xl mb-4">👥</div>
-                        <h3 className="text-lg font-semibold text-gray-900 mb-2">用户管理</h3>
-                        <p className="text-sm text-gray-600">管理员专用</p>
+                      <a href={`${import.meta.env.BASE_URL}demo/ancient-modal`} className="block p-6 bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow border-2 border-amber-300">
+                        <div className="text-4xl mb-4">🏯</div>
+                        <h3 className="text-lg font-semibold text-gray-900 mb-2">古风弹窗</h3>
+                        <p className="text-sm text-gray-600">Demo - AncientModal组件</p>
+                      </a>
+                      <a href={`${import.meta.env.BASE_URL}demo/game-intro`} className="block p-6 bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow border-2 border-amber-300">
+                        <div className="text-4xl mb-4">📜</div>
+                        <h3 className="text-lg font-semibold text-gray-900 mb-2">游戏序章</h3>
+                        <p className="text-sm text-gray-600">Demo - GameIntroOverlay组件</p>
                       </a>
                     </>
+                  )}
+                  {isLoggedIn && (
+                    <a href={`${import.meta.env.BASE_URL}user-manager`} className="block p-6 bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow border-2 border-red-300">
+                      <div className="text-4xl mb-4">👥</div>
+                      <h3 className="text-lg font-semibold text-gray-900 mb-2">用户管理</h3>
+                      <p className="text-sm text-gray-600">管理员专用</p>
+                    </a>
                   )}
                 </div>
               </div>
@@ -115,6 +129,8 @@ function App() {
             <Route path="/m2-verification-3" element={<CampaignListPage />} />
             <Route path="/m2-verification-3/:campaignId" element={<CampaignDetailPage />} />
             <Route path="/user-manager" element={<UserManagerPage />} />
+            <Route path="/demo/ancient-modal" element={<AncientModalDemo />} />
+            <Route path="/demo/game-intro" element={<GameIntroDemo />} />
           </Routes>
         </main>
         <footer className="bg-white border-t border-gray-200 mt-12">

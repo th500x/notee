@@ -22,7 +22,8 @@ const CharacterCreationPage = ({ user, onComplete }) => {
   const [selectedFaction, setSelectedFaction] = useState(null);
 
   // 步骤2: 选择形象
-  const [avatarList, setAvatarList] = useState([]);
+  const [avatarCategories, setAvatarCategories] = useState([]);
+  const [activeCategory, setActiveCategory] = useState(null);
   const [selectedAvatar, setSelectedAvatar] = useState(null);
 
   // 步骤3: 角色名
@@ -178,7 +179,7 @@ const CharacterCreationPage = ({ user, onComplete }) => {
 
   // 加载头像列表（恢复进度到步骤2时）
   useEffect(() => {
-    if (user && currentStep === 2 && avatarList.length === 0) {
+    if (user && currentStep === 2 && avatarCategories.length === 0) {
       loadAvatars();
     }
   }, [user, currentStep]);
@@ -246,8 +247,12 @@ const CharacterCreationPage = ({ user, onComplete }) => {
   const loadAvatars = async () => {
     try {
       const result = await playerAPI.getAvatars();
-      if (result.success) {
-        setAvatarList(result.data.avatars);
+      if (result.success && result.data.categories) {
+        setAvatarCategories(result.data.categories);
+        // 默认选中第一个分类
+        if (result.data.categories.length > 0) {
+          setActiveCategory(result.data.categories[0].id);
+        }
       }
     } catch (err) {
       console.error('[CharacterCreation] 加载头像列表失败:', err);
@@ -554,31 +559,53 @@ const CharacterCreationPage = ({ user, onComplete }) => {
         <div className="bg-white rounded-lg shadow-md p-6">
           <h2 className="text-2xl font-bold text-gray-900 mb-6 text-center">选择你的形象</h2>
           
-          {avatarList.length === 0 ? (
+          {avatarCategories.length === 0 ? (
             <div className="text-center py-8 text-gray-500">
               <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-4"></div>
               <p>加载头像中...</p>
             </div>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 justify-items-center mb-6">
-              {avatarList.map((avatar, index) => (
-                <div
-                  key={index}
-                  onClick={() => handleAvatarSelect(avatar)}
-                  className={`w-[100px] h-[100px] sm:w-[128px] sm:h-[128px] rounded-lg cursor-pointer transition-all border-2 overflow-hidden ${
-                    selectedAvatar === avatar
-                      ? 'border-blue-500 ring-4 ring-blue-300 scale-105'
-                      : 'border-gray-300 hover:border-blue-300 hover:scale-105'
-                  }`}
-                >
-                  <img
-                    src={`${import.meta.env.BASE_URL}${avatar}`}
-                    alt={`头像${index + 1}`}
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-              ))}
-            </div>
+            <>
+              {/* 分类标签 */}
+              <div className="flex flex-wrap gap-2 justify-center mb-6">
+                {avatarCategories.map((cat) => (
+                  <button
+                    key={cat.id}
+                    onClick={() => setActiveCategory(cat.id)}
+                    className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                      activeCategory === cat.id
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    {cat.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* 当前分类的头像网格 */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 justify-items-center mb-6">
+                {avatarCategories
+                  .find(c => c.id === activeCategory)
+                  ?.avatars.map((avatar, index) => (
+                    <div
+                      key={avatar}
+                      onClick={() => handleAvatarSelect(avatar)}
+                      className={`w-[100px] h-[100px] sm:w-[128px] sm:h-[128px] rounded-lg cursor-pointer transition-all border-2 overflow-hidden ${
+                        selectedAvatar === avatar
+                          ? 'border-blue-500 ring-4 ring-blue-300 scale-105'
+                          : 'border-gray-300 hover:border-blue-300 hover:scale-105'
+                      }`}
+                    >
+                      <img
+                        src={`${import.meta.env.BASE_URL}${avatar}`}
+                        alt={`头像${index + 1}`}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  ))}
+              </div>
+            </>
           )}
 
           <div className="mt-8 flex justify-between">

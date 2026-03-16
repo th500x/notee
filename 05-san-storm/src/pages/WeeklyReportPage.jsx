@@ -76,6 +76,14 @@ M1完成，进入M2阶段
 网站迁移数据库`,
       color: 'from-pink-400 to-pink-500',
       borderColor: 'border-pink-400'
+    },
+    {
+      week: 'W07',
+      date: '3月16日-3月22日',
+      content: `制作玩家头像资源
+xxxxxx`,
+      color: 'from-blue-400 to-blue-500',
+      borderColor: 'border-blue-400'
     }
   ];
 

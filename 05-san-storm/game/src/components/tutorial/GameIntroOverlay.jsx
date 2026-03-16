@@ -1,0 +1,246 @@
+/**
+ * 游戏特色介绍对话框（步骤1.5）
+ * 
+ * @description 角色创建完成后，进入游戏大地图时自动显示
+ * 围绕屏幕中心点，按四方位（左上→右上→右下→左下）轮转显示
+ * 卡片尺寸固定 256×384，与将领卡/部队卡统一
+ * @see docs/10-core-system/10-1-TUTORIAL_SYSTEM.md 步骤1.5
+ */
+
+import { useState, useEffect, useCallback } from 'react';
+import { gameIntroMessages } from '@/data/texts/tutorial';
+
+// 背景图列表（san_1_map/bg 目录下所有图片）
+const BG_IMAGES = [
+  'av1_00001_.png','av1_00010_.png','av1_00016_.png','av1_00017_.png','av1_00018_.png',
+  'av1_00020_.png','av1_00021_.png','av1_00022_.png','av1_00025_.png','av1_00026_.png',
+  'av1_00028_.png','av1_00031_.png','av1_00034_.png','av1_00035_.png','av1_00036_.png',
+  'av1_00037_.png','av1_00038_.png','av1_00042_.png','av1_00043_.png','av1_00048_.png',
+  'av1_00050_.png','av1_00052_.png','av1_00053_.png','av1_00056_.png','av1_00058_.png',
+  'av1_00059_.png','av1_00060_.png','av1_00061_.png','av1_00064_.png','av1_00065_.png',
+  'av1_00066_.png','av1_00067_.png','av1_00068_.png','av1_00070_.png','av1_00071_.png',
+  'av1_00074_.png','av1_00075_.png','av1_00076_.png','av1_00077_.png','av1_00078_.png',
+  'av1_00079_.png','av1_00082_.png','av1_00085_.png','av1_00088_.png','av1_00089_.png',
+  'av1_00090_.png','av1_00091_.png','av1_00092_.png','av1_00095_.png','av1_00096_.png',
+];
+const BG_DIR = 'assets/san_1_map/bg/';
+const BG_CACHE_KEY = 'game_intro_bg';
+const BG_CACHE_DAYS = 7;
+
+/** 获取随机背景图（缓存7天） */
+function getRandomBg() {
+  try {
+    const cached = localStorage.getItem(BG_CACHE_KEY);
+    if (cached) {
+      const { file, expires } = JSON.parse(cached);
+      if (Date.now() < expires && BG_IMAGES.includes(file)) {
+        return BG_DIR + file;
+      }
+    }
+  } catch {}
+  const file = BG_IMAGES[Math.floor(Math.random() * BG_IMAGES.length)];
+  try {
+    localStorage.setItem(BG_CACHE_KEY, JSON.stringify({
+      file,
+      expires: Date.now() + BG_CACHE_DAYS * 86400000
+    }));
+  } catch {}
+  return BG_DIR + file;
+}
+
+// 卡片固定尺寸（与将领卡/部队卡一致）
+const CARD_W = 256;
+const CARD_H = 384;
+const GAP = 8; // 卡片与中心点的间距
+
+// 四方位：围绕屏幕中心点
+// 左上 → 右上 → 右下 → 左下 循环
+const QUADRANTS = ['top-left', 'top-right', 'bottom-right', 'bottom-left'];
+
+/**
+ * 根据象限计算卡片位置（围绕屏幕中心）
+ * 返回 CSS transform 的 translate 值
+ */
+function getCardStyle(quadrant) {
+  switch (quadrant) {
+    case 'top-left':
+      return { transform: `translate(calc(-50% - ${CARD_W / 2 + GAP}px), calc(-50% - ${CARD_H / 2 + GAP}px))` };
+    case 'top-right':
+      return { transform: `translate(calc(-50% + ${CARD_W / 2 + GAP}px), calc(-50% - ${CARD_H / 2 + GAP}px))` };
+    case 'bottom-right':
+      return { transform: `translate(calc(-50% + ${CARD_W / 2 + GAP}px), calc(-50% + ${CARD_H / 2 + GAP}px))` };
+    case 'bottom-left':
+      return { transform: `translate(calc(-50% - ${CARD_W / 2 + GAP}px), calc(-50% + ${CARD_H / 2 + GAP}px))` };
+    default: // 空position → 居中
+      return { transform: 'translate(-50%, -50%)' };
+  }
+}
+
+// ========== 对话框卡片（固定尺寸 256×384） ==========
+const IntroCard = ({ message, isVisible, quadrant }) => {
+  const posStyle = getCardStyle(quadrant);
+
+  return (
+    <div
+      className={`absolute top-1/2 left-1/2 transition-all duration-500 ease-out
+        ${isVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'}`}
+      style={{ width: CARD_W, height: CARD_H, ...posStyle }}
+    >
+      {/* 外框（木纹质感） */}
+      <div className="w-full h-full rounded-lg border-2 border-amber-700/60 shadow-2xl overflow-hidden"
+        style={{
+          background: 'linear-gradient(135deg, #3a2a1a 0%, #4a3828 50%, #3a2a1a 100%)',
+        }}
+      >
+        {/* 内层纸张 */}
+        <div className="m-1.5 h-[calc(100%-12px)] rounded overflow-hidden flex flex-col"
+          style={{
+            background: 'linear-gradient(180deg, #f5edd6 0%, #efe4c8 30%, #f0e6cc 100%)',
+          }}
+        >
+          {/* 标题栏 */}
+          <div className="px-4 py-2.5 bg-gradient-to-r from-amber-800 via-amber-700 to-amber-800 flex-shrink-0">
+            <div className="flex items-center gap-2 text-amber-100">
+              {message.icon && <span className="text-lg">{message.icon}</span>}
+              <span className="text-sm font-bold tracking-wider">{message.title}</span>
+            </div>
+          </div>
+          <div className="h-0.5 bg-gradient-to-r from-transparent via-amber-700/30 to-transparent flex-shrink-0" />
+
+          {/* 内容（可滚动，段落间用分隔线） */}
+          <div className="flex-1 px-3 py-3 overflow-y-auto">
+            {message.content.split('\n').map((paragraph, i, arr) => (
+              <div key={i}>
+                <p className="text-gray-800 text-sm leading-relaxed">{paragraph}</p>
+                {i < arr.length - 1 && (
+                  <div className="flex items-center gap-2 my-2">
+                    <div className="flex-1 h-px bg-gradient-to-r from-transparent via-amber-600/40 to-transparent" />
+                    <div className="w-1 h-1 rotate-45 bg-amber-600/60" />
+                    <div className="flex-1 h-px bg-gradient-to-r from-transparent via-amber-600/40 to-transparent" />
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+
+          {/* 底部提示 */}
+          <div className="px-4 py-2 text-center flex-shrink-0">
+            <span className="text-xs text-amber-700/60 animate-pulse">点击继续 ▸</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ========== 进度指示器 ==========
+const ProgressDots = ({ total, current }) => (
+  <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-1.5 z-10">
+    {Array.from({ length: total }, (_, i) => (
+      <div
+        key={i}
+        className={`w-2 h-2 rounded-full transition-all duration-300 ${
+          i === current
+            ? 'bg-amber-400 scale-125'
+            : i < current ? 'bg-amber-600/60' : 'bg-white/30'
+        }`}
+      />
+    ))}
+  </div>
+);
+
+// ========== 主组件 ==========
+const GameIntroOverlay = ({ onComplete }) => {
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [isVisible, setIsVisible] = useState(false);
+  const [isExiting, setIsExiting] = useState(false);
+  const [bgPath] = useState(() => getRandomBg());
+
+  const messages = gameIntroMessages;
+  const isLastMessage = currentIndex >= messages.length - 1;
+  // 有 position 的按四方位轮转，没有的直接用空 position（居中）
+  const quadrant = messages[currentIndex]?.position || '';
+
+  useEffect(() => {
+    const t = setTimeout(() => setIsVisible(true), 100);
+    return () => clearTimeout(t);
+  }, []);
+
+  useEffect(() => {
+    setIsVisible(false);
+    const t = setTimeout(() => setIsVisible(true), 150);
+    return () => clearTimeout(t);
+  }, [currentIndex]);
+
+  const handleClick = useCallback(() => {
+    if (isExiting) return;
+    if (isLastMessage) {
+      setIsExiting(true);
+      setIsVisible(false);
+      setTimeout(() => onComplete?.(), 500);
+    } else {
+      setCurrentIndex(prev => prev + 1);
+    }
+  }, [isLastMessage, isExiting, onComplete]);
+
+  const handleSkip = useCallback(() => {
+    if (isExiting) return;
+    setIsExiting(true);
+    setIsVisible(false);
+    setTimeout(() => onComplete?.(), 500);
+  }, [isExiting, onComplete]);
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        handleClick();
+      } else if (e.key === 'Escape') {
+        handleSkip();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleClick, handleSkip]);
+
+  const currentMessage = messages[currentIndex];
+  if (!currentMessage) return null;
+
+  return (
+    <div
+      className={`fixed inset-0 z-50 cursor-pointer transition-opacity duration-500 ${
+        isExiting ? 'opacity-0' : 'opacity-100'
+      }`}
+      onClick={handleClick}
+    >
+      {/* 背景图 + 遮罩 */}
+      <div
+        className="absolute inset-0 bg-cover bg-center"
+        style={{ backgroundImage: `url(${import.meta.env.BASE_URL}${bgPath})` }}
+      >
+        <div className="absolute inset-0 bg-black/55" />
+      </div>
+
+      {/* 跳过按钮 */}
+      <button
+        onClick={(e) => { e.stopPropagation(); handleSkip(); }}
+        className="absolute top-4 right-4 z-10 px-3 py-1.5 text-xs text-white/50 
+          hover:text-white/90 hover:bg-white/10 rounded transition-colors"
+      >
+        跳过全部 ✕
+      </button>
+
+      {/* 对话框卡片 */}
+      <IntroCard
+        message={currentMessage}
+        isVisible={isVisible}
+        quadrant={quadrant}
+      />
+
+      {/* 进度指示器 */}
+      <ProgressDots total={messages.length} current={currentIndex} />
+    </div>
+  );
+};
+
+export default GameIntroOverlay;
