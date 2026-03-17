@@ -53,6 +53,7 @@ const TroopCard = ({
   troop, 
   skillsMap = {}, 
   showDetails = true,
+  compactMode = false,
   baseUrl = '',
   onSelect
 }) => {
@@ -185,7 +186,7 @@ const TroopCard = ({
       {/* 卡牌容器 */}
       <div 
         className={`
-          relative w-full ${troop.description ? 'min-h-[384px]' : 'h-[384px]'}
+          relative w-full ${compactMode ? '' : (troop.description ? 'min-h-[384px]' : 'h-[384px]')}
           rounded-xl overflow-hidden
           border-2 ${rarity.border}
           shadow-xl ${rarity.glow}
@@ -212,12 +213,20 @@ const TroopCard = ({
               {troop.name}
             </h3>
           </div>
-          <div className={`
-            px-2 py-0.5 rounded
-            bg-black/20 backdrop-blur-sm
-            text-xs font-medium text-gray-900
-          `}>
-            {rarity.name}
+          <div className="flex items-center gap-1">
+            {/* 耐久度（使用次数）— 仅当传入 battleCount/maxBattleCount 时显示 */}
+            {troop.maxBattleCount != null && (
+              <div className="px-2 py-0.5 rounded bg-black/20 backdrop-blur-sm text-xs font-medium text-gray-900">
+                🚩{(troop.maxBattleCount - (troop.battleCount || 0))}/{troop.maxBattleCount}
+              </div>
+            )}
+            <div className={`
+              px-2 py-0.5 rounded
+              bg-black/20 backdrop-blur-sm
+              text-xs font-medium text-gray-900
+            `}>
+              {rarity.name}
+            </div>
           </div>
         </div>
 
@@ -333,7 +342,7 @@ const TroopCard = ({
         </div>
 
         {/* 技能区域 */}
-        {showDetails && troop.skills && troop.skills.length > 0 && (
+        {(showDetails || compactMode) && troop.skills && troop.skills.length > 0 && (
           <div className="relative pl-6 pr-3 py-1.5 border-t-2 border-gray-400/40">
             <div className="flex items-center gap-1 mb-0.5">
               <span className="text-purple-400 text-xs">⚔️</span>
@@ -372,7 +381,7 @@ const TroopCard = ({
         )}
 
         {/* 相性和地形区域 */}
-        {showDetails && (
+        {showDetails && !compactMode && (
           <div className="relative pl-6 pr-3 py-3 border-t-2 border-gray-400/40">
             {/* 相性（兵种克制） */}
             <div className="mb-2">
@@ -449,7 +458,7 @@ const TroopCard = ({
         )}
 
         {/* 描述区域 */}
-        {showDetails && troop.description && (
+        {showDetails && !compactMode && troop.description && (
           <div className="relative pl-6 pr-3 py-3 border-t-2 border-gray-400/40">
             <div className="flex items-center gap-1 mb-1">
               <span className="text-amber-400 text-xs">📜</span>
@@ -490,10 +499,13 @@ TroopCard.propTypes = {
     forestAdapt: PropTypes.number,
     siegeAdapt: PropTypes.number,
     skills: PropTypes.arrayOf(PropTypes.string),
-    description: PropTypes.string
+    description: PropTypes.string,
+    battleCount: PropTypes.number,
+    maxBattleCount: PropTypes.number
   }).isRequired,
   skillsMap: PropTypes.object,
   showDetails: PropTypes.bool,
+  compactMode: PropTypes.bool,
   baseUrl: PropTypes.string,
   onSelect: PropTypes.func
 };

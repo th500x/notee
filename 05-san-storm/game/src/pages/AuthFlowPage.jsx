@@ -4,7 +4,7 @@
  * @description 统一管理服务器选择、注册、登录流程
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import { useServers } from '@/hooks/useServers';
 import { usePlayer } from '@/hooks/usePlayer';
 import { useAuthFlow } from '@/hooks/useAuthFlow';
@@ -14,6 +14,9 @@ import { RegisterStep } from '@/pages/steps/RegisterStep';
 import { LoginStep } from '@/pages/steps/LoginStep';
 import { ServerWarningStep } from '@/pages/steps/ServerWarningStep';
 import CharacterCreationPage from '@/pages/CharacterCreationPage';
+import GameIntroOverlay from '@/components/tutorial/GameIntroOverlay';
+import GamePage from '@/pages/GamePage';
+import { playerAPI } from '@/services/playerApi';
 
 function AuthFlowPage() {
   const { servers, loading: serversLoading, error: serversError } = useServers();
@@ -38,10 +41,27 @@ function AuthFlowPage() {
 
   const { player, loading: playerLoading, hasCharacter, refresh: refreshPlayer } = usePlayer(currentUser?.id);
 
-  // 角色创建完成
+  // 游戏介绍状态：新角色创建后强制显示
+  const [showIntro, setShowIntro] = useState(false);
+
+  // 角色创建完成 → 触发 intro
   const handleCharacterCreated = (player) => {
     console.log('角色创建成功:', player);
     refreshPlayer();
+    setShowIntro(true);
+  };
+
+  // intro 完成 → 更新后端 tutorial_step 为 2
+  const handleIntroComplete = async () => {
+    setShowIntro(false);
+    if (currentUser?.id) {
+      try {
+        await playerAPI.updateTutorialStep(currentUser.id, 2);
+        refreshPlayer(); // 刷新 player 数据以更新 tutorial_step
+      } catch (err) {
+        console.error('[AuthFlow] 更新新手引导进度失败:', err);
+      }
+    }
   };
 
   // 加载中
@@ -73,30 +93,18 @@ function AuthFlowPage() {
     );
   }
 
-  // 已登录且有角色 - 显示游戏主界面
+  // 已登录且有角色
   if (currentUser && hasCharacter && player) {
+    // 新角色刚创建 → 强制显示游戏介绍
+    if (showIntro) {
+      return <GameIntroOverlay onComplete={handleIntroComplete} />;
+    }
+    // tutorial_step === 1 表示还没看过游戏介绍
+    if (player.tutorial_step === 1) {
+      return <GameIntroOverlay onComplete={handleIntroComplete} />;
+    }
     return (
-      <div className="text-center">
-        <div className="bg-green-50 border border-green-200 rounded-lg p-6 mb-6">
-          <h2 className="text-2xl font-bold text-green-900 mb-2">🎉 欢迎回来！</h2>
-          <p className="text-green-800">
-            玩家 <span className="font-mono font-bold">{currentUser.id}</span> - {player.character_name}
-          </p>
-          <p className="text-green-700 text-sm mt-2">
-            服务器：{currentUser.serverName}
-          </p>
-        </div>
-        
-        <div className="space-y-4">
-          <p className="text-gray-600">游戏主界面开发中...</p>
-          <button
-            onClick={handleLogout}
-            className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-          >
-            退出登录
-          </button>
-        </div>
-      </div>
+      <GamePage user={currentUser} onLogout={handleLogout} />
     );
   }
 

@@ -120,6 +120,13 @@ router.get('/:playerId', async (req, res) => {
       });
     }
 
+    // 附加 tutorial_step
+    const [progressRows] = await pool.query(
+      'SELECT tutorial_current_step FROM player_progress WHERE player_id = ?',
+      [playerId]
+    );
+    player.tutorial_step = progressRows[0]?.tutorial_current_step ?? 1;
+
     res.json({
       success: true,
       data: player
@@ -729,5 +736,264 @@ function getFactionFromTroopId(troopId) {
   }
   return '通用';
 }
+
+/**
+ * GET /api/players/:playerId/profile
+ * 获取玩家完整档案（基础信息 + 卡牌）
+ * 用于GamePage状态栏和编组Tab
+ */
+router.get('/:playerId/profile', async (req, res) => {
+  try {
+    const { playerId } = req.params;
+
+    // 1. 获取玩家基础信息
+    const player = await Player.getById(playerId);
+    if (!player) {
+      return res.status(404).json({
+        success: false,
+        error: '玩家不存在'
+      });
+    }
+
+    // 1.5 获取玩家进度（tutorial_current_step）
+    const [progressRows] = await pool.query(
+      'SELECT tutorial_current_step FROM player_progress WHERE player_id = ?',
+      [playerId]
+    );
+    const tutorialStep = progressRows[0]?.tutorial_current_step ?? 1;
+
+    // 2. 获取玩家所有卡牌（关联配置表读取固定属性）
+    const [cards] = await pool.query(`
+      SELECT 
+        pc.instance_id,
+        pc.card_type,
+        pc.card_id,
+        pc.rarity,
+        pc.current_troops,
+        pc.battle_count,
+        pc.max_battle_count,
+        pc.is_equipped,
+        pc.equipped_by,
+        pc.equipped_slot,
+        pc.obtained_at
+      FROM player_cards pc
+      WHERE pc.player_id = ?
+      ORDER BY pc.is_equipped DESC, pc.card_type, pc.obtained_at
+    `, [playerId]);
+
+    // 3. 为部队卡关联配置数据
+    const troopCards = cards.filter(c => c.card_type === 'troop');
+    let troopConfigs = {};
+    if (troopCards.length > 0) {
+      const troopIds = troopCards.map(c => c.card_id);
+      const placeholders = troopIds.map(() => '?').join(',');
+      const [configs] = await pool.query(`
+        SELECT troop_id, troop_name, troop_type, weapon_type,
+               rarity, attack, defense, speed, movement, \`range\`,
+               max_troops, special_ability, description
+        FROM config_troops
+        WHERE troop_id IN (${placeholders})
+      `, troopIds);
+      configs.forEach(c => { troopConfigs[c.troop_id] = c; });
+    }
+
+    // 4. 组装卡牌数据
+    const enrichedCards = cards.map(card => {
+      if (card.card_type === 'troop' && troopConfigs[card.card_id]) {
+        const config = troopConfigs[card.card_id];
+        // 解析special_ability中的技能、相性、地形数据
+        let skills = [];
+        let counters = {};
+        let adaptation = {};
+        if (config.special_ability) {
+          try {
+            const sa = typeof config.special_ability === 'string'
+              ? JSON.parse(config.special_ability)
+              : config.special_ability;
+            skills = sa.skills || [];
+            counters = sa.counters || {};
+            adaptation = sa.adaptation || {};
+          } catch (e) { /* ignore parse error */ }
+        }
+        return {
+          ...card,
+          config: {
+            troop_id: config.troop_id,
+            troop_name: config.troop_name,
+            troop_type: config.troop_type,
+            weapon_type: config.weapon_type,
+            faction: getFactionFromTroopId(config.troop_id),
+            rarity: config.rarity,
+            attack: config.attack,
+            defense: config.defense,
+            speed: config.speed,
+            movement: config.movement,
+            range: config.range,
+            max_troops: config.max_troops,
+            skills: skills,
+            infantry_counter: counters.infantry || 1,
+            cavalry_counter: counters.cavalry || 1,
+            archer_counter: counters.archer || 1,
+            siege_counter: counters.siege || 1,
+            plain_adapt: adaptation.plain || 1,
+            hill_adapt: adaptation.hill || 1,
+            forest_adapt: adaptation.forest || 1,
+            siege_adapt: adaptation.siege || 1,
+            description: config.description
+          }
+        };
+      }
+      return card;
+    });
+
+    // 5. 更新最后活跃时间
+    await Player.updateLastActive(playerId);
+
+    res.json({
+      success: true,
+      data: {
+        player: {
+          player_id: player.player_id,
+          character_name: player.character_name,
+          faction_id: player.faction_id,
+          faction_name: player.faction_name,
+          avatar: player.avatar,
+          reputation: player.reputation,
+          reputation_to_next: player.reputation_to_next,
+          contribution: player.contribution,
+          silver: player.silver,
+          food: player.food,
+          combat: player.combat,
+          intelligence: player.intelligence,
+          command: player.command,
+          politics: player.politics,
+          charm: player.charm,
+          courage: player.courage,
+          luck: player.luck,
+          skill_1: player.skill_1,
+          skill_2: player.skill_2,
+          current_position_id: player.current_position_id,
+          current_position_name: player.current_position_name,
+          position_level: player.position_level,
+          tutorial_step: tutorialStep
+        },
+        cards: enrichedCards
+      }
+    });
+
+  } catch (error) {
+    console.error('[Players] 获取玩家档案失败:', error);
+    res.status(500).json({
+      success: false,
+      error: '获取玩家档案失败',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * POST /api/players/:playerId/progress/tutorial
+ * 更新新手引导进度
+ * body: { step } — 要设置的步骤编号
+ */
+router.post('/:playerId/progress/tutorial', async (req, res) => {
+  try {
+    const { playerId } = req.params;
+    const { step } = req.body;
+
+    if (!step || typeof step !== 'number' || step < 1) {
+      return res.status(400).json({ success: false, error: '无效的步骤编号' });
+    }
+
+    await pool.query(
+      `UPDATE player_progress 
+       SET tutorial_current_step = ?, 
+           tutorial_completed = IF(? >= 10, TRUE, FALSE),
+           tutorial_completed_at = IF(? >= 10, NOW(), NULL)
+       WHERE player_id = ?`,
+      [step, step, step, playerId]
+    );
+
+    res.json({ success: true, data: { tutorial_step: step } });
+  } catch (error) {
+    console.error('[Players] 更新新手引导进度失败:', error);
+    res.status(500).json({ success: false, error: '更新进度失败' });
+  }
+});
+
+/**
+ * POST /api/players/:playerId/cards/equip
+ * 装备卡牌到指定槽位
+ * body: { instanceId, equippedBy, equippedSlot }
+ */
+router.post('/:playerId/cards/equip', async (req, res) => {
+  try {
+    const { playerId } = req.params;
+    const { instanceId, equippedBy, equippedSlot } = req.body;
+
+    if (!instanceId || !equippedBy || !equippedSlot) {
+      return res.status(400).json({ success: false, error: '缺少必要参数' });
+    }
+
+    // 验证卡牌归属
+    const [cards] = await pool.query(
+      'SELECT * FROM player_cards WHERE instance_id = ? AND player_id = ?',
+      [instanceId, playerId]
+    );
+    if (cards.length === 0) {
+      return res.status(404).json({ success: false, error: '卡牌不存在' });
+    }
+
+    // 先卸下该槽位上已有的卡牌
+    await pool.query(
+      `UPDATE player_cards SET is_equipped = FALSE, equipped_by = NULL, equipped_slot = NULL
+       WHERE player_id = ? AND equipped_by = ? AND equipped_slot = ? AND is_equipped = TRUE`,
+      [playerId, equippedBy, equippedSlot]
+    );
+
+    // 装备新卡牌
+    await pool.query(
+      `UPDATE player_cards SET is_equipped = TRUE, equipped_by = ?, equipped_slot = ?
+       WHERE instance_id = ? AND player_id = ?`,
+      [equippedBy, equippedSlot, instanceId, playerId]
+    );
+
+    console.log(`[Players] 装备卡牌: ${instanceId} → ${equippedBy}/${equippedSlot}`);
+    res.json({ success: true });
+
+  } catch (error) {
+    console.error('[Players] 装备卡牌失败:', error);
+    res.status(500).json({ success: false, error: '装备卡牌失败', message: error.message });
+  }
+});
+
+/**
+ * POST /api/players/:playerId/cards/unequip
+ * 卸下卡牌
+ * body: { instanceId }
+ */
+router.post('/:playerId/cards/unequip', async (req, res) => {
+  try {
+    const { playerId } = req.params;
+    const { instanceId } = req.body;
+
+    if (!instanceId) {
+      return res.status(400).json({ success: false, error: '缺少 instanceId' });
+    }
+
+    await pool.query(
+      `UPDATE player_cards SET is_equipped = FALSE, equipped_by = NULL, equipped_slot = NULL
+       WHERE instance_id = ? AND player_id = ?`,
+      [instanceId, playerId]
+    );
+
+    console.log(`[Players] 卸下卡牌: ${instanceId}`);
+    res.json({ success: true });
+
+  } catch (error) {
+    console.error('[Players] 卸下卡牌失败:', error);
+    res.status(500).json({ success: false, error: '卸下卡牌失败', message: error.message });
+  }
+});
 
 module.exports = router;

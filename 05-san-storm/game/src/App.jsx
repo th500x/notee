@@ -1,19 +1,12 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { useState } from 'react';
-import M2VerificationPage from '@/pages/demo/M2VerificationPage';
 import AuthFlowPage from '@/pages/AuthFlowPage';
 import UserManagerPage from '@/pages/admin/UserManagerPage';
-import CampaignListPage from '@/pages/demo/CampaignListPage';
-import CampaignDetailPage from '@/pages/demo/CampaignDetailPage';
 import AncientModalDemo from '@/pages/demo/AncientModalDemo';
-import GameIntroDemo from '@/pages/demo/GameIntroDemo';
 import { useAdmin } from '@/hooks/useAdmin';
 
 function App() {
   const { isLoggedIn, loading, login, logout } = useAdmin();
-  // 本地开发：跳过管理员认证，所有卡片直接可见
-  const isDev = import.meta.env.DEV;
-  const showUserManager = isDev || isLoggedIn;
   
   // 管理员登录对话框状态
   const [showLoginDialog, setShowLoginDialog] = useState(false);
@@ -90,27 +83,12 @@ function App() {
                     <h3 className="text-lg font-semibold text-gray-900 mb-2">[黄巾之乱]</h3>
                     <p className="text-sm text-gray-600">真三风云 - 赛季1</p>
                   </a>
-                  {showUserManager && (
+                  {isLoggedIn && (
                     <>
-                      <a href={`${import.meta.env.BASE_URL}m2-verification`} className="block p-6 bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow border-2 border-red-300">
-                        <div className="text-4xl mb-4">⚔️</div>
-                        <h3 className="text-lg font-semibold text-gray-900 mb-2">部队编组</h3>
-                        <p className="text-sm text-gray-600">M2验证模块-1</p>
-                      </a>
-                      <a href={`${import.meta.env.BASE_URL}m2-verification-3`} className="block p-6 bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow border-2 border-red-300">
-                        <div className="text-4xl mb-4">🗺️</div>
-                        <h3 className="text-lg font-semibold text-gray-900 mb-2">战役地图</h3>
-                        <p className="text-sm text-gray-600">M2验证模块-3</p>
-                      </a>
                       <a href={`${import.meta.env.BASE_URL}demo/ancient-modal`} className="block p-6 bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow border-2 border-amber-300">
                         <div className="text-4xl mb-4">🏯</div>
                         <h3 className="text-lg font-semibold text-gray-900 mb-2">古风弹窗</h3>
                         <p className="text-sm text-gray-600">Demo - AncientModal组件</p>
-                      </a>
-                      <a href={`${import.meta.env.BASE_URL}demo/game-intro`} className="block p-6 bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow border-2 border-amber-300">
-                        <div className="text-4xl mb-4">📜</div>
-                        <h3 className="text-lg font-semibold text-gray-900 mb-2">游戏序章</h3>
-                        <p className="text-sm text-gray-600">Demo - GameIntroOverlay组件</p>
                       </a>
                     </>
                   )}
@@ -124,13 +102,10 @@ function App() {
                 </div>
               </div>
             } />
-            <Route path="/m2-verification" element={<M2VerificationPage />} />
             <Route path="/san_1" element={<AuthFlowPage />} />
-            <Route path="/m2-verification-3" element={<CampaignListPage />} />
-            <Route path="/m2-verification-3/:campaignId" element={<CampaignDetailPage />} />
+            <Route path="/san_1/game" element={<AuthFlowPage />} />
             <Route path="/user-manager" element={<UserManagerPage />} />
             <Route path="/demo/ancient-modal" element={<AncientModalDemo />} />
-            <Route path="/demo/game-intro" element={<GameIntroDemo />} />
           </Routes>
         </main>
         <footer className="bg-white border-t border-gray-200 mt-12">

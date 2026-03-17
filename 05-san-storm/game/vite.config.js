@@ -4,7 +4,29 @@ import path from 'path';
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    // SPA子路由回退：确保 /05-san-storm/game/san_1 等不带尾部斜杠的路径也能正确回退到 index.html
+    {
+      name: 'spa-fallback',
+      configureServer(server) {
+        const base = '/05-san-storm/game/';
+        server.middlewares.use((req, res, next) => {
+          // 只处理 base 路径下、非静态资源的 GET 请求
+          if (
+            req.method === 'GET' &&
+            req.url.startsWith(base) &&
+            !req.url.includes('.') &&
+            !req.url.startsWith(base + '@') &&
+            !req.url.startsWith(base + 'node_modules')
+          ) {
+            req.url = base;
+          }
+          next();
+        });
+      }
+    },
+    react(),
+  ],
   base: '/05-san-storm/game/',
   resolve: {
     alias: {
@@ -26,6 +48,10 @@ export default defineConfig({
   server: {
     port: 3000,
     open: true,
+    // public/assets 是 symlink 指向上级目录，需要允许 Vite 访问
+    fs: {
+      allow: ['..'],
+    },
   },
   build: {
     outDir: 'dist',

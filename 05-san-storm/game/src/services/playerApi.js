@@ -65,6 +65,24 @@ export const playerAPI = {
   },
 
   /**
+   * 获取玩家完整档案（基础信息 + 卡牌）
+   * 用于GamePage
+   */
+  async getProfile(playerId) {
+    try {
+      const response = await fetchWithTimeout(`${API_CONFIG.BASE_URL}/players/${playerId}/profile`, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('获取玩家档案失败:', error);
+      throw error;
+    }
+  },
+
+  /**
    * 获取玩家信息
    */
   async getPlayer(playerId) {
@@ -253,6 +271,60 @@ export const playerAPI = {
       return data;
     } catch (error) {
       console.error('删除角色创建进度失败:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * 装备卡牌到指定槽位
+   */
+  async equipCard(playerId, instanceId, equippedBy, equippedSlot) {
+    try {
+      const response = await fetchWithTimeout(`${API_CONFIG.BASE_URL}/players/${playerId}/cards/equip`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ instanceId, equippedBy, equippedSlot })
+      });
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('装备卡牌失败:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * 卸下卡牌
+   */
+  async unequipCard(playerId, instanceId) {
+    try {
+      const response = await fetchWithTimeout(`${API_CONFIG.BASE_URL}/players/${playerId}/cards/unequip`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ instanceId })
+      });
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('卸下卡牌失败:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * 更新新手引导进度
+   */
+  async updateTutorialStep(playerId, step) {
+    try {
+      const response = await fetchWithTimeout(`${API_CONFIG.BASE_URL}/players/${playerId}/progress/tutorial`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ step })
+      });
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('更新新手引导进度失败:', error);
       throw error;
     }
   }

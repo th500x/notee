@@ -437,7 +437,7 @@ function CharacterCard({
               </div>
             </div>
 
-            {/* 右侧：核心属性 */}
+            {/* 右侧：核心属性（竖向排列：左列勇武统，右列智政魅） */}
             <div className="flex-1 grid grid-cols-2 gap-x-2 gap-y-1 text-xs">
               <div className="flex items-center gap-1">
                 <span className="text-pink-400">💪</span>

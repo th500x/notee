@@ -151,15 +151,29 @@ const ProgressDots = ({ total, current }) => (
 
 // ========== 主组件 ==========
 const GameIntroOverlay = ({ onComplete }) => {
-  const [currentIndex, setCurrentIndex] = useState(0);
+  // 每次显示4张卡片（一组），按组推进
+  const [groupIndex, setGroupIndex] = useState(0);
   const [isVisible, setIsVisible] = useState(false);
   const [isExiting, setIsExiting] = useState(false);
   const [bgPath] = useState(() => getRandomBg());
 
+  // 响应式：竖屏时缩小卡片
+  const [isPortrait, setIsPortrait] = useState(() => window.innerWidth < 768);
+  useEffect(() => {
+    const handleResize = () => setIsPortrait(window.innerWidth < 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   const messages = gameIntroMessages;
-  const isLastMessage = currentIndex >= messages.length - 1;
-  // 有 position 的按四方位轮转，没有的直接用空 position（居中）
-  const quadrant = messages[currentIndex]?.position || '';
+
+  // 将消息按4个一组分组，最后不足4个的单独一组
+  const groups = [];
+  for (let i = 0; i < messages.length; i += 4) {
+    groups.push(messages.slice(i, i + 4));
+  }
+  const currentGroup = groups[groupIndex] || [];
+  const isLastGroup = groupIndex >= groups.length - 1;
 
   useEffect(() => {
     const t = setTimeout(() => setIsVisible(true), 100);
@@ -170,18 +184,18 @@ const GameIntroOverlay = ({ onComplete }) => {
     setIsVisible(false);
     const t = setTimeout(() => setIsVisible(true), 150);
     return () => clearTimeout(t);
-  }, [currentIndex]);
+  }, [groupIndex]);
 
   const handleClick = useCallback(() => {
     if (isExiting) return;
-    if (isLastMessage) {
+    if (isLastGroup) {
       setIsExiting(true);
       setIsVisible(false);
       setTimeout(() => onComplete?.(), 500);
     } else {
-      setCurrentIndex(prev => prev + 1);
+      setGroupIndex(prev => prev + 1);
     }
-  }, [isLastMessage, isExiting, onComplete]);
+  }, [isLastGroup, isExiting, onComplete]);
 
   const handleSkip = useCallback(() => {
     if (isExiting) return;
@@ -203,8 +217,7 @@ const GameIntroOverlay = ({ onComplete }) => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleClick, handleSkip]);
 
-  const currentMessage = messages[currentIndex];
-  if (!currentMessage) return null;
+  if (currentGroup.length === 0) return null;
 
   return (
     <div
@@ -230,15 +243,26 @@ const GameIntroOverlay = ({ onComplete }) => {
         跳过全部 ✕
       </button>
 
-      {/* 对话框卡片 */}
-      <IntroCard
-        message={currentMessage}
-        isVisible={isVisible}
-        quadrant={quadrant}
-      />
+      {/* 同时显示当前组的所有卡片 — 竖屏时整体缩放 */}
+      <div
+        className="absolute inset-0"
+        style={isPortrait ? {
+          transform: 'scale(0.58)',
+          transformOrigin: 'center center'
+        } : undefined}
+      >
+        {currentGroup.map((msg, i) => (
+          <IntroCard
+            key={msg.id}
+            message={msg}
+            isVisible={isVisible}
+            quadrant={msg.position || ''}
+          />
+        ))}
+      </div>
 
-      {/* 进度指示器 */}
-      <ProgressDots total={messages.length} current={currentIndex} />
+      {/* 进度指示器（按组） */}
+      <ProgressDots total={groups.length} current={groupIndex} />
     </div>
   );
 };
