@@ -180,15 +180,16 @@ async function importTroops(connection) {
       // 将攻击和防御×10存储（符合数据库设计规范）
       await connection.query(`
         INSERT INTO config_troops (
-          troop_id, season, troop_name, rarity, troop_type,
+          troop_id, season, troop_name, rarity, troop_type, weapon_type,
           attack, defense, max_troops, speed, movement, \`range\`,
           special_ability, description
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON DUPLICATE KEY UPDATE
           season = VALUES(season),
           troop_name = VALUES(troop_name),
           rarity = VALUES(rarity),
           troop_type = VALUES(troop_type),
+          weapon_type = VALUES(weapon_type),
           attack = VALUES(attack),
           defense = VALUES(defense),
           max_troops = VALUES(max_troops),
@@ -203,6 +204,7 @@ async function importTroops(connection) {
         troop.name,
         troop.rarity,
         troop.troopType,
+        troop.weaponType || null,
         Math.round(troop.attack * 10),  // 攻击×10
         Math.round(troop.defense * 10), // 防御×10
         troop.maxTroops,

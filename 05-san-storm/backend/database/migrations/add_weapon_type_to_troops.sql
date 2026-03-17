@@ -7,9 +7,10 @@ ADD COLUMN weapon_type VARCHAR(50) DEFAULT NULL COMMENT '武器类型（用于�
 AFTER troop_type;
 
 -- 为现有数据设置默认值（根据troop_type推断）
+-- 武器名需与图片文件名一致：troop_r2_infantry_saber.png
 UPDATE config_troops 
 SET weapon_type = CASE 
-  WHEN troop_type = 'infantry' THEN 'sword'
+  WHEN troop_type = 'infantry' THEN 'saber'
   WHEN troop_type = 'cavalry' THEN 'lance'
   WHEN troop_type = 'archer' THEN 'bow'
   ELSE NULL

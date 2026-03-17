@@ -685,6 +685,7 @@ CREATE TABLE IF NOT EXISTS config_troops (
   troop_name VARCHAR(100) NOT NULL COMMENT '部队名称',
   rarity ENUM('common', 'rare', 'epic', 'legendary', 'core') NOT NULL COMMENT '稀有度',
   troop_type ENUM('infantry', 'cavalry', 'archer', 'special') NOT NULL COMMENT '兵种类型',
+  weapon_type VARCHAR(50) DEFAULT NULL COMMENT '武器类型（用于图标显示，如：infantry_saber, cavalry_lance, archer_bow）',
   
   max_troops INT NOT NULL COMMENT '最大兵力',
   `range` INT NOT NULL COMMENT '攻击距离',

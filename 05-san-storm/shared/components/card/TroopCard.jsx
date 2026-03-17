@@ -120,9 +120,23 @@ const TroopCard = ({
     };
     
     const rarityPrefix = rarityToPrefix[troop.rarity] || 'r1';
-    const weaponType = troop.weaponType || 'infantry_saber';
     
-    return `${baseUrl}assets/san_1_ui_card/troop/troop_${rarityPrefix}_${weaponType}.png`;
+    // weaponType 可能是完整格式（infantry_saber）或仅武器名（saber）
+    // 如果仅武器名，则与 troopType 组合生成完整路径
+    const weaponType = troop.weaponType || '';
+    let iconName;
+    if (weaponType && weaponType.includes('_')) {
+      // 完整格式：直接使用
+      iconName = weaponType;
+    } else if (weaponType) {
+      // 仅武器名：与兵种类型组合
+      iconName = `${troop.troopType || 'infantry'}_${weaponType}`;
+    } else {
+      // 无武器类型：使用默认值
+      iconName = 'infantry_saber';
+    }
+    
+    return `${baseUrl}assets/san_1_ui_card/troop/troop_${rarityPrefix}_${iconName}.png`;
   };
 
   // 获取卡面背景图片路径

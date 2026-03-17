@@ -404,7 +404,7 @@ router.get('/:playerId/troops/initial', async (req, res) => {
         troop_name: troop.troop_name,
         rarity: troop.rarity,
         troop_type: troop.troop_type,
-        weapon_type: troop.weapon_type, // 添加weapon_type字段
+        weapon_type: troop.weapon_type, // 从数据库独立字段读取
         attack: troop.attack,
         defense: troop.defense,
         max_troops: troop.max_troops,
