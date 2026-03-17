@@ -410,7 +410,7 @@ router.get('/:playerId/troops/initial', async (req, res) => {
         max_troops: troop.max_troops,
         speed: troop.speed,
         movement: troop.movement,
-        range: troop.attack_range,
+        range: troop.range,
         // 从troop_id推断势力
         faction: getFactionFromTroopId(troop.troop_id),
         // 从special_ability中提取
