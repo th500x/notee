@@ -538,7 +538,6 @@ function CharacterCard({
                   {character.trait && TRAIT_CONFIG[character.trait] && (
                     <div 
                       className="flex items-center justify-center gap-0.5 px-1.5 py-0.5 rounded bg-gray-200/80 border border-gray-300 text-[11px]"
-                      title={TRAIT_CONFIG[character.trait].description}
                     >
                       <span>{TRAIT_CONFIG[character.trait].icon}</span>
                       <span className={`font-bold ${TRAIT_CONFIG[character.trait].color}`}>
@@ -579,7 +578,6 @@ function CharacterCard({
                       relative px-1.5 py-1 rounded text-[10px] text-center cursor-pointer
                       bg-gradient-to-r ${skillRarityConfig.gradient} bg-opacity-20 border ${skillRarityConfig.border} border-opacity-40
                     `}
-                    title={skill ? skill.description : ''}
                     onClick={(e) => { e.stopPropagation(); setActiveTooltip(activeTooltip === tooltipKey ? null : tooltipKey); }}
                   >
                     <span className="font-bold truncate block text-gray-900">
@@ -620,7 +618,6 @@ function CharacterCard({
                         relative px-1.5 py-1 rounded text-[10px] text-center cursor-pointer
                         bg-gradient-to-r ${bondRarityConfig.gradient} bg-opacity-20 border ${bondRarityConfig.border} border-opacity-40
                       `}
-                      title={bond ? bond.description : ''}
                       onClick={(e) => { e.stopPropagation(); setActiveTooltip(activeTooltip === tooltipKey ? null : tooltipKey); }}
                     >
                       <span className="font-bold truncate block text-gray-900">
