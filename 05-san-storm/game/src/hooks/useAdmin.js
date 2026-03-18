@@ -11,16 +11,9 @@ export function useAdmin() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [loading, setLoading] = useState(false);
   
-  /**
-   * 检查登录状态
-   */
   useEffect(() => {
     const isValid = tokenManager.isValid();
     setIsLoggedIn(isValid);
-    
-    if (isValid) {
-      console.log('[useAdmin] 已登录');
-    }
   }, []);
   
   /**

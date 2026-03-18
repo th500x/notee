@@ -215,25 +215,34 @@ function PositionCard({ position, showDetails = true }) {
               <span className="text-gray-400 text-xs font-medium">加成效果</span>
             </div>
             <div className="space-y-1">
-              {/* 第一行：资源 + 声望（固定显示） */}
+              {/* 第一行：声望 + 贡献 + 资源（固定显示） */}
               <div className="flex items-center text-xs bg-gray-900/50 rounded px-2 py-1 min-h-[24px]">
-                {position.position_bonuses && (position.position_bonuses.resourceBonus > 0 || position.position_bonuses.prestigeBonus > 0) ? (
+                {position.position_bonuses && (position.position_bonuses.reputationBonus > 0 || position.position_bonuses.contributionBonus > 0 || position.position_bonuses.resourceBonus > 0) ? (
                   <div className="flex items-center gap-3">
+                    {position.position_bonuses.reputationBonus > 0 && (
+                      <div className="flex items-center gap-1">
+                        <span className="text-purple-400">⭐</span>
+                        <span className="text-gray-400">声望</span>
+                        <span className="text-purple-400 font-bold">
+                          +{(position.position_bonuses.reputationBonus * 100).toFixed(0)}%
+                        </span>
+                      </div>
+                    )}
+                    {position.position_bonuses.contributionBonus > 0 && (
+                      <div className="flex items-center gap-1">
+                        <span className="text-cyan-400">🎯</span>
+                        <span className="text-gray-400">贡献</span>
+                        <span className="text-cyan-400 font-bold">
+                          +{(position.position_bonuses.contributionBonus * 100).toFixed(0)}%
+                        </span>
+                      </div>
+                    )}
                     {position.position_bonuses.resourceBonus > 0 && (
                       <div className="flex items-center gap-1">
                         <span className="text-yellow-400">💰</span>
                         <span className="text-gray-400">资源</span>
                         <span className="text-yellow-400 font-bold">
                           +{(position.position_bonuses.resourceBonus * 100).toFixed(0)}%
-                        </span>
-                      </div>
-                    )}
-                    {position.position_bonuses.prestigeBonus > 0 && (
-                      <div className="flex items-center gap-1">
-                        <span className="text-purple-400">⭐</span>
-                        <span className="text-gray-400">声望</span>
-                        <span className="text-purple-400 font-bold">
-                          +{(position.position_bonuses.prestigeBonus * 100).toFixed(0)}%
                         </span>
                       </div>
                     )}
@@ -348,8 +357,9 @@ PositionCard.propTypes = {
     requirement: PropTypes.string,
     description: PropTypes.string,
     position_bonuses: PropTypes.shape({
+      reputationBonus: PropTypes.number,
+      contributionBonus: PropTypes.number,
       resourceBonus: PropTypes.number,
-      prestigeBonus: PropTypes.number,
       infantryBonus: PropTypes.number,
       cavalryBonus: PropTypes.number,
       archerBonus: PropTypes.number

@@ -1,9 +1,48 @@
 /**
- * 势力卡牌组件
- * 
- * @description 展示势力信息的卡牌，包括势力名称、君主、难度、加成等
- * @module shared/components/card/FactionCard
+ * 将结构化bonus数据转换为中文展示文本
+ * 基于 06-BONUS_TERMINOLOGY.csv 术语表
+ * @param {Object} bonus - { key: string, value?: number }
+ * @returns {string} 中文展示文本
  */
+const BONUS_CN_MAP = {
+  faction_politics_bonus: (v) => `势力内政值${v > 0 ? '+' : ''}${v}%`,
+  faction_charm_bonus: (v) => `势力魅力值${v > 0 ? '+' : ''}${v}%`,
+  troop_max_troops_bonus: (v) => `部队卡兵力+${v}`,
+  troop_speed_bonus: (v) => `部队卡移速+${v}`,
+  troop_epic_legendary_attack_bonus: (v) => `紫/橙部队卡攻击+${v}`,
+  troop_epic_legendary_defense_bonus: (v) => `紫/橙部队卡防御+${v}`,
+  troop_common_rare_attack_bonus: (v) => `白/蓝部队卡攻击+${v}`,
+  siege_attack_bonus: (v) => `攻城攻击力+${v}%`,
+  siege_defense_bonus: (v) => `守城防御力+${v}%`,
+  backpack_capacity_bonus: (v) => `背包部队卡上限+${v}`,
+  daily_event_count_bonus: (v) => `随机日常事件数+${v}`,
+  contribution_bonus: (v) => `贡献加成+${v}%`,
+  faction_salary_resource_bonus: (v) => `势力俸禄(资源)+${v}%`,
+  faction_salary_troop_card_bonus: (v) => `势力俸禄(部队卡)+${v}`,
+  npc_sage_guaranteed_buff: () => '仙人AI固定施展增益效果',
+  lord_random_battle: () => '君主随机参战',
+};
+
+function formatBonus(bonus) {
+  const formatter = BONUS_CN_MAP[bonus.key];
+  if (formatter) return formatter(bonus.value);
+  return bonus.key; // fallback: 直接显示key
+}
+
+/**
+ * 解析势力加成数据，从结构化JSON生成中文展示
+ * 数据来源：faction_bonuses [{ key, value }]
+ * 术语表：06-BONUS_TERMINOLOGY.csv
+ */
+function parseBonuses(faction) {
+  let raw = faction.faction_bonuses;
+  if (!raw) return [];
+  if (typeof raw === 'string') {
+    try { raw = JSON.parse(raw); } catch { return []; }
+  }
+  if (!Array.isArray(raw)) return [];
+  return raw.map(formatBonus);
+}
 
 /**
  * 难度配置映射
@@ -55,11 +94,8 @@ function FactionCard({ faction, leaderName, selected = false, disabled = false, 
   // recommended 从 difficulty 推导：简单 = 推荐
   const recommended = faction.recommended ?? (faction.difficulty === '简单');
 
-  // faction_bonuses 可能是 JSON 字符串（从API）或数组（从JSON文件）
-  let bonuses = faction.faction_bonuses || [];
-  if (typeof bonuses === 'string') {
-    try { bonuses = JSON.parse(bonuses); } catch { bonuses = []; }
-  }
+  // 使用 parseBonuses 统一处理所有格式
+  const bonuses = parseBonuses(faction);
 
   const config = difficultyConfig[faction.difficulty] || difficultyConfig['中级'];
   const displayLeaderName = leaderName || faction.leader;

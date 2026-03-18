@@ -1053,7 +1053,7 @@ function CardDrawer({ slot, cards, skillsMap, onSelect, onClose }) {
 
       {/* 全屏抽屉（从子Tab下方开始） */}
       <div className="fixed left-0 right-0 bottom-0 z-[111] bg-stone-900 border-t-2 border-amber-700/50
-                      rounded-t-2xl flex flex-col" style={{ top: '100px' }}>
+                      rounded-t-2xl flex flex-col" style={{ top: '56px' }}>
         {/* 标题栏 */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-stone-700 flex-shrink-0">
           <h3 className="text-amber-400 text-sm font-bold">

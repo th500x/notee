@@ -14,10 +14,10 @@
       "damageType": "physical",
       "characterType": "military;balanced",
       "troopType": null,
-      "effectType": "active",
-      "effectValue": "TBD",
-      "description": "对目标十字型位置敌人造成200%伤害",
-      "targetType": "cross"
+      "targetEffect": "TBD",
+      "targetRange": "cross",
+      "targetCount": null,
+      "description": "对目标十字型位置敌人造成200%伤害"
     },
     {
       "id": "san_1_skill_1_5002",
@@ -31,10 +31,10 @@
       "damageType": "physical",
       "characterType": "military;balanced",
       "troopType": null,
-      "effectType": "active",
-      "effectValue": "TBD",
-      "description": "对目标敌人造成300%伤害，并击退2格",
-      "targetType": "single"
+      "targetEffect": "TBD",
+      "targetRange": "single",
+      "targetCount": null,
+      "description": "对目标敌人造成300%伤害，并击退2格"
     },
     {
       "id": "san_1_skill_1_5003",
@@ -48,10 +48,10 @@
       "damageType": "strategy",
       "characterType": "strategist;balanced",
       "troopType": null,
-      "effectType": "active",
-      "effectValue": "TBD",
-      "description": "对目标田字型位置敌人造成150%伤害",
-      "targetType": "square"
+      "targetEffect": "TBD",
+      "targetRange": "square",
+      "targetCount": null,
+      "description": "对目标田字型位置敌人造成150%伤害"
     },
     {
       "id": "san_1_skill_1_5004",
@@ -65,10 +65,10 @@
       "damageType": "strategy",
       "characterType": "strategist;balanced",
       "troopType": null,
-      "effectType": "active",
-      "effectValue": "TBD",
-      "description": "对目标敌人造成300%伤害，并拉近2格",
-      "targetType": "single"
+      "targetEffect": "TBD",
+      "targetRange": "single",
+      "targetCount": null,
+      "description": "对目标敌人造成300%伤害，并拉近2格"
     },
     {
       "id": "san_1_skill_2_5001",
@@ -82,10 +82,10 @@
       "damageType": null,
       "characterType": null,
       "troopType": null,
-      "effectType": "passive",
-      "effectValue": "TBD",
-      "description": "可上阵部队数+1",
-      "targetType": "self"
+      "targetEffect": "TBD",
+      "targetRange": "self",
+      "targetCount": null,
+      "description": "可上阵部队数+1"
     },
     {
       "id": "san_1_skill_2_5002",
@@ -99,10 +99,10 @@
       "damageType": null,
       "characterType": null,
       "troopType": null,
-      "effectType": "passive",
-      "effectValue": "TBD",
-      "description": "所有属性+2",
-      "targetType": "self"
+      "targetEffect": "TBD",
+      "targetRange": "self",
+      "targetCount": null,
+      "description": "所有属性+2"
     },
     {
       "id": "san_1_skill_2_5003",
@@ -116,10 +116,10 @@
       "damageType": null,
       "characterType": null,
       "troopType": null,
-      "effectType": "passive",
-      "effectValue": "TBD",
-      "description": "所有伤害+10%;所有伤害减免+10%",
-      "targetType": "self"
+      "targetEffect": "TBD",
+      "targetRange": "self",
+      "targetCount": null,
+      "description": "所有伤害+10%;所有伤害减免+10%"
     },
     {
       "id": "san_1_skill_2_5004",
@@ -133,10 +133,10 @@
       "damageType": null,
       "characterType": null,
       "troopType": null,
-      "effectType": "passive",
-      "effectValue": "TBD",
-      "description": "暴击率+10%;命中率+30%;闪避率+30%",
-      "targetType": "self"
+      "targetEffect": "TBD",
+      "targetRange": "self",
+      "targetCount": null,
+      "description": "暴击率+10%;命中率+30%;闪避率+30%"
     },
     {
       "id": "san_1_skill_1_4001",
@@ -150,10 +150,10 @@
       "damageType": "physical",
       "characterType": "military;balanced",
       "troopType": "cavalry",
-      "effectType": "active",
-      "effectValue": "TBD",
-      "description": "对目标十字型位置敌人造成100%伤害",
-      "targetType": "cross"
+      "targetEffect": "TBD",
+      "targetRange": "cross",
+      "targetCount": null,
+      "description": "对目标十字型位置敌人造成100%伤害"
     },
     {
       "id": "san_1_skill_1_4002",
@@ -167,10 +167,10 @@
       "damageType": "physical",
       "characterType": "military;balanced",
       "troopType": null,
-      "effectType": "active",
-      "effectValue": "TBD",
-      "description": "在自己攻击范围内随机选择2个目标敌人进行攻击",
-      "targetType": "random_enemies"
+      "targetEffect": "TBD",
+      "targetRange": "random_enemies",
+      "targetCount": null,
+      "description": "在自己攻击范围内随机选择2个目标敌人进行攻击"
     },
     {
       "id": "san_1_skill_1_4003",
@@ -184,10 +184,10 @@
       "damageType": "physical",
       "characterType": "military;balanced",
       "troopType": null,
-      "effectType": "active",
-      "effectValue": "TBD",
-      "description": "在自己攻击范围内随机选择4个目标敌人进行攻击（如果攻击范围内存在我方单位，同样会对其造成伤害）",
-      "targetType": "random_enemies"
+      "targetEffect": "TBD",
+      "targetRange": "random_enemies",
+      "targetCount": null,
+      "description": "在自己攻击范围内随机选择4个目标敌人进行攻击（如果攻击范围内存在我方单位，同样会对其造成伤害）"
     },
     {
       "id": "san_1_skill_1_4004",
@@ -201,10 +201,10 @@
       "damageType": "physical",
       "characterType": "military;balanced",
       "troopType": "cavalry",
-      "effectType": "active",
-      "effectValue": "TBD",
-      "description": "骑兵攻击距离+2，并对目标造成180%伤害",
-      "targetType": "single"
+      "targetEffect": "TBD",
+      "targetRange": "single",
+      "targetCount": null,
+      "description": "骑兵攻击距离+2，并对目标造成180%伤害"
     },
     {
       "id": "san_1_skill_1_4005",
@@ -218,10 +218,10 @@
       "damageType": "strategy",
       "characterType": "strategist;balanced",
       "troopType": null,
-      "effectType": "active",
-      "effectValue": "TBD",
-      "description": "对目标十字型位置敌人造成80%伤害，并进入灼烧状态，下回合造成40%谋略伤害",
-      "targetType": "cross"
+      "targetEffect": "TBD",
+      "targetRange": "cross",
+      "targetCount": null,
+      "description": "对目标十字型位置敌人造成80%伤害，并进入灼烧状态，下回合造成40%谋略伤害"
     },
     {
       "id": "san_1_skill_1_4006",
@@ -235,10 +235,10 @@
       "damageType": "strategy",
       "characterType": "strategist;balanced",
       "troopType": null,
-      "effectType": "active",
-      "effectValue": "TBD",
-      "description": "对目标十字型位置敌人造成60%伤害，并使敌人陷入1回合的骚乱而无法行动",
-      "targetType": "cross"
+      "targetEffect": "TBD",
+      "targetRange": "cross",
+      "targetCount": null,
+      "description": "对目标十字型位置敌人造成60%伤害，并使敌人陷入1回合的骚乱而无法行动"
     },
     {
       "id": "san_1_skill_1_4007",
@@ -252,10 +252,10 @@
       "damageType": "strategy",
       "characterType": "strategist;balanced",
       "troopType": null,
-      "effectType": "active",
-      "effectValue": "TBD",
-      "description": "对目标十字型位置敌人造成60%伤害，并减少20%奋战值",
-      "targetType": "cross"
+      "targetEffect": "TBD",
+      "targetRange": "cross",
+      "targetCount": null,
+      "description": "对目标十字型位置敌人造成60%伤害，并减少20%奋战值"
     },
     {
       "id": "san_1_skill_1_4008",
@@ -269,10 +269,10 @@
       "damageType": "strategy",
       "characterType": "strategist;balanced",
       "troopType": null,
-      "effectType": "active",
-      "effectValue": "TBD",
-      "description": "对目标造成150%伤害，并在战斗结束后恢复本部队300兵力",
-      "targetType": "single"
+      "targetEffect": "TBD",
+      "targetRange": "single",
+      "targetCount": null,
+      "description": "对目标造成150%伤害，并在战斗结束后恢复本部队300兵力"
     },
     {
       "id": "san_1_skill_2_4001",
@@ -286,10 +286,10 @@
       "damageType": null,
       "characterType": null,
       "troopType": null,
-      "effectType": "passive",
-      "effectValue": "TBD",
-      "description": "所有属性+0.5",
-      "targetType": "self"
+      "targetEffect": "TBD",
+      "targetRange": "self",
+      "targetCount": null,
+      "description": "所有属性+0.5"
     },
     {
       "id": "san_1_skill_2_4002",
@@ -303,10 +303,10 @@
       "damageType": null,
       "characterType": null,
       "troopType": null,
-      "effectType": "passive",
-      "effectValue": "TBD",
-      "description": "运气+2",
-      "targetType": "self"
+      "targetEffect": "TBD",
+      "targetRange": "self",
+      "targetCount": null,
+      "description": "运气+2"
     },
     {
       "id": "san_1_skill_2_4003",
@@ -320,10 +320,10 @@
       "damageType": null,
       "characterType": "military;balanced",
       "troopType": null,
-      "effectType": "passive",
-      "effectValue": "TBD",
-      "description": "勇气+2",
-      "targetType": "self"
+      "targetEffect": "TBD",
+      "targetRange": "self",
+      "targetCount": null,
+      "description": "勇气+2"
     },
     {
       "id": "san_1_skill_2_4004",
@@ -337,10 +337,10 @@
       "damageType": null,
       "characterType": "military;balanced",
       "troopType": null,
-      "effectType": "passive",
-      "effectValue": "TBD",
-      "description": "统帅+1.5;武力+1.5",
-      "targetType": "self"
+      "targetEffect": "TBD",
+      "targetRange": "self",
+      "targetCount": null,
+      "description": "统帅+1.5;武力+1.5"
     },
     {
       "id": "san_1_skill_2_4005",
@@ -354,10 +354,10 @@
       "damageType": null,
       "characterType": "strategist;balanced",
       "troopType": null,
-      "effectType": "passive",
-      "effectValue": "TBD",
-      "description": "智力+1.5;政治+1.5;魅力+1.5",
-      "targetType": "self"
+      "targetEffect": "TBD",
+      "targetRange": "self",
+      "targetCount": null,
+      "description": "智力+1.5;政治+1.5;魅力+1.5"
     },
     {
       "id": "san_1_skill_2_4006",
@@ -371,10 +371,10 @@
       "damageType": null,
       "characterType": "strategist;balanced",
       "troopType": null,
-      "effectType": "passive",
-      "effectValue": "TBD",
-      "description": "每次战斗受到的第一次伤害无效",
-      "targetType": "self"
+      "targetEffect": "TBD",
+      "targetRange": "self",
+      "targetCount": null,
+      "description": "每次战斗受到的第一次伤害无效"
     },
     {
       "id": "san_1_skill_2_4007",
@@ -388,10 +388,10 @@
       "damageType": null,
       "characterType": null,
       "troopType": null,
-      "effectType": "passive",
-      "effectValue": "TBD",
-      "description": "骑兵伤害增加10%",
-      "targetType": "self"
+      "targetEffect": "TBD",
+      "targetRange": "self",
+      "targetCount": null,
+      "description": "骑兵伤害增加10%"
     },
     {
       "id": "san_1_skill_2_4008",
@@ -405,10 +405,10 @@
       "damageType": null,
       "characterType": null,
       "troopType": null,
-      "effectType": "passive",
-      "effectValue": "TBD",
-      "description": "步兵伤害增加10%",
-      "targetType": "self"
+      "targetEffect": "TBD",
+      "targetRange": "self",
+      "targetCount": null,
+      "description": "步兵伤害增加10%"
     },
     {
       "id": "san_1_skill_2_4009",
@@ -422,10 +422,10 @@
       "damageType": null,
       "characterType": null,
       "troopType": null,
-      "effectType": "passive",
-      "effectValue": "TBD",
-      "description": "暴击率+20%;命中率+10%;闪避率+10%",
-      "targetType": "self"
+      "targetEffect": "TBD",
+      "targetRange": "self",
+      "targetCount": null,
+      "description": "暴击率+20%;命中率+10%;闪避率+10%"
     },
     {
       "id": "san_1_skill_2_4010",
@@ -439,10 +439,10 @@
       "damageType": null,
       "characterType": null,
       "troopType": null,
-      "effectType": "passive",
-      "effectValue": "TBD",
-      "description": "物理伤害减免20%;计谋伤害减免10%",
-      "targetType": "self"
+      "targetEffect": "TBD",
+      "targetRange": "self",
+      "targetCount": null,
+      "description": "物理伤害减免20%;计谋伤害减免10%"
     },
     {
       "id": "san_1_skill_2_4011",
@@ -456,10 +456,10 @@
       "damageType": null,
       "characterType": null,
       "troopType": null,
-      "effectType": "passive",
-      "effectValue": "TBD",
-      "description": "物理伤害减免10%;计谋伤害减免20%",
-      "targetType": "self"
+      "targetEffect": "TBD",
+      "targetRange": "self",
+      "targetCount": null,
+      "description": "物理伤害减免10%;计谋伤害减免20%"
     },
     {
       "id": "san_1_skill_2_4012",
@@ -473,10 +473,10 @@
       "damageType": null,
       "characterType": null,
       "troopType": null,
-      "effectType": "passive",
-      "effectValue": "TBD",
-      "description": "无视移动障碍;移动力+1",
-      "targetType": "self"
+      "targetEffect": "TBD",
+      "targetRange": "self",
+      "targetCount": null,
+      "description": "无视移动障碍;移动力+1"
     },
     {
       "id": "san_1_skill_1_3001",
@@ -490,10 +490,10 @@
       "damageType": "physical",
       "characterType": "military;balanced",
       "troopType": null,
-      "effectType": "active",
-      "effectValue": "TBD",
-      "description": "部队进入隐身状态，并且下回合造成200%伤害",
-      "targetType": "self"
+      "targetEffect": "TBD",
+      "targetRange": "self",
+      "targetCount": null,
+      "description": "部队进入隐身状态，并且下回合造成200%伤害"
     },
     {
       "id": "san_1_skill_1_3002",
@@ -507,10 +507,10 @@
       "damageType": "physical",
       "characterType": "military;balanced",
       "troopType": null,
-      "effectType": "active",
-      "effectValue": "TBD",
-      "description": "恢复本部队200兵力，并在自己攻击范围内随机1个目标敌人进行攻击",
-      "targetType": "self"
+      "targetEffect": "TBD",
+      "targetRange": "self",
+      "targetCount": null,
+      "description": "恢复本部队200兵力，并在自己攻击范围内随机1个目标敌人进行攻击"
     },
     {
       "id": "san_1_skill_1_3003",
@@ -524,10 +524,10 @@
       "damageType": "strategy",
       "characterType": "strategist;balanced",
       "troopType": null,
-      "effectType": "active",
-      "effectValue": "TBD",
-      "description": "对目标一字型位置敌人造成80%伤害，并随机造成1回合的骚乱或者沉默",
-      "targetType": "line_horizontal"
+      "targetEffect": "TBD",
+      "targetRange": "line_horizontal",
+      "targetCount": null,
+      "description": "对目标一字型位置敌人造成80%伤害，并随机造成1回合的骚乱或者沉默"
     },
     {
       "id": "san_1_skill_1_3004",
@@ -541,10 +541,10 @@
       "damageType": "strategy",
       "characterType": "strategist;balanced",
       "troopType": null,
-      "effectType": "active",
-      "effectValue": "TBD",
-      "description": "对目标田字型位置敌人造成40%伤害，并使敌人本回合无法使用技能",
-      "targetType": "square"
+      "targetEffect": "TBD",
+      "targetRange": "square",
+      "targetCount": null,
+      "description": "对目标田字型位置敌人造成40%伤害，并使敌人本回合无法使用技能"
     },
     {
       "id": "san_1_skill_1_3005",
@@ -558,10 +558,10 @@
       "damageType": null,
       "characterType": null,
       "troopType": null,
-      "effectType": "active",
-      "effectValue": "TBD",
-      "description": "本场战斗免疫一次伤害，并增加20%奋战值",
-      "targetType": "self"
+      "targetEffect": "TBD",
+      "targetRange": "self",
+      "targetCount": null,
+      "description": "本场战斗免疫一次伤害，并增加20%奋战值"
     },
     {
       "id": "san_1_skill_1_3006",
@@ -575,10 +575,10 @@
       "damageType": null,
       "characterType": null,
       "troopType": null,
-      "effectType": "active",
-      "effectValue": "TBD",
-      "description": "为自己三格范围内的我军部队增加10%奋战值",
-      "targetType": "ally_area"
+      "targetEffect": "TBD",
+      "targetRange": "ally_area",
+      "targetCount": null,
+      "description": "为自己三格范围内的我军部队增加10%奋战值"
     },
     {
       "id": "san_1_skill_2_3001",
@@ -592,10 +592,10 @@
       "damageType": null,
       "characterType": null,
       "troopType": null,
-      "effectType": "passive",
-      "effectValue": "TBD",
-      "description": "骑兵伤害增加5%",
-      "targetType": "self"
+      "targetEffect": "TBD",
+      "targetRange": "self",
+      "targetCount": null,
+      "description": "骑兵伤害增加5%"
     },
     {
       "id": "san_1_skill_2_3002",
@@ -609,10 +609,10 @@
       "damageType": null,
       "characterType": null,
       "troopType": null,
-      "effectType": "passive",
-      "effectValue": "TBD",
-      "description": "步兵伤害增加5%",
-      "targetType": "self"
+      "targetEffect": "TBD",
+      "targetRange": "self",
+      "targetCount": null,
+      "description": "步兵伤害增加5%"
     },
     {
       "id": "san_1_skill_2_3003",
@@ -626,10 +626,10 @@
       "damageType": null,
       "characterType": null,
       "troopType": null,
-      "effectType": "passive",
-      "effectValue": "TBD",
-      "description": "骑兵攻击距离+2",
-      "targetType": "self"
+      "targetEffect": "TBD",
+      "targetRange": "self",
+      "targetCount": null,
+      "description": "骑兵攻击距离+2"
     },
     {
       "id": "san_1_skill_2_3004",
@@ -643,10 +643,10 @@
       "damageType": null,
       "characterType": null,
       "troopType": null,
-      "effectType": "passive",
-      "effectValue": "TBD",
-      "description": "暴击率+15%;命中率+5%",
-      "targetType": "self"
+      "targetEffect": "TBD",
+      "targetRange": "self",
+      "targetCount": null,
+      "description": "暴击率+15%;命中率+5%"
     },
     {
       "id": "san_1_skill_2_3005",
@@ -660,10 +660,10 @@
       "damageType": null,
       "characterType": null,
       "troopType": null,
-      "effectType": "passive",
-      "effectValue": "TBD",
-      "description": "场上部队数3支以下的时候，物理和计谋伤害减免15%",
-      "targetType": "self"
+      "targetEffect": "TBD",
+      "targetRange": "self",
+      "targetCount": null,
+      "description": "场上部队数3支以下的时候，物理和计谋伤害减免15%"
     },
     {
       "id": "san_1_skill_2_3006",
@@ -677,10 +677,10 @@
       "damageType": null,
       "characterType": null,
       "troopType": null,
-      "effectType": "passive",
-      "effectValue": "TBD",
-      "description": "战斗结束后获得和杀敌量相同的粮草和银两",
-      "targetType": "self"
+      "targetEffect": "TBD",
+      "targetRange": "self",
+      "targetCount": null,
+      "description": "战斗结束后获得和杀敌量相同的粮草和银两"
     },
     {
       "id": "san_1_skill_1_2001",
@@ -694,10 +694,10 @@
       "damageType": "physical",
       "characterType": "military;balanced",
       "troopType": null,
-      "effectType": "active",
-      "effectValue": "TBD",
-      "description": "和目标更换位置后，在自己攻击范围内随机1个目标敌人进行攻击",
-      "targetType": "single"
+      "targetEffect": "TBD",
+      "targetRange": "single",
+      "targetCount": null,
+      "description": "和目标更换位置后，在自己攻击范围内随机1个目标敌人进行攻击"
     },
     {
       "id": "san_1_skill_1_2002",
@@ -711,10 +711,10 @@
       "damageType": "physical",
       "characterType": "military;balanced",
       "troopType": null,
-      "effectType": "active",
-      "effectValue": "TBD",
-      "description": "对目标敌人造成120%伤害，并击退2格",
-      "targetType": "single"
+      "targetEffect": "TBD",
+      "targetRange": "single",
+      "targetCount": null,
+      "description": "对目标敌人造成120%伤害，并击退2格"
     },
     {
       "id": "san_1_skill_1_2003",
@@ -728,10 +728,10 @@
       "damageType": "strategy",
       "characterType": "strategist;balanced",
       "troopType": null,
-      "effectType": "active",
-      "effectValue": "TBD",
-      "description": "对相邻的两个目标各造成120%伤害",
-      "targetType": "line_horizontal"
+      "targetEffect": "TBD",
+      "targetRange": "line_horizontal",
+      "targetCount": null,
+      "description": "对相邻的两个目标各造成120%伤害"
     },
     {
       "id": "san_1_skill_1_2004",
@@ -745,10 +745,10 @@
       "damageType": "strategy",
       "characterType": "strategist;balanced",
       "troopType": null,
-      "effectType": "active",
-      "effectValue": "TBD",
-      "description": "对目标十字型位置敌人造成40%伤害，并使敌人下回合移动力固定为1",
-      "targetType": "cross"
+      "targetEffect": "TBD",
+      "targetRange": "cross",
+      "targetCount": null,
+      "description": "对目标十字型位置敌人造成40%伤害，并使敌人下回合移动力固定为1"
     },
     {
       "id": "san_1_skill_1_2005",
@@ -762,10 +762,10 @@
       "damageType": null,
       "characterType": null,
       "troopType": null,
-      "effectType": "active",
-      "effectValue": "TBD",
-      "description": "恢复本部队150兵力，增加10%奋战值",
-      "targetType": "self"
+      "targetEffect": "TBD",
+      "targetRange": "self",
+      "targetCount": null,
+      "description": "恢复本部队150兵力，增加10%奋战值"
     },
     {
       "id": "san_1_skill_1_2006",
@@ -779,10 +779,10 @@
       "damageType": null,
       "characterType": null,
       "troopType": null,
-      "effectType": "active",
-      "effectValue": "TBD",
-      "description": "为选定友军和自军各自恢复100兵力",
-      "targetType": "ally_single"
+      "targetEffect": "TBD",
+      "targetRange": "ally_single",
+      "targetCount": null,
+      "description": "为选定友军和自军各自恢复100兵力"
     },
     {
       "id": "san_1_skill_1_2007",
@@ -796,10 +796,10 @@
       "damageType": null,
       "characterType": null,
       "troopType": null,
-      "effectType": "active",
-      "effectValue": "TBD",
-      "description": "反弹80%受到的下一回伤害",
-      "targetType": "self"
+      "targetEffect": "TBD",
+      "targetRange": "self",
+      "targetCount": null,
+      "description": "反弹80%受到的下一回伤害"
     },
     {
       "id": "san_1_skill_1_2008",
@@ -813,10 +813,10 @@
       "damageType": null,
       "characterType": null,
       "troopType": null,
-      "effectType": "active",
-      "effectValue": "TBD",
-      "description": "本场战斗免疫所有计谋伤害",
-      "targetType": "self"
+      "targetEffect": "TBD",
+      "targetRange": "self",
+      "targetCount": null,
+      "description": "本场战斗免疫所有计谋伤害"
     },
     {
       "id": "san_1_skill_2_2001",
@@ -830,10 +830,10 @@
       "damageType": null,
       "characterType": null,
       "troopType": null,
-      "effectType": "passive",
-      "effectValue": "TBD",
-      "description": "所有属性+0.2",
-      "targetType": "self"
+      "targetEffect": "TBD",
+      "targetRange": "self",
+      "targetCount": null,
+      "description": "所有属性+0.2"
     },
     {
       "id": "san_1_skill_2_2002",
@@ -847,10 +847,10 @@
       "damageType": null,
       "characterType": null,
       "troopType": null,
-      "effectType": "passive",
-      "effectValue": "TBD",
-      "description": "暴击率+10%;命中率+5%;闪避率-5%",
-      "targetType": "self"
+      "targetEffect": "TBD",
+      "targetRange": "self",
+      "targetCount": null,
+      "description": "暴击率+10%;命中率+5%;闪避率-5%"
     },
     {
       "id": "san_1_skill_2_2003",
@@ -864,10 +864,10 @@
       "damageType": null,
       "characterType": null,
       "troopType": null,
-      "effectType": "passive",
-      "effectValue": "TBD",
-      "description": "步兵攻击距离+1",
-      "targetType": "self"
+      "targetEffect": "TBD",
+      "targetRange": "self",
+      "targetCount": null,
+      "description": "步兵攻击距离+1"
     },
     {
       "id": "san_1_skill_2_2004",
@@ -881,10 +881,10 @@
       "damageType": null,
       "characterType": null,
       "troopType": null,
-      "effectType": "passive",
-      "effectValue": "TBD",
-      "description": "物理伤害减免15%;受到计谋伤害增加5%",
-      "targetType": "self"
+      "targetEffect": "TBD",
+      "targetRange": "self",
+      "targetCount": null,
+      "description": "物理伤害减免15%;受到计谋伤害增加5%"
     },
     {
       "id": "san_1_skill_2_2005",
@@ -898,10 +898,10 @@
       "damageType": null,
       "characterType": null,
       "troopType": null,
-      "effectType": "passive",
-      "effectValue": "TBD",
-      "description": "为自己三格范围内的我军部队增加10%护盾（记为当前兵力的10%）",
-      "targetType": "ally_area"
+      "targetEffect": "TBD",
+      "targetRange": "ally_area",
+      "targetCount": null,
+      "description": "为自己三格范围内的我军部队增加10%护盾（记为当前兵力的10%）"
     },
     {
       "id": "san_1_skill_2_2006",
@@ -915,10 +915,10 @@
       "damageType": null,
       "characterType": null,
       "troopType": null,
-      "effectType": "passive",
-      "effectValue": "TBD",
-      "description": "20%几率造成双倍伤害",
-      "targetType": "self"
+      "targetEffect": "TBD",
+      "targetRange": "self",
+      "targetCount": null,
+      "description": "20%几率造成双倍伤害"
     },
     {
       "id": "san_1_skill_2_2007",
@@ -932,10 +932,10 @@
       "damageType": null,
       "characterType": null,
       "troopType": null,
-      "effectType": "passive",
-      "effectValue": "TBD",
-      "description": "对城市、据点、设施、建筑造成双倍伤害",
-      "targetType": "self"
+      "targetEffect": "TBD",
+      "targetRange": "self",
+      "targetCount": null,
+      "description": "对城市、据点、设施、建筑造成双倍伤害"
     },
     {
       "id": "san_1_skill_2_2008",
@@ -949,10 +949,10 @@
       "damageType": null,
       "characterType": null,
       "troopType": null,
-      "effectType": "passive",
-      "effectValue": "TBD",
-      "description": "开局自动放置一个炮车单位（仅可攻击非部队单位）",
-      "targetType": "self"
+      "targetEffect": "TBD",
+      "targetRange": "self",
+      "targetCount": null,
+      "description": "开局自动放置一个炮车单位（仅可攻击非部队单位）"
     },
     {
       "id": "san_1_skill_1_1001",
@@ -966,10 +966,10 @@
       "damageType": "physical",
       "characterType": "military;balanced",
       "troopType": null,
-      "effectType": "active",
-      "effectValue": "TBD",
-      "description": "对目标田字型位置4个敌人各造成40%伤害",
-      "targetType": "square"
+      "targetEffect": "TBD",
+      "targetRange": "square",
+      "targetCount": null,
+      "description": "对目标田字型位置4个敌人各造成40%伤害"
     },
     {
       "id": "san_1_skill_1_1002",
@@ -983,10 +983,10 @@
       "damageType": "physical",
       "characterType": "military;balanced",
       "troopType": null,
-      "effectType": "active",
-      "effectValue": "TBD",
-      "description": "减少本部队50兵力，对目标敌人造成150%伤害",
-      "targetType": "single"
+      "targetEffect": "TBD",
+      "targetRange": "single",
+      "targetCount": null,
+      "description": "减少本部队50兵力，对目标敌人造成150%伤害"
     },
     {
       "id": "san_1_skill_1_1003",
@@ -1000,10 +1000,10 @@
       "damageType": "strategy",
       "characterType": "strategist;balanced",
       "troopType": null,
-      "effectType": "active",
-      "effectValue": "TBD",
-      "description": "对目标十字型位置敌人造成60%伤害",
-      "targetType": "cross"
+      "targetEffect": "TBD",
+      "targetRange": "cross",
+      "targetCount": null,
+      "description": "对目标十字型位置敌人造成60%伤害"
     },
     {
       "id": "san_1_skill_1_1004",
@@ -1017,10 +1017,10 @@
       "damageType": "strategy",
       "characterType": "strategist;balanced",
       "troopType": null,
-      "effectType": "active",
-      "effectValue": "TBD",
-      "description": "对目标敌人造成100%伤害，并拉近2格",
-      "targetType": "single"
+      "targetEffect": "TBD",
+      "targetRange": "single",
+      "targetCount": null,
+      "description": "对目标敌人造成100%伤害，并拉近2格"
     },
     {
       "id": "san_1_skill_1_1005",
@@ -1034,10 +1034,10 @@
       "damageType": null,
       "characterType": null,
       "troopType": null,
-      "effectType": "active",
-      "effectValue": "TBD",
-      "description": "在三格范围内设置一个箭塔设施",
-      "targetType": "area_3x3"
+      "targetEffect": "TBD",
+      "targetRange": "area_3x3",
+      "targetCount": null,
+      "description": "在三格范围内设置一个箭塔设施"
     },
     {
       "id": "san_1_skill_1_1006",
@@ -1051,10 +1051,10 @@
       "damageType": null,
       "characterType": null,
       "troopType": null,
-      "effectType": "active",
-      "effectValue": "TBD",
-      "description": "在三格范围内设置一个路障设施",
-      "targetType": "area_3x3"
+      "targetEffect": "TBD",
+      "targetRange": "area_3x3",
+      "targetCount": null,
+      "description": "在三格范围内设置一个路障设施"
     },
     {
       "id": "san_1_skill_2_1001",
@@ -1068,10 +1068,10 @@
       "damageType": null,
       "characterType": null,
       "troopType": null,
-      "effectType": "passive",
-      "effectValue": "TBD",
-      "description": "运气+1",
-      "targetType": "self"
+      "targetEffect": "TBD",
+      "targetRange": "self",
+      "targetCount": null,
+      "description": "运气+1"
     },
     {
       "id": "san_1_skill_2_1002",
@@ -1085,10 +1085,10 @@
       "damageType": null,
       "characterType": null,
       "troopType": null,
-      "effectType": "passive",
-      "effectValue": "TBD",
-      "description": "勇气+1",
-      "targetType": "self"
+      "targetEffect": "TBD",
+      "targetRange": "self",
+      "targetCount": null,
+      "description": "勇气+1"
     },
     {
       "id": "san_1_skill_2_1003",
@@ -1102,10 +1102,10 @@
       "damageType": null,
       "characterType": null,
       "troopType": null,
-      "effectType": "passive",
-      "effectValue": "TBD",
-      "description": "统帅+1",
-      "targetType": "self"
+      "targetEffect": "TBD",
+      "targetRange": "self",
+      "targetCount": null,
+      "description": "统帅+1"
     },
     {
       "id": "san_1_skill_2_1004",
@@ -1119,10 +1119,10 @@
       "damageType": null,
       "characterType": null,
       "troopType": null,
-      "effectType": "passive",
-      "effectValue": "TBD",
-      "description": "武力+1",
-      "targetType": "self"
+      "targetEffect": "TBD",
+      "targetRange": "self",
+      "targetCount": null,
+      "description": "武力+1"
     },
     {
       "id": "san_1_skill_2_1005",
@@ -1136,10 +1136,10 @@
       "damageType": null,
       "characterType": null,
       "troopType": null,
-      "effectType": "passive",
-      "effectValue": "TBD",
-      "description": "智力+1",
-      "targetType": "self"
+      "targetEffect": "TBD",
+      "targetRange": "self",
+      "targetCount": null,
+      "description": "智力+1"
     },
     {
       "id": "san_1_skill_2_1006",
@@ -1153,15 +1153,15 @@
       "damageType": null,
       "characterType": null,
       "troopType": null,
-      "effectType": "passive",
-      "effectValue": "TBD",
-      "description": "政治+1;魅力+1",
-      "targetType": "self"
+      "targetEffect": "TBD",
+      "targetRange": "self",
+      "targetCount": null,
+      "description": "政治+1;魅力+1"
     }
   ],
   "metadata": {
     "totalSkills": 68,
-    "generatedAt": "2026-03-10T18:53:36.445Z",
+    "generatedAt": "2026-03-18T16:11:07.680Z",
     "version": "1.0"
   }
 }

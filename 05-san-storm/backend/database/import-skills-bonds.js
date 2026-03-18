@@ -49,8 +49,8 @@ async function importSkills(connection) {
         INSERT INTO config_skills (
           skill_id, season, skill_name, skill_type, rarity,
           damage_type, character_type, troop_type,
-          effect_type, effect_value, target_range, target_count, description
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          target_effect, target_range, target_count, description
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON DUPLICATE KEY UPDATE
           season = VALUES(season),
           skill_name = VALUES(skill_name),
@@ -59,8 +59,7 @@ async function importSkills(connection) {
           damage_type = VALUES(damage_type),
           character_type = VALUES(character_type),
           troop_type = VALUES(troop_type),
-          effect_type = VALUES(effect_type),
-          effect_value = VALUES(effect_value),
+          target_effect = VALUES(target_effect),
           target_range = VALUES(target_range),
           target_count = VALUES(target_count),
           description = VALUES(description)
@@ -73,8 +72,7 @@ async function importSkills(connection) {
         skill.damageType || null,
         skill.characterType || null,
         skill.troopType || null,
-        skill.effectType || null,
-        skill.effectValue || null,
+        skill.targetEffect || null,
         skill.targetRange || null,
         skill.targetCount || null,
         skill.description || null
@@ -108,15 +106,14 @@ async function importBonds(connection) {
         INSERT INTO config_bonds (
           bond_id, bond_name, bond_type, rarity,
           min_characters,
-          effect_type, effect_value, description
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          target_effect, description
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
         ON DUPLICATE KEY UPDATE
           bond_name = VALUES(bond_name),
           bond_type = VALUES(bond_type),
           rarity = VALUES(rarity),
           min_characters = VALUES(min_characters),
-          effect_type = VALUES(effect_type),
-          effect_value = VALUES(effect_value),
+          target_effect = VALUES(target_effect),
           description = VALUES(description)
       `, [
         bond.id,
@@ -124,8 +121,7 @@ async function importBonds(connection) {
         bond.type,
         bond.rarity,
         bond.minCharacters || 2,
-        bond.effectType || null,
-        bond.effectValue || null,
+        bond.targetEffect || null,
         bond.description || null
       ]);
       imported++;

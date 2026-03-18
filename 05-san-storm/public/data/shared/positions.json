@@ -10,7 +10,8 @@
       "requirement": "AI",
       "position_bonuses": {
         "resourceBonus": 1,
-        "prestigeBonus": 1
+        "reputationBonus": 1,
+        "contributionBonus": 1
       },
       "permissions": [
         "镇守首都",
@@ -29,7 +30,8 @@
       "requirement": "待定",
       "position_bonuses": {
         "resourceBonus": 0.5,
-        "prestigeBonus": 0.5
+        "reputationBonus": 0.5,
+        "contributionBonus": 0.5
       },
       "permissions": [
         "州府太守",
@@ -48,7 +50,8 @@
       "requirement": "待定",
       "position_bonuses": {
         "resourceBonus": 0.5,
-        "prestigeBonus": 0.5
+        "reputationBonus": 0.5,
+        "contributionBonus": 0.5
       },
       "permissions": [
         "州府太守",
@@ -67,7 +70,8 @@
       "requirement": "AI",
       "position_bonuses": {
         "resourceBonus": 0.5,
-        "prestigeBonus": 0.5
+        "reputationBonus": 0.5,
+        "contributionBonus": 0.5
       },
       "permissions": [
         "镇守副都",
@@ -86,7 +90,8 @@
       "requirement": "待定",
       "position_bonuses": {
         "resourceBonus": 0.3,
-        "prestigeBonus": 0.3,
+        "reputationBonus": 0.3,
+        "contributionBonus": 0.3,
         "infantryBonus": 0.15
       },
       "permissions": [
@@ -106,7 +111,8 @@
       "requirement": "待定",
       "position_bonuses": {
         "resourceBonus": 0.3,
-        "prestigeBonus": 0.3,
+        "reputationBonus": 0.3,
+        "contributionBonus": 0.3,
         "cavalryBonus": 0.15
       },
       "permissions": [
@@ -126,7 +132,8 @@
       "requirement": "待定",
       "position_bonuses": {
         "resourceBonus": 0.25,
-        "prestigeBonus": 0.25
+        "reputationBonus": 0.25,
+        "contributionBonus": 0.25
       },
       "permissions": [
         "郡县太守",
@@ -145,7 +152,8 @@
       "requirement": "待定",
       "position_bonuses": {
         "resourceBonus": 0.25,
-        "prestigeBonus": 0.25
+        "reputationBonus": 0.25,
+        "contributionBonus": 0.25
       },
       "permissions": [
         "郡县太守",
@@ -164,7 +172,8 @@
       "requirement": "待定",
       "position_bonuses": {
         "resourceBonus": 0.25,
-        "prestigeBonus": 0.25
+        "reputationBonus": 0.25,
+        "contributionBonus": 0.25
       },
       "permissions": [
         "郡县太守",
@@ -183,7 +192,8 @@
       "requirement": "待定",
       "position_bonuses": {
         "resourceBonus": 0.25,
-        "prestigeBonus": 0.25
+        "reputationBonus": 0.25,
+        "contributionBonus": 0.25
       },
       "permissions": [
         "郡县太守",
@@ -202,7 +212,8 @@
       "requirement": "待定",
       "position_bonuses": {
         "resourceBonus": 0.2,
-        "prestigeBonus": 0.2,
+        "reputationBonus": 0.2,
+        "contributionBonus": 0.2,
         "infantryBonus": 0.1
       },
       "permissions": [
@@ -221,7 +232,8 @@
       "requirement": "待定",
       "position_bonuses": {
         "resourceBonus": 0.2,
-        "prestigeBonus": 0.2,
+        "reputationBonus": 0.2,
+        "contributionBonus": 0.2,
         "infantryBonus": 0.1
       },
       "permissions": [
@@ -240,7 +252,8 @@
       "requirement": "待定",
       "position_bonuses": {
         "resourceBonus": 0.2,
-        "prestigeBonus": 0.2,
+        "reputationBonus": 0.2,
+        "contributionBonus": 0.2,
         "infantryBonus": 0.1
       },
       "permissions": [
@@ -259,7 +272,8 @@
       "requirement": "待定",
       "position_bonuses": {
         "resourceBonus": 0.2,
-        "prestigeBonus": 0.2,
+        "reputationBonus": 0.2,
+        "contributionBonus": 0.2,
         "infantryBonus": 0.1
       },
       "permissions": [
@@ -278,7 +292,8 @@
       "requirement": "待定",
       "position_bonuses": {
         "resourceBonus": 0.2,
-        "prestigeBonus": 0.2,
+        "reputationBonus": 0.2,
+        "contributionBonus": 0.2,
         "infantryBonus": 0.1
       },
       "permissions": [
@@ -297,7 +312,8 @@
       "requirement": "待定",
       "position_bonuses": {
         "resourceBonus": 0.2,
-        "prestigeBonus": 0.2,
+        "reputationBonus": 0.2,
+        "contributionBonus": 0.2,
         "infantryBonus": 0.1
       },
       "permissions": [
@@ -316,7 +332,8 @@
       "requirement": "待定",
       "position_bonuses": {
         "resourceBonus": 0.2,
-        "prestigeBonus": 0.2,
+        "reputationBonus": 0.2,
+        "contributionBonus": 0.2,
         "infantryBonus": 0.05,
         "cavalryBonus": 0.05
       },
@@ -336,7 +353,8 @@
       "requirement": "待定",
       "position_bonuses": {
         "resourceBonus": 0.2,
-        "prestigeBonus": 0.2,
+        "reputationBonus": 0.2,
+        "contributionBonus": 0.2,
         "infantryBonus": 0.05,
         "cavalryBonus": 0.05
       },
@@ -356,7 +374,8 @@
       "requirement": "待定",
       "position_bonuses": {
         "resourceBonus": 0.2,
-        "prestigeBonus": 0.2,
+        "reputationBonus": 0.2,
+        "contributionBonus": 0.2,
         "infantryBonus": 0.05,
         "cavalryBonus": 0.05
       },
@@ -376,7 +395,8 @@
       "requirement": "待定",
       "position_bonuses": {
         "resourceBonus": 0.2,
-        "prestigeBonus": 0.2,
+        "reputationBonus": 0.2,
+        "contributionBonus": 0.2,
         "infantryBonus": 0.05,
         "cavalryBonus": 0.05
       },
@@ -396,7 +416,8 @@
       "requirement": "待定",
       "position_bonuses": {
         "resourceBonus": 0.2,
-        "prestigeBonus": 0.2,
+        "reputationBonus": 0.2,
+        "contributionBonus": 0.2,
         "infantryBonus": 0.05,
         "cavalryBonus": 0.05
       },
@@ -416,7 +437,8 @@
       "requirement": "待定",
       "position_bonuses": {
         "resourceBonus": 0.2,
-        "prestigeBonus": 0.2,
+        "reputationBonus": 0.2,
+        "contributionBonus": 0.2,
         "infantryBonus": 0.05,
         "cavalryBonus": 0.05
       },
@@ -436,7 +458,8 @@
       "requirement": "待定",
       "position_bonuses": {
         "resourceBonus": 0.2,
-        "prestigeBonus": 0.2,
+        "reputationBonus": 0.2,
+        "contributionBonus": 0.2,
         "archerBonus": 0.1
       },
       "permissions": [
@@ -455,7 +478,8 @@
       "requirement": "待定",
       "position_bonuses": {
         "resourceBonus": 0.2,
-        "prestigeBonus": 0.2,
+        "reputationBonus": 0.2,
+        "contributionBonus": 0.2,
         "archerBonus": 0.1
       },
       "permissions": [
@@ -474,7 +498,8 @@
       "requirement": "待定",
       "position_bonuses": {
         "resourceBonus": 0.2,
-        "prestigeBonus": 0.2,
+        "reputationBonus": 0.2,
+        "contributionBonus": 0.2,
         "archerBonus": 0.1
       },
       "permissions": [
@@ -493,7 +518,8 @@
       "requirement": "待定",
       "position_bonuses": {
         "resourceBonus": 0.2,
-        "prestigeBonus": 0.2,
+        "reputationBonus": 0.2,
+        "contributionBonus": 0.2,
         "archerBonus": 0.1
       },
       "permissions": [
@@ -512,7 +538,8 @@
       "requirement": "待定",
       "position_bonuses": {
         "resourceBonus": 0.2,
-        "prestigeBonus": 0.2,
+        "reputationBonus": 0.2,
+        "contributionBonus": 0.2,
         "archerBonus": 0.1
       },
       "permissions": [
@@ -531,7 +558,8 @@
       "requirement": "待定",
       "position_bonuses": {
         "resourceBonus": 0.2,
-        "prestigeBonus": 0.2,
+        "reputationBonus": 0.2,
+        "contributionBonus": 0.2,
         "archerBonus": 0.1
       },
       "permissions": [
@@ -550,7 +578,8 @@
       "requirement": "待定",
       "position_bonuses": {
         "resourceBonus": 0.15,
-        "prestigeBonus": 0.15
+        "reputationBonus": 0.15,
+        "contributionBonus": 0.15
       },
       "permissions": [
         "无"
@@ -568,7 +597,8 @@
       "requirement": "待定",
       "position_bonuses": {
         "resourceBonus": 0.15,
-        "prestigeBonus": 0.15,
+        "reputationBonus": 0.15,
+        "contributionBonus": 0.15,
         "infantryBonus": 0.08
       },
       "permissions": [
@@ -587,7 +617,8 @@
       "requirement": "待定",
       "position_bonuses": {
         "resourceBonus": 0.15,
-        "prestigeBonus": 0.15,
+        "reputationBonus": 0.15,
+        "contributionBonus": 0.15,
         "cavalryBonus": 0.08
       },
       "permissions": [
@@ -606,7 +637,8 @@
       "requirement": "待定",
       "position_bonuses": {
         "resourceBonus": 0.1,
-        "prestigeBonus": 0.1,
+        "reputationBonus": 0.1,
+        "contributionBonus": 0.1,
         "infantryBonus": 0.05
       },
       "permissions": [
@@ -625,7 +657,8 @@
       "requirement": "待定",
       "position_bonuses": {
         "resourceBonus": 0.1,
-        "prestigeBonus": 0.1,
+        "reputationBonus": 0.1,
+        "contributionBonus": 0.1,
         "cavalryBonus": 0.05
       },
       "permissions": [
@@ -644,7 +677,8 @@
       "requirement": "待定",
       "position_bonuses": {
         "resourceBonus": 0.05,
-        "prestigeBonus": 0.05,
+        "reputationBonus": 0.05,
+        "contributionBonus": 0.05,
         "infantryBonus": 0.03
       },
       "permissions": [
@@ -663,7 +697,8 @@
       "requirement": "待定",
       "position_bonuses": {
         "resourceBonus": 0.05,
-        "prestigeBonus": 0.05,
+        "reputationBonus": 0.05,
+        "contributionBonus": 0.05,
         "cavalryBonus": 0.03
       },
       "permissions": [

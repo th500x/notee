@@ -180,6 +180,7 @@ function CharacterCard({
   totalPoints = null
 }) {
   const [isFlipped, setIsFlipped] = useState(false);
+  const [activeTooltip, setActiveTooltip] = useState(null);
   const rarityConfig = getRarityConfig(character.rarity);
   
   // 计算生涯阶段范围
@@ -411,6 +412,7 @@ function CharacterCard({
               </div>
 
               {/* 生涯标识 */}
+              {character.stage && (
               <div className={`
                 absolute -top-1 -right-1
                 px-1.5 py-0 rounded-full
@@ -421,6 +423,7 @@ function CharacterCard({
               `}>
                 {getStageText(character.stage)}
               </div>
+              )}
 
               {/* 运气标识 - 右下角 */}
               <div className={`
@@ -566,19 +569,27 @@ function CharacterCard({
                 const skill = skillsMap[skillId];
                 const isActive = skillId && typeof skillId === 'string' && skillId.startsWith('san_1_skill_1_');
                 const skillRarityConfig = skill ? getRarityConfig(skill.rarity) : rarityConfig;
+                const tooltipKey = `skill_${index}`;
+                const tooltipText = skill ? (skill.description || skill.name) : skillId;
                 
                 return (
                   <div 
-                    key={index} 
+                    key={index}
                     className={`
-                      px-1.5 py-1 rounded text-[10px] text-center
+                      relative px-1.5 py-1 rounded text-[10px] text-center cursor-pointer
                       bg-gradient-to-r ${skillRarityConfig.gradient} bg-opacity-20 border ${skillRarityConfig.border} border-opacity-40
                     `}
                     title={skill ? skill.description : ''}
+                    onClick={(e) => { e.stopPropagation(); setActiveTooltip(activeTooltip === tooltipKey ? null : tooltipKey); }}
                   >
                     <span className="font-bold truncate block text-gray-900">
                       {isActive ? '⚔️' : '🛡️'} {skill ? skill.name : skillId}
                     </span>
+                    {activeTooltip === tooltipKey && tooltipText && (
+                      <div className="absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 rounded bg-gray-900 text-white text-[10px] whitespace-nowrap shadow-lg pointer-events-none">
+                        {tooltipText}
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -599,19 +610,27 @@ function CharacterCard({
                   const bond = bondsMap[bondName];
                   const isActive = bond && bond.type === 'active';
                   const bondRarityConfig = bond ? getRarityConfig(bond.rarity) : rarityConfig;
+                  const tooltipKey = `bond_${index}`;
+                  const tooltipText = bond ? (bond.description || bond.name || bondName) : bondName;
                   
                   return (
                     <div 
                       key={index} 
                       className={`
-                        px-1.5 py-1 rounded text-[10px] text-center
+                        relative px-1.5 py-1 rounded text-[10px] text-center cursor-pointer
                         bg-gradient-to-r ${bondRarityConfig.gradient} bg-opacity-20 border ${bondRarityConfig.border} border-opacity-40
                       `}
                       title={bond ? bond.description : ''}
+                      onClick={(e) => { e.stopPropagation(); setActiveTooltip(activeTooltip === tooltipKey ? null : tooltipKey); }}
                     >
                       <span className="font-bold truncate block text-gray-900">
                         {isActive ? '🔗' : '🤝'} {bondName}
                       </span>
+                      {activeTooltip === tooltipKey && tooltipText && (
+                        <div className="absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 rounded bg-gray-900 text-white text-[10px] whitespace-nowrap shadow-lg pointer-events-none">
+                          {tooltipText}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -742,7 +761,7 @@ CharacterCard.propTypes = {
     id: PropTypes.string.isRequired,
     name: PropTypes.string.isRequired,
     rarity: PropTypes.string.isRequired,
-    stage: PropTypes.string.isRequired,
+    stage: PropTypes.string,
     luck: PropTypes.number.isRequired,
     courage: PropTypes.number.isRequired,
     command: PropTypes.number.isRequired,

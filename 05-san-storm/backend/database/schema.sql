@@ -720,8 +720,7 @@ CREATE TABLE IF NOT EXISTS config_skills (
   character_type VARCHAR(100) COMMENT '适用将领类型（如：military;balanced）',
   troop_type VARCHAR(100) COMMENT '兵种类型限制（如：infantry;cavalry;archer，留空表示通用）',
   
-  effect_type VARCHAR(50) COMMENT '效果类型',
-  effect_value VARCHAR(100) COMMENT '效果数值',
+  target_effect VARCHAR(100) COMMENT '目标效果',
   target_range VARCHAR(20) COMMENT '目标范围（1x1/1x2/1x3/2x2/3x3/4x4/cross/cross_thin/cross_large）',
   target_count VARCHAR(20) COMMENT '目标数量（all/1/2/3/random_1/random_2/random_3）',
   description TEXT COMMENT '技能描述',
@@ -747,8 +746,7 @@ CREATE TABLE IF NOT EXISTS config_bonds (
   
   min_characters INT NOT NULL DEFAULT 2 COMMENT '最少需要将领数',
   
-  effect_type VARCHAR(50) COMMENT '效果类型',
-  effect_value VARCHAR(100) COMMENT '效果数值',
+  target_effect VARCHAR(100) COMMENT '目标效果',
   description TEXT COMMENT '羁绊描述',
   
   version VARCHAR(20) DEFAULT '1.0.0' COMMENT '版本号',

@@ -250,8 +250,9 @@ async function importPositions(connection) {
       
       // 构建position_bonuses JSON对象
       const positionBonuses = {
+        reputation: position.position_bonuses?.reputationBonus || 0,
+        contribution: position.position_bonuses?.contributionBonus || 0,
         resource: position.position_bonuses?.resourceBonus || 0,
-        prestige: position.position_bonuses?.prestigeBonus || 0,
         infantry: position.position_bonuses?.infantryBonus || 0,
         cavalry: position.position_bonuses?.cavalryBonus || 0,
         archer: position.position_bonuses?.archerBonus || 0
