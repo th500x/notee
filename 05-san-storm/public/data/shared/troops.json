@@ -25,9 +25,7 @@
       "skills": [
         "TBD"
       ],
-      "attackEffect": "fx_02",
-      "projectileSprite": "",
-      "hitEffect": "fx_19",
+      "attackEffect": "",
       "description": "尚无记载"
     },
     {
@@ -55,9 +53,7 @@
       "skills": [
         "TBD"
       ],
-      "attackEffect": "fx_13",
-      "projectileSprite": "arrow_frame",
-      "hitEffect": "fx_19",
+      "attackEffect": "",
       "description": "尚无记载"
     },
     {
@@ -85,9 +81,7 @@
       "skills": [
         "TBD"
       ],
-      "attackEffect": "fx_18",
-      "projectileSprite": "",
-      "hitEffect": "fx_19",
+      "attackEffect": "",
       "description": "尚无记载"
     },
     {
@@ -115,9 +109,7 @@
       "skills": [
         "TBD"
       ],
-      "attackEffect": "fx_02",
-      "projectileSprite": "",
-      "hitEffect": "fx_19",
+      "attackEffect": "",
       "description": "尚无记载"
     },
     {
@@ -145,9 +137,7 @@
       "skills": [
         "TBD"
       ],
-      "attackEffect": "fx_13",
-      "projectileSprite": "",
-      "hitEffect": "fx_19",
+      "attackEffect": "",
       "description": "尚无记载"
     },
     {
@@ -175,9 +165,7 @@
       "skills": [
         "TBD"
       ],
-      "attackEffect": "fx_02",
-      "projectileSprite": "",
-      "hitEffect": "fx_19",
+      "attackEffect": "",
       "description": "江淮劲卒，悍勇善战"
     },
     {
@@ -187,8 +175,8 @@
       "troopType": "cavalry",
       "weaponType": "cavalry_lance",
       "range": 2,
-      "attack": 164,
-      "defense": 164,
+      "attack": 84,
+      "defense": 84,
       "speed": 6,
       "movement": 6,
       "maxTroops": 18,
@@ -205,9 +193,7 @@
       "skills": [
         "万人敌"
       ],
-      "attackEffect": "fx_18",
-      "projectileSprite": "",
-      "hitEffect": "fx_19",
+      "attackEffect": "",
       "description": "张飞亲卫，无惧无畏"
     },
     {
@@ -235,9 +221,7 @@
       "skills": [
         "TBD"
       ],
-      "attackEffect": "fx_18",
-      "projectileSprite": "",
-      "hitEffect": "fx_19",
+      "attackEffect": "",
       "description": "关羽正室，胡氏卫队"
     },
     {
@@ -265,9 +249,7 @@
       "skills": [
         "TBD"
       ],
-      "attackEffect": "fx_02",
-      "projectileSprite": "",
-      "hitEffect": "fx_19",
+      "attackEffect": "",
       "description": "尚无记载"
     },
     {
@@ -295,9 +277,7 @@
       "skills": [
         "TBD"
       ],
-      "attackEffect": "fx_13",
-      "projectileSprite": "arrow_frame",
-      "hitEffect": "fx_19",
+      "attackEffect": "",
       "description": "尚无记载"
     },
     {
@@ -325,9 +305,7 @@
       "skills": [
         "TBD"
       ],
-      "attackEffect": "fx_18",
-      "projectileSprite": "",
-      "hitEffect": "fx_19",
+      "attackEffect": "",
       "description": "尚无记载"
     },
     {
@@ -355,9 +333,7 @@
       "skills": [
         "TBD"
       ],
-      "attackEffect": "fx_02",
-      "projectileSprite": "",
-      "hitEffect": "fx_19",
+      "attackEffect": "",
       "description": "尚无记载"
     },
     {
@@ -385,9 +361,7 @@
       "skills": [
         "TBD"
       ],
-      "attackEffect": "fx_13",
-      "projectileSprite": "",
-      "hitEffect": "fx_19",
+      "attackEffect": "",
       "description": "尚无记载"
     },
     {
@@ -415,9 +389,7 @@
       "skills": [
         "TBD"
       ],
-      "attackEffect": "fx_02",
-      "projectileSprite": "",
-      "hitEffect": "fx_19",
+      "attackEffect": "",
       "description": "曹操近卫，精锐虎卫"
     },
     {
@@ -445,9 +417,7 @@
       "skills": [
         "TBD"
       ],
-      "attackEffect": "fx_18",
-      "projectileSprite": "",
-      "hitEffect": "fx_19",
+      "attackEffect": "",
       "description": "曹氏宗亲，中央精锐"
     },
     {
@@ -475,9 +445,7 @@
       "skills": [
         "TBD"
       ],
-      "attackEffect": "fx_18",
-      "projectileSprite": "",
-      "hitEffect": "fx_19",
+      "attackEffect": "",
       "description": "曹操正室，丁氏卫队"
     },
     {
@@ -505,9 +473,7 @@
       "skills": [
         "TBD"
       ],
-      "attackEffect": "fx_18",
-      "projectileSprite": "",
-      "hitEffect": "fx_19",
+      "attackEffect": "",
       "description": "曹操侧室，卞氏卫队"
     },
     {
@@ -535,9 +501,7 @@
       "skills": [
         "TBD"
       ],
-      "attackEffect": "fx_02",
-      "projectileSprite": "",
-      "hitEffect": "fx_19",
+      "attackEffect": "",
       "description": "尚无记载"
     },
     {
@@ -565,9 +529,7 @@
       "skills": [
         "TBD"
       ],
-      "attackEffect": "fx_13",
-      "projectileSprite": "arrow_frame",
-      "hitEffect": "fx_19",
+      "attackEffect": "",
       "description": "尚无记载"
     },
     {
@@ -595,9 +557,7 @@
       "skills": [
         "TBD"
       ],
-      "attackEffect": "fx_18",
-      "projectileSprite": "",
-      "hitEffect": "fx_19",
+      "attackEffect": "",
       "description": "尚无记载"
     },
     {
@@ -625,9 +585,7 @@
       "skills": [
         "TBD"
       ],
-      "attackEffect": "fx_02",
-      "projectileSprite": "",
-      "hitEffect": "fx_19",
+      "attackEffect": "",
       "description": "尚无记载"
     },
     {
@@ -655,9 +613,7 @@
       "skills": [
         "无视地形"
       ],
-      "attackEffect": "fx_18",
-      "projectileSprite": "",
-      "hitEffect": "fx_19",
+      "attackEffect": "",
       "description": "尚无记载"
     },
     {
@@ -685,9 +641,7 @@
       "skills": [
         "TBD"
       ],
-      "attackEffect": "fx_02",
-      "projectileSprite": "",
-      "hitEffect": "fx_19",
+      "attackEffect": "",
       "description": "权孙十万，解烦近卫"
     },
     {
@@ -715,9 +669,7 @@
       "skills": [
         "TBD"
       ],
-      "attackEffect": "fx_13",
-      "projectileSprite": "arrow_frame",
-      "hitEffect": "fx_19",
+      "attackEffect": "",
       "description": "甘宁亲随，锦帆水军"
     },
     {
@@ -745,9 +697,7 @@
       "skills": [
         "TBD"
       ],
-      "attackEffect": "fx_13",
-      "projectileSprite": "arrow_frame",
-      "hitEffect": "fx_19",
+      "attackEffect": "",
       "description": "孙坚正室，吴氏卫队"
     },
     {
@@ -775,9 +725,7 @@
       "skills": [
         "TBD"
       ],
-      "attackEffect": "fx_02",
-      "projectileSprite": "",
-      "hitEffect": "fx_19",
+      "attackEffect": "",
       "description": "尚无记载"
     },
     {
@@ -805,9 +753,7 @@
       "skills": [
         "TBD"
       ],
-      "attackEffect": "fx_13",
-      "projectileSprite": "arrow_frame",
-      "hitEffect": "fx_19",
+      "attackEffect": "",
       "description": "尚无记载"
     },
     {
@@ -835,9 +781,7 @@
       "skills": [
         "TBD"
       ],
-      "attackEffect": "fx_18",
-      "projectileSprite": "",
-      "hitEffect": "fx_19",
+      "attackEffect": "",
       "description": "尚无记载"
     },
     {
@@ -865,9 +809,7 @@
       "skills": [
         "TBD"
       ],
-      "attackEffect": "fx_02",
-      "projectileSprite": "",
-      "hitEffect": "fx_19",
+      "attackEffect": "",
       "description": "张郃亲随，大戟长枪"
     },
     {
@@ -895,9 +837,7 @@
       "skills": [
         "TBD"
       ],
-      "attackEffect": "fx_18",
-      "projectileSprite": "",
-      "hitEffect": "fx_19",
+      "attackEffect": "",
       "description": "袁氏亲兵，镇守中枢"
     },
     {
@@ -925,9 +865,7 @@
       "skills": [
         "TBD"
       ],
-      "attackEffect": "fx_02",
-      "projectileSprite": "",
-      "hitEffect": "fx_19",
+      "attackEffect": "",
       "description": "袁氏先锋，骑兵克星"
     },
     {
@@ -955,9 +893,7 @@
       "skills": [
         "TBD"
       ],
-      "attackEffect": "fx_13",
-      "projectileSprite": "arrow_frame",
-      "hitEffect": "fx_19",
+      "attackEffect": "",
       "description": "袁氏神射，箭在人在"
     },
     {
@@ -985,9 +921,7 @@
       "skills": [
         "TBD"
       ],
-      "attackEffect": "fx_18",
-      "projectileSprite": "",
-      "hitEffect": "fx_19",
+      "attackEffect": "",
       "description": "袁绍正室，刘氏卫队"
     },
     {
@@ -1015,9 +949,7 @@
       "skills": [
         "TBD"
       ],
-      "attackEffect": "fx_18",
-      "projectileSprite": "",
-      "hitEffect": "fx_19",
+      "attackEffect": "",
       "description": "袁术侧室，冯氏卫队"
     },
     {
@@ -1045,9 +977,7 @@
       "skills": [
         "TBD"
       ],
-      "attackEffect": "fx_02",
-      "projectileSprite": "",
-      "hitEffect": "fx_19",
+      "attackEffect": "",
       "description": "尚无记载"
     },
     {
@@ -1075,9 +1005,7 @@
       "skills": [
         "TBD"
       ],
-      "attackEffect": "fx_13",
-      "projectileSprite": "arrow_frame",
-      "hitEffect": "fx_19",
+      "attackEffect": "",
       "description": "尚无记载"
     },
     {
@@ -1105,9 +1033,7 @@
       "skills": [
         "TBD"
       ],
-      "attackEffect": "fx_18",
-      "projectileSprite": "",
-      "hitEffect": "fx_19",
+      "attackEffect": "",
       "description": "董家飞熊，中坚轻骑"
     },
     {
@@ -1135,9 +1061,7 @@
       "skills": [
         "TBD"
       ],
-      "attackEffect": "fx_02",
-      "projectileSprite": "",
-      "hitEffect": "fx_19",
+      "attackEffect": "",
       "description": "泰山豪杰，彪悍耐战"
     },
     {
@@ -1165,9 +1089,7 @@
       "skills": [
         "TBD"
       ],
-      "attackEffect": "fx_13",
-      "projectileSprite": "arrow_frame",
-      "hitEffect": "fx_19",
+      "attackEffect": "",
       "description": "黄巾残魂，精锐余部"
     },
     {
@@ -1195,9 +1117,7 @@
       "skills": [
         "TBD"
       ],
-      "attackEffect": "fx_02",
-      "projectileSprite": "",
-      "hitEffect": "fx_19",
+      "attackEffect": "",
       "description": "高顺陷阵，以一当十"
     },
     {
@@ -1225,9 +1145,7 @@
       "skills": [
         "TBD"
       ],
-      "attackEffect": "fx_18",
-      "projectileSprite": "",
-      "hitEffect": "fx_19",
+      "attackEffect": "",
       "description": "并州精骑，骁勇善战"
     },
     {
@@ -1255,9 +1173,7 @@
       "skills": [
         "TBD"
       ],
-      "attackEffect": "fx_18",
-      "projectileSprite": "",
-      "hitEffect": "fx_19",
+      "attackEffect": "",
       "description": "尚无记载"
     },
     {
@@ -1285,9 +1201,7 @@
       "skills": [
         "TBD"
       ],
-      "attackEffect": "fx_02",
-      "projectileSprite": "",
-      "hitEffect": "fx_19",
+      "attackEffect": "",
       "description": "尚无记载"
     },
     {
@@ -1315,9 +1229,7 @@
       "skills": [
         "TBD"
       ],
-      "attackEffect": "fx_13",
-      "projectileSprite": "arrow_frame",
-      "hitEffect": "fx_19",
+      "attackEffect": "",
       "description": "尚无记载"
     },
     {
@@ -1345,9 +1257,7 @@
       "skills": [
         "TBD"
       ],
-      "attackEffect": "fx_18",
-      "projectileSprite": "",
-      "hitEffect": "fx_19",
+      "attackEffect": "",
       "description": "尚无记载"
     },
     {
@@ -1375,9 +1285,7 @@
       "skills": [
         "TBD"
       ],
-      "attackEffect": "fx_13",
-      "projectileSprite": "arrow_frame",
-      "hitEffect": "fx_19",
+      "attackEffect": "",
       "description": "尚无记载"
     },
     {
@@ -1405,9 +1313,7 @@
       "skills": [
         "TBD"
       ],
-      "attackEffect": "fx_18",
-      "projectileSprite": "arrow_frame",
-      "hitEffect": "fx_19",
+      "attackEffect": "",
       "description": "尚无记载"
     },
     {
@@ -1435,9 +1341,7 @@
       "skills": [
         "TBD"
       ],
-      "attackEffect": "fx_02",
-      "projectileSprite": "",
-      "hitEffect": "fx_19",
+      "attackEffect": "",
       "description": "京畿重甲，皇室铁卫"
     },
     {
@@ -1465,9 +1369,7 @@
       "skills": [
         "精致维护"
       ],
-      "attackEffect": "fx_13",
-      "projectileSprite": "arrow_frame",
-      "hitEffect": "fx_19",
+      "attackEffect": "",
       "description": "京畿重弩，高价高质"
     },
     {
@@ -1495,9 +1397,7 @@
       "skills": [
         "TBD"
       ],
-      "attackEffect": "fx_18",
-      "projectileSprite": "",
-      "hitEffect": "fx_19",
+      "attackEffect": "",
       "description": "尚无记载"
     },
     {
@@ -1525,9 +1425,7 @@
       "skills": [
         "TBD"
       ],
-      "attackEffect": "fx_02",
-      "projectileSprite": "",
-      "hitEffect": "fx_19",
+      "attackEffect": "",
       "description": "青州轻甲，信仰无敌"
     },
     {
@@ -1555,9 +1453,7 @@
       "skills": [
         "TBD"
       ],
-      "attackEffect": "fx_13",
-      "projectileSprite": "arrow_frame",
-      "hitEffect": "fx_19",
+      "attackEffect": "",
       "description": "青州随从，信仰无敌"
     },
     {
@@ -1585,9 +1481,7 @@
       "skills": [
         "TBD"
       ],
-      "attackEffect": "fx_02",
-      "projectileSprite": "",
-      "hitEffect": "fx_19",
+      "attackEffect": "",
       "description": "豫州轻甲，信仰无敌"
     },
     {
@@ -1615,9 +1509,7 @@
       "skills": [
         "TBD"
       ],
-      "attackEffect": "fx_13",
-      "projectileSprite": "arrow_frame",
-      "hitEffect": "fx_19",
+      "attackEffect": "",
       "description": "豫州随从，信仰无敌"
     },
     {
@@ -1645,9 +1537,7 @@
       "skills": [
         "TBD"
       ],
-      "attackEffect": "fx_18",
-      "projectileSprite": "",
-      "hitEffect": "fx_19",
+      "attackEffect": "",
       "description": "尚无记载"
     },
     {
@@ -1675,9 +1565,7 @@
       "skills": [
         "TBD"
       ],
-      "attackEffect": "fx_02",
-      "projectileSprite": "",
-      "hitEffect": "fx_19",
+      "attackEffect": "",
       "description": "尚无记载"
     },
     {
@@ -1705,9 +1593,7 @@
       "skills": [
         "TBD"
       ],
-      "attackEffect": "fx_13",
-      "projectileSprite": "arrow_frame",
-      "hitEffect": "fx_19",
+      "attackEffect": "",
       "description": "尚无记载"
     },
     {
@@ -1735,9 +1621,7 @@
       "skills": [
         "TBD"
       ],
-      "attackEffect": "fx_02",
-      "projectileSprite": "",
-      "hitEffect": "fx_19",
+      "attackEffect": "",
       "description": "尚无记载"
     },
     {
@@ -1765,9 +1649,7 @@
       "skills": [
         "无视地形"
       ],
-      "attackEffect": "fx_18",
-      "projectileSprite": "",
-      "hitEffect": "fx_19",
+      "attackEffect": "",
       "description": "尚无记载"
     },
     {
@@ -1795,14 +1677,12 @@
       "skills": [
         "TBD"
       ],
-      "attackEffect": "fx_02",
-      "projectileSprite": "",
-      "hitEffect": "fx_19",
+      "attackEffect": "",
       "description": "地公将军，精锐枪卫"
     },
     {
       "id": "san_1_troop_7011",
-      "name": "人公侠卫",
+      "name": "人公护卫",
       "rarity": "legendary",
       "troopType": "archer",
       "weaponType": "archer_bow",
@@ -1825,10 +1705,8 @@
       "skills": [
         "TBD"
       ],
-      "attackEffect": "fx_13",
-      "projectileSprite": "arrow_frame",
-      "hitEffect": "fx_19",
-      "description": "人公将军，精锐侠卫"
+      "attackEffect": "",
+      "description": "人公将军，精锐护卫"
     },
     {
       "id": "san_1_troop_7012",
@@ -1855,9 +1733,7 @@
       "skills": [
         "TBD"
       ],
-      "attackEffect": "fx_18",
-      "projectileSprite": "",
-      "hitEffect": "fx_19",
+      "attackEffect": "",
       "description": "天公将军，精锐近卫"
     },
     {
@@ -1885,9 +1761,7 @@
       "skills": [
         "TBD"
       ],
-      "attackEffect": "fx_02",
-      "projectileSprite": "",
-      "hitEffect": "fx_19",
+      "attackEffect": "",
       "description": "东汉豪杰，义勇义军"
     },
     {
@@ -1904,20 +1778,18 @@
       "maxTroops": 330,
       "infantryCounter": 0.9,
       "cavalryCounter": 1.3,
-      "archerCounter": 1,
-      "siegeCounter": 0.9,
+      "archerCounter": 1.1,
+      "siegeCounter": 0.8,
       "plainAdapt": 1,
-      "hillAdapt": 0.9,
-      "forestAdapt": 1.2,
-      "siegeAdapt": 0.9,
+      "hillAdapt": 1,
+      "forestAdapt": 1.1,
+      "siegeAdapt": 1.2,
       "skill_3": "",
       "skill_4": "TBD",
       "skills": [
         "TBD"
       ],
-      "attackEffect": "fx_13",
-      "projectileSprite": "arrow_frame",
-      "hitEffect": "fx_19",
+      "attackEffect": "",
       "description": "东汉豪杰，义勇劲弩"
     },
     {
@@ -1945,9 +1817,7 @@
       "skills": [
         "TBD"
       ],
-      "attackEffect": "fx_02",
-      "projectileSprite": "",
-      "hitEffect": "fx_19",
+      "attackEffect": "",
       "description": "尚无记载"
     },
     {
@@ -1975,9 +1845,7 @@
       "skills": [
         "TBD"
       ],
-      "attackEffect": "fx_13",
-      "projectileSprite": "arrow_frame",
-      "hitEffect": "fx_19",
+      "attackEffect": "",
       "description": "尚无记载"
     },
     {
@@ -2005,9 +1873,7 @@
       "skills": [
         "TBD"
       ],
-      "attackEffect": "fx_18",
-      "projectileSprite": "arrow_frame",
-      "hitEffect": "fx_19",
+      "attackEffect": "",
       "description": "凉州羌胡，骑射骑兵"
     },
     {
@@ -2035,9 +1901,7 @@
       "skills": [
         "TBD"
       ],
-      "attackEffect": "fx_18",
-      "projectileSprite": "",
-      "hitEffect": "fx_19",
+      "attackEffect": "",
       "description": "凉州精骑，骁勇善战"
     },
     {
@@ -2065,9 +1929,7 @@
       "skills": [
         "TBD"
       ],
-      "attackEffect": "fx_13",
-      "projectileSprite": "arrow_frame",
-      "hitEffect": "fx_19",
+      "attackEffect": "",
       "description": "韩遂正室，柳氏卫队"
     },
     {
@@ -2095,9 +1957,7 @@
       "skills": [
         "TBD"
       ],
-      "attackEffect": "fx_13",
-      "projectileSprite": "arrow_frame",
-      "hitEffect": "fx_19",
+      "attackEffect": "",
       "description": "马腾正室，王氏卫队"
     },
     {
@@ -2107,8 +1967,8 @@
       "troopType": "infantry",
       "weaponType": "infantry_lance",
       "range": 2,
-      "attack": 6,
-      "defense": 13,
+      "attack": 7,
+      "defense": 12,
       "speed": 6,
       "movement": 4,
       "maxTroops": 990,
@@ -2125,9 +1985,7 @@
       "skills": [
         "天下无双"
       ],
-      "attackEffect": "fx_02",
-      "projectileSprite": "",
-      "hitEffect": "fx_19",
+      "attackEffect": "",
       "description": "冀州北军，枪术无双"
     },
     {
@@ -2137,7 +1995,7 @@
       "troopType": "cavalry",
       "weaponType": "cavalry_lance",
       "range": 1,
-      "attack": 11,
+      "attack": 9,
       "defense": 10,
       "speed": 6,
       "movement": 6,
@@ -2155,9 +2013,7 @@
       "skills": [
         "天下无双"
       ],
-      "attackEffect": "fx_18",
-      "projectileSprite": "",
-      "hitEffect": "fx_19",
+      "attackEffect": "",
       "description": "冀州北军，无畏铁骑"
     },
     {
@@ -2168,7 +2024,7 @@
       "weaponType": "infantry_saber",
       "range": 1,
       "attack": 6,
-      "defense": 14,
+      "defense": 12,
       "speed": 4,
       "movement": 4,
       "maxTroops": 990,
@@ -2185,9 +2041,7 @@
       "skills": [
         "天下无双"
       ],
-      "attackEffect": "fx_02",
-      "projectileSprite": "",
-      "hitEffect": "fx_19",
+      "attackEffect": "",
       "description": "司隶支柱，刀枪不入"
     },
     {
@@ -2197,8 +2051,8 @@
       "troopType": "cavalry",
       "weaponType": "cavalry_bow",
       "range": 3,
-      "attack": 11,
-      "defense": 10,
+      "attack": 10,
+      "defense": 9,
       "speed": 7,
       "movement": 7,
       "maxTroops": 990,
@@ -2215,10 +2069,64 @@
       "skills": [
         "天下无双"
       ],
-      "attackEffect": "fx_18",
-      "projectileSprite": "arrow_frame",
-      "hitEffect": "fx_19",
+      "attackEffect": "",
       "description": "幽州白马，神出鬼没"
+    },
+    {
+      "id": "san_1_troop_0013",
+      "name": "西域英杰(S0)",
+      "rarity": "core",
+      "troopType": "archer",
+      "weaponType": "archer_bow",
+      "range": 4,
+      "attack": 10,
+      "defense": 6,
+      "speed": 6,
+      "movement": 3,
+      "maxTroops": 600,
+      "infantryCounter": 0.9,
+      "cavalryCounter": 1.3,
+      "archerCounter": 1.1,
+      "siegeCounter": 0.9,
+      "plainAdapt": 1.1,
+      "hillAdapt": 1,
+      "forestAdapt": 1,
+      "siegeAdapt": 0.9,
+      "skill_3": "",
+      "skill_4": "一发入魂",
+      "skills": [
+        "一发入魂"
+      ],
+      "attackEffect": "",
+      "description": "测试纪念"
+    },
+    {
+      "id": "san_1_troop_0014",
+      "name": "西域女侠(S0)",
+      "rarity": "core",
+      "troopType": "archer",
+      "weaponType": "archer_bow",
+      "range": 4,
+      "attack": 11,
+      "defense": 5,
+      "speed": 6,
+      "movement": 3,
+      "maxTroops": 600,
+      "infantryCounter": 0.9,
+      "cavalryCounter": 1.3,
+      "archerCounter": 1.1,
+      "siegeCounter": 0.9,
+      "plainAdapt": 1.1,
+      "hillAdapt": 1,
+      "forestAdapt": 1,
+      "siegeAdapt": 0.9,
+      "skill_3": "",
+      "skill_4": "一发入魂",
+      "skills": [
+        "一发入魂"
+      ],
+      "attackEffect": "",
+      "description": "测试纪念"
     }
   ]
 }

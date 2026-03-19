@@ -171,9 +171,7 @@ async function importTroops(connection) {
         },
         skills: troop.skills || [],
         effects: {
-          attack: troop.attackEffect || null,
-          projectile: troop.projectileSprite || null,
-          hit: troop.hitEffect || null
+          attack: troop.attackEffect || null
         }
       };
       

@@ -1,0 +1,1054 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>战斗动画演示 - 真三风云</title>
+<style>
+/* ===== 基础样式 ===== */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: #1a1a2e; color: #eee;
+  font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
+  display: flex; flex-direction: column; align-items: center;
+  min-height: 100vh; padding: 20px;
+}
+h1 { font-size: 20px; margin-bottom: 12px; color: #FFD700; }
+.subtitle { font-size: 13px; color: #888; margin-bottom: 20px; }
+
+/* ===== 控制面板 ===== */
+.controls {
+  display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; justify-content: center;
+}
+.controls button {
+  padding: 8px 18px; border: 1px solid #555; border-radius: 6px;
+  background: #2a2a4a; color: #eee; cursor: pointer; font-size: 13px;
+  transition: all 0.2s;
+}
+.controls button:hover { background: #3a3a6a; border-color: #888; }
+.controls button.primary { background: #2563eb; border-color: #3b82f6; }
+.controls button.primary:hover { background: #1d4ed8; }
+.controls button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ===== 战斗日志 ===== */
+.log-panel {
+  width: 560px; max-height: 120px; overflow-y: auto;
+  background: #0d0d1a; border: 1px solid #333; border-radius: 6px;
+  padding: 8px 12px; margin-bottom: 16px; font-size: 12px; line-height: 1.8;
+}
+.log-panel .log-entry { color: #aaa; }
+.log-panel .log-entry.attack { color: #f87171; }
+.log-panel .log-entry.move { color: #60a5fa; }
+.log-panel .log-entry.crit { color: #fbbf24; font-weight: bold; }
+.log-panel .log-entry.miss { color: #a78bfa; }
+.log-panel .log-entry.death { color: #ef4444; font-weight: bold; }
+.log-panel .log-entry.round { color: #34d399; font-weight: bold; }
+.log-panel .log-entry.skill { color: #c084fc; font-weight: bold; }
+.log-panel .log-entry.ranged { color: #fb923c; }
+
+/* ===== 地图容器 ===== */
+.map-wrapper {
+  position: relative;
+  border: 2px solid #444; border-radius: 8px; overflow: hidden;
+  box-shadow: 0 0 30px rgba(0,0,0,0.5);
+}
+.map-grid {
+  display: grid;
+  grid-template-columns: repeat(8, 64px);
+  grid-template-rows: repeat(10, 64px);
+  gap: 0;
+}
+
+/* ===== 瓦片样式 ===== */
+.tile {
+  width: 64px; height: 64px; position: relative;
+  border: 1px solid rgba(255,255,255,0.06);
+}
+.tile.plain    { background: #4a6741; }
+.tile.forest   { background: #2d5a27; }
+.tile.hill     { background: #7a8a5a; }
+.tile.waste    { background: #8a7a5a; }
+
+/* 部署区标记 */
+.tile.deploy-a { box-shadow: inset 0 0 0 2px rgba(59,130,246,0.25); }
+.tile.deploy-b { box-shadow: inset 0 0 0 2px rgba(239,68,68,0.25); }
+
+/* 地形纹理点缀 */
+.tile.forest::after {
+  content: '🌲'; position: absolute; top: 50%; left: 50%;
+  transform: translate(-50%,-50%); font-size: 28px; opacity: 0.5;
+  pointer-events: none;
+}
+.tile.hill::after {
+  content: '⛰️'; position: absolute; top: 50%; left: 50%;
+  transform: translate(-50%,-50%); font-size: 24px; opacity: 0.4;
+  pointer-events: none;
+}
+.tile.waste::after {
+  content: ''; position: absolute; inset: 8px;
+  background: radial-gradient(circle at 30% 40%, rgba(0,0,0,0.15) 2px, transparent 2px),
+              radial-gradient(circle at 70% 60%, rgba(0,0,0,0.1) 1px, transparent 1px);
+  pointer-events: none;
+}
+
+/* ===== 障碍物 ===== */
+.obstacle {
+  position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+  font-size: 22px; pointer-events: none; z-index: 2;
+}
+
+/* ===== 阵营色块叠加（建筑物） ===== */
+.camp-overlay {
+  position: absolute; inset: 0; z-index: 1; pointer-events: none;
+  border: 2px solid transparent; border-radius: 2px;
+  animation: camp-pulse 2s ease-in-out infinite;
+}
+.camp-overlay.player { background: rgba(147,197,253,0.3); border-color: rgba(147,197,253,0.5); }
+.camp-overlay.enemy  { background: rgba(252,165,165,0.3); border-color: rgba(252,165,165,0.5); }
+@keyframes camp-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+/* ===== 部队单位 ===== */
+.unit {
+  position: absolute; z-index: 10;
+  width: 48px; height: 48px;
+  transition: left 0.5s ease, top 0.5s ease;
+}
+.unit-icon {
+  width: 48px; height: 48px; border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 24px; font-weight: bold; color: #fff;
+  border: 2px solid; position: relative;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+}
+.unit.player .unit-icon { background: #1e40af; border-color: #3b82f6; }
+.unit.enemy  .unit-icon { background: #991b1b; border-color: #ef4444; }
+
+/* 血条 */
+.hp-bar {
+  width: 48px; height: 5px; background: #333; border-radius: 3px;
+  margin-top: 2px; overflow: hidden; border: 1px solid #555;
+}
+.hp-bar-fill {
+  height: 100%; border-radius: 2px;
+  transition: width 0.4s ease, background-color 0.4s ease;
+}
+
+/* 字号标签 */
+.courtesy-name {
+  text-align: center; font-size: 10px; font-weight: bold;
+  color: #fff; margin-top: 1px; line-height: 1;
+  text-shadow: 0 0 3px #000, 0 0 3px #000;
+  white-space: nowrap;
+}
+
+/* ===== 战斗动画 ===== */
+
+/* 攻击：向目标冲刺后弹回 */
+@keyframes attack-right {
+  0%   { transform: translateX(0); }
+  30%  { transform: translateX(20px); }
+  100% { transform: translateX(0); }
+}
+@keyframes attack-left {
+  0%   { transform: translateX(0); }
+  30%  { transform: translateX(-20px); }
+  100% { transform: translateX(0); }
+}
+@keyframes attack-down {
+  0%   { transform: translateY(0); }
+  30%  { transform: translateY(20px); }
+  100% { transform: translateY(0); }
+}
+@keyframes attack-up {
+  0%   { transform: translateY(0); }
+  30%  { transform: translateY(-20px); }
+  100% { transform: translateY(0); }
+}
+.anim-attack-right { animation: attack-right 0.4s ease-out; }
+.anim-attack-left  { animation: attack-left 0.4s ease-out; }
+.anim-attack-down  { animation: attack-down 0.4s ease-out; }
+.anim-attack-up    { animation: attack-up 0.4s ease-out; }
+
+/* 受击：抖动+闪烁 */
+@keyframes hit-shake {
+  0%, 100% { transform: translateX(0); opacity: 1; }
+  15% { transform: translateX(-5px); opacity: 0.6; }
+  30% { transform: translateX(5px); opacity: 1; }
+  45% { transform: translateX(-3px); opacity: 0.6; }
+  60% { transform: translateX(3px); opacity: 1; }
+  75% { transform: translateX(-1px); opacity: 0.8; }
+}
+.anim-hit { animation: hit-shake 0.5s ease-out; }
+
+/* 暴击受击：更强烈的抖动 */
+@keyframes crit-shake {
+  0%, 100% { transform: translate(0,0) scale(1); }
+  10% { transform: translate(-8px,-4px) scale(1.05); }
+  20% { transform: translate(8px,2px) scale(0.95); }
+  30% { transform: translate(-6px,4px) scale(1.03); }
+  40% { transform: translate(6px,-2px) scale(0.97); }
+  50% { transform: translate(-4px,2px) scale(1.02); }
+  60% { transform: translate(4px,-1px) scale(0.98); }
+  70% { transform: translate(-2px,1px) scale(1.01); }
+}
+.anim-crit-hit { animation: crit-shake 0.6s ease-out; }
+
+/* 伤害数字飘出 */
+@keyframes damage-float {
+  0%   { transform: translateY(0) scale(0.5); opacity: 0; }
+  15%  { transform: translateY(-10px) scale(1.1); opacity: 1; }
+  30%  { transform: translateY(-20px) scale(1); opacity: 1; }
+  100% { transform: translateY(-50px) scale(0.8); opacity: 0; }
+}
+.damage-number {
+  position: absolute; z-index: 100; pointer-events: none;
+  font-weight: bold; font-size: 16px;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+  animation: damage-float 1s ease-out forwards;
+}
+.damage-number.normal { color: #fff; }
+.damage-number.crit   { color: #fbbf24; font-size: 22px; }
+.damage-number.miss   { color: #a78bfa; font-size: 14px; font-style: italic; }
+.damage-number.heal   { color: #34d399; }
+
+/* 暴击全屏震动 */
+@keyframes screen-shake {
+  0%, 100% { transform: translate(0,0); }
+  10% { transform: translate(-3px,-2px); }
+  20% { transform: translate(3px,1px); }
+  30% { transform: translate(-2px,2px); }
+  40% { transform: translate(2px,-1px); }
+  50% { transform: translate(-1px,1px); }
+}
+.anim-screen-shake { animation: screen-shake 0.3s ease-out; }
+
+/* 闪避残影 */
+@keyframes dodge-slide {
+  0%   { transform: translateX(0); opacity: 1; }
+  30%  { transform: translateX(15px); opacity: 0.3; }
+  60%  { transform: translateX(15px); opacity: 0.3; }
+  100% { transform: translateX(0); opacity: 1; }
+}
+.anim-dodge { animation: dodge-slide 0.6s ease-out; }
+
+/* 死亡动画 */
+@keyframes unit-death {
+  0%   { transform: scale(1); opacity: 1; filter: grayscale(0); }
+  50%  { transform: scale(0.8); opacity: 0.5; filter: grayscale(0.8); }
+  100% { transform: scale(0.3); opacity: 0; filter: grayscale(1); }
+}
+.anim-death { animation: unit-death 0.8s ease-in forwards; }
+
+/* 移动轨迹高亮 */
+.move-highlight {
+  position: absolute; inset: 4px; border-radius: 4px;
+  background: rgba(59,130,246,0.25); border: 1px solid rgba(59,130,246,0.4);
+  pointer-events: none; z-index: 5;
+  animation: highlight-fade 0.8s ease-out forwards;
+}
+@keyframes highlight-fade {
+  0% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* 回合指示器 */
+.round-indicator {
+  position: absolute; top: -36px; left: 50%; transform: translateX(-50%);
+  background: rgba(0,0,0,0.8); color: #34d399; padding: 4px 16px;
+  border-radius: 4px; font-size: 14px; font-weight: bold;
+  white-space: nowrap; z-index: 200; pointer-events: none;
+  animation: round-pop 0.5s ease-out;
+}
+@keyframes round-pop {
+  0% { transform: translateX(-50%) scale(0.5); opacity: 0; }
+  60% { transform: translateX(-50%) scale(1.1); opacity: 1; }
+  100% { transform: translateX(-50%) scale(1); opacity: 1; }
+}
+
+/* ===== 远程攻击：投射物飞行 ===== */
+.projectile {
+  position: absolute; z-index: 150; pointer-events: none;
+  font-size: 28px; filter: drop-shadow(0 0 6px rgba(255,200,50,0.6));
+  color: #e2c87a;
+}
+
+/* ===== 技能攻击：全屏闪光 ===== */
+.skill-flash-overlay {
+  position: fixed; inset: 0; z-index: 500; pointer-events: none;
+  animation: skill-flash 0.5s ease-out forwards;
+}
+@keyframes skill-flash {
+  0%   { opacity: 0; }
+  20%  { opacity: 0.7; }
+  100% { opacity: 0; }
+}
+
+/* ===== 技能名称弹出 ===== */
+.skill-name-display {
+  position: absolute; z-index: 400; pointer-events: none;
+  left: 50%; top: 40%; transform: translate(-50%,-50%) scale(0.3);
+  font-size: 36px; font-weight: 900; color: #fff;
+  text-shadow: 0 0 20px rgba(192,132,252,0.9), 0 0 40px rgba(192,132,252,0.5),
+               0 2px 4px rgba(0,0,0,0.8);
+  white-space: nowrap; letter-spacing: 6px;
+  animation: skill-name-pop 1.2s ease-out forwards;
+}
+@keyframes skill-name-pop {
+  0%   { transform: translate(-50%,-50%) scale(0.3); opacity: 0; }
+  15%  { transform: translate(-50%,-50%) scale(1.3); opacity: 1; }
+  30%  { transform: translate(-50%,-50%) scale(1.0); opacity: 1; }
+  70%  { transform: translate(-50%,-50%) scale(1.0); opacity: 1; }
+  100% { transform: translate(-50%,-50%) scale(1.2); opacity: 0; }
+}
+
+/* ===== AoE 范围圈 ===== */
+.aoe-ring {
+  position: absolute; z-index: 120; pointer-events: none;
+  border: 3px solid rgba(252,165,165,0.8);
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(252,100,100,0.25) 0%, transparent 70%);
+  animation: aoe-expand 0.8s ease-out forwards;
+}
+@keyframes aoe-expand {
+  0%   { width: 0; height: 0; opacity: 1; }
+  70%  { opacity: 0.8; }
+  100% { width: 260px; height: 260px; opacity: 0; }
+}
+
+/* ===== 爆炸粒子 ===== */
+.particle {
+  position: absolute; z-index: 130; pointer-events: none;
+  width: 6px; height: 6px; border-radius: 1px;
+}
+@keyframes particle-explode {
+  0%   { transform: translate(0,0) scale(1); opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* ===== 多段伤害数字（延迟弹出） ===== */
+.damage-number.multi-1 { animation-delay: 0s; }
+.damage-number.multi-2 { animation-delay: 0.15s; opacity: 0; animation-fill-mode: forwards; }
+.damage-number.multi-3 { animation-delay: 0.3s; opacity: 0; animation-fill-mode: forwards; }
+
+/* 图例 */
+.legend {
+  margin-top: 16px; display: flex; gap: 16px; flex-wrap: wrap;
+  justify-content: center; font-size: 12px; color: #aaa;
+}
+.legend-item { display: flex; align-items: center; gap: 4px; }
+.legend-color {
+  width: 16px; height: 16px; border-radius: 3px; border: 1px solid #555;
+}
+</style>
+</head>
+<body>
+
+<h1>⚔️ 战斗动画演示</h1>
+<p class="subtitle">CSS Keyframes + JS 时序控制 · 8×10 小型地图 · 近战/远程/技能/范围 · 纯前端演示</p>
+
+<div class="controls">
+  <button class="primary" id="btn-play" onclick="playFullRound()">▶ 播放完整回合</button>
+  <button onclick="playMove()">🏃 移动</button>
+  <button onclick="playAttack()">⚔️ 攻击</button>
+  <button onclick="playCrit()">💥 暴击</button>
+  <button onclick="playMiss()">💨 闪避</button>
+  <button onclick="playDeath()">💀 死亡</button>
+  <button onclick="playRanged()">🏹 远程攻击</button>
+  <button onclick="playSkill()">🔮 计谋技能</button>
+  <button onclick="playAoeSkill()">💫 范围技能</button>
+  <button onclick="resetAll()">🔄 重置</button>
+</div>
+
+<div class="log-panel" id="log-panel"></div>
+
+<div class="map-wrapper" id="map-wrapper">
+  <div class="map-grid" id="map-grid"></div>
+</div>
+
+<div class="legend">
+  <div class="legend-item"><div class="legend-color" style="background:#4a6741"></div>平原</div>
+  <div class="legend-item"><div class="legend-color" style="background:#2d5a27"></div>树林</div>
+  <div class="legend-item"><div class="legend-color" style="background:#7a8a5a"></div>丘陵</div>
+  <div class="legend-item"><div class="legend-color" style="background:#8a7a5a"></div>荒地</div>
+  <div class="legend-item"><div class="legend-color" style="background:#1e40af;border-color:#3b82f6"></div>我方</div>
+  <div class="legend-item"><div class="legend-color" style="background:#991b1b;border-color:#ef4444"></div>敌方</div>
+</div>
+
+<script>
+// ===== 地图数据 =====
+const MAP_W = 8, MAP_H = 10, TILE = 64;
+// 地形: 0=plain, 1=forest, 2=hill, 3=waste
+const terrain = [
+  [0,0,0,0,0,0,0,0],  // row0 部署区A
+  [1,0,0,0,0,0,0,0],  // row1
+  [0,1,0,0,0,0,0,0],  // row2
+  [0,0,0,2,2,0,0,0],  // row3 交战区
+  [0,1,1,0,0,3,3,0],  // row4
+  [0,1,0,0,0,3,0,0],  // row5
+  [0,0,0,0,1,1,0,0],  // row6
+  [0,0,0,0,0,0,0,0],  // row7 部署区B
+  [0,0,0,0,0,0,2,2],  // row8
+  [0,0,0,0,0,0,0,0],  // row9
+];
+const TERRAIN_CLASS = ['plain','forest','hill','waste'];
+
+// 障碍物 { type, x, y }
+const obstacles = [
+  { type: 'boulder', x: 3, y: 5, emoji: '🪨' },
+  { type: 'barricade', x: 5, y: 4, emoji: '🪵' },
+];
+
+// ===== 部队数据 =====
+let units = [];
+function initUnits() {
+  units = [
+    { id: 'p1', faction: 'player', name: '玄德', emoji: '⚔', x: 1, y: 1, hp: 600, maxHp: 600, alive: true },
+    { id: 'p2', faction: 'player', name: '翼德', emoji: '🛡', x: 3, y: 0, hp: 500, maxHp: 500, alive: true },
+    { id: 'p3', faction: 'player', name: '云长', emoji: '🗡', x: 5, y: 1, hp: 550, maxHp: 550, alive: true },
+    { id: 'e1', faction: 'enemy',  name: '孟德', emoji: '⚔', x: 2, y: 8, hp: 580, maxHp: 580, alive: true },
+    { id: 'e2', faction: 'enemy',  name: '奉孝', emoji: '📜', x: 4, y: 9, hp: 400, maxHp: 400, alive: true },
+    { id: 'e3', faction: 'enemy',  name: '典韦', emoji: '🪓', x: 6, y: 8, hp: 520, maxHp: 520, alive: true },
+  ];
+}
+
+// ===== 渲染地图 =====
+function renderMap() {
+  const grid = document.getElementById('map-grid');
+  grid.innerHTML = '';
+  for (let y = 0; y < MAP_H; y++) {
+    for (let x = 0; x < MAP_W; x++) {
+      const tile = document.createElement('div');
+      tile.className = `tile ${TERRAIN_CLASS[terrain[y][x]]}`;
+      tile.id = `tile-${x}-${y}`;
+      if (y <= 2) tile.classList.add('deploy-a');
+      if (y >= 7) tile.classList.add('deploy-b');
+
+      // 障碍物
+      const obs = obstacles.find(o => o.x === x && o.y === y);
+      if (obs) {
+        const el = document.createElement('div');
+        el.className = 'obstacle';
+        el.textContent = obs.emoji;
+        tile.appendChild(el);
+      }
+      grid.appendChild(tile);
+    }
+  }
+}
+
+// ===== 渲染部队 =====
+function renderUnits() {
+  // 清除旧的
+  document.querySelectorAll('.unit').forEach(el => el.remove());
+  const wrapper = document.getElementById('map-wrapper');
+
+  units.forEach(u => {
+    if (!u.alive) return;
+    const el = document.createElement('div');
+    el.className = `unit ${u.faction}`;
+    el.id = `unit-${u.id}`;
+    el.style.left = (u.x * TILE + 8) + 'px';
+    el.style.top = (u.y * TILE + 2) + 'px';
+
+    const hpPct = Math.max(0, u.hp / u.maxHp * 100);
+    const hpColor = hpPct > 60 ? '#10b981' : hpPct > 30 ? '#f59e0b' : '#ef4444';
+
+    el.innerHTML = `
+      <div class="unit-icon">${u.emoji}</div>
+      <div class="hp-bar"><div class="hp-bar-fill" style="width:${hpPct}%;background:${hpColor}"></div></div>
+      <div class="courtesy-name">${u.name}</div>
+    `;
+    wrapper.appendChild(el);
+  });
+}
+
+// ===== 工具函数 =====
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+function getUnitEl(id) { return document.getElementById(`unit-${id}`); }
+
+function log(text, cls = '') {
+  const panel = document.getElementById('log-panel');
+  const entry = document.createElement('div');
+  entry.className = `log-entry ${cls}`;
+  entry.textContent = text;
+  panel.appendChild(entry);
+  panel.scrollTop = panel.scrollHeight;
+}
+
+function clearLog() {
+  document.getElementById('log-panel').innerHTML = '';
+}
+
+function updateHpBar(unit) {
+  const el = getUnitEl(unit.id);
+  if (!el) return;
+  const pct = Math.max(0, unit.hp / unit.maxHp * 100);
+  const color = pct > 60 ? '#10b981' : pct > 30 ? '#f59e0b' : '#ef4444';
+  const fill = el.querySelector('.hp-bar-fill');
+  fill.style.width = pct + '%';
+  fill.style.background = color;
+}
+
+function showDamageNumber(unitId, text, type = 'normal') {
+  const el = getUnitEl(unitId);
+  if (!el) return;
+  const num = document.createElement('div');
+  num.className = `damage-number ${type}`;
+  num.textContent = text;
+  num.style.left = '8px';
+  num.style.top = '-10px';
+  el.appendChild(num);
+  setTimeout(() => num.remove(), 1000);
+}
+
+function addAnim(unitId, cls, duration = 500) {
+  const el = getUnitEl(unitId);
+  if (!el) return;
+  el.classList.add(cls);
+  setTimeout(() => el.classList.remove(cls), duration);
+}
+
+function shakeScreen(duration = 300) {
+  const wrapper = document.getElementById('map-wrapper');
+  wrapper.classList.add('anim-screen-shake');
+  setTimeout(() => wrapper.classList.remove('anim-screen-shake'), duration);
+}
+
+// 移动部队
+async function moveUnit(unit, toX, toY) {
+  // 显示移动路径高亮
+  const tile = document.getElementById(`tile-${toX}-${toY}`);
+  if (tile) {
+    const hl = document.createElement('div');
+    hl.className = 'move-highlight';
+    tile.appendChild(hl);
+    setTimeout(() => hl.remove(), 800);
+  }
+
+  unit.x = toX;
+  unit.y = toY;
+  const el = getUnitEl(unit.id);
+  if (el) {
+    el.style.left = (toX * TILE + 8) + 'px';
+    el.style.top = (toY * TILE + 2) + 'px';
+  }
+  await sleep(550);
+}
+
+// 攻击方向判断
+function getAttackDir(attacker, defender) {
+  const dx = defender.x - attacker.x;
+  const dy = defender.y - attacker.y;
+  if (Math.abs(dx) >= Math.abs(dy)) return dx > 0 ? 'right' : 'left';
+  return dy > 0 ? 'down' : 'up';
+}
+
+// 普通攻击
+async function attackUnit(attacker, defender, damage) {
+  const dir = getAttackDir(attacker, defender);
+  log(`${attacker.name} 攻击 ${defender.name}`, 'attack');
+  addAnim(attacker.id, `anim-attack-${dir}`, 400);
+  await sleep(200);
+  addAnim(defender.id, 'anim-hit', 500);
+  defender.hp = Math.max(0, defender.hp - damage);
+  updateHpBar(defender);
+  showDamageNumber(defender.id, `-${damage}`, 'normal');
+  log(`  → ${defender.name} 受到 ${damage} 点伤害（剩余 ${defender.hp}/${defender.maxHp}）`, 'attack');
+  await sleep(600);
+}
+
+// 暴击攻击
+async function critAttack(attacker, defender, damage) {
+  const dir = getAttackDir(attacker, defender);
+  log(`💥 ${attacker.name} 暴击 ${defender.name}！`, 'crit');
+  addAnim(attacker.id, `anim-attack-${dir}`, 400);
+  await sleep(200);
+  addAnim(defender.id, 'anim-crit-hit', 600);
+  shakeScreen();
+  defender.hp = Math.max(0, defender.hp - damage);
+  updateHpBar(defender);
+  showDamageNumber(defender.id, `-${damage}`, 'crit');
+  log(`  → 暴击！${defender.name} 受到 ${damage} 点伤害（剩余 ${defender.hp}/${defender.maxHp}）`, 'crit');
+  await sleep(700);
+}
+
+// 闪避
+async function missAttack(attacker, defender) {
+  const dir = getAttackDir(attacker, defender);
+  log(`${attacker.name} 攻击 ${defender.name}`, 'attack');
+  addAnim(attacker.id, `anim-attack-${dir}`, 400);
+  await sleep(200);
+  addAnim(defender.id, 'anim-dodge', 600);
+  showDamageNumber(defender.id, 'MISS', 'miss');
+  log(`  → ${defender.name} 闪避了攻击！`, 'miss');
+  await sleep(700);
+}
+
+// 死亡
+async function killUnit(unit) {
+  log(`💀 ${unit.name} 全军覆没！`, 'death');
+  unit.alive = false;
+  unit.hp = 0;
+  updateHpBar(unit);
+  addAnim(unit.id, 'anim-death', 800);
+  await sleep(900);
+}
+
+// ===== 远程攻击 & 技能攻击 工具函数 =====
+
+// 创建投射物并飞行
+function createProjectile(fromUnit, toUnit, emoji = '🏹') {
+  return new Promise(resolve => {
+    const wrapper = document.getElementById('map-wrapper');
+    const fromX = fromUnit.x * TILE + 32;
+    const fromY = fromUnit.y * TILE + 24;
+    const toX = toUnit.x * TILE + 32;
+    const toY = toUnit.y * TILE + 24;
+    const dx = toX - fromX;
+    const dy = toY - fromY;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    const duration = Math.max(300, Math.min(700, dist * 1.5));
+    const angle = Math.atan2(dy, dx) * 180 / Math.PI;
+
+    const proj = document.createElement('div');
+    proj.className = 'projectile';
+    proj.textContent = emoji;
+    proj.style.left = fromX - 14 + 'px';
+    proj.style.top = fromY - 14 + 'px';
+    proj.style.transform = `rotate(${angle}deg)`;
+    proj.style.transition = `left ${duration}ms ease-in, top ${duration}ms ease-in`;
+    wrapper.appendChild(proj);
+
+    requestAnimationFrame(() => {
+      proj.style.left = toX - 14 + 'px';
+      proj.style.top = toY - 14 + 'px';
+    });
+
+    setTimeout(() => {
+      proj.remove();
+      resolve();
+    }, duration);
+  });
+}
+
+// 全屏闪光
+function showFlash(color = 'rgba(255,255,255,0.6)') {
+  const flash = document.createElement('div');
+  flash.className = 'skill-flash-overlay';
+  flash.style.background = color;
+  document.body.appendChild(flash);
+  setTimeout(() => flash.remove(), 500);
+}
+
+// 技能名称弹出
+function showSkillName(name) {
+  const wrapper = document.getElementById('map-wrapper');
+  const el = document.createElement('div');
+  el.className = 'skill-name-display';
+  el.textContent = name;
+  wrapper.appendChild(el);
+  setTimeout(() => el.remove(), 1200);
+}
+
+// AoE 范围圈
+function showAoeRing(centerUnit) {
+  const wrapper = document.getElementById('map-wrapper');
+  const cx = centerUnit.x * TILE + 32;
+  const cy = centerUnit.y * TILE + 32;
+  const ring = document.createElement('div');
+  ring.className = 'aoe-ring';
+  ring.style.left = cx + 'px';
+  ring.style.top = cy + 'px';
+  ring.style.marginLeft = '-130px';
+  ring.style.marginTop = '-130px';
+  wrapper.appendChild(ring);
+  setTimeout(() => ring.remove(), 800);
+}
+
+// 爆炸粒子
+function spawnParticles(unitOrXY, count = 12, color = '#fbbf24') {
+  const wrapper = document.getElementById('map-wrapper');
+  let cx, cy;
+  if (typeof unitOrXY.x !== 'undefined' && typeof unitOrXY.y !== 'undefined' && typeof unitOrXY.id !== 'undefined') {
+    cx = unitOrXY.x * TILE + 32;
+    cy = unitOrXY.y * TILE + 24;
+  } else {
+    cx = unitOrXY.x; cy = unitOrXY.y;
+  }
+  for (let i = 0; i < count; i++) {
+    const p = document.createElement('div');
+    p.className = 'particle';
+    p.style.background = color;
+    p.style.left = cx + 'px';
+    p.style.top = cy + 'px';
+    const angle = (Math.PI * 2 / count) * i + (Math.random() - 0.5) * 0.5;
+    const dist = 30 + Math.random() * 50;
+    const tx = Math.cos(angle) * dist;
+    const ty = Math.sin(angle) * dist;
+    const dur = 400 + Math.random() * 300;
+    p.style.animation = `particle-explode ${dur}ms ease-out forwards`;
+    p.style.setProperty('--tx', tx + 'px');
+    p.style.setProperty('--ty', ty + 'px');
+    // 用 inline transition 代替 keyframe 变量（更兼容）
+    p.style.transition = `transform ${dur}ms ease-out, opacity ${dur}ms ease-out`;
+    wrapper.appendChild(p);
+    requestAnimationFrame(() => {
+      p.style.transform = `translate(${tx}px, ${ty}px) scale(0.3)`;
+      p.style.opacity = '0';
+    });
+    setTimeout(() => p.remove(), dur);
+  }
+}
+
+// 多段伤害数字
+function showMultiDamage(unitId, damages, type = 'crit') {
+  const el = getUnitEl(unitId);
+  if (!el) return;
+  damages.forEach((dmg, i) => {
+    setTimeout(() => {
+      const num = document.createElement('div');
+      num.className = `damage-number ${type}`;
+      num.textContent = `-${dmg}`;
+      num.style.left = (4 + i * 12) + 'px';
+      num.style.top = (-10 - i * 8) + 'px';
+      el.appendChild(num);
+      setTimeout(() => num.remove(), 1000);
+    }, i * 180);
+  });
+}
+
+// ===== 远程攻击 =====
+async function rangedAttack(attacker, defender, damage, emoji = '➤') {
+  log(`🏹 ${attacker.name} 远程攻击 ${defender.name}`, 'ranged');
+  await createProjectile(attacker, defender, emoji);
+  addAnim(defender.id, 'anim-hit', 500);
+  defender.hp = Math.max(0, defender.hp - damage);
+  updateHpBar(defender);
+  showDamageNumber(defender.id, `-${damage}`, 'normal');
+  log(`  → ${defender.name} 受到 ${damage} 点伤害（剩余 ${defender.hp}/${defender.maxHp}）`, 'ranged');
+  await sleep(600);
+}
+
+// ===== 计谋技能攻击（单体） =====
+async function skillAttack(attacker, defender, damage, skillName) {
+  log(`🔮 ${attacker.name} 施放【${skillName}】→ ${defender.name}`, 'skill');
+  showFlash('rgba(192,132,252,0.5)');
+  showSkillName(skillName);
+  await sleep(600);
+  // 投射物（火球）
+  await createProjectile(attacker, defender, '🔥');
+  // 强化受击
+  addAnim(defender.id, 'anim-crit-hit', 600);
+  shakeScreen();
+  spawnParticles(defender, 10, '#c084fc');
+  // 多段伤害
+  const d1 = Math.floor(damage * 0.6);
+  const d2 = damage - d1;
+  showMultiDamage(defender.id, [d1, d2], 'crit');
+  defender.hp = Math.max(0, defender.hp - damage);
+  updateHpBar(defender);
+  log(`  → ${defender.name} 受到 ${damage} 点伤害（${d1}+${d2}）（剩余 ${defender.hp}/${defender.maxHp}）`, 'skill');
+  await sleep(800);
+}
+
+// ===== 范围技能攻击（AoE） =====
+async function aoeSkillAttack(caster, targets, damage, skillName) {
+  const names = targets.map(t => t.name).join('、');
+  log(`💫 ${caster.name} 施放【${skillName}】→ ${names}`, 'skill');
+  showFlash('rgba(252,165,165,0.5)');
+  showSkillName(skillName);
+  await sleep(600);
+  // AoE 圈以施法者为中心
+  showAoeRing(caster);
+  await sleep(400);
+  // 所有目标受击
+  targets.forEach(t => {
+    addAnim(t.id, 'anim-crit-hit', 600);
+    spawnParticles(t, 8, '#f87171');
+    const d1 = Math.floor(damage * 0.5);
+    const d2 = damage - d1;
+    showMultiDamage(t.id, [d1, d2], 'crit');
+    t.hp = Math.max(0, t.hp - damage);
+    updateHpBar(t);
+    log(`  → ${t.name} 受到 ${damage} 点伤害（剩余 ${t.hp}/${t.maxHp}）`, 'skill');
+  });
+  shakeScreen();
+  await sleep(800);
+}
+
+// ===== 禁用/启用按钮 =====
+let playing = false;
+function setPlaying(v) {
+  playing = v;
+  document.querySelectorAll('.controls button').forEach(b => {
+    if (b.id !== 'btn-reset') b.disabled = v;
+  });
+}
+
+// ===== 单独动画演示 =====
+async function playMove() {
+  if (playing) return; setPlaying(true); clearLog();
+  const u = units.find(u => u.id === 'p1');
+  log(`🏃 ${u.name} 向前移动`, 'move');
+  await moveUnit(u, u.x, u.y + 1);
+  setPlaying(false);
+}
+
+async function playAttack() {
+  if (playing) return; setPlaying(true); clearLog();
+  const a = units.find(u => u.id === 'p1');
+  const d = units.find(u => u.id === 'e1');
+  await attackUnit(a, d, 128);
+  setPlaying(false);
+}
+
+async function playCrit() {
+  if (playing) return; setPlaying(true); clearLog();
+  const a = units.find(u => u.id === 'p3');
+  const d = units.find(u => u.id === 'e3');
+  await critAttack(a, d, 215);
+  setPlaying(false);
+}
+
+async function playMiss() {
+  if (playing) return; setPlaying(true); clearLog();
+  const a = units.find(u => u.id === 'e2');
+  const d = units.find(u => u.id === 'p2');
+  await missAttack(a, d);
+  setPlaying(false);
+}
+
+async function playDeath() {
+  if (playing) return; setPlaying(true); clearLog();
+  const u = units.find(u => u.id === 'e2');
+  if (u.alive) {
+    u.hp = 50;
+    updateHpBar(u);
+    await sleep(300);
+    await attackUnit(units.find(u => u.id === 'p2'), u, 50);
+    await killUnit(u);
+  } else {
+    log('该单位已阵亡，请先重置', '');
+  }
+  setPlaying(false);
+}
+
+// ===== 远程攻击演示 =====
+async function playRanged() {
+  if (playing) return; setPlaying(true); clearLog();
+  const a = units.find(u => u.id === 'p3'); // 云长
+  const d = units.find(u => u.id === 'e1'); // 孟德
+  await rangedAttack(a, d, 96, '➤');
+  await sleep(300);
+  // 再来一发火球
+  const a2 = units.find(u => u.id === 'e2'); // 奉孝
+  const d2 = units.find(u => u.id === 'p1'); // 玄德
+  await rangedAttack(a2, d2, 110, '🔥');
+  setPlaying(false);
+}
+
+// ===== 计谋技能演示 =====
+async function playSkill() {
+  if (playing) return; setPlaying(true); clearLog();
+  const a = units.find(u => u.id === 'e2'); // 奉孝
+  const d = units.find(u => u.id === 'p2'); // 翼德
+  await skillAttack(a, d, 198, '天妒奇才');
+  setPlaying(false);
+}
+
+// ===== 范围技能演示 =====
+async function playAoeSkill() {
+  if (playing) return; setPlaying(true); clearLog();
+  const caster = units.find(u => u.id === 'p1'); // 玄德
+  const t1 = units.find(u => u.id === 'e1');
+  const t2 = units.find(u => u.id === 'e2');
+  const t3 = units.find(u => u.id === 'e3');
+  const targets = [t1, t2, t3].filter(t => t.alive);
+  await aoeSkillAttack(caster, targets, 145, '仁德布施');
+  setPlaying(false);
+}
+
+// ===== 完整回合演示 =====
+async function playFullRound() {
+  if (playing) return;
+  setPlaying(true);
+  clearLog();
+  resetAll();
+  await sleep(300);
+
+  const p1 = units.find(u => u.id === 'p1');
+  const p2 = units.find(u => u.id === 'p2');
+  const p3 = units.find(u => u.id === 'p3');
+  const e1 = units.find(u => u.id === 'e1');
+  const e2 = units.find(u => u.id === 'e2');
+  const e3 = units.find(u => u.id === 'e3');
+
+  // === 回合1 ===
+  log('═══ 第 1 回合 ═══', 'round');
+  await sleep(400);
+
+  // 我方行动
+  log('── 我方行动 ──', 'round');
+  await sleep(200);
+
+  // 玄德前进
+  log(`🏃 ${p1.name} 前进`, 'move');
+  await moveUnit(p1, 1, 3);
+
+  // 翼德前进
+  log(`🏃 ${p2.name} 前进`, 'move');
+  await moveUnit(p2, 3, 2);
+
+  // 云长前进
+  log(`🏃 ${p3.name} 前进`, 'move');
+  await moveUnit(p3, 5, 3);
+
+  await sleep(300);
+
+  // 敌方行动
+  log('── 敌方行动 ──', 'round');
+  await sleep(200);
+
+  // 孟德前进
+  log(`🏃 ${e1.name} 前进`, 'move');
+  await moveUnit(e1, 2, 6);
+
+  // 奉孝前进
+  log(`🏃 ${e2.name} 前进`, 'move');
+  await moveUnit(e2, 4, 7);
+
+  // 典韦前进
+  log(`🏃 ${e3.name} 前进`, 'move');
+  await moveUnit(e3, 6, 6);
+
+  await sleep(500);
+
+  // === 回合2 ===
+  log('═══ 第 2 回合 ═══', 'round');
+  await sleep(400);
+
+  log('── 我方行动 ──', 'round');
+  await sleep(200);
+
+  // 玄德继续前进
+  log(`🏃 ${p1.name} 前进`, 'move');
+  await moveUnit(p1, 1, 5);
+
+  // 翼德前进到交战区
+  log(`🏃 ${p2.name} 前进`, 'move');
+  await moveUnit(p2, 3, 4);
+
+  // 云长前进
+  log(`🏃 ${p3.name} 前进`, 'move');
+  await moveUnit(p3, 5, 5);
+
+  await sleep(300);
+
+  log('── 敌方行动 ──', 'round');
+  await sleep(200);
+
+  // 孟德前进
+  log(`🏃 ${e1.name} 前进`, 'move');
+  await moveUnit(e1, 2, 5);
+
+  // 典韦前进
+  log(`🏃 ${e3.name} 前进`, 'move');
+  await moveUnit(e3, 6, 5);
+
+  // 奉孝前进
+  log(`🏃 ${e2.name} 前进`, 'move');
+  await moveUnit(e2, 4, 6);
+
+  await sleep(500);
+
+  // === 回合3：战斗 ===
+  log('═══ 第 3 回合 — 交战！ ═══', 'round');
+  await sleep(400);
+
+  log('── 我方行动 ──', 'round');
+  await sleep(200);
+
+  // 玄德攻击孟德
+  await attackUnit(p1, e1, 135);
+
+  // 翼德攻击奉孝（暴击！）
+  await critAttack(p2, e2, 248);
+
+  // 云长攻击典韦
+  await attackUnit(p3, e3, 142);
+
+  await sleep(300);
+
+  log('── 敌方反击 ──', 'round');
+  await sleep(200);
+
+  // 孟德反击玄德
+  await attackUnit(e1, p1, 118);
+
+  // 奉孝攻击翼德（闪避！）
+  await missAttack(e2, p2);
+
+  // 典韦攻击云长
+  await attackUnit(e3, p3, 156);
+
+  await sleep(500);
+
+  // === 回合4：决战 ===
+  log('═══ 第 4 回合 — 决战！ ═══', 'round');
+  await sleep(400);
+
+  log('── 我方行动 ──', 'round');
+  await sleep(200);
+
+  // 玄德攻击孟德
+  await attackUnit(p1, e1, 145);
+
+  // 翼德击杀奉孝
+  e2.hp = 80;
+  updateHpBar(e2);
+  await sleep(200);
+  await attackUnit(p2, e2, 80);
+  await killUnit(e2);
+
+  // 云长暴击典韦
+  await critAttack(p3, e3, 230);
+
+  await sleep(300);
+
+  log('── 敌方反击 ──', 'round');
+  await sleep(200);
+
+  // 孟德反击（闪避）
+  await missAttack(e1, p1);
+
+  // 典韦反击云长
+  if (e3.alive) {
+    await attackUnit(e3, p3, 130);
+  }
+
+  await sleep(400);
+  log('═══ 回合演示结束 ═══', 'round');
+
+  setPlaying(false);
+}
+
+// ===== 重置 =====
+function resetAll() {
+  initUnits();
+  renderMap();
+  renderUnits();
+  if (!playing) clearLog();
+}
+
+// ===== 初始化 =====
+initUnits();
+renderMap();
+renderUnits();
+log('点击上方按钮开始演示战斗动画', '');
+</script>
+</body>
+</html>

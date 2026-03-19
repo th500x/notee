@@ -1,0 +1,67 @@
+/**
+ * 游戏公告数据
+ * 
+ * @description 按时间倒序排列，游戏内始终显示最新一条公告
+ * 命名规则：san_1_info_XXXX（递增编号）
+ * 
+ * 字段说明：
+ * - id: 公告编号（san_1_info_XXXX）
+ * - date: 发布日期
+ * - title: 公告标题（简短）
+ * - content: 公告正文（支持多行，用 \n 换行）
+ * - ranking: 排行榜绑定（可选，null/不填 = 纯公告，有值 = 开启活动排行榜）
+ *   - title: 排行榜标题
+ *   - description: 活动简介
+ *   - startTime: 活动开始时间（ISO 8601）
+ *   - endTime: 活动结束时间（ISO 8601）
+ *   - displayCount: 排行榜显示前几名
+ *   - refreshInterval: 排行榜刷新间隔（毫秒，默认 300000 = 5分钟）
+ *   - scoreWeights: 四项积分权重 { battleScore, events, repContrib, silverFood }
+ *   - rewards: 奖池配置（可选，null = 无奖池）
+ *     - rankRange: [起始名次, 结束名次]
+ *     - prizes: 奖品内容 { silver, food, contribution, badge, ... }
+ */
+
+const announcements = [
+  // === 示例：带排行榜的活动公告 ===
+   {
+     id: 'san_1_info_0002',
+     date: '2026-03-20',
+     title: '开服冲榜活动',
+     content: '活动期间，综合表现最优秀的玩家可获得丰厚奖励！\n活动时间：3月20日 - 3月27日',
+     ranking: {
+       title: '开服冲榜 · 综合排行',
+       description: '活动期间综合表现排行',
+       startTime: '2026-03-20T00:00:00',
+       endTime: '2026-03-27T23:59:59',
+       displayCount: 10,
+       refreshInterval: 300000,
+       scoreWeights: { battleScore: 1, events: 300, repContrib: 30, silverFood: 3 },
+       rewards: [
+         { rankRange: [1, 1],  prizes: { silver: 5000, food: 10000, badge: 3 } },
+         { rankRange: [2, 3],  prizes: { silver: 3000, food: 6000, badge: 2 } },
+         { rankRange: [4, 10], prizes: { silver: 1000, food: 3000, badge: 1 } },
+       ]
+     }
+   },
+
+  // === 纯公告（无排行榜） ===
+  {
+    id: 'san_1_info_0001',
+    date: '2026-03-19',
+    title: '开服公告',
+    content: '欢迎来到《真三风云》赛季一！游戏目前处于内测阶段，如遇问题请及时反馈。祝各位主公旗开得胜！',
+  },
+];
+
+/** 获取最新一条公告 */
+export function getLatestAnnouncement() {
+  return announcements.length > 0 ? announcements[0] : null;
+}
+
+/** 获取全部公告（倒序） */
+export function getAllAnnouncements() {
+  return announcements;
+}
+
+export default announcements;

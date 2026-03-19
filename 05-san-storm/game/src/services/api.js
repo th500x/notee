@@ -596,3 +596,36 @@ export const serversAPI = {
     }
   }
 };
+
+/**
+ * 排行榜 API 服务
+ */
+export const rankingsAPI = {
+  /**
+   * 获取活动排行榜
+   * @param {string} eventId - 活动ID（公告ID）
+   * @param {object} options - { limit, playerId }
+   */
+  getRankings: async (eventId, { limit = 10, playerId = null } = {}) => {
+    try {
+      const params = new URLSearchParams({ limit: String(limit) });
+      if (playerId) params.set('playerId', playerId);
+
+      const response = await fetchWithTimeout(
+        `${API_CONFIG.BASE_URL}/rankings/${eventId}?${params}`,
+        { method: 'GET' }
+      );
+
+      const data = await response.json();
+
+      if (data.success) {
+        return { success: true, data: data.data };
+      } else {
+        return { success: false, error: data.error || '获取排行榜失败' };
+      }
+    } catch (error) {
+      console.error('[RankingsAPI] 获取排行榜失败', error);
+      return { success: false, error: '网络错误' };
+    }
+  }
+};

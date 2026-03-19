@@ -46,7 +46,7 @@ export default defineConfig({
     dedupe: ['react', 'react-dom'],
   },
   server: {
-    port: 3000,
+    port: 3002,
     open: true,
     // public/assets 是 symlink 指向上级目录，需要允许 Vite 访问
     fs: {

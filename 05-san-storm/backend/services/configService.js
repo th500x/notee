@@ -117,10 +117,8 @@ function formatTroopData(troop) {
     forestAdapt: adaptation.forest || 1,
     siegeAdapt: adaptation.siege || 1,
     
-    // 特效
+    // 特效（空值=CSS默认效果，填写值=动画模组ID）
     attackEffect: effects.attack || '',
-    projectileSprite: effects.projectile || '',
-    hitEffect: effects.hit || '',
     
     // 描述
     description: troop.description || '尚无记载',

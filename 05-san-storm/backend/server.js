@@ -51,6 +51,12 @@ const configRouter = require('./routes/config');
 app.use('/api/config', configRouter);
 
 /**
+ * 排行榜路由（活动排名）
+ */
+const rankingsRouter = require('./routes/rankings');
+app.use('/api/rankings', rankingsRouter);
+
+/**
  * 健康检查
  */
 app.get('/api/health', async (req, res) => {

@@ -209,21 +209,16 @@ export default function LineupTab({ onClose }) {
           /* ===== 横屏：2×2 四象限布局 ===== */
           /* 左上=玩家(卡牌|槽位+数据) | 右上=将领1 | 左下=背包 | 右下=将领2 */
           <>
-            {/* 横屏标题栏 + 关闭按钮 */}
-            <div className="flex items-center justify-between px-4 py-1.5 border-b border-amber-900/50 bg-stone-900/80 sticky top-0 z-10">
-              <div className="flex gap-6 text-sm font-medium">
-                <span className="text-amber-400">[{player?.character_name || '玩家'}]</span>
-              </div>
-              <button
-                onClick={onClose}
-                className="text-stone-500 hover:text-white transition-colors"
-                aria-label="关闭"
-              >
-                ✕
-              </button>
-            </div>
+            {/* 横屏：关闭按钮（absolute 悬浮右上角） */}
+            <button
+              onClick={onClose}
+              className="absolute top-1 right-2 z-20 text-stone-500 hover:text-white transition-colors px-2 py-1"
+              aria-label="关闭"
+            >
+              ✕
+            </button>
 
-            <div className="grid grid-cols-2 grid-rows-2 flex-1" style={{ height: 'calc(100% - 36px)' }}>
+            <div className="grid grid-cols-2 grid-rows-2 h-full">
               {/* 左上：玩家角色 — 左卡牌 | 右(槽位+编组数据) */}
               <div className="border-r border-b border-stone-700/40 overflow-y-auto p-1">
                 <LandscapeQuadrant

@@ -10,6 +10,8 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PlayerProvider } from '@/contexts/PlayerContext';
 import TopStatusBar from '@/components/game/TopStatusBar';
+import AnnouncementBar from '@/components/game/AnnouncementBar';
+import RankingPanel from '@/components/game/RankingPanel';
 import BottomTabNav from '@/components/game/BottomTabNav';
 import PersonalSidebar from '@/components/game/PersonalSidebar';
 import LineupTab from '@/components/game/tabs/LineupTab';
@@ -54,6 +56,14 @@ export default function GamePage({ user, onLogout }) {
           activeTab={activeTab}
           onOpenSidebar={() => setSidebarOpen(true)}
         />
+
+        {/* 公告栏 + 活动排行榜浮层容器（仅大地图视图显示） */}
+        {activeTab === null && (
+          <div className="absolute top-14 left-0 right-0 z-40 px-3 pt-1 pointer-events-none">
+            <AnnouncementBar />
+            <RankingPanel />
+          </div>
+        )}
 
         {/* 主内容区 */}
         <main
