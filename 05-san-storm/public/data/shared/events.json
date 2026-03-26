@@ -1,6 +1,6 @@
 {
   "_meta": {
-    "generated": "2026-03-26T16:17:30.509Z",
+    "generated": "2026-03-26T17:07:44.574Z",
     "source": "event-template.csv",
     "count": 23
   },
@@ -369,7 +369,7 @@
         "battleEnemyId": null,
         "successText": "你棋高一着！隐士赞许地点头：后生可畏，前途无量！",
         "failureText": "你棋差一招，隐士笑道：莫要气馁，棋道在于坚持。",
-        "rewards": "silver:30;food:50;reputation:2",
+        "rewards": "silver:20;food:50;reputation:2",
         "bonusRewards": "random:equipment:common:1"
       },
       "optionB": {
@@ -417,7 +417,7 @@
         "battleEnemyId": null,
         "successText": "你竟然战胜了棋圣！他惊叹道：你的棋艺已臻化境！",
         "failureText": "你输给了棋圣，但他认可了你的实力：你已是难得的高手。",
-        "rewards": "silver:50;food:50;reputation:3",
+        "rewards": "silver:30;food:50;reputation:3",
         "bonusRewards": "random:equipment:common:2"
       },
       "optionB": {
@@ -513,7 +513,7 @@
         "battleEnemyId": null,
         "successText": "你牌技高超！掌柜赞许地点头：将军好手气改日再来！",
         "failureText": "掌柜笑着收起银两：将军今日手气不佳下次再来吧",
-        "rewards": "silver:30;food:50;reputation:2",
+        "rewards": "silver:20;food:50;reputation:2",
         "bonusRewards": "random:equipment:common:1"
       },
       "optionB": {
@@ -561,7 +561,7 @@
         "battleEnemyId": null,
         "successText": "你竟然赢了赌坊黑手！他面色铁青地站起来：你是我见过最强的对手",
         "failureText": "赌坊黑手冷笑着收走银两：就这点本事也敢来挑战我？",
-        "rewards": "silver:50;food:50;reputation:3",
+        "rewards": "silver:30;food:50;reputation:3",
         "bonusRewards": "random:equipment:common:2"
       },
       "optionB": {
