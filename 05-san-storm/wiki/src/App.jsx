@@ -5,6 +5,8 @@ import PositionsPage from '@/pages/PositionsPage';
 import San1Page from '@/pages/San1Page';
 import FactionsPage from '@/pages/FactionsPage';
 import TroopsPage from '@/pages/TroopsPage';
+import EquipmentPage from '@/pages/EquipmentPage';
+import TitlesAchievementsPage from '@/pages/TitlesAchievementsPage';
 
 function App() {
   return (
@@ -36,6 +38,8 @@ function App() {
             <Route path="/positions" element={<PositionsPage />} />
             <Route path="/characters" element={<CharactersPage />} />
             <Route path="/troops" element={<TroopsPage />} />
+            <Route path="/equipment" element={<EquipmentPage />} />
+            <Route path="/titles-achievements" element={<TitlesAchievementsPage />} />
           </Routes>
         </main>
         <footer className="bg-white border-t border-gray-200 mt-12">

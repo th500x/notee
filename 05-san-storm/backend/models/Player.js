@@ -71,8 +71,6 @@ class Player {
           player_id, character_name, faction_id, faction_name, avatar,
           combat, intelligence, command, politics, charm, courage, luck,
           skill_1, skill_2,
-          base_combat, base_intelligence, base_command, base_politics, 
-          base_charm, base_courage, base_luck,
           current_position_id, current_position_name, position_level,
           reputation, reputation_to_next,
           silver, food,
@@ -81,7 +79,6 @@ class Player {
           ?, ?, ?, ?, ?,
           ?, ?, ?, ?, ?, ?, ?,
           ?, ?,
-          ?, ?, ?, ?, ?, ?, ?,
           ?, ?, ?,
           0, 10,
           ?, ?,
@@ -91,10 +88,9 @@ class Player {
         player_id, character_name, faction_id, faction_name, avatar || null,
         combat, intelligence, command, politics, charm, courage, luck,
         skill_1 || null, skill_2 || null,
-        combat, intelligence, command, politics, charm, courage, luck, // base属性与初始属性相同
         current_position_id, current_position_name, position_level,
-        initial_silver, // 仅使用角色创建流程中剩余的银两
-        initial_food    // 仅使用传入的粮草（默认0）
+        initial_silver,
+        initial_food
       ]);
 
       // 创建玩家进度表

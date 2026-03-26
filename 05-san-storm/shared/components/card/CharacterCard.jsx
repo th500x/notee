@@ -182,7 +182,16 @@ function CharacterCard({
   const [isFlipped, setIsFlipped] = useState(false);
   const [activeTooltip, setActiveTooltip] = useState(null);
   const rarityConfig = getRarityConfig(character.rarity);
-  
+
+  // 解析属性加成（×10存储，显示时除以10）
+  const ab = character.attributeBonus || {};
+  const getBonus = (key) => ab[key] ? ab[key] / 10 : 0;
+  // 带加成的属性值显示辅助
+  const attrDisplay = (base, bonusKey) => {
+    const bonus = getBonus(bonusKey);
+    if (bonus <= 0) return { value: base, hasBonus: false };
+    return { value: (parseFloat(base) + bonus).toFixed(1), hasBonus: true };
+  };
   // 计算生涯阶段范围
   const calculateStageRanges = (seasons) => {
     const ranges = { early: null, peak: null, late: null, death: null };
@@ -327,7 +336,7 @@ function CharacterCard({
         
         {/* 顶部：将领名称 */}
         <div className={`
-          relative h-[40px] px-4 py-2
+          relative h-[40px] px-4 py-2 z-10
           bg-black/10 backdrop-blur-sm
           flex items-center justify-between
         `}>
@@ -338,6 +347,37 @@ function CharacterCard({
             </h3>
           </div>
           <div className="flex items-center gap-2">
+            {/* 士气显示（编组界面传入） */}
+            {character.morale != null && (() => {
+              const m = character.morale;
+              const moraleColor = m >= 80 ? '#FFD700' : m >= 50 ? '#4CAF50' : m >= 20 ? '#FFC107' : '#F44336';
+              const tooltipKey = 'morale';
+              const moraleStatus = m >= 100 ? { label: '超高昂', atk: '+10%', def: '+5%' }
+                : m >= 80 ? { label: '高昂', atk: '+10%', def: '+5%' }
+                : m > 20 ? { label: '普通', atk: '无', def: '无' }
+                : m > 0 ? { label: '低落', atk: '-5%', def: '-10%' }
+                : { label: '崩溃', atk: '将领受伤', def: '部队失控' };
+              return (
+                <div className="relative">
+                  <div
+                    className="px-2 py-0.5 rounded bg-black/20 backdrop-blur-sm flex items-center gap-0.5 text-[11px] font-bold cursor-pointer"
+                    style={{ color: moraleColor }}
+                    onClick={(e) => { e.stopPropagation(); setActiveTooltip(activeTooltip === tooltipKey ? null : tooltipKey); }}
+                  >
+                    <span>🔥</span>
+                    <span>{m}</span>
+                  </div>
+                  {activeTooltip === tooltipKey && (
+                    <div className="absolute z-[100] top-full left-0 mt-1 px-2 py-1.5 rounded bg-gray-900 text-white text-[10px] whitespace-nowrap shadow-lg leading-relaxed"
+                      onClick={(e) => e.stopPropagation()}>
+                      <div style={{ color: moraleColor }} className="font-bold mb-0.5">🔥 {moraleStatus.label}（{m}/120）</div>
+                      <div>⚔️ 攻击：{moraleStatus.atk}</div>
+                      <div>🛡️ 防御：{moraleStatus.def}</div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
             {/* 类型标签（用于角色创建或Wiki显示） */}
             {(characterType || character.characterType) && (
               <div className={`
@@ -436,7 +476,9 @@ function CharacterCard({
                 flex items-center gap-0.5
               `}>
                 <span className="text-gray-700">🎲</span>
-                <span>{character.luck}</span>
+                {(() => { const d = attrDisplay(character.luck, 'luck'); return (
+                  <span className={d.hasBonus ? 'text-emerald-600' : ''}>{d.value}</span>
+                ); })()}
               </div>
             </div>
 
@@ -445,37 +487,37 @@ function CharacterCard({
               <div className="flex items-center gap-1">
                 <span className="text-pink-400">💪</span>
                 <span className="text-gray-700">勇</span>
-                <span className="text-gray-900 font-bold">{character.courage}</span>
+                {(() => { const d = attrDisplay(character.courage, 'courage'); return <span className={`text-gray-900 font-bold ${d.hasBonus ? 'text-emerald-600' : ''}`}>{d.value}</span>; })()}
               </div>
               
               <div className="flex items-center gap-1">
                 <span className="text-green-400">📚</span>
                 <span className="text-gray-700">智</span>
-                <span className="text-gray-900 font-bold">{character.intelligence}</span>
+                {(() => { const d = attrDisplay(character.intelligence, 'intelligence'); return <span className={`text-gray-900 font-bold ${d.hasBonus ? 'text-emerald-600' : ''}`}>{d.value}</span>; })()}
               </div>
               
               <div className="flex items-center gap-1">
                 <span className="text-blue-400">🗡️</span>
                 <span className="text-gray-700">武</span>
-                <span className="text-gray-900 font-bold">{character.combat}</span>
+                {(() => { const d = attrDisplay(character.combat, 'combat'); return <span className={`text-gray-900 font-bold ${d.hasBonus ? 'text-emerald-600' : ''}`}>{d.value}</span>; })()}
               </div>
               
               <div className="flex items-center gap-1">
                 <span className="text-purple-400">📜</span>
                 <span className="text-gray-700">政</span>
-                <span className="text-gray-900 font-bold">{character.politics}</span>
+                {(() => { const d = attrDisplay(character.politics, 'politics'); return <span className={`text-gray-900 font-bold ${d.hasBonus ? 'text-emerald-600' : ''}`}>{d.value}</span>; })()}
               </div>
               
               <div className="flex items-center gap-1">
                 <span className="text-red-400">⚔️</span>
                 <span className="text-gray-700">统</span>
-                <span className="text-gray-900 font-bold">{character.command}</span>
+                {(() => { const d = attrDisplay(character.command, 'command'); return <span className={`text-gray-900 font-bold ${d.hasBonus ? 'text-emerald-600' : ''}`}>{d.value}</span>; })()}
               </div>
               
               <div className="flex items-center gap-1">
                 <span className="text-indigo-400">✨</span>
                 <span className="text-gray-700">魅</span>
-                <span className="text-gray-900 font-bold">{character.charm}</span>
+                {(() => { const d = attrDisplay(character.charm, 'charm'); return <span className={`text-gray-900 font-bold ${d.hasBonus ? 'text-emerald-600' : ''}`}>{d.value}</span>; })()}
               </div>
             </div>
           </div>
@@ -584,7 +626,7 @@ function CharacterCard({
                       {isActive ? '⚔️' : '🛡️'} {skill ? skill.name : skillId}
                     </span>
                     {activeTooltip === tooltipKey && tooltipText && (
-                      <div className="absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 rounded bg-gray-900 text-white text-[10px] whitespace-nowrap shadow-lg pointer-events-none">
+                      <div className="absolute z-50 bottom-full left-0 mb-1 px-2 py-1 rounded bg-gray-900 text-white text-[10px] max-w-[220px] break-words shadow-lg pointer-events-none">
                         {tooltipText}
                       </div>
                     )}
@@ -624,7 +666,7 @@ function CharacterCard({
                         {isActive ? '🔗' : '🤝'} {bondName}
                       </span>
                       {activeTooltip === tooltipKey && tooltipText && (
-                        <div className="absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 rounded bg-gray-900 text-white text-[10px] whitespace-nowrap shadow-lg pointer-events-none">
+                        <div className="absolute z-50 bottom-full left-0 mb-1 px-2 py-1 rounded bg-gray-900 text-white text-[10px] max-w-[220px] break-words shadow-lg pointer-events-none">
                           {tooltipText}
                         </div>
                       )}
@@ -768,6 +810,7 @@ CharacterCard.propTypes = {
     charm: PropTypes.number.isRequired,
     trait: PropTypes.string,
     traitModifier: PropTypes.number,
+    morale: PropTypes.number,
     troopAffinity: PropTypes.string,
     skills: PropTypes.arrayOf(PropTypes.string),
     bonds: PropTypes.oneOfType([

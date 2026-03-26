@@ -113,6 +113,15 @@ export async function loadSharedData(resource, options = {}) {
     }
     
     data = { characters: response.characters };
+  } else if (resource === 'equipment') {
+    const apiUrl = `${apiConfig.baseUrl}/config/equipment${season ? `?season=${season}` : ''}`;
+    const response = await get(apiUrl);
+
+    if (!response.success) {
+      throw new Error(response.message || 'API加载失败');
+    }
+
+    data = { equipment: response.equipment };
   } else {
     // 其他数据从JSON文件加载
     const url = `${dataConfig.basePath}data/shared/${resource}.json`;

@@ -56,6 +56,7 @@ function getRewardForRank(rank, rewards) {
 /** 格式化奖品显示 */
 function formatPrizes(prizes) {
   if (!prizes) return '';
+  if (typeof prizes === 'string') return prizes;
   const parts = [];
   if (prizes.silver) parts.push(`💰${prizes.silver}`);
   if (prizes.food) parts.push(`🌾${prizes.food}`);
@@ -65,7 +66,15 @@ function formatPrizes(prizes) {
 }
 
 export default function RankingPanel() {
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(() => {
+    try { return localStorage.getItem('ranking_collapsed') === '1'; } catch { return false; }
+  });
+
+  const toggleCollapse = (val) => {
+    setCollapsed(val);
+    try { localStorage.setItem('ranking_collapsed', val ? '1' : '0'); } catch {}
+  };
+
   const [rankingData, setRankingData] = useState(null);
   const [lastRefresh, setLastRefresh] = useState(null);
   const timerRef = useRef(null);
@@ -111,7 +120,7 @@ export default function RankingPanel() {
 
   // 展开时如果距上次刷新 > 1分钟，立即刷新
   const handleExpand = () => {
-    setCollapsed(false);
+    toggleCollapse(false);
     if (lastRefresh && Date.now() - lastRefresh.getTime() > 60000) {
       fetchRankingData();
     }
@@ -159,7 +168,7 @@ export default function RankingPanel() {
             <span className="text-xs font-bold text-amber-300">{ranking.title}</span>
           </div>
           <button
-            onClick={() => setCollapsed(true)}
+            onClick={() => toggleCollapse(true)}
             className="flex-shrink-0 ml-2 text-[10px] text-amber-400/60 hover:text-amber-300 transition-colors"
           >
             ▲ 收起
@@ -190,10 +199,10 @@ export default function RankingPanel() {
           {/* 四项积分明细 */}
           {rankingData?.myRanking && (
             <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 mt-1.5 pt-1.5 border-t border-amber-700/20">
-              <span className="text-[10px] text-amber-100/60">战斗评分：{rankingData.myRanking.battleScore?.toLocaleString() ?? '-'}</span>
-              <span className="text-[10px] text-amber-100/60">事件完成：{rankingData.myRanking.eventsCompleted?.toLocaleString() ?? '-'}</span>
-              <span className="text-[10px] text-amber-100/60">声望贡献：{rankingData.myRanking.repContrib?.toLocaleString() ?? '-'}</span>
-              <span className="text-[10px] text-amber-100/60">银两粮草：{rankingData.myRanking.silverFood?.toLocaleString() ?? '-'}</span>
+              <span className="text-[10px] text-amber-100/60">⚔️ 战斗：{((rankingData.myRanking.battleScore ?? 0) * (ranking.scoreWeights?.battleScore ?? 1)).toLocaleString()}</span>
+              <span className="text-[10px] text-amber-100/60">📜 事件：{((rankingData.myRanking.eventsCompleted ?? 0) * (ranking.scoreWeights?.events ?? 300)).toLocaleString()}</span>
+              <span className="text-[10px] text-amber-100/60">🎖️ 声望：{((rankingData.myRanking.repContrib ?? 0) * (ranking.scoreWeights?.repContrib ?? 30)).toLocaleString()}</span>
+              <span className="text-[10px] text-amber-100/60">💰 资源：{((rankingData.myRanking.silverFood ?? 0) * (ranking.scoreWeights?.silverFood ?? 3)).toLocaleString()}</span>
             </div>
           )}
         </div>

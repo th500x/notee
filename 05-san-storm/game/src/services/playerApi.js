@@ -327,5 +327,22 @@ export const playerAPI = {
       console.error('更新新手引导进度失败:', error);
       throw error;
     }
+  },
+
+  /**
+   * 获取玩家道具列表
+   */
+  async getItems(playerId) {
+    try {
+      const response = await fetchWithTimeout(`${API_CONFIG.BASE_URL}/players/${playerId}/items`, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('获取玩家道具失败:', error);
+      throw error;
+    }
   }
 };

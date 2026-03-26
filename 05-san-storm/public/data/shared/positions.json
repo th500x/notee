@@ -9,13 +9,12 @@
       "rarity": "core",
       "requirement": "AI",
       "position_bonuses": {
-        "resourceBonus": 1,
-        "reputationBonus": 1,
-        "contributionBonus": 1
+        "infantryBonus": 0.15,
+        "archerBonus": 0.15
       },
       "permissions": [
         "镇守首都",
-        "资源分配"
+        "资源管理"
       ],
       "color": "#ef4444",
       "description": "势力君主"
@@ -27,11 +26,11 @@
       "icon": "📜",
       "rank": 1,
       "rarity": "core",
-      "requirement": "待定",
+      "requirement": "6000",
       "position_bonuses": {
-        "resourceBonus": 0.5,
-        "reputationBonus": 0.5,
-        "contributionBonus": 0.5
+        "resourceBonus": 0.25,
+        "contributionBonus": 0.25,
+        "cavalryBonus": 0.15
       },
       "permissions": [
         "州府太守",
@@ -47,11 +46,12 @@
       "icon": "📜",
       "rank": 2,
       "rarity": "core",
-      "requirement": "待定",
+      "requirement": "6000",
       "position_bonuses": {
-        "resourceBonus": 0.5,
-        "reputationBonus": 0.5,
-        "contributionBonus": 0.5
+        "resourceBonus": 0.25,
+        "contributionBonus": 0.25,
+        "infantryBonus": 0.1,
+        "cavalryBonus": 0.1
       },
       "permissions": [
         "州府太守",
@@ -69,13 +69,14 @@
       "rarity": "core",
       "requirement": "AI",
       "position_bonuses": {
-        "resourceBonus": 0.5,
-        "reputationBonus": 0.5,
-        "contributionBonus": 0.5
+        "resourceBonus": 0.25,
+        "contributionBonus": 0.25,
+        "infantryBonus": 0.1,
+        "archerBonus": 0.1
       },
       "permissions": [
         "镇守副都",
-        "发布事件"
+        "事件管理"
       ],
       "color": "#f97316",
       "description": "势力权臣"
@@ -87,16 +88,16 @@
       "icon": "📜",
       "rank": 4,
       "rarity": "core",
-      "requirement": "待定",
+      "requirement": "3000",
       "position_bonuses": {
-        "resourceBonus": 0.3,
-        "reputationBonus": 0.3,
-        "contributionBonus": 0.3,
-        "infantryBonus": 0.15
+        "resourceBonus": 0.2,
+        "contributionBonus": 0.2,
+        "infantryBonus": 0.1,
+        "archerBonus": 0.1
       },
       "permissions": [
         "州府太守",
-        "任命官职"
+        "军团长官"
       ],
       "color": "#f97316",
       "description": "重号将军，步兵专精"
@@ -108,16 +109,15 @@
       "icon": "📜",
       "rank": 5,
       "rarity": "core",
-      "requirement": "待定",
+      "requirement": "3000",
       "position_bonuses": {
-        "resourceBonus": 0.3,
-        "reputationBonus": 0.3,
-        "contributionBonus": 0.3,
+        "resourceBonus": 0.2,
+        "contributionBonus": 0.2,
         "cavalryBonus": 0.15
       },
       "permissions": [
         "州府太守",
-        "任命官职"
+        "军团长官"
       ],
       "color": "#f97316",
       "description": "重号将军，骑兵专精"
@@ -129,15 +129,16 @@
       "icon": "🏛️",
       "rank": 6,
       "rarity": "core",
-      "requirement": "待定",
+      "requirement": "1500",
       "position_bonuses": {
-        "resourceBonus": 0.25,
-        "reputationBonus": 0.25,
-        "contributionBonus": 0.25
+        "resourceBonus": 0.2,
+        "contributionBonus": 0.2,
+        "infantryBonus": 0.08,
+        "cavalryBonus": 0.08
       },
       "permissions": [
         "郡县太守",
-        "组织军团"
+        "军团长官"
       ],
       "color": "#8b5cf6",
       "description": "四方将军，综合型"
@@ -149,15 +150,16 @@
       "icon": "🏛️",
       "rank": 7,
       "rarity": "core",
-      "requirement": "待定",
+      "requirement": "1500",
       "position_bonuses": {
-        "resourceBonus": 0.25,
-        "reputationBonus": 0.25,
-        "contributionBonus": 0.25
+        "resourceBonus": 0.2,
+        "contributionBonus": 0.2,
+        "infantryBonus": 0.08,
+        "cavalryBonus": 0.08
       },
       "permissions": [
         "郡县太守",
-        "组织军团"
+        "军团长官"
       ],
       "color": "#8b5cf6",
       "description": "四方将军，综合型"
@@ -169,15 +171,16 @@
       "icon": "🏛️",
       "rank": 8,
       "rarity": "core",
-      "requirement": "待定",
+      "requirement": "1500",
       "position_bonuses": {
-        "resourceBonus": 0.25,
-        "reputationBonus": 0.25,
-        "contributionBonus": 0.25
+        "resourceBonus": 0.2,
+        "contributionBonus": 0.2,
+        "infantryBonus": 0.08,
+        "cavalryBonus": 0.08
       },
       "permissions": [
         "郡县太守",
-        "组织军团"
+        "军团长官"
       ],
       "color": "#8b5cf6",
       "description": "四方将军，综合型"
@@ -189,15 +192,16 @@
       "icon": "🏛️",
       "rank": 9,
       "rarity": "core",
-      "requirement": "待定",
+      "requirement": "1500",
       "position_bonuses": {
-        "resourceBonus": 0.25,
-        "reputationBonus": 0.25,
-        "contributionBonus": 0.25
+        "resourceBonus": 0.2,
+        "contributionBonus": 0.2,
+        "infantryBonus": 0.08,
+        "cavalryBonus": 0.08
       },
       "permissions": [
         "郡县太守",
-        "组织军团"
+        "军团长官"
       ],
       "color": "#8b5cf6",
       "description": "四方将军，综合型"
@@ -209,15 +213,15 @@
       "icon": "⚔️",
       "rank": 10,
       "rarity": "legendary",
-      "requirement": "待定",
+      "requirement": "750",
       "position_bonuses": {
-        "resourceBonus": 0.2,
-        "reputationBonus": 0.2,
-        "contributionBonus": 0.2,
-        "infantryBonus": 0.1
+        "reputationBonus": 0.15,
+        "contributionBonus": 0.15,
+        "cavalryBonus": 0.08
       },
       "permissions": [
-        "郡县太守"
+        "郡县太守",
+        "投票权"
       ],
       "color": "#3b82f6",
       "description": "征伐将军，攻击型"
@@ -229,15 +233,15 @@
       "icon": "⚔️",
       "rank": 11,
       "rarity": "legendary",
-      "requirement": "待定",
+      "requirement": "750",
       "position_bonuses": {
-        "resourceBonus": 0.2,
-        "reputationBonus": 0.2,
-        "contributionBonus": 0.2,
-        "infantryBonus": 0.1
+        "reputationBonus": 0.15,
+        "contributionBonus": 0.15,
+        "cavalryBonus": 0.08
       },
       "permissions": [
-        "郡县太守"
+        "郡县太守",
+        "投票权"
       ],
       "color": "#3b82f6",
       "description": "征伐将军，攻击型"
@@ -249,15 +253,15 @@
       "icon": "⚔️",
       "rank": 12,
       "rarity": "legendary",
-      "requirement": "待定",
+      "requirement": "750",
       "position_bonuses": {
-        "resourceBonus": 0.2,
-        "reputationBonus": 0.2,
-        "contributionBonus": 0.2,
-        "infantryBonus": 0.1
+        "reputationBonus": 0.15,
+        "contributionBonus": 0.15,
+        "cavalryBonus": 0.08
       },
       "permissions": [
-        "郡县太守"
+        "郡县太守",
+        "投票权"
       ],
       "color": "#3b82f6",
       "description": "征伐将军，攻击型"
@@ -269,15 +273,15 @@
       "icon": "⚔️",
       "rank": 13,
       "rarity": "legendary",
-      "requirement": "待定",
+      "requirement": "750",
       "position_bonuses": {
-        "resourceBonus": 0.2,
-        "reputationBonus": 0.2,
-        "contributionBonus": 0.2,
-        "infantryBonus": 0.1
+        "reputationBonus": 0.15,
+        "contributionBonus": 0.15,
+        "cavalryBonus": 0.08
       },
       "permissions": [
-        "郡县太守"
+        "郡县太守",
+        "投票权"
       ],
       "color": "#3b82f6",
       "description": "征伐将军，攻击型"
@@ -289,15 +293,15 @@
       "icon": "⚔️",
       "rank": 14,
       "rarity": "legendary",
-      "requirement": "待定",
+      "requirement": "750",
       "position_bonuses": {
-        "resourceBonus": 0.2,
-        "reputationBonus": 0.2,
-        "contributionBonus": 0.2,
-        "infantryBonus": 0.1
+        "reputationBonus": 0.15,
+        "contributionBonus": 0.15,
+        "cavalryBonus": 0.08
       },
       "permissions": [
-        "郡县太守"
+        "郡县太守",
+        "投票权"
       ],
       "color": "#3b82f6",
       "description": "征伐将军，攻击型"
@@ -309,15 +313,15 @@
       "icon": "⚔️",
       "rank": 15,
       "rarity": "legendary",
-      "requirement": "待定",
+      "requirement": "750",
       "position_bonuses": {
-        "resourceBonus": 0.2,
-        "reputationBonus": 0.2,
-        "contributionBonus": 0.2,
-        "infantryBonus": 0.1
+        "reputationBonus": 0.15,
+        "contributionBonus": 0.15,
+        "cavalryBonus": 0.08
       },
       "permissions": [
-        "郡县太守"
+        "郡县太守",
+        "投票权"
       ],
       "color": "#3b82f6",
       "description": "征伐将军，攻击型"
@@ -329,16 +333,16 @@
       "icon": "⚔️",
       "rank": 16,
       "rarity": "legendary",
-      "requirement": "待定",
+      "requirement": "750",
       "position_bonuses": {
-        "resourceBonus": 0.2,
-        "reputationBonus": 0.2,
-        "contributionBonus": 0.2,
+        "resourceBonus": 0.15,
+        "reputationBonus": 0.15,
         "infantryBonus": 0.05,
         "cavalryBonus": 0.05
       },
       "permissions": [
-        "郡县太守"
+        "郡县太守",
+        "投票权"
       ],
       "color": "#3b82f6",
       "description": "勇武将军，攻防型"
@@ -350,16 +354,16 @@
       "icon": "⚔️",
       "rank": 17,
       "rarity": "legendary",
-      "requirement": "待定",
+      "requirement": "750",
       "position_bonuses": {
-        "resourceBonus": 0.2,
-        "reputationBonus": 0.2,
-        "contributionBonus": 0.2,
+        "resourceBonus": 0.15,
+        "reputationBonus": 0.15,
         "infantryBonus": 0.05,
         "cavalryBonus": 0.05
       },
       "permissions": [
-        "郡县太守"
+        "郡县太守",
+        "投票权"
       ],
       "color": "#3b82f6",
       "description": "勇武将军，攻防型"
@@ -371,16 +375,16 @@
       "icon": "⚔️",
       "rank": 18,
       "rarity": "legendary",
-      "requirement": "待定",
+      "requirement": "750",
       "position_bonuses": {
-        "resourceBonus": 0.2,
-        "reputationBonus": 0.2,
-        "contributionBonus": 0.2,
+        "resourceBonus": 0.15,
+        "reputationBonus": 0.15,
         "infantryBonus": 0.05,
         "cavalryBonus": 0.05
       },
       "permissions": [
-        "郡县太守"
+        "郡县太守",
+        "投票权"
       ],
       "color": "#3b82f6",
       "description": "勇武将军，攻防型"
@@ -392,16 +396,16 @@
       "icon": "⚔️",
       "rank": 19,
       "rarity": "legendary",
-      "requirement": "待定",
+      "requirement": "750",
       "position_bonuses": {
-        "resourceBonus": 0.2,
-        "reputationBonus": 0.2,
-        "contributionBonus": 0.2,
+        "resourceBonus": 0.15,
+        "reputationBonus": 0.15,
         "infantryBonus": 0.05,
         "cavalryBonus": 0.05
       },
       "permissions": [
-        "郡县太守"
+        "郡县太守",
+        "投票权"
       ],
       "color": "#3b82f6",
       "description": "勇武将军，攻防型"
@@ -413,16 +417,16 @@
       "icon": "⚔️",
       "rank": 20,
       "rarity": "legendary",
-      "requirement": "待定",
+      "requirement": "750",
       "position_bonuses": {
-        "resourceBonus": 0.2,
-        "reputationBonus": 0.2,
-        "contributionBonus": 0.2,
+        "resourceBonus": 0.15,
+        "reputationBonus": 0.15,
         "infantryBonus": 0.05,
         "cavalryBonus": 0.05
       },
       "permissions": [
-        "郡县太守"
+        "郡县太守",
+        "投票权"
       ],
       "color": "#3b82f6",
       "description": "勇武将军，攻防型"
@@ -434,16 +438,16 @@
       "icon": "⚔️",
       "rank": 21,
       "rarity": "legendary",
-      "requirement": "待定",
+      "requirement": "750",
       "position_bonuses": {
-        "resourceBonus": 0.2,
-        "reputationBonus": 0.2,
-        "contributionBonus": 0.2,
+        "resourceBonus": 0.15,
+        "reputationBonus": 0.15,
         "infantryBonus": 0.05,
         "cavalryBonus": 0.05
       },
       "permissions": [
-        "郡县太守"
+        "郡县太守",
+        "投票权"
       ],
       "color": "#3b82f6",
       "description": "勇武将军，攻防型"
@@ -455,15 +459,16 @@
       "icon": "⚔️",
       "rank": 22,
       "rarity": "legendary",
-      "requirement": "待定",
+      "requirement": "750",
       "position_bonuses": {
-        "resourceBonus": 0.2,
-        "reputationBonus": 0.2,
-        "contributionBonus": 0.2,
-        "archerBonus": 0.1
+        "resourceBonus": 0.15,
+        "contributionBonus": 0.15,
+        "infantryBonus": 0.05,
+        "archerBonus": 0.05
       },
       "permissions": [
-        "郡县太守"
+        "郡县太守",
+        "投票权"
       ],
       "color": "#3b82f6",
       "description": "镇抚将军，防守型"
@@ -475,15 +480,16 @@
       "icon": "⚔️",
       "rank": 23,
       "rarity": "legendary",
-      "requirement": "待定",
+      "requirement": "750",
       "position_bonuses": {
-        "resourceBonus": 0.2,
-        "reputationBonus": 0.2,
-        "contributionBonus": 0.2,
-        "archerBonus": 0.1
+        "resourceBonus": 0.15,
+        "contributionBonus": 0.15,
+        "infantryBonus": 0.05,
+        "archerBonus": 0.05
       },
       "permissions": [
-        "郡县太守"
+        "郡县太守",
+        "投票权"
       ],
       "color": "#3b82f6",
       "description": "镇抚将军，防守型"
@@ -495,15 +501,16 @@
       "icon": "⚔️",
       "rank": 24,
       "rarity": "legendary",
-      "requirement": "待定",
+      "requirement": "750",
       "position_bonuses": {
-        "resourceBonus": 0.2,
-        "reputationBonus": 0.2,
-        "contributionBonus": 0.2,
-        "archerBonus": 0.1
+        "resourceBonus": 0.15,
+        "contributionBonus": 0.15,
+        "infantryBonus": 0.05,
+        "archerBonus": 0.05
       },
       "permissions": [
-        "郡县太守"
+        "郡县太守",
+        "投票权"
       ],
       "color": "#3b82f6",
       "description": "镇抚将军，防守型"
@@ -515,15 +522,16 @@
       "icon": "⚔️",
       "rank": 25,
       "rarity": "legendary",
-      "requirement": "待定",
+      "requirement": "750",
       "position_bonuses": {
-        "resourceBonus": 0.2,
-        "reputationBonus": 0.2,
-        "contributionBonus": 0.2,
-        "archerBonus": 0.1
+        "resourceBonus": 0.15,
+        "contributionBonus": 0.15,
+        "infantryBonus": 0.05,
+        "archerBonus": 0.05
       },
       "permissions": [
-        "郡县太守"
+        "郡县太守",
+        "投票权"
       ],
       "color": "#3b82f6",
       "description": "镇抚将军，防守型"
@@ -535,15 +543,16 @@
       "icon": "⚔️",
       "rank": 26,
       "rarity": "legendary",
-      "requirement": "待定",
+      "requirement": "750",
       "position_bonuses": {
-        "resourceBonus": 0.2,
-        "reputationBonus": 0.2,
-        "contributionBonus": 0.2,
-        "archerBonus": 0.1
+        "resourceBonus": 0.15,
+        "contributionBonus": 0.15,
+        "infantryBonus": 0.05,
+        "archerBonus": 0.05
       },
       "permissions": [
-        "郡县太守"
+        "郡县太守",
+        "投票权"
       ],
       "color": "#3b82f6",
       "description": "镇抚将军，防守型"
@@ -555,15 +564,16 @@
       "icon": "⚔️",
       "rank": 27,
       "rarity": "legendary",
-      "requirement": "待定",
+      "requirement": "750",
       "position_bonuses": {
-        "resourceBonus": 0.2,
-        "reputationBonus": 0.2,
-        "contributionBonus": 0.2,
-        "archerBonus": 0.1
+        "resourceBonus": 0.15,
+        "contributionBonus": 0.15,
+        "infantryBonus": 0.05,
+        "archerBonus": 0.05
       },
       "permissions": [
-        "郡县太守"
+        "郡县太守",
+        "投票权"
       ],
       "color": "#3b82f6",
       "description": "镇抚将军，防守型"
@@ -575,14 +585,15 @@
       "icon": "🎖️",
       "rank": 28,
       "rarity": "epic",
-      "requirement": "待定",
+      "requirement": "250",
       "position_bonuses": {
-        "resourceBonus": 0.15,
-        "reputationBonus": 0.15,
-        "contributionBonus": 0.15
+        "resourceBonus": 0.1,
+        "contributionBonus": 0.1,
+        "infantryBonus": 0.05,
+        "cavalryBonus": 0.05
       },
       "permissions": [
-        "无"
+        "投票权"
       ],
       "color": "#10b981",
       "description": "中郎将，综合型"
@@ -594,15 +605,15 @@
       "icon": "🎖️",
       "rank": 29,
       "rarity": "epic",
-      "requirement": "待定",
+      "requirement": "250",
       "position_bonuses": {
-        "resourceBonus": 0.15,
-        "reputationBonus": 0.15,
-        "contributionBonus": 0.15,
-        "infantryBonus": 0.08
+        "reputationBonus": 0.1,
+        "contributionBonus": 0.1,
+        "infantryBonus": 0.05,
+        "archerBonus": 0.05
       },
       "permissions": [
-        "无"
+        "投票权"
       ],
       "color": "#10b981",
       "description": "中郎将，步兵专精"
@@ -614,15 +625,14 @@
       "icon": "🎖️",
       "rank": 30,
       "rarity": "epic",
-      "requirement": "待定",
+      "requirement": "250",
       "position_bonuses": {
-        "resourceBonus": 0.15,
-        "reputationBonus": 0.15,
-        "contributionBonus": 0.15,
+        "reputationBonus": 0.1,
+        "contributionBonus": 0.1,
         "cavalryBonus": 0.08
       },
       "permissions": [
-        "无"
+        "投票权"
       ],
       "color": "#10b981",
       "description": "中郎将，骑兵专精"
@@ -634,15 +644,15 @@
       "icon": "▲",
       "rank": 31,
       "rarity": "rare",
-      "requirement": "待定",
+      "requirement": "50",
       "position_bonuses": {
         "resourceBonus": 0.1,
         "reputationBonus": 0.1,
-        "contributionBonus": 0.1,
-        "infantryBonus": 0.05
+        "infantryBonus": 0.03,
+        "archerBonus": 0.03
       },
       "permissions": [
-        "无"
+        "投票权"
       ],
       "color": "#6b7280",
       "description": "校尉，步兵专精"
@@ -654,15 +664,14 @@
       "icon": "▲",
       "rank": 32,
       "rarity": "rare",
-      "requirement": "待定",
+      "requirement": "50",
       "position_bonuses": {
         "resourceBonus": 0.1,
         "reputationBonus": 0.1,
-        "contributionBonus": 0.1,
         "cavalryBonus": 0.05
       },
       "permissions": [
-        "无"
+        "投票权"
       ],
       "color": "#6b7280",
       "description": "校尉，骑兵专精"
@@ -674,15 +683,13 @@
       "icon": "▲",
       "rank": 33,
       "rarity": "rare",
-      "requirement": "待定",
+      "requirement": "10",
       "position_bonuses": {
-        "resourceBonus": 0.05,
-        "reputationBonus": 0.05,
-        "contributionBonus": 0.05,
-        "infantryBonus": 0.03
+        "infantryBonus": 0.03,
+        "archerBonus": 0.03
       },
       "permissions": [
-        "无"
+        "投票权"
       ],
       "color": "#9ca3af",
       "description": "都尉，步兵专精"
@@ -694,15 +701,12 @@
       "icon": "▲",
       "rank": 34,
       "rarity": "rare",
-      "requirement": "待定",
+      "requirement": "10",
       "position_bonuses": {
-        "resourceBonus": 0.05,
-        "reputationBonus": 0.05,
-        "contributionBonus": 0.05,
-        "cavalryBonus": 0.03
+        "cavalryBonus": 0.05
       },
       "permissions": [
-        "无"
+        "投票权"
       ],
       "color": "#9ca3af",
       "description": "都尉，骑兵专精"
@@ -714,7 +718,7 @@
       "icon": "▲",
       "rank": 35,
       "rarity": "common",
-      "requirement": "初始官职",
+      "requirement": "0",
       "position_bonuses": {
         "infantryBonus": 0.01,
         "cavalryBonus": 0.01

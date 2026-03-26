@@ -53,6 +53,18 @@ function HomePage() {
           description="查看所有部队卡牌和属性"
           link="/troops"
         />
+        <FeatureCard 
+          icon="⚔️"
+          title="装备件系统"
+          description="查看所有装备件，包含武器、防具、辅助"
+          link="/equipment"
+        />
+        <FeatureCard 
+          icon="🏆"
+          title="称号/成就系统"
+          description="查看所有称号和成就，包含属性加成和特效"
+          link="/titles-achievements"
+        />
       </div>
     </div>
   );

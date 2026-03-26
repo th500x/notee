@@ -14,6 +14,7 @@ import AnnouncementBar from '@/components/game/AnnouncementBar';
 import RankingPanel from '@/components/game/RankingPanel';
 import BottomTabNav from '@/components/game/BottomTabNav';
 import PersonalSidebar from '@/components/game/PersonalSidebar';
+import CommPanel from '@/components/game/CommPanel';
 import LineupTab from '@/components/game/tabs/LineupTab';
 import PlaceholderTab from '@/components/game/tabs/PlaceholderTab';
 import WorldMap from '@/components/game/WorldMap';
@@ -21,6 +22,7 @@ import WorldMap from '@/components/game/WorldMap';
 export default function GamePage({ user, onLogout }) {
   const [activeTab, setActiveTab] = useState(null); // null = 大地图视图
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [eventBusy, setEventBusy] = useState(false); // 事件进行中隐藏底部Tab
   const navigate = useNavigate();
 
   // 关闭当前Tab → 返回大地图
@@ -70,21 +72,23 @@ export default function GamePage({ user, onLogout }) {
           className="overflow-y-auto absolute left-0 right-0"
           style={{
             top: '56px',
-            bottom: '64px'
+            bottom: eventBusy ? '0px' : '64px'
           }}
         >
           {activeTab === null ? (
-            <WorldMap />
+            <WorldMap onEventBusyChange={setEventBusy} />
           ) : (
             renderTabContent()
           )}
         </main>
 
-        {/* 底部Tab导航 */}
-        <BottomTabNav
-          activeTab={activeTab}
-          onTabChange={setActiveTab}
-        />
+        {/* 底部Tab导航（事件进行中隐藏） */}
+        {!eventBusy && (
+          <BottomTabNav
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+          />
+        )}
 
         {/* 个人中心侧边栏 */}
         <PersonalSidebar
@@ -92,6 +96,9 @@ export default function GamePage({ user, onLogout }) {
           onClose={() => setSidebarOpen(false)}
           onLogout={handleLogout}
         />
+
+        {/* 通信浮层（大地图视图 + 非事件进行中） */}
+        <CommPanel visible={activeTab === null && !eventBusy} />
       </div>
     </PlayerProvider>
   );

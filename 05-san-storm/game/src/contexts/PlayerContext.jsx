@@ -38,13 +38,14 @@ export function PlayerProvider({ playerId, children }) {
   }, [loadProfile]);
 
   const refresh = useCallback(() => {
-    loadProfile();
+    return loadProfile();
   }, [loadProfile]);
 
   return (
     <PlayerContext.Provider value={{
       player: profile?.player || null,
       cards: profile?.cards || [],
+      attributeBonusBySlot: profile?.attributeBonusBySlot || { player: {}, character1: {}, character2: {} },
       loading,
       error,
       refresh

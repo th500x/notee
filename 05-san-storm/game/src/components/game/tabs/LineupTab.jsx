@@ -15,6 +15,9 @@ import { loadSharedData } from '@/services/dataService';
 import { playerAPI } from '@/services/playerApi';
 import CharacterCard from '@shared/components/card/CharacterCard';
 import TroopCard from '@shared/components/card/TroopCard';
+import EquipmentCard from '@shared/components/card/EquipmentCard';
+import TitleAchievementCard from '@shared/components/card/TitleAchievementCard';
+import PositionCard from '@shared/components/card/PositionCard';
 
 const SUB_TABS = [
   { id: 'player', label: null }, // 动态生成：[玩家名]
@@ -29,7 +32,7 @@ const PLAYER_SLOTS = [
   { id: 'position',  label: '官职',   icon: '👑', side: 'left',  implemented: true },
   { id: 'equipment', label: '装备卡', icon: '🛡️', side: 'left',  implemented: false },
   // 右侧
-  { id: 'title',       label: '称号', icon: '🎖️', side: 'right', implemented: false },
+  { id: 'title',       label: '称号', icon: '🎖️', side: 'right', implemented: true },
   { id: 'achievement', label: '成就', icon: '🏆', side: 'right', implemented: false },
   { id: 'treasure',    label: '宝物', icon: '💎', side: 'right', implemented: false },
 ];
@@ -40,13 +43,13 @@ const GENERAL_SLOTS = [
   { id: 'troop2',    label: '部队2',  icon: '⚔️', side: 'left',  implemented: true },
   { id: 'equipment', label: '装备卡', icon: '🛡️', side: 'left',  implemented: false },
   // 右侧
-  { id: 'title',       label: '称号', icon: '🎖️', side: 'right', implemented: false },
+  { id: 'title',       label: '称号', icon: '🎖️', side: 'right', implemented: true },
   { id: 'achievement', label: '成就', icon: '🏆', side: 'right', implemented: false },
   { id: 'treasure',    label: '宝物', icon: '💎', side: 'right', implemented: false },
 ];
 
 export default function LineupTab({ onClose }) {
-  const { player, cards, loading, error, refresh } = usePlayerContext();
+  const { player, cards, loading, error, refresh, attributeBonusBySlot } = usePlayerContext();
   const [activeSubTab, setActiveSubTab] = useState('player');
   const [selectedSlot, setSelectedSlot] = useState(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -90,17 +93,39 @@ export default function LineupTab({ onClose }) {
   }, []);
 
   // 点击槽位：空槽→选择抽屉，已装备→详情浮层
-  const handleSlotClick = useCallback((slot, content) => {
+  // slotOwner: 标记槽位所属的子Tab（横屏模式下需要区分象限）
+  const handleSlotClick = useCallback((slot, content, slotOwner) => {
     if (!slot.implemented) return;
-    if (slot.id === 'position') return;
+    if (slot.id === 'position') {
+      // 官职槽：有官职时显示详情（只读），无官职时不处理
+      if (content) setDetailCard({ card: content, slot });
+      return;
+    }
     if (content) {
-      // 已装备 → 打开详情浮层
-      setDetailCard({ card: content, slot });
+      setDetailCard({ card: content, slot, slotOwner });
     } else {
-      // 空槽 → 打开选择抽屉
-      setSelectedSlot(slot);
+      setSelectedSlot({ ...slot, slotOwner });
       setDrawerOpen(true);
     }
+  }, []);
+
+  // 装备将领卡到将领槽
+  const handleEquipCharacter = useCallback(async (card, subTab) => {
+    const equippedBy = subTab === 'char1' ? 'character1' : 'character2';
+    try {
+      const result = await playerAPI.equipCard(player.player_id, card.instance_id, equippedBy, 'character');
+      if (result.success) refresh();
+      else console.error('[LineupTab] 装备将领失败:', result.error);
+    } catch (err) {
+      console.error('[LineupTab] 装备将领请求失败:', err);
+    }
+  }, [player, refresh]);
+
+  // 点击将领角色卡 → 显示详情浮层（可卸下将领）
+  const handleGeneralCardClick = useCallback((card) => {
+    // 构造一个虚拟slot用于详情浮层
+    const virtualSlot = { id: 'character', label: '将领', icon: '👤', implemented: true };
+    setDetailCard({ card, slot: virtualSlot });
   }, []);
 
   if (loading) {
@@ -121,13 +146,27 @@ export default function LineupTab({ onClose }) {
 
   // 分类卡牌
   const troopCards = cards.filter(c => c.card_type === 'troop');
-  const playerTroops = troopCards.filter(c => c.equipped_by === 'player' && c.is_equipped);
-  const char1Troops = troopCards.filter(c => c.equipped_by === 'character1' && c.is_equipped);
-  const char2Troops = troopCards.filter(c => c.equipped_by === 'character2' && c.is_equipped);
+  const titleCards = cards.filter(c => c.card_type === 'title');
+  const characterCards = cards.filter(c => c.card_type === 'character');
+  const playerTroops = troopCards.filter(c => c.equipped_by === 'player' && c.is_equipped && c.equipped_slot === 'troop');
+  const playerTitles = titleCards.filter(c => c.equipped_by === 'player' && c.is_equipped && c.equipped_slot === 'title');
+  const char1Troops = troopCards.filter(c => c.equipped_by === 'character1' && c.is_equipped && (c.equipped_slot === 'troop1' || c.equipped_slot === 'troop2'));
+  const char1Titles = titleCards.filter(c => c.equipped_by === 'character1' && c.is_equipped && c.equipped_slot === 'title');
+  const char1Character = characterCards.find(c => c.equipped_by === 'character1' && c.is_equipped && c.equipped_slot === 'character');
+  const char2Troops = troopCards.filter(c => c.equipped_by === 'character2' && c.is_equipped && (c.equipped_slot === 'troop1' || c.equipped_slot === 'troop2'));
+  const char2Titles = titleCards.filter(c => c.equipped_by === 'character2' && c.is_equipped && c.equipped_slot === 'title');
+  const char2Character = characterCards.find(c => c.equipped_by === 'character2' && c.is_equipped && c.equipped_slot === 'character');
   const unequippedTroops = troopCards.filter(c => !c.is_equipped);
+  const unequippedTitles = titleCards.filter(c => !c.is_equipped);
+  const unequippedCharacters = characterCards.filter(c => !c.is_equipped);
   const allUnequipped = cards.filter(c => !c.is_equipped);
 
-  // 获取当前子Tab的槽位配置和数据
+  // 将领是否已招募（检查是否有将领卡装备到对应槽位）
+  const isGeneralRecruited = (subTab) => {
+    if (subTab === 'char1') return !!char1Character;
+    if (subTab === 'char2') return !!char2Character;
+    return false;
+  };
   const isGeneral = activeSubTab !== 'player';
   const slots = isGeneral ? GENERAL_SLOTS : PLAYER_SLOTS;
   const leftSlots = slots.filter(s => s.side === 'left');
@@ -139,28 +178,39 @@ export default function LineupTab({ onClose }) {
       switch (slot.id) {
         case 'troop':
           return playerTroops[0] || null;
+        case 'title':
+          return playerTitles[0] || null;
         case 'position':
-          return player?.current_position_name
+          return player?.position_config || (player?.current_position_name
             ? { name: player.current_position_name, level: player.position_level }
-            : null;
+            : null);
         default:
           return null;
       }
     }
-    // 将领
+    // 将领：精确匹配 equipped_slot
     const troops = subTab === 'char1' ? char1Troops : char2Troops;
+    const titles = subTab === 'char1' ? char1Titles : char2Titles;
     switch (slot.id) {
-      case 'troop1': return troops[0] || null;
-      case 'troop2': return troops[1] || null;
+      case 'troop1': return troops.find(c => c.equipped_slot === 'troop1') || null;
+      case 'troop2': return troops.find(c => c.equipped_slot === 'troop2') || null;
+      case 'title': return titles[0] || null;
       default: return null;
     }
   };
 
   // 获取可装备的卡牌列表（用于抽屉）
+  // 过滤掉耐久耗尽的部队卡（core稀有度 battle_count >= max_battle_count）
   const getAvailableCards = () => {
     if (!selectedSlot) return [];
     if (selectedSlot.id === 'troop' || selectedSlot.id === 'troop1' || selectedSlot.id === 'troop2') {
-      return unequippedTroops;
+      return unequippedTroops.filter(c => {
+        const maxBattle = c.max_battle_count ?? 10;
+        return (c.battle_count ?? 0) < maxBattle;
+      });
+    }
+    if (selectedSlot.id === 'title') {
+      return unequippedTitles;
     }
     return [];
   };
@@ -207,7 +257,7 @@ export default function LineupTab({ onClose }) {
       <div className="flex-1 overflow-y-auto">
         {isLandscape ? (
           /* ===== 横屏：2×2 四象限布局 ===== */
-          /* 左上=玩家(卡牌|槽位+数据) | 右上=将领1 | 左下=背包 | 右下=将领2 */
+          /* 左上=玩家(卡牌|槽位+数据) | 右上=将领1 | 左下=军营 | 右下=将领2 */
           <>
             {/* 横屏：关闭按钮（absolute 悬浮右上角） */}
             <button
@@ -229,7 +279,8 @@ export default function LineupTab({ onClose }) {
                   onSlotClick={handleSlotClick}
                   selectedSlot={selectedSlot}
                   skillsMap={skillsMap}
-                  statsPanel={<LineupStatsPanel player={player} troops={playerTroops} compact />}
+                  statsPanel={playerTroops.length > 0 ? <LineupStatsPanel player={player} troops={playerTroops} compact /> : null}
+                  attributeBonus={attributeBonusBySlot.player}
                 />
               </div>
 
@@ -244,13 +295,18 @@ export default function LineupTab({ onClose }) {
                     onSlotClick={handleSlotClick}
                     selectedSlot={selectedSlot}
                     skillsMap={skillsMap}
+                    statsPanel={char1Troops.length > 0 ? <LineupStatsPanel player={player} troops={char1Troops} compact attrs={char1Character?.config ? { combat: char1Character.config.combat, command: char1Character.config.command, courage: char1Character.config.courage, luck: char1Character.config.luck } : null} /> : null}
+                    attributeBonus={attributeBonusBySlot.character1}
+                    generalCard={char1Character}
+                    onGeneralCardClick={handleGeneralCardClick}
                   />
                 ) : (
-                  <GeneralNotRecruited label="将领1" />
+                  <GeneralNotRecruited label="将领1" unequippedCharacters={unequippedCharacters}
+                    onEquipCharacter={(card) => handleEquipCharacter(card, 'char1')} skillsMap={skillsMap} />
                 )}
               </div>
 
-              {/* 左下：背包 */}
+              {/* 左下：军营 */}
               <div className="border-r border-stone-700/40 overflow-y-auto">
                 <BackpackSection cards={allUnequipped} skillsMap={skillsMap} />
               </div>
@@ -266,9 +322,14 @@ export default function LineupTab({ onClose }) {
                     onSlotClick={handleSlotClick}
                     selectedSlot={selectedSlot}
                     skillsMap={skillsMap}
+                    statsPanel={char2Troops.length > 0 ? <LineupStatsPanel player={player} troops={char2Troops} compact attrs={char2Character?.config ? { combat: char2Character.config.combat, command: char2Character.config.command, courage: char2Character.config.courage, luck: char2Character.config.luck } : null} /> : null}
+                    attributeBonus={attributeBonusBySlot.character2}
+                    generalCard={char2Character}
+                    onGeneralCardClick={handleGeneralCardClick}
                   />
                 ) : (
-                  <GeneralNotRecruited label="将领2" />
+                  <GeneralNotRecruited label="将领2" unequippedCharacters={unequippedCharacters}
+                    onEquipCharacter={(card) => handleEquipCharacter(card, 'char2')} skillsMap={skillsMap} />
                 )}
               </div>
             </div>
@@ -277,7 +338,9 @@ export default function LineupTab({ onClose }) {
           /* ===== 竖屏：原有单Tab布局 ===== */
           <>
             {activeSubTab !== 'player' && !isGeneralRecruited(activeSubTab) ? (
-              <GeneralNotRecruited label={activeSubTab === 'char1' ? '将领1' : '将领2'} />
+              <GeneralNotRecruited label={activeSubTab === 'char1' ? '将领1' : '将领2'}
+                unequippedCharacters={unequippedCharacters}
+                onEquipCharacter={(card) => handleEquipCharacter(card, activeSubTab)} skillsMap={skillsMap} />
             ) : (
               <EquipmentLayout
                 player={player}
@@ -288,15 +351,28 @@ export default function LineupTab({ onClose }) {
                 onSlotClick={handleSlotClick}
                 selectedSlot={selectedSlot}
                 skillsMap={skillsMap}
+                attributeBonus={attributeBonusBySlot[activeSubTab === 'player' ? 'player' : activeSubTab === 'char1' ? 'character1' : 'character2']}
+                generalCard={activeSubTab === 'char1' ? char1Character : activeSubTab === 'char2' ? char2Character : null}
+                onGeneralCardClick={handleGeneralCardClick}
               />
             )}
 
-            {/* 数据分析区域 */}
-            {activeSubTab === 'player' && (
-              <LineupStatsPanel player={player} troops={playerTroops} />
-            )}
+            {/* 数据分析区域 — 显示当前子Tab对应的部队卡数据 */}
+            {(() => {
+              const subTroops = activeSubTab === 'player' ? playerTroops
+                : activeSubTab === 'char1' ? char1Troops
+                : char2Troops;
+              const generalCard = activeSubTab === 'char1' ? char1Character : activeSubTab === 'char2' ? char2Character : null;
+              const generalAttrs = generalCard?.config ? {
+                combat: generalCard.config.combat, command: generalCard.config.command,
+                courage: generalCard.config.courage, luck: generalCard.config.luck,
+              } : null;
+              return subTroops.length > 0 ? (
+                <LineupStatsPanel player={player} troops={subTroops} attrs={generalAttrs} />
+              ) : null;
+            })()}
 
-            {/* 背包区域 */}
+            {/* 军营区域 */}
             <BackpackSection cards={allUnequipped} skillsMap={skillsMap} />
           </>
         )}
@@ -310,10 +386,11 @@ export default function LineupTab({ onClose }) {
           skillsMap={skillsMap}
           onClose={() => setDetailCard(null)}
           onReplace={() => {
-            // 关闭详情 → 打开选择抽屉
+            // 关闭详情 → 打开选择抽屉（保留slotOwner信息）
             const slot = detailCard.slot;
+            const owner = detailCard.slotOwner;
             setDetailCard(null);
-            setSelectedSlot(slot);
+            setSelectedSlot({ ...slot, slotOwner: owner || activeSubTab });
             setDrawerOpen(true);
           }}
           onUnequip={async () => {
@@ -341,14 +418,15 @@ export default function LineupTab({ onClose }) {
           cards={getAvailableCards()}
           skillsMap={skillsMap}
           onSelect={async (card) => {
-            const equippedBy = activeSubTab === 'player' ? 'player'
-              : activeSubTab === 'char1' ? 'character1' : 'character2';
+            const owner = selectedSlot?.slotOwner || activeSubTab;
+            const equippedBy = owner === 'player' ? 'player'
+              : owner === 'char1' ? 'character1' : 'character2';
             try {
               const result = await playerAPI.equipCard(
                 player.player_id, card.instance_id, equippedBy, selectedSlot.id
               );
               if (result.success) {
-                refresh(); // 刷新玩家数据
+                await refresh();
               } else {
                 console.error('[LineupTab] 装备失败:', result.error);
               }
@@ -364,54 +442,80 @@ export default function LineupTab({ onClose }) {
   );
 }
 
-/** 将领是否已招募（当前阶段都未招募） */
-function isGeneralRecruited(/* subTab */) {
-  return false;
-}
-
-/** 将领未招募占位 */
-function GeneralNotRecruited({ label }) {
-  return (
-    <div className="flex flex-col items-center justify-center py-20">
-      <div className="w-20 h-20 rounded-full border-2 border-dashed border-stone-600 
-                      flex items-center justify-center mb-4">
-        <span className="text-3xl opacity-40">🎴</span>
+/** 将领未招募 → 显示将领选择界面 */
+function GeneralNotRecruited({ label, unequippedCharacters, onEquipCharacter, skillsMap }) {
+  const baseUrl = import.meta.env.BASE_URL;
+  if (!unequippedCharacters || unequippedCharacters.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20">
+        <div className="w-20 h-20 rounded-full border-2 border-dashed border-stone-600 flex items-center justify-center mb-4">
+          <span className="text-3xl opacity-40">🎴</span>
+        </div>
+        <p className="text-stone-500 text-sm">{label} — 尚未招募</p>
+        <p className="text-stone-600 text-xs mt-1">暂无可用将领卡</p>
       </div>
-      <p className="text-stone-500 text-sm">{label} — 尚未招募</p>
-      <p className="text-stone-600 text-xs mt-1">将领招募功能尚未实装</p>
+    );
+  }
+  return (
+    <div className="flex flex-col items-center py-4">
+      <p className="text-amber-400 text-sm font-bold mb-3">选择{label}</p>
+      <div className="flex flex-wrap gap-2 justify-center">
+        {unequippedCharacters.map(card => (
+          <div key={card.instance_id} className="cursor-pointer hover:brightness-110 active:scale-95 transition-all"
+            style={{ width: 128, height: 192 }}
+            onClick={() => onEquipCharacter(card)}>
+            <div style={{ transform: 'scale(0.5)', transformOrigin: 'top left', width: 256 }}>
+              <CharacterCard character={toCharacterCardData(card)} skillsMap={skillsMap} showDetails={false} baseUrl={baseUrl} />
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
 
 /** 横屏象限布局：左=角色卡 | 右=2×3槽位网格 */
-function LandscapeQuadrant({ player, activeSubTab, slots, getSlotContent, onSlotClick, selectedSlot, skillsMap, statsPanel }) {
+function LandscapeQuadrant({ player, activeSubTab, slots, getSlotContent, onSlotClick, selectedSlot, skillsMap, statsPanel, attributeBonus = {}, generalCard = null, onGeneralCardClick }) {
   const baseUrl = import.meta.env.BASE_URL;
   const cardScale = 0.82;
   const cardHeight = Math.round(384 * cardScale); // ~315px
 
-  const playerCharData = player ? {
-    id: player.player_id,
-    name: player.character_name,
-    avatar: player.avatar,
-    rarity: 'common',
-    luck: player.luck / 10,
-    courage: player.courage / 10,
-    combat: player.combat / 10,
-    command: player.command / 10,
-    intelligence: player.intelligence / 10,
-    politics: player.politics / 10,
-    charm: player.charm / 10,
-    skills: [player.skill_1, player.skill_2].filter(Boolean)
-  } : null;
+  // 构建角色卡数据：玩家用player数据，将领用generalCard的config数据
+  const charData = (() => {
+    if (activeSubTab === 'player' && player) {
+      return {
+        id: player.player_id,
+        name: player.character_name,
+        avatar: player.avatar,
+        rarity: 'common',
+        luck: player.luck / 10,
+        courage: player.courage / 10,
+        combat: player.combat / 10,
+        command: player.command / 10,
+        intelligence: player.intelligence / 10,
+        politics: player.politics / 10,
+        charm: player.charm / 10,
+        skills: [player.skill_1, player.skill_2].filter(Boolean),
+        morale: player.morale ?? 70,
+        attributeBonus,
+      };
+    }
+    if (generalCard) {
+      return toCharacterCardData(generalCard);
+    }
+    return null;
+  })();
 
   return (
     <div className="flex items-stretch h-full">
       {/* 左侧：角色卡（占满象限高度） */}
-      <div className="flex-shrink-0 overflow-hidden">
-        {activeSubTab === 'player' && playerCharData ? (
+      <div className="flex-shrink-0 overflow-hidden cursor-pointer" onClick={() => {
+        if (generalCard && onGeneralCardClick) onGeneralCardClick(generalCard);
+      }}>
+        {charData ? (
           <div style={{ transform: `scale(${cardScale})`, transformOrigin: 'top left', height: `${cardHeight}px` }}>
             <CharacterCard
-              character={playerCharData}
+              character={charData}
               skillsMap={skillsMap}
               showDetails={true}
               baseUrl={baseUrl}
@@ -438,7 +542,7 @@ function LandscapeQuadrant({ player, activeSubTab, slots, getSlotContent, onSlot
                 slot={slot}
                 content={content}
                 isSelected={selectedSlot?.id === slot.id}
-                onClick={() => onSlotClick(slot, content)}
+                onClick={() => onSlotClick(slot, content, activeSubTab)}
                 baseUrl={baseUrl}
                 skillsMap={skillsMap}
                 mini
@@ -455,27 +559,37 @@ function LandscapeQuadrant({ player, activeSubTab, slots, getSlotContent, onSlot
 }
 
 /** 暗黑风格装备布局：左3槽 + 中央角色卡 + 右3槽 */
-function EquipmentLayout({ player, activeSubTab, leftSlots, rightSlots, getSlotContent, onSlotClick, selectedSlot, skillsMap, compact = false }) {
+function EquipmentLayout({ player, activeSubTab, leftSlots, rightSlots, getSlotContent, onSlotClick, selectedSlot, skillsMap, compact = false, attributeBonus = {}, generalCard = null, onGeneralCardClick }) {
   const baseUrl = import.meta.env.BASE_URL;
   const cardScale = compact ? 0.52 : 0.72;
   const cardHeight = Math.round(384 * cardScale);
   const slotHeight = compact ? `${cardHeight}px` : '276px';
 
-  // 构建CharacterCard所需的数据
-  const playerCharData = player ? {
-    id: player.player_id,
-    name: player.character_name,
-    avatar: player.avatar,
-    rarity: 'common',
-    luck: player.luck / 10,
-    courage: player.courage / 10,
-    combat: player.combat / 10,
-    command: player.command / 10,
-    intelligence: player.intelligence / 10,
-    politics: player.politics / 10,
-    charm: player.charm / 10,
-    skills: [player.skill_1, player.skill_2].filter(Boolean)
-  } : null;
+  // 构建角色卡数据：玩家用player数据，将领用generalCard的config数据
+  const charData = (() => {
+    if (activeSubTab === 'player' && player) {
+      return {
+        id: player.player_id,
+        name: player.character_name,
+        avatar: player.avatar,
+        rarity: 'common',
+        luck: player.luck / 10,
+        courage: player.courage / 10,
+        combat: player.combat / 10,
+        command: player.command / 10,
+        intelligence: player.intelligence / 10,
+        politics: player.politics / 10,
+        charm: player.charm / 10,
+        skills: [player.skill_1, player.skill_2].filter(Boolean),
+        morale: player.morale ?? 70,
+        attributeBonus,
+      };
+    }
+    if (generalCard) {
+      return toCharacterCardData(generalCard);
+    }
+    return null;
+  })();
 
   return (
     <div className={compact ? 'px-1 py-2' : 'px-1 py-4'}>
@@ -483,10 +597,12 @@ function EquipmentLayout({ player, activeSubTab, leftSlots, rightSlots, getSlotC
         /* ===== 横屏 compact：仅角色卡（槽位在外部右侧渲染） ===== */
         <div className="flex items-start justify-center">
           <div className="flex-shrink-0" style={{ height: `${cardHeight}px`, overflow: 'hidden' }}>
-            {activeSubTab === 'player' && playerCharData ? (
-              <div style={{ transform: `scale(${cardScale})`, transformOrigin: 'top left' }}>
+            {charData ? (
+              <div style={{ transform: `scale(${cardScale})`, transformOrigin: 'top left' }}
+                className={generalCard ? 'cursor-pointer' : ''}
+                onClick={() => { if (generalCard && onGeneralCardClick) onGeneralCardClick(generalCard); }}>
                 <CharacterCard
-                  character={playerCharData}
+                  character={charData}
                   skillsMap={skillsMap}
                   showDetails={true}
                   baseUrl={baseUrl}
@@ -514,7 +630,7 @@ function EquipmentLayout({ player, activeSubTab, leftSlots, rightSlots, getSlotC
                   slot={slot}
                   content={content}
                   isSelected={selectedSlot?.id === slot.id}
-                  onClick={() => onSlotClick(slot, content)}
+                  onClick={() => onSlotClick(slot, content, activeSubTab)}
                   baseUrl={baseUrl}
                   skillsMap={skillsMap}
                 />
@@ -524,10 +640,11 @@ function EquipmentLayout({ player, activeSubTab, leftSlots, rightSlots, getSlotC
 
           {/* 中央角色卡 */}
           <div className="flex-shrink-0" style={{ height: '276px', overflow: 'hidden' }}>
-            {activeSubTab === 'player' && playerCharData ? (
-              <div className="transform scale-[0.72] origin-top">
+            {charData ? (
+              <div className={`transform scale-[0.72] origin-top ${generalCard ? 'cursor-pointer' : ''}`}
+                onClick={() => { if (generalCard && onGeneralCardClick) onGeneralCardClick(generalCard); }}>
                 <CharacterCard
-                  character={playerCharData}
+                  character={charData}
                   skillsMap={skillsMap}
                   showDetails={true}
                   baseUrl={baseUrl}
@@ -551,7 +668,7 @@ function EquipmentLayout({ player, activeSubTab, leftSlots, rightSlots, getSlotC
                   slot={slot}
                   content={content}
                   isSelected={selectedSlot?.id === slot.id}
-                  onClick={() => onSlotClick(slot, content)}
+                  onClick={() => onSlotClick(slot, content, activeSubTab)}
                   baseUrl={baseUrl}
                   skillsMap={skillsMap}
                 />
@@ -577,44 +694,51 @@ function EquipmentLayout({ player, activeSubTab, leftSlots, rightSlots, getSlotC
  *   出征消耗 = 当前兵力 / 20
  *   恢复消耗 = 需要恢复的兵力 / 10
  */
-function LineupStatsPanel({ player, troops, compact = false }) {
-  if (!player) return null;
+function LineupStatsPanel({ player, troops, compact = false, attrs = null }) {
+  if (!player && !attrs) return null;
 
-  const combat = player.combat / 10;    // 武力
-  const command = player.command / 10;   // 统帅
-  const courage = player.courage / 10;   // 勇气
-  const luck = player.luck / 10;         // 运气
+  // attrs 优先（将领传入），否则从 player 取
+  const combat = attrs?.combat ?? (player ? player.combat / 10 : 0);
+  const command = attrs?.command ?? (player ? player.command / 10 : 0);
+  const courage = attrs?.courage ?? (player ? player.courage / 10 : 0);
+  const luck = attrs?.luck ?? (player ? player.luck / 10 : 0);
+  const food = player?.food ?? 0;
 
-  // 计算每支部队的战力
   let totalPower = 0;
   let totalDeployCost = 0;
   let totalRecoverCost = 0;
 
   const troopStats = troops.map(card => {
     const cfg = card.config || {};
-    const atk = (cfg.attack || 0) / 10;
-    const def = (cfg.defense || 0) / 10;
-    const maxTroops = cfg.max_troops || 0;
+    const atk = cfg.attack || 0;
+    const def = cfg.defense || 0;
+    const maxTroops = (cfg.maxTroops || 0) + (card.bonus_max_troops || 0);
     const currentTroops = card.current_troops ?? maxTroops;
-    const lostTroops = maxTroops - currentTroops;
+    const lostTroops = Math.max(0, maxTroops - currentTroops);
 
-    // 攻击力 = 部队攻击 + 武力×6，勇气加成
     const unitAtk = (atk + combat * 6) * (1 + courage / 40);
-    // 防御力 = 部队防御 + 统帅×5 + 武力×3
     const unitDef = def + command * 5 + combat * 3;
-    // 综合战力
     const power = Math.round((unitAtk + unitDef) * currentTroops / 1000);
-
-    // 粮草
     const deployCost = Math.ceil(currentTroops / 20);
     const recoverCost = lostTroops > 0 ? Math.ceil(lostTroops / 10) : 0;
+    // 剩余恢复时间 = 当前缺口 / 10（后端已结算，current_troops是最新值）
+    const remainingMin = lostTroops > 0 ? Math.ceil(lostTroops / 10) : 0;
 
     totalPower += power;
     totalDeployCost += deployCost;
     totalRecoverCost += recoverCost;
 
-    return { name: cfg.troop_name || card.card_id, power, deployCost, recoverCost, currentTroops, maxTroops };
+    return { equippedBy: card.equipped_by, power, deployCost, recoverCost, remainingMin, currentTroops, maxTroops };
   });
+
+  // 按 equippedBy 分组，每组取最长恢复时间（将领有2张部队卡时取较长的）
+  const groupedRemaining = {};
+  troopStats.forEach(t => {
+    const key = t.equippedBy || 'player';
+    groupedRemaining[key] = Math.max(groupedRemaining[key] || 0, t.remainingMin);
+  });
+  // 总恢复时间 = 所有组中最长的（玩家+将领1+将领2 同时恢复，取最慢的）
+  const maxRemainingMin = Math.max(0, ...Object.values(groupedRemaining));
 
   // 暴击率
   const critRate = ((courage + luck) / 80 * 100).toFixed(1);
@@ -650,12 +774,20 @@ function LineupStatsPanel({ player, troops, compact = false }) {
           <span className="text-cyan-400">{dodgeRate}%</span>
         </div>
 
-        {/* 恢复粮草 */}
+        {/* 恢复时间 */}
         <div className="flex items-center justify-between">
-          <span className="text-stone-500">💊 恢复消耗</span>
-          <span className={totalRecoverCost > 0 ? 'text-yellow-400' : 'text-stone-600'}>
-            {totalRecoverCost > 0 ? `${totalRecoverCost} 粮` : '满编'}
-          </span>
+          <span className="text-stone-500">⏱️ 恢复时间</span>
+          {maxRemainingMin > 0 ? (
+            food >= totalRecoverCost ? (
+              <span className="text-yellow-400 text-right leading-tight">
+                余{maxRemainingMin}分钟<br/>（{totalRecoverCost}粮）
+              </span>
+            ) : (
+              <span className="text-red-400">⚠️粮草不足</span>
+            )
+          ) : (
+            <span className="text-stone-600">满编</span>
+          )}
         </div>
 
         {/* TODO: 将领排名 — 需要后端API查询所有玩家编组数据，计算当前将领在所有用户中的排名 */}
@@ -671,32 +803,94 @@ function LineupStatsPanel({ player, troops, compact = false }) {
 /** 将卡牌原始数据转换为TroopCard组件格式 */
 function toTroopCardData(card) {
   const cfg = card.config || {};
+  // 后端profile端点已返回camelCase格式的config
+  // attack/defense已经除以10，直接使用
   return {
-    id: cfg.troop_id || card.card_id,
-    name: cfg.troop_name || card.card_id,
+    id: cfg.id || card.card_id,
+    name: cfg.name || card.card_id,
     rarity: cfg.rarity || card.rarity,
-    troopType: cfg.troop_type,
-    weaponType: cfg.weapon_type,
+    troopType: cfg.troopType,
+    weaponType: cfg.weaponType,
     faction: cfg.faction,
-    attack: (cfg.attack || 0) / 10,
-    defense: (cfg.defense || 0) / 10,
+    attack: cfg.attack || 0,
+    defense: cfg.defense || 0,
     speed: cfg.speed,
     movement: cfg.movement,
     range: cfg.range,
-    maxTroops: cfg.max_troops,
+    maxTroops: (cfg.maxTroops || 0) + (card.bonus_max_troops || 0),
     currentTroops: card.current_troops,
     skills: cfg.skills || [],
     description: cfg.description,
     battleCount: card.battle_count ?? 0,
     maxBattleCount: card.max_battle_count ?? 10,
-    infantryCounter: cfg.infantry_counter,
-    cavalryCounter: cfg.cavalry_counter,
-    archerCounter: cfg.archer_counter,
-    siegeCounter: cfg.siege_counter,
-    plainAdapt: cfg.plain_adapt,
-    hillAdapt: cfg.hill_adapt,
-    forestAdapt: cfg.forest_adapt,
-    siegeAdapt: cfg.siege_adapt,
+    infantryCounter: cfg.infantryCounter,
+    cavalryCounter: cfg.cavalryCounter,
+    archerCounter: cfg.archerCounter,
+    siegeCounter: cfg.siegeCounter,
+    plainAdapt: cfg.plainAdapt,
+    hillAdapt: cfg.hillAdapt,
+    forestAdapt: cfg.forestAdapt,
+    siegeAdapt: cfg.siegeAdapt,
+  };
+}
+
+/** 将卡牌原始数据转换为EquipmentCard组件格式 */
+function toEquipmentCardData(card) {
+  const cfg = card.config || {};
+  // 构建bonus数组
+  const bonusKeys = ['luck', 'courage', 'combat', 'command', 'intelligence', 'politics', 'charm'];
+  const bonus = bonusKeys
+    .filter(k => cfg[`${k}Bonus`])
+    .map(k => ({ key: k, value: cfg[`${k}Bonus`] }));
+  return {
+    id: cfg.equipmentId || card.card_id,
+    name: cfg.equipmentName || card.card_id,
+    rarity: cfg.rarity || card.rarity || 'common',
+    equipmentType: cfg.equipmentType || 'weapon',
+    bonus,
+    specialEffect: cfg.specialEffect,
+    specialEffectDesc: cfg.specialEffectDesc,
+    description: cfg.description,
+  };
+}
+
+/** 将卡牌原始数据转换为TitleAchievementCard组件格式 */
+function toTitleCardData(card) {
+  const cfg = card.config || {};
+  return {
+    id: cfg.id || card.card_id,
+    name: cfg.name || card.card_id,
+    rarity: cfg.rarity || card.rarity || 'common',
+    description: cfg.description,
+    attributeBonus: cfg.attributeBonus || {},
+    specialEffect: cfg.specialEffect,
+    specialEffectDesc: cfg.specialEffectDesc,
+  };
+}
+
+/** 将卡牌原始数据转换为CharacterCard组件格式 */
+function toCharacterCardData(card) {
+  const cfg = card.config || {};
+  return {
+    id: cfg.id || card.card_id,
+    name: cfg.name || card.card_id,
+    rarity: cfg.rarity || card.rarity || 'common',
+    stage: cfg.stage,
+    luck: cfg.luck,
+    courage: cfg.courage,
+    combat: cfg.combat,
+    command: cfg.command,
+    intelligence: cfg.intelligence,
+    politics: cfg.politics,
+    charm: cfg.charm,
+    troopAffinity: cfg.troopAffinity,
+    trait: cfg.trait,
+    traitModifier: cfg.traitModifier,
+    skills: cfg.skills || [],
+    bond: cfg.bond,
+    biography: cfg.biography,
+    description: cfg.description,
+    avatar: cfg.avatar,
   };
 }
 
@@ -753,18 +947,19 @@ function EquipSlot({ slot, content, isSelected, onClick, baseUrl, skillsMap, min
   // 已装备部队卡 — 纯文字摘要显示
   if (!isLocked && !isEmpty && isTroopSlot) {
     const cfg = content.config || {};
-    const name = cfg.troop_name || content.card_id;
+    const name = cfg.name || content.card_id;
     const rarity = cfg.rarity || content.rarity || 'common';
     const rarityLabel = { common: '普通', rare: '稀有', epic: '史诗', legendary: '传奇', core: '核心' };
     const rarityColor = { common: 'text-gray-300', rare: 'text-blue-400', epic: 'text-purple-400', legendary: 'text-orange-400', core: 'text-yellow-400' };
     const maxBattle = content.max_battle_count ?? 10;
     const remaining = maxBattle - (content.battle_count ?? 0);
     const durability = `${remaining}/${maxBattle}`;
-    const troops = `${content.current_troops ?? cfg.max_troops ?? '?'}`;
-    const atk = ((cfg.attack || 0) / 10).toFixed(0);
-    const def = ((cfg.defense || 0) / 10).toFixed(0);
-    const spd = cfg.speed ?? '?';
-    const mov = cfg.movement ?? '?';
+    const troops = `${content.current_troops ?? cfg.maxTroops ?? '?'}`;
+    const maxTroops = (cfg.maxTroops || 0) + (content.bonus_max_troops || 0);
+    const atk = ((cfg.attack || 0) + (content.bonus_attack || 0) / 10).toFixed(0);
+    const def = ((cfg.defense || 0) + (content.bonus_defense || 0) / 10).toFixed(0);
+    const spd = (cfg.speed ?? 0) + (content.bonus_speed || 0);
+    const mov = (cfg.movement ?? 0) + (content.bonus_movement || 0);
     const range = cfg.range ?? 1;
 
     // 攻击距离方格
@@ -777,6 +972,10 @@ function EquipSlot({ slot, content, isSelected, onClick, baseUrl, skillsMap, min
       ? 'border-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.4)]'
       : 'border-stone-500 hover:border-amber-500';
 
+    // 耐久警告：最后1次使用时淡红色背景
+    const isLastUse = remaining === 1;
+    const bgClass = isLastUse ? 'bg-red-900/30' : 'bg-stone-800/90';
+
     // 竖屏64px基准字体，横屏96px用1.5倍
     const fs1 = mini ? '9px' : '6px';   // 卡牌名
     const fs2 = mini ? '9px' : '6px';   // 数据行
@@ -785,7 +984,7 @@ function EquipSlot({ slot, content, isSelected, onClick, baseUrl, skillsMap, min
     return (
       <button
         onClick={onClick}
-        className={`rounded-lg border-2 ${borderClass} bg-stone-800/90
+        className={`rounded-lg border-2 ${borderClass} ${bgClass}
                     overflow-hidden transition-all duration-200 relative
                     cursor-pointer active:scale-95 flex flex-col justify-between`}
         style={{ width: `${slotW}px`, height: `${slotH}px`, padding: mini ? '4px' : '2px 3px' }}
@@ -797,8 +996,8 @@ function EquipSlot({ slot, content, isSelected, onClick, baseUrl, skillsMap, min
         </div>
         {/* 行2：耐久 + 兵力 */}
         <div className="flex items-center justify-between w-full">
-          <span className="text-stone-400" style={{ fontSize: fs2 }}>🚩{durability}</span>
-          <span className="text-green-400" style={{ fontSize: fs2 }}>👥{troops}</span>
+          <span className={isLastUse ? 'text-red-400' : 'text-stone-400'} style={{ fontSize: fs2 }}>🚩{durability}</span>
+          <span className={parseInt(troops) >= maxTroops ? 'text-green-400' : 'text-yellow-400'} style={{ fontSize: fs2 }}>👥{troops}</span>
         </div>
         {/* 行3：攻击距离 */}
         <div className="flex items-center gap-0.5 w-full">
@@ -815,6 +1014,117 @@ function EquipSlot({ slot, content, isSelected, onClick, baseUrl, skillsMap, min
           <span className="text-cyan-400" style={{ fontSize: fs2 }}>速{spd}</span>
           <span className="text-amber-400" style={{ fontSize: fs2 }}>移{mov}</span>
         </div>
+      </button>
+    );
+  }
+
+  // 已装备称号卡 — 纯文字摘要显示（复用部队卡的布局模式）
+  const isTitleSlot = slot.id === 'title';
+  if (!isLocked && !isEmpty && isTitleSlot) {
+    const cfg = content.config || {};
+    const name = cfg.name || content.card_id;
+    const rarity = cfg.rarity || content.rarity || 'common';
+    const rarityLabel = { common: '普通', rare: '稀有', epic: '史诗', legendary: '传奇', core: '核心' };
+    const rarityColor = { common: 'text-gray-300', rare: 'text-blue-400', epic: 'text-purple-400', legendary: 'text-orange-400', core: 'text-yellow-400' };
+
+    // 解析属性加成
+    const bonus = cfg.attributeBonus || {};
+    const bonusLabels = { luck: '运', courage: '勇', combat: '武', command: '统', intelligence: '智', politics: '政', charm: '魅' };
+    const bonusEntries = Object.entries(bonus).filter(([, v]) => v > 0);
+
+    const borderClass = isSelected
+      ? 'border-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.4)]'
+      : 'border-stone-500 hover:border-amber-500';
+
+    const fs1 = mini ? '9px' : '6px';
+    const fs2 = mini ? '9px' : '6px';
+    const fsR = mini ? '8px' : '5.5px';
+
+    return (
+      <button
+        onClick={onClick}
+        className={`rounded-lg border-2 ${borderClass} bg-stone-800/90
+                    overflow-hidden transition-all duration-200 relative text-left
+                    cursor-pointer active:scale-95 flex flex-col justify-between`}
+        style={{ width: `${slotW}px`, height: `${slotH}px`, padding: mini ? '4px' : '2px 3px' }}
+      >
+        {/* 行1：名字 + 稀有度 */}
+        <div className="flex items-center justify-between w-full leading-none">
+          <span className="text-white font-medium truncate" style={{ fontSize: fs1 }}>{name}</span>
+          <span className={`font-bold flex-shrink-0 ${rarityColor[rarity]}`} style={{ fontSize: fsR }}>{rarityLabel[rarity]}</span>
+        </div>
+        {/* 行2：特效描述 */}
+        {cfg.specialEffectDesc && (
+          <div className="w-full">
+            <span className="text-green-400 truncate block text-left" style={{ fontSize: fs2 }}>✨{cfg.specialEffectDesc}</span>
+          </div>
+        )}
+        {/* 行3：属性加成 */}
+        {bonusEntries.length > 0 ? (
+          <div className="flex items-center gap-1 w-full flex-wrap">
+            {bonusEntries.slice(0, 3).map(([key, val]) => (
+              <span key={key} className="text-amber-400" style={{ fontSize: fs2 }}>
+                {bonusLabels[key] || key}+{(val / 10).toFixed(1)}
+              </span>
+            ))}
+          </div>
+        ) : (
+          <div className="w-full text-left">
+            <span className="text-stone-500" style={{ fontSize: fs2 }}>无属性加成</span>
+          </div>
+        )}
+      </button>
+    );
+  }
+
+  // 已装备官职 — 纯文字摘要显示（复用称号槽的布局模式）
+  const isPositionSlot = slot.id === 'position';
+  if (!isLocked && !isEmpty && isPositionSlot) {
+    const rarity = content.rarity || 'common';
+    const rarityLabel = { common: '普通', rare: '稀有', epic: '史诗', legendary: '传奇', core: '核心' };
+    const rarityColor = { common: 'text-gray-300', rare: 'text-blue-400', epic: 'text-purple-400', legendary: 'text-orange-400', core: 'text-yellow-400' };
+    const bonuses = content.position_bonuses || {};
+    const borderClass = isSelected
+      ? 'border-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.4)]'
+      : 'border-stone-500 hover:border-amber-500';
+    const fs1 = mini ? '9px' : '6px';
+    const fs2 = mini ? '9px' : '6px';
+    const fsR = mini ? '8px' : '5.5px';
+
+    return (
+      <button
+        onClick={onClick}
+        className={`rounded-lg border-2 ${borderClass} bg-stone-800/90
+                    overflow-hidden transition-all duration-200 relative text-left
+                    cursor-pointer active:scale-95 flex flex-col justify-between`}
+        style={{ width: `${slotW}px`, height: `${slotH}px`, padding: mini ? '4px' : '2px 3px' }}
+      >
+        {/* 行1：名字 + 稀有度 */}
+        <div className="flex items-center justify-between w-full leading-none">
+          <span className="text-white font-medium truncate" style={{ fontSize: fs1 }}>{content.name}</span>
+          <span className={`font-bold flex-shrink-0 ${rarityColor[rarity]}`} style={{ fontSize: fsR }}>{rarityLabel[rarity]}</span>
+        </div>
+        {/* 行2：资源加成 */}
+        {(bonuses.contributionBonus > 0 || bonuses.resourceBonus > 0) && (
+          <div className="flex items-center gap-1 w-full flex-wrap">
+            {bonuses.contributionBonus > 0 && <span className="text-cyan-400" style={{ fontSize: fs2 }}>贡+{(bonuses.contributionBonus*100).toFixed(0)}%</span>}
+            {bonuses.resourceBonus > 0 && <span className="text-yellow-400" style={{ fontSize: fs2 }}>资+{(bonuses.resourceBonus*100).toFixed(0)}%</span>}
+          </div>
+        )}
+        {/* 行3：兵种加成 */}
+        {(bonuses.infantryBonus > 0 || bonuses.cavalryBonus > 0 || bonuses.archerBonus > 0) && (
+          <div className="flex items-center gap-1 w-full flex-wrap">
+            {bonuses.infantryBonus > 0 && <span className="text-red-400" style={{ fontSize: fs2 }}>步+{(bonuses.infantryBonus*100).toFixed(0)}%</span>}
+            {bonuses.cavalryBonus > 0 && <span className="text-green-400" style={{ fontSize: fs2 }}>骑+{(bonuses.cavalryBonus*100).toFixed(0)}%</span>}
+            {bonuses.archerBonus > 0 && <span className="text-blue-400" style={{ fontSize: fs2 }}>弓+{(bonuses.archerBonus*100).toFixed(0)}%</span>}
+          </div>
+        )}
+        {/* 行4：特权 */}
+        {content.permissions && content.permissions.length > 0 && (
+          <div className="w-full">
+            <span className="text-stone-400 truncate block" style={{ fontSize: fs2 }}>特权：{content.permissions.join('、')}</span>
+          </div>
+        )}
       </button>
     );
   }
@@ -878,13 +1188,14 @@ function EquipSlot({ slot, content, isSelected, onClick, baseUrl, skillsMap, min
   );
 }
 
-/** 背包卡牌类型定义（显示顺序） */
+/** 军营卡牌类型定义（显示顺序） */
 const BACKPACK_TYPES = [
+  { type: 'character',   label: '将领',   icon: '👤' },
   { type: 'troop',       label: '部队',   icon: '⚔️' },
   { type: 'title',       label: '称号',   icon: '🎖️' },
   { type: 'achievement', label: '成就',   icon: '🏆' },
-  { type: 'treasure',    label: '宝物',   icon: '�' },
-  { type: 'equipment',   label: '装备卡', icon: '🛡️' },
+  { type: 'treasure',    label: '宝物',   icon: '💎' },
+  { type: 'equipment',   label: '装备件', icon: '🛡️' },
 ];
 
 const RARITY_DOTS = [
@@ -895,9 +1206,10 @@ const RARITY_DOTS = [
   { key: 'core',      color: 'bg-yellow-400' },
 ];
 
-/** 背包摘要区域：按类型显示稀有度数量，点击展开完整列表 */
+/** 军营摘要区域：按类型显示稀有度数量，点击展开完整列表 */
 function BackpackSection({ cards, skillsMap }) {
   const [expandedType, setExpandedType] = useState(null);
+  const [previewCard, setPreviewCard] = useState(null); // { card, type }
   const baseUrl = import.meta.env.BASE_URL;
 
   // 按类型分组
@@ -936,7 +1248,7 @@ function BackpackSection({ cards, skillsMap }) {
   return (
     <div className="mx-3 mt-4 mb-4">
       <h4 className="text-stone-400 text-xs font-medium mb-2">
-        📦 背包（{cards.length}）
+        🏕️ 军营（{cards.length}）
       </h4>
 
       {/* 类型摘要行 */}
@@ -982,7 +1294,31 @@ function BackpackSection({ cards, skillsMap }) {
               {/* 展开的卡牌列表 */}
               {isExpanded && total > 0 && (
                 <div className="mt-1 ml-2 mr-1 p-2 bg-stone-800/40 rounded-lg border border-stone-700/30">
-                  {type === 'troop' ? (
+                  {type === 'character' ? (
+                    // 将领卡：CharacterCard 50%缩放，按稀有度分组
+                    groupByRarity(typeCards).map(({ rarity, cards: rCards }) => (
+                      <div key={rarity} className="mb-2 last:mb-0">
+                        <div className="text-stone-500 text-[10px] mb-1 px-1">
+                          {rarityLabel[rarity] || rarity}（{rCards.length}）
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {rCards.map(card => (
+                            <div key={card.instance_id} style={{ width: 128, height: 192 }}
+                              className="cursor-pointer overflow-hidden" onClick={() => setPreviewCard({ card, type: 'character' })}>
+                              <div style={{ transform: 'scale(0.5)', transformOrigin: 'top left', width: 256 }}>
+                                <CharacterCard
+                                  character={toCharacterCardData(card)}
+                                  skillsMap={skillsMap}
+                                  showDetails={true}
+                                  baseUrl={baseUrl}
+                                />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))
+                  ) : type === 'troop' ? (
                     // 部队卡：完整TroopCard 50%缩放，按稀有度分组
                     groupByRarity(typeCards).map(({ rarity, cards: rCards }) => (
                       <div key={rarity} className="mb-2 last:mb-0">
@@ -991,12 +1327,58 @@ function BackpackSection({ cards, skillsMap }) {
                         </div>
                         <div className="flex flex-wrap gap-1.5">
                           {rCards.map(card => (
-                            <div key={card.instance_id} style={{ width: 128, height: 192 }}>
+                            <div key={card.instance_id} style={{ width: 128, height: 192 }}
+                              className="cursor-pointer" onClick={() => setPreviewCard({ card, type: 'troop' })}>
                               <div style={{ transform: 'scale(0.5)', transformOrigin: 'top left', width: 256 }}>
                                 <TroopCard
                                   troop={toTroopCardData(card)}
                                   skillsMap={skillsMap}
                                   showDetails={true}
+                                  baseUrl={baseUrl}
+                                />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))
+                  ) : type === 'equipment' ? (
+                    // 装备件卡：EquipmentCard 50%缩放，与部队卡一致
+                    groupByRarity(typeCards).map(({ rarity, cards: rCards }) => (
+                      <div key={rarity} className="mb-2 last:mb-0">
+                        <div className="text-stone-500 text-[10px] mb-1 px-1">
+                          {rarityLabel[rarity] || rarity}（{rCards.length}）
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {rCards.map(card => (
+                            <div key={card.instance_id} style={{ width: 128, height: 96 }}
+                              className="cursor-pointer" onClick={() => setPreviewCard({ card, type: 'equipment' })}>
+                              <div style={{ transform: 'scale(0.5)', transformOrigin: 'top left', width: 256 }}>
+                                <EquipmentCard
+                                  equipment={toEquipmentCardData(card)}
+                                  baseUrl={baseUrl}
+                                />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))
+                  ) : type === 'title' ? (
+                    // 称号卡：TitleAchievementCard 50%缩放，与部队卡一致
+                    groupByRarity(typeCards).map(({ rarity, cards: rCards }) => (
+                      <div key={rarity} className="mb-2 last:mb-0">
+                        <div className="text-stone-500 text-[10px] mb-1 px-1">
+                          {rarityLabel[rarity] || rarity}（{rCards.length}）
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {rCards.map(card => (
+                            <div key={card.instance_id} style={{ width: 128, height: 96 }}
+                              className="cursor-pointer" onClick={() => setPreviewCard({ card, type: 'title' })}>
+                              <div style={{ transform: 'scale(0.5)', transformOrigin: 'top left', width: 256 }}>
+                                <TitleAchievementCard
+                                  item={toTitleCardData(card)}
+                                  type="title"
                                   baseUrl={baseUrl}
                                 />
                               </div>
@@ -1017,6 +1399,44 @@ function BackpackSection({ cards, skillsMap }) {
           );
         })}
       </div>
+
+      {/* 卡牌预览浮层：点击缩略图 → 100%大小居中显示 */}
+      {previewCard && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60"
+          onClick={() => setPreviewCard(null)}>
+          <div onClick={e => e.stopPropagation()}>
+            {previewCard.type === 'character' && (
+              <CharacterCard
+                character={toCharacterCardData(previewCard.card)}
+                skillsMap={skillsMap}
+                showDetails={true}
+                baseUrl={baseUrl}
+              />
+            )}
+            {previewCard.type === 'troop' && (
+              <TroopCard
+                troop={toTroopCardData(previewCard.card)}
+                skillsMap={skillsMap}
+                showDetails={true}
+                baseUrl={baseUrl}
+              />
+            )}
+            {previewCard.type === 'equipment' && (
+              <EquipmentCard
+                equipment={toEquipmentCardData(previewCard.card)}
+                baseUrl={baseUrl}
+              />
+            )}
+            {previewCard.type === 'title' && (
+              <TitleAchievementCard
+                item={toTitleCardData(previewCard.card)}
+                type="title"
+                baseUrl={baseUrl}
+              />
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1070,23 +1490,34 @@ function CardDrawer({ slot, cards, skillsMap, onSelect, onClose }) {
                   {rarityLabel[rarity] || rarity}（{grouped[rarity].length}）
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  {grouped[rarity].map(card => (
-                    <div
-                      key={card.instance_id}
-                      onClick={() => onSelect(card)}
-                      className="cursor-pointer hover:brightness-110 active:scale-95 transition-all"
-                      style={{ width: 128, height: 192 }}
-                    >
-                      <div style={{ transform: 'scale(0.5)', transformOrigin: 'top left', width: 256 }}>
-                        <TroopCard
-                          troop={toTroopCardData(card)}
-                          skillsMap={skillsMap}
-                          showDetails={true}
-                          baseUrl={baseUrl}
-                        />
+                  {grouped[rarity].map(card => {
+                    const isTitleSlot = slot.id === 'title';
+                    return (
+                      <div
+                        key={card.instance_id}
+                        onClick={() => onSelect(card)}
+                        className="cursor-pointer hover:brightness-110 active:scale-95 transition-all"
+                        style={{ width: 128, height: isTitleSlot ? 96 : 192 }}
+                      >
+                        <div style={{ transform: 'scale(0.5)', transformOrigin: 'top left', width: 256 }}>
+                          {isTitleSlot ? (
+                            <TitleAchievementCard
+                              item={toTitleCardData(card)}
+                              type="title"
+                              baseUrl={baseUrl}
+                            />
+                          ) : (
+                            <TroopCard
+                              troop={toTroopCardData(card)}
+                              skillsMap={skillsMap}
+                              showDetails={true}
+                              baseUrl={baseUrl}
+                            />
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             ))
@@ -1101,6 +1532,9 @@ function CardDrawer({ slot, cards, skillsMap, onSelect, onClose }) {
 function CardDetailOverlay({ card, slot, skillsMap, onClose, onReplace, onUnequip }) {
   const baseUrl = import.meta.env.BASE_URL;
   const isTroopSlot = slot.id === 'troop' || slot.id === 'troop1' || slot.id === 'troop2';
+  const isTitleSlot = slot.id === 'title';
+  const isPositionSlot = slot.id === 'position';
+  const isCharacterSlot = slot.id === 'character';
 
   return (
     <>
@@ -1111,13 +1545,28 @@ function CardDetailOverlay({ card, slot, skillsMap, onClose, onReplace, onUnequi
       <div className="fixed inset-0 z-[111] flex flex-col items-center justify-center px-4" onClick={onClose}>
         {/* 完整卡牌 */}
         <div className="mb-4" onClick={(e) => e.stopPropagation()}>
-          {isTroopSlot ? (
+          {isCharacterSlot ? (
+            <CharacterCard
+              character={toCharacterCardData(card)}
+              skillsMap={skillsMap}
+              showDetails={true}
+              baseUrl={baseUrl}
+            />
+          ) : isTroopSlot ? (
             <TroopCard
               troop={toTroopCardData(card)}
               skillsMap={skillsMap}
               showDetails={true}
               baseUrl={baseUrl}
             />
+          ) : isTitleSlot ? (
+            <TitleAchievementCard
+              item={toTitleCardData(card)}
+              type="title"
+              baseUrl={baseUrl}
+            />
+          ) : isPositionSlot ? (
+            <PositionCard position={card} showDetails={true} />
           ) : (
             <div className="w-[256px] h-[200px] rounded-xl bg-stone-800 border-2 border-stone-600
                             flex items-center justify-center text-stone-400">
@@ -1126,25 +1575,29 @@ function CardDetailOverlay({ card, slot, skillsMap, onClose, onReplace, onUnequi
           )}
         </div>
 
-        {/* 操作按钮 */}
-        <div className="flex gap-3" onClick={(e) => e.stopPropagation()}>
-          <button
-            onClick={onUnequip}
-            className="px-6 py-2.5 rounded-lg bg-stone-700 border border-stone-500
-                       text-stone-300 text-sm font-medium
-                       hover:bg-stone-600 active:scale-95 transition-all"
-          >
-            卸下
-          </button>
-          <button
-            onClick={onReplace}
-            className="px-6 py-2.5 rounded-lg bg-amber-700 border border-amber-500
-                       text-amber-100 text-sm font-medium
-                       hover:bg-amber-600 active:scale-95 transition-all"
-          >
-            更换
-          </button>
-        </div>
+        {/* 操作按钮 — 官职槽只读，不显示卸下/更换；将领槽只显示卸下 */}
+        {!isPositionSlot && (
+          <div className="flex gap-3" onClick={(e) => e.stopPropagation()}>
+            <button
+              onClick={onUnequip}
+              className="px-6 py-2.5 rounded-lg bg-stone-700 border border-stone-500
+                         text-stone-300 text-sm font-medium
+                         hover:bg-stone-600 active:scale-95 transition-all"
+            >
+              {isCharacterSlot ? '卸下将领' : '卸下'}
+            </button>
+            {!isCharacterSlot && (
+              <button
+                onClick={onReplace}
+                className="px-6 py-2.5 rounded-lg bg-amber-700 border border-amber-500
+                           text-amber-100 text-sm font-medium
+                           hover:bg-amber-600 active:scale-95 transition-all"
+              >
+                更换
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </>
   );

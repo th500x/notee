@@ -179,9 +179,9 @@ async function importTroops(connection) {
       await connection.query(`
         INSERT INTO config_troops (
           troop_id, season, troop_name, rarity, troop_type, weapon_type,
-          attack, defense, max_troops, speed, movement, \`range\`,
+          attack, defense, max_troops, troop_weight, speed, movement, \`range\`,
           special_ability, description
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON DUPLICATE KEY UPDATE
           season = VALUES(season),
           troop_name = VALUES(troop_name),
@@ -191,6 +191,7 @@ async function importTroops(connection) {
           attack = VALUES(attack),
           defense = VALUES(defense),
           max_troops = VALUES(max_troops),
+          troop_weight = VALUES(troop_weight),
           speed = VALUES(speed),
           movement = VALUES(movement),
           \`range\` = VALUES(\`range\`),
@@ -206,6 +207,7 @@ async function importTroops(connection) {
         Math.round(troop.attack * 10),  // 攻击×10
         Math.round(troop.defense * 10), // 防御×10
         troop.maxTroops,
+        troop.troopWeight || 1,
         troop.speed,
         troop.movement,
         troop.range,
@@ -258,16 +260,17 @@ async function importPositions(connection) {
       
       await connection.query(`
         INSERT INTO config_positions (
-          position_id, season, position_name, position_level, position_rank, category,
+          position_id, season, position_name, position_level, position_rank, rarity, category,
           icon, color, description,
           requirement, position_bonuses,
           permissions
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON DUPLICATE KEY UPDATE
           season = VALUES(season),
           position_name = VALUES(position_name),
           position_level = VALUES(position_level),
           position_rank = VALUES(position_rank),
+          rarity = VALUES(rarity),
           category = VALUES(category),
           icon = VALUES(icon),
           color = VALUES(color),
@@ -282,6 +285,7 @@ async function importPositions(connection) {
         position.level,
         position.rank || 0,
         position.rarity || 'common',
+        position.category || null,
         position.icon || null,
         position.color || null,
         position.description || null,
@@ -364,6 +368,62 @@ async function importFactions(connection) {
 }
 
 /**
+ * 导入称号配置数据
+ */
+async function importTitles(connection) {
+  console.log('开始导入称号配置数据...');
+  
+  const filePath = path.join(DATA_DIR, 'titles.json');
+  const fileContent = await fs.readFile(filePath, 'utf8');
+  const data = JSON.parse(fileContent);
+  
+  let imported = 0;
+  let skipped = 0;
+  
+  for (const title of data.titles) {
+    try {
+      await connection.query(`
+        INSERT INTO config_titles (
+          title_id, title_name, description,
+          display_name, display_position, is_unique,
+          unlock_conditions, unlock_conditions_desc,
+          attribute_bonus, special_effect, special_effect_desc
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON DUPLICATE KEY UPDATE
+          title_name = VALUES(title_name),
+          description = VALUES(description),
+          display_name = VALUES(display_name),
+          display_position = VALUES(display_position),
+          is_unique = VALUES(is_unique),
+          unlock_conditions = VALUES(unlock_conditions),
+          unlock_conditions_desc = VALUES(unlock_conditions_desc),
+          attribute_bonus = VALUES(attribute_bonus),
+          special_effect = VALUES(special_effect),
+          special_effect_desc = VALUES(special_effect_desc)
+      `, [
+        title.id,
+        title.name,
+        title.description || null,
+        title.displayName || null,
+        title.displayPosition || 'prefix',
+        title.isUnique || false,
+        title.unlockConditions ? JSON.stringify(title.unlockConditions) : null,
+        title.unlockConditionsDesc || null,
+        title.attributeBonus ? JSON.stringify(title.attributeBonus) : null,
+        title.specialEffect || null,
+        title.specialEffectDesc || null,
+      ]);
+      imported++;
+    } catch (error) {
+      console.error(`导入称号 ${title.name} 失败:`, error.message);
+      skipped++;
+    }
+  }
+  
+  console.log(`✅ 称号配置导入完成: ${imported} 成功, ${skipped} 跳过`);
+}
+
+/**
  * 主函数
  */
 async function main() {
@@ -388,6 +448,10 @@ async function main() {
     
     // 导入势力配置
     await importFactions(connection);
+    console.log('');
+    
+    // 导入称号配置
+    await importTitles(connection);
     console.log('');
     
     console.log('🎉 所有配置数据导入完成！');

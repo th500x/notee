@@ -154,7 +154,7 @@ const CharacterCreationPage = ({ user, onComplete }) => {
         random_batches: randomBatches,
         selected_option_batch: selectedOptionBatch,
         selected_option_index: selectedOptionIndex,
-        selected_troops: selectedTroops.map(t => t.troop_id)
+        selected_troops: selectedTroops.map(t => t.id)
       };
       
       await playerAPI.saveCreationProgress(user.id, progressData);
@@ -406,8 +406,8 @@ const CharacterCreationPage = ({ user, onComplete }) => {
 
   // 步骤5: 选择初始部队
   const handleTroopToggle = (troop) => {
-    if (selectedTroops.find(t => t.troop_id === troop.troop_id)) {
-      setSelectedTroops(selectedTroops.filter(t => t.troop_id !== troop.troop_id));
+    if (selectedTroops.find(t => t.id === troop.id)) {
+      setSelectedTroops(selectedTroops.filter(t => t.id !== troop.id));
     } else {
       if (selectedTroops.length >= 2) {
         setError('最多只能选择2个部队');
@@ -435,7 +435,7 @@ const CharacterCreationPage = ({ user, onComplete }) => {
         factionName: selectedFaction.faction_name,
         attributes: selectedOption.attributesInt,
         skills: selectedOption.skills || null,
-        initialTroops: selectedTroops.map(t => t.troop_id),
+        initialTroops: selectedTroops.map(t => t.id),
         serverId: user.serverId,
         initialSilver: remainingSilver, // 将剩余银两带入游戏
         avatar: selectedAvatar // 头像路径
@@ -825,44 +825,20 @@ const CharacterCreationPage = ({ user, onComplete }) => {
           {/* 使用共享TroopCard组件展示部队 */}
           <div className="flex flex-wrap justify-center gap-6 mb-6">
             {availableTroops.map((troop) => {
-              const isSelected = selectedTroops.find(t => t.troop_id === troop.troop_id);
+              const isSelected = selectedTroops.find(t => t.id === troop.id);
               
-              // 转换数据格式以匹配TroopCard组件的props
-              const troopCardData = {
-                id: troop.troop_id,
-                name: troop.troop_name,
-                rarity: troop.rarity || 'rare',
-                troopType: troop.troop_type,
-                weaponType: troop.weapon_type,
-                faction: troop.faction, // 添加势力字段
-                attack: troop.attack / 10,
-                defense: troop.defense / 10,
-                speed: troop.speed,
-                movement: troop.movement || 4,
-                maxTroops: troop.max_troops,
-                range: troop.range,
-                infantryCounter: troop.infantry_counter || 1.0,
-                cavalryCounter: troop.cavalry_counter || 1.0,
-                archerCounter: troop.archer_counter || 1.0,
-                siegeCounter: troop.siege_counter || 1.0,
-                plainAdapt: troop.plain_adapt || 1.0,
-                hillAdapt: troop.hill_adapt || 1.0,
-                forestAdapt: troop.forest_adapt || 1.0,
-                siegeAdapt: troop.siege_adapt || 1.0,
-                skills: troop.skills || [],
-                description: troop.description
-              };
-
+              // 后端已返回camelCase格式，直接传递给TroopCard
+              // 注意：后端formatTroopData已经将attack/defense除以10
               return (
                 <div
-                  key={troop.troop_id}
+                  key={troop.id}
                   onClick={() => handleTroopToggle(troop)}
                   className={`relative cursor-pointer transition-all ${
                     isSelected ? 'ring-4 ring-blue-500 rounded-xl' : ''
                   }`}
                 >
                   <TroopCard 
-                    troop={troopCardData} 
+                    troop={troop} 
                     showDetails={true}
                     baseUrl={import.meta.env.BASE_URL}
                   />
@@ -883,7 +859,7 @@ const CharacterCreationPage = ({ user, onComplete }) => {
               已选择: {selectedTroops.length}/2
               {selectedTroops.length > 0 && (
                 <span className="ml-2">
-                  ({selectedTroops.map(t => t.troop_name).join(', ')})
+                  ({selectedTroops.map(t => t.name).join(', ')})
                 </span>
               )}
             </p>

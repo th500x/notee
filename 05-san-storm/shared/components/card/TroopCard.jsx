@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import PropTypes from 'prop-types';
 
 /**
@@ -57,6 +57,9 @@ const TroopCard = ({
   baseUrl = '',
   onSelect
 }) => {
+  const [activeTooltip, setActiveTooltip] = useState(null);
+  const [useIdIcon, setUseIdIcon] = useState(true); // 优先尝试ID专属图标
+
   // 稀有度颜色映射
   const rarityColors = {
     core: {
@@ -106,12 +109,23 @@ const TroopCard = ({
   const rarity = rarityColors[troop.rarity] || rarityColors.common;
   const troopType = troopTypeMap[troop.troopType] || troopTypeMap.infantry;
 
-  // 获取部队图标路径
+  // 获取部队图标路径（优先ID专属图标，fallback到稀有度+武器类型图标）
   const getTroopIcon = () => {
     if (troop.iconPath) {
       return troop.iconPath;
     }
+
+    // 优先：ID专属图标（如 san_1_troop_0013.png）
+    if (useIdIcon && troop.id) {
+      return `${baseUrl}assets/san_1_ui_card/troop/${troop.id}.png`;
+    }
     
+    // Fallback：稀有度+武器类型图标
+    return getRarityIcon();
+  };
+
+  // 稀有度+武器类型图标路径
+  const getRarityIcon = () => {
     const rarityToPrefix = {
       'common': 'r1',
       'rare': 'r2',
@@ -122,18 +136,13 @@ const TroopCard = ({
     
     const rarityPrefix = rarityToPrefix[troop.rarity] || 'r1';
     
-    // weaponType 可能是完整格式（infantry_saber）或仅武器名（saber）
-    // 如果仅武器名，则与 troopType 组合生成完整路径
     const weaponType = troop.weaponType || '';
     let iconName;
     if (weaponType && weaponType.includes('_')) {
-      // 完整格式：直接使用
       iconName = weaponType;
     } else if (weaponType) {
-      // 仅武器名：与兵种类型组合
       iconName = `${troop.troopType || 'infantry'}_${weaponType}`;
     } else {
-      // 无武器类型：使用默认值
       iconName = 'infantry_saber';
     }
     
@@ -251,6 +260,12 @@ const TroopCard = ({
                   alt={troop.name}
                   className="w-full h-full object-cover"
                   onError={(e) => {
+                    if (useIdIcon) {
+                      // ID专属图标不存在，fallback到稀有度图标
+                      setUseIdIcon(false);
+                      e.target.src = getRarityIcon();
+                      return;
+                    }
                     e.target.style.display = 'none';
                     e.target.nextSibling.style.display = 'flex';
                   }}
@@ -352,22 +367,29 @@ const TroopCard = ({
               {troop.skills.slice(0, 3).map((skillId, index) => {
                 const skill = skillsMap[skillId];
                 const isActive = skillId.startsWith('skill_1_');
+                const tooltipKey = `skill_${index}`;
+                const tooltipText = skill ? (skill.description || skill.name) : skillId;
                 
                 return (
                   <div 
                     key={index}
                     className={`
-                      px-1.5 py-1 rounded text-[10px] text-center
+                      relative px-1.5 py-1 rounded text-[10px] text-center cursor-pointer
                       ${isActive 
                         ? `bg-gradient-to-r ${rarity.bg} bg-opacity-20 border ${rarity.border} border-opacity-40` 
                         : 'bg-gray-700/30 border border-gray-600/40'
                       }
                     `}
-                    title={skill ? skill.description : ''}
+                    onClick={(e) => { e.stopPropagation(); setActiveTooltip(activeTooltip === tooltipKey ? null : tooltipKey); }}
                   >
                     <span className="font-medium truncate block text-gray-900">
                       {isActive ? '⚔️' : '🛡️'} {skill ? skill.name : skillId}
                     </span>
+                    {activeTooltip === tooltipKey && tooltipText && (
+                      <div className="absolute z-50 bottom-full left-0 mb-1 px-2 py-1 rounded bg-gray-900 text-white text-[10px] max-w-[220px] break-words shadow-lg pointer-events-none">
+                        {tooltipText}
+                      </div>
+                    )}
                   </div>
                 );
               })}

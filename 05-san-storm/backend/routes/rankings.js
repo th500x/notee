@@ -72,10 +72,36 @@ router.get('/:eventId', async (req, res) => {
     let myRanking = null;
     if (playerId) {
       // 先检查该玩家是否有快照
-      const [snapCheck] = await pool.query(
+      let [snapCheck] = await pool.query(
         'SELECT 1 FROM temp_ranking_snapshots WHERE event_id = ? AND player_id = ?',
         [eventId, playerId]
       );
+
+      // 活动期间新玩家自动补建快照（增量从当前值开始，即0分起步）
+      if (snapCheck.length === 0) {
+        try {
+          await pool.query(`
+            INSERT IGNORE INTO temp_ranking_snapshots
+              (event_id, player_id,
+               snapshot_battle_score, snapshot_events_completed,
+               snapshot_reputation, snapshot_contribution,
+               snapshot_silver, snapshot_food, expires_at)
+            SELECT ?, ?,
+              s.total_battle_score, s.total_events_completed,
+              s.total_reputation_earned, s.total_contribution_earned,
+              s.total_gold_earned, s.total_food_earned,
+              DATE_ADD(NOW(), INTERVAL 30 DAY)
+            FROM statistics s WHERE s.player_id = ?
+          `, [eventId, playerId, playerId]);
+          // 重新检查
+          [snapCheck] = await pool.query(
+            'SELECT 1 FROM temp_ranking_snapshots WHERE event_id = ? AND player_id = ?',
+            [eventId, playerId]
+          );
+        } catch (e) {
+          console.warn('[Rankings] 自动补建快照失败:', e.message);
+        }
+      }
 
       if (snapCheck.length > 0) {
         // 计算该玩家的总分

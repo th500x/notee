@@ -10,7 +10,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { gameIntroMessages } from '@/data/texts/tutorial';
 
-// 背景图列表（san_1_map/bg 目录下所有图片）
+// 背景图列表（san_1_map/illus_bg 目录下所有图片）
 const BG_IMAGES = [
   'av1_00001_.png','av1_00010_.png','av1_00016_.png','av1_00017_.png','av1_00018_.png',
   'av1_00020_.png','av1_00021_.png','av1_00022_.png','av1_00025_.png','av1_00026_.png',
@@ -23,7 +23,7 @@ const BG_IMAGES = [
   'av1_00079_.png','av1_00082_.png','av1_00085_.png','av1_00088_.png','av1_00089_.png',
   'av1_00090_.png','av1_00091_.png','av1_00092_.png','av1_00095_.png','av1_00096_.png',
 ];
-const BG_DIR = 'assets/san_1_map/bg/';
+const BG_DIR = 'assets/san_1_map/illus_bg/';
 const BG_CACHE_KEY = 'game_intro_bg';
 const BG_CACHE_DAYS = 7;
 

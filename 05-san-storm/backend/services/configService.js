@@ -95,6 +95,7 @@ function formatTroopData(troop) {
     
     // 基础属性
     maxTroops: troop.max_troops,
+    troopWeight: troop.troop_weight || 1,
     range: troop.range,
     attack: troop.attack / 10,  // 数据库×10存储，需要除以10
     defense: troop.defense / 10,  // 数据库×10存储，需要除以10
@@ -102,7 +103,7 @@ function formatTroopData(troop) {
     movement: troop.movement,
     
     // 从special_ability中提取字段
-    weaponType: specialAbility.weapon_type || '',
+    weaponType: troop.weapon_type || specialAbility.weapon_type || '',
     skills: specialAbility.skills || [],
     
     // 克制关系
@@ -259,9 +260,212 @@ function formatCharacterData(char) {
   };
 }
 
+/**
+ * 获取所有装备件配置
+ * @param {Object} filters - { season, equipmentType, rarity }
+ * @returns {Promise<Array>}
+ */
+async function getEquipment(filters = {}) {
+  const { season, equipmentType, rarity } = filters;
+
+  let query  = 'SELECT * FROM config_equipment WHERE 1=1';
+  const params = [];
+
+  if (season) {
+    query += ' AND season = ?';
+    params.push(season);
+  }
+
+  // equipment_type 和 rarity 从 ID 解析，用 LIKE 过滤
+  // ID 格式: san_1_equip_{typeNum}_{rarityNum}{seq}
+  const typeNumMap   = { weapon: '1', armor: '2', accessory: '3' };
+  const rarityNumMap = { common: '1', rare: '2', epic: '3', legendary: '4', core: '5' };
+
+  if (equipmentType && typeNumMap[equipmentType]) {
+    query += ` AND equipment_id LIKE ?`;
+    params.push(`%_equip_${typeNumMap[equipmentType]}_%`);
+  }
+
+  if (rarity && rarityNumMap[rarity]) {
+    query += ` AND equipment_id REGEXP ?`;
+    params.push(`_equip_[0-9]_${rarityNumMap[rarity]}[0-9]+$`);
+  }
+
+  query += ' ORDER BY equipment_id';
+
+  const rows = await db.query(query, params);
+  return rows.map(formatEquipmentData);
+}
+
+/**
+ * 根据ID获取单个装备件配置
+ */
+async function getEquipmentById(equipmentId) {
+  const rows = await db.query(
+    'SELECT * FROM config_equipment WHERE equipment_id = ?',
+    [equipmentId]
+  );
+  if (rows.length === 0) return null;
+  return formatEquipmentData(rows[0]);
+}
+
+/**
+ * 获取事件配置
+ * @param {Object} filters - { location, triggerContext }
+ * @returns {Promise<Array>}
+ */
+async function getEvents(filters = {}) {
+  const { location, triggerContext } = filters;
+
+  let query  = 'SELECT * FROM config_events WHERE 1=1';
+  const params = [];
+
+  if (location) {
+    query += ' AND location = ?';
+    params.push(location);
+  }
+
+  if (triggerContext) {
+    query += ' AND trigger_context = ?';
+    params.push(triggerContext);
+  }
+
+  query += ' ORDER BY event_id';
+
+  const rows = await db.query(query, params);
+  return rows.map(formatEventData);
+}
+
+/**
+ * 根据ID获取单个事件配置
+ */
+async function getEventById(eventId) {
+  const rows = await db.query(
+    'SELECT * FROM config_events WHERE event_id = ?',
+    [eventId]
+  );
+  if (rows.length === 0) return null;
+  return formatEventData(rows[0]);
+}
+
+/**
+ * 格式化事件数据（数据库 → 前端）
+ * 
+ * 规则：不做字段名转换，直接返回数据库字段名
+ * - 顶层字段：snake_case（与DB一致）
+ * - option_a / option_b：JSON 解析后原样返回（camelCase，与DB存储一致）
+ */
+function formatEventData(row) {
+  // 解析 option JSON 字段
+  const parseJson = (val) => {
+    if (!val) return null;
+    try {
+      return typeof val === 'string' ? JSON.parse(val) : val;
+    } catch { return null; }
+  };
+
+  const formatted = {
+    event_id:            row.event_id,
+    event_name:          row.event_name,
+    location:            row.location || null,
+    min_position_level:  row.min_position_level || null,
+    trigger_probability: parseFloat(row.trigger_probability) || 0,
+    trigger_context:     row.trigger_context || null,
+    chain_id:            row.chain_id || null,
+    chain_level:         row.chain_level || null,
+    required_items:      row.required_items || null,
+    description_1:       row.description_1 || null,
+    description_2:       row.description_2 || null,
+    description_3:       row.description_3 || null,
+    option_a:            parseJson(row.option_a),
+    option_b:            parseJson(row.option_b),
+    tags:                row.tags || null,
+    version:             row.version || '1.0',
+  };
+
+  // 事件级 required_items（事件链道具）合并到两个选项的 requiredItems
+  if (formatted.required_items) {
+    const eventItems = formatted.required_items;
+    if (formatted.option_a) {
+      const optA = formatted.option_a.requiredItems;
+      formatted.option_a.requiredItems = optA ? `${eventItems};${optA}` : eventItems;
+    }
+    if (formatted.option_b) {
+      const optB = formatted.option_b.requiredItems;
+      formatted.option_b.requiredItems = optB ? `${eventItems};${optB}` : eventItems;
+    }
+  }
+
+  return formatted;
+}
+
+/**
+ * 格式化装备件数据（数据库 → 前端）
+ */
+function formatEquipmentData(row) {
+  // 解析 ID 获取 equipmentType 和 rarity
+  const match = (row.equipment_id || '').match(/^(san_\d+)_equip_(\d)_(\d)\d+$/);
+  const typeMap   = { '1': 'weapon', '2': 'armor', '3': 'accessory' };
+  const rarityMap = { '1': 'common', '2': 'rare', '3': 'epic', '4': 'legendary', '5': 'core' };
+
+  const equipmentType = match ? (typeMap[match[2]]   || 'weapon')  : 'weapon';
+  const rarity        = match ? (rarityMap[match[3]] || 'common') : 'common';
+
+  // 将各 bonus 字段组装为数组（只保留非零项）
+  const bonusKeyMap = {
+    luck_bonus:         'luck',
+    courage_bonus:      'courage',
+    combat_bonus:       'combat',
+    command_bonus:      'command',
+    intelligence_bonus: 'intelligence',
+    politics_bonus:     'politics',
+    charm_bonus:        'charm',
+  };
+
+  const bonus = [];
+  for (const [field, key] of Object.entries(bonusKeyMap)) {
+    const val = row[field];
+    if (val && val !== 0) {
+      bonus.push({ key, value: val / 10 }); // ÷10 还原显示值
+    }
+  }
+
+  // 解析 special_effect JSON
+  let specialEffect = null;
+  if (row.special_effect) {
+    try {
+      const parsed = typeof row.special_effect === 'string'
+        ? JSON.parse(row.special_effect)
+        : row.special_effect;
+      // 如果是 {raw: "..."} 格式，取原始字符串
+      specialEffect = parsed.raw || JSON.stringify(parsed);
+    } catch (e) {
+      specialEffect = String(row.special_effect);
+    }
+  }
+
+  return {
+    id:                row.equipment_id,
+    name:              row.equipment_name,
+    season:            row.season,
+    equipmentType,
+    rarity,
+    bonus,
+    specialEffect,
+    specialEffectDesc: row.special_effect_desc || null,
+    description:       row.description || '',
+    version:           row.version,
+  };
+}
+
 module.exports = {
   getTroops,
   getTroopById,
+  formatTroopData,
   getCharacters,
-  getCharacterById
+  getCharacterById,
+  getEquipment,
+  getEquipmentById,
+  getEvents,
+  getEventById,
 };

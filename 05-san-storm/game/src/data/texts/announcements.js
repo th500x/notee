@@ -25,29 +25,29 @@
 const announcements = [
   // === 示例：带排行榜的活动公告 ===
    {
-     id: 'san_1_info_0002',
-     date: '2026-03-20',
-     title: '开服冲榜活动',
-     content: '活动期间，综合表现最优秀的玩家可获得丰厚奖励！\n活动时间：3月20日 - 3月27日',
+     id: 'san_1_info_0001',
+     date: '2026-03-26',
+     title: '黄巾之乱',
+     content: '测试基础功能！M1阶段占比完整游戏内容大概3%\n活动时间：3月26日 - 4月2日',
      ranking: {
-       title: '开服冲榜 · 综合排行',
-       description: '活动期间综合表现排行',
-       startTime: '2026-03-20T00:00:00',
-       endTime: '2026-03-27T23:59:59',
+       title: '测试赛季 · M1',
+       description: '新手指引/事件系统/基础战斗系统/战报系统/纪念图册！',
+       startTime: '2026-03-26T14:00:00',
+       endTime: '2026-04-02T13:59:59',
        displayCount: 10,
        refreshInterval: 300000,
-       scoreWeights: { battleScore: 1, events: 300, repContrib: 30, silverFood: 3 },
+       scoreWeights: { battleScore: 1, events: 120, repContrib: 60, silverFood: 3 },
        rewards: [
-         { rankRange: [1, 1],  prizes: { silver: 5000, food: 10000, badge: 3 } },
-         { rankRange: [2, 3],  prizes: { silver: 3000, food: 6000, badge: 2 } },
-         { rankRange: [4, 10], prizes: { silver: 1000, food: 3000, badge: 1 } },
+         { rankRange: [1, 4],  prizes: '35R或实物等价铜麻将牌' },
+         { rankRange: [5, 10],  prizes: '10RMB' },
+         { rankRange: [11, 30], prizes: '5RMB' },
        ]
      }
    },
 
   // === 纯公告（无排行榜） ===
   {
-    id: 'san_1_info_0001',
+    id: 'san_1_info_0000',
     date: '2026-03-19',
     title: '开服公告',
     content: '欢迎来到《真三风云》赛季一！游戏目前处于内测阶段，如遇问题请及时反馈。祝各位主公旗开得胜！',

@@ -2,7 +2,6 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { useState } from 'react';
 import AuthFlowPage from '@/pages/AuthFlowPage';
 import UserManagerPage from '@/pages/admin/UserManagerPage';
-import AncientModalDemo from '@/pages/demo/AncientModalDemo';
 import { useAdmin } from '@/hooks/useAdmin';
 
 function App() {
@@ -83,15 +82,7 @@ function App() {
                     <h3 className="text-lg font-semibold text-gray-900 mb-2">[黄巾之乱]</h3>
                     <p className="text-sm text-gray-600">真三风云 - 赛季1</p>
                   </a>
-                  {isLoggedIn && (
-                    <>
-                      <a href={`${import.meta.env.BASE_URL}demo/ancient-modal`} className="block p-6 bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow border-2 border-amber-300">
-                        <div className="text-4xl mb-4">🏯</div>
-                        <h3 className="text-lg font-semibold text-gray-900 mb-2">古风弹窗</h3>
-                        <p className="text-sm text-gray-600">Demo - AncientModal组件</p>
-                      </a>
-                    </>
-                  )}
+
                   {isLoggedIn && (
                     <a href={`${import.meta.env.BASE_URL}user-manager`} className="block p-6 bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow border-2 border-red-300">
                       <div className="text-4xl mb-4">👥</div>
@@ -105,7 +96,7 @@ function App() {
             <Route path="/san_1" element={<AuthFlowPage />} />
             <Route path="/san_1/game" element={<AuthFlowPage />} />
             <Route path="/user-manager" element={<UserManagerPage />} />
-            <Route path="/demo/ancient-modal" element={<AncientModalDemo />} />
+
           </Routes>
         </main>
         <footer className="bg-white border-t border-gray-200 mt-12">

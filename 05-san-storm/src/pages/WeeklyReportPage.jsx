@@ -81,7 +81,9 @@ M1完成，进入M2阶段
       week: 'W07',
       date: '3月16日-3月22日',
       content: `制作玩家头像资源
-xxxxxx`,
+装备/称号/成就系统初步完成
+新手指引流程初步上线
+游戏主/编组页面上线`,
       color: 'from-blue-400 to-blue-500',
       borderColor: 'border-blue-400'
     }

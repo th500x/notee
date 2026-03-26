@@ -11,8 +11,15 @@ import { useState } from 'react';
 import { getLatestAnnouncement } from '@/data/texts/announcements';
 
 export default function AnnouncementBar() {
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(() => {
+    try { return localStorage.getItem('ann_collapsed') === '1'; } catch { return false; }
+  });
   const announcement = getLatestAnnouncement();
+
+  const toggleCollapse = (val) => {
+    setCollapsed(val);
+    try { localStorage.setItem('ann_collapsed', val ? '1' : '0'); } catch {}
+  };
 
   if (!announcement) return null;
 
@@ -22,7 +29,7 @@ export default function AnnouncementBar() {
         {/* 折叠状态：只显示一行 */}
         {collapsed ? (
           <button
-            onClick={() => setCollapsed(false)}
+            onClick={() => toggleCollapse(false)}
             className="w-full flex items-center justify-between px-3 py-1.5 text-xs text-amber-300/80 hover:text-amber-200 transition-colors"
           >
             <span className="flex items-center gap-1.5">
@@ -42,7 +49,7 @@ export default function AnnouncementBar() {
                 <span className="text-[10px] text-amber-500/60">{announcement.date}</span>
               </div>
               <button
-                onClick={() => setCollapsed(true)}
+                onClick={() => toggleCollapse(true)}
                 className="flex-shrink-0 ml-2 text-[10px] text-amber-400/60 hover:text-amber-300 transition-colors"
               >
                 ▲ 收起

@@ -70,6 +70,8 @@ const AncientModal = ({
   onConfirm,
   onCancel,
   showCancel = false,
+  hideButtons = false,
+  preventClose = false,  // 禁止关闭按钮和遮罩点击关闭
   // 样式
   width = 'max-w-md',
 }) => {
@@ -107,7 +109,7 @@ const AncientModal = ({
       className={`fixed inset-0 z-50 flex items-center justify-center p-4 transition-all duration-200 ${
         visible ? 'bg-black/60' : 'bg-black/0'
       }`}
-      onClick={handleClose}
+      onClick={preventClose ? undefined : handleClose}
     >
       <div
         className={`relative ${width} w-full transition-all duration-300 ${
@@ -135,12 +137,14 @@ const AncientModal = ({
                 <span className="text-lg font-bold tracking-wider">{title}</span>
               </div>
               {/* 关闭按钮 */}
-              <button
-                onClick={handleClose}
-                className="absolute right-3 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center rounded-full text-amber-300/70 hover:text-amber-100 hover:bg-white/10 transition-colors"
-              >
-                ✕
-              </button>
+              {!preventClose && (
+                <button
+                  onClick={handleClose}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center rounded-full text-amber-300/70 hover:text-amber-100 hover:bg-white/10 transition-colors"
+                >
+                  ✕
+                </button>
+              )}
             </div>
 
             {/* 标题下装饰线 */}
@@ -152,6 +156,7 @@ const AncientModal = ({
             </div>
 
             {/* ===== 按钮区 ===== */}
+            {!hideButtons && (
             <div className="px-6 pb-5">
               <Divider />
               <div className={`flex gap-3 ${showCancel ? 'justify-center' : 'justify-center'}`}>
@@ -180,6 +185,7 @@ const AncientModal = ({
                 </button>
               </div>
             </div>
+            )}
           </div>
 
           {/* ===== 四角铜钉装饰 ===== */}

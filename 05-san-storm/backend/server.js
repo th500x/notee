@@ -51,6 +51,12 @@ const configRouter = require('./routes/config');
 app.use('/api/config', configRouter);
 
 /**
+ * 战斗记录路由（保存、查询、收藏）
+ */
+const battlesRouter = require('./routes/battles');
+app.use('/api/battles', battlesRouter);
+
+/**
  * 排行榜路由（活动排名）
  */
 const rankingsRouter = require('./routes/rankings');
