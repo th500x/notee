@@ -269,7 +269,7 @@ function BattleDetail({ detail }) {
         <div className="bg-black/20 rounded p-1.5">
           <div className="text-[10px] text-amber-200/60 mb-0.5">我方阵容</div>
           <div className="text-[10px] text-amber-100/80">
-            {detail.playerTeam.map(t => t.name || t.displayName).join('、')}
+            {[...new Set(detail.playerTeam.map(t => t.name || t.displayName))].join('、')}
           </div>
         </div>
       )}
@@ -277,7 +277,7 @@ function BattleDetail({ detail }) {
         <div className="bg-black/20 rounded p-1.5">
           <div className="text-[10px] text-amber-200/60 mb-0.5">敌方阵容</div>
           <div className="text-[10px] text-amber-100/80">
-            {detail.opponentTeam.map(t => t.name || t.displayName).join('、')}
+            {[...new Set(detail.opponentTeam.map(t => t.name || t.displayName))].join('、')}
           </div>
         </div>
       )}
