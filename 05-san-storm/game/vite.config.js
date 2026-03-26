@@ -57,5 +57,12 @@ export default defineConfig({
     outDir: 'dist',
     assetsDir: 'assets',
     sourcemap: false,
+    rollupOptions: {
+      onwarn(warning, warn) {
+        // 抑制 public 目录字体文件的路径解析警告
+        if (warning.message?.includes('JYHPHS.woff2')) return;
+        warn(warning);
+      },
+    },
   },
 });

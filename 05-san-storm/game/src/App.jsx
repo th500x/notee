@@ -2,6 +2,7 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { useState } from 'react';
 import AuthFlowPage from '@/pages/AuthFlowPage';
 import UserManagerPage from '@/pages/admin/UserManagerPage';
+import ErrorBoundary from '@/components/common/ErrorBoundary';
 import { useAdmin } from '@/hooks/useAdmin';
 
 function App() {
@@ -62,6 +63,7 @@ function App() {
           </div>
         </header>
         <main className="max-w-7xl mx-auto px-4 py-8">
+          <ErrorBoundary>
           <Routes>
             <Route path="/" element={
               <div className="space-y-8">
@@ -98,6 +100,7 @@ function App() {
             <Route path="/user-manager" element={<UserManagerPage />} />
 
           </Routes>
+          </ErrorBoundary>
         </main>
         <footer className="bg-white border-t border-gray-200 mt-12">
           <div className="max-w-7xl mx-auto px-4 py-6">

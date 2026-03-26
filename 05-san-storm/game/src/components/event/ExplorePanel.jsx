@@ -14,6 +14,7 @@ import EventGobang from './EventGobang';
 import { PHASE, FACTOR_CN } from './EventConstants';
 import { parseRewards, parseRequiredItems, isFactorOption } from './eventUtils';
 import { API_CONFIG } from '@/constants';
+import { loadSharedData } from '@/services/dataService';
 import TroopCard from '@shared/components/card/TroopCard';
 import CharacterCard from '@shared/components/card/CharacterCard';
 import EquipmentCard from '@shared/components/card/EquipmentCard';
@@ -262,15 +263,13 @@ function RewardDisplay({ fortune, chosenOption, battleResult, battleScore, repla
 
   // 加载技能数据（用于TroopCard技能tooltip）
   useEffect(() => {
-    import('@/services/dataService').then(({ loadSharedData }) => {
-      loadSharedData('skills').then(data => {
-        if (data?.skills) {
-          const map = {};
-          data.skills.forEach(s => { map[s.id] = s; });
-          setSkillsMap(map);
-        }
-      }).catch(() => {});
-    });
+    loadSharedData('skills').then(data => {
+      if (data?.skills) {
+        const map = {};
+        data.skills.forEach(s => { map[s.id] = s; });
+        setSkillsMap(map);
+      }
+    }).catch(() => {});
   }, []);
 
   const handleCardClick = useCallback(async (cardId, cardType) => {
