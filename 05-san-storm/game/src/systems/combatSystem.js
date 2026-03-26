@@ -136,6 +136,64 @@ export function calcDamage(atk, def, terrain) {
   return Math.max(1, Math.round(totalDmg));
 }
 
+// ── 预估伤害（去掉随机浮动，用于攻击预览） ──────────────────────────────────
+
+/**
+ * 预估一次攻击的伤害、暴击率、命中率（不含随机浮动）
+ * @param {Object} atk - 攻击方部队
+ * @param {Object} def - 防守方部队
+ * @param {string[][]} terrain - 地形二维数组
+ * @returns {{ damage: number, critRate: number, hitRate: number, critDamage: number }}
+ */
+export function estimateDamage(atk, def, terrain) {
+  const ac = atk.character, dc = def.character;
+
+  // 复用 calcDamage 的全部逻辑，但不加随机浮动
+  const troopAtk = (atk.attack || 100) / 10;
+  const combat = ac ? (ac.combat || 5) : 5;
+  const singleAtk = troopAtk + combat * 6;
+  const courage = ac ? (ac.courage || 5) : 5;
+  const courageBonus = 1 + (courage / 40);
+  const singleFinal = singleAtk * courageBonus;
+  const atkRatio = atk.currentTroops / atk.maxTroops;
+  let totalDmg = singleFinal * atkRatio;
+  const atkMorale = getMoraleEffects(atk);
+  totalDmg *= atkMorale.attack;
+  if (atk._formationBuffs?.attackBonus) totalDmg *= (1 + atk._formationBuffs.attackBonus);
+  const troopDef = (def.defense || 50) / 10;
+  const dCombat = dc ? (dc.combat || 5) : 5;
+  const dCommand = dc ? (dc.command || 5) : 5;
+  const singleDef = troopDef + dCommand * 5 + dCombat * 3;
+  const defRatio = def.currentTroops / def.maxTroops;
+  const totalDef = singleDef * defRatio;
+  const defReduction = totalDef / (totalDef + 140);
+  const defMorale = getMoraleEffects(def);
+  let defMultiplier = defReduction * defMorale.defense;
+  if (def._formationBuffs?.defenseBonus) defMultiplier = Math.min(0.9, defMultiplier * (1 + def._formationBuffs.defenseBonus));
+  totalDmg *= (1 - defMultiplier);
+  totalDmg *= getTerrainDefBonus(def.y, def.x, terrain);
+  const atkEffective = atk.maxTroops * (atk.troopWeight || 1);
+  const defEffective = def.maxTroops * (def.troopWeight || 1);
+  totalDmg *= Math.min(3.0, Math.max(0.33, atkEffective / defEffective));
+  const defType = def.troopType || 'infantry';
+  totalDmg *= (atk[defType + 'Counter'] ?? 1.0);
+  if (terrain) {
+    const adaptKey = (terrain[atk.y]?.[atk.x] || 'plain') + 'Adapt';
+    totalDmg *= (atk[adaptKey] ?? 1.0);
+  }
+  const posBonus = ac?.positionBonuses;
+  if (posBonus) totalDmg *= (1 + (posBonus[(atk.troopType || 'infantry') + 'Bonus'] || 0));
+
+  const damage = Math.max(1, Math.round(totalDmg));
+
+  // 暴击率 / 命中率
+  const dodgeRate = dc ? (dc.luck || 5) / 100 : 0.05;
+  const hitRate = 1 - dodgeRate;
+  const critRate = ac ? ((ac.courage || 5) + (ac.luck || 5)) / 80 : 0.1;
+
+  return { damage, critRate: Math.min(critRate, 0.25), hitRate, critDamage: Math.round(damage * 1.5) };
+}
+
 // ── 暴击/闪避判定 ─────────────────────────────────────────────────────────────
 
 /**

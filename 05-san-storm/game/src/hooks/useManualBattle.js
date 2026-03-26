@@ -10,6 +10,7 @@
 
 import { useState, useCallback, useRef } from 'react';
 import { getReachableTiles, getMoveCost, findPath, dist } from '@/systems/battleFlowManager';
+import { estimateDamage } from '@/systems/combatSystem';
 import { MAP_W } from '@/components/battle/battleConstants';
 import * as fmt from '@/systems/battleTextFormatter';
 
@@ -24,6 +25,9 @@ export const MANUAL_PHASE = {
 };
 
 function inB(y, x) { return y >= 0 && y < 10 && x >= 0 && x < 8; }
+
+/** 稀有度中文标签（宝箱日志用） */
+const RARITY_LABEL_CN = { common: '普通', rare: '稀有', epic: '史诗', legendary: '传奇', core: '核心' };
 
 export function useManualBattle({
   battleTroops, mapResult, mapCardRef,
@@ -41,6 +45,13 @@ export function useManualBattle({
   const [formationTroops, setFormationTroops] = useState(null);
   const [formationObj, setFormationObj] = useState(null);
   const [formationRemMove, setFormationRemMove] = useState(0);
+
+  // 两次点击攻击预览
+  const [attackPreview, setAttackPreview] = useState(null); // { target, estimate }
+
+  // 宝箱奖励
+  const [chestReward, setChestReward] = useState(null); // 装备件对象
+  const chestResolveRef = useRef(null);
 
   const resolveRef = useRef(null);
 
@@ -127,10 +138,68 @@ export function useManualBattle({
     });
   }, [highlightActiveTroop, showMoveHighlights]);
 
+  // ── 宝箱检查：行动结束后检查当前格子是否有未开启的宝箱 ──
+
+  const checkChestAtTroop = useCallback((troop) => {
+    if (!troop || troop.currentTroops <= 0 || !mapResult) return Promise.resolve();
+    const obj = mapResult.objects.find(o => o.type === 'chest' && !o.isOpen && o.y === troop.y && o.x === troop.x);
+    if (!obj) return Promise.resolve();
+
+    // 标记宝箱为已开启
+    obj.isOpen = true;
+
+    // 根据战斗敌人的稀有度决定奖励品质
+    const enemyRarities = battleTroops
+      .filter(t => t.faction === 'enemy' && t.rarity)
+      .map(t => t.rarity);
+    const rarityPriority = ['core', 'legendary', 'epic', 'rare', 'common'];
+    const bestRarity = rarityPriority.find(r => enemyRarities.includes(r)) || 'common';
+
+    // 生成随机装备件奖励
+    const equipTypes = ['weapon', 'armor', 'accessory'];
+    const randomType = equipTypes[Math.floor(Math.random() * equipTypes.length)];
+    const bonusKeys = ['combat', 'command', 'intelligence', 'luck', 'courage', 'charm', 'politics'];
+    const bonusKey = bonusKeys[Math.floor(Math.random() * bonusKeys.length)];
+    const bonusVal = { common: 0.5, rare: 1.0, epic: 1.5, legendary: 2.0, core: 2.5 }[bestRarity] || 0.5;
+
+    const namePool = {
+      weapon:    { common: '铁剑', rare: '精钢刀', epic: '玄铁枪', legendary: '青龙偃月', core: '方天画戟' },
+      armor:     { common: '皮甲', rare: '锁子甲', epic: '玄铁铠', legendary: '麒麟铠', core: '天蚕宝衣' },
+      accessory: { common: '布巾', rare: '玉佩', epic: '锦囊', legendary: '八卦阵图', core: '太平要术' },
+    };
+
+    const reward = {
+      id: `chest_reward_${Date.now()}`,
+      name: namePool[randomType]?.[bestRarity] || '神秘装备',
+      rarity: bestRarity,
+      equipmentType: randomType,
+      bonus: { [bonusKey]: bonusVal },
+      specialEffect: bestRarity === 'legendary' || bestRarity === 'core' ? '战斗中额外触发特殊效果' : null,
+    };
+
+    addLog(`  📦 ${troop.character?.courtesyName || troop.name} 开启宝箱，获得 ${reward.name}（${RARITY_LABEL_CN[bestRarity]}）`, 'skill');
+
+    // 弹出宝箱奖励浮层，等待玩家确认
+    return new Promise((resolve) => {
+      chestResolveRef.current = resolve;
+      setChestReward(reward);
+    });
+  }, [mapResult, battleTroops, addLog]);
+
+  /** 玩家确认收下宝箱奖励 */
+  const confirmChestReward = useCallback(() => {
+    setChestReward(null);
+    if (chestResolveRef.current) {
+      chestResolveRef.current();
+      chestResolveRef.current = null;
+    }
+  }, []);
+
   // ── 结束当前行动 ──
 
   const endTurn = useCallback(() => {
     clearHighlights();
+    setAttackPreview(null);
     setPhase(MANUAL_PHASE.IDLE);
     setActiveTroop(null);
     setRemainingMove(0);
@@ -364,18 +433,28 @@ export function useManualBattle({
 
     for (const t of formationTroops) t._formationHandled = true;
     removeFormationBuffs();
+
+    // 宝箱检查：阵型中所有存活部队检查脚下宝箱
+    for (const t of formationTroops.filter(ft => ft.currentTroops > 0)) {
+      await checkChestAtTroop(t);
+    }
+
     endTurn();
   }, [formationTroops, battleTroops, clearHighlights, addLog,
-      performAttack, battleKill, removeFormationBuffs, endTurn]);
+      performAttack, battleKill, removeFormationBuffs, endTurn, checkChestAtTroop]);
 
   /** 阵型待机（跳过移动+攻击） */
-  const handleFormationStandby = useCallback(() => {
+  const handleFormationStandby = useCallback(async () => {
     if (phase !== MANUAL_PHASE.FORMATION_MOVE && phase !== MANUAL_PHASE.FORMATION_ACTION) return;
     clearHighlights();
     addLog(fmt.fmtFormationWait(), 'move');
+    // 宝箱检查
+    for (const t of (formationTroops || []).filter(ft => ft.currentTroops > 0)) {
+      await checkChestAtTroop(t);
+    }
     for (const t of (formationTroops || [])) t._formationHandled = true;
     endTurn();
-  }, [phase, formationTroops, clearHighlights, addLog, endTurn]);
+  }, [phase, formationTroops, clearHighlights, addLog, endTurn, checkChestAtTroop]);
 
   // ══════════════════════════════════════════
   // ── tile 点击处理（单兵 + 阵型） ──
@@ -471,6 +550,7 @@ export function useManualBattle({
       const key = `${y},${x}`;
 
       if (reachableTiles && reachableTiles.has(key)) {
+        setAttackPreview(null);
         setPhase(MANUAL_PHASE.ANIMATING);
         clearHighlights();
         const tmpTroop = { ...activeTroop, y: activeTroop.y, x: activeTroop.x, movement: remainingMove };
@@ -495,7 +575,7 @@ export function useManualBattle({
         return;
       }
 
-      // 直接攻击范围内敌人
+      // 两次点击攻击：范围内敌人
       const range = activeTroop.range || 1;
       const clickedEnemy = battleTroops.find(t =>
         t.faction !== activeTroop.faction && t.currentTroops > 0 &&
@@ -503,17 +583,29 @@ export function useManualBattle({
         (Math.abs(t.y - activeTroop.y) + Math.abs(t.x - activeTroop.x)) <= range
       );
       if (clickedEnemy) {
-        setPhase(MANUAL_PHASE.ANIMATING);
-        clearHighlights();
-        await performAttack(activeTroop, clickedEnemy);
-        if (clickedEnemy.currentTroops <= 0) {
-          await battleKill(clickedEnemy);
-        } else {
-          await performCounterAttack(activeTroop, clickedEnemy);
+        // 第二次点击同一目标 → 确认攻击
+        if (attackPreview && attackPreview.target === clickedEnemy) {
+          setAttackPreview(null);
+          setPhase(MANUAL_PHASE.ANIMATING);
+          clearHighlights();
+          await performAttack(activeTroop, clickedEnemy);
+          if (clickedEnemy.currentTroops <= 0) {
+            await battleKill(clickedEnemy);
+          } else {
+            await performCounterAttack(activeTroop, clickedEnemy);
+          }
+          await checkChestAtTroop(activeTroop);
+          endTurn();
+          return;
         }
-        endTurn();
+        // 第一次点击 → 显示预估伤害
+        const estimate = estimateDamage(activeTroop, clickedEnemy, mapResult?.terrain);
+        setAttackPreview({ target: clickedEnemy, estimate });
         return;
       }
+
+      // 点击空白处取消预览
+      setAttackPreview(null);
       return;
     }
 
@@ -521,34 +613,48 @@ export function useManualBattle({
     if (phase === MANUAL_PHASE.SELECT_ACTION && activeTroop) {
       const clickedEnemy = attackTargets.find(t => t.y === y && t.x === x);
       if (clickedEnemy) {
-        setPhase(MANUAL_PHASE.ANIMATING);
-        clearHighlights();
-        await performAttack(activeTroop, clickedEnemy);
-        if (clickedEnemy.currentTroops <= 0) {
-          await battleKill(clickedEnemy);
-        } else {
-          await performCounterAttack(activeTroop, clickedEnemy);
+        // 第二次点击同一目标 → 确认攻击
+        if (attackPreview && attackPreview.target === clickedEnemy) {
+          setAttackPreview(null);
+          setPhase(MANUAL_PHASE.ANIMATING);
+          clearHighlights();
+          await performAttack(activeTroop, clickedEnemy);
+          if (clickedEnemy.currentTroops <= 0) {
+            await battleKill(clickedEnemy);
+          } else {
+            await performCounterAttack(activeTroop, clickedEnemy);
+          }
+          await checkChestAtTroop(activeTroop);
+          endTurn();
+          return;
         }
-        endTurn();
+        // 第一次点击 → 显示预估伤害
+        const estimate = estimateDamage(activeTroop, clickedEnemy, mapResult?.terrain);
+        setAttackPreview({ target: clickedEnemy, estimate });
         return;
       }
+
+      // 点击空白处取消预览
+      setAttackPreview(null);
       return;
     }
   }, [phase, activeTroop, formationTroops, reachableTiles, remainingMove,
-      formationRemMove, attackTargets, battleTroops, mapResult,
+      formationRemMove, attackTargets, attackPreview, battleTroops, mapResult,
       clearHighlights, highlightActiveTroop, showMoveHighlights,
       showFormationMoveHighlights, enterActionPhase, enterFormationAction,
       endTurn, battleMove, formationGroupMove, doFormationAttack,
-      performAttack, performCounterAttack, battleKill, addLog]);
+      performAttack, performCounterAttack, battleKill, addLog, checkChestAtTroop]);
 
   // ── 单兵待机 ──
 
-  const handleStandby = useCallback(() => {
+  const handleStandby = useCallback(async () => {
     if (phase !== MANUAL_PHASE.SELECT_MOVE && phase !== MANUAL_PHASE.SELECT_ACTION) return;
     clearHighlights();
+    setAttackPreview(null);
     addLog(`  💤 ${activeTroop?.character?.courtesyName || activeTroop?.name || '部队'} 原地待机`, 'move');
+    await checkChestAtTroop(activeTroop);
     endTurn();
-  }, [phase, activeTroop, clearHighlights, addLog, endTurn]);
+  }, [phase, activeTroop, clearHighlights, addLog, endTurn, checkChestAtTroop]);
 
   // ── 跳过移动 ──
 
@@ -563,6 +669,11 @@ export function useManualBattle({
     activeTroop,
     remainingMove,
     attackTargets,
+    // 两次点击攻击预览
+    attackPreview,
+    // 宝箱奖励
+    chestReward,
+    confirmChestReward,
     // 阵型状态
     formationTroops,
     formationObj,

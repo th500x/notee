@@ -5,6 +5,8 @@ import { memo, useCallback, useRef, useState, useMemo } from 'react';
 import { MAP_W, MAP_H, ZONE, TILE_INFO, TYPE_LABEL, RARITY_LABEL, FACTION_COLOR } from './battleConstants';
 import { MANUAL_PHASE } from '@/hooks/useManualBattle';
 import BattleTile from './BattleTile';
+import AttackPreview from './AttackPreview';
+import ChestRewardOverlay from './ChestRewardOverlay';
 
 function BattleMap({ mapResult, mapLabel, battleTroops, showTroops, isBattle, mapCardRef, onTileClick, manualProps }) {
   const tooltipRef = useRef(null);
@@ -187,6 +189,10 @@ function BattleMap({ mapResult, mapLabel, battleTroops, showTroops, isBattle, ma
               </button>
             </div>
           )}
+          {/* 攻击预览浮层 */}
+          {manualProps?.attackPreview && (
+            <AttackPreview preview={manualProps.attackPreview} />
+          )}
           <div className="map-zone-bar">
             <div className={`zone-bar-seg ${bA}`} />
             <div className="zone-bar-seg seg-c" />
@@ -230,6 +236,14 @@ function BattleMap({ mapResult, mapLabel, battleTroops, showTroops, isBattle, ma
             </>
           )}
         </div>
+      )}
+
+      {/* 宝箱奖励浮层 */}
+      {manualProps?.chestReward && (
+        <ChestRewardOverlay
+          reward={manualProps.chestReward}
+          onConfirm={manualProps.confirmChestReward}
+        />
       )}
     </div>
   );

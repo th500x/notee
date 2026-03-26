@@ -395,6 +395,9 @@ export default function EventBattle({ onBattleEnd, playerId, playerName, playerS
               formationTroops: manual.formationTroops,
               onStandby: manual.handleStandby,
               onFormationStandby: manual.handleFormationStandby,
+              attackPreview: manual.attackPreview,
+              chestReward: manual.chestReward,
+              confirmChestReward: manual.confirmChestReward,
             } : undefined}
           />
         )}
