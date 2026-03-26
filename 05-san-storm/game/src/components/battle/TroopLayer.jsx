@@ -29,7 +29,14 @@ function TroopLayer({ troop }) {
         className="troop-img"
         src={troop.imgSrc}
         alt={troop.name}
-        onError={e => { e.target.style.display = 'none'; }}
+        onError={e => {
+          // ID图标不存在 → fallback到稀有度+武器类型图标
+          if (troop.imgFallback && e.target.src !== troop.imgFallback) {
+            e.target.src = troop.imgFallback;
+          } else {
+            e.target.style.display = 'none';
+          }
+        }}
       />
       <div className="troop-name">
         <span className="cn">{troop.displayName || troop.name}</span>

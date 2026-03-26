@@ -501,7 +501,7 @@ function LandscapeQuadrant({ player, activeSubTab, slots, getSlotContent, onSlot
       };
     }
     if (generalCard) {
-      return toCharacterCardData(generalCard);
+      return toCharacterCardData(generalCard, attributeBonus);
     }
     return null;
   })();
@@ -586,7 +586,7 @@ function EquipmentLayout({ player, activeSubTab, leftSlots, rightSlots, getSlotC
       };
     }
     if (generalCard) {
-      return toCharacterCardData(generalCard);
+      return toCharacterCardData(generalCard, attributeBonus);
     }
     return null;
   })();
@@ -869,7 +869,7 @@ function toTitleCardData(card) {
 }
 
 /** 将卡牌原始数据转换为CharacterCard组件格式 */
-function toCharacterCardData(card) {
+function toCharacterCardData(card, attributeBonus) {
   const cfg = card.config || {};
   return {
     id: cfg.id || card.card_id,
@@ -891,6 +891,7 @@ function toCharacterCardData(card) {
     biography: cfg.biography,
     description: cfg.description,
     avatar: cfg.avatar,
+    attributeBonus: attributeBonus || {},
   };
 }
 

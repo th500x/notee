@@ -59,7 +59,7 @@ function renderTroopsToDOM(mapCardRef, battleTroops) {
     const hpHtml = `<div class="troop-hp-top">${topBlks}</div>${rightBlks ? `<div class="troop-hp-right">${rightBlks}</div>` : ''}`;
     const layer = document.createElement('div');
     layer.className = 'troop-layer';
-    layer.innerHTML = `${hpHtml}<div class="troop-glow ${troop.faction}"></div><img class="troop-img" src="${troop.imgSrc || ''}" alt="${troop.name}" onerror="this.style.display='none'"><div class="troop-name"><span class="cn">${troop.displayName || troop.name}</span><span class="mr">${troop.morale}/100</span></div>`;
+    layer.innerHTML = `${hpHtml}<div class="troop-glow ${troop.faction}"></div><img class="troop-img" src="${troop.imgSrc || ''}" alt="${troop.name}" onerror="if(this.dataset.fb){this.src=this.dataset.fb;this.dataset.fb=''}else{this.style.display='none'}" data-fb="${troop.imgFallback || ''}"><div class="troop-name"><span class="cn">${troop.displayName || troop.name}</span><span class="mr">${troop.morale}/100</span></div>`;
     tile.appendChild(layer);
   }
 }
