@@ -445,7 +445,13 @@ async function executeRewards(playerId, rewardStr, multiplier, factionId) {
         'UPDATE players SET items = ? WHERE player_id = ?',
         [JSON.stringify(items), playerId]
       );
-      details.push({ type: 'item', itemId: r.itemId, quantity: qty });
+      // 查询道具名称
+      const [itemConfig] = await connection.query(
+        'SELECT item_name FROM config_items WHERE item_id = ?',
+        [r.itemId]
+      );
+      const itemName = itemConfig[0]?.item_name || r.itemId;
+      details.push({ type: 'item', itemId: r.itemId, itemName, quantity: qty });
     }
 
     // ── 2.5 官职奖励 → 更新 players 表的官职字段 ──

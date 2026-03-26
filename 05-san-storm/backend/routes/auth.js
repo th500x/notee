@@ -208,6 +208,49 @@ router.post('/login', async (req, res) => {
 });
 
 /**
+ * POST /api/auth/recover
+ * 找回账号 - 通过密码查找账号ID
+ */
+router.post('/recover', async (req, res) => {
+  try {
+    const { password } = req.body;
+
+    if (!password) {
+      return res.status(400).json({ success: false, error: '请输入密码' });
+    }
+
+    // 查询所有活跃账号（排除AI和封禁账号）
+    const [accounts] = await pool.query(
+      "SELECT id, password, serverId FROM accounts WHERE account_type = 'real' AND status != 'banned'"
+    );
+
+    if (accounts.length === 0) {
+      return res.status(404).json({ success: false, error: '未找到匹配的账号' });
+    }
+
+    // 逐一比对密码（bcrypt）
+    for (const account of accounts) {
+      const match = await bcrypt.compare(password, account.password);
+      if (match) {
+        return res.json({
+          success: true,
+          data: {
+            id: account.id,
+            serverId: account.serverId
+          }
+        });
+      }
+    }
+
+    return res.status(401).json({ success: false, error: '未找到匹配的账号' });
+
+  } catch (error) {
+    console.error('[Auth] 找回账号失败:', error);
+    res.status(500).json({ success: false, error: '服务器错误，请稍后重试' });
+  }
+});
+
+/**
  * GET /api/auth/users
  * 获取所有用户列表（管理员功能）
  */

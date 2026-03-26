@@ -599,12 +599,9 @@ export function useBattleEngine({
 
     if (activeFormationRef.current) {
       if (autoBattleRef.current) {
-        // 自动战斗：阵型整体行动（AI决策移动+攻击）
         await formationGroupAction();
         await sleep(300, speedRef.current);
       } else {
-        // 手动战斗：阵型整体行动由玩家操控
-        // 暂停等待玩家选择阵型移动方向和攻击目标
         if (manualBattleRef?.current) {
           await manualBattleRef.current.startFormationTurn(
             battleTroops.filter(t => t.faction === 'player' && t.currentTroops > 0 && t._formationBuffs),
@@ -613,12 +610,24 @@ export function useBattleEngine({
         }
         await sleep(300, speedRef.current);
       }
+      // 阵型行动后胜负检查
+      const fmtP = battleTroops.filter(t => t.faction === 'player' && t.currentTroops > 0);
+      const fmtE = battleTroops.filter(t => t.faction === 'enemy' && t.currentTroops > 0);
+      if (fmtP.length === 0) { addLog(fmt.fmtBattleEnd('enemy_win'), 'death'); return 'enemy_win'; }
+      if (fmtE.length === 0) { addLog(fmt.fmtBattleEnd('player_win'), 'round'); return 'player_win'; }
     }
 
     const turnOrder = [...alive].sort((a, b) => (b.speed || 4) - (a.speed || 4));
     for (const troop of turnOrder) {
       if (troop.currentTroops <= 0) continue;
       if (troop._formationHandled) continue;
+
+      // 回合中途胜负检查：任一方全灭则立即结束
+      const midPlayers = battleTroops.filter(t => t.faction === 'player' && t.currentTroops > 0);
+      const midEnemies = battleTroops.filter(t => t.faction === 'enemy' && t.currentTroops > 0);
+      if (midPlayers.length === 0) { addLog(fmt.fmtBattleEnd('enemy_win'), 'death'); return 'enemy_win'; }
+      if (midEnemies.length === 0) { addLog(fmt.fmtBattleEnd('player_win'), 'round'); return 'player_win'; }
+
       addLog(fmt.fmtTurnStart(troop), 'round');
       await sleep(200, speedRef.current);
 

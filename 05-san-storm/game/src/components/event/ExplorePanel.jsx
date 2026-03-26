@@ -319,7 +319,7 @@ function RewardDisplay({ fortune, chosenOption, battleResult, battleScore, repla
       } else if (d.type === 'position') {
         result.push({ text: `👑 官职「${d.positionName}」` });
       } else if (d.type === 'item') {
-        result.push({ text: `🔑 ${d.itemName || d.itemId} ×${d.quantity || 1}` });
+        result.push({ text: `🔑 ${d.itemName || '道具'} ×${d.quantity || 1}` });
       } else if (d.type === 'character_duplicate') {
         result.push({ text: `💰 将领重复补偿 +${d.compensation}银两` });
       } else if (d.type === 'card_duplicate') {

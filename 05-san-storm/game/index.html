@@ -8,7 +8,32 @@
     <title>真三风云 | San Storm</title>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <!-- 当 JS 未执行时显示的 fallback 提示 -->
+      <div id="app-fallback" style="display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:system-ui,sans-serif;background:#f9fafb;padding:20px;">
+        <div style="text-align:center;max-width:400px;">
+          <div style="font-size:48px;margin-bottom:16px;">⚔️</div>
+          <h1 style="font-size:20px;color:#111;margin-bottom:8px;">真三風雲 San Storm</h1>
+          <p style="color:#666;font-size:14px;margin-bottom:16px;">正在加载游戏...</p>
+          <p style="color:#999;font-size:12px;">如果长时间停留在此页面，请尝试：</p>
+          <ul style="color:#999;font-size:12px;text-align:left;display:inline-block;margin-top:8px;">
+            <li>使用 Chrome / Safari / Edge 最新版浏览器</li>
+            <li>避免使用微信/QQ内置浏览器，请点击右上角「在浏览器中打开」</li>
+            <li>清除浏览器缓存后刷新页面</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <script>
+      // 全局错误捕获：如果 React 加载失败，显示友好提示
+      window.addEventListener('error', function(e) {
+        var fb = document.getElementById('app-fallback');
+        if (fb) {
+          fb.querySelector('p').textContent = '加载失败，请使用最新版 Chrome / Safari / Edge 浏览器访问';
+          fb.querySelector('p').style.color = '#dc2626';
+        }
+      });
+    </script>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

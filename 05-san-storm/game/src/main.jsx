@@ -15,3 +15,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     <App />
   </React.StrictMode>
 );
+
+// React 渲染成功，移除 fallback
+const fb = document.getElementById('app-fallback');
+if (fb) fb.remove();

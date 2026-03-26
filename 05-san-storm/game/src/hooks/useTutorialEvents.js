@@ -325,12 +325,12 @@ export default function useTutorialEvents(player, cards) {
       // 显示官职装配动画
       setPositionAnimation(positionDetail);
       setPhase(PHASE.RETURNING);
-      // 官职动画3秒 + 过渡2秒 = 5秒
-      setTimeout(() => setPositionAnimation(null), 3000);
-      setTimeout(() => setPhase(PHASE.IDLE), 5000);
+      // 官职动画2秒 + 过渡1秒 = 3秒
+      setTimeout(() => setPositionAnimation(null), 2000);
+      setTimeout(() => setPhase(PHASE.IDLE), 3000);
     } else {
       setPhase(PHASE.RETURNING);
-      setTimeout(() => setPhase(PHASE.IDLE), 5000);
+      setTimeout(() => setPhase(PHASE.IDLE), 3000);
     }
   }, [currentEvent, chosenOptionKey, player, tutorialStep, rewardDetails]);
 

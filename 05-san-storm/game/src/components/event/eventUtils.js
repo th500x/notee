@@ -170,7 +170,7 @@ export function parseRequiredItems(str, itemNameMap) {
     if (RESOURCE_CN[key]) return `${RESOURCE_CN[key]} ${val}`;
     // 道具ID（san_1_item_xxx 或 item_xxx 格式）
     if (key.includes('_item_') || key.startsWith('item_')) {
-      const name = (itemNameMap && itemNameMap[key]) || key;
+      const name = (itemNameMap && itemNameMap[key]) || '道具';
       return val ? `${name} ×${val}` : name;
     }
     return val != null ? `${key} ${val}` : key;

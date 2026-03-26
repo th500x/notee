@@ -463,7 +463,7 @@ export default function useEventSystem(player, cards) {
     setRewardDetails(null);
     // 清除进行中标记
     if (pendingKey) localStorage.removeItem(pendingKey + '_inprogress');
-    setTimeout(() => setPhase(PHASE.IDLE), 5000);
+    setTimeout(() => setPhase(PHASE.IDLE), 3000);
   }, [currentEvent, chosenOptionKey, player]);
 
   const isSuccess = isFortuneSuccess(fortune);

@@ -227,6 +227,29 @@ export const gameUserAPI = {
   },
 
   /**
+   * 找回账号 - 通过密码查找账号ID
+   */
+  recoverAccount: async (password) => {
+    try {
+      const response = await fetchWithTimeout(`${API_CONFIG.BASE_URL}/auth/recover`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password })
+      });
+      const data = await response.json();
+      if (data.success) {
+        return { success: true, data: data.data };
+      }
+      return { success: false, error: data.error || '未找到匹配的账号' };
+    } catch (error) {
+      if (error.message.includes('超时')) {
+        return { success: false, error: '请求超时，请检查网络连接' };
+      }
+      return { success: false, error: '网络错误，请检查后端服务是否运行' };
+    }
+  },
+
+  /**
    * 获取所有用户列表（管理员功能）
    */
   getAllUsers: async () => {
