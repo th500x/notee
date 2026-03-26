@@ -891,6 +891,7 @@ function toCharacterCardData(card, attributeBonus) {
     biography: cfg.biography,
     description: cfg.description,
     avatar: cfg.avatar,
+    morale: card.morale ?? null,
     attributeBonus: attributeBonus || {},
   };
 }

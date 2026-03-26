@@ -337,6 +337,21 @@ export default function EventBattle({ onBattleEnd, playerId, playerName, playerS
             .filter(t => t.instanceId)
             .map(t => ({ instanceId: t.instanceId, currentTroops: Math.max(0, t.currentTroops) }));
 
+          // 我方战后士气（按将领分组，取该将领存活部队的士气值）
+          const moraleUpdates = [];
+          // 玩家角色士气
+          const playerTroop = playerTroops.find(t => t.character?.courtesyName === bm.battleTroops.find(bt => bt.faction === 'player')?.character?.courtesyName);
+          if (playerTroops.length > 0) {
+            const alivePT = playerTroops.find(t => t.currentTroops > 0) || playerTroops[0];
+            moraleUpdates.push({ target: 'player', morale: alivePT.morale ?? 70 });
+          }
+          // 将领卡士气（通过 instanceId 关联）
+          for (const t of playerTroops) {
+            if (t.instanceId) {
+              moraleUpdates.push({ target: 'card', instanceId: t.instanceId, morale: t.morale ?? 70 });
+            }
+          }
+
           battleAPI.saveBattle({
             battleId,
             playerId: playerId || 'unknown',
@@ -361,6 +376,8 @@ export default function EventBattle({ onBattleEnd, playerId, playerName, playerS
               scoreDetails: scoreResult.details,
             },
             troopCasualties,
+            moraleUpdates,
+            chestRewards: manual.collectedChestRewards || [],
           }).catch(err => console.error('[EventBattle] 保存战报失败:', err));
 
           onBattleEnd(result, silverSpent > 0 ? silverSpent : 0, scoreResult);

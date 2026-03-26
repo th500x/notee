@@ -155,6 +155,52 @@ router.post('/', async (req, res) => {
         console.log(`[battles] 兵力更新: ${troopCasualties.length}支部队`);
       }
 
+      // 更新我方战后士气
+      const { moraleUpdates } = req.body;
+      if (moraleUpdates && Array.isArray(moraleUpdates)) {
+        for (const mu of moraleUpdates) {
+          const morale = Math.max(0, Math.min(120, mu.morale));
+          if (mu.target === 'player') {
+            await pool.query(
+              'UPDATE players SET morale = ? WHERE player_id = ?',
+              [morale, playerId]
+            );
+          } else if (mu.target === 'card' && mu.instanceId) {
+            await pool.query(
+              'UPDATE player_cards SET morale = ? WHERE instance_id = ? AND player_id = ?',
+              [morale, mu.instanceId, playerId]
+            );
+          }
+        }
+        console.log(`[battles] 士气更新: ${moraleUpdates.length}条`);
+      }
+
+      // 保存宝箱装备奖励到 player_cards
+      const { chestRewards } = req.body;
+      if (chestRewards && Array.isArray(chestRewards) && chestRewards.length > 0) {
+        for (const reward of chestRewards) {
+          const instanceId = `equip_chest_${playerId}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+          await pool.query(
+            `INSERT INTO player_cards (instance_id, player_id, card_id, card_type, rarity, is_equipped, equipped_by, equipped_slot, bonus_data)
+             VALUES (?, ?, ?, 'equipment', ?, FALSE, NULL, NULL, ?)`,
+            [
+              instanceId,
+              playerId,
+              reward.id || 'chest_equipment',
+              reward.rarity || 'common',
+              JSON.stringify({
+                name: reward.name,
+                equipmentType: reward.equipmentType,
+                bonus: reward.bonus || {},
+                specialEffect: reward.specialEffect || null,
+                source: 'chest',
+              }),
+            ]
+          );
+        }
+        console.log(`[battles] 宝箱装备保存: ${chestRewards.length}件`);
+      }
+
       // 耐久耗尽处理：battle_count >= max_battle_count
       // core稀有度：保留卡牌，卸下装备（0/30留在军营，无法上阵）
       const [coreExpired] = await pool.query(

@@ -11,6 +11,7 @@ import AncientModal, { Divider } from '@/components/common/AncientModal';
 import FortunePreview from './FortunePreview';
 import EventBattle from './EventBattle';
 import EventGobang from './EventGobang';
+import EventBlackjack from './EventBlackjack';
 import { PHASE, FACTOR_CN } from './EventConstants';
 import { parseRewards, parseRequiredItems, isFactorOption } from './eventUtils';
 import { API_CONFIG } from '@/constants';
@@ -80,9 +81,16 @@ export default function ExplorePanel({ eventSystem }) {
         )}
       </AncientModal>
 
-      {/* ===== 迷你游戏（内嵌五子棋） ===== */}
+      {/* ===== 迷你游戏 ===== */}
       {phase === PHASE.MINIGAME && minigameInfo && (
-        <EventGobang difficulty={minigameInfo.difficulty} onGameEnd={endMinigame} />
+        minigameInfo.game === 'blackjack'
+          ? <EventBlackjack
+              difficulty={minigameInfo.difficulty}
+              onGameEnd={endMinigame}
+              playerName={team?.player?.name || '主公'}
+              playerSilver={playerSilver}
+            />
+          : <EventGobang difficulty={minigameInfo.difficulty} onGameEnd={endMinigame} />
       )}
 
       {/* ===== 骰子动画 ===== */}
@@ -181,9 +189,11 @@ function OptionBlock({ label, option, colorScheme, team, hoveredOption, optionKe
                 (消耗 {parseRequiredItems(option.requiredItems, itemNameMap)})
               </span>
             )}
-            {option.mainFactor === 'minigame' && (
-              <span className="text-xs text-amber-600 ml-2">🎮 五子棋</span>
-            )}
+            {option.mainFactor === 'minigame' && (() => {
+              const gameType = option.mainRequirement?.split(':')[0];
+              const gameLabel = gameType === 'blackjack' ? '🃏 二十一点' : '🎮 五子棋';
+              return <span className="text-xs text-amber-600 ml-2">{gameLabel}</span>;
+            })()}
           </div>
           {disabled && <div className="text-xs text-red-400 mt-1">⚠️ {missing}</div>}
           {isFactor && !disabled && (

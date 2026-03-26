@@ -3,7 +3,7 @@
  * 
  * 规则：
  * - 每小时补充6次探索机会
- * - 上限12次（可叠加2小时）
+ * - 上限18次（可叠加3小时）
  * - 晚间 00:00~08:00 不补充次数（💤休息时间）
  * - 使用 localStorage 持久化
  */
@@ -11,7 +11,7 @@ import { useState, useEffect, useCallback } from 'react';
 
 const STORAGE_KEY = 'explore_quota';
 const REFILL_PER_HOUR = 6;
-const MAX_QUOTA = 12;
+const MAX_QUOTA = 18;
 const REST_START = 0;  // 00:00
 const REST_END = 8;    // 08:00
 

@@ -75,6 +75,8 @@ function calculateFortune(option, playerChar, general1, general2) {
   }
 
   // minigame 判定 → 由前端小游戏结果决定，后端默认吉
+  // 实际判定在 routes/players.js 中根据 minigameResult 处理
+  // 胜利时投骰子：5或6点 → 鸿运（触发bonus_rewards），其余 → 吉
   if (option.mainFactor === 'minigame') {
     return { fortuneName: '吉', multiplier: 1.0, dice: 4, finalRate: 100 };
   }
@@ -161,8 +163,8 @@ function parseRewardString(rewardStr) {
       };
     }
 
-    // 道具: san_1_item_xxx[:qty]
-    if (t.includes('_item_')) {
+    // 道具: item_xxx[:qty] 或 san_1_item_xxx[:qty]
+    if (t.includes('_item_') || t.startsWith('item_')) {
       const parts = t.split(':');
       return {
         type: 'item',

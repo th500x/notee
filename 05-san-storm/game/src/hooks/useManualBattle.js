@@ -52,6 +52,7 @@ export function useManualBattle({
   // 宝箱奖励
   const [chestReward, setChestReward] = useState(null); // 装备件对象
   const chestResolveRef = useRef(null);
+  const collectedChestRewards = useRef([]); // 收集所有宝箱奖励，战斗结束时发送后端
 
   const resolveRef = useRef(null);
 
@@ -186,6 +187,9 @@ export function useManualBattle({
     };
 
     addLog(`  📦 ${troop.character?.courtesyName || troop.name} 开启宝箱，获得 ${reward.name}（${RARITY_LABEL_CN[bestRarity]}）`, 'skill');
+
+    // 收集奖励（战斗结束时统一发送后端）
+    collectedChestRewards.current.push(reward);
 
     // 弹出宝箱奖励浮层，等待玩家确认
     return new Promise((resolve) => {
@@ -690,6 +694,7 @@ export function useManualBattle({
     // 宝箱奖励
     chestReward,
     confirmChestReward,
+    collectedChestRewards: collectedChestRewards.current,
     // 阵型状态
     formationTroops,
     formationObj,

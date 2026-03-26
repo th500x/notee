@@ -1,8 +1,8 @@
 {
   "_meta": {
-    "generated": "2026-03-26T10:29:03.367Z",
+    "generated": "2026-03-26T16:17:30.509Z",
     "source": "event-template.csv",
-    "count": 20
+    "count": 23
   },
   "events": [
     {
@@ -437,6 +437,150 @@
       }
     },
     {
+      "id": "san_1_event_5_2001",
+      "name": "赌坊小厮的邀约",
+      "location": "san_1_city_6_nanyang",
+      "minPositionLevel": null,
+      "triggerProbability": 0.15,
+      "triggerContext": "explore",
+      "chainId": null,
+      "chainLevel": null,
+      "requiredItems": null,
+      "descriptions": [
+        "路过一间简陋的赌坊，门口一个小厮热情地招呼你",
+        "大人大人！进来玩两把二十一点吧！小的陪您耍耍！",
+        "每局只需5两银子三局定胜负！"
+      ],
+      "tags": "迷你游戏;二十一点",
+      "version": "1.0",
+      "optionA": {
+        "id": "option_a",
+        "text": "来吧",
+        "requiredItems": null,
+        "mainFactor": "minigame",
+        "mainRequirement": "blackjack:easy",
+        "subFactors": null,
+        "subRequirement": null,
+        "triggerBattle": false,
+        "battleEnemyId": null,
+        "successText": "你轻松赢下赌局小厮输得心服口服：大人牌技了得！",
+        "failureText": "你居然输给了赌坊小厮……他得意地笑了：承让承让！",
+        "rewards": "silver:10;food:50;reputation:1",
+        "bonusRewards": null
+      },
+      "optionB": {
+        "id": "option_b",
+        "text": "没兴趣",
+        "requiredItems": null,
+        "mainFactor": "always",
+        "mainRequirement": null,
+        "subFactors": null,
+        "subRequirement": null,
+        "triggerBattle": false,
+        "battleEnemyId": null,
+        "successText": "你摆摆手离开了小厮失望地叹了口气",
+        "failureText": null,
+        "rewards": "reputation:1",
+        "bonusRewards": null
+      }
+    },
+    {
+      "id": "san_1_event_5_2002",
+      "name": "赌坊掌柜的牌局",
+      "location": "san_1_city_6_nanyang",
+      "minPositionLevel": null,
+      "triggerProbability": 0.1,
+      "triggerContext": "explore",
+      "chainId": null,
+      "chainLevel": null,
+      "requiredItems": null,
+      "descriptions": [
+        "你走进赌坊深处一位精明的掌柜正在擦拭牌桌",
+        "他抬头看了你一眼微微一笑：这位将军可有兴趣来一局？",
+        "每局5两银子三局两胜老规矩"
+      ],
+      "tags": "迷你游戏;二十一点",
+      "version": "1.0",
+      "optionA": {
+        "id": "option_a",
+        "text": "欣然应战",
+        "requiredItems": null,
+        "mainFactor": "minigame",
+        "mainRequirement": "blackjack:medium",
+        "subFactors": null,
+        "subRequirement": null,
+        "triggerBattle": false,
+        "battleEnemyId": null,
+        "successText": "你牌技高超！掌柜赞许地点头：将军好手气改日再来！",
+        "failureText": "掌柜笑着收起银两：将军今日手气不佳下次再来吧",
+        "rewards": "silver:30;food:50;reputation:2",
+        "bonusRewards": "random:equipment:common:1"
+      },
+      "optionB": {
+        "id": "option_b",
+        "text": "改日再来",
+        "requiredItems": null,
+        "mainFactor": "always",
+        "mainRequirement": null,
+        "subFactors": null,
+        "subRequirement": null,
+        "triggerBattle": false,
+        "battleEnemyId": null,
+        "successText": "你礼貌地谢绝了掌柜点点头继续擦拭牌桌",
+        "failureText": null,
+        "rewards": "reputation:2",
+        "bonusRewards": null
+      }
+    },
+    {
+      "id": "san_1_event_5_2003",
+      "name": "赌坊黑手的挑战",
+      "location": "san_1_city_6_nanyang",
+      "minPositionLevel": null,
+      "triggerProbability": 0.05,
+      "triggerContext": "explore",
+      "chainId": null,
+      "chainLevel": null,
+      "requiredItems": null,
+      "descriptions": [
+        "赌坊最深处一个面色阴沉的男子独坐牌桌前",
+        "他缓缓抬头目光如炬：听说你赢了不少人敢不敢跟我来三局？",
+        "每局5两银子赢了算你本事输了别怪我手黑"
+      ],
+      "tags": "迷你游戏;二十一点",
+      "version": "1.0",
+      "optionA": {
+        "id": "option_a",
+        "text": "奉陪到底",
+        "requiredItems": null,
+        "mainFactor": "minigame",
+        "mainRequirement": "blackjack:hard",
+        "subFactors": null,
+        "subRequirement": null,
+        "triggerBattle": false,
+        "battleEnemyId": null,
+        "successText": "你竟然赢了赌坊黑手！他面色铁青地站起来：你是我见过最强的对手",
+        "failureText": "赌坊黑手冷笑着收走银两：就这点本事也敢来挑战我？",
+        "rewards": "silver:50;food:50;reputation:3",
+        "bonusRewards": "random:equipment:common:2"
+      },
+      "optionB": {
+        "id": "option_b",
+        "text": "识时务者为俊杰",
+        "requiredItems": null,
+        "mainFactor": "always",
+        "mainRequirement": null,
+        "subFactors": null,
+        "subRequirement": null,
+        "triggerBattle": false,
+        "battleEnemyId": null,
+        "successText": "你明智地选择了离开赌坊黑手冷哼一声不再理会",
+        "failureText": null,
+        "rewards": "reputation:3",
+        "bonusRewards": null
+      }
+    },
+    {
       "id": "san_1_event_7_1001",
       "name": "流寇遗落的辎重",
       "location": "san_1_city_6_nanyang",
@@ -759,7 +903,7 @@
         "battleEnemyId": null,
         "successText": "老妇人感激涕零递上一封求救信：这是我儿媳藏在灶台里的信",
         "failureText": "你安慰了老妇人但她太过悲伤一时说不清山贼的去向",
-        "rewards": "san_1_item_cunfu_1;reputation:2",
+        "rewards": "item_nanyang_cunfu_1;reputation:2",
         "bonusRewards": "food:50"
       },
       "optionB": {
@@ -807,7 +951,7 @@
         "battleEnemyId": null,
         "successText": "村民仔细回忆后画出了详细的山贼营地地图",
         "failureText": "村民太过紧张只画出了大致方向细节模糊不清",
-        "rewards": "san_1_item_cunfu_2;reputation:2",
+        "rewards": "item_nanyang_cunfu_2;reputation:2",
         "bonusRewards": "silver:20"
       },
       "optionB": {
@@ -822,7 +966,7 @@
         "battleEnemyId": null,
         "successText": "村民收下银两后更加用心地画出了地图",
         "failureText": null,
-        "rewards": "san_1_item_cunfu_2;reputation:3",
+        "rewards": "item_nanyang_cunfu_2;reputation:3",
         "bonusRewards": null
       }
     },
@@ -855,7 +999,7 @@
         "battleEnemyId": null,
         "successText": "你趁山贼换防之际发起突袭打了他们一个措手不及",
         "failureText": "山贼防备森严强攻恐怕要付出不小的代价",
-        "rewards": "san_1_item_cunfu_3;reputation:3;silver:30",
+        "rewards": "item_nanyang_cunfu_3;reputation:3;silver:30",
         "bonusRewards": "food:100",
         "battleVictoryText": "{player_name}大破山贼营地缴获了山贼头目的令牌",
         "battleDefeatText": "山贼人多势众你不得不暂时撤退"
@@ -872,7 +1016,7 @@
         "battleEnemyId": null,
         "successText": "你趁夜色摸入营地山贼们在睡梦中被惊醒",
         "failureText": "夜袭计划被山贼的暗哨发现了",
-        "rewards": "san_1_item_cunfu_3;reputation:3;silver:50",
+        "rewards": "item_nanyang_cunfu_3;reputation:3;silver:50",
         "bonusRewards": "food:50",
         "battleVictoryText": "{player_name}大破山贼营地缴获了山贼头目的令牌",
         "battleDefeatText": "山贼人多势众你不得不暂时撤退"
@@ -907,7 +1051,7 @@
         "battleEnemyId": null,
         "successText": "你顺利带着村妇逃出了山贼内寨村妇感激地递上一块祖传玉佩",
         "failureText": "逃跑时被巡逻的山贼发现了一番混战后才脱身",
-        "rewards": "san_1_item_cunfu_4;reputation:3",
+        "rewards": "item_nanyang_cunfu_4;reputation:3",
         "bonusRewards": "silver:20"
       },
       "optionB": {
@@ -922,7 +1066,7 @@
         "battleEnemyId": null,
         "successText": "你还救出了另外两名被困的商人他们重金酬谢",
         "failureText": "多耽搁了一会儿差点被山贼发现",
-        "rewards": "san_1_item_cunfu_4;reputation:5;silver:50",
+        "rewards": "item_nanyang_cunfu_4;reputation:5;silver:50",
         "bonusRewards": "food:100"
       }
     },

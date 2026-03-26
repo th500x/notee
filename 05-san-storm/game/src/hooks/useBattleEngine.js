@@ -201,6 +201,22 @@ export function useBattleEngine({
   const battleKill = useCallback(async (troop) => {
     addLog(fmt.fmtKill(troop), 'death');
     troop.currentTroops = 0;
+
+    // 士气变化：消灭敌方 → 击杀方将领+10，己方被消灭 → 该将领-8
+    const killerFaction = troop.faction === 'player' ? 'enemy' : 'player';
+    // 被消灭方将领士气 -8
+    for (const t of battleTroops) {
+      if (t.faction === troop.faction && t.character === troop.character && t.currentTroops > 0) {
+        t.morale = Math.max(0, Math.min(120, (t.morale || 70) - 8));
+      }
+    }
+    // 击杀方同将领士气 +10（找最近的击杀方部队的将领）
+    for (const t of battleTroops) {
+      if (t.faction === killerFaction && t.currentTroops > 0) {
+        t.morale = Math.max(0, Math.min(120, (t.morale || 70) + 10));
+      }
+    }
+
     const layer = getTroopLayer(troop);
     if (layer) {
       layer.classList.add('anim-death');
@@ -219,7 +235,7 @@ export function useBattleEngine({
         if (infoKey) tile.setAttribute('data-info', infoKey);
       }
     }
-  }, [addLog, getTroopLayer, getTileEl, mapResult]);
+  }, [addLog, getTroopLayer, getTileEl, mapResult, battleTroops]);
 
   const battleRanged = useCallback(async (atk, def, dmg, emoji = '➤') => {
     addLog(fmt.fmtRanged(atk, def), 'attack');

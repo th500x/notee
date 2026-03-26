@@ -1421,9 +1421,12 @@ router.post('/:playerId/rewards', async (req, res) => {
     let fortune;
     if (option.mainFactor === 'minigame' && minigameResult) {
       // 迷你游戏：由前端结果决定
+      // 胜利=吉(×1.0)，失败=凶(×0.5)
+      // 胜利时投骰子：5或6点触发 bonus_rewards
+      const dice = minigameResult === 'victory' ? (Math.floor(Math.random() * 6) + 1) : 2;
       fortune = minigameResult === 'victory'
-        ? { fortuneName: '吉', multiplier: 1.0, dice: 4, finalRate: 100 }
-        : { fortuneName: '凶', multiplier: 0.5, dice: 2, finalRate: 40 };
+        ? { fortuneName: dice >= 5 ? '鸿运' : '吉', multiplier: 1.0, dice, finalRate: 100 }
+        : { fortuneName: '凶', multiplier: 0.5, dice, finalRate: 40 };
     } else if (battleResult) {
       // 惩罚战斗后：战斗胜利恢复×0.8，失败×0.5
       fortune = battleResult === 'victory'
@@ -1452,8 +1455,8 @@ router.post('/:playerId/rewards', async (req, res) => {
             `UPDATE players SET ${key} = GREATEST(0, ${key} - ?) WHERE player_id = ?`,
             [amount, playerId]
           );
-        } else if (key.includes('_item_')) {
-          // 道具扣除
+        } else if (key.includes('_item_') || key.startsWith('item_')) {
+          // 道具扣除（支持 san_1_item_xxx 和 item_xxx 两种格式）
           const [itemRows] = await pool.query('SELECT items FROM players WHERE player_id = ?', [playerId]);
           let items = {};
           if (itemRows[0]?.items) {
