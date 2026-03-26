@@ -7,7 +7,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import { RARITY_LABELS, RARITY_COLORS } from '@/constants';
+import { RARITY_LABELS, RARITY_COLORS, API_CONFIG } from '@/constants';
 import TroopCard from '@shared/components/card/TroopCard';
 import CharacterCard from '@shared/components/card/CharacterCard';
 
@@ -42,7 +42,6 @@ export default function CardPoolDrawer({
   async function loadPoolCards() {
     setCardsLoading(true);
     try {
-      const { API_CONFIG } = await import('@/constants');
       const endpoint = poolType === 'troop' ? 'troops' : 'characters';
       const res = await fetch(`${API_CONFIG.BASE_URL}/config/${endpoint}`);
       const data = await res.json();
