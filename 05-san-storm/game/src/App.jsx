@@ -42,9 +42,6 @@ function App() {
                 </a>
                 <p className="text-gray-600 mt-2">三国策略战棋游戏 - 游戏功能模块</p>
               </div>
-              <div>
-              </div>
-              </div>
             </div>
           </div>
         </header>
