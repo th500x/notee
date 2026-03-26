@@ -550,6 +550,13 @@ async function executeRewards(playerId, rewardStr, multiplier, factionId) {
           insertData.current_troops = troopCfg[0]?.max_troops || 100;
           insertData.max_battle_count = getMaxBattleCount(rarity);
         }
+        if (cardType === 'character') {
+          // 查询 trait_modifier 计算初始士气
+          const [charCfg] = await connection.query(
+            'SELECT trait_modifier FROM config_characters WHERE character_id = ?', [realCardId]
+          );
+          insertData.morale = 70 + (charCfg[0]?.trait_modifier ?? 0);
+        }
         await connection.query('INSERT INTO player_cards SET ?', [insertData]);
         details.push({ type: 'card', cardType, cardId: realCardId, cardName, instanceId });
       }
@@ -589,6 +596,12 @@ async function executeRewards(playerId, rewardStr, multiplier, factionId) {
           );
           insertData.current_troops = troopCfg[0]?.max_troops || 100;
           insertData.max_battle_count = getMaxBattleCount(card.rarity || r.rarity);
+        }
+        if (cardType === 'character') {
+          const [charCfg] = await connection.query(
+            'SELECT trait_modifier FROM config_characters WHERE character_id = ?', [card.card_id]
+          );
+          insertData.morale = 70 + (charCfg[0]?.trait_modifier ?? 0);
         }
         await connection.query('INSERT INTO player_cards SET ?', [insertData]);
         drawnCardIdsByType[typeKey].push(card.card_id);

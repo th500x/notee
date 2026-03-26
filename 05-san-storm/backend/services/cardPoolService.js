@@ -251,10 +251,17 @@ async function drawSingleCard(connection, playerId, poolType, factionId, current
     }
 
     const instanceId = `${card.card_id}_${playerId}_${Date.now()}`;
+    // 查询将领的trait_modifier计算初始士气
+    const [charConfig] = await connection.query(
+      `SELECT trait_modifier FROM config_characters WHERE character_id = ?`, [card.card_id]
+    );
+    const traitMod = charConfig[0]?.trait_modifier ?? 0;
+    const initialMorale = 70 + traitMod;
+
     await connection.query(
-      `INSERT INTO player_cards (instance_id, player_id, card_type, card_id, rarity, obtained_at)
-       VALUES (?, ?, 'character', ?, ?, NOW())`,
-      [instanceId, playerId, card.card_id, rarity]
+      `INSERT INTO player_cards (instance_id, player_id, card_type, card_id, rarity, morale, obtained_at)
+       VALUES (?, ?, 'character', ?, ?, ?, NOW())`,
+      [instanceId, playerId, card.card_id, rarity, initialMorale]
     );
 
     return { rarity, cardId: card.card_id, cardName: card.card_name, instanceId, compensated: false };
