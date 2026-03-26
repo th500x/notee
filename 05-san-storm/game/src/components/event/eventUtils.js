@@ -108,9 +108,8 @@ export function parseRewards(str, itemNameMap, multiplier) {
     if (t.startsWith('random:')) {
       const parts = t.split(':');
       const type = parts[1] === 'equipment' ? '装备件' : parts[1] === 'char' ? '将领' : '部队';
-      const rarity = RARITY_CN[parts[2]] || parts[2];
+      const rarity = (parts[2] && RARITY_CN[parts[2]]) || '';
       const qty = parts[3] ? `×${parts[3]}` : '×1';
-      // 随机卡牌无法预知具体ID，不设 cardId
       return { text: `🎲 随机${rarity}${type} ${qty}`, cardType: parts[1] === 'equipment' ? 'equipment' : parts[1] === 'char' ? 'character' : 'troop' };
     }
     if (t.includes('_troop_')) {

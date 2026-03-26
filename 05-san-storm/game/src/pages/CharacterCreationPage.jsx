@@ -83,7 +83,13 @@ const CharacterCreationPage = ({ user, onComplete }) => {
       if (result.success && result.data) {
         // 恢复之前的进度
         const progress = result.data;
-        setCurrentStep(progress.current_step || 1);
+        
+        // 安全检查：如果进度步骤需要的数据不完整，回退到对应步骤
+        let safeStep = progress.current_step || 1;
+        if (safeStep >= 3 && !progress.selected_faction_id) safeStep = 1;
+        if (safeStep >= 4 && !progress.character_name) safeStep = 3;
+        
+        setCurrentStep(safeStep);
         setSelectedFaction(progress.selected_faction_id ? {
           faction_id: progress.selected_faction_id,
           faction_name: progress.selected_faction_name
@@ -673,10 +679,14 @@ const CharacterCreationPage = ({ user, onComplete }) => {
 
             <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
               <h4 className="font-medium text-gray-900 mb-2">已选择势力：</h4>
-              <div className="flex items-center space-x-2">
-                <span className="text-2xl">{selectedFaction.icon}</span>
-                <span className="font-bold text-gray-900">{selectedFaction.faction_name}</span>
-              </div>
+              {selectedFaction ? (
+                <div className="flex items-center space-x-2">
+                  <span className="text-2xl">{selectedFaction.icon}</span>
+                  <span className="font-bold text-gray-900">{selectedFaction.faction_name}</span>
+                </div>
+              ) : (
+                <div className="text-gray-400">未选择</div>
+              )}
             </div>
           </div>
 

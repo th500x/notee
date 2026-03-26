@@ -1,6 +1,6 @@
 {
   "_meta": {
-    "generated": "2026-03-26T06:36:07.434Z",
+    "generated": "2026-03-26T10:29:03.367Z",
     "source": "event-template.csv",
     "count": 20
   },
@@ -164,7 +164,7 @@
       "version": "1.0",
       "optionA": {
         "id": "option_a",
-        "text": "带军出证",
+        "text": "带军出征",
         "requiredItems": null,
         "mainFactor": "luck",
         "mainRequirement": 14,
@@ -239,7 +239,7 @@
         "battleEnemyId": null,
         "successText": "你客气的给了官差50银两赏钱",
         "failureText": null,
-        "rewards": "reputation:15;food:300;random:san_1_position_bubing_duwei;troop:rare:2",
+        "rewards": "reputation:15;food:300;random:san_1_position_bubing_duwei;random:troop:rare:2",
         "bonusRewards": "random:troop:epic:1"
       }
     },

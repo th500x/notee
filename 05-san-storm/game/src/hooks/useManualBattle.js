@@ -319,6 +319,14 @@ export function useManualBattle({
       if (!tile) continue;
       const hl = document.createElement('div');
       hl.className = 'manual-hl move-range';
+      // 左上角显示地形消耗
+      const cost = getMoveCost(ry, rx, mapResult);
+      if (cost > 1) {
+        const label = document.createElement('span');
+        label.className = 'move-cost-label';
+        label.textContent = cost;
+        hl.appendChild(label);
+      }
       tile.appendChild(hl);
     }
 

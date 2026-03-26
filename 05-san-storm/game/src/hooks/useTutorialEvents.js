@@ -3,10 +3,10 @@
  *
  * @description M1测试阶段：tutorial_step 2~6 对应 5 条新手事件，按序自动触发
  *              复用 useEventSystem 的事件 UI（ExplorePanel），
- *              事件间用 5 秒 RETURNING 动画过渡
+ *              事件间用 3 秒 RETURNING 动画过渡
  *
  * 流程：
- *   tutorial_step=2 → 前置对话 → 事件 → 奖励 → step++ → 5s动画 → 下一条
+ *   tutorial_step=2 → 前置对话 → 事件 → 奖励 → step++ → 3s动画 → 下一条
  *   tutorial_step=7 → 新手事件全部完成
  */
 

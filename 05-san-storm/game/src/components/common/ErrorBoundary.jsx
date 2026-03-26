@@ -19,6 +19,11 @@ class ErrorBoundary extends React.Component {
   componentDidCatch(error, errorInfo) {
     this.setState({ errorInfo });
     console.error('[ErrorBoundary]', error, errorInfo);
+    // 尝试记录更多上下文
+    try {
+      const gameUser = localStorage.getItem('gameUser');
+      console.error('[ErrorBoundary] gameUser:', gameUser);
+    } catch {}
   }
 
   render() {
@@ -68,6 +73,8 @@ class ErrorBoundary extends React.Component {
                 {this.state.error?.toString()}
                 {'\n'}
                 {this.state.errorInfo?.componentStack}
+                {'\n\n--- 调试信息 ---\n'}
+                {'gameUser: ' + (localStorage.getItem('gameUser') || 'null')}
               </pre>
             </details>
           </div>

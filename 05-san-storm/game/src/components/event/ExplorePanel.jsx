@@ -474,7 +474,7 @@ function ReturningOverlay({ isTutorial }) {
         <div className="text-white font-bold text-lg mb-2">{isTutorial ? '新手指引进行中' : '探索返回中'}</div>
         <div className="w-48 h-2 bg-gray-700 rounded-full overflow-hidden mx-auto">
           <div className="h-full bg-amber-500 rounded-full"
-            style={{ animation: 'returnBar 5s linear forwards' }} />
+            style={{ animation: 'returnBar 3s linear forwards' }} />
         </div>
         <div className="text-white/50 text-xs mt-2">{isTutorial ? '准备下一个事件...' : '正在返回探索点...'}</div>
       </div>
