@@ -43,14 +43,7 @@ function App() {
                 <p className="text-gray-600 mt-2">三国策略战棋游戏 - 游戏功能模块</p>
               </div>
               <div>
-                {!isLoggedIn && (
-                  <button
-                    onClick={() => setShowLoginDialog(true)}
-                    className="px-3 py-1.5 text-sm bg-gray-100 text-gray-500 rounded hover:bg-gray-200 transition-colors"
-                  >
-                    🔒 管理员
-                  </button>
-                )}
+              </div>
               </div>
             </div>
           </div>
