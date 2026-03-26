@@ -183,6 +183,7 @@ export default function EventBlackjack({ difficulty = 'medium', onGameEnd, playe
             boxShadow: 'inset 0 2px 20px rgba(0,0,0,0.3)',
           }}>
           <Hand
+            key={`dealer-${state.roundsPlayed}`}
             cards={state.dealerHand}
             total={isResult ? state.dealerTotal : state.dealerVisibleTotal}
             label={`🏮 ${state.config.label}`}
@@ -194,6 +195,7 @@ export default function EventBlackjack({ difficulty = 'medium', onGameEnd, playe
             <div className="flex-1 h-px bg-gradient-to-r from-transparent via-amber-600/30 to-transparent" />
           </div>
           <Hand
+            key={`player-${state.roundsPlayed}`}
             cards={state.playerHand}
             total={state.playerTotal}
             label={`🎴 ${state.playerName}`}

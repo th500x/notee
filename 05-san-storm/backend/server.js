@@ -57,6 +57,12 @@ const battlesRouter = require('./routes/battles');
 app.use('/api/battles', battlesRouter);
 
 /**
+ * 卡池抽取路由（临时模拟方案）
+ */
+const cardPoolRouter = require('./routes/cardPool');
+app.use('/api/card-pool', cardPoolRouter);
+
+/**
  * 排行榜路由（活动排名）
  */
 const rankingsRouter = require('./routes/rankings');

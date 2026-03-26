@@ -6,29 +6,60 @@
  * @route /san_1/game
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { PlayerProvider } from '@/contexts/PlayerContext';
+import { PlayerProvider, usePlayerContext } from '@/contexts/PlayerContext';
 import TopStatusBar from '@/components/game/TopStatusBar';
 import AnnouncementBar from '@/components/game/AnnouncementBar';
 import RankingPanel from '@/components/game/RankingPanel';
 import BottomTabNav from '@/components/game/BottomTabNav';
 import PersonalSidebar from '@/components/game/PersonalSidebar';
 import CommPanel from '@/components/game/CommPanel';
+import CardPoolEntry from '@/components/game/CardPoolEntry';
+import CardPoolDrawer from '@/components/game/CardPoolDrawer';
+import { useCardPool } from '@/hooks/useCardPool';
+import { loadSharedData } from '@/services/dataService';
 import LineupTab from '@/components/game/tabs/LineupTab';
 import PlaceholderTab from '@/components/game/tabs/PlaceholderTab';
 import WorldMap from '@/components/game/WorldMap';
 
 export default function GamePage({ user, onLogout }) {
-  const [activeTab, setActiveTab] = useState(null); // null = 大地图视图
+  return (
+    <PlayerProvider playerId={user?.id}>
+      <GamePageInner onLogout={onLogout} />
+    </PlayerProvider>
+  );
+}
+
+function GamePageInner({ onLogout }) {
+  const { player, refresh } = usePlayerContext();
+  const playerId = player?.player_id;
+
+  const [activeTab, setActiveTab] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [eventBusy, setEventBusy] = useState(false); // 事件进行中隐藏底部Tab
+  const [eventBusy, setEventBusy] = useState(false);
+  const [openPool, setOpenPool] = useState(null); // 'troop' | 'character' | null
+  const [skillsMap, setSkillsMap] = useState({});
   const navigate = useNavigate();
 
-  // 关闭当前Tab → 返回大地图
-  const handleCloseToMap = () => {
-    setActiveTab(null);
-  };
+  // 加载技能映射表（卡牌显示需要）
+  useEffect(() => {
+    loadSharedData('skills').then(data => {
+      if (data?.skills) {
+        const map = {};
+        data.skills.forEach(s => { map[s.id] = s; });
+        setSkillsMap(map);
+      }
+    }).catch(() => {});
+  }, []);
+
+  // 卡池 hook
+  const cardPool = useCardPool(playerId);
+  useEffect(() => {
+    if (playerId) cardPool.loadStatus();
+  }, [playerId]);
+
+  const handleCloseToMap = () => setActiveTab(null);
 
   const handleLogout = () => {
     setSidebarOpen(false);
@@ -50,30 +81,30 @@ export default function GamePage({ user, onLogout }) {
   };
 
   return (
-    <PlayerProvider playerId={user?.id}>
+    <>
       {/* 全屏覆盖，脱离父级布局 */}
       <div className="fixed inset-0 z-[100] bg-gray-100">
-        {/* 顶部状态栏 */}
         <TopStatusBar
           activeTab={activeTab}
           onOpenSidebar={() => setSidebarOpen(true)}
         />
 
-        {/* 公告栏 + 活动排行榜浮层容器（仅大地图视图显示） */}
         {activeTab === null && (
           <div className="absolute top-14 left-0 right-0 z-40 px-3 pt-1 pointer-events-none">
             <AnnouncementBar />
             <RankingPanel />
+            <CardPoolEntry
+              troopRemaining={cardPool.status?.troop?.remainingDraws ?? '?'}
+              charRemaining={cardPool.status?.character?.remainingDraws ?? '?'}
+              dailyLimit={cardPool.status?.troop?.dailyLimit ?? 5}
+              onOpenPool={setOpenPool}
+            />
           </div>
         )}
 
-        {/* 主内容区 */}
         <main
           className="overflow-y-auto absolute left-0 right-0"
-          style={{
-            top: '56px',
-            bottom: eventBusy ? '0px' : '64px'
-          }}
+          style={{ top: '56px', bottom: eventBusy ? '0px' : '64px' }}
         >
           {activeTab === null ? (
             <WorldMap onEventBusyChange={setEventBusy} />
@@ -82,24 +113,36 @@ export default function GamePage({ user, onLogout }) {
           )}
         </main>
 
-        {/* 底部Tab导航（事件进行中隐藏） */}
         {!eventBusy && (
-          <BottomTabNav
-            activeTab={activeTab}
-            onTabChange={setActiveTab}
-          />
+          <BottomTabNav activeTab={activeTab} onTabChange={setActiveTab} />
         )}
 
-        {/* 个人中心侧边栏 */}
         <PersonalSidebar
           open={sidebarOpen}
           onClose={() => setSidebarOpen(false)}
           onLogout={handleLogout}
         />
 
-        {/* 通信浮层（大地图视图 + 非事件进行中） */}
         <CommPanel visible={activeTab === null && !eventBusy} />
       </div>
-    </PlayerProvider>
+
+      {/* 卡池抽屉（渲染在 pointer-events-none 容器外面） */}
+      {openPool && (
+        <CardPoolDrawer
+          poolType={openPool}
+          status={cardPool.status}
+          loading={cardPool.loading}
+          drawResult={cardPool.drawResult}
+          error={cardPool.error}
+          skillsMap={skillsMap}
+          factionId={player?.faction_id}
+          playerSilver={player?.silver}
+          onDraw={async () => { await cardPool.draw(openPool); refresh(); }}
+          onClearResult={cardPool.clearResult}
+          onClose={() => { setOpenPool(null); cardPool.clearResult(); }}
+          onRefreshStatus={cardPool.loadStatus}
+        />
+      )}
+    </>
   );
 }
