@@ -74,70 +74,30 @@ const CharacterCreationPage = ({ user, onComplete }) => {
     }
   }, [user?.id]); // 监听用户ID变化
 
-  // 从后端加载创建进度
+  // 从后端加载创建进度 → 简化：始终从第一步开始，清除旧进度
   const loadCreationProgress = async () => {
     try {
       setLoading(true);
-      const result = await playerAPI.getCreationProgress(user.id);
-      
-      if (result.success && result.data) {
-        // 恢复之前的进度
-        const progress = result.data;
-        
-        // 安全检查：如果进度步骤需要的数据不完整，回退到对应步骤
-        let safeStep = progress.current_step || 1;
-        if (safeStep >= 3 && !progress.selected_faction_id) safeStep = 1;
-        if (safeStep >= 4 && !progress.character_name) safeStep = 3;
-        
-        setCurrentStep(safeStep);
-        setSelectedFaction(progress.selected_faction_id ? {
-          faction_id: progress.selected_faction_id,
-          faction_name: progress.selected_faction_name
-        } : null);
-        setSelectedAvatar(progress.selected_avatar || null);
-        setCharacterName(progress.character_name || '');
-        
-        // 恢复批次数据
-        setRandomBatches(progress.random_batches || []);
-        setCurrentBatch(progress.current_batch || 1);
-        setAttributeOptions(progress.random_batches?.[progress.current_batch - 1]?.options || []);
-        setSelectedOptionBatch(progress.selected_option_batch);
-        setSelectedOptionIndex(progress.selected_option_index);
-        
-        // 恢复选中的方案
-        if (progress.selected_option_batch !== null && progress.selected_option_index !== null) {
-          const selectedBatch = progress.random_batches?.[progress.selected_option_batch - 1];
-          if (selectedBatch) {
-            setSelectedOption(selectedBatch.options[progress.selected_option_index]);
-          }
-        } else {
-          setSelectedOption(null);
-        }
-        
-        setRemainingSilver(progress.remaining_silver !== undefined ? progress.remaining_silver : 50);
-        setAvailableTroops([]); // 部队数据需要重新加载
-        setSelectedTroops(progress.selected_troops || []);
-      } else {
-        // 没有进度记录，初始化新的创建流程
-        setCurrentStep(1);
-        setSelectedFaction(null);
-        setSelectedAvatar(null);
-        setCharacterName('');
-        setNameError('');
-        setAttributeOptions([]);
-        setSelectedOption(null);
-        setRemainingSilver(50);
-        setRandomBatches([]);
-        setCurrentBatch(1);
-        setSelectedOptionBatch(null);
-        setSelectedOptionIndex(null);
-        setAvailableTroops([]);
-        setSelectedTroops([]);
-        setError('');
-      }
+      // 清除后端可能残留的旧进度
+      await playerAPI.deleteCreationProgress(user.id).catch(() => {});
+      // 重置所有状态
+      setCurrentStep(1);
+      setSelectedFaction(null);
+      setSelectedAvatar(null);
+      setCharacterName('');
+      setNameError('');
+      setAttributeOptions([]);
+      setSelectedOption(null);
+      setRemainingSilver(50);
+      setRandomBatches([]);
+      setCurrentBatch(1);
+      setSelectedOptionBatch(null);
+      setSelectedOptionIndex(null);
+      setAvailableTroops([]);
+      setSelectedTroops([]);
+      setError('');
     } catch (err) {
-      console.error('加载创建进度失败:', err);
-      setError('加载创建进度失败');
+      console.error('初始化创建流程失败:', err);
     } finally {
       setLoading(false);
     }
