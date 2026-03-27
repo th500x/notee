@@ -377,5 +377,26 @@ export const playerAPI = {
       body: JSON.stringify({ batch, index })
     });
     return response.json();
+  },
+
+  /**
+   * 获取探索配额（服务端存储）
+   */
+  async getExploreQuota(playerId) {
+    const response = await fetchWithTimeout(`${API_CONFIG.BASE_URL}/players/${playerId}/explore-quota`);
+    return response.json();
+  },
+
+  /**
+   * 更新探索配额
+   * @param {string} action - 'consume' | 'refund' | 'fillMax'
+   */
+  async updateExploreQuota(playerId, action) {
+    const response = await fetchWithTimeout(`${API_CONFIG.BASE_URL}/players/${playerId}/explore-quota`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action })
+    });
+    return response.json();
   }
 };

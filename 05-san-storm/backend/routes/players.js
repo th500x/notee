@@ -1704,6 +1704,110 @@ router.get('/:playerId/events/explore', async (req, res) => {
   }
 });
 
+// ── 探索配额（服务端存储，防止跨浏览器重复恢复） ──────────────
+
+const EXPLORE_REFILL_PER_HOUR = 6;
+const EXPLORE_MAX_QUOTA = 18;
+const EXPLORE_REST_START = 0;  // 00:00
+const EXPLORE_REST_END = 8;    // 08:00
+
+function isExploreRestHour(hour) { return hour >= EXPLORE_REST_START && hour < EXPLORE_REST_END; }
+
+function getHourTs(date) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate(), date.getHours()).getTime();
+}
+
+function countExploreActiveHours(fromTs, toTs) {
+  if (toTs <= fromTs) return 0;
+  let count = 0, ts = fromTs, i = 0;
+  while (ts < toTs && i < 48) {
+    if (!isExploreRestHour(new Date(ts).getHours())) count++;
+    ts += 3600000;
+    i++;
+  }
+  return count;
+}
+
+function calcServerQuota(remaining, lastRefillTs) {
+  const now = new Date();
+  const currentHourTs = getHourTs(now);
+  if (!lastRefillTs) {
+    return { remaining: isExploreRestHour(now.getHours()) ? 0 : EXPLORE_REFILL_PER_HOUR, lastRefillTs: currentHourTs };
+  }
+  const activeHours = countExploreActiveHours(lastRefillTs, currentHourTs);
+  if (activeHours > 0) {
+    return { remaining: Math.min((remaining || 0) + activeHours * EXPLORE_REFILL_PER_HOUR, EXPLORE_MAX_QUOTA), lastRefillTs: currentHourTs };
+  }
+  return { remaining: remaining || 0, lastRefillTs };
+}
+
+/**
+ * GET /api/players/:playerId/explore-quota
+ * 获取探索配额（服务端计算恢复）
+ */
+router.get('/:playerId/explore-quota', async (req, res) => {
+  try {
+    const { playerId } = req.params;
+    await pool.query('INSERT IGNORE INTO player_events (player_id) VALUES (?)', [playerId]);
+    const [rows] = await pool.query(
+      'SELECT explore_quota_remaining, explore_quota_refill_ts FROM player_events WHERE player_id = ?',
+      [playerId]
+    );
+    const row = rows[0] || {};
+    const saved = calcServerQuota(row.explore_quota_remaining, row.explore_quota_refill_ts ? Number(row.explore_quota_refill_ts) : null);
+    // 如果有恢复，写回DB
+    if (saved.lastRefillTs !== (row.explore_quota_refill_ts ? Number(row.explore_quota_refill_ts) : null) || saved.remaining !== row.explore_quota_remaining) {
+      await pool.query(
+        'UPDATE player_events SET explore_quota_remaining = ?, explore_quota_refill_ts = ? WHERE player_id = ?',
+        [saved.remaining, String(saved.lastRefillTs), playerId]
+      );
+    }
+    res.json({ success: true, data: { remaining: saved.remaining, lastRefillTs: saved.lastRefillTs, max: EXPLORE_MAX_QUOTA, refillPerHour: EXPLORE_REFILL_PER_HOUR } });
+  } catch (error) {
+    console.error('[Players] 获取探索配额失败:', error);
+    res.status(500).json({ success: false, error: '获取探索配额失败' });
+  }
+});
+
+/**
+ * POST /api/players/:playerId/explore-quota
+ * 更新探索配额（消耗/退还/填满）
+ * body: { action: 'consume' | 'refund' | 'fillMax' }
+ */
+router.post('/:playerId/explore-quota', async (req, res) => {
+  try {
+    const { playerId } = req.params;
+    const { action } = req.body;
+    if (!['consume', 'refund', 'fillMax'].includes(action)) {
+      return res.status(400).json({ success: false, error: '无效的 action' });
+    }
+    await pool.query('INSERT IGNORE INTO player_events (player_id) VALUES (?)', [playerId]);
+    const [rows] = await pool.query(
+      'SELECT explore_quota_remaining, explore_quota_refill_ts FROM player_events WHERE player_id = ?',
+      [playerId]
+    );
+    const row = rows[0] || {};
+    const current = calcServerQuota(row.explore_quota_remaining, row.explore_quota_refill_ts ? Number(row.explore_quota_refill_ts) : null);
+    let newRemaining = current.remaining;
+    if (action === 'consume') {
+      if (newRemaining <= 0) return res.status(400).json({ success: false, error: '探索次数不足' });
+      newRemaining -= 1;
+    } else if (action === 'refund') {
+      newRemaining = Math.min(newRemaining + 1, EXPLORE_MAX_QUOTA);
+    } else if (action === 'fillMax') {
+      newRemaining = EXPLORE_MAX_QUOTA;
+    }
+    await pool.query(
+      'UPDATE player_events SET explore_quota_remaining = ?, explore_quota_refill_ts = ? WHERE player_id = ?',
+      [newRemaining, String(current.lastRefillTs), playerId]
+    );
+    res.json({ success: true, data: { remaining: newRemaining, lastRefillTs: current.lastRefillTs, max: EXPLORE_MAX_QUOTA } });
+  } catch (error) {
+    console.error('[Players] 更新探索配额失败:', error);
+    res.status(500).json({ success: false, error: '更新探索配额失败' });
+  }
+});
+
 /**
  * POST /api/players/:playerId/events
  * 记录事件进度
@@ -1803,11 +1907,11 @@ function getPositionRarity(positionLevel) {
 router.get('/:playerId/reroll-status', async (req, res) => {
   try {
     const { playerId } = req.params;
-    // MySQL 直接判断：如果不是今天，remaining 重置为 2
+    // 每日次数用 CURDATE() 判断重置；批次记录始终返回（直到玩家确认选择后才清除）
     const [rows] = await pool.query(
       `SELECT position_level, silver,
               IF(attr_reroll_date = CURDATE(), attr_reroll_count, 0) AS today_used,
-              IF(attr_reroll_date = CURDATE(), attr_reroll_batches, NULL) AS today_batches,
+              attr_reroll_batches,
               attr_reroll_selected_batch, attr_reroll_selected_index
        FROM players WHERE player_id = ?`,
       [playerId]
@@ -1818,8 +1922,8 @@ router.get('/:playerId/reroll-status', async (req, res) => {
     const rarity = getPositionRarity(p.position_level ?? 8);
     const cost = REROLL_COST[rarity];
     const remaining = REROLL_DAILY_LIMIT - (p.today_used || 0);
-    const batches = p.today_batches
-      ? (typeof p.today_batches === 'string' ? JSON.parse(p.today_batches) : p.today_batches)
+    const batches = p.attr_reroll_batches
+      ? (typeof p.attr_reroll_batches === 'string' ? JSON.parse(p.attr_reroll_batches) : p.attr_reroll_batches)
       : [];
 
     res.json({
@@ -1851,7 +1955,7 @@ router.post('/:playerId/reroll-attributes', async (req, res) => {
     const [rows] = await pool.query(
       `SELECT position_level, silver,
               IF(attr_reroll_date = CURDATE(), attr_reroll_count, 0) AS today_used,
-              IF(attr_reroll_date = CURDATE(), attr_reroll_batches, NULL) AS today_batches
+              attr_reroll_batches
        FROM players WHERE player_id = ?`,
       [playerId]
     );
@@ -1872,9 +1976,9 @@ router.post('/:playerId/reroll-attributes', async (req, res) => {
     // 生成3个方案（复用角色创建算法）
     const options = await PlayerService.generateAttributeOptions(rarity);
 
-    // 只保留当天的批次
-    const batches = p.today_batches
-      ? (typeof p.today_batches === 'string' ? JSON.parse(p.today_batches) : p.today_batches)
+    // 批次记录始终累加，直到玩家确认选择后才清除
+    const batches = p.attr_reroll_batches
+      ? (typeof p.attr_reroll_batches === 'string' ? JSON.parse(p.attr_reroll_batches) : p.attr_reroll_batches)
       : [];
     const newBatch = {
       batch: batches.length + 1,

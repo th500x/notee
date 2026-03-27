@@ -83,8 +83,8 @@ function BattleMap({ mapResult, mapLabel, battleTroops, showTroops, isBattle, ma
       return null;
     }
 
-    // 按钮位置：避开部队和可移动瓦片
-    // 优先级：空且不可移动(0) > 空但可移动(1) > 己(2) > 友(3) > 敌(4) > 越界(5)
+    // 按钮位置：避开部队、可移动瓦片和特殊对象瓦片（宝箱/障碍/陷阱）
+    // 优先级：空且无对象且不可移动(0) > 空但可移动(1) > 有对象瓦片(1.5) > 己(2) > 友(3) > 敌(4) > 越界(5)
     const troopAt = (r, c) => {
       if (r < 0 || r >= MAP_H || c < 0 || c >= MAP_W) return 'oob';
       const t = battleTroops.find(u => u.currentTroops > 0 && u.y === r && u.x === c);
@@ -94,6 +94,7 @@ function BattleMap({ mapResult, mapLabel, battleTroops, showTroops, isBattle, ma
       if (t.faction === 'player') return 'ally';
       return 'enemy';
     };
+    const hasObject = (r, c) => !!objMap[`${r},${c}`];
     const isReachable = (r, c) => reachableTiles && reachableTiles.has(`${r},${c}`);
     const priority = { empty: 0, self: 2, ally: 3, enemy: 4, oob: 5 };
     const candidates = [
@@ -107,6 +108,8 @@ function BattleMap({ mapResult, mapLabel, battleTroops, showTroops, isBattle, ma
       { row: ty - 1, col: tx - 1 }, // 左上
     ].map(p => {
       let score = priority[troopAt(p.row, p.col)];
+      // 空格但有特殊对象瓦片（宝箱/障碍/陷阱）→ 惩罚，避免遮挡
+      if (score === 0 && hasObject(p.row, p.col)) score = 1.5;
       // 空格但是可移动瓦片 → 惩罚，排在"空且不可移动"之后
       if (score === 0 && isReachable(p.row, p.col)) score = 1;
       return { ...p, score };

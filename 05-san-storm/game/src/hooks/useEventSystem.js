@@ -74,7 +74,7 @@ const DEFAULT_GENERAL = {
 };
 
 export default function useEventSystem(player, cards) {
-  const quota = useExploreQuota();
+  const quota = useExploreQuota(player?.player_id);
 
   // 事件数据（全量）
   const [allExploreEvents, setAllExploreEvents] = useState([]);
