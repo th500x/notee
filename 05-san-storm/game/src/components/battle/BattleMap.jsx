@@ -8,7 +8,7 @@ import BattleTile from './BattleTile';
 import AttackPreview from './AttackPreview';
 import ChestRewardOverlay from './ChestRewardOverlay';
 
-function BattleMap({ mapResult, mapLabel, battleTroops, showTroops, isBattle, mapCardRef, onTileClick, manualProps }) {
+function BattleMap({ mapResult, mapLabel, battleTroops, showTroops, isBattle, mapCardRef, onTileClick, manualProps, autoBattle, onTakeover }) {
   const tooltipRef = useRef(null);
   const [tooltipContent, setTooltipContent] = useState(null);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
@@ -126,7 +126,35 @@ function BattleMap({ mapResult, mapLabel, battleTroops, showTroops, isBattle, ma
   return (
     <div className="maps-row">
       <div className="map-card" ref={mapCardRef}>
-        <div className="map-title">{mapLabel}</div>
+        <div className="map-title" style={{ position: 'relative' }}>
+          {mapLabel}
+          {/* 自动战斗中：右上角接管按钮 */}
+          {autoBattle && isBattle && (
+            <button
+              onClick={onTakeover}
+              style={{
+                position: 'absolute',
+                right: 0,
+                top: '50%',
+                transform: 'translateY(-50%)',
+                padding: '4px 12px',
+                fontSize: '12px',
+                fontWeight: 'bold',
+                color: '#fbbf24',
+                background: 'rgba(120, 53, 15, 0.7)',
+                border: '1px solid rgba(251, 191, 36, 0.5)',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                backdropFilter: 'blur(4px)',
+                transition: 'all 0.2s',
+              }}
+              onMouseEnter={e => { e.target.style.background = 'rgba(120, 53, 15, 0.9)'; e.target.style.borderColor = 'rgba(251, 191, 36, 0.8)'; }}
+              onMouseLeave={e => { e.target.style.background = 'rgba(120, 53, 15, 0.7)'; e.target.style.borderColor = 'rgba(251, 191, 36, 0.5)'; }}
+            >
+              🖐 接管
+            </button>
+          )}
+        </div>
         <div className="map-meta">
           主题: <span>{meta.bgTheme === 'grassland' ? '🌿 绿地' : '🏜️ 荒地'}</span> &nbsp;
           底色: <span>{variants.bgVariant}</span> &nbsp;

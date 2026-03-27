@@ -200,13 +200,17 @@ export default function LineupTab({ onClose }) {
   };
 
   // 获取可装备的卡牌列表（用于抽屉）
-  // 过滤掉耐久耗尽的部队卡（core稀有度 battle_count >= max_battle_count）
+  // 过滤掉耐久耗尽的部队卡（core稀有度保留但不可上阵，legendary保留且PVE可用但攻防-20%）
   const getAvailableCards = () => {
     if (!selectedSlot) return [];
     if (selectedSlot.id === 'troop' || selectedSlot.id === 'troop1' || selectedSlot.id === 'troop2') {
       return unequippedTroops.filter(c => {
         const maxBattle = c.max_battle_count ?? 10;
-        return (c.battle_count ?? 0) < maxBattle;
+        const isExpired = (c.battle_count ?? 0) >= maxBattle;
+        if (!isExpired) return true;
+        // legendary耐久耗尽：PVE可用（攻防-20%衰减在combatSystem中处理）
+        if (c.rarity === 'legendary') return true;
+        return false;
       });
     }
     if (selectedSlot.id === 'title') {

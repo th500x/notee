@@ -712,6 +712,11 @@ export function useBattleEngine({
 
     let result = 'continue';
     while (result === 'continue') {
+      // 中途切换为手动：检查autoBattle是否被关闭
+      if (!autoBattleRef.current) {
+        addLog('🖐 玩家接管战斗，切换为手动模式', 'round');
+        break;
+      }
       result = await executeSingleRound();
       if (result === 'continue') await sleep(300, speedRef.current);
     }

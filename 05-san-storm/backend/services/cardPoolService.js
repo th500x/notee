@@ -270,23 +270,34 @@ async function drawSingleCard(connection, playerId, poolType, factionId, current
   return { rarity, cardId: null, compensated: true, reason: 'unknown_pool' };
 }
 
+// ── 半天周期工具函数 ─────────────────────────────────────────
+
+/**
+ * 获取当前半天周期的起始时间SQL表达式
+ * 00:00~11:59 → 今天00:00:00
+ * 12:00~23:59 → 今天12:00:00
+ * 每个周期独立5次额度，每天共10次/卡池
+ */
+const HALF_DAY_START_SQL = `IF(HOUR(NOW()) >= 12, CONCAT(CURDATE(), ' 12:00:00'), CONCAT(CURDATE(), ' 00:00:00'))`;
+
 // ── 辅助查询函数 ─────────────────────────────────────────────
 
 /**
- * 获取今日抽取操作次数（部队池一次操作=2条记录，按秒级去重）
+ * 获取当前半天周期的抽取操作次数（部队池一次操作=2条记录，按秒级去重）
  */
 async function getTodayDrawCount(connection, playerId, poolType) {
   const [rows] = await connection.query(
     `SELECT COUNT(DISTINCT DATE_FORMAT(drawn_at, '%Y-%m-%d %H:%i:%s')) AS cnt
      FROM temp_card_pool_draws
-     WHERE player_id = ? AND pool_type = ? AND DATE(drawn_at) = CURDATE()`,
+     WHERE player_id = ? AND pool_type = ? AND drawn_at >= ${HALF_DAY_START_SQL}`,
     [playerId, poolType]
   );
   return rows[0].cnt;
 }
 
 /**
- * 获取今日各稀有度实际获取数量（不含补偿）
+ * 获取今日（全天）各稀有度实际获取数量（不含补偿）
+ * 稀有度上限全天共享：传奇1张/天、史诗2张/天
  */
 async function getTodayRarityCounts(connection, playerId, poolType) {
   const [rows] = await connection.query(
@@ -324,15 +335,15 @@ async function getPoolStatus(playerId) {
   );
   if (playerRows.length === 0) throw new Error('玩家不存在');
 
-  // 今日抽取次数
+  // 当前半天周期抽取次数
   const [troopCount] = await pool.query(
     `SELECT COUNT(DISTINCT DATE_FORMAT(drawn_at, '%Y-%m-%d %H:%i:%s')) AS cnt
-     FROM temp_card_pool_draws WHERE player_id = ? AND pool_type = 'troop' AND DATE(drawn_at) = CURDATE()`,
+     FROM temp_card_pool_draws WHERE player_id = ? AND pool_type = 'troop' AND drawn_at >= ${HALF_DAY_START_SQL}`,
     [playerId]
   );
   const [charCount] = await pool.query(
     `SELECT COUNT(DISTINCT DATE_FORMAT(drawn_at, '%Y-%m-%d %H:%i:%s')) AS cnt
-     FROM temp_card_pool_draws WHERE player_id = ? AND pool_type = 'character' AND DATE(drawn_at) = CURDATE()`,
+     FROM temp_card_pool_draws WHERE player_id = ? AND pool_type = 'character' AND drawn_at >= ${HALF_DAY_START_SQL}`,
     [playerId]
   );
 

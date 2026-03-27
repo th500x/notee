@@ -144,6 +144,9 @@ export default function EventBattle({ onBattleEnd, playerId, playerName, playerS
           movement: cfg.movement || 0,
           range: cfg.range || 1,
           maxTroops: (cfg.maxTroops || 0) + (playerTroop.bonus_max_troops || 0),
+          troopWeight: cfg.troopWeight || 1,
+          battleCount: playerTroop.battle_count ?? 0,
+          maxBattleCount: playerTroop.max_battle_count ?? 25,
           skills: cfg.skills || [],
         },
         character: {
@@ -194,6 +197,9 @@ export default function EventBattle({ onBattleEnd, playerId, playerName, playerS
             movement: tCfg.movement || 0,
             range: tCfg.range || 1,
             maxTroops: (tCfg.maxTroops || 0) + (t.bonus_max_troops || 0),
+            troopWeight: tCfg.troopWeight || 1,
+            battleCount: t.battle_count ?? 0,
+            maxBattleCount: t.max_battle_count ?? 25,
             skills: tCfg.skills || [],
           },
           character: charData,
@@ -235,6 +241,9 @@ export default function EventBattle({ onBattleEnd, playerId, playerName, playerS
             movement: tCfg.movement || 0,
             range: tCfg.range || 1,
             maxTroops: (tCfg.maxTroops || 0) + (t.bonus_max_troops || 0),
+            troopWeight: tCfg.troopWeight || 1,
+            battleCount: t.battle_count ?? 0,
+            maxBattleCount: t.max_battle_count ?? 25,
             skills: tCfg.skills || [],
           },
           character: charData,
@@ -405,6 +414,8 @@ export default function EventBattle({ onBattleEnd, playerId, playerName, playerS
             showTroops={false}
             isBattle={bm.isBattle}
             mapCardRef={mapCardRef}
+            autoBattle={bm.autoBattle}
+            onTakeover={() => bm.toggleAutoBattle(false)}
             onTileClick={!bm.autoBattle ? manual.handleTileClick : undefined}
             manualProps={!bm.autoBattle ? {
               phase: manual.phase,

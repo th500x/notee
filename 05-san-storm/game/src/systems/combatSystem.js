@@ -52,8 +52,13 @@ export function getTerrainDefBonus(y, x, terrain) {
 export function calcDamage(atk, def, terrain) {
   const ac = atk.character, dc = def.character;
 
+  // 0. 磨损衰减：legendary部队耐久耗尽后攻防-20%（仅PVE可用）
+  const atkWorn = (atk.rarity === 'legendary' && atk.battleCount != null && atk.maxBattleCount != null && atk.battleCount >= atk.maxBattleCount);
+  const defWorn = (def.rarity === 'legendary' && def.battleCount != null && def.maxBattleCount != null && def.battleCount >= def.maxBattleCount);
+  const WORN_PENALTY = 0.80; // 攻防×0.8 = -20%
+
   // 1. 单兵基础攻击力 = 部队攻击力 + 将领武力×6
-  const troopAtk = (atk.attack || 100) / 10;
+  const troopAtk = ((atk.attack || 100) / 10) * (atkWorn ? WORN_PENALTY : 1);
   const combat = ac ? (ac.combat || 5) : 5;
   const singleAtk = troopAtk + combat * 6;
 
@@ -76,7 +81,7 @@ export function calcDamage(atk, def, terrain) {
   }
 
   // 5. 防御减免
-  const troopDef = (def.defense || 50) / 10;
+  const troopDef = ((def.defense || 50) / 10) * (defWorn ? WORN_PENALTY : 1);
   const dCombat = dc ? (dc.combat || 5) : 5;
   const dCommand = dc ? (dc.command || 5) : 5;
   const singleDef = troopDef + dCommand * 5 + dCombat * 3;
@@ -149,7 +154,10 @@ export function estimateDamage(atk, def, terrain) {
   const ac = atk.character, dc = def.character;
 
   // 复用 calcDamage 的全部逻辑，但不加随机浮动
-  const troopAtk = (atk.attack || 100) / 10;
+  const atkWorn = (atk.rarity === 'legendary' && atk.battleCount != null && atk.maxBattleCount != null && atk.battleCount >= atk.maxBattleCount);
+  const defWorn = (def.rarity === 'legendary' && def.battleCount != null && def.maxBattleCount != null && def.battleCount >= def.maxBattleCount);
+  const WORN_PENALTY = 0.80;
+  const troopAtk = ((atk.attack || 100) / 10) * (atkWorn ? WORN_PENALTY : 1);
   const combat = ac ? (ac.combat || 5) : 5;
   const singleAtk = troopAtk + combat * 6;
   const courage = ac ? (ac.courage || 5) : 5;
@@ -160,7 +168,7 @@ export function estimateDamage(atk, def, terrain) {
   const atkMorale = getMoraleEffects(atk);
   totalDmg *= atkMorale.attack;
   if (atk._formationBuffs?.attackBonus) totalDmg *= (1 + atk._formationBuffs.attackBonus);
-  const troopDef = (def.defense || 50) / 10;
+  const troopDef = ((def.defense || 50) / 10) * (defWorn ? WORN_PENALTY : 1);
   const dCombat = dc ? (dc.combat || 5) : 5;
   const dCommand = dc ? (dc.command || 5) : 5;
   const singleDef = troopDef + dCommand * 5 + dCombat * 3;

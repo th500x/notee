@@ -202,22 +202,23 @@ router.post('/', async (req, res) => {
       }
 
       // 耐久耗尽处理：battle_count >= max_battle_count
-      // core稀有度：保留卡牌，卸下装备（0/30留在军营，无法上阵）
-      const [coreExpired] = await pool.query(
+      // core/legendary稀有度：保留卡牌，卸下装备（留在军营，无法上阵PVP）
+      // legendary耐久耗尽后PVE可用但攻防-20%（前端combatSystem判断）
+      const [preservedExpired] = await pool.query(
         `UPDATE player_cards 
          SET is_equipped = FALSE, equipped_by = NULL, equipped_slot = NULL
-         WHERE player_id = ? AND card_type = 'troop' AND rarity = 'core'
+         WHERE player_id = ? AND card_type = 'troop' AND rarity IN ('core', 'legendary')
            AND battle_count >= max_battle_count AND is_equipped = TRUE`,
         [playerId]
       );
-      if (coreExpired.affectedRows > 0) {
-        console.log(`[battles] 核心部队耐久耗尽（保留）: ${coreExpired.affectedRows}张`);
+      if (preservedExpired.affectedRows > 0) {
+        console.log(`[battles] 核心/传奇部队耐久耗尽（保留）: ${preservedExpired.affectedRows}张`);
       }
 
-      // 其他稀有度：直接删除实例
+      // 其他稀有度（epic/rare/common）：直接删除实例
       const [deleted] = await pool.query(
         `DELETE FROM player_cards 
-         WHERE player_id = ? AND card_type = 'troop' AND rarity != 'core'
+         WHERE player_id = ? AND card_type = 'troop' AND rarity NOT IN ('core', 'legendary')
            AND battle_count >= max_battle_count`,
         [playerId]
       );
