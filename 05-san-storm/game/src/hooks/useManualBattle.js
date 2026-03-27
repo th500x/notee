@@ -688,6 +688,7 @@ export function useManualBattle({
     phase,
     activeTroop,
     remainingMove,
+    reachableTiles,
     attackTargets,
     // 两次点击攻击预览
     attackPreview,

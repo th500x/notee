@@ -36,6 +36,7 @@ export function useBattleEngine({
   const roundNumRef = useRef(roundNum);
   const activeFormationRef = useRef(activeFormation);
   const autoBattleRef = useRef(autoBattle);
+  const takenOver = useRef(false);
 
   // 同步 ref 与 state
   roundNumRef.current = roundNum;
@@ -712,14 +713,16 @@ export function useBattleEngine({
 
     let result = 'continue';
     while (result === 'continue') {
-      // 中途切换为手动：检查autoBattle是否被关闭
-      if (!autoBattleRef.current) {
+      // 中途切换为手动：继续以手动模式执行（executeSingleRound内部会暂停等待玩家操作）
+      if (!autoBattleRef.current && !takenOver.current) {
+        takenOver.current = true;
         addLog('🖐 玩家接管战斗，切换为手动模式', 'round');
-        break;
+        speedRef.current = 1;
       }
       result = await executeSingleRound();
       if (result === 'continue') await sleep(300, speedRef.current);
     }
+    takenOver.current = false;
     speedRef.current = 1;
     setBattlePlaying(false);
   }, [battlePlaying, battleTroops, silverAmount, addLog, setSilverAmount, setBattlePlaying, executeSingleRound]);

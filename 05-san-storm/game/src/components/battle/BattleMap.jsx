@@ -60,7 +60,7 @@ function BattleMap({ mapResult, mapLabel, battleTroops, showTroops, isBattle, ma
   // ── 浮动操作按钮定位 ──
   const floatingAction = useMemo(() => {
     if (!manualProps) return null;
-    const { phase, activeTroop, formationTroops, onStandby, onFormationStandby } = manualProps;
+    const { phase, activeTroop, formationTroops, reachableTiles, onStandby, onFormationStandby } = manualProps;
     const isFormationMove = phase === MANUAL_PHASE.FORMATION_MOVE;
     const isFormationAction = phase === MANUAL_PHASE.FORMATION_ACTION;
     const isSingleMove = phase === MANUAL_PHASE.SELECT_MOVE;
@@ -83,25 +83,34 @@ function BattleMap({ mapResult, mapLabel, battleTroops, showTroops, isBattle, ma
       return null;
     }
 
-    // 按钮位置：优先下→上→左→右，避开部队（优先级：空>己>友>敌>越界）
+    // 按钮位置：避开部队和可移动瓦片
+    // 优先级：空且不可移动(0) > 空但可移动(1) > 己(2) > 友(3) > 敌(4) > 越界(5)
     const troopAt = (r, c) => {
       if (r < 0 || r >= MAP_H || c < 0 || c >= MAP_W) return 'oob';
       const t = battleTroops.find(u => u.currentTroops > 0 && u.y === r && u.x === c);
       if (!t) return 'empty';
-      // 判断是否是当前操作的部队（己方激活）
       if (isFormation && formationTroops?.some(f => f.id === t.id)) return 'self';
       if (!isFormation && activeTroop && t.id === activeTroop.id) return 'self';
       if (t.faction === 'player') return 'ally';
       return 'enemy';
     };
-    const priority = { empty: 0, self: 1, ally: 2, enemy: 3, oob: 4 };
+    const isReachable = (r, c) => reachableTiles && reachableTiles.has(`${r},${c}`);
+    const priority = { empty: 0, self: 2, ally: 3, enemy: 4, oob: 5 };
     const candidates = [
       { row: ty + 1, col: tx },  // 下
       { row: ty - 1, col: tx },  // 上
       { row: ty, col: tx - 1 },  // 左
       { row: ty, col: tx + 1 },  // 右
-    ].map(p => ({ ...p, score: priority[troopAt(p.row, p.col)] }))
-     .sort((a, b) => a.score - b.score);
+      { row: ty + 1, col: tx + 1 }, // 右下
+      { row: ty + 1, col: tx - 1 }, // 左下
+      { row: ty - 1, col: tx + 1 }, // 右上
+      { row: ty - 1, col: tx - 1 }, // 左上
+    ].map(p => {
+      let score = priority[troopAt(p.row, p.col)];
+      // 空格但是可移动瓦片 → 惩罚，排在"空且不可移动"之后
+      if (score === 0 && isReachable(p.row, p.col)) score = 1;
+      return { ...p, score };
+    }).sort((a, b) => a.score - b.score);
     const pos = candidates[0];
     const handleStandby = isFormation ? onFormationStandby : onStandby;
     return { row: pos.row, col: pos.col, handleStandby };

@@ -421,6 +421,7 @@ export default function EventBattle({ onBattleEnd, playerId, playerName, playerS
               phase: manual.phase,
               activeTroop: manual.activeTroop,
               formationTroops: manual.formationTroops,
+              reachableTiles: manual.reachableTiles,
               onStandby: manual.handleStandby,
               onFormationStandby: manual.handleFormationStandby,
               attackPreview: manual.attackPreview,
