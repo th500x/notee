@@ -189,6 +189,9 @@ export default function BattleArena({
 
   // 监听战斗结束
   const endedRef = useRef(false);
+  const onBattleEndRef = useRef(onBattleEnd);
+  onBattleEndRef.current = onBattleEnd;
+
   useEffect(() => {
     if (stage !== STAGE.READY || endedRef.current) return;
     if (bm.logs.length === 0) return;
@@ -240,11 +243,11 @@ export default function BattleArena({
           console.error('[BattleArena] 保存战报失败:', err);
         }
 
-        onBattleEnd(result, silverSpent > 0 ? silverSpent : 0, scoreResult, killedIndices);
+        onBattleEndRef.current?.(result, silverSpent > 0 ? silverSpent : 0, scoreResult, killedIndices);
       }
     }, 200);
     return () => clearInterval(check);
-  }, [bm.logs, bm.battlePlaying, stage, onBattleEnd]);
+  }, [bm.logs, bm.battlePlaying, stage]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="fixed inset-0 z-[60] overflow-auto bg-[#1a1a2e]">
