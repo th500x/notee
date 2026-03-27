@@ -225,6 +225,16 @@ router.post('/', async (req, res) => {
       if (deleted.affectedRows > 0) {
         console.log(`[battles] 部队耐久耗尽（删除）: ${deleted.affectedRows}张`);
       }
+
+      // 更新活动排行积分（battle_score）
+      const { rewards } = req.body;
+      if (rewards?.battleScore && rewards.battleScore > 0) {
+        await pool.query(
+          'UPDATE statistics SET total_battle_score = total_battle_score + ? WHERE player_id = ?',
+          [rewards.battleScore, playerId]
+        );
+        console.log(`[battles] 战斗积分更新: +${rewards.battleScore}`);
+      }
     } catch (err) {
       console.error('[battles] 更新部队耐久失败:', err);
     }
