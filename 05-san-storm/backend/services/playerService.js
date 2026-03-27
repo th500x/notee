@@ -197,13 +197,13 @@ class PlayerService {
       const secondaryAdjust = secondaryTotal / actualSecondaryTotal;
       
       const roundedAttrs = {
-        luck: parseFloat(luck.toFixed(1)),
-        courage: parseFloat((courage * primaryAdjust).toFixed(1)),
-        command: parseFloat((command * primaryAdjust).toFixed(1)),
-        combat: parseFloat((combat * primaryAdjust).toFixed(1)),
-        intelligence: parseFloat((intelligence * secondaryAdjust).toFixed(1)),
-        politics: parseFloat((politics * secondaryAdjust).toFixed(1)),
-        charm: parseFloat((charm * secondaryAdjust).toFixed(1))
+        luck: parseFloat(Math.min(singleMax, Math.max(minAttr, luck)).toFixed(1)),
+        courage: parseFloat(Math.min(singleMax, Math.max(minAttr, courage * primaryAdjust)).toFixed(1)),
+        command: parseFloat(Math.min(singleMax, Math.max(minAttr, command * primaryAdjust)).toFixed(1)),
+        combat: parseFloat(Math.min(singleMax, Math.max(minAttr, combat * primaryAdjust)).toFixed(1)),
+        intelligence: parseFloat(Math.min(singleMax, Math.max(minAttr, intelligence * secondaryAdjust)).toFixed(1)),
+        politics: parseFloat(Math.min(singleMax, Math.max(minAttr, politics * secondaryAdjust)).toFixed(1)),
+        charm: parseFloat(Math.min(singleMax, Math.max(minAttr, charm * secondaryAdjust)).toFixed(1))
       };
       
       // 验证主要3项属性差值
@@ -312,13 +312,13 @@ class PlayerService {
       const secondaryAdjust = secondaryTotal / actualSecondaryTotal;
       
       const roundedAttrs = {
-        luck: parseFloat(luck.toFixed(1)),
-        intelligence: parseFloat((intelligence * primaryAdjust).toFixed(1)),
-        politics: parseFloat((politics * primaryAdjust).toFixed(1)),
-        charm: parseFloat((charm * primaryAdjust).toFixed(1)),
-        courage: parseFloat((courage * secondaryAdjust).toFixed(1)),
-        command: parseFloat((command * secondaryAdjust).toFixed(1)),
-        combat: parseFloat((combat * secondaryAdjust).toFixed(1))
+        luck: parseFloat(Math.min(singleMax, Math.max(minAttr, luck)).toFixed(1)),
+        intelligence: parseFloat(Math.min(singleMax, Math.max(minAttr, intelligence * primaryAdjust)).toFixed(1)),
+        politics: parseFloat(Math.min(singleMax, Math.max(minAttr, politics * primaryAdjust)).toFixed(1)),
+        charm: parseFloat(Math.min(singleMax, Math.max(minAttr, charm * primaryAdjust)).toFixed(1)),
+        courage: parseFloat(Math.min(singleMax, Math.max(minAttr, courage * secondaryAdjust)).toFixed(1)),
+        command: parseFloat(Math.min(singleMax, Math.max(minAttr, command * secondaryAdjust)).toFixed(1)),
+        combat: parseFloat(Math.min(singleMax, Math.max(minAttr, combat * secondaryAdjust)).toFixed(1))
       };
       
       // 验证主要3项属性差值

@@ -344,5 +344,38 @@ export const playerAPI = {
       console.error('获取玩家道具失败:', error);
       throw error;
     }
+  },
+
+  // ── 属性随机系统 ──
+
+  /**
+   * 获取属性随机状态
+   */
+  async getRerollStatus(playerId) {
+    const response = await fetchWithTimeout(`${API_CONFIG.BASE_URL}/players/${playerId}/reroll-status`);
+    return response.json();
+  },
+
+  /**
+   * 执行属性随机（扣银两、生成3方案）
+   */
+  async rerollAttributes(playerId) {
+    const response = await fetchWithTimeout(`${API_CONFIG.BASE_URL}/players/${playerId}/reroll-attributes`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    return response.json();
+  },
+
+  /**
+   * 确认选择属性方案
+   */
+  async rerollConfirm(playerId, batch, index) {
+    const response = await fetchWithTimeout(`${API_CONFIG.BASE_URL}/players/${playerId}/reroll-confirm`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ batch, index })
+    });
+    return response.json();
   }
 };

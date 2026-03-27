@@ -13,6 +13,16 @@ import { useState, useEffect, useCallback } from 'react';
 import { usePlayerContext } from '@/contexts/PlayerContext';
 import { loadSharedData } from '@/services/dataService';
 import { playerAPI } from '@/services/playerApi';
+
+/** 从官职等级获取对应稀有度 */
+function getPositionRarity(level) {
+  if (level == null) return 'common';
+  if (level <= 3) return 'core';
+  if (level === 4) return 'legendary';
+  if (level === 5) return 'epic';
+  if (level <= 7) return 'rare';
+  return 'common';
+}
 import CharacterCard from '@shared/components/card/CharacterCard';
 import TroopCard from '@shared/components/card/TroopCard';
 import EquipmentCard from '@shared/components/card/EquipmentCard';
@@ -491,7 +501,7 @@ function LandscapeQuadrant({ player, activeSubTab, slots, getSlotContent, onSlot
         id: player.player_id,
         name: player.character_name,
         avatar: player.avatar,
-        rarity: 'common',
+        rarity: getPositionRarity(player.position_level),
         luck: player.luck / 10,
         courage: player.courage / 10,
         combat: player.combat / 10,
@@ -576,7 +586,7 @@ function EquipmentLayout({ player, activeSubTab, leftSlots, rightSlots, getSlotC
         id: player.player_id,
         name: player.character_name,
         avatar: player.avatar,
-        rarity: 'common',
+        rarity: getPositionRarity(player.position_level),
         luck: player.luck / 10,
         courage: player.courage / 10,
         combat: player.combat / 10,

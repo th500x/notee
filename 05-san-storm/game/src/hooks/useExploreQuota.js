@@ -89,8 +89,7 @@ export function useExploreQuota() {
   const consume = useCallback(() => {
     setQuota(prev => {
       if (prev.remaining <= 0) return prev;
-      // 更新 lastRefillTs 为当前小时，防止离线后重复补充已消耗的时段
-      return { remaining: prev.remaining - 1, lastRefillTs: getCurrentHourTs() };
+      return { ...prev, remaining: prev.remaining - 1 };
     });
   }, []);
 

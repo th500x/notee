@@ -1363,7 +1363,7 @@ router.post('/:playerId/cards/unequip', async (req, res) => {
 router.post('/:playerId/rewards', async (req, res) => {
   try {
     const { playerId } = req.params;
-    const { eventId, optionKey, playerAttrs, general1Attrs, general2Attrs, minigameResult, battleResult, battleSilverSpent, battleScore } = req.body;
+    const { eventId, optionKey, playerAttrs, general1Attrs, general2Attrs, minigameResult, minigameSilverDelta, battleResult, battleSilverSpent, battleScore } = req.body;
 
     if (!eventId || !optionKey) {
       return res.status(400).json({ success: false, error: '缺少 eventId 或 optionKey' });
@@ -1493,6 +1493,16 @@ router.post('/:playerId/rewards', async (req, res) => {
         'UPDATE players SET silver = GREATEST(0, silver - ?) WHERE player_id = ?',
         [battleSilverSpent, playerId]
       );
+    }
+
+    // 结算迷你游戏筹码盈亏（正数=赢，负数=输）
+    if (minigameSilverDelta && minigameSilverDelta !== 0) {
+      if (minigameSilverDelta > 0) {
+        await pool.query('UPDATE players SET silver = silver + ? WHERE player_id = ?', [minigameSilverDelta, playerId]);
+      } else {
+        await pool.query('UPDATE players SET silver = GREATEST(0, silver + ?) WHERE player_id = ?', [minigameSilverDelta, playerId]);
+      }
+      console.log(`[Players] 迷你游戏筹码结算: playerId=${playerId}, delta=${minigameSilverDelta}`);
     }
 
     // 更新战斗积分到 statistics
@@ -1766,6 +1776,213 @@ router.post('/:playerId/events', async (req, res) => {
   } catch (error) {
     console.error('[Players] 记录事件进度失败:', error);
     res.status(500).json({ success: false, error: '记录事件进度失败', message: error.message });
+  }
+});
+
+// ── 属性随机系统 ─────────────────────────────────────────────
+
+const REROLL_COST = { common: 10, rare: 50, epic: 250, legendary: 500, core: 750 };
+const REROLL_DAILY_LIMIT = 2;
+
+// 从官职稀有度映射表（与 position CSV 一致）
+function getPositionRarity(positionLevel) {
+  if (positionLevel <= 3) return 'core';
+  if (positionLevel === 4) return 'legendary';
+  if (positionLevel === 5) return 'epic';
+  if (positionLevel <= 7) return 'rare';
+  return 'common';
+}
+
+// 解析 MySQL DATE 为本地日期 YYYY-MM-DD 字符串（避免时区偏移）
+// 不再使用 JS 日期比较，改用 MySQL CURDATE() 直接在 SQL 中判断
+
+/**
+ * GET /api/players/:playerId/reroll-status
+ * 获取属性随机状态
+ */
+router.get('/:playerId/reroll-status', async (req, res) => {
+  try {
+    const { playerId } = req.params;
+    // MySQL 直接判断：如果不是今天，remaining 重置为 2
+    const [rows] = await pool.query(
+      `SELECT position_level, silver,
+              IF(attr_reroll_date = CURDATE(), attr_reroll_count, 0) AS today_used,
+              IF(attr_reroll_date = CURDATE(), attr_reroll_batches, NULL) AS today_batches,
+              attr_reroll_selected_batch, attr_reroll_selected_index
+       FROM players WHERE player_id = ?`,
+      [playerId]
+    );
+    if (!rows.length) return res.status(404).json({ success: false, error: '玩家不存在' });
+
+    const p = rows[0];
+    const rarity = getPositionRarity(p.position_level ?? 8);
+    const cost = REROLL_COST[rarity];
+    const remaining = REROLL_DAILY_LIMIT - (p.today_used || 0);
+    const batches = p.today_batches
+      ? (typeof p.today_batches === 'string' ? JSON.parse(p.today_batches) : p.today_batches)
+      : [];
+
+    res.json({
+      success: true,
+      data: {
+        rarity,
+        cost,
+        dailyLimit: REROLL_DAILY_LIMIT,
+        remaining,
+        silver: p.silver,
+        batches,
+        selectedBatch: p.attr_reroll_selected_batch,
+        selectedIndex: p.attr_reroll_selected_index,
+      }
+    });
+  } catch (error) {
+    console.error('[Players] 获取属性随机状态失败:', error);
+    res.status(500).json({ success: false, error: '获取属性随机状态失败', message: error.message });
+  }
+});
+
+/**
+ * POST /api/players/:playerId/reroll-attributes
+ * 执行属性随机（扣银两、生成3方案、记录批次）
+ */
+router.post('/:playerId/reroll-attributes', async (req, res) => {
+  try {
+    const { playerId } = req.params;
+    const [rows] = await pool.query(
+      `SELECT position_level, silver,
+              IF(attr_reroll_date = CURDATE(), attr_reroll_count, 0) AS today_used,
+              IF(attr_reroll_date = CURDATE(), attr_reroll_batches, NULL) AS today_batches
+       FROM players WHERE player_id = ?`,
+      [playerId]
+    );
+    if (!rows.length) return res.status(404).json({ success: false, error: '玩家不存在' });
+
+    const p = rows[0];
+    const rarity = getPositionRarity(p.position_level ?? 8);
+    const cost = REROLL_COST[rarity];
+    const remaining = REROLL_DAILY_LIMIT - (p.today_used || 0);
+
+    if (remaining <= 0) {
+      return res.status(400).json({ success: false, error: '今日属性随机次数已用完（上限2次/天）' });
+    }
+    if (p.silver < cost) {
+      return res.status(400).json({ success: false, error: `银两不足，需要${cost}银两` });
+    }
+
+    // 生成3个方案（复用角色创建算法）
+    const options = await PlayerService.generateAttributeOptions(rarity);
+
+    // 只保留当天的批次
+    const batches = p.today_batches
+      ? (typeof p.today_batches === 'string' ? JSON.parse(p.today_batches) : p.today_batches)
+      : [];
+    const newBatch = {
+      batch: batches.length + 1,
+      timestamp: new Date().toISOString(),
+      cost,
+      rarity,
+      options,
+    };
+    batches.push(newBatch);
+
+    const newUsed = (p.today_used || 0) + 1;
+    const newRemaining = REROLL_DAILY_LIMIT - newUsed;
+    await pool.query(
+      `UPDATE players SET
+        silver = silver - ?,
+        attr_reroll_date = CURDATE(),
+        attr_reroll_count = ?,
+        attr_reroll_batches = ?,
+        attr_reroll_selected_batch = NULL,
+        attr_reroll_selected_index = NULL
+       WHERE player_id = ?`,
+      [cost, newUsed, JSON.stringify(batches), playerId]
+    );
+
+    res.json({
+      success: true,
+      data: {
+        batch: newBatch.batch,
+        options,
+        cost,
+        remainingSilver: p.silver - cost,
+        remaining: newRemaining,
+        batches,
+      }
+    });
+  } catch (error) {
+    console.error('[Players] 属性随机失败:', error);
+    res.status(500).json({ success: false, error: '属性随机失败', message: error.message });
+  }
+});
+
+/**
+ * POST /api/players/:playerId/reroll-confirm
+ * 确认选择属性方案（更新7属性+技能）
+ */
+router.post('/:playerId/reroll-confirm', async (req, res) => {
+  try {
+    const { playerId } = req.params;
+    const { batch, index } = req.body;
+    if (batch == null || index == null) {
+      return res.status(400).json({ success: false, error: '缺少 batch 或 index' });
+    }
+
+    const [rows] = await pool.query(
+      'SELECT attr_reroll_batches FROM players WHERE player_id = ?',
+      [playerId]
+    );
+    if (!rows.length) return res.status(404).json({ success: false, error: '玩家不存在' });
+
+    const batches = rows[0].attr_reroll_batches
+      ? (typeof rows[0].attr_reroll_batches === 'string' ? JSON.parse(rows[0].attr_reroll_batches) : rows[0].attr_reroll_batches)
+      : [];
+    const targetBatch = batches.find(b => b.batch === batch);
+    if (!targetBatch) return res.status(400).json({ success: false, error: `批次 ${batch} 不存在` });
+    if (index < 0 || index >= targetBatch.options.length) {
+      return res.status(400).json({ success: false, error: `索引 ${index} 超出范围` });
+    }
+
+    const option = targetBatch.options[index];
+    const attrs = option.attributesInt || {};
+    // attributesInt 是 ×10 存储值；如果没有则从 attributes 手动 ×10
+    const toInt = (v) => Math.round((v || 0) * 10);
+    const luck = attrs.luck ?? toInt(option.attributes?.luck);
+    const courage = attrs.courage ?? toInt(option.attributes?.courage);
+    const combat = attrs.combat ?? toInt(option.attributes?.combat);
+    const command = attrs.command ?? toInt(option.attributes?.command);
+    const intelligence = attrs.intelligence ?? toInt(option.attributes?.intelligence);
+    const politics = attrs.politics ?? toInt(option.attributes?.politics);
+    const charm = attrs.charm ?? toInt(option.attributes?.charm);
+    const skill1 = option.skills?.skill_1?.id || option.skills?.skill_1 || null;
+    const skill2 = option.skills?.skill_2?.id || option.skills?.skill_2 || null;
+
+    await pool.query(
+      `UPDATE players SET
+        luck = ?, courage = ?, combat = ?, command = ?,
+        intelligence = ?, politics = ?, charm = ?,
+        skill_1 = ?, skill_2 = ?,
+        attr_reroll_batches = NULL,
+        attr_reroll_selected_batch = ?,
+        attr_reroll_selected_index = ?
+       WHERE player_id = ?`,
+      [luck, courage, combat, command, intelligence, politics, charm,
+       skill1, skill2, batch, index, playerId]
+    );
+
+    res.json({
+      success: true,
+      data: {
+        attributes: option.attributes,
+        skills: option.skills,
+        type: option.type,
+        selectedBatch: batch,
+        selectedIndex: index,
+      }
+    });
+  } catch (error) {
+    console.error('[Players] 确认属性方案失败:', error);
+    res.status(500).json({ success: false, error: '确认属性方案失败', message: error.message });
   }
 });
 

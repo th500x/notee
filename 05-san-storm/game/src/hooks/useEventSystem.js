@@ -412,14 +412,14 @@ export default function useEventSystem(player, cards) {
   }, [chosenOptionKey, requestRewards, applyRewardResponse]);
 
   // 迷你游戏结果
-  const endMinigame = useCallback((result) => {
+  const endMinigame = useCallback((result, extra = {}) => {
     if (result === 'victory') {
       setFortune({ name: '吉', emoji: '⭐', color: 'text-blue-600', multiplier: 1.0 });
     } else {
       setFortune({ name: '凶', emoji: '💀', color: 'text-orange-600', multiplier: 0.5 });
     }
-    // 请求后端发放奖励
-    requestRewards(chosenOptionKey, { minigameResult: result }).then(data => {
+    // 请求后端发放奖励（附带筹码盈亏）
+    requestRewards(chosenOptionKey, { minigameResult: result, minigameSilverDelta: extra.silverDelta || 0 }).then(data => {
       applyRewardResponse(data);
     });
     setPhase(PHASE.REWARD);

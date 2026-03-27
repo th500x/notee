@@ -89,9 +89,10 @@ export default function EventBlackjack({ difficulty = 'medium', onGameEnd, playe
     if (gameRef.current.matchOver && !endedRef.current) {
       endedRef.current = true;
       const result = gameRef.current.matchResult;
-      // 胜利=victory，失败或平局=defeat
+      const silverDelta = gameRef.current.silverDelta;
+      // 胜利=victory，失败或平局=defeat，附带筹码盈亏
       setTimeout(() => {
-        onGameEnd(result === 'win' ? 'victory' : 'defeat');
+        onGameEnd(result === 'win' ? 'victory' : 'defeat', { silverDelta });
       }, 300);
     }
   }, [onGameEnd]);

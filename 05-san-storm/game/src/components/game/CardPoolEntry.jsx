@@ -10,7 +10,7 @@ import { useState, useRef, useCallback } from 'react';
 const LONG_PRESS_MS = 400;
 const TOOLTIP_TEXT = '正式赛季根据势力城市发展度决定卡池质量/次数（概率），本次测试阶段固定卡池质量/次数（概率）';
 
-function PoolButton({ icon, label, remaining, dailyLimit, onClick }) {
+function PoolButton({ icon, label, remaining, dailyLimit, onClick, tooltip }) {
   const [showTip, setShowTip] = useState(false);
   const longTimer = useRef(null);
   const isLong = useRef(false);
@@ -24,6 +24,8 @@ function PoolButton({ icon, label, remaining, dailyLimit, onClick }) {
     if (isLong.current) { setShowTip(false); e.preventDefault(); }
   }, []);
   const onTouchMove = useCallback(() => { clearTimeout(longTimer.current); }, []);
+
+  const tipText = tooltip || TOOLTIP_TEXT;
 
   return (
     <div className="relative"
@@ -54,20 +56,25 @@ function PoolButton({ icon, label, remaining, dailyLimit, onClick }) {
                         w-56 px-3 py-2 bg-black/85 backdrop-blur-sm rounded-lg
                         text-amber-100/90 text-[10px] leading-relaxed
                         border border-amber-700/30 shadow-lg pointer-events-none">
-          {TOOLTIP_TEXT}
+          {tipText}
         </div>
       )}
     </div>
   );
 }
 
-export default function CardPoolEntry({ troopRemaining, charRemaining, dailyLimit, onOpenPool }) {
+export default function CardPoolEntry({ troopRemaining, charRemaining, dailyLimit, onOpenPool, rerollRemaining, rerollLimit, rerollPositionName, onOpenReroll }) {
   return (
     <div className="pointer-events-auto flex justify-center gap-4 mt-2">
       <PoolButton icon="🎴" label="将领卡池" remaining={charRemaining} dailyLimit={dailyLimit}
         onClick={() => onOpenPool('character')} />
       <PoolButton icon="⚔️" label="部队卡池" remaining={troopRemaining} dailyLimit={dailyLimit}
         onClick={() => onOpenPool('troop')} />
+      <PoolButton icon="🎲"
+        label={rerollPositionName ? `随机（${rerollPositionName}）` : '属性随机'}
+        remaining={rerollRemaining ?? '?'} dailyLimit={rerollLimit ?? 2}
+        tooltip="正式赛季会有专门的城市界面提供此功能，本测试赛季一切从简"
+        onClick={onOpenReroll} />
     </div>
   );
 }

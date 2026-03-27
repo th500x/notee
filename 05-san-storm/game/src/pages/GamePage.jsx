@@ -17,8 +17,10 @@ import PersonalSidebar from '@/components/game/PersonalSidebar';
 import CommPanel from '@/components/game/CommPanel';
 import CardPoolEntry from '@/components/game/CardPoolEntry';
 import CardPoolDrawer from '@/components/game/CardPoolDrawer';
+import AttrRerollDrawer from '@/components/game/AttrRerollDrawer';
 import { useCardPool } from '@/hooks/useCardPool';
 import { loadSharedData } from '@/services/dataService';
+import { playerAPI } from '@/services/playerApi';
 import LineupTab from '@/components/game/tabs/LineupTab';
 import PlaceholderTab from '@/components/game/tabs/PlaceholderTab';
 import WorldMap from '@/components/game/WorldMap';
@@ -39,6 +41,8 @@ function GamePageInner({ onLogout }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [eventBusy, setEventBusy] = useState(false);
   const [openPool, setOpenPool] = useState(null); // 'troop' | 'character' | null
+  const [openReroll, setOpenReroll] = useState(false);
+  const [rerollStatus, setRerollStatus] = useState(null);
   const [skillsMap, setSkillsMap] = useState({});
   const navigate = useNavigate();
 
@@ -56,7 +60,10 @@ function GamePageInner({ onLogout }) {
   // 卡池 hook
   const cardPool = useCardPool(playerId);
   useEffect(() => {
-    if (playerId) cardPool.loadStatus();
+    if (playerId) {
+      cardPool.loadStatus();
+      playerAPI.getRerollStatus(playerId).then(r => { if (r.success) setRerollStatus(r.data); }).catch(() => {});
+    }
   }, [playerId]);
 
   const handleCloseToMap = () => setActiveTab(null);
@@ -89,7 +96,7 @@ function GamePageInner({ onLogout }) {
           onOpenSidebar={() => setSidebarOpen(true)}
         />
 
-        {activeTab === null && (
+        {activeTab === null && !eventBusy && (
           <div className="absolute top-14 left-0 right-0 z-40 px-3 pt-1 pointer-events-none">
             <AnnouncementBar />
             <RankingPanel />
@@ -98,6 +105,10 @@ function GamePageInner({ onLogout }) {
               charRemaining={cardPool.status?.character?.remainingDraws ?? '?'}
               dailyLimit={cardPool.status?.troop?.dailyLimit ?? 5}
               onOpenPool={setOpenPool}
+              rerollRemaining={rerollStatus?.remaining}
+              rerollLimit={rerollStatus?.dailyLimit}
+              rerollPositionName={player?.current_position_name}
+              onOpenReroll={() => setOpenReroll(true)}
             />
           </div>
         )}
@@ -141,6 +152,22 @@ function GamePageInner({ onLogout }) {
           onClearResult={cardPool.clearResult}
           onClose={() => { setOpenPool(null); cardPool.clearResult(); }}
           onRefreshStatus={cardPool.loadStatus}
+        />
+      )}
+
+      {/* 属性随机抽屉 */}
+      {openReroll && playerId && (
+        <AttrRerollDrawer
+          playerId={playerId}
+          playerName={player?.character_name}
+          skillsMap={skillsMap}
+          onClose={() => {
+            setOpenReroll(false);
+            // 刷新状态
+            playerAPI.getRerollStatus(playerId).then(r => { if (r.success) setRerollStatus(r.data); }).catch(() => {});
+            refresh();
+          }}
+          onConfirm={() => refresh()}
         />
       )}
     </>
