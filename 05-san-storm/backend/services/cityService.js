@@ -22,13 +22,22 @@ const RARITY_POOLS = {
   legendary: [{ rarity: 'rare', weight: 30 }, { rarity: 'epic', weight: 40 }, { rarity: 'legendary', weight: 30 }],
 };
 
-// NPC 部队数量（按城市类型）— 中立城市总数，每次战斗出4支
-const NPC_TROOP_COUNT = {
+// NPC 部队数量 — 中立城市（无归属）
+const NPC_TROOP_COUNT_NEUTRAL = {
   city_small: 400,
   city_medium: 600,
   city_major: 800,
   gate: 600,
   fort: 400,
+};
+
+// NPC 部队数量 — 已占领城市（有归属势力）
+const NPC_TROOP_COUNT_OWNED = {
+  city_small: 40,
+  city_medium: 60,
+  city_major: 80,
+  gate: 60,
+  fort: 40,
 };
 
 // 击杀 NPC 银两奖励（按稀有度）
@@ -80,7 +89,10 @@ async function generateNpcGarrison(cityId) {
   const city = cityRows[0];
 
   const maxRarity = CITY_MAX_RARITY[city.city_type] || 'rare';
-  const troopCount = NPC_TROOP_COUNT[city.city_type] || 4;
+  const isOwned = !!city.faction_id;
+  const troopCount = isOwned
+    ? (NPC_TROOP_COUNT_OWNED[city.city_type] || 40)
+    : (NPC_TROOP_COUNT_NEUTRAL[city.city_type] || 400);
   const charCount = Math.ceil(troopCount / 2); // 每2支部队配1个将领
 
   // 2. 从配置表加载部队和将领池
@@ -141,7 +153,7 @@ async function generateNpcGarrison(cityId) {
 
   // 4. 更新城市 NPC 守军
   await pool.query(
-    `UPDATE cities SET npc_garrison = ?, npc_garrison_alive = ?, npc_max_rarity = ?, status = 'neutral'
+    `UPDATE cities SET npc_garrison = ?, npc_garrison_alive = ?, npc_max_rarity = ?
      WHERE id = ?`,
     [JSON.stringify(npcUnits), troopCount, maxRarity, cityId]
   );
