@@ -201,7 +201,7 @@ export default function WorldMap({ onEventBusyChange }) {
 
       {/* 探索点：南阳荒郊 */}
       <div
-        className="absolute z-30 cursor-pointer group"
+        className={`absolute cursor-pointer group ${showTooltip ? 'z-50' : 'z-30'}`}
         style={{ left: '35%', top: '55%' }}
         onMouseEnter={() => setShowTooltip(true)}
         onMouseLeave={() => setShowTooltip(false)}
@@ -257,7 +257,7 @@ export default function WorldMap({ onEventBusyChange }) {
 
       {/* 城市点：新野 */}
       <div
-        className="absolute z-30 cursor-pointer group"
+        className={`absolute cursor-pointer group ${cityTooltip ? 'z-50' : 'z-30'}`}
         style={{ left: '60%', top: '40%' }}
         onMouseEnter={() => setCityTooltip(true)}
         onMouseLeave={() => setCityTooltip(false)}
