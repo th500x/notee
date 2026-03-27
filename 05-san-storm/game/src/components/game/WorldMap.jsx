@@ -117,8 +117,16 @@ export default function WorldMap({ onEventBusyChange }) {
           silverSpent: silverSpent || 0,
         }),
       }).then(r => r.json());
-      if (res.success) setSiegeResult(res.data);
-    } catch {}
+      if (res.success) {
+        setSiegeResult(res.data);
+      } else {
+        // 后端报错，仍然显示结算页（无奖励数据）
+        setSiegeResult({ npcKilled: 0, npcTotal: 0, silverReward: 0, error: res.error });
+      }
+    } catch (err) {
+      console.error('[Siege] 结算请求失败:', err);
+      setSiegeResult({ npcKilled: 0, npcTotal: 0, silverReward: 0, error: '结算请求失败' });
+    }
     refreshCity();
     refresh();
   }, [siegeData, player, refreshCity, refresh]);
