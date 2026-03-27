@@ -180,7 +180,7 @@ export default function EventBlackjack({ difficulty = 'medium', onGameEnd, playe
         {/* 牌桌 */}
         <div className="rounded-xl border-2 border-amber-800/30 p-3 space-y-3"
           style={{
-            background: 'radial-gradient(ellipse at center, #1a5c32 0%, #0d3320 70%, #0a2818 100%)',
+            background: 'radial-gradient(ellipse at center, #3d2b1f 0%, #2a1d14 70%, #1a120c 100%)',
             boxShadow: 'inset 0 2px 20px rgba(0,0,0,0.3)',
           }}>
           <Hand
@@ -215,7 +215,7 @@ export default function EventBlackjack({ difficulty = 'medium', onGameEnd, playe
           {started && isPlayerTurn && (
             <div className="flex justify-center gap-3">
               <button onClick={handleHit}
-                className="px-6 py-2.5 rounded-xl text-sm font-bold bg-green-700 text-green-100 shadow-lg hover:bg-green-600 active:scale-95 transition-all border-2 border-green-600/50">
+                className="px-6 py-2.5 rounded-xl text-sm font-bold bg-stone-700 text-amber-100 shadow-lg hover:bg-stone-600 active:scale-95 transition-all border-2 border-stone-500/50">
                 🃏 要牌
               </button>
               <button onClick={handleStand}
@@ -241,7 +241,7 @@ export default function EventBlackjack({ difficulty = 'medium', onGameEnd, playe
           <div className="grid grid-cols-2 gap-3 mt-2">
             <div>
               <div className="text-xs text-gray-500">{state.playerName}</div>
-              <div className={`text-xl font-bold ${state.playerTotal > 21 ? 'text-red-600' : 'text-green-700'}`}>{state.playerTotal}点</div>
+              <div className={`text-xl font-bold ${state.playerTotal > 21 ? 'text-red-600' : 'text-amber-700'}`}>{state.playerTotal}点</div>
             </div>
             <div>
               <div className="text-xs text-gray-500">{state.config.label}</div>
