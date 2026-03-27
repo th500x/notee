@@ -197,8 +197,8 @@ async function initiateSiege(cityId, playerId) {
   let needRefresh = false;
   if (!city.npc_garrison || city.npc_garrison_alive <= 0) {
     needRefresh = true;
-  } else {
-    // 检查是否需要每日8点补满（NPC有损耗时）
+  } else if (city.status === 'owned') {
+    // 仅已占领城市：检查是否需要每日8点补满（NPC有损耗时）
     const totalNpc = city.npc_garrison.length;
     if (city.npc_garrison_alive < totalNpc) {
       const now = new Date();
