@@ -193,7 +193,24 @@ async function initiateSiege(cityId, playerId) {
   }
 
   // 如果没有 NPC 守军，先生成
+  // 如果有损耗且已过次日8:00，补满
+  let needRefresh = false;
   if (!city.npc_garrison || city.npc_garrison_alive <= 0) {
+    needRefresh = true;
+  } else {
+    // 检查是否需要每日8点补满（NPC有损耗时）
+    const totalNpc = city.npc_garrison.length;
+    if (city.npc_garrison_alive < totalNpc) {
+      const now = new Date();
+      const updatedAt = new Date(city.updated_at);
+      // 计算上次更新后的下一个8:00
+      const next8am = new Date(updatedAt);
+      next8am.setHours(8, 0, 0, 0);
+      if (next8am <= updatedAt) next8am.setDate(next8am.getDate() + 1);
+      if (now >= next8am) needRefresh = true;
+    }
+  }
+  if (needRefresh) {
     await generateNpcGarrison(cityId);
     const refreshed = await getCityInfo(cityId);
     city.npc_garrison = refreshed.npc_garrison;
