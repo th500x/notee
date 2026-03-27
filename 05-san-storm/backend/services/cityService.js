@@ -442,5 +442,6 @@ module.exports = {
   recordSiegeResult,
   getWarStatus,
   CITY_MAX_RARITY,
-  NPC_TROOP_COUNT,
+  NPC_TROOP_COUNT_NEUTRAL,
+  NPC_TROOP_COUNT_OWNED,
 };
