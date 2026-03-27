@@ -41,7 +41,7 @@ export default function CommPanel({ visible }) {
     if (!player?.player_id) return;
     setBattleLoading(true);
     try {
-      const apiFilter = battleFilter === 'favorited' ? 'favorited' : 'event';
+      const apiFilter = battleFilter === 'favorited' ? 'favorited' : 'all';
       const res = await battleAPI.getBattles(player.player_id, apiFilter);
       if (res.success) {
         let list = res.battles || [];

@@ -104,7 +104,7 @@ router.post('/', async (req, res) => {
     }
 
     // 枚举值校验
-    const validBattleTypes = ['pvp_field', 'pvp_siege', 'pvp_defense', 'pve_campaign', 'pve_event'];
+    const validBattleTypes = ['pvp_field', 'pvp_siege', 'pvp_defense', 'pve_campaign', 'pve_event', 'pve_siege'];
     const validOpponentTypes = ['player', 'campaign_enemy', 'event_enemy'];
     const validResults = ['win', 'lose', 'draw'];
 

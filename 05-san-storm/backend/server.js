@@ -69,6 +69,12 @@ const rankingsRouter = require('./routes/rankings');
 app.use('/api/rankings', rankingsRouter);
 
 /**
+ * 城市路由（城市信息、攻城、归属）
+ */
+const citiesRouter = require('./routes/cities');
+app.use('/api/cities', citiesRouter);
+
+/**
  * 健康检查
  */
 app.get('/api/health', async (req, res) => {
