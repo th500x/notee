@@ -340,7 +340,7 @@ async function recordSiegeResult(warId, playerId, factionId, killedIndices, resu
     // 4.5 胜利额外奖励：声望 + 装备掉落
     let reputationReward = 0;
     let equipmentDrop = null;
-    if (result === 'win' && killCount > 0) {
+    if (result === 'win' && actualKillCount > 0) {
       // 声望：按本场击杀NPC的最高稀有度计算
       const [cityCheck] = await connection.query('SELECT npc_garrison FROM cities WHERE id = ?', [war.target_city_id]);
       let killedRarities = [];
