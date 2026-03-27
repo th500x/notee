@@ -299,11 +299,9 @@ async function recordSiegeResult(warId, playerId, factionId, killedIndices, resu
     if (war.faction_kills) {
       factionKills = typeof war.faction_kills === 'string' ? JSON.parse(war.faction_kills) : war.faction_kills;
     }
-    const killCount = killedIndices.length;
-    factionKills[factionId] = (factionKills[factionId] || 0) + killCount;
-
-    // 3. 更新城市 NPC 守军状态 + 计算银两奖励
+    // 3. 更新城市 NPC 守军状态 + 计算银两奖励 + 统计实际击杀数
     let silverReward = 0;
+    let actualKillCount = 0;
     const [cityRows] = await connection.query(
       'SELECT npc_garrison, npc_garrison_alive FROM cities WHERE id = ? FOR UPDATE',
       [war.target_city_id]
@@ -316,6 +314,7 @@ async function recordSiegeResult(warId, playerId, factionId, killedIndices, resu
           if (garrison[idx] && garrison[idx].alive) {
             garrison[idx].alive = false;
             silverReward += KILL_SILVER_REWARD[garrison[idx].rarity] || 10;
+            actualKillCount++;
           }
         }
         const aliveCount = garrison.filter(u => u.alive).length;
@@ -325,6 +324,9 @@ async function recordSiegeResult(warId, playerId, factionId, killedIndices, resu
         );
       }
     }
+
+    // 势力击杀只计算实际从alive变dead的数量（防止重复上报）
+    factionKills[factionId] = (factionKills[factionId] || 0) + actualKillCount;
 
     // 4. 发放银两奖励（扣除战斗消耗后的净值）
     const netSilver = silverReward - (silverSpent > 0 ? silverSpent : 0);
@@ -377,7 +379,7 @@ async function recordSiegeResult(warId, playerId, factionId, killedIndices, resu
     }
 
     // 4. 更新 war 击杀数
-    const newNpcKilled = (war.npc_killed || 0) + killCount;
+    const newNpcKilled = (war.npc_killed || 0) + actualKillCount;
     await connection.query(
       'UPDATE wars SET faction_kills = ?, npc_killed = ? WHERE war_id = ?',
       [JSON.stringify(factionKills), newNpcKilled, warId]
