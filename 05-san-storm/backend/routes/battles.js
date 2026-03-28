@@ -129,11 +129,11 @@ router.post('/', async (req, res) => {
 
     const battle = await battleService.saveBattle(req.body);
 
-    // 战斗结束后，所有参战部队卡 battle_count +1
+    // 战斗结束后，所有参战部队卡 battle_count +1（不超过 max_battle_count）
     try {
       const [updated] = await pool.query(
         `UPDATE player_cards 
-         SET battle_count = battle_count + 1 
+         SET battle_count = LEAST(battle_count + 1, COALESCE(max_battle_count, 999)) 
          WHERE player_id = ? AND card_type = 'troop' AND is_equipped = TRUE`,
         [playerId]
       );
@@ -175,27 +175,16 @@ router.post('/', async (req, res) => {
         console.log(`[battles] 士气更新: ${moraleUpdates.length}条`);
       }
 
-      // 保存宝箱装备奖励到 player_cards
+      // 保存宝箱装备奖励到 player_cards（装备件，card_id 关联 config_equipment）
       const { chestRewards } = req.body;
       if (chestRewards && Array.isArray(chestRewards) && chestRewards.length > 0) {
         for (const reward of chestRewards) {
+          if (!reward.id) continue; // 必须有 config_equipment 的 equipment_id
           const instanceId = `equip_chest_${playerId}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
           await pool.query(
-            `INSERT INTO player_cards (instance_id, player_id, card_id, card_type, rarity, is_equipped, equipped_by, equipped_slot, bonus_data)
-             VALUES (?, ?, ?, 'equipment', ?, FALSE, NULL, NULL, ?)`,
-            [
-              instanceId,
-              playerId,
-              reward.id || 'chest_equipment',
-              reward.rarity || 'common',
-              JSON.stringify({
-                name: reward.name,
-                equipmentType: reward.equipmentType,
-                bonus: reward.bonus || {},
-                specialEffect: reward.specialEffect || null,
-                source: 'chest',
-              }),
-            ]
+            `INSERT INTO player_cards (instance_id, player_id, card_id, card_type, rarity, is_equipped)
+             VALUES (?, ?, ?, 'equipment', ?, FALSE)`,
+            [instanceId, playerId, reward.id, reward.rarity || 'common']
           );
         }
         console.log(`[battles] 宝箱装备保存: ${chestRewards.length}件`);
