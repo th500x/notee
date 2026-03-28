@@ -81,6 +81,12 @@ const garrisonsRouter = require('./routes/garrisons');
 app.use('/api/garrisons', garrisonsRouter);
 
 /**
+ * PVP攻城挑战API
+ */
+const pvpRouter = require('./routes/pvp');
+app.use('/api/pvp', pvpRouter);
+
+/**
  * 健康检查
  */
 app.get('/api/health', async (req, res) => {

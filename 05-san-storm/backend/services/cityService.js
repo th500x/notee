@@ -207,7 +207,7 @@ async function initiateSiege(cityId, playerId) {
 
       const war = await getOrCreateWar(cityId, city);
 
-      // 转换为 BattleArena 期望的格式（属性×10，character属性×10）
+      // 构建防守单位（BattleArena格式：属性×10）
       const garrisonUnits = units.map((u, i) => ({
         index: i,
         troopId: u.troop.id,
@@ -240,6 +240,25 @@ async function initiateSiege(cityId, playerId) {
         _troopInstanceId: u.troop.instanceId,
       }));
 
+      // 检查防守者是否在线（最后活跃5分钟内）
+      const [activeRows] = await pool.query(
+        'SELECT lastActiveAt FROM accounts WHERE id = ?', [def.player_id]
+      );
+      const isOnline = activeRows.length > 0 &&
+        (Date.now() - new Date(activeRows[0].lastActiveAt).getTime()) < 5 * 60 * 1000;
+
+      if (isOnline) {
+        // 防守者在线 → 返回 pvp_online，前端走 PVP 挑战流程
+        return {
+          warId: war.war_id, cityId, cityName: city.city_name, cityType: city.city_type,
+          npcGarrison: garrisonUnits, npcAlive: garrisonUnits.length, npcTotal: garrisonUnits.length,
+          playerFaction, defenderType: 'pvp_online',
+          defenderName: def.character_name, defenderPlayerId: def.player_id,
+          defenderGarrisonSlot: def.garrison_slot,
+        };
+      }
+
+      // 防守者离线 → 异步PVE（驻守卡池作为NPC）
       return {
         warId: war.war_id, cityId, cityName: city.city_name, cityType: city.city_type,
         npcGarrison: garrisonUnits, npcAlive: garrisonUnits.length, npcTotal: garrisonUnits.length,
