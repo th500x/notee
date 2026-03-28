@@ -12,8 +12,8 @@ const CARD_FIELDS = [
   'char2_card', 'char2_equipment_card', 'char2_title', 'char2_achievement', 'char2_treasure', 'char2_troop1', 'char2_troop2',
 ];
 
-// 部队参战最低兵力
-const MIN_TROOPS_TO_DEFEND = 200;
+// 单部队参战最低兵力（兵力为0不参战，总兵力检查在 initiateSiege 中 ≥ 800）
+const MIN_TROOPS_TO_DEFEND = 1;
 
 /**
  * 获取玩家所有驻守配置

@@ -192,7 +192,65 @@ async function initiateSiege(cityId, playerId) {
     throw new Error('不能攻打己方城市');
   }
 
-  // 如果没有 NPC 守军，先生成
+  // ── 已占领城市：先查玩家防守者 ──
+  if (city.status === 'owned' && city.faction_id) {
+    const garrisonService = require('./garrisonService');
+    const defenders = await garrisonService.getCityDefenders(cityId);
+
+    for (const def of defenders) {
+      if (def.player_id === playerId) continue; // 跳过攻城方自己
+
+      const units = await garrisonService.buildDefenseUnits(def);
+      // 总兵力 ≥ 800 才参战
+      const totalTroops = units.reduce((sum, u) => sum + u.currentTroops, 0);
+      if (totalTroops < 800) continue;
+
+      const war = await getOrCreateWar(cityId, city);
+
+      // 转换为 BattleArena 期望的格式（属性×10，character属性×10）
+      const garrisonUnits = units.map((u, i) => ({
+        index: i,
+        troopId: u.troop.id,
+        troopName: u.troop.name,
+        rarity: u.troop.rarity,
+        troopType: u.troop.troopType,
+        weaponType: u.troop.weaponType,
+        attack: Math.round(u.troop.attack * 10),
+        defense: Math.round(u.troop.defense * 10),
+        speed: u.troop.speed,
+        movement: u.troop.movement,
+        attackRange: u.troop.range,
+        maxTroops: u.troop.maxTroops,
+        currentTroops: u.currentTroops,
+        character: u.character ? {
+          name: u.character.name,
+          courtesyName: u.character.courtesyName || u.character.name,
+          luck: Math.round(u.character.luck * 10),
+          courage: Math.round(u.character.courage * 10),
+          combat: Math.round(u.character.combat * 10),
+          command: Math.round(u.character.command * 10),
+          intelligence: Math.round(u.character.intelligence * 10),
+          politics: 50, charm: 50,
+          traitModifier: u.character.traitModifier || 0,
+        } : null,
+        alive: true,
+        _isPlayerDefender: true,
+        _garrisonPlayerId: u._garrisonPlayerId,
+        _garrisonSlot: u._garrisonSlot,
+        _troopInstanceId: u.troop.instanceId,
+      }));
+
+      return {
+        warId: war.war_id, cityId, cityName: city.city_name, cityType: city.city_type,
+        npcGarrison: garrisonUnits, npcAlive: garrisonUnits.length, npcTotal: garrisonUnits.length,
+        playerFaction, defenderType: 'player_garrison',
+        defenderName: def.character_name, defenderPlayerId: def.player_id,
+      };
+    }
+    // 所有玩家防守者总兵力不足 → 继续到 NPC 守军
+  }
+
+  // ── NPC 守军逻辑（中立城市 或 玩家防守者全部跳过） ──
   // 如果有损耗且已过次日8:00，补满
   let needRefresh = false;
   if (!city.npc_garrison || city.npc_garrison_alive <= 0) {
