@@ -479,20 +479,23 @@ async function recordSiegeResult(warId, playerId, factionId, killedIndices, resu
 
       // 装备掉落：5%概率，稀有度=本场最高NPC稀有度
       if (Math.random() < EQUIPMENT_DROP_RATE) {
-        // 从装备配置表随机选一件对应稀有度的装备
+        // 从装备配置表随机选一件对应稀有度的装备（稀有度从equipment_id解析：_X_ 中X=1普通,2稀有,3史诗,4传奇,5核心）
+        const rarityDigit = { common: '1', rare: '2', epic: '3', legendary: '4', core: '5' }[bestRarity] || '2';
         const [equipRows] = await connection.query(
-          'SELECT * FROM config_equipment WHERE rarity = ? ORDER BY RAND() LIMIT 1',
-          [bestRarity]
+          `SELECT * FROM config_equipment WHERE equipment_id LIKE ? ORDER BY RAND() LIMIT 1`,
+          [`%_${rarityDigit}___`]
         );
         if (equipRows.length) {
           const eq = equipRows[0];
           const instanceId = `equip_${playerId}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+          // 从equipment_id解析稀有度
+          const eqRarity = { '1':'common','2':'rare','3':'epic','4':'legendary','5':'core' }[eq.equipment_id.match(/_(\d)\d{3}$/)?.[1]] || bestRarity;
           await connection.query(
             `INSERT INTO player_cards (instance_id, player_id, card_type, card_id, rarity)
              VALUES (?, ?, 'equipment', ?, ?)`,
-            [instanceId, playerId, eq.equipment_id, eq.rarity]
+            [instanceId, playerId, eq.equipment_id, eqRarity]
           );
-          equipmentDrop = { instanceId, equipmentId: eq.equipment_id, name: eq.equipment_name, rarity: eq.rarity };
+          equipmentDrop = { instanceId, equipmentId: eq.equipment_id, name: eq.equipment_name, rarity: eqRarity };
         }
       }
     }
