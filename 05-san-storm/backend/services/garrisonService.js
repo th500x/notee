@@ -194,7 +194,7 @@ async function buildDefenseUnits(garrisonSlot) {
       traitModifier: charCfg.trait_modifier || 0,
     };
 
-    // 读取该将领的部队卡（兵力 >= 200 才参战）
+    // 读取该将领的部队卡（兵力 > 0 才参战，总兵力检查在 initiateSiege 中）
     const troopInstanceIds = [garrisonSlot[cs.troop1Field], garrisonSlot[cs.troop2Field]].filter(Boolean);
     for (const troopInstId of troopInstanceIds) {
       const [troopRows] = await pool.query(
@@ -214,7 +214,7 @@ async function buildDefenseUnits(garrisonSlot) {
 
       const maxTroops = (t.max_troops || 0) + (t.bonus_max_troops || 0);
       const currentTroops = t.current_troops ?? maxTroops;
-      if (currentTroops < MIN_TROOPS_TO_DEFEND) continue; // 兵力不足200不参战
+      if (currentTroops < MIN_TROOPS_TO_DEFEND) continue; // 兵力为0不参战
 
       units.push({
         troop: {
