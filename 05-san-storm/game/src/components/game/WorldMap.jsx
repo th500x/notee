@@ -16,6 +16,7 @@ import { buildPlayerUnitsFromContext } from '@/utils/battlePlayerBuilder';
 import { useSiegeQuota } from '@/hooks/useSiegeQuota';
 import { PHASE } from '@/components/event/EventConstants';
 import { playerAPI } from '@/services/playerApi';
+import AncientModal from '@/components/common/AncientModal';
 import { API_CONFIG } from '@/constants';
 
 const BG_CACHE_KEY = 'game_intro_bg';
@@ -73,6 +74,40 @@ export default function WorldMap({ onEventBusyChange }) {
   const [siegeLoading, setSiegeLoading] = useState(false);
   const canSiege = !isTutorial && phase === PHASE.IDLE && siegeQuota.canSiege && !siegeData;
 
+  // ── PVP 挑战状态 ──
+  const [pvpChallenge, setPvpChallenge] = useState(null); // { challengeId, waitSeconds, defenseUnits, ... }
+  const [pvpCountdown, setPvpCountdown] = useState(0);
+  const pvpTimerRef = useRef(null);
+  const pvpPollRef = useRef(null);
+
+  // ── 防守方：轮询是否有 PVP 挑战 ──
+  const [pvpDefenseAlert, setPvpDefenseAlert] = useState(null); // 防守方收到的挑战通知
+  const defPollRef = useRef(null);
+
+  useEffect(() => {
+    if (!player?.player_id) return;
+    // 每3秒检查是否有人攻打自己驻守的城市
+    defPollRef.current = setInterval(async () => {
+      try {
+        const res = await fetch(`${API_CONFIG.BASE_URL}/pvp/pending/${player.player_id}`).then(r => r.json());
+        if (res.success && res.challenge) {
+          const c = res.challenge;
+          setPvpDefenseAlert(c);
+          // 浏览器通知（用户可能不在当前标签页）
+          if (Notification.permission === 'granted') {
+            new Notification('🏰 城池遭袭', {
+              body: `${c.attackerName}（${c.cityId}）遭到攻击，请主公在${c.remainingSeconds}秒内进入战场`,
+              tag: 'siege-pvp',
+            });
+          } else if (Notification.permission !== 'denied') {
+            Notification.requestPermission();
+          }
+        }
+      } catch {}
+    }, 3000);
+    return () => clearInterval(defPollRef.current);
+  }, [player?.player_id]);
+
   // 加载城市信息 + 战事排行
   const [warData, setWarData] = useState(null);
   const refreshCity = useCallback(async () => {
@@ -98,7 +133,39 @@ export default function WorldMap({ onEventBusyChange }) {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ playerId: player.player_id }),
       }).then(r => r.json());
-      if (res.success) { siegeQuota.consume(); setSiegeData(res.data); setSiegeResult(null); }
+      if (res.success) {
+        siegeQuota.consume();
+
+        if (res.data.defenderType === 'pvp_online') {
+          // 在线防守者 → 创建 PVP 挑战，进入等待界面
+          try {
+            const pvpRes = await fetch(`${API_CONFIG.BASE_URL}/pvp/challenge`, {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                warId: res.data.warId, cityId: CITY_ID,
+                attackerId: player.player_id, attackerFaction: res.data.playerFaction,
+                defenderId: res.data.defenderPlayerId,
+                defenderGarrisonSlot: res.data.defenderGarrisonSlot,
+              }),
+            }).then(r => r.json());
+            if (pvpRes.success) {
+              setPvpChallenge({
+                ...pvpRes, siegeData: res.data,
+                defenderName: res.data.defenderName,
+              });
+              setPvpCountdown(pvpRes.waitSeconds);
+              setSiegeResult(null);
+            }
+          } catch (e) {
+            console.error('[PVP] 创建挑战失败:', e);
+            // 降级为异步PVE
+            setSiegeData(res.data); setSiegeResult(null);
+          }
+        } else {
+          // 离线防守者 或 NPC → 直接进入战斗
+          setSiegeData(res.data); setSiegeResult(null);
+        }
+      }
     } catch {}
     setSiegeLoading(false);
   }, [canSiege, player, siegeQuota]);
@@ -135,6 +202,47 @@ export default function WorldMap({ onEventBusyChange }) {
   }, [siegeData, player, refreshCity, refresh]);
 
   const closeSiegeResult = useCallback(() => { setSiegeData(null); setSiegeResult(null); }, []);
+
+  // ── PVP 攻城方：倒计时 + 轮询防守方是否接受 ──
+  useEffect(() => {
+    if (!pvpChallenge) return;
+
+    // 倒计时
+    pvpTimerRef.current = setInterval(() => {
+      setPvpCountdown(prev => {
+        if (prev <= 1) {
+          // 超时 → 用防守方部队数据进入自动战斗
+          clearInterval(pvpTimerRef.current);
+          clearInterval(pvpPollRef.current);
+          const sd = pvpChallenge.siegeData;
+          setSiegeData(sd);
+          setPvpChallenge(null);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    // 每2秒轮询防守方是否接受
+    pvpPollRef.current = setInterval(async () => {
+      try {
+        const res = await fetch(`${API_CONFIG.BASE_URL}/pvp/challenge/${pvpChallenge.challengeId}/status`).then(r => r.json());
+        if (res.success && res.status === 'accepted') {
+          // 防守方接受 → 进入 PVP 战斗（battleType 改为 pvp_siege）
+          clearInterval(pvpTimerRef.current);
+          clearInterval(pvpPollRef.current);
+          const sd = { ...pvpChallenge.siegeData, isPvp: true };
+          setSiegeData(sd);
+          setPvpChallenge(null);
+        }
+      } catch {}
+    }, 2000);
+
+    return () => {
+      clearInterval(pvpTimerRef.current);
+      clearInterval(pvpPollRef.current);
+    };
+  }, [pvpChallenge]);
 
   // 新手指引完成时，给满探索次数
   const prevTutorialRef = useRef(isTutorial);
@@ -337,6 +445,59 @@ export default function WorldMap({ onEventBusyChange }) {
           );
         })()}
       </div>
+
+      {/* ── PVP 攻城方等待界面 ── */}
+      {pvpChallenge && (
+        <AncientModal isOpen type="confirm" title="⚔️ 攻城对战" preventClose hideButtons>
+          <div className="text-center space-y-4">
+            <p className="text-gray-800 text-base">
+              主公的对手将在 <span className="text-red-700 font-bold text-xl">{pvpCountdown}</span> 秒后进入战场
+            </p>
+            <p className="text-gray-500 text-xs">
+              对手：{pvpChallenge.defenderName || '未知'}
+            </p>
+            <div className="w-full bg-gray-300 rounded-full h-2 overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-amber-600 to-red-600 transition-all duration-1000"
+                style={{ width: `${(pvpCountdown / pvpChallenge.waitSeconds) * 100}%` }}
+              />
+            </div>
+            <p className="text-gray-400 text-xs">等待防守方响应中...</p>
+          </div>
+        </AncientModal>
+      )}
+
+      {/* ── PVP 防守方通知弹窗 ── */}
+      {pvpDefenseAlert && !siegeData && (
+        <AncientModal
+          isOpen type="warning"
+          title="🏰 城池遭袭"
+          confirmText="进入战场"
+          showCancel cancelText="放弃（自动战斗）"
+          onConfirm={async () => {
+            // 接受挑战
+            try {
+              await fetch(`${API_CONFIG.BASE_URL}/pvp/challenge/${pvpDefenseAlert.challengeId}/accept`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ defenderId: player.player_id }),
+              });
+            } catch {}
+            setPvpDefenseAlert(null);
+            // TODO: 防守方进入战斗界面（需要加载自己的驻守部队 vs 攻城方部队）
+          }}
+          onCancel={() => setPvpDefenseAlert(null)}
+        >
+          <div className="text-center space-y-3">
+            <p className="text-gray-800 text-base">
+              <span className="font-bold text-red-700">{pvpDefenseAlert.attackerName}</span> 正在攻打城池
+            </p>
+            <p className="text-gray-800">
+              请主公在 <span className="text-red-700 font-bold text-xl">{pvpDefenseAlert.remainingSeconds}</span> 秒内进入战场
+            </p>
+            <p className="text-gray-500 text-xs">放弃将由AI代为指挥作战</p>
+          </div>
+        </AncientModal>
+      )}
 
       {/* 攻城战斗（复用 BattleArena） */}
       {siegeData && !siegeResult && (
