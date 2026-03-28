@@ -1249,9 +1249,9 @@ router.post('/:playerId/cards/equip', async (req, res) => {
     // 这样无论装备哪种卡牌，都不会出现叠加问题
     const needRecalc = EFFECT_CARD_TYPES.includes(cards[0].card_type) || cards[0].card_type === 'troop';
     if (needRecalc) {
-      // 1. 清零该 equippedBy 下所有部队卡的 bonus 字段
+      // 1. 清零该 equippedBy 下所有部队卡的 bonus 字段（不清除 last_troops_lost_at，保留恢复状态）
       await pool.query(
-        `UPDATE player_cards SET bonus_max_troops=0, bonus_attack=0, bonus_defense=0, bonus_speed=0, bonus_movement=0, last_troops_lost_at=NULL
+        `UPDATE player_cards SET bonus_max_troops=0, bonus_attack=0, bonus_defense=0, bonus_speed=0, bonus_movement=0
          WHERE player_id = ? AND equipped_by = ? AND card_type = 'troop' AND is_equipped = TRUE`,
         [playerId, equippedBy]
       );
@@ -1264,6 +1264,23 @@ router.post('/:playerId/cards/equip', async (req, res) => {
       );
       for (const ec of effectCards) {
         await applyCardBonusToTroops(pool, playerId, equippedBy, ec.card_type, ec.card_id);
+      }
+      // 3. 重算后检查：有兵力缺口但 last_troops_lost_at 为 NULL 的部队，补写恢复起始时间
+      const [troopsToCheck] = await pool.query(
+        `SELECT pc.instance_id, pc.current_troops, pc.bonus_max_troops, pc.last_troops_lost_at, ct.max_troops AS cfg_max
+         FROM player_cards pc
+         JOIN config_troops ct ON pc.card_id = ct.troop_id
+         WHERE pc.player_id = ? AND pc.equipped_by = ? AND pc.card_type = 'troop' AND pc.is_equipped = TRUE`,
+        [playerId, equippedBy]
+      );
+      for (const t of troopsToCheck) {
+        const maxTroops = (t.cfg_max || 0) + (t.bonus_max_troops || 0);
+        const hasCap = (t.current_troops || 0) < maxTroops;
+        if (hasCap && !t.last_troops_lost_at) {
+          await pool.query('UPDATE player_cards SET last_troops_lost_at = NOW() WHERE instance_id = ?', [t.instance_id]);
+        } else if (!hasCap && t.last_troops_lost_at) {
+          await pool.query('UPDATE player_cards SET last_troops_lost_at = NULL WHERE instance_id = ?', [t.instance_id]);
+        }
       }
     }
 
@@ -1306,13 +1323,27 @@ router.post('/:playerId/cards/unequip', async (req, res) => {
     );
 
     if (cardInfo && equippedBy) {
-      // 如果卸下的是部队卡，清零它的 bonus（干净回背包）
+      // 如果卸下的是部队卡，清零它的 bonus（干净回背包），并确保兵力恢复状态正确
       if (cardInfo.card_type === 'troop') {
         await pool.query(
           `UPDATE player_cards SET bonus_max_troops=0, bonus_attack=0, bonus_defense=0, bonus_speed=0, bonus_movement=0
            WHERE instance_id = ?`,
           [instanceId]
         );
+        // 检查卸下的部队是否有兵力缺口，确保 last_troops_lost_at 正确
+        const [troopState] = await pool.query(
+          `SELECT pc.current_troops, pc.last_troops_lost_at, ct.max_troops AS cfg_max
+           FROM player_cards pc JOIN config_troops ct ON pc.card_id = ct.troop_id
+           WHERE pc.instance_id = ?`,
+          [instanceId]
+        );
+        if (troopState[0]) {
+          const maxTroops = troopState[0].cfg_max || 0; // 卸下后 bonus=0，用纯配置值
+          const hasCap = (troopState[0].current_troops || 0) < maxTroops;
+          if (hasCap && !troopState[0].last_troops_lost_at) {
+            await pool.query('UPDATE player_cards SET last_troops_lost_at = NOW() WHERE instance_id = ?', [instanceId]);
+          }
+        }
       }
       // 如果卸下的是效果卡，清零所有部队卡 bonus 再重新应用剩余效果卡
       if (EFFECT_CARD_TYPES.includes(cardInfo.card_type)) {
