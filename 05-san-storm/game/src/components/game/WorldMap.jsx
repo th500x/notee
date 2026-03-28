@@ -115,6 +115,9 @@ export default function WorldMap({ onEventBusyChange }) {
           killedIndices: killedIndices || [],
           result: result === 'victory' ? 'win' : 'lose',
           silverSpent: silverSpent || 0,
+          defenderType: siegeData.defenderType || 'npc',
+          defenderPlayerId: siegeData.defenderPlayerId || null,
+          garrisonUnits: siegeData.defenderType === 'player_garrison' ? siegeData.npcGarrison : null,
         }),
       }).then(r => r.json());
       if (res.success) {

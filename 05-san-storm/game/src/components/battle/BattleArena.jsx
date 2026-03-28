@@ -140,7 +140,7 @@ export default function BattleArena({
           troopType: npc.troopType, weaponType: npc.weaponType,
           attack: npc.attack, defense: npc.defense,
           speed: npc.speed, movement: npc.movement, range: npc.attackRange,
-          maxTroops: npc.maxTroops, currentTroops: npc.maxTroops,
+          maxTroops: npc.maxTroops, currentTroops: npc.currentTroops ?? npc.maxTroops,
           faction: 'enemy',
           y: enemyPositions[i].y, x: enemyPositions[i].x,
           character: npc.character ? {

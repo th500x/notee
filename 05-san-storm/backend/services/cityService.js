@@ -280,8 +280,50 @@ async function initiateSiege(cityId, playerId) {
  * @param {Array<number>} killedIndices - 本场战斗消灭的 NPC 索引列表
  * @param {string} result - 战斗结果 win/lose
  * @param {number} silverSpent - 战斗中消耗的银两（自动战斗费用）
+ * @param {object} defenderInfo - 防守者信息
  */
-async function recordSiegeResult(warId, playerId, factionId, killedIndices, result, silverSpent = 0) {
+async function recordSiegeResult(warId, playerId, factionId, killedIndices, result, silverSpent = 0, defenderInfo = {}) {
+  const { defenderType, defenderPlayerId, garrisonUnits } = defenderInfo || {};
+
+  // ── 玩家防守者：更新驻守部队兵力 ──
+  if (defenderType === 'player_garrison' && garrisonUnits && Array.isArray(garrisonUnits)) {
+    const conn = await pool.getConnection();
+    try {
+      await conn.beginTransaction();
+      const [warRows] = await conn.query("SELECT * FROM wars WHERE war_id = ? AND status = 'active' FOR UPDATE", [warId]);
+      if (!warRows.length) throw new Error('战事不存在或已结束');
+      const war = warRows[0];
+      let factionKills = war.faction_kills ? (typeof war.faction_kills === 'string' ? JSON.parse(war.faction_kills) : war.faction_kills) : {};
+      let killCount = 0;
+      let silverReward = 0;
+      for (const idx of killedIndices) {
+        const unit = garrisonUnits[idx];
+        if (!unit || !unit._troopInstanceId) continue;
+        await conn.query('UPDATE player_cards SET current_troops = 0, last_troops_lost_at = NOW() WHERE instance_id = ?', [unit._troopInstanceId]);
+        killCount++;
+        silverReward += KILL_SILVER_REWARD[unit.rarity] || 10;
+      }
+      factionKills[factionId] = (factionKills[factionId] || 0) + killCount;
+      const netSilver = silverReward - (silverSpent > 0 ? silverSpent : 0);
+      if (netSilver !== 0) {
+        await conn.query('UPDATE players SET silver = GREATEST(0, silver + ?) WHERE player_id = ?', [netSilver, playerId]);
+      }
+      let reputationReward = 0;
+      if (result === 'win' && killCount > 0) {
+        const killedRarities = killedIndices.map(i => garrisonUnits[i]?.rarity).filter(Boolean);
+        const rarityOrder = ['common', 'rare', 'epic', 'legendary', 'core'];
+        const bestRarity = killedRarities.sort((a, b) => rarityOrder.indexOf(b) - rarityOrder.indexOf(a))[0] || 'common';
+        reputationReward = WIN_REPUTATION_REWARD[bestRarity] || 5;
+        await conn.query('UPDATE players SET reputation = reputation + ? WHERE player_id = ?', [reputationReward, playerId]);
+      }
+      await conn.query('UPDATE wars SET faction_kills = ?, npc_killed = npc_killed + ? WHERE war_id = ?', [JSON.stringify(factionKills), killCount, warId]);
+      await conn.commit();
+      return { warId, factionKills, npcKilled: killCount, npcTotal: garrisonUnits.length, siegeCompleted: false, winnerFaction: null, silverReward, reputationReward, equipmentDrop: null, defenderType: 'player_garrison' };
+    } catch (error) { await conn.rollback(); throw error; }
+    finally { conn.release(); }
+  }
+
+  // ── NPC 守军：原有逻辑 ──
   const connection = await pool.getConnection();
   try {
     await connection.beginTransaction();
@@ -431,6 +473,7 @@ async function recordSiegeResult(warId, playerId, factionId, killedIndices, resu
       silverReward,
       reputationReward,
       equipmentDrop,
+      defenderType: 'npc',
     };
   } catch (error) {
     await connection.rollback();
@@ -438,6 +481,25 @@ async function recordSiegeResult(warId, playerId, factionId, killedIndices, resu
   } finally {
     connection.release();
   }
+};
+
+/**
+ * 查找或创建活跃的 war 记录
+ */
+async function getOrCreateWar(cityId, city) {
+  const [existingWar] = await pool.query(
+    "SELECT * FROM wars WHERE target_city_id = ? AND status = 'active'",
+    [cityId]
+  );
+  if (existingWar.length > 0) return existingWar[0];
+  const warId = `war_${cityId}_${Date.now()}`;
+  await pool.query(
+    `INSERT INTO wars (war_id, war_name, war_type, target_city_id, target_city_name,
+      faction_kills, status, npc_total, npc_killed)
+     VALUES (?, ?, 'siege', ?, ?, '{}', 'active', ?, 0)`,
+    [warId, `${city.city_name}攻城战`, cityId, city.city_name, city.npc_garrison_alive || 0]
+  );
+  return { war_id: warId, faction_kills: {} };
 }
 
 /**
