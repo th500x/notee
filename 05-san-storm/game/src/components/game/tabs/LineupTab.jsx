@@ -13,6 +13,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { usePlayerContext } from '@/contexts/PlayerContext';
 import { loadSharedData } from '@/services/dataService';
 import { playerAPI } from '@/services/playerApi';
+import { garrisonAPI } from '@/services/garrisonApi';
 
 /** 从官职等级获取对应稀有度 */
 function getPositionRarity(level) {
@@ -65,6 +66,7 @@ export default function LineupTab({ onClose }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [detailCard, setDetailCard] = useState(null); // 详情浮层：{ card, slot }
   const [skillsMap, setSkillsMap] = useState({});
+  const [garrisonIds, setGarrisonIds] = useState(new Set()); // 被驻守占用的 instance_id
 
   // 横屏检测：宽度≥768px 且 宽>高
   const [isLandscape, setIsLandscape] = useState(
@@ -94,6 +96,24 @@ export default function LineupTab({ onClose }) {
     };
     loadSkills();
   }, []);
+
+  // 加载驻守数据 → 获取被驻守占用的 instance_id（排除在可装备列表中）
+  useEffect(() => {
+    if (!player?.player_id) return;
+    garrisonAPI.getAll(player.player_id).then(res => {
+      if (res.success) {
+        const ids = new Set();
+        const fields = [
+          'char1_card', 'char1_troop1', 'char1_troop2', 'char1_title',
+          'char2_card', 'char2_troop1', 'char2_troop2', 'char2_title',
+        ];
+        res.garrisons.forEach(g => {
+          fields.forEach(f => { if (g[f]) ids.add(g[f]); });
+        });
+        setGarrisonIds(ids);
+      }
+    }).catch(() => {});
+  }, [player?.player_id, cards]); // cards变化时重新加载（驻守操作后refresh会更新cards）
 
   // 关闭抽屉/详情
   const closeDrawer = useCallback(() => {
@@ -166,10 +186,10 @@ export default function LineupTab({ onClose }) {
   const char2Troops = troopCards.filter(c => c.equipped_by === 'character2' && c.is_equipped && (c.equipped_slot === 'troop1' || c.equipped_slot === 'troop2'));
   const char2Titles = titleCards.filter(c => c.equipped_by === 'character2' && c.is_equipped && c.equipped_slot === 'title');
   const char2Character = characterCards.find(c => c.equipped_by === 'character2' && c.is_equipped && c.equipped_slot === 'character');
-  const unequippedTroops = troopCards.filter(c => !c.is_equipped);
-  const unequippedTitles = titleCards.filter(c => !c.is_equipped);
-  const unequippedCharacters = characterCards.filter(c => !c.is_equipped);
-  const allUnequipped = cards.filter(c => !c.is_equipped);
+  const unequippedTroops = troopCards.filter(c => !c.is_equipped && !garrisonIds.has(c.instance_id));
+  const unequippedTitles = titleCards.filter(c => !c.is_equipped && !garrisonIds.has(c.instance_id));
+  const unequippedCharacters = characterCards.filter(c => !c.is_equipped && !garrisonIds.has(c.instance_id));
+  const allUnequipped = cards.filter(c => !c.is_equipped && !garrisonIds.has(c.instance_id));
 
   // 将领是否已招募（检查是否有将领卡装备到对应槽位）
   const isGeneralRecruited = (subTab) => {
@@ -1204,16 +1224,6 @@ function EquipSlot({ slot, content, isSelected, onClick, baseUrl, skillsMap, min
   );
 }
 
-/** 军营卡牌类型定义（显示顺序） */
-const BACKPACK_TYPES = [
-  { type: 'character',   label: '将领',   icon: '👤' },
-  { type: 'troop',       label: '部队',   icon: '⚔️' },
-  { type: 'title',       label: '称号',   icon: '🎖️' },
-  { type: 'achievement', label: '成就',   icon: '🏆' },
-  { type: 'treasure',    label: '宝物',   icon: '💎' },
-  { type: 'equipment',   label: '装备件', icon: '🛡️' },
-];
-
 const RARITY_DOTS = [
   { key: 'common',    color: 'bg-gray-400' },
   { key: 'rare',      color: 'bg-blue-400' },
@@ -1225,10 +1235,18 @@ const RARITY_DOTS = [
 /** 军营摘要区域：按类型显示稀有度数量，点击展开完整列表 */
 function BackpackSection({ cards, skillsMap }) {
   const [expandedType, setExpandedType] = useState(null);
-  const [previewCard, setPreviewCard] = useState(null); // { card, type }
+  const [previewCard, setPreviewCard] = useState(null);
   const baseUrl = import.meta.env.BASE_URL;
 
-  // 按类型分组
+  const GRID_TYPES = [
+    { type: 'character',   label: '将领',   icon: '👤' },
+    { type: 'troop',       label: '部队',   icon: '⚔️' },
+    { type: 'equipment',   label: '装备卡', icon: '🛡️' },
+    { type: 'title',       label: '称号',   icon: '🎖️' },
+    { type: 'achievement', label: '成就',   icon: '🏆' },
+    { type: 'treasure',    label: '宝物',   icon: '💎' },
+  ];
+
   const byType = {};
   cards.forEach(card => {
     const t = card.card_type || 'troop';
@@ -1236,7 +1254,6 @@ function BackpackSection({ cards, skillsMap }) {
     byType[t].push(card);
   });
 
-  // 统计某类型各稀有度数量
   const countByRarity = (typeCards) => {
     const counts = {};
     (typeCards || []).forEach(c => {
@@ -1246,7 +1263,6 @@ function BackpackSection({ cards, skillsMap }) {
     return counts;
   };
 
-  // 按稀有度分组（用于展开列表）
   const groupByRarity = (typeCards) => {
     const grouped = {};
     (typeCards || []).forEach(card => {
@@ -1267,188 +1283,133 @@ function BackpackSection({ cards, skillsMap }) {
         🏕️ 军营（{cards.length}）
       </h4>
 
-      {/* 类型摘要行 */}
-      <div className="space-y-1">
-        {BACKPACK_TYPES.map(({ type, label, icon }) => {
+      {/* 2×3 卡片网格 */}
+      <div className="grid grid-cols-3 gap-2">
+        {GRID_TYPES.map(({ type, label, icon }) => {
           const typeCards = byType[type] || [];
           const counts = countByRarity(typeCards);
           const total = typeCards.length;
           const isExpanded = expandedType === type;
 
           return (
-            <div key={type}>
-              <button
-                onClick={() => setExpandedType(isExpanded ? null : (total > 0 ? type : null))}
-                className={`w-full flex items-center justify-between px-3 py-2 rounded-lg
-                           transition-colors text-left
-                           ${total > 0
-                             ? 'bg-stone-800/60 border border-stone-700/40 hover:border-stone-500 cursor-pointer'
-                             : 'bg-stone-800/30 border border-stone-800/20 opacity-50 cursor-default'}`}
-              >
-                <div className="flex items-center gap-2">
-                  <span className="text-sm">{icon}</span>
-                  <span className="text-stone-300 text-xs">{label}</span>
+            <button key={type}
+              onClick={() => setExpandedType(isExpanded ? null : (total > 0 ? type : null))}
+              className={`rounded-lg p-2 text-center transition-colors
+                ${isExpanded ? 'bg-amber-900/30 border border-amber-700/40' :
+                  total > 0 ? 'bg-stone-800/60 border border-stone-700/30 hover:border-stone-500 cursor-pointer'
+                  : 'bg-stone-800/30 border border-stone-800/20 opacity-50 cursor-default'}`}>
+              <div className="text-lg">{icon}</div>
+              <div className="text-stone-300 text-xs">{label}</div>
+              {total > 0 ? (
+                <div className="flex items-center justify-center gap-1 mt-1 flex-wrap">
+                  {RARITY_DOTS.map(({ key, color }) => {
+                    const count = counts[key];
+                    if (!count) return null;
+                    return (
+                      <div key={key} className="flex items-center gap-0.5">
+                        <div className={`w-2 h-2 rounded-full ${color}`} />
+                        <span className="text-stone-400 text-[10px]">{count}</span>
+                      </div>
+                    );
+                  })}
                 </div>
-                {total > 0 ? (
-                  <div className="flex items-center gap-1.5">
-                    {RARITY_DOTS.map(({ key, color }) => {
-                      const count = counts[key];
-                      if (!count) return null;
-                      return (
-                        <div key={key} className="flex items-center gap-0.5">
-                          <div className={`w-2 h-2 rounded-full ${color}`} />
-                          <span className="text-stone-400 text-[10px]">{count}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <span className="text-stone-600 text-[10px]">暂无</span>
-                )}
-              </button>
-
-              {/* 展开的卡牌列表 */}
-              {isExpanded && total > 0 && (
-                <div className="mt-1 ml-2 mr-1 p-2 bg-stone-800/40 rounded-lg border border-stone-700/30">
-                  {type === 'character' ? (
-                    // 将领卡：CharacterCard 50%缩放，按稀有度分组
-                    groupByRarity(typeCards).map(({ rarity, cards: rCards }) => (
-                      <div key={rarity} className="mb-2 last:mb-0">
-                        <div className="text-stone-500 text-[10px] mb-1 px-1">
-                          {rarityLabel[rarity] || rarity}（{rCards.length}）
-                        </div>
-                        <div className="flex flex-wrap gap-1.5">
-                          {rCards.map(card => (
-                            <div key={card.instance_id} style={{ width: 128, height: 192 }}
-                              className="cursor-pointer overflow-hidden" onClick={() => setPreviewCard({ card, type: 'character' })}>
-                              <div style={{ transform: 'scale(0.5)', transformOrigin: 'top left', width: 256 }}>
-                                <CharacterCard
-                                  character={toCharacterCardData(card)}
-                                  skillsMap={skillsMap}
-                                  showDetails={true}
-                                  baseUrl={baseUrl}
-                                />
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    ))
-                  ) : type === 'troop' ? (
-                    // 部队卡：完整TroopCard 50%缩放，按稀有度分组
-                    groupByRarity(typeCards).map(({ rarity, cards: rCards }) => (
-                      <div key={rarity} className="mb-2 last:mb-0">
-                        <div className="text-stone-500 text-[10px] mb-1 px-1">
-                          {rarityLabel[rarity] || rarity}（{rCards.length}）
-                        </div>
-                        <div className="flex flex-wrap gap-1.5">
-                          {rCards.map(card => (
-                            <div key={card.instance_id} style={{ width: 128, height: 192 }}
-                              className="cursor-pointer" onClick={() => setPreviewCard({ card, type: 'troop' })}>
-                              <div style={{ transform: 'scale(0.5)', transformOrigin: 'top left', width: 256 }}>
-                                <TroopCard
-                                  troop={toTroopCardData(card)}
-                                  skillsMap={skillsMap}
-                                  showDetails={true}
-                                  baseUrl={baseUrl}
-                                />
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    ))
-                  ) : type === 'equipment' ? (
-                    // 装备件卡：EquipmentCard 50%缩放，与部队卡一致
-                    groupByRarity(typeCards).map(({ rarity, cards: rCards }) => (
-                      <div key={rarity} className="mb-2 last:mb-0">
-                        <div className="text-stone-500 text-[10px] mb-1 px-1">
-                          {rarityLabel[rarity] || rarity}（{rCards.length}）
-                        </div>
-                        <div className="flex flex-wrap gap-1.5">
-                          {rCards.map(card => (
-                            <div key={card.instance_id} style={{ width: 128, height: 96 }}
-                              className="cursor-pointer" onClick={() => setPreviewCard({ card, type: 'equipment' })}>
-                              <div style={{ transform: 'scale(0.5)', transformOrigin: 'top left', width: 256 }}>
-                                <EquipmentCard
-                                  equipment={toEquipmentCardData(card)}
-                                  baseUrl={baseUrl}
-                                />
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    ))
-                  ) : type === 'title' ? (
-                    // 称号卡：TitleAchievementCard 50%缩放，与部队卡一致
-                    groupByRarity(typeCards).map(({ rarity, cards: rCards }) => (
-                      <div key={rarity} className="mb-2 last:mb-0">
-                        <div className="text-stone-500 text-[10px] mb-1 px-1">
-                          {rarityLabel[rarity] || rarity}（{rCards.length}）
-                        </div>
-                        <div className="flex flex-wrap gap-1.5">
-                          {rCards.map(card => (
-                            <div key={card.instance_id} style={{ width: 128, height: 96 }}
-                              className="cursor-pointer" onClick={() => setPreviewCard({ card, type: 'title' })}>
-                              <div style={{ transform: 'scale(0.5)', transformOrigin: 'top left', width: 256 }}>
-                                <TitleAchievementCard
-                                  item={toTitleCardData(card)}
-                                  type="title"
-                                  baseUrl={baseUrl}
-                                />
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    // 其他类型：暂用简单列表
-                    <div className="text-stone-500 text-xs text-center py-3">
-                      {label}卡牌详情 — 尚未实装
-                    </div>
-                  )}
-                </div>
+              ) : (
+                <div className="text-amber-400 text-sm font-bold mt-0.5">0</div>
               )}
-            </div>
+            </button>
           );
         })}
       </div>
 
-      {/* 卡牌预览浮层：点击缩略图 → 100%大小居中显示 */}
+      {/* 展开的卡牌列表 */}
+      {expandedType && (byType[expandedType]?.length > 0) && (
+        <div className="mt-2 p-2 bg-stone-800/40 rounded-lg border border-stone-700/30">
+          {(expandedType === 'character') ? (
+            groupByRarity(byType[expandedType]).map(({ rarity, cards: rCards }) => (
+              <div key={rarity} className="mb-2 last:mb-0">
+                <div className="text-stone-500 text-[10px] mb-1 px-1">{rarityLabel[rarity]}（{rCards.length}）</div>
+                <div className="flex flex-wrap gap-1.5">
+                  {rCards.map(card => (
+                    <div key={card.instance_id} style={{ width: 128, height: 192 }}
+                      className="cursor-pointer overflow-hidden" onClick={() => setPreviewCard({ card, type: 'character' })}>
+                      <div style={{ transform: 'scale(0.5)', transformOrigin: 'top left', width: 256 }}>
+                        <CharacterCard character={toCharacterCardData(card)} skillsMap={skillsMap} showDetails={true} baseUrl={baseUrl} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))
+          ) : (expandedType === 'troop') ? (
+            groupByRarity(byType[expandedType]).map(({ rarity, cards: rCards }) => (
+              <div key={rarity} className="mb-2 last:mb-0">
+                <div className="text-stone-500 text-[10px] mb-1 px-1">{rarityLabel[rarity]}（{rCards.length}）</div>
+                <div className="flex flex-wrap gap-1.5">
+                  {rCards.map(card => (
+                    <div key={card.instance_id} style={{ width: 128, height: 192 }}
+                      className="cursor-pointer" onClick={() => setPreviewCard({ card, type: 'troop' })}>
+                      <div style={{ transform: 'scale(0.5)', transformOrigin: 'top left', width: 256 }}>
+                        <TroopCard troop={toTroopCardData(card)} skillsMap={skillsMap} showDetails={true} baseUrl={baseUrl} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))
+          ) : (expandedType === 'equipment') ? (
+            groupByRarity(byType[expandedType]).map(({ rarity, cards: rCards }) => (
+              <div key={rarity} className="mb-2 last:mb-0">
+                <div className="text-stone-500 text-[10px] mb-1 px-1">{rarityLabel[rarity]}（{rCards.length}）</div>
+                <div className="flex flex-wrap gap-1.5">
+                  {rCards.map(card => (
+                    <div key={card.instance_id} style={{ width: 128, height: 96 }}
+                      className="cursor-pointer" onClick={() => setPreviewCard({ card, type: 'equipment' })}>
+                      <div style={{ transform: 'scale(0.5)', transformOrigin: 'top left', width: 256 }}>
+                        <EquipmentCard equipment={toEquipmentCardData(card)} baseUrl={baseUrl} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))
+          ) : (expandedType === 'title') ? (
+            groupByRarity(byType[expandedType]).map(({ rarity, cards: rCards }) => (
+              <div key={rarity} className="mb-2 last:mb-0">
+                <div className="text-stone-500 text-[10px] mb-1 px-1">{rarityLabel[rarity]}（{rCards.length}）</div>
+                <div className="flex flex-wrap gap-1.5">
+                  {rCards.map(card => (
+                    <div key={card.instance_id} style={{ width: 128, height: 96 }}
+                      className="cursor-pointer" onClick={() => setPreviewCard({ card, type: 'title' })}>
+                      <div style={{ transform: 'scale(0.5)', transformOrigin: 'top left', width: 256 }}>
+                        <TitleAchievementCard item={toTitleCardData(card)} type="title" baseUrl={baseUrl} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="text-stone-500 text-xs text-center py-3">尚未实装</div>
+          )}
+        </div>
+      )}
+
+      {/* 卡牌预览浮层 */}
       {previewCard && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60"
           onClick={() => setPreviewCard(null)}>
           <div onClick={e => e.stopPropagation()}>
             {previewCard.type === 'character' && (
-              <CharacterCard
-                character={toCharacterCardData(previewCard.card)}
-                skillsMap={skillsMap}
-                showDetails={true}
-                baseUrl={baseUrl}
-              />
+              <CharacterCard character={toCharacterCardData(previewCard.card)} skillsMap={skillsMap} showDetails={true} baseUrl={baseUrl} />
             )}
             {previewCard.type === 'troop' && (
-              <TroopCard
-                troop={toTroopCardData(previewCard.card)}
-                skillsMap={skillsMap}
-                showDetails={true}
-                baseUrl={baseUrl}
-              />
+              <TroopCard troop={toTroopCardData(previewCard.card)} skillsMap={skillsMap} showDetails={true} baseUrl={baseUrl} />
             )}
             {previewCard.type === 'equipment' && (
-              <EquipmentCard
-                equipment={toEquipmentCardData(previewCard.card)}
-                baseUrl={baseUrl}
-              />
+              <EquipmentCard equipment={toEquipmentCardData(previewCard.card)} baseUrl={baseUrl} />
             )}
             {previewCard.type === 'title' && (
-              <TitleAchievementCard
-                item={toTitleCardData(previewCard.card)}
-                type="title"
-                baseUrl={baseUrl}
-              />
+              <TitleAchievementCard item={toTitleCardData(previewCard.card)} type="title" baseUrl={baseUrl} />
             )}
           </div>
         </div>
@@ -1553,68 +1514,55 @@ function CardDetailOverlay({ card, slot, skillsMap, onClose, onReplace, onUnequi
   const isCharacterSlot = slot.id === 'character';
 
   return (
-    <>
-      {/* 遮罩 */}
-      <div className="fixed inset-0 bg-black/60 z-[110]" onClick={onClose} />
-
-      {/* 浮层内容 — 点击空白区域关闭 */}
-      <div className="fixed inset-0 z-[111] flex flex-col items-center justify-center px-4" onClick={onClose}>
-        {/* 完整卡牌 */}
-        <div className="mb-4" onClick={(e) => e.stopPropagation()}>
-          {isCharacterSlot ? (
-            <CharacterCard
-              character={toCharacterCardData(card)}
-              skillsMap={skillsMap}
-              showDetails={true}
-              baseUrl={baseUrl}
-            />
-          ) : isTroopSlot ? (
-            <TroopCard
-              troop={toTroopCardData(card)}
-              skillsMap={skillsMap}
-              showDetails={true}
-              baseUrl={baseUrl}
-            />
-          ) : isTitleSlot ? (
-            <TitleAchievementCard
-              item={toTitleCardData(card)}
-              type="title"
-              baseUrl={baseUrl}
-            />
-          ) : isPositionSlot ? (
-            <PositionCard position={card} showDetails={true} />
-          ) : (
-            <div className="w-[256px] h-[200px] rounded-xl bg-stone-800 border-2 border-stone-600
-                            flex items-center justify-center text-stone-400">
-              {slot.label}
-            </div>
-          )}
+    <div className="fixed inset-0 z-[200] bg-black/70 flex items-center justify-center" onClick={onClose}>
+      <div className="bg-stone-900 rounded-xl p-4 border border-amber-500/30 max-w-sm w-full mx-4"
+        onClick={e => e.stopPropagation()}>
+        {/* 标题栏 */}
+        <div className="flex justify-between items-center mb-3">
+          <span className="text-amber-400 text-sm font-bold">
+            {isCharacterSlot ? '将领详情' : isPositionSlot ? '官职详情' : '卡牌详情'}
+          </span>
+          <button onClick={onClose} className="text-stone-400 hover:text-white">✕</button>
         </div>
 
-        {/* 操作按钮 — 官职槽只读，不显示卸下/更换；将领槽只显示卸下 */}
+        {/* 卡牌展示 */}
+        <div className="flex justify-center mb-3">
+          <div style={{ transform: 'scale(0.7)', transformOrigin: 'top center' }}>
+            {isCharacterSlot ? (
+              <CharacterCard character={toCharacterCardData(card)} skillsMap={skillsMap}
+                showDetails={true} baseUrl={baseUrl} />
+            ) : isTroopSlot ? (
+              <TroopCard troop={toTroopCardData(card)} skillsMap={skillsMap}
+                showDetails={true} baseUrl={baseUrl} />
+            ) : isTitleSlot ? (
+              <TitleAchievementCard item={toTitleCardData(card)} type="title" baseUrl={baseUrl} />
+            ) : isPositionSlot ? (
+              <PositionCard position={card} showDetails={true} />
+            ) : (
+              <div className="w-[256px] h-[200px] rounded-xl bg-stone-800 border-2 border-stone-600
+                flex items-center justify-center text-stone-400">{slot.label}</div>
+            )}
+          </div>
+        </div>
+
+        {/* 操作按钮 */}
         {!isPositionSlot && (
-          <div className="flex gap-3" onClick={(e) => e.stopPropagation()}>
-            <button
-              onClick={onUnequip}
-              className="px-6 py-2.5 rounded-lg bg-stone-700 border border-stone-500
-                         text-stone-300 text-sm font-medium
-                         hover:bg-stone-600 active:scale-95 transition-all"
-            >
+          <div className="flex gap-2">
+            <button onClick={onUnequip}
+              className="flex-1 py-2 rounded-lg bg-red-900/50 border border-red-700/50 text-red-300 text-sm
+                hover:bg-red-800/50 transition-colors">
               {isCharacterSlot ? '卸下将领' : '卸下'}
             </button>
             {!isCharacterSlot && (
-              <button
-                onClick={onReplace}
-                className="px-6 py-2.5 rounded-lg bg-amber-700 border border-amber-500
-                           text-amber-100 text-sm font-medium
-                           hover:bg-amber-600 active:scale-95 transition-all"
-              >
+              <button onClick={onReplace}
+                className="flex-1 py-2 rounded-lg bg-amber-900/50 border border-amber-700/50 text-amber-300 text-sm
+                  hover:bg-amber-800/50 transition-colors">
                 更换
               </button>
             )}
           </div>
         )}
       </div>
-    </>
+    </div>
   );
 }

@@ -1094,6 +1094,26 @@ router.get('/:playerId/profile', async (req, res) => {
       });
     }
 
+    // 5b. 计算驻守卡牌的属性加成（称号/成就/宝物 → garrison_char1/garrison_char2）
+    const garrisonService = require('../services/garrisonService');
+    const garrisons = await garrisonService.getPlayerGarrisons(playerId);
+    for (const g of garrisons) {
+      for (const charKey of ['char1', 'char2']) {
+        const effectFields = [`${charKey}_title`, `${charKey}_achievement`, `${charKey}_treasure`];
+        for (const field of effectFields) {
+          const instanceId = g[field];
+          if (!instanceId) continue;
+          const card = enrichedCards.find(c => c.instance_id === instanceId);
+          if (!card?.config?.attributeBonus) continue;
+          const slotKey = `garrison${g.garrison_slot}_${charKey}`;
+          if (!attributeBonusBySlot[slotKey]) attributeBonusBySlot[slotKey] = {};
+          Object.entries(card.config.attributeBonus).forEach(([key, val]) => {
+            attributeBonusBySlot[slotKey][key] = (attributeBonusBySlot[slotKey][key] || 0) + (parseInt(val) || 0);
+          });
+        }
+      }
+    }
+
     res.json({
       success: true,
       data: {
@@ -1126,6 +1146,7 @@ router.get('/:playerId/profile', async (req, res) => {
           troop_affinity: player.troop_affinity,
           trait: player.trait,
           trait_modifier: player.trait_modifier,
+          on_duty: !!player.on_duty,
           bonus_backpack_capacity: player.bonus_backpack_capacity ?? 0,
           bonus_daily_events: player.bonus_daily_events ?? 0,
           tutorial_step: tutorialStep,

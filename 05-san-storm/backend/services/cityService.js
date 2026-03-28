@@ -548,6 +548,7 @@ async function recordSiegeResult(warId, playerId, factionId, killedIndices, resu
       factionKills,
       npcKilled: newNpcKilled,
       npcTotal: war.npc_total,
+      killCount: actualKillCount,
       siegeCompleted,
       winnerFaction,
       silverReward,

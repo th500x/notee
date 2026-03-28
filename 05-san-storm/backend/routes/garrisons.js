@@ -14,7 +14,6 @@ const garrisonService = require('../services/garrisonService');
 
 /**
  * GET /api/garrisons/city/:cityId/defenders
- * 获取城市防守者列表（按官职优先级排序）
  */
 router.get('/city/:cityId/defenders', async (req, res) => {
   try {
@@ -28,7 +27,6 @@ router.get('/city/:cityId/defenders', async (req, res) => {
 
 /**
  * GET /api/garrisons/stats/cities
- * 获取所有城市驻守统计（用于地图显示）
  */
 router.get('/stats/cities', async (req, res) => {
   try {
@@ -40,7 +38,43 @@ router.get('/stats/cities', async (req, res) => {
   }
 });
 
-// ── 动态路由 ──
+/**
+ * GET /api/garrisons/city/:cityId/on-duty-count
+ */
+router.get('/city/:cityId/on-duty-count', async (req, res) => {
+  try {
+    const { pool } = require('../database/connection');
+    const [rows] = await pool.query(
+      `SELECT COUNT(DISTINCT pg.player_id) AS count
+       FROM player_garrison pg
+       JOIN players p ON pg.player_id = p.player_id
+       WHERE pg.city_id = ? AND pg.is_active = TRUE AND p.on_duty = TRUE`,
+      [req.params.cityId]
+    );
+    res.json({ success: true, count: rows[0]?.count || 0 });
+  } catch (error) {
+    console.error('[Garrisons] 获取披挂上阵人数失败:', error);
+    res.status(500).json({ success: false, error: '获取披挂上阵人数失败' });
+  }
+});
+
+// ── 动态路由（:playerId 开头，必须在静态路由之后） ──
+
+/**
+ * POST /api/garrisons/:playerId/on-duty
+ * 注意：必须在 /:playerId/:slot 之前，否则 "on-duty" 会被当作 slot
+ */
+router.post('/:playerId/on-duty', async (req, res) => {
+  try {
+    const { onDuty } = req.body;
+    const { pool } = require('../database/connection');
+    await pool.query('UPDATE players SET on_duty = ? WHERE player_id = ?', [!!onDuty, req.params.playerId]);
+    res.json({ success: true, onDuty: !!onDuty });
+  } catch (error) {
+    console.error('[Garrisons] 切换披挂上阵失败:', error);
+    res.status(500).json({ success: false, error: '切换披挂上阵失败' });
+  }
+});
 
 /**
  * GET /api/garrisons/:playerId

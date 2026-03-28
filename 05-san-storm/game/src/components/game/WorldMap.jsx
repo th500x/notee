@@ -17,6 +17,8 @@ import { useSiegeQuota } from '@/hooks/useSiegeQuota';
 import { PHASE } from '@/components/event/EventConstants';
 import { playerAPI } from '@/services/playerApi';
 import AncientModal from '@/components/common/AncientModal';
+import GarrisonLineup from '@/components/garrison/GarrisonLineup';
+import { garrisonAPI } from '@/services/garrisonApi';
 import { API_CONFIG } from '@/constants';
 
 const BG_CACHE_KEY = 'game_intro_bg';
@@ -74,6 +76,13 @@ export default function WorldMap({ onEventBusyChange }) {
   const [siegeLoading, setSiegeLoading] = useState(false);
   const canSiege = !isTutorial && phase === PHASE.IDLE && siegeQuota.canSiege && !siegeData;
 
+  // ── 驻地编组面板 ──
+  const [showGarrison, setShowGarrison] = useState(false);
+  const isOwnCity = !!(cityInfo?.faction_id && player?.faction_id && cityInfo.faction_id === player.faction_id);
+  const [garrisonStats, setGarrisonStats] = useState(null); // { slot_count, player_count }
+  const [onDuty, setOnDuty] = useState(false); // 披挂上阵（驻守待机模式）
+  const [onDutyCount, setOnDutyCount] = useState(0); // 城市披挂上阵总人数
+
   // ── PVP 挑战状态 ──
   const [pvpChallenge, setPvpChallenge] = useState(null); // { challengeId, waitSeconds, defenseUnits, ... }
   const [pvpCountdown, setPvpCountdown] = useState(0);
@@ -85,8 +94,8 @@ export default function WorldMap({ onEventBusyChange }) {
   const defPollRef = useRef(null);
 
   useEffect(() => {
-    if (!player?.player_id) return;
-    // 每3秒检查是否有人攻打自己驻守的城市
+    if (!player?.player_id || !onDuty) return;
+    // 披挂上阵时：每3秒检查是否有人攻打自己驻守的城市
     defPollRef.current = setInterval(async () => {
       try {
         const res = await fetch(`${API_CONFIG.BASE_URL}/pvp/pending/${player.player_id}`).then(r => r.json());
@@ -106,21 +115,30 @@ export default function WorldMap({ onEventBusyChange }) {
       } catch {}
     }, 3000);
     return () => clearInterval(defPollRef.current);
-  }, [player?.player_id]);
+  }, [player?.player_id, onDuty]);
 
   // 加载城市信息 + 战事排行
   const [warData, setWarData] = useState(null);
   const refreshCity = useCallback(async () => {
     try {
-      const [cityRes, warRes] = await Promise.all([
+      const [cityRes, warRes, garrisonRes, dutyRes] = await Promise.all([
         fetch(`${API_CONFIG.BASE_URL}/cities/${CITY_ID}`).then(r => r.json()),
         fetch(`${API_CONFIG.BASE_URL}/cities/${CITY_ID}/active-war`).then(r => r.json()),
+        fetch(`${API_CONFIG.BASE_URL}/garrisons/stats/cities`).then(r => r.json()),
+        garrisonAPI.getOnDutyCount(CITY_ID),
       ]);
       if (cityRes.success) setCityInfo(cityRes.data);
       if (warRes.success) setWarData(warRes.data);
+      if (garrisonRes.success) {
+        const stat = garrisonRes.stats.find(s => s.city_id === CITY_ID);
+        setGarrisonStats(stat || null);
+      }
+      if (dutyRes.success) setOnDutyCount(dutyRes.count);
     } catch {}
   }, []);
   useEffect(() => { refreshCity(); }, [refreshCity]);
+  // 从 player 数据初始化 onDuty 状态
+  useEffect(() => { if (player?.on_duty != null) setOnDuty(!!player.on_duty); }, [player?.on_duty]);
   // tooltip 打开时刷新
   useEffect(() => { if (cityTooltip) refreshCity(); }, [cityTooltip]);
 
@@ -398,7 +416,7 @@ export default function WorldMap({ onEventBusyChange }) {
               <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-black/80 rounded-lg backdrop-blur-sm whitespace-nowrap z-50">
                 <div className="text-white text-sm font-medium">新野城</div>
                 <div className="text-white/60 text-xs">
-                  {siegeLoading ? '准备中...' : !siegeQuota.canSiege ? '攻城次数不足' : '小城 · 点击下方按钮攻打'}
+                  {siegeLoading ? '准备中...' : isOwnCity ? '己方驻地 · 点击下方按钮编组' : !siegeQuota.canSiege ? '攻城次数不足' : '小城 · 点击下方按钮攻打'}
                 </div>
                 <div className="text-white/80 text-xs mt-1 border-t border-white/20 pt-1">
                   ⚔️ 战斗：<span className={siegeQuota.remaining > 0 ? 'text-green-400' : 'text-red-400'}>
@@ -413,19 +431,52 @@ export default function WorldMap({ onEventBusyChange }) {
                 </div>
                 <div className="text-white/80 text-xs mt-1 border-t border-white/20 pt-1">
                   新野 · 小城
+                  <br />披挂上阵：<span className={onDutyCount > 0 ? 'text-green-400' : 'text-stone-500'}>{onDutyCount}</span>
+                  {garrisonStats && garrisonStats.slot_count > 0 && (
+                    <><br />驻地守军：<span className="text-cyan-400">{garrisonStats.slot_count}</span>（{garrisonStats.player_count}人）</>
+                  )}
                   <br />NPC守军：<span className="text-amber-400">{cityInfo?.npc_garrison_alive ?? '?'}</span> / {cityInfo?.npc_garrison?.length ?? '?'}
                   <br />所属势力：<span className={cityInfo?.faction_id ? 'text-red-400' : 'text-gray-400'}>{cityInfo?.faction_id ? (FACTION_NAMES[cityInfo.faction_id] || '已占领') : '中立'}</span>
                 </div>
-                <button
-                  onClick={(e) => { e.stopPropagation(); if (canSiege) startSiege(); }}
-                  disabled={!canSiege || siegeLoading}
-                  className="mt-2 w-full py-1.5 rounded text-xs font-bold transition-all
-                    bg-gradient-to-r from-red-700 to-orange-700 text-white
-                    hover:from-red-600 hover:to-orange-600
-                    disabled:from-gray-700 disabled:to-gray-700 disabled:text-gray-500 disabled:cursor-not-allowed"
-                >
-                  {siegeLoading ? '准备中...' : !siegeQuota.canSiege ? '次数不足' : '⚔️ 攻打新野'}
-                </button>
+                {isOwnCity ? (
+                  /* 己方城市 → 驻地编组 + 披挂上阵 */
+                  <div className="mt-2 space-y-1.5 whitespace-normal">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setShowGarrison(true); setCityTooltip(false); }}
+                      className="w-full py-1.5 rounded text-xs font-bold transition-all
+                        bg-gradient-to-r from-amber-700 to-yellow-700 text-amber-100
+                        hover:from-amber-600 hover:to-yellow-600"
+                    >
+                      🏰 驻地编组
+                    </button>
+                    <button
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        const newVal = !onDuty;
+                        const res = await garrisonAPI.setOnDuty(player.player_id, newVal);
+                        if (res.success) { setOnDuty(newVal); refreshCity(); }
+                      }}
+                      className={`w-full py-1.5 rounded text-xs font-bold transition-all
+                        ${onDuty
+                          ? 'bg-gradient-to-r from-green-700 to-emerald-700 text-green-100 hover:from-green-600 hover:to-emerald-600'
+                          : 'bg-gradient-to-r from-stone-700 to-stone-600 text-stone-300 hover:from-stone-600 hover:to-stone-500'}`}
+                    >
+                      {onDuty ? '⚔️ 驻守待机中...' : '🛡️ 披挂上阵'}
+                    </button>
+                  </div>
+                ) : (
+                  /* 敌方/中立城市 → 攻打按钮 */
+                  <button
+                    onClick={(e) => { e.stopPropagation(); if (canSiege) startSiege(); }}
+                    disabled={!canSiege || siegeLoading}
+                    className="mt-2 w-full py-1.5 rounded text-xs font-bold transition-all
+                      bg-gradient-to-r from-red-700 to-orange-700 text-white
+                      hover:from-red-600 hover:to-orange-600
+                      disabled:from-gray-700 disabled:to-gray-700 disabled:text-gray-500 disabled:cursor-not-allowed"
+                  >
+                    {siegeLoading ? '准备中...' : !siegeQuota.canSiege ? '次数不足' : '⚔️ 攻打新野'}
+                  </button>
+                )}
               </div>
               {/* 势力击杀排行（tooltip 右侧） */}
               {sortedFactions.length > 0 && (
@@ -499,6 +550,11 @@ export default function WorldMap({ onEventBusyChange }) {
         </AncientModal>
       )}
 
+      {/* ── 驻地编组面板 ── */}
+      {showGarrison && (
+        <GarrisonLineup onClose={() => setShowGarrison(false)} />
+      )}
+
       {/* 攻城战斗（复用 BattleArena） */}
       {siegeData && !siegeResult && (
         <BattleArena
@@ -516,12 +572,14 @@ export default function WorldMap({ onEventBusyChange }) {
       {siegeResult && (
         <div className="fixed inset-0 z-[200] bg-black/80 backdrop-blur-sm flex items-center justify-center">
           <div className="bg-gray-900/95 rounded-xl p-6 border border-amber-500/30 max-w-sm w-full mx-4 text-center space-y-3">
-            <div className="text-4xl">{siegeResult.npcKilled > (siegeResult.npcTotal - siegeResult.npcKilled) ? '⚔️' : '💀'}</div>
+            <div className="text-4xl">{(siegeResult.killCount || siegeResult.silverReward) ? '⚔️' : '💀'}</div>
             <div className="text-xl font-bold text-amber-400">战斗结算</div>
             {siegeResult.silverReward > 0 && <div className="text-amber-300 text-sm">💰 获得 {siegeResult.silverReward} 银两</div>}
             {siegeResult.reputationReward > 0 && <div className="text-yellow-300 text-sm">⭐ 获得 {siegeResult.reputationReward} 声望</div>}
             {siegeResult.equipmentDrop && <div className="text-purple-300 text-sm">🎁 获得装备：{siegeResult.equipmentDrop.name}（{siegeResult.equipmentDrop.rarity}）</div>}
-            <div className="text-sm text-gray-300">NPC守军：{siegeResult.npcKilled}/{siegeResult.npcTotal} 已消灭</div>
+            {siegeResult.killCount != null && <div className="text-sm text-gray-300">本场击杀：{siegeResult.killCount}</div>}
+            <div className="text-sm text-gray-400">NPC守军：{siegeResult.npcKilled}/{siegeResult.npcTotal} 已消灭</div>
+            {siegeResult.killCount === 0 && <div className="text-xs text-stone-500">（目标已被其他玩家击杀，无新增奖励）</div>}
             {siegeResult.siegeCompleted && (
               <div className="bg-amber-900/50 border border-amber-500/30 rounded-lg p-3">
                 <div className="text-amber-400 font-bold">🏰 城池攻破！</div>

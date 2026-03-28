@@ -15,6 +15,40 @@ const CARD_FIELDS = [
 // 单部队参战最低兵力（兵力为0不参战，总兵力检查在 initiateSiege 中 ≥ 800）
 const MIN_TROOPS_TO_DEFEND = 1;
 
+/** special_effect 字段映射 → player_cards bonus 字段（复用 players.js 的逻辑） */
+const EFFECT_FIELD_MAP = {
+  'max_troops_bonus': 'bonus_max_troops',
+  'attack_bonus': 'bonus_attack',
+  'defense_bonus': 'bonus_defense',
+  'speed_bonus': 'bonus_speed',
+  'movement_bonus': 'bonus_movement',
+};
+
+function parseSpecialEffect(effectStr) {
+  if (!effectStr) return {};
+  const bonus = {};
+  effectStr.split(';').forEach(part => {
+    const [key, val] = part.trim().split(':');
+    if (!key || !val) return;
+    const field = EFFECT_FIELD_MAP[key];
+    if (field) bonus[field] = parseInt(val) || 0;
+  });
+  return bonus;
+}
+
+async function getCardSpecialEffect(cardType, cardId) {
+  const tableMap = {
+    'title': { table: 'config_titles', idField: 'title_id' },
+    'achievement': { table: 'config_achievements', idField: 'achievement_id' },
+  };
+  const cfg = tableMap[cardType];
+  if (!cfg) return {};
+  const [rows] = await pool.query(
+    `SELECT special_effect FROM ${cfg.table} WHERE ${cfg.idField} = ?`, [cardId]
+  );
+  return parseSpecialEffect(rows[0]?.special_effect);
+}
+
 /**
  * 获取玩家所有驻守配置
  */
@@ -101,6 +135,48 @@ async function saveGarrison(playerId, slotNumber, config) {
     ]
   );
 
+  // ── 重算驻守部队卡的特效加成（复用上阵编组的 applyCardBonusToTroops 逻辑） ──
+  // 对 char1 和 char2 各自：先清零部队卡 bonus，再累加所有特效卡的 special_effect
+  for (const charKey of ['char1', 'char2']) {
+    const troopIds = [config[`${charKey}_troop1`], config[`${charKey}_troop2`]].filter(Boolean);
+    if (troopIds.length === 0) continue;
+
+    // 1. 清零该组部队卡的 bonus
+    const ph = troopIds.map(() => '?').join(',');
+    await pool.query(
+      `UPDATE player_cards SET bonus_max_troops=0, bonus_attack=0, bonus_defense=0, bonus_speed=0, bonus_movement=0
+       WHERE instance_id IN (${ph}) AND player_id = ?`,
+      [...troopIds, playerId]
+    );
+
+    // 2. 收集该组所有特效卡（称号/成就/宝物）
+    const effectCardIds = [
+      config[`${charKey}_title`],
+      config[`${charKey}_achievement`],
+      config[`${charKey}_treasure`],
+    ].filter(Boolean);
+
+    // 3. 查询每张特效卡的 card_type 和 card_id，再查配置表获取 special_effect
+    for (const instanceId of effectCardIds) {
+      const [cardRows] = await pool.query(
+        'SELECT card_type, card_id FROM player_cards WHERE instance_id = ? AND player_id = ?',
+        [instanceId, playerId]
+      );
+      if (!cardRows.length) continue;
+      const { card_type, card_id } = cardRows[0];
+
+      const bonus = await getCardSpecialEffect(card_type, card_id);
+      if (Object.keys(bonus).length === 0) continue;
+
+      // 4. 累加到该组部队卡
+      const sets = Object.entries(bonus).map(([field, val]) => `${field} = ${field} + ${val}`).join(', ');
+      await pool.query(
+        `UPDATE player_cards SET ${sets} WHERE instance_id IN (${ph}) AND player_id = ?`,
+        [...troopIds, playerId]
+      );
+    }
+  }
+
   return { success: true };
 }
 
@@ -108,6 +184,24 @@ async function saveGarrison(playerId, slotNumber, config) {
  * 清空驻守槽位
  */
 async function clearGarrison(playerId, slotNumber) {
+  // 先获取当前配置，清零部队卡 bonus
+  const [existing] = await pool.query(
+    'SELECT * FROM player_garrison WHERE player_id = ? AND garrison_slot = ?',
+    [playerId, slotNumber]
+  );
+  if (existing.length > 0) {
+    const g = existing[0];
+    const troopIds = [g.char1_troop1, g.char1_troop2, g.char2_troop1, g.char2_troop2].filter(Boolean);
+    if (troopIds.length > 0) {
+      const ph = troopIds.map(() => '?').join(',');
+      await pool.query(
+        `UPDATE player_cards SET bonus_max_troops=0, bonus_attack=0, bonus_defense=0, bonus_speed=0, bonus_movement=0
+         WHERE instance_id IN (${ph}) AND player_id = ?`,
+        [...troopIds, playerId]
+      );
+    }
+  }
+
   const nullSets = CARD_FIELDS.map(f => `${f} = NULL`).join(', ');
   await pool.query(
     `UPDATE player_garrison SET city_id = NULL, city_name = NULL, ${nullSets}, is_active = FALSE

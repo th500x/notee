@@ -179,12 +179,21 @@ router.post('/', async (req, res) => {
       const { chestRewards } = req.body;
       if (chestRewards && Array.isArray(chestRewards) && chestRewards.length > 0) {
         for (const reward of chestRewards) {
-          if (!reward.id) continue; // 必须有 config_equipment 的 equipment_id
-          const instanceId = `equip_chest_${playerId}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+          // 根据 equipmentType 和 rarity 从配置表随机选取真实装备
+          const rarityDigit = { common: '1', rare: '2', epic: '3', legendary: '4', core: '5' }[reward.rarity] || '1';
+          const typeDigit = { weapon: '1', armor: '2', accessory: '3' }[reward.equipmentType] || '1';
+          const [eqRows] = await pool.query(
+            `SELECT equipment_id, equipment_name FROM config_equipment
+             WHERE equipment_id LIKE ? ORDER BY RAND() LIMIT 1`,
+            [`san_1_equip_${typeDigit}_${rarityDigit}%`]
+          );
+          if (!eqRows.length) continue;
+          const eq = eqRows[0];
+          const instanceId = `${eq.equipment_id}_${playerId}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
           await pool.query(
             `INSERT INTO player_cards (instance_id, player_id, card_id, card_type, rarity, is_equipped)
              VALUES (?, ?, ?, 'equipment', ?, FALSE)`,
-            [instanceId, playerId, reward.id, reward.rarity || 'common']
+            [instanceId, playerId, eq.equipment_id, reward.rarity || 'common']
           );
         }
         console.log(`[battles] 宝箱装备保存: ${chestRewards.length}件`);
