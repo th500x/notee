@@ -1,8 +1,6 @@
 /**
  * PVP 攻城挑战路由
  * 
- * 处理实时PVP对战的挑战创建、轮询、接受
- * 
  * @module backend/routes/pvp
  */
 
@@ -10,6 +8,7 @@ const express = require('express');
 const router = express.Router();
 const pvpService = require('../services/pvpService');
 const garrisonService = require('../services/garrisonService');
+const { pool } = require('../database/connection');
 
 /**
  * GET /api/pvp/online-defenders/:cityId
@@ -52,20 +51,17 @@ router.post('/challenge', async (req, res) => {
     }
 
     // 判断防守方是否在游戏内（最后活跃 < 1分钟 = 在游戏内）
-    const { pool } = require('../database/connection');
-    const [defRows] = await pool.query(
-      'SELECT lastActiveAt FROM accounts WHERE id = ?', [defenderId]
-    );
+    const [defRows] = await pool.query('SELECT lastActiveAt FROM accounts WHERE id = ?', [defenderId]);
     const defenderIsInGame = defRows.length > 0 &&
       (Date.now() - new Date(defRows[0].lastActiveAt).getTime()) < 60000;
 
-    const result = await pvpService.createChallenge({
+    const result = pvpService.createChallenge({
       warId, cityId, attackerId, attackerFaction,
       defenderId, defenderGarrisonSlot: defenderGarrisonSlot || 1,
       defenderIsInGame,
     });
 
-    // 同时构建防守方部队数据（用于超时自动战斗）
+    // 构建防守方部队数据（用于超时自动战斗）
     const garrison = await garrisonService.getGarrisonSlot(defenderId, defenderGarrisonSlot || 1);
     let defenseUnits = [];
     if (garrison) {
@@ -77,7 +73,7 @@ router.post('/challenge', async (req, res) => {
       challengeId: result.challengeId,
       waitSeconds: result.waitSeconds,
       defenderIsInGame,
-      defenseUnits, // 攻城方需要这个数据用于超时后的自动战斗
+      defenseUnits,
     });
   } catch (error) {
     console.error('[PVP] 创建挑战失败:', error);
@@ -89,9 +85,9 @@ router.post('/challenge', async (req, res) => {
  * GET /api/pvp/challenge/:challengeId/status
  * 攻城方轮询挑战状态
  */
-router.get('/challenge/:challengeId/status', async (req, res) => {
+router.get('/challenge/:challengeId/status', (req, res) => {
   try {
-    const status = await pvpService.getChallengeStatus(req.params.challengeId);
+    const status = pvpService.getChallengeStatus(req.params.challengeId);
     if (!status) {
       return res.status(404).json({ success: false, error: '挑战不存在' });
     }
@@ -121,13 +117,13 @@ router.get('/pending/:playerId', async (req, res) => {
  * 防守方接受挑战
  * body: { defenderId }
  */
-router.post('/challenge/:challengeId/accept', async (req, res) => {
+router.post('/challenge/:challengeId/accept', (req, res) => {
   try {
     const { defenderId } = req.body;
     if (!defenderId) {
       return res.status(400).json({ success: false, error: '缺少 defenderId' });
     }
-    const result = await pvpService.acceptChallenge(req.params.challengeId, defenderId);
+    const result = pvpService.acceptChallenge(req.params.challengeId, defenderId);
     res.json(result);
   } catch (error) {
     console.error('[PVP] 接受挑战失败:', error);
@@ -140,10 +136,9 @@ router.post('/challenge/:challengeId/accept', async (req, res) => {
  * 标记挑战完成
  * body: { result: 'attacker_win' | 'defender_win' }
  */
-router.post('/challenge/:challengeId/complete', async (req, res) => {
+router.post('/challenge/:challengeId/complete', (req, res) => {
   try {
-    const { result } = req.body;
-    await pvpService.completeChallenge(req.params.challengeId, result);
+    pvpService.completeChallenge(req.params.challengeId, req.body.result);
     res.json({ success: true });
   } catch (error) {
     console.error('[PVP] 完成挑战失败:', error);

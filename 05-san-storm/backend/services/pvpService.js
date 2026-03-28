@@ -1,178 +1,195 @@
 /**
- * PVP 攻城挑战服务
+ * PVP 攻城挑战服务（内存方案）
  * 
- * 处理实时PVP对战的挑战创建、状态轮询、接受/超时逻辑
+ * 挑战生命周期只有 10-20 秒，不需要持久化到数据库。
+ * 使用进程内 Map 存储，自动过期清理。
  * 
  * @module backend/services/pvpService
  */
 
 const { pool } = require('../database/connection');
 
-// 在线判定：最后活跃时间在5分钟内
-const ONLINE_THRESHOLD_MINUTES = 5;
+// ── 配置 ──
+const ONLINE_THRESHOLD_MS = 5 * 60 * 1000;  // 5分钟内活跃 = 在线
+const WAIT_IN_GAME = 10;    // 防守方在游戏内：10秒
+const WAIT_NOT_IN_GAME = 20; // 防守方不在游戏内：20秒
 
-// 等待时间（秒）
-const WAIT_IN_GAME = 10;
-const WAIT_NOT_IN_GAME = 20;
+// ── 内存存储 ──
+// key: challengeId, value: challenge 对象
+const challenges = new Map();
+// key: defenderId, value: challengeId（快速查找防守方的待处理挑战）
+const defenderIndex = new Map();
 
 /**
- * 检查城市是否有在线驻守玩家（排除攻城方自己和同势力玩家）
- * 
- * @param {string} cityId - 城市ID
- * @param {string} attackerId - 攻城方玩家ID
- * @param {string} attackerFaction - 攻城方势力ID
- * @returns {Array} 在线防守者列表（按官职排序）
+ * 自动清理过期挑战
+ */
+function cleanExpired() {
+  const now = Date.now();
+  for (const [id, c] of challenges) {
+    if (c.expiresAt <= now && c.status === 'pending') {
+      c.status = 'timeout';
+      defenderIndex.delete(c.defenderId);
+    }
+    // 完成/超时的挑战保留60秒后彻底删除（给轮询一个缓冲）
+    if (c.status !== 'pending' && now - c.expiresAt > 60000) {
+      challenges.delete(id);
+    }
+  }
+}
+
+// 每5秒清理一次
+setInterval(cleanExpired, 5000);
+
+/**
+ * 检查城市是否有在线驻守玩家
  */
 async function getOnlineDefenders(cityId, attackerId, attackerFaction) {
   const [rows] = await pool.query(
-    `SELECT g.*, p.character_name, p.faction_id, p.position_level,
-            a.lastActiveAt,
-            CASE WHEN a.lastActiveAt >= DATE_SUB(NOW(), INTERVAL ? MINUTE) THEN TRUE ELSE FALSE END AS is_online
+    `SELECT g.player_id, g.garrison_slot, p.character_name, p.position_level, a.lastActiveAt
      FROM player_garrison g
      JOIN players p ON g.player_id = p.player_id
      JOIN accounts a ON g.player_id = a.id
      WHERE g.city_id = ? AND g.is_active = TRUE
-       AND g.player_id != ?
-       AND p.faction_id != ?
+       AND g.player_id != ? AND p.faction_id != ?
      ORDER BY p.position_level ASC, g.garrison_slot ASC`,
-    [ONLINE_THRESHOLD_MINUTES, cityId, attackerId, attackerFaction]
+    [cityId, attackerId, attackerFaction]
   );
 
-  return rows.filter(r => r.is_online);
+  const now = Date.now();
+  return rows.filter(r => now - new Date(r.lastActiveAt).getTime() < ONLINE_THRESHOLD_MS);
 }
 
 /**
  * 创建 PVP 挑战
- * 
- * @param {object} params
- * @returns {object} { challengeId, waitSeconds, defenderName, ... }
  */
-async function createChallenge({ warId, cityId, attackerId, attackerFaction, defenderId, defenderGarrisonSlot, defenderIsInGame }) {
+function createChallenge({ warId, cityId, attackerId, attackerFaction, defenderId, defenderGarrisonSlot, defenderIsInGame }) {
+  // 清理该防守方之前的未完成挑战
+  const oldId = defenderIndex.get(defenderId);
+  if (oldId) {
+    const old = challenges.get(oldId);
+    if (old && old.status === 'pending') old.status = 'timeout';
+    challenges.delete(oldId);
+    defenderIndex.delete(defenderId);
+  }
+
   const challengeId = `pvp_${cityId}_${Date.now()}`;
   const waitSeconds = defenderIsInGame ? WAIT_IN_GAME : WAIT_NOT_IN_GAME;
+  const now = Date.now();
 
-  await pool.query(
-    `INSERT INTO siege_challenges 
-     (challenge_id, war_id, city_id, attacker_id, attacker_faction, defender_id, defender_garrison_slot, status, wait_seconds, expires_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, DATE_ADD(NOW(), INTERVAL ? SECOND))`,
-    [challengeId, warId, cityId, attackerId, attackerFaction, defenderId, defenderGarrisonSlot, waitSeconds, waitSeconds]
-  );
+  const challenge = {
+    challengeId,
+    warId,
+    cityId,
+    attackerId,
+    attackerFaction,
+    defenderId,
+    defenderGarrisonSlot,
+    status: 'pending',       // pending → accepted / timeout / completed
+    waitSeconds,
+    createdAt: now,
+    expiresAt: now + waitSeconds * 1000,
+    acceptedAt: null,
+    result: null,
+  };
+
+  challenges.set(challengeId, challenge);
+  defenderIndex.set(defenderId, challengeId);
 
   return { challengeId, waitSeconds };
 }
 
 /**
  * 防守方轮询：检查是否有待处理的挑战
- * 
- * @param {string} playerId - 防守方玩家ID
- * @returns {object|null} 挑战信息或null
  */
-async function checkPendingChallenge(playerId) {
-  // 先清理过期挑战
-  await pool.query(
-    "UPDATE siege_challenges SET status = 'timeout' WHERE status = 'pending' AND expires_at < NOW()"
-  );
+async function checkPendingChallenge(defenderId) {
+  const challengeId = defenderIndex.get(defenderId);
+  if (!challengeId) return null;
 
-  const [rows] = await pool.query(
-    `SELECT sc.*, p.character_name AS attacker_name
-     FROM siege_challenges sc
-     JOIN players p ON sc.attacker_id = p.player_id
-     WHERE sc.defender_id = ? AND sc.status = 'pending' AND sc.expires_at >= NOW()
-     ORDER BY sc.created_at DESC LIMIT 1`,
-    [playerId]
-  );
+  const c = challenges.get(challengeId);
+  if (!c || c.status !== 'pending') {
+    defenderIndex.delete(defenderId);
+    return null;
+  }
 
-  if (rows.length === 0) return null;
+  // 检查是否过期
+  const now = Date.now();
+  if (now >= c.expiresAt) {
+    c.status = 'timeout';
+    defenderIndex.delete(defenderId);
+    return null;
+  }
 
-  const challenge = rows[0];
-  const now = new Date();
-  const expires = new Date(challenge.expires_at);
-  const remainingSeconds = Math.max(0, Math.ceil((expires - now) / 1000));
+  // 查攻城方角色名
+  const [rows] = await pool.query('SELECT character_name FROM players WHERE player_id = ?', [c.attackerId]);
+  const attackerName = rows[0]?.character_name || c.attackerId;
 
   return {
-    challengeId: challenge.challenge_id,
-    warId: challenge.war_id,
-    cityId: challenge.city_id,
-    attackerId: challenge.attacker_id,
-    attackerName: challenge.attacker_name,
-    remainingSeconds,
-    waitSeconds: challenge.wait_seconds,
+    challengeId: c.challengeId,
+    warId: c.warId,
+    cityId: c.cityId,
+    attackerId: c.attackerId,
+    attackerName,
+    remainingSeconds: Math.max(0, Math.ceil((c.expiresAt - now) / 1000)),
+    waitSeconds: c.waitSeconds,
   };
 }
 
 /**
  * 防守方接受挑战
- * 
- * @param {string} challengeId
- * @param {string} defenderId
- * @returns {object} { success, challenge }
  */
-async function acceptChallenge(challengeId, defenderId) {
-  const [rows] = await pool.query(
-    "SELECT * FROM siege_challenges WHERE challenge_id = ? AND defender_id = ? AND status = 'pending'",
-    [challengeId, defenderId]
-  );
-
-  if (rows.length === 0) {
-    return { success: false, error: '挑战不存在或已过期' };
+function acceptChallenge(challengeId, defenderId) {
+  const c = challenges.get(challengeId);
+  if (!c || c.defenderId !== defenderId) {
+    return { success: false, error: '挑战不存在' };
   }
-
-  // 检查是否已过期
-  if (new Date(rows[0].expires_at) < new Date()) {
-    await pool.query("UPDATE siege_challenges SET status = 'timeout' WHERE challenge_id = ?", [challengeId]);
+  if (c.status !== 'pending') {
+    return { success: false, error: c.status === 'timeout' ? '挑战已超时' : '挑战状态异常' };
+  }
+  if (Date.now() >= c.expiresAt) {
+    c.status = 'timeout';
+    defenderIndex.delete(defenderId);
     return { success: false, error: '挑战已超时' };
   }
 
-  await pool.query(
-    "UPDATE siege_challenges SET status = 'accepted', accepted_at = NOW() WHERE challenge_id = ?",
-    [challengeId]
-  );
+  c.status = 'accepted';
+  c.acceptedAt = Date.now();
+  defenderIndex.delete(defenderId);
 
-  return { success: true, challenge: rows[0] };
+  return { success: true };
 }
 
 /**
  * 攻城方轮询：检查挑战状态
- * 
- * @param {string} challengeId
- * @returns {object} { status, remainingSeconds }
  */
-async function getChallengeStatus(challengeId) {
-  // 先清理过期挑战
-  await pool.query(
-    "UPDATE siege_challenges SET status = 'timeout' WHERE challenge_id = ? AND status = 'pending' AND expires_at < NOW()",
-    [challengeId]
-  );
+function getChallengeStatus(challengeId) {
+  const c = challenges.get(challengeId);
+  if (!c) return null;
 
-  const [rows] = await pool.query(
-    'SELECT * FROM siege_challenges WHERE challenge_id = ?',
-    [challengeId]
-  );
-
-  if (rows.length === 0) return null;
-
-  const challenge = rows[0];
-  const now = new Date();
-  const expires = new Date(challenge.expires_at);
-  const remainingSeconds = Math.max(0, Math.ceil((expires - now) / 1000));
+  // 检查过期
+  if (c.status === 'pending' && Date.now() >= c.expiresAt) {
+    c.status = 'timeout';
+    defenderIndex.delete(c.defenderId);
+  }
 
   return {
-    challengeId: challenge.challenge_id,
-    status: challenge.status,
-    remainingSeconds,
-    defenderId: challenge.defender_id,
-    defenderGarrisonSlot: challenge.defender_garrison_slot,
+    challengeId: c.challengeId,
+    status: c.status,
+    remainingSeconds: Math.max(0, Math.ceil((c.expiresAt - Date.now()) / 1000)),
+    defenderId: c.defenderId,
+    defenderGarrisonSlot: c.defenderGarrisonSlot,
   };
 }
 
 /**
  * 标记挑战完成
  */
-async function completeChallenge(challengeId, result) {
-  await pool.query(
-    "UPDATE siege_challenges SET status = 'completed', completed_at = NOW(), result = ? WHERE challenge_id = ?",
-    [result, challengeId]
-  );
+function completeChallenge(challengeId, result) {
+  const c = challenges.get(challengeId);
+  if (c) {
+    c.status = 'completed';
+    c.result = result;
+    defenderIndex.delete(c.defenderId);
+  }
 }
 
 module.exports = {
@@ -184,5 +201,4 @@ module.exports = {
   completeChallenge,
   WAIT_IN_GAME,
   WAIT_NOT_IN_GAME,
-  ONLINE_THRESHOLD_MINUTES,
 };
