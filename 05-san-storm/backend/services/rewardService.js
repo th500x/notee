@@ -204,8 +204,8 @@ function replaceFactionWildcard(cardId, factionId) {
 // ── 从稀有度获取 max_battle_count ────────────────────────────
 
 function getMaxBattleCount(rarity) {
-  const map = { common: 10, rare: 15, epic: 20, legendary: 25, core: 30 };
-  return map[rarity] || 10;
+  const map = { common: 20, rare: 40, epic: 60, legendary: 80, core: 99 };
+  return map[rarity] || 20;
 }
 
 // ── 将领卡唯一性：重复补偿银两 ──────────────────────────────
@@ -247,7 +247,7 @@ async function checkUniqueCardDuplicate(connection, playerId, cardType, cardId, 
 
 // ── 部队卡持有上限检查 ──────────────────────────────────────
 const TROOP_LIMIT_BY_RARITY = { common: 20, rare: 20, epic: 20, legendary: 20, core: 2 };
-const TROOP_OVER_LIMIT_COMPENSATION = { common: 100, rare: 200, epic: 300, legendary: 400, core: 2000 }; // 粮草
+const TROOP_OVER_LIMIT_COMPENSATION = { common: 100, rare: 200, epic: 300, legendary: 400, core: 500 }; // 粮草
 
 /**
  * 检查部队卡是否超过稀有度持有上限，超过则补偿粮草

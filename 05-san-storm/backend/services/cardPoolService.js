@@ -30,7 +30,7 @@ const DAILY_RARITY_CAP = { legendary: 1, epic: 2 };
 const CHARACTER_DUPLICATE_COMPENSATION = { common: 20, rare: 40, epic: 60, legendary: 80 };
 const TROOP_OVER_LIMIT_COMPENSATION = { common: 100, rare: 200, epic: 300, legendary: 400 };
 const TROOP_LIMIT_BY_RARITY = { common: 20, rare: 20, epic: 20, legendary: 20 };
-const MAX_BATTLE_COUNT = { common: 10, rare: 15, epic: 20, legendary: 25 };
+const MAX_BATTLE_COUNT = { common: 20, rare: 40, epic: 60, legendary: 80 };
 
 // ── 工具函数 ─────────────────────────────────────────────────
 
@@ -232,7 +232,7 @@ async function drawSingleCard(connection, playerId, poolType, factionId, current
     await connection.query(
       `INSERT INTO player_cards (instance_id, player_id, card_type, card_id, rarity, current_troops, battle_count, max_battle_count, obtained_at)
        VALUES (?, ?, 'troop', ?, ?, ?, 0, ?, NOW())`,
-      [instanceId, playerId, card.card_id, rarity, maxTroops, MAX_BATTLE_COUNT[rarity] || 10]
+      [instanceId, playerId, card.card_id, rarity, maxTroops, MAX_BATTLE_COUNT[rarity] || 20]
     );
 
     return { rarity, cardId: card.card_id, cardName: card.card_name, instanceId, compensated: false };

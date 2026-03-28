@@ -218,10 +218,45 @@ async function clearGarrison(playerId, slotNumber) {
 async function getCityDefenders(cityId) {
   const [rows] = await pool.query(
     `SELECT g.*, p.character_name, p.faction_id, p.faction_name,
-            p.current_position_id, p.current_position_name, p.position_level
+            p.current_position_id, p.current_position_name, p.position_level,
+            p.on_duty
      FROM player_garrison g
      JOIN players p ON g.player_id = p.player_id
      WHERE g.city_id = ? AND g.is_active = TRUE
+     ORDER BY p.position_level ASC, g.garrison_slot ASC`,
+    [cityId]
+  );
+  return rows;
+}
+
+/**
+ * 获取某个城市的披挂上阵防守者（on_duty=TRUE，按官职优先级排序）
+ */
+async function getCityOnDutyDefenders(cityId) {
+  const [rows] = await pool.query(
+    `SELECT g.*, p.character_name, p.faction_id, p.faction_name,
+            p.current_position_id, p.current_position_name, p.position_level,
+            p.on_duty
+     FROM player_garrison g
+     JOIN players p ON g.player_id = p.player_id
+     WHERE g.city_id = ? AND g.is_active = TRUE AND p.on_duty = TRUE
+     ORDER BY p.position_level ASC, g.garrison_slot ASC`,
+    [cityId]
+  );
+  return rows;
+}
+
+/**
+ * 获取某个城市的普通驻守防守者（on_duty=FALSE，按官职优先级排序）
+ */
+async function getCityGarrisonDefenders(cityId) {
+  const [rows] = await pool.query(
+    `SELECT g.*, p.character_name, p.faction_id, p.faction_name,
+            p.current_position_id, p.current_position_name, p.position_level,
+            p.on_duty
+     FROM player_garrison g
+     JOIN players p ON g.player_id = p.player_id
+     WHERE g.city_id = ? AND g.is_active = TRUE AND (p.on_duty = FALSE OR p.on_duty IS NULL)
      ORDER BY p.position_level ASC, g.garrison_slot ASC`,
     [cityId]
   );
@@ -326,7 +361,7 @@ async function buildDefenseUnits(garrisonSlot) {
           maxTroops,
           troopWeight: t.troop_weight || 1,
           battleCount: t.battle_count ?? 0,
-          maxBattleCount: t.max_battle_count ?? 25,
+          maxBattleCount: t.max_battle_count ?? 60,
           skills: [],
         },
         character: charData,
@@ -349,6 +384,8 @@ module.exports = {
   saveGarrison,
   clearGarrison,
   getCityDefenders,
+  getCityOnDutyDefenders,
+  getCityGarrisonDefenders,
   getCityGarrisonStats,
   buildDefenseUnits,
   MIN_TROOPS_TO_DEFEND,

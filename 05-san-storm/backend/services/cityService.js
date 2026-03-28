@@ -193,11 +193,16 @@ async function initiateSiege(cityId, playerId) {
   }
 
   // ── 已占领城市：先查玩家防守者 ──
+  // 防守顺序：① 披挂上阵玩家（on_duty=TRUE）→ ② 普通驻守玩家 → ③ NPC守军
   if (city.status === 'owned' && city.faction_id) {
     const garrisonService = require('./garrisonService');
-    const defenders = await garrisonService.getCityDefenders(cityId);
 
-    for (const def of defenders) {
+    // 按顺序构建防守者队列：先 on_duty，再普通驻守
+    const onDutyDefenders = await garrisonService.getCityOnDutyDefenders(cityId);
+    const garrisonDefenders = await garrisonService.getCityGarrisonDefenders(cityId);
+    const allDefenders = [...onDutyDefenders, ...garrisonDefenders];
+
+    for (const def of allDefenders) {
       if (def.player_id === playerId) continue; // 跳过攻城方自己
 
       const units = await garrisonService.buildDefenseUnits(def);
@@ -240,25 +245,29 @@ async function initiateSiege(cityId, playerId) {
         _troopInstanceId: u.troop.instanceId,
       }));
 
-      // 检查防守者是否在线（最后活跃5分钟内）
-      const [activeRows] = await pool.query(
-        'SELECT lastActiveAt FROM accounts WHERE id = ?', [def.player_id]
-      );
-      const isOnline = activeRows.length > 0 &&
-        (Date.now() - new Date(activeRows[0].lastActiveAt).getTime()) < 5 * 60 * 1000;
+      const isOnDuty = !!def.on_duty;
 
-      if (isOnline) {
-        // 防守者在线 → 返回 pvp_online，前端走 PVP 挑战流程
-        return {
-          warId: war.war_id, cityId, cityName: city.city_name, cityType: city.city_type,
-          npcGarrison: garrisonUnits, npcAlive: garrisonUnits.length, npcTotal: garrisonUnits.length,
-          playerFaction, defenderType: 'pvp_online',
-          defenderName: def.character_name, defenderPlayerId: def.player_id,
-          defenderGarrisonSlot: def.garrison_slot,
-        };
+      // 披挂上阵的玩家：检查是否在线，决定 PVP 还是异步
+      if (isOnDuty) {
+        const [activeRows] = await pool.query(
+          'SELECT lastActiveAt FROM accounts WHERE id = ?', [def.player_id]
+        );
+        const isOnline = activeRows.length > 0 &&
+          (Date.now() - new Date(activeRows[0].lastActiveAt).getTime()) < 5 * 60 * 1000;
+
+        if (isOnline) {
+          // 防守者在线 → 返回 pvp_online，前端走 PVP 挑战流程
+          return {
+            warId: war.war_id, cityId, cityName: city.city_name, cityType: city.city_type,
+            npcGarrison: garrisonUnits, npcAlive: garrisonUnits.length, npcTotal: garrisonUnits.length,
+            playerFaction, defenderType: 'pvp_online',
+            defenderName: def.character_name, defenderPlayerId: def.player_id,
+            defenderGarrisonSlot: def.garrison_slot,
+          };
+        }
       }
 
-      // 防守者离线 → 异步PVE（驻守卡池作为NPC）
+      // 离线的披挂上阵玩家 或 普通驻守玩家 → 异步PVE（驻守卡池作为NPC）
       return {
         warId: war.war_id, cityId, cityName: city.city_name, cityType: city.city_type,
         npcGarrison: garrisonUnits, npcAlive: garrisonUnits.length, npcTotal: garrisonUnits.length,
@@ -362,7 +371,7 @@ async function initiateSiege(cityId, playerId) {
 async function recordSiegeResult(warId, playerId, factionId, killedIndices, result, silverSpent = 0, defenderInfo = {}) {
   const { defenderType, defenderPlayerId, garrisonUnits } = defenderInfo || {};
 
-  // ── 玩家防守者：更新驻守部队兵力 ──
+  // ── 玩家防守者：更新驻守部队兵力 + 耐久度 + 驻守状态 ──
   if (defenderType === 'player_garrison' && garrisonUnits && Array.isArray(garrisonUnits)) {
     const conn = await pool.getConnection();
     try {
@@ -373,13 +382,65 @@ async function recordSiegeResult(warId, playerId, factionId, killedIndices, resu
       let factionKills = war.faction_kills ? (typeof war.faction_kills === 'string' ? JSON.parse(war.faction_kills) : war.faction_kills) : {};
       let killCount = 0;
       let silverReward = 0;
+
+      // 收集参战的所有部队实例ID（用于更新 battle_count）
+      const allTroopInstanceIds = garrisonUnits
+        .filter(u => u && u._troopInstanceId)
+        .map(u => u._troopInstanceId);
+
       for (const idx of killedIndices) {
         const unit = garrisonUnits[idx];
         if (!unit || !unit._troopInstanceId) continue;
+        // 兵力归零 + 记录损失时间
         await conn.query('UPDATE player_cards SET current_troops = 0, last_troops_lost_at = NOW() WHERE instance_id = ?', [unit._troopInstanceId]);
         killCount++;
         silverReward += KILL_SILVER_REWARD[unit.rarity] || 10;
       }
+
+      // Bug fix: 所有参战部队卡的 battle_count + 1（耐久度消耗）
+      if (allTroopInstanceIds.length > 0) {
+        const ph = allTroopInstanceIds.map(() => '?').join(',');
+        await conn.query(
+          `UPDATE player_cards SET battle_count = LEAST(COALESCE(battle_count, 0) + 1, COALESCE(max_battle_count, 60))
+           WHERE instance_id IN (${ph})`,
+          allTroopInstanceIds
+        );
+      }
+
+      // Bug fix: 检查该驻守槽位是否所有部队都被消灭（兵力=0），如果是则 is_active=FALSE
+      // 收集本次防守涉及的 player_id + garrison_slot 组合
+      const garrisonKeys = new Map(); // key: "playerId|slot" → value: { playerId, slot }
+      for (const unit of garrisonUnits) {
+        if (!unit || !unit._garrisonPlayerId || !unit._garrisonSlot) continue;
+        const key = `${unit._garrisonPlayerId}|${unit._garrisonSlot}`;
+        if (!garrisonKeys.has(key)) {
+          garrisonKeys.set(key, { playerId: unit._garrisonPlayerId, slot: unit._garrisonSlot });
+        }
+      }
+      for (const { playerId: gPlayerId, slot } of garrisonKeys.values()) {
+        // 查询该槽位所有部队卡的当前兵力
+        const [slotRows] = await conn.query(
+          'SELECT char1_troop1, char1_troop2, char2_troop1, char2_troop2 FROM player_garrison WHERE player_id = ? AND garrison_slot = ?',
+          [gPlayerId, slot]
+        );
+        if (!slotRows.length) continue;
+        const troopIds = [slotRows[0].char1_troop1, slotRows[0].char1_troop2, slotRows[0].char2_troop1, slotRows[0].char2_troop2].filter(Boolean);
+        if (troopIds.length === 0) {
+          await conn.query('UPDATE player_garrison SET is_active = FALSE WHERE player_id = ? AND garrison_slot = ?', [gPlayerId, slot]);
+          continue;
+        }
+        const tph = troopIds.map(() => '?').join(',');
+        const [troopStatus] = await conn.query(
+          `SELECT SUM(COALESCE(current_troops, 0)) AS total_troops FROM player_cards WHERE instance_id IN (${tph})`,
+          troopIds
+        );
+        const totalTroopsLeft = troopStatus[0]?.total_troops || 0;
+        if (totalTroopsLeft < 1) {
+          // 所有部队全灭 → 驻守槽位失活
+          await conn.query('UPDATE player_garrison SET is_active = FALSE WHERE player_id = ? AND garrison_slot = ?', [gPlayerId, slot]);
+        }
+      }
+
       factionKills[factionId] = (factionKills[factionId] || 0) + killCount;
       const netSilver = silverReward - (silverSpent > 0 ? silverSpent : 0);
       if (netSilver !== 0) {
@@ -522,6 +583,36 @@ async function recordSiegeResult(warId, playerId, factionId, killedIndices, resu
         "UPDATE wars SET status = 'completed', winner_faction_id = ?, end_time = NOW() WHERE war_id = ?",
         [winnerFaction, warId]
       );
+
+      // Bug fix: 清除旧势力玩家在该城市的驻守配置和披挂上阵状态
+      // 注意：必须先查出受影响的玩家ID，再更新，因为后续会清除 city_id
+
+      // 1. 先收集该城市旧势力的驻守玩家ID
+      const [oldGarrisonPlayers] = await connection.query(
+        `SELECT DISTINCT g.player_id FROM player_garrison g
+         JOIN players p ON g.player_id = p.player_id
+         WHERE g.city_id = ? AND p.faction_id != ?`,
+        [war.target_city_id, winnerFaction]
+      );
+      const oldPlayerIds = oldGarrisonPlayers.map(r => r.player_id);
+
+      // 2. 将旧势力的驻守槽位设为 is_active=FALSE，清除 city_id
+      await connection.query(
+        `UPDATE player_garrison g
+         JOIN players p ON g.player_id = p.player_id
+         SET g.is_active = FALSE, g.city_id = NULL, g.city_name = NULL
+         WHERE g.city_id = ? AND p.faction_id != ?`,
+        [war.target_city_id, winnerFaction]
+      );
+
+      // 3. 重置旧势力玩家的披挂上阵状态
+      if (oldPlayerIds.length > 0) {
+        const ph = oldPlayerIds.map(() => '?').join(',');
+        await connection.query(
+          `UPDATE players SET on_duty = FALSE WHERE player_id IN (${ph}) AND on_duty = TRUE`,
+          oldPlayerIds
+        );
+      }
 
       // 更新城市归属
       await connection.query(

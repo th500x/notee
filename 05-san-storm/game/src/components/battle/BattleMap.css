@@ -194,26 +194,26 @@
 .action-btn.atk-btn { border-color:#ef444455; color:#ef4444; }
 .action-btn.atk-btn:hover { background:#ef444418; border-color:#ef4444; }
 
-/* ── 浮动操作按钮（地图内） ── */
-.floating-action-btns { overflow:hidden; background:rgba(10,10,20,.85); border-radius:4px; }
+/* ── 浮动操作按钮（覆盖在当前部队瓦片上，半透明磨砂底+黑字浮雕） ── */
+.floating-action-btns { overflow:hidden; background:rgba(40,40,50,.35); border-radius:0; display:flex; flex-direction:column; backdrop-filter:blur(1px); }
 .floating-action-btns .floating-act {
-  pointer-events:auto; padding:1px 4px; font-size:9px; line-height:1.2; border-radius:3px; white-space:nowrap;
-  background:linear-gradient(180deg,#e8e0d0 0%,#c4b89a 100%);
-  border:1px solid #8a7e66; border-bottom:2px solid #6b6050;
-  color:#1a1a1a; font-weight:bold;
-  box-shadow:0 1px 3px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.4);
-  text-shadow:none; cursor:pointer;
+  pointer-events:auto; padding:0; font-size:10px; line-height:1; border-radius:0; white-space:nowrap;
+  background:rgba(220,215,200,.6);
+  border:none; border-bottom:1px solid rgba(0,0,0,.12);
+  color:#1a1a1a; font-weight:bold; letter-spacing:1px;
+  text-shadow: 0 1px 0 rgba(255,255,255,.7);
+  cursor:pointer;
+  flex:1; display:flex; align-items:center; justify-content:center; width:100%;
+  transition: background .15s;
 }
+.floating-action-btns .floating-act:last-child { border-bottom:none; }
 .floating-action-btns .floating-act:hover:not(:disabled) {
-  background:linear-gradient(180deg,#f0e8d8 0%,#d4c8a8 100%);
-  border-color:#7a6e56;
+  background:rgba(240,235,220,.78);
 }
 .floating-action-btns .floating-act:active:not(:disabled) {
-  background:linear-gradient(180deg,#b8ad90 0%,#c4b89a 100%);
-  border-bottom:1px solid #6b6050; border-top:2px solid #6b6050;
+  background:rgba(180,175,160,.65);
 }
 .floating-action-btns .floating-act:disabled {
   opacity:.5; cursor:not-allowed;
-  background:linear-gradient(180deg,#d0ccc0 0%,#aaa590 100%);
 }
-@media (max-width:520px) { .floating-action-btns .floating-act { padding:0 3px; font-size:7px; } }
+@media (max-width:520px) { .floating-action-btns .floating-act { font-size:8px; } }

@@ -677,13 +677,13 @@ class PlayerService {
    */
   static _getMaxBattleCount(rarity) {
     const counts = {
-      common: 10,
-      rare: 15,
-      epic: 20,
-      legendary: 25,
-      core: 30
+      common: 20,
+      rare: 40,
+      epic: 60,
+      legendary: 80,
+      core: 99
     };
-    return counts[rarity] || 10;
+    return counts[rarity] || 20;
   }
 }
 

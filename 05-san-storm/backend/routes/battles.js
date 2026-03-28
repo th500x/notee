@@ -133,7 +133,7 @@ router.post('/', async (req, res) => {
     try {
       const [updated] = await pool.query(
         `UPDATE player_cards 
-         SET battle_count = LEAST(battle_count + 1, COALESCE(max_battle_count, 999)) 
+         SET battle_count = LEAST(battle_count + 1, COALESCE(max_battle_count, 60)) 
          WHERE player_id = ? AND card_type = 'troop' AND is_equipped = TRUE`,
         [playerId]
       );

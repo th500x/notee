@@ -132,6 +132,12 @@ export function calcDamage(atk, def, terrain) {
     totalDmg *= (1 + posBonusVal);
   }
 
+  // 11. 弓兵近战惩罚：弓兵攻击相邻格目标时，总伤害×0.85
+  if (atkType === 'archer') {
+    const dist = Math.abs(atk.y - def.y) + Math.abs(atk.x - def.x);
+    if (dist <= 1) totalDmg *= 0.85;
+  }
+
   // ═══ 第三部分：特殊加成（暂不实装，预留接口）═══
   // totalDmg *= (1 + factionBonus + sageBonus);
 
@@ -191,6 +197,12 @@ export function estimateDamage(atk, def, terrain) {
   }
   const posBonus = ac?.positionBonuses;
   if (posBonus) totalDmg *= (1 + (posBonus[(atk.troopType || 'infantry') + 'Bonus'] || 0));
+
+  // 弓兵近战惩罚：弓兵攻击相邻格目标时，总伤害×0.85
+  if ((atk.troopType || 'infantry') === 'archer') {
+    const dist = Math.abs(atk.y - def.y) + Math.abs(atk.x - def.x);
+    if (dist <= 1) totalDmg *= 0.85;
+  }
 
   const damage = Math.max(1, Math.round(totalDmg));
 

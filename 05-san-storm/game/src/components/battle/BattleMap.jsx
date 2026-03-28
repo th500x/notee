@@ -57,10 +57,10 @@ function BattleMap({ mapResult, mapLabel, battleTroops, showTroops, isBattle, ma
     setTooltipContent(null);
   }, []);
 
-  // ── 浮动操作按钮定位 ──
+  // ── 浮动操作按钮定位（v2.2.0：覆盖在当前部队自身瓦片上） ──
   const floatingAction = useMemo(() => {
     if (!manualProps) return null;
-    const { phase, activeTroop, formationTroops, reachableTiles, onStandby, onFormationStandby } = manualProps;
+    const { phase, activeTroop, formationTroops, onStandby, onFormationStandby } = manualProps;
     const isFormationMove = phase === MANUAL_PHASE.FORMATION_MOVE;
     const isFormationAction = phase === MANUAL_PHASE.FORMATION_ACTION;
     const isSingleMove = phase === MANUAL_PHASE.SELECT_MOVE;
@@ -70,53 +70,23 @@ function BattleMap({ mapResult, mapLabel, battleTroops, showTroops, isBattle, ma
     const isFormation = isFormationMove || isFormationAction;
     if (!isMove && !isAction) return null;
 
-    let ty, tx;
+    let ty, tx, troopData;
     if (isFormation && formationTroops?.length) {
       const alive = formationTroops.filter(t => t.currentTroops > 0);
       if (!alive.length) return null;
       ty = Math.round(alive.reduce((s, t) => s + t.y, 0) / alive.length);
       tx = Math.round(alive.reduce((s, t) => s + t.x, 0) / alive.length);
+      troopData = alive[0]; // 阵型模式用第一个存活部队的信息
     } else if (activeTroop) {
       ty = activeTroop.y;
       tx = activeTroop.x;
+      troopData = activeTroop;
     } else {
       return null;
     }
 
-    // 按钮位置：避开部队、可移动瓦片和特殊对象瓦片（宝箱/障碍/陷阱）
-    // 优先级：空且无对象且不可移动(0) > 空但可移动(1) > 有对象瓦片(1.5) > 己(2) > 友(3) > 敌(4) > 越界(5)
-    const troopAt = (r, c) => {
-      if (r < 0 || r >= MAP_H || c < 0 || c >= MAP_W) return 'oob';
-      const t = battleTroops.find(u => u.currentTroops > 0 && u.y === r && u.x === c);
-      if (!t) return 'empty';
-      if (isFormation && formationTroops?.some(f => f.id === t.id)) return 'self';
-      if (!isFormation && activeTroop && t.id === activeTroop.id) return 'self';
-      if (t.faction === 'player') return 'ally';
-      return 'enemy';
-    };
-    const hasObject = (r, c) => !!objMap[`${r},${c}`];
-    const isReachable = (r, c) => reachableTiles && reachableTiles.has(`${r},${c}`);
-    const priority = { empty: 0, self: 2, ally: 3, enemy: 4, oob: 5 };
-    const candidates = [
-      { row: ty + 1, col: tx },  // 下
-      { row: ty - 1, col: tx },  // 上
-      { row: ty, col: tx - 1 },  // 左
-      { row: ty, col: tx + 1 },  // 右
-      { row: ty + 1, col: tx + 1 }, // 右下
-      { row: ty + 1, col: tx - 1 }, // 左下
-      { row: ty - 1, col: tx + 1 }, // 右上
-      { row: ty - 1, col: tx - 1 }, // 左上
-    ].map(p => {
-      let score = priority[troopAt(p.row, p.col)];
-      // 空格但有特殊对象瓦片（宝箱/障碍/陷阱）→ 惩罚，避免遮挡
-      if (score === 0 && hasObject(p.row, p.col)) score = 1.5;
-      // 空格但是可移动瓦片 → 惩罚，排在"空且不可移动"之后
-      if (score === 0 && isReachable(p.row, p.col)) score = 1;
-      return { ...p, score };
-    }).sort((a, b) => a.score - b.score);
-    const pos = candidates[0];
     const handleStandby = isFormation ? onFormationStandby : onStandby;
-    return { row: pos.row, col: pos.col, handleStandby };
+    return { row: ty, col: tx, handleStandby, troopData };
   }, [manualProps, battleTroops]);
 
   // 行标签
@@ -202,7 +172,7 @@ function BattleMap({ mapResult, mapLabel, battleTroops, showTroops, isBattle, ma
               })
             )}
           </div>
-          {/* 浮动操作按钮 */}
+          {/* 浮动操作按钮（覆盖在当前部队瓦片上） */}
           {floatingAction && (
             <div
               className="floating-action-btns"
@@ -210,17 +180,31 @@ function BattleMap({ mapResult, mapLabel, battleTroops, showTroops, isBattle, ma
                 position: 'absolute',
                 top: `calc(${floatingAction.row} * (var(--tile) + 1px))`,
                 left: `calc(var(--label-w) + 4px + ${floatingAction.col} * (var(--tile) + 1px))`,
-                width: 'var(--tile)',
-                height: 'var(--tile)',
+                width: 'calc(var(--tile) + 1px)',
+                height: 'calc(var(--tile) + 1px)',
                 display: 'flex',
                 flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '2px',
+                alignItems: 'stretch',
+                justifyContent: 'stretch',
+                gap: 0,
                 zIndex: 50,
                 pointerEvents: 'auto',
               }}
             >
+              <button
+                className="floating-act"
+                onClick={(e) => {
+                  if (floatingAction.troopData) {
+                    handleHover(
+                      { currentTarget: { dataset: { troop: floatingAction.troopData.id } }, clientX: e.clientX, clientY: e.clientY },
+                      floatingAction.row,
+                      floatingAction.col
+                    );
+                  }
+                }}
+              >
+                🛡 我军
+              </button>
               <button className="floating-act" disabled title="技能系统尚未实装">
                 🔮 技能
               </button>
