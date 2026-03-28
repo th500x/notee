@@ -137,11 +137,13 @@ class Player {
    * @param {string} playerId - 玩家ID
    */
   static async updateLastActive(playerId) {
-    await pool.query(`
-      UPDATE players 
-      SET last_active_at = NOW()
-      WHERE player_id = ?
-    `, [playerId]);
+    await pool.query(
+      `UPDATE players p
+       INNER JOIN accounts a ON p.player_id = a.id
+       SET p.last_active_at = NOW(), a.lastActiveAt = NOW()
+       WHERE p.player_id = ?`,
+      [playerId]
+    );
   }
 
   /**

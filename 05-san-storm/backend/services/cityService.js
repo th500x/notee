@@ -198,15 +198,15 @@ async function initiateSiege(cityId, playerId) {
     const garrisonService = require('./garrisonService');
 
     // 按顺序构建防守者队列：先 on_duty，再普通驻守
-    const onDutyDefenders = await garrisonService.getCityOnDutyDefenders(cityId);
-    const garrisonDefenders = await garrisonService.getCityGarrisonDefenders(cityId);
+    const onDutyDefenders = await garrisonService.getCityOnDutyDefenders(cityId, city.faction_id);
+    const garrisonDefenders = await garrisonService.getCityGarrisonDefenders(cityId, city.faction_id);
     const allDefenders = [...onDutyDefenders, ...garrisonDefenders];
 
     for (const def of allDefenders) {
       if (def.player_id === playerId) continue; // 跳过攻城方自己
 
       const units = await garrisonService.buildDefenseUnits(def);
-      // 总兵力 ≥ 800 才参战
+      // 总兵力 ≥ 800 才作为有效防守者（披挂上阵 PVP 与普通驻守异步一致，均适用）
       const totalTroops = units.reduce((sum, u) => sum + u.currentTroops, 0);
       if (totalTroops < 800) continue;
 
@@ -249,11 +249,8 @@ async function initiateSiege(cityId, playerId) {
 
       // 披挂上阵的玩家：检查是否在线，决定 PVP 还是异步
       if (isOnDuty) {
-        const [activeRows] = await pool.query(
-          'SELECT lastActiveAt FROM accounts WHERE id = ?', [def.player_id]
-        );
-        const isOnline = activeRows.length > 0 &&
-          (Date.now() - new Date(activeRows[0].lastActiveAt).getTime()) < 5 * 60 * 1000;
+        const { isPlayerRecentlyActive } = require('../utils/playerActivity');
+        const isOnline = await isPlayerRecentlyActive(def.player_id);
 
         if (isOnline) {
           // 防守者在线 → 返回 pvp_online，前端走 PVP 挑战流程

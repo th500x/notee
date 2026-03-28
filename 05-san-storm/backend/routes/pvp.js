@@ -9,6 +9,8 @@ const router = express.Router();
 const pvpService = require('../services/pvpService');
 const garrisonService = require('../services/garrisonService');
 const { pool } = require('../database/connection');
+const Player = require('../models/Player');
+const { isPlayerRecentlyActive, DEFAULT_ONLINE_MS } = require('../utils/playerActivity');
 
 /**
  * GET /api/pvp/online-defenders/:cityId
@@ -50,10 +52,8 @@ router.post('/challenge', async (req, res) => {
       return res.status(400).json({ success: false, error: '缺少必要参数' });
     }
 
-    // 判断防守方是否在游戏内（最后活跃 < 1分钟 = 在游戏内）
-    const [defRows] = await pool.query('SELECT lastActiveAt FROM accounts WHERE id = ?', [defenderId]);
-    const defenderIsInGame = defRows.length > 0 &&
-      (Date.now() - new Date(defRows[0].lastActiveAt).getTime()) < 60000;
+    // 与 initiateSiege 一致：综合 last_active_at + lastActiveAt，避免「只登录时刷新」导致永远判离线
+    const defenderIsInGame = await isPlayerRecentlyActive(defenderId, DEFAULT_ONLINE_MS);
 
     const result = pvpService.createChallenge({
       warId, cityId, attackerId, attackerFaction,
@@ -104,6 +104,7 @@ router.get('/challenge/:challengeId/status', (req, res) => {
  */
 router.get('/pending/:playerId', async (req, res) => {
   try {
+    await Player.updateLastActive(req.params.playerId);
     const challenge = await pvpService.checkPendingChallenge(req.params.playerId);
     res.json({ success: true, challenge });
   } catch (error) {

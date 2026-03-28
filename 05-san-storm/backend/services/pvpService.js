@@ -8,6 +8,7 @@
  */
 
 const { pool } = require('../database/connection');
+const { ts } = require('../utils/playerActivity');
 
 // ── 配置 ──
 const ONLINE_THRESHOLD_MS = 5 * 60 * 1000;  // 5分钟内活跃 = 在线
@@ -45,18 +46,24 @@ setInterval(cleanExpired, 5000);
  */
 async function getOnlineDefenders(cityId, attackerId, attackerFaction) {
   const [rows] = await pool.query(
-    `SELECT g.player_id, g.garrison_slot, p.character_name, p.position_level, a.lastActiveAt
+    `SELECT g.player_id, g.garrison_slot, p.character_name, p.position_level,
+            p.last_active_at AS playerActive, a.lastActiveAt AS accountActive
      FROM player_garrison g
      JOIN players p ON g.player_id = p.player_id
      JOIN accounts a ON g.player_id = a.id
+     JOIN cities c ON c.id = g.city_id
      WHERE g.city_id = ? AND g.is_active = TRUE
        AND g.player_id != ? AND p.faction_id != ?
+       AND c.faction_id IS NOT NULL AND p.faction_id = c.faction_id
      ORDER BY p.position_level ASC, g.garrison_slot ASC`,
     [cityId, attackerId, attackerFaction]
   );
 
   const now = Date.now();
-  return rows.filter(r => now - new Date(r.lastActiveAt).getTime() < ONLINE_THRESHOLD_MS);
+  return rows.filter((r) => {
+    const lastSeen = Math.max(ts(r.playerActive), ts(r.accountActive));
+    return lastSeen && now - lastSeen < ONLINE_THRESHOLD_MS;
+  });
 }
 
 /**

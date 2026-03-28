@@ -53,7 +53,7 @@ export default function WorldMap({ onEventBusyChange }) {
   const bgPath = getCachedBg();
   const baseUrl = import.meta.env.BASE_URL;
 
-  const { player, cards, refresh } = usePlayerContext();
+  const { player, cards, refresh: refreshPlayer } = usePlayerContext();
   const eventSystem = useEventSystem(player, cards);
   const tutorialSystem = useTutorialEvents(player, cards);
   const isTutorial = tutorialSystem.isActive;
@@ -216,8 +216,8 @@ export default function WorldMap({ onEventBusyChange }) {
       setSiegeResult({ npcKilled: 0, npcTotal: 0, silverReward: 0, error: '结算请求失败' });
     }
     refreshCity();
-    refresh();
-  }, [siegeData, player, refreshCity, refresh]);
+    refreshPlayer();
+  }, [siegeData, player, refreshCity, refreshPlayer]);
 
   const closeSiegeResult = useCallback(() => { setSiegeData(null); setSiegeResult(null); }, []);
 
@@ -289,9 +289,9 @@ export default function WorldMap({ onEventBusyChange }) {
   useEffect(() => {
     if (phase === PHASE.RETURNING) {
       fetchItems();
-      refresh();
+      refreshPlayer();
     }
-  }, [phase, fetchItems, refresh]);
+  }, [phase, fetchItems, refreshPlayer]);
 
   // 通知父组件事件是否进行中（隐藏底部Tab）
   useEffect(() => {
@@ -454,7 +454,11 @@ export default function WorldMap({ onEventBusyChange }) {
                         e.stopPropagation();
                         const newVal = !onDuty;
                         const res = await garrisonAPI.setOnDuty(player.player_id, newVal);
-                        if (res.success) { setOnDuty(newVal); refreshCity(); }
+                        if (res.success) {
+                          setOnDuty(newVal);
+                          refreshCity();
+                          refreshPlayer();
+                        }
                       }}
                       className={`w-full py-1.5 rounded text-xs font-bold transition-all
                         ${onDuty

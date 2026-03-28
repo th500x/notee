@@ -214,52 +214,66 @@ async function clearGarrison(playerId, slotNumber) {
 /**
  * 获取某个城市的所有激活驻守配置（按官职优先级排序）
  * 用于攻城时获取防守者队列
+ * @param {string} cityId
+ * @param {string|null|undefined} ownerFactionId 城池当前归属势力；仅统计本势力驻守，避免易主后脏数据
  */
-async function getCityDefenders(cityId) {
-  const [rows] = await pool.query(
-    `SELECT g.*, p.character_name, p.faction_id, p.faction_name,
+async function getCityDefenders(cityId, ownerFactionId) {
+  let sql = `
+     SELECT g.*, p.character_name, p.faction_id, p.faction_name,
             p.current_position_id, p.current_position_name, p.position_level,
             p.on_duty
      FROM player_garrison g
      JOIN players p ON g.player_id = p.player_id
-     WHERE g.city_id = ? AND g.is_active = TRUE
-     ORDER BY p.position_level ASC, g.garrison_slot ASC`,
-    [cityId]
-  );
+     WHERE g.city_id = ? AND g.is_active = TRUE`;
+  const params = [cityId];
+  if (ownerFactionId != null && ownerFactionId !== '') {
+    sql += ' AND p.faction_id = ?';
+    params.push(ownerFactionId);
+  }
+  sql += ' ORDER BY p.position_level ASC, g.garrison_slot ASC';
+  const [rows] = await pool.query(sql, params);
   return rows;
 }
 
 /**
  * 获取某个城市的披挂上阵防守者（on_duty=TRUE，按官职优先级排序）
  */
-async function getCityOnDutyDefenders(cityId) {
-  const [rows] = await pool.query(
-    `SELECT g.*, p.character_name, p.faction_id, p.faction_name,
+async function getCityOnDutyDefenders(cityId, ownerFactionId) {
+  let sql = `
+     SELECT g.*, p.character_name, p.faction_id, p.faction_name,
             p.current_position_id, p.current_position_name, p.position_level,
             p.on_duty
      FROM player_garrison g
      JOIN players p ON g.player_id = p.player_id
-     WHERE g.city_id = ? AND g.is_active = TRUE AND p.on_duty = TRUE
-     ORDER BY p.position_level ASC, g.garrison_slot ASC`,
-    [cityId]
-  );
+     WHERE g.city_id = ? AND g.is_active = TRUE AND p.on_duty = TRUE`;
+  const params = [cityId];
+  if (ownerFactionId != null && ownerFactionId !== '') {
+    sql += ' AND p.faction_id = ?';
+    params.push(ownerFactionId);
+  }
+  sql += ' ORDER BY p.position_level ASC, g.garrison_slot ASC';
+  const [rows] = await pool.query(sql, params);
   return rows;
 }
 
 /**
  * 获取某个城市的普通驻守防守者（on_duty=FALSE，按官职优先级排序）
  */
-async function getCityGarrisonDefenders(cityId) {
-  const [rows] = await pool.query(
-    `SELECT g.*, p.character_name, p.faction_id, p.faction_name,
+async function getCityGarrisonDefenders(cityId, ownerFactionId) {
+  let sql = `
+     SELECT g.*, p.character_name, p.faction_id, p.faction_name,
             p.current_position_id, p.current_position_name, p.position_level,
             p.on_duty
      FROM player_garrison g
      JOIN players p ON g.player_id = p.player_id
-     WHERE g.city_id = ? AND g.is_active = TRUE AND (p.on_duty = FALSE OR p.on_duty IS NULL)
-     ORDER BY p.position_level ASC, g.garrison_slot ASC`,
-    [cityId]
-  );
+     WHERE g.city_id = ? AND g.is_active = TRUE AND (p.on_duty = FALSE OR p.on_duty IS NULL)`;
+  const params = [cityId];
+  if (ownerFactionId != null && ownerFactionId !== '') {
+    sql += ' AND p.faction_id = ?';
+    params.push(ownerFactionId);
+  }
+  sql += ' ORDER BY p.position_level ASC, g.garrison_slot ASC';
+  const [rows] = await pool.query(sql, params);
   return rows;
 }
 
@@ -268,12 +282,15 @@ async function getCityGarrisonDefenders(cityId) {
  */
 async function getCityGarrisonStats() {
   const [rows] = await pool.query(
-    `SELECT city_id, city_name,
-            COUNT(DISTINCT player_id) AS player_count,
+    `SELECT g.city_id, g.city_name,
+            COUNT(DISTINCT g.player_id) AS player_count,
             COUNT(*) AS slot_count
-     FROM player_garrison
-     WHERE is_active = TRUE AND city_id IS NOT NULL
-     GROUP BY city_id, city_name
+     FROM player_garrison g
+     JOIN players p ON g.player_id = p.player_id
+     JOIN cities c ON c.id = g.city_id
+     WHERE g.is_active = TRUE AND g.city_id IS NOT NULL
+       AND c.faction_id IS NOT NULL AND p.faction_id = c.faction_id
+     GROUP BY g.city_id, g.city_name
      ORDER BY slot_count DESC`
   );
   return rows;

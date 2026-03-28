@@ -17,7 +17,10 @@ const garrisonService = require('../services/garrisonService');
  */
 router.get('/city/:cityId/defenders', async (req, res) => {
   try {
-    const defenders = await garrisonService.getCityDefenders(req.params.cityId);
+    const { pool } = require('../database/connection');
+    const [cityRows] = await pool.query('SELECT faction_id FROM cities WHERE id = ?', [req.params.cityId]);
+    const ownerFaction = cityRows[0]?.faction_id ?? null;
+    const defenders = await garrisonService.getCityDefenders(req.params.cityId, ownerFaction);
     res.json({ success: true, defenders, count: defenders.length });
   } catch (error) {
     console.error('[Garrisons] 获取城市防守者失败:', error);
@@ -48,7 +51,9 @@ router.get('/city/:cityId/on-duty-count', async (req, res) => {
       `SELECT COUNT(DISTINCT pg.player_id) AS count
        FROM player_garrison pg
        JOIN players p ON pg.player_id = p.player_id
-       WHERE pg.city_id = ? AND pg.is_active = TRUE AND p.on_duty = TRUE`,
+       JOIN cities c ON c.id = pg.city_id
+       WHERE pg.city_id = ? AND pg.is_active = TRUE AND p.on_duty = TRUE
+         AND c.faction_id IS NOT NULL AND p.faction_id = c.faction_id`,
       [req.params.cityId]
     );
     res.json({ success: true, count: rows[0]?.count || 0 });
