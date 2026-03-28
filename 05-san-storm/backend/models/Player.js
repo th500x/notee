@@ -105,12 +105,6 @@ class Player {
         VALUES (?)
       `, [player_id]);
 
-      // 创建玩家装备槽表
-      await pool.query(`
-        INSERT INTO player_equipment_slots (player_id)
-        VALUES (?)
-      `, [player_id]);
-
       // 创建玩家统计表
       await pool.query(`
         INSERT INTO statistics (player_id)

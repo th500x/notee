@@ -75,6 +75,12 @@ const citiesRouter = require('./routes/cities');
 app.use('/api/cities', citiesRouter);
 
 /**
+ * 驻守系统API
+ */
+const garrisonsRouter = require('./routes/garrisons');
+app.use('/api/garrisons', garrisonsRouter);
+
+/**
  * 健康检查
  */
 app.get('/api/health', async (req, res) => {

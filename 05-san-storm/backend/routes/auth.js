@@ -390,9 +390,8 @@ router.delete('/user/:userId/game-data', async (req, res) => {
     // === 玩家级别（10张）：直接删除 ===
     const playerTables = [
       'player_cards',
-      'player_equipment_slots',
       'player_events',
-      'player_garrison_slots',
+      'player_garrison',
       'player_progress',
       'player_synthesis',
       'statistics',
@@ -542,8 +541,8 @@ router.delete('/users/purge-all', async (req, res) => {
 
     // 玩家级别表：全部清空
     const playerTables = [
-      'player_cards', 'player_equipment_slots', 'player_events',
-      'player_garrison_slots', 'player_progress', 'player_synthesis',
+      'player_cards', 'player_events',
+      'player_garrison', 'player_progress', 'player_synthesis',
       'statistics', 'season_records', 'temp_character_creation', 'players'
     ];
     for (const table of playerTables) {
