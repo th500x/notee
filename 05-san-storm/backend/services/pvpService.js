@@ -12,8 +12,8 @@ const { ts } = require('../utils/playerActivity');
 
 // ── 配置 ──
 const ONLINE_THRESHOLD_MS = 5 * 60 * 1000;  // 5分钟内活跃 = 在线
-const WAIT_IN_GAME = 10;    // 防守方在游戏内：10秒
-const WAIT_NOT_IN_GAME = 20; // 防守方不在游戏内：20秒
+const WAIT_IN_GAME = 15;    // 防守方近期活跃：略宽裕，便于披挂方完成首轮 pending 轮询
+const WAIT_NOT_IN_GAME = 25; // 防守方不活跃：更长等待，减少误伤
 
 // ── 内存存储 ──
 // key: challengeId, value: challenge 对象

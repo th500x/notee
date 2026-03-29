@@ -1,9 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import PropTypes from 'prop-types';
-import {
-  getTroopCardPrimaryUrl,
-  getTroopUiFolderFallbackUrl,
-} from '../../utils/troopIconUrls';
+import { getTroopPortraitUrlAttempts } from '../../utils/troopIconUrls';
 
 /**
  * 部队卡牌组件（共享版本）
@@ -62,21 +59,16 @@ const TroopCard = ({
   onSelect
 }) => {
   const [activeTooltip, setActiveTooltip] = useState(null);
-  // 0=主图 1=UI文件夹稀有度图 2=占位（每种 URL 最多请求一次，不链式遍历）
-  const [iconStep, setIconStep] = useState(0);
-
-  const primaryIconUrl = useMemo(
-    () => getTroopCardPrimaryUrl(troop, baseUrl),
+  /** 按序尝试的立绘 URL（含 troop/troops/_raw 与稀有度兜底） */
+  const iconUrls = useMemo(
+    () => getTroopPortraitUrlAttempts(troop, baseUrl),
     [baseUrl, troop.iconPath, troop.id, troop.rarity, troop.troopType, troop.weaponType]
   );
-  const fallbackIconUrl = useMemo(
-    () => getTroopUiFolderFallbackUrl(troop, baseUrl),
-    [baseUrl, troop.rarity, troop.troopType, troop.weaponType]
-  );
+  const [iconStep, setIconStep] = useState(0);
 
   useEffect(() => {
     setIconStep(0);
-  }, [primaryIconUrl]);
+  }, [iconUrls]);
 
   // 稀有度颜色映射
   const rarityColors = {
@@ -127,21 +119,10 @@ const TroopCard = ({
   const rarity = rarityColors[troop.rarity] || rarityColors.common;
   const troopType = troopTypeMap[troop.troopType] || troopTypeMap.infantry;
 
-  const resolvedTroopIconSrc =
-    iconStep === 0
-      ? primaryIconUrl
-      : iconStep === 1
-        ? fallbackIconUrl
-        : '';
+  const resolvedTroopIconSrc = iconStep < iconUrls.length ? iconUrls[iconStep] : '';
 
   const handleTroopIconError = () => {
-    setIconStep((s) => {
-      if (s === 0) {
-        if (fallbackIconUrl && fallbackIconUrl !== primaryIconUrl) return 1;
-        return 2;
-      }
-      return 2;
-    });
+    setIconStep((s) => (s + 1 < iconUrls.length ? s + 1 : iconUrls.length));
   };
 
   // 获取卡面背景图片路径
@@ -260,7 +241,7 @@ const TroopCard = ({
                   />
                 ) : null}
                 <div
-                  className={`${iconStep < 2 && resolvedTroopIconSrc ? 'hidden' : 'flex'} w-full h-full items-center justify-center flex-col gap-1 text-gray-500`}
+                  className={`${iconStep < iconUrls.length && resolvedTroopIconSrc ? 'hidden' : 'flex'} w-full h-full items-center justify-center flex-col gap-1 text-gray-500`}
                 >
                   <span className="text-4xl">{troopType.icon}</span>
                   <span className="text-[10px]">待添加</span>

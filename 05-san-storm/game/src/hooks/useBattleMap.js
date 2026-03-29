@@ -8,6 +8,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { generateSmallMap } from '@shared/utils/mapGenerator';
 import {
   getTroopCardPrimaryUrl,
+  getTroopPortraitUrlAttempts,
   getTroopUiFolderFallbackUrl,
 } from '@shared/utils/troopIconUrls';
 import { API_CONFIG } from '@/constants';
@@ -99,6 +100,7 @@ export function useBattleMap() {
       const tr = unit.troop;
       const char = unit.character || null;
       const morale = unit.morale ?? 70;
+      const attempts = getTroopPortraitUrlAttempts(tr, base());
       return {
         ...tr,
         id: tr.id + '_p' + i,
@@ -110,8 +112,9 @@ export function useBattleMap() {
         character: char,
         displayName: char ? (char.courtesyName || char.name) : tr.name,
         morale,
-        imgSrc: getTroopImg(tr),
-        imgFallback: getTroopImgFallback(tr),
+        imgSrc: attempts[0],
+        imgPortraitAttempts: attempts,
+        imgFallback: attempts[attempts.length - 1],
       };
     });
 
@@ -141,6 +144,7 @@ export function useBattleMap() {
       const baseMorale = Math.round(50 + Math.random() * 30);
       const traitMod = char ? (char.traitModifier || 0) : 0;
       const morale = Math.max(0, Math.min(100, baseMorale + traitMod));
+      const attempts = getTroopPortraitUrlAttempts(tr, base());
       return {
         ...tr,
         id: tr.id + '_e' + i,
@@ -151,8 +155,9 @@ export function useBattleMap() {
         character: char,
         displayName: char ? (char.courtesyName || char.name) : tr.name,
         morale,
-        imgSrc: getTroopImg(tr),
-        imgFallback: getTroopImgFallback(tr),
+        imgSrc: attempts[0],
+        imgPortraitAttempts: attempts,
+        imgFallback: attempts[attempts.length - 1],
       };
     });
 

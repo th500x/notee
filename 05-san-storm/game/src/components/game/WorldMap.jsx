@@ -95,14 +95,12 @@ export default function WorldMap({ onEventBusyChange }) {
 
   useEffect(() => {
     if (!player?.player_id || !onDuty) return;
-    // 披挂上阵时：每3秒检查是否有人攻打自己驻守的城市
-    defPollRef.current = setInterval(async () => {
+    const pollPending = async () => {
       try {
         const res = await fetch(`${API_CONFIG.BASE_URL}/pvp/pending/${player.player_id}`).then(r => r.json());
         if (res.success && res.challenge) {
           const c = res.challenge;
           setPvpDefenseAlert(c);
-          // 浏览器通知（用户可能不在当前标签页）
           if (Notification.permission === 'granted') {
             new Notification('🏰 城池遭袭', {
               body: `${c.attackerName}（${c.cityId}）遭到攻击，请主公在${c.remainingSeconds}秒内进入战场`,
@@ -113,7 +111,9 @@ export default function WorldMap({ onEventBusyChange }) {
           }
         }
       } catch {}
-    }, 3000);
+    };
+    pollPending();
+    defPollRef.current = setInterval(pollPending, 3000);
     return () => clearInterval(defPollRef.current);
   }, [player?.player_id, onDuty]);
 

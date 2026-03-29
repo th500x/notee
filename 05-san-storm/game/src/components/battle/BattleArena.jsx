@@ -15,7 +15,9 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useBattleMap, getTroopImgFallback } from '@/hooks/useBattleMap';
+import { useBattleMap } from '@/hooks/useBattleMap';
+import { getTroopPortraitUrlAttempts } from '@shared/utils/troopIconUrls';
+import { bindTroopPortraitImg } from '@/utils/troopBattlePortrait';
 import { useBattleEngine } from '@/hooks/useBattleEngine';
 import { useManualBattle } from '@/hooks/useManualBattle';
 import BattleMap from '@/components/battle/BattleMap';
@@ -30,7 +32,7 @@ import { battleAPI } from '@/services/battleApi';
 const STAGE = { LOADING: 'loading', READY: 'ready' };
 
 /** 手动渲染部队到 tile DOM（showTroops={false} 时需要） */
-function renderTroopsToDOM(mapCardRef, battleTroops) {
+function renderTroopsToDOM(mapCardRef, battleTroops, baseUrl = '') {
   const card = mapCardRef?.current;
   if (!card) return;
   const tiles = card.querySelectorAll('.map-grid .tile');
@@ -55,7 +57,9 @@ function renderTroopsToDOM(mapCardRef, battleTroops) {
     const hpHtml = `<div class="troop-hp-top">${topBlks}</div>${rightBlks ? `<div class="troop-hp-right">${rightBlks}</div>` : ''}`;
     const layer = document.createElement('div');
     layer.className = 'troop-layer';
-    layer.innerHTML = `${hpHtml}<div class="troop-glow ${troop.faction}"></div><img class="troop-img" src="${troop.imgSrc || ''}" alt="${troop.name}" onerror="if(this.dataset.fb){this.src=this.dataset.fb;this.dataset.fb=''}else{this.style.display='none'}" data-fb="${troop.imgFallback || ''}"><div class="troop-name"><span class="cn">${troop.displayName || troop.name}</span><span class="mr">${troop.morale}/100</span></div>`;
+    layer.innerHTML = `${hpHtml}<div class="troop-glow ${troop.faction}"></div><img class="troop-img" alt=""><div class="troop-name"><span class="cn">${troop.displayName || troop.name}</span><span class="mr">${troop.morale}/100</span></div>`;
+    const img = layer.querySelector('.troop-img');
+    bindTroopPortraitImg(img, troop, baseUrl);
     tile.appendChild(layer);
   }
 }
@@ -121,23 +125,34 @@ export default function BattleArena({
         { y: 0, x: 1 }, { y: 0, x: 5 }, { y: 1, x: 3 }, { y: 1, x: 7 },
       ];
 
-      const pResult = playerUnits.slice(0, 5).map((unit, i) => ({
-        ...unit.troop,
-        id: unit.troop.id + '_p' + i,
-        faction: 'player',
-        y: playerPositions[i].y, x: playerPositions[i].x,
-        currentTroops: unit.currentTroops ?? unit.troop.maxTroops,
-        maxTroops: unit.maxTroops ?? unit.troop.maxTroops,
-        character: unit.character || null,
-        displayName: unit.character ? (unit.character.courtesyName || unit.character.name) : unit.troop.name,
-        morale: unit.morale ?? 70,
-        instanceId: unit.troop.instanceId,
-        imgSrc: `${baseUrl}assets/san_1_ui_card/troop/${unit.troop.id}.png`,
-        imgFallback: getTroopImgFallback(unit.troop),
-      }));
+      const pResult = playerUnits.slice(0, 5).map((unit, i) => {
+        const attempts = getTroopPortraitUrlAttempts(unit.troop, baseUrl);
+        return {
+          ...unit.troop,
+          id: unit.troop.id + '_p' + i,
+          faction: 'player',
+          y: playerPositions[i].y, x: playerPositions[i].x,
+          currentTroops: unit.currentTroops ?? unit.troop.maxTroops,
+          maxTroops: unit.maxTroops ?? unit.troop.maxTroops,
+          character: unit.character || null,
+          displayName: unit.character ? (unit.character.courtesyName || unit.character.name) : unit.troop.name,
+          morale: unit.morale ?? 70,
+          instanceId: unit.troop.instanceId,
+          imgSrc: attempts[0],
+          imgPortraitAttempts: attempts,
+          imgFallback: attempts[attempts.length - 1],
+        };
+      });
 
       const eResult = enemyUnits.slice(0, 4).map((npc, i) => {
         const morale = Math.round(50 + Math.random() * 30) + (npc.character?.traitModifier || 0);
+        const npcTroopMeta = {
+          id: npc.troopId,
+          rarity: npc.rarity,
+          troopType: npc.troopType,
+          weaponType: npc.weaponType,
+        };
+        const attempts = getTroopPortraitUrlAttempts(npcTroopMeta, baseUrl);
         return {
           id: npc.troopId + '_e' + i,
           name: npc.troopName, rarity: npc.rarity,
@@ -157,8 +172,9 @@ export default function BattleArena({
           } : null,
           displayName: npc.character ? (npc.character.courtesyName || npc.character.name) : npc.troopName,
           morale: Math.max(0, Math.min(100, morale)),
-          imgSrc: `${baseUrl}assets/san_1_ui_card/troop/${npc.troopId}.png`,
-          imgFallback: getTroopImgFallback({ rarity: npc.rarity, weaponType: npc.weaponType }),
+          imgSrc: attempts[0],
+          imgPortraitAttempts: attempts,
+          imgFallback: attempts[attempts.length - 1],
           _npcIndex: npc.index,
           instanceId: npc._troopInstanceId || null,
         };
@@ -181,7 +197,7 @@ export default function BattleArena({
     if (troopsRendered.current) return;
     if (bm.mapResult && bm.battleTroops.length > 0 && mapCardRef.current) {
       requestAnimationFrame(() => {
-        renderTroopsToDOM(mapCardRef, bm.battleTroops);
+        renderTroopsToDOM(mapCardRef, bm.battleTroops, import.meta.env.BASE_URL);
         troopsRendered.current = true;
       });
     }

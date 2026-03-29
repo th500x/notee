@@ -2,13 +2,24 @@
  * TroopLayer - 部队渲染层
  * 兵力方格（top最多6个+right溢出）、阵营光韵、部队图标、字号标签
  */
-import { memo, useRef, useEffect } from 'react';
+import { memo, useMemo, useState, useEffect } from 'react';
+import { getTroopPortraitUrlAttempts } from '@shared/utils/troopIconUrls';
+
+const PORTRAIT_BASE = typeof import.meta !== 'undefined' && import.meta.env?.BASE_URL != null ? import.meta.env.BASE_URL : '';
 
 function TroopLayer({ troop }) {
-  const fallbackTriedRef = useRef(false);
+  const urls = useMemo(
+    () =>
+      troop.imgPortraitAttempts?.length > 0
+        ? troop.imgPortraitAttempts
+        : getTroopPortraitUrlAttempts(troop, PORTRAIT_BASE),
+    [troop]
+  );
+  /** 当前尝试的立绘下标；等于 urls.length 表示已全部失败 */
+  const [uIdx, setUIdx] = useState(0);
   useEffect(() => {
-    fallbackTriedRef.current = false;
-  }, [troop.id, troop.imgSrc, troop.imgFallback]);
+    setUIdx(0);
+  }, [troop.id, urls]);
   const fc = troop.faction === 'player' ? 'player' : 'enemy';
   const totalBlocks = Math.ceil(troop.maxTroops / 100);
   const fullBlocks = Math.floor(troop.currentTroops / 100);
@@ -29,20 +40,19 @@ function TroopLayer({ troop }) {
       <div className="troop-hp-top">{topBlks}</div>
       {rightBlks.length > 0 && <div className="troop-hp-right">{rightBlks}</div>}
       <div className={`troop-glow ${troop.faction}`} />
-      <img
-        className="troop-img"
-        src={troop.imgSrc}
-        alt={troop.name}
-        onError={e => {
-          const img = e.target;
-          if (troop.imgFallback && !fallbackTriedRef.current && img.src !== troop.imgFallback) {
-            fallbackTriedRef.current = true;
-            img.src = troop.imgFallback;
-            return;
-          }
-          img.style.display = 'none';
-        }}
-      />
+      {uIdx < urls.length ? (
+        <img
+          key={`${troop.id}-${uIdx}`}
+          className="troop-img"
+          src={urls[uIdx] || ''}
+          alt={troop.name}
+          onError={() => setUIdx((i) => Math.min(i + 1, urls.length))}
+        />
+      ) : (
+        <div className="troop-img flex items-center justify-center text-2xl opacity-60" aria-hidden>
+          {troop.troopType === 'cavalry' ? '🐎' : troop.troopType === 'archer' ? '🏹' : '🛡️'}
+        </div>
+      )}
       <div className="troop-name">
         <span className="cn">{troop.displayName || troop.name}</span>
         <span className="mr" style={{ color: troop.morale >= 80 ? '#FFD700' : troop.morale >= 50 ? '#4CAF50' : troop.morale >= 20 ? '#FFC107' : '#F44336' }}>{troop.morale}/100</span>

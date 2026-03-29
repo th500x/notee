@@ -7,6 +7,7 @@
 
 import { useCallback, useRef } from 'react';
 import { calcDamage, rollCritDodge, troopDamageToCasualties } from '@/systems/combatSystem';
+import { bindTroopPortraitImg } from '@/utils/troopBattlePortrait';
 import { autoSelectFormation } from '@/systems/formationSystem';
 import {
   dist, getMoveCost as _getMoveCost, isOccupied as _isOccupied,
@@ -14,6 +15,8 @@ import {
 } from '@/systems/battleFlowManager';
 import { MAP_W } from '@/components/battle/battleConstants';
 import * as fmt from '@/systems/battleTextFormatter';
+
+const GAME_BASE_URL = typeof import.meta !== 'undefined' && import.meta.env?.BASE_URL != null ? import.meta.env.BASE_URL : '';
 
 function sleep(ms, speed = 1) {
   return new Promise(r => setTimeout(r, ms / speed));
@@ -141,7 +144,9 @@ export function useBattleEngine({
     const hpHtml = `<div class="troop-hp-top">${topBlks}</div>${rightBlks ? `<div class="troop-hp-right">${rightBlks}</div>` : ''}`;
     const layer = document.createElement('div');
     layer.className = 'troop-layer';
-    layer.innerHTML = `${hpHtml}<div class="troop-glow ${troop.faction}"></div><img class="troop-img" src="${troop.imgSrc || ''}" alt="${troop.name}" onerror="if(this.dataset.fb){this.src=this.dataset.fb;this.dataset.fb=''}else{this.style.display='none'}" data-fb="${troop.imgFallback || ''}"><div class="troop-name"><span class="cn">${troop.displayName || troop.name}</span><span class="mr">${troop.morale}/100</span></div>`;
+    layer.innerHTML = `${hpHtml}<div class="troop-glow ${troop.faction}"></div><img class="troop-img" alt=""><div class="troop-name"><span class="cn">${troop.displayName || troop.name}</span><span class="mr">${troop.morale}/100</span></div>`;
+    const img = layer.querySelector('.troop-img');
+    bindTroopPortraitImg(img, troop, GAME_BASE_URL);
     tile.appendChild(layer);
   }, [mapCardRef]);
 

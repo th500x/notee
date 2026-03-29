@@ -274,24 +274,19 @@ async function initiateSiege(cityId, playerId) {
 
       const isOnDuty = !!def.on_duty;
 
-      // 披挂上阵的玩家：检查是否在线，决定 PVP 还是异步
+      // 披挂上阵：主公已明示待战，一律走实时 PVP 挑战（接受/超时自动战），
+      // 不因短时未打心跳或 profile 未刷新而误判为异步驻守。
       if (isOnDuty) {
-        const { isPlayerRecentlyActive } = require('../utils/playerActivity');
-        const isOnline = await isPlayerRecentlyActive(def.player_id);
-
-        if (isOnline) {
-          // 防守者在线 → 返回 pvp_online，前端走 PVP 挑战流程
-          return {
-            warId: war.war_id, cityId, cityName: city.city_name, cityType: city.city_type,
-            npcGarrison: garrisonUnits, npcAlive: garrisonUnits.length, npcTotal: garrisonUnits.length,
-            playerFaction, defenderType: 'pvp_online',
-            defenderName: def.character_name, defenderPlayerId: def.player_id,
-            defenderGarrisonSlot: def.garrison_slot,
-          };
-        }
+        return {
+          warId: war.war_id, cityId, cityName: city.city_name, cityType: city.city_type,
+          npcGarrison: garrisonUnits, npcAlive: garrisonUnits.length, npcTotal: garrisonUnits.length,
+          playerFaction, defenderType: 'pvp_online',
+          defenderName: def.character_name, defenderPlayerId: def.player_id,
+          defenderGarrisonSlot: def.garrison_slot,
+        };
       }
 
-      // 离线的披挂上阵玩家 或 普通驻守玩家 → 异步PVE（驻守卡池作为NPC）
+      // 普通驻守玩家 → 异步PVE（驻守卡池作为NPC）
       return {
         warId: war.war_id, cityId, cityName: city.city_name, cityType: city.city_type,
         npcGarrison: garrisonUnits, npcAlive: garrisonUnits.length, npcTotal: garrisonUnits.length,

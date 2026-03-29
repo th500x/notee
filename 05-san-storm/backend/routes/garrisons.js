@@ -9,6 +9,7 @@
 const express = require('express');
 const router = express.Router();
 const garrisonService = require('../services/garrisonService');
+const Player = require('../models/Player');
 
 // ── 静态路由（必须在动态 /:playerId 之前） ──
 
@@ -74,6 +75,7 @@ router.post('/:playerId/on-duty', async (req, res) => {
     const { onDuty } = req.body;
     const { pool } = require('../database/connection');
     await pool.query('UPDATE players SET on_duty = ? WHERE player_id = ?', [!!onDuty, req.params.playerId]);
+    await Player.updateLastActive(req.params.playerId);
     res.json({ success: true, onDuty: !!onDuty });
   } catch (error) {
     console.error('[Garrisons] 切换披挂上阵失败:', error);

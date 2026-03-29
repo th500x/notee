@@ -31,14 +31,48 @@ export function getTroopUiFolderFallbackUrl(troop, baseUrl = '') {
 /** san_1_ui_card/troop/{troopId}.png */
 export function getTroopIdIconUrl(troopId, baseUrl = '') {
   if (!troopId) return '';
-  return `${baseUrl}assets/san_1_ui_card/troop/${troopId}.png`;
+  const id = normalizeTroopAssetId(troopId);
+  return `${baseUrl}assets/san_1_ui_card/troop/${id}.png`;
 }
 
 /**
- * 主选 URL：自定义 iconPath > 按部队 ID 的 png > 与 fallback 相同的稀有度+武器图
+ * 战斗/卡牌用的部队配置 ID（去掉地图实例后缀 _p0/_e1，纯数字补全 san_1_troop_ 前缀）
+ */
+export function normalizeTroopAssetId(troopOrId) {
+  let raw =
+    troopOrId && typeof troopOrId === 'object'
+      ? troopOrId.assetTroopId ?? troopOrId.troopId ?? troopOrId.id
+      : troopOrId;
+  if (raw == null || raw === '') return '';
+  let s = String(raw).replace(/_(?:p|e)\d+$/i, '');
+  if (s.includes('san_1_troop_')) return s;
+  if (/^\d+$/.test(s)) return `san_1_troop_${s}`;
+  return s;
+}
+
+/**
+ * 按序尝试的立绘 URL（线上常见：troop/id.png、troops/id_card.png、根目录 id_raw.png，最后稀有度+武器）
+ */
+export function getTroopPortraitUrlAttempts(troop, baseUrl = '') {
+  const urls = [];
+  const push = (u) => {
+    if (u && !urls.includes(u)) urls.push(u);
+  };
+  if (troop.iconPath) push(troop.iconPath);
+  const id = normalizeTroopAssetId(troop);
+  if (id) {
+    push(`${baseUrl}assets/san_1_ui_card/troop/${id}.png`);
+    push(`${baseUrl}assets/san_1_ui_card/troops/${id}_card.png`);
+    push(`${baseUrl}assets/san_1_ui_card/${id}_raw.png`);
+  }
+  push(getTroopUiFolderFallbackUrl(troop, baseUrl));
+  return urls;
+}
+
+/**
+ * 主选 URL：getTroopPortraitUrlAttempts 的第一张（与 TroopCard / 战斗首帧一致）
  */
 export function getTroopCardPrimaryUrl(troop, baseUrl = '') {
-  if (troop.iconPath) return troop.iconPath;
-  if (troop.id) return getTroopIdIconUrl(troop.id, baseUrl);
-  return getTroopUiFolderFallbackUrl(troop, baseUrl);
+  const list = getTroopPortraitUrlAttempts(troop, baseUrl);
+  return list[0] || '';
 }
