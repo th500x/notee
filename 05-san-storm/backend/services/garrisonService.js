@@ -240,6 +240,43 @@ async function clearGarrison(playerId, slotNumber) {
   return { success: true };
 }
 
+const GARRISON_TROOP_FIELDS = ['char1_troop1', 'char1_troop2', 'char2_troop1', 'char2_troop2'];
+
+/**
+ * 城池易主：卸除非胜方在本城的整组驻守（与 clearGarrison 一致，避免 city_id 已清但卡牌仍占位导致 UI/统计脏数据）
+ * @param {import('mysql2').Pool|import('mysql2').PoolConnection} conn
+ * @param {string} cityId
+ * @param {string} winnerFactionId
+ */
+async function stripGarrisonOnCityConquest(conn, cityId, winnerFactionId) {
+  const [rows] = await conn.query(
+    `SELECT g.char1_troop1, g.char1_troop2, g.char2_troop1, g.char2_troop2
+     FROM player_garrison g
+     JOIN players p ON g.player_id = p.player_id
+     WHERE g.city_id = ? AND p.faction_id != ?`,
+    [cityId, winnerFactionId]
+  );
+  const troopIds = [...new Set(
+    (rows || []).flatMap((g) => GARRISON_TROOP_FIELDS.map((f) => g[f]).filter(Boolean))
+  )];
+  if (troopIds.length > 0) {
+    const ph = troopIds.map(() => '?').join(',');
+    await conn.query(
+      `UPDATE player_cards SET bonus_max_troops=0, bonus_attack=0, bonus_defense=0, bonus_speed=0, bonus_movement=0
+       WHERE instance_id IN (${ph})`,
+      troopIds
+    );
+  }
+  const nullSets = CARD_FIELDS.map((f) => `g.${f} = NULL`).join(', ');
+  await conn.query(
+    `UPDATE player_garrison g
+     JOIN players p ON g.player_id = p.player_id
+     SET g.is_active = FALSE, g.city_id = NULL, g.city_name = NULL, ${nullSets}
+     WHERE g.city_id = ? AND p.faction_id != ?`,
+    [cityId, winnerFactionId]
+  );
+}
+
 /**
  * 获取某个城市的所有激活驻守配置（按官职优先级排序）
  * 用于攻城时获取防守者队列
@@ -429,6 +466,7 @@ module.exports = {
   getGarrisonSlot,
   saveGarrison,
   clearGarrison,
+  stripGarrisonOnCityConquest,
   getCityDefenders,
   getCityOnDutyDefenders,
   getCityGarrisonDefenders,

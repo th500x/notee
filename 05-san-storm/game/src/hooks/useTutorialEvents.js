@@ -209,6 +209,7 @@ export default function useTutorialEvents(player, cards) {
     setRewardDetails({
       rewards: data.data.rewards || [],
       bonusRewards: data.data.bonusRewards || [],
+      troopRepair: data.data.troopRepair || null,
     });
   }, []);
 

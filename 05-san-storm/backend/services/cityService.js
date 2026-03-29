@@ -6,6 +6,7 @@
 
 const { pool } = require('../database/connection');
 const { applyTroopDurabilityExhaustion } = require('./troopDurabilityService');
+const garrisonService = require('./garrisonService');
 
 /** 攻城战线占用：同键在 TTL 内不可被第二人（或本人第二开）占用，结算后释放；超时自动失效（毫秒） */
 const SIEGE_LOCK_TTL_MS = 40 * 60 * 1000;
@@ -221,8 +222,6 @@ async function initiateSiege(cityId, playerId) {
   // ── 已占领城市：先查玩家防守者 ──
   // 防守顺序：① 披挂上阵玩家（on_duty=TRUE）→ ② 普通驻守玩家 → ③ NPC守军
   if (city.status === 'owned' && city.faction_id) {
-    const garrisonService = require('./garrisonService');
-
     // 按顺序构建防守者队列：先 on_duty，再普通驻守
     const onDutyDefenders = await garrisonService.getCityOnDutyDefenders(cityId, city.faction_id);
     const garrisonDefenders = await garrisonService.getCityGarrisonDefenders(cityId, city.faction_id);
@@ -705,13 +704,7 @@ async function recordSiegeResult(warId, playerId, factionId, killedIndices, resu
         );
       }
 
-      await connection.query(
-        `UPDATE player_garrison g
-         JOIN players p ON g.player_id = p.player_id
-         SET g.is_active = FALSE, g.city_id = NULL, g.city_name = NULL
-         WHERE g.city_id = ? AND p.faction_id != ?`,
-        [war.target_city_id, winnerFaction]
-      );
+      await garrisonService.stripGarrisonOnCityConquest(connection, war.target_city_id, winnerFaction);
 
       // 更新城市归属
       await connection.query(

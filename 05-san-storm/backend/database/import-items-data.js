@@ -41,21 +41,23 @@ async function importItems(connection) {
     try {
       await connection.query(`
         INSERT INTO config_items (
-          item_id, item_name, description, item_type, season, version
-        ) VALUES (?, ?, ?, ?, ?, ?)
+          item_id, item_name, description, item_type, season, version, special_effect
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
         ON DUPLICATE KEY UPDATE
-          item_name   = VALUES(item_name),
-          description = VALUES(description),
-          item_type   = VALUES(item_type),
-          season      = VALUES(season),
-          version     = VALUES(version)
+          item_name       = VALUES(item_name),
+          description     = VALUES(description),
+          item_type       = VALUES(item_type),
+          season          = VALUES(season),
+          version         = VALUES(version),
+          special_effect  = VALUES(special_effect)
       `, [
         item.id,
         item.name,
         item.description || null,
         item.itemType || 'event_key',
         item.season || null,
-        '1.0',
+        item.version || '1.0',
+        item.specialEffect || item.special_effect || null,
       ]);
 
       imported++;

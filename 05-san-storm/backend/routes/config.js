@@ -261,7 +261,7 @@ router.get('/items', async (req, res) => {
   try {
     const { pool } = require('../database/connection');
     const [rows] = await pool.query(
-      'SELECT item_id, item_name, description, item_type FROM config_items ORDER BY item_id'
+      'SELECT item_id, item_name, description, item_type, special_effect FROM config_items ORDER BY item_id'
     );
     res.json({ success: true, items: rows });
   } catch (error) {

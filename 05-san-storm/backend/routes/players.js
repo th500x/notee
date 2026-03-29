@@ -10,8 +10,23 @@ const PlayerService = require('../services/playerService');
 const { pool } = require('../database/connection');
 const { formatTroopData } = require('../services/configService');
 const { calculateFortune, executeRewards, FORTUNE_MULTIPLIERS } = require('../services/rewardService');
+const {
+  getItemSpecialEffect,
+  applyTroopRepairEffect,
+  isTroopDurabilityRepairEffect,
+} = require('../services/troopRepairService');
 
 const router = express.Router();
+
+/** 事件 requiredItems 单段解析：无冒号则数量 1 */
+function parseEventCostSegment(segment) {
+  const s = (segment || '').trim();
+  if (!s) return null;
+  const i = s.indexOf(':');
+  if (i === -1) return { key: s, amount: 1 };
+  const n = parseInt(s.slice(i + 1), 10);
+  return { key: s.slice(0, i), amount: Number.isFinite(n) && n > 0 ? n : 1 };
+}
 
 // ── 卡牌特效 → 部队卡加成 通用机制 ──────────────────────────
 
@@ -1509,21 +1524,68 @@ router.post('/:playerId/rewards', async (req, res) => {
       );
     }
 
-    // 4. 扣除选项消耗（requiredItems）
+    // 4. 校验并扣除选项消耗（requiredItems）；config_items.special_effect 触发部队耐久修复
+    const resourceFields = ['silver', 'food', 'reputation', 'contribution', 'morale'];
+    let troopRepairResults = [];
+
     if (option.requiredItems) {
-      const costItems = option.requiredItems.split(';').map(s => s.trim()).filter(Boolean);
-      for (const costItem of costItems) {
-        const [key, val] = costItem.split(':');
-        const amount = parseInt(val) || 1; // 无数量默认1
-        // 资源类型
-        const resourceFields = ['silver', 'food', 'reputation', 'contribution', 'morale'];
+      const costSegments = option.requiredItems
+        .split(';')
+        .map(s => parseEventCostSegment(s))
+        .filter(Boolean);
+
+      const [prePlayer] = await pool.query(
+        'SELECT items, silver, food, reputation, contribution, morale FROM players WHERE player_id = ?',
+        [playerId]
+      );
+      if (!prePlayer[0]) {
+        return res.status(404).json({ success: false, error: '玩家不存在' });
+      }
+      const pr = prePlayer[0];
+      let inv = {};
+      if (pr.items) {
+        inv = typeof pr.items === 'string' ? JSON.parse(pr.items) : pr.items;
+      }
+
+      for (const { key, amount } of costSegments) {
+        if (resourceFields.includes(key)) {
+          const cur = Number(pr[key]) || 0;
+          if (cur < amount) {
+            return res.status(400).json({ success: false, error: `${key}不足` });
+          }
+        } else if (key.includes('_item_') || key.startsWith('item_')) {
+          const cur = Number(inv[key]) || 0;
+          if (cur < amount) {
+            return res.status(400).json({
+              success: false,
+              error: '道具不足',
+              detail: { itemId: key, need: amount, have: cur },
+            });
+          }
+          const specialEffect = await getItemSpecialEffect(key);
+          if (isTroopDurabilityRepairEffect(specialEffect)) {
+            const [chk] = await pool.query(
+              `SELECT instance_id FROM player_cards
+               WHERE player_id = ? AND card_type = 'troop' AND rarity = 'legendary' LIMIT 1`,
+              [playerId]
+            );
+            if (chk.length === 0) {
+              return res.status(400).json({
+                success: false,
+                error: '暂无传奇部队，无法完成整编旧部',
+              });
+            }
+          }
+        }
+      }
+
+      for (const { key, amount } of costSegments) {
         if (resourceFields.includes(key)) {
           await pool.query(
             `UPDATE players SET ${key} = GREATEST(0, ${key} - ?) WHERE player_id = ?`,
             [amount, playerId]
           );
         } else if (key.includes('_item_') || key.startsWith('item_')) {
-          // 道具扣除（支持 san_1_item_xxx 和 item_xxx 两种格式）
           const [itemRows] = await pool.query('SELECT items FROM players WHERE player_id = ?', [playerId]);
           let items = {};
           if (itemRows[0]?.items) {
@@ -1532,6 +1594,24 @@ router.post('/:playerId/rewards', async (req, res) => {
           items[key] = (items[key] || 0) - amount;
           if (items[key] <= 0) delete items[key];
           await pool.query('UPDATE players SET items = ? WHERE player_id = ?', [JSON.stringify(items), playerId]);
+
+          const specialEffect = await getItemSpecialEffect(key);
+          if (isTroopDurabilityRepairEffect(specialEffect)) {
+            for (let u = 0; u < amount; u++) {
+              try {
+                const one = await applyTroopRepairEffect(pool.query.bind(pool), playerId, specialEffect);
+                troopRepairResults.push(one);
+              } catch (e) {
+                if (e.code === 'NO_LEGENDARY_TROOP') {
+                  return res.status(400).json({
+                    success: false,
+                    error: '暂无传奇部队，无法完成整编旧部',
+                  });
+                }
+                throw e;
+              }
+            }
+          }
         }
       }
     }
@@ -1596,6 +1676,7 @@ router.post('/:playerId/rewards', async (req, res) => {
         },
         rewards: result.details,
         bonusRewards: bonusResult ? bonusResult.details : [],
+        ...(troopRepairResults.length ? { troopRepair: troopRepairResults } : {}),
       }
     });
 
@@ -1632,7 +1713,7 @@ router.get('/:playerId/items', async (req, res) => {
     if (itemIds.length > 0) {
       const placeholders = itemIds.map(() => '?').join(',');
       const [configs] = await pool.query(
-        `SELECT item_id, item_name, description, item_type FROM config_items WHERE item_id IN (${placeholders})`,
+        `SELECT item_id, item_name, description, item_type, special_effect FROM config_items WHERE item_id IN (${placeholders})`,
         itemIds
       );
       configs.forEach(c => { itemConfigs[c.item_id] = c; });
@@ -1645,6 +1726,7 @@ router.get('/:playerId/items', async (req, res) => {
       name: itemConfigs[id]?.item_name || id,
       description: itemConfigs[id]?.description || '',
       itemType: itemConfigs[id]?.item_type || 'event_key',
+      specialEffect: itemConfigs[id]?.special_effect || null,
     })).filter(i => i.quantity > 0);
 
     res.json({ success: true, data: { items: itemList } });

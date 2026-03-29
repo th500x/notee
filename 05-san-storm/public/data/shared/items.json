@@ -1,8 +1,8 @@
 {
   "_meta": {
-    "generated": "2026-03-26T05:37:30.738Z",
+    "generated": "2026-03-29T05:15:34.691Z",
     "source": "item-template.csv",
-    "count": 5
+    "count": 6
   },
   "items": [
     {
@@ -10,35 +10,49 @@
       "name": "桃园令牌",
       "itemType": "event_key",
       "description": "桃园结义事件获得的信物，可用于触发后续桃园相关事件",
-      "season": "san_1"
+      "season": "san_1",
+      "version": "1.0"
     },
     {
       "id": "item_nanyang_cunfu_1",
       "name": "村妇的求救信",
       "itemType": "event_key",
       "description": "一封沾满泪痕的求救信，写着村妇被山贼掳走的经过",
-      "season": "san_1"
+      "season": "san_1",
+      "version": "1.0"
     },
     {
       "id": "item_nanyang_cunfu_2",
       "name": "山贼营地地图",
       "itemType": "event_key",
       "description": "从逃出的村民口中得知的山贼营地位置草图",
-      "season": "san_1"
+      "season": "san_1",
+      "version": "1.0"
     },
     {
       "id": "item_nanyang_cunfu_3",
       "name": "山贼头目的令牌",
       "itemType": "event_key",
       "description": "击败山贼后缴获的令牌，上面刻着奇怪的符号",
-      "season": "san_1"
+      "season": "san_1",
+      "version": "1.0"
     },
     {
       "id": "item_nanyang_cunfu_4",
       "name": "村妇的信物",
       "itemType": "event_key",
       "description": "获救村妇赠送的一块祖传玉佩，据说能带来好运",
-      "season": "san_1"
+      "season": "san_1",
+      "version": "1.0"
+    },
+    {
+      "id": "item_nanyang_troop_1",
+      "name": "溃兵番号铜牌",
+      "itemType": "event_key",
+      "description": "一枚磨损严重的军铜牌，刻着已散佚的部队番号，幸存士卒凭此仍能相认",
+      "season": "san_1",
+      "version": "1.0",
+      "specialEffect": "repair_legendary_min_durability_full"
     }
   ]
 }

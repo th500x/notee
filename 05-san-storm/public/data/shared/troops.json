@@ -186,7 +186,7 @@
       "speed": 6,
       "movement": 6,
       "maxTroops": 180,
-      "troopWeight": 3,
+      "troopWeight": 3.5,
       "infantryCounter": 1.2,
       "cavalryCounter": 1,
       "archerCounter": 1.2,
@@ -201,7 +201,7 @@
         "万人敌"
       ],
       "attackEffect": "",
-      "description": "张飞亲卫，无惧无畏"
+      "description": "张飞亲卫无惧无畏；troop_weight>1时战损攻防用凹曲线(当前/最大)^0.85见17-1-COMBAT_SYSTEM"
     },
     {
       "id": "san_1_troop_1008",

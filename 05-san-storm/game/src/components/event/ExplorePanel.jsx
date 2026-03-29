@@ -427,6 +427,22 @@ function RewardDisplay({ fortune, chosenOption, battleResult, battleScore, repla
         </>
       )}
 
+      {/* 事件触发的传奇部队耐久修满 */}
+      {rewardDetails?.troopRepair?.length > 0 && (
+        <>
+          <Divider />
+          <div className="text-xs text-emerald-700 font-medium mb-2">⚔️ 部队整编</div>
+          <div className="space-y-1 mb-1">
+            {rewardDetails.troopRepair.map((tr, i) => (
+              <div key={i} className="text-sm text-gray-800">
+                「{tr.troopName}」耐久已恢复满
+                {tr.previousBattleCount > 0 ? `（此前已出战 ${tr.previousBattleCount} 场）` : ''}
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
       {/* 战斗失败额外损失 */}
       {battleResult === 'defeat' && (
         <>
