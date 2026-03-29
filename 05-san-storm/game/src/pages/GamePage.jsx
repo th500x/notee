@@ -6,7 +6,7 @@
  * @route /san_1/game
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PlayerProvider, usePlayerContext } from '@/contexts/PlayerContext';
 import TopStatusBar from '@/components/game/TopStatusBar';
@@ -24,6 +24,9 @@ import { playerAPI } from '@/services/playerApi';
 import LineupTab from '@/components/game/tabs/LineupTab';
 import PlaceholderTab from '@/components/game/tabs/PlaceholderTab';
 import WorldMap from '@/components/game/WorldMap';
+import UpdateNoticePanel from '@/components/game/UpdateNoticePanel';
+import { getActiveUpdateNotice } from '@/data/texts/updateAnnouncements';
+import { shouldShowUpdateNotice, dismissUpdateNotice } from '@/utils/updateNoticeLogic';
 
 export default function GamePage({ user, onLogout }) {
   return (
@@ -45,6 +48,20 @@ function GamePageInner({ onLogout }) {
   const [rerollStatus, setRerollStatus] = useState(null);
   const [skillsMap, setSkillsMap] = useState({});
   const navigate = useNavigate();
+
+  const activeUpdateNotice = getActiveUpdateNotice();
+  const [updateNoticeOpen, setUpdateNoticeOpen] = useState(() => {
+    const n = getActiveUpdateNotice();
+    return !!(n && shouldShowUpdateNotice(n));
+  });
+
+  const handleDismissUpdateNotice = useCallback(() => {
+    const n = getActiveUpdateNotice();
+    if (n) dismissUpdateNotice(n);
+    setUpdateNoticeOpen(false);
+  }, []);
+
+  const hideCardPools = !!(activeUpdateNotice && updateNoticeOpen);
 
   // 加载技能映射表（卡牌显示需要）
   useEffect(() => {
@@ -100,16 +117,21 @@ function GamePageInner({ onLogout }) {
           <div className="absolute top-14 left-0 right-0 z-40 px-3 pt-1 pointer-events-none">
             <AnnouncementBar />
             <RankingPanel />
-            <CardPoolEntry
-              troopRemaining={cardPool.status?.troop?.remainingDraws ?? '?'}
-              charRemaining={cardPool.status?.character?.remainingDraws ?? '?'}
-              dailyLimit={cardPool.status?.troop?.dailyLimit ?? 5}
-              onOpenPool={setOpenPool}
-              rerollRemaining={rerollStatus?.remaining}
-              rerollLimit={rerollStatus?.dailyLimit}
-              rerollPositionName={player?.current_position_name}
-              onOpenReroll={() => setOpenReroll(true)}
-            />
+            {activeUpdateNotice && updateNoticeOpen && (
+              <UpdateNoticePanel notice={activeUpdateNotice} onClose={handleDismissUpdateNotice} />
+            )}
+            {!hideCardPools && (
+              <CardPoolEntry
+                troopRemaining={cardPool.status?.troop?.remainingDraws ?? '?'}
+                charRemaining={cardPool.status?.character?.remainingDraws ?? '?'}
+                dailyLimit={cardPool.status?.troop?.dailyLimit ?? 5}
+                onOpenPool={setOpenPool}
+                rerollRemaining={rerollStatus?.remaining}
+                rerollLimit={rerollStatus?.dailyLimit}
+                rerollPositionName={player?.current_position_name}
+                onOpenReroll={() => setOpenReroll(true)}
+              />
+            )}
           </div>
         )}
 
