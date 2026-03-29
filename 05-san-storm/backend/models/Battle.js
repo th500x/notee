@@ -89,7 +89,7 @@ class Battle {
     } else if (filter === 'campaign') {
       whereClause += " AND battle_type = 'pve_campaign'";
     } else if (filter === 'event') {
-      whereClause += " AND battle_type = 'pve_event'";
+      whereClause += " AND battle_type IN ('pve_event','pve_siege')";
     } else if (filter === 'favorited') {
       whereClause += ' AND is_favorited = TRUE';
     }

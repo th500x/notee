@@ -6,7 +6,7 @@
  */
 
 import { useCallback, useRef } from 'react';
-import { calcDamage, rollCritDodge } from '@/systems/combatSystem';
+import { calcDamage, rollCritDodge, troopDamageToCasualties } from '@/systems/combatSystem';
 import { autoSelectFormation } from '@/systems/formationSystem';
 import {
   dist, getMoveCost as _getMoveCost, isOccupied as _isOccupied,
@@ -266,6 +266,7 @@ export function useBattleEngine({
   }, [addLog, getTileEl, mapCardRef, addBattleAnim, updateTroopHp, showDmg]);
 
   const battleSkill = useCallback(async (atk, def, dmg, skillName) => {
+    const applied = troopDamageToCasualties(def, dmg);
     addLog(fmt.fmtSkill(atk, def, skillName), 'skill');
     const flash = document.createElement('div');
     flash.className = 'skill-flash'; flash.style.background = 'rgba(192,132,252,0.5)';
@@ -278,10 +279,10 @@ export function useBattleEngine({
     await sleep(600, speedRef.current);
     addBattleAnim(def, 'anim-crit-hit', 600);
     shakeMap();
-    def.currentTroops = Math.max(0, def.currentTroops - dmg);
+    def.currentTroops = Math.max(0, def.currentTroops - applied);
     updateTroopHp(def);
-    showDmg(def, `-${dmg}`, 'crit');
-    addLog(fmt.fmtSkillResult(def, dmg), 'skill');
+    showDmg(def, `-${applied}`, 'crit');
+    addLog(fmt.fmtSkillResult(def, applied), 'skill');
     await sleep(800, speedRef.current);
   }, [addLog, mapCardRef, addBattleAnim, shakeMap, updateTroopHp, showDmg]);
 
@@ -290,7 +291,7 @@ export function useBattleEngine({
     if (!mapResult) return;
     const obj = mapResult.objects.find(o => o.y === y && o.x === x && o.type === 'trap');
     if (obj) {
-      const trapDmg = 50;
+      const trapDmg = troopDamageToCasualties(troop, 50);
       troop.currentTroops = Math.max(0, troop.currentTroops - trapDmg);
       updateTroopHp(troop);
       showDmg(troop, `-${trapDmg} ⚠️`, 'normal');
@@ -347,12 +348,17 @@ export function useBattleEngine({
     const dmg = calcDamage(atk, def, mapResult ? mapResult.terrain : null);
     const atkRange = atk.range || 1;
     if (roll === 'dodge') { await battleMiss(atk, def); return 0; }
-    if (roll === 'crit') { const cd = Math.round(dmg * 1.5); await battleCrit(atk, def, cd); return cd; }
+    if (roll === 'crit') {
+      const cd = troopDamageToCasualties(def, Math.round(dmg * 1.5));
+      await battleCrit(atk, def, cd);
+      return cd;
+    }
+    const applied = troopDamageToCasualties(def, dmg);
     const wt = atk.weaponType || '';
     const isArcher = wt.startsWith('archer');
-    if (isArcher && atkRange >= 2) { await battleRanged(atk, def, dmg, '➤'); }
-    else { await battleAttack(atk, def, dmg); }
-    return dmg;
+    if (isArcher && atkRange >= 2) { await battleRanged(atk, def, applied, '➤'); }
+    else { await battleAttack(atk, def, applied); }
+    return applied;
   }, [mapResult, battleMiss, battleCrit, battleRanged, battleAttack]);
 
   // ── 反击 ──
@@ -366,11 +372,14 @@ export function useBattleEngine({
     const roll = rollCritDodge(def, atk);
     const dmg = calcDamage(def, atk, mapResult ? mapResult.terrain : null);
     if (roll === 'dodge') { await battleMiss(def, atk); }
-    else if (roll === 'crit') { await battleCrit(def, atk, Math.round(dmg * 1.5)); }
+    else if (roll === 'crit') {
+      await battleCrit(def, atk, troopDamageToCasualties(atk, Math.round(dmg * 1.5)));
+    }
     else {
+      const applied = troopDamageToCasualties(atk, dmg);
       const wt = def.weaponType || '';
-      if (wt.startsWith('archer') && defRange >= 2) await battleRanged(def, atk, dmg, '➤');
-      else await battleAttack(def, atk, dmg);
+      if (wt.startsWith('archer') && defRange >= 2) await battleRanged(def, atk, applied, '➤');
+      else await battleAttack(def, atk, applied);
     }
     if (atk.currentTroops <= 0) await battleKill(atk);
   }, [addLog, mapResult, battleMiss, battleCrit, battleRanged, battleAttack, battleKill]);

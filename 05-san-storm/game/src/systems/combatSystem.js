@@ -29,6 +29,18 @@ export function troopStrengthRatioFromCasualties(troop) {
   return Math.pow(r, ELITE_TROOP_STRENGTH_EXPONENT);
 }
 
+/**
+ * 将公式层伤害折算为「兵力条」扣减。精锐（troopWeight>1）时 raw/weight 后四舍五入，
+ * 与攻防公式里等效兵力（max×weight）对称；至少扣 1（当 raw≥1 且 weight>1 时）。
+ */
+export function troopDamageToCasualties(defender, rawDamage) {
+  const raw = Math.max(0, Number(rawDamage) || 0);
+  if (raw <= 0) return 0;
+  const w = defender?.troopWeight != null ? Number(defender.troopWeight) : 1;
+  if (!(w > 1)) return Math.round(raw);
+  return Math.max(1, Math.round(raw / w));
+}
+
 // ── 士气攻防系数 ──────────────────────────────────────────────────────────────
 
 /**
@@ -174,7 +186,7 @@ export function calcDamage(atk, def, terrain) {
  * @param {Object} atk - 攻击方部队
  * @param {Object} def - 防守方部队
  * @param {string[][]} terrain - 地形二维数组
- * @returns {{ damage: number, critRate: number, hitRate: number, critDamage: number }}
+ * @returns {{ damage: number, critRate: number, hitRate: number, critDamage: number }} damage/critDamage 为防守方兵力条实际扣减（精锐已除 troopWeight）
  */
 export function estimateDamage(atk, def, terrain) {
   const ac = atk.character, dc = def.character;
@@ -224,14 +236,16 @@ export function estimateDamage(atk, def, terrain) {
     if (dist <= 1) totalDmg *= 0.85;
   }
 
-  const damage = Math.max(1, Math.round(totalDmg));
+  const rawDamage = Math.max(1, Math.round(totalDmg));
+  const damage = troopDamageToCasualties(def, rawDamage);
+  const critDamage = troopDamageToCasualties(def, Math.round(rawDamage * 1.5));
 
   // 暴击率 / 命中率
   const dodgeRate = dc ? (dc.luck || 5) / 100 : 0.05;
   const hitRate = 1 - dodgeRate;
   const critRate = ac ? ((ac.courage || 5) + (ac.luck || 5)) / 80 : 0.1;
 
-  return { damage, critRate: Math.min(critRate, 0.25), hitRate, critDamage: Math.round(damage * 1.5) };
+  return { damage, critRate: Math.min(critRate, 0.25), hitRate, critDamage };
 }
 
 // ── 暴击/闪避判定 ─────────────────────────────────────────────────────────────

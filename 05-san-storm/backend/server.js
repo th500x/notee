@@ -24,6 +24,15 @@ app.use(cors({
 
 app.use(express.json({ limit: '10mb' }));
 
+// 与生产 nginx 一致：前端 PROD 下请求 /api/san-storm/*，本地直连 3005 时无代理则补一层前缀剥离
+app.use((req, res, next) => {
+  const prefix = '/api/san-storm';
+  if (req.url === prefix || req.url.startsWith(`${prefix}/`) || req.url.startsWith(`${prefix}?`)) {
+    req.url = req.url.replace(prefix, '/api') || '/';
+  }
+  next();
+});
+
 // ==================== 注册路由 ====================
 
 /**
@@ -79,6 +88,12 @@ app.use('/api/cities', citiesRouter);
  */
 const garrisonsRouter = require('./routes/garrisons');
 app.use('/api/garrisons', garrisonsRouter);
+
+/**
+ * 管理员：传书模板 config_texts（与前端邮件管理页对接）
+ */
+const adminConfigTextsRouter = require('./routes/adminConfigTexts');
+app.use('/api/admin/config-texts', adminConfigTextsRouter);
 
 /**
  * PVP攻城挑战API

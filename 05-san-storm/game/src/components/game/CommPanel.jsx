@@ -12,6 +12,10 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { usePlayerContext } from '@/contexts/PlayerContext';
 import { battleAPI } from '@/services/battleApi';
+import { textsAPI } from '@/services/textsApi';
+import AncientModal from '@/components/common/AncientModal';
+import { loadMultipleSharedData } from '@/services/dataService';
+import { describeMailAttachments, buildCardItemMaps, linesFromClaimDetails } from '@/utils/mailRewardUi';
 
 const TABS = [
   { id: 'battle', icon: '📜', label: '战报' },
@@ -27,13 +31,15 @@ const BATTLE_FILTERS = [
 ];
 
 /**
- * @param {number} [unreadTextCount] - 未读传书条数（传书 API 就绪后由父组件传入）
  * @param {number} [unreadChatCount] - 聊天未读/新消息数（聊天通道就绪后由父组件传入）
  */
-export default function CommPanel({ visible, unreadTextCount = 0, unreadChatCount = 0 }) {
-  const { player } = usePlayerContext();
+export default function CommPanel({ visible, unreadChatCount = 0 }) {
+  const { player, refresh: refreshPlayer } = usePlayerContext();
   const [open, setOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('battle');
+  const [unreadTextCount, setUnreadTextCount] = useState(0);
+  /** 领取结果弹窗放在面板外层，避免领取后立即 refreshPlayer 导致子 Tab 重挂载清空行文案 */
+  const [mailClaimModal, setMailClaimModal] = useState({ open: false, lines: [] });
 
   // 战报状态
   const [battles, setBattles] = useState([]);
@@ -67,6 +73,19 @@ export default function CommPanel({ visible, unreadTextCount = 0, unreadChatCoun
   useEffect(() => {
     if (open && activeTab === 'battle') loadBattles();
   }, [open, activeTab, loadBattles]);
+
+  const refreshTextUnread = useCallback(async () => {
+    if (!player?.player_id) return;
+    const r = await textsAPI.summary(player.player_id);
+    if (r.success) setUnreadTextCount(r.unreadCount);
+  }, [player?.player_id]);
+
+  useEffect(() => {
+    if (!visible || !player?.player_id) return;
+    refreshTextUnread();
+    const id = setInterval(refreshTextUnread, 45000);
+    return () => clearInterval(id);
+  }, [visible, player?.player_id, refreshTextUnread]);
 
   // 收起态若入口为「战报」，预取列表条数用于角标（有传书/聊天未读时不请求）
   useEffect(() => {
@@ -110,27 +129,47 @@ export default function CommPanel({ visible, unreadTextCount = 0, unreadChatCoun
 
   if (!visible) return null;
 
+  const mailClaimModalEl = (
+    <AncientModal
+      isOpen={mailClaimModal.open}
+      onClose={() => setMailClaimModal((s) => ({ ...s, open: false }))}
+      type="reward"
+      title="领取结果"
+      confirmText="确定"
+    >
+      <ul className="text-left space-y-1.5 list-none p-0 m-0">
+        {(mailClaimModal.lines || []).map((line, i) => (
+          <li key={i}>{line}</li>
+        ))}
+      </ul>
+    </AncientModal>
+  );
+
   // 最小化入口按钮（传书 > 聊天 > 战报）
   if (!open) {
     const { icon, label, count, tab } = minimizedEntry;
     const suffix = count > 0 ? ` (${count})` : '';
     return (
-      <button
-        type="button"
-        onClick={() => {
-          setActiveTab(tab);
-          setOpen(true);
-        }}
-        className="fixed bottom-20 left-2 z-40 px-3 py-2 bg-black/80 rounded-lg
-          border border-amber-700/40 text-amber-300 text-xs font-medium
-          hover:bg-black/70 transition-colors"
-      >
-        {icon} {label}{suffix}
-      </button>
+      <>
+        <button
+          type="button"
+          onClick={() => {
+            setActiveTab(tab);
+            setOpen(true);
+          }}
+          className="fixed bottom-20 left-2 z-40 px-3 py-2 bg-black/80 rounded-lg
+            border border-amber-700/40 text-amber-300 text-xs font-medium
+            hover:bg-black/70 transition-colors"
+        >
+          {icon} {label}{suffix}
+        </button>
+        {mailClaimModalEl}
+      </>
     );
   }
 
   return (
+    <>
     <div className="fixed bottom-20 left-2 z-40 w-80 max-h-[45vh] bg-gray-900/95 rounded-lg shadow-lg overflow-hidden border border-amber-700/40 flex flex-col">
       {/* 标题栏 */}
       <div className="flex items-center justify-between px-2 py-1.5 bg-amber-800/80 shrink-0">
@@ -167,10 +206,19 @@ export default function CommPanel({ visible, unreadTextCount = 0, unreadChatCoun
             onToggleFavorite={handleToggleFavorite}
           />
         )}
-        {activeTab === 'text' && <PlaceholderTab icon="📮" label="传书" />}
+        {activeTab === 'text' && (
+          <TextMailTab
+            playerId={player?.player_id}
+            onUnreadChange={refreshTextUnread}
+            onClaimed={refreshPlayer}
+            onShowClaimResult={(lines) => setMailClaimModal({ open: true, lines })}
+          />
+        )}
         {activeTab === 'chat' && <PlaceholderTab icon="💬" label="聊天" />}
       </div>
     </div>
+    {mailClaimModalEl}
+    </>
   );
 }
 
@@ -348,6 +396,180 @@ function BattleLogSection({ log }) {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+/** 传书 Tab */
+function TextMailTab({ playerId, onUnreadChange, onClaimed, onShowClaimResult }) {
+  const [texts, setTexts] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [expandedId, setExpandedId] = useState(null);
+  const [claimBusy, setClaimBusy] = useState(null);
+  const [sharedBundle, setSharedBundle] = useState(null);
+
+  const maps = useMemo(
+    () => (sharedBundle ? buildCardItemMaps(sharedBundle) : {}),
+    [sharedBundle]
+  );
+  const itemNameMap = useMemo(() => {
+    const m = {};
+    (sharedBundle?.items?.items || []).forEach((it) => {
+      if (it.id) m[it.id] = it.name || it.id;
+    });
+    return m;
+  }, [sharedBundle]);
+
+  useEffect(() => {
+    loadMultipleSharedData(['troops', 'characters', 'equipment', 'items'])
+      .then(setSharedBundle)
+      .catch(() => setSharedBundle({}));
+  }, []);
+
+  const loadTexts = useCallback(async () => {
+    if (!playerId) return;
+    setLoading(true);
+    try {
+      const r = await textsAPI.list(playerId);
+      if (r.success) setTexts(r.texts);
+    } catch (e) {
+      console.error('[TextMailTab]', e);
+    } finally {
+      setLoading(false);
+    }
+  }, [playerId]);
+
+  useEffect(() => {
+    loadTexts();
+  }, [loadTexts]);
+
+  const toggleExpand = async (t) => {
+    if (expandedId === t.textId) {
+      setExpandedId(null);
+      return;
+    }
+    setExpandedId(t.textId);
+    if (!t.isRead && playerId) {
+      await textsAPI.markRead(playerId, t.textId);
+      setTexts((prev) => prev.map((x) => (x.textId === t.textId ? { ...x, isRead: true } : x)));
+      onUnreadChange?.();
+    }
+  };
+
+  const handleClaim = async (t) => {
+    if (!playerId || claimBusy) return;
+    setClaimBusy(t.textId);
+    try {
+      const r = await textsAPI.claim(playerId, t.textId);
+      if (r.success) {
+        const details = r.details || r.data?.details || [];
+        let lines = linesFromClaimDetails(details, { itemNameMap, ...maps });
+        if (
+          lines.length === 1 &&
+          lines[0] === '（无额外物品）' &&
+          t.attachments &&
+          typeof t.attachments === 'object' &&
+          Object.keys(t.attachments).length > 0
+        ) {
+          const fallback = describeMailAttachments(t.attachments, maps);
+          if (fallback.length) {
+            lines = [
+              '（未收到服务端明细，以下为附件预览，若已达上限以实际到账为准）',
+              ...fallback,
+            ];
+          }
+        }
+        onShowClaimResult?.(lines);
+        setTexts((prev) => prev.map((x) => (x.textId === t.textId ? { ...x, isClaimed: true } : x)));
+        window.setTimeout(() => {
+          onClaimed?.();
+          onUnreadChange?.();
+        }, 0);
+      } else {
+        alert(r.error || '领取失败');
+      }
+    } finally {
+      setClaimBusy(null);
+    }
+  };
+
+  if (!playerId) {
+    return <div className="text-center text-amber-200/40 text-xs py-6">加载角色中…</div>;
+  }
+
+  return (
+    <div className="p-1.5 space-y-1">
+      <div className="flex justify-end mb-1">
+        <button
+          type="button"
+          onClick={() => loadTexts()}
+          className="text-[10px] text-amber-400/70 hover:text-amber-300"
+        >
+          刷新
+        </button>
+      </div>
+      {loading && <div className="text-center text-amber-200/40 text-xs py-4">加载中...</div>}
+      {!loading && texts.length === 0 && (
+        <div className="text-center text-amber-200/40 text-xs py-4">暂无传书</div>
+      )}
+      {!loading &&
+        texts.map((t) => (
+          <div key={t.textId} className="bg-black/30 rounded border border-amber-700/20 overflow-hidden">
+            <button
+              type="button"
+              className="w-full flex items-start gap-2 px-2 py-1.5 text-left hover:bg-amber-700/10"
+              onClick={() => toggleExpand(t)}
+            >
+              <span className="text-[10px] shrink-0 mt-0.5">{t.isRead ? '　' : '🔴'}</span>
+              <div className="flex-1 min-w-0">
+                <div className="text-xs text-amber-100 truncate">{t.subject || '（无标题）'}</div>
+                <div className="text-[10px] text-amber-200/50">
+                  {t.senderName || '未知'} · {formatRelativeTime(t.createdAt)}
+                  {t.type === 'reward' && (
+                    <span className="ml-1">{t.isClaimed ? '· 已领' : '· 可领'}</span>
+                  )}
+                </div>
+              </div>
+              <span className="text-amber-200/40 text-[10px] shrink-0">{expandedId === t.textId ? '▲' : '▼'}</span>
+            </button>
+            {expandedId === t.textId && (
+              <div className="px-2 py-1.5 border-t border-amber-700/20 space-y-2">
+                <div className="text-[10px] text-amber-100/90 whitespace-pre-wrap break-words max-h-40 overflow-y-auto">
+                  {t.content || '（无正文）'}
+                </div>
+                {t.type === 'reward' && t.attachments && Object.keys(t.attachments).length > 0 && (() => {
+                  const al = describeMailAttachments(t.attachments, maps);
+                  if (!al.length) {
+                    return (
+                      <div className="text-[10px] text-amber-200/50 italic bg-black/20 rounded p-1.5">
+                        （附件暂无法解析为可读项）
+                      </div>
+                    );
+                  }
+                  return (
+                    <div className="text-[10px] text-amber-200/85 space-y-0.5 bg-black/20 rounded p-1.5">
+                      {al.map((line, i) => (
+                        <div key={i} className="leading-snug">
+                          {line}
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
+                {t.type === 'reward' && !t.isClaimed && (
+                  <button
+                    type="button"
+                    disabled={!!claimBusy}
+                    onClick={() => handleClaim(t)}
+                    className="w-full py-1.5 rounded bg-amber-700/50 text-amber-100 text-xs hover:bg-amber-600/50 disabled:opacity-50"
+                  >
+                    {claimBusy === t.textId ? '领取中…' : '领取附件'}
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        ))}
     </div>
   );
 }

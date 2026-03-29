@@ -185,6 +185,9 @@ router.get('/check/:playerId', async (req, res) => {
   }
 });
 
+const textsRouter = require('./texts');
+router.use('/:playerId/texts', textsRouter);
+
 /**
  * GET /api/players/:playerId
  * 获取玩家信息

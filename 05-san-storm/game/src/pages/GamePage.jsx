@@ -156,11 +156,7 @@ function GamePageInner({ onLogout }) {
           onLogout={handleLogout}
         />
 
-        <CommPanel
-          visible={activeTab === null && !eventBusy}
-          unreadTextCount={0}
-          unreadChatCount={0}
-        />
+        <CommPanel visible={activeTab === null && !eventBusy} unreadChatCount={0} />
       </div>
 
       {/* 卡池抽屉（渲染在 pointer-events-none 容器外面） */}

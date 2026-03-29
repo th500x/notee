@@ -695,7 +695,8 @@ export function useManualBattle({
     // 宝箱奖励
     chestReward,
     confirmChestReward,
-    collectedChestRewards: collectedChestRewards.current,
+    /** 战斗结束保存战报时务必调用此函数；勿用快照字段（闭包/渲染时机会导致始终为空） */
+    getCollectedChestRewards: () => collectedChestRewards.current.slice(),
     // 阵型状态
     formationTroops,
     formationObj,

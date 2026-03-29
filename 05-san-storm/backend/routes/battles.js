@@ -135,6 +135,47 @@ router.post('/', async (req, res) => {
       return res.status(201).json({ success: true, battle });
     }
 
+    const { rewards, chestRewards } = req.body;
+
+    // 活动排行积分：与兵力/士气/耐久链路隔离，避免攻城等场景下前方 SQL 异常导致整段跳过、积分永远不加
+    if (rewards?.battleScore && Number(rewards.battleScore) > 0) {
+      try {
+        await pool.query(
+          'UPDATE statistics SET total_battle_score = total_battle_score + ? WHERE player_id = ?',
+          [Number(rewards.battleScore), playerId]
+        );
+        console.log(`[battles] 战斗积分更新: +${rewards.battleScore}`);
+      } catch (scoreErr) {
+        console.error('[battles] 战斗积分更新失败:', scoreErr);
+      }
+    }
+
+    // 地图宝箱装备：同样独立 try，避免与 UPDATE player_cards 链路互相拖死
+    if (chestRewards && Array.isArray(chestRewards) && chestRewards.length > 0) {
+      try {
+        for (const reward of chestRewards) {
+          const rarityDigit = { common: '1', rare: '2', epic: '3', legendary: '4', core: '5' }[reward.rarity] || '1';
+          const typeDigit = { weapon: '1', armor: '2', accessory: '3' }[reward.equipmentType] || '1';
+          const [eqRows] = await pool.query(
+            `SELECT equipment_id, equipment_name FROM config_equipment
+             WHERE equipment_id LIKE ? ORDER BY RAND() LIMIT 1`,
+            [`san_1_equip_${typeDigit}_${rarityDigit}%`]
+          );
+          if (!eqRows.length) continue;
+          const eq = eqRows[0];
+          const instanceId = `${eq.equipment_id}_${playerId}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+          await pool.query(
+            `INSERT INTO player_cards (instance_id, player_id, card_id, card_type, rarity, is_equipped)
+             VALUES (?, ?, ?, 'equipment', ?, FALSE)`,
+            [instanceId, playerId, eq.equipment_id, reward.rarity || 'common']
+          );
+        }
+        console.log(`[battles] 宝箱装备保存: ${chestRewards.length}件`);
+      } catch (chestErr) {
+        console.error('[battles] 宝箱装备保存失败:', chestErr);
+      }
+    }
+
     // 战斗结束后，所有参战部队卡 battle_count +1（钳制在 [0, max_battle_count]，避免 NULL/脏数据导致负数）
     try {
       const [updated] = await pool.query(
@@ -184,42 +225,8 @@ router.post('/', async (req, res) => {
         console.log(`[battles] 士气更新: ${moraleUpdates.length}条`);
       }
 
-      // 保存宝箱装备奖励到 player_cards（装备件，card_id 关联 config_equipment）
-      const { chestRewards } = req.body;
-      if (chestRewards && Array.isArray(chestRewards) && chestRewards.length > 0) {
-        for (const reward of chestRewards) {
-          // 根据 equipmentType 和 rarity 从配置表随机选取真实装备
-          const rarityDigit = { common: '1', rare: '2', epic: '3', legendary: '4', core: '5' }[reward.rarity] || '1';
-          const typeDigit = { weapon: '1', armor: '2', accessory: '3' }[reward.equipmentType] || '1';
-          const [eqRows] = await pool.query(
-            `SELECT equipment_id, equipment_name FROM config_equipment
-             WHERE equipment_id LIKE ? ORDER BY RAND() LIMIT 1`,
-            [`san_1_equip_${typeDigit}_${rarityDigit}%`]
-          );
-          if (!eqRows.length) continue;
-          const eq = eqRows[0];
-          const instanceId = `${eq.equipment_id}_${playerId}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
-          await pool.query(
-            `INSERT INTO player_cards (instance_id, player_id, card_id, card_type, rarity, is_equipped)
-             VALUES (?, ?, ?, 'equipment', ?, FALSE)`,
-            [instanceId, playerId, eq.equipment_id, reward.rarity || 'common']
-          );
-        }
-        console.log(`[battles] 宝箱装备保存: ${chestRewards.length}件`);
-      }
-
       // 耐久耗尽：金卸下、白蓝紫删除、橙保留；驻守槽同步清空用尽/已删部队（与上阵一致）
       await applyTroopDurabilityExhaustion((sql, params) => pool.query(sql, params), playerId);
-
-      // 更新活动排行积分（battle_score）
-      const { rewards } = req.body;
-      if (rewards?.battleScore && rewards.battleScore > 0) {
-        await pool.query(
-          'UPDATE statistics SET total_battle_score = total_battle_score + ? WHERE player_id = ?',
-          [rewards.battleScore, playerId]
-        );
-        console.log(`[battles] 战斗积分更新: +${rewards.battleScore}`);
-      }
     } catch (err) {
       console.error('[battles] 更新部队耐久失败:', err);
     }

@@ -2,6 +2,7 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { useState } from 'react';
 import AuthFlowPage from '@/pages/AuthFlowPage';
 import UserManagerPage from '@/pages/admin/UserManagerPage';
+import MailManagerPage from '@/pages/admin/MailManagerPage';
 import ErrorBoundary from '@/components/common/ErrorBoundary';
 import { useAdmin } from '@/hooks/useAdmin';
 
@@ -69,11 +70,18 @@ function App() {
                   </a>
 
                   {isLoggedIn && (
+                    <>
                     <a href={`${import.meta.env.BASE_URL}user-manager`} className="block p-6 bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow border-2 border-red-300">
                       <div className="text-4xl mb-4">👥</div>
                       <h3 className="text-lg font-semibold text-gray-900 mb-2">用户管理</h3>
                       <p className="text-sm text-gray-600">管理员专用</p>
                     </a>
+                    <a href={`${import.meta.env.BASE_URL}mail-manager`} className="block p-6 bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow border-2 border-amber-200">
+                      <div className="text-4xl mb-4">✉️</div>
+                      <h3 className="text-lg font-semibold text-gray-900 mb-2">传书模板</h3>
+                      <p className="text-sm text-gray-600">config_texts · 试发</p>
+                    </a>
+                    </>
                   )}
                 </div>
               </div>
@@ -81,6 +89,7 @@ function App() {
             <Route path="/san_1" element={<AuthFlowPage />} />
             <Route path="/san_1/game" element={<AuthFlowPage />} />
             <Route path="/user-manager" element={<UserManagerPage />} />
+            <Route path="/mail-manager" element={<MailManagerPage />} />
 
           </Routes>
           </ErrorBoundary>

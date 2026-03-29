@@ -10,7 +10,44 @@
  * @module services/rewardService
  */
 
+const fs = require('fs');
+const path = require('path');
 const { pool } = require('../database/connection');
+
+/** MySQL ENUM / 大小写 / 空值 → 标准稀有度字符串 */
+function normalizeEnumRarity(raw) {
+  if (raw == null || raw === '') return '';
+  const s = String(raw).toLowerCase().trim();
+  return ['common', 'rare', 'epic', 'legendary', 'core'].includes(s) ? s : '';
+}
+
+let _troopJsonRarityById = null;
+function loadTroopJsonRarityMap() {
+  if (_troopJsonRarityById) return _troopJsonRarityById;
+  _troopJsonRarityById = new Map();
+  try {
+    const jsonPath = path.join(__dirname, '../../public/data/shared/troops.json');
+    const j = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
+    (j.troops || []).forEach((t) => {
+      if (t.id) _troopJsonRarityById.set(t.id, normalizeEnumRarity(t.rarity) || 'common');
+    });
+  } catch (e) {
+    console.warn('[rewardService] troops.json 稀有度回退不可用:', e.message);
+  }
+  return _troopJsonRarityById;
+}
+
+/** 部队配置稀有度：优先 DB，缺失或非标准值时用共享 JSON（避免走错误的「全局 core 上限2」分支） */
+async function resolveTroopRarity(connection, troopId) {
+  const [cfg] = await connection.query(
+    'SELECT rarity FROM config_troops WHERE troop_id = ?',
+    [troopId]
+  );
+  const fromDb = normalizeEnumRarity(cfg[0]?.rarity);
+  if (fromDb) return fromDb;
+  const map = loadTroopJsonRarityMap();
+  return map.get(troopId) || 'common';
+}
 
 // ── 运势倍率表 ──────────────────────────────────────────────
 
@@ -216,15 +253,18 @@ const CHARACTER_DUPLICATE_COMPENSATION = { common: 20, rare: 40, epic: 60, legen
  * @returns {boolean} true=已持有（已补偿），false=未持有（可插入）
  */
 async function checkCharacterDuplicate(connection, playerId, cardId, rarity, details) {
-  const [existing] = await connection.query(
-    "SELECT instance_id FROM player_cards WHERE player_id = ? AND card_id = ? AND card_type = 'character'",
+  const rar = normalizeEnumRarity(rarity) || 'common';
+  const [cntRows] = await connection.query(
+    "SELECT COUNT(*) AS cnt FROM player_cards WHERE player_id = ? AND card_id = ? AND card_type = 'character'",
     [playerId, cardId]
   );
-  if (existing.length === 0) return false;
-  // 已持有，补偿银两
-  const compensation = CHARACTER_DUPLICATE_COMPENSATION[rarity] || 20;
+  const cnt = Number(cntRows[0]?.cnt || 0);
+  // 核心将领卡同 ID 可持有 2 张，其余稀有度仍 1 张
+  const maxSame = rar === 'core' ? 2 : 1;
+  if (cnt < maxSame) return false;
+  const compensation = CHARACTER_DUPLICATE_COMPENSATION[rar] || 20;
   await connection.query('UPDATE players SET silver = silver + ? WHERE player_id = ?', [compensation, playerId]);
-  details.push({ type: 'character_duplicate', cardId, compensation });
+  details.push({ type: 'character_duplicate', cardId, rarity: rar, compensation });
   console.log(`[Rewards] 将领重复: ${cardId} → 补偿 ${compensation} 银两`);
   return true;
 }
@@ -233,12 +273,13 @@ async function checkCharacterDuplicate(connection, playerId, cardId, rarity, det
 const UNIQUE_CARD_COMPENSATION = { common: 20, rare: 40, epic: 60, legendary: 80, core: 100 }; // 银两
 
 async function checkUniqueCardDuplicate(connection, playerId, cardType, cardId, rarity, details) {
+  const rar = normalizeEnumRarity(rarity) || 'common';
   const [existing] = await connection.query(
     'SELECT instance_id FROM player_cards WHERE player_id = ? AND card_id = ? AND card_type = ?',
     [playerId, cardId, cardType]
   );
   if (existing.length === 0) return false;
-  const compensation = UNIQUE_CARD_COMPENSATION[rarity] || 20;
+  const compensation = UNIQUE_CARD_COMPENSATION[rar] || 20;
   await connection.query('UPDATE players SET silver = silver + ? WHERE player_id = ?', [compensation, playerId]);
   details.push({ type: 'card_duplicate', cardType, cardId, compensation });
   console.log(`[Rewards] ${cardType}重复: ${cardId} → 补偿 ${compensation} 银两`);
@@ -246,25 +287,58 @@ async function checkUniqueCardDuplicate(connection, playerId, cardType, cardId, 
 }
 
 // ── 部队卡持有上限检查 ──────────────────────────────────────
-const TROOP_LIMIT_BY_RARITY = { common: 20, rare: 20, epic: 20, legendary: 20, core: 2 };
+// core 的「每种配置 ID 最多 2 张」由 checkTroopLimit 首分支处理；此处 core 勿再用全局 2（否则会统计全账号所有 core 混同上限）
+const TROOP_LIMIT_BY_RARITY = { common: 20, rare: 20, epic: 20, legendary: 20, core: 999 };
 const TROOP_OVER_LIMIT_COMPENSATION = { common: 100, rare: 200, epic: 300, legendary: 400, core: 500 }; // 粮草
 
 /**
- * 检查部队卡是否超过稀有度持有上限，超过则补偿粮草
+ * 检查部队卡是否超过持有上限，超过则补偿粮草
+ * - 核心(core)：按「同 card_id」最多 2 张（与金卡纪念规则一致）
+ * - 其他稀有度：仍按「该稀有度部队卡总数」上限（见 TROOP_LIMIT_BY_RARITY）
+ * @param {string|null} troopCardId - 待插入的部队配置 ID（core 时必传，用于同卡计数）
  * @returns {boolean} true=超限（已补偿），false=未超限（可插入）
  */
-async function checkTroopLimit(connection, playerId, rarity, details) {
-  const limit = TROOP_LIMIT_BY_RARITY[rarity] || 20;
+async function checkTroopLimit(connection, playerId, rarity, details, troopCardId = null) {
+  const rar = normalizeEnumRarity(rarity);
+  if (rar === 'core' && troopCardId) {
+    const maxPerCard = 2;
+    // 按配置 ID 计数，不依赖 player_cards.rarity 是否与 'core' 一致（避免 ENUM/历史数据导致漏计）
+    const [countRows] = await connection.query(
+      "SELECT COUNT(*) AS cnt FROM player_cards WHERE player_id = ? AND card_type = 'troop' AND card_id = ?",
+      [playerId, troopCardId]
+    );
+    if (Number(countRows[0].cnt) < maxPerCard) return false;
+    const compensation = TROOP_OVER_LIMIT_COMPENSATION.core;
+    await connection.query('UPDATE players SET food = food + ? WHERE player_id = ?', [compensation, playerId]);
+    let cardName = troopCardId;
+    const [nr] = await connection.query(
+      'SELECT troop_name FROM config_troops WHERE troop_id = ?',
+      [troopCardId]
+    );
+    if (nr[0]?.troop_name) cardName = nr[0].troop_name;
+    details.push({
+      type: 'troop_over_limit',
+      rarity: 'core',
+      cardId: troopCardId,
+      cardName,
+      compensation,
+      compensationType: 'food',
+      scope: 'per_card'
+    });
+    console.log(`[Rewards] 核心部队同卡已满: ${troopCardId} → 补偿 ${compensation} 粮草`);
+    return true;
+  }
+
+  const limit = TROOP_LIMIT_BY_RARITY[rar] || 20;
   const [countRows] = await connection.query(
     "SELECT COUNT(*) as cnt FROM player_cards WHERE player_id = ? AND card_type = 'troop' AND rarity = ?",
-    [playerId, rarity]
+    [playerId, rar]
   );
   if (countRows[0].cnt < limit) return false;
-  // 超限，补偿粮草
-  const compensation = TROOP_OVER_LIMIT_COMPENSATION[rarity] || 100;
+  const compensation = TROOP_OVER_LIMIT_COMPENSATION[rar] || 100;
   await connection.query('UPDATE players SET food = food + ? WHERE player_id = ?', [compensation, playerId]);
-  details.push({ type: 'troop_over_limit', rarity, compensation, compensationType: 'food' });
-  console.log(`[Rewards] 部队卡超限: ${rarity} (${countRows[0].cnt}/${limit}) → 补偿 ${compensation} 粮草`);
+  details.push({ type: 'troop_over_limit', rarity: rar, compensation, compensationType: 'food', scope: 'global' });
+  console.log(`[Rewards] 部队卡超限: ${rar} (${countRows[0].cnt}/${limit}) → 补偿 ${compensation} 粮草`);
   return true;
 }
 
@@ -482,18 +556,15 @@ async function executeRewards(playerId, rewardStr, multiplier, factionId) {
         : realCardId.includes('_achi_') ? 'achievement'
         : 'equipment';
 
-      // 查询配置表获取稀有度
+      // 查询配置表获取稀有度（部队用 resolveTroopRarity，避免 DB ENUM/缺行导致误判全局上限）
       let rarity = 'common';
       if (cardType === 'troop') {
-        const [cfg] = await connection.query(
-          'SELECT rarity FROM config_troops WHERE troop_id = ?', [realCardId]
-        );
-        if (cfg[0]) rarity = cfg[0].rarity;
+        rarity = await resolveTroopRarity(connection, realCardId);
       } else if (cardType === 'character') {
         const [cfg] = await connection.query(
           'SELECT rarity FROM config_characters WHERE character_id = ?', [realCardId]
         );
-        if (cfg[0]) rarity = cfg[0].rarity;
+        if (cfg[0]) rarity = normalizeEnumRarity(cfg[0].rarity) || 'common';
       } else if (cardType === 'title' || cardType === 'achievement' || cardType === 'equipment') {
         // 从ID解析稀有度：san_1_title_1_4001 → 第5段首位=稀有度编号
         const rarityMap = { '1': 'common', '2': 'rare', '3': 'epic', '4': 'legendary', '5': 'core' };
@@ -531,7 +602,7 @@ async function executeRewards(playerId, rewardStr, multiplier, factionId) {
         }
         // 部队卡持有上限检查：超限则补偿粮草
         if (cardType === 'troop') {
-          const isOverLimit = await checkTroopLimit(connection, playerId, rarity, details);
+          const isOverLimit = await checkTroopLimit(connection, playerId, rarity, details, realCardId);
           if (isOverLimit) continue;
         }
         const instanceId = `${realCardId}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
@@ -572,14 +643,18 @@ async function executeRewards(playerId, rewardStr, multiplier, factionId) {
         const cardType = r.cardType === 'troop' ? 'troop'
           : r.cardType === 'char' ? 'character'
           : 'equipment';
+        const drawRarity = normalizeEnumRarity(card.rarity || r.rarity) || 'common';
+        const troopRarityResolved = cardType === 'troop'
+          ? await resolveTroopRarity(connection, card.card_id)
+          : drawRarity;
         // 将领卡唯一性检查：已持有则补偿银两
         if (cardType === 'character') {
-          const isDuplicate = await checkCharacterDuplicate(connection, playerId, card.card_id, card.rarity || r.rarity, details);
+          const isDuplicate = await checkCharacterDuplicate(connection, playerId, card.card_id, drawRarity, details);
           if (isDuplicate) { drawnCardIdsByType[typeKey].push(card.card_id); continue; }
         }
         // 部队卡持有上限检查：超限则补偿粮草
         if (cardType === 'troop') {
-          const isOverLimit = await checkTroopLimit(connection, playerId, card.rarity || r.rarity, details);
+          const isOverLimit = await checkTroopLimit(connection, playerId, troopRarityResolved, details, card.card_id);
           if (isOverLimit) { drawnCardIdsByType[typeKey].push(card.card_id); continue; }
         }
         const instanceId = `${card.card_id}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
@@ -588,14 +663,14 @@ async function executeRewards(playerId, rewardStr, multiplier, factionId) {
           player_id: playerId,
           card_type: cardType,
           card_id: card.card_id,
-          rarity: card.rarity || r.rarity,
+          rarity: cardType === 'troop' ? troopRarityResolved : drawRarity,
         };
         if (cardType === 'troop') {
           const [troopCfg] = await connection.query(
             'SELECT max_troops FROM config_troops WHERE troop_id = ?', [card.card_id]
           );
           insertData.current_troops = troopCfg[0]?.max_troops || 100;
-          insertData.max_battle_count = getMaxBattleCount(card.rarity || r.rarity);
+          insertData.max_battle_count = getMaxBattleCount(troopRarityResolved);
         }
         if (cardType === 'character') {
           const [charCfg] = await connection.query(
@@ -626,10 +701,102 @@ async function executeRewards(playerId, rewardStr, multiplier, factionId) {
   }
 }
 
+/**
+ * 在已有事务 connection 上发放具体卡牌（与事件奖励 specific_card 分支一致，用于传书领取等）
+ * @param {import('mysql2/promise').PoolConnection} connection
+ * @param {string[]} cardIds - 配置表卡牌 ID，每张发 1 张
+ */
+async function grantSpecificCardsOnConnection(connection, playerId, factionId, cardIds, details = []) {
+  if (!Array.isArray(cardIds) || cardIds.length === 0) return;
+
+  for (const raw of cardIds) {
+    const r = { type: 'specific_card', cardId: String(raw).trim(), quantity: 1 };
+    if (!r.cardId) continue;
+
+    const realCardId = replaceFactionWildcard(r.cardId, factionId);
+    const cardType = realCardId.includes('_troop_') ? 'troop'
+      : realCardId.includes('_char_') ? 'character'
+      : realCardId.includes('_title_') ? 'title'
+      : realCardId.includes('_achi_') ? 'achievement'
+      : 'equipment';
+
+    let rarity = 'common';
+    if (cardType === 'troop') {
+      rarity = await resolveTroopRarity(connection, realCardId);
+    } else if (cardType === 'character') {
+      const [cfg] = await connection.query(
+        'SELECT rarity FROM config_characters WHERE character_id = ?', [realCardId]
+      );
+      if (cfg[0]) rarity = normalizeEnumRarity(cfg[0].rarity) || 'common';
+    } else if (cardType === 'title' || cardType === 'achievement' || cardType === 'equipment') {
+      const rarityMap = { '1': 'common', '2': 'rare', '3': 'epic', '4': 'legendary', '5': 'core' };
+      const parts = realCardId.split('_');
+      const seqStr = parts[parts.length - 1] || '';
+      rarity = rarityMap[seqStr.charAt(0)] || 'common';
+    }
+
+    let cardName = realCardId;
+    const nameTableMap = {
+      troop: { table: 'config_troops', idField: 'troop_id', nameField: 'troop_name' },
+      character: { table: 'config_characters', idField: 'character_id', nameField: 'character_name' },
+      title: { table: 'config_titles', idField: 'title_id', nameField: 'title_name' },
+      achievement: { table: 'config_achievements', idField: 'achievement_id', nameField: 'achievement_name' },
+      equipment: { table: 'config_equipment', idField: 'equipment_id', nameField: 'equipment_name' },
+    };
+    const nameMap = nameTableMap[cardType];
+    if (nameMap) {
+      const [nameRows] = await connection.query(
+        `SELECT ${nameMap.nameField} as name FROM ${nameMap.table} WHERE ${nameMap.idField} = ?`, [realCardId]
+      );
+      if (nameRows[0]) cardName = nameRows[0].name;
+    }
+
+    for (let i = 0; i < r.quantity; i++) {
+      if (cardType === 'character') {
+        const isDuplicate = await checkCharacterDuplicate(connection, playerId, realCardId, rarity, details);
+        if (isDuplicate) continue;
+      }
+      if (cardType === 'title' || cardType === 'achievement') {
+        const isDuplicate = await checkUniqueCardDuplicate(connection, playerId, cardType, realCardId, rarity, details);
+        if (isDuplicate) continue;
+      }
+      if (cardType === 'troop') {
+        const isOverLimit = await checkTroopLimit(connection, playerId, rarity, details, realCardId);
+        if (isOverLimit) continue;
+      }
+      const instanceId = `${realCardId}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+      const insertData = {
+        instance_id: instanceId,
+        player_id: playerId,
+        card_type: cardType,
+        card_id: realCardId,
+        rarity,
+      };
+      if (cardType === 'troop') {
+        const [troopCfg] = await connection.query(
+          'SELECT max_troops FROM config_troops WHERE troop_id = ?', [realCardId]
+        );
+        insertData.current_troops = troopCfg[0]?.max_troops || 100;
+        insertData.max_battle_count = getMaxBattleCount(rarity);
+      }
+      if (cardType === 'character') {
+        const [charCfg] = await connection.query(
+          'SELECT trait_modifier FROM config_characters WHERE character_id = ?', [realCardId]
+        );
+        insertData.morale = 70 + (charCfg[0]?.trait_modifier ?? 0);
+      }
+      await connection.query('INSERT INTO player_cards SET ?', [insertData]);
+      details.push({ type: 'card', cardType, cardId: realCardId, cardName, instanceId });
+    }
+  }
+}
+
 module.exports = {
   calculateFortune,
   parseRewardString,
   replaceFactionWildcard,
+  getMaxBattleCount,
+  grantSpecificCardsOnConnection,
   executeRewards,
   FORTUNE_MULTIPLIERS,
 };

@@ -270,6 +270,7 @@ function RewardDisplay({ fortune, chosenOption, battleResult, battleScore, repla
   const [previewCard, setPreviewCard] = useState(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [skillsMap, setSkillsMap] = useState({});
+  const [idNames, setIdNames] = useState({ char: {}, troop: {}, equip: {} });
 
   // 加载技能数据（用于TroopCard技能tooltip）
   useEffect(() => {
@@ -279,6 +280,22 @@ function RewardDisplay({ fortune, chosenOption, battleResult, battleScore, repla
         data.skills.forEach(s => { map[s.id] = s; });
         setSkillsMap(map);
       }
+    }).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    Promise.all([
+      loadSharedData('characters'),
+      loadSharedData('troops'),
+      loadSharedData('equipment'),
+    ]).then(([ch, tr, eq]) => {
+      const char = {};
+      const troop = {};
+      const equip = {};
+      (ch?.characters || []).forEach((c) => { if (c.id) char[c.id] = c.name || c.id; });
+      (tr?.troops || []).forEach((t) => { if (t.id) troop[t.id] = t.name || t.id; });
+      (eq?.equipment || []).forEach((e) => { if (e.id) equip[e.id] = e.name || e.id; });
+      setIdNames({ char, troop, equip });
     }).catch(() => {});
   }, []);
 
@@ -313,6 +330,18 @@ function RewardDisplay({ fortune, chosenOption, battleResult, battleScore, repla
 
     const result = [];
     const typeLabel = { troop: '⚔️ 部队', character: '👤 将领', equipment: '🛡️ 装备件', title: '🎖️ 称号' };
+    // 与 parseRewards 一致的资源展示顺序，避免「先文案顺序、后 details 顺序」闪动
+    const LINE_ORDER = { '🎖️': 0, '🤝': 1, '💰': 2, '🌾': 3, '💪': 4 };
+    const sortRewardLines = (arr) => [...arr].sort((a, b) => {
+      const ta = typeof a === 'object' ? a.text : String(a);
+      const tb = typeof b === 'object' ? b.text : String(b);
+      const ka = Object.keys(LINE_ORDER).find((k) => ta.startsWith(k));
+      const kb = Object.keys(LINE_ORDER).find((k) => tb.startsWith(k));
+      const oa = ka != null ? LINE_ORDER[ka] : 50;
+      const ob = kb != null ? LINE_ORDER[kb] : 50;
+      if (oa !== ob) return oa - ob;
+      return ta.localeCompare(tb, 'zh-CN');
+    });
     details.forEach(d => {
       if (d.type === 'resource') {
         const label = RESOURCE_EMOJI[d.resource] || d.resource;
@@ -336,17 +365,29 @@ function RewardDisplay({ fortune, chosenOption, battleResult, battleScore, repla
       } else if (d.type === 'item') {
         result.push({ text: `🔑 ${d.itemName || '道具'} ×${d.quantity || 1}` });
       } else if (d.type === 'character_duplicate') {
-        result.push({ text: `💰 将领重复补偿 +${d.compensation}银两` });
+        const nm = idNames.char[d.cardId] || d.cardName || d.cardId;
+        result.push({ text: `💰 将领「${nm}」已达持有上限，补偿 ${d.compensation} 银两` });
       } else if (d.type === 'card_duplicate') {
-        const label = d.cardType === 'title' ? '称号' : d.cardType === 'achievement' ? '成就' : '卡牌';
-        result.push({ text: `💰 ${label}重复补偿 +${d.compensation}银两` });
+        const label = d.cardType === 'title' ? '称号' : d.cardType === 'achievement' ? '成就' : d.cardType === 'troop' ? '部队' : d.cardType === 'character' ? '将领' : d.cardType === 'equipment' ? '装备' : '卡牌';
+        let nm = d.cardName || d.cardId;
+        if (d.cardType === 'troop') nm = idNames.troop[d.cardId] || nm;
+        else if (d.cardType === 'character') nm = idNames.char[d.cardId] || nm;
+        else if (d.cardType === 'equipment') nm = idNames.equip[d.cardId] || nm;
+        result.push({ text: `💰 ${label}「${nm}」已达持有上限，补偿 ${d.compensation} 银两` });
       } else if (d.type === 'troop_over_limit') {
-        result.push({ text: `🌾 部队超限补偿 +${d.compensation}粮草` });
+        if (d.scope === 'per_card' && d.cardName) {
+          result.push({
+            text: `🌾 「${d.cardName}」同卡已达上限（核心最多2张），补偿 ${d.compensation} 粮草`,
+          });
+        } else {
+          const rar = d.rarity ? `${d.rarity} 品` : '';
+          result.push({ text: `🌾 ${rar}部队栏位已满，补偿 ${d.compensation} 粮草` });
+        }
       }
       // 忽略 unknown 类型（如 troopgrade 等非奖励标记）
     });
-    return result;
-  }, [itemNameMap]);
+    return sortRewardLines(result);
+  }, [itemNameMap, idNames]);
 
   const rawRewards = parseRewards(chosenOption.rewards || '', itemNameMap, fortune?.multiplier);
   const rawBonusRewards = chosenOption.bonusRewards ? parseRewards(chosenOption.bonusRewards, itemNameMap) : [];

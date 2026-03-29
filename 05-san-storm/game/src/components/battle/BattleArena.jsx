@@ -243,7 +243,9 @@ export default function BattleArena({
             battleLog: logText, totalKills, duration: bm.roundNum,
             rewards: { battleScore: scoreResult.score, battleGrade: scoreResult.grade, scoreDetails: scoreResult.details },
             troopCasualties, moraleUpdates,
-            chestRewards: manual.collectedChestRewards || [],
+            chestRewards: typeof manualBattleRef.current?.getCollectedChestRewards === 'function'
+              ? manualBattleRef.current.getCollectedChestRewards()
+              : [],
           });
 
           if (battleType === 'pve_siege' && defenseReportMeta?.defenderPlayerId) {
