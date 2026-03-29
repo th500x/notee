@@ -3,18 +3,20 @@
  * 
  * @description 三Tab布局：📜战报 | 📮传书 | 💬聊天
  *              战报Tab已实装，传书和聊天为占位
+ *              收起态入口主标识：未读传书 > 未读聊天 > 默认战报（92-1 §1.7）
  *              大地图视图下显示，Tab页面内隐藏
  * 
- * @see 92-1-GAME_UI_DESIGN.md 1.8节
+ * @see 92-1-GAME_UI_DESIGN.md §1.7
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { usePlayerContext } from '@/contexts/PlayerContext';
 import { battleAPI } from '@/services/battleApi';
 
 const TABS = [
   { id: 'battle', icon: '📜', label: '战报' },
   { id: 'text',   icon: '📮', label: '传书' },
+  { id: 'chat',   icon: '💬', label: '聊天' },
 ];
 
 const BATTLE_FILTERS = [
@@ -24,7 +26,11 @@ const BATTLE_FILTERS = [
   { id: 'favorited', label: '⭐收藏' },
 ];
 
-export default function CommPanel({ visible }) {
+/**
+ * @param {number} [unreadTextCount] - 未读传书条数（传书 API 就绪后由父组件传入）
+ * @param {number} [unreadChatCount] - 聊天未读/新消息数（聊天通道就绪后由父组件传入）
+ */
+export default function CommPanel({ visible, unreadTextCount = 0, unreadChatCount = 0 }) {
   const { player } = usePlayerContext();
   const [open, setOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('battle');
@@ -62,6 +68,23 @@ export default function CommPanel({ visible }) {
     if (open && activeTab === 'battle') loadBattles();
   }, [open, activeTab, loadBattles]);
 
+  // 收起态若入口为「战报」，预取列表条数用于角标（有传书/聊天未读时不请求）
+  useEffect(() => {
+    if (!visible || !player?.player_id || open) return;
+    if (unreadTextCount > 0 || unreadChatCount > 0) return;
+    loadBattles();
+  }, [visible, player?.player_id, open, unreadTextCount, unreadChatCount, loadBattles]);
+
+  const minimizedEntry = useMemo(() => {
+    if (unreadTextCount > 0) {
+      return { icon: '📮', label: '传书', count: unreadTextCount, tab: 'text' };
+    }
+    if (unreadChatCount > 0) {
+      return { icon: '💬', label: '聊天', count: unreadChatCount, tab: 'chat' };
+    }
+    return { icon: '📜', label: '战报', count: battles.length, tab: 'battle' };
+  }, [unreadTextCount, unreadChatCount, battles.length]);
+
   // 展开战报详情
   const handleExpandBattle = useCallback(async (battleId) => {
     if (expandedBattle === battleId) {
@@ -87,16 +110,22 @@ export default function CommPanel({ visible }) {
 
   if (!visible) return null;
 
-  // 最小化入口按钮
+  // 最小化入口按钮（传书 > 聊天 > 战报）
   if (!open) {
+    const { icon, label, count, tab } = minimizedEntry;
+    const suffix = count > 0 ? ` (${count})` : '';
     return (
       <button
-        onClick={() => setOpen(true)}
+        type="button"
+        onClick={() => {
+          setActiveTab(tab);
+          setOpen(true);
+        }}
         className="fixed bottom-20 left-2 z-40 px-3 py-2 bg-black/80 rounded-lg
           border border-amber-700/40 text-amber-300 text-xs font-medium
           hover:bg-black/70 transition-colors"
       >
-        📜 {battles.length > 0 ? `(${battles.length})` : '战报'}
+        {icon} {label}{suffix}
       </button>
     );
   }
@@ -119,14 +148,9 @@ export default function CommPanel({ visible }) {
             </button>
           ))}
         </div>
-        <div className="flex items-center gap-1">
-          <button className="px-2 py-1 text-xs text-amber-200/50 rounded hover:text-amber-200/70">
-            💬聊天
-          </button>
-          <button onClick={() => setOpen(false)} className="px-1.5 py-1 text-amber-200/50 hover:text-amber-200 text-xs">
-            ✕
-          </button>
-        </div>
+        <button onClick={() => setOpen(false)} className="px-1.5 py-1 text-amber-200/50 hover:text-amber-200 text-xs shrink-0">
+          ✕
+        </button>
       </div>
 
       {/* Tab内容 */}
@@ -144,6 +168,7 @@ export default function CommPanel({ visible }) {
           />
         )}
         {activeTab === 'text' && <PlaceholderTab icon="📮" label="传书" />}
+        {activeTab === 'chat' && <PlaceholderTab icon="💬" label="聊天" />}
       </div>
     </div>
   );

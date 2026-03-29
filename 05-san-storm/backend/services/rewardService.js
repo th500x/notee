@@ -145,6 +145,16 @@ function parseRewardString(rewardStr) {
       };
     }
 
+    // 道具: item_xxx[:qty] 或 san_1_item_xxx[:qty]（须先于「具体卡牌」判断：如 item_nanyang_troop_1 含 _troop_）
+    if (t.includes('_item_') || t.startsWith('item_')) {
+      const parts = t.split(':');
+      return {
+        type: 'item',
+        itemId: parts[0],
+        quantity: parseInt(parts[1]) || 1,
+      };
+    }
+
     // 具体卡牌: san_1_troop_x001[:qty] / san_1_char_x001[:qty] / san_1_equip_1_1001[:qty] / san_0_title_1_5001[:qty] / san_1_achi_2_3001[:qty]
     if (t.includes('_troop_') || t.includes('_char_') || t.includes('_equip_') || t.includes('_title_') || t.includes('_achi_')) {
       const parts = t.split(':');
@@ -160,16 +170,6 @@ function parseRewardString(rewardStr) {
       return {
         type: 'position',
         positionId: t.trim(),
-      };
-    }
-
-    // 道具: item_xxx[:qty] 或 san_1_item_xxx[:qty]
-    if (t.includes('_item_') || t.startsWith('item_')) {
-      const parts = t.split(':');
-      return {
-        type: 'item',
-        itemId: parts[0],
-        quantity: parseInt(parts[1]) || 1,
       };
     }
 

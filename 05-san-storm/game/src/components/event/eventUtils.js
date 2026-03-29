@@ -112,6 +112,14 @@ export function parseRewards(str, itemNameMap, multiplier) {
       const qty = parts[3] ? `×${parts[3]}` : '×1';
       return { text: `🎲 随机${rarity}${type} ${qty}`, cardType: parts[1] === 'equipment' ? 'equipment' : parts[1] === 'char' ? 'character' : 'troop' };
     }
+    // 事件链道具 id 常含 _troop_ / _char_ 等子串，必须先于卡牌分支判断，否则会误识别为部队/将领卡
+    if (t.includes('_item_') || t.startsWith('item_')) {
+      const parts = t.split(':');
+      const itemId = parts[0];
+      const qty = parts[1] ? `×${parts[1]}` : '×1';
+      const name = (itemNameMap && itemNameMap[itemId]) || '道具';
+      return { text: `🔑 ${name} ${qty}` };
+    }
     if (t.includes('_troop_')) {
       const parts = t.split(':');
       const cardId = parts[0];
@@ -136,13 +144,6 @@ export function parseRewards(str, itemNameMap, multiplier) {
     }
     if (t.includes('_position_')) {
       return { text: `👑 官职`, isPosition: true };
-    }
-    if (t.includes('_item_') || t.startsWith('item_')) {
-      const parts = t.split(':');
-      const itemId = parts[0];
-      const qty = parts[1] ? `×${parts[1]}` : '×1';
-      const name = (itemNameMap && itemNameMap[itemId]) || '道具';
-      return { text: `🔑 ${name} ${qty}` };
     }
     return { text: `📦 ${t}` };
   });

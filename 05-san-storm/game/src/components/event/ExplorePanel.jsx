@@ -320,11 +320,17 @@ function RewardDisplay({ fortune, chosenOption, battleResult, battleScore, repla
       } else if (d.type === 'morale') {
         result.push({ text: `💪 士气 +${d.amount}` });
       } else if (d.type === 'card' || d.type === 'random_card') {
-        result.push({
-          text: `${typeLabel[d.cardType] || '📦 卡牌'}「${d.cardName || d.cardId}」`,
-          cardId: d.cardId,
-          cardType: d.cardType,
-        });
+        // 历史/误解析：id 以 item_ 开头实为事件道具，勿当部队卡展示
+        if (d.cardId && String(d.cardId).startsWith('item_')) {
+          const name = (itemNameMap && itemNameMap[d.cardId]) || d.cardName || d.cardId;
+          result.push({ text: `🔑 ${name} ×${d.quantity || 1}` });
+        } else {
+          result.push({
+            text: `${typeLabel[d.cardType] || '📦 卡牌'}「${d.cardName || d.cardId}」`,
+            cardId: d.cardId,
+            cardType: d.cardType,
+          });
+        }
       } else if (d.type === 'position') {
         result.push({ text: `👑 官职「${d.positionName}」` });
       } else if (d.type === 'item') {
@@ -340,7 +346,7 @@ function RewardDisplay({ fortune, chosenOption, battleResult, battleScore, repla
       // 忽略 unknown 类型（如 troopgrade 等非奖励标记）
     });
     return result;
-  }, []);
+  }, [itemNameMap]);
 
   const rawRewards = parseRewards(chosenOption.rewards || '', itemNameMap, fortune?.multiplier);
   const rawBonusRewards = chosenOption.bonusRewards ? parseRewards(chosenOption.bonusRewards, itemNameMap) : [];
