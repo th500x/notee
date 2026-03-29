@@ -11,6 +11,9 @@ const { getIPPattern } = require('../utils/ipUtils');
 
 const router = express.Router();
 
+/** 系统占位账号（传书 sender_id 外键），禁止注册与登录 */
+const SYSTEM_ACCOUNT_ID = 'sys1';
+
 /**
  * POST /api/auth/register
  * 用户注册
@@ -31,6 +34,10 @@ router.post('/register', async (req, res) => {
     // 数据验证
     if (!id || !password || !birthMonth || !serverId || !machineId || !clientIP) {
       return res.status(400).json({ success: false, error: '缺少必填字段' });
+    }
+
+    if (id === SYSTEM_ACCOUNT_ID) {
+      return res.status(400).json({ success: false, error: '该ID不可注册' });
     }
 
     // 检查ID是否已存在
@@ -122,6 +129,9 @@ router.post('/register', async (req, res) => {
 router.get('/verify/:id', async (req, res) => {
   try {
     const { id } = req.params;
+    if (id === SYSTEM_ACCOUNT_ID) {
+      return res.json({ success: true, exists: false });
+    }
     const [rows] = await pool.query(
       'SELECT id, status FROM accounts WHERE id = ?',
       [id]
@@ -147,6 +157,10 @@ router.post('/login', async (req, res) => {
     // 数据验证
     if (!id || !password) {
       return res.status(400).json({ success: false, error: '请输入ID和密码' });
+    }
+
+    if (id === SYSTEM_ACCOUNT_ID) {
+      return res.status(403).json({ success: false, error: '该账号无法登录' });
     }
 
     // 查询账号
@@ -221,7 +235,8 @@ router.post('/recover', async (req, res) => {
 
     // 查询所有活跃账号（排除AI和封禁账号）
     const [accounts] = await pool.query(
-      "SELECT id, password, serverId FROM accounts WHERE account_type = 'real' AND status != 'banned'"
+      "SELECT id, password, serverId FROM accounts WHERE account_type = 'real' AND status != 'banned' AND id != ?",
+      [SYSTEM_ACCOUNT_ID]
     );
 
     if (accounts.length === 0) {
