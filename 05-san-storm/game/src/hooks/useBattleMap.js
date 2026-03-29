@@ -6,34 +6,22 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import { generateSmallMap } from '@shared/utils/mapGenerator';
+import {
+  getTroopCardPrimaryUrl,
+  getTroopUiFolderFallbackUrl,
+} from '@shared/utils/troopIconUrls';
 import { API_CONFIG } from '@/constants';
 
-const RARITY_R = { common: 1, rare: 2, epic: 3, legendary: 4, core: 4 };
+const base = () => import.meta.env.BASE_URL;
 
-/** 稀有度→图片r编号 */
-function rarityToR(rarity) { return RARITY_R[rarity] || 1; }
-
-/** 从weaponType获取图片路径（fallback用） */
-function getTroopImgByWeapon(troop) {
-  const wt = troop.weaponType || '';
-  const parts = wt.split('_');
-  if (parts.length < 2) return '';
-  const type = parts[0], weapon = parts.slice(1).join('_');
-  return `${import.meta.env.BASE_URL}assets/san_1_battle/player/troop_r${rarityToR(troop.rarity)}_${type}_${weapon}.png`;
-}
-
-/** 获取部队图标：优先ID专属图标，fallback到稀有度+武器类型 */
+/** 获取部队图标：与 TroopCard 同一主路径（仅 .png，无多后缀遍历） */
 function getTroopImg(troop) {
-  // 优先：ID专属图标（如 san_1_troop_0013.png）— 与 TroopCard 共享同一套图
-  if (troop.id) {
-    return `${import.meta.env.BASE_URL}assets/san_1_ui_card/troop/${troop.id}.png`;
-  }
-  return getTroopImgByWeapon(troop);
+  return getTroopCardPrimaryUrl(troop, base());
 }
 
-/** 获取 fallback 图标路径（ID图标加载失败时用） */
+/** ID 专属图失败时的 fallback（与 TroopCard 一致：san_1_ui_card/troop） */
 export function getTroopImgFallback(troop) {
-  return getTroopImgByWeapon(troop);
+  return getTroopUiFolderFallbackUrl(troop, base());
 }
 
 export function useBattleMap() {
@@ -123,7 +111,7 @@ export function useBattleMap() {
         displayName: char ? (char.courtesyName || char.name) : tr.name,
         morale,
         imgSrc: getTroopImg(tr),
-        imgFallback: getTroopImgByWeapon(tr),
+        imgFallback: getTroopImgFallback(tr),
       };
     });
 
@@ -164,7 +152,7 @@ export function useBattleMap() {
         displayName: char ? (char.courtesyName || char.name) : tr.name,
         morale,
         imgSrc: getTroopImg(tr),
-        imgFallback: getTroopImgByWeapon(tr),
+        imgFallback: getTroopImgFallback(tr),
       };
     });
 

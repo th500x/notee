@@ -14,9 +14,9 @@ const siegeLocks = new Map(); // key -> { attackerId, lockedAt }
 function tryAcquireSiegeLock(lockKey, attackerId) {
   const now = Date.now();
   const cur = siegeLocks.get(lockKey);
-  // 未过期则一律不可再占（含本人未结算的重复开战），避免同批守军被并发开打；结算或 TTL 后释放
+  // 未过期时：仅阻止「他人」占线；同一人可重占（刷新时间），避免未带 npcBatchIndex 结算/强关页面后把自己锁死
   if (cur && now - cur.lockedAt < SIEGE_LOCK_TTL_MS) {
-    return false;
+    if (cur.attackerId !== attackerId) return false;
   }
   siegeLocks.set(lockKey, { attackerId, lockedAt: now });
   return true;
@@ -29,6 +29,8 @@ function releaseSiegeLock(lockKey, attackerId) {
 
 /** NPC 守军在锁键中使用的伪防守者 ID（与真实 player_id 区分），键格式同驻守：def|warId|防守者|槽位 */
 const NPC_SIEGE_LOCK_DEFENDER_ID = '_npc';
+/** 与 NPC 分批攻城一致：清扫/释放锁时覆盖的批次上限（每批最多 4 支，略留余量） */
+const NPC_LOCK_SWEEP = 16;
 
 // 城市类型 → NPC 最高稀有度
 const CITY_MAX_RARITY = {
@@ -362,17 +364,31 @@ async function initiateSiege(cityId, playerId) {
   const maxBatches = Math.ceil(aliveEntries.length / 4);
   let npcBatchIndex = null;
   let battleSlice = null;
-  for (let b = 0; b < maxBatches; b++) {
-    const lockKey = `def|${war.war_id}|${NPC_SIEGE_LOCK_DEFENDER_ID}|${b}`;
-    if (!tryAcquireSiegeLock(lockKey, playerId)) continue;
-    const slice = aliveEntries.slice(b * 4, b * 4 + 4);
-    if (slice.length === 0) {
-      releaseSiegeLock(lockKey, playerId);
-      continue;
+  const tryPickNpcBatch = () => {
+    for (let b = 0; b < maxBatches; b++) {
+      const lockKey = `def|${war.war_id}|${NPC_SIEGE_LOCK_DEFENDER_ID}|${b}`;
+      if (!tryAcquireSiegeLock(lockKey, playerId)) continue;
+      const slice = aliveEntries.slice(b * 4, b * 4 + 4);
+      if (slice.length === 0) {
+        releaseSiegeLock(lockKey, playerId);
+        continue;
+      }
+      npcBatchIndex = b;
+      battleSlice = slice;
+      break;
     }
-    npcBatchIndex = b;
-    battleSlice = slice;
-    break;
+  };
+
+  tryPickNpcBatch();
+
+  // 各批次均被占且含本人残留锁时：先按 playerId 清扫本战事 NPC 锁再试一轮（不误删他人锁）
+  if (battleSlice == null) {
+    for (let b = 0; b < NPC_LOCK_SWEEP; b++) {
+      releaseSiegeLock(`def|${war.war_id}|${NPC_SIEGE_LOCK_DEFENDER_ID}|${b}`, playerId);
+    }
+    npcBatchIndex = null;
+    battleSlice = null;
+    tryPickNpcBatch();
   }
 
   if (battleSlice == null) {
@@ -419,8 +435,15 @@ async function recordSiegeResult(warId, playerId, factionId, killedIndices, resu
   let defLockReleased = false;
   const releaseDefenderSiegeLockIfNeeded = () => {
     if (defLockReleased) return;
-    if (defenderType === 'npc' && npcBatchIndex != null && !Number.isNaN(Number(npcBatchIndex))) {
-      releaseSiegeLock(`def|${warId}|${NPC_SIEGE_LOCK_DEFENDER_ID}|${Number(npcBatchIndex)}`, playerId);
+    if (defenderType === 'npc') {
+      if (npcBatchIndex != null && !Number.isNaN(Number(npcBatchIndex))) {
+        releaseSiegeLock(`def|${warId}|${NPC_SIEGE_LOCK_DEFENDER_ID}|${Number(npcBatchIndex)}`, playerId);
+      } else {
+        // 前端未传批次时仍要释放，否则内存锁永久占用该战事
+        for (let b = 0; b < NPC_LOCK_SWEEP; b++) {
+          releaseSiegeLock(`def|${warId}|${NPC_SIEGE_LOCK_DEFENDER_ID}|${b}`, playerId);
+        }
+      }
       defLockReleased = true;
       return;
     }

@@ -2,9 +2,13 @@
  * TroopLayer - 部队渲染层
  * 兵力方格（top最多6个+right溢出）、阵营光韵、部队图标、字号标签
  */
-import { memo } from 'react';
+import { memo, useRef, useEffect } from 'react';
 
 function TroopLayer({ troop }) {
+  const fallbackTriedRef = useRef(false);
+  useEffect(() => {
+    fallbackTriedRef.current = false;
+  }, [troop.id, troop.imgSrc, troop.imgFallback]);
   const fc = troop.faction === 'player' ? 'player' : 'enemy';
   const totalBlocks = Math.ceil(troop.maxTroops / 100);
   const fullBlocks = Math.floor(troop.currentTroops / 100);
@@ -30,12 +34,13 @@ function TroopLayer({ troop }) {
         src={troop.imgSrc}
         alt={troop.name}
         onError={e => {
-          // ID图标不存在 → fallback到稀有度+武器类型图标
-          if (troop.imgFallback && e.target.src !== troop.imgFallback) {
-            e.target.src = troop.imgFallback;
-          } else {
-            e.target.style.display = 'none';
+          const img = e.target;
+          if (troop.imgFallback && !fallbackTriedRef.current && img.src !== troop.imgFallback) {
+            fallbackTriedRef.current = true;
+            img.src = troop.imgFallback;
+            return;
           }
+          img.style.display = 'none';
         }}
       />
       <div className="troop-name">

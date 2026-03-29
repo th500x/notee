@@ -1,5 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import PropTypes from 'prop-types';
+import {
+  getTroopCardPrimaryUrl,
+  getTroopUiFolderFallbackUrl,
+} from '../../utils/troopIconUrls';
 
 /**
  * 部队卡牌组件（共享版本）
@@ -58,7 +62,21 @@ const TroopCard = ({
   onSelect
 }) => {
   const [activeTooltip, setActiveTooltip] = useState(null);
-  const [useIdIcon, setUseIdIcon] = useState(true); // 优先尝试ID专属图标
+  // 0=主图 1=UI文件夹稀有度图 2=占位（每种 URL 最多请求一次，不链式遍历）
+  const [iconStep, setIconStep] = useState(0);
+
+  const primaryIconUrl = useMemo(
+    () => getTroopCardPrimaryUrl(troop, baseUrl),
+    [baseUrl, troop.iconPath, troop.id, troop.rarity, troop.troopType, troop.weaponType]
+  );
+  const fallbackIconUrl = useMemo(
+    () => getTroopUiFolderFallbackUrl(troop, baseUrl),
+    [baseUrl, troop.rarity, troop.troopType, troop.weaponType]
+  );
+
+  useEffect(() => {
+    setIconStep(0);
+  }, [primaryIconUrl]);
 
   // 稀有度颜色映射
   const rarityColors = {
@@ -109,44 +127,21 @@ const TroopCard = ({
   const rarity = rarityColors[troop.rarity] || rarityColors.common;
   const troopType = troopTypeMap[troop.troopType] || troopTypeMap.infantry;
 
-  // 获取部队图标路径（优先ID专属图标，fallback到稀有度+武器类型图标）
-  const getTroopIcon = () => {
-    if (troop.iconPath) {
-      return troop.iconPath;
-    }
+  const resolvedTroopIconSrc =
+    iconStep === 0
+      ? primaryIconUrl
+      : iconStep === 1
+        ? fallbackIconUrl
+        : '';
 
-    // 优先：ID专属图标（如 san_1_troop_0013.png）
-    if (useIdIcon && troop.id) {
-      return `${baseUrl}assets/san_1_ui_card/troop/${troop.id}.png`;
-    }
-    
-    // Fallback：稀有度+武器类型图标
-    return getRarityIcon();
-  };
-
-  // 稀有度+武器类型图标路径
-  const getRarityIcon = () => {
-    const rarityToPrefix = {
-      'common': 'r1',
-      'rare': 'r2',
-      'epic': 'r3',
-      'legendary': 'r4',
-      'core': 'r4'
-    };
-    
-    const rarityPrefix = rarityToPrefix[troop.rarity] || 'r1';
-    
-    const weaponType = troop.weaponType || '';
-    let iconName;
-    if (weaponType && weaponType.includes('_')) {
-      iconName = weaponType;
-    } else if (weaponType) {
-      iconName = `${troop.troopType || 'infantry'}_${weaponType}`;
-    } else {
-      iconName = 'infantry_saber';
-    }
-    
-    return `${baseUrl}assets/san_1_ui_card/troop/troop_${rarityPrefix}_${iconName}.png`;
+  const handleTroopIconError = () => {
+    setIconStep((s) => {
+      if (s === 0) {
+        if (fallbackIconUrl && fallbackIconUrl !== primaryIconUrl) return 1;
+        return 2;
+      }
+      return 2;
+    });
   };
 
   // 获取卡面背景图片路径
@@ -255,22 +250,18 @@ const TroopCard = ({
                 flex items-center justify-center
                 overflow-hidden
               `}>
-                <img
-                  src={getTroopIcon()}
-                  alt={troop.name}
-                  className="w-full h-full object-cover"
-                  onError={(e) => {
-                    if (useIdIcon) {
-                      // ID专属图标不存在，fallback到稀有度图标
-                      setUseIdIcon(false);
-                      e.target.src = getRarityIcon();
-                      return;
-                    }
-                    e.target.style.display = 'none';
-                    e.target.nextSibling.style.display = 'flex';
-                  }}
-                />
-                <div className="hidden w-full h-full items-center justify-center flex-col gap-1 text-gray-500">
+                {iconStep < 2 && resolvedTroopIconSrc ? (
+                  <img
+                    key={resolvedTroopIconSrc}
+                    src={resolvedTroopIconSrc}
+                    alt={troop.name}
+                    className="w-full h-full object-cover"
+                    onError={handleTroopIconError}
+                  />
+                ) : null}
+                <div
+                  className={`${iconStep < 2 && resolvedTroopIconSrc ? 'hidden' : 'flex'} w-full h-full items-center justify-center flex-col gap-1 text-gray-500`}
+                >
                   <span className="text-4xl">{troopType.icon}</span>
                   <span className="text-[10px]">待添加</span>
                 </div>
