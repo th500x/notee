@@ -6,6 +6,7 @@
 const express = require('express');
 const router = express.Router();
 const battleService = require('../services/battleService');
+const { applyTroopDurabilityExhaustion } = require('../services/troopDurabilityService');
 const { pool } = require('../database/connection');
 
 /**
@@ -129,11 +130,19 @@ router.post('/', async (req, res) => {
 
     const battle = await battleService.saveBattle(req.body);
 
-    // 战斗结束后，所有参战部队卡 battle_count +1（不超过 max_battle_count）
+    // 仅写入战报（如：为驻守方补一条防守记录），不重复改兵力/士气/耐久/宝箱/积分
+    if (req.body.recordOnly) {
+      return res.status(201).json({ success: true, battle });
+    }
+
+    // 战斗结束后，所有参战部队卡 battle_count +1（钳制在 [0, max_battle_count]，避免 NULL/脏数据导致负数）
     try {
       const [updated] = await pool.query(
         `UPDATE player_cards 
-         SET battle_count = LEAST(battle_count + 1, COALESCE(max_battle_count, 60)) 
+         SET battle_count = LEAST(
+           GREATEST(COALESCE(battle_count, 0), 0) + 1,
+           COALESCE(max_battle_count, 60)
+         )
          WHERE player_id = ? AND card_type = 'troop' AND is_equipped = TRUE`,
         [playerId]
       );
@@ -199,30 +208,8 @@ router.post('/', async (req, res) => {
         console.log(`[battles] 宝箱装备保存: ${chestRewards.length}件`);
       }
 
-      // 耐久耗尽处理：battle_count >= max_battle_count
-      // core/legendary稀有度：保留卡牌，卸下装备（留在军营，无法上阵PVP）
-      // legendary耐久耗尽后PVE可用但攻防-20%（前端combatSystem判断）
-      const [preservedExpired] = await pool.query(
-        `UPDATE player_cards 
-         SET is_equipped = FALSE, equipped_by = NULL, equipped_slot = NULL
-         WHERE player_id = ? AND card_type = 'troop' AND rarity IN ('core', 'legendary')
-           AND battle_count >= max_battle_count AND is_equipped = TRUE`,
-        [playerId]
-      );
-      if (preservedExpired.affectedRows > 0) {
-        console.log(`[battles] 核心/传奇部队耐久耗尽（保留）: ${preservedExpired.affectedRows}张`);
-      }
-
-      // 其他稀有度（epic/rare/common）：直接删除实例
-      const [deleted] = await pool.query(
-        `DELETE FROM player_cards 
-         WHERE player_id = ? AND card_type = 'troop' AND rarity NOT IN ('core', 'legendary')
-           AND battle_count >= max_battle_count`,
-        [playerId]
-      );
-      if (deleted.affectedRows > 0) {
-        console.log(`[battles] 部队耐久耗尽（删除）: ${deleted.affectedRows}张`);
-      }
+      // 耐久耗尽：金卸下、白蓝紫删除、橙保留；驻守槽同步清空用尽/已删部队（与上阵一致）
+      await applyTroopDurabilityExhaustion((sql, params) => pool.query(sql, params), playerId);
 
       // 更新活动排行积分（battle_score）
       const { rewards } = req.body;

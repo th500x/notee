@@ -230,17 +230,16 @@ export default function LineupTab({ onClose }) {
   };
 
   // 获取可装备的卡牌列表（用于抽屉）
-  // 过滤掉耐久耗尽的部队卡（core稀有度保留但不可上阵，legendary保留且PVE可用但攻防-20%）
+  // 耐久耗尽：白/蓝/紫不列出；橙(legendary) 归 0 仍可上阵；金(core) 归 0 不可再装（纪念/下赛季继承）
   const getAvailableCards = () => {
     if (!selectedSlot) return [];
     if (selectedSlot.id === 'troop' || selectedSlot.id === 'troop1' || selectedSlot.id === 'troop2') {
       return unequippedTroops.filter(c => {
         const maxBattle = c.max_battle_count ?? 10;
-        const isExpired = (c.battle_count ?? 0) >= maxBattle;
+        const count = Math.max(0, c.battle_count ?? 0);
+        const isExpired = count >= maxBattle;
         if (!isExpired) return true;
-        // legendary耐久耗尽：PVE可用（攻防-20%衰减在combatSystem中处理）
-        if (c.rarity === 'legendary') return true;
-        return false;
+        return c.rarity === 'legendary';
       });
     }
     if (selectedSlot.id === 'title') {
@@ -988,7 +987,8 @@ function EquipSlot({ slot, content, isSelected, onClick, baseUrl, skillsMap, min
     const rarityLabel = { common: '普通', rare: '稀有', epic: '史诗', legendary: '传奇', core: '核心' };
     const rarityColor = { common: 'text-gray-300', rare: 'text-blue-400', epic: 'text-purple-400', legendary: 'text-orange-400', core: 'text-yellow-400' };
     const maxBattle = content.max_battle_count ?? 10;
-    const remaining = maxBattle - (content.battle_count ?? 0);
+    const used = Math.max(0, Math.min(content.battle_count ?? 0, maxBattle));
+    const remaining = Math.max(0, maxBattle - used);
     const durability = `${remaining}/${maxBattle}`;
     const troops = `${content.current_troops ?? cfg.maxTroops ?? '?'}`;
     const maxTroops = (cfg.maxTroops || 0) + (content.bonus_max_troops || 0);

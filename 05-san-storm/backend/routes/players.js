@@ -1220,6 +1220,21 @@ router.post('/:playerId/cards/equip', async (req, res) => {
       return res.status(404).json({ success: false, error: '卡牌不存在' });
     }
 
+    const cardToEquip = cards[0];
+    if (
+      cardToEquip.card_type === 'troop' &&
+      cardToEquip.rarity === 'core' &&
+      cardToEquip.max_battle_count != null
+    ) {
+      const used = Math.max(0, cardToEquip.battle_count ?? 0);
+      if (used >= cardToEquip.max_battle_count) {
+        return res.status(400).json({
+          success: false,
+          error: '核心(金)部队耐久已耗尽，无法再次装备上阵，仅作纪念与下赛季继承',
+        });
+      }
+    }
+
     // 先卸下该槽位上已有的卡牌（含称号特效清除）
     const [oldCards] = await pool.query(
       `SELECT instance_id, card_type, card_id FROM player_cards
@@ -1268,7 +1283,7 @@ router.post('/:playerId/cards/equip', async (req, res) => {
 
     // 如果装备的卡牌有特效 或 是部队卡，统一走"清零+重新应用所有效果卡"的逻辑
     // 这样无论装备哪种卡牌，都不会出现叠加问题
-    const needRecalc = EFFECT_CARD_TYPES.includes(cards[0].card_type) || cards[0].card_type === 'troop';
+    const needRecalc = EFFECT_CARD_TYPES.includes(cardToEquip.card_type) || cardToEquip.card_type === 'troop';
     if (needRecalc) {
       // 1. 清零该 equippedBy 下所有部队卡的 bonus 字段（不清除 last_troops_lost_at，保留恢复状态）
       await pool.query(

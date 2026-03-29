@@ -183,6 +183,8 @@ export default function WorldMap({ onEventBusyChange }) {
           // 离线防守者 或 NPC → 直接进入战斗
           setSiegeData(res.data); setSiegeResult(null);
         }
+      } else if (res.error) {
+        window.alert(res.error);
       }
     } catch {}
     setSiegeLoading(false);
@@ -202,7 +204,11 @@ export default function WorldMap({ onEventBusyChange }) {
           silverSpent: silverSpent || 0,
           defenderType: siegeData.defenderType || 'npc',
           defenderPlayerId: siegeData.defenderPlayerId || null,
-          garrisonUnits: siegeData.defenderType === 'player_garrison' ? siegeData.npcGarrison : null,
+          defenderGarrisonSlot: siegeData.defenderGarrisonSlot ?? null,
+          garrisonUnits: (siegeData.defenderType === 'player_garrison' || siegeData.defenderType === 'pvp_online')
+            ? siegeData.npcGarrison
+            : null,
+          npcBatchIndex: siegeData.defenderType === 'npc' ? siegeData.npcBatchIndex ?? null : null,
         }),
       }).then(r => r.json());
       if (res.success) {
@@ -569,6 +575,19 @@ export default function WorldMap({ onEventBusyChange }) {
           battleType="pve_siege"
           opponentName={`${siegeData.cityName}守军`}
           onBattleEnd={handleSiegeEnd}
+          defenseReportMeta={
+            siegeData.defenderType === 'player_garrison' && siegeData.defenderPlayerId
+              ? {
+                  warId: siegeData.warId,
+                  defenderPlayerId: siegeData.defenderPlayerId,
+                  defenderGarrisonSlot: siegeData.defenderGarrisonSlot,
+                  attackerPlayerId: player?.player_id,
+                  attackerName: player?.character_name || player?.name || '攻城方',
+                  cityName: siegeData.cityName,
+                  defenderName: siegeData.defenderName,
+                }
+              : null
+          }
         />
       )}
 

@@ -12,12 +12,13 @@ import AncientModal from '@/components/common/AncientModal';
 
 const BET_AMOUNT = 5; // 统一每局5两
 
-// ========== 扑克牌 ==========
+// ========== 扑克牌（角标用绝对定位，避免 flex+rotate 在部分 WebView 上错位叠字） ==========
 const Card = ({ card, index = 0 }) => {
   const isFaceDown = card.rank === '?';
   const isRed = !isFaceDown && SUIT_COLORS[card.suit] === 'red';
+  const cornerCls = `leading-none select-none pointer-events-none ${isRed ? 'text-red-600' : 'text-gray-900'}`;
   return (
-    <div className="w-14 h-20 rounded-lg shadow-lg flex-shrink-0 relative"
+    <div className="w-14 h-20 rounded-lg shadow-lg flex-shrink-0 relative overflow-hidden"
       style={{ marginLeft: index > 0 ? -20 : 0, zIndex: index }}>
       {isFaceDown ? (
         <div className="w-14 h-20 rounded-lg border-2 border-amber-700/60 flex items-center justify-center"
@@ -25,16 +26,14 @@ const Card = ({ card, index = 0 }) => {
           <span className="text-amber-400/60 text-xs font-bold">?</span>
         </div>
       ) : (
-        <div className="w-14 h-20 rounded-lg border border-gray-300 flex flex-col justify-between p-1"
+        <div className="w-14 h-20 rounded-lg border border-gray-300 relative"
           style={{ background: 'linear-gradient(180deg, #FFFFF0 0%, #F5F5DC 100%)' }}>
-          <div className={`leading-none ${isRed ? 'text-red-600' : 'text-gray-900'}`}>
+          <div className={`absolute top-1 left-1 ${cornerCls}`}>
             <div className="text-sm font-bold">{card.rank}</div>
-            <div className="text-[10px] -mt-0.5">{card.suit}</div>
+            <div className="text-[10px]">{card.suit}</div>
           </div>
-          <div className={`text-lg text-center ${isRed ? 'text-red-600' : 'text-gray-900'}`}>{card.suit}</div>
-          <div className={`leading-none text-right rotate-180 ${isRed ? 'text-red-600' : 'text-gray-900'}`}>
-            <div className="text-sm font-bold">{card.rank}</div>
-            <div className="text-[10px] -mt-0.5">{card.suit}</div>
+          <div className={`absolute inset-0 flex items-center justify-center text-xl opacity-25 ${isRed ? 'text-red-600' : 'text-gray-900'} pointer-events-none`}>
+            {card.suit}
           </div>
         </div>
       )}
@@ -159,10 +158,14 @@ export default function EventBlackjack({ difficulty = 'medium', onGameEnd, playe
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center"
-      style={{ background: 'rgba(0,0,0,0.6)', pointerEvents: 'auto' }}>
+    <div
+      className="fixed inset-0 z-50 flex flex-col items-center justify-center"
+      style={{ background: 'rgba(0,0,0,0.6)', pointerEvents: 'auto' }}
+      onPointerDown={(e) => e.stopPropagation()}
+      onClick={(e) => e.stopPropagation()}
+    >
 
-      <div className="w-full max-w-sm px-3">
+      <div className="w-full max-w-sm px-3 pointer-events-auto">
         {/* 信息栏 */}
         <div className="flex items-center justify-between text-xs mb-2 px-1">
           <span className="text-amber-300/70">💰 银两: <span className="text-amber-200 font-bold">{state.silver}</span></span>
@@ -234,6 +237,7 @@ export default function EventBlackjack({ difficulty = 'medium', onGameEnd, playe
       <AncientModal
         isOpen={showRoundResult && !state.matchOver}
         onClose={() => setShowRoundResult(false)}
+        preventClose
         type={roundType} title={roundTitle}
         confirmText="下一局" onConfirm={handleStartRound} showCancel={false}>
         <div className="text-center space-y-2">

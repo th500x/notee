@@ -5,6 +5,30 @@
  */
 
 const { pool } = require('../database/connection');
+const { applyTroopDurabilityExhaustion } = require('./troopDurabilityService');
+
+/** 攻城战线占用：同键在 TTL 内不可被第二人（或本人第二开）占用，结算后释放；超时自动失效（毫秒） */
+const SIEGE_LOCK_TTL_MS = 40 * 60 * 1000;
+const siegeLocks = new Map(); // key -> { attackerId, lockedAt }
+
+function tryAcquireSiegeLock(lockKey, attackerId) {
+  const now = Date.now();
+  const cur = siegeLocks.get(lockKey);
+  // 未过期则一律不可再占（含本人未结算的重复开战），避免同批守军被并发开打；结算或 TTL 后释放
+  if (cur && now - cur.lockedAt < SIEGE_LOCK_TTL_MS) {
+    return false;
+  }
+  siegeLocks.set(lockKey, { attackerId, lockedAt: now });
+  return true;
+}
+
+function releaseSiegeLock(lockKey, attackerId) {
+  const cur = siegeLocks.get(lockKey);
+  if (cur && cur.attackerId === attackerId) siegeLocks.delete(lockKey);
+}
+
+/** NPC 守军在锁键中使用的伪防守者 ID（与真实 player_id 区分），键格式同驻守：def|warId|防守者|槽位 */
+const NPC_SIEGE_LOCK_DEFENDER_ID = '_npc';
 
 // 城市类型 → NPC 最高稀有度
 const CITY_MAX_RARITY = {
@@ -211,6 +235,8 @@ async function initiateSiege(cityId, playerId) {
       if (totalTroops < 800) continue;
 
       const war = await getOrCreateWar(cityId, city);
+      const defLockKey = `def|${war.war_id}|${def.player_id}|${def.garrison_slot}`;
+      if (!tryAcquireSiegeLock(defLockKey, playerId)) continue;
 
       // 构建防守单位（BattleArena格式：属性×10）
       const garrisonUnits = units.map((u, i) => ({
@@ -270,6 +296,7 @@ async function initiateSiege(cityId, playerId) {
         npcGarrison: garrisonUnits, npcAlive: garrisonUnits.length, npcTotal: garrisonUnits.length,
         playerFaction, defenderType: 'player_garrison',
         defenderName: def.character_name, defenderPlayerId: def.player_id,
+        defenderGarrisonSlot: def.garrison_slot,
       };
     }
     // 所有玩家防守者总兵力不足 → 继续到 NPC 守军
@@ -320,27 +347,42 @@ async function initiateSiege(cityId, playerId) {
     war = { war_id: warId, faction_kills: {} };
   }
 
-  // 筛选存活的 NPC 守军，每次战斗出4支，按稀有度平均分配
-  const aliveNpc = (city.npc_garrison || []).filter(u => u.alive);
-  // 按稀有度分组
-  const byRarity = {};
-  for (const npc of aliveNpc) {
-    if (!byRarity[npc.rarity]) byRarity[npc.rarity] = [];
-    byRarity[npc.rarity].push(npc);
+  // NPC 守军：与驻守相同逻辑——按「顺位批次」分配，每批最多 4 支；def|warId|_npc|批次 被占用则自动试下一批
+  const fullG = city.npc_garrison || [];
+  const aliveEntries = [];
+  for (let gi = 0; gi < fullG.length; gi++) {
+    const u = fullG[gi];
+    if (u && u.alive) aliveEntries.push({ u, gi });
   }
-  // 轮流从各稀有度中取，确保平均分配
-  const rarityKeys = Object.keys(byRarity).sort(); // common, rare 等
-  const battleNpc = [];
-  let ri = 0;
-  while (battleNpc.length < 4 && aliveNpc.length > 0) {
-    const key = rarityKeys[ri % rarityKeys.length];
-    if (byRarity[key] && byRarity[key].length > 0) {
-      battleNpc.push(byRarity[key].shift());
+
+  if (aliveEntries.length === 0) {
+    throw new Error('该城暂无可攻打守军');
+  }
+
+  const maxBatches = Math.ceil(aliveEntries.length / 4);
+  let npcBatchIndex = null;
+  let battleSlice = null;
+  for (let b = 0; b < maxBatches; b++) {
+    const lockKey = `def|${war.war_id}|${NPC_SIEGE_LOCK_DEFENDER_ID}|${b}`;
+    if (!tryAcquireSiegeLock(lockKey, playerId)) continue;
+    const slice = aliveEntries.slice(b * 4, b * 4 + 4);
+    if (slice.length === 0) {
+      releaseSiegeLock(lockKey, playerId);
+      continue;
     }
-    ri++;
-    // 安全退出：如果所有池子都空了
-    if (rarityKeys.every(k => !byRarity[k] || byRarity[k].length === 0)) break;
+    npcBatchIndex = b;
+    battleSlice = slice;
+    break;
   }
+
+  if (battleSlice == null) {
+    throw new Error('当前各战线均有友军交战中，请稍后再试');
+  }
+
+  const battleNpc = battleSlice.map(({ u, gi }) => ({
+    ...u,
+    index: gi,
+  }));
 
   return {
     warId: war.war_id,
@@ -348,9 +390,11 @@ async function initiateSiege(cityId, playerId) {
     cityName: city.city_name,
     cityType: city.city_type,
     npcGarrison: battleNpc,
-    npcAlive: aliveNpc.length,
-    npcTotal: city.npc_garrison?.length || 0,
+    npcAlive: aliveEntries.length,
+    npcTotal: fullG.length,
     playerFaction,
+    defenderType: 'npc',
+    npcBatchIndex,
   };
 }
 
@@ -366,10 +410,29 @@ async function initiateSiege(cityId, playerId) {
  * @param {object} defenderInfo - 防守者信息
  */
 async function recordSiegeResult(warId, playerId, factionId, killedIndices, result, silverSpent = 0, defenderInfo = {}) {
-  const { defenderType, defenderPlayerId, garrisonUnits } = defenderInfo || {};
+  const { defenderType, defenderPlayerId, garrisonUnits, defenderGarrisonSlot, npcBatchIndex } = defenderInfo || {};
 
-  // ── 玩家防守者：更新驻守部队兵力 + 耐久度 + 驻守状态 ──
-  if (defenderType === 'player_garrison' && garrisonUnits && Array.isArray(garrisonUnits)) {
+  const defSlotForLock =
+    defenderGarrisonSlot != null
+      ? Number(defenderGarrisonSlot)
+      : (Array.isArray(garrisonUnits) ? garrisonUnits.find(u => u && u._garrisonSlot != null)?._garrisonSlot : null);
+  let defLockReleased = false;
+  const releaseDefenderSiegeLockIfNeeded = () => {
+    if (defLockReleased) return;
+    if (defenderType === 'npc' && npcBatchIndex != null && !Number.isNaN(Number(npcBatchIndex))) {
+      releaseSiegeLock(`def|${warId}|${NPC_SIEGE_LOCK_DEFENDER_ID}|${Number(npcBatchIndex)}`, playerId);
+      defLockReleased = true;
+      return;
+    }
+    if (!['player_garrison', 'pvp_online'].includes(defenderType || '')) return;
+    if (defenderPlayerId == null || defSlotForLock == null || Number.isNaN(Number(defSlotForLock))) return;
+    releaseSiegeLock(`def|${warId}|${defenderPlayerId}|${Number(defSlotForLock)}`, playerId);
+    defLockReleased = true;
+  };
+
+  try {
+  // ── 玩家防守者：更新驻守部队兵力 + 耐久度 + 驻守状态（含在线 PVP 异步结算，需带 garrisonUnits） ──
+  if ((defenderType === 'player_garrison' || defenderType === 'pvp_online') && garrisonUnits && Array.isArray(garrisonUnits)) {
     const conn = await pool.getConnection();
     try {
       await conn.beginTransaction();
@@ -398,10 +461,22 @@ async function recordSiegeResult(warId, playerId, factionId, killedIndices, resu
       if (allTroopInstanceIds.length > 0) {
         const ph = allTroopInstanceIds.map(() => '?').join(',');
         await conn.query(
-          `UPDATE player_cards SET battle_count = LEAST(COALESCE(battle_count, 0) + 1, COALESCE(max_battle_count, 60))
+          `UPDATE player_cards SET battle_count = LEAST(
+             GREATEST(COALESCE(battle_count, 0), 0) + 1,
+             COALESCE(max_battle_count, 60)
+           )
            WHERE instance_id IN (${ph})`,
           allTroopInstanceIds
         );
+      }
+
+      // 与上阵结算一致：用尽的金/白/蓝/紫处理 + 从驻守槽强制清空（橙 legendary 保留在槽内）
+      const defenderPlayerIds = [
+        ...new Set(garrisonUnits.map((u) => u && u._garrisonPlayerId).filter(Boolean)),
+      ];
+      const runQ = (sql, params) => conn.query(sql, params);
+      for (const defPid of defenderPlayerIds) {
+        await applyTroopDurabilityExhaustion(runQ, defPid);
       }
 
       // Bug fix: 检查该驻守槽位是否所有部队都被消灭（兵力=0），如果是则 is_active=FALSE
@@ -453,9 +528,17 @@ async function recordSiegeResult(warId, playerId, factionId, killedIndices, resu
       }
       await conn.query('UPDATE wars SET faction_kills = ?, npc_killed = npc_killed + ? WHERE war_id = ?', [JSON.stringify(factionKills), killCount, warId]);
       await conn.commit();
-      return { warId, factionKills, npcKilled: killCount, npcTotal: garrisonUnits.length, siegeCompleted: false, winnerFaction: null, silverReward, reputationReward, equipmentDrop: null, defenderType: 'player_garrison' };
-    } catch (error) { await conn.rollback(); throw error; }
-    finally { conn.release(); }
+      return {
+        warId, factionKills, npcKilled: killCount, npcTotal: garrisonUnits.length, siegeCompleted: false, winnerFaction: null,
+        silverReward, reputationReward, equipmentDrop: null,
+        defenderType: defenderType === 'pvp_online' ? 'pvp_online' : 'player_garrison',
+      };
+    } catch (error) {
+      await conn.rollback();
+      throw error;
+    } finally {
+      conn.release();
+    }
   }
 
   // ── NPC 守军：原有逻辑 ──
@@ -581,19 +664,24 @@ async function recordSiegeResult(warId, playerId, factionId, killedIndices, resu
         [winnerFaction, warId]
       );
 
-      // Bug fix: 清除旧势力玩家在该城市的驻守配置和披挂上阵状态
-      // 注意：必须先查出受影响的玩家ID，再更新，因为后续会清除 city_id
+      // 易主：清除旧势力驻守槽位，并重置「披挂上阵」
+      // on_duty 是 players 表全局字段，人数统计却按「本城 + 本势力 garrison」JOIN；
+      // 仅重置败方可能漏掉边缘脏数据，导致易主后人数卡住、他人开关披挂上阵也不变。
+      // 故：凡在本城有关联驻守槽位的玩家，易主时一律清除 on_duty，需重新选择披挂上阵。
 
-      // 1. 先收集该城市旧势力的驻守玩家ID
-      const [oldGarrisonPlayers] = await connection.query(
-        `SELECT DISTINCT g.player_id FROM player_garrison g
-         JOIN players p ON g.player_id = p.player_id
-         WHERE g.city_id = ? AND p.faction_id != ?`,
-        [war.target_city_id, winnerFaction]
+      const [allCityGarrisonPlayers] = await connection.query(
+        `SELECT DISTINCT g.player_id FROM player_garrison g WHERE g.city_id = ?`,
+        [war.target_city_id]
       );
-      const oldPlayerIds = oldGarrisonPlayers.map(r => r.player_id);
+      const allGarrisonPlayerIds = allCityGarrisonPlayers.map(r => r.player_id);
+      if (allGarrisonPlayerIds.length > 0) {
+        const phAll = allGarrisonPlayerIds.map(() => '?').join(',');
+        await connection.query(
+          `UPDATE players SET on_duty = FALSE WHERE player_id IN (${phAll}) AND on_duty = TRUE`,
+          allGarrisonPlayerIds
+        );
+      }
 
-      // 2. 将旧势力的驻守槽位设为 is_active=FALSE，清除 city_id
       await connection.query(
         `UPDATE player_garrison g
          JOIN players p ON g.player_id = p.player_id
@@ -601,15 +689,6 @@ async function recordSiegeResult(warId, playerId, factionId, killedIndices, resu
          WHERE g.city_id = ? AND p.faction_id != ?`,
         [war.target_city_id, winnerFaction]
       );
-
-      // 3. 重置旧势力玩家的披挂上阵状态
-      if (oldPlayerIds.length > 0) {
-        const ph = oldPlayerIds.map(() => '?').join(',');
-        await connection.query(
-          `UPDATE players SET on_duty = FALSE WHERE player_id IN (${ph}) AND on_duty = TRUE`,
-          oldPlayerIds
-        );
-      }
 
       // 更新城市归属
       await connection.query(
@@ -649,6 +728,9 @@ async function recordSiegeResult(warId, playerId, factionId, killedIndices, resu
     throw error;
   } finally {
     connection.release();
+  }
+  } finally {
+    releaseDefenderSiegeLockIfNeeded();
   }
 };
 

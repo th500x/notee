@@ -9,6 +9,26 @@
  * @see docs/10-core-system/17-1-COMBAT_SYSTEM.md
  */
 
+// ── 精锐小队战损比例（troopWeight > 1）────────────────────────────────────────
+// 仅影响「当前兵力/最大兵力」在攻防上的线性缩放；满编时与 troopWeight=1 一致，残血时衰减慢于线性。
+// 现阶段仅燕云十八等配置了 troop_weight>1 的部队会走此分支，其余部队仍为 current/max。
+export const ELITE_TROOP_STRENGTH_EXPONENT = 0.85;
+
+/**
+ * 战损后的兵力比例系数（攻击/防御环节共用）
+ * @param {Object} troop - 需含 currentTroops、maxTroops；可选 troopWeight
+ * @returns {number} 0..1
+ */
+export function troopStrengthRatioFromCasualties(troop) {
+  const max = troop.maxTroops;
+  const cur = troop.currentTroops != null ? troop.currentTroops : max;
+  if (max == null || max <= 0) return 0;
+  const r = Math.max(0, Math.min(1, Number(cur) / max));
+  const w = troop.troopWeight != null ? Number(troop.troopWeight) : 1;
+  if (!(w > 1)) return r;
+  return Math.pow(r, ELITE_TROOP_STRENGTH_EXPONENT);
+}
+
 // ── 士气攻防系数 ──────────────────────────────────────────────────────────────
 
 /**
@@ -52,7 +72,7 @@ export function getTerrainDefBonus(y, x, terrain) {
 export function calcDamage(atk, def, terrain) {
   const ac = atk.character, dc = def.character;
 
-  // 0. 磨损衰减：legendary部队耐久耗尽后攻防-20%（仅PVE可用）
+  // 0. 磨损衰减：legendary（橙）部队耐久耗尽后攻防-20%（仅PVE可用）
   const atkWorn = (atk.rarity === 'legendary' && atk.battleCount != null && atk.maxBattleCount != null && atk.battleCount >= atk.maxBattleCount);
   const defWorn = (def.rarity === 'legendary' && def.battleCount != null && def.maxBattleCount != null && def.battleCount >= def.maxBattleCount);
   const WORN_PENALTY = 0.80; // 攻防×0.8 = -20%
@@ -67,8 +87,8 @@ export function calcDamage(atk, def, terrain) {
   const courageBonus = 1 + (courage / 40);
   const singleFinal = singleAtk * courageBonus;
 
-  // 3. 兵力比例
-  const atkRatio = atk.currentTroops / atk.maxTroops;
+  // 3. 兵力比例（troopWeight>1 时用凹曲线，残血衰减缓于线性）
+  const atkRatio = troopStrengthRatioFromCasualties(atk);
   let totalDmg = singleFinal * atkRatio;
 
   // 4. 士气攻击系数
@@ -85,7 +105,7 @@ export function calcDamage(atk, def, terrain) {
   const dCombat = dc ? (dc.combat || 5) : 5;
   const dCommand = dc ? (dc.command || 5) : 5;
   const singleDef = troopDef + dCommand * 5 + dCombat * 3;
-  const defRatio = def.currentTroops / def.maxTroops;
+  const defRatio = troopStrengthRatioFromCasualties(def);
   const totalDef = singleDef * defRatio;
   const defReduction = totalDef / (totalDef + 140);
   const defMorale = getMoraleEffects(def);
@@ -159,7 +179,7 @@ export function calcDamage(atk, def, terrain) {
 export function estimateDamage(atk, def, terrain) {
   const ac = atk.character, dc = def.character;
 
-  // 复用 calcDamage 的全部逻辑，但不加随机浮动
+  // 复用 calcDamage 的全部逻辑，但不加随机浮动（legendary = 橙档磨损）
   const atkWorn = (atk.rarity === 'legendary' && atk.battleCount != null && atk.maxBattleCount != null && atk.battleCount >= atk.maxBattleCount);
   const defWorn = (def.rarity === 'legendary' && def.battleCount != null && def.maxBattleCount != null && def.battleCount >= def.maxBattleCount);
   const WORN_PENALTY = 0.80;
@@ -169,7 +189,7 @@ export function estimateDamage(atk, def, terrain) {
   const courage = ac ? (ac.courage || 5) : 5;
   const courageBonus = 1 + (courage / 40);
   const singleFinal = singleAtk * courageBonus;
-  const atkRatio = atk.currentTroops / atk.maxTroops;
+  const atkRatio = troopStrengthRatioFromCasualties(atk);
   let totalDmg = singleFinal * atkRatio;
   const atkMorale = getMoraleEffects(atk);
   totalDmg *= atkMorale.attack;
@@ -178,7 +198,7 @@ export function estimateDamage(atk, def, terrain) {
   const dCombat = dc ? (dc.combat || 5) : 5;
   const dCommand = dc ? (dc.command || 5) : 5;
   const singleDef = troopDef + dCommand * 5 + dCombat * 3;
-  const defRatio = def.currentTroops / def.maxTroops;
+  const defRatio = troopStrengthRatioFromCasualties(def);
   const totalDef = singleDef * defRatio;
   const defReduction = totalDef / (totalDef + 140);
   const defMorale = getMoraleEffects(def);

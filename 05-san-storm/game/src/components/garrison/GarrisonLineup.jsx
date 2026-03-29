@@ -152,12 +152,20 @@ export default function GarrisonLineup({ onClose }) {
   const troopCards = cards.filter(c => c.card_type === 'troop');
   const titleCards = cards.filter(c => c.card_type === 'title');
 
-  // 可用卡牌 = 未上阵 + 未被驻守占用
+  // 可用卡牌 = 未上阵 + 未被驻守占用；金(core) 耐久用尽不可再编入驻守（与上阵规则一致）
   const getAvailableCards = useCallback((type) => {
     const pool = type === 'character' ? characterCards
       : type === 'troop' ? troopCards
       : type === 'title' ? titleCards : [];
-    return pool.filter(c => !c.is_equipped && !occupiedIds.has(c.instance_id));
+    return pool.filter((c) => {
+      if (c.is_equipped || occupiedIds.has(c.instance_id)) return false;
+      if (type !== 'troop') return true;
+      const maxBattle = c.max_battle_count ?? 10;
+      const count = Math.max(0, c.battle_count ?? 0);
+      const isExpired = count >= maxBattle;
+      if (!isExpired) return true;
+      return c.rarity === 'legendary';
+    });
   }, [characterCards, troopCards, titleCards, occupiedIds]);
 
   // 获取槽位内容（复用 LineupTab 的 getSlotContent 模式）
@@ -568,7 +576,8 @@ function EquipSlot({ slot, content, isSelected, onClick, baseUrl, skillsMap, min
     const rarityLabel = { common: '普通', rare: '稀有', epic: '史诗', legendary: '传奇', core: '核心' };
     const rarityColor = { common: 'text-gray-300', rare: 'text-blue-400', epic: 'text-purple-400', legendary: 'text-orange-400', core: 'text-yellow-400' };
     const maxBattle = content.max_battle_count ?? 10;
-    const remaining = maxBattle - (content.battle_count ?? 0);
+    const used = Math.max(0, Math.min(content.battle_count ?? 0, maxBattle));
+    const remaining = Math.max(0, maxBattle - used);
     const troops = `${content.current_troops ?? cfg.maxTroops ?? '?'}`;
     const maxTroops = (cfg.maxTroops || 0) + (content.bonus_max_troops || 0);
     const atk = ((cfg.attack || 0) + (content.bonus_attack || 0) / 10).toFixed(0);

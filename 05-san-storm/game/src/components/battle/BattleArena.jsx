@@ -60,10 +60,14 @@ function renderTroopsToDOM(mapCardRef, battleTroops) {
   }
 }
 
+/**
+ * @param {object} [defenseReportMeta] 异步驻守防守战：战斗结束后为驻守方额外写入一条 pvp_defense 战报（recordOnly）
+ */
 export default function BattleArena({
   playerUnits, enemyRarity, enemyUnits,
   silverAmount = 0, playerId, battleType = 'pve_event', opponentName = '敌军',
   onBattleEnd,
+  defenseReportMeta = null,
 }) {
   const [stage, setStage] = useState(STAGE.LOADING);
   const [layoutWidth, setLayoutWidth] = useState('auto');
@@ -156,6 +160,7 @@ export default function BattleArena({
           imgSrc: `${baseUrl}assets/san_1_ui_card/troop/${npc.troopId}.png`,
           imgFallback: getTroopImgFallback({ rarity: npc.rarity, weaponType: npc.weaponType }),
           _npcIndex: npc.index,
+          instanceId: npc._troopInstanceId || null,
         };
       });
 
@@ -230,6 +235,7 @@ export default function BattleArena({
         try {
           await battleAPI.saveBattle({
             battleId, playerId: playerId || 'unknown',
+            warId: battleType === 'pve_siege' && defenseReportMeta?.warId ? defenseReportMeta.warId : undefined,
             battleType, opponentType: 'event_enemy', opponentName,
             result: result === 'victory' ? 'win' : 'lose',
             playerTeam: playerTroops.map(t => ({ name: t.character?.courtesyName || t.name, rarity: t.rarity })),
@@ -239,6 +245,30 @@ export default function BattleArena({
             troopCasualties, moraleUpdates,
             chestRewards: manual.collectedChestRewards || [],
           });
+
+          if (battleType === 'pve_siege' && defenseReportMeta?.defenderPlayerId) {
+            const meta = defenseReportMeta;
+            const defenderLosses = enemyTroops.filter(t => t.currentTroops <= 0).length;
+            const defBattleId = `battle_${Date.now()}_def_${Math.random().toString(36).slice(2, 10)}`;
+            const defLog = `[驻守防守·${meta.cityName || '城池'}] vs ${meta.attackerName || '攻城方'}\n${logText}`;
+            await battleAPI.saveBattle({
+              battleId: defBattleId,
+              playerId: meta.defenderPlayerId,
+              warId: meta.warId || undefined,
+              battleType: 'pvp_defense',
+              opponentType: 'player',
+              opponentId: meta.attackerPlayerId,
+              opponentName: meta.attackerName || '攻城方',
+              result: result === 'victory' ? 'lose' : 'win',
+              playerTeam: enemyTroops.map(t => ({ name: t.character?.courtesyName || t.name, rarity: t.rarity })),
+              opponentTeam: playerTroops.map(t => ({ name: t.character?.courtesyName || t.name, rarity: t.rarity })),
+              battleLog: defLog,
+              totalKills: defenderLosses,
+              duration: bm.roundNum,
+              rewards: null,
+              recordOnly: true,
+            });
+          }
         } catch (err) {
           console.error('[BattleArena] 保存战报失败:', err);
         }

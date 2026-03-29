@@ -7,8 +7,9 @@ export default {
   theme: {
     extend: {
       colors: {
-        // 稀有度颜色
-        legendary: '#FFD700',  // 传说-金色
+        // 稀有度颜色（legendary=橙，core=金）
+        legendary: '#F97316',
+        core: '#EAB308',
         epic: '#9C27B0',       // 史诗-紫色
         rare: '#2196F3',       // 稀有-蓝色
         common: '#4CAF50',     // 普通-绿色

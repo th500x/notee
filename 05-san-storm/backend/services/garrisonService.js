@@ -103,6 +103,35 @@ async function saveGarrison(playerId, slotNumber, config) {
     }
   }
 
+  const garrisonTroopFields = ['char1_troop1', 'char1_troop2', 'char2_troop1', 'char2_troop2'];
+  const prevSlot = await getGarrisonSlot(playerId, slotNumber);
+  const newlyAssignedTroopIds = [...new Set(
+    garrisonTroopFields
+      .map((f) => {
+        const nextId = config[f] || null;
+        const prevId = prevSlot?.[f] || null;
+        return nextId && nextId !== prevId ? nextId : null;
+      })
+      .filter(Boolean)
+  )];
+  if (newlyAssignedTroopIds.length > 0) {
+    const ph = newlyAssignedTroopIds.map(() => '?').join(',');
+    const [exhaustedCore] = await pool.query(
+      `SELECT instance_id FROM player_cards
+       WHERE player_id = ? AND instance_id IN (${ph})
+         AND card_type = 'troop' AND rarity = 'core'
+         AND max_battle_count IS NOT NULL
+         AND battle_count >= max_battle_count`,
+      [playerId, ...newlyAssignedTroopIds]
+    );
+    if (exhaustedCore.length > 0) {
+      return {
+        success: false,
+        error: '核心(金)部队耐久已耗尽，无法用于驻守，仅作纪念与下赛季继承',
+      };
+    }
+  }
+
   const hasChar = !!(config.char1_card || config.char2_card);
   const hasTroop = !!(config.char1_troop1 || config.char1_troop2 || config.char2_troop1 || config.char2_troop2);
   const isActive = hasChar && hasTroop;
