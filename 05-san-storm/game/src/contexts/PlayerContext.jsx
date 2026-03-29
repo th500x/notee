@@ -46,6 +46,7 @@ export function PlayerProvider({ playerId, children }) {
       player: profile?.player || null,
       cards: profile?.cards || [],
       attributeBonusBySlot: profile?.attributeBonusBySlot || { player: {}, character1: {}, character2: {} },
+      gameTime: profile?.gameTime ?? null,
       loading,
       error,
       refresh

@@ -47,6 +47,7 @@ export default defineConfig({
   },
   server: {
     port: 3002,
+    strictPort: true,
     open: true,
     // public/assets 是 symlink 指向上级目录，需要允许 Vite 访问
     fs: {

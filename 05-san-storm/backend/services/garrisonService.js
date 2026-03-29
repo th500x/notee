@@ -12,8 +12,35 @@ const CARD_FIELDS = [
   'char2_card', 'char2_equipment_card', 'char2_title', 'char2_achievement', 'char2_treasure', 'char2_troop1', 'char2_troop2',
 ];
 
-// 单部队参战最低兵力（兵力为0不参战，总兵力检查在 initiateSiege 中 ≥ 800）
+const GARRISON_TROOP_FIELDS = ['char1_troop1', 'char1_troop2', 'char2_troop1', 'char2_troop2'];
+
+/** 驻地槽「计入守军、可出战」的编队总兵力下限（与攻城 initiateSiege 筛选一致） */
+const MIN_GARRISON_TOTAL_TROOPS = 800;
+
+// 单部队参战最低兵力（兵力为0不参战；槽位总兵力见 MIN_GARRISON_TOTAL_TROOPS）
 const MIN_TROOPS_TO_DEFEND = 1;
+
+/**
+ * 驻守槽内若干部队实例的当前总兵力（与战斗构建一致：current_troops 缺省则用满编上限）
+ * @param {import('mysql2').Pool|import('mysql2').PoolConnection} conn
+ * @param {string} playerId
+ * @param {string[]} instanceIds
+ */
+async function sumTroopInstancesTotalTroops(conn, playerId, instanceIds) {
+  const ids = [...new Set(instanceIds)].filter(Boolean);
+  if (ids.length === 0) return 0;
+  const ph = ids.map(() => '?').join(',');
+  const [rows] = await conn.query(
+    `SELECT COALESCE(SUM(
+        COALESCE(pc.current_troops, COALESCE(ct.max_troops, 0) + COALESCE(pc.bonus_max_troops, 0))
+      ), 0) AS total
+     FROM player_cards pc
+     LEFT JOIN config_troops ct ON pc.card_id = ct.troop_id
+     WHERE pc.player_id = ? AND pc.instance_id IN (${ph})`,
+    [playerId, ...ids]
+  );
+  return Number(rows[0]?.total) || 0;
+}
 
 /** special_effect 字段映射 → player_cards bonus 字段（复用 players.js 的逻辑） */
 const EFFECT_FIELD_MAP = {
@@ -103,7 +130,7 @@ async function saveGarrison(playerId, slotNumber, config) {
     }
   }
 
-  const garrisonTroopFields = ['char1_troop1', 'char1_troop2', 'char2_troop1', 'char2_troop2'];
+  const garrisonTroopFields = GARRISON_TROOP_FIELDS;
   const prevSlot = await getGarrisonSlot(playerId, slotNumber);
   const newlyAssignedTroopIds = [...new Set(
     garrisonTroopFields
@@ -134,7 +161,12 @@ async function saveGarrison(playerId, slotNumber, config) {
 
   const hasChar = !!(config.char1_card || config.char2_card);
   const hasTroop = !!(config.char1_troop1 || config.char1_troop2 || config.char2_troop1 || config.char2_troop2);
-  const isActive = hasChar && hasTroop;
+  const troopInstanceIds = GARRISON_TROOP_FIELDS.map((f) => config[f]).filter(Boolean);
+  const totalTroopsConfigured = hasTroop
+    ? await sumTroopInstancesTotalTroops(pool, playerId, troopInstanceIds)
+    : 0;
+  const isActive = hasChar && hasTroop && totalTroopsConfigured >= MIN_GARRISON_TOTAL_TROOPS;
+  const belowTroopThreshold = hasChar && hasTroop && totalTroopsConfigured < MIN_GARRISON_TOTAL_TROOPS;
 
   await pool.query(
     `INSERT INTO player_garrison (
@@ -206,7 +238,13 @@ async function saveGarrison(playerId, slotNumber, config) {
     }
   }
 
-  return { success: true };
+  return {
+    success: true,
+    isActive,
+    garrisonTroopTotal: totalTroopsConfigured,
+    minTroopsForActive: MIN_GARRISON_TOTAL_TROOPS,
+    belowTroopThreshold,
+  };
 }
 
 /**
@@ -239,8 +277,6 @@ async function clearGarrison(playerId, slotNumber) {
   );
   return { success: true };
 }
-
-const GARRISON_TROOP_FIELDS = ['char1_troop1', 'char1_troop2', 'char2_troop1', 'char2_troop2'];
 
 /**
  * 城池易主：卸除非胜方在本城的整组驻守（与 clearGarrison 一致，避免 city_id 已清但卡牌仍占位导致 UI/统计脏数据）
@@ -302,22 +338,28 @@ async function getCityDefenders(cityId, ownerFactionId) {
 }
 
 /**
- * 获取某个城市的披挂上阵防守者（on_duty=TRUE，按官职优先级排序）
+ * 披挂上阵防守者：仅看 players.on_duty + on_duty_city_id，与驻地编组表无关。
+ * 战斗单位来自上阵编组（is_equipped），见 buildDefenseUnitsFromMainLineup。
  */
 async function getCityOnDutyDefenders(cityId, ownerFactionId) {
   let sql = `
-     SELECT g.*, p.character_name, p.faction_id, p.faction_name,
+     SELECT p.player_id, p.character_name, p.faction_id, p.faction_name,
             p.current_position_id, p.current_position_name, p.position_level,
-            p.on_duty
-     FROM player_garrison g
-     JOIN players p ON g.player_id = p.player_id
-     WHERE g.city_id = ? AND g.is_active = TRUE AND p.on_duty = TRUE`;
-  const params = [cityId];
+            p.on_duty, p.on_duty_city_id,
+            0 AS garrison_slot,
+            'main_lineup' AS defense_source
+     FROM players p
+     INNER JOIN cities c ON c.id = ?
+     WHERE p.on_duty = TRUE
+       AND p.on_duty_city_id = ?
+       AND c.faction_id IS NOT NULL
+       AND p.faction_id = c.faction_id`;
+  const params = [cityId, cityId];
   if (ownerFactionId != null && ownerFactionId !== '') {
     sql += ' AND p.faction_id = ?';
     params.push(ownerFactionId);
   }
-  sql += ' ORDER BY p.position_level ASC, g.garrison_slot ASC';
+  sql += ' ORDER BY p.position_level ASC, p.player_id ASC';
   const [rows] = await pool.query(sql, params);
   return rows;
 }
@@ -461,6 +503,164 @@ async function buildDefenseUnits(garrisonSlot) {
   return units;
 }
 
+/**
+ * 从玩家「上阵编组」构建战斗单位（与 player_cards is_equipped 一致，与驻地编组无关）
+ * @param {string} defenderPlayerId
+ * @returns {Promise<Array>} 与 buildDefenseUnits 相同元素形状；_garrison_slot 固定为 0 表示非驻守槽（战后不刷 player_garrison 失活）
+ */
+async function buildDefenseUnitsFromMainLineup(defenderPlayerId) {
+  const units = [];
+  const [pRows] = await pool.query(
+    `SELECT player_id, character_name, combat, command, intelligence, politics, charm, courage, luck, morale
+     FROM players WHERE player_id = ?`,
+    [defenderPlayerId]
+  );
+  const pRow = pRows[0];
+  if (!pRow) return units;
+
+  const pushUnit = (t, charData, charMorale) => {
+    const maxTroops = (t.max_troops || 0) + (t.bonus_max_troops || 0);
+    const currentTroops = t.current_troops ?? maxTroops;
+    if (currentTroops < MIN_TROOPS_TO_DEFEND) return;
+    units.push({
+      troop: {
+        id: t.card_id,
+        instanceId: t.instance_id,
+        name: t.troop_name,
+        rarity: t.rarity || 'common',
+        troopType: t.troop_type,
+        weaponType: t.weapon_type,
+        attack: (t.attack || 0) / 10 + (t.bonus_attack || 0) / 10,
+        defense: (t.defense || 0) / 10 + (t.bonus_defense || 0) / 10,
+        speed: (t.speed || 0) + (t.bonus_speed || 0),
+        movement: (t.movement || 0) + (t.bonus_movement || 0),
+        range: t.range || 1,
+        maxTroops,
+        troopWeight: t.troop_weight || 1,
+        battleCount: t.battle_count ?? 0,
+        maxBattleCount: t.max_battle_count ?? 60,
+        skills: [],
+      },
+      character: charData,
+      currentTroops,
+      maxTroops,
+      morale: charMorale ?? 70,
+      _garrisonPlayerId: defenderPlayerId,
+      _garrisonSlot: 0,
+    });
+  };
+
+  // 主公 + 主公部队槽
+  const [playerTroopRows] = await pool.query(
+    `SELECT pc.instance_id, pc.card_id, pc.rarity, pc.current_troops,
+            pc.battle_count, pc.max_battle_count,
+            pc.bonus_max_troops, pc.bonus_attack, pc.bonus_defense, pc.bonus_speed, pc.bonus_movement,
+            ct.troop_name, ct.troop_type, ct.weapon_type, ct.attack, ct.defense,
+            ct.speed, ct.movement, ct.\`range\`, ct.max_troops, ct.special_ability,
+            ct.troop_weight
+     FROM player_cards pc
+     JOIN config_troops ct ON pc.card_id = ct.troop_id
+     WHERE pc.player_id = ? AND pc.is_equipped = TRUE
+       AND pc.equipped_by = 'player' AND pc.equipped_slot = 'troop'`,
+    [defenderPlayerId]
+  );
+  if (playerTroopRows.length > 0) {
+    const t = playerTroopRows[0];
+    const charData = {
+      name: pRow.character_name,
+      courtesyName: pRow.character_name,
+      combat: pRow.combat / 10,
+      command: pRow.command / 10,
+      intelligence: pRow.intelligence / 10,
+      luck: pRow.luck / 10,
+      courage: pRow.courage / 10,
+      traitModifier: 0,
+    };
+    pushUnit(t, charData, pRow.morale ?? 70);
+  }
+
+  const charSlots = [
+    { by: 'character1', troopSlots: ['troop1', 'troop2'] },
+    { by: 'character2', troopSlots: ['troop1', 'troop2'] },
+  ];
+  for (const cs of charSlots) {
+    const [charRows] = await pool.query(
+      `SELECT pc.instance_id, pc.card_id, pc.rarity, pc.morale,
+              cc.character_name, cc.luck, cc.courage, cc.combat, cc.command,
+              cc.intelligence, cc.politics, cc.charm, cc.trait, cc.trait_modifier
+       FROM player_cards pc
+       JOIN config_characters cc ON pc.card_id = cc.character_id
+       WHERE pc.player_id = ? AND pc.is_equipped = TRUE
+         AND pc.card_type = 'character' AND pc.equipped_by = ? AND pc.equipped_slot = 'character'`,
+      [defenderPlayerId, cs.by]
+    );
+    if (charRows.length === 0) continue;
+    const charCfg = charRows[0];
+    const charData = {
+      name: charCfg.character_name,
+      courtesyName: charCfg.character_name,
+      combat: charCfg.combat / 10,
+      command: charCfg.command / 10,
+      intelligence: charCfg.intelligence / 10,
+      luck: charCfg.luck / 10,
+      courage: charCfg.courage / 10,
+      traitModifier: charCfg.trait_modifier || 0,
+    };
+
+    for (const slot of cs.troopSlots) {
+      const [troopRows] = await pool.query(
+        `SELECT pc.instance_id, pc.card_id, pc.rarity, pc.current_troops,
+                pc.battle_count, pc.max_battle_count,
+                pc.bonus_max_troops, pc.bonus_attack, pc.bonus_defense, pc.bonus_speed, pc.bonus_movement,
+                ct.troop_name, ct.troop_type, ct.weapon_type, ct.attack, ct.defense,
+                ct.speed, ct.movement, ct.\`range\`, ct.max_troops, ct.special_ability,
+                ct.troop_weight
+         FROM player_cards pc
+         JOIN config_troops ct ON pc.card_id = ct.troop_id
+         WHERE pc.player_id = ? AND pc.is_equipped = TRUE
+           AND pc.card_type = 'troop' AND pc.equipped_by = ? AND pc.equipped_slot = ?`,
+        [defenderPlayerId, cs.by, slot]
+      );
+      if (troopRows.length === 0) continue;
+      pushUnit(troopRows[0], charData, charCfg.morale ?? 70);
+    }
+  }
+
+  return units;
+}
+
+/**
+ * 披挂上阵选择与城池/势力不一致、或缺少 on_duty_city_id（旧数据）时清除。
+ * 与「驻地编组是否激活」无关；人数统计只看 on_duty + on_duty_city_id。
+ */
+async function clearInvalidOnDutySelection(playerId) {
+  try {
+    const [result] = await pool.query(
+      `UPDATE players p
+       LEFT JOIN cities c ON c.id = p.on_duty_city_id
+       SET p.on_duty = FALSE, p.on_duty_city_id = NULL
+       WHERE p.player_id = ?
+         AND (p.on_duty = TRUE OR p.on_duty = 1)
+         AND (
+           p.on_duty_city_id IS NULL
+           OR c.id IS NULL
+           OR c.faction_id IS NULL
+           OR p.faction_id IS NULL
+           OR p.faction_id != c.faction_id
+         )`,
+      [playerId]
+    );
+    return (result.affectedRows || 0) > 0;
+  } catch (e) {
+    // 未执行 migrations/add-players-on-duty-city-id.sql 时无 on_duty_city_id 列，勿阻断 profile
+    if (e.code === 'ER_BAD_FIELD_ERROR' || /Unknown column/i.test(e.message || '')) {
+      console.warn('[Garrison] clearInvalidOnDutySelection skipped (schema):', e.message);
+      return false;
+    }
+    throw e;
+  }
+}
+
 module.exports = {
   getPlayerGarrisons,
   getGarrisonSlot,
@@ -472,5 +672,9 @@ module.exports = {
   getCityGarrisonDefenders,
   getCityGarrisonStats,
   buildDefenseUnits,
+  buildDefenseUnitsFromMainLineup,
   MIN_TROOPS_TO_DEFEND,
+  MIN_GARRISON_TOTAL_TROOPS,
+  sumTroopInstancesTotalTroops,
+  clearInvalidOnDutySelection,
 };

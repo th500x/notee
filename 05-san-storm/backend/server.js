@@ -96,6 +96,12 @@ const adminConfigTextsRouter = require('./routes/adminConfigTexts');
 app.use('/api/admin/config-texts', adminConfigTextsRouter);
 
 /**
+ * 聊天（天下 / 势力 / 军团）
+ */
+const chatsRouter = require('./routes/chats');
+app.use('/api/chats', chatsRouter);
+
+/**
  * PVP攻城挑战API
  */
 const pvpRouter = require('./routes/pvp');

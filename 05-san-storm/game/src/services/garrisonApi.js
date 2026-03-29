@@ -40,11 +40,11 @@ export const garrisonAPI = {
     });
   },
 
-  /** 切换披挂上阵状态 */
-  async setOnDuty(playerId, onDuty) {
+  /** 切换披挂上阵状态；开启时必传 cityId（待战目标城池） */
+  async setOnDuty(playerId, onDuty, cityId = null) {
     return fetchJSON(`${API_CONFIG.BASE_URL}/garrisons/${playerId}/on-duty`, {
       method: 'POST',
-      body: JSON.stringify({ onDuty }),
+      body: JSON.stringify({ onDuty, cityId: onDuty ? cityId : undefined }),
     });
   },
 

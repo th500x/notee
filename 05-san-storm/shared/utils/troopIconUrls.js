@@ -1,6 +1,11 @@
 /**
- * 部队卡图标 URL（单一主路径 + 单一 UI 文件夹内 fallback，不遍历多后缀/多稀有度文件名）
- * 与 TroopCard、战斗地图共用，避免同一部队连续请求大量不存在的资源。
+ * 部队卡图标 URL（与仓库内 public/assets/san_1_ui_card/troop 一致）
+ *
+ * 仅两步，不串联多余路径：
+ *  1) 若有 iconPath → 用 iconPath；否则请求
+ *     assets/san_1_ui_card/troop/{配置ID}.png
+ *     例如 san_1_troop_1001.png、san_1_troop_0013.png（与文件名完全一致）
+ *  2) 失败则用同目录稀有度图：troop/troop_r{1-4}_{兵种}_{武器}.png
  */
 
 const RARITY_UI_PREFIX = {
@@ -28,13 +33,6 @@ export function getTroopUiFolderFallbackUrl(troop, baseUrl = '') {
   return `${baseUrl}assets/san_1_ui_card/troop/troop_${prefix}_${iconName}.png`;
 }
 
-/** san_1_ui_card/troop/{troopId}.png */
-export function getTroopIdIconUrl(troopId, baseUrl = '') {
-  if (!troopId) return '';
-  const id = normalizeTroopAssetId(troopId);
-  return `${baseUrl}assets/san_1_ui_card/troop/${id}.png`;
-}
-
 /**
  * 战斗/卡牌用的部队配置 ID（去掉地图实例后缀 _p0/_e1，纯数字补全 san_1_troop_ 前缀）
  */
@@ -50,28 +48,34 @@ export function normalizeTroopAssetId(troopOrId) {
   return s;
 }
 
-/**
- * 按序尝试的立绘 URL（线上常见：troop/id.png、troops/id_card.png、根目录 id_raw.png，最后稀有度+武器）
- */
-export function getTroopPortraitUrlAttempts(troop, baseUrl = '') {
-  const urls = [];
-  const push = (u) => {
-    if (u && !urls.includes(u)) urls.push(u);
-  };
-  if (troop.iconPath) push(troop.iconPath);
-  const id = normalizeTroopAssetId(troop);
-  if (id) {
-    push(`${baseUrl}assets/san_1_ui_card/troop/${id}.png`);
-    push(`${baseUrl}assets/san_1_ui_card/troops/${id}_card.png`);
-    push(`${baseUrl}assets/san_1_ui_card/${id}_raw.png`);
-  }
-  push(getTroopUiFolderFallbackUrl(troop, baseUrl));
-  return urls;
+/** san_1_ui_card/troop/{troopId}.png — 与目录内 san_1_troop_*.png 命名一致 */
+export function getTroopIdIconUrl(troopId, baseUrl = '') {
+  const id = normalizeTroopAssetId(troopId);
+  if (!id) return '';
+  return `${baseUrl}assets/san_1_ui_card/troop/${id}.png`;
 }
 
 /**
- * 主选 URL：getTroopPortraitUrlAttempts 的第一张（与 TroopCard / 战斗首帧一致）
+ * 最多 2 个 URL：① 专属图（iconPath 或 troop 目录下的 san_1_troop_*.png）② 稀有度图
  */
+export function getTroopPortraitUrlAttempts(troop, baseUrl = '') {
+  const rarityUrl = getTroopUiFolderFallbackUrl(troop, baseUrl);
+
+  if (troop.iconPath) {
+    if (troop.iconPath === rarityUrl) return [rarityUrl];
+    return [troop.iconPath, rarityUrl];
+  }
+
+  const id = normalizeTroopAssetId(troop);
+  if (id) {
+    const idUrl = `${baseUrl}assets/san_1_ui_card/troop/${id}.png`;
+    if (idUrl === rarityUrl) return [rarityUrl];
+    return [idUrl, rarityUrl];
+  }
+
+  return [rarityUrl];
+}
+
 export function getTroopCardPrimaryUrl(troop, baseUrl = '') {
   const list = getTroopPortraitUrlAttempts(troop, baseUrl);
   return list[0] || '';

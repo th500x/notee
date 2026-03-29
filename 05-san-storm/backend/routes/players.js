@@ -15,8 +15,30 @@ const {
   applyTroopRepairEffect,
   isTroopDurabilityRepairEffect,
 } = require('../services/troopRepairService');
+const garrisonService = require('../services/garrisonService');
+const gameTimeService = require('../services/gameTimeService');
 
 const router = express.Router();
+
+/** 玩家所在服务器的当前游戏历法（供顶栏等；失败时返回 null 不阻断 profile） */
+async function loadGameTimeForPlayer(playerId) {
+  try {
+    const [accRows] = await pool.query('SELECT serverId FROM accounts WHERE id = ?', [playerId]);
+    const serverId = accRows[0]?.serverId;
+    if (!serverId) return null;
+    const [srvRows] = await pool.query(
+      `SELECT server_id, opened_at, season_start_time,
+              game_time_start_year, game_time_start_month, game_time_start_day,
+              game_time_real_hours_per_game_day
+       FROM config_servers WHERE server_id = ?`,
+      [serverId]
+    );
+    return gameTimeService.computeGameTimeFromServerRow(srvRows[0]);
+  } catch (e) {
+    console.warn('[Players] loadGameTimeForPlayer:', e.message);
+    return null;
+  }
+}
 
 /** 事件 requiredItems 单段解析：无冒号则数量 1 */
 function parseEventCostSegment(segment) {
@@ -808,6 +830,13 @@ router.get('/:playerId/profile', async (req, res) => {
       });
     }
 
+    // 1.1 披挂上阵：待战城池/势力无效或旧版仅有 on_duty 无 on_duty_city_id 时清除
+    const clearedStaleOnDuty = await garrisonService.clearInvalidOnDutySelection(playerId);
+    if (clearedStaleOnDuty) {
+      player.on_duty = false;
+      player.on_duty_city_id = null;
+    }
+
     // 1.5 获取玩家进度（tutorial_current_step）
     const [progressRows] = await pool.query(
       'SELECT tutorial_current_step FROM player_progress WHERE player_id = ?',
@@ -1113,7 +1142,6 @@ router.get('/:playerId/profile', async (req, res) => {
     }
 
     // 5b. 计算驻守卡牌的属性加成（称号/成就/宝物 → garrison_char1/garrison_char2）
-    const garrisonService = require('../services/garrisonService');
     const garrisons = await garrisonService.getPlayerGarrisons(playerId);
     for (const g of garrisons) {
       for (const charKey of ['char1', 'char2']) {
@@ -1131,6 +1159,8 @@ router.get('/:playerId/profile', async (req, res) => {
         }
       }
     }
+
+    const gameTime = await loadGameTimeForPlayer(playerId);
 
     res.json({
       success: true,
@@ -1165,6 +1195,7 @@ router.get('/:playerId/profile', async (req, res) => {
           trait: player.trait,
           trait_modifier: player.trait_modifier,
           on_duty: !!player.on_duty,
+          on_duty_city_id: player.on_duty_city_id || null,
           bonus_backpack_capacity: player.bonus_backpack_capacity ?? 0,
           bonus_daily_events: player.bonus_daily_events ?? 0,
           tutorial_step: tutorialStep,
@@ -1172,6 +1203,7 @@ router.get('/:playerId/profile', async (req, res) => {
         },
         cards: enrichedCards,
         attributeBonusBySlot,  // 各角色的属性加成（前端用于将领卡显示）
+        gameTime, // { year, month, day, elapsedGameDays, realHoursPerGameDay, anchorAt, serverId } | null
       }
     });
 

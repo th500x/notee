@@ -6,8 +6,54 @@
 
 const express = require('express');
 const { pool } = require('../database/connection');
+const gameTimeService = require('../services/gameTimeService');
 
 const router = express.Router();
+
+/**
+ * GET /api/servers/:serverId/game-time
+ * 当前游戏历法（config_servers + 实时计算）
+ */
+router.get('/:serverId/game-time', async (req, res) => {
+  try {
+    const { serverId } = req.params;
+    const fullSelect = `SELECT server_id, opened_at, season_start_time,
+              game_time_start_year, game_time_start_month, game_time_start_day,
+              game_time_real_hours_per_game_day
+       FROM config_servers WHERE server_id = ?`;
+    let rows;
+    try {
+      [rows] = await pool.query(fullSelect, [serverId]);
+    } catch (e) {
+      if (e.code === 'ER_BAD_FIELD_ERROR' || /Unknown column/i.test(e.message || '')) {
+        [rows] = await pool.query(
+          'SELECT server_id, opened_at, season_start_time FROM config_servers WHERE server_id = ?',
+          [serverId]
+        );
+      } else {
+        throw e;
+      }
+    }
+    if (rows.length === 0) {
+      return res.status(404).json({ success: false, error: '服务器不存在' });
+    }
+    const gameTime = gameTimeService.computeGameTimeFromServerRow(rows[0]);
+    if (!gameTime) {
+      return res.status(500).json({
+        success: false,
+        error: '无法计算游戏时间（缺少 opened_at / season_start_time）',
+      });
+    }
+    res.json({ success: true, data: gameTime });
+  } catch (error) {
+    console.error('[Servers] game-time 失败:', error);
+    res.status(500).json({
+      success: false,
+      error: '获取游戏时间失败',
+      message: error.message,
+    });
+  }
+});
 
 /**
  * GET /api/servers

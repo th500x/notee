@@ -25,7 +25,11 @@ async function initServers() {
         status: 'open',
         is_new: true,
         is_recommended: true,
-        opened_at: '2026-03-08 00:00:00'
+        opened_at: '2026-03-08 00:00:00',
+        game_time_start_year: 184,
+        game_time_start_month: 1,
+        game_time_start_day: 1,
+        game_time_real_hours_per_game_day: 1,
       }
     ];
 
@@ -38,8 +42,10 @@ async function initServers() {
           server_id, server_name, server_icon, server_color, description,
           current_season, season_start_time, season_end_time,
           max_real_players, max_ai_players,
-          status, is_new, is_recommended, opened_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          status, is_new, is_recommended, opened_at,
+          game_time_start_year, game_time_start_month, game_time_start_day,
+          game_time_real_hours_per_game_day
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON DUPLICATE KEY UPDATE
           server_name = VALUES(server_name),
           server_icon = VALUES(server_icon),
@@ -52,7 +58,11 @@ async function initServers() {
           max_ai_players = VALUES(max_ai_players),
           status = VALUES(status),
           is_new = VALUES(is_new),
-          is_recommended = VALUES(is_recommended)
+          is_recommended = VALUES(is_recommended),
+          game_time_start_year = VALUES(game_time_start_year),
+          game_time_start_month = VALUES(game_time_start_month),
+          game_time_start_day = VALUES(game_time_start_day),
+          game_time_real_hours_per_game_day = VALUES(game_time_real_hours_per_game_day)
       `, [
         server.server_id,
         server.server_name,
@@ -67,7 +77,11 @@ async function initServers() {
         server.status,
         server.is_new,
         server.is_recommended,
-        server.opened_at
+        server.opened_at,
+        server.game_time_start_year,
+        server.game_time_start_month,
+        server.game_time_start_day,
+        server.game_time_real_hours_per_game_day,
       ]);
       
       console.log(`✅ ${server.server_name} 插入成功\n`);

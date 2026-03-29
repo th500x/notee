@@ -47,25 +47,34 @@ router.get('/online-defenders/:cityId', async (req, res) => {
  */
 router.post('/challenge', async (req, res) => {
   try {
-    const { warId, cityId, attackerId, attackerFaction, defenderId, defenderGarrisonSlot } = req.body;
+    const { warId, cityId, attackerId, attackerFaction, defenderId, defenderGarrisonSlot: slotBody } = req.body;
     if (!warId || !cityId || !attackerId || !defenderId) {
       return res.status(400).json({ success: false, error: '缺少必要参数' });
     }
+
+    const defenderGarrisonSlot =
+      slotBody === undefined || slotBody === null || slotBody === ''
+        ? 1
+        : Number(slotBody);
 
     // 与 initiateSiege 一致：综合 last_active_at + lastActiveAt，避免「只登录时刷新」导致永远判离线
     const defenderIsInGame = await isPlayerRecentlyActive(defenderId, DEFAULT_ONLINE_MS);
 
     const result = pvpService.createChallenge({
       warId, cityId, attackerId, attackerFaction,
-      defenderId, defenderGarrisonSlot: defenderGarrisonSlot || 1,
+      defenderId, defenderGarrisonSlot,
       defenderIsInGame,
     });
 
-    // 构建防守方部队数据（用于超时自动战斗）
-    const garrison = await garrisonService.getGarrisonSlot(defenderId, defenderGarrisonSlot || 1);
+    // 超时自动战：槽位 0 = 披挂上阵（上阵编组）；否则驻地编组槽
     let defenseUnits = [];
-    if (garrison) {
-      defenseUnits = await garrisonService.buildDefenseUnits(garrison);
+    if (defenderGarrisonSlot === 0) {
+      defenseUnits = await garrisonService.buildDefenseUnitsFromMainLineup(defenderId);
+    } else {
+      const garrison = await garrisonService.getGarrisonSlot(defenderId, defenderGarrisonSlot);
+      if (garrison) {
+        defenseUnits = await garrisonService.buildDefenseUnits(garrison);
+      }
     }
 
     res.json({

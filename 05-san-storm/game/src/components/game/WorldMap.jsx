@@ -138,7 +138,10 @@ export default function WorldMap({ onEventBusyChange }) {
   }, []);
   useEffect(() => { refreshCity(); }, [refreshCity]);
   // 从 player 数据初始化 onDuty 状态
-  useEffect(() => { if (player?.on_duty != null) setOnDuty(!!player.on_duty); }, [player?.on_duty]);
+  useEffect(() => {
+    if (player?.on_duty == null) return;
+    setOnDuty(!!player.on_duty && player.on_duty_city_id === CITY_ID);
+  }, [player?.on_duty, player?.on_duty_city_id]);
   // tooltip 打开时刷新
   useEffect(() => { if (cityTooltip) refreshCity(); }, [cityTooltip]);
 
@@ -459,11 +462,13 @@ export default function WorldMap({ onEventBusyChange }) {
                       onClick={async (e) => {
                         e.stopPropagation();
                         const newVal = !onDuty;
-                        const res = await garrisonAPI.setOnDuty(player.player_id, newVal);
+                        const res = await garrisonAPI.setOnDuty(player.player_id, newVal, CITY_ID);
                         if (res.success) {
                           setOnDuty(newVal);
                           refreshCity();
                           refreshPlayer();
+                        } else if (res.error) {
+                          window.alert(res.error);
                         }
                       }}
                       className={`w-full py-1.5 rounded text-xs font-bold transition-all

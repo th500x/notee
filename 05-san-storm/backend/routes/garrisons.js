@@ -48,14 +48,16 @@ router.get('/stats/cities', async (req, res) => {
 router.get('/city/:cityId/on-duty-count', async (req, res) => {
   try {
     const { pool } = require('../database/connection');
+    // 与驻地守军统计无关：只计「选择披挂上阵」且待战目标为本城、与城同势力的玩家
     const [rows] = await pool.query(
-      `SELECT COUNT(DISTINCT pg.player_id) AS count
-       FROM player_garrison pg
-       JOIN players p ON pg.player_id = p.player_id
-       JOIN cities c ON c.id = pg.city_id
-       WHERE pg.city_id = ? AND pg.is_active = TRUE AND p.on_duty = TRUE
-         AND c.faction_id IS NOT NULL AND p.faction_id = c.faction_id`,
-      [req.params.cityId]
+      `SELECT COUNT(*) AS count
+       FROM players p
+       INNER JOIN cities c ON c.id = ?
+       WHERE p.on_duty = TRUE
+         AND p.on_duty_city_id = ?
+         AND c.faction_id IS NOT NULL
+         AND p.faction_id = c.faction_id`,
+      [req.params.cityId, req.params.cityId]
     );
     res.json({ success: true, count: rows[0]?.count || 0 });
   } catch (error) {
@@ -72,10 +74,44 @@ router.get('/city/:cityId/on-duty-count', async (req, res) => {
  */
 router.post('/:playerId/on-duty', async (req, res) => {
   try {
-    const { onDuty } = req.body;
+    const { onDuty, cityId } = req.body;
     const { pool } = require('../database/connection');
-    await pool.query('UPDATE players SET on_duty = ? WHERE player_id = ?', [!!onDuty, req.params.playerId]);
-    await Player.updateLastActive(req.params.playerId);
+    const playerId = req.params.playerId;
+
+    if (onDuty) {
+      if (!cityId) {
+        return res.status(400).json({
+          success: false,
+          error: '开启披挂上阵需传入 cityId（待战目标城池）',
+        });
+      }
+      const [pRows] = await pool.query('SELECT faction_id FROM players WHERE player_id = ?', [playerId]);
+      const playerRow = pRows[0];
+      if (!playerRow) {
+        return res.status(404).json({ success: false, error: '玩家不存在' });
+      }
+      const [cRows] = await pool.query('SELECT faction_id FROM cities WHERE id = ?', [cityId]);
+      const cityRow = cRows[0];
+      if (!cityRow) {
+        return res.status(400).json({ success: false, error: '城池不存在' });
+      }
+      if (!cityRow.faction_id || playerRow.faction_id !== cityRow.faction_id) {
+        return res.status(400).json({
+          success: false,
+          error: '仅能为自己势力已占领的城池披挂上阵',
+        });
+      }
+      await pool.query(
+        'UPDATE players SET on_duty = TRUE, on_duty_city_id = ? WHERE player_id = ?',
+        [cityId, playerId]
+      );
+    } else {
+      await pool.query(
+        'UPDATE players SET on_duty = FALSE, on_duty_city_id = NULL WHERE player_id = ?',
+        [playerId]
+      );
+    }
+    await Player.updateLastActive(playerId);
     res.json({ success: true, onDuty: !!onDuty });
   } catch (error) {
     console.error('[Garrisons] 切换披挂上阵失败:', error);
@@ -135,7 +171,7 @@ router.post('/:playerId/:slot', async (req, res) => {
       return res.status(400).json(result);
     }
 
-    res.json({ success: true });
+    res.json(result);
   } catch (error) {
     console.error('[Garrisons] 保存驻守配置失败:', error);
     res.status(500).json({ success: false, error: '保存驻守配置失败' });

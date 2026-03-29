@@ -225,15 +225,20 @@ async function initiateSiege(cityId, playerId) {
     // 按顺序构建防守者队列：先 on_duty，再普通驻守
     const onDutyDefenders = await garrisonService.getCityOnDutyDefenders(cityId, city.faction_id);
     const garrisonDefenders = await garrisonService.getCityGarrisonDefenders(cityId, city.faction_id);
-    const allDefenders = [...onDutyDefenders, ...garrisonDefenders];
+    const onDutyPlayerIds = new Set(onDutyDefenders.map((d) => d.player_id));
+    const garrisonOnly = garrisonDefenders.filter((d) => !onDutyPlayerIds.has(d.player_id));
+    const allDefenders = [...onDutyDefenders, ...garrisonOnly];
 
     for (const def of allDefenders) {
       if (def.player_id === playerId) continue; // 跳过攻城方自己
 
-      const units = await garrisonService.buildDefenseUnits(def);
-      // 总兵力 ≥ 800 才作为有效防守者（披挂上阵 PVP 与普通驻守异步一致，均适用）
+      const units =
+        def.defense_source === 'main_lineup'
+          ? await garrisonService.buildDefenseUnitsFromMainLineup(def.player_id)
+          : await garrisonService.buildDefenseUnits(def);
+      // 总兵力达下限才作为有效防守者（披挂上阵 PVP 与普通驻守异步一致，均适用）
       const totalTroops = units.reduce((sum, u) => sum + u.currentTroops, 0);
-      if (totalTroops < 800) continue;
+      if (totalTroops < garrisonService.MIN_GARRISON_TOTAL_TROOPS) continue;
 
       const war = await getOrCreateWar(cityId, city);
       const defLockKey = `def|${war.war_id}|${def.player_id}|${def.garrison_slot}`;
@@ -272,10 +277,9 @@ async function initiateSiege(cityId, playerId) {
         _troopInstanceId: u.troop.instanceId,
       }));
 
-      const isOnDuty = !!def.on_duty;
+      const isOnDuty = def.defense_source === 'main_lineup' || !!def.on_duty;
 
-      // 披挂上阵：主公已明示待战，一律走实时 PVP 挑战（接受/超时自动战），
-      // 不因短时未打心跳或 profile 未刷新而误判为异步驻守。
+      // 披挂上阵：待战方用上阵编组，与驻地编组无关；一律走实时 PVP 挑战（接受/超时自动战）。
       if (isOnDuty) {
         return {
           warId: war.war_id, cityId, cityName: city.city_name, cityType: city.city_type,
@@ -518,14 +522,9 @@ async function recordSiegeResult(warId, playerId, factionId, killedIndices, resu
           await conn.query('UPDATE player_garrison SET is_active = FALSE WHERE player_id = ? AND garrison_slot = ?', [gPlayerId, slot]);
           continue;
         }
-        const tph = troopIds.map(() => '?').join(',');
-        const [troopStatus] = await conn.query(
-          `SELECT SUM(COALESCE(current_troops, 0)) AS total_troops FROM player_cards WHERE instance_id IN (${tph})`,
-          troopIds
-        );
-        const totalTroopsLeft = troopStatus[0]?.total_troops || 0;
-        if (totalTroopsLeft < 1) {
-          // 所有部队全灭 → 驻守槽位失活
+        const totalTroopsLeft = await garrisonService.sumTroopInstancesTotalTroops(conn, gPlayerId, troopIds);
+        if (totalTroopsLeft < garrisonService.MIN_GARRISON_TOTAL_TROOPS) {
+          // 低于守军出战总兵力下限 → 不计入卡池、不可作战，直至补回并保存
           await conn.query('UPDATE player_garrison SET is_active = FALSE WHERE player_id = ? AND garrison_slot = ?', [gPlayerId, slot]);
         }
       }
@@ -681,11 +680,13 @@ async function recordSiegeResult(warId, playerId, factionId, killedIndices, resu
         [winnerFaction, warId]
       );
 
-      // 易主：清除旧势力驻守槽位，并重置「披挂上阵」
-      // on_duty 是 players 表全局字段，人数统计却按「本城 + 本势力 garrison」JOIN；
-      // 仅重置败方可能漏掉边缘脏数据，导致易主后人数卡住、他人开关披挂上阵也不变。
-      // 故：凡在本城有关联驻守槽位的玩家，易主时一律清除 on_duty，需重新选择披挂上阵。
+      // 易主：清除待战本城的「披挂上阵」标记（与是否保存驻地编组无关）
+      await connection.query(
+        'UPDATE players SET on_duty = FALSE, on_duty_city_id = NULL WHERE on_duty_city_id = ?',
+        [war.target_city_id]
+      );
 
+      // 兼容旧数据：曾在本城有驻守行、但 on_duty_city_id 未写入的玩家
       const [allCityGarrisonPlayers] = await connection.query(
         `SELECT DISTINCT g.player_id FROM player_garrison g WHERE g.city_id = ?`,
         [war.target_city_id]
@@ -694,7 +695,7 @@ async function recordSiegeResult(warId, playerId, factionId, killedIndices, resu
       if (allGarrisonPlayerIds.length > 0) {
         const phAll = allGarrisonPlayerIds.map(() => '?').join(',');
         await connection.query(
-          `UPDATE players SET on_duty = FALSE WHERE player_id IN (${phAll}) AND on_duty = TRUE`,
+          `UPDATE players SET on_duty = FALSE, on_duty_city_id = NULL WHERE player_id IN (${phAll}) AND on_duty = TRUE`,
           allGarrisonPlayerIds
         );
       }

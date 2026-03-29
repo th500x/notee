@@ -50,6 +50,8 @@ export default function GarrisonLineup({ onClose }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [detailCard, setDetailCard] = useState(null);
   const [saving, setSaving] = useState(false);
+  /** 编队已满将、领但总兵力未达守军下限时的提示（不弹窗） */
+  const [activationHint, setActivationHint] = useState(null);
 
   const [isLandscape, setIsLandscape] = useState(
     () => window.innerWidth >= 768 && window.innerWidth > window.innerHeight
@@ -84,6 +86,10 @@ export default function GarrisonLineup({ onClose }) {
   }, [player?.player_id]);
 
   useEffect(() => { loadGarrisons(); }, [loadGarrisons]);
+
+  useEffect(() => {
+    setActivationHint(null);
+  }, [activePool]);
 
   const currentGarrison = activePool === 'A' ? garrisonA : garrisonB;
   const currentSlotNum = activePool === 'A' ? 1 : 2;
@@ -132,6 +138,13 @@ export default function GarrisonLineup({ onClose }) {
       if (res.success) {
         await loadGarrisons();
         await refresh();
+        if (res.belowTroopThreshold) {
+          setActivationHint(
+            `本卡池总兵力 ${res.garrisonTroopTotal ?? '—'}，需 ≥ ${res.minTroopsForActive ?? 800} 才计入守城并允许作战（已保存，补足后保存即生效）。`
+          );
+        } else {
+          setActivationHint(null);
+        }
       } else {
         alert(res.error || '保存失败');
       }
@@ -346,8 +359,13 @@ export default function GarrisonLineup({ onClose }) {
 
   return (
     <div className="fixed inset-0 z-[100] bg-gradient-to-b from-stone-900 via-stone-800 to-stone-900 flex flex-col">
-      {/* 顶部栏：驻地A / 驻地B */}
-      <div className="flex items-center border-b border-amber-900/50 bg-stone-900/80 sticky top-0 z-10">
+      {/* 顶部栏：规则说明（左上） + 驻地A / 驻地B */}
+      <div className="flex flex-col border-b border-amber-900/50 bg-stone-900/80 sticky top-0 z-10">
+        <div className="px-3 py-1.5 text-[10px] text-stone-500 leading-snug border-b border-stone-700/40 text-left">
+          <div>守城卡池A（总兵力≥800 / 首轮防守）</div>
+          <div>守城卡池B（总兵力≥800 / 第二轮防守）</div>
+        </div>
+        <div className="flex items-center">
         <div className="flex flex-1">
           {['A', 'B'].map(pool => (
             <button key={pool}
@@ -363,14 +381,20 @@ export default function GarrisonLineup({ onClose }) {
         </div>
         <button onClick={onClose}
           className="flex-shrink-0 px-3 py-3 text-stone-500 hover:text-white transition-colors">✕</button>
+        </div>
       </div>
 
       {/* 城市信息 */}
-      <div className="px-3 py-1.5 bg-stone-800/50 border-b border-stone-700/30 text-xs text-stone-400 flex items-center gap-2">
-        <span>🏯 驻地：{CITY_NAME}城</span>
-        <span className="text-stone-600">|</span>
-        <span>守城卡池{activePool}（{activePool === 'A' ? '首轮防守' : '第二轮防守'}）</span>
-        {saving && <span className="text-amber-400 ml-auto animate-pulse">保存中...</span>}
+      <div className="px-3 py-1.5 bg-stone-800/50 border-b border-stone-700/30 text-xs text-stone-400 flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <span>🏯 驻地：{CITY_NAME}城</span>
+          <span className="text-stone-600 hidden sm:inline">|</span>
+          <span>当前编辑：卡池{activePool}（{activePool === 'A' ? '首轮防守' : '第二轮防守'}）</span>
+        </div>
+        {activationHint && (
+          <span className="text-amber-500/90 text-[11px] leading-snug sm:ml-auto sm:max-w-[55%] sm:text-right">{activationHint}</span>
+        )}
+        {saving && <span className="text-amber-400 sm:ml-auto animate-pulse">保存中...</span>}
       </div>
 
       {/* 主内容 */}

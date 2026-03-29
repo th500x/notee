@@ -4,7 +4,9 @@
  * @description 56px固定顶部，显示页面标题 + 四大资源 + 设置按钮
  */
 
+import { useState, useEffect, useMemo } from 'react';
 import { usePlayerContext } from '@/contexts/PlayerContext';
+import { computeDisplayGameDate } from '@/utils/gameTime';
 
 const TAB_TITLES = {
   lineup: '编组配置',
@@ -25,15 +27,35 @@ function ResourceBadge({ icon, value, low = false }) {
 }
 
 export default function TopStatusBar({ activeTab, onOpenSidebar }) {
-  const { player, loading } = usePlayerContext();
+  const { player, loading, gameTime } = usePlayerContext();
+  const [timeTick, setTimeTick] = useState(0);
+
+  useEffect(() => {
+    const id = setInterval(() => setTimeTick((n) => n + 1), 60000);
+    return () => clearInterval(id);
+  }, []);
 
   const title = TAB_TITLES[activeTab] || '真三風雲';
 
+  const mapGameDate = useMemo(() => {
+    void timeTick;
+    if (activeTab !== null || !gameTime) return null;
+    return computeDisplayGameDate(gameTime);
+  }, [activeTab, gameTime, timeTick]);
+
   return (
     <div className="fixed top-0 left-0 right-0 h-14 z-50 bg-gradient-to-r from-amber-900 to-amber-800 flex items-center px-3 shadow-lg">
-      {/* 左侧：页面标题 */}
-      <div className="flex-shrink-0 mr-3">
+      {/* 左侧：页面标题 + 大地图时游戏历法 */}
+      <div className="flex-shrink-0 mr-3 flex items-center min-w-0 gap-2">
         <span className="text-white text-lg font-bold truncate">{title}</span>
+        {mapGameDate && (
+          <span
+            className="text-amber-100/90 text-[11px] sm:text-xs font-medium whitespace-nowrap tabular-nums shrink-0"
+            title={`锚点：${gameTime.anchorAt} · ${gameTime.realHoursPerGameDay}现实小时/游戏日`}
+          >
+            公元{mapGameDate.year}年{mapGameDate.month}月{mapGameDate.day}日
+          </span>
+        )}
       </div>
 
       {/* 中间留空（预留事件系统） + 右侧资源 */}
