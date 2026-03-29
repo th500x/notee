@@ -7,7 +7,6 @@
 const express = require('express');
 const bcrypt = require('bcrypt');
 const { pool } = require('../database/connection');
-const { getIPPattern } = require('../utils/ipUtils');
 
 const router = express.Router();
 
@@ -31,10 +30,13 @@ router.post('/register', async (req, res) => {
       city
     } = req.body;
 
-    // 数据验证
-    if (!id || !password || !birthMonth || !serverId || !machineId || !clientIP) {
+    // 数据验证（machineId / clientIP 仅作记录；缺失时用占位，避免前端取 IP/指纹失败导致无法注册）
+    if (!id || !password || !birthMonth || !serverId) {
       return res.status(400).json({ success: false, error: '缺少必填字段' });
     }
+
+    const resolvedMachineId = (machineId && String(machineId).trim()) || 'unknown';
+    const resolvedClientIP = (clientIP && String(clientIP).trim()) || '0.0.0.0';
 
     if (id === SYSTEM_ACCOUNT_ID) {
       return res.status(400).json({ success: false, error: '该ID不可注册' });
@@ -49,24 +51,22 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({ success: false, error: 'ID已被使用' });
     }
 
-    // 检查机器指纹是否已注册
-    const [existingMachine] = await pool.query(
-      'SELECT id FROM accounts WHERE machineId = ?',
-      [machineId]
-    );
-    if (existingMachine.length > 0) {
-      return res.status(400).json({ success: false, error: '该设备已注册过账号' });
-    }
-
-    // 检查IP是否已注册（IPv6使用前缀匹配）
-    const ipPattern = getIPPattern(clientIP);
-    const [existingIP] = await pool.query(
-      'SELECT id FROM accounts WHERE clientIP LIKE ?',
-      [ipPattern]
-    );
-    if (existingIP.length > 0) {
-      return res.status(400).json({ success: false, error: '该网络已注册过账号' });
-    }
+    // TODO(临时关闭)：设备指纹 / 同网段 IP 防多开注册。待逻辑修好后恢复。
+    // const [existingMachine] = await pool.query(
+    //   'SELECT id FROM accounts WHERE machineId = ?',
+    //   [resolvedMachineId]
+    // );
+    // if (existingMachine.length > 0) {
+    //   return res.status(400).json({ success: false, error: '该设备已注册过账号' });
+    // }
+    // const ipPattern = getIPPattern(resolvedClientIP);
+    // const [existingIP] = await pool.query(
+    //   'SELECT id FROM accounts WHERE clientIP LIKE ?',
+    //   [ipPattern]
+    // );
+    // if (existingIP.length > 0) {
+    //   return res.status(400).json({ success: false, error: '该网络已注册过账号' });
+    // }
 
     // 密码加密
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -93,8 +93,8 @@ router.post('/register', async (req, res) => {
       birthMonth, 
       serverId,
       currentSeason, // 从服务器配置中动态获取当前赛季
-      machineId, 
-      clientIP,
+      resolvedMachineId,
+      resolvedClientIP,
       province || null,
       city || null
     ]);
