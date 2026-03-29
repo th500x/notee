@@ -243,6 +243,52 @@ async function listMessages(viewerPlayerId, { channelType: rawType, channelId: r
 }
 
 /**
+ * 轻量检测：频道内当前最大 chat_id（未过期消息），供前端轮询对比，避免拉全量列表
+ */
+async function getChannelMeta(viewerPlayerId, { channelType: rawType, channelId: rawChannelId }) {
+  const channelType = normalizeChannelType(rawType);
+  if (!channelType) {
+    return { ok: false, error: '无效的频道类型' };
+  }
+
+  let channelId = rawChannelId != null && rawChannelId !== '' ? String(rawChannelId).trim() : null;
+  if (channelType === 'world') {
+    channelId = null;
+  } else if (!channelId) {
+    return { ok: false, error: '缺少 channelId' };
+  }
+
+  const viewer = await getPlayerRow(viewerPlayerId);
+  if (!viewer) {
+    return { ok: false, error: '玩家不存在' };
+  }
+
+  if (channelType === 'faction' && viewer.faction_id !== channelId) {
+    return { ok: false, error: '无权查看该势力频道' };
+  }
+  if (channelType === 'legion') {
+    const okLeg = await isLegionMember(viewerPlayerId, channelId);
+    if (!okLeg) {
+      return { ok: false, error: '无权查看该军团频道' };
+    }
+  }
+
+  const [rows] = await pool.query(
+    `SELECT COALESCE(MAX(chat_id), 0) AS max_id
+     FROM chats
+     WHERE channel_type = ?
+       AND (channel_id <=> ?)
+       AND (expires_at IS NULL OR expires_at > NOW())`,
+    [channelType, channelId]
+  );
+  const maxId = rows[0]?.max_id;
+  return {
+    ok: true,
+    maxChatId: maxId != null ? String(maxId) : '0',
+  };
+}
+
+/**
  * 玩家所在军团（至多一条，用于聊天 Tab）；无则 null
  */
 async function getLegionForPlayer(playerId) {
@@ -270,6 +316,7 @@ async function getLegionForPlayer(playerId) {
 module.exports = {
   sendMessage,
   listMessages,
+  getChannelMeta,
   getLegionForPlayer,
   LIMITS,
 };

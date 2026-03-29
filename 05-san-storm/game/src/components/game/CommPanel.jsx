@@ -2,13 +2,13 @@
  * CommPanel - 通信浮层（左下角）
  * 
  * @description 三Tab布局：📜战报 | 📮传书 | 💬聊天（均已对接后端）
- *              收起态入口主标识：未读传书 > 未读聊天 > 默认战报（92-1 §1.7）
+ *              收起态入口主标识：未读传书 > 聊天新消息角标 > 默认入口「聊天」
  *              大地图视图下显示，Tab页面内隐藏
  * 
  * @see 92-1-GAME_UI_DESIGN.md §1.7
  */
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { usePlayerContext } from '@/contexts/PlayerContext';
 import { battleAPI } from '@/services/battleApi';
 import { textsAPI } from '@/services/textsApi';
@@ -31,13 +31,17 @@ const BATTLE_FILTERS = [
 ];
 
 /**
- * @param {number} [unreadChatCount] - 聊天未读/新消息数（聊天通道就绪后由父组件传入）
+ * @param {number} [unreadChatCount] - 预留；新消息角标主要由内部 meta 轮询驱动
  */
-export default function CommPanel({ visible, unreadChatCount = 0 }) {
+export default function CommPanel({ visible, unreadChatCount: unreadChatProp = 0 }) {
   const { player, refresh: refreshPlayer } = usePlayerContext();
   const [open, setOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState('battle');
+  /** 默认打开「聊天」Tab（战报/传书仍可从顶栏切换） */
+  const [activeTab, setActiveTab] = useState('chat');
   const [unreadTextCount, setUnreadTextCount] = useState(0);
+  /** 天下频道有新消息（轻量 meta 检测） */
+  const [chatNotifyCount, setChatNotifyCount] = useState(0);
+  const seenWorldMaxRef = useRef('0');
   /** 领取结果弹窗放在面板外层，避免领取后立即 refreshPlayer 导致子 Tab 重挂载清空行文案 */
   const [mailClaimModal, setMailClaimModal] = useState({ open: false, lines: [] });
 
@@ -87,22 +91,86 @@ export default function CommPanel({ visible, unreadChatCount = 0 }) {
     return () => clearInterval(id);
   }, [visible, player?.player_id, refreshTextUnread]);
 
-  // 收起态若入口为「战报」，预取列表条数用于角标（有传书/聊天未读时不请求）
+  const seenStorageKey = player?.player_id ? `san_chat_seen_world_${player.player_id}` : null;
+
+  // 从 session 恢复已读游标（避免刷新后误报）
   useEffect(() => {
-    if (!visible || !player?.player_id || open) return;
-    if (unreadTextCount > 0 || unreadChatCount > 0) return;
-    loadBattles();
-  }, [visible, player?.player_id, open, unreadTextCount, unreadChatCount, loadBattles]);
+    if (!seenStorageKey || typeof sessionStorage === 'undefined') return;
+    try {
+      const v = sessionStorage.getItem(seenStorageKey);
+      if (v) seenWorldMaxRef.current = v;
+    } catch {
+      /* ignore */
+    }
+  }, [seenStorageKey]);
+
+  /** 大地图可见后：轻量轮询天下频道 max chat_id（约 12s，单次一条聚合查询） */
+  useEffect(() => {
+    if (!visible || !player?.player_id) return;
+    const pid = player.player_id;
+    const tick = async () => {
+      try {
+        const r = await chatAPI.meta(pid, { channelType: 'world', channelId: null });
+        if (!r.success || r.maxChatId == null) return;
+        const remote = String(r.maxChatId);
+        const seen = seenWorldMaxRef.current || '0';
+        let newer = false;
+        try {
+          newer = BigInt(remote) > BigInt(seen);
+        } catch {
+          newer = remote !== seen;
+        }
+        if (newer) {
+          setChatNotifyCount((c) => Math.max(c, 1));
+        }
+      } catch {
+        /* ignore */
+      }
+    };
+    tick();
+    const id = window.setInterval(tick, 12000);
+    return () => window.clearInterval(id);
+  }, [visible, player?.player_id]);
+
+  /** 本会话首次进入大地图：自动展开通信浮层并落在「聊天」Tab（便于看到公屏） */
+  useEffect(() => {
+    if (!visible || !player?.player_id) return;
+    const k = `san_comm_auto_open_${player.player_id}`;
+    try {
+      if (sessionStorage.getItem(k)) return;
+      sessionStorage.setItem(k, '1');
+      setActiveTab('chat');
+      setOpen(true);
+    } catch {
+      /* ignore */
+    }
+  }, [visible, player?.player_id]);
+
+  const syncWorldSeen = useCallback(
+    (maxChatId) => {
+      if (maxChatId == null) return;
+      const s = String(maxChatId);
+      seenWorldMaxRef.current = s;
+      try {
+        if (seenStorageKey) sessionStorage.setItem(seenStorageKey, s);
+      } catch {
+        /* ignore */
+      }
+      setChatNotifyCount(0);
+    },
+    [seenStorageKey]
+  );
 
   const minimizedEntry = useMemo(() => {
     if (unreadTextCount > 0) {
       return { icon: '📮', label: '传书', count: unreadTextCount, tab: 'text' };
     }
-    if (unreadChatCount > 0) {
-      return { icon: '💬', label: '聊天', count: unreadChatCount, tab: 'chat' };
+    const chatBadge = Math.max(chatNotifyCount, unreadChatProp);
+    if (chatBadge > 0) {
+      return { icon: '💬', label: '聊天', count: chatBadge, tab: 'chat' };
     }
-    return { icon: '📜', label: '战报', count: battles.length, tab: 'battle' };
-  }, [unreadTextCount, unreadChatCount, battles.length]);
+    return { icon: '💬', label: '聊天', count: 0, tab: 'chat' };
+  }, [unreadTextCount, unreadChatProp, chatNotifyCount]);
 
   // 展开战报详情
   const handleExpandBattle = useCallback(async (battleId) => {
@@ -170,7 +238,7 @@ export default function CommPanel({ visible, unreadChatCount = 0 }) {
 
   return (
     <>
-    <div className="fixed bottom-20 left-2 z-40 w-80 max-h-[45vh] bg-gray-900/95 rounded-lg shadow-lg overflow-hidden border border-amber-700/40 flex flex-col">
+    <div className="fixed bottom-20 left-2 z-40 w-[min(17rem,85vw)] max-w-[280px] max-h-[45vh] bg-gray-900/95 rounded-lg shadow-lg overflow-hidden border border-amber-700/40 flex flex-col">
       {/* 标题栏 */}
       <div className="flex items-center justify-between px-2 py-1.5 bg-amber-800/80 shrink-0">
         <div className="flex items-center gap-1">
@@ -215,7 +283,7 @@ export default function CommPanel({ visible, unreadChatCount = 0 }) {
           />
         )}
         {activeTab === 'chat' && (
-          <ChatTab player={player} />
+          <ChatTab player={player} onWorldReadSynced={syncWorldSeen} />
         )}
       </div>
     </div>
@@ -576,8 +644,22 @@ function TextMailTab({ playerId, onUnreadChange, onClaimed, onShowClaimResult })
   );
 }
 
+function maxChatIdFromMessages(msgs) {
+  if (!msgs?.length) return '0';
+  let max = '0';
+  for (const m of msgs) {
+    const id = String(m.chatId ?? '0');
+    try {
+      if (BigInt(id) > BigInt(max)) max = id;
+    } catch {
+      if (id > max) max = id;
+    }
+  }
+  return max;
+}
+
 /** 聊天 Tab：天下 / 势力 / 军团 */
-function ChatTab({ player }) {
+function ChatTab({ player, onWorldReadSynced }) {
   const [sub, setSub] = useState('world');
   const [legion, setLegion] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -624,15 +706,19 @@ function ChatTab({ player }) {
     setSendError('');
     try {
       const r = await chatAPI.list(playerId, { channelType, channelId, limit: 100 });
-      if (r.success) setMessages(r.messages);
-      else setSendError(r.error || '加载失败');
+      if (r.success) {
+        setMessages(r.messages);
+        if (sub === 'world' && typeof onWorldReadSynced === 'function') {
+          onWorldReadSynced(maxChatIdFromMessages(r.messages));
+        }
+      } else setSendError(r.error || '加载失败');
     } catch (e) {
       console.error('[ChatTab]', e);
       setSendError(e.message || '加载失败');
     } finally {
       setLoading(false);
     }
-  }, [playerId, sub, factionId, legion?.legionId]);
+  }, [playerId, sub, factionId, legion?.legionId, onWorldReadSynced]);
 
   useEffect(() => {
     loadLegion();
@@ -645,7 +731,7 @@ function ChatTab({ player }) {
   useEffect(() => {
     const id = window.setInterval(() => {
       loadMessages();
-    }, 25000);
+    }, 12000);
     return () => window.clearInterval(id);
   }, [loadMessages]);
 

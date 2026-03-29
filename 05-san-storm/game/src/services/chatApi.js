@@ -78,4 +78,19 @@ export const chatAPI = {
     }
     return { success: false, data: null };
   },
+
+  /**
+   * 轻量：当前频道最大 chat_id（用于轮询是否有新消息）
+   */
+  async meta(playerId, { channelType, channelId }) {
+    const params = { playerId, channelType };
+    if (channelType !== 'world' && channelId) params.channelId = channelId;
+    const qs = buildQuery(params);
+    const response = await fetchWithTimeout(`${API_CONFIG.BASE_URL}/chats/meta?${qs}`);
+    const data = await response.json();
+    if (data.success && data.data) {
+      return { success: true, maxChatId: String(data.data.maxChatId ?? '0') };
+    }
+    return { success: false, error: data.error || '查询失败', maxChatId: '0' };
+  },
 };
