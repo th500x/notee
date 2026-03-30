@@ -232,8 +232,8 @@ export function filterPlayerItemsForExploreLocation(items, exploreLocationId) {
 }
 
 /**
- * 事件链「有效」最高已完成环数：仅当第 L 环在存档中为 completed，且（无 L+1 或玩家已满足 L+1 的 required_items）时，才把 L 记入进度。
- * 若完成了链 1 但未拿到下一环钥匙（如选 B/判定失败未掉信物），则进度不推进，链 1 可再次被抽到。
+ * 事件链「有效」最高已完成环数：按环序推进；若完成了链 1 但未拿到下一环钥匙（如选 B/判定失败未掉信物），则进度不推进，链 1 可再次被抽到。
+ * 若下一环已在存档中为 completed，则不再用「是否持有下一环 required_items」卡进度（避免链2通关后信物被消耗，却误判链1可再打）。
  */
 export function getEffectiveExploreChainMaxCompleted(allEvents, chainId, completedEvents, playerItemCounts = {}) {
   if (!allEvents?.length || !chainId) return 0;
@@ -260,7 +260,10 @@ export function getEffectiveExploreChainMaxCompleted(allEvents, chainId, complet
       break;
     }
     if (next.required_items && !playerMeetsEventRequiredItems(next.required_items, playerItemCounts)) {
-      break;
+      const nextRec = completedEvents[next.event_id];
+      if (nextRec?.status !== 'completed') {
+        break;
+      }
     }
     effective = L;
   }
