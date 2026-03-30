@@ -1,14 +1,35 @@
 /**
- * 攻城战报 · 简化回放（正式系统内嵌，与 public/demo-siege-replay.html 同逻辑）
- * 按战报行驱动：出击 → 受击抖动 → 飘字（不还原格子走位）
+ * 攻城战报 · 简化回放
+ * 左=攻城方、右=守军；解析规则与披挂权威战报一致（═══ 第 T 回合 ═══ + 第 K 次攻击：…）
  */
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 
 const STEP_MS = 750;
+const ROUND_HDR = /^═══\s*第\s*(\d+)\s*回合\s*══=$/;
+const STRIKE_LINE = /^第\s*(\d+)\s*次攻击[：:]\s*(.+)$/;
 
-/** 从战报文本解析回合行（攻城 skirmish 格式） */
-export function parseSiegeReplaySteps(battleLog, leftLabel, rightLabel) {
+function nameListMatches(striker, names) {
+  if (striker == null || !Array.isArray(names) || names.length === 0) return false;
+  const s = String(striker).trim();
+  return names.some((n) => {
+    const t = String(n || '').trim();
+    if (!t) return false;
+    return s === t || s.includes(t) || t.includes(s);
+  });
+}
+
+function strikerSide(striker, atkN, defN) {
+  if (nameListMatches(striker, defN) && !nameListMatches(striker, atkN)) return 'def';
+  if (nameListMatches(striker, atkN)) return 'atk';
+  return 'atk';
+}
+
+/**
+ * @returns {{ timeline: Array<object>, animSteps: Array<object> }}
+ * timeline 含 ROUND / STRIKE，用于列表；animSteps 仅含需播放的出手（含闪避.damage=0）
+ */
+export function parseSiegeReplayTimeline(battleLog, attackerStrikeNames, defenderStrikeNames) {
   const raw =
     typeof battleLog === 'string'
       ? battleLog.split('\n')
@@ -16,40 +37,70 @@ export function parseSiegeReplaySteps(battleLog, leftLabel, rightLabel) {
         ? battleLog
         : [];
   const lines = raw.map((l) => (typeof l === 'object' && l?.text ? l.text : String(l))).filter(Boolean);
-  const steps = [];
-  const L = leftLabel || '左阵';
-  const R = rightLabel || '右阵';
+  const atkN = attackerStrikeNames?.filter(Boolean) || [];
+  const defN = defenderStrikeNames?.filter(Boolean) || [];
+  const timeline = [];
+  let tacticalRound = null;
+
+  const addStrike = (roundNum, k, restLine, rawLine) => {
+    const dm = restLine.match(/^(.+?) 对 (.+?) 造成 (\d+) 损失/);
+    const dodge = restLine.match(/^(.+?) 攻击被闪避。$/);
+    if (dm) {
+      const striker = dm[1].trim();
+      const damage = parseInt(dm[3], 10);
+      if (!Number.isFinite(damage) || damage <= 0) return;
+      const side = strikerSide(striker, atkN, defN);
+      timeline.push({
+        kind: 'STRIKE',
+        roundNum,
+        strikeInRound: k,
+        side,
+        damage,
+        crit: rawLine.includes('暴击'),
+        detailText: restLine,
+        rawLine,
+      });
+      return;
+    }
+    if (dodge) {
+      const striker = dodge[1].trim();
+      const side = strikerSide(striker, atkN, defN);
+      timeline.push({
+        kind: 'STRIKE',
+        roundNum,
+        strikeInRound: k,
+        side,
+        damage: 0,
+        crit: false,
+        dodge: true,
+        detailText: restLine,
+        rawLine,
+      });
+    }
+  };
 
   for (const line of lines) {
-    if (!line.includes('回合') || (!line.includes('造成') && !line.includes('损失'))) continue;
-    const dmgMatch = line.match(/造成\s*(\d+)\s*损失/) || line.match(/造成\s*(\d+)/);
-    const lossOnly = !dmgMatch && /损失\s*(\d+)/.test(line);
-    const lossMatch = lossOnly ? line.match(/损失\s*(\d+)/) : null;
-    if (!dmgMatch && !lossMatch) continue;
-    const damage = parseInt((dmgMatch || lossMatch)[1], 10);
-    if (!Number.isFinite(damage) || damage <= 0) continue;
-    const crit = line.includes('暴击');
-    const m = line.match(/第\d+回合[：:]\s*(.+?)\s+对\s+(.+?)\s+/);
-    let side = 'atk';
-    if (lossOnly && /守军[^。]*遭[^。]*攻城/.test(line)) {
-      side = 'def';
-    } else if (m) {
-      const striker = m[1].trim();
-      const lHit = L.length > 0 && (striker.includes(L) || L.split(/[·\s]/).some((p) => p && striker.includes(p)));
-      const rHit = R.length > 0 && (striker.includes(R) || R.split(/[·\s]/).some((p) => p && striker.includes(p)));
-      if (rHit && !lHit) side = 'def';
-      else if (lHit) side = 'atk';
-      else {
-        const iL = line.indexOf(L.slice(0, Math.min(3, L.length)));
-        const iR = line.indexOf(R.slice(0, Math.min(3, R.length)));
-        if (iR !== -1 && (iL === -1 || iR < iL)) side = 'def';
-      }
-    } else if (/守军[^。]*反击[^。]*攻城/.test(line)) {
-      side = 'atk';
+    const trimmed = line.trim();
+    const hdr = trimmed.match(ROUND_HDR);
+    if (hdr) {
+      tacticalRound = parseInt(hdr[1], 10);
+      timeline.push({ kind: 'ROUND', roundNum: tacticalRound });
+      continue;
     }
-    steps.push({ side, damage, crit, text: line });
+
+    const sk = trimmed.match(STRIKE_LINE);
+    if (sk && tacticalRound != null) {
+      const k = parseInt(sk[1], 10);
+      const rest = sk[2].trim();
+      addStrike(tacticalRound, k, rest, trimmed);
+    }
   }
-  return steps;
+
+  const animSteps = timeline.filter((x) => x.kind === 'STRIKE');
+  animSteps.forEach((s, i) => {
+    s.animIndex = i;
+  });
+  return { timeline, animSteps };
 }
 
 export default function SiegeReplayMini({
@@ -60,10 +111,12 @@ export default function SiegeReplayMini({
   rightLabel = '守军',
   leftPortraitUrl,
   rightPortraitUrl,
+  attackerStrikeNames,
+  defenderStrikeNames,
 }) {
-  const steps = useMemo(
-    () => parseSiegeReplaySteps(battleLog, leftLabel, rightLabel),
-    [battleLog, leftLabel, rightLabel],
+  const { timeline, animSteps } = useMemo(
+    () => parseSiegeReplayTimeline(battleLog, attackerStrikeNames, defenderStrikeNames),
+    [battleLog, attackerStrikeNames, defenderStrikeNames],
   );
   const [playing, setPlaying] = useState(false);
   const [hi, setHi] = useState(-1);
@@ -85,42 +138,47 @@ export default function SiegeReplayMini({
   }, []);
 
   const playAll = useCallback(async () => {
-    if (!steps.length || playingRef.current) return;
+    if (!animSteps.length || playingRef.current) return;
     playingRef.current = true;
     setPlaying(true);
     resetHp();
     setHi(-1);
-    for (let i = 0; i < steps.length; i++) {
+    for (let i = 0; i < animSteps.length; i++) {
       if (!mounted.current) break;
       setHi(i);
-      const s = steps[i];
-      if (s.side === 'atk') setDefHp((h) => Math.max(0, h - s.damage));
-      else setAtkHp((h) => Math.max(0, h - s.damage));
+      const s = animSteps[i];
+      if (s.damage > 0) {
+        if (s.side === 'atk') setDefHp((h) => Math.max(0, h - s.damage));
+        else setAtkHp((h) => Math.max(0, h - s.damage));
+      }
       await new Promise((r) => setTimeout(r, STEP_MS));
     }
     playingRef.current = false;
     if (mounted.current) setPlaying(false);
-  }, [steps, resetHp]);
+  }, [animSteps, resetHp]);
 
   useEffect(() => {
-    if (!open || !steps.length) return undefined;
+    if (!open || !animSteps.length) return undefined;
     const t = window.setTimeout(() => playAll(), 0);
     return () => window.clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- 仅 open / 行数变化时自动播
-  }, [open, steps.length]);
+  }, [open, animSteps.length]);
 
-  if (!open) return null;
-
-  const cur = hi >= 0 ? steps[hi] : null;
+  const cur = hi >= 0 ? animSteps[hi] : null;
   const leftLunge = cur?.side === 'atk';
   const leftHit = cur?.side === 'def';
   const rightHit = cur?.side === 'atk';
   const rightLunge = cur?.side === 'def';
 
+  const strikeMatchesHighlight = (s) =>
+    cur && s.roundNum === cur.roundNum && s.strikeInRound === cur.strikeInRound && s.rawLine === cur.rawLine;
+
+  if (!open) return null;
+
   return (
     <div className="rounded-lg border border-amber-700/35 bg-[#12121e] p-3 text-[#e0d5c0]">
-      <p className="text-center text-[11px] text-stone-500 mb-2">
-        按战报顺序：出击 → 受击抖动 → 飘字（不还原格子走位）
+      <p className="text-center text-[11px] text-stone-500 mb-2 leading-snug">
+        与战报同源：「═══ 第 T 回合 ═══」为战术回合（全场每个存活单位每回合行动一次，与棋盘战一致）；其下「第 K 次攻击」为本回合内出手顺序。左攻城方、右守军。
       </p>
       <div className="text-[10px] text-center text-stone-500 mb-2">对阵</div>
       <div className="flex justify-between gap-2 items-end mb-2">
@@ -129,7 +187,7 @@ export default function SiegeReplayMini({
             leftLunge
               ? 'border-blue-500/80 shadow-[0_0_16px_rgba(59,130,246,0.45)]'
               : leftHit
-                ? 'border-red-500/70 shadow-[0_0_12px_rgba(239,68,68,0.35)] animate-pulse'
+                ? 'border-red-500/70 shadow-[0_0_12px_rgba(239,68,68,0.35) animate-pulse'
                 : 'border-blue-500/35 bg-gradient-to-b from-[#1a2a4a] to-[#121a2e]'
           }`}
         >
@@ -146,7 +204,7 @@ export default function SiegeReplayMini({
             rightLunge
               ? 'border-blue-500/80 shadow-[0_0_16px_rgba(59,130,246,0.45)]'
               : rightHit
-                ? 'border-red-500/70 shadow-[0_0_12px_rgba(239,68,68,0.35)] animate-pulse'
+                ? 'border-red-500/70 shadow-[0_0_12px_rgba(239,68,68,0.35) animate-pulse'
                 : 'border-red-500/35 bg-gradient-to-b from-[#4a1a1a] to-[#2e1212]'
           }`}
         >
@@ -159,18 +217,38 @@ export default function SiegeReplayMini({
           <div className="text-[9px] text-stone-500 mt-1">约 {defHp}</div>
         </div>
       </div>
-      <div className="text-[10px] text-stone-400 border-t border-stone-700/50 pt-2 max-h-28 overflow-y-auto space-y-0.5 leading-snug">
-        {steps.length === 0 && <div className="text-stone-500 text-center py-2">未解析到回合战报行</div>}
-        {steps.map((s, i) => (
-          <div key={i} className={i === hi ? 'text-amber-100/95' : 'text-stone-500/55'}>
-            {s.text}
-          </div>
-        ))}
+      <div className="text-[10px] text-stone-400 border-t border-stone-700/50 pt-2 max-h-48 overflow-y-auto space-y-2 leading-snug">
+        {timeline.length === 0 && (
+          <div className="text-stone-500 text-center py-2">未解析到战报（需协议行「═══ 第 T 回合 ═══」与「第 K 次攻击：…」）</div>
+        )}
+        {timeline.map((item, i) => {
+          if (item.kind === 'ROUND') {
+            return (
+              <div key={`r-${i}-${item.roundNum}`} className="text-[11px] text-amber-200/90 font-bold text-center tracking-wide border-b border-stone-700/40 pb-1">
+                ═══ 第 {item.roundNum} 回合 ═══
+              </div>
+            );
+          }
+          const hl = strikeMatchesHighlight(item);
+          return (
+            <div
+              key={`s-${i}-${item.roundNum}-${item.strikeInRound}`}
+              className={`rounded px-1 py-0.5 ${hl ? 'bg-amber-950/35 border border-amber-600/35 text-amber-100/95' : ''}`}
+            >
+              <div className="text-[10px] text-stone-400 pl-1">
+                第 {item.strikeInRound} 次攻击
+                {item.dodge ? ' · 闪避' : ''}
+                {item.crit ? ' · 暴击' : ''}
+              </div>
+              <div className="text-[10px] pl-2 text-stone-300/90">{item.detailText}</div>
+            </div>
+          );
+        })}
       </div>
       <div className="flex gap-2 justify-center mt-3 pt-3 border-t border-stone-700/40">
         <button
           type="button"
-          disabled={playing || !steps.length}
+          disabled={playing || !animSteps.length}
           onClick={() => playAll()}
           className="px-5 py-1.5 rounded-md border border-amber-600/50 bg-stone-900 text-amber-400 text-xs min-w-[5rem] disabled:opacity-40"
         >

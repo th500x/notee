@@ -68,13 +68,11 @@ function getCachedBg() {
 }
 
 /** 攻城结算里服务端权威战报的简化回放入口 */
-function AuthoritativeSiegeReplayButton({ battleLogLines }) {
+function AuthoritativeSiegeReplayButton({ battleLogLines, attackerStrikeNames, defenderStrikeNames }) {
   const [open, setOpen] = useState(false);
   const logStr = Array.isArray(battleLogLines) ? battleLogLines.join('\n') : '';
   const canReplay =
-    logStr.length > 12 &&
-    /第\d+回合/.test(logStr) &&
-    (/对\s+.+\s+造成/.test(logStr) || /造成\s*\d+/.test(logStr) || /损失\s+\d+/.test(logStr));
+    logStr.length > 12 && /═══\s*第\s*\d+\s*回合\s*══=/.test(logStr) && /次攻击/.test(logStr);
   if (!canReplay) return null;
   return (
     <>
@@ -101,6 +99,8 @@ function AuthoritativeSiegeReplayButton({ battleLogLines }) {
               battleLog={logStr}
               leftLabel="攻城方"
               rightLabel="守军"
+              attackerStrikeNames={attackerStrikeNames}
+              defenderStrikeNames={defenderStrikeNames}
             />
           </div>
         </AncientModal>
@@ -115,9 +115,7 @@ function PvpDefenseOutcomeModal({ outcome, onClose }) {
   const logLines = Array.isArray(outcome?.battleLog) ? outcome.battleLog : [];
   const logStr = logLines.join('\n');
   const canReplay =
-    logStr.length > 12 &&
-    /第\d+回合/.test(logStr) &&
-    (/对\s+.+\s+造成/.test(logStr) || /造成\s*\d+/.test(logStr) || /损失\s+\d+/.test(logStr));
+    logStr.length > 12 && /═══\s*第\s*\d+\s*回合\s*══=/.test(logStr) && /次攻击/.test(logStr);
 
   return (
     <>
@@ -168,6 +166,8 @@ function PvpDefenseOutcomeModal({ outcome, onClose }) {
               battleLog={logStr}
               leftLabel="攻城方"
               rightLabel="守军"
+              attackerStrikeNames={outcome.siegeReplayAttackerNames}
+              defenderStrikeNames={outcome.siegeReplayDefenderNames}
             />
           </div>
         </AncientModal>
@@ -442,6 +442,8 @@ export default function WorldMap({ onEventBusyChange }) {
               ...r.data.siegeData,
               authoritativeBattleLog: r.data.battleLog,
               battleSeed: r.data.battleSeed,
+              siegeReplayAttackerNames: r.data.siegeReplayAttackerNames,
+              siegeReplayDefenderNames: r.data.siegeReplayDefenderNames,
             });
           });
         } else {
@@ -967,7 +969,11 @@ export default function WorldMap({ onEventBusyChange }) {
             <div className="text-sm text-gray-400">NPC守军：{siegeResult.npcKilled}/{siegeResult.npcTotal} 已消灭</div>
             {Array.isArray(siegeResult.authoritativeBattleLog) && siegeResult.authoritativeBattleLog.length > 0 && (
               <>
-                <AuthoritativeSiegeReplayButton battleLogLines={siegeResult.authoritativeBattleLog} />
+                <AuthoritativeSiegeReplayButton
+                  battleLogLines={siegeResult.authoritativeBattleLog}
+                  attackerStrikeNames={siegeResult.siegeReplayAttackerNames}
+                  defenderStrikeNames={siegeResult.siegeReplayDefenderNames}
+                />
                 <details className="text-left text-[11px] text-stone-400 max-h-32 overflow-y-auto mt-2">
                   <summary className="cursor-pointer text-amber-500/90">文字战报（服务端）</summary>
                   <pre className="whitespace-pre-wrap font-sans mt-1">{siegeResult.authoritativeBattleLog.join('\n')}</pre>

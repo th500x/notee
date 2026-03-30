@@ -398,6 +398,8 @@ async function recordSiegeResult(warId, playerId, factionId, killedIndices, resu
   const {
     defenderType, defenderPlayerId, garrisonUnits, defenderGarrisonSlot, npcBatchIndex,
     battleScore, battleReportSaved,
+    /** 披挂权威结算：按推演结果写回防守方各部队兵力（含战损未全灭） */
+    defenderLineupTroopUpdates,
   } = defenderInfo || {};
   const shouldFallbackAddBattleScore = Number(battleScore) > 0 && battleReportSaved === false;
 
@@ -444,13 +446,33 @@ async function recordSiegeResult(warId, playerId, factionId, killedIndices, resu
         .filter(u => u && u._troopInstanceId)
         .map(u => u._troopInstanceId);
 
-      for (const idx of killedIndices) {
-        const unit = garrisonUnits[idx];
-        if (!unit || !unit._troopInstanceId) continue;
-        // 兵力归零 + 记录损失时间
-        await conn.query('UPDATE player_cards SET current_troops = 0, last_troops_lost_at = NOW() WHERE instance_id = ?', [unit._troopInstanceId]);
-        killCount++;
-        silverReward += KILL_SILVER_REWARD[unit.rarity] || 10;
+      const useLineupUpdates =
+        Array.isArray(defenderLineupTroopUpdates) && defenderLineupTroopUpdates.length > 0;
+
+      if (useLineupUpdates) {
+        for (const u of defenderLineupTroopUpdates) {
+          if (!u?.instanceId || !defenderPlayerId) continue;
+          const maxT = u.maxTroops != null ? Number(u.maxTroops) : 9999;
+          const cur = Math.max(0, Math.min(maxT, Math.round(Number(u.currentTroops) || 0)));
+          await conn.query(
+            `UPDATE player_cards SET current_troops = ?, last_troops_lost_at = ? WHERE instance_id = ? AND player_id = ?`,
+            [cur, cur < maxT ? new Date() : null, u.instanceId, defenderPlayerId],
+          );
+        }
+        for (const idx of killedIndices) {
+          const unit = garrisonUnits[idx];
+          if (!unit) continue;
+          killCount++;
+          silverReward += KILL_SILVER_REWARD[unit.rarity] || 10;
+        }
+      } else {
+        for (const idx of killedIndices) {
+          const unit = garrisonUnits[idx];
+          if (!unit || !unit._troopInstanceId) continue;
+          await conn.query('UPDATE player_cards SET current_troops = 0, last_troops_lost_at = NOW() WHERE instance_id = ?', [unit._troopInstanceId]);
+          killCount++;
+          silverReward += KILL_SILVER_REWARD[unit.rarity] || 10;
+        }
       }
 
       // Bug fix: 所有参战部队卡的 battle_count + 1（耐久度消耗）

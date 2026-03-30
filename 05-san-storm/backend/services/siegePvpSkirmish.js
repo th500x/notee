@@ -1,5 +1,11 @@
 /**
- * 披挂攻城 PVP · 服务端单场推演（无地图走位，随机对射式交锋，与 combatSystem 伤害一致）
+ * 披挂攻城 PVP · 服务端单场推演
+ *
+ * - 无格子移动 / 射程判定：不模拟走位，但每一击仍走与正式战斗相同的伤害链
+ *   （`siegeCombatCore`：`calcDamageSeeded`、`rollCritDodgeSeeded`、`troopDamageToCasualties`，
+ *   与前端棋盘战 `combatSystem` / BattleArena 所用公式一致，不是独立乱写的「对射」数值）。
+ * - 战术流程：与 BattleArena 相同语义的一回合一圈——每战术回合输出「═══ 第 T 回合 ═══」，
+ *   当场存活双方将帅部队按速度排序后各行动至多一次，日志为「第 K 次攻击：…」。
  */
 
 const crypto = require('crypto');
@@ -101,45 +107,70 @@ function runSiegePvpSkirmish(attackerSiegeNpcs, defenderSiegeNpcs, seedInput) {
   const enemyTroops = defenderSiegeNpcs.map((npc, i) => siegeNpcToTroop(npc, 'enemy', i, 'enemy', rng));
 
   const logs = [];
-  let round = 0;
-  const maxRounds = 250;
+  let tacticalRound = 0;
+  /** 与棋盘战一致：战术回合上限（非单次交锋次数） */
+  const maxTacticalRounds = 100;
 
-  while (round < maxRounds) {
-    round++;
-    const aliveP = playerTroops.filter((t) => t.currentTroops > 0);
-    const aliveE = enemyTroops.filter((t) => t.currentTroops > 0);
+  const roundHeader = (n) => `═══ 第 ${n} 回合 ═══`;
+
+  while (tacticalRound < maxTacticalRounds) {
+    tacticalRound += 1;
+    logs.push(roundHeader(tacticalRound));
+
+    let aliveP = playerTroops.filter((t) => t.currentTroops > 0);
+    let aliveE = enemyTroops.filter((t) => t.currentTroops > 0);
     if (aliveP.length === 0) {
-      logs.push(`第${round}回合：攻城方全军覆没。`);
-      return finish(false);
+      logs.push('交战前攻城方已无兵，战斗结束。');
+      return finish(false, tacticalRound);
     }
     if (aliveE.length === 0) {
-      logs.push(`第${round}回合：守军全灭。`);
-      return finish(true);
+      logs.push('交战前守军已无兵，战斗结束。');
+      return finish(true, tacticalRound);
     }
 
-    const attackerIsPlayer = rng() < 0.5;
-    const atkPool = attackerIsPlayer ? aliveP : aliveE;
-    const defPool = attackerIsPlayer ? aliveE : aliveP;
-    const atk = atkPool[Math.floor(rng() * atkPool.length)];
-    const def = defPool[Math.floor(rng() * defPool.length)];
+    const actorEntries = [...aliveP, ...aliveE].map((t) => ({ t, tie: rng() }));
+    actorEntries.sort((a, b) => {
+      const ds = (b.t.speed || 0) - (a.t.speed || 0);
+      if (ds !== 0) return ds;
+      return a.tie - b.tie;
+    });
 
-    const roll = rollCritDodgeSeeded(atk, def, rng);
-    if (roll === 'dodge') {
-      logs.push(`第${round}回合：${atk.character?.courtesyName || atk.name} 攻击被闪避。`);
-      continue;
+    let attackInRound = 0;
+    for (const { t: atk } of actorEntries) {
+      if (atk.currentTroops <= 0) continue;
+
+      aliveP = playerTroops.filter((t) => t.currentTroops > 0);
+      aliveE = enemyTroops.filter((t) => t.currentTroops > 0);
+      if (aliveP.length === 0) return finish(false, tacticalRound);
+      if (aliveE.length === 0) return finish(true, tacticalRound);
+
+      const oppPool = atk.faction === 'player' ? aliveE : aliveP;
+      if (oppPool.length === 0) continue;
+
+      const def = oppPool[Math.floor(rng() * oppPool.length)];
+      attackInRound += 1;
+      const an = atk.character?.courtesyName || atk.name;
+      const dn = def.character?.courtesyName || def.name;
+
+      const roll = rollCritDodgeSeeded(atk, def, rng);
+      if (roll === 'dodge') {
+        logs.push(`第 ${attackInRound} 次攻击：${an} 攻击被闪避。`);
+        continue;
+      }
+      let dmg = calcDamageSeeded(atk, def, null, rng);
+      if (roll === 'crit') dmg = Math.max(1, Math.round(dmg * 1.5));
+      const cas = troopDamageToCasualties(def, dmg);
+      def.currentTroops = Math.max(0, def.currentTroops - cas);
+      logs.push(
+        `第 ${attackInRound} 次攻击：${an} 对 ${dn} 造成 ${cas} 损失（${roll === 'crit' ? '暴击' : '命中'}）。`,
+      );
     }
-    let dmg = calcDamageSeeded(atk, def, null, rng);
-    if (roll === 'crit') dmg = Math.max(1, Math.round(dmg * 1.5));
-    const cas = troopDamageToCasualties(def, dmg);
-    def.currentTroops = Math.max(0, def.currentTroops - cas);
-    const dn = def.character?.courtesyName || def.name;
-    logs.push(`第${round}回合：${atk.character?.courtesyName || atk.name} 对 ${dn} 造成 ${cas} 损失（${roll === 'crit' ? '暴击' : '命中'}）。`);
   }
 
-  logs.push(`达到回合上限，判定攻城方失利。`);
-  return finish(false);
+  logs.push(`达到战术回合上限（第 ${maxTacticalRounds} 回合），判定攻城方失利。`);
+  return finish(false, maxTacticalRounds);
 
-  function finish(attackerWon) {
+  function finish(attackerWon, completedTacticalRounds) {
     const killedIndices = [];
     enemyTroops.forEach((t, idx) => {
       const orig = defenderSiegeNpcs[idx];
@@ -149,7 +180,7 @@ function runSiegePvpSkirmish(attackerSiegeNpcs, defenderSiegeNpcs, seedInput) {
       attackerWon,
       killedIndices,
       battleLog: logs,
-      rounds: round,
+      rounds: completedTacticalRounds,
       battleSeed,
       attackerTroopsEnd: playerTroops.map((t) => ({ ...t })),
       defenderTroopsEnd: enemyTroops.map((t) => ({ ...t })),

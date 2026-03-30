@@ -5,6 +5,7 @@
  */
 
 const { pool } = require('../database/connection');
+const { applyTroopDurabilityExhaustion } = require('./troopDurabilityService');
 
 // 驻守槽位中所有卡牌字段
 const CARD_FIELDS = [
@@ -632,6 +633,47 @@ async function buildDefenseUnitsFromMainLineup(defenderPlayerId) {
 /**
  * 将 buildDefenseUnits / buildDefenseUnitsFromMainLineup 的输出转为攻城 API 前端的 npcGarrison 格式（与 cityService.initiateSiege 一致）
  */
+/**
+ * 披挂 PVP 服务端裁定：按推演终态写回攻城方「上阵编组」兵力，并全员部队卡 battle_count+1（对齐 POST /battles）
+ * @param {string} playerId
+ * @param {Array<object>} attackerSiegeNpcs mapBuiltUnitsToSiegeNpcFormat 结果
+ * @param {Array<object>} attackerTroopsEnd runSiegePvpSkirmish.attackerTroopsEnd
+ */
+async function applyAuthoritativeSiegePvpAttackerLineupCasualties(playerId, attackerSiegeNpcs, attackerTroopsEnd) {
+  if (!playerId || !Array.isArray(attackerSiegeNpcs) || !Array.isArray(attackerTroopsEnd)) return;
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    await conn.query(
+      `UPDATE player_cards 
+       SET battle_count = LEAST(
+         GREATEST(COALESCE(battle_count, 0), 0) + 1,
+         COALESCE(max_battle_count, 60)
+       )
+       WHERE player_id = ? AND card_type = 'troop' AND is_equipped = TRUE`,
+      [playerId],
+    );
+    for (let i = 0; i < attackerSiegeNpcs.length; i++) {
+      const npc = attackerSiegeNpcs[i];
+      const end = attackerTroopsEnd[i];
+      if (!npc?._troopInstanceId || !end) continue;
+      const maxT = Number(npc.maxTroops) || 9999;
+      const cur = Math.max(0, Math.min(maxT, Math.round(Number(end.currentTroops) || 0)));
+      await conn.query(
+        `UPDATE player_cards SET current_troops = ?, last_troops_lost_at = ? WHERE instance_id = ? AND player_id = ?`,
+        [cur, cur < maxT ? new Date() : null, npc._troopInstanceId, playerId],
+      );
+    }
+    await conn.commit();
+  } catch (e) {
+    await conn.rollback();
+    throw e;
+  } finally {
+    conn.release();
+  }
+  await applyTroopDurabilityExhaustion((sql, params) => pool.query(sql, params), playerId);
+}
+
 function mapBuiltUnitsToSiegeNpcFormat(units) {
   if (!units || !Array.isArray(units)) return [];
   return units.map((u, i) => ({
@@ -714,6 +756,7 @@ module.exports = {
   getCityGarrisonStats,
   buildDefenseUnits,
   buildDefenseUnitsFromMainLineup,
+  applyAuthoritativeSiegePvpAttackerLineupCasualties,
   mapBuiltUnitsToSiegeNpcFormat,
   MIN_TROOPS_TO_DEFEND,
   MIN_GARRISON_TOTAL_TROOPS,

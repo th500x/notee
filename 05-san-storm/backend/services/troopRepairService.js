@@ -53,16 +53,14 @@ async function findMostWornCoreTroop(query, playerId) {
   return rows[0] || null;
 }
 
-/** config_items.special_effect：传奇耐久修满（兼容旧键名） */
+/** config_items.special_effect：传奇耐久修满 */
 function isLegendaryTroopRepairEffect(effect) {
-  return effect === 'repair_min_durability_full_legendary'
-    || effect === 'repair_legendary_min_durability_full';
+  return effect === 'repair_min_durability_full_legendary';
 }
 
-/** config_items.special_effect：核心耐久修满（兼容旧键名） */
+/** config_items.special_effect：核心耐久修满 */
 function isCoreTroopRepairEffect(effect) {
-  return effect === 'repair_min_durability_full_core'
-    || effect === 'repair_core_min_durability_full';
+  return effect === 'repair_min_durability_full_core';
 }
 
 /**

@@ -18,6 +18,16 @@ const {
 } = require('../utils/battleScore.cjs');
 const { newShortBattleId } = require('../utils/battleId');
 
+function siegeNpcDisplayNames(npcs) {
+  const names = [];
+  for (const n of npcs || []) {
+    const c = n.character;
+    const label = (c && (c.courtesyName || c.name)) || n.troopName;
+    if (label) names.push(String(label).trim());
+  }
+  return names;
+}
+
 /** 防止并发双次结算 */
 const resolvingPromises = new Map();
 
@@ -102,6 +112,12 @@ async function doResolveAuthoritativeSiegePvp(params) {
     cityName,
   });
 
+  const defenderLineupTroopUpdates = defenderNpcs.map((npc, i) => ({
+    instanceId: npc._troopInstanceId,
+    maxTroops: npc.maxTroops,
+    currentTroops: Math.max(0, Math.round(Number(sim.defenderTroopsEnd[i]?.currentTroops) || 0)),
+  })).filter((u) => u.instanceId);
+
   const recordPayload = await cityService.recordSiegeResult(
     c.warId,
     attackerId,
@@ -114,8 +130,26 @@ async function doResolveAuthoritativeSiegePvp(params) {
       defenderPlayerId: c.defenderId,
       defenderGarrisonSlot: 0,
       garrisonUnits: defenderNpcs,
-    }
+      defenderLineupTroopUpdates,
+    },
   );
+
+  try {
+    await garrisonService.applyAuthoritativeSiegePvpAttackerLineupCasualties(
+      attackerId,
+      attackerNpcs,
+      sim.attackerTroopsEnd,
+    );
+  } catch (e) {
+    console.error('[siegePvpResolve] attacker lineup casualties', {
+      message: e.message,
+      attackerId,
+      warId: c.warId,
+    });
+  }
+
+  const siegeReplayAttackerNames = siegeNpcDisplayNames(attackerNpcs);
+  const siegeReplayDefenderNames = siegeNpcDisplayNames(defenderNpcs);
 
   const battleId = newShortBattleId('pvp_siege_att');
   try {
@@ -128,6 +162,14 @@ async function doResolveAuthoritativeSiegePvp(params) {
       opponentId: c.defenderId,
       opponentName: defenderName,
       result: sim.attackerWon ? 'win' : 'lose',
+      playerTeam: attackerNpcs.map((n) => ({
+        name: n.character?.courtesyName || n.character?.name || n.troopName,
+        courtesyName: n.character?.courtesyName || n.character?.name || n.troopName,
+      })),
+      opponentTeam: defenderNpcs.map((n) => ({
+        name: n.character?.courtesyName || n.character?.name || n.troopName,
+        courtesyName: n.character?.courtesyName || n.character?.name || n.troopName,
+      })),
       battleLog: battleLogText,
       totalKills: killedIndices.length,
       duration: sim.rounds,
@@ -161,6 +203,14 @@ async function doResolveAuthoritativeSiegePvp(params) {
       opponentId: attackerId,
       opponentName: attackerName,
       result: sim.attackerWon ? 'lose' : 'win',
+      playerTeam: defenderNpcs.map((n) => ({
+        name: n.character?.courtesyName || n.character?.name || n.troopName,
+        courtesyName: n.character?.courtesyName || n.character?.name || n.troopName,
+      })),
+      opponentTeam: attackerNpcs.map((n) => ({
+        name: n.character?.courtesyName || n.character?.name || n.troopName,
+        courtesyName: n.character?.courtesyName || n.character?.name || n.troopName,
+      })),
       battleLog: defenderPerspectiveLog,
       totalKills: killedIndices.length,
       duration: sim.rounds,
@@ -211,6 +261,8 @@ async function doResolveAuthoritativeSiegePvp(params) {
     attackerId,
     result,
     killedIndices,
+    siegeReplayAttackerNames,
+    siegeReplayDefenderNames,
   };
 
   pvpService.markSiegeResolved(challengeId, outcome);
@@ -226,6 +278,9 @@ async function doResolveAuthoritativeSiegePvp(params) {
     warId: c.warId,
     cityId: c.cityId,
     defenderId: c.defenderId,
+    attackerId,
+    siegeReplayAttackerNames,
+    siegeReplayDefenderNames,
   };
 }
 

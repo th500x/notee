@@ -14,7 +14,7 @@
  * @param {function} onBattleEnd - 战斗结束回调 (result, silverSpent, scoreResult, killedEnemyIndices)
  */
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import { useBattleMap } from '@/hooks/useBattleMap';
 import { getTroopPortraitUrlAttempts } from '@shared/utils/troopIconUrls';
 import { bindTroopPortraitImg } from '@/utils/troopBattlePortrait';
@@ -217,10 +217,12 @@ export default function BattleArena({
     setStage(STAGE.READY);
   }, [playerUnits, enemyUnits, enemyRarity, eventExtraEnemyCharacterIds, bm.allTroops.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // 仅披挂 PVP 自动开打（避免未点开始悬停丢战报）。
+  // pve_siege（含 NPC）与 pve_event 共用同一套战前壳层：地图、BattleAuxPanel（银两/自动战斗/自动阵型）、MapLegend、手动点「开始战斗」—与 EventBattle 一致，并非单独只加按钮。
   useEffect(() => {
     if (stage !== STAGE.READY || siegeAutoStartedRef.current) return;
     if (!enemyUnits || enemyUnits.length === 0) return;
-    if (battleType !== 'pve_siege' && battleType !== 'pvp_siege') return;
+    if (battleType !== 'pvp_siege') return;
     siegeAutoStartedRef.current = true;
     const t = requestAnimationFrame(() => {
       engine.playBattleRound();
@@ -239,10 +241,21 @@ export default function BattleArena({
     }
   }, [bm.mapResult, bm.battleTroops]);
 
-  // 同步布局宽度
+  // 同步布局宽度：与 map-card 同宽（含行号+格网+色条），避免首帧 auto/100% 撑满一行；随视口变化更新
+  const syncLayoutWidth = useCallback(() => {
+    const el = mapCardRef.current;
+    if (el?.offsetWidth) setLayoutWidth(`${el.offsetWidth}px`);
+  }, []);
+  useLayoutEffect(() => {
+    syncLayoutWidth();
+  }, [bm.mapResult, syncLayoutWidth]);
   useEffect(() => {
-    if (mapCardRef.current) setLayoutWidth(mapCardRef.current.offsetWidth + 'px');
-  }, [bm.mapResult]);
+    const el = mapCardRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return undefined;
+    const ro = new ResizeObserver(() => syncLayoutWidth());
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [bm.mapResult, syncLayoutWidth]);
 
   // 监听战斗结束
   const endedRef = useRef(false);

@@ -401,24 +401,45 @@ function BattleCard({ battle, isExpanded, detail, onExpand, onToggleFavorite }) 
   );
 }
 
+function collectStrikeNamesFromTeam(team) {
+  if (!Array.isArray(team)) return [];
+  const out = [];
+  for (const t of team) {
+    const n = t?.courtesyName || t?.name;
+    if (n) out.push(String(n).trim());
+  }
+  return out;
+}
+
 /** 战报详情展开区 */
 function BattleDetail({ detail }) {
   const [replayOpen, setReplayOpen] = useState(false);
   const rewards = detail.rewards || {};
   const logRaw = detail.battleLog;
   const logStr = typeof logRaw === 'string' ? logRaw : Array.isArray(logRaw) ? logRaw.map((l) => (typeof l === 'object' && l?.text ? l.text : String(l))).join('\n') : '';
-  const leftLabel =
-    detail.playerTeam?.[0]?.name ||
-    detail.playerTeam?.[0]?.courtesyName ||
-    '我方';
-  const rightLabel =
-    detail.opponentName ||
-    detail.opponentTeam?.[0]?.name ||
-    detail.opponentTeam?.[0]?.courtesyName ||
-    '敌方';
+  /** 简化回放：左=攻城方、右=守军（与棋盘「我方格」无关，只看战略攻守身份） */
+  const isDefenseReport = detail.battleType === 'pvp_defense';
+  const siegeLeftLabel = isDefenseReport
+    ? `攻城方${detail.opponentName ? ` · ${detail.opponentName}` : ''}`
+    : '攻城方';
+  const siegeRightLabel = isDefenseReport
+    ? '守军'
+    : `守军${detail.opponentName ? ` · ${detail.opponentName}` : ''}`;
+  const attackerStrikeNames = useMemo(() => {
+    const team = isDefenseReport ? detail.opponentTeam : detail.playerTeam;
+    return collectStrikeNamesFromTeam(team);
+  }, [isDefenseReport, detail.opponentTeam, detail.playerTeam]);
+  const defenderStrikeNames = useMemo(() => {
+    const team = isDefenseReport ? detail.playerTeam : detail.opponentTeam;
+    const base = collectStrikeNamesFromTeam(team);
+    const on = detail.opponentName && String(detail.opponentName).trim();
+    if (on && !base.some((b) => on === b || on.includes(b) || b.includes(on))) {
+      return [...base, on];
+    }
+    return base;
+  }, [isDefenseReport, detail.opponentTeam, detail.playerTeam, detail.opponentName]);
   const canSiegeReplay =
-    logStr.length > 12 &&
-    (/第\d+回合/.test(logStr) && (/对.+造成/.test(logStr) || /造成\s*\d+/.test(logStr)));
+    logStr.length > 12 && /═══\s*第\s*\d+\s*回合\s*══=/.test(logStr) && /次攻击/.test(logStr);
 
   return (
     <div className="px-2 py-1.5 border-t border-amber-700/20 space-y-1.5">
@@ -445,8 +466,10 @@ function BattleDetail({ detail }) {
                   open
                   onClose={() => setReplayOpen(false)}
                   battleLog={logStr}
-                  leftLabel={leftLabel}
-                  rightLabel={rightLabel}
+                  leftLabel={siegeLeftLabel}
+                  rightLabel={siegeRightLabel}
+                  attackerStrikeNames={attackerStrikeNames}
+                  defenderStrikeNames={defenderStrikeNames}
                 />
               </div>
             </AncientModal>

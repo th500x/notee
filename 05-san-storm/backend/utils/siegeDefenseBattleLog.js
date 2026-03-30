@@ -26,42 +26,58 @@ function sideOfName(name, attSet, defSet) {
   return null;
 }
 
+/** 战术回合标题行（与棋盘战报 fmtRoundStart 一致） */
+const ROUND_HDR_RE = /^═══\s*第\s*(\d+)\s*回合\s*══=$/;
+
 /**
  * 单行：攻城推演日志 → 守城主公可读文案
+ * @param {number | null} tacticalRound 当前战术回合（由「═══ 第 T 回合 ═══」累进）
  */
-function formatSkirmishLineForDefender(line, attSet, defSet) {
-  if (/攻城方全军覆没/.test(line)) {
-    return line.replace(/攻城方全军覆没/, '攻城方全军覆没（守城方胜利）');
+function formatSkirmishLineForDefender(line, attSet, defSet, tacticalRound = null) {
+  if (/^═══\s*第\s*\d+\s*回合\s*══=$/.test(line.trim())) {
+    return line;
   }
-  if (/守军全灭/.test(line)) {
-    return line.replace(/守军全灭/, '守军全灭（城池失守风险）');
+  if (/攻城方全军覆没|交战前攻城方已无兵/.test(line)) {
+    return line
+      .replace(/攻城方全军覆没/, '攻城方全军覆没（守城方胜利）')
+      .replace(/交战前攻城方已无兵/, '交战前攻城方已无兵（守城方胜利）');
   }
-  if (/达到回合上限/.test(line)) {
+  if (/守军全灭|交战前守军已无兵/.test(line)) {
+    return line
+      .replace(/守军全灭/, '守军全灭（城池失守风险）')
+      .replace(/交战前守军已无兵/, '交战前守军已无兵（城池失守风险）');
+  }
+  if (/达到战术回合上限|达到回合上限/.test(line)) {
     return `（守城）${line}`;
   }
-  const dmg = line.match(
-    /^第(\d+)回合：(.+?) 对 (.+?) 造成 (\d+) 损失（([^）]+)）。$/
+
+  const trLabel = tacticalRound != null ? `第${tacticalRound}战术回合·` : '';
+
+  const dmgNew = line.match(
+    /^第\s*(\d+)\s*次攻击[：:]\s*(.+?) 对 (.+?) 造成 (\d+) 损失（([^）]+)）。$/
   );
-  if (dmg) {
-    const [, round, a, b, loss, tag] = dmg;
+  if (dmgNew) {
+    const [, k, a, b, loss, tag] = dmgNew;
     const sa = sideOfName(a, attSet, defSet);
     const sb = sideOfName(b, attSet, defSet);
     if (sa === 'att' && sb === 'def') {
-      return `第${round}回合（守城）：守军「${b.trim()}」遭攻城部队「${a.trim()}」攻击，损失 ${loss}（${tag}）。`;
+      return `（守城）${trLabel}第${k}次攻击：守军「${b.trim()}」遭「${a.trim()}」攻击，损失 ${loss}（${tag}）。`;
     }
     if (sa === 'def' && sb === 'att') {
-      return `第${round}回合（守城）：守军「${a.trim()}」反击攻城部队「${b.trim()}」，对敌造成 ${loss} 兵力损失（${tag}）。`;
+      return `（守城）${trLabel}第${k}次攻击：我军「${a.trim()}」反击「${b.trim()}」，对敌造成 ${loss}（${tag}）。`;
     }
+    return `（守城）${trLabel}${line}`;
   }
-  const dodge = line.match(/^第(\d+)回合：(.+?) 攻击被闪避。$/);
-  if (dodge) {
-    const [, round, a] = dodge;
+  const dodgeNew = line.match(/^第\s*(\d+)\s*次攻击[：:]\s*(.+?) 攻击被闪避。$/);
+  if (dodgeNew) {
+    const [, k, a] = dodgeNew;
     const sa = sideOfName(a, attSet, defSet);
     if (sa === 'att') {
-      return `第${round}回合（守城）：守军闪避了攻城部队「${a.trim()}」的攻击。`;
+      return `（守城）${trLabel}第${k}次攻击：我军闪避了「${a.trim()}」的攻击。`;
     }
-    return `第${round}回合（守城）：攻城方闪避了我军「${a.trim()}」的攻击。`;
+    return `（守城）${trLabel}第${k}次攻击：攻城方闪避了我军「${a.trim()}」的攻击。`;
   }
+
   return line;
 }
 
@@ -86,7 +102,17 @@ function buildDefenderSiegePvpBattleLog({
     '（与同场攻城战报为同一战斗；以下为守城视角叙述）',
     '',
   ].join('\n');
-  const body = (battleLogLines || []).map((line) => formatSkirmishLineForDefender(line, attSet, defSet)).join('\n');
+  let tacticalRound = null;
+  const body = (battleLogLines || [])
+    .map((line) => {
+      const m = String(line).trim().match(ROUND_HDR_RE);
+      if (m) {
+        tacticalRound = parseInt(m[1], 10);
+        return formatSkirmishLineForDefender(line, attSet, defSet, tacticalRound);
+      }
+      return formatSkirmishLineForDefender(line, attSet, defSet, tacticalRound);
+    })
+    .join('\n');
   return `${header}${body}`;
 }
 
