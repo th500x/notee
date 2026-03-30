@@ -182,7 +182,7 @@ function parseRewardString(rewardStr) {
       };
     }
 
-    // 道具: item_xxx[:qty] 或 san_1_item_xxx[:qty]（须先于「具体卡牌」判断：如 item_nanyang_troop_1 含 _troop_）
+    // 道具: item_xxx[:qty] 或 san_1_item_xxx[:qty]（须先于「具体卡牌」判断：如 item_nanyang_troop_legendary / item_shanhaiguan_troop_core 等 ID 含 _troop_）
     if (t.includes('_item_') || t.startsWith('item_')) {
       const parts = t.split(':');
       return {

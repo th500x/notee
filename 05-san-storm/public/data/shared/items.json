@@ -1,6 +1,6 @@
 {
   "_meta": {
-    "generated": "2026-03-29T05:15:34.691Z",
+    "generated": "2026-03-30T12:52:37.362Z",
     "source": "item-template.csv",
     "count": 7
   },
@@ -46,21 +46,22 @@
       "version": "1.0"
     },
     {
-      "id": "item_nanyang_troop_1",
+      "id": "item_nanyang_troop_legendary",
       "name": "溃兵番号铜牌",
       "itemType": "event_key",
       "description": "一枚磨损严重的军铜牌，刻着已散佚的部队番号，幸存士卒凭此仍能相认",
       "season": "san_1",
       "version": "1.0",
-      "specialEffect": "repair_legendary_min_durability_full"
+      "specialEffect": "repair_min_durability_full_legendary"
     },
     {
-      "id": "item_shanhaiguan_bandit_letter",
-      "name": "劫匪通联密信",
+      "id": "item_shanhaiguan_troop_core",
+      "name": "核心旧部腰牌",
       "itemType": "event_key",
-      "description": "在山海关荒郊拾获的蛮族劫匪书信，记着暗号与接应路线",
+      "description": "山海关荒郊所得腰牌与名册残页可召集散落老兵为麾下最残破的核心营重整甲械恢复耐久",
       "season": "san_1",
-      "version": "1.0"
+      "version": "1.0",
+      "specialEffect": "repair_min_durability_full_core"
     }
   ]
 }

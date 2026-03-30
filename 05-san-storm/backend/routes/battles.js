@@ -10,6 +10,42 @@ const { applyTroopDurabilityExhaustion } = require('../services/troopDurabilityS
 const { pool } = require('../database/connection');
 
 /**
+ * 地图宝箱装备入库：与 rewardService.randomDrawCards(equipment) 及 ID 规范一致。
+ * @see docs/00-base/04-ID_NAMING_GUIDE.md §12 — san_{赛季}_equip_{类型1-3}_{稀有度1位}{序号3位}
+ */
+async function insertChestEquipmentFromReward(pool, playerId, reward) {
+  const rarityDigitMap = { common: '1', rare: '2', epic: '3', legendary: '4', core: '5' };
+  const rarityDigit = rarityDigitMap[reward.rarity] || '1';
+  const typeNum = { weapon: '1', armor: '2', accessory: '3' }[reward.equipmentType] || '1';
+  const season = 'san_1';
+
+  // 与 parse 规则一致：序号 4 位 = 稀有度首位 + 三位序号（如 2001 = 稀有第 1 件）
+  const idRegexp = `^${season}_equip_${typeNum}_${rarityDigit}[0-9]{3}$`;
+
+  const [eqRows] = await pool.query(
+    `SELECT equipment_id, equipment_name FROM config_equipment
+     WHERE season = ? AND equipment_id REGEXP ?
+     ORDER BY RAND() LIMIT 1`,
+    [season, idRegexp]
+  );
+  const eq = eqRows[0];
+  if (!eq) {
+    console.warn('[battles] 宝箱未匹配到装备配置（请检查 config_equipment 是否有该赛季+类型+稀有度行）', {
+      reward,
+      idRegexp,
+    });
+    return false;
+  }
+  const instanceId = `${eq.equipment_id}_${playerId}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+  await pool.query(
+    `INSERT INTO player_cards (instance_id, player_id, card_id, card_type, rarity, is_equipped)
+     VALUES (?, ?, ?, 'equipment', ?, FALSE)`,
+    [instanceId, playerId, eq.equipment_id, reward.rarity || 'common']
+  );
+  return true;
+}
+
+/**
  * 获取玩家战斗记录列表
  * GET /api/battles?playerId=xxx&filter=all
  * 
@@ -164,24 +200,15 @@ router.post('/', async (req, res) => {
     // 地图宝箱装备：同样独立 try，避免与 UPDATE player_cards 链路互相拖死
     if (chestRewards && Array.isArray(chestRewards) && chestRewards.length > 0) {
       try {
+        let saved = 0;
         for (const reward of chestRewards) {
-          const rarityDigit = { common: '1', rare: '2', epic: '3', legendary: '4', core: '5' }[reward.rarity] || '1';
-          const typeDigit = { weapon: '1', armor: '2', accessory: '3' }[reward.equipmentType] || '1';
-          const [eqRows] = await pool.query(
-            `SELECT equipment_id, equipment_name FROM config_equipment
-             WHERE equipment_id LIKE ? ORDER BY RAND() LIMIT 1`,
-            [`san_1_equip_${typeDigit}_${rarityDigit}%`]
-          );
-          if (!eqRows.length) continue;
-          const eq = eqRows[0];
-          const instanceId = `${eq.equipment_id}_${playerId}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
-          await pool.query(
-            `INSERT INTO player_cards (instance_id, player_id, card_id, card_type, rarity, is_equipped)
-             VALUES (?, ?, ?, 'equipment', ?, FALSE)`,
-            [instanceId, playerId, eq.equipment_id, reward.rarity || 'common']
-          );
+          try {
+            if (await insertChestEquipmentFromReward(pool, playerId, reward)) saved += 1;
+          } catch (oneErr) {
+            console.error('[battles] 单件宝箱装备失败:', oneErr);
+          }
         }
-        console.log(`[battles] 宝箱装备保存: ${chestRewards.length}件`);
+        console.log(`[battles] 宝箱装备保存: ${saved}/${chestRewards.length} 件`);
       } catch (chestErr) {
         console.error('[battles] 宝箱装备保存失败:', chestErr);
       }

@@ -14,6 +14,8 @@ const {
   getItemSpecialEffect,
   applyTroopRepairEffect,
   isTroopDurabilityRepairEffect,
+  isLegendaryTroopRepairEffect,
+  isCoreTroopRepairEffect,
 } = require('../services/troopRepairService');
 const garrisonService = require('../services/garrisonService');
 const gameTimeService = require('../services/gameTimeService');
@@ -48,6 +50,124 @@ function parseEventCostSegment(segment) {
   if (i === -1) return { key: s, amount: 1 };
   const n = parseInt(s.slice(i + 1), 10);
   return { key: s.slice(0, i), amount: Number.isFinite(n) && n > 0 ? n : 1 };
+}
+
+/** 与前端 playerMeetsEventRequiredItems 一致：链下一环 config_events.required_items 是否已满足 */
+function playerMeetsExploreChainGateItems(requiredItemsStr, itemsObject) {
+  if (!requiredItemsStr || !String(requiredItemsStr).trim()) return true;
+  const inv = itemsObject || {};
+  const segments = String(requiredItemsStr).split(';').map((s) => s.trim()).filter(Boolean);
+  for (const seg of segments) {
+    const colon = seg.indexOf(':');
+    const key = colon === -1 ? seg : seg.slice(0, colon);
+    const need = colon === -1 ? 1 : Math.max(1, parseInt(seg.slice(colon + 1), 10) || 1);
+    if (!key.startsWith('item_') && !key.includes('_item_')) continue;
+    if ((Number(inv[key]) || 0) < need) return false;
+  }
+  return true;
+}
+
+/**
+ * 探索链：已完成本环但背包没有下一环钥匙道具 → 允许重做本环（否则前端池子也打不开、/rewards 又防重复会永久卡死）
+ */
+async function isExploreChainStrandedRedo(playerId, chainId, chainLevel) {
+  const level = Number(chainLevel);
+  if (!chainId || !Number.isFinite(level)) return false;
+  const [nextRows] = await pool.query(
+    'SELECT required_items FROM config_events WHERE chain_id = ? AND chain_level = ? LIMIT 1',
+    [chainId, level + 1]
+  );
+  if (!nextRows?.length) return false;
+  const req = nextRows[0].required_items;
+  if (!req || !String(req).trim()) return false;
+  const [pRows] = await pool.query('SELECT items FROM players WHERE player_id = ?', [playerId]);
+  let inv = {};
+  if (pRows[0]?.items) {
+    inv = typeof pRows[0].items === 'string' ? JSON.parse(pRows[0].items) : pRows[0].items;
+  }
+  return !playerMeetsExploreChainGateItems(req, inv);
+}
+
+/** 南阳/山海关「部队」探索链：每日 0 点（服务器 CURDATE）后清除完成记录，可再打一轮 */
+const EXPLORE_TROOP_CHAIN_IDS_DAILY_RESET = ['chain_nanyang_troop', 'chain_shanhaiguan_troop'];
+
+function mysqlDateToYmd(val) {
+  if (val == null) return null;
+  if (val instanceof Date) {
+    const y = val.getFullYear();
+    const m = String(val.getMonth() + 1).padStart(2, '0');
+    const d = String(val.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+  const s = String(val);
+  return s.length >= 10 ? s.slice(0, 10) : s;
+}
+
+async function maybeResetExploreTroopChainsDaily(playerId) {
+  try {
+    await pool.query('INSERT IGNORE INTO player_events (player_id) VALUES (?)', [playerId]);
+    const [rows] = await pool.query(
+      'SELECT explore_events, explore_chain_reset_date FROM player_events WHERE player_id = ?',
+      [playerId]
+    );
+    const row = rows[0];
+    if (!row) return;
+
+    const [dr] = await pool.query('SELECT CURDATE() AS d');
+    const todayStr = mysqlDateToYmd(dr[0].d);
+
+    const storedStr = mysqlDateToYmd(row.explore_chain_reset_date);
+
+    if (!storedStr) {
+      await pool.query(
+        'UPDATE player_events SET explore_chain_reset_date = ? WHERE player_id = ?',
+        [todayStr, playerId]
+      );
+      return;
+    }
+
+    if (storedStr >= todayStr) return;
+
+    let events = {};
+    if (row.explore_events) {
+      try {
+        events = typeof row.explore_events === 'string' ? JSON.parse(row.explore_events) : row.explore_events;
+      } catch { events = {}; }
+    }
+
+    const ph = EXPLORE_TROOP_CHAIN_IDS_DAILY_RESET.map(() => '?').join(',');
+    const [chainRows] = await pool.query(
+      `SELECT event_id FROM config_events WHERE chain_id IN (${ph})`,
+      EXPLORE_TROOP_CHAIN_IDS_DAILY_RESET
+    );
+    const ids = new Set(chainRows.map((r) => r.event_id));
+    for (const k of Object.keys(events)) {
+      if (ids.has(k)) delete events[k];
+    }
+    await pool.query(
+      'UPDATE player_events SET explore_events = ?, explore_chain_reset_date = ? WHERE player_id = ?',
+      [JSON.stringify(events), todayStr, playerId]
+    );
+  } catch (e) {
+    if (e.code === 'ER_BAD_FIELD_ERROR') {
+      console.warn('[Players] 未迁移 explore_chain_reset_date，部队链每日重置已跳过（请执行 add-explore-chain-daily-reset.sql）');
+      return;
+    }
+    throw e;
+  }
+}
+
+/**
+ * 带战斗的选项：整编类道具延后到「战斗奖励」之后处理。
+ * - 第一次请求且运势凶/大凶（将进入惩罚战斗）→ 延后到战后第二次请求再扣道具
+ * - 第二次请求已带 battleResult → 延后到本段 executeRewards 之后（仅胜利时扣道具并整编，见下方 4b）
+ * - 第一次请求且吉/鸿运（不进入战斗）→ 不延后，当场扣道具并整编
+ */
+function shouldDeferTroopRepairAfterBattleRewards(option, battleResult, fortune) {
+  if (!option.triggerBattle) return false;
+  if (battleResult === 'victory' || battleResult === 'defeat') return true;
+  const n = fortune?.fortuneName;
+  return n === '凶' || n === '大凶';
 }
 
 // ── 卡牌特效 → 部队卡加成 通用机制 ──────────────────────────
@@ -1496,9 +1616,11 @@ router.post('/:playerId/rewards', async (req, res) => {
     }
     const factionId = playerRows[0].faction_id;
 
+    await maybeResetExploreTroopChainsDaily(playerId);
+
     // 2. 获取事件配置
     const [eventRows] = await pool.query(
-      'SELECT option_a, option_b, required_items, chain_id FROM config_events WHERE event_id = ?',
+      'SELECT option_a, option_b, required_items, chain_id, chain_level FROM config_events WHERE event_id = ?',
       [eventId]
     );
     if (eventRows.length === 0) {
@@ -1521,6 +1643,7 @@ router.post('/:playerId/rewards', async (req, res) => {
     }
 
     // 2.5 检查事件是否已完成（仅事件链需要防重复，普通探索事件可重复触发）
+    // 例外：链上一环已标完成但未持有下一环 required_items（未选对拿信物）→ 允许重做本环，与 filterExploreEventsPool 有效进度一致
     if (eventRows[0].chain_id) {
       const [eventProgress] = await pool.query(
         'SELECT explore_events FROM player_events WHERE player_id = ?', [playerId]
@@ -1529,7 +1652,14 @@ router.post('/:playerId/rewards', async (req, res) => {
         let events = {};
         try { events = typeof eventProgress[0].explore_events === 'string' ? JSON.parse(eventProgress[0].explore_events) : (eventProgress[0].explore_events || {}); } catch {}
         if (events[eventId]?.status === 'completed') {
-          return res.status(400).json({ success: false, error: '事件已完成，不可重复领取奖励' });
+          const stranded = await isExploreChainStrandedRedo(
+            playerId,
+            eventRows[0].chain_id,
+            eventRows[0].chain_level
+          );
+          if (!stranded) {
+            return res.status(400).json({ success: false, error: '事件已完成，不可重复领取奖励' });
+          }
         }
       }
     }
@@ -1562,12 +1692,33 @@ router.post('/:playerId/rewards', async (req, res) => {
     // 4. 校验并扣除选项消耗（requiredItems）；config_items.special_effect 触发部队耐久修复
     const resourceFields = ['silver', 'food', 'reputation', 'contribution', 'morale'];
     let troopRepairResults = [];
+    let deferredRepairSegments = [];
 
     if (option.requiredItems) {
       const costSegments = option.requiredItems
         .split(';')
         .map(s => parseEventCostSegment(s))
         .filter(Boolean);
+
+      const immediateSegments = [];
+      deferredRepairSegments = [];
+      for (const seg of costSegments) {
+        const { key } = seg;
+        if (resourceFields.includes(key)) {
+          immediateSegments.push(seg);
+          continue;
+        }
+        if (key.includes('_item_') || key.startsWith('item_')) {
+          const specialEffect = await getItemSpecialEffect(key);
+          if (isTroopDurabilityRepairEffect(specialEffect) && shouldDeferTroopRepairAfterBattleRewards(option, battleResult, fortune)) {
+            deferredRepairSegments.push(seg);
+          } else {
+            immediateSegments.push(seg);
+          }
+        } else {
+          immediateSegments.push(seg);
+        }
+      }
 
       const [prePlayer] = await pool.query(
         'SELECT items, silver, food, reputation, contribution, morale FROM players WHERE player_id = ?',
@@ -1599,22 +1750,36 @@ router.post('/:playerId/rewards', async (req, res) => {
           }
           const specialEffect = await getItemSpecialEffect(key);
           if (isTroopDurabilityRepairEffect(specialEffect)) {
-            const [chk] = await pool.query(
-              `SELECT instance_id FROM player_cards
-               WHERE player_id = ? AND card_type = 'troop' AND rarity = 'legendary' LIMIT 1`,
-              [playerId]
-            );
-            if (chk.length === 0) {
-              return res.status(400).json({
-                success: false,
-                error: '暂无传奇部队，无法完成整编旧部',
-              });
+            if (isLegendaryTroopRepairEffect(specialEffect)) {
+              const [chk] = await pool.query(
+                `SELECT instance_id FROM player_cards
+                 WHERE player_id = ? AND card_type = 'troop' AND rarity = 'legendary' LIMIT 1`,
+                [playerId]
+              );
+              if (chk.length === 0) {
+                return res.status(400).json({
+                  success: false,
+                  error: '暂无传奇部队，无法完成整编旧部',
+                });
+              }
+            } else if (isCoreTroopRepairEffect(specialEffect)) {
+              const [chk] = await pool.query(
+                `SELECT instance_id FROM player_cards
+                 WHERE player_id = ? AND card_type = 'troop' AND rarity = 'core' LIMIT 1`,
+                [playerId]
+              );
+              if (chk.length === 0) {
+                return res.status(400).json({
+                  success: false,
+                  error: '暂无核心部队，无法完成整编旧部',
+                });
+              }
             }
           }
         }
       }
 
-      for (const { key, amount } of costSegments) {
+      for (const { key, amount } of immediateSegments) {
         if (resourceFields.includes(key)) {
           await pool.query(
             `UPDATE players SET ${key} = GREATEST(0, ${key} - ?) WHERE player_id = ?`,
@@ -1643,6 +1808,12 @@ router.post('/:playerId/rewards', async (req, res) => {
                     error: '暂无传奇部队，无法完成整编旧部',
                   });
                 }
+                if (e.code === 'NO_CORE_TROOP') {
+                  return res.status(400).json({
+                    success: false,
+                    error: '暂无核心部队，无法完成整编旧部',
+                  });
+                }
                 throw e;
               }
             }
@@ -1667,6 +1838,51 @@ router.post('/:playerId/rewards', async (req, res) => {
     let bonusResult = null;
     if (bonusRewardStr) {
       bonusResult = await executeRewards(playerId, bonusRewardStr, 1.0, factionId);
+    }
+
+    // 4b. 惩罚战斗胜利后：再扣整编道具并完成耐久（先战斗奖励结算；失败不扣道具、不整编，腰牌保留）
+    if (deferredRepairSegments.length && battleResult === 'victory') {
+      for (const { key, amount } of deferredRepairSegments) {
+        if (resourceFields.includes(key)) {
+          await pool.query(
+            `UPDATE players SET ${key} = GREATEST(0, ${key} - ?) WHERE player_id = ?`,
+            [amount, playerId]
+          );
+        } else if (key.includes('_item_') || key.startsWith('item_')) {
+          const [itemRows] = await pool.query('SELECT items FROM players WHERE player_id = ?', [playerId]);
+          let items = {};
+          if (itemRows[0]?.items) {
+            items = typeof itemRows[0].items === 'string' ? JSON.parse(itemRows[0].items) : itemRows[0].items;
+          }
+          items[key] = (items[key] || 0) - amount;
+          if (items[key] <= 0) delete items[key];
+          await pool.query('UPDATE players SET items = ? WHERE player_id = ?', [JSON.stringify(items), playerId]);
+
+          const specialEffect = await getItemSpecialEffect(key);
+          if (isTroopDurabilityRepairEffect(specialEffect)) {
+            for (let u = 0; u < amount; u++) {
+              try {
+                const one = await applyTroopRepairEffect(pool.query.bind(pool), playerId, specialEffect);
+                troopRepairResults.push(one);
+              } catch (e) {
+                if (e.code === 'NO_LEGENDARY_TROOP') {
+                  return res.status(400).json({
+                    success: false,
+                    error: '暂无传奇部队，无法完成整编旧部',
+                  });
+                }
+                if (e.code === 'NO_CORE_TROOP') {
+                  return res.status(400).json({
+                    success: false,
+                    error: '暂无核心部队，无法完成整编旧部',
+                  });
+                }
+                throw e;
+              }
+            }
+          }
+        }
+      }
     }
 
     // 扣除战斗中消耗的银两
@@ -1872,6 +2088,7 @@ router.get('/:playerId/events/explore', async (req, res) => {
   try {
     const { playerId } = req.params;
     await pool.query('INSERT IGNORE INTO player_events (player_id) VALUES (?)', [playerId]);
+    await maybeResetExploreTroopChainsDaily(playerId);
     const [rows] = await pool.query(
       'SELECT explore_events FROM player_events WHERE player_id = ?',
       [playerId]

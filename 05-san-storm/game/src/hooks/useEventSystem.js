@@ -86,6 +86,9 @@ export default function useEventSystem(player, cards) {
   // 玩家事件进度 { eventId: { status, ... } }
   const [completedEvents, setCompletedEvents] = useState({});
 
+  /** 背包道具数量 { item_id: qty }，用于事件链 required_items 过滤（链1 选 B 无道具则不得抽链2） */
+  const [playerItemCounts, setPlayerItemCounts] = useState({});
+
   // 道具名称映射 { item_id → item_name }
   const [itemNameMap, setItemNameMap] = useState({});
 
@@ -183,17 +186,51 @@ export default function useEventSystem(player, cards) {
       .catch(err => console.error('[useEventSystem] 加载事件进度失败:', err));
   }, [player?.player_id]);
 
+  /** 探索结算动画结束后回到 IDLE 时再拉一次进度（含跨日部队链重置） */
+  const prevPhaseForExploreRef = useRef(phase);
+  useEffect(() => {
+    const prev = prevPhaseForExploreRef.current;
+    prevPhaseForExploreRef.current = phase;
+    if (prev !== PHASE.RETURNING || phase !== PHASE.IDLE || !player?.player_id) return;
+    fetch(`${API_CONFIG.BASE_URL}/players/${player.player_id}/events/explore`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) setCompletedEvents(data.data.events || {});
+      })
+      .catch(() => {});
+  }, [phase, player?.player_id]);
+
+  // 同步背包道具（探索池过滤链式事件用）
+  useEffect(() => {
+    if (!player?.player_id) {
+      setPlayerItemCounts({});
+      return;
+    }
+    fetch(`${API_CONFIG.BASE_URL}/players/${player.player_id}/items`)
+      .then(r => r.json())
+      .then(d => {
+        if (d.success && d.data?.items) {
+          const m = {};
+          for (const it of d.data.items) {
+            if (it.itemId && it.quantity > 0) m[it.itemId] = it.quantity;
+          }
+          setPlayerItemCounts(m);
+        }
+      })
+      .catch(() => {});
+  }, [player?.player_id]);
+
   /** 当前探索地点（大地图/探索 Tab 通过 startExplore(locationId) 切换） */
   const [exploreLocationId, setExploreLocationId] = useState(DEFAULT_EXPLORE_LOCATION_ID);
 
   // 根据地点 + 链进度过滤可用事件池（用于 UI 展示默认地点池子大小等）
   const exploreEvents = useMemo(() => (
-    filterExploreEventsPool(allExploreEvents, completedEvents, exploreLocationId)
-  ), [allExploreEvents, completedEvents, exploreLocationId]);
+    filterExploreEventsPool(allExploreEvents, completedEvents, exploreLocationId, playerItemCounts)
+  ), [allExploreEvents, completedEvents, exploreLocationId, playerItemCounts]);
 
   const explorePoolAt = useCallback((locationId) => (
-    filterExploreEventsPool(allExploreEvents, completedEvents, locationId)
-  ), [allExploreEvents, completedEvents]);
+    filterExploreEventsPool(allExploreEvents, completedEvents, locationId, playerItemCounts)
+  ), [allExploreEvents, completedEvents, playerItemCounts]);
 
   // 加载道具名称映射
   useEffect(() => {
@@ -218,12 +255,30 @@ export default function useEventSystem(player, cards) {
   // 开始探索（locationOverride：大地图多个探索点时传入对应 config location）
   const startExplore = useCallback((locationOverride) => {
     if (!quota.canExplore || !playerAttrs) return;
-    const locId = pendingEvent?.location || locationOverride || exploreLocationId;
+    // 明确点击的地点优先于 localStorage 中的 pending，避免点南阳却沿用山海关未完成事件
+    const locId = (locationOverride != null && locationOverride !== '')
+      ? locationOverride
+      : (pendingEvent?.location || exploreLocationId);
     if (locationOverride) setExploreLocationId(locationOverride);
-    const pool = filterExploreEventsPool(allExploreEvents, completedEvents, locId);
-    const event = pendingEvent || pickRandomEvent(pool);
+
+    const pool = filterExploreEventsPool(allExploreEvents, completedEvents, locId, playerItemCounts);
+    const poolIds = new Set(pool.map((e) => e.event_id));
+
+    let usePending = pendingEvent;
+    if (usePending && usePending.location && usePending.location !== locId) {
+      setPendingEvent(null);
+      usePending = null;
+    }
+    if (usePending && !poolIds.has(usePending.event_id)) {
+      setPendingEvent(null);
+      usePending = null;
+    }
+
+    const event = (usePending && poolIds.has(usePending.event_id) ? usePending : null)
+      || pickRandomEvent(pool);
     if (!event) return;
-    if (!pendingEvent) setPendingEvent(event);
+
+    if (!usePending || usePending.event_id !== event.event_id) setPendingEvent(event);
     setCurrentEvent(event);
     setChosenOption(null);
     setChosenOptionKey(null);
@@ -234,7 +289,7 @@ export default function useEventSystem(player, cards) {
     setMinigameInfo(null);
     setRewardDetails(null);
     setPhase(PHASE.EVENT);
-  }, [quota, playerAttrs, pendingEvent, allExploreEvents, completedEvents, exploreLocationId]);
+  }, [quota, playerAttrs, pendingEvent, allExploreEvents, completedEvents, exploreLocationId, playerItemCounts, setPendingEvent]);
 
   // 关闭事件对话框（未选择选项，不消耗次数）
   const closeEvent = useCallback(() => {
@@ -262,27 +317,54 @@ export default function useEventSystem(player, cards) {
       .catch(err => { console.error('[useEventSystem] 奖励API请求失败:', err); return null; });
   }, [currentEvent, player, playerAttrs, general1, general2]);
 
-  // 应用后端返回的fortune和奖励到state
+  const refetchExploreProgress = useCallback(() => {
+    if (!player?.player_id) return;
+    fetch(`${API_CONFIG.BASE_URL}/players/${player.player_id}/events/explore`)
+      .then(r => r.json())
+      .then(d => {
+        if (d.success) setCompletedEvents(d.data.events || {});
+      })
+      .catch(() => {});
+  }, [player?.player_id]);
+
+  // 应用后端返回的fortune和奖励到state；失败时退回 IDLE 并退还次数，避免卡在 REWARD/RESULT 导致全图无法点
   const applyRewardResponse = useCallback((data) => {
     if (!data?.success) {
       console.error('[useEventSystem] 奖励发放失败:', data?.error);
-      // 事件已完成（重复触发）→ 自动跳过，退还次数
-      if (data?.error?.includes('已完成') || data?.error?.includes('重复')) {
-        console.log('[useEventSystem] 事件链已完成，自动跳过');
+      const err = data?.error || '';
+      const isDup = err.includes('已完成') || err.includes('重复');
+      if (isDup) {
+        console.log('[useEventSystem] 事件已完成或重复领取，跳过并退还探索次数');
         quota.refund();
-        // 更新本地进度缓存，防止再次触发
-        if (currentEvent?.event_id) {
-          setCompletedEvents(prev => ({ ...prev, [currentEvent.event_id]: { status: 'completed' } }));
-        }
+        refetchExploreProgress();
         setCurrentEvent(null);
         setPendingEvent(null);
+        setChosenOption(null);
+        setChosenOptionKey(null);
         setRewardDetails(null);
+        setFortune(null);
+        setMinigameInfo(null);
+        setBattleResult(null);
+        setBattleSilverSpent(0);
+        setBattleScore(null);
         if (pendingKey) localStorage.removeItem(pendingKey + '_inprogress');
         setPhase(PHASE.IDLE);
-        return;
+        return false;
       }
+      quota.refund();
       setRewardDetails({ rewards: [], bonusRewards: [] });
-      return;
+      setCurrentEvent(null);
+      setPendingEvent(null);
+      setChosenOption(null);
+      setChosenOptionKey(null);
+      setFortune(null);
+      setMinigameInfo(null);
+      setBattleResult(null);
+      setBattleSilverSpent(0);
+      setBattleScore(null);
+      if (pendingKey) localStorage.removeItem(pendingKey + '_inprogress');
+      setPhase(PHASE.IDLE);
+      return false;
     }
     const sf = data.data.fortune;
     if (sf) {
@@ -298,7 +380,22 @@ export default function useEventSystem(player, cards) {
       bonusRewards: data.data.bonusRewards || [],
       troopRepair: data.data.troopRepair || null,
     });
-  }, [quota, currentEvent, setPendingEvent, pendingKey]);
+    if (player?.player_id) {
+      fetch(`${API_CONFIG.BASE_URL}/players/${player.player_id}/items`)
+        .then(r => r.json())
+        .then(d => {
+          if (d.success && d.data?.items) {
+            const m = {};
+            for (const it of d.data.items) {
+              if (it.itemId && it.quantity > 0) m[it.itemId] = it.quantity;
+            }
+            setPlayerItemCounts(m);
+          }
+        })
+        .catch(() => {});
+    }
+    return true;
+  }, [quota, setPendingEvent, pendingKey, player?.player_id, refetchExploreProgress]);
 
   // 选择选项
   const chooseOption = useCallback((option, optionKey) => {
@@ -320,37 +417,29 @@ export default function useEventSystem(player, cards) {
       return;
     }
 
-    // always类型：立即请求后端，直接进入奖励阶段
+    // always类型：先等后端成功再进 REWARD，失败时 applyRewardResponse 已退回 IDLE
     if (option.mainFactor === 'always') {
       setFortune({ name: '吉', emoji: '⭐', color: 'text-blue-600', multiplier: 1.0 });
-      requestRewards(optionKey).then(data => {
-        applyRewardResponse(data);
+      requestRewards(optionKey).then((data) => {
+        if (applyRewardResponse(data)) setPhase(PHASE.REWARD);
       });
-      setPhase(PHASE.REWARD);
       return;
     }
 
     // 因子判定：播放骰子动画，同时请求后端
     setPhase(PHASE.ROLLING);
     const rewardPromise = requestRewards(optionKey);
-    // 后端响应存入ref，动画结束后读取
-    rewardPromise.then(data => { pendingRewardResponse.current = data; });
+    rewardPromise.then((data) => { pendingRewardResponse.current = data; });
 
     setTimeout(() => {
       const cached = pendingRewardResponse.current;
       if (cached) {
-        // 后端已响应，直接使用后端的fortune
-        applyRewardResponse(cached);
+        const ok = applyRewardResponse(cached);
         pendingRewardResponse.current = null;
-        // 根据fortune决定进入结果页还是直接奖励
-        const sf = cached.data?.fortune;
-        const isSuccess = sf ? isFortuneSuccess(sf.name) : true;
-        setPhase(PHASE.RESULT);
+        if (cached.success && ok) setPhase(PHASE.RESULT);
       } else {
-        // 后端还没响应（极端延迟），等待
-        setPhase(PHASE.RESULT);
-        rewardPromise.then(data => {
-          applyRewardResponse(data);
+        rewardPromise.then((data) => {
+          if (applyRewardResponse(data)) setPhase(PHASE.RESULT);
         });
       }
     }, 1500);
@@ -379,10 +468,9 @@ export default function useEventSystem(player, cards) {
       battleResult: result,
       ...(silverSpent > 0 ? { battleSilverSpent: silverSpent } : {}),
       ...(scoreResult ? { battleScore: scoreResult.score } : {}),
-    }).then(data => {
-      applyRewardResponse(data);
+    }).then((data) => {
+      if (applyRewardResponse(data)) setPhase(PHASE.REWARD);
     });
-    setPhase(PHASE.REWARD);
   }, [chosenOptionKey, requestRewards, applyRewardResponse]);
 
   // 迷你游戏结果
@@ -393,10 +481,9 @@ export default function useEventSystem(player, cards) {
       setFortune({ name: '凶', emoji: '💀', color: 'text-orange-600', multiplier: 0.5 });
     }
     // 请求后端发放奖励（附带筹码盈亏）
-    requestRewards(chosenOptionKey, { minigameResult: result, minigameSilverDelta: extra.silverDelta || 0 }).then(data => {
-      applyRewardResponse(data);
+    requestRewards(chosenOptionKey, { minigameResult: result, minigameSilverDelta: extra.silverDelta || 0 }).then((data) => {
+      if (applyRewardResponse(data)) setPhase(PHASE.REWARD);
     });
-    setPhase(PHASE.REWARD);
   }, [chosenOptionKey, requestRewards, applyRewardResponse]);
 
   // PHASE.REWARD 阶段：奖励已由 chooseOption/endMinigame/endBattle 请求后端获取

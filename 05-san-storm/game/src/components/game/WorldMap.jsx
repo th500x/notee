@@ -5,7 +5,7 @@
  *              探索点直接在地图上显示，点击触发事件系统
  */
 
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { usePlayerContext } from '@/contexts/PlayerContext';
 import useEventSystem, { DEFAULT_EXPLORE_LOCATION_ID } from '@/hooks/useEventSystem';
 import useTutorialEvents from '@/hooks/useTutorialEvents';
@@ -21,6 +21,7 @@ import GarrisonLineup from '@/components/garrison/GarrisonLineup';
 import { garrisonAPI } from '@/services/garrisonApi';
 import { API_CONFIG, getRarityHex, getRarityLabelCn } from '@/constants';
 import SiegeReplayMini from '@/components/game/SiegeReplayMini';
+import { filterPlayerItemsForExploreLocation } from '@/components/event/eventUtils';
 
 /** 山海关荒郊（事件 location 与 config_events 一致） */
 const EXPLORE_LOC_SHANHAIGUAN = 'san_1_city_6_shanhaiguan';
@@ -197,6 +198,9 @@ export default function WorldMap({ onEventBusyChange }) {
   const shanhaiguanPoolLen = explorePoolAt(EXPLORE_LOC_SHANHAIGUAN).length;
   const canExploreNanyang = !isTutorial && phase === PHASE.IDLE && !eventsLoading && nanyangPoolLen > 0 && quota.canExplore;
   const canExploreShanhaiguan = !isTutorial && phase === PHASE.IDLE && !eventsLoading && shanhaiguanPoolLen > 0 && quota.canExplore;
+  /** 本地点事件池已空（如今日部队链已打完）→ 灰显、不可点，但仍可悬停看说明 */
+  const nanyangPoolEmpty = !isTutorial && phase === PHASE.IDLE && !eventsLoading && nanyangPoolLen <= 0;
+  const shanhaiguanPoolEmpty = !isTutorial && phase === PHASE.IDLE && !eventsLoading && shanhaiguanPoolLen <= 0;
 
   // ── 城市攻城状态 ──
   const CITY_ID = 'san_1_city_3_xinye';
@@ -524,6 +528,15 @@ export default function WorldMap({ onEventBusyChange }) {
 
   useEffect(() => { fetchItems(); }, [fetchItems]);
 
+  const nanyangExploreItems = useMemo(
+    () => filterPlayerItemsForExploreLocation(playerItems, DEFAULT_EXPLORE_LOCATION_ID),
+    [playerItems]
+  );
+  const shanhaiguanExploreItems = useMemo(
+    () => filterPlayerItemsForExploreLocation(playerItems, EXPLORE_LOC_SHANHAIGUAN),
+    [playerItems]
+  );
+
   // 奖励发放后刷新道具列表和玩家资源
   useEffect(() => {
     if (phase === PHASE.RETURNING) {
@@ -577,7 +590,7 @@ export default function WorldMap({ onEventBusyChange }) {
 
       {/* 探索点：南阳荒郊 */}
       <div
-        className={`absolute cursor-pointer group ${exploreHover === 'nanyang' ? 'z-50' : 'z-30'}`}
+        className={`absolute group ${exploreHover === 'nanyang' ? 'z-50' : 'z-30'} ${canExploreNanyang ? 'cursor-pointer' : 'cursor-not-allowed'}`}
         style={{ left: '35%', top: '55%' }}
         onMouseEnter={() => { setExploreHover('nanyang'); setShowTooltip(true); }}
         onMouseLeave={() => { setExploreHover(null); setShowTooltip(false); }}
@@ -590,7 +603,8 @@ export default function WorldMap({ onEventBusyChange }) {
           <div className="absolute inset-0 -m-4 rounded-full bg-amber-400/30 animate-ping" />
         )}
         <div className={`relative text-4xl select-none transition-transform
-          ${canExploreNanyang ? 'hover:scale-125 active:scale-95' : 'opacity-50'}`}>
+          ${canExploreNanyang ? 'hover:scale-125 active:scale-95' : ''}
+          ${nanyangPoolEmpty ? 'grayscale opacity-[0.38] brightness-[0.82] saturate-50' : !canExploreNanyang ? 'opacity-50' : ''}`}>
           📜
         </div>
         {showTooltip && exploreHover === 'nanyang' && (
@@ -599,8 +613,12 @@ export default function WorldMap({ onEventBusyChange }) {
             <div className="text-white/60 text-xs">
               {eventsLoading ? '加载中...'
                 : !quota.canExplore ? '探索次数不足'
+                : nanyangPoolEmpty ? '本地点暂无可探索事件'
                 : `点击探索（${nanyangPoolLen}种事件）`}
             </div>
+            {nanyangPoolEmpty && quota.canExplore && (
+              <div className="text-white/45 text-[10px] mt-0.5">次日 0 点（服务器日期）后部队链等进度将重置</div>
+            )}
             <div className="text-white/80 text-xs mt-1 border-t border-white/20 pt-1">
               🔍 探索：<span className={quota.remaining > 0 ? 'text-green-400' : 'text-red-400'}>
                 {quota.remaining}/{quota.max}
@@ -615,10 +633,10 @@ export default function WorldMap({ onEventBusyChange }) {
             <div className="text-white/30 text-[10px] mt-1">
               每小时+{quota.refillPerHour}次 · 上限{quota.max}次 · 0:00~8:00💤
             </div>
-            {playerItems.length > 0 && (
+            {nanyangExploreItems.length > 0 && (
               <div className="text-white/80 text-xs mt-1 border-t border-white/20 pt-1">
                 🎒 道具：
-                {playerItems.map((item, i) => (
+                {nanyangExploreItems.map((item, i) => (
                   <span key={item.itemId} className="text-amber-300">
                     {i > 0 && '、'}{item.name}×{item.quantity}
                   </span>
@@ -631,7 +649,7 @@ export default function WorldMap({ onEventBusyChange }) {
 
       {/* 探索点：山海关荒郊（提示文案与南阳荒郊一致） */}
       <div
-        className={`absolute cursor-pointer group ${exploreHover === 'shanhaiguan' ? 'z-50' : 'z-30'}`}
+        className={`absolute group ${exploreHover === 'shanhaiguan' ? 'z-50' : 'z-30'} ${canExploreShanhaiguan ? 'cursor-pointer' : 'cursor-not-allowed'}`}
         style={{ left: '22%', top: '42%' }}
         onMouseEnter={() => { setExploreHover('shanhaiguan'); setShowTooltip(true); }}
         onMouseLeave={() => { setExploreHover(null); setShowTooltip(false); }}
@@ -644,7 +662,8 @@ export default function WorldMap({ onEventBusyChange }) {
           <div className="absolute inset-0 -m-4 rounded-full bg-sky-500/25 animate-ping" />
         )}
         <div className={`relative text-4xl select-none transition-transform
-          ${canExploreShanhaiguan ? 'hover:scale-125 active:scale-95' : 'opacity-50'}`}>
+          ${canExploreShanhaiguan ? 'hover:scale-125 active:scale-95' : ''}
+          ${shanhaiguanPoolEmpty ? 'grayscale opacity-[0.38] brightness-[0.82] saturate-50' : !canExploreShanhaiguan ? 'opacity-50' : ''}`}>
           🏔️
         </div>
         {showTooltip && exploreHover === 'shanhaiguan' && (
@@ -653,8 +672,12 @@ export default function WorldMap({ onEventBusyChange }) {
             <div className="text-white/60 text-xs">
               {eventsLoading ? '加载中...'
                 : !quota.canExplore ? '探索次数不足'
+                : shanhaiguanPoolEmpty ? '本地点暂无可探索事件'
                 : `点击探索（${shanhaiguanPoolLen}种事件）`}
             </div>
+            {shanhaiguanPoolEmpty && quota.canExplore && (
+              <div className="text-white/45 text-[10px] mt-0.5">次日 0 点（服务器日期）后部队链等进度将重置</div>
+            )}
             <div className="text-white/80 text-xs mt-1 border-t border-white/20 pt-1">
               🔍 探索：<span className={quota.remaining > 0 ? 'text-green-400' : 'text-red-400'}>
                 {quota.remaining}/{quota.max}
@@ -669,10 +692,10 @@ export default function WorldMap({ onEventBusyChange }) {
             <div className="text-white/30 text-[10px] mt-1">
               每小时+{quota.refillPerHour}次 · 上限{quota.max}次 · 0:00~8:00💤
             </div>
-            {playerItems.length > 0 && (
+            {shanhaiguanExploreItems.length > 0 && (
               <div className="text-white/80 text-xs mt-1 border-t border-white/20 pt-1">
                 🎒 道具：
-                {playerItems.map((item, i) => (
+                {shanhaiguanExploreItems.map((item, i) => (
                   <span key={item.itemId} className="text-amber-300">
                     {i > 0 && '、'}{item.name}×{item.quantity}
                   </span>

@@ -21,7 +21,7 @@ const ATTACHMENTS_JSON_SAMPLE = `{
   "silver": 100,
   "food": 500,
   "items": {
-    "item_nanyang_troop_1": 1
+    "item_nanyang_troop_legendary": 1
   },
   "cards": [
     "san_1_char_1002",
@@ -306,7 +306,7 @@ const MailManager = () => {
               disabled={form.mail_type === 'system'}
             />
             <p className="text-xs text-gray-500 leading-relaxed">
-              下方已预填完整 JSON，可直接改数值或增删字段。含义：银两 100、粮草 500；道具 <code className="bg-gray-100 px-0.5">item_nanyang_troop_1</code>；
+              下方已预填完整 JSON，可直接改数值或增删字段。含义：银两 100、粮草 500；道具 <code className="bg-gray-100 px-0.5">item_nanyang_troop_legendary</code>；
               <code className="bg-gray-100 px-0.5">cards</code> 为将领/部队/装备各 1 张（势力通配符规则与事件奖励一致）。类型选 system 时保存会忽略附件。
             </p>
           </div>

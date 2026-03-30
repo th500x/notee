@@ -192,34 +192,115 @@ export function pickRandomEvent(events) {
 }
 
 /**
+ * 事件级 required_items 中的道具段是否满足（链 2+ 需持有链 1 道具；链 1 选 B 无道具则不得进链 2）
+ * @param {string|null|undefined} requiredItemsStr - config_events.required_items（如 item_xxx 或 item_a;item_b:2）
+ * @param {Record<string, number>} itemCounts - item_id → 数量
+ */
+export function playerMeetsEventRequiredItems(requiredItemsStr, itemCounts) {
+  if (!requiredItemsStr || !String(requiredItemsStr).trim()) return true;
+  const segments = String(requiredItemsStr).split(';').map(s => s.trim()).filter(Boolean);
+  for (const seg of segments) {
+    const colon = seg.indexOf(':');
+    const key = colon === -1 ? seg : seg.slice(0, colon);
+    const need = colon === -1 ? 1 : Math.max(1, parseInt(seg.slice(colon + 1), 10) || 1);
+    if (!key.startsWith('item_') && !key.includes('_item_')) continue;
+    if ((Number(itemCounts[key]) || 0) < need) return false;
+  }
+  return true;
+}
+
+/**
+ * 道具 id 与探索点 location 对齐：config location 为 san_1_city_6_{地点}，道具为 item_{地点}_*
+ * @param {string} itemId
+ * @param {string} exploreLocationId - 如 san_1_city_6_nanyang
+ */
+export function itemIdMatchesExploreLocation(itemId, exploreLocationId) {
+  if (!itemId || !exploreLocationId) return false;
+  const slug = String(exploreLocationId).split('_').pop();
+  if (!slug) return false;
+  const id = String(itemId);
+  return id.startsWith(`item_${slug}_`) || id === `item_${slug}`;
+}
+
+/**
+ * @param {Array<{ itemId: string, name?: string, quantity?: number }>} items - GET /players/:id/items 结构
+ * @param {string} exploreLocationId
+ */
+export function filterPlayerItemsForExploreLocation(items, exploreLocationId) {
+  if (!items?.length || !exploreLocationId) return [];
+  return items.filter((it) => itemIdMatchesExploreLocation(it.itemId, exploreLocationId));
+}
+
+/**
+ * 事件链「有效」最高已完成环数：仅当第 L 环在存档中为 completed，且（无 L+1 或玩家已满足 L+1 的 required_items）时，才把 L 记入进度。
+ * 若完成了链 1 但未拿到下一环钥匙（如选 B/判定失败未掉信物），则进度不推进，链 1 可再次被抽到。
+ */
+export function getEffectiveExploreChainMaxCompleted(allEvents, chainId, completedEvents, playerItemCounts = {}) {
+  if (!allEvents?.length || !chainId) return 0;
+
+  const chainLevelNum = (lv) => {
+    const n = Number(lv);
+    return Number.isFinite(n) && n > 0 ? n : 0;
+  };
+
+  const chainEvents = allEvents
+    .filter((e) => e.chain_id === chainId)
+    .sort((a, b) => chainLevelNum(a.chain_level) - chainLevelNum(b.chain_level));
+
+  let effective = 0;
+  for (const evt of chainEvents) {
+    const L = chainLevelNum(evt.chain_level);
+    if (L !== effective + 1) continue;
+    const rec = completedEvents[evt.event_id];
+    if (rec?.status !== 'completed') break;
+
+    const next = chainEvents.find((e) => chainLevelNum(e.chain_level) === L + 1);
+    if (!next) {
+      effective = L;
+      break;
+    }
+    if (next.required_items && !playerMeetsEventRequiredItems(next.required_items, playerItemCounts)) {
+      break;
+    }
+    effective = L;
+  }
+  return effective;
+}
+
+/**
  * 按探索地点 + 事件链进度过滤可抽到的事件池（与 useEventSystem 逻辑一致）
  * @param {Array} allEvents - 已按 trigger_context 过滤后的全量（如 explore）
  * @param {Object} completedEvents - 玩家已完成事件 { eventId: { status } }
  * @param {string} locationId - 事件 location，须与 config_events.location 完全一致
+ * @param {Record<string, number>} [playerItemCounts] - 背包道具数量，用于校验链式 required_items
  */
-export function filterExploreEventsPool(allEvents, completedEvents, locationId) {
+export function filterExploreEventsPool(allEvents, completedEvents, locationId, playerItemCounts = {}) {
   if (!allEvents?.length || !locationId) return [];
 
+  /** DB/API 常把 chain_level 当字符串；与数字用 !== 比较会把整条链全过滤掉（如山海关仅链式探索时显示 0 件） */
+  const chainLevelNum = (lv) => {
+    const n = Number(lv);
+    return Number.isFinite(n) && n > 0 ? n : 0;
+  };
+
+  const chainIds = [...new Set(allEvents.map((e) => e.chain_id).filter(Boolean))];
   const chainMaxCompleted = {};
-  for (const evt of allEvents) {
-    if (!evt.chain_id) continue;
-    if (!chainMaxCompleted[evt.chain_id]) chainMaxCompleted[evt.chain_id] = 0;
-  }
-  for (const [eventId, record] of Object.entries(completedEvents || {})) {
-    if (record.status !== 'completed') continue;
-    const evt = allEvents.find(e => e.event_id === eventId);
-    if (evt?.chain_id && evt.chain_level) {
-      chainMaxCompleted[evt.chain_id] = Math.max(
-        chainMaxCompleted[evt.chain_id] || 0,
-        evt.chain_level
-      );
-    }
+  for (const cid of chainIds) {
+    chainMaxCompleted[cid] = getEffectiveExploreChainMaxCompleted(
+      allEvents,
+      cid,
+      completedEvents,
+      playerItemCounts
+    );
   }
 
   const chainMaxLevel = {};
   for (const evt of allEvents) {
     if (!evt.chain_id) continue;
-    chainMaxLevel[evt.chain_id] = Math.max(chainMaxLevel[evt.chain_id] || 0, evt.chain_level);
+    const cl = chainLevelNum(evt.chain_level);
+    if (cl > 0) {
+      chainMaxLevel[evt.chain_id] = Math.max(chainMaxLevel[evt.chain_id] || 0, cl);
+    }
   }
 
   return allEvents.filter((evt) => {
@@ -230,7 +311,12 @@ export function filterExploreEventsPool(allEvents, completedEvents, locationId) 
     const completed = chainMaxCompleted[evt.chain_id] || 0;
     const maxLevel = chainMaxLevel[evt.chain_id] || 0;
     if (completed >= maxLevel) return false;
-    return evt.chain_level === completed + 1;
+    if (chainLevelNum(evt.chain_level) !== completed + 1) return false;
+
+    if (evt.required_items && !playerMeetsEventRequiredItems(evt.required_items, playerItemCounts)) {
+      return false;
+    }
+    return true;
   });
 }
 

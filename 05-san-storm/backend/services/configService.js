@@ -276,19 +276,18 @@ async function getEquipment(filters = {}) {
     params.push(season);
   }
 
-  // equipment_type 和 rarity 从 ID 解析，用 LIKE 过滤
-  // ID 格式: san_1_equip_{typeNum}_{rarityNum}{seq}
+  // equipment_type 和 rarity 从 ID 解析（§12：…_equip_{1-3}_{稀有1位}{序号3位}）；LIKE 中 _ 为通配符，改用 REGEXP
   const typeNumMap   = { weapon: '1', armor: '2', accessory: '3' };
   const rarityNumMap = { common: '1', rare: '2', epic: '3', legendary: '4', core: '5' };
 
   if (equipmentType && typeNumMap[equipmentType]) {
-    query += ` AND equipment_id LIKE ?`;
-    params.push(`%_equip_${typeNumMap[equipmentType]}_%`);
+    query += ` AND equipment_id REGEXP ?`;
+    params.push(`_equip_${typeNumMap[equipmentType]}_[0-9]`);
   }
 
   if (rarity && rarityNumMap[rarity]) {
     query += ` AND equipment_id REGEXP ?`;
-    params.push(`_equip_[0-9]_${rarityNumMap[rarity]}[0-9]+$`);
+    params.push(`_equip_[1-3]_${rarityNumMap[rarity]}[0-9]{3}$`);
   }
 
   query += ' ORDER BY equipment_id';

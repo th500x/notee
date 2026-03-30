@@ -1,6 +1,6 @@
 {
   "_meta": {
-    "generated": "2026-03-29T05:04:27.565Z",
+    "generated": "2026-03-30T12:42:33.236Z",
     "source": "event-template.csv",
     "count": 27
   },
@@ -1147,7 +1147,7 @@
         "battleEnemyId": null,
         "successText": "你拾起铜牌与半本浸湿的军册虽残缺不全却足以向旁人证明番号来历",
         "failureText": "林中空无一物只有寒鸦惊起你只得记下大致方位悻悻离去",
-        "rewards": "item_nanyang_troop_1;reputation:2",
+        "rewards": "item_nanyang_troop_legendary;reputation:2",
         "bonusRewards": "food:30"
       },
       "optionB": {
@@ -1175,7 +1175,7 @@
       "triggerContext": "explore",
       "chainId": "chain_nanyang_troop",
       "chainLevel": 2,
-      "requiredItems": "item_nanyang_troop_1",
+      "requiredItems": "item_nanyang_troop_legendary",
       "descriptions": [
         "{player_name}持铜牌在驿站与流民营中多方打听终于有几名老兵应声而来",
         "他们摩挲着番号含泪道这支兄弟兵当年随将军出生入死如今只剩这些散卒",
@@ -1215,13 +1215,13 @@
       }
     },
     {
-      "id": "san_1_event_6_3101",
+      "id": "san_1_event_6_3001",
       "name": "蛮踪与密信",
       "location": "san_1_city_6_shanhaiguan",
       "minPositionLevel": null,
       "triggerProbability": 0.12,
       "triggerContext": "explore",
-      "chainId": "chain_shanhaiguan_bandit",
+      "chainId": "chain_shanhaiguan_troop",
       "chainLevel": 1,
       "requiredItems": null,
       "descriptions": [
@@ -1243,7 +1243,7 @@
         "battleEnemyId": null,
         "successText": "你在草丛中找到了完整的通联书信约定下次劫掠的路线与暗号",
         "failureText": "林鸟惊起一无所获只得将蹄印方向记入账册",
-        "rewards": "item_shanhaiguan_bandit_letter;reputation:2",
+        "rewards": "item_shanhaiguan_troop_core;reputation:2",
         "bonusRewards": "food:40"
       },
       "optionB": {
@@ -1263,15 +1263,15 @@
       }
     },
     {
-      "id": "san_1_event_6_3102",
+      "id": "san_1_event_6_3002",
       "name": "峡口重围",
       "location": "san_1_city_6_shanhaiguan",
       "minPositionLevel": null,
       "triggerProbability": 0.12,
       "triggerContext": "explore",
-      "chainId": "chain_shanhaiguan_bandit",
+      "chainId": "chain_shanhaiguan_troop",
       "chainLevel": 2,
-      "requiredItems": "item_shanhaiguan_bandit_letter",
+      "requiredItems": "item_shanhaiguan_troop_core",
       "descriptions": [
         "{player_name}率部沿信中标记追至一道窄峡两侧陡坡上忽然角声大作",
         "数十名头插翎羽的蛮族劫匪涌出弓弩上弦将去路封死",

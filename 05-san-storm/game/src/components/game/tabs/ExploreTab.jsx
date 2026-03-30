@@ -30,6 +30,8 @@ export default function ExploreTab({ onClose }) {
     phase === PHASE.IDLE && !eventsLoading && nanyangPoolLen > 0 && quota.canExplore;
   const canExploreShanhaiguan =
     phase === PHASE.IDLE && !eventsLoading && shanhaiguanPoolLen > 0 && quota.canExplore;
+  const nanyangPoolEmpty = phase === PHASE.IDLE && !eventsLoading && nanyangPoolLen <= 0;
+  const shanhaiguanPoolEmpty = phase === PHASE.IDLE && !eventsLoading && shanhaiguanPoolLen <= 0;
 
   const quotaBlock = (
     <>
@@ -86,22 +88,29 @@ export default function ExploreTab({ onClose }) {
 
       {/* 探索点：南阳荒郊 */}
       <div
-        className="absolute z-10 cursor-pointer group"
+        className={`absolute z-10 group ${canExploreNanyang ? 'cursor-pointer' : 'cursor-not-allowed'}`}
         style={{ left: '35%', top: '55%' }}
         onMouseEnter={() => setExploreHover('nanyang')}
         onMouseLeave={() => setExploreHover(null)}
         onClick={canExploreNanyang ? () => startExplore(DEFAULT_EXPLORE_LOCATION_ID) : undefined}>
-        <div className="absolute inset-0 -m-4 rounded-full bg-amber-400/30 animate-ping" />
+        {canExploreNanyang && (
+          <div className="absolute inset-0 -m-4 rounded-full bg-amber-400/30 animate-ping" />
+        )}
         <div className={`relative text-4xl select-none transition-transform
-          ${canExploreNanyang ? 'hover:scale-125 active:scale-95' : 'opacity-60'}`}>📜</div>
+          ${canExploreNanyang ? 'hover:scale-125 active:scale-95' : ''}
+          ${nanyangPoolEmpty ? 'grayscale opacity-[0.38] brightness-[0.82] saturate-50' : !canExploreNanyang ? 'opacity-60' : ''}`}>📜</div>
         {exploreHover === 'nanyang' && (
           <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-black/80 rounded-lg backdrop-blur-sm whitespace-nowrap">
             <div className="text-white text-sm font-medium">南阳荒郊</div>
             <div className="text-white/60 text-xs">
               {eventsLoading ? '加载事件中...'
                 : !quota.canExplore ? '探索次数不足'
+                : nanyangPoolEmpty ? '本地点暂无可探索事件'
                 : `点击探索（${nanyangPoolLen}种事件）`}
             </div>
+            {nanyangPoolEmpty && quota.canExplore && (
+              <div className="text-white/45 text-[10px] mt-0.5">次日 0 点（服务器日期）后部队链等进度将重置</div>
+            )}
             {quotaBlock}
           </div>
         )}
@@ -109,22 +118,29 @@ export default function ExploreTab({ onClose }) {
 
       {/* 探索点：山海关荒郊 */}
       <div
-        className="absolute z-10 cursor-pointer group"
+        className={`absolute z-10 group ${canExploreShanhaiguan ? 'cursor-pointer' : 'cursor-not-allowed'}`}
         style={{ left: '22%', top: '42%' }}
         onMouseEnter={() => setExploreHover('shanhaiguan')}
         onMouseLeave={() => setExploreHover(null)}
         onClick={canExploreShanhaiguan ? () => startExplore(EXPLORE_LOC_SHANHAIGUAN) : undefined}>
-        <div className="absolute inset-0 -m-4 rounded-full bg-sky-500/25 animate-ping" />
+        {canExploreShanhaiguan && (
+          <div className="absolute inset-0 -m-4 rounded-full bg-sky-500/25 animate-ping" />
+        )}
         <div className={`relative text-4xl select-none transition-transform
-          ${canExploreShanhaiguan ? 'hover:scale-125 active:scale-95' : 'opacity-60'}`}>🏔️</div>
+          ${canExploreShanhaiguan ? 'hover:scale-125 active:scale-95' : ''}
+          ${shanhaiguanPoolEmpty ? 'grayscale opacity-[0.38] brightness-[0.82] saturate-50' : !canExploreShanhaiguan ? 'opacity-60' : ''}`}>🏔️</div>
         {exploreHover === 'shanhaiguan' && (
           <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-black/80 rounded-lg backdrop-blur-sm whitespace-nowrap">
             <div className="text-white text-sm font-medium">山海关荒郊</div>
             <div className="text-white/60 text-xs">
               {eventsLoading ? '加载事件中...'
                 : !quota.canExplore ? '探索次数不足'
+                : shanhaiguanPoolEmpty ? '本地点暂无可探索事件'
                 : `点击探索（${shanhaiguanPoolLen}种事件）`}
             </div>
+            {shanhaiguanPoolEmpty && quota.canExplore && (
+              <div className="text-white/45 text-[10px] mt-0.5">次日 0 点（服务器日期）后部队链等进度将重置</div>
+            )}
             {quotaBlock}
           </div>
         )}
