@@ -6164,13 +6164,13 @@ await redis.expire('player:history:player_001', 86400);  // 24小时
 
 ### 6.5 数据库分区（未来扩展）
 
-**按时间分区（战斗记录表）**：
+**按时间分区（战斗记录表）**：（完整列定义见 §3.2.17；示例仅保留主键维度）
 ```sql
 CREATE TABLE battles (
-  battle_id VARCHAR(50),
+  battle_id VARCHAR(80),
   player_id VARCHAR(4),
   battle_at DATETIME,
-  -- 其他字段
+  -- 其他字段（含 battle_type ENUM … `pve_siege` 等）
   PRIMARY KEY (battle_id, battle_at)
 ) PARTITION BY RANGE (YEAR(battle_at)) (
   PARTITION p2024 VALUES LESS THAN (2025),
