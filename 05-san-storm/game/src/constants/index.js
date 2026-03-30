@@ -45,6 +45,20 @@ export const RARITY_COLORS = {
   [RARITY.COMMON]: '#9E9E9E',
 };
 
+/** 与 RARITY_COLORS 一致；键兼容大小写，未知时回退普通灰 */
+export function getRarityHex(rarity) {
+  if (rarity == null || rarity === '') return RARITY_COLORS[RARITY.COMMON];
+  const k = String(rarity).toLowerCase();
+  return RARITY_COLORS[k] || RARITY_COLORS[RARITY.COMMON];
+}
+
+/** 中文稀有度标签；无映射时回传原始字符串 */
+export function getRarityLabelCn(rarity) {
+  if (rarity == null || rarity === '') return '';
+  const k = String(rarity).toLowerCase();
+  return RARITY_LABELS[k] ?? String(rarity);
+}
+
 // ==================== 服务器状态 ====================
 export const SERVER_STATUS = {
   IDLE: 'idle',

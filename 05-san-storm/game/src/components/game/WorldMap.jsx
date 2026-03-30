@@ -19,7 +19,7 @@ import { playerAPI } from '@/services/playerApi';
 import AncientModal from '@/components/common/AncientModal';
 import GarrisonLineup from '@/components/garrison/GarrisonLineup';
 import { garrisonAPI } from '@/services/garrisonApi';
-import { API_CONFIG } from '@/constants';
+import { API_CONFIG, getRarityHex, getRarityLabelCn } from '@/constants';
 import SiegeReplayMini from '@/components/game/SiegeReplayMini';
 
 const BG_CACHE_KEY = 'game_intro_bg';
@@ -872,7 +872,14 @@ export default function WorldMap({ onEventBusyChange }) {
             <div className="text-xl font-bold text-amber-400">战斗结算</div>
             {siegeResult.silverReward > 0 && <div className="text-amber-300 text-sm">💰 获得 {siegeResult.silverReward} 银两</div>}
             {siegeResult.reputationReward > 0 && <div className="text-yellow-300 text-sm">⭐ 获得 {siegeResult.reputationReward} 声望</div>}
-            {siegeResult.equipmentDrop && <div className="text-purple-300 text-sm">🎁 获得装备：{siegeResult.equipmentDrop.name}（{siegeResult.equipmentDrop.rarity}）</div>}
+            {siegeResult.equipmentDrop && (
+              <div
+                className="text-sm font-medium"
+                style={{ color: getRarityHex(siegeResult.equipmentDrop.rarity) }}
+              >
+                🎁 获得装备：{siegeResult.equipmentDrop.name}（{getRarityLabelCn(siegeResult.equipmentDrop.rarity)}）
+              </div>
+            )}
             {siegeResult.killCount != null && <div className="text-sm text-gray-300">本场击杀：{siegeResult.killCount}</div>}
             <div className="text-sm text-gray-400">NPC守军：{siegeResult.npcKilled}/{siegeResult.npcTotal} 已消灭</div>
             {Array.isArray(siegeResult.authoritativeBattleLog) && siegeResult.authoritativeBattleLog.length > 0 && (
