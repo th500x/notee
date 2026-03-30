@@ -32,18 +32,18 @@ const BATTLE_FILTERS = [
 ];
 
 /**
- * 三 Tab 内容区：固定同高，避免切换时外框跳动。
- * 中间列表 ≈ 12.5rem（约 5 条带发件行的聊天气泡，或 5 行以上纯文本）
- * 底栏占位与聊天输入区同高，战报/传书用空栏对齐。
+ * 三 Tab 内容区：固定同高（22rem），避免切换时外框跳动。
+ * 中间列表 flex-1 占满顶栏与底栏之间的空间；底栏仅聊天有内容，高度随输入区走，
+ * 不再固定 6rem + justify-end（那会留出一大片无效空白）。
  */
 const COMM_TAB_BODY_CLASS =
   'flex flex-col h-[22rem] min-h-[22rem] max-h-[22rem] w-full shrink-0 overflow-hidden';
 const COMM_TAB_SCROLL_CLASS =
-  'h-[12.5rem] min-h-[12.5rem] max-h-[12.5rem] flex-none overflow-y-auto overflow-x-hidden';
+  'flex-1 min-h-0 basis-0 overflow-y-auto overflow-x-hidden';
 const COMM_TAB_TOP_SLOT_CLASS =
   'shrink-0 min-h-[3.5rem] border-b border-amber-700/20 px-1 py-1 flex flex-col justify-center gap-1';
 const COMM_TAB_BOTTOM_SLOT_CLASS =
-  'h-[6rem] shrink-0 flex-none flex flex-col justify-end border-t border-amber-700/20 px-1.5 pb-1 pt-1 gap-0.5';
+  'shrink-0 flex flex-col border-t border-amber-700/20 px-1.5 pb-1 pt-1 gap-0.5';
 
 /**
  * @param {number} [unreadChatCount] - 预留；新消息角标主要由内部 meta 轮询驱动
@@ -275,7 +275,7 @@ export default function CommPanel({ visible, unreadChatCount: unreadChatProp = 0
         </button>
       </div>
 
-      {/* Tab 内容：三栏同总高 22rem + 顶栏 + 底栏占位 */}
+      {/* Tab 内容：总高 22rem；列表区伸展填满顶栏与底栏之间 */}
       <div className="shrink-0 min-h-0 flex flex-col">
         {activeTab === 'battle' && (
           <BattleTab
@@ -344,7 +344,6 @@ function BattleTab({ battles, filter, onFilterChange, loading, expandedBattle, b
           />
         ))}
       </div>
-      <div className={COMM_TAB_BOTTOM_SLOT_CLASS} aria-hidden="true" />
     </div>
   );
 }
@@ -710,7 +709,6 @@ function TextMailTab({ playerId, onUnreadChange, onClaimed, onShowClaimResult })
           </div>
         ))}
       </div>
-      <div className={COMM_TAB_BOTTOM_SLOT_CLASS} aria-hidden="true" />
     </div>
   );
 }
