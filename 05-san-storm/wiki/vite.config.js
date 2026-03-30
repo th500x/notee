@@ -35,5 +35,8 @@ export default defineConfig({
     outDir: 'dist',
     assetsDir: 'assets',
     sourcemap: false,
+    // 生产机可能缺少 wiki/public 的符号链接目标（如 public/maps），
+    // 这里禁用 public 复制，避免 ENOENT；静态资源统一走 /05-san-storm/* 绝对路径。
+    copyPublicDir: false,
   },
 });
