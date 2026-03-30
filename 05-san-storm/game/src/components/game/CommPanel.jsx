@@ -470,6 +470,8 @@ function BattleDetail({ detail }) {
                   rightLabel={siegeRightLabel}
                   attackerStrikeNames={attackerStrikeNames}
                   defenderStrikeNames={defenderStrikeNames}
+                  initialAttackerTroops={rewards.initialAttackerTroops}
+                  initialDefenderTroops={rewards.initialDefenderTroops}
                 />
               </div>
             </AncientModal>

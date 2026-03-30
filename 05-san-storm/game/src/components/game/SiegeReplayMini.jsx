@@ -103,6 +103,13 @@ export function parseSiegeReplayTimeline(battleLog, attackerStrikeNames, defende
   return { timeline, animSteps };
 }
 
+function normalizeTroopProp(v) {
+  if (v == null || v === '') return null;
+  const n = Number(v);
+  if (!Number.isFinite(n) || n < 0) return null;
+  return Math.round(n);
+}
+
 export default function SiegeReplayMini({
   open,
   onClose,
@@ -113,15 +120,23 @@ export default function SiegeReplayMini({
   rightPortraitUrl,
   attackerStrikeNames,
   defenderStrikeNames,
+  /** 攻城方开战总兵力（披挂裁定服务端汇总） */
+  initialAttackerTroops,
+  /** 守军开战总兵力 */
+  initialDefenderTroops,
 }) {
+  const atkStart = normalizeTroopProp(initialAttackerTroops);
+  const defStart = normalizeTroopProp(initialDefenderTroops);
+  const hasTroopBar = atkStart != null && defStart != null;
+
   const { timeline, animSteps } = useMemo(
     () => parseSiegeReplayTimeline(battleLog, attackerStrikeNames, defenderStrikeNames),
     [battleLog, attackerStrikeNames, defenderStrikeNames],
   );
   const [playing, setPlaying] = useState(false);
   const [hi, setHi] = useState(-1);
-  const [atkHp, setAtkHp] = useState(3000);
-  const [defHp, setDefHp] = useState(3000);
+  const [atkHp, setAtkHp] = useState(() => (hasTroopBar ? atkStart : null));
+  const [defHp, setDefHp] = useState(() => (hasTroopBar ? defStart : null));
   const mounted = useRef(true);
   const playingRef = useRef(false);
 
@@ -132,10 +147,22 @@ export default function SiegeReplayMini({
     };
   }, []);
 
+  useEffect(() => {
+    if (hasTroopBar) {
+      setAtkHp(atkStart);
+      setDefHp(defStart);
+    } else {
+      setAtkHp(null);
+      setDefHp(null);
+    }
+  }, [hasTroopBar, atkStart, defStart]);
+
   const resetHp = useCallback(() => {
-    setAtkHp(3000);
-    setDefHp(3000);
-  }, []);
+    if (hasTroopBar) {
+      setAtkHp(atkStart);
+      setDefHp(defStart);
+    }
+  }, [hasTroopBar, atkStart, defStart]);
 
   const playAll = useCallback(async () => {
     if (!animSteps.length || playingRef.current) return;
@@ -147,15 +174,15 @@ export default function SiegeReplayMini({
       if (!mounted.current) break;
       setHi(i);
       const s = animSteps[i];
-      if (s.damage > 0) {
-        if (s.side === 'atk') setDefHp((h) => Math.max(0, h - s.damage));
-        else setAtkHp((h) => Math.max(0, h - s.damage));
+      if (hasTroopBar && s.damage > 0) {
+        if (s.side === 'atk') setDefHp((h) => Math.max(0, (h ?? 0) - s.damage));
+        else setAtkHp((h) => Math.max(0, (h ?? 0) - s.damage));
       }
       await new Promise((r) => setTimeout(r, STEP_MS));
     }
     playingRef.current = false;
     if (mounted.current) setPlaying(false);
-  }, [animSteps, resetHp]);
+  }, [animSteps, resetHp, hasTroopBar]);
 
   useEffect(() => {
     if (!open || !animSteps.length) return undefined;
@@ -197,7 +224,9 @@ export default function SiegeReplayMini({
             <span className="text-3xl mb-1">⚔️</span>
           )}
           <div className="text-[11px] font-bold text-amber-500/95 text-center leading-tight">{leftLabel}</div>
-          <div className="text-[9px] text-stone-500 mt-1">约 {atkHp}</div>
+          <div className="text-[9px] text-stone-500 mt-1">
+            {hasTroopBar ? `约 ${atkHp ?? atkStart}` : '—'}
+          </div>
         </div>
         <div
           className={`flex-1 min-h-[100px] rounded-lg p-2 flex flex-col items-center justify-center border transition-all ${
@@ -214,7 +243,9 @@ export default function SiegeReplayMini({
             <span className="text-3xl mb-1">🛡️</span>
           )}
           <div className="text-[11px] font-bold text-amber-500/95 text-center leading-tight">{rightLabel}</div>
-          <div className="text-[9px] text-stone-500 mt-1">约 {defHp}</div>
+          <div className="text-[9px] text-stone-500 mt-1">
+            {hasTroopBar ? `约 ${defHp ?? defStart}` : '—'}
+          </div>
         </div>
       </div>
       <div className="text-[10px] text-stone-400 border-t border-stone-700/50 pt-2 max-h-48 overflow-y-auto space-y-2 leading-snug">

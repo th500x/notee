@@ -28,6 +28,17 @@ function siegeNpcDisplayNames(npcs) {
   return names;
 }
 
+/** 推演开战时双方总兵力（与 runSiegePvpSkirmish 入参 npc 一致） */
+function sumSiegeNpcStartingTroops(npcs) {
+  if (!Array.isArray(npcs)) return 0;
+  return npcs.reduce((sum, n) => {
+    const cur = n?.currentTroops;
+    const mx = n?.maxTroops;
+    const v = cur != null && cur !== '' ? Number(cur) : Number(mx);
+    return sum + (Number.isFinite(v) ? Math.max(0, Math.round(v)) : 0);
+  }, 0);
+}
+
 /** 防止并发双次结算 */
 const resolvingPromises = new Map();
 
@@ -72,6 +83,9 @@ async function doResolveAuthoritativeSiegePvp(params) {
   const rawDefender = await garrisonService.buildDefenseUnitsFromMainLineup(c.defenderId);
   const attackerNpcs = garrisonService.mapBuiltUnitsToSiegeNpcFormat(rawAttacker);
   const defenderNpcs = garrisonService.mapBuiltUnitsToSiegeNpcFormat(rawDefender);
+
+  const initialAttackerTroops = sumSiegeNpcStartingTroops(attackerNpcs);
+  const initialDefenderTroops = sumSiegeNpcStartingTroops(defenderNpcs);
 
   const seed = hashSeed([c.warId, challengeId, attackerId, c.defenderId]);
   const sim = runSiegePvpSkirmish(attackerNpcs, defenderNpcs, seed);
@@ -179,6 +193,8 @@ async function doResolveAuthoritativeSiegePvp(params) {
         battleScore: atkBattleScore.score,
         battleGrade: atkBattleScore.grade,
         scoreDetails: atkBattleScore.details,
+        initialAttackerTroops,
+        initialDefenderTroops,
       },
     });
   } catch (e) {
@@ -218,6 +234,8 @@ async function doResolveAuthoritativeSiegePvp(params) {
         battleScore: defBattleScore.score,
         battleGrade: defBattleScore.grade,
         scoreDetails: defBattleScore.details,
+        initialAttackerTroops,
+        initialDefenderTroops,
       },
       recordOnly: true,
     });
@@ -263,6 +281,8 @@ async function doResolveAuthoritativeSiegePvp(params) {
     killedIndices,
     siegeReplayAttackerNames,
     siegeReplayDefenderNames,
+    initialAttackerTroops,
+    initialDefenderTroops,
   };
 
   pvpService.markSiegeResolved(challengeId, outcome);
@@ -281,6 +301,8 @@ async function doResolveAuthoritativeSiegePvp(params) {
     attackerId,
     siegeReplayAttackerNames,
     siegeReplayDefenderNames,
+    initialAttackerTroops,
+    initialDefenderTroops,
   };
 }
 

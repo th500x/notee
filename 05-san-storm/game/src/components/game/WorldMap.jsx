@@ -68,7 +68,13 @@ function getCachedBg() {
 }
 
 /** 攻城结算里服务端权威战报的简化回放入口 */
-function AuthoritativeSiegeReplayButton({ battleLogLines, attackerStrikeNames, defenderStrikeNames }) {
+function AuthoritativeSiegeReplayButton({
+  battleLogLines,
+  attackerStrikeNames,
+  defenderStrikeNames,
+  initialAttackerTroops,
+  initialDefenderTroops,
+}) {
   const [open, setOpen] = useState(false);
   const logStr = Array.isArray(battleLogLines) ? battleLogLines.join('\n') : '';
   const canReplay =
@@ -101,6 +107,8 @@ function AuthoritativeSiegeReplayButton({ battleLogLines, attackerStrikeNames, d
               rightLabel="守军"
               attackerStrikeNames={attackerStrikeNames}
               defenderStrikeNames={defenderStrikeNames}
+              initialAttackerTroops={initialAttackerTroops}
+              initialDefenderTroops={initialDefenderTroops}
             />
           </div>
         </AncientModal>
@@ -145,6 +153,7 @@ function PvpDefenseOutcomeModal({ outcome, onClose }) {
           )}
           {logLines.length > 0 && (
             <pre className="text-[11px] text-gray-600 whitespace-pre-wrap font-sans border-t border-gray-200 pt-2 mt-2">
+              {/* 仅小窗预览防过长；全文在「简化回放」的 battleLog 中，非第 8 回合截断原因 */}
               {logLines.slice(-20).join('\n')}
             </pre>
           )}
@@ -168,6 +177,8 @@ function PvpDefenseOutcomeModal({ outcome, onClose }) {
               rightLabel="守军"
               attackerStrikeNames={outcome.siegeReplayAttackerNames}
               defenderStrikeNames={outcome.siegeReplayDefenderNames}
+              initialAttackerTroops={outcome.initialAttackerTroops}
+              initialDefenderTroops={outcome.initialDefenderTroops}
             />
           </div>
         </AncientModal>
@@ -444,6 +455,8 @@ export default function WorldMap({ onEventBusyChange }) {
               battleSeed: r.data.battleSeed,
               siegeReplayAttackerNames: r.data.siegeReplayAttackerNames,
               siegeReplayDefenderNames: r.data.siegeReplayDefenderNames,
+              initialAttackerTroops: r.data.initialAttackerTroops,
+              initialDefenderTroops: r.data.initialDefenderTroops,
             });
             refreshPlayer({ silent: true });
           });
@@ -974,6 +987,8 @@ export default function WorldMap({ onEventBusyChange }) {
                   battleLogLines={siegeResult.authoritativeBattleLog}
                   attackerStrikeNames={siegeResult.siegeReplayAttackerNames}
                   defenderStrikeNames={siegeResult.siegeReplayDefenderNames}
+                  initialAttackerTroops={siegeResult.initialAttackerTroops}
+                  initialDefenderTroops={siegeResult.initialDefenderTroops}
                 />
                 <details className="text-left text-[11px] text-stone-400 max-h-32 overflow-y-auto mt-2">
                   <summary className="cursor-pointer text-amber-500/90">文字战报（服务端）</summary>
