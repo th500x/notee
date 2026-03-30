@@ -16,6 +16,7 @@ import CharacterCard from '@shared/components/card/CharacterCard';
 import TroopCard from '@shared/components/card/TroopCard';
 import TitleAchievementCard from '@shared/components/card/TitleAchievementCard';
 import EquipmentCard from '@shared/components/card/EquipmentCard';
+import EncapsulateEquipmentModal from '@/components/game/EncapsulateEquipmentModal';
 
 const CITY_ID = 'san_1_city_3_xinye';
 const CITY_NAME = '新野';
@@ -27,7 +28,7 @@ const GARRISON_PROFILE_POLL_MS = 60_000;
 const GENERAL_SLOTS = [
   { id: 'troop1',    label: '部队1',  icon: '⚔️', side: 'left',  implemented: true },
   { id: 'troop2',    label: '部队2',  icon: '⚔️', side: 'left',  implemented: true },
-  { id: 'equipment', label: '装备卡', icon: '🛡️', side: 'left',  implemented: false },
+  { id: 'equipment', label: '装备件', icon: '🛡️', side: 'left',  implemented: false },
   { id: 'title',       label: '称号', icon: '🎖️', side: 'right', implemented: true },
   { id: 'achievement', label: '成就', icon: '🏆', side: 'right', implemented: false },
   { id: 'treasure',    label: '宝物', icon: '💎', side: 'right', implemented: false },
@@ -742,12 +743,13 @@ function EquipSlot({ slot, content, isSelected, onClick, baseUrl, skillsMap, min
 function GarrisonBackpack({ cards, skillsMap }) {
   const [expandedType, setExpandedType] = useState(null);
   const [previewCard, setPreviewCard] = useState(null);
+  const [encapsulateOpen, setEncapsulateOpen] = useState(false);
   const baseUrl = import.meta.env.BASE_URL;
 
   const GRID_TYPES = [
     { type: 'character',   label: '将领',   icon: '\u{1F464}' },
     { type: 'troop',       label: '部队',   icon: '\u2694\uFE0F' },
-    { type: 'equipment',   label: '装备卡', icon: '\u{1F6E1}\uFE0F' },
+    { type: 'equipment',   label: '装备件', icon: '\u{1F6E1}\uFE0F' },
     { type: 'title',       label: '称号',   icon: '\u{1F396}\uFE0F' },
     { type: 'achievement', label: '成就',   icon: '\u{1F3C6}' },
     { type: 'treasure',    label: '宝物',   icon: '\u{1F48E}' },
@@ -789,7 +791,7 @@ function GarrisonBackpack({ cards, skillsMap }) {
         🏕️ 军营（{cards.length}）
       </h4>
 
-      {/* 2×3 卡片网格 */}
+      {/* 2×3 卡片网格（装备件格为 70% 列表入口 + 30% 封装） */}
       <div className="grid grid-cols-3 gap-2">
         {GRID_TYPES.map(({ type, label, icon }) => {
           const typeCards = byType[type] || [];
@@ -797,15 +799,16 @@ function GarrisonBackpack({ cards, skillsMap }) {
           const total = typeCards.length;
           const isExpanded = expandedType === type;
 
-          return (
-            <button key={type}
-              onClick={() => setExpandedType(isExpanded ? null : (total > 0 ? type : null))}
-              className={`rounded-lg p-2 text-center transition-colors
-                ${isExpanded ? 'bg-amber-900/30 border border-amber-700/40' :
-                  total > 0 ? 'bg-stone-800/60 border border-stone-700/30 hover:border-stone-500 cursor-pointer'
-                  : 'bg-stone-800/30 border border-stone-800/20 opacity-50 cursor-default'}`}>
+          const cellBtnClass = (active, hasItems) =>
+            `rounded-lg p-2 text-center transition-colors min-h-[4.5rem] flex flex-col items-center justify-center
+              ${active ? 'bg-amber-900/30 border border-amber-700/40' :
+                hasItems ? 'bg-stone-800/60 border border-stone-700/30 hover:border-stone-500 cursor-pointer'
+                : 'bg-stone-800/30 border border-stone-800/20 opacity-50 cursor-default'}`;
+
+          const cellInner = (
+            <>
               <div className="text-lg">{icon}</div>
-              <div className="text-stone-300 text-xs">{label}</div>
+              <div className="text-stone-300 text-xs leading-tight">{label}</div>
               {total > 0 ? (
                 <div className="flex items-center justify-center gap-1 mt-1 flex-wrap">
                   {RARITY_DOTS.map(({ key, color }) => {
@@ -822,6 +825,40 @@ function GarrisonBackpack({ cards, skillsMap }) {
               ) : (
                 <div className="text-amber-400 text-sm font-bold mt-0.5">0</div>
               )}
+            </>
+          );
+
+          if (type === 'equipment') {
+            return (
+              <div key={type} className="flex gap-1 min-w-0">
+                <button
+                  type="button"
+                  className={`${cellBtnClass(isExpanded, total > 0)} flex-[7] min-w-0`}
+                  onClick={() => setExpandedType(isExpanded ? null : (total > 0 ? type : null))}
+                >
+                  {cellInner}
+                </button>
+                <button
+                  type="button"
+                  className="flex-[3] min-w-0 rounded-lg p-1.5 text-center transition-colors flex flex-col items-center justify-center
+                    bg-stone-800/70 border border-amber-800/40 hover:border-amber-600/60 cursor-pointer active:scale-[0.98]"
+                  onClick={() => setEncapsulateOpen(true)}
+                >
+                  <div className="text-base">📦</div>
+                  <div className="text-amber-200/90 text-[10px] font-medium leading-tight mt-0.5">封装</div>
+                </button>
+              </div>
+            );
+          }
+
+          return (
+            <button
+              key={type}
+              type="button"
+              onClick={() => setExpandedType(isExpanded ? null : (total > 0 ? type : null))}
+              className={cellBtnClass(isExpanded, total > 0)}
+            >
+              {cellInner}
             </button>
           );
         })}
@@ -903,6 +940,11 @@ function GarrisonBackpack({ cards, skillsMap }) {
       <p className="text-stone-600 text-[10px] mt-1.5 text-center">
         驻地编组与上阵编组互斥，请合理分配
       </p>
+
+      <EncapsulateEquipmentModal
+        open={encapsulateOpen}
+        onClose={() => setEncapsulateOpen(false)}
+      />
 
       {/* 卡牌预览浮层 */}
       {previewCard && (
