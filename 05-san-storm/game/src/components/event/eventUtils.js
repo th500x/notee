@@ -192,6 +192,49 @@ export function pickRandomEvent(events) {
 }
 
 /**
+ * 按探索地点 + 事件链进度过滤可抽到的事件池（与 useEventSystem 逻辑一致）
+ * @param {Array} allEvents - 已按 trigger_context 过滤后的全量（如 explore）
+ * @param {Object} completedEvents - 玩家已完成事件 { eventId: { status } }
+ * @param {string} locationId - 事件 location，须与 config_events.location 完全一致
+ */
+export function filterExploreEventsPool(allEvents, completedEvents, locationId) {
+  if (!allEvents?.length || !locationId) return [];
+
+  const chainMaxCompleted = {};
+  for (const evt of allEvents) {
+    if (!evt.chain_id) continue;
+    if (!chainMaxCompleted[evt.chain_id]) chainMaxCompleted[evt.chain_id] = 0;
+  }
+  for (const [eventId, record] of Object.entries(completedEvents || {})) {
+    if (record.status !== 'completed') continue;
+    const evt = allEvents.find(e => e.event_id === eventId);
+    if (evt?.chain_id && evt.chain_level) {
+      chainMaxCompleted[evt.chain_id] = Math.max(
+        chainMaxCompleted[evt.chain_id] || 0,
+        evt.chain_level
+      );
+    }
+  }
+
+  const chainMaxLevel = {};
+  for (const evt of allEvents) {
+    if (!evt.chain_id) continue;
+    chainMaxLevel[evt.chain_id] = Math.max(chainMaxLevel[evt.chain_id] || 0, evt.chain_level);
+  }
+
+  return allEvents.filter((evt) => {
+    if (evt.location !== locationId) return false;
+
+    if (!evt.chain_id) return true;
+
+    const completed = chainMaxCompleted[evt.chain_id] || 0;
+    const maxLevel = chainMaxLevel[evt.chain_id] || 0;
+    if (completed >= maxLevel) return false;
+    return evt.chain_level === completed + 1;
+  });
+}
+
+/**
  * 判断选项是否为因子判定类型（有运势预览）
  */
 export function isFactorOption(opt) {

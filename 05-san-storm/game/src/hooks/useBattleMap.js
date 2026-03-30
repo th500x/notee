@@ -79,20 +79,29 @@ export function useBattleMap() {
    * @param {Array} playerUnits - 我方单位（1~5个）
    * @param {string} eventRarity - 事件稀有度（common/rare/epic/legendary），决定敌方部队
    */
-  const assignRealBattleTroops = useCallback((playerUnits, eventRarity = 'common') => {
+  const assignRealBattleTroops = useCallback((playerUnits, eventRarity = 'common', opts = {}) => {
     const t = allTroops;
     const c = allCharacters;
+    const rawExtra = opts.extraEnemyCharacterIds;
+    const extraIds = (Array.isArray(rawExtra) ? rawExtra : rawExtra ? [rawExtra] : []).filter(Boolean);
+    const useFiveEnemy = extraIds.length > 0;
 
     // 我方位置（最多5个，从底部两行分布）
     const playerPositions = [
       { y: 9, x: 1 }, { y: 9, x: 4 }, { y: 9, x: 7 },
       { y: 8, x: 2 }, { y: 8, x: 5 },
     ];
-    // 敌方位置（4支部队，顶部两行）
-    const enemyPositions = [
-      { y: 0, x: 1 }, { y: 0, x: 5 },
-      { y: 1, x: 3 }, { y: 1, x: 7 },
-    ];
+    // 敌方位置：默认 4 支；指定额外将领（事件 punishment 5v5）时为 5 支
+    const enemyPositions = useFiveEnemy
+      ? [
+          { y: 0, x: 1 }, { y: 0, x: 4 }, { y: 0, x: 7 },
+          { y: 1, x: 2 }, { y: 1, x: 5 },
+        ]
+      : [
+          { y: 0, x: 1 }, { y: 0, x: 5 },
+          { y: 1, x: 3 }, { y: 1, x: 7 },
+        ];
+    const enemyCount = useFiveEnemy ? 5 : 4;
 
     // 构建我方部队（最多5个）
     const playerResult = playerUnits.slice(0, 5).map((unit, i) => {
@@ -118,28 +127,52 @@ export function useBattleMap() {
       };
     });
 
-    // ── 敌方：按事件稀有度从配置池中选取 2将领 + 4部队 ──
+    // ── 敌方：按事件稀有度从配置池选将领 + 部队（可选：指定额外敌方将领 → 5 部队 / 3 将领位） ──
     const rarityMap = { common: 'common', rare: 'rare', epic: 'epic', legendary: 'legendary', core: 'core' };
     const targetRarity = rarityMap[eventRarity] || 'common';
 
-    // 从将领池筛选同稀有度，随机2个
-    const charPool = c.filter(ch => ch.rarity === targetRarity);
-    const charSrc = charPool.length >= 2 ? charPool : c;
-    const shuffledChars = [...charSrc].sort(() => Math.random() - 0.5);
-    const enemyChars = [shuffledChars[0] || null, shuffledChars[1 % shuffledChars.length] || null];
+    let enemyChars;
+    if (useFiveEnemy) {
+      const forced = [];
+      const forcedIds = new Set();
+      for (const id of extraIds) {
+        const found = c.find((ch) => ch.id === id);
+        if (found && !forcedIds.has(found.id)) {
+          forcedIds.add(found.id);
+          forced.push(found);
+        }
+      }
+      const charPool = c.filter((ch) => ch.rarity === targetRarity && !forcedIds.has(ch.id));
+      const charSrc = charPool.length >= 1 ? charPool : c.filter((ch) => !forcedIds.has(ch.id));
+      const shuffled = [...charSrc].sort(() => Math.random() - 0.5);
+      enemyChars = [...forced];
+      let si = 0;
+      while (enemyChars.length < 3) {
+        const pick = shuffled[si % shuffled.length];
+        if (!pick) break;
+        if (!enemyChars.some((ec) => ec && ec.id === pick.id)) enemyChars.push(pick);
+        si += 1;
+        if (si > shuffled.length * 4) break;
+      }
+      while (enemyChars.length < 3) enemyChars.push(shuffled[0] || null);
+    } else {
+      const charPool = c.filter((ch) => ch.rarity === targetRarity);
+      const charSrc = charPool.length >= 2 ? charPool : c;
+      const shuffledChars = [...charSrc].sort(() => Math.random() - 0.5);
+      enemyChars = [shuffledChars[0] || null, shuffledChars[1 % shuffledChars.length] || null];
+    }
 
-    // 从部队池筛选同稀有度，随机4个（允许重复）
     const troopPool = t.filter(tr => tr.rarity === targetRarity);
     const troopSrc = troopPool.length > 0 ? troopPool : t;
     const shuffledTroops = [...troopSrc].sort(() => Math.random() - 0.5);
     const enemyTroopConfigs = [];
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < enemyCount; i++) {
       enemyTroopConfigs.push(shuffledTroops[i % shuffledTroops.length]);
     }
 
     const enemyResult = enemyTroopConfigs.map((tr, i) => {
       const pos = enemyPositions[i];
-      // 将领1带部队0,1；将领2带部队2,3
+      // 2 将领：各带 2 部队；3 将领（5 部队）：0,1 / 2,3 / 4
       const char = enemyChars[Math.floor(i / 2)] || null;
       const baseMorale = Math.round(50 + Math.random() * 30);
       const traitMod = char ? (char.traitModifier || 0) : 0;

@@ -2,7 +2,7 @@
   "_meta": {
     "generated": "2026-03-29T05:04:27.565Z",
     "source": "event-template.csv",
-    "count": 25
+    "count": 27
   },
   "events": [
     {
@@ -1212,6 +1212,106 @@
         "failureText": null,
         "rewards": "reputation:5",
         "bonusRewards": null
+      }
+    },
+    {
+      "id": "san_1_event_6_3101",
+      "name": "蛮踪与密信",
+      "location": "san_1_city_6_shanhaiguan",
+      "minPositionLevel": null,
+      "triggerProbability": 0.12,
+      "triggerContext": "explore",
+      "chainId": "chain_shanhaiguan_bandit",
+      "chainLevel": 1,
+      "requiredItems": null,
+      "descriptions": [
+        "{player_name}在山海关荒郊巡察时发现泥地上有车辙与马蹄印折向峡道",
+        "道旁篝灰尚温并散落翎羽与染血的绳头显然刚有人扎营离去",
+        "你在石缝间拾到一封揉皱的信笺蜡印残缺仍可辨认出蛮族劫匪的暗记"
+      ],
+      "tags": "探索;事件链;山海关",
+      "version": "1.0",
+      "optionA": {
+        "id": "option_a",
+        "text": "细搜线索",
+        "requiredItems": null,
+        "mainFactor": "luck",
+        "mainRequirement": 8,
+        "subFactors": "military",
+        "subRequirement": 8,
+        "triggerBattle": false,
+        "battleEnemyId": null,
+        "successText": "你在草丛中找到了完整的通联书信约定下次劫掠的路线与暗号",
+        "failureText": "林鸟惊起一无所获只得将蹄印方向记入账册",
+        "rewards": "item_shanhaiguan_bandit_letter;reputation:2",
+        "bonusRewards": "food:40"
+      },
+      "optionB": {
+        "id": "option_b",
+        "text": "示警撤收",
+        "requiredItems": null,
+        "mainFactor": "always",
+        "mainRequirement": null,
+        "subFactors": null,
+        "subRequirement": null,
+        "triggerBattle": false,
+        "battleEnemyId": null,
+        "successText": "你命部曲列阵警戒记下山势与暗记纹样以备上报",
+        "failureText": null,
+        "rewards": "reputation:1",
+        "bonusRewards": null
+      }
+    },
+    {
+      "id": "san_1_event_6_3102",
+      "name": "峡口重围",
+      "location": "san_1_city_6_shanhaiguan",
+      "minPositionLevel": null,
+      "triggerProbability": 0.12,
+      "triggerContext": "explore",
+      "chainId": "chain_shanhaiguan_bandit",
+      "chainLevel": 2,
+      "requiredItems": "item_shanhaiguan_bandit_letter",
+      "descriptions": [
+        "{player_name}率部沿信中标记追至一道窄峡两侧陡坡上忽然角声大作",
+        "数十名头插翎羽的蛮族劫匪涌出弓弩上弦将去路封死",
+        "为首悍卒狞笑：汉人将领也敢蹚这趟浑水？留下买路财或留下人头！"
+      ],
+      "tags": "探索;事件链;山海关;战斗",
+      "version": "1.0",
+      "optionA": {
+        "id": "option_a",
+        "text": "列阵突围",
+        "requiredItems": null,
+        "mainFactor": "luck",
+        "mainRequirement": 9,
+        "subFactors": "military",
+        "subRequirement": 9,
+        "triggerBattle": true,
+        "battleEnemyId": "san_1_char_0004",
+        "successText": "贼势未合你先夺坡口占得地势",
+        "failureText": "峡口渐被合围箭如雨下",
+        "rewards": "reputation:3;silver:25;food:60",
+        "bonusRewards": "random:equipment:epic:1",
+        "battleVictoryText": "{player_name}突阵破围匪徒溃散遁入深林",
+        "battleDefeatText": "{player_name}阵脚受阻只得率队暂退"
+      },
+      "optionB": {
+        "id": "option_b",
+        "text": "占住高脊",
+        "requiredItems": null,
+        "mainFactor": "luck",
+        "mainRequirement": 9,
+        "subFactors": "strategist",
+        "subRequirement": 8,
+        "triggerBattle": true,
+        "battleEnemyId": "san_1_char_0004",
+        "successText": "你抢先占住山脊顿挫其锋锐",
+        "failureText": "四面合围仍险象环生",
+        "rewards": "reputation:3;silver:20;food:50",
+        "bonusRewards": "random:equipment:rare:1",
+        "battleVictoryText": "{player_name}挫其锐气群匪乱阵退走",
+        "battleDefeatText": "{player_name}矢石交迫情势危急被迫后撤"
       }
     }
   ]

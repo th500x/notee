@@ -7,7 +7,7 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { usePlayerContext } from '@/contexts/PlayerContext';
-import useEventSystem from '@/hooks/useEventSystem';
+import useEventSystem, { DEFAULT_EXPLORE_LOCATION_ID } from '@/hooks/useEventSystem';
 import useTutorialEvents from '@/hooks/useTutorialEvents';
 import ExplorePanel from '@/components/event/ExplorePanel';
 import TutorialPreDialog from '@/components/event/TutorialPreDialog';
@@ -21,6 +21,9 @@ import GarrisonLineup from '@/components/garrison/GarrisonLineup';
 import { garrisonAPI } from '@/services/garrisonApi';
 import { API_CONFIG, getRarityHex, getRarityLabelCn } from '@/constants';
 import SiegeReplayMini from '@/components/game/SiegeReplayMini';
+
+/** 山海关荒郊（事件 location 与 config_events 一致） */
+const EXPLORE_LOC_SHANHAIGUAN = 'san_1_city_6_shanhaiguan';
 
 const BG_CACHE_KEY = 'game_intro_bg';
 const BG_DIR = 'assets/san_1_map/illus_bg/';
@@ -184,11 +187,16 @@ export default function WorldMap({ onEventBusyChange }) {
   // 当前活跃的事件系统（tutorial 优先）
   const activeSystem = isTutorial ? tutorialSystem : eventSystem;
   const { phase } = activeSystem;
-  const { quota, eventsLoading, exploreEvents, startExplore } = eventSystem;
+  const { quota, eventsLoading, explorePoolAt, startExplore } = eventSystem;
 
   const [showTooltip, setShowTooltip] = useState(false);
+  /** 悬浮的探索点：'nanyang' | 'shanhaiguan' | null */
+  const [exploreHover, setExploreHover] = useState(null);
   const [cityTooltip, setCityTooltip] = useState(false);
-  const canClick = !isTutorial && phase === PHASE.IDLE && !eventsLoading && exploreEvents.length > 0 && quota.canExplore;
+  const nanyangPoolLen = explorePoolAt(DEFAULT_EXPLORE_LOCATION_ID).length;
+  const shanhaiguanPoolLen = explorePoolAt(EXPLORE_LOC_SHANHAIGUAN).length;
+  const canExploreNanyang = !isTutorial && phase === PHASE.IDLE && !eventsLoading && nanyangPoolLen > 0 && quota.canExplore;
+  const canExploreShanhaiguan = !isTutorial && phase === PHASE.IDLE && !eventsLoading && shanhaiguanPoolLen > 0 && quota.canExplore;
 
   // ── 城市攻城状态 ──
   const CITY_ID = 'san_1_city_3_xinye';
@@ -569,31 +577,83 @@ export default function WorldMap({ onEventBusyChange }) {
 
       {/* 探索点：南阳荒郊 */}
       <div
-        className={`absolute cursor-pointer group ${showTooltip ? 'z-50' : 'z-30'}`}
+        className={`absolute cursor-pointer group ${exploreHover === 'nanyang' ? 'z-50' : 'z-30'}`}
         style={{ left: '35%', top: '55%' }}
-        onMouseEnter={() => setShowTooltip(true)}
-        onMouseLeave={() => setShowTooltip(false)}
+        onMouseEnter={() => { setExploreHover('nanyang'); setShowTooltip(true); }}
+        onMouseLeave={() => { setExploreHover(null); setShowTooltip(false); }}
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
         onTouchMove={handleTouchMove}
-        onClick={canClick ? startExplore : undefined}
+        onClick={canExploreNanyang ? () => startExplore(DEFAULT_EXPLORE_LOCATION_ID) : undefined}
       >
-        {/* 脉冲动画 */}
-        {canClick && (
+        {canExploreNanyang && (
           <div className="absolute inset-0 -m-4 rounded-full bg-amber-400/30 animate-ping" />
         )}
         <div className={`relative text-4xl select-none transition-transform
-          ${canClick ? 'hover:scale-125 active:scale-95' : 'opacity-50'}`}>
+          ${canExploreNanyang ? 'hover:scale-125 active:scale-95' : 'opacity-50'}`}>
           📜
         </div>
-        {/* 悬浮提示（含探索次数） */}
-        {showTooltip && (
+        {showTooltip && exploreHover === 'nanyang' && (
           <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-black/80 rounded-lg backdrop-blur-sm whitespace-nowrap">
             <div className="text-white text-sm font-medium">南阳荒郊</div>
             <div className="text-white/60 text-xs">
               {eventsLoading ? '加载中...'
                 : !quota.canExplore ? '探索次数不足'
-                : `点击探索（${exploreEvents.length}种事件）`}
+                : `点击探索（${nanyangPoolLen}种事件）`}
+            </div>
+            <div className="text-white/80 text-xs mt-1 border-t border-white/20 pt-1">
+              🔍 探索：<span className={quota.remaining > 0 ? 'text-green-400' : 'text-red-400'}>
+                {quota.remaining}/{quota.max}
+              </span>
+              {quota.remaining < quota.max && !quota.inRestPeriod && (
+                <span className="text-white/40 ml-1">（{quota.minutesUntilRefill}分后补充）</span>
+              )}
+              {quota.inRestPeriod && (
+                <span className="text-white/40 ml-1">（💤{quota.minutesUntilRefill}分后恢复）</span>
+              )}
+            </div>
+            <div className="text-white/30 text-[10px] mt-1">
+              每小时+{quota.refillPerHour}次 · 上限{quota.max}次 · 0:00~8:00💤
+            </div>
+            {playerItems.length > 0 && (
+              <div className="text-white/80 text-xs mt-1 border-t border-white/20 pt-1">
+                🎒 道具：
+                {playerItems.map((item, i) => (
+                  <span key={item.itemId} className="text-amber-300">
+                    {i > 0 && '、'}{item.name}×{item.quantity}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* 探索点：山海关荒郊（提示文案与南阳荒郊一致） */}
+      <div
+        className={`absolute cursor-pointer group ${exploreHover === 'shanhaiguan' ? 'z-50' : 'z-30'}`}
+        style={{ left: '22%', top: '42%' }}
+        onMouseEnter={() => { setExploreHover('shanhaiguan'); setShowTooltip(true); }}
+        onMouseLeave={() => { setExploreHover(null); setShowTooltip(false); }}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+        onTouchMove={handleTouchMove}
+        onClick={canExploreShanhaiguan ? () => startExplore(EXPLORE_LOC_SHANHAIGUAN) : undefined}
+      >
+        {canExploreShanhaiguan && (
+          <div className="absolute inset-0 -m-4 rounded-full bg-sky-500/25 animate-ping" />
+        )}
+        <div className={`relative text-4xl select-none transition-transform
+          ${canExploreShanhaiguan ? 'hover:scale-125 active:scale-95' : 'opacity-50'}`}>
+          🏔️
+        </div>
+        {showTooltip && exploreHover === 'shanhaiguan' && (
+          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-black/80 rounded-lg backdrop-blur-sm whitespace-nowrap">
+            <div className="text-white text-sm font-medium">山海关荒郊</div>
+            <div className="text-white/60 text-xs">
+              {eventsLoading ? '加载中...'
+                : !quota.canExplore ? '探索次数不足'
+                : `点击探索（${shanhaiguanPoolLen}种事件）`}
             </div>
             <div className="text-white/80 text-xs mt-1 border-t border-white/20 pt-1">
               🔍 探索：<span className={quota.remaining > 0 ? 'text-green-400' : 'text-red-400'}>

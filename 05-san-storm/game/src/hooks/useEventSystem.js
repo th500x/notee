@@ -14,7 +14,10 @@ import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { API_CONFIG } from '@/constants';
 import { useExploreQuota } from '@/hooks/useExploreQuota';
 import { PHASE, FORTUNE_LEVELS } from '@/components/event/EventConstants';
-import { pickRandomEvent, isFortuneSuccess } from '@/components/event/eventUtils';
+import { pickRandomEvent, isFortuneSuccess, filterExploreEventsPool } from '@/components/event/eventUtils';
+
+/** 默认探索地点（南阳荒郊，与 config_events.location 一致） */
+export const DEFAULT_EXPLORE_LOCATION_ID = 'san_1_city_6_nanyang';
 
 /**
  * 将 PlayerContext 的 player 数据（×10存储）转为显示值（个位数）
@@ -180,49 +183,17 @@ export default function useEventSystem(player, cards) {
       .catch(err => console.error('[useEventSystem] 加载事件进度失败:', err));
   }, [player?.player_id]);
 
-  // 根据进度过滤可用事件池
-  const exploreEvents = useMemo(() => {
-    if (allExploreEvents.length === 0) return [];
+  /** 当前探索地点（大地图/探索 Tab 通过 startExplore(locationId) 切换） */
+  const [exploreLocationId, setExploreLocationId] = useState(DEFAULT_EXPLORE_LOCATION_ID);
 
-    // 按 chain_id 分组链式事件，计算每条链已完成的最高 level
-    const chainMaxCompleted = {};
-    for (const evt of allExploreEvents) {
-      if (!evt.chain_id) continue;
-      if (!chainMaxCompleted[evt.chain_id]) chainMaxCompleted[evt.chain_id] = 0;
-    }
-    for (const [eventId, record] of Object.entries(completedEvents)) {
-      if (record.status !== 'completed') continue;
-      // 找到对应事件获取 chain_id 和 chain_level
-      const evt = allExploreEvents.find(e => e.event_id === eventId);
-      if (evt?.chain_id && evt.chain_level) {
-        chainMaxCompleted[evt.chain_id] = Math.max(
-          chainMaxCompleted[evt.chain_id] || 0,
-          evt.chain_level
-        );
-      }
-    }
+  // 根据地点 + 链进度过滤可用事件池（用于 UI 展示默认地点池子大小等）
+  const exploreEvents = useMemo(() => (
+    filterExploreEventsPool(allExploreEvents, completedEvents, exploreLocationId)
+  ), [allExploreEvents, completedEvents, exploreLocationId]);
 
-    // 获取每条链的最大 level
-    const chainMaxLevel = {};
-    for (const evt of allExploreEvents) {
-      if (!evt.chain_id) continue;
-      chainMaxLevel[evt.chain_id] = Math.max(chainMaxLevel[evt.chain_id] || 0, evt.chain_level);
-    }
-
-    return allExploreEvents.filter(evt => {
-      // 非链式事件：始终可用
-      if (!evt.chain_id) return true;
-
-      const completed = chainMaxCompleted[evt.chain_id] || 0;
-      const maxLevel = chainMaxLevel[evt.chain_id] || 0;
-
-      // 链已全部完成：不再出现
-      if (completed >= maxLevel) return false;
-
-      // 只出现下一个待完成的 level
-      return evt.chain_level === completed + 1;
-    });
-  }, [allExploreEvents, completedEvents]);
+  const explorePoolAt = useCallback((locationId) => (
+    filterExploreEventsPool(allExploreEvents, completedEvents, locationId)
+  ), [allExploreEvents, completedEvents]);
 
   // 加载道具名称映射
   useEffect(() => {
@@ -244,11 +215,13 @@ export default function useEventSystem(player, cards) {
     return text.replace(/\{player_name\}/g, playerAttrs.name || '');
   }, [playerAttrs]);
 
-  // 开始探索
-  const startExplore = useCallback(() => {
+  // 开始探索（locationOverride：大地图多个探索点时传入对应 config location）
+  const startExplore = useCallback((locationOverride) => {
     if (!quota.canExplore || !playerAttrs) return;
-    // 有未完成事件则复用，否则随机抽取
-    const event = pendingEvent || pickRandomEvent(exploreEvents);
+    const locId = pendingEvent?.location || locationOverride || exploreLocationId;
+    if (locationOverride) setExploreLocationId(locationOverride);
+    const pool = filterExploreEventsPool(allExploreEvents, completedEvents, locId);
+    const event = pendingEvent || pickRandomEvent(pool);
     if (!event) return;
     if (!pendingEvent) setPendingEvent(event);
     setCurrentEvent(event);
@@ -261,7 +234,7 @@ export default function useEventSystem(player, cards) {
     setMinigameInfo(null);
     setRewardDetails(null);
     setPhase(PHASE.EVENT);
-  }, [quota, exploreEvents, playerAttrs, pendingEvent]);
+  }, [quota, playerAttrs, pendingEvent, allExploreEvents, completedEvents, exploreLocationId]);
 
   // 关闭事件对话框（未选择选项，不消耗次数）
   const closeEvent = useCallback(() => {
@@ -480,6 +453,9 @@ export default function useEventSystem(player, cards) {
     isSuccess,
     eventsLoading,
     exploreEvents,
+    exploreLocationId,
+    setExploreLocationId,
+    explorePoolAt,
     quota,
     team,
     playerAttrs,

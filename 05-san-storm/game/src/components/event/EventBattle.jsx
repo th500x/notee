@@ -10,10 +10,17 @@ import { usePlayerContext } from '@/contexts/PlayerContext';
 import BattleArena from '@/components/battle/BattleArena';
 import { buildPlayerUnitsFromContext } from '@/utils/battlePlayerBuilder';
 
-export default function EventBattle({ onBattleEnd, playerId, playerName, playerSilver, currentEvent }) {
+export default function EventBattle({
+  onBattleEnd, playerId, playerName, playerSilver, currentEvent, chosenOption,
+}) {
   const { player, cards } = usePlayerContext();
 
   const playerUnits = useMemo(() => buildPlayerUnitsFromContext(player, cards), [player, cards]);
+
+  const eventExtraEnemyCharacterIds = useMemo(() => {
+    const id = chosenOption?.battleEnemyId ?? chosenOption?.battle_enemy_id;
+    return id ? [id] : null;
+  }, [chosenOption]);
 
   // 从事件ID解析稀有度
   const eventRarity = useMemo(() => {
@@ -43,6 +50,7 @@ export default function EventBattle({ onBattleEnd, playerId, playerName, playerS
       battleType="pve_event"
       opponentName="事件战斗"
       onBattleEnd={handleEnd}
+      eventExtraEnemyCharacterIds={eventExtraEnemyCharacterIds}
     />
   );
 }

@@ -114,7 +114,14 @@ export default function ExplorePanel({ eventSystem }) {
 
       {/* ===== 惩罚战斗（真实战斗系统） ===== */}
       {phase === PHASE.BATTLE && (
-        <EventBattle onBattleEnd={endBattle} playerId={playerId} playerName={team.player?.name} playerSilver={playerSilver} currentEvent={currentEvent} />
+        <EventBattle
+          onBattleEnd={endBattle}
+          playerId={playerId}
+          playerName={team.player?.name}
+          playerSilver={playerSilver}
+          currentEvent={currentEvent}
+          chosenOption={chosenOption}
+        />
       )}
 
       {/* ===== 奖励结算 ===== */}

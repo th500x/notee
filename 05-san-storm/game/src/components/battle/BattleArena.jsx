@@ -80,6 +80,8 @@ export default function BattleArena({
   defenseReportMeta = null,
   recordOnly = false,
   siegeDefenderType = null,
+  /** 事件惩罚战：强制加入的敌方将领 ID 列表（如 5v5 额外主将），传入 assignRealBattleTroops */
+  eventExtraEnemyCharacterIds = null,
 }) {
   const [stage, setStage] = useState(STAGE.LOADING);
   const [layoutWidth, setLayoutWidth] = useState('auto');
@@ -204,14 +206,16 @@ export default function BattleArena({
       bm.setBattleTroops([...pResult, ...eResult]);
     } else {
       // 从配置池随机生成敌方（事件模式）
-      bm.assignRealBattleTroops(playerUnits, enemyRarity || 'common');
+      bm.assignRealBattleTroops(playerUnits, enemyRarity || 'common', {
+        extraEnemyCharacterIds: eventExtraEnemyCharacterIds,
+      });
     }
 
     bm.toggleBattle();
     bm.setSilverAmount(silverAmount);
     bm.toggleAutoFormation(true);
     setStage(STAGE.READY);
-  }, [playerUnits, enemyUnits, enemyRarity, bm.allTroops.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [playerUnits, enemyUnits, enemyRarity, eventExtraEnemyCharacterIds, bm.allTroops.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (stage !== STAGE.READY || siegeAutoStartedRef.current) return;
