@@ -199,13 +199,91 @@ function completeChallenge(challengeId, result) {
   }
 }
 
+/**
+ * 防守方接受挑战后：拉取攻城方上阵部队（作敌方单位）与城市信息，用于进入战斗 UI
+ */
+async function getDefenderBattleContext(challengeId, defenderId) {
+  cleanExpired();
+  const c = challenges.get(challengeId);
+  if (!c || c.defenderId !== defenderId) {
+    return { ok: false, error: '挑战不存在' };
+  }
+  if (c.status !== 'accepted') {
+    return { ok: false, error: '请先接受挑战或挑战已失效' };
+  }
+
+  const garrisonService = require('./garrisonService');
+  const [cityRows] = await pool.query('SELECT city_name FROM cities WHERE id = ?', [c.cityId]);
+  const cityName = cityRows[0]?.city_name || c.cityId;
+
+  const [nameRows] = await pool.query(
+    'SELECT player_id, character_name FROM players WHERE player_id IN (?, ?)',
+    [c.attackerId, c.defenderId]
+  );
+  const nameMap = Object.fromEntries(nameRows.map((r) => [r.player_id, r.character_name]));
+
+  const rawAttackerUnits = await garrisonService.buildDefenseUnitsFromMainLineup(c.attackerId);
+  const npcGarrison = garrisonService.mapBuiltUnitsToSiegeNpcFormat(rawAttackerUnits);
+
+  return {
+    ok: true,
+    warId: c.warId,
+    cityId: c.cityId,
+    cityName,
+    attackerFaction: c.attackerFaction,
+    attackerId: c.attackerId,
+    attackerName: nameMap[c.attackerId] || c.attackerId,
+    defenderName: nameMap[c.defenderId] || c.defenderId,
+    npcGarrison,
+    npcAlive: npcGarrison.length,
+    npcTotal: npcGarrison.length,
+    defenderGarrisonSlot: c.defenderGarrisonSlot,
+  };
+}
+
+/**
+ * 取挑战（内部/路由校验用，勿向前端暴露敏感字段以外的用途）
+ * @param {string} challengeId
+ */
+function peekChallenge(challengeId) {
+  return challenges.get(challengeId) || null;
+}
+
+/**
+ * 披挂攻城：服务端权威结算完成后挂载结果，供防守方轮询
+ * @param {string} challengeId
+ * @param {object} payload resolveAuthoritativeSiegePvp 产出
+ */
+function markSiegeResolved(challengeId, payload) {
+  const c = challenges.get(challengeId);
+  if (!c) return false;
+  c.siegeOutcome = payload;
+  c.siegeResolved = true;
+  c.status = 'completed';
+  defenderIndex.delete(c.defenderId);
+  return true;
+}
+
+/**
+ * @returns {object|null}
+ */
+function getSiegeOutcome(challengeId) {
+  const c = challenges.get(challengeId);
+  if (!c || !c.siegeOutcome) return null;
+  return { ...c.siegeOutcome, challengeId };
+}
+
 module.exports = {
   getOnlineDefenders,
   createChallenge,
   checkPendingChallenge,
   acceptChallenge,
   getChallengeStatus,
+  getDefenderBattleContext,
   completeChallenge,
+  peekChallenge,
+  markSiegeResolved,
+  getSiegeOutcome,
   WAIT_IN_GAME,
   WAIT_NOT_IN_GAME,
 };

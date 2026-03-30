@@ -1,0 +1,155 @@
+/**
+ * 攻城披挂 PVP · 服务端战斗核心（与前端 combatSystem 公式对齐，随机数由种子注入）
+ * @see game/src/systems/combatSystem.js
+ */
+
+const ELITE_TROOP_STRENGTH_EXPONENT = 0.85;
+
+/** Mulberry32 */
+function mulberry32(seed) {
+  let t = seed >>> 0;
+  return function rng() {
+    t += 0x6d2b79f5;
+    let r = Math.imul(t ^ (t >>> 15), 1 | t);
+    r ^= r + Math.imul(r ^ (r >>> 7), 61 | r);
+    return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function createSeededRng(seed) {
+  const s = typeof seed === 'number' && !Number.isNaN(seed) ? seed : 0x9e3779b9;
+  return mulberry32(s);
+}
+
+function troopStrengthRatioFromCasualties(troop) {
+  const max = troop.maxTroops;
+  const cur = troop.currentTroops != null ? troop.currentTroops : max;
+  if (max == null || max <= 0) return 0;
+  const r = Math.max(0, Math.min(1, Number(cur) / max));
+  const w = troop.troopWeight != null ? Number(troop.troopWeight) : 1;
+  if (!(w > 1)) return r;
+  return Math.pow(r, ELITE_TROOP_STRENGTH_EXPONENT);
+}
+
+function troopDamageToCasualties(defender, rawDamage) {
+  const raw = Math.max(0, Number(rawDamage) || 0);
+  if (raw <= 0) return 0;
+  const w = defender?.troopWeight != null ? Number(defender.troopWeight) : 1;
+  if (!(w > 1)) return Math.round(raw);
+  return Math.max(1, Math.round(raw / w));
+}
+
+function getMoraleEffects(troop) {
+  const m = troop.morale || 70;
+  if (m >= 80) return { attack: 1.1, defense: 1.05 };
+  if (m > 20) return { attack: 1.0, defense: 1.0 };
+  return { attack: 0.95, defense: 0.9 };
+}
+
+function getTerrainDefBonus(y, x, terrain) {
+  if (!terrain) return 1.0;
+  const t = terrain[y]?.[x];
+  if (t === 'forest') return 0.95;
+  if (t === 'hill') return 0.9;
+  return 1.0;
+}
+
+/**
+ * @param {() => number} rng 0..1
+ */
+function calcDamageSeeded(atk, def, terrain, rng) {
+  const ac = atk.character;
+  const dc = def.character;
+
+  const atkWorn =
+    atk.rarity === 'legendary' &&
+    atk.battleCount != null &&
+    atk.maxBattleCount != null &&
+    atk.battleCount >= atk.maxBattleCount;
+  const defWorn =
+    def.rarity === 'legendary' &&
+    def.battleCount != null &&
+    def.maxBattleCount != null &&
+    def.battleCount >= def.maxBattleCount;
+  const WORN_PENALTY = 0.8;
+
+  const troopAtk = ((atk.attack || 100) / 10) * (atkWorn ? WORN_PENALTY : 1);
+  const combat = ac ? ac.combat || 5 : 5;
+  const singleAtk = troopAtk + combat * 6;
+  const courage = ac ? ac.courage || 5 : 5;
+  const courageBonus = 1 + courage / 40;
+  const singleFinal = singleAtk * courageBonus;
+  const atkRatio = troopStrengthRatioFromCasualties(atk);
+  let totalDmg = singleFinal * atkRatio;
+  const atkMorale = getMoraleEffects(atk);
+  totalDmg *= atkMorale.attack;
+  if (atk._formationBuffs && atk._formationBuffs.attackBonus) {
+    totalDmg *= 1 + atk._formationBuffs.attackBonus;
+  }
+
+  const troopDef = ((def.defense || 50) / 10) * (defWorn ? WORN_PENALTY : 1);
+  const dCombat = dc ? dc.combat || 5 : 5;
+  const dCommand = dc ? dc.command || 5 : 5;
+  const singleDef = troopDef + dCommand * 5 + dCombat * 3;
+  const defRatio = troopStrengthRatioFromCasualties(def);
+  const totalDef = singleDef * defRatio;
+  const defReduction = totalDef / (totalDef + 140);
+  const defMorale = getMoraleEffects(def);
+  let defMultiplier = defReduction * defMorale.defense;
+  if (def._formationBuffs && def._formationBuffs.defenseBonus) {
+    defMultiplier = Math.min(0.9, defMultiplier * (1 + def._formationBuffs.defenseBonus));
+  }
+  totalDmg *= 1 - defMultiplier;
+  totalDmg *= getTerrainDefBonus(def.y, def.x, terrain);
+  const atkEffective = atk.maxTroops * (atk.troopWeight || 1);
+  const defEffective = def.maxTroops * (def.troopWeight || 1);
+  const rawTroopRatio = atkEffective / defEffective;
+  const troopRatioCoeff = Math.min(3.0, Math.max(0.33, rawTroopRatio));
+  totalDmg *= troopRatioCoeff;
+
+  const defType = def.troopType || 'infantry';
+  const counterKey = defType + 'Counter';
+  totalDmg *= atk[counterKey] ?? 1.0;
+
+  if (terrain) {
+    const terrainType = terrain[atk.y]?.[atk.x] || 'plain';
+    const adaptKey = terrainType + 'Adapt';
+    totalDmg *= atk[adaptKey] ?? 1.0;
+  }
+
+  const atkType = atk.troopType || 'infantry';
+  const posBonus = ac?.positionBonuses;
+  if (posBonus) {
+    const posBonusKey = atkType + 'Bonus';
+    totalDmg *= 1 + (posBonus[posBonusKey] || 0);
+  }
+
+  if (atkType === 'archer') {
+    const dist = Math.abs(atk.y - def.y) + Math.abs(atk.x - def.x);
+    if (dist <= 1) totalDmg *= 0.85;
+  }
+
+  totalDmg *= 0.9 + rng() * 0.2;
+  return Math.max(1, Math.round(totalDmg));
+}
+
+function rollCritDodgeSeeded(atk, def, rng) {
+  const ac = atk.character;
+  const dc = def.character;
+  const dodgeRate = dc ? (dc.luck || 5) / 100 : 0.05;
+  if (rng() < dodgeRate) return 'dodge';
+  const critRate = ac ? ((ac.courage || 5) + (ac.luck || 5)) / 80 : 0.1;
+  if (rng() < critRate) return 'crit';
+  return 'normal';
+}
+
+module.exports = {
+  createSeededRng,
+  mulberry32,
+  troopStrengthRatioFromCasualties,
+  troopDamageToCasualties,
+  getMoraleEffects,
+  getTerrainDefBonus,
+  calcDamageSeeded,
+  rollCritDodgeSeeded,
+};

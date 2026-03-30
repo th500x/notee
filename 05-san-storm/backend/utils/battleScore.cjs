@@ -1,0 +1,123 @@
+/**
+ * 与前端 game/src/systems/battleScoreSystem.js 同公式，供服务端攻城 PVP 结算写战报积分。
+ */
+
+const KILL_SCORE = {
+  common: 200,
+  rare: 330,
+  epic: 460,
+  legendary: 600,
+  core: 990,
+};
+
+const LOSS_PENALTY = {
+  common: -300,
+  rare: -495,
+  epic: -690,
+  legendary: -900,
+  core: -1485,
+};
+
+const TURN_MULTIPLIER = {
+  1: 1.4, 2: 1.3, 3: 1.2, 4: 1.15,
+  5: 1.1, 6: 1.05, 7: 1.0, 8: 1.0,
+  9: 1.0, 10: 1.0,
+};
+
+const GRADE_THRESHOLDS = [
+  { grade: 'S', min: 3000, label: '完美！', multiplier: 2.0 },
+  { grade: 'A', min: 2000, label: '优秀！', multiplier: 1.5 },
+  { grade: 'B', min: 1000, label: '良好', multiplier: 1.2 },
+  { grade: 'C', min: 500, label: '及格', multiplier: 1.0 },
+  { grade: 'D', min: 0, label: '勉强', multiplier: 0.8 },
+];
+
+function troopLabel(t) {
+  return t.character?.courtesyName || t.character?.name || t.name || '未知';
+}
+
+/**
+ * @param {Array} battleTroops faction: player | enemy
+ * @param {{ scoreMultiplier?: number }} [options]
+ */
+function calculateBattleScore(battleTroops, roundNum, result, options = {}) {
+  const scoreMultiplier =
+    typeof options.scoreMultiplier === 'number' && options.scoreMultiplier > 0 ? options.scoreMultiplier : 1;
+
+  let killScore = 0;
+  let lossScore = 0;
+  const killDetails = [];
+  const lossDetails = [];
+
+  for (const troop of battleTroops) {
+    const rarity = troop.rarity || 'common';
+    const max = troop.maxTroops || 1;
+    const cur = Math.max(0, troop.currentTroops || 0);
+    const lostRatio = (max - cur) / max;
+
+    if (troop.faction === 'enemy' && lostRatio > 0) {
+      const base = KILL_SCORE[rarity] || 200;
+      const pts = Math.round(base * lostRatio);
+      killScore += pts;
+      const pctStr = Math.round(lostRatio * 100);
+      killDetails.push({ name: troopLabel(troop), rarity, pts, pct: pctStr });
+    }
+
+    if (troop.faction === 'player' && lostRatio > 0) {
+      const base = LOSS_PENALTY[rarity] || -300;
+      const pts = Math.round(base * lostRatio);
+      lossScore += pts;
+      const pctStr = Math.round(lostRatio * 100);
+      lossDetails.push({ name: troopLabel(troop), rarity, pts, pct: pctStr });
+    }
+  }
+
+  const baseScore = killScore + lossScore;
+  const turnMult = TURN_MULTIPLIER[Math.min(roundNum, 10)] ?? 1.0;
+  const normalScore = Math.round(baseScore * turnMult);
+  const floorScore = Math.round(killScore * 0.3);
+  let finalScore = Math.max(normalScore, floorScore);
+  finalScore = Math.round(finalScore * scoreMultiplier);
+
+  const gradeInfo = GRADE_THRESHOLDS.find((g) => finalScore >= g.min) || GRADE_THRESHOLDS[GRADE_THRESHOLDS.length - 1];
+
+  return {
+    score: finalScore,
+    grade: gradeInfo.grade,
+    gradeLabel: gradeInfo.label,
+    gradeMultiplier: gradeInfo.multiplier,
+    details: {
+      killScore,
+      lossScore,
+      baseScore,
+      turnMultiplier: turnMult,
+      roundNum,
+      kills: killDetails,
+      losses: lossDetails,
+      siegeScoreMultiplier: scoreMultiplier !== 1 ? scoreMultiplier : undefined,
+    },
+  };
+}
+
+/** 攻城方视角：playerTroops = 攻城方 */
+function buildTroopsForAttackerScore(playerTroops, enemyTroops) {
+  return [...playerTroops, ...enemyTroops];
+}
+
+/** 守城方视角 */
+function buildTroopsForDefenderScore(playerTroops, enemyTroops) {
+  return [
+    ...enemyTroops.map((t) => ({ ...t, faction: 'player' })),
+    ...playerTroops.map((t) => ({ ...t, faction: 'enemy' })),
+  ];
+}
+
+/** 披挂上阵攻城：与前端 getSiegeBattleScoreMultiplier('pvp_online') 一致 */
+const SIEGE_PVP_ONLINE_SCORE_MULT = 2;
+
+module.exports = {
+  calculateBattleScore,
+  buildTroopsForAttackerScore,
+  buildTroopsForDefenderScore,
+  SIEGE_PVP_ONLINE_SCORE_MULT,
+};

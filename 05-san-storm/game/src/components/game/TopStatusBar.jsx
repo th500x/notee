@@ -13,7 +13,6 @@ const TAB_TITLES = {
   faction: '势力管理',
   city: '主城',
   map: '世界地图',
-  null: '大地图'
 };
 
 function ResourceBadge({ icon, value, low = false }) {
@@ -35,7 +34,8 @@ export default function TopStatusBar({ activeTab, onOpenSidebar }) {
     return () => clearInterval(id);
   }, []);
 
-  const title = TAB_TITLES[activeTab] || '真三風雲';
+  /** 大地图（activeTab=null）不显示左侧标题，仅保留游戏日期，避免竖屏拥挤 */
+  const title = activeTab == null ? null : TAB_TITLES[activeTab] || '真三風雲';
 
   const mapGameDate = useMemo(() => {
     void timeTick;
@@ -45,12 +45,14 @@ export default function TopStatusBar({ activeTab, onOpenSidebar }) {
 
   return (
     <div className="fixed top-0 left-0 right-0 h-14 z-50 bg-gradient-to-r from-amber-900 to-amber-800 flex items-center px-3 shadow-lg">
-      {/* 左侧：页面标题 + 大地图时游戏历法 */}
-      <div className="flex-shrink-0 mr-3 flex items-center min-w-0 gap-2">
-        <span className="text-white text-lg font-bold truncate">{title}</span>
+      {/* 左侧：子页面标题；大地图仅游戏历法 */}
+      <div className="flex-shrink-0 mr-2 sm:mr-3 flex items-center min-w-0 gap-2">
+        {title != null && title !== '' && (
+          <span className="text-white text-lg font-bold truncate">{title}</span>
+        )}
         {mapGameDate && (
           <span
-            className="text-amber-100/90 text-[11px] sm:text-xs font-medium whitespace-nowrap tabular-nums shrink-0"
+            className="text-amber-100/90 text-xs sm:text-sm font-semibold whitespace-nowrap tabular-nums shrink-0"
             title={`锚点：${gameTime.anchorAt} · ${gameTime.realHoursPerGameDay}现实小时/游戏日`}
           >
             公元{mapGameDate.year}年{mapGameDate.month}月{mapGameDate.day}日

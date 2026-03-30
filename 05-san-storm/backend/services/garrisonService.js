@@ -630,6 +630,47 @@ async function buildDefenseUnitsFromMainLineup(defenderPlayerId) {
 }
 
 /**
+ * 将 buildDefenseUnits / buildDefenseUnitsFromMainLineup 的输出转为攻城 API 前端的 npcGarrison 格式（与 cityService.initiateSiege 一致）
+ */
+function mapBuiltUnitsToSiegeNpcFormat(units) {
+  if (!units || !Array.isArray(units)) return [];
+  return units.map((u, i) => ({
+    index: i,
+    troopId: u.troop.id,
+    troopName: u.troop.name,
+    rarity: u.troop.rarity,
+    troopType: u.troop.troopType,
+    weaponType: u.troop.weaponType,
+    attack: Math.round(u.troop.attack * 10),
+    defense: Math.round(u.troop.defense * 10),
+    speed: u.troop.speed,
+    movement: u.troop.movement,
+    attackRange: u.troop.range,
+    maxTroops: u.troop.maxTroops,
+    currentTroops: u.currentTroops,
+    character: u.character
+      ? {
+          name: u.character.name,
+          courtesyName: u.character.courtesyName || u.character.name,
+          luck: Math.round(u.character.luck * 10),
+          courage: Math.round(u.character.courage * 10),
+          combat: Math.round(u.character.combat * 10),
+          command: Math.round(u.character.command * 10),
+          intelligence: Math.round(u.character.intelligence * 10),
+          politics: 50,
+          charm: 50,
+          traitModifier: u.character.traitModifier || 0,
+        }
+      : null,
+    alive: true,
+    _isPlayerDefender: true,
+    _garrisonPlayerId: u._garrisonPlayerId,
+    _garrisonSlot: u._garrisonSlot,
+    _troopInstanceId: u.troop.instanceId,
+  }));
+}
+
+/**
  * 披挂上阵选择与城池/势力不一致、或缺少 on_duty_city_id（旧数据）时清除。
  * 与「驻地编组是否激活」无关；人数统计只看 on_duty + on_duty_city_id。
  */
@@ -673,6 +714,7 @@ module.exports = {
   getCityGarrisonStats,
   buildDefenseUnits,
   buildDefenseUnitsFromMainLineup,
+  mapBuiltUnitsToSiegeNpcFormat,
   MIN_TROOPS_TO_DEFEND,
   MIN_GARRISON_TOTAL_TROOPS,
   sumTroopInstancesTotalTroops,

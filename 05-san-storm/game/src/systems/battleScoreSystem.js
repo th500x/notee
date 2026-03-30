@@ -51,9 +51,12 @@ const GRADE_THRESHOLDS = [
  * @param {Array} battleTroops - 所有部队（含 faction, rarity, currentTroops, maxTroops）
  * @param {number} roundNum - 战斗结束时的回合数
  * @param {string} result - 'victory' | 'defeat'
+ * @param {{ scoreMultiplier?: number }} [options] 攻城等对玩家战：驻军编组 1.5、披挂上阵 2（与 NPC 守军区分）
  * @returns {{ score, grade, details }}
  */
-export function calculateBattleScore(battleTroops, roundNum, result) {
+export function calculateBattleScore(battleTroops, roundNum, result, options = {}) {
+  const scoreMultiplier =
+    typeof options.scoreMultiplier === 'number' && options.scoreMultiplier > 0 ? options.scoreMultiplier : 1;
   let killScore = 0;
   let lossScore = 0;
   const killDetails = [];
@@ -90,9 +93,10 @@ export function calculateBattleScore(battleTroops, roundNum, result) {
 
   // 保底积分：敌方消耗分 × 0.3（惨胜/败方不至于0分）
   const floorScore = Math.round(killScore * 0.3);
-  const finalScore = Math.max(normalScore, floorScore);
+  let finalScore = Math.max(normalScore, floorScore);
+  finalScore = Math.round(finalScore * scoreMultiplier);
 
-  // 评级
+  // 评级（按倍率后的最终分）
   const gradeInfo = GRADE_THRESHOLDS.find(g => finalScore >= g.min) || GRADE_THRESHOLDS[GRADE_THRESHOLDS.length - 1];
 
   return {
@@ -108,10 +112,26 @@ export function calculateBattleScore(battleTroops, roundNum, result) {
       roundNum,
       kills: killDetails,
       losses: lossDetails,
+      siegeScoreMultiplier: scoreMultiplier !== 1 ? scoreMultiplier : undefined,
     },
   };
 }
 
 function troopLabel(t) {
   return t.character?.courtesyName || t.character?.name || t.name || '未知';
+}
+
+/** 攻城战：与 NPC 守军区分，驻军编组 / 披挂上阵提高战报积分倍率（攻守双方同倍率） */
+export function getSiegeBattleScoreMultiplier(defenderType) {
+  if (defenderType === 'player_garrison') return 1.5;
+  if (defenderType === 'pvp_online') return 2;
+  return 1;
+}
+
+/** 驻守方视角：BattleArena 内 faction 仍以攻城方为 player，计算防守方积分时镜像 */
+export function mirrorTroopsForDefenderBattleScore(battleTroops) {
+  return battleTroops.map((t) => ({
+    ...t,
+    faction: t.faction === 'player' ? 'enemy' : 'player',
+  }));
 }

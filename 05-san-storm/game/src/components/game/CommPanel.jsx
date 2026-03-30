@@ -14,6 +14,7 @@ import { battleAPI } from '@/services/battleApi';
 import { textsAPI } from '@/services/textsApi';
 import { chatAPI } from '@/services/chatApi';
 import AncientModal from '@/components/common/AncientModal';
+import SiegeReplayMini from '@/components/game/SiegeReplayMini';
 import { loadMultipleSharedData } from '@/services/dataService';
 import { describeMailAttachments, buildCardItemMaps, linesFromClaimDetails } from '@/utils/mailRewardUi';
 
@@ -29,6 +30,20 @@ const BATTLE_FILTERS = [
   { id: 'lose',      label: '失败' },
   { id: 'favorited', label: '⭐收藏' },
 ];
+
+/**
+ * 三 Tab 内容区：固定同高，避免切换时外框跳动。
+ * 中间列表 ≈ 12.5rem（约 5 条带发件行的聊天气泡，或 5 行以上纯文本）
+ * 底栏占位与聊天输入区同高，战报/传书用空栏对齐。
+ */
+const COMM_TAB_BODY_CLASS =
+  'flex flex-col h-[22rem] min-h-[22rem] max-h-[22rem] w-full shrink-0 overflow-hidden';
+const COMM_TAB_SCROLL_CLASS =
+  'h-[12.5rem] min-h-[12.5rem] max-h-[12.5rem] flex-none overflow-y-auto overflow-x-hidden';
+const COMM_TAB_TOP_SLOT_CLASS =
+  'shrink-0 min-h-[3.5rem] border-b border-amber-700/20 px-1 py-1 flex flex-col justify-center gap-1';
+const COMM_TAB_BOTTOM_SLOT_CLASS =
+  'h-[6rem] shrink-0 flex-none flex flex-col justify-end border-t border-amber-700/20 px-1.5 pb-1 pt-1 gap-0.5';
 
 /**
  * @param {number} [unreadChatCount] - 预留；新消息角标主要由内部 meta 轮询驱动
@@ -238,7 +253,7 @@ export default function CommPanel({ visible, unreadChatCount: unreadChatProp = 0
 
   return (
     <>
-    <div className="fixed bottom-20 left-2 z-40 w-[min(17rem,85vw)] max-w-[280px] max-h-[45vh] bg-gray-900/95 rounded-lg shadow-lg overflow-hidden border border-amber-700/40 flex flex-col">
+    <div className="fixed bottom-20 left-2 z-40 w-[min(15.5rem,80vw)] max-w-[252px] bg-gray-900/95 rounded-lg shadow-lg overflow-hidden border border-amber-700/40 flex flex-col">
       {/* 标题栏 */}
       <div className="flex items-center justify-between px-2 py-1.5 bg-amber-800/80 shrink-0">
         <div className="flex items-center gap-1">
@@ -260,8 +275,8 @@ export default function CommPanel({ visible, unreadChatCount: unreadChatProp = 0
         </button>
       </div>
 
-      {/* Tab内容 */}
-      <div className="flex-1 overflow-y-auto min-h-0">
+      {/* Tab 内容：三栏同总高 22rem + 顶栏 + 底栏占位 */}
+      <div className="shrink-0 min-h-0 flex flex-col">
         {activeTab === 'battle' && (
           <BattleTab
             battles={battles}
@@ -295,28 +310,28 @@ export default function CommPanel({ visible, unreadChatCount: unreadChatProp = 0
 /** 战报Tab */
 function BattleTab({ battles, filter, onFilterChange, loading, expandedBattle, battleDetail, onExpand, onToggleFavorite }) {
   return (
-    <div>
-      {/* 筛选栏 */}
-      <div className="flex border-b border-amber-700/20 px-1 py-1 gap-0.5">
-        {BATTLE_FILTERS.map(f => (
-          <button
-            key={f.id}
-            onClick={() => onFilterChange(f.id)}
-            className={`flex-1 py-1 text-[10px] rounded transition-colors
-              ${filter === f.id
-                ? 'bg-amber-700/40 text-amber-200'
-                : 'text-amber-200/50 hover:text-amber-200/70'}`}
-          >
-            {f.label}
-          </button>
-        ))}
+    <div className={COMM_TAB_BODY_CLASS}>
+      <div className={COMM_TAB_TOP_SLOT_CLASS}>
+        <div className="flex px-0 py-0 gap-0.5">
+          {BATTLE_FILTERS.map(f => (
+            <button
+              key={f.id}
+              onClick={() => onFilterChange(f.id)}
+              className={`flex-1 py-1 text-[10px] rounded transition-colors
+                ${filter === f.id
+                  ? 'bg-amber-700/40 text-amber-200'
+                  : 'text-amber-200/50 hover:text-amber-200/70'}`}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {/* 列表 */}
-      <div className="p-1.5 space-y-1">
-        {loading && <div className="text-center text-amber-200/40 text-xs py-4">加载中...</div>}
+      <div className={`${COMM_TAB_SCROLL_CLASS} p-1.5 space-y-1`}>
+        {loading && <div className="text-center text-amber-200/40 text-xs py-2">加载中...</div>}
         {!loading && battles.length === 0 && (
-          <div className="text-center text-amber-200/40 text-xs py-4">暂无战报</div>
+          <div className="text-center text-amber-200/40 text-xs py-2">暂无战报</div>
         )}
         {battles.map(b => (
           <BattleCard
@@ -329,6 +344,7 @@ function BattleTab({ battles, filter, onFilterChange, loading, expandedBattle, b
           />
         ))}
       </div>
+      <div className={COMM_TAB_BOTTOM_SLOT_CLASS} aria-hidden="true" />
     </div>
   );
 }
@@ -388,10 +404,56 @@ function BattleCard({ battle, isExpanded, detail, onExpand, onToggleFavorite }) 
 
 /** 战报详情展开区 */
 function BattleDetail({ detail }) {
+  const [replayOpen, setReplayOpen] = useState(false);
   const rewards = detail.rewards || {};
+  const logRaw = detail.battleLog;
+  const logStr = typeof logRaw === 'string' ? logRaw : Array.isArray(logRaw) ? logRaw.map((l) => (typeof l === 'object' && l?.text ? l.text : String(l))).join('\n') : '';
+  const leftLabel =
+    detail.playerTeam?.[0]?.name ||
+    detail.playerTeam?.[0]?.courtesyName ||
+    '我方';
+  const rightLabel =
+    detail.opponentName ||
+    detail.opponentTeam?.[0]?.name ||
+    detail.opponentTeam?.[0]?.courtesyName ||
+    '敌方';
+  const canSiegeReplay =
+    logStr.length > 12 &&
+    (/第\d+回合/.test(logStr) && (/对.+造成/.test(logStr) || /造成\s*\d+/.test(logStr)));
 
   return (
     <div className="px-2 py-1.5 border-t border-amber-700/20 space-y-1.5">
+      {canSiegeReplay && (
+        <>
+          <button
+            type="button"
+            onClick={() => setReplayOpen(true)}
+            className="w-full py-1.5 rounded bg-amber-800/40 border border-amber-600/40 text-amber-100 text-[10px] hover:bg-amber-700/40"
+          >
+            攻城战报 · 简化回放
+          </button>
+          {replayOpen && (
+            <AncientModal
+              isOpen
+              onClose={() => setReplayOpen(false)}
+              type="confirm"
+              title="攻城战报 · 简化回放"
+              hideButtons
+              width="max-w-md"
+            >
+              <div className="-mx-2 -my-2 bg-[#1a1a2e] rounded p-2 text-left">
+                <SiegeReplayMini
+                  open
+                  onClose={() => setReplayOpen(false)}
+                  battleLog={logStr}
+                  leftLabel={leftLabel}
+                  rightLabel={rightLabel}
+                />
+              </div>
+            </AncientModal>
+          )}
+        </>
+      )}
       {/* 评分明细 */}
       {rewards.battleScore != null && (
         <div className="bg-black/20 rounded p-1.5">
@@ -564,23 +626,30 @@ function TextMailTab({ playerId, onUnreadChange, onClaimed, onShowClaimResult })
   };
 
   if (!playerId) {
-    return <div className="text-center text-amber-200/40 text-xs py-6">加载角色中…</div>;
+    return (
+      <div className={COMM_TAB_BODY_CLASS}>
+        <div className="flex-1 flex items-center justify-center text-amber-200/40 text-xs">加载角色中…</div>
+      </div>
+    );
   }
 
   return (
-    <div className="p-1.5 space-y-1">
-      <div className="flex justify-end mb-1">
-        <button
-          type="button"
-          onClick={() => loadTexts()}
-          className="text-[10px] text-amber-400/70 hover:text-amber-300"
-        >
-          刷新
-        </button>
+    <div className={COMM_TAB_BODY_CLASS}>
+      <div className={COMM_TAB_TOP_SLOT_CLASS}>
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={() => loadTexts()}
+            className="text-[10px] text-amber-400/70 hover:text-amber-300"
+          >
+            刷新
+          </button>
+        </div>
       </div>
-      {loading && <div className="text-center text-amber-200/40 text-xs py-4">加载中...</div>}
+      <div className={`${COMM_TAB_SCROLL_CLASS} p-1.5 space-y-1`}>
+      {loading && <div className="text-center text-amber-200/40 text-xs py-2">加载中...</div>}
       {!loading && texts.length === 0 && (
-        <div className="text-center text-amber-200/40 text-xs py-4">暂无传书</div>
+        <div className="text-center text-amber-200/40 text-xs py-2">暂无传书</div>
       )}
       {!loading &&
         texts.map((t) => (
@@ -640,6 +709,8 @@ function TextMailTab({ playerId, onUnreadChange, onClaimed, onShowClaimResult })
             )}
           </div>
         ))}
+      </div>
+      <div className={COMM_TAB_BOTTOM_SLOT_CLASS} aria-hidden="true" />
     </div>
   );
 }
@@ -773,64 +844,69 @@ function ChatTab({ player, onWorldReadSynced }) {
   };
 
   if (!playerId) {
-    return <div className="text-center text-amber-200/40 text-xs py-6">加载角色中…</div>;
+    return (
+      <div className={COMM_TAB_BODY_CLASS}>
+        <div className="flex-1 flex items-center justify-center text-amber-200/40 text-xs">加载角色中…</div>
+      </div>
+    );
   }
 
   return (
-    <div className="flex flex-col h-full min-h-[200px] max-h-[38vh]">
-      <div className="flex border-b border-amber-700/20 px-1 py-1 gap-0.5 shrink-0">
-        <button
-          type="button"
-          onClick={() => setSub('world')}
-          className={`flex-1 py-1 text-[10px] rounded transition-colors ${
-            sub === 'world' ? 'bg-amber-700/40 text-amber-200' : 'text-amber-200/50 hover:text-amber-200/70'
-          }`}
-        >
-          天下
-        </button>
-        <button
-          type="button"
-          disabled={!factionId}
-          onClick={() => setSub('faction')}
-          className={`flex-1 py-1 text-[10px] rounded transition-colors truncate px-0.5 ${
-            sub === 'faction' ? 'bg-amber-700/40 text-amber-200' : 'text-amber-200/50 hover:text-amber-200/70'
-          } ${!factionId ? 'opacity-40 cursor-not-allowed' : ''}`}
-          title={factionId ? factionLabel : '无势力'}
-        >
-          {factionId ? factionLabel : '势力'}
-        </button>
-        <button
-          type="button"
-          disabled={!legion?.legionId}
-          onClick={() => setSub('legion')}
-          className={`flex-1 py-1 text-[10px] rounded transition-colors truncate px-0.5 ${
-            sub === 'legion' ? 'bg-amber-700/40 text-amber-200' : 'text-amber-200/50 hover:text-amber-200/70'
-          } ${!legion?.legionId ? 'opacity-40 cursor-not-allowed' : ''}`}
-          title={legion?.legionName || '未加入军团'}
-        >
-          军团
-        </button>
+    <div className={COMM_TAB_BODY_CLASS}>
+      <div className={COMM_TAB_TOP_SLOT_CLASS}>
+        <div className="flex px-1 py-0 gap-0.5">
+          <button
+            type="button"
+            onClick={() => setSub('world')}
+            className={`flex-1 py-1 text-[10px] rounded transition-colors ${
+              sub === 'world' ? 'bg-amber-700/40 text-amber-200' : 'text-amber-200/50 hover:text-amber-200/70'
+            }`}
+          >
+            天下
+          </button>
+          <button
+            type="button"
+            disabled={!factionId}
+            onClick={() => setSub('faction')}
+            className={`flex-1 py-1 text-[10px] rounded transition-colors truncate px-0.5 ${
+              sub === 'faction' ? 'bg-amber-700/40 text-amber-200' : 'text-amber-200/50 hover:text-amber-200/70'
+            } ${!factionId ? 'opacity-40 cursor-not-allowed' : ''}`}
+            title={factionId ? factionLabel : '无势力'}
+          >
+            {factionId ? factionLabel : '势力'}
+          </button>
+          <button
+            type="button"
+            disabled={!legion?.legionId}
+            onClick={() => setSub('legion')}
+            className={`flex-1 py-1 text-[10px] rounded transition-colors truncate px-0.5 ${
+              sub === 'legion' ? 'bg-amber-700/40 text-amber-200' : 'text-amber-200/50 hover:text-amber-200/70'
+            } ${!legion?.legionId ? 'opacity-40 cursor-not-allowed' : ''}`}
+            title={legion?.legionName || '未加入军团'}
+          >
+            军团
+          </button>
+        </div>
+        <div className="flex justify-end px-1.5">
+          <button
+            type="button"
+            onClick={() => loadMessages()}
+            className="text-[10px] text-amber-400/70 hover:text-amber-300"
+          >
+            刷新
+          </button>
+        </div>
       </div>
 
-      <div className="flex justify-end px-1.5 pt-1 shrink-0">
-        <button
-          type="button"
-          onClick={() => loadMessages()}
-          className="text-[10px] text-amber-400/70 hover:text-amber-300"
-        >
-          刷新
-        </button>
-      </div>
-
-      <div className="flex-1 overflow-y-auto min-h-0 px-1.5 space-y-1.5 pb-1">
+      <div className={`${COMM_TAB_SCROLL_CLASS} px-1.5 space-y-1.5 pb-1`}>
         {loading && messages.length === 0 && (
-          <div className="text-center text-amber-200/40 text-xs py-3">加载中…</div>
+          <div className="text-center text-amber-200/40 text-xs py-2">加载中…</div>
         )}
         {!loading && sub === 'legion' && !legion?.legionId && (
-          <div className="text-center text-amber-200/40 text-xs py-4">未加入军团，无法使用军团频道</div>
+          <div className="text-center text-amber-200/40 text-xs py-2">未加入军团，无法使用军团频道</div>
         )}
         {!loading && sub === 'faction' && !factionId && (
-          <div className="text-center text-amber-200/40 text-xs py-4">暂无势力，无法使用势力频道</div>
+          <div className="text-center text-amber-200/40 text-xs py-2">暂无势力，无法使用势力频道</div>
         )}
         {messages.map((m) => (
           <div key={m.chatId} className="bg-black/30 rounded border border-amber-700/15 px-2 py-1.5">
@@ -842,16 +918,15 @@ function ChatTab({ player, onWorldReadSynced }) {
           </div>
         ))}
         {!loading && messages.length === 0 && (sub === 'world' || (sub === 'faction' && factionId) || (sub === 'legion' && legion?.legionId)) && (
-          <div className="text-center text-amber-200/35 text-xs py-3">暂无消息，来发一句吧</div>
+          <div className="text-center text-amber-200/35 text-xs py-2">暂无消息，来发一句吧</div>
         )}
       </div>
 
-      {sendError && (
-        <div className="px-2 text-[10px] text-red-300/90 shrink-0">{sendError}</div>
-      )}
-
-      <div className="p-1.5 border-t border-amber-700/20 shrink-0 space-y-1">
-        <div className="text-[9px] text-amber-200/40">
+      <div className={COMM_TAB_BOTTOM_SLOT_CLASS}>
+        {sendError && (
+          <div className="text-[10px] text-red-300/90 truncate">{sendError}</div>
+        )}
+        <div className="text-[9px] text-amber-200/40 min-h-[1rem]">
           {sub === 'world' && !canWorld && '官职不足（需都尉及以上）'}
           {sub === 'faction' && !canFaction && factionId && '官职不足（需都尉及以上）'}
           {sub === 'legion' && legion?.legionId && !canLegion && '官职不足（需中郎将及以上）'}

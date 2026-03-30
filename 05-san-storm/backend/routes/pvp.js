@@ -8,6 +8,7 @@ const express = require('express');
 const router = express.Router();
 const pvpService = require('../services/pvpService');
 const garrisonService = require('../services/garrisonService');
+const siegePvpResolveService = require('../services/siegePvpResolveService');
 const { pool } = require('../database/connection');
 const Player = require('../models/Player');
 const { isPlayerRecentlyActive, DEFAULT_ONLINE_MS } = require('../utils/playerActivity');
@@ -55,7 +56,7 @@ router.post('/challenge', async (req, res) => {
     const defenderGarrisonSlot =
       slotBody === undefined || slotBody === null || slotBody === ''
         ? 1
-        : Number(slotBody);
+        : Number(slotBody); // 含 0 = 披挂上阵，勿用假值合并吞掉
 
     // 与 initiateSiege 一致：综合 last_active_at + lastActiveAt，避免「只登录时刷新」导致永远判离线
     const defenderIsInGame = await isPlayerRecentlyActive(defenderId, DEFAULT_ONLINE_MS);
@@ -87,6 +88,28 @@ router.post('/challenge', async (req, res) => {
   } catch (error) {
     console.error('[PVP] 创建挑战失败:', error);
     res.status(500).json({ success: false, error: '创建挑战失败' });
+  }
+});
+
+/**
+ * GET /api/pvp/challenge/:challengeId/defender-context?defenderId=
+ * 防守方接受挑战后：攻城方上阵部队 + 城市信息（用于进入战斗 UI）
+ */
+router.get('/challenge/:challengeId/defender-context', async (req, res) => {
+  try {
+    const { defenderId } = req.query;
+    if (!defenderId) {
+      return res.status(400).json({ success: false, error: '缺少 defenderId' });
+    }
+    const result = await pvpService.getDefenderBattleContext(req.params.challengeId, defenderId);
+    if (!result.ok) {
+      return res.status(400).json({ success: false, error: result.error });
+    }
+    const { ok: _ok, ...data } = result;
+    res.json({ success: true, data });
+  } catch (error) {
+    console.error('[PVP] defender-context 失败:', error);
+    res.status(500).json({ success: false, error: '获取战场数据失败' });
   }
 });
 
@@ -138,6 +161,46 @@ router.post('/challenge/:challengeId/accept', (req, res) => {
   } catch (error) {
     console.error('[PVP] 接受挑战失败:', error);
     res.status(500).json({ success: false, error: '接受挑战失败' });
+  }
+});
+
+/**
+ * POST /api/pvp/siege-resolve
+ * 披挂上阵（槽位0）服务端权威单场结算；驻地/NPC 勿调用
+ * body: { challengeId, attackerId }
+ */
+router.post('/siege-resolve', async (req, res) => {
+  try {
+    const { challengeId, attackerId } = req.body;
+    if (!challengeId || !attackerId) {
+      return res.status(400).json({ success: false, error: '缺少 challengeId 或 attackerId' });
+    }
+    const data = await siegePvpResolveService.resolveAuthoritativeSiegePvp({ challengeId, attackerId });
+    res.json({ success: true, data });
+  } catch (error) {
+    const code = error.code;
+    const status = code === 'FORBIDDEN' ? 403 : code === 'NOT_READY' ? 409 : code === 'CHALLENGE_NOT_FOUND' ? 404 : 400;
+    console.error('[PVP] siege-resolve 失败:', error);
+    res.status(status).json({ success: false, error: error.message, code: code || undefined });
+  }
+});
+
+/**
+ * GET /api/pvp/challenge/:challengeId/siege-outcome?playerId=
+ * 攻守任一方轮询权威结算结果（结算完成后才有数据）
+ */
+router.get('/challenge/:challengeId/siege-outcome', (req, res) => {
+  try {
+    const { playerId } = req.query;
+    const c = pvpService.peekChallenge(req.params.challengeId);
+    if (!c || !playerId || (playerId !== c.attackerId && playerId !== c.defenderId)) {
+      return res.status(403).json({ success: false, error: '无权查看' });
+    }
+    const outcome = pvpService.getSiegeOutcome(req.params.challengeId);
+    res.json({ success: true, outcome });
+  } catch (error) {
+    console.error('[PVP] siege-outcome 失败:', error);
+    res.status(500).json({ success: false, error: '查询失败' });
   }
 });
 

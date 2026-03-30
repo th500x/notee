@@ -130,12 +130,23 @@ router.post('/', async (req, res) => {
 
     const battle = await battleService.saveBattle(req.body);
 
-    // 仅写入战报（如：为驻守方补一条防守记录），不重复改兵力/士气/耐久/宝箱/积分
+    const { rewards, chestRewards } = req.body;
+
+    // 仅写入战报（驻守防守 recordOnly）：不重复改兵力/士气/耐久/宝箱，但可单独补战报积分
     if (req.body.recordOnly) {
+      if (rewards?.battleScore && Number(rewards.battleScore) > 0) {
+        try {
+          await pool.query(
+            'UPDATE statistics SET total_battle_score = total_battle_score + ? WHERE player_id = ?',
+            [Number(rewards.battleScore), playerId],
+          );
+          console.log(`[battles] recordOnly 战斗积分: +${rewards.battleScore} player=${playerId}`);
+        } catch (scoreErr) {
+          console.error('[battles] recordOnly 战斗积分失败:', scoreErr);
+        }
+      }
       return res.status(201).json({ success: true, battle });
     }
-
-    const { rewards, chestRewards } = req.body;
 
     // 活动排行积分：与兵力/士气/耐久链路隔离，避免攻城等场景下前方 SQL 异常导致整段跳过、积分永远不加
     if (rewards?.battleScore && Number(rewards.battleScore) > 0) {

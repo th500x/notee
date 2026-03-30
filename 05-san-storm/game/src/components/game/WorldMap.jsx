@@ -37,6 +37,19 @@ const FACTION_COLORS = {
   san_1_faction_7001: '#78716c',
 };
 
+/** 裁定中遮罩最短展示时长（与其它短动画一致，约 3 秒） */
+const PVP_ADJUDICATION_UI_MS = 3000;
+
+function scheduleAfterMinAdjudicationUi(startedAt, fn) {
+  const elapsed = Date.now() - startedAt;
+  const wait = Math.max(0, PVP_ADJUDICATION_UI_MS - elapsed);
+  if (wait <= 0) {
+    fn();
+    return;
+  }
+  setTimeout(fn, wait);
+}
+
 /** 从 localStorage 读取缓存的背景图路径 */
 function getCachedBg() {
   try {
@@ -88,10 +101,16 @@ export default function WorldMap({ onEventBusyChange }) {
   const [pvpCountdown, setPvpCountdown] = useState(0);
   const pvpTimerRef = useRef(null);
   const pvpPollRef = useRef(null);
+  const pvpResolveOnceRef = useRef(false);
 
   // ── 防守方：轮询是否有 PVP 挑战 ──
   const [pvpDefenseAlert, setPvpDefenseAlert] = useState(null); // 防守方收到的挑战通知
+  const [pvpDefenseWaiting, setPvpDefenseWaiting] = useState(null); // { challengeId, attackerName, startedAt } 已接受，等待裁定
+  const [pvpDefenseOutcome, setPvpDefenseOutcome] = useState(null); // 裁定结果展示
+  /** 攻城方：倒计时结束或对方已 accept，等待 siege-resolve 与最短 3s 裁定 UI */
+  const [pvpAttackerAdjudicating, setPvpAttackerAdjudicating] = useState(null); // { defenderName, startedAt }
   const defPollRef = useRef(null);
+  const pvpDefenseOutcomeHandledRef = useRef(false);
 
   useEffect(() => {
     if (!player?.player_id || !onDuty) return;
@@ -196,6 +215,14 @@ export default function WorldMap({ onEventBusyChange }) {
   // 战斗结束
   const handleSiegeEnd = useCallback(async (result, silverSpent, scoreResult, killedIndices) => {
     if (!siegeData) return;
+    // 防守方本地进入战场：兵力结算仅以攻城方提交的 siege-result 为准，此处只关界面并刷新
+    if (siegeData.skipSiegeResult) {
+      setSiegeData(null);
+      setSiegeResult(null);
+      refreshCity();
+      refreshPlayer();
+      return;
+    }
     try {
       const res = await fetch(`${API_CONFIG.BASE_URL}/cities/siege-result`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -230,37 +257,68 @@ export default function WorldMap({ onEventBusyChange }) {
 
   const closeSiegeResult = useCallback(() => { setSiegeData(null); setSiegeResult(null); }, []);
 
-  // ── PVP 攻城方：倒计时 + 轮询防守方是否接受 ──
+  // ── PVP 攻城方：倒计时 + 轮询接受 → 披挂场次走服务端权威结算（不进入本地 BattleArena）──
   useEffect(() => {
-    if (!pvpChallenge) return;
+    if (!pvpChallenge || !player?.player_id) return;
+    pvpResolveOnceRef.current = false;
 
-    // 倒计时
+    const runResolve = async () => {
+      if (pvpResolveOnceRef.current) return;
+      pvpResolveOnceRef.current = true;
+      clearInterval(pvpTimerRef.current);
+      clearInterval(pvpPollRef.current);
+      const ch = pvpChallenge;
+      const adjudicationStartedAt = Date.now();
+      setPvpAttackerAdjudicating({
+        defenderName: ch.defenderName || '未知',
+        startedAt: adjudicationStartedAt,
+      });
+      setPvpChallenge(null);
+      try {
+        const r = await fetch(`${API_CONFIG.BASE_URL}/pvp/siege-resolve`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ challengeId: ch.challengeId, attackerId: player.player_id }),
+        }).then((x) => x.json());
+        if (r.success && r.data?.siegeData) {
+          scheduleAfterMinAdjudicationUi(adjudicationStartedAt, () => {
+            setPvpAttackerAdjudicating(null);
+            setSiegeResult({
+              ...r.data.siegeData,
+              authoritativeBattleLog: r.data.battleLog,
+              battleSeed: r.data.battleSeed,
+            });
+          });
+        } else {
+          scheduleAfterMinAdjudicationUi(adjudicationStartedAt, () => {
+            setPvpAttackerAdjudicating(null);
+            window.alert(r.error || '攻城结算失败');
+          });
+        }
+      } catch (e) {
+        console.error('[PVP] siege-resolve', e);
+        scheduleAfterMinAdjudicationUi(adjudicationStartedAt, () => {
+          setPvpAttackerAdjudicating(null);
+          window.alert('攻城结算请求失败');
+        });
+      }
+    };
+
     pvpTimerRef.current = setInterval(() => {
-      setPvpCountdown(prev => {
+      setPvpCountdown((prev) => {
         if (prev <= 1) {
-          // 超时 → 用防守方部队数据进入自动战斗
-          clearInterval(pvpTimerRef.current);
-          clearInterval(pvpPollRef.current);
-          const sd = pvpChallenge.siegeData;
-          setSiegeData(sd);
-          setPvpChallenge(null);
+          runResolve();
           return 0;
         }
         return prev - 1;
       });
     }, 1000);
 
-    // 每2秒轮询防守方是否接受
     pvpPollRef.current = setInterval(async () => {
       try {
-        const res = await fetch(`${API_CONFIG.BASE_URL}/pvp/challenge/${pvpChallenge.challengeId}/status`).then(r => r.json());
+        const res = await fetch(`${API_CONFIG.BASE_URL}/pvp/challenge/${pvpChallenge.challengeId}/status`).then((r) => r.json());
         if (res.success && res.status === 'accepted') {
-          // 防守方接受 → 进入 PVP 战斗（battleType 改为 pvp_siege）
-          clearInterval(pvpTimerRef.current);
-          clearInterval(pvpPollRef.current);
-          const sd = { ...pvpChallenge.siegeData, isPvp: true };
-          setSiegeData(sd);
-          setPvpChallenge(null);
+          runResolve();
         }
       } catch {}
     }, 2000);
@@ -269,7 +327,38 @@ export default function WorldMap({ onEventBusyChange }) {
       clearInterval(pvpTimerRef.current);
       clearInterval(pvpPollRef.current);
     };
-  }, [pvpChallenge]);
+  }, [pvpChallenge, player?.player_id]);
+
+  // ── 防守方：已点「进入战场」→ 轮询服务端裁定结果 ──
+  useEffect(() => {
+    if (!pvpDefenseWaiting?.challengeId || !player?.player_id) {
+      pvpDefenseOutcomeHandledRef.current = false;
+      return;
+    }
+    pvpDefenseOutcomeHandledRef.current = false;
+    const poll = async () => {
+      if (pvpDefenseOutcomeHandledRef.current) return;
+      try {
+        const r = await fetch(
+          `${API_CONFIG.BASE_URL}/pvp/challenge/${pvpDefenseWaiting.challengeId}/siege-outcome?playerId=${encodeURIComponent(player.player_id)}`
+        ).then((x) => x.json());
+        if (r.success && r.outcome && !pvpDefenseOutcomeHandledRef.current) {
+          pvpDefenseOutcomeHandledRef.current = true;
+          const startedAt = pvpDefenseWaiting.startedAt ?? Date.now();
+          const outcome = r.outcome;
+          scheduleAfterMinAdjudicationUi(startedAt, () => {
+            setPvpDefenseWaiting(null);
+            setPvpDefenseOutcome(outcome);
+            refreshCity();
+            refreshPlayer();
+          });
+        }
+      } catch {}
+    };
+    poll();
+    const id = setInterval(poll, 2000);
+    return () => clearInterval(id);
+  }, [pvpDefenseWaiting, player?.player_id, refreshCity, refreshPlayer]);
 
   // 新手指引完成时，给满探索次数
   const prevTutorialRef = useRef(isTutorial);
@@ -305,9 +394,9 @@ export default function WorldMap({ onEventBusyChange }) {
   // 通知父组件事件是否进行中（隐藏底部Tab）
   useEffect(() => {
     const busy = [PHASE.EVENT, PHASE.ROLLING, PHASE.RESULT, PHASE.BATTLE, PHASE.REWARD, PHASE.MINIGAME, PHASE.RETURNING].includes(phase)
-      || tutorialSystem.showPreDialog || !!siegeData;
+      || tutorialSystem.showPreDialog       || !!siegeData || !!pvpChallenge || !!pvpDefenseWaiting || !!pvpAttackerAdjudicating;
     onEventBusyChange?.(busy);
-  }, [phase, tutorialSystem.showPreDialog, onEventBusyChange, siegeData]);
+  }, [phase, tutorialSystem.showPreDialog, onEventBusyChange, siegeData, pvpChallenge, pvpDefenseWaiting, pvpAttackerAdjudicating]);
 
   // 长按支持：区分长按（显示tooltip）和短按（触发探索）
   const longPressTimer = useRef(null);
@@ -441,6 +530,7 @@ export default function WorldMap({ onEventBusyChange }) {
                 <div className="text-white/80 text-xs mt-1 border-t border-white/20 pt-1">
                   新野 · 小城
                   <br />披挂上阵：<span className={onDutyCount > 0 ? 'text-green-400' : 'text-stone-500'}>{onDutyCount}</span>
+                  <span className="text-stone-500">（上阵编组总兵力≥800 才接战）</span>
                   {garrisonStats && garrisonStats.slot_count > 0 && (
                     <><br />驻地守军：<span className="text-cyan-400">{garrisonStats.slot_count}</span>（{garrisonStats.player_count}人）</>
                   )}
@@ -534,6 +624,53 @@ export default function WorldMap({ onEventBusyChange }) {
       )}
 
       {/* ── PVP 防守方通知弹窗 ── */}
+      {pvpAttackerAdjudicating && (
+        <AncientModal isOpen type="confirm" title="⚔️ 战场裁定中" preventClose hideButtons>
+          <div className="text-center space-y-3 text-gray-800 text-sm py-2 px-1">
+            <p>本场由服务端演算，请稍候…</p>
+            <p className="text-gray-500 text-xs">
+              守军主公：<span className="text-amber-800 font-semibold">{pvpAttackerAdjudicating.defenderName}</span>
+            </p>
+          </div>
+        </AncientModal>
+      )}
+
+      {pvpDefenseWaiting && (
+        <AncientModal isOpen type="confirm" title="⚔️ 战场裁定中" preventClose hideButtons>
+          <div className="text-center space-y-3 text-gray-700 text-sm py-2 px-1">
+            <p>本场由服务端演算，请稍候…</p>
+            <p className="text-gray-500 text-xs">
+              攻城方：<span className="text-red-800 font-semibold">{pvpDefenseWaiting.attackerName || '未知'}</span>
+            </p>
+          </div>
+        </AncientModal>
+      )}
+
+      {pvpDefenseOutcome && (
+        <AncientModal
+          isOpen
+          type="info"
+          title="⚔️ 战斗结束"
+          confirmText="确定"
+          onConfirm={() => setPvpDefenseOutcome(null)}
+        >
+          <div className="text-center space-y-2 text-sm text-gray-800 max-h-48 overflow-y-auto text-left px-1">
+            <p>
+              {pvpDefenseOutcome.attackerWon ? (
+                <span className="text-red-600 font-bold">攻城方获胜</span>
+              ) : (
+                <span className="text-green-700 font-bold">守军防守成功</span>
+              )}
+            </p>
+            {Array.isArray(pvpDefenseOutcome.battleLog) && pvpDefenseOutcome.battleLog.length > 0 && (
+              <pre className="text-[11px] text-gray-600 whitespace-pre-wrap font-sans border-t border-gray-200 pt-2 mt-2">
+                {pvpDefenseOutcome.battleLog.slice(-12).join('\n')}
+              </pre>
+            )}
+          </div>
+        </AncientModal>
+      )}
+
       {pvpDefenseAlert && !siegeData && (
         <AncientModal
           isOpen type="warning"
@@ -541,15 +678,26 @@ export default function WorldMap({ onEventBusyChange }) {
           confirmText="进入战场"
           showCancel cancelText="放弃（自动战斗）"
           onConfirm={async () => {
-            // 接受挑战
             try {
-              await fetch(`${API_CONFIG.BASE_URL}/pvp/challenge/${pvpDefenseAlert.challengeId}/accept`, {
+              const acc = await fetch(`${API_CONFIG.BASE_URL}/pvp/challenge/${pvpDefenseAlert.challengeId}/accept`, {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ defenderId: player.player_id }),
+              }).then((r) => r.json());
+              if (!acc.success) {
+                window.alert(acc.error || '接受挑战失败');
+                return;
+              }
+              const cid = pvpDefenseAlert.challengeId;
+              setPvpDefenseAlert(null);
+              setPvpDefenseWaiting({
+                challengeId: cid,
+                attackerName: pvpDefenseAlert.attackerName || '未知',
+                startedAt: Date.now(),
               });
-            } catch {}
-            setPvpDefenseAlert(null);
-            // TODO: 防守方进入战斗界面（需要加载自己的驻守部队 vs 攻城方部队）
+            } catch (e) {
+              console.error('[PVP] 进入战场失败:', e);
+              window.alert('进入战场失败');
+            }
           }}
           onCancel={() => setPvpDefenseAlert(null)}
         >
@@ -577,21 +725,41 @@ export default function WorldMap({ onEventBusyChange }) {
           enemyUnits={siegeData.npcGarrison}
           silverAmount={player?.silver ?? 0}
           playerId={player?.player_id}
-          battleType="pve_siege"
-          opponentName={`${siegeData.cityName}守军`}
+          battleType={siegeData.isPvp ? 'pvp_siege' : 'pve_siege'}
+          siegeDefenderType={siegeData.defenderType || 'npc'}
+          opponentName={
+            siegeData.pvpSiegeRole === 'defender'
+              ? (siegeData.attackerName || '攻城方')
+              : siegeData.isPvp
+                ? (siegeData.defenderName || `${siegeData.cityName || ''}守军`)
+                : `${siegeData.cityName}守军`
+          }
           onBattleEnd={handleSiegeEnd}
+          recordOnly={!!siegeData.skipSiegeResult}
           defenseReportMeta={
-            siegeData.defenderType === 'player_garrison' && siegeData.defenderPlayerId
-              ? {
-                  warId: siegeData.warId,
-                  defenderPlayerId: siegeData.defenderPlayerId,
-                  defenderGarrisonSlot: siegeData.defenderGarrisonSlot,
-                  attackerPlayerId: player?.player_id,
-                  attackerName: player?.character_name || player?.name || '攻城方',
-                  cityName: siegeData.cityName,
-                  defenderName: siegeData.defenderName,
-                }
-              : null
+            siegeData.pvpSiegeRole === 'defender'
+              ? null
+              : siegeData.defenderType === 'player_garrison' && siegeData.defenderPlayerId
+                ? {
+                    warId: siegeData.warId,
+                    defenderPlayerId: siegeData.defenderPlayerId,
+                    defenderGarrisonSlot: siegeData.defenderGarrisonSlot,
+                    attackerPlayerId: player?.player_id,
+                    attackerName: player?.character_name || player?.name || '攻城方',
+                    cityName: siegeData.cityName,
+                    defenderName: siegeData.defenderName,
+                  }
+                : siegeData.defenderType === 'pvp_online' && siegeData.defenderPlayerId
+                  ? {
+                      warId: siegeData.warId,
+                      defenderPlayerId: siegeData.defenderPlayerId,
+                      defenderGarrisonSlot: siegeData.defenderGarrisonSlot ?? 0,
+                      attackerPlayerId: player?.player_id,
+                      attackerName: player?.character_name || player?.name || '攻城方',
+                      cityName: siegeData.cityName,
+                      defenderName: siegeData.defenderName,
+                    }
+                  : null
           }
         />
       )}
@@ -607,6 +775,12 @@ export default function WorldMap({ onEventBusyChange }) {
             {siegeResult.equipmentDrop && <div className="text-purple-300 text-sm">🎁 获得装备：{siegeResult.equipmentDrop.name}（{siegeResult.equipmentDrop.rarity}）</div>}
             {siegeResult.killCount != null && <div className="text-sm text-gray-300">本场击杀：{siegeResult.killCount}</div>}
             <div className="text-sm text-gray-400">NPC守军：{siegeResult.npcKilled}/{siegeResult.npcTotal} 已消灭</div>
+            {Array.isArray(siegeResult.authoritativeBattleLog) && siegeResult.authoritativeBattleLog.length > 0 && (
+              <details className="text-left text-[11px] text-stone-400 max-h-32 overflow-y-auto mt-2">
+                <summary className="cursor-pointer text-amber-500/90">文字战报（服务端）</summary>
+                <pre className="whitespace-pre-wrap font-sans mt-1">{siegeResult.authoritativeBattleLog.join('\n')}</pre>
+              </details>
+            )}
             {siegeResult.killCount === 0 && <div className="text-xs text-stone-500">（目标已被其他玩家击杀，无新增奖励）</div>}
             {siegeResult.siegeCompleted && (
               <div className="bg-amber-900/50 border border-amber-500/30 rounded-lg p-3">

@@ -359,11 +359,22 @@ export default function GarrisonLineup({ onClose }) {
 
   return (
     <div className="fixed inset-0 z-[100] bg-gradient-to-b from-stone-900 via-stone-800 to-stone-900 flex flex-col">
-      {/* 顶部栏：规则说明（左上） + 驻地A / 驻地B */}
+      {/* 顶部栏：规则与城市说明合并为一行 + 驻地A/B Tab */}
       <div className="flex flex-col border-b border-amber-900/50 bg-stone-900/80 sticky top-0 z-10">
-        <div className="px-3 py-1.5 text-[10px] text-stone-500 leading-snug border-b border-stone-700/40 text-left">
-          <div>守城卡池A（总兵力≥800 / 首轮防守）</div>
-          <div>守城卡池B（总兵力≥800 / 第二轮防守）</div>
+        <div className="px-3 py-1.5 text-[10px] text-stone-500 leading-snug border-b border-stone-700/40 text-left space-y-1">
+          <div className="flex flex-wrap items-center gap-x-1 gap-y-0.5">
+            <span>🏯 {CITY_NAME}城</span>
+            <span className="text-stone-600">|</span>
+            <span>卡池A 总兵力≥800（首轮）；卡池B 总兵力≥800（第二轮）</span>
+            <span className="text-stone-600">|</span>
+            <span className="text-stone-400">
+              当前编辑：卡池{activePool}（{activePool === 'A' ? '首轮防守' : '第二轮防守'}）
+            </span>
+            {saving && <span className="text-amber-400 animate-pulse">保存中…</span>}
+          </div>
+          {activationHint && (
+            <div className="text-amber-500/90 text-[11px] leading-snug">{activationHint}</div>
+          )}
         </div>
         <div className="flex items-center">
         <div className="flex flex-1">
@@ -382,19 +393,6 @@ export default function GarrisonLineup({ onClose }) {
         <button onClick={onClose}
           className="flex-shrink-0 px-3 py-3 text-stone-500 hover:text-white transition-colors">✕</button>
         </div>
-      </div>
-
-      {/* 城市信息 */}
-      <div className="px-3 py-1.5 bg-stone-800/50 border-b border-stone-700/30 text-xs text-stone-400 flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <span>🏯 驻地：{CITY_NAME}城</span>
-          <span className="text-stone-600 hidden sm:inline">|</span>
-          <span>当前编辑：卡池{activePool}（{activePool === 'A' ? '首轮防守' : '第二轮防守'}）</span>
-        </div>
-        {activationHint && (
-          <span className="text-amber-500/90 text-[11px] leading-snug sm:ml-auto sm:max-w-[55%] sm:text-right">{activationHint}</span>
-        )}
-        {saving && <span className="text-amber-400 sm:ml-auto animate-pulse">保存中...</span>}
       </div>
 
       {/* 主内容 */}

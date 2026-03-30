@@ -8,8 +8,9 @@ const { pool } = require('../database/connection');
 const { applyTroopDurabilityExhaustion } = require('./troopDurabilityService');
 const garrisonService = require('./garrisonService');
 
-/** 攻城战线占用：同键在 TTL 内不可被第二人（或本人第二开）占用，结算后释放；超时自动失效（毫秒） */
-const SIEGE_LOCK_TTL_MS = 40 * 60 * 1000;
+/** 攻城战线占用：同键在 TTL 内不可被第二人（或本人第二开）占用，结算后释放；超时自动失效（毫秒）
+ *  1 分钟：与多数自动战斗时长接近，避免 NPC 末档等场景被长时间占线；超长手动局若需占线应另做心跳续期 */
+const SIEGE_LOCK_TTL_MS = 1 * 60 * 1000;
 const siegeLocks = new Map(); // key -> { attackerId, lockedAt }
 
 function tryAcquireSiegeLock(lockKey, attackerId) {
@@ -162,8 +163,8 @@ async function generateNpcGarrison(cityId) {
       weaponType: troop.weapon_type,
       character: character ? {
         characterId: character.character_id,
-        name: character.character_name,
-        courtesyName: character.courtesy_name || character.character_name,
+        name: character.character_name || character.courtesy_name || '守军将领',
+        courtesyName: (character.courtesy_name || character.character_name || '守军将领'),
         rarity: character.rarity,
         luck: character.luck,
         courage: character.courage,
@@ -245,37 +246,7 @@ async function initiateSiege(cityId, playerId) {
       if (!tryAcquireSiegeLock(defLockKey, playerId)) continue;
 
       // 构建防守单位（BattleArena格式：属性×10）
-      const garrisonUnits = units.map((u, i) => ({
-        index: i,
-        troopId: u.troop.id,
-        troopName: u.troop.name,
-        rarity: u.troop.rarity,
-        troopType: u.troop.troopType,
-        weaponType: u.troop.weaponType,
-        attack: Math.round(u.troop.attack * 10),
-        defense: Math.round(u.troop.defense * 10),
-        speed: u.troop.speed,
-        movement: u.troop.movement,
-        attackRange: u.troop.range,
-        maxTroops: u.troop.maxTroops,
-        currentTroops: u.currentTroops,
-        character: u.character ? {
-          name: u.character.name,
-          courtesyName: u.character.courtesyName || u.character.name,
-          luck: Math.round(u.character.luck * 10),
-          courage: Math.round(u.character.courage * 10),
-          combat: Math.round(u.character.combat * 10),
-          command: Math.round(u.character.command * 10),
-          intelligence: Math.round(u.character.intelligence * 10),
-          politics: 50, charm: 50,
-          traitModifier: u.character.traitModifier || 0,
-        } : null,
-        alive: true,
-        _isPlayerDefender: true,
-        _garrisonPlayerId: u._garrisonPlayerId,
-        _garrisonSlot: u._garrisonSlot,
-        _troopInstanceId: u.troop.instanceId,
-      }));
+      const garrisonUnits = garrisonService.mapBuiltUnitsToSiegeNpcFormat(units);
 
       const isOnDuty = def.defense_source === 'main_lineup' || !!def.on_duty;
 
@@ -504,7 +475,7 @@ async function recordSiegeResult(warId, playerId, factionId, killedIndices, resu
       // 收集本次防守涉及的 player_id + garrison_slot 组合
       const garrisonKeys = new Map(); // key: "playerId|slot" → value: { playerId, slot }
       for (const unit of garrisonUnits) {
-        if (!unit || !unit._garrisonPlayerId || !unit._garrisonSlot) continue;
+        if (!unit || !unit._garrisonPlayerId || unit._garrisonSlot == null) continue;
         const key = `${unit._garrisonPlayerId}|${unit._garrisonSlot}`;
         if (!garrisonKeys.has(key)) {
           garrisonKeys.set(key, { playerId: unit._garrisonPlayerId, slot: unit._garrisonSlot });
@@ -543,6 +514,15 @@ async function recordSiegeResult(warId, playerId, factionId, killedIndices, resu
         await conn.query('UPDATE players SET reputation = reputation + ? WHERE player_id = ?', [reputationReward, playerId]);
       }
       await conn.query('UPDATE wars SET faction_kills = ?, npc_killed = npc_killed + ? WHERE war_id = ?', [JSON.stringify(factionKills), killCount, warId]);
+
+      // 披挂上阵：攻城方胜利时解除待战状态（列表人数与状态同步）
+      if (defenderType === 'pvp_online' && result === 'win' && defenderPlayerId) {
+        await conn.query(
+          'UPDATE players SET on_duty = FALSE, on_duty_city_id = NULL WHERE player_id = ?',
+          [defenderPlayerId]
+        );
+      }
+
       await conn.commit();
       return {
         warId, factionKills, npcKilled: killCount, npcTotal: garrisonUnits.length, siegeCompleted: false, winnerFaction: null,

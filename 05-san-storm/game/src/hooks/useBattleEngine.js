@@ -18,8 +18,16 @@ import * as fmt from '@/systems/battleTextFormatter';
 
 const GAME_BASE_URL = typeof import.meta !== 'undefined' && import.meta.env?.BASE_URL != null ? import.meta.env.BASE_URL : '';
 
+/** 自动战斗且页面在后台时置 true，用于 sleep 跳过间隔（后台标签会严重节流 setTimeout） */
+let sleepSkipDelaysForAutoBattle = false;
+
 function sleep(ms, speed = 1) {
-  return new Promise(r => setTimeout(r, ms / speed));
+  const instant =
+    sleepSkipDelaysForAutoBattle &&
+    typeof document !== 'undefined' &&
+    document.hidden;
+  const t = instant ? 0 : ms / (speed || 1);
+  return new Promise((r) => setTimeout(r, t));
 }
 
 function inB(y, x) { return y >= 0 && y < 10 && x >= 0 && x < 8; }
@@ -604,6 +612,8 @@ export function useBattleEngine({
 
   // ── 执行单回合 ──
   const executeSingleRound = useCallback(async () => {
+    sleepSkipDelaysForAutoBattle = !!autoBattleRef.current;
+
     const alive = battleTroops.filter(t => t.currentTroops > 0);
     if (alive.length === 0) return 'enemy_win';
     const players = alive.filter(t => t.faction === 'player');
@@ -726,15 +736,19 @@ export function useBattleEngine({
     }
 
     let result = 'continue';
-    while (result === 'continue') {
-      // 中途切换为手动：继续以手动模式执行（executeSingleRound内部会暂停等待玩家操作）
-      if (!autoBattleRef.current && !takenOver.current) {
-        takenOver.current = true;
-        addLog('🖐 玩家接管战斗，切换为手动模式', 'round');
-        speedRef.current = 1;
+    try {
+      while (result === 'continue') {
+        // 中途切换为手动：继续以手动模式执行（executeSingleRound内部会暂停等待玩家操作）
+        if (!autoBattleRef.current && !takenOver.current) {
+          takenOver.current = true;
+          addLog('🖐 玩家接管战斗，切换为手动模式', 'round');
+          speedRef.current = 1;
+        }
+        result = await executeSingleRound();
+        if (result === 'continue') await sleep(300, speedRef.current);
       }
-      result = await executeSingleRound();
-      if (result === 'continue') await sleep(300, speedRef.current);
+    } finally {
+      sleepSkipDelaysForAutoBattle = false;
     }
     takenOver.current = false;
     speedRef.current = 1;

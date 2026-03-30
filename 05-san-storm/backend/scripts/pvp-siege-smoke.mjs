@@ -85,7 +85,16 @@ async function main() {
   console.log('5) GET challenge status …');
   const st = await j(`/api/pvp/challenge/${ch.challengeId}/status`);
   console.log('   status:', st.status);
-  console.log('链路与内存挑战状态正常。若线上仍失败，检查是否多进程部署（PVP 挑战存在单进程内存 Map 中）。');
+
+  console.log('6) POST pvp/siege-resolve（披挂服务端权威）…');
+  const rs = await j('/api/pvp/siege-resolve', {
+    method: 'POST',
+    body: JSON.stringify({ challengeId: ch.challengeId, attackerId: ATTACKER_ID }),
+  });
+  if (!rs.success) throw new Error(JSON.stringify(rs));
+  console.log('   attackerWon:', rs.data.attackerWon, 'battleSeed:', rs.data.battleSeed, 'killed:', rs.data.killedIndices?.length);
+
+  console.log('链路与权威结算正常。多进程部署须将挑战状态外置（Redis/DB）。');
 }
 
 main().catch((e) => {

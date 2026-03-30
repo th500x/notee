@@ -31,10 +31,12 @@ function BattleMap({ mapResult, mapLabel, battleTroops, showTroops, isBattle, ma
       const hpPct = Math.round(troop.currentTroops / troop.maxTroops * 100);
       const rarityName = RARITY_LABEL[troop.rarity] || troop.rarity;
       const typeName = TYPE_LABEL[troop.troopType] || troop.troopType;
-      const charLine = troop.character ? `将领: ${troop.character.courtesyName || troop.character.name}` : null;
-      const critDodge = troop.character ? {
-        crit: ((troop.character.courage + troop.character.luck) / 80 * 100).toFixed(1),
-        dodge: troop.character.luck.toFixed(1),
+      const ch = troop.character;
+      const charDisplay = ch && (ch.courtesyName || ch.name || ch.courtesy_name || ch.character_name);
+      const charLine = charDisplay ? `将领: ${charDisplay}` : null;
+      const critDodge = ch ? {
+        crit: (((Number(ch.courage) || 0) + (Number(ch.luck) || 0)) / 80 * 100).toFixed(1),
+        dodge: (Number(ch.luck) || 0).toFixed(1),
       } : null;
       setTooltipContent({ type: 'troop', troop, fc, hpPct, rarityName, typeName, charLine, critDodge, isEnemy: troop.faction === 'enemy' });
     } else if (infoKey) {

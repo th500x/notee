@@ -26,7 +26,11 @@ import BattleAuxPanel from '@/components/battle/BattleAuxPanel';
 import MapLegend from '@/components/battle/MapLegend';
 import { MAP_W } from '@/components/battle/battleConstants';
 import '@/components/battle/BattleMap.css';
-import { calculateBattleScore } from '@/systems/battleScoreSystem';
+import {
+  calculateBattleScore,
+  getSiegeBattleScoreMultiplier,
+  mirrorTroopsForDefenderBattleScore,
+} from '@/systems/battleScoreSystem';
 import { battleAPI } from '@/services/battleApi';
 
 const STAGE = { LOADING: 'loading', READY: 'ready' };
@@ -66,12 +70,16 @@ function renderTroopsToDOM(mapCardRef, battleTroops, baseUrl = '') {
 
 /**
  * @param {object} [defenseReportMeta] 异步驻守防守战：战斗结束后为驻守方额外写入一条 pvp_defense 战报（recordOnly）
+ * @param {boolean} [recordOnly] 为 true 时只记战报、不通过 /battles 改兵力（防守方本地观战与攻城方结算去重）
+ * @param {string} [siegeDefenderType] 攻城 context：`npc` | `player_garrison` | `pvp_online`，用于战报积分倍率（与 getSiegeBattleScoreMultiplier 一致）
  */
 export default function BattleArena({
   playerUnits, enemyRarity, enemyUnits,
   silverAmount = 0, playerId, battleType = 'pve_event', opponentName = '敌军',
   onBattleEnd,
   defenseReportMeta = null,
+  recordOnly = false,
+  siegeDefenderType = null,
 }) {
   const [stage, setStage] = useState(STAGE.LOADING);
   const [layoutWidth, setLayoutWidth] = useState('auto');
@@ -145,7 +153,11 @@ export default function BattleArena({
       });
 
       const eResult = enemyUnits.slice(0, 4).map((npc, i) => {
-        const morale = Math.round(50 + Math.random() * 30) + (npc.character?.traitModifier || 0);
+        const raw = npc.character;
+        const charName = raw
+          ? (raw.courtesyName || raw.courtesy_name || raw.name || raw.character_name || raw.characterName)
+          : null;
+        const morale = Math.round(50 + Math.random() * 30) + (raw?.traitModifier ?? raw?.trait_modifier ?? 0);
         const npcTroopMeta = {
           id: npc.troopId,
           rarity: npc.rarity,
@@ -153,6 +165,13 @@ export default function BattleArena({
           weaponType: npc.weaponType,
         };
         const attempts = getTroopPortraitUrlAttempts(npcTroopMeta, baseUrl);
+        const luckRaw = raw != null && raw.luck != null ? Number(raw.luck) : 50;
+        const courageRaw = raw != null && raw.courage != null ? Number(raw.courage) : 50;
+        const combatRaw = raw != null && raw.combat != null ? Number(raw.combat) : 50;
+        const commandRaw = raw != null && raw.command != null ? Number(raw.command) : 50;
+        const intelRaw = raw != null && raw.intelligence != null ? Number(raw.intelligence) : 50;
+        const polRaw = raw != null && raw.politics != null ? Number(raw.politics) : 50;
+        const charmRaw = raw != null && raw.charm != null ? Number(raw.charm) : 50;
         return {
           id: npc.troopId + '_e' + i,
           name: npc.troopName, rarity: npc.rarity,
@@ -162,15 +181,15 @@ export default function BattleArena({
           maxTroops: npc.maxTroops, currentTroops: npc.currentTroops ?? npc.maxTroops,
           faction: 'enemy',
           y: enemyPositions[i].y, x: enemyPositions[i].x,
-          character: npc.character ? {
-            name: npc.character.name,
-            courtesyName: npc.character.courtesyName || npc.character.name,
-            luck: npc.character.luck / 10, courage: npc.character.courage / 10,
-            combat: npc.character.combat / 10, command: npc.character.command / 10,
-            intelligence: npc.character.intelligence / 10,
-            politics: npc.character.politics / 10, charm: npc.character.charm / 10,
+          character: raw && charName ? {
+            name: charName,
+            courtesyName: charName,
+            luck: luckRaw / 10, courage: courageRaw / 10,
+            combat: combatRaw / 10, command: commandRaw / 10,
+            intelligence: intelRaw / 10,
+            politics: polRaw / 10, charm: charmRaw / 10,
           } : null,
-          displayName: npc.character ? (npc.character.courtesyName || npc.character.name) : npc.troopName,
+          displayName: charName || npc.troopName,
           morale: Math.max(0, Math.min(100, morale)),
           imgSrc: attempts[0],
           imgPortraitAttempts: attempts,
@@ -230,7 +249,12 @@ export default function BattleArena({
         clearInterval(check);
         if (!mountedRef.current) return;
         const silverSpent = (silverAmount) - bm.silverAmount;
-        const scoreResult = calculateBattleScore(bm.battleTroops, bm.roundNum, result);
+        const siegeMult =
+          battleType === 'pve_siege' || battleType === 'pvp_siege'
+            ? getSiegeBattleScoreMultiplier(siegeDefenderType)
+            : 1;
+        const scoreOpts = { scoreMultiplier: siegeMult };
+        const scoreResult = calculateBattleScore(bm.battleTroops, bm.roundNum, result, scoreOpts);
 
         const playerTroops = bm.battleTroops.filter(t => t.faction === 'player');
         const enemyTroops = bm.battleTroops.filter(t => t.faction === 'enemy');
@@ -251,24 +275,45 @@ export default function BattleArena({
         try {
           await battleAPI.saveBattle({
             battleId, playerId: playerId || 'unknown',
-            warId: battleType === 'pve_siege' && defenseReportMeta?.warId ? defenseReportMeta.warId : undefined,
-            battleType, opponentType: 'event_enemy', opponentName,
+            warId: (battleType === 'pve_siege' || battleType === 'pvp_siege') && defenseReportMeta?.warId ? defenseReportMeta.warId : undefined,
+            battleType,
+            opponentType: battleType === 'pvp_siege' ? 'player' : 'event_enemy',
+            opponentName,
             result: result === 'victory' ? 'win' : 'lose',
             playerTeam: playerTroops.map(t => ({ name: t.character?.courtesyName || t.name, rarity: t.rarity })),
             opponentTeam: enemyTroops.map(t => ({ name: t.character?.courtesyName || t.name, rarity: t.rarity })),
             battleLog: logText, totalKills, duration: bm.roundNum,
-            rewards: { battleScore: scoreResult.score, battleGrade: scoreResult.grade, scoreDetails: scoreResult.details },
+            rewards: {
+              battleScore: scoreResult.score,
+              battleGrade: scoreResult.grade,
+              scoreDetails: scoreResult.details,
+            },
             troopCasualties, moraleUpdates,
             chestRewards: typeof manualBattleRef.current?.getCollectedChestRewards === 'function'
               ? manualBattleRef.current.getCollectedChestRewards()
               : [],
+            recordOnly,
           });
 
-          if (battleType === 'pve_siege' && defenseReportMeta?.defenderPlayerId) {
+          if ((battleType === 'pve_siege' || battleType === 'pvp_siege') && defenseReportMeta?.defenderPlayerId) {
             const meta = defenseReportMeta;
             const defenderLosses = enemyTroops.filter(t => t.currentTroops <= 0).length;
             const defBattleId = `battle_${Date.now()}_def_${Math.random().toString(36).slice(2, 10)}`;
-            const defLog = `[驻守防守·${meta.cityName || '城池'}] vs ${meta.attackerName || '攻城方'}\n${logText}`;
+            const defLog = [
+              `【驻守防守】${meta.cityName || '城池'}`,
+              `来犯：${meta.attackerName || '攻城方'}`,
+              '────────',
+              '（以下为同一场战斗记录；您为守城方，攻城方为对手，战况与攻城方客户端战报同源）',
+              '',
+              logText,
+            ].join('\n');
+            const defPerspectiveResult = result === 'victory' ? 'defeat' : 'victory';
+            const defScoreResult = calculateBattleScore(
+              mirrorTroopsForDefenderBattleScore(bm.battleTroops),
+              bm.roundNum,
+              defPerspectiveResult,
+              scoreOpts,
+            );
             await battleAPI.saveBattle({
               battleId: defBattleId,
               playerId: meta.defenderPlayerId,
@@ -283,7 +328,11 @@ export default function BattleArena({
               battleLog: defLog,
               totalKills: defenderLosses,
               duration: bm.roundNum,
-              rewards: null,
+              rewards: {
+                battleScore: defScoreResult.score,
+                battleGrade: defScoreResult.grade,
+                scoreDetails: defScoreResult.details,
+              },
               recordOnly: true,
             });
           }
