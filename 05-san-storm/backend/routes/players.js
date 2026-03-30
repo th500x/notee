@@ -118,15 +118,9 @@ async function maybeResetExploreTroopChainsDaily(playerId) {
 
     const storedStr = mysqlDateToYmd(row.explore_chain_reset_date);
 
-    if (!storedStr) {
-      await pool.query(
-        'UPDATE player_events SET explore_chain_reset_date = ? WHERE player_id = ?',
-        [todayStr, playerId]
-      );
-      return;
-    }
-
-    if (storedStr >= todayStr) return;
+    // 仅当「本日已写过重置日期」时跳过。explore_chain_reset_date 为 NULL（迁移后首次）时必须清掉
+    // 部队链完成记录，否则旧存档仍视为链已完成 → 可探索事件池为 0，要等到次日才会跨日清理。
+    if (storedStr && storedStr >= todayStr) return;
 
     let events = {};
     if (row.explore_events) {
