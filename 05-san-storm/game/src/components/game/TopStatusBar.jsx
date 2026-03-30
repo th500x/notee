@@ -15,6 +15,12 @@ const TAB_TITLES = {
   map: '世界地图',
 };
 
+function getXunLabel(day) {
+  if (day <= 10) return '上旬';
+  if (day <= 20) return '中旬';
+  return '下旬';
+}
+
 function ResourceBadge({ icon, value, low = false }) {
   return (
     <div className={`flex items-center space-x-0.5 rounded-full px-1.5 py-0.5 text-xs
@@ -55,7 +61,7 @@ export default function TopStatusBar({ activeTab, onOpenSidebar }) {
             className="text-amber-100/90 text-xs sm:text-sm font-semibold whitespace-nowrap tabular-nums shrink-0"
             title={`锚点：${gameTime.anchorAt} · ${gameTime.realHoursPerGameDay}现实小时/游戏日`}
           >
-            公元{mapGameDate.year}年{mapGameDate.month}月{mapGameDate.day}日
+            公元{mapGameDate.year}年{mapGameDate.month}月{getXunLabel(mapGameDate.day)}
           </span>
         )}
       </div>

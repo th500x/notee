@@ -32,12 +32,12 @@ const BATTLE_FILTERS = [
 ];
 
 /**
- * 三 Tab 内容区：固定同高（22rem），避免切换时外框跳动。
- * 中间列表 flex-1 占满顶栏与底栏之间的空间；底栏仅聊天有内容，高度随输入区走，
- * 不再固定 6rem + justify-end（那会留出一大片无效空白）。
+ * 三 Tab 内容区：固定同高，避免切换时外框跳动。
+ * 总高 24rem（在原先 22rem 基础上加高约一条气泡的 30%量级），多出来的给列表区。
+ * 中间列表 flex-1 占满顶栏与底栏之间的空间；底栏仅聊天有内容，高度随输入区走。
  */
 const COMM_TAB_BODY_CLASS =
-  'flex flex-col h-[22rem] min-h-[22rem] max-h-[22rem] w-full shrink-0 overflow-hidden';
+  'flex flex-col h-96 min-h-96 max-h-96 w-full shrink-0 overflow-hidden';
 const COMM_TAB_SCROLL_CLASS =
   'flex-1 min-h-0 basis-0 overflow-y-auto overflow-x-hidden';
 const COMM_TAB_TOP_SLOT_CLASS =

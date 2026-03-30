@@ -1,30 +1,51 @@
 /**
  * 个人中心侧边栏
- * 
+ *
  * @description 从右侧滑入的个人中心面板
  */
 
-import { useEffect } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { usePlayerContext } from '@/contexts/PlayerContext';
+import PersonalSidebarTeamPanel from '@/components/game/PersonalSidebarTeamPanel';
 
 const MENU_ITEMS = [
-  { id: 'stats',       icon: '📊', label: '统计数据' },
-  { id: 'titles',      icon: '🎖️', label: '称号' },
+  { id: 'stats', icon: '📊', label: '统计' },
+  { id: 'titles', icon: '🎖️', label: '称号' },
   { id: 'achievements', icon: '🏆', label: '成就' },
-  { id: 'settings',    icon: '⚙️', label: '设置' },
-  { id: 'help',        icon: '📖', label: '帮助' },
+  { id: 'settings', icon: '⚙️', label: '设置' },
+  { id: 'team', icon: '👥', label: '团队' },
 ];
 
 export default function PersonalSidebar({ open, onClose, onLogout }) {
   const { player } = usePlayerContext();
+  const [subView, setSubView] = useState(null); // null | 'team'
+  const teamPanelRef = useRef(null);
 
-  // ESC关闭
+  // ESC：团队详情 → 团队列表 → 主菜单 → 关侧边栏
   useEffect(() => {
     if (!open) return;
-    const handler = (e) => { if (e.key === 'Escape') onClose(); };
+    const handler = (e) => {
+      if (e.key !== 'Escape') return;
+      if (subView === 'team') {
+        const handled = teamPanelRef.current?.handleEscape?.();
+        if (handled) return;
+        setSubView(null);
+        return;
+      }
+      if (subView) {
+        setSubView(null);
+        return;
+      }
+      onClose();
+    };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [open, onClose]);
+  }, [open, onClose, subView]);
+
+  // 关闭抽屉时重置子页
+  useEffect(() => {
+    if (!open) setSubView(null);
+  }, [open]);
 
   // 阻止背景滚动
   useEffect(() => {
@@ -33,11 +54,16 @@ export default function PersonalSidebar({ open, onClose, onLogout }) {
     } else {
       document.body.style.overflow = '';
     }
-    return () => { document.body.style.overflow = ''; };
+    return () => {
+      document.body.style.overflow = '';
+    };
   }, [open]);
 
   const handleMenuClick = (id) => {
-    // 暂时所有功能都提示尚未实装
+    if (id === 'team') {
+      setSubView('team');
+      return;
+    }
     alert('⚠️ 尚未实装');
   };
 
@@ -52,54 +78,68 @@ export default function PersonalSidebar({ open, onClose, onLogout }) {
       )}
 
       {/* 侧边栏 */}
-      <div className={`fixed top-0 right-0 bottom-0 w-[300px] max-w-[80vw] bg-white z-[70] shadow-2xl
+      <div
+        className={`fixed top-0 right-0 bottom-0 w-[300px] max-w-[80vw] bg-white z-[70] shadow-2xl
+        flex flex-col h-full max-h-[100dvh]
         transform transition-transform duration-300 ease-in-out
         ${open ? 'translate-x-0' : 'translate-x-full'}`}
       >
         {/* 头部 */}
-        <div className="flex items-center justify-between px-4 py-4 bg-amber-800 text-white">
+        <div className="flex shrink-0 items-center justify-between px-4 py-4 bg-amber-800 text-white">
           <span className="text-lg font-bold">个人中心</span>
-          <button onClick={onClose} className="text-xl hover:text-yellow-300 transition-colors">✕</button>
+          <button onClick={onClose} className="text-xl hover:text-yellow-300 transition-colors" type="button">
+            ✕
+          </button>
         </div>
 
-        {/* 玩家信息 */}
-        {player && (
-          <div className="px-4 py-4 border-b border-gray-200 bg-amber-50">
-            <div className="flex items-center gap-3">
-              {player.avatar && (
-                <img
-                  src={`${import.meta.env.BASE_URL}${player.avatar}`}
-                  alt="头像"
-                  className="w-12 h-12 rounded-full object-cover border-2 border-amber-600"
-                />
-              )}
-              <div>
-                <div className="font-bold text-gray-900">{player.character_name}</div>
-                <div className="text-sm text-gray-600">
-                  {player.faction_name} · {player.current_position_name || '无官职'}
+        {subView === 'team' ? (
+          <div className="flex flex-1 flex-col min-h-0 overflow-hidden">
+            <PersonalSidebarTeamPanel ref={teamPanelRef} onBack={() => setSubView(null)} />
+          </div>
+        ) : (
+          <>
+            {/* 玩家信息 */}
+            {player && (
+              <div className="shrink-0 px-4 py-4 border-b border-gray-200 bg-amber-50">
+                <div className="flex items-center gap-3">
+                  {player.avatar && (
+                    <img
+                      src={`${import.meta.env.BASE_URL}${player.avatar}`}
+                      alt="头像"
+                      className="w-12 h-12 rounded-full object-cover border-2 border-amber-600"
+                    />
+                  )}
+                  <div className="min-w-0">
+                    <div className="font-bold text-gray-900 truncate">{player.character_name}</div>
+                    <div className="text-sm text-gray-600 truncate" title={player.player_id}>
+                      用户ID：{player.player_id || '—'}
+                    </div>
+                  </div>
                 </div>
               </div>
+            )}
+
+            {/* 菜单列表 */}
+            <div className="flex-1 min-h-0 overflow-y-auto py-2">
+              {MENU_ITEMS.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => handleMenuClick(item.id)}
+                  className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-100 transition-colors"
+                >
+                  <span className="text-xl">{item.icon}</span>
+                  <span className="text-gray-800 font-medium">{item.label}</span>
+                </button>
+              ))}
             </div>
-          </div>
+          </>
         )}
 
-        {/* 菜单列表 */}
-        <div className="py-2">
-          {MENU_ITEMS.map((item) => (
-            <button
-              key={item.id}
-              onClick={() => handleMenuClick(item.id)}
-              className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-100 transition-colors"
-            >
-              <span className="text-xl">{item.icon}</span>
-              <span className="text-gray-800 font-medium">{item.label}</span>
-            </button>
-          ))}
-        </div>
-
         {/* 底部退出 */}
-        <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-200">
+        <div className="shrink-0 p-4 border-t border-gray-200 bg-white">
           <button
+            type="button"
             onClick={onLogout}
             className="w-full py-2.5 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors font-medium"
           >
