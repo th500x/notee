@@ -213,7 +213,7 @@ export default function WorldMap({ onEventBusyChange }) {
   }, [canSiege, player, siegeQuota]);
 
   // 战斗结束
-  const handleSiegeEnd = useCallback(async (result, silverSpent, scoreResult, killedIndices) => {
+  const handleSiegeEnd = useCallback(async (result, silverSpent, scoreResult, killedIndices, meta) => {
     if (!siegeData) return;
     // 防守方本地进入战场：兵力结算仅以攻城方提交的 siege-result 为准，此处只关界面并刷新
     if (siegeData.skipSiegeResult) {
@@ -232,6 +232,8 @@ export default function WorldMap({ onEventBusyChange }) {
           killedIndices: killedIndices || [],
           result: result === 'victory' ? 'win' : 'lose',
           silverSpent: silverSpent || 0,
+          battleScore: Number(scoreResult?.score) || 0,
+          battleReportSaved: meta?.battleReportSaved !== false,
           defenderType: siegeData.defenderType || 'npc',
           defenderPlayerId: siegeData.defenderPlayerId || null,
           defenderGarrisonSlot: siegeData.defenderGarrisonSlot ?? null,

@@ -114,6 +114,7 @@ router.post('/:cityId/siege', async (req, res) => {
 router.post('/siege-result', async (req, res) => {
   try {
     const { warId, playerId, factionId, killedIndices, result, silverSpent,
+            battleScore, battleReportSaved,
             defenderType, defenderPlayerId, defenderGarrisonSlot, garrisonUnits, npcBatchIndex } = req.body;
     if (!warId || !playerId || !factionId) {
       return res.status(400).json({ success: false, error: '缺少必要参数' });
@@ -121,7 +122,10 @@ router.post('/siege-result', async (req, res) => {
 
     const data = await cityService.recordSiegeResult(
       warId, playerId, factionId, killedIndices || [], result || 'win', silverSpent || 0,
-      { defenderType, defenderPlayerId, defenderGarrisonSlot, garrisonUnits, npcBatchIndex }
+      {
+        defenderType, defenderPlayerId, defenderGarrisonSlot, garrisonUnits, npcBatchIndex,
+        battleScore, battleReportSaved,
+      }
     );
     res.json({ success: true, data });
   } catch (error) {

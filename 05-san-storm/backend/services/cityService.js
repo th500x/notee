@@ -395,7 +395,11 @@ async function initiateSiege(cityId, playerId) {
  * @param {object} defenderInfo - 防守者信息
  */
 async function recordSiegeResult(warId, playerId, factionId, killedIndices, result, silverSpent = 0, defenderInfo = {}) {
-  const { defenderType, defenderPlayerId, garrisonUnits, defenderGarrisonSlot, npcBatchIndex } = defenderInfo || {};
+  const {
+    defenderType, defenderPlayerId, garrisonUnits, defenderGarrisonSlot, npcBatchIndex,
+    battleScore, battleReportSaved,
+  } = defenderInfo || {};
+  const shouldFallbackAddBattleScore = Number(battleScore) > 0 && battleReportSaved === false;
 
   const defSlotForLock =
     defenderGarrisonSlot != null
@@ -520,6 +524,23 @@ async function recordSiegeResult(warId, playerId, factionId, killedIndices, resu
         await conn.query(
           'UPDATE players SET on_duty = FALSE, on_duty_city_id = NULL WHERE player_id = ?',
           [defenderPlayerId]
+        );
+      }
+
+      // 兜底：当前端战报未落库时，在攻城结算阶段补记活动战斗积分（避免排行榜漏加）
+      if (shouldFallbackAddBattleScore) {
+        await conn.query(
+          'UPDATE statistics SET total_battle_score = total_battle_score + ? WHERE player_id = ?',
+          [Number(battleScore), playerId]
+        );
+        console.log(
+          `[siege-score-fallback] ${JSON.stringify({
+            warId,
+            playerId,
+            battleScore: Number(battleScore),
+            defenderType: defenderType || 'unknown',
+            source: 'recordSiegeResult.player_defender',
+          })}`
         );
       }
 
@@ -689,6 +710,23 @@ async function recordSiegeResult(warId, playerId, factionId, killedIndices, resu
       );
 
       siegeCompleted = true;
+    }
+
+    // 兜底：当前端战报未落库时，在攻城结算阶段补记活动战斗积分（避免排行榜漏加）
+    if (shouldFallbackAddBattleScore) {
+      await connection.query(
+        'UPDATE statistics SET total_battle_score = total_battle_score + ? WHERE player_id = ?',
+        [Number(battleScore), playerId]
+      );
+      console.log(
+        `[siege-score-fallback] ${JSON.stringify({
+          warId,
+          playerId,
+          battleScore: Number(battleScore),
+          defenderType: defenderType || 'npc',
+          source: 'recordSiegeResult.npc_defender',
+        })}`
+      );
     }
 
     await connection.commit();

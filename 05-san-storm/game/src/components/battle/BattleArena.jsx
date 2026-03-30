@@ -272,8 +272,9 @@ export default function BattleArena({
         }
 
         const battleId = `battle_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+        let attackerBattleSaved = false;
         try {
-          await battleAPI.saveBattle({
+          const attackerPayload = {
             battleId, playerId: playerId || 'unknown',
             warId: (battleType === 'pve_siege' || battleType === 'pvp_siege') && defenseReportMeta?.warId ? defenseReportMeta.warId : undefined,
             battleType,
@@ -293,7 +294,21 @@ export default function BattleArena({
               ? manualBattleRef.current.getCollectedChestRewards()
               : [],
             recordOnly,
-          });
+          };
+          // 网络抖动/瞬时异常时重试，减少“战报偶发未写入”
+          for (let attempt = 1; attempt <= 2; attempt += 1) {
+            const saveRes = await battleAPI.saveBattle(attackerPayload);
+            if (saveRes?.success) {
+              attackerBattleSaved = true;
+              break;
+            }
+            if (attempt < 2) {
+              // 间隔极短，不影响主流程结算
+              await new Promise((resolve) => setTimeout(resolve, 180));
+            } else {
+              console.error('[BattleArena] 攻城战报保存失败（重试后）:', saveRes?.error || 'unknown');
+            }
+          }
 
           if ((battleType === 'pve_siege' || battleType === 'pvp_siege') && defenseReportMeta?.defenderPlayerId) {
             const meta = defenseReportMeta;
@@ -340,7 +355,13 @@ export default function BattleArena({
           console.error('[BattleArena] 保存战报失败:', err);
         }
 
-        onBattleEndRef.current?.(result, silverSpent > 0 ? silverSpent : 0, scoreResult, killedIndices);
+        onBattleEndRef.current?.(
+          result,
+          silverSpent > 0 ? silverSpent : 0,
+          scoreResult,
+          killedIndices,
+          { battleReportSaved: attackerBattleSaved }
+        );
       }
     }, 200);
     return () => clearInterval(check);
