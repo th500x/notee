@@ -233,7 +233,7 @@ async function listMessages(viewerPlayerId, { channelType: rawType, channelId: r
   for (const row of rows) {
     messages.push(rowToClient(row, channelLabel ? { channelLabel } : {}));
   }
-  messages.reverse();
+  // 与 SQL「DESC」一致：messages[0] 为最新一条；前端自上而下展示时，最新在最上方
 
   return {
     ok: true,

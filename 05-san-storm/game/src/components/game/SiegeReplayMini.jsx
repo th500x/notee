@@ -23,12 +23,17 @@ export function parseSiegeReplaySteps(battleLog, leftLabel, rightLabel) {
   for (const line of lines) {
     if (!line.includes('回合') || (!line.includes('造成') && !line.includes('损失'))) continue;
     const dmgMatch = line.match(/造成\s*(\d+)\s*损失/) || line.match(/造成\s*(\d+)/);
-    if (!dmgMatch) continue;
-    const damage = parseInt(dmgMatch[1], 10);
+    const lossOnly = !dmgMatch && /损失\s*(\d+)/.test(line);
+    const lossMatch = lossOnly ? line.match(/损失\s*(\d+)/) : null;
+    if (!dmgMatch && !lossMatch) continue;
+    const damage = parseInt((dmgMatch || lossMatch)[1], 10);
+    if (!Number.isFinite(damage) || damage <= 0) continue;
     const crit = line.includes('暴击');
     const m = line.match(/第\d+回合[：:]\s*(.+?)\s+对\s+(.+?)\s+/);
     let side = 'atk';
-    if (m) {
+    if (lossOnly && /守军[^。]*遭[^。]*攻城/.test(line)) {
+      side = 'def';
+    } else if (m) {
       const striker = m[1].trim();
       const lHit = L.length > 0 && (striker.includes(L) || L.split(/[·\s]/).some((p) => p && striker.includes(p)));
       const rHit = R.length > 0 && (striker.includes(R) || R.split(/[·\s]/).some((p) => p && striker.includes(p)));
@@ -39,6 +44,8 @@ export function parseSiegeReplaySteps(battleLog, leftLabel, rightLabel) {
         const iR = line.indexOf(R.slice(0, Math.min(3, R.length)));
         if (iR !== -1 && (iL === -1 || iR < iL)) side = 'def';
       }
+    } else if (/守军[^。]*反击[^。]*攻城/.test(line)) {
+      side = 'atk';
     }
     steps.push({ side, damage, crit, text: line });
   }

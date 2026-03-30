@@ -20,6 +20,7 @@ import AncientModal from '@/components/common/AncientModal';
 import GarrisonLineup from '@/components/garrison/GarrisonLineup';
 import { garrisonAPI } from '@/services/garrisonApi';
 import { API_CONFIG } from '@/constants';
+import SiegeReplayMini from '@/components/game/SiegeReplayMini';
 
 const BG_CACHE_KEY = 'game_intro_bg';
 const BG_DIR = 'assets/san_1_map/illus_bg/';
@@ -62,6 +63,115 @@ function getCachedBg() {
   return BG_DIR + DEFAULT_BG;
 }
 
+/** 攻城结算里服务端权威战报的简化回放入口 */
+function AuthoritativeSiegeReplayButton({ battleLogLines }) {
+  const [open, setOpen] = useState(false);
+  const logStr = Array.isArray(battleLogLines) ? battleLogLines.join('\n') : '';
+  const canReplay =
+    logStr.length > 12 &&
+    /第\d+回合/.test(logStr) &&
+    (/对\s+.+\s+造成/.test(logStr) || /造成\s*\d+/.test(logStr) || /损失\s+\d+/.test(logStr));
+  if (!canReplay) return null;
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="w-full py-2 rounded-lg bg-stone-800 border border-amber-600/40 text-amber-200 text-xs hover:bg-stone-700"
+      >
+        攻城战报 · 简化回放
+      </button>
+      {open && (
+        <AncientModal
+          isOpen
+          onClose={() => setOpen(false)}
+          type="confirm"
+          title="攻城战报 · 简化回放"
+          hideButtons
+          width="max-w-md"
+        >
+          <div className="-mx-2 -my-2 bg-[#1a1a2e] rounded p-2 text-left">
+            <SiegeReplayMini
+              open
+              onClose={() => setOpen(false)}
+              battleLog={logStr}
+              leftLabel="攻城方"
+              rightLabel="守军"
+            />
+          </div>
+        </AncientModal>
+      )}
+    </>
+  );
+}
+
+/** 披挂 PVP 裁定结束：文字战报 + 可选简化回放（与战报列表 SiegeReplayMini 同源） */
+function PvpDefenseOutcomeModal({ outcome, onClose }) {
+  const [replayOpen, setReplayOpen] = useState(false);
+  const logLines = Array.isArray(outcome?.battleLog) ? outcome.battleLog : [];
+  const logStr = logLines.join('\n');
+  const canReplay =
+    logStr.length > 12 &&
+    /第\d+回合/.test(logStr) &&
+    (/对\s+.+\s+造成/.test(logStr) || /造成\s*\d+/.test(logStr) || /损失\s+\d+/.test(logStr));
+
+  return (
+    <>
+      <AncientModal
+        isOpen
+        type="info"
+        title="⚔️ 战斗结束"
+        confirmText="确定"
+        onConfirm={onClose}
+      >
+        <div className="text-center space-y-2 text-sm text-gray-800 max-h-48 overflow-y-auto text-left px-1">
+          <p>
+            {outcome.attackerWon ? (
+              <span className="text-red-600 font-bold">攻城方获胜</span>
+            ) : (
+              <span className="text-green-700 font-bold">守军防守成功</span>
+            )}
+          </p>
+          {canReplay && (
+            <button
+              type="button"
+              onClick={() => setReplayOpen(true)}
+              className="w-full py-2 rounded-lg bg-amber-800/50 border border-amber-600/50 text-amber-100 text-xs hover:bg-amber-700/50"
+            >
+              攻城战报 · 简化回放
+            </button>
+          )}
+          {logLines.length > 0 && (
+            <pre className="text-[11px] text-gray-600 whitespace-pre-wrap font-sans border-t border-gray-200 pt-2 mt-2">
+              {logLines.slice(-20).join('\n')}
+            </pre>
+          )}
+        </div>
+      </AncientModal>
+      {replayOpen && (
+        <AncientModal
+          isOpen
+          onClose={() => setReplayOpen(false)}
+          type="confirm"
+          title="攻城战报 · 简化回放"
+          hideButtons
+          width="max-w-md"
+        >
+          <div className="-mx-2 -my-2 bg-[#1a1a2e] rounded p-2 text-left">
+            <SiegeReplayMini
+              open
+              onClose={() => setReplayOpen(false)}
+              battleLog={logStr}
+              leftLabel="攻城方"
+              rightLabel="守军"
+            />
+          </div>
+        </AncientModal>
+      )}
+    </>
+  );
+}
+
 export default function WorldMap({ onEventBusyChange }) {
   const bgPath = getCachedBg();
   const baseUrl = import.meta.env.BASE_URL;
@@ -100,7 +210,6 @@ export default function WorldMap({ onEventBusyChange }) {
   const [pvpChallenge, setPvpChallenge] = useState(null); // { challengeId, waitSeconds, defenseUnits, ... }
   const [pvpCountdown, setPvpCountdown] = useState(0);
   const pvpTimerRef = useRef(null);
-  const pvpPollRef = useRef(null);
   const pvpResolveOnceRef = useRef(false);
 
   // ── 防守方：轮询是否有 PVP 挑战 ──
@@ -111,6 +220,8 @@ export default function WorldMap({ onEventBusyChange }) {
   const [pvpAttackerAdjudicating, setPvpAttackerAdjudicating] = useState(null); // { defenderName, startedAt }
   const defPollRef = useRef(null);
   const pvpDefenseOutcomeHandledRef = useRef(false);
+  /** 用户已点「确定」或窗口到期进入裁定等待时，不再重复弹出遇袭框（pending 轮询会持续数秒） */
+  const silencedDefenseChallengeRef = useRef(null);
 
   useEffect(() => {
     if (!player?.player_id || !onDuty) return;
@@ -119,15 +230,23 @@ export default function WorldMap({ onEventBusyChange }) {
         const res = await fetch(`${API_CONFIG.BASE_URL}/pvp/pending/${player.player_id}`).then(r => r.json());
         if (res.success && res.challenge) {
           const c = res.challenge;
+          if (silencedDefenseChallengeRef.current && silencedDefenseChallengeRef.current === c.challengeId) {
+            return;
+          }
+          if (silencedDefenseChallengeRef.current && silencedDefenseChallengeRef.current !== c.challengeId) {
+            silencedDefenseChallengeRef.current = null;
+          }
           setPvpDefenseAlert(c);
           if (Notification.permission === 'granted') {
             new Notification('🏰 城池遭袭', {
-              body: `${c.attackerName}（${c.cityId}）遭到攻击，请主公在${c.remainingSeconds}秒内进入战场`,
+              body: `${c.attackerName} 正在攻打我方城池，${c.remainingSeconds} 秒内可点确定查看战报`,
               tag: 'siege-pvp',
             });
           } else if (Notification.permission !== 'denied') {
             Notification.requestPermission();
           }
+        } else if (res.success && !res.challenge) {
+          silencedDefenseChallengeRef.current = null;
         }
       } catch {}
     };
@@ -156,6 +275,29 @@ export default function WorldMap({ onEventBusyChange }) {
     } catch {}
   }, []);
   useEffect(() => { refreshCity(); }, [refreshCity]);
+
+  /** 遇袭：关闭通知并进入「裁定中」轮询（与是否点确定一致；不再调用 /accept，避免与 siege-resolve 竞态） */
+  const beginDefenseFollowUp = useCallback((alert) => {
+    if (!alert?.challengeId) return;
+    silencedDefenseChallengeRef.current = alert.challengeId;
+    setPvpDefenseAlert(null);
+    setPvpDefenseWaiting({
+      challengeId: alert.challengeId,
+      attackerName: alert.attackerName || '未知',
+      startedAt: Date.now(),
+    });
+  }, []);
+
+  // 遇袭通知：产品在约 waitSeconds 后自动关闭并进入裁定等待
+  useEffect(() => {
+    const id = pvpDefenseAlert?.challengeId;
+    if (!id || !pvpDefenseAlert?.waitSeconds) return undefined;
+    const sec = Math.min(60, Math.max(1, Number(pvpDefenseAlert.waitSeconds)));
+    const snap = { ...pvpDefenseAlert };
+    const t = setTimeout(() => beginDefenseFollowUp(snap), sec * 1000);
+    return () => clearTimeout(t);
+  }, [pvpDefenseAlert?.challengeId, pvpDefenseAlert?.waitSeconds, beginDefenseFollowUp]);
+
   // 从 player 数据初始化 onDuty 状态
   useEffect(() => {
     if (player?.on_duty == null) return;
@@ -268,7 +410,6 @@ export default function WorldMap({ onEventBusyChange }) {
       if (pvpResolveOnceRef.current) return;
       pvpResolveOnceRef.current = true;
       clearInterval(pvpTimerRef.current);
-      clearInterval(pvpPollRef.current);
       const ch = pvpChallenge;
       const adjudicationStartedAt = Date.now();
       setPvpAttackerAdjudicating({
@@ -316,18 +457,8 @@ export default function WorldMap({ onEventBusyChange }) {
       });
     }, 1000);
 
-    pvpPollRef.current = setInterval(async () => {
-      try {
-        const res = await fetch(`${API_CONFIG.BASE_URL}/pvp/challenge/${pvpChallenge.challengeId}/status`).then((r) => r.json());
-        if (res.success && res.status === 'accepted') {
-          runResolve();
-        }
-      } catch {}
-    }, 2000);
-
     return () => {
       clearInterval(pvpTimerRef.current);
-      clearInterval(pvpPollRef.current);
     };
   }, [pvpChallenge, player?.player_id]);
 
@@ -609,7 +740,7 @@ export default function WorldMap({ onEventBusyChange }) {
         <AncientModal isOpen type="confirm" title="⚔️ 攻城对战" preventClose hideButtons>
           <div className="text-center space-y-4">
             <p className="text-gray-800 text-base">
-              主公的对手将在 <span className="text-red-700 font-bold text-xl">{pvpCountdown}</span> 秒后进入战场
+              约 <span className="text-red-700 font-bold text-xl">{pvpCountdown}</span> 秒后由服务端裁定本场（AI 代打）
             </p>
             <p className="text-gray-500 text-xs">
               对手：{pvpChallenge.defenderName || '未知'}
@@ -620,7 +751,7 @@ export default function WorldMap({ onEventBusyChange }) {
                 style={{ width: `${(pvpCountdown / pvpChallenge.waitSeconds) * 100}%` }}
               />
             </div>
-            <p className="text-gray-400 text-xs">等待防守方响应中...</p>
+            <p className="text-gray-400 text-xs">无需对方点接受，请稍候…</p>
           </div>
         </AncientModal>
       )}
@@ -649,68 +780,35 @@ export default function WorldMap({ onEventBusyChange }) {
       )}
 
       {pvpDefenseOutcome && (
-        <AncientModal
-          isOpen
-          type="info"
-          title="⚔️ 战斗结束"
-          confirmText="确定"
-          onConfirm={() => setPvpDefenseOutcome(null)}
-        >
-          <div className="text-center space-y-2 text-sm text-gray-800 max-h-48 overflow-y-auto text-left px-1">
-            <p>
-              {pvpDefenseOutcome.attackerWon ? (
-                <span className="text-red-600 font-bold">攻城方获胜</span>
-              ) : (
-                <span className="text-green-700 font-bold">守军防守成功</span>
-              )}
-            </p>
-            {Array.isArray(pvpDefenseOutcome.battleLog) && pvpDefenseOutcome.battleLog.length > 0 && (
-              <pre className="text-[11px] text-gray-600 whitespace-pre-wrap font-sans border-t border-gray-200 pt-2 mt-2">
-                {pvpDefenseOutcome.battleLog.slice(-12).join('\n')}
-              </pre>
-            )}
-          </div>
-        </AncientModal>
+        <PvpDefenseOutcomeModal
+          outcome={pvpDefenseOutcome}
+          onClose={() => {
+            silencedDefenseChallengeRef.current = null;
+            setPvpDefenseOutcome(null);
+          }}
+        />
       )}
 
       {pvpDefenseAlert && !siegeData && (
         <AncientModal
-          isOpen type="warning"
+          isOpen
+          type="warning"
           title="🏰 城池遭袭"
-          confirmText="进入战场"
-          showCancel cancelText="放弃（自动战斗）"
-          onConfirm={async () => {
-            try {
-              const acc = await fetch(`${API_CONFIG.BASE_URL}/pvp/challenge/${pvpDefenseAlert.challengeId}/accept`, {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ defenderId: player.player_id }),
-              }).then((r) => r.json());
-              if (!acc.success) {
-                window.alert(acc.error || '接受挑战失败');
-                return;
-              }
-              const cid = pvpDefenseAlert.challengeId;
-              setPvpDefenseAlert(null);
-              setPvpDefenseWaiting({
-                challengeId: cid,
-                attackerName: pvpDefenseAlert.attackerName || '未知',
-                startedAt: Date.now(),
-              });
-            } catch (e) {
-              console.error('[PVP] 进入战场失败:', e);
-              window.alert('进入战场失败');
-            }
-          }}
-          onCancel={() => setPvpDefenseAlert(null)}
+          confirmText="确定"
+          showCancel={false}
+          onConfirm={() => beginDefenseFollowUp(pvpDefenseAlert)}
         >
           <div className="text-center space-y-3">
             <p className="text-gray-800 text-base">
               <span className="font-bold text-red-700">{pvpDefenseAlert.attackerName}</span> 正在攻打城池
             </p>
             <p className="text-gray-800">
-              请主公在 <span className="text-red-700 font-bold text-xl">{pvpDefenseAlert.remainingSeconds}</span> 秒内进入战场
+              点击 <span className="font-semibold text-amber-900">确定</span> 可等待裁定结束后在战报中查看文字记录；也可稍后打开「聊天」面板「战报」页。
             </p>
-            <p className="text-gray-500 text-xs">放弃将由AI代为指挥作战</p>
+            <p className="text-gray-800">
+              约 <span className="text-red-700 font-bold text-xl">{pvpDefenseAlert.remainingSeconds}</span> 秒后本提示将自动关闭（战斗由服务端 AI 演算，与是否观战无关）。
+            </p>
+            <p className="text-gray-500 text-xs">提示关闭后请勿反复操作，稍候即弹出裁定结果。</p>
           </div>
         </AncientModal>
       )}
@@ -778,10 +876,13 @@ export default function WorldMap({ onEventBusyChange }) {
             {siegeResult.killCount != null && <div className="text-sm text-gray-300">本场击杀：{siegeResult.killCount}</div>}
             <div className="text-sm text-gray-400">NPC守军：{siegeResult.npcKilled}/{siegeResult.npcTotal} 已消灭</div>
             {Array.isArray(siegeResult.authoritativeBattleLog) && siegeResult.authoritativeBattleLog.length > 0 && (
-              <details className="text-left text-[11px] text-stone-400 max-h-32 overflow-y-auto mt-2">
-                <summary className="cursor-pointer text-amber-500/90">文字战报（服务端）</summary>
-                <pre className="whitespace-pre-wrap font-sans mt-1">{siegeResult.authoritativeBattleLog.join('\n')}</pre>
-              </details>
+              <>
+                <AuthoritativeSiegeReplayButton battleLogLines={siegeResult.authoritativeBattleLog} />
+                <details className="text-left text-[11px] text-stone-400 max-h-32 overflow-y-auto mt-2">
+                  <summary className="cursor-pointer text-amber-500/90">文字战报（服务端）</summary>
+                  <pre className="whitespace-pre-wrap font-sans mt-1">{siegeResult.authoritativeBattleLog.join('\n')}</pre>
+                </details>
+              </>
             )}
             {siegeResult.killCount === 0 && <div className="text-xs text-stone-500">（目标已被其他玩家击杀，无新增奖励）</div>}
             {siegeResult.siegeCompleted && (
@@ -791,7 +892,7 @@ export default function WorldMap({ onEventBusyChange }) {
             )}
             <button onClick={closeSiegeResult}
               className="w-full py-2.5 rounded-lg bg-gradient-to-r from-amber-700 to-yellow-700 text-amber-100 font-bold text-sm">
-              返回
+              确定
             </button>
           </div>
         </div>

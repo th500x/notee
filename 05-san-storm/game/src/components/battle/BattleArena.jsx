@@ -88,6 +88,8 @@ export default function BattleArena({
   const troopsRendered = useRef(false);
   const mountedRef = useRef(true);
   const manualBattleRef = useRef(null);
+  /** 攻城等预置敌方阵容时自动开战，避免未点「开始」导致不落战报 */
+  const siegeAutoStartedRef = useRef(false);
 
   useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; }; }, []);
 
@@ -210,6 +212,17 @@ export default function BattleArena({
     bm.toggleAutoFormation(true);
     setStage(STAGE.READY);
   }, [playerUnits, enemyUnits, enemyRarity, bm.allTroops.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (stage !== STAGE.READY || siegeAutoStartedRef.current) return;
+    if (!enemyUnits || enemyUnits.length === 0) return;
+    if (battleType !== 'pve_siege' && battleType !== 'pvp_siege') return;
+    siegeAutoStartedRef.current = true;
+    const t = requestAnimationFrame(() => {
+      engine.playBattleRound();
+    });
+    return () => cancelAnimationFrame(t);
+  }, [stage, enemyUnits, battleType, engine.playBattleRound]);
 
   // 渲染部队到 DOM
   useEffect(() => {

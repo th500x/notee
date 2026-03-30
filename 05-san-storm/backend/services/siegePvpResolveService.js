@@ -16,6 +16,7 @@ const {
   buildTroopsForDefenderScore,
   SIEGE_PVP_ONLINE_SCORE_MULT,
 } = require('../utils/battleScore.cjs');
+const { newShortBattleId } = require('../utils/battleId');
 
 /** 防止并发双次结算 */
 const resolvingPromises = new Map();
@@ -116,7 +117,7 @@ async function doResolveAuthoritativeSiegePvp(params) {
     }
   );
 
-  const battleId = `siege_pvp_${c.warId}_${Date.now().toString(36)}`;
+  const battleId = newShortBattleId('pvp_siege_att');
   try {
     await battleService.saveBattle({
       battleId,
@@ -139,10 +140,17 @@ async function doResolveAuthoritativeSiegePvp(params) {
       },
     });
   } catch (e) {
-    console.error('[siegePvpResolve] saveBattle attacker', e);
+    console.error('[siegePvpResolve] saveBattle attacker', {
+      message: e.message,
+      code: e.code,
+      sqlMessage: e.sqlMessage,
+      battleId,
+      attackerId,
+      warId: c.warId,
+    });
   }
 
-  const defBattleId = `siege_pvp_def_${c.warId}_${Date.now().toString(36)}`;
+  const defBattleId = newShortBattleId('pvp_siege_def');
   try {
     await battleService.saveBattle({
       battleId: defBattleId,
@@ -164,7 +172,14 @@ async function doResolveAuthoritativeSiegePvp(params) {
       recordOnly: true,
     });
   } catch (e) {
-    console.error('[siegePvpResolve] saveBattle defender', e);
+    console.error('[siegePvpResolve] saveBattle defender', {
+      message: e.message,
+      code: e.code,
+      sqlMessage: e.sqlMessage,
+      battleId: defBattleId,
+      defenderId: c.defenderId,
+      warId: c.warId,
+    });
   }
 
   // 与 POST /api/battles 一致：战报积分写入排行榜（服务端存战报不经由 HTTP）

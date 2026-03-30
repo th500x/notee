@@ -1,7 +1,7 @@
 /**
  * PVP 攻城挑战服务（内存方案）
  * 
- * 挑战生命周期只有 10-20 秒，不需要持久化到数据库。
+ * 挑战生命周期约 10 秒（遇袭通知窗口），不需要持久化到数据库。
  * 使用进程内 Map 存储，自动过期清理。
  * 
  * @module backend/services/pvpService
@@ -12,8 +12,9 @@ const { ts } = require('../utils/playerActivity');
 
 // ── 配置 ──
 const ONLINE_THRESHOLD_MS = 5 * 60 * 1000;  // 5分钟内活跃 = 在线
-const WAIT_IN_GAME = 15;    // 防守方近期活跃：略宽裕，便于披挂方完成首轮 pending 轮询
-const WAIT_NOT_IN_GAME = 25; // 防守方不活跃：更长等待，减少误伤
+// 与产品设计一致：遇袭通知统一 10 秒窗口（见 13-2 披挂遇袭）
+const WAIT_IN_GAME = 10;
+const WAIT_NOT_IN_GAME = 10;
 
 // ── 内存存储 ──
 // key: challengeId, value: challenge 对象
@@ -148,6 +149,13 @@ function acceptChallenge(challengeId, defenderId) {
   const c = challenges.get(challengeId);
   if (!c || c.defenderId !== defenderId) {
     return { success: false, error: '挑战不存在' };
+  }
+  // 服务端已裁定（攻城方 countdown 到期）后仍会尝试 accept → 不再报「异常」，便于兼容旧客户端
+  if (c.status === 'completed' && c.siegeOutcome) {
+    return { success: true, alreadyCompleted: true };
+  }
+  if (c.status === 'accepted') {
+    return { success: true, alreadyAccepted: true };
   }
   if (c.status !== 'pending') {
     return { success: false, error: c.status === 'timeout' ? '挑战已超时' : '挑战状态异常' };
