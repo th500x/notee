@@ -461,8 +461,32 @@ function BattleDetail({ detail }) {
             {rewards.battleGrade} · {rewards.battleScore}分
           </div>
           {rewards.scoreDetails && (
-            <div className="text-[10px] text-amber-200/40 mt-0.5">
-              消灭 +{rewards.scoreDetails.killScore} / 损失 {rewards.scoreDetails.lossScore}
+            <div className="text-[10px] text-amber-200/40 mt-0.5 space-y-0.5">
+              <div>
+                敌方消耗 +{rewards.scoreDetails.killScore} / 己方损失 {rewards.scoreDetails.lossScore}
+                <span className="text-amber-200/30">（评分项，非兵力）</span>
+              </div>
+              {(rewards.scoreDetails.baseScore != null ||
+                (rewards.scoreDetails.killScore != null && rewards.scoreDetails.lossScore != null)) && (
+                <div>
+                  基础分{' '}
+                  {rewards.scoreDetails.baseScore ??
+                    rewards.scoreDetails.killScore + rewards.scoreDetails.lossScore}
+                  （上两项代数和）
+                </div>
+              )}
+              {rewards.scoreDetails.turnMultiplier != null && rewards.scoreDetails.roundNum != null && (
+                <div>
+                  回合倍率 ×{rewards.scoreDetails.turnMultiplier}（第{rewards.scoreDetails.roundNum}回合）
+                </div>
+              )}
+              {rewards.scoreDetails.siegeScoreMultiplier != null &&
+                Number(rewards.scoreDetails.siegeScoreMultiplier) !== 1 && (
+                <div>攻城积分倍率 ×{rewards.scoreDetails.siegeScoreMultiplier}</div>
+              )}
+              <div className="text-[9px] text-amber-200/25 leading-tight">
+                最终分会再套用回合倍率、保底分与攻城倍率，故不等于「基础分×回合倍率」的简单乘积。
+              </div>
             </div>
           )}
         </div>
