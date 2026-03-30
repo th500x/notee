@@ -72,7 +72,7 @@ function AuthoritativeSiegeReplayButton({ battleLogLines, attackerStrikeNames, d
   const [open, setOpen] = useState(false);
   const logStr = Array.isArray(battleLogLines) ? battleLogLines.join('\n') : '';
   const canReplay =
-    logStr.length > 12 && /═══\s*第\s*\d+\s*回合\s*══=/.test(logStr) && /次攻击/.test(logStr);
+    logStr.length > 12 && /═══\s*第\s*\d+\s*回合\s*═══/.test(logStr) && /次攻击/.test(logStr);
   if (!canReplay) return null;
   return (
     <>
@@ -115,7 +115,7 @@ function PvpDefenseOutcomeModal({ outcome, onClose }) {
   const logLines = Array.isArray(outcome?.battleLog) ? outcome.battleLog : [];
   const logStr = logLines.join('\n');
   const canReplay =
-    logStr.length > 12 && /═══\s*第\s*\d+\s*回合\s*══=/.test(logStr) && /次攻击/.test(logStr);
+    logStr.length > 12 && /═══\s*第\s*\d+\s*回合\s*═══/.test(logStr) && /次攻击/.test(logStr);
 
   return (
     <>
@@ -374,7 +374,7 @@ export default function WorldMap({ onEventBusyChange }) {
       setSiegeData(null);
       setSiegeResult(null);
       refreshCity();
-      refreshPlayer();
+      refreshPlayer({ silent: true });
       return;
     }
     try {
@@ -408,7 +408,7 @@ export default function WorldMap({ onEventBusyChange }) {
       setSiegeResult({ npcKilled: 0, npcTotal: 0, silverReward: 0, error: '结算请求失败' });
     }
     refreshCity();
-    refreshPlayer();
+    refreshPlayer({ silent: true });
   }, [siegeData, player, refreshCity, refreshPlayer]);
 
   const closeSiegeResult = useCallback(() => { setSiegeData(null); setSiegeResult(null); }, []);
@@ -445,6 +445,7 @@ export default function WorldMap({ onEventBusyChange }) {
               siegeReplayAttackerNames: r.data.siegeReplayAttackerNames,
               siegeReplayDefenderNames: r.data.siegeReplayDefenderNames,
             });
+            refreshPlayer({ silent: true });
           });
         } else {
           scheduleAfterMinAdjudicationUi(adjudicationStartedAt, () => {
@@ -474,7 +475,7 @@ export default function WorldMap({ onEventBusyChange }) {
     return () => {
       clearInterval(pvpTimerRef.current);
     };
-  }, [pvpChallenge, player?.player_id]);
+  }, [pvpChallenge, player?.player_id, refreshPlayer]);
 
   // ── 防守方：已点「进入战场」→ 轮询服务端裁定结果 ──
   useEffect(() => {
@@ -497,7 +498,7 @@ export default function WorldMap({ onEventBusyChange }) {
             setPvpDefenseWaiting(null);
             setPvpDefenseOutcome(outcome);
             refreshCity();
-            refreshPlayer();
+            refreshPlayer({ silent: true });
           });
         }
       } catch {}

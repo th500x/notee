@@ -27,14 +27,14 @@ function sideOfName(name, attSet, defSet) {
 }
 
 /** 战术回合标题行（与棋盘战报 fmtRoundStart 一致） */
-const ROUND_HDR_RE = /^═══\s*第\s*(\d+)\s*回合\s*══=$/;
+const ROUND_HDR_RE = /^═══\s*第\s*(\d+)\s*回合\s*═══$/;
 
 /**
  * 单行：攻城推演日志 → 守城主公可读文案
  * @param {number | null} tacticalRound 当前战术回合（由「═══ 第 T 回合 ═══」累进）
  */
 function formatSkirmishLineForDefender(line, attSet, defSet, tacticalRound = null) {
-  if (/^═══\s*第\s*\d+\s*回合\s*══=$/.test(line.trim())) {
+  if (/^═══\s*第\s*\d+\s*回合\s*═══$/.test(line.trim())) {
     return line;
   }
   if (/攻城方全军覆没|交战前攻城方已无兵/.test(line)) {

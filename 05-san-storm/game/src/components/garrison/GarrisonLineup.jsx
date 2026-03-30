@@ -20,6 +20,9 @@ import EquipmentCard from '@shared/components/card/EquipmentCard';
 const CITY_ID = 'san_1_city_3_xinye';
 const CITY_NAME = '新野';
 
+/** 驻地编组面板打开期间：与上阵编组一致，定时轻量拉档案以更新兵力自然恢复等 */
+const GARRISON_PROFILE_POLL_MS = 60_000;
+
 /** 槽位定义 — 与 LineupTab 的 GENERAL_SLOTS 一致 */
 const GENERAL_SLOTS = [
   { id: 'troop1',    label: '部队1',  icon: '⚔️', side: 'left',  implemented: true },
@@ -86,6 +89,12 @@ export default function GarrisonLineup({ onClose }) {
   }, [player?.player_id]);
 
   useEffect(() => { loadGarrisons(); }, [loadGarrisons]);
+
+  useEffect(() => {
+    refresh({ silent: true });
+    const id = setInterval(() => refresh({ silent: true }), GARRISON_PROFILE_POLL_MS);
+    return () => clearInterval(id);
+  }, [refresh]);
 
   useEffect(() => {
     setActivationHint(null);

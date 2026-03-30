@@ -6,7 +6,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 
 const STEP_MS = 750;
-const ROUND_HDR = /^═══\s*第\s*(\d+)\s*回合\s*══=$/;
+const ROUND_HDR = /^═══\s*第\s*(\d+)\s*回合\s*═══$/;
 const STRIKE_LINE = /^第\s*(\d+)\s*次攻击[：:]\s*(.+)$/;
 
 function nameListMatches(striker, names) {

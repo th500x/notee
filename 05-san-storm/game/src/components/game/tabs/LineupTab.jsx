@@ -30,6 +30,9 @@ import EquipmentCard from '@shared/components/card/EquipmentCard';
 import TitleAchievementCard from '@shared/components/card/TitleAchievementCard';
 import PositionCard from '@shared/components/card/PositionCard';
 
+/** 编组页打开期间：轻量拉档案，使兵力自然恢复等随时间更新（无需整页刷新） */
+const LINEUP_PROFILE_POLL_MS = 60_000;
+
 const SUB_TABS = [
   { id: 'player', label: null }, // 动态生成：[玩家名]
   { id: 'char1',  label: '将领1' },
@@ -67,6 +70,13 @@ export default function LineupTab({ onClose }) {
   const [detailCard, setDetailCard] = useState(null); // 详情浮层：{ card, slot }
   const [skillsMap, setSkillsMap] = useState({});
   const [garrisonIds, setGarrisonIds] = useState(new Set()); // 被驻守占用的 instance_id
+
+  // 打开编组时静默拉最新档案；停留期间每分钟再拉一次（兵力自然恢复等）
+  useEffect(() => {
+    refresh({ silent: true });
+    const id = setInterval(() => refresh({ silent: true }), LINEUP_PROFILE_POLL_MS);
+    return () => clearInterval(id);
+  }, [refresh]);
 
   // 横屏检测：宽度≥768px 且 宽>高
   const [isLandscape, setIsLandscape] = useState(

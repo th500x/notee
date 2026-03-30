@@ -439,7 +439,7 @@ function BattleDetail({ detail }) {
     return base;
   }, [isDefenseReport, detail.opponentTeam, detail.playerTeam, detail.opponentName]);
   const canSiegeReplay =
-    logStr.length > 12 && /═══\s*第\s*\d+\s*回合\s*══=/.test(logStr) && /次攻击/.test(logStr);
+    logStr.length > 12 && /═══\s*第\s*\d+\s*回合\s*═══/.test(logStr) && /次攻击/.test(logStr);
 
   return (
     <div className="px-2 py-1.5 border-t border-amber-700/20 space-y-1.5">

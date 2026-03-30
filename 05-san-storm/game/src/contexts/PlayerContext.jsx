@@ -14,22 +14,25 @@ export function PlayerProvider({ playerId, children }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const loadProfile = useCallback(async () => {
+  const loadProfile = useCallback(async (options = {}) => {
+    const silent = options.silent === true;
     if (!playerId) return;
     try {
-      setLoading(true);
-      setError(null);
+      if (!silent) {
+        setLoading(true);
+        setError(null);
+      }
       const result = await playerAPI.getProfile(playerId);
       if (result.success) {
         setProfile(result.data);
-      } else {
+      } else if (!silent) {
         setError(result.error || '加载失败');
       }
     } catch (err) {
       console.error('[PlayerContext] 加载玩家档案失败:', err);
-      setError(err.message);
+      if (!silent) setError(err.message);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [playerId]);
 
@@ -37,9 +40,7 @@ export function PlayerProvider({ playerId, children }) {
     loadProfile();
   }, [loadProfile]);
 
-  const refresh = useCallback(() => {
-    return loadProfile();
-  }, [loadProfile]);
+  const refresh = useCallback((options) => loadProfile(options), [loadProfile]);
 
   return (
     <PlayerContext.Provider value={{
