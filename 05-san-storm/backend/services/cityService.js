@@ -657,8 +657,8 @@ async function recordSiegeResult(warId, playerId, factionId, killedIndices, resu
         [reputationReward, playerId]
       );
 
-      // 装备掉落：5%概率，稀有度=本场最高NPC稀有度
-      // 匹配规则与 battles.insertChestEquipmentFromReward / rewardService.randomDrawCards(equipment) 一致；
+      // 装备掉落：5%概率，稀有度=本场最高NPC稀有度（地图宝箱另链路，须带 equipmentId，见 battles.insertChestEquipmentFromReward）
+      // 匹配规则与 rewardService.randomDrawCards(equipment) 同类 ID 规范一致；
       // 禁止 LIKE '%_${rarity}___'：LIKE 中 _ 为单字符通配符，并非「下划线+三位数字」。
       if (Math.random() < EQUIPMENT_DROP_RATE) {
         const season = 'san_1';

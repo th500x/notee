@@ -477,7 +477,7 @@ function CharacterCard({
               `}>
                 <span className="text-gray-700">🎲</span>
                 {(() => { const d = attrDisplay(character.luck, 'luck'); return (
-                  <span className={d.hasBonus ? 'text-emerald-600' : ''}>{d.value}</span>
+                  <span className={d.hasBonus ? 'text-green-700' : ''}>{d.value}</span>
                 ); })()}
               </div>
             </div>
@@ -487,37 +487,37 @@ function CharacterCard({
               <div className="flex items-center gap-1">
                 <span className="text-pink-400">💪</span>
                 <span className="text-gray-700">勇</span>
-                {(() => { const d = attrDisplay(character.courage, 'courage'); return <span className={`text-gray-900 font-bold ${d.hasBonus ? 'text-emerald-600' : ''}`}>{d.value}</span>; })()}
+                {(() => { const d = attrDisplay(character.courage, 'courage'); return <span className={`font-bold ${d.hasBonus ? 'text-green-700' : 'text-gray-900'}`}>{d.value}</span>; })()}
               </div>
               
               <div className="flex items-center gap-1">
                 <span className="text-green-400">📚</span>
                 <span className="text-gray-700">智</span>
-                {(() => { const d = attrDisplay(character.intelligence, 'intelligence'); return <span className={`text-gray-900 font-bold ${d.hasBonus ? 'text-emerald-600' : ''}`}>{d.value}</span>; })()}
+                {(() => { const d = attrDisplay(character.intelligence, 'intelligence'); return <span className={`font-bold ${d.hasBonus ? 'text-green-700' : 'text-gray-900'}`}>{d.value}</span>; })()}
               </div>
               
               <div className="flex items-center gap-1">
                 <span className="text-blue-400">🗡️</span>
                 <span className="text-gray-700">武</span>
-                {(() => { const d = attrDisplay(character.combat, 'combat'); return <span className={`text-gray-900 font-bold ${d.hasBonus ? 'text-emerald-600' : ''}`}>{d.value}</span>; })()}
+                {(() => { const d = attrDisplay(character.combat, 'combat'); return <span className={`font-bold ${d.hasBonus ? 'text-green-700' : 'text-gray-900'}`}>{d.value}</span>; })()}
               </div>
               
               <div className="flex items-center gap-1">
                 <span className="text-purple-400">📜</span>
                 <span className="text-gray-700">政</span>
-                {(() => { const d = attrDisplay(character.politics, 'politics'); return <span className={`text-gray-900 font-bold ${d.hasBonus ? 'text-emerald-600' : ''}`}>{d.value}</span>; })()}
+                {(() => { const d = attrDisplay(character.politics, 'politics'); return <span className={`font-bold ${d.hasBonus ? 'text-green-700' : 'text-gray-900'}`}>{d.value}</span>; })()}
               </div>
               
               <div className="flex items-center gap-1">
                 <span className="text-red-400">⚔️</span>
                 <span className="text-gray-700">统</span>
-                {(() => { const d = attrDisplay(character.command, 'command'); return <span className={`text-gray-900 font-bold ${d.hasBonus ? 'text-emerald-600' : ''}`}>{d.value}</span>; })()}
+                {(() => { const d = attrDisplay(character.command, 'command'); return <span className={`font-bold ${d.hasBonus ? 'text-green-700' : 'text-gray-900'}`}>{d.value}</span>; })()}
               </div>
               
               <div className="flex items-center gap-1">
                 <span className="text-indigo-400">✨</span>
                 <span className="text-gray-700">魅</span>
-                {(() => { const d = attrDisplay(character.charm, 'charm'); return <span className={`text-gray-900 font-bold ${d.hasBonus ? 'text-emerald-600' : ''}`}>{d.value}</span>; })()}
+                {(() => { const d = attrDisplay(character.charm, 'charm'); return <span className={`font-bold ${d.hasBonus ? 'text-green-700' : 'text-gray-900'}`}>{d.value}</span>; })()}
               </div>
             </div>
           </div>

@@ -6,6 +6,7 @@
 
 const { pool } = require('../database/connection');
 const { applyTroopDurabilityExhaustion } = require('./troopDurabilityService');
+const equipmentSetService = require('./equipmentSetService');
 
 // 驻守槽位中所有卡牌字段
 const CARD_FIELDS = [
@@ -75,6 +76,203 @@ async function getCardSpecialEffect(cardType, cardId) {
     `SELECT special_effect FROM ${cfg.table} WHERE ${cfg.idField} = ?`, [cardId]
   );
   return parseSpecialEffect(rows[0]?.special_effect);
+}
+
+function addAttrBonus(target, bonus = {}) {
+  if (!bonus || typeof bonus !== 'object') return;
+  Object.entries(bonus).forEach(([k, v]) => {
+    target[k] = (target[k] || 0) + (Number(v) || 0);
+  });
+}
+
+async function loadConfigAttributeBonusMap(conn, table, idField, ids) {
+  const uniq = [...new Set((ids || []).filter(Boolean))];
+  if (uniq.length === 0) return {};
+  const ph = uniq.map(() => '?').join(',');
+  const [rows] = await conn.query(
+    `SELECT ${idField} AS id, attribute_bonus FROM ${table} WHERE ${idField} IN (${ph})`,
+    uniq
+  );
+  const map = {};
+  for (const r of rows) {
+    let ab = {};
+    if (r.attribute_bonus) {
+      try { ab = typeof r.attribute_bonus === 'string' ? JSON.parse(r.attribute_bonus) : r.attribute_bonus; } catch {}
+    }
+    map[r.id] = ab || {};
+  }
+  return map;
+}
+
+function applyCharBonusToCharData(charData, bonus) {
+  const b = bonus || {};
+  return {
+    ...charData,
+    combat: Number(charData.combat || 0) + (Number(b.combat || 0) / 10),
+    command: Number(charData.command || 0) + (Number(b.command || 0) / 10),
+    intelligence: Number(charData.intelligence || 0) + (Number(b.intelligence || 0) / 10),
+    luck: Number(charData.luck || 0) + (Number(b.luck || 0) / 10),
+    courage: Number(charData.courage || 0) + (Number(b.courage || 0) / 10),
+  };
+}
+
+async function getMainLineupAttributeBonusBySlot(conn, playerId) {
+  const out = { player: {}, character1: {}, character2: {} };
+  const [equipped] = await conn.query(
+    `SELECT instance_id, card_type, card_id, equipped_by, equipment_set_data
+     FROM player_cards
+     WHERE player_id = ? AND is_equipped = TRUE
+       AND card_type IN ('title','achievement','treasure','equipmentSet')`,
+    [playerId]
+  );
+
+  const titleIds = equipped.filter(c => c.card_type === 'title').map(c => c.card_id);
+  const achIds = equipped.filter(c => c.card_type === 'achievement').map(c => c.card_id);
+  const treasureIds = equipped.filter(c => c.card_type === 'treasure').map(c => c.card_id);
+
+  const [titleMap, achMap, treasureMap] = await Promise.all([
+    loadConfigAttributeBonusMap(conn, 'config_titles', 'title_id', titleIds),
+    loadConfigAttributeBonusMap(conn, 'config_achievements', 'achievement_id', achIds),
+    loadConfigAttributeBonusMap(conn, 'config_treasures', 'treasure_id', treasureIds),
+  ]);
+
+  const [equipRows] = await conn.query(
+    `SELECT pc.instance_id, pc.bound_equipment_set_instance_id,
+            ce.luck_bonus, ce.courage_bonus, ce.combat_bonus, ce.command_bonus,
+            ce.intelligence_bonus, ce.politics_bonus, ce.charm_bonus
+     FROM player_cards pc
+     LEFT JOIN config_equipment ce ON ce.equipment_id = pc.card_id
+     WHERE pc.player_id = ? AND pc.card_type = 'equipment'`,
+    [playerId]
+  );
+  const equipBonusByInstance = {};
+  const boundPieceIdsBySet = {};
+  for (const e of equipRows) {
+    equipBonusByInstance[e.instance_id] = {
+      luck: Number(e.luck_bonus || 0),
+      courage: Number(e.courage_bonus || 0),
+      combat: Number(e.combat_bonus || 0),
+      command: Number(e.command_bonus || 0),
+      intelligence: Number(e.intelligence_bonus || 0),
+      politics: Number(e.politics_bonus || 0),
+      charm: Number(e.charm_bonus || 0),
+    };
+    if (e.bound_equipment_set_instance_id) {
+      if (!boundPieceIdsBySet[e.bound_equipment_set_instance_id]) boundPieceIdsBySet[e.bound_equipment_set_instance_id] = [];
+      boundPieceIdsBySet[e.bound_equipment_set_instance_id].push(e.instance_id);
+    }
+  }
+
+  for (const card of equipped) {
+    const slot = card.equipped_by || 'player';
+    if (!out[slot]) out[slot] = {};
+    if (card.card_type === 'title') addAttrBonus(out[slot], titleMap[card.card_id] || {});
+    if (card.card_type === 'achievement') addAttrBonus(out[slot], achMap[card.card_id] || {});
+    if (card.card_type === 'treasure') addAttrBonus(out[slot], treasureMap[card.card_id] || {});
+    if (card.card_type === 'equipmentSet') {
+      const d = equipmentSetService.parseSetData(card.equipment_set_data);
+      const slotPieceIds = [
+        d.weapon_instance_id,
+        d.armor_instance_id,
+        d.accessory_1_instance_id,
+        d.accessory_2_instance_id,
+      ].filter(Boolean);
+      const boundPieceIds = boundPieceIdsBySet[card.instance_id] || [];
+      const pieceIds = boundPieceIds.length > 0 ? boundPieceIds : slotPieceIds;
+      const sum = {};
+      pieceIds.forEach((pid) => addAttrBonus(sum, equipBonusByInstance[pid] || {}));
+      addAttrBonus(out[slot], sum);
+    }
+  }
+  return out;
+}
+
+async function getGarrisonSlotAttributeBonusByChar(conn, garrisonSlot) {
+  const out = { char1: {}, char2: {} };
+  if (!garrisonSlot) return out;
+
+  const effectIds = [
+    garrisonSlot.char1_title, garrisonSlot.char1_achievement, garrisonSlot.char1_treasure, garrisonSlot.char1_equipment_card,
+    garrisonSlot.char2_title, garrisonSlot.char2_achievement, garrisonSlot.char2_treasure, garrisonSlot.char2_equipment_card,
+  ].filter(Boolean);
+  if (effectIds.length === 0) return out;
+
+  const ph = effectIds.map(() => '?').join(',');
+  const [cards] = await conn.query(
+    `SELECT instance_id, card_type, card_id, equipment_set_data
+     FROM player_cards
+     WHERE player_id = ? AND instance_id IN (${ph})`,
+    [garrisonSlot.player_id, ...effectIds]
+  );
+  const byInstance = {};
+  cards.forEach((c) => { byInstance[c.instance_id] = c; });
+
+  const titleIds = cards.filter(c => c.card_type === 'title').map(c => c.card_id);
+  const achIds = cards.filter(c => c.card_type === 'achievement').map(c => c.card_id);
+  const treasureIds = cards.filter(c => c.card_type === 'treasure').map(c => c.card_id);
+  const [titleMap, achMap, treasureMap] = await Promise.all([
+    loadConfigAttributeBonusMap(conn, 'config_titles', 'title_id', titleIds),
+    loadConfigAttributeBonusMap(conn, 'config_achievements', 'achievement_id', achIds),
+    loadConfigAttributeBonusMap(conn, 'config_treasures', 'treasure_id', treasureIds),
+  ]);
+
+  const [equipRows] = await conn.query(
+    `SELECT pc.instance_id, pc.bound_equipment_set_instance_id,
+            ce.luck_bonus, ce.courage_bonus, ce.combat_bonus, ce.command_bonus,
+            ce.intelligence_bonus, ce.politics_bonus, ce.charm_bonus
+     FROM player_cards pc
+     LEFT JOIN config_equipment ce ON ce.equipment_id = pc.card_id
+     WHERE pc.player_id = ? AND pc.card_type = 'equipment'`,
+    [garrisonSlot.player_id]
+  );
+  const equipBonusByInstance = {};
+  const boundPieceIdsBySet = {};
+  for (const e of equipRows) {
+    equipBonusByInstance[e.instance_id] = {
+      luck: Number(e.luck_bonus || 0),
+      courage: Number(e.courage_bonus || 0),
+      combat: Number(e.combat_bonus || 0),
+      command: Number(e.command_bonus || 0),
+      intelligence: Number(e.intelligence_bonus || 0),
+      politics: Number(e.politics_bonus || 0),
+      charm: Number(e.charm_bonus || 0),
+    };
+    if (e.bound_equipment_set_instance_id) {
+      if (!boundPieceIdsBySet[e.bound_equipment_set_instance_id]) boundPieceIdsBySet[e.bound_equipment_set_instance_id] = [];
+      boundPieceIdsBySet[e.bound_equipment_set_instance_id].push(e.instance_id);
+    }
+  }
+
+  const applyOne = (charKey, instanceId) => {
+    if (!instanceId) return;
+    const c = byInstance[instanceId];
+    if (!c) return;
+    if (c.card_type === 'title') addAttrBonus(out[charKey], titleMap[c.card_id] || {});
+    if (c.card_type === 'achievement') addAttrBonus(out[charKey], achMap[c.card_id] || {});
+    if (c.card_type === 'treasure') addAttrBonus(out[charKey], treasureMap[c.card_id] || {});
+    if (c.card_type === 'equipmentSet') {
+      const d = equipmentSetService.parseSetData(c.equipment_set_data);
+      const slotPieceIds = [
+        d.weapon_instance_id, d.armor_instance_id, d.accessory_1_instance_id, d.accessory_2_instance_id,
+      ].filter(Boolean);
+      const boundPieceIds = boundPieceIdsBySet[c.instance_id] || [];
+      const pieceIds = boundPieceIds.length > 0 ? boundPieceIds : slotPieceIds;
+      const sum = {};
+      pieceIds.forEach((pid) => addAttrBonus(sum, equipBonusByInstance[pid] || {}));
+      addAttrBonus(out[charKey], sum);
+    }
+  };
+
+  applyOne('char1', garrisonSlot.char1_title);
+  applyOne('char1', garrisonSlot.char1_achievement);
+  applyOne('char1', garrisonSlot.char1_treasure);
+  applyOne('char1', garrisonSlot.char1_equipment_card);
+  applyOne('char2', garrisonSlot.char2_title);
+  applyOne('char2', garrisonSlot.char2_achievement);
+  applyOne('char2', garrisonSlot.char2_treasure);
+  applyOne('char2', garrisonSlot.char2_equipment_card);
+
+  return out;
 }
 
 /**
@@ -415,6 +613,7 @@ async function getCityGarrisonStats() {
  */
 async function buildDefenseUnits(garrisonSlot) {
   const units = [];
+  const garrisonAttrBonusByChar = await getGarrisonSlotAttributeBonusByChar(pool, garrisonSlot);
   const charSlots = [
     { cardField: 'char1_card', troop1Field: 'char1_troop1', troop2Field: 'char1_troop2' },
     { cardField: 'char2_card', troop1Field: 'char2_troop1', troop2Field: 'char2_troop2' },
@@ -438,7 +637,7 @@ async function buildDefenseUnits(garrisonSlot) {
     if (charRows.length === 0) continue;
     const charCfg = charRows[0];
 
-    const charData = {
+    const charDataBase = {
       name: charCfg.character_name,
       courtesyName: charCfg.character_name,
       combat: charCfg.combat / 10,
@@ -448,6 +647,8 @@ async function buildDefenseUnits(garrisonSlot) {
       courage: charCfg.courage / 10,
       traitModifier: charCfg.trait_modifier || 0,
     };
+    const charKey = cs.cardField === 'char1_card' ? 'char1' : 'char2';
+    const charData = applyCharBonusToCharData(charDataBase, garrisonAttrBonusByChar[charKey] || {});
 
     // 读取该将领的部队卡（兵力 > 0 才参战，总兵力检查在 initiateSiege 中）
     const troopInstanceIds = [garrisonSlot[cs.troop1Field], garrisonSlot[cs.troop2Field]].filter(Boolean);
@@ -511,6 +712,7 @@ async function buildDefenseUnits(garrisonSlot) {
  */
 async function buildDefenseUnitsFromMainLineup(defenderPlayerId) {
   const units = [];
+  const attrBonusBySlot = await getMainLineupAttributeBonusBySlot(pool, defenderPlayerId);
   const [pRows] = await pool.query(
     `SELECT player_id, character_name, combat, command, intelligence, politics, charm, courage, luck, morale
      FROM players WHERE player_id = ?`,
@@ -567,7 +769,7 @@ async function buildDefenseUnitsFromMainLineup(defenderPlayerId) {
   );
   if (playerTroopRows.length > 0) {
     const t = playerTroopRows[0];
-    const charData = {
+    const charDataBase = {
       name: pRow.character_name,
       courtesyName: pRow.character_name,
       combat: pRow.combat / 10,
@@ -577,6 +779,7 @@ async function buildDefenseUnitsFromMainLineup(defenderPlayerId) {
       courage: pRow.courage / 10,
       traitModifier: 0,
     };
+    const charData = applyCharBonusToCharData(charDataBase, attrBonusBySlot.player || {});
     pushUnit(t, charData, pRow.morale ?? 70);
   }
 
@@ -597,7 +800,7 @@ async function buildDefenseUnitsFromMainLineup(defenderPlayerId) {
     );
     if (charRows.length === 0) continue;
     const charCfg = charRows[0];
-    const charData = {
+    const charDataBase = {
       name: charCfg.character_name,
       courtesyName: charCfg.character_name,
       combat: charCfg.combat / 10,
@@ -607,6 +810,7 @@ async function buildDefenseUnitsFromMainLineup(defenderPlayerId) {
       courage: charCfg.courage / 10,
       traitModifier: charCfg.trait_modifier || 0,
     };
+    const charData = applyCharBonusToCharData(charDataBase, attrBonusBySlot[cs.by] || {});
 
     for (const slot of cs.troopSlots) {
       const [troopRows] = await pool.query(

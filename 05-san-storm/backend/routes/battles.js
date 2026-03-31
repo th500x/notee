@@ -10,37 +10,39 @@ const { applyTroopDurabilityExhaustion } = require('../services/troopDurabilityS
 const { pool } = require('../database/connection');
 
 /**
- * 地图宝箱装备入库：与 rewardService.randomDrawCards(equipment) 及 ID 规范一致。
+ * 地图宝箱装备入库：必须携带与 equipment.json / config_equipment 一致的 equipmentId。
  * @see docs/00-base/04-ID_NAMING_GUIDE.md §12 — san_{赛季}_equip_{类型1-3}_{稀有度1位}{序号3位}
  */
 async function insertChestEquipmentFromReward(pool, playerId, reward) {
-  const rarityDigitMap = { common: '1', rare: '2', epic: '3', legendary: '4', core: '5' };
-  const rarityDigit = rarityDigitMap[reward.rarity] || '1';
-  const typeNum = { weapon: '1', armor: '2', accessory: '3' }[reward.equipmentType] || '1';
   const season = 'san_1';
+  const directId = reward.equipmentId || reward.card_id;
 
-  // 与 parse 规则一致：序号 4 位 = 稀有度首位 + 三位序号（如 2001 = 稀有第 1 件）
-  const idRegexp = `^${season}_equip_${typeNum}_${rarityDigit}[0-9]{3}$`;
+  if (!directId || typeof directId !== 'string') {
+    console.error('[battles] 宝箱入库缺少 equipmentId', { playerId, reward });
+    return false;
+  }
 
-  const [eqRows] = await pool.query(
+  const [byId] = await pool.query(
     `SELECT equipment_id, equipment_name FROM config_equipment
-     WHERE season = ? AND equipment_id REGEXP ?
-     ORDER BY RAND() LIMIT 1`,
-    [season, idRegexp]
+     WHERE season = ? AND equipment_id = ? LIMIT 1`,
+    [season, directId]
   );
-  const eq = eqRows[0];
+  const eq = byId[0];
   if (!eq) {
-    console.warn('[battles] 宝箱未匹配到装备配置（请检查 config_equipment 是否有该赛季+类型+稀有度行）', {
-      reward,
-      idRegexp,
+    console.error('[battles] 宝箱 equipmentId 在 config_equipment 中不存在（数据与前端不一致或未导入）', {
+      directId,
+      season,
+      playerId,
     });
     return false;
   }
+
+  const rowRarity = reward.rarity || 'common';
   const instanceId = `${eq.equipment_id}_${playerId}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
   await pool.query(
     `INSERT INTO player_cards (instance_id, player_id, card_id, card_type, rarity, is_equipped)
      VALUES (?, ?, ?, 'equipment', ?, FALSE)`,
-    [instanceId, playerId, eq.equipment_id, reward.rarity || 'common']
+    [instanceId, playerId, eq.equipment_id, rowRarity]
   );
   return true;
 }

@@ -13,6 +13,10 @@ import { getReachableTiles, getMoveCost, findPath, dist } from '@/systems/battle
 import { estimateDamage } from '@/systems/combatSystem';
 import { MAP_W } from '@/components/battle/battleConstants';
 import * as fmt from '@/systems/battleTextFormatter';
+import { loadSharedData } from '@/services/dataService';
+
+/** 与 backend/routes/battles.js insertChestEquipmentFromReward 的 season 一致 */
+const CHEST_EQUIPMENT_SEASON = 'san_1';
 
 /** 手动战斗阶段 */
 export const MANUAL_PHASE = {
@@ -148,14 +152,12 @@ export function useManualBattle({
   }, [highlightActiveTroop, showMoveHighlights]);
 
   // ── 宝箱检查：行动结束后检查当前格子是否有未开启的宝箱 ──
+  // 装备件从 public/data/shared/equipment.json 按赛季+类型+稀有度抽样，与入库 config_equipment 一致（禁止占位假名）
 
-  const checkChestAtTroop = useCallback((troop) => {
-    if (!troop || troop.currentTroops <= 0 || !mapResult) return Promise.resolve();
+  const checkChestAtTroop = useCallback(async (troop) => {
+    if (!troop || troop.currentTroops <= 0 || !mapResult) return;
     const obj = mapResult.objects.find(o => o.type === 'chest' && !o.isOpen && o.y === troop.y && o.x === troop.x);
-    if (!obj) return Promise.resolve();
-
-    // 标记宝箱为已开启
-    obj.isOpen = true;
+    if (!obj) return;
 
     // 根据战斗敌人的稀有度决定奖励品质
     const enemyRarities = battleTroops
@@ -164,34 +166,63 @@ export function useManualBattle({
     const rarityPriority = ['core', 'legendary', 'epic', 'rare', 'common'];
     const bestRarity = rarityPriority.find(r => enemyRarities.includes(r)) || 'common';
 
-    // 生成随机装备件奖励
     const equipTypes = ['weapon', 'armor', 'accessory'];
     const randomType = equipTypes[Math.floor(Math.random() * equipTypes.length)];
-    const bonusKeys = ['combat', 'command', 'intelligence', 'luck', 'courage', 'charm', 'politics'];
-    const bonusKey = bonusKeys[Math.floor(Math.random() * bonusKeys.length)];
-    const bonusVal = { common: 0.5, rare: 1.0, epic: 1.5, legendary: 2.0, core: 2.5 }[bestRarity] || 0.5;
 
-    const namePool = {
-      weapon:    { common: '铁剑', rare: '精钢刀', epic: '玄铁枪', legendary: '青龙偃月', core: '方天画戟' },
-      armor:     { common: '皮甲', rare: '锁子甲', epic: '玄铁铠', legendary: '麒麟铠', core: '天蚕宝衣' },
-      accessory: { common: '布巾', rare: '玉佩', epic: '锦囊', legendary: '八卦阵图', core: '太平要术' },
-    };
+    let data;
+    try {
+      data = await loadSharedData('equipment');
+    } catch (e) {
+      console.error('[useManualBattle] 宝箱：加载 equipment.json 失败', e);
+      addLog(`  📦 ${troop.character?.courtesyName || troop.name} 开启宝箱失败（无法加载装备配置）`, 'skill');
+      return;
+    }
+
+    const list = data?.equipment || [];
+    const pool = list.filter(
+      (e) =>
+        e.id &&
+        e.name &&
+        (e.season || CHEST_EQUIPMENT_SEASON) === CHEST_EQUIPMENT_SEASON &&
+        e.equipmentType === randomType &&
+        e.rarity === bestRarity
+    );
+
+    if (pool.length === 0) {
+      console.warn('[useManualBattle] 宝箱：无匹配配置', { randomType, bestRarity, season: CHEST_EQUIPMENT_SEASON });
+      addLog(
+        `  📦 ${troop.character?.courtesyName || troop.name} 开启宝箱，但配置中暂无「${RARITY_LABEL_CN[bestRarity] || bestRarity}」${randomType} 装备件`,
+        'skill'
+      );
+      return;
+    }
+
+    const picked = pool[Math.floor(Math.random() * pool.length)];
+    const bonus = {};
+    for (const b of picked.bonus || []) {
+      if (b && b.key != null && b.value != null) bonus[b.key] = b.value;
+    }
+
+    obj.isOpen = true;
 
     const reward = {
-      id: `chest_reward_${Date.now()}`,
-      name: namePool[randomType]?.[bestRarity] || '神秘装备',
-      rarity: bestRarity,
-      equipmentType: randomType,
-      bonus: { [bonusKey]: bonusVal },
-      specialEffect: bestRarity === 'legendary' || bestRarity === 'core' ? '战斗中额外触发特殊效果' : null,
+      equipmentId: picked.id,
+      name: picked.name,
+      rarity: picked.rarity,
+      equipmentType: picked.equipmentType,
+      bonus,
+      specialEffect: picked.specialEffect || null,
+      specialEffectDesc: picked.specialEffectDesc || null,
+      description: picked.description || null,
     };
 
-    addLog(`  📦 ${troop.character?.courtesyName || troop.name} 开启宝箱，获得 ${reward.name}（${RARITY_LABEL_CN[bestRarity]}）`, 'skill');
+    addLog(
+      `  📦 ${troop.character?.courtesyName || troop.name} 开启宝箱，获得 ${reward.name}（${RARITY_LABEL_CN[picked.rarity] || picked.rarity}）`,
+      'skill'
+    );
 
-    // 收集奖励（战斗结束时统一发送后端）
     collectedChestRewards.current.push(reward);
 
-    // 弹出宝箱奖励浮层，等待玩家确认
     return new Promise((resolve) => {
       chestResolveRef.current = resolve;
       setChestReward(reward);

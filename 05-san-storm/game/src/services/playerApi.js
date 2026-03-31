@@ -311,6 +311,63 @@ export const playerAPI = {
     }
   },
 
+  /** 获取或创建当前草稿装备卡（equipmentSet） */
+  async getEquipmentSetDraft(playerId) {
+    const response = await fetchWithTimeout(
+      `${API_CONFIG.BASE_URL}/players/${playerId}/equipment-set/draft`,
+      { method: 'GET', headers: { 'Content-Type': 'application/json' } }
+    );
+    return response.json();
+  },
+
+  /** 单条套装（已命名装备卡编辑） */
+  async getEquipmentSetById(playerId, setInstanceId) {
+    const response = await fetchWithTimeout(
+      `${API_CONFIG.BASE_URL}/players/${playerId}/equipment-set/${encodeURIComponent(setInstanceId)}`,
+      { method: 'GET', headers: { 'Content-Type': 'application/json' } }
+    );
+    return response.json();
+  },
+
+  /** 已命名套装重命名（1～12 字，与 finalize 一致） */
+  async renameEquipmentSet(playerId, setInstanceId, displayName) {
+    const response = await fetchWithTimeout(
+      `${API_CONFIG.BASE_URL}/players/${playerId}/equipment-set/rename`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ setInstanceId, displayName }),
+      }
+    );
+    return response.json();
+  },
+
+  /** 草稿套装槽位：equipmentInstanceId 为 null 表示卸下 */
+  async assignEquipmentSetSlot(playerId, setInstanceId, slot, equipmentInstanceId) {
+    const response = await fetchWithTimeout(
+      `${API_CONFIG.BASE_URL}/players/${playerId}/equipment-set/slot`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ setInstanceId, slot, equipmentInstanceId }),
+      }
+    );
+    return response.json();
+  },
+
+  /** 四槽填满后为草稿套装命名 */
+  async finalizeEquipmentSet(playerId, setInstanceId, displayName) {
+    const response = await fetchWithTimeout(
+      `${API_CONFIG.BASE_URL}/players/${playerId}/equipment-set/finalize`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ setInstanceId, displayName }),
+      }
+    );
+    return response.json();
+  },
+
   /**
    * 更新新手引导进度
    */

@@ -32,9 +32,13 @@ function buildTroopUnit(troopCard, charData, morale) {
   };
 }
 
-export function buildPlayerUnitsFromContext(player, cards) {
+export function buildPlayerUnitsFromContext(player, cards, attributeBonusBySlot = {}) {
   if (!cards || cards.length === 0 || !player) return [];
   const units = [];
+  const playerBonus = attributeBonusBySlot?.player || {};
+  const char1Bonus = attributeBonusBySlot?.character1 || {};
+  const char2Bonus = attributeBonusBySlot?.character2 || {};
+  const withBonus = (base, bonus10) => Number(base || 0) + (Number(bonus10 || 0) / 10);
 
   // 玩家角色 + 玩家部队
   const playerTroop = cards.find(c => c.card_type === 'troop' && c.is_equipped && c.equipped_by === 'player' && c.equipped_slot === 'troop');
@@ -42,9 +46,12 @@ export function buildPlayerUnitsFromContext(player, cards) {
     const charData = {
       name: player.character_name,
       courtesyName: player.character_name,
-      combat: player.combat / 10, command: player.command / 10,
-      intelligence: player.intelligence / 10, luck: player.luck / 10,
-      courage: player.courage / 10, traitModifier: 0,
+      combat: withBonus(player.combat / 10, playerBonus.combat),
+      command: withBonus(player.command / 10, playerBonus.command),
+      intelligence: withBonus(player.intelligence / 10, playerBonus.intelligence),
+      luck: withBonus(player.luck / 10, playerBonus.luck),
+      courage: withBonus(player.courage / 10, playerBonus.courage),
+      traitModifier: 0,
     };
     units.push(buildTroopUnit(playerTroop, charData, player.morale ?? 70));
   }
@@ -56,8 +63,12 @@ export function buildPlayerUnitsFromContext(player, cards) {
     const cfg = char1Card.config || {};
     const charData = {
       name: cfg.name || char1Card.card_id, courtesyName: cfg.name || char1Card.card_id,
-      combat: cfg.combat || 5, command: cfg.command || 5, intelligence: cfg.intelligence || 5,
-      luck: cfg.luck || 5, courage: cfg.courage || 5, traitModifier: cfg.traitModifier || 0,
+      combat: withBonus(cfg.combat || 5, char1Bonus.combat),
+      command: withBonus(cfg.command || 5, char1Bonus.command),
+      intelligence: withBonus(cfg.intelligence || 5, char1Bonus.intelligence),
+      luck: withBonus(cfg.luck || 5, char1Bonus.luck),
+      courage: withBonus(cfg.courage || 5, char1Bonus.courage),
+      traitModifier: cfg.traitModifier || 0,
     };
     for (const t of char1Troops) units.push(buildTroopUnit(t, charData, char1Card.morale ?? 70));
   }
@@ -69,8 +80,12 @@ export function buildPlayerUnitsFromContext(player, cards) {
     const cfg = char2Card.config || {};
     const charData = {
       name: cfg.name || char2Card.card_id, courtesyName: cfg.name || char2Card.card_id,
-      combat: cfg.combat || 5, command: cfg.command || 5, intelligence: cfg.intelligence || 5,
-      luck: cfg.luck || 5, courage: cfg.courage || 5, traitModifier: cfg.traitModifier || 0,
+      combat: withBonus(cfg.combat || 5, char2Bonus.combat),
+      command: withBonus(cfg.command || 5, char2Bonus.command),
+      intelligence: withBonus(cfg.intelligence || 5, char2Bonus.intelligence),
+      luck: withBonus(cfg.luck || 5, char2Bonus.luck),
+      courage: withBonus(cfg.courage || 5, char2Bonus.courage),
+      traitModifier: cfg.traitModifier || 0,
     };
     for (const t of char2Troops) units.push(buildTroopUnit(t, charData, char2Card.morale ?? 70));
   }

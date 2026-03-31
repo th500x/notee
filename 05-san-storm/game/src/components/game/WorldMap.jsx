@@ -227,7 +227,7 @@ export default function WorldMap({ onEventBusyChange }) {
   const bgPath = getCachedBg();
   const baseUrl = import.meta.env.BASE_URL;
 
-  const { player, cards, refresh: refreshPlayer } = usePlayerContext();
+  const { player, cards, attributeBonusBySlot, refresh: refreshPlayer } = usePlayerContext();
   const eventSystem = useEventSystem(player, cards);
   const tutorialSystem = useTutorialEvents(player, cards);
   const isTutorial = tutorialSystem.isActive;
@@ -956,7 +956,7 @@ export default function WorldMap({ onEventBusyChange }) {
       {/* 攻城战斗（复用 BattleArena） */}
       {siegeData && !siegeResult && (
         <BattleArena
-          playerUnits={buildPlayerUnitsFromContext(player, cards)}
+          playerUnits={buildPlayerUnitsFromContext(player, cards, attributeBonusBySlot)}
           enemyUnits={siegeData.npcGarrison}
           silverAmount={player?.silver ?? 0}
           playerId={player?.player_id}

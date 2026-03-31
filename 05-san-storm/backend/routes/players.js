@@ -19,6 +19,7 @@ const {
 } = require('../services/troopRepairService');
 const garrisonService = require('../services/garrisonService');
 const gameTimeService = require('../services/gameTimeService');
+const equipmentSetService = require('../services/equipmentSetService');
 
 const router = express.Router();
 
@@ -1015,7 +1016,9 @@ router.get('/:playerId/profile', async (req, res) => {
         pc.is_equipped,
         pc.equipped_by,
         pc.equipped_slot,
-        pc.obtained_at
+        pc.obtained_at,
+        pc.equipment_set_data,
+        pc.bound_equipment_set_instance_id
       FROM player_cards pc
       WHERE pc.player_id = ?
       ORDER BY pc.is_equipped DESC, pc.card_type, pc.obtained_at
@@ -1092,6 +1095,29 @@ router.get('/:playerId/profile', async (req, res) => {
         WHERE equipment_id IN (${placeholders2})
       `, equipIds);
       eConfigs.forEach(c => { equipConfigs[c.equipment_id] = c; });
+    }
+    // 装备实例 -> 属性加成（保持与 title/achievement 一致的“×10整数”口径）
+    const equipBonusByInstance = {};
+    for (const ec of equipCards) {
+      const cfg = equipConfigs[ec.card_id];
+      if (!cfg) continue;
+      equipBonusByInstance[ec.instance_id] = {
+        luck: Number(cfg.luck_bonus || 0),
+        courage: Number(cfg.courage_bonus || 0),
+        combat: Number(cfg.combat_bonus || 0),
+        command: Number(cfg.command_bonus || 0),
+        intelligence: Number(cfg.intelligence_bonus || 0),
+        politics: Number(cfg.politics_bonus || 0),
+        charm: Number(cfg.charm_bonus || 0),
+      };
+    }
+    // 套装实例 -> 绑定的装备件实例ID（兜底：当 equipment_set_data 的槽位键缺失时仍可正确聚合）
+    const boundPieceIdsBySet = {};
+    for (const ec of equipCards) {
+      const setId = ec.bound_equipment_set_instance_id;
+      if (!setId) continue;
+      if (!boundPieceIdsBySet[setId]) boundPieceIdsBySet[setId] = [];
+      boundPieceIdsBySet[setId].push(ec.instance_id);
     }
 
     // 3c. 为称号卡关联配置数据
@@ -1209,6 +1235,40 @@ router.get('/:playerId/profile', async (req, res) => {
           }
         };
       }
+      if (card.card_type === 'equipmentSet') {
+        const d = equipmentSetService.parseSetData(card.equipment_set_data);
+        const attr = {};
+        const slotPieceIds = [
+          d.weapon_instance_id,
+          d.armor_instance_id,
+          d.accessory_1_instance_id,
+          d.accessory_2_instance_id,
+        ].filter(Boolean);
+        // 属性聚合以“当前绑定关系”为准；仅在无绑定数据时回退到 JSON 槽位，避免历史脏槽位导致数值错误
+        const boundPieceIds = boundPieceIdsBySet[card.instance_id] || [];
+        const pieceIds = boundPieceIds.length > 0
+          ? boundPieceIds
+          : slotPieceIds;
+        for (const pid of pieceIds) {
+          const b = equipBonusByInstance[pid];
+          if (!b) continue;
+          Object.entries(b).forEach(([k, v]) => {
+            attr[k] = (attr[k] || 0) + (Number(v) || 0);
+          });
+        }
+        return {
+          ...card,
+          config: {
+            equipmentSetShell: true,
+            displayName: d.display_name || null,
+            weaponInstanceId: d.weapon_instance_id || null,
+            armorInstanceId: d.armor_instance_id || null,
+            accessory1InstanceId: d.accessory_1_instance_id || null,
+            accessory2InstanceId: d.accessory_2_instance_id || null,
+            attributeBonus: attr,
+          },
+        };
+      }
       if (card.card_type === 'title' && titleConfigs[card.card_id]) {
         const cfg = titleConfigs[card.card_id];
         // 从ID解析稀有度：san_1_title_1_5001 → 最后一段首位
@@ -1251,7 +1311,7 @@ router.get('/:playerId/profile', async (req, res) => {
       const slot = card.equipped_by || 'player';
       if (!attributeBonusBySlot[slot]) attributeBonusBySlot[slot] = {};
       Object.entries(ab).forEach(([key, val]) => {
-        attributeBonusBySlot[slot][key] = (attributeBonusBySlot[slot][key] || 0) + (parseInt(val) || 0);
+        attributeBonusBySlot[slot][key] = (attributeBonusBySlot[slot][key] || 0) + (Number(val) || 0);
       });
     }
 
@@ -1268,7 +1328,7 @@ router.get('/:playerId/profile', async (req, res) => {
           const slotKey = `garrison${g.garrison_slot}_${charKey}`;
           if (!attributeBonusBySlot[slotKey]) attributeBonusBySlot[slotKey] = {};
           Object.entries(card.config.attributeBonus).forEach(([key, val]) => {
-            attributeBonusBySlot[slotKey][key] = (attributeBonusBySlot[slotKey][key] || 0) + (parseInt(val) || 0);
+            attributeBonusBySlot[slotKey][key] = (attributeBonusBySlot[slotKey][key] || 0) + (Number(val) || 0);
           });
         }
       }
@@ -1570,6 +1630,151 @@ router.post('/:playerId/cards/unequip', async (req, res) => {
   } catch (error) {
     console.error('[Players] 卸下卡牌失败:', error);
     res.status(500).json({ success: false, error: '卸下卡牌失败', message: error.message });
+  }
+});
+
+function equipmentSetHttpFromError(err) {
+  const table = {
+    INVALID_SLOT: [400, '槽位无效'],
+    SET_NOT_FOUND: [404, '套装卡不存在'],
+    RENAME_DRAFT_USE_FINALIZE: [400, '草稿套装请通过「完成封装」命名'],
+    EQUIPMENT_NOT_FOUND: [404, '装备件不存在'],
+    ALREADY_EQUIPPED: [400, '该装备件已上阵，请先卸下'],
+    TYPE_MISMATCH: [400, '装备类型与槽位不符'],
+    BOUND_ELSEWHERE: [400, '该装备件已编入其他套装'],
+    DUPLICATE_PIECE: [400, '套装内不能重复放入同一件'],
+    CANNOT_REMOVE_FINALIZED_SLOT: [400, '已封装装备卡仅支持更换，不可卸下'],
+    INVALID_NAME: [400, '名称需在 1～12 字'],
+    ALREADY_FINALIZED: [400, '该套装已命名'],
+    INCOMPLETE: [400, '四个槽位均需放入装备件后才能命名'],
+  };
+  const code = err && err.code;
+  const row = table[code];
+  if (row) {
+    return { status: row[0], body: { success: false, error: row[1], code } };
+  }
+  return null;
+}
+
+/**
+ * GET /api/players/:playerId/equipment-set/draft
+ * 获取或创建当前唯一的草稿装备卡（equipmentSet）
+ */
+router.get('/:playerId/equipment-set/draft', async (req, res) => {
+  try {
+    const { playerId } = req.params;
+    const row = await equipmentSetService.getOrCreateDraftSet(playerId);
+    const data = equipmentSetService.parseSetData(row.equipment_set_data);
+    res.json({
+      success: true,
+      data: {
+        instance_id: row.instance_id,
+        equipment_set_data: data,
+      },
+    });
+  } catch (error) {
+    console.error('[Players] equipment-set draft:', error);
+    res.status(500).json({ success: false, error: '获取草稿套装失败', message: error.message });
+  }
+});
+
+/**
+ * GET /api/players/:playerId/equipment-set/:setInstanceId
+ * 单条套装（用于编辑已命名装备卡）
+ */
+router.get('/:playerId/equipment-set/:setInstanceId', async (req, res) => {
+  try {
+    const { playerId, setInstanceId } = req.params;
+    const row = await equipmentSetService.getEquipmentSetById(playerId, setInstanceId);
+    const data = equipmentSetService.parseSetData(row.equipment_set_data);
+    res.json({
+      success: true,
+      data: {
+        instance_id: row.instance_id,
+        equipment_set_data: data,
+      },
+    });
+  } catch (error) {
+    const mapped = equipmentSetHttpFromError(error);
+    if (mapped) {
+      return res.status(mapped.status).json(mapped.body);
+    }
+    console.error('[Players] equipment-set get:', error);
+    res.status(500).json({ success: false, error: '读取套装失败', message: error.message });
+  }
+});
+
+/**
+ * POST /api/players/:playerId/equipment-set/rename
+ * body: { setInstanceId, displayName }
+ */
+router.post('/:playerId/equipment-set/rename', async (req, res) => {
+  try {
+    const { playerId } = req.params;
+    const { setInstanceId, displayName } = req.body || {};
+    if (!setInstanceId) {
+      return res.status(400).json({ success: false, error: '缺少 setInstanceId' });
+    }
+    const data = await equipmentSetService.renameEquipmentSet(playerId, setInstanceId, displayName);
+    res.json({ success: true, data: { equipment_set_data: data } });
+  } catch (error) {
+    const mapped = equipmentSetHttpFromError(error);
+    if (mapped) {
+      return res.status(mapped.status).json(mapped.body);
+    }
+    console.error('[Players] equipment-set rename:', error);
+    res.status(500).json({ success: false, error: '重命名失败', message: error.message });
+  }
+});
+
+/**
+ * POST /api/players/:playerId/equipment-set/slot
+ * body: { setInstanceId, slot, equipmentInstanceId|null }
+ */
+router.post('/:playerId/equipment-set/slot', async (req, res) => {
+  try {
+    const { playerId } = req.params;
+    const { setInstanceId, slot, equipmentInstanceId } = req.body || {};
+    if (!setInstanceId || !slot) {
+      return res.status(400).json({ success: false, error: '缺少 setInstanceId 或 slot' });
+    }
+    const data = await equipmentSetService.assignSlot(
+      playerId,
+      setInstanceId,
+      slot,
+      equipmentInstanceId || null
+    );
+    res.json({ success: true, data: { equipment_set_data: data } });
+  } catch (error) {
+    const mapped = equipmentSetHttpFromError(error);
+    if (mapped) {
+      return res.status(mapped.status).json(mapped.body);
+    }
+    console.error('[Players] equipment-set slot:', error);
+    res.status(500).json({ success: false, error: '更新套装槽位失败', message: error.message });
+  }
+});
+
+/**
+ * POST /api/players/:playerId/equipment-set/finalize
+ * body: { setInstanceId, displayName }
+ */
+router.post('/:playerId/equipment-set/finalize', async (req, res) => {
+  try {
+    const { playerId } = req.params;
+    const { setInstanceId, displayName } = req.body || {};
+    if (!setInstanceId) {
+      return res.status(400).json({ success: false, error: '缺少 setInstanceId' });
+    }
+    const data = await equipmentSetService.finalizeSet(playerId, setInstanceId, displayName);
+    res.json({ success: true, data: { equipment_set_data: data } });
+  } catch (error) {
+    const mapped = equipmentSetHttpFromError(error);
+    if (mapped) {
+      return res.status(mapped.status).json(mapped.body);
+    }
+    console.error('[Players] equipment-set finalize:', error);
+    res.status(500).json({ success: false, error: '命名套装失败', message: error.message });
   }
 });
 

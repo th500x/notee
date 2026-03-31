@@ -13,9 +13,12 @@ import { buildPlayerUnitsFromContext } from '@/utils/battlePlayerBuilder';
 export default function EventBattle({
   onBattleEnd, playerId, playerName, playerSilver, currentEvent, chosenOption,
 }) {
-  const { player, cards } = usePlayerContext();
+  const { player, cards, attributeBonusBySlot } = usePlayerContext();
 
-  const playerUnits = useMemo(() => buildPlayerUnitsFromContext(player, cards), [player, cards]);
+  const playerUnits = useMemo(
+    () => buildPlayerUnitsFromContext(player, cards, attributeBonusBySlot),
+    [player, cards, attributeBonusBySlot]
+  );
 
   const eventExtraEnemyCharacterIds = useMemo(() => {
     const id = chosenOption?.battleEnemyId ?? chosenOption?.battle_enemy_id;

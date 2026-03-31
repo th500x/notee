@@ -31,6 +31,7 @@ const TitleAchievementCard = ({
   const typeMap = {
     title:       { icon: '🏆', name: '称号' },
     achievement: { icon: '🎖️', name: '成就' },
+    equipment:   { icon: '🛡️', name: '装备件' },
   };
 
   // ── bonus key → 中文标签（与装备件共用）────────────────────────────
@@ -168,7 +169,7 @@ TitleAchievementCard.propTypes = {
     specialEffect:      PropTypes.string,
     specialEffectDesc:  PropTypes.string,
   }).isRequired,
-  type:     PropTypes.oneOf(['title', 'achievement']),
+  type:     PropTypes.oneOf(['title', 'achievement', 'equipment']),
   baseUrl:  PropTypes.string,
   onSelect: PropTypes.func,
 };

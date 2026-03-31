@@ -3,13 +3,13 @@
  * 
  * @description 将领配置页面：玩家角色 / 将领1 / 将领2 三个子Tab
  *              中央角色卡 + 左右各3个装备槽位
- *              玩家: 部队卡/官职卡/装备件(左) + 称号卡/成就卡/宝物卡(右)
- *              将领: 部队卡1/部队卡2/装备件(左) + 称号卡/成就卡/宝物卡(右)
+ *              玩家: 部队卡/官职卡/装备卡(左) + 称号卡/成就卡/宝物卡(右)
+ *              将领: 部队卡1/部队卡2/装备卡(左) + 称号卡/成就卡/宝物卡(右)
  * @see 22-2-TROOP_LINEUP_SYSTEM.md
  * @see 24-EQUIPMENT_SYSTEM.md
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { usePlayerContext } from '@/contexts/PlayerContext';
 import { loadSharedData } from '@/services/dataService';
 import { playerAPI } from '@/services/playerApi';
@@ -45,7 +45,7 @@ const PLAYER_SLOTS = [
   // 左侧
   { id: 'troop',     label: '部队',   icon: '⚔️', side: 'left',  implemented: true },
   { id: 'position',  label: '官职',   icon: '👑', side: 'left',  implemented: true },
-  { id: 'equipment', label: '装备件', icon: '🛡️', side: 'left',  implemented: false },
+  { id: 'equipmentSet', label: '装备卡', icon: '🛡️', side: 'left',  implemented: true },
   // 右侧
   { id: 'title',       label: '称号', icon: '🎖️', side: 'right', implemented: true },
   { id: 'achievement', label: '成就', icon: '🏆', side: 'right', implemented: false },
@@ -56,7 +56,7 @@ const GENERAL_SLOTS = [
   // 左侧 — 将领用第二个部队卡替代官职卡
   { id: 'troop1',    label: '部队1',  icon: '⚔️', side: 'left',  implemented: true },
   { id: 'troop2',    label: '部队2',  icon: '⚔️', side: 'left',  implemented: true },
-  { id: 'equipment', label: '装备件', icon: '🛡️', side: 'left',  implemented: false },
+  { id: 'equipmentSet', label: '装备卡', icon: '🛡️', side: 'left',  implemented: true },
   // 右侧
   { id: 'title',       label: '称号', icon: '🎖️', side: 'right', implemented: true },
   { id: 'achievement', label: '成就', icon: '🏆', side: 'right', implemented: false },
@@ -200,7 +200,29 @@ export default function LineupTab({ onClose }) {
   const unequippedTroops = troopCards.filter(c => !c.is_equipped && !garrisonIds.has(c.instance_id));
   const unequippedTitles = titleCards.filter(c => !c.is_equipped && !garrisonIds.has(c.instance_id));
   const unequippedCharacters = characterCards.filter(c => !c.is_equipped && !garrisonIds.has(c.instance_id));
-  const allUnequipped = cards.filter(c => !c.is_equipped && !garrisonIds.has(c.instance_id));
+  const unequippedEquipmentSets = cards.filter(
+    (c) =>
+      c.card_type === 'equipmentSet' &&
+      c.config?.displayName &&
+      String(c.config.displayName).trim() &&
+      !c.is_equipped &&
+      !garrisonIds.has(c.instance_id)
+  );
+  const allUnequipped = cards.filter(c => {
+    if (c.card_type === 'equipmentSet') return false;
+    if (c.is_equipped || garrisonIds.has(c.instance_id)) return false;
+    if (c.card_type === 'equipment' && c.bound_equipment_set_instance_id) return false;
+    return true;
+  });
+  const encapsulateEquipmentPool = cards.filter(
+    c => c.card_type === 'equipment' && !c.is_equipped && !garrisonIds.has(c.instance_id)
+  );
+  const equipmentSetCards = cards.filter(
+    (c) =>
+      c.card_type === 'equipmentSet' &&
+      c.config?.displayName &&
+      String(c.config.displayName).trim()
+  );
 
   // 将领是否已招募（检查是否有将领卡装备到对应槽位）
   const isGeneralRecruited = (subTab) => {
@@ -219,6 +241,14 @@ export default function LineupTab({ onClose }) {
       switch (slot.id) {
         case 'troop':
           return playerTroops[0] || null;
+        case 'equipmentSet':
+          return cards.find(
+            (c) =>
+              c.card_type === 'equipmentSet' &&
+              c.is_equipped &&
+              c.equipped_by === 'player' &&
+              c.equipped_slot === 'equipmentSet'
+          ) || null;
         case 'title':
           return playerTitles[0] || null;
         case 'position':
@@ -232,9 +262,17 @@ export default function LineupTab({ onClose }) {
     // 将领：精确匹配 equipped_slot
     const troops = subTab === 'char1' ? char1Troops : char2Troops;
     const titles = subTab === 'char1' ? char1Titles : char2Titles;
+    const equipmentSet = cards.find(
+      (c) =>
+        c.card_type === 'equipmentSet' &&
+        c.is_equipped &&
+        c.equipped_by === (subTab === 'char1' ? 'character1' : 'character2') &&
+        c.equipped_slot === 'equipmentSet'
+    );
     switch (slot.id) {
       case 'troop1': return troops.find(c => c.equipped_slot === 'troop1') || null;
       case 'troop2': return troops.find(c => c.equipped_slot === 'troop2') || null;
+      case 'equipmentSet': return equipmentSet || null;
       case 'title': return titles[0] || null;
       default: return null;
     }
@@ -244,6 +282,9 @@ export default function LineupTab({ onClose }) {
   // 耐久耗尽：白/蓝/紫不列出；橙(legendary) 归 0 仍可上阵；金(core) 归 0 不可再装（纪念/下赛季继承）
   const getAvailableCards = () => {
     if (!selectedSlot) return [];
+    if (selectedSlot.id === 'character') {
+      return unequippedCharacters;
+    }
     if (selectedSlot.id === 'troop' || selectedSlot.id === 'troop1' || selectedSlot.id === 'troop2') {
       return unequippedTroops.filter(c => {
         const maxBattle = c.max_battle_count ?? 10;
@@ -255,6 +296,9 @@ export default function LineupTab({ onClose }) {
     }
     if (selectedSlot.id === 'title') {
       return unequippedTitles;
+    }
+    if (selectedSlot.id === 'equipmentSet') {
+      return unequippedEquipmentSets;
     }
     return [];
   };
@@ -352,7 +396,15 @@ export default function LineupTab({ onClose }) {
 
               {/* 左下：军营 */}
               <div className="border-r border-stone-700/40 overflow-y-auto">
-                <BackpackSection cards={allUnequipped} skillsMap={skillsMap} />
+                <BackpackSection
+                  cards={allUnequipped}
+                  skillsMap={skillsMap}
+                  isLandscape={isLandscape}
+                  playerId={player?.player_id}
+                  onAfterEncapsulateChange={refresh}
+                  encapsulateEquipmentPool={encapsulateEquipmentPool}
+                  equipmentSetCards={equipmentSetCards}
+                />
               </div>
 
               {/* 右下：将领2 */}
@@ -417,7 +469,15 @@ export default function LineupTab({ onClose }) {
             })()}
 
             {/* 军营区域 */}
-            <BackpackSection cards={allUnequipped} skillsMap={skillsMap} />
+            <BackpackSection
+              cards={allUnequipped}
+              skillsMap={skillsMap}
+              isLandscape={isLandscape}
+              playerId={player?.player_id}
+              onAfterEncapsulateChange={refresh}
+              encapsulateEquipmentPool={encapsulateEquipmentPool}
+              equipmentSetCards={equipmentSetCards}
+            />
           </>
         )}
       </div>
@@ -428,6 +488,7 @@ export default function LineupTab({ onClose }) {
           card={detailCard.card}
           slot={detailCard.slot}
           skillsMap={skillsMap}
+          allCards={cards}
           onClose={() => setDetailCard(null)}
           onReplace={() => {
             // 关闭详情 → 打开选择抽屉（保留slotOwner信息）
@@ -460,6 +521,7 @@ export default function LineupTab({ onClose }) {
         <CardDrawer
           slot={selectedSlot}
           cards={getAvailableCards()}
+          allCards={cards}
           skillsMap={skillsMap}
           onSelect={async (card) => {
             const owner = selectedSlot?.slotOwner || activeSubTab;
@@ -1176,6 +1238,68 @@ function EquipSlot({ slot, content, isSelected, onClick, baseUrl, skillsMap, min
     );
   }
 
+  // 已装备装备卡 — 文本缩略（卡名 + 四项属性总和）
+  const isEquipmentSetSlot = slot.id === 'equipmentSet';
+  if (!isLocked && !isEmpty && isEquipmentSetSlot) {
+    const cfg = content.config || {};
+    const name = cfg.displayName || content.card_id || '装备卡';
+    const rarity = cfg.rarity || content.rarity || 'common';
+    const rarityLabel = { common: '普通', rare: '稀有', epic: '史诗', legendary: '传奇', core: '核心' };
+    const rarityColor = { common: 'text-gray-300', rare: 'text-blue-400', epic: 'text-purple-400', legendary: 'text-orange-400', core: 'text-yellow-400' };
+    const bonus = cfg.attributeBonus || {};
+    const ordered = [
+      { label: '勇', val: Number(bonus.courage || 0) / 10 },
+      { label: '智', val: Number(bonus.intelligence || 0) / 10 },
+      { label: '武', val: Number(bonus.combat || 0) / 10 },
+      { label: '政', val: Number(bonus.politics || 0) / 10 },
+      { label: '统', val: Number(bonus.command || 0) / 10 },
+      { label: '魅', val: Number(bonus.charm || 0) / 10 },
+    ];
+
+    const borderClass = isSelected
+      ? 'border-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.4)]'
+      : 'border-stone-500 hover:border-amber-500';
+
+    const fs1 = mini ? '9px' : '6px';
+    const fs2 = mini ? '9px' : '6px';
+    const fsR = mini ? '8px' : '5.5px';
+
+    return (
+      <button
+        onClick={onClick}
+        className={`rounded-lg border-2 ${borderClass} bg-stone-800/90
+                    overflow-hidden transition-all duration-200 relative text-left
+                    cursor-pointer active:scale-95 flex flex-col justify-between`}
+        style={{ width: `${slotW}px`, height: `${slotH}px`, padding: mini ? '4px' : '2px 3px' }}
+      >
+        <div className="flex items-center justify-between w-full leading-none">
+          <span className="text-white font-medium truncate" style={{ fontSize: fs1 }}>{name}</span>
+          <span className={`font-bold flex-shrink-0 ${rarityColor[rarity]}`} style={{ fontSize: fsR }}>{rarityLabel[rarity]}</span>
+        </div>
+        {ordered.length > 0 ? (
+          <>
+            <div className="flex items-center justify-between w-full">
+              <span className="text-red-400" style={{ fontSize: fs2 }}>{ordered[0].label}{ordered[0].val >= 0 ? '+' : ''}{ordered[0].val.toFixed(1)}</span>
+              <span className="text-blue-400" style={{ fontSize: fs2 }}>{ordered[1].label}{ordered[1].val >= 0 ? '+' : ''}{ordered[1].val.toFixed(1)}</span>
+            </div>
+            <div className="flex items-center justify-between w-full">
+              <span className="text-cyan-400" style={{ fontSize: fs2 }}>{ordered[2].label}{ordered[2].val >= 0 ? '+' : ''}{ordered[2].val.toFixed(1)}</span>
+              <span className="text-amber-400" style={{ fontSize: fs2 }}>{ordered[3].label}{ordered[3].val >= 0 ? '+' : ''}{ordered[3].val.toFixed(1)}</span>
+            </div>
+            <div className="flex items-center justify-between w-full">
+              <span className="text-green-400" style={{ fontSize: fs2 }}>{ordered[4].label}{ordered[4].val >= 0 ? '+' : ''}{ordered[4].val.toFixed(1)}</span>
+              <span className="text-purple-400" style={{ fontSize: fs2 }}>{ordered[5].label}{ordered[5].val >= 0 ? '+' : ''}{ordered[5].val.toFixed(1)}</span>
+            </div>
+          </>
+        ) : (
+          <div className="w-full text-left">
+            <span className="text-stone-500" style={{ fontSize: fs2 }}>无属性加成</span>
+          </div>
+        )}
+      </button>
+    );
+  }
+
   // 官职内容渲染
   const renderPositionContent = (data) => (
     <>
@@ -1243,17 +1367,41 @@ const RARITY_DOTS = [
   { key: 'core',      color: 'bg-yellow-400' },
 ];
 
+const RARITY_TEXT_CLASS = {
+  common: 'text-white',
+  rare: 'text-blue-400',
+  epic: 'text-purple-400',
+  legendary: 'text-orange-400',
+  core: 'text-yellow-300',
+};
+
 /** 军营摘要区域：按类型显示稀有度数量，点击展开完整列表 */
-function BackpackSection({ cards, skillsMap }) {
+function BackpackSection({
+  cards,
+  skillsMap,
+  isLandscape = false,
+  playerId,
+  onAfterEncapsulateChange,
+  encapsulateEquipmentPool = [],
+  equipmentSetCards = [],
+}) {
   const [expandedType, setExpandedType] = useState(null);
   const [previewCard, setPreviewCard] = useState(null);
   const [encapsulateOpen, setEncapsulateOpen] = useState(false);
+  const [encapsulateMode, setEncapsulateMode] = useState('draft');
+  const [encapsulateEditId, setEncapsulateEditId] = useState(null);
   const baseUrl = import.meta.env.BASE_URL;
+  const encapsulateEquipmentCards =
+    encapsulateEquipmentPool.length > 0
+      ? encapsulateEquipmentPool
+      : cards.filter((c) => c.card_type === 'equipment');
+  const resolveEquipPiece = (instanceId) =>
+    encapsulateEquipmentCards.find((c) => c.instance_id === instanceId) || null;
 
-  const GRID_TYPES = [
+  /** 军营 7 行顺序：将领、部队、装备件+合成、封装+装备卡、称号、成就、宝物 */
+  const SINGLE_ROW_TYPES = [
     { type: 'character',   label: '将领',   icon: '👤' },
     { type: 'troop',       label: '部队',   icon: '⚔️' },
-    { type: 'equipment',   label: '装备件', icon: '🛡️' },
     { type: 'title',       label: '称号',   icon: '🎖️' },
     { type: 'achievement', label: '成就',   icon: '🏆' },
     { type: 'treasure',    label: '宝物',   icon: '💎' },
@@ -1295,22 +1443,25 @@ function BackpackSection({ cards, skillsMap }) {
         🏕️ 军营（{cards.length}）
       </h4>
 
-      {/* 2×3 卡片网格（装备件格为 70% 列表入口 + 30% 封装） */}
+      {/* 7 个同级按钮：将领、部队、装备件+合成、封装+装备卡、称号、成就、宝物 */}
       <div className="grid grid-cols-3 gap-2">
-        {GRID_TYPES.map(({ type, label, icon }) => {
+        {SINGLE_ROW_TYPES.slice(0, 2).map(({ type, label, icon }) => {
           const typeCards = byType[type] || [];
           const counts = countByRarity(typeCards);
           const total = typeCards.length;
           const isExpanded = expandedType === type;
-
           const cellBtnClass = (active, hasItems) =>
             `rounded-lg p-2 text-center transition-colors min-h-[4.5rem] flex flex-col items-center justify-center
               ${active ? 'bg-amber-900/30 border border-amber-700/40' :
                 hasItems ? 'bg-stone-800/60 border border-stone-700/30 hover:border-stone-500 cursor-pointer'
                 : 'bg-stone-800/30 border border-stone-800/20 opacity-50 cursor-default'}`;
-
-          const cellInner = (
-            <>
+          return (
+            <button
+              key={type}
+              type="button"
+              onClick={() => setExpandedType(isExpanded ? null : (total > 0 ? type : null))}
+              className={cellBtnClass(isExpanded, total > 0)}
+            >
               <div className="text-lg">{icon}</div>
               <div className="text-stone-300 text-xs leading-tight">{label}</div>
               {total > 0 ? (
@@ -1329,32 +1480,106 @@ function BackpackSection({ cards, skillsMap }) {
               ) : (
                 <div className="text-amber-400 text-sm font-bold mt-0.5">0</div>
               )}
+            </button>
+          );
+        })}
+
+        {(() => {
+          const eqType = 'equipment';
+          const typeCards = byType[eqType] || [];
+          const counts = countByRarity(typeCards);
+          const total = typeCards.length;
+          const isExpanded = expandedType === eqType;
+          const cellBtnClass = (active, hasItems) =>
+            `rounded-lg p-2 text-center transition-colors min-h-[4.5rem] flex flex-col items-center justify-center
+              ${active ? 'bg-amber-900/30 border border-amber-700/40' :
+                hasItems ? 'bg-stone-800/60 border border-stone-700/30 hover:border-stone-500 cursor-pointer'
+                : 'bg-stone-800/30 border border-stone-800/20 opacity-50 cursor-default'}`;
+          const cellInner = (
+            <>
+              <div className="text-lg">🛡️</div>
+              <div className="text-stone-300 text-xs leading-tight">装备件</div>
+              {total > 0 ? (
+                <div className="flex items-center justify-center gap-1 mt-1 flex-wrap">
+                  {RARITY_DOTS.map(({ key, color }) => {
+                    const count = counts[key];
+                    if (!count) return null;
+                    return (
+                      <div key={key} className="flex items-center gap-0.5">
+                        <div className={`w-2 h-2 rounded-full ${color}`} />
+                        <span className="text-stone-400 text-[10px]">{count}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="text-amber-400 text-sm font-bold mt-0.5">0</div>
+              )}
             </>
           );
+          return (
+            <div className="flex gap-2 min-w-0">
+              <button
+                type="button"
+                className={`min-w-0 flex-[3] ${cellBtnClass(isExpanded, total > 0)}`}
+                onClick={() => setExpandedType(isExpanded ? null : (total > 0 ? eqType : null))}
+              >
+                {cellInner}
+              </button>
+              <button
+                type="button"
+                className="min-w-0 flex-[2] rounded-lg p-2 text-center transition-colors min-h-[4.5rem] flex flex-col items-center justify-center
+                  bg-stone-800/50 border border-stone-600/40 opacity-80 cursor-not-allowed"
+                disabled
+                title="敬请期待"
+              >
+                <div className="text-lg">⚗️</div>
+                <div className="text-stone-400 text-xs leading-tight mt-0.5">合成</div>
+              </button>
+            </div>
+          );
+        })()}
 
-          if (type === 'equipment') {
-            return (
-              <div key={type} className="flex gap-1 min-w-0">
-                <button
-                  type="button"
-                  className={`${cellBtnClass(isExpanded, total > 0)} flex-[7] min-w-0`}
-                  onClick={() => setExpandedType(isExpanded ? null : (total > 0 ? type : null))}
-                >
-                  {cellInner}
-                </button>
-                <button
-                  type="button"
-                  className="flex-[3] min-w-0 rounded-lg p-1.5 text-center transition-colors flex flex-col items-center justify-center
-                    bg-stone-800/70 border border-amber-800/40 hover:border-amber-600/60 cursor-pointer active:scale-[0.98]"
-                  onClick={() => setEncapsulateOpen(true)}
-                >
-                  <div className="text-base">📦</div>
-                  <div className="text-amber-200/90 text-[10px] font-medium leading-tight mt-0.5">封装</div>
-                </button>
-              </div>
-            );
-          }
+        <div className="flex gap-2 min-w-0">
+          <button
+            type="button"
+            className="min-w-0 flex-[2] rounded-lg p-2 text-center transition-colors min-h-[4.5rem] flex flex-col items-center justify-center
+              bg-stone-800/70 border border-amber-800/40 hover:border-amber-600/60 cursor-pointer active:scale-[0.98]"
+            onClick={() => {
+              setEncapsulateMode('draft');
+              setEncapsulateEditId(null);
+              setEncapsulateOpen(true);
+            }}
+          >
+            <div className="text-lg">📦</div>
+            <div className="text-amber-200/90 text-xs leading-tight mt-0.5">封装</div>
+          </button>
+          <button
+            type="button"
+            className="min-w-0 flex-[3] rounded-lg p-2 text-center transition-colors min-h-[4.5rem] flex flex-col items-center justify-center
+              bg-stone-800/70 border border-amber-800/40 hover:border-amber-600/60 cursor-pointer active:scale-[0.98]"
+            onClick={() => setExpandedType(expandedType === 'equipmentSet' ? null : (equipmentSetCards.length > 0 ? 'equipmentSet' : null))}
+          >
+            <div className="text-lg">🎴</div>
+            <div className="text-amber-200/90 text-xs leading-tight mt-0.5">装备卡</div>
+            {equipmentSetCards.length > 0 ? (
+              <div className="text-stone-400 text-[10px] mt-0.5">{equipmentSetCards.length}</div>
+            ) : (
+              <div className="text-amber-400 text-sm font-bold mt-0.5">0</div>
+            )}
+          </button>
+        </div>
 
+        {SINGLE_ROW_TYPES.slice(2).map(({ type, label, icon }) => {
+          const typeCards = byType[type] || [];
+          const counts = countByRarity(typeCards);
+          const total = typeCards.length;
+          const isExpanded = expandedType === type;
+          const cellBtnClass = (active, hasItems) =>
+            `rounded-lg p-2 text-center transition-colors min-h-[4.5rem] flex flex-col items-center justify-center
+              ${active ? 'bg-amber-900/30 border border-amber-700/40' :
+                hasItems ? 'bg-stone-800/60 border border-stone-700/30 hover:border-stone-500 cursor-pointer'
+                : 'bg-stone-800/30 border border-stone-800/20 opacity-50 cursor-default'}`;
           return (
             <button
               key={type}
@@ -1362,14 +1587,33 @@ function BackpackSection({ cards, skillsMap }) {
               onClick={() => setExpandedType(isExpanded ? null : (total > 0 ? type : null))}
               className={cellBtnClass(isExpanded, total > 0)}
             >
-              {cellInner}
+              <div className="text-lg">{icon}</div>
+              <div className="text-stone-300 text-xs leading-tight">{label}</div>
+              {total > 0 ? (
+                <div className="flex items-center justify-center gap-1 mt-1 flex-wrap">
+                  {RARITY_DOTS.map(({ key, color }) => {
+                    const count = counts[key];
+                    if (!count) return null;
+                    return (
+                      <div key={key} className="flex items-center gap-0.5">
+                        <div className={`w-2 h-2 rounded-full ${color}`} />
+                        <span className="text-stone-400 text-[10px]">{count}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="text-amber-400 text-sm font-bold mt-0.5">0</div>
+              )}
             </button>
           );
         })}
       </div>
 
       {/* 展开的卡牌列表 */}
-      {expandedType && (byType[expandedType]?.length > 0) && (
+      {expandedType && (
+        ((expandedType === 'equipmentSet' && equipmentSetCards.length > 0) ||
+          (expandedType !== 'equipmentSet' && (byType[expandedType]?.length > 0))) && (
         <div className="mt-2 p-2 bg-stone-800/40 rounded-lg border border-stone-700/30">
           {(expandedType === 'character') ? (
             groupByRarity(byType[expandedType]).map(({ rarity, cards: rCards }) => (
@@ -1419,6 +1663,86 @@ function BackpackSection({ cards, skillsMap }) {
                 </div>
               </div>
             ))
+          ) : (expandedType === 'equipmentSet') ? (
+            <div className="flex flex-wrap gap-1.5">
+              {equipmentSetCards.map((card) => (
+                (() => {
+                  const cfg = card.config || {};
+                  const slots = [
+                    { key: 'weaponInstanceId', tag: '攻', icon: '⚔️', pos: 'left-1/2 top-[14px] -translate-x-1/2' },
+                    { key: 'accessory1InstanceId', tag: '速', icon: '✨', pos: 'left-[8px] top-1/2 -translate-y-1/2' },
+                    { key: 'accessory2InstanceId', tag: '介', icon: '✨', pos: 'right-[8px] top-1/2 -translate-y-1/2' },
+                    { key: 'armorInstanceId', tag: '守', icon: '🛡️', pos: 'left-1/2 bottom-[14px] -translate-x-1/2' },
+                  ];
+                  return (
+                    <button
+                      key={card.instance_id}
+                      type="button"
+                      className="relative cursor-pointer overflow-hidden"
+                      style={{ width: 128, height: 192 }}
+                      onClick={() => {
+                        setEncapsulateMode('edit');
+                        setEncapsulateEditId(card.instance_id);
+                        setEncapsulateOpen(true);
+                      }}
+                    >
+                      <div
+                        className="relative rounded-xl border-[3px] border-stone-500/70
+                          bg-gradient-to-b from-stone-700/90 via-stone-800/90 to-stone-950/95
+                          shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_8px_24px_rgba(0,0,0,0.35)]"
+                        style={{ transform: 'scale(0.5)', transformOrigin: 'top left', width: 256, height: 384 }}
+                      >
+                        <div className="pointer-events-none absolute inset-1 rounded-lg border border-stone-500/35" aria-hidden />
+                        <div
+                          className={`absolute left-[8px] top-[12px] text-[14px] leading-tight tracking-[1px] font-bold ${RARITY_TEXT_CLASS[card.config?.rarity || card.rarity || 'common'] || 'text-white'}`}
+                          style={{ writingMode: 'vertical-rl', textOrientation: 'upright' }}
+                        >
+                          {card.config?.displayName || '装备卡'}
+                        </div>
+
+                        {slots.map((s) => {
+                          const piece = resolveEquipPiece(cfg[s.key]);
+                          const pCfg = piece?.config || {};
+                          const pName = pCfg.equipmentName || '空';
+                          const pRarity = pCfg.rarity || piece?.rarity || 'common';
+                          const rarityLabelMap = { common: '普通', rare: '稀有', epic: '史诗', legendary: '传奇', core: '核心' };
+                          const rarityColorMap = {
+                            common: 'text-gray-300',
+                            rare: 'text-blue-400',
+                            epic: 'text-purple-400',
+                            legendary: 'text-orange-400',
+                            core: 'text-yellow-300',
+                          };
+                          return (
+                            <div key={s.key} className={`absolute ${s.pos}`}>
+                              <div
+                                className={`rounded-lg border-2 ${piece ? 'border-stone-500 bg-stone-700/90' : 'border-dashed border-stone-600 bg-stone-800'} w-[96px] h-[96px] flex flex-col items-center justify-center`}
+                              >
+                                {piece ? (
+                                  <div className="w-full h-full p-1 flex flex-col items-center justify-between text-center">
+                                    <span className="text-[12px] text-stone-100 truncate w-full leading-tight">{pName}</span>
+                                    <span className="text-xl opacity-45 leading-none">{s.icon}</span>
+                                    <span className={`text-[12px] font-bold leading-tight ${rarityColorMap[pRarity] || 'text-gray-300'}`}>
+                                      {rarityLabelMap[pRarity] || '普通'}
+                                    </span>
+                                  </div>
+                                ) : (
+                                  <>
+                                    <span className="text-[10px] text-amber-500/90 font-bold leading-none">{s.tag}</span>
+                                    <span className="text-2xl opacity-40 leading-none mt-1">{s.icon}</span>
+                                    <span className="text-[10px] text-stone-500 mt-0.5">空</span>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </button>
+                  );
+                })()
+              ))}
+            </div>
           ) : (expandedType === 'title') ? (
             groupByRarity(byType[expandedType]).map(({ rarity, cards: rCards }) => (
               <div key={rarity} className="mb-2 last:mb-0">
@@ -1439,7 +1763,7 @@ function BackpackSection({ cards, skillsMap }) {
             <div className="text-stone-500 text-xs text-center py-3">尚未实装</div>
           )}
         </div>
-      )}
+      ))}
 
       {/* 卡牌预览浮层 */}
       {previewCard && (
@@ -1464,7 +1788,17 @@ function BackpackSection({ cards, skillsMap }) {
 
       <EncapsulateEquipmentModal
         open={encapsulateOpen}
-        onClose={() => setEncapsulateOpen(false)}
+        onClose={() => {
+          setEncapsulateOpen(false);
+          setEncapsulateMode('draft');
+          setEncapsulateEditId(null);
+        }}
+        mode={encapsulateMode}
+        editInstanceId={encapsulateEditId}
+        playerId={playerId}
+        onAfterChange={onAfterEncapsulateChange}
+        equipmentCards={encapsulateEquipmentCards}
+        isLandscape={isLandscape}
       />
     </div>
   );
@@ -1474,8 +1808,14 @@ function BackpackSection({ cards, skillsMap }) {
 const RARITY_ORDER = { common: 0, rare: 1, epic: 2, legendary: 3, core: 4 };
 
 /** 底部抽屉：可装备卡牌选择（完整卡牌50%缩放，按稀有度分组） */
-function CardDrawer({ slot, cards, skillsMap, onSelect, onClose }) {
+function CardDrawer({ slot, cards, allCards = [], skillsMap, onSelect, onClose }) {
   const baseUrl = import.meta.env.BASE_URL;
+  const equipmentCards = useMemo(
+    () => allCards.filter((c) => c.card_type === 'equipment'),
+    [allCards]
+  );
+  const resolveEquipPiece = (instanceId) =>
+    equipmentCards.find((c) => c.instance_id === instanceId) || null;
 
   // 按稀有度分组并排序
   const grouped = {};
@@ -1521,12 +1861,14 @@ function CardDrawer({ slot, cards, skillsMap, onSelect, onClose }) {
                 <div className="flex flex-wrap gap-2">
                   {grouped[rarity].map(card => {
                     const isTitleSlot = slot.id === 'title';
+                    const isCharacterSlot = slot.id === 'character';
+                    const isEquipmentSlot = slot.id === 'equipmentSet';
                     return (
                       <div
                         key={card.instance_id}
                         onClick={() => onSelect(card)}
                         className="cursor-pointer hover:brightness-110 active:scale-95 transition-all"
-                        style={{ width: 128, height: isTitleSlot ? 96 : 192 }}
+                        style={{ width: 128, height: isEquipmentSlot ? 192 : (isTitleSlot || isCharacterSlot) ? 96 : 192 }}
                       >
                         <div style={{ transform: 'scale(0.5)', transformOrigin: 'top left', width: 256 }}>
                           {isTitleSlot ? (
@@ -1535,6 +1877,68 @@ function CardDrawer({ slot, cards, skillsMap, onSelect, onClose }) {
                               type="title"
                               baseUrl={baseUrl}
                             />
+                          ) : isCharacterSlot ? (
+                            <CharacterCard
+                              character={toCharacterCardData(card)}
+                              skillsMap={skillsMap}
+                              showDetails={true}
+                              baseUrl={baseUrl}
+                            />
+                          ) : isEquipmentSlot ? (
+                            <div
+                              className="relative rounded-xl border-[3px] border-stone-500/70
+                                bg-gradient-to-b from-stone-700/90 via-stone-800/90 to-stone-950/95
+                                shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_8px_24px_rgba(0,0,0,0.35)]"
+                              style={{ width: 256, height: 384 }}
+                            >
+                              <div className="pointer-events-none absolute inset-1 rounded-lg border border-stone-500/35" aria-hidden />
+                              <div
+                                className={`absolute left-[8px] top-[12px] text-[14px] leading-tight tracking-[1px] font-bold ${RARITY_TEXT_CLASS[card.config?.rarity || card.rarity || 'common'] || 'text-white'}`}
+                                style={{ writingMode: 'vertical-rl', textOrientation: 'upright' }}
+                              >
+                                {card.config?.displayName || '装备卡'}
+                              </div>
+                              {[
+                                { key: 'weaponInstanceId', tag: '攻', icon: '⚔️', pos: 'left-1/2 top-[14px] -translate-x-1/2' },
+                                { key: 'accessory1InstanceId', tag: '速', icon: '✨', pos: 'left-[8px] top-1/2 -translate-y-1/2' },
+                                { key: 'accessory2InstanceId', tag: '介', icon: '✨', pos: 'right-[8px] top-1/2 -translate-y-1/2' },
+                                { key: 'armorInstanceId', tag: '守', icon: '🛡️', pos: 'left-1/2 bottom-[14px] -translate-x-1/2' },
+                              ].map((s) => {
+                                const piece = resolveEquipPiece(card.config?.[s.key]);
+                                const pCfg = piece?.config || {};
+                                const pName = pCfg.equipmentName || '空';
+                                const pRarity = pCfg.rarity || piece?.rarity || 'common';
+                                const rarityLabelMap = { common: '普通', rare: '稀有', epic: '史诗', legendary: '传奇', core: '核心' };
+                                const rarityColorMap = {
+                                  common: 'text-gray-300',
+                                  rare: 'text-blue-400',
+                                  epic: 'text-purple-400',
+                                  legendary: 'text-orange-400',
+                                  core: 'text-yellow-300',
+                                };
+                                return (
+                                  <div key={s.key} className={`absolute ${s.pos}`}>
+                                    <div className={`rounded-lg border-2 ${piece ? 'border-stone-500 bg-stone-700/90' : 'border-dashed border-stone-600 bg-stone-800'} w-[96px] h-[96px] flex flex-col items-center justify-center`}>
+                                      {piece ? (
+                                        <div className="w-full h-full p-1 flex flex-col items-center justify-between text-center">
+                                          <span className="text-[12px] text-stone-100 truncate w-full leading-tight">{pName}</span>
+                                          <span className="text-xl opacity-45 leading-none">{s.icon}</span>
+                                          <span className={`text-[12px] font-bold leading-tight ${rarityColorMap[pRarity] || 'text-gray-300'}`}>
+                                            {rarityLabelMap[pRarity] || '普通'}
+                                          </span>
+                                        </div>
+                                      ) : (
+                                        <>
+                                          <span className="text-[10px] text-amber-500/90 font-bold leading-none">{s.tag}</span>
+                                          <span className="text-2xl opacity-40 leading-none mt-1">{s.icon}</span>
+                                          <span className="text-[10px] text-stone-500 mt-0.5">空</span>
+                                        </>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
                           ) : (
                             <TroopCard
                               troop={toTroopCardData(card)}
@@ -1558,12 +1962,19 @@ function CardDrawer({ slot, cards, skillsMap, onSelect, onClose }) {
 }
 
 /** 卡牌详情浮层：显示完整卡牌 + 卸下/更换按钮 */
-function CardDetailOverlay({ card, slot, skillsMap, onClose, onReplace, onUnequip }) {
+function CardDetailOverlay({ card, slot, skillsMap, allCards = [], onClose, onReplace, onUnequip }) {
   const baseUrl = import.meta.env.BASE_URL;
   const isTroopSlot = slot.id === 'troop' || slot.id === 'troop1' || slot.id === 'troop2';
   const isTitleSlot = slot.id === 'title';
+  const isEquipmentSetSlot = slot.id === 'equipmentSet' && card?.card_type === 'equipmentSet';
   const isPositionSlot = slot.id === 'position';
   const isCharacterSlot = slot.id === 'character';
+  const equipmentCards = useMemo(
+    () => allCards.filter((c) => c.card_type === 'equipment'),
+    [allCards]
+  );
+  const resolveEquipPiece = (instanceId) =>
+    equipmentCards.find((c) => c.instance_id === instanceId) || null;
 
   return (
     <div className="fixed inset-0 z-[200] bg-black/70 flex items-center justify-center" onClick={onClose}>
@@ -1588,6 +1999,61 @@ function CardDetailOverlay({ card, slot, skillsMap, onClose, onReplace, onUnequi
                 showDetails={true} baseUrl={baseUrl} />
             ) : isTitleSlot ? (
               <TitleAchievementCard item={toTitleCardData(card)} type="title" baseUrl={baseUrl} />
+            ) : isEquipmentSetSlot ? (
+              <div
+                className="relative rounded-xl border-[3px] border-stone-500/70
+                  bg-gradient-to-b from-stone-700/90 via-stone-800/90 to-stone-950/95
+                  shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_8px_24px_rgba(0,0,0,0.35)]"
+                style={{ width: 256, height: 384 }}
+              >
+                <div className="pointer-events-none absolute inset-1 rounded-lg border border-stone-500/35" aria-hidden />
+                <div
+                  className={`absolute left-[8px] top-[12px] text-[14px] leading-tight tracking-[1px] font-bold ${RARITY_TEXT_CLASS[card.config?.rarity || card.rarity || 'common'] || 'text-white'}`}
+                  style={{ writingMode: 'vertical-rl', textOrientation: 'upright' }}
+                >
+                  {card.config?.displayName || '装备卡'}
+                </div>
+                {[
+                  { key: 'weaponInstanceId', tag: '攻', icon: '⚔️', pos: 'left-1/2 top-[14px] -translate-x-1/2' },
+                  { key: 'accessory1InstanceId', tag: '速', icon: '✨', pos: 'left-[8px] top-1/2 -translate-y-1/2' },
+                  { key: 'accessory2InstanceId', tag: '介', icon: '✨', pos: 'right-[8px] top-1/2 -translate-y-1/2' },
+                  { key: 'armorInstanceId', tag: '守', icon: '🛡️', pos: 'left-1/2 bottom-[14px] -translate-x-1/2' },
+                ].map((s) => {
+                  const piece = resolveEquipPiece(card.config?.[s.key]);
+                  const pCfg = piece?.config || {};
+                  const pName = pCfg.equipmentName || '空';
+                  const pRarity = pCfg.rarity || piece?.rarity || 'common';
+                  const rarityLabelMap = { common: '普通', rare: '稀有', epic: '史诗', legendary: '传奇', core: '核心' };
+                  const rarityColorMap = {
+                    common: 'text-gray-300',
+                    rare: 'text-blue-400',
+                    epic: 'text-purple-400',
+                    legendary: 'text-orange-400',
+                    core: 'text-yellow-300',
+                  };
+                  return (
+                    <div key={s.key} className={`absolute ${s.pos}`}>
+                      <div className={`rounded-lg border-2 ${piece ? 'border-stone-500 bg-stone-700/90' : 'border-dashed border-stone-600 bg-stone-800'} w-[96px] h-[96px] flex flex-col items-center justify-center`}>
+                        {piece ? (
+                          <div className="w-full h-full p-1 flex flex-col items-center justify-between text-center">
+                            <span className="text-[12px] text-stone-100 truncate w-full leading-tight">{pName}</span>
+                            <span className="text-xl opacity-45 leading-none">{s.icon}</span>
+                            <span className={`text-[12px] font-bold leading-tight ${rarityColorMap[pRarity] || 'text-gray-300'}`}>
+                              {rarityLabelMap[pRarity] || '普通'}
+                            </span>
+                          </div>
+                        ) : (
+                          <>
+                            <span className="text-[10px] text-amber-500/90 font-bold leading-none">{s.tag}</span>
+                            <span className="text-2xl opacity-40 leading-none mt-1">{s.icon}</span>
+                            <span className="text-[10px] text-stone-500 mt-0.5">空</span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             ) : isPositionSlot ? (
               <PositionCard position={card} showDetails={true} />
             ) : (
@@ -1605,13 +2071,11 @@ function CardDetailOverlay({ card, slot, skillsMap, onClose, onReplace, onUnequi
                 hover:bg-red-800/50 transition-colors">
               {isCharacterSlot ? '卸下将领' : '卸下'}
             </button>
-            {!isCharacterSlot && (
-              <button onClick={onReplace}
-                className="flex-1 py-2 rounded-lg bg-amber-900/50 border border-amber-700/50 text-amber-300 text-sm
-                  hover:bg-amber-800/50 transition-colors">
-                更换
-              </button>
-            )}
+            <button onClick={onReplace}
+              className="flex-1 py-2 rounded-lg bg-amber-900/50 border border-amber-700/50 text-amber-300 text-sm
+                hover:bg-amber-800/50 transition-colors">
+              更换
+            </button>
           </div>
         )}
       </div>
