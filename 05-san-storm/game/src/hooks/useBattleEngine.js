@@ -5,7 +5,7 @@
  * 从 demo/map-generator-demo.html 完全迁移，逻辑一致
  */
 
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useRef } from 'react';
 import { calcDamage, rollCritDodge, troopDamageToCasualties } from '@/systems/combatSystem';
 import { bindTroopPortraitImg } from '@/utils/troopBattlePortrait';
 import { autoSelectFormation } from '@/systems/formationSystem';
@@ -18,20 +18,16 @@ import * as fmt from '@/systems/battleTextFormatter';
 
 const GAME_BASE_URL = typeof import.meta !== 'undefined' && import.meta.env?.BASE_URL != null ? import.meta.env.BASE_URL : '';
 
-/** 自动战斗开关（仅用于内部节奏控制，不提供后台加速特权） */
-let sleepSkipDelaysForAutoBattle = false;
-/** 仅用于“补回后台被节流掉的等待时间”，不提供额外加速权益 */
-let catchupDelayBudgetMs = 0;
-let hiddenSinceTs = 0;
+/** PVE 离开超时等场景：跳过动画等待，战斗逻辑不变（由 BattleArena 调用） */
+let battleAnimationSkipDelays = false;
+
+export function setBattleAnimationSkipDelays(enabled) {
+  battleAnimationSkipDelays = !!enabled;
+}
 
 function sleep(ms, speed = 1) {
-  void sleepSkipDelaysForAutoBattle;
-  let t = ms / (speed || 1);
-  if (catchupDelayBudgetMs > 0) {
-    const used = Math.min(catchupDelayBudgetMs, t);
-    catchupDelayBudgetMs -= used;
-    t -= used;
-  }
+  if (battleAnimationSkipDelays) return Promise.resolve();
+  const t = ms / (speed || 1);
   if (t <= 0) return Promise.resolve();
   return new Promise((r) => setTimeout(r, t));
 }
@@ -61,52 +57,6 @@ export function useBattleEngine({
   activeFormationRef.current = activeFormation;
   autoBattleRef.current = autoBattle;
   battlePlayingRef.current = battlePlaying;
-
-  // 切后台期间浏览器会节流 setTimeout；回前台后只补回“被耽误”的时间，保持等效 1x
-  useEffect(() => {
-    if (typeof document === 'undefined') return undefined;
-
-    const shouldTrack = () => battlePlayingRef.current && autoBattleRef.current;
-
-    const onVisibilityChange = () => {
-      if (!shouldTrack()) {
-        if (!document.hidden) hiddenSinceTs = 0;
-        return;
-      }
-      if (document.hidden) {
-        hiddenSinceTs = Date.now();
-        return;
-      }
-      if (hiddenSinceTs > 0) {
-        const hiddenMs = Math.max(0, Date.now() - hiddenSinceTs);
-        catchupDelayBudgetMs += hiddenMs;
-        hiddenSinceTs = 0;
-      }
-    };
-
-    // 某些环境不会稳定触发 visibilitychange，blur/focus 作为兜底
-    const onBlur = () => {
-      if (!shouldTrack()) return;
-      if (!hiddenSinceTs) hiddenSinceTs = Date.now();
-    };
-    const onFocus = () => {
-      if (!shouldTrack()) return;
-      if (hiddenSinceTs > 0) {
-        const hiddenMs = Math.max(0, Date.now() - hiddenSinceTs);
-        catchupDelayBudgetMs += hiddenMs;
-        hiddenSinceTs = 0;
-      }
-    };
-
-    document.addEventListener('visibilitychange', onVisibilityChange);
-    window.addEventListener('blur', onBlur);
-    window.addEventListener('focus', onFocus);
-    return () => {
-      document.removeEventListener('visibilitychange', onVisibilityChange);
-      window.removeEventListener('blur', onBlur);
-      window.removeEventListener('focus', onFocus);
-    };
-  }, []);
 
   // ── DOM helpers ──
   const getTileEl = useCallback((troop) => {
@@ -666,8 +616,6 @@ export function useBattleEngine({
 
   // ── 执行单回合 ──
   const executeSingleRound = useCallback(async () => {
-    sleepSkipDelaysForAutoBattle = !!autoBattleRef.current;
-
     const alive = battleTroops.filter(t => t.currentTroops > 0);
     if (alive.length === 0) return 'enemy_win';
     const players = alive.filter(t => t.faction === 'player');
@@ -802,9 +750,7 @@ export function useBattleEngine({
         if (result === 'continue') await sleep(300, speedRef.current);
       }
     } finally {
-      sleepSkipDelaysForAutoBattle = false;
-      catchupDelayBudgetMs = 0;
-      hiddenSinceTs = 0;
+      setBattleAnimationSkipDelays(false);
     }
     takenOver.current = false;
     speedRef.current = 1;

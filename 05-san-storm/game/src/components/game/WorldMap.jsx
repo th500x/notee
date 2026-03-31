@@ -798,7 +798,7 @@ export default function WorldMap({ onEventBusyChange }) {
                 <div className="text-white/80 text-xs mt-1 border-t border-white/20 pt-1">
                   新野 · 小城
                   <br />披挂上阵：<span className={onDutyCount > 0 ? 'text-green-400' : 'text-stone-500'}>{onDutyCount}</span>
-                  <span className="text-stone-500">（上阵编组总兵力≥800 才接战）</span>
+                  <span className="text-stone-500">（披挂防守方上阵≥800 才接战；开战需上阵≥200）</span>
                   {garrisonStats && garrisonStats.slot_count > 0 && (
                     <><br />驻地守军：<span className="text-cyan-400">{garrisonStats.slot_count}</span>（{garrisonStats.player_count}人）</>
                   )}
@@ -957,6 +957,7 @@ export default function WorldMap({ onEventBusyChange }) {
       {siegeData && !siegeResult && (
         <BattleArena
           playerUnits={buildPlayerUnitsFromContext(player, cards, attributeBonusBySlot)}
+          cards={cards}
           enemyUnits={siegeData.npcGarrison}
           silverAmount={player?.silver ?? 0}
           playerId={player?.player_id}

@@ -425,36 +425,45 @@ async function importTitles(connection) {
 
 /**
  * 主函数
+ * 用法: node import-config-data.js [characters] [troops] [positions] [factions] [titles]
+ * 无参数时导入全部（与历史行为一致）
  */
 async function main() {
   let connection;
-  
+  const argv = process.argv.slice(2).map((a) => a.toLowerCase());
+  const all = argv.length === 0;
+  const want = (name) => all || argv.includes(name);
+
   try {
     console.log('连接数据库...');
     connection = await mysql.createConnection(dbConfig);
     console.log('✅ 数据库连接成功\n');
-    
-    // 导入将领配置
-    await importCharacters(connection);
-    console.log('');
-    
-    // 导入部队配置
-    await importTroops(connection);
-    console.log('');
-    
-    // 导入官职配置
-    await importPositions(connection);
-    console.log('');
-    
-    // 导入势力配置
-    await importFactions(connection);
-    console.log('');
-    
-    // 导入称号配置
-    await importTitles(connection);
-    console.log('');
-    
-    console.log('🎉 所有配置数据导入完成！');
+    if (!all) {
+      console.log(`📌 仅导入: ${argv.join(', ')}\n`);
+    }
+
+    if (want('characters')) {
+      await importCharacters(connection);
+      console.log('');
+    }
+    if (want('troops')) {
+      await importTroops(connection);
+      console.log('');
+    }
+    if (want('positions')) {
+      await importPositions(connection);
+      console.log('');
+    }
+    if (want('factions')) {
+      await importFactions(connection);
+      console.log('');
+    }
+    if (want('titles')) {
+      await importTitles(connection);
+      console.log('');
+    }
+
+    console.log('🎉 配置数据导入完成！');
     
   } catch (error) {
     console.error('❌ 导入失败:', error);

@@ -47,6 +47,7 @@ export default function EventBattle({
   return (
     <BattleArena
       playerUnits={playerUnits}
+      cards={cards}
       enemyRarity={eventRarity}
       silverAmount={playerSilver ?? 0}
       playerId={playerId}

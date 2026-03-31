@@ -11,6 +11,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { usePlayerContext } from '@/contexts/PlayerContext';
+import { useLifeStages } from '@/hooks/useLifeStages';
 import { loadSharedData } from '@/services/dataService';
 import { playerAPI } from '@/services/playerApi';
 import { garrisonAPI } from '@/services/garrisonApi';
@@ -65,6 +66,7 @@ const GENERAL_SLOTS = [
 
 export default function LineupTab({ onClose }) {
   const { player, cards, loading, error, refresh, attributeBonusBySlot } = usePlayerContext();
+  const { getCharacterLifeStage } = useLifeStages();
   const [activeSubTab, setActiveSubTab] = useState('player');
   const [selectedSlot, setSelectedSlot] = useState(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -489,6 +491,7 @@ export default function LineupTab({ onClose }) {
           slot={detailCard.slot}
           skillsMap={skillsMap}
           allCards={cards}
+          getCharacterLifeStage={getCharacterLifeStage}
           onClose={() => setDetailCard(null)}
           onReplace={() => {
             // 关闭详情 → 打开选择抽屉（保留slotOwner信息）
@@ -1961,8 +1964,8 @@ function CardDrawer({ slot, cards, allCards = [], skillsMap, onSelect, onClose }
   );
 }
 
-/** 卡牌详情浮层：显示完整卡牌 + 卸下/更换按钮 */
-function CardDetailOverlay({ card, slot, skillsMap, allCards = [], onClose, onReplace, onUnequip }) {
+/** 卡牌详情浮层：显示完整卡牌 + 卸下/更换按钮；将领卡传入 getCharacterLifeStage 后可点击翻面查看生涯（与 Wiki 一致） */
+function CardDetailOverlay({ card, slot, skillsMap, allCards = [], getCharacterLifeStage, onClose, onReplace, onUnequip }) {
   const baseUrl = import.meta.env.BASE_URL;
   const isTroopSlot = slot.id === 'troop' || slot.id === 'troop1' || slot.id === 'troop2';
   const isTitleSlot = slot.id === 'title';
@@ -1975,6 +1978,12 @@ function CardDetailOverlay({ card, slot, skillsMap, allCards = [], onClose, onRe
   );
   const resolveEquipPiece = (instanceId) =>
     equipmentCards.find((c) => c.instance_id === instanceId) || null;
+
+  const characterCardPayload = isCharacterSlot ? toCharacterCardData(card) : null;
+  const lifeStageForChar =
+    characterCardPayload && typeof getCharacterLifeStage === 'function'
+      ? getCharacterLifeStage(characterCardPayload.id)
+      : null;
 
   return (
     <div className="fixed inset-0 z-[200] bg-black/70 flex items-center justify-center" onClick={onClose}>
@@ -1989,11 +1998,19 @@ function CardDetailOverlay({ card, slot, skillsMap, allCards = [], onClose, onRe
         </div>
 
         {/* 卡牌展示 */}
-        <div className="flex justify-center mb-3">
+        <div className="flex flex-col items-center mb-3 gap-1">
+          {lifeStageForChar ? (
+            <p className="text-stone-500 text-[11px] text-center">点击卡牌可翻面查看生涯</p>
+          ) : null}
           <div style={{ transform: 'scale(0.7)', transformOrigin: 'top center' }}>
             {isCharacterSlot ? (
-              <CharacterCard character={toCharacterCardData(card)} skillsMap={skillsMap}
-                showDetails={true} baseUrl={baseUrl} />
+              <CharacterCard
+                character={characterCardPayload}
+                skillsMap={skillsMap}
+                showDetails={true}
+                baseUrl={baseUrl}
+                lifeStageData={lifeStageForChar}
+              />
             ) : isTroopSlot ? (
               <TroopCard troop={toTroopCardData(card)} skillsMap={skillsMap}
                 showDetails={true} baseUrl={baseUrl} />
@@ -2069,7 +2086,7 @@ function CardDetailOverlay({ card, slot, skillsMap, allCards = [], onClose, onRe
             <button onClick={onUnequip}
               className="flex-1 py-2 rounded-lg bg-red-900/50 border border-red-700/50 text-red-300 text-sm
                 hover:bg-red-800/50 transition-colors">
-              {isCharacterSlot ? '卸下将领' : '卸下'}
+              卸下
             </button>
             <button onClick={onReplace}
               className="flex-1 py-2 rounded-lg bg-amber-900/50 border border-amber-700/50 text-amber-300 text-sm

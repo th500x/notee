@@ -2,9 +2,8 @@
  * 部队卡图标 URL（与仓库内 public/assets/san_1_ui_card/troop 一致）
  *
  * 仅两步，不串联多余路径：
- *  1) core：若有 iconPath → 用 iconPath；否则请求
- *     assets/san_1_ui_card/troop/{配置ID}.png（与文件名完全一致）。
- *     非 core 稀有度不请求配置 ID 图，仅在有 iconPath 时使用之。
+ *  1) core：请求 assets/san_1_ui_card/troop/{配置ID}.png（与文件名完全一致）。
+ *     非 core 稀有度不请求配置 ID 图，也不使用 iconPath，统一走稀有度通用图。
  *  2) 失败则用同目录稀有度图：troop/troop_r{1-4}_{兵种}_{武器}.png
  */
 
@@ -56,18 +55,13 @@ export function getTroopIdIconUrl(troopId, baseUrl = '') {
 }
 
 /**
- * 最多 2 个 URL：① 专属图 ② 稀有度通用图
- * 专属 id 路径（san_1_troop_*.png）仅 core 核心部队尝试，避免 common/rare/epic/legendary
- * 无对应资产时反复 404；其余稀有度仅用 iconPath（若有）或直接进入 troop_r* 通用规则。
+ * 最多 2 个 URL：① core 专属图 ② 稀有度通用图
+ * 专属 id 路径（san_1_troop_*.png）仅 core 核心部队尝试；
+ * 其余稀有度始终只走 troop_r* 通用规则（不再尝试 iconPath）。
  */
 export function getTroopPortraitUrlAttempts(troop, baseUrl = '') {
   const rarityUrl = getTroopUiFolderFallbackUrl(troop, baseUrl);
   const isCore = troop.rarity === 'core';
-
-  if (troop.iconPath) {
-    if (troop.iconPath === rarityUrl) return [rarityUrl];
-    return [troop.iconPath, rarityUrl];
-  }
 
   if (isCore) {
     const id = normalizeTroopAssetId(troop);

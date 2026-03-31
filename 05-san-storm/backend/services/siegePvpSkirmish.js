@@ -57,6 +57,7 @@ function siegeNpcToTroop(npc, faction, posIndex, side, rng) {
     range: npc.attackRange,
     maxTroops: npc.maxTroops,
     currentTroops: npc.currentTroops ?? npc.maxTroops,
+    initialTroops: npc.currentTroops ?? npc.maxTroops,
     faction,
     y: pos.y,
     x: pos.x,

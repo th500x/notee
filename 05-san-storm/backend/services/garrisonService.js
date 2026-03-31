@@ -16,8 +16,11 @@ const CARD_FIELDS = [
 
 const GARRISON_TROOP_FIELDS = ['char1_troop1', 'char1_troop2', 'char2_troop1', 'char2_troop2'];
 
-/** 驻地槽「计入守军、可出战」的编队总兵力下限（与攻城 initiateSiege 筛选一致） */
+/** 驻地槽「计入守军、可出战」的编队总兵力下限（与开战上阵总兵力规则独立；披挂≥800） */
 const MIN_GARRISON_TOTAL_TROOPS = 800;
+
+/** 开战 / 攻城等：上阵编组（is_equipped 部队）总兵力下限，全战斗通用 */
+const MIN_MAIN_LINEUP_TROOPS_BATTLE = 200;
 
 // 单部队参战最低兵力（兵力为0不参战；槽位总兵力见 MIN_GARRISON_TOTAL_TROOPS）
 const MIN_TROOPS_TO_DEFEND = 1;
@@ -42,6 +45,40 @@ async function sumTroopInstancesTotalTroops(conn, playerId, instanceIds) {
     [playerId, ...ids]
   );
   return Number(rows[0]?.total) || 0;
+}
+
+/**
+ * 上阵编组内所有已装备部队卡的当前总兵力（主公槽 + 将领1/2 共五槽可能存在的部队）
+ */
+async function sumMainLineupEquippedTroopTroops(conn, playerId) {
+  const [rows] = await conn.query(
+    `SELECT COALESCE(SUM(
+        COALESCE(pc.current_troops, COALESCE(ct.max_troops, 0) + COALESCE(pc.bonus_max_troops, 0))
+      ), 0) AS total
+     FROM player_cards pc
+     LEFT JOIN config_troops ct ON pc.card_id = ct.troop_id
+     WHERE pc.player_id = ? AND pc.card_type = 'troop' AND pc.is_equipped = TRUE`,
+    [playerId]
+  );
+  return Number(rows[0]?.total) || 0;
+}
+
+/** 将本次 POST 与库中已有驻守行合并，避免请求体漏键导致将领2 部队未纳入总兵力 */
+function mergeGarrisonPayloadWithPrevRow(prevSlot, incoming) {
+  if (!prevSlot) return { ...incoming };
+  const merged = { ...incoming };
+  for (const f of CARD_FIELDS) {
+    if (!Object.prototype.hasOwnProperty.call(incoming, f)) {
+      merged[f] = prevSlot[f] ?? null;
+    }
+  }
+  if (!Object.prototype.hasOwnProperty.call(incoming, 'cityId')) {
+    merged.cityId = prevSlot.city_id ?? null;
+  }
+  if (!Object.prototype.hasOwnProperty.call(incoming, 'cityName')) {
+    merged.cityName = prevSlot.city_name ?? null;
+  }
+  return merged;
 }
 
 /** special_effect 字段映射 → player_cards bonus 字段（复用 players.js 的逻辑） */
@@ -301,7 +338,10 @@ async function getGarrisonSlot(playerId, slotNumber) {
  * 保存驻守配置（INSERT ON DUPLICATE KEY UPDATE）
  */
 async function saveGarrison(playerId, slotNumber, config) {
-  const instanceIds = CARD_FIELDS.map(f => config[f]).filter(Boolean);
+  const prevSlot = await getGarrisonSlot(playerId, slotNumber);
+  const merged = mergeGarrisonPayloadWithPrevRow(prevSlot, config);
+
+  const instanceIds = CARD_FIELDS.map(f => merged[f]).filter(Boolean);
 
   // 检查卡牌是否已被其他驻守槽位占用
   if (instanceIds.length > 0) {
@@ -330,11 +370,10 @@ async function saveGarrison(playerId, slotNumber, config) {
   }
 
   const garrisonTroopFields = GARRISON_TROOP_FIELDS;
-  const prevSlot = await getGarrisonSlot(playerId, slotNumber);
   const newlyAssignedTroopIds = [...new Set(
     garrisonTroopFields
       .map((f) => {
-        const nextId = config[f] || null;
+        const nextId = merged[f] || null;
         const prevId = prevSlot?.[f] || null;
         return nextId && nextId !== prevId ? nextId : null;
       })
@@ -358,9 +397,9 @@ async function saveGarrison(playerId, slotNumber, config) {
     }
   }
 
-  const hasChar = !!(config.char1_card || config.char2_card);
-  const hasTroop = !!(config.char1_troop1 || config.char1_troop2 || config.char2_troop1 || config.char2_troop2);
-  const troopInstanceIds = GARRISON_TROOP_FIELDS.map((f) => config[f]).filter(Boolean);
+  const hasChar = !!(merged.char1_card || merged.char2_card);
+  const hasTroop = !!(merged.char1_troop1 || merged.char1_troop2 || merged.char2_troop1 || merged.char2_troop2);
+  const troopInstanceIds = GARRISON_TROOP_FIELDS.map((f) => merged[f]).filter(Boolean);
   const totalTroopsConfigured = hasTroop
     ? await sumTroopInstancesTotalTroops(pool, playerId, troopInstanceIds)
     : 0;
@@ -384,13 +423,13 @@ async function saveGarrison(playerId, slotNumber, config) {
       char2_treasure = VALUES(char2_treasure), char2_troop1 = VALUES(char2_troop1), char2_troop2 = VALUES(char2_troop2),
       is_active = VALUES(is_active)`,
     [
-      playerId, slotNumber, config.cityId || null, config.cityName || null,
-      config.char1_card || null, config.char1_equipment_card || null,
-      config.char1_title || null, config.char1_achievement || null, config.char1_treasure || null,
-      config.char1_troop1 || null, config.char1_troop2 || null,
-      config.char2_card || null, config.char2_equipment_card || null,
-      config.char2_title || null, config.char2_achievement || null, config.char2_treasure || null,
-      config.char2_troop1 || null, config.char2_troop2 || null,
+      playerId, slotNumber, merged.cityId || null, merged.cityName || null,
+      merged.char1_card || null, merged.char1_equipment_card || null,
+      merged.char1_title || null, merged.char1_achievement || null, merged.char1_treasure || null,
+      merged.char1_troop1 || null, merged.char1_troop2 || null,
+      merged.char2_card || null, merged.char2_equipment_card || null,
+      merged.char2_title || null, merged.char2_achievement || null, merged.char2_treasure || null,
+      merged.char2_troop1 || null, merged.char2_troop2 || null,
       isActive,
     ]
   );
@@ -398,7 +437,7 @@ async function saveGarrison(playerId, slotNumber, config) {
   // ── 重算驻守部队卡的特效加成（复用上阵编组的 applyCardBonusToTroops 逻辑） ──
   // 对 char1 和 char2 各自：先清零部队卡 bonus，再累加所有特效卡的 special_effect
   for (const charKey of ['char1', 'char2']) {
-    const troopIds = [config[`${charKey}_troop1`], config[`${charKey}_troop2`]].filter(Boolean);
+    const troopIds = [merged[`${charKey}_troop1`], merged[`${charKey}_troop2`]].filter(Boolean);
     if (troopIds.length === 0) continue;
 
     // 1. 清零该组部队卡的 bonus
@@ -411,9 +450,9 @@ async function saveGarrison(playerId, slotNumber, config) {
 
     // 2. 收集该组所有特效卡（称号/成就/宝物）
     const effectCardIds = [
-      config[`${charKey}_title`],
-      config[`${charKey}_achievement`],
-      config[`${charKey}_treasure`],
+      merged[`${charKey}_title`],
+      merged[`${charKey}_achievement`],
+      merged[`${charKey}_treasure`],
     ].filter(Boolean);
 
     // 3. 查询每张特效卡的 card_type 和 card_id，再查配置表获取 special_effect
@@ -964,6 +1003,8 @@ module.exports = {
   mapBuiltUnitsToSiegeNpcFormat,
   MIN_TROOPS_TO_DEFEND,
   MIN_GARRISON_TOTAL_TROOPS,
+  MIN_MAIN_LINEUP_TROOPS_BATTLE,
   sumTroopInstancesTotalTroops,
+  sumMainLineupEquippedTroopTroops,
   clearInvalidOnDutySelection,
 };

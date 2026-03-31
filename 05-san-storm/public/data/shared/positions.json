@@ -646,8 +646,8 @@
       "rarity": "rare",
       "requirement": "50",
       "position_bonuses": {
-        "resourceBonus": 0.1,
-        "reputationBonus": 0.1,
+        "resourceBonus": 0.05,
+        "reputationBonus": 0.05,
         "infantryBonus": 0.03,
         "archerBonus": 0.03
       },
@@ -666,8 +666,8 @@
       "rarity": "rare",
       "requirement": "50",
       "position_bonuses": {
-        "resourceBonus": 0.1,
-        "reputationBonus": 0.1,
+        "resourceBonus": 0.05,
+        "reputationBonus": 0.05,
         "cavalryBonus": 0.05
       },
       "permissions": [

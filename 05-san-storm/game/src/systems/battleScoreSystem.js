@@ -64,9 +64,13 @@ export function calculateBattleScore(battleTroops, roundNum, result, options = {
 
   for (const troop of battleTroops) {
     const rarity = troop.rarity || 'common';
-    const max = troop.maxTroops || 1;
+    // 评分基准改为「开战时实际兵力」，避免把低兵力入场按满编损失计分
+    const start = Number.isFinite(Number(troop.initialTroops))
+      ? Math.max(0, Number(troop.initialTroops))
+      : Math.max(0, Number(troop.maxTroops || 0));
     const cur = Math.max(0, troop.currentTroops || 0);
-    const lostRatio = (max - cur) / max; // 0~1
+    if (start <= 0) continue;
+    const lostRatio = Math.max(0, Math.min(1, (start - cur) / start)); // 0~1
 
     if (troop.faction === 'enemy' && lostRatio > 0) {
       // 敌方兵力损失：比例 × 基础分
@@ -74,7 +78,7 @@ export function calculateBattleScore(battleTroops, roundNum, result, options = {
       const pts = Math.round(base * lostRatio);
       killScore += pts;
       const pctStr = Math.round(lostRatio * 100);
-      killDetails.push({ name: troopLabel(troop), rarity, pts, pct: pctStr });
+      killDetails.push({ name: troopLabel(troop), rarity, pts, pct: pctStr, startTroops: start, remainTroops: cur });
     }
 
     if (troop.faction === 'player' && lostRatio > 0) {
@@ -83,7 +87,7 @@ export function calculateBattleScore(battleTroops, roundNum, result, options = {
       const pts = Math.round(base * lostRatio);
       lossScore += pts;
       const pctStr = Math.round(lostRatio * 100);
-      lossDetails.push({ name: troopLabel(troop), rarity, pts, pct: pctStr });
+      lossDetails.push({ name: troopLabel(troop), rarity, pts, pct: pctStr, startTroops: start, remainTroops: cur });
     }
   }
 
@@ -91,9 +95,12 @@ export function calculateBattleScore(battleTroops, roundNum, result, options = {
   const turnMult = TURN_MULTIPLIER[Math.min(roundNum, 10)] ?? 1.0;
   const normalScore = Math.round(baseScore * turnMult);
 
-  // 保底积分：敌方消耗分 × 0.3（惨胜/败方不至于0分）
+  // 惨败保底：敌方消耗分 × 0.3
   const floorScore = Math.round(killScore * 0.3);
-  const preSiegeScore = Math.max(normalScore, floorScore);
+  // 安慰保底：当敌方消耗分为 0 时，按己方损失绝对值 × 0.3 折算
+  const comfortFloorScore =
+    killScore === 0 && lossScore < 0 ? Math.round(Math.abs(lossScore) * 0.3) : 0;
+  const preSiegeScore = Math.max(normalScore, floorScore, comfortFloorScore);
   let finalScore = Math.round(preSiegeScore * scoreMultiplier);
 
   // 评级（按倍率后的最终分）
@@ -116,6 +123,8 @@ export function calculateBattleScore(battleTroops, roundNum, result, options = {
       normalScore,
       floorScore,
       floorScoreRule: 0.3,
+      comfortFloorScore,
+      comfortFloorRule: 0.3,
       preSiegeScore,
     },
   };
@@ -141,16 +150,25 @@ export function buildBattleScoreFormulaLines(details, finalScore) {
   const normalScore = details.normalScore ?? Math.round(base * turnM);
   const rule = details.floorScoreRule ?? 0.3;
   const floorScore = details.floorScore ?? Math.round(kill * rule);
-  const pre = details.preSiegeScore ?? Math.max(normalScore, floorScore);
+  const comfortRule = details.comfortFloorRule ?? 0.3;
+  const comfortFloorScore =
+    details.comfortFloorScore ?? (kill === 0 && loss < 0 ? Math.round(Math.abs(loss) * comfortRule) : 0);
+  const pre = details.preSiegeScore ?? Math.max(normalScore, floorScore, comfortFloorScore);
   const sm = details.siegeScoreMultiplier ?? 1;
   const calcFinal = Math.round(pre * sm);
+  const floorLabel = floorScore > 0 ? '惨败保底' : '惨败保底（未触发）';
+  const comfortLabel = comfortFloorScore > 0 ? '安慰保底' : '安慰保底（未触发）';
   const lines = [
     { text: `① 敌方消耗分 + 己方损失分（代数和）= ${kill} + (${loss}) = ${base}` },
     { text: `② 回合倍率：① × ${turnM} = ${normalScore}（第 ${rNum} 回合）` },
-    { text: `③ 保底分：敌方消耗分 × ${rule} = ${floorScore}（再与②取较高，避免惨胜/败方为 0 分）` },
-    { text: `④ 取较高：max(②, ③) = ${pre}` },
-    { text: `⑤ 最终战报分：④ × 攻城积分倍率(${sm}) = ${calcFinal}` },
+    { text: `③ ${floorLabel}：敌方消耗分 × ${rule} = ${floorScore}` },
+    { text: `④ ${comfortLabel}：敌方消耗分为0时，己方损失绝对值 × ${comfortRule} = ${comfortFloorScore}` },
+    { text: `⑤ 取较高：max(②, ③, ④) = ${pre}` },
+    { text: `⑥ 最终战报分：⑤ × 攻城积分倍率(${sm}) = ${calcFinal}` },
   ];
+  if (comfortFloorScore > 0) {
+    lines.push({ text: '（说明：由于敌方消耗分为 0，触发安慰保底计分。）' });
+  }
   if (finalScore != null && calcFinal !== finalScore) {
     lines.push({ text: `（说明：若与顶部总分差 1，多为历史战报四舍五入顺序；以 ${finalScore} 为准）` });
   }

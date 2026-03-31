@@ -51,16 +51,20 @@ function calculateBattleScore(battleTroops, roundNum, result, options = {}) {
 
   for (const troop of battleTroops) {
     const rarity = troop.rarity || 'common';
-    const max = troop.maxTroops || 1;
+    // 评分基准改为「开战时实际兵力」，避免把低兵力入场按满编损失计分
+    const start = Number.isFinite(Number(troop.initialTroops))
+      ? Math.max(0, Number(troop.initialTroops))
+      : Math.max(0, Number(troop.maxTroops || 0));
     const cur = Math.max(0, troop.currentTroops || 0);
-    const lostRatio = (max - cur) / max;
+    if (start <= 0) continue;
+    const lostRatio = Math.max(0, Math.min(1, (start - cur) / start));
 
     if (troop.faction === 'enemy' && lostRatio > 0) {
       const base = KILL_SCORE[rarity] || 200;
       const pts = Math.round(base * lostRatio);
       killScore += pts;
       const pctStr = Math.round(lostRatio * 100);
-      killDetails.push({ name: troopLabel(troop), rarity, pts, pct: pctStr });
+      killDetails.push({ name: troopLabel(troop), rarity, pts, pct: pctStr, startTroops: start, remainTroops: cur });
     }
 
     if (troop.faction === 'player' && lostRatio > 0) {
@@ -68,15 +72,19 @@ function calculateBattleScore(battleTroops, roundNum, result, options = {}) {
       const pts = Math.round(base * lostRatio);
       lossScore += pts;
       const pctStr = Math.round(lostRatio * 100);
-      lossDetails.push({ name: troopLabel(troop), rarity, pts, pct: pctStr });
+      lossDetails.push({ name: troopLabel(troop), rarity, pts, pct: pctStr, startTroops: start, remainTroops: cur });
     }
   }
 
   const baseScore = killScore + lossScore;
   const turnMult = TURN_MULTIPLIER[Math.min(roundNum, 10)] ?? 1.0;
   const normalScore = Math.round(baseScore * turnMult);
+  // 惨败保底：敌方消耗分 × 0.3
   const floorScore = Math.round(killScore * 0.3);
-  const preSiegeScore = Math.max(normalScore, floorScore);
+  // 安慰保底：当敌方消耗分为 0 时，按己方损失绝对值 × 0.3 折算
+  const comfortFloorScore =
+    killScore === 0 && lossScore < 0 ? Math.round(Math.abs(lossScore) * 0.3) : 0;
+  const preSiegeScore = Math.max(normalScore, floorScore, comfortFloorScore);
   let finalScore = Math.round(preSiegeScore * scoreMultiplier);
 
   const gradeInfo = GRADE_THRESHOLDS.find((g) => finalScore >= g.min) || GRADE_THRESHOLDS[GRADE_THRESHOLDS.length - 1];
@@ -99,6 +107,8 @@ function calculateBattleScore(battleTroops, roundNum, result, options = {}) {
       normalScore,
       floorScore,
       floorScoreRule: 0.3,
+      comfortFloorScore,
+      comfortFloorRule: 0.3,
       preSiegeScore,
     },
   };

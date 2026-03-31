@@ -14,11 +14,11 @@
  * @param {function} onBattleEnd - 战斗结束回调 (result, silverSpent, scoreResult, killedEnemyIndices)
  */
 
-import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
 import { useBattleMap } from '@/hooks/useBattleMap';
 import { getTroopPortraitUrlAttempts } from '@shared/utils/troopIconUrls';
 import { bindTroopPortraitImg } from '@/utils/troopBattlePortrait';
-import { useBattleEngine } from '@/hooks/useBattleEngine';
+import { useBattleEngine, setBattleAnimationSkipDelays } from '@/hooks/useBattleEngine';
 import { useManualBattle } from '@/hooks/useManualBattle';
 import BattleMap from '@/components/battle/BattleMap';
 import BattleLog from '@/components/battle/BattleLog';
@@ -32,8 +32,16 @@ import {
   mirrorTroopsForDefenderBattleScore,
 } from '@/systems/battleScoreSystem';
 import { battleAPI } from '@/services/battleApi';
+import AncientModal from '@/components/common/AncientModal';
+import {
+  getMainLineupTroopTotalForBattleGate,
+  MIN_MAIN_LINEUP_TROOPS_BATTLE,
+} from '@/utils/mainLineupTroops';
 
 const STAGE = { LOADING: 'loading', READY: 'ready' };
+
+/** PVE 自动战斗：离开页面超过此时长（ms）则客户端快进至终局并提示 */
+const PVE_AWAY_TIMEOUT_MS = 30000;
 
 /** 手动渲染部队到 tile DOM（showTroops={false} 时需要） */
 function renderTroopsToDOM(mapCardRef, battleTroops, baseUrl = '') {
@@ -72,6 +80,7 @@ function renderTroopsToDOM(mapCardRef, battleTroops, baseUrl = '') {
  * @param {object} [defenseReportMeta] 异步驻守防守战：战斗结束后为驻守方额外写入一条 pvp_defense 战报（recordOnly）
  * @param {boolean} [recordOnly] 为 true 时只记战报、不通过 /battles 改兵力（防守方本地观战与攻城方结算去重）
  * @param {string} [siegeDefenderType] 攻城 context：`npc` | `player_garrison` | `pvp_online`，用于战报积分倍率（与 getSiegeBattleScoreMultiplier 一致）
+ * @param {Array} [cards] PlayerContext.cards，用于与后端一致的主阵容兵力校验；不传则用 playerUnits 合计回退
  */
 export default function BattleArena({
   playerUnits, enemyRarity, enemyUnits,
@@ -82,6 +91,7 @@ export default function BattleArena({
   siegeDefenderType = null,
   /** 事件惩罚战：强制加入的敌方将领 ID 列表（如 5v5 额外主将），传入 assignRealBattleTroops */
   eventExtraEnemyCharacterIds = null,
+  cards = null,
 }) {
   const [stage, setStage] = useState(STAGE.LOADING);
   const [layoutWidth, setLayoutWidth] = useState('auto');
@@ -92,8 +102,6 @@ export default function BattleArena({
   const manualBattleRef = useRef(null);
   /** 攻城等预置敌方阵容时自动开战，避免未点「开始」导致不落战报 */
   const siegeAutoStartedRef = useRef(false);
-
-  useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; }; }, []);
 
   const bm = useBattleMap();
 
@@ -117,6 +125,100 @@ export default function BattleArena({
   });
 
   manualBattleRef.current = manual;
+
+  const lineupTroopTotal = useMemo(
+    () => getMainLineupTroopTotalForBattleGate(cards, playerUnits),
+    [cards, playerUnits]
+  );
+
+  const startBattleWithLineupGate = useCallback(() => {
+    if (recordOnly) {
+      engine.playBattleRound();
+      return;
+    }
+    if (lineupTroopTotal < MIN_MAIN_LINEUP_TROOPS_BATTLE) {
+      window.alert(
+        `开战需上阵编组总兵力≥${MIN_MAIN_LINEUP_TROOPS_BATTLE}（当前 ${lineupTroopTotal}）`
+      );
+      return;
+    }
+    engine.playBattleRound();
+  }, [recordOnly, lineupTroopTotal, engine.playBattleRound]);
+
+  const awayTimeoutEnabled = battleType === 'pve_event' || battleType === 'pve_siege';
+  const bmRef = useRef(bm);
+  bmRef.current = bm;
+  const battlePlayingRef = useRef(bm.battlePlaying);
+  const autoBattleRef = useRef(bm.autoBattle);
+  battlePlayingRef.current = bm.battlePlaying;
+  autoBattleRef.current = bm.autoBattle;
+  const awayDeadlineRef = useRef(null);
+  const awayTimerRef = useRef(null);
+  const awayHandledRef = useRef(false);
+  const pendingAwayNoticeRef = useRef(false);
+  const pendingAwayEndRef = useRef(null);
+  const [awayNoticeOpen, setAwayNoticeOpen] = useState(false);
+
+  const handleAwayDeadline = useCallback(() => {
+    if (!awayTimeoutEnabled) return;
+    if (awayHandledRef.current) return;
+    const m = bmRef.current;
+    if (!m.battlePlaying || !m.autoBattle) return;
+    awayHandledRef.current = true;
+    pendingAwayNoticeRef.current = true;
+    setBattleAnimationSkipDelays(true);
+  }, [awayTimeoutEnabled]);
+
+  useEffect(() => {
+    if (!awayTimeoutEnabled) return;
+    if (bm.battlePlaying) {
+      awayHandledRef.current = false;
+      pendingAwayNoticeRef.current = false;
+      awayDeadlineRef.current = null;
+      if (awayTimerRef.current) {
+        clearTimeout(awayTimerRef.current);
+        awayTimerRef.current = null;
+      }
+    }
+  }, [awayTimeoutEnabled, bm.battlePlaying]);
+
+  useEffect(() => {
+    if (!awayTimeoutEnabled || typeof document === 'undefined') return undefined;
+
+    const onVis = () => {
+      if (document.hidden) {
+        if (!battlePlayingRef.current || !autoBattleRef.current) return;
+        awayDeadlineRef.current = Date.now() + PVE_AWAY_TIMEOUT_MS;
+        if (awayTimerRef.current) clearTimeout(awayTimerRef.current);
+        awayTimerRef.current = setTimeout(() => {
+          handleAwayDeadline();
+        }, PVE_AWAY_TIMEOUT_MS);
+      } else {
+        if (awayTimerRef.current) {
+          clearTimeout(awayTimerRef.current);
+          awayTimerRef.current = null;
+        }
+        const dl = awayDeadlineRef.current;
+        if (dl != null) {
+          if (Date.now() >= dl) {
+            handleAwayDeadline();
+          }
+          awayDeadlineRef.current = null;
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', onVis);
+    return () => {
+      document.removeEventListener('visibilitychange', onVis);
+      if (awayTimerRef.current) {
+        clearTimeout(awayTimerRef.current);
+        awayTimerRef.current = null;
+      }
+    };
+  }, [awayTimeoutEnabled, handleAwayDeadline]);
+
+  useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; }; }, []);
 
   // 初始化
   useEffect(() => {
@@ -145,6 +247,7 @@ export default function BattleArena({
           faction: 'player',
           y: playerPositions[i].y, x: playerPositions[i].x,
           currentTroops: unit.currentTroops ?? unit.troop.maxTroops,
+          initialTroops: unit.currentTroops ?? unit.troop.maxTroops,
           maxTroops: unit.maxTroops ?? unit.troop.maxTroops,
           character: unit.character || null,
           displayName: unit.character ? (unit.character.courtesyName || unit.character.name) : unit.troop.name,
@@ -183,6 +286,7 @@ export default function BattleArena({
           attack: npc.attack, defense: npc.defense,
           speed: npc.speed, movement: npc.movement, range: npc.attackRange,
           maxTroops: npc.maxTroops, currentTroops: npc.currentTroops ?? npc.maxTroops,
+          initialTroops: npc.currentTroops ?? npc.maxTroops,
           faction: 'enemy',
           y: enemyPositions[i].y, x: enemyPositions[i].x,
           character: raw && charName ? {
@@ -223,12 +327,13 @@ export default function BattleArena({
     if (stage !== STAGE.READY || siegeAutoStartedRef.current) return;
     if (!enemyUnits || enemyUnits.length === 0) return;
     if (battleType !== 'pvp_siege') return;
+    if (!recordOnly && lineupTroopTotal < MIN_MAIN_LINEUP_TROOPS_BATTLE) return;
     siegeAutoStartedRef.current = true;
     const t = requestAnimationFrame(() => {
       engine.playBattleRound();
     });
     return () => cancelAnimationFrame(t);
-  }, [stage, enemyUnits, battleType, engine.playBattleRound]);
+  }, [stage, enemyUnits, battleType, engine.playBattleRound, lineupTroopTotal, recordOnly]);
 
   // 渲染部队到 DOM
   useEffect(() => {
@@ -385,17 +490,40 @@ export default function BattleArena({
           console.error('[BattleArena] 保存战报失败:', err);
         }
 
-        onBattleEndRef.current?.(
-          result,
-          silverSpent > 0 ? silverSpent : 0,
-          scoreResult,
-          killedIndices,
-          { battleReportSaved: attackerBattleSaved }
-        );
+        const endMeta = { battleReportSaved: attackerBattleSaved };
+        const showAwayNotice = pendingAwayNoticeRef.current;
+        if (showAwayNotice) {
+          pendingAwayNoticeRef.current = false;
+          endMeta.awayTimeout = true;
+          pendingAwayEndRef.current = {
+            result,
+            silverSpent: silverSpent > 0 ? silverSpent : 0,
+            scoreResult,
+            killedIndices,
+            meta: endMeta,
+          };
+          if (mountedRef.current) setAwayNoticeOpen(true);
+        } else {
+          onBattleEndRef.current?.(
+            result,
+            silverSpent > 0 ? silverSpent : 0,
+            scoreResult,
+            killedIndices,
+            endMeta,
+          );
+        }
       }
     }, 200);
     return () => clearInterval(check);
   }, [bm.logs, bm.battlePlaying, stage]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const flushAwayEndNotice = useCallback(() => {
+    const p = pendingAwayEndRef.current;
+    if (!p) return;
+    pendingAwayEndRef.current = null;
+    setAwayNoticeOpen(false);
+    onBattleEndRef.current?.(p.result, p.silverSpent, p.scoreResult, p.killedIndices, p.meta);
+  }, []);
 
   return (
     <div className="fixed inset-0 z-[60] overflow-auto bg-[#1a1a2e]">
@@ -428,13 +556,26 @@ export default function BattleArena({
             autoBattle={bm.autoBattle} toggleAutoBattle={bm.toggleAutoBattle}
             autoFormation={bm.autoFormation} toggleAutoFormation={bm.toggleAutoFormation}
             maxWidth={layoutWidth}
-            onStartBattle={stage === STAGE.READY ? engine.playBattleRound : null}
+            onStartBattle={stage === STAGE.READY ? startBattleWithLineupGate : null}
             battlePlaying={bm.battlePlaying}
           />
         )}
         {bm.roundNum === 0 && <MapLegend maxWidth={layoutWidth} />}
         <BattleLog logs={bm.logs} visible={bm.isBattle} maxWidth={layoutWidth} />
       </div>
+
+      <AncientModal
+        isOpen={awayNoticeOpen}
+        type="info"
+        title="本场已自动结算"
+        confirmText="确定"
+        onConfirm={flushAwayEndNotice}
+        onClose={flushAwayEndNotice}
+      >
+        <p className="text-center text-gray-800">
+          离开超过 30 秒未操作，本场将按规则自动结算并返回大地图。
+        </p>
+      </AncientModal>
     </div>
   );
 }

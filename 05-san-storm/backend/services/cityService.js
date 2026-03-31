@@ -220,6 +220,13 @@ async function initiateSiege(cityId, playerId) {
     throw new Error('不能攻打己方城市');
   }
 
+  const attackerLineupTroops = await garrisonService.sumMainLineupEquippedTroopTroops(pool, playerId);
+  if (attackerLineupTroops < garrisonService.MIN_MAIN_LINEUP_TROOPS_BATTLE) {
+    throw new Error(
+      `开战需上阵编组总兵力≥${garrisonService.MIN_MAIN_LINEUP_TROOPS_BATTLE}（当前 ${attackerLineupTroops}）`
+    );
+  }
+
   // ── 已占领城市：先查玩家防守者 ──
   // 防守顺序：① 披挂上阵玩家（on_duty=TRUE）→ ② 普通驻守玩家 → ③ NPC守军
   if (city.status === 'owned' && city.faction_id) {
@@ -539,7 +546,8 @@ async function recordSiegeResult(warId, playerId, factionId, killedIndices, resu
         reputationReward = WIN_REPUTATION_REWARD[bestRarity] || 5;
         await conn.query('UPDATE players SET reputation = reputation + ? WHERE player_id = ?', [reputationReward, playerId]);
       }
-      await conn.query('UPDATE wars SET faction_kills = ?, npc_killed = npc_killed + ? WHERE war_id = ?', [JSON.stringify(factionKills), killCount, warId]);
+      // 仅累计势力击杀；勿写入 wars.npc_killed（该字段语义为「NPC 守军消灭数」，与披挂/驻地战果混加会导致 NPC 线误判易主）
+      await conn.query('UPDATE wars SET faction_kills = ? WHERE war_id = ?', [JSON.stringify(factionKills), warId]);
 
       // 披挂上阵：攻城方胜利时解除待战状态（列表人数与状态同步）
       if (defenderType === 'pvp_online' && result === 'win' && defenderPlayerId) {
@@ -601,6 +609,8 @@ async function recordSiegeResult(warId, playerId, factionId, killedIndices, resu
     // 3. 更新城市 NPC 守军状态 + 计算银两奖励 + 统计实际击杀数
     let silverReward = 0;
     let actualKillCount = 0;
+    /** 本场结算后 NPC 守军 JSON 中仍存活支数；易主判定以之为准（勿仅用 wars.npc_killed >= npc_total） */
+    let npcAliveAfterUpdate = null;
     const [cityRows] = await connection.query(
       'SELECT npc_garrison, npc_garrison_alive FROM cities WHERE id = ? FOR UPDATE',
       [war.target_city_id]
@@ -617,6 +627,7 @@ async function recordSiegeResult(warId, playerId, factionId, killedIndices, resu
           }
         }
         const aliveCount = garrison.filter(u => u.alive).length;
+        npcAliveAfterUpdate = aliveCount;
         await connection.query(
           'UPDATE cities SET npc_garrison = ?, npc_garrison_alive = ? WHERE id = ?',
           [JSON.stringify(garrison), aliveCount, war.target_city_id]
@@ -690,10 +701,11 @@ async function recordSiegeResult(warId, playerId, factionId, killedIndices, resu
       [JSON.stringify(factionKills), newNpcKilled, warId]
     );
 
-    // 5. 检查是否攻破（所有 NPC 被消灭）
+    // 5. 检查是否攻破（NPC 守军 JSON 中已无存活）
+    // 旧逻辑用 newNpcKilled >= war.npc_total，但 wars.npc_killed 曾误累加披挂/驻地消灭数，导致「NPC 仍有残余却已易主」
     let siegeCompleted = false;
     let winnerFaction = null;
-    if (newNpcKilled >= war.npc_total) {
+    if (npcAliveAfterUpdate === 0) {
       // 找出击杀最多的势力
       let maxKills = 0;
       for (const [fid, kills] of Object.entries(factionKills)) {

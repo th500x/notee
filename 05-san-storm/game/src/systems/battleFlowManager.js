@@ -138,7 +138,11 @@ export function findPath(troop, ty, tx, mapResult, battleTroops) {
 // ── AI决策 ────────────────────────────────────────────────────────────────────
 
 /**
- * AI决策：找到最佳移动目标（向最近的敌人靠近）
+ * AI决策：接敌时优先「打满射程」；弓兵尽量脱离贴脸再打远程。
+ *
+ * 旧逻辑在可达格上**最小化**与敌距离，导致 range=2 的枪骑/大戟等仍被拉到贴身；
+ * 且已能攻击时不再移动，弓兵被近身后不会后撤。
+ *
  * @param {Object} troop - 当前行动的部队
  * @param {Object[]} battleTroops - 全部战场部队
  * @param {Object} mapResult - generateSmallMap 返回的结果
@@ -148,7 +152,6 @@ export function findBestMoveTarget(troop, battleTroops, mapResult) {
   const enemies = battleTroops.filter(t => t.faction !== troop.faction && t.currentTroops > 0);
   if (enemies.length === 0) return null;
 
-  // 找最近的敌人
   let closestEnemy = null, closestDist = Infinity;
   for (const e of enemies) {
     const d = dist(troop, e);
@@ -157,30 +160,59 @@ export function findBestMoveTarget(troop, battleTroops, mapResult) {
   if (!closestEnemy) return null;
 
   const atkRange = troop.range || 1;
-
-  // 已经在攻击范围内，不需要移动
-  if (closestDist <= atkRange) return { move: null, target: closestEnemy };
-
-  // 计算可达格子
   const reachable = getReachableTiles(troop, mapResult, battleTroops);
 
-  // 在可达格子中找到离目标最近的位置
-  let bestPos = null, bestDist = Infinity;
-  for (const [key] of reachable) {
-    const [ry, rx] = key.split(',').map(Number);
-    // 不能移动到被占据的格子
-    if (isOccupied(ry, rx, troop, battleTroops)) continue;
-    const d = Math.abs(ry - closestEnemy.y) + Math.abs(rx - closestEnemy.x);
-    if (d < bestDist) { bestDist = d; bestPos = { y: ry, x: rx }; }
+  /**
+   * 在可达格中：若存在能攻击敌的格子，取与敌距离**最大**者（打满射程）；
+   * 否则取与敌距离**最小**者（继续接近）。
+   */
+  function pickApproachTile() {
+    let bestInRange = null, bestInRangeD = -1;
+    let bestClosing = null, bestClosingD = Infinity;
+    for (const [key] of reachable) {
+      const [ry, rx] = key.split(',').map(Number);
+      if (isOccupied(ry, rx, troop, battleTroops)) continue;
+      const d = dist({ y: ry, x: rx }, closestEnemy);
+      if (d <= atkRange) {
+        if (d > bestInRangeD) { bestInRangeD = d; bestInRange = { y: ry, x: rx }; }
+      } else if (d < bestClosingD) {
+        bestClosingD = d; bestClosing = { y: ry, x: rx };
+      }
+    }
+    return bestInRange || bestClosing;
   }
 
+  /**
+   * 已能攻击时仍可能通过一步移动「拉远」：在射程内取与敌距离更大的格（长柄打满、弓兵后撤）
+   */
+  function pickRepositionTile() {
+    let best = null, bestD = -1;
+    for (const [key] of reachable) {
+      const [ry, rx] = key.split(',').map(Number);
+      if (isOccupied(ry, rx, troop, battleTroops)) continue;
+      const d = dist({ y: ry, x: rx }, closestEnemy);
+      if (d <= atkRange && d > bestD) { bestD = d; best = { y: ry, x: rx }; }
+    }
+    return best && bestD > closestDist ? { tile: best, dist: bestD } : null;
+  }
+
+  if (closestDist <= atkRange) {
+    const repos = pickRepositionTile();
+    if (repos) {
+      const path = findPath(troop, repos.tile.y, repos.tile.x, mapResult, battleTroops);
+      if (path && path.length > 0) {
+        return { move: path, target: closestEnemy };
+      }
+    }
+    // 弓兵贴脸且无法拉远：仍按近战演出攻击（performAttack 同格）
+    return { move: null, target: closestEnemy };
+  }
+
+  const bestPos = pickApproachTile();
   if (!bestPos) return { move: null, target: closestDist <= atkRange ? closestEnemy : null };
 
-  // 寻路到最佳位置
   const path = findPath(troop, bestPos.y, bestPos.x, mapResult, battleTroops);
-
-  // 移动后是否在攻击范围内
-  const newDist = Math.abs(bestPos.y - closestEnemy.y) + Math.abs(bestPos.x - closestEnemy.x);
+  const newDist = dist(bestPos, closestEnemy);
   const canAttack = newDist <= atkRange;
 
   return { move: path, target: canAttack ? closestEnemy : null };

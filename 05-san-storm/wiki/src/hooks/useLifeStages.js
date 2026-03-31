@@ -21,7 +21,7 @@ export function useLifeStages() {
     async function loadLifeStages() {
       try {
         setLoading(true);
-        const data = await loadSharedData('life-stages');
+        const data = await loadSharedData('life-stages_san_1');
         setLifeStages(data.lifeStages || {});
         setError(null);
       } catch (err) {
