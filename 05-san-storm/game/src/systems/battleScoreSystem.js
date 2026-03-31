@@ -93,8 +93,8 @@ export function calculateBattleScore(battleTroops, roundNum, result, options = {
 
   // 保底积分：敌方消耗分 × 0.3（惨胜/败方不至于0分）
   const floorScore = Math.round(killScore * 0.3);
-  let finalScore = Math.max(normalScore, floorScore);
-  finalScore = Math.round(finalScore * scoreMultiplier);
+  const preSiegeScore = Math.max(normalScore, floorScore);
+  let finalScore = Math.round(preSiegeScore * scoreMultiplier);
 
   // 评级（按倍率后的最终分）
   const gradeInfo = GRADE_THRESHOLDS.find(g => finalScore >= g.min) || GRADE_THRESHOLDS[GRADE_THRESHOLDS.length - 1];
@@ -113,12 +113,48 @@ export function calculateBattleScore(battleTroops, roundNum, result, options = {
       kills: killDetails,
       losses: lossDetails,
       siegeScoreMultiplier: scoreMultiplier !== 1 ? scoreMultiplier : undefined,
+      normalScore,
+      floorScore,
+      floorScoreRule: 0.3,
+      preSiegeScore,
     },
   };
 }
 
 function troopLabel(t) {
   return t.character?.courtesyName || t.character?.name || t.name || '未知';
+}
+
+/**
+ * 战报 UI：完整计分步骤（与 calculateBattleScore 一致，非「基础分×回合×攻城」连乘）
+ * @param {object} details - calculateBattleScore(…).details
+ * @param {number} [finalScore] - 存档中的最终分（校验用）
+ * @returns {{ lines: Array<{ text: string }> }}
+ */
+export function buildBattleScoreFormulaLines(details, finalScore) {
+  if (!details) return { lines: [] };
+  const kill = details.killScore ?? 0;
+  const loss = details.lossScore ?? 0;
+  const base = details.baseScore ?? kill + loss;
+  const turnM = details.turnMultiplier ?? 1;
+  const rNum = details.roundNum ?? '—';
+  const normalScore = details.normalScore ?? Math.round(base * turnM);
+  const rule = details.floorScoreRule ?? 0.3;
+  const floorScore = details.floorScore ?? Math.round(kill * rule);
+  const pre = details.preSiegeScore ?? Math.max(normalScore, floorScore);
+  const sm = details.siegeScoreMultiplier ?? 1;
+  const calcFinal = Math.round(pre * sm);
+  const lines = [
+    { text: `① 敌方消耗分 + 己方损失分（代数和）= ${kill} + (${loss}) = ${base}` },
+    { text: `② 回合倍率：① × ${turnM} = ${normalScore}（第 ${rNum} 回合）` },
+    { text: `③ 保底分：敌方消耗分 × ${rule} = ${floorScore}（再与②取较高，避免惨胜/败方为 0 分）` },
+    { text: `④ 取较高：max(②, ③) = ${pre}` },
+    { text: `⑤ 最终战报分：④ × 攻城积分倍率(${sm}) = ${calcFinal}` },
+  ];
+  if (finalScore != null && calcFinal !== finalScore) {
+    lines.push({ text: `（说明：若与顶部总分差 1，多为历史战报四舍五入顺序；以 ${finalScore} 为准）` });
+  }
+  return { lines };
 }
 
 /** 攻城战：与 NPC 守军区分，驻军编组 / 披挂上阵提高战报积分倍率（攻守双方同倍率） */

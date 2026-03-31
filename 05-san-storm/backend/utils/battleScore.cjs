@@ -76,8 +76,8 @@ function calculateBattleScore(battleTroops, roundNum, result, options = {}) {
   const turnMult = TURN_MULTIPLIER[Math.min(roundNum, 10)] ?? 1.0;
   const normalScore = Math.round(baseScore * turnMult);
   const floorScore = Math.round(killScore * 0.3);
-  let finalScore = Math.max(normalScore, floorScore);
-  finalScore = Math.round(finalScore * scoreMultiplier);
+  const preSiegeScore = Math.max(normalScore, floorScore);
+  let finalScore = Math.round(preSiegeScore * scoreMultiplier);
 
   const gradeInfo = GRADE_THRESHOLDS.find((g) => finalScore >= g.min) || GRADE_THRESHOLDS[GRADE_THRESHOLDS.length - 1];
 
@@ -95,6 +95,11 @@ function calculateBattleScore(battleTroops, roundNum, result, options = {}) {
       kills: killDetails,
       losses: lossDetails,
       siegeScoreMultiplier: scoreMultiplier !== 1 ? scoreMultiplier : undefined,
+      /** 用于战报展示：非「基础分×回合×攻城」连乘 */
+      normalScore,
+      floorScore,
+      floorScoreRule: 0.3,
+      preSiegeScore,
     },
   };
 }

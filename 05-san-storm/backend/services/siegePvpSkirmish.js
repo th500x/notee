@@ -107,6 +107,8 @@ function runSiegePvpSkirmish(attackerSiegeNpcs, defenderSiegeNpcs, seedInput) {
   const enemyTroops = defenderSiegeNpcs.map((npc, i) => siegeNpcToTroop(npc, 'enemy', i, 'enemy', rng));
 
   const logs = [];
+  /** 推演侧 player=faction 攻城方，enemy=守军；写入战报前缀与玩家主观「我军」一致，避免同名将领无法区分 */
+  const sideLabel = (faction) => (faction === 'player' ? '攻方' : '守军');
   let tacticalRound = 0;
   /** 与棋盘战一致：战术回合上限（非单次交锋次数） */
   const maxTacticalRounds = 100;
@@ -153,8 +155,10 @@ function runSiegePvpSkirmish(attackerSiegeNpcs, defenderSiegeNpcs, seedInput) {
       const dn = def.character?.courtesyName || def.name;
 
       const roll = rollCritDodgeSeeded(atk, def, rng);
+      const atkLab = sideLabel(atk.faction);
+      const defLab = sideLabel(def.faction);
       if (roll === 'dodge') {
-        logs.push(`第 ${attackInRound} 次攻击：${an} 攻击被闪避。`);
+        logs.push(`第 ${attackInRound} 次攻击：[${atkLab}]${an} 攻击被闪避。`);
         continue;
       }
       let dmg = calcDamageSeeded(atk, def, null, rng);
@@ -162,7 +166,7 @@ function runSiegePvpSkirmish(attackerSiegeNpcs, defenderSiegeNpcs, seedInput) {
       const cas = troopDamageToCasualties(def, dmg);
       def.currentTroops = Math.max(0, def.currentTroops - cas);
       logs.push(
-        `第 ${attackInRound} 次攻击：${an} 对 ${dn} 造成 ${cas} 损失（${roll === 'crit' ? '暴击' : '命中'}）。`,
+        `第 ${attackInRound} 次攻击：[${atkLab}]${an} 对 [${defLab}]${dn} 造成 ${cas} 损失（${roll === 'crit' ? '暴击' : '命中'}）。`,
       );
     }
   }

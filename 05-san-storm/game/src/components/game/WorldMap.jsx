@@ -22,6 +22,7 @@ import { garrisonAPI } from '@/services/garrisonApi';
 import { API_CONFIG, getRarityHex, getRarityLabelCn } from '@/constants';
 import SiegeReplayMini from '@/components/game/SiegeReplayMini';
 import { filterPlayerItemsForExploreLocation } from '@/components/event/eventUtils';
+import { buildBattleScoreFormulaLines } from '@/systems/battleScoreSystem';
 
 /** 山海关荒郊（事件 location 与 config_events 一致） */
 const EXPLORE_LOC_SHANHAIGUAN = 'san_1_city_6_shanhaiguan';
@@ -70,15 +71,16 @@ function getCachedBg() {
 /** 攻城结算里服务端权威战报的简化回放入口 */
 function AuthoritativeSiegeReplayButton({
   battleLogLines,
-  attackerStrikeNames,
-  defenderStrikeNames,
   initialAttackerTroops,
   initialDefenderTroops,
 }) {
   const [open, setOpen] = useState(false);
   const logStr = Array.isArray(battleLogLines) ? battleLogLines.join('\n') : '';
   const canReplay =
-    logStr.length > 12 && /═══\s*第\s*\d+\s*回合\s*═══/.test(logStr) && /次攻击/.test(logStr);
+    logStr.length > 12 &&
+    /═══\s*第\s*\d+\s*回合\s*═══/.test(logStr) &&
+    /次攻击/.test(logStr) &&
+    /\[攻方\]/.test(logStr);
   if (!canReplay) return null;
   return (
     <>
@@ -103,10 +105,8 @@ function AuthoritativeSiegeReplayButton({
               open
               onClose={() => setOpen(false)}
               battleLog={logStr}
-              leftLabel="攻城方"
+              leftLabel="攻方"
               rightLabel="守军"
-              attackerStrikeNames={attackerStrikeNames}
-              defenderStrikeNames={defenderStrikeNames}
               initialAttackerTroops={initialAttackerTroops}
               initialDefenderTroops={initialDefenderTroops}
             />
@@ -117,13 +117,26 @@ function AuthoritativeSiegeReplayButton({
   );
 }
 
-/** 披挂 PVP 裁定结束：文字战报 + 可选简化回放（与战报列表 SiegeReplayMini 同源） */
+/** 披挂 PVP 裁定结束：评分摘要 + 可选简化回放（与战报列表 SiegeReplayMini 同源） */
 function PvpDefenseOutcomeModal({ outcome, onClose }) {
   const [replayOpen, setReplayOpen] = useState(false);
-  const logLines = Array.isArray(outcome?.battleLog) ? outcome.battleLog : [];
+  const logLines = Array.isArray(outcome?.battleLog)
+    ? outcome.battleLog
+    : typeof outcome?.battleLog === 'string'
+      ? outcome.battleLog.split('\n')
+      : [];
   const logStr = logLines.join('\n');
   const canReplay =
-    logStr.length > 12 && /═══\s*第\s*\d+\s*回合\s*═══/.test(logStr) && /次攻击/.test(logStr);
+    logStr.length > 12 &&
+    /═══\s*第\s*\d+\s*回合\s*═══/.test(logStr) &&
+    /次攻击/.test(logStr) &&
+    /\[攻方\]/.test(logStr);
+
+  const sd = outcome?.defenderScoreDetails;
+  const score = outcome?.defenderBattleScore;
+  const grade = outcome?.defenderBattleGrade;
+  const formulaLines =
+    sd && score != null ? buildBattleScoreFormulaLines(sd, score).lines : [];
 
   return (
     <>
@@ -134,7 +147,7 @@ function PvpDefenseOutcomeModal({ outcome, onClose }) {
         confirmText="确定"
         onConfirm={onClose}
       >
-        <div className="text-center space-y-2 text-sm text-gray-800 max-h-48 overflow-y-auto text-left px-1">
+        <div className="text-center space-y-2 text-sm text-gray-800 max-h-[22rem] overflow-y-auto text-left px-1">
           <p>
             {outcome.attackerWon ? (
               <span className="text-red-600 font-bold">攻城方获胜</span>
@@ -151,11 +164,36 @@ function PvpDefenseOutcomeModal({ outcome, onClose }) {
               攻城战报 · 简化回放
             </button>
           )}
-          {logLines.length > 0 && (
-            <pre className="text-[11px] text-gray-600 whitespace-pre-wrap font-sans border-t border-gray-200 pt-2 mt-2">
-              {/* 仅小窗预览防过长；全文在「简化回放」的 battleLog 中，非第 8 回合截断原因 */}
-              {logLines.slice(-20).join('\n')}
-            </pre>
+          {score != null && sd && (
+            <div className="text-left text-[11px] text-gray-700 border-t border-gray-200 pt-2 mt-2 space-y-0.5">
+              <div className="text-amber-800/90 font-medium">战斗评分</div>
+              <div className="font-semibold text-gray-900">
+                {grade} · {score}分
+              </div>
+              <div>
+                敌方消耗 +{sd.killScore} / 己方损失 {sd.lossScore}
+                <span className="text-gray-500">（评分项，非兵力）</span>
+              </div>
+              <div>
+                基础分 {sd.baseScore}（上两项代数和）
+              </div>
+              {sd.turnMultiplier != null && sd.roundNum != null && (
+                <div>
+                  回合倍率 ×{sd.turnMultiplier}（第{sd.roundNum}回合）
+                </div>
+              )}
+              {sd.siegeScoreMultiplier != null && Number(sd.siegeScoreMultiplier) !== 1 && (
+                <div>攻城积分倍率 ×{sd.siegeScoreMultiplier}</div>
+              )}
+              {formulaLines.length > 0 && (
+                <div className="mt-1 pt-1 border-t border-gray-200 space-y-0.5 text-[10px] text-gray-600 leading-snug">
+                  <div className="text-gray-700">完整计分步骤</div>
+                  {formulaLines.map((row, i) => (
+                    <div key={i}>{row.text}</div>
+                  ))}
+                </div>
+              )}
+            </div>
           )}
         </div>
       </AncientModal>
@@ -173,10 +211,8 @@ function PvpDefenseOutcomeModal({ outcome, onClose }) {
               open
               onClose={() => setReplayOpen(false)}
               battleLog={logStr}
-              leftLabel="攻城方"
+              leftLabel="攻方"
               rightLabel="守军"
-              attackerStrikeNames={outcome.siegeReplayAttackerNames}
-              defenderStrikeNames={outcome.siegeReplayDefenderNames}
               initialAttackerTroops={outcome.initialAttackerTroops}
               initialDefenderTroops={outcome.initialDefenderTroops}
             />
@@ -985,8 +1021,6 @@ export default function WorldMap({ onEventBusyChange }) {
               <>
                 <AuthoritativeSiegeReplayButton
                   battleLogLines={siegeResult.authoritativeBattleLog}
-                  attackerStrikeNames={siegeResult.siegeReplayAttackerNames}
-                  defenderStrikeNames={siegeResult.siegeReplayDefenderNames}
                   initialAttackerTroops={siegeResult.initialAttackerTroops}
                   initialDefenderTroops={siegeResult.initialDefenderTroops}
                 />

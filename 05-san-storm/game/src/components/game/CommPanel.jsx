@@ -17,6 +17,7 @@ import AncientModal from '@/components/common/AncientModal';
 import SiegeReplayMini from '@/components/game/SiegeReplayMini';
 import { loadMultipleSharedData } from '@/services/dataService';
 import { describeMailAttachments, buildCardItemMaps, linesFromClaimDetails } from '@/utils/mailRewardUi';
+import { buildBattleScoreFormulaLines } from '@/systems/battleScoreSystem';
 
 const TABS = [
   { id: 'battle', icon: '📜', label: '战报' },
@@ -401,45 +402,33 @@ function BattleCard({ battle, isExpanded, detail, onExpand, onToggleFavorite }) 
   );
 }
 
-function collectStrikeNamesFromTeam(team) {
-  if (!Array.isArray(team)) return [];
-  const out = [];
-  for (const t of team) {
-    const n = t?.courtesyName || t?.name;
-    if (n) out.push(String(n).trim());
-  }
-  return out;
-}
-
 /** 战报详情展开区 */
 function BattleDetail({ detail }) {
   const [replayOpen, setReplayOpen] = useState(false);
   const rewards = detail.rewards || {};
   const logRaw = detail.battleLog;
   const logStr = typeof logRaw === 'string' ? logRaw : Array.isArray(logRaw) ? logRaw.map((l) => (typeof l === 'object' && l?.text ? l.text : String(l))).join('\n') : '';
-  /** 简化回放：左=攻城方、右=守军（与棋盘「我方格」无关，只看战略攻守身份） */
+  /** 简化回放：左=攻方、右=守军（与棋盘「我方格」无关，只看战略攻守身份） */
   const isDefenseReport = detail.battleType === 'pvp_defense';
   const siegeLeftLabel = isDefenseReport
-    ? `攻城方${detail.opponentName ? ` · ${detail.opponentName}` : ''}`
-    : '攻城方';
+    ? `攻方${detail.opponentName ? ` · ${detail.opponentName}` : ''}`
+    : '攻方';
   const siegeRightLabel = isDefenseReport
     ? '守军'
     : `守军${detail.opponentName ? ` · ${detail.opponentName}` : ''}`;
-  const attackerStrikeNames = useMemo(() => {
-    const team = isDefenseReport ? detail.opponentTeam : detail.playerTeam;
-    return collectStrikeNamesFromTeam(team);
-  }, [isDefenseReport, detail.opponentTeam, detail.playerTeam]);
-  const defenderStrikeNames = useMemo(() => {
-    const team = isDefenseReport ? detail.playerTeam : detail.opponentTeam;
-    const base = collectStrikeNamesFromTeam(team);
-    const on = detail.opponentName && String(detail.opponentName).trim();
-    if (on && !base.some((b) => on === b || on.includes(b) || b.includes(on))) {
-      return [...base, on];
-    }
-    return base;
-  }, [isDefenseReport, detail.opponentTeam, detail.playerTeam, detail.opponentName]);
+  const replayLogStr = isDefenseReport
+    ? (typeof rewards.skirmishBattleLog === 'string' ? rewards.skirmishBattleLog : '')
+    : logStr;
   const canSiegeReplay =
-    logStr.length > 12 && /═══\s*第\s*\d+\s*回合\s*═══/.test(logStr) && /次攻击/.test(logStr);
+    replayLogStr.length > 12 &&
+    /═══\s*第\s*\d+\s*回合\s*═══/.test(replayLogStr) &&
+    /次攻击/.test(replayLogStr) &&
+    /\[攻方\]/.test(replayLogStr);
+
+  const formulaLines = useMemo(
+    () => buildBattleScoreFormulaLines(rewards.scoreDetails, rewards.battleScore).lines,
+    [rewards.scoreDetails, rewards.battleScore],
+  );
 
   return (
     <div className="px-2 py-1.5 border-t border-amber-700/20 space-y-1.5">
@@ -465,11 +454,9 @@ function BattleDetail({ detail }) {
                 <SiegeReplayMini
                   open
                   onClose={() => setReplayOpen(false)}
-                  battleLog={logStr}
+                  battleLog={replayLogStr}
                   leftLabel={siegeLeftLabel}
                   rightLabel={siegeRightLabel}
-                  attackerStrikeNames={attackerStrikeNames}
-                  defenderStrikeNames={defenderStrikeNames}
                   initialAttackerTroops={rewards.initialAttackerTroops}
                   initialDefenderTroops={rewards.initialDefenderTroops}
                 />
@@ -509,9 +496,14 @@ function BattleDetail({ detail }) {
                 Number(rewards.scoreDetails.siegeScoreMultiplier) !== 1 && (
                 <div>攻城积分倍率 ×{rewards.scoreDetails.siegeScoreMultiplier}</div>
               )}
-              <div className="text-[9px] text-amber-200/25 leading-tight">
-                最终分会再套用回合倍率、保底分与攻城倍率，故不等于「基础分×回合倍率」的简单乘积。
-              </div>
+              {formulaLines.length > 0 && (
+                <div className="mt-1 pt-1 border-t border-amber-700/15 space-y-0.5 text-[9px] text-amber-200/35 leading-snug">
+                  <div className="text-amber-200/45">完整计分步骤</div>
+                  {formulaLines.map((row, i) => (
+                    <div key={i}>{row.text}</div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>

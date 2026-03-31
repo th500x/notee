@@ -119,8 +119,6 @@ async function doResolveAuthoritativeSiegePvp(params) {
 
   const defenderPerspectiveLog = buildDefenderSiegePvpBattleLog({
     battleLogLines: sim.battleLog,
-    attackerNpcs,
-    defenderNpcs,
     attackerPlayerName: attackerName,
     defenderPlayerName: defenderName,
     cityName,
@@ -236,6 +234,8 @@ async function doResolveAuthoritativeSiegePvp(params) {
         scoreDetails: defBattleScore.details,
         initialAttackerTroops,
         initialDefenderTroops,
+        /** 与攻城方同源推演原文，供简化回放解析（叙事体 battle_log 无法解析） */
+        skirmishBattleLog: battleLogText,
       },
       recordOnly: true,
     });
@@ -283,6 +283,10 @@ async function doResolveAuthoritativeSiegePvp(params) {
     siegeReplayDefenderNames,
     initialAttackerTroops,
     initialDefenderTroops,
+    /** 防守方弹窗：与战报列表一致的评分展示 */
+    defenderBattleScore: defBattleScore.score,
+    defenderBattleGrade: defBattleScore.grade,
+    defenderScoreDetails: defBattleScore.details,
   };
 
   pvpService.markSiegeResolved(challengeId, outcome);
