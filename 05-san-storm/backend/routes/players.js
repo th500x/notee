@@ -1155,6 +1155,15 @@ router.get('/:playerId/profile', async (req, res) => {
     // 装备件ID解析辅助函数
     const equipTypeMap = { '1': 'weapon', '2': 'armor', '3': 'accessory' };
     const equipRarityMap = { '1': 'common', '2': 'rare', '3': 'epic', '4': 'legendary', '5': 'core' };
+    const equipRarityScore = { common: 1, rare: 2, epic: 3, legendary: 4, core: 5 };
+    const equipmentSetTierFromScore = (score) => {
+      const s = Number(score) || 0;
+      if (s <= 4) return 'common';
+      if (s <= 8) return 'rare';
+      if (s <= 12) return 'epic';
+      if (s <= 16) return 'legendary';
+      return 'core';
+    };
     function parseEquipmentId(id) {
       // san_1_equip_T_RYYY → T=类型编号, R=稀有度首位
       const parts = id.split('_');
@@ -1164,6 +1173,13 @@ router.get('/:playerId/profile', async (req, res) => {
         equipmentType: equipTypeMap[typeCode] || 'weapon',
         rarity: equipRarityMap[seqStr.charAt(0)] || 'common',
       };
+    }
+    // 装备实例 -> 稀有度分值（用于 equipmentSet 名称颜色/档位）
+    const equipScoreByInstance = {};
+    for (const ec of equipCards) {
+      const parsed = parseEquipmentId(ec.card_id);
+      const rarity = parsed.rarity || ec.rarity || 'common';
+      equipScoreByInstance[ec.instance_id] = equipRarityScore[rarity] || 1;
     }
 
     // 4. 组装卡牌数据
@@ -1256,15 +1272,19 @@ router.get('/:playerId/profile', async (req, res) => {
             attr[k] = (attr[k] || 0) + (Number(v) || 0);
           });
         }
+        const totalScore = pieceIds.reduce((sum, pid) => sum + (equipScoreByInstance[pid] || 1), 0);
+        const setRarity = equipmentSetTierFromScore(totalScore);
         return {
           ...card,
           config: {
             equipmentSetShell: true,
+            rarity: setRarity,
             displayName: d.display_name || null,
             weaponInstanceId: d.weapon_instance_id || null,
             armorInstanceId: d.armor_instance_id || null,
             accessory1InstanceId: d.accessory_1_instance_id || null,
             accessory2InstanceId: d.accessory_2_instance_id || null,
+            totalScore,
             attributeBonus: attr,
           },
         };
