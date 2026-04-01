@@ -9,21 +9,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { gameIntroMessages } from '@/data/texts/tutorial';
-
-// 背景图列表（san_1_map/illus_bg 目录下所有图片）
-const BG_IMAGES = [
-  'av1_00001_.png','av1_00010_.png','av1_00016_.png','av1_00017_.png','av1_00018_.png',
-  'av1_00020_.png','av1_00021_.png','av1_00022_.png','av1_00025_.png','av1_00026_.png',
-  'av1_00028_.png','av1_00031_.png','av1_00034_.png','av1_00035_.png','av1_00036_.png',
-  'av1_00037_.png','av1_00038_.png','av1_00042_.png','av1_00043_.png','av1_00048_.png',
-  'av1_00050_.png','av1_00052_.png','av1_00053_.png','av1_00056_.png','av1_00058_.png',
-  'av1_00059_.png','av1_00060_.png','av1_00061_.png','av1_00064_.png','av1_00065_.png',
-  'av1_00066_.png','av1_00067_.png','av1_00068_.png','av1_00070_.png','av1_00071_.png',
-  'av1_00074_.png','av1_00075_.png','av1_00076_.png','av1_00077_.png','av1_00078_.png',
-  'av1_00079_.png','av1_00082_.png','av1_00085_.png','av1_00088_.png','av1_00089_.png',
-  'av1_00090_.png','av1_00091_.png','av1_00092_.png','av1_00095_.png','av1_00096_.png',
-];
-const BG_DIR = 'assets/san_1_map/illus_bg/';
+import { ILLUS_BG_FILES as BG_IMAGES, ILLUS_BG_DIR as BG_DIR } from '@/data/illusBgFiles';
 const BG_CACHE_KEY = 'game_intro_bg';
 const BG_CACHE_DAYS = 7;
 

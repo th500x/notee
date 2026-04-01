@@ -3,6 +3,7 @@ import { useState } from 'react';
 import AuthFlowPage from '@/pages/AuthFlowPage';
 import UserManagerPage from '@/pages/admin/UserManagerPage';
 import MailManagerPage from '@/pages/admin/MailManagerPage';
+import ActivityManagerPage from '@/pages/admin/ActivityManagerPage';
 import ErrorBoundary from '@/components/common/ErrorBoundary';
 import { useAdmin } from '@/hooks/useAdmin';
 
@@ -62,7 +63,7 @@ function App() {
                 </div>
 
                 {/* 功能导航 */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-4xl mx-auto">
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6 max-w-6xl mx-auto">
                   <a href={`${import.meta.env.BASE_URL}san_1`} className="block p-6 bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow">
                     <div className="text-4xl mb-4">🎯</div>
                     <h3 className="text-lg font-semibold text-gray-900 mb-2">[黄巾之乱]</h3>
@@ -81,6 +82,11 @@ function App() {
                       <h3 className="text-lg font-semibold text-gray-900 mb-2">传书模板</h3>
                       <p className="text-sm text-gray-600">config_texts · 试发</p>
                     </a>
+                    <a href={`${import.meta.env.BASE_URL}activity-manager`} className="block p-6 bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow border-2 border-emerald-200">
+                      <div className="text-4xl mb-4">🏆</div>
+                      <h3 className="text-lg font-semibold text-gray-900 mb-2">活动管理</h3>
+                      <p className="text-sm text-gray-600">排行榜归档 · Top30</p>
+                    </a>
                     </>
                   )}
                 </div>
@@ -90,6 +96,7 @@ function App() {
             <Route path="/san_1/game" element={<AuthFlowPage />} />
             <Route path="/user-manager" element={<UserManagerPage />} />
             <Route path="/mail-manager" element={<MailManagerPage />} />
+            <Route path="/activity-manager" element={<ActivityManagerPage />} />
 
           </Routes>
           </ErrorBoundary>

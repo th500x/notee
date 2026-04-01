@@ -104,7 +104,7 @@ export function calculateBattleScore(battleTroops, roundNum, result, options = {
 
   // 惨败保底：歼敌评分 × 0.3
   const floorScore = Math.round(killScore * 0.3);
-  // 安慰保底：歼敌评分为 0 时，按战损评分绝对值 × 0.3 折算
+  // 安慰保底：当歼敌评分 = 0 时，战损评分 × 0.3（实现上对战损为负取绝对值折算）
   const comfortFloorScore =
     killScore === 0 && lossScore < 0 ? Math.round(Math.abs(lossScore) * 0.3) : 0;
   const preSiegeScore = Math.max(normalScore, floorScore, comfortFloorScore);
@@ -174,6 +174,7 @@ export function resolveKillLossTroopCounts(details) {
 
 /**
  * 战报 UI：完整计分步骤（与 calculateBattleScore 一致，非「基础分×回合×攻城」连乘）
+ * ③ 惨败保底：仅当 floorScore 实际成为 max(②,③,④) 时显示「惨败保底」，否则「惨败保底（未触发）」。
  * @param {object} details - calculateBattleScore(…).details
  * @param {number} [finalScore] - 存档中的最终分（校验用）
  * @returns {{ lines: Array<{ text: string }> }}
@@ -194,13 +195,15 @@ export function buildBattleScoreFormulaLines(details, finalScore) {
   const pre = details.preSiegeScore ?? Math.max(normalScore, floorScore, comfortFloorScore);
   const sm = details.siegeScoreMultiplier ?? 1;
   const calcFinal = Math.round(pre * sm);
-  const floorLabel = floorScore > 0 ? '惨败保底' : '惨败保底（未触发）';
+  /** 与安慰保底一致：仅当③ 的保底分实际成为 max(②,③,④) 的取值时算「触发」 */
+  const floorLabel =
+    floorScore > 0 && pre === floorScore ? '惨败保底' : '惨败保底（未触发）';
   const comfortLabel = comfortFloorScore > 0 ? '安慰保底' : '安慰保底（未触发）';
   const lines = [
     { text: `① 歼敌评分 + 战损评分（代数和）= ${kill} + (${loss}) = ${base}` },
     { text: `② 回合倍率：① × ${turnM} = ${normalScore}（第 ${rNum} 回合）` },
     { text: `③ ${floorLabel}：歼敌评分 × ${rule} = ${floorScore}` },
-    { text: `④ ${comfortLabel}：歼敌评分为0时，战损评分绝对值 × ${comfortRule} = ${comfortFloorScore}` },
+    { text: `④ ${comfortLabel}：当歼敌评分 = 0，战损评分 × ${comfortRule} = ${comfortFloorScore}` },
     { text: `⑤ 取较高：max(②, ③, ④) = ${pre}` },
     { text: `⑥ 最终战报分：⑤ × 攻城积分倍率(${sm}) = ${calcFinal}` },
   ];

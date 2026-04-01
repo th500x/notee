@@ -134,4 +134,41 @@ export const battleAPI = {
       return { success: false, error: '网络错误' };
     }
   },
+
+  /**
+   * 战斗纪念图配额（每天1次）
+   */
+  getBattleMemorialQuota: async (playerId) => {
+    try {
+      const params = new URLSearchParams({ playerId });
+      const response = await fetchWithTimeout(`${API_CONFIG.BASE_URL}/memorial/battle/quota?${params}`, {
+        method: 'GET',
+      });
+      const data = await response.json();
+      if (data.success) return { success: true, data: data.data };
+      return { success: false, error: data.error || '获取配额失败' };
+    } catch (error) {
+      console.error('[BattleAPI] 获取纪念图配额失败', error);
+      return { success: false, error: '网络错误' };
+    }
+  },
+
+  /**
+   * 生成战斗纪念图
+   */
+  createBattleMemorial: async ({ playerId, battleId, imageBase64 }) => {
+    try {
+      const response = await fetchWithTimeout(`${API_CONFIG.BASE_URL}/memorial/battle`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ playerId, battleId, imageBase64 }),
+      });
+      const data = await response.json();
+      if (data.success) return { success: true, data: data.data };
+      return { success: false, error: data.error || '生成失败', code: data.code, data: data.data };
+    } catch (error) {
+      console.error('[BattleAPI] 生成战斗纪念图失败', error);
+      return { success: false, error: '网络错误' };
+    }
+  },
 };

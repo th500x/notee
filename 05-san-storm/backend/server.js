@@ -118,6 +118,12 @@ const adminConfigTextsRouter = require('./routes/adminConfigTexts');
 app.use('/api/admin/config-texts', adminConfigTextsRouter);
 
 /**
+ * 纪念图（MVP：Battle）
+ */
+const memorialRouter = require('./routes/memorial');
+app.use('/api/memorial', memorialRouter);
+
+/**
  * 聊天（天下 / 势力 / 军团）
  */
 const chatsRouter = require('./routes/chats');

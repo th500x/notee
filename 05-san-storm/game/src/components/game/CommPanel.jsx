@@ -9,10 +9,12 @@
  */
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import html2canvas from 'html2canvas';
 import { usePlayerContext } from '@/contexts/PlayerContext';
 import { battleAPI } from '@/services/battleApi';
 import { textsAPI } from '@/services/textsApi';
 import { chatAPI } from '@/services/chatApi';
+import { API_CONFIG } from '@/constants';
 import AncientModal from '@/components/common/AncientModal';
 import SiegeReplayMini from '@/components/game/SiegeReplayMini';
 import { loadMultipleSharedData } from '@/services/dataService';
@@ -46,6 +48,246 @@ const COMM_TAB_TOP_SLOT_CLASS =
 const COMM_TAB_BOTTOM_SLOT_CLASS =
   'shrink-0 flex flex-col border-t border-amber-700/20 px-1.5 pb-1 pt-1 gap-0.5';
 
+async function blobToDataUrl(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ''));
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
+function uniqueTroopNames(list) {
+  const seen = new Set();
+  const out = [];
+  for (const t of Array.isArray(list) ? list : []) {
+    const name = String(t?.name || '').trim();
+    if (!name || seen.has(name)) continue;
+    seen.add(name);
+    out.push(name);
+  }
+  return out;
+}
+
+function resolveMemorialFileUrl(rawUrl) {
+  if (!rawUrl) return '';
+  if (/^https?:\/\//i.test(rawUrl)) return rawUrl;
+  if (rawUrl.startsWith('/api/')) {
+    try {
+      const apiBase = String(API_CONFIG.BASE_URL || '');
+      const origin = new URL(apiBase, window.location.origin).origin;
+      return `${origin}${rawUrl}`;
+    } catch {
+      return `http://localhost:3005${rawUrl}`;
+    }
+  }
+  return rawUrl;
+}
+
+function formatDateYMD(date = new Date()) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}/${m}/${d}`;
+}
+
+function memorialHtmlEscape(text) {
+  return String(text ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+/** 纪念图对阵行左侧：角色名（player_id），如 星空梦（0MRR） */
+function formatMemorialPlayerLine(name, playerId) {
+  const id = String(playerId ?? '').trim();
+  const raw = String(name ?? '').trim();
+  const label = memorialHtmlEscape(raw || '主公');
+  const idEsc = memorialHtmlEscape(id);
+  return id ? `${label}（${idEsc}）` : label;
+}
+
+/** public 下纪念海报目录；列表由后端 GET /api/memorial/illus-battle-list 扫 05-san-storm/public/... */
+const MEMORIAL_ILLUS_SUBDIR = 'assets/san_1_memorial/illus_battle/';
+
+function publicAssetUrl(relativePath) {
+  const base = import.meta.env.BASE_URL || '/';
+  return new URL(`${base}${relativePath}`, window.location.href).href;
+}
+
+function memorialPublicFileUrl(filename) {
+  return publicAssetUrl(`${MEMORIAL_ILLUS_SUBDIR}${filename}`);
+}
+
+/** 仅从纪念目录随机；目录空或接口失败则无底图（纯色底） */
+async function pickMemorialBattleIllusUrl() {
+  try {
+    const apiBase = String(API_CONFIG.BASE_URL || '').replace(/\/$/, '');
+    const r = await fetch(`${apiBase}/memorial/illus-battle-list`, { cache: 'no-store' });
+    if (r.ok) {
+      const data = await r.json();
+      const files = Array.isArray(data?.files) ? data.files.filter(Boolean) : [];
+      if (files.length > 0) {
+        const name = files[Math.floor(Math.random() * files.length)];
+        return memorialPublicFileUrl(name);
+      }
+    }
+  } catch {
+    /* 后端未启动等 */
+  }
+  return null;
+}
+
+function preloadMemorialIllusImage(url) {
+  if (!url) return Promise.resolve(false);
+  return new Promise((resolve) => {
+    const img = new Image();
+    try {
+      const u = new URL(url, window.location.href);
+      if (u.origin !== window.location.origin) img.crossOrigin = 'anonymous';
+    } catch {
+      /* ignore */
+    }
+    img.onload = () => resolve(true);
+    img.onerror = () => resolve(false);
+    img.src = url;
+  });
+}
+
+/** 文案块：半透明即可，避免盖住彩绘底图（与全图遮罩配合使用） */
+const MEMORIAL_PANEL =
+  'background:rgba(28,24,18,0.48);border:1px solid rgba(212,175,55,0.38);border-radius:10px;box-sizing:border-box;';
+const MEMORIAL_TEXT_MAIN = 'color:#f5e6c8;';
+const MEMORIAL_TEXT_MUTE = 'color:rgba(245,230,200,0.88);';
+/** 纪念图字体：public/fonts/JYHPHS.woff2；html2canvas 前需 fonts.load */
+const MEMORIAL_FONT_FAMILY = '"JYHPHS","Microsoft YaHei",Arial,sans-serif';
+
+async function renderBattleMemorialBlob({ playerName, playerId, battle, detail }) {
+  /**
+   * 768×1152 纪念海报字号（px）：
+   * 主标题 36 · 日期 20 · 角标 emoji 52 · 对阵 24 · 战报块 20
+   * 区块标题「战斗评分…」24 · 大号评分 32
+   * 歼敌/倍率说明 · 计分步骤①②③ · 无 scoreDetails 提示 → 均为 18
+   * 第三块文案框固定 576×504（宽×高）
+   */
+  const illusUrl = await pickMemorialBattleIllusUrl();
+  await preloadMemorialIllusImage(illusUrl);
+
+  const fontWoff2Href = publicAssetUrl('fonts/JYHPHS.woff2');
+
+  const root = document.createElement('div');
+  root.style.position = 'fixed';
+  root.style.left = '-99999px';
+  root.style.top = '0';
+  root.style.width = '768px';
+  root.style.height = '1152px';
+  root.style.boxSizing = 'border-box';
+  root.style.overflow = 'hidden';
+  root.style.fontFamily = MEMORIAL_FONT_FAMILY;
+  root.style.color = '#f5e6c8';
+  const d = detail || {};
+  const score = Number(d?.rewards?.battleScore ?? battle?.rewards?.battleScore ?? 0);
+  const grade = d?.rewards?.battleGrade || battle?.rewards?.battleGrade || '-';
+  const playerTeam = Array.isArray(d?.playerTeam) ? d.playerTeam : (Array.isArray(battle?.playerTeam) ? battle.playerTeam : []);
+  const opponentTeam = Array.isArray(d?.opponentTeam) ? d.opponentTeam : (Array.isArray(battle?.opponentTeam) ? battle.opponentTeam : []);
+  const playerLine = uniqueTroopNames(playerTeam).join('、') || '未记录';
+  const opponentLine = uniqueTroopNames(opponentTeam).join('、') || '未记录';
+  const rewards = d?.rewards || battle?.rewards || {};
+  const scoreLines = buildBattleScoreFormulaLines(rewards?.scoreDetails, rewards?.battleScore).lines || [];
+  const scoreDetails = rewards?.scoreDetails || null;
+  const killTroops = scoreDetails?.killTroops ?? null;
+  const lossTroops = scoreDetails?.lossTroops ?? null;
+  const killScore = scoreDetails?.killScore ?? null;
+  const lossScore = scoreDetails?.lossScore ?? null;
+  const baseScore = scoreDetails?.baseScore ?? null;
+  const turnM = scoreDetails?.turnMultiplier ?? null;
+  const roundNum = scoreDetails?.roundNum ?? null;
+  const scoreLineHtml = scoreLines.length > 0
+    ? scoreLines
+        .map((line) => String(line?.text || '').trim())
+        .filter(Boolean)
+        .map((text) => `<div style="margin:6px 0;">${text}</div>`)
+        .join('')
+    : '<div style="margin:2px 0;font-size:18px;">暂无完整计分步骤（该战报未写入 scoreDetails）</div>';
+  const illusImg = illusUrl
+    ? `<img src="${illusUrl}" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;" />`
+    : '';
+  root.innerHTML = `
+    <style>
+      @font-face {
+        font-family: 'JYHPHS';
+        src: url('${fontWoff2Href}') format('woff2');
+        font-weight: normal;
+        font-style: normal;
+        font-display: block;
+      }
+    </style>
+    <div style="position:relative;width:768px;height:1152px;overflow:hidden;">
+      <div style="position:absolute;inset:0;background:#2a231c;">${illusImg}</div>
+      <div style="position:absolute;inset:0;background:rgba(0,0,0,0.06);pointer-events:none;"></div>
+      <div style="position:relative;z-index:1;box-sizing:border-box;min-height:1152px;height:100%;display:flex;flex-direction:column;padding:16px;gap:12px;">
+        <div style="flex:0 0 auto;width:384px;box-sizing:border-box;align-self:flex-end;${MEMORIAL_PANEL}padding:14px 16px;display:flex;justify-content:space-between;align-items:flex-start;">
+          <div>
+            <div style="font-size:36px;font-weight:700;${MEMORIAL_TEXT_MAIN}">战斗纪念图</div>
+            <div style="margin-top:6px;font-size:20px;${MEMORIAL_TEXT_MUTE}">真三风云 · ${formatDateYMD(new Date())}</div>
+          </div>
+          <div style="font-size:52px;line-height:1;">${battle?.result === 'win' ? '🏆' : battle?.result === 'lose' ? '⚔️' : '📜'}</div>
+        </div>
+        <div style="flex:0 0 auto;width:384px;box-sizing:border-box;align-self:flex-end;${MEMORIAL_PANEL}padding:14px 16px;display:flex;flex-direction:column;">
+          <div style="font-size:24px;font-weight:600;${MEMORIAL_TEXT_MAIN}">${formatMemorialPlayerLine(playerName, playerId)} vs ${memorialHtmlEscape(battle?.opponentName || '事件敌军')}</div>
+          <div style="height:10px;flex-shrink:0;"></div>
+          <div style="display:flex;flex-direction:column;gap:6px;font-size:20px;line-height:1.45;${MEMORIAL_TEXT_MAIN}">
+            <div>结果：${battle?.result === 'win' ? '胜利' : battle?.result === 'lose' ? '失败' : '平局'}</div>
+            <div>类型：${d?.battleType || battle?.battleType || '-'}</div>
+            <div>我方阵容：${playerLine}</div>
+            <div>敌方阵容：${opponentLine}</div>
+          </div>
+        </div>
+        <div style="flex:0 0 auto;width:576px;height:504px;min-height:504px;max-height:504px;box-sizing:border-box;align-self:flex-start;${MEMORIAL_PANEL}padding:14px 16px;display:flex;flex-direction:column;font-size:18px;line-height:1.5;overflow:hidden;">
+          <div style="font-weight:700;flex-shrink:0;font-size:24px;${MEMORIAL_TEXT_MAIN}">战斗评分 + 完整计分步骤</div>
+          <div style="height:10px;flex-shrink:0;"></div>
+          <div style="margin-bottom:12px;flex-shrink:0;">
+            <div style="font-size:32px;font-weight:700;line-height:1.2;${MEMORIAL_TEXT_MAIN}">${grade} · ${score}分</div>
+            <div style="margin-top:8px;font-size:18px;${MEMORIAL_TEXT_MUTE}">歼敌 ${killTroops ?? '-'} / 战损 ${lossTroops ?? '-'}（兵力）</div>
+            <div style="margin-top:4px;font-size:18px;${MEMORIAL_TEXT_MUTE}">+${killScore ?? '-'} / ${lossScore ?? '-'}（评分）</div>
+            <div style="margin-top:4px;font-size:18px;${MEMORIAL_TEXT_MUTE}">基础分 ${baseScore ?? '-'}</div>
+            <div style="margin-top:4px;font-size:18px;${MEMORIAL_TEXT_MUTE}">回合倍率 ×${turnM ?? '-'}（第${roundNum ?? '-'}回合）</div>
+          </div>
+          <div style="height:1px;background:rgba(184,134,11,0.4);margin:0 0 12px 0;flex-shrink:0;"></div>
+          <div style="font-size:18px;line-height:1.45;flex:1 1 auto;min-height:0;overflow:visible;${MEMORIAL_TEXT_MAIN}">${scoreLineHtml}</div>
+        </div>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(root);
+  try {
+    if (document.fonts?.load) {
+      try {
+        await document.fonts.load(`18px JYHPHS`);
+      } catch {
+        /* 字体文件缺失或路径错误时回退 Microsoft YaHei */
+      }
+    }
+    if (document.fonts?.ready) {
+      await document.fonts.ready;
+    }
+    if (illusUrl) {
+      await new Promise((r) => setTimeout(r, 120));
+    }
+    const canvas = await html2canvas(root, {
+      backgroundColor: '#1a1512',
+      scale: 1,
+      logging: false,
+      useCORS: true,
+    });
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+    return blob;
+  } finally {
+    root.remove();
+  }
+}
+
 /**
  * @param {number} [unreadChatCount] - 预留；新消息角标主要由内部 meta 轮询驱动
  */
@@ -72,6 +314,8 @@ export default function CommPanel({ visible, unreadChatCount: unreadChatProp = 0
   const [battleLoading, setBattleLoading] = useState(false);
   const [expandedBattle, setExpandedBattle] = useState(null);
   const [battleDetail, setBattleDetail] = useState(null);
+  const [battleMemorialQuota, setBattleMemorialQuota] = useState({ dailyLimit: 1, usedToday: 0, remaining: 1 });
+  const [creatingMemorialBattleId, setCreatingMemorialBattleId] = useState(null);
 
   // 加载战报列表
   const loadBattles = useCallback(async () => {
@@ -94,10 +338,19 @@ export default function CommPanel({ visible, unreadChatCount: unreadChatProp = 0
     }
   }, [player?.player_id, battleFilter]);
 
+  const loadBattleMemorialQuota = useCallback(async () => {
+    if (!player?.player_id) return;
+    const res = await battleAPI.getBattleMemorialQuota(player.player_id);
+    if (res.success) setBattleMemorialQuota(res.data);
+  }, [player?.player_id]);
+
   // 打开面板或切换筛选时加载
   useEffect(() => {
-    if (open && activeTab === 'battle') loadBattles();
-  }, [open, activeTab, loadBattles]);
+    if (open && activeTab === 'battle') {
+      loadBattles();
+      loadBattleMemorialQuota();
+    }
+  }, [open, activeTab, loadBattles, loadBattleMemorialQuota]);
 
   const refreshTextUnread = useCallback(async () => {
     if (!player?.player_id) return;
@@ -216,6 +469,67 @@ export default function CommPanel({ visible, unreadChatCount: unreadChatProp = 0
     loadBattles();
   }, [player?.player_id, loadBattles]);
 
+  const handleCreateBattleMemorial = useCallback(async (battle, detail) => {
+    if (!player?.player_id || !battle?.battleId) return;
+    if ((battleMemorialQuota?.remaining ?? 0) <= 0) {
+      setMailClaimModal({
+        open: true,
+        title: '提示',
+        modalType: 'warning',
+        lines: ['今日生成次数1/1，请明日再来'],
+      });
+      return;
+    }
+    try {
+      setCreatingMemorialBattleId(battle.battleId);
+      let finalDetail = detail;
+      if (!finalDetail) {
+        const r = await battleAPI.getBattleDetail(battle.battleId);
+        if (r.success) finalDetail = r.battle;
+      }
+      const blob = await renderBattleMemorialBlob({
+        playerName: player?.character_name || player?.player_id,
+        playerId: player?.player_id,
+        battle,
+        detail: finalDetail,
+      });
+      if (!blob) throw new Error('图片生成失败');
+      const imageBase64 = await blobToDataUrl(blob);
+      const res = await battleAPI.createBattleMemorial({
+        playerId: player.player_id,
+        battleId: battle.battleId,
+        imageBase64,
+      });
+      if (!res.success) {
+        setMailClaimModal({
+          open: true,
+          title: '生成失败',
+          modalType: 'warning',
+          lines: [res.error || '生成失败'],
+        });
+        await loadBattleMemorialQuota();
+        return;
+      }
+      setMailClaimModal({
+        open: true,
+        title: '生成成功',
+        modalType: 'reward',
+        lines: ['战斗纪念图已生成（今日次数 1/1）'],
+      });
+      await loadBattleMemorialQuota();
+    } catch (error) {
+      console.error('[CommPanel] 生成战斗纪念图失败:', error);
+      setMailClaimModal({
+        open: true,
+        title: '生成失败',
+        modalType: 'warning',
+        lines: ['战斗纪念图生成失败，请稍后重试'],
+      });
+    } finally {
+      setCreatingMemorialBattleId(null);
+    }
+  }, [player?.player_id, player?.character_name, battleMemorialQuota?.remaining, loadBattleMemorialQuota]);
+
   if (!visible) return null;
 
   const mailClaimModalEl = (
@@ -293,6 +607,9 @@ export default function CommPanel({ visible, unreadChatCount: unreadChatProp = 0
             battleDetail={battleDetail}
             onExpand={handleExpandBattle}
             onToggleFavorite={handleToggleFavorite}
+            memorialQuota={battleMemorialQuota}
+            creatingMemorialBattleId={creatingMemorialBattleId}
+            onCreateMemorial={handleCreateBattleMemorial}
           />
         )}
         {activeTab === 'text' && (
@@ -319,7 +636,19 @@ export default function CommPanel({ visible, unreadChatCount: unreadChatProp = 0
 }
 
 /** 战报Tab */
-function BattleTab({ battles, filter, onFilterChange, loading, expandedBattle, battleDetail, onExpand, onToggleFavorite }) {
+function BattleTab({
+  battles,
+  filter,
+  onFilterChange,
+  loading,
+  expandedBattle,
+  battleDetail,
+  onExpand,
+  onToggleFavorite,
+  memorialQuota,
+  creatingMemorialBattleId,
+  onCreateMemorial,
+}) {
   return (
     <div className={COMM_TAB_BODY_CLASS}>
       <div className={COMM_TAB_TOP_SLOT_CLASS}>
@@ -337,6 +666,9 @@ function BattleTab({ battles, filter, onFilterChange, loading, expandedBattle, b
             </button>
           ))}
         </div>
+        <div className="text-[10px] text-amber-200/45 px-0.5">
+          战斗纪念图：今日 {memorialQuota?.usedToday ?? 0}/{memorialQuota?.dailyLimit ?? 1}
+        </div>
       </div>
 
       <div className={`${COMM_TAB_SCROLL_CLASS} p-1.5 space-y-1`}>
@@ -352,6 +684,9 @@ function BattleTab({ battles, filter, onFilterChange, loading, expandedBattle, b
             detail={expandedBattle === b.battleId ? battleDetail : null}
             onExpand={() => onExpand(b.battleId)}
             onToggleFavorite={() => onToggleFavorite(b)}
+            memorialQuota={memorialQuota}
+            creatingMemorial={creatingMemorialBattleId === b.battleId}
+            onCreateMemorial={() => onCreateMemorial(b, expandedBattle === b.battleId ? battleDetail : null)}
           />
         ))}
       </div>
@@ -360,9 +695,44 @@ function BattleTab({ battles, filter, onFilterChange, loading, expandedBattle, b
 }
 
 /** 单条战报卡片 */
-function BattleCard({ battle, isExpanded, detail, onExpand, onToggleFavorite }) {
+function BattleCard({
+  battle,
+  isExpanded,
+  detail,
+  onExpand,
+  onToggleFavorite,
+  memorialQuota,
+  creatingMemorial,
+  onCreateMemorial,
+}) {
   const isWin = battle.result === 'win';
   const timeStr = formatRelativeTime(battle.battleAt);
+  const isTodayMemorialBattle = battle.battleId && memorialQuota?.todayRecord?.battle_id === battle.battleId;
+  const todayMemorialUrl = resolveMemorialFileUrl(memorialQuota?.todayRecord?.image_url || '');
+
+  const handleDownloadTodayMemorial = async (e) => {
+    e.stopPropagation();
+    if (!todayMemorialUrl) return;
+    try {
+      const pathOnly = todayMemorialUrl.split('?')[0];
+      const bustUrl = `${todayMemorialUrl}${todayMemorialUrl.includes('?') ? '&' : '?'}_=${Date.now()}`;
+      const response = await fetch(bustUrl, { cache: 'no-store' });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const seg = pathOnly.split('/').pop() || '';
+      const filename = decodeURIComponent(seg) || `memorial_${battle.battleId || Date.now()}.png`;
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename.endsWith('.png') ? filename : `${filename}.png`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('[BattleCard] 下载纪念图失败:', err);
+    }
+  };
 
   // 从 rewards JSON 中提取评分信息
   const rewards = battle.rewards || {};
@@ -389,6 +759,20 @@ function BattleCard({ battle, isExpanded, detail, onExpand, onToggleFavorite }) 
           <div className="text-[10px] text-amber-200/50">
             评分：<span className={gradeColor}>{grade}</span> · {score}分
           </div>
+          {isTodayMemorialBattle && (
+            <div className="text-[10px] text-emerald-300/90 mt-0.5">
+              🖼️ 今日已生成纪念图
+              {todayMemorialUrl && (
+                <button
+                  type="button"
+                  onClick={handleDownloadTodayMemorial}
+                  className="ml-2 underline text-emerald-200 hover:text-emerald-100"
+                >
+                  点击下载
+                </button>
+              )}
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
           <span className="text-[10px] text-amber-200/40">{timeStr}</span>
@@ -407,6 +791,26 @@ function BattleCard({ battle, isExpanded, detail, onExpand, onToggleFavorite }) 
       )}
       {isExpanded && !detail && (
         <div className="px-2 py-2 text-center text-amber-200/40 text-[10px]">加载中...</div>
+      )}
+      {isExpanded && (
+        <div className="px-2 pb-2">
+          <button
+            type="button"
+            disabled={(memorialQuota?.remaining ?? 0) <= 0 || creatingMemorial}
+            title={(memorialQuota?.remaining ?? 0) <= 0 ? '今日生成次数1/1，请明日再来' : '将本场战报转为纪念图'}
+            onClick={onCreateMemorial}
+            className={`w-full py-1.5 rounded text-[10px] border transition-colors ${
+              (memorialQuota?.remaining ?? 0) <= 0
+                ? 'bg-gray-700/40 border-gray-500/30 text-gray-300/60 cursor-not-allowed'
+                : 'bg-emerald-800/35 border-emerald-600/45 text-emerald-100 hover:bg-emerald-700/40'
+            }`}
+          >
+            {creatingMemorial ? '纪念图生成中…' : '🖼️ 转为纪念图'}
+          </button>
+          {(memorialQuota?.remaining ?? 0) <= 0 && (
+            <div className="text-[10px] text-amber-200/35 mt-1 text-center">今日生成次数1/1，请明日再来</div>
+          )}
+        </div>
       )}
     </div>
   );
