@@ -7,6 +7,20 @@ const { grantSpecificCardsOnConnection } = require('./rewardService');
 
 const RESOURCE_KEYS = ['silver', 'food', 'reputation', 'contribution', 'morale'];
 
+/** 与 MySQL utf8mb4_unicode_ci 一致：player_id 比较大小写不敏感；兼容 Buffer */
+function normalizePlayerId(v) {
+  if (v == null) return '';
+  if (typeof Buffer !== 'undefined' && Buffer.isBuffer(v)) return v.toString('utf8');
+  return String(v);
+}
+
+function sameReceiverAsPlayer(rowReceiverId, playerId) {
+  const a = normalizePlayerId(rowReceiverId);
+  const b = normalizePlayerId(playerId);
+  if (a === b) return true;
+  return a.toLowerCase() === b.toLowerCase();
+}
+
 function parseAttachments(raw) {
   if (raw == null) return null;
   if (typeof Buffer !== 'undefined' && Buffer.isBuffer(raw)) {
@@ -113,7 +127,7 @@ async function claimReward(playerId, textId) {
       [textId]
     );
     const row = rows[0];
-    if (!row || row.receiver_id !== playerId || row.is_deleted) {
+    if (!row || !sameReceiverAsPlayer(row.receiver_id, playerId) || row.is_deleted) {
       await connection.rollback();
       return { ok: false, error: '传书不存在' };
     }
