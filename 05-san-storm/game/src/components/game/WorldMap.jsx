@@ -22,7 +22,7 @@ import { garrisonAPI } from '@/services/garrisonApi';
 import { API_CONFIG, getRarityHex, getRarityLabelCn } from '@/constants';
 import SiegeReplayMini from '@/components/game/SiegeReplayMini';
 import { filterPlayerItemsForExploreLocation } from '@/components/event/eventUtils';
-import { buildBattleScoreFormulaLines } from '@/systems/battleScoreSystem';
+import { buildBattleScoreFormulaLines, resolveKillLossTroopCounts } from '@/systems/battleScoreSystem';
 
 /** 山海关荒郊（事件 location 与 config_events 一致） */
 const EXPLORE_LOC_SHANHAIGUAN = 'san_1_city_6_shanhaiguan';
@@ -137,6 +137,7 @@ function PvpDefenseOutcomeModal({ outcome, onClose }) {
   const grade = outcome?.defenderBattleGrade;
   const formulaLines =
     sd && score != null ? buildBattleScoreFormulaLines(sd, score).lines : [];
+  const troopCounts = useMemo(() => resolveKillLossTroopCounts(sd), [sd]);
 
   return (
     <>
@@ -171,8 +172,13 @@ function PvpDefenseOutcomeModal({ outcome, onClose }) {
                 {grade} · {score}分
               </div>
               <div>
-                敌方消耗 +{sd.killScore} / 己方损失 {sd.lossScore}
-                <span className="text-gray-500">（评分项，非兵力）</span>
+                歼敌 {troopCounts.killTroops != null ? troopCounts.killTroops : '—'} / 战损{' '}
+                {troopCounts.lossTroops != null ? troopCounts.lossTroops : '—'}
+                <span className="text-gray-500">（兵力）</span>
+              </div>
+              <div>
+                +{sd.killScore} / {sd.lossScore}
+                <span className="text-gray-500">（评分）</span>
               </div>
               <div>
                 基础分 {sd.baseScore}（上两项代数和）

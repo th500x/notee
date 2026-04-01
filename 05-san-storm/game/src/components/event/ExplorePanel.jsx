@@ -6,7 +6,7 @@
  *              不再包含 MOCK 数据，所有数据来自 props
  */
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import AncientModal, { Divider } from '@/components/common/AncientModal';
 import FortunePreview from './FortunePreview';
 import EventBattle from './EventBattle';
@@ -20,6 +20,7 @@ import TroopCard from '@shared/components/card/TroopCard';
 import CharacterCard from '@shared/components/card/CharacterCard';
 import EquipmentCard from '@shared/components/card/EquipmentCard';
 import TitleAchievementCard from '@shared/components/card/TitleAchievementCard';
+import { resolveKillLossTroopCounts } from '@/systems/battleScoreSystem';
 
 export default function ExplorePanel({ eventSystem }) {
   const {
@@ -29,6 +30,11 @@ export default function ExplorePanel({ eventSystem }) {
     closeEvent, chooseOption, confirmResult, endBattle, endMinigame, closeReward,
     rewardDetails, battleScore, playerId, isTutorial,
   } = eventSystem;
+
+  const exploreScoreTroopCounts = useMemo(
+    () => (battleScore ? resolveKillLossTroopCounts(battleScore.details) : { killTroops: null, lossTroops: null }),
+    [battleScore],
+  );
 
   const [hoveredOption, setHoveredOption] = useState(null);
 
@@ -442,7 +448,15 @@ function RewardDisplay({ fortune, chosenOption, battleResult, battleScore, repla
                 </span>
               </div>
               <div className="text-xs text-gray-400 space-y-0.5">
-                <div>敌方消耗 +{battleScore.details.killScore} / 己方损失 {battleScore.details.lossScore}</div>
+                <div>
+                  歼敌 {exploreScoreTroopCounts.killTroops != null ? exploreScoreTroopCounts.killTroops : '—'} / 战损{' '}
+                  {exploreScoreTroopCounts.lossTroops != null ? exploreScoreTroopCounts.lossTroops : '—'}
+                  <span className="text-gray-500">（兵力）</span>
+                </div>
+                <div>
+                  +{battleScore.details.killScore} / {battleScore.details.lossScore}
+                  <span className="text-gray-500">（评分）</span>
+                </div>
                 <div>回合倍率 ×{battleScore.details.turnMultiplier}（第{battleScore.details.roundNum}回合）</div>
               </div>
             </div>

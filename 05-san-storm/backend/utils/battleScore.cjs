@@ -46,6 +46,8 @@ function calculateBattleScore(battleTroops, roundNum, result, options = {}) {
 
   let killScore = 0;
   let lossScore = 0;
+  let killTroops = 0;
+  let lossTroops = 0;
   const killDetails = [];
   const lossDetails = [];
 
@@ -58,6 +60,9 @@ function calculateBattleScore(battleTroops, roundNum, result, options = {}) {
     const cur = Math.max(0, troop.currentTroops || 0);
     if (start <= 0) continue;
     const lostRatio = Math.max(0, Math.min(1, (start - cur) / start));
+    const deltaTroops = Math.max(0, start - cur);
+    if (troop.faction === 'enemy') killTroops += deltaTroops;
+    if (troop.faction === 'player') lossTroops += deltaTroops;
 
     if (troop.faction === 'enemy' && lostRatio > 0) {
       const base = KILL_SCORE[rarity] || 200;
@@ -97,6 +102,8 @@ function calculateBattleScore(battleTroops, roundNum, result, options = {}) {
     details: {
       killScore,
       lossScore,
+      killTroops,
+      lossTroops,
       baseScore,
       turnMultiplier: turnMult,
       roundNum,

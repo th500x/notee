@@ -59,6 +59,10 @@ export function calculateBattleScore(battleTroops, roundNum, result, options = {
     typeof options.scoreMultiplier === 'number' && options.scoreMultiplier > 0 ? options.scoreMultiplier : 1;
   let killScore = 0;
   let lossScore = 0;
+  /** 歼敌：敌方兵力合计损失数（兵力单位，非评分） */
+  let killTroops = 0;
+  /** 战损：己方兵力合计损失数 */
+  let lossTroops = 0;
   const killDetails = [];
   const lossDetails = [];
 
@@ -71,6 +75,9 @@ export function calculateBattleScore(battleTroops, roundNum, result, options = {
     const cur = Math.max(0, troop.currentTroops || 0);
     if (start <= 0) continue;
     const lostRatio = Math.max(0, Math.min(1, (start - cur) / start)); // 0~1
+    const deltaTroops = Math.max(0, start - cur);
+    if (troop.faction === 'enemy') killTroops += deltaTroops;
+    if (troop.faction === 'player') lossTroops += deltaTroops;
 
     if (troop.faction === 'enemy' && lostRatio > 0) {
       // 敌方兵力损失：比例 × 基础分
@@ -114,6 +121,8 @@ export function calculateBattleScore(battleTroops, roundNum, result, options = {
     details: {
       killScore,
       lossScore,
+      killTroops,
+      lossTroops,
       baseScore,
       turnMultiplier: turnMult,
       roundNum,
@@ -132,6 +141,35 @@ export function calculateBattleScore(battleTroops, roundNum, result, options = {
 
 function troopLabel(t) {
   return t.character?.courtesyName || t.character?.name || t.name || '未知';
+}
+
+/**
+ * 战报 UI：歼敌/战损兵力数。新存档含 `killTroops`/`lossTroops`；旧档可从 kills/losses 明细还原。
+ * @returns {{ killTroops: number, lossTroops: number } | { killTroops: null, lossTroops: null }}
+ */
+export function resolveKillLossTroopCounts(details) {
+  if (!details) return { killTroops: null, lossTroops: null };
+  if (Number.isFinite(details.killTroops) && Number.isFinite(details.lossTroops)) {
+    return { killTroops: details.killTroops, lossTroops: details.lossTroops };
+  }
+  let k = 0;
+  let l = 0;
+  if (Array.isArray(details.kills)) {
+    for (const x of details.kills) {
+      k += Math.max(0, (Number(x.startTroops) || 0) - (Number(x.remainTroops) || 0));
+    }
+  }
+  if (Array.isArray(details.losses)) {
+    for (const x of details.losses) {
+      l += Math.max(0, (Number(x.startTroops) || 0) - (Number(x.remainTroops) || 0));
+    }
+  }
+  const hasKills = Array.isArray(details.kills) && details.kills.length > 0;
+  const hasLosses = Array.isArray(details.losses) && details.losses.length > 0;
+  if (!hasKills && !hasLosses && details.killTroops == null && details.lossTroops == null) {
+    return { killTroops: null, lossTroops: null };
+  }
+  return { killTroops: k, lossTroops: l };
 }
 
 /**

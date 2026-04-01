@@ -17,7 +17,7 @@ import AncientModal from '@/components/common/AncientModal';
 import SiegeReplayMini from '@/components/game/SiegeReplayMini';
 import { loadMultipleSharedData } from '@/services/dataService';
 import { describeMailAttachments, buildCardItemMaps, linesFromClaimDetails } from '@/utils/mailRewardUi';
-import { buildBattleScoreFormulaLines } from '@/systems/battleScoreSystem';
+import { buildBattleScoreFormulaLines, resolveKillLossTroopCounts } from '@/systems/battleScoreSystem';
 
 const TABS = [
   { id: 'battle', icon: '📜', label: '战报' },
@@ -439,6 +439,10 @@ function BattleDetail({ detail }) {
     () => buildBattleScoreFormulaLines(rewards.scoreDetails, rewards.battleScore).lines,
     [rewards.scoreDetails, rewards.battleScore],
   );
+  const troopCounts = useMemo(
+    () => resolveKillLossTroopCounts(rewards.scoreDetails),
+    [rewards.scoreDetails],
+  );
 
   return (
     <div className="px-2 py-1.5 border-t border-amber-700/20 space-y-1.5">
@@ -485,8 +489,13 @@ function BattleDetail({ detail }) {
           {rewards.scoreDetails && (
             <div className="text-[10px] text-amber-200/40 mt-0.5 space-y-0.5">
               <div>
-                敌方消耗 +{rewards.scoreDetails.killScore} / 己方损失 {rewards.scoreDetails.lossScore}
-                <span className="text-amber-200/30">（评分项，非兵力）</span>
+                歼敌 {troopCounts.killTroops != null ? troopCounts.killTroops : '—'} / 战损{' '}
+                {troopCounts.lossTroops != null ? troopCounts.lossTroops : '—'}
+                <span className="text-amber-200/30">（兵力）</span>
+              </div>
+              <div>
+                +{rewards.scoreDetails.killScore} / {rewards.scoreDetails.lossScore}
+                <span className="text-amber-200/30">（评分）</span>
               </div>
               {(rewards.scoreDetails.baseScore != null ||
                 (rewards.scoreDetails.killScore != null && rewards.scoreDetails.lossScore != null)) && (
