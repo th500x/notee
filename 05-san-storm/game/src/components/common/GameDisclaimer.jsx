@@ -5,6 +5,9 @@
  * @module components/common/GameDisclaimer
  */
 
+import { useState } from 'react';
+import AncientModal from '@/components/common/AncientModal';
+
 /**
  * 游戏申明组件
  */
@@ -116,6 +119,8 @@ Copyright © 2026 Notee.vip
  * 注册确认弹窗组件
  */
 export function DisclaimerModal({ isOpen, onAccept, onCancel }) {
+  const [agreeHintOpen, setAgreeHintOpen] = useState(false);
+
   if (!isOpen) return null;
 
   return (
@@ -156,7 +161,7 @@ export function DisclaimerModal({ isOpen, onAccept, onCancel }) {
                 if (checkbox && checkbox.checked) {
                   onAccept();
                 } else {
-                  alert('请先勾选同意选项');
+                  setAgreeHintOpen(true);
                 }
               }}
               className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
@@ -166,6 +171,17 @@ export function DisclaimerModal({ isOpen, onAccept, onCancel }) {
           </div>
         </div>
       </div>
+
+      <AncientModal
+        isOpen={agreeHintOpen}
+        type="warning"
+        title="提示"
+        confirmText="确定"
+        onConfirm={() => setAgreeHintOpen(false)}
+        onClose={() => setAgreeHintOpen(false)}
+      >
+        <p className="text-center text-gray-800 text-sm">请先勾选同意选项</p>
+      </AncientModal>
     </div>
   );
 }

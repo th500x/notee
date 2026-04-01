@@ -7,9 +7,11 @@
 import React from 'react';
 import { usePositions } from '@/hooks/usePositions';
 import PositionCard from '@shared/components/card/PositionCard';
+import { useWebToast } from '@/hooks/useWebToast';
 
 function PositionsPage() {
   const { positions, loading, error } = usePositions();
+  const { showToast, Toast } = useWebToast();
 
   if (loading) {
     return (
@@ -77,7 +79,10 @@ function PositionsPage() {
             key={position.id}
             position={position}
             onSelect={(pos) => {
-              alert(`选择了官职: ${pos.name}\n等级: ${pos.level}\n排名: #${pos.rank}`);
+              showToast(
+                `选择了官职: ${pos.name}\n等级: ${pos.level}\n排名: #${pos.rank}`,
+                'info'
+              );
             }}
           />
         ))}

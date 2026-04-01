@@ -2,7 +2,7 @@
  * 战后评分系统
  * 
  * @description 根据战斗结果计算评分，用于排行榜积分
- * @see 15-STATISTICS_RANKING_SYSTEM.md
+ * @see 19-1-STATISTICS_RANKING_SYSTEM.md
  * 
  * 评分项：消灭/消耗敌兵、己方损失、回合倍率
  * 

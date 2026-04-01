@@ -61,6 +61,27 @@ function GamePageInner({ onLogout }) {
     setUpdateNoticeOpen(false);
   }, []);
 
+  const recheckUpdateNoticeOpen = useCallback(() => {
+    const n = getActiveUpdateNotice();
+    if (n && shouldShowUpdateNotice(n)) setUpdateNoticeOpen(true);
+  }, []);
+
+  // 从子 Tab 回到大地图、或浏览器页签回到前台且当前在大地图时，按存储规则再次尝试弹出（含「同 id 正文已变更」）
+  useEffect(() => {
+    if (activeTab !== null) return;
+    recheckUpdateNoticeOpen();
+  }, [activeTab, recheckUpdateNoticeOpen]);
+
+  useEffect(() => {
+    const onVis = () => {
+      if (document.visibilityState !== 'visible') return;
+      if (activeTab !== null) return;
+      recheckUpdateNoticeOpen();
+    };
+    document.addEventListener('visibilitychange', onVis);
+    return () => document.removeEventListener('visibilitychange', onVis);
+  }, [activeTab, recheckUpdateNoticeOpen]);
+
   const hideCardPools = !!(activeUpdateNotice && updateNoticeOpen);
 
   // 加载技能映射表（卡牌显示需要）

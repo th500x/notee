@@ -18,6 +18,7 @@ import TroopCard from '@shared/components/card/TroopCard';
 import TitleAchievementCard from '@shared/components/card/TitleAchievementCard';
 import EquipmentCard from '@shared/components/card/EquipmentCard';
 import EncapsulateEquipmentModal from '@/components/game/EncapsulateEquipmentModal';
+import AncientModal from '@/components/common/AncientModal';
 
 const CITY_ID = 'san_1_city_3_xinye';
 const CITY_NAME = '新野';
@@ -58,6 +59,7 @@ export default function GarrisonLineup({ onClose }) {
   const [saving, setSaving] = useState(false);
   /** 编队已满将、领但总兵力未达守军下限时的提示（不弹窗） */
   const [activationHint, setActivationHint] = useState(null);
+  const [saveErrorMessage, setSaveErrorMessage] = useState(null);
 
   const [isLandscape, setIsLandscape] = useState(
     () => window.innerWidth >= 768 && window.innerWidth > window.innerHeight
@@ -179,7 +181,7 @@ export default function GarrisonLineup({ onClose }) {
           setActivationHint(null);
         }
       } else {
-        alert(res.error || '保存失败');
+        setSaveErrorMessage(res.error || '保存失败');
       }
     } catch (e) {
       console.error('[GarrisonLineup] 保存失败:', e);
@@ -634,6 +636,19 @@ export default function GarrisonLineup({ onClose }) {
           onSelect={handleEquip}
           onClose={closeDrawer}
         />
+      )}
+
+      {saveErrorMessage != null && (
+        <AncientModal
+          isOpen
+          type="warning"
+          title="保存失败"
+          confirmText="确定"
+          onConfirm={() => setSaveErrorMessage(null)}
+          onClose={() => setSaveErrorMessage(null)}
+        >
+          <p className="text-center text-gray-800 text-sm whitespace-pre-wrap">{saveErrorMessage}</p>
+        </AncientModal>
       )}
     </div>
   );

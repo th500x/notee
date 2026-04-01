@@ -4,6 +4,7 @@
 
 import { useState, useEffect } from 'react';
 import { adminConfigTextsAPI } from '@/services/api';
+import { useAdminToast } from '@/components/admin/useAdminToast';
 
 /** S1 七势力（与 public/data/shared/factions.json 一致） */
 const TRIAL_FACTIONS = [
@@ -44,6 +45,7 @@ const emptyForm = () => ({
 });
 
 const MailManager = () => {
+  const { showToast, Toast } = useAdminToast();
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -162,7 +164,7 @@ const MailManager = () => {
       if (editingId === templateId) startNew();
       load();
     } else {
-      alert(r.error || '删除失败');
+      showToast(r.error || '删除失败', 'error');
     }
   };
 
@@ -211,13 +213,15 @@ const MailManager = () => {
     if (r.success) {
       const n = r.data?.count ?? 1;
       const tid = r.data?.first_text_id || r.data?.sample_text_ids?.[0] || '';
-      alert(`试发成功，共 ${n} 封。首条 text_id: ${tid || '—'}`);
+      showToast(`试发成功，共 ${n} 封。首条 text_id: ${tid || '—'}`);
     } else {
       setError(r.error || '试发失败');
     }
   };
 
   return (
+    <>
+      <Toast />
     <div className="max-w-6xl mx-auto space-y-8 p-4">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
@@ -487,6 +491,7 @@ const MailManager = () => {
         </div>
       </div>
     </div>
+    </>
   );
 };
 

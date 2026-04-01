@@ -2,7 +2,7 @@
  * 排行榜路由
  * 
  * @description 活动排名 API
- * @see 15-STATISTICS_RANKING_SYSTEM.md
+ * @see 19-1-STATISTICS_RANKING_SYSTEM.md
  * @see 01-1-DATABASE_DESIGN.md 4.3 temp_ranking_snapshots
  */
 

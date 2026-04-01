@@ -277,6 +277,8 @@ export default function WorldMap({ onEventBusyChange }) {
   const [pvpDefenseOutcome, setPvpDefenseOutcome] = useState(null); // 裁定结果展示
   /** 攻城方：倒计时结束或对方已 accept，等待 siege-resolve 与最短 3s 裁定 UI */
   const [pvpAttackerAdjudicating, setPvpAttackerAdjudicating] = useState(null); // { defenderName, startedAt }
+  /** 统一替代 window.alert（攻城/驻守等 API 错误） */
+  const [simpleAlertMessage, setSimpleAlertMessage] = useState(null);
   const defPollRef = useRef(null);
   const pvpDefenseOutcomeHandledRef = useRef(false);
   /** 用户已点「确定」或窗口到期进入裁定等待时，不再重复弹出遇袭框（pending 轮询会持续数秒） */
@@ -407,7 +409,7 @@ export default function WorldMap({ onEventBusyChange }) {
           setSiegeData(res.data); setSiegeResult(null);
         }
       } else if (res.error) {
-        window.alert(res.error);
+        setSimpleAlertMessage(res.error);
       }
     } catch {}
     setSiegeLoading(false);
@@ -499,14 +501,14 @@ export default function WorldMap({ onEventBusyChange }) {
         } else {
           scheduleAfterMinAdjudicationUi(adjudicationStartedAt, () => {
             setPvpAttackerAdjudicating(null);
-            window.alert(r.error || '攻城结算失败');
+            setSimpleAlertMessage(r.error || '攻城结算失败');
           });
         }
       } catch (e) {
         console.error('[PVP] siege-resolve', e);
         scheduleAfterMinAdjudicationUi(adjudicationStartedAt, () => {
           setPvpAttackerAdjudicating(null);
-          window.alert('攻城结算请求失败');
+          setSimpleAlertMessage('攻城结算请求失败');
         });
       }
     };
@@ -826,7 +828,7 @@ export default function WorldMap({ onEventBusyChange }) {
                           refreshCity();
                           refreshPlayer();
                         } else if (res.error) {
-                          window.alert(res.error);
+                          setSimpleAlertMessage(res.error);
                         }
                       }}
                       className={`w-full py-1.5 rounded text-xs font-bold transition-all
@@ -945,6 +947,19 @@ export default function WorldMap({ onEventBusyChange }) {
             </p>
             <p className="text-gray-500 text-xs">提示关闭后请勿反复操作，稍候即弹出裁定结果。</p>
           </div>
+        </AncientModal>
+      )}
+
+      {simpleAlertMessage != null && (
+        <AncientModal
+          isOpen
+          type="warning"
+          title="提示"
+          confirmText="确定"
+          onConfirm={() => setSimpleAlertMessage(null)}
+          onClose={() => setSimpleAlertMessage(null)}
+        >
+          <p className="text-center text-gray-800 text-sm whitespace-pre-wrap">{simpleAlertMessage}</p>
         </AncientModal>
       )}
 

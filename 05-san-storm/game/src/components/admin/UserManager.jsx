@@ -8,6 +8,7 @@
 
 import { useState, useEffect } from 'react';
 import { gameUserAPI } from '@/services/api';
+import { useAdminToast } from '@/components/admin/useAdminToast';
 
 // 获取当前批次信息的函数（与注册系统相同）
 const getCurrentBatchInfo = () => {
@@ -43,6 +44,7 @@ const getCurrentBatchInfo = () => {
 };
 
 const UserManager = () => {
+  const { showToast, Toast } = useAdminToast();
   const [users, setUsers] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
   const [batchInfo, setBatchInfo] = useState(null);
@@ -110,15 +112,15 @@ const UserManager = () => {
       if (confirmModal.type === 'purge') {
         const result = await gameUserAPI.purgeAllUsers();
         if (result.success) {
-          alert('所有用户的玩家数据已清除');
+          showToast('所有用户的玩家数据已清除');
           loadUserData();
         } else {
-          alert('操作失败：' + result.error);
+          showToast('操作失败：' + result.error, 'error');
         }
       } else if (confirmModal.type === 'deleteBanned') {
         const result = await gameUserAPI.deleteBannedUsers();
         if (result.success) {
-          alert(`成功删除 ${result.deletedCount} 个封禁账号`);
+          showToast(`成功删除 ${result.deletedCount} 个封禁账号`);
           // 检查当前登录用户是否在被删除的范围内（banned状态的都被删了）
           const current = JSON.parse(localStorage.getItem('gameUser') || 'null');
           if (current) {
@@ -134,11 +136,11 @@ const UserManager = () => {
           }
           loadUserData();
         } else {
-          alert('操作失败：' + result.error);
+          showToast('操作失败：' + result.error, 'error');
         }
       }
     } catch (err) {
-      alert('操作失败，请重试');
+      showToast('操作失败，请重试', 'error');
       console.error(err);
     } finally {
       setLoading(false);
@@ -153,7 +155,7 @@ const UserManager = () => {
     const result = await gameUserAPI.deleteUser(userId);
     setLoading(false);
     if (result.success) {
-      alert('删除成功');
+      showToast('删除成功');
       // 如果删除的是当前登录用户，清除登录状态
       const current = JSON.parse(localStorage.getItem('gameUser') || 'null');
       if (current && current.id === userId) {
@@ -162,7 +164,7 @@ const UserManager = () => {
       }
       loadUserData();
     } else {
-      alert('删除失败：' + result.error);
+      showToast('删除失败：' + result.error, 'error');
     }
   };
 
@@ -172,10 +174,10 @@ const UserManager = () => {
     const result = await gameUserAPI.clearUserData(userId);
     setLoading(false);
     if (result.success) {
-      alert('游戏数据已清除');
+      showToast('游戏数据已清除');
       loadUserData();
     } else {
-      alert('清除失败：' + result.error);
+      showToast('清除失败：' + result.error, 'error');
     }
   };
 
@@ -185,7 +187,7 @@ const UserManager = () => {
     const durationStr = prompt('请输入封禁天数（0表示永久封禁）：', '7');
     const duration = parseInt(durationStr);
     if (isNaN(duration) || duration < 0) {
-      alert('封禁天数必须是非负整数');
+      showToast('封禁天数必须是非负整数', 'error');
       return;
     }
     if (!window.confirm(`确定要封禁用户 ${userId} 吗？\n原因：${reason}\n时长：${duration === 0 ? '永久' : duration + '天'}`)) return;
@@ -193,10 +195,10 @@ const UserManager = () => {
     const result = await gameUserAPI.banUser(userId, reason, duration === 0 ? null : duration);
     setLoading(false);
     if (result.success) {
-      alert('封禁成功');
+      showToast('封禁成功');
       loadUserData();
     } else {
-      alert('封禁失败：' + result.error);
+      showToast('封禁失败：' + result.error, 'error');
     }
   };
 
@@ -206,10 +208,10 @@ const UserManager = () => {
     const result = await gameUserAPI.unbanUser(userId);
     setLoading(false);
     if (result.success) {
-      alert('解封成功');
+      showToast('解封成功');
       loadUserData();
     } else {
-      alert('解封失败：' + result.error);
+      showToast('解封失败：' + result.error, 'error');
     }
   };
 
@@ -238,6 +240,8 @@ const UserManager = () => {
   };
 
   return (
+    <>
+      <Toast />
     <div className="space-y-6">
       {/* 加载状态 */}
       {loading && (
@@ -537,6 +541,7 @@ const UserManager = () => {
         </div>
       )}
     </div>
+    </>
   );
 };
 

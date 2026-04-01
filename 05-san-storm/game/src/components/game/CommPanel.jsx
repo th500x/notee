@@ -59,7 +59,12 @@ export default function CommPanel({ visible, unreadChatCount: unreadChatProp = 0
   const [chatNotifyCount, setChatNotifyCount] = useState(0);
   const seenWorldMaxRef = useRef('0');
   /** 领取结果弹窗放在面板外层，避免领取后立即 refreshPlayer 导致子 Tab 重挂载清空行文案 */
-  const [mailClaimModal, setMailClaimModal] = useState({ open: false, lines: [] });
+  const [mailClaimModal, setMailClaimModal] = useState({
+    open: false,
+    lines: [],
+    title: '领取结果',
+    modalType: 'reward',
+  });
 
   // 战报状态
   const [battles, setBattles] = useState([]);
@@ -217,8 +222,8 @@ export default function CommPanel({ visible, unreadChatCount: unreadChatProp = 0
     <AncientModal
       isOpen={mailClaimModal.open}
       onClose={() => setMailClaimModal((s) => ({ ...s, open: false }))}
-      type="reward"
-      title="领取结果"
+      type={mailClaimModal.modalType || 'reward'}
+      title={mailClaimModal.title || '领取结果'}
       confirmText="确定"
     >
       <ul className="text-left space-y-1.5 list-none p-0 m-0">
@@ -295,7 +300,12 @@ export default function CommPanel({ visible, unreadChatCount: unreadChatProp = 0
             playerId={player?.player_id}
             onUnreadChange={refreshTextUnread}
             onClaimed={refreshPlayer}
-            onShowClaimResult={(lines) => setMailClaimModal({ open: true, lines })}
+            onShowClaimResult={(lines) =>
+              setMailClaimModal({ open: true, lines, title: '领取结果', modalType: 'reward' })
+            }
+            onShowClaimError={(msg) =>
+              setMailClaimModal({ open: true, lines: [msg], title: '领取失败', modalType: 'warning' })
+            }
           />
         )}
         {activeTab === 'chat' && (
@@ -573,7 +583,7 @@ function BattleLogSection({ log }) {
 }
 
 /** 传书 Tab */
-function TextMailTab({ playerId, onUnreadChange, onClaimed, onShowClaimResult }) {
+function TextMailTab({ playerId, onUnreadChange, onClaimed, onShowClaimResult, onShowClaimError }) {
   const [texts, setTexts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [expandedId, setExpandedId] = useState(null);
@@ -658,7 +668,7 @@ function TextMailTab({ playerId, onUnreadChange, onClaimed, onShowClaimResult })
           onUnreadChange?.();
         }, 0);
       } else {
-        alert(r.error || '领取失败');
+        onShowClaimError?.(r.error || '领取失败');
       }
     } finally {
       setClaimBusy(null);

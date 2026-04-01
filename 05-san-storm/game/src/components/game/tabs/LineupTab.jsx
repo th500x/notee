@@ -1871,7 +1871,13 @@ function CardDrawer({ slot, cards, allCards = [], skillsMap, onSelect, onClose }
                         key={card.instance_id}
                         onClick={() => onSelect(card)}
                         className="cursor-pointer hover:brightness-110 active:scale-95 transition-all"
-                        style={{ width: 128, height: isEquipmentSlot ? 192 : (isTitleSlot || isCharacterSlot) ? 96 : 192 }}
+                        style={{
+                          width: 128,
+                          // 将领卡含详情时实际高度远大于 96px（0.5 缩放后约 180–220px），过小会导致 flex 换行重叠
+                          ...(isCharacterSlot
+                            ? { minHeight: 208 }
+                            : { height: isEquipmentSlot ? 192 : isTitleSlot ? 96 : 192 }),
+                        }}
                       >
                         <div style={{ transform: 'scale(0.5)', transformOrigin: 'top left', width: 256 }}>
                           {isTitleSlot ? (

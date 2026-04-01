@@ -7,9 +7,11 @@
 import React from 'react';
 import { useServers } from '@/hooks/useServers';
 import { ServerCard } from '@/components/server/ServerCard';
+import { useAdminToast } from '@/components/admin/useAdminToast';
 
 function ServersPage() {
   const { servers, loading, error } = useServers();
+  const { showToast, Toast } = useAdminToast();
 
   if (loading) {
     return (
@@ -30,6 +32,7 @@ function ServersPage() {
 
   return (
     <div>
+      <Toast />
       <h2 className="text-3xl font-bold text-gray-900 mb-6">服务器选择</h2>
       <p className="text-gray-600 mb-6">
         选择一个服务器开始游戏。建议选择空闲或热门状态的服务器。
@@ -39,7 +42,7 @@ function ServersPage() {
           <ServerCard 
             key={server.id} 
             server={server}
-            onSelect={(server) => alert(`选择了服务器: ${server.name}`)}
+            onSelect={(server) => showToast(`已选择服务器：${server.name}`, 'info')}
           />
         ))}
       </div>

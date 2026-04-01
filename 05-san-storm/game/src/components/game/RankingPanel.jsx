@@ -8,7 +8,7 @@
  * - 活动未开始显示倒计时，已结束显示最终排名定格
  * 
  * @see 92-1-GAME_UI_DESIGN.md 1.6 活动排名
- * @see 15-STATISTICS_RANKING_SYSTEM.md 排行榜系统
+ * @see 19-1-STATISTICS_RANKING_SYSTEM.md 排行榜系统
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';

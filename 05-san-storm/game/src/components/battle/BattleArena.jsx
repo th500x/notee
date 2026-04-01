@@ -137,9 +137,7 @@ export default function BattleArena({
       return;
     }
     if (lineupTroopTotal < MIN_MAIN_LINEUP_TROOPS_BATTLE) {
-      window.alert(
-        `开战需上阵编组总兵力≥${MIN_MAIN_LINEUP_TROOPS_BATTLE}（当前 ${lineupTroopTotal}）`
-      );
+      setLineupGateModalOpen(true);
       return;
     }
     engine.playBattleRound();
@@ -158,6 +156,7 @@ export default function BattleArena({
   const pendingAwayNoticeRef = useRef(false);
   const pendingAwayEndRef = useRef(null);
   const [awayNoticeOpen, setAwayNoticeOpen] = useState(false);
+  const [lineupGateModalOpen, setLineupGateModalOpen] = useState(false);
 
   const handleAwayDeadline = useCallback(() => {
     if (!awayTimeoutEnabled) return;
@@ -362,40 +361,49 @@ export default function BattleArena({
     return () => ro.disconnect();
   }, [bm.mapResult, syncLayoutWidth]);
 
-  // 监听战斗结束
   const endedRef = useRef(false);
   const onBattleEndRef = useRef(onBattleEnd);
   onBattleEndRef.current = onBattleEnd;
 
+  // 新开战时允许再次触发结算
+  useEffect(() => {
+    if (bm.battlePlaying) endedRef.current = false;
+  }, [bm.battlePlaying]);
+
+  // 监听战斗结束 — 以最终兵力为准（避免仅扫最近数条日志时误判：日志过多挤出终局行、趣味性击杀语含「全军覆没」、或「胜利」子串误匹配等）
   useEffect(() => {
     if (stage !== STAGE.READY || endedRef.current) return;
-    if (bm.logs.length === 0) return;
-    const recentLogs = bm.logs.slice(-5);
+    if (bm.battlePlaying) return;
+    const m = bmRef.current;
+    if (!m.roundNum || m.roundNum < 1) return;
+
+    const pAlive = m.battleTroops.filter((t) => t.faction === 'player' && t.currentTroops > 0);
+    const eAlive = m.battleTroops.filter((t) => t.faction === 'enemy' && t.currentTroops > 0);
+
     let result = null;
-    for (const log of recentLogs) {
-      if (!log) continue;
-      if (log.text.includes('敌方全军覆没') || log.text.includes('胜利')) { result = 'victory'; break; }
-      if (log.text.includes('我方全军覆没')) { result = 'defeat'; break; }
-    }
-    if (!result) return;
+    if (eAlive.length === 0 && pAlive.length > 0) result = 'victory';
+    else if (pAlive.length === 0) result = 'defeat';
+    else return;
+
     endedRef.current = true;
     const check = setInterval(async () => {
-      if (!bm.battlePlaying) {
+      const b = bmRef.current;
+      if (!b.battlePlaying) {
         clearInterval(check);
         if (!mountedRef.current) return;
-        const silverSpent = (silverAmount) - bm.silverAmount;
+        const silverSpent = (silverAmount) - b.silverAmount;
         const siegeMult =
           battleType === 'pve_siege' || battleType === 'pvp_siege'
             ? getSiegeBattleScoreMultiplier(siegeDefenderType)
             : 1;
         const scoreOpts = { scoreMultiplier: siegeMult };
-        const scoreResult = calculateBattleScore(bm.battleTroops, bm.roundNum, result, scoreOpts);
+        const scoreResult = calculateBattleScore(b.battleTroops, b.roundNum, result, scoreOpts);
 
-        const playerTroops = bm.battleTroops.filter(t => t.faction === 'player');
-        const enemyTroops = bm.battleTroops.filter(t => t.faction === 'enemy');
+        const playerTroops = b.battleTroops.filter(t => t.faction === 'player');
+        const enemyTroops = b.battleTroops.filter(t => t.faction === 'enemy');
         const totalKills = enemyTroops.filter(t => t.currentTroops <= 0).length;
         const killedIndices = enemyTroops.filter(t => t.currentTroops <= 0).map(t => t._npcIndex).filter(i => i != null);
-        const logText = bm.logs.map(l => l?.text || '').filter(Boolean).join('\n');
+        const logText = b.logs.map(l => l?.text || '').filter(Boolean).join('\n');
         const troopCasualties = playerTroops.filter(t => t.instanceId).map(t => ({ instanceId: t.instanceId, currentTroops: Math.max(0, t.currentTroops) }));
         const moraleUpdates = [];
         if (playerTroops.length > 0) {
@@ -418,7 +426,7 @@ export default function BattleArena({
             result: result === 'victory' ? 'win' : 'lose',
             playerTeam: playerTroops.map(t => ({ name: t.character?.courtesyName || t.name, rarity: t.rarity })),
             opponentTeam: enemyTroops.map(t => ({ name: t.character?.courtesyName || t.name, rarity: t.rarity })),
-            battleLog: logText, totalKills, duration: bm.roundNum,
+            battleLog: logText, totalKills, duration: b.roundNum,
             rewards: {
               battleScore: scoreResult.score,
               battleGrade: scoreResult.grade,
@@ -459,8 +467,8 @@ export default function BattleArena({
             ].join('\n');
             const defPerspectiveResult = result === 'victory' ? 'defeat' : 'victory';
             const defScoreResult = calculateBattleScore(
-              mirrorTroopsForDefenderBattleScore(bm.battleTroops),
-              bm.roundNum,
+              mirrorTroopsForDefenderBattleScore(b.battleTroops),
+              b.roundNum,
               defPerspectiveResult,
               scoreOpts,
             );
@@ -477,7 +485,7 @@ export default function BattleArena({
               opponentTeam: playerTroops.map(t => ({ name: t.character?.courtesyName || t.name, rarity: t.rarity })),
               battleLog: defLog,
               totalKills: defenderLosses,
-              duration: bm.roundNum,
+              duration: b.roundNum,
               rewards: {
                 battleScore: defScoreResult.score,
                 battleGrade: defScoreResult.grade,
@@ -515,7 +523,8 @@ export default function BattleArena({
       }
     }, 200);
     return () => clearInterval(check);
-  }, [bm.logs, bm.battlePlaying, stage]); // eslint-disable-line react-hooks/exhaustive-deps
+    // 仅依赖 battlePlaying / stage：避免 battleTroops 引用每帧变化导致 cleanup 清掉 interval、结算永不触发
+  }, [bm.battlePlaying, stage, silverAmount, battleType, opponentName, playerId, defenseReportMeta, recordOnly, siegeDefenderType]);
 
   const flushAwayEndNotice = useCallback(() => {
     const p = pendingAwayEndRef.current;
@@ -574,6 +583,19 @@ export default function BattleArena({
       >
         <p className="text-center text-gray-800">
           离开超过 30 秒未操作，本场将按规则自动结算并返回大地图。
+        </p>
+      </AncientModal>
+
+      <AncientModal
+        isOpen={lineupGateModalOpen}
+        type="warning"
+        title="无法开战"
+        confirmText="确定"
+        onConfirm={() => setLineupGateModalOpen(false)}
+        onClose={() => setLineupGateModalOpen(false)}
+      >
+        <p className="text-center text-gray-800 text-sm">
+          开战需上阵编组总兵力≥{MIN_MAIN_LINEUP_TROOPS_BATTLE}（当前 {lineupTroopTotal}）
         </p>
       </AncientModal>
     </div>

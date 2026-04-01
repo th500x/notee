@@ -4,6 +4,7 @@
 
 import { useState } from 'react';
 import { gameUserAPI } from '@/services/api';
+import AncientModal from '@/components/common/AncientModal';
 
 export function ServerWarningStep({ 
   serverSwitchUser, 
@@ -15,6 +16,7 @@ export function ServerWarningStep({
 }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [successModalOpen, setSuccessModalOpen] = useState(false);
 
   const handleConfirm = async () => {
     if (confirmCount === 0) {
@@ -36,7 +38,7 @@ export function ServerWarningStep({
           };
           
           onSuccess(updatedUser);
-          alert('✅ 服务器切换成功！\n\n当前赛季的游戏数据已清除，您可以在新服务器重新开始游戏。');
+          setSuccessModalOpen(true);
         } else {
           setError('切换服务器失败：' + result.error);
         }
@@ -159,6 +161,19 @@ export function ServerWarningStep({
           <p>💡 提示：如果您想在多个服务器游玩，请注册不同的账号</p>
         </div>
       </div>
+
+      <AncientModal
+        isOpen={successModalOpen}
+        type="info"
+        title="切换成功"
+        confirmText="确定"
+        onConfirm={() => setSuccessModalOpen(false)}
+        onClose={() => setSuccessModalOpen(false)}
+      >
+        <p className="text-center text-gray-800 text-sm whitespace-pre-line">
+          {'✅ 服务器切换成功！\n\n当前赛季的游戏数据已清除，您可以在新服务器重新开始游戏。'}
+        </p>
+      </AncientModal>
     </div>
   );
 }

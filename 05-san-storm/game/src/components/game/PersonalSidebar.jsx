@@ -7,6 +7,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { usePlayerContext } from '@/contexts/PlayerContext';
 import PersonalSidebarTeamPanel from '@/components/game/PersonalSidebarTeamPanel';
+import AncientModal from '@/components/common/AncientModal';
 
 const MENU_ITEMS = [
   { id: 'stats', icon: '📊', label: '统计' },
@@ -20,6 +21,7 @@ export default function PersonalSidebar({ open, onClose, onLogout }) {
   const { player } = usePlayerContext();
   const [subView, setSubView] = useState(null); // null | 'team'
   const teamPanelRef = useRef(null);
+  const [stubNoticeOpen, setStubNoticeOpen] = useState(false);
 
   // ESC：团队详情 → 团队列表 → 主菜单 → 关侧边栏
   useEffect(() => {
@@ -64,7 +66,7 @@ export default function PersonalSidebar({ open, onClose, onLogout }) {
       setSubView('team');
       return;
     }
-    alert('⚠️ 尚未实装');
+    setStubNoticeOpen(true);
   };
 
   return (
@@ -147,6 +149,17 @@ export default function PersonalSidebar({ open, onClose, onLogout }) {
           </button>
         </div>
       </div>
+
+      <AncientModal
+        isOpen={stubNoticeOpen}
+        type="info"
+        title="提示"
+        confirmText="确定"
+        onConfirm={() => setStubNoticeOpen(false)}
+        onClose={() => setStubNoticeOpen(false)}
+      >
+        <p className="text-center text-gray-800 text-sm">⚠️ 尚未实装</p>
+      </AncientModal>
     </>
   );
 }
