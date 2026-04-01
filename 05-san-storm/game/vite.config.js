@@ -3,7 +3,10 @@ import react from '@vitejs/plugin-react';
 import path from 'path';
 
 // https://vitejs.dev/config/
+// 静态资源使用 05-san-storm/public（与 wiki 共用），不依赖 game/public 下符号链接
+//（Linux 上 core.symlinks=false 时链接会变成文本文件，导致 vite build ENOENT）
 export default defineConfig({
+  publicDir: path.resolve(__dirname, '../public'),
   plugins: [
     // SPA子路由回退：确保 /05-san-storm/game/san_1 等不带尾部斜杠的路径也能正确回退到 index.html
     {
@@ -49,7 +52,6 @@ export default defineConfig({
     port: 3002,
     strictPort: true,
     open: true,
-    // public/assets 是 symlink 指向上级目录，需要允许 Vite 访问
     fs: {
       allow: ['..'],
     },
