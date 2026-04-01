@@ -1,11 +1,21 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import { useState } from 'react';
-import AuthFlowPage from '@/pages/AuthFlowPage';
-import UserManagerPage from '@/pages/admin/UserManagerPage';
-import MailManagerPage from '@/pages/admin/MailManagerPage';
-import ActivityManagerPage from '@/pages/admin/ActivityManagerPage';
+import { useState, lazy, Suspense } from 'react';
 import ErrorBoundary from '@/components/common/ErrorBoundary';
 import { useAdmin } from '@/hooks/useAdmin';
+
+const AuthFlowPage = lazy(() => import('@/pages/AuthFlowPage'));
+const UserManagerPage = lazy(() => import('@/pages/admin/UserManagerPage'));
+const MailManagerPage = lazy(() => import('@/pages/admin/MailManagerPage'));
+const ActivityManagerPage = lazy(() => import('@/pages/admin/ActivityManagerPage'));
+
+function RouteLoading() {
+  return (
+    <div className="flex justify-center items-center py-24">
+      <div className="inline-block animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600" />
+      <span className="sr-only">加载中</span>
+    </div>
+  );
+}
 
 function App() {
   const { isLoggedIn, loading, login, logout } = useAdmin();
@@ -49,6 +59,7 @@ function App() {
         </header>
         <main className="max-w-7xl mx-auto px-4 py-8">
           <ErrorBoundary>
+          <Suspense fallback={<RouteLoading />}>
           <Routes>
             <Route path="/" element={
               <div className="space-y-8">
@@ -99,6 +110,7 @@ function App() {
             <Route path="/activity-manager" element={<ActivityManagerPage />} />
 
           </Routes>
+          </Suspense>
           </ErrorBoundary>
         </main>
         <footer className="bg-white border-t border-gray-200 mt-12">

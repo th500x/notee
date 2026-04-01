@@ -66,6 +66,19 @@ export default defineConfig({
         if (warning.message?.includes('JYHPHS.woff2')) return;
         warn(warning);
       },
+      output: {
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return;
+          if (
+            /[/\\]node_modules[/\\]react[/\\]/.test(id) ||
+            /[/\\]node_modules[/\\]react-dom[/\\]/.test(id) ||
+            /[/\\]node_modules[/\\]react-router[/\\]/.test(id) ||
+            /[/\\]node_modules[/\\]scheduler[/\\]/.test(id)
+          ) {
+            return 'vendor-react';
+          }
+        },
+      },
     },
   },
 });

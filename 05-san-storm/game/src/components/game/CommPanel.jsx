@@ -9,7 +9,6 @@
  */
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import html2canvas from 'html2canvas';
 import { usePlayerContext } from '@/contexts/PlayerContext';
 import { battleAPI } from '@/services/battleApi';
 import { textsAPI } from '@/services/textsApi';
@@ -89,6 +88,16 @@ function formatDateYMD(date = new Date()) {
   const m = String(date.getMonth() + 1).padStart(2, '0');
   const d = String(date.getDate()).padStart(2, '0');
   return `${y}/${m}/${d}`;
+}
+
+/** 纪念图标题行日期：战报发生时间（battleAt），不可用则回退当前日 */
+function memorialDisplayDate(battle, detail) {
+  const raw = detail?.battleAt ?? battle?.battleAt;
+  if (raw) {
+    const t = new Date(raw).getTime();
+    if (Number.isFinite(t)) return new Date(t);
+  }
+  return new Date();
 }
 
 function memorialHtmlEscape(text) {
@@ -187,6 +196,7 @@ async function renderBattleMemorialBlob({ playerName, playerId, battle, detail }
   root.style.fontFamily = MEMORIAL_FONT_FAMILY;
   root.style.color = '#f8f7f4';
   const d = detail || {};
+  const memorialDate = memorialDisplayDate(battle, d);
   const score = Number(d?.rewards?.battleScore ?? battle?.rewards?.battleScore ?? 0);
   const grade = d?.rewards?.battleGrade || battle?.rewards?.battleGrade || '-';
   const playerTeam = Array.isArray(d?.playerTeam) ? d.playerTeam : (Array.isArray(battle?.playerTeam) ? battle.playerTeam : []);
@@ -230,7 +240,7 @@ async function renderBattleMemorialBlob({ playerName, playerId, battle, detail }
         <div style="flex:0 0 auto;width:384px;box-sizing:border-box;align-self:flex-end;${MEMORIAL_PANEL}padding:14px 16px;display:flex;justify-content:space-between;align-items:flex-start;">
           <div>
             <div style="font-size:36px;font-weight:700;${MEMORIAL_TEXT_MAIN}">战斗纪念图</div>
-            <div style="margin-top:6px;font-size:20px;${MEMORIAL_TEXT_MUTE}">真三风云 · ${formatDateYMD(new Date())}</div>
+            <div style="margin-top:6px;font-size:20px;${MEMORIAL_TEXT_MUTE}">真三风云 · ${formatDateYMD(memorialDate)}</div>
           </div>
           <div style="font-size:52px;line-height:1;">${battle?.result === 'win' ? '🏆' : battle?.result === 'lose' ? '⚔️' : '📜'}</div>
         </div>
@@ -275,6 +285,7 @@ async function renderBattleMemorialBlob({ playerName, playerId, battle, detail }
     if (illusUrl) {
       await new Promise((r) => setTimeout(r, 120));
     }
+    const { default: html2canvas } = await import('html2canvas');
     const canvas = await html2canvas(root, {
       backgroundColor: '#1a1512',
       scale: 1,
