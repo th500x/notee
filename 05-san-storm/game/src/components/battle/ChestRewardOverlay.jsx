@@ -25,6 +25,14 @@ const BONUS_LABEL = {
   intelligence: '智', politics: '政', charm: '魅',
 };
 
+/** equipment.json / config_equipment 为 ×10 存储，展示与后端写入 player_cards.config、EquipmentCard 一致：÷10 */
+function formatEquipmentBonusDisplay(raw) {
+  const n = Number(raw);
+  if (Number.isNaN(n)) return String(raw);
+  const display = n / 10;
+  return display > 0 ? `+${display.toFixed(1)}` : display.toFixed(1);
+}
+
 function ChestRewardOverlay({ reward, onConfirm }) {
   const [showReward, setShowReward] = useState(false);
 
@@ -104,7 +112,7 @@ function ChestRewardOverlay({ reward, onConfirm }) {
                 <div style={{ marginTop: 8, fontSize: 12, color: '#ccc' }}>
                   {bonusEntries.map(([key, val]) => (
                     <span key={key} style={{ marginRight: 8 }}>
-                      {BONUS_LABEL[key] || key}+{typeof val === 'number' ? val : val}
+                      {BONUS_LABEL[key] || key}{formatEquipmentBonusDisplay(val)}
                     </span>
                   ))}
                 </div>
