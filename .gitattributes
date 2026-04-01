@@ -1,0 +1,3 @@
+# 减少 Linux 服务器与 Windows 开发机之间 package-lock.json 仅因换行/归一化产生的无意义差异
+package-lock.json text eol=lf
+package.json text eol=lf

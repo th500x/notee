@@ -174,7 +174,7 @@ export function resolveKillLossTroopCounts(details) {
 
 /**
  * 战报 UI：完整计分步骤（与 calculateBattleScore 一致，非「基础分×回合×攻城」连乘）
- * ③ 惨败保底：仅当 floorScore 实际成为 max(②,③,④) 时显示「惨败保底」，否则「惨败保底（未触发）」。
+ * ③④ 文案统一：该步的保底分是否成为 max(②,③,④) →「（触发）」否则「（未触发）」（PVE/PVP 同源，仅依赖 details）。
  * @param {object} details - calculateBattleScore(…).details
  * @param {number} [finalScore] - 存档中的最终分（校验用）
  * @returns {{ lines: Array<{ text: string }> }}
@@ -195,10 +195,10 @@ export function buildBattleScoreFormulaLines(details, finalScore) {
   const pre = details.preSiegeScore ?? Math.max(normalScore, floorScore, comfortFloorScore);
   const sm = details.siegeScoreMultiplier ?? 1;
   const calcFinal = Math.round(pre * sm);
-  /** 与安慰保底一致：仅当③ 的保底分实际成为 max(②,③,④) 的取值时算「触发」 */
-  const floorLabel =
-    floorScore > 0 && pre === floorScore ? '惨败保底' : '惨败保底（未触发）';
-  const comfortLabel = comfortFloorScore > 0 ? '安慰保底' : '安慰保底（未触发）';
+  const floorTriggered = floorScore > 0 && pre === floorScore;
+  const comfortTriggered = comfortFloorScore > 0 && pre === comfortFloorScore;
+  const floorLabel = floorTriggered ? '惨败保底（触发）' : '惨败保底（未触发）';
+  const comfortLabel = comfortTriggered ? '安慰保底（触发）' : '安慰保底（未触发）';
   const lines = [
     { text: `① 歼敌评分 + 战损评分（代数和）= ${kill} + (${loss}) = ${base}` },
     { text: `② 回合倍率：① × ${turnM} = ${normalScore}（第 ${rNum} 回合）` },
@@ -207,7 +207,7 @@ export function buildBattleScoreFormulaLines(details, finalScore) {
     { text: `⑤ 取较高：max(②, ③, ④) = ${pre}` },
     { text: `⑥ 最终战报分：⑤ × 攻城积分倍率(${sm}) = ${calcFinal}` },
   ];
-  if (comfortFloorScore > 0) {
+  if (comfortTriggered) {
     lines.push({ text: '（说明：由于歼敌评分为 0，触发安慰保底计分。）' });
   }
   if (finalScore != null && calcFinal !== finalScore) {

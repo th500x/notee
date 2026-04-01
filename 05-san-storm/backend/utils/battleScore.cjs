@@ -89,9 +89,9 @@ function calculateBattleScore(battleTroops, roundNum, result, options = {}) {
   const baseScore = killScore + lossScore;
   const turnMult = TURN_MULTIPLIER[Math.min(roundNum, 10)] ?? 1.0;
   const normalScore = Math.round(baseScore * turnMult);
-  // 惨败保底：歼敌评分 × 0.3（战报文案「触发/未触发」由前端按是否 preSiegeScore===floorScore 判断）
+  // 惨败保底：歼敌评分 × 0.3（战报③「触发」= preSiegeScore===floorScore 且 floorScore>0）
   const floorScore = Math.round(killScore * 0.3);
-  // 安慰保底：当歼敌评分 = 0 时，战损评分 × 0.3（lossScore<0 时按绝对值折算）
+  // 安慰保底：歼敌=0 时战损×0.3（战报④「触发」= preSiegeScore===comfortFloorScore 且 comfortFloorScore>0）
   const comfortFloorScore =
     killScore === 0 && lossScore < 0 ? Math.round(Math.abs(lossScore) * 0.3) : 0;
   const preSiegeScore = Math.max(normalScore, floorScore, comfortFloorScore);
