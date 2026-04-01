@@ -155,19 +155,19 @@ function preloadMemorialIllusImage(url) {
   });
 }
 
-/** 文案块：半透明即可，避免盖住彩绘底图（与全图遮罩配合使用） */
+/** 文案块：淡灰半透明底 + 白色字（与彩绘底图对比度平衡） */
 const MEMORIAL_PANEL =
-  'background:rgba(28,24,18,0.48);border:1px solid rgba(212,175,55,0.38);border-radius:10px;box-sizing:border-box;';
-const MEMORIAL_TEXT_MAIN = 'color:#f5e6c8;';
-const MEMORIAL_TEXT_MUTE = 'color:rgba(245,230,200,0.88);';
+  'background:rgba(72,68,64,0.4);border:1px solid rgba(212,175,55,0.35);border-radius:10px;box-sizing:border-box;';
+const MEMORIAL_TEXT_MAIN = 'color:#f8f7f4;';
+const MEMORIAL_TEXT_MUTE = 'color:rgba(255,255,255,0.82);';
 /** 纪念图字体：public/fonts/JYHPHS.woff2；html2canvas 前需 fonts.load */
 const MEMORIAL_FONT_FAMILY = '"JYHPHS","Microsoft YaHei",Arial,sans-serif';
 
 async function renderBattleMemorialBlob({ playerName, playerId, battle, detail }) {
   /**
    * 768×1152 纪念海报字号（px）：
-   * 主标题 36 · 日期 20 · 角标 emoji 52 · 对阵 24 · 战报块 20
-   * 区块标题「战斗评分…」24 · 大号评分 32
+   * 主标题 36 · 日期 20 · 角标 emoji 52 · 对阵 22 · 战报块 20
+   * 区块标题「战斗评分…」22 · 大号评分 30
    * 歼敌/倍率说明 · 计分步骤①②③ · 无 scoreDetails 提示 → 均为 18
    * 第三块文案框固定 576×504（宽×高）
    */
@@ -185,7 +185,7 @@ async function renderBattleMemorialBlob({ playerName, playerId, battle, detail }
   root.style.boxSizing = 'border-box';
   root.style.overflow = 'hidden';
   root.style.fontFamily = MEMORIAL_FONT_FAMILY;
-  root.style.color = '#f5e6c8';
+  root.style.color = '#f8f7f4';
   const d = detail || {};
   const score = Number(d?.rewards?.battleScore ?? battle?.rewards?.battleScore ?? 0);
   const grade = d?.rewards?.battleGrade || battle?.rewards?.battleGrade || '-';
@@ -235,7 +235,7 @@ async function renderBattleMemorialBlob({ playerName, playerId, battle, detail }
           <div style="font-size:52px;line-height:1;">${battle?.result === 'win' ? '🏆' : battle?.result === 'lose' ? '⚔️' : '📜'}</div>
         </div>
         <div style="flex:0 0 auto;width:384px;box-sizing:border-box;align-self:flex-end;${MEMORIAL_PANEL}padding:14px 16px;display:flex;flex-direction:column;">
-          <div style="font-size:24px;font-weight:600;${MEMORIAL_TEXT_MAIN}">${formatMemorialPlayerLine(playerName, playerId)} vs ${memorialHtmlEscape(battle?.opponentName || '事件敌军')}</div>
+          <div style="font-size:22px;font-weight:600;${MEMORIAL_TEXT_MAIN}">${formatMemorialPlayerLine(playerName, playerId)} vs ${memorialHtmlEscape(battle?.opponentName || '事件敌军')}</div>
           <div style="height:10px;flex-shrink:0;"></div>
           <div style="display:flex;flex-direction:column;gap:6px;font-size:20px;line-height:1.45;${MEMORIAL_TEXT_MAIN}">
             <div>结果：${battle?.result === 'win' ? '胜利' : battle?.result === 'lose' ? '失败' : '平局'}</div>
@@ -245,16 +245,16 @@ async function renderBattleMemorialBlob({ playerName, playerId, battle, detail }
           </div>
         </div>
         <div style="flex:0 0 auto;width:576px;height:504px;min-height:504px;max-height:504px;box-sizing:border-box;align-self:flex-start;${MEMORIAL_PANEL}padding:14px 16px;display:flex;flex-direction:column;font-size:18px;line-height:1.5;overflow:hidden;">
-          <div style="font-weight:700;flex-shrink:0;font-size:24px;${MEMORIAL_TEXT_MAIN}">战斗评分 + 完整计分步骤</div>
+          <div style="font-weight:700;flex-shrink:0;font-size:22px;${MEMORIAL_TEXT_MAIN}">战斗评分 + 完整计分步骤</div>
           <div style="height:10px;flex-shrink:0;"></div>
           <div style="margin-bottom:12px;flex-shrink:0;">
-            <div style="font-size:32px;font-weight:700;line-height:1.2;${MEMORIAL_TEXT_MAIN}">${grade} · ${score}分</div>
+            <div style="font-size:30px;font-weight:700;line-height:1.2;${MEMORIAL_TEXT_MAIN}">${grade} · ${score}分</div>
             <div style="margin-top:8px;font-size:18px;${MEMORIAL_TEXT_MUTE}">歼敌 ${killTroops ?? '-'} / 战损 ${lossTroops ?? '-'}（兵力）</div>
             <div style="margin-top:4px;font-size:18px;${MEMORIAL_TEXT_MUTE}">+${killScore ?? '-'} / ${lossScore ?? '-'}（评分）</div>
             <div style="margin-top:4px;font-size:18px;${MEMORIAL_TEXT_MUTE}">基础分 ${baseScore ?? '-'}</div>
             <div style="margin-top:4px;font-size:18px;${MEMORIAL_TEXT_MUTE}">回合倍率 ×${turnM ?? '-'}（第${roundNum ?? '-'}回合）</div>
           </div>
-          <div style="height:1px;background:rgba(184,134,11,0.4);margin:0 0 12px 0;flex-shrink:0;"></div>
+          <div style="height:1px;background:rgba(255,255,255,0.22);margin:0 0 12px 0;flex-shrink:0;"></div>
           <div style="font-size:18px;line-height:1.45;flex:1 1 auto;min-height:0;overflow:visible;${MEMORIAL_TEXT_MAIN}">${scoreLineHtml}</div>
         </div>
       </div>
@@ -610,6 +610,7 @@ export default function CommPanel({ visible, unreadChatCount: unreadChatProp = 0
             memorialQuota={battleMemorialQuota}
             creatingMemorialBattleId={creatingMemorialBattleId}
             onCreateMemorial={handleCreateBattleMemorial}
+            playerId={player?.player_id}
           />
         )}
         {activeTab === 'text' && (
@@ -648,6 +649,7 @@ function BattleTab({
   memorialQuota,
   creatingMemorialBattleId,
   onCreateMemorial,
+  playerId,
 }) {
   return (
     <div className={COMM_TAB_BODY_CLASS}>
@@ -687,6 +689,7 @@ function BattleTab({
             memorialQuota={memorialQuota}
             creatingMemorial={creatingMemorialBattleId === b.battleId}
             onCreateMemorial={() => onCreateMemorial(b, expandedBattle === b.battleId ? battleDetail : null)}
+            playerId={playerId}
           />
         ))}
       </div>
@@ -704,6 +707,7 @@ function BattleCard({
   memorialQuota,
   creatingMemorial,
   onCreateMemorial,
+  playerId,
 }) {
   const isWin = battle.result === 'win';
   const timeStr = formatRelativeTime(battle.battleAt);
@@ -713,13 +717,21 @@ function BattleCard({
   const handleDownloadTodayMemorial = async (e) => {
     e.stopPropagation();
     if (!todayMemorialUrl) return;
+    const memorialRowId = memorialQuota?.todayRecord?.id;
     try {
-      const pathOnly = todayMemorialUrl.split('?')[0];
-      const bustUrl = `${todayMemorialUrl}${todayMemorialUrl.includes('?') ? '&' : '?'}_=${Date.now()}`;
-      const response = await fetch(bustUrl, { cache: 'no-store' });
+      let response;
+      if (playerId && memorialRowId) {
+        const apiBase = String(API_CONFIG.BASE_URL || '').replace(/\/$/, '');
+        const proxyUrl = `${apiBase}/memorial/battle/download?playerId=${encodeURIComponent(playerId)}&id=${encodeURIComponent(String(memorialRowId))}`;
+        response = await fetch(proxyUrl, { cache: 'no-store' });
+      } else {
+        const bustUrl = `${todayMemorialUrl}${todayMemorialUrl.includes('?') ? '&' : '?'}_=${Date.now()}`;
+        response = await fetch(bustUrl, { cache: 'no-store' });
+      }
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
+      const pathOnly = todayMemorialUrl.split('?')[0];
       const seg = pathOnly.split('/').pop() || '';
       const filename = decodeURIComponent(seg) || `memorial_${battle.battleId || Date.now()}.png`;
       const a = document.createElement('a');
@@ -731,6 +743,11 @@ function BattleCard({
       URL.revokeObjectURL(url);
     } catch (err) {
       console.error('[BattleCard] 下载纪念图失败:', err);
+      try {
+        window.open(todayMemorialUrl, '_blank', 'noopener,noreferrer');
+      } catch {
+        /* ignore */
+      }
     }
   };
 

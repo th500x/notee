@@ -1,13 +1,16 @@
 /**
  * 纪念图 API（MVP：Battle）
  * - 每日限 1 次战斗纪念图生成
- * - 图片本地落盘（开发环境），并写入 memorial_images
+ * - 图片上传阿里云 OSS（battle/ 前缀），无本地落盘
  */
 
 const express = require('express');
+const http = require('http');
+const https = require('https');
 const fs = require('fs/promises');
 const path = require('path');
 const { pool } = require('../database/connection');
+const { putPngBuffer } = require('../utils/ossMemorial');
 
 const router = express.Router();
 
@@ -81,6 +84,72 @@ router.get('/battle/quota', async (req, res) => {
   }
 });
 
+/**
+ * 代理下载：前端对 OSS 直链 fetch 会触发 CORS，改为同源请求本接口，由服务端拉取 OSS 再流式返回。
+ * GET /api/memorial/battle/download?playerId=&id=（memorial_images.id）
+ */
+router.get('/battle/download', async (req, res) => {
+  try {
+    const { playerId, id } = req.query;
+    if (!playerId || id == null || String(id).trim() === '') {
+      return res.status(400).json({ success: false, error: '缺少 playerId 或 id' });
+    }
+    const [rows] = await pool.query(
+      `SELECT id, image_url FROM memorial_images
+        WHERE id = ? AND player_id = ? AND image_type = 'battle'
+        LIMIT 1`,
+      [id, playerId]
+    );
+    const row = rows[0];
+    if (!row || !row.image_url) {
+      return res.status(404).json({ success: false, error: '记录不存在' });
+    }
+    const imageUrl = String(row.image_url).trim();
+
+    if (imageUrl.startsWith('/api/memorial/file/')) {
+      const file = imageUrl.split('/').pop();
+      if (!/^[a-zA-Z0-9._-]+\.png$/.test(file)) {
+        return res.status(400).json({ success: false, error: '非法文件名' });
+      }
+      const absPath = path.join(MEMORIAL_ROOT, file);
+      res.setHeader('Content-Type', 'image/png');
+      res.setHeader('Content-Disposition', `attachment; filename="${file}"`);
+      return res.sendFile(absPath);
+    }
+
+    if (!/^https?:\/\//i.test(imageUrl)) {
+      return res.status(400).json({ success: false, error: '无效 image_url' });
+    }
+
+    const client = imageUrl.startsWith('https') ? https : http;
+    client
+      .get(imageUrl, (upstream) => {
+        if (upstream.statusCode !== 200) {
+          upstream.resume();
+          if (!res.headersSent) {
+            res.status(502).json({ success: false, error: '图片拉取失败' });
+          }
+          return;
+        }
+        const fn = `memorial_battle_${id}.png`;
+        res.setHeader('Content-Type', upstream.headers['content-type'] || 'image/png');
+        res.setHeader('Content-Disposition', `attachment; filename="${fn}"`);
+        upstream.pipe(res);
+      })
+      .on('error', (err) => {
+        console.error('[memorial/battle/download]', err);
+        if (!res.headersSent) {
+          res.status(502).json({ success: false, error: '下载失败' });
+        }
+      });
+  } catch (error) {
+    console.error('[memorial/battle/download]', error);
+    if (!res.headersSent) {
+      res.status(500).json({ success: false, error: '下载失败' });
+    }
+  }
+});
+
 router.post('/battle', async (req, res) => {
   try {
     const { playerId, battleId, imageBase64 } = req.body || {};
@@ -118,13 +187,24 @@ router.post('/battle', async (req, res) => {
       return res.status(400).json({ success: false, error: '图片数据无效' });
     }
 
-    await fs.mkdir(MEMORIAL_ROOT, { recursive: true });
     const filename = `${playerId}_${toDateKey()}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.png`;
-    const absPath = path.join(MEMORIAL_ROOT, filename);
-    await fs.writeFile(absPath, buffer);
+    const ossKey = `battle/${filename}`;
 
-    const imageUrl = `/api/memorial/file/${encodeURIComponent(filename)}`;
-    const ossKey = `memorial/battle/${filename}`;
+    let imageUrl;
+    try {
+      imageUrl = await putPngBuffer(buffer, ossKey);
+    } catch (ossErr) {
+      console.error('[memorial/battle] OSS 上传失败:', ossErr);
+      const msg =
+        ossErr.code === 'OSS_CONFIG'
+          ? ossErr.message
+          : `OSS 上传失败: ${ossErr.message || String(ossErr)}`;
+      return res.status(502).json({
+        success: false,
+        code: ossErr.code === 'OSS_CONFIG' ? 'OSS_CONFIG' : 'OSS_UPLOAD',
+        error: msg,
+      });
+    }
     const eventData = {
       type: 'battle_memorial',
       battle_id: battle.battle_id,
@@ -195,6 +275,10 @@ router.get('/illus-battle-list', async (req, res) => {
   }
 });
 
+/**
+ * 兼容旧数据：早期 image_url 指向本地 /api/memorial/file/xxx 时仍可访问。
+ * 新记录均为 OSS HTTPS 直链，不再写入本地。
+ */
 router.get('/file/:filename', async (req, res) => {
   try {
     const file = String(req.params.filename || '');
