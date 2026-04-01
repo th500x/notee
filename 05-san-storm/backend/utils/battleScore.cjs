@@ -1,7 +1,9 @@
 /**
  * 与前端 game/src/systems/battleScoreSystem.js 同公式，供服务端攻城 PVP 结算写战报积分。
+ * 术语与战报 UI 一致：歼敌评分、战损评分；惨败/安慰保底见源码注释。
  */
 
+// ── 歼敌评分：稀有度基础分表 ──
 const KILL_SCORE = {
   common: 200,
   rare: 330,
@@ -10,6 +12,7 @@ const KILL_SCORE = {
   core: 990,
 };
 
+// ── 战损评分：稀有度惩罚分表 ──
 const LOSS_PENALTY = {
   common: -300,
   rare: -495,
@@ -46,6 +49,7 @@ function calculateBattleScore(battleTroops, roundNum, result, options = {}) {
 
   let killScore = 0;
   let lossScore = 0;
+  // 歼敌兵力 / 战损兵力（兵力单位，非评分项）
   let killTroops = 0;
   let lossTroops = 0;
   const killDetails = [];
@@ -73,6 +77,7 @@ function calculateBattleScore(battleTroops, roundNum, result, options = {}) {
     }
 
     if (troop.faction === 'player' && lostRatio > 0) {
+      // 己方阵营：损失比例 × 战损惩罚分 → 战损评分
       const base = LOSS_PENALTY[rarity] || -300;
       const pts = Math.round(base * lostRatio);
       lossScore += pts;
@@ -84,9 +89,9 @@ function calculateBattleScore(battleTroops, roundNum, result, options = {}) {
   const baseScore = killScore + lossScore;
   const turnMult = TURN_MULTIPLIER[Math.min(roundNum, 10)] ?? 1.0;
   const normalScore = Math.round(baseScore * turnMult);
-  // 惨败保底：敌方消耗分 × 0.3
+  // 惨败保底：歼敌评分 × 0.3
   const floorScore = Math.round(killScore * 0.3);
-  // 安慰保底：当敌方消耗分为 0 时，按己方损失绝对值 × 0.3 折算
+  // 安慰保底：歼敌评分为 0 时，按战损评分绝对值 × 0.3 折算
   const comfortFloorScore =
     killScore === 0 && lossScore < 0 ? Math.round(Math.abs(lossScore) * 0.3) : 0;
   const preSiegeScore = Math.max(normalScore, floorScore, comfortFloorScore);

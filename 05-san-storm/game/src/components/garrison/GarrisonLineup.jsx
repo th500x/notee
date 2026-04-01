@@ -19,6 +19,7 @@ import TitleAchievementCard from '@shared/components/card/TitleAchievementCard';
 import EquipmentCard from '@shared/components/card/EquipmentCard';
 import EncapsulateEquipmentModal from '@/components/game/EncapsulateEquipmentModal';
 import AncientModal from '@/components/common/AncientModal';
+import { useCharacterRank } from '@/hooks/useCharacterRank';
 
 const CITY_ID = 'san_1_city_3_xinye';
 const CITY_NAME = '新野';
@@ -408,7 +409,8 @@ export default function GarrisonLineup({ onClose }) {
 
           {/* 编组数据（和上阵编组 LandscapeQuadrant 位置一致） */}
           <GarrisonStatsPanel garrison={currentGarrison} charKey={charKey} cards={cards}
-            getCardFromGarrison={getCardFromGarrison} attributeBonus={getGarrisonBonus(charKey)} compact />
+            getCardFromGarrison={getCardFromGarrison} attributeBonus={getGarrisonBonus(charKey)} compact
+            playerId={player?.player_id} />
         </div>
       </div>
     );
@@ -533,6 +535,7 @@ export default function GarrisonLineup({ onClose }) {
               cards={cards}
               getCardFromGarrison={getCardFromGarrison}
               attributeBonus={getGarrisonBonus(activeChar)}
+              playerId={player?.player_id}
             />
 
             {/* 军营 */}
@@ -1328,7 +1331,12 @@ function GarrisonBackpack({
 
 
 /** 编组数据面板 — 复用 LineupTab 的 LineupStatsPanel 公式 */
-function GarrisonStatsPanel({ garrison, charKey, cards, getCardFromGarrison, compact = false, attributeBonus = {} }) {
+function GarrisonStatsPanel({ garrison, charKey, cards, getCardFromGarrison, compact = false, attributeBonus = {}, playerId = null }) {
+  const rankBucket = garrison?.garrison_slot != null && charKey
+    ? `garrison:${garrison.garrison_slot}:${charKey}`
+    : null;
+  const rankInfo = useCharacterRank(playerId, rankBucket);
+
   if (!garrison) return null;
 
   const charCard = getCardFromGarrison(`${charKey}_card`);
@@ -1387,8 +1395,18 @@ function GarrisonStatsPanel({ garrison, charKey, cards, getCardFromGarrison, com
           <span className="text-green-400">{totalDeployCost || '—'} 粮</span>
         </div>
         <div className="flex items-center justify-between">
-          <span className="text-stone-500">� 闪避率</span>
+          <span className="text-stone-500">🎲 闪避率</span>
           <span className="text-cyan-400">{dodgeRate}%</span>
+        </div>
+        <div className="col-span-2 flex items-center justify-between border-t border-stone-700/30 pt-1.5 mt-0.5">
+          <span className="text-stone-500">🏅 将领排名</span>
+          {rankInfo ? (
+            <span className="text-amber-400 font-medium text-[10px]">
+              第 {rankInfo.rank} / {rankInfo.total} 名
+            </span>
+          ) : (
+            <span className="text-stone-600 text-[10px]">—</span>
+          )}
         </div>
       </div>
     </div>

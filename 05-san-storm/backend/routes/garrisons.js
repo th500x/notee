@@ -9,6 +9,7 @@
 const express = require('express');
 const router = express.Router();
 const garrisonService = require('../services/garrisonService');
+const characterRankService = require('../services/characterRankService');
 const Player = require('../models/Player');
 
 // ── 静态路由（必须在动态 /:playerId 之前） ──
@@ -171,6 +172,7 @@ router.post('/:playerId/:slot', async (req, res) => {
       return res.status(400).json(result);
     }
 
+    characterRankService.refreshSnapshotsForPlayer(playerId).catch(() => {});
     res.json(result);
   } catch (error) {
     console.error('[Garrisons] 保存驻守配置失败:', error);
@@ -184,7 +186,9 @@ router.post('/:playerId/:slot', async (req, res) => {
  */
 router.delete('/:playerId/:slot', async (req, res) => {
   try {
-    const result = await garrisonService.clearGarrison(req.params.playerId, parseInt(req.params.slot));
+    const { playerId } = req.params;
+    const result = await garrisonService.clearGarrison(playerId, parseInt(req.params.slot));
+    characterRankService.refreshSnapshotsForPlayer(playerId).catch(() => {});
     res.json(result);
   } catch (error) {
     console.error('[Garrisons] 清空驻守槽位失败:', error);

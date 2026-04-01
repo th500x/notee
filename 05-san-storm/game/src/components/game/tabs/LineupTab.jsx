@@ -6,7 +6,7 @@
  *              玩家: 部队卡/官职卡/装备卡(左) + 称号卡/成就卡/宝物卡(右)
  *              将领: 部队卡1/部队卡2/装备卡(左) + 称号卡/成就卡/宝物卡(右)
  * @see 22-2-TROOP_LINEUP_SYSTEM.md
- * @see 24-EQUIPMENT_SYSTEM.md
+ * @see 24-1-EQUIPMENT_SYSTEM.md
  */
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
@@ -31,6 +31,7 @@ import EquipmentCard from '@shared/components/card/EquipmentCard';
 import TitleAchievementCard from '@shared/components/card/TitleAchievementCard';
 import PositionCard from '@shared/components/card/PositionCard';
 import EncapsulateEquipmentModal from '@/components/game/EncapsulateEquipmentModal';
+import { useCharacterRank } from '@/hooks/useCharacterRank';
 
 /** 编组页打开期间：轻量拉档案，使兵力自然恢复等随时间更新（无需整页刷新） */
 const LINEUP_PROFILE_POLL_MS = 60_000;
@@ -369,7 +370,10 @@ export default function LineupTab({ onClose }) {
                   onSlotClick={handleSlotClick}
                   selectedSlot={selectedSlot}
                   skillsMap={skillsMap}
-                  statsPanel={playerTroops.length > 0 ? <LineupStatsPanel player={player} troops={playerTroops} compact /> : null}
+                  statsPanel={playerTroops.length > 0 ? (
+                    <LineupStatsPanel player={player} troops={playerTroops} compact
+                      playerId={player?.player_id} rankBucket="main:player" />
+                  ) : null}
                   attributeBonus={attributeBonusBySlot.player}
                 />
               </div>
@@ -385,7 +389,11 @@ export default function LineupTab({ onClose }) {
                     onSlotClick={handleSlotClick}
                     selectedSlot={selectedSlot}
                     skillsMap={skillsMap}
-                    statsPanel={char1Troops.length > 0 ? <LineupStatsPanel player={player} troops={char1Troops} compact attrs={char1Character?.config ? { combat: char1Character.config.combat, command: char1Character.config.command, courage: char1Character.config.courage, luck: char1Character.config.luck } : null} /> : null}
+                    statsPanel={char1Troops.length > 0 ? (
+                      <LineupStatsPanel player={player} troops={char1Troops} compact
+                        attrs={char1Character?.config ? { combat: char1Character.config.combat, command: char1Character.config.command, courage: char1Character.config.courage, luck: char1Character.config.luck } : null}
+                        playerId={player?.player_id} rankBucket="main:character1" />
+                    ) : null}
                     attributeBonus={attributeBonusBySlot.character1}
                     generalCard={char1Character}
                     onGeneralCardClick={handleGeneralCardClick}
@@ -420,7 +428,11 @@ export default function LineupTab({ onClose }) {
                     onSlotClick={handleSlotClick}
                     selectedSlot={selectedSlot}
                     skillsMap={skillsMap}
-                    statsPanel={char2Troops.length > 0 ? <LineupStatsPanel player={player} troops={char2Troops} compact attrs={char2Character?.config ? { combat: char2Character.config.combat, command: char2Character.config.command, courage: char2Character.config.courage, luck: char2Character.config.luck } : null} /> : null}
+                    statsPanel={char2Troops.length > 0 ? (
+                      <LineupStatsPanel player={player} troops={char2Troops} compact
+                        attrs={char2Character?.config ? { combat: char2Character.config.combat, command: char2Character.config.command, courage: char2Character.config.courage, luck: char2Character.config.luck } : null}
+                        playerId={player?.player_id} rankBucket="main:character2" />
+                    ) : null}
                     attributeBonus={attributeBonusBySlot.character2}
                     generalCard={char2Character}
                     onGeneralCardClick={handleGeneralCardClick}
@@ -465,8 +477,11 @@ export default function LineupTab({ onClose }) {
                 combat: generalCard.config.combat, command: generalCard.config.command,
                 courage: generalCard.config.courage, luck: generalCard.config.luck,
               } : null;
+              const rankBucket = activeSubTab === 'player' ? 'main:player'
+                : activeSubTab === 'char1' ? 'main:character1' : 'main:character2';
               return subTroops.length > 0 ? (
-                <LineupStatsPanel player={player} troops={subTroops} attrs={generalAttrs} />
+                <LineupStatsPanel player={player} troops={subTroops} attrs={generalAttrs}
+                  playerId={player?.player_id} rankBucket={rankBucket} />
               ) : null;
             })()}
 
@@ -803,7 +818,8 @@ function EquipmentLayout({ player, activeSubTab, leftSlots, rightSlots, getSlotC
  *   出征消耗 = 当前兵力 / 20
  *   恢复消耗 = 需要恢复的兵力 / 10
  */
-function LineupStatsPanel({ player, troops, compact = false, attrs = null }) {
+function LineupStatsPanel({ player, troops, compact = false, attrs = null, playerId = null, rankBucket = null }) {
+  const rankInfo = useCharacterRank(playerId, rankBucket);
   if (!player && !attrs) return null;
 
   // attrs 优先（将领传入），否则从 player 取
@@ -899,10 +915,15 @@ function LineupStatsPanel({ player, troops, compact = false, attrs = null }) {
           )}
         </div>
 
-        {/* TODO: 将领排名 — 需要后端API查询所有玩家编组数据，计算当前将领在所有用户中的排名 */}
         <div className="flex items-center justify-between">
           <span className="text-stone-500">🏅 将领排名</span>
-          <span className="text-stone-600 text-[10px]">尚未实装</span>
+          {rankInfo ? (
+            <span className="text-amber-400 font-medium text-[10px]">
+              第 {rankInfo.rank} / {rankInfo.total} 名
+            </span>
+          ) : (
+            <span className="text-stone-600 text-[10px]">—</span>
+          )}
         </div>
       </div>
     </div>

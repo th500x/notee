@@ -1,4 +1,4 @@
--- 装备卡（套装）方案 B：player_cards.card_type 增加 equipmentSet；装备件绑定父套装 instance（24-EQUIPMENT_SYSTEM.md）
+-- 装备卡（套装）方案 B：player_cards.card_type 增加 equipmentSet；装备件绑定父套装 instance（24-1-EQUIPMENT_SYSTEM.md）
 -- 执行前请备份；与 01-1-DATABASE_DESIGN.md §3.2.3 对齐
 
 ALTER TABLE player_cards

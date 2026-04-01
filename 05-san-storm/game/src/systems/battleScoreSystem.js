@@ -4,14 +4,14 @@
  * @description 根据战斗结果计算评分，用于排行榜积分
  * @see 19-1-STATISTICS_RANKING_SYSTEM.md
  * 
- * 评分项：消灭/消耗敌兵、己方损失、回合倍率
+ * 评分项：歼敌评分、战损评分、回合倍率（与战报 UI 一致）
  * 
  * 计算方式（按兵力损失比例）：
- *   敌方：损失比例 × 稀有度基础分（全灭=100%=满分）
- *   己方：损失比例 × 稀有度惩罚分（全灭=100%=满额扣分）
+ *   敌对阵营：损失比例 × 稀有度歼敌基础分（全灭=100% 对应该部队歼敌评分满分）
+ *   己方阵营：损失比例 × 稀有度战损惩罚分（全灭=100% 对应该部队战损评分满额扣分）
  */
 
-// ── 消灭敌兵基础积分（按稀有度，100%损失时的满分） ──
+// ── 歼敌评分：稀有度基础分表（单部队 100% 损失时的满分贡献） ──
 const KILL_SCORE = {
   common: 200,
   rare: 330,
@@ -20,7 +20,7 @@ const KILL_SCORE = {
   core: 990,
 };
 
-// ── 己方损失扣分（基础 × 1.5，100%损失时的满额扣分） ──
+// ── 战损评分：稀有度惩罚分表（单部队 100% 损失时的满额扣分贡献） ──
 const LOSS_PENALTY = {
   common: -300,
   rare: -495,
@@ -59,9 +59,9 @@ export function calculateBattleScore(battleTroops, roundNum, result, options = {
     typeof options.scoreMultiplier === 'number' && options.scoreMultiplier > 0 ? options.scoreMultiplier : 1;
   let killScore = 0;
   let lossScore = 0;
-  /** 歼敌：敌方兵力合计损失数（兵力单位，非评分） */
+  /** 歼敌兵力：敌对阵营损失合计（兵力单位，非评分项） */
   let killTroops = 0;
-  /** 战损：己方兵力合计损失数 */
+  /** 战损兵力：己方阵营损失合计 */
   let lossTroops = 0;
   const killDetails = [];
   const lossDetails = [];
@@ -80,7 +80,7 @@ export function calculateBattleScore(battleTroops, roundNum, result, options = {
     if (troop.faction === 'player') lossTroops += deltaTroops;
 
     if (troop.faction === 'enemy' && lostRatio > 0) {
-      // 敌方兵力损失：比例 × 基础分
+      // 敌对阵营：损失比例 × 歼敌基础分 → 累加为歼敌评分
       const base = KILL_SCORE[rarity] || 200;
       const pts = Math.round(base * lostRatio);
       killScore += pts;
@@ -89,7 +89,7 @@ export function calculateBattleScore(battleTroops, roundNum, result, options = {
     }
 
     if (troop.faction === 'player' && lostRatio > 0) {
-      // 己方兵力损失：比例 × 惩罚分
+      // 己方阵营：损失比例 × 战损惩罚分 → 累加为战损评分
       const base = LOSS_PENALTY[rarity] || -300;
       const pts = Math.round(base * lostRatio);
       lossScore += pts;
@@ -102,9 +102,9 @@ export function calculateBattleScore(battleTroops, roundNum, result, options = {
   const turnMult = TURN_MULTIPLIER[Math.min(roundNum, 10)] ?? 1.0;
   const normalScore = Math.round(baseScore * turnMult);
 
-  // 惨败保底：敌方消耗分 × 0.3
+  // 惨败保底：歼敌评分 × 0.3
   const floorScore = Math.round(killScore * 0.3);
-  // 安慰保底：当敌方消耗分为 0 时，按己方损失绝对值 × 0.3 折算
+  // 安慰保底：歼敌评分为 0 时，按战损评分绝对值 × 0.3 折算
   const comfortFloorScore =
     killScore === 0 && lossScore < 0 ? Math.round(Math.abs(lossScore) * 0.3) : 0;
   const preSiegeScore = Math.max(normalScore, floorScore, comfortFloorScore);
@@ -197,15 +197,15 @@ export function buildBattleScoreFormulaLines(details, finalScore) {
   const floorLabel = floorScore > 0 ? '惨败保底' : '惨败保底（未触发）';
   const comfortLabel = comfortFloorScore > 0 ? '安慰保底' : '安慰保底（未触发）';
   const lines = [
-    { text: `① 敌方消耗分 + 己方损失分（代数和）= ${kill} + (${loss}) = ${base}` },
+    { text: `① 歼敌评分 + 战损评分（代数和）= ${kill} + (${loss}) = ${base}` },
     { text: `② 回合倍率：① × ${turnM} = ${normalScore}（第 ${rNum} 回合）` },
-    { text: `③ ${floorLabel}：敌方消耗分 × ${rule} = ${floorScore}` },
-    { text: `④ ${comfortLabel}：敌方消耗分为0时，己方损失绝对值 × ${comfortRule} = ${comfortFloorScore}` },
+    { text: `③ ${floorLabel}：歼敌评分 × ${rule} = ${floorScore}` },
+    { text: `④ ${comfortLabel}：歼敌评分为0时，战损评分绝对值 × ${comfortRule} = ${comfortFloorScore}` },
     { text: `⑤ 取较高：max(②, ③, ④) = ${pre}` },
     { text: `⑥ 最终战报分：⑤ × 攻城积分倍率(${sm}) = ${calcFinal}` },
   ];
   if (comfortFloorScore > 0) {
-    lines.push({ text: '（说明：由于敌方消耗分为 0，触发安慰保底计分。）' });
+    lines.push({ text: '（说明：由于歼敌评分为 0，触发安慰保底计分。）' });
   }
   if (finalScore != null && calcFinal !== finalScore) {
     lines.push({ text: `（说明：若与顶部总分差 1，多为历史战报四舍五入顺序；以 ${finalScore} 为准）` });

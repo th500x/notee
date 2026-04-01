@@ -20,6 +20,7 @@ const {
 const garrisonService = require('../services/garrisonService');
 const gameTimeService = require('../services/gameTimeService');
 const equipmentSetService = require('../services/equipmentSetService');
+const characterRankService = require('../services/characterRankService');
 
 const router = express.Router();
 
@@ -932,6 +933,25 @@ function getFactionFromTroopId(troopId) {
  * 获取玩家完整档案（基础信息 + 卡牌）
  * 用于GamePage状态栏和编组Tab
  */
+/**
+ * GET /api/players/:playerId/character-rank?bucket=main:player
+ * bucket：main:player | main:character1 | main:character2 | garrison:槽位:char1|char2
+ */
+router.get('/:playerId/character-rank', async (req, res) => {
+  try {
+    const { playerId } = req.params;
+    const bucket = req.query.bucket;
+    if (!bucket || typeof bucket !== 'string') {
+      return res.status(400).json({ success: false, error: '缺少 bucket 参数' });
+    }
+    const data = await characterRankService.getCharacterRankForBucket(playerId, bucket);
+    res.json({ success: true, data });
+  } catch (error) {
+    console.error('[Players] character-rank 失败:', error);
+    res.status(500).json({ success: false, error: '查询将领排名失败', message: error.message });
+  }
+});
+
 router.get('/:playerId/profile', async (req, res) => {
   try {
     const { playerId } = req.params;
@@ -1039,7 +1059,9 @@ router.get('/:playerId/profile', async (req, res) => {
         card.last_troops_lost_at = null;
         continue;
       }
-      const elapsedMs = Date.now() - new Date(card.last_troops_lost_at).getTime();
+      // 从 last_troops_lost_at 起算真实经过时间；结算后必须推进该锚点，否则每次拉档都会按「整段经过时间」重复兑现（F5/上阵卸下刷 profile 会刷兵）
+      const t0Ms = new Date(card.last_troops_lost_at).getTime();
+      const elapsedMs = Date.now() - t0Ms;
       const elapsedMin = elapsedMs / 60000;
       const canRecover = Math.floor(elapsedMin * 10); // 每分钟恢复10兵
       if (canRecover <= 0) continue;
@@ -1052,14 +1074,18 @@ router.get('/:playerId/profile', async (req, res) => {
       // 更新数据库
       const newTroops = (card.current_troops || 0) + actualRecover;
       const isFull = newTroops >= maxTroops;
+      /** 本次恢复的兵力对应消耗的时间（分钟），用于推进锚点，避免重复结算 */
+      const minutesConsumed = actualRecover / 10;
+      const newLastTroopsLostAt = isFull ? null : new Date(t0Ms + minutesConsumed * 60000);
       await pool.query(
         `UPDATE player_cards SET current_troops = ?, last_troops_lost_at = ? WHERE instance_id = ?`,
-        [Math.min(newTroops, maxTroops), isFull ? null : card.last_troops_lost_at, card.instance_id]
+        [Math.min(newTroops, maxTroops), newLastTroopsLostAt, card.instance_id]
       );
       await pool.query('UPDATE players SET food = food - ? WHERE player_id = ?', [foodCost, playerId]);
       // 更新内存中的值
       card.current_troops = Math.min(newTroops, maxTroops);
       if (isFull) card.last_troops_lost_at = null;
+      else card.last_troops_lost_at = newLastTroopsLostAt;
       playerFood -= foodCost;
       player.food = playerFood;
       console.log(`[TroopRecover] ${card.card_id}: +${actualRecover}兵 -${foodCost}粮 (${card.current_troops}/${maxTroops})`);
@@ -1565,6 +1591,7 @@ router.post('/:playerId/cards/equip', async (req, res) => {
     }
 
     console.log(`[Players] 装备卡牌: ${instanceId} → ${equippedBy}/${equippedSlot}`);
+    characterRankService.refreshSnapshotsForPlayer(playerId).catch(() => {});
     res.json({ success: true });
 
   } catch (error) {
@@ -1645,6 +1672,7 @@ router.post('/:playerId/cards/unequip', async (req, res) => {
     }
 
     console.log(`[Players] 卸下卡牌: ${instanceId}`);
+    characterRankService.refreshSnapshotsForPlayer(playerId).catch(() => {});
     res.json({ success: true });
 
   } catch (error) {

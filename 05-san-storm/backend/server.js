@@ -9,7 +9,29 @@
 require('dotenv').config({ path: __dirname + '/.env' });
 const express = require('express');
 const cors = require('cors');
+const cron = require('node-cron');
 const { testConnection } = require('./database/connection');
+const characterRankService = require('./services/characterRankService');
+
+/** 与 01-1-DATABASE_DESIGN.md 临时表清理示例一致：每天凌晨 3:00（默认进程本地时区；生产可设 CRON_TZ=Asia/Shanghai） */
+function scheduleTempTableCleanup() {
+  const tz = process.env.CRON_TZ;
+  const opts = tz ? { timezone: tz } : {};
+  cron.schedule(
+    '0 3 * * *',
+    async () => {
+      try {
+        const { affectedRows } = await characterRankService.deleteExpiredSnapshots();
+        if (affectedRows > 0) {
+          console.log(`[CharacterRank] 已清理过期快照 ${affectedRows} 条（14 天未刷新）`);
+        }
+      } catch (err) {
+        console.error('[CharacterRank] 清理过期快照失败:', err.message);
+      }
+    },
+    opts
+  );
+}
 
 const app = express();
 const PORT = process.env.PORT || 3005;
@@ -156,6 +178,10 @@ app.listen(PORT, async () => {
   console.log('✅ 服务器启动成功！');
   console.log('========================================');
   console.log('');
+
+  scheduleTempTableCleanup();
+  const tzHint = process.env.CRON_TZ ? `CRON_TZ=${process.env.CRON_TZ}` : '本地时区';
+  console.log(`⏰ 将领排名快照清理：每日 03:00（${tzHint}），与数据库设计文档临时表清理节奏一致`);
 });
 
 module.exports = app;

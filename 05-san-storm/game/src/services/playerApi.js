@@ -83,6 +83,19 @@ export const playerAPI = {
   },
 
   /**
+   * 将领排名（同服、同 bucket）
+   * @param {string} bucket - main:player | main:character1 | main:character2 | garrison:槽位:char1|char2
+   */
+  async getCharacterRank(playerId, bucket) {
+    const q = encodeURIComponent(bucket);
+    const response = await fetchWithTimeout(
+      `${API_CONFIG.BASE_URL}/players/${playerId}/character-rank?bucket=${q}`,
+      { method: 'GET', headers: { 'Content-Type': 'application/json' } }
+    );
+    return response.json();
+  },
+
+  /**
    * 获取玩家信息
    */
   async getPlayer(playerId) {

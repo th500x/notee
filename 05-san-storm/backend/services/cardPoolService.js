@@ -52,6 +52,15 @@ function parseFactionId(factionId) {
   };
 }
 
+/** 将领全服唯一：已持有的 character_id 不可再进入候选池 */
+async function getOwnedCharacterCardIds(connection, playerId) {
+  const [rows] = await connection.query(
+    "SELECT card_id FROM player_cards WHERE player_id = ? AND card_type = 'character'",
+    [playerId]
+  );
+  return rows.map((r) => r.card_id);
+}
+
 // ── 核心：抽取卡牌 ───────────────────────────────────────────
 
 /**
@@ -188,22 +197,43 @@ async function drawSingleCard(connection, playerId, poolType, factionId, current
   const idPrefix = poolType === 'troop' ? 'troop' : 'char';
 
   const excludeIds = previousResults.filter(r => r.cardId).map(r => r.cardId);
-  const excludeClause = excludeIds.length > 0
-    ? ` AND ${idField} NOT IN (${excludeIds.map(() => '?').join(',')})`
+
+  /** 将领池：同稀有度内先排除已拥有，优先未持有；若该稀有度已全部拥有则同稀有度正常随机（可走重复补偿） */
+  let ownedCharacterIds = [];
+  if (poolType === 'character') {
+    ownedCharacterIds = await getOwnedCharacterCardIds(connection, playerId);
+  }
+
+  const excludePoolIdsPrimary = poolType === 'character'
+    ? [...new Set([...excludeIds, ...ownedCharacterIds])]
+    : [...excludeIds];
+
+  const excludeClausePrimary = excludePoolIdsPrimary.length > 0
+    ? ` AND ${idField} NOT IN (${excludePoolIdsPrimary.map(() => '?').join(',')})`
     : '';
 
-  const query = `SELECT ${idField} AS card_id, ${nameField} AS card_name, rarity
-    FROM ${table}
-    WHERE rarity = ? AND (${idField} LIKE ? OR ${idField} LIKE ?)${excludeClause}
-    ORDER BY RAND() LIMIT 1`;
-  const params = [
-    rarity,
-    `${season}_${idPrefix}_${factionNumber}%`,
-    `${season}_${idPrefix}_0%`,
-    ...excludeIds,
-  ];
+  const likeFaction = `${season}_${idPrefix}_${factionNumber}%`;
+  const likeNeutral = `${season}_${idPrefix}_0%`;
 
-  const [rows] = await connection.query(query, params);
+  let query = `SELECT ${idField} AS card_id, ${nameField} AS card_name, rarity
+    FROM ${table}
+    WHERE rarity = ? AND (${idField} LIKE ? OR ${idField} LIKE ?)${excludeClausePrimary}
+    ORDER BY RAND() LIMIT 1`;
+  let params = [rarity, likeFaction, likeNeutral, ...excludePoolIdsPrimary];
+
+  let [rows] = await connection.query(query, params);
+
+  if (rows.length === 0 && poolType === 'character') {
+    const excludeClauseDupOnly = excludeIds.length > 0
+      ? ` AND ${idField} NOT IN (${excludeIds.map(() => '?').join(',')})`
+      : '';
+    const dupQuery = `SELECT ${idField} AS card_id, ${nameField} AS card_name, rarity
+      FROM ${table}
+      WHERE rarity = ? AND (${idField} LIKE ? OR ${idField} LIKE ?)${excludeClauseDupOnly}
+      ORDER BY RAND() LIMIT 1`;
+    const dupParams = [rarity, likeFaction, likeNeutral, ...excludeIds];
+    [rows] = await connection.query(dupQuery, dupParams);
+  }
 
   if (rows.length === 0) {
     return { rarity, cardId: null, cardName: null, compensated: true, compensation: { type: 'silver', amount: 20 }, reason: 'no_card_available' };

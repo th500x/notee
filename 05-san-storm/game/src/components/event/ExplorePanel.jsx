@@ -31,11 +31,6 @@ export default function ExplorePanel({ eventSystem }) {
     rewardDetails, battleScore, playerId, isTutorial,
   } = eventSystem;
 
-  const exploreScoreTroopCounts = useMemo(
-    () => (battleScore ? resolveKillLossTroopCounts(battleScore.details) : { killTroops: null, lossTroops: null }),
-    [battleScore],
-  );
-
   const [hoveredOption, setHoveredOption] = useState(null);
 
   // 选择选项时清除预览
@@ -285,6 +280,11 @@ function RewardDisplay({ fortune, chosenOption, battleResult, battleScore, repla
   const [skillsMap, setSkillsMap] = useState({});
   const [idNames, setIdNames] = useState({ char: {}, troop: {}, equip: {} });
 
+  const troopCounts = useMemo(
+    () => (battleScore ? resolveKillLossTroopCounts(battleScore.details) : { killTroops: null, lossTroops: null }),
+    [battleScore],
+  );
+
   // 加载技能数据（用于TroopCard技能tooltip）
   useEffect(() => {
     loadSharedData('skills').then(data => {
@@ -449,8 +449,8 @@ function RewardDisplay({ fortune, chosenOption, battleResult, battleScore, repla
               </div>
               <div className="text-xs text-gray-400 space-y-0.5">
                 <div>
-                  歼敌 {exploreScoreTroopCounts.killTroops != null ? exploreScoreTroopCounts.killTroops : '—'} / 战损{' '}
-                  {exploreScoreTroopCounts.lossTroops != null ? exploreScoreTroopCounts.lossTroops : '—'}
+                  歼敌 {troopCounts.killTroops != null ? troopCounts.killTroops : '—'} / 战损{' '}
+                  {troopCounts.lossTroops != null ? troopCounts.lossTroops : '—'}
                   <span className="text-gray-500">（兵力）</span>
                 </div>
                 <div>

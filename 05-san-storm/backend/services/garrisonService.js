@@ -988,6 +988,8 @@ async function clearInvalidOnDutySelection(playerId) {
 }
 
 module.exports = {
+  getMainLineupAttributeBonusBySlot,
+  getGarrisonSlotAttributeBonusByChar,
   getPlayerGarrisons,
   getGarrisonSlot,
   saveGarrison,
