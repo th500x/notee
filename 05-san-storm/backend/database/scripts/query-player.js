@@ -2,7 +2,7 @@
  * 查询玩家数据
  */
 
-const { pool } = require('../database/connection');
+const { pool } = require('../connection');
 
 async function queryPlayer(playerId) {
   try {

@@ -2,7 +2,7 @@
  * 列出所有账号
  */
 
-const { pool } = require('../database/connection');
+const { pool } = require('../connection');
 
 async function listAllAccounts() {
   try {

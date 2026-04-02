@@ -2,7 +2,7 @@
  * 查询账号信息脚本
  */
 
-const { pool } = require('../database/connection');
+const { pool } = require('../connection');
 
 async function queryAccount(accountId) {
   try {

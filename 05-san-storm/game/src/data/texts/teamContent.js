@@ -38,13 +38,24 @@ export const introSegments = [
 
 /**
  * 分组：玩家点击 title 后进入第二页，展示 members
- * @type {{ id: string, title: string, description?: string, members: string[] }[]}
+ * @type {{ id: string, title: string, description?: string, members: { name: string, score: string }[] }[]}
  */
 export const groups = [
   {
-    id: 'example',
-    title: 'M1测试鸣谢名单',
+    id: 'm1-thanks',
+    title: 'M1测试_鸣谢名单',
     description: '排名不分先后',
-    members: ['若晞丶', '东岸', '南阳凤', '星如雨', '金角王', '星空梦', '青山', '南帝', '诸葛亮', '张艺兴'],
+    members: [
+      { name: '若晞丶', score: '1,006,409' },
+      { name: '东岸', score: '815,260' },
+      { name: '星如雨', score: '754,114' },
+      { name: '南阳凤', score: '706,465' },
+      { name: '金角王', score: '590,721' },
+      { name: '星空梦', score: '544,795' },
+      { name: '南帝', score: '506,328' },
+      { name: '青山', score: '441,310' },
+      { name: '诸葛亮', score: '302,504' },
+      { name: '风雨', score: '156,773' },
+    ],
   },
 ];

@@ -52,9 +52,22 @@ const PersonalSidebarTeamPanel = forwardRef(function PersonalSidebarTeamPanel(
           )}
           <p className="text-xs text-gray-500 mb-2">成员</p>
           <ul className="list-disc pl-5 space-y-1">
-            {detailGroup.members.map((name) => (
-              <li key={name}>{name}</li>
-            ))}
+            {detailGroup.members.map((member, index) => {
+              const memberName = typeof member === 'string' ? member : member?.name || '';
+              const memberScore = typeof member === 'string' ? '' : member?.score || '';
+              const key = `${memberName}-${memberScore}-${index}`;
+
+              return (
+                <li key={key}>
+                  <div className="flex items-center gap-3">
+                    <span className="min-w-0">{memberName}</span>
+                    {memberScore ? (
+                      <span className="ml-auto mr-10 w-28 pr-10 tabular-nums text-right text-gray-500">{memberScore}</span>
+                    ) : null}
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         </div>
       </div>

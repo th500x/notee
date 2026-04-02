@@ -34,6 +34,11 @@ const MAX_BATTLE_COUNT = { common: 20, rare: 40, epic: 60, legendary: 80 };
 
 // ── 工具函数 ─────────────────────────────────────────────────
 
+/**
+ * 按固定概率表抽取稀有度（与 config 里该稀有度有多少张卡无关）。
+ * 先定稀有度，再在 SQL 中对该稀有度候选行 ORDER BY RAND() LIMIT 1 均匀抽一张。
+ * P(抽到某张具体卡 | 已定为该稀有度) = 1 / 该稀有度候选行数，但 P(定为该稀有度) 不变。
+ */
 function rollRarity() {
   const rand = Math.random();
   let cumulative = 0;
@@ -215,6 +220,7 @@ async function drawSingleCard(connection, playerId, poolType, factionId, current
   const likeFaction = `${season}_${idPrefix}_${factionNumber}%`;
   const likeNeutral = `${season}_${idPrefix}_0%`;
 
+  // 仅在已确定的 rarity 下，在符合条件的行中均匀随机（多一张同稀有度卡不会改变上文的 rollRarity 概率）
   let query = `SELECT ${idField} AS card_id, ${nameField} AS card_name, rarity
     FROM ${table}
     WHERE rarity = ? AND (${idField} LIKE ? OR ${idField} LIKE ?)${excludeClausePrimary}

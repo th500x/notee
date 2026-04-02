@@ -167,7 +167,6 @@ export function useManualBattle({
     const bestRarity = rarityPriority.find(r => enemyRarities.includes(r)) || 'common';
 
     const equipTypes = ['weapon', 'armor', 'accessory'];
-    const randomType = equipTypes[Math.floor(Math.random() * equipTypes.length)];
 
     let data;
     try {
@@ -179,17 +178,41 @@ export function useManualBattle({
     }
 
     const list = data?.equipment || [];
+    const season = CHEST_EQUIPMENT_SEASON;
+
+    // 仅在三类中「该赛季+稀有度确有配置」的类型里随机，避免抽到如 common+accessory（当前 JSON 无此类条目）导致空池
+    const typesWithPool = equipTypes.filter((type) =>
+      list.some(
+        (e) =>
+          e.id &&
+          e.name &&
+          (e.season || season) === season &&
+          e.equipmentType === type &&
+          e.rarity === bestRarity
+      )
+    );
+
+    if (typesWithPool.length === 0) {
+      console.warn('[useManualBattle] 宝箱：该稀有度无任何装备配置', { bestRarity, season });
+      addLog(
+        `  📦 ${troop.character?.courtesyName || troop.name} 开启宝箱，但配置中暂无「${RARITY_LABEL_CN[bestRarity] || bestRarity}」品质装备件`,
+        'skill'
+      );
+      return;
+    }
+
+    const randomType = typesWithPool[Math.floor(Math.random() * typesWithPool.length)];
     const pool = list.filter(
       (e) =>
         e.id &&
         e.name &&
-        (e.season || CHEST_EQUIPMENT_SEASON) === CHEST_EQUIPMENT_SEASON &&
+        (e.season || season) === season &&
         e.equipmentType === randomType &&
         e.rarity === bestRarity
     );
 
     if (pool.length === 0) {
-      console.warn('[useManualBattle] 宝箱：无匹配配置', { randomType, bestRarity, season: CHEST_EQUIPMENT_SEASON });
+      console.warn('[useManualBattle] 宝箱：无匹配配置（不应发生）', { randomType, bestRarity, season });
       addLog(
         `  📦 ${troop.character?.courtesyName || troop.name} 开启宝箱，但配置中暂无「${RARITY_LABEL_CN[bestRarity] || bestRarity}」${randomType} 装备件`,
         'skill'

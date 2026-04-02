@@ -2,7 +2,7 @@
  * 查询服务器配置
  */
 
-const { pool } = require('../database/connection');
+const { pool } = require('../connection');
 
 async function queryServers() {
   try {
