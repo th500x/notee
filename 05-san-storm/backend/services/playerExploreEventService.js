@@ -1,0 +1,170 @@
+/**
+ * 探索链、探索事件进度、与 rewards 共用的辅助逻辑
+ */
+
+const { pool } = require('../database/connection');
+
+/** 事件 requiredItems 单段解析：无冒号则数量 1 */
+function parseEventCostSegment(segment) {
+  const s = (segment || '').trim();
+  if (!s) return null;
+  const i = s.indexOf(':');
+  if (i === -1) return { key: s, amount: 1 };
+  const n = parseInt(s.slice(i + 1), 10);
+  return { key: s.slice(0, i), amount: Number.isFinite(n) && n > 0 ? n : 1 };
+}
+
+/** 与前端 playerMeetsEventRequiredItems 一致 */
+function playerMeetsExploreChainGateItems(requiredItemsStr, itemsObject) {
+  if (!requiredItemsStr || !String(requiredItemsStr).trim()) return true;
+  const inv = itemsObject || {};
+  const segments = String(requiredItemsStr)
+    .split(';')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  for (const seg of segments) {
+    const colon = seg.indexOf(':');
+    const key = colon === -1 ? seg : seg.slice(0, colon);
+    const need = colon === -1 ? 1 : Math.max(1, parseInt(seg.slice(colon + 1), 10) || 1);
+    if (!key.startsWith('item_') && !key.includes('_item_')) continue;
+    if ((Number(inv[key]) || 0) < need) return false;
+  }
+  return true;
+}
+
+/**
+ * 探索链：已完成本环但背包没有下一环钥匙道具 → 允许重做本环
+ */
+async function isExploreChainStrandedRedo(playerId, chainId, chainLevel) {
+  const level = Number(chainLevel);
+  if (!chainId || !Number.isFinite(level)) return false;
+  const [nextRows] = await pool.query(
+    'SELECT required_items FROM config_events WHERE chain_id = ? AND chain_level = ? LIMIT 1',
+    [chainId, level + 1]
+  );
+  if (!nextRows?.length) return false;
+  const req = nextRows[0].required_items;
+  if (!req || !String(req).trim()) return false;
+  const [pRows] = await pool.query('SELECT items FROM players WHERE player_id = ?', [playerId]);
+  let inv = {};
+  if (pRows[0]?.items) {
+    inv = typeof pRows[0].items === 'string' ? JSON.parse(pRows[0].items) : pRows[0].items;
+  }
+  return !playerMeetsExploreChainGateItems(req, inv);
+}
+
+const EXPLORE_TROOP_CHAIN_IDS_DAILY_RESET = ['chain_nanyang_troop', 'chain_shanhaiguan_troop'];
+
+function mysqlDateToYmd(val) {
+  if (val == null) return null;
+  if (val instanceof Date) {
+    const y = val.getFullYear();
+    const m = String(val.getMonth() + 1).padStart(2, '0');
+    const d = String(val.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+  const s = String(val);
+  return s.length >= 10 ? s.slice(0, 10) : s;
+}
+
+async function maybeResetExploreTroopChainsDaily(playerId) {
+  try {
+    await pool.query('INSERT IGNORE INTO player_events (player_id) VALUES (?)', [playerId]);
+    const [rows] = await pool.query(
+      'SELECT explore_events, explore_chain_reset_date FROM player_events WHERE player_id = ?',
+      [playerId]
+    );
+    const row = rows[0];
+    if (!row) return;
+
+    const [dr] = await pool.query('SELECT CURDATE() AS d');
+    const todayStr = mysqlDateToYmd(dr[0].d);
+
+    const storedStr = mysqlDateToYmd(row.explore_chain_reset_date);
+
+    if (storedStr && storedStr >= todayStr) return;
+
+    let events = {};
+    if (row.explore_events) {
+      try {
+        events =
+          typeof row.explore_events === 'string' ? JSON.parse(row.explore_events) : row.explore_events;
+      } catch {
+        events = {};
+      }
+    }
+
+    const ph = EXPLORE_TROOP_CHAIN_IDS_DAILY_RESET.map(() => '?').join(',');
+    const [chainRows] = await pool.query(
+      `SELECT event_id FROM config_events WHERE chain_id IN (${ph})`,
+      EXPLORE_TROOP_CHAIN_IDS_DAILY_RESET
+    );
+    const ids = new Set(chainRows.map((r) => r.event_id));
+    for (const k of Object.keys(events)) {
+      if (ids.has(k)) delete events[k];
+    }
+    await pool.query(
+      'UPDATE player_events SET explore_events = ?, explore_chain_reset_date = ? WHERE player_id = ?',
+      [JSON.stringify(events), todayStr, playerId]
+    );
+  } catch (e) {
+    if (e.code === 'ER_BAD_FIELD_ERROR') {
+      console.warn(
+        '[Players] 未迁移 explore_chain_reset_date，部队链每日重置已跳过（请执行 add-explore-chain-daily-reset.sql）'
+      );
+      return;
+    }
+    throw e;
+  }
+}
+
+/** 带战斗的选项：整编类道具是否延后到战斗奖励之后 */
+function shouldDeferTroopRepairAfterBattleRewards(option, battleResult, fortune) {
+  if (!option.triggerBattle) return false;
+  if (battleResult === 'victory' || battleResult === 'defeat') return true;
+  const n = fortune?.fortuneName;
+  return n === '凶' || n === '大凶';
+}
+
+/**
+ * 在 /rewards 成功发放后立即写入 explore_events（与前端 closeReward 的 POST /events 一致）。
+ * 否则仅依赖客户端关面板后再上报 → 玩家在关闭前可再次探索并重复领取同一链环奖励。
+ */
+async function recordExploreChainEventCompleted(playerId, eventId, chainId, chainLevel) {
+  if (!eventId || !chainId) return;
+  await pool.query('INSERT IGNORE INTO player_events (player_id) VALUES (?)', [playerId]);
+  const [rows] = await pool.query('SELECT explore_events FROM player_events WHERE player_id = ?', [
+    playerId,
+  ]);
+  let events = {};
+  if (rows[0]?.explore_events) {
+    try {
+      events =
+        typeof rows[0].explore_events === 'string'
+          ? JSON.parse(rows[0].explore_events)
+          : rows[0].explore_events;
+    } catch {
+      events = {};
+    }
+  }
+  events[eventId] = {
+    status: 'completed',
+    chainId,
+    chainLevel: chainLevel != null ? chainLevel : null,
+    updated_at: new Date().toISOString(),
+  };
+  await pool.query('UPDATE player_events SET explore_events = ? WHERE player_id = ?', [
+    JSON.stringify(events),
+    playerId,
+  ]);
+}
+
+module.exports = {
+  parseEventCostSegment,
+  playerMeetsExploreChainGateItems,
+  isExploreChainStrandedRedo,
+  maybeResetExploreTroopChainsDaily,
+  shouldDeferTroopRepairAfterBattleRewards,
+  recordExploreChainEventCompleted,
+  EXPLORE_TROOP_CHAIN_IDS_DAILY_RESET,
+};

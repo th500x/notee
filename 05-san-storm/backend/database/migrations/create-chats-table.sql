@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS chats (
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '发送时间',
   expires_at DATETIME COMMENT '过期时间（创建时间+3天）',
 
-  FOREIGN KEY (sender_id) REFERENCES players(player_id),
+  FOREIGN KEY (sender_id) REFERENCES players(player_id) ON DELETE CASCADE,
 
   INDEX idx_channel (channel_type, channel_id, created_at),
   INDEX idx_sender (sender_id, created_at),

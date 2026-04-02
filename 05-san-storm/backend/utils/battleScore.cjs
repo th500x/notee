@@ -1,15 +1,16 @@
 /**
  * 与前端 game/src/systems/battleScoreSystem.js 同公式，供服务端攻城 PVP 结算写战报积分。
  * 术语与战报 UI 一致：歼敌评分、战损评分；惨败/安慰保底见源码注释。
+ * 评分 = 各部队 round(基础分×损失比例) 之和；与 killTroops/lossTroops（兵力人数）不同量纲。
  */
 
-// ── 歼敌评分：稀有度基础分表 ──
+// ── 歼敌评分：稀有度基础分表（不从 maxTroops 推导；core=800 与部队配置默认上限对齐） ──
 const KILL_SCORE = {
   common: 200,
   rare: 330,
   epic: 460,
   legendary: 600,
-  core: 990,
+  core: 800,
 };
 
 // ── 战损评分：稀有度惩罚分表 ──
@@ -18,7 +19,7 @@ const LOSS_PENALTY = {
   rare: -495,
   epic: -690,
   legendary: -900,
-  core: -1485,
+  core: -1200,
 };
 
 const TURN_MULTIPLIER = {
@@ -28,8 +29,8 @@ const TURN_MULTIPLIER = {
 };
 
 const GRADE_THRESHOLDS = [
-  { grade: 'S', min: 3000, label: '完美！', multiplier: 2.0 },
-  { grade: 'A', min: 2000, label: '优秀！', multiplier: 1.5 },
+  { grade: 'S', min: 5000, label: '完美！', multiplier: 2.0 },
+  { grade: 'A', min: 3000, label: '优秀！', multiplier: 1.5 },
   { grade: 'B', min: 1000, label: '良好', multiplier: 1.2 },
   { grade: 'C', min: 500, label: '及格', multiplier: 1.0 },
   { grade: 'D', min: 0, label: '勉强', multiplier: 0.8 },

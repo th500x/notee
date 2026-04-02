@@ -6,18 +6,20 @@
  * 
  * 评分项：歼敌评分、战损评分、回合倍率（与战报 UI 一致）
  * 
- * 计算方式（按兵力损失比例）：
- *   敌对阵营：损失比例 × 稀有度歼敌基础分（全灭=100% 对应该部队歼敌评分满分）
- *   己方阵营：损失比例 × 稀有度战损惩罚分（全灭=100% 对应该部队战损评分满额扣分）
+ * 计算方式（按兵力损失比例，非「按歼敌人数线性计分」）：
+ *   每支敌方部队：round( KILL_SCORE[rarity] × lostRatio )；全灭该部队时贡献至多为 KILL_SCORE[rarity]。
+ *   每支己方部队：round( LOSS_PENALTY[rarity] × lostRatio )。
+ *   killTroops/lossTroops 为兵力损失人数合计，与 killScore/lossScore 不同量纲，数值一般不相等。
  */
 
 // ── 歼敌评分：稀有度基础分表（单部队 100% 损失时的满分贡献） ──
+// 说明：数值为固定常量，不从 maxTroops 参与运算；core=800 与 troops.json / config_troops 中 core 默认兵力上限对齐（产品约定）。
 const KILL_SCORE = {
   common: 200,
   rare: 330,
   epic: 460,
   legendary: 600,
-  core: 990,
+  core: 800,
 };
 
 // ── 战损评分：稀有度惩罚分表（单部队 100% 损失时的满额扣分贡献） ──
@@ -26,7 +28,7 @@ const LOSS_PENALTY = {
   rare: -495,
   epic: -690,
   legendary: -900,
-  core: -1485,
+  core: -1200,
 };
 
 // ── 回合倍率 ──
@@ -38,8 +40,8 @@ const TURN_MULTIPLIER = {
 
 // ── 评级阈值 ──
 const GRADE_THRESHOLDS = [
-  { grade: 'S', min: 3000, label: '完美！', multiplier: 2.0 },
-  { grade: 'A', min: 2000, label: '优秀！', multiplier: 1.5 },
+  { grade: 'S', min: 5000, label: '完美！', multiplier: 2.0 },
+  { grade: 'A', min: 3000, label: '优秀！', multiplier: 1.5 },
   { grade: 'B', min: 1000, label: '良好',   multiplier: 1.2 },
   { grade: 'C', min: 500,  label: '及格',   multiplier: 1.0 },
   { grade: 'D', min: 0,    label: '勉强',   multiplier: 0.8 },

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 注册步骤
  */
 
@@ -14,6 +14,9 @@ import UserAgreementModal from '@/components/auth/UserAgreementModal';
 export function RegisterStep({ selectedServer, onRegisterSuccess, onBack }) {
   const [selectedId, setSelectedId] = useState('');
   const [availableIds, setAvailableIds] = useState([]);
+  /** server：来自 GET /auth/register-candidates；local：仅 localStorage 池（后端不可用时） */
+  const [idPoolSource, setIdPoolSource] = useState('server');
+  const [idsLoading, setIdsLoading] = useState(true);
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [birthMonth, setBirthMonth] = useState('');
@@ -23,8 +26,24 @@ export function RegisterStep({ selectedServer, onRegisterSuccess, onBack }) {
   const [agreedToTerms, setAgreedToTerms] = useState(false);
 
   useEffect(() => {
-    const result = generateIdOptions();
-    setAvailableIds(result.ids);
+    let cancelled = false;
+    (async () => {
+      setIdsLoading(true);
+      const remote = await gameUserAPI.getRegisterCandidates(5);
+      if (cancelled) return;
+      if (remote.success && remote.ids?.length > 0) {
+        setAvailableIds(remote.ids);
+        setIdPoolSource('server');
+      } else {
+        const fallback = generateIdOptions();
+        setAvailableIds(fallback.ids);
+        setIdPoolSource('local');
+      }
+      setIdsLoading(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const handleIdSelect = (id) => {
@@ -127,14 +146,34 @@ export function RegisterStep({ selectedServer, onRegisterSuccess, onBack }) {
         
         {!selectedId ? (
           <div>
-            {availableIds.length === 0 ? (
+            {idsLoading ? (
+              <div className="text-center py-10 text-gray-600 text-sm">正在加载可用 ID…</div>
+            ) : availableIds.length === 0 ? (
               <div className="text-center py-8">
                 <div className="text-6xl mb-4">😱</div>
-                <h3 className="text-lg font-bold text-red-900 mb-2">所有ID已用完！</h3>
+                <h3 className="text-lg font-bold text-red-900 mb-2">暂无可选 ID</h3>
+                <p className="text-sm text-gray-600 mb-4">请稍后重试或检查网络与后端服务</p>
+                <button
+                  type="button"
+                  onClick={() => window.location.reload()}
+                  className="py-2 px-4 border border-gray-300 rounded-lg text-sm"
+                >
+                  刷新页面
+                </button>
               </div>
             ) : (
               <div>
                 <p className="text-gray-600 mb-4">请选择你的游戏ID：</p>
+                {idPoolSource === 'server' && (
+                  <p className="text-xs text-green-800 bg-green-50 border border-green-200 rounded px-2 py-1 mb-3">
+                    候选已与服务器同步（已排除已注册 ID）
+                  </p>
+                )}
+                {idPoolSource === 'local' && (
+                  <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded px-2 py-1 mb-3">
+                    当前为离线候选；若注册提示 ID 已被使用，请刷新重试
+                  </p>
+                )}
                 <div className="space-y-2 mb-6">
                   {availableIds.map(id => (
                     <button
@@ -149,13 +188,26 @@ export function RegisterStep({ selectedServer, onRegisterSuccess, onBack }) {
                 </div>
                 
                 <button
-                  onClick={() => {
+                  type="button"
+                  disabled={idsLoading}
+                  onClick={async () => {
+                    setIdsLoading(true);
+                    setError('');
+                    const next = await gameUserAPI.getRegisterCandidates(5, availableIds);
+                    if (next.success && next.ids?.length > 0) {
+                      setAvailableIds(next.ids);
+                      setIdPoolSource('server');
+                      setIdsLoading(false);
+                      return;
+                    }
                     const result = generateIdOptions();
                     setAvailableIds(result.ids);
+                    setIdPoolSource('local');
+                    setIdsLoading(false);
                   }}
-                  className="w-full py-2 px-4 text-blue-600 hover:text-blue-800 border border-blue-300 rounded-lg hover:bg-blue-50 transition-colors text-sm"
+                  className="w-full py-2 px-4 text-blue-600 hover:text-blue-800 border border-blue-300 rounded-lg hover:bg-blue-50 transition-colors text-sm disabled:opacity-50"
                 >
-                  🔄 刷新ID选项
+                  🔄 换一批 ID
                 </button>
               </div>
             )}

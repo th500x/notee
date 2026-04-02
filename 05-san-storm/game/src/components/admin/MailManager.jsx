@@ -57,6 +57,9 @@ const MailManager = () => {
   const [trialUserId, setTrialUserId] = useState('');
   const [trialSubject, setTrialSubject] = useState('');
   const [trialContent, setTrialContent] = useState('');
+  /** 与 UserManager 一致：不用原生 confirm（SES 等环境可能静默失败） */
+  const [mailConfirm, setMailConfirm] = useState(null);
+  // null | { type: 'deleteTemplate', templateId } | { type: 'trialAll' } | { type: 'trialFaction', factionId, factionName }
 
   const load = async () => {
     setLoading(true);
@@ -155,16 +158,61 @@ const MailManager = () => {
     }
   };
 
-  const remove = async (templateId) => {
-    if (!window.confirm(`删除模板 ${templateId}？`)) return;
+  const requestRemoveTemplate = (templateId) => {
+    setMailConfirm({ type: 'deleteTemplate', templateId });
+  };
+
+  const executeRemoveTemplate = async () => {
+    if (!mailConfirm || mailConfirm.type !== 'deleteTemplate') return;
+    const templateId = mailConfirm.templateId;
+    setMailConfirm(null);
     setLoading(true);
-    const r = await adminConfigTextsAPI.remove(templateId);
-    setLoading(false);
-    if (r.success) {
-      if (editingId === templateId) startNew();
-      load();
+    try {
+      const r = await adminConfigTextsAPI.remove(templateId);
+      if (r.success) {
+        if (editingId === templateId) startNew();
+        load();
+      } else {
+        showToast(r.error || '删除失败', 'error');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const executeTrialSend = async () => {
+    setMailConfirm(null);
+    setLoading(true);
+    setError('');
+    const payload = {
+      template_id: trialTemplateId,
+      subject: trialSubject.trim() || undefined,
+      content: trialContent.trim() || undefined
+    };
+    if (trialTarget === 'all') {
+      payload.target_type = 'all';
+    } else if (trialTarget === 'faction') {
+      payload.target_type = 'faction';
+      payload.faction_id = trialFactionId;
     } else {
-      showToast(r.error || '删除失败', 'error');
+      payload.target_type = 'user';
+      payload.receiver_id = trialUserId.trim();
+    }
+
+    try {
+      const r = await adminConfigTextsAPI.trialSend(payload);
+      if (r.success) {
+        const n = r.data?.count ?? 1;
+        const tid = r.data?.first_text_id || r.data?.sample_text_ids?.[0] || '';
+        showToast(`试发成功，共 ${n} 封。首条 text_id: ${tid || '—'}`);
+      } else {
+        setError(r.error || '试发失败');
+      }
+    } catch (e) {
+      setError('试发失败');
+      console.error(e);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -184,39 +232,16 @@ const MailManager = () => {
       return;
     }
     if (trialTarget === 'all') {
-      if (!window.confirm('确定向当前数据库内【全部玩家】各发一封传书？（不含系统账号 sys1）')) return;
+      setMailConfirm({ type: 'trialAll' });
+      return;
     }
     if (trialTarget === 'faction') {
       const fn = TRIAL_FACTIONS.find((f) => f.id === trialFactionId)?.name || '';
-      if (!window.confirm(`确定向【势力：${fn}】内全部玩家各发一封传书？`)) return;
+      setMailConfirm({ type: 'trialFaction', factionId: trialFactionId, factionName: fn });
+      return;
     }
 
-    setLoading(true);
-    setError('');
-    const payload = {
-      template_id: trialTemplateId,
-      subject: trialSubject.trim() || undefined,
-      content: trialContent.trim() || undefined
-    };
-    if (trialTarget === 'all') {
-      payload.target_type = 'all';
-    } else if (trialTarget === 'faction') {
-      payload.target_type = 'faction';
-      payload.faction_id = trialFactionId;
-    } else {
-      payload.target_type = 'user';
-      payload.receiver_id = trialUserId.trim();
-    }
-
-    const r = await adminConfigTextsAPI.trialSend(payload);
-    setLoading(false);
-    if (r.success) {
-      const n = r.data?.count ?? 1;
-      const tid = r.data?.first_text_id || r.data?.sample_text_ids?.[0] || '';
-      showToast(`试发成功，共 ${n} 封。首条 text_id: ${tid || '—'}`);
-    } else {
-      setError(r.error || '试发失败');
-    }
+    await executeTrialSend();
   };
 
   return (
@@ -477,7 +502,7 @@ const MailManager = () => {
                     <button type="button" className="text-blue-600 hover:underline" onClick={() => startEdit(r)}>
                       编辑
                     </button>
-                    <button type="button" className="text-red-600 hover:underline" onClick={() => remove(r.template_id)}>
+                    <button type="button" className="text-red-600 hover:underline" onClick={() => requestRemoveTemplate(r.template_id)}>
                       删除
                     </button>
                   </td>
@@ -490,6 +515,66 @@ const MailManager = () => {
           )}
         </div>
       </div>
+
+      {mailConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60] p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+            {mailConfirm.type === 'deleteTemplate' && (
+              <>
+                <h3 className="text-lg font-bold text-gray-900 mb-2">确认删除模板</h3>
+                <div className="rounded-lg p-4 mb-4 text-sm bg-red-50 border border-red-200 text-red-900">
+                  <p>
+                    确定删除模板 <span className="font-mono font-bold break-all">{mailConfirm.templateId}</span> 吗？此操作不可恢复。
+                  </p>
+                </div>
+                <div className="flex gap-3 justify-end">
+                  <button type="button" onClick={() => setMailConfirm(null)} className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300">
+                    取消
+                  </button>
+                  <button type="button" onClick={executeRemoveTemplate} className="px-4 py-2 rounded-lg text-white font-medium bg-red-600 hover:bg-red-700">
+                    确认删除
+                  </button>
+                </div>
+              </>
+            )}
+            {mailConfirm.type === 'trialAll' && (
+              <>
+                <h3 className="text-lg font-bold text-gray-900 mb-2">确认试发（全部玩家）</h3>
+                <div className="rounded-lg p-4 mb-4 text-sm bg-amber-50 border border-amber-200 text-amber-950">
+                  <p>确定向当前数据库内<strong>全部玩家</strong>各发一封传书？</p>
+                  <p className="mt-2 text-xs">不含系统账号 sys1。</p>
+                </div>
+                <div className="flex gap-3 justify-end">
+                  <button type="button" onClick={() => setMailConfirm(null)} className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300">
+                    取消
+                  </button>
+                  <button type="button" onClick={executeTrialSend} className="px-4 py-2 rounded-lg text-white font-medium bg-amber-600 hover:bg-amber-700">
+                    确认试发
+                  </button>
+                </div>
+              </>
+            )}
+            {mailConfirm.type === 'trialFaction' && (
+              <>
+                <h3 className="text-lg font-bold text-gray-900 mb-2">确认试发（按势力）</h3>
+                <div className="rounded-lg p-4 mb-4 text-sm bg-amber-50 border border-amber-200 text-amber-950">
+                  <p>
+                    确定向势力 <strong>{mailConfirm.factionName}</strong> 内全部玩家各发一封传书？
+                  </p>
+                </div>
+                <div className="flex gap-3 justify-end">
+                  <button type="button" onClick={() => setMailConfirm(null)} className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300">
+                    取消
+                  </button>
+                  <button type="button" onClick={executeTrialSend} className="px-4 py-2 rounded-lg text-white font-medium bg-amber-600 hover:bg-amber-700">
+                    确认试发
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
     </>
   );

@@ -20,18 +20,8 @@ function HomePage() {
       </div>
 
       {/* 功能导航 */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-4xl mx-auto">
-        {/* 第一个卡片 - 项目周报 */}
-        <a 
-          href="/05-san-storm/weekly-report" 
-          className="block p-6 bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow"
-        >
-          <div className="text-4xl mb-4">📊</div>
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">项目周报</h3>
-          <p className="text-sm text-gray-600">查看开发进度和周报更新</p>
-        </a>
-
-        {/* 第二个卡片 - Wiki页面 */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
+        {/* 游戏百科 */}
         <a 
           href="/05-san-storm/wiki/" 
           className="block p-6 bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow"
@@ -41,7 +31,7 @@ function HomePage() {
           <p className="text-sm text-gray-600">查看游戏资料和系统说明</p>
         </a>
 
-        {/* 第三个卡片 - Game页面 */}
+        {/* 游戏系统 */}
         <a 
           href="/05-san-storm/game/" 
           className="block p-6 bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow"

@@ -1,0 +1,393 @@
+/**
+ * POST /api/players/:playerId/rewards — 探索/事件选项奖励发放（与 routes/players 对外 JSON 一致）
+ */
+
+const { pool } = require('../database/connection');
+const { calculateFortune, executeRewards } = require('./rewardService');
+const {
+  getItemSpecialEffect,
+  applyTroopRepairEffect,
+  isTroopDurabilityRepairEffect,
+  isLegendaryTroopRepairEffect,
+  isCoreTroopRepairEffect,
+} = require('./troopRepairService');
+const playerExploreEventService = require('./playerExploreEventService');
+
+/**
+ * @param {string} playerId
+ * @param {object} body - req.body
+ * @returns {Promise<
+ *   | { ok: true; data: object }
+ *   | { ok: false; status: number; json: object }
+ * >}
+ */
+async function executeEventRewards(playerId, body) {
+  const {
+    eventId,
+    optionKey,
+    playerAttrs,
+    general1Attrs,
+    general2Attrs,
+    minigameResult,
+    minigameSilverDelta,
+    battleResult,
+    battleSilverSpent,
+    battleScore,
+  } = body || {};
+
+  if (!eventId || !optionKey) {
+    return { ok: false, status: 400, json: { success: false, error: '缺少 eventId 或 optionKey' } };
+  }
+
+  const [playerRows] = await pool.query('SELECT faction_id FROM players WHERE player_id = ?', [playerId]);
+  if (playerRows.length === 0) {
+    return { ok: false, status: 404, json: { success: false, error: '玩家不存在' } };
+  }
+  const factionId = playerRows[0].faction_id;
+
+  await playerExploreEventService.maybeResetExploreTroopChainsDaily(playerId);
+
+  const [eventRows] = await pool.query(
+    'SELECT option_a, option_b, required_items, chain_id, chain_level FROM config_events WHERE event_id = ?',
+    [eventId]
+  );
+  if (eventRows.length === 0) {
+    return { ok: false, status: 404, json: { success: false, error: '事件不存在' } };
+  }
+
+  const optionRaw = optionKey === 'A' ? eventRows[0].option_a : eventRows[0].option_b;
+  const option = typeof optionRaw === 'string' ? JSON.parse(optionRaw) : optionRaw;
+  if (!option) {
+    return { ok: false, status: 400, json: { success: false, error: '无效的选项' } };
+  }
+
+  if (eventRows[0].required_items) {
+    const eventItems = eventRows[0].required_items;
+    option.requiredItems = option.requiredItems
+      ? `${eventItems};${option.requiredItems}`
+      : eventItems;
+  }
+
+  // 仅事件链防重复；普通探索可重复。链上一环已完成但未拿下一环信物时可重做（与 filterExploreEventsPool 一致）
+  if (eventRows[0].chain_id) {
+    const [eventProgress] = await pool.query('SELECT explore_events FROM player_events WHERE player_id = ?', [
+      playerId,
+    ]);
+    if (eventProgress[0]) {
+      let events = {};
+      try {
+        events =
+          typeof eventProgress[0].explore_events === 'string'
+            ? JSON.parse(eventProgress[0].explore_events)
+            : eventProgress[0].explore_events || {};
+      } catch {}
+      if (events[eventId]?.status === 'completed') {
+        const stranded = await playerExploreEventService.isExploreChainStrandedRedo(
+          playerId,
+          eventRows[0].chain_id,
+          eventRows[0].chain_level
+        );
+        if (!stranded) {
+          return {
+            ok: false,
+            status: 400,
+            json: { success: false, error: '事件已完成，不可重复领取奖励' },
+          };
+        }
+      }
+    }
+  }
+
+  let fortune;
+  if (option.mainFactor === 'minigame' && minigameResult) {
+    const dice = minigameResult === 'victory' ? Math.floor(Math.random() * 6) + 1 : 2;
+    fortune =
+      minigameResult === 'victory'
+        ? { fortuneName: dice >= 5 ? '鸿运' : '吉', multiplier: 1.0, dice, finalRate: 100 }
+        : { fortuneName: '凶', multiplier: 0.5, dice, finalRate: 40 };
+  } else if (battleResult) {
+    fortune =
+      battleResult === 'victory'
+        ? { fortuneName: '凶', multiplier: 0.8, dice: 3, finalRate: 60 }
+        : { fortuneName: '大凶', multiplier: 0.5, dice: 1, finalRate: 30 };
+  } else {
+    fortune = calculateFortune(
+      option,
+      playerAttrs || { luck: 5, courage: 5, combat: 5, command: 5, intelligence: 5, politics: 5, charm: 5 },
+      general1Attrs || { luck: 5, courage: 5, combat: 5, command: 5, intelligence: 5, politics: 5, charm: 5 },
+      general2Attrs || { luck: 5, courage: 5, combat: 5, command: 5, intelligence: 5, politics: 5, charm: 5 }
+    );
+  }
+
+  const resourceFields = ['silver', 'food', 'reputation', 'contribution', 'morale'];
+  let troopRepairResults = [];
+  let deferredRepairSegments = [];
+
+  if (option.requiredItems) {
+    const costSegments = option.requiredItems
+      .split(';')
+      .map((s) => playerExploreEventService.parseEventCostSegment(s))
+      .filter(Boolean);
+
+    const immediateSegments = [];
+    deferredRepairSegments = [];
+    for (const seg of costSegments) {
+      const { key } = seg;
+      if (resourceFields.includes(key)) {
+        immediateSegments.push(seg);
+        continue;
+      }
+      if (key.includes('_item_') || key.startsWith('item_')) {
+        const specialEffect = await getItemSpecialEffect(key);
+        if (
+          isTroopDurabilityRepairEffect(specialEffect) &&
+          playerExploreEventService.shouldDeferTroopRepairAfterBattleRewards(option, battleResult, fortune)
+        ) {
+          deferredRepairSegments.push(seg);
+        } else {
+          immediateSegments.push(seg);
+        }
+      } else {
+        immediateSegments.push(seg);
+      }
+    }
+
+    const [prePlayer] = await pool.query(
+      'SELECT items, silver, food, reputation, contribution, morale FROM players WHERE player_id = ?',
+      [playerId]
+    );
+    if (!prePlayer[0]) {
+      return { ok: false, status: 404, json: { success: false, error: '玩家不存在' } };
+    }
+    const pr = prePlayer[0];
+    let inv = {};
+    if (pr.items) {
+      inv = typeof pr.items === 'string' ? JSON.parse(pr.items) : pr.items;
+    }
+
+    for (const { key, amount } of costSegments) {
+      if (resourceFields.includes(key)) {
+        const cur = Number(pr[key]) || 0;
+        if (cur < amount) {
+          return { ok: false, status: 400, json: { success: false, error: `${key}不足` } };
+        }
+      } else if (key.includes('_item_') || key.startsWith('item_')) {
+        const cur = Number(inv[key]) || 0;
+        if (cur < amount) {
+          return {
+            ok: false,
+            status: 400,
+            json: {
+              success: false,
+              error: '道具不足',
+              detail: { itemId: key, need: amount, have: cur },
+            },
+          };
+        }
+        const specialEffect = await getItemSpecialEffect(key);
+        if (isTroopDurabilityRepairEffect(specialEffect)) {
+          if (isLegendaryTroopRepairEffect(specialEffect)) {
+            const [chk] = await pool.query(
+              `SELECT instance_id FROM player_cards
+               WHERE player_id = ? AND card_type = 'troop' AND rarity = 'legendary' LIMIT 1`,
+              [playerId]
+            );
+            if (chk.length === 0) {
+              return {
+                ok: false,
+                status: 400,
+                json: { success: false, error: '暂无传奇部队，无法完成整编旧部' },
+              };
+            }
+          } else if (isCoreTroopRepairEffect(specialEffect)) {
+            const [chk] = await pool.query(
+              `SELECT instance_id FROM player_cards
+               WHERE player_id = ? AND card_type = 'troop' AND rarity = 'core' LIMIT 1`,
+              [playerId]
+            );
+            if (chk.length === 0) {
+              return {
+                ok: false,
+                status: 400,
+                json: { success: false, error: '暂无核心部队，无法完成整编旧部' },
+              };
+            }
+          }
+        }
+      }
+    }
+
+    for (const { key, amount } of immediateSegments) {
+      if (resourceFields.includes(key)) {
+        await pool.query(`UPDATE players SET ${key} = GREATEST(0, ${key} - ?) WHERE player_id = ?`, [
+          amount,
+          playerId,
+        ]);
+      } else if (key.includes('_item_') || key.startsWith('item_')) {
+        const [itemRows] = await pool.query('SELECT items FROM players WHERE player_id = ?', [playerId]);
+        let items = {};
+        if (itemRows[0]?.items) {
+          items = typeof itemRows[0].items === 'string' ? JSON.parse(itemRows[0].items) : itemRows[0].items;
+        }
+        items[key] = (items[key] || 0) - amount;
+        if (items[key] <= 0) delete items[key];
+        await pool.query('UPDATE players SET items = ? WHERE player_id = ?', [JSON.stringify(items), playerId]);
+
+        const specialEffect = await getItemSpecialEffect(key);
+        if (isTroopDurabilityRepairEffect(specialEffect)) {
+          for (let u = 0; u < amount; u++) {
+            try {
+              const one = await applyTroopRepairEffect(pool.query.bind(pool), playerId, specialEffect);
+              troopRepairResults.push(one);
+            } catch (e) {
+              if (e.code === 'NO_LEGENDARY_TROOP') {
+                return {
+                  ok: false,
+                  status: 400,
+                  json: { success: false, error: '暂无传奇部队，无法完成整编旧部' },
+                };
+              }
+              if (e.code === 'NO_CORE_TROOP') {
+                return {
+                  ok: false,
+                  status: 400,
+                  json: { success: false, error: '暂无核心部队，无法完成整编旧部' },
+                };
+              }
+              throw e;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  let rewardStr = option.rewards || '';
+
+  let bonusRewardStr = '';
+  if (fortune.fortuneName === '鸿运' && option.bonusRewards) {
+    bonusRewardStr = option.bonusRewards;
+  }
+
+  const result = await executeRewards(playerId, rewardStr, fortune.multiplier, factionId);
+
+  let bonusResult = null;
+  if (bonusRewardStr) {
+    bonusResult = await executeRewards(playerId, bonusRewardStr, 1.0, factionId);
+  }
+
+  if (deferredRepairSegments.length && battleResult === 'victory') {
+    for (const { key, amount } of deferredRepairSegments) {
+      if (resourceFields.includes(key)) {
+        await pool.query(`UPDATE players SET ${key} = GREATEST(0, ${key} - ?) WHERE player_id = ?`, [
+          amount,
+          playerId,
+        ]);
+      } else if (key.includes('_item_') || key.startsWith('item_')) {
+        const [itemRows] = await pool.query('SELECT items FROM players WHERE player_id = ?', [playerId]);
+        let items = {};
+        if (itemRows[0]?.items) {
+          items = typeof itemRows[0].items === 'string' ? JSON.parse(itemRows[0].items) : itemRows[0].items;
+        }
+        items[key] = (items[key] || 0) - amount;
+        if (items[key] <= 0) delete items[key];
+        await pool.query('UPDATE players SET items = ? WHERE player_id = ?', [JSON.stringify(items), playerId]);
+
+        const specialEffect = await getItemSpecialEffect(key);
+        if (isTroopDurabilityRepairEffect(specialEffect)) {
+          for (let u = 0; u < amount; u++) {
+            try {
+              const one = await applyTroopRepairEffect(pool.query.bind(pool), playerId, specialEffect);
+              troopRepairResults.push(one);
+            } catch (e) {
+              if (e.code === 'NO_LEGENDARY_TROOP') {
+                return {
+                  ok: false,
+                  status: 400,
+                  json: { success: false, error: '暂无传奇部队，无法完成整编旧部' },
+                };
+              }
+              if (e.code === 'NO_CORE_TROOP') {
+                return {
+                  ok: false,
+                  status: 400,
+                  json: { success: false, error: '暂无核心部队，无法完成整编旧部' },
+                };
+              }
+              throw e;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  if (battleSilverSpent && battleSilverSpent > 0) {
+    await pool.query('UPDATE players SET silver = GREATEST(0, silver - ?) WHERE player_id = ?', [
+      battleSilverSpent,
+      playerId,
+    ]);
+  }
+
+  if (minigameSilverDelta && minigameSilverDelta !== 0) {
+    if (minigameSilverDelta > 0) {
+      await pool.query('UPDATE players SET silver = silver + ? WHERE player_id = ?', [
+        minigameSilverDelta,
+        playerId,
+      ]);
+    } else {
+      await pool.query('UPDATE players SET silver = GREATEST(0, silver + ?) WHERE player_id = ?', [
+        minigameSilverDelta,
+        playerId,
+      ]);
+    }
+    console.log(`[PlayerEventRewards] 迷你游戏筹码结算: playerId=${playerId}, delta=${minigameSilverDelta}`);
+  }
+
+  if (battleScore && battleScore > 0) {
+    console.log(`[PlayerEventRewards] 更新战斗积分: playerId=${playerId}, battleScore=${battleScore}`);
+    await pool.query('UPDATE statistics SET total_battle_score = total_battle_score + ? WHERE player_id = ?', [
+      battleScore,
+      playerId,
+    ]);
+  } else {
+    console.log(
+      `[PlayerEventRewards] 战斗积分未更新: battleScore=${battleScore}, battleResult=${battleResult}`
+    );
+  }
+
+  // triggerBattle + 凶/大凶：先无 battleResult、战后再带 battleResult；第一次勿写入完成态，否则战后第二次会 400
+  const pendingPunishBattle =
+    option.triggerBattle &&
+    !battleResult &&
+    (fortune.fortuneName === '凶' || fortune.fortuneName === '大凶');
+  if (eventRows[0].chain_id && !pendingPunishBattle) {
+    await playerExploreEventService.recordExploreChainEventCompleted(
+      playerId,
+      eventId,
+      eventRows[0].chain_id,
+      eventRows[0].chain_level
+    );
+  }
+
+  return {
+    ok: true,
+    data: {
+      fortune: {
+        name: fortune.fortuneName,
+        multiplier: fortune.multiplier,
+        dice: fortune.dice,
+        diceMultiplier: fortune.diceMultiplier,
+        baseScore: fortune.baseScore,
+        finalRate: fortune.finalRate,
+      },
+      rewards: result.details,
+      bonusRewards: bonusResult ? bonusResult.details : [],
+      ...(troopRepairResults.length ? { troopRepair: troopRepairResults } : {}),
+    },
+  };
+}
+
+module.exports = {
+  executeEventRewards,
+};

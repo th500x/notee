@@ -2,11 +2,11 @@
  * 用户管理组件
  * 
  * @description 查看和管理已注册用户的工具
- * 右上角：刷新 / 一键清除（清除所有玩家数据） / 一键删除（删除所有banned账号）
+ * 右上角：刷新 / 一键清除 / 一键标记（封禁超14天未游戏活跃）/ 一键删除（删除所有封禁账号）
  * 每行：封禁/解封、清除、删除
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { gameUserAPI } from '@/services/api';
 import { useAdminToast } from '@/components/admin/useAdminToast';
 
@@ -43,6 +43,16 @@ const getCurrentBatchInfo = () => {
   };
 };
 
+/** 与后端 banAccountsInactiveLongerThan 一致：取账号 lastActiveAt 与玩家 last_active_at 的较晚者，缺失用注册时间兜底（不含「仅登录」单独维度） */
+const INACTIVE_MARK_DAYS = 14;
+
+function lastGameActivityMs(u) {
+  const reg = u.registeredAt ? new Date(u.registeredAt).getTime() : 0;
+  const acc = u.lastActiveAt ? new Date(u.lastActiveAt).getTime() : reg;
+  const pl = u.playerLastActiveAt ? new Date(u.playerLastActiveAt).getTime() : reg;
+  return Math.max(acc, pl);
+}
+
 const UserManager = () => {
   const { showToast, Toast } = useAdminToast();
   const [users, setUsers] = useState([]);
@@ -51,12 +61,25 @@ const UserManager = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   // 2步确认弹窗状态
-  const [confirmModal, setConfirmModal] = useState(null); // { type: 'purge'|'deleteBanned', step: 1|2 }
+  const [confirmModal, setConfirmModal] = useState(null); // { type: 'purge'|'deleteBanned'|'banInactive', step: 1|2 }
+  /** 单行操作弹窗（不用原生 prompt/confirm，避免 SES 等环境静默失败） */
+  const [userRowModal, setUserRowModal] = useState(null);
+  // null | { type:'clear'|'delete'|'unban', userId } | { type:'ban', userId, reason, durationDays }
 
   // 统计数据
   const totalCount = users.length;
   const activeCount = users.filter(u => u.status === 'active').length;
   const bannedCount = users.filter(u => u.status === 'banned').length;
+
+  const staleMarkCount = useMemo(() => {
+    const thresholdMs = INACTIVE_MARK_DAYS * 24 * 60 * 60 * 1000;
+    return users.filter(
+      (u) =>
+        u.status === 'active' &&
+        u.id !== 'sys1' &&
+        Date.now() - lastGameActivityMs(u) >= thresholdMs
+    ).length;
+  }, [users]);
 
   // 加载用户数据
   const loadUserData = async () => {
@@ -138,6 +161,19 @@ const UserManager = () => {
         } else {
           showToast('操作失败：' + result.error, 'error');
         }
+      } else if (confirmModal.type === 'banInactive') {
+        const result = await gameUserAPI.banInactiveUsers({ days: INACTIVE_MARK_DAYS });
+        if (result.success) {
+          showToast(`已封禁 ${result.bannedCount} 个账号（游戏内最后活跃已超过 ${INACTIVE_MARK_DAYS} 天）`);
+          const current = JSON.parse(localStorage.getItem('gameUser') || 'null');
+          if (current && result.userIds && result.userIds.includes(current.id)) {
+            localStorage.removeItem('gameUser');
+            setCurrentUser(null);
+          }
+          loadUserData();
+        } else {
+          showToast('操作失败：' + result.error, 'error');
+        }
       }
     } catch (err) {
       showToast('操作失败，请重试', 'error');
@@ -149,70 +185,95 @@ const UserManager = () => {
 
   // ========== 单用户操作 ==========
 
-  const deleteUser = async (userId) => {
-    if (!window.confirm(`确定要删除用户 ${userId} 吗？\n\n此操作不可恢复！`)) return;
+  const executeRowDelete = async () => {
+    if (!userRowModal || userRowModal.type !== 'delete') return;
+    const userId = userRowModal.userId;
+    setUserRowModal(null);
     setLoading(true);
-    const result = await gameUserAPI.deleteUser(userId);
-    setLoading(false);
-    if (result.success) {
-      showToast('删除成功');
-      // 如果删除的是当前登录用户，清除登录状态
-      const current = JSON.parse(localStorage.getItem('gameUser') || 'null');
-      if (current && current.id === userId) {
-        localStorage.removeItem('gameUser');
-        setCurrentUser(null);
+    try {
+      const result = await gameUserAPI.deleteUser(userId);
+      if (result.success) {
+        showToast('删除成功');
+        const current = JSON.parse(localStorage.getItem('gameUser') || 'null');
+        if (current && current.id === userId) {
+          localStorage.removeItem('gameUser');
+          setCurrentUser(null);
+        }
+        loadUserData();
+      } else {
+        showToast('删除失败：' + result.error, 'error');
       }
-      loadUserData();
-    } else {
-      showToast('删除失败：' + result.error, 'error');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const clearUserData = async (userId) => {
-    if (!window.confirm(`确定要清除用户 ${userId} 的游戏数据吗？\n\n将删除角色、卡牌、进度等数据，但保留账号。`)) return;
+  const executeRowClear = async () => {
+    if (!userRowModal || userRowModal.type !== 'clear') return;
+    const userId = userRowModal.userId;
+    setUserRowModal(null);
     setLoading(true);
-    const result = await gameUserAPI.clearUserData(userId);
-    setLoading(false);
-    if (result.success) {
-      showToast('游戏数据已清除');
-      loadUserData();
-    } else {
-      showToast('清除失败：' + result.error, 'error');
+    try {
+      const result = await gameUserAPI.clearUserData(userId);
+      if (result.success) {
+        showToast('游戏数据已清除');
+        loadUserData();
+      } else {
+        showToast('清除失败：' + result.error, 'error');
+      }
+    } finally {
+      setLoading(false);
     }
   };
 
-  const banUser = async (userId) => {
-    const reason = prompt('请输入封禁原因：', '违反用户协议');
-    if (!reason) return;
-    const durationStr = prompt('请输入封禁天数（0表示永久封禁）：', '7');
-    const duration = parseInt(durationStr);
-    if (isNaN(duration) || duration < 0) {
-      showToast('封禁天数必须是非负整数', 'error');
+  const executeBan = async () => {
+    if (!userRowModal || userRowModal.type !== 'ban') return;
+    const { userId, reason, durationDays } = userRowModal;
+    const trimmed = (reason || '').trim();
+    if (!trimmed) {
+      showToast('请填写封禁原因', 'error');
       return;
     }
-    if (!window.confirm(`确定要封禁用户 ${userId} 吗？\n原因：${reason}\n时长：${duration === 0 ? '永久' : duration + '天'}`)) return;
+    const duration = parseInt(durationDays, 10);
+    if (Number.isNaN(duration) || duration < 0) {
+      showToast('封禁天数必须是非负整数（0 表示永久）', 'error');
+      return;
+    }
+    setUserRowModal(null);
     setLoading(true);
-    const result = await gameUserAPI.banUser(userId, reason, duration === 0 ? null : duration);
-    setLoading(false);
-    if (result.success) {
-      showToast('封禁成功');
-      loadUserData();
-    } else {
-      showToast('封禁失败：' + result.error, 'error');
+    try {
+      const result = await gameUserAPI.banUser(userId, trimmed, duration === 0 ? null : duration);
+      if (result.success) {
+        showToast('封禁成功');
+        loadUserData();
+      } else {
+        showToast('封禁失败：' + result.error, 'error');
+      }
+    } finally {
+      setLoading(false);
     }
   };
 
-  const unbanUser = async (userId) => {
-    if (!window.confirm(`确定要解封用户 ${userId} 吗？`)) return;
+  const executeUnban = async () => {
+    if (!userRowModal || userRowModal.type !== 'unban') return;
+    const userId = userRowModal.userId;
+    setUserRowModal(null);
     setLoading(true);
-    const result = await gameUserAPI.unbanUser(userId);
-    setLoading(false);
-    if (result.success) {
-      showToast('解封成功');
-      loadUserData();
-    } else {
-      showToast('解封失败：' + result.error, 'error');
+    try {
+      const result = await gameUserAPI.unbanUser(userId);
+      if (result.success) {
+        showToast('解封成功');
+        loadUserData();
+      } else {
+        showToast('解封失败：' + result.error, 'error');
+      }
+    } finally {
+      setLoading(false);
     }
+  };
+
+  const updateBanField = (field, value) => {
+    setUserRowModal((m) => (m?.type === 'ban' ? { ...m, [field]: value } : m));
   };
 
   const formatTime = (isoString) => {
@@ -228,6 +289,14 @@ const UserManager = () => {
       step2Warning: '最后确认：确定要清除所有用户的玩家数据吗？此操作不可撤销！',
       step1Btn: '我已了解，继续清除（1/2）',
       step2Btn: '确认清除所有玩家数据（2/2）',
+    },
+    banInactive: {
+      title: '一键标记 - 封禁长期未活跃账号',
+      icon: '🏷️',
+      step1Warning: `将对当前仍为「活跃」状态、且游戏内最后活跃时间已超过 ${INACTIVE_MARK_DAYS} 天的账号批量封禁（约 ${staleMarkCount} 个）。判定方式：取账号 lastActiveAt 与玩家 last_active_at 中较晚者（与游戏内拉档、操作刷新一致），与「最后登录」无关；仅登录账号不更新游戏活跃。封禁原因：长期未活跃（一键标记）。`,
+      step2Warning: `最后确认：将对至多 ${staleMarkCount} 个符合条件的账号执行永久封禁（可解封）。确定继续？`,
+      step1Btn: '我已了解，继续标记（1/2）',
+      step2Btn: `确认封禁约 ${staleMarkCount} 个账号（2/2）`,
     },
     deleteBanned: {
       title: '一键删除 - 删除所有封禁账号',
@@ -297,6 +366,18 @@ const UserManager = () => {
                 className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
               >
                 🧹 一键清除
+              </button>
+              <button
+                type="button"
+                onClick={() => openConfirmModal('banInactive')}
+                disabled={staleMarkCount === 0}
+                className={`px-4 py-2 rounded-lg transition-colors ${
+                  staleMarkCount === 0
+                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    : 'bg-amber-700 text-white hover:bg-amber-800'
+                }`}
+              >
+                🏷️ 一键标记
               </button>
               <button
                 onClick={() => openConfirmModal('deleteBanned')}
@@ -462,12 +543,12 @@ const UserManager = () => {
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                           <div className="flex gap-2">
                             {user.status === 'banned' ? (
-                              <button onClick={() => unbanUser(user.id)} className="text-green-600 hover:text-green-900 transition-colors">解封</button>
+                              <button type="button" onClick={() => setUserRowModal({ type: 'unban', userId: user.id })} className="text-green-600 hover:text-green-900 transition-colors">解封</button>
                             ) : (
-                              <button onClick={() => banUser(user.id)} className="text-orange-600 hover:text-orange-900 transition-colors">封禁</button>
+                              <button type="button" onClick={() => setUserRowModal({ type: 'ban', userId: user.id, reason: '违反用户协议', durationDays: '7' })} className="text-orange-600 hover:text-orange-900 transition-colors">封禁</button>
                             )}
-                            <button onClick={() => clearUserData(user.id)} className="text-purple-600 hover:text-purple-900 transition-colors">清除</button>
-                            <button onClick={() => deleteUser(user.id)} className="text-red-600 hover:text-red-900 transition-colors">删除</button>
+                            <button type="button" onClick={() => setUserRowModal({ type: 'clear', userId: user.id })} className="text-purple-600 hover:text-purple-900 transition-colors">清除</button>
+                            <button type="button" onClick={() => setUserRowModal({ type: 'delete', userId: user.id })} className="text-red-600 hover:text-red-900 transition-colors">删除</button>
                           </div>
                         </td>
                       </tr>
@@ -478,6 +559,118 @@ const UserManager = () => {
             )}
           </div>
         </>
+      )}
+
+      {/* 单行操作：封禁表单 / 解封与清除·删除确认 */}
+      {userRowModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60]">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6 max-h-[90vh] overflow-y-auto">
+            {userRowModal.type === 'ban' && (
+              <>
+                <h3 className="text-lg font-bold text-gray-900 mb-2">封禁用户</h3>
+                <p className="text-sm text-gray-600 mb-4">
+                  用户 <span className="font-mono font-semibold">{userRowModal.userId}</span>
+                </p>
+                <label className="block text-sm text-gray-700 mb-2">
+                  封禁原因
+                  <input
+                    type="text"
+                    className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2"
+                    value={userRowModal.reason}
+                    onChange={(e) => updateBanField('reason', e.target.value)}
+                    placeholder="违反用户协议"
+                  />
+                </label>
+                <label className="block text-sm text-gray-700 mb-4">
+                  封禁天数
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 font-mono"
+                    value={userRowModal.durationDays}
+                    onChange={(e) => updateBanField('durationDays', e.target.value)}
+                    placeholder="7"
+                  />
+                  <span className="text-xs text-gray-500 mt-1 block">填写非负整数；<strong>0</strong> 表示永久封禁。</span>
+                </label>
+                <div className="flex gap-3 justify-end">
+                  <button type="button" onClick={() => setUserRowModal(null)} className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300">
+                    取消
+                  </button>
+                  <button type="button" onClick={executeBan} className="px-4 py-2 rounded-lg text-white font-medium bg-orange-600 hover:bg-orange-700">
+                    确认封禁
+                  </button>
+                </div>
+              </>
+            )}
+
+            {userRowModal.type === 'unban' && (
+              <>
+                <h3 className="text-lg font-bold text-gray-900 mb-2">确认解封</h3>
+                <div className="rounded-lg p-4 mb-4 text-sm bg-green-50 border border-green-200 text-green-900">
+                  <p>
+                    确定要解封用户 <span className="font-mono font-bold">{userRowModal.userId}</span> 吗？
+                  </p>
+                </div>
+                <div className="flex gap-3 justify-end">
+                  <button type="button" onClick={() => setUserRowModal(null)} className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300">
+                    取消
+                  </button>
+                  <button type="button" onClick={executeUnban} className="px-4 py-2 rounded-lg text-white font-medium bg-green-600 hover:bg-green-700">
+                    确认解封
+                  </button>
+                </div>
+              </>
+            )}
+
+            {(userRowModal.type === 'clear' || userRowModal.type === 'delete') && (
+              <>
+                <h3 className="text-lg font-bold text-gray-900 mb-2">
+                  {userRowModal.type === 'delete' ? '确认删除账号' : '确认清除游戏数据'}
+                </h3>
+                <div
+                  className={`rounded-lg p-4 mb-4 text-sm ${
+                    userRowModal.type === 'delete'
+                      ? 'bg-red-50 border border-red-200 text-red-900'
+                      : 'bg-purple-50 border border-purple-200 text-purple-900'
+                  }`}
+                >
+                  {userRowModal.type === 'delete' ? (
+                    <>
+                      <p>
+                        确定要<strong>永久删除</strong>用户 <span className="font-mono font-bold">{userRowModal.userId}</span> 吗？
+                      </p>
+                      <p className="mt-2">此操作不可恢复，将删除账号及关联数据。</p>
+                    </>
+                  ) : (
+                    <>
+                      <p>
+                        确定要清除用户 <span className="font-mono font-bold">{userRowModal.userId}</span> 的<strong>游戏数据</strong>吗？
+                      </p>
+                      <p className="mt-2">
+                        将删除角色、卡牌、进度等，<strong>保留账号</strong>。
+                      </p>
+                    </>
+                  )}
+                </div>
+                <div className="flex gap-3 justify-end">
+                  <button type="button" onClick={() => setUserRowModal(null)} className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300">
+                    取消
+                  </button>
+                  <button
+                    type="button"
+                    onClick={userRowModal.type === 'delete' ? executeRowDelete : executeRowClear}
+                    className={`px-4 py-2 rounded-lg text-white font-medium ${
+                      userRowModal.type === 'delete' ? 'bg-red-600 hover:bg-red-700' : 'bg-purple-600 hover:bg-purple-700'
+                    }`}
+                  >
+                    {userRowModal.type === 'delete' ? '确认删除' : '确认清除'}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
       )}
 
       {/* 2步确认弹窗 */}

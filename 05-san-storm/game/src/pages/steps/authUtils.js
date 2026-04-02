@@ -109,36 +109,51 @@ export const getMachineFingerprint = () => {
   return Math.abs(hash).toString(36);
 };
 
-// 获取IP地址和地理位置
-export const getClientIPAndLocation = async () => {
+/** 外网 IP 服务可能极慢或被限流；无超时会导致注册按钮长时间卡住，用户误以为失败并重试 */
+const IP_FETCH_TIMEOUT_MS = 4500;
+
+async function fetchJsonWithTimeout(url, timeoutMs = IP_FETCH_TIMEOUT_MS) {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const response = await fetch('https://ipapi.co/json/');
-    const data = await response.json();
-    
-    return {
-      ip: data.ip || 'unknown',
-      province: data.region || '未知',
-      city: data.city || '未知',
-      country: data.country_name || '未知'
-    };
+    const response = await fetch(url, { signal: controller.signal });
+    clearTimeout(id);
+    if (!response.ok) return null;
+    return await response.json();
   } catch (error) {
-    console.error('获取IP地理位置失败:', error);
-    try {
-      const response = await fetch('https://api.ipify.org?format=json');
-      const data = await response.json();
-      return {
-        ip: data.ip || 'unknown',
-        province: '未知',
-        city: '未知',
-        country: '未知'
-      };
-    } catch (err) {
-      return {
-        ip: 'unknown',
-        province: '未知',
-        city: '未知',
-        country: '未知'
-      };
-    }
+    clearTimeout(id);
+    return null;
   }
+}
+
+// 获取IP地址和地理位置（带超时与降级，避免阻塞注册主流程）
+export const getClientIPAndLocation = async () => {
+  const fallback = {
+    ip: 'unknown',
+    province: '未知',
+    city: '未知',
+    country: '未知',
+  };
+
+  const primary = await fetchJsonWithTimeout('https://ipapi.co/json/');
+  if (primary && primary.ip) {
+    return {
+      ip: primary.ip,
+      province: primary.region || '未知',
+      city: primary.city || '未知',
+      country: primary.country_name || '未知',
+    };
+  }
+
+  const secondary = await fetchJsonWithTimeout('https://api.ipify.org?format=json');
+  if (secondary && secondary.ip) {
+    return {
+      ip: secondary.ip,
+      province: '未知',
+      city: '未知',
+      country: '未知',
+    };
+  }
+
+  return fallback;
 };

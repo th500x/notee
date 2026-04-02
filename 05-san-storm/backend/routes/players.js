@@ -9,281 +9,18 @@ const Player = require('../models/Player');
 const PlayerService = require('../services/playerService');
 const { pool } = require('../database/connection');
 const { formatTroopData } = require('../services/configService');
-const { calculateFortune, executeRewards, FORTUNE_MULTIPLIERS } = require('../services/rewardService');
-const {
-  getItemSpecialEffect,
-  applyTroopRepairEffect,
-  isTroopDurabilityRepairEffect,
-  isLegendaryTroopRepairEffect,
-  isCoreTroopRepairEffect,
-} = require('../services/troopRepairService');
-const garrisonService = require('../services/garrisonService');
-const gameTimeService = require('../services/gameTimeService');
 const equipmentSetService = require('../services/equipmentSetService');
 const characterRankService = require('../services/characterRankService');
+const { getFactionFromTroopId } = require('../services/troopIdHelpers');
+const playerCardLineupService = require('../services/playerCardLineupService');
+const playerExploreEventService = require('../services/playerExploreEventService');
+const playerExploreQuotaService = require('../services/playerExploreQuotaService');
+const playerItemsService = require('../services/playerItemsService');
+const playerRerollService = require('../services/playerRerollService');
+const playerProfileService = require('../services/playerProfileService');
+const playerEventRewardsService = require('../services/playerEventRewardsService');
 
 const router = express.Router();
-
-/** 玩家所在服务器的当前游戏历法（供顶栏等；失败时返回 null 不阻断 profile） */
-async function loadGameTimeForPlayer(playerId) {
-  try {
-    const [accRows] = await pool.query('SELECT serverId FROM accounts WHERE id = ?', [playerId]);
-    const serverId = accRows[0]?.serverId;
-    if (!serverId) return null;
-    const [srvRows] = await pool.query(
-      `SELECT server_id, opened_at, season_start_time,
-              game_time_start_year, game_time_start_month, game_time_start_day,
-              game_time_real_hours_per_game_day
-       FROM config_servers WHERE server_id = ?`,
-      [serverId]
-    );
-    return gameTimeService.computeGameTimeFromServerRow(srvRows[0]);
-  } catch (e) {
-    console.warn('[Players] loadGameTimeForPlayer:', e.message);
-    return null;
-  }
-}
-
-/** 事件 requiredItems 单段解析：无冒号则数量 1 */
-function parseEventCostSegment(segment) {
-  const s = (segment || '').trim();
-  if (!s) return null;
-  const i = s.indexOf(':');
-  if (i === -1) return { key: s, amount: 1 };
-  const n = parseInt(s.slice(i + 1), 10);
-  return { key: s.slice(0, i), amount: Number.isFinite(n) && n > 0 ? n : 1 };
-}
-
-/** 与前端 playerMeetsEventRequiredItems 一致：链下一环 config_events.required_items 是否已满足 */
-function playerMeetsExploreChainGateItems(requiredItemsStr, itemsObject) {
-  if (!requiredItemsStr || !String(requiredItemsStr).trim()) return true;
-  const inv = itemsObject || {};
-  const segments = String(requiredItemsStr).split(';').map((s) => s.trim()).filter(Boolean);
-  for (const seg of segments) {
-    const colon = seg.indexOf(':');
-    const key = colon === -1 ? seg : seg.slice(0, colon);
-    const need = colon === -1 ? 1 : Math.max(1, parseInt(seg.slice(colon + 1), 10) || 1);
-    if (!key.startsWith('item_') && !key.includes('_item_')) continue;
-    if ((Number(inv[key]) || 0) < need) return false;
-  }
-  return true;
-}
-
-/**
- * 探索链：已完成本环但背包没有下一环钥匙道具 → 允许重做本环（否则前端池子也打不开、/rewards 又防重复会永久卡死）
- */
-async function isExploreChainStrandedRedo(playerId, chainId, chainLevel) {
-  const level = Number(chainLevel);
-  if (!chainId || !Number.isFinite(level)) return false;
-  const [nextRows] = await pool.query(
-    'SELECT required_items FROM config_events WHERE chain_id = ? AND chain_level = ? LIMIT 1',
-    [chainId, level + 1]
-  );
-  if (!nextRows?.length) return false;
-  const req = nextRows[0].required_items;
-  if (!req || !String(req).trim()) return false;
-  const [pRows] = await pool.query('SELECT items FROM players WHERE player_id = ?', [playerId]);
-  let inv = {};
-  if (pRows[0]?.items) {
-    inv = typeof pRows[0].items === 'string' ? JSON.parse(pRows[0].items) : pRows[0].items;
-  }
-  return !playerMeetsExploreChainGateItems(req, inv);
-}
-
-/** 南阳/山海关「部队」探索链：每日 0 点（服务器 CURDATE）后清除完成记录，可再打一轮 */
-const EXPLORE_TROOP_CHAIN_IDS_DAILY_RESET = ['chain_nanyang_troop', 'chain_shanhaiguan_troop'];
-
-function mysqlDateToYmd(val) {
-  if (val == null) return null;
-  if (val instanceof Date) {
-    const y = val.getFullYear();
-    const m = String(val.getMonth() + 1).padStart(2, '0');
-    const d = String(val.getDate()).padStart(2, '0');
-    return `${y}-${m}-${d}`;
-  }
-  const s = String(val);
-  return s.length >= 10 ? s.slice(0, 10) : s;
-}
-
-async function maybeResetExploreTroopChainsDaily(playerId) {
-  try {
-    await pool.query('INSERT IGNORE INTO player_events (player_id) VALUES (?)', [playerId]);
-    const [rows] = await pool.query(
-      'SELECT explore_events, explore_chain_reset_date FROM player_events WHERE player_id = ?',
-      [playerId]
-    );
-    const row = rows[0];
-    if (!row) return;
-
-    const [dr] = await pool.query('SELECT CURDATE() AS d');
-    const todayStr = mysqlDateToYmd(dr[0].d);
-
-    const storedStr = mysqlDateToYmd(row.explore_chain_reset_date);
-
-    // 仅当「本日已写过重置日期」时跳过。explore_chain_reset_date 为 NULL（迁移后首次）时必须清掉
-    // 部队链完成记录，否则旧存档仍视为链已完成 → 可探索事件池为 0，要等到次日才会跨日清理。
-    if (storedStr && storedStr >= todayStr) return;
-
-    let events = {};
-    if (row.explore_events) {
-      try {
-        events = typeof row.explore_events === 'string' ? JSON.parse(row.explore_events) : row.explore_events;
-      } catch { events = {}; }
-    }
-
-    const ph = EXPLORE_TROOP_CHAIN_IDS_DAILY_RESET.map(() => '?').join(',');
-    const [chainRows] = await pool.query(
-      `SELECT event_id FROM config_events WHERE chain_id IN (${ph})`,
-      EXPLORE_TROOP_CHAIN_IDS_DAILY_RESET
-    );
-    const ids = new Set(chainRows.map((r) => r.event_id));
-    for (const k of Object.keys(events)) {
-      if (ids.has(k)) delete events[k];
-    }
-    await pool.query(
-      'UPDATE player_events SET explore_events = ?, explore_chain_reset_date = ? WHERE player_id = ?',
-      [JSON.stringify(events), todayStr, playerId]
-    );
-  } catch (e) {
-    if (e.code === 'ER_BAD_FIELD_ERROR') {
-      console.warn('[Players] 未迁移 explore_chain_reset_date，部队链每日重置已跳过（请执行 add-explore-chain-daily-reset.sql）');
-      return;
-    }
-    throw e;
-  }
-}
-
-/**
- * 带战斗的选项：整编类道具延后到「战斗奖励」之后处理。
- * - 第一次请求且运势凶/大凶（将进入惩罚战斗）→ 延后到战后第二次请求再扣道具
- * - 第二次请求已带 battleResult → 延后到本段 executeRewards 之后（仅胜利时扣道具并整编，见下方 4b）
- * - 第一次请求且吉/鸿运（不进入战斗）→ 不延后，当场扣道具并整编
- */
-function shouldDeferTroopRepairAfterBattleRewards(option, battleResult, fortune) {
-  if (!option.triggerBattle) return false;
-  if (battleResult === 'victory' || battleResult === 'defeat') return true;
-  const n = fortune?.fortuneName;
-  return n === '凶' || n === '大凶';
-}
-
-// ── 卡牌特效 → 部队卡加成 通用机制 ──────────────────────────
-
-/** special_effect 字段映射 → player_cards bonus 字段 */
-const EFFECT_FIELD_MAP = {
-  'max_troops_bonus': 'bonus_max_troops',
-  'attack_bonus': 'bonus_attack',
-  'defense_bonus': 'bonus_defense',
-  'speed_bonus': 'bonus_speed',
-  'movement_bonus': 'bonus_movement',
-};
-
-/** 解析 special_effect 字符串为 bonus 对象 */
-function parseSpecialEffect(effectStr) {
-  if (!effectStr) return {};
-  const bonus = {};
-  effectStr.split(';').forEach(part => {
-    const [key, val] = part.trim().split(':');
-    if (!key || !val) return;
-    const field = EFFECT_FIELD_MAP[key];
-    if (field) bonus[field] = parseInt(val) || 0;
-  });
-  return bonus;
-}
-
-/** 根据 card_type 和 card_id 查询配置表获取 special_effect */
-async function getCardSpecialEffect(pool, cardType, cardId) {
-  const tableMap = {
-    'title': { table: 'config_titles', idField: 'title_id' },
-    'achievement': { table: 'config_achievements', idField: 'achievement_id' },
-    // 未来扩展：treasure、equipmentSet 等
-  };
-  const cfg = tableMap[cardType];
-  if (!cfg) return {};
-  const [rows] = await pool.query(
-    `SELECT special_effect FROM ${cfg.table} WHERE ${cfg.idField} = ?`, [cardId]
-  );
-  return parseSpecialEffect(rows[0]?.special_effect);
-}
-
-/** 装备卡牌时：将特效加成写入同一 equippedBy 下的所有部队卡 */
-async function applyCardBonusToTroops(pool, playerId, equippedBy, cardType, cardId) {
-  const bonus = await getCardSpecialEffect(pool, cardType, cardId);
-  if (Object.keys(bonus).length === 0) return;
-
-  const sets = Object.entries(bonus).map(([field, val]) => `${field} = ${field} + ${val}`).join(', ');
-  await pool.query(
-    `UPDATE player_cards SET ${sets}
-     WHERE player_id = ? AND equipped_by = ? AND card_type = 'troop' AND is_equipped = TRUE`,
-    [playerId, equippedBy]
-  );
-  // 如果有兵力上限加成，部队卡会产生缺口，写入恢复起始时间
-  if (bonus.bonus_max_troops) {
-    await pool.query(
-      `UPDATE player_cards SET last_troops_lost_at = NOW()
-       WHERE player_id = ? AND equipped_by = ? AND card_type = 'troop' AND is_equipped = TRUE
-       AND last_troops_lost_at IS NULL`,
-      [playerId, equippedBy]
-    );
-  }
-  console.log(`[CardBonus] 应用特效: ${cardType}/${cardId} → ${equippedBy} 部队卡 (${JSON.stringify(bonus)})`);
-}
-
-/** 需要触发特效的卡牌类型 */
-const EFFECT_CARD_TYPES = ['title', 'achievement', 'treasure'];
-
-/**
- * 编组「将领卡」数据修复：旧版前端若把将领装到错误 owner（如 player），或同槽残留多张卡，
- * 会导致界面与 DB 不一致、卸下后「将领消失」、新获得的同名卡仍显示为已装备。
- * 在拉取档案前执行，将异常卡卸回背包（保留每槽最新获得的一张，其余卸下）。
- */
-async function repairLineupCharacterCards(pool, playerId) {
-  let fixed = 0;
-  const [orphans] = await pool.query(
-    `SELECT instance_id FROM player_cards
-     WHERE player_id = ?
-       AND card_type = 'character'
-       AND is_equipped = TRUE
-       AND (
-         equipped_by NOT IN ('character1', 'character2')
-         OR equipped_slot IS NULL
-         OR equipped_slot != 'character'
-       )`,
-    [playerId]
-  );
-  for (const row of orphans) {
-    const [r] = await pool.query(
-      `UPDATE player_cards SET is_equipped = FALSE, equipped_by = NULL, equipped_slot = NULL
-       WHERE instance_id = ? AND player_id = ?`,
-      [row.instance_id, playerId]
-    );
-    fixed += r.affectedRows || 0;
-  }
-  for (const by of ['character1', 'character2']) {
-    const [dups] = await pool.query(
-      `SELECT instance_id FROM player_cards
-       WHERE player_id = ?
-         AND card_type = 'character'
-         AND is_equipped = TRUE
-         AND equipped_by = ?
-         AND equipped_slot = 'character'
-       ORDER BY obtained_at DESC, instance_id DESC`,
-      [playerId, by]
-    );
-    if (dups.length <= 1) continue;
-    for (let i = 1; i < dups.length; i++) {
-      const [r] = await pool.query(
-        `UPDATE player_cards SET is_equipped = FALSE, equipped_by = NULL, equipped_slot = NULL
-         WHERE instance_id = ? AND player_id = ?`,
-        [dups[i].instance_id, playerId]
-      );
-      fixed += r.affectedRows || 0;
-    }
-  }
-  if (fixed > 0) {
-    console.log(`[Players] repairLineupCharacterCards: player=${playerId} fixed=${fixed}`);
-    characterRankService.refreshSnapshotsForPlayer(playerId).catch(() => {});
-  }
-}
 
 /**
  * GET /api/players/avatars
@@ -960,28 +697,6 @@ router.delete('/:playerId/creation-progress', async (req, res) => {
   }
 });
 
-// 辅助函数：从troop_id推断势力名称
-function getFactionFromTroopId(troopId) {
-  // troop_id格式：san_1_troop_1001
-  // 第四部分的第一位数字代表势力：0=通用, 1=刘备, 2=曹操, 3=孙坚, 4=袁绍, 5=董卓, 6=汉室, 7=黄巾
-  const parts = troopId.split('_');
-  if (parts.length >= 4) {
-    const factionCode = parts[3].charAt(0);
-    const factionMap = {
-      '0': '通用',
-      '1': '刘备',
-      '2': '曹操',
-      '3': '孙坚',
-      '4': '袁绍',
-      '5': '董卓',
-      '6': '汉室',
-      '7': '黄巾'
-    };
-    return factionMap[factionCode] || '通用';
-  }
-  return '通用';
-}
-
 /**
  * GET /api/players/:playerId/profile
  * 获取玩家完整档案（基础信息 + 卡牌）
@@ -1009,480 +724,14 @@ router.get('/:playerId/character-rank', async (req, res) => {
 router.get('/:playerId/profile', async (req, res) => {
   try {
     const { playerId } = req.params;
-
-    // 1. 获取玩家基础信息
-    const player = await Player.getById(playerId);
-    if (!player) {
+    const result = await playerProfileService.getPlayerProfile(playerId);
+    if (result.notFound) {
       return res.status(404).json({
         success: false,
         error: '玩家不存在'
       });
     }
-
-    // 1.1 披挂上阵：待战城池/势力无效或旧版仅有 on_duty 无 on_duty_city_id 时清除
-    const clearedStaleOnDuty = await garrisonService.clearInvalidOnDutySelection(playerId);
-    if (clearedStaleOnDuty) {
-      player.on_duty = false;
-      player.on_duty_city_id = null;
-    }
-
-    // 1.5 获取玩家进度（tutorial_current_step）
-    const [progressRows] = await pool.query(
-      'SELECT tutorial_current_step FROM player_progress WHERE player_id = ?',
-      [playerId]
-    );
-    const tutorialStep = progressRows[0]?.tutorial_current_step ?? 1;
-
-    // 1.6 获取官职完整配置（如果有官职）
-    let positionConfig = null;
-    if (player.current_position_id) {
-      const [posRows] = await pool.query(
-        `SELECT position_id, position_name, position_level, position_rank, rarity,
-                icon, description, requirement, position_bonuses, permissions
-         FROM config_positions WHERE position_id = ?`,
-        [player.current_position_id]
-      );
-      if (posRows[0]) {
-        const p = posRows[0];
-        let bonuses = {};
-        let perms = [];
-        try { bonuses = typeof p.position_bonuses === 'string' ? JSON.parse(p.position_bonuses) : (p.position_bonuses || {}); } catch {}
-        try { perms = typeof p.permissions === 'string' ? JSON.parse(p.permissions) : (p.permissions || []); } catch {}
-        positionConfig = {
-          id: p.position_id,
-          name: p.position_name,
-          level: p.position_level,
-          rank: p.position_rank,
-          rarity: p.rarity || 'common',
-          icon: p.icon,
-          description: p.description,
-          requirement: p.requirement,
-          permissions: perms,
-          position_bonuses: {
-            reputationBonus: bonuses.reputation || 0,
-            contributionBonus: bonuses.contribution || 0,
-            resourceBonus: bonuses.resource || 0,
-            infantryBonus: bonuses.infantry || 0,
-            cavalryBonus: bonuses.cavalry || 0,
-            archerBonus: bonuses.archer || 0,
-          },
-        };
-      }
-    }
-
-    await repairLineupCharacterCards(pool, playerId);
-
-    // 2. 获取玩家所有卡牌（关联配置表读取固定属性）
-    const [cards] = await pool.query(`
-      SELECT 
-        pc.instance_id,
-        pc.card_type,
-        pc.card_id,
-        pc.rarity,
-        pc.current_troops,
-        pc.morale,
-        pc.battle_count,
-        pc.max_battle_count,
-        pc.bonus_max_troops,
-        pc.bonus_attack,
-        pc.bonus_defense,
-        pc.bonus_speed,
-        pc.bonus_movement,
-        pc.last_troops_lost_at,
-        pc.is_equipped,
-        pc.equipped_by,
-        pc.equipped_slot,
-        pc.obtained_at,
-        pc.equipment_set_data,
-        pc.bound_equipment_set_instance_id
-      FROM player_cards pc
-      WHERE pc.player_id = ?
-      ORDER BY pc.is_equipped DESC, pc.card_type, pc.obtained_at
-    `, [playerId]);
-
-    // 2.5 自动结算部队卡兵力恢复（恢复速率：10兵/分钟，粮草消耗：恢复兵力/10）
-    let playerFood = player.food || 0;
-    for (const card of cards) {
-      if (card.card_type !== 'troop' || !card.last_troops_lost_at) continue;
-      // 查配置表获取 max_troops
-      const [troopCfgRows] = await pool.query('SELECT max_troops FROM config_troops WHERE troop_id = ?', [card.card_id]);
-      const cfgMaxTroops = troopCfgRows[0]?.max_troops || 0;
-      const maxTroops = cfgMaxTroops + (card.bonus_max_troops || 0);
-      const gap = maxTroops - (card.current_troops || 0);
-      if (gap <= 0) {
-        // 已满编，清除恢复状态
-        await pool.query('UPDATE player_cards SET last_troops_lost_at = NULL WHERE instance_id = ?', [card.instance_id]);
-        card.last_troops_lost_at = null;
-        continue;
-      }
-      // 从 last_troops_lost_at 起算真实经过时间；结算后必须推进该锚点，否则每次拉档都会按「整段经过时间」重复兑现（F5/上阵卸下刷 profile 会刷兵）
-      const t0Ms = new Date(card.last_troops_lost_at).getTime();
-      const elapsedMs = Date.now() - t0Ms;
-      const elapsedMin = elapsedMs / 60000;
-      const canRecover = Math.floor(elapsedMin * 10); // 每分钟恢复10兵
-      if (canRecover <= 0) continue;
-      const foodNeededForFull = Math.ceil(gap / 10);
-      const foodAvailable = playerFood;
-      const maxRecoverByFood = foodAvailable * 10;
-      const actualRecover = Math.min(canRecover, gap, maxRecoverByFood);
-      if (actualRecover <= 0) continue;
-      const foodCost = Math.ceil(actualRecover / 10);
-      // 更新数据库
-      const newTroops = (card.current_troops || 0) + actualRecover;
-      const isFull = newTroops >= maxTroops;
-      /** 本次恢复的兵力对应消耗的时间（分钟），用于推进锚点，避免重复结算 */
-      const minutesConsumed = actualRecover / 10;
-      const newLastTroopsLostAt = isFull ? null : new Date(t0Ms + minutesConsumed * 60000);
-      await pool.query(
-        `UPDATE player_cards SET current_troops = ?, last_troops_lost_at = ? WHERE instance_id = ?`,
-        [Math.min(newTroops, maxTroops), newLastTroopsLostAt, card.instance_id]
-      );
-      await pool.query('UPDATE players SET food = food - ? WHERE player_id = ?', [foodCost, playerId]);
-      // 更新内存中的值
-      card.current_troops = Math.min(newTroops, maxTroops);
-      if (isFull) card.last_troops_lost_at = null;
-      else card.last_troops_lost_at = newLastTroopsLostAt;
-      playerFood -= foodCost;
-      player.food = playerFood;
-      console.log(`[TroopRecover] ${card.card_id}: +${actualRecover}兵 -${foodCost}粮 (${card.current_troops}/${maxTroops})`);
-    }
-
-    // 3. 为部队卡关联配置数据
-    const troopCards = cards.filter(c => c.card_type === 'troop');
-    let troopConfigs = {};
-    if (troopCards.length > 0) {
-      const troopIds = troopCards.map(c => c.card_id);
-      const placeholders = troopIds.map(() => '?').join(',');
-      const [configs] = await pool.query(`
-        SELECT troop_id, troop_name, troop_type, weapon_type,
-               rarity, attack, defense, speed, movement, \`range\`,
-               max_troops, special_ability, description
-        FROM config_troops
-        WHERE troop_id IN (${placeholders})
-      `, troopIds);
-      configs.forEach(c => { troopConfigs[c.troop_id] = c; });
-    }
-
-    // 3b. 为装备件关联配置数据
-    const equipCards = cards.filter(c => c.card_type === 'equipment');
-    let equipConfigs = {};
-    if (equipCards.length > 0) {
-      const equipIds = equipCards.map(c => c.card_id);
-      const placeholders2 = equipIds.map(() => '?').join(',');
-      const [eConfigs] = await pool.query(`
-        SELECT equipment_id, equipment_name, luck_bonus, courage_bonus,
-               combat_bonus, command_bonus, intelligence_bonus, politics_bonus,
-               charm_bonus, special_effect, special_effect_desc, description
-        FROM config_equipment
-        WHERE equipment_id IN (${placeholders2})
-      `, equipIds);
-      eConfigs.forEach(c => { equipConfigs[c.equipment_id] = c; });
-    }
-    // 装备实例 -> 属性加成（保持与 title/achievement 一致的“×10整数”口径）
-    const equipBonusByInstance = {};
-    for (const ec of equipCards) {
-      const cfg = equipConfigs[ec.card_id];
-      if (!cfg) continue;
-      equipBonusByInstance[ec.instance_id] = {
-        luck: Number(cfg.luck_bonus || 0),
-        courage: Number(cfg.courage_bonus || 0),
-        combat: Number(cfg.combat_bonus || 0),
-        command: Number(cfg.command_bonus || 0),
-        intelligence: Number(cfg.intelligence_bonus || 0),
-        politics: Number(cfg.politics_bonus || 0),
-        charm: Number(cfg.charm_bonus || 0),
-      };
-    }
-    // 套装实例 -> 绑定的装备件实例ID（兜底：当 equipment_set_data 的槽位键缺失时仍可正确聚合）
-    const boundPieceIdsBySet = {};
-    for (const ec of equipCards) {
-      const setId = ec.bound_equipment_set_instance_id;
-      if (!setId) continue;
-      if (!boundPieceIdsBySet[setId]) boundPieceIdsBySet[setId] = [];
-      boundPieceIdsBySet[setId].push(ec.instance_id);
-    }
-
-    // 3c. 为称号卡关联配置数据
-    const titleCards = cards.filter(c => c.card_type === 'title');
-    let titleConfigs = {};
-    if (titleCards.length > 0) {
-      const titleIds = titleCards.map(c => c.card_id);
-      const placeholders3 = titleIds.map(() => '?').join(',');
-      const [tConfigs] = await pool.query(`
-        SELECT title_id, title_name, description, display_name,
-               attribute_bonus, special_effect, special_effect_desc
-        FROM config_titles
-        WHERE title_id IN (${placeholders3})
-      `, titleIds);
-      tConfigs.forEach(c => { titleConfigs[c.title_id] = c; });
-    }
-
-    // 3d. 为将领卡关联配置数据
-    const charCards = cards.filter(c => c.card_type === 'character');
-    let charConfigs = {};
-    if (charCards.length > 0) {
-      const charIds = charCards.map(c => c.card_id);
-      const placeholders4 = charIds.map(() => '?').join(',');
-      const [cConfigs] = await pool.query(`
-        SELECT character_id, character_name, rarity, stage, character_type,
-               luck, courage, combat, command, intelligence, politics, charm,
-               troop_affinity, trait, trait_modifier,
-               skill_1, skill_2, character_extra
-        FROM config_characters
-        WHERE character_id IN (${placeholders4})
-      `, charIds);
-      cConfigs.forEach(c => { charConfigs[c.character_id] = c; });
-    }
-
-    // 装备件ID解析辅助函数
-    const equipTypeMap = { '1': 'weapon', '2': 'armor', '3': 'accessory' };
-    const equipRarityMap = { '1': 'common', '2': 'rare', '3': 'epic', '4': 'legendary', '5': 'core' };
-    const equipRarityScore = { common: 1, rare: 2, epic: 3, legendary: 4, core: 5 };
-    const equipmentSetTierFromScore = (score) => {
-      const s = Number(score) || 0;
-      if (s <= 4) return 'common';
-      if (s <= 8) return 'rare';
-      if (s <= 12) return 'epic';
-      if (s <= 16) return 'legendary';
-      return 'core';
-    };
-    function parseEquipmentId(id) {
-      // san_1_equip_T_RYYY → T=类型编号, R=稀有度首位
-      const parts = id.split('_');
-      const typeCode = parts[3] || '1';
-      const seqStr = parts[4] || '1001';
-      return {
-        equipmentType: equipTypeMap[typeCode] || 'weapon',
-        rarity: equipRarityMap[seqStr.charAt(0)] || 'common',
-      };
-    }
-    // 装备实例 -> 稀有度分值（用于 equipmentSet 名称颜色/档位）
-    const equipScoreByInstance = {};
-    for (const ec of equipCards) {
-      const parsed = parseEquipmentId(ec.card_id);
-      const rarity = parsed.rarity || ec.rarity || 'common';
-      equipScoreByInstance[ec.instance_id] = equipRarityScore[rarity] || 1;
-    }
-
-    // 4. 组装卡牌数据
-    const enrichedCards = cards.map(card => {
-      if (card.card_type === 'character' && charConfigs[card.card_id]) {
-        const cfg = charConfigs[card.card_id];
-        // 解析 character_extra JSON
-        let extra = {};
-        if (cfg.character_extra) {
-          try { extra = typeof cfg.character_extra === 'string' ? JSON.parse(cfg.character_extra) : cfg.character_extra; } catch {}
-        }
-        return {
-          ...card,
-          config: {
-            id: cfg.character_id,
-            name: cfg.character_name,
-            rarity: cfg.rarity,
-            stage: cfg.stage,
-            characterType: cfg.character_type,
-            luck: cfg.luck / 10,
-            courage: cfg.courage / 10,
-            combat: cfg.combat / 10,
-            command: cfg.command / 10,
-            intelligence: cfg.intelligence / 10,
-            politics: cfg.politics / 10,
-            charm: cfg.charm / 10,
-            troopAffinity: cfg.troop_affinity,
-            trait: cfg.trait,
-            traitModifier: cfg.trait_modifier,
-            skills: [cfg.skill_1, cfg.skill_2].filter(Boolean),
-            bond: Array.isArray(extra.bonds) ? extra.bonds.join(';') : (extra.bond || null),
-            biography: extra.biography || null,
-            description: extra.description || null,
-            avatar: extra.avatar || null,
-          }
-        };
-      }
-      if (card.card_type === 'troop' && troopConfigs[card.card_id]) {
-        const config = troopConfigs[card.card_id];
-        // 使用统一的formatTroopData转换为camelCase
-        const formatted = formatTroopData(config);
-        // 添加faction字段
-        formatted.faction = getFactionFromTroopId(config.troop_id);
-        return {
-          ...card,
-          config: formatted
-        };
-      }
-      if (card.card_type === 'equipment' && equipConfigs[card.card_id]) {
-        const cfg = equipConfigs[card.card_id];
-        const parsed = parseEquipmentId(card.card_id);
-        return {
-          ...card,
-          config: {
-            equipmentId: cfg.equipment_id,
-            equipmentName: cfg.equipment_name,
-            equipmentType: parsed.equipmentType,
-            rarity: parsed.rarity,
-            luckBonus: (cfg.luck_bonus || 0) / 10,
-            courageBonus: (cfg.courage_bonus || 0) / 10,
-            combatBonus: (cfg.combat_bonus || 0) / 10,
-            commandBonus: (cfg.command_bonus || 0) / 10,
-            intelligenceBonus: (cfg.intelligence_bonus || 0) / 10,
-            politicsBonus: (cfg.politics_bonus || 0) / 10,
-            charmBonus: (cfg.charm_bonus || 0) / 10,
-            specialEffect: cfg.special_effect || null,
-            specialEffectDesc: cfg.special_effect_desc || null,
-            description: cfg.description || null,
-          }
-        };
-      }
-      if (card.card_type === 'equipmentSet') {
-        const d = equipmentSetService.parseSetData(card.equipment_set_data);
-        const attr = {};
-        const slotPieceIds = [
-          d.weapon_instance_id,
-          d.armor_instance_id,
-          d.accessory_1_instance_id,
-          d.accessory_2_instance_id,
-        ].filter(Boolean);
-        // 属性聚合以“当前绑定关系”为准；仅在无绑定数据时回退到 JSON 槽位，避免历史脏槽位导致数值错误
-        const boundPieceIds = boundPieceIdsBySet[card.instance_id] || [];
-        const pieceIds = boundPieceIds.length > 0
-          ? boundPieceIds
-          : slotPieceIds;
-        for (const pid of pieceIds) {
-          const b = equipBonusByInstance[pid];
-          if (!b) continue;
-          Object.entries(b).forEach(([k, v]) => {
-            attr[k] = (attr[k] || 0) + (Number(v) || 0);
-          });
-        }
-        const totalScore = pieceIds.reduce((sum, pid) => sum + (equipScoreByInstance[pid] || 1), 0);
-        const setRarity = equipmentSetTierFromScore(totalScore);
-        return {
-          ...card,
-          config: {
-            equipmentSetShell: true,
-            rarity: setRarity,
-            displayName: d.display_name || null,
-            weaponInstanceId: d.weapon_instance_id || null,
-            armorInstanceId: d.armor_instance_id || null,
-            accessory1InstanceId: d.accessory_1_instance_id || null,
-            accessory2InstanceId: d.accessory_2_instance_id || null,
-            totalScore,
-            attributeBonus: attr,
-          },
-        };
-      }
-      if (card.card_type === 'title' && titleConfigs[card.card_id]) {
-        const cfg = titleConfigs[card.card_id];
-        // 从ID解析稀有度：san_1_title_1_5001 → 最后一段首位
-        const idRarityMap = { '1': 'common', '2': 'rare', '3': 'epic', '4': 'legendary', '5': 'core' };
-        const parts = card.card_id.split('_');
-        const seqStr = parts[parts.length - 1] || '';
-        const rarity = idRarityMap[seqStr.charAt(0)] || 'common';
-        // 解析 attribute_bonus JSON
-        let attributeBonus = {};
-        if (cfg.attribute_bonus) {
-          try { attributeBonus = typeof cfg.attribute_bonus === 'string' ? JSON.parse(cfg.attribute_bonus) : cfg.attribute_bonus; } catch {}
-        }
-        return {
-          ...card,
-          config: {
-            id: cfg.title_id,
-            name: cfg.title_name,
-            rarity,
-            description: cfg.description || null,
-            displayName: cfg.display_name || null,
-            attributeBonus,
-            specialEffect: cfg.special_effect || null,
-            specialEffectDesc: cfg.special_effect_desc || null,
-          }
-        };
-      }
-      return card;
-    });
-
-    // 5. 更新最后活跃时间
-    await Player.updateLastActive(playerId);
-
-    // 5. 计算已装备卡牌的属性加成总和（称号/成就/宝物的 attribute_bonus）
-    // 按 equippedBy 分组，player/character1/character2 各自独立
-    const attributeBonusBySlot = { player: {}, character1: {}, character2: {} };
-    for (const card of enrichedCards) {
-      if (!card.is_equipped || !card.config) continue;
-      const ab = card.config.attributeBonus;
-      if (!ab || typeof ab !== 'object') continue;
-      const slot = card.equipped_by || 'player';
-      if (!attributeBonusBySlot[slot]) attributeBonusBySlot[slot] = {};
-      Object.entries(ab).forEach(([key, val]) => {
-        attributeBonusBySlot[slot][key] = (attributeBonusBySlot[slot][key] || 0) + (Number(val) || 0);
-      });
-    }
-
-    // 5b. 计算驻守卡牌的属性加成（称号/成就/宝物 → garrison_char1/garrison_char2）
-    const garrisons = await garrisonService.getPlayerGarrisons(playerId);
-    for (const g of garrisons) {
-      for (const charKey of ['char1', 'char2']) {
-        const effectFields = [`${charKey}_title`, `${charKey}_achievement`, `${charKey}_treasure`];
-        for (const field of effectFields) {
-          const instanceId = g[field];
-          if (!instanceId) continue;
-          const card = enrichedCards.find(c => c.instance_id === instanceId);
-          if (!card?.config?.attributeBonus) continue;
-          const slotKey = `garrison${g.garrison_slot}_${charKey}`;
-          if (!attributeBonusBySlot[slotKey]) attributeBonusBySlot[slotKey] = {};
-          Object.entries(card.config.attributeBonus).forEach(([key, val]) => {
-            attributeBonusBySlot[slotKey][key] = (attributeBonusBySlot[slotKey][key] || 0) + (Number(val) || 0);
-          });
-        }
-      }
-    }
-
-    const gameTime = await loadGameTimeForPlayer(playerId);
-
-    res.json({
-      success: true,
-      data: {
-        player: {
-          player_id: player.player_id,
-          character_name: player.character_name,
-          faction_id: player.faction_id,
-          faction_name: player.faction_name,
-          avatar: player.avatar,
-          reputation: player.reputation,
-          reputation_to_next: player.reputation_to_next,
-          contribution: player.contribution,
-          silver: player.silver,
-          food: player.food,
-          combat: player.combat,
-          intelligence: player.intelligence,
-          command: player.command,
-          politics: player.politics,
-          charm: player.charm,
-          courage: player.courage,
-          luck: player.luck,
-          skill_1: player.skill_1,
-          skill_2: player.skill_2,
-          current_position_id: player.current_position_id,
-          current_position_name: player.current_position_name,
-          position_level: player.position_level,
-          position_config: positionConfig,  // 官职完整配置（含加成/权限）
-          morale: player.morale,
-          items: player.items ? (typeof player.items === 'string' ? JSON.parse(player.items) : player.items) : {},
-          troop_affinity: player.troop_affinity,
-          trait: player.trait,
-          trait_modifier: player.trait_modifier,
-          on_duty: !!player.on_duty,
-          on_duty_city_id: player.on_duty_city_id || null,
-          bonus_backpack_capacity: player.bonus_backpack_capacity ?? 0,
-          bonus_daily_events: player.bonus_daily_events ?? 0,
-          tutorial_step: tutorialStep,
-          attribute_bonus: attributeBonusBySlot.player,  // 玩家自身的属性加成
-        },
-        cards: enrichedCards,
-        attributeBonusBySlot,  // 各角色的属性加成（前端用于将领卡显示）
-        gameTime, // { year, month, day, elapsedGameDays, realHoursPerGameDay, anchorAt, serverId } | null
-      }
-    });
-
+    res.json({ success: true, data: result.data });
   } catch (error) {
     console.error('[Players] 获取玩家档案失败:', error);
     res.status(500).json({
@@ -1531,135 +780,11 @@ router.post('/:playerId/progress/tutorial', async (req, res) => {
 router.post('/:playerId/cards/equip', async (req, res) => {
   try {
     const { playerId } = req.params;
-    const { instanceId, equippedBy, equippedSlot } = req.body;
-
-    if (!instanceId || !equippedBy || !equippedSlot) {
-      return res.status(400).json({ success: false, error: '缺少必要参数' });
+    const result = await playerCardLineupService.equipCard(playerId, req.body);
+    if (!result.ok) {
+      return res.status(result.status).json({ success: false, error: result.error });
     }
-
-    // 验证卡牌归属
-    const [cards] = await pool.query(
-      'SELECT * FROM player_cards WHERE instance_id = ? AND player_id = ?',
-      [instanceId, playerId]
-    );
-    if (cards.length === 0) {
-      return res.status(404).json({ success: false, error: '卡牌不存在' });
-    }
-
-    const cardToEquip = cards[0];
-    if (
-      cardToEquip.card_type === 'troop' &&
-      cardToEquip.rarity === 'core' &&
-      cardToEquip.max_battle_count != null
-    ) {
-      const used = Math.max(0, cardToEquip.battle_count ?? 0);
-      if (used >= cardToEquip.max_battle_count) {
-        return res.status(400).json({
-          success: false,
-          error: '核心(金)部队耐久已耗尽，无法再次装备上阵，仅作纪念与下赛季继承',
-        });
-      }
-    }
-
-    if (cardToEquip.card_type === 'character') {
-      if (!['character1', 'character2'].includes(equippedBy) || equippedSlot !== 'character') {
-        return res.status(400).json({
-          success: false,
-          error: '将领卡只能装备在将领1 / 将领2 的将领槽',
-        });
-      }
-    }
-
-    // 先卸下该槽位上已有的卡牌（同一槽多卡时全部卸下，避免旧版 bug 残留第二张仍 is_equipped）
-    const [oldCards] = await pool.query(
-      `SELECT instance_id, card_type, card_id FROM player_cards
-       WHERE player_id = ? AND equipped_by = ? AND equipped_slot = ? AND is_equipped = TRUE`,
-      [playerId, equippedBy, equippedSlot]
-    );
-    if (oldCards.length > 0) {
-      const oldIds = oldCards.map((o) => o.instance_id);
-      await pool.query(
-        `UPDATE player_cards SET is_equipped = FALSE, equipped_by = NULL, equipped_slot = NULL
-         WHERE player_id = ? AND instance_id IN (${oldIds.map(() => '?').join(',')})`,
-        [playerId, ...oldIds]
-      );
-      for (const old of oldCards) {
-        if (old.card_type === 'troop') {
-          await pool.query(
-            `UPDATE player_cards SET bonus_max_troops=0, bonus_attack=0, bonus_defense=0, bonus_speed=0, bonus_movement=0
-             WHERE instance_id = ?`,
-            [old.instance_id]
-          );
-        }
-      }
-      if (oldCards.some((o) => EFFECT_CARD_TYPES.includes(o.card_type))) {
-        await pool.query(
-          `UPDATE player_cards SET bonus_max_troops=0, bonus_attack=0, bonus_defense=0, bonus_speed=0, bonus_movement=0
-           WHERE player_id = ? AND equipped_by = ? AND card_type = 'troop' AND is_equipped = TRUE`,
-          [playerId, equippedBy]
-        );
-        const [remainingEffects] = await pool.query(
-          `SELECT card_type, card_id FROM player_cards
-           WHERE player_id = ? AND equipped_by = ? AND is_equipped = TRUE
-           AND card_type IN (${EFFECT_CARD_TYPES.map(() => '?').join(',')})`,
-          [playerId, equippedBy, ...EFFECT_CARD_TYPES]
-        );
-        for (const ec of remainingEffects) {
-          await applyCardBonusToTroops(pool, playerId, equippedBy, ec.card_type, ec.card_id);
-        }
-      }
-    }
-
-    // 装备新卡牌
-    await pool.query(
-      `UPDATE player_cards SET is_equipped = TRUE, equipped_by = ?, equipped_slot = ?
-       WHERE instance_id = ? AND player_id = ?`,
-      [equippedBy, equippedSlot, instanceId, playerId]
-    );
-
-    // 如果装备的卡牌有特效 或 是部队卡，统一走"清零+重新应用所有效果卡"的逻辑
-    // 这样无论装备哪种卡牌，都不会出现叠加问题
-    const needRecalc = EFFECT_CARD_TYPES.includes(cardToEquip.card_type) || cardToEquip.card_type === 'troop';
-    if (needRecalc) {
-      // 1. 清零该 equippedBy 下所有部队卡的 bonus 字段（不清除 last_troops_lost_at，保留恢复状态）
-      await pool.query(
-        `UPDATE player_cards SET bonus_max_troops=0, bonus_attack=0, bonus_defense=0, bonus_speed=0, bonus_movement=0
-         WHERE player_id = ? AND equipped_by = ? AND card_type = 'troop' AND is_equipped = TRUE`,
-        [playerId, equippedBy]
-      );
-      // 2. 重新应用所有已装备效果卡的加成（包括刚装备的这张）
-      const [effectCards] = await pool.query(
-        `SELECT card_type, card_id FROM player_cards
-         WHERE player_id = ? AND equipped_by = ? AND is_equipped = TRUE
-         AND card_type IN (${EFFECT_CARD_TYPES.map(() => '?').join(',')})`,
-        [playerId, equippedBy, ...EFFECT_CARD_TYPES]
-      );
-      for (const ec of effectCards) {
-        await applyCardBonusToTroops(pool, playerId, equippedBy, ec.card_type, ec.card_id);
-      }
-      // 3. 重算后检查：有兵力缺口但 last_troops_lost_at 为 NULL 的部队，补写恢复起始时间
-      const [troopsToCheck] = await pool.query(
-        `SELECT pc.instance_id, pc.current_troops, pc.bonus_max_troops, pc.last_troops_lost_at, ct.max_troops AS cfg_max
-         FROM player_cards pc
-         JOIN config_troops ct ON pc.card_id = ct.troop_id
-         WHERE pc.player_id = ? AND pc.equipped_by = ? AND pc.card_type = 'troop' AND pc.is_equipped = TRUE`,
-        [playerId, equippedBy]
-      );
-      for (const t of troopsToCheck) {
-        const maxTroops = (t.cfg_max || 0) + (t.bonus_max_troops || 0);
-        const hasCap = (t.current_troops || 0) < maxTroops;
-        if (hasCap && !t.last_troops_lost_at) {
-          await pool.query('UPDATE player_cards SET last_troops_lost_at = NOW() WHERE instance_id = ?', [t.instance_id]);
-        } else if (!hasCap && t.last_troops_lost_at) {
-          await pool.query('UPDATE player_cards SET last_troops_lost_at = NULL WHERE instance_id = ?', [t.instance_id]);
-        }
-      }
-    }
-
-    console.log(`[Players] 装备卡牌: ${instanceId} → ${equippedBy}/${equippedSlot}`);
-    characterRankService.refreshSnapshotsForPlayer(playerId).catch(() => {});
     res.json({ success: true });
-
   } catch (error) {
     console.error('[Players] 装备卡牌失败:', error);
     res.status(500).json({ success: false, error: '装备卡牌失败', message: error.message });
@@ -1674,73 +799,11 @@ router.post('/:playerId/cards/equip', async (req, res) => {
 router.post('/:playerId/cards/unequip', async (req, res) => {
   try {
     const { playerId } = req.params;
-    const { instanceId } = req.body;
-
-    if (!instanceId) {
-      return res.status(400).json({ success: false, error: '缺少 instanceId' });
+    const result = await playerCardLineupService.unequipCard(playerId, req.body);
+    if (!result.ok) {
+      return res.status(result.status).json({ success: false, error: result.error });
     }
-
-    // 查询卡牌信息
-    const [cardRows] = await pool.query(
-      'SELECT card_type, card_id, equipped_by FROM player_cards WHERE instance_id = ? AND player_id = ?',
-      [instanceId, playerId]
-    );
-    const cardInfo = cardRows[0];
-    const equippedBy = cardInfo?.equipped_by;
-
-    // 先执行卸下
-    await pool.query(
-      `UPDATE player_cards SET is_equipped = FALSE, equipped_by = NULL, equipped_slot = NULL
-       WHERE instance_id = ? AND player_id = ?`,
-      [instanceId, playerId]
-    );
-
-    if (cardInfo && equippedBy) {
-      // 如果卸下的是部队卡，清零它的 bonus（干净回背包），并确保兵力恢复状态正确
-      if (cardInfo.card_type === 'troop') {
-        await pool.query(
-          `UPDATE player_cards SET bonus_max_troops=0, bonus_attack=0, bonus_defense=0, bonus_speed=0, bonus_movement=0
-           WHERE instance_id = ?`,
-          [instanceId]
-        );
-        // 检查卸下的部队是否有兵力缺口，确保 last_troops_lost_at 正确
-        const [troopState] = await pool.query(
-          `SELECT pc.current_troops, pc.last_troops_lost_at, ct.max_troops AS cfg_max
-           FROM player_cards pc JOIN config_troops ct ON pc.card_id = ct.troop_id
-           WHERE pc.instance_id = ?`,
-          [instanceId]
-        );
-        if (troopState[0]) {
-          const maxTroops = troopState[0].cfg_max || 0; // 卸下后 bonus=0，用纯配置值
-          const hasCap = (troopState[0].current_troops || 0) < maxTroops;
-          if (hasCap && !troopState[0].last_troops_lost_at) {
-            await pool.query('UPDATE player_cards SET last_troops_lost_at = NOW() WHERE instance_id = ?', [instanceId]);
-          }
-        }
-      }
-      // 如果卸下的是效果卡，清零所有部队卡 bonus 再重新应用剩余效果卡
-      if (EFFECT_CARD_TYPES.includes(cardInfo.card_type)) {
-        await pool.query(
-          `UPDATE player_cards SET bonus_max_troops=0, bonus_attack=0, bonus_defense=0, bonus_speed=0, bonus_movement=0
-           WHERE player_id = ? AND equipped_by = ? AND card_type = 'troop' AND is_equipped = TRUE`,
-          [playerId, equippedBy]
-        );
-        const [remainingEffects] = await pool.query(
-          `SELECT card_type, card_id FROM player_cards
-           WHERE player_id = ? AND equipped_by = ? AND is_equipped = TRUE
-           AND card_type IN (${EFFECT_CARD_TYPES.map(() => '?').join(',')})`,
-          [playerId, equippedBy, ...EFFECT_CARD_TYPES]
-        );
-        for (const ec of remainingEffects) {
-          await applyCardBonusToTroops(pool, playerId, equippedBy, ec.card_type, ec.card_id);
-        }
-      }
-    }
-
-    console.log(`[Players] 卸下卡牌: ${instanceId}`);
-    characterRankService.refreshSnapshotsForPlayer(playerId).catch(() => {});
     res.json({ success: true });
-
   } catch (error) {
     console.error('[Players] 卸下卡牌失败:', error);
     res.status(500).json({ success: false, error: '卸下卡牌失败', message: error.message });
@@ -1913,337 +976,11 @@ router.post('/:playerId/equipment-set/finalize', async (req, res) => {
 router.post('/:playerId/rewards', async (req, res) => {
   try {
     const { playerId } = req.params;
-    const { eventId, optionKey, playerAttrs, general1Attrs, general2Attrs, minigameResult, minigameSilverDelta, battleResult, battleSilverSpent, battleScore } = req.body;
-
-    if (!eventId || !optionKey) {
-      return res.status(400).json({ success: false, error: '缺少 eventId 或 optionKey' });
+    const out = await playerEventRewardsService.executeEventRewards(playerId, req.body);
+    if (!out.ok) {
+      return res.status(out.status).json(out.json);
     }
-
-    // 1. 获取玩家信息（faction_id）
-    const [playerRows] = await pool.query(
-      'SELECT faction_id FROM players WHERE player_id = ?',
-      [playerId]
-    );
-    if (playerRows.length === 0) {
-      return res.status(404).json({ success: false, error: '玩家不存在' });
-    }
-    const factionId = playerRows[0].faction_id;
-
-    await maybeResetExploreTroopChainsDaily(playerId);
-
-    // 2. 获取事件配置
-    const [eventRows] = await pool.query(
-      'SELECT option_a, option_b, required_items, chain_id, chain_level FROM config_events WHERE event_id = ?',
-      [eventId]
-    );
-    if (eventRows.length === 0) {
-      return res.status(404).json({ success: false, error: '事件不存在' });
-    }
-
-    // 解析选项JSON
-    const optionRaw = optionKey === 'A' ? eventRows[0].option_a : eventRows[0].option_b;
-    const option = typeof optionRaw === 'string' ? JSON.parse(optionRaw) : optionRaw;
-    if (!option) {
-      return res.status(400).json({ success: false, error: '无效的选项' });
-    }
-
-    // 事件级 required_items（事件链道具）合并到所选选项的 requiredItems
-    if (eventRows[0].required_items) {
-      const eventItems = eventRows[0].required_items;
-      option.requiredItems = option.requiredItems
-        ? `${eventItems};${option.requiredItems}`
-        : eventItems;
-    }
-
-    // 2.5 检查事件是否已完成（仅事件链需要防重复，普通探索事件可重复触发）
-    // 例外：链上一环已标完成但未持有下一环 required_items（未选对拿信物）→ 允许重做本环，与 filterExploreEventsPool 有效进度一致
-    if (eventRows[0].chain_id) {
-      const [eventProgress] = await pool.query(
-        'SELECT explore_events FROM player_events WHERE player_id = ?', [playerId]
-      );
-      if (eventProgress[0]) {
-        let events = {};
-        try { events = typeof eventProgress[0].explore_events === 'string' ? JSON.parse(eventProgress[0].explore_events) : (eventProgress[0].explore_events || {}); } catch {}
-        if (events[eventId]?.status === 'completed') {
-          const stranded = await isExploreChainStrandedRedo(
-            playerId,
-            eventRows[0].chain_id,
-            eventRows[0].chain_level
-          );
-          if (!stranded) {
-            return res.status(400).json({ success: false, error: '事件已完成，不可重复领取奖励' });
-          }
-        }
-      }
-    }
-
-    // 3. 计算运势倍率
-    let fortune;
-    if (option.mainFactor === 'minigame' && minigameResult) {
-      // 迷你游戏：由前端结果决定
-      // 胜利=吉(×1.0)，失败=凶(×0.5)
-      // 胜利时投骰子：5或6点触发 bonus_rewards
-      const dice = minigameResult === 'victory' ? (Math.floor(Math.random() * 6) + 1) : 2;
-      fortune = minigameResult === 'victory'
-        ? { fortuneName: dice >= 5 ? '鸿运' : '吉', multiplier: 1.0, dice, finalRate: 100 }
-        : { fortuneName: '凶', multiplier: 0.5, dice, finalRate: 40 };
-    } else if (battleResult) {
-      // 惩罚战斗后：战斗胜利恢复×0.8，失败×0.5
-      fortune = battleResult === 'victory'
-        ? { fortuneName: '凶', multiplier: 0.8, dice: 3, finalRate: 60 }
-        : { fortuneName: '大凶', multiplier: 0.5, dice: 1, finalRate: 30 };
-    } else {
-      // 正常因子判定：后端重算
-      fortune = calculateFortune(
-        option,
-        playerAttrs || { luck: 5, courage: 5, combat: 5, command: 5, intelligence: 5, politics: 5, charm: 5 },
-        general1Attrs || { luck: 5, courage: 5, combat: 5, command: 5, intelligence: 5, politics: 5, charm: 5 },
-        general2Attrs || { luck: 5, courage: 5, combat: 5, command: 5, intelligence: 5, politics: 5, charm: 5 }
-      );
-    }
-
-    // 4. 校验并扣除选项消耗（requiredItems）；config_items.special_effect 触发部队耐久修复
-    const resourceFields = ['silver', 'food', 'reputation', 'contribution', 'morale'];
-    let troopRepairResults = [];
-    let deferredRepairSegments = [];
-
-    if (option.requiredItems) {
-      const costSegments = option.requiredItems
-        .split(';')
-        .map(s => parseEventCostSegment(s))
-        .filter(Boolean);
-
-      const immediateSegments = [];
-      deferredRepairSegments = [];
-      for (const seg of costSegments) {
-        const { key } = seg;
-        if (resourceFields.includes(key)) {
-          immediateSegments.push(seg);
-          continue;
-        }
-        if (key.includes('_item_') || key.startsWith('item_')) {
-          const specialEffect = await getItemSpecialEffect(key);
-          if (isTroopDurabilityRepairEffect(specialEffect) && shouldDeferTroopRepairAfterBattleRewards(option, battleResult, fortune)) {
-            deferredRepairSegments.push(seg);
-          } else {
-            immediateSegments.push(seg);
-          }
-        } else {
-          immediateSegments.push(seg);
-        }
-      }
-
-      const [prePlayer] = await pool.query(
-        'SELECT items, silver, food, reputation, contribution, morale FROM players WHERE player_id = ?',
-        [playerId]
-      );
-      if (!prePlayer[0]) {
-        return res.status(404).json({ success: false, error: '玩家不存在' });
-      }
-      const pr = prePlayer[0];
-      let inv = {};
-      if (pr.items) {
-        inv = typeof pr.items === 'string' ? JSON.parse(pr.items) : pr.items;
-      }
-
-      for (const { key, amount } of costSegments) {
-        if (resourceFields.includes(key)) {
-          const cur = Number(pr[key]) || 0;
-          if (cur < amount) {
-            return res.status(400).json({ success: false, error: `${key}不足` });
-          }
-        } else if (key.includes('_item_') || key.startsWith('item_')) {
-          const cur = Number(inv[key]) || 0;
-          if (cur < amount) {
-            return res.status(400).json({
-              success: false,
-              error: '道具不足',
-              detail: { itemId: key, need: amount, have: cur },
-            });
-          }
-          const specialEffect = await getItemSpecialEffect(key);
-          if (isTroopDurabilityRepairEffect(specialEffect)) {
-            if (isLegendaryTroopRepairEffect(specialEffect)) {
-              const [chk] = await pool.query(
-                `SELECT instance_id FROM player_cards
-                 WHERE player_id = ? AND card_type = 'troop' AND rarity = 'legendary' LIMIT 1`,
-                [playerId]
-              );
-              if (chk.length === 0) {
-                return res.status(400).json({
-                  success: false,
-                  error: '暂无传奇部队，无法完成整编旧部',
-                });
-              }
-            } else if (isCoreTroopRepairEffect(specialEffect)) {
-              const [chk] = await pool.query(
-                `SELECT instance_id FROM player_cards
-                 WHERE player_id = ? AND card_type = 'troop' AND rarity = 'core' LIMIT 1`,
-                [playerId]
-              );
-              if (chk.length === 0) {
-                return res.status(400).json({
-                  success: false,
-                  error: '暂无核心部队，无法完成整编旧部',
-                });
-              }
-            }
-          }
-        }
-      }
-
-      for (const { key, amount } of immediateSegments) {
-        if (resourceFields.includes(key)) {
-          await pool.query(
-            `UPDATE players SET ${key} = GREATEST(0, ${key} - ?) WHERE player_id = ?`,
-            [amount, playerId]
-          );
-        } else if (key.includes('_item_') || key.startsWith('item_')) {
-          const [itemRows] = await pool.query('SELECT items FROM players WHERE player_id = ?', [playerId]);
-          let items = {};
-          if (itemRows[0]?.items) {
-            items = typeof itemRows[0].items === 'string' ? JSON.parse(itemRows[0].items) : itemRows[0].items;
-          }
-          items[key] = (items[key] || 0) - amount;
-          if (items[key] <= 0) delete items[key];
-          await pool.query('UPDATE players SET items = ? WHERE player_id = ?', [JSON.stringify(items), playerId]);
-
-          const specialEffect = await getItemSpecialEffect(key);
-          if (isTroopDurabilityRepairEffect(specialEffect)) {
-            for (let u = 0; u < amount; u++) {
-              try {
-                const one = await applyTroopRepairEffect(pool.query.bind(pool), playerId, specialEffect);
-                troopRepairResults.push(one);
-              } catch (e) {
-                if (e.code === 'NO_LEGENDARY_TROOP') {
-                  return res.status(400).json({
-                    success: false,
-                    error: '暂无传奇部队，无法完成整编旧部',
-                  });
-                }
-                if (e.code === 'NO_CORE_TROOP') {
-                  return res.status(400).json({
-                    success: false,
-                    error: '暂无核心部队，无法完成整编旧部',
-                  });
-                }
-                throw e;
-              }
-            }
-          }
-        }
-      }
-    }
-
-    // 5. 确定要发放的奖励字符串
-    let rewardStr = option.rewards || '';
-
-    // 鸿运额外奖励
-    let bonusRewardStr = '';
-    if (fortune.fortuneName === '鸿运' && option.bonusRewards) {
-      bonusRewardStr = option.bonusRewards;
-    }
-
-    // 6. 执行基准奖励发放
-    const result = await executeRewards(playerId, rewardStr, fortune.multiplier, factionId);
-
-    // 7. 执行鸿运额外奖励（不受倍率影响，直接×1）
-    let bonusResult = null;
-    if (bonusRewardStr) {
-      bonusResult = await executeRewards(playerId, bonusRewardStr, 1.0, factionId);
-    }
-
-    // 4b. 惩罚战斗胜利后：再扣整编道具并完成耐久（先战斗奖励结算；失败不扣道具、不整编，腰牌保留）
-    if (deferredRepairSegments.length && battleResult === 'victory') {
-      for (const { key, amount } of deferredRepairSegments) {
-        if (resourceFields.includes(key)) {
-          await pool.query(
-            `UPDATE players SET ${key} = GREATEST(0, ${key} - ?) WHERE player_id = ?`,
-            [amount, playerId]
-          );
-        } else if (key.includes('_item_') || key.startsWith('item_')) {
-          const [itemRows] = await pool.query('SELECT items FROM players WHERE player_id = ?', [playerId]);
-          let items = {};
-          if (itemRows[0]?.items) {
-            items = typeof itemRows[0].items === 'string' ? JSON.parse(itemRows[0].items) : itemRows[0].items;
-          }
-          items[key] = (items[key] || 0) - amount;
-          if (items[key] <= 0) delete items[key];
-          await pool.query('UPDATE players SET items = ? WHERE player_id = ?', [JSON.stringify(items), playerId]);
-
-          const specialEffect = await getItemSpecialEffect(key);
-          if (isTroopDurabilityRepairEffect(specialEffect)) {
-            for (let u = 0; u < amount; u++) {
-              try {
-                const one = await applyTroopRepairEffect(pool.query.bind(pool), playerId, specialEffect);
-                troopRepairResults.push(one);
-              } catch (e) {
-                if (e.code === 'NO_LEGENDARY_TROOP') {
-                  return res.status(400).json({
-                    success: false,
-                    error: '暂无传奇部队，无法完成整编旧部',
-                  });
-                }
-                if (e.code === 'NO_CORE_TROOP') {
-                  return res.status(400).json({
-                    success: false,
-                    error: '暂无核心部队，无法完成整编旧部',
-                  });
-                }
-                throw e;
-              }
-            }
-          }
-        }
-      }
-    }
-
-    // 扣除战斗中消耗的银两
-    if (battleSilverSpent && battleSilverSpent > 0) {
-      await pool.query(
-        'UPDATE players SET silver = GREATEST(0, silver - ?) WHERE player_id = ?',
-        [battleSilverSpent, playerId]
-      );
-    }
-
-    // 结算迷你游戏筹码盈亏（正数=赢，负数=输）
-    if (minigameSilverDelta && minigameSilverDelta !== 0) {
-      if (minigameSilverDelta > 0) {
-        await pool.query('UPDATE players SET silver = silver + ? WHERE player_id = ?', [minigameSilverDelta, playerId]);
-      } else {
-        await pool.query('UPDATE players SET silver = GREATEST(0, silver + ?) WHERE player_id = ?', [minigameSilverDelta, playerId]);
-      }
-      console.log(`[Players] 迷你游戏筹码结算: playerId=${playerId}, delta=${minigameSilverDelta}`);
-    }
-
-    // 更新战斗积分到 statistics
-    if (battleScore && battleScore > 0) {
-      console.log(`[Players] 更新战斗积分: playerId=${playerId}, battleScore=${battleScore}`);
-      await pool.query(
-        'UPDATE statistics SET total_battle_score = total_battle_score + ? WHERE player_id = ?',
-        [battleScore, playerId]
-      );
-    } else {
-      console.log(`[Players] 战斗积分未更新: battleScore=${battleScore}, battleResult=${battleResult}`);
-    }
-
-    res.json({
-      success: true,
-      data: {
-        fortune: {
-          name: fortune.fortuneName,
-          multiplier: fortune.multiplier,
-          dice: fortune.dice,
-          diceMultiplier: fortune.diceMultiplier,
-          baseScore: fortune.baseScore,
-          finalRate: fortune.finalRate,
-        },
-        rewards: result.details,
-        bonusRewards: bonusResult ? bonusResult.details : [],
-        ...(troopRepairResults.length ? { troopRepair: troopRepairResults } : {}),
-      }
-    });
-
+    res.json({ success: true, data: out.data });
   } catch (error) {
     console.error('[Players] 执行奖励失败:', error);
     res.status(500).json({ success: false, error: '执行奖励失败', message: error.message });
@@ -2257,44 +994,11 @@ router.post('/:playerId/rewards', async (req, res) => {
 router.get('/:playerId/items', async (req, res) => {
   try {
     const { playerId } = req.params;
-
-    const [rows] = await pool.query(
-      'SELECT items FROM players WHERE player_id = ?',
-      [playerId]
-    );
-    if (rows.length === 0) {
+    const result = await playerItemsService.listItems(playerId);
+    if (result.notFound) {
       return res.status(404).json({ success: false, error: '玩家不存在' });
     }
-
-    let items = {};
-    if (rows[0].items) {
-      items = typeof rows[0].items === 'string' ? JSON.parse(rows[0].items) : rows[0].items;
-    }
-
-    // 关联 config_items 获取道具名称和描述
-    const itemIds = Object.keys(items);
-    let itemConfigs = {};
-    if (itemIds.length > 0) {
-      const placeholders = itemIds.map(() => '?').join(',');
-      const [configs] = await pool.query(
-        `SELECT item_id, item_name, description, item_type, special_effect FROM config_items WHERE item_id IN (${placeholders})`,
-        itemIds
-      );
-      configs.forEach(c => { itemConfigs[c.item_id] = c; });
-    }
-
-    // 组装返回数据
-    const itemList = itemIds.map(id => ({
-      itemId: id,
-      quantity: items[id],
-      name: itemConfigs[id]?.item_name || id,
-      description: itemConfigs[id]?.description || '',
-      itemType: itemConfigs[id]?.item_type || 'event_key',
-      specialEffect: itemConfigs[id]?.special_effect || null,
-    })).filter(i => i.quantity > 0);
-
-    res.json({ success: true, data: { items: itemList } });
-
+    res.json({ success: true, data: { items: result.items } });
   } catch (error) {
     console.error('[Players] 获取道具失败:', error);
     res.status(500).json({ success: false, error: '获取道具失败', message: error.message });
@@ -2310,33 +1014,11 @@ router.post('/:playerId/items', async (req, res) => {
   try {
     const { playerId } = req.params;
     const { itemId, quantity = 1 } = req.body;
-
-    if (!itemId) {
-      return res.status(400).json({ success: false, error: '缺少 itemId' });
+    const result = await playerItemsService.addItem(playerId, itemId, quantity);
+    if (!result.ok) {
+      return res.status(result.status).json({ success: false, error: result.error });
     }
-
-    const [rows] = await pool.query(
-      'SELECT items FROM players WHERE player_id = ?',
-      [playerId]
-    );
-    if (rows.length === 0) {
-      return res.status(404).json({ success: false, error: '玩家不存在' });
-    }
-
-    let items = {};
-    if (rows[0].items) {
-      items = typeof rows[0].items === 'string' ? JSON.parse(rows[0].items) : rows[0].items;
-    }
-
-    items[itemId] = (items[itemId] || 0) + quantity;
-
-    await pool.query(
-      'UPDATE players SET items = ? WHERE player_id = ?',
-      [JSON.stringify(items), playerId]
-    );
-
-    res.json({ success: true, data: { itemId, quantity: items[itemId] } });
-
+    res.json({ success: true, data: { itemId: result.itemId, quantity: result.quantity } });
   } catch (error) {
     console.error('[Players] 添加道具失败:', error);
     res.status(500).json({ success: false, error: '添加道具失败', message: error.message });
@@ -2352,41 +1034,11 @@ router.delete('/:playerId/items', async (req, res) => {
   try {
     const { playerId } = req.params;
     const { itemId, quantity = 1 } = req.body;
-
-    if (!itemId) {
-      return res.status(400).json({ success: false, error: '缺少 itemId' });
+    const result = await playerItemsService.consumeItem(playerId, itemId, quantity);
+    if (!result.ok) {
+      return res.status(result.status).json({ success: false, error: result.error });
     }
-
-    const [rows] = await pool.query(
-      'SELECT items FROM players WHERE player_id = ?',
-      [playerId]
-    );
-    if (rows.length === 0) {
-      return res.status(404).json({ success: false, error: '玩家不存在' });
-    }
-
-    let items = {};
-    if (rows[0].items) {
-      items = typeof rows[0].items === 'string' ? JSON.parse(rows[0].items) : rows[0].items;
-    }
-
-    const current = items[itemId] || 0;
-    if (current < quantity) {
-      return res.status(400).json({ success: false, error: `道具不足，当前持有 ${current}，需要 ${quantity}` });
-    }
-
-    items[itemId] = current - quantity;
-    if (items[itemId] <= 0) {
-      delete items[itemId];
-    }
-
-    await pool.query(
-      'UPDATE players SET items = ? WHERE player_id = ?',
-      [JSON.stringify(items), playerId]
-    );
-
-    res.json({ success: true, data: { itemId, remaining: items[itemId] || 0 } });
-
+    res.json({ success: true, data: { itemId: result.itemId, remaining: result.remaining } });
   } catch (error) {
     console.error('[Players] 消耗道具失败:', error);
     res.status(500).json({ success: false, error: '消耗道具失败', message: error.message });
@@ -2401,7 +1053,7 @@ router.get('/:playerId/events/explore', async (req, res) => {
   try {
     const { playerId } = req.params;
     await pool.query('INSERT IGNORE INTO player_events (player_id) VALUES (?)', [playerId]);
-    await maybeResetExploreTroopChainsDaily(playerId);
+    await playerExploreEventService.maybeResetExploreTroopChainsDaily(playerId);
     const [rows] = await pool.query(
       'SELECT explore_events FROM player_events WHERE player_id = ?',
       [playerId]
@@ -2418,42 +1070,7 @@ router.get('/:playerId/events/explore', async (req, res) => {
   }
 });
 
-// ── 探索配额（服务端存储，防止跨浏览器重复恢复） ──────────────
-
-const EXPLORE_REFILL_PER_HOUR = 6;
-const EXPLORE_MAX_QUOTA = 18;
-const EXPLORE_REST_START = 0;  // 00:00
-const EXPLORE_REST_END = 8;    // 08:00
-
-function isExploreRestHour(hour) { return hour >= EXPLORE_REST_START && hour < EXPLORE_REST_END; }
-
-function getHourTs(date) {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate(), date.getHours()).getTime();
-}
-
-function countExploreActiveHours(fromTs, toTs) {
-  if (toTs <= fromTs) return 0;
-  let count = 0, ts = fromTs, i = 0;
-  while (ts < toTs && i < 48) {
-    if (!isExploreRestHour(new Date(ts).getHours())) count++;
-    ts += 3600000;
-    i++;
-  }
-  return count;
-}
-
-function calcServerQuota(remaining, lastRefillTs) {
-  const now = new Date();
-  const currentHourTs = getHourTs(now);
-  if (!lastRefillTs) {
-    return { remaining: isExploreRestHour(now.getHours()) ? 0 : EXPLORE_REFILL_PER_HOUR, lastRefillTs: currentHourTs };
-  }
-  const activeHours = countExploreActiveHours(lastRefillTs, currentHourTs);
-  if (activeHours > 0) {
-    return { remaining: Math.min((remaining || 0) + activeHours * EXPLORE_REFILL_PER_HOUR, EXPLORE_MAX_QUOTA), lastRefillTs: currentHourTs };
-  }
-  return { remaining: remaining || 0, lastRefillTs };
-}
+// ── 探索配额（服务端存储，防止跨浏览器重复恢复） → playerExploreQuotaService
 
 /**
  * GET /api/players/:playerId/explore-quota
@@ -2462,21 +1079,16 @@ function calcServerQuota(remaining, lastRefillTs) {
 router.get('/:playerId/explore-quota', async (req, res) => {
   try {
     const { playerId } = req.params;
-    await pool.query('INSERT IGNORE INTO player_events (player_id) VALUES (?)', [playerId]);
-    const [rows] = await pool.query(
-      'SELECT explore_quota_remaining, explore_quota_refill_ts FROM player_events WHERE player_id = ?',
-      [playerId]
-    );
-    const row = rows[0] || {};
-    const saved = calcServerQuota(row.explore_quota_remaining, row.explore_quota_refill_ts ? Number(row.explore_quota_refill_ts) : null);
-    // 如果有恢复，写回DB
-    if (saved.lastRefillTs !== (row.explore_quota_refill_ts ? Number(row.explore_quota_refill_ts) : null) || saved.remaining !== row.explore_quota_remaining) {
-      await pool.query(
-        'UPDATE player_events SET explore_quota_remaining = ?, explore_quota_refill_ts = ? WHERE player_id = ?',
-        [saved.remaining, String(saved.lastRefillTs), playerId]
-      );
-    }
-    res.json({ success: true, data: { remaining: saved.remaining, lastRefillTs: saved.lastRefillTs, max: EXPLORE_MAX_QUOTA, refillPerHour: EXPLORE_REFILL_PER_HOUR } });
+    const data = await playerExploreQuotaService.getExploreQuotaState(playerId);
+    res.json({
+      success: true,
+      data: {
+        remaining: data.remaining,
+        lastRefillTs: data.lastRefillTs,
+        max: data.max,
+        refillPerHour: data.refillPerHour,
+      },
+    });
   } catch (error) {
     console.error('[Players] 获取探索配额失败:', error);
     res.status(500).json({ success: false, error: '获取探索配额失败' });
@@ -2495,27 +1107,11 @@ router.post('/:playerId/explore-quota', async (req, res) => {
     if (!['consume', 'refund', 'fillMax'].includes(action)) {
       return res.status(400).json({ success: false, error: '无效的 action' });
     }
-    await pool.query('INSERT IGNORE INTO player_events (player_id) VALUES (?)', [playerId]);
-    const [rows] = await pool.query(
-      'SELECT explore_quota_remaining, explore_quota_refill_ts FROM player_events WHERE player_id = ?',
-      [playerId]
-    );
-    const row = rows[0] || {};
-    const current = calcServerQuota(row.explore_quota_remaining, row.explore_quota_refill_ts ? Number(row.explore_quota_refill_ts) : null);
-    let newRemaining = current.remaining;
-    if (action === 'consume') {
-      if (newRemaining <= 0) return res.status(400).json({ success: false, error: '探索次数不足' });
-      newRemaining -= 1;
-    } else if (action === 'refund') {
-      newRemaining = Math.min(newRemaining + 1, EXPLORE_MAX_QUOTA);
-    } else if (action === 'fillMax') {
-      newRemaining = EXPLORE_MAX_QUOTA;
+    const result = await playerExploreQuotaService.applyExploreQuotaAction(playerId, action);
+    if (!result.ok) {
+      return res.status(400).json({ success: false, error: result.error });
     }
-    await pool.query(
-      'UPDATE player_events SET explore_quota_remaining = ?, explore_quota_refill_ts = ? WHERE player_id = ?',
-      [newRemaining, String(current.lastRefillTs), playerId]
-    );
-    res.json({ success: true, data: { remaining: newRemaining, lastRefillTs: current.lastRefillTs, max: EXPLORE_MAX_QUOTA } });
+    res.json({ success: true, data: result.data });
   } catch (error) {
     console.error('[Players] 更新探索配额失败:', error);
     res.status(500).json({ success: false, error: '更新探索配额失败' });
@@ -2597,22 +1193,7 @@ router.post('/:playerId/events', async (req, res) => {
   }
 });
 
-// ── 属性随机系统 ─────────────────────────────────────────────
-
-const REROLL_COST = { common: 10, rare: 50, epic: 250, legendary: 500, core: 750 };
-const REROLL_DAILY_LIMIT = 2;
-
-// 从官职稀有度映射表（与 position CSV 一致）
-function getPositionRarity(positionLevel) {
-  if (positionLevel <= 3) return 'core';
-  if (positionLevel === 4) return 'legendary';
-  if (positionLevel === 5) return 'epic';
-  if (positionLevel <= 7) return 'rare';
-  return 'common';
-}
-
-// 解析 MySQL DATE 为本地日期 YYYY-MM-DD 字符串（避免时区偏移）
-// 不再使用 JS 日期比较，改用 MySQL CURDATE() 直接在 SQL 中判断
+// ── 属性随机系统 → playerRerollService
 
 /**
  * GET /api/players/:playerId/reroll-status
@@ -2621,38 +1202,11 @@ function getPositionRarity(positionLevel) {
 router.get('/:playerId/reroll-status', async (req, res) => {
   try {
     const { playerId } = req.params;
-    // 每日次数用 CURDATE() 判断重置；批次记录始终返回（直到玩家确认选择后才清除）
-    const [rows] = await pool.query(
-      `SELECT position_level, silver,
-              IF(attr_reroll_date = CURDATE(), attr_reroll_count, 0) AS today_used,
-              attr_reroll_batches,
-              attr_reroll_selected_batch, attr_reroll_selected_index
-       FROM players WHERE player_id = ?`,
-      [playerId]
-    );
-    if (!rows.length) return res.status(404).json({ success: false, error: '玩家不存在' });
-
-    const p = rows[0];
-    const rarity = getPositionRarity(p.position_level ?? 8);
-    const cost = REROLL_COST[rarity];
-    const remaining = REROLL_DAILY_LIMIT - (p.today_used || 0);
-    const batches = p.attr_reroll_batches
-      ? (typeof p.attr_reroll_batches === 'string' ? JSON.parse(p.attr_reroll_batches) : p.attr_reroll_batches)
-      : [];
-
-    res.json({
-      success: true,
-      data: {
-        rarity,
-        cost,
-        dailyLimit: REROLL_DAILY_LIMIT,
-        remaining,
-        silver: p.silver,
-        batches,
-        selectedBatch: p.attr_reroll_selected_batch,
-        selectedIndex: p.attr_reroll_selected_index,
-      }
-    });
+    const result = await playerRerollService.getRerollStatus(playerId);
+    if (result.notFound) {
+      return res.status(404).json({ success: false, error: '玩家不存在' });
+    }
+    res.json({ success: true, data: result.data });
   } catch (error) {
     console.error('[Players] 获取属性随机状态失败:', error);
     res.status(500).json({ success: false, error: '获取属性随机状态失败', message: error.message });
@@ -2666,68 +1220,14 @@ router.get('/:playerId/reroll-status', async (req, res) => {
 router.post('/:playerId/reroll-attributes', async (req, res) => {
   try {
     const { playerId } = req.params;
-    const [rows] = await pool.query(
-      `SELECT position_level, silver,
-              IF(attr_reroll_date = CURDATE(), attr_reroll_count, 0) AS today_used,
-              attr_reroll_batches
-       FROM players WHERE player_id = ?`,
-      [playerId]
-    );
-    if (!rows.length) return res.status(404).json({ success: false, error: '玩家不存在' });
-
-    const p = rows[0];
-    const rarity = getPositionRarity(p.position_level ?? 8);
-    const cost = REROLL_COST[rarity];
-    const remaining = REROLL_DAILY_LIMIT - (p.today_used || 0);
-
-    if (remaining <= 0) {
-      return res.status(400).json({ success: false, error: '今日属性随机次数已用完（上限2次/天）' });
+    const result = await playerRerollService.rerollAttributes(playerId);
+    if (result.notFound) {
+      return res.status(404).json({ success: false, error: '玩家不存在' });
     }
-    if (p.silver < cost) {
-      return res.status(400).json({ success: false, error: `银两不足，需要${cost}银两` });
+    if (result.badRequest) {
+      return res.status(400).json({ success: false, error: result.badRequest });
     }
-
-    // 生成3个方案（复用角色创建算法）
-    const options = await PlayerService.generateAttributeOptions(rarity);
-
-    // 批次记录始终累加，直到玩家确认选择后才清除
-    const batches = p.attr_reroll_batches
-      ? (typeof p.attr_reroll_batches === 'string' ? JSON.parse(p.attr_reroll_batches) : p.attr_reroll_batches)
-      : [];
-    const newBatch = {
-      batch: batches.length + 1,
-      timestamp: new Date().toISOString(),
-      cost,
-      rarity,
-      options,
-    };
-    batches.push(newBatch);
-
-    const newUsed = (p.today_used || 0) + 1;
-    const newRemaining = REROLL_DAILY_LIMIT - newUsed;
-    await pool.query(
-      `UPDATE players SET
-        silver = silver - ?,
-        attr_reroll_date = CURDATE(),
-        attr_reroll_count = ?,
-        attr_reroll_batches = ?,
-        attr_reroll_selected_batch = NULL,
-        attr_reroll_selected_index = NULL
-       WHERE player_id = ?`,
-      [cost, newUsed, JSON.stringify(batches), playerId]
-    );
-
-    res.json({
-      success: true,
-      data: {
-        batch: newBatch.batch,
-        options,
-        cost,
-        remainingSilver: p.silver - cost,
-        remaining: newRemaining,
-        batches,
-      }
-    });
+    res.json({ success: true, data: result.data });
   } catch (error) {
     console.error('[Players] 属性随机失败:', error);
     res.status(500).json({ success: false, error: '属性随机失败', message: error.message });
@@ -2742,62 +1242,14 @@ router.post('/:playerId/reroll-confirm', async (req, res) => {
   try {
     const { playerId } = req.params;
     const { batch, index } = req.body;
-    if (batch == null || index == null) {
-      return res.status(400).json({ success: false, error: '缺少 batch 或 index' });
+    const result = await playerRerollService.rerollConfirm(playerId, batch, index);
+    if (result.notFound) {
+      return res.status(404).json({ success: false, error: '玩家不存在' });
     }
-
-    const [rows] = await pool.query(
-      'SELECT attr_reroll_batches FROM players WHERE player_id = ?',
-      [playerId]
-    );
-    if (!rows.length) return res.status(404).json({ success: false, error: '玩家不存在' });
-
-    const batches = rows[0].attr_reroll_batches
-      ? (typeof rows[0].attr_reroll_batches === 'string' ? JSON.parse(rows[0].attr_reroll_batches) : rows[0].attr_reroll_batches)
-      : [];
-    const targetBatch = batches.find(b => b.batch === batch);
-    if (!targetBatch) return res.status(400).json({ success: false, error: `批次 ${batch} 不存在` });
-    if (index < 0 || index >= targetBatch.options.length) {
-      return res.status(400).json({ success: false, error: `索引 ${index} 超出范围` });
+    if (result.badRequest) {
+      return res.status(400).json({ success: false, error: result.badRequest });
     }
-
-    const option = targetBatch.options[index];
-    const attrs = option.attributesInt || {};
-    // attributesInt 是 ×10 存储值；如果没有则从 attributes 手动 ×10
-    const toInt = (v) => Math.round((v || 0) * 10);
-    const luck = attrs.luck ?? toInt(option.attributes?.luck);
-    const courage = attrs.courage ?? toInt(option.attributes?.courage);
-    const combat = attrs.combat ?? toInt(option.attributes?.combat);
-    const command = attrs.command ?? toInt(option.attributes?.command);
-    const intelligence = attrs.intelligence ?? toInt(option.attributes?.intelligence);
-    const politics = attrs.politics ?? toInt(option.attributes?.politics);
-    const charm = attrs.charm ?? toInt(option.attributes?.charm);
-    const skill1 = option.skills?.skill_1?.id || option.skills?.skill_1 || null;
-    const skill2 = option.skills?.skill_2?.id || option.skills?.skill_2 || null;
-
-    await pool.query(
-      `UPDATE players SET
-        luck = ?, courage = ?, combat = ?, command = ?,
-        intelligence = ?, politics = ?, charm = ?,
-        skill_1 = ?, skill_2 = ?,
-        attr_reroll_batches = NULL,
-        attr_reroll_selected_batch = ?,
-        attr_reroll_selected_index = ?
-       WHERE player_id = ?`,
-      [luck, courage, combat, command, intelligence, politics, charm,
-       skill1, skill2, batch, index, playerId]
-    );
-
-    res.json({
-      success: true,
-      data: {
-        attributes: option.attributes,
-        skills: option.skills,
-        type: option.type,
-        selectedBatch: batch,
-        selectedIndex: index,
-      }
-    });
+    res.json({ success: true, data: result.data });
   } catch (error) {
     console.error('[Players] 确认属性方案失败:', error);
     res.status(500).json({ success: false, error: '确认属性方案失败', message: error.message });

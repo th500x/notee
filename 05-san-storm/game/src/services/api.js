@@ -137,6 +137,56 @@ export const gameUserAPI = {
   },
 
   /**
+   * 获取注册用候选 ID（服务端排除已占用；失败时前端可回退本地 generateIdOptions）
+   * @param {number} count
+   * @param {string[]} [excludeIds] 刷新时传入当前已展示 ID，避免重复
+   */
+  getRegisterCandidates: async (count = 5, excludeIds = []) => {
+    try {
+      const qs = new URLSearchParams();
+      qs.set('count', String(count));
+      if (excludeIds.length > 0) {
+        qs.set('exclude', excludeIds.join(','));
+      }
+      const response = await fetchWithTimeout(
+        `${API_CONFIG.BASE_URL}/auth/register-candidates?${qs.toString()}`,
+        {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' },
+        }
+      );
+      const text = await response.text();
+      let data = {};
+      if (text) {
+        try {
+          data = JSON.parse(text);
+        } catch (parseErr) {
+          console.warn('[GameUserAPI] 候选ID响应非 JSON', response.status);
+          return { success: false, error: '获取候选ID失败' };
+        }
+      }
+      if (data.success && data.data && Array.isArray(data.data.ids) && data.data.ids.length > 0) {
+        return {
+          success: true,
+          ids: data.data.ids,
+          partial: !!data.data.partial,
+          source: 'server',
+        };
+      }
+      return {
+        success: false,
+        error: data.error || '获取候选ID失败',
+      };
+    } catch (error) {
+      console.error('[GameUserAPI] 获取候选ID请求失败', error);
+      if (error.message && error.message.includes('超时')) {
+        return { success: false, error: '请求超时' };
+      }
+      return { success: false, error: '网络错误' };
+    }
+  },
+
+  /**
    * 用户注册
    */
   register: async (userData) => {
@@ -151,18 +201,29 @@ export const gameUserAPI = {
         body: JSON.stringify(userData)
       });
       
-      const data = await response.json();
+      const text = await response.text();
+      let data = {};
+      if (text) {
+        try {
+          data = JSON.parse(text);
+        } catch (parseErr) {
+          console.warn('[GameUserAPI] 注册响应非 JSON', response.status, text.slice(0, 120));
+          return {
+            success: false,
+            error: `注册失败（服务暂不可用，HTTP ${response.status}），请稍后重试`,
+          };
+        }
+      }
       
       if (data.success) {
         console.log('[GameUserAPI] 注册成功');
         return { success: true, data: data.data };
-      } else {
-        console.warn('[GameUserAPI] 注册失败', data.error);
-        return { 
-          success: false, 
-          error: data.error || '注册失败' 
-        };
       }
+      console.warn('[GameUserAPI] 注册失败', data.error);
+      return { 
+        success: false, 
+        error: data.error || data.message || '注册失败' 
+      };
     } catch (error) {
       console.error('[GameUserAPI] 注册请求失败', error);
       
@@ -431,6 +492,34 @@ export const gameUserAPI = {
         success: false, 
         error: '网络错误，请检查后端服务是否运行' 
       };
+    }
+  },
+
+  /**
+   * 一键封禁：最后游戏活跃超过指定天数的账号（管理员功能）
+   * @param {{ days?: number, reason?: string }} opts
+   */
+  banInactiveUsers: async (opts = {}) => {
+    try {
+      const days = opts.days != null ? opts.days : 14;
+      const reason = opts.reason;
+      const response = await fetchWithTimeout(`${API_CONFIG.BASE_URL}/auth/users/ban-inactive`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ days, reason }),
+      });
+      const data = await response.json();
+      if (data.success) {
+        return {
+          success: true,
+          bannedCount: data.bannedCount ?? 0,
+          userIds: data.userIds || [],
+        };
+      }
+      return { success: false, error: data.error || '操作失败' };
+    } catch (error) {
+      console.error('[GameUserAPI] banInactiveUsers 失败', error);
+      return { success: false, error: '网络错误，请检查后端服务是否运行' };
     }
   },
 

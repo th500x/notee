@@ -2,8 +2,10 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { useState, lazy, Suspense } from 'react';
 import ErrorBoundary from '@/components/common/ErrorBoundary';
 import { useAdmin } from '@/hooks/useAdmin';
+import { weeklyReportCard } from '@/data/texts/weeklyReport';
 
 const AuthFlowPage = lazy(() => import('@/pages/AuthFlowPage'));
+const WeeklyReportPage = lazy(() => import('@/pages/WeeklyReportPage'));
 const UserManagerPage = lazy(() => import('@/pages/admin/UserManagerPage'));
 const MailManagerPage = lazy(() => import('@/pages/admin/MailManagerPage'));
 const ActivityManagerPage = lazy(() => import('@/pages/admin/ActivityManagerPage'));
@@ -81,6 +83,12 @@ function App() {
                     <p className="text-sm text-gray-600">真三风云 - 赛季1</p>
                   </a>
 
+                  <a href={`${import.meta.env.BASE_URL}weekly-report`} className="block p-6 bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow border border-purple-100">
+                    <div className="text-4xl mb-4">{weeklyReportCard.emoji}</div>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">{weeklyReportCard.title}</h3>
+                    <p className="text-sm text-gray-600">{weeklyReportCard.description}</p>
+                  </a>
+
                   {isLoggedIn && (
                     <>
                     <a href={`${import.meta.env.BASE_URL}user-manager`} className="block p-6 bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow border-2 border-red-300">
@@ -105,6 +113,7 @@ function App() {
             } />
             <Route path="/san_1" element={<AuthFlowPage />} />
             <Route path="/san_1/game" element={<AuthFlowPage />} />
+            <Route path="/weekly-report" element={<WeeklyReportPage />} />
             <Route path="/user-manager" element={<UserManagerPage />} />
             <Route path="/mail-manager" element={<MailManagerPage />} />
             <Route path="/activity-manager" element={<ActivityManagerPage />} />

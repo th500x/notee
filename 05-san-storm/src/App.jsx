@@ -1,6 +1,5 @@
-﻿import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import HomePage from '@/pages/HomePage';
-import WeeklyReportPage from '@/pages/WeeklyReportPage';
 
 function App() {
   return (
@@ -27,7 +26,6 @@ function App() {
         <main className="max-w-7xl mx-auto px-4 py-8">
           <Routes>
             <Route path="/" element={<HomePage />} />
-            <Route path="/weekly-report" element={<WeeklyReportPage />} />
           </Routes>
         </main>
         <footer className="bg-white border-t border-gray-200 mt-12">

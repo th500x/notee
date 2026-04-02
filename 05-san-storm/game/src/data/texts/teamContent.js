@@ -26,7 +26,7 @@ export const wikiBaseUrl = (() => {
 export const introSegments = [
   {
     type: 'text',
-    value: '策划：Notee.vip\n文档：Notee.vip\n测试：Notee.vip + 南阳伙伴\n编程：Kiro AI + Cursor\n美术：ComfyUI + SDXL 1.0\n音效：TBD\n鸣谢：极影字体'
+    value: '策划：Notee.vip\n文档：Notee.vip\n测试：Notee.vip + 三棋伙伴\n编程：Kiro AI + Cursor\n美术：ComfyUI + SDXL 1.0\n音效：TBD\n鸣谢：极影字体'
   },
   { type: 'text', value: '' },
   {

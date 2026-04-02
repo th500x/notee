@@ -6,10 +6,11 @@
  * 
  * 目录结构：
  * data/texts/
- * ├── tutorial.js   # 新手教程文本（游戏介绍、装备教学等）
- * ├── events.js     # 事件系统对话文本
- * ├── tips.js       # 系统提示/公告文本
- * └── index.js      # 统一导出
+ * ├── tutorial.js       # 新手教程文本（游戏介绍、装备教学等）
+ * ├── weeklyReport.js   # 项目周报（首页卡片 + 周报页全文）
+ * ├── events.js         # 事件系统对话文本
+ * ├── tips.js           # 系统提示/公告文本
+ * └── index.js          # 统一导出
  */
 
 export {
@@ -24,3 +25,12 @@ export {
   tutorialComplete,
   battlePassIntro,
 } from './tutorial';
+
+export {
+  weeklyReportCard,
+  weeklyReportPageTitle,
+  weeklyReportPageSubtitle,
+  weeklyReports,
+  weeklyReportTestRewardP1,
+  weeklyReportMilestones,
+} from './weeklyReport';

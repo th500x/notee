@@ -393,6 +393,8 @@ export default function useEventSystem(player, cards) {
           }
         })
         .catch(() => {});
+      // 与后端 /rewards 写入 explore_events 同步，避免关面板前本地进度滞后仍抽到链上一环
+      refetchExploreProgress();
     }
     return true;
   }, [quota, setPendingEvent, pendingKey, player?.player_id, refetchExploreProgress]);
