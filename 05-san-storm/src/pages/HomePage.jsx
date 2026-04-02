@@ -20,25 +20,25 @@ function HomePage() {
       </div>
 
       {/* 功能导航 */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-4xl mx-auto">
         {/* 游戏百科 */}
         <a 
           href="/05-san-storm/wiki/" 
-          className="block p-6 bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow"
+          className="block bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow cursor-pointer h-full flex flex-col"
         >
-          <div className="text-4xl mb-4">📚</div>
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">游戏百科</h3>
-          <p className="text-sm text-gray-600">查看游戏资料和系统说明</p>
+          <div className="text-4xl mb-4 text-center">📚</div>
+          <h3 className="text-lg font-semibold text-gray-900 mb-2 text-center">游戏百科</h3>
+          <p className="text-sm text-gray-600 text-center">查看游戏资料和系统说明</p>
         </a>
 
         {/* 游戏系统 */}
         <a 
           href="/05-san-storm/game/" 
-          className="block p-6 bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow"
+          className="block bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow cursor-pointer h-full flex flex-col"
         >
-          <div className="text-4xl mb-4">🎯</div>
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">游戏系统</h3>
-          <p className="text-sm text-gray-600">体验游戏功能模块</p>
+          <div className="text-4xl mb-4 text-center">🎯</div>
+          <h3 className="text-lg font-semibold text-gray-900 mb-2 text-center">游戏系统</h3>
+          <p className="text-sm text-gray-600 text-center">体验游戏功能模块</p>
         </a>
       </div>
 
