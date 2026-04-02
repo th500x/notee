@@ -522,9 +522,14 @@ export default function LineupTab({ onClose }) {
           getCharacterLifeStage={getCharacterLifeStage}
           onClose={() => setDetailCard(null)}
           onReplace={() => {
-            // 关闭详情 → 打开选择抽屉（保留slotOwner信息）
+            // 关闭详情 → 打开选择抽屉（保留 slotOwner；横屏时 activeSubTab 可能仍为 player，按实例兜底到 char1/char2）
             const slot = detailCard.slot;
-            const owner = detailCard.slotOwner;
+            let owner = detailCard.slotOwner;
+            if (!owner && slot?.id === 'character' && detailCard.card) {
+              const cid = detailCard.card.instance_id;
+              if (char1Character?.instance_id === cid) owner = 'char1';
+              else if (char2Character?.instance_id === cid) owner = 'char2';
+            }
             setDetailCard(null);
             setSelectedSlot({ ...slot, slotOwner: owner || activeSubTab });
             setDrawerOpen(true);

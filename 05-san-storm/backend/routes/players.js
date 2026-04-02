@@ -232,6 +232,60 @@ async function applyCardBonusToTroops(pool, playerId, equippedBy, cardType, card
 const EFFECT_CARD_TYPES = ['title', 'achievement', 'treasure'];
 
 /**
+ * 编组「将领卡」数据修复：旧版前端若把将领装到错误 owner（如 player），或同槽残留多张卡，
+ * 会导致界面与 DB 不一致、卸下后「将领消失」、新获得的同名卡仍显示为已装备。
+ * 在拉取档案前执行，将异常卡卸回背包（保留每槽最新获得的一张，其余卸下）。
+ */
+async function repairLineupCharacterCards(pool, playerId) {
+  let fixed = 0;
+  const [orphans] = await pool.query(
+    `SELECT instance_id FROM player_cards
+     WHERE player_id = ?
+       AND card_type = 'character'
+       AND is_equipped = TRUE
+       AND (
+         equipped_by NOT IN ('character1', 'character2')
+         OR equipped_slot IS NULL
+         OR equipped_slot != 'character'
+       )`,
+    [playerId]
+  );
+  for (const row of orphans) {
+    const [r] = await pool.query(
+      `UPDATE player_cards SET is_equipped = FALSE, equipped_by = NULL, equipped_slot = NULL
+       WHERE instance_id = ? AND player_id = ?`,
+      [row.instance_id, playerId]
+    );
+    fixed += r.affectedRows || 0;
+  }
+  for (const by of ['character1', 'character2']) {
+    const [dups] = await pool.query(
+      `SELECT instance_id FROM player_cards
+       WHERE player_id = ?
+         AND card_type = 'character'
+         AND is_equipped = TRUE
+         AND equipped_by = ?
+         AND equipped_slot = 'character'
+       ORDER BY obtained_at DESC, instance_id DESC`,
+      [playerId, by]
+    );
+    if (dups.length <= 1) continue;
+    for (let i = 1; i < dups.length; i++) {
+      const [r] = await pool.query(
+        `UPDATE player_cards SET is_equipped = FALSE, equipped_by = NULL, equipped_slot = NULL
+         WHERE instance_id = ? AND player_id = ?`,
+        [dups[i].instance_id, playerId]
+      );
+      fixed += r.affectedRows || 0;
+    }
+  }
+  if (fixed > 0) {
+    console.log(`[Players] repairLineupCharacterCards: player=${playerId} fixed=${fixed}`);
+    characterRankService.refreshSnapshotsForPlayer(playerId).catch(() => {});
+  }
+}
+
+/**
  * GET /api/players/avatars
  * 获取可用头像列表（按分类分组）
  */
@@ -1016,6 +1070,8 @@ router.get('/:playerId/profile', async (req, res) => {
       }
     }
 
+    await repairLineupCharacterCards(pool, playerId);
+
     // 2. 获取玩家所有卡牌（关联配置表读取固定属性）
     const [cards] = await pool.query(`
       SELECT 
@@ -1505,28 +1561,38 @@ router.post('/:playerId/cards/equip', async (req, res) => {
       }
     }
 
-    // 先卸下该槽位上已有的卡牌（含称号特效清除）
+    if (cardToEquip.card_type === 'character') {
+      if (!['character1', 'character2'].includes(equippedBy) || equippedSlot !== 'character') {
+        return res.status(400).json({
+          success: false,
+          error: '将领卡只能装备在将领1 / 将领2 的将领槽',
+        });
+      }
+    }
+
+    // 先卸下该槽位上已有的卡牌（同一槽多卡时全部卸下，避免旧版 bug 残留第二张仍 is_equipped）
     const [oldCards] = await pool.query(
       `SELECT instance_id, card_type, card_id FROM player_cards
        WHERE player_id = ? AND equipped_by = ? AND equipped_slot = ? AND is_equipped = TRUE`,
       [playerId, equippedBy, equippedSlot]
     );
     if (oldCards.length > 0) {
+      const oldIds = oldCards.map((o) => o.instance_id);
       await pool.query(
         `UPDATE player_cards SET is_equipped = FALSE, equipped_by = NULL, equipped_slot = NULL
-         WHERE instance_id = ?`,
-        [oldCards[0].instance_id]
+         WHERE player_id = ? AND instance_id IN (${oldIds.map(() => '?').join(',')})`,
+        [playerId, ...oldIds]
       );
-      // 如果卸下的是部队卡，清零它的 bonus 字段（干净回背包）
-      if (oldCards[0].card_type === 'troop') {
-        await pool.query(
-          `UPDATE player_cards SET bonus_max_troops=0, bonus_attack=0, bonus_defense=0, bonus_speed=0, bonus_movement=0
-           WHERE instance_id = ?`,
-          [oldCards[0].instance_id]
-        );
+      for (const old of oldCards) {
+        if (old.card_type === 'troop') {
+          await pool.query(
+            `UPDATE player_cards SET bonus_max_troops=0, bonus_attack=0, bonus_defense=0, bonus_speed=0, bonus_movement=0
+             WHERE instance_id = ?`,
+            [old.instance_id]
+          );
+        }
       }
-      // 如果卸下的是效果卡，清零所有部队卡 bonus，再重新应用剩余效果卡
-      if (EFFECT_CARD_TYPES.includes(oldCards[0].card_type)) {
+      if (oldCards.some((o) => EFFECT_CARD_TYPES.includes(o.card_type))) {
         await pool.query(
           `UPDATE player_cards SET bonus_max_troops=0, bonus_attack=0, bonus_defense=0, bonus_speed=0, bonus_movement=0
            WHERE player_id = ? AND equipped_by = ? AND card_type = 'troop' AND is_equipped = TRUE`,

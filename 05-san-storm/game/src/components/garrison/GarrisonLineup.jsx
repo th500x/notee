@@ -304,6 +304,26 @@ export default function GarrisonLineup({ onClose }) {
     setDetailCard({ card, slot: virtualSlot, charKey });
   }, []);
 
+  /** 与 handleEquip 一致：装备卡 DB 字段为 char*_equipment_card，不是 slot.id */
+  const garrisonFieldForSlot = useCallback((slot, charKey) => {
+    if (!slot || !charKey) return null;
+    if (slot.id === 'character') return `${charKey}_card`;
+    if (slot.id === 'equipmentSet') return `${charKey}_equipment_card`;
+    return `${charKey}_${slot.id}`;
+  }, []);
+
+  /** 将领详情「更换」：优先 detailCard.charKey；缺失时按驻守行实例兜底（对齐 LineupTab 的 slotOwner 推断） */
+  const resolveDetailCharKey = useCallback(() => {
+    if (!detailCard) return null;
+    let ck = detailCard.charKey;
+    if (!ck && detailCard.slot?.id === 'character' && detailCard.card?.instance_id && currentGarrison) {
+      const cid = detailCard.card.instance_id;
+      if (currentGarrison.char1_card === cid) ck = 'char1';
+      else if (currentGarrison.char2_card === cid) ck = 'char2';
+    }
+    return ck || null;
+  }, [detailCard, currentGarrison]);
+
   const leftSlots = GENERAL_SLOTS.filter(s => s.side === 'left');
   const rightSlots = GENERAL_SLOTS.filter(s => s.side === 'right');
 
@@ -606,10 +626,9 @@ export default function GarrisonLineup({ onClose }) {
             </div>
             <div className="flex gap-2">
               <button onClick={() => {
-                const field = detailCard.slot.id === 'character'
-                  ? `${detailCard.charKey}_card`
-                  : `${detailCard.charKey}_${detailCard.slot.id}`;
-                saveGarrison(field, null);
+                const ck = resolveDetailCharKey();
+                const field = garrisonFieldForSlot(detailCard.slot, ck);
+                if (field) saveGarrison(field, null);
                 setDetailCard(null);
               }}
                 className="flex-1 py-2 rounded-lg bg-red-900/50 border border-red-700/50 text-red-300 text-sm
@@ -617,10 +636,10 @@ export default function GarrisonLineup({ onClose }) {
                 卸下
               </button>
               <button onClick={() => {
-                // 关闭详情 → 打开选择抽屉（替换）
                 const slot = detailCard.slot;
-                const charKey = detailCard.charKey;
+                const charKey = resolveDetailCharKey();
                 setDetailCard(null);
+                if (!charKey) return;
                 setSelectedSlot({ ...slot, charKey, pool: activePool });
                 setDrawerOpen(true);
               }}
