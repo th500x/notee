@@ -42,6 +42,18 @@ const SUB_TABS = [
   { id: 'char2',  label: '将领2' },
 ];
 
+/** 与军营「将领」行一致：灰 < 蓝 < 紫 < 橙 < 金 */
+const RARITY_ORDER = { common: 0, rare: 1, epic: 2, legendary: 3, core: 4 };
+
+function sortCardsByRarity(cards) {
+  if (!cards?.length) return [];
+  return [...cards].sort(
+    (a, b) =>
+      (RARITY_ORDER[a.config?.rarity || a.rarity || 'common'] ?? 99) -
+      (RARITY_ORDER[b.config?.rarity || b.rarity || 'common'] ?? 99)
+  );
+}
+
 /** 槽位定义 */
 const PLAYER_SLOTS = [
   // 左侧
@@ -166,11 +178,12 @@ export default function LineupTab({ onClose }) {
   }, [player, refresh]);
 
   // 点击将领角色卡 → 显示详情浮层（可卸下将领）
-  const handleGeneralCardClick = useCallback((card) => {
-    // 构造一个虚拟slot用于详情浮层
+  // 横屏四象限下 activeSubTab 可能仍为 player，必须传 char1/char2，否则「更换」会误装到玩家槽
+  const handleGeneralCardClick = useCallback((card, slotOwner) => {
     const virtualSlot = { id: 'character', label: '将领', icon: '👤', implemented: true };
-    setDetailCard({ card, slot: virtualSlot });
-  }, []);
+    const owner = slotOwner ?? activeSubTab;
+    setDetailCard({ card, slot: virtualSlot, slotOwner: owner });
+  }, [activeSubTab]);
 
   if (loading) {
     return (
@@ -286,7 +299,7 @@ export default function LineupTab({ onClose }) {
   const getAvailableCards = () => {
     if (!selectedSlot) return [];
     if (selectedSlot.id === 'character') {
-      return unequippedCharacters;
+      return sortCardsByRarity(unequippedCharacters);
     }
     if (selectedSlot.id === 'troop' || selectedSlot.id === 'troop1' || selectedSlot.id === 'troop2') {
       return unequippedTroops.filter(c => {
@@ -522,7 +535,7 @@ export default function LineupTab({ onClose }) {
                 player.player_id, detailCard.card.instance_id
               );
               if (result.success) {
-                refresh();
+                await refresh();
               } else {
                 console.error('[LineupTab] 卸下失败:', result.error);
               }
@@ -584,7 +597,7 @@ function GeneralNotRecruited({ label, unequippedCharacters, onEquipCharacter, sk
     <div className="flex flex-col items-center py-4">
       <p className="text-amber-400 text-sm font-bold mb-3">选择{label}</p>
       <div className="flex flex-wrap gap-2 justify-center">
-        {unequippedCharacters.map(card => (
+        {sortCardsByRarity(unequippedCharacters).map(card => (
           <div key={card.instance_id} className="cursor-pointer hover:brightness-110 active:scale-95 transition-all"
             style={{ width: 128, height: 192 }}
             onClick={() => onEquipCharacter(card)}>
@@ -634,7 +647,7 @@ function LandscapeQuadrant({ player, activeSubTab, slots, getSlotContent, onSlot
     <div className="flex items-stretch h-full">
       {/* 左侧：角色卡（占满象限高度） */}
       <div className="flex-shrink-0 overflow-hidden cursor-pointer" onClick={() => {
-        if (generalCard && onGeneralCardClick) onGeneralCardClick(generalCard);
+        if (generalCard && onGeneralCardClick) onGeneralCardClick(generalCard, activeSubTab);
       }}>
         {charData ? (
           <div style={{ transform: `scale(${cardScale})`, transformOrigin: 'top left', height: `${cardHeight}px` }}>
@@ -665,7 +678,7 @@ function LandscapeQuadrant({ player, activeSubTab, slots, getSlotContent, onSlot
                 key={slot.id}
                 slot={slot}
                 content={content}
-                isSelected={selectedSlot?.id === slot.id}
+                isSelected={selectedSlot?.id === slot.id && selectedSlot?.slotOwner === activeSubTab}
                 onClick={() => onSlotClick(slot, content, activeSubTab)}
                 baseUrl={baseUrl}
                 skillsMap={skillsMap}
@@ -724,7 +737,7 @@ function EquipmentLayout({ player, activeSubTab, leftSlots, rightSlots, getSlotC
             {charData ? (
               <div style={{ transform: `scale(${cardScale})`, transformOrigin: 'top left' }}
                 className={generalCard ? 'cursor-pointer' : ''}
-                onClick={() => { if (generalCard && onGeneralCardClick) onGeneralCardClick(generalCard); }}>
+                onClick={() => { if (generalCard && onGeneralCardClick) onGeneralCardClick(generalCard, activeSubTab); }}>
                 <CharacterCard
                   character={charData}
                   skillsMap={skillsMap}
@@ -766,7 +779,7 @@ function EquipmentLayout({ player, activeSubTab, leftSlots, rightSlots, getSlotC
           <div className="flex-shrink-0" style={{ height: '276px', overflow: 'hidden' }}>
             {charData ? (
               <div className={`transform scale-[0.72] origin-top ${generalCard ? 'cursor-pointer' : ''}`}
-                onClick={() => { if (generalCard && onGeneralCardClick) onGeneralCardClick(generalCard); }}>
+                onClick={() => { if (generalCard && onGeneralCardClick) onGeneralCardClick(generalCard, activeSubTab); }}>
                 <CharacterCard
                   character={charData}
                   skillsMap={skillsMap}
@@ -1827,9 +1840,6 @@ function BackpackSection({
     </div>
   );
 }
-
-/** 稀有度排序权重 */
-const RARITY_ORDER = { common: 0, rare: 1, epic: 2, legendary: 3, core: 4 };
 
 /** 底部抽屉：可装备卡牌选择（完整卡牌50%缩放，按稀有度分组） */
 function CardDrawer({ slot, cards, allCards = [], skillsMap, onSelect, onClose }) {

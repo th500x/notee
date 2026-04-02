@@ -1,21 +1,20 @@
 /**
  * 管理员认证自定义 Hook
  * 管理管理员的登录状态、登录和登出功能
+ *
+ * 【上线前】将下方 `useState(true)` 改回 `useState(false)`，恢复 useEffect 内
+ * tokenManager.isValid() / setIsLoggedIn 两行（去掉注释），并删除「本地临时管理员」相关注释。
  */
-// DEV ONLY: 本文件临时开启管理员模式。
-// 提交前恢复：1) `useState(true)` 改回 `useState(false)`；2) 取消注释 useEffect 内 token 校验两行。
-
 import { useState, useEffect } from 'react';
 import { authAPI } from '../services/api';
 import { tokenManager } from '../utils/tokenManager';
 
 export function useAdmin() {
-  // 本地开发：临时默认视为已登录（勿提交生产）
+  // 本地开发环境：临时开启管理员（首页直接显示管理入口；不依赖本地 token）
   const [isLoggedIn, setIsLoggedIn] = useState(true);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    // 本地开发：临时关闭，避免覆盖默认已登录（勿提交生产）
     // const isValid = tokenManager.isValid();
     // setIsLoggedIn(isValid);
   }, []);

@@ -46,6 +46,15 @@ const RARITY_DOTS = [
 ];
 const RARITY_ORDER = { common: 0, rare: 1, epic: 2, legendary: 3, core: 4 };
 
+function sortCardsByRarity(cards) {
+  if (!cards?.length) return [];
+  return [...cards].sort(
+    (a, b) =>
+      (RARITY_ORDER[a.config?.rarity || a.rarity || 'common'] ?? 99) -
+      (RARITY_ORDER[b.config?.rarity || b.rarity || 'common'] ?? 99)
+  );
+}
+
 export default function GarrisonLineup({ onClose }) {
   const { player, cards, refresh, attributeBonusBySlot } = usePlayerContext();
   const { getCharacterLifeStage } = useLifeStages();
@@ -676,7 +685,7 @@ function GeneralNotRecruited({ label, unequippedCharacters, onEquipCharacter, sk
     <div className="flex flex-col items-center py-4">
       <p className="text-amber-400 text-sm font-bold mb-3">选择{label}</p>
       <div className="flex flex-wrap gap-2 justify-center">
-        {unequippedCharacters.map(card => (
+        {sortCardsByRarity(unequippedCharacters).map(card => (
           <div key={card.instance_id} className="cursor-pointer hover:brightness-110 active:scale-95 transition-all"
             style={{ width: 128, height: 192 }}
             onClick={() => onEquipCharacter(card)}>
