@@ -7,6 +7,8 @@
  * @see docs/10-core-system/17-1-COMBAT_SYSTEM.md
  */
 
+import { getBattleAiStyle } from '@/systems/battleCampaignRules';
+
 // 地图尺寸常量（与 mapGenerator 保持一致）
 // 后续支持中型/大型地图时，这些值需要作为参数传入
 const DEFAULT_MAP_WIDTH = 8;
@@ -230,6 +232,7 @@ export function findPathForAi(troop, ty, tx, mapResult, battleTroops) {
  * @returns {{ move: Array|null, target: Object|null }|null}
  */
 export function findBestMoveTarget(troop, battleTroops, mapResult) {
+  const aiStyle = getBattleAiStyle(troop);
   const enemies = battleTroops.filter(t => t.faction !== troop.faction && t.currentTroops > 0);
   if (enemies.length === 0) return null;
 
@@ -251,8 +254,18 @@ export function findBestMoveTarget(troop, battleTroops, mapResult) {
   function pickApproachTile() {
     let bestInRange = null, bestInRangeD = -1;
     let bestInRangeTrap = true;
-    let bestClosing = null, bestClosingD = Infinity;
+    let bestClosing = null;
+    let bestClosingD = aiStyle === 'defense' ? -1 : Infinity;
     let bestClosingTrap = true;
+    /** 接敌阶段：进攻/均衡选更近格；防守选更远格（慢接敌、保持纵深） */
+    const preferClosing = (d, prevD) => {
+      if (aiStyle === 'defense') return d > prevD;
+      return d < prevD;
+    };
+    const tieClosing = (d, prevD) => {
+      if (aiStyle === 'defense') return d === prevD;
+      return d === prevD;
+    };
     for (const [key] of reachable) {
       const [ry, rx] = key.split(',').map(Number);
       if (isOccupied(ry, rx, troop, battleTroops)) continue;
@@ -267,11 +280,11 @@ export function findBestMoveTarget(troop, battleTroops, mapResult) {
           bestInRange = { y: ry, x: rx };
           bestInRangeTrap = false;
         }
-      } else if (d < bestClosingD) {
+      } else if (preferClosing(d, bestClosingD)) {
         bestClosingD = d;
         bestClosing = { y: ry, x: rx };
         bestClosingTrap = trap;
-      } else if (d === bestClosingD && bestClosingTrap && !trap) {
+      } else if (tieClosing(d, bestClosingD) && bestClosingTrap && !trap) {
         bestClosing = { y: ry, x: rx };
         bestClosingTrap = false;
       }

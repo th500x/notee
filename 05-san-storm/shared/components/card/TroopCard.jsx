@@ -125,16 +125,15 @@ const TroopCard = ({
     setIconStep((s) => (s + 1 < iconUrls.length ? s + 1 : iconUrls.length));
   };
 
-  // 获取卡面背景图片路径
+  /** 卡面背景（稀有度底图，与部队图标路径无关） */
   const getCardBackground = () => {
     const rarityToFilename = {
-      'common': 'bg_r1',
-      'rare': 'bg_r2',
-      'epic': 'bg_r3',
-      'legendary': 'bg_r4',
-      'core': 'bg_r5'
+      common: 'bg_r1',
+      rare: 'bg_r2',
+      epic: 'bg_r3',
+      legendary: 'bg_r4',
+      core: 'bg_r5',
     };
-    
     const filename = rarityToFilename[troop.rarity] || 'bg_r1';
     return `${baseUrl}assets/san_1_ui_card/bg/${filename}.png`;
   };
@@ -182,7 +181,7 @@ const TroopCard = ({
           backgroundImage: `url(${getCardBackground()})`,
           backgroundSize: 'cover',
           backgroundPosition: 'center',
-          backgroundColor: '#1f2937'
+          backgroundColor: '#1f2937',
         }}
       >
         

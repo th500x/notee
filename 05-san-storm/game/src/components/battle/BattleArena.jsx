@@ -26,6 +26,7 @@ import BattleAuxPanel from '@/components/battle/BattleAuxPanel';
 import MapLegend from '@/components/battle/MapLegend';
 import { MAP_W } from '@/components/battle/battleConstants';
 import '@/components/battle/BattleMap.css';
+import { initialMoraleFromCharacter } from '@/utils/npcMorale';
 import {
   calculateBattleScore,
   getSiegeBattleScoreMultiplier,
@@ -294,7 +295,7 @@ export default function BattleArena({
         const charName = raw
           ? (raw.courtesyName || raw.courtesy_name || raw.name || raw.character_name || raw.characterName)
           : null;
-        const morale = Math.round(50 + Math.random() * 30) + (raw?.traitModifier ?? raw?.trait_modifier ?? 0);
+        const morale = initialMoraleFromCharacter(raw);
         const npcTroopMeta = {
           id: npc.troopId,
           rarity: npc.rarity,
@@ -328,7 +329,7 @@ export default function BattleArena({
             politics: polRaw / 10, charm: charmRaw / 10,
           } : null,
           displayName: charName || npc.troopName,
-          morale: Math.max(0, Math.min(100, morale)),
+          morale,
           imgSrc: attempts[0],
           imgPortraitAttempts: attempts,
           imgFallback: attempts[attempts.length - 1],

@@ -15,6 +15,8 @@
  *   const result = generateSmallMap({ seed: 12345 });
  *
  * @see docs/90-assets/91-2-MAP_AUTO_GENERATION.md
+ *
+ * 资源文件名与 public/assets/san_1_map 一致（§1.3）；不含战役 CSV 的 forces/siege 等（见 91-3）。
  */
 
 // ── 常量 ──────────────────────────────────────────────────────────────────────

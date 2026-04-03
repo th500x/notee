@@ -26,7 +26,8 @@ $files = @(
   "create-temp-character-ranking-snapshots.sql",
   "add-card-pool-tables.sql",
   "create-temp-ranking-snapshots-table.sql",
-  "create-player-garrison.sql"
+  "create-player-garrison.sql",
+  "create-runtime-tables-from-design-doc-01-1.sql"
 )
 
 Write-Host "Database: $Db  User: $User" -ForegroundColor Cyan

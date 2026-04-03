@@ -12,6 +12,7 @@ import {
   getTroopUiFolderFallbackUrl,
 } from '@shared/utils/troopIconUrls';
 import { API_CONFIG } from '@/constants';
+import { initialMoraleFromCharacter } from '@/utils/npcMorale';
 
 const base = () => import.meta.env.BASE_URL;
 
@@ -175,9 +176,7 @@ export function useBattleMap() {
       const pos = enemyPositions[i];
       // 2 将领：各带 2 部队；3 将领（5 部队）：0,1 / 2,3 / 4
       const char = enemyChars[Math.floor(i / 2)] || null;
-      const baseMorale = Math.round(50 + Math.random() * 30);
-      const traitMod = char ? (char.traitModifier || 0) : 0;
-      const morale = Math.max(0, Math.min(100, baseMorale + traitMod));
+      const morale = initialMoraleFromCharacter(char);
       const attempts = getTroopPortraitUrlAttempts(tr, base());
       return {
         ...tr,

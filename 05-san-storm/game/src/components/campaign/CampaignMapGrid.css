@@ -1,0 +1,233 @@
+/* 战役地图 Demo：与 BattleMap 同款叠层逻辑，网格为 16×20 */
+.campaign-map-card {
+  background: transparent;
+  border: none;
+  padding: 0;
+  display: block;
+  max-width: 100%;
+}
+
+.campaign-map-title {
+  font-size: 14px;
+  color: #92400e;
+  margin-bottom: 6px;
+  letter-spacing: 1px;
+  font-weight: 600;
+}
+
+.campaign-map-meta {
+  font-size: 12px;
+  color: #57534e;
+  margin-bottom: 10px;
+  line-height: 1.6;
+}
+
+.campaign-map-wrap {
+  overflow: auto;
+  max-width: 100%;
+  padding-bottom: 4px;
+}
+
+/* Web 预览放大：仅 Demo；窄屏仍按视口适配列宽 */
+:root {
+  --camp-tile: 44px;
+}
+
+@media (max-width: 1100px) {
+  :root {
+    --camp-tile: 36px;
+  }
+}
+
+@media (max-width: 900px) {
+  :root {
+    --camp-tile: min(36px, calc((100vw - 40px) / 16));
+  }
+}
+
+/* 避免 inline-block 子元素底部空隙 */
+.campaign-map-shell {
+  position: relative;
+  display: inline-block;
+  vertical-align: top;
+  line-height: 0;
+}
+
+.campaign-quad-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.campaign-quad-overlay .campaign-quad-frame {
+  position: absolute;
+  box-sizing: border-box;
+}
+
+.campaign-map-grid {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: repeat(16, var(--camp-tile));
+  grid-template-rows: repeat(20, var(--camp-tile));
+  gap: 1px;
+  background: #0a0a14;
+  border: 1px solid #222;
+}
+
+.campaign-unit-layer {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  display: grid;
+  grid-template-columns: repeat(16, var(--camp-tile));
+  grid-template-rows: repeat(20, var(--camp-tile));
+  gap: 1px;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.campaign-unit-cell {
+  position: relative;
+  width: var(--camp-tile);
+  height: var(--camp-tile);
+}
+
+.campaign-tile {
+  position: relative;
+  width: var(--camp-tile);
+  height: var(--camp-tile);
+  overflow: hidden;
+}
+
+.campaign-tile img.camp-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.camp-quad-marker {
+  position: absolute;
+  bottom: 1px;
+  left: 2px;
+  font-size: 7px;
+  color: rgba(255, 255, 255, 0.35);
+  z-index: 3;
+  pointer-events: none;
+  text-shadow: 0 0 2px #000;
+}
+
+.camp-fire-emoji {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  z-index: 3;
+  pointer-events: none;
+  filter: drop-shadow(0 0 2px #000);
+}
+
+.camp-terrain-fallback {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.camp-terrain-lake {
+  background: rgba(25, 60, 140, 0.55);
+}
+
+.camp-terrain-ford {
+  background: rgba(100, 160, 220, 0.35);
+}
+
+.camp-terrain-road {
+  background: rgba(120, 100, 70, 0.35);
+}
+
+.camp-obj-fallback {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  font-weight: 700;
+  color: #fef3c7;
+  z-index: 2;
+  text-shadow: 0 0 3px #000;
+  pointer-events: none;
+}
+
+.campaign-quad-a {
+  left: 0;
+  top: 0;
+  width: 50%;
+  height: 50%;
+  border: 2px dashed rgba(201, 168, 76, 0.45);
+}
+
+.campaign-quad-b {
+  left: 50%;
+  top: 0;
+  width: 50%;
+  height: 50%;
+  border: 2px dashed rgba(201, 168, 76, 0.45);
+}
+
+.campaign-quad-c {
+  left: 50%;
+  top: 50%;
+  width: 50%;
+  height: 50%;
+  border: 2px dashed rgba(201, 168, 76, 0.45);
+}
+
+.campaign-quad-d {
+  left: 0;
+  top: 50%;
+  width: 50%;
+  height: 50%;
+  border: 2px dashed rgba(201, 168, 76, 0.45);
+}
+
+.campaign-unit-marker {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.campaign-unit-ring {
+  position: absolute;
+  inset: 1px;
+  border-radius: 2px;
+  pointer-events: none;
+}
+
+.campaign-unit-img {
+  position: relative;
+  width: 72%;
+  height: 72%;
+  object-fit: contain;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.85));
+  z-index: 1;
+}
+
+.campaign-unit-fallback {
+  font-size: 14px;
+  opacity: 0.85;
+  z-index: 1;
+}

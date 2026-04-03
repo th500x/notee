@@ -136,6 +136,12 @@ const pvpRouter = require('./routes/pvp');
 app.use('/api/pvp', pvpRouter);
 
 /**
+ * 战役地图 preset（与 shared/data/campaign 同步）
+ */
+const campaignMapsRouter = require('./routes/campaignMaps');
+app.use('/api/campaign', campaignMapsRouter);
+
+/**
  * 健康检查
  */
 app.get('/api/health', async (req, res) => {

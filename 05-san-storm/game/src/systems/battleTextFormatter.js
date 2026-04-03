@@ -131,6 +131,13 @@ export function fmtBattleEnd(result) {
   return '';
 }
 
+/** 战役主将阵亡导致的即时胜负（与全军覆没文案区分） */
+export function fmtCampaignCommanderEnd(result) {
+  if (result === 'enemy_win') return '💀 我方一名主将（hero）阵亡，战役失败！';
+  if (result === 'player_win') return '🏆 敌方一名主将（boss）被击败，战役胜利！';
+  return '';
+}
+
 /** 回合结束 */
 export function fmtRoundEnd(pAlive, eAlive) {
   return `── 回合结束 ── 我方${pAlive}支 vs 敌方${eAlive}支`;

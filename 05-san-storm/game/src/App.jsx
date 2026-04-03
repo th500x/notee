@@ -9,6 +9,7 @@ const WeeklyReportPage = lazy(() => import('@/pages/WeeklyReportPage'));
 const UserManagerPage = lazy(() => import('@/pages/admin/UserManagerPage'));
 const MailManagerPage = lazy(() => import('@/pages/admin/MailManagerPage'));
 const ActivityManagerPage = lazy(() => import('@/pages/admin/ActivityManagerPage'));
+const CampaignMapDemoPage = lazy(() => import('@/pages/CampaignMapDemoPage'));
 
 function RouteLoading() {
   return (
@@ -83,6 +84,12 @@ function App() {
                     <p className="text-sm text-gray-600 text-center">真三风云 - 赛季1</p>
                   </a>
 
+                  <a href={`${import.meta.env.BASE_URL}campaign-map-demo`} className="block bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow cursor-pointer h-full flex flex-col border border-amber-100">
+                    <div className="text-4xl mb-4 text-center">🗺️</div>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2 text-center">战役地图 Demo</h3>
+                    <p className="text-sm text-gray-600 text-center">长社之战 san_1_camp_1001_v1 · 模拟生成</p>
+                  </a>
+
                   <a href={`${import.meta.env.BASE_URL}weekly-report`} className="block bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow cursor-pointer h-full flex flex-col border border-purple-100">
                     <div className="text-4xl mb-4 text-center">{weeklyReportCard.emoji}</div>
                     <h3 className="text-lg font-semibold text-gray-900 mb-2 text-center">{weeklyReportCard.title}</h3>
@@ -117,6 +124,7 @@ function App() {
             <Route path="/user-manager" element={<UserManagerPage />} />
             <Route path="/mail-manager" element={<MailManagerPage />} />
             <Route path="/activity-manager" element={<ActivityManagerPage />} />
+            <Route path="/campaign-map-demo" element={<CampaignMapDemoPage />} />
 
           </Routes>
           </Suspense>

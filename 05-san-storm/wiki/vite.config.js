@@ -3,9 +3,13 @@ import react from '@vitejs/plugin-react';
 import path from 'path';
 
 // https://vitejs.dev/config/
+// 与 game 一致：静态资源直接指向仓库 `05-san-storm/public`（勿依赖 wiki/public 下符号链接；
+// Linux core.symlinks=false 时链接会变成文本文件导致 ENOENT）。
+// 生产构建必须把 san_1_ui_card 等打入 dist，否则 /05-san-storm/wiki/assets/ 下全部 404。
 export default defineConfig({
   plugins: [react()],
   base: '/05-san-storm/wiki/',
+  publicDir: path.resolve(__dirname, '../public'),
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
@@ -35,8 +39,5 @@ export default defineConfig({
     outDir: 'dist',
     assetsDir: 'assets',
     sourcemap: false,
-    // 生产机可能缺少 wiki/public 的符号链接目标（如 public/maps），
-    // 这里禁用 public 复制，避免 ENOENT；静态资源统一走 /05-san-storm/* 绝对路径。
-    copyPublicDir: false,
   },
 });

@@ -15,6 +15,7 @@ import {
 } from '@/systems/battleFlowManager';
 import { MAP_W } from '@/components/battle/battleConstants';
 import * as fmt from '@/systems/battleTextFormatter';
+import { outcomeIfCommanderEliminated } from '@/systems/battleCampaignRules';
 
 const GAME_BASE_URL = typeof import.meta !== 'undefined' && import.meta.env?.BASE_URL != null ? import.meta.env.BASE_URL : '';
 
@@ -255,6 +256,12 @@ export function useBattleEngine({
     }
   }, [addLog, getTroopLayer, getTileEl, mapResult, battleTroops]);
 
+  /** 歼灭后若为主将 hero/boss，返回战役即时胜负 */
+  const runBattleKill = useCallback(async (troop) => {
+    await battleKill(troop);
+    return outcomeIfCommanderEliminated(troop);
+  }, [battleKill]);
+
   const battleRanged = useCallback(async (atk, def, dmg, emoji = '➤') => {
     addLog(fmt.fmtRanged(atk, def), 'attack');
     const atkTile = getTileEl(atk), defTile = getTileEl(def);
@@ -319,13 +326,13 @@ export function useBattleEngine({
 
   // ── 移动部队（逐格） ──
   const battleMove = useCallback(async (troop, path) => {
-    if (!path || path.length === 0) return;
+    if (!path || path.length === 0) return undefined;
     const dest = path[path.length - 1];
     const fc = troop.faction;
     addLog(fmt.fmtMove(troop, troop.x, troop.y, dest.x, dest.y), 'move');
 
     const card = mapCardRef?.current;
-    if (!card) return;
+    if (!card) return undefined;
     const allTiles = card.querySelectorAll('.map-grid .tile');
 
     // 路径高亮
@@ -351,13 +358,14 @@ export function useBattleEngine({
       await sleep(180, speedRef.current);
       await checkTrap(troop, step.y, step.x);
       if (troop.currentTroops <= 0) {
-        await battleKill(troop);
+        const camp = await runBattleKill(troop);
         for (let ri = si + 1; ri < pathHls.length; ri++) { if (pathHls[ri]) pathHls[ri].remove(); }
-        return;
+        return camp || undefined;
       }
     }
     for (const hl of pathHls) { if (hl && hl.parentNode) hl.remove(); }
-  }, [addLog, mapCardRef, clearTroopFromTile, renderTroopOnTile, checkTrap, battleKill]);
+    return undefined;
+  }, [addLog, mapCardRef, clearTroopFromTile, renderTroopOnTile, checkTrap, runBattleKill]);
 
   // ── 执行攻击 ──
   const performAttack = useCallback(async (atk, def) => {
@@ -398,8 +406,9 @@ export function useBattleEngine({
       if (wt.startsWith('archer') && defRange >= 2) await battleRanged(def, atk, applied, '➤');
       else await battleAttack(def, atk, applied);
     }
-    if (atk.currentTroops <= 0) await battleKill(atk);
-  }, [addLog, mapResult, battleMiss, battleCrit, battleRanged, battleAttack, battleKill]);
+    if (atk.currentTroops <= 0) return runBattleKill(atk);
+    return undefined;
+  }, [addLog, mapResult, battleMiss, battleCrit, battleRanged, battleAttack, runBattleKill]);
 
   // ── 阵型整体移动 ──
   const formationGroupMove = useCallback(async (troops, dy, dx) => {
@@ -429,10 +438,13 @@ export function useBattleEngine({
     await sleep(200, speedRef.current);
     for (const t of troops) {
       await checkTrap(t, t.y, t.x);
-      if (t.currentTroops <= 0) await battleKill(t);
+      if (t.currentTroops <= 0) {
+        const c = await runBattleKill(t);
+        if (c) return c;
+      }
     }
     return true;
-  }, [mapCardRef, mapResult, battleTroops, clearTroopFromTile, renderTroopOnTile, checkTrap, battleKill]);
+  }, [mapCardRef, mapResult, battleTroops, clearTroopFromTile, renderTroopOnTile, checkTrap, runBattleKill]);
 
   // ── 应用阵型 ──
   const applyFormationBuffs = useCallback(async (formation) => {
@@ -547,6 +559,7 @@ export function useBattleEngine({
         if (maxCost > remainMove || maxCost === Infinity) break;
         addLog(fmt.fmtFormationMove(dirY), 'move');
         const ok = await formationGroupMove(fTroops.filter(t => t.currentTroops > 0), dirY, 0);
+        if (ok === 'player_win' || ok === 'enemy_win') return ok;
         if (!ok) break;
         remainMove -= maxCost;
       }
@@ -560,6 +573,7 @@ export function useBattleEngine({
         if (maxCost > remainMove || maxCost === Infinity) break;
         addLog(fmt.fmtFormationMoveX(dirX), 'move');
         const ok = await formationGroupMove(fTroops.filter(t => t.currentTroops > 0), 0, dirX);
+        if (ok === 'player_win' || ok === 'enemy_win') return ok;
         if (!ok) break;
         remainMove -= maxCost;
       }
@@ -594,7 +608,10 @@ export function useBattleEngine({
       for (const e of sortedEnemies) { if (e.currentTroops > 0 && dist(atk, e) <= (atk.range || 1)) { target = e; break; } }
       if (!target) continue;
       await performAttack(atk, target);
-      if (target.currentTroops <= 0) await battleKill(target);
+      if (target.currentTroops <= 0) {
+        const c = await runBattleKill(target);
+        if (c === 'player_win' || c === 'enemy_win') return c;
+      }
     }
     // 敌方反击
     const survivingEnemies = aliveEnemies.filter(e => e.currentTroops > 0);
@@ -606,13 +623,16 @@ export function useBattleEngine({
         addLog(fmt.fmtEnemyCounter(), 'attack');
         await sleep(150, speedRef.current);
         await performAttack(ce, ct);
-        if (ct.currentTroops <= 0) await battleKill(ct);
+        if (ct.currentTroops <= 0) {
+          const c = await runBattleKill(ct);
+          if (c === 'player_win' || c === 'enemy_win') return c;
+        }
       }
     }
     for (const t of fTroops) t._formationHandled = true;
     removeFormationBuffs();
     await sleep(300, speedRef.current);
-  }, [battleTroops, mapResult, addLog, formationGroupMove, performAttack, battleKill, removeFormationBuffs]);
+  }, [battleTroops, mapResult, addLog, formationGroupMove, performAttack, runBattleKill, removeFormationBuffs]);
 
   // ── 执行单回合 ──
   const executeSingleRound = useCallback(async () => {
@@ -642,7 +662,11 @@ export function useBattleEngine({
 
     if (activeFormationRef.current) {
       if (autoBattleRef.current) {
-        await formationGroupAction();
+        const fgEnd = await formationGroupAction();
+        if (fgEnd === 'player_win' || fgEnd === 'enemy_win') {
+          addLog(fmt.fmtCampaignCommanderEnd(fgEnd), 'death');
+          return fgEnd;
+        }
         await sleep(300, speedRef.current);
       } else {
         if (manualBattleRef?.current) {
@@ -687,7 +711,11 @@ export function useBattleEngine({
       if (!decision) { addLog(fmt.fmtNoTarget(troop), 'move'); await sleep(200, speedRef.current); continue; }
 
       if (decision.move && decision.move.length > 0) {
-        await battleMove(troop, decision.move);
+        const campMove = await battleMove(troop, decision.move);
+        if (campMove === 'player_win' || campMove === 'enemy_win') {
+          addLog(fmt.fmtCampaignCommanderEnd(campMove), 'death');
+          return campMove;
+        }
         if (troop.currentTroops <= 0) continue;
       }
 
@@ -695,8 +723,19 @@ export function useBattleEngine({
         const d = dist(troop, decision.target);
         if (d <= (troop.range || 1)) {
           await performAttack(troop, decision.target);
-          if (decision.target.currentTroops <= 0) await battleKill(decision.target);
-          else await performCounterAttack(troop, decision.target);
+          if (decision.target.currentTroops <= 0) {
+            const c = await runBattleKill(decision.target);
+            if (c === 'player_win' || c === 'enemy_win') {
+              addLog(fmt.fmtCampaignCommanderEnd(c), 'death');
+              return c;
+            }
+          } else {
+            const ca = await performCounterAttack(troop, decision.target);
+            if (ca === 'player_win' || ca === 'enemy_win') {
+              addLog(fmt.fmtCampaignCommanderEnd(ca), 'death');
+              return ca;
+            }
+          }
         } else {
           addLog(fmt.fmtOutOfRange(troop, d, troop.range || 1), 'move');
         }
@@ -715,7 +754,7 @@ export function useBattleEngine({
     addLog(fmt.fmtRoundEnd(pAlive.length, eAlive.length), 'round');
     return 'continue';
   }, [battleTroops, setRoundNum, autoFormation, mapResult, addLog,
-      applyFormationBuffs, formationGroupAction, battleMove, performAttack, battleKill, performCounterAttack]);
+      applyFormationBuffs, formationGroupAction, battleMove, performAttack, runBattleKill, performCounterAttack]);
 
   // ── 播放回合 ──
   const playBattleRound = useCallback(async () => {
