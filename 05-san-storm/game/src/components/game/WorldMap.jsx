@@ -981,6 +981,7 @@ export default function WorldMap({ onEventBusyChange }) {
           cards={cards}
           enemyUnits={siegeData.npcGarrison}
           silverAmount={player?.silver ?? 0}
+          playerFood={player?.food ?? 0}
           playerId={player?.player_id}
           battleType={siegeData.isPvp ? 'pvp_siege' : 'pve_siege'}
           siegeDefenderType={siegeData.defenderType || 'npc'}

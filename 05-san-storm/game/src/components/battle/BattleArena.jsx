@@ -35,6 +35,7 @@ import { battleAPI } from '@/services/battleApi';
 import AncientModal from '@/components/common/AncientModal';
 import {
   getMainLineupTroopTotalForBattleGate,
+  getMainLineupBattleFoodDeployCost,
   MIN_MAIN_LINEUP_TROOPS_BATTLE,
 } from '@/utils/mainLineupTroops';
 
@@ -81,10 +82,11 @@ function renderTroopsToDOM(mapCardRef, battleTroops, baseUrl = '') {
  * @param {boolean} [recordOnly] 为 true 时只记战报、不通过 /battles 改兵力（防守方本地观战与攻城方结算去重）
  * @param {string} [siegeDefenderType] 攻城 context：`npc` | `player_garrison` | `pvp_online`，用于战报积分倍率（与 getSiegeBattleScoreMultiplier 一致）
  * @param {Array} [cards] PlayerContext.cards，用于与后端一致的主阵容兵力校验；不传则用 playerUnits 合计回退
+ * @param {number} [playerFood] 当前粮草（用于开战前出征消耗校验，与编组页「出征消耗」公式一致）
  */
 export default function BattleArena({
   playerUnits, enemyRarity, enemyUnits,
-  silverAmount = 0, playerId, battleType = 'pve_event', opponentName = '敌军',
+  silverAmount = 0, playerFood = 0, playerId, battleType = 'pve_event', opponentName = '敌军',
   onBattleEnd,
   defenseReportMeta = null,
   recordOnly = false,
@@ -131,17 +133,47 @@ export default function BattleArena({
     [cards, playerUnits]
   );
 
+  const battleFoodCost = useMemo(
+    () => getMainLineupBattleFoodDeployCost(cards, playerUnits),
+    [cards, playerUnits]
+  );
+
+  /** 开战前统一校验：兵力下限、出征粮草（与编组页「出征消耗」一致） */
+  const validateBattleEntry = useCallback(() => {
+    if (recordOnly) return { ok: true };
+    if (lineupTroopTotal < MIN_MAIN_LINEUP_TROOPS_BATTLE) {
+      return {
+        ok: false,
+        message: `上阵编组总兵力需≥${MIN_MAIN_LINEUP_TROOPS_BATTLE}（当前 ${lineupTroopTotal}）。`,
+      };
+    }
+    const need = battleFoodCost;
+    const have = Number(playerFood) || 0;
+    if (have < need) {
+      return {
+        ok: false,
+        message: `出征需粮草 ${need}（当前 ${have}），粮草不足。`,
+      };
+    }
+    return { ok: true };
+  }, [recordOnly, lineupTroopTotal, battleFoodCost, playerFood]);
+
+  const [battleGateModalOpen, setBattleGateModalOpen] = useState(false);
+  const [battleGateMessage, setBattleGateMessage] = useState('');
+
   const startBattleWithLineupGate = useCallback(() => {
     if (recordOnly) {
       engine.playBattleRound();
       return;
     }
-    if (lineupTroopTotal < MIN_MAIN_LINEUP_TROOPS_BATTLE) {
-      setLineupGateModalOpen(true);
+    const v = validateBattleEntry();
+    if (!v.ok) {
+      setBattleGateMessage(v.message || '条件不足');
+      setBattleGateModalOpen(true);
       return;
     }
     engine.playBattleRound();
-  }, [recordOnly, lineupTroopTotal, engine.playBattleRound]);
+  }, [recordOnly, validateBattleEntry, engine.playBattleRound]);
 
   const awayTimeoutEnabled = battleType === 'pve_event' || battleType === 'pve_siege';
   const bmRef = useRef(bm);
@@ -156,7 +188,6 @@ export default function BattleArena({
   const pendingAwayNoticeRef = useRef(false);
   const pendingAwayEndRef = useRef(null);
   const [awayNoticeOpen, setAwayNoticeOpen] = useState(false);
-  const [lineupGateModalOpen, setLineupGateModalOpen] = useState(false);
 
   const handleAwayDeadline = useCallback(() => {
     if (!awayTimeoutEnabled) return;
@@ -326,13 +357,18 @@ export default function BattleArena({
     if (stage !== STAGE.READY || siegeAutoStartedRef.current) return;
     if (!enemyUnits || enemyUnits.length === 0) return;
     if (battleType !== 'pvp_siege') return;
-    if (!recordOnly && lineupTroopTotal < MIN_MAIN_LINEUP_TROOPS_BATTLE) return;
+    const v = validateBattleEntry();
+    if (!v.ok) {
+      setBattleGateMessage(v.message || '无法开战');
+      setBattleGateModalOpen(true);
+      return;
+    }
     siegeAutoStartedRef.current = true;
     const t = requestAnimationFrame(() => {
       engine.playBattleRound();
     });
     return () => cancelAnimationFrame(t);
-  }, [stage, enemyUnits, battleType, engine.playBattleRound, lineupTroopTotal, recordOnly]);
+  }, [stage, enemyUnits, battleType, engine.playBattleRound, validateBattleEntry]);
 
   // 渲染部队到 DOM
   useEffect(() => {
@@ -587,16 +623,15 @@ export default function BattleArena({
       </AncientModal>
 
       <AncientModal
-        isOpen={lineupGateModalOpen}
+        isOpen={battleGateModalOpen}
         type="warning"
         title="无法开战"
         confirmText="确定"
-        onConfirm={() => setLineupGateModalOpen(false)}
-        onClose={() => setLineupGateModalOpen(false)}
+        onConfirm={() => setBattleGateModalOpen(false)}
+        onClose={() => setBattleGateModalOpen(false)}
       >
-        <p className="text-center text-gray-800 text-sm">
-          开战需上阵编组总兵力≥{MIN_MAIN_LINEUP_TROOPS_BATTLE}（当前 {lineupTroopTotal}）
-        </p>
+        <p className="text-center text-gray-800 text-sm whitespace-pre-wrap">{battleGateMessage}</p>
+        <p className="text-center text-gray-500 text-xs mt-2">请返回编组调整兵力或补充粮草后再试。</p>
       </AncientModal>
     </div>
   );

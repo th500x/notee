@@ -50,6 +50,7 @@ export default function EventBattle({
       cards={cards}
       enemyRarity={eventRarity}
       silverAmount={playerSilver ?? 0}
+      playerFood={player?.food ?? 0}
       playerId={playerId}
       battleType="pve_event"
       opponentName="事件战斗"

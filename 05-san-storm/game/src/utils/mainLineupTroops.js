@@ -27,3 +27,26 @@ export function getMainLineupTroopTotalForBattleGate(cards, playerUnits) {
   }
   return 0;
 }
+
+/**
+ * 出征粮草消耗（与 LineupTab 出征消耗一致）：每支已装备部队 ceil(当前兵力/20)，再求和。
+ * 开战前须 player.food >= 本值。
+ */
+export function getMainLineupBattleFoodDeployCost(cards, playerUnits) {
+  if (cards?.length) {
+    const troops = cards.filter((c) => c.card_type === 'troop' && c.is_equipped);
+    return troops.reduce((s, c) => {
+      const cfg = c.config || {};
+      const max = (cfg.maxTroops || 0) + (c.bonus_max_troops || 0);
+      const current = c.current_troops ?? max;
+      return s + Math.ceil(Math.max(0, current) / 20);
+    }, 0);
+  }
+  if (playerUnits?.length) {
+    return playerUnits.reduce(
+      (s, u) => s + Math.ceil(Math.max(0, u.currentTroops ?? 0) / 20),
+      0
+    );
+  }
+  return 0;
+}
