@@ -13,7 +13,7 @@
  *   - title: 排行榜标题
  *   - description: 活动简介
  *   - startTime: 活动开始时间（ISO 8601）
- *   - endTime: 活动结束时间（ISO 8601）
+ *   - endTime: 活动结束时间（ISO 8601）（须与 backend/config/activityRankingEvents.js 中同 eventId 的 endTime 保持一致，否则结束后积分无法在后端定格）
  *   - displayCount: 排行榜显示前几名
  *   - refreshInterval: 排行榜刷新间隔（毫秒，默认 300000 = 5分钟）
  *   - scoreWeights: 四项积分权重 { battleScore, events, repContrib, silverFood }

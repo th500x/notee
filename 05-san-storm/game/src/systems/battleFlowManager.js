@@ -61,6 +61,12 @@ export function isOccupied(y, x, excludeTroop, battleTroops) {
   return battleTroops.some(t => t.currentTroops > 0 && t !== excludeTroop && t.y === y && t.x === x);
 }
 
+/** 格子是否为陷阱（路过扣兵力，与 useBattleEngine 判定一致） */
+export function hasTrapAt(y, x, mapResult) {
+  if (!mapResult?.objects?.length) return false;
+  return mapResult.objects.some(o => o.y === y && o.x === x && o.type === 'trap');
+}
+
 // ── BFS可达格子 ──────────────────────────────────────────────────────────────
 
 /**
@@ -135,6 +141,81 @@ export function findPath(troop, ty, tx, mapResult, battleTroops) {
   return null; // 不可达
 }
 
+/**
+ * 在步数预算内寻找路径，且优先减少「踩陷阱」次数（陷阱步数 ≤ maxTrapSteps）。
+ * 与 findPath 相同移动力规则，仅寻路目标不同。
+ */
+export function findPathWithTrapBudget(troop, ty, tx, mapResult, battleTroops, maxTrapSteps) {
+  const maxMove = troop.movement || 3;
+  const sy = troop.y, sx = troop.x;
+  const H = DEFAULT_MAP_HEIGHT, W = DEFAULT_MAP_WIDTH;
+  const INF = 999;
+  const minTraps = Array.from({ length: H }, () =>
+    Array.from({ length: W }, () => Array(maxMove + 1).fill(INF)));
+  const parent = Array.from({ length: H }, () =>
+    Array.from({ length: W }, () => Array(maxMove + 1).fill(null)));
+
+  const dirs = [[0, 1], [0, -1], [1, 0], [-1, 0]];
+  minTraps[sy][sx][maxMove] = 0;
+  const queue = [{ y: sy, x: sx, rem: maxMove }];
+
+  while (queue.length > 0) {
+    const { y, x, rem } = queue.shift();
+    const traps = minTraps[y][x][rem];
+    if (traps > maxTrapSteps) continue;
+
+    for (const [dy, dx] of dirs) {
+      const ny = y + dy, nx = x + dx;
+      if (!inBounds(ny, nx)) continue;
+      const cost = getMoveCost(ny, nx, mapResult);
+      if (cost === Infinity) continue;
+      if (isOccupied(ny, nx, troop, battleTroops) && !(ny === ty && nx === tx)) continue;
+      const newRem = rem - cost;
+      if (newRem < 0) continue;
+      const tadd = hasTrapAt(ny, nx, mapResult) ? 1 : 0;
+      const newTraps = traps + tadd;
+      if (newTraps > maxTrapSteps) continue;
+      if (newTraps < minTraps[ny][nx][newRem]) {
+        minTraps[ny][nx][newRem] = newTraps;
+        parent[ny][nx][newRem] = { y, x, rem };
+        queue.push({ y: ny, x: nx, rem: newRem });
+      }
+    }
+  }
+
+  let bestRem = -1;
+  let bestT = INF;
+  for (let r = 0; r <= maxMove; r++) {
+    const t = minTraps[ty][tx][r];
+    if (t < bestT || (t === bestT && r > bestRem)) {
+      bestT = t;
+      bestRem = r;
+    }
+  }
+  if (bestT >= INF) return null;
+
+  const path = [];
+  let cy = ty, cx = tx, cr = bestRem;
+  while (cy !== sy || cx !== sx) {
+    path.unshift({ y: cy, x: cx });
+    const p = parent[cy][cx][cr];
+    if (!p) return null;
+    cy = p.y;
+    cx = p.x;
+    cr = p.rem;
+  }
+  return path;
+}
+
+/** AI 寻路：先尽量少踩陷阱，再放宽陷阱步数上限，最后回退标准 findPath */
+export function findPathForAi(troop, ty, tx, mapResult, battleTroops) {
+  for (let maxT = 0; maxT <= 16; maxT++) {
+    const p = findPathWithTrapBudget(troop, ty, tx, mapResult, battleTroops, maxT);
+    if (p) return p;
+  }
+  return findPath(troop, ty, tx, mapResult, battleTroops);
+}
+
 // ── AI决策 ────────────────────────────────────────────────────────────────────
 
 /**
@@ -165,18 +246,34 @@ export function findBestMoveTarget(troop, battleTroops, mapResult) {
   /**
    * 在可达格中：若存在能攻击敌的格子，取与敌距离**最大**者（打满射程）；
    * 否则取与敌距离**最小**者（继续接近）。
+   * 距离相同时优先**不站在陷阱上**（攻击距离已够时减少无谓损兵）。
    */
   function pickApproachTile() {
     let bestInRange = null, bestInRangeD = -1;
+    let bestInRangeTrap = true;
     let bestClosing = null, bestClosingD = Infinity;
+    let bestClosingTrap = true;
     for (const [key] of reachable) {
       const [ry, rx] = key.split(',').map(Number);
       if (isOccupied(ry, rx, troop, battleTroops)) continue;
       const d = dist({ y: ry, x: rx }, closestEnemy);
+      const trap = hasTrapAt(ry, rx, mapResult);
       if (d <= atkRange) {
-        if (d > bestInRangeD) { bestInRangeD = d; bestInRange = { y: ry, x: rx }; }
+        if (d > bestInRangeD) {
+          bestInRangeD = d;
+          bestInRange = { y: ry, x: rx };
+          bestInRangeTrap = trap;
+        } else if (d === bestInRangeD && bestInRangeTrap && !trap) {
+          bestInRange = { y: ry, x: rx };
+          bestInRangeTrap = false;
+        }
       } else if (d < bestClosingD) {
-        bestClosingD = d; bestClosing = { y: ry, x: rx };
+        bestClosingD = d;
+        bestClosing = { y: ry, x: rx };
+        bestClosingTrap = trap;
+      } else if (d === bestClosingD && bestClosingTrap && !trap) {
+        bestClosing = { y: ry, x: rx };
+        bestClosingTrap = false;
       }
     }
     return bestInRange || bestClosing;
@@ -184,14 +281,24 @@ export function findBestMoveTarget(troop, battleTroops, mapResult) {
 
   /**
    * 已能攻击时仍可能通过一步移动「拉远」：在射程内取与敌距离更大的格（长柄打满、弓兵后撤）
+   * 距离并列时优先落在非陷阱格。
    */
   function pickRepositionTile() {
-    let best = null, bestD = -1;
+    let best = null, bestD = -1, bestTrap = true;
     for (const [key] of reachable) {
       const [ry, rx] = key.split(',').map(Number);
       if (isOccupied(ry, rx, troop, battleTroops)) continue;
       const d = dist({ y: ry, x: rx }, closestEnemy);
-      if (d <= atkRange && d > bestD) { bestD = d; best = { y: ry, x: rx }; }
+      if (d > atkRange) continue;
+      const trap = hasTrapAt(ry, rx, mapResult);
+      if (d > bestD) {
+        bestD = d;
+        best = { y: ry, x: rx };
+        bestTrap = trap;
+      } else if (d === bestD && bestTrap && !trap) {
+        best = { y: ry, x: rx };
+        bestTrap = false;
+      }
     }
     return best && bestD > closestDist ? { tile: best, dist: bestD } : null;
   }
@@ -199,7 +306,7 @@ export function findBestMoveTarget(troop, battleTroops, mapResult) {
   if (closestDist <= atkRange) {
     const repos = pickRepositionTile();
     if (repos) {
-      const path = findPath(troop, repos.tile.y, repos.tile.x, mapResult, battleTroops);
+      const path = findPathForAi(troop, repos.tile.y, repos.tile.x, mapResult, battleTroops);
       if (path && path.length > 0) {
         return { move: path, target: closestEnemy };
       }
@@ -211,7 +318,7 @@ export function findBestMoveTarget(troop, battleTroops, mapResult) {
   const bestPos = pickApproachTile();
   if (!bestPos) return { move: null, target: closestDist <= atkRange ? closestEnemy : null };
 
-  const path = findPath(troop, bestPos.y, bestPos.x, mapResult, battleTroops);
+  const path = findPathForAi(troop, bestPos.y, bestPos.x, mapResult, battleTroops);
   const newDist = dist(bestPos, closestEnemy);
   const canAttack = newDist <= atkRange;
 
