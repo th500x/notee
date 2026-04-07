@@ -739,7 +739,55 @@ export const rankingsAPI = {
       console.error('[RankingsAPI] 获取排行榜失败', error);
       return { success: false, error: '网络错误' };
     }
-  }
+  },
+
+  /**
+   * 常驻 · 总体排名（27-2）
+   * @param {{ limit?: number, playerId?: string, serverId?: string }} options
+   */
+  getOverall: async ({ limit = 30, playerId = null, serverId = null, sort = null } = {}) => {
+    try {
+      const params = new URLSearchParams({ limit: String(limit) });
+      if (playerId) params.set('playerId', playerId);
+      if (serverId) params.set('serverId', serverId);
+      if (sort) params.set('sort', String(sort));
+      const response = await fetchWithTimeout(
+        `${API_CONFIG.BASE_URL}/rankings/overall?${params}`,
+        { method: 'GET' }
+      );
+      const data = await response.json();
+      if (data.success) return { success: true, data: data.data };
+      return { success: false, error: data.error || '获取总体排行失败' };
+    } catch (error) {
+      console.error('[RankingsAPI] overall', error);
+      return { success: false, error: '网络错误' };
+    }
+  },
+
+  /**
+   * 常驻 · 战役最高分（27-2）
+   * @param {{ campaignId: string, limit?: number, playerId?: string, serverId?: string }} options
+   */
+  getCampaign: async ({ campaignId, limit = 30, playerId = null, serverId = null }) => {
+    try {
+      const params = new URLSearchParams({
+        campaignId: String(campaignId),
+        limit: String(limit),
+      });
+      if (playerId) params.set('playerId', playerId);
+      if (serverId) params.set('serverId', serverId);
+      const response = await fetchWithTimeout(
+        `${API_CONFIG.BASE_URL}/rankings/campaign?${params}`,
+        { method: 'GET' }
+      );
+      const data = await response.json();
+      if (data.success) return { success: true, data: data.data };
+      return { success: false, error: data.error || '获取战役排行失败' };
+    } catch (error) {
+      console.error('[RankingsAPI] campaign', error);
+      return { success: false, error: '网络错误' };
+    }
+  },
 };
 
 /**

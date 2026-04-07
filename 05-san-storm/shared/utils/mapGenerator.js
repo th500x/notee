@@ -1,7 +1,7 @@
 /**
  * 小型战斗地图自动生成器
  *
- * 生成 8×10 的战斗地图，包含：
+ * 生成战术格网尺寸见 `tacticalBattleGrid.js`，包含：
  *   - Terrain 层：基础底色 + 叠加地形（树林/丘陵）
  *   - Objects 层：巨石、栅栏、陷阱、宝箱
  *
@@ -19,17 +19,13 @@
  * 资源文件名与 public/assets/san_1_map 一致（§1.3）；不含战役 CSV 的 forces/siege 等（见 91-3）。
  */
 
+import {
+  TACTICAL_GRID_WIDTH as MAP_WIDTH,
+  TACTICAL_GRID_HEIGHT as MAP_HEIGHT,
+  ZONE,
+} from './tacticalBattleGrid.js';
+
 // ── 常量 ──────────────────────────────────────────────────────────────────────
-
-const MAP_WIDTH  = 8;
-const MAP_HEIGHT = 10;
-
-// 区域行范围
-const ZONE = {
-  deployA:  [0, 1, 2],
-  combat:   [3, 4, 5, 6],
-  deployB:  [7, 8, 9],
-};
 
 // 地形类型
 const TERRAIN = {
@@ -350,7 +346,7 @@ function generateObjects(rng, grid, occupiedCells, complexity, battleRarity) {
 // ── 主入口 ────────────────────────────────────────────────────────────────────
 
 /**
- * 生成小型战斗地图（8×10）
+ * 生成小型战术地图（尺寸见 tacticalBattleGrid）
  *
  * @param {object} options
  * @param {number|null} options.seed          - 随机种子（null = 随机，可用于复现地图）
@@ -395,6 +391,10 @@ export function generateSmallMap({
     }
   }
 
+  const cellFire = Array.from({ length: MAP_HEIGHT }, () =>
+    Array.from({ length: MAP_WIDTH }, () => false),
+  );
+
   return {
     // 地形二维数组 [y][x]，值为 TERRAIN 常量
     terrain: grid,
@@ -404,6 +404,9 @@ export function generateSmallMap({
 
     // 对象列表
     objects,
+
+    // 着火格 [y][x]（事件/随机图当前恒为 false；与战役 mapResult 字段对齐）
+    cellFire,
 
     // 元数据
     meta: {

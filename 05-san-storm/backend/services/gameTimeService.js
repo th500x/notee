@@ -3,6 +3,8 @@
  * @module backend/services/gameTimeService
  */
 
+const { pool } = require('../database/connection');
+
 const DAYS_PER_GAME_MONTH = 30;
 
 /**
@@ -67,8 +69,36 @@ function computeGameTimeFromServerRow(row) {
   };
 }
 
+/**
+ * 查询玩家所在服务器，计算当前游戏历法。
+ * 多处服务（campaignService、playerProfileService 等）共用此函数，
+ * 不再各自重复实现。失败时返回 null，不阻断调用方主流程。
+ *
+ * @param {string} playerId - 玩家 ID（对应 accounts.id）
+ * @returns {Promise<object|null>} gameTime 对象或 null
+ */
+async function loadGameTimeForPlayer(playerId) {
+  try {
+    const [accRows] = await pool.query('SELECT serverId FROM accounts WHERE id = ?', [playerId]);
+    const serverId = accRows[0]?.serverId;
+    if (!serverId) return null;
+    const [srvRows] = await pool.query(
+      `SELECT server_id, opened_at, season_start_time,
+              game_time_start_year, game_time_start_month, game_time_start_day,
+              game_time_real_hours_per_game_day
+       FROM config_servers WHERE server_id = ?`,
+      [serverId],
+    );
+    return computeGameTimeFromServerRow(srvRows[0]);
+  } catch (e) {
+    console.warn('[gameTimeService] loadGameTimeForPlayer:', e.message);
+    return null;
+  }
+}
+
 module.exports = {
   DAYS_PER_GAME_MONTH,
   advanceGameCalendar,
   computeGameTimeFromServerRow,
+  loadGameTimeForPlayer,
 };

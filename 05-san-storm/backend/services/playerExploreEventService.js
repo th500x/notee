@@ -159,6 +159,76 @@ async function recordExploreChainEventCompleted(playerId, eventId, chainId, chai
   ]);
 }
 
+// ── 事件进度查询与记录 ─────────────────────────────────────────────────────────
+
+/** 事件类型 → player_events 列名映射 */
+const EVENT_TYPE_FIELD_MAP = {
+  1: 'historical_events',
+  2: 'fictional_events',
+  3: 'daily_events',
+  4: 'weekly_events',
+  5: 'mini_events',
+  6: 'explore_events',
+  7: 'reward_events',
+};
+
+/**
+ * 获取玩家探索事件进度（GET /events/explore）。
+ * 同时执行探索链每日重置检查。
+ * @returns {{ events: object }}
+ */
+async function getExploreEvents(playerId) {
+  await pool.query('INSERT IGNORE INTO player_events (player_id) VALUES (?)', [playerId]);
+  await maybeResetExploreTroopChainsDaily(playerId);
+  const [rows] = await pool.query(
+    'SELECT explore_events FROM player_events WHERE player_id = ?',
+    [playerId],
+  );
+  let events = {};
+  if (rows[0]?.explore_events) {
+    events = typeof rows[0].explore_events === 'string'
+      ? JSON.parse(rows[0].explore_events)
+      : rows[0].explore_events;
+  }
+  return { events };
+}
+
+/**
+ * 记录任意类型事件进度（POST /events）。
+ * @param {{ eventId: string, eventType: number, status?: string, data?: object }} params
+ * @returns {{ ok: true, eventId, field, status } | { badRequest: string }}
+ */
+async function recordEventProgress(playerId, { eventId, eventType, status = 'completed', data = {} }) {
+  const field = EVENT_TYPE_FIELD_MAP[eventType];
+  if (!field) return { badRequest: '无效的事件类型' };
+
+  await pool.query('INSERT IGNORE INTO player_events (player_id) VALUES (?)', [playerId]);
+
+  const [rows] = await pool.query(
+    `SELECT ${field} FROM player_events WHERE player_id = ?`,
+    [playerId],
+  );
+  let events = {};
+  if (rows[0]?.[field]) {
+    events = typeof rows[0][field] === 'string'
+      ? JSON.parse(rows[0][field])
+      : rows[0][field];
+  }
+
+  events[eventId] = {
+    status,
+    ...data,
+    updated_at: new Date().toISOString(),
+  };
+
+  await pool.query(
+    `UPDATE player_events SET ${field} = ? WHERE player_id = ?`,
+    [JSON.stringify(events), playerId],
+  );
+
+  return { ok: true, eventId, field, status };
+}
+
 module.exports = {
   parseEventCostSegment,
   playerMeetsExploreChainGateItems,
@@ -166,5 +236,7 @@ module.exports = {
   maybeResetExploreTroopChainsDaily,
   shouldDeferTroopRepairAfterBattleRewards,
   recordExploreChainEventCompleted,
+  getExploreEvents,
+  recordEventProgress,
   EXPLORE_TROOP_CHAIN_IDS_DAILY_RESET,
 };

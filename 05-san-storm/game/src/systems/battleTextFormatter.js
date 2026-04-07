@@ -88,6 +88,11 @@ export function fmtTrap(troop, trapDmg) {
   return `  ⚠️ ${label(troop)} ${pick(PHRASES.trap)}，损失 ${trapDmg} 兵力！`;
 }
 
+/** 回合末着火格灼烧 */
+export function fmtFireTerrain(troop, loss) {
+  return `🔥 ${label(troop)} 受着火地形灼烧，损失 ${loss} 兵力（剩余 ${troop.currentTroops}/${troop.maxTroops}）`;
+}
+
 /** 移动 */
 export function fmtMove(troop, fromX, fromY, toX, toY) {
   return `🚶 ${label(troop)} 移动 (${fromX},${fromY})→(${toX},${toY})`;
@@ -133,8 +138,10 @@ export function fmtBattleEnd(result) {
 
 /** 战役主将阵亡导致的即时胜负（与全军覆没文案区分） */
 export function fmtCampaignCommanderEnd(result) {
-  if (result === 'enemy_win') return '💀 我方一名主将（hero）阵亡，战役失败！';
-  if (result === 'player_win') return '🏆 敌方一名主将（boss）被击败，战役胜利！';
+  if (result === 'enemy_win') return '💀 我方友军主将（hero）编制被歼灭，战役失败！';
+  if (result === 'player_win') {
+    return '🏆 敌方全部主将（boss）编制已被击破，战役胜利！（若场上仍有敌军，按规则视同溃散，不再逐格交兵。）';
+  }
   return '';
 }
 

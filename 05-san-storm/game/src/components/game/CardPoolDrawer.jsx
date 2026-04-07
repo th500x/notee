@@ -6,10 +6,25 @@
  *              严格复用编组-军营的卡牌预览模式（scale 0.5, 128x192, skillsMap）
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { RARITY_LABELS, RARITY_COLORS, API_CONFIG } from '@/constants';
 import TroopCard from '@shared/components/card/TroopCard';
 import CharacterCard from '@shared/components/card/CharacterCard';
+import {
+  poolFactionDigitFromPlayerFactionId,
+  cardMatchesPlayerPoolFaction,
+} from '@/utils/poolCardFilters';
+
+const poolDebug = import.meta.env.DEV;
+
+function countByRarity(cards) {
+  const m = {};
+  for (const c of cards) {
+    const k = String(c?.rarity ?? '').toLowerCase() || '(empty)';
+    m[k] = (m[k] || 0) + 1;
+  }
+  return m;
+}
 
 const RARITY_ORDER = { core: 4, legendary: 3, epic: 2, rare: 1, common: 0 };
 const POOL_LABEL = { troop: '部队卡池', character: '将领卡池' };
@@ -30,7 +45,44 @@ export default function CardPoolDrawer({
   // 打开时刷新状态
   useEffect(() => { onRefreshStatus(); }, []);
 
-  useEffect(() => { loadPoolCards(); }, [poolType]);
+  const loadPoolCards = useCallback(async () => {
+    setCardsLoading(true);
+    try {
+      const endpoint = poolType === 'troop' ? 'troops' : 'characters';
+      const res = await fetch(`${API_CONFIG.BASE_URL}/config/${endpoint}`);
+      const data = await res.json();
+      if (data.success) {
+        const allCards = (data[endpoint] || []).filter((c) => c.rarity !== 'core');
+        const factionNum = poolFactionDigitFromPlayerFactionId(factionId);
+        const pType = poolType === 'troop' ? 'troop' : 'character';
+        const filtered = factionNum
+          ? allCards.filter((c) => cardMatchesPlayerPoolFaction(c?.id, pType, factionNum))
+          : allCards;
+
+        if (poolDebug) {
+          console.log('[CardPoolDrawer]', endpoint, {
+            factionId,
+            factionDigit: factionNum,
+            raw: allCards.length,
+            filtered: filtered.length,
+            byRarity: countByRarity(filtered),
+          });
+        }
+
+        setPoolCards(filtered);
+      } else if (poolDebug) {
+        console.warn('[CardPoolDrawer] API success=false', data);
+      }
+    } catch (e) {
+      console.error('[CardPoolDrawer] 加载卡池数据失败:', e);
+    } finally {
+      setCardsLoading(false);
+    }
+  }, [poolType, factionId]);
+
+  useEffect(() => {
+    loadPoolCards();
+  }, [loadPoolCards]);
 
   useEffect(() => {
     if (drawResult?.success) {
@@ -39,45 +91,16 @@ export default function CardPoolDrawer({
     }
   }, [drawResult]);
 
-  async function loadPoolCards() {
-    setCardsLoading(true);
-    try {
-      const endpoint = poolType === 'troop' ? 'troops' : 'characters';
-      const res = await fetch(`${API_CONFIG.BASE_URL}/config/${endpoint}`);
-      const data = await res.json();
-      if (data.success) {
-        const allCards = (data[endpoint] || []).filter(c => c.rarity !== 'core');
-        // 筛选：本势力 + 通用势力(0)
-        // ID格式：san_1_troop_1001 → 第4段首位 = 势力编号
-        const factionParts = (factionId || '').split('_');
-        const factionNum = factionParts[3] ? factionParts[3].charAt(0) : null;
-        const idPrefix = poolType === 'troop' ? 'troop' : 'char';
-        const filtered = factionNum
-          ? allCards.filter(c => {
-              const cardParts = c.id.split('_');
-              // san_1_troop_1001 → cardParts[3] 首位 = 势力编号
-              const cardFaction = cardParts[3] ? cardParts[3].charAt(0) : '';
-              return cardFaction === factionNum || cardFaction === '0';
-            })
-          : allCards;
-        setPoolCards(filtered);
-      }
-    } catch (e) {
-      console.error('[CardPoolDrawer] 加载卡池数据失败:', e);
-    } finally {
-      setCardsLoading(false);
-    }
-  }
-
   // 按稀有度分组
   const grouped = {};
-  poolCards.forEach(card => {
-    const r = card.rarity || 'common';
+  poolCards.forEach((card) => {
+    const r = String(card.rarity || 'common').toLowerCase();
     if (!grouped[r]) grouped[r] = [];
     grouped[r].push(card);
   });
+  // 展示顺序：传奇 → 史诗 → 稀有 → 普通（与概率条视觉一致）
   const sortedRarities = Object.keys(grouped).sort(
-    (a, b) => (RARITY_ORDER[b] ?? 0) - (RARITY_ORDER[a] ?? 0)
+    (a, b) => (RARITY_ORDER[b] ?? -1) - (RARITY_ORDER[a] ?? -1),
   );
 
   // 用实时银两（来自PlayerContext）判断是否可抽取
@@ -93,7 +116,7 @@ export default function CardPoolDrawer({
 
       {/* 抽屉主体 */}
       <div className="fixed left-0 right-0 bottom-0 z-[111] bg-stone-900 border-t-2 border-amber-700/50
-                      rounded-t-2xl flex flex-col" style={{ top: '56px' }}>
+                      rounded-t-2xl flex flex-col top-[4.5rem] sm:top-14 min-h-0 overflow-hidden">
 
         {/* 标题栏 */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-stone-700 flex-shrink-0">
@@ -120,7 +143,7 @@ export default function CardPoolDrawer({
         </div>
 
         {/* 卡牌预览区（可滚动，复用军营的 50% 缩放模式） */}
-        <div className="flex-1 overflow-y-auto p-3">
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-3">
           {cardsLoading ? (
             <div className="text-center py-8 text-stone-500 text-sm">加载卡池数据中...</div>
           ) : poolCards.length === 0 ? (
@@ -213,6 +236,7 @@ export default function CardPoolDrawer({
           poolCards={poolCards}
           skillsMap={skillsMap}
           baseUrl={baseUrl}
+          rarityLabel={rarityLabel}
           onClose={() => { setShowResult(false); onClearResult(); }}
         />
       )}
@@ -221,10 +245,12 @@ export default function CardPoolDrawer({
 }
 
 /** 抽取结果弹窗 */
-function DrawResultOverlay({ poolType, cards, poolCards, skillsMap, baseUrl, onClose }) {
+function DrawResultOverlay({ poolType, cards, poolCards, skillsMap, baseUrl, rarityLabel, onClose }) {
   // 用 cardId 从 poolCards 查找完整配置数据
   const poolCardsMap = {};
   poolCards.forEach(c => { poolCardsMap[c.id] = c; });
+
+  const hasPitySuppressed = Array.isArray(cards) && cards.some((c) => c.pityLegendarySuppressed);
 
   return (
     <>
@@ -235,6 +261,12 @@ function DrawResultOverlay({ poolType, cards, poolCards, skillsMap, baseUrl, onC
           <h3 className="text-amber-400 text-center font-bold mb-4">
             {poolType === 'troop' ? '⚔️ 部队卡抽取结果' : '🎴 将领卡抽取结果'}
           </h3>
+          {hasPitySuppressed && (
+            <div className="mb-3 px-3 py-2 rounded-lg bg-amber-950/80 border border-amber-600/40 text-[11px] leading-relaxed text-amber-100/95">
+              <span className="text-amber-400 font-semibold">保底说明：</span>
+              本轮已触发<span className="text-orange-300">传奇保底</span>，但因<span className="text-orange-200">今日传奇卡已达获取上限</span>（每池每日最多 1 张），系统已按规则将档位降为史诗或稀有；<span className="text-stone-300">保底计数已重置</span>，并非界面错误。
+            </div>
+          )}
           <div className="flex justify-center gap-3 flex-wrap">
             {cards.map((card, i) => {
               // 优先使用完整配置数据，fallback 到基础字段
@@ -265,12 +297,25 @@ function DrawResultOverlay({ poolType, cards, poolCards, skillsMap, baseUrl, onC
                       {RARITY_LABELS[card.rarity]}
                     </div>
                     <div className="text-stone-300 text-[10px]">{card.cardName || '未知'}</div>
+                    {card.pityLegendarySuppressed && (
+                      <div className="mt-1 text-[10px] text-amber-200/90 max-w-[140px] leading-snug">
+                        本张：保底传奇 → 因今日上限实为「{rarityLabel[card.rarity] || card.rarity}」
+                      </div>
+                    )}
                   </div>
                   {card.compensated && (
                     <div className="mt-0.5 text-[10px] text-amber-400/80 bg-amber-900/30 px-2 py-0.5 rounded">
                       {card.compensation?.type === 'silver' ? `💰+${card.compensation.amount}` : `🌾+${card.compensation.amount}`}
                       <span className="text-stone-500 ml-1">
-                        {card.reason === 'character_duplicate' ? '(已持有)' : card.reason === 'troop_limit' ? '(超限)' : ''}
+                        {card.reason === 'character_duplicate'
+                          ? '(已持有)'
+                          : card.reason === 'character_rarity_limit'
+                            ? '(稀有度已满)'
+                            : card.reason === 'troop_limit'
+                              ? '(超限)'
+                              : card.reason === 'no_card_available'
+                                ? '(无可抽候选)'
+                                : ''}
                       </span>
                     </div>
                   )}

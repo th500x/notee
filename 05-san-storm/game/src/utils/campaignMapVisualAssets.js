@@ -1,6 +1,6 @@
 /**
  * 战役地图 Demo 视觉：与 Event 战斗 BattleTile 同源路径（assets/san_1_map）。
- * @see docs/tools/campaign/campaign-map-tile-ids.md
+ * @see docs/tools/campaign/CAMPAIGN_MAP.md
  */
 
 import { ASSET_BASE } from '@/components/battle/battleConstants';
@@ -60,12 +60,6 @@ export function campaignObjectUrl(objectType) {
   const file = m[objectType];
   if (!file) return null;
   return `${ASSET_BASE}tile_3_object/${file}`;
-}
-
-export function campaignFireFrameUrl(frameIndex1Based) {
-  const n = Math.max(1, Math.min(12, frameIndex1Based));
-  const pad = String(n).padStart(2, '0');
-  return `${ASSET_BASE}tile_3_effect/fire_frame_${pad}.png`;
 }
 
 export const CAMPAIGN_MAP_W = 16;

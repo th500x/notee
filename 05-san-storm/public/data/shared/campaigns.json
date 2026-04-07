@@ -1,0 +1,44 @@
+{
+  "generatedAt": "2026-04-03T18:47:03.655Z",
+  "source": "docs/tools/campaign/campaign-template.csv",
+  "campaigns": [
+    {
+      "campaign_id": "san_1_camp_1001_v1",
+      "season": "san_1",
+      "campaign_name": "长社战役",
+      "campaign_type": "Attack Battle",
+      "era": "184年4月上旬",
+      "faction": "san_1_faction_1001;san_1_faction_2001;san_1_faction_3001;san_1_faction_4001;san_1_faction_5001;san_1_faction_6001",
+      "max_rounds": 30,
+      "min_rounds": null,
+      "completion_reward_silver": 200,
+      "completion_reward_food": 1000,
+      "completion_reward_badge": "1",
+      "description_1": "《三国志》记，黄巾起义，颍川波才约6万步卒，4万流民围困长社城。皇甫嵩、朱儁野战失利，率余部约2万退守城中。波才轻敌依草结营，皇甫嵩趁夜火攻，恰逢曹操初拜骑都尉，统兵5千驰援，联军大破黄巾军，平定颍川。",
+      "description_2": "战役目标：协助皇甫嵩，击败黄巾军",
+      "description_3": null,
+      "sort_order": 0,
+      "enabled": 1,
+      "version": "1.0"
+    },
+    {
+      "campaign_id": "san_1_camp_1001_v2",
+      "season": "san_1",
+      "campaign_name": "长社战役",
+      "campaign_type": "Defense Battle",
+      "era": "184年4月上旬",
+      "faction": "san_1_faction_7001",
+      "max_rounds": 30,
+      "min_rounds": 5,
+      "completion_reward_silver": 200,
+      "completion_reward_food": 1000,
+      "completion_reward_badge": "1",
+      "description_1": "《三国志》记，黄巾起义，颍川波才约6万步卒，4万流民围困长社城。皇甫嵩、朱儁野战失利，率余部约2万退守城中。波才轻敌依草结营，皇甫嵩趁夜火攻，恰逢曹操初拜骑都尉，统兵5千驰援，联军大破黄巾军，平定颍川。",
+      "description_2": "战役目标：协助波才，防守汉军",
+      "description_3": "特殊胜利条件：坚守5回合",
+      "sort_order": 10,
+      "enabled": 1,
+      "version": "1.0"
+    }
+  ]
+}

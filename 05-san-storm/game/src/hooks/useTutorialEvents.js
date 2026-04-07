@@ -16,6 +16,7 @@ import { PHASE, FORTUNE_LEVELS } from '@/components/event/EventConstants';
 import { isFortuneSuccess } from '@/components/event/eventUtils';
 import { tutorialPreEventDialogues } from '@/data/texts/tutorial';
 import { playerAPI } from '@/services/playerApi';
+import { validateMainLineupBattleGate } from '@/utils/mainLineupTroops';
 
 // tutorial_step → event_id 映射
 const STEP_EVENT_MAP = {
@@ -77,7 +78,9 @@ export default function useTutorialEvents(player, cards) {
   const [battleResult, setBattleResult] = useState(null);
   const [battleSilverSpent, setBattleSilverSpent] = useState(0);
   const [battleScore, setBattleScore] = useState(null);
+  const [battleChestRewards, setBattleChestRewards] = useState([]);
   const [minigameInfo, setMinigameInfo] = useState(null);
+  const [battleEntryBlockedMessage, setBattleEntryBlockedMessage] = useState(null);
   const [rewardDetails, setRewardDetails] = useState(null);
   const [positionAnimation, setPositionAnimation] = useState(null); // 官职装配动画数据
   const [itemNameMap, setItemNameMap] = useState({});
@@ -251,22 +254,34 @@ export default function useTutorialEvents(player, cards) {
     }, 1500);
   }, [requestRewards, applyRewardResponse]);
 
+  const dismissBattleEntryBlocked = useCallback(() => setBattleEntryBlockedMessage(null), []);
+
   // 判定结果确认
   const confirmResult = useCallback(() => {
     if (fortune && (fortune.name === '凶' || fortune.name === '大凶')) {
       if (chosenOption?.triggerBattle) {
+        const v = validateMainLineupBattleGate({
+          cards,
+          playerFood: player?.food ?? 0,
+        });
+        if (!v.ok) {
+          setBattleEntryBlockedMessage(v.message || '条件不足');
+          return;
+        }
+        setBattleEntryBlockedMessage(null);
         setPhase(PHASE.BATTLE);
         return;
       }
     }
     setPhase(PHASE.REWARD);
-  }, [fortune, chosenOption]);
+  }, [fortune, chosenOption, cards, player?.food]);
 
-  // 战斗结束
-  const endBattle = useCallback((result, silverSpent = 0, scoreResult = null) => {
+  // 战斗结束（第五参 meta 与 EventBattleArena 一致，含 chestRewards）
+  const endBattle = useCallback((result, silverSpent = 0, scoreResult = null, _killedIndices, meta = null) => {
     setBattleResult(result);
     setBattleSilverSpent(silverSpent);
     setBattleScore(scoreResult);
+    setBattleChestRewards(Array.isArray(meta?.chestRewards) ? meta.chestRewards : []);
     requestRewards(chosenOptionKey, {
       battleResult: result,
       ...(silverSpent > 0 ? { battleSilverSpent: silverSpent } : {}),
@@ -321,6 +336,7 @@ export default function useTutorialEvents(player, cards) {
 
     setCurrentEvent(null);
     setRewardDetails(null);
+    setBattleChestRewards([]);
 
     if (hasPosition && positionDetail) {
       // 显示官职装配动画
@@ -370,8 +386,11 @@ export default function useTutorialEvents(player, cards) {
     playerItemsList: player?.items || null,
     rewardDetails,
     battleScore,
+    battleChestRewards,
     playerId: player?.player_id || null,
     isTutorial: true,
+    battleEntryBlockedMessage,
+    dismissBattleEntryBlocked,
     // 操作
     closeEvent,
     chooseOption,

@@ -3,7 +3,7 @@
  * @see docs/20-data-layer/24-2-EQUIPMENT_SET_NAMING.md
  */
 
-import nameParts from '../data/equipmentSetNameParts.json';
+import nameParts from '@/data/texts/equipmentSetNameParts.json';
 
 const RARITY_SCORE = {
   common: 1,

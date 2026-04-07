@@ -1,7 +1,8 @@
 /**
  * 顶部状态栏
- * 
- * @description 56px固定顶部，显示页面标题 + 四大资源 + 设置按钮
+ *
+ * @description 显示子页标题或大地图历法 + 四大资源 + 设置。窄屏（<sm）双行：
+ * 上行标题/日期 + ⚙️，下行资源条，避免与资源横向挤占。
  */
 
 import { useState, useEffect, useMemo } from 'react';
@@ -21,17 +22,20 @@ function getXunLabel(day) {
   return '下旬';
 }
 
-function ResourceBadge({ icon, value, low = false }) {
+function ResourceBadge({ icon, value, low = false, compact = false }) {
   return (
-    <div className={`flex items-center space-x-0.5 rounded-full px-1.5 py-0.5 text-xs
-      ${low ? 'bg-red-500/30 animate-pulse' : 'bg-black/20'}`}>
-      <span>{icon}</span>
-      <span className="text-white font-medium">{value ?? '-'}</span>
+    <div
+      className={`flex items-center rounded-full text-white ${
+        compact ? 'space-x-0 px-1 py-0.5 text-[10px] leading-tight' : 'space-x-0.5 px-1.5 py-0.5 text-xs'
+      } ${low ? 'bg-red-500/30 animate-pulse' : 'bg-black/20'}`}
+    >
+      <span className="shrink-0">{icon}</span>
+      <span className="font-medium tabular-nums">{value ?? '-'}</span>
     </div>
   );
 }
 
-export default function TopStatusBar({ activeTab, onOpenSidebar }) {
+export default function TopStatusBar({ activeTab, onOpenSidebar, onOpenCampaignCenter }) {
   const { player, loading, gameTime } = usePlayerContext();
   const [timeTick, setTimeTick] = useState(0);
 
@@ -40,7 +44,6 @@ export default function TopStatusBar({ activeTab, onOpenSidebar }) {
     return () => clearInterval(id);
   }, []);
 
-  /** 大地图（activeTab=null）不显示左侧标题，仅保留游戏日期，避免竖屏拥挤 */
   const title = activeTab == null ? null : TAB_TITLES[activeTab] || '真三風雲';
 
   const mapGameDate = useMemo(() => {
@@ -49,45 +52,74 @@ export default function TopStatusBar({ activeTab, onOpenSidebar }) {
     return computeDisplayGameDate(gameTime);
   }, [activeTab, gameTime, timeTick]);
 
+  const dateTitle = gameTime
+    ? `锚点：${gameTime.anchorAt} · ${gameTime.realHoursPerGameDay}现实小时/游戏日`
+    : undefined;
+
+  const settingsBtn = (className = '') => (
+    <button
+      type="button"
+      onClick={onOpenSidebar}
+      className={`flex-shrink-0 text-xl text-white/80 hover:text-white active:scale-95 transition-all ${className}`}
+      aria-label="个人中心"
+    >
+      ⚙️
+    </button>
+  );
+
   return (
-    <div className="fixed top-0 left-0 right-0 h-14 z-50 bg-gradient-to-r from-amber-900 to-amber-800 flex items-center px-3 shadow-lg">
-      {/* 左侧：子页面标题；大地图仅游戏历法 */}
-      <div className="flex-shrink-0 mr-2 sm:mr-3 flex items-center min-w-0 gap-2">
-        {title != null && title !== '' && (
-          <span className="text-white text-lg font-bold truncate">{title}</span>
-        )}
-        {mapGameDate && (
-          <span
-            className="text-amber-100/90 text-xs sm:text-sm font-semibold whitespace-nowrap tabular-nums shrink-0"
-            title={`锚点：${gameTime.anchorAt} · ${gameTime.realHoursPerGameDay}现实小时/游戏日`}
-          >
-            公元{mapGameDate.year}年{mapGameDate.month}月{getXunLabel(mapGameDate.day)}
-          </span>
-        )}
+    <div className="fixed top-0 left-0 right-0 z-50 bg-gradient-to-r from-amber-900 to-amber-800 shadow-lg flex flex-col sm:flex-row sm:items-center sm:justify-between sm:h-14 min-h-[4.5rem] sm:min-h-0 px-3 py-1 sm:py-0 gap-1 sm:gap-3">
+      {/* 上行（窄屏）：标题/日期 + ⚙️；宽屏：仅左组 */}
+      <div className="flex items-center justify-between sm:justify-start gap-2 min-w-0 w-full sm:w-auto">
+        <div className="flex items-center min-w-0 gap-2">
+          {title != null && title !== '' && (
+            <span className="text-white text-lg font-bold truncate">{title}</span>
+          )}
+          {mapGameDate && (
+            <>
+              <span
+                className="sm:hidden text-amber-100/90 text-[11px] font-semibold tabular-nums truncate"
+                title={dateTitle}
+              >
+                公元{mapGameDate.year}年{mapGameDate.month}月{getXunLabel(mapGameDate.day)}
+              </span>
+              <span
+                className="hidden sm:inline text-amber-100/90 text-xs sm:text-sm font-semibold whitespace-nowrap tabular-nums shrink-0"
+                title={dateTitle}
+              >
+                公元{mapGameDate.year}年{mapGameDate.month}月{getXunLabel(mapGameDate.day)}
+              </span>
+              {activeTab === null && typeof onOpenCampaignCenter === 'function' && (
+                <button
+                  type="button"
+                  onClick={() => onOpenCampaignCenter()}
+                  className="shrink-0 flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-[10px] sm:text-xs font-bold text-amber-100 bg-stone-900/75 border border-amber-600/50 shadow-sm active:scale-[0.98] transition-transform"
+                  aria-label="打开战役中心"
+                >
+                  <span aria-hidden>⚔️</span>
+                  <span className="whitespace-nowrap">战役中心</span>
+                </button>
+              )}
+            </>
+          )}
+        </div>
+        {settingsBtn('sm:hidden')}
       </div>
 
-      {/* 中间留空（预留事件系统） + 右侧资源 */}
-      <div className="flex-1 flex items-center justify-end gap-2 sm:gap-20 overflow-x-auto">
+      {/* 下行（窄屏）= 资源；宽屏 = 与左组同一行 */}
+      <div className="flex flex-1 items-center justify-between sm:justify-end gap-1 sm:gap-2 min-w-0 w-full sm:w-auto overflow-x-auto pb-0.5 sm:pb-0">
         {loading ? (
           <span className="text-white/60 text-xs">加载中...</span>
         ) : (
           <>
-            <ResourceBadge icon="🎖️" value={player?.reputation} />
-            <ResourceBadge icon="🤝" value={player?.contribution} />
-            <ResourceBadge icon="💰" value={player?.silver} low={player?.silver < 10} />
-            <ResourceBadge icon="🌾" value={player?.food} low={player?.food < 100} />
+            <ResourceBadge icon="🎖️" value={player?.reputation} compact />
+            <ResourceBadge icon="🤝" value={player?.contribution} compact />
+            <ResourceBadge icon="💰" value={player?.silver} low={player?.silver < 10} compact />
+            <ResourceBadge icon="🌾" value={player?.food} low={player?.food < 100} compact />
           </>
         )}
+        {settingsBtn('hidden sm:flex ml-1')}
       </div>
-
-      {/* 右侧：设置按钮 */}
-      <button
-        onClick={onOpenSidebar}
-        className="flex-shrink-0 ml-3 sm:ml-20 text-xl text-white/80 hover:text-white active:scale-95 transition-all"
-        aria-label="个人中心"
-      >
-        ⚙️
-      </button>
     </div>
   );
 }

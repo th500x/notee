@@ -50,3 +50,35 @@ export function getMainLineupBattleFoodDeployCost(cards, playerUnits) {
   }
   return 0;
 }
+
+/**
+ * 开战前校验（与 BattleArena 一致）：兵力下限、出征粮草。
+ * 应在进入战斗地图 UI 之前调用，避免玩家困在无出口的准备界面。
+ *
+ * @param {{ recordOnly?: boolean, cards?: Array|null, playerUnits?: Array|null, playerFood?: number }} p
+ * @returns {{ ok: boolean, message?: string }}
+ */
+export function validateMainLineupBattleGate({
+  recordOnly = false,
+  cards = null,
+  playerUnits = null,
+  playerFood = 0,
+}) {
+  if (recordOnly) return { ok: true };
+  const lineupTroopTotal = getMainLineupTroopTotalForBattleGate(cards, playerUnits);
+  if (lineupTroopTotal < MIN_MAIN_LINEUP_TROOPS_BATTLE) {
+    return {
+      ok: false,
+      message: `上阵编组总兵力需≥${MIN_MAIN_LINEUP_TROOPS_BATTLE}（当前 ${lineupTroopTotal}）。`,
+    };
+  }
+  const need = getMainLineupBattleFoodDeployCost(cards, playerUnits);
+  const have = Number(playerFood) || 0;
+  if (have < need) {
+    return {
+      ok: false,
+      message: `出征需粮草 ${need}（当前 ${have}），粮草不足。`,
+    };
+  }
+  return { ok: true };
+}

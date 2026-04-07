@@ -1,19 +1,37 @@
 /**
- * BattleMap - 8×10 地图网格 + 行标签 + 区域色条
+ * BattleMap - 战术格网网格 + 行标签 + 区域色条（尺寸见 tacticalBattleGrid）
  */
 import { memo, useCallback, useRef, useState, useMemo } from 'react';
-import { MAP_W, MAP_H, ZONE, TILE_INFO, TYPE_LABEL, RARITY_LABEL, FACTION_COLOR } from './battleConstants';
+import { MAP_W, MAP_H, ZONE, buildTroopTooltipContent, buildTacticalTileTooltipInfo } from './battleConstants';
 import { MANUAL_PHASE } from '@/hooks/useManualBattle';
+import { manualHighlightForTacticalCell } from '@/battle/manualHighlightModel';
 import BattleTile from './BattleTile';
 import AttackPreview from './AttackPreview';
 import ChestRewardOverlay from './ChestRewardOverlay';
+import TileTooltipContent from './TileTooltipContent';
 
-function BattleMap({ mapResult, mapLabel, battleTroops, showTroops, isBattle, mapCardRef, onTileClick, manualProps, autoBattle, onTakeover }) {
+function BattleMap({
+  mapResult,
+  mapLabel,
+  battleTroops,
+  showTroops,
+  isBattle,
+  /** 战役战前：底部我方部署行格内浅蓝提示（与左侧「我」行标一致） */
+  highlightPlayerDeployZone = false,
+  /** 事件战战前：当前选中的我军 `battleTroops[].id`（瓦片描边） */
+  preBattleDeployTroopId = null,
+  mapCardRef,
+  onTileClick,
+  manualProps,
+  autoBattle,
+  onTakeover,
+  roundNum = 0,
+}) {
   const tooltipRef = useRef(null);
   const [tooltipContent, setTooltipContent] = useState(null);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
 
-  const { terrain, variants, objects, meta } = mapResult;
+  const { terrain, variants, objects, meta, cellFire } = mapResult;
   const objMap = {};
   for (const o of objects) objMap[`${o.y},${o.x}`] = o;
   const troopMap = {};
@@ -22,32 +40,21 @@ function BattleMap({ mapResult, mapLabel, battleTroops, showTroops, isBattle, ma
   const handleHover = useCallback((e, y, x) => {
     const tile = e.currentTarget;
     const troopId = tile.dataset.troop;
-    const infoKey = tile.dataset.info;
 
     if (troopId) {
       const troop = battleTroops.find(t => t.id === troopId);
       if (!troop) return;
-      const fc = FACTION_COLOR[troop.faction] || '#ccc';
-      const hpPct = Math.round(troop.currentTroops / troop.maxTroops * 100);
-      const rarityName = RARITY_LABEL[troop.rarity] || troop.rarity;
-      const typeName = TYPE_LABEL[troop.troopType] || troop.troopType;
-      const ch = troop.character;
-      const charDisplay = ch && (ch.courtesyName || ch.name || ch.courtesy_name || ch.character_name);
-      const charLine = charDisplay ? `将领: ${charDisplay}` : null;
-      const critDodge = ch ? {
-        crit: (((Number(ch.courage) || 0) + (Number(ch.luck) || 0)) / 80 * 100).toFixed(1),
-        dodge: (Number(ch.luck) || 0).toFixed(1),
-      } : null;
-      setTooltipContent({ type: 'troop', troop, fc, hpPct, rarityName, typeName, charLine, critDodge, isEnemy: troop.faction === 'enemy' });
-    } else if (infoKey) {
-      const info = TILE_INFO[infoKey];
-      if (!info) return;
-      setTooltipContent({ type: 'tile', info, infoKey });
+      setTooltipContent(buildTroopTooltipContent(troop));
     } else {
-      return;
+      const ter = terrain[y]?.[x];
+      const obj = objMap[`${y},${x}`];
+      const onFire = !!cellFire?.[y]?.[x];
+      const info = buildTacticalTileTooltipInfo({ terrain: ter, obj, cellOnFire: onFire });
+      if (!info) return;
+      setTooltipContent({ type: 'tile', info });
     }
     setTooltipPos({ x: e.clientX, y: e.clientY });
-  }, [battleTroops]);
+  }, [battleTroops, terrain, objMap, cellFire]);
 
   const handleMove = useCallback((e) => {
     if (tooltipContent) {
@@ -112,6 +119,7 @@ function BattleMap({ mapResult, mapLabel, battleTroops, showTroops, isBattle, ma
       <div className="map-card" ref={mapCardRef}>
         <div className="map-title" style={{ position: 'relative' }}>
           {mapLabel}
+          {roundNum > 0 && <span className="round-badge">第{roundNum}回合</span>}
           {/* 自动战斗中：右上角接管按钮 */}
           {autoBattle && isBattle && (
             <button
@@ -155,14 +163,38 @@ function BattleMap({ mapResult, mapLabel, battleTroops, showTroops, isBattle, ma
             {Array.from({ length: MAP_H }, (_, y) =>
               Array.from({ length: MAP_W }, (_, x) => {
                 const key = `${y},${x}`;
+                const cellOnFire = !!cellFire?.[y]?.[x];
+                const mh = manualProps?.manualHighlightModel
+                  ? manualHighlightForTacticalCell(y, x, manualProps.manualHighlightModel)
+                  : { kind: null };
+                let manualHl = null;
+                let manualMoveCost = null;
+                if (mh.kind === 'active') manualHl = 'active';
+                else if (mh.kind === 'move') {
+                  manualHl = 'move';
+                  manualMoveCost = mh.cost ?? null;
+                } else if (mh.kind === 'atk') manualHl = 'atk';
+                const tileTroop =
+                  showTroops
+                    ? troopMap[key]
+                    : battleTroops.find((t) => t.currentTroops > 0 && t.y === y && t.x === x);
+                const preBattleSel =
+                  !!preBattleDeployTroopId &&
+                  tileTroop?.faction === 'player' &&
+                  tileTroop?.id === preBattleDeployTroopId;
                 return (
                   <BattleTile
                     key={key}
                     terrain={terrain[y][x]}
                     variants={variants}
                     obj={objMap[key]}
+                    cellOnFire={cellOnFire}
                     troop={troopMap[key]}
                     showTroops={showTroops}
+                    deployHighlight={highlightPlayerDeployZone && ZONE.deployB.includes(y)}
+                    preBattleDeploySelected={preBattleSel}
+                    manualHl={manualHl}
+                    manualMoveCost={manualMoveCost}
                     onHover={e => handleHover(e, y, x)}
                     onLeave={handleLeave}
                     onClick={e => {
@@ -239,28 +271,7 @@ function BattleMap({ mapResult, mapLabel, battleTroops, showTroops, isBattle, ma
             transform: tooltipContent.isEnemy ? 'translate(-50%, 10px)' : 'translate(-50%, calc(-100% - 10px))',
           }}
         >
-          {tooltipContent.type === 'troop' ? (
-            <>
-              <div className="tt-name" style={{ color: tooltipContent.fc }}>
-                {tooltipContent.troop.faction === 'player' ? '🔵' : '🔴'} {tooltipContent.troop.name}
-              </div>
-              <div className="tt-attrs">
-                {tooltipContent.charLine && <>{tooltipContent.charLine}<br /></>}
-                {tooltipContent.critDodge && (
-                  <>💥 暴击: {tooltipContent.critDodge.crit}%<br />🎲 闪避: {tooltipContent.critDodge.dodge}%<br /></>
-                )}
-                {tooltipContent.typeName} · {tooltipContent.rarityName}<br />
-                攻击: {tooltipContent.troop.attack} &nbsp; 防御: {tooltipContent.troop.defense}<br />
-                速度: {tooltipContent.troop.speed} &nbsp; 移动: {tooltipContent.troop.movement} &nbsp; 射程: {tooltipContent.troop.range}<br />
-                兵力: {tooltipContent.troop.currentTroops} / {tooltipContent.troop.maxTroops} ({tooltipContent.hpPct}%)
-              </div>
-            </>
-          ) : (
-            <>
-              <div className="tt-name">{tooltipContent.info.badge} {tooltipContent.info.name}</div>
-              <div className="tt-attrs" style={{ whiteSpace: 'pre-line' }}>{tooltipContent.info.attrs}</div>
-            </>
-          )}
+          <TileTooltipContent content={tooltipContent} />
         </div>
       )}
 

@@ -1,7 +1,7 @@
 /**
  * 游戏主页面
  * 
- * @description 移动端优先布局：TopStatusBar(56px) + 主内容区 + BottomTabNav(64px)
+ * @description 移动端优先布局：TopStatusBar（窄屏约 4.5rem 双行 / sm+ 56px）+ 主内容区 + BottomTabNav(64px)
  *              activeTab=null 时显示大地图（背景图）
  * @route /san_1/game
  */
@@ -15,8 +15,10 @@ import RankingPanel from '@/components/game/RankingPanel';
 import BottomTabNav from '@/components/game/BottomTabNav';
 import PersonalSidebar from '@/components/game/PersonalSidebar';
 import CommPanel from '@/components/game/CommPanel';
+import StandingRankingsPanel from '@/components/game/StandingRankingsPanel';
 import CardPoolEntry from '@/components/game/CardPoolEntry';
 import CardPoolDrawer from '@/components/game/CardPoolDrawer';
+import CampaignCenterPanel from '@/components/game/CampaignCenterPanel';
 import AttrRerollDrawer from '@/components/game/AttrRerollDrawer';
 import { useCardPool } from '@/hooks/useCardPool';
 import { loadSharedData } from '@/services/dataService';
@@ -45,6 +47,7 @@ function GamePageInner({ onLogout }) {
   const [eventBusy, setEventBusy] = useState(false);
   const [openPool, setOpenPool] = useState(null); // 'troop' | 'character' | null
   const [openReroll, setOpenReroll] = useState(false);
+  const [campaignOpen, setCampaignOpen] = useState(false);
   const [rerollStatus, setRerollStatus] = useState(null);
   const [skillsMap, setSkillsMap] = useState({});
   const navigate = useNavigate();
@@ -132,10 +135,11 @@ function GamePageInner({ onLogout }) {
         <TopStatusBar
           activeTab={activeTab}
           onOpenSidebar={() => setSidebarOpen(true)}
+          onOpenCampaignCenter={() => setCampaignOpen(true)}
         />
 
         {activeTab === null && !eventBusy && (
-          <div className="absolute top-14 left-0 right-0 z-40 px-3 pt-1 pointer-events-none">
+          <div className="absolute top-[4.5rem] sm:top-14 left-0 right-0 z-40 px-3 pt-1 pointer-events-none">
             <AnnouncementBar />
             <RankingPanel />
             {activeUpdateNotice && updateNoticeOpen && (
@@ -157,8 +161,9 @@ function GamePageInner({ onLogout }) {
         )}
 
         <main
-          className="overflow-y-auto absolute left-0 right-0"
-          style={{ top: '56px', bottom: eventBusy ? '0px' : '64px' }}
+          className={`overflow-y-auto absolute left-0 right-0 top-[4.5rem] sm:top-14 ${
+            eventBusy ? 'bottom-0' : 'bottom-16'
+          }`}
         >
           {activeTab === null ? (
             <WorldMap onEventBusyChange={setEventBusy} />
@@ -177,6 +182,7 @@ function GamePageInner({ onLogout }) {
           onLogout={handleLogout}
         />
 
+        <StandingRankingsPanel visible={activeTab === null && !eventBusy} playerId={playerId} />
         <CommPanel visible={activeTab === null && !eventBusy} />
       </div>
 
@@ -191,7 +197,10 @@ function GamePageInner({ onLogout }) {
           skillsMap={skillsMap}
           factionId={player?.faction_id}
           playerSilver={player?.silver}
-          onDraw={async () => { await cardPool.draw(openPool); refresh(); }}
+          onDraw={async () => {
+            await cardPool.draw(openPool);
+            await refresh({ silent: true });
+          }}
           onClearResult={cardPool.clearResult}
           onClose={() => { setOpenPool(null); cardPool.clearResult(); }}
           onRefreshStatus={cardPool.loadStatus}
@@ -211,6 +220,15 @@ function GamePageInner({ onLogout }) {
             refresh();
           }}
           onConfirm={() => refresh()}
+        />
+      )}
+
+      {playerId && (
+        <CampaignCenterPanel
+          playerId={playerId}
+          open={campaignOpen}
+          onClose={() => setCampaignOpen(false)}
+          onClaimed={refresh}
         />
       )}
     </>

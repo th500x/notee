@@ -4,10 +4,33 @@ import {
   campaignTerrainUrl,
   terrainFallbackClass,
   campaignObjectUrl,
-  campaignFireFrameUrl,
   buildCampaignVisualVariants,
 } from '@/utils/campaignMapVisualAssets';
-function CampaignMapTile({ cell, seed }) {
+import { tacticalFireFrameUrl } from '@/components/battle/battleConstants';
+
+/**
+ * 战役地图单格。
+ *
+ * 与小型地图 BattleTile 统一：格子根节点同时承担
+ *   1. 地形/特效渲染
+ *   2. 战斗引擎 DOM 宿主（data-battle-y/x、data-troop 由引擎写入）
+ *   3. 鼠标悬停事件源（onMouseEnter → 父层读 dataset.troop 决定 tooltip）
+ */
+function CampaignMapTile({
+  cell,
+  seed,
+  tacticalY,
+  tacticalX,
+  deployHighlight = false,
+  interactive = false,
+  onTileClick,
+  /** 战斗中为 true：根节点兼任引擎瓦片宿主（data-battle-y/x = tacticalY/X） */
+  engineActive = false,
+  manualHl = null,
+  manualMoveCost = null,
+  onHover,
+  onLeave,
+}) {
   const variants = useMemo(() => buildCampaignVisualVariants(seed), [seed]);
   const bgV = cell.base === 'plain_wasteland' ? variants.bgWaste : variants.bgGrass;
   const bgSrc = campaignBgUrl(cell.base || 'plain_grassland', bgV);
@@ -19,19 +42,22 @@ function CampaignMapTile({ cell, seed }) {
   const [bgOk, setBgOk] = useState(true);
   const [tOk, setTOk] = useState(true);
   const [oOk, setOOk] = useState(true);
-  const [fireOk, setFireOk] = useState(true);
-
-  const fireFrame = useMemo(() => {
-    if (cell.effect !== 'fire') return null;
-    let h = seed ^ (cell.col * 31 + cell.row * 17);
-    h = Math.imul(h ^ (h >>> 8), 0x7feb352d);
-    return (Math.abs(h) % 12) + 1;
-  }, [cell.col, cell.row, cell.effect, seed]);
-
   return (
     <div
-      className="campaign-tile"
-      title={`(${cell.col},${cell.row}) ${cell.quad} · ${cell.base || ''} · ${cell.terrain || '-'} · ${cell.object || '-'} · ${cell.effect || '-'}`}
+      role={interactive && onTileClick ? 'button' : undefined}
+      className={
+        'campaign-tile' +
+        (deployHighlight ? ' campaign-tile-deploy-hl' : '') +
+        (interactive ? ' campaign-tile-interactive' : '')
+      }
+      data-tactical-y={tacticalY}
+      data-tactical-x={tacticalX}
+      data-battle-y={engineActive ? tacticalY : undefined}
+      data-battle-x={engineActive ? tacticalX : undefined}
+      onClick={onTileClick}
+      onKeyDown={(interactive && onTileClick) ? (e) => e.key === 'Enter' && onTileClick() : undefined}
+      onMouseEnter={onHover}
+      onMouseLeave={onLeave}
     >
       {bgOk ? (
         <img className="camp-layer" src={bgSrc} alt="" onError={() => setBgOk(false)} />
@@ -68,20 +94,29 @@ function CampaignMapTile({ cell, seed }) {
             {cell.object === 'military_camp' ? '营' : cell.object === 'military_tower' ? '塔' : '·'}
           </div>
         ))}
-      {cell.effect === 'fire' && fireFrame && fireOk && (
-        <img
-          className="camp-layer"
-          src={campaignFireFrameUrl(fireFrame)}
-          alt=""
-          style={{ zIndex: 3 }}
-          onError={() => setFireOk(false)}
-        />
+      {cell.effect === 'fire' && (
+        <div className="tile-fire-fx" aria-hidden>
+          {Array.from({ length: 12 }, (_, i) => (
+            <img
+              key={i}
+              className="tile-fire-frame"
+              src={tacticalFireFrameUrl(i + 1)}
+              alt=""
+              style={{ animationDelay: `${-(i * 1.2) / 12}s` }}
+            />
+          ))}
+        </div>
       )}
-      {cell.effect === 'fire' && fireFrame && !fireOk && (
-        <span className="camp-fire-emoji" aria-hidden>
-          🔥
-        </span>
+      {deployHighlight && <div className="campaign-deploy-zone-overlay" aria-hidden />}
+      {manualHl === 'active' && <div className="manual-hl active-troop campaign-manual-hl" aria-hidden />}
+      {manualHl === 'move' && (
+        <div className="manual-hl move-range campaign-manual-hl" aria-hidden>
+          {manualMoveCost != null && manualMoveCost > 1 && (
+            <span className="move-cost-label">{manualMoveCost}</span>
+          )}
+        </div>
       )}
+      {manualHl === 'atk' && <div className="manual-hl atk-target campaign-manual-hl" aria-hidden />}
       <span className="camp-quad-marker">{cell.quad}</span>
     </div>
   );

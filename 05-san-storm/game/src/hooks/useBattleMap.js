@@ -4,26 +4,24 @@
  * 管理地图生成、部队加载/分配、战斗流程状态
  */
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { generateSmallMap } from '@shared/utils/mapGenerator';
-import {
-  getTroopCardPrimaryUrl,
-  getTroopPortraitUrlAttempts,
-  getTroopUiFolderFallbackUrl,
-} from '@shared/utils/troopIconUrls';
+import { getBattleFieldTroopPortraitUrlAttempts } from '@shared/utils/troopIconUrls';
 import { API_CONFIG } from '@/constants';
 import { initialMoraleFromCharacter } from '@/utils/npcMorale';
 
 const base = () => import.meta.env.BASE_URL;
 
-/** 获取部队图标：与 TroopCard 同一主路径（仅 .png，无多后缀遍历） */
+/** 战斗地图部队图标：`san_1_battle/player|enemy/`（与 TroopLayer 一致） */
 function getTroopImg(troop) {
-  return getTroopCardPrimaryUrl(troop, base());
+  const attempts = getBattleFieldTroopPortraitUrlAttempts(troop, base());
+  return attempts[0] || '';
 }
 
-/** ID 专属图失败时的 fallback（与 TroopCard 一致：san_1_ui_card/troop） */
+/** 第二顺位 URL（稀有度通用图，与 getBattleFieldTroopPortraitUrlAttempts 链一致） */
 export function getTroopImgFallback(troop) {
-  return getTroopUiFolderFallbackUrl(troop, base());
+  const attempts = getBattleFieldTroopPortraitUrlAttempts(troop, base());
+  return attempts[attempts.length - 1] || '';
 }
 
 export function useBattleMap() {
@@ -44,8 +42,16 @@ export function useBattleMap() {
   const [battlePlaying, setBattlePlaying] = useState(false);
   const [roundNum, setRoundNum] = useState(0);
   const [logs, setLogs] = useState([]);
+  /** 与 logs 同步追加，供战后结算写库时读取（避免仅依赖 setState 时序导致战报截断） */
+  const battleLogsSyncRef = useRef([]);
+  /** 开战瞬间敌方编制数；战报击杀 = 此值 − 仍有兵力的敌方编制数 */
+  const initialEnemyStackCountRef = useRef(null);
+  const prevBattlePlayingRef = useRef(false);
   const [silverAmount, setSilverAmount] = useState(100);
   const [activeFormation, setActiveFormation] = useState(null);
+
+  /** 战斗结束原因：'max_rounds' | 'min_rounds' | 'campaign_boss_win' | 'campaign_hero_loss' | null */
+  const [battleEndReason, setBattleEndReason] = useState(null);
 
   // ── 自动战斗/阵型 ──
   const [autoBattle, setAutoBattle] = useState(() => localStorage.getItem('san_autoBattle') === 'true');
@@ -53,8 +59,17 @@ export function useBattleMap() {
 
   // ── 日志 ──
   const addLog = useCallback((text, cls = '') => {
-    setLogs(prev => [...prev, { text, cls, id: Date.now() + Math.random() }]);
+    const entry = { text, cls, id: Date.now() + Math.random() };
+    battleLogsSyncRef.current = [...battleLogsSyncRef.current, entry];
+    setLogs((prev) => [...prev, entry]);
   }, []);
+
+  useEffect(() => {
+    if (battlePlaying && !prevBattlePlayingRef.current) {
+      initialEnemyStackCountRef.current = battleTroops.filter((t) => t.faction === 'enemy').length;
+    }
+    prevBattlePlayingRef.current = battlePlaying;
+  }, [battlePlaying, battleTroops]);
 
   // ── 从API加载部队/将领 ──
   useEffect(() => {
@@ -87,10 +102,10 @@ export function useBattleMap() {
     const extraIds = (Array.isArray(rawExtra) ? rawExtra : rawExtra ? [rawExtra] : []).filter(Boolean);
     const useFiveEnemy = extraIds.length > 0;
 
-    // 我方位置（最多5个，从底部两行分布）
+    // 我方位置（最多5个，前排优先部署）
     const playerPositions = [
-      { y: 9, x: 1 }, { y: 9, x: 4 }, { y: 9, x: 7 },
-      { y: 8, x: 2 }, { y: 8, x: 5 },
+      { y: 8, x: 1 }, { y: 8, x: 4 }, { y: 8, x: 7 },
+      { y: 9, x: 2 }, { y: 9, x: 5 },
     ];
     // 敌方位置：默认 4 支；指定额外将领（事件 punishment 5v5）时为 5 支
     const enemyPositions = useFiveEnemy
@@ -110,7 +125,7 @@ export function useBattleMap() {
       const tr = unit.troop;
       const char = unit.character || null;
       const morale = unit.morale ?? 70;
-      const attempts = getTroopPortraitUrlAttempts(tr, base());
+      const attempts = getBattleFieldTroopPortraitUrlAttempts({ ...tr, faction: 'player' }, base());
       return {
         ...tr,
         id: tr.id + '_p' + i,
@@ -123,6 +138,7 @@ export function useBattleMap() {
         character: char,
         displayName: char ? (char.courtesyName || char.name) : tr.name,
         morale,
+        ...(unit.lineupSlot ? { lineupSlot: unit.lineupSlot } : {}),
         imgSrc: attempts[0],
         imgPortraitAttempts: attempts,
         imgFallback: attempts[attempts.length - 1],
@@ -177,7 +193,7 @@ export function useBattleMap() {
       // 2 将领：各带 2 部队；3 将领（5 部队）：0,1 / 2,3 / 4
       const char = enemyChars[Math.floor(i / 2)] || null;
       const morale = initialMoraleFromCharacter(char);
-      const attempts = getTroopPortraitUrlAttempts(tr, base());
+      const attempts = getBattleFieldTroopPortraitUrlAttempts({ ...tr, faction: 'enemy' }, base());
       return {
         ...tr,
         id: tr.id + '_e' + i,
@@ -230,10 +246,13 @@ export function useBattleMap() {
   // ── 战斗切换 ──
   const toggleBattle = useCallback(() => {
     setIsBattle(prev => {
-      if (prev) { setLogs([]); setRoundNum(0); setActiveFormation(null); }
+      if (prev) {
+        battleLogsSyncRef.current = [];
+        setLogs([]); setRoundNum(0); setActiveFormation(null); setBattleEndReason(null);
+      }
       return !prev;
     });
-  }, []);
+  }, [setBattleEndReason]);
 
   const toggleTroops = useCallback(() => setShowTroops(prev => !prev), []);
 
@@ -248,15 +267,16 @@ export function useBattleMap() {
   }, []);
 
   return {
-    // 地图
-    mapResult, mapLabel, currentRarity, setCurrentRarity, seedInput, setSeedInput,
+    // 地图（战役模式可 setMapResult 写入切片，不必 generateSmallMap）
+    mapResult, setMapResult, mapLabel, setMapLabel, currentRarity, setCurrentRarity, seedInput, setSeedInput,
     generate, generateWithSeed,
     // 部队
     allTroops, allCharacters, battleTroops, setBattleTroops, assignRealBattleTroops,
     // 战斗
     isBattle, toggleBattle, showTroops, toggleTroops,
+    battleEndReason, setBattleEndReason,
     battlePlaying, setBattlePlaying, roundNum, setRoundNum,
-    logs, addLog, setLogs,
+    logs, addLog, setLogs, battleLogsSyncRef, initialEnemyStackCountRef,
     silverAmount, setSilverAmount,
     activeFormation, setActiveFormation,
     autoBattle, toggleAutoBattle, autoFormation, toggleAutoFormation,

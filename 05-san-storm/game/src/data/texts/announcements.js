@@ -28,7 +28,7 @@ const announcements = [
      id: 'san_1_info_0001',
      date: '2026-03-26',
      title: '黄巾之乱',
-     content: '测试基础功能！M1阶段占比完整游戏内容大概3%\n活动时间：3月26日 - 4月2日',
+     content: '测试基础功能！M1阶段占比完整游戏内容大概5%\n活动时间：3月26日 - 4月2日',
      ranking: {
        title: '测试赛季 · M1',
        description: '新手指引/事件系统/基础战斗系统/战报系统/纪念图册！',

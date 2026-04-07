@@ -12,6 +12,15 @@
   font-display: swap;
 }
 
+/* 战役卡牌正面艺术字 — 文件：public/fonts/ZCOOLKuaiLe-Regular.woff2 */
+@font-face {
+  font-family: 'ZCOOL KuaiLe';
+  src: url('/05-san-storm/game/fonts/ZCOOLKuaiLe-Regular.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
 /* CSS变量定义 */
 :root {
   /* 稀有度颜色 */
@@ -46,6 +55,9 @@
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
   --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+
+  /* 战役卡牌正面标题（CampaignFlipCard） */
+  --campaign-card-title-font: 'ZCOOL KuaiLe', 'PingFang SC', 'Microsoft YaHei', sans-serif;
 }
 
 /* 全局样式 */

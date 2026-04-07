@@ -108,7 +108,7 @@ M1完成，进入M2阶段
   {
     week: 'W09',
     date: '3月30日-4月5日',
-    content: `架构优化，auth.js/players.js拆分`,
+    content: `架构优化，auth.js/players.js/arrisonLineup.jsx/LineupTab.jsx/SmallMapBattle.jsx/LargeMapBattle.jsx`,
     color: 'from-blue-400 to-blue-500',
     borderColor: 'border-blue-400',
   },  
@@ -136,6 +136,6 @@ export const weeklyReportMilestones = {
     { text: '2. [M2 - 黄巾/汉室对抗，完整官职系统，AI君主系统，区域小地图（至少四个城），开启讨伐系统（大规模PVE）/战事系统（大规模PVP）]（IN PROGRESS）', variant: 'progress' },
     { text: '3. [M3 - 实装所有的基础功能，AI全系统]（TBD）', variant: 'tbd' },
     { text: '4. [M4 - 实装大地图/所有战役地图/自动生成全类型随机地图，全功能测试]（TBD）', variant: 'tbd' },
-    { text: '5. [实装全部立绘/音乐音效，全数值微调，最终测试]（TBD）', variant: 'mvp' }
+    { text: '5. [M5 - 实装全部立绘/音乐音效，全数值微调，最终测试]（TBD）', variant: 'mvp' }
   ]
 };

@@ -13,6 +13,7 @@
 const fs = require('fs');
 const path = require('path');
 const { pool } = require('../database/connection');
+const statisticsDeltaService = require('./statisticsDeltaService');
 
 /** MySQL ENUM / 大小写 / 空值 → 标准稀有度字符串 */
 function normalizeEnumRarity(raw) {
@@ -269,6 +270,38 @@ async function checkCharacterDuplicate(connection, playerId, cardId, rarity, det
   return true;
 }
 
+// ── 将领卡：按稀有度总张数上限（与 docs 21-CHARACTER_SYSTEM §2.2 一致）──
+const CHARACTER_LIMIT_BY_RARITY = { legendary: 8, epic: 12, rare: 12, common: 8 };
+const CHARACTER_OVER_LIMIT_COMPENSATION = { legendary: 80, epic: 60, rare: 40, common: 20 };
+
+/**
+ * 该稀有度将领卡实例数已达上限则补偿银两，不插入
+ * @returns {boolean} true=已满（已补偿），false=可继续发放
+ */
+async function checkCharacterRarityLimit(connection, playerId, rarity, details, cardId = null, cardName = null) {
+  const rar = normalizeEnumRarity(rarity) || 'common';
+  const limit = CHARACTER_LIMIT_BY_RARITY[rar];
+  if (limit == null) return false;
+
+  const [countRows] = await connection.query(
+    "SELECT COUNT(*) AS cnt FROM player_cards WHERE player_id = ? AND card_type = 'character' AND rarity = ?",
+    [playerId, rar]
+  );
+  if (Number(countRows[0]?.cnt || 0) < limit) return false;
+
+  const compensation = CHARACTER_OVER_LIMIT_COMPENSATION[rar] || 20;
+  await connection.query('UPDATE players SET silver = silver + ? WHERE player_id = ?', [compensation, playerId]);
+  details.push({
+    type: 'character_rarity_limit',
+    cardId,
+    cardName,
+    rarity: rar,
+    compensation,
+  });
+  console.log(`[Rewards] 将领稀有度栏位已满: ${rar} (${countRows[0].cnt}/${limit}) → 补偿 ${compensation} 银两`);
+  return true;
+}
+
 // ── 唯一卡牌检查（称号/成就每个ID只能持有一张）──────────────
 const UNIQUE_CARD_COMPENSATION = { common: 20, rare: 40, epic: 60, legendary: 80, core: 100 }; // 银两
 
@@ -288,7 +321,7 @@ async function checkUniqueCardDuplicate(connection, playerId, cardType, cardId, 
 
 // ── 部队卡持有上限检查 ──────────────────────────────────────
 // core 的「每种配置 ID 最多 2 张」由 checkTroopLimit 首分支处理；此处 core 勿再用全局 2（否则会统计全账号所有 core 混同上限）
-const TROOP_LIMIT_BY_RARITY = { common: 20, rare: 20, epic: 20, legendary: 20, core: 999 };
+const TROOP_LIMIT_BY_RARITY = { common: 20, rare: 40, epic: 40, legendary: 20, core: 999 };
 const TROOP_OVER_LIMIT_COMPENSATION = { common: 100, rare: 200, epic: 300, legendary: 400, core: 500 }; // 粮草
 
 /**
@@ -470,22 +503,7 @@ async function executeRewards(playerId, rewardStr, multiplier, factionId) {
         params
       );
 
-      // 更新 statistics 表
-      for (const [field, amount] of Object.entries(resourceUpdates)) {
-        if (amount > 0) {
-          const statField = field === 'silver' ? 'total_gold_earned'
-            : field === 'food' ? 'total_food_earned'
-            : field === 'reputation' ? 'total_reputation_earned'
-            : field === 'contribution' ? 'total_contribution_earned'
-            : null;
-          if (statField) {
-            await connection.query(
-              `UPDATE statistics SET ${statField} = ${statField} + ? WHERE player_id = ?`,
-              [amount, playerId]
-            );
-          }
-        }
-      }
+      await statisticsDeltaService.applyResourceDelta(playerId, resourceUpdates, connection);
     }
 
     // 更新士气（玩家角色 + 已装备部队卡 + 已装备将领卡）
@@ -594,6 +612,8 @@ async function executeRewards(playerId, rewardStr, multiplier, factionId) {
         if (cardType === 'character') {
           const isDuplicate = await checkCharacterDuplicate(connection, playerId, realCardId, rarity, details);
           if (isDuplicate) continue;
+          const isRarityFull = await checkCharacterRarityLimit(connection, playerId, rarity, details, realCardId, cardName);
+          if (isRarityFull) continue;
         }
         // 称号/成就唯一性检查：已持有则补偿银两
         if (cardType === 'title' || cardType === 'achievement') {
@@ -651,6 +671,10 @@ async function executeRewards(playerId, rewardStr, multiplier, factionId) {
         if (cardType === 'character') {
           const isDuplicate = await checkCharacterDuplicate(connection, playerId, card.card_id, drawRarity, details);
           if (isDuplicate) { drawnCardIdsByType[typeKey].push(card.card_id); continue; }
+          const isRarityFull = await checkCharacterRarityLimit(
+            connection, playerId, drawRarity, details, card.card_id, card.card_name
+          );
+          if (isRarityFull) { drawnCardIdsByType[typeKey].push(card.card_id); continue; }
         }
         // 部队卡持有上限检查：超限则补偿粮草
         if (cardType === 'troop') {
@@ -755,6 +779,8 @@ async function grantSpecificCardsOnConnection(connection, playerId, factionId, c
       if (cardType === 'character') {
         const isDuplicate = await checkCharacterDuplicate(connection, playerId, realCardId, rarity, details);
         if (isDuplicate) continue;
+        const isRarityFull = await checkCharacterRarityLimit(connection, playerId, rarity, details, realCardId, cardName);
+        if (isRarityFull) continue;
       }
       if (cardType === 'title' || cardType === 'achievement') {
         const isDuplicate = await checkUniqueCardDuplicate(connection, playerId, cardType, realCardId, rarity, details);

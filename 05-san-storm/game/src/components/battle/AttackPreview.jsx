@@ -5,20 +5,32 @@
  * 再次点击同一敌人确认攻击。
  */
 import { memo } from 'react';
-import { MAP_W } from './battleConstants';
 
-function AttackPreview({ preview }) {
+function AttackPreview({
+  preview,
+  /** 战役整图叠加层：目标坐标已为全局格，直接用 camp-tile 步进 */
+  campaignGridOverlay = false,
+}) {
   if (!preview) return null;
   const { target, estimate } = preview;
+
+  const pos = campaignGridOverlay
+    ? {
+        top: `calc(${target.y} * (var(--camp-tile, var(--tile)) + 1px))`,
+        left: `calc(${target.x} * (var(--camp-tile, var(--tile)) + 1px))`,
+      }
+    : {
+        top: `calc(${target.y} * (var(--tile) + 1px))`,
+        left: `calc(var(--label-w) + 4px + ${target.x} * (var(--tile) + 1px))`,
+      };
 
   return (
     <div
       className="atk-preview-overlay"
       style={{
         position: 'absolute',
-        top: `calc(${target.y} * (var(--tile) + 1px))`,
-        left: `calc(var(--label-w) + 4px + ${target.x} * (var(--tile) + 1px))`,
-        width: 'var(--tile)',
+        ...pos,
+        width: campaignGridOverlay ? 'var(--camp-tile, var(--tile))' : 'var(--tile)',
         zIndex: 55,
         pointerEvents: 'none',
         display: 'flex',

@@ -6,6 +6,7 @@
  */
 
 const { pool } = require('../database/connection');
+const statisticsDeltaService = require('./statisticsDeltaService');
 
 // ── 概率配置（模拟满发展度3000）─────────────────────────────
 
@@ -23,13 +24,26 @@ const DRAW_COST = 40;
 const PITY_THRESHOLD = 50;
 const EXPIRES_DAYS = 14;
 
+/** 读取用：合法计数为 0～阈值-1（达阈值-1 时下次抽触发保底）。历史上 bug 曾写入 ≥阈值；统一归零以免 52/50 或 50/50 */
+function sanitizePityCount(value) {
+  const n = Number(value) || 0;
+  if (n < 0) return 0;
+  if (n >= PITY_THRESHOLD) return 0;
+  return n;
+}
+
 const DAILY_RARITY_CAP = { legendary: 1, epic: 2 };
 
 // ── 补偿常量 ─────────────────────────────────────────────────
 
 const CHARACTER_DUPLICATE_COMPENSATION = { common: 20, rare: 40, epic: 60, legendary: 80 };
+/** 将领按稀有度总张数达上限时的银两补偿（与 rewardService、21-CHARACTER_SYSTEM §2.2 一致） */
+const CHARACTER_LIMIT_BY_RARITY = { legendary: 8, epic: 12, rare: 12, common: 8 };
+const CHARACTER_OVER_LIMIT_COMPENSATION = { legendary: 80, epic: 60, rare: 40, common: 20 };
+/** 无可抽候选时仍返回银两补偿（与返回体 compensation 一致，须实际入账） */
+const NO_CARD_AVAILABLE_SILVER = 20;
 const TROOP_OVER_LIMIT_COMPENSATION = { common: 100, rare: 200, epic: 300, legendary: 400 };
-const TROOP_LIMIT_BY_RARITY = { common: 20, rare: 20, epic: 20, legendary: 20 };
+const TROOP_LIMIT_BY_RARITY = { common: 20, rare: 40, epic: 40, legendary: 20 };
 const MAX_BATTLE_COUNT = { common: 20, rare: 40, epic: 60, legendary: 80 };
 
 // ── 工具函数 ─────────────────────────────────────────────────
@@ -50,10 +64,16 @@ function rollRarity() {
 }
 
 function parseFactionId(factionId) {
-  const parts = factionId.split('_');
+  const parts = String(factionId || '').split('_');
+  const m = String(factionId || '').match(/_faction_(\d+)/);
+  let factionNumber = '0';
+  if (m) {
+    const nz = m[1].replace(/^0+/, '');
+    factionNumber = nz ? nz.charAt(0) : '0';
+  }
   return {
     season: parts.slice(0, 2).join('_'),
-    factionNumber: parts[3] ? parts[3].charAt(0) : '0',
+    factionNumber,
   };
 }
 
@@ -123,8 +143,8 @@ async function drawFromPool(playerId, poolType) {
         runningPity, todayRarityCounts, results
       );
 
-      // 计算本张卡后的 pity_count
-      if (result.rarity === 'legendary' && !result.compensated) {
+      // 计算本张卡后的 pity_count：①抽到传奇（含重复/上限补偿，仍为传奇稀有度）或 ②本轮触发了硬保底（即使被每日上限降级为史诗）均归零
+      if (result.rarity === 'legendary' || result.pityForced) {
         runningPity = 0;
       } else {
         runningPity += 1;
@@ -150,10 +170,30 @@ async function drawFromPool(playerId, poolType) {
 
     await connection.commit();
 
+    let compensationSilver = 0;
+    let compensationFood = 0;
+    for (const r of results) {
+      if (!r.compensated || !r.compensation || r.compensation.amount == null) continue;
+      const t = String(r.compensation.type || '').toLowerCase();
+      const a = Math.max(0, Math.floor(Number(r.compensation.amount) || 0));
+      if (t === 'silver') compensationSilver += a;
+      else if (t === 'food') compensationFood += a;
+    }
+    if (compensationSilver > 0 || compensationFood > 0) {
+      await statisticsDeltaService.recordEarned(playerId, {
+        ...(compensationSilver > 0 ? { silver: compensationSilver } : {}),
+        ...(compensationFood > 0 ? { food: compensationFood } : {}),
+      });
+    }
+
+    await statisticsDeltaService.incrementSpent(playerId, { silver: DRAW_COST });
+
     // 查询更新后的银两
     const [updatedPlayer] = await connection.query(
       'SELECT silver FROM players WHERE player_id = ?', [playerId]
     );
+
+    const cardsPublic = results.map(({ pityForced, pityCount: _pc, ...c }) => c);
 
     return {
       success: true,
@@ -161,7 +201,7 @@ async function drawFromPool(playerId, poolType) {
       cost: DRAW_COST,
       remainingSilver: updatedPlayer[0].silver,
       remainingDraws: DAILY_DRAW_LIMIT - todayDrawCount - 1,
-      cards: results,
+      cards: cardsPublic,
       pityCount: runningPity,
     };
 
@@ -182,9 +222,11 @@ async function drawSingleCard(connection, playerId, poolType, factionId, current
   // 决定稀有度
   let rarity = rollRarity();
 
-  // 保底：达到阈值强制legendary
+  /** 本轮是否触发了「硬保底」的传奇判定（在每日上限降级之前）。用于 pity 归零：降级为史诗后仍须视为已消耗保底，否则会连续 +1 出现 52/50 等溢出。 */
+  let pityForced = false;
   if (currentPity >= PITY_THRESHOLD - 1) {
     rarity = 'legendary';
+    pityForced = true;
   }
 
   // 每日上限降级
@@ -194,6 +236,9 @@ async function drawSingleCard(connection, playerId, poolType, factionId, current
   if (rarity === 'epic' && (todayRarityCounts.epic || 0) >= DAILY_RARITY_CAP.epic) {
     rarity = 'rare';
   }
+
+  /** 硬保底已将档位抬至传奇，但被每日稀有度上限降级为非传奇；供前端提示玩家「保底已消耗、非未出橙」 */
+  const pityLegendarySuppressed = pityForced && rarity !== 'legendary';
 
   // 从config表随机选卡（本势力 + 通用势力0）
   const table = poolType === 'troop' ? 'config_troops' : 'config_characters';
@@ -220,10 +265,14 @@ async function drawSingleCard(connection, playerId, poolType, factionId, current
   const likeFaction = `${season}_${idPrefix}_${factionNumber}%`;
   const likeNeutral = `${season}_${idPrefix}_0%`;
 
+  // ID 含 x（如 san_1_troop_7x01 / san_1_char_7x01）为仅 NPC 使用的单位，排除出玩家卡池。
+  // 命名规范：<season>_<type>_<faction digit>x<seq>，以 REGEXP '[0-9]x[0-9]' 匹配并排除。
+  const npcExclude = ` AND ${idField} NOT REGEXP '[0-9]x[0-9]'`;
+
   // 仅在已确定的 rarity 下，在符合条件的行中均匀随机（多一张同稀有度卡不会改变上文的 rollRarity 概率）
   let query = `SELECT ${idField} AS card_id, ${nameField} AS card_name, rarity
     FROM ${table}
-    WHERE rarity = ? AND (${idField} LIKE ? OR ${idField} LIKE ?)${excludeClausePrimary}
+    WHERE rarity = ? AND (${idField} LIKE ? OR ${idField} LIKE ?)${npcExclude}${excludeClausePrimary}
     ORDER BY RAND() LIMIT 1`;
   let params = [rarity, likeFaction, likeNeutral, ...excludePoolIdsPrimary];
 
@@ -235,14 +284,27 @@ async function drawSingleCard(connection, playerId, poolType, factionId, current
       : '';
     const dupQuery = `SELECT ${idField} AS card_id, ${nameField} AS card_name, rarity
       FROM ${table}
-      WHERE rarity = ? AND (${idField} LIKE ? OR ${idField} LIKE ?)${excludeClauseDupOnly}
+      WHERE rarity = ? AND (${idField} LIKE ? OR ${idField} LIKE ?)${npcExclude}${excludeClauseDupOnly}
       ORDER BY RAND() LIMIT 1`;
     const dupParams = [rarity, likeFaction, likeNeutral, ...excludeIds];
     [rows] = await connection.query(dupQuery, dupParams);
   }
 
   if (rows.length === 0) {
-    return { rarity, cardId: null, cardName: null, compensated: true, compensation: { type: 'silver', amount: 20 }, reason: 'no_card_available' };
+    await connection.query('UPDATE players SET silver = silver + ? WHERE player_id = ?', [
+      NO_CARD_AVAILABLE_SILVER,
+      playerId,
+    ]);
+    return {
+      rarity,
+      cardId: null,
+      cardName: null,
+      compensated: true,
+      compensation: { type: 'silver', amount: NO_CARD_AVAILABLE_SILVER },
+      reason: 'no_card_available',
+      pityForced,
+      pityLegendarySuppressed,
+    };
   }
 
   const card = rows[0];
@@ -257,7 +319,7 @@ async function drawSingleCard(connection, playerId, poolType, factionId, current
     if (countRows[0].cnt >= limit) {
       const comp = TROOP_OVER_LIMIT_COMPENSATION[rarity] || 100;
       await connection.query('UPDATE players SET food = food + ? WHERE player_id = ?', [comp, playerId]);
-      return { rarity, cardId: card.card_id, cardName: card.card_name, compensated: true, compensation: { type: 'food', amount: comp }, reason: 'troop_limit' };
+      return { rarity, cardId: card.card_id, cardName: card.card_name, compensated: true, compensation: { type: 'food', amount: comp }, reason: 'troop_limit', pityForced, pityLegendarySuppressed };
     }
 
     // 插入部队卡实例
@@ -271,7 +333,7 @@ async function drawSingleCard(connection, playerId, poolType, factionId, current
       [instanceId, playerId, card.card_id, rarity, maxTroops, MAX_BATTLE_COUNT[rarity] || 20]
     );
 
-    return { rarity, cardId: card.card_id, cardName: card.card_name, instanceId, compensated: false };
+    return { rarity, cardId: card.card_id, cardName: card.card_name, instanceId, compensated: false, pityForced };
   }
 
   // ── 将领卡：检查唯一性 ──
@@ -281,9 +343,33 @@ async function drawSingleCard(connection, playerId, poolType, factionId, current
       [playerId, card.card_id]
     );
     if (existing.length > 0) {
-      const comp = CHARACTER_DUPLICATE_COMPENSATION[rarity] || 20;
+      const normRarity = String(rarity ?? 'common').toLowerCase();
+      const comp = CHARACTER_DUPLICATE_COMPENSATION[normRarity] ?? 20;
       await connection.query('UPDATE players SET silver = silver + ? WHERE player_id = ?', [comp, playerId]);
-      return { rarity, cardId: card.card_id, cardName: card.card_name, compensated: true, compensation: { type: 'silver', amount: comp }, reason: 'character_duplicate' };
+      return { rarity, cardId: card.card_id, cardName: card.card_name, compensated: true, compensation: { type: 'silver', amount: comp }, reason: 'character_duplicate', pityForced, pityLegendarySuppressed };
+    }
+
+    const normRarity = String(rarity ?? 'common').toLowerCase();
+    const charLimit = CHARACTER_LIMIT_BY_RARITY[normRarity];
+    if (charLimit != null) {
+      const [cntRows] = await connection.query(
+        "SELECT COUNT(*) AS cnt FROM player_cards WHERE player_id = ? AND card_type = 'character' AND rarity = ?",
+        [playerId, normRarity]
+      );
+      if (Number(cntRows[0]?.cnt || 0) >= charLimit) {
+        const comp = CHARACTER_OVER_LIMIT_COMPENSATION[normRarity] ?? 20;
+        await connection.query('UPDATE players SET silver = silver + ? WHERE player_id = ?', [comp, playerId]);
+        return {
+          rarity,
+          cardId: card.card_id,
+          cardName: card.card_name,
+          compensated: true,
+          compensation: { type: 'silver', amount: comp },
+          reason: 'character_rarity_limit',
+          pityForced,
+          pityLegendarySuppressed,
+        };
+      }
     }
 
     const instanceId = `${card.card_id}_${playerId}_${Date.now()}`;
@@ -300,10 +386,10 @@ async function drawSingleCard(connection, playerId, poolType, factionId, current
       [instanceId, playerId, card.card_id, rarity, initialMorale]
     );
 
-    return { rarity, cardId: card.card_id, cardName: card.card_name, instanceId, compensated: false };
+    return { rarity, cardId: card.card_id, cardName: card.card_name, instanceId, compensated: false, pityForced, pityLegendarySuppressed };
   }
 
-  return { rarity, cardId: null, compensated: true, reason: 'unknown_pool' };
+  return { rarity, cardId: null, compensated: true, reason: 'unknown_pool', pityForced, pityLegendarySuppressed };
 }
 
 // ── 半天周期工具函数 ─────────────────────────────────────────
@@ -357,7 +443,7 @@ async function getPityCount(connection, playerId, poolType) {
      ORDER BY id DESC LIMIT 1`,
     [playerId, poolType]
   );
-  return rows.length > 0 ? rows[0].pity_count : 0;
+  return rows.length > 0 ? sanitizePityCount(rows[0].pity_count) : 0;
 }
 
 // ── 查询接口 ─────────────────────────────────────────────────
@@ -400,14 +486,14 @@ async function getPoolStatus(playerId) {
       remainingDraws: Math.max(0, DAILY_DRAW_LIMIT - troopCount[0].cnt),
       dailyLimit: DAILY_DRAW_LIMIT,
       cardsPerDraw: 2,
-      pityCount: troopPity.length > 0 ? troopPity[0].pity_count : 0,
+      pityCount: troopPity.length > 0 ? sanitizePityCount(troopPity[0].pity_count) : 0,
       pityThreshold: PITY_THRESHOLD,
     },
     character: {
       remainingDraws: Math.max(0, DAILY_DRAW_LIMIT - charCount[0].cnt),
       dailyLimit: DAILY_DRAW_LIMIT,
       cardsPerDraw: 1,
-      pityCount: charPity.length > 0 ? charPity[0].pity_count : 0,
+      pityCount: charPity.length > 0 ? sanitizePityCount(charPity[0].pity_count) : 0,
       pityThreshold: PITY_THRESHOLD,
     },
     probabilities: DRAW_PROBABILITIES,

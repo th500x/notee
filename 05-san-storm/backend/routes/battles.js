@@ -1,51 +1,14 @@
 /**
  * 战斗记录API路由
  * 提供战斗记录的保存、查询、收藏功能
+ * 战后副作用（积分/宝箱/兵力/士气/耐久）全部委托 battleService 处理
  */
 
 const express = require('express');
 const router = express.Router();
 const battleService = require('../services/battleService');
-const { applyTroopDurabilityExhaustion } = require('../services/troopDurabilityService');
-const { pool } = require('../database/connection');
-
-/**
- * 地图宝箱装备入库：必须携带与 equipment.json / config_equipment 一致的 equipmentId。
- * @see docs/00-base/04-ID_NAMING_GUIDE.md §12 — san_{赛季}_equip_{类型1-3}_{稀有度1位}{序号3位}
- */
-async function insertChestEquipmentFromReward(pool, playerId, reward) {
-  const season = 'san_1';
-  const directId = reward.equipmentId || reward.card_id;
-
-  if (!directId || typeof directId !== 'string') {
-    console.error('[battles] 宝箱入库缺少 equipmentId', { playerId, reward });
-    return false;
-  }
-
-  const [byId] = await pool.query(
-    `SELECT equipment_id, equipment_name FROM config_equipment
-     WHERE season = ? AND equipment_id = ? LIMIT 1`,
-    [season, directId]
-  );
-  const eq = byId[0];
-  if (!eq) {
-    console.error('[battles] 宝箱 equipmentId 在 config_equipment 中不存在（数据与前端不一致或未导入）', {
-      directId,
-      season,
-      playerId,
-    });
-    return false;
-  }
-
-  const rowRarity = reward.rarity || 'common';
-  const instanceId = `${eq.equipment_id}_${playerId}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
-  await pool.query(
-    `INSERT INTO player_cards (instance_id, player_id, card_id, card_type, rarity, is_equipped)
-     VALUES (?, ?, ?, 'equipment', ?, FALSE)`,
-    [instanceId, playerId, eq.equipment_id, rowRarity]
-  );
-  return true;
-}
+const campaignService = require('../services/campaignService');
+const statisticsDeltaService = require('../services/statisticsDeltaService');
 
 /**
  * 获取玩家战斗记录列表
@@ -148,133 +111,52 @@ router.post('/', async (req, res) => {
     const validResults = ['win', 'lose', 'draw'];
 
     if (!validBattleTypes.includes(battleType)) {
-      return res.status(400).json({
-        success: false,
-        message: `无效的battleType: ${battleType}`
-      });
+      return res.status(400).json({ success: false, message: `无效的battleType: ${battleType}` });
     }
     if (!validOpponentTypes.includes(opponentType)) {
-      return res.status(400).json({
-        success: false,
-        message: `无效的opponentType: ${opponentType}`
-      });
+      return res.status(400).json({ success: false, message: `无效的opponentType: ${opponentType}` });
     }
     if (!validResults.includes(result)) {
-      return res.status(400).json({
-        success: false,
-        message: `无效的result: ${result}`
-      });
+      return res.status(400).json({ success: false, message: `无效的result: ${result}` });
     }
 
     const battle = await battleService.saveBattle(req.body);
 
-    const { rewards, chestRewards } = req.body;
+    const { rewards, chestRewards, troopCasualties, moraleUpdates } = req.body;
 
-    // 仅写入战报（驻守防守 recordOnly）：不重复改兵力/士气/耐久/宝箱，但可单独补战报积分
-    if (req.body.recordOnly) {
-      if (rewards?.battleScore && Number(rewards.battleScore) > 0) {
+    // statistics 场次/胜负/杀伤 在 battleService.saveBattle 内累加（与攻城等服务端写战报共用）
+    // 战役：客户端上报自动战斗银两 + 出征粮草（避免与事件奖励/攻城结算重复计数）
+    if (battleType === 'pve_campaign') {
+      await statisticsDeltaService.incrementSpent(playerId, {
+        silver: Math.max(0, Math.floor(Number(req.body.battleSilverSpent) || 0)),
+        food: Math.max(0, Math.floor(Number(req.body.deploymentFoodSpent) || 0)),
+      });
+    }
+
+    // 战役 PVE：写入 player_progress.campaign_progress
+    if (!req.body.recordOnly && battleType === 'pve_campaign') {
+      const campaignId = rewards?.campaignId || req.body.campaignId;
+      if (campaignId) {
         try {
-          await pool.query(
-            'UPDATE statistics SET total_battle_score = total_battle_score + ? WHERE player_id = ?',
-            [Number(rewards.battleScore), playerId],
-          );
-          console.log(`[battles] recordOnly 战斗积分: +${rewards.battleScore} player=${playerId}`);
-        } catch (scoreErr) {
-          console.error('[battles] recordOnly 战斗积分失败:', scoreErr);
+          await campaignService.applyBattleSettlement({ playerId, campaignId, battleId, result, battleScore: rewards?.battleScore });
+        } catch (ce) {
+          console.error('[battles] campaign settlement:', ce);
         }
       }
+    }
+
+    // 仅写入战报（驻守防守 recordOnly）：补积分后直接返回，不改兵力/士气/耐久/宝箱
+    if (req.body.recordOnly) {
+      await battleService.applyBattleScore(playerId, rewards?.battleScore);
       return res.status(201).json({ success: true, battle });
     }
 
-    // 活动排行积分：与兵力/士气/耐久链路隔离，避免攻城等场景下前方 SQL 异常导致整段跳过、积分永远不加
-    if (rewards?.battleScore && Number(rewards.battleScore) > 0) {
-      try {
-        await pool.query(
-          'UPDATE statistics SET total_battle_score = total_battle_score + ? WHERE player_id = ?',
-          [Number(rewards.battleScore), playerId]
-        );
-        console.log(`[battles] 战斗积分更新: +${rewards.battleScore}`);
-      } catch (scoreErr) {
-        console.error('[battles] 战斗积分更新失败:', scoreErr);
-      }
-    }
+    // 积分、宝箱、部队/玩家状态均委托 battleService，与主流程路径隔离
+    await battleService.applyBattleScore(playerId, rewards?.battleScore);
+    await battleService.saveChestRewards(playerId, chestRewards);
+    await battleService.applyBattlePostEffects(playerId, { troopCasualties, moraleUpdates });
 
-    // 地图宝箱装备：同样独立 try，避免与 UPDATE player_cards 链路互相拖死
-    if (chestRewards && Array.isArray(chestRewards) && chestRewards.length > 0) {
-      try {
-        let saved = 0;
-        for (const reward of chestRewards) {
-          try {
-            if (await insertChestEquipmentFromReward(pool, playerId, reward)) saved += 1;
-          } catch (oneErr) {
-            console.error('[battles] 单件宝箱装备失败:', oneErr);
-          }
-        }
-        console.log(`[battles] 宝箱装备保存: ${saved}/${chestRewards.length} 件`);
-      } catch (chestErr) {
-        console.error('[battles] 宝箱装备保存失败:', chestErr);
-      }
-    }
-
-    // 战斗结束后，所有参战部队卡 battle_count +1（钳制在 [0, max_battle_count]，避免 NULL/脏数据导致负数）
-    try {
-      const [updated] = await pool.query(
-        `UPDATE player_cards 
-         SET battle_count = LEAST(
-           GREATEST(COALESCE(battle_count, 0), 0) + 1,
-           COALESCE(max_battle_count, 60)
-         )
-         WHERE player_id = ? AND card_type = 'troop' AND is_equipped = TRUE`,
-        [playerId]
-      );
-      if (updated.affectedRows > 0) {
-        console.log(`[battles] 部队耐久消耗: 玩家${playerId}, ${updated.affectedRows}张部队卡 battle_count+1`);
-      }
-
-      // 更新我方部队战后兵力
-      const { troopCasualties } = req.body;
-      if (troopCasualties && Array.isArray(troopCasualties)) {
-        for (const tc of troopCasualties) {
-          if (tc.instanceId && tc.currentTroops != null) {
-            await pool.query(
-              `UPDATE player_cards SET current_troops = ?, last_troops_lost_at = ? WHERE instance_id = ? AND player_id = ?`,
-              [Math.max(0, tc.currentTroops), tc.currentTroops < (tc.maxTroops || 9999) ? new Date() : null, tc.instanceId, playerId]
-            );
-          }
-        }
-        console.log(`[battles] 兵力更新: ${troopCasualties.length}支部队`);
-      }
-
-      // 更新我方战后士气
-      const { moraleUpdates } = req.body;
-      if (moraleUpdates && Array.isArray(moraleUpdates)) {
-        for (const mu of moraleUpdates) {
-          const morale = Math.max(0, Math.min(120, mu.morale));
-          if (mu.target === 'player') {
-            await pool.query(
-              'UPDATE players SET morale = ? WHERE player_id = ?',
-              [morale, playerId]
-            );
-          } else if (mu.target === 'card' && mu.instanceId) {
-            await pool.query(
-              'UPDATE player_cards SET morale = ? WHERE instance_id = ? AND player_id = ?',
-              [morale, mu.instanceId, playerId]
-            );
-          }
-        }
-        console.log(`[battles] 士气更新: ${moraleUpdates.length}条`);
-      }
-
-      // 耐久耗尽：金卸下、白蓝紫删除、橙保留；驻守槽同步清空用尽/已删部队（与上阵一致）
-      await applyTroopDurabilityExhaustion((sql, params) => pool.query(sql, params), playerId);
-    } catch (err) {
-      console.error('[battles] 更新部队耐久失败:', err);
-    }
-
-    res.status(201).json({
-      success: true,
-      battle
-    });
+    res.status(201).json({ success: true, battle });
   } catch (error) {
     console.error('[battles] 保存战斗记录失败:', error);
     res.status(500).json({

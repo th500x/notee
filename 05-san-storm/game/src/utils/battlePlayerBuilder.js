@@ -53,7 +53,7 @@ export function buildPlayerUnitsFromContext(player, cards, attributeBonusBySlot 
       courage: withBonus(player.courage / 10, playerBonus.courage),
       traitModifier: 0,
     };
-    units.push(buildTroopUnit(playerTroop, charData, player.morale ?? 70));
+    units.push({ ...buildTroopUnit(playerTroop, charData, player.morale ?? 70), lineupSlot: 'player' });
   }
 
   // 将领1 + 将领1部队
@@ -70,7 +70,9 @@ export function buildPlayerUnitsFromContext(player, cards, attributeBonusBySlot 
       courage: withBonus(cfg.courage || 5, char1Bonus.courage),
       traitModifier: cfg.traitModifier || 0,
     };
-    for (const t of char1Troops) units.push(buildTroopUnit(t, charData, char1Card.morale ?? 70));
+    for (const t of char1Troops) {
+      units.push({ ...buildTroopUnit(t, charData, char1Card.morale ?? 70), lineupSlot: 'character1' });
+    }
   }
 
   // 将领2 + 将领2部队
@@ -87,7 +89,9 @@ export function buildPlayerUnitsFromContext(player, cards, attributeBonusBySlot 
       courage: withBonus(cfg.courage || 5, char2Bonus.courage),
       traitModifier: cfg.traitModifier || 0,
     };
-    for (const t of char2Troops) units.push(buildTroopUnit(t, charData, char2Card.morale ?? 70));
+    for (const t of char2Troops) {
+      units.push({ ...buildTroopUnit(t, charData, char2Card.morale ?? 70), lineupSlot: 'character2' });
+    }
   }
 
   return units;

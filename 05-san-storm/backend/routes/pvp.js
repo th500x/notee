@@ -9,7 +9,6 @@ const router = express.Router();
 const pvpService = require('../services/pvpService');
 const garrisonService = require('../services/garrisonService');
 const siegePvpResolveService = require('../services/siegePvpResolveService');
-const { pool } = require('../database/connection');
 const Player = require('../models/Player');
 const { isPlayerRecentlyActive, DEFAULT_ONLINE_MS } = require('../utils/playerActivity');
 

@@ -1,16 +1,25 @@
 /**
  * 一键导入所有JSON配置数据到MySQL
- * 
- * 用法: node backend/database/import-all.js
- * 
+ *
+ * 用法（cwd 为 backend/）:
+ *   node database/import-all.js
+ * 或从仓库根:
+ *   node 05-san-storm/backend/database/import-all.js
+ *
  * 按依赖顺序执行：
- *   1. 配置数据（将领、部队、官职、势力等）
- *   2. 技能和羁绊
+ *   1. 配置数据（将领、部队、官职、势力）
+ *   2. 技能和羁绊（含 skill_effect_type / special_effect / damage_multiplier 新字段）
  *   3. 装备
  *   4. 事件
- *   5. 道具
- * 
- * 注意：不包含服务器初始化（init-servers.js），需单独执行
+ *   5. 战役卡片
+ *   6. 道具（import-items-data.js → config_items）
+ *
+ * 注意：
+ *   - 不包含服务器初始化（init-servers.js），需单独执行
+ *   - 执行前请确保已运行所有迁移脚本（backend/database/migrations/）
+ *   - 技能数据依赖 public/data/shared/skills.json，请先运行 CSV→JSON 转换脚本
+ *   - 道具含 itemType=season_badge（如 item_badge）时，须已应用 migrations/add-config-items-item-type-season-badge.sql
+ *     扩展 config_items.item_type，否则该条导入会被 MySQL 拒绝、脚本计为「跳过」
  */
 
 const { execSync } = require('child_process');
@@ -23,6 +32,7 @@ const scripts = [
   { name: '技能和羁绊', file: 'import-skills-bonds.js' },
   { name: '装备', file: 'import-equipment-data.js' },
   { name: '事件', file: 'import-events-data.js' },
+  { name: '战役卡片', file: 'import-campaigns-data.js' },
   { name: '道具', file: 'import-items-data.js' },
 ];
 

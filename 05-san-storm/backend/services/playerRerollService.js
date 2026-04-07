@@ -4,6 +4,7 @@
 
 const { pool } = require('../database/connection');
 const PlayerService = require('./playerService');
+const statisticsDeltaService = require('./statisticsDeltaService');
 
 const REROLL_COST = { common: 10, rare: 50, epic: 250, legendary: 500, core: 750 };
 const REROLL_DAILY_LIMIT = 2;
@@ -100,6 +101,8 @@ async function rerollAttributes(playerId) {
      WHERE player_id = ?`,
     [cost, newUsed, JSON.stringify(batches), playerId]
   );
+
+  await statisticsDeltaService.incrementSpent(playerId, { silver: cost });
 
   return {
     ok: true,

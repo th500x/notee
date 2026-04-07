@@ -7,6 +7,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { usePlayerContext } from '@/contexts/PlayerContext';
 import PersonalSidebarTeamPanel from '@/components/game/PersonalSidebarTeamPanel';
+import PersonalSidebarStatsPanel from '@/components/game/PersonalSidebarStatsPanel';
 import AncientModal from '@/components/common/AncientModal';
 
 const MENU_ITEMS = [
@@ -19,11 +20,11 @@ const MENU_ITEMS = [
 
 export default function PersonalSidebar({ open, onClose, onLogout }) {
   const { player } = usePlayerContext();
-  const [subView, setSubView] = useState(null); // null | 'team'
+  const [subView, setSubView] = useState(null); // null | 'team' | 'stats'
   const teamPanelRef = useRef(null);
   const [stubNoticeOpen, setStubNoticeOpen] = useState(false);
 
-  // ESC：团队详情 → 团队列表 → 主菜单 → 关侧边栏
+  // ESC：团队详情 → 团队列表 → 主菜单；统计子页 → 主菜单 → 关侧边栏
   useEffect(() => {
     if (!open) return;
     const handler = (e) => {
@@ -66,6 +67,10 @@ export default function PersonalSidebar({ open, onClose, onLogout }) {
       setSubView('team');
       return;
     }
+    if (id === 'stats') {
+      setSubView('stats');
+      return;
+    }
     setStubNoticeOpen(true);
   };
 
@@ -97,6 +102,10 @@ export default function PersonalSidebar({ open, onClose, onLogout }) {
         {subView === 'team' ? (
           <div className="flex flex-1 flex-col min-h-0 overflow-hidden">
             <PersonalSidebarTeamPanel ref={teamPanelRef} onBack={() => setSubView(null)} />
+          </div>
+        ) : subView === 'stats' ? (
+          <div className="flex flex-1 flex-col min-h-0 overflow-hidden">
+            <PersonalSidebarStatsPanel playerId={player?.player_id} onBack={() => setSubView(null)} />
           </div>
         ) : (
           <>

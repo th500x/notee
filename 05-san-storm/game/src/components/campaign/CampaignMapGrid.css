@@ -5,6 +5,8 @@
   padding: 0;
   display: block;
   max-width: 100%;
+  /* 与 BattleMap.css 的 --tile 一致（BattleArena 已引入 BattleMap.css） */
+  --camp-tile: var(--tile, 48px);
 }
 
 .campaign-map-title {
@@ -13,6 +15,16 @@
   margin-bottom: 6px;
   letter-spacing: 1px;
   font-weight: 600;
+}
+.campaign-map-title .round-badge {
+  margin-left: 10px;
+  font-size: 11px;
+  color: #d97706;
+  background: rgba(146, 64, 14, 0.15);
+  padding: 1px 8px;
+  border-radius: 6px;
+  letter-spacing: 0.5px;
+  font-weight: normal;
 }
 
 .campaign-map-meta {
@@ -26,23 +38,18 @@
   overflow: auto;
   max-width: 100%;
   padding-bottom: 4px;
+  display: flex;
+  justify-content: center;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  touch-action: pan-x pan-y;
 }
 
-/* Web 预览放大：仅 Demo；窄屏仍按视口适配列宽 */
-:root {
-  --camp-tile: 44px;
-}
-
-@media (max-width: 1100px) {
-  :root {
-    --camp-tile: 36px;
-  }
-}
-
-@media (max-width: 900px) {
-  :root {
-    --camp-tile: min(36px, calc((100vw - 40px) / 16));
-  }
+.campaign-map-wrap::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
 }
 
 /* 避免 inline-block 子元素底部空隙 */
@@ -96,11 +103,71 @@
   height: var(--camp-tile);
 }
 
+/* 部署阶段：父层 pointer-events:none，仅我军头像按钮可点 */
+.campaign-unit-hit {
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  pointer-events: none;
+  cursor: default;
+  border-radius: 2px;
+}
+
+.campaign-unit-hit--selectable {
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.campaign-unit-hit--selected {
+  box-shadow: inset 0 0 0 3px rgba(251, 191, 36, 0.95);
+  border-radius: 3px;
+}
+
 .campaign-tile {
   position: relative;
   width: var(--camp-tile);
   height: var(--camp-tile);
-  overflow: hidden;
+  /* overflow 不设 hidden：允许 .dmg-num 浮动动画溢出格子边界可见 */
+}
+
+.campaign-tile-interactive {
+  cursor: pointer;
+}
+
+/* 象限丙 deploy 矩形：外框 + 格内淡蓝叠层（叠在地形之上，角标之下） */
+.campaign-tile-deploy-hl {
+  box-shadow: inset 0 0 0 2px rgba(147, 197, 253, 0.85);
+}
+
+.campaign-deploy-zone-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+  border-radius: 1px;
+  background: linear-gradient(
+    145deg,
+    rgba(147, 197, 253, 0.42) 0%,
+    rgba(96, 165, 250, 0.28) 45%,
+    rgba(59, 130, 246, 0.22) 100%
+  );
+  box-shadow: inset 0 0 0 1px rgba(191, 219, 254, 0.65);
+}
+
+.campaign-deploy-zone-overlay::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  opacity: 0.35;
+  background-image: repeating-linear-gradient(
+    -12deg,
+    transparent,
+    transparent 5px,
+    rgba(255, 255, 255, 0.06) 5px,
+    rgba(255, 255, 255, 0.06) 6px
+  );
+  pointer-events: none;
 }
 
 .campaign-tile img.camp-layer {
@@ -118,9 +185,18 @@
   left: 2px;
   font-size: 7px;
   color: rgba(255, 255, 255, 0.35);
-  z-index: 3;
+  z-index: 6;
   pointer-events: none;
   text-shadow: 0 0 2px #000;
+}
+
+/* 引擎渲染的部队层：直接挂在 .campaign-tile 根节点下（与 BattleMap .tile 同构） */
+.campaign-tile > .troop-layer {
+  z-index: 10;
+}
+
+.campaign-manual-hl.manual-hl {
+  z-index: 21;
 }
 
 .camp-fire-emoji {

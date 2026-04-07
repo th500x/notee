@@ -10,26 +10,7 @@ const gameTimeService = require('./gameTimeService');
 const equipmentSetService = require('./equipmentSetService');
 const { getFactionFromTroopId } = require('./troopIdHelpers');
 const playerCardLineupService = require('./playerCardLineupService');
-
-/** 玩家所在服务器的当前游戏历法（供顶栏等；失败时返回 null 不阻断 profile） */
-async function loadGameTimeForPlayer(playerId) {
-  try {
-    const [accRows] = await pool.query('SELECT serverId FROM accounts WHERE id = ?', [playerId]);
-    const serverId = accRows[0]?.serverId;
-    if (!serverId) return null;
-    const [srvRows] = await pool.query(
-      `SELECT server_id, opened_at, season_start_time,
-              game_time_start_year, game_time_start_month, game_time_start_day,
-              game_time_real_hours_per_game_day
-       FROM config_servers WHERE server_id = ?`,
-      [serverId]
-    );
-    return gameTimeService.computeGameTimeFromServerRow(srvRows[0]);
-  } catch (e) {
-    console.warn('[PlayerProfile] loadGameTimeForPlayer:', e.message);
-    return null;
-  }
-}
+const statisticsDeltaService = require('./statisticsDeltaService');
 
 /**
  * @returns {Promise<{ notFound: true } | { data: object }>}
@@ -156,6 +137,7 @@ async function getPlayerProfile(playerId) {
       [Math.min(newTroops, maxTroops), newLastTroopsLostAt, card.instance_id]
     );
     await pool.query('UPDATE players SET food = food - ? WHERE player_id = ?', [foodCost, playerId]);
+    await statisticsDeltaService.incrementSpent(playerId, { food: foodCost });
     card.current_troops = Math.min(newTroops, maxTroops);
     if (isFull) card.last_troops_lost_at = null;
     else card.last_troops_lost_at = newLastTroopsLostAt;
@@ -426,6 +408,13 @@ async function getPlayerProfile(playerId) {
 
   await Player.updateLastActive(playerId);
 
+  /** 资源可能在档案构建过程中被其他流程更新；末尾再读一次，避免顶栏银两/粮草滞后 */
+  const [resourceRows] = await pool.query(
+    'SELECT silver, food FROM players WHERE player_id = ?',
+    [playerId]
+  );
+  const latestResources = resourceRows[0] || {};
+
   const attributeBonusBySlot = { player: {}, character1: {}, character2: {} };
   for (const card of enrichedCards) {
     if (!card.is_equipped || !card.config) continue;
@@ -456,7 +445,7 @@ async function getPlayerProfile(playerId) {
     }
   }
 
-  const gameTime = await loadGameTimeForPlayer(playerId);
+  const gameTime = await gameTimeService.loadGameTimeForPlayer(playerId);
 
   return {
     data: {
@@ -469,8 +458,8 @@ async function getPlayerProfile(playerId) {
         reputation: player.reputation,
         reputation_to_next: player.reputation_to_next,
         contribution: player.contribution,
-        silver: player.silver,
-        food: player.food,
+        silver: latestResources.silver ?? player.silver,
+        food: latestResources.food ?? player.food,
         combat: player.combat,
         intelligence: player.intelligence,
         command: player.command,
@@ -503,6 +492,36 @@ async function getPlayerProfile(playerId) {
   };
 }
 
+// ── 新手引导进度 ──────────────────────────────────────────────────────────────
+
+/**
+ * 读取玩家的新手引导当前步骤（用于 GET /:playerId 附加 tutorial_step）。
+ * @returns {number} 步骤编号，默认 1
+ */
+async function getTutorialStep(playerId) {
+  const [rows] = await pool.query(
+    'SELECT tutorial_current_step FROM player_progress WHERE player_id = ?',
+    [playerId],
+  );
+  return rows[0]?.tutorial_current_step ?? 1;
+}
+
+/**
+ * 更新新手引导进度（≥10 标记为完成）。
+ */
+async function updateTutorialProgress(playerId, step) {
+  await pool.query(
+    `UPDATE player_progress
+     SET tutorial_current_step  = ?,
+         tutorial_completed     = IF(? >= 10, TRUE, FALSE),
+         tutorial_completed_at  = IF(? >= 10, NOW(), NULL)
+     WHERE player_id = ?`,
+    [step, step, step, playerId],
+  );
+}
+
 module.exports = {
   getPlayerProfile,
+  getTutorialStep,
+  updateTutorialProgress,
 };

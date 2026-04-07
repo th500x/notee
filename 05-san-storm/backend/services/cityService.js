@@ -7,6 +7,7 @@
 const { pool } = require('../database/connection');
 const { applyTroopDurabilityExhaustion } = require('./troopDurabilityService');
 const garrisonService = require('./garrisonService');
+const statisticsDeltaService = require('./statisticsDeltaService');
 
 /** 攻城战线占用：同键在 TTL 内不可被第二人（或本人第二开）占用，结算后释放；超时自动失效（毫秒）
  *  1 分钟：与多数自动战斗时长接近，避免 NPC 末档等场景被长时间占线；超长手动局若需占线应另做心跳续期 */
@@ -86,7 +87,7 @@ const WIN_REPUTATION_REWARD = {
   common: 5,
 };
 
-// 胜利装备掉落概率
+// 攻城 NPC 胜利且有击杀：至多触发一次 5% 掷骰掉落 1 件装备（与战术地图宝箱无关；宝箱经 POST /api/battles body.chestRewards 入库）
 const EQUIPMENT_DROP_RATE = 0.05;
 
 /**
@@ -108,9 +109,10 @@ function pickRarity(maxRarity) {
  * 复用事件系统逻辑：按城市对应稀有度从配置池中随机选取将领+部队
  * 
  * @param {string} cityId
+ * @param {{ troopCountOverride?: number }} [opts] 仅维护脚本/测试用：强制守军支数（忽略中立/占领默认表）
  * @returns {Object} { npcGarrison, npcCount }
  */
-async function generateNpcGarrison(cityId) {
+async function generateNpcGarrison(cityId, opts = {}) {
   // 1. 获取城市信息
   const [cityRows] = await pool.query('SELECT * FROM cities WHERE id = ?', [cityId]);
   if (!cityRows.length) throw new Error(`城市不存在: ${cityId}`);
@@ -118,9 +120,13 @@ async function generateNpcGarrison(cityId) {
 
   const maxRarity = CITY_MAX_RARITY[city.city_type] || 'rare';
   const isOwned = !!city.faction_id;
-  const troopCount = isOwned
-    ? (NPC_TROOP_COUNT_OWNED[city.city_type] || 40)
-    : (NPC_TROOP_COUNT_NEUTRAL[city.city_type] || 400);
+  const override = opts?.troopCountOverride;
+  const troopCount =
+    override != null && Number(override) > 0
+      ? Math.min(2000, Math.floor(Number(override)))
+      : isOwned
+        ? (NPC_TROOP_COUNT_OWNED[city.city_type] || 40)
+        : (NPC_TROOP_COUNT_NEUTRAL[city.city_type] || 400);
   const charCount = Math.ceil(troopCount / 2); // 每2支部队配1个将领
 
   // 2. 从配置表加载部队和将领池
@@ -575,6 +581,14 @@ async function recordSiegeResult(warId, playerId, factionId, killedIndices, resu
       }
 
       await conn.commit();
+      const siegeSilverSpent = Math.max(0, Math.floor(Number(silverSpent) || 0));
+      if (siegeSilverSpent > 0) {
+        await statisticsDeltaService.incrementSpent(playerId, { silver: siegeSilverSpent });
+      }
+      await statisticsDeltaService.recordEarned(playerId, {
+        ...(silverReward > 0 ? { silver: silverReward } : {}),
+        ...(reputationReward > 0 ? { reputation: reputationReward } : {}),
+      });
       return {
         warId, factionKills, npcKilled: killCount, npcTotal: garrisonUnits.length, siegeCompleted: false, winnerFaction: null,
         silverReward, reputationReward, equipmentDrop: null,
@@ -767,6 +781,15 @@ async function recordSiegeResult(warId, playerId, factionId, killedIndices, resu
     }
 
     await connection.commit();
+
+    const siegeSilverSpentNpc = Math.max(0, Math.floor(Number(silverSpent) || 0));
+    if (siegeSilverSpentNpc > 0) {
+      await statisticsDeltaService.incrementSpent(playerId, { silver: siegeSilverSpentNpc });
+    }
+    await statisticsDeltaService.recordEarned(playerId, {
+      ...(silverReward > 0 ? { silver: silverReward } : {}),
+      ...(reputationReward > 0 ? { reputation: reputationReward } : {}),
+    });
 
     // 攻破后立即刷新 NPC 守军（在事务外执行，城市已归属新势力）
     if (siegeCompleted) {

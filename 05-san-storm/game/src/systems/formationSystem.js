@@ -25,9 +25,10 @@ export const FORMATIONS = [
     reqTypes: { archer: 1 },
     // 两翼在前展开，中军在后
     shape: [{ dx: -1, dy: -1 }, { dx: 1, dy: -1 }, { dx: 0, dy: 0 }],
+    // rangeBonus 在 tacticalBattleEngine.applyFormationBuffs 中仅叠加给 archer 武器类型
     effects: { attackBonus: 0.20, defenseBonus: 0.10, rangeBonus: 1 },
     reqTerrain: ['plain', 'hill'], forbidTerrain: [],
-    desc: '攻击+20%，防御+10%，射程+1',
+    desc: '攻击+20%，防御+10%，弓兵射程+1',
   },
   {
     id: 'yulin', name: '鱼鳞阵', type: 'defensive',
@@ -83,13 +84,23 @@ export function checkFormation(formation, troops, terrain) {
 export function autoSelectFormation(battleTroops, terrain) {
   const playerTroops = battleTroops.filter(t => t.faction === 'player' && t.currentTroops > 0);
   if (playerTroops.length < 3) return null;
-  // 按优先级：进攻>平衡>防御
+  // 按优先级：进攻>平衡>防御；同档内优先「禁止地形」更少的阵型（部署区更不易踩雷），再按 id 稳定排序
   const priority = ['offensive', 'balanced', 'defensive'];
   for (const pType of priority) {
-    for (const f of FORMATIONS.filter(f => f.type === pType)) {
-      const check = checkFormation(f, playerTroops, terrain);
-      if (check.ok) return f;
-    }
+    const okList = FORMATIONS.filter((f) => f.type === pType).filter(
+      (f) => checkFormation(f, playerTroops, terrain).ok,
+    );
+    if (okList.length === 0) continue;
+    okList.sort((a, b) => {
+      const na = (a.forbidTerrain || []).length;
+      const nb = (b.forbidTerrain || []).length;
+      if (na !== nb) return na - nb;
+      const la = a.shape?.length || 0;
+      const lb = b.shape?.length || 0;
+      if (la !== lb) return lb - la;
+      return String(a.id).localeCompare(String(b.id));
+    });
+    return okList[0];
   }
   return null;
 }

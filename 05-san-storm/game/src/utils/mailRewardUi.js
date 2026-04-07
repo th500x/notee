@@ -120,6 +120,9 @@ export function linesFromClaimDetails(details, names = {}) {
     } else if (d.type === 'character_duplicate') {
       const nm = charById[d.cardId] || d.cardName || d.cardId;
       out.push(`💰 将领「${nm}」已达持有上限，补偿 ${d.compensation} 银两`);
+    } else if (d.type === 'character_rarity_limit') {
+      const nm = charById[d.cardId] || d.cardName || d.cardId;
+      out.push(`💰 将领「${nm}」本稀有度持有已满，补偿 ${d.compensation} 银两`);
     } else if (d.type === 'card_duplicate') {
       const lab = d.cardType === 'title' ? '称号' : d.cardType === 'achievement' ? '成就' : d.cardType === 'troop' ? '部队' : d.cardType === 'character' ? '将领' : d.cardType === 'equipment' ? '装备' : '卡牌';
       let nm = d.cardName || d.cardId;

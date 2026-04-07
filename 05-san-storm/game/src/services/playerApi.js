@@ -83,6 +83,22 @@ export const playerAPI = {
   },
 
   /**
+   * 个人中心「统计」：statistics 表一行
+   */
+  async getStatistics(playerId) {
+    try {
+      const response = await fetchWithTimeout(`${API_CONFIG.BASE_URL}/players/${playerId}/statistics`, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      return response.json();
+    } catch (error) {
+      console.error('获取统计数据失败:', error);
+      throw error;
+    }
+  },
+
+  /**
    * 将领排名（同服、同 bucket）
    * @param {string} bucket - main:player | main:character1 | main:character2 | garrison:槽位:char1|char2
    */

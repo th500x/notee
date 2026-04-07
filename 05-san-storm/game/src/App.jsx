@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useState, lazy, Suspense } from 'react';
 import ErrorBoundary from '@/components/common/ErrorBoundary';
 import { useAdmin } from '@/hooks/useAdmin';
@@ -9,7 +9,7 @@ const WeeklyReportPage = lazy(() => import('@/pages/WeeklyReportPage'));
 const UserManagerPage = lazy(() => import('@/pages/admin/UserManagerPage'));
 const MailManagerPage = lazy(() => import('@/pages/admin/MailManagerPage'));
 const ActivityManagerPage = lazy(() => import('@/pages/admin/ActivityManagerPage'));
-const CampaignMapDemoPage = lazy(() => import('@/pages/CampaignMapDemoPage'));
+const CampaignMapGeneratorManagerPage = lazy(() => import('@/pages/admin/CampaignMapGeneratorManagerPage'));
 
 function RouteLoading() {
   return (
@@ -84,12 +84,6 @@ function App() {
                     <p className="text-sm text-gray-600 text-center">真三风云 - 赛季1</p>
                   </a>
 
-                  <a href={`${import.meta.env.BASE_URL}campaign-map-demo`} className="block bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow cursor-pointer h-full flex flex-col border border-amber-100">
-                    <div className="text-4xl mb-4 text-center">🗺️</div>
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2 text-center">战役地图 Demo</h3>
-                    <p className="text-sm text-gray-600 text-center">长社之战 san_1_camp_1001_v1 · 模拟生成</p>
-                  </a>
-
                   <a href={`${import.meta.env.BASE_URL}weekly-report`} className="block bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow cursor-pointer h-full flex flex-col border border-purple-100">
                     <div className="text-4xl mb-4 text-center">{weeklyReportCard.emoji}</div>
                     <h3 className="text-lg font-semibold text-gray-900 mb-2 text-center">{weeklyReportCard.title}</h3>
@@ -113,6 +107,11 @@ function App() {
                       <h3 className="text-lg font-semibold text-gray-900 mb-2 text-center">活动管理</h3>
                       <p className="text-sm text-gray-600 text-center">排行榜归档 · Top30</p>
                     </a>
+                    <a href={`${import.meta.env.BASE_URL}campaign-map-manager`} className="block bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow cursor-pointer h-full flex flex-col border-2 border-amber-200">
+                      <div className="text-4xl mb-4 text-center">🗺️</div>
+                      <h3 className="text-lg font-semibold text-gray-900 mb-2 text-center">战役地图</h3>
+                      <p className="text-sm text-gray-600 text-center">preset · 随机 seed · 固化 JSON</p>
+                    </a>
                     </>
                   )}
                 </div>
@@ -124,7 +123,8 @@ function App() {
             <Route path="/user-manager" element={<UserManagerPage />} />
             <Route path="/mail-manager" element={<MailManagerPage />} />
             <Route path="/activity-manager" element={<ActivityManagerPage />} />
-            <Route path="/campaign-map-demo" element={<CampaignMapDemoPage />} />
+            <Route path="/campaign-map-demo" element={<Navigate to="/campaign-map-manager" replace />} />
+            <Route path="/campaign-map-manager" element={<CampaignMapGeneratorManagerPage />} />
 
           </Routes>
           </Suspense>

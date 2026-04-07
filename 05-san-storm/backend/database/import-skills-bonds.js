@@ -47,19 +47,21 @@ async function importSkills(connection) {
     try {
       await connection.query(`
         INSERT INTO config_skills (
-          skill_id, season, skill_name, skill_type, rarity,
-          damage_type, character_type, troop_type,
-          target_effect, target_range, target_count, description
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          skill_id, season, skill_name,
+          skill_type, special_effect, damage_multiplier,
+          rarity, damage_type, character_type, troop_type,
+          target_range, target_count, description
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON DUPLICATE KEY UPDATE
           season = VALUES(season),
           skill_name = VALUES(skill_name),
           skill_type = VALUES(skill_type),
+          special_effect = VALUES(special_effect),
+          damage_multiplier = VALUES(damage_multiplier),
           rarity = VALUES(rarity),
           damage_type = VALUES(damage_type),
           character_type = VALUES(character_type),
           troop_type = VALUES(troop_type),
-          target_effect = VALUES(target_effect),
           target_range = VALUES(target_range),
           target_count = VALUES(target_count),
           description = VALUES(description)
@@ -67,15 +69,15 @@ async function importSkills(connection) {
         skill.id,
         extractSeason(skill.id) || 'san_1',
         skill.name,
-        skill.type,
+        skill.skillEffectType || null,        skill.specialEffect   || null,
+        skill.damageMultiplier ?? 0,
         skill.rarity,
-        skill.damageType || null,
-        skill.characterType || null,
-        skill.troopType || null,
-        skill.targetEffect || null,
-        skill.targetRange || null,
-        skill.targetCount || null,
-        skill.description || null
+        skill.damageType      || null,
+        skill.characterType   || null,
+        skill.troopType       || null,
+        skill.targetRange     || null,
+        skill.targetCount     || null,
+        skill.description     || null
       ]);
       imported++;
     } catch (error) {

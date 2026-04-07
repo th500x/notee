@@ -1,12 +1,14 @@
 /**
- * 驻守服务 - 驻守配置CRUD、城市防守者查询、防守单位构建
- * 
+ * 驻守服务 - 驻守配置 CRUD、城市防守者查询
+ *
+ * 防守单位构建（属性加成计算、buildDefenseUnits 等）已提取至 garrisonBuildService.js。
+ * 此文件保持对外公开 API 不变，仍从 garrisonBuildService 再导出这些函数。
+ *
  * @module backend/services/garrisonService
  */
 
 const { pool } = require('../database/connection');
-const { applyTroopDurabilityExhaustion } = require('./troopDurabilityService');
-const equipmentSetService = require('./equipmentSetService');
+const garrisonBuildService = require('./garrisonBuildService');
 
 // 驻守槽位中所有卡牌字段
 const CARD_FIELDS = [
@@ -81,240 +83,8 @@ function mergeGarrisonPayloadWithPrevRow(prevSlot, incoming) {
   return merged;
 }
 
-/** special_effect 字段映射 → player_cards bonus 字段（复用 players.js 的逻辑） */
-const EFFECT_FIELD_MAP = {
-  'max_troops_bonus': 'bonus_max_troops',
-  'attack_bonus': 'bonus_attack',
-  'defense_bonus': 'bonus_defense',
-  'speed_bonus': 'bonus_speed',
-  'movement_bonus': 'bonus_movement',
-};
+// ── 从 garrisonBuildService 解构，供本模块内部（saveGarrison 等）使用 ──
 
-function parseSpecialEffect(effectStr) {
-  if (!effectStr) return {};
-  const bonus = {};
-  effectStr.split(';').forEach(part => {
-    const [key, val] = part.trim().split(':');
-    if (!key || !val) return;
-    const field = EFFECT_FIELD_MAP[key];
-    if (field) bonus[field] = parseInt(val) || 0;
-  });
-  return bonus;
-}
-
-async function getCardSpecialEffect(cardType, cardId) {
-  const tableMap = {
-    'title': { table: 'config_titles', idField: 'title_id' },
-    'achievement': { table: 'config_achievements', idField: 'achievement_id' },
-  };
-  const cfg = tableMap[cardType];
-  if (!cfg) return {};
-  const [rows] = await pool.query(
-    `SELECT special_effect FROM ${cfg.table} WHERE ${cfg.idField} = ?`, [cardId]
-  );
-  return parseSpecialEffect(rows[0]?.special_effect);
-}
-
-function addAttrBonus(target, bonus = {}) {
-  if (!bonus || typeof bonus !== 'object') return;
-  Object.entries(bonus).forEach(([k, v]) => {
-    target[k] = (target[k] || 0) + (Number(v) || 0);
-  });
-}
-
-async function loadConfigAttributeBonusMap(conn, table, idField, ids) {
-  const uniq = [...new Set((ids || []).filter(Boolean))];
-  if (uniq.length === 0) return {};
-  const ph = uniq.map(() => '?').join(',');
-  const [rows] = await conn.query(
-    `SELECT ${idField} AS id, attribute_bonus FROM ${table} WHERE ${idField} IN (${ph})`,
-    uniq
-  );
-  const map = {};
-  for (const r of rows) {
-    let ab = {};
-    if (r.attribute_bonus) {
-      try { ab = typeof r.attribute_bonus === 'string' ? JSON.parse(r.attribute_bonus) : r.attribute_bonus; } catch {}
-    }
-    map[r.id] = ab || {};
-  }
-  return map;
-}
-
-function applyCharBonusToCharData(charData, bonus) {
-  const b = bonus || {};
-  return {
-    ...charData,
-    combat: Number(charData.combat || 0) + (Number(b.combat || 0) / 10),
-    command: Number(charData.command || 0) + (Number(b.command || 0) / 10),
-    intelligence: Number(charData.intelligence || 0) + (Number(b.intelligence || 0) / 10),
-    luck: Number(charData.luck || 0) + (Number(b.luck || 0) / 10),
-    courage: Number(charData.courage || 0) + (Number(b.courage || 0) / 10),
-  };
-}
-
-async function getMainLineupAttributeBonusBySlot(conn, playerId) {
-  const out = { player: {}, character1: {}, character2: {} };
-  const [equipped] = await conn.query(
-    `SELECT instance_id, card_type, card_id, equipped_by, equipment_set_data
-     FROM player_cards
-     WHERE player_id = ? AND is_equipped = TRUE
-       AND card_type IN ('title','achievement','treasure','equipmentSet')`,
-    [playerId]
-  );
-
-  const titleIds = equipped.filter(c => c.card_type === 'title').map(c => c.card_id);
-  const achIds = equipped.filter(c => c.card_type === 'achievement').map(c => c.card_id);
-  const treasureIds = equipped.filter(c => c.card_type === 'treasure').map(c => c.card_id);
-
-  const [titleMap, achMap, treasureMap] = await Promise.all([
-    loadConfigAttributeBonusMap(conn, 'config_titles', 'title_id', titleIds),
-    loadConfigAttributeBonusMap(conn, 'config_achievements', 'achievement_id', achIds),
-    loadConfigAttributeBonusMap(conn, 'config_treasures', 'treasure_id', treasureIds),
-  ]);
-
-  const [equipRows] = await conn.query(
-    `SELECT pc.instance_id, pc.bound_equipment_set_instance_id,
-            ce.luck_bonus, ce.courage_bonus, ce.combat_bonus, ce.command_bonus,
-            ce.intelligence_bonus, ce.politics_bonus, ce.charm_bonus
-     FROM player_cards pc
-     LEFT JOIN config_equipment ce ON ce.equipment_id = pc.card_id
-     WHERE pc.player_id = ? AND pc.card_type = 'equipment'`,
-    [playerId]
-  );
-  const equipBonusByInstance = {};
-  const boundPieceIdsBySet = {};
-  for (const e of equipRows) {
-    equipBonusByInstance[e.instance_id] = {
-      luck: Number(e.luck_bonus || 0),
-      courage: Number(e.courage_bonus || 0),
-      combat: Number(e.combat_bonus || 0),
-      command: Number(e.command_bonus || 0),
-      intelligence: Number(e.intelligence_bonus || 0),
-      politics: Number(e.politics_bonus || 0),
-      charm: Number(e.charm_bonus || 0),
-    };
-    if (e.bound_equipment_set_instance_id) {
-      if (!boundPieceIdsBySet[e.bound_equipment_set_instance_id]) boundPieceIdsBySet[e.bound_equipment_set_instance_id] = [];
-      boundPieceIdsBySet[e.bound_equipment_set_instance_id].push(e.instance_id);
-    }
-  }
-
-  for (const card of equipped) {
-    const slot = card.equipped_by || 'player';
-    if (!out[slot]) out[slot] = {};
-    if (card.card_type === 'title') addAttrBonus(out[slot], titleMap[card.card_id] || {});
-    if (card.card_type === 'achievement') addAttrBonus(out[slot], achMap[card.card_id] || {});
-    if (card.card_type === 'treasure') addAttrBonus(out[slot], treasureMap[card.card_id] || {});
-    if (card.card_type === 'equipmentSet') {
-      const d = equipmentSetService.parseSetData(card.equipment_set_data);
-      const slotPieceIds = [
-        d.weapon_instance_id,
-        d.armor_instance_id,
-        d.accessory_1_instance_id,
-        d.accessory_2_instance_id,
-      ].filter(Boolean);
-      const boundPieceIds = boundPieceIdsBySet[card.instance_id] || [];
-      const pieceIds = boundPieceIds.length > 0 ? boundPieceIds : slotPieceIds;
-      const sum = {};
-      pieceIds.forEach((pid) => addAttrBonus(sum, equipBonusByInstance[pid] || {}));
-      addAttrBonus(out[slot], sum);
-    }
-  }
-  return out;
-}
-
-async function getGarrisonSlotAttributeBonusByChar(conn, garrisonSlot) {
-  const out = { char1: {}, char2: {} };
-  if (!garrisonSlot) return out;
-
-  const effectIds = [
-    garrisonSlot.char1_title, garrisonSlot.char1_achievement, garrisonSlot.char1_treasure, garrisonSlot.char1_equipment_card,
-    garrisonSlot.char2_title, garrisonSlot.char2_achievement, garrisonSlot.char2_treasure, garrisonSlot.char2_equipment_card,
-  ].filter(Boolean);
-  if (effectIds.length === 0) return out;
-
-  const ph = effectIds.map(() => '?').join(',');
-  const [cards] = await conn.query(
-    `SELECT instance_id, card_type, card_id, equipment_set_data
-     FROM player_cards
-     WHERE player_id = ? AND instance_id IN (${ph})`,
-    [garrisonSlot.player_id, ...effectIds]
-  );
-  const byInstance = {};
-  cards.forEach((c) => { byInstance[c.instance_id] = c; });
-
-  const titleIds = cards.filter(c => c.card_type === 'title').map(c => c.card_id);
-  const achIds = cards.filter(c => c.card_type === 'achievement').map(c => c.card_id);
-  const treasureIds = cards.filter(c => c.card_type === 'treasure').map(c => c.card_id);
-  const [titleMap, achMap, treasureMap] = await Promise.all([
-    loadConfigAttributeBonusMap(conn, 'config_titles', 'title_id', titleIds),
-    loadConfigAttributeBonusMap(conn, 'config_achievements', 'achievement_id', achIds),
-    loadConfigAttributeBonusMap(conn, 'config_treasures', 'treasure_id', treasureIds),
-  ]);
-
-  const [equipRows] = await conn.query(
-    `SELECT pc.instance_id, pc.bound_equipment_set_instance_id,
-            ce.luck_bonus, ce.courage_bonus, ce.combat_bonus, ce.command_bonus,
-            ce.intelligence_bonus, ce.politics_bonus, ce.charm_bonus
-     FROM player_cards pc
-     LEFT JOIN config_equipment ce ON ce.equipment_id = pc.card_id
-     WHERE pc.player_id = ? AND pc.card_type = 'equipment'`,
-    [garrisonSlot.player_id]
-  );
-  const equipBonusByInstance = {};
-  const boundPieceIdsBySet = {};
-  for (const e of equipRows) {
-    equipBonusByInstance[e.instance_id] = {
-      luck: Number(e.luck_bonus || 0),
-      courage: Number(e.courage_bonus || 0),
-      combat: Number(e.combat_bonus || 0),
-      command: Number(e.command_bonus || 0),
-      intelligence: Number(e.intelligence_bonus || 0),
-      politics: Number(e.politics_bonus || 0),
-      charm: Number(e.charm_bonus || 0),
-    };
-    if (e.bound_equipment_set_instance_id) {
-      if (!boundPieceIdsBySet[e.bound_equipment_set_instance_id]) boundPieceIdsBySet[e.bound_equipment_set_instance_id] = [];
-      boundPieceIdsBySet[e.bound_equipment_set_instance_id].push(e.instance_id);
-    }
-  }
-
-  const applyOne = (charKey, instanceId) => {
-    if (!instanceId) return;
-    const c = byInstance[instanceId];
-    if (!c) return;
-    if (c.card_type === 'title') addAttrBonus(out[charKey], titleMap[c.card_id] || {});
-    if (c.card_type === 'achievement') addAttrBonus(out[charKey], achMap[c.card_id] || {});
-    if (c.card_type === 'treasure') addAttrBonus(out[charKey], treasureMap[c.card_id] || {});
-    if (c.card_type === 'equipmentSet') {
-      const d = equipmentSetService.parseSetData(c.equipment_set_data);
-      const slotPieceIds = [
-        d.weapon_instance_id, d.armor_instance_id, d.accessory_1_instance_id, d.accessory_2_instance_id,
-      ].filter(Boolean);
-      const boundPieceIds = boundPieceIdsBySet[c.instance_id] || [];
-      const pieceIds = boundPieceIds.length > 0 ? boundPieceIds : slotPieceIds;
-      const sum = {};
-      pieceIds.forEach((pid) => addAttrBonus(sum, equipBonusByInstance[pid] || {}));
-      addAttrBonus(out[charKey], sum);
-    }
-  };
-
-  applyOne('char1', garrisonSlot.char1_title);
-  applyOne('char1', garrisonSlot.char1_achievement);
-  applyOne('char1', garrisonSlot.char1_treasure);
-  applyOne('char1', garrisonSlot.char1_equipment_card);
-  applyOne('char2', garrisonSlot.char2_title);
-  applyOne('char2', garrisonSlot.char2_achievement);
-  applyOne('char2', garrisonSlot.char2_treasure);
-  applyOne('char2', garrisonSlot.char2_equipment_card);
-
-  return out;
-}
-
-/**
- * 获取玩家所有驻守配置
- */
 async function getPlayerGarrisons(playerId) {
   const [rows] = await pool.query(
     'SELECT * FROM player_garrison WHERE player_id = ? ORDER BY garrison_slot',
@@ -324,8 +94,7 @@ async function getPlayerGarrisons(playerId) {
 }
 
 /**
- * 获取玩家某个槽位的驻守配置
- */
+ * 鑾峰彇鐜╁鏌愪釜妲戒綅鐨勯┗瀹堥厤缃? */
 async function getGarrisonSlot(playerId, slotNumber) {
   const [rows] = await pool.query(
     'SELECT * FROM player_garrison WHERE player_id = ? AND garrison_slot = ?',
@@ -335,8 +104,7 @@ async function getGarrisonSlot(playerId, slotNumber) {
 }
 
 /**
- * 保存驻守配置（INSERT ON DUPLICATE KEY UPDATE）
- */
+ * 淇濆瓨椹诲畧閰嶇疆锛圛NSERT ON DUPLICATE KEY UPDATE锛? */
 async function saveGarrison(playerId, slotNumber, config) {
   const prevSlot = await getGarrisonSlot(playerId, slotNumber);
   const merged = mergeGarrisonPayloadWithPrevRow(prevSlot, config);
@@ -358,7 +126,7 @@ async function saveGarrison(playerId, slotNumber, config) {
       return { success: false, error: `卡牌已被驻守槽位${conflicts[0].garrison_slot}占用` };
     }
 
-    // 检查卡牌是否已被上阵编组占用（is_equipped = TRUE 的卡牌不能用于驻守）
+    // 妫€鏌ュ崱鐗屾槸鍚﹀凡琚笂闃电紪缁勫崰鐢紙is_equipped = TRUE 鐨勫崱鐗屼笉鑳界敤浜庨┗瀹堬級
     const [equippedConflicts] = await pool.query(
       `SELECT instance_id FROM player_cards
        WHERE instance_id IN (${placeholders}) AND player_id = ? AND is_equipped = TRUE`,
@@ -392,7 +160,7 @@ async function saveGarrison(playerId, slotNumber, config) {
     if (exhaustedCore.length > 0) {
       return {
         success: false,
-        error: '核心(金)部队耐久已耗尽，无法用于驻守，仅作纪念与下赛季继承',
+        error: '核心(稀)部队耐久已耗尽，无法用于驻守，仅作纪念与下赛继承',
       };
     }
   }
@@ -434,13 +202,13 @@ async function saveGarrison(playerId, slotNumber, config) {
     ]
   );
 
-  // ── 重算驻守部队卡的特效加成（复用上阵编组的 applyCardBonusToTroops 逻辑） ──
-  // 对 char1 和 char2 各自：先清零部队卡 bonus，再累加所有特效卡的 special_effect
+  // 鈹€鈹€ 閲嶇畻椹诲畧閮ㄩ槦鍗＄殑鐗规晥鍔犳垚锛堝鐢ㄤ笂闃电紪缁勭殑 applyCardBonusToTroops 閫昏緫锛?鈹€鈹€
+  // 瀵?char1 鍜?char2 鍚勮嚜锛氬厛娓呴浂閮ㄩ槦鍗?bonus锛屽啀绱姞鎵€鏈夌壒鏁堝崱鐨?special_effect
   for (const charKey of ['char1', 'char2']) {
     const troopIds = [merged[`${charKey}_troop1`], merged[`${charKey}_troop2`]].filter(Boolean);
     if (troopIds.length === 0) continue;
 
-    // 1. 清零该组部队卡的 bonus
+    // 1. 娓呴浂璇ョ粍閮ㄩ槦鍗＄殑 bonus
     const ph = troopIds.map(() => '?').join(',');
     await pool.query(
       `UPDATE player_cards SET bonus_max_troops=0, bonus_attack=0, bonus_defense=0, bonus_speed=0, bonus_movement=0
@@ -455,7 +223,7 @@ async function saveGarrison(playerId, slotNumber, config) {
       merged[`${charKey}_treasure`],
     ].filter(Boolean);
 
-    // 3. 查询每张特效卡的 card_type 和 card_id，再查配置表获取 special_effect
+    // 3. 鏌ヨ姣忓紶鐗规晥鍗＄殑 card_type 鍜?card_id锛屽啀鏌ラ厤缃〃鑾峰彇 special_effect
     for (const instanceId of effectCardIds) {
       const [cardRows] = await pool.query(
         'SELECT card_type, card_id FROM player_cards WHERE instance_id = ? AND player_id = ?',
@@ -467,7 +235,7 @@ async function saveGarrison(playerId, slotNumber, config) {
       const bonus = await getCardSpecialEffect(card_type, card_id);
       if (Object.keys(bonus).length === 0) continue;
 
-      // 4. 累加到该组部队卡
+      // 4. 绱姞鍒拌缁勯儴闃熷崱
       const sets = Object.entries(bonus).map(([field, val]) => `${field} = ${field} + ${val}`).join(', ');
       await pool.query(
         `UPDATE player_cards SET ${sets} WHERE instance_id IN (${ph}) AND player_id = ?`,
@@ -486,10 +254,10 @@ async function saveGarrison(playerId, slotNumber, config) {
 }
 
 /**
- * 清空驻守槽位
+ * 娓呯┖椹诲畧妲戒綅
  */
 async function clearGarrison(playerId, slotNumber) {
-  // 先获取当前配置，清零部队卡 bonus
+  // 鍏堣幏鍙栧綋鍓嶉厤缃紝娓呴浂閮ㄩ槦鍗?bonus
   const [existing] = await pool.query(
     'SELECT * FROM player_garrison WHERE player_id = ? AND garrison_slot = ?',
     [playerId, slotNumber]
@@ -517,7 +285,7 @@ async function clearGarrison(playerId, slotNumber) {
 }
 
 /**
- * 城池易主：卸除非胜方在本城的整组驻守（与 clearGarrison 一致，避免 city_id 已清但卡牌仍占位导致 UI/统计脏数据）
+ * 鍩庢睜鏄撲富锛氬嵏闄ら潪鑳滄柟鍦ㄦ湰鍩庣殑鏁寸粍椹诲畧锛堜笌 clearGarrison 涓€鑷达紝閬垮厤 city_id 宸叉竻浣嗗崱鐗屼粛鍗犱綅瀵艰嚧 UI/缁熻鑴忔暟鎹級
  * @param {import('mysql2').Pool|import('mysql2').PoolConnection} conn
  * @param {string} cityId
  * @param {string} winnerFactionId
@@ -552,10 +320,8 @@ async function stripGarrisonOnCityConquest(conn, cityId, winnerFactionId) {
 }
 
 /**
- * 获取某个城市的所有激活驻守配置（按官职优先级排序）
- * 用于攻城时获取防守者队列
- * @param {string} cityId
- * @param {string|null|undefined} ownerFactionId 城池当前归属势力；仅统计本势力驻守，避免易主后脏数据
+ * 鑾峰彇鏌愪釜鍩庡競鐨勬墍鏈夋縺娲婚┗瀹堥厤缃紙鎸夊畼鑱屼紭鍏堢骇鎺掑簭锛? * 鐢ㄤ簬鏀诲煄鏃惰幏鍙栭槻瀹堣€呴槦鍒? * @param {string} cityId
+ * @param {string|null|undefined} ownerFactionId 鍩庢睜褰撳墠褰掑睘鍔垮姏锛涗粎缁熻鏈娍鍔涢┗瀹堬紝閬垮厤鏄撲富鍚庤剰鏁版嵁
  */
 async function getCityDefenders(cityId, ownerFactionId) {
   let sql = `
@@ -576,9 +342,7 @@ async function getCityDefenders(cityId, ownerFactionId) {
 }
 
 /**
- * 披挂上阵防守者：仅看 players.on_duty + on_duty_city_id，与驻地编组表无关。
- * 战斗单位来自上阵编组（is_equipped），见 buildDefenseUnitsFromMainLineup。
- */
+ * 鎶寕涓婇樀闃插畧鑰咃細浠呯湅 players.on_duty + on_duty_city_id锛屼笌椹诲湴缂栫粍琛ㄦ棤鍏炽€? * 鎴樻枟鍗曚綅鏉ヨ嚜涓婇樀缂栫粍锛坕s_equipped锛夛紝瑙?buildDefenseUnitsFromMainLineup銆? */
 async function getCityOnDutyDefenders(cityId, ownerFactionId) {
   let sql = `
      SELECT p.player_id, p.character_name, p.faction_id, p.faction_name,
@@ -603,7 +367,7 @@ async function getCityOnDutyDefenders(cityId, ownerFactionId) {
 }
 
 /**
- * 获取某个城市的普通驻守防守者（on_duty=FALSE，按官职优先级排序）
+ * 鑾峰彇鏌愪釜鍩庡競鐨勬櫘閫氶┗瀹堥槻瀹堣€咃紙on_duty=FALSE锛屾寜瀹樿亴浼樺厛绾ф帓搴忥級
  */
 async function getCityGarrisonDefenders(cityId, ownerFactionId) {
   let sql = `
@@ -624,7 +388,7 @@ async function getCityGarrisonDefenders(cityId, ownerFactionId) {
 }
 
 /**
- * 获取城市驻守统计（用于地图显示）
+ * 鑾峰彇鍩庡競椹诲畧缁熻锛堢敤浜庡湴鍥炬樉绀猴級
  */
 async function getCityGarrisonStats() {
   const [rows] = await pool.query(
@@ -644,320 +408,9 @@ async function getCityGarrisonStats() {
 
 
 /**
- * 从驻守配置构建战斗单位（用于异步PVE防守）
- * 只有兵力 >= MIN_TROOPS_TO_DEFEND 的部队才参战
+ * 浠庨┗瀹堥厤缃瀯寤烘垬鏂楀崟浣嶏紙鐢ㄤ簬寮傛PVE闃插畧锛? * 鍙湁鍏靛姏 >= MIN_TROOPS_TO_DEFEND 鐨勯儴闃熸墠鍙傛垬
  * 
- * @param {object} garrisonSlot - player_garrison 的一行
- * @returns {Array} 战斗单位数组，格式与 battlePlayerBuilder 一致
- */
-async function buildDefenseUnits(garrisonSlot) {
-  const units = [];
-  const garrisonAttrBonusByChar = await getGarrisonSlotAttributeBonusByChar(pool, garrisonSlot);
-  const charSlots = [
-    { cardField: 'char1_card', troop1Field: 'char1_troop1', troop2Field: 'char1_troop2' },
-    { cardField: 'char2_card', troop1Field: 'char2_troop1', troop2Field: 'char2_troop2' },
-  ];
 
-  for (const cs of charSlots) {
-    const charInstanceId = garrisonSlot[cs.cardField];
-    if (!charInstanceId) continue;
-
-    // 读取将领卡实例 + 配置
-    const [charRows] = await pool.query(
-      `SELECT pc.instance_id, pc.card_id, pc.rarity, pc.morale,
-              cc.character_name, cc.luck, cc.courage, cc.combat, cc.command,
-              cc.intelligence, cc.politics, cc.charm, cc.trait, cc.trait_modifier,
-              cc.skill_1, cc.skill_2, cc.troop_affinity
-       FROM player_cards pc
-       JOIN config_characters cc ON pc.card_id = cc.character_id
-       WHERE pc.instance_id = ?`,
-      [charInstanceId]
-    );
-    if (charRows.length === 0) continue;
-    const charCfg = charRows[0];
-
-    const charDataBase = {
-      name: charCfg.character_name,
-      courtesyName: charCfg.character_name,
-      combat: charCfg.combat / 10,
-      command: charCfg.command / 10,
-      intelligence: charCfg.intelligence / 10,
-      luck: charCfg.luck / 10,
-      courage: charCfg.courage / 10,
-      traitModifier: charCfg.trait_modifier || 0,
-    };
-    const charKey = cs.cardField === 'char1_card' ? 'char1' : 'char2';
-    const charData = applyCharBonusToCharData(charDataBase, garrisonAttrBonusByChar[charKey] || {});
-
-    // 读取该将领的部队卡（兵力 > 0 才参战，总兵力检查在 initiateSiege 中）
-    const troopInstanceIds = [garrisonSlot[cs.troop1Field], garrisonSlot[cs.troop2Field]].filter(Boolean);
-    for (const troopInstId of troopInstanceIds) {
-      const [troopRows] = await pool.query(
-        `SELECT pc.instance_id, pc.card_id, pc.rarity, pc.current_troops,
-                pc.battle_count, pc.max_battle_count,
-                pc.bonus_max_troops, pc.bonus_attack, pc.bonus_defense, pc.bonus_speed, pc.bonus_movement,
-                ct.troop_name, ct.troop_type, ct.weapon_type, ct.attack, ct.defense,
-                ct.speed, ct.movement, ct.\`range\`, ct.max_troops, ct.special_ability,
-                ct.troop_weight
-         FROM player_cards pc
-         JOIN config_troops ct ON pc.card_id = ct.troop_id
-         WHERE pc.instance_id = ?`,
-        [troopInstId]
-      );
-      if (troopRows.length === 0) continue;
-      const t = troopRows[0];
-
-      const maxTroops = (t.max_troops || 0) + (t.bonus_max_troops || 0);
-      const currentTroops = t.current_troops ?? maxTroops;
-      if (currentTroops < MIN_TROOPS_TO_DEFEND) continue; // 兵力为0不参战
-
-      units.push({
-        troop: {
-          id: t.card_id,
-          instanceId: t.instance_id,
-          name: t.troop_name,
-          rarity: t.rarity || 'common',
-          troopType: t.troop_type,
-          weaponType: t.weapon_type,
-          attack: (t.attack || 0) / 10 + (t.bonus_attack || 0) / 10,
-          defense: (t.defense || 0) / 10 + (t.bonus_defense || 0) / 10,
-          speed: (t.speed || 0) + (t.bonus_speed || 0),
-          movement: (t.movement || 0) + (t.bonus_movement || 0),
-          range: t.range || 1,
-          maxTroops,
-          troopWeight: t.troop_weight || 1,
-          battleCount: t.battle_count ?? 0,
-          maxBattleCount: t.max_battle_count ?? 60,
-          skills: [],
-        },
-        character: charData,
-        currentTroops,
-        maxTroops,
-        morale: charCfg.morale ?? 70,
-        // 标记来源信息，战后用于更新
-        _garrisonPlayerId: garrisonSlot.player_id,
-        _garrisonSlot: garrisonSlot.garrison_slot,
-      });
-    }
-  }
-
-  return units;
-}
-
-/**
- * 从玩家「上阵编组」构建战斗单位（与 player_cards is_equipped 一致，与驻地编组无关）
- * @param {string} defenderPlayerId
- * @returns {Promise<Array>} 与 buildDefenseUnits 相同元素形状；_garrison_slot 固定为 0 表示非驻守槽（战后不刷 player_garrison 失活）
- */
-async function buildDefenseUnitsFromMainLineup(defenderPlayerId) {
-  const units = [];
-  const attrBonusBySlot = await getMainLineupAttributeBonusBySlot(pool, defenderPlayerId);
-  const [pRows] = await pool.query(
-    `SELECT player_id, character_name, combat, command, intelligence, politics, charm, courage, luck, morale
-     FROM players WHERE player_id = ?`,
-    [defenderPlayerId]
-  );
-  const pRow = pRows[0];
-  if (!pRow) return units;
-
-  const pushUnit = (t, charData, charMorale) => {
-    const maxTroops = (t.max_troops || 0) + (t.bonus_max_troops || 0);
-    const currentTroops = t.current_troops ?? maxTroops;
-    if (currentTroops < MIN_TROOPS_TO_DEFEND) return;
-    units.push({
-      troop: {
-        id: t.card_id,
-        instanceId: t.instance_id,
-        name: t.troop_name,
-        rarity: t.rarity || 'common',
-        troopType: t.troop_type,
-        weaponType: t.weapon_type,
-        attack: (t.attack || 0) / 10 + (t.bonus_attack || 0) / 10,
-        defense: (t.defense || 0) / 10 + (t.bonus_defense || 0) / 10,
-        speed: (t.speed || 0) + (t.bonus_speed || 0),
-        movement: (t.movement || 0) + (t.bonus_movement || 0),
-        range: t.range || 1,
-        maxTroops,
-        troopWeight: t.troop_weight || 1,
-        battleCount: t.battle_count ?? 0,
-        maxBattleCount: t.max_battle_count ?? 60,
-        skills: [],
-      },
-      character: charData,
-      currentTroops,
-      maxTroops,
-      morale: charMorale ?? 70,
-      _garrisonPlayerId: defenderPlayerId,
-      _garrisonSlot: 0,
-    });
-  };
-
-  // 主公 + 主公部队槽
-  const [playerTroopRows] = await pool.query(
-    `SELECT pc.instance_id, pc.card_id, pc.rarity, pc.current_troops,
-            pc.battle_count, pc.max_battle_count,
-            pc.bonus_max_troops, pc.bonus_attack, pc.bonus_defense, pc.bonus_speed, pc.bonus_movement,
-            ct.troop_name, ct.troop_type, ct.weapon_type, ct.attack, ct.defense,
-            ct.speed, ct.movement, ct.\`range\`, ct.max_troops, ct.special_ability,
-            ct.troop_weight
-     FROM player_cards pc
-     JOIN config_troops ct ON pc.card_id = ct.troop_id
-     WHERE pc.player_id = ? AND pc.is_equipped = TRUE
-       AND pc.equipped_by = 'player' AND pc.equipped_slot = 'troop'`,
-    [defenderPlayerId]
-  );
-  if (playerTroopRows.length > 0) {
-    const t = playerTroopRows[0];
-    const charDataBase = {
-      name: pRow.character_name,
-      courtesyName: pRow.character_name,
-      combat: pRow.combat / 10,
-      command: pRow.command / 10,
-      intelligence: pRow.intelligence / 10,
-      luck: pRow.luck / 10,
-      courage: pRow.courage / 10,
-      traitModifier: 0,
-    };
-    const charData = applyCharBonusToCharData(charDataBase, attrBonusBySlot.player || {});
-    pushUnit(t, charData, pRow.morale ?? 70);
-  }
-
-  const charSlots = [
-    { by: 'character1', troopSlots: ['troop1', 'troop2'] },
-    { by: 'character2', troopSlots: ['troop1', 'troop2'] },
-  ];
-  for (const cs of charSlots) {
-    const [charRows] = await pool.query(
-      `SELECT pc.instance_id, pc.card_id, pc.rarity, pc.morale,
-              cc.character_name, cc.luck, cc.courage, cc.combat, cc.command,
-              cc.intelligence, cc.politics, cc.charm, cc.trait, cc.trait_modifier
-       FROM player_cards pc
-       JOIN config_characters cc ON pc.card_id = cc.character_id
-       WHERE pc.player_id = ? AND pc.is_equipped = TRUE
-         AND pc.card_type = 'character' AND pc.equipped_by = ? AND pc.equipped_slot = 'character'`,
-      [defenderPlayerId, cs.by]
-    );
-    if (charRows.length === 0) continue;
-    const charCfg = charRows[0];
-    const charDataBase = {
-      name: charCfg.character_name,
-      courtesyName: charCfg.character_name,
-      combat: charCfg.combat / 10,
-      command: charCfg.command / 10,
-      intelligence: charCfg.intelligence / 10,
-      luck: charCfg.luck / 10,
-      courage: charCfg.courage / 10,
-      traitModifier: charCfg.trait_modifier || 0,
-    };
-    const charData = applyCharBonusToCharData(charDataBase, attrBonusBySlot[cs.by] || {});
-
-    for (const slot of cs.troopSlots) {
-      const [troopRows] = await pool.query(
-        `SELECT pc.instance_id, pc.card_id, pc.rarity, pc.current_troops,
-                pc.battle_count, pc.max_battle_count,
-                pc.bonus_max_troops, pc.bonus_attack, pc.bonus_defense, pc.bonus_speed, pc.bonus_movement,
-                ct.troop_name, ct.troop_type, ct.weapon_type, ct.attack, ct.defense,
-                ct.speed, ct.movement, ct.\`range\`, ct.max_troops, ct.special_ability,
-                ct.troop_weight
-         FROM player_cards pc
-         JOIN config_troops ct ON pc.card_id = ct.troop_id
-         WHERE pc.player_id = ? AND pc.is_equipped = TRUE
-           AND pc.card_type = 'troop' AND pc.equipped_by = ? AND pc.equipped_slot = ?`,
-        [defenderPlayerId, cs.by, slot]
-      );
-      if (troopRows.length === 0) continue;
-      pushUnit(troopRows[0], charData, charCfg.morale ?? 70);
-    }
-  }
-
-  return units;
-}
-
-/**
- * 将 buildDefenseUnits / buildDefenseUnitsFromMainLineup 的输出转为攻城 API 前端的 npcGarrison 格式（与 cityService.initiateSiege 一致）
- */
-/**
- * 披挂 PVP 服务端裁定：按推演终态写回攻城方「上阵编组」兵力，并全员部队卡 battle_count+1（对齐 POST /battles）
- * @param {string} playerId
- * @param {Array<object>} attackerSiegeNpcs mapBuiltUnitsToSiegeNpcFormat 结果
- * @param {Array<object>} attackerTroopsEnd runSiegePvpSkirmish.attackerTroopsEnd
- */
-async function applyAuthoritativeSiegePvpAttackerLineupCasualties(playerId, attackerSiegeNpcs, attackerTroopsEnd) {
-  if (!playerId || !Array.isArray(attackerSiegeNpcs) || !Array.isArray(attackerTroopsEnd)) return;
-  const conn = await pool.getConnection();
-  try {
-    await conn.beginTransaction();
-    await conn.query(
-      `UPDATE player_cards 
-       SET battle_count = LEAST(
-         GREATEST(COALESCE(battle_count, 0), 0) + 1,
-         COALESCE(max_battle_count, 60)
-       )
-       WHERE player_id = ? AND card_type = 'troop' AND is_equipped = TRUE`,
-      [playerId],
-    );
-    for (let i = 0; i < attackerSiegeNpcs.length; i++) {
-      const npc = attackerSiegeNpcs[i];
-      const end = attackerTroopsEnd[i];
-      if (!npc?._troopInstanceId || !end) continue;
-      const maxT = Number(npc.maxTroops) || 9999;
-      const cur = Math.max(0, Math.min(maxT, Math.round(Number(end.currentTroops) || 0)));
-      await conn.query(
-        `UPDATE player_cards SET current_troops = ?, last_troops_lost_at = ? WHERE instance_id = ? AND player_id = ?`,
-        [cur, cur < maxT ? new Date() : null, npc._troopInstanceId, playerId],
-      );
-    }
-    await conn.commit();
-  } catch (e) {
-    await conn.rollback();
-    throw e;
-  } finally {
-    conn.release();
-  }
-  await applyTroopDurabilityExhaustion((sql, params) => pool.query(sql, params), playerId);
-}
-
-function mapBuiltUnitsToSiegeNpcFormat(units) {
-  if (!units || !Array.isArray(units)) return [];
-  return units.map((u, i) => ({
-    index: i,
-    troopId: u.troop.id,
-    troopName: u.troop.name,
-    rarity: u.troop.rarity,
-    troopType: u.troop.troopType,
-    weaponType: u.troop.weaponType,
-    attack: Math.round(u.troop.attack * 10),
-    defense: Math.round(u.troop.defense * 10),
-    speed: u.troop.speed,
-    movement: u.troop.movement,
-    attackRange: u.troop.range,
-    maxTroops: u.troop.maxTroops,
-    currentTroops: u.currentTroops,
-    character: u.character
-      ? {
-          name: u.character.name,
-          courtesyName: u.character.courtesyName || u.character.name,
-          luck: Math.round(u.character.luck * 10),
-          courage: Math.round(u.character.courage * 10),
-          combat: Math.round(u.character.combat * 10),
-          command: Math.round(u.character.command * 10),
-          intelligence: Math.round(u.character.intelligence * 10),
-          politics: 50,
-          charm: 50,
-          traitModifier: u.character.traitModifier || 0,
-        }
-      : null,
-    alive: true,
-    _isPlayerDefender: true,
-    _garrisonPlayerId: u._garrisonPlayerId,
-    _garrisonSlot: u._garrisonSlot,
-    _troopInstanceId: u.troop.instanceId,
-  }));
-}
-
-/**
- * 披挂上阵选择与城池/势力不一致、或缺少 on_duty_city_id（旧数据）时清除。
- * 与「驻地编组是否激活」无关；人数统计只看 on_duty + on_duty_city_id。
  */
 async function clearInvalidOnDutySelection(playerId) {
   try {
@@ -988,8 +441,7 @@ async function clearInvalidOnDutySelection(playerId) {
 }
 
 module.exports = {
-  getMainLineupAttributeBonusBySlot,
-  getGarrisonSlotAttributeBonusByChar,
+  // ── CRUD + 城市防守者查询（本文件实现）──
   getPlayerGarrisons,
   getGarrisonSlot,
   saveGarrison,
@@ -999,14 +451,18 @@ module.exports = {
   getCityOnDutyDefenders,
   getCityGarrisonDefenders,
   getCityGarrisonStats,
-  buildDefenseUnits,
-  buildDefenseUnitsFromMainLineup,
-  applyAuthoritativeSiegePvpAttackerLineupCasualties,
-  mapBuiltUnitsToSiegeNpcFormat,
-  MIN_TROOPS_TO_DEFEND,
-  MIN_GARRISON_TOTAL_TROOPS,
-  MIN_MAIN_LINEUP_TROOPS_BATTLE,
+  clearInvalidOnDutySelection,
+  // ── 工具函数（本文件实现）──
   sumTroopInstancesTotalTroops,
   sumMainLineupEquippedTroopTroops,
-  clearInvalidOnDutySelection,
+  MIN_GARRISON_TOTAL_TROOPS,
+  MIN_MAIN_LINEUP_TROOPS_BATTLE,
+  // ── 防守单位构建（再导出自 garrisonBuildService）──
+  MIN_TROOPS_TO_DEFEND:                              garrisonBuildService.MIN_TROOPS_TO_DEFEND,
+  getMainLineupAttributeBonusBySlot:                 garrisonBuildService.getMainLineupAttributeBonusBySlot,
+  getGarrisonSlotAttributeBonusByChar:               garrisonBuildService.getGarrisonSlotAttributeBonusByChar,
+  buildDefenseUnits:                                 garrisonBuildService.buildDefenseUnits,
+  buildDefenseUnitsFromMainLineup:                   garrisonBuildService.buildDefenseUnitsFromMainLineup,
+  applyAuthoritativeSiegePvpAttackerLineupCasualties: garrisonBuildService.applyAuthoritativeSiegePvpAttackerLineupCasualties,
+  mapBuiltUnitsToSiegeNpcFormat:                     garrisonBuildService.mapBuiltUnitsToSiegeNpcFormat,
 };

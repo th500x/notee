@@ -15,6 +15,7 @@ import { API_CONFIG } from '@/constants';
 import { useExploreQuota } from '@/hooks/useExploreQuota';
 import { PHASE, FORTUNE_LEVELS } from '@/components/event/EventConstants';
 import { pickRandomEvent, isFortuneSuccess, filterExploreEventsPool } from '@/components/event/eventUtils';
+import { validateMainLineupBattleGate } from '@/utils/mainLineupTroops';
 
 /** 默认探索地点（南阳荒郊，与 config_events.location 一致） */
 export const DEFAULT_EXPLORE_LOCATION_ID = 'san_1_city_6_nanyang';
@@ -101,7 +102,11 @@ export default function useEventSystem(player, cards) {
   const [battleResult, setBattleResult] = useState(null);
   const [battleSilverSpent, setBattleSilverSpent] = useState(0);
   const [battleScore, setBattleScore] = useState(null);
+  /** 战术图宝箱装备（POST /battles chestRewards 已入库；与事件 /rewards 配置奖励独立） */
+  const [battleChestRewards, setBattleChestRewards] = useState([]);
   const [minigameInfo, setMinigameInfo] = useState(null);
+  /** 进入惩罚战斗前校验失败（避免进入无退出的 BattleArena） */
+  const [battleEntryBlockedMessage, setBattleEntryBlockedMessage] = useState(null);
 
   // 未完成的事件（关闭对话框后保留，下次探索复用）
   // 持久化到 localStorage，防止刷新页面刷事件
@@ -286,6 +291,7 @@ export default function useEventSystem(player, cards) {
     setBattleResult(null);
     setBattleSilverSpent(0);
     setBattleScore(null);
+    setBattleChestRewards([]);
     setMinigameInfo(null);
     setRewardDetails(null);
     setPhase(PHASE.EVENT);
@@ -347,6 +353,7 @@ export default function useEventSystem(player, cards) {
         setBattleResult(null);
         setBattleSilverSpent(0);
         setBattleScore(null);
+        setBattleChestRewards([]);
         if (pendingKey) localStorage.removeItem(pendingKey + '_inprogress');
         setPhase(PHASE.IDLE);
         return false;
@@ -362,6 +369,7 @@ export default function useEventSystem(player, cards) {
       setBattleResult(null);
       setBattleSilverSpent(0);
       setBattleScore(null);
+      setBattleChestRewards([]);
       if (pendingKey) localStorage.removeItem(pendingKey + '_inprogress');
       setPhase(PHASE.IDLE);
       return false;
@@ -447,24 +455,36 @@ export default function useEventSystem(player, cards) {
     }, 1500);
   }, [quota, requestRewards, applyRewardResponse, pendingKey]);
 
+  const dismissBattleEntryBlocked = useCallback(() => setBattleEntryBlockedMessage(null), []);
+
   // 判定结果确认
   const confirmResult = useCallback(() => {
     if (fortune && (fortune.name === '凶' || fortune.name === '大凶')) {
       // triggerBattle 在 option JSON 内部（camelCase，布尔值）
       // 只有 triggerBattle=true 的选项才在凶/大凶时触发惩罚战斗
       if (chosenOption && chosenOption.triggerBattle) {
+        const v = validateMainLineupBattleGate({
+          cards,
+          playerFood: player?.food ?? 0,
+        });
+        if (!v.ok) {
+          setBattleEntryBlockedMessage(v.message || '条件不足');
+          return;
+        }
+        setBattleEntryBlockedMessage(null);
         setPhase(PHASE.BATTLE);
         return;
       }
     }
     setPhase(PHASE.REWARD);
-  }, [fortune, chosenOption]);
+  }, [fortune, chosenOption, cards, player?.food]);
 
-  // 战斗结果
-  const endBattle = useCallback((result, silverSpent = 0, scoreResult = null) => {
+  // 战斗结果（第五参 meta 与 EventBattleArena / 攻城一致，含 chestRewards）
+  const endBattle = useCallback((result, silverSpent = 0, scoreResult = null, _killedIndices, meta = null) => {
     setBattleResult(result);
     setBattleSilverSpent(silverSpent);
     setBattleScore(scoreResult);
+    setBattleChestRewards(Array.isArray(meta?.chestRewards) ? meta.chestRewards : []);
     // 请求后端发放奖励
     requestRewards(chosenOptionKey, {
       battleResult: result,
@@ -524,6 +544,7 @@ export default function useEventSystem(player, cards) {
     setCurrentEvent(null);
     setPendingEvent(null);
     setRewardDetails(null);
+    setBattleChestRewards([]);
     // 清除进行中标记
     if (pendingKey) localStorage.removeItem(pendingKey + '_inprogress');
     setTimeout(() => setPhase(PHASE.IDLE), 3000);
@@ -560,7 +581,10 @@ export default function useEventSystem(player, cards) {
     playerItemsList: player?.items || null,
     rewardDetails,
     battleScore,
+    battleChestRewards,
     playerId: player?.player_id || null,
+    battleEntryBlockedMessage,
+    dismissBattleEntryBlocked,
 
     // 操作
     startExplore,

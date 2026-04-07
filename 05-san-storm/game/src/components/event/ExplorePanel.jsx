@@ -14,7 +14,7 @@ import EventGobang from './EventGobang';
 import EventBlackjack from './EventBlackjack';
 import { PHASE, FACTOR_CN } from './EventConstants';
 import { parseRewards, parseRequiredItems, isFactorOption } from './eventUtils';
-import { API_CONFIG } from '@/constants';
+import { API_CONFIG, getRarityHex, getRarityLabelCn } from '@/constants';
 import { loadSharedData } from '@/services/dataService';
 import TroopCard from '@shared/components/card/TroopCard';
 import CharacterCard from '@shared/components/card/CharacterCard';
@@ -28,7 +28,8 @@ export default function ExplorePanel({ eventSystem }) {
     minigameInfo, isSuccess, team, replaceVars, itemNameMap, playerSilver,
     playerResources, playerItemsList,
     closeEvent, chooseOption, confirmResult, endBattle, endMinigame, closeReward,
-    rewardDetails, battleScore, playerId, isTutorial,
+    rewardDetails, battleScore, battleChestRewards = [], playerId, isTutorial,
+    battleEntryBlockedMessage, dismissBattleEntryBlocked,
   } = eventSystem;
 
   const [hoveredOption, setHoveredOption] = useState(null);
@@ -113,6 +114,21 @@ export default function ExplorePanel({ eventSystem }) {
         )}
       </AncientModal>
 
+      {/* ===== 战前条件不足（不进入战斗地图） ===== */}
+      {battleEntryBlockedMessage && (
+        <AncientModal
+          isOpen
+          type="warning"
+          title="无法开战"
+          confirmText="确定"
+          onClose={dismissBattleEntryBlocked}
+          onConfirm={dismissBattleEntryBlocked}
+        >
+          <p className="text-gray-800 text-sm text-center">{battleEntryBlockedMessage}</p>
+          <p className="text-center text-gray-500 text-xs mt-2">请返回编组调整兵力或补充粮草后再试。</p>
+        </AncientModal>
+      )}
+
       {/* ===== 惩罚战斗（真实战斗系统） ===== */}
       {phase === PHASE.BATTLE && (
         <EventBattle
@@ -131,6 +147,7 @@ export default function ExplorePanel({ eventSystem }) {
         {chosenOption && (
           <RewardDisplay fortune={fortune} chosenOption={chosenOption}
             battleResult={battleResult} battleScore={battleScore}
+            battleChestRewards={battleChestRewards}
             replaceVars={replaceVars} itemNameMap={itemNameMap}
             rewardDetails={rewardDetails} />
         )}
@@ -274,7 +291,10 @@ function ResultDisplay({ fortune, chosenOption, isSuccess, replaceVars }) {
 }
 
 /** 奖励结算显示 */
-function RewardDisplay({ fortune, chosenOption, battleResult, battleScore, replaceVars, itemNameMap, rewardDetails }) {
+function RewardDisplay({
+  fortune, chosenOption, battleResult, battleScore, battleChestRewards = [],
+  replaceVars, itemNameMap, rewardDetails,
+}) {
   const [previewCard, setPreviewCard] = useState(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [skillsMap, setSkillsMap] = useState({});
@@ -380,6 +400,9 @@ function RewardDisplay({ fortune, chosenOption, battleResult, battleScore, repla
       } else if (d.type === 'character_duplicate') {
         const nm = idNames.char[d.cardId] || d.cardName || d.cardId;
         result.push({ text: `💰 将领「${nm}」已达持有上限，补偿 ${d.compensation} 银两` });
+      } else if (d.type === 'character_rarity_limit') {
+        const nm = idNames.char[d.cardId] || d.cardName || d.cardId;
+        result.push({ text: `💰 将领「${nm}」本稀有度持有已满，补偿 ${d.compensation} 银两` });
       } else if (d.type === 'card_duplicate') {
         const label = d.cardType === 'title' ? '称号' : d.cardType === 'achievement' ? '成就' : d.cardType === 'troop' ? '部队' : d.cardType === 'character' ? '将领' : d.cardType === 'equipment' ? '装备' : '卡牌';
         let nm = d.cardName || d.cardId;
@@ -460,6 +483,27 @@ function RewardDisplay({ fortune, chosenOption, battleResult, battleScore, repla
                 <div>回合倍率 ×{battleScore.details.turnMultiplier}（第{battleScore.details.roundNum}回合）</div>
               </div>
             </div>
+          )}
+          {Array.isArray(battleChestRewards) && battleChestRewards.length > 0 && (
+            <>
+              <Divider />
+              <div className="text-left">
+                <div className="text-[11px] text-stone-500 mb-1.5">
+                  📦 地图宝箱（本场已入库，与事件配置奖励独立）
+                </div>
+                <div className="space-y-1">
+                  {battleChestRewards.map((r, i) => (
+                    <div
+                      key={`${r.equipmentId || 'chest'}-${i}`}
+                      className="text-sm font-medium"
+                      style={{ color: getRarityHex(r.rarity) }}
+                    >
+                      🛡️ {r.name}（{getRarityLabelCn(r.rarity)}）
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </>
           )}
           <Divider />
         </>

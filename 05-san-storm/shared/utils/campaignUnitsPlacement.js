@@ -23,12 +23,19 @@ const QUAD_ORIGIN = {
 /** 贴地图边的格每边仍计 cap（与邻接象限的缝主要管 x=7 / x=0 等） */
 const EDGE_CAP = 3;
 
-const SPILL_ORDER = {
-  A: ['B', 'D', 'C'],
-  B: ['A', 'C', 'D'],
-  C: ['B', 'D', 'A'],
-  D: ['A', 'C', 'B'],
+/** 仅**边相邻**象限（不含对角）；溢兵时每次随机打乱顺序 */
+const QUAD_EDGE_NEIGHBORS = {
+  A: ['B', 'D'],
+  B: ['A', 'C'],
+  C: ['B', 'D'],
+  D: ['A', 'C'],
 };
+
+function spillOrderFor(homeQ, rng) {
+  const arr = [...(QUAD_EDGE_NEIGHBORS[homeQ] || [])];
+  shuffleInPlace(rng, arr);
+  return arr;
+}
 
 function cellKey(col, row) {
   return `${col},${row}`;
@@ -77,8 +84,8 @@ function registerEdgeCap(li, edgeCounts) {
 }
 
 /**
- * @param {string} segment 单条 `ally1|char|troop:2|...`
- * @returns {{ faction: string, charId: string, troopId: string, morale: number } | null}
+ * @param {string} segment 单条 `ally1|char|troop:2|...|role:hero|ai:attack`
+ * @returns {{ faction: string, charId: string, troopId: string, morale: number, commanderRole: string|null, battleAiStyle: string|null } | null}
  */
 export function parseCampaignUnitsSpecEntry(segment) {
   const s = String(segment ?? '').trim();
@@ -92,11 +99,22 @@ export function parseCampaignUnitsSpecEntry(segment) {
   const parsed = parseIdColonCount(troopTok);
   const troopId = parsed ? parsed.id : '';
   let morale = 70;
+  /** @type {string|null} */
+  let commanderRole = null;
+  /** @type {string|null} */
+  let battleAiStyle = null;
   for (const p of parts) {
     const m = /^morale:(\d+)$/i.exec(p);
     if (m) morale = Math.min(100, parseInt(m[1], 10) || 70);
+    const r = /^role:(\w+)$/i.exec(p);
+    if (r) {
+      const role = String(r[1]).toLowerCase();
+      if (role === 'hero' || role === 'boss') commanderRole = role;
+    }
+    const ai = /^ai:(\w+)$/i.exec(p);
+    if (ai) battleAiStyle = String(ai[1]).toLowerCase();
   }
-  return { faction, charId, troopId, morale };
+  return { faction, charId, troopId, morale, commanderRole, battleAiStyle };
 }
 
 export function parseCampaignUnitsSpec(spec) {
@@ -128,6 +146,8 @@ export function expandCampaignUnitsSpec(spec) {
         charId: entry.charId,
         troopId: entry.troopId,
         morale: entry.morale,
+        commanderRole: entry.commanderRole,
+        battleAiStyle: entry.battleAiStyle,
         stackIndex: i,
         stackTotal: n,
       });
@@ -198,6 +218,8 @@ function assignUnit(cells, col, row, unit, used) {
     charId: unit.charId,
     troopId: unit.troopId,
     morale: unit.morale,
+    ...(unit.commanderRole ? { commanderRole: unit.commanderRole } : {}),
+    ...(unit.battleAiStyle ? { battleAiStyle: unit.battleAiStyle } : {}),
   };
 }
 
@@ -274,7 +296,7 @@ export function placeCampaignNpcUnits(cells, preset, rng) {
         continue;
       }
 
-      for (const q of SPILL_ORDER[homeQ]) {
+      for (const q of spillOrderFor(homeQ, rng)) {
         let pool = collectSpillPool(cells, q, used);
         pick = pickFirstFromPool(cells, q, pool, used, 'nonfire', rng);
         if (!pick) {

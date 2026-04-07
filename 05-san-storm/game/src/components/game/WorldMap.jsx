@@ -23,6 +23,7 @@ import { API_CONFIG, getRarityHex, getRarityLabelCn } from '@/constants';
 import SiegeReplayMini from '@/components/game/SiegeReplayMini';
 import { filterPlayerItemsForExploreLocation } from '@/components/event/eventUtils';
 import { buildBattleScoreFormulaLines, resolveKillLossTroopCounts } from '@/systems/battleScoreSystem';
+import { validateMainLineupBattleGate } from '@/utils/mainLineupTroops';
 
 /** 山海关荒郊（事件 location 与 config_events 一致） */
 const EXPLORE_LOC_SHANHAIGUAN = 'san_1_city_6_shanhaiguan';
@@ -376,6 +377,16 @@ export default function WorldMap({ onEventBusyChange }) {
   // 发起攻城
   const startSiege = useCallback(async () => {
     if (!canSiege || !player?.player_id) return;
+    const builtUnits = buildPlayerUnitsFromContext(player, cards, attributeBonusBySlot);
+    const gate = validateMainLineupBattleGate({
+      cards,
+      playerUnits: builtUnits,
+      playerFood: player?.food ?? 0,
+    });
+    if (!gate.ok) {
+      setSimpleAlertMessage(gate.message);
+      return;
+    }
     setSiegeLoading(true);
     try {
       const res = await fetch(`${API_CONFIG.BASE_URL}/cities/${CITY_ID}/siege`, {
@@ -419,7 +430,7 @@ export default function WorldMap({ onEventBusyChange }) {
       }
     } catch {}
     setSiegeLoading(false);
-  }, [canSiege, player, siegeQuota]);
+  }, [canSiege, player, siegeQuota, cards, attributeBonusBySlot]);
 
   // 战斗结束
   const handleSiegeEnd = useCallback(async (result, silverSpent, scoreResult, killedIndices, meta) => {
@@ -453,7 +464,10 @@ export default function WorldMap({ onEventBusyChange }) {
         }),
       }).then(r => r.json());
       if (res.success) {
-        setSiegeResult(res.data);
+        setSiegeResult({
+          ...res.data,
+          chestRewards: Array.isArray(meta?.chestRewards) ? meta.chestRewards : [],
+        });
       } else {
         // 后端报错，仍然显示结算页（无奖励数据）
         setSiegeResult({ npcKilled: 0, npcTotal: 0, silverReward: 0, error: res.error });
@@ -1035,7 +1049,21 @@ export default function WorldMap({ onEventBusyChange }) {
                 className="text-sm font-medium"
                 style={{ color: getRarityHex(siegeResult.equipmentDrop.rarity) }}
               >
-                🎁 获得装备：{siegeResult.equipmentDrop.name}（{getRarityLabelCn(siegeResult.equipmentDrop.rarity)}）
+                🎁 攻城掉落：{siegeResult.equipmentDrop.name}（{getRarityLabelCn(siegeResult.equipmentDrop.rarity)}）
+              </div>
+            )}
+            {Array.isArray(siegeResult.chestRewards) && siegeResult.chestRewards.length > 0 && (
+              <div className="text-left text-sm space-y-1 border-t border-amber-500/25 pt-2 mt-1">
+                <div className="text-[11px] text-stone-500">📦 地图宝箱（本场已入库，与上方攻城 5% 掉落独立）</div>
+                {siegeResult.chestRewards.map((r, i) => (
+                  <div
+                    key={`${r.equipmentId || 'eq'}-${i}`}
+                    className="font-medium text-sm"
+                    style={{ color: getRarityHex(r.rarity) }}
+                  >
+                    {r.name}（{getRarityLabelCn(r.rarity)}）
+                  </div>
+                ))}
               </div>
             )}
             {siegeResult.killCount != null && <div className="text-sm text-gray-300">本场击杀：{siegeResult.killCount}</div>}

@@ -12,6 +12,7 @@ const {
   isCoreTroopRepairEffect,
 } = require('./troopRepairService');
 const playerExploreEventService = require('./playerExploreEventService');
+const statisticsDeltaService = require('./statisticsDeltaService');
 
 /**
  * @param {string} playerId
@@ -217,12 +218,19 @@ async function executeEventRewards(playerId, body) {
       }
     }
 
+    let immediateResourceSilver = 0;
+    let immediateResourceFood = 0;
+    let immediateResourceContribution = 0;
     for (const { key, amount } of immediateSegments) {
       if (resourceFields.includes(key)) {
         await pool.query(`UPDATE players SET ${key} = GREATEST(0, ${key} - ?) WHERE player_id = ?`, [
           amount,
           playerId,
         ]);
+        const a = Math.max(0, Math.floor(Number(amount) || 0));
+        if (key === 'silver') immediateResourceSilver += a;
+        if (key === 'food') immediateResourceFood += a;
+        if (key === 'contribution') immediateResourceContribution += a;
       } else if (key.includes('_item_') || key.startsWith('item_')) {
         const [itemRows] = await pool.query('SELECT items FROM players WHERE player_id = ?', [playerId]);
         let items = {};
@@ -260,6 +268,11 @@ async function executeEventRewards(playerId, body) {
         }
       }
     }
+    await statisticsDeltaService.incrementSpent(playerId, {
+      silver: immediateResourceSilver,
+      food: immediateResourceFood,
+      contribution: immediateResourceContribution,
+    });
   }
 
   let rewardStr = option.rewards || '';
@@ -277,12 +290,19 @@ async function executeEventRewards(playerId, body) {
   }
 
   if (deferredRepairSegments.length && battleResult === 'victory') {
+    let deferredResourceSilver = 0;
+    let deferredResourceFood = 0;
+    let deferredResourceContribution = 0;
     for (const { key, amount } of deferredRepairSegments) {
       if (resourceFields.includes(key)) {
         await pool.query(`UPDATE players SET ${key} = GREATEST(0, ${key} - ?) WHERE player_id = ?`, [
           amount,
           playerId,
         ]);
+        const a = Math.max(0, Math.floor(Number(amount) || 0));
+        if (key === 'silver') deferredResourceSilver += a;
+        if (key === 'food') deferredResourceFood += a;
+        if (key === 'contribution') deferredResourceContribution += a;
       } else if (key.includes('_item_') || key.startsWith('item_')) {
         const [itemRows] = await pool.query('SELECT items FROM players WHERE player_id = ?', [playerId]);
         let items = {};
@@ -320,13 +340,20 @@ async function executeEventRewards(playerId, body) {
         }
       }
     }
+    await statisticsDeltaService.incrementSpent(playerId, {
+      silver: deferredResourceSilver,
+      food: deferredResourceFood,
+      contribution: deferredResourceContribution,
+    });
   }
 
   if (battleSilverSpent && battleSilverSpent > 0) {
+    const bs = Math.max(0, Math.floor(Number(battleSilverSpent) || 0));
     await pool.query('UPDATE players SET silver = GREATEST(0, silver - ?) WHERE player_id = ?', [
-      battleSilverSpent,
+      bs,
       playerId,
     ]);
+    await statisticsDeltaService.incrementSpent(playerId, { silver: bs });
   }
 
   if (minigameSilverDelta && minigameSilverDelta !== 0) {
@@ -335,11 +362,16 @@ async function executeEventRewards(playerId, body) {
         minigameSilverDelta,
         playerId,
       ]);
+      await statisticsDeltaService.recordEarned(playerId, {
+        silver: Math.max(0, Math.floor(Number(minigameSilverDelta) || 0)),
+      });
     } else {
       await pool.query('UPDATE players SET silver = GREATEST(0, silver + ?) WHERE player_id = ?', [
         minigameSilverDelta,
         playerId,
       ]);
+      const spent = Math.max(0, Math.floor(-Number(minigameSilverDelta) || 0));
+      if (spent > 0) await statisticsDeltaService.incrementSpent(playerId, { silver: spent });
     }
     console.log(`[PlayerEventRewards] 迷你游戏筹码结算: playerId=${playerId}, delta=${minigameSilverDelta}`);
   }

@@ -12,7 +12,7 @@ import {
   setRarityTierFromScore,
   scoreFromEquipmentRarity,
   validateEquipmentSetDisplayName,
-} from '@shared/utils/equipmentSetName';
+} from '@/utils/equipmentSetName';
 
 const SLOT_PX = 96;
 
@@ -155,8 +155,7 @@ function EncapsulatePickDrawer({ open, headerTitle, categoryLabel, cards, busy, 
         }}
       />
       <div
-        className="fixed left-0 right-0 bottom-0 z-[223] bg-stone-900 border-t-2 border-amber-700/50 rounded-t-2xl flex flex-col"
-        style={{ top: '56px' }}
+        className="fixed left-0 right-0 bottom-0 top-[4.5rem] sm:top-14 z-[223] bg-stone-900 border-t-2 border-amber-700/50 rounded-t-2xl flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-4 py-3 border-b border-stone-700 flex-shrink-0">
@@ -325,7 +324,7 @@ function EncapsulateEquippedDetailOverlay({ card, onClose, onUnequip, onReplace,
           </button>
         </div>
         <div className="flex justify-center mb-3">
-          <div style={{ transform: 'scale(0.7)', transformOrigin: 'top center' }}>
+          <div style={{ transform: 'scale(0.72)', transformOrigin: 'top center' }}>
             <EquipmentCard equipment={toEquipmentCardData(card)} baseUrl={baseUrl} />
           </div>
         </div>

@@ -1,11 +1,10 @@
 /**
- * 卡面 / 编组 / 战斗内立绘：`public/assets/san_1_ui_card/troop/` → `getTroopPortraitUrlAttempts`。
+ * - **卡面 / 编组 / wiki**：`public/assets/san_1_ui_card/troop/` → `getTroopPortraitUrlAttempts`（无阵营子目录）。
+ * - **8×10 战斗地图 / TroopLayer / bindTroopPortraitImg**：`public/assets/san_1_battle/{player|enemy}/`
+ *   → `getBattleFieldTroopPortraitUrlAttempts`（敌我不同目录，同配置 ID 也区分立绘）。
+ * - **战役大地图格**：`san_1_battle/{ally1|ally2|…}/` → `getCampaignMapTroopPortraitUrlAttempts`。
  *
- * 战役地图格上 NPC 缩略图：`public/assets/san_1_battle/{player|ally1|ally2|team|enemy}/`（与 `quad_*_forces` 一致）
- * → `getCampaignMapTroopPortraitUrlAttempts`；**文件名规则相同**，仅根目录不同。
- *
- * 专属 `{配置ID}.png` 优先于同目录 `troop_r{1-4}_{weapon}.png` 当且仅当：稀有度 **core**，或
- * **特殊形 ID**（`san_1_troop_` 后缀第 2 位为 `x`，如 `7x01`）。
+ * 专属 `{配置ID}.png` 优先于 `troop_r{1-4}_{weapon}.png` 当且仅当：稀有度 **core**，或 **特殊形 ID**（数字段 + `x`，如 `7x01`、`2x01`、`17x1`）。
  */
 
 import troopsCatalog from '../../public/data/shared/troops.json';
@@ -23,7 +22,7 @@ const troopMetaById = new Map((troopsCatalog.troops || []).map((t) => [t.id, t])
 /**
  * 与 `battleConstants` 中地图素材一致：保证以「应用根」为基准，避免 SPA 子路由（如 `/campaign-map-demo`）下
  * 相对路径 `assets/...` 被解析到错误目录导致专属 PNG 404、仅显示稀有度兜底图。
- * `baseUrl` 为空时使用当前包构建内联的 `import.meta.env.BASE_URL`（game / wiki 各自打包）。
+ * `baseUrl` 为空时使用当前包构建内联的 `import.meta.env.BASE_URL`（game / wiki 各自打包；如 `/campaign-map-manager` 子路由）。
  * @param {string} [baseUrl]
  * @returns {string} 始终以 `/` 结尾
  */
@@ -102,13 +101,14 @@ export function getTroopIdIconUrl(troopId, baseUrl = '') {
 }
 
 /**
- * 特殊部队：`san_1_troop_` 之后片段第 2 个字符为 `x`（如 `san_1_troop_7x01`），与 core 相同优先读专属 ID 图。
+ * 特殊部队：`san_1_troop_` 后缀为「一段十进制数字 + `x` + 其余」（`x` 为占位），与 core 相同优先读专属 ID 图。
+ * 首位数字不限于 7（如黄巾 `7x01`、他势力 `2x01`、流民等 `17x1` 见 04-ID_NAMING_GUIDE §7.3）。
  * @param {string} id 已规范化的配置 ID
  */
 export function troopIdIsSpecialWildcardForm(id) {
   if (!id || !id.startsWith('san_1_troop_')) return false;
   const suffix = id.slice('san_1_troop_'.length);
-  return suffix.length >= 2 && (suffix[1] === 'x' || suffix[1] === 'X');
+  return /^\d+x/i.test(suffix);
 }
 
 /**
@@ -137,8 +137,32 @@ export function getTroopPortraitUrlAttempts(troop, baseUrl = '') {
 }
 
 /**
- * 战役地图格上部队缩略图：`san_1_battle/{faction}/`（与 `quad_*_forces` 五档子目录一致），
- * 文件名规则与 `getTroopPortraitUrlAttempts` 相同（专属 ID → `troop_r*`）。
+ * `san_1_battle/{subdir}/` 下立绘链（subdir 已由 `battleTroopSubdirForFaction` 规范为五档之一）。
+ * @param {object} troop 含 id/rarity/weaponType 等
+ * @param {string} subdir player|enemy|ally1|…
+ */
+function troopPortraitAttemptsSan1BattleSubdir(troop, baseUrl, subdir) {
+  const dir = battleTroopAssetDir(baseUrl, subdir);
+  const rarityUrl = `${dir}${troopRarityFallbackFilename(troop)}`;
+  const pid = normalizeTroopAssetId(troop);
+  if (troopPrefersDedicatedPortraitFile(troop) && pid) {
+    const idUrl = `${dir}${pid}.png`;
+    if (idUrl === rarityUrl) return [rarityUrl];
+    return [idUrl, rarityUrl];
+  }
+  return [rarityUrl];
+}
+
+/**
+ * 小型战斗地图等：`troop.faction === 'player'` → `san_1_battle/player/`，否则 → `enemy/`。
+ */
+export function getBattleFieldTroopPortraitUrlAttempts(troop, baseUrl = '') {
+  const subdir = troop && troop.faction === 'player' ? 'player' : 'enemy';
+  return troopPortraitAttemptsSan1BattleSubdir(troop, baseUrl, subdir);
+}
+
+/**
+ * 战役地图格上部队缩略图：`san_1_battle/{faction}/`（与 `quad_*_forces` 五档子目录一致）。
  * @param {string} troopId
  * @param {string} [baseUrl]
  * @param {string} [faction] 来自 units_spec 行首 faction（如 enemy、ally1）
@@ -161,17 +185,7 @@ export function getCampaignMapTroopPortraitUrlAttempts(troopId, baseUrl = '', fa
         rarity: 'common',
         weaponType: 'infantry_saber',
       };
-  const dir = battleTroopAssetDir(baseUrl, faction);
-  const rarityUrl = `${dir}${troopRarityFallbackFilename(stub)}`;
-  const pid = normalizeTroopAssetId(stub);
-
-  if (troopPrefersDedicatedPortraitFile(stub) && pid) {
-    const idUrl = `${dir}${pid}.png`;
-    if (idUrl === rarityUrl) return [rarityUrl];
-    return [idUrl, rarityUrl];
-  }
-
-  return [rarityUrl];
+  return troopPortraitAttemptsSan1BattleSubdir(stub, baseUrl, battleTroopSubdirForFaction(faction));
 }
 
 export function getTroopCardPrimaryUrl(troop, baseUrl = '') {

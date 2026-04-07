@@ -125,22 +125,25 @@ function ChestRewardOverlay({ reward, onConfirm }) {
               )}
             </div>
 
-            {/* 确认按钮 */}
-            <button
-              onClick={onConfirm}
-              style={{
-                background: `linear-gradient(135deg, ${rs.border}, ${rs.color})`,
-                border: 'none',
-                borderRadius: 6,
-                padding: '8px 24px',
-                color: '#fff',
-                fontSize: 14,
-                fontWeight: 600,
-                cursor: 'pointer',
-              }}
-            >
-              确认收下
-            </button>
+            {onConfirm ? (
+              <button
+                onClick={onConfirm}
+                style={{
+                  background: `linear-gradient(135deg, ${rs.border}, ${rs.color})`,
+                  border: 'none',
+                  borderRadius: 6,
+                  padding: '8px 24px',
+                  color: '#fff',
+                  fontSize: 14,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                确认收下
+              </button>
+            ) : (
+              <div style={{ fontSize: 11, color: '#888', marginTop: 4 }}>自动收取中…</div>
+            )}
           </>
         )}
       </div>

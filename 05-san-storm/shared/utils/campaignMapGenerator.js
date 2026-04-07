@@ -16,13 +16,38 @@
  *
  * @see docs/90-assets/91-2-MAP_AUTO_GENERATION.md
  * @see docs/90-assets/91-3-CAMPAIGN_MAP_GENERATION.md
- * @see docs/tools/campaign/CAMPAIGN_MAP_NARRATIVE_SPEC.md
+ * @see docs/tools/campaign/CAMPAIGN_MAP.md
  */
 
 import { parseIdColonCount } from './parseIdColonCount.js';
 import { placeCampaignNpcUnits } from './campaignUnitsPlacement.js';
 import { computeLargestPassableComponentLocal } from './campaignQuadReachability.js';
-import presetJson from '../data/campaign/san_1_camp_1001_v1.preset.json';
+import presetSan1Camp1001V1 from '../data/campaign/san_1_camp_1001_v1.preset.json';
+import presetSan1Camp1001V2 from '../data/campaign/san_1_camp_1001_v2.preset.json';
+
+/** 模拟生成用：campaign_id → 与仓库 `shared/data/campaign/*.preset.json` 同步的预设对象 */
+export const CAMPAIGN_PRESETS_BY_ID = {
+  san_1_camp_1001_v1: presetSan1Camp1001V1,
+  san_1_camp_1001_v2: presetSan1Camp1001V2,
+};
+
+export const CAMPAIGN_PRESET_IDS = Object.keys(CAMPAIGN_PRESETS_BY_ID);
+
+export function getCampaignPresetById(campaignId) {
+  return CAMPAIGN_PRESETS_BY_ID[campaignId] ?? null;
+}
+
+/** 与 SeededRandom 一致：\[1, 2147483646\] */
+export function randomCampaignMapSeed() {
+  if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+    const buf = new Uint32Array(1);
+    crypto.getRandomValues(buf);
+    let v = buf[0] % 2147483646;
+    if (v <= 0) v += 2147483645;
+    return v;
+  }
+  return 1 + Math.floor(Math.random() * 2147483646);
+}
 
 // ── 地图与象限（行 0 为上，列 0 为左）──────────────────────────────────────────
 export const CAMPAIGN_MAP_WIDTH = 16;
@@ -37,8 +62,12 @@ export const SIEGE_EDGE_MARGIN = 2;
 export const MILITARY_CAMP_WIDTH = 2;
 export const MILITARY_CAMP_HEIGHT = 1;
 
-/** 无写数量时，河流默认总格数（避免 `river` 被解析成 1 格） */
+/** 无写数量时，河流默认总格数（避免 `river` 被解析成 1 格）；并限制在 {@link RIVER_CELLS_MAX} 内 */
 export const DEFAULT_RIVER_CELLS_PER_QUAD = 17;
+
+/** §② 未写 `river:N` 而由叙事稿填数时，建议 10～24；生成器对显式 `river:N` 也钳制在此区间，避免河格过多成块 */
+export const RIVER_CELLS_MIN = 10;
+export const RIVER_CELLS_MAX = 24;
 
 /** 无写数量时，森林/丘陵等散点默认格数（可选） */
 export const DEFAULT_SCATTER_TERRAIN_CELLS = 10;
@@ -403,7 +432,10 @@ function growWastelandBaseChain(rng, targetCells, wastelandSet) {
 }
 
 function terrainCellCount(id, count) {
-  if (id === 'river' && count === 1) return DEFAULT_RIVER_CELLS_PER_QUAD;
+  if (id === 'river') {
+    const raw = count === 1 ? DEFAULT_RIVER_CELLS_PER_QUAD : count;
+    return Math.min(Math.max(Math.min(raw, 80), RIVER_CELLS_MIN), RIVER_CELLS_MAX);
+  }
   if ((id === 'forest' || id === 'hill') && count === 1) return DEFAULT_SCATTER_TERRAIN_CELLS;
   return Math.min(count, 80);
 }
@@ -581,7 +613,7 @@ function pickFireEffectLocalIndices(rng, cells, quadKey, count, mainland) {
  * @returns {{ width: number, height: number, seed: number, campaignId: string, cells: Array<Array<object>> }}
  */
 export function generateCampaignMapSimulated(preset, options = {}) {
-  const seed = options.seed != null ? Number(options.seed) : 2026040201;
+  const seed = options.seed != null ? Number(options.seed) : randomCampaignMapSeed();
   const rng = new SeededRandom(seed);
 
   /** @type {CampaignCell[][]} */
@@ -762,5 +794,8 @@ export function generateCampaignMapSimulated(preset, options = {}) {
   };
 }
 
-/** 长社之战 preset（与 `shared/data/campaign/san_1_camp_1001_v1.preset.json`、叙事稿、CSV 同步） */
-export const CAMPAIGN_PRESET_SAN_1_CAMP_1001_V1 = presetJson;
+/** 长社之战 v1 preset（与叙事稿 / CSV 同步） */
+export const CAMPAIGN_PRESET_SAN_1_CAMP_1001_V1 = presetSan1Camp1001V1;
+
+/** 长社之战 v2 preset（见 `docs/tools/campaign/san_1_camp_1001_v2.md` §④） */
+export const CAMPAIGN_PRESET_SAN_1_CAMP_1001_V2 = presetSan1Camp1001V2;

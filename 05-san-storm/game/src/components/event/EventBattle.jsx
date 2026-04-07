@@ -34,13 +34,13 @@ export default function EventBattle({
     return map[lastPart.charAt(0)] || 'common';
   }, [currentEvent]);
 
-  const handleEnd = useCallback((result, silverSpent, scoreResult) => {
-    onBattleEnd(result, silverSpent, scoreResult);
+  const handleEnd = useCallback((result, silverSpent, scoreResult, killedIndices, meta) => {
+    onBattleEnd(result, silverSpent, scoreResult, killedIndices, meta);
   }, [onBattleEnd]);
 
   if (playerUnits.length === 0) {
     // 没有编组，直接判定失败
-    onBattleEnd('defeat', 0, null);
+    onBattleEnd('defeat', 0, null, [], {});
     return null;
   }
 
