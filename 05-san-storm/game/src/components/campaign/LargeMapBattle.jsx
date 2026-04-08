@@ -62,6 +62,7 @@ export default function LargeMapBattle({
   playerUnits,
   silverAmount = 0,
   playerFood = 0,
+  deploymentFoodCost = 0,
   playerId,
   opponentName = '战役敌军',
   campaignId = null,
@@ -172,6 +173,7 @@ export default function LargeMapBattle({
   }, [campaignId, playerId, opponentName, campaignBattleTitle]);
 
   // ── 部署状态 ──
+  const [manualActionMenuOpen, setManualActionMenuOpen] = useState(false);
   const [campaignDeployReady, setCampaignDeployReady] = useState(false);
   const [campaignDeployTroopId, setCampaignDeployTroopId] = useState(null);
   const [campaignDeploySlots, setCampaignDeploySlots] = useState({});
@@ -254,14 +256,67 @@ export default function LargeMapBattle({
     setCampaignDeployTroopId((prev) => (prev === troop.id ? null : troop.id));
   }, []);
 
+  const manualActorPosKey = useMemo(() => {
+    if (!manual.activeTroop) return '';
+    return `${manual.activeTroop.y},${manual.activeTroop.x}`;
+  }, [manual.activeTroop]);
+
+  const manualFormationCenterKey = useMemo(() => {
+    const ft = manual.formationTroops;
+    if (!ft?.length) return '';
+    const alive = ft.filter((t) => t.currentTroops > 0);
+    if (!alive.length) return '';
+    const cy = Math.round(alive.reduce((s, t) => s + t.y, 0) / alive.length);
+    const cx = Math.round(alive.reduce((s, t) => s + t.x, 0) / alive.length);
+    return `${cy},${cx}`;
+  }, [manual.formationTroops]);
+
+  useEffect(() => {
+    setManualActionMenuOpen(false);
+  }, [manual.phase, manualActorPosKey, manualFormationCenterKey]);
+
+  const clickIsCurrentActorCell = useCallback(
+    (col, row) => {
+      const p = manual.phase;
+      if (p === MANUAL_PHASE.SELECT_MOVE || p === MANUAL_PHASE.SELECT_ACTION) {
+        const t = manual.activeTroop;
+        if (!t) return false;
+        return t.y === row && t.x === col;
+      }
+      if (p === MANUAL_PHASE.FORMATION_MOVE || p === MANUAL_PHASE.FORMATION_ACTION) {
+        const ft = manual.formationTroops;
+        if (!ft?.length) return false;
+        const alive = ft.filter((u) => u.currentTroops > 0);
+        if (!alive.length) return false;
+        const cy = Math.round(alive.reduce((s, t) => s + t.y, 0) / alive.length);
+        const cx = Math.round(alive.reduce((s, t) => s + t.x, 0) / alive.length);
+        return cy === row && cx === col;
+      }
+      return false;
+    },
+    [manual.phase, manual.activeTroop, manual.formationTroops],
+  );
+
   const onCampaignCellClick = useCallback((col, row) => {
     if (bm.battlePlaying && !bm.autoBattle) {
+      if (clickIsCurrentActorCell(col, row)) {
+        setManualActionMenuOpen((open) => !open);
+        return;
+      }
+      setManualActionMenuOpen(false);
       manual.handleTileClick(row, col);
       return;
     }
     if (campaignDeployReady || bm.battlePlaying) return;
     applyCampaignDeploySwap(col, row);
-  }, [campaignDeployReady, bm.battlePlaying, bm.autoBattle, applyCampaignDeploySwap, manual.handleTileClick]);
+  }, [
+    campaignDeployReady,
+    bm.battlePlaying,
+    bm.autoBattle,
+    applyCampaignDeploySwap,
+    manual.handleTileClick,
+    clickIsCurrentActorCell,
+  ]);
 
   // ── 初始化 ──
   useEffect(() => {
@@ -336,58 +391,54 @@ export default function LargeMapBattle({
   // ── 战役手动操控悬浮按钮 ──
   const campaignManualChrome = useMemo(() => {
     if (bm.autoBattle) return null;
-    const { phase, activeTroop, formationTroops, handleStandby, handleFormationStandby } = manual;
+    const { phase, activeTroop, formationTroops } = manual;
     const isFormation = phase === MANUAL_PHASE.FORMATION_MOVE || phase === MANUAL_PHASE.FORMATION_ACTION;
     const isMove = phase === MANUAL_PHASE.SELECT_MOVE || phase === MANUAL_PHASE.FORMATION_MOVE;
     const isAction = phase === MANUAL_PHASE.SELECT_ACTION || phase === MANUAL_PHASE.FORMATION_ACTION;
     if (!isMove && !isAction) return null;
 
-    let ty, tx, troopData;
+    let ty, tx;
     if (isFormation && formationTroops?.length) {
       const alive = formationTroops.filter((t) => t.currentTroops > 0);
       if (!alive.length) return null;
       ty = Math.round(alive.reduce((s, t) => s + t.y, 0) / alive.length);
       tx = Math.round(alive.reduce((s, t) => s + t.x, 0) / alive.length);
-      troopData = alive[0];
     } else if (activeTroop) {
       ty = activeTroop.y; tx = activeTroop.x;
-      troopData = activeTroop;
     } else return null;
 
-    const onStandby = isFormation ? handleFormationStandby : handleStandby;
+    const onStandby = () => {
+      setManualActionMenuOpen(false);
+      if (isFormation) void manual.handleFormationStandby();
+      else void manual.handleStandby();
+    };
+
+    const actionMenu = manualActionMenuOpen ? (
+      <div
+        className="floating-action-btns"
+        style={{
+          position: 'absolute',
+          top: `calc(${ty} * (var(--camp-tile) + 1px))`,
+          left: `calc(${tx} * (var(--camp-tile) + 1px))`,
+          width: 'calc(var(--camp-tile) + 1px)',
+          height: 'calc(var(--camp-tile) + 1px)',
+          display: 'flex', flexDirection: 'column',
+          alignItems: 'stretch', justifyContent: 'stretch',
+          gap: 0, zIndex: 50, pointerEvents: 'auto',
+        }}
+      >
+        <button type="button" className="floating-act" disabled title="技能系统尚未实装">🔮 技能</button>
+        <button type="button" className="floating-act" onClick={onStandby}>💤 待机</button>
+      </div>
+    ) : null;
+
     return (
       <>
-        <div
-          className="floating-action-btns"
-          style={{
-            position: 'absolute',
-            top: `calc(${ty} * (var(--camp-tile) + 1px))`,
-            left: `calc(${tx} * (var(--camp-tile) + 1px))`,
-            width: 'calc(var(--camp-tile) + 1px)',
-            height: 'calc(var(--camp-tile) + 1px)',
-            display: 'flex', flexDirection: 'column',
-            alignItems: 'stretch', justifyContent: 'stretch',
-            gap: 0, zIndex: 50, pointerEvents: 'auto',
-          }}
-        >
-          <button
-            type="button"
-            className="floating-act"
-            onClick={(e) => {
-              if (troopData && campaignTooltipApiRef.current?.showTroopTooltip) {
-                campaignTooltipApiRef.current.showTroopTooltip(troopData, e.clientX, e.clientY);
-              }
-            }}
-          >
-            🛡 我军
-          </button>
-          <button type="button" className="floating-act" disabled title="技能系统尚未实装">🔮 技能</button>
-          <button type="button" className="floating-act" onClick={onStandby}>💤 待机</button>
-        </div>
+        {actionMenu}
         {manual.attackPreview && <AttackPreview preview={manual.attackPreview} campaignGridOverlay />}
       </>
     );
-  }, [bm.autoBattle, manual]);
+  }, [bm.autoBattle, manual, manualActionMenuOpen]);
 
   if (!campaignMapSim) {
     return (
@@ -441,6 +492,9 @@ export default function LargeMapBattle({
               manualChrome={campaignManualChrome}
               tooltipApiRef={campaignTooltipApiRef}
               roundNum={bm.roundNum}
+              manualActionHintText={
+                bm.battlePlaying && !bm.autoBattle && bm.roundNum > 0 ? '请点击当前部队打开行动' : null
+              }
             />
           </div>
         )}

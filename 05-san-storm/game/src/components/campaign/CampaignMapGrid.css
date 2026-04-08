@@ -9,6 +9,17 @@
   --camp-tile: var(--tile, 48px);
 }
 
+/* 标题/副标题与格网同宽并左对齐（避免外层居中后标题与地图错位） */
+.campaign-map-aligned-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  width: fit-content;
+  max-width: 100%;
+  margin-left: auto;
+  margin-right: auto;
+}
+
 .campaign-map-title {
   font-size: 14px;
   color: #92400e;
@@ -27,6 +38,15 @@
   font-weight: normal;
 }
 
+.campaign-map-action-hint {
+  margin-left: 10px;
+  font-size: 11px;
+  color: #78716c;
+  font-weight: normal;
+  letter-spacing: 0.02em;
+  white-space: normal;
+}
+
 .campaign-map-meta {
   font-size: 12px;
   color: #57534e;
@@ -39,7 +59,7 @@
   max-width: 100%;
   padding-bottom: 4px;
   display: flex;
-  justify-content: center;
+  justify-content: flex-start;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
   -ms-overflow-style: none;

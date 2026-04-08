@@ -39,6 +39,53 @@
 .row-label.zone-c      { background:#1a1a1a; color:#555; }
 .row-label.zone-battle { background:#1a1a1a; color:#555; }
 
+/* 小型图手动回合：左侧栏合并两行，竖排「技能」「待机」 */
+.row-label--manual-actions {
+  height: calc(2 * var(--tile) + 1px);
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: stretch;
+  padding: 2px 1px;
+  gap: 2px;
+  box-sizing: border-box;
+  background: rgba(28, 28, 36, 0.95);
+  border: 1px solid rgba(180, 170, 140, 0.35);
+  color: #c9b99a;
+}
+.row-label-action-btn {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 2px;
+  font-size: 9px;
+  font-weight: bold;
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  letter-spacing: 0.14em;
+  cursor: pointer;
+  color: #e8dcc8;
+  background: rgba(55, 55, 68, 0.92);
+  transition: background 0.12s, color 0.12s;
+}
+.row-label-action-btn:hover:not(:disabled) {
+  background: rgba(72, 72, 88, 0.95);
+  color: #fff8e8;
+}
+.row-label-action-btn:active:not(:disabled) {
+  background: rgba(45, 45, 58, 0.98);
+}
+.row-label-action-btn:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+  color: #887;
+}
+@media (max-width: 520px) {
+  .row-label-action-btn { font-size: 8px; letter-spacing: 0.1em; }
+}
+
 .map-grid { display:grid; grid-template-columns:repeat(8,var(--tile)); grid-template-rows:repeat(10,var(--tile)); gap:1px; background:#0a0a14; border:1px solid #222; }
 
 /* ── 单格 ── */

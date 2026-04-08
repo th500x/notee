@@ -16,7 +16,7 @@ function BattleMap({
   battleTroops,
   showTroops,
   isBattle,
-  /** 战役战前：底部我方部署行格内浅蓝提示（与左侧「我」行标一致） */
+  /** 战役战前：底部我方部署行格内浅蓝提示（与左侧部署区行标同色带） */
   highlightPlayerDeployZone = false,
   /** 事件战战前：当前选中的我军 `battleTroops[].id`（瓦片描边） */
   preBattleDeployTroopId = null,
@@ -66,8 +66,8 @@ function BattleMap({
     setTooltipContent(null);
   }, []);
 
-  // ── 浮动操作按钮定位（v2.2.0：覆盖在当前部队自身瓦片上） ──
-  const floatingAction = useMemo(() => {
+  // ── 手动回合：左侧栏中部合并格内「技能 / 待机」（与中间战场区两行对齐） ──
+  const manualSidebarActions = useMemo(() => {
     if (!manualProps) return null;
     const { phase, activeTroop, formationTroops, onStandby, onFormationStandby } = manualProps;
     const isFormationMove = phase === MANUAL_PHASE.FORMATION_MOVE;
@@ -79,34 +79,54 @@ function BattleMap({
     const isFormation = isFormationMove || isFormationAction;
     if (!isMove && !isAction) return null;
 
-    let ty, tx, troopData;
     if (isFormation && formationTroops?.length) {
-      const alive = formationTroops.filter(t => t.currentTroops > 0);
+      const alive = formationTroops.filter((t) => t.currentTroops > 0);
       if (!alive.length) return null;
-      ty = Math.round(alive.reduce((s, t) => s + t.y, 0) / alive.length);
-      tx = Math.round(alive.reduce((s, t) => s + t.x, 0) / alive.length);
-      troopData = alive[0]; // 阵型模式用第一个存活部队的信息
-    } else if (activeTroop) {
-      ty = activeTroop.y;
-      tx = activeTroop.x;
-      troopData = activeTroop;
-    } else {
+    } else if (!activeTroop) {
       return null;
     }
 
     const handleStandby = isFormation ? onFormationStandby : onStandby;
-    return { row: ty, col: tx, handleStandby, troopData };
-  }, [manualProps, battleTroops]);
+    return { handleStandby };
+  }, [manualProps]);
 
-  // 行标签
+  /** 与 ZONE.deployC 中部两行对齐：y=4、5（0-based） */
+  const MANUAL_ACTION_ROW_START = 4;
+
+  // 行标签（战前下方部署带仍为 .zone-b +「我」，与格内浅蓝部署提示一致）
   const rowLabels = [];
   for (let y = 0; y < MAP_H; y++) {
-    const isA = ZONE.deployA.includes(y), isB = ZONE.deployB.includes(y);
-    let cls, text;
-    if (isBattle) { cls = 'zone-battle'; text = '⚔'; }
-    else if (isA) { cls = 'zone-a'; text = '敌'; }
-    else if (isB) { cls = 'zone-b'; text = '我'; }
-    else { cls = 'zone-c'; text = '⚔'; }
+    if (y === MANUAL_ACTION_ROW_START + 1 && manualSidebarActions) continue;
+    if (y === MANUAL_ACTION_ROW_START && manualSidebarActions) {
+      rowLabels.push(
+        <div key="manual-actions" className="row-label row-label-zone-c row-label--manual-actions">
+          <button type="button" className="row-label-action-btn" disabled title="技能系统尚未实装">
+            技能
+          </button>
+          <button type="button" className="row-label-action-btn" onClick={manualSidebarActions.handleStandby}>
+            待机
+          </button>
+        </div>,
+      );
+      continue;
+    }
+    const isA = ZONE.deployA.includes(y);
+    const isB = ZONE.deployB.includes(y);
+    let cls;
+    let text;
+    if (isBattle) {
+      cls = 'zone-battle';
+      text = '⚔';
+    } else if (isA) {
+      cls = 'zone-a';
+      text = '敌';
+    } else if (isB) {
+      cls = 'zone-b';
+      text = '我';
+    } else {
+      cls = 'zone-c';
+      text = '⚔';
+    }
     rowLabels.push(<div key={y} className={`row-label ${cls}`}>{text}</div>);
   }
 
@@ -206,47 +226,6 @@ function BattleMap({
               })
             )}
           </div>
-          {/* 浮动操作按钮（覆盖在当前部队瓦片上） */}
-          {floatingAction && (
-            <div
-              className="floating-action-btns"
-              style={{
-                position: 'absolute',
-                top: `calc(${floatingAction.row} * (var(--tile) + 1px))`,
-                left: `calc(var(--label-w) + 4px + ${floatingAction.col} * (var(--tile) + 1px))`,
-                width: 'calc(var(--tile) + 1px)',
-                height: 'calc(var(--tile) + 1px)',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'stretch',
-                justifyContent: 'stretch',
-                gap: 0,
-                zIndex: 50,
-                pointerEvents: 'auto',
-              }}
-            >
-              <button
-                className="floating-act"
-                onClick={(e) => {
-                  if (floatingAction.troopData) {
-                    handleHover(
-                      { currentTarget: { dataset: { troop: floatingAction.troopData.id } }, clientX: e.clientX, clientY: e.clientY },
-                      floatingAction.row,
-                      floatingAction.col
-                    );
-                  }
-                }}
-              >
-                🛡 我军
-              </button>
-              <button className="floating-act" disabled title="技能系统尚未实装">
-                🔮 技能
-              </button>
-              <button className="floating-act" onClick={floatingAction.handleStandby}>
-                💤 待机
-              </button>
-            </div>
-          )}
           {/* 攻击预览浮层 */}
           {manualProps?.attackPreview && (
             <AttackPreview preview={manualProps.attackPreview} />

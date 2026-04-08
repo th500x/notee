@@ -45,6 +45,8 @@ const CampaignMapGrid = forwardRef(function CampaignMapGrid(
     manualChrome = null,
     tooltipApiRef = null,
     roundNum = 0,
+    /** 手动战斗时显示在「第N回合」徽章右侧的提示（战役大图等） */
+    manualActionHintText = null,
   },
   shellRef,
 ) {
@@ -111,18 +113,22 @@ const CampaignMapGrid = forwardRef(function CampaignMapGrid(
 
   return (
     <div className="campaign-map-card">
-      {title && (
-        <div className="campaign-map-title">
-          {title}
-          {roundNum > 0 && <span className="round-badge">第{roundNum}回合</span>}
-        </div>
-      )}
-      {meta && <div className="campaign-map-meta">{meta}</div>}
-      <div
-        className="campaign-map-wrap"
-        onMouseMove={showTileTooltips ? handleWrapperMove : undefined}
-        onMouseLeave={showTileTooltips ? handleLeave : undefined}
-      >
+      <div className="campaign-map-aligned-stack">
+        {title && (
+          <div className="campaign-map-title">
+            {title}
+            {roundNum > 0 && <span className="round-badge">第{roundNum}回合</span>}
+            {manualActionHintText ? (
+              <span className="campaign-map-action-hint">{manualActionHintText}</span>
+            ) : null}
+          </div>
+        )}
+        {meta && <div className="campaign-map-meta">{meta}</div>}
+        <div
+          className="campaign-map-wrap"
+          onMouseMove={showTileTooltips ? handleWrapperMove : undefined}
+          onMouseLeave={showTileTooltips ? handleLeave : undefined}
+        >
         <div className="campaign-map-shell" ref={shellRef} style={{ position: 'relative' }}>
           <div className="campaign-map-grid">
             {cells.map((row, ri) =>
@@ -197,6 +203,7 @@ const CampaignMapGrid = forwardRef(function CampaignMapGrid(
             <TileTooltipContent content={tooltipContent} />
           </div>
         )}
+        </div>
       </div>
     </div>
   );
