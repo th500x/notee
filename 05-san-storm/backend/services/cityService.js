@@ -8,6 +8,7 @@ const { pool } = require('../database/connection');
 const { applyTroopDurabilityExhaustion } = require('./troopDurabilityService');
 const garrisonService = require('./garrisonService');
 const statisticsDeltaService = require('./statisticsDeltaService');
+const smallMapBattleLootService = require('./smallMapBattleLootService');
 
 /** 攻城战线占用：同键在 TTL 内不可被第二人（或本人第二开）占用，结算后释放；超时自动失效（毫秒）
  *  1 分钟：与多数自动战斗时长接近，避免 NPC 末档等场景被长时间占线；超长手动局若需占线应另做心跳续期 */
@@ -78,17 +79,7 @@ const KILL_SILVER_REWARD = {
   common: 10,
 };
 
-// 胜利声望奖励（按击杀NPC最高稀有度）
-const WIN_REPUTATION_REWARD = {
-  core: 25,
-  legendary: 20,
-  epic: 15,
-  rare: 10,
-  common: 5,
-};
-
-// 攻城 NPC 胜利且有击杀：至多触发一次 5% 掷骰掉落 1 件装备（与战术地图宝箱无关；宝箱经 POST /api/battles body.chestRewards 入库）
-const EQUIPMENT_DROP_RATE = 0.05;
+const { WIN_REPUTATION_REWARD } = smallMapBattleLootService;
 
 /** npc_garrison 存库仅支持 { units: Array, ledgerAt?: string }；根级 JSON 数组不再解析（须先跑 wrap-* 迁移） */
 function parseNpcGarrisonStored(raw) {
@@ -692,37 +683,13 @@ async function recordSiegeResult(warId, playerId, factionId, killedIndices, resu
       }
       const rarityOrder = ['common', 'rare', 'epic', 'legendary', 'core'];
       const bestRarity = killedRarities.sort((a, b) => rarityOrder.indexOf(b) - rarityOrder.indexOf(a))[0] || 'common';
-      reputationReward = WIN_REPUTATION_REWARD[bestRarity] || 5;
-
-      await connection.query(
-        'UPDATE players SET reputation = reputation + ? WHERE player_id = ?',
-        [reputationReward, playerId]
+      const loot = await smallMapBattleLootService.grantWinReputationAndEquipment(
+        connection,
+        playerId,
+        bestRarity,
       );
-
-      // 装备掉落：5%概率，稀有度=本场最高NPC稀有度（地图宝箱另链路，须带 equipmentId，见 battles.insertChestEquipmentFromReward）
-      // 匹配规则与 rewardService.randomDrawCards(equipment) 同类 ID 规范一致；
-      // 禁止 LIKE '%_${rarity}___'：LIKE 中 _ 为单字符通配符，并非「下划线+三位数字」。
-      if (Math.random() < EQUIPMENT_DROP_RATE) {
-        const season = 'san_1';
-        const rarityDigit = { common: '1', rare: '2', epic: '3', legendary: '4', core: '5' }[bestRarity] || '2';
-        const idRegexp = `^${season}_equip_[1-3]_${rarityDigit}[0-9]{3}$`;
-        const [equipRows] = await connection.query(
-          `SELECT * FROM config_equipment WHERE season = ? AND equipment_id REGEXP ? ORDER BY RAND() LIMIT 1`,
-          [season, idRegexp]
-        );
-        if (equipRows.length) {
-          const eq = equipRows[0];
-          const instanceId = `equip_${playerId}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
-          // 从equipment_id解析稀有度
-          const eqRarity = { '1':'common','2':'rare','3':'epic','4':'legendary','5':'core' }[eq.equipment_id.match(/_(\d)\d{3}$/)?.[1]] || bestRarity;
-          await connection.query(
-            `INSERT INTO player_cards (instance_id, player_id, card_type, card_id, rarity, is_equipped)
-             VALUES (?, ?, 'equipment', ?, ?, FALSE)`,
-            [instanceId, playerId, eq.equipment_id, eqRarity]
-          );
-          equipmentDrop = { instanceId, equipmentId: eq.equipment_id, name: eq.equipment_name, rarity: eqRarity };
-        }
-      }
+      reputationReward = loot.reputationReward;
+      equipmentDrop = loot.equipmentDrop;
     }
 
     // 4. 更新 war 击杀数

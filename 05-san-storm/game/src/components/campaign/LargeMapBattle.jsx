@@ -108,6 +108,7 @@ export default function LargeMapBattle({
     minRounds,
     maxRounds,
     setBattleEndReason: bm.setBattleEndReason,
+    trimAllyBattleLog: true,
   });
 
   playBattleRoundRef.current = engine.playBattleRound;

@@ -38,6 +38,7 @@ function resolveOpponentType(battleType) {
  * @param {string}       opponentName
  * @param {object|null}  battleSettledRef   - 战役专用：结算触发后置 true（useRef）
  * @param {object}       pendingAwayNoticeRef - 来自 useAwayTimeout，是否弹离开提示
+ * @param {object|null}  [smallMapPveLoot] - 写入战报 rewards.smallMapPveLoot；仅胜利时由后端 applyDeclaredSmallMapPveLoot（匪寨每层即时奖励等）
  * @param {function}     onBattleEnd        - (result, silverSpent, scoreResult, killedIndices, meta) => void
  */
 export function useBattleSettlement({
@@ -59,6 +60,7 @@ export function useBattleSettlement({
   opponentName,
   battleSettledRef,
   pendingAwayNoticeRef,
+  smallMapPveLoot = null,
   onBattleEnd,
 }) {
   const endedRef = useRef(false);
@@ -275,7 +277,7 @@ export function useBattleSettlement({
     return () => clearInterval(check);
     // 仅依赖 battlePlaying/stage：避免 battleTroops 引用每帧变化导致 cleanup 清掉 interval
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [battlePlaying, stage, silverAmount, deploymentFoodCost, battleType, opponentName, playerId, campaignId, defenseReportMeta, recordOnly, siegeDefenderType]);
+  }, [battlePlaying, stage, silverAmount, deploymentFoodCost, battleType, opponentName, playerId, campaignId, defenseReportMeta, recordOnly, siegeDefenderType, smallMapPveLoot]);
 
   const flushAwayEndNotice = useCallback(() => {
     const p = pendingAwayEndRef.current;

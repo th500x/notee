@@ -16,6 +16,8 @@ export const TILE_INFO = {
   fence:  { badge: '🚧', name: '栅栏', attrs: '不可通行\n可破坏 HP 500' },
   trap:   { badge: '⚠️', name: '陷阱', attrs: '可通行 · 移动消耗 +0\n路过扣 50 兵力' },
   chest:  { badge: '📦', name: '宝箱', attrs: '可通行\n可互动获取奖励' },
+  city_medium: { badge: '🏯', name: '中城', attrs: '战略层城点（测试）\n可通行' },
+  city_small: { badge: '🏘️', name: '小城', attrs: '战略层城点（测试）\n可通行' },
 };
 
 /** 着火格：与林/丘移耗叠加；回合末烧兵（见 tacticalBattleEngine + getMoveCost） */
@@ -77,6 +79,8 @@ export function campaignObjectToTileInfoKey(objectId) {
   if (id === 'fence') return 'fence';
   if (id === 'trap') return 'trap';
   if (id === 'chest') return 'chest';
+  if (id === 'city_medium') return 'city_medium';
+  if (id === 'city_small') return 'city_small';
   if (id === 'rock' || id === 'military_tower' || id === 'military_camp') return 'rock';
   return null;
 }
@@ -89,7 +93,17 @@ export function buildCampaignCellTooltipInfo(cell) {
   const onFire = cell?.effect === 'fire';
   const objKey = campaignObjectToTileInfoKey(cell?.object);
   if (objKey && TILE_INFO[objKey]) {
-    const base = TILE_INFO[objKey];
+    let base = TILE_INFO[objKey];
+    if (cell?.cityId || cell?.cityName) {
+      const idLine = cell.cityId ? `配置 ID：${cell.cityId}` : '';
+      const nameLine = cell.cityName ? `名称：${cell.cityName}` : '';
+      const posLine =
+        cell.col != null && cell.row != null ? `郡内格：gx = ${cell.col}, gy = ${cell.row}` : '';
+      base = {
+        ...base,
+        attrs: [base.attrs, idLine, nameLine, posLine].filter(Boolean).join('\n'),
+      };
+    }
     if (!onFire) return base;
     return {
       badge: '🔥',

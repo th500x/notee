@@ -26,6 +26,7 @@ import { playerAPI } from '@/services/playerApi';
 import LineupTab from '@/components/game/tabs/LineupTab';
 import PlaceholderTab from '@/components/game/tabs/PlaceholderTab';
 import WorldMap from '@/components/game/WorldMap';
+import JunCountyQuadPreviewPanel from '@/components/game/JunCountyQuadPreviewPanel';
 import UpdateNoticePanel from '@/components/game/UpdateNoticePanel';
 import { getActiveUpdateNotice } from '@/data/texts/updateAnnouncements';
 import { shouldShowUpdateNotice, dismissUpdateNotice } from '@/utils/updateNoticeLogic';
@@ -48,6 +49,7 @@ function GamePageInner({ onLogout }) {
   const [openPool, setOpenPool] = useState(null); // 'troop' | 'character' | null
   const [openReroll, setOpenReroll] = useState(false);
   const [campaignOpen, setCampaignOpen] = useState(false);
+  const [junQuadPreviewOpen, setJunQuadPreviewOpen] = useState(false);
   const [rerollStatus, setRerollStatus] = useState(null);
   const [skillsMap, setSkillsMap] = useState({});
   const navigate = useNavigate();
@@ -223,13 +225,27 @@ function GamePageInner({ onLogout }) {
         />
       )}
 
-      {playerId && (
+        {playerId && (
         <CampaignCenterPanel
           playerId={playerId}
           open={campaignOpen}
           onClose={() => setCampaignOpen(false)}
           onClaimed={refresh}
         />
+      )}
+
+      {activeTab === null && !eventBusy && (
+        <button
+          type="button"
+          className="fixed bottom-20 right-3 z-[95] px-3 py-2 rounded-lg text-xs font-medium shadow-lg bg-amber-700/90 hover:bg-amber-600 text-white border border-amber-500/50"
+          onClick={() => setJunQuadPreviewOpen(true)}
+        >
+          郡象限测试
+        </button>
+      )}
+
+      {junQuadPreviewOpen && (
+        <JunCountyQuadPreviewPanel onClose={() => setJunQuadPreviewOpen(false)} />
       )}
     </>
   );

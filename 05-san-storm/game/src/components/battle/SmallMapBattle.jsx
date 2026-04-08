@@ -33,7 +33,9 @@ const STAGE = { LOADING: 'loading', READY: 'ready' };
 
 /**
  * @param {Array}   playerUnits
- * @param {string}  [enemyRarity]                    事件模式：决定敌方部队稀有度
+ * @param {string}  [enemyRarity]                    事件模式：敌方整体稀有度（无 enemySlotRarities 时四面同稀有度）
+ * @param {string[]} [enemySlotRarities]             可选：长度 4 时每槽稀有度（匪寨等，见 @shared/utils/smallMapEnemyRoster）
+ * @param {object|null} [smallMapPveLoot]           可选：胜利时写入 rewards.smallMapPveLoot，后端 smallMapBattleLootService 即发奖
  * @param {Array}   [enemyUnits]                     攻城模式：直接传入敌方 NPC 阵容
  * @param {number}  [silverAmount]
  * @param {number}  [playerFood]
@@ -50,6 +52,8 @@ const STAGE = { LOADING: 'loading', READY: 'ready' };
 export default function SmallMapBattle({
   playerUnits,
   enemyRarity,
+  enemySlotRarities = null,
+  smallMapPveLoot = null,
   enemyUnits,
   silverAmount = 0,
   playerFood = 0,
@@ -126,6 +130,7 @@ export default function SmallMapBattle({
     defenseReportMeta, recordOnly, siegeDefenderType, opponentName,
     battleSettledRef: null,
     pendingAwayNoticeRef,
+    smallMapPveLoot,
     onBattleEnd,
   });
 
@@ -142,6 +147,9 @@ export default function SmallMapBattle({
     } else {
       bm.assignRealBattleTroops(playerUnits, enemyRarity || 'common', {
         extraEnemyCharacterIds: eventExtraEnemyCharacterIds,
+        ...(Array.isArray(enemySlotRarities) && enemySlotRarities.length === 4
+          ? { enemySlotRarities }
+          : {}),
       });
     }
 
@@ -152,7 +160,7 @@ export default function SmallMapBattle({
     bm.toggleBattle();
     setStage(STAGE.READY);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playerUnits, enemyUnits, enemyRarity, eventExtraEnemyCharacterIds, bm.allTroops.length]);
+  }, [playerUnits, enemyUnits, enemyRarity, enemySlotRarities, eventExtraEnemyCharacterIds, bm.allTroops.length]);
 
   // ── PVP 攻城：预置敌方阵容时自动开战，避免未点「开始」导致不落战报 ──
   useEffect(() => {

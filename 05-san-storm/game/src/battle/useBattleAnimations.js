@@ -18,6 +18,7 @@ import { mapTileIndex, tacticalTileIndex } from '@shared/utils/tacticalBattleGri
 import { outcomeIfCommanderEliminated } from '@/systems/battleCampaignRules';
 import * as fmt from '@/systems/battleTextFormatter';
 import { moraleInlineColorForTroopBar } from '@/components/battle/battleConstants';
+import { trimSkipForCombatPair, trimSkipForTroop } from '@/battle/battleLogPolicy';
 
 const GAME_BASE_URL =
   typeof import.meta !== 'undefined' && import.meta.env?.BASE_URL != null
@@ -78,6 +79,7 @@ export function resolveSurfaceRoot(battleSurfaceRef, mapCardRef) {
  * @param {function}               params.addLog           - 战斗日志追加函数
  * @param {React.MutableRefObject} params.speedRef         - 动画速度倍率（ref，不触发重渲染）
  * @param {Array}                  params.battleTroops     - 当前战场所有部队（可变数组）
+ * @param {boolean}                [params.trimAllyBattleLog] - 战役：省略友军相关战报行（入库体积）
  */
 export function useBattleAnimations({
   battleSurfaceRef,
@@ -86,6 +88,7 @@ export function useBattleAnimations({
   addLog,
   speedRef,
   battleTroops,
+  trimAllyBattleLog = false,
 }) {
   // ── DOM helpers ───────────────────────────────────────────────────────────
 
@@ -254,7 +257,7 @@ export function useBattleAnimations({
   const battleAttack = useCallback(
     async (atk, def, dmg) => {
       const dir = getAtkDir(atk, def);
-      addLog(fmt.fmtAttack(atk, def), 'attack');
+      if (!trimSkipForCombatPair(trimAllyBattleLog, atk, def)) addLog(fmt.fmtAttack(atk, def), 'attack');
       addBattleAnim(atk, `anim-atk-${dir}`, 400);
       await sleep(200, speedRef.current);
       addBattleAnim(def, 'anim-hit', 500);
@@ -267,16 +270,16 @@ export function useBattleAnimations({
       }
       updateTroopHp(def);
       showDmg(def, `-${dmg}`, 'normal');
-      addLog(fmt.fmtAttackResult(def, dmg), 'attack');
+      if (!trimSkipForCombatPair(trimAllyBattleLog, atk, def)) addLog(fmt.fmtAttackResult(def, dmg), 'attack');
       await sleep(600, speedRef.current);
     },
-    [addLog, addBattleAnim, updateTroopHp, showDmg, getTileEl],
+    [addLog, addBattleAnim, updateTroopHp, showDmg, getTileEl, trimAllyBattleLog],
   );
 
   const battleCrit = useCallback(
     async (atk, def, dmg) => {
       const dir = getAtkDir(atk, def);
-      addLog(fmt.fmtCrit(atk, def), 'crit');
+      if (!trimSkipForCombatPair(trimAllyBattleLog, atk, def)) addLog(fmt.fmtCrit(atk, def), 'crit');
       addBattleAnim(atk, `anim-atk-${dir}`, 400);
       await sleep(200, speedRef.current);
       addBattleAnim(def, 'anim-crit-hit', 600);
@@ -293,20 +296,20 @@ export function useBattleAnimations({
   const battleMiss = useCallback(
     async (atk, def) => {
       const dir = getAtkDir(atk, def);
-      addLog(fmt.fmtMiss(atk, def), 'attack');
+      if (!trimSkipForCombatPair(trimAllyBattleLog, atk, def)) addLog(fmt.fmtMiss(atk, def), 'attack');
       addBattleAnim(atk, `anim-atk-${dir}`, 400);
       await sleep(200, speedRef.current);
       addBattleAnim(def, 'anim-dodge', 600);
       showDmg(def, 'MISS', 'miss');
-      addLog(fmt.fmtMissResult(def), 'miss');
+      if (!trimSkipForCombatPair(trimAllyBattleLog, atk, def)) addLog(fmt.fmtMissResult(def), 'miss');
       await sleep(700, speedRef.current);
     },
-    [addLog, addBattleAnim, showDmg],
+    [addLog, addBattleAnim, showDmg, trimAllyBattleLog],
   );
 
   const battleKill = useCallback(
     async (troop) => {
-      addLog(fmt.fmtKill(troop), 'death');
+      if (!trimSkipForTroop(trimAllyBattleLog, troop)) addLog(fmt.fmtKill(troop), 'death');
       troop.currentTroops = 0;
       // 士气变化：消灭敌方 → 击杀方将领 +10；己方被消灭 → 该将领 -8
       const killerFaction = troop.faction === 'player' ? 'enemy' : 'player';
@@ -334,7 +337,7 @@ export function useBattleAnimations({
         tile.removeAttribute('data-info');
       }
     },
-    [addLog, getTroopLayer, getTileEl, battleTroops],
+    [addLog, getTroopLayer, getTileEl, battleTroops, trimAllyBattleLog],
   );
 
   /** 歼灭后若为主将 hero/boss，返回战役即时胜负 */
@@ -374,12 +377,12 @@ export function useBattleAnimations({
       }
       return { outcome, anyDamage };
     },
-    [mapResult, updateTroopHp, showDmg, addLog, runBattleKill, speedRef],
+    [mapResult, updateTroopHp, showDmg, addLog, runBattleKill, speedRef, trimAllyBattleLog],
   );
 
   const battleRanged = useCallback(
     async (atk, def, dmg, emoji = '➤') => {
-      addLog(fmt.fmtRanged(atk, def), 'attack');
+      if (!trimSkipForCombatPair(trimAllyBattleLog, atk, def)) addLog(fmt.fmtRanged(atk, def), 'attack');
       const atkTile = getTileEl(atk);
       const defTile = getTileEl(def);
       const card = resolveSurfaceRoot(battleSurfaceRef, mapCardRef);
@@ -408,16 +411,16 @@ export function useBattleAnimations({
       def.currentTroops = Math.max(0, def.currentTroops - dmg);
       updateTroopHp(def);
       showDmg(def, `-${dmg}`, 'normal');
-      addLog(fmt.fmtAttackResult(def, dmg), 'attack');
+      if (!trimSkipForCombatPair(trimAllyBattleLog, atk, def)) addLog(fmt.fmtAttackResult(def, dmg), 'attack');
       await sleep(600, speedRef.current);
     },
-    [addLog, getTileEl, battleSurfaceRef, mapCardRef, addBattleAnim, updateTroopHp, showDmg],
+    [addLog, getTileEl, battleSurfaceRef, mapCardRef, addBattleAnim, updateTroopHp, showDmg, trimAllyBattleLog],
   );
 
   const battleSkill = useCallback(
     async (atk, def, dmg, skillName) => {
       const applied = troopDamageToCasualties(def, dmg);
-      addLog(fmt.fmtSkill(atk, def, skillName), 'skill');
+      if (!trimSkipForCombatPair(trimAllyBattleLog, atk, def)) addLog(fmt.fmtSkill(atk, def, skillName), 'skill');
       const flash = document.createElement('div');
       flash.className = 'skill-flash';
       flash.style.background = 'rgba(192,132,252,0.5)';
@@ -438,10 +441,10 @@ export function useBattleAnimations({
       def.currentTroops = Math.max(0, def.currentTroops - applied);
       updateTroopHp(def);
       showDmg(def, `-${applied}`, 'crit');
-      addLog(fmt.fmtSkillResult(def, applied), 'skill');
+      if (!trimSkipForCombatPair(trimAllyBattleLog, atk, def)) addLog(fmt.fmtSkillResult(def, applied), 'skill');
       await sleep(800, speedRef.current);
     },
-    [addLog, battleSurfaceRef, mapCardRef, addBattleAnim, shakeMap, updateTroopHp, showDmg],
+    [addLog, battleSurfaceRef, mapCardRef, addBattleAnim, shakeMap, updateTroopHp, showDmg, trimAllyBattleLog],
   );
 
   // ── 陷阱检查 ─────────────────────────────────────────────────────────────
@@ -455,11 +458,11 @@ export function useBattleAnimations({
         troop.currentTroops = Math.max(0, troop.currentTroops - trapDmg);
         updateTroopHp(troop);
         showDmg(troop, `-${trapDmg} ⚠️`, 'normal');
-        addLog(fmt.fmtTrap(troop, trapDmg), 'attack');
+        if (!trimSkipForTroop(trimAllyBattleLog, troop)) addLog(fmt.fmtTrap(troop, trapDmg), 'attack');
         await sleep(400, speedRef.current);
       }
     },
-    [mapResult, updateTroopHp, showDmg, addLog],
+    [mapResult, updateTroopHp, showDmg, addLog, trimAllyBattleLog],
   );
 
   // ── 移动部队（逐格动画） ──────────────────────────────────────────────────
@@ -469,7 +472,7 @@ export function useBattleAnimations({
       if (!path || path.length === 0) return undefined;
       const dest = path[path.length - 1];
       const fc = troop.faction;
-      addLog(fmt.fmtMove(troop, troop.x, troop.y, dest.x, dest.y), 'move');
+      if (!trimSkipForTroop(trimAllyBattleLog, troop)) addLog(fmt.fmtMove(troop, troop.x, troop.y, dest.x, dest.y), 'move');
 
       // 路径高亮
       const pathHls = [];
@@ -502,7 +505,7 @@ export function useBattleAnimations({
       for (const hl of pathHls) { if (hl && hl.parentNode) hl.remove(); }
       return undefined;
     },
-    [addLog, battleSurfaceRef, mapCardRef, mapResult, clearTroopFromTile, renderTroopOnTile, checkTrap, runBattleKill],
+    [addLog, battleSurfaceRef, mapCardRef, mapResult, clearTroopFromTile, renderTroopOnTile, checkTrap, runBattleKill, trimAllyBattleLog],
   );
 
   // ── 执行攻击 / 反击 ──────────────────────────────────────────────────────
@@ -512,7 +515,7 @@ export function useBattleAnimations({
       const d0 = dist(atk, def);
       const atkRange = troopAttackRange(atk);
       if (d0 > atkRange) {
-        addLog(fmt.fmtOutOfRange(atk, d0, atkRange), 'move');
+        if (!trimSkipForTroop(trimAllyBattleLog, atk)) addLog(fmt.fmtOutOfRange(atk, d0, atkRange), 'move');
         return 0;
       }
       const roll = rollCritDodge(atk, def);
@@ -529,7 +532,7 @@ export function useBattleAnimations({
       else { await battleAttack(atk, def, applied); }
       return applied;
     },
-    [addLog, mapResult, battleMiss, battleCrit, battleRanged, battleAttack],
+    [addLog, mapResult, battleMiss, battleCrit, battleRanged, battleAttack, trimAllyBattleLog],
   );
 
   const performCounterAttack = useCallback(
@@ -538,7 +541,7 @@ export function useBattleAnimations({
       const d = dist(atk, def);
       const defRange = troopAttackRange(def);
       if (d > defRange) return;
-      addLog(fmt.fmtCounter(def), 'attack');
+      if (!trimSkipForCombatPair(trimAllyBattleLog, def, atk)) addLog(fmt.fmtCounter(def), 'attack');
       await sleep(150, speedRef.current);
       const roll = rollCritDodge(def, atk);
       const dmg = calcDamage(def, atk, mapResult ? mapResult.terrain : null);
@@ -554,7 +557,7 @@ export function useBattleAnimations({
       if (atk.currentTroops <= 0) return runBattleKill(atk);
       return undefined;
     },
-    [addLog, mapResult, battleMiss, battleCrit, battleRanged, battleAttack, runBattleKill],
+    [addLog, mapResult, battleMiss, battleCrit, battleRanged, battleAttack, runBattleKill, trimAllyBattleLog],
   );
 
   return {

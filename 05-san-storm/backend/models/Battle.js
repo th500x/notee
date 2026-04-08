@@ -16,6 +16,13 @@ class Battle {
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 14); // 14天后过期
 
+    /** TEXT 上限 65535；战役长日志略超出会致 INSERT 失败（生产曾出现战报落库 500） */
+    const BATTLE_LOG_MAX = 65000;
+    let log = data.battle_log || null;
+    if (typeof log === 'string' && log.length > BATTLE_LOG_MAX) {
+      log = `${log.slice(0, BATTLE_LOG_MAX - 80)}\n…[battle_log 已截断 ${log.length - BATTLE_LOG_MAX + 80} 字符]`;
+    }
+
     await pool.query(`
       INSERT INTO battles (
         battle_id, player_id, war_id,
@@ -45,7 +52,7 @@ class Battle {
       data.result,
       JSON.stringify(data.player_team || null),
       JSON.stringify(data.opponent_team || null),
-      data.battle_log || null,
+      log,
       data.total_damage_dealt || null,
       data.total_damage_taken || null,
       data.total_kills || null,

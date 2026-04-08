@@ -10,6 +10,7 @@ const UserManagerPage = lazy(() => import('@/pages/admin/UserManagerPage'));
 const MailManagerPage = lazy(() => import('@/pages/admin/MailManagerPage'));
 const ActivityManagerPage = lazy(() => import('@/pages/admin/ActivityManagerPage'));
 const CampaignMapGeneratorManagerPage = lazy(() => import('@/pages/admin/CampaignMapGeneratorManagerPage'));
+const JunCountyMapGeneratorManagerPage = lazy(() => import('@/pages/admin/JunCountyMapGeneratorManagerPage'));
 
 function RouteLoading() {
   return (
@@ -112,6 +113,11 @@ function App() {
                       <h3 className="text-lg font-semibold text-gray-900 mb-2 text-center">战役地图</h3>
                       <p className="text-sm text-gray-600 text-center">preset · 随机 seed · 固化 JSON</p>
                     </a>
+                    <a href={`${import.meta.env.BASE_URL}three-kingdoms-map`} className="block bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow cursor-pointer h-full flex flex-col border-2 border-sky-200">
+                      <div className="text-4xl mb-4 text-center">🧭</div>
+                      <h3 className="text-lg font-semibold text-gray-900 mb-2 text-center">三国地图</h3>
+                      <p className="text-sm text-gray-600 text-center">郡象限 · 颍川 A · 底板与城点（测试）</p>
+                    </a>
                     </>
                   )}
                 </div>
@@ -125,6 +131,7 @@ function App() {
             <Route path="/activity-manager" element={<ActivityManagerPage />} />
             <Route path="/campaign-map-demo" element={<Navigate to="/campaign-map-manager" replace />} />
             <Route path="/campaign-map-manager" element={<CampaignMapGeneratorManagerPage />} />
+            <Route path="/three-kingdoms-map" element={<JunCountyMapGeneratorManagerPage />} />
 
           </Routes>
           </Suspense>

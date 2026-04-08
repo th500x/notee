@@ -6,6 +6,10 @@
  * 
  * 评分项：歼敌评分、战损评分、回合倍率（与战报 UI 一致）
  * 
+ * **友军 ally（faction === 'ally'）与歼敌统计**：评分与 `killTroops` 只遍历 **敌方 `faction === 'enemy'`** 的兵力损失，
+ * 故「歼敌」= 敌军总损兵（含友军 ally1/ally2 助攻造成的部分），**不单独拆分「玩家亲自击杀」**；
+ * 友军自身损兵不计入 `lossTroops`（非 player 阵营）。详见本节循环内 `enemy` / `player` 分支。
+ *
  * 计算方式（按兵力损失比例，非「按歼敌人数线性计分」）：
  *   每支敌方部队：round( KILL_SCORE[rarity] × lostRatio )；全灭该部队时贡献至多为 KILL_SCORE[rarity]。
  *   每支己方部队：round( LOSS_PENALTY[rarity] × lostRatio )。

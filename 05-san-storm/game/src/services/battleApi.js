@@ -36,13 +36,19 @@ export const battleAPI = {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(battleData),
       });
-      const data = await response.json();
+      const data = await response.json().catch(() => ({}));
       if (data.success) {
         console.log('[BattleAPI] 战斗记录保存成功', data.battle?.battleId);
         return { success: true, battle: data.battle };
       }
-      console.warn('[BattleAPI] 保存失败', data.message);
-      return { success: false, error: data.message || '保存失败' };
+      const detail = [data.message, data.error, data.sqlMessage].filter(Boolean).join(' | ');
+      console.warn('[BattleAPI] 保存失败', detail || response.status);
+      return {
+        success: false,
+        error: detail || data.message || '保存失败',
+        sqlMessage: data.sqlMessage,
+        status: response.status,
+      };
     } catch (error) {
       console.error('[BattleAPI] 保存请求失败', error);
       return { success: false, error: '网络错误' };

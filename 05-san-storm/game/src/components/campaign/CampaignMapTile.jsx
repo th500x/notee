@@ -91,7 +91,13 @@ function CampaignMapTile({
           <img className="camp-layer" src={objSrc} alt="" onError={() => setOOk(false)} style={{ zIndex: 2 }} />
         ) : (
           <div className="camp-obj-fallback">
-            {cell.object === 'military_camp' ? '营' : cell.object === 'military_tower' ? '塔' : '·'}
+            {cell.object === 'military_camp'
+              ? '营'
+              : cell.object === 'military_tower'
+                ? '塔'
+                : cell.object === 'city_medium' || cell.object === 'city_small'
+                  ? '城'
+                  : '·'}
           </div>
         ))}
       {cell.effect === 'fire' && (

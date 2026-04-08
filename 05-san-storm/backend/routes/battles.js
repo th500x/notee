@@ -9,6 +9,7 @@ const router = express.Router();
 const battleService = require('../services/battleService');
 const campaignService = require('../services/campaignService');
 const statisticsDeltaService = require('../services/statisticsDeltaService');
+const smallMapBattleLootService = require('../services/smallMapBattleLootService');
 
 /**
  * 获取玩家战斗记录列表
@@ -156,13 +157,25 @@ router.post('/', async (req, res) => {
     await battleService.saveChestRewards(playerId, chestRewards);
     await battleService.applyBattlePostEffects(playerId, { troopCasualties, moraleUpdates });
 
+    if (!req.body.recordOnly && result === 'win' && rewards?.smallMapPveLoot) {
+      try {
+        await smallMapBattleLootService.applyDeclaredSmallMapPveLoot(playerId, rewards.smallMapPveLoot);
+      } catch (lootErr) {
+        console.error('[battles] smallMapPveLoot 发放失败:', lootErr);
+      }
+    }
+
     res.status(201).json({ success: true, battle });
   } catch (error) {
-    console.error('[battles] 保存战斗记录失败:', error);
+    console.error('[battles] ========================================');
+    console.error('[battles] 保存战斗记录失败:', error && error.message);
+    if (error && error.sqlMessage) console.error('[battles] MySQL:', error.code, error.sqlMessage);
+    console.error('[battles] ========================================');
     res.status(500).json({
       success: false,
       message: '保存战斗记录失败',
-      error: error.message
+      error: error.message,
+      ...(error.sqlMessage ? { sqlMessage: error.sqlMessage, sqlCode: error.code } : {}),
     });
   }
 });

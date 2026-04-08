@@ -28,6 +28,7 @@ import {
   resolveTileElement,
   useBattleAnimations,
 } from '@/battle/useBattleAnimations';
+import { trimSkipForTroop } from '@/battle/battleLogPolicy';
 
 export { setBattleAnimationSkipDelays };
 
@@ -90,6 +91,8 @@ export function useBattleEngine({
   maxRounds = 30,
   /** 可选：战斗结束时由引擎通知壳层结束原因（含战役主将：'campaign_boss_win' | 'campaign_hero_loss'） */
   setBattleEndReason = null,
+  /** 战役：战报省略友军 ally 流水，减小 battle_log（仅 LargeMapBattle 开启） */
+  trimAllyBattleLog = false,
 }) {
   const speedRef = useRef(1);
   const roundNumRef = useRef(roundNum);
@@ -123,7 +126,7 @@ export function useBattleEngine({
     checkTrap, battleMove,
     performAttack, performCounterAttack,
   } = useBattleAnimations({
-    battleSurfaceRef, mapCardRef, mapResult, addLog, speedRef, battleTroops,
+    battleSurfaceRef, mapCardRef, mapResult, addLog, speedRef, battleTroops, trimAllyBattleLog,
   });
 
   /** 战役主将（boss/hero）即时胜负：写入 battleEndReason，供 useBattleSettlement 在「敌军未全灭」等情况下仍能结算 */
@@ -575,7 +578,7 @@ export function useBattleEngine({
       if (midPlayers.length === 0) { addLog(fmt.fmtBattleEnd('enemy_win'),  'death'); return 'enemy_win'; }
       if (midEnemies.length === 0) { addLog(fmt.fmtBattleEnd('player_win'), 'round'); return 'player_win'; }
 
-      addLog(fmt.fmtTurnStart(troop), 'round');
+      if (!trimSkipForTroop(trimAllyBattleLog, troop)) addLog(fmt.fmtTurnStart(troop), 'round');
       await sleep(200, speedRef.current);
 
       // ── 手动模式：仅 faction:'player' 我军暂停；faction:'ally' 友军 NPC 走下方 AI
@@ -588,7 +591,11 @@ export function useBattleEngine({
       // ── AI 决策（自动模式 或 敌方/友军 NPC 部队） ──
       const shouldChest = autoBattleRef.current && troop.faction === 'player';
       const decision = _findBestMoveTarget(troop, battleTroops, mapResult, { prioritizeChests: shouldChest });
-      if (!decision) { addLog(fmt.fmtNoTarget(troop), 'move'); await sleep(200, speedRef.current); continue; }
+      if (!decision) {
+        if (!trimSkipForTroop(trimAllyBattleLog, troop)) addLog(fmt.fmtNoTarget(troop), 'move');
+        await sleep(200, speedRef.current);
+        continue;
+      }
 
       if (decision.move && decision.move.length > 0) {
         const campMove = await battleMove(troop, decision.move);
@@ -613,11 +620,11 @@ export function useBattleEngine({
               return notifyCampaignCommanderEnd(ca);
             }
           }
-        } else {
+        } else if (!trimSkipForTroop(trimAllyBattleLog, troop)) {
           addLog(fmt.fmtOutOfRange(troop, d, troopAttackRange(troop)), 'move');
         }
       } else if (!decision.target) {
-        addLog(fmt.fmtStillOutOfRange(troop), 'move');
+        if (!trimSkipForTroop(trimAllyBattleLog, troop)) addLog(fmt.fmtStillOutOfRange(troop), 'move');
       }
 
       // 自动战斗宝箱开启（player 部队行动后检查脚下宝箱）
@@ -640,7 +647,7 @@ export function useBattleEngine({
     if (eAlive.length === 0) { addLog(fmt.fmtBattleEnd('player_win'), 'round'); return 'player_win'; }
     addLog(fmt.fmtRoundEnd(pAlive.length, eAlive.length), 'round');
     return 'continue';
-  }, [battleTroops, setBattleTroops, setRoundNum, autoFormation, mapResult, addLog,
+  }, [battleTroops, setBattleTroops, setRoundNum, autoFormation, mapResult, addLog, trimAllyBattleLog,
       applyFormationBuffs, formationGroupAction, battleMove, performAttack, runBattleKill, performCounterAttack,
       applyEndOfRoundFire, notifyCampaignCommanderEnd, checkChestAuto]);
 

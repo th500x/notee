@@ -185,7 +185,21 @@ export function getCampaignMapTroopPortraitUrlAttempts(troopId, baseUrl = '', fa
         rarity: 'common',
         weaponType: 'infantry_saber',
       };
-  return troopPortraitAttemptsSan1BattleSubdir(stub, baseUrl, battleTroopSubdirForFaction(faction));
+  const sub = battleTroopSubdirForFaction(faction);
+  const primary = troopPortraitAttemptsSan1BattleSubdir(stub, baseUrl, sub);
+  // 仓库当前仅保证 `san_1_battle/ally1/` 有素材；ally2 格若无对应目录则 404，
+  // 追加 ally1 同名链，浏览器仍会尝试加载但最终能落到稀有度兜底图。
+  if (sub === 'ally2') {
+    const fb = troopPortraitAttemptsSan1BattleSubdir(stub, baseUrl, 'ally1');
+    const seen = new Set(primary);
+    for (const u of fb) {
+      if (!seen.has(u)) {
+        primary.push(u);
+        seen.add(u);
+      }
+    }
+  }
+  return primary;
 }
 
 export function getTroopCardPrimaryUrl(troop, baseUrl = '') {

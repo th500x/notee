@@ -6,6 +6,7 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { generateSmallMap } from '@shared/utils/mapGenerator';
+import { buildSmallMapEnemyRosterPicks } from '@shared/utils/smallMapEnemyRoster';
 import { getBattleFieldTroopPortraitUrlAttempts } from '@shared/utils/troopIconUrls';
 import { API_CONFIG } from '@/constants';
 import { initialMoraleFromCharacter } from '@/utils/npcMorale';
@@ -92,7 +93,9 @@ export function useBattleMap() {
   // ── 分配战场部队（真实编组 + 事件稀有度敌方） ──
   /**
    * @param {Array} playerUnits - 我方单位（1~5个）
-   * @param {string} eventRarity - 事件稀有度（common/rare/epic/legendary），决定敌方部队
+   * @param {string} eventRarity - 事件稀有度（common/rare/epic/legendary），决定敌方部队（无 enemySlotRarities 时四面同稀有度）
+   * @param {object} [opts]
+   * @param {string[]} [opts.enemySlotRarities] - 长度 4 时每槽独立稀有度（匪寨等）；与 5 将领位惩罚战互斥
    */
   const assignRealBattleTroops = useCallback((playerUnits, eventRarity = 'common', opts = {}) => {
     const t = allTroops;
@@ -147,8 +150,11 @@ export function useBattleMap() {
     // ── 敌方：按事件稀有度从配置池选将领 + 部队（可选：指定额外敌方将领 → 5 部队 / 3 将领位） ──
     const rarityMap = { common: 'common', rare: 'rare', epic: 'epic', legendary: 'legendary', core: 'core' };
     const targetRarity = rarityMap[eventRarity] || 'common';
+    const mixedSlots =
+      !useFiveEnemy && Array.isArray(opts.enemySlotRarities) && opts.enemySlotRarities.length === 4;
 
     let enemyChars;
+    let enemyTroopConfigs;
     if (useFiveEnemy) {
       const forced = [];
       const forcedIds = new Set();
@@ -172,19 +178,29 @@ export function useBattleMap() {
         if (si > shuffled.length * 4) break;
       }
       while (enemyChars.length < 3) enemyChars.push(shuffled[0] || null);
+      const troopPool = t.filter((tr) => tr.rarity === targetRarity);
+      const troopSrc = troopPool.length > 0 ? troopPool : t;
+      const shuffledTroops = [...troopSrc].sort(() => Math.random() - 0.5);
+      enemyTroopConfigs = [];
+      for (let i = 0; i < enemyCount; i++) {
+        enemyTroopConfigs.push(shuffledTroops[i % shuffledTroops.length]);
+      }
+    } else if (mixedSlots) {
+      const picks = buildSmallMapEnemyRosterPicks(t, c, opts.enemySlotRarities);
+      enemyChars = picks.pairChars;
+      enemyTroopConfigs = picks.troops;
     } else {
       const charPool = c.filter((ch) => ch.rarity === targetRarity);
       const charSrc = charPool.length >= 2 ? charPool : c;
       const shuffledChars = [...charSrc].sort(() => Math.random() - 0.5);
       enemyChars = [shuffledChars[0] || null, shuffledChars[1 % shuffledChars.length] || null];
-    }
-
-    const troopPool = t.filter(tr => tr.rarity === targetRarity);
-    const troopSrc = troopPool.length > 0 ? troopPool : t;
-    const shuffledTroops = [...troopSrc].sort(() => Math.random() - 0.5);
-    const enemyTroopConfigs = [];
-    for (let i = 0; i < enemyCount; i++) {
-      enemyTroopConfigs.push(shuffledTroops[i % shuffledTroops.length]);
+      const troopPool = t.filter((tr) => tr.rarity === targetRarity);
+      const troopSrc = troopPool.length > 0 ? troopPool : t;
+      const shuffledTroops = [...troopSrc].sort(() => Math.random() - 0.5);
+      enemyTroopConfigs = [];
+      for (let i = 0; i < enemyCount; i++) {
+        enemyTroopConfigs.push(shuffledTroops[i % shuffledTroops.length]);
+      }
     }
 
     const enemyResult = enemyTroopConfigs.map((tr, i) => {
