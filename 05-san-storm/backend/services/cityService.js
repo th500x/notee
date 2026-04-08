@@ -90,6 +90,28 @@ const WIN_REPUTATION_REWARD = {
 // 攻城 NPC 胜利且有击杀：至多触发一次 5% 掷骰掉落 1 件装备（与战术地图宝箱无关；宝箱经 POST /api/battles body.chestRewards 入库）
 const EQUIPMENT_DROP_RATE = 0.05;
 
+/** npc_garrison 存库仅支持 { units: Array, ledgerAt?: string }；根级 JSON 数组不再解析（须先跑 wrap-* 迁移） */
+function parseNpcGarrisonStored(raw) {
+  if (raw == null || raw === '') return { units: null, ledgerAt: null };
+  const v = typeof raw === 'string' ? JSON.parse(raw) : raw;
+  if (Array.isArray(v)) return { units: null, ledgerAt: null };
+  if (v && typeof v === 'object' && Array.isArray(v.units)) {
+    const la = v.ledgerAt;
+    if (la == null) return { units: v.units, ledgerAt: null };
+    const d = la instanceof Date ? la : new Date(la);
+    return { units: v.units, ledgerAt: Number.isNaN(d.getTime()) ? null : d };
+  }
+  return { units: null, ledgerAt: null };
+}
+
+function serializeNpcGarrisonStored(units, ledgerAt = new Date()) {
+  if (units == null) return null;
+  return JSON.stringify({
+    units,
+    ledgerAt: ledgerAt != null ? new Date(ledgerAt).toISOString() : null,
+  });
+}
+
 /**
  * 按权重随机选择稀有度
  */
@@ -189,7 +211,7 @@ async function generateNpcGarrison(cityId, opts = {}) {
   await pool.query(
     `UPDATE cities SET npc_garrison = ?, npc_garrison_alive = ?, npc_max_rarity = ?
      WHERE id = ?`,
-    [JSON.stringify(npcUnits), troopCount, maxRarity, cityId]
+    [serializeNpcGarrisonStored(npcUnits, new Date()), troopCount, maxRarity, cityId]
   );
 
   return { npcGarrison: npcUnits, npcCount: troopCount };
@@ -202,11 +224,8 @@ async function getCityInfo(cityId) {
   const [rows] = await pool.query('SELECT * FROM cities WHERE id = ?', [cityId]);
   if (!rows.length) return null;
   const city = rows[0];
-  let npcGarrison = null;
-  if (city.npc_garrison) {
-    npcGarrison = typeof city.npc_garrison === 'string' ? JSON.parse(city.npc_garrison) : city.npc_garrison;
-  }
-  return { ...city, npc_garrison: npcGarrison };
+  const { units, ledgerAt } = parseNpcGarrisonStored(city.npc_garrison);
+  return { ...city, npc_garrison: units, npcGarrisonLedgerAt: ledgerAt };
 }
 
 /**
@@ -296,11 +315,10 @@ async function initiateSiege(cityId, playerId) {
     const totalNpc = city.npc_garrison.length;
     if (city.npc_garrison_alive < totalNpc) {
       const now = new Date();
-      const updatedAt = new Date(city.updated_at);
-      // 计算上次更新后的下一个8:00
-      const next8am = new Date(updatedAt);
+      const anchor = city.npcGarrisonLedgerAt ? new Date(city.npcGarrisonLedgerAt) : new Date(0);
+      const next8am = new Date(anchor);
       next8am.setHours(8, 0, 0, 0);
-      if (next8am <= updatedAt) next8am.setDate(next8am.getDate() + 1);
+      if (next8am <= anchor) next8am.setDate(next8am.getDate() + 1);
       if (now >= next8am) needRefresh = true;
     }
   }
@@ -309,6 +327,7 @@ async function initiateSiege(cityId, playerId) {
     const refreshed = await getCityInfo(cityId);
     city.npc_garrison = refreshed.npc_garrison;
     city.npc_garrison_alive = refreshed.npc_garrison_alive;
+    city.npcGarrisonLedgerAt = refreshed.npcGarrisonLedgerAt;
   }
 
   // 查找或创建活跃的 war 记录
@@ -630,21 +649,20 @@ async function recordSiegeResult(warId, playerId, factionId, killedIndices, resu
       [war.target_city_id]
     );
     if (cityRows.length) {
-      let garrison = cityRows[0].npc_garrison;
-      if (typeof garrison === 'string') garrison = JSON.parse(garrison);
-      if (garrison) {
+      const { units: unitArr } = parseNpcGarrisonStored(cityRows[0].npc_garrison);
+      if (unitArr && unitArr.length) {
         for (const idx of killedIndices) {
-          if (garrison[idx] && garrison[idx].alive) {
-            garrison[idx].alive = false;
-            silverReward += KILL_SILVER_REWARD[garrison[idx].rarity] || 10;
+          if (unitArr[idx] && unitArr[idx].alive) {
+            unitArr[idx].alive = false;
+            silverReward += KILL_SILVER_REWARD[unitArr[idx].rarity] || 10;
             actualKillCount++;
           }
         }
-        const aliveCount = garrison.filter(u => u.alive).length;
+        const aliveCount = unitArr.filter(u => u.alive).length;
         npcAliveAfterUpdate = aliveCount;
         await connection.query(
           'UPDATE cities SET npc_garrison = ?, npc_garrison_alive = ? WHERE id = ?',
-          [JSON.stringify(garrison), aliveCount, war.target_city_id]
+          [serializeNpcGarrisonStored(unitArr, new Date()), aliveCount, war.target_city_id]
         );
       }
     }
@@ -669,9 +687,8 @@ async function recordSiegeResult(warId, playerId, factionId, killedIndices, resu
       const [cityCheck] = await connection.query('SELECT npc_garrison FROM cities WHERE id = ?', [war.target_city_id]);
       let killedRarities = [];
       if (cityCheck.length) {
-        let g = cityCheck[0].npc_garrison;
-        if (typeof g === 'string') g = JSON.parse(g);
-        if (g) killedRarities = killedIndices.map(i => g[i]?.rarity).filter(Boolean);
+        const { units: gArr } = parseNpcGarrisonStored(cityCheck[0].npc_garrison);
+        if (gArr) killedRarities = killedIndices.map(i => gArr[i]?.rarity).filter(Boolean);
       }
       const rarityOrder = ['common', 'rare', 'epic', 'legendary', 'core'];
       const bestRarity = killedRarities.sort((a, b) => rarityOrder.indexOf(b) - rarityOrder.indexOf(a))[0] || 'common';
@@ -863,6 +880,7 @@ module.exports = {
   initiateSiege,
   recordSiegeResult,
   getWarStatus,
+  parseNpcGarrisonStored,
   CITY_MAX_RARITY,
   NPC_TROOP_COUNT_NEUTRAL,
   NPC_TROOP_COUNT_OWNED,

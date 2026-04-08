@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS cities (
   -- 五大属性
   population INT DEFAULT 0 COMMENT '人口',
   commerce INT DEFAULT 0 COMMENT '商业值',
-  agriculture INT DEFAULT 0 COMMENT '农业值',
+  farming INT DEFAULT 0 COMMENT '农业值',
   military INT DEFAULT 0 COMMENT '军事值',
   culture INT DEFAULT 0 COMMENT '文化值',
 
@@ -36,9 +36,6 @@ CREATE TABLE IF NOT EXISTS cities (
 
   -- 状态
   status ENUM('neutral', 'contested', 'owned') DEFAULT 'neutral' COMMENT '城市状态',
-
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 
   INDEX idx_season (season),
   INDEX idx_faction (faction_id),

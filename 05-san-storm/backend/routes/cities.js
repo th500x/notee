@@ -45,11 +45,8 @@ router.get('/', async (req, res) => {
     const [rows] = await pool.query(`SELECT * FROM cities ${where} ORDER BY city_type, city_name`, params);
 
     const cities = rows.map(c => {
-      let npcGarrison = null;
-      if (c.npc_garrison) {
-        npcGarrison = typeof c.npc_garrison === 'string' ? JSON.parse(c.npc_garrison) : c.npc_garrison;
-      }
-      return { ...c, npc_garrison: npcGarrison };
+      const { units } = cityService.parseNpcGarrisonStored(c.npc_garrison);
+      return { ...c, npc_garrison: units };
     });
 
     res.json({ success: true, cities, count: cities.length });
@@ -67,7 +64,8 @@ router.get('/:cityId', async (req, res) => {
   try {
     const city = await cityService.getCityInfo(req.params.cityId);
     if (!city) return res.status(404).json({ success: false, error: '城市不存在' });
-    res.json({ success: true, data: city });
+    const { npcGarrisonLedgerAt, ...data } = city;
+    res.json({ success: true, data });
   } catch (error) {
     console.error('[Cities] 获取城市详情失败:', error);
     res.status(500).json({ success: false, error: '获取城市详情失败' });
