@@ -150,6 +150,20 @@ export function buildTroopTooltipContent(troop) {
   return { type: 'troop', troop, fc, hpPct, rarityName, typeName, charLine, critDodge, isEnemy: troop.faction === 'enemy' };
 }
 
+/**
+ * 小型/大型地图共用的 tile-tooltip 位移。
+ * 部队 tooltip 一律在指针**上方**展开，避免敌方原先「向下」偏移在靠近视口底边时裁切射程等末行。
+ */
+export function tooltipTransformForContent(content) {
+  if (content?.type === 'troop') {
+    return 'translate(-50%, calc(-100% - 10px))';
+  }
+  if (content?.isEnemy) {
+    return 'translate(-50%, 10px)';
+  }
+  return 'translate(-50%, calc(-100% - 10px))';
+}
+
 /** 图片路径基础 */
 export const ASSET_BASE = `${import.meta.env.BASE_URL}assets/san_1_map/`;
 

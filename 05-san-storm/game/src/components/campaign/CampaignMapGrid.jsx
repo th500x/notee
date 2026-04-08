@@ -2,7 +2,9 @@ import { forwardRef, useState, useCallback, useRef } from 'react';
 import CampaignMapTile from './CampaignMapTile';
 import CampaignMapUnitsOverlay from './CampaignMapUnitsOverlay';
 import { manualHighlightForTacticalCell } from '@/battle/manualHighlightModel';
-import { buildTroopTooltipContent, buildCampaignCellTooltipInfo } from '@/components/battle/battleConstants';
+import {
+  buildTroopTooltipContent, buildCampaignCellTooltipInfo, tooltipTransformForContent,
+} from '@/components/battle/battleConstants';
 import TileTooltipContent from '@/components/battle/TileTooltipContent';
 import '@/components/battle/BattleMap.css';
 import './CampaignMapGrid.css';
@@ -196,7 +198,7 @@ const CampaignMapGrid = forwardRef(function CampaignMapGrid(
               left: tooltipPos.x,
               top: tooltipPos.y,
               display: 'block',
-              transform: tooltipContent.isEnemy ? 'translate(-50%, 10px)' : 'translate(-50%, calc(-100% - 10px))',
+              transform: tooltipTransformForContent(tooltipContent),
               zIndex: 9999,
             }}
           >

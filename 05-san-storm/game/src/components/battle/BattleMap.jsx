@@ -2,7 +2,9 @@
  * BattleMap - 战术格网网格 + 行标签 + 区域色条（尺寸见 tacticalBattleGrid）
  */
 import { memo, useCallback, useRef, useState, useMemo } from 'react';
-import { MAP_W, MAP_H, ZONE, buildTroopTooltipContent, buildTacticalTileTooltipInfo } from './battleConstants';
+import {
+  MAP_W, MAP_H, ZONE, buildTroopTooltipContent, buildTacticalTileTooltipInfo, tooltipTransformForContent,
+} from './battleConstants';
 import { MANUAL_PHASE } from '@/hooks/useManualBattle';
 import { manualHighlightForTacticalCell } from '@/battle/manualHighlightModel';
 import BattleTile from './BattleTile';
@@ -247,7 +249,7 @@ function BattleMap({
             left: tooltipPos.x,
             top: tooltipPos.y,
             display: 'block',
-            transform: tooltipContent.isEnemy ? 'translate(-50%, 10px)' : 'translate(-50%, calc(-100% - 10px))',
+            transform: tooltipTransformForContent(tooltipContent),
           }}
         >
           <TileTooltipContent content={tooltipContent} />
