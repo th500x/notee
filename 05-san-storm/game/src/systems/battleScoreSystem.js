@@ -17,22 +17,22 @@
  */
 
 // ── 歼敌评分：稀有度基础分表（单部队 100% 损失时的满分贡献） ──
-// 说明：数值为固定常量，不从 maxTroops 参与运算；与 troops.json 标准上限对齐（普通200 / 稀有280 / 史诗360 / 传奇440 / 核心520；核心另有600上限卡用同一稀有度表）
+// 说明：数值为固定常量，不从 maxTroops 参与运算；core=800 与 troops.json / config_troops 中 core 默认兵力上限对齐（产品约定）。
 const KILL_SCORE = {
   common: 200,
-  rare: 280,
-  epic: 360,
-  legendary: 440,
-  core: 520,
+  rare: 330,
+  epic: 460,
+  legendary: 600,
+  core: 800,
 };
 
 // ── 战损评分：稀有度惩罚分表（单部队 100% 损失时的满额扣分贡献） ──
 const LOSS_PENALTY = {
   common: -300,
-  rare: -420,
-  epic: -540,
-  legendary: -660,
-  core: -780,
+  rare: -495,
+  epic: -690,
+  legendary: -900,
+  core: -1200,
 };
 
 // ── 回合倍率 ──

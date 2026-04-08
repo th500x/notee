@@ -4,22 +4,22 @@
  * 评分 = 各部队 round(基础分×损失比例) 之和；与 killTroops/lossTroops（兵力人数）不同量纲。
  */
 
-// ── 歼敌评分：稀有度基础分表（与 frontend battleScoreSystem.js 同步） ──
+// ── 歼敌评分：稀有度基础分表（不从 maxTroops 推导；core=800 与部队配置默认上限对齐） ──
 const KILL_SCORE = {
   common: 200,
-  rare: 280,
-  epic: 360,
-  legendary: 440,
-  core: 520,
+  rare: 330,
+  epic: 460,
+  legendary: 600,
+  core: 800,
 };
 
 // ── 战损评分：稀有度惩罚分表 ──
 const LOSS_PENALTY = {
   common: -300,
-  rare: -420,
-  epic: -540,
-  legendary: -660,
-  core: -780,
+  rare: -495,
+  epic: -690,
+  legendary: -900,
+  core: -1200,
 };
 
 const TURN_MULTIPLIER = {
