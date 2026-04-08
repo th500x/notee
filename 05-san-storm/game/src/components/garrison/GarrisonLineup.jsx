@@ -433,10 +433,10 @@ export default function GarrisonLineup({ onClose }) {
                 <div style={{ transform: `scale(${CARD_SCALE_DETAIL_MODAL})`, transformOrigin: 'top center' }}>
                   {detailCard.card.card_type === 'character' ? (
                     <CharacterCard character={overlayChar} skillsMap={skillsMap} showDetails={true}
-                      baseUrl={baseUrl} lifeStageData={lifeStageData} />
+                      baseUrl={baseUrl} lifeStageData={lifeStageData} disableHoverScale />
                   ) : detailCard.card.card_type === 'troop' ? (
                     <TroopCard troop={toTroopCardData(detailCard.card)} skillsMap={skillsMap}
-                      showDetails={true} baseUrl={baseUrl} />
+                      showDetails={true} baseUrl={baseUrl} disableHoverScale />
                   ) : detailCard.card.card_type === 'title' ? (
                     <TitleAchievementCard item={toTitleCardData(detailCard.card)} type="title" baseUrl={baseUrl} />
                   ) : detailCard.card.card_type === 'equipment' ? (
@@ -547,7 +547,7 @@ function GarrisonDrawer({ slot, cards, skillsMap, onSelect, onClose }) {
                       style={{ width: 128, height: isCharSlot ? 192 : isTitleSlot ? 96 : isEquipSetSlot ? 96 : 192 }}>
                       <div style={{ transform: 'scale(0.5)', transformOrigin: 'top left', width: 256 }}>
                         {isCharSlot ? (
-                          <CharacterCard character={toCharCardData(card)} skillsMap={skillsMap} showDetails={false} baseUrl={baseUrl} />
+                          <CharacterCard character={toCharCardData(card)} skillsMap={skillsMap} showDetails={false} baseUrl={baseUrl} disableHoverScale />
                         ) : isTitleSlot ? (
                           <TitleAchievementCard item={toTitleCardData(card)} type="title" baseUrl={baseUrl} />
                         ) : isEquipSetSlot ? (
@@ -556,7 +556,7 @@ function GarrisonDrawer({ slot, cards, skillsMap, onSelect, onClose }) {
                             <div className="text-stone-400 text-xs">装备卡</div>
                           </div>
                         ) : (
-                          <TroopCard troop={toTroopCardData(card)} skillsMap={skillsMap} showDetails={true} baseUrl={baseUrl} />
+                          <TroopCard troop={toTroopCardData(card)} skillsMap={skillsMap} showDetails={true} baseUrl={baseUrl} disableHoverScale />
                         )}
                       </div>
                     </div>

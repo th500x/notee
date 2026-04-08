@@ -4,59 +4,21 @@ import { getTroopPortraitUrlAttempts } from '../../utils/troopIconUrls';
 
 /**
  * 部队卡牌组件（共享版本）
- * 
+ *
  * @description 显示部队的详细信息，包括属性、技能、相性、地形适应等
- * 
- * 尺寸: 256 × 384 px (2:3比例)
- * 布局: 竖版卡牌
- * 
- * @param {Object} troop - 部队数据对象
- * @param {string} troop.id - 部队ID
- * @param {string} troop.name - 部队名称
- * @param {string} troop.rarity - 稀有度 (core/legendary/epic/rare/common)
- * @param {string} troop.troopType - 兵种类型 (infantry/cavalry/archer)
- * @param {string} [troop.weaponType] - 武器类型，用于图标路径
- * @param {string} [troop.iconPath] - 自定义图标路径
- * @param {string} [troop.faction] - 势力名称
- * @param {number} troop.attack - 攻击力
- * @param {number} troop.defense - 防御力
- * @param {number} troop.speed - 速度
- * @param {number} troop.movement - 移速
- * @param {number} troop.maxTroops - 最大兵力
- * @param {number} [troop.currentTroops] - 当前兵力（可选，用于显示损耗）
- * @param {number} [troop.range] - 射程（可选）
- * @param {number} [troop.infantryCounter] - 对步兵克制倍率
- * @param {number} [troop.cavalryCounter] - 对骑兵克制倍率
- * @param {number} [troop.archerCounter] - 对弓兵克制倍率
- * @param {number} [troop.siegeCounter] - 对攻城克制倍率
- * @param {number} [troop.plainAdapt] - 平原适应性
- * @param {number} [troop.hillAdapt] - 丘陵适应性
- * @param {number} [troop.forestAdapt] - 树林适应性
- * @param {number} [troop.siegeAdapt] - 攻城适应性
- * @param {string[]} [troop.skills] - 技能ID数组
- * @param {string} [troop.description] - 部队描述
- * 
- * @param {Object} [skillsMap={}] - 技能映射对象 {skillId: {name, description, rarity}}
- * @param {boolean} [showDetails=true] - 是否显示详细信息
- * @param {string} [baseUrl=''] - 资源基础路径（用于图片加载）
- * @param {Function} [onSelect] - 选择回调函数
- * 
- * @example
- * <TroopCard 
- *   troop={troopData} 
- *   skillsMap={skills}
- *   showDetails={true}
- *   baseUrl="/05-san-storm/"
- *   onSelect={(troop) => console.log(troop)}
- * />
+ *
+ * 尺寸: 外框固定 256 × 384 px（与 CharacterCard 一致）；超出内容在牌内纵向滚动。
+ *
+ * @param {boolean} [disableHoverScale=false] - 为 true 时关闭 hover 放大（卡池/背包等缩略列表，避免窄屏溢出）
  */
-const TroopCard = ({ 
-  troop, 
-  skillsMap = {}, 
+const TroopCard = ({
+  troop,
+  skillsMap = {},
   showDetails = true,
   compactMode = false,
   baseUrl = '',
-  onSelect
+  onSelect,
+  disableHoverScale = false,
 }) => {
   const [activeTooltip, setActiveTooltip] = useState(null);
   /** 按序尝试的立绘 URL（含 troop/troops/_raw 与稀有度兜底） */
@@ -150,32 +112,32 @@ const TroopCard = ({
       '汉室': 'san_1_faction_6001',
       '黄巾': 'san_1_faction_7001',
     };
-    
+
     const factionId = factionToId[troop.faction] || 'san_1_faction_0001';
     return `${baseUrl}assets/san_1_battle/faction/${factionId}.png`;
   };
 
-  // 处理点击事件
   const handleClick = () => {
     if (onSelect) {
       onSelect(troop);
     }
   };
 
+  const hoverScaleClass = disableHoverScale ? '' : 'hover:scale-105 hover:shadow-2xl';
+
   return (
-    <div 
-      className={`relative w-[256px] group ${onSelect ? 'cursor-pointer' : ''}`}
+    <div
+      className={`relative w-[256px] h-[384px] group ${onSelect ? 'cursor-pointer' : ''}`}
       onClick={handleClick}
     >
-      {/* 卡牌容器 */}
-      <div 
+      <div
         className={`
-          relative w-full ${compactMode ? '' : (troop.description ? 'min-h-[384px]' : 'h-[384px]')}
+          relative w-full h-full flex flex-col
           rounded-xl overflow-hidden
           border-2 ${rarity.border}
           shadow-xl ${rarity.glow}
           transition-all duration-300
-          hover:scale-105 hover:shadow-2xl
+          ${hoverScaleClass}
         `}
         style={{
           backgroundImage: `url(${getCardBackground()})`,
@@ -184,21 +146,20 @@ const TroopCard = ({
           backgroundColor: '#1f2937',
         }}
       >
-        
+
         {/* 顶部：部队名称区域 */}
         <div className={`
-          relative h-[40px] px-3 py-2
+          relative h-[40px] flex-shrink-0 px-3 py-2
           bg-black/10 backdrop-blur-sm
           flex items-center justify-between
         `}>
-          <div className="flex items-center gap-2">
-            <span className="text-xl">{troopType.icon}</span>
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-xl flex-shrink-0">{troopType.icon}</span>
             <h3 className="text-gray-900 font-bold text-lg truncate">
               {troop.name}
             </h3>
           </div>
-          <div className="flex items-center gap-1">
-            {/* 耐久度（使用次数）— 仅当传入 battleCount/maxBattleCount 时显示 */}
+          <div className="flex items-center gap-1 flex-shrink-0">
             {troop.maxBattleCount != null && (
               <div className="px-2 py-0.5 rounded bg-black/20 backdrop-blur-sm text-xs font-medium text-gray-900">
                 🚩{(troop.maxBattleCount - (troop.battleCount || 0))}/{troop.maxBattleCount}
@@ -215,13 +176,12 @@ const TroopCard = ({
         </div>
 
         {/* 中间：部队图标区域 */}
-        <div className="relative h-[90px]">
+        <div className="relative h-[90px] flex-shrink-0">
           <div className="absolute inset-0 opacity-5">
             <div className={`absolute inset-0 bg-gradient-to-br ${rarity.bg}`} />
           </div>
 
           <div className="relative h-full flex items-center pl-6 pr-3 gap-6">
-            {/* 左侧：部队图标 */}
             <div className="relative w-[70px] h-[70px] flex-shrink-0">
               <div className={`
                 absolute inset-0 rounded-lg
@@ -247,7 +207,6 @@ const TroopCard = ({
                 </div>
               </div>
 
-              {/* 势力标记 - 右上角 */}
               {troop.faction && (
                 <div className="absolute -top-1 -right-1 w-[18px] h-[18px] rounded-full bg-white/90 backdrop-blur-sm border border-gray-300 shadow-md flex items-center justify-center overflow-hidden">
                   <img
@@ -265,7 +224,6 @@ const TroopCard = ({
                 </div>
               )}
 
-              {/* 兵力标识 - 右下角 */}
               <div className={`absolute -bottom-0.5 -right-0.5 px-0.5 rounded-full backdrop-blur-sm border text-[9px] font-bold shadow-md flex items-center gap-0.5 ${
                 troop.currentTroops !== undefined && troop.currentTroops < troop.maxTroops
                   ? 'bg-yellow-400/90 border-yellow-500 text-gray-900'
@@ -280,24 +238,21 @@ const TroopCard = ({
               </div>
             </div>
 
-            {/* 右侧：部队信息 */}
-            <div className="flex-1 flex flex-col gap-1 text-xs">
-              {/* 攻击距离 - 小方格可视化 */}
-              {troop.range && (
-                <div className="flex items-center gap-1.5 mb-0.5">
+            <div className="flex-1 flex flex-col gap-1 text-xs min-w-0">
+              {troop.range ? (
+                <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
                   <span className="text-purple-400">🎯</span>
-                  <div className="flex items-center gap-0.5">
+                  <div className="flex items-center gap-0.5 flex-wrap">
                     {Array.from({ length: troop.range }, (_, i) => (
                       <div
                         key={i}
-                        className="w-[10px] h-[10px] rounded-sm bg-green-500/80 border border-green-400"
+                        className="w-[10px] h-[10px] rounded-sm bg-green-500/80 border border-green-400 flex-shrink-0"
                       />
                     ))}
                   </div>
                 </div>
-              )}
+              ) : null}
 
-              {/* 四个属性 - 2列2行 */}
               <div className="grid grid-cols-2 gap-x-3 gap-y-1">
                 <div className="flex items-center gap-1">
                   <span className="text-red-400">⚔️</span>
@@ -327,141 +282,139 @@ const TroopCard = ({
           </div>
         </div>
 
-        {/* 技能区域 */}
-        {(showDetails || compactMode) && troop.skills && troop.skills.length > 0 && (
-          <div className="relative pl-6 pr-3 py-1.5 border-t-2 border-gray-400/40">
-            <div className="flex items-center gap-1 mb-0.5">
-              <span className="text-purple-400 text-xs">⚔️</span>
-              <span className="text-gray-700 text-xs font-medium">技能</span>
-            </div>
-            <div className="grid grid-cols-3 gap-1.5">
-              {troop.skills.slice(0, 3).map((skillId, index) => {
-                const skill = skillsMap[skillId];
-                const isActive = skillId.startsWith('skill_1_');
-                const tooltipKey = `skill_${index}`;
-                const tooltipText = skill ? (skill.description || skill.name) : skillId;
-                
-                return (
-                  <div 
-                    key={index}
-                    className={`
+        {/* 技能 / 相性 / 描述：牌内滚动，保证总高 384 */}
+        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
+          {(showDetails || compactMode) && troop.skills && troop.skills.length > 0 && (
+            <div className="relative pl-6 pr-3 py-1.5 border-t-2 border-gray-400/40">
+              <div className="flex items-center gap-1 mb-0.5">
+                <span className="text-purple-400 text-xs">⚔️</span>
+                <span className="text-gray-700 text-xs font-medium">技能</span>
+              </div>
+              <div className="grid grid-cols-3 gap-1.5">
+                {troop.skills.slice(0, 3).map((skillId, index) => {
+                  const skill = skillsMap[skillId];
+                  const isActive = skillId.startsWith('skill_1_');
+                  const tooltipKey = `skill_${index}`;
+                  const tooltipText = skill ? (skill.description || skill.name) : skillId;
+
+                  return (
+                    <div
+                      key={index}
+                      className={`
                       relative px-1.5 py-1 rounded text-[10px] text-center cursor-pointer
-                      ${isActive 
-                        ? `bg-gradient-to-r ${rarity.bg} bg-opacity-20 border ${rarity.border} border-opacity-40` 
+                      ${isActive
+                        ? `bg-gradient-to-r ${rarity.bg} bg-opacity-20 border ${rarity.border} border-opacity-40`
                         : 'bg-gray-700/30 border border-gray-600/40'
                       }
                     `}
-                    onClick={(e) => { e.stopPropagation(); setActiveTooltip(activeTooltip === tooltipKey ? null : tooltipKey); }}
-                  >
-                    <span className="font-medium truncate block text-gray-900">
-                      {isActive ? '⚔️' : '🛡️'} {skill ? skill.name : skillId}
+                      onClick={(e) => { e.stopPropagation(); setActiveTooltip(activeTooltip === tooltipKey ? null : tooltipKey); }}
+                    >
+                      <span className="font-medium truncate block text-gray-900">
+                        {isActive ? '⚔️' : '🛡️'} {skill ? skill.name : skillId}
+                      </span>
+                      {activeTooltip === tooltipKey && tooltipText && (
+                        <div className="absolute z-50 bottom-full left-0 mb-1 px-2 py-1 rounded bg-gray-900 text-white text-[10px] max-w-[220px] break-words shadow-lg pointer-events-none">
+                          {tooltipText}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+              {troop.skills.length > 3 && (
+                <div className="text-center text-gray-600 text-[10px] mt-1">
+                  +{troop.skills.length - 3} 更多技能
+                </div>
+              )}
+            </div>
+          )}
+
+          {showDetails && !compactMode && (
+            <div className="relative pl-6 pr-3 py-3 border-t-2 border-gray-400/40">
+              <div className="mb-2">
+                <div className="flex items-center gap-1 mb-1">
+                  <span className="text-purple-400 text-xs">⚔️</span>
+                  <span className="text-gray-700 text-xs font-medium">相性</span>
+                </div>
+                <div className="flex items-center justify-between text-xs">
+                  <div className="flex gap-2 flex-wrap">
+                    <span
+                      title="对步兵"
+                      className={troop.infantryCounter >= 1.0 ? 'text-green-600' : 'text-gray-500'}
+                    >
+                      🛡️{troop.infantryCounter}
                     </span>
-                    {activeTooltip === tooltipKey && tooltipText && (
-                      <div className="absolute z-50 bottom-full left-0 mb-1 px-2 py-1 rounded bg-gray-900 text-white text-[10px] max-w-[220px] break-words shadow-lg pointer-events-none">
-                        {tooltipText}
-                      </div>
-                    )}
+                    <span
+                      title="对骑兵"
+                      className={troop.cavalryCounter >= 1.0 ? 'text-green-600' : 'text-gray-500'}
+                    >
+                      🐎{troop.cavalryCounter}
+                    </span>
+                    <span
+                      title="对弓兵"
+                      className={troop.archerCounter >= 1.0 ? 'text-green-600' : 'text-gray-500'}
+                    >
+                      🏹{troop.archerCounter}
+                    </span>
+                    <span
+                      title="对攻城"
+                      className={troop.siegeCounter >= 1.0 ? 'text-green-600' : 'text-gray-500'}
+                    >
+                      🏰{troop.siegeCounter}
+                    </span>
                   </div>
-                );
-              })}
-            </div>
-            {troop.skills.length > 3 && (
-              <div className="text-center text-gray-600 text-[10px] mt-1">
-                +{troop.skills.length - 3} 更多技能
+                </div>
               </div>
-            )}
-          </div>
-        )}
 
-        {/* 相性和地形区域 */}
-        {showDetails && !compactMode && (
-          <div className="relative pl-6 pr-3 py-3 border-t-2 border-gray-400/40">
-            {/* 相性（兵种克制） */}
-            <div className="mb-2">
-              <div className="flex items-center gap-1 mb-1">
-                <span className="text-purple-400 text-xs">⚔️</span>
-                <span className="text-gray-700 text-xs font-medium">相性</span>
-              </div>
-              <div className="flex items-center justify-between text-xs">
-                <div className="flex gap-2">
-                  <span 
-                    title="对步兵" 
-                    className={troop.infantryCounter >= 1.0 ? 'text-green-600' : 'text-gray-500'}
-                  >
-                    🛡️{troop.infantryCounter}
-                  </span>
-                  <span 
-                    title="对骑兵" 
-                    className={troop.cavalryCounter >= 1.0 ? 'text-green-600' : 'text-gray-500'}
-                  >
-                    🐎{troop.cavalryCounter}
-                  </span>
-                  <span 
-                    title="对弓兵" 
-                    className={troop.archerCounter >= 1.0 ? 'text-green-600' : 'text-gray-500'}
-                  >
-                    🏹{troop.archerCounter}
-                  </span>
-                  <span 
-                    title="对攻城" 
-                    className={troop.siegeCounter >= 1.0 ? 'text-green-600' : 'text-gray-500'}
-                  >
-                    🏰{troop.siegeCounter}
-                  </span>
+              <div className="mb-2">
+                <div className="flex items-center gap-1 mb-1">
+                  <span className="text-green-400 text-xs">🌍</span>
+                  <span className="text-gray-700 text-xs font-medium">地形</span>
+                </div>
+                <div className="flex items-center justify-between text-xs">
+                  <div className="flex gap-2 flex-wrap">
+                    <span
+                      title="平原"
+                      className={troop.plainAdapt >= 1.0 ? 'text-green-600' : 'text-gray-500'}
+                    >
+                      🌾{troop.plainAdapt}
+                    </span>
+                    <span
+                      title="丘陵"
+                      className={troop.hillAdapt >= 1.0 ? 'text-green-600' : 'text-gray-500'}
+                    >
+                      ⛰️{troop.hillAdapt}
+                    </span>
+                    <span
+                      title="树林"
+                      className={troop.forestAdapt >= 1.0 ? 'text-green-600' : 'text-gray-500'}
+                    >
+                      🌲{troop.forestAdapt}
+                    </span>
+                    <span
+                      title="攻城"
+                      className={troop.siegeAdapt >= 1.0 ? 'text-green-600' : 'text-gray-500'}
+                    >
+                      🏰{troop.siegeAdapt}
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
+          )}
 
-            {/* 地形适应 */}
-            <div className="mb-2">
+          {showDetails && !compactMode && troop.description && (
+            <div className="relative pl-6 pr-3 py-3 border-t-2 border-gray-400/40">
               <div className="flex items-center gap-1 mb-1">
-                <span className="text-green-400 text-xs">🌍</span>
-                <span className="text-gray-700 text-xs font-medium">地形</span>
+                <span className="text-amber-400 text-xs">📜</span>
+                <span className="text-gray-700 text-xs font-medium">描述</span>
               </div>
-              <div className="flex items-center justify-between text-xs">
-                <div className="flex gap-2">
-                  <span 
-                    title="平原" 
-                    className={troop.plainAdapt >= 1.0 ? 'text-green-600' : 'text-gray-500'}
-                  >
-                    🌾{troop.plainAdapt}
-                  </span>
-                  <span 
-                    title="丘陵" 
-                    className={troop.hillAdapt >= 1.0 ? 'text-green-600' : 'text-gray-500'}
-                  >
-                    ⛰️{troop.hillAdapt}
-                  </span>
-                  <span 
-                    title="树林" 
-                    className={troop.forestAdapt >= 1.0 ? 'text-green-600' : 'text-gray-500'}
-                  >
-                    🌲{troop.forestAdapt}
-                  </span>
-                  <span 
-                    title="攻城" 
-                    className={troop.siegeAdapt >= 1.0 ? 'text-green-600' : 'text-gray-500'}
-                  >
-                    🏰{troop.siegeAdapt}
-                  </span>
-                </div>
-              </div>
+              <p className="text-gray-800 text-xs leading-relaxed">
+                {troop.description}
+              </p>
             </div>
-          </div>
-        )}
-
-        {/* 描述区域 */}
-        {showDetails && !compactMode && troop.description && (
-          <div className="relative pl-6 pr-3 py-3 border-t-2 border-gray-400/40">
-            <div className="flex items-center gap-1 mb-1">
-              <span className="text-amber-400 text-xs">📜</span>
-              <span className="text-gray-700 text-xs font-medium">描述</span>
-            </div>
-            <p className="text-gray-800 text-xs leading-relaxed">
-              {troop.description}
-            </p>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </div>
   );
@@ -500,7 +453,8 @@ TroopCard.propTypes = {
   showDetails: PropTypes.bool,
   compactMode: PropTypes.bool,
   baseUrl: PropTypes.string,
-  onSelect: PropTypes.func
+  onSelect: PropTypes.func,
+  disableHoverScale: PropTypes.bool,
 };
 
 export default TroopCard;

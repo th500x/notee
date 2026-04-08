@@ -165,9 +165,9 @@ export default function CardPoolDrawer({
                     >
                       <div style={{ transform: 'scale(0.5)', transformOrigin: 'top left', width: 256 }}>
                         {poolType === 'troop' ? (
-                          <TroopCard troop={card} skillsMap={skillsMap} showDetails={true} baseUrl={baseUrl} />
+                          <TroopCard troop={card} skillsMap={skillsMap} showDetails={true} baseUrl={baseUrl} disableHoverScale />
                         ) : (
-                          <CharacterCard character={card} skillsMap={skillsMap} showDetails={true} baseUrl={baseUrl} />
+                          <CharacterCard character={card} skillsMap={skillsMap} showDetails={true} baseUrl={baseUrl} disableHoverScale />
                         )}
                       </div>
                     </div>
@@ -281,6 +281,7 @@ function DrawResultOverlay({ poolType, cards, poolCards, skillsMap, baseUrl, rar
                           skillsMap={skillsMap}
                           showDetails={true}
                           baseUrl={baseUrl}
+                          disableHoverScale
                         />
                       ) : (
                         <CharacterCard
@@ -288,6 +289,7 @@ function DrawResultOverlay({ poolType, cards, poolCards, skillsMap, baseUrl, rar
                           skillsMap={skillsMap}
                           showDetails={true}
                           baseUrl={baseUrl}
+                          disableHoverScale
                         />
                       )}
                     </div>

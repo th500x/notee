@@ -224,7 +224,7 @@ export default function GarrisonBackpack({
                       className="cursor-pointer overflow-hidden"
                       onClick={() => setPreviewCard({ card, type: 'character' })}>
                       <div style={{ transform: 'scale(0.5)', transformOrigin: 'top left', width: 256 }}>
-                        <CharacterCard character={toCharCardData(card)} skillsMap={skillsMap} showDetails={true} baseUrl={baseUrl} />
+                        <CharacterCard character={toCharCardData(card)} skillsMap={skillsMap} showDetails={true} baseUrl={baseUrl} disableHoverScale />
                       </div>
                     </div>
                   ))}
@@ -238,10 +238,10 @@ export default function GarrisonBackpack({
                 <div className="flex flex-wrap gap-1.5">
                   {rCards.map(card => (
                     <div key={card.instance_id} style={{ width: 128, height: 192 }}
-                      className="cursor-pointer"
+                      className="cursor-pointer overflow-hidden"
                       onClick={() => setPreviewCard({ card, type: 'troop' })}>
                       <div style={{ transform: 'scale(0.5)', transformOrigin: 'top left', width: 256 }}>
-                        <TroopCard troop={toTroopCardData(card)} skillsMap={skillsMap} showDetails={true} baseUrl={baseUrl} />
+                        <TroopCard troop={toTroopCardData(card)} skillsMap={skillsMap} showDetails={true} baseUrl={baseUrl} disableHoverScale />
                       </div>
                     </div>
                   ))}

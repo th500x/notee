@@ -636,6 +636,7 @@ function LandscapeQuadrant({ player, activeSubTab, slots, getSlotContent, onSlot
               skillsMap={skillsMap}
               showDetails={true}
               baseUrl={baseUrl}
+              disableHoverScale
             />
           </div>
         ) : (
@@ -723,6 +724,7 @@ function EquipmentLayout({ player, activeSubTab, leftSlots, rightSlots, getSlotC
                   skillsMap={skillsMap}
                   showDetails={true}
                   baseUrl={baseUrl}
+                  disableHoverScale
                 />
               </div>
             ) : (
@@ -765,6 +767,7 @@ function EquipmentLayout({ player, activeSubTab, leftSlots, rightSlots, getSlotC
                   skillsMap={skillsMap}
                   showDetails={true}
                   baseUrl={baseUrl}
+                  disableHoverScale
                 />
               </div>
             ) : (
@@ -958,6 +961,7 @@ function TroopCardCropped({ card, skillsMap, baseUrl, scale = 1 }) {
           showDetails={true}
           compactMode={true}
           baseUrl={baseUrl}
+          disableHoverScale
         />
       </div>
     </div>
@@ -1372,6 +1376,7 @@ function CardDrawer({ slot, cards, allCards = [], skillsMap, onSelect, onClose }
                               skillsMap={skillsMap}
                               showDetails={true}
                               baseUrl={baseUrl}
+                              disableHoverScale
                             />
                           ) : isEquipmentSlot ? (
                             <div
@@ -1434,6 +1439,7 @@ function CardDrawer({ slot, cards, allCards = [], skillsMap, onSelect, onClose }
                               skillsMap={skillsMap}
                               showDetails={true}
                               baseUrl={baseUrl}
+                              disableHoverScale
                             />
                           )}
                         </div>
@@ -1496,10 +1502,11 @@ function CardDetailOverlay({ card, slot, skillsMap, allCards = [], getCharacterL
                 showDetails={true}
                 baseUrl={baseUrl}
                 lifeStageData={lifeStageForChar}
+                disableHoverScale
               />
             ) : isTroopSlot ? (
               <TroopCard troop={toTroopCardData(card)} skillsMap={skillsMap}
-                showDetails={true} baseUrl={baseUrl} />
+                showDetails={true} baseUrl={baseUrl} disableHoverScale />
             ) : isTitleSlot ? (
               <TitleAchievementCard item={toTitleCardData(card)} type="title" baseUrl={baseUrl} />
             ) : isEquipmentSetSlot ? (

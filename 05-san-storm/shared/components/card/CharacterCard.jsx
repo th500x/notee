@@ -166,6 +166,7 @@ function getStageText(stage) {
 
 /**
  * 将领卡片组件
+ * @param {boolean} [disableHoverScale=false] 为 true 时关闭 hover 放大（缩略列表/卡池格等，避免窄屏裁切溢出）
  */
 function CharacterCard({ 
   character, 
@@ -177,7 +178,8 @@ function CharacterCard({
   onSelect,
   isSelected = false,
   characterType = null,
-  totalPoints = null
+  totalPoints = null,
+  disableHoverScale = false,
 }) {
   const [isFlipped, setIsFlipped] = useState(false);
   const [activeTooltip, setActiveTooltip] = useState(null);
@@ -323,7 +325,7 @@ function CharacterCard({
           border-2 ${rarityConfig.border}
           shadow-xl ${rarityConfig.glow}
           transition-all duration-300
-          hover:scale-105 hover:shadow-2xl
+          ${disableHoverScale ? '' : 'hover:scale-105 hover:shadow-2xl'}
           ${isSelected ? 'ring-4 ring-blue-400 scale-105' : ''}
         `}
         style={{
@@ -829,7 +831,8 @@ CharacterCard.propTypes = {
   onSelect: PropTypes.func,
   isSelected: PropTypes.bool,
   characterType: PropTypes.string,
-  totalPoints: PropTypes.string
+  totalPoints: PropTypes.string,
+  disableHoverScale: PropTypes.bool,
 };
 
 export default CharacterCard;
