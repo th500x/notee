@@ -1,4 +1,5 @@
 import { forwardRef, useState, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import CampaignMapTile from './CampaignMapTile';
 import CampaignMapUnitsOverlay from './CampaignMapUnitsOverlay';
 import { manualHighlightForTacticalCell } from '@/battle/manualHighlightModel';
@@ -188,10 +189,10 @@ const CampaignMapGrid = forwardRef(function CampaignMapGrid(
             </div>
           ) : null}
         </div>
-        {/* 地形/部队浮动提示（复用事件战 tile-tooltip 样式） */}
-        {tooltipContent && (
+        {/* 地形/部队浮动提示：挂 body，避免 campaign-map-wrap 滚动层裁切 */}
+        {tooltipContent && typeof document !== 'undefined' && createPortal(
           <div
-            className="tile-tooltip"
+            className="tile-tooltip tile-tooltip--portal"
             ref={tooltipRef}
             style={{
               position: 'fixed',
@@ -199,11 +200,11 @@ const CampaignMapGrid = forwardRef(function CampaignMapGrid(
               top: tooltipPos.y,
               display: 'block',
               transform: tooltipTransformForContent(tooltipContent),
-              zIndex: 9999,
             }}
           >
             <TileTooltipContent content={tooltipContent} />
-          </div>
+          </div>,
+          document.body,
         )}
         </div>
       </div>

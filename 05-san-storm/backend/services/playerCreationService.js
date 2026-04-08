@@ -10,7 +10,7 @@
 
 const { pool } = require('../database/connection');
 const PlayerService = require('./playerService');
-const { formatTroopData } = require('./configService');
+const { formatTroopData, CONFIG_TROOPS_SELECT_COLUMNS } = require('./configService');
 const { getFactionFromTroopId } = require('./troopIdHelpers');
 
 // ── 势力 ──────────────────────────────────────────────────────────────────────
@@ -90,14 +90,14 @@ async function getInitialTroopOptions(factionId) {
   const factionPrefix  = `${season}_troop_${factionNumber.charAt(0)}`;
 
   const [factionTroops] = await pool.query(
-    `SELECT * FROM config_troops
+    `SELECT ${CONFIG_TROOPS_SELECT_COLUMNS} FROM config_troops
      WHERE season = ? AND rarity = 'rare' AND troop_id LIKE ?
      ORDER BY troop_id ASC`,
     [season, `${factionPrefix}%`],
   );
 
   const [commonTroops] = await pool.query(
-    `SELECT * FROM config_troops
+    `SELECT ${CONFIG_TROOPS_SELECT_COLUMNS} FROM config_troops
      WHERE season = ? AND rarity = 'rare' AND troop_id LIKE ?
      ORDER BY troop_id ASC`,
     [season, `${season}_troop_0%`],

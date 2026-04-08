@@ -11,6 +11,13 @@ import { memo } from 'react';
 
 const FACTION_ICON = { player: '🔵', ally: '🟢', enemy: '🔴' };
 
+/** 展示用：无有效配置时显示 —，不用假数字 */
+function displayTroopRange(troop) {
+  const r = Number(troop?.range);
+  if (Number.isFinite(r) && r > 0) return String(r);
+  return '—';
+}
+
 function TileTooltipContent({ content }) {
   if (!content) return null;
 
@@ -30,7 +37,7 @@ function TileTooltipContent({ content }) {
           )}
           {typeName} · {rarityName}<br />
           攻击: {troop.attack} &nbsp; 防御: {troop.defense}<br />
-          速度: {troop.speed} &nbsp; 移动: {troop.movement} &nbsp; 射程: {troop.range}<br />
+          速度: {troop.speed} &nbsp; 移动: {troop.movement} &nbsp; 射程: {displayTroopRange(troop)}<br />
           兵力: {troop.currentTroops} / {troop.maxTroops} ({hpPct}%)
         </div>
       </>

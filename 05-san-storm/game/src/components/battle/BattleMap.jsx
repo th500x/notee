@@ -2,6 +2,7 @@
  * BattleMap - 战术格网网格 + 行标签 + 区域色条（尺寸见 tacticalBattleGrid）
  */
 import { memo, useCallback, useRef, useState, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import {
   MAP_W, MAP_H, ZONE, buildTroopTooltipContent, buildTacticalTileTooltipInfo, tooltipTransformForContent,
 } from './battleConstants';
@@ -240,10 +241,10 @@ function BattleMap({
         </div>
       </div>
 
-      {/* Tooltip */}
-      {tooltipContent && (
+      {/* Tooltip：挂到 body，避免战斗壳层 overflow/transform 裁切 */}
+      {tooltipContent && typeof document !== 'undefined' && createPortal(
         <div
-          className="tile-tooltip"
+          className="tile-tooltip tile-tooltip--portal"
           ref={tooltipRef}
           style={{
             left: tooltipPos.x,
@@ -253,7 +254,8 @@ function BattleMap({
           }}
         >
           <TileTooltipContent content={tooltipContent} />
-        </div>
+        </div>,
+        document.body,
       )}
 
       {/* 宝箱奖励浮层 */}

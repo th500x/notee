@@ -10,7 +10,6 @@
 import { getBattleFieldTroopPortraitUrlAttempts, getCampaignMapTroopPortraitUrlAttempts } from '@shared/utils/troopIconUrls';
 import { initialMoraleFromCharacter } from '@/utils/npcMorale';
 import { listPassableDeployCellsInRect } from '@/utils/campaignDeployRect';
-
 const base = () => import.meta.env.BASE_URL;
 
 /**

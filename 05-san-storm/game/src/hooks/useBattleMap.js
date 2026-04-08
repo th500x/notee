@@ -9,7 +9,6 @@ import { generateSmallMap } from '@shared/utils/mapGenerator';
 import { getBattleFieldTroopPortraitUrlAttempts } from '@shared/utils/troopIconUrls';
 import { API_CONFIG } from '@/constants';
 import { initialMoraleFromCharacter } from '@/utils/npcMorale';
-
 const base = () => import.meta.env.BASE_URL;
 
 /** 战斗地图部队图标：`san_1_battle/player|enemy/`（与 TroopLayer 一致） */

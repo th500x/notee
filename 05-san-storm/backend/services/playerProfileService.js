@@ -154,7 +154,7 @@ async function getPlayerProfile(playerId) {
     const [configs] = await pool.query(
       `
         SELECT troop_id, troop_name, troop_type, weapon_type,
-               rarity, attack, defense, speed, movement, \`range\`,
+               rarity, attack, defense, speed, movement, \`range\` AS troop_range,
                max_troops, special_ability, description
         FROM config_troops
         WHERE troop_id IN (${placeholders})

@@ -73,7 +73,11 @@ export function buildSiegeUnits({ playerUnits, enemyUnits, baseUrl }) {
       defense: npc.defense,
       speed: npc.speed,
       movement: npc.movement,
-      range: npc.attackRange,
+      range: (() => {
+        const raw = npc.range ?? npc.attackRange;
+        const r = Number(raw);
+        return Number.isFinite(r) && r > 0 ? r : null;
+      })(),
       maxTroops: npc.maxTroops,
       currentTroops: npc.currentTroops ?? npc.maxTroops,
       initialTroops: npc.currentTroops ?? npc.maxTroops,

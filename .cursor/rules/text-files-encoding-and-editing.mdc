@@ -1,0 +1,52 @@
+---
+description: 全仓库：UTF-8 无 BOM；勿用 PowerShell 改写文本；CSV/配置数据流程见 san-storm-data-layer
+alwaysApply: true
+---
+
+# 文本编码与编辑方式（全仓库）
+
+## 不要用 PowerShell 改写文本文件
+
+`Set-Content`、`Add-Content`、`Out-File`、重定向 `>` / `>>` 等易引发 **UTF-16/BOM、换行、中文乱码**。
+
+- **禁止**用其修改 `.md`、`.js`、`.jsx`、`.json`、`.csv`、配置等。
+- **允许**：只读查看、`git`、`npm`、构建/测试、进程与端口查看。
+
+**改写**：用 Cursor 的写入/替换，或 Node 脚本并**显式 UTF-8**。
+
+## 编码
+
+新建/覆盖的文本源文件：**UTF-8，无 BOM**。
+
+## ⚠️ 注释乱码导致代码结构损坏（高频陷阱）
+
+**现象**：文件中 `//` 或 `/** */` 注释内的中文字符因编码错误变为乱码，且乱码字符序列会**吞掉同行后续的真实代码**，引发：
+
+- `//` 注释末尾跟着本应换行的 `if (...) {`、`const x = [` 等——这些代码被当成注释内容，使代码块的 `{` 丢失，导致大括号错位、函数提前关闭。
+- `/** */` 多行注释的 `*/` 被乱码吞掉，后续整段代码成为注释，造成 `await is only valid in async functions` 等运行时报错。
+
+**排查信号**：
+- `SyntaxError: await is only valid in async functions` — 函数大括号因注释吃代码而错位关闭
+- `SyntaxError: Unexpected token ']'` — 数组字面量的 `[` 被注释吃掉，`]` 找不到匹配
+- `SyntaxError: Invalid or unexpected token` 出现在 `/**` 行 — JSDoc 未正常闭合
+
+**每次修改含中文注释的 JS/TS 文件后必须做的检查**：
+
+```bash
+node --check path/to/modified-file.js
+```
+
+若失败，按行号找注释行，检查是否有代码和注释挤在同一行（`// 乱码...  if (... {` 模式），手动拆分：
+
+```js
+// （正确的注释文字）
+if (条件) {   // ← 单独一行
+```
+
+**不要**：
+- 用 PowerShell `node -e "..."` 传含中文的字符串（Unicode 转义会被 PS 解析器破坏）
+- 用 Node 脚本写中文时直接在 `-e` 参数里拼字符串——改写 `.js` 脚本文件再 `node run.js` 执行
+
+## 配置 CSV / 主数据
+
+**05-san-storm** 等配置 CSV 的授权、流水线与禁止手改 JSON：**见 `san-storm-data-layer.mdc`**。

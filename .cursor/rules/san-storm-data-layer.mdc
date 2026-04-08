@@ -1,0 +1,51 @@
+---
+description: 05-san-storm：CSV→JSON→MySQL；API camelCase；迁移落地；游戏 loadSharedData
+alwaysApply: true
+---
+
+# 05-san-storm：数据流水线、命名、库与前端加载
+
+## 1. 配置数据流水线（CSV → JSON → MySQL）
+
+适用于 `config_*` 等**配置型**数据（将领、部队、技能等）。
+
+1. **录入**：`05-san-storm/docs/tools/{module}/` 维护 **CSV**（唯一人工录入源）；模板如 `{module}-template.csv`。
+2. **生成 JSON**：运行 `{module}-csv-to-json.cjs` 等，输出到 `05-san-storm/public/data/shared/`（如 `{module}s.json`）。
+3. **入库**：`05-san-storm/backend/database/import-*.js` 导入 **MySQL**。
+
+**格式分工**：CSV/JSON 侧重可读，字段多为 **camelCase**，数值可为小数；MySQL 由导入脚本转换，数值 **×10** 等，列名 **snake_case**。
+
+**原则**：单一数据源（CSV）；JSON/库由脚本更新；**不要**为省事长期手改 `public/data/shared/*.json` 或手工改库替代整条流水线（另有约定的紧急流程除外）。
+
+**CSV 编辑授权**：未获用户**明确**要求（如「请改 CSV」）时，**不要**擅自改配置 CSV；与「禁止静默兜底」规则一致——不偷偷改主数据。
+
+## 2. API / 前端字段命名
+
+| 层级 | 风格 | 示例 |
+|------|------|------|
+| MySQL | snake_case | `troop_id`, `max_troops` |
+| API 响应 / 前端 | camelCase | `maxTroops` |
+| CSV 列 | snake_case | `troop_id` |
+| JSON 内嵌对象 | camelCase | `{ "skills": [] }` |
+
+在 **`05-san-storm/backend/services/configService.js`**（及对齐的 `format*`）统一 **snake_case → camelCase** 与 **÷10** 等。禁止路由散装 snake_case；同一实体多接口**复用同一 format**。共享组件（如 `TroopCard`）期望 **camelCase**。
+
+## 3. 迁移与本地库
+
+新增迁移写在 `05-san-storm/backend/database/migrations/`（或项目约定目录）后，须在**本地 MySQL 执行到位**并做最小验证；交付时另列**生产执行顺序**与注意事项（备份、幂等）。
+
+可选批量：`05-san-storm/backend/scripts/apply-pending-local-ddl.js`（维护脚本内 `MIGRATION_FILES`）。
+
+API 缺表缺列：核对本地是否已跑迁移，**不要**长期吞错或用默认值掩盖 schema 不同步。
+
+## 4. 游戏前端加载共享 JSON
+
+加载 `public/data/shared/{resource}.json` 须使用：
+
+`import { loadSharedData } from '@/services/dataService'`（`05-san-storm/game` 别名）
+
+由 `dataConfig.basePath` 拼路径并统一缓存；**禁止**在组件里 `fetch('/data/shared/xxx.json')` 硬编码路径（除非用户明确要求并接受后果）。新资源沿用现有 hooks 模式（如 `useTroops`）。
+
+## 5. 战术图多阵营与 UI 一致性（再次强调）
+
+战术格/战役格上 **player、enemy、ally1/ally2** 共用数据形态与 tooltip 管道，**禁止**按阵营复制第二套展示或第二套读库路径而不复用。细则见 **`san-storm-tactical-ui-consistency.mdc`**（与全仓库「复用已验证逻辑、禁止双实现」一致，本节约束阵营分叉）。

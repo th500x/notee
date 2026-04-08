@@ -8,6 +8,17 @@
 const db = require('../database/connection');
 
 /**
+ * config_troops 列表查询列（与 playerProfileService 编队读库一致）。
+ * `range` 为 MySQL 保留字，显式 `` `range` AS troop_range ``，避免 SELECT * / 部分驱动下属性映射异常。
+ */
+const CONFIG_TROOPS_SELECT_COLUMNS = `
+  troop_id, season, troop_name, rarity, troop_type, weapon_type,
+  attack, defense, max_troops, troop_weight, speed, movement,
+  \`range\` AS troop_range,
+  special_ability, description, version
+`.replace(/\s+/g, ' ').trim();
+
+/**
  * 获取所有部队配置
  * @param {Object} filters - 过滤条件
  * @param {string} filters.season - 赛季ID
@@ -19,7 +30,7 @@ async function getTroops(filters = {}) {
   const { season, rarity, troopType } = filters;
   
   // 构建查询条件
-  let query = 'SELECT * FROM config_troops WHERE 1=1';
+  let query = `SELECT ${CONFIG_TROOPS_SELECT_COLUMNS} FROM config_troops WHERE 1=1`;
   const params = [];
   
   if (season) {
@@ -52,7 +63,7 @@ async function getTroops(filters = {}) {
  */
 async function getTroopById(troopId) {
   const troops = await db.query(
-    'SELECT * FROM config_troops WHERE troop_id = ?',
+    `SELECT ${CONFIG_TROOPS_SELECT_COLUMNS} FROM config_troops WHERE troop_id = ?`,
     [troopId]
   );
   
@@ -68,6 +79,14 @@ async function getTroopById(troopId) {
  * @param {Object} troop - 数据库部队记录
  * @returns {Object} 格式化后的部队数据
  */
+/** 从 DB 行解析射程；未迁移库可能仍为 attack_range */
+function parseTroopRangeFromRow(troop) {
+  const raw = troop.troop_range ?? troop.range ?? troop.attack_range;
+  const r = Number(raw);
+  if (Number.isFinite(r) && r > 0) return r;
+  return null;
+}
+
 function formatTroopData(troop) {
   // 解析special_ability JSON字段
   let specialAbility = {};
@@ -96,7 +115,7 @@ function formatTroopData(troop) {
     // 基础属性
     maxTroops: troop.max_troops,
     troopWeight: troop.troop_weight || 1,
-    range: troop.range,
+    range: parseTroopRangeFromRow(troop),
     attack: troop.attack / 10,  // 数据库×10存储，需要除以10
     defense: troop.defense / 10,  // 数据库×10存储，需要除以10
     speed: troop.speed,
@@ -458,6 +477,7 @@ function formatEquipmentData(row) {
 }
 
 module.exports = {
+  CONFIG_TROOPS_SELECT_COLUMNS,
   getTroops,
   getTroopById,
   formatTroopData,
