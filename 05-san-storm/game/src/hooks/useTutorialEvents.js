@@ -282,10 +282,11 @@ export default function useTutorialEvents(player, cards) {
     setBattleSilverSpent(silverSpent);
     setBattleScore(scoreResult);
     setBattleChestRewards(Array.isArray(meta?.chestRewards) ? meta.chestRewards : []);
+    const scoreAlreadyInStatistics = meta?.battleReportSaved === true;
     requestRewards(chosenOptionKey, {
       battleResult: result,
       ...(silverSpent > 0 ? { battleSilverSpent: silverSpent } : {}),
-      ...(scoreResult ? { battleScore: scoreResult.score } : {}),
+      ...(scoreResult && !scoreAlreadyInStatistics ? { battleScore: scoreResult.score } : {}),
     }).then(data => applyRewardResponse(data));
     setPhase(PHASE.REWARD);
   }, [chosenOptionKey, requestRewards, applyRewardResponse]);

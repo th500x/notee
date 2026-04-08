@@ -376,6 +376,7 @@ async function executeEventRewards(playerId, body) {
     console.log(`[PlayerEventRewards] 迷你游戏筹码结算: playerId=${playerId}, delta=${minigameSilverDelta}`);
   }
 
+  // 探索事件战：客户端在战报 POST /api/battles 成功后勿再传 battleScore，否则会与 battleService.applyBattleScore 重复累加（场均虚高）
   if (battleScore && battleScore > 0) {
     console.log(`[PlayerEventRewards] 更新战斗积分: playerId=${playerId}, battleScore=${battleScore}`);
     await pool.query('UPDATE statistics SET total_battle_score = total_battle_score + ? WHERE player_id = ?', [

@@ -79,7 +79,7 @@ export const authAPI = {
    * 
    * @example
    * // 登录
-   * const result = await authAPI.login('notee.vip.2026', 'tale-historical')
+   * const result = await authAPI.login('notee-password', 'tale-historical')
    * if (result.success) {
    *   console.log('登录成功，Token:', result.token)
    * } else {

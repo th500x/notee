@@ -130,7 +130,7 @@ export function validateMessageForm(module, content) {
  * const result = validatePassword('123')
  * // { valid: false, error: '密码长度不能少于6个字符' }
  * 
- * const result = validatePassword('notee.vip.2026')
+ * const result = validatePassword('notee-password')
  * // { valid: true, error: null }
  */
 export function validatePassword(password) {

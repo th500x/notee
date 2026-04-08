@@ -485,11 +485,13 @@ export default function useEventSystem(player, cards) {
     setBattleSilverSpent(silverSpent);
     setBattleScore(scoreResult);
     setBattleChestRewards(Array.isArray(meta?.chestRewards) ? meta.chestRewards : []);
+    // 战报已由 useBattleSettlement → POST /api/battles 入账 total_battle_score；勿再在 /rewards 重复加同一场分
+    const scoreAlreadyInStatistics = meta?.battleReportSaved === true;
     // 请求后端发放奖励
     requestRewards(chosenOptionKey, {
       battleResult: result,
       ...(silverSpent > 0 ? { battleSilverSpent: silverSpent } : {}),
-      ...(scoreResult ? { battleScore: scoreResult.score } : {}),
+      ...(scoreResult && !scoreAlreadyInStatistics ? { battleScore: scoreResult.score } : {}),
     }).then((data) => {
       if (applyRewardResponse(data)) setPhase(PHASE.REWARD);
     });

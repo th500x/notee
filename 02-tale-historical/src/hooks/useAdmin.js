@@ -67,7 +67,7 @@ export function useAdmin() {
    * @returns {string} [returns.error] - 错误消息（仅在失败时存在）
    * 
    * @example
-   * const result = await login('notee.vip.2026')
+   * const result = await login('notee-password')
    * if (result.success) {
    *   console.log('登录成功，Token 已保存')
    * } else {

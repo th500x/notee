@@ -333,7 +333,7 @@ export const authAPI = {
    * 
    * @example
    * // 登录
-   * const result = await authAPI.login('notee.vip.2026', 'guestbook')
+   * const result = await authAPI.login('notee-password', 'guestbook')
    * if (result.success) {
    *   console.log('登录成功，Token:', result.token)
    * } else {
