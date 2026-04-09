@@ -4,7 +4,7 @@
  *   → `getBattleFieldTroopPortraitUrlAttempts`（敌我不同目录，同配置 ID 也区分立绘）。
  * - **战役大地图格**：`san_1_battle/{ally1|ally2|…}/` → `getCampaignMapTroopPortraitUrlAttempts`。
  *
- * 专属 `{配置ID}.png` 优先于 `troop_r{1-4}_{weapon}.png` 当且仅当：稀有度 **core**，或 **遗留 x 形 troop_id**（库中若仍有）；战役段多用 `san_1_troop_9xxx` + 同名 PNG。
+ * 专属 `{配置ID}.png` 优先于 `troop_r{1-4}_{weapon}.png` 当且仅当：稀有度 **core**，或 **北疆 8xxx / 众生 9xxx**（`_troop_` 后数字首位为 8 或 9）。无同名 PNG 时回退稀有度通用图（卡面 `san_1_ui_card/troop/`、战斗瓦片 `san_1_battle/{player|enemy|ally…}/` 共用本判定）。
  */
 
 import troopsCatalog from '../../public/data/shared/troops.json';
@@ -101,13 +101,13 @@ export function getTroopIdIconUrl(troopId, baseUrl = '') {
 }
 
 /**
- * 遗留 x 形：`san_1_troop_` 后缀为「十进制数字 + `x` + 其余」时，与 core 相同优先读专属 ID 图（若库中仍有）。战役专用部队推荐 `san_1_troop_9xxx` + 同名 PNG。
- * @param {string} id 已规范化的配置 ID
+ * 北疆（8xxx）/ 众生（9xxx）：`_troop_` 后数字段首位为 8 或 9 时，与 core 相同先尝试 `{troop_id}.png`。
+ * @param {string} id 已规范化的配置 ID（如 `san_1_troop_9001`）
  */
-export function troopIdIsSpecialWildcardForm(id) {
-  if (!id || !id.startsWith('san_1_troop_')) return false;
-  const suffix = id.slice('san_1_troop_'.length);
-  return /^\d+x/i.test(suffix);
+export function troopIdIsDedicatedSegment8Or9(id) {
+  if (!id) return false;
+  const m = String(id).match(/_troop_(\d)/);
+  return m ? m[1] === '8' || m[1] === '9' : false;
 }
 
 /**
@@ -116,11 +116,11 @@ export function troopIdIsSpecialWildcardForm(id) {
 export function troopPrefersDedicatedPortraitFile(troop) {
   if (troop && typeof troop === 'object' && troop.rarity === 'core') return true;
   const id = normalizeTroopAssetId(troop);
-  return troopIdIsSpecialWildcardForm(id);
+  return troopIdIsDedicatedSegment8Or9(id);
 }
 
 /**
- * 最多 2 个 URL：① 专属图（core 或特殊 x 形 ID）② 稀有度通用图。
+ * 最多 2 个 URL：① 专属图（core / 8xxx / 9xxx）② 稀有度通用图。
  */
 export function getTroopPortraitUrlAttempts(troop, baseUrl = '') {
   const rarityUrl = getTroopUiFolderFallbackUrl(troop, baseUrl);
