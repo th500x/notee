@@ -99,13 +99,25 @@ export default function SmallMapBattle({
 
   playBattleRoundRef.current = engine.playBattleRound;
 
+  const [manualOptionsHintOpen, setManualOptionsHintOpen] = useState(false);
+  const onManualPlayerActionCommitted = useCallback(() => {
+    setManualOptionsHintOpen(true);
+  }, []);
+
   const manual = useManualBattle({
     battleTroops: bm.battleTroops, mapResult: bm.mapResult,
     performAttack: engine.performAttack, performCounterAttack: engine.performCounterAttack,
     battleKill: engine.battleKill, battleMove: engine.battleMove,
     formationGroupMove: engine.formationGroupMove, removeFormationBuffs: engine.removeFormationBuffs,
     addLog: bm.addLog,
+    onManualPlayerActionCommitted,
   });
+
+  useEffect(() => {
+    if (!manualOptionsHintOpen) return undefined;
+    const t = window.setTimeout(() => setManualOptionsHintOpen(false), 3000);
+    return () => clearTimeout(t);
+  }, [manualOptionsHintOpen]);
 
   manualBattleRef.current = manual;
 
@@ -311,6 +323,21 @@ export default function SmallMapBattle({
           maxWidth={layoutWidth}
         />
       </div>
+
+      {manualOptionsHintOpen && (
+        <div
+          className="fixed inset-0 z-[120] flex items-center justify-center bg-black/40 px-4"
+          onClick={() => setManualOptionsHintOpen(false)}
+          role="presentation"
+        >
+          <div className="pointer-events-none max-w-[min(92vw,320px)] rounded-xl border border-amber-600/50 bg-stone-900/96 px-4 py-3 text-center shadow-2xl">
+            <p className="text-amber-400 text-sm font-bold mb-1.5">操作提示</p>
+            <p className="text-stone-200 text-xs leading-relaxed">
+              「选项」相关按钮已移至地图 <span className="text-white font-semibold">左侧</span>（⬅️），与「技能」「待机」同一列。
+            </p>
+          </div>
+        </div>
+      )}
 
       <AncientModal
         isOpen={awayNoticeOpen}

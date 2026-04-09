@@ -1,11 +1,12 @@
 /**
  * BattleMap - 战术格网网格 + 行标签 + 区域色条（尺寸见 tacticalBattleGrid）
  */
-import { memo, useCallback, useRef, useState, useMemo } from 'react';
+import { memo, useCallback, useState, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  MAP_W, MAP_H, ZONE, buildTroopTooltipContent, buildTacticalTileTooltipInfo, tooltipTransformForContent,
+  MAP_W, MAP_H, ZONE, buildTroopTooltipContent, buildTacticalTileTooltipInfo,
 } from './battleConstants';
+import { useTileTooltipClamp } from './useTileTooltipClamp';
 import { MANUAL_PHASE } from '@/hooks/useManualBattle';
 import { manualHighlightForTacticalCell } from '@/battle/manualHighlightModel';
 import BattleTile from './BattleTile';
@@ -30,9 +31,9 @@ function BattleMap({
   onTakeover,
   roundNum = 0,
 }) {
-  const tooltipRef = useRef(null);
   const [tooltipContent, setTooltipContent] = useState(null);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
+  const { tooltipRef, tooltipStyle } = useTileTooltipClamp(tooltipContent, tooltipPos);
 
   const { terrain, variants, objects, meta, cellFire } = mapResult;
   const objMap = {};
@@ -246,12 +247,7 @@ function BattleMap({
         <div
           className="tile-tooltip tile-tooltip--portal"
           ref={tooltipRef}
-          style={{
-            left: tooltipPos.x,
-            top: tooltipPos.y,
-            display: 'block',
-            transform: tooltipTransformForContent(tooltipContent),
-          }}
+          style={tooltipStyle}
         >
           <TileTooltipContent content={tooltipContent} />
         </div>,

@@ -5,15 +5,19 @@
  *              PC端hover / 竖屏长按显示说明悬浮窗
  */
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 
 const LONG_PRESS_MS = 400;
 const TOOLTIP_TEXT = '正式赛季根据势力城市发展度决定卡池质量/次数（概率），本次测试阶段固定卡池质量/次数（概率）';
 
-function PoolButton({ icon, label, remaining, dailyLimit, onClick, tooltip }) {
+function PoolButton({ icon, label, remaining, dailyLimit, onClick, tooltip, drawerOpen }) {
   const [showTip, setShowTip] = useState(false);
   const longTimer = useRef(null);
   const isLong = useRef(false);
+
+  useEffect(() => {
+    if (drawerOpen) setShowTip(false);
+  }, [drawerOpen]);
 
   const onTouchStart = useCallback(() => {
     isLong.current = false;
@@ -63,16 +67,29 @@ function PoolButton({ icon, label, remaining, dailyLimit, onClick, tooltip }) {
   );
 }
 
-export default function CardPoolEntry({ troopRemaining, charRemaining, dailyLimit, onOpenPool, rerollRemaining, rerollLimit, rerollPositionName, onOpenReroll }) {
+export default function CardPoolEntry({
+  troopRemaining,
+  charRemaining,
+  dailyLimit,
+  onOpenPool,
+  rerollRemaining,
+  rerollLimit,
+  rerollPositionName,
+  onOpenReroll,
+  drawerOpen = false,
+}) {
   return (
     <div className="pointer-events-auto flex justify-center gap-4 mt-2">
       <PoolButton icon="🎴" label="将领卡池" remaining={charRemaining} dailyLimit={dailyLimit}
+        drawerOpen={drawerOpen}
         onClick={() => onOpenPool('character')} />
       <PoolButton icon="⚔️" label="部队卡池" remaining={troopRemaining} dailyLimit={dailyLimit}
+        drawerOpen={drawerOpen}
         onClick={() => onOpenPool('troop')} />
       <PoolButton icon="🎲"
         label={rerollPositionName ? `随机（${rerollPositionName}）` : '属性随机'}
         remaining={rerollRemaining ?? '?'} dailyLimit={rerollLimit ?? 2}
+        drawerOpen={drawerOpen}
         tooltip="正式赛季会有专门的城市界面提供此功能，本测试赛季一切从简"
         onClick={onOpenReroll} />
     </div>

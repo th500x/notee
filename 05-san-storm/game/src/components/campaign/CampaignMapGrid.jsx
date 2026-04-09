@@ -4,8 +4,9 @@ import CampaignMapTile from './CampaignMapTile';
 import CampaignMapUnitsOverlay from './CampaignMapUnitsOverlay';
 import { manualHighlightForTacticalCell } from '@/battle/manualHighlightModel';
 import {
-  buildTroopTooltipContent, buildCampaignCellTooltipInfo, tooltipTransformForContent,
+  buildTroopTooltipContent, buildCampaignCellTooltipInfo,
 } from '@/components/battle/battleConstants';
+import { useTileTooltipClamp } from '@/components/battle/useTileTooltipClamp';
 import TileTooltipContent from '@/components/battle/TileTooltipContent';
 import '@/components/battle/BattleMap.css';
 import './CampaignMapGrid.css';
@@ -55,7 +56,7 @@ const CampaignMapGrid = forwardRef(function CampaignMapGrid(
 ) {
   const [tooltipContent, setTooltipContent] = useState(null);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
-  const tooltipRef = useRef(null);
+  const { tooltipRef, tooltipStyle } = useTileTooltipClamp(tooltipContent, tooltipPos);
 
   if (tooltipApiRef) {
     tooltipApiRef.current = {
@@ -194,13 +195,7 @@ const CampaignMapGrid = forwardRef(function CampaignMapGrid(
           <div
             className="tile-tooltip tile-tooltip--portal"
             ref={tooltipRef}
-            style={{
-              position: 'fixed',
-              left: tooltipPos.x,
-              top: tooltipPos.y,
-              display: 'block',
-              transform: tooltipTransformForContent(tooltipContent),
-            }}
+            style={tooltipStyle}
           >
             <TileTooltipContent content={tooltipContent} />
           </div>,

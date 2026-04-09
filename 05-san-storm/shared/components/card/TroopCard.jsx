@@ -11,6 +11,7 @@ import { getTroopPortraitUrlAttempts } from '../../utils/troopIconUrls';
  *
  * @param {boolean} [disableHoverScale=false] - 为 true 时关闭 hover 放大（卡池/背包等缩略列表，避免窄屏溢出）
  * @param {boolean} [compactMode=false] - 为 true 时隐藏相性/地形/描述（仅保留技能区），供编组槽位裁剪预览等
+ * @param {boolean} [suppressSkillTooltips=false] - 为 true 时不弹出技能说明浮层（卡池缩略网格避免误触与合成层问题）
  */
 const TroopCard = ({
   troop,
@@ -20,6 +21,7 @@ const TroopCard = ({
   baseUrl = '',
   onSelect,
   disableHoverScale = false,
+  suppressSkillTooltips = false,
 }) => {
   const [activeTooltip, setActiveTooltip] = useState(null);
   /** 按序尝试的立绘 URL（含 troop/troops/_raw 与稀有度兜底） */
@@ -145,13 +147,14 @@ const TroopCard = ({
           backgroundSize: 'cover',
           backgroundPosition: 'center',
           backgroundColor: '#1f2937',
+          transform: 'translateZ(0)',
         }}
       >
 
         {/* 顶部：部队名称区域 */}
         <div className={`
           relative h-[40px] flex-shrink-0 px-3 py-2
-          bg-black/10 backdrop-blur-sm
+          bg-black/25
           flex items-center justify-between
         `}>
           <div className="flex items-center gap-2 min-w-0">
@@ -162,13 +165,13 @@ const TroopCard = ({
           </div>
           <div className="flex items-center gap-1 flex-shrink-0">
             {troop.maxBattleCount != null && (
-              <div className="px-2 py-0.5 rounded bg-black/20 backdrop-blur-sm text-xs font-medium text-gray-900">
+              <div className="px-2 py-0.5 rounded bg-black/35 text-xs font-medium text-gray-900">
                 🚩{(troop.maxBattleCount - (troop.battleCount || 0))}/{troop.maxBattleCount}
               </div>
             )}
             <div className={`
               px-2 py-0.5 rounded
-              bg-black/20 backdrop-blur-sm
+              bg-black/35
               text-xs font-medium text-gray-900
             `}>
               {rarity.name}
@@ -187,7 +190,7 @@ const TroopCard = ({
               <div className={`
                 absolute inset-0 rounded-lg
                 border-2 ${rarity.border}
-                bg-gray-900/50 backdrop-blur-sm
+                bg-gray-900/80
                 flex items-center justify-center
                 overflow-hidden
               `}>
@@ -209,7 +212,7 @@ const TroopCard = ({
               </div>
 
               {troop.faction && (
-                <div className="absolute -top-1 -right-1 w-[18px] h-[18px] rounded-full bg-white/90 backdrop-blur-sm border border-gray-300 shadow-md flex items-center justify-center overflow-hidden">
+                <div className="absolute -top-1 -right-1 w-[18px] h-[18px] rounded-full bg-white/95 border border-gray-300 shadow-md flex items-center justify-center overflow-hidden">
                   <img
                     src={getFactionIcon()}
                     alt={troop.faction}
@@ -225,7 +228,7 @@ const TroopCard = ({
                 </div>
               )}
 
-              <div className={`absolute -bottom-0.5 -right-0.5 px-0.5 rounded-full backdrop-blur-sm border text-[9px] font-bold shadow-md flex items-center gap-0.5 ${
+              <div className={`absolute -bottom-0.5 -right-0.5 px-0.5 rounded-full border text-[9px] font-bold shadow-md flex items-center gap-0.5 ${
                 troop.currentTroops !== undefined && troop.currentTroops < troop.maxTroops
                   ? 'bg-yellow-400/90 border-yellow-500 text-gray-900'
                   : 'bg-green-500/90 border-green-400 text-gray-900'
@@ -307,12 +310,16 @@ const TroopCard = ({
                         : 'bg-gray-700/30 border border-gray-600/40'
                       }
                     `}
-                    onClick={(e) => { e.stopPropagation(); setActiveTooltip(activeTooltip === tooltipKey ? null : tooltipKey); }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (suppressSkillTooltips) return;
+                      setActiveTooltip(activeTooltip === tooltipKey ? null : tooltipKey);
+                    }}
                   >
                     <span className="font-medium truncate block text-gray-900">
                       {isActive ? '⚔️' : '🛡️'} {skill ? skill.name : skillId}
                     </span>
-                    {activeTooltip === tooltipKey && tooltipText && (
+                    {!suppressSkillTooltips && activeTooltip === tooltipKey && tooltipText && (
                       <div className="absolute z-50 bottom-full left-0 mb-1 px-2 py-1 rounded bg-gray-900 text-white text-[10px] max-w-[220px] break-words shadow-lg pointer-events-none">
                         {tooltipText}
                       </div>
@@ -445,6 +452,7 @@ TroopCard.propTypes = {
   baseUrl: PropTypes.string,
   onSelect: PropTypes.func,
   disableHoverScale: PropTypes.bool,
+  suppressSkillTooltips: PropTypes.bool,
 };
 
 export default TroopCard;

@@ -31,7 +31,15 @@ export function useManualBattle({
   performAttack, performCounterAttack, battleKill, battleMove,
   formationGroupMove, removeFormationBuffs,
   addLog,
+  /** 小型图等：玩家本局首次提交手动操作（移动/攻击/待机等）时回调一次 */
+  onManualPlayerActionCommitted,
 }) {
+  const manualActionCommittedGateRef = useRef(false);
+  const fireManualPlayerActionCommitted = useCallback(() => {
+    if (manualActionCommittedGateRef.current) return;
+    manualActionCommittedGateRef.current = true;
+    onManualPlayerActionCommitted?.();
+  }, [onManualPlayerActionCommitted]);
   const [phase, setPhase] = useState(MANUAL_PHASE.IDLE);
   const [activeTroop, setActiveTroop] = useState(null);
   const [remainingMove, setRemainingMove] = useState(0);
@@ -244,12 +252,14 @@ export function useManualBattle({
   /** 停止阵型移动 → 进入攻击 */
   const handleFormationStopMove = useCallback(() => {
     if (phase !== MANUAL_PHASE.FORMATION_MOVE) return;
+    fireManualPlayerActionCommitted();
     enterFormationAction();
-  }, [phase, enterFormationAction]);
+  }, [phase, enterFormationAction, fireManualPlayerActionCommitted]);
 
   /** 执行阵型攻击（点击敌人触发，每个部队攻击范围内最近敌人，攻击后解散阵型） */
   const doFormationAttack = useCallback(async (clickedEnemy) => {
     if (!formationTroops) return;
+    fireManualPlayerActionCommitted();
     setPhase(MANUAL_PHASE.ANIMATING);
     clearHighlights();
 
@@ -302,11 +312,12 @@ export function useManualBattle({
 
     endTurn();
   }, [formationTroops, battleTroops, clearHighlights, addLog,
-      performAttack, battleKill, removeFormationBuffs, endTurn, checkChestAtTroop]);
+      performAttack, battleKill, removeFormationBuffs, endTurn, checkChestAtTroop, fireManualPlayerActionCommitted]);
 
   /** 阵型待机（跳过移动+攻击） */
   const handleFormationStandby = useCallback(async () => {
     if (phase !== MANUAL_PHASE.FORMATION_MOVE && phase !== MANUAL_PHASE.FORMATION_ACTION) return;
+    fireManualPlayerActionCommitted();
     clearHighlights();
     addLog(fmt.fmtFormationWait(), 'move');
     // 宝箱检查
@@ -315,7 +326,7 @@ export function useManualBattle({
     }
     for (const t of (formationTroops || [])) t._formationHandled = true;
     endTurn();
-  }, [phase, formationTroops, clearHighlights, addLog, endTurn, checkChestAtTroop]);
+  }, [phase, formationTroops, clearHighlights, addLog, endTurn, checkChestAtTroop, fireManualPlayerActionCommitted]);
 
   // ══════════════════════════════════════════
   // ── tile 点击处理（单兵 + 阵型） ──
@@ -352,6 +363,7 @@ export function useManualBattle({
       const totalDx = x - centerX;
       if (totalDy === 0 && totalDx === 0) return;
 
+      fireManualPlayerActionCommitted();
       setPhase(MANUAL_PHASE.ANIMATING);
       clearHighlights();
 
@@ -414,6 +426,7 @@ export function useManualBattle({
       const key = `${y},${x}`;
 
       if (reachableTiles && reachableTiles.has(key)) {
+        fireManualPlayerActionCommitted();
         setAttackPreview(null);
         setPhase(MANUAL_PHASE.ANIMATING);
         clearHighlights();
@@ -448,6 +461,7 @@ export function useManualBattle({
       if (clickedEnemy) {
         // 第二次点击同一目标 → 确认攻击
         if (attackPreview && attackPreview.target === clickedEnemy) {
+          fireManualPlayerActionCommitted();
           setAttackPreview(null);
           setPhase(MANUAL_PHASE.ANIMATING);
           clearHighlights();
@@ -483,6 +497,7 @@ export function useManualBattle({
       if (clickedEnemy) {
         // 第二次点击同一目标 → 确认攻击
         if (attackPreview && attackPreview.target === clickedEnemy) {
+          fireManualPlayerActionCommitted();
           setAttackPreview(null);
           setPhase(MANUAL_PHASE.ANIMATING);
           clearHighlights();
@@ -516,25 +531,28 @@ export function useManualBattle({
       clearHighlights, showMoveHighlights,
       showFormationMoveHighlights, enterActionPhase, enterFormationAction,
       endTurn, battleMove, formationGroupMove, doFormationAttack,
-      performAttack, performCounterAttack, battleKill, addLog, checkChestAtTroop]);
+      performAttack, performCounterAttack, battleKill, addLog, checkChestAtTroop,
+      fireManualPlayerActionCommitted]);
 
   // ── 单兵待机 ──
 
   const handleStandby = useCallback(async () => {
     if (phase !== MANUAL_PHASE.SELECT_MOVE && phase !== MANUAL_PHASE.SELECT_ACTION) return;
+    fireManualPlayerActionCommitted();
     clearHighlights();
     setAttackPreview(null);
     addLog(`  💤 ${activeTroop?.character?.courtesyName || activeTroop?.name || '部队'} 原地待机`, 'move');
     await checkChestAtTroop(activeTroop);
     endTurn();
-  }, [phase, activeTroop, clearHighlights, addLog, endTurn, checkChestAtTroop]);
+  }, [phase, activeTroop, clearHighlights, addLog, endTurn, checkChestAtTroop, fireManualPlayerActionCommitted]);
 
   // ── 跳过移动 ──
 
   const handleSkipMove = useCallback(() => {
     if (phase !== MANUAL_PHASE.SELECT_MOVE || !activeTroop) return;
+    fireManualPlayerActionCommitted();
     enterActionPhase(activeTroop);
-  }, [phase, activeTroop, enterActionPhase]);
+  }, [phase, activeTroop, enterActionPhase, fireManualPlayerActionCommitted]);
 
   return {
     // 状态

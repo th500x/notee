@@ -157,6 +157,7 @@ function GamePageInner({ onLogout }) {
                 rerollLimit={rerollStatus?.dailyLimit}
                 rerollPositionName={player?.current_position_name}
                 onOpenReroll={() => setOpenReroll(true)}
+                drawerOpen={!!openPool}
               />
             )}
           </div>

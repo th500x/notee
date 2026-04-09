@@ -116,7 +116,8 @@ export default function CardPoolDrawer({
 
       {/* 抽屉主体 */}
       <div className="fixed left-0 right-0 bottom-0 z-[111] bg-stone-900 border-t-2 border-amber-700/50
-                      rounded-t-2xl flex flex-col top-[4.5rem] sm:top-14 min-h-0 overflow-hidden">
+                      rounded-t-2xl flex flex-col top-[4.5rem] sm:top-14 min-h-0 overflow-hidden
+                      isolate">
 
         {/* 标题栏 */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-stone-700 flex-shrink-0">
@@ -143,7 +144,7 @@ export default function CardPoolDrawer({
         </div>
 
         {/* 卡牌预览区（可滚动，复用军营的 50% 缩放模式） */}
-        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-3">
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-3 bg-stone-900 relative z-0">
           {cardsLoading ? (
             <div className="text-center py-8 text-stone-500 text-sm">加载卡池数据中...</div>
           ) : poolCards.length === 0 ? (
@@ -160,12 +161,27 @@ export default function CardPoolDrawer({
                     <div
                       key={card.id}
                       style={{ width: 128, height: 192 }}
-                      className="cursor-pointer overflow-hidden isolate"
+                      className="cursor-pointer overflow-hidden rounded-sm bg-stone-900"
                       onClick={() => setPreviewCard(card)}
                     >
-                      <div style={{ transform: 'scale(0.5)', transformOrigin: 'top left', width: 256 }}>
+                      <div
+                        style={{
+                          transform: 'scale(0.5)',
+                          transformOrigin: 'top left',
+                          width: 256,
+                          height: 384,
+                          overflow: 'hidden',
+                        }}
+                      >
                         {poolType === 'troop' ? (
-                          <TroopCard troop={card} skillsMap={skillsMap} showDetails baseUrl={baseUrl} disableHoverScale />
+                          <TroopCard
+                            troop={card}
+                            skillsMap={skillsMap}
+                            showDetails
+                            baseUrl={baseUrl}
+                            disableHoverScale
+                            suppressSkillTooltips
+                          />
                         ) : (
                           <CharacterCard character={card} skillsMap={skillsMap} showDetails={true} baseUrl={baseUrl} disableHoverScale />
                         )}
@@ -273,8 +289,16 @@ function DrawResultOverlay({ poolType, cards, poolCards, skillsMap, baseUrl, rar
               const fullConfig = poolCardsMap[card.cardId];
               return (
                 <div key={i} className="flex flex-col items-center">
-                  <div style={{ width: 128, height: 192 }} className="overflow-hidden rounded-lg isolate">
-                    <div style={{ transform: 'scale(0.5)', transformOrigin: 'top left', width: 256 }}>
+                  <div style={{ width: 128, height: 192 }} className="overflow-hidden rounded-lg bg-stone-900">
+                    <div
+                      style={{
+                        transform: 'scale(0.5)',
+                        transformOrigin: 'top left',
+                        width: 256,
+                        height: 384,
+                        overflow: 'hidden',
+                      }}
+                    >
                       {poolType === 'troop' ? (
                         <TroopCard
                           troop={fullConfig || { id: card.cardId, name: card.cardName, rarity: card.rarity }}
@@ -282,6 +306,7 @@ function DrawResultOverlay({ poolType, cards, poolCards, skillsMap, baseUrl, rar
                           showDetails
                           baseUrl={baseUrl}
                           disableHoverScale
+                          suppressSkillTooltips
                         />
                       ) : (
                         <CharacterCard
