@@ -37,13 +37,9 @@ function rowToApi(row) {
   return { ...row, attachments_json };
 }
 
-async function listTemplates({ season, enabledOnly } = {}) {
+async function listTemplates({ enabledOnly } = {}) {
   let sql = 'SELECT * FROM config_texts WHERE 1=1';
   const params = [];
-  if (season) {
-    sql += ' AND (season IS NULL OR season = ?)';
-    params.push(season);
-  }
   if (enabledOnly) {
     sql += ' AND is_enabled = 1';
   }
@@ -64,7 +60,6 @@ async function createTemplate(data) {
     subject,
     body,
     attachments_json,
-    season,
     is_enabled = 1,
     sort_order = 0,
     remark
@@ -78,15 +73,14 @@ async function createTemplate(data) {
   const att = normalizeAttachments(attachments_json);
   await pool.query(
     `INSERT INTO config_texts (
-      template_id, mail_type, subject, body, attachments_json, season, is_enabled, sort_order, remark
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      template_id, mail_type, subject, body, attachments_json, is_enabled, sort_order, remark
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       template_id,
       mail_type,
       subject,
       body,
       att != null ? JSON.stringify(att) : null,
-      season || null,
       is_enabled ? 1 : 0,
       Number(sort_order) || 0,
       remark || null
@@ -112,7 +106,6 @@ async function updateTemplate(templateId, data) {
       subject = ?,
       body = ?,
       attachments_json = ?,
-      season = ?,
       is_enabled = ?,
       sort_order = ?,
       remark = ?
@@ -122,7 +115,6 @@ async function updateTemplate(templateId, data) {
       data.subject != null ? data.subject : existing.subject,
       data.body != null ? data.body : existing.body,
       att != null ? JSON.stringify(att) : null,
-      data.season !== undefined ? (data.season || null) : existing.season,
       data.is_enabled !== undefined ? (data.is_enabled ? 1 : 0) : existing.is_enabled,
       data.sort_order !== undefined ? Number(data.sort_order) || 0 : existing.sort_order,
       data.remark !== undefined ? (data.remark || null) : existing.remark,

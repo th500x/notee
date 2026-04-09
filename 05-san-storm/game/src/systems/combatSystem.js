@@ -15,6 +15,33 @@
 export const ELITE_TROOP_STRENGTH_EXPONENT = 0.85;
 
 /**
+ * 等效兵力（max×troopWeight）**相等**时：主动一击略强于反击，打破「完全镜像则战损 1:1」。
+ * 仅作用于本次 `calcDamage` / `estimateDamage`；调用处须传入 `strike`（棋盘战 `useBattleAnimations`、攻城推演 `siegePvpSkirmish` 等与主动/反击语义一致）。
+ */
+export const MIRROR_STRIKE_DAMAGE_MULT = 1.18;
+export const MIRROR_COUNTER_DAMAGE_MULT = 0.68;
+
+/**
+ * 反击专用：在「以少打多」时弱化原公式 `clamp(r,0.33,3)` 对 r&lt;1 的过度压制，使反击威胁更接近策划梯度。
+ * @param {number} rawTroopRatio 等效兵力比 (攻方/守方) = atkEff/defEff
+ */
+export function troopRatioCoeffForStrike(rawTroopRatio, strikeMode) {
+  const r = Math.min(3.0, Math.max(0.33, rawTroopRatio));
+  if (strikeMode !== 'counter') {
+    return r;
+  }
+  // r≥1：以多打少时与主动一击相同，避免在「等兵力反击」时误放大（与镜像倍率叠加会反压攻方）
+  if (r >= 1) {
+    return r;
+  }
+  const softened = Math.pow(r, 0.58) * 1.28;
+  return Math.min(2.75, Math.max(0.52, softened));
+}
+
+/** 反击在公式末段额外乘子（与兵力系数独立，便于整体抬高反击线） */
+export const COUNTER_STRIKE_DAMAGE_MULT = 1.22;
+
+/**
  * 战损后的兵力比例系数（攻击/防御环节共用）
  * @param {Object} troop - 需含 currentTroops、maxTroops；可选 troopWeight
  * @returns {number} 0..1
@@ -79,9 +106,10 @@ export function getTerrainDefBonus(y, x, terrain) {
  * @param {Object} atk - 攻击方部队
  * @param {Object} def - 防守方部队
  * @param {string[][]} terrain - 地形二维数组（mapResult.terrain）
+ * @param {{ strike?: 'normal' | 'counter' }} [options] - `counter`：本次为反击（与主动一击兵力系数/镜像倍率不同）
  * @returns {number} 伤害值（最小1）
  */
-export function calcDamage(atk, def, terrain) {
+export function calcDamage(atk, def, terrain, options = {}) {
   const ac = atk.character, dc = def.character;
 
   // 0. 磨损衰减：legendary（橙）部队耐久耗尽后攻防-20%（仅PVE可用）
@@ -133,12 +161,19 @@ export function calcDamage(atk, def, terrain) {
   // 6. 地形防御加成
   totalDmg *= getTerrainDefBonus(def.y, def.x, terrain);
 
-  // 7. 兵力比例系数（用等效兵力 = maxTroops × troopWeight）
+  // 7. 兵力比例系数（用等效兵力 = maxTroops × troopWeight）；主动一击 / 反击分支见 troopRatioCoeffForStrike
   const atkEffective = (atk.maxTroops) * (atk.troopWeight || 1);
   const defEffective = (def.maxTroops) * (def.troopWeight || 1);
   const rawTroopRatio = atkEffective / defEffective;
-  const troopRatioCoeff = Math.min(3.0, Math.max(0.33, rawTroopRatio));
-  totalDmg *= troopRatioCoeff;
+  const strikeMode = options.strike === 'counter' ? 'counter' : 'normal';
+  totalDmg *= troopRatioCoeffForStrike(rawTroopRatio, strikeMode);
+  if (strikeMode === 'counter') {
+    totalDmg *= COUNTER_STRIKE_DAMAGE_MULT;
+  }
+  const mirror = Math.abs(atkEffective - defEffective) < 1e-6;
+  if (mirror) {
+    totalDmg *= strikeMode === 'counter' ? MIRROR_COUNTER_DAMAGE_MULT : MIRROR_STRIKE_DAMAGE_MULT;
+  }
 
   // ═══ 第二部分：适应性修正 ═══
 
@@ -187,9 +222,10 @@ export function calcDamage(atk, def, terrain) {
  * @param {Object} atk - 攻击方部队
  * @param {Object} def - 防守方部队
  * @param {string[][]} terrain - 地形二维数组
+ * @param {{ strike?: 'normal' | 'counter' }} [options] - 与 calcDamage 一致
  * @returns {{ damage: number, critRate: number, hitRate: number, critDamage: number }} damage/critDamage 为防守方兵力条实际扣减（精锐已除 troopWeight）
  */
-export function estimateDamage(atk, def, terrain) {
+export function estimateDamage(atk, def, terrain, options = {}) {
   const ac = atk.character, dc = def.character;
 
   // 复用 calcDamage 的全部逻辑，但不加随机浮动（legendary = 橙档磨损）
@@ -221,7 +257,16 @@ export function estimateDamage(atk, def, terrain) {
   totalDmg *= getTerrainDefBonus(def.y, def.x, terrain);
   const atkEffective = atk.maxTroops * (atk.troopWeight || 1);
   const defEffective = def.maxTroops * (def.troopWeight || 1);
-  totalDmg *= Math.min(3.0, Math.max(0.33, atkEffective / defEffective));
+  const rawTroopRatio = atkEffective / defEffective;
+  const strikeMode = options.strike === 'counter' ? 'counter' : 'normal';
+  totalDmg *= troopRatioCoeffForStrike(rawTroopRatio, strikeMode);
+  if (strikeMode === 'counter') {
+    totalDmg *= COUNTER_STRIKE_DAMAGE_MULT;
+  }
+  const mirror = Math.abs(atkEffective - defEffective) < 1e-6;
+  if (mirror) {
+    totalDmg *= strikeMode === 'counter' ? MIRROR_COUNTER_DAMAGE_MULT : MIRROR_STRIKE_DAMAGE_MULT;
+  }
   const defType = def.troopType || 'infantry';
   totalDmg *= (atk[defType + 'Counter'] ?? 1.0);
   if (terrain) {

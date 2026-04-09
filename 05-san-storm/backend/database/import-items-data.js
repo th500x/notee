@@ -42,14 +42,13 @@ async function importItems(connection) {
     try {
       await connection.query(`
         INSERT INTO config_items (
-          item_id, item_name, description, item_type, season, version, special_effect
-        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+          item_id, item_name, description, item_type, season, special_effect
+        ) VALUES (?, ?, ?, ?, ?, ?)
         ON DUPLICATE KEY UPDATE
           item_name       = VALUES(item_name),
           description     = VALUES(description),
           item_type       = VALUES(item_type),
           season          = VALUES(season),
-          version         = VALUES(version),
           special_effect  = VALUES(special_effect)
       `, [
         item.id,
@@ -57,7 +56,6 @@ async function importItems(connection) {
         item.description || null,
         item.itemType || 'event_key',
         item.season || null,
-        item.version || '1.0',
         item.specialEffect || item.special_effect || null,
       ]);
 

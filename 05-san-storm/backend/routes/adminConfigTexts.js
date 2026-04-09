@@ -9,9 +9,8 @@ const configTextService = require('../services/configTextService');
 
 router.get('/', async (req, res) => {
   try {
-    const { season, enabledOnly } = req.query;
+    const { enabledOnly } = req.query;
     const list = await configTextService.listTemplates({
-      season: season || undefined,
       enabledOnly: enabledOnly === '1' || enabledOnly === 'true'
     });
     res.json({ success: true, data: list, total: list.length });

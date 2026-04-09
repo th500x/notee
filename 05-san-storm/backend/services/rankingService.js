@@ -22,6 +22,12 @@ const CAMPAIGN_MAX_LIMIT = 50;
 const OVERALL_AVG_EXPR = 'ROUND(s.total_battle_score / s.total_battles)';
 
 /**
+ * 道具「黄巾徽章」持有量：`players.items` JSON 中 `item_badge`（与 `docs/tools/event/item-template.csv`、config_items 一致）
+ */
+const YELLOW_TURBAN_BADGE_ITEM_ID = 'item_badge';
+const OVERALL_BADGE_COUNT_EXPR = `COALESCE(CAST(JSON_UNQUOTE(JSON_EXTRACT(p.items, '$.${YELLOW_TURBAN_BADGE_ITEM_ID}')) AS UNSIGNED), 0)`;
+
+/**
  * @param {string} [raw]
  * @returns {'avg'|'wins'|'reputation'|'events'}
  */
@@ -29,16 +35,16 @@ function normalizeOverallSortKey(raw) {
   const s = String(raw || '').trim().toLowerCase();
   if (s === 'wins' || s === 'win') return 'wins';
   if (s === 'reputation' || s === 'rep') return 'reputation';
-  if (s === 'events' || s === 'event') return 'events';
+  if (s === 'badges' || s === 'badge' || s === 'events' || s === 'event') return 'events';
   if (s === 'avg' || s === 'average' || s === 'avg_battle_score' || s === 'avgbattlescore') return 'avg';
   return 'avg';
 }
 
 const OVERALL_ORDER_BY = {
-  avg: `${OVERALL_AVG_EXPR} DESC, s.wins DESC, p.reputation DESC, s.total_events_completed DESC, p.player_id ASC`,
-  wins: `s.wins DESC, ${OVERALL_AVG_EXPR} DESC, p.reputation DESC, s.total_events_completed DESC, p.player_id ASC`,
-  reputation: `p.reputation DESC, ${OVERALL_AVG_EXPR} DESC, s.wins DESC, s.total_events_completed DESC, p.player_id ASC`,
-  events: `s.total_events_completed DESC, ${OVERALL_AVG_EXPR} DESC, s.wins DESC, p.reputation DESC, p.player_id ASC`,
+  avg: `${OVERALL_AVG_EXPR} DESC, s.wins DESC, p.reputation DESC, ${OVERALL_BADGE_COUNT_EXPR} DESC, p.player_id ASC`,
+  wins: `s.wins DESC, ${OVERALL_AVG_EXPR} DESC, p.reputation DESC, ${OVERALL_BADGE_COUNT_EXPR} DESC, p.player_id ASC`,
+  reputation: `p.reputation DESC, ${OVERALL_AVG_EXPR} DESC, s.wins DESC, ${OVERALL_BADGE_COUNT_EXPR} DESC, p.player_id ASC`,
+  events: `${OVERALL_BADGE_COUNT_EXPR} DESC, ${OVERALL_AVG_EXPR} DESC, s.wins DESC, p.reputation DESC, p.player_id ASC`,
 };
 
 /**
@@ -56,6 +62,7 @@ async function countOverallPlayersAbove(poolRef, {
   playerId,
 }) {
   const R = OVERALL_AVG_EXPR;
+  const B = OVERALL_BADGE_COUNT_EXPR;
   const base = `
     FROM statistics s
     INNER JOIN players p ON p.player_id = s.player_id
@@ -69,20 +76,20 @@ async function countOverallPlayersAbove(poolRef, {
   let rest;
   switch (sortKey) {
     case 'wins':
-      cond = `(s.wins > ? OR (s.wins = ? AND ${R} > ?) OR (s.wins = ? AND ${R} = ? AND p.reputation > ?) OR (s.wins = ? AND ${R} = ? AND p.reputation = ? AND s.total_events_completed > ?) OR (s.wins = ? AND ${R} = ? AND p.reputation = ? AND s.total_events_completed = ? AND p.player_id < ?))`;
+      cond = `(s.wins > ? OR (s.wins = ? AND ${R} > ?) OR (s.wins = ? AND ${R} = ? AND p.reputation > ?) OR (s.wins = ? AND ${R} = ? AND p.reputation = ? AND ${B} > ?) OR (s.wins = ? AND ${R} = ? AND p.reputation = ? AND ${B} = ? AND p.player_id < ?))`;
       rest = [wins, wins, avg, wins, avg, reputation, wins, avg, reputation, eventsCompleted, wins, avg, reputation, eventsCompleted, playerId];
       break;
     case 'reputation':
-      cond = `(p.reputation > ? OR (p.reputation = ? AND ${R} > ?) OR (p.reputation = ? AND ${R} = ? AND s.wins > ?) OR (p.reputation = ? AND ${R} = ? AND s.wins = ? AND s.total_events_completed > ?) OR (p.reputation = ? AND ${R} = ? AND s.wins = ? AND s.total_events_completed = ? AND p.player_id < ?))`;
+      cond = `(p.reputation > ? OR (p.reputation = ? AND ${R} > ?) OR (p.reputation = ? AND ${R} = ? AND s.wins > ?) OR (p.reputation = ? AND ${R} = ? AND s.wins = ? AND ${B} > ?) OR (p.reputation = ? AND ${R} = ? AND s.wins = ? AND ${B} = ? AND p.player_id < ?))`;
       rest = [reputation, reputation, avg, reputation, avg, wins, reputation, avg, wins, eventsCompleted, reputation, avg, wins, eventsCompleted, playerId];
       break;
     case 'events':
-      cond = `(s.total_events_completed > ? OR (s.total_events_completed = ? AND ${R} > ?) OR (s.total_events_completed = ? AND ${R} = ? AND s.wins > ?) OR (s.total_events_completed = ? AND ${R} = ? AND s.wins = ? AND p.reputation > ?) OR (s.total_events_completed = ? AND ${R} = ? AND s.wins = ? AND p.reputation = ? AND p.player_id < ?))`;
+      cond = `(${B} > ? OR (${B} = ? AND ${R} > ?) OR (${B} = ? AND ${R} = ? AND s.wins > ?) OR (${B} = ? AND ${R} = ? AND s.wins = ? AND p.reputation > ?) OR (${B} = ? AND ${R} = ? AND s.wins = ? AND p.reputation = ? AND p.player_id < ?))`;
       rest = [eventsCompleted, eventsCompleted, avg, eventsCompleted, avg, wins, eventsCompleted, avg, wins, reputation, eventsCompleted, avg, wins, reputation, playerId];
       break;
     case 'avg':
     default:
-      cond = `(${R} > ? OR (${R} = ? AND s.wins > ?) OR (${R} = ? AND s.wins = ? AND p.reputation > ?) OR (${R} = ? AND s.wins = ? AND p.reputation = ? AND s.total_events_completed > ?) OR (${R} = ? AND s.wins = ? AND p.reputation = ? AND s.total_events_completed = ? AND p.player_id < ?))`;
+      cond = `(${R} > ? OR (${R} = ? AND s.wins > ?) OR (${R} = ? AND s.wins = ? AND p.reputation > ?) OR (${R} = ? AND s.wins = ? AND p.reputation = ? AND ${B} > ?) OR (${R} = ? AND s.wins = ? AND p.reputation = ? AND ${B} = ? AND p.player_id < ?))`;
       rest = [avg, avg, wins, avg, wins, reputation, avg, wins, reputation, eventsCompleted, avg, wins, reputation, eventsCompleted, playerId];
       break;
   }
@@ -363,7 +370,7 @@ async function getRankings(eventId, { limit = 10, playerId = null } = {}) {
  * @param {number} [opts.limit]
  * @param {string} [opts.playerId]
  * @param {string} [opts.serverId]
- * @param {string} [opts.sort] avg | wins | reputation | events（主排序键，见 27-2）
+ * @param {string} [opts.sort] avg | wins | reputation | events | badges（主排序；events/badges 均为黄巾徽章持有量，见 27-2）
  */
 async function getOverallRankings(opts = {}) {
   const rawLimit = Number(opts.limit) || OVERALL_DEFAULT_LIMIT;
@@ -399,7 +406,7 @@ async function getOverallRankings(opts = {}) {
        ROUND(s.total_battle_score / s.total_battles) AS avg_battle_score,
        s.wins,
        p.reputation,
-       s.total_events_completed
+       ${OVERALL_BADGE_COUNT_EXPR} AS badge_count
      ${baseJoin}
      WHERE s.total_battles >= ?
      ORDER BY ${orderBy}
@@ -407,16 +414,20 @@ async function getOverallRankings(opts = {}) {
     [serverId, OVERALL_MIN_BATTLES, limit],
   );
 
-  const rankings = topRows.map((row, i) => ({
-    rank: i + 1,
-    playerId: row.player_id,
-    name: row.character_name || row.player_id,
-    factionName: row.faction_name || '',
-    avgBattleScore: Number(row.avg_battle_score) || 0,
-    wins: Number(row.wins) || 0,
-    reputation: Number(row.reputation) || 0,
-    eventsCompleted: Number(row.total_events_completed) || 0,
-  }));
+  const rankings = topRows.map((row, i) => {
+    const badgeCount = Number(row.badge_count) || 0;
+    return {
+      rank: i + 1,
+      playerId: row.player_id,
+      name: row.character_name || row.player_id,
+      factionName: row.faction_name || '',
+      avgBattleScore: Number(row.avg_battle_score) || 0,
+      wins: Number(row.wins) || 0,
+      reputation: Number(row.reputation) || 0,
+      badgeCount,
+      eventsCompleted: badgeCount,
+    };
+  });
 
   const [countRows] = await pool.query(
     `SELECT COUNT(*) AS total
@@ -437,7 +448,7 @@ async function getOverallRankings(opts = {}) {
          ROUND(s.total_battle_score / NULLIF(s.total_battles, 0)) AS avg_battle_score,
          s.wins,
          p.reputation,
-         s.total_events_completed
+         ${OVERALL_BADGE_COUNT_EXPR} AS badge_count
        FROM statistics s
        INNER JOIN players p ON p.player_id = s.player_id
        INNER JOIN accounts a ON a.id = p.player_id AND a.serverId = ?
@@ -451,7 +462,7 @@ async function getOverallRankings(opts = {}) {
       const avg = tb >= OVERALL_MIN_BATTLES ? Number(me.avg_battle_score) || 0 : null;
       const wins = Number(me.wins) || 0;
       const reputation = Number(me.reputation) || 0;
-      const eventsCompleted = Number(me.total_events_completed) || 0;
+      const badgeCount = Number(me.badge_count) || 0;
 
       if (tb < OVERALL_MIN_BATTLES) {
         myRanking = {
@@ -465,7 +476,8 @@ async function getOverallRankings(opts = {}) {
           rank: null,
           wins,
           reputation,
-          eventsCompleted,
+          badgeCount,
+          eventsCompleted: badgeCount,
         };
       } else {
         const above = await countOverallPlayersAbove(pool, {
@@ -475,7 +487,7 @@ async function getOverallRankings(opts = {}) {
           avg,
           wins,
           reputation,
-          eventsCompleted,
+          eventsCompleted: badgeCount,
           playerId,
         });
         const rank = above + 1;
@@ -489,7 +501,8 @@ async function getOverallRankings(opts = {}) {
           rank,
           wins,
           reputation,
-          eventsCompleted,
+          badgeCount,
+          eventsCompleted: badgeCount,
         };
       }
     }

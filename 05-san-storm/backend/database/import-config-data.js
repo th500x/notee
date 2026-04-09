@@ -1,6 +1,9 @@
 /**
  * 导入配置数据到MySQL数据库
  * 将领、部队、官职、势力配置数据导入
+ *
+ * 势力：config_factions.season 优先取 JSON 条目的 season（由 faction-csv-to-json 从 faction_id 解析），否则从 faction_id 前缀解析。
+ * 将领：config_characters.season 优先取 JSON 条目的 season（由 character-csv-to-json 从 character_id 解析），否则从 character_id 前缀解析。
  */
 
 const mysql = require('mysql2/promise');
@@ -48,9 +51,9 @@ async function importCharacters(connection) {
   
   for (const char of data.characters) {
     try {
-      // 从ID中提取赛季信息
-      const season = extractSeason(char.id);
-      
+      const season =
+        (char.season && String(char.season).trim()) || extractSeason(char.id);
+
       if (!season) {
         console.error(`无法提取赛季信息: ${char.id}`);
         skipped++;
@@ -318,9 +321,9 @@ async function importFactions(connection) {
   
   for (const faction of data.factions) {
     try {
-      // 从ID中提取赛季信息
-      const seasonId = extractSeason(faction.id);
-      
+      const seasonId =
+        (faction.season && String(faction.season).trim()) || extractSeason(faction.id);
+
       if (!seasonId) {
         console.error(`无法提取赛季信息: ${faction.id}`);
         skipped++;

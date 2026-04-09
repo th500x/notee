@@ -78,7 +78,7 @@ function TroopLayer({ troop }) {
               : { color: moraleInlineColorForTroopBar(troop.morale) }
           }
         >
-          {troop.morale}/100
+          {troop.morale}
         </span>
       </div>
     </div>

@@ -242,7 +242,7 @@ function replaceFactionWildcard(cardId, factionId) {
 // ── 从稀有度获取 max_battle_count ────────────────────────────
 
 function getMaxBattleCount(rarity) {
-  const map = { common: 20, rare: 40, epic: 60, legendary: 80, core: 99 };
+  const map = { common: 20, rare: 28, epic: 36, legendary: 44, core: 60 };
   return map[rarity] || 20;
 }
 

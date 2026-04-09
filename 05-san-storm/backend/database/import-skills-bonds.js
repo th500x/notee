@@ -1,5 +1,7 @@
 /**
  * 导入技能和羁绊配置数据到MySQL数据库
+ *
+ * 羁绊 JSON：public/data/shared/bonds.json（可由 docs/tools/bond/bond-csv-to-json.cjs 从 CSV 生成，须含数据行）
  */
 
 const mysql = require('mysql2/promise');
@@ -106,11 +108,12 @@ async function importBonds(connection) {
     try {
       await connection.query(`
         INSERT INTO config_bonds (
-          bond_id, bond_name, bond_type, rarity,
+          bond_id, season, bond_name, bond_type, rarity,
           min_characters,
           target_effect, description
-        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         ON DUPLICATE KEY UPDATE
+          season = VALUES(season),
           bond_name = VALUES(bond_name),
           bond_type = VALUES(bond_type),
           rarity = VALUES(rarity),
@@ -119,6 +122,7 @@ async function importBonds(connection) {
           description = VALUES(description)
       `, [
         bond.id,
+        (bond.season && String(bond.season).trim()) || extractSeason(bond.id) || 'san_1',
         bond.name,
         bond.type,
         bond.rarity,

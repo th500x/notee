@@ -1,46 +1,70 @@
--- 城市攻城系统：创建 cities 运行时表 + wars 表（简化版，用于小城 PVE 测试）
+-- 城市攻城系统：cities + wars（与 docs/00-base/01-DATABASE_DESIGN.md §3.2.11 对齐）
+-- 依赖：factions、players 已存在（外键）
+-- 若库中已有旧版 cities（列/枚举不全），CREATE IF NOT EXISTS 不会升级表结构；须另写 ALTER 或删表重建（仅测试库）。
 
 -- 城市运行时数据表
 CREATE TABLE IF NOT EXISTS cities (
   id VARCHAR(50) PRIMARY KEY COMMENT '城市ID（如：san_1_city_3_xinye）',
   season VARCHAR(20) NOT NULL COMMENT '赛季ID',
-  city_name VARCHAR(100) NOT NULL COMMENT '城市名称',
-  city_type ENUM('city_major', 'city_medium', 'city_small', 'gate', 'fort') NOT NULL COMMENT '城市类型',
+  city_name VARCHAR(100) NOT NULL COMMENT '城市名称（系统默认展示名）',
+  city_type ENUM('city_major', 'city_medium', 'city_small', 'gate', 'fort', 'wilderness', 'market') NOT NULL COMMENT '城市类型',
 
-  -- 所属势力（NULL=中立）
-  faction_id VARCHAR(50) DEFAULT NULL COMMENT '所属势力ID（NULL=中立/未占领）',
+  faction_id VARCHAR(50) NULL COMMENT '所属势力ID（NULL=中立）',
 
-  -- 地理位置
-  region VARCHAR(50) COMMENT '所属地区',
-  position_x INT COMMENT '地图X坐标',
-  position_y INT COMMENT '地图Y坐标',
+  jun_id VARCHAR(64) NULL COMMENT '郡ID，FK → config_jun.id',
+  zhou_id VARCHAR(64) NULL COMMENT '州ID，可冗余自郡',
+  parent_city_id VARCHAR(50) NULL COMMENT '荒郊/集市所属主城 cities.id',
 
-  -- 五大属性
-  population INT DEFAULT 0 COMMENT '人口',
-  commerce INT DEFAULT 0 COMMENT '商业值',
-  farming INT DEFAULT 0 COMMENT '农业值',
-  military INT DEFAULT 0 COMMENT '军事值',
-  culture INT DEFAULT 0 COMMENT '文化值',
+  position_x INT NULL COMMENT '大地图逻辑 X',
+  position_y INT NULL COMMENT '大地图逻辑 Y',
 
-  -- 防御
-  defense INT DEFAULT 0 COMMENT '防御力',
-  garrison_capacity INT DEFAULT 0 COMMENT '驻军所容量',
+  population INT NOT NULL DEFAULT 0 COMMENT '人口',
+  commerce INT NOT NULL DEFAULT 0 COMMENT '商业值',
+  farming INT NOT NULL DEFAULT 0 COMMENT '农业值',
+  military INT NOT NULL DEFAULT 0 COMMENT '军事值',
+  culture INT NOT NULL DEFAULT 0 COMMENT '文化值',
 
-  -- NPC 守军（JSON：生成的 NPC 部队配置，被消灭后清空）
-  npc_garrison JSON COMMENT 'NPC守军配置（部队+将领数组，消灭后设为NULL）',
-  npc_garrison_alive INT DEFAULT 0 COMMENT 'NPC守军存活数量',
-  npc_max_rarity VARCHAR(20) DEFAULT 'rare' COMMENT 'NPC守军最高稀有度',
+  special_resource_name VARCHAR(50) NULL COMMENT '特色资源名称',
+  special_resource_commerce INT NOT NULL DEFAULT 0 COMMENT '特色资源商业加成',
+  special_resource_farming INT NOT NULL DEFAULT 0 COMMENT '特色资源农业加成',
 
-  -- 长官
-  governor_player_id VARCHAR(4) DEFAULT NULL COMMENT '长官玩家ID',
+  final_commerce INT NOT NULL DEFAULT 0 COMMENT '最终商业值',
+  final_farming INT NOT NULL DEFAULT 0 COMMENT '最终农业值',
 
-  -- 状态
-  status ENUM('neutral', 'contested', 'owned') DEFAULT 'neutral' COMMENT '城市状态',
+  lord_player_id VARCHAR(4) NULL COMMENT '长官玩家ID',
+  lord_appointed_at DATETIME NULL COMMENT '长官任命时间',
+
+  defense INT NOT NULL DEFAULT 0 COMMENT '防御力',
+  garrison_capacity INT NOT NULL DEFAULT 0 COMMENT '驻军所容量',
+
+  npc_garrison JSON NULL COMMENT 'NPC守军：{ units, ledgerAt }',
+  npc_garrison_alive INT NOT NULL DEFAULT 0 COMMENT 'NPC守军存活数量',
+
+  status ENUM('neutral', 'contested', 'owned') NOT NULL DEFAULT 'neutral' COMMENT '城市状态',
+
+  is_capital TINYINT(1) NOT NULL DEFAULT 0 COMMENT '是否首都',
+
+  is_buildable TINYINT(1) NOT NULL DEFAULT 0 COMMENT '是否预设可建造据点空地',
+  build_status ENUM('empty', 'building', 'built') NOT NULL DEFAULT 'empty' COMMENT '据点建造状态',
+  built_by_player_id VARCHAR(4) NULL COMMENT '据点建造者',
+  built_at DATETIME NULL COMMENT '开始建造时间',
+  build_complete_at DATETIME NULL COMMENT '预计建造完成时间',
+  custom_name VARCHAR(20) NULL COMMENT '据点自定义名：1～3 汉字，建成后不可改',
+
+  buildings_state JSON NULL COMMENT '城内建筑运行态（主殿/三公/太学等）',
+
+  FOREIGN KEY (faction_id) REFERENCES factions(id) ON DELETE SET NULL,
+  FOREIGN KEY (lord_player_id) REFERENCES players(player_id) ON DELETE SET NULL,
+  FOREIGN KEY (built_by_player_id) REFERENCES players(player_id) ON DELETE SET NULL,
+  FOREIGN KEY (parent_city_id) REFERENCES cities(id) ON DELETE SET NULL,
 
   INDEX idx_season (season),
   INDEX idx_faction (faction_id),
   INDEX idx_city_type (city_type),
-  INDEX idx_status (status)
+  INDEX idx_status (status),
+  INDEX idx_jun (jun_id),
+  INDEX idx_parent_city (parent_city_id),
+  INDEX idx_lord (lord_player_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='城市运行时数据表';
 
 -- 战事表（势力对抗 / 攻城记录）

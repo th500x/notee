@@ -5,6 +5,22 @@
 
 const ELITE_TROOP_STRENGTH_EXPONENT = 0.85;
 
+const MIRROR_STRIKE_DAMAGE_MULT = 1.18;
+const MIRROR_COUNTER_DAMAGE_MULT = 0.68;
+const COUNTER_STRIKE_DAMAGE_MULT = 1.22;
+
+function troopRatioCoeffForStrike(rawTroopRatio, strikeMode) {
+  const r = Math.min(3.0, Math.max(0.33, rawTroopRatio));
+  if (strikeMode !== 'counter') {
+    return r;
+  }
+  if (r >= 1) {
+    return r;
+  }
+  const softened = Math.pow(r, 0.58) * 1.28;
+  return Math.min(2.75, Math.max(0.52, softened));
+}
+
 /** Mulberry32 */
 function mulberry32(seed) {
   let t = seed >>> 0;
@@ -56,8 +72,9 @@ function getTerrainDefBonus(y, x, terrain) {
 
 /**
  * @param {() => number} rng 0..1
+ * @param {{ strike?: 'normal' | 'counter' }} [options] 与前端 `combatSystem.calcDamage` 一致；主动一击 `normal`、反击 `counter`
  */
-function calcDamageSeeded(atk, def, terrain, rng) {
+function calcDamageSeeded(atk, def, terrain, rng, options = {}) {
   const ac = atk.character;
   const dc = def.character;
 
@@ -104,8 +121,15 @@ function calcDamageSeeded(atk, def, terrain, rng) {
   const atkEffective = atk.maxTroops * (atk.troopWeight || 1);
   const defEffective = def.maxTroops * (def.troopWeight || 1);
   const rawTroopRatio = atkEffective / defEffective;
-  const troopRatioCoeff = Math.min(3.0, Math.max(0.33, rawTroopRatio));
-  totalDmg *= troopRatioCoeff;
+  const strikeMode = options.strike === 'counter' ? 'counter' : 'normal';
+  totalDmg *= troopRatioCoeffForStrike(rawTroopRatio, strikeMode);
+  if (strikeMode === 'counter') {
+    totalDmg *= COUNTER_STRIKE_DAMAGE_MULT;
+  }
+  const mirror = Math.abs(atkEffective - defEffective) < 1e-6;
+  if (mirror) {
+    totalDmg *= strikeMode === 'counter' ? MIRROR_COUNTER_DAMAGE_MULT : MIRROR_STRIKE_DAMAGE_MULT;
+  }
 
   const defType = def.troopType || 'infantry';
   const counterKey = defType + 'Counter';

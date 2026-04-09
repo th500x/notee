@@ -18,10 +18,21 @@
         "仙人AI固定施展增益效果"
       ],
       "faction_bonuses": [
-        { "key": "politics_bonus", "value": 5 },
-        { "key": "charm_bonus", "value": 10 },
-        { "key": "max_troops_bonus", "value": 15 },
-        { "key": "npc_sage_guaranteed_buff" }
+        {
+          "key": "faction_politics_bonus",
+          "value": 5
+        },
+        {
+          "key": "faction_charm_bonus",
+          "value": 10
+        },
+        {
+          "key": "troop_max_troops_bonus",
+          "value": 15
+        },
+        {
+          "key": "npc_sage_guaranteed_buff"
+        }
       ],
       "description": "机缘玩家的选择，固守风格",
       "difficulty": "简单"
@@ -39,13 +50,25 @@
         "势力内政值+10%",
         "势力魅力值+5%",
         "紫/橙部队卡攻击+1",
-        "随机日常事件数+2"
+        "每日探索事件数+4"
       ],
       "faction_bonuses": [
-        { "key": "politics_bonus", "value": 10 },
-        { "key": "charm_bonus", "value": 5 },
-        { "key": "epic_legendary_attack_bonus", "value": 1 },
-        { "key": "daily_event_count_bonus", "value": 2 }
+        {
+          "key": "faction_politics_bonus",
+          "value": 10
+        },
+        {
+          "key": "faction_charm_bonus",
+          "value": 5
+        },
+        {
+          "key": "troop_epic_legendary_attack_bonus",
+          "value": 1
+        },
+        {
+          "key": "daily_event_count_bonus",
+          "value": 2
+        }
       ],
       "description": "扎实玩家的选择，霸业风格",
       "difficulty": "简单"
@@ -66,10 +89,21 @@
         "君主随机参战"
       ],
       "faction_bonuses": [
-        { "key": "politics_bonus", "value": 2 },
-        { "key": "charm_bonus", "value": 5 },
-        { "key": "speed_bonus", "value": 1 },
-        { "key": "lord_random_battle" }
+        {
+          "key": "faction_politics_bonus",
+          "value": 2
+        },
+        {
+          "key": "faction_charm_bonus",
+          "value": 5
+        },
+        {
+          "key": "troop_speed_bonus",
+          "value": 1
+        },
+        {
+          "key": "lord_random_battle"
+        }
       ],
       "description": "极限玩家的选择，挑战风格",
       "difficulty": "困难"
@@ -90,10 +124,22 @@
         "贡献加成+10%"
       ],
       "faction_bonuses": [
-        { "key": "politics_bonus", "value": 5 },
-        { "key": "charm_bonus", "value": 2 },
-        { "key": "epic_legendary_defense_bonus", "value": 1 },
-        { "key": "contribution_bonus", "value": 10 }
+        {
+          "key": "faction_politics_bonus",
+          "value": 5
+        },
+        {
+          "key": "faction_charm_bonus",
+          "value": 2
+        },
+        {
+          "key": "troop_epic_legendary_defense_bonus",
+          "value": 1
+        },
+        {
+          "key": "contribution_bonus",
+          "value": 10
+        }
       ],
       "description": "极限玩家的选择，挑战风格",
       "difficulty": "困难"
@@ -111,13 +157,25 @@
         "势力内政值-10%",
         "势力魅力值-5%",
         "攻城攻击力+5%",
-        "背包部队卡上限+2"
+        "背包部队卡上限+4"
       ],
       "faction_bonuses": [
-        { "key": "politics_bonus", "value": -10 },
-        { "key": "charm_bonus", "value": -5 },
-        { "key": "siege_attack_bonus", "value": 5 },
-        { "key": "backpack_capacity_bonus", "value": 2 }
+        {
+          "key": "faction_politics_bonus",
+          "value": -10
+        },
+        {
+          "key": "faction_charm_bonus",
+          "value": -5
+        },
+        {
+          "key": "siege_attack_bonus",
+          "value": 5
+        },
+        {
+          "key": "backpack_capacity_bonus",
+          "value": 2
+        }
       ],
       "description": "暴虐玩家的选择，猛攻风格",
       "difficulty": "中级"
@@ -138,10 +196,22 @@
         "势力俸禄(资源)+5%"
       ],
       "faction_bonuses": [
-        { "key": "politics_bonus", "value": 5 },
-        { "key": "charm_bonus", "value": 5 },
-        { "key": "siege_defense_bonus", "value": 5 },
-        { "key": "salary_resource_bonus", "value": 5 }
+        {
+          "key": "faction_politics_bonus",
+          "value": 5
+        },
+        {
+          "key": "faction_charm_bonus",
+          "value": 5
+        },
+        {
+          "key": "siege_defense_bonus",
+          "value": 5
+        },
+        {
+          "key": "faction_salary_resource_bonus",
+          "value": 5
+        }
       ],
       "description": "中庸玩家的选择，主流风格",
       "difficulty": "简单"
@@ -162,10 +232,22 @@
         "势力俸禄(部队卡)+1"
       ],
       "faction_bonuses": [
-        { "key": "politics_bonus", "value": -20 },
-        { "key": "charm_bonus", "value": -5 },
-        { "key": "common_rare_attack_bonus", "value": 2 },
-        { "key": "salary_troop_card_bonus", "value": 1 }
+        {
+          "key": "faction_politics_bonus",
+          "value": -20
+        },
+        {
+          "key": "faction_charm_bonus",
+          "value": -5
+        },
+        {
+          "key": "troop_common_rare_attack_bonus",
+          "value": 2
+        },
+        {
+          "key": "faction_salary_troop_card_bonus",
+          "value": 1
+        }
       ],
       "description": "速攻玩家的选择，蝗虫风格",
       "difficulty": "中级"
@@ -174,8 +256,7 @@
   "metadata": {
     "totalFactions": 7,
     "totalMaxPlayers": 660,
-    "generatedAt": "2026-03-18T15:16:23.812Z",
-    "idFormat": "san_{season}_faction_{4digits}",
-    "version": "2.0"
+    "generatedAt": "2026-04-09T07:31:04.779Z",
+    "idFormat": "san_{season}_faction_{4digits}"
   }
 }

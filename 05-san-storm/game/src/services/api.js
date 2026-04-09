@@ -796,7 +796,6 @@ export const rankingsAPI = {
 export const adminConfigTextsAPI = {
   list: async (params = {}) => {
     const q = new URLSearchParams();
-    if (params.season) q.set('season', params.season);
     if (params.enabledOnly) q.set('enabledOnly', '1');
     const url = `${API_CONFIG.BASE_URL}/admin/config-texts${q.toString() ? `?${q}` : ''}`;
     const response = await fetchWithTimeout(url, { method: 'GET', headers: { 'Content-Type': 'application/json' } });

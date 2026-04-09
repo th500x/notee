@@ -44,7 +44,8 @@ const CHARACTER_OVER_LIMIT_COMPENSATION = { legendary: 80, epic: 60, rare: 40, c
 const NO_CARD_AVAILABLE_SILVER = 20;
 const TROOP_OVER_LIMIT_COMPENSATION = { common: 100, rare: 200, epic: 300, legendary: 400 };
 const TROOP_LIMIT_BY_RARITY = { common: 20, rare: 40, epic: 40, legendary: 20 };
-const MAX_BATTLE_COUNT = { common: 20, rare: 40, epic: 60, legendary: 80 };
+/** 与 22-1-TROOP_SYSTEM §1.3、rewardService.getMaxBattleCount 一致 */
+const MAX_BATTLE_COUNT = { common: 20, rare: 28, epic: 36, legendary: 44, core: 60 };
 
 // ── 工具函数 ─────────────────────────────────────────────────
 

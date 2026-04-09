@@ -54,15 +54,21 @@ const OVERALL_SORT_OPTIONS = [
   { value: 'avg', label: '场均评分' },
   { value: 'wins', label: '胜场' },
   { value: 'reputation', label: '声望' },
-  { value: 'events', label: '完成事件' },
+  { value: 'events', label: '黄巾徽章' },
 ];
 
 const OVERALL_SORT_LABEL = {
   avg: '场均',
   wins: '胜场',
   reputation: '声望',
-  events: '事件',
+  events: '徽章',
 };
+
+function overallBadgeCount(row) {
+  if (row == null) return 0;
+  const v = row.badgeCount ?? row.eventsCompleted;
+  return Number(v) || 0;
+}
 
 function overallMetricHeadClass(metric, activeSort) {
   return `text-right tabular-nums text-sm ${activeSort === metric ? 'text-amber-300 font-semibold' : 'text-amber-200/80 font-semibold'}`;
@@ -274,7 +280,7 @@ export default function StandingRankingsPanel({ visible, playerId }) {
                               <span className={overallMetricHeadClass('avg', activeSort)}>场均</span>
                               <span className={overallMetricHeadClass('wins', activeSort)}>胜场</span>
                               <span className={overallMetricHeadClass('reputation', activeSort)}>声望</span>
-                              <span className={overallMetricHeadClass('events', activeSort)}>事件</span>
+                              <span className={overallMetricHeadClass('events', activeSort)}>徽章</span>
                             </div>
                             {overallData.rankings?.map((row) => (
                               <div
@@ -300,7 +306,7 @@ export default function StandingRankingsPanel({ visible, playerId }) {
                                   {formatInt(row.reputation)}
                                 </span>
                                 <span className={overallMetricCellClass('events', activeSort)}>
-                                  {formatInt(row.eventsCompleted)}
+                                  {formatInt(overallBadgeCount(row))}
                                 </span>
                               </div>
                             ))}
@@ -367,8 +373,8 @@ export default function StandingRankingsPanel({ visible, playerId }) {
                         </span>
                         <div className="text-xs text-amber-200/65 mt-1 break-keep">
                           胜场 {formatInt(overallData.myRanking.wins)} · 声望{' '}
-                          {formatInt(overallData.myRanking.reputation)} · 事件{' '}
-                          {formatInt(overallData.myRanking.eventsCompleted)}
+                          {formatInt(overallData.myRanking.reputation)} · 徽章{' '}
+                          {formatInt(overallBadgeCount(overallData.myRanking))}
                         </div>
                       </div>
                     )}
@@ -389,8 +395,8 @@ export default function StandingRankingsPanel({ visible, playerId }) {
                           <span className="tabular-nums text-xs text-amber-200/65 break-keep">
                             场均 {formatInt(overallData.myRanking.avgBattleScore)} · 胜场{' '}
                             {formatInt(overallData.myRanking.wins)} · 声望{' '}
-                            {formatInt(overallData.myRanking.reputation)} · 事件{' '}
-                            {formatInt(overallData.myRanking.eventsCompleted)}
+                            {formatInt(overallData.myRanking.reputation)} · 徽章{' '}
+                            {formatInt(overallBadgeCount(overallData.myRanking))}
                           </span>
                         </div>
                       </div>

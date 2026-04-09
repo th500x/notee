@@ -6,7 +6,10 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { generateSmallMap } from '@shared/utils/mapGenerator';
-import { buildSmallMapEnemyRosterPicks } from '@shared/utils/smallMapEnemyRoster';
+import {
+  buildSmallMapEnemyRosterPicks,
+  filterTroopsForSmallMapPveEnemy,
+} from '@shared/utils/smallMapEnemyRoster';
 import { getBattleFieldTroopPortraitUrlAttempts } from '@shared/utils/troopIconUrls';
 import { API_CONFIG } from '@/constants';
 import { initialMoraleFromCharacter } from '@/utils/npcMorale';
@@ -98,7 +101,7 @@ export function useBattleMap() {
    * @param {string[]} [opts.enemySlotRarities] - 长度 4 时每槽独立稀有度（匪寨等）；与 5 将领位惩罚战互斥
    */
   const assignRealBattleTroops = useCallback((playerUnits, eventRarity = 'common', opts = {}) => {
-    const t = allTroops;
+    const t = filterTroopsForSmallMapPveEnemy(allTroops);
     const c = allCharacters;
     const rawExtra = opts.extraEnemyCharacterIds;
     const extraIds = (Array.isArray(rawExtra) ? rawExtra : rawExtra ? [rawExtra] : []).filter(Boolean);

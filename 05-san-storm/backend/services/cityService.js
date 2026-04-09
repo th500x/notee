@@ -200,9 +200,8 @@ async function generateNpcGarrison(cityId, opts = {}) {
 
   // 4. 更新城市 NPC 守军
   await pool.query(
-    `UPDATE cities SET npc_garrison = ?, npc_garrison_alive = ?, npc_max_rarity = ?
-     WHERE id = ?`,
-    [serializeNpcGarrisonStored(npcUnits, new Date()), troopCount, maxRarity, cityId]
+    `UPDATE cities SET npc_garrison = ?, npc_garrison_alive = ? WHERE id = ?`,
+    [serializeNpcGarrisonStored(npcUnits, new Date()), troopCount, cityId]
   );
 
   return { npcGarrison: npcUnits, npcCount: troopCount };

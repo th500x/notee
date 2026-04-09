@@ -387,10 +387,18 @@ function RewardDisplay({
           const name = (itemNameMap && itemNameMap[d.cardId]) || d.cardName || d.cardId;
           result.push({ text: `🔑 ${name} ×${d.quantity || 1}` });
         } else {
+          const isPostBattleEquipment =
+            battleResult === 'victory' && d.cardType === 'equipment';
           result.push({
             text: `${typeLabel[d.cardType] || '📦 卡牌'}「${d.cardName || d.cardId}」`,
             cardId: d.cardId,
             cardType: d.cardType,
+            ...(isPostBattleEquipment
+              ? {
+                  sourceHint:
+                    '来源：战斗结算（事件配置或低概率战后掉落；与上方「地图宝箱」非同一路径）',
+                }
+              : {}),
           });
         }
       } else if (d.type === 'position') {
@@ -423,7 +431,7 @@ function RewardDisplay({
       // 忽略 unknown 类型（如 troopgrade 等非奖励标记）
     });
     return sortRewardLines(result);
-  }, [itemNameMap, idNames]);
+  }, [itemNameMap, idNames, battleResult]);
 
   const rawRewards = parseRewards(chosenOption.rewards || '', itemNameMap, fortune?.multiplier);
   const rawBonusRewards = chosenOption.bonusRewards ? parseRewards(chosenOption.bonusRewards, itemNameMap) : [];
@@ -489,7 +497,7 @@ function RewardDisplay({
               <Divider />
               <div className="text-left">
                 <div className="text-[11px] text-stone-500 mb-1.5">
-                  📦 地图宝箱（本场已入库，与事件配置奖励独立）
+                  📦 地图内宝箱（战斗中开启，已入库；与下方「实际奖励」中的装备件非同一路径）
                 </div>
                 <div className="space-y-1">
                   {battleChestRewards.map((r, i) => (
@@ -593,9 +601,16 @@ function RewardItem({ reward, onCardClick, isBonus }) {
   const textColor = isBonus ? 'text-yellow-700' : 'text-gray-800';
   if (hasCard) {
     return (
-      <div className={`text-sm ${textColor} cursor-pointer hover:text-amber-600 underline decoration-dashed underline-offset-2`}
-        onClick={() => onCardClick(reward.cardId, reward.cardType)}>
-        {reward.text} 👁️
+      <div className="space-y-0.5">
+        <div
+          className={`text-sm ${textColor} cursor-pointer hover:text-amber-600 underline decoration-dashed underline-offset-2`}
+          onClick={() => onCardClick(reward.cardId, reward.cardType)}
+        >
+          {reward.text} 👁️
+        </div>
+        {reward.sourceHint ? (
+          <div className="text-[10px] text-stone-500 leading-snug pl-0.5">{reward.sourceHint}</div>
+        ) : null}
       </div>
     );
   }

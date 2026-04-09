@@ -160,12 +160,12 @@ export default function CardPoolDrawer({
                     <div
                       key={card.id}
                       style={{ width: 128, height: 192 }}
-                      className="cursor-pointer overflow-hidden"
+                      className="cursor-pointer overflow-hidden isolate"
                       onClick={() => setPreviewCard(card)}
                     >
                       <div style={{ transform: 'scale(0.5)', transformOrigin: 'top left', width: 256 }}>
                         {poolType === 'troop' ? (
-                          <TroopCard troop={card} skillsMap={skillsMap} showDetails={true} baseUrl={baseUrl} disableHoverScale />
+                          <TroopCard troop={card} skillsMap={skillsMap} showDetails baseUrl={baseUrl} disableHoverScale />
                         ) : (
                           <CharacterCard character={card} skillsMap={skillsMap} showDetails={true} baseUrl={baseUrl} disableHoverScale />
                         )}
@@ -273,13 +273,13 @@ function DrawResultOverlay({ poolType, cards, poolCards, skillsMap, baseUrl, rar
               const fullConfig = poolCardsMap[card.cardId];
               return (
                 <div key={i} className="flex flex-col items-center">
-                  <div style={{ width: 128, height: 192 }} className="overflow-hidden rounded-lg">
+                  <div style={{ width: 128, height: 192 }} className="overflow-hidden rounded-lg isolate">
                     <div style={{ transform: 'scale(0.5)', transformOrigin: 'top left', width: 256 }}>
                       {poolType === 'troop' ? (
                         <TroopCard
                           troop={fullConfig || { id: card.cardId, name: card.cardName, rarity: card.rarity }}
                           skillsMap={skillsMap}
-                          showDetails={true}
+                          showDetails
                           baseUrl={baseUrl}
                           disableHoverScale
                         />

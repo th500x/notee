@@ -5,7 +5,8 @@
  *   （`siegeCombatCore`：`calcDamageSeeded`、`rollCritDodgeSeeded`、`troopDamageToCasualties`，
  *   与前端棋盘战 `combatSystem` / BattleArena 所用公式一致，不是独立乱写的「对射」数值）。
  * - 战术流程：与 BattleArena 相同语义的一回合一圈——每战术回合输出「═══ 第 T 回合 ═══」，
- *   当场存活双方将帅部队按速度排序后各行动至多一次，日志为「第 K 次攻击：…」。
+ *   当场存活双方将帅部队按速度排序后各行动至多一次；**每次主动攻击后若目标未灭且双方仍在反击射程内，再结算一击反击**
+ *  （`calcDamageSeeded` 的 `strike: 'normal' | 'counter'` 与棋盘战一致）。
  */
 
 const crypto = require('crypto');
@@ -16,30 +17,36 @@ const {
   troopDamageToCasualties,
 } = require('../lib/siegeCombatCore.cjs');
 
-const PLAYER_POS = [
-  { y: 9, x: 1 },
-  { y: 9, x: 4 },
-  { y: 9, x: 7 },
-  { y: 8, x: 2 },
-  { y: 8, x: 5 },
-];
-const ENEMY_POS = [
-  { y: 0, x: 1 },
-  { y: 0, x: 5 },
-  { y: 1, x: 3 },
-  { y: 1, x: 7 },
-];
+/**
+ * 推演占位坐标：双方排在同一行、**相邻两格**（曼哈顿距=1），任意攻方↔守方随机对位时都在近战/弓程内，
+ * 便于与棋盘战一致走完 **主动一击 + 反击**（`gridDist(def,atk) <= troopAttackRange(def)`）。
+ * 多单位同阵营共用同一格（抽象接战线，不模拟走位）。
+ */
+const SIEGE_LINE_Y = 5;
+const PLAYER_SIEGE_TILE = { y: SIEGE_LINE_Y, x: 4 };
+const ENEMY_SIEGE_TILE = { y: SIEGE_LINE_Y, x: 5 };
 
 function hashSeed(parts) {
   const h = crypto.createHash('sha256').update(parts.join('|')).digest();
   return h.readUInt32BE(0) ^ h.readUInt32BE(4);
 }
 
+/** 与 `battleFlowManager.dist` 一致：曼哈顿距离 */
+function gridDist(a, b) {
+  return Math.abs(a.y - b.y) + Math.abs(a.x - b.x);
+}
+
+/** 与 `battleFlowManager.troopAttackRange` 一致 */
+function troopAttackRange(troop) {
+  const r = Number(troop?.range);
+  return Number.isFinite(r) && r > 0 ? r : 1;
+}
+
 /**
  * siege npc 格式 → BattleArena/calcDamage 用 troop（与前端 BattleArena 一致：将领属性 /10）
  */
 function siegeNpcToTroop(npc, faction, posIndex, side, rng) {
-  const pos = side === 'player' ? PLAYER_POS[posIndex % PLAYER_POS.length] : ENEMY_POS[posIndex % ENEMY_POS.length];
+  const pos = side === 'player' ? PLAYER_SIEGE_TILE : ENEMY_SIEGE_TILE;
   const morale =
     side === 'player'
       ? 72
@@ -162,13 +169,28 @@ function runSiegePvpSkirmish(attackerSiegeNpcs, defenderSiegeNpcs, seedInput) {
         logs.push(`第 ${attackInRound} 次攻击：[${atkLab}]${an} 攻击被闪避。`);
         continue;
       }
-      let dmg = calcDamageSeeded(atk, def, null, rng);
+      let dmg = calcDamageSeeded(atk, def, null, rng, { strike: 'normal' });
       if (roll === 'crit') dmg = Math.max(1, Math.round(dmg * 1.5));
       const cas = troopDamageToCasualties(def, dmg);
       def.currentTroops = Math.max(0, def.currentTroops - cas);
       logs.push(
         `第 ${attackInRound} 次攻击：[${atkLab}]${an} 对 [${defLab}]${dn} 造成 ${cas} 损失（${roll === 'crit' ? '暴击' : '命中'}）。`,
       );
+
+      if (def.currentTroops > 0 && atk.currentTroops > 0 && gridDist(def, atk) <= troopAttackRange(def)) {
+        const rollC = rollCritDodgeSeeded(def, atk, rng);
+        if (rollC === 'dodge') {
+          logs.push(`　└ 反击：[${defLab}]${dn} 对 [${atkLab}]${an} 被闪避。`);
+        } else {
+          let dmgC = calcDamageSeeded(def, atk, null, rng, { strike: 'counter' });
+          if (rollC === 'crit') dmgC = Math.max(1, Math.round(dmgC * 1.5));
+          const casC = troopDamageToCasualties(atk, dmgC);
+          atk.currentTroops = Math.max(0, atk.currentTroops - casC);
+          logs.push(
+            `　└ 反击：[${defLab}]${dn} 对 [${atkLab}]${an} 造成 ${casC} 损失（${rollC === 'crit' ? '暴击' : '命中'}）。`,
+          );
+        }
+      }
     }
   }
 

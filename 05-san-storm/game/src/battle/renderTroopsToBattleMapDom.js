@@ -46,8 +46,8 @@ export function renderTroopsToBattleMapDom(mapCardRef, battleTroops, baseUrl = '
     const goldMoraleBar = cr === 'boss' || cr === 'hero' || isPlayerLordBar;
     const moraleColor = moraleInlineColorForTroopBar(m);
     const mrHtml = goldMoraleBar
-      ? `<span class="mr">${m}/100</span>`
-      : `<span class="mr" style="color:${moraleColor}">${m}/100</span>`;
+      ? `<span class="mr">${m}</span>`
+      : `<span class="mr" style="color:${moraleColor}">${m}</span>`;
     layer.innerHTML = `${hpHtml}<div class="troop-glow ${troop.faction}"></div><img class="troop-img" alt=""><div class="${nameBarClass}"><span class="cn">${troop.displayName || troop.name}</span>${mrHtml}</div>`;
     const img = layer.querySelector('.troop-img');
     bindTroopPortraitImg(img, troop, baseUrl);

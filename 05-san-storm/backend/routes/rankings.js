@@ -16,7 +16,7 @@ const rankingService = require('../services/rankingService');
  * 常驻 · 总体排名（场均战后分，同服）
  *
  * Query: serverId（可选，缺省且带 playerId 时由 accounts 反查）, limit, playerId,
- *   sort（可选：avg | wins | reputation | events，默认 avg=场均战后分）
+ *   sort（可选：avg | wins | reputation | events | badges；后两者均按道具 item_badge 持有量排序，默认 avg）
  */
 router.get('/overall', async (req, res) => {
   try {

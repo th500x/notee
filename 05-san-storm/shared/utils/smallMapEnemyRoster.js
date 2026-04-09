@@ -2,6 +2,9 @@
  * 小型战术图（8×10）PVE 敌方编组：按槽位稀有度从 config 池抽样将领 + 部队。
  * 事件战（全槽同一稀有度）、匪寨（混合稀有度）等共用。
  *
+ * 随机敌方部队池：使用 `*_troop_8xxx`（S1 对应势力 `san_1_faction_8001` 北疆 NPC），
+ * 不再使用原 `*_troop_7xxx`（黄巾）池。见 `filterTroopsForSmallMapPveEnemy`。
+ *
  * @module @shared/utils/smallMapEnemyRoster
  */
 
@@ -64,6 +67,24 @@ export function banditNpcSlotRaritiesFromLayer(layer) {
 
 function shuffle(arr) {
   return [...arr].sort(() => Math.random() - 0.5);
+}
+
+/**
+ * S1 北疆 NPC 等：`san_1_troop_8001`…（`san_1_faction_8001` 部队段）。
+ * @param {string|null|undefined} troopId
+ */
+export function isSmallMapPveNpcTroopId(troopId) {
+  return /_troop_8\d{3}/.test(String(troopId ?? ''));
+}
+
+/**
+ * @param {Array<object>} allTroops - config 全量部队
+ * @returns {Array<object>} 优先仅含 8xxx 段；若无则回退全量（避免空池）
+ */
+export function filterTroopsForSmallMapPveEnemy(allTroops) {
+  const list = Array.isArray(allTroops) ? allTroops : [];
+  const band = list.filter((tr) => isSmallMapPveNpcTroopId(tr?.id));
+  return band.length > 0 ? band : list;
 }
 
 function pickTroopForSlot(allTroops, rarity) {

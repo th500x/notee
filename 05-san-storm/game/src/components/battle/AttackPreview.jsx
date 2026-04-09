@@ -12,7 +12,7 @@ function AttackPreview({
   campaignGridOverlay = false,
 }) {
   if (!preview) return null;
-  const { target, estimate } = preview;
+  const { target, estimate, counterEstimate } = preview;
 
   const pos = campaignGridOverlay
     ? {
@@ -62,6 +62,15 @@ function AttackPreview({
         <div style={{ fontSize: 10, color: '#ffb347' }}>
           暴击伤害 ~{estimate.critDamage}
         </div>
+        {counterEstimate != null && (
+          <div style={{ marginTop: 4, paddingTop: 4, borderTop: '1px solid rgba(255,255,255,0.15)' }}>
+            <div style={{ color: '#8ec5ff', fontWeight: 600, marginBottom: 2 }}>🛡️ 预估反击</div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: '#9ecbff' }}>~{counterEstimate.damage}</div>
+            <div style={{ fontSize: 10, color: '#aaa' }}>
+              命中 {(counterEstimate.hitRate * 100).toFixed(1)}% &nbsp; 暴击 {(counterEstimate.critRate * 100).toFixed(1)}%
+            </div>
+          </div>
+        )}
         <div style={{ marginTop: 3, fontSize: 10, color: '#ff9080', animation: 'pulse 1.5s infinite' }}>
           再次点击确认攻击
         </div>

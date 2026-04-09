@@ -51,7 +51,6 @@ CREATE TABLE IF NOT EXISTS legions (
   legion_id VARCHAR(50) PRIMARY KEY,
   legion_name VARCHAR(50) NOT NULL,
   faction_id VARCHAR(50) NOT NULL,
-  season VARCHAR(20) NOT NULL,
   commander_id VARCHAR(4) NOT NULL,
   commander_position_id VARCHAR(50) DEFAULT NULL,
   member_count INT DEFAULT 0,
@@ -63,7 +62,6 @@ CREATE TABLE IF NOT EXISTS legions (
   FOREIGN KEY (faction_id) REFERENCES factions(id) ON DELETE CASCADE,
   FOREIGN KEY (commander_id) REFERENCES players(player_id),
   INDEX idx_faction (faction_id),
-  INDEX idx_season (season),
   INDEX idx_commander (commander_id),
   INDEX idx_status (status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Legions';
@@ -88,13 +86,13 @@ CREATE TABLE IF NOT EXISTS config_items (
   description TEXT,
   item_type ENUM('event_key') NOT NULL DEFAULT 'event_key',
   season VARCHAR(20) DEFAULT NULL,
-  version VARCHAR(10) DEFAULT '1.0',
   special_effect VARCHAR(128) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Item config';
 
 -- §3.3.12 Config events
 CREATE TABLE IF NOT EXISTS config_events (
   event_id VARCHAR(50) PRIMARY KEY,
+  season VARCHAR(20) NOT NULL,
   event_name VARCHAR(100) NOT NULL,
   location VARCHAR(100) DEFAULT NULL,
   min_position_level INT DEFAULT NULL,
@@ -109,9 +107,7 @@ CREATE TABLE IF NOT EXISTS config_events (
   option_a JSON DEFAULT NULL,
   option_b JSON DEFAULT NULL,
   tags VARCHAR(255) DEFAULT NULL,
-  version VARCHAR(20) DEFAULT '1.0',
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_season (season),
   INDEX idx_location (location),
   INDEX idx_trigger_context (trigger_context),
   INDEX idx_chain_id (chain_id)

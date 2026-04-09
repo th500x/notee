@@ -218,8 +218,8 @@ export function useBattleAnimations({
       const moraleColor = moraleInlineColorForTroopBar(m);
       const goldMoraleBar = cr === 'boss' || cr === 'hero' || isPlayerLordBar;
       const mrHtml = goldMoraleBar
-        ? `<span class="mr">${m}/100</span>`
-        : `<span class="mr" style="color:${moraleColor}">${m}/100</span>`;
+        ? `<span class="mr">${m}</span>`
+        : `<span class="mr" style="color:${moraleColor}">${m}</span>`;
       const layer = document.createElement('div');
       layer.className = 'troop-layer';
       layer.innerHTML = `${hpHtml}<div class="troop-glow ${fc}"></div><img class="troop-img" alt=""><div class="${nameBarClass}"><span class="cn">${troop.displayName || troop.name}</span>${mrHtml}</div>`;
@@ -519,7 +519,7 @@ export function useBattleAnimations({
         return 0;
       }
       const roll = rollCritDodge(atk, def);
-      const dmg = calcDamage(atk, def, mapResult ? mapResult.terrain : null);
+      const dmg = calcDamage(atk, def, mapResult ? mapResult.terrain : null, { strike: 'normal' });
       if (roll === 'dodge') { await battleMiss(atk, def); return 0; }
       if (roll === 'crit') {
         const cd = troopDamageToCasualties(def, Math.round(dmg * 1.5));
@@ -544,7 +544,7 @@ export function useBattleAnimations({
       if (!trimSkipForCombatPair(trimAllyBattleLog, def, atk)) addLog(fmt.fmtCounter(def), 'attack');
       await sleep(150, speedRef.current);
       const roll = rollCritDodge(def, atk);
-      const dmg = calcDamage(def, atk, mapResult ? mapResult.terrain : null);
+      const dmg = calcDamage(def, atk, mapResult ? mapResult.terrain : null, { strike: 'counter' });
       if (roll === 'dodge') { await battleMiss(def, atk); }
       else if (roll === 'crit') {
         await battleCrit(def, atk, troopDamageToCasualties(atk, Math.round(dmg * 1.5)));

@@ -7,13 +7,12 @@ import { authAPI } from '../services/api';
 import { tokenManager } from '../utils/tokenManager';
 
 export function useAdmin() {
-  // 临时：本地开发默认视为已登录管理员（上线前改回 false + 恢复下方 token 校验）
-  const [isLoggedIn, setIsLoggedIn] = useState(true);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    // const isValid = tokenManager.isValid();
-    // setIsLoggedIn(isValid);
+    const isValid = tokenManager.isValid();
+    setIsLoggedIn(isValid);
   }, []);
 
   /**

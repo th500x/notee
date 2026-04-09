@@ -1,7 +1,7 @@
 /**
  * 事件配置数据导入 MySQL
  *
- * 输入:  public/data/shared/events.json
+ * 输入:  public/data/shared/events.json（可由 docs/tools/event/event-csv-to-json.cjs 从 CSV 生成）
  * 目标:  config_events 表
  *
  * 用法:
@@ -28,6 +28,11 @@ const dbConfig = {
 
 const JSON_PATH = path.join(__dirname, '../../public/data/shared/events.json');
 
+function extractSeasonFromEventId(id) {
+  const m = String(id || '').match(/^(san_\d+)/);
+  return m ? m[1] : null;
+}
+
 async function importEvents(connection) {
   console.log('开始导入事件配置数据...');
 
@@ -39,15 +44,17 @@ async function importEvents(connection) {
 
   for (const e of events) {
     try {
+      const season = (e.season && String(e.season).trim()) || extractSeasonFromEventId(e.id) || 'san_1';
       await connection.query(`
         INSERT INTO config_events (
-          event_id, event_name, location, min_position_level,
+          event_id, season, event_name, location, min_position_level,
           trigger_probability, trigger_context,
           chain_id, chain_level, required_items,
           description_1, description_2, description_3,
-          option_a, option_b, tags, version
+          option_a, option_b, tags
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON DUPLICATE KEY UPDATE
+          season              = VALUES(season),
           event_name          = VALUES(event_name),
           location            = VALUES(location),
           min_position_level  = VALUES(min_position_level),
@@ -61,10 +68,10 @@ async function importEvents(connection) {
           description_3       = VALUES(description_3),
           option_a            = VALUES(option_a),
           option_b            = VALUES(option_b),
-          tags                = VALUES(tags),
-          version             = VALUES(version)
+          tags                = VALUES(tags)
       `, [
         e.id,
+        season,
         e.name,
         e.location || null,
         e.minPositionLevel || null,
@@ -79,7 +86,6 @@ async function importEvents(connection) {
         e.optionA ? JSON.stringify(e.optionA) : null,
         e.optionB ? JSON.stringify(e.optionB) : null,
         e.tags || null,
-        e.version || '1.0',
       ]);
 
       imported++;

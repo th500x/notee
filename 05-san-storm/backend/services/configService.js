@@ -15,7 +15,7 @@ const CONFIG_TROOPS_SELECT_COLUMNS = `
   troop_id, season, troop_name, rarity, troop_type, weapon_type,
   attack, defense, max_troops, troop_weight, speed, movement,
   \`range\` AS troop_range,
-  special_ability, description, version
+  special_ability, description
 `.replace(/\s+/g, ' ').trim();
 
 /**
@@ -142,9 +142,6 @@ function formatTroopData(troop) {
     
     // 描述
     description: troop.description || '尚无记载',
-    
-    // 元数据
-    version: troop.version
   };
 }
 
@@ -273,9 +270,6 @@ function formatCharacterData(char) {
     bonds: characterExtra.bonds || [],
     biography: characterExtra.biography || '',
     description: characterExtra.description || '',
-    
-    // 元数据
-    version: char.version
   };
 }
 
@@ -398,7 +392,6 @@ function formatEventData(row) {
     option_a:            parseJson(row.option_a),
     option_b:            parseJson(row.option_b),
     tags:                row.tags || null,
-    version:             row.version || '1.0',
   };
 
   // 事件级 required_items（事件链道具）合并到两个选项的 requiredItems
@@ -472,7 +465,6 @@ function formatEquipmentData(row) {
     specialEffect,
     specialEffectDesc: row.special_effect_desc || null,
     description:       row.description || '',
-    version:           row.version,
   };
 }
 

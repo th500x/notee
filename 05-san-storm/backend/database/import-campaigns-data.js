@@ -47,8 +47,8 @@ async function importCampaigns(connection) {
           campaign_id, season, campaign_name, campaign_type, era, faction,
           max_rounds, min_rounds, completion_reward_silver, completion_reward_food, completion_reward_badge,
           description_1, description_2, description_3,
-          sort_order, enabled, version
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          sort_order, enabled
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON DUPLICATE KEY UPDATE
           season = VALUES(season),
           campaign_name = VALUES(campaign_name),
@@ -64,8 +64,7 @@ async function importCampaigns(connection) {
           description_2 = VALUES(description_2),
           description_3 = VALUES(description_3),
           sort_order = VALUES(sort_order),
-          enabled = VALUES(enabled),
-          version = VALUES(version)
+          enabled = VALUES(enabled)
       `,
         [
           c.campaign_id,
@@ -84,7 +83,6 @@ async function importCampaigns(connection) {
           c.description_3,
           c.sort_order ?? 0,
           c.enabled !== undefined ? c.enabled : 1,
-          c.version || '1.0',
         ]
       );
       imported++;

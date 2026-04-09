@@ -38,7 +38,6 @@ const emptyForm = () => ({
   subject: '',
   body: '',
   attachments_json: ATTACHMENTS_JSON_SAMPLE,
-  season: 'san_1',
   is_enabled: true,
   sort_order: 0,
   remark: ''
@@ -100,7 +99,6 @@ const MailManager = () => {
           : row.mail_type === 'reward'
             ? ATTACHMENTS_JSON_SAMPLE
             : '',
-      season: row.season || '',
       is_enabled: !!row.is_enabled,
       sort_order: row.sort_order ?? 0,
       remark: row.remark || ''
@@ -121,7 +119,6 @@ const MailManager = () => {
         subject: form.subject.trim(),
         body: form.body,
         attachments_json,
-        season: form.season.trim() || null,
         is_enabled: form.is_enabled,
         sort_order: Number(form.sort_order) || 0,
         remark: form.remark.trim() || null
@@ -137,7 +134,6 @@ const MailManager = () => {
             subject: payload.subject,
             body: payload.body,
             attachments_json,
-            season: payload.season,
             is_enabled: payload.is_enabled,
             sort_order: payload.sort_order,
             remark: payload.remark
@@ -339,15 +335,6 @@ const MailManager = () => {
               <code className="bg-gray-100 px-0.5">cards</code> 为将领/部队/装备各 1 张（势力通配符规则与事件奖励一致）。类型选 system 时保存会忽略附件。
             </p>
           </div>
-          <label className="block text-sm">
-            <span className="text-gray-600">赛季</span>
-            <input
-              className="mt-1 w-full border rounded px-3 py-2"
-              value={form.season}
-              onChange={(e) => setForm({ ...form, season: e.target.value })}
-              placeholder="san_1"
-            />
-          </label>
           <label className="block text-sm flex flex-col gap-1 mt-1">
             <span className="flex items-center gap-2 text-gray-600">
               <input
@@ -483,7 +470,6 @@ const MailManager = () => {
                 <th className="px-3 py-2">ID</th>
                 <th className="px-3 py-2">类型</th>
                 <th className="px-3 py-2">标题</th>
-                <th className="px-3 py-2">赛季</th>
                 <th className="px-3 py-2">启用</th>
                 <th className="px-3 py-2">操作</th>
               </tr>
@@ -496,7 +482,6 @@ const MailManager = () => {
                   <td className="px-3 py-2 max-w-xs truncate" title={r.subject}>
                     {r.subject}
                   </td>
-                  <td className="px-3 py-2">{r.season || '—'}</td>
                   <td className="px-3 py-2">{r.is_enabled ? '是' : '否'}</td>
                   <td className="px-3 py-2 space-x-2 whitespace-nowrap">
                     <button type="button" className="text-blue-600 hover:underline" onClick={() => startEdit(r)}>

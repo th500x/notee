@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-03T18:47:03.655Z",
+  "generatedAt": "2026-04-09T08:18:25.152Z",
   "source": "docs/tools/campaign/campaign-template.csv",
   "campaigns": [
     {
@@ -18,8 +18,7 @@
       "description_2": "战役目标：协助皇甫嵩，击败黄巾军",
       "description_3": null,
       "sort_order": 0,
-      "enabled": 1,
-      "version": "1.0"
+      "enabled": 1
     },
     {
       "campaign_id": "san_1_camp_1001_v2",
@@ -37,8 +36,7 @@
       "description_2": "战役目标：协助波才，防守汉军",
       "description_3": "特殊胜利条件：坚守5回合",
       "sort_order": 10,
-      "enabled": 1,
-      "version": "1.0"
+      "enabled": 1
     }
   ]
 }

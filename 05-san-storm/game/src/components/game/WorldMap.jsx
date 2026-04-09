@@ -1049,12 +1049,14 @@ export default function WorldMap({ onEventBusyChange }) {
                 className="text-sm font-medium"
                 style={{ color: getRarityHex(siegeResult.equipmentDrop.rarity) }}
               >
-                🎁 攻城掉落：{siegeResult.equipmentDrop.name}（{getRarityLabelCn(siegeResult.equipmentDrop.rarity)}）
+                🎁 攻城战后随机掉落（约 5%）：{siegeResult.equipmentDrop.name}（{getRarityLabelCn(siegeResult.equipmentDrop.rarity)}）
               </div>
             )}
             {Array.isArray(siegeResult.chestRewards) && siegeResult.chestRewards.length > 0 && (
               <div className="text-left text-sm space-y-1 border-t border-amber-500/25 pt-2 mt-1">
-                <div className="text-[11px] text-stone-500">📦 地图宝箱（本场已入库，与上方攻城 5% 掉落独立）</div>
+                <div className="text-[11px] text-stone-500">
+                  📦 地图内宝箱（战斗中开启，已入库；与上方「攻城战后随机装备」非同一路径）
+                </div>
                 {siegeResult.chestRewards.map((r, i) => (
                   <div
                     key={`${r.equipmentId || 'eq'}-${i}`}

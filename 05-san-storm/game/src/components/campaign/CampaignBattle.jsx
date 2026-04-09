@@ -163,7 +163,7 @@ export default function CampaignBattle({
             {battleEndOverlay.chestRewards.length > 0 && (
               <div className="text-left text-sm border-t border-amber-500/25 pt-2">
                 <div className="text-[11px] text-stone-500 mb-1.5">
-                  📦 地图宝箱（本场已入库，与战役配置奖励独立）
+                  📦 地图内宝箱（战斗中开启，已入库；与战役配置奖励、战后随机装备掉落非同一路径）
                 </div>
                 <div className="space-y-1">
                   {battleEndOverlay.chestRewards.map((r, i) => (

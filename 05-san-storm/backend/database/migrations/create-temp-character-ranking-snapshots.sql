@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS temp_character_ranking_snapshots (
   intelligence DECIMAL(14, 6) NOT NULL,
   politics DECIMAL(14, 6) NOT NULL,
   charm DECIMAL(14, 6) NOT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间（首次插入）',
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '上次刷新时间；超过14天未更新则定时任务删除',
   PRIMARY KEY (player_id, bucket),
   KEY idx_srv_bucket (server_id, bucket),

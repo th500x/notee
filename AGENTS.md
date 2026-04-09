@@ -17,6 +17,8 @@
 
 ## 设计文档（05-san-storm）
 
+**San Storm 设计文档的规范路径是 `05-san-storm/docs/`**（例如 `05-san-storm/docs/00-base/01-DATABASE_DESIGN.md`），**不是**仓库根目录的 `docs/`。`.gitignore` 常忽略 docs，**Glob / 搜索为空不得当作「没有文档」**；应直接 `Read` 上述前缀下的路径或用终端在 `05-san-storm\docs` 内查找。
+
 对 `05-san-storm/docs/` 下既有 **`*.md`**：**必须先读取原文**再在原文上修订；**禁止**未读全文即用新内容**整文件覆盖**同一编号/主题文档。Glob 搜不到 docs **不代表**文件不存在；以用户给出的路径或 `Read` 结果为准。
 
 **禁止**在用户未用原话明示「允许新建」时，在 `05-san-storm/docs/` 下**新建**任何 `.md`；缺失文件应提示用户，而非自动创建。

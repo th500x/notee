@@ -19,7 +19,6 @@ CREATE TABLE IF NOT EXISTS config_campaigns (
   description_3 TEXT NULL,
   sort_order INT NOT NULL DEFAULT 0 COMMENT '列表顺序；同解锁态可与 era 解析排序配合',
   enabled TINYINT(1) NOT NULL DEFAULT 1,
-  version VARCHAR(20) DEFAULT '1.0',
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   INDEX idx_season_enabled (season, enabled),

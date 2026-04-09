@@ -1,12 +1,13 @@
 {
   "_meta": {
-    "generated": "2026-03-30T12:42:33.236Z",
+    "generated": "2026-04-09T08:18:25.049Z",
     "source": "event-template.csv",
     "count": 27
   },
   "events": [
     {
       "id": "san_1_event_2_1000",
+      "season": "san_1",
       "name": "绝版纪念",
       "location": "{any_city}",
       "minPositionLevel": null,
@@ -21,7 +22,6 @@
         "（核心部队卡牌）未来可以继承到正式赛季"
       ],
       "tags": "新手指引",
-      "version": "1.0",
       "optionA": {
         "id": "option_a",
         "text": "欣然接受",
@@ -55,6 +55,7 @@
     },
     {
       "id": "san_1_event_2_1001",
+      "season": "san_1",
       "name": "官拜军候",
       "location": "{any_city}",
       "minPositionLevel": null,
@@ -69,7 +70,6 @@
         "在这烽火乱世，想必主公必能建功立业，青史留名！"
       ],
       "tags": "新手指引",
-      "version": "1.0",
       "optionA": {
         "id": "option_a",
         "text": "欣然接受",
@@ -103,6 +103,7 @@
     },
     {
       "id": "san_1_event_2_1002",
+      "season": "san_1",
       "name": "名将投奔",
       "location": "{any_city}",
       "minPositionLevel": null,
@@ -115,7 +116,6 @@
         "正当你整军待阵的时候，麾下来报有人前来拜访"
       ],
       "tags": "新手指引",
-      "version": "1.0",
       "optionA": {
         "id": "option_a",
         "text": "会见",
@@ -149,6 +149,7 @@
     },
     {
       "id": "san_1_event_2_1003",
+      "season": "san_1",
       "name": "阵前操练",
       "location": "{any_city}",
       "minPositionLevel": null,
@@ -161,7 +162,6 @@
         "探子来报，{city_name}城外貌似有匪徒的踪影"
       ],
       "tags": "新手指引",
-      "version": "1.0",
       "optionA": {
         "id": "option_a",
         "text": "带军出征",
@@ -174,10 +174,10 @@
         "battleEnemyId": null,
         "successText": "匪徒不战而逃",
         "failureText": "{player_name}带军迎战",
-        "rewards": "reputation:5;silver:10;food:50",
-        "bonusRewards": "random:equipment:common",
         "battleVictoryText": "{player_name}横扫匪徒",
         "battleDefeatText": "竟然被匪徒击败了",
+        "rewards": "reputation:5;silver:10;food:50",
+        "bonusRewards": "random:equipment:common",
         "battleVictoryRewards": "random:equipment:common"
       },
       "optionB": {
@@ -198,6 +198,7 @@
     },
     {
       "id": "san_1_event_2_1004",
+      "season": "san_1",
       "name": "官拜都尉",
       "location": "{any_city}",
       "minPositionLevel": null,
@@ -211,7 +212,6 @@
         "{city_name}太守已向朝廷送书，提拔主公为【都尉】"
       ],
       "tags": "新手指引",
-      "version": "1.0",
       "optionA": {
         "id": "option_a",
         "text": "欣然接受",
@@ -245,6 +245,7 @@
     },
     {
       "id": "san_1_event_6_1001",
+      "season": "san_1",
       "name": "荒郊探索",
       "location": "san_1_city_6_nanyang",
       "minPositionLevel": null,
@@ -257,7 +258,6 @@
         "{player_name}正驻军于南阳荒郊，无意中发现了一支落草流寇"
       ],
       "tags": "探索",
-      "version": "1.0",
       "optionA": {
         "id": "option_a",
         "text": "追杀",
@@ -270,10 +270,10 @@
         "battleEnemyId": null,
         "successText": "流寇不战而逃",
         "failureText": "大战一触即发",
-        "rewards": "reputation:1;silver:10;food:50",
-        "bonusRewards": "random:equipment:common",
         "battleVictoryText": "{player_name}横扫流寇",
-        "battleDefeatText": "竟然被流寇击败了"
+        "battleDefeatText": "竟然被流寇击败了",
+        "rewards": "reputation:1;silver:10;food:50",
+        "bonusRewards": "random:equipment:common"
       },
       "optionB": {
         "id": "option_b",
@@ -287,14 +287,15 @@
         "battleEnemyId": null,
         "successText": "两方握手言和",
         "failureText": "流寇断然拒绝",
-        "rewards": "reputation:1;silver:10;food:50",
-        "bonusRewards": "random:equipment:common;random:troop:common:1",
         "battleVictoryText": "{player_name}横扫流寇",
-        "battleDefeatText": "竟然被流寇击败了"
+        "battleDefeatText": "竟然被流寇击败了",
+        "rewards": "reputation:1;silver:10;food:50",
+        "bonusRewards": "random:equipment:common;random:troop:common:1"
       }
     },
     {
       "id": "san_1_event_5_1001",
+      "season": "san_1",
       "name": "村童的棋局",
       "location": "san_1_city_6_nanyang",
       "minPositionLevel": null,
@@ -308,7 +309,6 @@
         "大人大人！陪我下一局五子棋吧！赢了有奖品哦！"
       ],
       "tags": "迷你游戏;五子棋",
-      "version": "1.0",
       "optionA": {
         "id": "option_a",
         "text": "来吧小鬼",
@@ -342,6 +342,7 @@
     },
     {
       "id": "san_1_event_5_1002",
+      "season": "san_1",
       "name": "隐士的棋局",
       "location": "san_1_city_6_nanyang",
       "minPositionLevel": null,
@@ -356,7 +357,6 @@
         "胜者可得老夫珍藏的棋谱残卷"
       ],
       "tags": "迷你游戏;五子棋",
-      "version": "1.0",
       "optionA": {
         "id": "option_a",
         "text": "欣然应战",
@@ -390,6 +390,7 @@
     },
     {
       "id": "san_1_event_5_1003",
+      "season": "san_1",
       "name": "棋圣的考验",
       "location": "san_1_city_6_nanyang",
       "minPositionLevel": null,
@@ -404,7 +405,6 @@
         "敢与我一战否？胜者可得我毕生所学！"
       ],
       "tags": "迷你游戏;五子棋",
-      "version": "1.0",
       "optionA": {
         "id": "option_a",
         "text": "挑战棋圣",
@@ -438,6 +438,7 @@
     },
     {
       "id": "san_1_event_5_2001",
+      "season": "san_1",
       "name": "赌坊小厮的邀约",
       "location": "san_1_city_6_nanyang",
       "minPositionLevel": null,
@@ -452,7 +453,6 @@
         "每局只需5两银子三局定胜负！"
       ],
       "tags": "迷你游戏;二十一点",
-      "version": "1.0",
       "optionA": {
         "id": "option_a",
         "text": "来吧",
@@ -486,6 +486,7 @@
     },
     {
       "id": "san_1_event_5_2002",
+      "season": "san_1",
       "name": "赌坊掌柜的牌局",
       "location": "san_1_city_6_nanyang",
       "minPositionLevel": null,
@@ -500,7 +501,6 @@
         "每局5两银子三局两胜老规矩"
       ],
       "tags": "迷你游戏;二十一点",
-      "version": "1.0",
       "optionA": {
         "id": "option_a",
         "text": "欣然应战",
@@ -534,6 +534,7 @@
     },
     {
       "id": "san_1_event_5_2003",
+      "season": "san_1",
       "name": "赌坊黑手的挑战",
       "location": "san_1_city_6_nanyang",
       "minPositionLevel": null,
@@ -548,7 +549,6 @@
         "每局5两银子赢了算你本事输了别怪我手黑"
       ],
       "tags": "迷你游戏;二十一点",
-      "version": "1.0",
       "optionA": {
         "id": "option_a",
         "text": "奉陪到底",
@@ -582,6 +582,7 @@
     },
     {
       "id": "san_1_event_7_1001",
+      "season": "san_1",
       "name": "流寇遗落的辎重",
       "location": "san_1_city_6_nanyang",
       "minPositionLevel": null,
@@ -596,7 +597,6 @@
         "真是天上掉馅饼！"
       ],
       "tags": "探索;奖励",
-      "version": "1.0",
       "optionA": {
         "id": "option_a",
         "text": "收入囊中",
@@ -630,6 +630,7 @@
     },
     {
       "id": "san_1_event_7_1002",
+      "season": "san_1",
       "name": "军鼓祭祀",
       "location": "san_1_city_6_nanyang",
       "minPositionLevel": null,
@@ -644,7 +645,6 @@
         "鼓面虽已斑驳，但隐隐散发着一股威压之气"
       ],
       "tags": "探索;奖励",
-      "version": "1.0",
       "optionA": {
         "id": "option_a",
         "text": "击鼓祭天",
@@ -678,6 +678,7 @@
     },
     {
       "id": "san_1_event_6_1002",
+      "season": "san_1",
       "name": "废弃军营",
       "location": "san_1_city_6_nanyang",
       "minPositionLevel": null,
@@ -692,7 +693,6 @@
         "不过营地周围似乎有野兽出没的痕迹……"
       ],
       "tags": "探索",
-      "version": "1.0",
       "optionA": {
         "id": "option_a",
         "text": "搜索营地",
@@ -705,10 +705,10 @@
         "battleEnemyId": null,
         "successText": "你小心翼翼地搜索了营地，找到了不少有用的物资",
         "failureText": "一群野狼突然从暗处扑出！",
-        "rewards": "food:200",
-        "bonusRewards": "random:equipment:common:1",
         "battleVictoryText": "{player_name}击退了野狼，顺利搜刮了营地",
-        "battleDefeatText": "野狼凶猛异常，你不得不撤退"
+        "battleDefeatText": "野狼凶猛异常，你不得不撤退",
+        "rewards": "food:200",
+        "bonusRewards": "random:equipment:common:1"
       },
       "optionB": {
         "id": "option_b",
@@ -728,6 +728,7 @@
     },
     {
       "id": "san_1_event_6_1003",
+      "season": "san_1",
       "name": "迷路的商队",
       "location": "san_1_city_6_nanyang",
       "minPositionLevel": null,
@@ -741,7 +742,6 @@
         "商队首领满脸焦急：这位将军，我们迷路了，能否指引方向？"
       ],
       "tags": "探索",
-      "version": "1.0",
       "optionA": {
         "id": "option_a",
         "text": "护送商队",
@@ -754,10 +754,10 @@
         "battleEnemyId": null,
         "successText": "你成功将商队护送到官道，商队首领千恩万谢",
         "failureText": "你带着商队越走越偏，商队首领脸色越来越难看……",
-        "rewards": "silver:30;reputation:2",
-        "bonusRewards": "random:equipment:rare:1",
         "battleVictoryText": "终于找到了正路！商队首领重金酬谢",
-        "battleDefeatText": "你们被一伙山贼盯上了！"
+        "battleDefeatText": "你们被一伙山贼盯上了！",
+        "rewards": "silver:30;reputation:2",
+        "bonusRewards": "random:equipment:rare:1"
       },
       "optionB": {
         "id": "option_b",
@@ -777,6 +777,7 @@
     },
     {
       "id": "san_1_event_6_1004",
+      "season": "san_1",
       "name": "神秘石碑",
       "location": "san_1_city_6_nanyang",
       "minPositionLevel": null,
@@ -791,7 +792,6 @@
         "石碑底部似乎有一个暗格"
       ],
       "tags": "探索;稀有",
-      "version": "1.0",
       "optionA": {
         "id": "option_a",
         "text": "尝试破解",
@@ -804,10 +804,10 @@
         "battleEnemyId": null,
         "successText": "你成功破解了石碑上的密文，暗格应声而开！",
         "failureText": "你捣鼓了半天也没弄明白，石碑纹丝不动",
-        "rewards": "silver:10;reputation:2;random:equipment:rare:1",
-        "bonusRewards": "random:equipment:epic:1",
         "battleVictoryText": "暗格中藏着一卷泛黄的兵书和一枚古玉",
-        "battleDefeatText": "你用力过猛，石碑裂开了……什么也没得到"
+        "battleDefeatText": "你用力过猛，石碑裂开了……什么也没得到",
+        "rewards": "silver:10;reputation:2;random:equipment:rare:1",
+        "bonusRewards": "random:equipment:epic:1"
       },
       "optionB": {
         "id": "option_b",
@@ -827,6 +827,7 @@
     },
     {
       "id": "san_1_event_6_1005",
+      "season": "san_1",
       "name": "受伤的斥候",
       "location": "san_1_city_6_nanyang",
       "minPositionLevel": null,
@@ -840,7 +841,6 @@
         "他气息微弱地说道：将军……前方有黄巾贼寇埋伏……小心……"
       ],
       "tags": "探索",
-      "version": "1.0",
       "optionA": {
         "id": "option_a",
         "text": "救治斥候",
@@ -853,10 +853,10 @@
         "battleEnemyId": null,
         "successText": "你用随身药材为斥候包扎了伤口，他感激不尽",
         "failureText": "斥候伤势太重，你的药材不够用了",
-        "rewards": "food:50;reputation:3",
-        "bonusRewards": "random:troop:common:1",
         "battleVictoryText": "斥候恢复后加入了你的队伍，还告知了敌军情报",
-        "battleDefeatText": "斥候虽然活了下来但无法行动，你只能将他安置在附近村庄"
+        "battleDefeatText": "斥候虽然活了下来但无法行动，你只能将他安置在附近村庄",
+        "rewards": "food:50;reputation:3",
+        "bonusRewards": "random:troop:common:1"
       },
       "optionB": {
         "id": "option_b",
@@ -876,6 +876,7 @@
     },
     {
       "id": "san_1_event_6_2001",
+      "season": "san_1",
       "name": "路边的哭声",
       "location": "san_1_city_6_nanyang",
       "minPositionLevel": null,
@@ -890,7 +891,6 @@
         "老妇人哭诉道：我的儿媳被山贼掳走了求求将军救救她！"
       ],
       "tags": "探索;事件链;村妇",
-      "version": "1.0",
       "optionA": {
         "id": "option_a",
         "text": "答应帮忙",
@@ -924,6 +924,7 @@
     },
     {
       "id": "san_1_event_6_2002",
+      "season": "san_1",
       "name": "村民的线索",
       "location": "san_1_city_6_nanyang",
       "minPositionLevel": null,
@@ -938,7 +939,6 @@
         "村民说道：我知道山贼的营地在哪里我可以画一张地图给你"
       ],
       "tags": "探索;事件链;村妇",
-      "version": "1.0",
       "optionA": {
         "id": "option_a",
         "text": "请他画地图",
@@ -972,6 +972,7 @@
     },
     {
       "id": "san_1_event_6_2003",
+      "season": "san_1",
       "name": "山贼营地",
       "location": "san_1_city_6_nanyang",
       "minPositionLevel": null,
@@ -986,7 +987,6 @@
         "要救出村妇必须先击败这群山贼"
       ],
       "tags": "探索;事件链;村妇;战斗",
-      "version": "1.0",
       "optionA": {
         "id": "option_a",
         "text": "强攻营地",
@@ -999,10 +999,10 @@
         "battleEnemyId": null,
         "successText": "你趁山贼换防之际发起突袭打了他们一个措手不及",
         "failureText": "山贼防备森严强攻恐怕要付出不小的代价",
-        "rewards": "item_nanyang_cunfu_3;reputation:3;silver:30",
-        "bonusRewards": "food:100",
         "battleVictoryText": "{player_name}大破山贼营地缴获了山贼头目的令牌",
-        "battleDefeatText": "山贼人多势众你不得不暂时撤退"
+        "battleDefeatText": "山贼人多势众你不得不暂时撤退",
+        "rewards": "item_nanyang_cunfu_3;reputation:3;silver:30",
+        "bonusRewards": "food:100"
       },
       "optionB": {
         "id": "option_b",
@@ -1016,14 +1016,15 @@
         "battleEnemyId": null,
         "successText": "你趁夜色摸入营地山贼们在睡梦中被惊醒",
         "failureText": "夜袭计划被山贼的暗哨发现了",
-        "rewards": "item_nanyang_cunfu_3;reputation:3;silver:50",
-        "bonusRewards": "food:50",
         "battleVictoryText": "{player_name}大破山贼营地缴获了山贼头目的令牌",
-        "battleDefeatText": "山贼人多势众你不得不暂时撤退"
+        "battleDefeatText": "山贼人多势众你不得不暂时撤退",
+        "rewards": "item_nanyang_cunfu_3;reputation:3;silver:50",
+        "bonusRewards": "food:50"
       }
     },
     {
       "id": "san_1_event_6_2004",
+      "season": "san_1",
       "name": "救出村妇",
       "location": "san_1_city_6_nanyang",
       "minPositionLevel": null,
@@ -1038,7 +1039,6 @@
         "村妇虽然憔悴但精神尚好见到你后喜极而泣"
       ],
       "tags": "探索;事件链;村妇",
-      "version": "1.0",
       "optionA": {
         "id": "option_a",
         "text": "立刻救走",
@@ -1072,6 +1072,7 @@
     },
     {
       "id": "san_1_event_6_2005",
+      "season": "san_1",
       "name": "村妇的报恩",
       "location": "san_1_city_6_nanyang",
       "minPositionLevel": null,
@@ -1086,7 +1087,6 @@
         "她的丈夫是当地有名的猎户愿意带领一批乡勇投效将军麾下"
       ],
       "tags": "探索;事件链;村妇",
-      "version": "1.0",
       "optionA": {
         "id": "option_a",
         "text": "欣然接受",
@@ -1120,6 +1120,7 @@
     },
     {
       "id": "san_1_event_6_2010",
+      "season": "san_1",
       "name": "散兵游勇的踪迹",
       "location": "san_1_city_6_nanyang",
       "minPositionLevel": null,
@@ -1134,7 +1135,6 @@
         "你在乱草堆里摸到一枚刻着模糊番号的铜牌像是某支友军溃散时遗落的信物"
       ],
       "tags": "探索;事件链;南阳;部队",
-      "version": "1.0",
       "optionA": {
         "id": "option_a",
         "text": "循迹搜寻",
@@ -1168,6 +1168,7 @@
     },
     {
       "id": "san_1_event_6_2011",
+      "season": "san_1",
       "name": "整编旧部",
       "location": "san_1_city_6_nanyang",
       "minPositionLevel": null,
@@ -1182,7 +1183,6 @@
         "老兵们说若将军信得过他们愿连夜为你麾下最残破的那支传奇旧部修补甲械恢复战力"
       ],
       "tags": "探索;事件链;南阳;部队;耐久",
-      "version": "1.0",
       "optionA": {
         "id": "option_a",
         "text": "交出铜牌拜托整编",
@@ -1216,6 +1216,7 @@
     },
     {
       "id": "san_1_event_6_3001",
+      "season": "san_1",
       "name": "蛮踪与密信",
       "location": "san_1_city_6_shanhaiguan",
       "minPositionLevel": null,
@@ -1230,7 +1231,6 @@
         "你在石缝间拾到一封揉皱的信笺蜡印残缺仍可辨认出蛮族劫匪的暗记"
       ],
       "tags": "探索;事件链;山海关",
-      "version": "1.0",
       "optionA": {
         "id": "option_a",
         "text": "细搜线索",
@@ -1264,6 +1264,7 @@
     },
     {
       "id": "san_1_event_6_3002",
+      "season": "san_1",
       "name": "峡口重围",
       "location": "san_1_city_6_shanhaiguan",
       "minPositionLevel": null,
@@ -1278,7 +1279,6 @@
         "为首悍卒狞笑：汉人将领也敢蹚这趟浑水？留下买路财或留下人头！"
       ],
       "tags": "探索;事件链;山海关;战斗",
-      "version": "1.0",
       "optionA": {
         "id": "option_a",
         "text": "列阵突围",
@@ -1291,10 +1291,10 @@
         "battleEnemyId": "san_1_char_0004",
         "successText": "贼势未合你先夺坡口占得地势",
         "failureText": "峡口渐被合围箭如雨下",
-        "rewards": "reputation:3;silver:25;food:60",
-        "bonusRewards": "random:equipment:epic:1",
         "battleVictoryText": "{player_name}突阵破围匪徒溃散遁入深林",
-        "battleDefeatText": "{player_name}阵脚受阻只得率队暂退"
+        "battleDefeatText": "{player_name}阵脚受阻只得率队暂退",
+        "rewards": "reputation:3;silver:25;food:60",
+        "bonusRewards": "random:equipment:epic:1"
       },
       "optionB": {
         "id": "option_b",
@@ -1308,10 +1308,10 @@
         "battleEnemyId": "san_1_char_0004",
         "successText": "你抢先占住山脊顿挫其锋锐",
         "failureText": "四面合围仍险象环生",
-        "rewards": "reputation:3;silver:20;food:50",
-        "bonusRewards": "random:equipment:rare:1",
         "battleVictoryText": "{player_name}挫其锐气群匪乱阵退走",
-        "battleDefeatText": "{player_name}矢石交迫情势危急被迫后撤"
+        "battleDefeatText": "{player_name}矢石交迫情势危急被迫后撤",
+        "rewards": "reputation:3;silver:20;food:50",
+        "bonusRewards": "random:equipment:rare:1"
       }
     }
   ]

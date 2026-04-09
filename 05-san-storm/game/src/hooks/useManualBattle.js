@@ -44,7 +44,7 @@ export function useManualBattle({
   const [formationRemMove, setFormationRemMove] = useState(0);
 
   // 两次点击攻击预览
-  const [attackPreview, setAttackPreview] = useState(null); // { target, estimate }
+  const [attackPreview, setAttackPreview] = useState(null); // { target, estimate, counterEstimate? }
 
   // 宝箱奖励
   const [chestReward, setChestReward] = useState(null); // 装备件对象
@@ -461,9 +461,14 @@ export function useManualBattle({
           endTurn();
           return;
         }
-        // 第一次点击 → 显示预估伤害
-        const estimate = estimateDamage(activeTroop, clickedEnemy, mapResult?.terrain);
-        setAttackPreview({ target: clickedEnemy, estimate });
+        // 第一次点击 → 显示预估伤害（与 calcDamage：主动 normal / 反击 counter 一致）
+        const estimate = estimateDamage(activeTroop, clickedEnemy, mapResult?.terrain, { strike: 'normal' });
+        const canCounter =
+          dist(clickedEnemy, activeTroop) <= troopAttackRange(clickedEnemy);
+        const counterEstimate = canCounter
+          ? estimateDamage(clickedEnemy, activeTroop, mapResult?.terrain, { strike: 'counter' })
+          : null;
+        setAttackPreview({ target: clickedEnemy, estimate, counterEstimate });
         return;
       }
 
@@ -492,8 +497,13 @@ export function useManualBattle({
           return;
         }
         // 第一次点击 → 显示预估伤害
-        const estimate = estimateDamage(activeTroop, clickedEnemy, mapResult?.terrain);
-        setAttackPreview({ target: clickedEnemy, estimate });
+        const estimate = estimateDamage(activeTroop, clickedEnemy, mapResult?.terrain, { strike: 'normal' });
+        const canCounter =
+          dist(clickedEnemy, activeTroop) <= troopAttackRange(clickedEnemy);
+        const counterEstimate = canCounter
+          ? estimateDamage(clickedEnemy, activeTroop, mapResult?.terrain, { strike: 'counter' })
+          : null;
+        setAttackPreview({ target: clickedEnemy, estimate, counterEstimate });
         return;
       }
 

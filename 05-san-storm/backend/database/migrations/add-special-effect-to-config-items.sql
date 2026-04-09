@@ -2,4 +2,4 @@
 -- 执行: mysql -u... -p... DB_NAME < migrations/add-special-effect-to-config-items.sql
 
 ALTER TABLE config_items
-  ADD COLUMN special_effect VARCHAR(128) NULL DEFAULT NULL COMMENT '道具特殊效果标识' AFTER version;
+  ADD COLUMN special_effect VARCHAR(128) NULL DEFAULT NULL COMMENT '道具特殊效果标识' AFTER season;
