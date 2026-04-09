@@ -151,10 +151,10 @@ const TroopCard = ({
         }}
       >
 
-        {/* 顶部：部队名称区域 */}
+        {/* 顶部：部队名称区域（标题条透明度与 CharacterCard 一致：bg-black/10；部队卡不加 backdrop-blur，避免卡池 scale 下合成闪烁） */}
         <div className={`
-          relative h-[40px] flex-shrink-0 px-3 py-2
-          bg-black/25
+          relative z-10 h-[40px] flex-shrink-0 px-3 py-2
+          bg-black/10
           flex items-center justify-between
         `}>
           <div className="flex items-center gap-2 min-w-0">

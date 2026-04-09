@@ -24,7 +24,8 @@ const getFactionFromTroopId = (troopId) => {
     '5': '董卓',  // 董卓势力
     '6': '汉室',  // 汉室势力
     '7': '黄巾',  // 黄巾势力
-    '8': '其他',  // 其他势力
+    '8': '北疆',  // 北疆 NPC（8xxx）
+    '9': '众生',  // 战役专用（9xxx，非玩家可选势力）
   };
   
   return factionMap[factionCode] || '通用';
@@ -179,6 +180,8 @@ function TroopsPage() {
             <option value="董卓">董卓</option>
             <option value="汉室">汉室</option>
             <option value="黄巾">黄巾</option>
+            <option value="北疆">北疆</option>
+            <option value="众生">众生</option>
           </select>
           
           {/* 兵种筛选 */}

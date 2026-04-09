@@ -3,7 +3,7 @@
  * 事件战（全槽同一稀有度）、匪寨（混合稀有度）等共用。
  *
  * 随机敌方部队池：使用 `*_troop_8xxx`（S1 对应势力 `san_1_faction_8001` 北疆 NPC），
- * 不再使用原 `*_troop_7xxx`（黄巾）池。见 `filterTroopsForSmallMapPveEnemy`。
+ * 不使用黄巾常规 `*_troop_7xxx` 池（避免与小型图 PVE 需求混淆）。战役专用见 `*_troop_9xxx`（众生）。见 `filterTroopsForSmallMapPveEnemy`。
  *
  * @module @shared/utils/smallMapEnemyRoster
  */

@@ -1,6 +1,6 @@
 /**
  * 与前端 game/src/systems/battleScoreSystem.js 同公式，供服务端攻城 PVP 结算写战报积分。
- * 术语与战报 UI 一致：歼敌评分、战损评分；惨败/安慰保底见源码注释。
+ * 术语与战报 UI 一致：歼敌评分、战损评分；战损保底（歼敌×0.3）/ 安慰保底见源码注释。
  * 评分 = 各部队 round(基础分×损失比例) 之和；与 killTroops/lossTroops（兵力人数）不同量纲。
  */
 
@@ -90,7 +90,7 @@ function calculateBattleScore(battleTroops, roundNum, result, options = {}) {
   const baseScore = killScore + lossScore;
   const turnMult = TURN_MULTIPLIER[Math.min(roundNum, 10)] ?? 1.0;
   const normalScore = Math.round(baseScore * turnMult);
-  // 惨败保底：歼敌评分 × 0.3（战报③「触发」= preSiegeScore===floorScore 且 floorScore>0）
+  // 战损保底：歼敌评分 × 0.3（战报③「触发」= preSiegeScore===floorScore 且 floorScore>0）
   const floorScore = Math.round(killScore * 0.3);
   // 安慰保底：歼敌=0 时战损×0.3（战报④「触发」= preSiegeScore===comfortFloorScore 且 comfortFloorScore>0）
   const comfortFloorScore =

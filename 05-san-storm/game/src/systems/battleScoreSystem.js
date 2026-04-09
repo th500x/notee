@@ -108,7 +108,7 @@ export function calculateBattleScore(battleTroops, roundNum, result, options = {
   const turnMult = TURN_MULTIPLIER[Math.min(roundNum, 10)] ?? 1.0;
   const normalScore = Math.round(baseScore * turnMult);
 
-  // 惨败保底：歼敌评分 × 0.3
+  // 战损保底（展示名）：歼敌评分 × 0.3；胜方亦可能因己方战损高而靠此步抬分
   const floorScore = Math.round(killScore * 0.3);
   // 安慰保底：当歼敌评分 = 0 时，战损评分 × 0.3（实现上对战损为负取绝对值折算）
   const comfortFloorScore =
@@ -180,7 +180,7 @@ export function resolveKillLossTroopCounts(details) {
 
 /**
  * 战报 UI：完整计分步骤（与 calculateBattleScore 一致，非「基础分×回合×攻城」连乘）
- * ③④ 文案统一：该步的保底分是否成为 max(②,③,④) →「（触发）」否则「（未触发）」（PVE/PVP 同源，仅依赖 details）。
+ * ③④ 文案统一：③ 为「战损保底」；该步的保底分是否成为 max(②,③,④) →「（触发）」否则「（未触发）」（PVE/PVP 同源，仅依赖 details）。
  * @param {object} details - calculateBattleScore(…).details
  * @param {number} [finalScore] - 存档中的最终分（校验用）
  * @returns {{ lines: Array<{ text: string }> }}
@@ -203,7 +203,7 @@ export function buildBattleScoreFormulaLines(details, finalScore) {
   const calcFinal = Math.round(pre * sm);
   const floorTriggered = floorScore > 0 && pre === floorScore;
   const comfortTriggered = comfortFloorScore > 0 && pre === comfortFloorScore;
-  const floorLabel = floorTriggered ? '惨败保底（触发）' : '惨败保底（未触发）';
+  const floorLabel = floorTriggered ? '战损保底（触发）' : '战损保底（未触发）';
   const comfortLabel = comfortTriggered ? '安慰保底（触发）' : '安慰保底（未触发）';
   const lines = [
     { text: `① 歼敌评分 + 战损评分（代数和）= ${kill} + (${loss}) = ${base}` },

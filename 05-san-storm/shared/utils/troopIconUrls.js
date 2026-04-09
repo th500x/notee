@@ -4,7 +4,7 @@
  *   → `getBattleFieldTroopPortraitUrlAttempts`（敌我不同目录，同配置 ID 也区分立绘）。
  * - **战役大地图格**：`san_1_battle/{ally1|ally2|…}/` → `getCampaignMapTroopPortraitUrlAttempts`。
  *
- * 专属 `{配置ID}.png` 优先于 `troop_r{1-4}_{weapon}.png` 当且仅当：稀有度 **core**，或 **特殊形 ID**（数字段 + `x`，如 `7x01`、`2x01`、`17x1`）。
+ * 专属 `{配置ID}.png` 优先于 `troop_r{1-4}_{weapon}.png` 当且仅当：稀有度 **core**，或 **遗留 x 形 troop_id**（库中若仍有）；战役段多用 `san_1_troop_9xxx` + 同名 PNG。
  */
 
 import troopsCatalog from '../../public/data/shared/troops.json';
@@ -101,8 +101,7 @@ export function getTroopIdIconUrl(troopId, baseUrl = '') {
 }
 
 /**
- * 特殊部队：`san_1_troop_` 后缀为「一段十进制数字 + `x` + 其余」（`x` 为占位），与 core 相同优先读专属 ID 图。
- * 首位数字不限于 7（如黄巾 `7x01`、他势力 `2x01`、流民等 `17x1` 见 04-ID_NAMING_GUIDE §7.3）。
+ * 遗留 x 形：`san_1_troop_` 后缀为「十进制数字 + `x` + 其余」时，与 core 相同优先读专属 ID 图（若库中仍有）。战役专用部队推荐 `san_1_troop_9xxx` + 同名 PNG。
  * @param {string} id 已规范化的配置 ID
  */
 export function troopIdIsSpecialWildcardForm(id) {

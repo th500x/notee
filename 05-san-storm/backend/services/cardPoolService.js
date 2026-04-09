@@ -266,14 +266,10 @@ async function drawSingleCard(connection, playerId, poolType, factionId, current
   const likeFaction = `${season}_${idPrefix}_${factionNumber}%`;
   const likeNeutral = `${season}_${idPrefix}_0%`;
 
-  // ID 含 x（如 san_1_troop_7x01 / san_1_char_7x01）为仅 NPC 使用的单位，排除出玩家卡池。
-  // 命名规范：<season>_<type>_<faction digit>x<seq>，以 REGEXP '[0-9]x[0-9]' 匹配并排除。
-  const npcExclude = ` AND ${idField} NOT REGEXP '[0-9]x[0-9]'`;
-
   // 仅在已确定的 rarity 下，在符合条件的行中均匀随机（多一张同稀有度卡不会改变上文的 rollRarity 概率）
   let query = `SELECT ${idField} AS card_id, ${nameField} AS card_name, rarity
     FROM ${table}
-    WHERE rarity = ? AND (${idField} LIKE ? OR ${idField} LIKE ?)${npcExclude}${excludeClausePrimary}
+    WHERE rarity = ? AND (${idField} LIKE ? OR ${idField} LIKE ?)${excludeClausePrimary}
     ORDER BY RAND() LIMIT 1`;
   let params = [rarity, likeFaction, likeNeutral, ...excludePoolIdsPrimary];
 
@@ -285,7 +281,7 @@ async function drawSingleCard(connection, playerId, poolType, factionId, current
       : '';
     const dupQuery = `SELECT ${idField} AS card_id, ${nameField} AS card_name, rarity
       FROM ${table}
-      WHERE rarity = ? AND (${idField} LIKE ? OR ${idField} LIKE ?)${npcExclude}${excludeClauseDupOnly}
+      WHERE rarity = ? AND (${idField} LIKE ? OR ${idField} LIKE ?)${excludeClauseDupOnly}
       ORDER BY RAND() LIMIT 1`;
     const dupParams = [rarity, likeFaction, likeNeutral, ...excludeIds];
     [rows] = await connection.query(dupQuery, dupParams);

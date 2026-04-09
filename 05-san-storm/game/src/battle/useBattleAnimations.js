@@ -287,10 +287,10 @@ export function useBattleAnimations({
       def.currentTroops = Math.max(0, def.currentTroops - dmg);
       updateTroopHp(def);
       showDmg(def, `-${dmg}`, 'crit');
-      addLog(fmt.fmtCritResult(def, dmg), 'crit');
+      if (!trimSkipForCombatPair(trimAllyBattleLog, atk, def)) addLog(fmt.fmtCritResult(def, dmg), 'crit');
       await sleep(700, speedRef.current);
     },
-    [addLog, addBattleAnim, updateTroopHp, showDmg, shakeMap],
+    [addLog, addBattleAnim, updateTroopHp, showDmg, shakeMap, trimAllyBattleLog],
   );
 
   const battleMiss = useCallback(
@@ -368,7 +368,7 @@ export function useBattleAnimations({
         troop.currentTroops = cur - loss;
         updateTroopHp(troop);
         showDmg(troop, `-${loss}🔥`, 'normal');
-        addLog(fmt.fmtFireTerrain(troop, loss), 'attack');
+        if (!trimSkipForTroop(trimAllyBattleLog, troop)) addLog(fmt.fmtFireTerrain(troop, loss), 'attack');
         await sleep(180, speedRef.current);
         if (troop.currentTroops <= 0) {
           const c = await runBattleKill(troop);

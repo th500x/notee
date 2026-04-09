@@ -104,6 +104,14 @@ function serializeNpcGarrisonStored(units, ledgerAt = new Date()) {
 }
 
 /**
+ * 是否按「已占领势力」档生成 NPC 守军（支数少），并参与 initiateSiege 内「仅已占城」的次日 8:00 补满分支。
+ * 须 **同时** `faction_id` 非空且 `status === 'owned'`；避免仅有 `faction_id` 或过渡数据却按占领档生成（测试期曾出现非占领态错误支数）。
+ */
+function isCityOccupiedForNpcGarrison(city) {
+  return !!(city && city.faction_id && city.status === 'owned');
+}
+
+/**
  * 按权重随机选择稀有度
  */
 function pickRarity(maxRarity) {
@@ -132,7 +140,7 @@ async function generateNpcGarrison(cityId, opts = {}) {
   const city = cityRows[0];
 
   const maxRarity = CITY_MAX_RARITY[city.city_type] || 'rare';
-  const isOwned = !!city.faction_id;
+  const isOwned = isCityOccupiedForNpcGarrison(city);
   const override = opts?.troopCountOverride;
   const troopCount =
     override != null && Number(override) > 0
@@ -244,7 +252,7 @@ async function initiateSiege(cityId, playerId) {
 
   // ── 已占领城市：先查玩家防守者 ──
   // 防守顺序：① 披挂上阵玩家（on_duty=TRUE）→ ② 普通驻守玩家 → ③ NPC守军
-  if (city.status === 'owned' && city.faction_id) {
+  if (isCityOccupiedForNpcGarrison(city)) {
     // 按顺序构建防守者队列：先 on_duty，再普通驻守
     const onDutyDefenders = await garrisonService.getCityOnDutyDefenders(cityId, city.faction_id);
     const garrisonDefenders = await garrisonService.getCityGarrisonDefenders(cityId, city.faction_id);
@@ -300,8 +308,8 @@ async function initiateSiege(cityId, playerId) {
   let needRefresh = false;
   if (!city.npc_garrison || city.npc_garrison_alive <= 0) {
     needRefresh = true;
-  } else if (city.status === 'owned') {
-    // 仅已占领城市：检查是否需要每日8点补满（NPC有损耗时）
+  } else if (isCityOccupiedForNpcGarrison(city)) {
+    // 仅已占领城市（与 generateNpcGarrison 占用档判定一致）：检查是否需要每日8点补满（NPC有损耗时）
     const totalNpc = city.npc_garrison.length;
     if (city.npc_garrison_alive < totalNpc) {
       const now = new Date();

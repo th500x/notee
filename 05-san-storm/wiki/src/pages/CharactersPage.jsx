@@ -92,6 +92,8 @@ function CharactersPage() {
             <option value="董卓">董卓</option>
             <option value="汉室">汉室</option>
             <option value="黄巾">黄巾</option>
+            <option value="北疆">北疆</option>
+            <option value="众生">众生</option>
           </select>
           
           {/* 稀有度筛选 */}
