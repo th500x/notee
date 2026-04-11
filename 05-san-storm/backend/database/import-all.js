@@ -9,9 +9,9 @@
  * 按依赖顺序执行：
  *   1. 配置数据（将领、部队、官职、势力；将领/势力 season 来自 *_id / JSON，非 CSV 列）
  *   1b. 州 / 郡 / 城市种子（import-city-geo-data.js → config_zhou、config_jun、cities）
- *       前置：已执行 migrations/create-config-zhou-jun.sql；cities.faction_id 外键要求运行时表 factions
- *       中已存在 cities_seed.json 里用到的每个 initialFactionId（import-config-data 只写 config_factions，
- *       不写入 factions；若库中尚无对应 factions 行，本步会外键失败，须先用势力运行时初始化或其它脚本补全）
+ *       前置：已执行 migrations/create-config-zhou-jun.sql；须先跑本清单第 1 步「配置数据」使 config_factions
+ *       含 cities_seed 用到的势力。import-city-geo-data 会从 config_factions 自动补全运行时表 factions 缺行，
+ *       再写入 cities（避免仅配置表有数据、 factions 空导致外键失败）。
  *   2. 技能和羁绊（skills.json + bonds.json；羁绊含 season，写入 config_bonds.season）
  *   3. 装备
  *   4. 事件（events.json 含 season，写入 config_events.season）

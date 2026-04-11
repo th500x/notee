@@ -4,7 +4,10 @@
  * 依赖表:
  *   - config_zhou, config_jun, config_jun_node（先执行 migrations/create-config-zhou-jun.sql）
  *   - cities（migrations/add-city-siege-tables.sql 等）
- *   - factions（cities.faction_id 外键；种子中的 initialFactionId 须已在 factions 存在）
+ *   - **注意**：`cities.faction_id` 外键指向的是 **运行时表 `factions`**，不是 `config_factions`。
+ *     `import-config-data.js factions` 只写入 **`config_factions`**；若库里只有配置表、运行时 `factions` 无对应 `id`，
+ *     会报 `cities_ibfk_1`。本脚本在写入 cities 前会按种子用到的势力 id，从 `config_factions` **补全 `factions` 缺行**
+ *     （与是否「曾跑过势力导入」无关：配置表有而运行时表无，仍属常见情况）。
  *
  * 输入 JSON（由 docs/tools/city/city-csv-to-json.cjs 生成）:
  *   public/data/shared/config_zhou.json
@@ -14,7 +17,7 @@
  * 说明:
  *   - 本脚本不写 config_jun_node；邻接边由地图 / preset 工具链另行导入。
  *   - 种子行 is_buildable=0；若需预设可建造空地，由地图管线 UPDATE cities.is_buildable 等。
- *   - cities.faction_id → factions.id（FK）：JSON 中每个 initialFactionId 须在 factions 已存在，否则导入失败。
+ *   - 种子 JSON 里 `initialFactionId` 若为 `""` 会规范为 SQL NULL，避免误写入空串触发外键失败。
  *
  * 用法:
  *   node backend/database/import-city-geo-data.js
@@ -140,6 +143,14 @@ function finalsForCity(c) {
   return { finalCommerce: fc, finalFarming: ff };
 }
 
+/** 写入 DB 的 faction_id：null / 空串 → NULL，否则为 trim 后的字符串 */
+function normalizedFactionIdFromCity(c) {
+  const v = c.initialFactionId;
+  if (v == null) return null;
+  const s = String(v).trim();
+  return s === '' ? null : s;
+}
+
 async function insertCityRow(conn, c) {
   const { finalCommerce, finalFarming } = finalsForCity(c);
   const isBuildable = 0;
@@ -205,7 +216,7 @@ async function insertCityRow(conn, c) {
       c.season,
       c.cityName,
       c.cityType,
-      c.initialFactionId,
+      normalizedFactionIdFromCity(c),
       c.junId,
       c.zhouId,
       c.parentCityId,
@@ -229,11 +240,61 @@ async function insertCityRow(conn, c) {
   );
 }
 
+/**
+ * 运行时 `factions` 缺行时从 `config_factions` UPSERT（见文件头「两张表」说明）。
+ */
+async function ensureRuntimeFactionsForCitySeed(conn, cityRecords) {
+  const ids = [...new Set(cityRecords.map(normalizedFactionIdFromCity).filter(Boolean))];
+  if (!ids.length) return;
+
+  const ph = ids.map(() => '?').join(',');
+  const [haveRows] = await conn.query(`SELECT id FROM factions WHERE id IN (${ph})`, ids);
+  const have = new Set(haveRows.map((r) => r.id));
+  const missing = ids.filter((id) => !have.has(id));
+  if (!missing.length) {
+    console.log('  factions（运行时）: 种子所需势力 id 均已存在，跳过补全');
+    return;
+  }
+
+  const ph2 = missing.map(() => '?').join(',');
+  const [cfgRows] = await conn.query(
+    `SELECT faction_id, season, faction_name FROM config_factions WHERE faction_id IN (${ph2})`,
+    missing
+  );
+  const cfgById = new Map(cfgRows.map((r) => [r.faction_id, r]));
+  const notInConfig = missing.filter((id) => !cfgById.has(id));
+  if (notInConfig.length) {
+    throw new Error(
+      `cities_seed 中的 initialFactionId 在 config_factions 中不存在，无法写入 factions：${notInConfig.join(
+        ', '
+      )}。请先执行：cd backend && node database/import-config-data.js factions`
+    );
+  }
+
+  for (const id of missing) {
+    const r = cfgById.get(id);
+    await conn.query(
+      `INSERT INTO factions (
+        id, season, faction_name,
+        silver_reserve, food_reserve,
+        troop_orange_probability, character_orange_probability,
+        player_count, city_count, total_power, last_settlement_at
+      ) VALUES (?, ?, ?, 0, 0, 0, 0, 0, 0, 0, NULL)
+      ON DUPLICATE KEY UPDATE
+        season = VALUES(season),
+        faction_name = VALUES(faction_name)`,
+      [r.faction_id, r.season, r.faction_name]
+    );
+  }
+  console.log(`  factions（运行时）: 已从 config_factions 补全 ${missing.length} 条（${missing.join(', ')}）`);
+}
+
 async function importCities(conn, records) {
   if (!records.length) {
     console.log('  cities: 0 条');
     return;
   }
+  await ensureRuntimeFactionsForCitySeed(conn, records);
   const ordered = orderCitiesForInsert(records);
   for (const c of ordered) {
     await insertCityRow(conn, c);
@@ -266,6 +327,7 @@ async function main() {
   } catch (e) {
     console.error('\n❌ 导入失败:', e.message);
     console.error('   若提示缺表，请先执行 migrations/create-config-zhou-jun.sql');
+    console.error('   若提示 initialFactionId 不在 config_factions：请先 node database/import-config-data.js factions');
     process.exitCode = 1;
   } finally {
     if (connection) await connection.end();
