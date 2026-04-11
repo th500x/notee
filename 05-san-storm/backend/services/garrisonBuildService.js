@@ -327,7 +327,7 @@ async function buildDefenseUnits(garrisonSlot) {
     for (const troopInstId of troopInstanceIds) {
       const [troopRows] = await pool.query(
         `SELECT pc.instance_id, pc.card_id, pc.rarity, pc.current_troops,
-                pc.battle_count, pc.max_battle_count,
+                pc.battle_count, pc.max_battle_count, pc.veteran_bonus_pct,
                 pc.bonus_max_troops, pc.bonus_attack, pc.bonus_defense, pc.bonus_speed, pc.bonus_movement,
                 ct.troop_name, ct.troop_type, ct.weapon_type, ct.attack, ct.defense,
                 ct.speed, ct.movement, ct.\`range\`, ct.max_troops, ct.special_ability,
@@ -343,6 +343,7 @@ async function buildDefenseUnits(garrisonSlot) {
       const maxTroops = (t.max_troops || 0) + (t.bonus_max_troops || 0);
       const currentTroops = t.current_troops ?? maxTroops;
       if (currentTroops < MIN_TROOPS_TO_DEFEND) continue;
+      const vetMult = 1 + (Number(t.veteran_bonus_pct) || 0) / 100;
 
       units.push({
         troop: {
@@ -352,10 +353,10 @@ async function buildDefenseUnits(garrisonSlot) {
           rarity: t.rarity || 'common',
           troopType: t.troop_type,
           weaponType: t.weapon_type,
-          attack:   (t.attack || 0) / 10 + (t.bonus_attack || 0) / 10,
-          defense:  (t.defense || 0) / 10 + (t.bonus_defense || 0) / 10,
-          speed:    (t.speed || 0) + (t.bonus_speed || 0),
-          movement: (t.movement || 0) + (t.bonus_movement || 0),
+          attack:   ((t.attack || 0) / 10 + (t.bonus_attack || 0) / 10) * vetMult,
+          defense:  ((t.defense || 0) / 10 + (t.bonus_defense || 0) / 10) * vetMult,
+          speed:    Math.round(((t.speed || 0) + (t.bonus_speed || 0)) * vetMult),
+          movement: Math.round(((t.movement || 0) + (t.bonus_movement || 0)) * vetMult),
           range:    t.range || 1,
           maxTroops,
           troopWeight: t.troop_weight || 1,
@@ -398,6 +399,7 @@ async function buildDefenseUnitsFromMainLineup(defenderPlayerId) {
     const maxTroops = (t.max_troops || 0) + (t.bonus_max_troops || 0);
     const currentTroops = t.current_troops ?? maxTroops;
     if (currentTroops < MIN_TROOPS_TO_DEFEND) return;
+    const vetMult = 1 + (Number(t.veteran_bonus_pct) || 0) / 100;
     units.push({
       troop: {
         id: t.card_id,
@@ -406,10 +408,10 @@ async function buildDefenseUnitsFromMainLineup(defenderPlayerId) {
         rarity: t.rarity || 'common',
         troopType: t.troop_type,
         weaponType: t.weapon_type,
-        attack:   (t.attack || 0) / 10 + (t.bonus_attack || 0) / 10,
-        defense:  (t.defense || 0) / 10 + (t.bonus_defense || 0) / 10,
-        speed:    (t.speed || 0) + (t.bonus_speed || 0),
-        movement: (t.movement || 0) + (t.bonus_movement || 0),
+        attack:   ((t.attack || 0) / 10 + (t.bonus_attack || 0) / 10) * vetMult,
+        defense:  ((t.defense || 0) / 10 + (t.bonus_defense || 0) / 10) * vetMult,
+        speed:    Math.round(((t.speed || 0) + (t.bonus_speed || 0)) * vetMult),
+        movement: Math.round(((t.movement || 0) + (t.bonus_movement || 0)) * vetMult),
         range:    t.range || 1,
         maxTroops,
         troopWeight: t.troop_weight || 1,
@@ -429,7 +431,7 @@ async function buildDefenseUnitsFromMainLineup(defenderPlayerId) {
   // 主公本人 + 主公部队槽
   const [playerTroopRows] = await pool.query(
     `SELECT pc.instance_id, pc.card_id, pc.rarity, pc.current_troops,
-            pc.battle_count, pc.max_battle_count,
+            pc.battle_count, pc.max_battle_count, pc.veteran_bonus_pct,
             pc.bonus_max_troops, pc.bonus_attack, pc.bonus_defense, pc.bonus_speed, pc.bonus_movement,
             ct.troop_name, ct.troop_type, ct.weapon_type, ct.attack, ct.defense,
             ct.speed, ct.movement, ct.\`range\`, ct.max_troops, ct.special_ability, ct.troop_weight
@@ -477,7 +479,7 @@ async function buildDefenseUnitsFromMainLineup(defenderPlayerId) {
     for (const slot of cs.troopSlots) {
       const [troopRows] = await pool.query(
         `SELECT pc.instance_id, pc.card_id, pc.rarity, pc.current_troops,
-                pc.battle_count, pc.max_battle_count,
+                pc.battle_count, pc.max_battle_count, pc.veteran_bonus_pct,
                 pc.bonus_max_troops, pc.bonus_attack, pc.bonus_defense, pc.bonus_speed, pc.bonus_movement,
                 ct.troop_name, ct.troop_type, ct.weapon_type, ct.attack, ct.defense,
                 ct.speed, ct.movement, ct.\`range\`, ct.max_troops, ct.special_ability, ct.troop_weight
@@ -515,7 +517,8 @@ async function applyAuthoritativeSiegePvpAttackerLineupCasualties(playerId, atta
        SET battle_count = LEAST(
          GREATEST(COALESCE(battle_count, 0), 0) + 1,
          COALESCE(max_battle_count, 60)
-       )
+       ),
+       lifetime_battle_count = COALESCE(lifetime_battle_count, 0) + 1
        WHERE player_id = ? AND card_type = 'troop' AND is_equipped = TRUE`,
       [playerId],
     );

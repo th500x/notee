@@ -10,6 +10,7 @@ const MIGRATION_FILES = [
   'add-players-on-duty-city-id.sql',
   'add-config-servers-game-time.sql',
   'create-chats-table.sql',
+  'add-veteran-columns.sql',
 ];
 
 function stripSqlComments(sql) {

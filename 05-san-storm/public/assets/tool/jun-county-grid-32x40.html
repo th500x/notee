@@ -63,8 +63,10 @@ button.primary:hover { background: #1d4ed8; }
 
 <h1>郡标准画布 32×40 格坐标</h1>
 <p class="subtitle">
-  纯本地使用，与叙事模板一致：<strong>gx</strong> = 列（左→右 0～31），<strong>gy</strong> = 行（上→下 0～39）。<br>
-  例：小象限 A1 锚点为 <code>gx = 0</code>，<code>gy = 0</code>，覆盖列 0～7、行 0～9（见 <code>docs/tools/map/san_1_jun_yingchuan_quad_A.md</code> 与 31-5）。
+  纯本地使用，与叙事模板、<code>docs/30-frontend/31-5-WORLD_MAP_GENERATION.md</code> §3.2～§3.3 一致：<strong>gx</strong> = 列（左→右 0～31），<strong>gy</strong> = 行（上→下 0～39）。<br>
+  <strong>大象限（全郡 32×40，gy 增大向下）：</strong><code>A | B / D | C</code> —— <strong>A</strong>左上 <strong>B</strong>右上 <strong>D</strong>左下 <strong>C</strong>右下（各 16×20；与 31-5 §3.2 一致，<strong>不是</strong>「先读完一行 AB 再读 CD」的字母顺序）。<br>
+  <strong>小象限（块内顺时针 A1→A2→A3→A4，即 <code>A1 A2 / A4 A3</code>）：</strong>左上=A1、右上=A2、<strong>左下=A4</strong>、<strong>右下=A3</strong>（各 8×10）。勿与「第 1～4 象限按行编号」混用。<br>
+  <strong>注意：</strong>策划表里的 B3/C3 等须与下方读数一致；只抄 <code>gx,gy</code> 易与印象代号不符。
 </p>
 
 <div class="controls">
@@ -85,7 +87,7 @@ button.primary:hover { background: #1d4ed8; }
 <div class="readout" id="readout">
   <div class="main" id="coord-main">移动鼠标到格网上…</div>
   <div class="sub" id="coord-sub"></div>
-  <div class="hint">单击画布可将 <code>gx, gy</code> 复制到剪贴板；块内坐标 <code>lx, ly</code> 为当前小象限内 0～7、0～9。</div>
+  <div class="hint">单击画布或点「复制」：默认复制<strong>整行注释</strong>（含大象限、小象限、块内 <code>lx, ly</code>），便于直接贴进 CSV/文档；与 31-5 几何唯一对应。</div>
 </div>
 
 <div class="wrap-canvas">
@@ -132,20 +134,35 @@ function localInMajor(gx, gy) {
   return { mq, lx, ly };
 }
 
-/** 小象限编号 1～4 → 名称后缀 */
+/** 小象限后缀 1～4：顺时针 A1→A2→A3→A4，排布 A1 A2 / A4 A3（左下=4 右下=3）。与 31-5 §3.3、junCountyMapGenerator 一致 */
 function subQuadSuffix(lx, ly) {
   if (ly < 10) return lx < 8 ? '1' : '2';
-  return lx < 8 ? '3' : '4';
+  return lx < 8 ? '4' : '3';
+}
+
+/** 块内方位中文，避免 A3/A4 与「第3块」混淆 */
+function subQuadLabelCn(suffix) {
+  switch (suffix) {
+    case '1': return '左上';
+    case '2': return '右上';
+    case '3': return '右下';
+    case '4': return '左下';
+    default: return '';
+  }
 }
 
 function describeCell(gx, gy) {
   const { mq, lx, ly } = localInMajor(gx, gy);
-  const sub = mq + subQuadSuffix(lx, ly);
+  const suf = subQuadSuffix(lx, ly);
+  const sub = mq + suf;
   const blockLx = lx < 8 ? lx : lx - 8;
   const blockLy = ly < 10 ? ly : ly - 10;
+  const cn = subQuadLabelCn(suf);
+  const copyLine = `gx = ${gx}, gy = ${gy}  // 大象限 ${mq} · 小象限 ${sub}（${cn} 8×10）· lx=${blockLx} ly=${blockLy}`;
   return {
     main: `gx = ${gx} ， gy = ${gy}`,
-    sub: `大象限 ${mq} · 小象限 ${sub} · 块内 lx = ${blockLx} ， ly = ${blockLy}（叙事稿 8×10 内坐标）`,
+    sub: `大象限 ${mq} · 小象限 ${sub}（${cn}）· 块内 lx = ${blockLx} ， ly = ${blockLy}`,
+    copyLine,
   };
 }
 
@@ -284,9 +301,10 @@ canvas.addEventListener('mouseleave', () => {
 
 function copyCoords() {
   if (hoverGx == null) return;
-  const text = `gx = ${hoverGx}, gy = ${hoverGy}`;
+  const d = describeCell(hoverGx, hoverGy);
+  const text = d.copyLine;
   navigator.clipboard.writeText(text).then(() => {
-    toast.textContent = '已复制：' + text;
+    toast.textContent = '已复制';
     toast.classList.add('show');
     setTimeout(() => toast.classList.remove('show'), 1600);
   }).catch(() => {

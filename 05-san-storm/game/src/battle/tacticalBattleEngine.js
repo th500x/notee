@@ -202,7 +202,6 @@ export function useBattleEngine({
               : null;
           })(),
         }));
-        console.warn('[formationGroupMove] blocked', { dy, dx, details });
       }
       return false;
     }
@@ -296,11 +295,9 @@ export function useBattleEngine({
       break;
     }
     if (!bestCenter) {
-      if (import.meta.env.DEV) console.warn('[applyFormationBuffs] no valid center found, south=', getSouthDeployRowRange(mapResult), 'candidates:', candidateCenters.length);
       addLog(fmt.fmtFormationFail(), 'round');
       return;
     }
-    if (import.meta.env.DEV) console.warn('[applyFormationBuffs] center:', bestCenter.center, 'positions:', bestCenter.positions.length);
     const { positions } = bestCenter;
     for (let i = 0; i < playerTroops.length; i++) {
       const troop = playerTroops[i];
@@ -531,12 +528,9 @@ export function useBattleEngine({
 
     // 首回合阵型
     if (newRound === 1 && autoFormation) {
-      if (import.meta.env.DEV) console.warn('[executeSingleRound] autoFormation: selecting...');
       const formation = autoSelectFormation(battleTroops, mapResult ? mapResult.terrain : null);
-      if (import.meta.env.DEV) console.warn('[executeSingleRound] autoFormation selected:', formation?.name ?? 'null');
       if (formation) {
         await applyFormationBuffs(formation);
-        if (import.meta.env.DEV) console.warn('[executeSingleRound] applyFormationBuffs done, activeFormation:', activeFormationRef.current?.name);
         await sleep(500, speedRef.current);
       } else {
         addLog(fmt.fmtNoFormation(), 'round');
@@ -545,7 +539,6 @@ export function useBattleEngine({
 
     if (activeFormationRef.current) {
       if (autoBattleRef.current) {
-        if (import.meta.env.DEV) console.warn('[executeSingleRound] formationGroupAction start...');
         const fgEnd = await formationGroupAction();
         if (fgEnd === 'player_win' || fgEnd === 'enemy_win') {
           return notifyCampaignCommanderEnd(fgEnd);
@@ -654,13 +647,7 @@ export function useBattleEngine({
   // ── 播放回合 ──────────────────────────────────────────────────────────────
 
   const playBattleRound = useCallback(async () => {
-    if (import.meta.env.DEV) {
-      console.warn('[playBattleRound] called', { battlePlaying, autoBattle: autoBattleRef.current, autoFormation });
-    }
     if (battlePlaying) {
-      if (import.meta.env.DEV) {
-        console.debug('[tacticalBattleEngine] playBattleRound noop: battlePlaying already true');
-      }
       return;
     }
     speedRef.current = 2;
@@ -672,17 +659,11 @@ export function useBattleEngine({
     // 事件小地图已由 renderTroopsToBattleMapDom 画过 `.troop-layer`，此处有层则跳过。
     if (battleSurfaceRef?.current?.getTileEl) {
       await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
-      let painted = 0, missingTile = 0;
       for (const t of battleTroops) {
         if (t.currentTroops <= 0) continue;
         const tile = resolveTileElement(battleSurfaceRef, mapCardRef, t.y, t.x, mapResult);
-        if (!tile) { missingTile += 1; continue; }
-        if (!tile.querySelector('.troop-layer')) { renderTroopOnTile(t); painted += 1; }
-      }
-      if (import.meta.env.DEV) {
-        console.debug('[tacticalBattleEngine] surface troop sync', {
-          painted, missingTile, alive: battleTroops.filter((x) => x.currentTroops > 0).length,
-        });
+        if (!tile) continue;
+        if (!tile.querySelector('.troop-layer')) renderTroopOnTile(t);
       }
     }
 
@@ -722,9 +703,7 @@ export function useBattleEngine({
           takenOver.current = true;
           if (startedWithAuto) addLog('🖐 玩家接管战斗，切换为手动模式', 'round');
         }
-        if (import.meta.env.DEV) console.warn('[playBattleRound] calling executeSingleRound...');
         result = await executeSingleRound();
-        if (import.meta.env.DEV) console.warn('[playBattleRound] executeSingleRound returned:', result);
         if (result === 'continue') await sleep(300, speedRef.current);
       }
       // executeSingleRound 在「首回合前」即判胜负时不会递增 roundNum；

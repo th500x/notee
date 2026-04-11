@@ -24,6 +24,7 @@ const TroopCard = ({
   suppressSkillTooltips = false,
 }) => {
   const [activeTooltip, setActiveTooltip] = useState(null);
+  const [veteranTooltipOpen, setVeteranTooltipOpen] = useState(false);
   /** 按序尝试的立绘 URL（含 troop/troops/_raw 与稀有度兜底） */
   const iconUrls = useMemo(
     () => getTroopPortraitUrlAttempts(troop, baseUrl),
@@ -176,6 +177,22 @@ const TroopCard = ({
             `}>
               {rarity.name}
             </div>
+            {troop.veteranTier > 0 && (
+              <div className="relative">
+                <div
+                  className="px-1.5 py-0.5 rounded bg-amber-700/60 text-[10px] font-bold text-amber-100 cursor-pointer border border-amber-500/40"
+                  onClick={(e) => { e.stopPropagation(); setVeteranTooltipOpen((v) => !v); }}
+                >
+                  老兵{troop.veteranTier === 3 ? '★' : ''}
+                </div>
+                {veteranTooltipOpen && (
+                  <div className="absolute z-50 top-full right-0 mt-1 px-2 py-1.5 rounded bg-gray-900 text-white text-[10px] min-w-[110px] shadow-lg pointer-events-auto whitespace-nowrap">
+                    <div>老兵 Lv.{troop.veteranTier}</div>
+                    <div className="text-amber-300">全属性 +{troop.veteranBonusPct}%</div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
@@ -444,7 +461,9 @@ TroopCard.propTypes = {
     skills: PropTypes.arrayOf(PropTypes.string),
     description: PropTypes.string,
     battleCount: PropTypes.number,
-    maxBattleCount: PropTypes.number
+    maxBattleCount: PropTypes.number,
+    veteranTier: PropTypes.number,
+    veteranBonusPct: PropTypes.number,
   }).isRequired,
   skillsMap: PropTypes.object,
   showDetails: PropTypes.bool,

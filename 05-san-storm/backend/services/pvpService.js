@@ -52,7 +52,7 @@ async function getOnlineDefenders(cityId, attackerId, attackerFaction) {
      FROM player_garrison g
      JOIN players p ON g.player_id = p.player_id
      JOIN accounts a ON g.player_id = a.id
-     JOIN cities c ON c.id = g.city_id
+     JOIN cities c ON c.city_id = g.city_id
      WHERE g.city_id = ? AND g.is_active = TRUE
        AND g.player_id != ? AND p.faction_id != ?
        AND c.faction_id IS NOT NULL AND p.faction_id = c.faction_id
@@ -221,7 +221,7 @@ async function getDefenderBattleContext(challengeId, defenderId) {
   }
 
   const garrisonService = require('./garrisonService');
-  const [cityRows] = await pool.query('SELECT city_name FROM cities WHERE id = ?', [c.cityId]);
+  const [cityRows] = await pool.query('SELECT city_name FROM cities WHERE city_id = ?', [c.cityId]);
   const cityName = cityRows[0]?.city_name || c.cityId;
 
   const [nameRows] = await pool.query(

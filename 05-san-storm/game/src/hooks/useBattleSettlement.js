@@ -154,6 +154,9 @@ export function useBattleSettlement({
           : [];
       const chestRewardsSnapshot = [...manualChests, ...autoChests];
 
+      /** 须在 try/catch 外声明：endMeta 在 catch 之后读取，避免块级作用域 ReferenceError */
+      let veteranPromotions = [];
+
       try {
         const opponentType = resolveOpponentType(battleType);
         const rewards = {
@@ -198,7 +201,11 @@ export function useBattleSettlement({
         // 最多重试 2 次，减少偶发网络抖动导致战报丢失
         for (let attempt = 1; attempt <= 2; attempt++) {
           const saveRes = await battleAPI.saveBattle(attackerPayload);
-          if (saveRes?.success) { attackerBattleSaved = true; break; }
+          if (saveRes?.success) {
+            attackerBattleSaved = true;
+            veteranPromotions = saveRes.veteranPromotions || [];
+            break;
+          }
           if (attempt < 2) await new Promise((r) => setTimeout(r, 180));
           else console.error('[useBattleSettlement] 战报保存失败（重试后）:', saveRes?.error || 'unknown');
         }
@@ -251,7 +258,7 @@ export function useBattleSettlement({
         console.error('[useBattleSettlement] 保存战报失败:', err);
       }
 
-      const endMeta = { battleReportSaved: attackerBattleSaved, chestRewards: chestRewardsSnapshot };
+      const endMeta = { battleReportSaved: attackerBattleSaved, chestRewards: chestRewardsSnapshot, veteranPromotions };
       if (pendingAwayNoticeRef.current) {
         pendingAwayNoticeRef.current = false;
         endMeta.awayTimeout = true;

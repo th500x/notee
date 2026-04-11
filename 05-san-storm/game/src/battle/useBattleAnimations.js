@@ -261,19 +261,13 @@ export function useBattleAnimations({
       addBattleAnim(atk, `anim-atk-${dir}`, 400);
       await sleep(200, speedRef.current);
       addBattleAnim(def, 'anim-hit', 500);
-      const before = def.currentTroops;
       def.currentTroops = Math.max(0, def.currentTroops - dmg);
-      if (import.meta.env.DEV) {
-        const tile = getTileEl(def);
-        const layer = tile?.querySelector('.troop-layer');
-        console.warn('[battleAttack]', { id: def.id, name: def.displayName || def.name, dmg, before, after: def.currentTroops, tileFound: !!tile, layerFound: !!layer, y: def.y, x: def.x });
-      }
       updateTroopHp(def);
       showDmg(def, `-${dmg}`, 'normal');
       if (!trimSkipForCombatPair(trimAllyBattleLog, atk, def)) addLog(fmt.fmtAttackResult(def, dmg), 'attack');
       await sleep(600, speedRef.current);
     },
-    [addLog, addBattleAnim, updateTroopHp, showDmg, getTileEl, trimAllyBattleLog],
+    [addLog, addBattleAnim, updateTroopHp, showDmg, trimAllyBattleLog],
   );
 
   const battleCrit = useCallback(

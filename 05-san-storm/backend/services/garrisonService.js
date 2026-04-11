@@ -351,7 +351,7 @@ async function getCityOnDutyDefenders(cityId, ownerFactionId) {
             0 AS garrison_slot,
             'main_lineup' AS defense_source
      FROM players p
-     INNER JOIN cities c ON c.id = ?
+     INNER JOIN cities c ON c.city_id = ?
      WHERE p.on_duty = TRUE
        AND p.on_duty_city_id = ?
        AND c.faction_id IS NOT NULL
@@ -397,7 +397,7 @@ async function getCityGarrisonStats() {
             COUNT(*) AS slot_count
      FROM player_garrison g
      JOIN players p ON g.player_id = p.player_id
-     JOIN cities c ON c.id = g.city_id
+     JOIN cities c ON c.city_id = g.city_id
      WHERE g.is_active = TRUE AND g.city_id IS NOT NULL
        AND c.faction_id IS NOT NULL AND p.faction_id = c.faction_id
      GROUP BY g.city_id, g.city_name
@@ -416,13 +416,13 @@ async function clearInvalidOnDutySelection(playerId) {
   try {
     const [result] = await pool.query(
       `UPDATE players p
-       LEFT JOIN cities c ON c.id = p.on_duty_city_id
+       LEFT JOIN cities c ON c.city_id = p.on_duty_city_id
        SET p.on_duty = FALSE, p.on_duty_city_id = NULL
        WHERE p.player_id = ?
          AND (p.on_duty = TRUE OR p.on_duty = 1)
          AND (
            p.on_duty_city_id IS NULL
-           OR c.id IS NULL
+           OR c.city_id IS NULL
            OR c.faction_id IS NULL
            OR p.faction_id IS NULL
            OR p.faction_id != c.faction_id

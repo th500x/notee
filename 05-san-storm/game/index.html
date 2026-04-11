@@ -5,8 +5,8 @@
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚔️</text></svg>" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="真三风云 - 三国策略战棋游戏" />
-    <link rel="preload" href="/05-san-storm/fonts/JYHPHS.woff2" as="font" type="font/woff2" crossorigin />
-    <link rel="preload" href="/05-san-storm/game/fonts/ZCOOLKuaiLe-Regular.woff2" as="font" type="font/woff2" crossorigin />
+    <!-- 字体由 src/styles/index.css 的 @font-face 随样式加载；不在这里 preload，避免 Chrome「数秒内未使用」
+         与错误路径 404（JYHPHS 需自行放入 05-san-storm/public/fonts/ 且 URL 与 base 一致） -->
     <title>真三风云 | San Storm</title>
   </head>
   <body>

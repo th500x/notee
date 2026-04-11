@@ -12,7 +12,10 @@
 // ── 精锐小队战损比例（troopWeight > 1）────────────────────────────────────────
 // 仅影响「当前兵力/最大兵力」在攻防上的线性缩放；满编时与 troopWeight=1 一致，残血时衰减慢于线性。
 // 现阶段仅燕云十八等配置了 troop_weight>1 的部队会走此分支，其余部队仍为 current/max。
-export const ELITE_TROOP_STRENGTH_EXPONENT = 0.85;
+export const ELITE_TROOP_STRENGTH_EXPONENT = 0.8;
+
+/** 弓兵攻击曼哈顿距离 ≤1 目标时，总伤害乘子（与 `siegeCombatCore.cjs` 一致） */
+export const ARCHER_MELEE_DAMAGE_MULT = 0.8;
 
 /**
  * 等效兵力（max×troopWeight）**相等**时：主动一击略强于反击，打破「完全镜像则战损 1:1」。
@@ -200,10 +203,10 @@ export function calcDamage(atk, def, terrain, options = {}) {
     totalDmg *= (1 + posBonusVal);
   }
 
-  // 11. 弓兵近战惩罚：弓兵攻击相邻格目标时，总伤害×0.85
+  // 11. 弓兵近战惩罚：弓兵攻击相邻格目标时，总伤害×ARCHER_MELEE_DAMAGE_MULT
   if (atkType === 'archer') {
     const dist = Math.abs(atk.y - def.y) + Math.abs(atk.x - def.x);
-    if (dist <= 1) totalDmg *= 0.85;
+    if (dist <= 1) totalDmg *= ARCHER_MELEE_DAMAGE_MULT;
   }
 
   // ═══ 第三部分：特殊加成（暂不实装，预留接口）═══
@@ -276,10 +279,10 @@ export function estimateDamage(atk, def, terrain, options = {}) {
   const posBonus = ac?.positionBonuses;
   if (posBonus) totalDmg *= (1 + (posBonus[(atk.troopType || 'infantry') + 'Bonus'] || 0));
 
-  // 弓兵近战惩罚：弓兵攻击相邻格目标时，总伤害×0.85
+  // 弓兵近战惩罚：弓兵攻击相邻格目标时，总伤害×ARCHER_MELEE_DAMAGE_MULT
   if ((atk.troopType || 'infantry') === 'archer') {
     const dist = Math.abs(atk.y - def.y) + Math.abs(atk.x - def.x);
-    if (dist <= 1) totalDmg *= 0.85;
+    if (dist <= 1) totalDmg *= ARCHER_MELEE_DAMAGE_MULT;
   }
 
   const rawDamage = Math.max(1, Math.round(totalDmg));

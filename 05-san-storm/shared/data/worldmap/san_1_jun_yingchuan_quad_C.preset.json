@@ -1,0 +1,87 @@
+{
+  "preset_kind": "jun_major_quad",
+  "jun_quad_id": "san_1_jun_yingchuan_quad_C",
+  "campaign_id": "san_1_jun_yingchuan_quad_C",
+  "generator_version": "jun-major-C.v0",
+  "seed": 73517665,
+  "map_columns": 16,
+  "map_rows": 20,
+  "boundary_river_continuity": false,
+  "boundary_road_continuity": false,
+  "quad_A_base_tiles": "plain_grassland;plain_wasteland",
+  "quad_A_terrain_tiles": "",
+  "quad_A_object_tiles": "",
+  "quad_A_effect_tiles": "",
+  "quad_A_units_spec": "",
+  "quad_B_base_tiles": "plain_grassland;plain_wasteland",
+  "quad_B_terrain_tiles": "",
+  "quad_B_object_tiles": "",
+  "quad_B_effect_tiles": "",
+  "quad_B_units_spec": "",
+  "quad_C_base_tiles": "plain_grassland;plain_wasteland",
+  "quad_C_terrain_tiles": "",
+  "quad_C_object_tiles": "",
+  "quad_C_effect_tiles": "",
+  "quad_C_units_spec": "",
+  "quad_D_base_tiles": "plain_grassland;plain_wasteland",
+  "quad_D_terrain_tiles": "",
+  "quad_D_object_tiles": "",
+  "quad_D_effect_tiles": "",
+  "quad_D_units_spec": "",
+  "default_jun_id": "san_1_jun_yingchuan",
+  "sub_quad_admin": {
+    "A3": "san_1_jun_runan"
+  },
+  "strategic_cities": [
+    {
+      "city_id": "san_1_city_3_linying",
+      "city_name": "临颍",
+      "gx": 1,
+      "gy": 8,
+      "object": "city_small",
+      "sub_quad": "A1"
+    },
+    {
+      "city_id": "san_1_city_3_xinji",
+      "city_name": "新汲",
+      "gx": 14,
+      "gy": 8,
+      "object": "city_small",
+      "sub_quad": "A2"
+    },
+    {
+      "city_id": "san_1_city_3_yancheng",
+      "city_name": "郾城",
+      "gx": 6,
+      "gy": 18,
+      "object": "city_small",
+      "sub_quad": "A4"
+    },
+    {
+      "city_id": "san_1_city_3_yinqiang",
+      "city_name": "㶏强",
+      "gx": 9,
+      "gy": 12,
+      "object": "city_small",
+      "sub_quad": "A3"
+    },
+    {
+      "city_id": "san_1_city_3_xihua",
+      "city_name": "西华",
+      "gx": 14,
+      "gy": 17,
+      "object": "city_small",
+      "sub_quad": "A3"
+    }
+  ],
+  "strategic_forts": [
+    {
+      "fort_id": "san_1_city_5_0004",
+      "city_name": "颍川据点",
+      "gx": 3,
+      "gy": 1,
+      "sub_quad": "A1"
+    }
+  ],
+  "notes": "颍川工具块 C（gx16～31, gy20～39）；右下 8×10（preset 内 A3）行政属汝南见 sub_quad_admin。strategic_forts 郡内全局 (19,21) → 本块 (3,1)。与 quad_C.md、landmarks / fort 叙事同步。"
+}

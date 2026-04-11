@@ -20,7 +20,7 @@ const Player = require('../models/Player');
 router.get('/city/:cityId/defenders', async (req, res) => {
   try {
     const { pool } = require('../database/connection');
-    const [cityRows] = await pool.query('SELECT faction_id FROM cities WHERE id = ?', [req.params.cityId]);
+    const [cityRows] = await pool.query('SELECT faction_id FROM cities WHERE city_id = ?', [req.params.cityId]);
     const ownerFaction = cityRows[0]?.faction_id ?? null;
     const defenders = await garrisonService.getCityDefenders(req.params.cityId, ownerFaction);
     res.json({ success: true, defenders, count: defenders.length });
@@ -53,7 +53,7 @@ router.get('/city/:cityId/on-duty-count', async (req, res) => {
     const [rows] = await pool.query(
       `SELECT COUNT(*) AS count
        FROM players p
-       INNER JOIN cities c ON c.id = ?
+       INNER JOIN cities c ON c.city_id = ?
        WHERE p.on_duty = TRUE
          AND p.on_duty_city_id = ?
          AND c.faction_id IS NOT NULL
@@ -91,7 +91,7 @@ router.post('/:playerId/on-duty', async (req, res) => {
       if (!playerRow) {
         return res.status(404).json({ success: false, error: '玩家不存在' });
       }
-      const [cRows] = await pool.query('SELECT faction_id FROM cities WHERE id = ?', [cityId]);
+      const [cRows] = await pool.query('SELECT faction_id FROM cities WHERE city_id = ?', [cityId]);
       const cityRow = cRows[0];
       if (!cityRow) {
         return res.status(400).json({ success: false, error: '城池不存在' });

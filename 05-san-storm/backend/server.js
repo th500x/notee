@@ -117,6 +117,9 @@ app.use('/api/garrisons', garrisonsRouter);
 const adminConfigTextsRouter = require('./routes/adminConfigTexts');
 app.use('/api/admin/config-texts', adminConfigTextsRouter);
 
+const adminWorldMapRouter = require('./routes/adminWorldMap');
+app.use('/api/admin/world-map', adminWorldMapRouter);
+
 /**
  * 纪念图（MVP：Battle）
  */

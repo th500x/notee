@@ -1,0 +1,22 @@
+{
+  "jun": [
+    {
+      "junId": "san_1_jun_yingchuan",
+      "season": "san_1",
+      "zhouId": "san_1_zhou_yu",
+      "junName": "颍川郡",
+      "sortOrder": 1,
+      "enabled": 1,
+      "description": "示例郡"
+    }
+  ],
+  "metadata": {
+    "generatedAt": "2026-04-11T08:38:09.003Z",
+    "sources": {
+      "zhou": "config_zhou_template.csv",
+      "jun": "config_jun_template.csv",
+      "cities": "cities_template.csv"
+    },
+    "note": "config_jun_node 与 is_buildable 预设不由本目录 CSV 生成，见 docs/tools/city/README.md、13-1 §一·六。"
+  }
+}

@@ -3,7 +3,9 @@
  * @see game/src/systems/combatSystem.js
  */
 
-const ELITE_TROOP_STRENGTH_EXPONENT = 0.85;
+const ELITE_TROOP_STRENGTH_EXPONENT = 0.8;
+/** 与 `game/src/systems/combatSystem.js` 的 `ARCHER_MELEE_DAMAGE_MULT` 一致 */
+const ARCHER_MELEE_DAMAGE_MULT = 0.8;
 
 const MIRROR_STRIKE_DAMAGE_MULT = 1.18;
 const MIRROR_COUNTER_DAMAGE_MULT = 0.68;
@@ -150,7 +152,7 @@ function calcDamageSeeded(atk, def, terrain, rng, options = {}) {
 
   if (atkType === 'archer') {
     const dist = Math.abs(atk.y - def.y) + Math.abs(atk.x - def.x);
-    if (dist <= 1) totalDmg *= 0.85;
+    if (dist <= 1) totalDmg *= ARCHER_MELEE_DAMAGE_MULT;
   }
 
   totalDmg *= 0.9 + rng() * 0.2;

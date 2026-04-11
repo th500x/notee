@@ -1,0 +1,228 @@
+/* 战略层郡大地图（WorldStrategicMap*）：与战役 CampaignMapGrid 样式分离，避免 16×20 与可变格网混用 */
+
+.ws-map-card {
+  --ws-tile: 20px;
+  --ws-cols: 32;
+  --ws-rows: 40;
+  background: transparent;
+  border: none;
+  padding: 0;
+  display: block;
+  max-width: 100%;
+}
+
+/* 主界面全宽郡图：避免 fit-content 导致滚动区无法吃满剩余高度 */
+.ws-map-card--county {
+  width: 100%;
+  max-width: 100%;
+}
+
+.ws-map-card--county .ws-map-aligned-stack {
+  width: 100%;
+  max-width: 100%;
+  align-items: stretch;
+}
+
+.ws-map-aligned-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  width: fit-content;
+  max-width: 100%;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.ws-map-title {
+  font-size: 14px;
+  color: #92400e;
+  margin-bottom: 6px;
+  letter-spacing: 1px;
+  font-weight: 600;
+}
+
+.ws-map-meta {
+  font-size: 12px;
+  color: #57534e;
+  margin-bottom: 10px;
+  line-height: 1.6;
+}
+
+.ws-map-wrap {
+  overflow: auto;
+  max-width: 100%;
+  flex: 1;
+  min-height: 0;
+  padding-bottom: 4px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  /* 避免纵向滑动被外层 main 抢走；触摸双轴平移 */
+  overscroll-behavior: contain;
+  touch-action: pan-x pan-y;
+  user-select: none;
+  cursor: grab;
+}
+
+.ws-map-wrap.ws-map-wrap--dragging {
+  cursor: grabbing;
+}
+
+/* 小于视口时居中；大于视口时可四向滚动 */
+.ws-map-scrollport-inner {
+  min-width: 100%;
+  min-height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+}
+
+.ws-map-shell {
+  position: relative;
+  display: inline-block;
+  vertical-align: top;
+  line-height: 0;
+  flex-shrink: 0;
+}
+
+.ws-map-grid {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: repeat(var(--ws-cols), var(--ws-tile));
+  grid-template-rows: repeat(var(--ws-rows), var(--ws-tile));
+  gap: 1px;
+  background: #0a0a14;
+  border: 1px solid #222;
+}
+
+.ws-map-tile {
+  position: relative;
+  width: var(--ws-tile);
+  height: var(--ws-tile);
+}
+
+.ws-map-tile .ws-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.ws-quad-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.ws-quad-overlay .ws-quad-frame {
+  position: absolute;
+  box-sizing: border-box;
+}
+
+.ws-quad-a {
+  left: 0;
+  top: 0;
+  width: 50%;
+  height: 50%;
+  border: 2px dashed rgba(201, 168, 76, 0.45);
+}
+
+.ws-quad-b {
+  left: 50%;
+  top: 0;
+  width: 50%;
+  height: 50%;
+  border: 2px dashed rgba(201, 168, 76, 0.45);
+}
+
+.ws-quad-c {
+  left: 50%;
+  top: 50%;
+  width: 50%;
+  height: 50%;
+  border: 2px dashed rgba(201, 168, 76, 0.45);
+}
+
+.ws-quad-d {
+  left: 0;
+  top: 50%;
+  width: 50%;
+  height: 50%;
+  border: 2px dashed rgba(201, 168, 76, 0.45);
+}
+
+.ws-terrain-fallback {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.ws-terrain-lake {
+  background: rgba(25, 60, 140, 0.55);
+}
+
+.ws-terrain-ford {
+  background: rgba(100, 160, 220, 0.35);
+}
+
+.ws-terrain-road {
+  background: rgba(120, 100, 70, 0.35);
+}
+
+.ws-obj-fallback {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  font-weight: 700;
+  color: #fef3c7;
+  z-index: 2;
+  text-shadow: 0 0 3px #000;
+  pointer-events: none;
+}
+
+.ws-quad-marker {
+  position: absolute;
+  bottom: 1px;
+  left: 2px;
+  font-size: 7px;
+  color: rgba(255, 255, 255, 0.35);
+  z-index: 6;
+  pointer-events: none;
+  text-shadow: 0 0 2px #000;
+}
+
+.ws-map-tile .tile-fire-fx {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.ws-map-tile .tile-fire-frame {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.85;
+  animation: ws-fire-flicker 1.2s ease-in-out infinite;
+}
+
+@keyframes ws-fire-flicker {
+  0%,
+  100% {
+    opacity: 0.75;
+  }
+  50% {
+    opacity: 0.95;
+  }
+}

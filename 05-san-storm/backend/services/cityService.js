@@ -6,9 +6,23 @@
 
 const { pool } = require('../database/connection');
 const { applyTroopDurabilityExhaustion } = require('./troopDurabilityService');
+const { checkAndApplyVeteran } = require('./veteranService');
 const garrisonService = require('./garrisonService');
 const statisticsDeltaService = require('./statisticsDeltaService');
 const smallMapBattleLootService = require('./smallMapBattleLootService');
+
+/**
+ * 库列 `city_id` / `player_garrison_capacity` → 对外兼容 `id` / `garrison_capacity`（JSON 与旧前端）
+ */
+function formatCityRowForApi(row) {
+  if (!row) return row;
+  const o = { ...row };
+  if (o.city_id != null) o.id = o.city_id;
+  if (o.player_garrison_capacity != null) {
+    o.garrison_capacity = o.player_garrison_capacity;
+  }
+  return o;
+}
 
 /** 攻城战线占用：同键在 TTL 内不可被第二人（或本人第二开）占用，结算后释放；超时自动失效（毫秒）
  *  1 分钟：与多数自动战斗时长接近，避免 NPC 末档等场景被长时间占线；超长手动局若需占线应另做心跳续期 */
@@ -135,7 +149,7 @@ function pickRarity(maxRarity) {
  */
 async function generateNpcGarrison(cityId, opts = {}) {
   // 1. 获取城市信息
-  const [cityRows] = await pool.query('SELECT * FROM cities WHERE id = ?', [cityId]);
+  const [cityRows] = await pool.query('SELECT * FROM cities WHERE city_id = ?', [cityId]);
   if (!cityRows.length) throw new Error(`城市不存在: ${cityId}`);
   const city = cityRows[0];
 
@@ -208,7 +222,7 @@ async function generateNpcGarrison(cityId, opts = {}) {
 
   // 4. 更新城市 NPC 守军
   await pool.query(
-    `UPDATE cities SET npc_garrison = ?, npc_garrison_alive = ? WHERE id = ?`,
+    `UPDATE cities SET npc_garrison = ?, npc_garrison_alive = ? WHERE city_id = ?`,
     [serializeNpcGarrisonStored(npcUnits, new Date()), troopCount, cityId]
   );
 
@@ -219,9 +233,9 @@ async function generateNpcGarrison(cityId, opts = {}) {
  * 获取城市信息（含 NPC 守军）
  */
 async function getCityInfo(cityId) {
-  const [rows] = await pool.query('SELECT * FROM cities WHERE id = ?', [cityId]);
+  const [rows] = await pool.query('SELECT * FROM cities WHERE city_id = ?', [cityId]);
   if (!rows.length) return null;
-  const city = rows[0];
+  const city = formatCityRowForApi(rows[0]);
   const { units, ledgerAt } = parseNpcGarrisonStored(city.npc_garrison);
   return { ...city, npc_garrison: units, npcGarrisonLedgerAt: ledgerAt };
 }
@@ -505,14 +519,15 @@ async function recordSiegeResult(warId, playerId, factionId, killedIndices, resu
         }
       }
 
-      // Bug fix: 所有参战部队卡的 battle_count + 1（耐久度消耗）
+      // 所有参战部队卡的 battle_count + 1（耐久度消耗），同步递增 lifetime_battle_count
       if (allTroopInstanceIds.length > 0) {
         const ph = allTroopInstanceIds.map(() => '?').join(',');
         await conn.query(
           `UPDATE player_cards SET battle_count = LEAST(
              GREATEST(COALESCE(battle_count, 0), 0) + 1,
              COALESCE(max_battle_count, 60)
-           )
+           ),
+           lifetime_battle_count = COALESCE(lifetime_battle_count, 0) + 1
            WHERE instance_id IN (${ph})`,
           allTroopInstanceIds
         );
@@ -606,10 +621,25 @@ async function recordSiegeResult(warId, playerId, factionId, killedIndices, resu
         ...(silverReward > 0 ? { silver: silverReward } : {}),
         ...(reputationReward > 0 ? { reputation: reputationReward } : {}),
       });
+
+      // 老兵系统：检查防守方参战部队是否达到晋升阈值
+      let defenderVeteranPromotions = [];
+      if (defenderPlayerId) {
+        try {
+          defenderVeteranPromotions = await checkAndApplyVeteran((sql, params) => pool.query(sql, params), defenderPlayerId);
+          if (defenderVeteranPromotions.length > 0) {
+            console.log(`[cityService] 老兵晋升(守方): player=${defenderPlayerId}, ${defenderVeteranPromotions.length}张卡`);
+          }
+        } catch (vetErr) {
+          console.error('[cityService] 老兵检查(守方)失败:', vetErr);
+        }
+      }
+
       return {
         warId, factionKills, npcKilled: killCount, npcTotal: garrisonUnits.length, siegeCompleted: false, winnerFaction: null,
         silverReward, reputationReward, equipmentDrop: null,
         defenderType: defenderType === 'pvp_online' ? 'pvp_online' : 'player_garrison',
+        defenderVeteranPromotions,
       };
     } catch (error) {
       await conn.rollback();
@@ -643,7 +673,7 @@ async function recordSiegeResult(warId, playerId, factionId, killedIndices, resu
     /** 本场结算后 NPC 守军 JSON 中仍存活支数；易主判定以之为准（勿仅用 wars.npc_killed >= npc_total） */
     let npcAliveAfterUpdate = null;
     const [cityRows] = await connection.query(
-      'SELECT npc_garrison, npc_garrison_alive FROM cities WHERE id = ? FOR UPDATE',
+      'SELECT npc_garrison, npc_garrison_alive FROM cities WHERE city_id = ? FOR UPDATE',
       [war.target_city_id]
     );
     if (cityRows.length) {
@@ -659,7 +689,7 @@ async function recordSiegeResult(warId, playerId, factionId, killedIndices, resu
         const aliveCount = unitArr.filter(u => u.alive).length;
         npcAliveAfterUpdate = aliveCount;
         await connection.query(
-          'UPDATE cities SET npc_garrison = ?, npc_garrison_alive = ? WHERE id = ?',
+          'UPDATE cities SET npc_garrison = ?, npc_garrison_alive = ? WHERE city_id = ?',
           [serializeNpcGarrisonStored(unitArr, new Date()), aliveCount, war.target_city_id]
         );
       }
@@ -682,7 +712,7 @@ async function recordSiegeResult(warId, playerId, factionId, killedIndices, resu
     let equipmentDrop = null;
     if (result === 'win' && actualKillCount > 0) {
       // 声望：按本场击杀NPC的最高稀有度计算
-      const [cityCheck] = await connection.query('SELECT npc_garrison FROM cities WHERE id = ?', [war.target_city_id]);
+      const [cityCheck] = await connection.query('SELECT npc_garrison FROM cities WHERE city_id = ?', [war.target_city_id]);
       let killedRarities = [];
       if (cityCheck.length) {
         const { units: gArr } = parseNpcGarrisonStored(cityCheck[0].npc_garrison);
@@ -747,7 +777,7 @@ async function recordSiegeResult(warId, playerId, factionId, killedIndices, resu
 
       // 更新城市归属
       await connection.query(
-        "UPDATE cities SET faction_id = ?, status = 'owned', npc_garrison = NULL, npc_garrison_alive = 0 WHERE id = ?",
+        "UPDATE cities SET faction_id = ?, status = 'owned', npc_garrison = NULL, npc_garrison_alive = 0 WHERE city_id = ?",
         [winnerFaction, war.target_city_id]
       );
 
@@ -849,6 +879,7 @@ async function getWarStatus(warId) {
 }
 
 module.exports = {
+  formatCityRowForApi,
   generateNpcGarrison,
   getCityInfo,
   initiateSiege,

@@ -38,8 +38,11 @@ export const battleAPI = {
       });
       const data = await response.json().catch(() => ({}));
       if (data.success) {
-        console.log('[BattleAPI] 战斗记录保存成功', data.battle?.battleId);
-        return { success: true, battle: data.battle };
+        return {
+          success: true,
+          battle: data.battle,
+          veteranPromotions: Array.isArray(data.veteranPromotions) ? data.veteranPromotions : [],
+        };
       }
       const detail = [data.message, data.error, data.sqlMessage].filter(Boolean).join(' | ');
       console.warn('[BattleAPI] 保存失败', detail || response.status);

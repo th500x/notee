@@ -71,6 +71,8 @@ export function toTroopCardData(card) {
     hillAdapt: cfg.hillAdapt,
     forestAdapt: cfg.forestAdapt,
     siegeAdapt: cfg.siegeAdapt,
+    veteranTier: card.veteran_tier ?? 0,
+    veteranBonusPct: Number(card.veteran_bonus_pct) || 0,
   };
 }
 

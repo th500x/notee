@@ -22,8 +22,8 @@
 import { parseIdColonCount } from './parseIdColonCount.js';
 import { placeCampaignNpcUnits } from './campaignUnitsPlacement.js';
 import { computeLargestPassableComponentLocal } from './campaignQuadReachability.js';
-import presetSan1Camp1001V1 from '../data/campaign/san_1_camp_1001_v1.preset.json';
-import presetSan1Camp1001V2 from '../data/campaign/san_1_camp_1001_v2.preset.json';
+import presetSan1Camp1001V1 from '../data/campaign/san_1_camp_1001_v1.preset.json' with { type: 'json' };
+import presetSan1Camp1001V2 from '../data/campaign/san_1_camp_1001_v2.preset.json' with { type: 'json' };
 
 /** 模拟生成用：campaign_id → 与仓库 `shared/data/campaign/*.preset.json` 同步的预设对象 */
 export const CAMPAIGN_PRESETS_BY_ID = {

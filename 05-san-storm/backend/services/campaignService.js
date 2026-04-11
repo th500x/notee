@@ -24,6 +24,28 @@ function gradeFromBattleScore(score) {
 }
 
 /**
+ * 持久化用：在每次战役战报落库时，把 bestScore/bestGrade 写成「runs 里所有胜利局的最高 score」与已有 bestScore 的较大者。
+ * 这样即使曾出现字段与 runs 不一致（旧数据、异常 PATCH 等），玩家后续任意一次结算（含败局）也会把最高分写正；领奖只读已存字段即可，无需再算一遍。
+ * @param {{ bestScore?: unknown, runs?: Array<{ result?: string, score?: unknown }> }} prog
+ * @returns {{ bestScore: number|null, bestGrade: string|null }}
+ */
+function reconcileCampaignBestFromProg(prog) {
+  let maxS = null;
+  for (const r of prog.runs || []) {
+    if (r?.result !== 'win') continue;
+    const s = Number(r.score);
+    if (!Number.isFinite(s) || s < 0) continue;
+    if (maxS == null || s > maxS) maxS = s;
+  }
+  const fieldS = prog.bestScore != null ? Number(prog.bestScore) : NaN;
+  if (Number.isFinite(fieldS) && fieldS >= 0 && (maxS == null || fieldS > maxS)) {
+    maxS = fieldS;
+  }
+  if (maxS == null) return { bestScore: null, bestGrade: null };
+  return { bestScore: maxS, bestGrade: gradeFromBattleScore(maxS).grade };
+}
+
+/**
  * 解析 era 如 `184年4月上旬` → 该旬首日游戏历日期
  */
 function parseEraToGameDate(era) {
@@ -310,22 +332,15 @@ async function applyBattleSettlement({
   };
 
   const runs = Array.isArray(prog.runs) ? [...prog.runs, runEntry] : [runEntry];
-  let bestScore = prog.bestScore != null ? Number(prog.bestScore) : null;
-  let bestGrade = prog.bestGrade || null;
-
-  if (result === 'win' && Number.isFinite(scoreNum)) {
-    if (bestScore == null || scoreNum > bestScore) {
-      bestScore = scoreNum;
-      bestGrade = grade;
-    }
-  }
+  const candidate = { ...prog, playCount: playCount + 1, runs };
+  const { bestScore, bestGrade } = reconcileCampaignBestFromProg(candidate);
 
   const newProg = {
     ...prog,
     playCount: playCount + 1,
     runs,
-    bestScore: bestScore != null ? bestScore : prog.bestScore ?? null,
-    bestGrade: bestGrade || prog.bestGrade || null,
+    bestScore,
+    bestGrade,
   };
 
   progress[campaignId] = newProg;
@@ -364,18 +379,23 @@ async function claimCampaignReward(playerId, campaignId) {
   if (playCount < 1) return { ok: false, error: 'no completed run' };
 
   const best = prog.bestScore != null ? Number(prog.bestScore) : null;
-  if (best == null || best < 0) return { ok: false, error: 'no valid best score' };
+  if (best == null || !Number.isFinite(best) || best < 0) {
+    return { ok: false, error: 'no valid best score' };
+  }
 
   const { multiplier, grade } = gradeFromBattleScore(best);
   const silver = Math.floor(Number(def.completion_reward_silver) * multiplier);
   const food = Math.floor(Number(def.completion_reward_food) * multiplier);
   const badgeItemId = resolveCampaignBadgeItemId(def.completion_reward_badge);
+  /** 与 §7 银两/粮草一致：基准 1 枚 × 档位倍率；D 档 0.8 → floor 为 0 不发徽章 */
+  const badgeQty =
+    badgeItemId != null ? Math.max(0, Math.floor(1 * multiplier)) : 0;
 
   await Player.updateResources(playerId, { silver, food });
 
   let badgeGranted = null;
-  if (badgeItemId) {
-    const addRes = await playerItemsService.addItem(playerId, badgeItemId, 1);
+  if (badgeItemId && badgeQty > 0) {
+    const addRes = await playerItemsService.addItem(playerId, badgeItemId, badgeQty);
     if (!addRes.ok) {
       try {
         await Player.updateResources(playerId, { silver: -silver, food: -food });
@@ -385,16 +405,20 @@ async function claimCampaignReward(playerId, campaignId) {
       return { ok: false, error: addRes.error || 'badge grant failed' };
     }
     const displayName = await getItemDisplayName(badgeItemId);
-    badgeGranted = { itemId: badgeItemId, quantity: 1, displayName };
+    badgeGranted = { itemId: badgeItemId, quantity: badgeQty, displayName };
   }
 
   progress[campaignId] = {
     ...prog,
+    bestScore: best,
+    bestGrade: grade,
     rewardClaimed: true,
     rewardClaimedAt: new Date().toISOString(),
     rewardSilverGranted: silver,
     rewardFoodGranted: food,
-    ...(badgeItemId ? { rewardBadgeItemId: badgeItemId, rewardBadgeQty: 1 } : {}),
+    ...(badgeItemId && badgeQty > 0
+      ? { rewardBadgeItemId: badgeItemId, rewardBadgeQty: badgeQty }
+      : {}),
   };
   await saveCampaignProgressMap(playerId, progress);
 
@@ -407,6 +431,7 @@ async function claimCampaignReward(playerId, campaignId) {
       food,
       grade,
       bestScore: best,
+      bestGrade: grade,
       ...(badgeGranted ? { badge: badgeGranted } : {}),
     },
   };

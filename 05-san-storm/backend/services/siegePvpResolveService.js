@@ -111,7 +111,7 @@ async function doResolveAuthoritativeSiegePvp(params) {
 
   const [attNameRow] = await pool.query('SELECT character_name, faction_id FROM players WHERE player_id = ?', [attackerId]);
   const [defNameRow] = await pool.query('SELECT character_name FROM players WHERE player_id = ?', [c.defenderId]);
-  const [cityRow] = await pool.query('SELECT city_name FROM cities WHERE id = ?', [c.cityId]);
+  const [cityRow] = await pool.query('SELECT city_name FROM cities WHERE city_id = ?', [c.cityId]);
   const cityName = cityRow[0]?.city_name || c.cityId;
   const attackerFaction = attNameRow[0]?.faction_id;
   const attackerName = attNameRow[0]?.character_name || attackerId;

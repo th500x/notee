@@ -27,7 +27,6 @@ export function commitBattleTroopsThenPlayRound(setBattleTroops, nextTroops, pla
   if (typeof beforePlay === 'function') beforePlay();
   queueMicrotask(() => {
     const fn = playRoundRef?.current;
-    if (import.meta.env.DEV) console.warn('[commitBattleTroopsThenPlayRound] microtask: fn=', typeof fn);
     if (typeof fn === 'function') fn();
   });
 }

@@ -1,6 +1,8 @@
 /**
  * One-shot: infantry mirror tiers vs common-200 defender using estimateDamage (no ±10% rng).
  * Run: node scripts/troop-tier-damage-preview.mjs
+ *
+ * 精锐指数、弓兵近战乘子等均以 `../src/systems/combatSystem.js`（及攻城侧 `siegeCombatCore.cjs`）为准；本脚本不重复写死数值。
  */
 import { estimateDamage } from '../src/systems/combatSystem.js';
 

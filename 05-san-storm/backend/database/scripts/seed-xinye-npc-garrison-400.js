@@ -23,7 +23,7 @@ const TROOP_COUNT = Math.min(2000, Math.max(1, parseInt(process.argv[3] || '400'
 
 /** 与 WorldMap.jsx CITY_ID、攻城测试一致；无行则 API 404 → 界面 ?/? */
 const DEFAULT_XINYE = {
-  id: 'san_1_city_3_xinye',
+  city_id: 'san_1_city_3_xinye',
   season: 'san_1',
   city_name: '新野城',
   city_type: 'city_small',
@@ -34,15 +34,15 @@ const DEFAULT_XINYE = {
  */
 async function ensureCityRow(cityId) {
   const meta =
-    cityId === DEFAULT_XINYE.id
+    cityId === DEFAULT_XINYE.city_id
       ? DEFAULT_XINYE
-      : { id: cityId, season: 'san_1', city_name: cityId, city_type: 'city_small' };
+      : { city_id: cityId, season: 'san_1', city_name: cityId, city_type: 'city_small' };
 
   await pool.query(
-    `INSERT INTO cities (id, season, city_name, city_type, status, faction_id)
+    `INSERT INTO cities (city_id, season, city_name, city_type, status, faction_id)
      VALUES (?, ?, ?, ?, 'neutral', NULL)
-     ON DUPLICATE KEY UPDATE id = id`,
-    [meta.id, meta.season, meta.city_name, meta.city_type],
+     ON DUPLICATE KEY UPDATE city_id = city_id`,
+    [meta.city_id, meta.season, meta.city_name, meta.city_type],
   );
   console.log(`[seed-xinye-npc] cities 行已就绪: ${cityId}`);
 }
@@ -62,7 +62,7 @@ async function ensureCityRow(cityId) {
     if (msg.includes('城市不存在')) {
       try {
         const [rows] = await pool.query(
-          'SELECT id, city_name FROM cities ORDER BY id LIMIT 40',
+          'SELECT city_id, city_name FROM cities ORDER BY city_id LIMIT 40',
         );
         console.error('[seed-xinye-npc] 当前库 cities 样例（请核对 city id）：');
         console.table(rows);

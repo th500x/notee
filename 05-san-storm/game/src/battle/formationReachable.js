@@ -60,27 +60,6 @@ export function computeFormationReachable(fTroops, remMove, mapResult, battleTro
   }
   visited.delete(`${centerY},${centerX}`); // 移除起点本身
 
-  // DEV：首步四方向诊断（仅开发环境输出，不影响生产）
-  if (import.meta.env.DEV) {
-    const dirNames = { '0,1': 'right', '0,-1': 'left', '1,0': 'down(back)', '-1,0': 'up(fwd)' };
-    for (const [dy, dx] of DIRS) {
-      const ny = centerY + dy, nx = centerX + dx;
-      const label = dirNames[`${dy},${dx}`] || `${dy},${dx}`;
-      if (!inB(ny, nx)) { console.warn(`[formationReachable] ${label}: center ${ny},${nx} OOB`); continue; }
-      const details = offsets.map(({ dy: oy, dx: ox }, i) => {
-        const ty = ny + oy, tx = nx + ox;
-        if (!inB(ty, tx)) return { i, pos: `${ty},${tx}`, reason: 'OOB' };
-        const cost = getMoveCost(ty, tx, mapResult);
-        if (cost === Infinity) return { i, pos: `${ty},${tx}`, reason: 'impassable', terrain: mapResult?.terrain?.[ty]?.[tx], obj: mapResult?.objects?.find(o => o.y === ty && o.x === tx)?.type };
-        return { i, pos: `${ty},${tx}`, cost };
-      });
-      const maxCost = Math.max(...details.map(d => d.reason ? Infinity : d.cost));
-      const blocked = details.filter(d => d.reason);
-      console.warn(`[formationReachable] ${label}: maxCost=${maxCost}, remAfter=${remMove - maxCost}`, blocked.length ? { blocked } : '(all passable)');
-    }
-    console.warn('[formationReachable] center=', centerY, centerX, 'remMove=', remMove, 'offsets=', offsets, 'BFS visited=', visited.size);
-  }
-
   // 过滤：检查所有偏移格的合法性（友军可通行，敌军阻挡）
   const validReachable = new Map();
   for (const [key, remaining] of visited) {
@@ -98,8 +77,5 @@ export function computeFormationReachable(fTroops, remMove, mapResult, battleTro
     if (allValid) validReachable.set(key, remaining);
   }
 
-  if (import.meta.env.DEV) {
-    console.warn('[formationReachable] final reachable centers:', validReachable.size);
-  }
   return validReachable;
 }

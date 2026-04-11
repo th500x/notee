@@ -3,7 +3,7 @@
   "jun_quad_id": "san_1_jun_yingchuan_quad_A",
   "campaign_id": "san_1_jun_yingchuan_quad_A",
   "generator_version": "jun-major-A.v0",
-  "seed": 1,
+  "seed": 73517665,
   "map_columns": 16,
   "map_rows": 20,
   "boundary_river_continuity": false,
@@ -33,7 +33,7 @@
       "city_id": "san_1_city_2_yangdi",
       "city_name": "阳翟",
       "gx": 14,
-      "gy": 0,
+      "gy": 1,
       "object": "city_medium",
       "sub_quad": "A2"
     },
@@ -43,7 +43,7 @@
       "gx": 8,
       "gy": 19,
       "object": "city_small",
-      "sub_quad": "A4"
+      "sub_quad": "A3"
     },
     {
       "city_id": "san_1_city_3_fucheng",
@@ -51,8 +51,24 @@
       "gx": 5,
       "gy": 17,
       "object": "city_small",
-      "sub_quad": "A3"
+      "sub_quad": "A4"
     }
   ],
-  "notes": "测试用：仅底板 + 城点瓦片；与 docs/tools/map/san_1_jun_yingchuan_quad_A.md、landmarks CSV 同步。"
+  "strategic_forts": [
+    {
+      "fort_id": "san_1_city_5_0001",
+      "city_name": "颍川据点",
+      "gx": 12,
+      "gy": 3,
+      "sub_quad": "A2"
+    },
+    {
+      "fort_id": "san_1_city_5_0002",
+      "city_name": "颍川据点",
+      "gx": 13,
+      "gy": 7,
+      "sub_quad": "A2"
+    }
+  ],
+  "notes": "测试用：底板 + 城点瓦片 + 预设据点 fort（tile_3_object/fort_01.png）；与 docs/tools/map/san_1_jun_yingchuan_quad_A.md、landmarks / fort 叙事同步。"
 }

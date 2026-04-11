@@ -6,6 +6,7 @@
 
 function buildTroopUnit(troopCard, charData, morale) {
   const cfg = troopCard.config || {};
+  const vetMult = 1 + (Number(troopCard.veteran_bonus_pct) || 0) / 100;
   return {
     troop: {
       id: cfg.id || troopCard.card_id,
@@ -14,10 +15,10 @@ function buildTroopUnit(troopCard, charData, morale) {
       rarity: cfg.rarity || troopCard.rarity || 'common',
       troopType: cfg.troopType,
       weaponType: cfg.weaponType,
-      attack: cfg.attack || 0,
-      defense: cfg.defense || 0,
-      speed: cfg.speed || 0,
-      movement: cfg.movement || 0,
+      attack: (cfg.attack || 0) * vetMult,
+      defense: (cfg.defense || 0) * vetMult,
+      speed: Math.round((cfg.speed || 0) * vetMult),
+      movement: Math.round((cfg.movement || 0) * vetMult),
       range: cfg.range || 1,
       maxTroops: (cfg.maxTroops || 0) + (troopCard.bonus_max_troops || 0),
       troopWeight: cfg.troopWeight || 1,

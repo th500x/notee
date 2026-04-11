@@ -16,8 +16,11 @@ export const TILE_INFO = {
   fence:  { badge: '🚧', name: '栅栏', attrs: '不可通行\n可破坏 HP 500' },
   trap:   { badge: '⚠️', name: '陷阱', attrs: '可通行 · 移动消耗 +0\n路过扣 50 兵力' },
   chest:  { badge: '📦', name: '宝箱', attrs: '可通行\n可互动获取奖励' },
+  city_major: { badge: '🏛️', name: '大城', attrs: '战略层城点（测试）\n可通行' },
   city_medium: { badge: '🏯', name: '中城', attrs: '战略层城点（测试）\n可通行' },
   city_small: { badge: '🏘️', name: '小城', attrs: '战略层城点（测试）\n可通行' },
+  gate: { badge: '🚩', name: '关隘', attrs: '战略层城点（测试）\n可通行' },
+  fort: { badge: '🏰', name: '预设据点（空地）', attrs: '可建造 fort 槽位（战略层）\n可通行' },
 };
 
 /** 着火格：与林/丘移耗叠加；回合末烧兵（见 tacticalBattleEngine + getMoveCost） */
@@ -79,8 +82,11 @@ export function campaignObjectToTileInfoKey(objectId) {
   if (id === 'fence') return 'fence';
   if (id === 'trap') return 'trap';
   if (id === 'chest') return 'chest';
+  if (id === 'city_major') return 'city_major';
   if (id === 'city_medium') return 'city_medium';
   if (id === 'city_small') return 'city_small';
+  if (id === 'gate') return 'gate';
+  if (id === 'fort') return 'fort';
   if (id === 'rock' || id === 'military_tower' || id === 'military_camp') return 'rock';
   return null;
 }
@@ -120,6 +126,19 @@ export function buildCampaignCellTooltipInfo(cell) {
   }
   if (ter === 'river' || ter === 'lake') {
     return { badge: '🌊', name: '水域', attrs: '不可通行' };
+  }
+  /** 战略大地图：preset 中 object 类型未列入 TILE_INFO 时仍可能有 cityId，避免无 tooltip、无法合并运行时 */
+  if (cell?.cityId || cell?.cityName) {
+    const idLine = cell.cityId ? `配置 ID：${cell.cityId}` : '';
+    const nameLine = cell.cityName ? `名称：${cell.cityName}` : '';
+    const posLine =
+      cell.col != null && cell.row != null ? `郡内格：gx = ${cell.col}, gy = ${cell.row}` : '';
+    const typeLine = cell.object ? `对象类型：${cell.object}` : '';
+    return {
+      badge: '📍',
+      name: cell.cityName || cell.cityId || '战略点',
+      attrs: ['战略层城点（地图格）', '可通行', typeLine, idLine, nameLine, posLine].filter(Boolean).join('\n'),
+    };
   }
   return null;
 }

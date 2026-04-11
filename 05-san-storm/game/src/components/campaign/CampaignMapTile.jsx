@@ -97,7 +97,9 @@ function CampaignMapTile({
                 ? '塔'
                 : cell.object === 'city_medium' || cell.object === 'city_small'
                   ? '城'
-                  : '·'}
+                  : cell.object === 'fort'
+                    ? '据'
+                    : '·'}
           </div>
         ))}
       {cell.effect === 'fire' && (

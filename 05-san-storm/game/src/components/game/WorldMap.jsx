@@ -1,8 +1,5 @@
 /**
- * 大地图组件
- * 
- * @description 显示大地图背景 + 可探索区域标记
- *              探索点直接在地图上显示，点击触发事件系统
+ * 大地图：颍川郡战略格网（world）+ 底栏探索/攻城入口（与格网坐标未绑定）
  */
 
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
@@ -24,14 +21,10 @@ import SiegeReplayMini from '@/components/game/SiegeReplayMini';
 import { filterPlayerItemsForExploreLocation } from '@/components/event/eventUtils';
 import { buildBattleScoreFormulaLines, resolveKillLossTroopCounts } from '@/systems/battleScoreSystem';
 import { validateMainLineupBattleGate } from '@/utils/mainLineupTroops';
+import WorldYingchuanMapSection from '@/components/world/WorldYingchuanMapSection';
 
 /** 山海关荒郊（事件 location 与 config_events 一致） */
 const EXPLORE_LOC_SHANHAIGUAN = 'san_1_city_6_shanhaiguan';
-
-const BG_CACHE_KEY = 'game_intro_bg';
-const BG_DIR = 'assets/san_1_map/illus_bg/';
-const DEFAULT_BG = 'av1_00001_.png';
-const LONG_PRESS_MS = 400; // 长按阈值（毫秒）
 
 const FACTION_NAMES = {
   san_1_faction_1001: '刘备', san_1_faction_2001: '曹操', san_1_faction_3001: '孙坚',
@@ -55,18 +48,6 @@ function scheduleAfterMinAdjudicationUi(startedAt, fn) {
     return;
   }
   setTimeout(fn, wait);
-}
-
-/** 从 localStorage 读取缓存的背景图路径 */
-function getCachedBg() {
-  try {
-    const cached = localStorage.getItem(BG_CACHE_KEY);
-    if (cached) {
-      const { file } = JSON.parse(cached);
-      if (file) return BG_DIR + file;
-    }
-  } catch {}
-  return BG_DIR + DEFAULT_BG;
 }
 
 /** 攻城结算里服务端权威战报的简化回放入口 */
@@ -231,9 +212,6 @@ function PvpDefenseOutcomeModal({ outcome, onClose }) {
 }
 
 export default function WorldMap({ onEventBusyChange }) {
-  const bgPath = getCachedBg();
-  const baseUrl = import.meta.env.BASE_URL;
-
   const { player, cards, attributeBonusBySlot, refresh: refreshPlayer } = usePlayerContext();
   const eventSystem = useEventSystem(player, cards);
   const tutorialSystem = useTutorialEvents(player, cards);
@@ -244,10 +222,8 @@ export default function WorldMap({ onEventBusyChange }) {
   const { phase } = activeSystem;
   const { quota, eventsLoading, explorePoolAt, startExplore } = eventSystem;
 
-  const [showTooltip, setShowTooltip] = useState(false);
-  /** 悬浮的探索点：'nanyang' | 'shanhaiguan' | null */
-  const [exploreHover, setExploreHover] = useState(null);
-  const [cityTooltip, setCityTooltip] = useState(false);
+  /** 底栏展开：探索点 / 新野城信息（与格网坐标未绑定，仅保留原有玩法入口） */
+  const [dockPanel, setDockPanel] = useState(null);
   const nanyangPoolLen = explorePoolAt(DEFAULT_EXPLORE_LOCATION_ID).length;
   const shanhaiguanPoolLen = explorePoolAt(EXPLORE_LOC_SHANHAIGUAN).length;
   const canExploreNanyang = !isTutorial && phase === PHASE.IDLE && !eventsLoading && nanyangPoolLen > 0 && quota.canExplore;
@@ -371,8 +347,7 @@ export default function WorldMap({ onEventBusyChange }) {
     if (player?.on_duty == null) return;
     setOnDuty(!!player.on_duty && player.on_duty_city_id === CITY_ID);
   }, [player?.on_duty, player?.on_duty_city_id]);
-  // tooltip 打开时刷新
-  useEffect(() => { if (cityTooltip) refreshCity(); }, [cityTooltip]);
+  useEffect(() => { if (dockPanel === 'xinye') refreshCity(); }, [dockPanel, refreshCity]);
 
   // 发起攻城
   const startSiege = useCallback(async () => {
@@ -626,89 +601,43 @@ export default function WorldMap({ onEventBusyChange }) {
     onEventBusyChange?.(busy);
   }, [phase, tutorialSystem.showPreDialog, onEventBusyChange, siegeData, pvpChallenge, pvpDefenseWaiting, pvpAttackerAdjudicating]);
 
-  // 长按支持：区分长按（显示tooltip）和短按（触发探索）
-  const longPressTimer = useRef(null);
-  const isLongPress = useRef(false);
-
-  const handleTouchStart = useCallback((e) => {
-    isLongPress.current = false;
-    longPressTimer.current = setTimeout(() => {
-      isLongPress.current = true;
-      setShowTooltip(true);
-    }, LONG_PRESS_MS);
-  }, []);
-
-  const handleTouchEnd = useCallback((e) => {
-    clearTimeout(longPressTimer.current);
-    if (isLongPress.current) {
-      // 长按结束 → 隐藏tooltip，不触发探索
-      setShowTooltip(false);
-      e.preventDefault(); // 阻止后续click事件
-    }
-    // 短按 → 不做处理，让onClick正常触发探索
-  }, []);
-
-  const handleTouchMove = useCallback(() => {
-    // 手指移动 → 取消长按
-    clearTimeout(longPressTimer.current);
+  const toggleDock = useCallback((id) => {
+    setDockPanel((p) => (p === id ? null : id));
   }, []);
 
   return (
-    <div className="relative w-full h-full">
-      {/* 背景地图 */}
-      <div
-        className="absolute inset-0 bg-cover bg-center"
-        style={{ backgroundImage: `url(${baseUrl}${bgPath})` }}
-      />
-      <div className="absolute inset-0 bg-black/10" />
+    <div className="relative flex flex-col h-full min-h-0 w-full bg-stone-950">
+      <WorldYingchuanMapSection className="flex-1 min-h-0 h-full" />
 
-      {/* 探索点：南阳荒郊 */}
-      <div
-        className={`absolute group ${exploreHover === 'nanyang' ? 'z-50' : 'z-30'} ${canExploreNanyang ? 'cursor-pointer' : 'cursor-not-allowed'}`}
-        style={{ left: '35%', top: '55%' }}
-        onMouseEnter={() => { setExploreHover('nanyang'); setShowTooltip(true); }}
-        onMouseLeave={() => { setExploreHover(null); setShowTooltip(false); }}
-        onTouchStart={handleTouchStart}
-        onTouchEnd={handleTouchEnd}
-        onTouchMove={handleTouchMove}
-        onClick={canExploreNanyang ? () => startExplore(DEFAULT_EXPLORE_LOCATION_ID) : undefined}
-      >
-        {canExploreNanyang && (
-          <div className="absolute inset-0 -m-4 rounded-full bg-amber-400/30 animate-ping" />
-        )}
-        <div className={`relative text-4xl select-none transition-transform
-          ${canExploreNanyang ? 'hover:scale-125 active:scale-95' : ''}
-          ${nanyangPoolEmpty ? 'grayscale opacity-[0.38] brightness-[0.82] saturate-50' : !canExploreNanyang ? 'opacity-50' : ''}`}>
-          📜
-        </div>
-        {showTooltip && exploreHover === 'nanyang' && (
-          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-black/80 rounded-lg backdrop-blur-sm whitespace-nowrap">
-            <div className="text-white text-sm font-medium">南阳荒郊</div>
-            <div className="text-white/60 text-xs">
+      <div className="relative z-30 shrink-0 border-t border-stone-700 bg-stone-900/98 shadow-[0_-4px_20px_rgba(0,0,0,0.35)]">
+        {dockPanel === 'nanyang' && (
+          <div className="max-h-[42vh] overflow-y-auto px-3 py-2 border-b border-stone-700 text-sm text-stone-200">
+            <div className="font-medium text-amber-200/95">南阳荒郊</div>
+            <div className="text-stone-400 text-xs mt-0.5">
               {eventsLoading ? '加载中...'
                 : !quota.canExplore ? '探索次数不足'
                 : nanyangPoolEmpty ? '本地点暂无可探索事件'
-                : `点击探索（${nanyangPoolLen}种事件）`}
+                : `可探索（${nanyangPoolLen}种事件）`}
             </div>
             {nanyangPoolEmpty && quota.canExplore && (
-              <div className="text-white/45 text-[10px] mt-0.5">次日 0 点（服务器日期）后部队链等进度将重置</div>
+              <div className="text-stone-500 text-[10px] mt-0.5">次日 0 点（服务器日期）后部队链等进度将重置</div>
             )}
-            <div className="text-white/80 text-xs mt-1 border-t border-white/20 pt-1">
+            <div className="text-stone-300 text-xs mt-2 border-t border-stone-600 pt-2">
               🔍 探索：<span className={quota.remaining > 0 ? 'text-green-400' : 'text-red-400'}>
                 {quota.remaining}/{quota.max}
               </span>
               {quota.remaining < quota.max && !quota.inRestPeriod && (
-                <span className="text-white/40 ml-1">（{quota.minutesUntilRefill}分后补充）</span>
+                <span className="text-stone-500 ml-1">（{quota.minutesUntilRefill}分后补充）</span>
               )}
               {quota.inRestPeriod && (
-                <span className="text-white/40 ml-1">（💤{quota.minutesUntilRefill}分后恢复）</span>
+                <span className="text-stone-500 ml-1">（💤{quota.minutesUntilRefill}分后恢复）</span>
               )}
             </div>
-            <div className="text-white/30 text-[10px] mt-1">
+            <div className="text-stone-500 text-[10px] mt-1">
               每小时+{quota.refillPerHour}次 · 上限{quota.max}次 · 0:00~8:00💤
             </div>
             {nanyangExploreItems.length > 0 && (
-              <div className="text-white/80 text-xs mt-1 border-t border-white/20 pt-1">
+              <div className="text-stone-300 text-xs mt-2 border-t border-stone-600 pt-2">
                 🎒 道具：
                 {nanyangExploreItems.map((item, i) => (
                   <span key={item.itemId} className="text-amber-300">
@@ -717,57 +646,44 @@ export default function WorldMap({ onEventBusyChange }) {
                 ))}
               </div>
             )}
+            <button
+              type="button"
+              disabled={!canExploreNanyang}
+              onClick={() => canExploreNanyang && startExplore(DEFAULT_EXPLORE_LOCATION_ID)}
+              className="mt-3 w-full py-2 rounded-lg text-xs font-bold bg-gradient-to-r from-amber-700 to-yellow-700 text-amber-100 disabled:from-stone-700 disabled:to-stone-700 disabled:text-stone-500"
+            >
+              {canExploreNanyang ? '📜 开始探索' : '不可探索'}
+            </button>
           </div>
         )}
-      </div>
-
-      {/* 探索点：山海关荒郊（提示文案与南阳荒郊一致） */}
-      <div
-        className={`absolute group ${exploreHover === 'shanhaiguan' ? 'z-50' : 'z-30'} ${canExploreShanhaiguan ? 'cursor-pointer' : 'cursor-not-allowed'}`}
-        style={{ left: '22%', top: '42%' }}
-        onMouseEnter={() => { setExploreHover('shanhaiguan'); setShowTooltip(true); }}
-        onMouseLeave={() => { setExploreHover(null); setShowTooltip(false); }}
-        onTouchStart={handleTouchStart}
-        onTouchEnd={handleTouchEnd}
-        onTouchMove={handleTouchMove}
-        onClick={canExploreShanhaiguan ? () => startExplore(EXPLORE_LOC_SHANHAIGUAN) : undefined}
-      >
-        {canExploreShanhaiguan && (
-          <div className="absolute inset-0 -m-4 rounded-full bg-sky-500/25 animate-ping" />
-        )}
-        <div className={`relative text-4xl select-none transition-transform
-          ${canExploreShanhaiguan ? 'hover:scale-125 active:scale-95' : ''}
-          ${shanhaiguanPoolEmpty ? 'grayscale opacity-[0.38] brightness-[0.82] saturate-50' : !canExploreShanhaiguan ? 'opacity-50' : ''}`}>
-          🏔️
-        </div>
-        {showTooltip && exploreHover === 'shanhaiguan' && (
-          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-black/80 rounded-lg backdrop-blur-sm whitespace-nowrap">
-            <div className="text-white text-sm font-medium">山海关荒郊</div>
-            <div className="text-white/60 text-xs">
+        {dockPanel === 'shanhaiguan' && (
+          <div className="max-h-[42vh] overflow-y-auto px-3 py-2 border-b border-stone-700 text-sm text-stone-200">
+            <div className="font-medium text-sky-200/95">山海关荒郊</div>
+            <div className="text-stone-400 text-xs mt-0.5">
               {eventsLoading ? '加载中...'
                 : !quota.canExplore ? '探索次数不足'
                 : shanhaiguanPoolEmpty ? '本地点暂无可探索事件'
-                : `点击探索（${shanhaiguanPoolLen}种事件）`}
+                : `可探索（${shanhaiguanPoolLen}种事件）`}
             </div>
             {shanhaiguanPoolEmpty && quota.canExplore && (
-              <div className="text-white/45 text-[10px] mt-0.5">次日 0 点（服务器日期）后部队链等进度将重置</div>
+              <div className="text-stone-500 text-[10px] mt-0.5">次日 0 点（服务器日期）后部队链等进度将重置</div>
             )}
-            <div className="text-white/80 text-xs mt-1 border-t border-white/20 pt-1">
+            <div className="text-stone-300 text-xs mt-2 border-t border-stone-600 pt-2">
               🔍 探索：<span className={quota.remaining > 0 ? 'text-green-400' : 'text-red-400'}>
                 {quota.remaining}/{quota.max}
               </span>
               {quota.remaining < quota.max && !quota.inRestPeriod && (
-                <span className="text-white/40 ml-1">（{quota.minutesUntilRefill}分后补充）</span>
+                <span className="text-stone-500 ml-1">（{quota.minutesUntilRefill}分后补充）</span>
               )}
               {quota.inRestPeriod && (
-                <span className="text-white/40 ml-1">（💤{quota.minutesUntilRefill}分后恢复）</span>
+                <span className="text-stone-500 ml-1">（💤{quota.minutesUntilRefill}分后恢复）</span>
               )}
             </div>
-            <div className="text-white/30 text-[10px] mt-1">
+            <div className="text-stone-500 text-[10px] mt-1">
               每小时+{quota.refillPerHour}次 · 上限{quota.max}次 · 0:00~8:00💤
             </div>
             {shanhaiguanExploreItems.length > 0 && (
-              <div className="text-white/80 text-xs mt-1 border-t border-white/20 pt-1">
+              <div className="text-stone-300 text-xs mt-2 border-t border-stone-600 pt-2">
                 🎒 道具：
                 {shanhaiguanExploreItems.map((item, i) => (
                   <span key={item.itemId} className="text-amber-300">
@@ -776,120 +692,142 @@ export default function WorldMap({ onEventBusyChange }) {
                 ))}
               </div>
             )}
+            <button
+              type="button"
+              disabled={!canExploreShanhaiguan}
+              onClick={() => canExploreShanhaiguan && startExplore(EXPLORE_LOC_SHANHAIGUAN)}
+              className="mt-3 w-full py-2 rounded-lg text-xs font-bold bg-gradient-to-r from-sky-800 to-cyan-800 text-sky-100 disabled:from-stone-700 disabled:to-stone-700 disabled:text-stone-500"
+            >
+              {canExploreShanhaiguan ? '🏔️ 开始探索' : '不可探索'}
+            </button>
           </div>
         )}
-      </div>
-
-      {/* 城市点：新野 */}
-      <div
-        className={`absolute cursor-pointer group ${cityTooltip ? 'z-50' : 'z-30'}`}
-        style={{ left: '60%', top: '40%' }}
-        onMouseEnter={() => setCityTooltip(true)}
-        onMouseLeave={() => setCityTooltip(false)}
-        onClick={() => { if (!isTutorial && phase === PHASE.IDLE) setCityTooltip(prev => !prev); }}
-      >
-        {!isTutorial && phase === PHASE.IDLE && (
-          <div className="absolute inset-0 -m-4 rounded-full bg-red-400/30 animate-ping" />
-        )}
-        <div className={`relative text-4xl select-none transition-transform
-          ${!isTutorial && phase === PHASE.IDLE ? 'hover:scale-125 active:scale-95' : 'opacity-50'}`}>
-          🏯
-        </div>
-        {cityTooltip && (() => {
+        {dockPanel === 'xinye' && (() => {
           const factionKills = warData?.faction_kills || {};
           const sortedFactions = Object.entries(factionKills).sort((a, b) => b[1] - a[1]);
           return (
-            <>
-              {/* 主 tooltip */}
-              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-black/80 rounded-lg backdrop-blur-sm whitespace-nowrap z-50">
-                <div className="text-white text-sm font-medium">新野城</div>
-                <div className="text-white/60 text-xs">
-                  {siegeLoading ? '准备中...' : isOwnCity ? '己方驻地 · 点击下方按钮编组' : !siegeQuota.canSiege ? '攻城次数不足' : '小城 · 点击下方按钮攻打'}
-                </div>
-                <div className="text-white/80 text-xs mt-1 border-t border-white/20 pt-1">
-                  ⚔️ 战斗：<span className={siegeQuota.remaining > 0 ? 'text-green-400' : 'text-red-400'}>
-                    {siegeQuota.remaining}/{siegeQuota.max}
-                  </span>
-                  {siegeQuota.remaining < siegeQuota.max && !siegeQuota.inRestPeriod && (
-                    <span className="text-white/40 ml-1">（{siegeQuota.minutesUntilRefill}分后补充）</span>
-                  )}
-                </div>
-                <div className="text-white/30 text-[10px] mt-1">
-                  每小时+{siegeQuota.refillPerHour}次 · 上限{siegeQuota.max}次 · 0:00~8:00💤
-                </div>
-                <div className="text-white/80 text-xs mt-1 border-t border-white/20 pt-1">
-                  新野 · 小城
-                  <br />披挂上阵：<span className={onDutyCount > 0 ? 'text-green-400' : 'text-stone-500'}>{onDutyCount}</span>
-                  <span className="text-stone-500">（披挂防守方上阵≥800 才接战；开战需上阵≥200）</span>
-                  {garrisonStats && garrisonStats.slot_count > 0 && (
-                    <><br />驻地守军：<span className="text-cyan-400">{garrisonStats.slot_count}</span>（{garrisonStats.player_count}人）</>
-                  )}
-                  <br />NPC守军：<span className="text-amber-400">{cityInfo?.npc_garrison_alive ?? '?'}</span> / {cityInfo?.npc_garrison?.length ?? '?'}
-                  <br />所属势力：<span className={cityInfo?.faction_id ? 'text-red-400' : 'text-gray-400'}>{cityInfo?.faction_id ? (FACTION_NAMES[cityInfo.faction_id] || '已占领') : '中立'}</span>
-                </div>
-                {isOwnCity ? (
-                  /* 己方城市 → 驻地编组 + 披挂上阵 */
-                  <div className="mt-2 space-y-1.5 whitespace-normal">
-                    <button
-                      onClick={(e) => { e.stopPropagation(); setShowGarrison(true); setCityTooltip(false); }}
-                      className="w-full py-1.5 rounded text-xs font-bold transition-all
-                        bg-gradient-to-r from-amber-700 to-yellow-700 text-amber-100
-                        hover:from-amber-600 hover:to-yellow-600"
-                    >
-                      🏰 驻地编组
-                    </button>
-                    <button
-                      onClick={async (e) => {
-                        e.stopPropagation();
-                        const newVal = !onDuty;
-                        const res = await garrisonAPI.setOnDuty(player.player_id, newVal, CITY_ID);
-                        if (res.success) {
-                          setOnDuty(newVal);
-                          refreshCity();
-                          refreshPlayer();
-                        } else if (res.error) {
-                          setSimpleAlertMessage(res.error);
-                        }
-                      }}
-                      className={`w-full py-1.5 rounded text-xs font-bold transition-all
-                        ${onDuty
-                          ? 'bg-gradient-to-r from-green-700 to-emerald-700 text-green-100 hover:from-green-600 hover:to-emerald-600'
-                          : 'bg-gradient-to-r from-stone-700 to-stone-600 text-stone-300 hover:from-stone-600 hover:to-stone-500'}`}
-                    >
-                      {onDuty ? '⚔️ 驻守待机中...' : '🛡️ 披挂上阵'}
-                    </button>
+            <div className="max-h-[42vh] overflow-y-auto px-3 py-2 border-b border-stone-700 text-sm text-stone-200">
+              <div className="flex flex-col sm:flex-row gap-3 sm:items-start">
+                <div className="flex-1 min-w-0">
+                  <div className="font-medium text-red-200/95">新野城</div>
+                  <div className="text-stone-400 text-xs mt-0.5">
+                    {siegeLoading ? '准备中...' : isOwnCity ? '己方驻地 · 可编组 / 披挂' : !siegeQuota.canSiege ? '攻城次数不足' : '小城 · 可攻打'}
                   </div>
-                ) : (
-                  /* 敌方/中立城市 → 攻打按钮 */
-                  <button
-                    onClick={(e) => { e.stopPropagation(); if (canSiege) startSiege(); }}
-                    disabled={!canSiege || siegeLoading}
-                    className="mt-2 w-full py-1.5 rounded text-xs font-bold transition-all
-                      bg-gradient-to-r from-red-700 to-orange-700 text-white
-                      hover:from-red-600 hover:to-orange-600
-                      disabled:from-gray-700 disabled:to-gray-700 disabled:text-gray-500 disabled:cursor-not-allowed"
-                  >
-                    {siegeLoading ? '准备中...' : !siegeQuota.canSiege ? '次数不足' : '⚔️ 攻打新野'}
-                  </button>
+                  <div className="text-stone-300 text-xs mt-2 border-t border-stone-600 pt-2">
+                    ⚔️ 战斗：<span className={siegeQuota.remaining > 0 ? 'text-green-400' : 'text-red-400'}>
+                      {siegeQuota.remaining}/{siegeQuota.max}
+                    </span>
+                    {siegeQuota.remaining < siegeQuota.max && !siegeQuota.inRestPeriod && (
+                      <span className="text-stone-500 ml-1">（{siegeQuota.minutesUntilRefill}分后补充）</span>
+                    )}
+                  </div>
+                  <div className="text-stone-500 text-[10px] mt-1">
+                    每小时+{siegeQuota.refillPerHour}次 · 上限{siegeQuota.max}次 · 0:00~8:00💤
+                  </div>
+                  <div className="text-stone-300 text-xs mt-2 border-t border-stone-600 pt-2 whitespace-normal">
+                    新野 · 小城
+                    <br />披挂上阵：<span className={onDutyCount > 0 ? 'text-green-400' : 'text-stone-500'}>{onDutyCount}</span>
+                    <span className="text-stone-500">（披挂防守方上阵≥800 才接战；开战需上阵≥200）</span>
+                    {garrisonStats && garrisonStats.slot_count > 0 && (
+                      <><br />驻地守军：<span className="text-cyan-400">{garrisonStats.slot_count}</span>（{garrisonStats.player_count}人）</>
+                    )}
+                    <br />NPC守军：<span className="text-amber-400">{cityInfo?.npc_garrison_alive ?? '?'}</span> / {cityInfo?.npc_garrison?.length ?? '?'}
+                    <br />所属势力：<span className={cityInfo?.faction_id ? 'text-red-400' : 'text-gray-400'}>{cityInfo?.faction_id ? (FACTION_NAMES[cityInfo.faction_id] || '已占领') : '中立'}</span>
+                  </div>
+                  {isOwnCity ? (
+                    <div className="mt-3 space-y-1.5">
+                      <button
+                        type="button"
+                        onClick={() => { setShowGarrison(true); setDockPanel(null); }}
+                        className="w-full py-2 rounded-lg text-xs font-bold bg-gradient-to-r from-amber-700 to-yellow-700 text-amber-100"
+                      >
+                        🏰 驻地编组
+                      </button>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          const newVal = !onDuty;
+                          const res = await garrisonAPI.setOnDuty(player.player_id, newVal, CITY_ID);
+                          if (res.success) {
+                            setOnDuty(newVal);
+                            refreshCity();
+                            refreshPlayer();
+                          } else if (res.error) {
+                            setSimpleAlertMessage(res.error);
+                          }
+                        }}
+                        className={`w-full py-2 rounded-lg text-xs font-bold ${
+                          onDuty
+                            ? 'bg-gradient-to-r from-green-700 to-emerald-700 text-green-100'
+                            : 'bg-gradient-to-r from-stone-700 to-stone-600 text-stone-300'}`}
+                      >
+                        {onDuty ? '⚔️ 驻守待机中...' : '🛡️ 披挂上阵'}
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => { if (canSiege) startSiege(); }}
+                      disabled={!canSiege || siegeLoading}
+                      className="mt-3 w-full py-2 rounded-lg text-xs font-bold bg-gradient-to-r from-red-700 to-orange-700 text-white disabled:from-stone-700 disabled:text-stone-500"
+                    >
+                      {siegeLoading ? '准备中...' : !siegeQuota.canSiege ? '次数不足' : '⚔️ 攻打新野'}
+                    </button>
+                  )}
+                </div>
+                {sortedFactions.length > 0 && (
+                  <div className="shrink-0 px-3 py-2 rounded-lg bg-stone-800/90 border border-stone-600 min-w-[10rem]">
+                    <div className="text-amber-200 text-xs font-bold mb-1">⚔️ 势力战况</div>
+                    {sortedFactions.map(([fid, kills], i) => (
+                      <div key={fid} className="flex items-center justify-between gap-3 text-xs py-0.5">
+                        <span style={{ color: FACTION_COLORS[fid] || '#ccc' }}>
+                          {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`} {FACTION_NAMES[fid] || '未知'}
+                        </span>
+                        <span className="text-amber-400 font-bold">{kills}</span>
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
-              {/* 势力击杀排行（tooltip 右侧） */}
-              {sortedFactions.length > 0 && (
-                <div className="absolute bottom-full left-full ml-2 mb-2 px-3 py-2 bg-black/80 rounded-lg backdrop-blur-sm whitespace-nowrap z-50">
-                  <div className="text-amber-200 text-xs font-bold mb-1">⚔️ 势力战况</div>
-                  {sortedFactions.map(([fid, kills], i) => (
-                    <div key={fid} className="flex items-center justify-between gap-3 text-xs py-0.5">
-                      <span style={{ color: FACTION_COLORS[fid] || '#ccc' }}>
-                        {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i+1}.`} {FACTION_NAMES[fid] || '未知'}
-                      </span>
-                      <span className="text-amber-400 font-bold">{kills}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </>
+            </div>
           );
         })()}
+
+        <div className="flex justify-around items-center gap-1 px-1 py-2">
+          <button
+            type="button"
+            onClick={() => !isTutorial && phase === PHASE.IDLE && toggleDock('nanyang')}
+            disabled={isTutorial || phase !== PHASE.IDLE}
+            className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded-lg text-[10px] min-w-0 flex-1 max-w-[6.5rem] ${
+              dockPanel === 'nanyang' ? 'bg-amber-900/50 ring-1 ring-amber-600/50' : 'bg-stone-800/80 hover:bg-stone-800'
+            } ${isTutorial || phase !== PHASE.IDLE ? 'opacity-40' : ''}`}
+          >
+            <span className="text-xl leading-none">📜</span>
+            <span className="text-stone-300 truncate w-full text-center">南阳</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => !isTutorial && phase === PHASE.IDLE && toggleDock('shanhaiguan')}
+            disabled={isTutorial || phase !== PHASE.IDLE}
+            className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded-lg text-[10px] min-w-0 flex-1 max-w-[6.5rem] ${
+              dockPanel === 'shanhaiguan' ? 'bg-sky-900/40 ring-1 ring-sky-600/40' : 'bg-stone-800/80 hover:bg-stone-800'
+            } ${isTutorial || phase !== PHASE.IDLE ? 'opacity-40' : ''}`}
+          >
+            <span className="text-xl leading-none">🏔️</span>
+            <span className="text-stone-300 truncate w-full text-center">山海关</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => !isTutorial && phase === PHASE.IDLE && toggleDock('xinye')}
+            disabled={isTutorial || phase !== PHASE.IDLE}
+            className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded-lg text-[10px] min-w-0 flex-1 max-w-[6.5rem] ${
+              dockPanel === 'xinye' ? 'bg-red-900/35 ring-1 ring-red-600/40' : 'bg-stone-800/80 hover:bg-stone-800'
+            } ${isTutorial || phase !== PHASE.IDLE ? 'opacity-40' : ''}`}
+          >
+            <span className="text-xl leading-none">🏯</span>
+            <span className="text-stone-300 truncate w-full text-center">新野</span>
+          </button>
+        </div>
       </div>
 
       {/* ── PVP 攻城方等待界面 ── */}

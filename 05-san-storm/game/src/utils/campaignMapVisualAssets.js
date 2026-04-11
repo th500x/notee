@@ -58,6 +58,7 @@ export function campaignObjectUrl(objectType) {
     military_camp: 'military_camp_01.png',
     city_medium: 'city_medium_01.png',
     city_small: 'city_small_01.png',
+    fort: 'fort_01.png',
   };
   const file = m[objectType];
   if (!file) return null;

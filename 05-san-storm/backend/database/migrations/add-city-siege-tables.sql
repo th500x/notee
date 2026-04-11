@@ -1,19 +1,20 @@
 -- 城市攻城系统：cities + wars（与 docs/00-base/01-DATABASE_DESIGN.md §3.2.11 对齐）
 -- 依赖：factions、players 已存在（外键）
--- 若库中已有旧版 cities（列/枚举不全），CREATE IF NOT EXISTS 不会升级表结构；须另写 ALTER 或删表重建（仅测试库）。
+-- 若库中已有旧版 cities（列/枚举不全），CREATE IF NOT EXISTS 不会升级表结构。
+-- 全量对齐：备份后执行 rebuild-cities-table.sql，再跑 import-city-geo-data.js（见该文件头注释）。
 
 -- 城市运行时数据表
 CREATE TABLE IF NOT EXISTS cities (
-  id VARCHAR(50) PRIMARY KEY COMMENT '城市ID（如：san_1_city_3_xinye）',
+  city_id VARCHAR(50) PRIMARY KEY COMMENT '城市ID（如：san_1_city_3_xinye）；与策划 CSV city_id 同名列',
   season VARCHAR(20) NOT NULL COMMENT '赛季ID',
   city_name VARCHAR(100) NOT NULL COMMENT '城市名称（系统默认展示名）',
   city_type ENUM('city_major', 'city_medium', 'city_small', 'gate', 'fort', 'wilderness', 'market') NOT NULL COMMENT '城市类型',
 
   faction_id VARCHAR(50) NULL COMMENT '所属势力ID（NULL=中立）',
 
-  jun_id VARCHAR(64) NULL COMMENT '郡ID，FK → config_jun.id',
+  jun_id VARCHAR(64) NULL COMMENT '郡ID，FK → config_jun.jun_id',
   zhou_id VARCHAR(64) NULL COMMENT '州ID，可冗余自郡',
-  parent_city_id VARCHAR(50) NULL COMMENT '荒郊/集市所属主城 cities.id',
+  parent_city_id VARCHAR(50) NULL COMMENT '荒郊/集市所属主城 cities.city_id',
 
   position_x INT NULL COMMENT '大地图逻辑 X',
   position_y INT NULL COMMENT '大地图逻辑 Y',
@@ -35,7 +36,7 @@ CREATE TABLE IF NOT EXISTS cities (
   lord_appointed_at DATETIME NULL COMMENT '长官任命时间',
 
   defense INT NOT NULL DEFAULT 0 COMMENT '防御力',
-  garrison_capacity INT NOT NULL DEFAULT 0 COMMENT '驻军所容量',
+  player_garrison_capacity INT NOT NULL DEFAULT 0 COMMENT '城内驻军所容量（玩家侧编组/守城槽位规模，非 NPC 支数）',
 
   npc_garrison JSON NULL COMMENT 'NPC守军：{ units, ledgerAt }',
   npc_garrison_alive INT NOT NULL DEFAULT 0 COMMENT 'NPC守军存活数量',
@@ -56,7 +57,7 @@ CREATE TABLE IF NOT EXISTS cities (
   FOREIGN KEY (faction_id) REFERENCES factions(id) ON DELETE SET NULL,
   FOREIGN KEY (lord_player_id) REFERENCES players(player_id) ON DELETE SET NULL,
   FOREIGN KEY (built_by_player_id) REFERENCES players(player_id) ON DELETE SET NULL,
-  FOREIGN KEY (parent_city_id) REFERENCES cities(id) ON DELETE SET NULL,
+  FOREIGN KEY (parent_city_id) REFERENCES cities(city_id) ON DELETE SET NULL,
 
   INDEX idx_season (season),
   INDEX idx_faction (faction_id),

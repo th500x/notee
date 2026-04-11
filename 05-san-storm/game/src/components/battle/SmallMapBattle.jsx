@@ -23,6 +23,7 @@ import BattleLog from '@/components/battle/BattleLog';
 import BattleAuxPanel from '@/components/battle/BattleAuxPanel';
 import MapLegend from '@/components/battle/MapLegend';
 import ChestRewardOverlay from '@/components/battle/ChestRewardOverlay';
+import VeteranPromotionOverlay from '@/components/battle/VeteranPromotionOverlay';
 import AncientModal from '@/components/common/AncientModal';
 import '@/components/battle/BattleMap.css';
 import { ZONE } from '@/components/battle/battleConstants';
@@ -134,6 +135,26 @@ export default function SmallMapBattle({
     autoBattleRef,
   });
 
+  // ── 老兵晋升浮层 ──
+  const [pendingVeteranEnd, setPendingVeteranEnd] = useState(null);
+  const onBattleEndRef_vet = useRef(onBattleEnd);
+  onBattleEndRef_vet.current = onBattleEnd;
+
+  const wrappedOnBattleEnd = useCallback((result, silverSpent, scoreResult, killedIndices, meta) => {
+    if (meta?.veteranPromotions?.length > 0) {
+      setPendingVeteranEnd({ result, silverSpent, scoreResult, killedIndices, meta });
+    } else {
+      onBattleEndRef_vet.current?.(result, silverSpent, scoreResult, killedIndices, meta);
+    }
+  }, []);
+
+  const flushVeteranEnd = useCallback(() => {
+    const p = pendingVeteranEnd;
+    if (!p) return;
+    setPendingVeteranEnd(null);
+    onBattleEndRef_vet.current?.(p.result, p.silverSpent, p.scoreResult, p.killedIndices, p.meta);
+  }, [pendingVeteranEnd]);
+
   // ── 战斗结算 ──
   const { awayNoticeOpen, flushAwayEndNotice } = useBattleSettlement({
     stage, bmRef, manualBattleRef, engineRef, mountedRef,
@@ -143,7 +164,7 @@ export default function SmallMapBattle({
     battleSettledRef: null,
     pendingAwayNoticeRef,
     smallMapPveLoot,
-    onBattleEnd,
+    onBattleEnd: wrappedOnBattleEnd,
   });
 
   // ── 初始化 ──
@@ -363,6 +384,13 @@ export default function SmallMapBattle({
         <p className="text-center text-gray-800 text-sm whitespace-pre-wrap">{battleGateMessage}</p>
         <p className="text-center text-gray-500 text-xs mt-2">请返回编组调整兵力或补充粮草后再试。</p>
       </AncientModal>
+
+      {pendingVeteranEnd && (
+        <VeteranPromotionOverlay
+          promotions={pendingVeteranEnd.meta.veteranPromotions}
+          onDismiss={flushVeteranEnd}
+        />
+      )}
     </div>
   );
 }

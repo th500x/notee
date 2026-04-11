@@ -139,7 +139,14 @@ router.post('/', async (req, res) => {
       const campaignId = rewards?.campaignId || req.body.campaignId;
       if (campaignId) {
         try {
-          await campaignService.applyBattleSettlement({ playerId, campaignId, battleId, result, battleScore: rewards?.battleScore });
+          const battleScore = rewards?.battleScore ?? req.body.battleScore;
+          await campaignService.applyBattleSettlement({
+            playerId,
+            campaignId,
+            battleId,
+            result,
+            battleScore,
+          });
         } catch (ce) {
           console.error('[battles] campaign settlement:', ce);
         }
@@ -155,7 +162,7 @@ router.post('/', async (req, res) => {
     // 积分、宝箱、部队/玩家状态均委托 battleService，与主流程路径隔离
     await battleService.applyBattleScore(playerId, rewards?.battleScore);
     await battleService.saveChestRewards(playerId, chestRewards);
-    await battleService.applyBattlePostEffects(playerId, { troopCasualties, moraleUpdates });
+    const postEffects = await battleService.applyBattlePostEffects(playerId, { troopCasualties, moraleUpdates });
 
     if (!req.body.recordOnly && result === 'win' && rewards?.smallMapPveLoot) {
       try {
@@ -165,7 +172,11 @@ router.post('/', async (req, res) => {
       }
     }
 
-    res.status(201).json({ success: true, battle });
+    res.status(201).json({
+      success: true,
+      battle,
+      veteranPromotions: postEffects?.veteranPromotions || [],
+    });
   } catch (error) {
     console.error('[battles] ========================================');
     console.error('[battles] 保存战斗记录失败:', error && error.message);

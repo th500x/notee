@@ -39,14 +39,24 @@ function calcSiegeQuota(remaining, lastRefillTs) {
  */
 router.get('/', async (req, res) => {
   try {
-    const { season } = req.query;
-    const where = season ? 'WHERE season = ?' : '';
-    const params = season ? [season] : [];
+    const { season, junId, jun_id } = req.query;
+    const jid = String(junId || jun_id || '').trim();
+    const conditions = [];
+    const params = [];
+    if (season) {
+      conditions.push('season = ?');
+      params.push(season);
+    }
+    if (jid) {
+      conditions.push('jun_id = ?');
+      params.push(jid);
+    }
+    const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
     const [rows] = await pool.query(`SELECT * FROM cities ${where} ORDER BY city_type, city_name`, params);
 
-    const cities = rows.map(c => {
+    const cities = rows.map((c) => {
       const { units } = cityService.parseNpcGarrisonStored(c.npc_garrison);
-      return { ...c, npc_garrison: units };
+      return cityService.formatCityRowForApi({ ...c, npc_garrison: units });
     });
 
     res.json({ success: true, cities, count: cities.length });
