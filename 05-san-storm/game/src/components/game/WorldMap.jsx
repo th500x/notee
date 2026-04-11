@@ -1007,7 +1007,15 @@ export default function WorldMap({ onEventBusyChange }) {
               </div>
             )}
             {siegeResult.killCount != null && <div className="text-sm text-gray-300">本场击杀：{siegeResult.killCount}</div>}
-            <div className="text-sm text-gray-400">NPC守军：{siegeResult.npcKilled}/{siegeResult.npcTotal} 已消灭</div>
+            <div className="text-sm text-gray-400">
+              NPC守军：本场消灭 {siegeResult.killCount ?? 0} 支
+              {siegeResult.npcTotal != null && siegeResult.npcTotal > 0 && (
+                <>
+                  {' '}
+                  · 累计已消灭 {siegeResult.npcKilled}/{siegeResult.npcTotal}
+                </>
+              )}
+            </div>
             {Array.isArray(siegeResult.authoritativeBattleLog) && siegeResult.authoritativeBattleLog.length > 0 && (
               <>
                 <AuthoritativeSiegeReplayButton

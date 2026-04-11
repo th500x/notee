@@ -660,7 +660,22 @@ async function recordSiegeResult(warId, playerId, factionId, killedIndices, resu
       [warId]
     );
     if (!warRows.length) throw new Error('战事不存在或已结束');
-    const war = warRows[0];
+    let war = warRows[0];
+
+    // 1b. 与本城当前 NPC 编制对齐 wars.npc_total（旧逻辑用 npc_garrison_alive，已占领城常为 40、
+    //     与 JSON 支数 400 不一致时，累计 npc_killed 会大于 npc_total，结算 UI 出现 52/40）
+    const [citySlotRows] = await connection.query(
+      'SELECT npc_garrison FROM cities WHERE city_id = ? FOR UPDATE',
+      [war.target_city_id]
+    );
+    if (citySlotRows.length) {
+      const { units: slotUnits } = parseNpcGarrisonStored(citySlotRows[0].npc_garrison);
+      const slotTotal = Array.isArray(slotUnits) ? slotUnits.length : 0;
+      if (slotTotal > 0 && slotTotal > (Number(war.npc_total) || 0)) {
+        await connection.query('UPDATE wars SET npc_total = ? WHERE war_id = ?', [slotTotal, warId]);
+        war = { ...war, npc_total: slotTotal };
+      }
+    }
 
     // 2. 更新势力击杀统计
     let factionKills = {};
@@ -855,11 +870,20 @@ async function getOrCreateWar(cityId, city) {
   );
   if (existingWar.length > 0) return existingWar[0];
   const warId = `war_${cityId}_${Date.now()}`;
+  /** 战事「编制」与界面 NPC 守军 x/y 一致：优先 JSON 支数，避免仅用 npc_garrison_alive（已占领城 40 vs 中立 400） */
+  let npcTotalSlots = 0;
+  if (Array.isArray(city.npc_garrison) && city.npc_garrison.length > 0) {
+    npcTotalSlots = city.npc_garrison.length;
+  } else {
+    const { units } = parseNpcGarrisonStored(city.npc_garrison);
+    if (units && units.length) npcTotalSlots = units.length;
+  }
+  if (!npcTotalSlots) npcTotalSlots = Number(city.npc_garrison_alive) || 0;
   await pool.query(
     `INSERT INTO wars (war_id, war_name, war_type, target_city_id, target_city_name,
       faction_kills, status, npc_total, npc_killed)
      VALUES (?, ?, 'siege', ?, ?, '{}', 'active', ?, 0)`,
-    [warId, `${city.city_name}攻城战`, cityId, city.city_name, city.npc_garrison_alive || 0]
+    [warId, `${city.city_name}攻城战`, cityId, city.city_name, npcTotalSlots]
   );
   return { war_id: warId, faction_kills: {} };
 }

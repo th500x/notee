@@ -3,6 +3,17 @@
  * 数据来源：`GET /api/cities?season=&junId=` + `loadSharedData('factions')` 解析势力名。
  */
 
+/** 与 `cities.city_type` 一致；覆盖 preset 格上 `object`（如 city_medium）与种子不符时的标题 */
+const CITY_TYPE_TOOLTIP = {
+  city_major: { name: '大城', badge: '🏰' },
+  city_medium: { name: '中城', badge: '🏯' },
+  city_small: { name: '小城', badge: '🏘️' },
+  gate: { name: '关隘', badge: '🚪' },
+  fort: { name: '据点', badge: '🛡️' },
+  wilderness: { name: '荒郊', badge: '🌾' },
+  market: { name: '集市', badge: '🏮' },
+};
+
 /** 与玩法一致：有 faction_id 即视为占城态；库中误留 neutral 时仍显示为已占领 */
 function formatCityStatusForTooltip(status, hasFactionId) {
   let s = status;
@@ -22,6 +33,10 @@ function formatCityStatusForTooltip(status, hasFactionId) {
  */
 export function appendStrategicCityRuntimeToTooltipInfo(info, cell, cityRow, factionNameById = {}) {
   if (!info?.attrs || !cityRow || !cell?.cityId) return info;
+
+  const ct = cityRow.city_type || cityRow.cityType;
+  const typeUi = ct && CITY_TYPE_TOOLTIP[ct] ? CITY_TYPE_TOOLTIP[ct] : null;
+  const infoPatched = typeUi ? { ...info, name: typeUi.name, badge: typeUi.badge } : info;
 
   const parts = [];
   const fid = cityRow.faction_id;
@@ -45,10 +60,10 @@ export function appendStrategicCityRuntimeToTooltipInfo(info, cell, cityRow, fac
     parts.push(`登记名称：${dbDisplay}`);
   }
 
-  if (parts.length === 0) return info;
+  if (parts.length === 0) return infoPatched;
 
   return {
-    ...info,
-    attrs: `${info.attrs}\n────────\n运行时（服务器）\n${parts.join('\n')}`,
+    ...infoPatched,
+    attrs: `${infoPatched.attrs}\n────────\n运行时（服务器）\n${parts.join('\n')}`,
   };
 }
