@@ -4,6 +4,8 @@
  * @module backend/services/cityService
  */
 
+const path = require('path');
+const { pathToFileURL } = require('url');
 const { pool } = require('../database/connection');
 const { applyTroopDurabilityExhaustion } = require('./troopDurabilityService');
 const { checkAndApplyVeteran } = require('./veteranService');
@@ -49,22 +51,6 @@ function releaseSiegeLock(lockKey, attackerId) {
 const NPC_SIEGE_LOCK_DEFENDER_ID = '_npc';
 /** 与 NPC 分批攻城一致：清扫/释放锁时覆盖的批次上限（每批最多 4 支，略留余量） */
 const NPC_LOCK_SWEEP = 16;
-
-// 城市类型 → NPC 最高稀有度
-const CITY_MAX_RARITY = {
-  city_small: 'rare',
-  city_medium: 'epic',
-  city_major: 'legendary',
-  gate: 'legendary',
-  fort: 'epic',
-};
-
-// 稀有度权重池（小城：rare 以下）
-const RARITY_POOLS = {
-  rare:      [{ rarity: 'common', weight: 60 }, { rarity: 'rare', weight: 40 }],
-  epic:      [{ rarity: 'common', weight: 30 }, { rarity: 'rare', weight: 40 }, { rarity: 'epic', weight: 30 }],
-  legendary: [{ rarity: 'rare', weight: 30 }, { rarity: 'epic', weight: 40 }, { rarity: 'legendary', weight: 30 }],
-};
 
 // NPC 部队数量 — 中立城市（无归属）
 const NPC_TROOP_COUNT_NEUTRAL = {
@@ -125,23 +111,19 @@ function isCityOccupiedForNpcGarrison(city) {
   return !!(city && city.faction_id && city.status === 'owned');
 }
 
-/**
- * 按权重随机选择稀有度
- */
-function pickRarity(maxRarity) {
-  const rarityPool = RARITY_POOLS[maxRarity] || RARITY_POOLS.rare;
-  const totalWeight = rarityPool.reduce((s, r) => s + r.weight, 0);
-  let roll = Math.random() * totalWeight;
-  for (const entry of rarityPool) {
-    roll -= entry.weight;
-    if (roll <= 0) return entry.rarity;
+/** 与 `shared/utils/smallMapEnemyRoster.js` 同步（匪寨难度档 + 势力池）；CJS 下用 dynamic import 加载 ESM */
+let smallMapEnemyRosterEsmPromise = null;
+function loadSmallMapEnemyRosterEsm() {
+  if (!smallMapEnemyRosterEsmPromise) {
+    const filePath = path.join(__dirname, '../../shared/utils/smallMapEnemyRoster.js');
+    smallMapEnemyRosterEsmPromise = import(pathToFileURL(filePath).href);
   }
-  return rarityPool[0].rarity;
+  return smallMapEnemyRosterEsmPromise;
 }
 
 /**
  * 为城市生成 NPC 守军
- * 复用事件系统逻辑：按城市对应稀有度从配置池中随机选取将领+部队
+ * 稀有度槽位与匪寨 `BANDIT_NPC_SLOTS_BY_TIER` 一致；部队/将领池见 `resolveSiegeNpcFactionIdForTroopPool`（中立→北疆，有主→该势力段）
  * 
  * @param {string} cityId
  * @param {{ troopCountOverride?: number }} [opts] 仅维护脚本/测试用：强制守军支数（忽略中立/占领默认表）
@@ -153,7 +135,9 @@ async function generateNpcGarrison(cityId, opts = {}) {
   if (!cityRows.length) throw new Error(`城市不存在: ${cityId}`);
   const city = cityRows[0];
 
-  const maxRarity = CITY_MAX_RARITY[city.city_type] || 'rare';
+  const sm = await loadSmallMapEnemyRosterEsm();
+  const banditTier = sm.cityTypeToBanditTier(city.city_type);
+  const poolFaction = sm.resolveSiegeNpcFactionIdForTroopPool(city);
   const isOwned = isCityOccupiedForNpcGarrison(city);
   const override = opts?.troopCountOverride;
   const troopCount =
@@ -162,30 +146,29 @@ async function generateNpcGarrison(cityId, opts = {}) {
       : isOwned
         ? (NPC_TROOP_COUNT_OWNED[city.city_type] || 40)
         : (NPC_TROOP_COUNT_NEUTRAL[city.city_type] || 400);
-  const charCount = Math.ceil(troopCount / 2); // 每2支部队配1个将领
 
   // 2. 从配置表加载部队和将领池
   const [troops] = await pool.query('SELECT * FROM config_troops WHERE season = ?', [city.season]);
   const [chars] = await pool.query('SELECT * FROM config_characters WHERE season = ?', [city.season]);
 
-  // 3. 生成 NPC 部队
+  const troopPool = sm.filterTroopsByFactionId(troops, poolFaction);
+  const charPool = sm.filterCharactersByFactionId(chars, poolFaction);
+
+  // 3. 生成 NPC 部队（每支槽位稀有度按匪寨四槽循环）
   const npcUnits = [];
   for (let i = 0; i < troopCount; i++) {
-    const rarity = pickRarity(maxRarity);
-    // 从对应稀有度的部队池中随机选取
-    const troopPool = troops.filter(t => t.rarity === rarity);
-    const troopSrc = troopPool.length > 0 ? troopPool : troops.filter(t => t.rarity === 'common');
-    const troop = troopSrc[Math.floor(Math.random() * troopSrc.length)];
+    const rarity = sm.siegeNpcRarityAtTroopIndex(i, banditTier);
+    let troop = sm.pickRandomTroopByRarity(troopPool, rarity);
+    if (!troop) troop = sm.pickRandomTroopByRarity(troops, rarity);
+    if (!troop && troops.length) troop = troops[Math.floor(Math.random() * troops.length)];
 
-    // 将领：每2支部队共享1个将领
     let character = null;
     if (i % 2 === 0) {
-      const charRarity = pickRarity(maxRarity);
-      const charPool = chars.filter(c => c.rarity === charRarity);
-      const charSrc = charPool.length > 0 ? charPool : chars.filter(c => c.rarity === 'common');
-      character = charSrc[Math.floor(Math.random() * charSrc.length)];
+      const charRarity = sm.siegeNpcCharRarityForPair(i, banditTier);
+      let ch = sm.pickRandomCharacterByRarity(charPool, charRarity);
+      if (!ch) ch = sm.pickRandomCharacterByRarity(chars, charRarity);
+      character = ch;
     } else if (npcUnits.length > 0) {
-      // 复用上一个将领
       character = npcUnits[npcUnits.length - 1].character;
     }
 
@@ -687,6 +670,9 @@ async function recordSiegeResult(warId, playerId, factionId, killedIndices, resu
     let actualKillCount = 0;
     /** 本场结算后 NPC 守军 JSON 中仍存活支数；易主判定以之为准（勿仅用 wars.npc_killed >= npc_total） */
     let npcAliveAfterUpdate = null;
+    /** 与主界面「NPC守军：alive/total」一致：累计已消灭 = 阵亡支数（勿仅依赖 wars.npc_killed 历史累加，曾出现与 JSON 脱节） */
+    let authoritativeNpcEliminated = null;
+    let npcGarrisonSlotCount = null;
     const [cityRows] = await connection.query(
       'SELECT npc_garrison, npc_garrison_alive FROM cities WHERE city_id = ? FOR UPDATE',
       [war.target_city_id]
@@ -694,6 +680,7 @@ async function recordSiegeResult(warId, playerId, factionId, killedIndices, resu
     if (cityRows.length) {
       const { units: unitArr } = parseNpcGarrisonStored(cityRows[0].npc_garrison);
       if (unitArr && unitArr.length) {
+        npcGarrisonSlotCount = unitArr.length;
         for (const idx of killedIndices) {
           if (unitArr[idx] && unitArr[idx].alive) {
             unitArr[idx].alive = false;
@@ -703,6 +690,7 @@ async function recordSiegeResult(warId, playerId, factionId, killedIndices, resu
         }
         const aliveCount = unitArr.filter(u => u.alive).length;
         npcAliveAfterUpdate = aliveCount;
+        authoritativeNpcEliminated = unitArr.filter((u) => !u.alive).length;
         await connection.query(
           'UPDATE cities SET npc_garrison = ?, npc_garrison_alive = ? WHERE city_id = ?',
           [serializeNpcGarrisonStored(unitArr, new Date()), aliveCount, war.target_city_id]
@@ -744,11 +732,14 @@ async function recordSiegeResult(warId, playerId, factionId, killedIndices, resu
       equipmentDrop = loot.equipmentDrop;
     }
 
-    // 4. 更新 war 击杀数
-    const newNpcKilled = (war.npc_killed || 0) + actualKillCount;
+    // 4. 更新 war 击杀数：以守军 JSON 为准同步（累计阵亡支数），修复历史误累加导致的结算 UI 与「alive/total」不符
+    const npcKilledToStore =
+      authoritativeNpcEliminated != null
+        ? authoritativeNpcEliminated
+        : (war.npc_killed || 0) + actualKillCount;
     await connection.query(
       'UPDATE wars SET faction_kills = ?, npc_killed = ? WHERE war_id = ?',
-      [JSON.stringify(factionKills), newNpcKilled, warId]
+      [JSON.stringify(factionKills), npcKilledToStore, warId]
     );
 
     // 5. 检查是否攻破（NPC 守军 JSON 中已无存活）
@@ -839,8 +830,11 @@ async function recordSiegeResult(warId, playerId, factionId, killedIndices, resu
     return {
       warId,
       factionKills,
-      npcKilled: newNpcKilled,
-      npcTotal: war.npc_total,
+      npcKilled: npcKilledToStore,
+      npcTotal:
+        npcGarrisonSlotCount != null
+          ? npcGarrisonSlotCount
+          : Number(war.npc_total) || 0,
       killCount: actualKillCount,
       siegeCompleted,
       winnerFaction,
@@ -910,7 +904,6 @@ module.exports = {
   recordSiegeResult,
   getWarStatus,
   parseNpcGarrisonStored,
-  CITY_MAX_RARITY,
   NPC_TROOP_COUNT_NEUTRAL,
   NPC_TROOP_COUNT_OWNED,
 };

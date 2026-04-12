@@ -70,5 +70,5 @@
       "sub_quad": "A2"
     }
   ],
-  "notes": "测试用：底板 + 城点瓦片 + 预设据点 fort（tile_3_object/fort_01.png）；与 docs/tools/map/san_1_jun_yingchuan_quad_A.md、landmarks / fort 叙事同步。"
+  "notes": "测试用：底板 + 城点瓦片 + 预设据点 fort（city_fort_01_empty / city_fort_01_built）；与 docs/tools/map/san_1_jun_yingchuan_quad_A.md、landmarks / fort 叙事同步。"
 }

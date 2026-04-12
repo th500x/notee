@@ -340,7 +340,12 @@ export default function SmallMapBattle({
         {/* 小型图战前 isBattle 常为 false（init 双次 toggleBattle 抵消）；开战仅靠 battlePlaying/roundNum */}
         <BattleLog
           logs={bm.logs}
-          visible={bm.isBattle || bm.battlePlaying || bm.roundNum > 0}
+          visible={
+            bm.isBattle ||
+            bm.battlePlaying ||
+            bm.roundNum > 0 ||
+            bm.logs.length > 0
+          }
           maxWidth={layoutWidth}
         />
       </div>

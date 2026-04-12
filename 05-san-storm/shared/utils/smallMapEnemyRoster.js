@@ -1,6 +1,6 @@
 /**
  * 小型战术图（8×10）PVE 敌方编组：按槽位稀有度从 config 池抽样将领 + 部队。
- * 事件战（全槽同一稀有度）、匪寨（混合稀有度）等共用。
+ * **匪寨难度档 `BANDIT_NPC_SLOTS_BY_TIER` 为统一基准**；探索事件战、攻城 NPC（`cityService.generateNpcGarrison`）与此对齐 — 见 `docs/20-data-layer/22-1-TROOP_SYSTEM.md` §九。
  *
  * 随机敌方部队池：使用 `*_troop_8xxx`（S1 对应势力 `san_1_faction_8001` 北疆 NPC），
  * 不使用黄巾常规 `*_troop_7xxx` 池（避免与小型图 PVE 需求混淆）。战役专用见 `*_troop_9xxx`（众生）。见 `filterTroopsForSmallMapPveEnemy`。
@@ -87,6 +87,10 @@ export function filterTroopsForSmallMapPveEnemy(allTroops) {
   return band.length > 0 ? band : list;
 }
 
+function troopRowId(tr) {
+  return tr?.id ?? tr?.troop_id ?? '';
+}
+
 function pickTroopForSlot(allTroops, rarity) {
   const want = normalizeBattleRarity(rarity);
   const pool = allTroops.filter((tr) => normalizeBattleRarity(tr.rarity) === want);
@@ -100,12 +104,17 @@ function pickTroopForSlot(allTroops, rarity) {
  * @param {string} rarity
  * @param {Set<string>} excludeIds
  */
+function charRowId(ch) {
+  return ch?.id ?? ch?.character_id ?? '';
+}
+
 function pickCharForRarity(allCharacters, rarity, excludeIds) {
   const want = normalizeBattleRarity(rarity);
   const pool = allCharacters.filter(
-    (ch) => normalizeBattleRarity(ch.rarity) === want && !excludeIds.has(ch.id),
+    (ch) =>
+      normalizeBattleRarity(ch.rarity) === want && !excludeIds.has(charRowId(ch)),
   );
-  const src = pool.length > 0 ? pool : allCharacters.filter((ch) => !excludeIds.has(ch.id));
+  const src = pool.length > 0 ? pool : allCharacters.filter((ch) => !excludeIds.has(charRowId(ch)));
   const s = shuffle(src);
   return s[0] || null;
 }
@@ -129,7 +138,8 @@ export function buildSmallMapEnemyRosterPicks(allTroops, allCharacters, slotRari
 
   const ex = new Set();
   const c0 = pickCharForRarity(allCharacters, rPair0, ex);
-  if (c0?.id) ex.add(c0.id);
+  const c0id = charRowId(c0);
+  if (c0id) ex.add(c0id);
   const c1 = pickCharForRarity(allCharacters, rPair1, ex);
 
   const fallbackTroop = allTroops[0] || null;
@@ -139,4 +149,133 @@ export function buildSmallMapEnemyRosterPicks(allTroops, allCharacters, slotRari
   }
 
   return { pairChars: [c0, c1], troops, slotRarities: slots };
+}
+
+// ── PVE 统一：匪寨难度档为基准；攻城 NPC / 探索事件战共用槽位组合与势力池规则（见 22-1-TROOP_SYSTEM.md） ──
+
+/** 小型图 PVE 默认敌方势力（北疆 NPC，`san_1_troop_8xxx`） */
+export const PVE_NPC_DEFAULT_FACTION_ID = 'san_1_faction_8001';
+
+/**
+ * `san_1_faction_XXXX` → 配置 ID 段首位（`troops`/`characters` 的 `san_1_troop_1xxx` / `san_1_char_1xxx`）
+ * @param {string|null|undefined} factionId
+ * @returns {string|null}
+ */
+export function factionIdToConfigIdLeadingDigit(factionId) {
+  const m = String(factionId || '').match(/san_1_faction_(\d{4})/);
+  return m ? m[1][0] : null;
+}
+
+/**
+ * 按势力过滤部队配置行（`id` 或 `troop_id`）；池为空则回退全量，避免生成失败。
+ * @param {Array<object>} allTroops
+ * @param {string|null|undefined} factionId
+ */
+export function filterTroopsByFactionId(allTroops, factionId) {
+  const list = Array.isArray(allTroops) ? allTroops : [];
+  const d = factionIdToConfigIdLeadingDigit(factionId);
+  if (!d) return list;
+  const re = new RegExp(`^san_1_troop_${d}\\d{3}$`);
+  const hit = list.filter((t) => re.test(String(troopRowId(t))));
+  return hit.length > 0 ? hit : list;
+}
+
+/**
+ * 按势力过滤将领配置行；池为空则回退全量。
+ * @param {Array<object>} allCharacters
+ * @param {string|null|undefined} factionId
+ */
+export function filterCharactersByFactionId(allCharacters, factionId) {
+  const list = Array.isArray(allCharacters) ? allCharacters : [];
+  const d = factionIdToConfigIdLeadingDigit(factionId);
+  if (!d) return list;
+  const re = new RegExp(`^san_1_char_${d}\\d`);
+  const hit = list.filter((c) => re.test(String(charRowId(c))));
+  return hit.length > 0 ? hit : list;
+}
+
+/**
+ * 攻城 NPC 部队/将领池：`faction_0001` 或无归属 → 北疆；否则 → 城市 `faction_id` 对应段。
+ * @param {{ faction_id?: string|null, factionId?: string|null }} city
+ */
+export function resolveSiegeNpcFactionIdForTroopPool(city) {
+  const fid = city?.faction_id ?? city?.factionId;
+  if (!fid || fid === 'san_1_faction_0001') return PVE_NPC_DEFAULT_FACTION_ID;
+  return fid;
+}
+
+/**
+ * 城市类型 → 匪寨难度档（槽位组合见 `BANDIT_NPC_SLOTS_BY_TIER`）
+ * 小城→normal；中城/据点→rare；大城/关隘→epic。
+ * @param {string|null|undefined} cityType
+ * @returns {'normal'|'rare'|'epic'|'legendary'}
+ */
+export function cityTypeToBanditTier(cityType) {
+  switch (cityType) {
+    case 'city_small':
+      return 'normal';
+    case 'city_medium':
+    case 'fort':
+      return 'rare';
+    case 'city_major':
+    case 'gate':
+      return 'epic';
+    default:
+      return 'normal';
+  }
+}
+
+/**
+ * 事件卡稀有度 / 事件模板 ID 末段 → 匪寨档（探索战与匪寨一致；`core` 与传奇档相同组合）
+ * @param {string|null|undefined} cardRarity
+ */
+export function eventCardRarityToBanditTier(cardRarity) {
+  const r = normalizeBattleRarity(cardRarity);
+  if (r === 'core') return 'legendary';
+  const map = {
+    common: 'normal',
+    rare: 'rare',
+    epic: 'epic',
+    legendary: 'legendary',
+  };
+  return map[r] || 'normal';
+}
+
+/**
+ * @param {'normal'|'rare'|'epic'|'legendary'} tier
+ * @returns {string[]}
+ */
+export function banditTierSlotRarities(tier) {
+  const t = BANDIT_NPC_SLOTS_BY_TIER[tier] || BANDIT_NPC_SLOTS_BY_TIER.normal;
+  return [...t];
+}
+
+/**
+ * 供后端攻城循环：按索引循环匪寨四槽稀有度。
+ * @param {number} index
+ * @param {'normal'|'rare'|'epic'|'legendary'} tier
+ */
+export function siegeNpcRarityAtTroopIndex(index, tier) {
+  const slots = banditTierSlotRarities(tier);
+  return normalizeBattleRarity(slots[Number(index) % 4]);
+}
+
+/**
+ * 一对连续部队槽（2 支）对应的将领稀有度：取两槽较高档（与 `buildSmallMapEnemyRosterPicks` 两对位一致）
+ * @param {number} pairStartIndex — 偶数：0,2,4,…
+ */
+export function siegeNpcCharRarityForPair(pairStartIndex, tier) {
+  const slots = banditTierSlotRarities(tier);
+  const a = normalizeBattleRarity(slots[Number(pairStartIndex) % 4]);
+  const b = normalizeBattleRarity(slots[(Number(pairStartIndex) + 1) % 4]);
+  return bestRarityOf(a, b);
+}
+
+/** 攻城 NPC 循环抽将（与小型图一致） */
+export function pickRandomTroopByRarity(allTroops, rarity) {
+  return pickTroopForSlot(allTroops, rarity);
+}
+
+export function pickRandomCharacterByRarity(allCharacters, rarity) {
+  return pickCharForRarity(allCharacters, rarity, new Set());
 }

@@ -578,7 +578,12 @@ export default function LargeMapBattle({
         {bm.roundNum === 0 && <MapLegend maxWidth={layoutWidth} />}
         <BattleLog
           logs={bm.logs}
-          visible={bm.isBattle || bm.battlePlaying || bm.roundNum > 0}
+          visible={
+            bm.isBattle ||
+            bm.battlePlaying ||
+            bm.roundNum > 0 ||
+            bm.logs.length > 0
+          }
           maxWidth={layoutWidth}
         />
       </div>

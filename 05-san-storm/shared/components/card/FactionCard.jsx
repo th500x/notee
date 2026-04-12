@@ -24,10 +24,24 @@ const BONUS_CN_MAP = {
   lord_random_battle: () => '君主随机参战',
 };
 
+/** 与 config / factions.json 中 faction_bonuses[].key 对齐（常带 faction_ / troop_ 前缀） */
+const BONUS_KEY_ALIASES = {
+  faction_politics_bonus: 'politics_bonus',
+  faction_charm_bonus: 'charm_bonus',
+  troop_max_troops_bonus: 'max_troops_bonus',
+  troop_epic_legendary_attack_bonus: 'epic_legendary_attack_bonus',
+  troop_epic_legendary_defense_bonus: 'epic_legendary_defense_bonus',
+  troop_speed_bonus: 'speed_bonus',
+  troop_common_rare_attack_bonus: 'common_rare_attack_bonus',
+  faction_salary_resource_bonus: 'salary_resource_bonus',
+  faction_salary_troop_card_bonus: 'salary_troop_card_bonus',
+};
+
 function formatBonus(bonus) {
-  const formatter = BONUS_CN_MAP[bonus.key];
+  const canonical = BONUS_KEY_ALIASES[bonus.key] ?? bonus.key;
+  const formatter = BONUS_CN_MAP[canonical];
   if (formatter) return formatter(bonus.value);
-  return bonus.key; // fallback: 直接显示key
+  return bonus.key; // fallback: 直接显示 key
 }
 
 /**

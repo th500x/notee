@@ -47,22 +47,43 @@ export function terrainFallbackClass(terrain) {
   return null;
 }
 
-/** @param {string|null|undefined} objectType */
-export function campaignObjectUrl(objectType) {
+/**
+ * @param {string|null|undefined} objectType
+ * @param {{ buildStatus?: string, build_status?: string }} [opts] - 仅 **fort**：`built` 用建成图，否则空置图
+ */
+export function campaignObjectUrl(objectType, opts = {}) {
   if (!objectType) return null;
+  if (objectType === 'fort') {
+    const st = opts.buildStatus ?? opts.build_status;
+    const file = st === 'built' ? 'city_fort_01_built.png' : 'city_fort_01_empty.png';
+    return `${ASSET_BASE}tile_3_object/${file}`;
+  }
   const m = {
     fence: 'fence_01.png',
     rock: 'rock_01.png',
     trap: 'trap_01.png',
     military_tower: 'military_tower_01.png',
     military_camp: 'military_camp_01.png',
+    city_major: 'city_major_01.png',
     city_medium: 'city_medium_01.png',
     city_small: 'city_small_01.png',
-    fort: 'fort_01.png',
+    gate: 'city_gate_01.png',
   };
   const file = m[objectType];
   if (!file) return null;
   return `${ASSET_BASE}tile_3_object/${file}`;
+}
+
+/** 战略大地图（31-5）：城 / 关隘 / 据点 PNG 为 2×2 格锚点左上，非单格 */
+export function strategicMapObjectIs2x2(objectType) {
+  if (!objectType) return false;
+  return (
+    objectType === 'city_small' ||
+    objectType === 'city_medium' ||
+    objectType === 'city_major' ||
+    objectType === 'gate' ||
+    objectType === 'fort'
+  );
 }
 
 export const CAMPAIGN_MAP_W = 16;

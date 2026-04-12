@@ -7,7 +7,14 @@ REM 优先使用 XAMPP 自带 mysql；默认 root 无密码（与 XAMPP 一致�
 set "TOOLS=%~dp0"
 set "REPO_ROOT=%TOOLS%..\..\.."
 cd /d "%REPO_ROOT%"
-set "SCHEMA=%REPO_ROOT%\prod_schema.sql"
+REM 生产 mysqldump 放在仓库根或本路径均可（优先 05-san-storm\prod_schema.sql）
+if exist "%REPO_ROOT%\05-san-storm\prod_schema.sql" (
+  set "SCHEMA=%REPO_ROOT%\05-san-storm\prod_schema.sql"
+) else if exist "%REPO_ROOT%\prod_schema.sql" (
+  set "SCHEMA=%REPO_ROOT%\prod_schema.sql"
+) else (
+  set "SCHEMA="
+)
 set "PREAMBLE=%TOOLS%rebuild-local-preamble.sql"
 
 if exist "C:\xampp\mysql\bin\mysql.exe" (
@@ -16,8 +23,10 @@ if exist "C:\xampp\mysql\bin\mysql.exe" (
   set "MYSQL=mysql"
 )
 
-if not exist "%SCHEMA%" (
-  echo [错误] 找不到 prod_schema.sql: %SCHEMA%
+if "%SCHEMA%"=="" (
+  echo [错误] 找不到 prod_schema.sql。请将 mysqldump 保存为:
+  echo   %REPO_ROOT%\05-san-storm\prod_schema.sql
+  echo 或 %REPO_ROOT%\prod_schema.sql
   exit /b 1
 )
 

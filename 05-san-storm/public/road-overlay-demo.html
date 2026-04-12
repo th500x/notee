@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>道路叠线演示（10×7 示意）</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: #1c1917;
+      color: #e7e5e4;
+      font-family: system-ui, sans-serif;
+      padding: 16px;
+    }
+    h1 { font-size: 1rem; font-weight: 600; margin: 0 0 8px; color: #fcd34d; }
+    p { font-size: 12px; color: #a8a29e; margin: 0 0 12px; line-height: 1.5; max-width: 46rem; }
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 12px;
+      font-size: 13px;
+    }
+    .controls label { color: #d6d3d1; }
+    .controls select {
+      background: #292524;
+      color: #e7e5e4;
+      border: 1px solid #57534e;
+      border-radius: 6px;
+      padding: 6px 10px;
+      font-size: 14px;
+    }
+    .wrap {
+      display: inline-block;
+      position: relative;
+      border: 2px solid #44403c;
+      border-radius: 8px;
+      overflow: hidden;
+      background: #292524;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(10, var(--tile));
+      grid-template-rows: repeat(7, var(--tile));
+      --tile: 52px;
+    }
+    .cell {
+      border: 1px solid rgba(255,255,255,0.08);
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 9px;
+      color: rgba(255,255,255,0.25);
+    }
+    .cell.city-cell {
+      box-shadow: inset 0 0 0 2px rgba(251, 191, 36, 0.35);
+      background-image: linear-gradient(145deg, rgba(253, 230, 138, 0.12), transparent);
+    }
+    .grass { background: linear-gradient(145deg, #4ade80 0%, #22c55e 55%, #15803d 100%); }
+    .dirt { background: linear-gradient(145deg, #d6c4a8 0%, #a89078 100%); }
+    .city-icon {
+      font-size: 22px;
+      line-height: 1;
+      filter: drop-shadow(0 1px 2px rgba(0,0,0,0.5));
+    }
+    svg.overlay {
+      position: absolute;
+      left: 0;
+      top: 0;
+      pointer-events: none;
+      width: calc(10 * var(--tile));
+      height: calc(7 * var(--tile));
+    }
+    .road {
+      fill: none;
+      stroke: #3d342e;
+      stroke-width: 20;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      opacity: 0.95;
+      filter: drop-shadow(0 1px 2px rgba(0,0,0,0.45));
+    }
+    .road-inner {
+      fill: none;
+      stroke: #8f7f6f;
+      stroke-width: 8;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      opacity: 0.9;
+    }
+  </style>
+</head>
+<body>
+  <h1>方案 2 预览：矢量道路叠在格网上（10×7）</h1>
+  <p>
+    道路<strong>不进入</strong>三格「城市」瓦片（你标注 ❌ 的格）：竖线只走在城<strong>下方</strong>可通行格；拐角在城旁<strong>先横移再下垂</strong>，不经过左下角城格；斜线终点裁切到<strong>右上角城格边界</strong>，不画进城心。
+    坐标为 0 基；本页仍为静态示意。
+  </p>
+  <div class="controls">
+    <label for="cityEmoji">城型占位 emoji（三格同步预览）：</label>
+    <select id="cityEmoji" aria-label="城型 emoji">
+      <option value="🏙️">大城 🏙️ 天际线</option>
+      <option value="🏘️">中城 🏘️ 房屋群</option>
+      <option value="🏠" selected>小城 🏠 房屋</option>
+      <option value="⛩️">关隘 ⛩️ 门坊感</option>
+      <option value="🏰">据点 🏰 堡垒</option>
+    </select>
+  </div>
+  <div class="wrap">
+    <div class="grid" id="grid"></div>
+    <svg class="overlay" id="svg" aria-hidden="true"></svg>
+  </div>
+
+  <script>
+    const COLS = 10;
+    const ROWS = 7;
+    const TILE = 52;
+
+    /** 1 基 (col,row) → 与图示一致：三处城格 */
+    const CITY_CELLS_1B = [
+      [2, 1],
+      [2, 6],
+      [9, 2],
+    ];
+    const citySet = new Set(
+      CITY_CELLS_1B.map(([col, row]) => `${col - 1},${row - 1}`)
+    );
+
+    // 沙地（与当前示意图接近）
+    const dirt = new Set([
+      '2,0', '3,0', '8,0', '9,0',
+      '5,1', '6,1',
+      '0,3', '1,3',
+    ]);
+
+    const gridEl = document.getElementById('grid');
+    for (let r = 0; r < ROWS; r++) {
+      for (let c = 0; c < COLS; c++) {
+        const d = document.createElement('div');
+        const key = `${c},${r}`;
+        const isCity = citySet.has(key);
+        d.className = 'cell ' + (dirt.has(key) ? 'dirt' : 'grass') + (isCity ? ' city-cell' : '');
+        d.textContent = c === 0 && r < 3 ? 'A' : (c === 9 && r < 3 ? 'B' : '');
+        d.dataset.c = String(c);
+        d.dataset.r = String(r);
+        gridEl.appendChild(d);
+      }
+    }
+
+    const cityIcons = [];
+    CITY_CELLS_1B.forEach(([col1, row1]) => {
+      const c = col1 - 1;
+      const r = row1 - 1;
+      const cell = gridEl.children[r * COLS + c];
+      if (!cell) return;
+      cell.textContent = '';
+      const s = document.createElement('span');
+      s.className = 'city-icon';
+      cityIcons.push(s);
+      cell.appendChild(s);
+    });
+
+    const emojiSelect = document.getElementById('cityEmoji');
+    function syncEmoji() {
+      const ch = emojiSelect.value;
+      cityIcons.forEach((el) => {
+        el.textContent = ch;
+      });
+    }
+    emojiSelect.addEventListener('change', syncEmoji);
+    syncEmoji();
+
+    /** 格心像素（tile 空间中心点） */
+    function cx(c, r) {
+      return { x: (c + 0.5) * TILE, y: (r + 0.5) * TILE };
+    }
+
+    /**
+     * 道路折线（避开三格城瓦片内部）：
+     * - 竖：仅 (col1, row1)～(col1, row4)，即行索引 1～4
+     * - 绕开 (1,5) 城格： (1.5,4.5) → (2.5,4.5) → (2.5,5.5)
+     * - 横： (2.5,5.5) → (7.5,5.5)
+     * - 斜：至 (8,1) 城格边界：线段 (7.5,5.5)→(8.5,1.5) 与矩形 [8,9]×[1,2] 求入点 → (8.375, 2) tile 单位
+     */
+    const pStart = cx(1, 1);
+    const pV1 = cx(1, 4);
+    const pR = cx(2, 4);
+    const pH0 = cx(2, 5);
+    const pH1 = cx(7, 5);
+
+    /** 斜向城格 (8,1)：线段从水平终点指向原「城心」方向，裁切到城格矩形 [8,9]×[1,2] 的首次入边（像素） */
+    const ax = 7.5 * TILE;
+    const ay = 5.5 * TILE;
+    const bx = 8.5 * TILE;
+    const by = 1.5 * TILE;
+    const cityLeft = 8 * TILE;
+    const cityRight = 9 * TILE;
+    const cityTop = 1 * TILE;
+    const cityBot = 2 * TILE;
+
+    let endX = bx;
+    let endY = by;
+    const ddx = bx - ax;
+    const ddy = by - ay;
+    const cand = [];
+    function pushT(t) {
+      if (t > 1e-6 && t < 1 - 1e-6) cand.push(t);
+    }
+    if (Math.abs(ddx) > 1e-9) {
+      pushT((cityLeft - ax) / ddx);
+      pushT((cityRight - ax) / ddx);
+    }
+    if (Math.abs(ddy) > 1e-9) {
+      pushT((cityTop - ay) / ddy);
+      pushT((cityBot - ay) / ddy);
+    }
+    const tHit = cand
+      .filter((t) => {
+        const x = ax + t * ddx;
+        const y = ay + t * ddy;
+        return x >= cityLeft - 1e-6 && x <= cityRight + 1e-6 && y >= cityTop - 1e-6 && y <= cityBot + 1e-6;
+      })
+      .sort((a, b) => a - b)[0];
+    if (tHit != null) {
+      endX = ax + tHit * ddx;
+      endY = ay + tHit * ddy;
+    }
+
+    const points = [pStart, pV1, pR, pH0, pH1, { x: endX, y: endY }];
+    const dAttr = 'M ' + points.map((p) => p.x + ' ' + p.y).join(' L ');
+
+    const svg = document.getElementById('svg');
+    svg.setAttribute('viewBox', '0 0 ' + COLS * TILE + ' ' + ROWS * TILE);
+
+    const pathRoad = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    pathRoad.setAttribute('d', dAttr);
+    pathRoad.setAttribute('class', 'road');
+    svg.appendChild(pathRoad);
+
+    const pathInner = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    pathInner.setAttribute('d', dAttr);
+    pathInner.setAttribute('class', 'road-inner');
+    svg.appendChild(pathInner);
+  </script>
+</body>
+</html>
