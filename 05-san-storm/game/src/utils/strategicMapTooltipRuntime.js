@@ -14,6 +14,19 @@ const CITY_TYPE_TOOLTIP = {
   market: { name: '集市', badge: '🏮' },
 };
 
+/** 与 `cities.jun_id` / 种子 `junId` 一致；大地图 tooltip 展示用 */
+const JUN_ID_TOOLTIP_LABEL = {
+  san_1_jun_yingchuan: '颍川郡（yingchuan）',
+  san_1_jun_runan: '汝南郡（runan）',
+};
+
+function formatJunLineForStrategicTooltip(junId) {
+  const id = junId != null && junId !== '' ? String(junId) : '';
+  if (!id) return null;
+  const label = JUN_ID_TOOLTIP_LABEL[id] || id;
+  return `所属郡：${label}`;
+}
+
 /** 与玩法一致：有 faction_id 即视为占城态；库中误留 neutral 时仍显示为已占领 */
 function formatCityStatusForTooltip(status, hasFactionId) {
   let s = status;
@@ -38,6 +51,13 @@ export function appendStrategicCityRuntimeToTooltipInfo(info, cell, cityRow, fac
   const typeUi = ct && CITY_TYPE_TOOLTIP[ct] ? CITY_TYPE_TOOLTIP[ct] : null;
   const infoPatched = typeUi ? { ...info, name: typeUi.name, badge: typeUi.badge } : info;
 
+  const junLine = formatJunLineForStrategicTooltip(cityRow.jun_id ?? cityRow.junId);
+  let attrsWithJun = infoPatched.attrs;
+  if (junLine) {
+    attrsWithJun = attrsWithJun ? `${attrsWithJun}\n${junLine}` : junLine;
+  }
+  const infoWithJun = { ...infoPatched, attrs: attrsWithJun };
+
   const parts = [];
   const fid = cityRow.faction_id;
   if (fid) {
@@ -60,10 +80,10 @@ export function appendStrategicCityRuntimeToTooltipInfo(info, cell, cityRow, fac
     parts.push(`登记名称：${dbDisplay}`);
   }
 
-  if (parts.length === 0) return infoPatched;
+  if (parts.length === 0) return infoWithJun;
 
   return {
-    ...infoPatched,
-    attrs: `${infoPatched.attrs}\n────────\n运行时（服务器）\n${parts.join('\n')}`,
+    ...infoWithJun,
+    attrs: `${infoWithJun.attrs}\n────────\n运行时（服务器）\n${parts.join('\n')}`,
   };
 }

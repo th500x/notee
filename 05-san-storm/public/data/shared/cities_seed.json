@@ -358,7 +358,7 @@
       "cityName": "㶏强",
       "cityType": "city_small",
       "initialFactionId": "san_1_faction_7001",
-      "junId": "san_1_jun_yingchuan",
+      "junId": "san_1_jun_runan",
       "zhouId": "san_1_zhou_yu",
       "parentCityId": null,
       "positionX": null,
@@ -486,7 +486,7 @@
     }
   ],
   "metadata": {
-    "generatedAt": "2026-04-11T08:38:09.003Z",
+    "generatedAt": "2026-04-12T05:47:38.254Z",
     "sources": {
       "zhou": "config_zhou_template.csv",
       "jun": "config_jun_template.csv",

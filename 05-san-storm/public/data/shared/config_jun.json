@@ -8,10 +8,19 @@
       "sortOrder": 1,
       "enabled": 1,
       "description": "示例郡"
+    },
+    {
+      "junId": "san_1_jun_runan",
+      "season": "san_1",
+      "zhouId": "san_1_zhou_yu",
+      "junName": "汝南郡",
+      "sortOrder": 2,
+      "enabled": 1,
+      "description": "与颍川合并大地图象限 C 邻接城点（㶏强、西华等）"
     }
   ],
   "metadata": {
-    "generatedAt": "2026-04-11T08:38:09.003Z",
+    "generatedAt": "2026-04-12T05:47:38.254Z",
     "sources": {
       "zhou": "config_zhou_template.csv",
       "jun": "config_jun_template.csv",

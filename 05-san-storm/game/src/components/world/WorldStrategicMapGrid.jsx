@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import WorldStrategicMapTile from './WorldStrategicMapTile';
 import { buildCampaignCellTooltipInfo } from '@/components/battle/battleConstants';
 import { appendStrategicCityRuntimeToTooltipInfo } from '@/utils/strategicMapTooltipRuntime';
+import { resolveStrategicTileCityCover } from '@/utils/strategicMapTileContext';
 import { useTileTooltipClamp } from '@/components/battle/useTileTooltipClamp';
 import TileTooltipContent from '@/components/battle/TileTooltipContent';
 import '@/components/battle/BattleMap.css';
@@ -30,7 +31,11 @@ export default function WorldStrategicMapGrid({
   meta = null,
   /** 单格像素边长 */
   tilePx = 20,
-  /** Ctrl/⌘ + 滚轮缩放时的步进回调（正=放大） */
+  /** 与父组件 setState 同步，供双指捏合缩放 */
+  setTilePx = null,
+  minTilePx = 12,
+  maxTilePx = 56,
+  /** 滚轮缩放步进回调（正=放大）；不传则仅用 +/- 按钮与捏合 */
   onWheelZoomSteps = null,
   /** `city_id` → `cities` 行（来自 GET /api/cities?season&junId） */
   cityById = null,
@@ -43,32 +48,86 @@ export default function WorldStrategicMapGrid({
   const wrapRef = useRef(null);
   const zoomRef = useRef(onWheelZoomSteps);
   zoomRef.current = onWheelZoomSteps;
+  const tilePxRef = useRef(tilePx);
+  tilePxRef.current = tilePx;
+  const minTileRef = useRef(minTilePx);
+  minTileRef.current = minTilePx;
+  const maxTileRef = useRef(maxTilePx);
+  maxTileRef.current = maxTilePx;
   const [draggingPan, setDraggingPan] = useState(false);
   const panRef = useRef(null);
 
   const hoverDataRef = useRef({ cells, cityById, factionNameById });
   hoverDataRef.current = { cells, cityById, factionNameById };
 
-  // 滚轮：默认平移地图（阻止冒泡到 GamePage main），Ctrl/⌘+滚轮缩放
+  // 滚轮：缩放（与战斗图习惯一致）；平移靠拖拽或滚动条
   useEffect(() => {
     const el = wrapRef.current;
     if (!el) return undefined;
     const onWheel = (e) => {
       const zoomFn = zoomRef.current;
-      if ((e.ctrlKey || e.metaKey) && typeof zoomFn === 'function') {
-        e.preventDefault();
-        e.stopPropagation();
-        const steps = e.deltaY > 0 ? -1 : 1;
-        zoomFn(steps);
-        return;
-      }
+      if (typeof zoomFn !== 'function') return;
       e.preventDefault();
       e.stopPropagation();
-      el.scrollLeft += e.deltaX;
-      el.scrollTop += e.deltaY;
+      const steps = e.deltaY > 0 ? -1 : 1;
+      zoomFn(steps);
     };
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => el.removeEventListener('wheel', onWheel);
+  }, []);
+
+  // 双指捏合缩放（手机）
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el || typeof setTilePx !== 'function') return undefined;
+    let pinch0 = null;
+    const clamp = (v) =>
+      Math.min(maxTileRef.current, Math.max(minTileRef.current, Math.round(v)));
+
+    const onTouchStart = (e) => {
+      if (e.touches.length === 2) {
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        pinch0 = { d0: Math.max(1, Math.hypot(dx, dy)), tile0: tilePxRef.current };
+      }
+    };
+    const onTouchMove = (e) => {
+      if (e.touches.length !== 2 || !pinch0) return;
+      e.preventDefault();
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      const d = Math.hypot(dx, dy);
+      const next = pinch0.tile0 * (d / pinch0.d0);
+      setTilePx(clamp(next));
+    };
+    const endPinch = (e) => {
+      if (e.touches.length < 2) pinch0 = null;
+    };
+    el.addEventListener('touchstart', onTouchStart, { passive: true });
+    el.addEventListener('touchmove', onTouchMove, { passive: false });
+    el.addEventListener('touchend', endPinch);
+    el.addEventListener('touchcancel', endPinch);
+    return () => {
+      el.removeEventListener('touchstart', onTouchStart);
+      el.removeEventListener('touchmove', onTouchMove);
+      el.removeEventListener('touchend', endPinch);
+      el.removeEventListener('touchcancel', endPinch);
+    };
+  }, [setTilePx]);
+
+  const endPan = useCallback((e) => {
+    const p = panRef.current;
+    const w = wrapRef.current;
+    const pid = e?.pointerId ?? p?.pid;
+    if (p && w && pid != null) {
+      try {
+        w.releasePointerCapture(pid);
+      } catch {
+        /* ignore */
+      }
+    }
+    panRef.current = null;
+    setDraggingPan(false);
   }, []);
 
   const onPointerDownPan = useCallback((e) => {
@@ -94,26 +153,15 @@ export default function WorldStrategicMapGrid({
     const p = panRef.current;
     const w = wrapRef.current;
     if (!p || !w) return;
+    if (e.pointerType === 'mouse' && (e.buttons & 1) === 0) {
+      endPan(e);
+      return;
+    }
     const dx = e.clientX - p.x;
     const dy = e.clientY - p.y;
     w.scrollLeft = p.sl - dx;
     w.scrollTop = p.st - dy;
-  }, []);
-
-  const endPan = useCallback((e) => {
-    const p = panRef.current;
-    const w = wrapRef.current;
-    const pid = e?.pointerId ?? p?.pid;
-    if (p && w && pid != null) {
-      try {
-        w.releasePointerCapture(pid);
-      } catch {
-        /* ignore */
-      }
-    }
-    panRef.current = null;
-    setDraggingPan(false);
-  }, []);
+  }, [endPan]);
 
   const handleHover = useCallback((e) => {
     const y = Number(e.currentTarget.dataset.strategicY);
@@ -121,11 +169,13 @@ export default function WorldStrategicMapGrid({
     if (Number.isNaN(y) || Number.isNaN(x)) return;
     const cell = hoverDataRef.current.cells[y]?.[x];
     const { cityById: cb, factionNameById: fb } = hoverDataRef.current;
-    let info = cell ? buildCampaignCellTooltipInfo(cell) : null;
-    if (cell?.cityId && cb && info) {
-      const row = cb[cell.cityId];
+    const cover = resolveStrategicTileCityCover(hoverDataRef.current.cells, y, x);
+    const tooltipCell = cover?.anchorCell ?? cell;
+    let info = tooltipCell ? buildCampaignCellTooltipInfo(tooltipCell) : null;
+    if (tooltipCell?.cityId && cb && info) {
+      const row = cb[tooltipCell.cityId];
       // row 缺失时 append 原样返回静态层；有 row 时合并归属/状态等
-      info = appendStrategicCityRuntimeToTooltipInfo(info, cell, row, fb || {});
+      info = appendStrategicCityRuntimeToTooltipInfo(info, tooltipCell, row, fb || {});
     }
     if (!info) {
       setTooltipContent(null);
@@ -176,17 +226,24 @@ export default function WorldStrategicMapGrid({
             <div className="ws-map-shell" style={{ position: 'relative' }}>
               <div className="ws-map-grid">
                 {cells.map((row, ri) =>
-                  row.map((cell, ci) => (
-                    <WorldStrategicMapTile
-                      key={`${ri}-${ci}`}
-                      cell={cell}
-                      seed={seed}
-                      gridY={ri}
-                      gridX={ci}
-                      onHover={handleHover}
-                      onLeave={handleLeave}
-                    />
-                  )),
+                  row.map((cell, ci) => {
+                    const cover = resolveStrategicTileCityCover(cells, ri, ci);
+                    const anchorId = cover?.anchorCell?.cityId;
+                    const cityRow = anchorId && cityById ? cityById[anchorId] : null;
+                    return (
+                      <WorldStrategicMapTile
+                        key={`${ri}-${ci}`}
+                        cell={cell}
+                        seed={seed}
+                        gridY={ri}
+                        gridX={ci}
+                        strategicCover={cover}
+                        cityRow={cityRow}
+                        onHover={handleHover}
+                        onLeave={handleLeave}
+                      />
+                    );
+                  }),
                 )}
               </div>
               <div className="ws-quad-overlay" aria-hidden>

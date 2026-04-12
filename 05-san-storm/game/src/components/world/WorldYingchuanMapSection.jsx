@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import WorldStrategicMapGrid from './WorldStrategicMapGrid';
 import {
   generateYingchuanCountyMergedSimulated,
@@ -10,22 +10,20 @@ import { useStrategicCountyCityRuntime } from '@/hooks/useStrategicCountyCityRun
 /** 与管理员「生成地图」写出路径一致：Vite publicDir → 05-san-storm/public */
 const MERGED_MAP_REL = 'data/worldmap/san_1_jun_yingchuan_merged.json';
 
+/** 与战术图 BattleMap.css：`--tile: 48px`；窄屏 `(100vw - 61px) / 8` */
+export const WORLD_MAP_TILE_MIN = 12;
+export const WORLD_MAP_TILE_MAX = 56;
+
 /**
- * 默认单格边长：使格网在宽、高上至少一侧略超出可视区（约 95% 边长），
- * 保证地图容器内纵向/横向都有可滚动区域；避免整图缩进视口导致触摸纵向被外层 main 抢走。
+ * 默认单格边长：对齐战斗地图瓦片视觉（可读性优先，允许滚动查看全图）。
  */
-function computeDefaultTilePx(cols, rows) {
-  if (typeof window === 'undefined') return 22;
+function computeDefaultTilePx() {
+  if (typeof window === 'undefined') return 48;
   const w = window.innerWidth;
-  const h = window.innerHeight;
-  const reserveY = 200;
-  const availH = Math.max(240, h - reserveY);
   const availW = Math.max(280, w - 16);
-  const gap = 1;
-  const tileW = (availW * 0.95) / cols - gap;
-  const tileH = (availH * 0.95) / rows - gap;
-  const t = Math.ceil(Math.max(tileW, tileH));
-  return Math.min(40, Math.max(14, t));
+  const battleRef =
+    w >= 521 ? 48 : Math.min(48, Math.max(26, Math.floor((availW - 61) / 8)));
+  return Math.min(WORLD_MAP_TILE_MAX, Math.max(22, battleRef));
 }
 
 /**
@@ -85,24 +83,37 @@ export default function WorldYingchuanMapSection({ className = '' }) {
 
   const countyJunId = merged?.junId || 'san_1_jun_yingchuan';
   const countySeason = merged?.season || 'san_1';
+  /** 合并图主键为颍川郡，但象限 C 含汝南行政城点；需同时拉汝南 `cities` 才能合并 tooltip 运行时块。 */
+  const cityRuntimeJunIds = useMemo(() => {
+    if (countyJunId === 'san_1_jun_yingchuan') {
+      return ['san_1_jun_yingchuan', 'san_1_jun_runan'];
+    }
+    return [countyJunId];
+  }, [countyJunId]);
   const { cityById, factionNameById, loadState: cityRuntimeState } = useStrategicCountyCityRuntime({
-    junId: countyJunId,
+    junIds: cityRuntimeJunIds,
     season: countySeason,
   });
 
-  const [tilePx, setTilePx] = useState(() => computeDefaultTilePx(YINGCHUAN_COUNTY_MAP_COLS, YINGCHUAN_COUNTY_MAP_ROWS));
+  const [tilePx, setTilePx] = useState(() => computeDefaultTilePx());
 
   useEffect(() => {
-    if (cols && rows) setTilePx((p) => computeDefaultTilePx(cols, rows));
+    if (cols && rows) setTilePx(computeDefaultTilePx());
   }, [cols, rows]);
 
-  const zoomIn = useCallback(() => setTilePx((p) => Math.min(40, p + 2)), []);
-  const zoomOut = useCallback(() => setTilePx((p) => Math.max(10, p - 2)), []);
+  const zoomIn = useCallback(
+    () => setTilePx((p) => Math.min(WORLD_MAP_TILE_MAX, p + 2)),
+    [],
+  );
+  const zoomOut = useCallback(
+    () => setTilePx((p) => Math.max(WORLD_MAP_TILE_MIN, p - 2)),
+    [],
+  );
   const onWheelZoomSteps = useCallback((steps) => {
     if (steps === 0) return;
     setTilePx((p) => {
       const next = p + steps * 2;
-      return Math.min(40, Math.max(10, next));
+      return Math.min(WORLD_MAP_TILE_MAX, Math.max(WORLD_MAP_TILE_MIN, next));
     });
   }, []);
 
@@ -165,12 +176,15 @@ export default function WorldYingchuanMapSection({ className = '' }) {
           mapColumns={cols}
           mapRows={rows}
           tilePx={tilePx}
+          setTilePx={setTilePx}
+          minTilePx={WORLD_MAP_TILE_MIN}
+          maxTilePx={WORLD_MAP_TILE_MAX}
           cityById={cityById}
           factionNameById={factionNameById}
           onWheelZoomSteps={onWheelZoomSteps}
           meta={
             <span className="text-stone-500">
-              滚轮平移 · Ctrl/⌘ + 滚轮缩放 · 鼠标左键拖拽平移 · 悬停格子查看说明 · 下方为探索/攻城入口
+              滚轮缩放 · 鼠标拖拽平移 · 双指捏合缩放（触控）· 悬停格子查看说明
             </span>
           }
         />

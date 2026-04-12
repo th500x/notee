@@ -67,14 +67,20 @@
   cursor: grabbing;
 }
 
-/* 小于视口时居中；大于视口时可四向滚动 */
+/*
+ * 小于视口时居中；大于视口时可四向滚动。
+ * 须让本层「至少铺满视口」又「随地图实际宽高扩展」，否则块级宽度会等于 .ws-map-wrap，
+ * scrollWidth === clientWidth，放大后无法横向拖动（纵向因格网更高往往仍能滚）。
+ */
 .ws-map-scrollport-inner {
-  min-width: 100%;
-  min-height: 100%;
   display: flex;
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
+  min-width: 100%;
+  min-height: 100%;
+  width: max-content;
+  height: max-content;
 }
 
 .ws-map-shell {
@@ -98,8 +104,15 @@
 
 .ws-map-tile {
   position: relative;
+  z-index: 1;
   width: var(--ws-tile);
   height: var(--ws-tile);
+}
+
+/* 战略对象 2×2：锚点格左上，PNG 铺满两格宽 + 中间 1px gap（与 .ws-map-grid gap 一致） */
+.ws-map-tile.ws-tile-object-2x2 {
+  z-index: 4;
+  overflow: visible;
 }
 
 .ws-map-tile .ws-layer {
@@ -109,6 +122,89 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+.ws-map-tile .ws-layer.ws-object-span-2 {
+  width: calc(2 * var(--ws-tile) + 1px);
+  height: calc(2 * var(--ws-tile) + 1px);
+  max-width: none;
+  max-height: none;
+}
+
+/* 已占城：底板grass 上叠势力代表色（中立无 faction_id 时不渲染） */
+.ws-map-tile .ws-faction-bg-tint {
+  pointer-events: none;
+  mix-blend-mode: multiply;
+}
+
+/* 仅锚点格：类型 + 名称（2×2 与对象层同宽） */
+.ws-strategic-label {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 6;
+  width: calc(2 * var(--ws-tile) + 1px);
+  height: calc(2 * var(--ws-tile) + 1px);
+  max-width: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 2px 2px 0;
+  box-sizing: border-box;
+  pointer-events: none;
+  text-align: center;
+  line-height: 1.15;
+}
+
+.ws-strategic-label-type {
+  font-size: clamp(7px, calc(var(--ws-tile) * 0.38), 11px);
+  font-weight: 800;
+  color: #fffbeb;
+  text-shadow:
+    0 0 3px #000,
+    0 1px 2px rgba(0, 0, 0, 0.85);
+}
+
+.ws-strategic-label-name {
+  margin-top: 1px;
+  font-size: clamp(6px, calc(var(--ws-tile) * 0.32), 10px);
+  font-weight: 700;
+  color: rgba(255, 250, 235, 0.96);
+  text-shadow:
+    0 0 3px #000,
+    0 1px 2px rgba(0, 0, 0, 0.85);
+  max-width: 100%;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  word-break: break-all;
+}
+
+/* 2×2 锚点格：势力六芒星落在整块区域右下角（单格边长约 30%），压在建筑立绘之上 */
+.ws-strategic-faction-logo-wrap {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 7;
+  width: calc(2 * var(--ws-tile) + 1px);
+  height: calc(2 * var(--ws-tile) + 1px);
+  max-width: none;
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  box-sizing: border-box;
+  padding: 0 1px 1px 0;
+  pointer-events: none;
+}
+
+.ws-strategic-faction-logo {
+  width: calc(var(--ws-tile) * 0.3);
+  height: calc(var(--ws-tile) * 0.3);
+  object-fit: contain;
+  display: block;
+  filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.55));
 }
 
 .ws-quad-overlay {
@@ -186,6 +282,16 @@
   z-index: 2;
   text-shadow: 0 0 3px #000;
   pointer-events: none;
+}
+
+.ws-obj-fallback.ws-obj-fallback-2x2 {
+  top: 0;
+  left: 0;
+  right: auto;
+  bottom: auto;
+  width: calc(2 * var(--ws-tile) + 1px);
+  height: calc(2 * var(--ws-tile) + 1px);
+  font-size: 14px;
 }
 
 .ws-quad-marker {

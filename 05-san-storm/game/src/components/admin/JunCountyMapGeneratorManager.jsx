@@ -501,8 +501,10 @@ export default function JunCountyMapGeneratorManager({ embedded = false }) {
             <div className="flex flex-wrap gap-4 text-xs text-gray-700">
               <span>
                 格内素材：<code className="bg-gray-100 px-1">public/assets/san_1_map/</code>；城点{' '}
-                <code className="bg-gray-100 px-1">tile_3_object/city_*_01.png</code>
-                ；预设据点 <code className="bg-gray-100 px-1">tile_3_object/fort_01.png</code>
+                <code className="bg-gray-100 px-1">tile_3_object/city_*_01.png</code>（small / medium / major）；关隘{' '}
+                <code className="bg-gray-100 px-1">city_gate_01.png</code>；据点{' '}
+                <code className="bg-gray-100 px-1">city_fort_01_empty.png</code> /{' '}
+                <code className="bg-gray-100 px-1">city_fort_01_built.png</code>（见 31-5 §10）
               </span>
               <span className="text-gray-500">虚线框：战役象限 A/B/C/D（对应郡内 A1/A2/A4/A3）</span>
             </div>

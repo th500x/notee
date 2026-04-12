@@ -102,12 +102,11 @@ export function buildCampaignCellTooltipInfo(cell) {
     let base = TILE_INFO[objKey];
     if (cell?.cityId || cell?.cityName) {
       const idLine = cell.cityId ? `配置 ID：${cell.cityId}` : '';
-      const nameLine = cell.cityName ? `名称：${cell.cityName}` : '';
       const posLine =
         cell.col != null && cell.row != null ? `郡内格：gx = ${cell.col}, gy = ${cell.row}` : '';
       base = {
         ...base,
-        attrs: [base.attrs, idLine, nameLine, posLine].filter(Boolean).join('\n'),
+        attrs: [idLine, posLine].filter(Boolean).join('\n'),
       };
     }
     if (!onFire) return base;
@@ -130,14 +129,13 @@ export function buildCampaignCellTooltipInfo(cell) {
   /** 战略大地图：preset 中 object 类型未列入 TILE_INFO 时仍可能有 cityId，避免无 tooltip、无法合并运行时 */
   if (cell?.cityId || cell?.cityName) {
     const idLine = cell.cityId ? `配置 ID：${cell.cityId}` : '';
-    const nameLine = cell.cityName ? `名称：${cell.cityName}` : '';
     const posLine =
       cell.col != null && cell.row != null ? `郡内格：gx = ${cell.col}, gy = ${cell.row}` : '';
     const typeLine = cell.object ? `对象类型：${cell.object}` : '';
     return {
       badge: '📍',
       name: cell.cityName || cell.cityId || '战略点',
-      attrs: ['战略层城点（地图格）', '可通行', typeLine, idLine, nameLine, posLine].filter(Boolean).join('\n'),
+      attrs: [typeLine, idLine, posLine].filter(Boolean).join('\n'),
     };
   }
   return null;
