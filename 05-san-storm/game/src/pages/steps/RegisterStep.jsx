@@ -4,11 +4,7 @@
 
 import { useState, useEffect } from 'react';
 import { gameUserAPI } from '@/services/api';
-import { 
-  generateIdOptions, 
-  getMachineFingerprint, 
-  getClientIPAndLocation 
-} from '@/pages/steps/authUtils';
+import { generateIdOptions, getMachineFingerprint } from '@/pages/steps/authUtils';
 import UserAgreementModal from '@/components/auth/UserAgreementModal';
 
 export function RegisterStep({ selectedServer, onRegisterSuccess, onBack }) {
@@ -94,17 +90,12 @@ export function RegisterStep({ selectedServer, onRegisterSuccess, onBack }) {
     
     try {
       const machineId = getMachineFingerprint();
-      const locationData = await getClientIPAndLocation();
-      
       const result = await gameUserAPI.register({
         id: selectedId,
         password: password,
         serverId: selectedServer.id,
-        machineId: machineId,
-        clientIP: locationData.ip,
-        province: locationData.province,
-        city: locationData.city,
-        birthMonth: parseInt(birthMonth)
+        machineId,
+        birthMonth: parseInt(birthMonth, 10),
       });
       
       if (!result.success) {

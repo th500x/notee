@@ -41,24 +41,11 @@ router.get('/', async (req, res) => {
   try {
     const { season, junId, jun_id } = req.query;
     const jid = String(junId || jun_id || '').trim();
-    const conditions = [];
-    const params = [];
-    if (season) {
-      conditions.push('season = ?');
-      params.push(season);
-    }
-    if (jid) {
-      conditions.push('jun_id = ?');
-      params.push(jid);
-    }
-    const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
-    const [rows] = await pool.query(`SELECT * FROM cities ${where} ORDER BY city_type, city_name`, params);
-
-    const cities = rows.map((c) => {
-      const { units } = cityService.parseNpcGarrisonStored(c.npc_garrison);
-      return cityService.formatCityRowForApi({ ...c, npc_garrison: units });
+    const seasonTrim = season ? String(season).trim() : '';
+    const cities = await cityService.listCitiesForApi({
+      season: seasonTrim || undefined,
+      junId: jid || undefined,
     });
-
     res.json({ success: true, cities, count: cities.length });
   } catch (error) {
     console.error('[Cities] 获取城市列表失败:', error);

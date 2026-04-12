@@ -19,6 +19,7 @@ const playerProfileService = require('../services/playerProfileService');
 const playerStatisticsService = require('../services/playerStatisticsService');
 const playerEventRewardsService = require('../services/playerEventRewardsService');
 const playerCreationService = require('../services/playerCreationService');
+const playerMainCityService = require('../services/playerMainCityService');
 
 const router = express.Router();
 
@@ -346,6 +347,25 @@ router.get('/:playerId/statistics', async (req, res) => {
  * GET /api/players/:playerId/profile
  * 获取玩家完整档案（基础信息 + 卡牌）
  */
+/**
+ * POST /api/players/:playerId/main-city
+ * body: { cityId } — 设为主城（存卡）；首次免费，再次更换 500 银 + 24h 冷却；仅大城/中城、本势力占城。
+ */
+router.post('/:playerId/main-city', async (req, res) => {
+  try {
+    const { playerId } = req.params;
+    const { cityId } = req.body || {};
+    const out = await playerMainCityService.setPlayerMainCity(playerId, cityId);
+    if (!out.ok) {
+      return res.status(out.status).json({ success: false, error: out.error });
+    }
+    res.json({ success: true, data: out.data });
+  } catch (error) {
+    console.error('[Players] 设置主城失败:', error);
+    res.status(500).json({ success: false, error: '设置主城失败', message: error.message });
+  }
+});
+
 router.get('/:playerId/profile', async (req, res) => {
   try {
     const result = await playerProfileService.getPlayerProfile(req.params.playerId);

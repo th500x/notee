@@ -246,6 +246,13 @@
 .tile-tooltip { position:fixed; background:rgba(10,10,20,0.95); border:1px solid #c9a84c88; border-radius:6px; padding:7px 10px; font-size:12px; color:#e0d5c0; pointer-events:none; z-index:999; white-space:normal; overflow:visible; max-width:min(92vw,320px); box-shadow:0 4px 16px rgba(0,0,0,0.6); }
 /* 挂到 document.body 时抬高层级，且不受战斗页 overflow-auto 父级裁切 */
 .tile-tooltip.tile-tooltip--portal { z-index:10050; }
+/* 大地图单城：战略格网 tooltip 外框写死 295×395px；底栏等非本类包裹不受影响 */
+.tile-tooltip.tile-tooltip--world-map-city { box-sizing:border-box; width:295px; min-width:295px; max-width:295px; height:395px; padding:10px 12px; font-size:13px; color:#e7e5e4; display:flex; flex-direction:column; overflow:hidden; }
+.tile-tooltip.tile-tooltip--world-map-city .wm-city-info-block { width:100%; box-sizing:border-box; flex:1; min-height:0; display:flex; flex-direction:column; }
+.tile-tooltip.tile-tooltip--world-map-city .wm-city-panel-tab-pane { flex:1; min-height:0; overflow:auto; }
+/* WorldMapCityInfoBlock：分段内容区宽高由 JS 按「城备」实测写入；overflow 由行内 style 控制（隐藏溢出、无滚动条） */
+.wm-city-info-block .wm-city-panel-tab-pane { box-sizing:border-box; }
+.tile-tooltip.tile-tooltip--interactive { pointer-events:auto; }
 .tile-tooltip .tt-name  { color:#c9a84c; font-weight:bold; margin-bottom:3px; }
 .tile-tooltip .tt-attrs { color:#999; font-size:11px; line-height:1.7; }
 

@@ -20,7 +20,8 @@
       "playerGarrisonCapacity": 100,
       "specialResourceName": null,
       "specialResourceCommerce": 0,
-      "specialResourceFarming": 0
+      "specialResourceFarming": 0,
+      "description": "颍川郡治，禹都故地，黄巾曾陷后收复"
     },
     {
       "cityId": "san_1_city_3_xiangcheng",
@@ -42,7 +43,8 @@
       "playerGarrisonCapacity": 50,
       "specialResourceName": null,
       "specialResourceCommerce": 0,
-      "specialResourceFarming": 0
+      "specialResourceFarming": 0,
+      "description": "颍川重镇，交通要冲"
     },
     {
       "cityId": "san_1_city_3_fucheng",
@@ -64,7 +66,8 @@
       "playerGarrisonCapacity": 50,
       "specialResourceName": null,
       "specialResourceCommerce": 0,
-      "specialResourceFarming": 0
+      "specialResourceFarming": 0,
+      "description": "颍川西境重镇，冯异故"
     },
     {
       "cityId": "san_1_city_3_changshe",
@@ -86,7 +89,8 @@
       "playerGarrisonCapacity": 50,
       "specialResourceName": null,
       "specialResourceCommerce": 0,
-      "specialResourceFarming": 0
+      "specialResourceFarming": 0,
+      "description": "长社之战主战场，皇甫嵩火攻破黄巾"
     },
     {
       "cityId": "san_1_city_3_xuchang",
@@ -108,7 +112,8 @@
       "playerGarrisonCapacity": 50,
       "specialResourceName": null,
       "specialResourceCommerce": 0,
-      "specialResourceFarming": 0
+      "specialResourceFarming": 0,
+      "description": "许县，许昌前身，黄巾曾陷后收复"
     },
     {
       "cityId": "san_1_city_3_yanling",
@@ -130,7 +135,8 @@
       "playerGarrisonCapacity": 50,
       "specialResourceName": null,
       "specialResourceCommerce": 0,
-      "specialResourceFarming": 0
+      "specialResourceFarming": 0,
+      "description": "颍川东北重镇，黄巾曾破"
     },
     {
       "cityId": "san_1_city_3_yingyang",
@@ -152,7 +158,8 @@
       "playerGarrisonCapacity": 50,
       "specialResourceName": null,
       "specialResourceCommerce": 0,
-      "specialResourceFarming": 0
+      "specialResourceFarming": 0,
+      "description": "颍水之北，颍川要地"
     },
     {
       "cityId": "san_1_city_3_yingyin",
@@ -174,7 +181,8 @@
       "playerGarrisonCapacity": 50,
       "specialResourceName": null,
       "specialResourceCommerce": 0,
-      "specialResourceFarming": 0
+      "specialResourceFarming": 0,
+      "description": "颍水之南，颍川重镇，黄巾曾陷后收复"
     },
     {
       "cityId": "san_1_city_3_linying",
@@ -196,7 +204,8 @@
       "playerGarrisonCapacity": 50,
       "specialResourceName": null,
       "specialResourceCommerce": 0,
-      "specialResourceFarming": 0
+      "specialResourceFarming": 0,
+      "description": "颍水之滨，交通要冲"
     },
     {
       "cityId": "san_1_city_3_xinji",
@@ -218,7 +227,8 @@
       "playerGarrisonCapacity": 50,
       "specialResourceName": null,
       "specialResourceCommerce": 0,
-      "specialResourceFarming": 0
+      "specialResourceFarming": 0,
+      "description": "颍川东北小县，新汲水畔"
     },
     {
       "cityId": "san_1_city_3_yancheng",
@@ -240,7 +250,8 @@
       "playerGarrisonCapacity": 50,
       "specialResourceName": null,
       "specialResourceCommerce": 0,
-      "specialResourceFarming": 0
+      "specialResourceFarming": 0,
+      "description": "郾县，郾城前身，颍川东南重镇"
     },
     {
       "cityId": "san_1_city_3_kunyang",
@@ -262,7 +273,8 @@
       "playerGarrisonCapacity": 50,
       "specialResourceName": null,
       "specialResourceCommerce": 0,
-      "specialResourceFarming": 0
+      "specialResourceFarming": 0,
+      "description": "颍川西南重镇，昆阳之战故地"
     },
     {
       "cityId": "san_1_city_3_dingling",
@@ -284,7 +296,8 @@
       "playerGarrisonCapacity": 50,
       "specialResourceName": null,
       "specialResourceCommerce": 0,
-      "specialResourceFarming": 0
+      "specialResourceFarming": 0,
+      "description": "颍川西南，舞阳邻县"
     },
     {
       "cityId": "san_1_city_3_wuyang",
@@ -306,7 +319,8 @@
       "playerGarrisonCapacity": 50,
       "specialResourceName": null,
       "specialResourceCommerce": 0,
-      "specialResourceFarming": 0
+      "specialResourceFarming": 0,
+      "description": "颍川西南重镇"
     },
     {
       "cityId": "san_1_city_6_yangdi",
@@ -328,7 +342,8 @@
       "playerGarrisonCapacity": 0,
       "specialResourceName": null,
       "specialResourceCommerce": 0,
-      "specialResourceFarming": 0
+      "specialResourceFarming": 0,
+      "description": null
     },
     {
       "cityId": "san_1_city_7_yangdi",
@@ -350,7 +365,8 @@
       "playerGarrisonCapacity": 0,
       "specialResourceName": null,
       "specialResourceCommerce": 0,
-      "specialResourceFarming": 0
+      "specialResourceFarming": 0,
+      "description": null
     },
     {
       "cityId": "san_1_city_3_yinqiang",
@@ -372,7 +388,8 @@
       "playerGarrisonCapacity": 50,
       "specialResourceName": null,
       "specialResourceCommerce": 0,
-      "specialResourceFarming": 0
+      "specialResourceFarming": 0,
+      "description": "暂无"
     },
     {
       "cityId": "san_1_city_3_xihua",
@@ -394,7 +411,8 @@
       "playerGarrisonCapacity": 50,
       "specialResourceName": null,
       "specialResourceCommerce": 0,
-      "specialResourceFarming": 0
+      "specialResourceFarming": 0,
+      "description": "暂无"
     },
     {
       "cityId": "san_1_city_5_0001",
@@ -416,7 +434,8 @@
       "playerGarrisonCapacity": 20,
       "specialResourceName": null,
       "specialResourceCommerce": 0,
-      "specialResourceFarming": 0
+      "specialResourceFarming": 0,
+      "description": "暂无"
     },
     {
       "cityId": "san_1_city_5_0002",
@@ -438,7 +457,8 @@
       "playerGarrisonCapacity": 20,
       "specialResourceName": null,
       "specialResourceCommerce": 0,
-      "specialResourceFarming": 0
+      "specialResourceFarming": 0,
+      "description": "暂无"
     },
     {
       "cityId": "san_1_city_5_0003",
@@ -460,7 +480,8 @@
       "playerGarrisonCapacity": 20,
       "specialResourceName": null,
       "specialResourceCommerce": 0,
-      "specialResourceFarming": 0
+      "specialResourceFarming": 0,
+      "description": "暂无"
     },
     {
       "cityId": "san_1_city_5_0004",
@@ -482,11 +503,12 @@
       "playerGarrisonCapacity": 20,
       "specialResourceName": null,
       "specialResourceCommerce": 0,
-      "specialResourceFarming": 0
+      "specialResourceFarming": 0,
+      "description": "暂无"
     }
   ],
   "metadata": {
-    "generatedAt": "2026-04-12T05:47:38.254Z",
+    "generatedAt": "2026-04-12T11:44:18.505Z",
     "sources": {
       "zhou": "config_zhou_template.csv",
       "jun": "config_jun_template.csv",

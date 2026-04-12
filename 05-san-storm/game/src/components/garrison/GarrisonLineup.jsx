@@ -22,8 +22,8 @@ import GarrisonGeneralPanel from './GarrisonGeneralPanel';
 import GarrisonStatsPanel from './GarrisonStatsPanel';
 import GarrisonBackpack from './GarrisonBackpack';
 
-const CITY_ID   = 'san_1_city_3_xinye';
-const CITY_NAME = '新野';
+const DEFAULT_GARRISON_CITY_ID = 'san_1_city_3_xinye';
+const DEFAULT_GARRISON_CITY_NAME = '新野';
 
 const GARRISON_PROFILE_POLL_MS = 60_000;
 
@@ -31,7 +31,11 @@ const RARITY_ORDER = { common: 0, rare: 1, epic: 2, legendary: 3, core: 4 };
 
 const CARD_SCALE_DETAIL_MODAL = 0.72;
 
-export default function GarrisonLineup({ onClose }) {
+export default function GarrisonLineup({
+  onClose,
+  cityId = DEFAULT_GARRISON_CITY_ID,
+  cityName = DEFAULT_GARRISON_CITY_NAME,
+}) {
   const { player, cards, refresh, attributeBonusBySlot } = usePlayerContext();
   const { getCharacterLifeStage } = useLifeStages();
 
@@ -144,7 +148,8 @@ export default function GarrisonLineup({ onClose }) {
       if (!base || Object.keys(base).length === 0) base = { ...(currentGarrison || {}) };
 
       const config = {
-        cityId: CITY_ID, cityName: CITY_NAME,
+        cityId,
+        cityName,
         char1_card: base.char1_card || null, char1_equipment_card: base.char1_equipment_card || null,
         char1_title: base.char1_title || null, char1_achievement: base.char1_achievement || null,
         char1_treasure: base.char1_treasure || null, char1_troop1: base.char1_troop1 || null,
@@ -174,7 +179,7 @@ export default function GarrisonLineup({ onClose }) {
       console.error('[GarrisonLineup] 保存失败:', e);
     }
     setSaving(false);
-  }, [player?.player_id, currentSlotNum, currentGarrison, loadGarrisons, refresh]);
+  }, [player?.player_id, currentSlotNum, currentGarrison, loadGarrisons, refresh, cityId, cityName]);
 
   /* ── 抽屉/详情控制 ── */
   const closeDrawer = useCallback(() => {
@@ -305,7 +310,7 @@ export default function GarrisonLineup({ onClose }) {
       <div className="flex flex-col border-b border-amber-900/50 bg-stone-900/80 sticky top-0 z-10">
         <div className="px-3 py-1.5 text-[10px] text-stone-500 leading-snug border-b border-stone-700/40 text-left space-y-1">
           <div className="flex flex-wrap items-center gap-x-1 gap-y-0.5">
-            <span>🏯 {CITY_NAME}城</span>
+            <span>🏯 {cityName}城</span>
             <span className="text-stone-600">|</span>
             <span>卡池A/B 各需将领1+将领2 四路部队总兵力≥800 才激活驻守</span>
             <span className="text-stone-600">|</span>

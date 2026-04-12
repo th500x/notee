@@ -46,6 +46,8 @@ CREATE TABLE cities (
   military INT NOT NULL DEFAULT 0 COMMENT '军事值',
   culture INT NOT NULL DEFAULT 0 COMMENT '文化值',
 
+  description TEXT NULL COMMENT '城市简介（来自 cities_template.csv description，可选）',
+
   special_resource_name VARCHAR(50) NULL COMMENT '特色资源名称',
   special_resource_commerce INT NOT NULL DEFAULT 0 COMMENT '特色资源商业加成',
   special_resource_farming INT NOT NULL DEFAULT 0 COMMENT '特色资源农业加成',

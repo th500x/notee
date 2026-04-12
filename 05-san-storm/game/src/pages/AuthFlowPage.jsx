@@ -4,7 +4,7 @@
  * @description 统一管理服务器选择、注册、登录流程
  */
 
-import React, { useState } from 'react';
+import React, { useState, Suspense, lazy } from 'react';
 import { useServers } from '@/hooks/useServers';
 import { usePlayer } from '@/hooks/usePlayer';
 import { useAuthFlow } from '@/hooks/useAuthFlow';
@@ -13,10 +13,21 @@ import { AuthChoiceStep } from '@/pages/steps/AuthChoiceStep';
 import { RegisterStep } from '@/pages/steps/RegisterStep';
 import { LoginStep } from '@/pages/steps/LoginStep';
 import { ServerWarningStep } from '@/pages/steps/ServerWarningStep';
-import CharacterCreationPage from '@/pages/CharacterCreationPage';
-import GameIntroOverlay from '@/components/tutorial/GameIntroOverlay';
-import GamePage from '@/pages/GamePage';
 import { playerAPI } from '@/services/playerApi';
+
+/** 懒加载：主界面与角色创建体量大，避免与认证步骤打进同一 chunk（减轻 AuthFlowPage 体积告警） */
+const CharacterCreationPage = lazy(() => import('@/pages/CharacterCreationPage'));
+const GameIntroOverlay = lazy(() => import('@/components/tutorial/GameIntroOverlay'));
+const GamePage = lazy(() => import('@/pages/GamePage'));
+
+function AuthFlowSuspenseFallback() {
+  return (
+    <div className="text-center py-12">
+      <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" />
+      <p className="mt-4 text-gray-600">加载游戏模块...</p>
+    </div>
+  );
+}
 
 function AuthFlowPage() {
   const { servers, loading: serversLoading, error: serversError } = useServers();
@@ -97,14 +108,24 @@ function AuthFlowPage() {
   if (currentUser && hasCharacter && player) {
     // 新角色刚创建 → 强制显示游戏介绍
     if (showIntro) {
-      return <GameIntroOverlay onComplete={handleIntroComplete} />;
+      return (
+        <Suspense fallback={<AuthFlowSuspenseFallback />}>
+          <GameIntroOverlay onComplete={handleIntroComplete} />
+        </Suspense>
+      );
     }
     // tutorial_step === 1 表示还没看过游戏介绍
     if (player.tutorial_step === 1) {
-      return <GameIntroOverlay onComplete={handleIntroComplete} />;
+      return (
+        <Suspense fallback={<AuthFlowSuspenseFallback />}>
+          <GameIntroOverlay onComplete={handleIntroComplete} />
+        </Suspense>
+      );
     }
     return (
-      <GamePage user={currentUser} onLogout={handleLogout} />
+      <Suspense fallback={<AuthFlowSuspenseFallback />}>
+        <GamePage user={currentUser} onLogout={handleLogout} />
+      </Suspense>
     );
   }
 
@@ -118,10 +139,9 @@ function AuthFlowPage() {
             欢迎，玩家 <span className="font-mono font-bold">{currentUser.id}</span>
           </p>
         </div>
-        <CharacterCreationPage 
-          user={currentUser} 
-          onComplete={handleCharacterCreated}
-        />
+        <Suspense fallback={<AuthFlowSuspenseFallback />}>
+          <CharacterCreationPage user={currentUser} onComplete={handleCharacterCreated} />
+        </Suspense>
       </div>
     );
   }
@@ -138,7 +158,6 @@ function AuthFlowPage() {
 
       {currentStep === 'authChoice' && (
         <AuthChoiceStep
-          selectedServer={selectedServer}
           onStartRegister={handleStartRegister}
           onStartLogin={handleStartLogin}
           onBack={handleBack}

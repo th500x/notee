@@ -1,11 +1,18 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import WorldStrategicMapTile from './WorldStrategicMapTile';
 import { buildCampaignCellTooltipInfo } from '@/components/battle/battleConstants';
-import { appendStrategicCityRuntimeToTooltipInfo } from '@/utils/strategicMapTooltipRuntime';
+import {
+  buildWorldMapCityPanelProps,
+  parentCityIdsWithSubsidiaryExplore,
+  worldMapCityIsPlayerSameFaction,
+  worldMapCityTypeAllowsMainCitySet,
+} from '@/utils/worldMapCityPanelCopy';
+import { garrisonAPI } from '@/services/garrisonApi';
 import { resolveStrategicTileCityCover } from '@/utils/strategicMapTileContext';
 import { useTileTooltipClamp } from '@/components/battle/useTileTooltipClamp';
 import TileTooltipContent from '@/components/battle/TileTooltipContent';
+import { useStrategicMapTooltipClickMode } from '@/hooks/useStrategicMapTooltipClickMode';
 import '@/components/battle/BattleMap.css';
 import './WorldStrategicMap.css';
 
@@ -16,11 +23,90 @@ const WS_QUAD_CLASS = {
   D: 'ws-quad-frame ws-quad-d',
 };
 
+/** PC 点击出 tooltip 时：按下先不抢 capture，平移需超过此距离再开始，避免「点格子」被当成拖拽 */
+const WS_PAN_MOUSE_DRAG_THRESHOLD_PX = 5;
+const WS_PAN_MOUSE_DRAG_THRESHOLD_SQ = WS_PAN_MOUSE_DRAG_THRESHOLD_PX * WS_PAN_MOUSE_DRAG_THRESHOLD_PX;
+
+/**
+ * @param {object} row - cities 行
+ * @param {string} anchorCityId - 锚点格 cityId
+ * @param {object} hd - hoverDataRef.current
+ * @param {number|null} onDutyCount
+ */
+function buildStrategicWorldMapCityTooltip(row, anchorCityId, hd, onDutyCount) {
+  const fb = hd.factionNameById || {};
+  const statsMap = hd.garrisonStatsByCityId || {};
+  const slotRaw = statsMap[anchorCityId]?.slot_count;
+  const slotNum = slotRaw != null ? Number(slotRaw) : null;
+
+  const base = buildWorldMapCityPanelProps(row, {
+    factionNameById: fb,
+    playerFactionId: hd.playerFactionId,
+    playerId: hd.playerId,
+    siegeQuota: hd.siegeQuota,
+    siegeLoading: false,
+    garrisonSlotCount: Number.isFinite(slotNum) ? slotNum : null,
+    onDutyCount,
+    cityById: hd.cityById,
+  });
+
+  const isOwn =
+    !!hd.playerFactionId &&
+    worldMapCityIsPlayerSameFaction(row, hd.playerFactionId);
+  const canAct = !!(isOwn && hd.playerId && anchorCityId);
+  const hasSubsidiaryTabs = !!(base.subsidiaryExplore?.wilderness || base.subsidiaryExplore?.market);
+  /** 城备/城况等分段需可点击，与无附属荒郊/集市时一致 */
+  const hasCityInfoTabs = !base.syncErrorMessage;
+  const canSetMainCity =
+    canAct &&
+    worldMapCityTypeAllowsMainCitySet(row) &&
+    typeof hd.onSetMainCityRequest === 'function';
+
+  return {
+    type: 'worldMapCity',
+    interactive: canAct || hasSubsidiaryTabs || hasCityInfoTabs || canSetMainCity,
+    ...base,
+    cityId: anchorCityId,
+    showOwnCityActions: canAct,
+    playerOnDutyForThisCity: !!(hd.playerOnDuty && hd.playerOnDutyCityId === anchorCityId),
+    onOpenGarrison:
+      canAct && typeof hd.onOpenGarrisonForCity === 'function'
+        ? () => {
+            hd.onOpenGarrisonForCity(anchorCityId, base.cityBaseName);
+            hd.closeStrategicCityTooltip?.();
+          }
+        : undefined,
+    onToggleDutyRequest:
+      canAct && typeof hd.onToggleDutyForCity === 'function'
+        ? hd.onToggleDutyForCity
+        : undefined,
+    onDutyError: typeof hd.onDutyError === 'function' ? hd.onDutyError : undefined,
+    onAfterOwnCityAction:
+      canAct && typeof hd.closeStrategicCityTooltip === 'function'
+        ? hd.closeStrategicCityTooltip
+        : undefined,
+    onSubsidiaryExploreRequest:
+      typeof hd.onSubsidiaryExploreRequest === 'function'
+        ? hd.onSubsidiaryExploreRequest
+        : undefined,
+    ...(canSetMainCity
+      ? {
+          mainCityId: hd.playerMainCityId ?? null,
+          mainCityChangedAt: hd.playerMainCityChangedAt ?? null,
+          playerSilver: hd.playerSilver ?? null,
+          onSetMainCityRequest: hd.onSetMainCityRequest,
+          onSetMainCityError: hd.onSetMainCityError,
+        }
+      : {}),
+    /** 战略地图：外框 295×395px 写死（BattleMap.css） */
+    uniformStrategicPanel: true,
+  };
+}
+
 /**
  * 战略层郡大地图格网（如颍川 32×40）。
  * 与 `CampaignMapGrid` 分离：无战役部署、无部队层、无战斗引擎。
- * Tooltip：`buildCampaignCellTooltipInfo(cell)` 为静态层；若传入 `cityById` + `factionNameById`，
- * 对有 `cityId` 的格按 `cities` 表合并运行时文案（与 `/api/cities` 一致，snake_case）。
+ * Tooltip：有 `cityId` 且在 `cityById` 中有对应行时，与 WorldMap 底栏新野块同款（含己方驻地编组 / 披挂）。
  */
 export default function WorldStrategicMapGrid({
   cells,
@@ -29,21 +115,35 @@ export default function WorldStrategicMapGrid({
   mapRows = 40,
   title = null,
   meta = null,
-  /** 单格像素边长 */
   tilePx = 20,
-  /** 与父组件 setState 同步，供双指捏合缩放 */
   setTilePx = null,
   minTilePx = 12,
   maxTilePx = 56,
-  /** 滚轮缩放步进回调（正=放大）；不传则仅用 +/- 按钮与捏合 */
   onWheelZoomSteps = null,
-  /** `city_id` → `cities` 行（来自 GET /api/cities?season&junId） */
   cityById = null,
-  /** `faction_id` → 势力显示名（来自 shared factions.json） */
   factionNameById = null,
+  playerId = null,
+  playerFactionId = null,
+  siegeQuota = null,
+  garrisonStatsByCityId = null,
+  playerOnDuty = false,
+  playerOnDutyCityId = null,
+  onOpenGarrisonForCity = null,
+  onToggleDutyForCity = null,
+  onDutyError = null,
+  onSubsidiaryExploreRequest = null,
+  playerMainCityId = null,
+  playerMainCityChangedAt = null,
+  playerSilver = null,
+  onSetMainCityRequest = null,
+  onSetMainCityError = null,
 }) {
+  const tooltipClickMode = useStrategicMapTooltipClickMode();
   const [tooltipContent, setTooltipContent] = useState(null);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
+  const tooltipContentRef = useRef(null);
+  tooltipContentRef.current = tooltipContent;
+  const lastTooltipAnchorKeyRef = useRef(null);
   const { tooltipRef, tooltipStyle } = useTileTooltipClamp(tooltipContent, tooltipPos);
   const wrapRef = useRef(null);
   const zoomRef = useRef(onWheelZoomSteps);
@@ -57,10 +157,95 @@ export default function WorldStrategicMapGrid({
   const [draggingPan, setDraggingPan] = useState(false);
   const panRef = useRef(null);
 
-  const hoverDataRef = useRef({ cells, cityById, factionNameById });
-  hoverDataRef.current = { cells, cityById, factionNameById };
+  const hoverGenRef = useRef(0);
+  const leaveTooltipTimerRef = useRef(null);
+  const tooltipInteractiveRef = useRef(false);
+  tooltipInteractiveRef.current = !!tooltipContent?.interactive;
 
-  // 滚轮：缩放（与战斗图习惯一致）；平移靠拖拽或滚动条
+  const hoverDataRef = useRef({});
+  /** 战略城池 tooltip 打开时记录锚点，便于 profile 刷新后重建内容（否则 mainCityId 等仍是快照） */
+  const strategicCityTooltipMetaRef = useRef({ cityId: null, onDutyCount: null });
+
+  const clearLeaveTooltipTimer = useCallback(() => {
+    if (leaveTooltipTimerRef.current != null) {
+      clearTimeout(leaveTooltipTimerRef.current);
+      leaveTooltipTimerRef.current = null;
+    }
+  }, []);
+
+  const dismissTooltip = useCallback(() => {
+    hoverGenRef.current += 1;
+    lastTooltipAnchorKeyRef.current = null;
+    strategicCityTooltipMetaRef.current = { cityId: null, onDutyCount: null };
+    setTooltipContent(null);
+  }, []);
+
+  const scheduleTooltipHide = useCallback(
+    (delayMs) => {
+      clearLeaveTooltipTimer();
+      if (delayMs <= 0) {
+        dismissTooltip();
+        return;
+      }
+      leaveTooltipTimerRef.current = setTimeout(() => {
+        leaveTooltipTimerRef.current = null;
+        dismissTooltip();
+      }, delayMs);
+    },
+    [clearLeaveTooltipTimer, dismissTooltip],
+  );
+
+  const closeTooltipNow = useCallback(() => {
+    clearLeaveTooltipTimer();
+    dismissTooltip();
+  }, [clearLeaveTooltipTimer, dismissTooltip]);
+
+  hoverDataRef.current = {
+    cells,
+    cityById,
+    factionNameById,
+    playerId,
+    playerFactionId,
+    siegeQuota,
+    garrisonStatsByCityId,
+    playerOnDuty,
+    playerOnDutyCityId,
+    onOpenGarrisonForCity,
+    onToggleDutyForCity,
+    onDutyError,
+    onSubsidiaryExploreRequest,
+    closeStrategicCityTooltip: closeTooltipNow,
+    playerMainCityId,
+    playerMainCityChangedAt,
+    playerSilver,
+    onSetMainCityRequest,
+    onSetMainCityError,
+  };
+
+  const scheduleLeaveFromTile = useCallback(() => {
+    const ms = tooltipInteractiveRef.current ? 220 : 80;
+    scheduleTooltipHide(ms);
+  }, [scheduleTooltipHide]);
+
+  const scheduleLeaveFromWrap = useCallback(() => {
+    const ms = tooltipInteractiveRef.current ? 260 : 0;
+    scheduleTooltipHide(ms);
+  }, [scheduleTooltipHide]);
+
+  useEffect(() => () => clearLeaveTooltipTimer(), [clearLeaveTooltipTimer]);
+
+  useEffect(() => {
+    const m = strategicCityTooltipMetaRef.current;
+    if (!m.cityId) return;
+    const tc = tooltipContentRef.current;
+    if (!tc || tc.type !== 'worldMapCity') return;
+    const hd = hoverDataRef.current;
+    const row = hd.cityById?.[m.cityId];
+    if (!row) return;
+    const duty = Number.isFinite(m.onDutyCount) ? m.onDutyCount : null;
+    setTooltipContent(buildStrategicWorldMapCityTooltip(row, m.cityId, hd, duty));
+  }, [playerMainCityId, playerMainCityChangedAt, playerSilver]);
+
   useEffect(() => {
     const el = wrapRef.current;
     if (!el) return undefined;
@@ -76,7 +261,6 @@ export default function WorldStrategicMapGrid({
     return () => el.removeEventListener('wheel', onWheel);
   }, []);
 
-  // 双指捏合缩放（手机）
   useEffect(() => {
     const el = wrapRef.current;
     if (!el || typeof setTilePx !== 'function') return undefined;
@@ -130,73 +314,170 @@ export default function WorldStrategicMapGrid({
     setDraggingPan(false);
   }, []);
 
-  const onPointerDownPan = useCallback((e) => {
-    if (e.pointerType !== 'mouse' || e.button !== 0) return;
-    const w = wrapRef.current;
-    if (!w) return;
-    panRef.current = {
-      x: e.clientX,
-      y: e.clientY,
-      sl: w.scrollLeft,
-      st: w.scrollTop,
-      pid: e.pointerId,
-    };
-    setDraggingPan(true);
-    try {
-      w.setPointerCapture(e.pointerId);
-    } catch {
-      /* ignore */
-    }
-  }, []);
+  const onPointerDownPan = useCallback(
+    (e) => {
+      if (e.pointerType !== 'mouse' || e.button !== 0) return;
+      const w = wrapRef.current;
+      if (!w) return;
+      const deferDrag = tooltipClickMode;
+      panRef.current = {
+        x: e.clientX,
+        y: e.clientY,
+        sl: w.scrollLeft,
+        st: w.scrollTop,
+        pid: e.pointerId,
+        dragActive: !deferDrag,
+      };
+      if (!deferDrag) {
+        setDraggingPan(true);
+        try {
+          w.setPointerCapture(e.pointerId);
+        } catch {
+          /* ignore */
+        }
+      }
+    },
+    [tooltipClickMode],
+  );
 
-  const onPointerMovePan = useCallback((e) => {
-    const p = panRef.current;
-    const w = wrapRef.current;
-    if (!p || !w) return;
-    if (e.pointerType === 'mouse' && (e.buttons & 1) === 0) {
-      endPan(e);
-      return;
-    }
-    const dx = e.clientX - p.x;
-    const dy = e.clientY - p.y;
-    w.scrollLeft = p.sl - dx;
-    w.scrollTop = p.st - dy;
-  }, [endPan]);
+  const onPointerMovePan = useCallback(
+    (e) => {
+      const p = panRef.current;
+      const w = wrapRef.current;
+      if (!p || !w) return;
+      if (e.pointerType === 'mouse' && (e.buttons & 1) === 0) {
+        endPan(e);
+        return;
+      }
+      if (!p.dragActive) {
+        const mdx = e.clientX - p.x;
+        const mdy = e.clientY - p.y;
+        if (mdx * mdx + mdy * mdy < WS_PAN_MOUSE_DRAG_THRESHOLD_SQ) return;
+        p.dragActive = true;
+        p.sl = w.scrollLeft;
+        p.st = w.scrollTop;
+        p.x = e.clientX;
+        p.y = e.clientY;
+        setDraggingPan(true);
+        try {
+          w.setPointerCapture(p.pid);
+        } catch {
+          /* ignore */
+        }
+      }
+      const dx = e.clientX - p.x;
+      const dy = e.clientY - p.y;
+      w.scrollLeft = p.sl - dx;
+      w.scrollTop = p.st - dy;
+    },
+    [endPan],
+  );
 
-  const handleHover = useCallback((e) => {
+  const handleWrapClickCapture = useCallback(
+    (e) => {
+      if (!tooltipClickMode) return;
+      if (!tooltipContentRef.current) return;
+      const t = e.target;
+      if (!(t instanceof Element)) return;
+      if (t.closest('.ws-map-tile')) return;
+      if (t.closest('.tile-tooltip')) return;
+      closeTooltipNow();
+    },
+    [tooltipClickMode, closeTooltipNow],
+  );
+
+  const handleOpenTooltipFromTileEvent = useCallback((e) => {
+    clearLeaveTooltipTimer();
     const y = Number(e.currentTarget.dataset.strategicY);
     const x = Number(e.currentTarget.dataset.strategicX);
     if (Number.isNaN(y) || Number.isNaN(x)) return;
     const cell = hoverDataRef.current.cells[y]?.[x];
-    const { cityById: cb, factionNameById: fb } = hoverDataRef.current;
+    const hd = hoverDataRef.current;
+    const { cityById: cb } = hd;
     const cover = resolveStrategicTileCityCover(hoverDataRef.current.cells, y, x);
     const tooltipCell = cover?.anchorCell ?? cell;
-    let info = tooltipCell ? buildCampaignCellTooltipInfo(tooltipCell) : null;
-    if (tooltipCell?.cityId && cb && info) {
-      const row = cb[tooltipCell.cityId];
-      // row 缺失时 append 原样返回静态层；有 row 时合并归属/状态等
-      info = appendStrategicCityRuntimeToTooltipInfo(info, tooltipCell, row, fb || {});
+    const cityId = tooltipCell?.cityId;
+    const row = cityId && cb ? cb[cityId] : null;
+    const anchorY = cover?.anchorR ?? y;
+    const anchorX = cover?.anchorC ?? x;
+    const anchorKey = cityId ? `city:${cityId}` : `cell:${anchorY},${anchorX}`;
+
+    if (tooltipClickMode && tooltipContentRef.current) {
+      if (lastTooltipAnchorKeyRef.current === anchorKey) {
+        closeTooltipNow();
+        return;
+      }
     }
+
+    lastTooltipAnchorKeyRef.current = anchorKey;
+
+    if (tooltipCell && cityId && row) {
+      const g = ++hoverGenRef.current;
+
+      strategicCityTooltipMetaRef.current = { cityId, onDutyCount: null };
+      setTooltipContent(buildStrategicWorldMapCityTooltip(row, cityId, hd, null));
+      setTooltipPos({ x: e.clientX, y: e.clientY });
+
+      garrisonAPI.getOnDutyCount(cityId).then((res) => {
+        if (g !== hoverGenRef.current) return;
+        const duty = res.success ? Number(res.count) : null;
+        const hd2 = hoverDataRef.current;
+        strategicCityTooltipMetaRef.current = {
+          cityId,
+          onDutyCount: Number.isFinite(duty) ? duty : null,
+        };
+        setTooltipContent(
+          buildStrategicWorldMapCityTooltip(
+            row,
+            cityId,
+            hd2,
+            Number.isFinite(duty) ? duty : null,
+          ),
+        );
+      });
+      return;
+    }
+
+    if (tooltipCell && cityId && !row) {
+      strategicCityTooltipMetaRef.current = { cityId: null, onDutyCount: null };
+      const nameBase = tooltipCell.cityName || cityId;
+      const titleStr = String(nameBase).endsWith('城') ? nameBase : `${nameBase}城`;
+      setTooltipContent({
+        type: 'worldMapCity',
+        interactive: false,
+        cityTitle: titleStr,
+        syncErrorMessage: '城池数据尚未同步，请稍后重试（城况接口）',
+      });
+      setTooltipPos({ x: e.clientX, y: e.clientY });
+      return;
+    }
+
+    const info = tooltipCell ? buildCampaignCellTooltipInfo(tooltipCell) : null;
     if (!info) {
+      lastTooltipAnchorKeyRef.current = null;
+      strategicCityTooltipMetaRef.current = { cityId: null, onDutyCount: null };
       setTooltipContent(null);
       return;
     }
+    strategicCityTooltipMetaRef.current = { cityId: null, onDutyCount: null };
     setTooltipContent({ type: 'tile', info });
     setTooltipPos({ x: e.clientX, y: e.clientY });
-  }, []);
-
-  const handleLeave = useCallback(() => {
-    setTooltipContent(null);
-  }, []);
+  }, [clearLeaveTooltipTimer, tooltipClickMode, closeTooltipNow]);
 
   const handleWrapperMove = useCallback((e) => {
+    if (tooltipClickMode) return;
     setTooltipPos((prev) => {
       if (prev.x === e.clientX && prev.y === e.clientY) return prev;
       return { x: e.clientX, y: e.clientY };
     });
-  }, []);
+  }, [tooltipClickMode]);
 
   const county = mapColumns > 16 || mapRows > 20;
+
+  const subsidiaryParentIds = useMemo(
+    () => parentCityIdsWithSubsidiaryExplore(cityById),
+    [cityById],
+  );
 
   return (
     <div
@@ -213,10 +494,9 @@ export default function WorldStrategicMapGrid({
         <div
           ref={wrapRef}
           className={`ws-map-wrap${draggingPan ? ' ws-map-wrap--dragging' : ''}`}
+          onClickCapture={handleWrapClickCapture}
           onMouseMove={handleWrapperMove}
-          onMouseLeave={() => {
-            handleLeave();
-          }}
+          onMouseLeave={tooltipClickMode ? undefined : scheduleLeaveFromWrap}
           onPointerDown={onPointerDownPan}
           onPointerMove={onPointerMovePan}
           onPointerUp={endPan}
@@ -230,6 +510,8 @@ export default function WorldStrategicMapGrid({
                     const cover = resolveStrategicTileCityCover(cells, ri, ci);
                     const anchorId = cover?.anchorCell?.cityId;
                     const cityRow = anchorId && cityById ? cityById[anchorId] : null;
+                    const subsidiaryHubGlow =
+                      !!anchorId && !!subsidiaryParentIds && subsidiaryParentIds.has(String(anchorId));
                     return (
                       <WorldStrategicMapTile
                         key={`${ri}-${ci}`}
@@ -239,8 +521,11 @@ export default function WorldStrategicMapGrid({
                         gridX={ci}
                         strategicCover={cover}
                         cityRow={cityRow}
-                        onHover={handleHover}
-                        onLeave={handleLeave}
+                        subsidiaryHubGlow={subsidiaryHubGlow}
+                        tooltipPointerMode={tooltipClickMode ? 'click' : 'hover'}
+                        onHover={handleOpenTooltipFromTileEvent}
+                        onLeave={tooltipClickMode ? undefined : scheduleLeaveFromTile}
+                        onTooltipClick={handleOpenTooltipFromTileEvent}
                       />
                     );
                   }),
@@ -255,9 +540,13 @@ export default function WorldStrategicMapGrid({
           </div>
           {tooltipContent && typeof document !== 'undefined' && createPortal(
             <div
-              className="tile-tooltip tile-tooltip--portal"
+              className={`tile-tooltip tile-tooltip--portal${
+                tooltipContent?.type === 'worldMapCity' ? ' tile-tooltip--world-map-city' : ''
+              }${tooltipContent?.interactive ? ' tile-tooltip--interactive' : ''}`}
               ref={tooltipRef}
               style={tooltipStyle}
+              onMouseEnter={tooltipClickMode ? undefined : clearLeaveTooltipTimer}
+              onMouseLeave={tooltipClickMode ? undefined : closeTooltipNow}
             >
               <TileTooltipContent content={tooltipContent} />
             </div>,

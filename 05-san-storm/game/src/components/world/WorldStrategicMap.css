@@ -102,6 +102,11 @@
   border: 1px solid #222;
 }
 
+/* PC 点击展开 tooltip 时提示可点 */
+.ws-map-tile.ws-map-tile--tooltip-click {
+  cursor: pointer;
+}
+
 .ws-map-tile {
   position: relative;
   z-index: 1;
@@ -135,6 +140,45 @@
 .ws-map-tile .ws-faction-bg-tint {
   pointer-events: none;
   mix-blend-mode: multiply;
+}
+
+/* 主城含荒郊/集市入口：与 CardPoolEntry 同系的琥珀底光 + 横向扫光（仅 2×2 锚点格） */
+.ws-subsidiary-hub-glow {
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.ws-subsidiary-hub-glow-base {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    ellipse 90% 75% at 50% 58%,
+    rgba(251, 191, 36, 0.14) 0%,
+    transparent 70%
+  );
+}
+
+.ws-subsidiary-hub-glow-shimmer {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    transparent 40%,
+    rgba(252, 211, 77, 0.22) 50%,
+    transparent 60%,
+    transparent 100%
+  );
+  animation: ws-subsidiary-hub-shimmer 2.5s ease-in-out infinite;
+}
+
+@keyframes ws-subsidiary-hub-shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
 }
 
 /* 仅锚点格：类型 + 名称（2×2 与对象层同宽） */

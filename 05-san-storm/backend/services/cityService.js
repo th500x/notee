@@ -212,15 +212,88 @@ async function generateNpcGarrison(cityId, opts = {}) {
   return { npcGarrison: npcUnits, npcCount: troopCount };
 }
 
+/** 城市 + 州/郡显示名 + 长官角色名（与 config_* 同 season 联表）— 供单城详情与列表接口共用 */
+const CITIES_REGION_JOIN_SQL = `
+FROM cities c
+LEFT JOIN config_zhou z ON z.zhou_id = c.zhou_id AND z.season = c.season
+LEFT JOIN config_jun j ON j.jun_id = c.jun_id AND j.season = c.season
+LEFT JOIN players _lord_p ON _lord_p.player_id = c.lord_player_id
+`;
+
+function peelRegionJoinFromRow(raw) {
+  if (!raw) return { base: null, zhouName: null, junName: null, lordCharacterName: null };
+  const zhouName = raw._cfg_zhou_name ?? null;
+  const junName = raw._cfg_jun_name ?? null;
+  const lordCharacterName = raw._lord_character_name != null && String(raw._lord_character_name).trim() !== ''
+    ? String(raw._lord_character_name).trim()
+    : null;
+  const { _cfg_zhou_name, _cfg_jun_name, _lord_character_name, ...base } = raw;
+  return { base, zhouName, junName, lordCharacterName };
+}
+
 /**
- * 获取城市信息（含 NPC 守军）
+ * 城市列表（与 getCityInfo 一致含 zhouName / junName，供战略大地图 GET /api/cities 等）
+ * @param {{ season?: string, junId?: string }} filters
+ */
+async function listCitiesForApi(filters = {}) {
+  const conditions = [];
+  const params = [];
+  if (filters.season) {
+    conditions.push('c.season = ?');
+    params.push(filters.season);
+  }
+  if (filters.junId) {
+    conditions.push('c.jun_id = ?');
+    params.push(filters.junId);
+  }
+  const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+  const [rows] = await pool.query(
+    `SELECT c.*, z.zhou_name AS _cfg_zhou_name, j.jun_name AS _cfg_jun_name,
+            _lord_p.character_name AS _lord_character_name
+     ${CITIES_REGION_JOIN_SQL}
+     ${where}
+     ORDER BY c.city_type, c.city_name`,
+    params
+  );
+  return rows.map((raw) => {
+    const { base, zhouName, junName, lordCharacterName } = peelRegionJoinFromRow(raw);
+    const c = formatCityRowForApi(base);
+    const { units } = parseNpcGarrisonStored(c.npc_garrison);
+    return {
+      ...c,
+      npc_garrison: units,
+      zhouName,
+      junName,
+      lordCharacterName,
+      lord_character_name: lordCharacterName,
+    };
+  });
+}
+
+/**
+ * 获取城市信息（含 NPC 守军、州郡显示名：联表 config_zhou / config_jun）
  */
 async function getCityInfo(cityId) {
-  const [rows] = await pool.query('SELECT * FROM cities WHERE city_id = ?', [cityId]);
+  const [rows] = await pool.query(
+    `SELECT c.*, z.zhou_name AS _cfg_zhou_name, j.jun_name AS _cfg_jun_name,
+            _lord_p.character_name AS _lord_character_name
+     ${CITIES_REGION_JOIN_SQL}
+     WHERE c.city_id = ?`,
+    [cityId]
+  );
   if (!rows.length) return null;
-  const city = formatCityRowForApi(rows[0]);
+  const { base, zhouName, junName, lordCharacterName } = peelRegionJoinFromRow(rows[0]);
+  const city = formatCityRowForApi(base);
   const { units, ledgerAt } = parseNpcGarrisonStored(city.npc_garrison);
-  return { ...city, npc_garrison: units, npcGarrisonLedgerAt: ledgerAt };
+  return {
+    ...city,
+    npc_garrison: units,
+    npcGarrisonLedgerAt: ledgerAt,
+    zhouName,
+    junName,
+    lordCharacterName,
+    lord_character_name: lordCharacterName,
+  };
 }
 
 /**
@@ -898,6 +971,7 @@ async function getWarStatus(warId) {
 
 module.exports = {
   formatCityRowForApi,
+  listCitiesForApi,
   generateNpcGarrison,
   getCityInfo,
   initiateSiege,

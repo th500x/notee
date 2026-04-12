@@ -6,6 +6,7 @@
  */
 
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 
 // ========== 古风装饰 SVG ==========
 
@@ -104,9 +105,10 @@ const AncientModal = ({
     handleClose();
   };
 
-  return (
+  /** 挂到 body，且高于战略大地图 `tile-tooltip--portal`（z-index:10050），避免提示/浮层压住弹窗 */
+  const overlay = (
     <div
-      className={`fixed inset-0 z-50 flex items-center justify-center p-4 transition-all duration-200 ${
+      className={`fixed inset-0 z-[10080] flex items-center justify-center p-4 transition-all duration-200 ${
         visible ? 'bg-black/60' : 'bg-black/0'
       }`}
       onClick={preventClose ? undefined : handleClose}
@@ -197,6 +199,8 @@ const AncientModal = ({
       </div>
     </div>
   );
+
+  return typeof document !== 'undefined' ? createPortal(overlay, document.body) : null;
 };
 
 export default AncientModal;

@@ -6,6 +6,7 @@ import {
   YINGCHUAN_COUNTY_MAP_ROWS,
 } from '@shared/utils/junCountyMapGenerator';
 import { useStrategicCountyCityRuntime } from '@/hooks/useStrategicCountyCityRuntime';
+import { API_CONFIG } from '@/constants';
 
 /** 与管理员「生成地图」写出路径一致：Vite publicDir → 05-san-storm/public */
 const MERGED_MAP_REL = 'data/worldmap/san_1_jun_yingchuan_merged.json';
@@ -31,9 +32,26 @@ function computeDefaultTilePx() {
  * 优先读取 `public/data/worldmap/san_1_jun_yingchuan_merged.json`（含 version，与后台生成一致）；
  * 缺失或无效时回退为 `generateYingchuanCountyMergedSimulated`（内存即时生成）。
  */
-export default function WorldYingchuanMapSection({ className = '' }) {
+export default function WorldYingchuanMapSection({
+  className = '',
+  playerId = null,
+  playerFactionId = null,
+  siegeQuota = null,
+  playerOnDuty = false,
+  playerOnDutyCityId = null,
+  onOpenGarrisonForCity = null,
+  onToggleDutyForCity = null,
+  onDutyError = null,
+  onSubsidiaryExploreRequest = null,
+  playerMainCityId = null,
+  playerMainCityChangedAt = null,
+  playerSilver = null,
+  onSetMainCityRequest = null,
+  onSetMainCityError = null,
+}) {
   const [merged, setMerged] = useState(null);
   const [mapSource, setMapSource] = useState('loading');
+  const [garrisonStatsByCityId, setGarrisonStatsByCityId] = useState({});
 
   useEffect(() => {
     let cancelled = false;
@@ -74,6 +92,28 @@ export default function WorldYingchuanMapSection({ className = '' }) {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (!playerId) {
+      setGarrisonStatsByCityId({});
+      return undefined;
+    }
+    let cancelled = false;
+    fetch(`${API_CONFIG.BASE_URL}/garrisons/stats/cities`)
+      .then((r) => r.json())
+      .then((res) => {
+        if (cancelled || !res?.success) return;
+        const m = {};
+        for (const s of res.stats || []) {
+          if (s?.city_id) m[s.city_id] = s;
+        }
+        setGarrisonStatsByCityId(m);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [playerId]);
 
   const cols = merged?.mapColumns ?? YINGCHUAN_COUNTY_MAP_COLS;
   const rows = merged?.mapRows ?? YINGCHUAN_COUNTY_MAP_ROWS;
@@ -181,6 +221,21 @@ export default function WorldYingchuanMapSection({ className = '' }) {
           maxTilePx={WORLD_MAP_TILE_MAX}
           cityById={cityById}
           factionNameById={factionNameById}
+          playerId={playerId}
+          playerFactionId={playerFactionId}
+          siegeQuota={siegeQuota}
+          garrisonStatsByCityId={garrisonStatsByCityId}
+          playerOnDuty={playerOnDuty}
+          playerOnDutyCityId={playerOnDutyCityId}
+          onOpenGarrisonForCity={onOpenGarrisonForCity}
+          onToggleDutyForCity={onToggleDutyForCity}
+          onDutyError={onDutyError}
+          onSubsidiaryExploreRequest={onSubsidiaryExploreRequest}
+          playerMainCityId={playerMainCityId}
+          playerMainCityChangedAt={playerMainCityChangedAt}
+          playerSilver={playerSilver}
+          onSetMainCityRequest={onSetMainCityRequest}
+          onSetMainCityError={onSetMainCityError}
           onWheelZoomSteps={onWheelZoomSteps}
           meta={
             <span className="text-stone-500">

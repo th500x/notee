@@ -31,8 +31,13 @@ function WorldStrategicMapTile({
   gridX,
   onHover,
   onLeave,
+  /** 'hover' | 'click' — 见 useStrategicMapTooltipClickMode */
+  tooltipPointerMode = 'hover',
+  onTooltipClick,
   cityRow = null,
   strategicCover = null,
+  /** 主城在 cityById 中挂有荒郊/集市入口时，2×2 锚点格琥珀扫光（对齐卡池入口 shimmer） */
+  subsidiaryHubGlow = false,
 }) {
   const c = cell || {};
   const variants = useMemo(() => buildCampaignVisualVariants(seed), [seed]);
@@ -84,13 +89,26 @@ function WorldStrategicMapTile({
     setFactionLogoOk(true);
   }, [factionLogoUrl]);
 
+  const isClickTooltip = tooltipPointerMode === 'click';
+
   return (
     <div
-      className={`ws-map-tile${object2x2 ? ' ws-tile-object-2x2' : ''}`}
+      className={`ws-map-tile${object2x2 ? ' ws-tile-object-2x2' : ''}${
+        isClickTooltip ? ' ws-map-tile--tooltip-click' : ''
+      }`}
       data-strategic-y={gridY}
       data-strategic-x={gridX}
-      onMouseEnter={onHover}
-      onMouseLeave={onLeave}
+      onMouseEnter={isClickTooltip ? undefined : onHover}
+      onMouseLeave={isClickTooltip ? undefined : onLeave}
+      onClick={
+        isClickTooltip && typeof onTooltipClick === 'function'
+          ? (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onTooltipClick(e);
+            }
+          : undefined
+      }
     >
       {bgOk ? (
         <img className="ws-layer" src={bgSrc} alt="" draggable={false} onError={() => setBgOk(false)} />
@@ -126,6 +144,16 @@ function WorldStrategicMapTile({
             }}
           />
         ))}
+      {object2x2 && isAnchorTile && subsidiaryHubGlow ? (
+        <div
+          className="ws-layer ws-object-span-2 ws-subsidiary-hub-glow"
+          aria-hidden
+          style={{ zIndex: 2 }}
+        >
+          <div className="ws-subsidiary-hub-glow-base" />
+          <div className="ws-subsidiary-hub-glow-shimmer" />
+        </div>
+      ) : null}
       {objSrc &&
         (oOk ? (
           <img

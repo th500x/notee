@@ -83,6 +83,18 @@ export const playerAPI = {
   },
 
   /**
+   * 设置主城（存卡）：首次免费；再次更换 500 银 + 24h 冷却；仅大城/中城、本势力占城。
+   */
+  async setMainCity(playerId, cityId) {
+    const response = await fetchWithTimeout(`${API_CONFIG.BASE_URL}/players/${playerId}/main-city`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cityId }),
+    });
+    return response.json();
+  },
+
+  /**
    * 个人中心「统计」：statistics 表一行
    */
   async getStatistics(playerId) {

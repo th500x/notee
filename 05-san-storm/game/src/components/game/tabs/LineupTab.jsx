@@ -34,6 +34,7 @@ import { useCharacterRank } from '@/hooks/useCharacterRank';
 import { toCharCardData, toTroopCardData, toEquipCardData, toTitleCardData } from '@/utils/cardDataTransforms';
 import GarrisonGeneralNotRecruited from '@/components/garrison/GarrisonGeneralNotRecruited';
 import GarrisonBackpack from '@/components/garrison/GarrisonBackpack';
+import { TabPageCloseButton, useGameTabLandscape } from '@/components/game/TabPageCloseAffordance';
 
 /** 编组页打开期间：轻量拉档案，使兵力自然恢复等随时间更新（无需整页刷新） */
 const LINEUP_PROFILE_POLL_MS = 60_000;
@@ -96,17 +97,7 @@ export default function LineupTab({ onClose }) {
     return () => clearInterval(id);
   }, [refresh]);
 
-  // 横屏检测：宽度≥768px 且 宽>高
-  const [isLandscape, setIsLandscape] = useState(
-    () => window.innerWidth >= 768 && window.innerWidth > window.innerHeight
-  );
-  useEffect(() => {
-    const handleResize = () => {
-      setIsLandscape(window.innerWidth >= 768 && window.innerWidth > window.innerHeight);
-    };
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
+  const isLandscape = useGameTabLandscape();
 
   // 加载技能数据（用于TroopCard显示）
   useEffect(() => {
@@ -348,31 +339,17 @@ export default function LineupTab({ onClose }) {
               );
             })}
           </div>
-          {/* 关闭按钮 — TODO: 返回大地图（尚未实装） */}
-          <button
-            onClick={onClose}
-            className="flex-shrink-0 px-3 py-3 text-stone-500 hover:text-white transition-colors"
-            aria-label="关闭"
-          >
-            ✕
-          </button>
+          <TabPageCloseButton onClose={onClose} variant="bar" />
         </div>
       )}
 
-      {/* 主内容 */}
-      <div className="flex-1 overflow-y-auto">
+      {/* 主内容（relative：横屏 ✕ 绝对定位锚定本区） */}
+      <div className="flex-1 overflow-y-auto relative min-h-0">
         {isLandscape ? (
           /* ===== 横屏：2×2 四象限布局 ===== */
           /* 左上=玩家(卡牌|槽位+数据) | 右上=将领1 | 左下=军营 | 右下=将领2 */
           <>
-            {/* 横屏：关闭按钮（absolute 悬浮右上角） */}
-            <button
-              onClick={onClose}
-              className="absolute top-1 right-2 z-20 text-stone-500 hover:text-white transition-colors px-2 py-1"
-              aria-label="关闭"
-            >
-              ✕
-            </button>
+            <TabPageCloseButton onClose={onClose} variant="corner" />
 
             <div className="grid grid-cols-2 grid-rows-2 h-full">
               {/* 左上：玩家角色 — 左卡牌 | 右(槽位+编组数据) */}

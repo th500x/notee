@@ -6,8 +6,8 @@
 
 const TABS = [
   { id: 'lineup',  icon: '📋', label: '编组' },
-  { id: 'faction', icon: '⚔️', label: '势力' },
   { id: 'city',    icon: '🏰', label: '主城' },
+  { id: 'faction', icon: '⚔️', label: '势力' },
   { id: 'map',     icon: '🗺️', label: '地图' },
 ];
 

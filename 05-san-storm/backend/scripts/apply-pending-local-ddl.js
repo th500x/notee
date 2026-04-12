@@ -8,6 +8,8 @@ const { pool } = require('../database/connection');
 
 const MIGRATION_FILES = [
   'add-players-on-duty-city-id.sql',
+  'add-players-main-city-id.sql',
+  'add-players-main-city-changed-at.sql',
   'add-config-servers-game-time.sql',
   'create-chats-table.sql',
   'add-veteran-columns.sql',

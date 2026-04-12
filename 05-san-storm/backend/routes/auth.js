@@ -134,29 +134,6 @@ router.post('/login', async (req, res) => {
 });
 
 /**
- * POST /api/auth/recover
- */
-router.post('/recover', async (req, res) => {
-  try {
-    const { password } = req.body;
-    const result = await accountService.recoverByPassword(password);
-    if (!result.ok) {
-      return res.status(result.status).json({
-        success: false,
-        error: result.error,
-      });
-    }
-    return res.json({ success: true, data: result.data });
-  } catch (error) {
-    console.error('[Auth] 找回账号失败:', error);
-    return res.status(500).json({
-      success: false,
-      error: '服务器错误，请稍后重试',
-    });
-  }
-});
-
-/**
  * GET /api/auth/users
  */
 router.get('/users', async (req, res) => {

@@ -483,6 +483,8 @@ async function getPlayerProfile(playerId) {
         trait_modifier: player.trait_modifier,
         on_duty: !!player.on_duty,
         on_duty_city_id: player.on_duty_city_id || null,
+        main_city_id: player.main_city_id || null,
+        main_city_changed_at: player.main_city_changed_at || null,
         bonus_backpack_capacity: player.bonus_backpack_capacity ?? 0,
         bonus_daily_events: player.bonus_daily_events ?? 0,
         tutorial_step: tutorialStep,

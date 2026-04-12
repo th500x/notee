@@ -104,6 +104,22 @@ async function register(body) {
     return { ok: false, status: 400, error: 'ID已被使用' };
   }
 
+  /** 同一浏览器指纹在冷却期内仅允许注册一次（见 .env REGISTER_MACHINE_COOLDOWN_HOURS；0=关闭）。不依赖外网 IP，减轻 NAT/校园网误伤。 */
+  const machineCooldownHours = parseInt(process.env.REGISTER_MACHINE_COOLDOWN_HOURS ?? '720', 10);
+  if (machineCooldownHours > 0 && resolvedMachineId && resolvedMachineId !== 'unknown') {
+    const [recentSame] = await pool.query(
+      `SELECT id FROM accounts WHERE machineId = ? AND registeredAt > DATE_SUB(NOW(), INTERVAL ? HOUR) LIMIT 1`,
+      [resolvedMachineId, machineCooldownHours]
+    );
+    if (recentSame.length > 0) {
+      return {
+        ok: false,
+        status: 429,
+        error: '该设备近期已注册过账号，请使用已有账号登录',
+      };
+    }
+  }
+
   const hashedPassword = await bcrypt.hash(password, BCRYPT_ROUNDS);
 
   const [serverConfig] = await pool.query(
@@ -210,36 +226,6 @@ async function login(id, password) {
 
   const { password: _, ...accountData } = account;
   return { ok: true, accountData };
-}
-
-/**
- * 通过密码查找账号（找回）
- */
-async function recoverByPassword(password) {
-  if (!password) {
-    return { ok: false, status: 400, error: '请输入密码' };
-  }
-
-  const [accounts] = await pool.query(
-    "SELECT id, password, serverId FROM accounts WHERE account_type = 'real' AND status != 'banned' AND id != ?",
-    [SYSTEM_ACCOUNT_ID]
-  );
-
-  if (accounts.length === 0) {
-    return { ok: false, status: 404, error: '未找到匹配的账号' };
-  }
-
-  for (const account of accounts) {
-    const match = await bcrypt.compare(password, account.password);
-    if (match) {
-      return {
-        ok: true,
-        data: { id: account.id, serverId: account.serverId },
-      };
-    }
-  }
-
-  return { ok: false, status: 401, error: '未找到匹配的账号' };
 }
 
 async function listAccountsWithServerName() {
@@ -562,7 +548,6 @@ module.exports = {
   register,
   verifyExists,
   login,
-  recoverByPassword,
   listAccountsWithServerName,
   banUser,
   unbanUser,
