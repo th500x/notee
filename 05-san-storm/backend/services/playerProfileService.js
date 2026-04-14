@@ -439,7 +439,8 @@ async function getPlayerProfile(playerId) {
         if (!instanceId) continue;
         const card = enrichedCards.find((c) => c.instance_id === instanceId);
         if (!card?.config?.attributeBonus) continue;
-        const slotKey = `garrison${g.garrison_slot}_${charKey}`;
+        const citySeg = String(g.city_id || '').replace(/[^a-zA-Z0-9_]/g, '_');
+        const slotKey = `garrison_${citySeg}_${g.garrison_slot}_${charKey}`;
         if (!attributeBonusBySlot[slotKey]) attributeBonusBySlot[slotKey] = {};
         Object.entries(card.config.attributeBonus).forEach(([key, val]) => {
           attributeBonusBySlot[slotKey][key] = (attributeBonusBySlot[slotKey][key] || 0) + (Number(val) || 0);

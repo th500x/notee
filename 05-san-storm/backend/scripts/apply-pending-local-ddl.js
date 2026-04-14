@@ -10,7 +10,10 @@ const { pool } = require('../database/connection');
 require('dotenv').config({ path: path.join(__dirname, '../.env') });
 
 /** 含 SET/PREPARE/EXECUTE 的多句迁移须 multipleStatements（pool.query 默认仅执行首句） */
-const MIGRATION_FILES_NEED_MULTIPLE_STATEMENTS = new Set(['cities-drop-fk-parent-city.sql']);
+const MIGRATION_FILES_NEED_MULTIPLE_STATEMENTS = new Set([
+  'cities-drop-fk-parent-city.sql',
+  'player-garrison-composite-city-primary-key.sql',
+]);
 
 async function runMigrationSql(sql, file) {
   if (MIGRATION_FILES_NEED_MULTIPLE_STATEMENTS.has(file)) {
@@ -48,6 +51,7 @@ const MIGRATION_FILES = [
   'add-veteran-columns.sql',
   'migrate-players-items-item-badge-to-season-badge.sql',
   'rename-config-items-item-badge-to-item-season-badge.sql',
+  'player-garrison-composite-city-primary-key.sql',
 ];
 
 function stripSqlComments(sql) {

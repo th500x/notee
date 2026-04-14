@@ -12,6 +12,17 @@ const BUCKETS = {
   mainChar2: 'main:character2',
 };
 
+/** 与前端 GarrisonStatsPanel 一致：短 bucket 段，避免 temp_character_ranking_snapshots.bucket VARCHAR(48) 溢出 */
+function garrisonBucketCitySeg(cityId) {
+  const s = String(cityId || '');
+  let h = 2166136261 >>> 0;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619) >>> 0;
+  }
+  return h.toString(16).padStart(8, '0');
+}
+
 function mergeBaseAndBonusDisplay(base, bonusRaw) {
   const b = bonusRaw || {};
   const add = (k) => Number(base[k] || 0) + Number(b[k] || 0) / 10;
@@ -208,7 +219,7 @@ async function refreshSnapshotsForPlayer(playerId) {
         if (!base) continue;
         const eff = mergeBaseAndBonusDisplay(base, garBonus[charKey] || {});
         const tuple = computeRankTuple(eff);
-        const bucket = `garrison:${slotNum}:${charKey}`;
+        const bucket = `garrison:${garrisonBucketCitySeg(g.city_id)}:${slotNum}:${charKey}`;
         await upsertSnapshotRow(conn, playerId, serverId, bucket, tuple);
       }
     }

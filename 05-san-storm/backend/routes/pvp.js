@@ -71,7 +71,7 @@ router.post('/challenge', async (req, res) => {
     if (defenderGarrisonSlot === 0) {
       defenseUnits = await garrisonService.buildDefenseUnitsFromMainLineup(defenderId);
     } else {
-      const garrison = await garrisonService.getGarrisonSlot(defenderId, defenderGarrisonSlot);
+      const garrison = await garrisonService.getGarrisonSlot(defenderId, cityId, defenderGarrisonSlot);
       if (garrison) {
         defenseUnits = await garrisonService.buildDefenseUnits(garrison);
       }

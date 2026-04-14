@@ -353,6 +353,11 @@ export default function WorldMap({ onEventBusyChange }) {
     [player?.player_id, refreshPlayer],
   );
 
+  /** 与攻城结算同源：刷新 `/garrisons/stats/cities` + `/cities`，避免格上 tooltip 驻地槽位 / NPC 等卡旧值 */
+  const bumpStrategicMapRuntimeCaches = useCallback(() => {
+    setGarrisonStatsRefreshKey((k) => k + 1);
+  }, []);
+
   const openGarrisonForCity = useCallback((cityId, cityBaseName) => {
     setGarrisonCityId(cityId);
     setGarrisonCityName(cityBaseName || '城池');
@@ -506,6 +511,7 @@ export default function WorldMap({ onEventBusyChange }) {
               initialAttackerTroops: r.data.initialAttackerTroops,
               initialDefenderTroops: r.data.initialDefenderTroops,
             });
+            setGarrisonStatsRefreshKey((k) => k + 1);
             refreshPlayer({ silent: true });
           });
         } else {
@@ -738,7 +744,11 @@ export default function WorldMap({ onEventBusyChange }) {
       {/* ── 驻地编组面板 ── */}
       {showGarrison && garrisonCityId ? (
         <GarrisonLineup
-          onClose={() => setShowGarrison(false)}
+          onClose={() => {
+            setShowGarrison(false);
+            bumpStrategicMapRuntimeCaches();
+          }}
+          onAfterMutation={bumpStrategicMapRuntimeCaches}
           cityId={garrisonCityId}
           cityName={garrisonCityName || '城池'}
         />

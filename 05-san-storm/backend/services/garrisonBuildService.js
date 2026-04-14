@@ -370,6 +370,7 @@ async function buildDefenseUnits(garrisonSlot) {
         morale: charCfg.morale ?? 70,
         _garrisonPlayerId: garrisonSlot.player_id,
         _garrisonSlot: garrisonSlot.garrison_slot,
+        _garrisonCityId: garrisonSlot.city_id || null,
       });
     }
   }
@@ -581,6 +582,7 @@ function mapBuiltUnitsToSiegeNpcFormat(units) {
     _isPlayerDefender:  true,
     _garrisonPlayerId:  u._garrisonPlayerId,
     _garrisonSlot:      u._garrisonSlot,
+    _garrisonCityId:    u._garrisonCityId ?? null,
     _troopInstanceId:   u.troop.instanceId,
   }));
 }

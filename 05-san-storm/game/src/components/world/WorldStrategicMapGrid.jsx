@@ -275,9 +275,12 @@ export default function WorldStrategicMapGrid({
     const duty = Number.isFinite(m.onDutyCount) ? m.onDutyCount : null;
     setTooltipContent(buildStrategicWorldMapCityTooltip(row, m.cityId, hd, duty));
   }, [
+    cityById,
     playerMainCityId,
     playerMainCityChangedAt,
     playerSilver,
+    playerOnDuty,
+    playerOnDutyCityId,
     subsidiaryExploreEmbed,
     garrisonStatsByCityId,
     siegeLoading,

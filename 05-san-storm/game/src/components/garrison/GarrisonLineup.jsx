@@ -30,6 +30,8 @@ const CARD_SCALE_DETAIL_MODAL = 0.72;
 
 export default function GarrisonLineup({
   onClose,
+  /** 保存驻守配置成功后回调（如大地图 bump 以重拉 tooltip 用槽位统计） */
+  onAfterMutation,
   /** 须由打开面板的父组件传入（如大地图格上「驻地编组」） */
   cityId,
   cityName = '城池',
@@ -72,17 +74,18 @@ export default function GarrisonLineup({
 
   /* ── 驻守数据加载 ── */
   const loadGarrisons = useCallback(async () => {
-    if (!player?.player_id) return;
+    if (!player?.player_id || !cityId) return;
     try {
-      const res = await garrisonAPI.getAll(player.player_id);
+      const res = await garrisonAPI.getByCity(player.player_id, cityId);
       if (res.success) {
-        setGarrisonA(res.garrisons.find(g => g.garrison_slot === 1) || null);
-        setGarrisonB(res.garrisons.find(g => g.garrison_slot === 2) || null);
+        const list = res.garrisons || [];
+        setGarrisonA(list.find(g => g.garrison_slot === 1) || null);
+        setGarrisonB(list.find(g => g.garrison_slot === 2) || null);
       }
     } catch (e) {
       console.error('[GarrisonLineup] 加载驻守数据失败:', e);
     }
-  }, [player?.player_id]);
+  }, [player?.player_id, cityId]);
 
   useEffect(() => { loadGarrisons(); }, [loadGarrisons]);
 
@@ -140,7 +143,7 @@ export default function GarrisonLineup({
     try {
       let base = {};
       try {
-        const slotRes = await garrisonAPI.getSlot(player.player_id, currentSlotNum);
+        const slotRes = await garrisonAPI.getSlot(player.player_id, currentSlotNum, cityId);
         if (slotRes.success && slotRes.garrison) base = { ...slotRes.garrison };
       } catch (_) { /* ignore */ }
       if (!base || Object.keys(base).length === 0) base = { ...(currentGarrison || {}) };
@@ -163,6 +166,7 @@ export default function GarrisonLineup({
       if (res.success) {
         await loadGarrisons();
         await refresh();
+        if (typeof onAfterMutation === 'function') onAfterMutation();
         if (res.belowTroopThreshold) {
           setActivationHint(
             `本卡池总兵力 ${res.garrisonTroopTotal ?? '—'}，需 ≥ ${res.minTroopsForActive ?? 800} 才计入守城并允许作战（已保存，补足后保存即生效）。`
@@ -177,7 +181,7 @@ export default function GarrisonLineup({
       console.error('[GarrisonLineup] 保存失败:', e);
     }
     setSaving(false);
-  }, [player?.player_id, currentSlotNum, currentGarrison, loadGarrisons, refresh, cityId, cityName]);
+  }, [player?.player_id, currentSlotNum, currentGarrison, loadGarrisons, refresh, cityId, cityName, onAfterMutation]);
 
   /* ── 抽屉/详情控制 ── */
   const closeDrawer = useCallback(() => {
@@ -235,9 +239,11 @@ export default function GarrisonLineup({
   }, [detailCard, currentGarrison]);
 
   const getGarrisonBonus = useCallback((charKey) => {
-    const slotKey = `garrison${currentSlotNum}_${charKey}`;
+    if (!cityId) return {};
+    const citySeg = String(cityId).replace(/[^a-zA-Z0-9_]/g, '_');
+    const slotKey = `garrison_${citySeg}_${currentSlotNum}_${charKey}`;
     return attributeBonusBySlot?.[slotKey] || {};
-  }, [attributeBonusBySlot, currentSlotNum]);
+  }, [attributeBonusBySlot, currentSlotNum, cityId]);
 
   /* ── 卡牌分类 ── */
   const occupiedIds = getOccupiedIds();

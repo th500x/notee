@@ -145,6 +145,7 @@ export default function WorldYingchuanMapSection({
   const { cityById, factionNameById, loadState: cityRuntimeState } = useStrategicCountyCityRuntime({
     junIds: cityRuntimeJunIds,
     season: countySeason,
+    refreshKey: garrisonStatsRefreshKey,
   });
 
   const [tilePx, setTilePx] = useState(() => computeDefaultTilePx());

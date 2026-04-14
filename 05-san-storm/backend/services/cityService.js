@@ -676,31 +676,42 @@ async function recordSiegeResult(warId, playerId, factionId, killedIndices, resu
       }
 
       // Bug fix: 检查该驻守槽位是否所有部队都被消灭（兵力=0），如果是则 is_active=FALSE
-      // 收集本次防守涉及的 player_id + garrison_slot 组合
-      const garrisonKeys = new Map(); // key: "playerId|slot" → value: { playerId, slot }
+      const siegeTargetCityId = war.target_city_id;
+      // 收集本次防守涉及的 player_id + city_id + garrison_slot 组合
+      const garrisonKeys = new Map(); // key: "playerId|cityId|slot" → value: { playerId, slot, garrisonCityId }
       for (const unit of garrisonUnits) {
         if (!unit || !unit._garrisonPlayerId || unit._garrisonSlot == null) continue;
-        const key = `${unit._garrisonPlayerId}|${unit._garrisonSlot}`;
+        const gc = unit._garrisonCityId || siegeTargetCityId;
+        const key = `${unit._garrisonPlayerId}|${gc}|${unit._garrisonSlot}`;
         if (!garrisonKeys.has(key)) {
-          garrisonKeys.set(key, { playerId: unit._garrisonPlayerId, slot: unit._garrisonSlot });
+          garrisonKeys.set(key, {
+            playerId: unit._garrisonPlayerId,
+            slot: unit._garrisonSlot,
+            garrisonCityId: unit._garrisonCityId || null,
+          });
         }
       }
-      for (const { playerId: gPlayerId, slot } of garrisonKeys.values()) {
-        // 查询该槽位所有部队卡的当前兵力
+      for (const { playerId: gPlayerId, slot, garrisonCityId } of garrisonKeys.values()) {
+        const rowCityId = garrisonCityId || siegeTargetCityId;
         const [slotRows] = await conn.query(
-          'SELECT char1_troop1, char1_troop2, char2_troop1, char2_troop2 FROM player_garrison WHERE player_id = ? AND garrison_slot = ?',
-          [gPlayerId, slot]
+          'SELECT char1_troop1, char1_troop2, char2_troop1, char2_troop2 FROM player_garrison WHERE player_id = ? AND city_id = ? AND garrison_slot = ?',
+          [gPlayerId, rowCityId, slot]
         );
         if (!slotRows.length) continue;
         const troopIds = [slotRows[0].char1_troop1, slotRows[0].char1_troop2, slotRows[0].char2_troop1, slotRows[0].char2_troop2].filter(Boolean);
         if (troopIds.length === 0) {
-          await conn.query('UPDATE player_garrison SET is_active = FALSE WHERE player_id = ? AND garrison_slot = ?', [gPlayerId, slot]);
+          await conn.query(
+            'UPDATE player_garrison SET is_active = FALSE WHERE player_id = ? AND city_id = ? AND garrison_slot = ?',
+            [gPlayerId, rowCityId, slot]
+          );
           continue;
         }
         const totalTroopsLeft = await garrisonService.sumTroopInstancesTotalTroops(conn, gPlayerId, troopIds);
         if (totalTroopsLeft < garrisonService.MIN_GARRISON_TOTAL_TROOPS) {
-          // 低于守军出战总兵力下限 → 不计入卡池、不可作战，直至补回并保存
-          await conn.query('UPDATE player_garrison SET is_active = FALSE WHERE player_id = ? AND garrison_slot = ?', [gPlayerId, slot]);
+          await conn.query(
+            'UPDATE player_garrison SET is_active = FALSE WHERE player_id = ? AND city_id = ? AND garrison_slot = ?',
+            [gPlayerId, rowCityId, slot]
+          );
         }
       }
 

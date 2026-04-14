@@ -5,6 +5,17 @@
 
 import { useCharacterRank } from '@/hooks/useCharacterRank';
 
+/** 与后端 characterRankService 一致（FNV-1a 32-bit），保证 bucket 长度适配 VARCHAR(48) */
+function garrisonBucketCitySeg(cityId) {
+  const s = String(cityId || '');
+  let h = 2166136261 >>> 0;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619) >>> 0;
+  }
+  return h.toString(16).padStart(8, '0');
+}
+
 export default function GarrisonStatsPanel({
   garrison,
   charKey,
@@ -14,9 +25,14 @@ export default function GarrisonStatsPanel({
   attributeBonus = {},
   playerId = null,
 }) {
-  const rankBucket = garrison?.garrison_slot != null && charKey
-    ? `garrison:${garrison.garrison_slot}:${charKey}`
-    : null;
+  const citySeg =
+    garrison?.city_id != null && String(garrison.city_id).length > 0
+      ? garrisonBucketCitySeg(garrison.city_id)
+      : '';
+  const rankBucket =
+    garrison?.garrison_slot != null && charKey && citySeg
+      ? `garrison:${citySeg}:${garrison.garrison_slot}:${charKey}`
+      : null;
   const rankInfo = useCharacterRank(playerId, rankBucket);
 
   if (!garrison) return null;

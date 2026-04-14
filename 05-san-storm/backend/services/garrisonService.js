@@ -87,18 +87,33 @@ function mergeGarrisonPayloadWithPrevRow(prevSlot, incoming) {
 
 async function getPlayerGarrisons(playerId) {
   const [rows] = await pool.query(
-    'SELECT * FROM player_garrison WHERE player_id = ? ORDER BY garrison_slot',
+    'SELECT * FROM player_garrison WHERE player_id = ? ORDER BY city_id, garrison_slot',
     [playerId]
   );
   return rows;
 }
 
 /**
- * 鑾峰彇鐜╁鏌愪釜妲戒綅鐨勯┗瀹堥厤缃? */
-async function getGarrisonSlot(playerId, slotNumber) {
+ * 某玩家在某城的驻地槽位行（卡池 A/B）
+ * @param {string} playerId
+ * @param {string} cityId
+ */
+async function getPlayerGarrisonsForCity(playerId, cityId) {
+  if (!cityId) return [];
   const [rows] = await pool.query(
-    'SELECT * FROM player_garrison WHERE player_id = ? AND garrison_slot = ?',
-    [playerId, slotNumber]
+    'SELECT * FROM player_garrison WHERE player_id = ? AND city_id = ? ORDER BY garrison_slot',
+    [playerId, cityId]
+  );
+  return rows;
+}
+
+/**
+ * 鑾峰彇鐜╁鏌愪釜妲戒綅鐨勯┗瀹堥厤缃? */
+async function getGarrisonSlot(playerId, cityId, slotNumber) {
+  if (!cityId) return null;
+  const [rows] = await pool.query(
+    'SELECT * FROM player_garrison WHERE player_id = ? AND city_id = ? AND garrison_slot = ?',
+    [playerId, cityId, slotNumber]
   );
   return rows[0] || null;
 }
@@ -106,24 +121,32 @@ async function getGarrisonSlot(playerId, slotNumber) {
 /**
  * 淇濆瓨椹诲畧閰嶇疆锛圛NSERT ON DUPLICATE KEY UPDATE锛? */
 async function saveGarrison(playerId, slotNumber, config) {
-  const prevSlot = await getGarrisonSlot(playerId, slotNumber);
-  const merged = mergeGarrisonPayloadWithPrevRow(prevSlot, config);
+  const incomingCity = config && config.cityId;
+  if (!incomingCity || String(incomingCity).trim() === '') {
+    return { success: false, error: '缺少 cityId，无法按城池保存驻地编组' };
+  }
+  const prevSlot = await getGarrisonSlot(playerId, incomingCity, slotNumber);
+  const mergedWithPrev = mergeGarrisonPayloadWithPrevRow(prevSlot, config);
 
-  const instanceIds = CARD_FIELDS.map(f => merged[f]).filter(Boolean);
+  const instanceIds = CARD_FIELDS.map(f => mergedWithPrev[f]).filter(Boolean);
 
   // 检查卡牌是否已被其他驻守槽位占用
   if (instanceIds.length > 0) {
     const placeholders = instanceIds.map(() => '?').join(',');
     const [conflicts] = await pool.query(
-      `SELECT g.garrison_slot, pc.instance_id
+      `SELECT g.garrison_slot, g.city_id, pc.instance_id
        FROM player_garrison g
        JOIN player_cards pc ON pc.instance_id IN (${placeholders})
-       WHERE g.player_id = ? AND g.garrison_slot != ? AND g.is_active = TRUE
+       WHERE g.player_id = ? AND g.is_active = TRUE
+         AND NOT (g.city_id <=> ? AND g.garrison_slot = ?)
          AND (${CARD_FIELDS.map(f => `g.${f} = pc.instance_id`).join(' OR ')})`,
-      [...instanceIds, playerId, slotNumber]
+      [...instanceIds, playerId, mergedWithPrev.cityId, slotNumber]
     );
     if (conflicts.length > 0) {
-      return { success: false, error: `卡牌已被驻守槽位${conflicts[0].garrison_slot}占用` };
+      return {
+        success: false,
+        error: '卡牌已被其他城池或卡池的驻地编组占用',
+      };
     }
 
     // 妫€鏌ュ崱鐗屾槸鍚﹀凡琚笂闃电紪缁勫崰鐢紙is_equipped = TRUE 鐨勫崱鐗屼笉鑳界敤浜庨┗瀹堬級
@@ -141,7 +164,7 @@ async function saveGarrison(playerId, slotNumber, config) {
   const newlyAssignedTroopIds = [...new Set(
     garrisonTroopFields
       .map((f) => {
-        const nextId = merged[f] || null;
+        const nextId = mergedWithPrev[f] || null;
         const prevId = prevSlot?.[f] || null;
         return nextId && nextId !== prevId ? nextId : null;
       })
@@ -165,9 +188,9 @@ async function saveGarrison(playerId, slotNumber, config) {
     }
   }
 
-  const hasChar = !!(merged.char1_card || merged.char2_card);
-  const hasTroop = !!(merged.char1_troop1 || merged.char1_troop2 || merged.char2_troop1 || merged.char2_troop2);
-  const troopInstanceIds = GARRISON_TROOP_FIELDS.map((f) => merged[f]).filter(Boolean);
+  const hasChar = !!(mergedWithPrev.char1_card || mergedWithPrev.char2_card);
+  const hasTroop = !!(mergedWithPrev.char1_troop1 || mergedWithPrev.char1_troop2 || mergedWithPrev.char2_troop1 || mergedWithPrev.char2_troop2);
+  const troopInstanceIds = GARRISON_TROOP_FIELDS.map((f) => mergedWithPrev[f]).filter(Boolean);
   const totalTroopsConfigured = hasTroop
     ? await sumTroopInstancesTotalTroops(pool, playerId, troopInstanceIds)
     : 0;
@@ -191,13 +214,13 @@ async function saveGarrison(playerId, slotNumber, config) {
       char2_treasure = VALUES(char2_treasure), char2_troop1 = VALUES(char2_troop1), char2_troop2 = VALUES(char2_troop2),
       is_active = VALUES(is_active)`,
     [
-      playerId, slotNumber, merged.cityId || null, merged.cityName || null,
-      merged.char1_card || null, merged.char1_equipment_card || null,
-      merged.char1_title || null, merged.char1_achievement || null, merged.char1_treasure || null,
-      merged.char1_troop1 || null, merged.char1_troop2 || null,
-      merged.char2_card || null, merged.char2_equipment_card || null,
-      merged.char2_title || null, merged.char2_achievement || null, merged.char2_treasure || null,
-      merged.char2_troop1 || null, merged.char2_troop2 || null,
+      playerId, slotNumber, mergedWithPrev.cityId || null, mergedWithPrev.cityName || null,
+      mergedWithPrev.char1_card || null, mergedWithPrev.char1_equipment_card || null,
+      mergedWithPrev.char1_title || null, mergedWithPrev.char1_achievement || null, mergedWithPrev.char1_treasure || null,
+      mergedWithPrev.char1_troop1 || null, mergedWithPrev.char1_troop2 || null,
+      mergedWithPrev.char2_card || null, mergedWithPrev.char2_equipment_card || null,
+      mergedWithPrev.char2_title || null, mergedWithPrev.char2_achievement || null, mergedWithPrev.char2_treasure || null,
+      mergedWithPrev.char2_troop1 || null, mergedWithPrev.char2_troop2 || null,
       isActive,
     ]
   );
@@ -205,7 +228,7 @@ async function saveGarrison(playerId, slotNumber, config) {
   // 鈹€鈹€ 閲嶇畻椹诲畧閮ㄩ槦鍗＄殑鐗规晥鍔犳垚锛堝鐢ㄤ笂闃电紪缁勭殑 applyCardBonusToTroops 閫昏緫锛?鈹€鈹€
   // 瀵?char1 鍜?char2 鍚勮嚜锛氬厛娓呴浂閮ㄩ槦鍗?bonus锛屽啀绱姞鎵€鏈夌壒鏁堝崱鐨?special_effect
   for (const charKey of ['char1', 'char2']) {
-    const troopIds = [merged[`${charKey}_troop1`], merged[`${charKey}_troop2`]].filter(Boolean);
+    const troopIds = [mergedWithPrev[`${charKey}_troop1`], mergedWithPrev[`${charKey}_troop2`]].filter(Boolean);
     if (troopIds.length === 0) continue;
 
     // 1. 娓呴浂璇ョ粍閮ㄩ槦鍗＄殑 bonus
@@ -218,9 +241,9 @@ async function saveGarrison(playerId, slotNumber, config) {
 
     // 2. 收集该组所有特效卡（称号/成就/宝物）
     const effectCardIds = [
-      merged[`${charKey}_title`],
-      merged[`${charKey}_achievement`],
-      merged[`${charKey}_treasure`],
+      mergedWithPrev[`${charKey}_title`],
+      mergedWithPrev[`${charKey}_achievement`],
+      mergedWithPrev[`${charKey}_treasure`],
     ].filter(Boolean);
 
     // 3. 鏌ヨ姣忓紶鐗规晥鍗＄殑 card_type 鍜?card_id锛屽啀鏌ラ厤缃〃鑾峰彇 special_effect
@@ -256,11 +279,13 @@ async function saveGarrison(playerId, slotNumber, config) {
 /**
  * 娓呯┖椹诲畧妲戒綅
  */
-async function clearGarrison(playerId, slotNumber) {
-  // 鍏堣幏鍙栧綋鍓嶉厤缃紝娓呴浂閮ㄩ槦鍗?bonus
+async function clearGarrison(playerId, cityId, slotNumber) {
+  if (!cityId || String(cityId).trim() === '') {
+    return { success: false, error: '缺少 cityId' };
+  }
   const [existing] = await pool.query(
-    'SELECT * FROM player_garrison WHERE player_id = ? AND garrison_slot = ?',
-    [playerId, slotNumber]
+    'SELECT * FROM player_garrison WHERE player_id = ? AND city_id = ? AND garrison_slot = ?',
+    [playerId, cityId, slotNumber]
   );
   if (existing.length > 0) {
     const g = existing[0];
@@ -277,9 +302,9 @@ async function clearGarrison(playerId, slotNumber) {
 
   const nullSets = CARD_FIELDS.map(f => `${f} = NULL`).join(', ');
   await pool.query(
-    `UPDATE player_garrison SET city_id = NULL, city_name = NULL, ${nullSets}, is_active = FALSE
-     WHERE player_id = ? AND garrison_slot = ?`,
-    [playerId, slotNumber]
+    `UPDATE player_garrison SET ${nullSets}, is_active = FALSE
+     WHERE player_id = ? AND city_id = ? AND garrison_slot = ?`,
+    [playerId, cityId, slotNumber]
   );
   return { success: true };
 }
@@ -309,11 +334,9 @@ async function stripGarrisonOnCityConquest(conn, cityId, winnerFactionId) {
       troopIds
     );
   }
-  const nullSets = CARD_FIELDS.map((f) => `g.${f} = NULL`).join(', ');
   await conn.query(
-    `UPDATE player_garrison g
+    `DELETE g FROM player_garrison g
      JOIN players p ON g.player_id = p.player_id
-     SET g.is_active = FALSE, g.city_id = NULL, g.city_name = NULL, ${nullSets}
      WHERE g.city_id = ? AND p.faction_id != ?`,
     [cityId, winnerFactionId]
   );
@@ -443,6 +466,7 @@ async function clearInvalidOnDutySelection(playerId) {
 module.exports = {
   // ── CRUD + 城市防守者查询（本文件实现）──
   getPlayerGarrisons,
+  getPlayerGarrisonsForCity,
   getGarrisonSlot,
   saveGarrison,
   clearGarrison,

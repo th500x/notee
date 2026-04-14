@@ -20,9 +20,16 @@ export const garrisonAPI = {
     return fetchJSON(`${API_CONFIG.BASE_URL}/garrisons/${playerId}`);
   },
 
-  /** 获取某个槽位的驻守配置 */
-  async getSlot(playerId, slot) {
-    return fetchJSON(`${API_CONFIG.BASE_URL}/garrisons/${playerId}/${slot}`);
+  /** 获取玩家在某城的驻地槽位列表（卡池 A/B） */
+  async getByCity(playerId, cityId) {
+    const enc = encodeURIComponent(cityId);
+    return fetchJSON(`${API_CONFIG.BASE_URL}/garrisons/${playerId}/by-city/${enc}`);
+  },
+
+  /** 获取某个槽位的驻守配置（须传 cityId） */
+  async getSlot(playerId, slot, cityId) {
+    const enc = encodeURIComponent(cityId);
+    return fetchJSON(`${API_CONFIG.BASE_URL}/garrisons/${playerId}/${slot}?cityId=${enc}`);
   },
 
   /** 保存驻守配置 */
@@ -33,9 +40,10 @@ export const garrisonAPI = {
     });
   },
 
-  /** 清空驻守槽位 */
-  async clear(playerId, slot) {
-    return fetchJSON(`${API_CONFIG.BASE_URL}/garrisons/${playerId}/${slot}`, {
+  /** 清空驻守槽位（须传 cityId） */
+  async clear(playerId, slot, cityId) {
+    const enc = encodeURIComponent(cityId);
+    return fetchJSON(`${API_CONFIG.BASE_URL}/garrisons/${playerId}/${slot}?cityId=${enc}`, {
       method: 'DELETE',
     });
   },

@@ -7,10 +7,10 @@ import { loadSharedData } from '@/services/dataService';
  *
  * 合并大地图可能跨行政郡（如颍川四象限含汝南城点）；可传 `junIds` 多郡合并，或与合并 JSON 一致的单个 `junId`。
  *
- * @param {{ junId?: string, junIds?: string[], season: string }} p
+ * @param {{ junId?: string, junIds?: string[], season: string, refreshKey?: number }} p
  * @returns {{ cityById: Record<string, object>, factionNameById: Record<string, string>, loadState: 'idle'|'loading'|'ok'|'error' }}
  */
-export function useStrategicCountyCityRuntime({ junId, junIds, season }) {
+export function useStrategicCountyCityRuntime({ junId, junIds, season, refreshKey = 0 }) {
   const [cityById, setCityById] = useState({});
   const [factionNameById, setFactionNameById] = useState({});
   const [loadState, setLoadState] = useState('idle');
@@ -76,7 +76,7 @@ export function useStrategicCountyCityRuntime({ junId, junIds, season }) {
     return () => {
       cancelled = true;
     };
-  }, [junIdsKey, season]);
+  }, [junIdsKey, season, refreshKey]);
 
   return { cityById, factionNameById, loadState };
 }

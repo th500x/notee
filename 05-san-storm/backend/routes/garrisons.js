@@ -121,6 +121,23 @@ router.post('/:playerId/on-duty', async (req, res) => {
 });
 
 /**
+ * GET /api/garrisons/:playerId/by-city/:cityId
+ * 获取玩家在某城的驻地槽位（须在 /:playerId/:slot 之前注册，避免 by-city 被当成 slot）
+ */
+router.get('/:playerId/by-city/:cityId', async (req, res) => {
+  try {
+    const garrisons = await garrisonService.getPlayerGarrisonsForCity(
+      req.params.playerId,
+      req.params.cityId
+    );
+    res.json({ success: true, garrisons });
+  } catch (error) {
+    console.error('[Garrisons] 按城获取驻守配置失败:', error);
+    res.status(500).json({ success: false, error: '按城获取驻守配置失败' });
+  }
+});
+
+/**
  * GET /api/garrisons/:playerId
  * 获取玩家所有驻守配置
  */
@@ -140,7 +157,15 @@ router.get('/:playerId', async (req, res) => {
  */
 router.get('/:playerId/:slot', async (req, res) => {
   try {
-    const slot = await garrisonService.getGarrisonSlot(req.params.playerId, parseInt(req.params.slot));
+    const cityId = req.query.cityId;
+    if (!cityId || String(cityId).trim() === '') {
+      return res.status(400).json({ success: false, error: '缺少查询参数 cityId' });
+    }
+    const slot = await garrisonService.getGarrisonSlot(
+      req.params.playerId,
+      cityId,
+      parseInt(req.params.slot, 10)
+    );
     res.json({ success: true, garrison: slot });
   } catch (error) {
     console.error('[Garrisons] 获取驻守槽位失败:', error);
@@ -187,7 +212,14 @@ router.post('/:playerId/:slot', async (req, res) => {
 router.delete('/:playerId/:slot', async (req, res) => {
   try {
     const { playerId } = req.params;
-    const result = await garrisonService.clearGarrison(playerId, parseInt(req.params.slot));
+    const cityId = req.query.cityId;
+    if (!cityId || String(cityId).trim() === '') {
+      return res.status(400).json({ success: false, error: '缺少查询参数 cityId' });
+    }
+    const result = await garrisonService.clearGarrison(playerId, cityId, parseInt(req.params.slot, 10));
+    if (!result.success) {
+      return res.status(400).json(result);
+    }
     characterRankService.refreshSnapshotsForPlayer(playerId).catch(() => {});
     res.json(result);
   } catch (error) {
