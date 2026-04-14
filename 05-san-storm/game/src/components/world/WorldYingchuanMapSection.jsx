@@ -1,5 +1,7 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import WorldStrategicMapGrid from './WorldStrategicMapGrid';
+import ZhouJunMapJumpPanel from '@/components/game/ZhouJunMapJumpPanel';
+import './WorldStrategicMap.css';
 import {
   generateYingchuanCountyMergedSimulated,
   YINGCHUAN_COUNTY_MAP_COLS,
@@ -36,18 +38,24 @@ export default function WorldYingchuanMapSection({
   className = '',
   playerId = null,
   playerFactionId = null,
-  siegeQuota = null,
+  siegeLoading = false,
+  onStartSiegeForCity = null,
+  garrisonStatsRefreshKey = 0,
   playerOnDuty = false,
   playerOnDutyCityId = null,
   onOpenGarrisonForCity = null,
   onToggleDutyForCity = null,
   onDutyError = null,
-  onSubsidiaryExploreRequest = null,
+  subsidiaryExploreEmbed = null,
   playerMainCityId = null,
   playerMainCityChangedAt = null,
   playerSilver = null,
   onSetMainCityRequest = null,
   onSetMainCityError = null,
+  /** 城名着色：盟友 `faction_id`（`Set` 或数组）；结盟/外交接入后由上层传入 */
+  strategicCityLabelAllyFactionIds = null,
+  /** 城名着色：非敌对 `faction_id` */
+  strategicCityLabelNonHostileFactionIds = null,
 }) {
   const [merged, setMerged] = useState(null);
   const [mapSource, setMapSource] = useState('loading');
@@ -71,6 +79,8 @@ export default function WorldYingchuanMapSection({
           mapRows: data.mapRows ?? YINGCHUAN_COUNTY_MAP_ROWS,
           junId: data.junId,
           season: data.season,
+          roadCells: Array.isArray(data.roadCells) ? data.roadCells : null,
+          roadConnectivity: data.roadConnectivity === '8' ? '8' : '4',
         });
         setMapSource('file');
       } catch {
@@ -84,6 +94,8 @@ export default function WorldYingchuanMapSection({
           mapRows: fb.mapRows ?? YINGCHUAN_COUNTY_MAP_ROWS,
           junId: 'san_1_jun_yingchuan',
           season: 'san_1',
+          roadCells: null,
+          roadConnectivity: '4',
         });
         setMapSource('fallback');
       }
@@ -113,7 +125,7 @@ export default function WorldYingchuanMapSection({
     return () => {
       cancelled = true;
     };
-  }, [playerId]);
+  }, [playerId, garrisonStatsRefreshKey]);
 
   const cols = merged?.mapColumns ?? YINGCHUAN_COUNTY_MAP_COLS;
   const rows = merged?.mapRows ?? YINGCHUAN_COUNTY_MAP_ROWS;
@@ -210,39 +222,50 @@ export default function WorldYingchuanMapSection({
         <span className="text-stone-600 font-mono text-[10px] ml-auto hidden sm:inline">seed {seed}</span>
       </div>
       <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
-        <WorldStrategicMapGrid
-          cells={cells}
-          seed={seed}
-          mapColumns={cols}
-          mapRows={rows}
-          tilePx={tilePx}
-          setTilePx={setTilePx}
-          minTilePx={WORLD_MAP_TILE_MIN}
-          maxTilePx={WORLD_MAP_TILE_MAX}
-          cityById={cityById}
-          factionNameById={factionNameById}
-          playerId={playerId}
-          playerFactionId={playerFactionId}
-          siegeQuota={siegeQuota}
-          garrisonStatsByCityId={garrisonStatsByCityId}
-          playerOnDuty={playerOnDuty}
-          playerOnDutyCityId={playerOnDutyCityId}
-          onOpenGarrisonForCity={onOpenGarrisonForCity}
-          onToggleDutyForCity={onToggleDutyForCity}
-          onDutyError={onDutyError}
-          onSubsidiaryExploreRequest={onSubsidiaryExploreRequest}
-          playerMainCityId={playerMainCityId}
-          playerMainCityChangedAt={playerMainCityChangedAt}
-          playerSilver={playerSilver}
-          onSetMainCityRequest={onSetMainCityRequest}
-          onSetMainCityError={onSetMainCityError}
-          onWheelZoomSteps={onWheelZoomSteps}
-          meta={
-            <span className="text-stone-500">
-              滚轮缩放 · 鼠标拖拽平移 · 双指捏合缩放（触控）· 悬停格子查看说明
-            </span>
-          }
-        />
+        <div className="ws-map-meta shrink-0 px-2">
+          <span className="text-stone-500">
+            滚轮缩放 · 鼠标拖拽平移 · 双指捏合缩放（触控）· 悬停格子查看说明
+          </span>
+        </div>
+        <div className="shrink-0 pl-2 pb-2 pointer-events-auto">
+          <ZhouJunMapJumpPanel />
+        </div>
+        <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+          <WorldStrategicMapGrid
+            cells={cells}
+            seed={seed}
+            roadCells={merged?.roadCells}
+            roadConnectivity={merged?.roadConnectivity === '8' ? '8' : '4'}
+            mapColumns={cols}
+            mapRows={rows}
+            tilePx={tilePx}
+            setTilePx={setTilePx}
+            minTilePx={WORLD_MAP_TILE_MIN}
+            maxTilePx={WORLD_MAP_TILE_MAX}
+            cityById={cityById}
+            factionNameById={factionNameById}
+            playerId={playerId}
+            playerFactionId={playerFactionId}
+            siegeLoading={siegeLoading}
+            onStartSiegeForCity={onStartSiegeForCity}
+            garrisonStatsByCityId={garrisonStatsByCityId}
+            playerOnDuty={playerOnDuty}
+            playerOnDutyCityId={playerOnDutyCityId}
+            onOpenGarrisonForCity={onOpenGarrisonForCity}
+            onToggleDutyForCity={onToggleDutyForCity}
+            onDutyError={onDutyError}
+            subsidiaryExploreEmbed={subsidiaryExploreEmbed}
+            playerMainCityId={playerMainCityId}
+            playerMainCityChangedAt={playerMainCityChangedAt}
+            playerSilver={playerSilver}
+            onSetMainCityRequest={onSetMainCityRequest}
+            onSetMainCityError={onSetMainCityError}
+            onWheelZoomSteps={onWheelZoomSteps}
+            strategicCityLabelAllyFactionIds={strategicCityLabelAllyFactionIds}
+            strategicCityLabelNonHostileFactionIds={strategicCityLabelNonHostileFactionIds}
+            meta={null}
+          />
+        </div>
       </div>
     </div>
   );

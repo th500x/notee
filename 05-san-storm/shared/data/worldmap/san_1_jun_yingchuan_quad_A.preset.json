@@ -30,6 +30,30 @@
   "quad_D_units_spec": "",
   "strategic_cities": [
     {
+      "city_id": "san_1_city_3_yangcheng",
+      "city_name": "阳城",
+      "gx": 6,
+      "gy": 0,
+      "object": "city_small",
+      "sub_quad": "A1"
+    },
+    {
+      "city_id": "san_1_city_4_huanyuanguan",
+      "city_name": "轘辕关",
+      "gx": 0,
+      "gy": 0,
+      "object": "gate",
+      "sub_quad": "A1"
+    },
+    {
+      "city_id": "san_1_city_4_daguguan",
+      "city_name": "大谷关",
+      "gx": 3,
+      "gy": 3,
+      "object": "gate",
+      "sub_quad": "A1"
+    },
+    {
       "city_id": "san_1_city_2_yangdi",
       "city_name": "阳翟",
       "gx": 14,
@@ -56,14 +80,14 @@
   ],
   "strategic_forts": [
     {
-      "fort_id": "san_1_city_5_0001",
+      "fort_id": "san_1_city_5_1_yingchuan",
       "city_name": "颍川据点",
       "gx": 12,
       "gy": 3,
       "sub_quad": "A2"
     },
     {
-      "fort_id": "san_1_city_5_0002",
+      "fort_id": "san_1_city_5_2_yingchuan",
       "city_name": "颍川据点",
       "gx": 13,
       "gy": 7,

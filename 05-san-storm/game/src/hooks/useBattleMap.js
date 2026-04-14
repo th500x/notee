@@ -101,13 +101,14 @@ export function useBattleMap() {
    * @param {string} eventRarity - 事件稀有度（common/rare/epic/legendary/core）；无 enemySlotRarities 时映射为匪寨档四槽（core→legendary 档）
    * @param {object} [opts]
    * @param {string[]} [opts.enemySlotRarities] - 长度 4 时每槽独立稀有度（匪寨等）；与 5 将领位惩罚战互斥
+   * @param {boolean} [opts.eventPunishmentExtraSlot] - 探索事件惩罚战：选项因子为 type-b 时在默认 4 编制上多 1 支部队（将领/部队池同事件稀有度，无指定主将 ID）
    */
   const assignRealBattleTroops = useCallback((playerUnits, eventRarity = 'common', opts = {}) => {
     const t = filterTroopsForSmallMapPveEnemy(allTroops);
     const c = allCharacters;
     const rawExtra = opts.extraEnemyCharacterIds;
     const extraIds = (Array.isArray(rawExtra) ? rawExtra : rawExtra ? [rawExtra] : []).filter(Boolean);
-    const useFiveEnemy = extraIds.length > 0;
+    const useFiveEnemy = extraIds.length > 0 || opts.eventPunishmentExtraSlot === true;
 
     // 我方位置（最多5个，前排优先部署）
     const playerPositions = [

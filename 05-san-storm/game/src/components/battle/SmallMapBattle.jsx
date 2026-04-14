@@ -47,7 +47,8 @@ const STAGE = { LOADING: 'loading', READY: 'ready' };
  * @param {object}  [defenseReportMeta]              驻守战：为守城方写镜像战报
  * @param {boolean} [recordOnly]                     仅记录战报，不通过 /battles 改兵力
  * @param {string}  [siegeDefenderType]              攻城积分倍率类型
- * @param {Array}   [eventExtraEnemyCharacterIds]    事件惩罚战额外将领
+ * @param {Array}   [eventExtraEnemyCharacterIds]    事件惩罚战额外将领（指定将领 ID 时 5 编制；与 eventPunishmentExtraSlot 二选一，新配置已不用）
+ * @param {boolean} [eventPunishmentExtraSlot]        事件因子 type-b：在默认编制上多 1 支敌方部队（池同事件稀有度）
  * @param {Array}   [cards]                          PlayerContext.cards，用于出征门槛校验
  */
 export default function SmallMapBattle({
@@ -66,6 +67,7 @@ export default function SmallMapBattle({
   recordOnly = false,
   siegeDefenderType = null,
   eventExtraEnemyCharacterIds = null,
+  eventPunishmentExtraSlot = false,
   cards = null,
 }) {
   const [stage, setStage] = useState(STAGE.LOADING);
@@ -180,6 +182,7 @@ export default function SmallMapBattle({
     } else {
       bm.assignRealBattleTroops(playerUnits, enemyRarity || 'common', {
         extraEnemyCharacterIds: eventExtraEnemyCharacterIds,
+        eventPunishmentExtraSlot,
         ...(Array.isArray(enemySlotRarities) && enemySlotRarities.length === 4
           ? { enemySlotRarities }
           : {}),
@@ -193,7 +196,7 @@ export default function SmallMapBattle({
     bm.toggleBattle();
     setStage(STAGE.READY);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playerUnits, enemyUnits, enemyRarity, enemySlotRarities, eventExtraEnemyCharacterIds, bm.allTroops.length]);
+  }, [playerUnits, enemyUnits, enemyRarity, enemySlotRarities, eventExtraEnemyCharacterIds, eventPunishmentExtraSlot, bm.allTroops.length]);
 
   // ── PVP 攻城：预置敌方阵容时自动开战，避免未点「开始」导致不落战报 ──
   useEffect(() => {

@@ -351,12 +351,12 @@ async function applyBattleSettlement({
 
 /**
  * completion_reward_badge 非空 → 发放赛季徽章道具（config_items / players.items JSON，与事件奖励道具同列）
- * 数字槽位仅用于卡牌展示与策划对照，当前赛季对应 item_badge。
+ * 数字槽位仅用于卡牌展示与策划对照，当前赛季对应 item_season_badge。
  */
 function resolveCampaignBadgeItemId(completionRewardBadge) {
   const raw = completionRewardBadge == null ? '' : String(completionRewardBadge).trim();
   if (!raw) return null;
-  return 'item_badge';
+  return 'item_season_badge';
 }
 
 async function getItemDisplayName(itemId) {

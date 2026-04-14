@@ -19,7 +19,23 @@ import {
   postCoordinatesToDb,
   postBoundariesToDb,
   postGenerateMergedMap,
+  postSaveMergedRoadCells,
+  postBatchNpcGarrison,
 } from '@/components/admin/worldMapAdminApi';
+import StrategicRoadCellsEditor from '@/components/admin/StrategicRoadCellsEditor';
+import {
+  normalizeRoadCellList,
+  ROAD_CONNECTIVITY_4,
+} from '@shared/utils/strategicRoadOverlay.js';
+
+/** 批量 NPC 守军：与 cityService NPC_TROOP_COUNT_* 的 city_type 键一致 */
+const NPC_BATCH_CITY_TYPES = [
+  { key: 'city_small', label: '小城 city_small' },
+  { key: 'city_medium', label: '中城 city_medium' },
+  { key: 'city_major', label: '大城 city_major' },
+  { key: 'gate', label: '关隘 gate' },
+  { key: 'fort', label: '据点 fort' },
+];
 
 /** 兼容 camelCase / snake_case，避免 MySQL 驱动或代理改写字段后下拉无选项、受控 value 失效 */
 function normalizeGeoOptions(raw) {
@@ -72,6 +88,16 @@ export default function JunCountyMapGeneratorManager({ embedded = false }) {
   const [busyCoords, setBusyCoords] = useState(false);
   const [busyBounds, setBusyBounds] = useState(false);
   const [busyMerge, setBusyMerge] = useState(false);
+  /** 颍川 merged 快照：供道路格涂抹编辑 */
+  const [roadEdit, setRoadEdit] = useState(null);
+  const [busyRoadSave, setBusyRoadSave] = useState(false);
+
+  /** 郡内批量 NPC：与攻城逻辑一致 — 势力方 = faction_id 非空且 status=owned；NPC 方 = 其余 */
+  const [npcOwnershipMode, setNpcOwnershipMode] = useState('player_owned');
+  const [npcCountInputs, setNpcCountInputs] = useState(() =>
+    Object.fromEntries(NPC_BATCH_CITY_TYPES.map(({ key }) => [key, ''])),
+  );
+  const [busyNpcBatch, setBusyNpcBatch] = useState(false);
 
   const preset = useMemo(() => (junQuadId ? getJunQuadPresetById(junQuadId) : null), [junQuadId]);
 
@@ -260,6 +286,106 @@ export default function JunCountyMapGeneratorManager({ embedded = false }) {
     }
   };
 
+  const handleLoadMergedForRoadEdit = async () => {
+    if (selectedJunId !== 'san_1_jun_yingchuan') {
+      showToast('当前仅颍川郡支持道路编辑', 'info');
+      return;
+    }
+    try {
+      const url = `${import.meta.env.BASE_URL}data/worldmap/san_1_jun_yingchuan_merged.json`;
+      const res = await fetch(url, { cache: 'no-store' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      if (!data || !Array.isArray(data.cells)) throw new Error('无效合并图');
+      setRoadEdit({
+        cells: data.cells,
+        mapColumns: data.mapColumns ?? 32,
+        mapRows: data.mapRows ?? 40,
+        roadCells: normalizeRoadCellList(data.roadCells),
+        roadConnectivity: data.roadConnectivity === '8' ? '8' : ROAD_CONNECTIVITY_4,
+      });
+      showToast('已加载合并地图，可编辑道路格', 'success');
+    } catch (e) {
+      showToast(e?.message || '加载失败（请先在上方生成合并地图）', 'error');
+    }
+  };
+
+  const handleBatchNpcGarrison = async () => {
+    if (!selectedJunId) {
+      showToast('请先选择郡', 'error');
+      return;
+    }
+    const counts = {};
+    for (const { key } of NPC_BATCH_CITY_TYPES) {
+      const v = String(npcCountInputs[key] ?? '').trim();
+      if (v !== '') counts[key] = v;
+    }
+    if (Object.keys(counts).length === 0) {
+      showToast('请至少填写一种城市类型的守军支数（正整数，最大 2000）', 'error');
+      return;
+    }
+    const jun = geoOptions?.jun?.find((j) => j.junId === selectedJunId);
+    const season = jun?.season;
+    setBusyNpcBatch(true);
+    try {
+      const res = await postBatchNpcGarrison(selectedJunId, npcOwnershipMode, counts, season);
+      if (!res.success) {
+        showToast(res.error || '批量生成失败', 'error');
+        return;
+      }
+      const d = res.data || {};
+      const u = d.updated ?? 0;
+      const m = d.matchedTotal ?? 0;
+      const sk = Array.isArray(d.skipped) ? d.skipped.length : 0;
+      const fl = Array.isArray(d.failures) ? d.failures.length : 0;
+      const totalJun = d.citiesInJun;
+      const ownedJun = d.ownedCountInJun;
+      const statExtra =
+        totalJun != null
+          ? `（郡内 cities 共 ${totalJun}，其中占城 ${ownedJun ?? '—'}）`
+          : '';
+      showToast(
+        `已生成 ${u} 城（本模式匹配 ${m}；跳过 ${sk}；失败 ${fl}）${statExtra}`,
+        fl > 0 ? 'error' : 'success',
+      );
+      if (typeof d.hint === 'string' && d.hint) {
+        showToast(d.hint, 'info');
+      }
+      if (sk > 0) {
+        showToast('跳过：该城 city_type 未填写对应支数', 'info');
+      }
+      if (fl > 0 && d.failures[0]) {
+        showToast(`${d.failures[0].cityId}: ${d.failures[0].error}`, 'error');
+      }
+    } catch (e) {
+      showToast(e?.message || '无法连接后端', 'error');
+    } finally {
+      setBusyNpcBatch(false);
+    }
+  };
+
+  const handleSaveRoadCells = async () => {
+    if (!roadEdit || selectedJunId !== 'san_1_jun_yingchuan') return;
+    setBusyRoadSave(true);
+    try {
+      const res = await postSaveMergedRoadCells(
+        selectedJunId,
+        roadEdit.roadCells,
+        roadEdit.roadConnectivity,
+      );
+      if (res.success) {
+        showToast(
+          `道路已写入 merged.json · version=${res.data?.version} · ${res.data?.roadCellCount ?? 0} 格`,
+          'success',
+        );
+      } else {
+        showToast(res.error || '保存失败', 'error');
+      }
+    } finally {
+      setBusyRoadSave(false);
+    }
+  };
+
   if (adminLoading) {
     return (
       <div className="flex justify-center py-24">
@@ -438,6 +564,71 @@ export default function JunCountyMapGeneratorManager({ embedded = false }) {
                 : `缺少文件：${(presetGate.missing || []).join(', ') || '未知'}`}
             </p>
           )}
+
+          <div className="border border-slate-200 rounded-lg p-4 space-y-3 bg-slate-50/60">
+            <h3 className="text-sm font-semibold text-gray-900">郡内 NPC 守军（批量）</h3>
+            <p className="text-xs text-gray-600 leading-relaxed">
+              使用上方<strong>州 / 郡</strong>当前选项。按城市归属分两档批量调用{' '}
+              <code className="bg-white px-1 rounded border border-slate-200 text-[11px]">generateNpcGarrison</code> 与
+              脚本 <code className="bg-white px-1 rounded border border-slate-200 text-[11px]">troopCountOverride</code>（支数
+              1～2000）。仅对<strong>已填写支数</strong>的城市类型生效；某城类型未填则跳过该城。
+            </p>
+            <p className="text-xs text-amber-900/90 bg-amber-50 border border-amber-200/80 rounded px-2 py-1.5 leading-relaxed">
+              <strong>「势力方」匹配规则</strong>：与攻城/NPC 补满一致 —{' '}
+              <code className="bg-white/90 px-1 text-[11px]">faction_id</code> 非空且{' '}
+              <code className="bg-white/90 px-1 text-[11px]">status = owned</code>。有叙事归属的城在导入脚本里会写成{' '}
+              <code className="bg-white/90 px-1 text-[11px]">owned</code>；若库仍是旧数据（有势力却为 neutral），请在 backend 重跑{' '}
+              <code className="bg-white/90 px-1 text-[11px]">node database/import-city-geo-data.js</code>，或暂用「归属 NPC 方」。
+            </p>
+            <div className="flex flex-wrap gap-6 text-sm">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="npcOwnership"
+                  checked={npcOwnershipMode === 'player_owned'}
+                  onChange={() => setNpcOwnershipMode('player_owned')}
+                  className="border-gray-400"
+                />
+                <span>归属势力方（占城：faction 非空且 status=owned）</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="npcOwnership"
+                  checked={npcOwnershipMode === 'npc_side'}
+                  onChange={() => setNpcOwnershipMode('npc_side')}
+                  className="border-gray-400"
+                />
+                <span>归属 NPC 方（非上述占城态：中立等）</span>
+              </label>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {NPC_BATCH_CITY_TYPES.map(({ key, label }) => (
+                <div key={key}>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">{label}</label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="留空 = 不处理该类型"
+                    className="w-full border border-gray-300 rounded-md px-2 py-1.5 text-sm"
+                    value={npcCountInputs[key]}
+                    onChange={(e) =>
+                      setNpcCountInputs((prev) => ({ ...prev, [key]: e.target.value }))
+                    }
+                  />
+                </div>
+              ))}
+            </div>
+            <button
+              type="button"
+              disabled={!selectedJunId || busyNpcBatch}
+              onClick={handleBatchNpcGarrison}
+              className="px-4 py-2 bg-rose-700 text-white rounded-md hover:bg-rose-800 disabled:opacity-50 text-sm"
+            >
+              {busyNpcBatch ? '批量生成中…' : '按郡批量生成 NPC 守军'}
+            </button>
+          </div>
+
           <div className="flex flex-wrap gap-3">
             <button
               type="button"
@@ -488,6 +679,80 @@ export default function JunCountyMapGeneratorManager({ embedded = false }) {
             <code className="bg-gray-100 px-1">public/data/worldmap/san_1_jun_yingchuan_merged.json</code>（与主界面大地图
             读取路径一致），并带 <code className="bg-gray-100 px-1">version</code>。原先无该文件时，主界面用内存即时生成；生成后优先读此文件。
           </p>
+          <p className="text-xs text-amber-900/90 leading-relaxed mt-1.5 border border-amber-200/80 bg-amber-50/80 rounded px-2 py-1.5">
+            若在本机用命令行跑{' '}
+            <code className="bg-white/80 px-1 text-[11px]">node scripts/worldmap-merge-yingchuan.mjs --out …</code> 写同一文件，大改或不确定时请先<strong>备份</strong>该
+            JSON；脚本会尽量保留已有 <code className="bg-white/80 px-1 text-[11px]">roadCells</code>，但 <code className="bg-white/80 px-1 text-[11px]">--out</code>{' '}
+            指错路径或目标里已无道路时仍会丢层。优先用本页按钮走服务端合并更稳妥。
+          </p>
+
+          <div className="border-t border-slate-200 pt-4 mt-2 space-y-3">
+            <h3 className="text-sm font-semibold text-gray-900">道路层（颍川合并图）</h3>
+            <p className="text-xs text-gray-600 leading-relaxed">
+              以 <strong>道路格集合</strong> <code className="bg-gray-100 px-1">roadCells</code> 为准（郡内{' '}
+              <code className="bg-gray-100 px-1">gx, gy</code>）；寻路与叠线均用同一套{' '}
+              <code className="bg-gray-100 px-1">roadConnectivity</code>（四连通 / 八连通）。重新「生成地图」会<strong>保留</strong>已有{' '}
+              <code className="bg-gray-100 px-1">roadCells</code>；若新城/改城导致路与禁区重叠，请在本页擦除或改线后再保存（保存时服务端会拒绝压在城/关/据点占位上的格）。
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                disabled={selectedJunId !== 'san_1_jun_yingchuan'}
+                onClick={handleLoadMergedForRoadEdit}
+                className="px-3 py-1.5 bg-slate-700 text-white rounded-md hover:bg-slate-800 disabled:opacity-50 text-sm"
+                title={
+                  selectedJunId !== 'san_1_jun_yingchuan'
+                    ? '仅颍川郡'
+                    : '从 public 读取合并 JSON'
+                }
+              >
+                加载合并图（道路编辑）
+              </button>
+              <button
+                type="button"
+                disabled={!roadEdit || busyRoadSave}
+                onClick={handleSaveRoadCells}
+                className="px-3 py-1.5 bg-teal-700 text-white rounded-md hover:bg-teal-800 disabled:opacity-50 text-sm"
+              >
+                {busyRoadSave ? '保存中…' : '保存道路到服务器'}
+              </button>
+              <button
+                type="button"
+                disabled={!roadEdit}
+                onClick={() => setRoadEdit(null)}
+                className="px-3 py-1.5 border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+              >
+                关闭编辑器
+              </button>
+              <button
+                type="button"
+                disabled={!roadEdit}
+                onClick={() =>
+                  setRoadEdit((prev) =>
+                    prev ? { ...prev, roadCells: [], roadConnectivity: ROAD_CONNECTIVITY_4 } : null,
+                  )
+                }
+                className="px-3 py-1.5 border border-amber-300 text-amber-900 rounded-md text-sm hover:bg-amber-50 disabled:opacity-50"
+              >
+                清空道路格
+              </button>
+            </div>
+            {roadEdit && (
+              <div className="w-full min-w-0">
+                <StrategicRoadCellsEditor
+                  cells={roadEdit.cells}
+                  mapColumns={roadEdit.mapColumns}
+                  mapRows={roadEdit.mapRows}
+                  roadCells={roadEdit.roadCells}
+                  onRoadCellsChange={(next) => setRoadEdit((prev) => (prev ? { ...prev, roadCells: next } : null))}
+                  connectivity={roadEdit.roadConnectivity}
+                  onConnectivityChange={(c) =>
+                    setRoadEdit((prev) => (prev ? { ...prev, roadConnectivity: c } : null))
+                  }
+                />
+              </div>
+            )}
+          </div>
         </div>
 
         {seed == null && (

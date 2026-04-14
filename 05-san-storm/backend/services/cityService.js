@@ -23,6 +23,15 @@ function formatCityRowForApi(row) {
   if (o.player_garrison_capacity != null) {
     o.garrison_capacity = o.player_garrison_capacity;
   }
+  if (o.wilderness_enabled !== undefined && o.wilderness_enabled !== null) {
+    o.wildernessEnabled = Number(o.wilderness_enabled) === 1;
+  }
+  if (o.market_enabled !== undefined && o.market_enabled !== null) {
+    o.marketEnabled = Number(o.market_enabled) === 1;
+  }
+  if (o.initial_lord_character_id !== undefined) {
+    o.initialLordCharacterId = o.initial_lord_character_id;
+  }
   return o;
 }
 
@@ -52,23 +61,17 @@ const NPC_SIEGE_LOCK_DEFENDER_ID = '_npc';
 /** 与 NPC 分批攻城一致：清扫/释放锁时覆盖的批次上限（每批最多 4 支，略留余量） */
 const NPC_LOCK_SWEEP = 16;
 
-// NPC 部队数量 — 中立城市（无归属）
-const NPC_TROOP_COUNT_NEUTRAL = {
-  city_small: 400,
-  city_medium: 600,
-  city_major: 800,
-  gate: 600,
-  fort: 400,
+// NPC 部队数量 — 已占领城市（有归属势力）；中立城无默认表，支数由管理员生成或沿用既有 `npc_garrison` 槽位数
+const NPC_TROOP_COUNT_OWNED = {
+  city_small: 200,
+  city_medium: 280,
+  city_major: 360,
+  gate: 360,
+  fort: 280,
 };
 
-// NPC 部队数量 — 已占领城市（有归属势力）
-const NPC_TROOP_COUNT_OWNED = {
-  city_small: 40,
-  city_medium: 60,
-  city_major: 80,
-  gate: 60,
-  fort: 40,
-};
+/** M1：已占领城 NPC 在「次日 8:00」**单次恢复支数** = `round(编制上限支数 × 本系数)`；上限为当前 `npc_garrison` 槽位数（如小城 200 支则每次 +100，且 `min(上限, 当前存活 + 恢复量)`）。时间锚点仍按 `ledgerAt` 推算次日 8:00。 */
+const NPC_OWNED_DAILY_RECOVERY_RATIO = 0.5;
 
 // 击杀 NPC 银两奖励（按稀有度）
 const KILL_SILVER_REWARD = {
@@ -104,7 +107,45 @@ function serializeNpcGarrisonStored(units, ledgerAt = new Date()) {
 }
 
 /**
- * 是否按「已占领势力」档生成 NPC 守军（支数少），并参与 initiateSiege 内「仅已占城」的次日 8:00 补满分支。
+ * 已占领城：在「次日 8:00」窗口内按 **编制上限**（`units.length`）的 `NPC_OWNED_DAILY_RECOVERY_RATIO` 计算**本日恢复支数**，
+ * 将存活数提升至 `min(上限, 当前存活 + round(上限×系数))`（按索引顺序复活 dead 槽位），不整表重掷。
+ * `city` 须为 `getCityInfo` 结果，`npc_garrison` 已为 units 数组。
+ */
+async function applyOwnedCityNpcPartialDailyRecovery(cityId, city) {
+  const raw = city.npc_garrison;
+  const units = Array.isArray(raw) ? raw.map((u) => (u && typeof u === 'object' ? { ...u } : u)) : null;
+  if (!units || units.length === 0) {
+    await generateNpcGarrison(cityId);
+    return;
+  }
+  const cap = units.length;
+  const recoverAdd = Math.round(cap * NPC_OWNED_DAILY_RECOVERY_RATIO);
+  let aliveCount = 0;
+  const deadIndices = [];
+  for (let i = 0; i < units.length; i++) {
+    const u = units[i];
+    if (u && u.alive) aliveCount += 1;
+    else if (!u || u.alive === false) deadIndices.push(i);
+  }
+  const targetAlive = Math.min(cap, aliveCount + recoverAdd);
+  const needResurrect = Math.min(deadIndices.length, Math.max(0, targetAlive - aliveCount));
+  for (let k = 0; k < needResurrect; k++) {
+    const idx = deadIndices[k];
+    if (units[idx]) units[idx].alive = true;
+  }
+  let alive = 0;
+  for (const u of units) {
+    if (u && u.alive) alive += 1;
+  }
+  const ledgerAt = new Date();
+  await pool.query(
+    `UPDATE cities SET npc_garrison = ?, npc_garrison_alive = ? WHERE city_id = ?`,
+    [serializeNpcGarrisonStored(units, ledgerAt), alive, cityId]
+  );
+}
+
+/**
+ * 是否按「已占领势力」档生成 NPC 守军（支数少），并参与 initiateSiege 内「仅已占城」的次日 8:00 损兵恢复分支。
  * 须 **同时** `faction_id` 非空且 `status === 'owned'`；避免仅有 `faction_id` 或过渡数据却按占领档生成（测试期曾出现非占领态错误支数）。
  */
 function isCityOccupiedForNpcGarrison(city) {
@@ -126,7 +167,7 @@ function loadSmallMapEnemyRosterEsm() {
  * 稀有度槽位与匪寨 `BANDIT_NPC_SLOTS_BY_TIER` 一致；部队/将领池见 `resolveSiegeNpcFactionIdForTroopPool`（中立→北疆，有主→该势力段）
  * 
  * @param {string} cityId
- * @param {{ troopCountOverride?: number }} [opts] 仅维护脚本/测试用：强制守军支数（忽略中立/占领默认表）
+ * @param {{ troopCountOverride?: number }} [opts] 强制守军支数；中立城无库表默认时亦须此或已有 `npc_garrison` 编制
  * @returns {Object} { npcGarrison, npcCount }
  */
 async function generateNpcGarrison(cityId, opts = {}) {
@@ -136,16 +177,25 @@ async function generateNpcGarrison(cityId, opts = {}) {
   const city = cityRows[0];
 
   const sm = await loadSmallMapEnemyRosterEsm();
-  const banditTier = sm.cityTypeToBanditTier(city.city_type);
+  const banditTier = sm.resolveCityBanditTier(city.city_type, city.city_id);
   const poolFaction = sm.resolveSiegeNpcFactionIdForTroopPool(city);
   const isOwned = isCityOccupiedForNpcGarrison(city);
   const override = opts?.troopCountOverride;
-  const troopCount =
-    override != null && Number(override) > 0
-      ? Math.min(2000, Math.floor(Number(override)))
-      : isOwned
-        ? (NPC_TROOP_COUNT_OWNED[city.city_type] || 40)
-        : (NPC_TROOP_COUNT_NEUTRAL[city.city_type] || 400);
+  const { units: existingUnits } = parseNpcGarrisonStored(city.npc_garrison);
+  const existingSlotCount =
+    Array.isArray(existingUnits) && existingUnits.length > 0 ? existingUnits.length : 0;
+  let troopCount;
+  if (override != null && Number(override) > 0) {
+    troopCount = Math.min(2000, Math.floor(Number(override)));
+  } else if (isOwned) {
+    troopCount = NPC_TROOP_COUNT_OWNED[city.city_type] || 200;
+  } else if (existingSlotCount > 0) {
+    troopCount = existingSlotCount;
+  } else {
+    throw new Error(
+      '中立城 NPC 守军须由管理员配置并生成（或调用时传入 troopCountOverride）；当前无编制数据。',
+    );
+  }
 
   // 2. 从配置表加载部队和将领池
   const [troops] = await pool.query('SELECT * FROM config_troops WHERE season = ?', [city.season]);
@@ -218,16 +268,32 @@ FROM cities c
 LEFT JOIN config_zhou z ON z.zhou_id = c.zhou_id AND z.season = c.season
 LEFT JOIN config_jun j ON j.jun_id = c.jun_id AND j.season = c.season
 LEFT JOIN players _lord_p ON _lord_p.player_id = c.lord_player_id
+LEFT JOIN config_characters _lord_cfg
+  ON _lord_cfg.character_id = c.initial_lord_character_id AND _lord_cfg.season = c.season
 `;
 
 function peelRegionJoinFromRow(raw) {
   if (!raw) return { base: null, zhouName: null, junName: null, lordCharacterName: null };
   const zhouName = raw._cfg_zhou_name ?? null;
   const junName = raw._cfg_jun_name ?? null;
-  const lordCharacterName = raw._lord_character_name != null && String(raw._lord_character_name).trim() !== ''
-    ? String(raw._lord_character_name).trim()
-    : null;
-  const { _cfg_zhou_name, _cfg_jun_name, _lord_character_name, ...base } = raw;
+
+  const trimName = (v) =>
+    v != null && String(v).trim() !== '' ? String(v).trim() : null;
+  const playerLordName = trimName(raw._lord_character_name);
+  const initialLordName = trimName(raw._initial_lord_character_name);
+
+  const hasPlayerLord =
+    raw.lord_player_id != null && String(raw.lord_player_id).trim() !== '';
+  /** 已任命玩家长官 → 用玩家角色名；缺名时回退种子默认。未任命 → 用 initial_lord_character_id 对应配置名 */
+  const lordCharacterName = hasPlayerLord ? playerLordName || initialLordName : initialLordName;
+
+  const {
+    _cfg_zhou_name,
+    _cfg_jun_name,
+    _lord_character_name,
+    _initial_lord_character_name,
+    ...base
+  } = raw;
   return { base, zhouName, junName, lordCharacterName };
 }
 
@@ -249,7 +315,8 @@ async function listCitiesForApi(filters = {}) {
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
   const [rows] = await pool.query(
     `SELECT c.*, z.zhou_name AS _cfg_zhou_name, j.jun_name AS _cfg_jun_name,
-            _lord_p.character_name AS _lord_character_name
+            _lord_p.character_name AS _lord_character_name,
+            _lord_cfg.character_name AS _initial_lord_character_name
      ${CITIES_REGION_JOIN_SQL}
      ${where}
      ORDER BY c.city_type, c.city_name`,
@@ -276,7 +343,8 @@ async function listCitiesForApi(filters = {}) {
 async function getCityInfo(cityId) {
   const [rows] = await pool.query(
     `SELECT c.*, z.zhou_name AS _cfg_zhou_name, j.jun_name AS _cfg_jun_name,
-            _lord_p.character_name AS _lord_character_name
+            _lord_p.character_name AS _lord_character_name,
+            _lord_cfg.character_name AS _initial_lord_character_name
      ${CITIES_REGION_JOIN_SQL}
      WHERE c.city_id = ?`,
     [cityId]
@@ -374,12 +442,12 @@ async function initiateSiege(cityId, playerId) {
   }
 
   // ── NPC 守军逻辑（中立城市 或 玩家防守者全部跳过） ──
-  // 如果有损耗且已过次日8:00，补满
+  // 无编制 / 全灭 → 整表生成；已占领且损兵 → 仅次日 8:00 起按缺额比例恢复（M1：50% 缺额）
   let needRefresh = false;
   if (!city.npc_garrison || city.npc_garrison_alive <= 0) {
     needRefresh = true;
   } else if (isCityOccupiedForNpcGarrison(city)) {
-    // 仅已占领城市（与 generateNpcGarrison 占用档判定一致）：检查是否需要每日8点补满（NPC有损耗时）
+    // 仅已占领城市（与 generateNpcGarrison 占用档判定一致）：检查是否需要每日8点恢复（NPC有损耗时）
     const totalNpc = city.npc_garrison.length;
     if (city.npc_garrison_alive < totalNpc) {
       const now = new Date();
@@ -391,7 +459,16 @@ async function initiateSiege(cityId, playerId) {
     }
   }
   if (needRefresh) {
-    await generateNpcGarrison(cityId);
+    if (
+      isCityOccupiedForNpcGarrison(city) &&
+      Array.isArray(city.npc_garrison) &&
+      city.npc_garrison.length > 0 &&
+      city.npc_garrison_alive > 0
+    ) {
+      await applyOwnedCityNpcPartialDailyRecovery(cityId, city);
+    } else {
+      await generateNpcGarrison(cityId);
+    }
     const refreshed = await getCityInfo(cityId);
     city.npc_garrison = refreshed.npc_garrison;
     city.npc_garrison_alive = refreshed.npc_garrison_alive;
@@ -741,6 +818,8 @@ async function recordSiegeResult(warId, playerId, factionId, killedIndices, resu
     // 3. 更新城市 NPC 守军状态 + 计算银两奖励 + 统计实际击杀数
     let silverReward = 0;
     let actualKillCount = 0;
+    /** 与 actualKillCount 一致：仅本次从 alive→dead 的槽位，用于按支累加贡献 */
+    const npcKillRaritiesThisRound = [];
     /** 本场结算后 NPC 守军 JSON 中仍存活支数；易主判定以之为准（勿仅用 wars.npc_killed >= npc_total） */
     let npcAliveAfterUpdate = null;
     /** 与主界面「NPC守军：alive/total」一致：累计已消灭 = 阵亡支数（勿仅依赖 wars.npc_killed 历史累加，曾出现与 JSON 脱节） */
@@ -759,6 +838,7 @@ async function recordSiegeResult(warId, playerId, factionId, killedIndices, resu
             unitArr[idx].alive = false;
             silverReward += KILL_SILVER_REWARD[unitArr[idx].rarity] || 10;
             actualKillCount++;
+            npcKillRaritiesThisRound.push(unitArr[idx].rarity || 'common');
           }
         }
         const aliveCount = unitArr.filter(u => u.alive).length;
@@ -783,25 +863,17 @@ async function recordSiegeResult(warId, playerId, factionId, killedIndices, resu
       );
     }
 
-    // 4.5 胜利额外奖励：声望 + 装备掉落
+    // 4.5 胜利额外奖励：贡献 + 装备掉落（NPC 守军线）
     let reputationReward = 0;
+    let contributionReward = 0;
     let equipmentDrop = null;
-    if (result === 'win' && actualKillCount > 0) {
-      // 声望：按本场击杀NPC的最高稀有度计算
-      const [cityCheck] = await connection.query('SELECT npc_garrison FROM cities WHERE city_id = ?', [war.target_city_id]);
-      let killedRarities = [];
-      if (cityCheck.length) {
-        const { units: gArr } = parseNpcGarrisonStored(cityCheck[0].npc_garrison);
-        if (gArr) killedRarities = killedIndices.map(i => gArr[i]?.rarity).filter(Boolean);
-      }
-      const rarityOrder = ['common', 'rare', 'epic', 'legendary', 'core'];
-      const bestRarity = killedRarities.sort((a, b) => rarityOrder.indexOf(b) - rarityOrder.indexOf(a))[0] || 'common';
-      const loot = await smallMapBattleLootService.grantWinReputationAndEquipment(
+    if (result === 'win' && actualKillCount > 0 && npcKillRaritiesThisRound.length > 0) {
+      const loot = await smallMapBattleLootService.grantWinContributionAndEquipment(
         connection,
         playerId,
-        bestRarity,
+        npcKillRaritiesThisRound,
       );
-      reputationReward = loot.reputationReward;
+      contributionReward = loot.contributionReward;
       equipmentDrop = loot.equipmentDrop;
     }
 
@@ -888,7 +960,7 @@ async function recordSiegeResult(warId, playerId, factionId, killedIndices, resu
     }
     await statisticsDeltaService.recordEarned(playerId, {
       ...(silverReward > 0 ? { silver: silverReward } : {}),
-      ...(reputationReward > 0 ? { reputation: reputationReward } : {}),
+      ...(contributionReward > 0 ? { contribution: contributionReward } : {}),
     });
 
     // 攻破后立即刷新 NPC 守军（在事务外执行，城市已归属新势力）
@@ -913,6 +985,7 @@ async function recordSiegeResult(warId, playerId, factionId, killedIndices, resu
       winnerFaction,
       silverReward,
       reputationReward,
+      contributionReward,
       equipmentDrop,
       defenderType: 'npc',
     };
@@ -978,6 +1051,5 @@ module.exports = {
   recordSiegeResult,
   getWarStatus,
   parseNpcGarrisonStored,
-  NPC_TROOP_COUNT_NEUTRAL,
   NPC_TROOP_COUNT_OWNED,
 };

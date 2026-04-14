@@ -1,11 +1,14 @@
 /**
- * 大地图单城信息主体：与 WorldMap 底栏、战略格网 tooltip 同结构。
- * 分段：**城备**（原城况：攻城/驻地/披挂等）、**城况**（五维/特色资源/简介）、**荒郊** / **集市**（有附属数据时）。
+ * 大地图单城信息主体：与战略格网 tooltip 同结构。
+ * 分段：**城备**（攻城/驻地/披挂等）、**城况**（五维/特色资源/简介）、**荒郊** / **集市**（内嵌 `ExploreLocationDockPanel`）。
  *
  * 规则口径与后端一致：`garrisonService` 驻地槽激活≥800；攻城开战上阵编组≥200；
  * 披挂 PVP 接战条件见 `cityService`。
  */
 import { useState, useCallback, useEffect, useRef, useLayoutEffect } from 'react';
+import ExploreLocationDockPanel from '@/components/event/ExploreLocationDockPanel';
+import { filterPlayerItemsForExploreLocation } from '@/components/event/eventUtils';
+import { PHASE } from '@/components/event/EventConstants';
 
 function fmtStat(n) {
   if (n == null || Number.isNaN(n)) return '—';
@@ -42,6 +45,8 @@ export default function WorldMapCityInfoBlock({
   siegeTargetLabel = '可攻打',
   /** 非空时仅渲染标题 + 错误说明（城况未同步等） */
   syncErrorMessage = null,
+  /** 攻打按钮用短城名（`worldMapCityBaseNameFromRow`） */
+  cityBaseName = '城池',
   /** 与 buildWorldMapCityPanelProps：同势力且已登录且有 cityId */
   showOwnCityActions = false,
   /** `cities.city_type`，用于「设为主城」仅大城/中城 */
@@ -62,13 +67,19 @@ export default function WorldMapCityInfoBlock({
   onAfterOwnCityAction,
   /** 荒郊/集市：`buildWorldMapCityPanelProps` + `cityById` 解析 */
   subsidiaryExplore = null,
-  /** 点击「进入荒郊/集市」占位：`('wilderness'|'market', { cityId, displayName })` */
-  onSubsidiaryExploreRequest = null,
+  /**
+   * 荒郊/集市分段内嵌探索条（`ExploreLocationDockPanel`）。
+   * `WorldMap` 注入：`{ quota, eventsLoading, explorePoolAt, startExplore, playerItems, isTutorial, phase, citiesList }`
+   */
+  subsidiaryExploreEmbed = null,
+  /** 战略 tooltip：开始探索后关闭浮层（可选） */
+  closeStrategicCityTooltip = null,
   /**
    * 仅战略格网 tooltip：为 true 时城备内容区固定宽高基准（与阳翟满配一致），不按城逐测 ResizeObserver。
-   * 底栏新野等不要传（默认 false）。
    */
   uniformStrategicPanel = false,
+  /** 非己方且可攻打时，由上层注入（战略 tooltip 内发起攻城） */
+  onStartSiege = null,
 }) {
   const [dutyBusy, setDutyBusy] = useState(false);
   const [mainCityBusy, setMainCityBusy] = useState(false);
@@ -81,6 +92,52 @@ export default function WorldMapCityInfoBlock({
   const mkt = subsidiaryExplore?.market ?? null;
 
   const ov = cityOverview ?? {};
+
+  const renderSubsidiaryExplorePanel = (kind, info) => {
+    if (!subsidiaryExploreEmbed || !info?.cityId) return null;
+    const loc = info.cityId;
+    const subsidiaryKind = kind === 'market' ? 'market' : 'wilderness';
+    const poolEvents = subsidiaryExploreEmbed.explorePoolAt(loc, subsidiaryKind);
+    const poolLen = poolEvents.length;
+    const poolEmpty =
+      !subsidiaryExploreEmbed.isTutorial &&
+      subsidiaryExploreEmbed.phase === PHASE.IDLE &&
+      !subsidiaryExploreEmbed.eventsLoading &&
+      poolLen <= 0;
+    const canStart =
+      !subsidiaryExploreEmbed.isTutorial &&
+      subsidiaryExploreEmbed.phase === PHASE.IDLE &&
+      !subsidiaryExploreEmbed.eventsLoading &&
+      poolLen > 0 &&
+      subsidiaryExploreEmbed.quota.canExplore;
+    const exploreItems = filterPlayerItemsForExploreLocation(
+      subsidiaryExploreEmbed.playerItems,
+      loc,
+    );
+    return (
+      <ExploreLocationDockPanel
+        title={info.displayName}
+        eventsLoading={subsidiaryExploreEmbed.eventsLoading}
+        quota={subsidiaryExploreEmbed.quota}
+        poolLen={poolLen}
+        poolEmpty={poolEmpty}
+        exploreItems={exploreItems}
+        canStart={canStart}
+        onStartExplore={() => {
+          if (typeof closeStrategicCityTooltip === 'function') closeStrategicCityTooltip();
+          subsidiaryExploreEmbed.startExplore(loc, { subsidiaryKind });
+        }}
+        colorTheme={kind === 'market' ? 'emerald' : 'amber'}
+        startEmoji={kind === 'market' ? '🏪' : '📜'}
+        rootClassName="max-h-56 border-0 px-2 py-2"
+        showEnemyTroopRarityHint={kind === 'wilderness'}
+        exploreLocationId={loc}
+        poolEvents={poolEvents}
+        wildernessCityType={kind === 'wilderness' ? cityType : null}
+        citiesList={subsidiaryExploreEmbed.citiesList ?? null}
+      />
+    );
+  };
 
   useEffect(() => {
     setSegment('garrison');
@@ -193,6 +250,12 @@ export default function WorldMapCityInfoBlock({
     cityId &&
     typeof onOpenGarrison === 'function' &&
     typeof onToggleDutyRequest === 'function';
+
+  const showEnemySiege =
+    !showOwnCityActions &&
+    !!playerId &&
+    typeof onStartSiege === 'function' &&
+    siegeTargetLabel === '可攻打';
 
   const segBtn = (key, label) => (
     <button
@@ -332,6 +395,18 @@ export default function WorldMapCityInfoBlock({
           </button>
         </div>
       ) : null}
+      {showEnemySiege ? (
+        <div className="mt-3">
+          <button
+            type="button"
+            onClick={() => onStartSiege()}
+            disabled={siegeLoading || !siegeQuota?.loaded || !siegeQuota.canSiege}
+            className="w-full py-2 rounded-lg text-xs font-bold bg-gradient-to-r from-red-700 to-orange-700 text-white disabled:from-stone-700 disabled:text-stone-500"
+          >
+            {siegeLoading ? '准备中...' : !siegeQuota?.loaded ? '攻城次数加载中…' : !siegeQuota.canSiege ? '次数不足' : `⚔️ 攻打${cityBaseName}`}
+          </button>
+        </div>
+      ) : null}
     </>
   );
 
@@ -350,27 +425,6 @@ export default function WorldMapCityInfoBlock({
       {ov.description ? (
         <div className="pt-1 text-stone-400 leading-snug whitespace-pre-wrap">{ov.description}</div>
       ) : null}
-    </div>
-  );
-
-  const explorePlaceholder = (kind, info, desc) => (
-    <div className="mt-2 space-y-2">
-      <p className="text-stone-400 text-xs leading-relaxed">{desc}</p>
-      <button
-        type="button"
-        onClick={() =>
-          info &&
-          typeof onSubsidiaryExploreRequest === 'function' &&
-          onSubsidiaryExploreRequest(kind, {
-            cityId: info.cityId,
-            displayName: info.displayName,
-          })
-        }
-        disabled={!info}
-        className="w-full py-2 rounded-lg text-xs font-bold border border-amber-700/60 bg-stone-800/80 text-amber-100/95 hover:bg-amber-950/40 hover:border-amber-600 disabled:opacity-40 disabled:cursor-not-allowed"
-      >
-        进入{info?.displayName ?? '—'}（即将开放）
-      </button>
     </div>
   );
 
@@ -397,10 +451,20 @@ export default function WorldMapCityInfoBlock({
         }
       : undefined;
 
-  return (
-    <div
-      className={`text-sm text-stone-200 wm-city-info-block min-w-0${uniformStrategicPanel ? ' w-full' : ''}`}
-    >
+  /** 战略浮层荒郊/集市内嵌探索条：允许纵向滚动，避免固定外框裁切 */
+  const tabPaneStyleEffective =
+    uniformStrategicPanel &&
+    tabPaneSizePx != null &&
+    (segment === 'wilderness' || segment === 'market')
+      ? {
+          width: tabPaneSizePx.width,
+          height: tabPaneSizePx.height,
+          overflow: 'auto',
+        }
+      : tabPaneStyle;
+
+  const mainColumn = (
+    <div className={`min-w-0 flex flex-col${uniformStrategicPanel ? ' w-full flex-1' : ''}`}>
       <div className={`font-medium text-red-200/95${uniformStrategicPanel ? ' shrink-0' : ''}`}>
         {cityTitle}
         <span className="text-stone-400 font-normal text-xs ml-1">· {siegeTargetLabel}</span>
@@ -411,26 +475,22 @@ export default function WorldMapCityInfoBlock({
       ) : (
         tabStrip
       )}
-      <div className="wm-city-panel-tab-pane" style={tabPaneStyle}>
+      <div className="wm-city-panel-tab-pane" style={tabPaneStyleEffective}>
         {segment === 'garrison' ? (
           <div ref={garrisonMeasureRef}>{garrisonBody}</div>
         ) : null}
         {segment === 'overview' ? overviewBody : null}
-        {segment === 'wilderness' && wild
-          ? explorePlaceholder(
-              'wilderness',
-              wild,
-              '主城附属的野外区域，以战斗探索为主。敌人强度随主城规模变化。',
-            )
-          : null}
-        {segment === 'market' && mkt
-          ? explorePlaceholder(
-              'market',
-              mkt,
-              '主城附属的市集区域，以非战斗事件为主（商人、奇遇等）。',
-            )
-          : null}
+        {segment === 'wilderness' && wild ? renderSubsidiaryExplorePanel('wilderness', wild) : null}
+        {segment === 'market' && mkt ? renderSubsidiaryExplorePanel('market', mkt) : null}
       </div>
+    </div>
+  );
+
+  return (
+    <div
+      className={`text-sm text-stone-200 wm-city-info-block min-w-0${uniformStrategicPanel ? ' w-full' : ''}`}
+    >
+      {mainColumn}
     </div>
   );
 }

@@ -9,6 +9,7 @@
  */
 import { memo } from 'react';
 import WorldMapCityInfoBlock from '@/components/world/WorldMapCityInfoBlock';
+import StrategicCityTooltipPanel from '@/components/world/StrategicCityTooltipPanel';
 
 const FACTION_ICON = { player: '🔵', ally: '🟢', enemy: '🔴' };
 
@@ -56,6 +57,9 @@ function TileTooltipContent({ content }) {
   }
 
   if (content.type === 'worldMapCity') {
+    if (content.uniformStrategicPanel && content.cityId) {
+      return <StrategicCityTooltipPanel content={content} />;
+    }
     const blockProps = { ...content };
     delete blockProps.type;
     delete blockProps.interactive;

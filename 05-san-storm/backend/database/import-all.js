@@ -23,10 +23,10 @@
  *   - 执行前请确保已运行所有迁移脚本（backend/database/migrations/）
  *   - 技能：public/data/shared/skills.json（按需运行对应 CSV→JSON）
  *   - 羁绊：docs/tools/bond/bond-csv-to-json.cjs → public/data/shared/bonds.json（列与 bond-template.csv 一致）
- *   - 事件：docs/tools/event/event-csv-to-json.cjs → public/data/shared/events.json（列与 event-template.csv 一致）
+ *   - 事件：docs/tools/event/event-csv-to-json.cjs → public/data/shared/events.json（CSV 有 event_id 则整段描述/链/选项与奖励等均从 CSV 覆盖）
  *   - config_bonds / config_events 须有 season 列（见 migrations/add-config-bonds-season-column.sql、
  *     add-config-events-season-column.sql）
- *   - 道具含 itemType=season_badge（如 item_badge）时，须已应用 migrations/add-config-items-item-type-season-badge.sql
+ *   - 道具含 itemType=season_badge（如 item_season_badge）时，须已应用 migrations/add-config-items-item-type-season-badge.sql
  *     扩展 config_items.item_type，否则该条导入会被 MySQL 拒绝、脚本计为「跳过」
  */
 

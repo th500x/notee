@@ -47,6 +47,25 @@ export const BANDIT_NPC_SLOTS_BY_TIER = {
 };
 
 /**
+ * 战略地图匪寨格 ID（独立地图对象，非 `san_*_city_{1-7}_*`）。格式：`san_{赛季}_bandit_{1-9}_{区域 slug}`。
+ * @see `docs/00-base/04-1-ID_NAMING_GUIDE.md` §15
+ */
+export const BANDIT_MAP_OBJECT_ID_RE = /^san_\d+_bandit_[1-9]_[a-z0-9_]+$/i;
+
+/** @param {string|null|undefined} id */
+export function isBanditMapObjectId(id) {
+  return BANDIT_MAP_OBJECT_ID_RE.test(String(id ?? '').trim());
+}
+
+/**
+ * 探索事件惩罚战：当前探索点 `city_id` 符合 {@link isBanditMapObjectId} 时使用，四槽均为传奇。
+ * 与匪寨玩法层数、爬层产出等无关；攻城/NPC 走 {@link resolveCityBanditTier}。
+ */
+export const EVENT_PUNISHMENT_COMBAT_BANDIT_LOCATION_SLOT_RARITIES = [
+  ...BANDIT_NPC_SLOTS_BY_TIER.legendary,
+];
+
+/**
  * 匪寨层数 1…12 → 难度档
  * @param {number} layer
  * @returns {'normal'|'rare'|'epic'|'legendary'}
@@ -223,6 +242,17 @@ export function cityTypeToBanditTier(cityType) {
     default:
       return 'normal';
   }
+}
+
+/**
+ * 城市格点 → 匪寨难度档（攻城 NPC 等）：`city_id` 为匪寨地图对象时固定一档，否则按城市 `city_type`。
+ * @param {string|null|undefined} cityType
+ * @param {string|null|undefined} cityId
+ * @returns {'normal'|'rare'|'epic'|'legendary'}
+ */
+export function resolveCityBanditTier(cityType, cityId) {
+  if (isBanditMapObjectId(cityId)) return 'normal';
+  return cityTypeToBanditTier(cityType);
 }
 
 /**

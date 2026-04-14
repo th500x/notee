@@ -7,7 +7,6 @@ const PAD = 10;
 const WORLD_MAP_CITY_TOOLTIP_MAX_W = 295;
 const WORLD_MAP_CITY_TOOLTIP_VW_FRAC = 1;
 const EST_WORLD_MAP_CITY_TOOLTIP_H = 395;
-
 /**
  * 战场 tile/部队 tooltip：贴近视口边缘时改为整屏居中展示，避免侧向空间不足时 max-width
  * 把块压成窄条、文字严重折行难以阅读。
@@ -66,7 +65,18 @@ export function useTileTooltipClamp(tooltipContent, tooltipPos) {
     const id = requestAnimationFrame(() => {
       measureOverflow();
     });
-    return () => cancelAnimationFrame(id);
+    const el = tooltipRef.current;
+    let ro;
+    if (el && typeof ResizeObserver !== 'undefined') {
+      ro = new ResizeObserver(() => {
+        measureOverflow();
+      });
+      ro.observe(el);
+    }
+    return () => {
+      cancelAnimationFrame(id);
+      if (ro) ro.disconnect();
+    };
   }, [tooltipContent, tooltipPos, useCenter]);
 
   const tooltipStyle = !tooltipContent

@@ -7,7 +7,7 @@
 
 import { useMemo } from 'react';
 import { FORTUNE_LEVELS } from './EventConstants';
-import { calcFortuneDistribution, parseRewards } from './eventUtils';
+import { calcFortuneDistribution, parseRewards, exploreOptionTriggerBattle } from './eventUtils';
 
 const BAR_COLORS = {
   '鸿运': 'bg-yellow-500',
@@ -68,6 +68,11 @@ export default function FortunePreview({ option, team }) {
           )}
         </div>
       </div>
+      {exploreOptionTriggerBattle(option) ? (
+        <div className="px-3 py-1.5 border-t border-amber-600/30 bg-amber-100/60 text-center text-xs text-amber-950 leading-snug">
+          <span className="font-semibold text-red-800">⚠️ 凶/大凶将触发战斗</span>
+        </div>
+      ) : null}
       <div className="px-3 py-1.5 border-t border-amber-600/20 text-xs text-gray-600 text-left">
         基础实力：{baseScore.toFixed(1)}%（骰子将影响最终结果）
       </div>

@@ -9,6 +9,10 @@ import {
 import { tacticalFireFrameUrl } from '@/components/battle/battleConstants';
 import { getFactionRepresentativeColor, hexToRgba, getStrategicFactionLogoUrl } from '@/utils/strategicMapFactionColors';
 import { getStrategicMapCityLabelLines } from '@/utils/strategicMapCityLabels';
+import {
+  getStrategicCityLabelStance,
+  strategicCityLabelInlineColorStyle,
+} from '@/utils/strategicMapCityLabelStance';
 
 function wsTerrainFallbackClass(terrain) {
   if (terrain === 'lake') return 'ws-terrain-fallback ws-terrain-lake';
@@ -38,6 +42,11 @@ function WorldStrategicMapTile({
   strategicCover = null,
   /** 主城在 cityById 中挂有荒郊/集市入口时，2×2 锚点格琥珀扫光（对齐卡池入口 shimmer） */
   subsidiaryHubGlow = false,
+  playerFactionId = null,
+  /** 显式盟友 `faction_id`（结盟等接入后由战役/外交注入） */
+  strategicCityLabelAllyFactionIds = null,
+  /** 显式非敌对 `faction_id`（停战、任务保护势力等） */
+  strategicCityLabelNonHostileFactionIds = null,
 }) {
   const c = cell || {};
   const variants = useMemo(() => buildCampaignVisualVariants(seed), [seed]);
@@ -77,6 +86,24 @@ function WorldStrategicMapTile({
     if (!isFootprint2x2 || !isAnchorTile || !effectiveObject) return null;
     return getStrategicMapCityLabelLines(cityRow, anchor, effectiveObject);
   }, [isFootprint2x2, isAnchorTile, effectiveObject, cityRow, anchor]);
+
+  const cityLabelColorStyle = useMemo(() => {
+    if (!labelLines) return undefined;
+    const cityFid = cityRow?.faction_id ?? cityRow?.factionId;
+    const stance = getStrategicCityLabelStance({
+      cityFactionId: cityFid,
+      playerFactionId,
+      allyFactionIds: strategicCityLabelAllyFactionIds,
+      nonHostileFactionIds: strategicCityLabelNonHostileFactionIds,
+    });
+    return strategicCityLabelInlineColorStyle(stance);
+  }, [
+    labelLines,
+    cityRow,
+    playerFactionId,
+    strategicCityLabelAllyFactionIds,
+    strategicCityLabelNonHostileFactionIds,
+  ]);
 
   const factionLogoUrl = useMemo(() => getStrategicFactionLogoUrl(fid), [fid]);
 
@@ -179,8 +206,12 @@ function WorldStrategicMapTile({
         ))}
       {labelLines && (
         <div className="ws-strategic-label ws-object-span-2" aria-hidden>
-          <div className="ws-strategic-label-type">{labelLines.line1}</div>
-          <div className="ws-strategic-label-name">{labelLines.line2}</div>
+          <div className="ws-strategic-label-type" style={cityLabelColorStyle}>
+            {labelLines.line1}
+          </div>
+          <div className="ws-strategic-label-name" style={cityLabelColorStyle}>
+            {labelLines.line2}
+          </div>
         </div>
       )}
       {isFootprint2x2 && isAnchorTile && factionLogoUrl && factionLogoOk ? (

@@ -30,6 +30,14 @@
   "quad_D_units_spec": "",
   "strategic_cities": [
     {
+      "city_id": "san_1_city_4_guangchengguan",
+      "city_name": "广成关",
+      "gx": 5,
+      "gy": 0,
+      "object": "gate",
+      "sub_quad": "A1"
+    },
+    {
       "city_id": "san_1_city_3_kunyang",
       "city_name": "昆阳",
       "gx": 2,
@@ -55,5 +63,5 @@
     }
   ],
   "strategic_forts": [],
-  "notes": "颍川大象限 D（郡内 gx0～15, gy20～39）；本块无预设 fort 槽位（strategic_forts 空）。与 quad_D.md、landmarks CSV 同步。"
+  "notes": "颍川大象限 D（郡内 gx0～15, gy20～39）；含广成关；本块无预设 fort（strategic_forts 空）。与 quad_D.md、landmarks CSV 同步。"
 }

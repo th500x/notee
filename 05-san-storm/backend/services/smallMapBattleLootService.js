@@ -1,6 +1,7 @@
 /**
  * 小型地图 PVE 战后掉落与资源：攻城 NPC 线、匪寨等共用。
- * - 胜利时：按「本场敌方最高相关稀有度」加声望（与历史攻城表一致）+ 独立 5% 概率掉 1 件装备（config 池 REGEXP）
+ * - 攻城 NPC 胜利：按「每支被击杀 NPC 的稀有度」累加贡献 + 装备掷骰仍按本场最高稀有度池
+ * - 匪寨等声明式奖励仍可走 `applyDeclaredSmallMapPveLoot`（可含声望）
  * - 或：战报附带声明式每层奖励（reputation/silver/food + 同规则装备掷骰）
  *
  * @module services/smallMapBattleLootService
@@ -10,13 +11,22 @@ const { pool } = require('../database/connection');
 
 const EQUIPMENT_DROP_RATE = 0.05;
 
-/** 胜利声望（按击杀/对局敌方最高稀有度）；与 cityService 历史值对齐 */
+/** 胜利声望（按击杀/对局敌方最高稀有度）；驻守玩家攻城线等仍可用 */
 const WIN_REPUTATION_REWARD = {
   core: 25,
   legendary: 20,
   epic: 15,
   rare: 10,
   common: 5,
+};
+
+/** 攻城 NPC：每消灭一支守军按该支稀有度计贡献（本场多支则累加） */
+const WIN_CONTRIBUTION_REWARD_SIEGE_NPC = {
+  core: 5,
+  legendary: 4,
+  epic: 3,
+  rare: 2,
+  common: 1,
 };
 
 function normalizeRarity(r) {
@@ -72,6 +82,37 @@ async function grantWinReputationAndEquipment(connection, playerId, bestEnemyRar
   ]);
   const equipmentDrop = await tryRollEquipmentDrop(connection, playerId, br);
   return { reputationReward, equipmentDrop };
+}
+
+/**
+ * 攻城 NPC：胜利且有击杀时，按每支被击杀单位的稀有度累加贡献；装备 5% 掷骰仍取本场最高稀有度（单 connection 事务内）。
+ * @param {import('mysql2/promise').PoolConnection} connection
+ * @param {string} playerId
+ * @param {string[]} killedUnitRarities 与「实际从 alive→dead」的击杀一一对应，每支一条稀有度
+ * @returns {Promise<{ contributionReward: number, equipmentDrop: object|null }>}
+ */
+async function grantWinContributionAndEquipment(connection, playerId, killedUnitRarities) {
+  const arr = Array.isArray(killedUnitRarities) ? killedUnitRarities : [];
+  let contributionReward = 0;
+  for (const r of arr) {
+    const br = normalizeRarity(r);
+    contributionReward += WIN_CONTRIBUTION_REWARD_SIEGE_NPC[br] ?? 1;
+  }
+  if (contributionReward > 0) {
+    await connection.query('UPDATE players SET contribution = GREATEST(0, contribution + ?) WHERE player_id = ?', [
+      contributionReward,
+      playerId,
+    ]);
+  }
+  const rarityOrder = ['common', 'rare', 'epic', 'legendary', 'core'];
+  const bestForDrop =
+    arr.length > 0
+      ? [...arr]
+          .map((x) => normalizeRarity(x))
+          .sort((a, b) => rarityOrder.indexOf(b) - rarityOrder.indexOf(a))[0]
+      : 'common';
+  const equipmentDrop = await tryRollEquipmentDrop(connection, playerId, bestForDrop);
+  return { contributionReward, equipmentDrop };
 }
 
 /**
@@ -133,8 +174,10 @@ async function applyDeclaredSmallMapPveLoot(playerId, loot) {
 module.exports = {
   EQUIPMENT_DROP_RATE,
   WIN_REPUTATION_REWARD,
+  WIN_CONTRIBUTION_REWARD_SIEGE_NPC,
   normalizeRarity,
   tryRollEquipmentDrop,
   grantWinReputationAndEquipment,
+  grantWinContributionAndEquipment,
   applyDeclaredSmallMapPveLoot,
 };

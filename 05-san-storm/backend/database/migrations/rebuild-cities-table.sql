@@ -14,7 +14,7 @@
 --   4. node backend/database/import-city-geo-data.js
 --   5. 测试新野 NPC 支数：node backend/database/scripts/seed-xinye-npc-garrison-400.js
 --      （当前 cities_seed 未必含新野行；大地图测新野须执行此步，
---       或把新野写入 cities_template.csv 后重跑 city-csv-to-json 再 import）
+--       或把新野写入 config_city_template.csv 后重跑 city-csv-to-json 再 import）
 --
 -- 说明：player_garrison.city_id、players.on_duty_city_id 等无 FK 指向 cities 时，
 --       MySQL 不会级联清空；重建后可能出现「引用已不存在 city_id」的孤儿字符串，
@@ -29,13 +29,15 @@ CREATE TABLE cities (
   city_id VARCHAR(50) PRIMARY KEY COMMENT '城市ID（如：san_1_city_3_xinye）；与策划 CSV city_id 同名列',
   season VARCHAR(20) NOT NULL COMMENT '赛季ID',
   city_name VARCHAR(100) NOT NULL COMMENT '城市名称（系统默认展示名）',
-  city_type ENUM('city_major', 'city_medium', 'city_small', 'gate', 'fort', 'wilderness', 'market') NOT NULL COMMENT '城市类型',
+  city_type ENUM('city_major', 'city_medium', 'city_small', 'gate', 'fort') NOT NULL COMMENT '城市类型（荒郊/集市见 wilderness_enabled / market_enabled）',
 
   faction_id VARCHAR(50) NULL COMMENT '所属势力ID（NULL=中立）',
 
   jun_id VARCHAR(64) NULL COMMENT '郡ID，FK → config_jun.jun_id',
   zhou_id VARCHAR(64) NULL COMMENT '州ID，可冗余自郡',
-  parent_city_id VARCHAR(50) NULL COMMENT '荒郊/集市所属主城 cities.city_id',
+  wilderness_enabled TINYINT(1) NOT NULL DEFAULT 0 COMMENT '荒郊探索能力',
+  market_enabled TINYINT(1) NOT NULL DEFAULT 0 COMMENT '集市探索能力',
+  initial_lord_character_id VARCHAR(64) NULL COMMENT '开服种子默认长官将领 id',
 
   position_x INT NULL COMMENT '大地图逻辑 X',
   position_y INT NULL COMMENT '大地图逻辑 Y',
@@ -46,7 +48,7 @@ CREATE TABLE cities (
   military INT NOT NULL DEFAULT 0 COMMENT '军事值',
   culture INT NOT NULL DEFAULT 0 COMMENT '文化值',
 
-  description TEXT NULL COMMENT '城市简介（来自 cities_template.csv description，可选）',
+  description TEXT NULL COMMENT '城市简介（来自 config_city_template.csv description，可选）',
 
   special_resource_name VARCHAR(50) NULL COMMENT '特色资源名称',
   special_resource_commerce INT NOT NULL DEFAULT 0 COMMENT '特色资源商业加成',
@@ -80,14 +82,12 @@ CREATE TABLE cities (
   FOREIGN KEY (faction_id) REFERENCES factions(id) ON DELETE SET NULL,
   FOREIGN KEY (lord_player_id) REFERENCES players(player_id) ON DELETE SET NULL,
   FOREIGN KEY (built_by_player_id) REFERENCES players(player_id) ON DELETE SET NULL,
-  FOREIGN KEY (parent_city_id) REFERENCES cities(city_id) ON DELETE SET NULL,
 
   INDEX idx_season (season),
   INDEX idx_faction (faction_id),
   INDEX idx_city_type (city_type),
   INDEX idx_status (status),
   INDEX idx_jun (jun_id),
-  INDEX idx_parent_city (parent_city_id),
   INDEX idx_lord (lord_player_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='城市运行时数据表';
 

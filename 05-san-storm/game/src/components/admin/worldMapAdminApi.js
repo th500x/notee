@@ -55,3 +55,28 @@ export async function postGenerateMergedMap(junId, seed) {
   });
   return parseJson(res);
 }
+
+/** @param {string} junId @param {{ gx: number, gy: number }[]} roadCells @param {'4'|'8'} [roadConnectivity] */
+export async function postSaveMergedRoadCells(junId, roadCells, roadConnectivity) {
+  const res = await fetch(`${base}/save-merged-road-cells`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ junId, roadCells, roadConnectivity }),
+  });
+  return parseJson(res);
+}
+
+/**
+ * @param {string} junId
+ * @param {'player_owned' | 'npc_side'} ownershipMode
+ * @param {Record<string, string|number|undefined>} counts city_small / city_medium / city_major / gate / fort（可部分填写）
+ * @param {string} [season] 与 config_jun 同季，缺省则不限 season（多季同 jun_id 时会都命中）
+ */
+export async function postBatchNpcGarrison(junId, ownershipMode, counts, season) {
+  const res = await fetch(`${base}/batch-npc-garrison`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ junId, ownershipMode, counts, season }),
+  });
+  return parseJson(res);
+}

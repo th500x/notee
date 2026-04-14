@@ -14,7 +14,10 @@ export const TOKEN_DURATION = 30 * 24 * 60 * 60 * 1000;  // 30天（毫秒）
 
 // ==================== API配置 ====================
 export const API_CONFIG = {
-  BASE_URL: import.meta.env.VITE_API_BASE_URL || (import.meta.env.PROD ? '/api/san-storm' : 'http://localhost:3005/api'),
+  // 开发默认相对路径：经 Vite（3002）proxy 到 05 后端（3005），与 `vite.config.js` server.proxy 一致
+  BASE_URL:
+    import.meta.env.VITE_API_BASE_URL ||
+    (import.meta.env.PROD ? '/api/san-storm' : '/api'),
   // 管理员认证走主页后端（3001端口），和06项目共享同一套认证
   AUTH_BASE_URL: import.meta.env.VITE_AUTH_BASE_URL || (import.meta.env.PROD ? '' : 'http://localhost:3001'),
   TIMEOUT: 30000  // 30秒超时

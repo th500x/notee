@@ -55,6 +55,13 @@ export default defineConfig({
     fs: {
       allow: ['..'],
     },
+    // 开发：与 `API_CONFIG.BASE_URL` 默认 `/api` 对齐，避免直连 3005 跨源 + 确保走当前仓库的后端进程
+    proxy: {
+      '/api': {
+        target: 'http://127.0.0.1:3005',
+        changeOrigin: true,
+      },
+    },
   },
   build: {
     outDir: 'dist',

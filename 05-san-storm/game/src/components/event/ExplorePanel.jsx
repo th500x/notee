@@ -14,6 +14,7 @@ import EventGobang from './EventGobang';
 import EventBlackjack from './EventBlackjack';
 import { PHASE, FACTOR_CN } from './EventConstants';
 import { parseRewards, parseRequiredItems, isFactorOption } from './eventUtils';
+import { getOptionFactorFields } from '@shared/utils/eventOptionFactor.js';
 import { API_CONFIG, getRarityHex, getRarityLabelCn } from '@/constants';
 import { loadSharedData } from '@/services/dataService';
 import TroopCard from '@shared/components/card/TroopCard';
@@ -21,15 +22,21 @@ import CharacterCard from '@shared/components/card/CharacterCard';
 import EquipmentCard from '@shared/components/card/EquipmentCard';
 import TitleAchievementCard from '@shared/components/card/TitleAchievementCard';
 import { resolveKillLossTroopCounts } from '@/systems/battleScoreSystem';
+import { shortEquipmentDisplayName } from '@/utils/equipmentDisplayName';
+
+/** 惩罚战结束后战报副文案（不再由 CSV/JSON 配置） */
+const EVENT_BATTLE_VICTORY_FLAVOR = '狭路相逢{player_name}胜！';
+const EVENT_BATTLE_DEFEAT_FLAVOR = '{player_name}一败了涂地！';
 
 export default function ExplorePanel({ eventSystem }) {
   const {
-    phase, currentEvent, chosenOption, fortune, battleResult,
-    minigameInfo, isSuccess, team, replaceVars, itemNameMap, playerSilver,
+    phase, currentEvent, chosenOption, chosenOptionKey, fortune, battleResult,
+    minigameInfo, isSuccess, team, replaceVars, eventLocationLabel, itemNameMap, playerSilver,
     playerResources, playerItemsList,
     closeEvent, chooseOption, confirmResult, endBattle, endMinigame, closeReward,
     rewardDetails, battleScore, battleChestRewards = [], playerId, isTutorial,
     battleEntryBlockedMessage, dismissBattleEntryBlocked,
+    eventBattleEnemySlotRarities = null,
   } = eventSystem;
 
   const [hoveredOption, setHoveredOption] = useState(null);
@@ -47,7 +54,7 @@ export default function ExplorePanel({ eventSystem }) {
         type="info" title={currentEvent?.event_name || ''} hideButtons>
         {currentEvent && (
           <div>
-            <div className="text-xs text-gray-500 mb-2">📍 {currentEvent.location}
+            <div className="text-xs text-gray-500 mb-2">📍 {eventLocationLabel || currentEvent.location}
               {currentEvent.trigger_context === 'minigame' && <span className="ml-2 text-amber-600">🎮 迷你游戏</span>}
               {currentEvent.trigger_context === 'reward' && <span className="ml-2 text-green-600">🎁 奖励事件</span>}
             </div>
@@ -107,10 +114,10 @@ export default function ExplorePanel({ eventSystem }) {
       {/* ===== 判定结果 ===== */}
       <AncientModal isOpen={phase === PHASE.RESULT && !!fortune} onClose={() => {}}
         type={isSuccess ? 'info' : 'warning'} title="判定结果"
-        confirmText={isSuccess ? '领取奖励' : (chosenOption?.triggerBattle ? '进入战斗' : '领取奖励')}
+        confirmText={isSuccess ? '领取奖励' : (chosenOptionKey === 'A' && chosenOption?.triggerBattle ? '进入战斗' : '领取奖励')}
         onConfirm={confirmResult} preventClose>
         {fortune && chosenOption && fortune.baseScore !== undefined && (
-          <ResultDisplay fortune={fortune} chosenOption={chosenOption} isSuccess={isSuccess} replaceVars={replaceVars} />
+          <ResultDisplay fortune={fortune} chosenOption={chosenOption} chosenOptionKey={chosenOptionKey} isSuccess={isSuccess} replaceVars={replaceVars} />
         )}
       </AncientModal>
 
@@ -138,6 +145,7 @@ export default function ExplorePanel({ eventSystem }) {
           playerSilver={playerSilver}
           currentEvent={currentEvent}
           chosenOption={chosenOption}
+          enemySlotRarities={eventBattleEnemySlotRarities}
         />
       )}
 
@@ -221,11 +229,15 @@ function OptionBlock({ label, option, colorScheme, team, hoveredOption, optionKe
             })()}
           </div>
           {disabled && <div className="text-xs text-red-400 mt-1">⚠️ {missing}</div>}
-          {isFactor && !disabled && (
-            <div className="text-xs text-gray-500 mt-1">
-              判定：{FACTOR_CN[option.mainFactor]}≥{option.mainRequirement} + {FACTOR_CN[option.subFactors]}≥{option.subRequirement}
-            </div>
-          )}
+          {isFactor && !disabled && (() => {
+            const f = getOptionFactorFields(option);
+            if (!f || f.mainFactor !== 'luck') return null;
+            return (
+              <div className="text-xs text-gray-500 mt-1">
+                判定：{FACTOR_CN[f.mainFactor]}≥{f.mainRequirement} + {FACTOR_CN[f.subFactors]}≥{f.subRequirement}
+              </div>
+            );
+          })()}
           {option.mainFactor === 'always' && !disabled && (
             <div className="text-xs text-green-600 mt-1">无需判定，直接领取</div>
           )}
@@ -267,8 +279,8 @@ function OptionBlock({ label, option, colorScheme, team, hoveredOption, optionKe
 }
 
 /** 判定结果显示 */
-function ResultDisplay({ fortune, chosenOption, isSuccess, replaceVars }) {
-  const willBattle = !isSuccess && chosenOption?.triggerBattle;
+function ResultDisplay({ fortune, chosenOption, chosenOptionKey, isSuccess, replaceVars }) {
+  const willBattle = !isSuccess && chosenOptionKey === 'A' && chosenOption?.triggerBattle;
   return (
     <div className="text-center">
       <div className="text-2xl mb-2">{fortune.emoji}</div>
@@ -457,11 +469,11 @@ function RewardDisplay({
             <span className={battleResult === 'victory' ? 'text-green-600' : 'text-red-600'}>
               {battleResult === 'victory' ? '✅ 战斗胜利' : '❌ 战斗失败'}
             </span>
-            {chosenOption.battleVictoryText && battleResult === 'victory' && (
-              <p className="text-sm text-gray-600 mt-1">{replaceVars(chosenOption.battleVictoryText)}</p>
+            {battleResult === 'victory' && (
+              <p className="text-sm text-gray-600 mt-1">{replaceVars(EVENT_BATTLE_VICTORY_FLAVOR)}</p>
             )}
-            {chosenOption.battleDefeatText && battleResult === 'defeat' && (
-              <p className="text-sm text-gray-600 mt-1">{replaceVars(chosenOption.battleDefeatText)}</p>
+            {battleResult === 'defeat' && (
+              <p className="text-sm text-gray-600 mt-1">{replaceVars(EVENT_BATTLE_DEFEAT_FLAVOR)}</p>
             )}
           </div>
           {/* 战斗评分 */}
@@ -496,9 +508,7 @@ function RewardDisplay({
             <>
               <Divider />
               <div className="text-left">
-                <div className="text-[11px] text-stone-500 mb-1.5">
-                  📦 地图内宝箱（战斗中开启，已入库；与下方「实际奖励」中的装备件非同一路径）
-                </div>
+                <div className="text-[11px] text-stone-500 mb-1.5">📦 地图内宝箱</div>
                 <div className="space-y-1">
                   {battleChestRewards.map((r, i) => (
                     <div
@@ -506,7 +516,7 @@ function RewardDisplay({
                       className="text-sm font-medium"
                       style={{ color: getRarityHex(r.rarity) }}
                     >
-                      🛡️ {r.name}（{getRarityLabelCn(r.rarity)}）
+                      🛡️ {shortEquipmentDisplayName(r.name)}（{getRarityLabelCn(r.rarity)}）
                     </div>
                   ))}
                 </div>
@@ -627,7 +637,7 @@ function ReturningOverlay({ isTutorial }) {
         <div className="text-white font-bold text-lg mb-2">{isTutorial ? '新手指引进行中' : '探索返回中'}</div>
         <div className="w-48 h-2 bg-gray-700 rounded-full overflow-hidden mx-auto">
           <div className="h-full bg-amber-500 rounded-full"
-            style={{ animation: 'returnBar 3s linear forwards' }} />
+            style={{ animation: 'returnBar 1s linear forwards' }} />
         </div>
         <div className="text-white/50 text-xs mt-2">{isTutorial ? '准备下一个事件...' : '正在返回探索点...'}</div>
       </div>

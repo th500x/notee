@@ -142,7 +142,7 @@ async function executeEventRewards(playerId, body) {
         const specialEffect = await getItemSpecialEffect(key);
         if (
           isTroopDurabilityRepairEffect(specialEffect) &&
-          playerExploreEventService.shouldDeferTroopRepairAfterBattleRewards(option, battleResult, fortune)
+          playerExploreEventService.shouldDeferTroopRepairAfterBattleRewards(option, battleResult, fortune, optionKey)
         ) {
           deferredRepairSegments.push(seg);
         } else {
@@ -389,8 +389,9 @@ async function executeEventRewards(playerId, body) {
     );
   }
 
-  // triggerBattle + 凶/大凶：先无 battleResult、战后再带 battleResult；第一次勿写入完成态，否则战后第二次会 400
+  // 选项 A + triggerBattle + 凶/大凶：先无 battleResult、战后再带 battleResult；第一次勿写入完成态，否则战后第二次会 400
   const pendingPunishBattle =
+    optionKey === 'A' &&
     option.triggerBattle &&
     !battleResult &&
     (fortune.fortuneName === '凶' || fortune.fortuneName === '大凶');

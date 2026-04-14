@@ -53,7 +53,12 @@ async function isExploreChainStrandedRedo(playerId, chainId, chainLevel) {
   return !playerMeetsExploreChainGateItems(req, inv);
 }
 
-const EXPLORE_TROOP_CHAIN_IDS_DAILY_RESET = ['chain_nanyang_troop', 'chain_shanhaiguan_troop'];
+/** 与 `public/data/shared/events.json` 中探索部队链 `chainId` 一致（勿再用地理占位链名） */
+const EXPLORE_TROOP_CHAIN_IDS_DAILY_RESET = [
+  'chain_cunfu_v1',
+  'chain_troop_legendary_v1',
+  'chain_troop_core_v1',
+];
 
 function mysqlDateToYmd(val) {
   if (val == null) return null;
@@ -118,8 +123,9 @@ async function maybeResetExploreTroopChainsDaily(playerId) {
   }
 }
 
-/** 带战斗的选项：整编类道具是否延后到战斗奖励之后 */
-function shouldDeferTroopRepairAfterBattleRewards(option, battleResult, fortune) {
+/** 带战斗的选项：整编类道具是否延后到战斗奖励之后（仅选项 A 可能进惩罚战） */
+function shouldDeferTroopRepairAfterBattleRewards(option, battleResult, fortune, optionKey) {
+  if (optionKey === 'B') return false;
   if (!option.triggerBattle) return false;
   if (battleResult === 'victory' || battleResult === 'defeat') return true;
   const n = fortune?.fortuneName;

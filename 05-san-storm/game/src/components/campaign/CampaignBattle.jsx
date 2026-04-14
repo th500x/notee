@@ -11,6 +11,7 @@ import { generateCampaignMapSimulated } from '@shared/utils/campaignMapGenerator
 import { getRarityHex, getRarityLabelCn } from '@/constants';
 import { resolveKillLossTroopCounts } from '@/systems/battleScoreSystem';
 import { getMainLineupBattleFoodDeployCost } from '@/utils/mainLineupTroops';
+import { shortEquipmentDisplayName } from '@/utils/equipmentDisplayName';
 
 export default function CampaignBattle({
   campaignId,
@@ -162,9 +163,7 @@ export default function CampaignBattle({
             )}
             {battleEndOverlay.chestRewards.length > 0 && (
               <div className="text-left text-sm border-t border-amber-500/25 pt-2">
-                <div className="text-[11px] text-stone-500 mb-1.5">
-                  📦 地图内宝箱（战斗中开启，已入库；与战役配置奖励、战后随机装备掉落非同一路径）
-                </div>
+                <div className="text-[11px] text-stone-500 mb-1.5">📦 地图内宝箱</div>
                 <div className="space-y-1">
                   {battleEndOverlay.chestRewards.map((r, i) => (
                     <div
@@ -172,7 +171,7 @@ export default function CampaignBattle({
                       className="font-medium"
                       style={{ color: getRarityHex(r.rarity) }}
                     >
-                      {r.name}（{getRarityLabelCn(r.rarity)}）
+                      {shortEquipmentDisplayName(r.name)}（{getRarityLabelCn(r.rarity)}）
                     </div>
                   ))}
                 </div>

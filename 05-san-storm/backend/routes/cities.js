@@ -75,7 +75,10 @@ router.get('/:cityId', async (req, res) => {
  */
 router.post('/:cityId/generate-npc', async (req, res) => {
   try {
-    const result = await cityService.generateNpcGarrison(req.params.cityId);
+    const raw = req.body?.troopCountOverride ?? req.body?.troopCount;
+    const n = raw != null && raw !== '' ? Number(raw) : NaN;
+    const opts = Number.isFinite(n) && n > 0 ? { troopCountOverride: Math.floor(n) } : {};
+    const result = await cityService.generateNpcGarrison(req.params.cityId, opts);
     res.json({ success: true, data: result });
   } catch (error) {
     console.error('[Cities] 生成NPC守军失败:', error);

@@ -10,11 +10,11 @@
     }
   ],
   "metadata": {
-    "generatedAt": "2026-04-12T11:44:18.505Z",
+    "generatedAt": "2026-04-14T06:32:07.945Z",
     "sources": {
       "zhou": "config_zhou_template.csv",
       "jun": "config_jun_template.csv",
-      "cities": "cities_template.csv"
+      "cities": "config_city_template.csv"
     },
     "note": "config_jun_node 与 is_buildable 预设不由本目录 CSV 生成，见 docs/tools/city/README.md、13-1 §一·六。"
   }

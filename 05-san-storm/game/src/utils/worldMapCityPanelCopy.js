@@ -1,5 +1,5 @@
 /**
- * 大地图单城信息：与 WorldMap 底栏、战略格网共用字段解析与 `WorldMapCityInfoBlock` 入参构造。
+ * 大地图单城信息：与战略格网 tooltip 等共用字段解析与 `WorldMapCityInfoBlock` 入参构造。
  */
 
 export const WORLD_MAP_DEFAULT_FACTION_LABELS = {
@@ -127,7 +127,13 @@ export function worldMapCitySiegeTargetLabel(cityRow, playerFactionId) {
   return worldMapCityIsPlayerSameFaction(cityRow, playerFactionId) ? '不可攻打' : '可攻打';
 }
 
-/** 荒郊 / 集市行不参与「主城附属」解析 */
+function pickBool01(row, camel, snake) {
+  const v = row?.[camel] ?? row?.[snake];
+  if (v === true || v === 1 || v === '1') return true;
+  return false;
+}
+
+/** 荒郊 / 集市旧版独立行不参与「主城」解析（迁移后库中应无此类行） */
 function isStrategicMainCityRow(row) {
   if (!row) return false;
   const t = row.city_type ?? row.cityType;
@@ -136,51 +142,45 @@ function isStrategicMainCityRow(row) {
 }
 
 /**
- * 在 `cityById` 中查找 `parent_city_id === parentCityId` 的荒郊与集市（各取首个匹配）。
- * @param {Record<string, object>|null|undefined} cityById
- * @param {string|null|undefined} parentCityId
- * @returns {{ wilderness: { cityId: string, displayName: string } | null, market: { cityId: string, displayName: string } | null }}
+ * 从主城行上的 `wilderness_enabled` / `market_enabled`（API 亦可能为 camelCase）解析荒郊/集市入口。
+ * 展示名：`{城名}荒郊` / `{城名}集市`；`cityId` 与主城相同（探索占位符与事件池见 `eventLocationPlaceholders`）。
  */
 export function subsidiaryWildernessAndMarketFromCityMap(cityById, parentCityId) {
   const empty = { wilderness: null, market: null };
   if (!parentCityId || !cityById || typeof cityById !== 'object') return empty;
-  let wilderness = null;
-  let market = null;
-  for (const c of Object.values(cityById)) {
-    const pid = c.parent_city_id ?? c.parentCityId;
-    if (pid !== parentCityId) continue;
-    const t = c.city_type ?? c.cityType;
-    const id = c.city_id ?? c.cityId;
-    const name = c.city_name ?? c.cityName ?? '';
-    if (t === 'wilderness' && id && !wilderness) {
-      wilderness = { cityId: id, displayName: name || '荒郊' };
-    }
-    if (t === 'market' && id && !market) {
-      market = { cityId: id, displayName: name || '集市' };
-    }
-  }
-  return { wilderness, market };
+  const row = cityById[parentCityId];
+  if (!row) return empty;
+  const base = String(row.city_name ?? row.cityName ?? '').trim() || '城池';
+  const we = pickBool01(row, 'wildernessEnabled', 'wilderness_enabled');
+  const me = pickBool01(row, 'marketEnabled', 'market_enabled');
+  return {
+    wilderness: we ? { cityId: parentCityId, displayName: `${base}荒郊` } : null,
+    market: me ? { cityId: parentCityId, displayName: `${base}集市` } : null,
+  };
 }
 
 /**
- * 至少挂有荒郊或集市的「主城」city_id 集合（战略格网光效等用，避免逐格全表扫描）。
- * @param {Record<string, object>|null|undefined} cityById
- * @returns {Set<string>|null}
+ * 至少开启荒郊或集市的城 `city_id` 集合（战略格网光效等用）。
  */
 export function parentCityIdsWithSubsidiaryExplore(cityById) {
   if (!cityById || typeof cityById !== 'object') return null;
   const parents = new Set();
   for (const c of Object.values(cityById)) {
+    const id = c.city_id ?? c.cityId;
+    if (!id) continue;
+    if (pickBool01(c, 'wildernessEnabled', 'wilderness_enabled') || pickBool01(c, 'marketEnabled', 'market_enabled')) {
+      parents.add(String(id));
+      continue;
+    }
     const pid = c.parent_city_id ?? c.parentCityId;
-    if (!pid) continue;
     const t = c.city_type ?? c.cityType;
-    if (t === 'wilderness' || t === 'market') parents.add(String(pid));
+    if (pid && (t === 'wilderness' || t === 'market')) parents.add(String(pid));
   }
   return parents.size ? parents : null;
 }
 
 /**
- * 构造 `WorldMapCityInfoBlock` 的 props（底栏 / 战略 tooltip 共用）。
+ * 构造 `WorldMapCityInfoBlock` 的 props（战略 tooltip 等共用）。
  * @param {object|null|undefined} cityRow
  * @param {object} [opts]
  * @param {Record<string,string>} [opts.factionNameById]
@@ -190,7 +190,7 @@ export function parentCityIdsWithSubsidiaryExplore(cityById) {
  * @param {boolean} [opts.siegeLoading]
  * @param {number|null} [opts.garrisonSlotCount] — null 时驻地已用显示 —
  * @param {number|null} [opts.onDutyCount] — null 时披挂显示 —
- * @param {Record<string, object>|null} [opts.cityById] — 传入时按 `parent_city_id` 解析荒郊/集市入口
+ * @param {Record<string, object>|null} [opts.cityById] — 传入时按主城行开关解析荒郊/集市入口
  */
 export function buildWorldMapCityPanelProps(cityRow, opts = {}) {
   const {

@@ -30,6 +30,14 @@
   "quad_D_units_spec": "",
   "strategic_cities": [
     {
+      "city_id": "san_1_city_4_donglingguan",
+      "city_name": "东岭关",
+      "gx": 1,
+      "gy": 2,
+      "object": "gate",
+      "sub_quad": "A1"
+    },
+    {
       "city_id": "san_1_city_3_changshe",
       "city_name": "长社",
       "gx": 5,
@@ -72,7 +80,7 @@
   ],
   "strategic_forts": [
     {
-      "fort_id": "san_1_city_5_0003",
+      "fort_id": "san_1_city_5_3_yingchuan",
       "city_name": "颍川据点",
       "gx": 4,
       "gy": 7,

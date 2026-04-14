@@ -106,7 +106,6 @@ CREATE TABLE IF NOT EXISTS config_events (
   description_3 TEXT,
   option_a JSON DEFAULT NULL,
   option_b JSON DEFAULT NULL,
-  tags VARCHAR(255) DEFAULT NULL,
   INDEX idx_season (season),
   INDEX idx_location (location),
   INDEX idx_trigger_context (trigger_context),

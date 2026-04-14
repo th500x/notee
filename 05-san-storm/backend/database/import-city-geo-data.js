@@ -18,6 +18,9 @@
  *   - 本脚本不写 config_jun_node；邻接边由地图 / preset 工具链另行导入。
  *   - 种子行 is_buildable=0；若需预设可建造空地，由地图管线 UPDATE cities.is_buildable 等。
  *   - 种子 JSON 里 `initialFactionId` 若为 `""` 会规范为 SQL NULL，避免误写入空串触发外键失败。
+ *   - **status**：`faction_id` 非空时写入 `owned`（叙事/开局归属与大地图「势力」展示、攻城同势力判定一致）；
+ *     无势力则为 `neutral`。与 `cityService.isCityOccupiedForNpcGarrison` 及管理页「归属势力方」批量逻辑对齐。
+ *   - 写入 `wilderness_enabled` / `market_enabled` / `initial_lord_character_id`（来自 JSON 布尔与 `initialLordCharacterId`）；**不使用** `parent_city_id`。
  *
  * 用法:
  *   node backend/database/import-city-geo-data.js
@@ -49,29 +52,17 @@ function cityPk(r) {
   return r.cityId ?? r.id;
 }
 
-function orderCitiesForInsert(records) {
-  const byId = new Map(records.map((r) => [cityPk(r), r]));
-  const remaining = new Set(records.map((r) => cityPk(r)));
-  const ordered = [];
+/** JSON 布尔 / 1/0 → MySQL TINYINT(1) */
+function bool01FromSeed(v) {
+  if (v === true || v === 1 || v === '1') return 1;
+  return 0;
+}
 
-  while (remaining.size) {
-    let progressed = false;
-    for (const id of [...remaining]) {
-      const r = byId.get(id);
-      const p = r.parentCityId;
-      if (!p || !remaining.has(p)) {
-        ordered.push(r);
-        remaining.delete(id);
-        progressed = true;
-      }
-    }
-    if (!progressed) {
-      throw new Error(
-        `cities 种子存在循环依赖或 parent_city_id 指向种子外: ${[...remaining].join(', ')}`
-      );
-    }
-  }
-  return ordered;
+function initialLordCharacterIdForDb(c) {
+  const v = c.initialLordCharacterId;
+  if (v == null) return null;
+  const s = String(v).trim();
+  return s === '' ? null : s;
 }
 
 function zhouRow(z) {
@@ -159,10 +150,17 @@ async function insertCityRow(conn, c) {
   const cid = cityPk(c);
   const gcap = c.playerGarrisonCapacity ?? c.garrisonCapacity ?? 0;
 
+  const wEn = bool01FromSeed(c.wildernessEnabled);
+  const mEn = bool01FromSeed(c.marketEnabled);
+  const lordChar = initialLordCharacterIdForDb(c);
+  const fidForRow = normalizedFactionIdFromCity(c);
+  const initialStatus = fidForRow ? 'owned' : 'neutral';
+
   await conn.query(
     `INSERT INTO cities (
       city_id, season, city_name, city_type, faction_id,
-      jun_id, zhou_id, parent_city_id,
+      jun_id, zhou_id,
+      wilderness_enabled, market_enabled, initial_lord_character_id,
       position_x, position_y,
       population, commerce, farming, military, culture, description,
       special_resource_name, special_resource_commerce, special_resource_farming,
@@ -175,6 +173,7 @@ async function insertCityRow(conn, c) {
       buildings_state
     ) VALUES (
       ?, ?, ?, ?, ?,
+      ?, ?,
       ?, ?, ?,
       ?, ?,
       ?, ?, ?, ?, ?, ?,
@@ -183,7 +182,7 @@ async function insertCityRow(conn, c) {
       NULL, NULL,
       ?, ?,
       NULL, 0,
-      'neutral', 0,
+      ?, 0,
       ?, ?, NULL, NULL, NULL, NULL,
       NULL
     )
@@ -194,7 +193,9 @@ async function insertCityRow(conn, c) {
       faction_id = VALUES(faction_id),
       jun_id = VALUES(jun_id),
       zhou_id = VALUES(zhou_id),
-      parent_city_id = VALUES(parent_city_id),
+      wilderness_enabled = VALUES(wilderness_enabled),
+      market_enabled = VALUES(market_enabled),
+      initial_lord_character_id = VALUES(initial_lord_character_id),
       position_x = VALUES(position_x),
       position_y = VALUES(position_y),
       population = VALUES(population),
@@ -210,6 +211,10 @@ async function insertCityRow(conn, c) {
       final_farming = VALUES(final_farming),
       defense = VALUES(defense),
       player_garrison_capacity = VALUES(player_garrison_capacity),
+      status = CASE
+        WHEN VALUES(faction_id) IS NOT NULL AND TRIM(VALUES(faction_id)) <> '' THEN 'owned'
+        ELSE cities.status
+      END,
       is_buildable = VALUES(is_buildable),
       build_status = VALUES(build_status)`,
     [
@@ -217,10 +222,12 @@ async function insertCityRow(conn, c) {
       c.season,
       c.cityName,
       c.cityType,
-      normalizedFactionIdFromCity(c),
+      fidForRow,
       c.junId,
       c.zhouId,
-      c.parentCityId,
+      wEn,
+      mEn,
+      lordChar,
       c.positionX,
       c.positionY,
       c.population,
@@ -236,6 +243,7 @@ async function insertCityRow(conn, c) {
       finalFarming,
       c.defense,
       gcap,
+      initialStatus,
       isBuildable,
       buildStatus,
     ]
@@ -297,11 +305,10 @@ async function importCities(conn, records) {
     return;
   }
   await ensureRuntimeFactionsForCitySeed(conn, records);
-  const ordered = orderCitiesForInsert(records);
-  for (const c of ordered) {
+  for (const c of records) {
     await insertCityRow(conn, c);
   }
-  console.log(`  cities: ${ordered.length} 条`);
+  console.log(`  cities: ${records.length} 条`);
 }
 
 async function main() {

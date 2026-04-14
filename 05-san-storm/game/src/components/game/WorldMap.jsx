@@ -1,16 +1,16 @@
 /**
- * 大地图：颍川郡战略格网（world）+ 底栏探索/攻城入口（与格网坐标未绑定）
+ * 大地图：颍川郡战略格网（world）；攻城/城况/荒郊等经格上 tooltip 与共享面板。
  */
 
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { usePlayerContext } from '@/contexts/PlayerContext';
-import useEventSystem, { DEFAULT_EXPLORE_LOCATION_ID } from '@/hooks/useEventSystem';
+import useEventSystem from '@/hooks/useEventSystem';
 import useTutorialEvents from '@/hooks/useTutorialEvents';
 import ExplorePanel from '@/components/event/ExplorePanel';
 import TutorialPreDialog from '@/components/event/TutorialPreDialog';
 import BattleArena from '@/components/battle/BattleArena';
 import { buildPlayerUnitsFromContext } from '@/utils/battlePlayerBuilder';
-import { useSiegeQuota } from '@/hooks/useSiegeQuota';
+import { fetchSiegeQuotaJson, postSiegeQuotaAction } from '@/hooks/useSiegeQuota';
 import { PHASE } from '@/components/event/EventConstants';
 import { playerAPI } from '@/services/playerApi';
 import AncientModal from '@/components/common/AncientModal';
@@ -18,25 +18,11 @@ import GarrisonLineup from '@/components/garrison/GarrisonLineup';
 import { garrisonAPI } from '@/services/garrisonApi';
 import { API_CONFIG, getRarityHex, getRarityLabelCn } from '@/constants';
 import SiegeReplayMini from '@/components/game/SiegeReplayMini';
-import { filterPlayerItemsForExploreLocation } from '@/components/event/eventUtils';
 import { buildBattleScoreFormulaLines, resolveKillLossTroopCounts } from '@/systems/battleScoreSystem';
 import { validateMainLineupBattleGate } from '@/utils/mainLineupTroops';
+import { shortEquipmentDisplayName } from '@/utils/equipmentDisplayName';
 import WorldYingchuanMapSection from '@/components/world/WorldYingchuanMapSection';
-import WorldMapCityInfoBlock from '@/components/world/WorldMapCityInfoBlock';
-import {
-  WORLD_MAP_DEFAULT_FACTION_LABELS,
-  buildWorldMapCityPanelProps,
-  worldMapCityBaseNameFromRow,
-  worldMapCityIsPlayerSameFaction,
-} from '@/utils/worldMapCityPanelCopy';
-
-/** 山海关荒郊（事件 location 与 config_events 一致） */
-const EXPLORE_LOC_SHANHAIGUAN = 'san_1_city_6_shanhaiguan';
-const FACTION_COLORS = {
-  san_1_faction_1001: '#ef4444', san_1_faction_2001: '#3b82f6', san_1_faction_3001: '#22c55e',
-  san_1_faction_4001: '#a855f7', san_1_faction_5001: '#f97316', san_1_faction_6001: '#eab308',
-  san_1_faction_7001: '#78716c',
-};
+import { worldMapCityIsPlayerSameFaction } from '@/utils/worldMapCityPanelCopy';
 
 /** 裁定中遮罩最短展示时长（与其它短动画一致，约 3 秒） */
 const PVP_ADJUDICATION_UI_MS = 3000;
@@ -221,42 +207,20 @@ export default function WorldMap({ onEventBusyChange }) {
   // 当前活跃的事件系统（tutorial 优先）
   const activeSystem = isTutorial ? tutorialSystem : eventSystem;
   const { phase } = activeSystem;
-  const { quota, eventsLoading, explorePoolAt, startExplore } = eventSystem;
-
-  /** 底栏展开：探索点 / 新野城信息（与格网坐标未绑定，仅保留原有玩法入口） */
-  const [dockPanel, setDockPanel] = useState(null);
-  const nanyangPoolLen = explorePoolAt(DEFAULT_EXPLORE_LOCATION_ID).length;
-  const shanhaiguanPoolLen = explorePoolAt(EXPLORE_LOC_SHANHAIGUAN).length;
-  const canExploreNanyang = !isTutorial && phase === PHASE.IDLE && !eventsLoading && nanyangPoolLen > 0 && quota.canExplore;
-  const canExploreShanhaiguan = !isTutorial && phase === PHASE.IDLE && !eventsLoading && shanhaiguanPoolLen > 0 && quota.canExplore;
-  /** 本地点事件池已空（如今日部队链已打完）→ 灰显、不可点，但仍可悬停看说明 */
-  const nanyangPoolEmpty = !isTutorial && phase === PHASE.IDLE && !eventsLoading && nanyangPoolLen <= 0;
-  const shanhaiguanPoolEmpty = !isTutorial && phase === PHASE.IDLE && !eventsLoading && shanhaiguanPoolLen <= 0;
+  const { quota, eventsLoading, explorePoolAt, startExplore, citiesList } = eventSystem;
 
   // ── 城市攻城状态 ──
-  const CITY_ID = 'san_1_city_3_xinye';
-  const siegeQuota = useSiegeQuota(player?.player_id, CITY_ID);
-  const [cityInfo, setCityInfo] = useState(null);
   const [siegeData, setSiegeData] = useState(null); // 非null时进入战斗
   const [siegeResult, setSiegeResult] = useState(null); // 战斗结算
   const [siegeLoading, setSiegeLoading] = useState(false);
+  /** 驻守统计全图拉取在 `WorldYingchuanMapSection`；披挂等操作后 bump 以刷新格上 tooltip 用槽数 */
+  const [garrisonStatsRefreshKey, setGarrisonStatsRefreshKey] = useState(0);
 
-  // ── 驻地编组面板（cityId/cityName 与大地图任意己方城一致，默认新野） ──
+  // ── 驻地编组面板（由格上 tooltip「驻地编组」打开，必带 cityId） ──
   const [showGarrison, setShowGarrison] = useState(false);
-  const [garrisonCityId, setGarrisonCityId] = useState(CITY_ID);
-  const [garrisonCityName, setGarrisonCityName] = useState('新野');
-  const isOwnCity = cityInfo
-    ? worldMapCityIsPlayerSameFaction(cityInfo, player?.faction_id)
-    : false;
-  const canSiege =
-    !isTutorial &&
-    phase === PHASE.IDLE &&
-    siegeQuota.canSiege &&
-    !siegeData &&
-    !isOwnCity;
-  const [garrisonStats, setGarrisonStats] = useState(null); // { slot_count, player_count }
-  const [onDuty, setOnDuty] = useState(false); // 披挂上阵（驻守待机模式）
-  const [onDutyCount, setOnDutyCount] = useState(0); // 城市披挂上阵总人数
+  const [garrisonCityId, setGarrisonCityId] = useState(null);
+  const [garrisonCityName, setGarrisonCityName] = useState('');
+  const [onDuty, setOnDuty] = useState(false); // 玩家是否处于披挂待命（任意城）
 
   // ── PVP 挑战状态 ──
   const [pvpChallenge, setPvpChallenge] = useState(null); // { challengeId, waitSeconds, defenseUnits, ... }
@@ -311,27 +275,6 @@ export default function WorldMap({ onEventBusyChange }) {
     return () => clearInterval(defPollRef.current);
   }, [player?.player_id, onDuty]);
 
-  // 加载城市信息 + 战事排行
-  const [warData, setWarData] = useState(null);
-  const refreshCity = useCallback(async () => {
-    try {
-      const [cityRes, warRes, garrisonRes, dutyRes] = await Promise.all([
-        fetch(`${API_CONFIG.BASE_URL}/cities/${CITY_ID}`).then(r => r.json()),
-        fetch(`${API_CONFIG.BASE_URL}/cities/${CITY_ID}/active-war`).then(r => r.json()),
-        fetch(`${API_CONFIG.BASE_URL}/garrisons/stats/cities`).then(r => r.json()),
-        garrisonAPI.getOnDutyCount(CITY_ID),
-      ]);
-      if (cityRes.success) setCityInfo(cityRes.data);
-      if (warRes.success) setWarData(warRes.data);
-      if (garrisonRes.success) {
-        const stat = garrisonRes.stats.find(s => s.city_id === CITY_ID);
-        setGarrisonStats(stat || null);
-      }
-      if (dutyRes.success) setOnDutyCount(dutyRes.count);
-    } catch {}
-  }, []);
-  useEffect(() => { refreshCity(); }, [refreshCity]);
-
   /** 遇袭：关闭通知并进入「裁定中」轮询（与是否点确定一致；不再调用 /accept，避免与 siege-resolve 竞态） */
   const beginDefenseFollowUp = useCallback((alert) => {
     if (!alert?.challengeId) return;
@@ -354,12 +297,10 @@ export default function WorldMap({ onEventBusyChange }) {
     return () => clearTimeout(t);
   }, [pvpDefenseAlert?.challengeId, pvpDefenseAlert?.waitSeconds, beginDefenseFollowUp]);
 
-  // 从 player 数据初始化 onDuty 状态
   useEffect(() => {
     if (player?.on_duty == null) return;
-    setOnDuty(!!player.on_duty && player.on_duty_city_id === CITY_ID);
-  }, [player?.on_duty, player?.on_duty_city_id]);
-  useEffect(() => { if (dockPanel === 'xinye') refreshCity(); }, [dockPanel, refreshCity]);
+    setOnDuty(!!player.on_duty);
+  }, [player?.on_duty]);
 
   useEffect(() => {
     if (pendingMainCityCityId == null) return;
@@ -377,12 +318,12 @@ export default function WorldMap({ onEventBusyChange }) {
     const res = await garrisonAPI.setOnDuty(player.player_id, newVal, cityId);
     if (res.success) {
       await refreshPlayer();
-      if (cityId === CITY_ID) refreshCity();
+      setGarrisonStatsRefreshKey((k) => k + 1);
       return true;
     }
     if (res.error) setSimpleAlertMessage(res.error);
     return false;
-  }, [player?.player_id, refreshPlayer, refreshCity]);
+  }, [player?.player_id, refreshPlayer]);
 
   const handleSetMainCityRequest = useCallback(
     async (targetCityId) => {
@@ -402,7 +343,6 @@ export default function WorldMap({ onEventBusyChange }) {
           setSimpleAlertMessage(msg);
           setPendingMainCityCityId(String(targetCityId));
           await refreshPlayer({ silent: true });
-          if (targetCityId === CITY_ID) refreshCity();
           return;
         }
         setSimpleAlertMessage(res.error || '设置主城失败');
@@ -410,7 +350,7 @@ export default function WorldMap({ onEventBusyChange }) {
         setSimpleAlertMessage(e?.message || '设置主城失败');
       }
     },
-    [player?.player_id, refreshPlayer, refreshCity],
+    [player?.player_id, refreshPlayer],
   );
 
   const openGarrisonForCity = useCallback((cityId, cityBaseName) => {
@@ -419,9 +359,17 @@ export default function WorldMap({ onEventBusyChange }) {
     setShowGarrison(true);
   }, []);
 
-  // 发起攻城
-  const startSiege = useCallback(async () => {
-    if (!canSiege || !player?.player_id) return;
+  const startSiegeForCity = useCallback(async (cityId, cityRow) => {
+    if (!cityId || !player?.player_id) return;
+    if (isTutorial || phase !== PHASE.IDLE || siegeData) return;
+    if (worldMapCityIsPlayerSameFaction(cityRow, player?.faction_id)) return;
+
+    const qRes = await fetchSiegeQuotaJson(player.player_id, cityId);
+    if (!qRes.success || !(Number(qRes.data?.remaining) > 0)) {
+      setSimpleAlertMessage('攻城次数不足');
+      return;
+    }
+
     const builtUnits = buildPlayerUnitsFromContext(player, cards, attributeBonusBySlot);
     const gate = validateMainLineupBattleGate({
       cards,
@@ -434,20 +382,19 @@ export default function WorldMap({ onEventBusyChange }) {
     }
     setSiegeLoading(true);
     try {
-      const res = await fetch(`${API_CONFIG.BASE_URL}/cities/${CITY_ID}/siege`, {
+      const res = await fetch(`${API_CONFIG.BASE_URL}/cities/${encodeURIComponent(cityId)}/siege`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ playerId: player.player_id }),
       }).then(r => r.json());
       if (res.success) {
-        siegeQuota.consume();
+        await postSiegeQuotaAction(player.player_id, cityId, 'consume');
 
         if (res.data.defenderType === 'pvp_online') {
-          // 在线防守者 → 创建 PVP 挑战，进入等待界面
           try {
             const pvpRes = await fetch(`${API_CONFIG.BASE_URL}/pvp/challenge`, {
               method: 'POST', headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                warId: res.data.warId, cityId: CITY_ID,
+                warId: res.data.warId, cityId,
                 attackerId: player.player_id, attackerFaction: res.data.playerFaction,
                 defenderId: res.data.defenderPlayerId,
                 defenderGarrisonSlot: res.data.defenderGarrisonSlot,
@@ -463,11 +410,9 @@ export default function WorldMap({ onEventBusyChange }) {
             }
           } catch (e) {
             console.error('[PVP] 创建挑战失败:', e);
-            // 降级为异步PVE
             setSiegeData(res.data); setSiegeResult(null);
           }
         } else {
-          // 离线防守者 或 NPC → 直接进入战斗
           setSiegeData(res.data); setSiegeResult(null);
         }
       } else if (res.error) {
@@ -475,7 +420,7 @@ export default function WorldMap({ onEventBusyChange }) {
       }
     } catch {}
     setSiegeLoading(false);
-  }, [canSiege, player, siegeQuota, cards, attributeBonusBySlot]);
+  }, [isTutorial, phase, siegeData, player, cards, attributeBonusBySlot]);
 
   // 战斗结束
   const handleSiegeEnd = useCallback(async (result, silverSpent, scoreResult, killedIndices, meta) => {
@@ -484,7 +429,7 @@ export default function WorldMap({ onEventBusyChange }) {
     if (siegeData.skipSiegeResult) {
       setSiegeData(null);
       setSiegeResult(null);
-      refreshCity();
+      setGarrisonStatsRefreshKey((k) => k + 1);
       refreshPlayer({ silent: true });
       return;
     }
@@ -521,9 +466,9 @@ export default function WorldMap({ onEventBusyChange }) {
       console.error('[Siege] 结算请求失败:', err);
       setSiegeResult({ npcKilled: 0, npcTotal: 0, silverReward: 0, error: '结算请求失败' });
     }
-    refreshCity();
+    setGarrisonStatsRefreshKey((k) => k + 1);
     refreshPlayer({ silent: true });
-  }, [siegeData, player, refreshCity, refreshPlayer]);
+  }, [siegeData, player, refreshPlayer]);
 
   const closeSiegeResult = useCallback(() => { setSiegeData(null); setSiegeResult(null); }, []);
 
@@ -613,7 +558,7 @@ export default function WorldMap({ onEventBusyChange }) {
           scheduleAfterMinAdjudicationUi(startedAt, () => {
             setPvpDefenseWaiting(null);
             setPvpDefenseOutcome(outcome);
-            refreshCity();
+            setGarrisonStatsRefreshKey((k) => k + 1);
             refreshPlayer({ silent: true });
           });
         }
@@ -622,7 +567,7 @@ export default function WorldMap({ onEventBusyChange }) {
     poll();
     const id = setInterval(poll, 2000);
     return () => clearInterval(id);
-  }, [pvpDefenseWaiting, player?.player_id, refreshCity, refreshPlayer]);
+  }, [pvpDefenseWaiting, player?.player_id, refreshPlayer]);
 
   // 新手指引完成时，给满探索次数
   const prevTutorialRef = useRef(isTutorial);
@@ -647,13 +592,19 @@ export default function WorldMap({ onEventBusyChange }) {
 
   useEffect(() => { fetchItems(); }, [fetchItems]);
 
-  const nanyangExploreItems = useMemo(
-    () => filterPlayerItemsForExploreLocation(playerItems, DEFAULT_EXPLORE_LOCATION_ID),
-    [playerItems]
-  );
-  const shanhaiguanExploreItems = useMemo(
-    () => filterPlayerItemsForExploreLocation(playerItems, EXPLORE_LOC_SHANHAIGUAN),
-    [playerItems]
+  /** 战略格 tooltip 荒郊/集市：`WorldMapCityInfoBlock` 内嵌 `ExploreLocationDockPanel`（与底栏无关） */
+  const subsidiaryExploreEmbed = useMemo(
+    () => ({
+      quota,
+      eventsLoading,
+      explorePoolAt,
+      startExplore,
+      playerItems,
+      isTutorial,
+      phase,
+      citiesList,
+    }),
+    [quota, eventsLoading, explorePoolAt, startExplore, playerItems, isTutorial, phase, citiesList],
   );
 
   // 奖励发放后刷新道具列表和玩家资源
@@ -671,17 +622,15 @@ export default function WorldMap({ onEventBusyChange }) {
     onEventBusyChange?.(busy);
   }, [phase, tutorialSystem.showPreDialog, onEventBusyChange, siegeData, pvpChallenge, pvpDefenseWaiting, pvpAttackerAdjudicating]);
 
-  const toggleDock = useCallback((id) => {
-    setDockPanel((p) => (p === id ? null : id));
-  }, []);
-
   return (
     <div className="relative flex flex-col h-full min-h-0 w-full bg-stone-950">
       <WorldYingchuanMapSection
         className="flex-1 min-h-0 h-full"
         playerId={player?.player_id}
         playerFactionId={player?.faction_id}
-        siegeQuota={siegeQuota}
+        siegeLoading={siegeLoading}
+        onStartSiegeForCity={startSiegeForCity}
+        garrisonStatsRefreshKey={garrisonStatsRefreshKey}
         playerOnDuty={!!player?.on_duty}
         playerOnDutyCityId={player?.on_duty_city_id ?? null}
         playerMainCityId={playerMainCityIdForUi}
@@ -692,205 +641,8 @@ export default function WorldMap({ onEventBusyChange }) {
         onOpenGarrisonForCity={openGarrisonForCity}
         onToggleDutyForCity={handleToggleDutyForCity}
         onDutyError={setSimpleAlertMessage}
-        onSubsidiaryExploreRequest={(kind, detail) => {
-          const label = kind === 'wilderness' ? '荒郊' : '集市';
-          setSimpleAlertMessage(`「${detail.displayName}」${label}玩法即将开放，敬请期待。`);
-        }}
+        subsidiaryExploreEmbed={subsidiaryExploreEmbed}
       />
-
-      <div className="relative z-30 shrink-0 border-t border-stone-700 bg-stone-900/98 shadow-[0_-4px_20px_rgba(0,0,0,0.35)]">
-        {dockPanel === 'nanyang' && (
-          <div className="max-h-[42vh] overflow-y-auto px-3 py-2 border-b border-stone-700 text-sm text-stone-200">
-            <div className="font-medium text-amber-200/95">南阳荒郊</div>
-            <div className="text-stone-400 text-xs mt-0.5">
-              {eventsLoading ? '加载中...'
-                : !quota.canExplore ? '探索次数不足'
-                : nanyangPoolEmpty ? '本地点暂无可探索事件'
-                : `可探索（${nanyangPoolLen}种事件）`}
-            </div>
-            {nanyangPoolEmpty && quota.canExplore && (
-              <div className="text-stone-500 text-[10px] mt-0.5">次日 0 点（服务器日期）后部队链等进度将重置</div>
-            )}
-            <div className="text-stone-300 text-xs mt-2 border-t border-stone-600 pt-2">
-              🔍 探索：<span className={quota.remaining > 0 ? 'text-green-400' : 'text-red-400'}>
-                {quota.remaining}/{quota.max}
-              </span>
-              {quota.remaining < quota.max && !quota.inRestPeriod && (
-                <span className="text-stone-500 ml-1">（{quota.minutesUntilRefill}分后补充）</span>
-              )}
-              {quota.inRestPeriod && (
-                <span className="text-stone-500 ml-1">（💤{quota.minutesUntilRefill}分后恢复）</span>
-              )}
-            </div>
-            <div className="text-stone-500 text-[10px] mt-1">
-              每小时+{quota.refillPerHour}次 · 上限{quota.max}次 · 0:00~8:00💤
-            </div>
-            {nanyangExploreItems.length > 0 && (
-              <div className="text-stone-300 text-xs mt-2 border-t border-stone-600 pt-2">
-                🎒 道具：
-                {nanyangExploreItems.map((item, i) => (
-                  <span key={item.itemId} className="text-amber-300">
-                    {i > 0 && '、'}{item.name}×{item.quantity}
-                  </span>
-                ))}
-              </div>
-            )}
-            <button
-              type="button"
-              disabled={!canExploreNanyang}
-              onClick={() => canExploreNanyang && startExplore(DEFAULT_EXPLORE_LOCATION_ID)}
-              className="mt-3 w-full py-2 rounded-lg text-xs font-bold bg-gradient-to-r from-amber-700 to-yellow-700 text-amber-100 disabled:from-stone-700 disabled:to-stone-700 disabled:text-stone-500"
-            >
-              {canExploreNanyang ? '📜 开始探索' : '不可探索'}
-            </button>
-          </div>
-        )}
-        {dockPanel === 'shanhaiguan' && (
-          <div className="max-h-[42vh] overflow-y-auto px-3 py-2 border-b border-stone-700 text-sm text-stone-200">
-            <div className="font-medium text-sky-200/95">山海关荒郊</div>
-            <div className="text-stone-400 text-xs mt-0.5">
-              {eventsLoading ? '加载中...'
-                : !quota.canExplore ? '探索次数不足'
-                : shanhaiguanPoolEmpty ? '本地点暂无可探索事件'
-                : `可探索（${shanhaiguanPoolLen}种事件）`}
-            </div>
-            {shanhaiguanPoolEmpty && quota.canExplore && (
-              <div className="text-stone-500 text-[10px] mt-0.5">次日 0 点（服务器日期）后部队链等进度将重置</div>
-            )}
-            <div className="text-stone-300 text-xs mt-2 border-t border-stone-600 pt-2">
-              🔍 探索：<span className={quota.remaining > 0 ? 'text-green-400' : 'text-red-400'}>
-                {quota.remaining}/{quota.max}
-              </span>
-              {quota.remaining < quota.max && !quota.inRestPeriod && (
-                <span className="text-stone-500 ml-1">（{quota.minutesUntilRefill}分后补充）</span>
-              )}
-              {quota.inRestPeriod && (
-                <span className="text-stone-500 ml-1">（💤{quota.minutesUntilRefill}分后恢复）</span>
-              )}
-            </div>
-            <div className="text-stone-500 text-[10px] mt-1">
-              每小时+{quota.refillPerHour}次 · 上限{quota.max}次 · 0:00~8:00💤
-            </div>
-            {shanhaiguanExploreItems.length > 0 && (
-              <div className="text-stone-300 text-xs mt-2 border-t border-stone-600 pt-2">
-                🎒 道具：
-                {shanhaiguanExploreItems.map((item, i) => (
-                  <span key={item.itemId} className="text-amber-300">
-                    {i > 0 && '、'}{item.name}×{item.quantity}
-                  </span>
-                ))}
-              </div>
-            )}
-            <button
-              type="button"
-              disabled={!canExploreShanhaiguan}
-              onClick={() => canExploreShanhaiguan && startExplore(EXPLORE_LOC_SHANHAIGUAN)}
-              className="mt-3 w-full py-2 rounded-lg text-xs font-bold bg-gradient-to-r from-sky-800 to-cyan-800 text-sky-100 disabled:from-stone-700 disabled:to-stone-700 disabled:text-stone-500"
-            >
-              {canExploreShanhaiguan ? '🏔️ 开始探索' : '不可探索'}
-            </button>
-          </div>
-        )}
-        {dockPanel === 'xinye' && (() => {
-          const factionKills = warData?.faction_kills || {};
-          const sortedFactions = Object.entries(factionKills).sort((a, b) => b[1] - a[1]);
-          const cityBaseName = worldMapCityBaseNameFromRow(cityInfo || { city_name: '新野' });
-          const panelProps = buildWorldMapCityPanelProps(cityInfo || { city_name: '新野' }, {
-            factionNameById: {},
-            playerFactionId: player?.faction_id,
-            playerId: player?.player_id,
-            siegeQuota,
-            siegeLoading,
-            onDutyCount,
-            garrisonSlotCount: garrisonStats?.slot_count ?? 0,
-          });
-          return (
-            <div className="max-h-[42vh] overflow-y-auto px-3 py-2 border-b border-stone-700 text-sm text-stone-200">
-              <div className="flex flex-col sm:flex-row gap-3 sm:items-start">
-                <div className="flex-1 min-w-0">
-                  <WorldMapCityInfoBlock
-                    {...panelProps}
-                    mainCityId={playerMainCityIdForUi}
-                    mainCityChangedAt={player?.main_city_changed_at ?? null}
-                    playerSilver={player?.silver ?? null}
-                    onSetMainCityRequest={handleSetMainCityRequest}
-                    onSetMainCityError={setSimpleAlertMessage}
-                    onOpenGarrison={() => {
-                      openGarrisonForCity(cityInfo?.city_id || CITY_ID, cityBaseName);
-                      setDockPanel(null);
-                    }}
-                    playerOnDutyForThisCity={
-                      !!(player?.on_duty && player?.on_duty_city_id === (cityInfo?.city_id || CITY_ID))
-                    }
-                    onToggleDutyRequest={handleToggleDutyForCity}
-                    onDutyError={setSimpleAlertMessage}
-                  />
-                  {!isOwnCity ? (
-                    <button
-                      type="button"
-                      onClick={() => { if (canSiege) startSiege(); }}
-                      disabled={!canSiege || siegeLoading}
-                      className="mt-3 w-full py-2 rounded-lg text-xs font-bold bg-gradient-to-r from-red-700 to-orange-700 text-white disabled:from-stone-700 disabled:text-stone-500"
-                    >
-                      {siegeLoading ? '准备中...' : !siegeQuota.canSiege ? '次数不足' : `⚔️ 攻打${cityBaseName}`}
-                    </button>
-                  ) : null}
-                </div>
-                {sortedFactions.length > 0 && (
-                  <div className="shrink-0 px-3 py-2 rounded-lg bg-stone-800/90 border border-stone-600 min-w-[10rem]">
-                    <div className="text-amber-200 text-xs font-bold mb-1">⚔️ 势力战况</div>
-                    {sortedFactions.map(([fid, kills], i) => (
-                      <div key={fid} className="flex items-center justify-between gap-3 text-xs py-0.5">
-                        <span style={{ color: FACTION_COLORS[fid] || '#ccc' }}>
-                          {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`}{' '}
-                          {WORLD_MAP_DEFAULT_FACTION_LABELS[fid] || '未知'}
-                        </span>
-                        <span className="text-amber-400 font-bold">{kills}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          );
-        })()}
-
-        <div className="flex justify-around items-center gap-1 px-1 py-2">
-          <button
-            type="button"
-            onClick={() => !isTutorial && phase === PHASE.IDLE && toggleDock('nanyang')}
-            disabled={isTutorial || phase !== PHASE.IDLE}
-            className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded-lg text-[10px] min-w-0 flex-1 max-w-[6.5rem] ${
-              dockPanel === 'nanyang' ? 'bg-amber-900/50 ring-1 ring-amber-600/50' : 'bg-stone-800/80 hover:bg-stone-800'
-            } ${isTutorial || phase !== PHASE.IDLE ? 'opacity-40' : ''}`}
-          >
-            <span className="text-xl leading-none">📜</span>
-            <span className="text-stone-300 truncate w-full text-center">南阳</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => !isTutorial && phase === PHASE.IDLE && toggleDock('shanhaiguan')}
-            disabled={isTutorial || phase !== PHASE.IDLE}
-            className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded-lg text-[10px] min-w-0 flex-1 max-w-[6.5rem] ${
-              dockPanel === 'shanhaiguan' ? 'bg-sky-900/40 ring-1 ring-sky-600/40' : 'bg-stone-800/80 hover:bg-stone-800'
-            } ${isTutorial || phase !== PHASE.IDLE ? 'opacity-40' : ''}`}
-          >
-            <span className="text-xl leading-none">🏔️</span>
-            <span className="text-stone-300 truncate w-full text-center">山海关</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => !isTutorial && phase === PHASE.IDLE && toggleDock('xinye')}
-            disabled={isTutorial || phase !== PHASE.IDLE}
-            className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded-lg text-[10px] min-w-0 flex-1 max-w-[6.5rem] ${
-              dockPanel === 'xinye' ? 'bg-red-900/35 ring-1 ring-red-600/40' : 'bg-stone-800/80 hover:bg-stone-800'
-            } ${isTutorial || phase !== PHASE.IDLE ? 'opacity-40' : ''}`}
-          >
-            <span className="text-xl leading-none">🏯</span>
-            <span className="text-stone-300 truncate w-full text-center">新野</span>
-          </button>
-        </div>
-      </div>
 
       {/* ── PVP 攻城方等待界面 ── */}
       {pvpChallenge && (
@@ -984,13 +736,13 @@ export default function WorldMap({ onEventBusyChange }) {
       )}
 
       {/* ── 驻地编组面板 ── */}
-      {showGarrison && (
+      {showGarrison && garrisonCityId ? (
         <GarrisonLineup
           onClose={() => setShowGarrison(false)}
           cityId={garrisonCityId}
-          cityName={garrisonCityName}
+          cityName={garrisonCityName || '城池'}
         />
-      )}
+      ) : null}
 
       {/* 攻城战斗（复用 BattleArena） */}
       {siegeData && !siegeResult && (
@@ -1044,10 +796,13 @@ export default function WorldMap({ onEventBusyChange }) {
       {siegeResult && (
         <div className="fixed inset-0 z-[200] bg-black/80 backdrop-blur-sm flex items-center justify-center">
           <div className="bg-gray-900/95 rounded-xl p-6 border border-amber-500/30 max-w-sm w-full mx-4 text-center space-y-3">
-            <div className="text-4xl">{(siegeResult.killCount || siegeResult.silverReward) ? '⚔️' : '💀'}</div>
+            <div className="text-4xl">{(siegeResult.killCount || siegeResult.silverReward || siegeResult.contributionReward) ? '⚔️' : '💀'}</div>
             <div className="text-xl font-bold text-amber-400">战斗结算</div>
             {siegeResult.silverReward > 0 && <div className="text-amber-300 text-sm">💰 获得 {siegeResult.silverReward} 银两</div>}
             {siegeResult.reputationReward > 0 && <div className="text-yellow-300 text-sm">⭐ 获得 {siegeResult.reputationReward} 声望</div>}
+            {siegeResult.contributionReward > 0 && (
+              <div className="text-sky-300 text-sm">贡献 +{siegeResult.contributionReward}</div>
+            )}
             {siegeResult.equipmentDrop && (
               <div
                 className="text-sm font-medium"
@@ -1058,16 +813,14 @@ export default function WorldMap({ onEventBusyChange }) {
             )}
             {Array.isArray(siegeResult.chestRewards) && siegeResult.chestRewards.length > 0 && (
               <div className="text-left text-sm space-y-1 border-t border-amber-500/25 pt-2 mt-1">
-                <div className="text-[11px] text-stone-500">
-                  📦 地图内宝箱（战斗中开启，已入库；与上方「攻城战后随机装备」非同一路径）
-                </div>
+                <div className="text-[11px] text-stone-500">📦 地图内宝箱</div>
                 {siegeResult.chestRewards.map((r, i) => (
                   <div
                     key={`${r.equipmentId || 'eq'}-${i}`}
                     className="font-medium text-sm"
                     style={{ color: getRarityHex(r.rarity) }}
                   >
-                    {r.name}（{getRarityLabelCn(r.rarity)}）
+                    {shortEquipmentDisplayName(r.name)}（{getRarityLabelCn(r.rarity)}）
                   </div>
                 ))}
               </div>

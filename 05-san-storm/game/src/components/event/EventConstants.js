@@ -31,7 +31,7 @@ export const PHASE = {
   RESULT: 'result',       // 判定结果
   BATTLE: 'battle',       // 惩罚战斗（凶/大凶）
   REWARD: 'reward',       // 显示奖励
-  RETURNING: 'returning', // 探索返回中（3秒）
+  RETURNING: 'returning', // 探索返回中（约 1s，与 ReturningOverlay / closeReward 一致）
   MINIGAME: 'minigame',   // 跳转迷你游戏前确认
 };
 

@@ -9,6 +9,58 @@ import {
   FORTUNE_LEVELS, DICE_TABLE,
   RARITY_CN, RESOURCE_CN,
 } from './EventConstants';
+import { LOCATION_PLACEHOLDERS, exploreLocationMatchesEvent } from '@/utils/eventLocationPlaceholders';
+import { getOptionFactorFields } from '@shared/utils/eventOptionFactor.js';
+import { expandRewardPresetsForPreview } from '@shared/utils/eventRewardPresets.js';
+import {
+  isBanditMapObjectId,
+  EVENT_PUNISHMENT_COMBAT_BANDIT_LOCATION_SLOT_RARITIES,
+  eventCardRarityToBanditTier,
+  banditTierSlotRarities,
+  cityTypeToBanditTier,
+  normalizeBattleRarity,
+  RARITY_ORDER,
+} from '@shared/utils/smallMapEnemyRoster';
+
+const WILDERNESS_EVENT_LOCS = new Set([
+  LOCATION_PLACEHOLDERS.ANY_WILDERNESS,
+  LOCATION_PLACEHOLDERS.CITY_MAJOR_WILDERNESS,
+  LOCATION_PLACEHOLDERS.CITY_MEDIUM_WILDERNESS,
+]);
+const MARKET_EVENT_LOCS = new Set([
+  LOCATION_PLACEHOLDERS.ANY_MARKET,
+  LOCATION_PLACEHOLDERS.CITY_MAJOR_MARKET,
+  LOCATION_PLACEHOLDERS.CITY_MEDIUM_MARKET,
+]);
+
+/**
+ * 战略城 tooltip 荒郊/集市分池：按 location 占位符与 trigger_context 归类（与合并拉取的全量池配合）
+ * @param {string|null|undefined} evLoc
+ * @param {'wilderness'|'market'|null|undefined} subsidiaryKind
+ * @param {string|null|undefined} triggerContext
+ */
+export function eventMatchesExploreSubsidiaryKind(evLoc, subsidiaryKind, triggerContext) {
+  if (!subsidiaryKind) return true;
+  const ev = String(evLoc ?? '').trim();
+  const ctx = triggerContext != null ? String(triggerContext) : '';
+
+  if (ev === LOCATION_PLACEHOLDERS.ALL) {
+    if (subsidiaryKind === 'wilderness') return ctx === 'wilderness';
+    if (subsidiaryKind === 'market') return ctx === 'market';
+    return false;
+  }
+  if (subsidiaryKind === 'wilderness') {
+    if (WILDERNESS_EVENT_LOCS.has(ev)) return true;
+    if (MARKET_EVENT_LOCS.has(ev)) return false;
+    return ctx === 'wilderness';
+  }
+  if (subsidiaryKind === 'market') {
+    if (MARKET_EVENT_LOCS.has(ev)) return true;
+    if (WILDERNESS_EVENT_LOCS.has(ev)) return false;
+    return ctx === 'market';
+  }
+  return true;
+}
 
 // ========== 因子判定算法（完全照抄 ExploreDemo） ==========
 
@@ -31,14 +83,16 @@ export function calcSubFactor(type, char) {
  * @param {Object} general2 - 将领2属性（显示值）
  */
 export function calcBaseScore(option, playerChar, general1, general2) {
+  const f = getOptionFactorFields(option);
+  if (!f || f.mainFactor !== 'luck') return 0;
   const teamLuck = (playerChar.luck + general1.luck + general2.luck) / 3;
-  const mainScore = teamLuck / option.mainRequirement;
+  const mainScore = teamLuck / f.mainRequirement;
   const teamSub = (
-    calcSubFactor(option.subFactors, playerChar) +
-    calcSubFactor(option.subFactors, general1) +
-    calcSubFactor(option.subFactors, general2)
+    calcSubFactor(f.subFactors, playerChar) +
+    calcSubFactor(f.subFactors, general1) +
+    calcSubFactor(f.subFactors, general2)
   ) / 3;
-  const subScore = teamSub / option.subRequirement;
+  const subScore = teamSub / f.subRequirement;
   return (mainScore * 0.6 + subScore * 0.4) * 100;
 }
 
@@ -95,10 +149,11 @@ export function rollFortune(option, playerChar, general1, general2) {
  */
 export function parseRewards(str, itemNameMap, multiplier) {
   if (!str) return [];
+  const expanded = expandRewardPresetsForPreview(str);
   const m = (multiplier != null && multiplier !== 1.0) ? multiplier : 1;
   // 资源显示优先级
   const order = { '🎖️': 0, '🤝': 1, '💰': 2, '🌾': 3, '💪': 4 };
-  const items = str.split(';').map(item => {
+  const items = expanded.split(';').map(item => {
     const t = item.trim();
     if (t.startsWith('silver:')) { const v = Math.floor(parseInt(t.split(':')[1]) * m); return { text: `💰 银两 +${v}` }; }
     if (t.startsWith('food:')) { const v = Math.floor(parseInt(t.split(':')[1]) * m); return { text: `🌾 粮草 +${v}` }; }
@@ -178,17 +233,102 @@ export function parseRequiredItems(str, itemNameMap) {
 }
 
 /**
- * 按概率权重随机抽取事件
+ * 配置层 `trigger_probability`（与 API `trigger_probability` 一致）：
+ * - 数值 **1**：与同池其他「必出」事件一起参与抽取（仍为一层随机）；若池中仅有此类则必为其中之一。
+ * - **未填写 / null**（及历史非 1 小数，由 API 归一为「未填写」）：同一 `location` 池内 **均等** 随机。
+ * @param {{ trigger_probability?: number|null }} e
+ */
+function isTriggerProbabilityGuaranteedOne(e) {
+  const v = e?.trigger_probability;
+  const n = Number(v);
+  return Number.isFinite(n) && n === 1;
+}
+
+/**
+ * 按新规则随机抽取探索事件：
+ * - 仅有 **2 个及以上** `trigger_probability===1` 的「必出」时，只在必出子集内均等抽（两事件争位）。
+ * - 若只有 **1 个** 必出且同池还有其它事件：仍对 **全池** 均等随机，避免「独苗必出」导致长期只命中同一事件（与多数「均等配置」预期一致）。
  */
 export function pickRandomEvent(events) {
   if (!events || events.length === 0) return null;
-  const totalWeight = events.reduce((sum, e) => sum + e.trigger_probability, 0);
-  let rand = Math.random() * totalWeight;
-  for (const event of events) {
-    rand -= event.trigger_probability;
-    if (rand <= 0) return event;
+  const guaranteed = events.filter(isTriggerProbabilityGuaranteedOne);
+  let pool = events;
+  if (guaranteed.length >= 2) {
+    pool = guaranteed;
   }
-  return events[events.length - 1];
+  const idx = Math.floor(Math.random() * pool.length);
+  return pool[idx];
+}
+
+/**
+ * 探索选项分流：与 ExplorePanel / 后端运势一致，优先 `factor` 串，兼容仅写 `mainFactor` 或蛇形字段。
+ * @returns {'minigame'|'always'|'luck'}
+ */
+export function getExploreOptionResolution(option) {
+  if (!option || typeof option !== 'object') return 'luck';
+  const mf = (option.mainFactor ?? option.main_factor);
+  const mfs = mf != null && String(mf).trim() !== '' ? String(mf).trim() : '';
+  if (mfs === 'minigame') return 'minigame';
+  if (mfs === 'always') return 'always';
+  const raw = option.factor != null ? String(option.factor).trim() : '';
+  const rlow = raw.toLowerCase();
+  if (rlow.startsWith('minigame')) return 'minigame';
+  if (rlow === 'always') return 'always';
+  const f = getOptionFactorFields(option);
+  if (f && f.mainFactor === 'luck') return 'luck';
+  if (mfs === 'luck') return 'luck';
+  return 'luck';
+}
+
+/**
+ * 玩家是否已「进入」某条探索链且尚未走完（已完成至少一环且未到最高环）。
+ * 若存在多条未完成链（异常进度），取 **最早有完成记录** 的那条（按首条已完成事件的 `updated_at`，缺省则按 chain_id 字典序）。
+ * @returns {string|null} chain_id 或 null
+ */
+export function getActiveExploreChainId(allEvents, completedEvents, playerItemCounts = {}) {
+  const chainLevelNum = (lv) => {
+    const n = Number(lv);
+    return Number.isFinite(n) && n > 0 ? n : 0;
+  };
+
+  const chainIds = [...new Set(allEvents.map((e) => e.chain_id).filter(Boolean))];
+  const inProgress = [];
+
+  for (const cid of chainIds) {
+    const chainEvents = allEvents
+      .filter((e) => e.chain_id === cid)
+      .sort((a, b) => chainLevelNum(a.chain_level) - chainLevelNum(b.chain_level));
+    let maxLevel = 0;
+    for (const e of chainEvents) {
+      maxLevel = Math.max(maxLevel, chainLevelNum(e.chain_level));
+    }
+    if (maxLevel <= 0) continue;
+
+    const eff = getEffectiveExploreChainMaxCompleted(allEvents, cid, completedEvents, playerItemCounts);
+    if (eff > 0 && eff < maxLevel) {
+      let firstCompleteTime = Infinity;
+      for (const e of chainEvents) {
+        const rec = completedEvents[e.event_id];
+        if (rec?.status === 'completed' && rec.updated_at) {
+          const t = Date.parse(rec.updated_at);
+          if (Number.isFinite(t)) firstCompleteTime = Math.min(firstCompleteTime, t);
+        }
+      }
+      inProgress.push({
+        chainId: cid,
+        firstCompleteTime: firstCompleteTime === Infinity ? 0 : firstCompleteTime,
+      });
+    }
+  }
+
+  if (inProgress.length === 0) return null;
+  if (inProgress.length === 1) return inProgress[0].chainId;
+
+  inProgress.sort((a, b) => {
+    if (a.firstCompleteTime !== b.firstCompleteTime) return a.firstCompleteTime - b.firstCompleteTime;
+    return String(a.chainId).localeCompare(String(b.chainId));
+  });
+  return inProgress[0].chainId;
 }
 
 /**
@@ -210,9 +350,9 @@ export function playerMeetsEventRequiredItems(requiredItemsStr, itemCounts) {
 }
 
 /**
- * 道具 id 与探索点 location 对齐：config location 为 san_1_city_6_{地点}，道具为 item_{地点}_*
+ * 道具 id 与探索点 `city_id` 对齐：`exploreLocationId` 取主城 id（如 `san_1_city_2_yangdi`）→ slug `yangdi` → 道具 `item_yangdi_*`
  * @param {string} itemId
- * @param {string} exploreLocationId - 如 san_1_city_6_nanyang
+ * @param {string} exploreLocationId
  */
 export function itemIdMatchesExploreLocation(itemId, exploreLocationId) {
   if (!itemId || !exploreLocationId) return false;
@@ -272,15 +412,24 @@ export function getEffectiveExploreChainMaxCompleted(allEvents, chainId, complet
 
 /**
  * 按探索地点 + 事件链进度过滤可抽到的事件池（与 useEventSystem 逻辑一致）
- * @param {Array} allEvents - 已按 trigger_context 过滤后的全量（如 explore）
+ * @param {Array} allEvents - 探索用合并池（含 explore / wilderness / market / mystery 等，由 useEventSystem 合并拉取）
  * @param {Object} completedEvents - 玩家已完成事件 { eventId: { status } }
- * @param {string} locationId - 事件 location，须与 config_events.location 完全一致
+ * @param {string} locationId - 探索点 city_id；`{all}` 任意；`{city_medium_wilderness}` 等与 `city_type` + 荒郊/集市开关匹配（见 exploreLocationMatchesEvent）
  * @param {Record<string, number>} [playerItemCounts] - 背包道具数量，用于校验链式 required_items
+ * @param {Array<{ city_id?: string, cityId?: string, city_type?: string, cityType?: string }>|null} [citiesList] - GET /api/cities 列表；缺省则占位符无法按类型匹配（仅 `{all}` / 全字面相等）
+ * @param {'wilderness'|'market'|null} [subsidiaryKind] - 仅战略城荒郊/集市内嵌条传入，用于分池与链锁范围
  */
-export function filterExploreEventsPool(allEvents, completedEvents, locationId, playerItemCounts = {}) {
+export function filterExploreEventsPool(
+  allEvents,
+  completedEvents,
+  locationId,
+  playerItemCounts = {},
+  citiesList = null,
+  subsidiaryKind = null
+) {
   if (!allEvents?.length || !locationId) return [];
 
-  /** DB/API 常把 chain_level 当字符串；与数字用 !== 比较会把整条链全过滤掉（如山海关仅链式探索时显示 0 件） */
+  /** DB/API 常把 chain_level 当字符串；与数字用 !== 比较会把整条链全过滤掉（如某城仅链式探索时显示 0 件） */
   const chainLevelNum = (lv) => {
     const n = Number(lv);
     return Number.isFinite(n) && n > 0 ? n : 0;
@@ -306,8 +455,42 @@ export function filterExploreEventsPool(allEvents, completedEvents, locationId, 
     }
   }
 
+  const chainSource = subsidiaryKind
+    ? allEvents.filter((e) => eventMatchesExploreSubsidiaryKind(e.location, subsidiaryKind, e.trigger_context))
+    : allEvents;
+
+  let activeChainId = getActiveExploreChainId(chainSource, completedEvents, playerItemCounts);
+  /**
+   * 链进行中时，若「下一环」事件在当前 exploreLocationId 上无任何可匹配 location（例：匪寨链
+   * `{any_bandit}` 与阳翟 `san_1_city_2_yangdi`），则不在此探索点套用链锁，避免荒郊/集市 UI 误显示 0 件。
+   */
+  if (activeChainId && locationId) {
+    const hasNextAtLocation = allEvents.some((evt) => {
+      if (!evt.chain_id || evt.chain_id !== activeChainId) return false;
+      const completed = chainMaxCompleted[evt.chain_id] || 0;
+      const maxLevel = chainMaxLevel[evt.chain_id] || 0;
+      if (completed >= maxLevel) return false;
+      if (chainLevelNum(evt.chain_level) !== completed + 1) return false;
+      if (evt.required_items && !playerMeetsEventRequiredItems(evt.required_items, playerItemCounts)) {
+        return false;
+      }
+      const evLoc = String(evt.location ?? '').trim();
+      if (subsidiaryKind && !eventMatchesExploreSubsidiaryKind(evLoc, subsidiaryKind, evt.trigger_context)) {
+        return false;
+      }
+      return exploreLocationMatchesEvent(evLoc, locationId, citiesList);
+    });
+    if (!hasNextAtLocation) activeChainId = null;
+  }
+
   return allEvents.filter((evt) => {
-    if (evt.location !== locationId) return false;
+    const evLoc = String(evt.location ?? '').trim();
+    if (!exploreLocationMatchesEvent(evLoc, locationId, citiesList)) return false;
+    if (!eventMatchesExploreSubsidiaryKind(evLoc, subsidiaryKind, evt.trigger_context)) return false;
+
+    if (activeChainId) {
+      if (!evt.chain_id || evt.chain_id !== activeChainId) return false;
+    }
 
     if (!evt.chain_id) return true;
 
@@ -327,7 +510,8 @@ export function filterExploreEventsPool(allEvents, completedEvents, locationId, 
  * 判断选项是否为因子判定类型（有运势预览）
  */
 export function isFactorOption(opt) {
-  return opt && opt.mainFactor === 'luck' && opt.mainRequirement && opt.subFactors;
+  const f = getOptionFactorFields(opt);
+  return !!(f && f.mainFactor === 'luck' && f.mainRequirement != null && f.subFactors);
 }
 
 /**
@@ -336,3 +520,149 @@ export function isFactorOption(opt) {
 export function isFortuneSuccess(fortune) {
   return fortune && (fortune.name === '吉' || fortune.name === '大吉' || fortune.name === '鸿运');
 }
+
+/** @param {string|null|undefined} eventId */
+function eventCardRarityFromEventId(eventId) {
+  if (!eventId) return 'common';
+  const parts = String(eventId).split('_');
+  const lastPart = parts[parts.length - 1];
+  const ch = lastPart && lastPart.length > 0 ? lastPart.charAt(0) : '';
+  const map = { 1: 'common', 2: 'rare', 3: 'epic', 4: 'legendary', 5: 'core' };
+  return map[ch] || 'common';
+}
+
+/** 选项 A 因子为 type-b 时惩罚战为 5 编制（与 EventBattle / useBattleMap 一致） */
+function exploreOptionAIsTypeB(option) {
+  if (!option || typeof option !== 'object') return false;
+  const raw = String(option.factor ?? '').trim().toLowerCase();
+  if (raw === 'type-b' || raw.startsWith('type-b')) return true;
+  const mf = String(option.mainFactor ?? option.main_factor ?? '').trim().toLowerCase();
+  return mf === 'type-b';
+}
+
+/** 选项是否配置「凶/大凶后可进入惩罚战」（CSV `option_*_trigger_battle` → JSON `triggerBattle`） */
+export function exploreOptionTriggerBattle(option) {
+  if (!option || typeof option !== 'object') return false;
+  return !!(option.triggerBattle ?? option.trigger_battle);
+}
+
+/**
+ * 凶/大凶后可能进入惩罚战（与 useEventSystem.confirmResult 一致）：选项 A 为 luck 流且 triggerBattle。
+ * @param {Record<string, unknown>|null|undefined} event
+ */
+export function eventHasExplorePunitiveBattleOptionA(event) {
+  const a = event?.option_a;
+  if (!exploreOptionTriggerBattle(a)) return false;
+  return getExploreOptionResolution(a) === 'luck';
+}
+
+/**
+ * 单事件惩罚战敌方部队槽稀有度列表（长度 4 或 5），与小型图 PVE 抽池一致。
+ * @param {Record<string, unknown>} event
+ * @param {string|null|undefined} exploreLocationId
+ * @returns {string[]|null}
+ */
+export function getExplorePunitiveBattleTroopSlotRarities(event, exploreLocationId) {
+  if (!event || !exploreLocationId || !eventHasExplorePunitiveBattleOptionA(event)) return null;
+  const eventRarity = eventCardRarityFromEventId(event.event_id);
+  const typeB = exploreOptionAIsTypeB(event.option_a);
+  const bandit = isBanditMapObjectId(exploreLocationId);
+
+  if (bandit && typeB) {
+    return ['legendary', 'legendary', 'legendary', 'legendary', 'legendary'];
+  }
+  if (bandit) {
+    return [...EVENT_PUNISHMENT_COMBAT_BANDIT_LOCATION_SLOT_RARITIES];
+  }
+  if (typeB) {
+    let tr = normalizeBattleRarity(eventRarity);
+    if (tr === 'core') tr = 'legendary';
+    return [tr, tr, tr, tr, tr];
+  }
+  const tier = eventCardRarityToBanditTier(eventRarity);
+  return banditTierSlotRarities(tier);
+}
+
+/**
+ * 当前探索点事件池中，惩罚战可能抽到的敌方部队稀有度区间（与 EventBattle + useBattleMap 一致）。
+ * @param {Array<Record<string, unknown>>|null|undefined} poolEvents
+ * @param {string|null|undefined} exploreLocationId
+ * @returns {{ hasPunitiveBattle: false } | { hasPunitiveBattle: true, min: string, max: string }}
+ */
+export function summarizeExplorePoolEnemyTroopRarityRange(poolEvents, exploreLocationId) {
+  if (!Array.isArray(poolEvents) || poolEvents.length === 0 || !exploreLocationId) {
+    return { hasPunitiveBattle: false };
+  }
+  let minIdx = RARITY_ORDER.length;
+  let maxIdx = -1;
+  for (const e of poolEvents) {
+    const slots = getExplorePunitiveBattleTroopSlotRarities(e, exploreLocationId);
+    if (!slots?.length) continue;
+    for (const r of slots) {
+      const n = normalizeBattleRarity(r);
+      const i = RARITY_ORDER.indexOf(n);
+      if (i < 0) continue;
+      minIdx = Math.min(minIdx, i);
+      maxIdx = Math.max(maxIdx, i);
+    }
+  }
+  if (maxIdx < 0) return { hasPunitiveBattle: false };
+  return {
+    hasPunitiveBattle: true,
+    min: RARITY_ORDER[minIdx],
+    max: RARITY_ORDER[maxIdx],
+  };
+}
+
+/**
+ * 13-1「荒郊难度」↔ 主城 `city_type` → 22-1 §9.1 `BANDIT_NPC_SLOTS_BY_TIER` 四槽，
+ * 得到惩罚战敌方**部队**稀有度展示区间（与 `banditTierSlotRarities(cityTypeToBanditTier(...))` 一致）。
+ * 中城/据点 → 稀有档 → **稀有～史诗**；小城 → 普通档 → **普通～稀有**；大城/关隘 → 史诗档 → **史诗～传奇**。
+ *
+ * @param {string|null|undefined} cityType - `cities.city_type` / API 驼峰 `cityType`
+ * @returns {{ min: string, max: string }|null}
+ */
+export function wildernessEnemyTroopRarityDocRangeFromMainCityType(cityType) {
+  const ct = String(cityType ?? '').trim();
+  if (!ct) return null;
+  const supported = new Set(['city_small', 'city_medium', 'city_major', 'gate', 'fort']);
+  if (!supported.has(ct)) return null;
+  const tier = cityTypeToBanditTier(ct);
+  const slots = banditTierSlotRarities(tier);
+  let minIdx = RARITY_ORDER.length;
+  let maxIdx = -1;
+  for (const r of slots) {
+    const n = normalizeBattleRarity(r);
+    const i = RARITY_ORDER.indexOf(n);
+    if (i < 0) continue;
+    minIdx = Math.min(minIdx, i);
+    maxIdx = Math.max(maxIdx, i);
+  }
+  if (maxIdx < 0) return null;
+  return { min: RARITY_ORDER[minIdx], max: RARITY_ORDER[maxIdx] };
+}
+
+/**
+ * @param {Array<Record<string, unknown>>|null|undefined} citiesList
+ * @param {string|null|undefined} cityId
+ * @returns {string|null}
+ */
+export function resolveCityRowTypeForWildernessHint(citiesList, cityId) {
+  if (!cityId || !Array.isArray(citiesList) || citiesList.length === 0) return null;
+  const id = String(cityId).trim();
+  const row = citiesList.find((c) => String(c.city_id ?? c.cityId ?? '').trim() === id);
+  if (!row) return null;
+  const ct = row.city_type ?? row.cityType;
+  return ct != null && String(ct).trim() !== '' ? String(ct).trim() : null;
+}
+
+/**
+ * 主城行 `city_id`（荒郊/集市与主城同 id）→ `city_type`。
+ * @param {Array<Record<string, unknown>>|null|undefined} citiesList
+ * @param {string|null|undefined} exploreLocationId
+ * @returns {string|null}
+ */
+export function resolveCityTypeForWildernessTroopHint(citiesList, exploreLocationId) {
+  return resolveCityRowTypeForWildernessHint(citiesList, exploreLocationId);
+}
+

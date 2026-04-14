@@ -361,6 +361,19 @@ async function getEventById(eventId) {
 }
 
 /**
+ * `trigger_probability`：仅 **1** 表示与同池其他「必出」事件争位；**NULL/非 1** 在 API 中一律输出 `null`（与同 location 池内事件 **均等** 随机，见前端 `pickRandomEvent`）。
+ */
+function formatTriggerProbability(row) {
+  const v = row.trigger_probability;
+  if (v === null || v === undefined) return null;
+  if (typeof v === 'string' && !String(v).trim()) return null;
+  const n = parseFloat(v);
+  if (!Number.isFinite(n)) return null;
+  if (n === 1) return 1;
+  return null;
+}
+
+/**
  * 格式化事件数据（数据库 → 前端）
  * 
  * 规则：不做字段名转换，直接返回数据库字段名
@@ -381,7 +394,7 @@ function formatEventData(row) {
     event_name:          row.event_name,
     location:            row.location || null,
     min_position_level:  row.min_position_level || null,
-    trigger_probability: parseFloat(row.trigger_probability) || 0,
+    trigger_probability: formatTriggerProbability(row),
     trigger_context:     row.trigger_context || null,
     chain_id:            row.chain_id || null,
     chain_level:         row.chain_level || null,
@@ -391,7 +404,6 @@ function formatEventData(row) {
     description_3:       row.description_3 || null,
     option_a:            parseJson(row.option_a),
     option_b:            parseJson(row.option_b),
-    tags:                row.tags || null,
   };
 
   // 事件级 required_items（事件链道具）合并到两个选项的 requiredItems

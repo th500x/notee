@@ -7,18 +7,31 @@
  * 数据来源：
  *   - 玩家属性：PlayerContext（×10存储，hook内部÷10转显示值）
  *   - 上阵将领：PlayerContext cards 中 is_equipped=1 的 character 类型卡牌
- *   - 事件配置：后端 API GET /api/config/events?triggerContext=explore
+ *   - 事件配置：GET /api/config/events?triggerContext=… 多路合并（explore / wilderness / market / mystery），与 config 中 trigger_context 一致后再由 filterExploreEventsPool 按地点过滤
  */
 
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { API_CONFIG } from '@/constants';
 import { useExploreQuota } from '@/hooks/useExploreQuota';
 import { PHASE, FORTUNE_LEVELS } from '@/components/event/EventConstants';
-import { pickRandomEvent, isFortuneSuccess, filterExploreEventsPool } from '@/components/event/eventUtils';
+import {
+  pickRandomEvent,
+  isFortuneSuccess,
+  filterExploreEventsPool,
+  getExploreOptionResolution,
+} from '@/components/event/eventUtils';
 import { validateMainLineupBattleGate } from '@/utils/mainLineupTroops';
+import { resolveEventLocationForUi } from '@/utils/eventLocationPlaceholders';
+import {
+  EVENT_PUNISHMENT_COMBAT_BANDIT_LOCATION_SLOT_RARITIES,
+  isBanditMapObjectId,
+} from '@shared/utils/smallMapEnemyRoster.js';
 
-/** 默认探索地点（南阳荒郊，与 config_events.location 一致） */
-export const DEFAULT_EXPLORE_LOCATION_ID = 'san_1_city_6_nanyang';
+/** 默认探索地点：与 `cities` 同一行的主城 `city_id`（荒郊走 `wildernessEnabled` + 内嵌探索；勿再使用 `san_*_city_6_*` 独立行） */
+export const DEFAULT_EXPLORE_LOCATION_ID = 'san_1_city_2_yangdi';
+
+/** 与大地图探索、荒郊/集市内嵌条、匪寨格共用的配置池；勿只拉 explore（荒郊/集市在库中为 wilderness / market） */
+const EXPLORE_RELATED_TRIGGER_CONTEXTS = ['explore', 'wilderness', 'market', 'mystery'];
 
 /**
  * 将 PlayerContext 的 player 数据（×10存储）转为显示值（个位数）
@@ -165,19 +178,40 @@ export default function useEventSystem(player, cards) {
     general2,
   }), [playerAttrs, general1, general2]);
 
-  // 从API加载explore事件（全量）
+  // 从 API 合并加载探索相关事件（荒郊/集市/匪寨与 explore 分 trigger_context，单拉 explore 会导致池恒为空）
   useEffect(() => {
-    fetch(`${API_CONFIG.BASE_URL}/config/events?triggerContext=explore`)
-      .then(res => res.json())
-      .then(data => {
-        if (data.success) {
-          setAllExploreEvents(data.events);
-        } else {
-          console.error('[useEventSystem] 加载事件失败:', data.message);
+    let cancelled = false;
+    const base = API_CONFIG.BASE_URL;
+    Promise.all(
+      EXPLORE_RELATED_TRIGGER_CONTEXTS.map((ctx) =>
+        fetch(`${base}/config/events?triggerContext=${encodeURIComponent(ctx)}`)
+          .then((r) => r.json())
+          .catch(() => ({ success: false, events: [] }))
+      )
+    )
+      .then((results) => {
+        if (cancelled) return;
+        const byId = new Map();
+        for (const data of results) {
+          if (!data?.success || !Array.isArray(data.events)) continue;
+          for (const e of data.events) {
+            if (e?.event_id) byId.set(e.event_id, e);
+          }
+        }
+        setAllExploreEvents(Array.from(byId.values()));
+        const anySuccess = results.some((d) => d?.success);
+        if (!anySuccess) {
+          const msg = results.find((d) => d?.message)?.message;
+          console.error('[useEventSystem] 加载事件失败:', msg || '全部请求失败');
         }
       })
-      .catch(err => console.error('[useEventSystem] 请求事件API失败:', err))
-      .finally(() => setEventsLoading(false));
+      .catch((err) => {
+        if (!cancelled) console.error('[useEventSystem] 请求事件API失败:', err);
+      })
+      .finally(() => {
+        if (!cancelled) setEventsLoading(false);
+      });
+    return () => { cancelled = true; };
   }, []);
 
   // 加载玩家事件进度
@@ -225,17 +259,28 @@ export default function useEventSystem(player, cards) {
       .catch(() => {});
   }, [player?.player_id]);
 
+  /** 城市列表：解析 location 占位符（含 {city_medium_wilderness} 等）、探索池与 exploreLocationMatchesEvent 对齐 */
+  const [citiesList, setCitiesList] = useState([]);
+  useEffect(() => {
+    fetch(`${API_CONFIG.BASE_URL}/cities?season=san_1`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.success && d.cities) setCitiesList(d.cities);
+      })
+      .catch(() => {});
+  }, []);
+
   /** 当前探索地点（大地图/探索 Tab 通过 startExplore(locationId) 切换） */
   const [exploreLocationId, setExploreLocationId] = useState(DEFAULT_EXPLORE_LOCATION_ID);
 
   // 根据地点 + 链进度过滤可用事件池（用于 UI 展示默认地点池子大小等）
   const exploreEvents = useMemo(() => (
-    filterExploreEventsPool(allExploreEvents, completedEvents, exploreLocationId, playerItemCounts)
-  ), [allExploreEvents, completedEvents, exploreLocationId, playerItemCounts]);
+    filterExploreEventsPool(allExploreEvents, completedEvents, exploreLocationId, playerItemCounts, citiesList)
+  ), [allExploreEvents, completedEvents, exploreLocationId, playerItemCounts, citiesList]);
 
-  const explorePoolAt = useCallback((locationId) => (
-    filterExploreEventsPool(allExploreEvents, completedEvents, locationId, playerItemCounts)
-  ), [allExploreEvents, completedEvents, playerItemCounts]);
+  const explorePoolAt = useCallback((locationId, subsidiaryKind = null) => (
+    filterExploreEventsPool(allExploreEvents, completedEvents, locationId, playerItemCounts, citiesList, subsidiaryKind)
+  ), [allExploreEvents, completedEvents, playerItemCounts, citiesList]);
 
   // 加载道具名称映射
   useEffect(() => {
@@ -251,26 +296,79 @@ export default function useEventSystem(player, cards) {
       .catch(err => console.error('[useEventSystem] 加载道具配置失败:', err));
   }, []);
 
+  const resolvedEventLocation = useMemo(() => {
+    if (!currentEvent?.location) {
+      return { displayLocationId: '', cityName: '', isPlaceholder: false };
+    }
+    const seed = `${player?.player_id || ''}:${currentEvent.event_id}:${currentEvent.location}`;
+    return resolveEventLocationForUi(currentEvent.location, citiesList, seed);
+  }, [currentEvent, citiesList, player?.player_id]);
+
+  const eventLocationLabel = useMemo(() => {
+    if (!currentEvent?.location) return '';
+    const { cityName, displayLocationId, unresolved, allLocations } = resolvedEventLocation;
+    if (unresolved) return currentEvent.location;
+    if (allLocations) return '任意地点';
+    return cityName || displayLocationId || '';
+  }, [currentEvent, resolvedEventLocation]);
+
+  /** 匪寨格上探索事件 → 惩罚战敌方四槽固定传奇档（与事件卡稀有度、匪寨层数玩法无关） */
+  const eventBattleEnemySlotRarities = useMemo(() => {
+    if (!exploreLocationId) return null;
+    if (isBanditMapObjectId(exploreLocationId)) {
+      return EVENT_PUNISHMENT_COMBAT_BANDIT_LOCATION_SLOT_RARITIES;
+    }
+    return null;
+  }, [exploreLocationId]);
+
   // 变量替换
   const replaceVars = useCallback((text) => {
     if (!text || !playerAttrs) return text || '';
-    return text.replace(/\{player_name\}/g, playerAttrs.name || '');
-  }, [playerAttrs]);
+    const citySubst = resolvedEventLocation.allLocations
+      ? '任意地点'
+      : (resolvedEventLocation.cityName || '');
+    let s = text.replace(/\{player_name\}/g, playerAttrs.name || '');
+    s = s.replace(/\{city_name\}/g, citySubst);
+    return s;
+  }, [playerAttrs, resolvedEventLocation]);
 
-  // 开始探索（locationOverride：大地图多个探索点时传入对应 config location）
-  const startExplore = useCallback((locationOverride) => {
+  /**
+   * 开始探索
+   * @param {string|null|undefined} locationOverride - 探索点 city_id（大地图多点必传）
+   * @param {{ subsidiaryKind?: 'wilderness'|'market' }|null} [exploreOpts] - 战略城 tooltip 荒郊/集市分池；不传则与当前 `exploreLocationId` 默认探索点一致
+   */
+  const startExplore = useCallback((locationOverride, exploreOpts) => {
     if (!quota.canExplore || !playerAttrs) return;
-    // 明确点击的地点优先于 localStorage 中的 pending，避免点南阳却沿用山海关未完成事件
+    const opts = exploreOpts && typeof exploreOpts === 'object' ? exploreOpts : {};
+    const subsidiaryKind = opts.subsidiaryKind ?? null;
+
+    // 未传地点时用 pending 的锚点 city_id 或当前探索点；勿用事件配置的 location 占位符（会与 city_id 比较失败导致反复清 pending）
     const locId = (locationOverride != null && locationOverride !== '')
       ? locationOverride
-      : (pendingEvent?.location || exploreLocationId);
+      : (pendingEvent?.explore_anchor_city_id ?? exploreLocationId);
     if (locationOverride) setExploreLocationId(locationOverride);
 
-    const pool = filterExploreEventsPool(allExploreEvents, completedEvents, locId, playerItemCounts);
+    const pool = filterExploreEventsPool(
+      allExploreEvents,
+      completedEvents,
+      locId,
+      playerItemCounts,
+      citiesList,
+      subsidiaryKind
+    );
     const poolIds = new Set(pool.map((e) => e.event_id));
 
     let usePending = pendingEvent;
-    if (usePending && usePending.location && usePending.location !== locId) {
+    if (usePending?.explore_anchor_city_id != null && usePending.explore_anchor_city_id !== locId) {
+      setPendingEvent(null);
+      usePending = null;
+    }
+    if (
+      usePending != null &&
+      subsidiaryKind != null &&
+      usePending.explore_subsidiary_kind != null &&
+      usePending.explore_subsidiary_kind !== subsidiaryKind
+    ) {
       setPendingEvent(null);
       usePending = null;
     }
@@ -279,11 +377,17 @@ export default function useEventSystem(player, cards) {
       usePending = null;
     }
 
-    const event = (usePending && poolIds.has(usePending.event_id) ? usePending : null)
-      || pickRandomEvent(pool);
-    if (!event) return;
+    const raw = (usePending && poolIds.has(usePending.event_id) ? usePending : null) || pickRandomEvent(pool);
+    if (!raw) return;
 
-    if (!usePending || usePending.event_id !== event.event_id) setPendingEvent(event);
+    const { explore_anchor_city_id: _a, explore_subsidiary_kind: _k, ...eventCore } = raw;
+    const event = {
+      ...eventCore,
+      explore_anchor_city_id: locId,
+      explore_subsidiary_kind: subsidiaryKind,
+    };
+
+    setPendingEvent(event);
     setCurrentEvent(event);
     setChosenOption(null);
     setChosenOptionKey(null);
@@ -295,7 +399,7 @@ export default function useEventSystem(player, cards) {
     setMinigameInfo(null);
     setRewardDetails(null);
     setPhase(PHASE.EVENT);
-  }, [quota, playerAttrs, pendingEvent, allExploreEvents, completedEvents, exploreLocationId, playerItemCounts, setPendingEvent]);
+  }, [quota, playerAttrs, pendingEvent, allExploreEvents, completedEvents, exploreLocationId, playerItemCounts, citiesList, setPendingEvent]);
 
   // 关闭事件对话框（未选择选项，不消耗次数）
   const closeEvent = useCallback(() => {
@@ -419,16 +523,19 @@ export default function useEventSystem(player, cards) {
       localStorage.setItem(pendingKey + '_inprogress', '1');
     }
 
-    // minigame类型：进入小游戏，结束后再请求后端
-    if (option.mainFactor === 'minigame') {
-      const [game, difficulty] = option.mainRequirement.split(':');
+    const flow = getExploreOptionResolution(option);
+
+    // minigame：进入小游戏，结束后再请求后端
+    if (flow === 'minigame') {
+      const req = option.mainRequirement != null ? String(option.mainRequirement) : '';
+      const [game, difficulty] = req.split(':');
       setMinigameInfo({ game, difficulty });
       setPhase(PHASE.MINIGAME);
       return;
     }
 
-    // always类型：先等后端成功再进 REWARD，失败时 applyRewardResponse 已退回 IDLE
-    if (option.mainFactor === 'always') {
+    // always：无需掷骰，直接请求后端后进结算
+    if (flow === 'always') {
       setFortune({ name: '吉', emoji: '⭐', color: 'text-blue-600', multiplier: 1.0 });
       requestRewards(optionKey).then((data) => {
         if (applyRewardResponse(data)) setPhase(PHASE.REWARD);
@@ -436,7 +543,7 @@ export default function useEventSystem(player, cards) {
       return;
     }
 
-    // 因子判定：播放骰子动画，同时请求后端
+    // 因子判定（luck 等）：先播掷骰再展示判定结果
     setPhase(PHASE.ROLLING);
     const rewardPromise = requestRewards(optionKey);
     rewardPromise.then((data) => { pendingRewardResponse.current = data; });
@@ -452,7 +559,7 @@ export default function useEventSystem(player, cards) {
           if (applyRewardResponse(data)) setPhase(PHASE.RESULT);
         });
       }
-    }, 1500);
+    }, 1000);
   }, [quota, requestRewards, applyRewardResponse, pendingKey]);
 
   const dismissBattleEntryBlocked = useCallback(() => setBattleEntryBlockedMessage(null), []);
@@ -460,8 +567,12 @@ export default function useEventSystem(player, cards) {
   // 判定结果确认
   const confirmResult = useCallback(() => {
     if (fortune && (fortune.name === '凶' || fortune.name === '大凶')) {
-      // triggerBattle 在 option JSON 内部（camelCase，布尔值）
-      // 只有 triggerBattle=true 的选项才在凶/大凶时触发惩罚战斗
+      // 选项 B 为和平选项，永不进入惩罚战斗
+      if (chosenOptionKey === 'B') {
+        setPhase(PHASE.REWARD);
+        return;
+      }
+      // 仅选项 A：triggerBattle=yes 时凶/大凶进入惩罚战
       if (chosenOption && chosenOption.triggerBattle) {
         const v = validateMainLineupBattleGate({
           cards,
@@ -477,7 +588,7 @@ export default function useEventSystem(player, cards) {
       }
     }
     setPhase(PHASE.REWARD);
-  }, [fortune, chosenOption, cards, player?.food]);
+  }, [fortune, chosenOption, chosenOptionKey, cards, player?.food]);
 
   // 战斗结果（第五参 meta 与 EventBattleArena / 攻城一致，含 chestRewards）
   const endBattle = useCallback((result, silverSpent = 0, scoreResult = null, _killedIndices, meta = null) => {
@@ -549,7 +660,7 @@ export default function useEventSystem(player, cards) {
     setBattleChestRewards([]);
     // 清除进行中标记
     if (pendingKey) localStorage.removeItem(pendingKey + '_inprogress');
-    setTimeout(() => setPhase(PHASE.IDLE), 3000);
+    setTimeout(() => setPhase(PHASE.IDLE), 1000);
   }, [currentEvent, chosenOptionKey, player]);
 
   const isSuccess = isFortuneSuccess(fortune);
@@ -559,6 +670,7 @@ export default function useEventSystem(player, cards) {
     phase,
     currentEvent,
     chosenOption,
+    chosenOptionKey,
     fortune,
     battleResult,
     minigameInfo,
@@ -597,5 +709,9 @@ export default function useEventSystem(player, cards) {
     endMinigame,
     closeReward,
     replaceVars,
+    eventLocationLabel,
+    eventBattleEnemySlotRarities,
+    /** 战略荒郊 tooltip 等与 `filterExploreEventsPool` 共用，解析 `city_type` 展示 13-1 荒郊稀有度区间 */
+    citiesList,
   };
 }

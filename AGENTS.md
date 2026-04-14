@@ -25,4 +25,5 @@
 
 ## San Storm 大地图 · 实现备忘（可追溯）
 
-- **新野底栏（`WorldMap.jsx` 硬编码 `san_1_city_3_xinye` 等）**：当前为 **测试 / 开发锚点**（攻城、配额、探索、城况刷新等多处默认挂靠）。**非产品终态**。颍川郡战略格网等功能已复用同一套城防 UI（`WorldMapCityInfoBlock` / 驻地编组 / 披挂）时，应在代码侧把入口与数据依赖 **泛化为「当前选中城或郡内城点」**；**待无业务再依赖该常量后**，可删除新野专用底栏模块。细节与文档位置见 `05-san-storm/docs/10-core-system/13-1-CITY_SYSTEM.md` **§8.4.1**（若本地有该节）。
+- **大地图城防入口**：攻城配额、势力战况、攻打与驻地编组等已挂在 **颍川战略格 tooltip**（`StrategicCityTooltipPanel` + `WorldMapCityInfoBlock`），按 **当前格点 `city_id`** 拉取，不再使用底栏或单城硬编码。实现备忘仍见 `05-san-storm/docs/10-core-system/13-1-CITY_SYSTEM.md` **§8.4.1**（若本地有该节）。
+- **颍川合并图 `public/data/worldmap/san_1_jun_yingchuan_merged.json`**：底板与道路层（`roadCells` / `roadConnectivity`）在同一文件。日常优先用管理端「生成地图」（`POST /api/admin/world-map/generate-merged-map`）。若在本机用 `node backend/scripts/worldmap-merge-yingchuan.mjs --out …` 直接写该路径，**大改或不确定时请先备份该 JSON**；脚本会从已存在文件中尽量保留非空道路层，但 **`--out` 指错路径、目标已不含道路、或覆盖到错误环境** 仍会造成丢失。

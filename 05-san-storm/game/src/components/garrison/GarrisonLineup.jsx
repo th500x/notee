@@ -22,9 +22,6 @@ import GarrisonGeneralPanel from './GarrisonGeneralPanel';
 import GarrisonStatsPanel from './GarrisonStatsPanel';
 import GarrisonBackpack from './GarrisonBackpack';
 
-const DEFAULT_GARRISON_CITY_ID = 'san_1_city_3_xinye';
-const DEFAULT_GARRISON_CITY_NAME = '新野';
-
 const GARRISON_PROFILE_POLL_MS = 60_000;
 
 const RARITY_ORDER = { common: 0, rare: 1, epic: 2, legendary: 3, core: 4 };
@@ -33,8 +30,9 @@ const CARD_SCALE_DETAIL_MODAL = 0.72;
 
 export default function GarrisonLineup({
   onClose,
-  cityId = DEFAULT_GARRISON_CITY_ID,
-  cityName = DEFAULT_GARRISON_CITY_NAME,
+  /** 须由打开面板的父组件传入（如大地图格上「驻地编组」） */
+  cityId,
+  cityName = '城池',
 }) {
   const { player, cards, refresh, attributeBonusBySlot } = usePlayerContext();
   const { getCharacterLifeStage } = useLifeStages();

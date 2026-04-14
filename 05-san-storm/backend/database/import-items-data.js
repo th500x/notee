@@ -1,6 +1,11 @@
 /**
  * 道具配置数据导入 MySQL
  *
+ * 运行时：道具展示名等来自 GET /api/config/items（查 MySQL config_items），非直接读 items.json。
+ *
+ * 管线：item-template.csv → item-csv-to-json.cjs（**整表重写** JSON）→ public/data/shared/items.json → **本脚本** → config_items。
+ *
+ * 录入源 CSV: docs/tools/item/item-template.csv（经 item-csv-to-json 生成 JSON）
  * 输入:  public/data/shared/items.json
  * 目标:  config_items 表
  *

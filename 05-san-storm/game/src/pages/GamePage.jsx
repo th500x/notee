@@ -9,6 +9,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PlayerProvider, usePlayerContext } from '@/contexts/PlayerContext';
+import { StrategicMapNavigationProvider } from '@/contexts/StrategicMapNavigationContext';
 import TopStatusBar from '@/components/game/TopStatusBar';
 import AnnouncementBar from '@/components/game/AnnouncementBar';
 import RankingPanel from '@/components/game/RankingPanel';
@@ -34,7 +35,9 @@ import { shouldShowUpdateNotice, dismissUpdateNotice } from '@/utils/updateNotic
 export default function GamePage({ user, onLogout }) {
   return (
     <PlayerProvider playerId={user?.id}>
-      <GamePageInner onLogout={onLogout} />
+      <StrategicMapNavigationProvider>
+        <GamePageInner onLogout={onLogout} />
+      </StrategicMapNavigationProvider>
     </PlayerProvider>
   );
 }

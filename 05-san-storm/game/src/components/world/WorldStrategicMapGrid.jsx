@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import WorldStrategicMapTile from './WorldStrategicMapTile';
 import { buildCampaignCellTooltipInfo } from '@/components/battle/battleConstants';
 import {
+  WORLD_MAP_DEFAULT_FACTION_LABELS,
   buildWorldMapCityPanelProps,
   parentCityIdsWithSubsidiaryExplore,
   worldMapCityIsPlayerSameFaction,
@@ -12,7 +13,13 @@ import { garrisonAPI } from '@/services/garrisonApi';
 import { resolveStrategicTileCityCover } from '@/utils/strategicMapTileContext';
 import { useTileTooltipClamp } from '@/components/battle/useTileTooltipClamp';
 import TileTooltipContent from '@/components/battle/TileTooltipContent';
+import StrategicSiegeWarFloatingPanel from '@/components/world/StrategicSiegeWarFloatingPanel';
 import { useStrategicMapTooltipClickMode } from '@/hooks/useStrategicMapTooltipClickMode';
+import { useStrategicMapNavigation } from '@/contexts/StrategicMapNavigationContext';
+import {
+  buildStrategicRoadOverlayPathD,
+  ROAD_CONNECTIVITY_4,
+} from '@shared/utils/strategicRoadOverlay.js';
 import '@/components/battle/BattleMap.css';
 import './WorldStrategicMap.css';
 
@@ -43,8 +50,8 @@ function buildStrategicWorldMapCityTooltip(row, anchorCityId, hd, onDutyCount) {
     factionNameById: fb,
     playerFactionId: hd.playerFactionId,
     playerId: hd.playerId,
-    siegeQuota: hd.siegeQuota,
-    siegeLoading: false,
+    siegeQuota: null,
+    siegeLoading: hd.siegeLoading === true,
     garrisonSlotCount: Number.isFinite(slotNum) ? slotNum : null,
     onDutyCount,
     cityById: hd.cityById,
@@ -62,11 +69,24 @@ function buildStrategicWorldMapCityTooltip(row, anchorCityId, hd, onDutyCount) {
     worldMapCityTypeAllowsMainCitySet(row) &&
     typeof hd.onSetMainCityRequest === 'function';
 
+  const canSiegeThis =
+    !isOwn &&
+    !!hd.playerId &&
+    typeof hd.onStartSiegeForCity === 'function';
+
   return {
     type: 'worldMapCity',
-    interactive: canAct || hasSubsidiaryTabs || hasCityInfoTabs || canSetMainCity,
+    interactive: canAct || hasSubsidiaryTabs || hasCityInfoTabs || canSetMainCity || canSiegeThis,
     ...base,
     cityId: anchorCityId,
+    factionDisplayMap: { ...WORLD_MAP_DEFAULT_FACTION_LABELS, ...fb },
+    onStartSiege:
+      canSiegeThis
+        ? () => {
+            hd.onStartSiegeForCity(anchorCityId, row);
+            hd.closeStrategicCityTooltip?.();
+          }
+        : undefined,
     showOwnCityActions: canAct,
     playerOnDutyForThisCity: !!(hd.playerOnDuty && hd.playerOnDutyCityId === anchorCityId),
     onOpenGarrison:
@@ -85,10 +105,9 @@ function buildStrategicWorldMapCityTooltip(row, anchorCityId, hd, onDutyCount) {
       canAct && typeof hd.closeStrategicCityTooltip === 'function'
         ? hd.closeStrategicCityTooltip
         : undefined,
-    onSubsidiaryExploreRequest:
-      typeof hd.onSubsidiaryExploreRequest === 'function'
-        ? hd.onSubsidiaryExploreRequest
-        : undefined,
+    subsidiaryExploreEmbed: hd.subsidiaryExploreEmbed ?? null,
+    closeStrategicCityTooltip:
+      typeof hd.closeStrategicCityTooltip === 'function' ? hd.closeStrategicCityTooltip : undefined,
     ...(canSetMainCity
       ? {
           mainCityId: hd.playerMainCityId ?? null,
@@ -106,7 +125,7 @@ function buildStrategicWorldMapCityTooltip(row, anchorCityId, hd, onDutyCount) {
 /**
  * 战略层郡大地图格网（如颍川 32×40）。
  * 与 `CampaignMapGrid` 分离：无战役部署、无部队层、无战斗引擎。
- * Tooltip：有 `cityId` 且在 `cityById` 中有对应行时，与 WorldMap 底栏新野块同款（含己方驻地编组 / 披挂）。
+ * Tooltip：有 `cityId` 且在 `cityById` 中有对应行时，与 `WorldMapCityInfoBlock` 同款（驻地编组 / 披挂 / 攻城等）。
  */
 export default function WorldStrategicMapGrid({
   cells,
@@ -124,20 +143,30 @@ export default function WorldStrategicMapGrid({
   factionNameById = null,
   playerId = null,
   playerFactionId = null,
-  siegeQuota = null,
+  siegeLoading = false,
+  onStartSiegeForCity = null,
   garrisonStatsByCityId = null,
   playerOnDuty = false,
   playerOnDutyCityId = null,
   onOpenGarrisonForCity = null,
   onToggleDutyForCity = null,
   onDutyError = null,
-  onSubsidiaryExploreRequest = null,
+  subsidiaryExploreEmbed = null,
   playerMainCityId = null,
   playerMainCityChangedAt = null,
   playerSilver = null,
   onSetMainCityRequest = null,
   onSetMainCityError = null,
+  /** 郡内道路格（merged.json）；仅展示，寻路以同数据为准 */
+  roadCells = null,
+  /** `'4'` 四连通 | `'8'` 八连通（画线邻接与此一致） */
+  roadConnectivity = ROAD_CONNECTIVITY_4,
+  /** 城名标签：显式盟友 `faction_id`（结盟接入后由上层传入） */
+  strategicCityLabelAllyFactionIds = null,
+  /** 城名标签：显式非敌对 `faction_id` */
+  strategicCityLabelNonHostileFactionIds = null,
 }) {
+  const strategicNav = useStrategicMapNavigation();
   const tooltipClickMode = useStrategicMapTooltipClickMode();
   const [tooltipContent, setTooltipContent] = useState(null);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
@@ -206,14 +235,15 @@ export default function WorldStrategicMapGrid({
     factionNameById,
     playerId,
     playerFactionId,
-    siegeQuota,
+    siegeLoading,
+    onStartSiegeForCity,
     garrisonStatsByCityId,
     playerOnDuty,
     playerOnDutyCityId,
     onOpenGarrisonForCity,
     onToggleDutyForCity,
     onDutyError,
-    onSubsidiaryExploreRequest,
+    subsidiaryExploreEmbed,
     closeStrategicCityTooltip: closeTooltipNow,
     playerMainCityId,
     playerMainCityChangedAt,
@@ -244,7 +274,39 @@ export default function WorldStrategicMapGrid({
     if (!row) return;
     const duty = Number.isFinite(m.onDutyCount) ? m.onDutyCount : null;
     setTooltipContent(buildStrategicWorldMapCityTooltip(row, m.cityId, hd, duty));
-  }, [playerMainCityId, playerMainCityChangedAt, playerSilver]);
+  }, [
+    playerMainCityId,
+    playerMainCityChangedAt,
+    playerSilver,
+    subsidiaryExploreEmbed,
+    garrisonStatsByCityId,
+    siegeLoading,
+  ]);
+
+  useEffect(() => {
+    if (!strategicNav?.registerScrollToStrategicCell) return undefined;
+    const scrollToStrategicCell = (gx, gy) => {
+      const w = wrapRef.current;
+      if (!w) return;
+      let cx = Number(gx);
+      let cy = Number(gy);
+      if (!Number.isFinite(cx) || !Number.isFinite(cy)) return;
+      cx = Math.max(0, Math.min(cx, mapColumns - 1));
+      cy = Math.max(0, Math.min(cy, mapRows - 1));
+      const t = tilePxRef.current;
+      const centerX = (cx + 1) * t;
+      const centerY = (cy + 1) * t;
+      const vw = w.clientWidth;
+      const vh = w.clientHeight;
+      const sl = centerX - vw / 2;
+      const st = centerY - vh / 2;
+      const maxSl = Math.max(0, w.scrollWidth - vw);
+      const maxSt = Math.max(0, w.scrollHeight - vh);
+      w.scrollLeft = Math.max(0, Math.min(sl, maxSl));
+      w.scrollTop = Math.max(0, Math.min(st, maxSt));
+    };
+    return strategicNav.registerScrollToStrategicCell(scrollToStrategicCell);
+  }, [strategicNav, mapColumns, mapRows]);
 
   useEffect(() => {
     const el = wrapRef.current;
@@ -479,6 +541,12 @@ export default function WorldStrategicMapGrid({
     [cityById],
   );
 
+  const roadOverlayPathD = useMemo(() => {
+    if (!roadCells?.length) return '';
+    const conn = roadConnectivity === '8' ? '8' : ROAD_CONNECTIVITY_4;
+    return buildStrategicRoadOverlayPathD(roadCells, conn, mapColumns, mapRows);
+  }, [roadCells, roadConnectivity, mapColumns, mapRows]);
+
   return (
     <div
       className={`ws-map-card ${county ? 'ws-map-card--county flex-1 min-h-0 flex flex-col h-full' : ''}`}
@@ -522,6 +590,9 @@ export default function WorldStrategicMapGrid({
                         strategicCover={cover}
                         cityRow={cityRow}
                         subsidiaryHubGlow={subsidiaryHubGlow}
+                        playerFactionId={playerFactionId}
+                        strategicCityLabelAllyFactionIds={strategicCityLabelAllyFactionIds}
+                        strategicCityLabelNonHostileFactionIds={strategicCityLabelNonHostileFactionIds}
                         tooltipPointerMode={tooltipClickMode ? 'click' : 'hover'}
                         onHover={handleOpenTooltipFromTileEvent}
                         onLeave={tooltipClickMode ? undefined : scheduleLeaveFromTile}
@@ -531,6 +602,23 @@ export default function WorldStrategicMapGrid({
                   }),
                 )}
               </div>
+              {roadOverlayPathD ? (
+                <svg
+                  className="ws-road-overlay"
+                  viewBox={`0 0 ${mapColumns} ${mapRows}`}
+                  preserveAspectRatio="none"
+                  aria-hidden
+                >
+                  <path
+                    className="ws-road-overlay__stroke ws-road-overlay__stroke--outer"
+                    d={roadOverlayPathD}
+                  />
+                  <path
+                    className="ws-road-overlay__stroke ws-road-overlay__stroke--inner"
+                    d={roadOverlayPathD}
+                  />
+                </svg>
+              ) : null}
               <div className="ws-quad-overlay" aria-hidden>
                 {['A', 'B', 'C', 'D'].map((q) => (
                   <div key={q} className={WS_QUAD_CLASS[q]} title={`大象限 ${q}`} />
@@ -546,12 +634,34 @@ export default function WorldStrategicMapGrid({
               ref={tooltipRef}
               style={tooltipStyle}
               onMouseEnter={tooltipClickMode ? undefined : clearLeaveTooltipTimer}
-              onMouseLeave={tooltipClickMode ? undefined : closeTooltipNow}
+              onMouseLeave={
+                tooltipClickMode
+                  ? undefined
+                  : tooltipContent?.uniformStrategicPanel
+                    ? scheduleLeaveFromTile
+                    : closeTooltipNow
+              }
             >
               <TileTooltipContent content={tooltipContent} />
             </div>,
             document.body,
           )}
+          {tooltipContent &&
+            typeof document !== 'undefined' &&
+            tooltipContent.type === 'worldMapCity' &&
+            tooltipContent.uniformStrategicPanel &&
+            tooltipContent.cityId && (
+              <StrategicSiegeWarFloatingPanel
+                anchorRef={tooltipRef}
+                tooltipPos={tooltipPos}
+                cityId={tooltipContent.cityId}
+                factionDisplayMap={tooltipContent.factionDisplayMap}
+                enabled
+                tooltipClickMode={tooltipClickMode}
+                clearLeaveTooltipTimer={clearLeaveTooltipTimer}
+                scheduleLeaveFromTile={scheduleLeaveFromTile}
+              />
+            )}
         </div>
       </div>
     </div>

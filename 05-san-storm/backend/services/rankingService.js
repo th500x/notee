@@ -22,9 +22,9 @@ const CAMPAIGN_MAX_LIMIT = 50;
 const OVERALL_AVG_EXPR = 'ROUND(s.total_battle_score / s.total_battles)';
 
 /**
- * 道具「黄巾徽章」持有量：`players.items` JSON 中 `item_badge`（与 `docs/tools/event/item-template.csv`、config_items 一致）
+ * 道具「黄巾徽章」持有量：`players.items` JSON 中 `item_season_badge`（与 `docs/tools/item/item-template.csv`、config_items 一致）
  */
-const YELLOW_TURBAN_BADGE_ITEM_ID = 'item_badge';
+const YELLOW_TURBAN_BADGE_ITEM_ID = 'item_season_badge';
 const OVERALL_BADGE_COUNT_EXPR = `COALESCE(CAST(JSON_UNQUOTE(JSON_EXTRACT(p.items, '$.${YELLOW_TURBAN_BADGE_ITEM_ID}')) AS UNSIGNED), 0)`;
 
 /**

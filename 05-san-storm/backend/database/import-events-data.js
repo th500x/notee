@@ -1,6 +1,12 @@
 /**
  * 事件配置数据导入 MySQL
  *
+ * 运行时：游戏 GET /api/config/events 读的是「本表」里的数据（configService 查 MySQL），
+ * 请求链路不会读 public/data/shared/events.json。
+ *
+ * 管线入库：event-template.csv → event-csv-to-json.cjs → public/data/shared/events.json → **本脚本** → config_events。
+ * 若中间 JSON 与 CSV 未对齐，导入后库里仍是旧选项/奖励串——排查时要看「CSV→JSON→本导入」是否跑全，而非只假定「已更新 DB」。
+ *
  * 输入:  public/data/shared/events.json（可由 docs/tools/event/event-csv-to-json.cjs 从 CSV 生成）
  * 目标:  config_events 表
  *
@@ -17,6 +23,14 @@ const fs    = require('fs').promises;
 const path  = require('path');
 
 require('dotenv').config({ path: path.join(__dirname, '../.env') });
+
+/** 与 configService.formatTriggerProbability / 前端 pickRandomEvent 一致：仅 1 入库；否则 NULL（均等池） */
+function triggerProbabilityForImport(tp) {
+  if (tp == null || tp === '') return null;
+  const n = Number(tp);
+  if (Number.isFinite(n) && n === 1) return 1;
+  return null;
+}
 
 const dbConfig = {
   host:     process.env.DB_HOST     || 'localhost',
@@ -51,8 +65,8 @@ async function importEvents(connection) {
           trigger_probability, trigger_context,
           chain_id, chain_level, required_items,
           description_1, description_2, description_3,
-          option_a, option_b, tags
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          option_a, option_b
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON DUPLICATE KEY UPDATE
           season              = VALUES(season),
           event_name          = VALUES(event_name),
@@ -67,15 +81,14 @@ async function importEvents(connection) {
           description_2       = VALUES(description_2),
           description_3       = VALUES(description_3),
           option_a            = VALUES(option_a),
-          option_b            = VALUES(option_b),
-          tags                = VALUES(tags)
+          option_b            = VALUES(option_b)
       `, [
         e.id,
         season,
         e.name,
         e.location || null,
         e.minPositionLevel || null,
-        e.triggerProbability,
+        triggerProbabilityForImport(e.triggerProbability),
         e.triggerContext || null,
         e.chainId || null,
         e.chainLevel || null,
@@ -85,7 +98,6 @@ async function importEvents(connection) {
         e.descriptions[2] || null,
         e.optionA ? JSON.stringify(e.optionA) : null,
         e.optionB ? JSON.stringify(e.optionB) : null,
-        e.tags || null,
       ]);
 
       imported++;

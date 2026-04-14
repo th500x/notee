@@ -2,7 +2,7 @@
  * useSiegeQuota - 攻城次数配额管理（服务端存储）
  * 机制与探索配额完全一致：每小时+6，上限18，00:00~08:00休息
  */
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { API_CONFIG } from '@/constants';
 
 const MAX_QUOTA = 18;
@@ -12,17 +12,28 @@ const REST_END = 8;
 
 function isRestHour(h) { return h >= REST_START && h < REST_END; }
 
-function fetchQuota(playerId, cityId) {
+/** 供战略 tooltip / 攻城发起前校验等复用（与 hook 内请求一致） */
+export function fetchSiegeQuotaJson(playerId, cityId) {
+  if (!playerId || !cityId) return Promise.resolve({ success: false });
   return fetch(`${API_CONFIG.BASE_URL}/cities/${cityId}/siege-quota?playerId=${playerId}`)
-    .then(r => r.json());
+    .then((r) => r.json());
 }
 
-function postQuota(playerId, cityId, action) {
+export function postSiegeQuotaAction(playerId, cityId, action) {
+  if (!playerId || !cityId) return Promise.resolve({ success: false });
   return fetch(`${API_CONFIG.BASE_URL}/cities/${cityId}/siege-quota`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ playerId, action }),
-  }).then(r => r.json());
+  }).then((r) => r.json());
+}
+
+function fetchQuota(playerId, cityId) {
+  return fetchSiegeQuotaJson(playerId, cityId);
+}
+
+function postQuota(playerId, cityId, action) {
+  return postSiegeQuotaAction(playerId, cityId, action);
 }
 
 export function useSiegeQuota(playerId, cityId) {

@@ -9,7 +9,7 @@ require('dotenv').config({ path: path.join(__dirname, '../../.env') });
 
 const SQL = `
 ALTER TABLE cities
-  ADD COLUMN description TEXT NULL COMMENT 'from cities_template.csv description' AFTER culture
+  ADD COLUMN description TEXT NULL COMMENT 'from config_city_template.csv description' AFTER culture
 `;
 
 async function main() {

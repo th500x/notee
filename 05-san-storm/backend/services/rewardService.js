@@ -14,6 +14,8 @@ const fs = require('fs');
 const path = require('path');
 const { pool } = require('../database/connection');
 const statisticsDeltaService = require('./statisticsDeltaService');
+const { getOptionFactorFields } = require('../../shared/utils/eventOptionFactor.js');
+const { expandRewardPresetsForExecute } = require('../../shared/utils/eventRewardPresets.js');
 
 /** MySQL ENUM / 大小写 / 空值 → 标准稀有度字符串 */
 function normalizeEnumRarity(raw) {
@@ -119,16 +121,20 @@ function calculateFortune(option, playerChar, general1, general2) {
     return { fortuneName: '吉', multiplier: 1.0, dice: 4, finalRate: 100 };
   }
 
-  // luck 判定 → 完全照抄前端 calcBaseScore 逻辑
+  // luck 判定 → 完全照抄前端 calcBaseScore（含 type-a / type-b 展开）
+  const f = getOptionFactorFields(option);
+  if (!f || f.mainFactor !== 'luck') {
+    return { fortuneName: '吉', multiplier: 1.0, dice: 4, finalRate: 100 };
+  }
   const teamLuck = (playerChar.luck + general1.luck + general2.luck) / 3;
-  const mainScore = teamLuck / option.mainRequirement;
+  const mainScore = teamLuck / f.mainRequirement;
 
   const teamSub = (
-    calcSubFactor(option.subFactors, playerChar) +
-    calcSubFactor(option.subFactors, general1) +
-    calcSubFactor(option.subFactors, general2)
+    calcSubFactor(f.subFactors, playerChar) +
+    calcSubFactor(f.subFactors, general1) +
+    calcSubFactor(f.subFactors, general2)
   ) / 3;
-  const subScore = teamSub / option.subRequirement;
+  const subScore = teamSub / f.subRequirement;
 
   const baseScore = (mainScore * 0.6 + subScore * 0.4) * 100;
 
@@ -152,7 +158,7 @@ function calculateFortune(option, playerChar, general1, general2) {
 
 /**
  * 解析奖励字符串为结构化数组
- * 格式: "silver:500;food:300;san_1_item_taoyuan;random:troop:rare:1;san_1_troop_x001:2"
+ * 格式: "silver:500;food:300;…" ；支持简写 reward-a～e、pack-a～e（见 shared/utils/eventRewardPresets.js）
  * 
  * @param {string} rewardStr - 奖励字符串
  * @returns {Array<Object>} 解析后的奖励项
@@ -183,7 +189,7 @@ function parseRewardString(rewardStr) {
       };
     }
 
-    // 道具: item_xxx[:qty] 或 san_1_item_xxx[:qty]（须先于「具体卡牌」判断：如 item_nanyang_troop_legendary / item_shanhaiguan_troop_core 等 ID 含 _troop_）
+    // 道具: item_xxx[:qty] 或 san_1_item_xxx[:qty]（须先于「具体卡牌」判断：如 item_yangdi_troop_legendary 等 ID 含 _troop_）
     if (t.includes('_item_') || t.startsWith('item_')) {
       const parts = t.split(':');
       return {
@@ -465,7 +471,8 @@ async function randomDrawCards(cardType, rarity, factionId, quantity, excludeIds
  * @returns {Promise<Object>} 发放结果
  */
 async function executeRewards(playerId, rewardStr, multiplier, factionId) {
-  const rewards = parseRewardString(rewardStr);
+  const expanded = expandRewardPresetsForExecute(rewardStr);
+  const rewards = parseRewardString(expanded);
   if (rewards.length === 0) return { success: true, details: [] };
 
   const details = [];

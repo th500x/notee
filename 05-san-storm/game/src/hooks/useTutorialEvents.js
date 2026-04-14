@@ -13,10 +13,11 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { API_CONFIG } from '@/constants';
 import { PHASE, FORTUNE_LEVELS } from '@/components/event/EventConstants';
-import { isFortuneSuccess } from '@/components/event/eventUtils';
+import { isFortuneSuccess, getExploreOptionResolution } from '@/components/event/eventUtils';
 import { tutorialPreEventDialogues } from '@/data/texts/tutorial';
 import { playerAPI } from '@/services/playerApi';
 import { validateMainLineupBattleGate } from '@/utils/mainLineupTroops';
+import { resolveEventLocationForUi } from '@/utils/eventLocationPlaceholders';
 
 // tutorial_step → event_id 映射
 const STEP_EVENT_MAP = {
@@ -105,6 +106,16 @@ export default function useTutorialEvents(player, cards) {
       .catch(() => {});
   }, []);
 
+  const [citiesList, setCitiesList] = useState([]);
+  useEffect(() => {
+    fetch(`${API_CONFIG.BASE_URL}/cities?season=san_1`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.success && d.cities) setCitiesList(d.cities);
+      })
+      .catch(() => {});
+  }, []);
+
   // 检查编组状态：玩家角色自带将领身份，只需至少装备1支部队即可
   const hasEquippedLineup = useMemo(() => {
     if (!cards || cards.length === 0) return false;
@@ -158,11 +169,32 @@ export default function useTutorialEvents(player, cards) {
     }
   }, [currentEventId]);
 
+  const resolvedEventLocation = useMemo(() => {
+    if (!currentEvent?.location) {
+      return { displayLocationId: '', cityName: '', isPlaceholder: false };
+    }
+    const seed = `${player?.player_id || ''}:${currentEvent.event_id}:${currentEvent.location}`;
+    return resolveEventLocationForUi(currentEvent.location, citiesList, seed);
+  }, [currentEvent, citiesList, player?.player_id]);
+
+  const eventLocationLabel = useMemo(() => {
+    if (!currentEvent?.location) return '';
+    const { cityName, displayLocationId, unresolved, allLocations } = resolvedEventLocation;
+    if (unresolved) return currentEvent.location;
+    if (allLocations) return '任意地点';
+    return cityName || displayLocationId || '';
+  }, [currentEvent, resolvedEventLocation]);
+
   // 变量替换
   const replaceVars = useCallback((text) => {
     if (!text || !playerAttrs) return text || '';
-    return text.replace(/\{player_name\}/g, playerAttrs.name || '');
-  }, [playerAttrs]);
+    const citySubst = resolvedEventLocation.allLocations
+      ? '任意地点'
+      : (resolvedEventLocation.cityName || '');
+    let s = text.replace(/\{player_name\}/g, playerAttrs.name || '');
+    s = s.replace(/\{city_name\}/g, citySubst);
+    return s;
+  }, [playerAttrs, resolvedEventLocation]);
 
   // 请求后端发放奖励（统一入口）
   const requestRewards = useCallback((optKey, extraBody = {}) => {
@@ -224,13 +256,15 @@ export default function useTutorialEvents(player, cards) {
     setChosenOptionKey(optionKey);
     pendingRewardResponse.current = null;
 
-    if (option.mainFactor === 'minigame') {
-      const [game, difficulty] = option.mainRequirement.split(':');
+    const flow = getExploreOptionResolution(option);
+    if (flow === 'minigame') {
+      const req = option.mainRequirement != null ? String(option.mainRequirement) : '';
+      const [game, difficulty] = req.split(':');
       setMinigameInfo({ game, difficulty });
       setPhase(PHASE.MINIGAME);
       return;
     }
-    if (option.mainFactor === 'always') {
+    if (flow === 'always') {
       setFortune({ name: '吉', emoji: '⭐', color: 'text-blue-600', multiplier: 1.0 });
       requestRewards(optionKey).then(data => applyRewardResponse(data));
       setPhase(PHASE.REWARD);
@@ -251,7 +285,7 @@ export default function useTutorialEvents(player, cards) {
         setPhase(PHASE.RESULT);
         rewardPromise.then(data => applyRewardResponse(data));
       }
-    }, 1500);
+    }, 1000);
   }, [requestRewards, applyRewardResponse]);
 
   const dismissBattleEntryBlocked = useCallback(() => setBattleEntryBlockedMessage(null), []);
@@ -259,6 +293,10 @@ export default function useTutorialEvents(player, cards) {
   // 判定结果确认
   const confirmResult = useCallback(() => {
     if (fortune && (fortune.name === '凶' || fortune.name === '大凶')) {
+      if (chosenOptionKey === 'B') {
+        setPhase(PHASE.REWARD);
+        return;
+      }
       if (chosenOption?.triggerBattle) {
         const v = validateMainLineupBattleGate({
           cards,
@@ -274,7 +312,7 @@ export default function useTutorialEvents(player, cards) {
       }
     }
     setPhase(PHASE.REWARD);
-  }, [fortune, chosenOption, cards, player?.food]);
+  }, [fortune, chosenOption, chosenOptionKey, cards, player?.food]);
 
   // 战斗结束（第五参 meta 与 EventBattleArena 一致，含 chestRewards）
   const endBattle = useCallback((result, silverSpent = 0, scoreResult = null, _killedIndices, meta = null) => {
@@ -304,7 +342,7 @@ export default function useTutorialEvents(player, cards) {
 
   // 奖励已由 chooseOption/endMinigame/endBattle 请求后端获取，无需额外请求
 
-  // 关闭奖励 → tutorial_step++ → 5秒返回动画
+  // 关闭奖励 → tutorial_step++ → 返回动画（与 useEventSystem RETURNING 时长一致）
   const closeReward = useCallback(async () => {
     if (currentEvent && chosenOptionKey && player?.player_id) {
       // 记录事件完成进度
@@ -340,15 +378,15 @@ export default function useTutorialEvents(player, cards) {
     setBattleChestRewards([]);
 
     if (hasPosition && positionDetail) {
-      // 显示官职装配动画
       setPositionAnimation(positionDetail);
       setPhase(PHASE.RETURNING);
-      // 官职动画2秒 + 过渡1秒 = 3秒
-      setTimeout(() => setPositionAnimation(null), 2000);
-      setTimeout(() => setPhase(PHASE.IDLE), 3000);
+      setTimeout(() => {
+        setPositionAnimation(null);
+        setPhase(PHASE.IDLE);
+      }, 1000);
     } else {
       setPhase(PHASE.RETURNING);
-      setTimeout(() => setPhase(PHASE.IDLE), 3000);
+      setTimeout(() => setPhase(PHASE.IDLE), 1000);
     }
   }, [currentEvent, chosenOptionKey, player, tutorialStep, rewardDetails]);
 
@@ -371,6 +409,7 @@ export default function useTutorialEvents(player, cards) {
     phase,
     currentEvent,
     chosenOption,
+    chosenOptionKey,
     fortune,
     battleResult,
     minigameInfo,
@@ -403,9 +442,12 @@ export default function useTutorialEvents(player, cards) {
     showLineupGuide, // 是否显示编组引导
     needsLineupFirst, // 是否需要先编组
     replaceVars,
+    eventLocationLabel,
     eventsLoading: false,
     exploreEvents: [],
     quota: { canExplore: false, remaining: 0, max: 0 },
     startExplore: () => {},
+    eventBattleEnemySlotRarities: null,
+    citiesList,
   };
 }
