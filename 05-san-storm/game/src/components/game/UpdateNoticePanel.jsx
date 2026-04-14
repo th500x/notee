@@ -7,9 +7,9 @@ export default function UpdateNoticePanel({ notice, onClose }) {
   if (!notice) return null;
 
   return (
-    <div className="pointer-events-auto w-full max-w-sm mt-2">
+    <div className="pointer-events-none w-full max-w-sm mt-2">
       <div
-        className="relative rounded-xl border border-amber-600/50 bg-black/70 backdrop-blur-sm shadow-lg shadow-amber-900/20 overflow-hidden"
+        className="relative pointer-events-auto rounded-xl border border-amber-600/50 bg-black/70 backdrop-blur-sm shadow-lg shadow-amber-900/20 overflow-hidden"
       >
         <button
           type="button"

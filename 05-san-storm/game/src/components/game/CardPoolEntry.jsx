@@ -3,6 +3,9 @@
  * 
  * @description 大地图视图中，公告栏下方居中显示两个卡池入口（将领/部队）
  *              PC端hover / 竖屏长按显示说明悬浮窗
+ *
+ * 外层 `pointer-events-none`：本行在 GamePage 顶栏浮层（z-40）内占满宽度，若整行 `pointer-events-auto`
+ * 会吞掉左侧大地图（州郡跳转等）的点击；仅各卡池按钮容器 `pointer-events-auto`。
  */
 
 import { useState, useRef, useCallback, useEffect } from 'react';
@@ -32,7 +35,8 @@ function PoolButton({ icon, label, remaining, dailyLimit, onClick, tooltip, draw
   const tipText = tooltip || TOOLTIP_TEXT;
 
   return (
-    <div className="relative"
+    <div
+      className="relative pointer-events-auto"
       onMouseEnter={() => setShowTip(true)}
       onMouseLeave={() => setShowTip(false)}
       onTouchStart={onTouchStart}
@@ -79,7 +83,7 @@ export default function CardPoolEntry({
   drawerOpen = false,
 }) {
   return (
-    <div className="pointer-events-auto flex justify-center gap-4 mt-2">
+    <div className="pointer-events-none flex justify-center gap-4 mt-2">
       <PoolButton icon="🎴" label="将领卡池" remaining={charRemaining} dailyLimit={dailyLimit}
         drawerOpen={drawerOpen}
         onClick={() => onOpenPool('character')} />

@@ -130,13 +130,15 @@ function collectStrategicOccupiedKeys(cells) {
 /**
  * Preset `strategic_forts`: fixed anchors (no randomize); same passability rules as cities.
  * @param {object} cells
- * @param {{ fort_id: string, city_name?: string, gx?: number, gy?: number, col?: number, row?: number }[]} forts
+ * @param {{ city_id: string, city_name?: string, gx?: number, gy?: number, col?: number, row?: number }[]} forts
  */
 function applyStrategicForts(cells, forts) {
   if (!forts?.length) return;
   const used = collectStrategicOccupiedKeys(cells);
 
   for (const f of forts) {
+    const cityId = typeof f.city_id === 'string' ? f.city_id.trim() : '';
+    if (!cityId) continue;
     let col = f.gx != null ? f.gx : f.col;
     let row = f.gy != null ? f.gy : f.row;
     if (col == null || row == null) continue;
@@ -165,7 +167,7 @@ function applyStrategicForts(cells, forts) {
 
     used.add(`${col},${row}`);
     cells[row][col].object = 'fort';
-    cells[row][col].cityId = f.fort_id;
+    cells[row][col].cityId = cityId;
     if (f.city_name) cells[row][col].cityName = f.city_name;
     cells[row][col].col = col;
     cells[row][col].row = row;

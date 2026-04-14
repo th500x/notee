@@ -792,7 +792,7 @@ export default function JunCountyMapGeneratorManager({ embedded = false }) {
             />
 
             <p className="text-xs text-gray-500">
-              无战役 NPC；悬停格可查看 gx/gy 与城点 / 据点 <code className="bg-gray-100 px-1">fort_id</code>（与郡 quad 叙事稿、
+              无战役 NPC；悬停格可查看 gx/gy 与城点 / 据点 <code className="bg-gray-100 px-1">city_id</code>（与郡 quad 叙事稿、
               <code className="bg-gray-100 px-1">cities_fort_slots_template.csv</code> 对齐）。
             </p>
           </>

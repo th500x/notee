@@ -80,14 +80,14 @@
   ],
   "strategic_forts": [
     {
-      "fort_id": "san_1_city_5_1_yingchuan",
+      "city_id": "san_1_city_5_1_yingchuan",
       "city_name": "颍川据点",
       "gx": 12,
       "gy": 3,
       "sub_quad": "A2"
     },
     {
-      "fort_id": "san_1_city_5_2_yingchuan",
+      "city_id": "san_1_city_5_2_yingchuan",
       "city_name": "颍川据点",
       "gx": 13,
       "gy": 7,

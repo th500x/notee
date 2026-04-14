@@ -15,6 +15,10 @@ import { textsAPI } from '@/services/textsApi';
 import { chatAPI } from '@/services/chatApi';
 import { API_CONFIG } from '@/constants';
 import AncientModal from '@/components/common/AncientModal';
+import {
+  MAP_CORNER_ENTRY_ROW_CLASS,
+  mapCornerEntryRowBoxStyle,
+} from '@/components/game/mapCornerEntryUi';
 import SiegeReplayMini from '@/components/game/SiegeReplayMini';
 import { loadMultipleSharedData } from '@/services/dataService';
 import { describeMailAttachments, buildCardItemMaps, linesFromClaimDetails } from '@/utils/mailRewardUi';
@@ -571,11 +575,13 @@ export default function CommPanel({ visible, unreadChatCount: unreadChatProp = 0
             setActiveTab(tab);
             setOpen(true);
           }}
-          className="fixed bottom-20 left-2 z-40 px-3 py-2 bg-black/80 rounded-lg
-            border border-amber-700/40 text-amber-300 text-xs font-medium
-            hover:bg-black/70 transition-colors"
+          style={mapCornerEntryRowBoxStyle}
+          className={`fixed bottom-20 left-2 z-40 justify-start text-amber-300 ${MAP_CORNER_ENTRY_ROW_CLASS}`}
         >
-          {icon} {label}{suffix}
+          <span className="block w-full min-w-0 truncate text-left">
+            {icon} {label}
+            {suffix}
+          </span>
         </button>
         {mailClaimModalEl}
       </>

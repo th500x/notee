@@ -1,8 +1,8 @@
 {
-  "version": 1776159587100,
+  "version": 1776159587201,
   "junId": "san_1_jun_yingchuan",
   "season": "san_1",
-  "generatedAt": "2026-04-13T17:45:35.524Z",
+  "generatedAt": "2026-04-13T20:00:00.000Z",
   "seed": 73517665,
   "mapColumns": 32,
   "mapRows": 40,
@@ -1004,7 +1004,7 @@
         "terrain": null,
         "object": "fort",
         "effect": null,
-        "quad": "B",
+        "quad": "A",
         "cityId": "san_1_city_5_1_yingchuan",
         "cityName": "颍川据点"
       },
@@ -2177,7 +2177,7 @@
         "terrain": null,
         "object": "fort",
         "effect": null,
-        "quad": "B",
+        "quad": "A",
         "cityId": "san_1_city_5_2_yingchuan",
         "cityName": "颍川据点"
       },
@@ -2242,7 +2242,7 @@
         "terrain": null,
         "object": "fort",
         "effect": null,
-        "quad": "A",
+        "quad": "B",
         "cityId": "san_1_city_5_3_yingchuan",
         "cityName": "颍川据点"
       },
@@ -6309,7 +6309,7 @@
         "terrain": null,
         "object": "fort",
         "effect": null,
-        "quad": "A",
+        "quad": "C",
         "cityId": "san_1_city_5_4_yingchuan",
         "cityName": "颍川据点"
       },

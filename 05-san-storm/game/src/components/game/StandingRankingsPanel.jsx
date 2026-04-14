@@ -10,6 +10,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { rankingsAPI } from '@/services/api';
 import { campaignAPI } from '@/services/campaignApi';
+import {
+  MAP_CORNER_ENTRY_ROW_CLASS,
+  mapCornerEntryRowBoxStyle,
+} from '@/components/game/mapCornerEntryUi';
 
 const SEASON = 'san_1';
 const REFRESH_MS = 5 * 60 * 1000;
@@ -169,11 +173,10 @@ export default function StandingRankingsPanel({ visible, playerId }) {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="fixed bottom-32 left-2 z-40 px-3 py-2 bg-black/80 rounded-lg
-          border border-amber-700/40 text-amber-300 text-xs font-medium
-          hover:bg-black/70 transition-colors"
+        style={mapCornerEntryRowBoxStyle}
+        className={`fixed bottom-32 left-2 z-40 justify-start text-amber-300 ${MAP_CORNER_ENTRY_ROW_CLASS}`}
       >
-        🏆 排行
+        <span className="block w-full min-w-0 truncate text-left">🏆 排行</span>
       </button>
 
       {open && (

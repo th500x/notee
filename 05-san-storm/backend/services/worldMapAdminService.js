@@ -52,7 +52,7 @@ async function listZhouJun() {
 }
 
 /**
- * 从四象限 preset 的 strategic_cities 写入 cities.position_x / position_y（郡内 global gx,gy）
+ * 从四象限 preset 的 strategic_cities（及 strategic_forts，同形 city_id + gx/gy）写入 cities.position_x / position_y（郡内 global gx,gy）
  */
 async function importCoordinatesFromPresets(junId) {
   const { complete, missing } = checkJunPresetsComplete(junId);
@@ -65,14 +65,8 @@ async function importCoordinatesFromPresets(junId) {
   let updated = 0;
   const notFound = [];
 
-  for (const q of ['A', 'B', 'C', 'D']) {
-    const fp = path.join(SHARED_WORLDMAP_DIR, `${junId}_quad_${q}.preset.json`);
-    const raw = fs.readFileSync(fp, 'utf8');
-    const preset = JSON.parse(raw);
-    const cities = preset.strategic_cities || [];
-    const { originGx, originGy } = MAJOR_QUAD_ORIGIN[q];
-
-    for (const c of cities) {
+  async function applyAnchors(items, originGx, originGy) {
+    for (const c of items) {
       const cid = (c.city_id || '').trim();
       if (!cid) continue;
       const lc = c.gx != null ? Number(c.gx) : c.col != null ? Number(c.col) : null;
@@ -88,6 +82,16 @@ async function importCoordinatesFromPresets(junId) {
       if (r.affectedRows > 0) updated += 1;
       else notFound.push(cid);
     }
+  }
+
+  for (const q of ['A', 'B', 'C', 'D']) {
+    const fp = path.join(SHARED_WORLDMAP_DIR, `${junId}_quad_${q}.preset.json`);
+    const raw = fs.readFileSync(fp, 'utf8');
+    const preset = JSON.parse(raw);
+    const { originGx, originGy } = MAJOR_QUAD_ORIGIN[q];
+
+    await applyAnchors(preset.strategic_cities || [], originGx, originGy);
+    await applyAnchors(preset.strategic_forts || [], originGx, originGy);
   }
 
   return { junId, updated, skippedNotInDb: [...new Set(notFound)] };

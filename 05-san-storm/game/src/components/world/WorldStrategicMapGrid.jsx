@@ -284,26 +284,77 @@ export default function WorldStrategicMapGrid({
   ]);
 
   useEffect(() => {
+    if (!strategicNav?.registerResolveStrategicAnchorForCityId) return undefined;
+    const resolveStrategicAnchorForCityId = (cityId) => {
+      const id = String(cityId || '').trim();
+      if (!id || !cells?.length) return null;
+      for (let ri = 0; ri < cells.length; ri++) {
+        const row = cells[ri];
+        if (!row) continue;
+        for (let ci = 0; ci < row.length; ci++) {
+          const cell = row[ci];
+          if (cell && String(cell.cityId || '') === id) {
+            return { gx: ci, gy: ri };
+          }
+        }
+      }
+      return null;
+    };
+    return strategicNav.registerResolveStrategicAnchorForCityId(resolveStrategicAnchorForCityId);
+  }, [strategicNav, cells]);
+
+  useEffect(() => {
     if (!strategicNav?.registerScrollToStrategicCell) return undefined;
+    /**
+     * 将 .ws-map-wrap 滚到以 (gx,gy) 为左上锚点的格（含 2×2 城块中心）。
+     * 优先用瓦片 DOM + getBoundingClientRect，避免格网 gap:1px、flex 居中内层与纯公式不一致导致「闪一下又回弹」。
+     */
     const scrollToStrategicCell = (gx, gy) => {
-      const w = wrapRef.current;
-      if (!w) return;
-      let cx = Number(gx);
-      let cy = Number(gy);
-      if (!Number.isFinite(cx) || !Number.isFinite(cy)) return;
-      cx = Math.max(0, Math.min(cx, mapColumns - 1));
-      cy = Math.max(0, Math.min(cy, mapRows - 1));
-      const t = tilePxRef.current;
-      const centerX = (cx + 1) * t;
-      const centerY = (cy + 1) * t;
-      const vw = w.clientWidth;
-      const vh = w.clientHeight;
-      const sl = centerX - vw / 2;
-      const st = centerY - vh / 2;
-      const maxSl = Math.max(0, w.scrollWidth - vw);
-      const maxSt = Math.max(0, w.scrollHeight - vh);
-      w.scrollLeft = Math.max(0, Math.min(sl, maxSl));
-      w.scrollTop = Math.max(0, Math.min(st, maxSt));
+      const applyScroll = () => {
+        const w = wrapRef.current;
+        if (!w) return;
+        let cx = Number(gx);
+        let cy = Number(gy);
+        if (!Number.isFinite(cx) || !Number.isFinite(cy)) return;
+        cx = Math.max(0, Math.min(cx, mapColumns - 1));
+        cy = Math.max(0, Math.min(cy, mapRows - 1));
+
+        const vw = w.clientWidth;
+        const vh = w.clientHeight;
+        const maxSl = Math.max(0, w.scrollWidth - vw);
+        const maxSt = Math.max(0, w.scrollHeight - vh);
+
+        const tile = w.querySelector(
+          `.ws-map-grid .ws-map-tile[data-strategic-x="${cx}"][data-strategic-y="${cy}"]`,
+        );
+        if (tile instanceof HTMLElement) {
+          const wr = w.getBoundingClientRect();
+          const spanEl = tile.querySelector('.ws-object-span-2');
+          const tr =
+            spanEl instanceof HTMLElement ? spanEl.getBoundingClientRect() : tile.getBoundingClientRect();
+          const tileCenterX = tr.left + tr.width / 2 - wr.left + w.scrollLeft;
+          const tileCenterY = tr.top + tr.height / 2 - wr.top + w.scrollTop;
+          w.scrollLeft = Math.max(0, Math.min(tileCenterX - vw / 2, maxSl));
+          w.scrollTop = Math.max(0, Math.min(tileCenterY - vh / 2, maxSt));
+          return;
+        }
+
+        const t = tilePxRef.current;
+        const gap = 1;
+        const cellStride = t + gap;
+        const centerX = cx * cellStride + (2 * t + gap) / 2;
+        const centerY = cy * cellStride + (2 * t + gap) / 2;
+        w.scrollLeft = Math.max(0, Math.min(centerX - vw / 2, maxSl));
+        w.scrollTop = Math.max(0, Math.min(centerY - vh / 2, maxSt));
+      };
+
+      applyScroll();
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          applyScroll();
+          setTimeout(applyScroll, 0);
+        });
+      });
     };
     return strategicNav.registerScrollToStrategicCell(scrollToStrategicCell);
   }, [strategicNav, mapColumns, mapRows]);

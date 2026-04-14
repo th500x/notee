@@ -61,6 +61,8 @@
   touch-action: pan-x pan-y;
   user-select: none;
   cursor: grab;
+  /* 子树布局/React 更新时禁用滚动锚定，避免程序设 scroll 后被浏览器「纠正」回原位 */
+  overflow-anchor: none;
 }
 
 .ws-map-wrap.ws-map-wrap--dragging {

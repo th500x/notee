@@ -35,7 +35,7 @@
       "gx": 1,
       "gy": 2,
       "object": "gate",
-      "sub_quad": "A1"
+      "sub_quad": "B1"
     },
     {
       "city_id": "san_1_city_3_changshe",
@@ -80,7 +80,7 @@
   ],
   "strategic_forts": [
     {
-      "fort_id": "san_1_city_5_3_yingchuan",
+      "city_id": "san_1_city_5_3_yingchuan",
       "city_name": "颍川据点",
       "gx": 4,
       "gy": 7,
