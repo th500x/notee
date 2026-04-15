@@ -21,6 +21,10 @@ import SiegeReplayMini from '@/components/game/SiegeReplayMini';
 import { buildBattleScoreFormulaLines, resolveKillLossTroopCounts } from '@/systems/battleScoreSystem';
 import { validateMainLineupBattleGate } from '@/utils/mainLineupTroops';
 import { shortEquipmentDisplayName } from '@/utils/equipmentDisplayName';
+import {
+  getConfiguredGarrisonCityIds,
+  MAX_GARRISON_CONFIGURED_CITIES,
+} from '@/utils/garrisonScopeUtils';
 import WorldYingchuanMapSection from '@/components/world/WorldYingchuanMapSection';
 import { worldMapCityIsPlayerSameFaction } from '@/utils/worldMapCityPanelCopy';
 
@@ -358,11 +362,29 @@ export default function WorldMap({ onEventBusyChange }) {
     setGarrisonStatsRefreshKey((k) => k + 1);
   }, []);
 
-  const openGarrisonForCity = useCallback((cityId, cityBaseName) => {
-    setGarrisonCityId(cityId);
-    setGarrisonCityName(cityBaseName || '城池');
-    setShowGarrison(true);
-  }, []);
+  const openGarrisonForCity = useCallback(async (cityId, cityBaseName) => {
+    if (!player?.player_id || !cityId) return;
+    try {
+      const res = await garrisonAPI.getAll(player.player_id);
+      if (!res.success) {
+        setSimpleAlertMessage(res.error || '无法加载驻地信息，请稍后重试');
+        return;
+      }
+      const configured = getConfiguredGarrisonCityIds(res.garrisons || []);
+      const cid = String(cityId);
+      if (!configured.has(cid) && configured.size >= MAX_GARRISON_CONFIGURED_CITIES) {
+        setSimpleAlertMessage(
+          `已达驻地编组城池上限（${MAX_GARRISON_CONFIGURED_CITIES} 座）。请先在其它城池清空驻地编组，再在本城编组。`
+        );
+        return;
+      }
+      setGarrisonCityId(cityId);
+      setGarrisonCityName(cityBaseName || '城池');
+      setShowGarrison(true);
+    } catch (e) {
+      setSimpleAlertMessage(e?.message || '打开驻地编组失败');
+    }
+  }, [player?.player_id]);
 
   const startSiegeForCity = useCallback(async (cityId, cityRow) => {
     if (!cityId || !player?.player_id) return;

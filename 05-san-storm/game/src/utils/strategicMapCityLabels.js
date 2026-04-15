@@ -1,5 +1,5 @@
 /**
- * 战略大地图 2×2 锚点格：类型 + 名称两行文案（与 tooltip 类型名一致）。
+ * 战略大地图 2×2 锚点格：类型、城名、可选长官名（与 tooltip / `cityService` 长官字段一致）。
  */
 
 const OBJECT_TO_TYPE = {
@@ -22,7 +22,7 @@ const CITY_TYPE_TO_LABEL = {
  * @param {object|null|undefined} cityRow - `/api/cities` 行 snake_case / camelCase
  * @param {object|null|undefined} anchorCell - 锚点格（含 cityName、object）
  * @param {string|null|undefined} effectiveObject - 锚点 object 键
- * @returns {{ line1: string, line2: string } | null} - 非 2×2 战略城点或无锚点时返回 null
+ * @returns {{ line1: string, line2: string, line3?: string } | null} - 非 2×2 战略城点或无锚点时返回 null；`line3` 为长官名（有数据时）
  */
 export function getStrategicMapCityLabelLines(cityRow, anchorCell, effectiveObject) {
   if (!effectiveObject || !OBJECT_TO_TYPE[effectiveObject]) return null;
@@ -32,6 +32,7 @@ export function getStrategicMapCityLabelLines(cityRow, anchorCell, effectiveObje
     (ct && CITY_TYPE_TO_LABEL[ct]) || OBJECT_TO_TYPE[effectiveObject] || '城池';
 
   let line2 = '';
+  let line3 = null;
   if (cityRow) {
     const rowType = cityRow.city_type || cityRow.cityType;
     if (rowType === 'fort' || effectiveObject === 'fort') {
@@ -50,6 +51,8 @@ export function getStrategicMapCityLabelLines(cityRow, anchorCell, effectiveObje
         (cityRow.city_name || cityRow.cityName || '').trim() ||
         (anchorCell?.cityName || '').trim() ||
         '—';
+      const lord = (cityRow.lordCharacterName ?? cityRow.lord_character_name ?? '').trim();
+      if (lord) line3 = lord;
     }
   } else {
     if (effectiveObject === 'fort') {
@@ -59,5 +62,7 @@ export function getStrategicMapCityLabelLines(cityRow, anchorCell, effectiveObje
     }
   }
 
-  return { line1, line2 };
+  const out = { line1, line2 };
+  if (line3) out.line3 = line3;
+  return out;
 }

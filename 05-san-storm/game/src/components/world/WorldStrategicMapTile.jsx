@@ -7,7 +7,12 @@ import {
   strategicMapObjectIs2x2,
 } from '@/utils/campaignMapVisualAssets';
 import { tacticalFireFrameUrl } from '@/components/battle/battleConstants';
-import { getFactionRepresentativeColor, hexToRgba, getStrategicFactionLogoUrl } from '@/utils/strategicMapFactionColors';
+import {
+  getFactionRepresentativeColor,
+  hexToRgba,
+  getStrategicFactionLogoUrl,
+  getStrategicFactionMarkerCount,
+} from '@/utils/strategicMapFactionColors';
 import { getStrategicMapCityLabelLines } from '@/utils/strategicMapCityLabels';
 import {
   getStrategicCityLabelStance,
@@ -106,6 +111,10 @@ function WorldStrategicMapTile({
   ]);
 
   const factionLogoUrl = useMemo(() => getStrategicFactionLogoUrl(fid), [fid]);
+  const factionMarkerCount = useMemo(
+    () => getStrategicFactionMarkerCount(cityRow, effectiveObject),
+    [cityRow, effectiveObject],
+  );
 
   const [bgOk, setBgOk] = useState(true);
   const [tOk, setTOk] = useState(true);
@@ -212,17 +221,27 @@ function WorldStrategicMapTile({
           <div className="ws-strategic-label-name" style={cityLabelColorStyle}>
             {labelLines.line2}
           </div>
+          {labelLines.line3 ? (
+            <div className="ws-strategic-label-lord" style={cityLabelColorStyle}>
+              {labelLines.line3}
+            </div>
+          ) : null}
         </div>
       )}
       {isFootprint2x2 && isAnchorTile && factionLogoUrl && factionLogoOk ? (
         <div className="ws-strategic-faction-logo-wrap ws-object-span-2" aria-hidden>
-          <img
-            className="ws-strategic-faction-logo"
-            src={factionLogoUrl}
-            alt=""
-            draggable={false}
-            onError={() => setFactionLogoOk(false)}
-          />
+          <div className="ws-strategic-faction-logo-stack">
+            {Array.from({ length: factionMarkerCount }, (_, i) => (
+              <img
+                key={i}
+                className="ws-strategic-faction-logo"
+                src={factionLogoUrl}
+                alt=""
+                draggable={false}
+                onError={() => setFactionLogoOk(false)}
+              />
+            ))}
+          </div>
         </div>
       ) : null}
       {c.effect === 'fire' && (

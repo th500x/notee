@@ -49,3 +49,27 @@ export function getStrategicFactionLogoUrl(factionId) {
   if (factionId === 'san_1_faction_0001') return null;
   return `${import.meta.env.BASE_URL}assets/san_1_battle/faction/${encodeURIComponent(factionId)}.png`;
 }
+
+/**
+ * 战略格 2×2 锚点右下角势力六芒星个数：小城 / 关隘 / 据点等 **1**；中城 **2**；大城 **3**（竖排叠放）。
+ * 优先 `cityRow.city_type`（与库/API），否则回退锚点格 `object`（`city_*`）。
+ *
+ * @param {object|null|undefined} cityRow
+ * @param {string|null|undefined} effectiveObject - 锚点格 object 键
+ * @returns {number} 1 | 2 | 3
+ */
+export function getStrategicFactionMarkerCount(cityRow, effectiveObject) {
+  const ct = cityRow?.city_type ?? cityRow?.cityType;
+  const resolved =
+    ct ||
+    (effectiveObject === 'city_major'
+      ? 'city_major'
+      : effectiveObject === 'city_medium'
+        ? 'city_medium'
+        : effectiveObject === 'city_small'
+          ? 'city_small'
+          : null);
+  if (resolved === 'city_major') return 3;
+  if (resolved === 'city_medium') return 2;
+  return 1;
+}

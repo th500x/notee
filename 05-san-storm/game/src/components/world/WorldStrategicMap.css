@@ -228,6 +228,21 @@
   word-break: break-all;
 }
 
+/* 长官名：字号与城名一致；与 `cityService` lord_character_name / 玩家长官角色名一致；无长官时不渲染 */
+.ws-strategic-label-lord {
+  margin-top: 1px;
+  font-size: clamp(6px, calc(var(--ws-tile) * 0.32), 10px);
+  font-weight: 700;
+  color: rgba(255, 250, 235, 0.96);
+  text-shadow:
+    0 0 3px #000,
+    0 1px 2px rgba(0, 0, 0, 0.85);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* 2×2 锚点格：势力六芒星落在整块区域右下角（单格边长约 30%），压在建筑立绘之上 */
 .ws-strategic-faction-logo-wrap {
   position: absolute;
@@ -243,6 +258,15 @@
   box-sizing: border-box;
   padding: 0 1px 1px 0;
   pointer-events: none;
+}
+
+/* 大城 3 / 中城 2 枚竖排；小城等 1 枚 */
+.ws-strategic-faction-logo-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: flex-end;
+  gap: calc(var(--ws-tile) * 0.035);
 }
 
 .ws-strategic-faction-logo {

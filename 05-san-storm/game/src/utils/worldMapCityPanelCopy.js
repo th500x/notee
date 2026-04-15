@@ -77,13 +77,13 @@ export function worldMapCityDefenseDisplayFromRow(cityRow) {
 
 /**
  * 「城况」分段：CSV/库五维 + 特色资源 + 简介
- * @returns {{ population: number|null, commerce: number|null, farming: number|null, military: number|null, culture: number|null, specialResourceName: string|null, description: string|null }}
+ * @returns {{ population: number|null, trading: number|null, farming: number|null, military: number|null, culture: number|null, specialResourceName: string|null, description: string|null }}
  */
 export function worldMapCityOverviewFromRow(cityRow) {
   if (!cityRow) {
     return {
       population: null,
-      commerce: null,
+      trading: null,
       farming: null,
       military: null,
       culture: null,
@@ -93,7 +93,7 @@ export function worldMapCityOverviewFromRow(cityRow) {
   }
   return {
     population: pickInt(cityRow, 'population', 'population'),
-    commerce: pickInt(cityRow, 'commerce', 'commerce'),
+    trading: pickInt(cityRow, 'trading', 'trading'),
     farming: pickInt(cityRow, 'farming', 'farming'),
     military: pickInt(cityRow, 'military', 'military'),
     culture: pickInt(cityRow, 'culture', 'culture'),

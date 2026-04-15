@@ -18,6 +18,7 @@ import EquipmentCard from '@shared/components/card/EquipmentCard';
 import EncapsulateEquipmentModal from '@/components/game/EncapsulateEquipmentModal';
 import AncientModal from '@/components/common/AncientModal';
 import { toCharCardData, toTroopCardData, toEquipCardData, toTitleCardData } from '@/utils/cardDataTransforms';
+import { collectGarrisonOccupiedInstanceIds } from '@/utils/garrisonScopeUtils';
 import GarrisonGeneralPanel from './GarrisonGeneralPanel';
 import GarrisonStatsPanel from './GarrisonStatsPanel';
 import GarrisonBackpack from './GarrisonBackpack';
@@ -50,6 +51,8 @@ export default function GarrisonLineup({
   const [saving, setSaving]                 = useState(false);
   const [activationHint, setActivationHint] = useState(null);
   const [saveErrorMessage, setSaveErrorMessage] = useState(null);
+  /** All instance_ids used in any city garrison pool (same source as LineupTab `garrisonAPI.getAll`). */
+  const [garrisonOccupiedInstanceIds, setGarrisonOccupiedInstanceIds] = useState(() => new Set());
   const [isLandscape, setIsLandscape]       = useState(
     () => window.innerWidth >= 768 && window.innerWidth > window.innerHeight
   );
@@ -72,22 +75,29 @@ export default function GarrisonLineup({
     }).catch(() => {});
   }, []);
 
-  /* ── 驻守数据加载 ── */
-  const loadGarrisons = useCallback(async () => {
+  /* ── 驻守数据：本城槽位 + 全城池占用实例（与上阵编组 LineupTab 一致用 getAll） ── */
+  const loadGarrisonData = useCallback(async () => {
     if (!player?.player_id || !cityId) return;
     try {
-      const res = await garrisonAPI.getByCity(player.player_id, cityId);
-      if (res.success) {
-        const list = res.garrisons || [];
+      const [byCityRes, allRes] = await Promise.all([
+        garrisonAPI.getByCity(player.player_id, cityId),
+        garrisonAPI.getAll(player.player_id),
+      ]);
+      if (byCityRes.success) {
+        const list = byCityRes.garrisons || [];
         setGarrisonA(list.find(g => g.garrison_slot === 1) || null);
         setGarrisonB(list.find(g => g.garrison_slot === 2) || null);
+      }
+      if (allRes.success) {
+        const rows = allRes.garrisons || [];
+        setGarrisonOccupiedInstanceIds(collectGarrisonOccupiedInstanceIds(rows));
       }
     } catch (e) {
       console.error('[GarrisonLineup] 加载驻守数据失败:', e);
     }
   }, [player?.player_id, cityId]);
 
-  useEffect(() => { loadGarrisons(); }, [loadGarrisons]);
+  useEffect(() => { loadGarrisonData(); }, [loadGarrisonData]);
 
   /* ── 定时轮询档案（兵力自然恢复） ── */
   useEffect(() => {
@@ -123,19 +133,6 @@ export default function GarrisonLineup({
     return cards.find(c => c.instance_id === instanceId) || null;
   }, [currentGarrison, cards]);
 
-  const getOccupiedIds = useCallback(() => {
-    const ids = new Set();
-    const fields = [
-      'char1_card', 'char1_troop1', 'char1_troop2', 'char1_title',
-      'char2_card', 'char2_troop1', 'char2_troop2', 'char2_title',
-    ];
-    [garrisonA, garrisonB].forEach(g => {
-      if (!g) return;
-      fields.forEach(f => { if (g[f]) ids.add(g[f]); });
-    });
-    return ids;
-  }, [garrisonA, garrisonB]);
-
   /* ── 保存驻守配置 ── */
   const saveGarrison = useCallback(async (fieldName, instanceId) => {
     if (!player?.player_id) return;
@@ -164,7 +161,7 @@ export default function GarrisonLineup({
 
       const res = await garrisonAPI.save(player.player_id, currentSlotNum, config);
       if (res.success) {
-        await loadGarrisons();
+        await loadGarrisonData();
         await refresh();
         if (typeof onAfterMutation === 'function') onAfterMutation();
         if (res.belowTroopThreshold) {
@@ -181,7 +178,7 @@ export default function GarrisonLineup({
       console.error('[GarrisonLineup] 保存失败:', e);
     }
     setSaving(false);
-  }, [player?.player_id, currentSlotNum, currentGarrison, loadGarrisons, refresh, cityId, cityName, onAfterMutation]);
+  }, [player?.player_id, currentSlotNum, currentGarrison, loadGarrisonData, refresh, cityId, cityName, onAfterMutation]);
 
   /* ── 抽屉/详情控制 ── */
   const closeDrawer = useCallback(() => {
@@ -245,8 +242,8 @@ export default function GarrisonLineup({
     return attributeBonusBySlot?.[slotKey] || {};
   }, [attributeBonusBySlot, currentSlotNum, cityId]);
 
-  /* ── 卡牌分类 ── */
-  const occupiedIds = getOccupiedIds();
+  /* ── 卡牌分类（占用 = 任意城池驻地槽，与后端 save 冲突检测一致） ── */
+  const occupiedIds = garrisonOccupiedInstanceIds;
 
   const characterCards   = cards.filter(c => c.card_type === 'character');
   const troopCards       = cards.filter(c => c.card_type === 'troop');
@@ -511,6 +508,7 @@ export default function GarrisonLineup({
           <p className="text-center text-gray-800 text-sm whitespace-pre-wrap">{saveErrorMessage}</p>
         </AncientModal>
       )}
+
     </div>
   );
 }

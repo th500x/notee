@@ -22,16 +22,16 @@ CREATE TABLE IF NOT EXISTS cities (
   position_y INT NULL COMMENT '大地图逻辑 Y',
 
   population INT NOT NULL DEFAULT 0 COMMENT '人口',
-  commerce INT NOT NULL DEFAULT 0 COMMENT '商业值',
+  trading INT NOT NULL DEFAULT 0 COMMENT '商业值',
   farming INT NOT NULL DEFAULT 0 COMMENT '农业值',
   military INT NOT NULL DEFAULT 0 COMMENT '军事值',
   culture INT NOT NULL DEFAULT 0 COMMENT '文化值',
 
   special_resource_name VARCHAR(50) NULL COMMENT '特色资源名称',
-  special_resource_commerce INT NOT NULL DEFAULT 0 COMMENT '特色资源商业加成',
+  special_resource_trading INT NOT NULL DEFAULT 0 COMMENT '特色资源商业加成',
   special_resource_farming INT NOT NULL DEFAULT 0 COMMENT '特色资源农业加成',
 
-  final_commerce INT NOT NULL DEFAULT 0 COMMENT '最终商业值',
+  final_trading INT NOT NULL DEFAULT 0 COMMENT '最终商业值',
   final_farming INT NOT NULL DEFAULT 0 COMMENT '最终农业值',
 
   lord_player_id VARCHAR(4) NULL COMMENT '长官玩家ID',

@@ -413,7 +413,7 @@ export default function WorldMapCityInfoBlock({
   const overviewBody = (
     <div className="text-stone-300 text-xs mt-2 space-y-1 border-t border-stone-600 pt-2">
       <div>人口：<span className="text-stone-200">{fmtStat(ov.population)}</span></div>
-      <div>商业：<span className="text-stone-200">{fmtStat(ov.commerce)}</span></div>
+      <div>商业：<span className="text-stone-200">{fmtStat(ov.trading)}</span></div>
       <div>农业：<span className="text-stone-200">{fmtStat(ov.farming)}</span></div>
       <div>军事：<span className="text-stone-200">{fmtStat(ov.military)}</span></div>
       <div>文化：<span className="text-stone-200">{fmtStat(ov.culture)}</span></div>

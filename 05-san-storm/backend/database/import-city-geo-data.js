@@ -129,9 +129,9 @@ async function importJun(conn, rows) {
 }
 
 function finalsForCity(c) {
-  const fc = (c.commerce ?? 0) + (c.specialResourceCommerce ?? 0);
+  const fc = (c.trading ?? 0) + (c.specialResourceTrading ?? 0);
   const ff = (c.farming ?? 0) + (c.specialResourceFarming ?? 0);
-  return { finalCommerce: fc, finalFarming: ff };
+  return { finalTrading: fc, finalFarming: ff };
 }
 
 /** 写入 DB 的 faction_id：null / 空串 → NULL，否则为 trim 后的字符串 */
@@ -143,7 +143,7 @@ function normalizedFactionIdFromCity(c) {
 }
 
 async function insertCityRow(conn, c) {
-  const { finalCommerce, finalFarming } = finalsForCity(c);
+  const { finalTrading, finalFarming } = finalsForCity(c);
   const isBuildable = 0;
   const buildStatus = 'empty';
 
@@ -162,9 +162,9 @@ async function insertCityRow(conn, c) {
       jun_id, zhou_id,
       wilderness_enabled, market_enabled, initial_lord_character_id,
       position_x, position_y,
-      population, commerce, farming, military, culture, description,
-      special_resource_name, special_resource_commerce, special_resource_farming,
-      final_commerce, final_farming,
+      population, trading, farming, military, culture, description,
+      special_resource_name, special_resource_trading, special_resource_farming,
+      final_trading, final_farming,
       lord_player_id, lord_appointed_at,
       defense, player_garrison_capacity,
       npc_garrison, npc_garrison_alive,
@@ -199,15 +199,15 @@ async function insertCityRow(conn, c) {
       position_x = VALUES(position_x),
       position_y = VALUES(position_y),
       population = VALUES(population),
-      commerce = VALUES(commerce),
+      trading = VALUES(trading),
       farming = VALUES(farming),
       military = VALUES(military),
       culture = VALUES(culture),
       description = VALUES(description),
       special_resource_name = VALUES(special_resource_name),
-      special_resource_commerce = VALUES(special_resource_commerce),
+      special_resource_trading = VALUES(special_resource_trading),
       special_resource_farming = VALUES(special_resource_farming),
-      final_commerce = VALUES(final_commerce),
+      final_trading = VALUES(final_trading),
       final_farming = VALUES(final_farming),
       defense = VALUES(defense),
       player_garrison_capacity = VALUES(player_garrison_capacity),
@@ -231,15 +231,15 @@ async function insertCityRow(conn, c) {
       c.positionX,
       c.positionY,
       c.population,
-      c.commerce,
+      c.trading,
       c.farming,
       c.military,
       c.culture,
       c.description ?? null,
       c.specialResourceName,
-      c.specialResourceCommerce,
+      c.specialResourceTrading,
       c.specialResourceFarming,
-      finalCommerce,
+      finalTrading,
       finalFarming,
       c.defense,
       gcap,

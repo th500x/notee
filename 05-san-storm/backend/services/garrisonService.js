@@ -24,6 +24,9 @@ const MIN_GARRISON_TOTAL_TROOPS = 800;
 /** 开战 / 攻城等：上阵编组（is_equipped 部队）总兵力下限，全战斗通用 */
 const MIN_MAIN_LINEUP_TROOPS_BATTLE = 200;
 
+/** 玩家最多在几座城池出现「至少一张卡写入驻地槽」；与产品文档 13-2 一致 */
+const MAX_GARRISON_CONFIGURED_CITIES = 5;
+
 // 单部队参战最低兵力（兵力为0不参战；槽位总兵力见 MIN_GARRISON_TOTAL_TROOPS）
 const MIN_TROOPS_TO_DEFEND = 1;
 
@@ -119,6 +122,22 @@ async function getGarrisonSlot(playerId, cityId, slotNumber) {
 }
 
 /**
+ * Distinct city_id where this player has at least one non-null garrison card field (any slot).
+ * @param {string} playerId
+ * @returns {Promise<Set<string>>}
+ */
+async function getPlayerGarrisonConfiguredCityIds(playerId) {
+  const conditions = CARD_FIELDS.map((f) => `g.${f} IS NOT NULL`).join(' OR ');
+  const [rows] = await pool.query(
+    `SELECT DISTINCT g.city_id AS city_id
+     FROM player_garrison g
+     WHERE g.player_id = ? AND (${conditions})`,
+    [playerId]
+  );
+  return new Set((rows || []).map((r) => r.city_id).filter(Boolean));
+}
+
+/**
  * 淇濆瓨椹诲畧閰嶇疆锛圛NSERT ON DUPLICATE KEY UPDATE锛? */
 async function saveGarrison(playerId, slotNumber, config) {
   const incomingCity = config && config.cityId;
@@ -127,6 +146,18 @@ async function saveGarrison(playerId, slotNumber, config) {
   }
   const prevSlot = await getGarrisonSlot(playerId, incomingCity, slotNumber);
   const mergedWithPrev = mergeGarrisonPayloadWithPrevRow(prevSlot, config);
+
+  const configuredCityIds = await getPlayerGarrisonConfiguredCityIds(playerId);
+  const targetCityId = String(mergedWithPrev.cityId || '').trim();
+  if (!targetCityId) {
+    return { success: false, error: '缺少 cityId，无法按城池保存驻地编组' };
+  }
+  if (!configuredCityIds.has(targetCityId) && configuredCityIds.size >= MAX_GARRISON_CONFIGURED_CITIES) {
+    return {
+      success: false,
+      error: '已达驻地编组城池上限（5座）。请先在其它城池清空驻地编组，再在本城编组。',
+    };
+  }
 
   const instanceIds = CARD_FIELDS.map(f => mergedWithPrev[f]).filter(Boolean);
 

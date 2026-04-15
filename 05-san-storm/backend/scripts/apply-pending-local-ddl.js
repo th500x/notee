@@ -52,6 +52,7 @@ const MIGRATION_FILES = [
   'migrate-players-items-item-badge-to-season-badge.sql',
   'rename-config-items-item-badge-to-item-season-badge.sql',
   'player-garrison-composite-city-primary-key.sql',
+  'cities-rename-commerce-columns-to-trading.sql',
 ];
 
 function stripSqlComments(sql) {
@@ -80,10 +81,12 @@ function stripSqlComments(sql) {
         e.code === 'ER_DUP_FIELDNAME' ||
         e.code === 'ER_TABLE_EXISTS_ERROR' ||
         e.code === 'ER_CANT_DROP_FIELD_OR_KEY' ||
+        e.code === 'ER_BAD_FIELD_ERROR' ||
         e.errno === 1091 ||
         /Duplicate column name/i.test(e.message || '') ||
         /already exists/i.test(e.message || '') ||
-        /Can't DROP/i.test(e.message || '')
+        /Can't DROP/i.test(e.message || '') ||
+        /Unknown column ['`]?commerce['`]?/i.test(e.message || '')
       ) {
         console.log(`SKIP (already applied): ${file}`);
       } else {
