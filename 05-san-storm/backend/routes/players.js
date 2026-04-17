@@ -20,6 +20,9 @@ const playerStatisticsService = require('../services/playerStatisticsService');
 const playerEventRewardsService = require('../services/playerEventRewardsService');
 const playerCreationService = require('../services/playerCreationService');
 const playerMainCityService = require('../services/playerMainCityService');
+const mainCityBarracksStorageService = require('../services/mainCityBarracksStorageService');
+const positionPromotionService = require('../services/positionPromotionService');
+const factionOverviewService = require('../services/factionOverviewService');
 
 const router = express.Router();
 
@@ -207,6 +210,46 @@ router.get('/:playerId/factions/available', async (req, res) => {
 });
 
 /**
+ * GET /api/players/:playerId/faction/overview
+ * 势力 Tab「势力信息」象限：官职、人数、城市摘要、五维档位、储备（camelCase）
+ */
+router.get('/:playerId/faction/overview', async (req, res) => {
+  try {
+    const { playerId } = req.params;
+    const result = await factionOverviewService.getFactionOverviewForPlayer(playerId);
+    if (result.notFound) {
+      return res.status(404).json({ success: false, error: '玩家不存在' });
+    }
+    const d = result.data;
+    res.set('Cache-Control', 'no-store');
+    res.json({
+      success: true,
+      data: {
+        factionId: d.factionId,
+        factionName: d.factionName,
+        reserveSilver: d.reserveSilver,
+        reserveFood: d.reserveFood,
+        totals: d.totals,
+        supplyTier: d.supplyTier,
+        playerCountReal: d.playerCountReal,
+        playerCountNpc: d.playerCountNpc,
+        legionCount: d.legionCount,
+        cityCount: d.cityCount,
+        officeHolders: d.officeHolders,
+        citiesMajorLines: d.citiesMajorLines,
+        citiesMediumLines: d.citiesMediumLines,
+        citiesSmallByZhou: d.citiesSmallByZhou,
+        citiesGateByZhou: d.citiesGateByZhou,
+        citiesFortByZhou: d.citiesFortByZhou,
+      },
+    });
+  } catch (error) {
+    console.error('[Players] faction/overview', error);
+    res.status(500).json({ success: false, error: '获取势力信息失败', message: error.message });
+  }
+});
+
+/**
  * GET /api/players/:playerId/troops/initial
  * 获取初始部队选项
  */
@@ -363,6 +406,79 @@ router.post('/:playerId/main-city', async (req, res) => {
   } catch (error) {
     console.error('[Players] 设置主城失败:', error);
     res.status(500).json({ success: false, error: '设置主城失败', message: error.message });
+  }
+});
+
+/**
+ * POST /api/players/:playerId/main-city-barracks/transfer-in
+ * body: { instanceIds: string[] } — 军营池 → 主城驻军所仓库
+ */
+router.post('/:playerId/main-city-barracks/transfer-in', async (req, res) => {
+  try {
+    const { playerId } = req.params;
+    const out = await mainCityBarracksStorageService.transferIn(playerId, req.body?.instanceIds);
+    if (!out.ok) {
+      return res.status(out.status).json({ success: false, error: out.error });
+    }
+    res.json({ success: true });
+  } catch (error) {
+    console.error('[Players] 驻军所转入失败:', error);
+    res.status(500).json({ success: false, error: '驻军所转入失败', message: error.message });
+  }
+});
+
+/**
+ * POST /api/players/:playerId/main-city-barracks/transfer-out
+ * body: { instanceIds: string[] } — 驻军所仓库 → 军营池（受军营部队 20 张上限约束）
+ */
+router.post('/:playerId/main-city-barracks/transfer-out', async (req, res) => {
+  try {
+    const { playerId } = req.params;
+    const out = await mainCityBarracksStorageService.transferOut(playerId, req.body?.instanceIds);
+    if (!out.ok) {
+      return res.status(out.status).json({ success: false, error: out.error });
+    }
+    res.json({ success: true });
+  } catch (error) {
+    console.error('[Players] 驻军所转出失败:', error);
+    res.status(500).json({ success: false, error: '驻军所转出失败', message: error.message });
+  }
+});
+
+/**
+ * GET /api/players/:playerId/san-gong-fu/promotions
+ * 三公府 · 官职：下一品阶（position_level = 当前 − 1）可晋升列表
+ */
+router.get('/:playerId/san-gong-fu/promotions', async (req, res) => {
+  try {
+    const { playerId } = req.params;
+    const out = await positionPromotionService.getPromotionsForPlayer(playerId);
+    if (!out.ok) {
+      return res.status(out.status).json({ success: false, error: out.error });
+    }
+    res.json({ success: true, data: out.data });
+  } catch (error) {
+    console.error('[Players] 三公府晋升列表失败:', error);
+    res.status(500).json({ success: false, error: '获取晋升列表失败', message: error.message });
+  }
+});
+
+/**
+ * POST /api/players/:playerId/san-gong-fu/promote
+ * body: { positionId: string }
+ */
+router.post('/:playerId/san-gong-fu/promote', async (req, res) => {
+  try {
+    const { playerId } = req.params;
+    const positionId = req.body?.positionId;
+    const out = await positionPromotionService.promotePlayer(playerId, positionId);
+    if (!out.ok) {
+      return res.status(out.status).json({ success: false, error: out.error });
+    }
+    res.json({ success: true, data: out.data });
+  } catch (error) {
+    console.error('[Players] 三公府晋升失败:', error);
+    res.status(500).json({ success: false, error: '晋升失败', message: error.message });
   }
 });
 

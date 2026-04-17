@@ -15,6 +15,9 @@ import { PHASE } from '@/components/event/EventConstants';
 import { playerAPI } from '@/services/playerApi';
 import AncientModal from '@/components/common/AncientModal';
 import GarrisonLineup from '@/components/garrison/GarrisonLineup';
+import MainCityBarracksPostPanel from '@/components/garrison/MainCityBarracksPostPanel';
+import SanGongFuPanel from '@/components/game/SanGongFuPanel';
+import PositionCard from '@shared/components/card/PositionCard';
 import { garrisonAPI } from '@/services/garrisonApi';
 import { API_CONFIG, getRarityHex, getRarityLabelCn } from '@/constants';
 import SiegeReplayMini from '@/components/game/SiegeReplayMini';
@@ -224,6 +227,13 @@ export default function WorldMap({ onEventBusyChange }) {
   const [showGarrison, setShowGarrison] = useState(false);
   const [garrisonCityId, setGarrisonCityId] = useState(null);
   const [garrisonCityName, setGarrisonCityName] = useState('');
+  const [showBarracksPost, setShowBarracksPost] = useState(false);
+  const [barracksPostCityId, setBarracksPostCityId] = useState(null);
+  const [barracksPostCityName, setBarracksPostCityName] = useState('');
+  const [showSanGongFu, setShowSanGongFu] = useState(false);
+  const [sanGongFuCityName, setSanGongFuCityName] = useState('');
+  const [sanGongPositionAnim, setSanGongPositionAnim] = useState(null);
+  const sanGongAnimTimerRef = useRef(null);
   const [onDuty, setOnDuty] = useState(false); // 玩家是否处于披挂待命（任意城）
 
   // ── PVP 挑战状态 ──
@@ -356,6 +366,39 @@ export default function WorldMap({ onEventBusyChange }) {
     },
     [player?.player_id, refreshPlayer],
   );
+
+  /** 主城「驻军所」：军营部队顺序（全屏） */
+  const handleOpenBarracksPost = useCallback((cityId, cityBaseName) => {
+    if (!cityId) return;
+    setBarracksPostCityId(cityId);
+    setBarracksPostCityName(cityBaseName || '城池');
+    setShowBarracksPost(true);
+  }, []);
+
+  /** 大城/中城「三公府」：官职晋升等 */
+  const handleOpenSanGongFu = useCallback((_cityId, cityBaseName) => {
+    setSanGongFuCityName(cityBaseName || '城池');
+    setShowSanGongFu(true);
+  }, []);
+
+  const handleSanGongPromoted = useCallback((data) => {
+    if (sanGongAnimTimerRef.current) {
+      clearTimeout(sanGongAnimTimerRef.current);
+      sanGongAnimTimerRef.current = null;
+    }
+    const pos = data?.position;
+    if (pos && typeof pos === 'object') {
+      setSanGongPositionAnim({ position: pos, positionName: data.positionName, positionLevel: data.positionLevel });
+      sanGongAnimTimerRef.current = setTimeout(() => {
+        setSanGongPositionAnim(null);
+        sanGongAnimTimerRef.current = null;
+      }, 1000);
+    }
+  }, []);
+
+  useEffect(() => () => {
+    if (sanGongAnimTimerRef.current) clearTimeout(sanGongAnimTimerRef.current);
+  }, []);
 
   /** 与攻城结算同源：刷新 `/garrisons/stats/cities` + `/cities`，避免格上 tooltip 驻地槽位 / NPC 等卡旧值 */
   const bumpStrategicMapRuntimeCaches = useCallback(() => {
@@ -666,6 +709,8 @@ export default function WorldMap({ onEventBusyChange }) {
         playerSilver={player?.silver ?? null}
         onSetMainCityRequest={handleSetMainCityRequest}
         onSetMainCityError={setSimpleAlertMessage}
+        onOpenBarracksPost={handleOpenBarracksPost}
+        onOpenSanGongFu={handleOpenSanGongFu}
         onOpenGarrisonForCity={openGarrisonForCity}
         onToggleDutyForCity={handleToggleDutyForCity}
         onDutyError={setSimpleAlertMessage}
@@ -774,6 +819,35 @@ export default function WorldMap({ onEventBusyChange }) {
           cityId={garrisonCityId}
           cityName={garrisonCityName || '城池'}
         />
+      ) : null}
+
+      {showBarracksPost && barracksPostCityId ? (
+        <MainCityBarracksPostPanel
+          cityId={barracksPostCityId}
+          cityName={barracksPostCityName || '城池'}
+          onClose={() => {
+            setShowBarracksPost(false);
+            setBarracksPostCityId(null);
+          }}
+          onAfterSave={bumpStrategicMapRuntimeCaches}
+        />
+      ) : null}
+
+      {showSanGongFu ? (
+        <SanGongFuPanel
+          cityName={sanGongFuCityName || '城池'}
+          onClose={() => setShowSanGongFu(false)}
+          onPromoted={handleSanGongPromoted}
+        />
+      ) : null}
+
+      {sanGongPositionAnim?.position ? (
+        <div className="fixed inset-0 z-[200] flex flex-col items-center justify-center bg-black/65 px-4">
+          <div className="mb-3 text-center text-amber-400 text-lg font-bold">官职授予</div>
+          <div style={{ transform: 'scale(0.72)', transformOrigin: 'center center' }}>
+            <PositionCard position={sanGongPositionAnim.position} showDetails />
+          </div>
+        </div>
       ) : null}
 
       {/* 攻城战斗（复用 BattleArena） */}

@@ -1,8 +1,9 @@
 /**
  * 卡池入口组件
- * 
- * @description 大地图视图中，公告栏下方居中显示两个卡池入口（将领/部队）
- *              PC端hover / 竖屏长按显示说明悬浮窗
+ *
+ * @description 大地图视图中，公告栏下方居中显示两个卡池入口（将领 / 部队）。
+ *              属性重随入口已迁至编组 Tab → 玩家官职槽详情底部。
+ *              PC 端 hover / 竖屏长按显示说明悬浮窗。
  *
  * 外层 `pointer-events-none`：本行在 GamePage 顶栏浮层（z-40）内占满宽度，若整行 `pointer-events-auto`
  * 会吞掉左侧大地图（州郡跳转等）的点击；仅各卡池按钮容器 `pointer-events-auto`。
@@ -76,10 +77,6 @@ export default function CardPoolEntry({
   charRemaining,
   dailyLimit,
   onOpenPool,
-  rerollRemaining,
-  rerollLimit,
-  rerollPositionName,
-  onOpenReroll,
   drawerOpen = false,
 }) {
   return (
@@ -90,12 +87,6 @@ export default function CardPoolEntry({
       <PoolButton icon="⚔️" label="部队卡池" remaining={troopRemaining} dailyLimit={dailyLimit}
         drawerOpen={drawerOpen}
         onClick={() => onOpenPool('troop')} />
-      <PoolButton icon="🎲"
-        label={rerollPositionName ? `随机（${rerollPositionName}）` : '属性随机'}
-        remaining={rerollRemaining ?? '?'} dailyLimit={rerollLimit ?? 2}
-        drawerOpen={drawerOpen}
-        tooltip="正式赛季会有专门的城市界面提供此功能，本测试赛季一切从简"
-        onClick={onOpenReroll} />
     </div>
   );
 }

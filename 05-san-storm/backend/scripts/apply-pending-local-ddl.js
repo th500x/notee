@@ -53,6 +53,10 @@ const MIGRATION_FILES = [
   'rename-config-items-item-badge-to-item-season-badge.sql',
   'player-garrison-composite-city-primary-key.sql',
   'cities-rename-commerce-columns-to-trading.sql',
+  'factions-rename-reserve-silver-food.sql',
+  'factions-add-totals-and-supply-columns.sql',
+  'player-cards-add-main-city-barracks-storage.sql',
+  'player-cards-drop-barracks-sort.sql',
 ];
 
 function stripSqlComments(sql) {
@@ -86,7 +90,9 @@ function stripSqlComments(sql) {
         /Duplicate column name/i.test(e.message || '') ||
         /already exists/i.test(e.message || '') ||
         /Can't DROP/i.test(e.message || '') ||
-        /Unknown column ['`]?commerce['`]?/i.test(e.message || '')
+        /Unknown column ['`]?commerce['`]?/i.test(e.message || '') ||
+        /Unknown column ['`]?silver_reserve['`]?/i.test(e.message || '') ||
+        /Unknown column ['`]?food_reserve['`]?/i.test(e.message || '')
       ) {
         console.log(`SKIP (already applied): ${file}`);
       } else {

@@ -733,6 +733,54 @@ async function executeRewards(playerId, rewardStr, multiplier, factionId) {
 }
 
 /**
+ * 仅更新玩家官职行（不发事件统计、不发其它奖励）。三公府晋升、传书等复用。
+ * @param {string} playerId
+ * @param {string} positionId config_positions.position_id
+ * @returns {Promise<{ ok: true, detail: { type: 'position', positionId, positionName, positionLevel } } | { ok: false, status: number, error: string }>}
+ */
+async function grantPositionById(playerId, positionId) {
+  const pid = String(playerId || '').trim();
+  const posId = String(positionId || '').trim();
+  if (!pid || !posId) {
+    return { ok: false, status: 400, error: '参数无效' };
+  }
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+    const [posRows] = await connection.query(
+      'SELECT position_id, position_name, position_level FROM config_positions WHERE position_id = ?',
+      [posId],
+    );
+    if (!posRows[0]) {
+      await connection.rollback();
+      return { ok: false, status: 404, error: '官职不存在' };
+    }
+    const pos = posRows[0];
+    await connection.query(
+      'UPDATE players SET current_position_id = ?, current_position_name = ?, position_level = ? WHERE player_id = ?',
+      [pos.position_id, pos.position_name, pos.position_level, pid],
+    );
+    await connection.commit();
+    console.log(`[Rewards] grantPositionById: ${pos.position_name} (Lv.${pos.position_level}) → ${pid}`);
+    return {
+      ok: true,
+      detail: {
+        type: 'position',
+        positionId: pos.position_id,
+        positionName: pos.position_name,
+        positionLevel: pos.position_level,
+      },
+    };
+  } catch (e) {
+    await connection.rollback();
+    console.error('[rewardService] grantPositionById', e);
+    return { ok: false, status: 500, error: '授予官职失败' };
+  } finally {
+    connection.release();
+  }
+}
+
+/**
  * 在已有事务 connection 上发放具体卡牌（与事件奖励 specific_card 分支一致，用于传书领取等）
  * @param {import('mysql2/promise').PoolConnection} connection
  * @param {string[]} cardIds - 配置表卡牌 ID，每张发 1 张
@@ -831,5 +879,6 @@ module.exports = {
   getMaxBattleCount,
   grantSpecificCardsOnConnection,
   executeRewards,
+  grantPositionById,
   FORTUNE_MULTIPLIERS,
 };

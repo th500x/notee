@@ -57,6 +57,10 @@ export default function WorldMapCityInfoBlock({
   /** async (cityId) => void */
   onSetMainCityRequest = null,
   onSetMainCityError = null,
+  /** 已是主城时「驻军所」入口；`(cityId, cityBaseName?) => void` */
+  onOpenBarracksPost = null,
+  /** 「三公府」：官职晋升、政策提案等；`(cityId, cityBaseName?) => void`，内容待实装 */
+  onOpenSanGongFu = null,
   cityId = null,
   onOpenGarrison,
   playerOnDutyForThisCity = false,
@@ -186,9 +190,9 @@ export default function WorldMapCityInfoBlock({
       Number.isNaN(changedMs) ||
       Date.now() - changedMs < MAIN_CITY_CHANGE_COOLDOWN_MS);
 
-  const mainCityDisabled =
+  /** 仅「设为主城」按钮：已是主城时不展示该按钮，故不含 isCurrentMain */
+  const setMainCityButtonDisabled =
     !canShowSetMainCityBtn ||
-    isCurrentMain ||
     (needsPaidChange && (!silverOk || inCooldown));
 
   let mainCityTitle = '设为本势力大城/中城的主城（存卡）';
@@ -207,7 +211,7 @@ export default function WorldMapCityInfoBlock({
   else mainCityTitle = '首次设置主城免费';
 
   const handleSetMainCityClick = useCallback(async () => {
-    if (!cityId || !onSetMainCityRequest || mainCityBusy || mainCityDisabled) return;
+    if (!cityId || !onSetMainCityRequest || mainCityBusy || isCurrentMain || setMainCityButtonDisabled) return;
     setMainCityBusy(true);
     try {
       await onSetMainCityRequest(cityId);
@@ -220,9 +224,20 @@ export default function WorldMapCityInfoBlock({
     cityId,
     onSetMainCityRequest,
     mainCityBusy,
-    mainCityDisabled,
+    isCurrentMain,
+    setMainCityButtonDisabled,
     onSetMainCityError,
   ]);
+
+  const handleOpenBarracksPost = useCallback(() => {
+    if (!cityId || typeof onOpenBarracksPost !== 'function') return;
+    onOpenBarracksPost(cityId, cityBaseName);
+  }, [cityId, cityBaseName, onOpenBarracksPost]);
+
+  const handleOpenSanGongFu = useCallback(() => {
+    if (!cityId || typeof onOpenSanGongFu !== 'function') return;
+    onOpenSanGongFu(cityId, cityBaseName);
+  }, [cityId, cityBaseName, onOpenSanGongFu]);
 
   const handleToggleDuty = useCallback(async () => {
     if (!cityId || !onToggleDutyRequest || dutyBusy) return;
@@ -321,15 +336,42 @@ export default function WorldMapCityInfoBlock({
             </div>
           </div>
           {canShowSetMainCityBtn ? (
-            <button
-              type="button"
-              disabled={mainCityDisabled || mainCityBusy}
-              title={mainCityTitle}
-              onClick={handleSetMainCityClick}
-              className="shrink-0 self-start py-1.5 px-1 text-[10px] font-bold rounded-md border border-stone-600 bg-stone-800/90 text-stone-200 hover:bg-stone-800 hover:text-stone-100 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-stone-800/90"
-            >
-              {mainCityBusy ? '…' : '设为主城'}
-            </button>
+            <div className="shrink-0 self-start flex flex-row flex-wrap gap-1 justify-end max-w-[11rem]">
+              <button
+                type="button"
+                disabled={typeof onOpenSanGongFu !== 'function'}
+                title={typeof onOpenSanGongFu === 'function' ? '三公府：官职晋升等' : '敬请期待'}
+                onClick={handleOpenSanGongFu}
+                className="py-1.5 px-1.5 text-[10px] font-bold rounded-md border border-amber-800/50 bg-stone-800/90 text-amber-100/95 hover:bg-stone-800 hover:border-amber-600/60 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-stone-800/90"
+              >
+                三公府
+              </button>
+              {isCurrentMain ? (
+                <button
+                  type="button"
+                  disabled={typeof onOpenBarracksPost !== 'function'}
+                  title={
+                    typeof onOpenBarracksPost === 'function'
+                      ? '军营与主城驻军所仓库（转入/转出）'
+                      : '敬请期待'
+                  }
+                  onClick={handleOpenBarracksPost}
+                  className="py-1.5 px-1.5 text-[10px] font-bold rounded-md border border-stone-600 bg-stone-800/90 text-stone-200 hover:bg-stone-800 hover:text-stone-100 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-stone-800/90"
+                >
+                  驻军所
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  disabled={setMainCityButtonDisabled || mainCityBusy}
+                  title={mainCityTitle}
+                  onClick={handleSetMainCityClick}
+                  className="py-1.5 px-1.5 text-[10px] font-bold rounded-md border border-stone-600 bg-stone-800/90 text-stone-200 hover:bg-stone-800 hover:text-stone-100 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-stone-800/90"
+                >
+                  {mainCityBusy ? '…' : '设为主城'}
+                </button>
+              )}
+            </div>
           ) : null}
         </div>
       </div>

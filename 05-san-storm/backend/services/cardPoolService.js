@@ -392,12 +392,14 @@ async function drawSingleCard(connection, playerId, poolType, factionId, current
 // ── 半天周期工具函数 ─────────────────────────────────────────
 
 /**
- * 获取当前半天周期的起始时间SQL表达式
- * 00:00~11:59 → 今天00:00:00
- * 12:00~23:59 → 今天12:00:00
- * 每个周期独立5次额度，每天共10次/卡池
+ * 获取当前半天周期的起始时间SQL表达式（墙钟，与 MySQL 会话时区一致）
+ * 12:00~23:59 → 今天 12:00:00
+ * 08:00~11:59 → 今天 08:00:00
+ * 00:00~07:59 → 昨天 12:00:00（仍属「午间起」半日窗口，跨午夜）
+ * 每个周期独立 5 次额度，每天共 10 次/卡池
  */
-const HALF_DAY_START_SQL = `IF(HOUR(NOW()) >= 12, CONCAT(CURDATE(), ' 12:00:00'), CONCAT(CURDATE(), ' 00:00:00'))`;
+const HALF_DAY_START_SQL =
+  "IF(HOUR(NOW()) >= 12, CONCAT(CURDATE(), ' 12:00:00'), IF(HOUR(NOW()) >= 8, CONCAT(CURDATE(), ' 08:00:00'), CONCAT(DATE_SUB(CURDATE(), INTERVAL 1 DAY), ' 12:00:00')))";
 
 // ── 辅助查询函数 ─────────────────────────────────────────────
 

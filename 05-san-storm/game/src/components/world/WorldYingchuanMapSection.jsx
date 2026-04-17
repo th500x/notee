@@ -52,6 +52,8 @@ export default function WorldYingchuanMapSection({
   playerSilver = null,
   onSetMainCityRequest = null,
   onSetMainCityError = null,
+  onOpenBarracksPost = null,
+  onOpenSanGongFu = null,
   /** 城名着色：盟友 `faction_id`（`Set` 或数组）；结盟/外交接入后由上层传入 */
   strategicCityLabelAllyFactionIds = null,
   /** 城名着色：非敌对 `faction_id` */
@@ -261,6 +263,8 @@ export default function WorldYingchuanMapSection({
             playerSilver={playerSilver}
             onSetMainCityRequest={onSetMainCityRequest}
             onSetMainCityError={onSetMainCityError}
+            onOpenBarracksPost={onOpenBarracksPost}
+            onOpenSanGongFu={onOpenSanGongFu}
             onWheelZoomSteps={onWheelZoomSteps}
             strategicCityLabelAllyFactionIds={strategicCityLabelAllyFactionIds}
             strategicCityLabelNonHostileFactionIds={strategicCityLabelNonHostileFactionIds}

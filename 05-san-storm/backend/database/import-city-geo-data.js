@@ -286,7 +286,7 @@ async function ensureRuntimeFactionsForCitySeed(conn, cityRecords) {
     await conn.query(
       `INSERT INTO factions (
         id, season, faction_name,
-        silver_reserve, food_reserve,
+        reserve_silver, reserve_food,
         troop_orange_probability, character_orange_probability,
         player_count, city_count, total_power, last_settlement_at
       ) VALUES (?, ?, ?, 0, 0, 0, 0, 0, 0, 0, NULL)

@@ -83,6 +83,22 @@ export const playerAPI = {
   },
 
   /**
+   * 势力 Tab「势力信息」：官职、人数、城市摘要、五维档位、储备
+   */
+  async getFactionOverview(playerId) {
+    try {
+      const response = await fetchWithTimeout(
+        `${API_CONFIG.BASE_URL}/players/${playerId}/faction/overview`,
+        { method: 'GET', headers: { 'Content-Type': 'application/json' } },
+      );
+      return response.json();
+    } catch (error) {
+      console.error('获取势力信息失败:', error);
+      throw error;
+    }
+  },
+
+  /**
    * 设置主城（存卡）：首次免费；再次更换 500 银 + 24h 冷却；仅大城/中城、本势力占城。
    */
   async setMainCity(playerId, cityId) {
@@ -91,6 +107,54 @@ export const playerAPI = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ cityId }),
     });
+    return response.json();
+  },
+
+  /** 三公府 · 官职：下一品阶可晋升列表 */
+  async getSanGongFuPromotions(playerId) {
+    const response = await fetchWithTimeout(
+      `${API_CONFIG.BASE_URL}/players/${playerId}/san-gong-fu/promotions`,
+      { method: 'GET', headers: { 'Content-Type': 'application/json' } },
+    );
+    return response.json();
+  },
+
+  /** 三公府 · 官职晋升（与事件奖励授予官职同源：更新 players 官职列） */
+  async promoteSanGongFu(playerId, positionId) {
+    const response = await fetchWithTimeout(
+      `${API_CONFIG.BASE_URL}/players/${playerId}/san-gong-fu/promote`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ positionId }),
+      },
+    );
+    return response.json();
+  },
+
+  /** 军营池 → 主城驻军所仓库 */
+  async transferMainCityBarracksIn(playerId, instanceIds) {
+    const response = await fetchWithTimeout(
+      `${API_CONFIG.BASE_URL}/players/${playerId}/main-city-barracks/transfer-in`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ instanceIds }),
+      },
+    );
+    return response.json();
+  },
+
+  /** 驻军所仓库 → 军营池（受军营部队张数上限） */
+  async transferMainCityBarracksOut(playerId, instanceIds) {
+    const response = await fetchWithTimeout(
+      `${API_CONFIG.BASE_URL}/players/${playerId}/main-city-barracks/transfer-out`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ instanceIds }),
+      },
+    );
     return response.json();
   },
 

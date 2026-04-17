@@ -20,6 +20,13 @@ const FACTION_COLORS = {
   san_1_faction_7001: '#78716c',
 };
 
+function readTouchLikePointerMedia() {
+  if (typeof window === 'undefined') return false;
+  return (
+    window.matchMedia('(hover: none)').matches || window.matchMedia('(pointer: coarse)').matches
+  );
+}
+
 function StrategicSiegeWarFloatingPanel({
   anchorRef,
   /** 主 tooltip 指针/位置变化时用于触发重算锚点 */
@@ -33,6 +40,30 @@ function StrategicSiegeWarFloatingPanel({
 }) {
   const [warData, setWarData] = useState(null);
   const [pos, setPos] = useState({ left: 0, top: 0 });
+  /** 竖屏/设备模拟常为 coarse 或 hover:none；此时若仍 pointer-events:auto 会挡住格上网格点击（典型：阳翟 2×2 被浮层盖住） */
+  const [touchLikePointer, setTouchLikePointer] = useState(readTouchLikePointerMedia);
+
+  useEffect(() => {
+    const apply = () => setTouchLikePointer(readTouchLikePointerMedia());
+    apply();
+    if (typeof window === 'undefined') return undefined;
+    const mqHover = window.matchMedia('(hover: none)');
+    const mqPointer = window.matchMedia('(pointer: coarse)');
+    if (typeof mqHover.addEventListener === 'function') {
+      mqHover.addEventListener('change', apply);
+      mqPointer.addEventListener('change', apply);
+      return () => {
+        mqHover.removeEventListener('change', apply);
+        mqPointer.removeEventListener('change', apply);
+      };
+    }
+    mqHover.addListener(apply);
+    mqPointer.addListener(apply);
+    return () => {
+      mqHover.removeListener(apply);
+      mqPointer.removeListener(apply);
+    };
+  }, []);
 
   useEffect(() => {
     if (!enabled || !cityId) {
@@ -98,6 +129,7 @@ function StrategicSiegeWarFloatingPanel({
 
   if (!enabled || !cityId || !entries?.length) return null;
 
+  const passThroughPointerEvents = tooltipClickMode || touchLikePointer;
   const node = (
     <div
       className="strategic-siege-war-float rounded-lg border border-stone-500/90 px-3 py-2 text-stone-200 text-sm"
@@ -111,10 +143,10 @@ function StrategicSiegeWarFloatingPanel({
         maxWidth: 'min(14rem, 92vw)',
         background: 'rgba(15, 15, 25, 0.96)',
         boxShadow: '0 4px 16px rgba(0,0,0,0.55)',
-        pointerEvents: tooltipClickMode ? 'none' : 'auto',
+        pointerEvents: passThroughPointerEvents ? 'none' : 'auto',
       }}
-      onMouseEnter={tooltipClickMode ? undefined : clearLeaveTooltipTimer}
-      onMouseLeave={tooltipClickMode ? undefined : scheduleLeaveFromTile}
+      onMouseEnter={passThroughPointerEvents ? undefined : clearLeaveTooltipTimer}
+      onMouseLeave={passThroughPointerEvents ? undefined : scheduleLeaveFromTile}
     >
       <div className="text-amber-200 text-xs font-bold mb-1">⚔️ 势力战况</div>
       {entries.map((e, i) => (

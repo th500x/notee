@@ -19,11 +19,25 @@ import EncapsulateEquipmentModal from '@/components/game/EncapsulateEquipmentMod
 import AncientModal from '@/components/common/AncientModal';
 import { toCharCardData, toTroopCardData, toEquipCardData, toTitleCardData } from '@/utils/cardDataTransforms';
 import { collectGarrisonOccupiedInstanceIds } from '@/utils/garrisonScopeUtils';
+import { isMainCityBarracksStored } from '@/utils/garrisonBarracksTroopPool';
 import GarrisonGeneralPanel from './GarrisonGeneralPanel';
 import GarrisonStatsPanel from './GarrisonStatsPanel';
 import GarrisonBackpack from './GarrisonBackpack';
+import TabSubNav from '@/components/game/TabSubNav';
+import QuadrantGrid from '@/components/game/QuadrantGrid';
+import { useGameTabLandscape } from '@/components/game/TabPageCloseAffordance';
 
 const GARRISON_PROFILE_POLL_MS = 60_000;
+
+const GARRISON_POOL_SUB_TABS = [
+  { id: 'A', label: '🏰 驻地A' },
+  { id: 'B', label: '🏰 驻地B' },
+];
+
+const GARRISON_CHAR_SUB_TABS = [
+  { id: 'char1', label: '将领1' },
+  { id: 'char2', label: '将领2' },
+];
 
 const RARITY_ORDER = { common: 0, rare: 1, epic: 2, legendary: 3, core: 4 };
 
@@ -53,16 +67,7 @@ export default function GarrisonLineup({
   const [saveErrorMessage, setSaveErrorMessage] = useState(null);
   /** All instance_ids used in any city garrison pool (same source as LineupTab `garrisonAPI.getAll`). */
   const [garrisonOccupiedInstanceIds, setGarrisonOccupiedInstanceIds] = useState(() => new Set());
-  const [isLandscape, setIsLandscape]       = useState(
-    () => window.innerWidth >= 768 && window.innerWidth > window.innerHeight
-  );
-
-  /* ── 横竖屏检测 ── */
-  useEffect(() => {
-    const onResize = () => setIsLandscape(window.innerWidth >= 768 && window.innerWidth > window.innerHeight);
-    window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
-  }, []);
+  const isLandscape = useGameTabLandscape();
 
   /* ── 技能配置加载 ── */
   useEffect(() => {
@@ -255,6 +260,7 @@ export default function GarrisonLineup({
     if (c.card_type === 'equipmentSet') return false;
     if (c.is_equipped || occupiedIds.has(c.instance_id)) return false;
     if (c.card_type === 'equipment' && c.bound_equipment_set_instance_id) return false;
+    if (isMainCityBarracksStored(c)) return false;
     return true;
   });
   const encapsulateEquipmentPool = cards.filter(
@@ -269,6 +275,7 @@ export default function GarrisonLineup({
       : [];
     return pool.filter(c => {
       if (c.is_equipped || occupiedIds.has(c.instance_id)) return false;
+      if (isMainCityBarracksStored(c)) return false;
       if (type !== 'troop') return true;
       const maxBattle = c.max_battle_count ?? 10;
       const count     = Math.max(0, c.battle_count ?? 0);
@@ -304,6 +311,44 @@ export default function GarrisonLineup({
     playerId: player?.player_id,
   });
 
+  const garrisonLandscapeCells = [
+    {
+      id: 'garrison-quadrant-locked',
+      title: '说明',
+      content: (
+        <div className="flex h-full min-h-[8rem] flex-col items-center justify-center bg-stone-900/50 px-2 text-center">
+          <div className="mb-2 text-4xl opacity-40">🔒</div>
+          <p className="text-xs leading-snug text-stone-500">驻地编组无需配置玩家角色</p>
+        </div>
+      ),
+    },
+    {
+      id: 'garrison-quadrant-char1',
+      title: '将领1',
+      content: <GarrisonGeneralPanel {...generalPanelSharedProps('char1')} isLandscape />,
+    },
+    {
+      id: 'garrison-quadrant-camp',
+      title: '军营',
+      content: (
+        <GarrisonBackpack
+          cards={availableCards}
+          skillsMap={skillsMap}
+          isLandscape={isLandscape}
+          playerId={player?.player_id}
+          onAfterEncapsulateChange={refresh}
+          encapsulateEquipmentPool={encapsulateEquipmentPool}
+          equipmentSetCards={equipmentSetCards}
+        />
+      ),
+    },
+    {
+      id: 'garrison-quadrant-char2',
+      title: '将领2',
+      content: <GarrisonGeneralPanel {...generalPanelSharedProps('char2')} isLandscape />,
+    },
+  ];
+
   return (
     <div className="fixed inset-0 z-[100] bg-gradient-to-b from-stone-900 via-stone-800 to-stone-900 flex flex-col">
 
@@ -326,70 +371,38 @@ export default function GarrisonLineup({
             <div className="text-amber-500/90 text-[11px] leading-snug">{activationHint}</div>
           )}
         </div>
-        <div className="flex items-center">
-          <div className="flex flex-1">
-            {['A', 'B'].map(pool => (
-              <button key={pool}
-                onClick={() => { setActivePool(pool); setActiveChar('char1'); closeDrawer(); }}
-                className={`flex-1 py-3 text-sm font-medium text-center transition-colors relative
-                  ${activePool === pool ? 'text-amber-400' : 'text-stone-500 hover:text-stone-300'}`}>
-                🏰 驻地{pool}
-                {activePool === pool && (
-                  <div className="absolute bottom-0 left-1/4 right-1/4 h-0.5 bg-amber-500 rounded-full" />
-                )}
-              </button>
-            ))}
-          </div>
-          <button onClick={onClose}
-            className="flex-shrink-0 px-3 py-3 text-stone-500 hover:text-white transition-colors">✕</button>
-        </div>
+        <TabSubNav
+          tabs={GARRISON_POOL_SUB_TABS}
+          activeTabId={activePool}
+          onTabChange={(id) => {
+            setActivePool(id);
+            setActiveChar('char1');
+            closeDrawer();
+          }}
+          onClose={onClose}
+        />
       </div>
 
       {/* ── 主内容 ── */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="relative min-h-0 flex-1 overflow-y-auto">
         {isLandscape ? (
-          /* ── 横屏：2×2 布局 ── */
-          <div className="grid grid-cols-2 grid-rows-2 h-full">
-            <div className="border-r border-b border-stone-700/40 flex items-center justify-center bg-stone-900/50 min-h-[140px] px-2">
-              <div className="text-center">
-                <div className="text-4xl mb-2 opacity-40">🔒</div>
-                <p className="text-stone-500 text-xs leading-snug">驻地编组无需配置玩家角色</p>
-              </div>
-            </div>
-            <div className="border-b border-stone-700/40 overflow-y-auto">
-              <GarrisonGeneralPanel {...generalPanelSharedProps('char1')} isLandscape />
-            </div>
-            <div className="border-r border-stone-700/40 overflow-y-auto">
-              <GarrisonBackpack
-                cards={availableCards}
-                skillsMap={skillsMap}
-                isLandscape={isLandscape}
-                playerId={player?.player_id}
-                onAfterEncapsulateChange={refresh}
-                encapsulateEquipmentPool={encapsulateEquipmentPool}
-                equipmentSetCards={equipmentSetCards}
-              />
-            </div>
-            <div className="overflow-y-auto">
-              <GarrisonGeneralPanel {...generalPanelSharedProps('char2')} isLandscape />
+          <div className="flex h-full min-h-0 flex-col">
+            <div className="min-h-0 flex-1 overflow-hidden">
+              <QuadrantGrid cells={garrisonLandscapeCells} />
             </div>
           </div>
         ) : (
           /* ── 竖屏 ── */
           <>
-            <div className="flex border-b border-stone-700/30 bg-stone-800/50">
-              {['char1', 'char2'].map(ck => (
-                <button key={ck}
-                  onClick={() => { setActiveChar(ck); closeDrawer(); }}
-                  className={`flex-1 py-2 text-xs font-medium text-center transition-colors relative
-                    ${activeChar === ck ? 'text-amber-400' : 'text-stone-500 hover:text-stone-300'}`}>
-                  {ck === 'char1' ? '将领1' : '将领2'}
-                  {activeChar === ck && (
-                    <div className="absolute bottom-0 left-1/3 right-1/3 h-0.5 bg-amber-500/60 rounded-full" />
-                  )}
-                </button>
-              ))}
-            </div>
+            <TabSubNav
+              tabs={GARRISON_CHAR_SUB_TABS}
+              activeTabId={activeChar}
+              onTabChange={(id) => {
+                setActiveChar(id);
+                closeDrawer();
+              }}
+              hideClose
+            />
 
             <GarrisonGeneralPanel {...generalPanelSharedProps(activeChar)} isLandscape={false} />
 

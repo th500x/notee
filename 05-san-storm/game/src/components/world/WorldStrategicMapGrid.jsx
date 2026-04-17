@@ -115,6 +115,20 @@ function buildStrategicWorldMapCityTooltip(row, anchorCityId, hd, onDutyCount) {
           playerSilver: hd.playerSilver ?? null,
           onSetMainCityRequest: hd.onSetMainCityRequest,
           onSetMainCityError: hd.onSetMainCityError,
+          onOpenBarracksPost:
+            typeof hd.onOpenBarracksPost === 'function'
+              ? () => {
+                  hd.onOpenBarracksPost(anchorCityId, base.cityBaseName);
+                  hd.closeStrategicCityTooltip?.();
+                }
+              : undefined,
+          onOpenSanGongFu:
+            typeof hd.onOpenSanGongFu === 'function'
+              ? () => {
+                  hd.onOpenSanGongFu(anchorCityId, base.cityBaseName);
+                  hd.closeStrategicCityTooltip?.();
+                }
+              : undefined,
         }
       : {}),
     /** 战略地图：外框 295×395px 写死（BattleMap.css） */
@@ -157,6 +171,8 @@ export default function WorldStrategicMapGrid({
   playerSilver = null,
   onSetMainCityRequest = null,
   onSetMainCityError = null,
+  onOpenBarracksPost = null,
+  onOpenSanGongFu = null,
   /** 郡内道路格（merged.json）；仅展示，寻路以同数据为准 */
   roadCells = null,
   /** `'4'` 四连通 | `'8'` 八连通（画线邻接与此一致） */
@@ -250,6 +266,8 @@ export default function WorldStrategicMapGrid({
     playerSilver,
     onSetMainCityRequest,
     onSetMainCityError,
+    onOpenBarracksPost,
+    onOpenSanGongFu,
   };
 
   const scheduleLeaveFromTile = useCallback(() => {
@@ -284,6 +302,8 @@ export default function WorldStrategicMapGrid({
     subsidiaryExploreEmbed,
     garrisonStatsByCityId,
     siegeLoading,
+    onOpenBarracksPost,
+    onOpenSanGongFu,
   ]);
 
   useEffect(() => {
@@ -504,6 +524,11 @@ export default function WorldStrategicMapGrid({
 
   const handleOpenTooltipFromTileEvent = useCallback((e) => {
     clearLeaveTooltipTimer();
+    // 与 `dismissTooltip` 成对：`tooltipContent` 已空时锚点也必须清空，否则「同锚点再点关闭」仍可能用旧 ref
+    // 误判（典型：关三公府/驻军所后先点阳翟无效，点过其它格再点阳翟才恢复）。
+    if (!tooltipContentRef.current) {
+      lastTooltipAnchorKeyRef.current = null;
+    }
     const y = Number(e.currentTarget.dataset.strategicY);
     const x = Number(e.currentTarget.dataset.strategicX);
     if (Number.isNaN(y) || Number.isNaN(x)) return;
@@ -518,11 +543,19 @@ export default function WorldStrategicMapGrid({
     const anchorX = cover?.anchorC ?? x;
     const anchorKey = cityId ? `city:${cityId}` : `cell:${anchorY},${anchorX}`;
 
-    if (tooltipClickMode && tooltipContentRef.current) {
-      if (lastTooltipAnchorKeyRef.current === anchorKey) {
-        closeTooltipNow();
-        return;
-      }
+    const tc = tooltipContentRef.current;
+    // 用「当前浮层上的 cityId」判断同城再点关闭，避免 `lastTooltipAnchorKeyRef` 与已卸载浮层不同步；
+    // 且仅 interactive 的浮层才关（城况未同步类为 pointer-events:none + interactive:false）。
+    if (
+      tooltipClickMode &&
+      tc &&
+      tc.type === 'worldMapCity' &&
+      tc.interactive &&
+      cityId &&
+      String(tc.cityId || '') === String(cityId)
+    ) {
+      closeTooltipNow();
+      return;
     }
 
     lastTooltipAnchorKeyRef.current = anchorKey;

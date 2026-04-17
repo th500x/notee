@@ -30,20 +30,18 @@ import TroopCard from '@shared/components/card/TroopCard';
 import EquipmentCard from '@shared/components/card/EquipmentCard';
 import TitleAchievementCard from '@shared/components/card/TitleAchievementCard';
 import PositionCard from '@shared/components/card/PositionCard';
+import LineupDetailCardScale from '@shared/components/card/LineupDetailCardScale.jsx';
+import LineupCardDetailPanel from '@shared/components/card/LineupCardDetailPanel.jsx';
 import { useCharacterRank } from '@/hooks/useCharacterRank';
 import { toCharCardData, toTroopCardData, toEquipCardData, toTitleCardData } from '@/utils/cardDataTransforms';
 import GarrisonGeneralNotRecruited from '@/components/garrison/GarrisonGeneralNotRecruited';
 import GarrisonBackpack from '@/components/garrison/GarrisonBackpack';
 import { TabPageCloseButton, useGameTabLandscape } from '@/components/game/TabPageCloseAffordance';
+import TabSubNav from '@/components/game/TabSubNav';
+import QuadrantGrid from '@/components/game/QuadrantGrid';
 
 /** 编组页打开期间：轻量拉档案，使兵力自然恢复等随时间更新（无需整页刷新） */
 const LINEUP_PROFILE_POLL_MS = 60_000;
-
-const SUB_TABS = [
-  { id: 'player', label: null }, // 动态生成：[玩家名]
-  { id: 'char1',  label: '将领1' },
-  { id: 'char2',  label: '将领2' },
-];
 
 /** 与军营「将领」行一致：灰 < 蓝 < 紫 < 橙 < 金 */
 const RARITY_ORDER = { common: 0, rare: 1, epic: 2, legendary: 3, core: 4 };
@@ -80,7 +78,7 @@ const GENERAL_SLOTS = [
   { id: 'treasure',    label: '宝物', icon: '💎', side: 'right', implemented: false },
 ];
 
-export default function LineupTab({ onClose }) {
+export default function LineupTab({ onClose, onOpenAttributeReroll }) {
   const { player, cards, loading, error, refresh, attributeBonusBySlot } = usePlayerContext();
   const { getCharacterLifeStage } = useLifeStages();
   const [activeSubTab, setActiveSubTab] = useState('player');
@@ -206,7 +204,12 @@ export default function LineupTab({ onClose }) {
   const char2Troops = troopCards.filter(c => c.equipped_by === 'character2' && c.is_equipped && (c.equipped_slot === 'troop1' || c.equipped_slot === 'troop2'));
   const char2Titles = titleCards.filter(c => c.equipped_by === 'character2' && c.is_equipped && c.equipped_slot === 'title');
   const char2Character = characterCards.find(c => c.equipped_by === 'character2' && c.is_equipped && c.equipped_slot === 'character');
-  const unequippedTroops = troopCards.filter(c => !c.is_equipped && !garrisonIds.has(c.instance_id));
+  const unequippedTroops = troopCards.filter((c) => {
+    if (c.is_equipped || garrisonIds.has(c.instance_id)) return false;
+    const st = c.main_city_barracks_storage;
+    if (st === 1 || st === true || String(st) === '1') return false;
+    return true;
+  });
   const unequippedTitles = titleCards.filter(c => !c.is_equipped && !garrisonIds.has(c.instance_id));
   const unequippedCharacters = characterCards.filter(c => !c.is_equipped && !garrisonIds.has(c.instance_id));
   const unequippedEquipmentSets = cards.filter(
@@ -221,6 +224,8 @@ export default function LineupTab({ onClose }) {
     if (c.card_type === 'equipmentSet') return false;
     if (c.is_equipped || garrisonIds.has(c.instance_id)) return false;
     if (c.card_type === 'equipment' && c.bound_equipment_set_instance_id) return false;
+    const st = c.main_city_barracks_storage;
+    if (st === 1 || st === true || String(st) === '1') return false;
     return true;
   });
   const encapsulateEquipmentPool = cards.filter(
@@ -312,133 +317,126 @@ export default function LineupTab({ onClose }) {
     return [];
   };
 
+  const playerLineupTabLabel = `[${player?.character_name || '玩家'}]`;
+  const lineupSubNavTabs = [
+    { id: 'player', label: playerLineupTabLabel },
+    { id: 'char1', label: '将领1' },
+    { id: 'char2', label: '将领2' },
+  ];
+
+  const lineupLandscapeCells = [
+    {
+      id: 'lineup-quadrant-player',
+      title: playerLineupTabLabel,
+      content: (
+        <LandscapeQuadrant
+          player={player}
+          activeSubTab="player"
+          slots={PLAYER_SLOTS}
+          getSlotContent={(slot) => getSlotContent(slot, 'player')}
+          onSlotClick={handleSlotClick}
+          selectedSlot={selectedSlot}
+          skillsMap={skillsMap}
+          statsPanel={playerTroops.length > 0 ? (
+            <LineupStatsPanel player={player} troops={playerTroops} compact
+              playerId={player?.player_id} rankBucket="main:player" />
+          ) : null}
+          attributeBonus={attributeBonusBySlot.player}
+        />
+      ),
+    },
+    {
+      id: 'lineup-quadrant-char1',
+      title: '将领1',
+      content: isGeneralRecruited('char1') ? (
+        <LandscapeQuadrant
+          player={player}
+          activeSubTab="char1"
+          slots={GENERAL_SLOTS}
+          getSlotContent={(slot) => getSlotContent(slot, 'char1')}
+          onSlotClick={handleSlotClick}
+          selectedSlot={selectedSlot}
+          skillsMap={skillsMap}
+          statsPanel={char1Troops.length > 0 ? (
+            <LineupStatsPanel player={player} troops={char1Troops} compact
+              attrs={char1Character?.config ? { combat: char1Character.config.combat, command: char1Character.config.command, courage: char1Character.config.courage, luck: char1Character.config.luck } : null}
+              playerId={player?.player_id} rankBucket="main:character1" />
+          ) : null}
+          attributeBonus={attributeBonusBySlot.character1}
+          generalCard={char1Character}
+          onGeneralCardClick={handleGeneralCardClick}
+        />
+      ) : (
+        <GarrisonGeneralNotRecruited label="将领1" unequippedCharacters={unequippedCharacters}
+          onEquipCharacter={(card) => handleEquipCharacter(card, 'char1')} skillsMap={skillsMap}
+          emptyStatusText="尚未招募" />
+      ),
+    },
+    {
+      id: 'lineup-quadrant-camp',
+      title: '军营',
+      content: (
+        <GarrisonBackpack
+          cards={allUnequipped}
+          skillsMap={skillsMap}
+          isLandscape={isLandscape}
+          playerId={player?.player_id}
+          onAfterEncapsulateChange={refresh}
+          encapsulateEquipmentPool={encapsulateEquipmentPool}
+          equipmentSetCards={equipmentSetCards}
+          footerNote={null}
+        />
+      ),
+    },
+    {
+      id: 'lineup-quadrant-char2',
+      title: '将领2',
+      content: isGeneralRecruited('char2') ? (
+        <LandscapeQuadrant
+          player={player}
+          activeSubTab="char2"
+          slots={GENERAL_SLOTS}
+          getSlotContent={(slot) => getSlotContent(slot, 'char2')}
+          onSlotClick={handleSlotClick}
+          selectedSlot={selectedSlot}
+          skillsMap={skillsMap}
+          statsPanel={char2Troops.length > 0 ? (
+            <LineupStatsPanel player={player} troops={char2Troops} compact
+              attrs={char2Character?.config ? { combat: char2Character.config.combat, command: char2Character.config.command, courage: char2Character.config.courage, luck: char2Character.config.luck } : null}
+              playerId={player?.player_id} rankBucket="main:character2" />
+          ) : null}
+          attributeBonus={attributeBonusBySlot.character2}
+          generalCard={char2Character}
+          onGeneralCardClick={handleGeneralCardClick}
+        />
+      ) : (
+        <GarrisonGeneralNotRecruited label="将领2" unequippedCharacters={unequippedCharacters}
+          onEquipCharacter={(card) => handleEquipCharacter(card, 'char2')} skillsMap={skillsMap}
+          emptyStatusText="尚未招募" />
+      ),
+    },
+  ];
+
   return (
     <div className="h-full flex flex-col bg-gradient-to-b from-stone-900 via-stone-800 to-stone-900">
-      {/* 竖屏：子Tab切换栏 / 横屏：隐藏（三列并排不需要切换） */}
       {!isLandscape && (
-        <div className="flex items-center border-b border-amber-900/50 bg-stone-900/80 sticky top-0 z-10">
-          <div className="flex flex-1">
-            {SUB_TABS.map(tab => {
-              const label = tab.id === 'player'
-                ? `[${player?.character_name || '玩家'}]`
-                : tab.label;
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => { setActiveSubTab(tab.id); closeDrawer(); }}
-                  className={`flex-1 py-3 text-sm font-medium text-center transition-colors relative
-                    ${activeSubTab === tab.id
-                      ? 'text-amber-400'
-                      : 'text-stone-500 hover:text-stone-300'}`}
-                >
-                  {label}
-                  {activeSubTab === tab.id && (
-                    <div className="absolute bottom-0 left-1/4 right-1/4 h-0.5 bg-amber-500 rounded-full" />
-                  )}
-                </button>
-              );
-            })}
-          </div>
-          <TabPageCloseButton onClose={onClose} variant="bar" />
-        </div>
+        <TabSubNav
+          tabs={lineupSubNavTabs}
+          activeTabId={activeSubTab}
+          onTabChange={(id) => { setActiveSubTab(id); closeDrawer(); }}
+          onClose={onClose}
+        />
       )}
 
       {/* 主内容（relative：横屏 ✕ 绝对定位锚定本区） */}
-      <div className="flex-1 overflow-y-auto relative min-h-0">
+      <div className="relative min-h-0 flex-1 overflow-y-auto">
         {isLandscape ? (
-          /* ===== 横屏：2×2 四象限布局 ===== */
-          /* 左上=玩家(卡牌|槽位+数据) | 右上=将领1 | 左下=军营 | 右下=将领2 */
-          <>
+          <div className="flex h-full min-h-0 flex-col">
             <TabPageCloseButton onClose={onClose} variant="corner" />
-
-            <div className="grid grid-cols-2 grid-rows-2 h-full">
-              {/* 左上：玩家角色 — 左卡牌 | 右(槽位+编组数据) */}
-              <div className="border-r border-b border-stone-700/40 overflow-y-auto p-1">
-                <LandscapeQuadrant
-                  player={player}
-                  activeSubTab="player"
-                  slots={PLAYER_SLOTS}
-                  getSlotContent={(slot) => getSlotContent(slot, 'player')}
-                  onSlotClick={handleSlotClick}
-                  selectedSlot={selectedSlot}
-                  skillsMap={skillsMap}
-                  statsPanel={playerTroops.length > 0 ? (
-                    <LineupStatsPanel player={player} troops={playerTroops} compact
-                      playerId={player?.player_id} rankBucket="main:player" />
-                  ) : null}
-                  attributeBonus={attributeBonusBySlot.player}
-                />
-              </div>
-
-              {/* 右上：将领1 */}
-              <div className="border-b border-stone-700/40 overflow-y-auto p-1">
-                {isGeneralRecruited('char1') ? (
-                  <LandscapeQuadrant
-                    player={player}
-                    activeSubTab="char1"
-                    slots={GENERAL_SLOTS}
-                    getSlotContent={(slot) => getSlotContent(slot, 'char1')}
-                    onSlotClick={handleSlotClick}
-                    selectedSlot={selectedSlot}
-                    skillsMap={skillsMap}
-                    statsPanel={char1Troops.length > 0 ? (
-                      <LineupStatsPanel player={player} troops={char1Troops} compact
-                        attrs={char1Character?.config ? { combat: char1Character.config.combat, command: char1Character.config.command, courage: char1Character.config.courage, luck: char1Character.config.luck } : null}
-                        playerId={player?.player_id} rankBucket="main:character1" />
-                    ) : null}
-                    attributeBonus={attributeBonusBySlot.character1}
-                    generalCard={char1Character}
-                    onGeneralCardClick={handleGeneralCardClick}
-                  />
-                ) : (
-                  <GarrisonGeneralNotRecruited label="将领1" unequippedCharacters={unequippedCharacters}
-                    onEquipCharacter={(card) => handleEquipCharacter(card, 'char1')} skillsMap={skillsMap}
-                    emptyStatusText="尚未招募" />
-                )}
-              </div>
-
-              {/* 左下：军营 */}
-              <div className="border-r border-stone-700/40 overflow-y-auto">
-                <GarrisonBackpack
-                  cards={allUnequipped}
-                  skillsMap={skillsMap}
-                  isLandscape={isLandscape}
-                  playerId={player?.player_id}
-                  onAfterEncapsulateChange={refresh}
-                  encapsulateEquipmentPool={encapsulateEquipmentPool}
-                  equipmentSetCards={equipmentSetCards}
-                  footerNote={null}
-                />
-              </div>
-
-              {/* 右下：将领2 */}
-              <div className="overflow-y-auto p-1">
-                {isGeneralRecruited('char2') ? (
-                  <LandscapeQuadrant
-                    player={player}
-                    activeSubTab="char2"
-                    slots={GENERAL_SLOTS}
-                    getSlotContent={(slot) => getSlotContent(slot, 'char2')}
-                    onSlotClick={handleSlotClick}
-                    selectedSlot={selectedSlot}
-                    skillsMap={skillsMap}
-                    statsPanel={char2Troops.length > 0 ? (
-                      <LineupStatsPanel player={player} troops={char2Troops} compact
-                        attrs={char2Character?.config ? { combat: char2Character.config.combat, command: char2Character.config.command, courage: char2Character.config.courage, luck: char2Character.config.luck } : null}
-                        playerId={player?.player_id} rankBucket="main:character2" />
-                    ) : null}
-                    attributeBonus={attributeBonusBySlot.character2}
-                    generalCard={char2Character}
-                    onGeneralCardClick={handleGeneralCardClick}
-                  />
-                ) : (
-                  <GarrisonGeneralNotRecruited label="将领2" unequippedCharacters={unequippedCharacters}
-                    onEquipCharacter={(card) => handleEquipCharacter(card, 'char2')} skillsMap={skillsMap}
-                    emptyStatusText="尚未招募" />
-                )}
-              </div>
+            <div className="min-h-0 flex-1 overflow-hidden">
+              <QuadrantGrid cells={lineupLandscapeCells} />
             </div>
-          </>
+          </div>
         ) : (
           /* ===== 竖屏：原有单Tab布局 ===== */
           <>
@@ -504,6 +502,7 @@ export default function LineupTab({ onClose }) {
           skillsMap={skillsMap}
           allCards={cards}
           getCharacterLifeStage={getCharacterLifeStage}
+          onOpenAttributeReroll={onOpenAttributeReroll}
           onClose={() => setDetailCard(null)}
           onReplace={() => {
             // 关闭详情 → 打开选择抽屉（保留 slotOwner；横屏时 activeSubTab 可能仍为 player，按实例兜底到 char1/char2）
@@ -1116,11 +1115,26 @@ function EquipSlot({ slot, content, isSelected, onClick, baseUrl, skillsMap, min
           <span className="text-white font-medium truncate" style={{ fontSize: fs1 }}>{content.name}</span>
           <span className={`font-bold flex-shrink-0 ${rarityColor[rarity]}`} style={{ fontSize: fsR }}>{rarityLabel[rarity]}</span>
         </div>
-        {/* 行2：资源加成 */}
-        {(bonuses.contributionBonus > 0 || bonuses.resourceBonus > 0) && (
+        {/* 行2：声望 / 贡献 / 资源（与 PositionCard 加成首行一致） */}
+        {(bonuses.reputationBonus > 0 ||
+          bonuses.contributionBonus > 0 ||
+          bonuses.resourceBonus > 0) && (
           <div className="flex items-center gap-1 w-full flex-wrap">
-            {bonuses.contributionBonus > 0 && <span className="text-cyan-400" style={{ fontSize: fs2 }}>贡+{(bonuses.contributionBonus*100).toFixed(0)}%</span>}
-            {bonuses.resourceBonus > 0 && <span className="text-yellow-400" style={{ fontSize: fs2 }}>资+{(bonuses.resourceBonus*100).toFixed(0)}%</span>}
+            {bonuses.reputationBonus > 0 && (
+              <span className="text-purple-400" style={{ fontSize: fs2 }}>
+                声+{(bonuses.reputationBonus * 100).toFixed(0)}%
+              </span>
+            )}
+            {bonuses.contributionBonus > 0 && (
+              <span className="text-cyan-400" style={{ fontSize: fs2 }}>
+                贡+{(bonuses.contributionBonus * 100).toFixed(0)}%
+              </span>
+            )}
+            {bonuses.resourceBonus > 0 && (
+              <span className="text-yellow-400" style={{ fontSize: fs2 }}>
+                资+{(bonuses.resourceBonus * 100).toFixed(0)}%
+              </span>
+            )}
           </div>
         )}
         {/* 行3：兵种加成 */}
@@ -1434,7 +1448,17 @@ function CardDrawer({ slot, cards, allCards = [], skillsMap, onSelect, onClose }
 }
 
 /** 卡牌详情浮层：显示完整卡牌 + 卸下/更换按钮；将领卡传入 getCharacterLifeStage 后可点击翻面查看生涯（与 Wiki 一致） */
-function CardDetailOverlay({ card, slot, skillsMap, allCards = [], getCharacterLifeStage, onClose, onReplace, onUnequip }) {
+function CardDetailOverlay({
+  card,
+  slot,
+  skillsMap,
+  allCards = [],
+  getCharacterLifeStage,
+  onClose,
+  onReplace,
+  onUnequip,
+  onOpenAttributeReroll,
+}) {
   const baseUrl = import.meta.env.BASE_URL;
   const isTroopSlot = slot.id === 'troop' || slot.id === 'troop1' || slot.id === 'troop2';
   const isTitleSlot = slot.id === 'title';
@@ -1456,22 +1480,50 @@ function CardDetailOverlay({ card, slot, skillsMap, allCards = [], getCharacterL
 
   return (
     <div className="fixed inset-0 z-[200] bg-black/70 flex items-center justify-center" onClick={onClose}>
-      <div className="bg-stone-900 rounded-xl p-4 border border-amber-500/30 max-w-sm w-full mx-4"
-        onClick={e => e.stopPropagation()}>
-        {/* 标题栏 */}
-        <div className="flex justify-between items-center mb-3">
-          <span className="text-amber-400 text-sm font-bold">
-            {isCharacterSlot ? '将领详情' : isPositionSlot ? '官职详情' : '卡牌详情'}
-          </span>
-          <button onClick={onClose} className="text-stone-400 hover:text-white">✕</button>
-        </div>
-
-        {/* 卡牌展示 */}
-        <div className="flex flex-col items-center mb-3 gap-1">
-          {lifeStageForChar ? (
-            <p className="text-stone-500 text-[11px] text-center">点击卡牌可翻面查看生涯</p>
-          ) : null}
-          <div style={{ transform: 'scale(0.72)', transformOrigin: 'top center' }}>
+      <LineupCardDetailPanel
+        onClick={(e) => e.stopPropagation()}
+        title={isCharacterSlot ? '将领详情' : isPositionSlot ? '官职详情' : '卡牌详情'}
+        headerRight={
+          <button type="button" onClick={onClose} className="text-stone-400 hover:text-white">
+            ✕
+          </button>
+        }
+        footer={
+          isPositionSlot && typeof onOpenAttributeReroll === 'function' ? (
+            <button
+              type="button"
+              onClick={() => {
+                onClose();
+                onOpenAttributeReroll();
+              }}
+              className="w-full rounded-lg border border-amber-700/50 bg-amber-900/50 py-2 text-sm text-amber-300 transition-colors hover:bg-amber-800/50"
+            >
+              属性重随
+            </button>
+          ) : !isPositionSlot ? (
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={onUnequip}
+                className="flex-1 rounded-lg border border-red-700/50 bg-red-900/50 py-2 text-sm text-red-300 transition-colors hover:bg-red-800/50"
+              >
+                卸下
+              </button>
+              <button
+                type="button"
+                onClick={onReplace}
+                className="flex-1 rounded-lg border border-amber-700/50 bg-amber-900/50 py-2 text-sm text-amber-300 transition-colors hover:bg-amber-800/50"
+              >
+                更换
+              </button>
+            </div>
+          ) : null
+        }
+      >
+        {lifeStageForChar ? (
+          <p className="text-center text-[11px] text-stone-500">点击卡牌可翻面查看生涯</p>
+        ) : null}
+        <LineupDetailCardScale>
             {isCharacterSlot ? (
               <CharacterCard
                 character={characterCardPayload}
@@ -1547,25 +1599,8 @@ function CardDetailOverlay({ card, slot, skillsMap, allCards = [], getCharacterL
               <div className="w-[256px] h-[200px] rounded-xl bg-stone-800 border-2 border-stone-600
                 flex items-center justify-center text-stone-400">{slot.label}</div>
             )}
-          </div>
-        </div>
-
-        {/* 操作按钮 */}
-        {!isPositionSlot && (
-          <div className="flex gap-2">
-            <button onClick={onUnequip}
-              className="flex-1 py-2 rounded-lg bg-red-900/50 border border-red-700/50 text-red-300 text-sm
-                hover:bg-red-800/50 transition-colors">
-              卸下
-            </button>
-            <button onClick={onReplace}
-              className="flex-1 py-2 rounded-lg bg-amber-900/50 border border-amber-700/50 text-amber-300 text-sm
-                hover:bg-amber-800/50 transition-colors">
-              更换
-            </button>
-          </div>
-        )}
-      </div>
+        </LineupDetailCardScale>
+      </LineupCardDetailPanel>
     </div>
   );
 }

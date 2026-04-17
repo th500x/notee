@@ -23,8 +23,9 @@ import CampaignCenterPanel from '@/components/game/CampaignCenterPanel';
 import AttrRerollDrawer from '@/components/game/AttrRerollDrawer';
 import { useCardPool } from '@/hooks/useCardPool';
 import { loadSharedData } from '@/services/dataService';
-import { playerAPI } from '@/services/playerApi';
 import LineupTab from '@/components/game/tabs/LineupTab';
+import MainCityTab from '@/components/game/tabs/MainCityTab';
+import FactionTab from '@/components/game/tabs/FactionTab';
 import PlaceholderTab from '@/components/game/tabs/PlaceholderTab';
 import WorldMap from '@/components/game/WorldMap';
 import JunCountyQuadPreviewPanel from '@/components/game/JunCountyQuadPreviewPanel';
@@ -53,7 +54,6 @@ function GamePageInner({ onLogout }) {
   const [openReroll, setOpenReroll] = useState(false);
   const [campaignOpen, setCampaignOpen] = useState(false);
   const [junQuadPreviewOpen, setJunQuadPreviewOpen] = useState(false);
-  const [rerollStatus, setRerollStatus] = useState(null);
   const [skillsMap, setSkillsMap] = useState({});
   const navigate = useNavigate();
 
@@ -108,7 +108,6 @@ function GamePageInner({ onLogout }) {
   useEffect(() => {
     if (playerId) {
       cardPool.loadStatus();
-      playerAPI.getRerollStatus(playerId).then(r => { if (r.success) setRerollStatus(r.data); }).catch(() => {});
     }
   }, [playerId]);
 
@@ -123,9 +122,16 @@ function GamePageInner({ onLogout }) {
   const renderTabContent = () => {
     switch (activeTab) {
       case 'lineup':
-        return <LineupTab onClose={handleCloseToMap} />;
-      case 'faction':
+        return (
+          <LineupTab
+            onClose={handleCloseToMap}
+            onOpenAttributeReroll={() => setOpenReroll(true)}
+          />
+        );
       case 'city':
+        return <MainCityTab onClose={handleCloseToMap} />;
+      case 'faction':
+        return <FactionTab onClose={handleCloseToMap} />;
       case 'map':
         return <PlaceholderTab tabId={activeTab} onClose={handleCloseToMap} />;
       default:
@@ -156,10 +162,6 @@ function GamePageInner({ onLogout }) {
                 charRemaining={cardPool.status?.character?.remainingDraws ?? '?'}
                 dailyLimit={cardPool.status?.troop?.dailyLimit ?? 5}
                 onOpenPool={setOpenPool}
-                rerollRemaining={rerollStatus?.remaining}
-                rerollLimit={rerollStatus?.dailyLimit}
-                rerollPositionName={player?.current_position_name}
-                onOpenReroll={() => setOpenReroll(true)}
                 drawerOpen={!!openPool}
               />
             )}
@@ -221,8 +223,6 @@ function GamePageInner({ onLogout }) {
           skillsMap={skillsMap}
           onClose={() => {
             setOpenReroll(false);
-            // 刷新状态
-            playerAPI.getRerollStatus(playerId).then(r => { if (r.success) setRerollStatus(r.data); }).catch(() => {});
             refresh();
           }}
           onConfirm={() => refresh()}

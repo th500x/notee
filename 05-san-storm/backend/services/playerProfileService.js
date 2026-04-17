@@ -99,11 +99,15 @@ async function getPlayerProfile(playerId) {
         pc.equipped_by,
         pc.equipped_slot,
         pc.obtained_at,
+        pc.main_city_barracks_storage,
         pc.equipment_set_data,
         pc.bound_equipment_set_instance_id
       FROM player_cards pc
       WHERE pc.player_id = ?
-      ORDER BY pc.is_equipped DESC, pc.card_type, pc.obtained_at
+      ORDER BY
+        pc.is_equipped DESC,
+        pc.card_type,
+        pc.obtained_at ASC
     `,
     [playerId]
   );
