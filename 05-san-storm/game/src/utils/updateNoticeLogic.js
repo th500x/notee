@@ -1,6 +1,6 @@
 /**
  * 更新公告：展示窗口与 localStorage 判定
- * @see docs/90-assets/92-2-GAME_ANNOUNCEMENTS_DESIGN.md
+ * @see docs/30-frontend/32-3-GAME_ANNOUNCEMENTS_DESIGN.md（路径相对 `05-san-storm/`）
  */
 
 const STORAGE_KEY = 'san1_update_notice_dismiss';

@@ -1,6 +1,6 @@
 /**
  * 将领排名：按服务器 + 槽位 bucket 比较「面板七维 + 加权综合分」
- * @see docs/90-assets/92-1-GAME_UI_DESIGN.md §9.1.2
+ * @see docs/30-frontend/32-1-GAME_UI_DESIGN.md §9.1.2（路径相对 `05-san-storm/`）
  */
 
 const { pool } = require('../database/connection');

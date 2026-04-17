@@ -16,10 +16,12 @@ export function useCardPool(playerId) {
   const [drawResult, setDrawResult] = useState(null);
   const [error, setError] = useState(null);
 
-  /** 加载卡池状态 */
+  /**
+   * 加载卡池状态（剩余次数、保底、费用等）。
+   * 不切换 `loading`：该标志仅用于 **抽取请求** 进行中，避免打开抽屉时 `loadStatus` 与底部「抽取」按钮共用状态导致整栏闪烁。
+   */
   const loadStatus = useCallback(async () => {
     if (!playerId) return;
-    setLoading(true);
     setError(null);
     try {
       const res = await cardPoolAPI.getStatus(playerId);
@@ -30,8 +32,6 @@ export function useCardPool(playerId) {
       }
     } catch (e) {
       setError(e.message);
-    } finally {
-      setLoading(false);
     }
   }, [playerId]);
 

@@ -22,6 +22,10 @@ import {
 } from '@shared/utils/strategicRoadOverlay.js';
 import '@/components/battle/BattleMap.css';
 import './WorldStrategicMap.css';
+import { PHASE } from '@/components/event/EventConstants';
+import { strategicExploreReopenBridge } from '@/utils/strategicExploreReopenBridge.js';
+import { primeStrategicCityWildernessMarketTab } from './WorldMapCityInfoBlock.jsx';
+import StrategicMapSelfPawn from './StrategicMapSelfPawn';
 
 const WS_QUAD_CLASS = {
   A: 'ws-quad-frame ws-quad-a',
@@ -181,6 +185,13 @@ export default function WorldStrategicMapGrid({
   strategicCityLabelAllyFactionIds = null,
   /** 城名标签：显式非敌对 `faction_id` */
   strategicCityLabelNonHostileFactionIds = null,
+  /**
+   * 全屏浮层（三公府 / 驻地编组 / 军营）打开或刚关闭时：强制收起 portal 城池 tooltip。
+   * 避免 `tile-tooltip--interactive`（高 z、pointer-events:auto）在触屏上继续吃掉阳翟 2×2 的首笔触摸。
+   */
+  strategicFullScreenOverlayOpen = false,
+  /** 玩家自身标记（主城块中心；见 31-6）：`cx, cy, portraitUrl, displayName, centerGlyph, troopsCurrent, troopsMax` */
+  strategicSelfPawn = null,
 }) {
   const strategicNav = useStrategicMapNavigation();
   const tooltipClickMode = useStrategicMapTooltipClickMode();
@@ -210,6 +221,14 @@ export default function WorldStrategicMapGrid({
   const hoverDataRef = useRef({});
   /** 战略城池 tooltip 打开时记录锚点，便于 profile 刷新后重建内容（否则 mainCityId 等仍是快照） */
   const strategicCityTooltipMetaRef = useRef({ cityId: null, onDutyCount: null });
+
+  /**
+   * 探索结算关弹窗后，浏览器常把同一指针的后续 click 落在底下的战略格上；在「点击模式」下会触发
+   * `handleWrapClickCapture` 关层，或命中「同城再点关层」分支。用内嵌的 `subsidiaryExploreEmbed.phase`
+   * 在 REWARD→RETURNING、RETURNING→IDLE 后短窗内禁止这两种误关。
+   */
+  const explorePhaseSyncRef = useRef(subsidiaryExploreEmbed?.phase);
+  const suppressStrategicCityClickDismissUntilRef = useRef(0);
 
   const clearLeaveTooltipTimer = useCallback(() => {
     if (leaveTooltipTimerRef.current != null) {
@@ -275,12 +294,37 @@ export default function WorldStrategicMapGrid({
     scheduleTooltipHide(ms);
   }, [scheduleTooltipHide]);
 
+  /**
+   * 战略格「城池」浮层（荒郊/集市连点探索）：禁止仅靠「指针离开瓦片 / 离开 portal / 离开地图滚动区」
+   * 触发延时关层。否则探索结束底栏重现、Clamp 重算位置、瓦片与 portal 间移动等都会产生 mouseleave，
+   * 约 80～260ms 后误关浮层，玩家误以为被踢回「纯大地图」。
+   */
+  const scheduleLeaveFromTileIfAllowed = useCallback(() => {
+    const tc = tooltipContentRef.current;
+    if (tc?.type === 'worldMapCity' && tc?.uniformStrategicPanel && tc?.interactive) return;
+    scheduleLeaveFromTile();
+  }, [scheduleLeaveFromTile]);
+
   const scheduleLeaveFromWrap = useCallback(() => {
+    const tc = tooltipContentRef.current;
+    if (tc?.type === 'worldMapCity' && tc?.uniformStrategicPanel && tc?.interactive) return;
     const ms = tooltipInteractiveRef.current ? 260 : 0;
     scheduleTooltipHide(ms);
   }, [scheduleTooltipHide]);
 
   useEffect(() => () => clearLeaveTooltipTimer(), [clearLeaveTooltipTimer]);
+
+  const prevStrategicOverlayRef = useRef(false);
+  useEffect(() => {
+    const on = !!strategicFullScreenOverlayOpen;
+    const was = prevStrategicOverlayRef.current;
+    prevStrategicOverlayRef.current = on;
+    if (on) {
+      closeTooltipNow();
+      return;
+    }
+    if (was) closeTooltipNow();
+  }, [strategicFullScreenOverlayOpen, closeTooltipNow]);
 
   useEffect(() => {
     const m = strategicCityTooltipMetaRef.current;
@@ -513,6 +557,7 @@ export default function WorldStrategicMapGrid({
     (e) => {
       if (!tooltipClickMode) return;
       if (!tooltipContentRef.current) return;
+      if (Date.now() < suppressStrategicCityClickDismissUntilRef.current) return;
       const t = e.target;
       if (!(t instanceof Element)) return;
       if (t.closest('.ws-map-tile')) return;
@@ -554,6 +599,9 @@ export default function WorldStrategicMapGrid({
       cityId &&
       String(tc.cityId || '') === String(cityId)
     ) {
+      if (Date.now() < suppressStrategicCityClickDismissUntilRef.current) {
+        return;
+      }
       closeTooltipNow();
       return;
     }
@@ -613,6 +661,91 @@ export default function WorldStrategicMapGrid({
     setTooltipPos({ x: e.clientX, y: e.clientY });
   }, [clearLeaveTooltipTimer, tooltipClickMode, closeTooltipNow]);
 
+  /** 荒郊/集市结算后：不依赖「抑制误点」，主动重建同城战略城池 portal（与瓦片点击路径一致） */
+  const reopenStrategicCityTooltipAfterSubsidiaryExplore = useCallback((anchorCityId, subKind) => {
+    primeStrategicCityWildernessMarketTab(anchorCityId, subKind);
+    clearLeaveTooltipTimer();
+    const hd = hoverDataRef.current;
+    const row = hd.cityById?.[anchorCityId];
+    if (!row) return;
+    const pos = strategicNav?.resolveStrategicAnchorForCityId?.(anchorCityId);
+    const w = wrapRef.current;
+    let px = 0;
+    let py = 0;
+    if (pos && w) {
+      const tile = w.querySelector(
+        `.ws-map-grid .ws-map-tile[data-strategic-x="${pos.gx}"][data-strategic-y="${pos.gy}"]`,
+      );
+      if (tile instanceof HTMLElement) {
+        const spanEl = tile.querySelector('.ws-object-span-2');
+        const tr =
+          spanEl instanceof HTMLElement ? spanEl.getBoundingClientRect() : tile.getBoundingClientRect();
+        px = tr.left + tr.width / 2;
+        py = tr.top + tr.height / 2;
+      }
+    }
+    if ((!px && !py) || (px === 0 && py === 0)) {
+      if (w) {
+        const wr = w.getBoundingClientRect();
+        px = wr.left + wr.width / 2;
+        py = wr.top + Math.min(160, wr.height * 0.35);
+      }
+    }
+    const g = ++hoverGenRef.current;
+    lastTooltipAnchorKeyRef.current = `city:${anchorCityId}`;
+    strategicCityTooltipMetaRef.current = { cityId: anchorCityId, onDutyCount: null };
+    setTooltipContent(buildStrategicWorldMapCityTooltip(row, anchorCityId, hd, null));
+    setTooltipPos({ x: px, y: py });
+
+    garrisonAPI.getOnDutyCount(anchorCityId).then((res) => {
+      if (g !== hoverGenRef.current) return;
+      const duty = res.success ? Number(res.count) : null;
+      const hd2 = hoverDataRef.current;
+      const row2 = hd2.cityById?.[anchorCityId];
+      if (!row2) return;
+      strategicCityTooltipMetaRef.current = {
+        cityId: anchorCityId,
+        onDutyCount: Number.isFinite(duty) ? duty : null,
+      };
+      setTooltipContent(
+        buildStrategicWorldMapCityTooltip(
+          row2,
+          anchorCityId,
+          hd2,
+          Number.isFinite(duty) ? duty : null,
+        ),
+      );
+    });
+  }, [clearLeaveTooltipTimer, strategicNav]);
+
+  useEffect(() => {
+    const p = subsidiaryExploreEmbed?.phase;
+    const prev = explorePhaseSyncRef.current;
+    explorePhaseSyncRef.current = p;
+    if (prev === PHASE.REWARD && p === PHASE.RETURNING) {
+      suppressStrategicCityClickDismissUntilRef.current = Math.max(
+        suppressStrategicCityClickDismissUntilRef.current,
+        Date.now() + 900,
+      );
+    } else if (prev === PHASE.RETURNING && p === PHASE.IDLE) {
+      suppressStrategicCityClickDismissUntilRef.current = Math.max(
+        suppressStrategicCityClickDismissUntilRef.current,
+        Date.now() + 650,
+      );
+      const cid = strategicExploreReopenBridge.lastAnchorCityId;
+      const kind = strategicExploreReopenBridge.lastSubsidiaryKind;
+      strategicExploreReopenBridge.clear();
+      if (cid && (kind === 'wilderness' || kind === 'market')) {
+        let raf = 0;
+        raf = requestAnimationFrame(() => {
+          reopenStrategicCityTooltipAfterSubsidiaryExplore(cid, kind);
+        });
+        return () => cancelAnimationFrame(raf);
+      }
+    }
+    return undefined;
+  }, [subsidiaryExploreEmbed?.phase, reopenStrategicCityTooltipAfterSubsidiaryExplore]);
+
   const handleWrapperMove = useCallback((e) => {
     if (tooltipClickMode) return;
     setTooltipPos((prev) => {
@@ -667,6 +800,15 @@ export default function WorldStrategicMapGrid({
                     const cityRow = anchorId && cityById ? cityById[anchorId] : null;
                     const subsidiaryHubGlow =
                       !!anchorId && !!subsidiaryParentIds && subsidiaryParentIds.has(String(anchorId));
+                    const q = subsidiaryExploreEmbed?.quota;
+                    const exploreRemainBadge =
+                      subsidiaryHubGlow &&
+                      !!cover &&
+                      ri === cover.anchorR &&
+                      ci === cover.anchorC + 1 &&
+                      !!q?.loaded &&
+                      !subsidiaryExploreEmbed?.isTutorial &&
+                      (Number(q.remaining) || 0) > 0;
                     return (
                       <WorldStrategicMapTile
                         key={`${ri}-${ci}`}
@@ -677,12 +819,13 @@ export default function WorldStrategicMapGrid({
                         strategicCover={cover}
                         cityRow={cityRow}
                         subsidiaryHubGlow={subsidiaryHubGlow}
+                        exploreRemainBadge={exploreRemainBadge}
                         playerFactionId={playerFactionId}
                         strategicCityLabelAllyFactionIds={strategicCityLabelAllyFactionIds}
                         strategicCityLabelNonHostileFactionIds={strategicCityLabelNonHostileFactionIds}
                         tooltipPointerMode={tooltipClickMode ? 'click' : 'hover'}
                         onHover={handleOpenTooltipFromTileEvent}
-                        onLeave={tooltipClickMode ? undefined : scheduleLeaveFromTile}
+                        onLeave={tooltipClickMode ? undefined : scheduleLeaveFromTileIfAllowed}
                         onTooltipClick={handleOpenTooltipFromTileEvent}
                       />
                     );
@@ -711,6 +854,19 @@ export default function WorldStrategicMapGrid({
                   <div key={q} className={WS_QUAD_CLASS[q]} title={`大象限 ${q}`} />
                 ))}
               </div>
+              {strategicSelfPawn &&
+              Number.isFinite(strategicSelfPawn.cx) &&
+              Number.isFinite(strategicSelfPawn.cy) ? (
+                <StrategicMapSelfPawn
+                  cx={strategicSelfPawn.cx}
+                  cy={strategicSelfPawn.cy}
+                  portraitUrl={strategicSelfPawn.portraitUrl}
+                  displayName={strategicSelfPawn.displayName}
+                  centerGlyph={strategicSelfPawn.centerGlyph}
+                  troopsCurrent={strategicSelfPawn.troopsCurrent}
+                  troopsMax={strategicSelfPawn.troopsMax}
+                />
+              ) : null}
             </div>
           </div>
           {tooltipContent && typeof document !== 'undefined' && createPortal(
@@ -725,7 +881,7 @@ export default function WorldStrategicMapGrid({
                 tooltipClickMode
                   ? undefined
                   : tooltipContent?.uniformStrategicPanel
-                    ? scheduleLeaveFromTile
+                    ? undefined
                     : closeTooltipNow
               }
             >
@@ -746,7 +902,7 @@ export default function WorldStrategicMapGrid({
                 enabled
                 tooltipClickMode={tooltipClickMode}
                 clearLeaveTooltipTimer={clearLeaveTooltipTimer}
-                scheduleLeaveFromTile={scheduleLeaveFromTile}
+                scheduleLeaveFromTile={scheduleLeaveFromTileIfAllowed}
               />
             )}
         </div>

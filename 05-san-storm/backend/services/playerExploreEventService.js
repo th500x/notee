@@ -53,8 +53,11 @@ async function isExploreChainStrandedRedo(playerId, chainId, chainLevel) {
   return !playerMeetsExploreChainGateItems(req, inv);
 }
 
-/** 与 `public/data/shared/events.json` 中探索部队链 `chainId` 一致（勿再用地理占位链名） */
-const EXPLORE_TROOP_CHAIN_IDS_DAILY_RESET = [
+/**
+ * 探索事件链：参与「按日历日统一重置」的 `chain_id` 列表（与 `public/data/shared/events.json` 等配置一致）。
+ * 新链纳入每日重置时在此追加；勿再用地理占位链名。
+ */
+const EXPLORE_EVENT_CHAIN_IDS_DAILY_RESET = [
   'chain_cunfu_v1',
   'chain_troop_legendary_v1',
   'chain_troop_core_v1',
@@ -72,7 +75,92 @@ function mysqlDateToYmd(val) {
   return s.length >= 10 ? s.slice(0, 10) : s;
 }
 
-async function maybeResetExploreTroopChainsDaily(playerId) {
+function chainLevelNum(lv) {
+  const n = Number(lv);
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+/**
+ * 与前端 `getEffectiveExploreChainMaxCompleted`（eventUtils.js）一致：按环序推进，下一环 required_items 未满足则停在当前有效环。
+ * @param {Array<{ event_id: string, chain_level: any, required_items: any }>} chainEvents - 单条链上的 config 行
+ * @param {Record<string, { status?: string }>} completedEvents - explore_events JSON
+ * @param {Record<string, number>} itemCounts - 背包道具数量
+ */
+function getEffectiveExploreChainMaxCompleted(chainEvents, completedEvents, itemCounts) {
+  if (!chainEvents?.length) return 0;
+  const sorted = [...chainEvents].sort((a, b) => chainLevelNum(a.chain_level) - chainLevelNum(b.chain_level));
+  let effective = 0;
+  for (const evt of sorted) {
+    const L = chainLevelNum(evt.chain_level);
+    if (L !== effective + 1) continue;
+    const rec = completedEvents[evt.event_id];
+    if (rec?.status !== 'completed') break;
+
+    const next = sorted.find((e) => chainLevelNum(e.chain_level) === L + 1);
+    if (!next) {
+      effective = L;
+      break;
+    }
+    if (next.required_items && !playerMeetsExploreChainGateItems(next.required_items, itemCounts)) {
+      const nextRec = completedEvents[next.event_id];
+      if (nextRec?.status !== 'completed') {
+        break;
+      }
+    }
+    effective = L;
+  }
+  return effective;
+}
+
+function maxChainLevel(chainEvents) {
+  let m = 0;
+  for (const e of chainEvents) m = Math.max(m, chainLevelNum(e.chain_level));
+  return m;
+}
+
+/**
+ * 探索事件链是否「进行中途」：有效已完成环数在 (0, maxLevel] 之间且小于 maxLevel（与前端 getActiveExploreChainId 判定一致）。
+ * 此种情况不执行每日链进度清空，避免跨日打断未完结链；未开链或已通全链仍按日重置。
+ */
+async function anyExploreEventChainIncompleteMidProgress(playerId, exploreEventsObj) {
+  const ph = EXPLORE_EVENT_CHAIN_IDS_DAILY_RESET.map(() => '?').join(',');
+  const [chainRows] = await pool.query(
+    `SELECT chain_id, event_id, chain_level, required_items FROM config_events WHERE chain_id IN (${ph}) ORDER BY chain_id, chain_level`,
+    EXPLORE_EVENT_CHAIN_IDS_DAILY_RESET
+  );
+  const byChain = new Map();
+  for (const r of chainRows) {
+    const cid = r.chain_id;
+    if (!byChain.has(cid)) byChain.set(cid, []);
+    byChain.get(cid).push(r);
+  }
+
+  const [pRows] = await pool.query('SELECT items FROM players WHERE player_id = ?', [playerId]);
+  let itemCounts = {};
+  if (pRows[0]?.items) {
+    const raw = pRows[0].items;
+    const inv = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    if (inv && typeof inv === 'object') itemCounts = inv;
+  }
+
+  const completed = exploreEventsObj && typeof exploreEventsObj === 'object' ? exploreEventsObj : {};
+
+  for (const chainId of EXPLORE_EVENT_CHAIN_IDS_DAILY_RESET) {
+    const evts = byChain.get(chainId);
+    if (!evts?.length) continue;
+    const maxLv = maxChainLevel(evts);
+    if (maxLv <= 0) continue;
+    const eff = getEffectiveExploreChainMaxCompleted(evts, completed, itemCounts);
+    if (eff > 0 && eff < maxLv) return true;
+  }
+  return false;
+}
+
+/**
+ * 探索事件链按日历日重置：新日且 `explore_chain_reset_date` 早于今日时，清空 `EXPLORE_EVENT_CHAIN_IDS_DAILY_RESET` 所列链在 `explore_events` 中的完成记录并写入今日。
+ * 若玩家在任一条配置链上为「中途」（有效已完成环数 ∈ (0, 该链最大环)），则**不**清空、**不**更新日期，链可跨日继续；通全链或未开链的仍按日清空。
+ */
+async function maybeResetExploreEventChainsDaily(playerId) {
   try {
     await pool.query('INSERT IGNORE INTO player_events (player_id) VALUES (?)', [playerId]);
     const [rows] = await pool.query(
@@ -99,10 +187,14 @@ async function maybeResetExploreTroopChainsDaily(playerId) {
       }
     }
 
-    const ph = EXPLORE_TROOP_CHAIN_IDS_DAILY_RESET.map(() => '?').join(',');
+    if (await anyExploreEventChainIncompleteMidProgress(playerId, events)) {
+      return;
+    }
+
+    const ph = EXPLORE_EVENT_CHAIN_IDS_DAILY_RESET.map(() => '?').join(',');
     const [chainRows] = await pool.query(
       `SELECT event_id FROM config_events WHERE chain_id IN (${ph})`,
-      EXPLORE_TROOP_CHAIN_IDS_DAILY_RESET
+      EXPLORE_EVENT_CHAIN_IDS_DAILY_RESET
     );
     const ids = new Set(chainRows.map((r) => r.event_id));
     for (const k of Object.keys(events)) {
@@ -115,7 +207,7 @@ async function maybeResetExploreTroopChainsDaily(playerId) {
   } catch (e) {
     if (e.code === 'ER_BAD_FIELD_ERROR') {
       console.warn(
-        '[Players] 未迁移 explore_chain_reset_date，部队链每日重置已跳过（请执行 add-explore-chain-daily-reset.sql）'
+        '[Players] 未迁移 explore_chain_reset_date，探索事件链每日重置已跳过（请执行 add-explore-chain-daily-reset.sql）'
       );
       return;
     }
@@ -185,7 +277,7 @@ const EVENT_TYPE_FIELD_MAP = {
  */
 async function getExploreEvents(playerId) {
   await pool.query('INSERT IGNORE INTO player_events (player_id) VALUES (?)', [playerId]);
-  await maybeResetExploreTroopChainsDaily(playerId);
+  await maybeResetExploreEventChainsDaily(playerId);
   const [rows] = await pool.query(
     'SELECT explore_events FROM player_events WHERE player_id = ?',
     [playerId],
@@ -239,10 +331,10 @@ module.exports = {
   parseEventCostSegment,
   playerMeetsExploreChainGateItems,
   isExploreChainStrandedRedo,
-  maybeResetExploreTroopChainsDaily,
+  maybeResetExploreEventChainsDaily,
   shouldDeferTroopRepairAfterBattleRewards,
   recordExploreChainEventCompleted,
   getExploreEvents,
   recordEventProgress,
-  EXPLORE_TROOP_CHAIN_IDS_DAILY_RESET,
+  EXPLORE_EVENT_CHAIN_IDS_DAILY_RESET,
 };

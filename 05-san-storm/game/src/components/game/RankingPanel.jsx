@@ -7,7 +7,7 @@
  * - 每5分钟自动刷新排名数据（折叠状态下不刷新）
  * - 活动未开始显示倒计时，已结束显示最终排名定格
  * 
- * @see 92-1-GAME_UI_DESIGN.md 1.6 活动排名
+ * @see docs/30-frontend/32-1-GAME_UI_DESIGN.md §1.5、32-3-GAME_ANNOUNCEMENTS_DESIGN.md §4（路径相对 `05-san-storm/`）
  * @see 19-1-STATISTICS_RANKING_SYSTEM.md 排行榜系统
  */
 
@@ -135,32 +135,30 @@ export default function RankingPanel() {
   // 折叠状态
   if (collapsed) {
     return (
-      <div className="pointer-events-auto mt-0.5">
-        <div className="mt-0.5">
-          <button
-            onClick={handleExpand}
-            className="w-full bg-black/60 backdrop-blur-sm rounded-b-lg border border-amber-700/40 border-t-0 flex items-center justify-between px-3 py-1.5 text-xs text-amber-300/80 hover:text-amber-200 transition-colors"
-          >
-            <span className="flex items-center gap-1.5">
-              <span>🏆</span>
-              <span className="truncate">{ranking.title}</span>
-              {rankingData?.myRanking && (
-                <span className="text-amber-200/70">
-                  📍第{rankingData.myRanking.rank}名 {rankingData.myRanking.totalScore.toLocaleString()}分
-                </span>
-              )}
-            </span>
-            <span className="flex-shrink-0 ml-2 text-[10px] text-amber-400/60">▼ 展开</span>
-          </button>
-        </div>
+      <div className="pointer-events-auto">
+        <button
+          onClick={handleExpand}
+          className="flex w-full items-center justify-between rounded-lg border border-amber-700/40 bg-black/60 px-3 py-1.5 text-xs text-amber-300/80 backdrop-blur-sm transition-colors hover:text-amber-200"
+        >
+          <span className="flex items-center gap-1.5">
+            <span>🏆</span>
+            <span className="truncate">{ranking.title}</span>
+            {rankingData?.myRanking && (
+              <span className="text-amber-200/70">
+                📍第{rankingData.myRanking.rank}名 {rankingData.myRanking.totalScore.toLocaleString()}分
+              </span>
+            )}
+          </span>
+          <span className="flex-shrink-0 ml-2 text-[10px] text-amber-400/60">▼ 展开</span>
+        </button>
       </div>
     );
   }
 
   // 展开状态
   return (
-    <div className="pointer-events-auto mt-0.5">
-      <div className="mt-0.5 bg-black/60 backdrop-blur-sm rounded-b-lg border border-amber-700/40 border-t-0 overflow-hidden">
+    <div className="pointer-events-auto">
+      <div className="overflow-hidden rounded-lg border border-amber-700/40 bg-black/60 backdrop-blur-sm">
         {/* 标题行 */}
         <div className="flex items-center justify-between px-3 py-1.5">
           <div className="flex items-center gap-1.5">

@@ -36,7 +36,7 @@ function computeFactionFiveScalarsFromSums(sums, n) {
   };
 }
 
-/** 与 config_positions / positions.json 对齐的六个要职（君主名：`factions` JOIN `config_factions` 取 `faction_leader`，再 JOIN `config_characters` 取 `character_name`；`faction_name` 为势力名非君主） */
+/** 与 config_positions / positions.json 对齐的要职展示顺序（含四安/四平/四镇/四征）。君主名见 config_factions.faction_leader → config_characters */
 const OFFICE_SLOTS = [
   { positionId: 'san_1_position_junzhu', label: '君主' },
   { positionId: 'san_1_position_dajiangjun', label: '大将军' },
@@ -44,6 +44,10 @@ const OFFICE_SLOTS = [
   { positionId: 'san_1_position_dasikong', label: '大司空' },
   { positionId: 'san_1_position_piaoqi', label: '骠骑将军' },
   { positionId: 'san_1_position_cheqi', label: '车骑将军' },
+  { positionId: 'san_1_position_sian', label: '四安将军' },
+  { positionId: 'san_1_position_siping', label: '四平将军' },
+  { positionId: 'san_1_position_sizhen', label: '四镇将军' },
+  { positionId: 'san_1_position_sizheng', label: '四征将军' },
 ];
 
 /** 玩家任官查询：不含君主槽（君主展示为 `faction_leader` 对应将领名） */

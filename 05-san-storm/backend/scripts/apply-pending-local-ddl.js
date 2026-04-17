@@ -57,6 +57,7 @@ const MIGRATION_FILES = [
   'factions-add-totals-and-supply-columns.sql',
   'player-cards-add-main-city-barracks-storage.sql',
   'player-cards-drop-barracks-sort.sql',
+  'player-events-add-san-gong-tribute-daily.sql',
 ];
 
 function stripSqlComments(sql) {

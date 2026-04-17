@@ -47,6 +47,8 @@ function WorldStrategicMapTile({
   strategicCover = null,
   /** 主城在 cityById 中挂有荒郊/集市入口时，2×2 锚点格琥珀扫光（对齐卡池入口 shimmer） */
   subsidiaryHubGlow = false,
+  /** 2×2 城块「右上角」那一格：尚有探索次数时在瓦片角标红叹号 */
+  exploreRemainBadge = false,
   playerFactionId = null,
   /** 显式盟友 `faction_id`（结盟等接入后由战役/外交注入） */
   strategicCityLabelAllyFactionIds = null,
@@ -258,6 +260,11 @@ function WorldStrategicMapTile({
           ))}
         </div>
       )}
+      {exploreRemainBadge ? (
+        <span className="ws-strategic-explore-quota-badge" title="尚有探索次数" aria-hidden>
+          !
+        </span>
+      ) : null}
       <span className="ws-quad-marker">{c.quad}</span>
     </div>
   );

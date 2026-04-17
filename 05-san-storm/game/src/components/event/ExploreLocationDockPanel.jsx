@@ -8,6 +8,7 @@ import {
   summarizeExplorePoolEnemyTroopRarityRange,
   wildernessEnemyTroopRarityDocRangeFromMainCityType,
   resolveCityTypeForWildernessTroopHint,
+  collectExplorePoolDistinctItemIds,
 } from '@/components/event/eventUtils';
 import { getRarityLabelCn } from '@/constants';
 import { isBanditMapObjectId } from '@shared/utils/smallMapEnemyRoster';
@@ -32,6 +33,7 @@ import { isBanditMapObjectId } from '@shared/utils/smallMapEnemyRoster';
  *   poolEvents?: Array<Record<string, unknown>>|null,
  *   wildernessCityType?: string|null,
  *   citiesList?: Array<Record<string, unknown>>|null,
+ *   itemNameMap?: Record<string, string>|null,
  * }} props
  */
 export default function ExploreLocationDockPanel({
@@ -51,6 +53,7 @@ export default function ExploreLocationDockPanel({
   poolEvents = null,
   wildernessCityType = null,
   citiesList = null,
+  itemNameMap = null,
 }) {
   const titleCls =
     colorTheme === 'sky'
@@ -81,6 +84,11 @@ export default function ExploreLocationDockPanel({
   const docWildernessTroopRange = useMemo(
     () => wildernessEnemyTroopRarityDocRangeFromMainCityType(cityTypeForWildernessHint),
     [cityTypeForWildernessHint],
+  );
+
+  const poolItemIds = useMemo(
+    () => collectExplorePoolDistinctItemIds(poolEvents),
+    [poolIdKey],
   );
 
   const enemyTroopRarityHint = useMemo(() => {
@@ -131,7 +139,7 @@ export default function ExploreLocationDockPanel({
       </div>
       {poolEmpty && quota.canExplore && (
         <div className="text-stone-500 text-[10px] mt-0.5">
-          次日 0 点（服务器日期）后部队链等进度将重置
+          次日 0 点（服务器日期）后事件链等进度将重置
         </div>
       )}
       <div className="text-stone-300 text-xs mt-2 border-t border-stone-600 pt-2">
@@ -168,6 +176,26 @@ export default function ExploreLocationDockPanel({
       >
         {canStart ? `${startEmoji} 开始探索` : '不可探索'}
       </button>
+      {!eventsLoading && poolLen > 0 && (
+        <div className="mt-3 border-t border-stone-600 pt-2">
+          <div className="text-stone-500 text-[10px] font-medium mb-1">📦 事件池道具</div>
+          {poolItemIds.length > 0 ? (
+            <ul className="flex flex-wrap gap-x-2 gap-y-1 text-[10px] text-stone-300 leading-snug list-none m-0 p-0">
+              {poolItemIds.map((id) => (
+                <li
+                  key={id}
+                  className="rounded border border-stone-600/80 bg-stone-900/60 px-1.5 py-0.5 text-amber-200/90"
+                  title={id}
+                >
+                  {(itemNameMap && itemNameMap[id]) || id}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <div className="text-stone-500 text-[10px]">本池当前无配置类事件道具（仅有资源/随机卡等）</div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

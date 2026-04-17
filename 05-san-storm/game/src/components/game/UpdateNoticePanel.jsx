@@ -1,13 +1,13 @@
 /**
  * 更新公告浮窗（右上角关闭，琥珀风格与顶栏公告一致）
- * @see docs/90-assets/92-2-GAME_ANNOUNCEMENTS_DESIGN.md
+ * @see docs/30-frontend/32-3-GAME_ANNOUNCEMENTS_DESIGN.md（路径相对 `05-san-storm/`）
  */
 
 export default function UpdateNoticePanel({ notice, onClose }) {
   if (!notice) return null;
 
   return (
-    <div className="pointer-events-none w-full max-w-sm mt-2">
+    <div className="pointer-events-none w-full max-w-sm">
       <div
         className="relative pointer-events-auto rounded-xl border border-amber-600/50 bg-black/70 backdrop-blur-sm shadow-lg shadow-amber-900/20 overflow-hidden"
       >

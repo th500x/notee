@@ -103,7 +103,7 @@ export default function ExploreTab({ onClose }) {
                 : `点击探索（${poolLen}种事件）`}
             </div>
             {poolEmpty && quota.canExplore && (
-              <div className="text-white/45 text-[10px] mt-0.5">次日 0 点（服务器日期）后部队链等进度将重置</div>
+              <div className="text-white/45 text-[10px] mt-0.5">次日 0 点（服务器日期）后事件链等进度将重置</div>
             )}
             {quotaBlock}
           </div>

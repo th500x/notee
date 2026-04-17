@@ -17,7 +17,6 @@ import BottomTabNav from '@/components/game/BottomTabNav';
 import PersonalSidebar from '@/components/game/PersonalSidebar';
 import CommPanel from '@/components/game/CommPanel';
 import StandingRankingsPanel from '@/components/game/StandingRankingsPanel';
-import CardPoolEntry from '@/components/game/CardPoolEntry';
 import CardPoolDrawer from '@/components/game/CardPoolDrawer';
 import CampaignCenterPanel from '@/components/game/CampaignCenterPanel';
 import AttrRerollDrawer from '@/components/game/AttrRerollDrawer';
@@ -90,8 +89,6 @@ function GamePageInner({ onLogout }) {
     return () => document.removeEventListener('visibilitychange', onVis);
   }, [activeTab, recheckUpdateNoticeOpen]);
 
-  const hideCardPools = !!(activeUpdateNotice && updateNoticeOpen);
-
   // 加载技能映射表（卡牌显示需要）
   useEffect(() => {
     loadSharedData('skills').then(data => {
@@ -142,41 +139,58 @@ function GamePageInner({ onLogout }) {
   return (
     <>
       {/* 全屏覆盖，脱离父级布局 */}
-      <div className="fixed inset-0 z-[100] bg-gray-100">
+      <div className="fixed inset-0 z-[100] bg-stone-950">
         <TopStatusBar
           activeTab={activeTab}
           onOpenSidebar={() => setSidebarOpen(true)}
           onOpenCampaignCenter={() => setCampaignOpen(true)}
         />
 
-        {activeTab === null && !eventBusy && (
-          <div className="absolute top-[4.5rem] sm:top-14 left-0 right-0 z-40 px-3 pt-1 pointer-events-none">
-            <AnnouncementBar />
-            <RankingPanel />
-            {activeUpdateNotice && updateNoticeOpen && (
-              <UpdateNoticePanel notice={activeUpdateNotice} onClose={handleDismissUpdateNotice} />
-            )}
-            {!hideCardPools && (
-              <CardPoolEntry
-                troopRemaining={cardPool.status?.troop?.remainingDraws ?? '?'}
-                charRemaining={cardPool.status?.character?.remainingDraws ?? '?'}
-                dailyLimit={cardPool.status?.troop?.dailyLimit ?? 5}
-                onOpenPool={setOpenPool}
-                drawerOpen={!!openPool}
-              />
-            )}
-          </div>
-        )}
-
         <main
-          className={`overflow-y-auto absolute left-0 right-0 top-[4.5rem] sm:top-14 ${
-            eventBusy ? 'bottom-0' : 'bottom-16'
-          }`}
+          className={`absolute left-0 right-0 top-[4.5rem] sm:top-14 flex flex-col ${
+            activeTab === null ? 'overflow-hidden' : 'overflow-y-auto'
+          } ${eventBusy ? 'bottom-0' : 'bottom-16'}`}
         >
           {activeTab === null ? (
-            <WorldMap onEventBusyChange={setEventBusy} />
+            eventBusy ? (
+              <div className="flex min-h-0 flex-1 flex-col">
+                <WorldMap
+                  onEventBusyChange={setEventBusy}
+                  sanGongFuCardPool={{
+                    onOpenPool: setOpenPool,
+                    drawerOpen: !!openPool,
+                    troopRemaining: cardPool.status?.troop?.remainingDraws ?? '?',
+                    charRemaining: cardPool.status?.character?.remainingDraws ?? '?',
+                    dailyLimit: cardPool.status?.troop?.dailyLimit ?? 5,
+                  }}
+                />
+              </div>
+            ) : (
+              <>
+                {/* 占文档流顶栏：游戏公告 + 活动排行 + 更新提示，避免 absolute 叠住地图说明与州郡条 */}
+                <div className="pointer-events-none z-40 flex shrink-0 flex-col gap-1.5 px-3 pt-1 pb-1">
+                  <AnnouncementBar />
+                  <RankingPanel />
+                  {activeUpdateNotice && updateNoticeOpen && (
+                    <UpdateNoticePanel notice={activeUpdateNotice} onClose={handleDismissUpdateNotice} />
+                  )}
+                </div>
+                <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+                  <WorldMap
+                    onEventBusyChange={setEventBusy}
+                    sanGongFuCardPool={{
+                      onOpenPool: setOpenPool,
+                      drawerOpen: !!openPool,
+                      troopRemaining: cardPool.status?.troop?.remainingDraws ?? '?',
+                      charRemaining: cardPool.status?.character?.remainingDraws ?? '?',
+                      dailyLimit: cardPool.status?.troop?.dailyLimit ?? 5,
+                    }}
+                  />
+                </div>
+              </>
+            )
           ) : (
-            renderTabContent()
+            <div className="min-h-0 flex-1 overflow-y-auto">{renderTabContent()}</div>
           )}
         </main>
 

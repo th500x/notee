@@ -1,8 +1,11 @@
 /**
- * PM2 Ecosystem 配置文件
- * 
- * 注意：不要在此文件中硬编码敏感信息！
- * 使用环境变量或.env文件
+ * PM2：共享后端（cwd = 本目录 `backend/`，`script` = `./server.js`）
+ *
+ * 与仓库根 `ecosystem.config.cjs` 配置的是同一应用（notee-backend），请勿同时启动两份。
+ * - 习惯在 `backend` 目录内启动时用本文件（`cd backend && pm2 start ecosystem.config.js`），`.env` 放本目录即可。
+ * - 习惯在仓库根启动时用上级 `../ecosystem.config.cjs`（cwd 为仓库根）。
+ *
+ * 注意：不要在此文件中硬编码敏感信息；使用环境变量或 .env。
  */
 
 require('dotenv').config();

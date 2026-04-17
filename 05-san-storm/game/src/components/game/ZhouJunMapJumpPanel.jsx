@@ -75,10 +75,13 @@ function focusCityId(city) {
 }
 
 /**
- * 大地图左上：州下拉 + 所选州下属郡列表；点郡将视口滚到该郡在库中有 position_x/y 的战略格（大→中→小→关→据点），缺省再走 merged 格网 resolve。
- * 样式对齐左下角「排行 / 聊天」入口条。
+ * 大地图：州下拉 + 所选州下属郡列表；点郡将视口滚到该郡在库中有 position_x/y 的战略格（大→中→小→关→据点），缺省再走 merged 格网 resolve。
+ * `variant="mapOverlay"`：叠在战略格网上（`WorldYingchuanMapSection` 内 absolute），与左下角排行/聊天同为「浮在地图上」的交互层。
+ * 样式对齐左下角「排行 / 聊天」入口条（`mapCornerEntryUi`）。
+ *
+ * @param {{ variant?: 'toolbar' | 'mapOverlay' }} [props]
  */
-export default function ZhouJunMapJumpPanel() {
+export default function ZhouJunMapJumpPanel({ variant = 'toolbar' }) {
   const nav = useStrategicMapNavigation();
   const [zhouRows, setZhouRows] = useState([]);
   const [junRows, setJunRows] = useState([]);
@@ -221,8 +224,9 @@ export default function ZhouJunMapJumpPanel() {
           </div>
 
           {zhouId && junsInZhou.length > 0 ? (
-            /* mt：与顶栏浮层里「活动排行」整行横条垂直错开（该条仍为整宽可点） */
-            <div className="relative z-10 mt-6 flex min-w-0 max-w-full flex-col gap-1">
+            <div
+              className={`relative z-10 flex min-w-0 max-w-full flex-col gap-1 ${variant === 'mapOverlay' ? '' : 'mt-6'}`}
+            >
               {junsInZhou.map((j) => (
                 <button
                   key={j.junId}

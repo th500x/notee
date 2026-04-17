@@ -18,6 +18,18 @@ function fmtStat(n) {
 const MAIN_CITY_CHANGE_COST_SILVER = 500;
 const MAIN_CITY_CHANGE_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 
+/** 战略格 tooltip：按主城 `city_id` 记住上次停留的荒郊/集市分段，探索返回后重开同城可直达，便于连点探索 */
+const lastStrategicSubsidiarySegmentByCityId = new Map();
+const PERSIST_STRATEGIC_SUBSIDIARY_SEGMENTS = new Set(['wilderness', 'market']);
+
+/** 由 `WorldStrategicMapGrid` 在探索结束后主动重建城池 portal 前调用，使面板默认落在荒郊/集市 */
+export function primeStrategicCityWildernessMarketTab(cityId, segment) {
+  if (!cityId || String(cityId).trim() === '') return;
+  if (segment === 'wilderness' || segment === 'market') {
+    lastStrategicSubsidiarySegmentByCityId.set(String(cityId), segment);
+  }
+}
+
 export default function WorldMapCityInfoBlock({
   cityTitle,
   /** 副标题一行；无则不占行（仅「城备」分段显示） */
@@ -59,7 +71,7 @@ export default function WorldMapCityInfoBlock({
   onSetMainCityError = null,
   /** 已是主城时「驻军所」入口；`(cityId, cityBaseName?) => void` */
   onOpenBarracksPost = null,
-  /** 「三公府」：官职晋升、政策提案等；`(cityId, cityBaseName?) => void`，内容待实装 */
+  /** 「三公府」：官职晋升、朝政（朝贡等）；`(cityId, cityBaseName?) => void` */
   onOpenSanGongFu = null,
   cityId = null,
   onOpenGarrison,
@@ -73,7 +85,7 @@ export default function WorldMapCityInfoBlock({
   subsidiaryExplore = null,
   /**
    * 荒郊/集市分段内嵌探索条（`ExploreLocationDockPanel`）。
-   * `WorldMap` 注入：`{ quota, eventsLoading, explorePoolAt, startExplore, playerItems, isTutorial, phase, citiesList }`
+   * `WorldMap` 注入：`{ quota, eventsLoading, explorePoolAt, startExplore, playerItems, isTutorial, phase, citiesList, itemNameMap }`
    */
   subsidiaryExploreEmbed = null,
   /** 战略 tooltip：开始探索后关闭浮层（可选） */
@@ -88,6 +100,8 @@ export default function WorldMapCityInfoBlock({
   const [dutyBusy, setDutyBusy] = useState(false);
   const [mainCityBusy, setMainCityBusy] = useState(false);
   const [segment, setSegment] = useState('garrison');
+  /** 供「写入 Map」effect 判断：仅当用户从非城备切到城备时才清记忆，避免挂载时初始 `garrison` 误删 `primeStrategicCityWildernessMarketTab` 写入的值 */
+  const prevSegmentForPersistRef = useRef(null);
   /** 以「城备」实测宽高为各分段内容区尺寸，切换标签外框不跳；不设区内滚动（overflow 隐藏溢出） */
   const [tabPaneSizePx, setTabPaneSizePx] = useState(null);
   const garrisonMeasureRef = useRef(null);
@@ -139,13 +153,33 @@ export default function WorldMapCityInfoBlock({
         poolEvents={poolEvents}
         wildernessCityType={kind === 'wilderness' ? cityType : null}
         citiesList={subsidiaryExploreEmbed.citiesList ?? null}
+        itemNameMap={subsidiaryExploreEmbed.itemNameMap ?? {}}
       />
     );
   };
 
-  useEffect(() => {
-    setSegment('garrison');
+  useLayoutEffect(() => {
+    if (!cityId) {
+      prevSegmentForPersistRef.current = null;
+      setSegment('garrison');
+      return;
+    }
+    prevSegmentForPersistRef.current = null;
+    const saved = lastStrategicSubsidiarySegmentByCityId.get(String(cityId));
+    if (PERSIST_STRATEGIC_SUBSIDIARY_SEGMENTS.has(saved)) setSegment(saved);
+    else setSegment('garrison');
   }, [cityId]);
+
+  useEffect(() => {
+    if (!cityId) return;
+    const prev = prevSegmentForPersistRef.current;
+    prevSegmentForPersistRef.current = segment;
+    if (PERSIST_STRATEGIC_SUBSIDIARY_SEGMENTS.has(segment)) {
+      lastStrategicSubsidiarySegmentByCityId.set(String(cityId), segment);
+    } else if (segment === 'garrison' && prev != null && prev !== 'garrison') {
+      lastStrategicSubsidiarySegmentByCityId.delete(String(cityId));
+    }
+  }, [cityId, segment]);
 
   useEffect(() => {
     if (!uniformStrategicPanel) setTabPaneSizePx(null);
@@ -231,13 +265,15 @@ export default function WorldMapCityInfoBlock({
 
   const handleOpenBarracksPost = useCallback(() => {
     if (!cityId || typeof onOpenBarracksPost !== 'function') return;
+    if (typeof closeStrategicCityTooltip === 'function') closeStrategicCityTooltip();
     onOpenBarracksPost(cityId, cityBaseName);
-  }, [cityId, cityBaseName, onOpenBarracksPost]);
+  }, [cityId, cityBaseName, onOpenBarracksPost, closeStrategicCityTooltip]);
 
   const handleOpenSanGongFu = useCallback(() => {
     if (!cityId || typeof onOpenSanGongFu !== 'function') return;
+    if (typeof closeStrategicCityTooltip === 'function') closeStrategicCityTooltip();
     onOpenSanGongFu(cityId, cityBaseName);
-  }, [cityId, cityBaseName, onOpenSanGongFu]);
+  }, [cityId, cityBaseName, onOpenSanGongFu, closeStrategicCityTooltip]);
 
   const handleToggleDuty = useCallback(async () => {
     if (!cityId || !onToggleDutyRequest || dutyBusy) return;

@@ -46,7 +46,7 @@ async function executeEventRewards(playerId, body) {
   }
   const factionId = playerRows[0].faction_id;
 
-  await playerExploreEventService.maybeResetExploreTroopChainsDaily(playerId);
+  await playerExploreEventService.maybeResetExploreEventChainsDaily(playerId);
 
   const [eventRows] = await pool.query(
     'SELECT option_a, option_b, required_items, chain_id, chain_level FROM config_events WHERE event_id = ?',

@@ -23,6 +23,7 @@ const playerMainCityService = require('../services/playerMainCityService');
 const mainCityBarracksStorageService = require('../services/mainCityBarracksStorageService');
 const positionPromotionService = require('../services/positionPromotionService');
 const factionOverviewService = require('../services/factionOverviewService');
+const sanGongTributeService = require('../services/sanGongTributeService');
 
 const router = express.Router();
 
@@ -479,6 +480,39 @@ router.post('/:playerId/san-gong-fu/promote', async (req, res) => {
   } catch (error) {
     console.error('[Players] 三公府晋升失败:', error);
     res.status(500).json({ success: false, error: '晋升失败', message: error.message });
+  }
+});
+
+/**
+ * GET /api/players/:playerId/san-gong-fu/tribute-status
+ * 朝政 · 朝贡：当日已上缴张数 / 剩余额度
+ */
+router.get('/:playerId/san-gong-fu/tribute-status', async (req, res) => {
+  try {
+    const { playerId } = req.params;
+    const data = await sanGongTributeService.getTributeDailyStatus(playerId);
+    res.json({ success: true, data });
+  } catch (error) {
+    console.error('[Players] 朝贡额度查询失败:', error);
+    res.status(500).json({ success: false, error: '朝贡额度查询失败', message: error.message });
+  }
+});
+
+/**
+ * POST /api/players/:playerId/san-gong-fu/tribute
+ * body: { instanceIds: string[] } — 销毁军营池部队卡，按攻城单杀银两/贡献 1.5 倍发玩家；势力储备银两同额、粮草=银两×5
+ */
+router.post('/:playerId/san-gong-fu/tribute', async (req, res) => {
+  try {
+    const { playerId } = req.params;
+    const out = await sanGongTributeService.submitTroopTribute(playerId, req.body?.instanceIds);
+    if (!out.ok) {
+      return res.status(out.status).json({ success: false, error: out.error });
+    }
+    res.json({ success: true, data: out });
+  } catch (error) {
+    console.error('[Players] 朝贡失败:', error);
+    res.status(500).json({ success: false, error: '朝贡失败', message: error.message });
   }
 });
 

@@ -5,7 +5,7 @@
  *              收起态入口主标识：未读传书 > 聊天新消息角标 > 默认入口「聊天」
  *              大地图视图下显示，Tab页面内隐藏
  * 
- * @see 92-1-GAME_UI_DESIGN.md §1.7
+ * @see docs/30-frontend/32-1-GAME_UI_DESIGN.md §1.7（路径相对 `05-san-storm/`）
  */
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';

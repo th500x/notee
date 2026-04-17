@@ -1,6 +1,6 @@
 /**
  * 势力 Tab —「势力信息」：官职、人数、城市摘要、五维档位、储备
- * 要职：三行两列（君主|大司空 / 大将军|大司马 / 骠骑|车骑）；君主名 = `faction_leader` → `config_characters.character_name`（`faction_name` 为势力名）
+ * 要职：五行两列（前三行同前；第四行四安|四平；第五行四镇|四征）。与 `factionOverviewService` OFFICE_SLOTS、`positions.json` 对齐。
  */
 
 function fmtNum(n) {
@@ -16,11 +16,13 @@ function Line({ children }) {
   return <div className="text-xs leading-snug text-stone-300">{children}</div>;
 }
 
-/** 与后端 OFFICE_SLOTS 顺序对应的 UI 三行两列（positionId） */
+/** 与后端 OFFICE_SLOTS 顺序一致：每行两列（positionId） */
 const OFFICE_GRID_ROWS = [
   ['san_1_position_junzhu', 'san_1_position_dasikong'],
   ['san_1_position_dajiangjun', 'san_1_position_dasima'],
   ['san_1_position_piaoqi', 'san_1_position_cheqi'],
+  ['san_1_position_sian', 'san_1_position_siping'],
+  ['san_1_position_sizhen', 'san_1_position_sizheng'],
 ];
 
 function OfficeDutyGrid({ officeHolders }) {

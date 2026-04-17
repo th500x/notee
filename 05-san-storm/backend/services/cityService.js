@@ -12,6 +12,7 @@ const { checkAndApplyVeteran } = require('./veteranService');
 const garrisonService = require('./garrisonService');
 const statisticsDeltaService = require('./statisticsDeltaService');
 const smallMapBattleLootService = require('./smallMapBattleLootService');
+const { KILL_SILVER_REWARD } = require('../../shared/utils/siegeKillEconomyByRarity.cjs');
 
 /**
  * 库列 `city_id` / `player_garrison_capacity` → 对外兼容 `id` / `garrison_capacity`（JSON 与旧前端）
@@ -72,15 +73,6 @@ const NPC_TROOP_COUNT_OWNED = {
 
 /** M1：已占领城 NPC 在「次日 8:00」**单次恢复支数** = `round(编制上限支数 × 本系数)`；上限为当前 `npc_garrison` 槽位数（如小城 200 支则每次 +100，且 `min(上限, 当前存活 + 恢复量)`）。时间锚点仍按 `ledgerAt` 推算次日 8:00。 */
 const NPC_OWNED_DAILY_RECOVERY_RATIO = 0.5;
-
-// 击杀 NPC 银两奖励（按稀有度）
-const KILL_SILVER_REWARD = {
-  core: 50,
-  legendary: 40,
-  epic: 30,
-  rare: 20,
-  common: 10,
-};
 
 const { WIN_REPUTATION_REWARD } = smallMapBattleLootService;
 

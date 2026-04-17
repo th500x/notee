@@ -15,7 +15,7 @@ const { putPngBuffer } = require('../utils/ossMemorial');
 const router = express.Router();
 
 /** 生产/测试：纪念图每日次数不限（便于验收；正式玩家仍为每日 1 次） */
-const MEMORIAL_UNLIMITED_PLAYER_IDS = new Set(['0MRR', '04DO']);
+const MEMORIAL_UNLIMITED_PLAYER_IDS = new Set(['04DO']);
 
 function isMemorialUnlimitedTester(playerId) {
   return MEMORIAL_UNLIMITED_PLAYER_IDS.has(String(playerId || ''));

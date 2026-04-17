@@ -1,5 +1,5 @@
 /**
- * 大城/中城「三公府」全屏：官职晋升（首象限）+ 其余象限占位
+ * 大城/中城「三公府」全屏：官职 · 朝政（朝贡 + 封赏卡池入口）· 军团/公告占位
  */
 
 import { useCallback, useEffect, useState, useMemo } from 'react';
@@ -11,10 +11,12 @@ import LineupCardDetailPanel from '@shared/components/card/LineupCardDetailPanel
 import TabSubNav from '@/components/game/TabSubNav';
 import QuadrantGrid from '@/components/game/QuadrantGrid';
 import { TabPageCloseButton, useGameTabLandscape } from '@/components/game/TabPageCloseAffordance';
+import SanGongTributePanel from '@/components/game/SanGongTributePanel';
+import SanGongFuFengShangPanel from '@/components/game/SanGongFuFengShangPanel';
 
 const MAIN_TABS = [
   { id: 'position', label: '官职' },
-  { id: 'policy', label: '政策提案' },
+  { id: 'court', label: '朝政' },
   { id: 'legion', label: '军团' },
   { id: 'notice', label: '公告' },
 ];
@@ -178,7 +180,13 @@ function PromotionListBody({
   );
 }
 
-export default function SanGongFuPanel({ cityName = '城池', onClose, onPromoted }) {
+export default function SanGongFuPanel({
+  cityName = '城池',
+  onClose,
+  onPromoted,
+  /** 封赏区卡池：由 `GamePage` 注入 `setOpenPool` 与 `useCardPool` 状态 */
+  sanGongFuCardPool,
+}) {
   const { player, refresh } = usePlayerContext();
   const isLandscape = useGameTabLandscape();
   const [activeTab, setActiveTab] = useState('position');
@@ -254,9 +262,32 @@ export default function SanGongFuPanel({ cityName = '城池', onClose, onPromote
   );
 
   /** 横屏四象限已同时展示四分区，不再用 Tab 切换；象限标题即分区名 */
+  const courtBody = (
+    <div className="flex h-full min-h-0 flex-col gap-2 overflow-hidden">
+      {/* flex 列 + min-h-0：让子面板获得确定高度，内部 overflow-y-auto 才能滚动完整卡面 */}
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-amber-900/20 bg-stone-950/30 p-1">
+        <SanGongTributePanel />
+      </div>
+      {sanGongFuCardPool?.onOpenPool ? (
+        <SanGongFuFengShangPanel
+          onOpenPool={sanGongFuCardPool.onOpenPool}
+          drawerOpen={!!sanGongFuCardPool.drawerOpen}
+          troopRemaining={sanGongFuCardPool.troopRemaining ?? '?'}
+          charRemaining={sanGongFuCardPool.charRemaining ?? '?'}
+          dailyLimit={sanGongFuCardPool.dailyLimit ?? 5}
+        />
+      ) : (
+        <div className="shrink-0 rounded-lg border border-stone-700/40 bg-stone-900/30 px-2 py-2 text-center">
+          <div className="text-[10px] font-semibold text-stone-500">封赏</div>
+          <p className="mt-1 text-[10px] text-stone-600">卡池入口未连接（需从游戏主壳注入）</p>
+        </div>
+      )}
+    </div>
+  );
+
   const landscapeCells = [
     { id: 'sg-q1', title: '官职 · 晋级', content: promotionBody },
-    { id: 'sg-q2', title: '政策提案', content: <PlaceholderCell text="敬请期待" /> },
+    { id: 'sg-q2', title: '朝政', content: courtBody },
     { id: 'sg-q3', title: '军团', content: <PlaceholderCell text="敬请期待" /> },
     { id: 'sg-q4', title: '公告', content: <PlaceholderCell text="敬请期待" /> },
   ];
@@ -289,6 +320,8 @@ export default function SanGongFuPanel({ cityName = '城池', onClose, onPromote
           <div className="h-full min-h-0 overflow-y-auto px-2 pt-2">
             {activeTab === 'position' ? (
               promotionBody
+            ) : activeTab === 'court' ? (
+              courtBody
             ) : (
               <PlaceholderCell text="该分区敬请期待" />
             )}

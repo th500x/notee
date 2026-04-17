@@ -216,6 +216,51 @@ export function parseRewards(str, itemNameMap, multiplier) {
 /**
  * 解析消耗道具字符串
  */
+/**
+ * 从单段「奖励/消耗」类字符串中抽出事件道具 id（`item_` / `_item_`），先展开 reward-/pack- 简写与 `expandRewardPresetsForPreview` 一致。
+ * @param {string|null|undefined} str
+ * @returns {string[]}
+ */
+function extractItemIdsFromExploreRewardLikeString(str) {
+  if (str == null || String(str).trim() === '') return [];
+  const expanded = expandRewardPresetsForPreview(String(str));
+  const out = [];
+  for (const seg of expanded.split(';')) {
+    const t = seg.trim();
+    if (!t) continue;
+    const colon = t.indexOf(':');
+    const key = colon === -1 ? t : t.slice(0, colon).trim();
+    if (key.startsWith('item_') || key.includes('_item_')) out.push(key);
+  }
+  return out;
+}
+
+/**
+ * 当前探索点过滤后事件池中，所有选项/事件级配置里出现的**事件道具** id（去重、字典序）。
+ * 不含银粮声望等纯资源、不含 random: 卡包（与「道具」展示口径一致）。
+ * @param {Array<Record<string, unknown>>|null|undefined} poolEvents
+ * @returns {string[]}
+ */
+export function collectExplorePoolDistinctItemIds(poolEvents) {
+  if (!Array.isArray(poolEvents) || poolEvents.length === 0) return [];
+  const set = new Set();
+  const add = (s) => {
+    for (const id of extractItemIdsFromExploreRewardLikeString(s)) set.add(id);
+  };
+  for (const evt of poolEvents) {
+    if (!evt || typeof evt !== 'object') continue;
+    if (evt.required_items) add(String(evt.required_items));
+    for (const key of ['option_a', 'option_b']) {
+      const opt = evt[key];
+      if (!opt || typeof opt !== 'object') continue;
+      if (opt.requiredItems) add(String(opt.requiredItems));
+      if (opt.rewards) add(String(opt.rewards));
+      if (opt.bonusRewards) add(String(opt.bonusRewards));
+    }
+  }
+  return [...set].sort((a, b) => a.localeCompare(b));
+}
+
 export function parseRequiredItems(str, itemNameMap) {
   if (!str) return '';
   return str.split(';').map(item => {

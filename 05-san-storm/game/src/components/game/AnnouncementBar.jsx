@@ -25,7 +25,7 @@ export default function AnnouncementBar() {
 
   return (
     <div className="pointer-events-auto">
-      <div className="bg-black/60 backdrop-blur-sm rounded-b-lg border border-amber-700/40 border-t-0 overflow-hidden">
+      <div className="overflow-hidden rounded-lg border border-amber-700/40 bg-black/60 backdrop-blur-sm">
         {/* 折叠状态：只显示一行 */}
         {collapsed ? (
           <button

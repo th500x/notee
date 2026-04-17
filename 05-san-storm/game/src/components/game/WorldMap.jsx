@@ -205,7 +205,7 @@ function PvpDefenseOutcomeModal({ outcome, onClose }) {
   );
 }
 
-export default function WorldMap({ onEventBusyChange }) {
+export default function WorldMap({ onEventBusyChange, sanGongFuCardPool }) {
   const { player, cards, attributeBonusBySlot, refresh: refreshPlayer } = usePlayerContext();
   const eventSystem = useEventSystem(player, cards);
   const tutorialSystem = useTutorialEvents(player, cards);
@@ -214,7 +214,16 @@ export default function WorldMap({ onEventBusyChange }) {
   // 当前活跃的事件系统（tutorial 优先）
   const activeSystem = isTutorial ? tutorialSystem : eventSystem;
   const { phase } = activeSystem;
-  const { quota, eventsLoading, explorePoolAt, startExplore, citiesList } = eventSystem;
+  const {
+    quota,
+    eventsLoading,
+    explorePoolAt,
+    startExplore,
+    citiesList,
+    itemNameMap,
+    /** 内嵌探索条与战略格 tooltip 必须用事件系统阶段；勿用 `activeSystem.phase`（教程优先时会与 `startExplore` 不同步） */
+    phase: eventExplorePhase,
+  } = eventSystem;
 
   // ── 城市攻城状态 ──
   const [siegeData, setSiegeData] = useState(null); // 非null时进入战斗
@@ -672,18 +681,21 @@ export default function WorldMap({ onEventBusyChange }) {
       startExplore,
       playerItems,
       isTutorial,
-      phase,
+      phase: eventExplorePhase,
       citiesList,
+      itemNameMap,
     }),
-    [quota, eventsLoading, explorePoolAt, startExplore, playerItems, isTutorial, phase, citiesList],
+    [quota, eventsLoading, explorePoolAt, startExplore, playerItems, isTutorial, eventExplorePhase, citiesList, itemNameMap],
   );
 
-  // 奖励发放后刷新道具列表和玩家资源
+  /** 探索「返回中」动画结束后再拉档，避免 RETURNING 阶段整图重绘把战略城池 tooltip 顶掉，玩家可留在荒郊/集市连点探索 */
+  const prevPhaseForPostExploreRefreshRef = useRef(phase);
   useEffect(() => {
-    if (phase === PHASE.RETURNING) {
-      fetchItems();
-      refreshPlayer();
-    }
+    const prev = prevPhaseForPostExploreRefreshRef.current;
+    prevPhaseForPostExploreRefreshRef.current = phase;
+    if (prev !== PHASE.RETURNING || phase !== PHASE.IDLE) return;
+    fetchItems();
+    refreshPlayer({ silent: true });
   }, [phase, fetchItems, refreshPlayer]);
 
   // 通知父组件事件是否进行中（隐藏底部Tab）
@@ -693,10 +705,14 @@ export default function WorldMap({ onEventBusyChange }) {
     onEventBusyChange?.(busy);
   }, [phase, tutorialSystem.showPreDialog, onEventBusyChange, siegeData, pvpChallenge, pvpDefenseWaiting, pvpAttackerAdjudicating]);
 
+  const strategicFullScreenOverlayOpen =
+    showSanGongFu || !!showGarrison || !!showBarracksPost;
+
   return (
     <div className="relative flex flex-col h-full min-h-0 w-full bg-stone-950">
       <WorldYingchuanMapSection
         className="flex-1 min-h-0 h-full"
+        strategicFullScreenOverlayOpen={strategicFullScreenOverlayOpen}
         playerId={player?.player_id}
         playerFactionId={player?.faction_id}
         siegeLoading={siegeLoading}
@@ -838,6 +854,7 @@ export default function WorldMap({ onEventBusyChange }) {
           cityName={sanGongFuCityName || '城池'}
           onClose={() => setShowSanGongFu(false)}
           onPromoted={handleSanGongPromoted}
+          sanGongFuCardPool={sanGongFuCardPool}
         />
       ) : null}
 

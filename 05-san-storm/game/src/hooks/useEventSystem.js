@@ -26,6 +26,7 @@ import {
   EVENT_PUNISHMENT_COMBAT_BANDIT_LOCATION_SLOT_RARITIES,
   isBanditMapObjectId,
 } from '@shared/utils/smallMapEnemyRoster.js';
+import { strategicExploreReopenBridge } from '@/utils/strategicExploreReopenBridge.js';
 
 /** 默认探索地点：与 `cities` 同一行的主城 `city_id`（荒郊走 `wildernessEnabled` + 内嵌探索；勿再使用 `san_*_city_6_*` 独立行） */
 export const DEFAULT_EXPLORE_LOCATION_ID = 'san_1_city_2_yangdi';
@@ -225,7 +226,7 @@ export default function useEventSystem(player, cards) {
       .catch(err => console.error('[useEventSystem] 加载事件进度失败:', err));
   }, [player?.player_id]);
 
-  /** 探索结算动画结束后回到 IDLE 时再拉一次进度（含跨日部队链重置） */
+  /** 探索结算动画结束后回到 IDLE 时再拉一次进度（含跨日探索事件链重置） */
   const prevPhaseForExploreRef = useRef(phase);
   useEffect(() => {
     const prev = prevPhaseForExploreRef.current;
@@ -348,6 +349,12 @@ export default function useEventSystem(player, cards) {
       : (pendingEvent?.explore_anchor_city_id ?? exploreLocationId);
     if (locationOverride) setExploreLocationId(locationOverride);
 
+    if (subsidiaryKind === 'wilderness' || subsidiaryKind === 'market') {
+      strategicExploreReopenBridge.setPendingReopen(locId, subsidiaryKind);
+    } else {
+      strategicExploreReopenBridge.clear();
+    }
+
     const pool = filterExploreEventsPool(
       allExploreEvents,
       completedEvents,
@@ -403,6 +410,7 @@ export default function useEventSystem(player, cards) {
 
   // 关闭事件对话框（未选择选项，不消耗次数）
   const closeEvent = useCallback(() => {
+    strategicExploreReopenBridge.clear();
     setPhase(PHASE.IDLE);
     setCurrentEvent(null);
   }, []);
@@ -651,6 +659,17 @@ export default function useEventSystem(player, cards) {
         }
       } catch (err) {
         console.error('[useEventSystem] 奖励API请求失败:', err);
+      }
+    }
+    if (currentEvent) {
+      const anchorCityId = currentEvent.explore_anchor_city_id;
+      const subKind = currentEvent.explore_subsidiary_kind;
+      if (
+        anchorCityId != null &&
+        String(anchorCityId).trim() !== '' &&
+        (subKind === 'wilderness' || subKind === 'market')
+      ) {
+        strategicExploreReopenBridge.setPendingReopen(anchorCityId, subKind);
       }
     }
     setPhase(PHASE.RETURNING);

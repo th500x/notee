@@ -8,6 +8,7 @@
  */
 
 const { pool } = require('../database/connection');
+const { WIN_CONTRIBUTION_REWARD_SIEGE_NPC } = require('../../shared/utils/siegeKillEconomyByRarity.cjs');
 
 const EQUIPMENT_DROP_RATE = 0.05;
 
@@ -18,15 +19,6 @@ const WIN_REPUTATION_REWARD = {
   epic: 15,
   rare: 10,
   common: 5,
-};
-
-/** 攻城 NPC：每消灭一支守军按该支稀有度计贡献（本场多支则累加） */
-const WIN_CONTRIBUTION_REWARD_SIEGE_NPC = {
-  core: 5,
-  legendary: 4,
-  epic: 3,
-  rare: 2,
-  common: 1,
 };
 
 function normalizeRarity(r) {

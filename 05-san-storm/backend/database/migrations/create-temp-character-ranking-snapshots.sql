@@ -1,5 +1,5 @@
 -- 将领排名快照（临时表）：同服同 bucket 可排序缓存，详见 docs/00-base/01-1-DATABASE_DESIGN.md §4.5
--- 与 UI 口径：docs/90-assets/92-1-GAME_UI_DESIGN.md §9.1.2
+-- 与 UI 口径：docs/30-frontend/32-1-GAME_UI_DESIGN.md §9.1.2（相对 05-san-storm/）
 -- 历史表名：player_character_rank_snapshot / temp_character_rank_snapshots → 见 migrations/rename-*.sql
 
 CREATE TABLE IF NOT EXISTS temp_character_ranking_snapshots (

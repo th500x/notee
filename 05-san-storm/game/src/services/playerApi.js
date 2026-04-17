@@ -132,6 +132,28 @@ export const playerAPI = {
     return response.json();
   },
 
+  /** 朝政 · 朝贡：当日已上缴 / 剩余额度 */
+  async getSanGongFuTributeStatus(playerId) {
+    const response = await fetchWithTimeout(
+      `${API_CONFIG.BASE_URL}/players/${playerId}/san-gong-fu/tribute-status`,
+      { method: 'GET', headers: { 'Content-Type': 'application/json' } },
+    );
+    return response.json();
+  },
+
+  /** 朝政 · 朝贡：销毁所选军营池部队卡并发奖 */
+  async submitSanGongFuTribute(playerId, instanceIds) {
+    const response = await fetchWithTimeout(
+      `${API_CONFIG.BASE_URL}/players/${playerId}/san-gong-fu/tribute`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ instanceIds }),
+      },
+    );
+    return response.json();
+  },
+
   /** 军营池 → 主城驻军所仓库 */
   async transferMainCityBarracksIn(playerId, instanceIds) {
     const response = await fetchWithTimeout(

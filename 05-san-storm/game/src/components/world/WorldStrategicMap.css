@@ -144,7 +144,7 @@
   mix-blend-mode: multiply;
 }
 
-/* 主城含荒郊/集市入口：与 CardPoolEntry 同系的琥珀底光 + 横向扫光（仅 2×2 锚点格） */
+/* 主城含荒郊/集市入口：与 CardPoolPoolButton / 封赏卡池同系的琥珀底光 + 横向扫光（仅 2×2 锚点格） */
 .ws-subsidiary-hub-glow {
   pointer-events: none;
   overflow: hidden;
@@ -275,6 +275,24 @@
   object-fit: contain;
   display: block;
   filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.55));
+}
+
+/* 荒郊/集市主城 2×2 右上角格：尚有探索次数时红叹号提醒 */
+.ws-strategic-explore-quota-badge {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 8;
+  padding: 0 1px;
+  font-weight: 900;
+  font-size: clamp(18px, calc(var(--ws-tile) * 0.62), 30px);
+  line-height: 1;
+  color: #ef4444;
+  pointer-events: none;
+  text-shadow:
+    0 0 2px #fff,
+    0 0 4px #fff,
+    0 1px 3px rgba(0, 0, 0, 0.8);
 }
 
 /* 道路叠层：格心连线，viewBox 与格数一致（见 31-5 §11.1 / road-overlay-demo.html） */
@@ -431,4 +449,97 @@
   50% {
     opacity: 0.95;
   }
+}
+
+/* 玩家自身占位（主城块几何中心；与道路叠层 z-index 分层） */
+.ws-map-self-pawn {
+  position: absolute;
+  z-index: 5;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+}
+
+/* 悬停命中：仅圆形区域接 pointer 事件，便于键鼠 tooltip；事件仍可向父级冒泡用于地图平移 */
+.ws-map-self-pawn__hit {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  pointer-events: auto;
+  width: max-content;
+  max-width: calc(var(--ws-tile) * 2.4 + 8px);
+}
+
+.ws-map-self-pawn__avatar {
+  position: relative;
+  width: clamp(22px, calc(var(--ws-tile) * 0.95), 40px);
+  height: clamp(22px, calc(var(--ws-tile) * 0.95), 40px);
+  flex-shrink: 0;
+}
+
+.ws-map-self-pawn__img {
+  width: 100%;
+  height: 100%;
+  border-radius: 9999px;
+  object-fit: cover;
+  display: block;
+  box-shadow:
+    0 0 0 2px rgba(251, 191, 36, 0.85),
+    0 2px 6px rgba(0, 0, 0, 0.55);
+}
+
+.ws-map-self-pawn__img--fallback {
+  background: linear-gradient(145deg, #44403c, #1c1917);
+}
+
+/* 与 `.ws-strategic-label-type`（大城/中城/小城等首行）同字号、字重、色与阴影 */
+.ws-map-self-pawn__center-glyph {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: clamp(7px, calc(var(--ws-tile) * 0.38), 11px);
+  font-weight: 800;
+  color: #fffbeb;
+  line-height: 1.15;
+  pointer-events: none;
+  text-shadow:
+    0 0 3px #000,
+    0 1px 2px rgba(0, 0, 0, 0.85);
+}
+
+.ws-map-self-pawn__tooltip {
+  margin-top: 4px;
+  padding: 4px 7px 5px;
+  border-radius: 6px;
+  border: 1px solid rgba(251, 191, 36, 0.45);
+  background: rgba(28, 25, 23, 0.94);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.55);
+  pointer-events: none;
+  text-align: center;
+  max-width: min(220px, calc(var(--ws-tile) * 8));
+  z-index: 6;
+}
+
+.ws-map-self-pawn__tooltip-name {
+  font-size: clamp(6px, calc(var(--ws-tile) * 0.32), 10px);
+  font-weight: 700;
+  color: rgba(255, 250, 235, 0.96);
+  line-height: 1.2;
+  word-break: break-all;
+  text-shadow:
+    0 0 3px #000,
+    0 1px 2px rgba(0, 0, 0, 0.85);
+}
+
+.ws-map-self-pawn__tooltip-troops {
+  margin-top: 2px;
+  font-size: clamp(6px, calc(var(--ws-tile) * 0.32), 10px);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: rgba(255, 250, 235, 0.92);
+  line-height: 1.15;
+  text-shadow:
+    0 0 3px #000,
+    0 1px 2px rgba(0, 0, 0, 0.85);
 }

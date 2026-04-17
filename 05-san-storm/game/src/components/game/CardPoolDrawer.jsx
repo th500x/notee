@@ -112,10 +112,10 @@ export default function CardPoolDrawer({
   return (
     <>
       {/* 遮罩 */}
-      <div className="fixed inset-0 bg-black/50 z-[110]" onClick={onClose} />
+      <div className="fixed inset-0 bg-black/50 z-[130]" onClick={onClose} />
 
       {/* 抽屉主体 */}
-      <div className="fixed left-0 right-0 bottom-0 z-[111] bg-stone-900 border-t-2 border-amber-700/50
+      <div className="fixed left-0 right-0 bottom-0 z-[131] bg-stone-900 border-t-2 border-amber-700/50
                       rounded-t-2xl flex flex-col top-[4.5rem] sm:top-14 min-h-0 overflow-hidden
                       isolate">
 
