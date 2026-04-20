@@ -281,7 +281,8 @@ export default function WorldMap({
 
   /** 道路遭遇 · 守方：遇袭弹窗（与攻城 AncientModal 同壳；关窗/超时后禁移直至本场 resolved） */
   const [roadDefenseAlert, setRoadDefenseAlert] = useState(null);
-  const [roadEncounterDefenderBusy, setRoadEncounterDefenderBusy] = useState(false);
+  /** 道路遭遇 · 攻方：`road/move` 触发遭遇后先提示再进场（与守方对称，复用 AncientModal） */
+  const [roadAttackerAlert, setRoadAttackerAlert] = useState(null);
   const silencedRoadEncounterIdRef = useRef(null);
   const roadDefPollRef = useRef(null);
   /** 同一条道路遭遇只弹一次系统通知，避免 3s 轮询刷屏 */
@@ -357,7 +358,6 @@ export default function WorldMap({
       player?.road_position_y != null;
     if (!hasRoad) {
       setRoadDefenseAlert(null);
-      setRoadEncounterDefenderBusy(false);
       return undefined;
     }
     const poll = async () => {
@@ -367,11 +367,9 @@ export default function WorldMap({
         if (!enc) {
           silencedRoadEncounterIdRef.current = null;
           roadDefenseNotifiedEncounterIdRef.current = null;
-          setRoadEncounterDefenderBusy(false);
           setRoadDefenseAlert(null);
           return;
         }
-        setRoadEncounterDefenderBusy(true);
         if (pvpDefenseAlert) {
           setRoadDefenseAlert(null);
           return;
@@ -529,16 +527,16 @@ export default function WorldMap({
     setGarrisonStatsRefreshKey((k) => k + 1);
   }, []);
 
-  /** 道路遭遇：拉取防守方上阵编组并进入与披挂上阵相同的 BattleArena（pvp_siege） */
+  /** 道路遭遇：拉取防守方上阵编组并进入与披挂上阵相同的 BattleArena（pvp_siege）；成功返回 true */
   const openRoadEncounterBattle = useCallback(
     async (enc) => {
-      if (!enc?.encounterId || !player?.player_id) return;
+      if (!enc?.encounterId || !player?.player_id) return false;
       const phaseOk = phase === PHASE.IDLE || phase === PHASE.RETURNING;
       if (isTutorial || !phaseOk || siegeData) {
         if (!phaseOk && !isTutorial && !siegeData) {
           setSimpleAlertMessage('当前处于事件/探索流程中，请返回空闲后再处理道路遭遇');
         }
-        return;
+        return false;
       }
       const builtUnits = buildPlayerUnitsFromContext(player, cards, attributeBonusBySlot);
       const gate = validateMainLineupBattleGate({
@@ -548,18 +546,20 @@ export default function WorldMap({
       });
       if (!gate.ok) {
         setSimpleAlertMessage(gate.message);
-        return;
+        return false;
       }
       try {
         const res = await playerAPI.getRoadEncounterBattle(player.player_id, enc.encounterId);
         if (!res?.success || !res.data) {
           setSimpleAlertMessage(res?.error || '道路战斗数据拉取失败');
-          return;
+          return false;
         }
         setSiegeData(res.data);
         setSiegeResult(null);
+        return true;
       } catch (e) {
         setSimpleAlertMessage(e?.message || '网络异常');
+        return false;
       }
     },
     [isTutorial, phase, siegeData, player, cards, attributeBonusBySlot],
@@ -576,24 +576,34 @@ export default function WorldMap({
         }
         return;
       }
+      silencedRoadEncounterIdRef.current = enc.encounterId;
+      setRoadDefenseAlert(null);
       try {
         const res = await playerAPI.getRoadEncounterBattle(player.player_id, enc.encounterId, {
           spectator: true,
         });
         if (!res?.success || !res.data) {
+          silencedRoadEncounterIdRef.current = null;
           setSimpleAlertMessage(res?.error || '道路观战数据拉取失败');
           return;
         }
-        silencedRoadEncounterIdRef.current = enc.encounterId;
-        setRoadDefenseAlert(null);
         setSiegeData(res.data);
         setSiegeResult(null);
       } catch (e) {
+        silencedRoadEncounterIdRef.current = null;
         setSimpleAlertMessage(e?.message || '网络异常');
       }
     },
     [isTutorial, phase, siegeData, player?.player_id],
   );
+
+  /** 攻方：弹窗点确定后再走 `openRoadEncounterBattle`；失败时保留弹窗便于重试 */
+  const confirmRoadAttackerEnterBattle = useCallback(async () => {
+    if (!roadAttackerAlert?.encounterId) return;
+    const snap = { ...roadAttackerAlert };
+    const ok = await openRoadEncounterBattle(snap);
+    if (ok) setRoadAttackerAlert(null);
+  }, [roadAttackerAlert, openRoadEncounterBattle]);
 
   const openGarrisonForCity = useCallback(async (cityId, cityBaseName) => {
     if (!player?.player_id || !cityId) return;
@@ -934,8 +944,7 @@ export default function WorldMap({
       || !!pvpChallenge
       || !!pvpDefenseWaiting
       || !!pvpAttackerAdjudicating
-      || !!roadDefenseAlert
-      || roadEncounterDefenderBusy;
+      || !!roadAttackerAlert;
     onEventBusyChange?.(busy);
   }, [
     phase,
@@ -944,8 +953,7 @@ export default function WorldMap({
     pvpChallenge,
     pvpDefenseWaiting,
     pvpAttackerAdjudicating,
-    roadDefenseAlert,
-    roadEncounterDefenderBusy,
+    roadAttackerAlert,
   ]);
 
   const strategicFullScreenOverlayOpen =
@@ -961,7 +969,9 @@ export default function WorldMap({
         playerFactionId={player?.faction_id}
         siegeLoading={siegeLoading}
         onStartSiegeForCity={startSiegeForCity}
-        onRoadEncounterBattle={openRoadEncounterBattle}
+        onRoadEncounterBattle={(enc) => {
+          if (enc?.encounterId) setRoadAttackerAlert(enc);
+        }}
         garrisonStatsRefreshKey={garrisonStatsRefreshKey}
         playerOnDuty={!!player?.on_duty}
         playerOnDutyCityId={player?.on_duty_city_id ?? null}
@@ -1033,6 +1043,26 @@ export default function WorldMap({
         />
       )}
 
+      {roadAttackerAlert && !siegeData && (
+        <AncientModal
+          isOpen
+          type="warning"
+          title="🛤️ 道路遭遇"
+          confirmText="确定"
+          showCancel={false}
+          invokeOnCloseAfterConfirm={false}
+          onConfirm={confirmRoadAttackerEnterBattle}
+          onClose={() => setRoadAttackerAlert(null)}
+        >
+          <div className="text-center space-y-3">
+            <p className="text-gray-800 text-base">您已与对方在道路上触发对战。</p>
+            <p className="text-gray-800">
+              点击 <span className="font-semibold text-amber-900">确定</span> 进入战斗（与攻城披挂上阵相同界面）。
+            </p>
+          </div>
+        </AncientModal>
+      )}
+
       {roadDefenseAlert && !siegeData && !pvpDefenseAlert && (
         <AncientModal
           isOpen
@@ -1040,6 +1070,7 @@ export default function WorldMap({
           title="🛤️ 道路遇袭"
           confirmText="确定"
           showCancel={false}
+          invokeOnCloseAfterConfirm={false}
           onConfirm={() => openRoadEncounterSpectator(roadDefenseAlert)}
           onClose={() => roadDefenseAlert && beginRoadDefenseSilence(roadDefenseAlert)}
         >

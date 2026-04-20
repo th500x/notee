@@ -13,7 +13,7 @@ const TABS = [
 
 export default function BottomTabNav({ activeTab, onTabChange }) {
   return (
-    <div className="fixed bottom-0 left-0 right-0 h-16 z-50 bg-gradient-to-r from-amber-900 to-amber-800 flex items-stretch shadow-[0_-2px_10px_rgba(0,0,0,0.3)]">
+    <div className="fixed bottom-0 left-0 right-0 z-50 flex min-h-16 items-stretch bg-gradient-to-r from-amber-900 to-amber-800 pb-[env(safe-area-inset-bottom,0px)] shadow-[0_-2px_10px_rgba(0,0,0,0.3)]">
       {TABS.map((tab) => {
         const isActive = activeTab === tab.id;
         return (

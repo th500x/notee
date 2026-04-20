@@ -185,6 +185,8 @@ export default function StrategicMapSelfPawn({
       if (!selfMarchUi || e.button !== 0) return;
       if (!isTouchLikePointer(e)) return;
       e.stopPropagation();
+      // 抑制浏览器随后补发的「兼容 click」，避免与 pointer 短按分支打架导致首触误进军
+      if (isTouchLikePointer(e)) e.preventDefault();
       clearMarchTimer();
       const el = e.currentTarget;
       try {
@@ -302,6 +304,9 @@ export default function StrategicMapSelfPawn({
   const onHitClick = useCallback(
     (e) => {
       if (!selfMarchUi) return;
+      const ne = e.nativeEvent;
+      // 触屏后浏览器补发的「兼容 click」走 pointer 分支即可，避免与格网/进军抢首帧
+      if (ne && typeof ne === 'object' && ne.sourceCapabilities?.firesTouch) return;
       if (suppressClickRef.current) return;
       e.stopPropagation();
       e.preventDefault();
@@ -372,14 +377,11 @@ export default function StrategicMapSelfPawn({
     Number.isFinite(interceptSilver) &&
     interceptSilver < ROAD_INTERCEPT_SILVER_COST;
 
-  // 操作条含可聚焦 button 时不得对祖先设 aria-hidden，否则 Chrome 会拦截点击（控制台 Blocked aria-hidden…）
-  const hideSubtreeFromAt = !showActionPopover && !touchLongTooltip;
-
+  // 不在根节点设 aria-hidden：首触时部分 WebKit 会误把事件落到下层格网，表现为「一点头像就进军」；操作条打开时子树内已有可聚焦控件。
   return (
     <div
       className="ws-map-self-pawn"
       style={{ left: `${cx}px`, top: `${cy}px` }}
-      aria-hidden={hideSubtreeFromAt ? true : undefined}
     >
       <div className="ws-map-self-pawn__anchor">
         <div

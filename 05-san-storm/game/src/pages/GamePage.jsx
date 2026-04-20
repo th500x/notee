@@ -173,7 +173,11 @@ function GamePageInner({ onLogout, accountId }) {
         <main
           className={`absolute left-0 right-0 top-[4.5rem] sm:top-14 flex flex-col ${
             activeTab === null ? 'overflow-hidden' : 'overflow-y-auto'
-          } ${eventBusy ? 'bottom-0' : 'bottom-16'}`}
+          } ${
+            eventBusy
+              ? 'bottom-0'
+              : 'bottom-[calc(4rem+env(safe-area-inset-bottom,0px))]'
+          }`}
         >
           {activeTab === null ? (
             <div className="flex min-h-0 flex-1 flex-col">

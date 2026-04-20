@@ -73,6 +73,8 @@ const AncientModal = ({
   showCancel = false,
   hideButtons = false,
   preventClose = false,  // 禁止关闭按钮和遮罩点击关闭
+  /** 为 false 时：点「确定」只调 onConfirm，不调 handleClose → 不触发 onClose（道路遇袭点确定进场观战等异步确认用） */
+  invokeOnCloseAfterConfirm = true,
   // 样式
   width = 'max-w-md',
 }) => {
@@ -95,9 +97,17 @@ const AncientModal = ({
     setTimeout(() => onClose?.(), 200);
   };
 
-  const handleConfirm = () => {
-    onConfirm?.();
-    handleClose();
+  const handleConfirm = async () => {
+    try {
+      await Promise.resolve(onConfirm?.());
+    } catch {
+      /* 由业务 onConfirm / 外层处理 */
+    }
+    if (invokeOnCloseAfterConfirm) {
+      handleClose();
+    } else {
+      setVisible(false);
+    }
   };
 
   const handleCancel = () => {
