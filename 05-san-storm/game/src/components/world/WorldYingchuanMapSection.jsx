@@ -28,7 +28,6 @@ import {
   canPlayerMarchToPoiCity,
   collectStrategicPoiFootprint,
   buildStrategicPoiFootprintFromDbCityRow,
-  buildHostileOccupiedRoadKeysFromPlayersRows,
 } from '@shared/utils/strategicMarchPoi.js';
 import StrategicMarchMoveConfirm from './StrategicMarchMoveConfirm';
 import { buildStrategicRoadStackStripForFocal, roadCellStackKey } from '@/utils/strategicRoadStackStrip';
@@ -587,12 +586,6 @@ export default function WorldYingchuanMapSection({
     [roadPresence],
   );
 
-  /** 沿路 BFS 绕行：敌对玩家所占道路格不可途经（与 `moveAlongRoad` POI 重算一致） */
-  const marchHostileOccupiedKeys = useMemo(
-    () => buildHostileOccupiedRoadKeysFromPlayersRows(ctxPlayer?.faction_id, roadPresence?.others),
-    [ctxPlayer?.faction_id, roadPresence?.others],
-  );
-
   const exitStrategicMarchMode = useCallback(() => {
     setStrategicMarchMode(false);
     setMarchConfirm(null);
@@ -682,7 +675,6 @@ export default function WorldYingchuanMapSection({
           targetCityDbRow: row ?? null,
           mainCityDbRow: marchMainRow ?? null,
           citiesInCountyRows: countyCityRows,
-          hostileOccupiedRoadKeys: marchHostileOccupiedKeys,
         });
       } else {
         pathRes = buildMarchPath({
@@ -696,7 +688,6 @@ export default function WorldYingchuanMapSection({
           targetGy: gy,
           mainCityDbRow: marchMainRow ?? null,
           citiesInCountyRows: countyCityRows,
-          hostileOccupiedRoadKeys: marchHostileOccupiedKeys,
         });
       }
       if (!pathRes.ok) {
@@ -761,7 +752,6 @@ export default function WorldYingchuanMapSection({
       cityById,
       countyCityRows,
       playerMainCityId,
-      marchHostileOccupiedKeys,
     ],
   );
 

@@ -309,21 +309,7 @@ async function moveAlongRoad(playerId, body) {
         await conn.rollback();
         return { ok: false, status: 403, error: acc.error };
       }
-      const [occRowsForHostile] = await conn.query(
-        `SELECT road_position_x AS roadPositionX,
-                road_position_y AS roadPositionY,
-                faction_id AS factionId
-           FROM players
-          WHERE road_jun_id = ?
-            AND road_position_x IS NOT NULL
-            AND road_position_y IS NOT NULL
-            AND player_id <> ?`,
-        [junId, pid],
-      );
-      const hostileOccupiedRoadKeys = marchPoi.buildHostileOccupiedRoadKeysFromPlayersRows(
-        player.faction_id,
-        occRowsForHostile,
-      );
+      // POI 最短路按全道路网；途经敌对占格在逐步落脚时触发遭遇（与客户端预览一致）。
       const built = marchPoi.buildMarchPathToStrategicPoi({
         cells: grid.rawCells,
         roadCells: grid.roadCellsRaw || [],
@@ -337,7 +323,6 @@ async function moveAlongRoad(playerId, body) {
         targetCityDbRow: cityRow,
         mainCityDbRow,
         citiesInCountyRows: countyCityRows,
-        hostileOccupiedRoadKeys,
       });
       if (!built.ok) {
         await conn.rollback();

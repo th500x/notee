@@ -161,6 +161,7 @@ function roadKeysAdjacentToFootprint(footprintKeys, roadPassable) {
  * @param {object} p.player - profile.player
  * @param {number} p.targetGx
  * @param {number} p.targetGy
+ * @param {Set<string>|null|undefined} [p.hostileOccupiedRoadKeys] 已废弃，不参与寻路（保留入参兼容旧调用）。
  * @returns {{ ok: true, path: {x:number,y:number}[], onRoadAtStart: boolean } | { ok: false, error: string }}
  */
 export function buildMarchPath({
@@ -180,19 +181,14 @@ export function buildMarchPath({
     return { ok: false, error: '当前地图缺少道路数据' };
   }
   const roadPassable = buildRoadPassableKeySet(roadCells, cells, mapColumns, mapRows);
-  let passR = roadPassable;
-  if (hostileOccupiedRoadKeys?.size) {
-    passR = new Set(roadPassable);
-    for (const k of hostileOccupiedRoadKeys) passR.delete(k);
-  }
+  /* 最短路按全道路网；敌对占格在提交移动时由服务端处理遭遇，不作为寻路障碍。 */
+  void hostileOccupiedRoadKeys;
+
   const tx = Math.trunc(Number(targetGx));
   const ty = Math.trunc(Number(targetGy));
   const targetKey = `${tx},${ty}`;
   if (!roadPassable.has(targetKey)) {
     return { ok: false, error: '请选择道路格作为目标' };
-  }
-  if (!passR.has(targetKey)) {
-    return { ok: false, error: '目标格上有敌对玩家，无法落子' };
   }
 
   const roadJun = player?.road_jun_id || null;
@@ -200,14 +196,14 @@ export function buildMarchPath({
   const ry = Number(player?.road_position_y);
   const startKeyIf =
     roadJun === countyJunId && Number.isFinite(rx) && Number.isFinite(ry) ? `${Math.trunc(rx)},${Math.trunc(ry)}` : null;
-  const onRoad = !!startKeyIf && roadPassable.has(startKeyIf) && passR.has(startKeyIf);
+  const onRoad = !!startKeyIf && roadPassable.has(startKeyIf);
 
   if (onRoad) {
     const startKey = startKeyIf;
     if (startKey === targetKey) {
       return { ok: true, path: [{ x: Math.trunc(rx), y: Math.trunc(ry) }], onRoadAtStart: true };
     }
-    const path = bfsShortestPath(passR, startKey, targetKey, mapColumns, mapRows);
+    const path = bfsShortestPath(roadPassable, startKey, targetKey, mapColumns, mapRows);
     if (!path) return { ok: false, error: '无法沿道路到达该格' };
     return { ok: true, path, onRoadAtStart: true };
   }
@@ -224,9 +220,9 @@ export function buildMarchPath({
   if (!footprint.size) {
     return { ok: false, error: '未设置主城或不在可识别的城/寨占格上，无法沿路出发' };
   }
-  const starts = roadKeysAdjacentToFootprint(footprint, passR);
+  const starts = roadKeysAdjacentToFootprint(footprint, roadPassable);
   if (!starts.size) return { ok: false, error: '出发地旁没有可通行的道路格' };
-  const path = multiSourceBfsShortest(passR, starts, targetKey, mapColumns, mapRows);
+  const path = multiSourceBfsShortest(roadPassable, starts, targetKey, mapColumns, mapRows);
   if (!path) return { ok: false, error: '无法沿道路到达该格' };
   return { ok: true, path, onRoadAtStart: false };
 }

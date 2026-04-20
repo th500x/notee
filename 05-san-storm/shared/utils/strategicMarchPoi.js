@@ -362,18 +362,6 @@ export function buildHostileOccupiedRoadKeysFromPlayersRows(moverFactionId, rows
 }
 
 /**
- * @param {Set<string>} roadPassable
- * @param {Set<string>|null|undefined} hostileOccupiedRoadKeys
- * @returns {Set<string>}
- */
-function roadPassableMinusHostileOccupiers(roadPassable, hostileOccupiedRoadKeys) {
-  if (!hostileOccupiedRoadKeys?.size) return roadPassable;
-  const out = new Set(roadPassable);
-  for (const k of hostileOccupiedRoadKeys) out.delete(k);
-  return out;
-}
-
-/**
  * 离路时沿路出发/首跳校验用的 **城寨占格**：`road_position` 若在某一城/寨 POI 块内则 **优先** 用该块（已到城 A 但 `main_city_id` 仍为阳翟时，不得从主城块出发）。
  * @param {(cells: object[][], mainId: string) => Set<string>|null|undefined} collectMainCityFootprintKeys
  * @returns {Set<string>}
@@ -470,7 +458,7 @@ export function pickNearestRoadTargetMultiStart(roadPassable, startKeys, candida
  * @param {object} player - profile.player
  * @param {string} targetCityId
  * @param {(keys: Set<string>) => Set<string>} [collectMainCityFootprint] - 注入以便与后端 `roadGrid` 一致
- * @param {Set<string>|null|undefined} [hostileOccupiedRoadKeys] - 敌对玩家当前所占道路格；BFS 绕行（休战下亦不可途经叠格）
+ * @param {Set<string>|null|undefined} [hostileOccupiedRoadKeys] - 已废弃：最短路按**完整**道路网计算；敌对叠格在逐步 `moveAlongRoad` 时触发遭遇/拦截，不作为寻路障碍（与产品「始终最短路径」一致）。
  */
 export function buildMarchPathToStrategicPoi({
   cells,
@@ -490,7 +478,8 @@ export function buildMarchPathToStrategicPoi({
     return { ok: false, error: '当前地图缺少道路数据' };
   }
   const roadPassable = buildRoadPassableKeySetForMarch(roadCells, cells, mapColumns, mapRows);
-  const passR = roadPassableMinusHostileOccupiers(roadPassable, hostileOccupiedRoadKeys);
+  /* 保留入参以兼容旧调用；寻路不再剔除敌对占格。 */
+  void hostileOccupiedRoadKeys;
   let poi = null;
   if (targetCityDbRow) {
     poi = buildStrategicPoiFootprintFromDbCityRow(targetCityDbRow, mapColumns, mapRows, cells);
@@ -501,7 +490,7 @@ export function buildMarchPathToStrategicPoi({
   if (!poi?.keys?.size) {
     return { ok: false, error: '目标城池不在当前郡格网内' };
   }
-  const adjRoad = roadKeysAdjacentOrDiagonalToFootprint(poi.keys, passR);
+  const adjRoad = roadKeysAdjacentOrDiagonalToFootprint(poi.keys, roadPassable);
   if (!adjRoad.size) {
     return { ok: false, error: '目标旁无可用道路格，无法接近' };
   }
@@ -511,11 +500,11 @@ export function buildMarchPathToStrategicPoi({
   const ry = Number(player?.road_position_y);
   const startKeyIfRoad =
     roadJun === countyJunId && Number.isFinite(rx) && Number.isFinite(ry) ? `${Math.trunc(rx)},${Math.trunc(ry)}` : null;
-  const onRoadCell = startKeyIfRoad && roadPassable.has(startKeyIfRoad) && passR.has(startKeyIfRoad);
+  const onRoadCell = startKeyIfRoad && roadPassable.has(startKeyIfRoad);
 
   let path = null;
   if (onRoadCell) {
-    path = pickNearestRoadTargetAmongCandidates(passR, startKeyIfRoad, adjRoad, mapColumns, mapRows);
+    path = pickNearestRoadTargetAmongCandidates(roadPassable, startKeyIfRoad, adjRoad, mapColumns, mapRows);
   } else {
     const footprintKeys = resolveOffRoadMarchDepartureFootprintKeys(
       cells,
@@ -531,9 +520,9 @@ export function buildMarchPathToStrategicPoi({
       if (!mainId) return { ok: false, error: '未设置主城且未在道路上，无法出发' };
       return { ok: false, error: '主城不在当前郡地图内' };
     }
-    const starts = roadKeysAdjacentToFootprint(footprintKeys, passR);
+    const starts = roadKeysAdjacentToFootprint(footprintKeys, roadPassable);
     if (!starts.size) return { ok: false, error: '出发地旁没有可通行的道路格' };
-    path = pickNearestRoadTargetMultiStart(passR, starts, adjRoad, mapColumns, mapRows);
+    path = pickNearestRoadTargetMultiStart(roadPassable, starts, adjRoad, mapColumns, mapRows);
   }
 
   if (!path?.length) return { ok: false, error: '无法沿道路到达目标邻近道路格' };

@@ -8,7 +8,10 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { gameIntroMessages } from '@/data/texts/gameIntroMessages';
+import {
+  gameIntroMessages,
+  gameIntroContentParagraphClass,
+} from '@/data/texts/gameIntroMessages';
 import { ILLUS_BG_FILES as BG_IMAGES, ILLUS_BG_DIR as BG_DIR } from '@/data/illusBgFiles';
 const BG_CACHE_KEY = 'game_intro_bg';
 const BG_CACHE_DAYS = 7;
@@ -97,7 +100,7 @@ const IntroCard = ({ message, isVisible, quadrant }) => {
           <div className="flex-1 px-3 py-3 overflow-y-auto">
             {message.content.split('\n').map((paragraph, i, arr) => (
               <div key={i}>
-                <p className="text-gray-800 text-sm leading-relaxed">{paragraph}</p>
+                <p className={gameIntroContentParagraphClass}>{paragraph}</p>
                 {i < arr.length - 1 && (
                   <div className="flex items-center gap-2 my-2">
                     <div className="flex-1 h-px bg-gradient-to-r from-transparent via-amber-600/40 to-transparent" />
