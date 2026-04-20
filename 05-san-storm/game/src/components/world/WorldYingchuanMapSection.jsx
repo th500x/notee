@@ -786,8 +786,11 @@ export default function WorldYingchuanMapSection({
       if (marchConfirm.targetCityId) body.targetCityId = marchConfirm.targetCityId;
       const res = await playerAPI.roadMove(playerId, body);
       if (!res?.success) {
-        setMarchSubmitError(res?.error || res?.message || '移动失败');
-        setMarchSubmitLoading(false);
+        const msg = res?.error || res?.message || '移动失败';
+        // 关确认框 + 退行军模式，避免 409 等错误下仍可连点「确认」刷同一请求、像在「不停提醒」
+        exitStrategicMarchMode();
+        setMarchToast({ type: 'error', message: msg });
+        window.setTimeout(() => setMarchToast(null), 8000);
         return;
       }
 
@@ -849,10 +852,11 @@ export default function WorldYingchuanMapSection({
         afterRefreshToast: { encounter },
       });
     } catch (err) {
-      setMarchSubmitError(err?.message || '网络错误');
-      setMarchSubmitLoading(false);
+      exitStrategicMarchMode();
+      setMarchToast({ type: 'error', message: err?.message || '网络错误' });
+      window.setTimeout(() => setMarchToast(null), 8000);
     }
-  }, [marchConfirm, playerId, countySeason, countyJunId, refresh, onRoadEncounterBattle]);
+  }, [marchConfirm, playerId, countySeason, countyJunId, refresh, onRoadEncounterBattle, exitStrategicMarchMode]);
 
   const onStrategicRoadSelfUpdated = useCallback(() => refresh({ silent: true }), [refresh]);
 

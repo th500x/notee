@@ -56,6 +56,44 @@ function buildPlayerRoadSnapshot(player) {
   };
 }
 
+/**
+ * 交战格「幽灵」：`road_encounters` 仍为 pending/fighting，但攻防未同时立于该格坐标（断线、未结算、旧数据等）。
+ * 若不清理，第三者或守方会被「非本场不可闯入 / 守方禁离格」误伤。本事务内直接 resolved。
+ *
+ * @param {*} conn 事务连接（`getConnection`）
+ */
+async function resolveStaleRoadEncountersAtCell(conn, season, junId, px, py) {
+  const s = String(season || '').trim();
+  const j = String(junId || '').trim();
+  const x = toInt(px);
+  const y = toInt(py);
+  if (!s || !j || x == null || y == null) return;
+  await conn.query(
+    `UPDATE road_encounters e
+        SET e.status = 'resolved', e.ended_at = NOW()
+      WHERE e.season = ? AND e.jun_id = ?
+        AND e.position_x = ? AND e.position_y = ?
+        AND e.status IN ('pending','fighting')
+        AND NOT (
+          EXISTS (
+            SELECT 1 FROM players pa
+            WHERE pa.player_id = e.attacker_player_id
+              AND pa.road_jun_id = e.jun_id
+              AND pa.road_position_x = e.position_x
+              AND pa.road_position_y = e.position_y
+          )
+          AND EXISTS (
+            SELECT 1 FROM players pd
+            WHERE pd.player_id = e.defender_player_id
+              AND pd.road_jun_id = e.jun_id
+              AND pd.road_position_x = e.position_x
+              AND pd.road_position_y = e.position_y
+          )
+        )`,
+    [s, j, x, y],
+  );
+}
+
 // ── 守门开关 ──────────────────────────────────────────────────────────────────
 
 /**
@@ -415,7 +453,12 @@ async function moveAlongRoad(playerId, body) {
     // 路径第一格若已在其上（onRoad 且等于起点），不重复付出代价；后续每一格都算一步。
     const steps = onRoad ? resolvedPath.slice(1) : resolvedPath.slice(); // 首跳（未上路）仍计一格
 
-    // 遭遇进行中：攻防任一方均不可离开交战格，直至 `road_encounters` 结算为 resolved（守方遇袭 / 禁移）
+    // 先清本格幽灵遭遇，避免「B 仍站着、库里有 fighting 但攻方已不在格」→ A 途经 B 格被误拦或守方被误锁
+    if (onRoad && startX != null && startY != null) {
+      await resolveStaleRoadEncountersAtCell(conn, season, junId, startX, startY);
+    }
+
+    // 遭遇进行中：**攻防任一方**均不可离开交战格，直至 `road_encounters` 为 `resolved`（守方遇袭 / 观战口径不变）。
     if (steps.length && onRoad && startX != null && startY != null && String(player.road_jun_id || '').trim() === String(junId).trim()) {
       const [trapRows] = await conn.query(
         `SELECT encounter_id, position_x, position_y
@@ -532,6 +575,8 @@ async function moveAlongRoad(playerId, body) {
           return { ok: false, status: 400, error: `(${lastX},${lastY}) → (${sx},${sy}) 非相邻` };
         }
       }
+
+      await resolveStaleRoadEncountersAtCell(conn, season, junId, sx, sy);
 
       // 1) 交战登记格：仅禁止「非本格遭遇参与方」跨入（31-6 §五「占格与锁格」）；与 `road_intercept` 无关。遭遇双方沿路移动/截断由下方同格敌对逻辑处理。
       const [lockRows] = await conn.query(
