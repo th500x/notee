@@ -503,18 +503,25 @@ async function moveAlongRoad(playerId, body) {
         }
       }
 
-      // 1) 锁格（road_encounters 中任何 pending/fighting）
+      // 1) 交战登记格：仅禁止「非本格遭遇参与方」跨入（31-6 §五「占格与锁格」）；与 `road_intercept` 无关。遭遇双方沿路移动/截断由下方同格敌对逻辑处理。
       const [lockRows] = await conn.query(
-        `SELECT encounter_id FROM road_encounters
+        `SELECT encounter_id, attacker_player_id, defender_player_id
+           FROM road_encounters
           WHERE season = ? AND jun_id = ? AND position_x = ? AND position_y = ?
             AND status IN ('pending','fighting')
           FOR UPDATE`,
         [season, junId, sx, sy],
       );
-      // 未开启道路开战（来战）时：允许途经交战锁格（31-6 休战漫游）；仍由同格敌对 / 遭遇逻辑约束落子
-      if (lockRows.length && Number(player.road_intercept) === 1) {
-        await conn.rollback();
-        return { ok: false, status: 409, error: `(${sx},${sy}) 正在交战中，暂不可落入` };
+      if (lockRows.length) {
+        const lr = lockRows[0];
+        const att = lr.attacker_player_id != null ? String(lr.attacker_player_id).trim() : '';
+        const def = lr.defender_player_id != null ? String(lr.defender_player_id).trim() : '';
+        const moving = String(pid).trim();
+        const isParticipant = (att && moving === att) || (def && moving === def);
+        if (!isParticipant) {
+          await conn.rollback();
+          return { ok: false, status: 409, error: `(${sx},${sy}) 交战进行中，非本场双方不可闯入` };
+        }
       }
 
       // 2) 同格玩家

@@ -703,16 +703,7 @@ export default function WorldYingchuanMapSection({
         setMarchToast({ type: 'error', message: pathRes.error });
         return;
       }
-      // 道路开战（来战）开启时：禁止预览穿过 road_encounters 锁格；休战下允许途经（仅仍不可与敌对叠格落子，见下方 occ 校验）
-      if (Number(ctxPlayer?.road_intercept) === 1) {
-        const locked = Array.isArray(roadPresence?.lockedCells) ? roadPresence.lockedCells : [];
-        for (const step of pathRes.path) {
-          if (locked.some((L) => Number(L.positionX) === step.x && Number(L.positionY) === step.y)) {
-            setMarchToast({ type: 'error', message: '路径经过交战锁格，无法通行' });
-            return;
-          }
-        }
-      }
+      // 不在此用 road-presence 的 lockedCells 否决整段路径：§四 敌对同格为「踏入才遭遇+截断」；§五 锁格语义是禁止第三者闯入已登记交战格（由服务端逐格校验），非「来战则禁止预览途经」。
       const preview = estimateMarchFoodCost({
         path: pathRes.path,
         onRoadAtStart: pathRes.onRoadAtStart,
