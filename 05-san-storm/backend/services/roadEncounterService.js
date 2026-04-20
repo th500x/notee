@@ -39,6 +39,8 @@ const ROAD_DEFENDER_ALERT_SEC = 10;
  * 须明显长于单场本地战可能时长；短于「玩家长期挂机不关页」误伤窗口。
  */
 const STALE_FIGHTING_NO_SETTLEMENT_MINUTES = 5;
+/** MySQL/MariaDB 预编译对 `INTERVAL ? MINUTE` 常不生效，Stale 清理须用字面分钟数（仅来自上常数，禁止拼接用户输入） */
+const STALE_FIGHT_SQL_MIN = Math.max(1, Math.min(10080, Math.floor(Number(STALE_FIGHTING_NO_SETTLEMENT_MINUTES) || 5)));
 
 function newEncounterId(junId) {
   const bare = String(junId || '').replace(/^san_1_jun_/, '') || 'jun';
@@ -82,8 +84,8 @@ async function resolveStaleRoadEncountersAtCell(conn, season, junId, px, py) {
         AND e.status = 'fighting'
         AND e.battle_id IS NULL
         AND e.started_at IS NOT NULL
-        AND e.started_at < DATE_SUB(NOW(), INTERVAL ? MINUTE)`,
-    [s, j, x, y, STALE_FIGHTING_NO_SETTLEMENT_MINUTES],
+        AND e.started_at < DATE_SUB(NOW(), INTERVAL ${STALE_FIGHT_SQL_MIN} MINUTE)`,
+    [s, j, x, y],
   );
   await conn.query(
     `UPDATE road_encounters e
@@ -883,9 +885,9 @@ async function getPendingDefenderEncounter(defenderPlayerId) {
         WHERE e.status = 'fighting'
           AND e.battle_id IS NULL
           AND e.started_at IS NOT NULL
-          AND e.started_at < DATE_SUB(NOW(), INTERVAL ? MINUTE)
+          AND e.started_at < DATE_SUB(NOW(), INTERVAL ${STALE_FIGHT_SQL_MIN} MINUTE)
           AND (e.attacker_player_id = ? OR e.defender_player_id = ?)`,
-      [STALE_FIGHTING_NO_SETTLEMENT_MINUTES, pid, pid],
+      [pid, pid],
     );
     const [rows] = await pool.query(
       `SELECT e.encounter_id AS encounterId,
