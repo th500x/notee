@@ -484,6 +484,56 @@ router.post('/:playerId/road/resolve-encounter', async (req, res) => {
 });
 
 /**
+ * GET /api/players/:playerId/road/pending-encounter
+ * 守方立点与交战格一致且 fighting 时返回遇袭摘要，否则 encounter=null（与 `/pvp/pending` 对称）。
+ */
+router.get('/:playerId/road/pending-encounter', async (req, res) => {
+  try {
+    const { playerId } = req.params;
+    const out = await roadEncounterService.getPendingDefenderEncounter(playerId);
+    if (!out.ok) return res.status(out.status).json({ success: false, error: out.error });
+    res.json({ success: true, data: out.data });
+  } catch (error) {
+    console.error('[Players] 道路遇袭轮询失败:', error);
+    res.status(500).json({ success: false, error: '道路遇袭轮询失败', message: error.message });
+  }
+});
+
+/**
+ * GET /api/players/:playerId/road/encounter-battle?encounterId=&spectator=1
+ * 道路遭遇：默认进攻方开战数据；`spectator=1` 时为守方观战（skipSiegeResult + npcGarrison=攻方上阵）。
+ */
+router.get('/:playerId/road/encounter-battle', async (req, res) => {
+  try {
+    const { playerId } = req.params;
+    const encounterId = req.query.encounterId != null ? String(req.query.encounterId).trim() : '';
+    const spectator = String(req.query.spectator || '').trim() === '1';
+    const out = await roadEncounterService.getEncounterBattlePayload(playerId, encounterId, { spectator });
+    if (!out.ok) return res.status(out.status).json({ success: false, error: out.error });
+    res.json({ success: true, data: out.data });
+  } catch (error) {
+    console.error('[Players] 道路遭遇开战数据失败:', error);
+    res.status(500).json({ success: false, error: '道路遭遇开战数据失败', message: error.message });
+  }
+});
+
+/**
+ * POST /api/players/:playerId/road/encounter-battle-result
+ * body: { encounterId, factionId, killedIndices, result, silverSpent?, battleScore?, battleReportSaved?, battleId? }
+ */
+router.post('/:playerId/road/encounter-battle-result', async (req, res) => {
+  try {
+    const { playerId } = req.params;
+    const out = await roadEncounterService.recordEncounterBattleSettlement(playerId, req.body || {});
+    if (!out.ok) return res.status(out.status).json({ success: false, error: out.error });
+    res.json({ success: true, data: out.data });
+  } catch (error) {
+    console.error('[Players] 道路遭遇结算失败:', error);
+    res.status(500).json({ success: false, error: '道路遭遇结算失败', message: error.message });
+  }
+});
+
+/**
  * POST /api/players/:playerId/main-city-barracks/transfer-in
  * body: { instanceIds: string[] } — 军营池 → 主城驻军所仓库
  */

@@ -126,6 +126,8 @@ export default function WorldYingchuanMapSection({
   playerFactionId = null,
   siegeLoading = false,
   onStartSiegeForCity = null,
+  /** 道路遭遇触发后由 `WorldMap` 拉取开战数据并打开 BattleArena */
+  onRoadEncounterBattle = null,
   garrisonStatsRefreshKey = 0,
   playerOnDuty = false,
   playerOnDutyCityId = null,
@@ -609,10 +611,14 @@ export default function WorldYingchuanMapSection({
         setRoadMarchAnimation(null);
         const enc = afterRefreshToast?.encounter;
         if (enc?.encounterId) {
-          setMarchToast({
-            type: 'info',
-            message: `已触发道路遭遇：${enc.encounterId}。请完成战斗后走战后解锁（resolve-encounter）。`,
-          });
+          if (onRoadEncounterBattle) {
+            void onRoadEncounterBattle(enc);
+          } else {
+            setMarchToast({
+              type: 'info',
+              message: `已触发道路遭遇：${enc.encounterId}。请完成战斗后走战后解锁（resolve-encounter）。`,
+            });
+          }
         } else {
           setMarchToast({ type: 'success', message: '移动已完成' });
         }
@@ -627,7 +633,7 @@ export default function WorldYingchuanMapSection({
       });
     }, MARCH_ANIM_MS_PER_STEP);
     return () => window.clearTimeout(t);
-  }, [roadMarchAnimation, refresh]);
+  }, [roadMarchAnimation, refresh, onRoadEncounterBattle]);
 
   const handleStrategicMarchCellPick = useCallback(
     (gx, gy) => {
@@ -797,10 +803,14 @@ export default function WorldYingchuanMapSection({
         await refresh({ silent: true });
         void roadPresenceFetchRef.current?.();
         if (encounter?.encounterId) {
-          setMarchToast({
-            type: 'info',
-            message: `已触发道路遭遇：${encounter.encounterId}。请完成战斗后走战后解锁（resolve-encounter）。`,
-          });
+          if (onRoadEncounterBattle) {
+            void onRoadEncounterBattle(encounter);
+          } else {
+            setMarchToast({
+              type: 'info',
+              message: `已触发道路遭遇：${encounter.encounterId}。请完成战斗后走战后解锁（resolve-encounter）。`,
+            });
+          }
         } else {
           setMarchToast({ type: 'success', message: '移动已完成' });
         }
@@ -818,10 +828,14 @@ export default function WorldYingchuanMapSection({
         await refresh({ silent: true });
         void roadPresenceFetchRef.current?.();
         if (encounter?.encounterId) {
-          setMarchToast({
-            type: 'info',
-            message: `已触发道路遭遇：${encounter.encounterId}。请完成战斗后走战后解锁（resolve-encounter）。`,
-          });
+          if (onRoadEncounterBattle) {
+            void onRoadEncounterBattle(encounter);
+          } else {
+            setMarchToast({
+              type: 'info',
+              message: `已触发道路遭遇：${encounter.encounterId}。请完成战斗后走战后解锁（resolve-encounter）。`,
+            });
+          }
         } else {
           setMarchToast({ type: 'success', message: '移动已完成' });
         }
@@ -838,7 +852,7 @@ export default function WorldYingchuanMapSection({
       setMarchSubmitError(err?.message || '网络错误');
       setMarchSubmitLoading(false);
     }
-  }, [marchConfirm, playerId, countySeason, countyJunId, refresh]);
+  }, [marchConfirm, playerId, countySeason, countyJunId, refresh, onRoadEncounterBattle]);
 
   const onStrategicRoadSelfUpdated = useCallback(() => refresh({ silent: true }), [refresh]);
 

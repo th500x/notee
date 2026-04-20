@@ -134,7 +134,8 @@ router.post('/siege-result', async (req, res) => {
   try {
     const { warId, playerId, factionId, killedIndices, result, silverSpent,
             battleScore, battleReportSaved,
-            defenderType, defenderPlayerId, defenderGarrisonSlot, garrisonUnits, npcBatchIndex } = req.body;
+            defenderType, defenderPlayerId, defenderGarrisonSlot, garrisonUnits, npcBatchIndex,
+            defenderLineupTroopUpdates } = req.body;
     if (!warId || !playerId || !factionId) {
       return res.status(400).json({ success: false, error: '缺少必要参数' });
     }
@@ -144,6 +145,7 @@ router.post('/siege-result', async (req, res) => {
       {
         defenderType, defenderPlayerId, defenderGarrisonSlot, garrisonUnits, npcBatchIndex,
         battleScore, battleReportSaved,
+        defenderLineupTroopUpdates,
       }
     );
     res.json({ success: true, data });

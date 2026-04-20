@@ -163,6 +163,46 @@ export const playerAPI = {
     return response.json();
   },
 
+  /** 道路守方：遇袭轮询（fighting 且立点在交战格时返回 encounter，否则 null） */
+  async getRoadPendingEncounter(playerId) {
+    const response = await fetchWithTimeout(
+      `${API_CONFIG.BASE_URL}/players/${playerId}/road/pending-encounter`,
+      { method: 'GET', headers: { 'Content-Type': 'application/json' } },
+    );
+    return response.json();
+  },
+
+  /**
+   * 道路遭遇：拉取 BattleArena 数据（与攻城 siegeData 对齐）。
+   * @param {{ spectator?: boolean }} [opts] `spectator:true` 为守方观战（query `spectator=1`）。
+   */
+  async getRoadEncounterBattle(playerId, encounterId, opts = {}) {
+    const q = new URLSearchParams();
+    if (encounterId != null && String(encounterId).trim() !== '') {
+      q.set('encounterId', String(encounterId).trim());
+    }
+    if (opts?.spectator) q.set('spectator', '1');
+    const qs = q.toString();
+    const response = await fetchWithTimeout(
+      `${API_CONFIG.BASE_URL}/players/${playerId}/road/encounter-battle${qs ? `?${qs}` : ''}`,
+      { method: 'GET', headers: { 'Content-Type': 'application/json' } },
+    );
+    return response.json();
+  },
+
+  /** 道路遭遇：战后结算（防守兵力/银两声望/解锁遭遇） */
+  async submitRoadEncounterBattleResult(playerId, body) {
+    const response = await fetchWithTimeout(
+      `${API_CONFIG.BASE_URL}/players/${playerId}/road/encounter-battle-result`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body || {}),
+      },
+    );
+    return response.json();
+  },
+
   /** 三公府 · 官职：下一品阶可晋升列表 */
   async getSanGongFuPromotions(playerId) {
     const response = await fetchWithTimeout(

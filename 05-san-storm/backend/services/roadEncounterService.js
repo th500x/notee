@@ -20,11 +20,20 @@ const marchPoi = require('../../shared/utils/strategicMarchPoi.js');
 const { isHostileByFaction } = require('../utils/roadDiplomacy');
 const { isPlayerRecentlyActive, DEFAULT_ONLINE_MS } = require('../utils/playerActivity');
 const statisticsDeltaService = require('./statisticsDeltaService');
+const garrisonService = require('./garrisonService');
+const { applyTroopDurabilityExhaustion } = require('./troopDurabilityService');
+const { checkAndApplyVeteran } = require('./veteranService');
+const smallMapBattleLootService = require('./smallMapBattleLootService');
+const { KILL_SILVER_REWARD } = require('../../shared/utils/siegeKillEconomyByRarity.cjs');
+
+const { WIN_REPUTATION_REWARD } = smallMapBattleLootService;
 
 const INTERCEPT_COST_SILVER = 40;                 // 31-6 §三（暂定）
 const FREE_MOVES_PER_DAY = 50;                    // 31-6 §9.1
 const FOOD_PER_STEP = 10;                         // 31-6 §9.1
 const RESERVE_FOOD_DAILY_LIMIT = 500;             // 31-6 §十
+/** 守方遇袭弹窗倒计时长（秒），与攻城披挂 `WAIT_IN_GAME` 产品口径对齐 */
+const ROAD_DEFENDER_ALERT_SEC = 10;
 
 function newEncounterId(junId) {
   const bare = String(junId || '').replace(/^san_1_jun_/, '') || 'jun';
@@ -405,6 +414,42 @@ async function moveAlongRoad(playerId, body) {
     // ── 逐格落脚：占格锁 + 友敌判定 + 粮草扣减 ──
     // 路径第一格若已在其上（onRoad 且等于起点），不重复付出代价；后续每一格都算一步。
     const steps = onRoad ? resolvedPath.slice(1) : resolvedPath.slice(); // 首跳（未上路）仍计一格
+
+    // 遭遇进行中：攻防任一方均不可离开交战格，直至 `road_encounters` 结算为 resolved（守方遇袭 / 禁移）
+    if (steps.length && onRoad && startX != null && startY != null && String(player.road_jun_id || '').trim() === String(junId).trim()) {
+      const [trapRows] = await conn.query(
+        `SELECT encounter_id, position_x, position_y
+           FROM road_encounters
+          WHERE status = 'fighting' AND season = ? AND jun_id = ?
+            AND position_x = ? AND position_y = ?
+            AND (attacker_player_id = ? OR defender_player_id = ?)
+          LIMIT 1`,
+        [season, junId, startX, startY, pid, pid],
+      );
+      if (trapRows.length) {
+        const tr = trapRows[0];
+        const ex = toInt(tr.position_x);
+        const ey = toInt(tr.position_y);
+        let leavesCell = false;
+        for (const step of steps) {
+          const sx = toInt(step.x);
+          const sy = toInt(step.y);
+          if (sx !== ex || sy !== ey) {
+            leavesCell = true;
+            break;
+          }
+        }
+        if (leavesCell) {
+          await conn.rollback();
+          return {
+            ok: false,
+            status: 409,
+            error: '道路遭遇进行中，本场结束前不可离开交战格（若已收到遇袭提示，可点「确定」进场观战）',
+          };
+        }
+      }
+    }
+
     if (!steps.length) {
       // 等价于原地路径；为避免扣费又告知起点一致，直接视为 noop 幂等成功。
       await conn.query(`UPDATE players SET road_last_request_id = ? WHERE player_id = ?`, [clientRequestId, pid]);
@@ -758,6 +803,447 @@ async function getRoadPresence(season, junId, callerPlayerId) {
   }
 }
 
+// ── 道路遭遇：守方遇袭轮询（与攻城 `/pvp/pending` 对称）────────────────────────
+
+/**
+ * 若当前用户为某条 fighting 遭遇的防守方且立点与交战格一致，返回遇袭摘要（否则 encounter=null）。
+ *
+ * @param {string} defenderPlayerId
+ */
+async function getPendingDefenderEncounter(defenderPlayerId) {
+  const pid = String(defenderPlayerId || '').trim();
+  if (!pid) return { ok: false, status: 400, error: '缺少 playerId' };
+  try {
+    const [rows] = await pool.query(
+      `SELECT e.encounter_id AS encounterId,
+              e.attacker_player_id AS attackerPlayerId,
+              e.started_at AS startedAt,
+              pa.character_name AS attackerName
+         FROM road_encounters e
+         INNER JOIN players pd ON pd.player_id = e.defender_player_id
+         LEFT JOIN players pa ON pa.player_id = e.attacker_player_id
+        WHERE e.defender_player_id = ?
+          AND e.status = 'fighting'
+          AND pd.road_jun_id = e.jun_id
+          AND pd.road_position_x = e.position_x
+          AND pd.road_position_y = e.position_y
+        ORDER BY e.started_at DESC
+        LIMIT 1`,
+      [pid],
+    );
+    if (!rows.length) {
+      return { ok: true, data: { encounter: null } };
+    }
+    const r = rows[0];
+    const startedMs = r.startedAt ? new Date(r.startedAt).getTime() : Date.now();
+    const elapsedSec = Math.max(0, (Date.now() - startedMs) / 1000);
+    const remainingSeconds = Math.max(0, Math.ceil(ROAD_DEFENDER_ALERT_SEC - elapsedSec));
+    return {
+      ok: true,
+      data: {
+        encounter: {
+          encounterId: r.encounterId,
+          attackerPlayerId: r.attackerPlayerId,
+          attackerName: r.attackerName || '敌方',
+          waitSeconds: ROAD_DEFENDER_ALERT_SEC,
+          remainingSeconds,
+        },
+      },
+    };
+  } catch (e) {
+    if (/road_encounters/i.test(e.message || '') && /doesn't exist/i.test(e.message || '')) {
+      return { ok: false, status: 503, error: '数据库缺少 road_encounters 表；请执行 create-road-encounters.sql' };
+    }
+    console.error('[roadEncounterService] getPendingDefenderEncounter', e);
+    return { ok: false, status: 500, error: e.message || '查询道路遇袭失败' };
+  }
+}
+
+// ── 道路遭遇：开战数据（客户端进 BattleArena）──────────────────────────────────
+
+/**
+ * 校验遭遇并返回 BattleArena 用 payload。
+ * - 默认：进攻方，npcGarrison = 守方上阵编组。
+ * - opts.spectator：防守方观战，npcGarrison = 攻方上阵编组，`skipSiegeResult`+`pvpSiegeRole:'defender'`。
+ *
+ * @param {string} playerId
+ * @param {string} encounterId
+ * @param {{ spectator?: boolean }} [opts]
+ */
+async function getEncounterBattlePayload(playerId, encounterId, opts = {}) {
+  const pid = String(playerId || '').trim();
+  const eid = String(encounterId || '').trim();
+  const spectator = !!opts?.spectator;
+  if (!pid || !eid) return { ok: false, status: 400, error: '缺少 playerId / encounterId' };
+
+  try {
+    const [encRows] = await pool.query(
+      `SELECT encounter_id, status, attacker_player_id, defender_player_id,
+              season, jun_id, position_x, position_y
+         FROM road_encounters WHERE encounter_id = ?`,
+      [eid],
+    );
+    const enc = encRows[0];
+    if (!enc) return { ok: false, status: 404, error: '遭遇实例不存在' };
+    if (enc.status !== 'fighting') {
+      return { ok: false, status: 409, error: enc.status === 'resolved' ? '该遭遇已结束' : '遭遇状态不可开战' };
+    }
+
+    if (spectator) {
+      if (String(enc.defender_player_id || '').trim() !== pid) {
+        return { ok: false, status: 403, error: '仅防守方可观战本场' };
+      }
+      const [pRows] = await pool.query(
+        `SELECT road_jun_id, road_position_x, road_position_y, faction_id
+           FROM players WHERE player_id = ?`,
+        [pid],
+      );
+      const pl = pRows[0];
+      if (!pl) return { ok: false, status: 404, error: '玩家不存在' };
+      const jOk = String(pl.road_jun_id || '').trim() === String(enc.jun_id || '').trim();
+      const xOk = toInt(pl.road_position_x) === toInt(enc.position_x);
+      const yOk = toInt(pl.road_position_y) === toInt(enc.position_y);
+      if (!jOk || !xOk || !yOk) {
+        return { ok: false, status: 409, error: '您不在该交战格，无法观战' };
+      }
+
+      const attackerId = String(enc.attacker_player_id || '').trim();
+      if (!attackerId) return { ok: false, status: 500, error: '遭遇缺少进攻方' };
+
+      const [atkNameRows] = await pool.query(
+        'SELECT character_name FROM players WHERE player_id = ?',
+        [attackerId],
+      );
+      const attackerName = atkNameRows[0]?.character_name || '对方';
+
+      const rawAtk = await garrisonService.buildDefenseUnitsFromMainLineup(attackerId);
+      if (!rawAtk.length) {
+        return { ok: false, status: 409, error: '对方上阵编组暂无可战单位，无法观战' };
+      }
+      const npcGarrison = garrisonService.mapBuiltUnitsToSiegeNpcFormat(rawAtk);
+
+      return {
+        ok: true,
+        data: {
+          roadEncounterId: eid,
+          encounterId: eid,
+          cityName: '道路遭遇',
+          isPvp: true,
+          skipSiegeResult: true,
+          pvpSiegeRole: 'defender',
+          defenderType: 'pvp_online',
+          attackerName,
+          attackerPlayerId: attackerId,
+          npcGarrison,
+          playerFaction: pl.faction_id,
+          defenderGarrisonSlot: 0,
+        },
+      };
+    }
+
+    if (String(enc.attacker_player_id || '').trim() !== pid) {
+      return { ok: false, status: 403, error: '仅进攻方可进入本场战斗' };
+    }
+
+    const defenderId = String(enc.defender_player_id || '').trim();
+    if (!defenderId) return { ok: false, status: 500, error: '遭遇缺少防守方' };
+
+    const [atkRows] = await pool.query('SELECT faction_id FROM players WHERE player_id = ?', [pid]);
+    if (!atkRows.length) return { ok: false, status: 404, error: '玩家不存在' };
+    const playerFaction = atkRows[0].faction_id;
+
+    const [defNameRows] = await pool.query(
+      'SELECT character_name FROM players WHERE player_id = ?',
+      [defenderId],
+    );
+    const defenderName = defNameRows[0]?.character_name || '敌方';
+
+    const rawUnits = await garrisonService.buildDefenseUnitsFromMainLineup(defenderId);
+    if (!rawUnits.length) {
+      return { ok: false, status: 409, error: '对方上阵编组无可战部队，无法开战' };
+    }
+    const npcGarrison = garrisonService.mapBuiltUnitsToSiegeNpcFormat(rawUnits);
+
+    return {
+      ok: true,
+      data: {
+        roadEncounterId: eid,
+        encounterId: eid,
+        cityName: '道路遭遇',
+        isPvp: true,
+        defenderType: 'pvp_online',
+        defenderPlayerId: defenderId,
+        defenderName,
+        defenderGarrisonSlot: 0,
+        npcGarrison,
+        playerFaction,
+        pvpSiegeRole: 'attacker',
+      },
+    };
+  } catch (e) {
+    if (/road_encounters/i.test(e.message || '') && /doesn't exist/i.test(e.message || '')) {
+      return { ok: false, status: 503, error: '数据库缺少 road_encounters 表；请执行 create-road-encounters.sql' };
+    }
+    console.error('[roadEncounterService] getEncounterBattlePayload', e);
+    return { ok: false, status: 500, error: e.message || '读取道路战斗数据失败' };
+  }
+}
+
+/**
+ * 道路遭遇战后结算（不写 wars、不走 /cities/siege-result）：
+ * 按服务端当场重建的防守阵容与 killedIndices 写回防守方兵力、耐久与老兵；
+ * 进攻方银两/声望；解锁 road_encounters + 守门战败关 intercept。
+ *
+ * @param {string} attackerPlayerId
+ * @param {{ encounterId: string, factionId: string, killedIndices?: number[], result: 'win'|'lose',
+ *            silverSpent?: number, battleScore?: number, battleReportSaved?: boolean, battleId?: string,
+ *            defenderLineupTroopUpdates?: Array<{ instanceId: string, currentTroops: number, maxTroops?: number }> }} body
+ */
+async function recordEncounterBattleSettlement(attackerPlayerId, body) {
+  const pid = String(attackerPlayerId || '').trim();
+  const encounterId = String(body?.encounterId || '').trim();
+  const factionId = String(body?.factionId || '').trim();
+  const killedIndices = Array.isArray(body?.killedIndices) ? body.killedIndices : [];
+  const result = String(body?.result || '').trim() === 'win' ? 'win' : 'lose';
+  const silverSpent = Math.max(0, Math.floor(Number(body?.silverSpent) || 0));
+  const battleScore = Number(body?.battleScore) || 0;
+  const battleReportSaved = body?.battleReportSaved !== false;
+  const battleId = body?.battleId ? String(body.battleId).trim().slice(0, 80) : null;
+
+  if (!pid || !encounterId || !factionId) {
+    return { ok: false, status: 400, error: '缺少 encounterId 或 factionId' };
+  }
+
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    const [encRows] = await conn.query(
+      `SELECT encounter_id, status, attacker_player_id, defender_player_id, gatekeeper_player_id
+         FROM road_encounters WHERE encounter_id = ? FOR UPDATE`,
+      [encounterId],
+    );
+    const row = encRows[0];
+    if (!row) {
+      await conn.rollback();
+      return { ok: false, status: 404, error: '遭遇实例不存在' };
+    }
+    if (String(row.attacker_player_id || '').trim() !== pid) {
+      await conn.rollback();
+      return { ok: false, status: 403, error: '仅进攻方可提交道路战结算' };
+    }
+
+    const defenderPlayerId = String(row.defender_player_id || '').trim();
+    if (!defenderPlayerId) {
+      await conn.rollback();
+      return { ok: false, status: 500, error: '遭遇缺少防守方' };
+    }
+
+    if (row.status === 'resolved' || row.status === 'cancelled') {
+      await conn.commit();
+      return {
+        ok: true,
+        data: {
+          idempotent: true,
+          encounterId,
+          npcKilled: 0,
+          killCount: 0,
+          npcTotal: 0,
+          silverReward: 0,
+          reputationReward: 0,
+          siegeCompleted: false,
+        },
+      };
+    }
+
+    if (row.status !== 'fighting') {
+      await conn.rollback();
+      return { ok: false, status: 409, error: '遭遇状态异常' };
+    }
+
+    const [facRows] = await conn.query('SELECT faction_id FROM players WHERE player_id = ?', [pid]);
+    const atkFaction = facRows[0]?.faction_id != null ? String(facRows[0].faction_id).trim() : '';
+    if (!atkFaction || atkFaction !== String(factionId).trim()) {
+      await conn.rollback();
+      return { ok: false, status: 403, error: 'factionId 与当前玩家势力不符' };
+    }
+
+    const rawUnits = await garrisonService.buildDefenseUnitsFromMainLineup(defenderPlayerId);
+    const garrisonUnits = garrisonService.mapBuiltUnitsToSiegeNpcFormat(rawUnits);
+    if (!garrisonUnits.length) {
+      await conn.rollback();
+      return { ok: false, status: 409, error: '防守方编组已无可战部队' };
+    }
+
+    const allTroopInstanceIds = garrisonUnits
+      .filter((u) => u && u._troopInstanceId)
+      .map((u) => u._troopInstanceId);
+
+    const instToNpc = new Map();
+    for (const u of garrisonUnits) {
+      if (u && u._troopInstanceId) instToNpc.set(String(u._troopInstanceId).trim(), u);
+    }
+
+    const lineupUpdates = Array.isArray(body?.defenderLineupTroopUpdates) ? body.defenderLineupTroopUpdates : [];
+    const useLineupUpdates = lineupUpdates.length > 0;
+
+    let killCount = 0;
+    let silverReward = 0;
+
+    if (useLineupUpdates) {
+      for (const u of lineupUpdates) {
+        const iid = u?.instanceId != null ? String(u.instanceId).trim() : '';
+        if (!iid || !instToNpc.has(iid)) continue;
+        const npc = instToNpc.get(iid);
+        const maxFromNpc = Number(npc.maxTroops) || 9999;
+        const maxT = u.maxTroops != null ? Math.min(Number(u.maxTroops) || 9999, maxFromNpc) : maxFromNpc;
+        const cur = Math.max(0, Math.min(maxT, Math.round(Number(u.currentTroops) || 0)));
+        await conn.query(
+          `UPDATE player_cards SET current_troops = ?, last_troops_lost_at = ? WHERE instance_id = ? AND player_id = ?`,
+          [cur, cur < maxT ? new Date() : null, iid, defenderPlayerId],
+        );
+      }
+      for (const idx of killedIndices) {
+        const i = Number(idx);
+        if (!Number.isFinite(i) || i < 0 || i >= garrisonUnits.length) continue;
+        const unit = garrisonUnits[i];
+        if (!unit) continue;
+        killCount += 1;
+        silverReward += KILL_SILVER_REWARD[unit.rarity] || 10;
+      }
+    } else {
+      for (const idx of killedIndices) {
+        const i = Number(idx);
+        if (!Number.isFinite(i) || i < 0 || i >= garrisonUnits.length) continue;
+        const unit = garrisonUnits[i];
+        if (!unit || !unit._troopInstanceId) continue;
+        await conn.query(
+          'UPDATE player_cards SET current_troops = 0, last_troops_lost_at = NOW() WHERE instance_id = ? AND player_id = ?',
+          [unit._troopInstanceId, defenderPlayerId],
+        );
+        killCount += 1;
+        silverReward += KILL_SILVER_REWARD[unit.rarity] || 10;
+      }
+    }
+
+    if (allTroopInstanceIds.length > 0) {
+      const ph = allTroopInstanceIds.map(() => '?').join(',');
+      await conn.query(
+        `UPDATE player_cards SET battle_count = LEAST(
+           GREATEST(COALESCE(battle_count, 0), 0) + 1,
+           COALESCE(max_battle_count, 60)
+         ),
+         lifetime_battle_count = COALESCE(lifetime_battle_count, 0) + 1
+         WHERE instance_id IN (${ph}) AND player_id = ?`,
+        [...allTroopInstanceIds, defenderPlayerId],
+      );
+    }
+
+    await applyTroopDurabilityExhaustion((sql, params) => conn.query(sql, params), defenderPlayerId);
+
+    const netSilver = silverReward - silverSpent;
+    if (netSilver !== 0) {
+      await conn.query('UPDATE players SET silver = GREATEST(0, silver + ?) WHERE player_id = ?', [
+        netSilver,
+        pid,
+      ]);
+    }
+
+    let reputationReward = 0;
+    if (result === 'win' && killCount > 0) {
+      const killedRarities = killedIndices
+        .map((j) => garrisonUnits[Number(j)]?.rarity)
+        .filter(Boolean);
+      const rarityOrder = ['common', 'rare', 'epic', 'legendary', 'core'];
+      const bestRarity =
+        killedRarities.sort((a, b) => rarityOrder.indexOf(b) - rarityOrder.indexOf(a))[0] || 'common';
+      reputationReward = WIN_REPUTATION_REWARD[bestRarity] || 5;
+      await conn.query('UPDATE players SET reputation = reputation + ? WHERE player_id = ?', [
+        reputationReward,
+        pid,
+      ]);
+    }
+
+    const shouldFallbackAddBattleScore = Number(battleScore) > 0 && battleReportSaved === false;
+    if (shouldFallbackAddBattleScore) {
+      await conn.query(
+        'UPDATE statistics SET total_battle_score = total_battle_score + ? WHERE player_id = ?',
+        [Number(battleScore), pid],
+      );
+    }
+
+    await conn.query(
+      `UPDATE road_encounters
+          SET status = 'resolved',
+              battle_id = COALESCE(?, battle_id),
+              ended_at = NOW()
+        WHERE encounter_id = ?`,
+      [battleId, encounterId],
+    );
+
+    const defenderWon = result !== 'win';
+    const gatekeeper = row.gatekeeper_player_id;
+    if (gatekeeper) {
+      const gatekeeperWon =
+        (gatekeeper === row.defender_player_id && defenderWon) ||
+        (gatekeeper === row.attacker_player_id && !defenderWon);
+      if (!gatekeeperWon) {
+        await conn.query(
+          `UPDATE players SET road_intercept = 0, road_updated_at = NOW() WHERE player_id = ?`,
+          [gatekeeper],
+        );
+      }
+    }
+
+    await conn.commit();
+
+    if (silverSpent > 0) {
+      try {
+        await statisticsDeltaService.incrementSpent(pid, { silver: silverSpent });
+      } catch (_) {}
+    }
+    try {
+      await statisticsDeltaService.recordEarned(pid, {
+        ...(silverReward > 0 ? { silver: silverReward } : {}),
+        ...(reputationReward > 0 ? { reputation: reputationReward } : {}),
+      });
+    } catch (_) {}
+
+    let defenderVeteranPromotions = [];
+    try {
+      defenderVeteranPromotions = await checkAndApplyVeteran(
+        (sql, params) => pool.query(sql, params),
+        defenderPlayerId,
+      );
+    } catch (vetErr) {
+      console.error('[roadEncounterService] defender veteran', vetErr);
+    }
+
+    return {
+      ok: true,
+      data: {
+        idempotent: false,
+        encounterId,
+        npcKilled: killCount,
+        killCount,
+        npcTotal: garrisonUnits.length,
+        silverReward,
+        reputationReward,
+        siegeCompleted: false,
+        defenderType: 'road_encounter',
+        defenderVeteranPromotions,
+      },
+    };
+  } catch (e) {
+    try {
+      await conn.rollback();
+    } catch (_) {}
+    console.error('[roadEncounterService] recordEncounterBattleSettlement', e);
+    return { ok: false, status: 500, error: e.message || '道路战结算失败' };
+  } finally {
+    conn.release();
+  }
+}
+
 // ── 战后解锁 ──────────────────────────────────────────────────────────────────
 
 /**
@@ -842,5 +1328,8 @@ module.exports = {
   getSelfRoadState,
   moveAlongRoad,
   getRoadPresence,
+  getPendingDefenderEncounter,
+  getEncounterBattlePayload,
+  recordEncounterBattleSettlement,
   resolveEncounter,
 };

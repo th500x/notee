@@ -142,7 +142,24 @@ export function useBattleSettlement({
         if (t.instanceId) moraleUpdates.push({ target: 'card', instanceId: t.instanceId, morale: t.morale ?? 70 });
       }
 
+      /** 须在 try/catch 外声明：endMeta 在 catch 之后读取，避免块级作用域 ReferenceError */
+      let veteranPromotions = [];
+      let persistedBattleId = '';
+
+      /** 攻城客户端战：与攻方 troopCasualties 对称，写回玩家守军各部队终局兵力（含半血存活） */
+      const defenderLineupTroopUpdates =
+        (battleType === 'pve_siege' || battleType === 'pvp_siege') && defenseReportMeta?.defenderPlayerId
+          ? enemyTroops
+              .filter((t) => t.instanceId)
+              .map((t) => ({
+                instanceId: t.instanceId,
+                currentTroops: Math.max(0, Math.round(Number(t.currentTroops) || 0)),
+                maxTroops: t.maxTroops,
+              }))
+          : null;
+
       const battleId = `battle_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      persistedBattleId = battleId;
       let attackerBattleSaved = false;
       const manualChests =
         typeof manualBattleRef.current?.getCollectedChestRewards === 'function'
@@ -153,9 +170,6 @@ export function useBattleSettlement({
           ? engineRef.current.getAutoChestRewards()
           : [];
       const chestRewardsSnapshot = [...manualChests, ...autoChests];
-
-      /** 须在 try/catch 外声明：endMeta 在 catch 之后读取，避免块级作用域 ReferenceError */
-      let veteranPromotions = [];
 
       try {
         const opponentType = resolveOpponentType(battleType);
@@ -258,7 +272,15 @@ export function useBattleSettlement({
         console.error('[useBattleSettlement] 保存战报失败:', err);
       }
 
-      const endMeta = { battleReportSaved: attackerBattleSaved, chestRewards: chestRewardsSnapshot, veteranPromotions };
+      const endMeta = {
+        battleReportSaved: attackerBattleSaved,
+        chestRewards: chestRewardsSnapshot,
+        veteranPromotions,
+        battleId: persistedBattleId || undefined,
+        ...(defenderLineupTroopUpdates?.length
+          ? { defenderLineupTroopUpdates }
+          : {}),
+      };
       if (pendingAwayNoticeRef.current) {
         pendingAwayNoticeRef.current = false;
         endMeta.awayTimeout = true;
