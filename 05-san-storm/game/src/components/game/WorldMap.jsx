@@ -453,7 +453,13 @@ export default function WorldMap({
 
   const startSiegeForCity = useCallback(async (cityId, cityRow) => {
     if (!cityId || !player?.player_id) return;
-    if (isTutorial || phase !== PHASE.IDLE || siegeData) return;
+    const phaseOk = phase === PHASE.IDLE || phase === PHASE.RETURNING;
+    if (isTutorial || !phaseOk || siegeData) {
+      if (!phaseOk && !isTutorial && !siegeData) {
+        setSimpleAlertMessage('当前处于事件/探索流程中，请返回空闲后再发起攻城');
+      }
+      return;
+    }
     if (worldMapCityIsPlayerSameFaction(cityRow, player?.faction_id)) return;
 
     const qRes = await fetchSiegeQuotaJson(player.player_id, cityId);
@@ -507,10 +513,16 @@ export default function WorldMap({
         } else {
           setSiegeData(res.data); setSiegeResult(null);
         }
-      } else if (res.error) {
-        setSimpleAlertMessage(res.error);
+      } else {
+        setSimpleAlertMessage(
+          typeof res.error === 'string' && res.error.trim()
+            ? res.error
+            : '攻城请求失败，请稍后重试',
+        );
       }
-    } catch {}
+    } catch (e) {
+      setSimpleAlertMessage(e?.message || '网络异常，攻城请求失败');
+    }
     setSiegeLoading(false);
   }, [isTutorial, phase, siegeData, player, cards, attributeBonusBySlot]);
 

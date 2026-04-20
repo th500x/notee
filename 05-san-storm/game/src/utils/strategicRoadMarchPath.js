@@ -174,16 +174,25 @@ export function buildMarchPath({
   targetGy,
   mainCityDbRow = null,
   citiesInCountyRows = null,
+  hostileOccupiedRoadKeys = null,
 }) {
   if (!cells?.length || !roadCells?.length) {
     return { ok: false, error: '当前地图缺少道路数据' };
   }
   const roadPassable = buildRoadPassableKeySet(roadCells, cells, mapColumns, mapRows);
+  let passR = roadPassable;
+  if (hostileOccupiedRoadKeys?.size) {
+    passR = new Set(roadPassable);
+    for (const k of hostileOccupiedRoadKeys) passR.delete(k);
+  }
   const tx = Math.trunc(Number(targetGx));
   const ty = Math.trunc(Number(targetGy));
   const targetKey = `${tx},${ty}`;
   if (!roadPassable.has(targetKey)) {
     return { ok: false, error: '请选择道路格作为目标' };
+  }
+  if (!passR.has(targetKey)) {
+    return { ok: false, error: '目标格上有敌对玩家，无法落子' };
   }
 
   const roadJun = player?.road_jun_id || null;
@@ -191,14 +200,14 @@ export function buildMarchPath({
   const ry = Number(player?.road_position_y);
   const startKeyIf =
     roadJun === countyJunId && Number.isFinite(rx) && Number.isFinite(ry) ? `${Math.trunc(rx)},${Math.trunc(ry)}` : null;
-  const onRoad = !!startKeyIf && roadPassable.has(startKeyIf);
+  const onRoad = !!startKeyIf && roadPassable.has(startKeyIf) && passR.has(startKeyIf);
 
   if (onRoad) {
     const startKey = startKeyIf;
     if (startKey === targetKey) {
       return { ok: true, path: [{ x: Math.trunc(rx), y: Math.trunc(ry) }], onRoadAtStart: true };
     }
-    const path = bfsShortestPath(roadPassable, startKey, targetKey, mapColumns, mapRows);
+    const path = bfsShortestPath(passR, startKey, targetKey, mapColumns, mapRows);
     if (!path) return { ok: false, error: '无法沿道路到达该格' };
     return { ok: true, path, onRoadAtStart: true };
   }
@@ -215,9 +224,9 @@ export function buildMarchPath({
   if (!footprint.size) {
     return { ok: false, error: '未设置主城或不在可识别的城/寨占格上，无法沿路出发' };
   }
-  const starts = roadKeysAdjacentToFootprint(footprint, roadPassable);
+  const starts = roadKeysAdjacentToFootprint(footprint, passR);
   if (!starts.size) return { ok: false, error: '出发地旁没有可通行的道路格' };
-  const path = multiSourceBfsShortest(roadPassable, starts, targetKey, mapColumns, mapRows);
+  const path = multiSourceBfsShortest(passR, starts, targetKey, mapColumns, mapRows);
   if (!path) return { ok: false, error: '无法沿道路到达该格' };
   return { ok: true, path, onRoadAtStart: false };
 }
@@ -234,6 +243,7 @@ export function buildMarchPathToPoi(p) {
     targetCityDbRow: p.targetCityDbRow ?? null,
     mainCityDbRow: p.mainCityDbRow ?? null,
     citiesInCountyRows: p.citiesInCountyRows ?? null,
+    hostileOccupiedRoadKeys: p.hostileOccupiedRoadKeys ?? null,
   });
 }
 

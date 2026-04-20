@@ -28,9 +28,10 @@ import {
   canPlayerMarchToPoiCity,
   collectStrategicPoiFootprint,
   buildStrategicPoiFootprintFromDbCityRow,
+  buildHostileOccupiedRoadKeysFromPlayersRows,
 } from '@shared/utils/strategicMarchPoi.js';
 import StrategicMarchMoveConfirm from './StrategicMarchMoveConfirm';
-import { buildStrategicRoadStackStripForFocal } from '@/utils/strategicRoadStackStrip';
+import { buildStrategicRoadStackStripForFocal, roadCellStackKey } from '@/utils/strategicRoadStackStrip';
 
 /** 与管理员「生成地图」写出路径一致：Vite publicDir → 05-san-storm/public */
 const MERGED_MAP_REL = 'data/worldmap/san_1_jun_yingchuan_merged.json';
@@ -158,6 +159,9 @@ export default function WorldYingchuanMapSection({
    * 轮询粒度与现网拉城列表同量级；窗口未聚焦时不轮询以省服。
    */
   const [roadPresence, setRoadPresence] = useState(null);
+  /** 供行军成功后立即拉取郡内他人路点（与轮询互补） */
+  const roadPresenceFetchRef = useRef(() => Promise.resolve());
+  const { player: ctxPlayer, cards: ctxCards, attributeBonusBySlot, refresh } = usePlayerContext();
   /** 行军模式：与 31-6 §9.3 一致 */
   const [strategicMarchMode, setStrategicMarchMode] = useState(false);
   /** @type {null | { path: Array<{x:number,y:number}>, onRoadAtStart: boolean, preview: object, encounterHint: string|null }} */
@@ -254,15 +258,22 @@ export default function WorldYingchuanMapSection({
         /* 读接口失败静默重试（下一轮 tick） */
       }
     };
+    roadPresenceFetchRef.current = fetchPresence;
     fetchPresence();
-    // 30 秒一轮：与玩家在线阈值 5 分钟、服务端单请求按郡过滤口径相匹配
+    // 5s：他人路点依赖本接口；原 30s 易导致「A 已走、B 仍见旧格 / 寻路仍绕旧阻」
     const id = setInterval(() => {
       if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
       fetchPresence();
-    }, 30_000);
+    }, 5000);
+    const onVis = () => {
+      if (document.visibilityState === 'visible') fetchPresence();
+    };
+    document.addEventListener('visibilitychange', onVis);
     return () => {
       cancelled = true;
       clearInterval(id);
+      document.removeEventListener('visibilitychange', onVis);
+      roadPresenceFetchRef.current = () => Promise.resolve();
     };
   }, [playerId, merged?.junId, merged?.season]);
 
@@ -307,7 +318,6 @@ export default function WorldYingchuanMapSection({
     [cityById, playerMainCityId],
   );
 
-  const { player: ctxPlayer, cards: ctxCards, attributeBonusBySlot, refresh } = usePlayerContext();
   const strategicNav = useStrategicMapNavigation();
 
   const [tilePx, setTilePx] = useState(() => computeDefaultTilePx());
@@ -493,11 +503,24 @@ export default function WorldYingchuanMapSection({
     const selfCharName = String(ctxPlayer?.character_name || '').trim() || '…';
     const selfFactionName = String(ctxPlayer?.faction_name || '').trim();
     const selfDisplayName = selfFactionName ? `[${selfFactionName}]${selfCharName}` : selfCharName;
+    const selfStackKey = roadCellStackKey(selfJun, selfRx, selfRy);
     return roadPresence.others
       .map((other) => {
         const rx = Number(other.roadPositionX);
         const ry = Number(other.roadPositionY);
         if (!Number.isFinite(rx) || !Number.isFinite(ry)) return null;
+        const otherJun = String(other.roadJunId ?? other.road_jun_id ?? countyJunId).trim();
+        const otherStackKey = roadCellStackKey(otherJun, rx, ry);
+        // 与本人同坐标叠站：只保留「本人」大头像 + strip 小头像；勿再画他人整颗 pawn，否则后绘盖住本人且点击落到无行军菜单的层上
+        if (
+          playerId &&
+          selfStackKey &&
+          otherStackKey &&
+          selfStackKey === otherStackKey &&
+          String(other.playerId) !== String(playerId)
+        ) {
+          return null;
+        }
         const pos = resolveStrategicRecordedStandpointPx({
           cells,
           roadCells: merged?.roadCells,
@@ -564,6 +587,12 @@ export default function WorldYingchuanMapSection({
     [roadPresence],
   );
 
+  /** 沿路 BFS 绕行：敌对玩家所占道路格不可途经（与 `moveAlongRoad` POI 重算一致） */
+  const marchHostileOccupiedKeys = useMemo(
+    () => buildHostileOccupiedRoadKeysFromPlayersRows(ctxPlayer?.faction_id, roadPresence?.others),
+    [ctxPlayer?.faction_id, roadPresence?.others],
+  );
+
   const exitStrategicMarchMode = useCallback(() => {
     setStrategicMarchMode(false);
     setMarchConfirm(null);
@@ -583,6 +612,7 @@ export default function WorldYingchuanMapSection({
         try {
           await refresh({ silent: true });
         } catch (_) {}
+        void roadPresenceFetchRef.current?.();
         setRoadMarchAnimation(null);
         const enc = afterRefreshToast?.encounter;
         if (enc?.encounterId) {
@@ -652,6 +682,7 @@ export default function WorldYingchuanMapSection({
           targetCityDbRow: row ?? null,
           mainCityDbRow: marchMainRow ?? null,
           citiesInCountyRows: countyCityRows,
+          hostileOccupiedRoadKeys: marchHostileOccupiedKeys,
         });
       } else {
         pathRes = buildMarchPath({
@@ -665,17 +696,21 @@ export default function WorldYingchuanMapSection({
           targetGy: gy,
           mainCityDbRow: marchMainRow ?? null,
           citiesInCountyRows: countyCityRows,
+          hostileOccupiedRoadKeys: marchHostileOccupiedKeys,
         });
       }
       if (!pathRes.ok) {
         setMarchToast({ type: 'error', message: pathRes.error });
         return;
       }
-      const locked = Array.isArray(roadPresence?.lockedCells) ? roadPresence.lockedCells : [];
-      for (const step of pathRes.path) {
-        if (locked.some((L) => Number(L.positionX) === step.x && Number(L.positionY) === step.y)) {
-          setMarchToast({ type: 'error', message: '路径经过交战锁格，无法通行' });
-          return;
+      // 道路开战（来战）开启时：禁止预览穿过 road_encounters 锁格；休战下允许途经（仅仍不可与敌对叠格落子，见下方 occ 校验）
+      if (Number(ctxPlayer?.road_intercept) === 1) {
+        const locked = Array.isArray(roadPresence?.lockedCells) ? roadPresence.lockedCells : [];
+        for (const step of pathRes.path) {
+          if (locked.some((L) => Number(L.positionX) === step.x && Number(L.positionY) === step.y)) {
+            setMarchToast({ type: 'error', message: '路径经过交战锁格，无法通行' });
+            return;
+          }
         }
       }
       const preview = estimateMarchFoodCost({
@@ -735,6 +770,7 @@ export default function WorldYingchuanMapSection({
       cityById,
       countyCityRows,
       playerMainCityId,
+      marchHostileOccupiedKeys,
     ],
   );
 
@@ -778,6 +814,7 @@ export default function WorldYingchuanMapSection({
 
       if (res.data?.idempotent) {
         await refresh({ silent: true });
+        void roadPresenceFetchRef.current?.();
         if (encounter?.encounterId) {
           setMarchToast({
             type: 'info',
@@ -798,6 +835,7 @@ export default function WorldYingchuanMapSection({
 
       if (animPath.length <= 1) {
         await refresh({ silent: true });
+        void roadPresenceFetchRef.current?.();
         if (encounter?.encounterId) {
           setMarchToast({
             type: 'info',

@@ -1,7 +1,7 @@
 /**
  * 战略大地图：玩家自身占位。圆形内为角色名末字；键鼠悬停圆形时显示全名与兵力 tooltip。
- * 触摸 / 粗指针：`pointerType==='touch'`（不依赖 `(pointer: coarse)`，避免竖屏误判）；短按同时显示与悬停同内容的 tooltip +「行军」「关闭」「来战」；长按约 720ms 松手后直接进入行军模式（与点「行军」等价）。
- * 键鼠：单击打开操作条（与悬停可同时看到 tooltip）；双击圆形直接进入行军模式。
+ * 触摸 / 粗指针：`pointerType==='touch'`（不依赖 `(pointer: coarse)`，避免竖屏误判）；短按同时显示与悬停同内容的 tooltip +「行军」「关闭」「来战」；长按约 1s 松手后直接进入行军模式（与点「行军」等价）。
+ * 键鼠：单击打开操作条（与悬停可同时看到 tooltip）；双击圆形直接进入行军模式（**有触屏能力**的设备上禁用双击进军，避免手机/平板误触）。
  */
 
 import { useState, useCallback, useSyncExternalStore, useRef, useEffect } from 'react';
@@ -10,7 +10,7 @@ import { playerAPI } from '@/services/playerApi';
 const BASE = typeof import.meta !== 'undefined' && import.meta.env?.BASE_URL ? import.meta.env.BASE_URL : '/';
 
 /** 触摸：达到此按住时长后，松手时视为「一键进军」 */
-const TOUCH_LONG_MARCH_MS = 720;
+const TOUCH_LONG_MARCH_MS = 980;
 /** 触摸：短按判定最大按住时间 */
 const TOUCH_TAP_MAX_MS = 320;
 /** 触摸：移动超过此像素则取消长按识别（避免与地图平移抢手势） */
@@ -314,6 +314,8 @@ export default function StrategicMapSelfPawn({
     (e) => {
       if (!selfMarchUi) return;
       if (coarsePointer) return;
+      // 二合一设备常报告 fine pointer，双击易与触屏连点混淆 → 仅纯键鼠环境允许双击进军
+      if (typeof navigator !== 'undefined' && Number(navigator.maxTouchPoints) > 0) return;
       e.stopPropagation();
       e.preventDefault();
       setShowActionPopover(false);

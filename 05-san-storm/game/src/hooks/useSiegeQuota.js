@@ -43,12 +43,22 @@ export function useSiegeQuota(playerId, cityId) {
   useEffect(() => {
     if (!playerId || !cityId) return;
     let cancelled = false;
-    fetchQuota(playerId, cityId).then(res => {
-      if (!cancelled && res.success) {
-        setQuota({ remaining: res.data.remaining, lastRefillTs: res.data.lastRefillTs });
+    fetchQuota(playerId, cityId)
+      .then((res) => {
+        if (cancelled) return;
+        if (res.success) {
+          setQuota({ remaining: res.data.remaining, lastRefillTs: res.data.lastRefillTs });
+        } else {
+          setQuota({ remaining: 0, lastRefillTs: 0 });
+        }
         setLoaded(true);
-      }
-    }).catch(() => {});
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setQuota({ remaining: 0, lastRefillTs: 0 });
+          setLoaded(true);
+        }
+      });
     return () => { cancelled = true; };
   }, [playerId, cityId]);
 

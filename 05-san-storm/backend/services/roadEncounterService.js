@@ -309,6 +309,21 @@ async function moveAlongRoad(playerId, body) {
         await conn.rollback();
         return { ok: false, status: 403, error: acc.error };
       }
+      const [occRowsForHostile] = await conn.query(
+        `SELECT road_position_x AS roadPositionX,
+                road_position_y AS roadPositionY,
+                faction_id AS factionId
+           FROM players
+          WHERE road_jun_id = ?
+            AND road_position_x IS NOT NULL
+            AND road_position_y IS NOT NULL
+            AND player_id <> ?`,
+        [junId, pid],
+      );
+      const hostileOccupiedRoadKeys = marchPoi.buildHostileOccupiedRoadKeysFromPlayersRows(
+        player.faction_id,
+        occRowsForHostile,
+      );
       const built = marchPoi.buildMarchPathToStrategicPoi({
         cells: grid.rawCells,
         roadCells: grid.roadCellsRaw || [],
@@ -322,6 +337,7 @@ async function moveAlongRoad(playerId, body) {
         targetCityDbRow: cityRow,
         mainCityDbRow,
         citiesInCountyRows: countyCityRows,
+        hostileOccupiedRoadKeys,
       });
       if (!built.ok) {
         await conn.rollback();
@@ -495,7 +511,8 @@ async function moveAlongRoad(playerId, body) {
           FOR UPDATE`,
         [season, junId, sx, sy],
       );
-      if (lockRows.length) {
+      // 未开启道路开战（来战）时：允许途经交战锁格（31-6 休战漫游）；仍由同格敌对 / 遭遇逻辑约束落子
+      if (lockRows.length && Number(player.road_intercept) === 1) {
         await conn.rollback();
         return { ok: false, status: 409, error: `(${sx},${sy}) 正在交战中，暂不可落入` };
       }
