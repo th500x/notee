@@ -3,6 +3,7 @@
  */
 
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { usePlayerContext } from '@/contexts/PlayerContext';
 import useEventSystem from '@/hooks/useEventSystem';
 import ExplorePanel from '@/components/event/ExplorePanel';
@@ -1170,123 +1171,132 @@ export default function WorldMap({
         </div>
       ) : null}
 
-      {/* 攻城战斗（复用 BattleArena） */}
-      {siegeData && !siegeResult && (
-        <BattleArena
-          playerUnits={buildPlayerUnitsFromContext(player, cards, attributeBonusBySlot)}
-          cards={cards}
-          enemyUnits={siegeData.npcGarrison}
-          silverAmount={player?.silver ?? 0}
-          playerFood={player?.food ?? 0}
-          playerId={player?.player_id}
-          battleType={siegeData.isPvp ? 'pvp_siege' : 'pve_siege'}
-          siegeDefenderType={siegeData.defenderType || 'npc'}
-          opponentName={
-            siegeData.pvpSiegeRole === 'defender'
-              ? (siegeData.attackerName || '攻城方')
-              : siegeData.isPvp
-                ? (siegeData.defenderName || `${siegeData.cityName || ''}守军`)
-                : `${siegeData.cityName}守军`
-          }
-          onBattleEnd={handleSiegeEnd}
-          recordOnly={!!siegeData.skipSiegeResult}
-          defenseReportMeta={
-            siegeData.pvpSiegeRole === 'defender'
-              ? null
-              : siegeData.defenderType === 'player_garrison' && siegeData.defenderPlayerId
-                ? {
-                    warId: siegeData.warId,
-                    defenderPlayerId: siegeData.defenderPlayerId,
-                    defenderGarrisonSlot: siegeData.defenderGarrisonSlot,
-                    attackerPlayerId: player?.player_id,
-                    attackerName: player?.character_name || player?.name || '攻城方',
-                    cityName: siegeData.cityName,
-                    defenderName: siegeData.defenderName,
-                  }
-                : siegeData.defenderType === 'pvp_online' && siegeData.defenderPlayerId
-                  ? {
-                      warId: siegeData.warId,
-                      defenderPlayerId: siegeData.defenderPlayerId,
-                      defenderGarrisonSlot: siegeData.defenderGarrisonSlot ?? 0,
-                      attackerPlayerId: player?.player_id,
-                      attackerName: player?.character_name || player?.name || '攻城方',
-                      cityName: siegeData.cityName,
-                      defenderName: siegeData.defenderName,
-                    }
-                  : null
-          }
-        />
-      )}
-
-      {/* 攻城结算 */}
-      {siegeResult && (
-        <div className="fixed inset-0 z-[200] bg-black/80 backdrop-blur-sm flex items-center justify-center">
-          <div className="bg-gray-900/95 rounded-xl p-6 border border-amber-500/30 max-w-sm w-full mx-4 text-center space-y-3">
-            <div className="text-4xl">{(siegeResult.killCount || siegeResult.silverReward || siegeResult.contributionReward) ? '⚔️' : '💀'}</div>
-            <div className="text-xl font-bold text-amber-400">战斗结算</div>
-            {siegeResult.silverReward > 0 && <div className="text-amber-300 text-sm">💰 获得 {siegeResult.silverReward} 银两</div>}
-            {siegeResult.reputationReward > 0 && <div className="text-yellow-300 text-sm">⭐ 获得 {siegeResult.reputationReward} 声望</div>}
-            {siegeResult.contributionReward > 0 && (
-              <div className="text-sky-300 text-sm">贡献 +{siegeResult.contributionReward}</div>
-            )}
-            {siegeResult.equipmentDrop && (
-              <div
-                className="text-sm font-medium"
-                style={{ color: getRarityHex(siegeResult.equipmentDrop.rarity) }}
-              >
-                🎁 攻城战后随机掉落（约 5%）：{siegeResult.equipmentDrop.name}（{getRarityLabelCn(siegeResult.equipmentDrop.rarity)}）
-              </div>
-            )}
-            {Array.isArray(siegeResult.chestRewards) && siegeResult.chestRewards.length > 0 && (
-              <div className="text-left text-sm space-y-1 border-t border-amber-500/25 pt-2 mt-1">
-                <div className="text-[11px] text-stone-500">📦 地图内宝箱</div>
-                {siegeResult.chestRewards.map((r, i) => (
-                  <div
-                    key={`${r.equipmentId || 'eq'}-${i}`}
-                    className="font-medium text-sm"
-                    style={{ color: getRarityHex(r.rarity) }}
-                  >
-                    {shortEquipmentDisplayName(r.name)}（{getRarityLabelCn(r.rarity)}）
+      {/* 攻城/道路战斗与结算：挂 body，避免 GamePage main overflow-hidden 裁切 fixed 全屏层 */}
+      {typeof document !== 'undefined' &&
+        ((siegeData && !siegeResult) || siegeResult) &&
+        createPortal(
+          <div className="pointer-events-auto fixed inset-0 z-[225] flex min-h-0 flex-col">
+            {siegeData && !siegeResult ? (
+              <BattleArena
+                key={siegeData.roadEncounterId || siegeData.warId || siegeData.cityName || 'siege'}
+                playerUnits={buildPlayerUnitsFromContext(player, cards, attributeBonusBySlot)}
+                cards={cards}
+                enemyUnits={siegeData.npcGarrison}
+                silverAmount={player?.silver ?? 0}
+                playerFood={player?.food ?? 0}
+                playerId={player?.player_id}
+                battleType={siegeData.isPvp ? 'pvp_siege' : 'pve_siege'}
+                siegeDefenderType={siegeData.defenderType || 'npc'}
+                opponentName={
+                  siegeData.pvpSiegeRole === 'defender'
+                    ? (siegeData.attackerName || '攻城方')
+                    : siegeData.isPvp
+                      ? (siegeData.defenderName || `${siegeData.cityName || ''}守军`)
+                      : `${siegeData.cityName}守军`
+                }
+                onBattleEnd={handleSiegeEnd}
+                recordOnly={!!siegeData.skipSiegeResult}
+                defenseReportMeta={
+                  siegeData.pvpSiegeRole === 'defender'
+                    ? null
+                    : siegeData.defenderType === 'player_garrison' && siegeData.defenderPlayerId
+                      ? {
+                          warId: siegeData.warId,
+                          defenderPlayerId: siegeData.defenderPlayerId,
+                          defenderGarrisonSlot: siegeData.defenderGarrisonSlot,
+                          attackerPlayerId: player?.player_id,
+                          attackerName: player?.character_name || player?.name || '攻城方',
+                          cityName: siegeData.cityName,
+                          defenderName: siegeData.defenderName,
+                        }
+                      : siegeData.defenderType === 'pvp_online' && siegeData.defenderPlayerId
+                        ? {
+                            warId: siegeData.warId,
+                            defenderPlayerId: siegeData.defenderPlayerId,
+                            defenderGarrisonSlot: siegeData.defenderGarrisonSlot ?? 0,
+                            attackerPlayerId: player?.player_id,
+                            attackerName: player?.character_name || player?.name || '攻城方',
+                            cityName: siegeData.cityName,
+                            defenderName: siegeData.defenderName,
+                          }
+                        : null
+                }
+              />
+            ) : null}
+            {siegeResult ? (
+              <div className="flex min-h-0 flex-1 items-center justify-center bg-black/80 backdrop-blur-sm">
+                <div className="mx-4 w-full max-w-sm rounded-xl border border-amber-500/30 bg-gray-900/95 p-6 text-center space-y-3">
+                  <div className="text-4xl">{(siegeResult.killCount || siegeResult.silverReward || siegeResult.contributionReward) ? '⚔️' : '💀'}</div>
+                  <div className="text-xl font-bold text-amber-400">战斗结算</div>
+                  {siegeResult.silverReward > 0 && <div className="text-amber-300 text-sm">💰 获得 {siegeResult.silverReward} 银两</div>}
+                  {siegeResult.reputationReward > 0 && <div className="text-yellow-300 text-sm">⭐ 获得 {siegeResult.reputationReward} 声望</div>}
+                  {siegeResult.contributionReward > 0 && (
+                    <div className="text-sky-300 text-sm">贡献 +{siegeResult.contributionReward}</div>
+                  )}
+                  {siegeResult.equipmentDrop && (
+                    <div
+                      className="text-sm font-medium"
+                      style={{ color: getRarityHex(siegeResult.equipmentDrop.rarity) }}
+                    >
+                      🎁 攻城战后随机掉落（约 5%）：{siegeResult.equipmentDrop.name}（{getRarityLabelCn(siegeResult.equipmentDrop.rarity)}）
+                    </div>
+                  )}
+                  {Array.isArray(siegeResult.chestRewards) && siegeResult.chestRewards.length > 0 && (
+                    <div className="mt-1 space-y-1 border-t border-amber-500/25 pt-2 text-left text-sm">
+                      <div className="text-[11px] text-stone-500">📦 地图内宝箱</div>
+                      {siegeResult.chestRewards.map((r, i) => (
+                        <div
+                          key={`${r.equipmentId || 'eq'}-${i}`}
+                          className="text-sm font-medium"
+                          style={{ color: getRarityHex(r.rarity) }}
+                        >
+                          {shortEquipmentDisplayName(r.name)}（{getRarityLabelCn(r.rarity)}）
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {siegeResult.killCount != null && <div className="text-sm text-gray-300">本场击杀：{siegeResult.killCount}</div>}
+                  <div className="text-sm text-gray-400">
+                    NPC守军：本场消灭 {siegeResult.killCount ?? 0} 支
+                    {siegeResult.npcTotal != null && siegeResult.npcTotal > 0 && (
+                      <>
+                        {' '}
+                        · 累计已消灭 {siegeResult.npcKilled}/{siegeResult.npcTotal}
+                      </>
+                    )}
                   </div>
-                ))}
+                  {Array.isArray(siegeResult.authoritativeBattleLog) && siegeResult.authoritativeBattleLog.length > 0 && (
+                    <>
+                      <AuthoritativeSiegeReplayButton
+                        battleLogLines={siegeResult.authoritativeBattleLog}
+                        initialAttackerTroops={siegeResult.initialAttackerTroops}
+                        initialDefenderTroops={siegeResult.initialDefenderTroops}
+                      />
+                      <details className="mt-2 max-h-32 overflow-y-auto text-left text-[11px] text-stone-400">
+                        <summary className="cursor-pointer text-amber-500/90">文字战报（服务端）</summary>
+                        <pre className="mt-1 whitespace-pre-wrap font-sans">{siegeResult.authoritativeBattleLog.join('\n')}</pre>
+                      </details>
+                    </>
+                  )}
+                  {siegeResult.killCount === 0 && <div className="text-xs text-stone-500">（目标已被其他玩家击杀，无新增奖励）</div>}
+                  {siegeResult.siegeCompleted && (
+                    <div className="rounded-lg border border-amber-500/30 bg-amber-900/50 p-3">
+                      <div className="font-bold text-amber-400">🏰 城池攻破！</div>
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    onClick={closeSiegeResult}
+                    className="w-full rounded-lg bg-gradient-to-r from-amber-700 to-yellow-700 py-2.5 text-sm font-bold text-amber-100"
+                  >
+                    确定
+                  </button>
+                </div>
               </div>
-            )}
-            {siegeResult.killCount != null && <div className="text-sm text-gray-300">本场击杀：{siegeResult.killCount}</div>}
-            <div className="text-sm text-gray-400">
-              NPC守军：本场消灭 {siegeResult.killCount ?? 0} 支
-              {siegeResult.npcTotal != null && siegeResult.npcTotal > 0 && (
-                <>
-                  {' '}
-                  · 累计已消灭 {siegeResult.npcKilled}/{siegeResult.npcTotal}
-                </>
-              )}
-            </div>
-            {Array.isArray(siegeResult.authoritativeBattleLog) && siegeResult.authoritativeBattleLog.length > 0 && (
-              <>
-                <AuthoritativeSiegeReplayButton
-                  battleLogLines={siegeResult.authoritativeBattleLog}
-                  initialAttackerTroops={siegeResult.initialAttackerTroops}
-                  initialDefenderTroops={siegeResult.initialDefenderTroops}
-                />
-                <details className="text-left text-[11px] text-stone-400 max-h-32 overflow-y-auto mt-2">
-                  <summary className="cursor-pointer text-amber-500/90">文字战报（服务端）</summary>
-                  <pre className="whitespace-pre-wrap font-sans mt-1">{siegeResult.authoritativeBattleLog.join('\n')}</pre>
-                </details>
-              </>
-            )}
-            {siegeResult.killCount === 0 && <div className="text-xs text-stone-500">（目标已被其他玩家击杀，无新增奖励）</div>}
-            {siegeResult.siegeCompleted && (
-              <div className="bg-amber-900/50 border border-amber-500/30 rounded-lg p-3">
-                <div className="text-amber-400 font-bold">🏰 城池攻破！</div>
-              </div>
-            )}
-            <button onClick={closeSiegeResult}
-              className="w-full py-2.5 rounded-lg bg-gradient-to-r from-amber-700 to-yellow-700 text-amber-100 font-bold text-sm">
-              确定
-            </button>
-          </div>
-        </div>
-      )}
+            ) : null}
+          </div>,
+          document.body,
+        )}
 
       {/* 官职装配动画（教程链事件获得官职后） */}
       {positionAnimation && (

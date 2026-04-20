@@ -38,7 +38,7 @@ const ROAD_DEFENDER_ALERT_SEC = 10;
  * `fighting` 且从未写入 `battle_id`、超过此时长仍无结算提交：视为客户端未进战/未打完等卡死，自动 `cancelled` 释放格锁。
  * 须明显长于单场本地战可能时长；短于「玩家长期挂机不关页」误伤窗口。
  */
-const STALE_FIGHTING_NO_SETTLEMENT_MINUTES = 45;
+const STALE_FIGHTING_NO_SETTLEMENT_MINUTES = 5;
 
 function newEncounterId(junId) {
   const bare = String(junId || '').replace(/^san_1_jun_/, '') || 'jun';
