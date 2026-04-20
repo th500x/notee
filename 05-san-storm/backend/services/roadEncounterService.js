@@ -34,6 +34,11 @@ const FOOD_PER_STEP = 10;                         // 31-6 §9.1
 const RESERVE_FOOD_DAILY_LIMIT = 500;             // 31-6 §十
 /** 守方遇袭弹窗倒计时长（秒），与攻城披挂 `WAIT_IN_GAME` 产品口径对齐 */
 const ROAD_DEFENDER_ALERT_SEC = 10;
+/**
+ * `fighting` 且从未写入 `battle_id`、超过此时长仍无结算提交：视为客户端未进战/未打完等卡死，自动 `cancelled` 释放格锁。
+ * 须明显长于单场本地战可能时长；短于「玩家长期挂机不关页」误伤窗口。
+ */
+const STALE_FIGHTING_NO_SETTLEMENT_MINUTES = 45;
 
 function newEncounterId(junId) {
   const bare = String(junId || '').replace(/^san_1_jun_/, '') || 'jun';
@@ -68,6 +73,18 @@ async function resolveStaleRoadEncountersAtCell(conn, season, junId, px, py) {
   const x = toInt(px);
   const y = toInt(py);
   if (!s || !j || x == null || y == null) return;
+  // 双方仍站在格上但长期无结算（未进战、前端异常、旧 bug）：`battle_id` 不会被写入，不能仅靠下行「幽灵」条件解锁。
+  await conn.query(
+    `UPDATE road_encounters e
+        SET e.status = 'cancelled', e.ended_at = NOW()
+      WHERE e.season = ? AND e.jun_id = ?
+        AND e.position_x = ? AND e.position_y = ?
+        AND e.status = 'fighting'
+        AND e.battle_id IS NULL
+        AND e.started_at IS NOT NULL
+        AND e.started_at < DATE_SUB(NOW(), INTERVAL ? MINUTE)`,
+    [s, j, x, y, STALE_FIGHTING_NO_SETTLEMENT_MINUTES],
+  );
   await conn.query(
     `UPDATE road_encounters e
         SET e.status = 'resolved', e.ended_at = NOW()
@@ -859,6 +876,17 @@ async function getPendingDefenderEncounter(defenderPlayerId) {
   const pid = String(defenderPlayerId || '').trim();
   if (!pid) return { ok: false, status: 400, error: '缺少 playerId' };
   try {
+    // 与 `resolveStaleRoadEncountersAtCell` 同阈值：守方轮询也能摘掉「永不结束」的 fighting，避免 UI 永久遇袭
+    await pool.query(
+      `UPDATE road_encounters e
+          SET e.status = 'cancelled', e.ended_at = NOW()
+        WHERE e.status = 'fighting'
+          AND e.battle_id IS NULL
+          AND e.started_at IS NOT NULL
+          AND e.started_at < DATE_SUB(NOW(), INTERVAL ? MINUTE)
+          AND (e.attacker_player_id = ? OR e.defender_player_id = ?)`,
+      [STALE_FIGHTING_NO_SETTLEMENT_MINUTES, pid, pid],
+    );
     const [rows] = await pool.query(
       `SELECT e.encounter_id AS encounterId,
               e.attacker_player_id AS attackerPlayerId,
@@ -924,12 +952,42 @@ async function getEncounterBattlePayload(playerId, encounterId, opts = {}) {
   try {
     const [encRows] = await pool.query(
       `SELECT encounter_id, status, attacker_player_id, defender_player_id,
-              season, jun_id, position_x, position_y
+              season, jun_id, position_x, position_y, battle_id, started_at
          FROM road_encounters WHERE encounter_id = ?`,
       [eid],
     );
     const enc = encRows[0];
     if (!enc) return { ok: false, status: 404, error: '遭遇实例不存在' };
+    const startedMs = enc.started_at ? new Date(enc.started_at).getTime() : NaN;
+    const staleMs = STALE_FIGHTING_NO_SETTLEMENT_MINUTES * 60 * 1000;
+    const staleNoSettlement =
+      enc.status === 'fighting' &&
+      (enc.battle_id == null || String(enc.battle_id).trim() === '') &&
+      Number.isFinite(startedMs) &&
+      Date.now() - startedMs > staleMs;
+    if (staleNoSettlement) {
+      const [u] = await pool.query(
+        `UPDATE road_encounters
+            SET status = 'cancelled', ended_at = NOW()
+          WHERE encounter_id = ? AND status = 'fighting'`,
+        [eid],
+      );
+      if (u.affectedRows) {
+        return {
+          ok: false,
+          status: 409,
+          error: '该道路遭遇因长时间未产生战报已自动作废，可再次沿路移动。',
+        };
+      }
+      const [again] = await pool.query(
+        `SELECT status FROM road_encounters WHERE encounter_id = ?`,
+        [eid],
+      );
+      const st = again[0]?.status;
+      if (st && st !== 'fighting') {
+        return { ok: false, status: 409, error: st === 'resolved' ? '该遭遇已结束' : '遭遇状态不可开战' };
+      }
+    }
     if (enc.status !== 'fighting') {
       return { ok: false, status: 409, error: enc.status === 'resolved' ? '该遭遇已结束' : '遭遇状态不可开战' };
     }
