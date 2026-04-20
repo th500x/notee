@@ -4,7 +4,7 @@
  * @description 统一管理服务器选择、注册、登录流程
  */
 
-import React, { useState, Suspense, lazy } from 'react';
+import React, { Suspense, lazy } from 'react';
 import { useServers } from '@/hooks/useServers';
 import { usePlayer } from '@/hooks/usePlayer';
 import { useAuthFlow } from '@/hooks/useAuthFlow';
@@ -13,11 +13,9 @@ import { AuthChoiceStep } from '@/pages/steps/AuthChoiceStep';
 import { RegisterStep } from '@/pages/steps/RegisterStep';
 import { LoginStep } from '@/pages/steps/LoginStep';
 import { ServerWarningStep } from '@/pages/steps/ServerWarningStep';
-import { playerAPI } from '@/services/playerApi';
 
 /** 懒加载：主界面与角色创建体量大，避免与认证步骤打进同一 chunk（减轻 AuthFlowPage 体积告警） */
 const CharacterCreationPage = lazy(() => import('@/pages/CharacterCreationPage'));
-const GameIntroOverlay = lazy(() => import('@/components/tutorial/GameIntroOverlay'));
 const GamePage = lazy(() => import('@/pages/GamePage'));
 
 function AuthFlowSuspenseFallback() {
@@ -52,27 +50,9 @@ function AuthFlowPage() {
 
   const { player, loading: playerLoading, hasCharacter, refresh: refreshPlayer } = usePlayer(currentUser?.id);
 
-  // 游戏介绍状态：新角色创建后强制显示
-  const [showIntro, setShowIntro] = useState(false);
-
-  // 角色创建完成 → 触发 intro
-  const handleCharacterCreated = (player) => {
-    console.log('角色创建成功:', player);
+  // 角色创建完成 → 拉取角色档；特色九宫格在大地图 GamePage 内按账号首次展示
+  const handleCharacterCreated = () => {
     refreshPlayer();
-    setShowIntro(true);
-  };
-
-  // intro 完成 → 更新后端 tutorial_step 为 2
-  const handleIntroComplete = async () => {
-    setShowIntro(false);
-    if (currentUser?.id) {
-      try {
-        await playerAPI.updateTutorialStep(currentUser.id, 2);
-        refreshPlayer(); // 刷新 player 数据以更新 tutorial_step
-      } catch (err) {
-        console.error('[AuthFlow] 更新新手引导进度失败:', err);
-      }
-    }
   };
 
   // 加载中
@@ -106,22 +86,6 @@ function AuthFlowPage() {
 
   // 已登录且有角色
   if (currentUser && hasCharacter && player) {
-    // 新角色刚创建 → 强制显示游戏介绍
-    if (showIntro) {
-      return (
-        <Suspense fallback={<AuthFlowSuspenseFallback />}>
-          <GameIntroOverlay onComplete={handleIntroComplete} />
-        </Suspense>
-      );
-    }
-    // tutorial_step === 1 表示还没看过游戏介绍
-    if (player.tutorial_step === 1) {
-      return (
-        <Suspense fallback={<AuthFlowSuspenseFallback />}>
-          <GameIntroOverlay onComplete={handleIntroComplete} />
-        </Suspense>
-      );
-    }
     return (
       <Suspense fallback={<AuthFlowSuspenseFallback />}>
         <GamePage user={currentUser} onLogout={handleLogout} />

@@ -5,9 +5,7 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { usePlayerContext } from '@/contexts/PlayerContext';
 import useEventSystem from '@/hooks/useEventSystem';
-import useTutorialEvents from '@/hooks/useTutorialEvents';
 import ExplorePanel from '@/components/event/ExplorePanel';
-import TutorialPreDialog from '@/components/event/TutorialPreDialog';
 import BattleArena from '@/components/battle/BattleArena';
 import { buildPlayerUnitsFromContext } from '@/utils/battlePlayerBuilder';
 import { fetchSiegeQuotaJson, postSiegeQuotaAction } from '@/hooks/useSiegeQuota';
@@ -205,24 +203,39 @@ function PvpDefenseOutcomeModal({ outcome, onClose }) {
   );
 }
 
-export default function WorldMap({ onEventBusyChange, sanGongFuCardPool }) {
+export default function WorldMap({
+  onEventBusyChange,
+  sanGongFuCardPool,
+  /** 特色介绍层展示中时勿触发教程链 IDLE 自动探索（避免叠层竞态） */
+  blockTutorialAutoplay = false,
+}) {
   const { player, cards, attributeBonusBySlot, refresh: refreshPlayer } = usePlayerContext();
-  const eventSystem = useEventSystem(player, cards);
-  const tutorialSystem = useTutorialEvents(player, cards);
-  const isTutorial = tutorialSystem.isActive;
+  /** 与 `WorldYingchuanMapSection` 同步：战略格网 + 郡内城行，供探索锚点在「路格≠库锚格」时用 footprint 反查 city_id */
+  const exploreAnchorGridRef = useRef(null);
+  const [exploreAnchorGridSeq, setExploreAnchorGridSeq] = useState(0);
+  const onExploreAnchorGridContext = useCallback((ctx) => {
+    exploreAnchorGridRef.current = ctx;
+    setExploreAnchorGridSeq((n) => n + 1);
+  }, []);
 
-  // 当前活跃的事件系统（tutorial 优先）
-  const activeSystem = isTutorial ? tutorialSystem : eventSystem;
-  const { phase } = activeSystem;
+  const eventSystem = useEventSystem(player, cards, {
+    tutorialAutoplay: !blockTutorialAutoplay,
+    persistMapEventHint: true,
+    exploreAnchorGridRef,
+    exploreAnchorGridSeq,
+  });
   const {
+    phase,
+    pendingMapEventHint,
     quota,
     eventsLoading,
     explorePoolAt,
     startExplore,
     citiesList,
     itemNameMap,
-    /** 内嵌探索条与战略格 tooltip 必须用事件系统阶段；勿用 `activeSystem.phase`（教程优先时会与 `startExplore` 不同步） */
-    phase: eventExplorePhase,
+    isTutorial,
+    positionAnimation,
+    showLineupGuide,
   } = eventSystem;
 
   // ── 城市攻城状态 ──
@@ -681,11 +694,11 @@ export default function WorldMap({ onEventBusyChange, sanGongFuCardPool }) {
       startExplore,
       playerItems,
       isTutorial,
-      phase: eventExplorePhase,
+      phase,
       citiesList,
       itemNameMap,
     }),
-    [quota, eventsLoading, explorePoolAt, startExplore, playerItems, isTutorial, eventExplorePhase, citiesList, itemNameMap],
+    [quota, eventsLoading, explorePoolAt, startExplore, playerItems, isTutorial, phase, citiesList, itemNameMap],
   );
 
   /** 探索「返回中」动画结束后再拉档，避免 RETURNING 阶段整图重绘把战略城池 tooltip 顶掉，玩家可留在荒郊/集市连点探索 */
@@ -701,9 +714,9 @@ export default function WorldMap({ onEventBusyChange, sanGongFuCardPool }) {
   // 通知父组件事件是否进行中（隐藏底部Tab）
   useEffect(() => {
     const busy = [PHASE.EVENT, PHASE.ROLLING, PHASE.RESULT, PHASE.BATTLE, PHASE.REWARD, PHASE.MINIGAME, PHASE.RETURNING].includes(phase)
-      || tutorialSystem.showPreDialog       || !!siegeData || !!pvpChallenge || !!pvpDefenseWaiting || !!pvpAttackerAdjudicating;
+      || !!siegeData || !!pvpChallenge || !!pvpDefenseWaiting || !!pvpAttackerAdjudicating;
     onEventBusyChange?.(busy);
-  }, [phase, tutorialSystem.showPreDialog, onEventBusyChange, siegeData, pvpChallenge, pvpDefenseWaiting, pvpAttackerAdjudicating]);
+  }, [phase, onEventBusyChange, siegeData, pvpChallenge, pvpDefenseWaiting, pvpAttackerAdjudicating]);
 
   const strategicFullScreenOverlayOpen =
     showSanGongFu || !!showGarrison || !!showBarracksPost;
@@ -713,6 +726,7 @@ export default function WorldMap({ onEventBusyChange, sanGongFuCardPool }) {
       <WorldYingchuanMapSection
         className="flex-1 min-h-0 h-full"
         strategicFullScreenOverlayOpen={strategicFullScreenOverlayOpen}
+        pendingMapEventHint={pendingMapEventHint}
         playerId={player?.player_id}
         playerFactionId={player?.faction_id}
         siegeLoading={siegeLoading}
@@ -731,6 +745,7 @@ export default function WorldMap({ onEventBusyChange, sanGongFuCardPool }) {
         onToggleDutyForCity={handleToggleDutyForCity}
         onDutyError={setSimpleAlertMessage}
         subsidiaryExploreEmbed={subsidiaryExploreEmbed}
+        onExploreAnchorGridContext={onExploreAnchorGridContext}
       />
 
       {/* ── PVP 攻城方等待界面 ── */}
@@ -985,16 +1000,8 @@ export default function WorldMap({ onEventBusyChange, sanGongFuCardPool }) {
         </div>
       )}
 
-      {/* 新手事件前置对话 */}
-      {tutorialSystem.showPreDialog && tutorialSystem.preDialog && (
-        <TutorialPreDialog
-          dialog={tutorialSystem.preDialog}
-          onClose={tutorialSystem.closePreDialog}
-        />
-      )}
-
-      {/* 官职装配动画（新手事件获得官职后） */}
-      {tutorialSystem.positionAnimation && (
+      {/* 官职装配动画（教程链事件获得官职后） */}
+      {positionAnimation && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60">
           <div className="text-center animate-bounce">
             <div className="text-6xl mb-4">👑</div>
@@ -1002,17 +1009,17 @@ export default function WorldMap({ onEventBusyChange, sanGongFuCardPool }) {
               官职授予
             </div>
             <div className="text-white text-lg">
-              {tutorialSystem.positionAnimation.positionName}
+              {positionAnimation.positionName}
             </div>
             <div className="text-amber-300/60 text-sm mt-2">
-              Lv.{tutorialSystem.positionAnimation.positionLevel}
+              Lv.{positionAnimation.positionLevel}
             </div>
           </div>
         </div>
       )}
 
-      {/* 编组引导（新手事件3结束后，引导玩家去编组） */}
-      {tutorialSystem.showLineupGuide && (
+      {/* 编组引导（指引叁前需至少 1 支部队） */}
+      {showLineupGuide && (
         <div className="fixed inset-0 z-[150] pointer-events-none">
           {/* 半透明遮罩 */}
           <div className="absolute inset-0 bg-black/40" />
@@ -1032,8 +1039,7 @@ export default function WorldMap({ onEventBusyChange, sanGongFuCardPool }) {
         </div>
       )}
 
-      {/* 事件面板（tutorial 或 explore） */}
-      <ExplorePanel eventSystem={activeSystem} />
+      <ExplorePanel eventSystem={eventSystem} />
     </div>
   );
 }

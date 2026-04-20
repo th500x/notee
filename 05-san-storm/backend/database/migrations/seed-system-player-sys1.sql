@@ -42,8 +42,8 @@ INSERT INTO players (
 )
 ON DUPLICATE KEY UPDATE player_id = player_id;
 
-INSERT INTO player_progress (player_id, tutorial_completed, tutorial_current_step)
-VALUES ('sys1', FALSE, 1)
+INSERT INTO player_progress (player_id)
+VALUES ('sys1')
 ON DUPLICATE KEY UPDATE player_id = player_id;
 
 INSERT INTO player_events (player_id)

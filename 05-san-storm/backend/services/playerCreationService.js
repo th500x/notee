@@ -47,7 +47,7 @@ async function getAvailableFactions(playerId) {
 
   const [factions] = await pool.query(
     `SELECT
-       f.faction_id, f.faction_name, f.faction_leader, f.icon, f.color,
+       f.faction_id, f.faction_name, f.faction_leader, f.initial_city_id, f.icon, f.color,
        f.style, f.max_players, f.faction_bonuses, f.description, f.difficulty,
        c.character_name AS leader_name
      FROM config_factions f
@@ -59,6 +59,11 @@ async function getAvailableFactions(playerId) {
 
   for (const f of factions) {
     f.faction_bonuses = parseFactionBonuses(f.faction_bonuses);
+    const ic = f.initial_city_id;
+    if (ic != null && String(ic).trim() !== '') {
+      f.initialCityId = String(ic).trim();
+    }
+    delete f.initial_city_id;
   }
 
   for (const faction of factions) {

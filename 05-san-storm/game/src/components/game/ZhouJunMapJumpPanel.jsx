@@ -79,9 +79,9 @@ function focusCityId(city) {
  * `variant="mapOverlay"`：叠在战略格网上（`WorldYingchuanMapSection` 内 absolute），与左下角排行/聊天同为「浮在地图上」的交互层。
  * 样式对齐左下角「排行 / 聊天」入口条（`mapCornerEntryUi`）。
  *
- * @param {{ variant?: 'toolbar' | 'mapOverlay' }} [props]
+ * @param {{ variant?: 'toolbar' | 'mapOverlay'; locateSelfCell?: () => { gx: number; gy: number } | null }} [props]
  */
-export default function ZhouJunMapJumpPanel({ variant = 'toolbar' }) {
+export default function ZhouJunMapJumpPanel({ variant = 'toolbar', locateSelfCell = null }) {
   const nav = useStrategicMapNavigation();
   const [zhouRows, setZhouRows] = useState([]);
   const [junRows, setJunRows] = useState([]);
@@ -180,6 +180,27 @@ export default function ZhouJunMapJumpPanel({ variant = 'toolbar' }) {
     [nav, season],
   );
 
+  const handleLocateSelf = useCallback(() => {
+    if (!nav?.scrollToStrategicCell) {
+      setJumpHint('地图未就绪');
+      return;
+    }
+    const cell = typeof locateSelfCell === 'function' ? locateSelfCell() : null;
+    if (!cell || !Number.isFinite(cell.gx) || !Number.isFinite(cell.gy)) {
+      setJumpHint('暂无位置（请确认已设主城或在当前郡道路上）');
+      return;
+    }
+    setJumpHint(null);
+    if (typeof document !== 'undefined' && document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+    queueMicrotask(() => {
+      requestAnimationFrame(() => {
+        nav.scrollToStrategicCell(cell.gx, cell.gy);
+      });
+    });
+  }, [nav, locateSelfCell]);
+
   const selectInBoxClass =
     'h-full min-h-0 w-full min-w-0 max-w-full flex-1 border-0 bg-transparent py-0 pl-2 pr-7 text-xs font-medium text-amber-300 outline-none appearance-none cursor-pointer truncate bg-[length:0.75rem] bg-[right_0.35rem_center] bg-no-repeat disabled:opacity-60';
 
@@ -241,6 +262,19 @@ export default function ZhouJunMapJumpPanel({ variant = 'toolbar' }) {
                 </button>
               ))}
             </div>
+          ) : null}
+
+          {typeof locateSelfCell === 'function' ? (
+            <button
+              type="button"
+              disabled={jumpBusy}
+              onClick={handleLocateSelf}
+              title="将地图视口滚到本人标记所在格"
+              style={mapCornerEntryRowBoxStyle}
+              className={`${MAP_CORNER_ENTRY_ROW_CLASS} justify-start text-left text-stone-100 disabled:opacity-60`}
+            >
+              <span className="block w-full min-w-0 truncate text-left">我在哪</span>
+            </button>
           ) : null}
 
           {jumpHint ? (

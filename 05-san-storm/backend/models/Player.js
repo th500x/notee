@@ -62,7 +62,14 @@ class Player {
         position_level,
         // 初始资源
         initial_silver = 0,
-        initial_food = 0
+        initial_food = 0,
+        /**
+         * 战略大地图当前坐标（31-6 §12.1 / §9.4）：与 `main_city_id`（归属主城）分列。
+         * 出生落在势力初始城：写入该城在格网上的占位锚格 `(gx,gy)` + `jun_id`，客户端按离路城块绘制。
+         */
+        road_jun_id = null,
+        road_position_x = null,
+        road_position_y = null,
       } = playerData;
 
       // 插入玩家数据
@@ -74,6 +81,7 @@ class Player {
           current_position_id, current_position_name, position_level,
           reputation, reputation_to_next,
           silver, food,
+          road_jun_id, road_position_x, road_position_y,
           created_at, last_login_at, last_active_at
         ) VALUES (
           ?, ?, ?, ?, ?,
@@ -82,6 +90,7 @@ class Player {
           ?, ?, ?,
           0, 10,
           ?, ?,
+          ?, ?, ?,
           NOW(), NOW(), NOW()
         )
       `, [
@@ -90,13 +99,16 @@ class Player {
         skill_1 || null, skill_2 || null,
         current_position_id, current_position_name, position_level,
         initial_silver,
-        initial_food
+        initial_food,
+        road_jun_id || null,
+        Number.isFinite(Number(road_position_x)) ? Number(road_position_x) : null,
+        Number.isFinite(Number(road_position_y)) ? Number(road_position_y) : null,
       ]);
 
-      // 创建玩家进度表
+      // 创建玩家进度表（教程进度见 explore_events / 教程链）
       await pool.query(`
-        INSERT INTO player_progress (player_id, tutorial_completed, tutorial_current_step)
-        VALUES (?, FALSE, 1)
+        INSERT INTO player_progress (player_id)
+        VALUES (?)
       `, [player_id]);
 
       // 创建玩家事件进度表

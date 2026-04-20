@@ -8,7 +8,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { gameIntroMessages } from '@/data/texts/tutorial';
+import { gameIntroMessages } from '@/data/texts/gameIntroMessages';
 import { ILLUS_BG_FILES as BG_IMAGES, ILLUS_BG_DIR as BG_DIR } from '@/data/illusBgFiles';
 const BG_CACHE_KEY = 'game_intro_bg';
 const BG_CACHE_DAYS = 7;
@@ -207,7 +207,7 @@ const GameIntroOverlay = ({ onComplete }) => {
 
   return (
     <div
-      className={`fixed inset-0 z-50 cursor-pointer transition-opacity duration-500 ${
+      className={`fixed inset-0 z-[220] cursor-pointer transition-opacity duration-500 ${
         isExiting ? 'opacity-0' : 'opacity-100'
       }`}
       onClick={handleClick}

@@ -6,15 +6,16 @@
  * 
  * 目录结构：
  * data/texts/
- * ├── tutorial.js       # 新手教程文本（游戏介绍、装备教学等）
+ * ├── gameIntroMessages.js   # 游戏特色介绍（开局叠加层）
+ * ├── tutorialDraftPlaceholders.js  # 文档/占位用叙述块
  * ├── weeklyReport.js   # 项目周报（首页卡片 + 周报页全文）
  * ├── events.js         # 事件系统对话文本
  * ├── tips.js           # 系统提示/公告文本
  * └── index.js          # 统一导出
  */
 
+export { gameIntroMessages } from './gameIntroMessages';
 export {
-  gameIntroMessages,
   event0_equipmentTutorial,
   event1_dialogue,
   event2_gobang,
@@ -24,7 +25,7 @@ export {
   changsheCampaign,
   tutorialComplete,
   battlePassIntro,
-} from './tutorial';
+} from './tutorialDraftPlaceholders';
 
 export {
   weeklyReportCard,

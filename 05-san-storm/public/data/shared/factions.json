@@ -214,7 +214,8 @@
         }
       ],
       "description": "中庸玩家的选择，主流风格",
-      "difficulty": "简单"
+      "difficulty": "简单",
+      "initialCityId": "san_1_city_3_yangcheng"
     },
     {
       "id": "san_1_faction_7001",
@@ -250,13 +251,14 @@
         }
       ],
       "description": "速攻玩家的选择，蝗虫风格",
-      "difficulty": "中级"
+      "difficulty": "中级",
+      "initialCityId": "san_1_city_3_yancheng"
     }
   ],
   "metadata": {
     "totalFactions": 7,
     "totalMaxPlayers": 660,
-    "generatedAt": "2026-04-09T07:31:04.779Z",
+    "generatedAt": "2026-04-19T11:58:06.108Z",
     "idFormat": "san_{season}_faction_{4digits}"
   }
 }

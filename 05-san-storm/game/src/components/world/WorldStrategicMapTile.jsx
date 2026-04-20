@@ -49,6 +49,10 @@ function WorldStrategicMapTile({
   subsidiaryHubGlow = false,
   /** 2×2 城块「右上角」那一格：尚有探索次数时在瓦片角标红叹号 */
   exploreRemainBadge = false,
+  /** 行军模式：在「非点击出 tooltip」的指针下仍要点格选路 */
+  strategicMarchMode = false,
+  /** @param {number} gx @param {number} gy */
+  onStrategicMarchCellPick = null,
   playerFactionId = null,
   /** 显式盟友 `faction_id`（结盟等接入后由战役/外交注入） */
   strategicCityLabelAllyFactionIds = null,
@@ -128,22 +132,24 @@ function WorldStrategicMapTile({
   }, [factionLogoUrl]);
 
   const isClickTooltip = tooltipPointerMode === 'click';
+  const marchPick = !!strategicMarchMode && typeof onStrategicMarchCellPick === 'function';
 
   return (
     <div
       className={`ws-map-tile${object2x2 ? ' ws-tile-object-2x2' : ''}${
-        isClickTooltip ? ' ws-map-tile--tooltip-click' : ''
+        isClickTooltip || marchPick ? ' ws-map-tile--tooltip-click' : ''
       }`}
       data-strategic-y={gridY}
       data-strategic-x={gridX}
-      onMouseEnter={isClickTooltip ? undefined : onHover}
-      onMouseLeave={isClickTooltip ? undefined : onLeave}
+      onMouseEnter={isClickTooltip || marchPick ? undefined : onHover}
+      onMouseLeave={isClickTooltip || marchPick ? undefined : onLeave}
       onClick={
-        isClickTooltip && typeof onTooltipClick === 'function'
+        marchPick || (isClickTooltip && typeof onTooltipClick === 'function')
           ? (e) => {
               e.preventDefault();
               e.stopPropagation();
-              onTooltipClick(e);
+              if (marchPick) onStrategicMarchCellPick(gridX, gridY);
+              else if (isClickTooltip && typeof onTooltipClick === 'function') onTooltipClick(e);
             }
           : undefined
       }

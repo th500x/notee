@@ -392,8 +392,13 @@ function formatEventData(row) {
   const formatted = {
     event_id:            row.event_id,
     event_name:          row.event_name,
+    event_hint:          row.event_hint || null,
     location:            row.location || null,
-    min_position_level:  row.min_position_level || null,
+    min_reputation: (() => {
+      if (row.min_reputation == null || row.min_reputation === '') return null;
+      const n = Number(row.min_reputation);
+      return Number.isFinite(n) ? n : null;
+    })(),
     trigger_probability: formatTriggerProbability(row),
     trigger_context:     row.trigger_context || null,
     chain_id:            row.chain_id || null,

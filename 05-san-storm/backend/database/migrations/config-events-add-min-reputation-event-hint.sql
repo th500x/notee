@@ -1,0 +1,3 @@
+ALTER TABLE config_events
+  ADD COLUMN min_reputation INT NULL DEFAULT NULL COMMENT '最低声望',
+  ADD COLUMN event_hint VARCHAR(512) NULL DEFAULT NULL COMMENT '完成后大地图提示';

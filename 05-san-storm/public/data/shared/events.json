@@ -1,28 +1,25 @@
 {
   "_meta": {
-    "generated": "2026-04-14T08:21:59.314Z",
+    "generated": "2026-04-20T05:16:06.207Z",
     "source": "event-template.csv",
-    "count": 27,
-    "note": "凡 CSV 有对应 event_id 的事件：location/name/描述/链字段/required_items/optionA/optionB 均由 CSV 覆盖；CSV 无则保留 JSON 原字段。导入 DB 请再执行 backend/database/import-events-data.js",
-    "csvRowCount": 27,
-    "jsonEventsTouched": 12,
-    "approximateFieldChanges": 16
+    "count": 28,
+    "csvRowCount": 28,
+    "note": "由 CSV 整表生成；入库：在 05-san-storm/backend 执行 node database/import-events-data.js"
   },
   "events": [
     {
       "id": "san_1_event_1001",
       "season": "san_1",
-      "name": "绝版纪念",
-      "location": "{all}",
-      "minPositionLevel": null,
+      "name": "指引壹-绝版纪念",
+      "location": "{any_city}",
       "triggerProbability": 1,
       "triggerContext": "tutorial",
-      "chainId": null,
-      "chainLevel": null,
+      "chainId": "chain_tutorial_v1",
+      "chainLevel": 1,
       "requiredItems": null,
       "descriptions": [
         "{player_name}，《真三风云》有你而精彩！",
-        "特此奉上测试赛季独有的纪念奖励",
+        "奉上测试赛季独有的纪念奖励",
         "（核心部队卡牌）未来可以继承到正式赛季"
       ],
       "optionA": {
@@ -38,7 +35,7 @@
         "battleEnemyId": null,
         "successText": "喜从天降！",
         "failureText": "马马虎虎！",
-        "rewards": "san_1_troop_0013;san_0_title_1_5001",
+        "rewards": "san_1_troop_0013;san_0_title_1_5001;item_tutorial_1",
         "bonusRewards": "san_1_troop_0014"
       },
       "optionB": {
@@ -54,21 +51,22 @@
         "battleEnemyId": null,
         "successText": "你拼上了全部家当，一把梭哈",
         "failureText": "收手吧别赌了",
-        "rewards": "san_1_troop_0013;san_0_title_1_5001;random:char:legendary:1",
+        "rewards": "san_1_troop_0013;san_0_title_1_5001;random:char:legendary:1;item_tutorial_1",
         "bonusRewards": "san_1_troop_0014"
-      }
+      },
+      "minReputation": null,
+      "eventHint": "请前往最近的【中城】，点击角色图标进行【行军】移动"
     },
     {
       "id": "san_1_event_1002",
       "season": "san_1",
-      "name": "官拜军候",
-      "location": "{all}",
-      "minPositionLevel": null,
+      "name": "指引贰-官拜军候",
+      "location": "{city_medium}",
       "triggerProbability": 1,
       "triggerContext": "tutorial",
-      "chainId": null,
-      "chainLevel": null,
-      "requiredItems": null,
+      "chainId": "chain_tutorial_v1",
+      "chainLevel": 2,
+      "requiredItems": "item_tutorial_1",
       "descriptions": [
         "当今天下战火四起，内有黄巾崛起，侵袭各州，外有蛮族伺机而动，犯扰边疆。",
         "{city_name}太守久闻主公大名，特赐【军候】官职",
@@ -87,7 +85,7 @@
         "battleEnemyId": null,
         "successText": "你颇有贵人气象",
         "failureText": "你今日印堂发黑",
-        "rewards": "reward-a;reputation:5;san_1_position_junhou;random:troop:common:4",
+        "rewards": "reward-a;reputation:5;san_1_position_junhou;random:troop:common:4;item_tutorial_2",
         "bonusRewards": "reward-b"
       },
       "optionB": {
@@ -103,23 +101,25 @@
         "battleEnemyId": null,
         "successText": "你客气的给了官差20银两赏钱",
         "failureText": null,
-        "rewards": "reward-c;reputation:5;san_1_position_junhou;random:troop:common:4",
+        "rewards": "reward-c;reputation:5;san_1_position_junhou;random:troop:common:4;item_tutorial_2",
         "bonusRewards": "random:troop:rare:2"
-      }
+      },
+      "minReputation": null,
+      "eventHint": "请前往最近的【匪寨】"
     },
     {
       "id": "san_1_event_1003",
       "season": "san_1",
-      "name": "名将投奔",
-      "location": "{all}",
-      "minPositionLevel": null,
+      "name": "指引叁-名将投奔",
+      "location": "{any_bandit}",
       "triggerProbability": 1,
       "triggerContext": "tutorial",
-      "chainId": null,
-      "chainLevel": null,
-      "requiredItems": null,
+      "chainId": "chain_tutorial_v1",
+      "chainLevel": 3,
+      "requiredItems": "item_tutorial_2",
       "descriptions": [
-        "正当你整军待阵的时候，麾下来报有人前来拜访"
+        "正当你整军待阵的时候，麾下来报有人前来拜访",
+        "原来是有将领前来投奔！"
       ],
       "optionA": {
         "id": "option_a",
@@ -134,7 +134,7 @@
         "battleEnemyId": null,
         "successText": "众人交谈甚欢，今日喜迎带资进组英杰",
         "failureText": "一番客套过后，你人货两收",
-        "rewards": "reward-a;random:char:common:2",
+        "rewards": "reward-a;random:char:common:2;item_tutorial_3",
         "bonusRewards": "random:char:rare:1"
       },
       "optionB": {
@@ -150,23 +150,74 @@
         "battleEnemyId": null,
         "successText": "你决定亲手闯出一片天下",
         "failureText": null,
-        "rewards": "reputation:20",
+        "rewards": "reputation:20;item_tutorial_3",
         "bonusRewards": "reward-e"
-      }
+      },
+      "minReputation": null,
+      "eventHint": "进入【编组】，装备部队给将领，通过【匪寨】战斗提升声望到≥10，再前往最近的【中城】"
     },
     {
       "id": "san_1_event_1004",
       "season": "san_1",
-      "name": "阵前操练",
-      "location": "{all}",
-      "minPositionLevel": null,
+      "name": "指引肆-官拜都尉",
+      "location": "{city_medium}",
       "triggerProbability": 1,
       "triggerContext": "tutorial",
-      "chainId": null,
-      "chainLevel": null,
-      "requiredItems": null,
+      "chainId": "chain_tutorial_v1",
+      "chainLevel": 4,
+      "requiredItems": "item_tutorial_3",
       "descriptions": [
-        "探子来报，{city_name}城外貌似有匪徒的踪影"
+        "多日不见，{player_name}已声名初显",
+        "{city_name}太守请主公前往城内【三公府】晋升官职"
+      ],
+      "optionA": {
+        "id": "option_a",
+        "text": "欣然接受",
+        "requiredItems": null,
+        "factor": "type-a",
+        "mainFactor": "luck",
+        "mainRequirement": 7,
+        "subFactors": "balanced",
+        "subRequirement": 7,
+        "triggerBattle": false,
+        "battleEnemyId": null,
+        "successText": "你颇有贵人气象",
+        "failureText": "你今日印堂发黑",
+        "rewards": "reward-b;reputation:5;random:troop:rare:2;item_tutorial_4",
+        "bonusRewards": "reward-c"
+      },
+      "optionB": {
+        "id": "option_b",
+        "text": "奉上银两",
+        "requiredItems": "silver:50",
+        "factor": "type-a",
+        "mainFactor": "luck",
+        "mainRequirement": 7,
+        "subFactors": "balanced",
+        "subRequirement": 7,
+        "triggerBattle": false,
+        "battleEnemyId": null,
+        "successText": "你客气的给了官差50银两，同乐同乐",
+        "failureText": null,
+        "rewards": "reward-b;reputation:5;random:troop:epic:2;item_tutorial_4",
+        "bonusRewards": "reward-c"
+      },
+      "minReputation": 10,
+      "eventHint": "进入【编组】，点击玩家将领官职槽，重随最新的官职属性，再前往最近的【小城】"
+    },
+    {
+      "id": "san_1_event_1005",
+      "season": "san_1",
+      "name": "指引伍-阵前操练",
+      "location": "{city_small}",
+      "triggerProbability": 1,
+      "triggerContext": "tutorial",
+      "chainId": "chain_tutorial_v1",
+      "chainLevel": 5,
+      "requiredItems": "item_tutorial_4",
+      "descriptions": [
+        "探子来报，{city_name}城外貌似有匪徒的踪影",
+        "并且匪徒还携带着不少辎重"
       ],
       "optionA": {
         "id": "option_a",
@@ -181,7 +232,7 @@
         "battleEnemyId": null,
         "successText": "匪徒不战而逃，并有意外收获",
         "failureText": "{player_name}带军出阵",
-        "rewards": "reward-a;reputation:5",
+        "rewards": "reward-a;pack-b:4;item_tutorial_5",
         "bonusRewards": "random:char:rare:1"
       },
       "optionB": {
@@ -197,28 +248,29 @@
         "battleEnemyId": null,
         "successText": "喝酒吃肉岂不快活",
         "failureText": "今日不宜作战",
-        "rewards": "reward-b",
+        "rewards": "reward-b;item_tutorial_5",
         "bonusRewards": "reward-c"
-      }
+      },
+      "minReputation": null,
+      "eventHint": "进入【编组】，从军营中【封装】装备卡后装备给将领，再前往最近的【中城】"
     },
     {
-      "id": "san_1_event_1005",
+      "id": "san_1_event_1006",
       "season": "san_1",
-      "name": "官拜都尉",
-      "location": "{all}",
-      "minPositionLevel": null,
+      "name": "指引终章",
+      "location": "{city_medium}",
       "triggerProbability": 1,
       "triggerContext": "tutorial",
-      "chainId": null,
-      "chainLevel": null,
-      "requiredItems": null,
+      "chainId": "chain_tutorial_v1",
+      "chainLevel": 6,
+      "requiredItems": "item_tutorial_5",
       "descriptions": [
-        "多日不见，{player_name}已声名初显",
-        "{city_name}太守已向朝廷送书，提拔主公为【都尉】"
+        "{city_name}太守几日间三次接见",
+        "{player_name}真乃人中龙凤，必成霸业！"
       ],
       "optionA": {
         "id": "option_a",
-        "text": "欣然接受",
+        "text": "承蒙抬爱",
         "requiredItems": null,
         "factor": "type-a",
         "mainFactor": "luck",
@@ -227,15 +279,15 @@
         "subRequirement": 7,
         "triggerBattle": false,
         "battleEnemyId": null,
-        "successText": "你颇有贵人气象",
-        "failureText": "你今日印堂发黑",
-        "rewards": "reward-b;reputation:10;san_1_position_bubing_duwei;random:troop:rare:2",
+        "successText": "你与太守结为了忘年交好",
+        "failureText": "太守将你送出城去",
+        "rewards": "reward-b;item_season_badge",
         "bonusRewards": "reward-c"
       },
       "optionB": {
         "id": "option_b",
-        "text": "奉上银两",
-        "requiredItems": "silver:50",
+        "text": "恳求资兵",
+        "requiredItems": null,
         "factor": "type-a",
         "mainFactor": "luck",
         "mainRequirement": 7,
@@ -243,19 +295,20 @@
         "subRequirement": 7,
         "triggerBattle": false,
         "battleEnemyId": null,
-        "successText": "你客气的给了官差50银两赏钱",
-        "failureText": null,
-        "rewards": "reward-b;reputation:10;san_1_position_bubing_duwei;random:troop:epic:2",
-        "bonusRewards": "reward-c"
-      }
+        "successText": "太守欣然允诺",
+        "failureText": "太守略有不忿，还是准了",
+        "rewards": "random:troop:rare:4",
+        "bonusRewards": "random:troop:epic:2"
+      },
+      "minReputation": null,
+      "eventHint": null
     },
     {
       "id": "san_1_event_5001",
       "season": "san_1",
       "name": "村童的棋局",
       "location": "{city_medium_market}",
-      "minPositionLevel": null,
-      "triggerProbability": 0,
+      "triggerProbability": null,
       "triggerContext": "market",
       "chainId": null,
       "chainLevel": null,
@@ -295,15 +348,16 @@
         "failureText": null,
         "rewards": "reward-a",
         "bonusRewards": null
-      }
+      },
+      "minReputation": null,
+      "eventHint": null
     },
     {
       "id": "san_1_event_5002",
       "season": "san_1",
       "name": "隐士的棋局",
       "location": "{city_medium_market}",
-      "minPositionLevel": null,
-      "triggerProbability": 0,
+      "triggerProbability": null,
       "triggerContext": "market",
       "chainId": null,
       "chainLevel": null,
@@ -344,15 +398,16 @@
         "failureText": null,
         "rewards": "reward-a",
         "bonusRewards": null
-      }
+      },
+      "minReputation": null,
+      "eventHint": null
     },
     {
       "id": "san_1_event_5003",
       "season": "san_1",
       "name": "棋圣的考验",
       "location": "{city_medium_market}",
-      "minPositionLevel": null,
-      "triggerProbability": 0,
+      "triggerProbability": null,
       "triggerContext": "market",
       "chainId": null,
       "chainLevel": null,
@@ -393,15 +448,16 @@
         "failureText": null,
         "rewards": "reward-a",
         "bonusRewards": null
-      }
+      },
+      "minReputation": null,
+      "eventHint": null
     },
     {
       "id": "san_1_event_5004",
       "season": "san_1",
       "name": "小厮的邀约",
       "location": "{city_medium_market}",
-      "minPositionLevel": null,
-      "triggerProbability": 0,
+      "triggerProbability": null,
       "triggerContext": "market",
       "chainId": null,
       "chainLevel": null,
@@ -442,15 +498,16 @@
         "failureText": null,
         "rewards": "reward-a",
         "bonusRewards": null
-      }
+      },
+      "minReputation": null,
+      "eventHint": null
     },
     {
       "id": "san_1_event_5005",
       "season": "san_1",
       "name": "掌柜的牌局",
       "location": "{city_medium_market}",
-      "minPositionLevel": null,
-      "triggerProbability": 0,
+      "triggerProbability": null,
       "triggerContext": "market",
       "chainId": null,
       "chainLevel": null,
@@ -491,15 +548,16 @@
         "failureText": null,
         "rewards": "reward-a",
         "bonusRewards": null
-      }
+      },
+      "minReputation": null,
+      "eventHint": null
     },
     {
       "id": "san_1_event_5006",
       "season": "san_1",
       "name": "黑手的挑战",
       "location": "{city_medium_market}",
-      "minPositionLevel": null,
-      "triggerProbability": 0,
+      "triggerProbability": null,
       "triggerContext": "market",
       "chainId": null,
       "chainLevel": null,
@@ -540,15 +598,16 @@
         "failureText": null,
         "rewards": "reward-a",
         "bonusRewards": null
-      }
+      },
+      "minReputation": null,
+      "eventHint": null
     },
     {
       "id": "san_1_event_4001",
       "season": "san_1",
       "name": "村妇壹-路边哭声",
       "location": "{city_medium_wilderness}",
-      "minPositionLevel": null,
-      "triggerProbability": 0,
+      "triggerProbability": null,
       "triggerContext": "wilderness",
       "chainId": "chain_cunfu_v1",
       "chainLevel": 1,
@@ -589,15 +648,16 @@
         "failureText": null,
         "rewards": "reward-c",
         "bonusRewards": null
-      }
+      },
+      "minReputation": null,
+      "eventHint": null
     },
     {
       "id": "san_1_event_4002",
       "season": "san_1",
       "name": "村妇贰-村民线索",
       "location": "{city_medium_wilderness}",
-      "minPositionLevel": null,
-      "triggerProbability": 0,
+      "triggerProbability": null,
       "triggerContext": "wilderness",
       "chainId": "chain_cunfu_v1",
       "chainLevel": 2,
@@ -638,15 +698,16 @@
         "failureText": null,
         "rewards": "reward-c",
         "bonusRewards": null
-      }
+      },
+      "minReputation": null,
+      "eventHint": null
     },
     {
       "id": "san_1_event_4003",
       "season": "san_1",
       "name": "村妇叁-山贼营地",
       "location": "{city_medium_wilderness}",
-      "minPositionLevel": null,
-      "triggerProbability": 0,
+      "triggerProbability": null,
       "triggerContext": "wilderness",
       "chainId": "chain_cunfu_v1",
       "chainLevel": 3,
@@ -687,15 +748,16 @@
         "failureText": null,
         "rewards": "reward-c",
         "bonusRewards": null
-      }
+      },
+      "minReputation": null,
+      "eventHint": null
     },
     {
       "id": "san_1_event_4004",
       "season": "san_1",
       "name": "村妇肆-营救计划",
       "location": "{city_medium_wilderness}",
-      "minPositionLevel": null,
-      "triggerProbability": 0,
+      "triggerProbability": null,
       "triggerContext": "wilderness",
       "chainId": "chain_cunfu_v1",
       "chainLevel": 4,
@@ -736,15 +798,16 @@
         "failureText": "多耽搁了一会儿差点被山贼发现",
         "rewards": "reward-d",
         "bonusRewards": null
-      }
+      },
+      "minReputation": null,
+      "eventHint": null
     },
     {
       "id": "san_1_event_4005",
       "season": "san_1",
       "name": "村妇伍-长途奔波",
       "location": "{city_medium_wilderness}",
-      "minPositionLevel": null,
-      "triggerProbability": 0,
+      "triggerProbability": null,
       "triggerContext": "wilderness",
       "chainId": "chain_cunfu_v1",
       "chainLevel": 5,
@@ -784,15 +847,16 @@
         "failureText": null,
         "rewards": "reward-d",
         "bonusRewards": null
-      }
+      },
+      "minReputation": null,
+      "eventHint": null
     },
     {
       "id": "san_1_event_4006",
       "season": "san_1",
       "name": "村妇陆-村妇报恩",
       "location": "{city_medium_wilderness}",
-      "minPositionLevel": null,
-      "triggerProbability": 0,
+      "triggerProbability": null,
       "triggerContext": "wilderness",
       "chainId": "chain_cunfu_v1",
       "chainLevel": 6,
@@ -832,15 +896,16 @@
         "failureText": null,
         "rewards": "reward-d",
         "bonusRewards": null
-      }
+      },
+      "minReputation": null,
+      "eventHint": null
     },
     {
       "id": "san_1_event_4007",
       "season": "san_1",
       "name": "村妇柒-再起风波",
       "location": "{city_medium_wilderness}",
-      "minPositionLevel": null,
-      "triggerProbability": 0,
+      "triggerProbability": null,
       "triggerContext": "wilderness",
       "chainId": "chain_cunfu_v1",
       "chainLevel": 7,
@@ -880,15 +945,16 @@
         "failureText": null,
         "rewards": "reward-e",
         "bonusRewards": null
-      }
+      },
+      "minReputation": null,
+      "eventHint": null
     },
     {
       "id": "san_1_event_4008",
       "season": "san_1",
       "name": "村妇捌-快马加鞭",
       "location": "{city_medium_wilderness}",
-      "minPositionLevel": null,
-      "triggerProbability": 0,
+      "triggerProbability": null,
       "triggerContext": "wilderness",
       "chainId": "chain_cunfu_v1",
       "chainLevel": 8,
@@ -928,15 +994,16 @@
         "failureText": null,
         "rewards": "reward-e",
         "bonusRewards": null
-      }
+      },
+      "minReputation": null,
+      "eventHint": null
     },
     {
       "id": "san_1_event_4009",
       "season": "san_1",
       "name": "村妇玖-血溅夕阳",
       "location": "{city_medium_wilderness}",
-      "minPositionLevel": null,
-      "triggerProbability": 0,
+      "triggerProbability": null,
       "triggerContext": "wilderness",
       "chainId": "chain_cunfu_v1",
       "chainLevel": 9,
@@ -976,15 +1043,16 @@
         "failureText": null,
         "rewards": "reward-e",
         "bonusRewards": null
-      }
+      },
+      "minReputation": null,
+      "eventHint": null
     },
     {
       "id": "san_1_event_4010",
       "season": "san_1",
       "name": "村妇终章",
       "location": "{city_medium_wilderness}",
-      "minPositionLevel": null,
-      "triggerProbability": 0,
+      "triggerProbability": null,
       "triggerContext": "wilderness",
       "chainId": "chain_cunfu_v1",
       "chainLevel": 10,
@@ -1024,16 +1092,17 @@
         "failureText": null,
         "rewards": "reward-e",
         "bonusRewards": null
-      }
+      },
+      "minReputation": null,
+      "eventHint": null
     },
     {
       "id": "san_1_event_2001",
       "season": "san_1",
       "name": "传奇壹-散兵踪迹",
-      "location": "{any_bandit}",
-      "minPositionLevel": null,
-      "triggerProbability": 0,
-      "triggerContext": "mystery",
+      "location": "{city_medium_wilderness}",
+      "triggerProbability": null,
+      "triggerContext": "wilderness",
       "chainId": "chain_troop_legendary_v1",
       "chainLevel": 1,
       "requiredItems": null,
@@ -1072,16 +1141,17 @@
         "failureText": null,
         "rewards": "reward-d",
         "bonusRewards": null
-      }
+      },
+      "minReputation": null,
+      "eventHint": null
     },
     {
       "id": "san_1_event_2002",
       "season": "san_1",
       "name": "传奇贰-整编旧部",
-      "location": "{any_bandit}",
-      "minPositionLevel": null,
-      "triggerProbability": 0,
-      "triggerContext": "mystery",
+      "location": "{city_medium_wilderness}",
+      "triggerProbability": null,
+      "triggerContext": "wilderness",
       "chainId": "chain_troop_legendary_v1",
       "chainLevel": 2,
       "requiredItems": "item_troop_tag",
@@ -1120,16 +1190,17 @@
         "failureText": null,
         "rewards": "reward-d",
         "bonusRewards": null
-      }
+      },
+      "minReputation": null,
+      "eventHint": null
     },
     {
       "id": "san_1_event_2003",
       "season": "san_1",
       "name": "传奇终章",
-      "location": "{any_bandit}",
-      "minPositionLevel": null,
-      "triggerProbability": 0,
-      "triggerContext": "mystery",
+      "location": "{city_medium_wilderness}",
+      "triggerProbability": null,
+      "triggerContext": "wilderness",
       "chainId": "chain_troop_legendary_v1",
       "chainLevel": 3,
       "requiredItems": "item_troop_legendary",
@@ -1168,16 +1239,17 @@
         "failureText": null,
         "rewards": "reward-e",
         "bonusRewards": null
-      }
+      },
+      "minReputation": null,
+      "eventHint": null
     },
     {
       "id": "san_1_event_2004",
       "season": "san_1",
       "name": "核心壹-蛮踪密信",
-      "location": "{any_bandit}",
-      "minPositionLevel": null,
-      "triggerProbability": 0,
-      "triggerContext": "mystery",
+      "location": "{city_medium_wilderness}",
+      "triggerProbability": null,
+      "triggerContext": "wilderness",
       "chainId": "chain_troop_core_v1",
       "chainLevel": 1,
       "requiredItems": null,
@@ -1217,16 +1289,17 @@
         "failureText": null,
         "rewards": "reward-d",
         "bonusRewards": null
-      }
+      },
+      "minReputation": null,
+      "eventHint": null
     },
     {
       "id": "san_1_event_2005",
       "season": "san_1",
       "name": "核心贰-峡口重围",
-      "location": "{any_bandit}",
-      "minPositionLevel": null,
-      "triggerProbability": 0,
-      "triggerContext": "mystery",
+      "location": "{city_medium_wilderness}",
+      "triggerProbability": null,
+      "triggerContext": "wilderness",
       "chainId": "chain_troop_core_v1",
       "chainLevel": 2,
       "requiredItems": "item_troop_tag",
@@ -1266,16 +1339,17 @@
         "failureText": null,
         "rewards": "reward-d",
         "bonusRewards": null
-      }
+      },
+      "minReputation": null,
+      "eventHint": null
     },
     {
       "id": "san_1_event_2006",
       "season": "san_1",
       "name": "核心终章",
-      "location": "{any_bandit}",
-      "minPositionLevel": null,
-      "triggerProbability": 0,
-      "triggerContext": "mystery",
+      "location": "{city_medium_wilderness}",
+      "triggerProbability": null,
+      "triggerContext": "wilderness",
       "chainId": "chain_troop_core_v1",
       "chainLevel": 3,
       "requiredItems": "item_troop_core",
@@ -1314,7 +1388,9 @@
         "failureText": null,
         "rewards": "reward-e",
         "bonusRewards": null
-      }
+      },
+      "minReputation": null,
+      "eventHint": null
     }
   ]
 }

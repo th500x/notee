@@ -456,7 +456,16 @@
   position: absolute;
   z-index: 5;
   pointer-events: none;
+}
+
+/* 叠站小头像在右：平移锚点只作用在「主头像列」，避免整行居中把主头像挤偏 */
+.ws-map-self-pawn__anchor {
+  position: relative;
+  pointer-events: none;
   transform: translate(-50%, -50%);
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 /* 悬停命中：仅圆形区域接 pointer 事件，便于键鼠 tooltip；事件仍可向父级冒泡用于地图平移 */
@@ -465,8 +474,82 @@
   flex-direction: column;
   align-items: center;
   pointer-events: auto;
+  touch-action: manipulation;
   width: max-content;
-  max-width: calc(var(--ws-tile) * 2.4 + 8px);
+  max-width: min(92vw, calc(var(--ws-tile) * 16 + 48px));
+}
+
+.ws-map-self-pawn__avatar-row {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 4px;
+}
+
+.ws-map-self-pawn__stack-strip {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 3px;
+  margin-top: 1px;
+  flex-shrink: 0;
+  pointer-events: none;
+}
+
+.ws-map-self-pawn__stack-face {
+  position: relative;
+  flex-shrink: 0;
+  width: clamp(16px, calc(var(--ws-tile) * 0.62), 32px);
+  height: clamp(16px, calc(var(--ws-tile) * 0.62), 32px);
+}
+
+.ws-map-self-pawn__stack-img {
+  width: 100%;
+  height: 100%;
+  border-radius: 9999px;
+  object-fit: cover;
+  display: block;
+  box-shadow:
+    0 0 0 1.5px rgba(251, 191, 36, 0.72),
+    0 1px 4px rgba(0, 0, 0, 0.45);
+}
+
+.ws-map-self-pawn__stack-img--fallback {
+  border-radius: 9999px;
+  background: linear-gradient(145deg, #57534e, #1c1917);
+}
+
+.ws-map-self-pawn__stack-glyph {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: clamp(5px, calc(var(--ws-tile) * 0.26), 9px);
+  font-weight: 800;
+  color: #fffbeb;
+  line-height: 1.1;
+  pointer-events: none;
+  text-shadow:
+    0 0 2px #000,
+    0 1px 2px rgba(0, 0, 0, 0.85);
+}
+
+.ws-map-self-pawn__stack-face--ellipsis {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: clamp(9px, calc(var(--ws-tile) * 0.34), 14px);
+  font-weight: 800;
+  color: rgba(255, 250, 235, 0.95);
+  background: rgba(28, 25, 23, 0.94);
+  border-radius: 9999px;
+  border: 1px solid rgba(251, 191, 36, 0.55);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
+  line-height: 1;
+  letter-spacing: -0.06em;
 }
 
 .ws-map-self-pawn__avatar {
@@ -474,6 +557,33 @@
   width: clamp(22px, calc(var(--ws-tile) * 0.95), 40px);
   height: clamp(22px, calc(var(--ws-tile) * 0.95), 40px);
   flex-shrink: 0;
+}
+
+/* 道路开战模式：头像赤红脉冲光晕（与 `.ws-map-self-pawn__img` 金边区分） */
+.ws-map-self-pawn__avatar--intercept {
+  overflow: visible;
+}
+
+.ws-map-self-pawn__avatar--intercept .ws-map-self-pawn__img {
+  animation: ws-map-self-pawn-intercept-pulse 1.15s ease-in-out infinite;
+}
+
+@keyframes ws-map-self-pawn-intercept-pulse {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 2px rgba(252, 165, 165, 0.9),
+      0 0 10px 3px rgba(220, 38, 38, 0.5),
+      0 0 22px 7px rgba(248, 113, 113, 0.32),
+      0 2px 6px rgba(0, 0, 0, 0.45);
+  }
+  50% {
+    box-shadow:
+      0 0 0 2px rgba(254, 226, 226, 0.98),
+      0 0 18px 6px rgba(185, 28, 28, 0.62),
+      0 0 34px 11px rgba(248, 113, 113, 0.45),
+      0 2px 8px rgba(0, 0, 0, 0.5);
+  }
 }
 
 .ws-map-self-pawn__img {
@@ -542,4 +652,104 @@
   text-shadow:
     0 0 3px #000,
     0 1px 2px rgba(0, 0, 0, 0.85);
+}
+
+/* 本人叠层：短按弹出的「行军 / 关闭」（31-6 §9.3） */
+.ws-map-self-pawn__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 5px;
+  padding: 5px 6px;
+  border-radius: 7px;
+  border: 1px solid rgba(251, 191, 36, 0.5);
+  background: rgba(28, 25, 23, 0.96);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.55);
+  pointer-events: auto;
+  z-index: 7;
+  min-width: 4.5rem;
+}
+
+.ws-map-self-pawn__action-btn {
+  font-size: clamp(9px, calc(var(--ws-tile) * 0.34), 12px);
+  font-weight: 700;
+  padding: 4px 8px;
+  border-radius: 5px;
+  border: 1px solid rgba(120, 113, 108, 0.65);
+  background: rgba(68, 64, 60, 0.95);
+  color: rgba(255, 250, 235, 0.95);
+  line-height: 1.2;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.ws-map-self-pawn__action-btn--primary {
+  border-color: rgba(251, 191, 36, 0.65);
+  background: rgba(146, 64, 14, 0.92);
+  color: #fffbeb;
+}
+
+.ws-map-self-pawn__action-btn--danger {
+  border-color: rgba(248, 113, 113, 0.55);
+  background: rgba(127, 29, 29, 0.88);
+  color: #fef2f2;
+}
+
+.ws-map-self-pawn__action-btn--danger:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.ws-map-self-pawn__intercept-msg {
+  font-size: clamp(8px, calc(var(--ws-tile) * 0.3), 11px);
+  font-weight: 600;
+  line-height: 1.35;
+  color: rgba(255, 250, 235, 0.94);
+  text-align: left;
+}
+
+.ws-map-self-pawn__intercept-strong {
+  color: #fecaca;
+  font-weight: 800;
+}
+
+.ws-map-self-pawn__intercept-err {
+  margin-top: 4px;
+  font-size: clamp(8px, calc(var(--ws-tile) * 0.29), 10px);
+  font-weight: 700;
+  color: #fecaca;
+  line-height: 1.25;
+}
+
+.ws-map-self-pawn__intercept-actions {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+  justify-content: stretch;
+}
+
+.ws-map-self-pawn__intercept-actions .ws-map-self-pawn__action-btn {
+  flex: 1 1 42%;
+  min-width: 0;
+}
+
+.ws-map-self-pawn__action-btn:active {
+  opacity: 0.92;
+}
+
+/* 大地图 event_hint：锚点随格网滚动，对白框用 portal 固定到视口（见 StrategicMapEventHintBubble） */
+.ws-map-event-hint__pointer {
+  position: absolute;
+  left: 50%;
+  top: -7px;
+  width: 12px;
+  height: 12px;
+  transform: translateX(-50%) rotate(45deg);
+  background: linear-gradient(135deg, rgba(253, 230, 138, 0.35), rgba(28, 25, 23, 0.98));
+  border-left: 2px solid rgba(253, 230, 138, 0.88);
+  border-top: 2px solid rgba(253, 230, 138, 0.88);
+  box-shadow: -1px -1px 0 rgba(0, 0, 0, 0.2);
+  pointer-events: none;
 }

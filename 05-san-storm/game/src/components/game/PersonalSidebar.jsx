@@ -8,9 +8,11 @@ import { useEffect, useState, useRef } from 'react';
 import { usePlayerContext } from '@/contexts/PlayerContext';
 import PersonalSidebarTeamPanel from '@/components/game/PersonalSidebarTeamPanel';
 import PersonalSidebarStatsPanel from '@/components/game/PersonalSidebarStatsPanel';
+import PersonalSidebarMechanicsPanel from '@/components/game/PersonalSidebarMechanicsPanel';
 import AncientModal from '@/components/common/AncientModal';
 
 const MENU_ITEMS = [
+  { id: 'mechanics', icon: '📜', label: '机制' },
   { id: 'stats', icon: '📊', label: '统计' },
   { id: 'titles', icon: '🎖️', label: '称号' },
   { id: 'achievements', icon: '🏆', label: '成就' },
@@ -20,11 +22,11 @@ const MENU_ITEMS = [
 
 export default function PersonalSidebar({ open, onClose, onLogout }) {
   const { player } = usePlayerContext();
-  const [subView, setSubView] = useState(null); // null | 'team' | 'stats'
+  const [subView, setSubView] = useState(null); // null | 'team' | 'stats' | 'mechanics'
   const teamPanelRef = useRef(null);
   const [stubNoticeOpen, setStubNoticeOpen] = useState(false);
 
-  // ESC：团队详情 → 团队列表 → 主菜单；统计子页 → 主菜单 → 关侧边栏
+  // ESC：团队详情 → 团队列表 → 主菜单；统计/机制子页 → 主菜单 → 关侧边栏
   useEffect(() => {
     if (!open) return;
     const handler = (e) => {
@@ -71,6 +73,10 @@ export default function PersonalSidebar({ open, onClose, onLogout }) {
       setSubView('stats');
       return;
     }
+    if (id === 'mechanics') {
+      setSubView('mechanics');
+      return;
+    }
     setStubNoticeOpen(true);
   };
 
@@ -106,6 +112,10 @@ export default function PersonalSidebar({ open, onClose, onLogout }) {
         ) : subView === 'stats' ? (
           <div className="flex flex-1 flex-col min-h-0 overflow-hidden">
             <PersonalSidebarStatsPanel playerId={player?.player_id} onBack={() => setSubView(null)} />
+          </div>
+        ) : subView === 'mechanics' ? (
+          <div className="flex flex-1 flex-col min-h-0 overflow-hidden">
+            <PersonalSidebarMechanicsPanel onBack={() => setSubView(null)} />
           </div>
         ) : (
           <>

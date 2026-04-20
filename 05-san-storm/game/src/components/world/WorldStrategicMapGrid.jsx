@@ -26,6 +26,7 @@ import { PHASE } from '@/components/event/EventConstants';
 import { strategicExploreReopenBridge } from '@/utils/strategicExploreReopenBridge.js';
 import { primeStrategicCityWildernessMarketTab } from './WorldMapCityInfoBlock.jsx';
 import StrategicMapSelfPawn from './StrategicMapSelfPawn';
+import StrategicMapEventHintBubble from './StrategicMapEventHintBubble';
 
 const WS_QUAD_CLASS = {
   A: 'ws-quad-frame ws-quad-a',
@@ -192,6 +193,22 @@ export default function WorldStrategicMapGrid({
   strategicFullScreenOverlayOpen = false,
   /** 玩家自身标记（主城块中心；见 31-6）：`cx, cy, portraitUrl, displayName, centerGlyph, troopsCurrent, troopsMax` */
   strategicSelfPawn = null,
+  /** 郡内在线他人道路 pawn 列表（31-6 §12.2、02 §2.1.2（3））；`road-presence` 结果 */
+  strategicOtherPawns = null,
+  /** 郡内 road_encounters 锁格列表（status IN ('pending','fighting')）；用于高亮与落点禁区提示 */
+  strategicRoadLockedCells = null,
+  /** 战略行军模式（本人叠层「行军」入口；道路选点 / road/move 接续开发） */
+  strategicMarchMode = false,
+  /** `road/move` 成功后跳跳棋逐格回放中：禁行军格点选与再次进入行军 */
+  strategicRoadMarchAnimating = false,
+  onStrategicSelfMarchModeRequest = null,
+  onStrategicSelfMarchModeExit = null,
+  /** 行军模式下点击道路格 `(gridX, gridY)`（与 `data-strategic-x/y` 一致） */
+  onStrategicMarchCellPick = null,
+  /** 道路开战模式切换成功后刷新档案（`road_intercept` / 银两） */
+  onStrategicRoadSelfUpdated = null,
+  /** 探索结算后大地图指引文案（`event_hint`）；漫画对白框锚在本人路点 */
+  pendingMapEventHint = null,
 }) {
   const strategicNav = useStrategicMapNavigation();
   const tooltipClickMode = useStrategicMapTooltipClickMode();
@@ -202,6 +219,8 @@ export default function WorldStrategicMapGrid({
   const lastTooltipAnchorKeyRef = useRef(null);
   const { tooltipRef, tooltipStyle } = useTileTooltipClamp(tooltipContent, tooltipPos);
   const wrapRef = useRef(null);
+  /** 本人路点「行军/关闭/来战」操作条打开时隐藏 event_hint portal，避免与 z-[10091] 叠层冲突 */
+  const [strategicSelfPawnOverlayOpen, setStrategicSelfPawnOverlayOpen] = useState(false);
   const zoomRef = useRef(onWheelZoomSteps);
   zoomRef.current = onWheelZoomSteps;
   const tilePxRef = useRef(tilePx);
@@ -568,6 +587,21 @@ export default function WorldStrategicMapGrid({
   );
 
   const handleOpenTooltipFromTileEvent = useCallback((e) => {
+    if (
+      strategicMarchMode &&
+      !strategicRoadMarchAnimating &&
+      typeof onStrategicMarchCellPick === 'function' &&
+      e?.type === 'click'
+    ) {
+      clearLeaveTooltipTimer();
+      const y = Number(e.currentTarget.dataset.strategicY);
+      const x = Number(e.currentTarget.dataset.strategicX);
+      if (!Number.isNaN(y) && !Number.isNaN(x)) {
+        onStrategicMarchCellPick(x, y);
+      }
+      return;
+    }
+
     clearLeaveTooltipTimer();
     // 与 `dismissTooltip` 成对：`tooltipContent` 已空时锚点也必须清空，否则「同锚点再点关闭」仍可能用旧 ref
     // 误判（典型：关三公府/驻军所后先点阳翟无效，点过其它格再点阳翟才恢复）。
@@ -659,7 +693,14 @@ export default function WorldStrategicMapGrid({
     strategicCityTooltipMetaRef.current = { cityId: null, onDutyCount: null };
     setTooltipContent({ type: 'tile', info });
     setTooltipPos({ x: e.clientX, y: e.clientY });
-  }, [clearLeaveTooltipTimer, tooltipClickMode, closeTooltipNow]);
+  }, [
+    strategicMarchMode,
+    strategicRoadMarchAnimating,
+    onStrategicMarchCellPick,
+    clearLeaveTooltipTimer,
+    tooltipClickMode,
+    closeTooltipNow,
+  ]);
 
   /** 荒郊/集市结算后：不依赖「抑制误点」，主动重建同城战略城池 portal（与瓦片点击路径一致） */
   const reopenStrategicCityTooltipAfterSubsidiaryExplore = useCallback((anchorCityId, subKind) => {
@@ -827,6 +868,8 @@ export default function WorldStrategicMapGrid({
                         onHover={handleOpenTooltipFromTileEvent}
                         onLeave={tooltipClickMode ? undefined : scheduleLeaveFromTileIfAllowed}
                         onTooltipClick={handleOpenTooltipFromTileEvent}
+                        strategicMarchMode={!!strategicMarchMode && !strategicRoadMarchAnimating}
+                        onStrategicMarchCellPick={onStrategicMarchCellPick}
                       />
                     );
                   }),
@@ -865,8 +908,57 @@ export default function WorldStrategicMapGrid({
                   centerGlyph={strategicSelfPawn.centerGlyph}
                   troopsCurrent={strategicSelfPawn.troopsCurrent}
                   troopsMax={strategicSelfPawn.troopsMax}
+                  stackStripPeers={strategicSelfPawn.stackStripPeers}
+                  stackStripEllipsis={!!strategicSelfPawn.stackStripEllipsis}
+                  marchModeActive={!!strategicMarchMode && !strategicRoadMarchAnimating}
+                  onEnterMarchMode={
+                    strategicRoadMarchAnimating ? undefined : onStrategicSelfMarchModeRequest || undefined
+                  }
+                  onExitMarchMode={onStrategicSelfMarchModeExit || undefined}
+                  roadIntercept={strategicSelfPawn.roadIntercept ? 1 : 0}
+                  interceptPlayerId={strategicSelfPawn.pawnPlayerId || null}
+                  interceptSilver={strategicSelfPawn.playerSilver}
+                  onRoadSelfUpdated={onStrategicRoadSelfUpdated || undefined}
+                  onSelfPawnOverlayOpenChange={setStrategicSelfPawnOverlayOpen}
                 />
               ) : null}
+              {pendingMapEventHint ? (
+                <StrategicMapEventHintBubble
+                  cx={
+                    strategicSelfPawn &&
+                    Number.isFinite(strategicSelfPawn.cx) &&
+                    Number.isFinite(strategicSelfPawn.cy)
+                      ? strategicSelfPawn.cx
+                      : null
+                  }
+                  cy={
+                    strategicSelfPawn &&
+                    Number.isFinite(strategicSelfPawn.cx) &&
+                    Number.isFinite(strategicSelfPawn.cy)
+                      ? strategicSelfPawn.cy
+                      : null
+                  }
+                  hintText={pendingMapEventHint}
+                  mapWrapRef={wrapRef}
+                  visible={!strategicSelfPawnOverlayOpen}
+                />
+              ) : null}
+              {Array.isArray(strategicOtherPawns)
+                ? strategicOtherPawns
+                    .filter((p) => p && Number.isFinite(p.cx) && Number.isFinite(p.cy))
+                    .map((p) => (
+                      <StrategicMapSelfPawn
+                        key={`other-${p.playerId}`}
+                        cx={p.cx}
+                        cy={p.cy}
+                        portraitUrl={p.portraitUrl}
+                        displayName={p.displayName}
+                        centerGlyph={p.centerGlyph}
+                        stackStripPeers={p.stackStripPeers}
+                        stackStripEllipsis={!!p.stackStripEllipsis}
+                      />
+                    ))
+                : null}
             </div>
           </div>
           {tooltipContent && typeof document !== 'undefined' && createPortal(

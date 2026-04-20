@@ -23,6 +23,7 @@
  *   - 执行前请确保已运行所有迁移脚本（backend/database/migrations/）
  *   - 技能：public/data/shared/skills.json（按需运行对应 CSV→JSON）
  *   - 羁绊：docs/tools/bond/bond-csv-to-json.cjs → public/data/shared/bonds.json（列与 bond-template.csv 一致）
+ *   - 势力：docs/tools/faction/faction-csv-to-json.cjs → public/data/shared/factions.json（含 initial_city_id → JSON initialCityId）
  *   - 事件：docs/tools/event/event-csv-to-json.cjs → public/data/shared/events.json（CSV 有 event_id 则整段描述/链/选项与奖励等均从 CSV 覆盖）
  *   - config_bonds / config_events 须有 season 列（见 migrations/add-config-bonds-season-column.sql、
  *     add-config-events-season-column.sql）

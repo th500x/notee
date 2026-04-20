@@ -599,7 +599,66 @@ class PlayerService {
       throw new Error('该角色名已被使用，请重新输入');
     }
 
-    // 创建玩家角色
+    // 创建玩家角色（配置/城市表赛季与 `getAvailableFactions` 一致：测试赛季 san_0_m1 使用 san_1 数据）
+    const seasonParts = String(factionId || '').split('_');
+    let campaignSeason =
+      seasonParts.length >= 2 ? `${seasonParts[0]}_${seasonParts[1]}` : 'san_1';
+    try {
+      const [accRows] = await pool.query(
+        'SELECT current_season FROM accounts WHERE id = ? LIMIT 1',
+        [playerId],
+      );
+      if (accRows[0]?.current_season === 'san_0_m1') {
+        campaignSeason = 'san_1';
+      }
+    } catch (_) {
+      /* keep derived campaignSeason */
+    }
+
+    let initialCityId = null;
+    try {
+      const [frows] = await pool.query(
+        'SELECT initial_city_id FROM config_factions WHERE faction_id = ? AND season = ? LIMIT 1',
+        [factionId, campaignSeason],
+      );
+      const raw = frows[0]?.initial_city_id;
+      if (raw != null && String(raw).trim() !== '') {
+        initialCityId = String(raw).trim();
+      }
+    } catch (e) {
+      console.warn('[PlayerService.createCharacter] initial_city lookup failed:', e.message);
+    }
+
+    let roadJunId = null;
+    let roadPx = null;
+    let roadPy = null;
+    if (initialCityId) {
+      try {
+        const [crows] = await pool.query(
+          `SELECT jun_id, position_x, position_y
+           FROM cities
+           WHERE city_id = ? AND season = ?
+           LIMIT 1`,
+          [initialCityId, campaignSeason],
+        );
+        const crow = crows[0];
+        if (crow?.jun_id != null && String(crow.jun_id).trim() !== '') {
+          roadJunId = String(crow.jun_id).trim();
+        }
+        if (
+          crow?.position_x != null &&
+          crow?.position_y != null &&
+          Number.isFinite(Number(crow.position_x)) &&
+          Number.isFinite(Number(crow.position_y))
+        ) {
+          roadPx = Number(crow.position_x);
+          roadPy = Number(crow.position_y);
+        }
+      } catch (e) {
+        console.warn('[PlayerService.createCharacter] cities anchor lookup failed:', e.message);
+      }
+    }
+
     const playerData = {
       player_id: playerId,
       character_name: characterName,
@@ -622,7 +681,10 @@ class PlayerService {
       // 初始银两：使用角色创建流程中剩余的银两
       initial_silver: initialSilver,
       // 初始粮草：0（不额外赠送）
-      initial_food: 0
+      initial_food: 0,
+      road_jun_id: roadJunId,
+      road_position_x: roadPx,
+      road_position_y: roadPy,
     };
 
     const player = await Player.create(playerData);

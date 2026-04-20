@@ -27,12 +27,6 @@ async function getPlayerProfile(playerId) {
     player.on_duty_city_id = null;
   }
 
-  const [progressRows] = await pool.query(
-    'SELECT tutorial_current_step FROM player_progress WHERE player_id = ?',
-    [playerId]
-  );
-  const tutorialStep = progressRows[0]?.tutorial_current_step ?? 1;
-
   let positionConfig = null;
   if (player.current_position_id) {
     const [posRows] = await pool.query(
@@ -490,9 +484,17 @@ async function getPlayerProfile(playerId) {
         on_duty_city_id: player.on_duty_city_id || null,
         main_city_id: player.main_city_id || null,
         main_city_changed_at: player.main_city_changed_at || null,
+        road_jun_id: player.road_jun_id || null,
+        road_position_x: player.road_position_x != null ? Number(player.road_position_x) : null,
+        road_position_y: player.road_position_y != null ? Number(player.road_position_y) : null,
+        road_intercept: player.road_intercept ? 1 : 0,
+        road_updated_at: player.road_updated_at || null,
+        road_reserve_date: player.road_reserve_date || null,
+        road_reserve_used: Number(player.road_reserve_used) || 0,
+        road_move_free_date: player.road_move_free_date || null,
+        road_move_free_used: Number(player.road_move_free_used) || 0,
         bonus_backpack_capacity: player.bonus_backpack_capacity ?? 0,
         bonus_daily_events: player.bonus_daily_events ?? 0,
-        tutorial_step: tutorialStep,
         attribute_bonus: attributeBonusBySlot.player,
       },
       cards: enrichedCards,
@@ -502,36 +504,6 @@ async function getPlayerProfile(playerId) {
   };
 }
 
-// ── 新手引导进度 ──────────────────────────────────────────────────────────────
-
-/**
- * 读取玩家的新手引导当前步骤（用于 GET /:playerId 附加 tutorial_step）。
- * @returns {number} 步骤编号，默认 1
- */
-async function getTutorialStep(playerId) {
-  const [rows] = await pool.query(
-    'SELECT tutorial_current_step FROM player_progress WHERE player_id = ?',
-    [playerId],
-  );
-  return rows[0]?.tutorial_current_step ?? 1;
-}
-
-/**
- * 更新新手引导进度（≥10 标记为完成）。
- */
-async function updateTutorialProgress(playerId, step) {
-  await pool.query(
-    `UPDATE player_progress
-     SET tutorial_current_step  = ?,
-         tutorial_completed     = IF(? >= 10, TRUE, FALSE),
-         tutorial_completed_at  = IF(? >= 10, NOW(), NULL)
-     WHERE player_id = ?`,
-    [step, step, step, playerId],
-  );
-}
-
 module.exports = {
   getPlayerProfile,
-  getTutorialStep,
-  updateTutorialProgress,
 };

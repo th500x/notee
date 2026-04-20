@@ -333,13 +333,15 @@ async function importFactions(connection) {
       await connection.query(`
         INSERT INTO config_factions (
           faction_id, season, faction_name, faction_leader,
+          initial_city_id,
           icon, color, style, max_players,
           faction_bonuses, description, difficulty
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON DUPLICATE KEY UPDATE
           season = VALUES(season),
           faction_name = VALUES(faction_name),
           faction_leader = VALUES(faction_leader),
+          initial_city_id = VALUES(initial_city_id),
           icon = VALUES(icon),
           color = VALUES(color),
           style = VALUES(style),
@@ -352,6 +354,7 @@ async function importFactions(connection) {
         seasonId,
         faction.name,
         faction.leader || null,
+        (faction.initialCityId && String(faction.initialCityId).trim()) || null,
         faction.icon || null,
         faction.color || null,
         faction.style || null,

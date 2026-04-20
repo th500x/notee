@@ -2,11 +2,11 @@
  * 游戏主页面
  * 
  * @description 移动端优先布局：TopStatusBar（窄屏约 4.5rem 双行 / sm+ 56px）+ 主内容区 + BottomTabNav(64px)
- *              activeTab=null 时显示大地图（背景图）
+ *              activeTab=null 时显示大地图（颍川战略格网）
  * @route /san_1/game
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PlayerProvider, usePlayerContext } from '@/contexts/PlayerContext';
 import { StrategicMapNavigationProvider } from '@/contexts/StrategicMapNavigationContext';
@@ -31,20 +31,25 @@ import JunCountyQuadPreviewPanel from '@/components/game/JunCountyQuadPreviewPan
 import UpdateNoticePanel from '@/components/game/UpdateNoticePanel';
 import { getActiveUpdateNotice } from '@/data/texts/updateAnnouncements';
 import { shouldShowUpdateNotice, dismissUpdateNotice } from '@/utils/updateNoticeLogic';
+import { isGameIntroCompletedForPlayer, markGameIntroCompletedForPlayer } from '@/utils/gameIntroFlags';
+
+const GameIntroOverlay = lazy(() => import('@/components/tutorial/GameIntroOverlay'));
 
 export default function GamePage({ user, onLogout }) {
   return (
     <PlayerProvider playerId={user?.id}>
       <StrategicMapNavigationProvider>
-        <GamePageInner onLogout={onLogout} />
+        <GamePageInner onLogout={onLogout} accountId={user?.id} />
       </StrategicMapNavigationProvider>
     </PlayerProvider>
   );
 }
 
-function GamePageInner({ onLogout }) {
+function GamePageInner({ onLogout, accountId }) {
   const { player, refresh } = usePlayerContext();
   const playerId = player?.player_id;
+  /** 与创角清 localStorage 的 id 一致；profile 加载前即可决定是否展示特色介绍 */
+  const gameIntroStorageId = accountId || player?.player_id;
 
   const [activeTab, setActiveTab] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -55,6 +60,25 @@ function GamePageInner({ onLogout }) {
   const [junQuadPreviewOpen, setJunQuadPreviewOpen] = useState(false);
   const [skillsMap, setSkillsMap] = useState({});
   const navigate = useNavigate();
+
+  /** 每位账号首次进大地图：特色九宫格；结束前阻塞教程链 IDLE 自动开局（首帧即按 localStorage 判定，避免教程抢先弹） */
+  const [gameIntroOpen, setGameIntroOpen] = useState(() => {
+    if (!accountId || typeof window === 'undefined') return false;
+    return !isGameIntroCompletedForPlayer(accountId);
+  });
+
+  useEffect(() => {
+    if (!gameIntroStorageId) {
+      setGameIntroOpen(false);
+      return;
+    }
+    setGameIntroOpen(!isGameIntroCompletedForPlayer(gameIntroStorageId));
+  }, [gameIntroStorageId]);
+
+  const handleGameIntroComplete = useCallback(() => {
+    markGameIntroCompletedForPlayer(gameIntroStorageId);
+    setGameIntroOpen(false);
+  }, [gameIntroStorageId]);
 
   const activeUpdateNotice = getActiveUpdateNotice();
   const [updateNoticeOpen, setUpdateNoticeOpen] = useState(() => {
@@ -152,9 +176,19 @@ function GamePageInner({ onLogout }) {
           } ${eventBusy ? 'bottom-0' : 'bottom-16'}`}
         >
           {activeTab === null ? (
-            eventBusy ? (
-              <div className="flex min-h-0 flex-1 flex-col">
+            <div className="flex min-h-0 flex-1 flex-col">
+              {/* 与 eventBusy 勿用两套分支挂 WorldMap：否则 busy 切换会卸载/重挂大地图，merged 重拉 →「大地图加载中」与格网交替闪烁 */}
+              {/* 公告/排行条不因 eventBusy 隐藏：否则 busy 结束时顶栏突然出现，大地图 event_hint（portal 锚点）与路点错位 */}
+              <div className="pointer-events-none z-40 flex shrink-0 flex-col gap-1.5 px-3 pt-1 pb-1">
+                <AnnouncementBar />
+                <RankingPanel />
+                {activeUpdateNotice && updateNoticeOpen && (
+                  <UpdateNoticePanel notice={activeUpdateNotice} onClose={handleDismissUpdateNotice} />
+                )}
+              </div>
+              <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
                 <WorldMap
+                  blockTutorialAutoplay={gameIntroOpen}
                   onEventBusyChange={setEventBusy}
                   sanGongFuCardPool={{
                     onOpenPool: setOpenPool,
@@ -165,30 +199,7 @@ function GamePageInner({ onLogout }) {
                   }}
                 />
               </div>
-            ) : (
-              <>
-                {/* 占文档流顶栏：游戏公告 + 活动排行 + 更新提示，避免 absolute 叠住地图说明与州郡条 */}
-                <div className="pointer-events-none z-40 flex shrink-0 flex-col gap-1.5 px-3 pt-1 pb-1">
-                  <AnnouncementBar />
-                  <RankingPanel />
-                  {activeUpdateNotice && updateNoticeOpen && (
-                    <UpdateNoticePanel notice={activeUpdateNotice} onClose={handleDismissUpdateNotice} />
-                  )}
-                </div>
-                <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-                  <WorldMap
-                    onEventBusyChange={setEventBusy}
-                    sanGongFuCardPool={{
-                      onOpenPool: setOpenPool,
-                      drawerOpen: !!openPool,
-                      troopRemaining: cardPool.status?.troop?.remainingDraws ?? '?',
-                      charRemaining: cardPool.status?.character?.remainingDraws ?? '?',
-                      dailyLimit: cardPool.status?.troop?.dailyLimit ?? 5,
-                    }}
-                  />
-                </div>
-              </>
-            )
+            </div>
           ) : (
             <div className="min-h-0 flex-1 overflow-y-auto">{renderTabContent()}</div>
           )}
@@ -265,6 +276,12 @@ function GamePageInner({ onLogout }) {
       {junQuadPreviewOpen && (
         <JunCountyQuadPreviewPanel onClose={() => setJunQuadPreviewOpen(false)} />
       )}
+
+      {gameIntroOpen && gameIntroStorageId ? (
+        <Suspense fallback={null}>
+          <GameIntroOverlay onComplete={handleGameIntroComplete} />
+        </Suspense>
+      ) : null}
     </>
   );
 }

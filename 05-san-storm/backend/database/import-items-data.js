@@ -5,7 +5,7 @@
  *
  * 管线：item-template.csv → item-csv-to-json.cjs（**整表重写** JSON）→ public/data/shared/items.json → **本脚本** → config_items。
  *
- * 录入源 CSV: docs/tools/item/item-template.csv（经 item-csv-to-json 生成 JSON）
+ * 录入源 CSV: docs/tools/event/item-template.csv（node docs/tools/event/item-csv-to-json.cjs 生成 JSON）
  * 输入:  public/data/shared/items.json
  * 目标:  config_items 表
  *

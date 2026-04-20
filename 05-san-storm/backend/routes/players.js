@@ -24,6 +24,7 @@ const mainCityBarracksStorageService = require('../services/mainCityBarracksStor
 const positionPromotionService = require('../services/positionPromotionService');
 const factionOverviewService = require('../services/factionOverviewService');
 const sanGongTributeService = require('../services/sanGongTributeService');
+const roadEncounterService = require('../services/roadEncounterService');
 
 const router = express.Router();
 
@@ -104,7 +105,7 @@ router.use('/:playerId/texts', textsRouter);
 
 /**
  * GET /api/players/:playerId
- * 获取玩家信息（含 tutorial_step）
+ * 获取玩家信息
  */
 router.get('/:playerId', async (req, res) => {
   try {
@@ -113,7 +114,6 @@ router.get('/:playerId', async (req, res) => {
     if (!player) {
       return res.status(404).json({ success: false, error: '玩家不存在' });
     }
-    player.tutorial_step = await playerProfileService.getTutorialStep(playerId);
     res.json({ success: true, data: player });
   } catch (error) {
     console.error('[Players] 获取玩家信息失败:', error);
@@ -410,6 +410,79 @@ router.post('/:playerId/main-city', async (req, res) => {
   }
 });
 
+// ── 道路守门 / 沿路移动 / 遭遇（02 §2.1.2、31-6） ─────────────────────────────
+
+/**
+ * POST /api/players/:playerId/road/intercept
+ * body: { enable: boolean, clientRequestId?: string }
+ * 开启（0→1）扣 40 银；已为 1 不再扣；enable:false 关闭（默认不退费）。
+ */
+router.post('/:playerId/road/intercept', async (req, res) => {
+  try {
+    const { playerId } = req.params;
+    const { enable, clientRequestId } = req.body || {};
+    if (typeof enable !== 'boolean') {
+      return res.status(400).json({ success: false, error: 'enable 必须为 boolean' });
+    }
+    const out = await roadEncounterService.setIntercept(playerId, enable, clientRequestId);
+    if (!out.ok) return res.status(out.status).json({ success: false, error: out.error });
+    res.json({ success: true, data: out.data });
+  } catch (error) {
+    console.error('[Players] 切换道路开战模式失败:', error);
+    res.status(500).json({ success: false, error: '切换道路开战模式失败', message: error.message });
+  }
+});
+
+/**
+ * GET /api/players/:playerId/road/self
+ * 返回本人 road_jun_id / road_position_x/y / road_intercept / road_updated_at。
+ */
+router.get('/:playerId/road/self', async (req, res) => {
+  try {
+    const { playerId } = req.params;
+    const out = await roadEncounterService.getSelfRoadState(playerId);
+    if (!out.ok) return res.status(out.status).json({ success: false, error: out.error });
+    res.json({ success: true, data: out.data });
+  } catch (error) {
+    console.error('[Players] 读取道路状态失败:', error);
+    res.status(500).json({ success: false, error: '读取道路状态失败', message: error.message });
+  }
+});
+
+/**
+ * POST /api/players/:playerId/road/move
+ * body: { season, junId, path:[{x,y}], clientRequestId, confirmFoodCost:true }
+ * 权威写 players.road_position_* + 粮草链路（player.food → factions.reserve_food 日上限 500）。
+ */
+router.post('/:playerId/road/move', async (req, res) => {
+  try {
+    const { playerId } = req.params;
+    const out = await roadEncounterService.moveAlongRoad(playerId, req.body || {});
+    if (!out.ok) return res.status(out.status).json({ success: false, error: out.error });
+    res.json({ success: true, data: out.data });
+  } catch (error) {
+    console.error('[Players] 沿路移动失败:', error);
+    res.status(500).json({ success: false, error: '沿路移动失败', message: error.message });
+  }
+});
+
+/**
+ * POST /api/players/:playerId/road/resolve-encounter
+ * body: { encounterId, battleId?, defenderWon: boolean }
+ * 战后解锁：road_encounters.status='resolved'；守门方战败关闭 road_intercept。
+ */
+router.post('/:playerId/road/resolve-encounter', async (req, res) => {
+  try {
+    const { playerId } = req.params;
+    const out = await roadEncounterService.resolveEncounter(playerId, req.body || {});
+    if (!out.ok) return res.status(out.status).json({ success: false, error: out.error });
+    res.json({ success: true, data: out.data });
+  } catch (error) {
+    console.error('[Players] 解锁道路遭遇失败:', error);
+    res.status(500).json({ success: false, error: '解锁道路遭遇失败', message: error.message });
+  }
+});
+
 /**
  * POST /api/players/:playerId/main-city-barracks/transfer-in
  * body: { instanceIds: string[] } — 军营池 → 主城驻军所仓库
@@ -526,26 +599,6 @@ router.get('/:playerId/profile', async (req, res) => {
   } catch (error) {
     console.error('[Players] 获取玩家档案失败:', error);
     res.status(500).json({ success: false, error: '获取玩家档案失败', message: error.message });
-  }
-});
-
-/**
- * POST /api/players/:playerId/progress/tutorial
- * 更新新手引导进度
- * body: { step }
- */
-router.post('/:playerId/progress/tutorial', async (req, res) => {
-  try {
-    const { playerId } = req.params;
-    const { step } = req.body;
-    if (!step || typeof step !== 'number' || step < 1) {
-      return res.status(400).json({ success: false, error: '无效的步骤编号' });
-    }
-    await playerProfileService.updateTutorialProgress(playerId, step);
-    res.json({ success: true, data: { tutorial_step: step } });
-  } catch (error) {
-    console.error('[Players] 更新新手引导进度失败:', error);
-    res.status(500).json({ success: false, error: '更新进度失败' });
   }
 });
 
@@ -725,6 +778,27 @@ router.get('/:playerId/events/explore', async (req, res) => {
   } catch (error) {
     console.error('[Players] 获取探索事件进度失败:', error);
     res.status(500).json({ success: false, error: '获取探索事件进度失败' });
+  }
+});
+
+/**
+ * PATCH /api/players/:playerId/events/explore/session-lock
+ * body: { sessionLock: object | null } — 探索/教程链进行中会话（跨设备）；清空传 null
+ */
+router.patch('/:playerId/events/explore/session-lock', async (req, res) => {
+  try {
+    if (!Object.prototype.hasOwnProperty.call(req.body || {}, 'sessionLock')) {
+      return res.status(400).json({ success: false, error: '缺少 sessionLock 字段（清空锁请传 null）' });
+    }
+    const sessionLock = req.body.sessionLock;
+    if (sessionLock !== null && typeof sessionLock !== 'object') {
+      return res.status(400).json({ success: false, error: 'sessionLock 须为对象或 null' });
+    }
+    await playerExploreEventService.setExploreSessionLock(req.params.playerId, sessionLock);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('[Players] 更新探索会话锁失败:', error);
+    res.status(500).json({ success: false, error: '更新探索会话锁失败', message: error.message });
   }
 });
 

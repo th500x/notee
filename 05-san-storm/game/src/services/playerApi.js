@@ -110,6 +110,59 @@ export const playerAPI = {
     return response.json();
   },
 
+  /** 道路：本人 `road_jun_id` / `road_position_*` / `road_intercept` 与粮草日累计（02 §2.1.2） */
+  async getRoadSelf(playerId) {
+    const response = await fetchWithTimeout(
+      `${API_CONFIG.BASE_URL}/players/${playerId}/road/self`,
+      { method: 'GET', headers: { 'Content-Type': 'application/json' } },
+    );
+    return response.json();
+  },
+
+  /** 道路：开启/关闭开战模式（守门）；`enable` + 可选 `clientRequestId` */
+  async setRoadIntercept(playerId, enable, clientRequestId) {
+    const response = await fetchWithTimeout(
+      `${API_CONFIG.BASE_URL}/players/${playerId}/road/intercept`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enable, clientRequestId }),
+      },
+    );
+    return response.json();
+  },
+
+  /**
+   * 道路：沿路移动（权威写格位 + 粮草）；须 `confirmFoodCost: true` 与唯一 `clientRequestId`。
+   * @param {string} playerId
+   * @param {{ season: string, junId: string, path: Array<{x:number,y:number}>, clientRequestId: string, confirmFoodCost: true, targetCityId?: string }} body
+   * `targetCityId` 可选：31-6 §9.4 本势力城心或郡内匪寨终点时传入，服务端重算 path 并校验 POI。
+   */
+  async roadMove(playerId, body) {
+    const response = await fetchWithTimeout(
+      `${API_CONFIG.BASE_URL}/players/${playerId}/road/move`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      },
+    );
+    return response.json();
+  },
+
+  /** 道路：战后解锁遭遇实例；`defenderWon` 由客户端战报结果传入 */
+  async resolveRoadEncounter(playerId, body) {
+    const response = await fetchWithTimeout(
+      `${API_CONFIG.BASE_URL}/players/${playerId}/road/resolve-encounter`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      },
+    );
+    return response.json();
+  },
+
   /** 三公府 · 官职：下一品阶可晋升列表 */
   async getSanGongFuPromotions(playerId) {
     const response = await fetchWithTimeout(
@@ -496,24 +549,6 @@ export const playerAPI = {
   },
 
   /**
-   * 更新新手引导进度
-   */
-  async updateTutorialStep(playerId, step) {
-    try {
-      const response = await fetchWithTimeout(`${API_CONFIG.BASE_URL}/players/${playerId}/progress/tutorial`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ step })
-      });
-      const data = await response.json();
-      return data;
-    } catch (error) {
-      console.error('更新新手引导进度失败:', error);
-      throw error;
-    }
-  },
-
-  /**
    * 获取玩家道具列表
    */
   async getItems(playerId) {
@@ -582,5 +617,20 @@ export const playerAPI = {
       body: JSON.stringify({ action })
     });
     return response.json();
-  }
+  },
+
+  /**
+   * 写入探索/教程链服务端会话锁（链进行中置位；结束或取消传 null）；与 GET …/events/explore 的 sessionLock 对齐。
+   */
+  async patchExploreSessionLock(playerId, sessionLock) {
+    const response = await fetchWithTimeout(
+      `${API_CONFIG.BASE_URL}/players/${playerId}/events/explore/session-lock`,
+      {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionLock }),
+      }
+    );
+    return response.json();
+  },
 };

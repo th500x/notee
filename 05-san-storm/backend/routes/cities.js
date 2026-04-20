@@ -9,6 +9,7 @@
 const express = require('express');
 const router = express.Router();
 const cityService = require('../services/cityService');
+const roadEncounterService = require('../services/roadEncounterService');
 const { pool } = require('../database/connection');
 
 // ── 攻城配额（与探索配额机制一致） ──
@@ -50,6 +51,26 @@ router.get('/', async (req, res) => {
   } catch (error) {
     console.error('[Cities] 获取城市列表失败:', error);
     res.status(500).json({ success: false, error: '获取城市列表失败' });
+  }
+});
+
+/**
+ * GET /api/cities/road-presence?season=san_1&junId=...
+ * 返回郡内 **在线** 他人道路坐标摘要 + road_encounters 锁格（02 §2.1.2（3）、31-6 §十二）。
+ * 注意：本路由必须在 `/:cityId` 之前注册，避免被其吞掉。
+ */
+router.get('/road-presence', async (req, res) => {
+  try {
+    const { season, junId, jun_id } = req.query;
+    const jid = String(junId || jun_id || '').trim();
+    const s = String(season || '').trim();
+    const caller = String(req.query.playerId || req.query.player_id || '').trim();
+    const out = await roadEncounterService.getRoadPresence(s, jid, caller);
+    if (!out.ok) return res.status(out.status).json({ success: false, error: out.error });
+    res.json({ success: true, data: out.data });
+  } catch (error) {
+    console.error('[Cities] 获取道路 presence 失败:', error);
+    res.status(500).json({ success: false, error: '获取道路 presence 失败', message: error.message });
   }
 });
 

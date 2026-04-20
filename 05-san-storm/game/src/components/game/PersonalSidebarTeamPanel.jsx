@@ -3,7 +3,7 @@
  */
 
 import { useCallback, useImperativeHandle, forwardRef, useState } from 'react';
-import { introSegments, groups, wikiBaseUrl } from '@/data/texts/teamContent';
+import { introSegments, groups, wikiBaseUrl } from '@/data/texts/personalCenterContent';
 
 function resolveWikiHref(pathOrEmpty) {
   const p = pathOrEmpty === undefined || pathOrEmpty === null ? '' : String(pathOrEmpty);

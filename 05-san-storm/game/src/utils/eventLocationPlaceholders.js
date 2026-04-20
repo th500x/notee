@@ -8,6 +8,7 @@ import { isBanditMapObjectId } from '@shared/utils/smallMapEnemyRoster.js';
  * - {any_gate} / {any_fort}：关隘 / 据点
  * - {any_wilderness} / {any_market}：任意开启荒郊 / 集市 的城（大中小均可；兼容旧 city_type=wilderness|market 行）
  * - {city_major_wilderness} / {city_medium_wilderness} / {city_major_market} / {city_medium_market}：按城格类型 + 开关细分
+ * - {city_major} / {city_medium} / {city_small}：仅按城格类型匹配（不等同于荒郊/集市开关）
  * - {any_bandit}：匪寨地图对象 city_id
  */
 
@@ -25,6 +26,10 @@ export const LOCATION_PLACEHOLDERS = {
   CITY_MEDIUM_WILDERNESS: '{city_medium_wilderness}',
   CITY_MAJOR_MARKET: '{city_major_market}',
   CITY_MEDIUM_MARKET: '{city_medium_market}',
+  /** 仅大城 / 中城 / 小城类型（与 cities.city_type 一致） */
+  CITY_MAJOR: '{city_major}',
+  CITY_MEDIUM: '{city_medium}',
+  CITY_SMALL: '{city_small}',
   ANY_BANDIT: '{any_bandit}',
 };
 
@@ -73,6 +78,12 @@ function matchLocationPlaceholder(ev, row) {
       return ct === 'city_major' && rowMarketExplore(row);
     case LOCATION_PLACEHOLDERS.CITY_MEDIUM_MARKET:
       return ct === 'city_medium' && rowMarketExplore(row);
+    case LOCATION_PLACEHOLDERS.CITY_MAJOR:
+      return ct === 'city_major';
+    case LOCATION_PLACEHOLDERS.CITY_MEDIUM:
+      return ct === 'city_medium';
+    case LOCATION_PLACEHOLDERS.CITY_SMALL:
+      return ct === 'city_small';
     default:
       return false;
   }

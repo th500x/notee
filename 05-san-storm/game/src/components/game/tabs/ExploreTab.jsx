@@ -3,28 +3,50 @@
  *
  * @description 正式游戏中的探索功能，替代 ExploreDemo
  *              使用 PlayerContext 真实数据，通过 useEventSystem hook 驱动
- *              探索点与大地图一致：默认主城 `DEFAULT_EXPLORE_LOCATION_ID`（荒郊与 `cities` 同行 `wildernessEnabled`）
+ *              探索锚点与 `filterExploreEventsPool`/事件 `location` 一致：来自当前 `exploreLocationId`（大地图/立足城解析）
  */
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { usePlayerContext } from '@/contexts/PlayerContext';
-import useEventSystem, { DEFAULT_EXPLORE_LOCATION_ID } from '@/hooks/useEventSystem';
+import useEventSystem from '@/hooks/useEventSystem';
 import ExplorePanel from '@/components/event/ExplorePanel';
 import { PHASE } from '@/components/event/EventConstants';
 
 export default function ExploreTab({ onClose }) {
   const { player, cards } = usePlayerContext();
   const eventSystem = useEventSystem(player, cards);
-  const { phase, quota, eventsLoading, explorePoolAt, startExplore } = eventSystem;
+  const {
+    phase,
+    quota,
+    eventsLoading,
+    explorePoolAt,
+    startExplore,
+    exploreLocationId,
+    citiesList,
+  } = eventSystem;
 
   const [exploreHover, setExploreHover] = useState(null);
 
   const bgPath = 'assets/san_1_map/illus_bg/av1_00001_.png';
   const baseUrl = import.meta.env.BASE_URL;
 
-  const poolLen = explorePoolAt(DEFAULT_EXPLORE_LOCATION_ID).length;
+  const anchorLabel = useMemo(() => {
+    const loc = exploreLocationId != null ? String(exploreLocationId).trim() : '';
+    if (!loc || !Array.isArray(citiesList)) return '尚未取得探索锚点';
+    const row = citiesList.find((c) => (c.city_id ?? c.cityId) === loc);
+    const name = row?.city_name ?? row?.cityName ?? '';
+    return name ? `${name}荒郊` : `${loc}`;
+  }, [exploreLocationId, citiesList]);
+
+  const poolLen = explorePoolAt(exploreLocationId).length;
+  const hasAnchor =
+    exploreLocationId != null && String(exploreLocationId).trim() !== '';
   const canExplore =
-    phase === PHASE.IDLE && !eventsLoading && poolLen > 0 && quota.canExplore;
+    hasAnchor &&
+    phase === PHASE.IDLE &&
+    !eventsLoading &&
+    poolLen > 0 &&
+    quota.canExplore;
   const poolEmpty = phase === PHASE.IDLE && !eventsLoading && poolLen <= 0;
 
   const quotaBlock = (
@@ -80,13 +102,13 @@ export default function ExploreTab({ onClose }) {
         </div>
       </div>
 
-      {/* 探索点（与 DEFAULT_EXPLORE_LOCATION_ID 一致） */}
+      {/* 探索点（锚点 city_id → 与事件 location 过滤一致） */}
       <div
         className={`absolute z-10 group ${canExplore ? 'cursor-pointer' : 'cursor-not-allowed'}`}
         style={{ left: '35%', top: '55%' }}
         onMouseEnter={() => setExploreHover('wilderness')}
         onMouseLeave={() => setExploreHover(null)}
-        onClick={canExplore ? () => startExplore(DEFAULT_EXPLORE_LOCATION_ID) : undefined}>
+        onClick={canExplore ? () => startExplore(exploreLocationId) : undefined}>
         {canExplore && (
           <div className="absolute inset-0 -m-4 rounded-full bg-amber-400/30 animate-ping" />
         )}
@@ -95,9 +117,10 @@ export default function ExploreTab({ onClose }) {
           ${poolEmpty ? 'grayscale opacity-[0.38] brightness-[0.82] saturate-50' : !canExplore ? 'opacity-60' : ''}`}>📜</div>
         {exploreHover === 'wilderness' && (
           <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-black/80 rounded-lg backdrop-blur-sm whitespace-nowrap">
-            <div className="text-white text-sm font-medium">阳翟荒郊</div>
+            <div className="text-white text-sm font-medium">{anchorLabel}</div>
             <div className="text-white/60 text-xs">
               {eventsLoading ? '加载事件中...'
+                : !hasAnchor ? '请在大地图立足或打开城池后再试（等待同步 cities）'
                 : !quota.canExplore ? '探索次数不足'
                 : poolEmpty ? '本地点暂无可探索事件'
                 : `点击探索（${poolLen}种事件）`}

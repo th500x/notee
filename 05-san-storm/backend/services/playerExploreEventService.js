@@ -275,11 +275,23 @@ const EVENT_TYPE_FIELD_MAP = {
  * 同时执行探索链每日重置检查。
  * @returns {{ events: object }}
  */
+function parseExploreSessionLock(raw) {
+  if (raw == null || raw === '') return null;
+  try {
+    return typeof raw === 'string' ? JSON.parse(raw) : raw;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * @returns {{ events: object, sessionLock: object|null }}
+ */
 async function getExploreEvents(playerId) {
   await pool.query('INSERT IGNORE INTO player_events (player_id) VALUES (?)', [playerId]);
   await maybeResetExploreEventChainsDaily(playerId);
   const [rows] = await pool.query(
-    'SELECT explore_events FROM player_events WHERE player_id = ?',
+    'SELECT explore_events, explore_session_lock FROM player_events WHERE player_id = ?',
     [playerId],
   );
   let events = {};
@@ -288,7 +300,20 @@ async function getExploreEvents(playerId) {
       ? JSON.parse(rows[0].explore_events)
       : rows[0].explore_events;
   }
-  return { events };
+  const sessionLock = parseExploreSessionLock(rows[0]?.explore_session_lock);
+  return { events, sessionLock };
+}
+
+/**
+ * 写入探索会话锁（链未完结前由 M2/大地图逻辑置位，链结束或显式放弃时传 null）
+ * @param {string} playerId
+ * @param {object|null} sessionLock
+ */
+async function setExploreSessionLock(playerId, sessionLock) {
+  await pool.query('INSERT IGNORE INTO player_events (player_id) VALUES (?)', [playerId]);
+  const val = sessionLock == null ? null : JSON.stringify(sessionLock);
+  await pool.query('UPDATE player_events SET explore_session_lock = ? WHERE player_id = ?', [val, playerId]);
+  return { ok: true };
 }
 
 /**
@@ -335,6 +360,7 @@ module.exports = {
   shouldDeferTroopRepairAfterBattleRewards,
   recordExploreChainEventCompleted,
   getExploreEvents,
+  setExploreSessionLock,
   recordEventProgress,
   EXPLORE_EVENT_CHAIN_IDS_DAILY_RESET,
 };

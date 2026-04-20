@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 角色创建页面
  * 
  * @description 完整的角色创建流程：势力选择 → 角色名 → 属性随机 → 初始部队
@@ -8,6 +8,7 @@ import { useState, useEffect } from 'react';
 import { playerAPI } from '@/services/playerApi';
 import { getRandomName } from '@/data/literaryNames';
 import { loadSharedData } from '@/services/dataService';
+import { clearGameIntroCompletionForPlayer } from '@/utils/gameIntroFlags';
 import TroopCard from '@shared/components/card/TroopCard';
 import CharacterCard from '@shared/components/card/CharacterCard';
 import FactionCard from '@shared/components/card/FactionCard';
@@ -408,6 +409,7 @@ const CharacterCreationPage = ({ user, onComplete }) => {
       });
 
       if (result.success) {
+        clearGameIntroCompletionForPlayer(user.id);
         // 角色创建成功，删除临时数据
         try {
           await playerAPI.deleteCreationProgress(user.id);

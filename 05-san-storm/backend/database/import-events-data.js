@@ -4,7 +4,7 @@
  * 运行时：游戏 GET /api/config/events 读的是「本表」里的数据（configService 查 MySQL），
  * 请求链路不会读 public/data/shared/events.json。
  *
- * 管线入库：event-template.csv → event-csv-to-json.cjs → public/data/shared/events.json → **本脚本** → config_events。
+ * 管线入库：event-template.csv → event-csv-to-json.cjs（CSV 整表写 JSON）→ public/data/shared/events.json → **本脚本** → config_events。
  * 若中间 JSON 与 CSV 未对齐，导入后库里仍是旧选项/奖励串——排查时要看「CSV→JSON→本导入」是否跑全，而非只假定「已更新 DB」。
  *
  * 输入:  public/data/shared/events.json（可由 docs/tools/event/event-csv-to-json.cjs 从 CSV 生成）
@@ -61,17 +61,18 @@ async function importEvents(connection) {
       const season = (e.season && String(e.season).trim()) || extractSeasonFromEventId(e.id) || 'san_1';
       await connection.query(`
         INSERT INTO config_events (
-          event_id, season, event_name, location, min_position_level,
+          event_id, season, event_name, event_hint, location, min_reputation,
           trigger_probability, trigger_context,
           chain_id, chain_level, required_items,
           description_1, description_2, description_3,
           option_a, option_b
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON DUPLICATE KEY UPDATE
           season              = VALUES(season),
           event_name          = VALUES(event_name),
+          event_hint          = VALUES(event_hint),
           location            = VALUES(location),
-          min_position_level  = VALUES(min_position_level),
+          min_reputation      = VALUES(min_reputation),
           trigger_probability = VALUES(trigger_probability),
           trigger_context     = VALUES(trigger_context),
           chain_id            = VALUES(chain_id),
@@ -86,8 +87,9 @@ async function importEvents(connection) {
         e.id,
         season,
         e.name,
+        e.eventHint || null,
         e.location || null,
-        e.minPositionLevel || null,
+        e.minReputation != null && e.minReputation !== '' ? Number(e.minReputation) : null,
         triggerProbabilityForImport(e.triggerProbability),
         e.triggerContext || null,
         e.chainId || null,

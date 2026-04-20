@@ -28,6 +28,49 @@ export function strategicMapObjectIs2x2(objectType) {
  * @param {number} mapRows
  * @returns {Set<string>} `"gx,gy"` 键
  */
+function isBanditCityIdForRoadBlock(cityId) {
+  return /(^|_)bandit(_|$)/i.test(String(cityId || ''));
+}
+
+/**
+ * 匪寨在合并图中为 **1×2 或 2×1** 两格（与城类 2×2 区分）；道路寻路不得落入其占格。
+ * @param {object[][]} cells
+ * @param {number} mapColumns
+ * @param {number} mapRows
+ * @param {Set<string>} blocked
+ */
+function addBanditDominoFootprintsToBlocked(cells, mapColumns, mapRows, blocked) {
+  const byId = new Map();
+  for (let gy = 0; gy < mapRows; gy++) {
+    const row = cells[gy];
+    if (!row) continue;
+    for (let gx = 0; gx < mapColumns; gx++) {
+      const cell = row[gx];
+      const cid = cell?.cityId ? String(cell.cityId) : '';
+      if (!cid || !isBanditCityIdForRoadBlock(cid)) continue;
+      if (!byId.has(cid)) byId.set(cid, []);
+      byId.get(cid).push({ gx, gy });
+    }
+  }
+  for (const [, arr] of byId) {
+    if (arr.length !== 2) continue;
+    const xs = arr.map((p) => p.gx);
+    const ys = arr.map((p) => p.gy);
+    const minX = Math.min(xs[0], xs[1]);
+    const maxX = Math.max(xs[0], xs[1]);
+    const minY = Math.min(ys[0], ys[1]);
+    const maxY = Math.max(ys[0], ys[1]);
+    const w = maxX - minX + 1;
+    const h = maxY - minY + 1;
+    if (w * h !== 2 || (w !== 2 && h !== 2)) continue;
+    for (let y = minY; y <= maxY; y++) {
+      for (let x = minX; x <= maxX; x++) {
+        blocked.add(`${x},${y}`);
+      }
+    }
+  }
+}
+
 export function buildStrategicObjectFootprintBlockedSet(cells, mapColumns, mapRows) {
   const blocked = new Set();
   if (!cells?.length) return blocked;
@@ -44,6 +87,7 @@ export function buildStrategicObjectFootprintBlockedSet(cells, mapColumns, mapRo
       }
     }
   }
+  addBanditDominoFootprintsToBlocked(cells, mapColumns, mapRows, blocked);
   return blocked;
 }
 

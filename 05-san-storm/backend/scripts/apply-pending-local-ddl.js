@@ -58,6 +58,13 @@ const MIGRATION_FILES = [
   'player-cards-add-main-city-barracks-storage.sql',
   'player-cards-drop-barracks-sort.sql',
   'player-events-add-san-gong-tribute-daily.sql',
+  'create-road-encounters.sql',
+  'add-players-road-state.sql',
+  'player-events-explore-session-lock.sql',
+  'config-events-add-min-reputation-event-hint.sql',
+  'config-events-drop-min-position-level.sql',
+  'config-factions-add-initial-city-id.sql',
+  'player-progress-drop-tutorial-columns.sql',
 ];
 
 function stripSqlComments(sql) {

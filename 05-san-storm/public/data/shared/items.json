@@ -1,8 +1,10 @@
 {
   "_meta": {
-    "generated": "2026-04-14T07:39:14.766Z",
-    "source": "docs/tools/item/item-template.csv",
-    "count": 16
+    "generated": "2026-04-19T13:20:47.965Z",
+    "source": "docs/tools/event/item-template.csv",
+    "count": 21,
+    "csvRowCount": 21,
+    "note": "由 CSV 整表生成；入库：backend/database/import-items-data.js"
   },
   "items": [
     {
@@ -101,7 +103,7 @@
       "id": "item_troop_core",
       "name": "核心旧部腰牌",
       "itemType": "event_key",
-      "description": "荒郊探索所得腰牌与名册残页可召集散落老兵为麾下最残破的核心营重整甲械恢复耐久",
+      "description": "山海关荒郊所得腰牌与名册残页可召集散落老兵为麾下最残破的核心营重整甲械恢复耐久",
       "season": "san_1",
       "specialEffect": "repair_min_durability_full_core"
     },
@@ -117,6 +119,41 @@
       "name": "黄巾徽章",
       "itemType": "season_badge",
       "description": "闪耀着神秘光辉的徽章",
+      "season": "san_1"
+    },
+    {
+      "id": "item_tutorial_1",
+      "name": "太守信物壹",
+      "itemType": "event_key",
+      "description": "",
+      "season": "san_1"
+    },
+    {
+      "id": "item_tutorial_2",
+      "name": "太守信物贰",
+      "itemType": "event_key",
+      "description": "",
+      "season": "san_1"
+    },
+    {
+      "id": "item_tutorial_3",
+      "name": "太守信物叁",
+      "itemType": "event_key",
+      "description": "",
+      "season": "san_1"
+    },
+    {
+      "id": "item_tutorial_4",
+      "name": "太守信物肆",
+      "itemType": "event_key",
+      "description": "",
+      "season": "san_1"
+    },
+    {
+      "id": "item_tutorial_5",
+      "name": "太守信物伍",
+      "itemType": "event_key",
+      "description": "",
       "season": "san_1"
     }
   ]

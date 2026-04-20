@@ -22,6 +22,9 @@ import {
   RARITY_ORDER,
 } from '@shared/utils/smallMapEnemyRoster';
 
+/** 教程探索链 `chain_id`；未完成时探索池只认本链，避免与无链/其它链/集市事件混抽 */
+export const TUTORIAL_EXPLORE_CHAIN_ID = 'chain_tutorial_v1';
+
 const WILDERNESS_EVENT_LOCS = new Set([
   LOCATION_PLACEHOLDERS.ANY_WILDERNESS,
   LOCATION_PLACEHOLDERS.CITY_MAJOR_WILDERNESS,
@@ -32,6 +35,14 @@ const MARKET_EVENT_LOCS = new Set([
   LOCATION_PLACEHOLDERS.CITY_MAJOR_MARKET,
   LOCATION_PLACEHOLDERS.CITY_MEDIUM_MARKET,
 ]);
+
+/**
+ * `trigger_context = tutorial`：不占用玩家探索配额（客户端不 consume，失败路径不 refund）。
+ * 与 `useEventSystem`、配置表 `config_events.trigger_context` 对齐。
+ */
+export function eventSkipsExploreQuota(ev) {
+  return !!(ev && typeof ev === 'object' && String(ev.trigger_context || '').trim() === 'tutorial');
+}
 
 /**
  * 战略城 tooltip 荒郊/集市分池：按 location 占位符与 trigger_context 归类（与合并拉取的全量池配合）
@@ -395,7 +406,7 @@ export function playerMeetsEventRequiredItems(requiredItemsStr, itemCounts) {
 }
 
 /**
- * 道具 id 与探索点 `city_id` 对齐：`exploreLocationId` 取主城 id（如 `san_1_city_2_yangdi`）→ slug `yangdi` → 道具 `item_yangdi_*`
+ * 道具 id 与探索点 `city_id` 对齐：`exploreLocationId` 为当前探索锚点（与事件 `location` 过滤同源）→ slug → 道具 `item_*`
  * @param {string} itemId
  * @param {string} exploreLocationId
  */
@@ -456,6 +467,29 @@ export function getEffectiveExploreChainMaxCompleted(allEvents, chainId, complet
 }
 
 /**
+ * 与后端 `playerExploreEventService.isExploreChainStrandedRedo` 一致：
+ * 本环已在 `completedEvents` 为 completed，且不满足下一环 `required_items`、且下一环尚未 completed → 允许本环留在池内重做。
+ * 其它「本环已 completed」须从池内剔除，否则会出现有效进度已推进却仍抽到该环、而后端拒领奖励。
+ */
+export function isExploreChainStrandedRedoFromState(evt, allEvents, completedEvents, playerItemCounts = {}) {
+  if (!evt?.chain_id || !evt?.event_id) return false;
+  if (completedEvents[evt.event_id]?.status !== 'completed') return false;
+  const chainLevelNum = (lv) => {
+    const n = Number(lv);
+    return Number.isFinite(n) && n > 0 ? n : 0;
+  };
+  const L = chainLevelNum(evt.chain_level);
+  const chainEvents = allEvents
+    .filter((e) => e.chain_id === evt.chain_id)
+    .sort((a, b) => chainLevelNum(a.chain_level) - chainLevelNum(b.chain_level));
+  const next = chainEvents.find((e) => chainLevelNum(e.chain_level) === L + 1);
+  if (!next?.required_items || !String(next.required_items).trim()) return false;
+  if (playerMeetsEventRequiredItems(next.required_items, playerItemCounts)) return false;
+  if (completedEvents[next.event_id]?.status === 'completed') return false;
+  return true;
+}
+
+/**
  * 按探索地点 + 事件链进度过滤可抽到的事件池（与 useEventSystem 逻辑一致）
  * @param {Array} allEvents - 探索用合并池（含 explore / wilderness / market / mystery 等，由 useEventSystem 合并拉取）
  * @param {Object} completedEvents - 玩家已完成事件 { eventId: { status } }
@@ -463,6 +497,7 @@ export function getEffectiveExploreChainMaxCompleted(allEvents, chainId, complet
  * @param {Record<string, number>} [playerItemCounts] - 背包道具数量，用于校验链式 required_items
  * @param {Array<{ city_id?: string, cityId?: string, city_type?: string, cityType?: string }>|null} [citiesList] - GET /api/cities 列表；缺省则占位符无法按类型匹配（仅 `{all}` / 全字面相等）
  * @param {'wilderness'|'market'|null} [subsidiaryKind] - 仅战略城荒郊/集市内嵌条传入，用于分池与链锁范围
+ * @param {number|null|undefined} [playerReputation] - 玩家当前声望；低于事件 `min_reputation` 则不入池
  */
 export function filterExploreEventsPool(
   allEvents,
@@ -470,7 +505,8 @@ export function filterExploreEventsPool(
   locationId,
   playerItemCounts = {},
   citiesList = null,
-  subsidiaryKind = null
+  subsidiaryKind = null,
+  playerReputation = null
 ) {
   if (!allEvents?.length || !locationId) return [];
 
@@ -505,11 +541,23 @@ export function filterExploreEventsPool(
     : allEvents;
 
   let activeChainId = getActiveExploreChainId(chainSource, completedEvents, playerItemCounts);
+
+  const tutorialMaxLevel = chainMaxLevel[TUTORIAL_EXPLORE_CHAIN_ID] || 0;
+  const tutorialEff = chainMaxCompleted[TUTORIAL_EXPLORE_CHAIN_ID] || 0;
+  /** 教程链未通：池内只放行 `chain_tutorial_v1`，不混入无链/其它链/集市等（上层产品规则） */
+  const tutorialChainIncomplete = tutorialMaxLevel > 0 && tutorialEff < tutorialMaxLevel;
+  if (tutorialChainIncomplete) {
+    activeChainId = TUTORIAL_EXPLORE_CHAIN_ID;
+  }
+
   /**
-   * 链进行中时，若「下一环」事件在当前 exploreLocationId 上无任何可匹配 location（例：匪寨链
-   * `{any_bandit}` 与阳翟 `san_1_city_2_yangdi`），则不在此探索点套用链锁，避免荒郊/集市 UI 误显示 0 件。
+   * 非教程链：一条链未完成时，`getActiveExploreChainId` + 下方 `if (activeChainId)` 已保证不会混入其它
+   * `chain_id` 的事件（无链事件在链进行中亦被挡在锁外）。
+   *
+   * 若「下一环」在当前格无可匹配 location，仅在荒郊/集市子条（`subsidiaryKind` 有值）解除链锁，避免
+   * 子条 UI 恒显示 0 件。教程链未完成时永不解除（由 `tutorialChainIncomplete` 锁死 `activeChainId`）。
    */
-  if (activeChainId && locationId) {
+  if (!tutorialChainIncomplete && subsidiaryKind && activeChainId && locationId) {
     const hasNextAtLocation = allEvents.some((evt) => {
       if (!evt.chain_id || evt.chain_id !== activeChainId) return false;
       const completed = chainMaxCompleted[evt.chain_id] || 0;
@@ -520,7 +568,7 @@ export function filterExploreEventsPool(
         return false;
       }
       const evLoc = String(evt.location ?? '').trim();
-      if (subsidiaryKind && !eventMatchesExploreSubsidiaryKind(evLoc, subsidiaryKind, evt.trigger_context)) {
+      if (!eventMatchesExploreSubsidiaryKind(evLoc, subsidiaryKind, evt.trigger_context)) {
         return false;
       }
       return exploreLocationMatchesEvent(evLoc, locationId, citiesList);
@@ -533,11 +581,27 @@ export function filterExploreEventsPool(
     if (!exploreLocationMatchesEvent(evLoc, locationId, citiesList)) return false;
     if (!eventMatchesExploreSubsidiaryKind(evLoc, subsidiaryKind, evt.trigger_context)) return false;
 
+    const minRepRaw = evt.min_reputation;
+    if (minRepRaw != null && minRepRaw !== '') {
+      const need = Number(minRepRaw);
+      if (Number.isFinite(need)) {
+        const pr = Number(playerReputation);
+        const actual = Number.isFinite(pr) ? pr : 0;
+        if (actual < need) return false;
+      }
+    }
+
     if (activeChainId) {
       if (!evt.chain_id || evt.chain_id !== activeChainId) return false;
     }
 
     if (!evt.chain_id) return true;
+
+    if (completedEvents[evt.event_id]?.status === 'completed') {
+      if (!isExploreChainStrandedRedoFromState(evt, allEvents, completedEvents, playerItemCounts)) {
+        return false;
+      }
+    }
 
     const completed = chainMaxCompleted[evt.chain_id] || 0;
     const maxLevel = chainMaxLevel[evt.chain_id] || 0;
