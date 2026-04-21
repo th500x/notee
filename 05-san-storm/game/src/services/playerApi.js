@@ -29,6 +29,45 @@ async function fetchWithTimeout(url, options = {}, timeout = API_CONFIG.TIMEOUT)
   }
 }
 
+/** 道路遭遇等：非 JSON / 连错端口时避免 `response.json()` 抛错导致界面无声失败 */
+async function jsonFromApiResponse(response, contextLabel) {
+  const ct = (response.headers.get('content-type') || '').toLowerCase();
+  if (!response.ok) {
+    if (ct.includes('application/json')) {
+      try {
+        const j = await response.json();
+        if (j && typeof j === 'object') return j;
+      } catch (_) {
+        /* fall through */
+      }
+    }
+    let snippet = '';
+    try {
+      const t = await response.text();
+      snippet = String(t || '').replace(/\s+/g, ' ').slice(0, 200);
+    } catch (_) {
+      /* ignore */
+    }
+    const hint404 =
+      '请确认已启动 05-san-storm/backend（默认 3005）、前端 API 基址指向该进程，并已拉取含道路遭遇路由的代码后重启后端。';
+    return {
+      success: false,
+      error:
+        response.status === 404
+          ? `${contextLabel} HTTP 404（${hint404}）`
+          : `${contextLabel} 失败（HTTP ${response.status}）`,
+      rawBodySnippet: snippet || undefined,
+    };
+  }
+  try {
+    const j = await response.json();
+    if (j && typeof j === 'object') return j;
+    return { success: false, error: `${contextLabel}：响应体不是 JSON 对象` };
+  } catch (e) {
+    return { success: false, error: `${contextLabel}：响应不是合法 JSON`, message: e?.message };
+  }
+}
+
 export const playerAPI = {
   /**
    * 获取可用头像列表
@@ -147,7 +186,7 @@ export const playerAPI = {
         body: JSON.stringify(body),
       },
     );
-    return response.json();
+    return jsonFromApiResponse(response, '道路移动');
   },
 
   /** 道路：战后解锁遭遇实例；`defenderWon` 由客户端战报结果传入 */
@@ -160,7 +199,7 @@ export const playerAPI = {
         body: JSON.stringify(body),
       },
     );
-    return response.json();
+    return jsonFromApiResponse(response, '道路遭遇解锁');
   },
 
   /** 道路守方：遇袭轮询（fighting 且立点在交战格时返回 encounter，否则 null） */
@@ -169,7 +208,7 @@ export const playerAPI = {
       `${API_CONFIG.BASE_URL}/players/${playerId}/road/pending-encounter`,
       { method: 'GET', headers: { 'Content-Type': 'application/json' } },
     );
-    return response.json();
+    return jsonFromApiResponse(response, '道路遇袭轮询');
   },
 
   /**
@@ -187,7 +226,32 @@ export const playerAPI = {
       `${API_CONFIG.BASE_URL}/players/${playerId}/road/encounter-battle${qs ? `?${qs}` : ''}`,
       { method: 'GET', headers: { 'Content-Type': 'application/json' } },
     );
-    return response.json();
+    return jsonFromApiResponse(response, '道路遭遇开战数据');
+  },
+
+  /** 道路遭遇：服务端权威单场推演并结算（与披挂攻城 `siegePvpSkirmish` 同源） */
+  async resolveRoadEncounterAuthoritative(playerId, encounterId) {
+    const response = await fetchWithTimeout(
+      `${API_CONFIG.BASE_URL}/players/${playerId}/road/encounter-authoritative-resolve`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ encounterId: encounterId != null ? String(encounterId).trim() : '' }),
+      },
+    );
+    return jsonFromApiResponse(response, '道路遭遇权威结算');
+  },
+
+  /** 道路遭遇：裁定结果轮询（攻守均可；fighting 时 pending） */
+  async getRoadEncounterAuthoritativeOutcome(playerId, encounterId) {
+    const q = new URLSearchParams();
+    if (encounterId != null && String(encounterId).trim() !== '') q.set('encounterId', String(encounterId).trim());
+    const qs = q.toString();
+    const response = await fetchWithTimeout(
+      `${API_CONFIG.BASE_URL}/players/${playerId}/road/encounter-authoritative-outcome${qs ? `?${qs}` : ''}`,
+      { method: 'GET', headers: { 'Content-Type': 'application/json' } },
+    );
+    return jsonFromApiResponse(response, '道路遭遇裁定查询');
   },
 
   /** 道路遭遇：战后结算（防守兵力/银两声望/解锁遭遇） */
@@ -200,7 +264,7 @@ export const playerAPI = {
         body: JSON.stringify(body || {}),
       },
     );
-    return response.json();
+    return jsonFromApiResponse(response, '道路遭遇结算');
   },
 
   /** 三公府 · 官职：下一品阶可晋升列表 */

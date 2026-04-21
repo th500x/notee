@@ -183,10 +183,12 @@ export function resolveKillLossTroopCounts(details) {
  * ③④ 文案统一：③ 为「战损保底」；该步的保底分是否成为 max(②,③,④) →「（触发）」否则「（未触发）」（PVE/PVP 同源，仅依赖 details）。
  * @param {object} details - calculateBattleScore(…).details
  * @param {number} [finalScore] - 存档中的最终分（校验用）
+ * @param {{ finalMultiplierLabel?: string }} [options] — ⑥ 行文案；道路遭遇等 PVP 场传「PVP积分倍率」
  * @returns {{ lines: Array<{ text: string }> }}
  */
-export function buildBattleScoreFormulaLines(details, finalScore) {
+export function buildBattleScoreFormulaLines(details, finalScore, options = {}) {
   if (!details) return { lines: [] };
+  const multStepLabel = options.finalMultiplierLabel || '攻城积分倍率';
   const kill = details.killScore ?? 0;
   const loss = details.lossScore ?? 0;
   const base = details.baseScore ?? kill + loss;
@@ -211,7 +213,7 @@ export function buildBattleScoreFormulaLines(details, finalScore) {
     { text: `③ ${floorLabel}：歼敌评分 × ${rule} = ${floorScore}` },
     { text: `④ ${comfortLabel}：当歼敌评分 = 0，战损评分 × ${comfortRule} = ${comfortFloorScore}` },
     { text: `⑤ 取较高：max(②, ③, ④) = ${pre}` },
-    { text: `⑥ 最终战报分：⑤ × 攻城积分倍率(${sm}) = ${calcFinal}` },
+    { text: `⑥ 最终战报分：⑤ × ${multStepLabel}(${sm}) = ${calcFinal}` },
   ];
   if (comfortTriggered) {
     lines.push({ text: '（说明：由于歼敌评分为 0，触发安慰保底计分。）' });

@@ -128,6 +128,8 @@ export default function SiegeReplayMini({
   rightPortraitUrl,
   initialAttackerTroops,
   initialDefenderTroops,
+  /** 自动播完一轮后回调（用于裁定后先演示再进结算）；点「关闭」也会触发一次 */
+  onPlaybackComplete,
 }) {
   const atkStart = normalizeTroopProp(initialAttackerTroops);
   const defStart = normalizeTroopProp(initialDefenderTroops);
@@ -143,6 +145,7 @@ export default function SiegeReplayMini({
   const [defHp, setDefHp] = useState(() => (hasTroopBar ? defStart : null));
   const mounted = useRef(true);
   const playingRef = useRef(false);
+  const playbackCompleteFiredRef = useRef(false);
 
   useEffect(() => {
     mounted.current = true;
@@ -150,6 +153,10 @@ export default function SiegeReplayMini({
       mounted.current = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (open) playbackCompleteFiredRef.current = false;
+  }, [open]);
 
   useEffect(() => {
     if (hasTroopBar) {
@@ -167,6 +174,16 @@ export default function SiegeReplayMini({
       setDefHp(defStart);
     }
   }, [hasTroopBar, atkStart, defStart]);
+
+  const firePlaybackCompleteOnce = useCallback(() => {
+    if (playbackCompleteFiredRef.current) return;
+    playbackCompleteFiredRef.current = true;
+    try {
+      onPlaybackComplete?.();
+    } catch (_) {
+      /* 回调异常不阻断关闭 */
+    }
+  }, [onPlaybackComplete]);
 
   const playAll = useCallback(async () => {
     if (!animSteps.length || playingRef.current) return;
@@ -186,14 +203,22 @@ export default function SiegeReplayMini({
     }
     playingRef.current = false;
     if (mounted.current) setPlaying(false);
-  }, [animSteps, resetHp, hasTroopBar]);
+    if (mounted.current) firePlaybackCompleteOnce();
+  }, [animSteps, resetHp, hasTroopBar, firePlaybackCompleteOnce]);
 
   useEffect(() => {
-    if (!open || !animSteps.length) return undefined;
+    if (!open) return undefined;
+    if (!animSteps.length) {
+      const t = window.setTimeout(() => firePlaybackCompleteOnce(), 0);
+      return () => window.clearTimeout(t);
+    }
     const t = window.setTimeout(() => playAll(), 0);
-    return () => window.clearTimeout(t);
+    return () => {
+      window.clearTimeout(t);
+      playingRef.current = false;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- 仅首次打开/条数变化时自动播一遍
-  }, [open, animSteps.length]);
+  }, [open, animSteps.length, playAll, firePlaybackCompleteOnce]);
 
   const cur = hi >= 0 ? animSteps[hi] : null;
   const leftLunge = cur?.side === 'atk';
@@ -292,7 +317,11 @@ export default function SiegeReplayMini({
         </button>
         <button
           type="button"
-          onClick={onClose}
+          onClick={() => {
+            playingRef.current = false;
+            firePlaybackCompleteOnce();
+            onClose?.();
+          }}
           className="px-5 py-1.5 rounded-md border border-stone-600/50 bg-stone-900 text-stone-400 text-xs min-w-[5rem] hover:border-stone-500"
         >
           关闭

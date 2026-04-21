@@ -95,5 +95,32 @@ export function buildPlayerUnitsFromContext(player, cards, attributeBonusBySlot 
     }
   }
 
+  // 与 `sumEquippedTroopTroopsFromCards` / 开战门闸一致：凡 `is_equipped` 的部队卡均须能进战，避免门闸算满兵力但此处为空导致战术图永不初始化
+  const usedTroopIds = new Set(
+    units
+      .map((u) => (u.troop?.instanceId != null ? String(u.troop.instanceId) : ''))
+      .filter(Boolean),
+  );
+  const playerCommander = {
+    name: player.character_name,
+    courtesyName: player.character_name,
+    combat: withBonus(player.combat / 10, playerBonus.combat),
+    command: withBonus(player.command / 10, playerBonus.command),
+    intelligence: withBonus(player.intelligence / 10, playerBonus.intelligence),
+    luck: withBonus(player.luck / 10, playerBonus.luck),
+    courage: withBonus(player.courage / 10, playerBonus.courage),
+    traitModifier: 0,
+  };
+  for (const c of cards) {
+    if (c.card_type !== 'troop' || !c.is_equipped) continue;
+    const tid = c.instance_id != null ? String(c.instance_id) : '';
+    if (tid && usedTroopIds.has(tid)) continue;
+    if (tid) usedTroopIds.add(tid);
+    units.push({
+      ...buildTroopUnit(c, playerCommander, player.morale ?? 70),
+      lineupSlot: 'player',
+    });
+  }
+
   return units;
 }

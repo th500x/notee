@@ -5,9 +5,10 @@
  *   1. 守门开关（road_intercept）事务与银两扣减；
  *   2. 沿路移动事务：逐格校验道路集合、邻接、占格、M2 敌对、粮草链路（player.food → factions.reserve_food）、
  *      触发遭遇时瞬间占格（road_encounters.status='fighting'）、同一事务提交；
+ *      攻方未达开战门闸时 **禁止** 踏入存在敌对玩家的道路格（整单 409，避免卡住）；守方未达门闸则不登记遭遇并将其 **`road_position_*` 写回最近己方城锚格**（共享 `roadBattleRetreatPlacement`）；
  *      非敌对（M2：同势力；缺 faction 视为非敌对）同格：允许叠站并继续本段路径，不因途经友军/中立而阻断。
  *   3. 郡内 presence：仅在线他人 road_position + 锁格；
- *   4. 战后解锁：写 status='resolved'、ended_at、battle_id；战败方关闭守门。
+ *   4. 战后解锁：写 status='resolved'、ended_at、battle_id；战败方移回最近己方城；守门方战败关闭 `road_intercept`。
  *
  * 所有对 players 的写入先 `SELECT … FOR UPDATE`；遭遇占格也在事务内 `SELECT … FOR UPDATE`。
  * 幂等：同一 `clientRequestId` 命中 players.road_last_request_id 时返回当前快照，不重复扣费 / 移格。
@@ -25,6 +26,21 @@ const { applyTroopDurabilityExhaustion } = require('./troopDurabilityService');
 const { checkAndApplyVeteran } = require('./veteranService');
 const smallMapBattleLootService = require('./smallMapBattleLootService');
 const { KILL_SILVER_REWARD } = require('../../shared/utils/siegeKillEconomyByRarity.cjs');
+const {
+  applyFactionPlayerRoadRetreat,
+  buildRoadGateFailRetreatNotice,
+  buildRoadBattleDefeatRetreatNotice,
+} = require('../utils/roadBattleRetreatPlacement');
+const { runSiegePvpSkirmish, hashSeed } = require('./siegePvpSkirmish');
+const battleService = require('./battleService');
+const { newShortBattleId } = require('../utils/battleId');
+const {
+  calculateBattleScore,
+  buildTroopsForAttackerScore,
+  buildTroopsForDefenderScore,
+  SIEGE_PVP_ONLINE_SCORE_MULT,
+} = require('../utils/battleScore.cjs');
+const { buildDefenderSiegePvpBattleLog } = require('../utils/siegeDefenseBattleLog');
 
 const { WIN_REPUTATION_REWARD } = smallMapBattleLootService;
 
@@ -218,17 +234,30 @@ async function setIntercept(playerId, enable, clientRequestId) {
 async function getSelfRoadState(playerId) {
   const pid = String(playerId || '').trim();
   if (!pid) return { ok: false, status: 400, error: '缺少 playerId' };
+  const conn = await pool.getConnection();
   try {
-    const [rows] = await pool.query(
+    await conn.beginTransaction();
+    const [rows] = await conn.query(
       `SELECT road_jun_id, road_position_x, road_position_y, road_intercept, road_updated_at,
               food, silver,
               road_reserve_date, road_reserve_used,
-              road_move_free_date, road_move_free_used
-         FROM players WHERE player_id = ?`,
+              road_move_free_date, road_move_free_used,
+              road_client_notice
+         FROM players WHERE player_id = ? FOR UPDATE`,
       [pid],
     );
-    if (!rows.length) return { ok: false, status: 404, error: '玩家不存在' };
+    if (!rows.length) {
+      await conn.rollback();
+      return { ok: false, status: 404, error: '玩家不存在' };
+    }
     const r = rows[0];
+    let pendingRoadNotice = null;
+    const rawNotice = r.road_client_notice != null ? String(r.road_client_notice).trim() : '';
+    if (rawNotice) {
+      pendingRoadNotice = rawNotice;
+      await conn.query(`UPDATE players SET road_client_notice = NULL WHERE player_id = ?`, [pid]);
+    }
+    await conn.commit();
     return {
       ok: true,
       data: {
@@ -239,13 +268,43 @@ async function getSelfRoadState(playerId) {
         roadReserveUsed: Number(r.road_reserve_used) || 0,
         roadMoveFreeDate: r.road_move_free_date || null,
         roadMoveFreeUsed: Number(r.road_move_free_used) || 0,
+        pendingRoadNotice: pendingRoadNotice || undefined,
       },
     };
   } catch (e) {
+    try {
+      await conn.rollback();
+    } catch (_) {}
+    if (/Unknown column/i.test(e.message || '') && /road_client_notice/i.test(e.message || '')) {
+      const [rows] = await pool.query(
+        `SELECT road_jun_id, road_position_x, road_position_y, road_intercept, road_updated_at,
+                food, silver,
+                road_reserve_date, road_reserve_used,
+                road_move_free_date, road_move_free_used
+           FROM players WHERE player_id = ?`,
+        [pid],
+      );
+      if (!rows.length) return { ok: false, status: 404, error: '玩家不存在' };
+      const r = rows[0];
+      return {
+        ok: true,
+        data: {
+          ...buildPlayerRoadSnapshot(r),
+          food: Number(r.food) || 0,
+          silver: Number(r.silver) || 0,
+          roadReserveDate: r.road_reserve_date || null,
+          roadReserveUsed: Number(r.road_reserve_used) || 0,
+          roadMoveFreeDate: r.road_move_free_date || null,
+          roadMoveFreeUsed: Number(r.road_move_free_used) || 0,
+        },
+      };
+    }
     if (/Unknown column/i.test(e.message || '')) {
       return { ok: false, status: 503, error: '数据库缺少道路状态列；请执行 add-players-road-state.sql' };
     }
     throw e;
+  } finally {
+    conn.release();
   }
 }
 
@@ -315,7 +374,7 @@ async function moveAlongRoad(playerId, body) {
     }
 
     const [countyCityRows] = await conn.query(
-      `SELECT city_id, city_type, position_x, position_y FROM cities WHERE jun_id = ? AND season = ?`,
+      `SELECT city_id, city_type, position_x, position_y, faction_id FROM cities WHERE jun_id = ? AND season = ?`,
       [junId, season],
     );
     const mainCityDbRow =
@@ -582,6 +641,8 @@ async function moveAlongRoad(playerId, body) {
     let lastY = onRoad ? startY : null;
     let encounter = null;
     let stepsApplied = 0;
+    /** @type {Array<{ defenderPlayerId: string, retreatX?: number, retreatY?: number, reason?: string }>} */
+    const defenderAutoRetreats = [];
 
     for (let i = 0; i < steps.length; i++) {
       const sx = toInt(steps[i].x);
@@ -644,7 +705,57 @@ async function moveAlongRoad(playerId, body) {
           continue;
         }
         const other = defender;
-        // 敌对 → 登记遭遇（status='fighting'），攻方落脚到该格，后续 steps 中断。
+        const atkGate = await garrisonService.validateMainLineupBattleGateOnConn(conn, pid);
+        if (!atkGate.ok) {
+          await conn.rollback();
+          return {
+            ok: false,
+            status: 409,
+            error: `无法进入与敌对玩家相同的道路格：${atkGate.error}（须先满足道路开战兵力与粮草要求）`,
+          };
+        }
+        const [defLockRows] = await conn.query(
+          `SELECT player_id, faction_id, main_city_id FROM players WHERE player_id = ? FOR UPDATE`,
+          [other.player_id],
+        );
+        const defRow = defLockRows[0];
+        if (!defRow) {
+          await conn.rollback();
+          return { ok: false, status: 500, error: '防守方档案不存在' };
+        }
+        const gate = await garrisonService.validateMainLineupBattleGateOnConn(conn, other.player_id);
+        if (!gate.ok) {
+          const ret = await applyFactionPlayerRoadRetreat(conn, {
+            junId,
+            grid,
+            countyCityRows,
+            playerId: other.player_id,
+            fromX: sx,
+            fromY: sy,
+            noticeText: buildRoadGateFailRetreatNotice(gate.error),
+          });
+          if (!ret.ok) {
+            await conn.rollback();
+            return {
+              ok: false,
+              status: 409,
+              error:
+                '对格玩家未满足开战兵力/粮草要求，且本郡内没有可解析的己方城池锚格（请确认地图与城池归属数据），本次行军无法进入该格',
+            };
+          }
+          defenderAutoRetreats.push({
+            defenderPlayerId: String(other.player_id),
+            retreatX: ret.retreatX,
+            retreatY: ret.retreatY,
+            retreatCityId: ret.retreatCityId || undefined,
+            reason: gate.error || '未满足开战条件',
+          });
+          lastX = sx;
+          lastY = sy;
+          stepsApplied = i + 1;
+          continue;
+        }
+        // 敌对且守方满足开战门闸 → 登记遭遇（status='fighting'），攻方落脚到该格，后续 steps 中断。
         const encounterId = newEncounterId(junId);
         // 守门方：仅当格上防守方处于开战模式时记入 gatekeeper（31-6 §五）；其余敌对遭遇 gatekeeper 置空。
         const gatekeeperId = other.road_intercept ? other.player_id : null;
@@ -760,6 +871,7 @@ async function moveAlongRoad(playerId, body) {
         costFreeSteps: usedFreeThisMove,
         costReserveFood: reserveFoodUse,
         encounter,
+        defenderAutoRetreats,
       },
     };
   } catch (e) {
@@ -1355,6 +1467,7 @@ async function recordEncounterBattleSettlement(attackerPlayerId, body) {
  * 战后收尾：
  *   - road_encounters: status=resolved, battle_id, ended_at
  *   - 守门方若战败，关闭其 road_intercept（31-6 §三）
+ *   - 战败方移回本郡最近己方城（`roadBattleRetreatPlacement`）
  *
  * @param {string} playerId   发起方（通常 = attacker，亦支持 defender 主动上报）
  * @param {{ encounterId: string, battleId?: string, defenderWon: boolean }} body
@@ -1370,7 +1483,8 @@ async function resolveEncounter(playerId, body) {
   try {
     await conn.beginTransaction();
     const [rows] = await conn.query(
-      `SELECT encounter_id, status, attacker_player_id, defender_player_id, gatekeeper_player_id
+      `SELECT encounter_id, status, attacker_player_id, defender_player_id, gatekeeper_player_id,
+              season, jun_id, position_x, position_y
          FROM road_encounters WHERE encounter_id = ? FOR UPDATE`,
       [eid],
     );
@@ -1379,7 +1493,7 @@ async function resolveEncounter(playerId, body) {
       await conn.rollback();
       return { ok: false, status: 404, error: '遭遇实例不存在' };
     }
-    if (row.attacker_player_id !== pid && row.defender_player_id !== pid) {
+    if (String(row.attacker_player_id || '').trim() !== pid && String(row.defender_player_id || '').trim() !== pid) {
       await conn.rollback();
       return { ok: false, status: 403, error: '仅遭遇双方可提交战后结果' };
     }
@@ -1413,6 +1527,37 @@ async function resolveEncounter(playerId, body) {
       }
     }
 
+    const loserPlayerId = defenderWon ? row.attacker_player_id : row.defender_player_id;
+    const cellX = toInt(row.position_x);
+    const cellY = toInt(row.position_y);
+    const encSeason = String(row.season || '').trim();
+    const encJun = String(row.jun_id || '').trim();
+    if (loserPlayerId && cellX != null && cellY != null && encSeason && encJun) {
+      try {
+        const grid = await loadRoadGrid(encSeason, encJun);
+        if (grid?.rawCells?.length) {
+          const [cRows] = await conn.query(
+            `SELECT city_id, city_type, position_x, position_y, faction_id FROM cities WHERE jun_id = ? AND season = ?`,
+            [encJun, encSeason],
+          );
+          const ret = await applyFactionPlayerRoadRetreat(conn, {
+            junId: encJun,
+            grid,
+            countyCityRows: cRows,
+            playerId: String(loserPlayerId).trim(),
+            fromX: cellX,
+            fromY: cellY,
+            noticeText: buildRoadBattleDefeatRetreatNotice(),
+          });
+          if (!ret.ok) {
+            console.warn('[roadEncounterService] resolveEncounter loser retreat skipped:', ret.error);
+          }
+        }
+      } catch (lzErr) {
+        console.warn('[roadEncounterService] resolveEncounter loser retreat', lzErr);
+      }
+    }
+
     await conn.commit();
     return { ok: true, data: { encounterId: eid, status: 'resolved', battleId, idempotent: false } };
   } catch (e) {
@@ -1421,6 +1566,372 @@ async function resolveEncounter(playerId, body) {
     return { ok: false, status: 500, error: e.message || '解锁遭遇失败' };
   } finally {
     conn.release();
+  }
+}
+
+// ── 道路遭遇：服务端权威推演（与 `siegePvpResolveService` 同源 `runSiegePvpSkirmish`）────────────────
+
+const authoritativeRoadResolveLocks = new Map();
+
+function sumSiegeNpcStartingTroopsRoad(npcs) {
+  if (!Array.isArray(npcs)) return 0;
+  return npcs.reduce((sum, n) => {
+    const cur = n?.currentTroops;
+    const mx = n?.maxTroops;
+    const v = cur != null && cur !== '' ? Number(cur) : Number(mx);
+    return sum + (Number.isFinite(v) ? Math.max(0, Math.round(v)) : 0);
+  }, 0);
+}
+
+function siegeNpcDisplayNamesRoad(npcs) {
+  const names = [];
+  for (const n of npcs || []) {
+    const c = n.character;
+    const label = (c && (c.courtesyName || c.name)) || n.troopName;
+    if (label) names.push(String(label).trim());
+  }
+  return names;
+}
+
+async function applyRoadEncounterLoserRetreatOnly(encRow, defenderWon) {
+  const loserPlayerId = defenderWon ? encRow.attacker_player_id : encRow.defender_player_id;
+  const cellX = toInt(encRow.position_x);
+  const cellY = toInt(encRow.position_y);
+  const encSeason = String(encRow.season || '').trim();
+  const encJun = String(encRow.jun_id || '').trim();
+  if (!loserPlayerId || cellX == null || cellY == null || !encSeason || !encJun) return;
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    const grid = await loadRoadGrid(encSeason, encJun);
+    if (!grid?.rawCells?.length) {
+      await conn.rollback();
+      return;
+    }
+    const [cRows] = await conn.query(
+      `SELECT city_id, city_type, position_x, position_y, faction_id FROM cities WHERE jun_id = ? AND season = ?`,
+      [encJun, encSeason],
+    );
+    const ret = await applyFactionPlayerRoadRetreat(conn, {
+      junId: encJun,
+      grid,
+      countyCityRows: cRows,
+      playerId: String(loserPlayerId).trim(),
+      fromX: cellX,
+      fromY: cellY,
+      noticeText: buildRoadBattleDefeatRetreatNotice(),
+    });
+    if (!ret.ok) {
+      console.warn('[roadEncounterService] authoritative road loser retreat skipped:', ret.error);
+    }
+    await conn.commit();
+  } catch (e) {
+    try {
+      await conn.rollback();
+    } catch (_) {}
+    console.warn('[roadEncounterService] authoritative road loser retreat', e);
+  } finally {
+    conn.release();
+  }
+}
+
+async function doResolveAuthoritativeRoadEncounter(attackerId, encounterId) {
+  const [rows] = await pool.query(
+    `SELECT encounter_id, status, attacker_player_id, defender_player_id,
+            season, jun_id, position_x, position_y, authoritative_resolution_json
+       FROM road_encounters WHERE encounter_id = ?`,
+    [encounterId],
+  );
+  const row = rows[0];
+  if (!row) return { ok: false, status: 404, error: '遭遇实例不存在' };
+  if (String(row.attacker_player_id || '').trim() !== attackerId) {
+    return { ok: false, status: 403, error: '仅进攻方可请求权威结算' };
+  }
+  if (row.status === 'resolved' || row.status === 'cancelled') {
+    if (row.authoritative_resolution_json) {
+      try {
+        const snap = JSON.parse(String(row.authoritative_resolution_json));
+        return { ok: true, data: { ...snap, idempotent: true } };
+      } catch (_) {
+        /* fallthrough */
+      }
+    }
+    return {
+      ok: true,
+      data: {
+        idempotent: true,
+        encounterId,
+        pendingReplay: false,
+        noReplay: true,
+        message: '遭遇已结束',
+      },
+    };
+  }
+  if (row.status !== 'fighting') {
+    return { ok: false, status: 409, error: '遭遇状态不可结算' };
+  }
+
+  const defenderId = String(row.defender_player_id || '').trim();
+  if (!defenderId) return { ok: false, status: 500, error: '遭遇缺少防守方' };
+
+  const rawAttacker = await garrisonService.buildDefenseUnitsFromMainLineup(attackerId);
+  const rawDefender = await garrisonService.buildDefenseUnitsFromMainLineup(defenderId);
+  const attackerNpcs = garrisonService.mapBuiltUnitsToSiegeNpcFormat(rawAttacker);
+  const defenderNpcs = garrisonService.mapBuiltUnitsToSiegeNpcFormat(rawDefender);
+  if (!attackerNpcs.length || !defenderNpcs.length) {
+    return { ok: false, status: 409, error: '双方上阵编组须均有部队才可权威结算' };
+  }
+
+  const seed = hashSeed([encounterId, attackerId, defenderId]);
+  const sim = runSiegePvpSkirmish(attackerNpcs, defenderNpcs, seed);
+  const result = sim.attackerWon ? 'win' : 'lose';
+  const killedIndices = Array.from(new Set((sim.killedIndices || []).map((x) => Number(x)).filter((i) => Number.isFinite(i) && i >= 0 && i < defenderNpcs.length)));
+
+  const defenderLineupTroopUpdates = defenderNpcs
+    .map((npc, i) => ({
+      instanceId: npc._troopInstanceId,
+      maxTroops: npc.maxTroops,
+      currentTroops: Math.max(0, Math.round(Number(sim.defenderTroopsEnd[i]?.currentTroops) || 0)),
+    }))
+    .filter((u) => u.instanceId);
+
+  const [atkFac] = await pool.query('SELECT faction_id FROM players WHERE player_id = ?', [attackerId]);
+  const factionId = atkFac[0]?.faction_id != null ? String(atkFac[0].faction_id).trim() : '';
+  if (!factionId) return { ok: false, status: 400, error: '进攻方缺少势力信息' };
+
+  const atkTroops = buildTroopsForAttackerScore(sim.attackerTroopsEnd, sim.defenderTroopsEnd);
+  const defTroops = buildTroopsForDefenderScore(sim.attackerTroopsEnd, sim.defenderTroopsEnd);
+  const scoreMultOpts = { scoreMultiplier: SIEGE_PVP_ONLINE_SCORE_MULT };
+  const atkBattleScore = calculateBattleScore(
+    atkTroops,
+    sim.rounds,
+    sim.attackerWon ? 'victory' : 'defeat',
+    scoreMultOpts,
+  );
+  const defBattleScore = calculateBattleScore(
+    defTroops,
+    sim.rounds,
+    sim.attackerWon ? 'defeat' : 'victory',
+    scoreMultOpts,
+  );
+
+  const battleId = newShortBattleId('road_pvp_atk');
+  const settleBody = {
+    encounterId,
+    factionId,
+    killedIndices,
+    result,
+    silverSpent: 0,
+    battleScore: atkBattleScore.score,
+    battleReportSaved: true,
+    battleId,
+    defenderLineupTroopUpdates,
+  };
+
+  const settled = await recordEncounterBattleSettlement(attackerId, settleBody);
+  if (!settled.ok) return settled;
+
+  try {
+    await garrisonService.applyAuthoritativeSiegePvpAttackerLineupCasualties(attackerId, attackerNpcs, sim.attackerTroopsEnd);
+  } catch (e) {
+    console.error('[roadEncounterService] authoritative road attacker casualties', {
+      message: e.message,
+      attackerId,
+      encounterId,
+    });
+  }
+
+  const [nameRows] = await pool.query(
+    'SELECT player_id, character_name FROM players WHERE player_id IN (?, ?)',
+    [attackerId, defenderId],
+  );
+  const nameMap = Object.fromEntries(nameRows.map((r) => [r.player_id, r.character_name]));
+  const attackerName = nameMap[attackerId] || attackerId;
+  const defenderName = nameMap[defenderId] || defenderId;
+
+  const battleLogText = sim.battleLog.join('\n');
+  const defenderPerspectiveLog = buildDefenderSiegePvpBattleLog({
+    battleLogLines: sim.battleLog,
+    attackerPlayerName: attackerName,
+    defenderPlayerName: defenderName,
+    cityName: '道路',
+  });
+
+  const defBattleId = newShortBattleId('road_pvp_def');
+  try {
+    await battleService.saveBattle({
+      battleId,
+      playerId: attackerId,
+      warId: null,
+      battleType: 'pvp_field',
+      opponentType: 'player',
+      opponentId: defenderId,
+      opponentName: defenderName,
+      result: sim.attackerWon ? 'win' : 'lose',
+      playerTeam: attackerNpcs.map((n) => ({
+        name: n.character?.courtesyName || n.character?.name || n.troopName,
+        courtesyName: n.character?.courtesyName || n.character?.name || n.troopName,
+      })),
+      opponentTeam: defenderNpcs.map((n) => ({
+        name: n.character?.courtesyName || n.character?.name || n.troopName,
+        courtesyName: n.character?.courtesyName || n.character?.name || n.troopName,
+      })),
+      battleLog: battleLogText,
+      totalKills: killedIndices.length,
+      duration: sim.rounds,
+      rewards: {
+        battleSeed: sim.battleSeed,
+        authoritative: true,
+        roadEncounterId: encounterId,
+        battleScore: atkBattleScore.score,
+        battleGrade: atkBattleScore.grade,
+        scoreDetails: atkBattleScore.details,
+        initialAttackerTroops: sumSiegeNpcStartingTroopsRoad(attackerNpcs),
+        initialDefenderTroops: sumSiegeNpcStartingTroopsRoad(defenderNpcs),
+      },
+    });
+  } catch (e) {
+    console.error('[roadEncounterService] authoritative road saveBattle attacker', e);
+  }
+
+  try {
+    await battleService.saveBattle({
+      battleId: defBattleId,
+      playerId: defenderId,
+      warId: null,
+      battleType: 'pvp_defense',
+      opponentType: 'player',
+      opponentId: attackerId,
+      opponentName: attackerName,
+      result: sim.attackerWon ? 'lose' : 'win',
+      playerTeam: defenderNpcs.map((n) => ({
+        name: n.character?.courtesyName || n.character?.name || n.troopName,
+        courtesyName: n.character?.courtesyName || n.character?.name || n.troopName,
+      })),
+      opponentTeam: attackerNpcs.map((n) => ({
+        name: n.character?.courtesyName || n.character?.name || n.troopName,
+        courtesyName: n.character?.courtesyName || n.character?.name || n.troopName,
+      })),
+      battleLog: defenderPerspectiveLog,
+      totalKills: killedIndices.length,
+      duration: sim.rounds,
+      rewards: {
+        battleScore: defBattleScore.score,
+        battleGrade: defBattleScore.grade,
+        scoreDetails: defBattleScore.details,
+        initialAttackerTroops: sumSiegeNpcStartingTroopsRoad(attackerNpcs),
+        initialDefenderTroops: sumSiegeNpcStartingTroopsRoad(defenderNpcs),
+        skirmishBattleLog: battleLogText,
+        roadEncounterId: encounterId,
+      },
+      recordOnly: true,
+    });
+  } catch (e) {
+    console.error('[roadEncounterService] authoritative road saveBattle defender', e);
+  }
+
+  try {
+    if (atkBattleScore.score > 0) {
+      await battleService.applyBattleScore(attackerId, atkBattleScore.score);
+    }
+    if (defBattleScore.score > 0) {
+      await battleService.applyBattleScore(defenderId, defBattleScore.score);
+    }
+  } catch (e) {
+    console.error('[roadEncounterService] authoritative road battle score stats', e);
+  }
+
+  const resolutionPayload = {
+    battleLog: sim.battleLog,
+    battleSeed: sim.battleSeed,
+    initialAttackerTroops: sumSiegeNpcStartingTroopsRoad(attackerNpcs),
+    initialDefenderTroops: sumSiegeNpcStartingTroopsRoad(defenderNpcs),
+    attackerWon: sim.attackerWon,
+    attackerName,
+    defenderName,
+    attackerBattleScore: atkBattleScore.score,
+    attackerBattleGrade: atkBattleScore.grade,
+    attackerScoreDetails: atkBattleScore.details,
+    defenderBattleScore: defBattleScore.score,
+    defenderBattleGrade: defBattleScore.grade,
+    defenderScoreDetails: defBattleScore.details,
+    settlement: settled.data || {},
+    siegeReplayAttackerNames: siegeNpcDisplayNamesRoad(attackerNpcs),
+    siegeReplayDefenderNames: siegeNpcDisplayNamesRoad(defenderNpcs),
+  };
+
+  try {
+    await pool.query(
+      'UPDATE road_encounters SET authoritative_resolution_json = ? WHERE encounter_id = ?',
+      [JSON.stringify(resolutionPayload), encounterId],
+    );
+  } catch (e) {
+    if (!/Unknown column/i.test(e.message || '')) {
+      console.error('[roadEncounterService] authoritative_resolution_json write', e);
+    }
+  }
+
+  try {
+    await applyRoadEncounterLoserRetreatOnly(row, !sim.attackerWon);
+  } catch (_) {}
+
+  return {
+    ok: true,
+    data: {
+      ...resolutionPayload,
+      battleId,
+      defenderBattleId: defBattleId,
+    },
+  };
+}
+
+async function resolveAuthoritativeRoadEncounter(attackerPlayerId, encounterIdRaw) {
+  const encounterId = String(encounterIdRaw || '').trim();
+  const attackerId = String(attackerPlayerId || '').trim();
+  if (!encounterId || !attackerId) return { ok: false, status: 400, error: '缺少 encounterId' };
+  if (authoritativeRoadResolveLocks.has(encounterId)) {
+    return authoritativeRoadResolveLocks.get(encounterId);
+  }
+  const p = doResolveAuthoritativeRoadEncounter(attackerId, encounterId).finally(() => {
+    authoritativeRoadResolveLocks.delete(encounterId);
+  });
+  authoritativeRoadResolveLocks.set(encounterId, p);
+  return p;
+}
+
+async function getRoadEncounterAuthoritativeOutcome(viewerPlayerId, encounterIdRaw) {
+  const pid = String(viewerPlayerId || '').trim();
+  const encounterId = String(encounterIdRaw || '').trim();
+  if (!pid || !encounterId) return { ok: false, status: 400, error: '缺少参数' };
+  try {
+    const [rows] = await pool.query(
+      `SELECT encounter_id, status, attacker_player_id, defender_player_id, authoritative_resolution_json
+         FROM road_encounters WHERE encounter_id = ?`,
+      [encounterId],
+    );
+    const row = rows[0];
+    if (!row) return { ok: false, status: 404, error: '遭遇不存在' };
+    const att = String(row.attacker_player_id || '').trim();
+    const def = String(row.defender_player_id || '').trim();
+    if (pid !== att && pid !== def) return { ok: false, status: 403, error: '无权查看' };
+    if (row.status === 'fighting') {
+      return { ok: true, data: { pending: true } };
+    }
+    if (row.authoritative_resolution_json) {
+      try {
+        const snap = JSON.parse(String(row.authoritative_resolution_json));
+        return { ok: true, data: { pending: false, ...snap, viewerIsDefender: pid === def } };
+      } catch (_) {
+        return { ok: true, data: { pending: false, noReplay: true } };
+      }
+    }
+    return { ok: true, data: { pending: false, noReplay: true, legacyClientSettlement: true } };
+  } catch (e) {
+    if (/Unknown column/i.test(e.message || '')) {
+      return { ok: false, status: 503, error: '请执行迁移 road-encounters-add-authoritative-resolution-json.sql' };
+    }
+    console.error('[roadEncounterService] getRoadEncounterAuthoritativeOutcome', e);
+    return { ok: false, status: 500, error: e.message || '查询失败' };
   }
 }
 
@@ -1437,4 +1948,6 @@ module.exports = {
   getEncounterBattlePayload,
   recordEncounterBattleSettlement,
   resolveEncounter,
+  resolveAuthoritativeRoadEncounter,
+  getRoadEncounterAuthoritativeOutcome,
 };

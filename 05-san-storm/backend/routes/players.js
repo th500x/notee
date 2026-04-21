@@ -101,26 +101,6 @@ router.get('/check/:playerId', async (req, res) => {
 const textsRouter = require('./texts');
 router.use('/:playerId/texts', textsRouter);
 
-// ── 玩家基础信息 ──────────────────────────────────────────────────────────────
-
-/**
- * GET /api/players/:playerId
- * 获取玩家信息
- */
-router.get('/:playerId', async (req, res) => {
-  try {
-    const { playerId } = req.params;
-    const player = await Player.getById(playerId);
-    if (!player) {
-      return res.status(404).json({ success: false, error: '玩家不存在' });
-    }
-    res.json({ success: true, data: player });
-  } catch (error) {
-    console.error('[Players] 获取玩家信息失败:', error);
-    res.status(500).json({ success: false, error: '获取玩家信息失败', message: error.message });
-  }
-});
-
 // ── 角色创建辅助 ──────────────────────────────────────────────────────────────
 
 /**
@@ -514,6 +494,40 @@ router.get('/:playerId/road/encounter-battle', async (req, res) => {
   } catch (error) {
     console.error('[Players] 道路遭遇开战数据失败:', error);
     res.status(500).json({ success: false, error: '道路遭遇开战数据失败', message: error.message });
+  }
+});
+
+/**
+ * POST /api/players/:playerId/road/encounter-authoritative-resolve
+ * body: { encounterId } — 与披挂攻城同源 `runSiegePvpSkirmish` 单场服务端推演并写库（进攻方）
+ */
+router.post('/:playerId/road/encounter-authoritative-resolve', async (req, res) => {
+  try {
+    const { playerId } = req.params;
+    const encounterId = req.body?.encounterId != null ? String(req.body.encounterId).trim() : '';
+    const out = await roadEncounterService.resolveAuthoritativeRoadEncounter(playerId, encounterId);
+    if (!out.ok) return res.status(out.status).json({ success: false, error: out.error });
+    res.json({ success: true, data: out.data });
+  } catch (error) {
+    console.error('[Players] 道路权威结算失败:', error);
+    res.status(500).json({ success: false, error: '道路权威结算失败', message: error.message });
+  }
+});
+
+/**
+ * GET /api/players/:playerId/road/encounter-authoritative-outcome?encounterId=
+ * 攻守双方轮询：fighting 时 pending；resolved 后返回推演快照 JSON
+ */
+router.get('/:playerId/road/encounter-authoritative-outcome', async (req, res) => {
+  try {
+    const { playerId } = req.params;
+    const encounterId = req.query.encounterId != null ? String(req.query.encounterId).trim() : '';
+    const out = await roadEncounterService.getRoadEncounterAuthoritativeOutcome(playerId, encounterId);
+    if (!out.ok) return res.status(out.status).json({ success: false, error: out.error });
+    res.json({ success: true, data: out.data });
+  } catch (error) {
+    console.error('[Players] 道路裁定查询失败:', error);
+    res.status(500).json({ success: false, error: '道路裁定查询失败', message: error.message });
   }
 });
 
@@ -1018,6 +1032,26 @@ router.post('/:playerId/reroll-confirm', async (req, res) => {
   } catch (error) {
     console.error('[Players] 确认属性方案失败:', error);
     res.status(500).json({ success: false, error: '确认属性方案失败', message: error.message });
+  }
+});
+
+// ── 玩家基础信息（必须放在所有 `/:playerId/...` 子路径之后，避免误匹配或维护时遮蔽）────
+
+/**
+ * GET /api/players/:playerId
+ * 获取玩家信息
+ */
+router.get('/:playerId', async (req, res) => {
+  try {
+    const { playerId } = req.params;
+    const player = await Player.getById(playerId);
+    if (!player) {
+      return res.status(404).json({ success: false, error: '玩家不存在' });
+    }
+    res.json({ success: true, data: player });
+  } catch (error) {
+    console.error('[Players] 获取玩家信息失败:', error);
+    res.status(500).json({ success: false, error: '获取玩家信息失败', message: error.message });
   }
 });
 

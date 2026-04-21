@@ -1,7 +1,7 @@
 /**
  * 战略大地图：玩家自身占位。圆形内为角色名末字；键鼠悬停圆形时显示全名与兵力 tooltip。
  * 触摸 / 粗指针：`pointerType==='touch'`（不依赖 `(pointer: coarse)`，避免竖屏误判）；短按同时显示与悬停同内容的 tooltip +「行军」「关闭」「来战」；长按约 1s 松手后直接进入行军模式（与点「行军」等价）。
- * 键鼠：单击打开操作条（与悬停可同时看到 tooltip）；双击圆形直接进入行军模式（**有触屏能力**的设备上禁用双击进军，避免手机/平板误触）。
+ * 键鼠：单击打开操作条（与悬停可同时看到 tooltip）；双击圆形直接进入行军模式（**竖屏 `(orientation: portrait)`** 或**有触屏能力**时禁用双击进军，避免手机/平板误触）。
  */
 
 import { useState, useCallback, useSyncExternalStore, useRef, useEffect } from 'react';
@@ -35,6 +35,22 @@ function getPointerCoarseServerSnapshot() {
   return false;
 }
 
+function subscribeOrientationPortrait(cb) {
+  if (typeof window === 'undefined') return () => {};
+  const mq = window.matchMedia('(orientation: portrait)');
+  mq.addEventListener('change', cb);
+  return () => mq.removeEventListener('change', cb);
+}
+
+function getOrientationPortraitSnapshot() {
+  if (typeof window === 'undefined') return false;
+  return window.matchMedia('(orientation: portrait)').matches;
+}
+
+function getOrientationPortraitServerSnapshot() {
+  return false;
+}
+
 function resolvePortraitSrc(portraitUrl) {
   if (!portraitUrl || typeof portraitUrl !== 'string') return null;
   const u = portraitUrl.trim();
@@ -57,8 +73,8 @@ function resolvePortraitSrc(portraitUrl) {
  * @param {boolean} [props.marchModeActive] - 是否已处于行军模式（操作条展示「退出行军」）
  * @param {() => void} [props.onEnterMarchMode] - 进入行军模式（与点操作条「行军」一致）
  * @param {() => void} [props.onExitMarchMode] - 退出行军模式
- * @param {0|1} [props.roadIntercept] - 道路开战模式（仅本人叠层）
- * @param {string|null} [props.interceptPlayerId] - 当前玩家 id（与 `onRoadSelfUpdated` 同时传入才显示来战/休战）
+ * @param {0|1} [props.roadIntercept] - 道路「来战」：`1` 时头像赤红光晕；**本人与路人棋子**均可传（由 `road-presence` 的 `roadIntercept`）；**点钮改状态**仍仅本人叠层（须同时传 `interceptPlayerId` + `onRoadSelfUpdated`）
+ * @param {string|null} [props.interceptPlayerId] - 当前登录玩家 id（与 `onRoadSelfUpdated` 同时传入才显示来战/休战按钮与扣银确认）
  * @param {number|null} [props.interceptSilver] - 当前银两（展示确认文案）
  * @param {() => void|Promise<void>} [props.onRoadSelfUpdated] - 切换成功后刷新档案
  * @param {(open: boolean) => void} [props.onSelfPawnOverlayOpenChange] - 本人短按/单击打开或关闭「行军」操作条时通知（用于暂时隐藏大地图 event_hint 等，避免叠层）
@@ -93,6 +109,11 @@ export default function StrategicMapSelfPawn({
     subscribePointerCoarse,
     getPointerCoarseSnapshot,
     getPointerCoarseServerSnapshot,
+  );
+  const portraitOrientation = useSyncExternalStore(
+    subscribeOrientationPortrait,
+    getOrientationPortraitSnapshot,
+    getOrientationPortraitServerSnapshot,
   );
   const [hover, setHover] = useState(false);
   const [showActionPopover, setShowActionPopover] = useState(false);
@@ -318,6 +339,7 @@ export default function StrategicMapSelfPawn({
   const onHitDoubleClick = useCallback(
     (e) => {
       if (!selfMarchUi) return;
+      if (portraitOrientation) return;
       if (coarsePointer) return;
       // 二合一设备常报告 fine pointer，双击易与触屏连点混淆 → 仅纯键鼠环境允许双击进军
       if (typeof navigator !== 'undefined' && Number(navigator.maxTouchPoints) > 0) return;
@@ -326,7 +348,7 @@ export default function StrategicMapSelfPawn({
       setShowActionPopover(false);
       if (typeof onEnterMarchMode === 'function') onEnterMarchMode();
     },
-    [selfMarchUi, coarsePointer, onEnterMarchMode],
+    [selfMarchUi, portraitOrientation, coarsePointer, onEnterMarchMode],
   );
 
   const handleMarchButton = useCallback(() => {
@@ -390,7 +412,7 @@ export default function StrategicMapSelfPawn({
           onMouseEnter={onEnter}
           onMouseLeave={onLeave}
           onClick={selfMarchUi ? onHitClick : undefined}
-          onDoubleClick={selfMarchUi ? onHitDoubleClick : undefined}
+          onDoubleClick={selfMarchUi && !portraitOrientation ? onHitDoubleClick : undefined}
           onPointerDown={selfMarchUi ? onPointerDown : undefined}
           onPointerMove={selfMarchUi ? onPointerMove : undefined}
           onPointerUp={selfMarchUi ? onPointerUp : undefined}

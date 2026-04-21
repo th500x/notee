@@ -27,6 +27,7 @@ import MainCityTab from '@/components/game/tabs/MainCityTab';
 import FactionTab from '@/components/game/tabs/FactionTab';
 import PlaceholderTab from '@/components/game/tabs/PlaceholderTab';
 import WorldMap from '@/components/game/WorldMap';
+import RoadEncounterDefenseRoot from '@/components/game/RoadEncounterDefenseRoot';
 import JunCountyQuadPreviewPanel from '@/components/game/JunCountyQuadPreviewPanel';
 import UpdateNoticePanel from '@/components/game/UpdateNoticePanel';
 import { getActiveUpdateNotice } from '@/data/texts/updateAnnouncements';
@@ -53,7 +54,14 @@ function GamePageInner({ onLogout, accountId }) {
 
   const [activeTab, setActiveTab] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [eventBusy, setEventBusy] = useState(false);
+  const [worldMapEventBusy, setWorldMapEventBusy] = useState(false);
+  const [roadDefenseLayerBusy, setRoadDefenseLayerBusy] = useState(false);
+  const eventBusy = worldMapEventBusy || roadDefenseLayerBusy;
+
+  /** `WorldMap` 卸载后不会再上报 busy；若此前为 true，会永远挡住底栏与部分浮层 */
+  useEffect(() => {
+    if (activeTab !== null) setWorldMapEventBusy(false);
+  }, [activeTab]);
   const [openPool, setOpenPool] = useState(null); // 'troop' | 'character' | null
   const [openReroll, setOpenReroll] = useState(false);
   const [campaignOpen, setCampaignOpen] = useState(false);
@@ -161,7 +169,7 @@ function GamePageInner({ onLogout, accountId }) {
   };
 
   return (
-    <>
+    <RoadEncounterDefenseRoot onBusyChange={setRoadDefenseLayerBusy}>
       {/* 全屏覆盖，脱离父级布局 */}
       <div className="fixed inset-0 z-[100] bg-stone-950">
         <TopStatusBar
@@ -193,7 +201,7 @@ function GamePageInner({ onLogout, accountId }) {
               <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
                 <WorldMap
                   blockTutorialAutoplay={gameIntroOpen}
-                  onEventBusyChange={setEventBusy}
+                  onEventBusyChange={setWorldMapEventBusy}
                   sanGongFuCardPool={{
                     onOpenPool: setOpenPool,
                     drawerOpen: !!openPool,
@@ -286,6 +294,6 @@ function GamePageInner({ onLogout, accountId }) {
           <GameIntroOverlay onComplete={handleGameIntroComplete} />
         </Suspense>
       ) : null}
-    </>
+    </RoadEncounterDefenseRoot>
   );
 }

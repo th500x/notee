@@ -60,6 +60,8 @@ const MIGRATION_FILES = [
   'player-events-add-san-gong-tribute-daily.sql',
   'create-road-encounters.sql',
   'add-players-road-state.sql',
+  'add-players-road-client-notice.sql',
+  'road-encounters-add-authoritative-resolution-json.sql',
   'player-events-explore-session-lock.sql',
   'config-events-add-min-reputation-event-hint.sql',
   'config-events-drop-min-position-level.sql',

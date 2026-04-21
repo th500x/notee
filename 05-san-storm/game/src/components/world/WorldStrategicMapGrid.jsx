@@ -956,6 +956,7 @@ export default function WorldStrategicMapGrid({
                         centerGlyph={p.centerGlyph}
                         stackStripPeers={p.stackStripPeers}
                         stackStripEllipsis={!!p.stackStripEllipsis}
+                        roadIntercept={p.roadIntercept ? 1 : 0}
                       />
                     ))
                 : null}

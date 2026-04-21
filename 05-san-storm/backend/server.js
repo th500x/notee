@@ -165,9 +165,9 @@ app.use((err, req, res, next) => {
   res.status(500).json({ success: false, error: '服务器内部错误' });
 });
 
-// 404处理
-app.use('*', (req, res) => {
-  res.status(404).json({ success: false, error: '接口不存在' });
+// 404：无 path 的 `use` 接住所有未匹配路由，始终返回 JSON（避免浏览器看到 HTML Cannot GET）
+app.use((req, res) => {
+  res.status(404).json({ success: false, error: '接口不存在', path: req.originalUrl || req.url });
 });
 
 // 启动服务器

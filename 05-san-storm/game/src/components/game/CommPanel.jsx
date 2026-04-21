@@ -208,7 +208,11 @@ async function renderBattleMemorialBlob({ playerName, playerId, battle, detail }
   const playerLine = uniqueTroopNames(playerTeam).join('、') || '未记录';
   const opponentLine = uniqueTroopNames(opponentTeam).join('、') || '未记录';
   const rewards = d?.rewards || battle?.rewards || {};
-  const scoreLines = buildBattleScoreFormulaLines(rewards?.scoreDetails, rewards?.battleScore).lines || [];
+  const memorialPvpFieldLabel = d?.battleType === 'pvp_field' || !!rewards?.roadEncounterId;
+  const scoreLines =
+    buildBattleScoreFormulaLines(rewards?.scoreDetails, rewards?.battleScore, {
+      finalMultiplierLabel: memorialPvpFieldLabel ? 'PVP积分倍率' : '攻城积分倍率',
+    }).lines || [];
   const scoreDetails = rewards?.scoreDetails || null;
   const killTroops = scoreDetails?.killTroops ?? null;
   const lossTroops = scoreDetails?.lossTroops ?? null;
@@ -873,9 +877,15 @@ function BattleDetail({ detail }) {
     /次攻击/.test(replayLogStr) &&
     /\[攻方\]/.test(replayLogStr);
 
+  const usePvpFieldScoreMultiplierLabel =
+    detail.battleType === 'pvp_field' || !!rewards.roadEncounterId;
+  const scoreMultLineLabel = usePvpFieldScoreMultiplierLabel ? 'PVP积分倍率' : '攻城积分倍率';
   const formulaLines = useMemo(
-    () => buildBattleScoreFormulaLines(rewards.scoreDetails, rewards.battleScore).lines,
-    [rewards.scoreDetails, rewards.battleScore],
+    () =>
+      buildBattleScoreFormulaLines(rewards.scoreDetails, rewards.battleScore, {
+        finalMultiplierLabel: scoreMultLineLabel,
+      }).lines,
+    [rewards.scoreDetails, rewards.battleScore, scoreMultLineLabel],
   );
   const troopCounts = useMemo(
     () => resolveKillLossTroopCounts(rewards.scoreDetails),
@@ -951,7 +961,9 @@ function BattleDetail({ detail }) {
               )}
               {rewards.scoreDetails.siegeScoreMultiplier != null &&
                 Number(rewards.scoreDetails.siegeScoreMultiplier) !== 1 && (
-                <div>攻城积分倍率 ×{rewards.scoreDetails.siegeScoreMultiplier}</div>
+                <div>
+                  {scoreMultLineLabel} ×{rewards.scoreDetails.siegeScoreMultiplier}
+                </div>
               )}
               {formulaLines.length > 0 && (
                 <div className="mt-1 pt-1 border-t border-amber-700/15 space-y-0.5 text-[9px] text-amber-200/35 leading-snug">

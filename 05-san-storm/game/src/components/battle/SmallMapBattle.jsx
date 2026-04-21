@@ -76,6 +76,7 @@ export default function SmallMapBattle({
   const battleSurfaceRef = useRef(null);
   battleSurfaceRef.current = createTacticalMapCardSurface(mapCardRef);
   const initRef = useRef(false);
+  const siegeInitErrorShownRef = useRef(false);
   const troopsRendered = useRef(false);
   const mountedRef = useRef(true);
   const manualBattleRef = useRef(null);
@@ -197,6 +198,23 @@ export default function SmallMapBattle({
     setStage(STAGE.READY);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playerUnits, enemyUnits, enemyRarity, enemySlotRarities, eventExtraEnemyCharacterIds, eventPunishmentExtraSlot, bm.allTroops.length]);
+
+  // 攻城 / PVP：若我方单位为空或敌方阵容缺失，init 会永远不跑 → 长期「正在准备战场…」且无控制台报错
+  useEffect(() => {
+    if (initRef.current || siegeInitErrorShownRef.current) return;
+    const needEnemyList = battleType === 'pvp_siege' || battleType === 'pve_siege';
+    if (!needEnemyList) return;
+    const noPlayer = !playerUnits || playerUnits.length === 0;
+    const noEnemy = !enemyUnits || enemyUnits.length === 0;
+    if (!noPlayer && !noEnemy) return;
+    siegeInitErrorShownRef.current = true;
+    setBattleGateMessage(
+      noPlayer
+        ? '缺少我方上阵单位，战术图无法初始化。请返回大地图，在「卡牌」中检查主公与将领的部队装配。'
+        : '缺少敌方阵容数据，战术图无法初始化。若持续出现请刷新页面。',
+    );
+    setBattleGateModalOpen(true);
+  }, [playerUnits, enemyUnits, battleType]);
 
   // ── PVP 攻城：预置敌方阵容时自动开战，避免未点「开始」导致不落战报 ──
   useEffect(() => {

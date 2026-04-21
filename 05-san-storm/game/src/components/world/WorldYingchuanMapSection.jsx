@@ -53,6 +53,36 @@ function normalizeMergedMapSeed(data) {
 const MARCH_ANIM_MS_PER_STEP = 200;
 
 /**
+ * `road/move` 成功后的提示：遭遇战优先；否则守方被门闸击退时给说明；默认成功。
+ * @param {object} p
+ * @param {object|null|undefined} p.encounter
+ * @param {unknown} p.defenderAutoRetreats
+ * @param {(enc: object) => void|Promise<void>} [p.onRoadEncounterBattle]
+ * @param {(t: { type: string, message: string }) => void} p.setMarchToast
+ */
+function showRoadMarchMoveFinishToast({ encounter, defenderAutoRetreats, onRoadEncounterBattle, setMarchToast }) {
+  if (encounter?.encounterId) {
+    if (typeof onRoadEncounterBattle === 'function') {
+      void onRoadEncounterBattle(encounter);
+    } else {
+      setMarchToast({
+        type: 'info',
+        message: `已触发道路遭遇：${encounter.encounterId}。请完成战斗后走战后解锁（resolve-encounter）。`,
+      });
+    }
+    return;
+  }
+  if (Array.isArray(defenderAutoRetreats) && defenderAutoRetreats.length > 0) {
+    setMarchToast({
+      type: 'info',
+      message: '对格玩家未达开战兵力或粮草要求，已退回本郡内最近的己方城池。',
+    });
+    return;
+  }
+  setMarchToast({ type: 'success', message: '移动已完成' });
+}
+
+/**
  * @param {boolean} onRoadAtStart
  * @param {{ x: number, y: number }[]} fullPath
  * @param {number} stepsApplied
@@ -122,6 +152,8 @@ function computeDefaultTilePx() {
  */
 export default function WorldYingchuanMapSection({
   className = '',
+  /** 由 `WorldMap` 注入：`{ current: () => void }`，用于守方道路坐标被服务端改写后立即 bump `road-presence` */
+  bumpStrategicRoadPresenceRef = null,
   playerId = null,
   playerFactionId = null,
   siegeLoading = false,
@@ -173,7 +205,7 @@ export default function WorldYingchuanMapSection({
   const [marchToast, setMarchToast] = useState(null);
   /**
    * `road/move` 成功后跳跳棋回放：仅客户端改叠层锚点，播完再 `refresh`。
-   * @type {null | { path: Array<{x:number,y:number}>, stepIndex: number, afterRefreshToast: { encounter: object|null } }}
+   * @type {null | { path: Array<{x:number,y:number}>, stepIndex: number, afterRefreshToast: { encounter: object|null, defenderAutoRetreats?: unknown } }}
    */
   const [roadMarchAnimation, setRoadMarchAnimation] = useState(null);
 
@@ -261,11 +293,11 @@ export default function WorldYingchuanMapSection({
     };
     roadPresenceFetchRef.current = fetchPresence;
     fetchPresence();
-    // 5s：他人路点依赖本接口；原 30s 易导致「A 已走、B 仍见旧格 / 寻路仍绕旧阻」
+    // 3s：他人路点依赖本接口；守方被门闸击退时另由 `WorldMap` bump；原 30s 易导致「A 已走、B 仍见旧格」
     const id = setInterval(() => {
       if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
       fetchPresence();
-    }, 5000);
+    }, 3000);
     const onVis = () => {
       if (document.visibilityState === 'visible') fetchPresence();
     };
@@ -277,6 +309,18 @@ export default function WorldYingchuanMapSection({
       roadPresenceFetchRef.current = () => Promise.resolve();
     };
   }, [playerId, merged?.junId, merged?.season]);
+
+  useEffect(() => {
+    const o = bumpStrategicRoadPresenceRef;
+    if (!o || typeof o !== 'object') return undefined;
+    const bump = () => {
+      void roadPresenceFetchRef.current?.();
+    };
+    o.current = bump;
+    return () => {
+      if (o.current === bump) o.current = null;
+    };
+  }, [bumpStrategicRoadPresenceRef]);
 
   const cols = merged?.mapColumns ?? YINGCHUAN_COUNTY_MAP_COLS;
   const rows = merged?.mapRows ?? YINGCHUAN_COUNTY_MAP_ROWS;
@@ -609,19 +653,12 @@ export default function WorldYingchuanMapSection({
         } catch (_) {}
         void roadPresenceFetchRef.current?.();
         setRoadMarchAnimation(null);
-        const enc = afterRefreshToast?.encounter;
-        if (enc?.encounterId) {
-          if (onRoadEncounterBattle) {
-            void onRoadEncounterBattle(enc);
-          } else {
-            setMarchToast({
-              type: 'info',
-              message: `已触发道路遭遇：${enc.encounterId}。请完成战斗后走战后解锁（resolve-encounter）。`,
-            });
-          }
-        } else {
-          setMarchToast({ type: 'success', message: '移动已完成' });
-        }
+        showRoadMarchMoveFinishToast({
+          encounter: afterRefreshToast?.encounter,
+          defenderAutoRetreats: afterRefreshToast?.defenderAutoRetreats,
+          onRoadEncounterBattle,
+          setMarchToast,
+        });
         window.setTimeout(() => setMarchToast(null), 6000);
       }, MARCH_ANIM_MS_PER_STEP);
       return () => window.clearTimeout(t);
@@ -797,6 +834,7 @@ export default function WorldYingchuanMapSection({
       const onRoadAtStart = marchConfirm.onRoadAtStart;
       const reqPath = marchConfirm.path;
       const encounter = res.data?.encounter || null;
+      const defenderAutoRetreats = res.data?.defenderAutoRetreats;
 
       setMarchConfirm(null);
       setStrategicMarchMode(false);
@@ -805,18 +843,12 @@ export default function WorldYingchuanMapSection({
       if (res.data?.idempotent) {
         await refresh({ silent: true });
         void roadPresenceFetchRef.current?.();
-        if (encounter?.encounterId) {
-          if (onRoadEncounterBattle) {
-            void onRoadEncounterBattle(encounter);
-          } else {
-            setMarchToast({
-              type: 'info',
-              message: `已触发道路遭遇：${encounter.encounterId}。请完成战斗后走战后解锁（resolve-encounter）。`,
-            });
-          }
-        } else {
-          setMarchToast({ type: 'success', message: '移动已完成' });
-        }
+        showRoadMarchMoveFinishToast({
+          encounter,
+          defenderAutoRetreats,
+          onRoadEncounterBattle,
+          setMarchToast,
+        });
         window.setTimeout(() => setMarchToast(null), 6000);
         return;
       }
@@ -830,18 +862,12 @@ export default function WorldYingchuanMapSection({
       if (animPath.length <= 1) {
         await refresh({ silent: true });
         void roadPresenceFetchRef.current?.();
-        if (encounter?.encounterId) {
-          if (onRoadEncounterBattle) {
-            void onRoadEncounterBattle(encounter);
-          } else {
-            setMarchToast({
-              type: 'info',
-              message: `已触发道路遭遇：${encounter.encounterId}。请完成战斗后走战后解锁（resolve-encounter）。`,
-            });
-          }
-        } else {
-          setMarchToast({ type: 'success', message: '移动已完成' });
-        }
+        showRoadMarchMoveFinishToast({
+          encounter,
+          defenderAutoRetreats,
+          onRoadEncounterBattle,
+          setMarchToast,
+        });
         window.setTimeout(() => setMarchToast(null), 6000);
         return;
       }
@@ -849,7 +875,7 @@ export default function WorldYingchuanMapSection({
       setRoadMarchAnimation({
         path: animPath,
         stepIndex: 0,
-        afterRefreshToast: { encounter },
+        afterRefreshToast: { encounter, defenderAutoRetreats },
       });
     } catch (err) {
       exitStrategicMarchMode();

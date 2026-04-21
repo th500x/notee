@@ -68,6 +68,47 @@ async function sumMainLineupEquippedTroopTroops(conn, playerId) {
   return Number(rows[0]?.total) || 0;
 }
 
+/**
+ * 已装备部队出征粮草需求（与前端 `getMainLineupBattleFoodDeployCost` 一致）：每支 ceil(当前兵力/20) 求和。
+ * @param {import('mysql2').Pool|import('mysql2').PoolConnection} conn
+ * @param {string} playerId
+ */
+async function sumMainLineupBattleFoodDeployCost(conn, playerId) {
+  const [rows] = await conn.query(
+    `SELECT COALESCE(SUM(
+        CEIL(GREATEST(0, COALESCE(pc.current_troops, COALESCE(ct.max_troops, 0) + COALESCE(pc.bonus_max_troops, 0))) / 20)
+      ), 0) AS total
+     FROM player_cards pc
+     LEFT JOIN config_troops ct ON pc.card_id = ct.troop_id
+     WHERE pc.player_id = ? AND pc.card_type = 'troop' AND pc.is_equipped = TRUE`,
+    [playerId]
+  );
+  return Number(rows[0]?.total) || 0;
+}
+
+/**
+ * 道路遭遇等：在已有事务连接上校验「上阵总兵力 + 出征粮草」（与攻城/野战入口一致）。
+ * @param {import('mysql2').PoolConnection} conn
+ * @param {string} playerId
+ * @returns {Promise<{ ok: true } | { ok: false, error: string }>}
+ */
+async function validateMainLineupBattleGateOnConn(conn, playerId) {
+  const troops = await sumMainLineupEquippedTroopTroops(conn, playerId);
+  if (troops < MIN_MAIN_LINEUP_TROOPS_BATTLE) {
+    return {
+      ok: false,
+      error: `上阵编组总兵力需≥${MIN_MAIN_LINEUP_TROOPS_BATTLE}（当前 ${troops}）`,
+    };
+  }
+  const [pRows] = await conn.query('SELECT food FROM players WHERE player_id = ? FOR UPDATE', [playerId]);
+  const food = Number(pRows[0]?.food) || 0;
+  const need = await sumMainLineupBattleFoodDeployCost(conn, playerId);
+  if (food < need) {
+    return { ok: false, error: `出征需粮草 ${need}（当前 ${food}），粮草不足` };
+  }
+  return { ok: true };
+}
+
 /** 将本次 POST 与库中已有驻守行合并，避免请求体漏键导致将领2 部队未纳入总兵力 */
 function mergeGarrisonPayloadWithPrevRow(prevSlot, incoming) {
   if (!prevSlot) return { ...incoming };
@@ -510,6 +551,8 @@ module.exports = {
   // ── 工具函数（本文件实现）──
   sumTroopInstancesTotalTroops,
   sumMainLineupEquippedTroopTroops,
+  sumMainLineupBattleFoodDeployCost,
+  validateMainLineupBattleGateOnConn,
   MIN_GARRISON_TOTAL_TROOPS,
   MIN_MAIN_LINEUP_TROOPS_BATTLE,
   // ── 防守单位构建（再导出自 garrisonBuildService）──
