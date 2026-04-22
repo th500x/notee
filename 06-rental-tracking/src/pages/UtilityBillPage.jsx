@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import * as api from '../utils/apiClient'
 
 function emptySheet() {
@@ -39,6 +39,9 @@ function computeRow(row, pricePerKwh, pricePerWaterUnit) {
   return { electricUnits, waterUnits, subtotal }
 }
 
+/** Meter table editable columns: Unit, last elec, curr elec, last water, curr water (same order as DOM). */
+const METER_GRID_COL_COUNT = 5
+
 /**
  * Utility bill page (English UI only).
  */
@@ -51,6 +54,67 @@ export default function UtilityBillPage({ project, onBack, onSaved }) {
   /** row id -> include in PNG export */
   const [exportRowSelected, setExportRowSelected] = useState({})
   const [exportPickerNotice, setExportPickerNotice] = useState('')
+  const meterTableRootRef = useRef(null)
+
+  const focusMeterCell = useCallback((rowIndex, colIndex) => {
+    requestAnimationFrame(() => {
+      const root = meterTableRootRef.current
+      const el = root?.querySelector(`[data-ub-meter="${rowIndex}-${colIndex}"]`) ?? null
+      if (el && typeof el.focus === 'function') {
+        el.focus()
+        if (typeof el.select === 'function') {
+          try {
+            el.select()
+          } catch {
+            /* ignore */
+          }
+        }
+      }
+    })
+  }, [])
+
+  const handleMeterCellKeyDown = useCallback(
+    (e, rowIndex, colIndex) => {
+      if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) return
+      const rowCount = sheet.rows.length
+      if (rowCount === 0) return
+      e.preventDefault()
+      e.stopPropagation()
+
+      const maxC = METER_GRID_COL_COUNT - 1
+      let r = rowIndex
+      let c = colIndex
+
+      if (e.key === 'ArrowUp') {
+        if (r <= 0) return
+        r -= 1
+      } else if (e.key === 'ArrowDown') {
+        if (r >= rowCount - 1) return
+        r += 1
+      } else if (e.key === 'ArrowLeft') {
+        if (c > 0) {
+          c -= 1
+        } else if (rowIndex > 0) {
+          r = rowIndex - 1
+          c = maxC
+        } else {
+          return
+        }
+      } else if (e.key === 'ArrowRight') {
+        if (c < maxC) {
+          c += 1
+        } else if (rowIndex < rowCount - 1) {
+          r = rowIndex + 1
+          c = 0
+        } else {
+          return
+        }
+      }
+
+      focusMeterCell(r, c)
+    },
+    [sheet.rows.length, focusMeterCell]
+  )
 
   useEffect(() => {
     setSheet(normalizeSheet(project?.utilitySheet))
@@ -285,7 +349,7 @@ export default function UtilityBillPage({ project, onBack, onSaved }) {
           </div>
         </div>
 
-        <table className="min-w-[960px] w-full text-sm">
+        <table ref={meterTableRootRef} className="min-w-[960px] w-full text-sm">
           <thead className="bg-gray-50 border-b">
             <tr>
               <th className="text-left p-3 font-medium text-gray-700">Unit</th>
@@ -307,7 +371,7 @@ export default function UtilityBillPage({ project, onBack, onSaved }) {
                 </td>
               </tr>
             ) : (
-              sheet.rows.map((row) => {
+              sheet.rows.map((row, rowIndex) => {
                 const { electricUnits, waterUnits, subtotal } = computeRow(
                   row,
                   sheet.pricePerKwh,
@@ -317,13 +381,16 @@ export default function UtilityBillPage({ project, onBack, onSaved }) {
                   <tr key={row.id} className="border-b border-gray-100 hover:bg-gray-50/80">
                     <td className="p-2">
                       <input
+                        data-ub-meter={`${rowIndex}-0`}
                         className={inputCls}
                         value={row.roomNumber ?? ''}
                         onChange={(e) => updateRow(row.id, { roomNumber: e.target.value })}
+                        onKeyDown={(e) => handleMeterCellKeyDown(e, rowIndex, 0)}
                       />
                     </td>
                     <td className="p-2">
                       <input
+                        data-ub-meter={`${rowIndex}-1`}
                         type="number"
                         min="0"
                         step="0.01"
@@ -334,10 +401,12 @@ export default function UtilityBillPage({ project, onBack, onSaved }) {
                             lastMonthElectric: e.target.value === '' ? 0 : Number(e.target.value)
                           })
                         }
+                        onKeyDown={(e) => handleMeterCellKeyDown(e, rowIndex, 1)}
                       />
                     </td>
                     <td className="p-2">
                       <input
+                        data-ub-meter={`${rowIndex}-2`}
                         type="number"
                         min="0"
                         step="0.01"
@@ -348,11 +417,13 @@ export default function UtilityBillPage({ project, onBack, onSaved }) {
                             currentMonthElectric: e.target.value === '' ? 0 : Number(e.target.value)
                           })
                         }
+                        onKeyDown={(e) => handleMeterCellKeyDown(e, rowIndex, 2)}
                       />
                     </td>
                     <td className="p-2 text-gray-800 font-medium">{electricUnits.toFixed(2)}</td>
                     <td className="p-2">
                       <input
+                        data-ub-meter={`${rowIndex}-3`}
                         type="number"
                         min="0"
                         step="0.01"
@@ -363,10 +434,12 @@ export default function UtilityBillPage({ project, onBack, onSaved }) {
                             lastMonthWater: e.target.value === '' ? 0 : Number(e.target.value)
                           })
                         }
+                        onKeyDown={(e) => handleMeterCellKeyDown(e, rowIndex, 3)}
                       />
                     </td>
                     <td className="p-2">
                       <input
+                        data-ub-meter={`${rowIndex}-4`}
                         type="number"
                         min="0"
                         step="0.01"
@@ -377,6 +450,7 @@ export default function UtilityBillPage({ project, onBack, onSaved }) {
                             currentMonthWater: e.target.value === '' ? 0 : Number(e.target.value)
                           })
                         }
+                        onKeyDown={(e) => handleMeterCellKeyDown(e, rowIndex, 4)}
                       />
                     </td>
                     <td className="p-2 text-gray-800 font-medium">{waterUnits.toFixed(2)}</td>
