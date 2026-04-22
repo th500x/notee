@@ -9,11 +9,54 @@
 const express = require('express');
 const router = express.Router();
 const { pool } = require('./database/connection');
-const { validate, createProjectSchema, updateProjectSchema, projectDataSchema, recordsSchema } = require('./middleware/validation');
+const { validate, createProjectSchema, updateProjectSchema, projectDataSchema, recordsSchema, utilitySheetUpdateSchema } = require('./middleware/validation');
 const { auditLog } = require('./middleware/auditLog');
 const { hashPassword, verifyPassword } = require('./utils/passwordUtils');
-const { verifyToken } = require('./middleware/auth');
+const { verifyToken, decodeTokenOptional } = require('./middleware/auth');
 const { parseJSON } = require('./utils/jsonParser');
+
+function defaultUtilitySheet() {
+  return {
+    pricePerKwh: 0,
+    pricePerWaterUnit: 0,
+    readingMonthText: '',
+    readingDateText: '',
+    rows: []
+  };
+}
+
+function normalizeUtilitySheet(raw) {
+  const obj = typeof raw === 'object' && raw !== null ? raw : {};
+  return {
+    pricePerKwh: Number(obj.pricePerKwh) || 0,
+    pricePerWaterUnit: Number(obj.pricePerWaterUnit) || 0,
+    readingMonthText: typeof obj.readingMonthText === 'string' ? obj.readingMonthText : '',
+    readingDateText: typeof obj.readingDateText === 'string' ? obj.readingDateText : '',
+    rows: Array.isArray(obj.rows) ? obj.rows : []
+  };
+}
+
+function mapProjectRow(row) {
+  const kind = row.project_kind || 'rental';
+  const mapped = {
+    ...row,
+    projectKind: kind,
+    properties: parseJSON(row.properties, []),
+    propertyGroups: parseJSON(row.property_groups, []),
+    expenses: parseJSON(row.expenses, []),
+    password: undefined,
+    property_groups: undefined,
+    utility_sheet: undefined,
+    project_kind: undefined,
+    hasPassword: kind === 'utility' ? false : !!row.password
+  };
+  if (kind === 'utility') {
+    mapped.utilitySheet = normalizeUtilitySheet(parseJSON(row.utility_sheet, {}));
+  } else {
+    mapped.utilitySheet = undefined;
+  }
+  return mapped;
+}
 
 /**
  * 验证项目密码（支持 bcrypt 加密）
@@ -70,29 +113,17 @@ router.get('/health', (req, res) => {
  */
 router.get('/', async (req, res) => {
   try {
-    // 管理员通过 Token 验证，不再使用密码参数
-    // Token 验证在需要管理员权限的路由中使用 verifyToken 中间件
-    
-    // 查询所有可见项目
-    const sql = 'SELECT * FROM projects WHERE visible = TRUE ORDER BY created_at DESC';
-    
+    const auth = decodeTokenOptional(req);
+    const isGlobalAdmin = !!auth;
+
+    const sql = isGlobalAdmin
+      ? 'SELECT * FROM projects WHERE visible = TRUE ORDER BY created_at DESC'
+      : `SELECT * FROM projects WHERE visible = TRUE AND COALESCE(project_kind, 'rental') = 'rental' ORDER BY created_at DESC`;
+
     const [rows] = await pool.execute(sql);
-    
-    // 处理JSON字段 - MySQL2 可能返回字符串或已解析的对象
-    const projects = rows.map(row => {
-      return {
-        ...row,
-        properties: parseJSON(row.properties, []),
-        propertyGroups: parseJSON(row.property_groups, []),
-        expenses: parseJSON(row.expenses, []),
-        // 移除密码字段（安全）
-        password: undefined,
-        property_groups: undefined,
-        // 添加hasPassword标志
-        hasPassword: !!row.password
-      };
-    });
-    
+
+    const projects = rows.map(mapProjectRow);
+
     res.json({
       success: true,
       projects,
@@ -122,9 +153,8 @@ router.post('/verify-password', async (req, res) => {
       });
     }
     
-    // 查询所有可见项目
     const [rows] = await pool.execute(
-      'SELECT * FROM projects WHERE visible = TRUE ORDER BY created_at DESC'
+      `SELECT * FROM projects WHERE visible = TRUE AND COALESCE(project_kind, 'rental') = 'rental' ORDER BY created_at DESC`
     );
     
     // 验证密码并过滤可访问的项目
@@ -144,18 +174,7 @@ router.post('/verify-password', async (req, res) => {
       }
     }
     
-    // 处理JSON字段 - 使用统一的 parseJSON 工具函数
-    const projects = accessibleProjects.map(row => ({
-      ...row,
-      properties: parseJSON(row.properties, []),
-      propertyGroups: parseJSON(row.property_groups, []),
-      expenses: parseJSON(row.expenses, []),
-      // 移除密码字段（安全）
-      password: undefined,
-      property_groups: undefined,
-      // 添加hasPassword标志
-      hasPassword: !!row.password
-    }));
+    const projects = accessibleProjects.map(mapProjectRow);
     
     res.json({
       success: true,
@@ -167,6 +186,52 @@ router.post('/verify-password', async (req, res) => {
     res.status(500).json({
       success: false,
       error: '验证密码失败'
+    });
+  }
+});
+
+/**
+ * 保存水电单表格（仅 project_kind = utility）
+ * PUT /api/rental-tracking/:id/utility-sheet
+ */
+router.put('/:id/utility-sheet', verifyToken, validate(utilitySheetUpdateSchema), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { utilitySheet } = req.body;
+
+    const [rows] = await pool.execute(
+      'SELECT project_kind FROM projects WHERE id = ?',
+      [id]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: '项目不存在'
+      });
+    }
+
+    if ((rows[0].project_kind || 'rental') !== 'utility') {
+      return res.status(400).json({
+        success: false,
+        error: '该项目不是水电单'
+      });
+    }
+
+    await pool.execute(
+      'UPDATE projects SET utility_sheet = ?, version = version + 1 WHERE id = ?',
+      [JSON.stringify(utilitySheet), id]
+    );
+
+    res.json({
+      success: true,
+      message: '水电单已保存'
+    });
+  } catch (error) {
+    console.error('[API] 保存水电单失败:', error);
+    res.status(500).json({
+      success: false,
+      error: '保存水电单失败'
     });
   }
 });
@@ -194,28 +259,28 @@ router.get('/:id', async (req, res) => {
     }
     
     const project = rows[0];
-    
-    // 验证项目密码
-    const hasProjectPassword = await verifyProjectPassword(id, password);
-    
-    if (!hasProjectPassword) {
-      return res.status(403).json({
-        success: false,
-        error: '密码错误或无权限访问'
-      });
+    const kind = project.project_kind || 'rental';
+
+    if (kind === 'utility') {
+      const auth = decodeTokenOptional(req);
+      if (!auth) {
+        return res.status(403).json({
+          success: false,
+          error: '需要管理员登录后才能访问水电单'
+        });
+      }
+    } else {
+      const hasProjectPassword = await verifyProjectPassword(id, password);
+      
+      if (!hasProjectPassword) {
+        return res.status(403).json({
+          success: false,
+          error: '密码错误或无权限访问'
+        });
+      }
     }
     
-    // 处理JSON字段 - 使用统一的 parseJSON 工具函数
-    const result = {
-      ...project,
-      properties: parseJSON(project.properties, []),
-      propertyGroups: parseJSON(project.property_groups, []),
-      expenses: parseJSON(project.expenses, []),
-      // 移除密码字段
-      password: undefined,
-      property_groups: undefined,
-      hasPassword: !!project.password
-    };
+    const result = mapProjectRow(project);
     
     res.json({
       success: true,
@@ -236,20 +301,56 @@ router.get('/:id', async (req, res) => {
  */
 router.post('/', verifyToken, validate(createProjectSchema), async (req, res) => {
   try {
-    const { name, description, password, visible } = req.body;
-    
-    // Token 已通过 verifyToken 中间件验证
+    const { name, description, password, visible, projectKind } = req.body;
+    const kind = projectKind === 'utility' ? 'utility' : 'rental';
     
     // 生成项目ID
     const id = `project-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     
-    // 加密密码（如果提供了密码）
+    if (kind === 'utility') {
+      const sheetJson = JSON.stringify(defaultUtilitySheet());
+      const sql = `
+        INSERT INTO projects (
+          id, name, description, password, visible, project_kind,
+          properties, property_groups, expenses, utility_sheet, version
+        )
+        VALUES (?, ?, ?, NULL, ?, 'utility', '[]', '[]', '[]', ?, 1)
+      `;
+      await pool.execute(sql, [
+        id,
+        name,
+        description || null,
+        visible !== false,
+        sheetJson
+      ]);
+      
+      res.json({
+        success: true,
+        project: {
+          id,
+          name,
+          description,
+          visible: visible !== false,
+          projectKind: 'utility',
+          hasPassword: false,
+          properties: [],
+          propertyGroups: [],
+          expenses: [],
+          utilitySheet: defaultUtilitySheet(),
+          version: 1
+        }
+      });
+      return;
+    }
+    
     const hashedPassword = password ? await hashPassword(password) : null;
     
-    // 插入项目
     const sql = `
-      INSERT INTO projects (id, name, description, password, visible, properties, property_groups, expenses, version)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO projects (
+        id, name, description, password, visible, project_kind,
+        properties, property_groups, expenses, utility_sheet, version
+      )
+      VALUES (?, ?, ?, ?, ?, 'rental', ?, ?, ?, NULL, ?)
     `;
     
     await pool.execute(sql, [
@@ -271,6 +372,7 @@ router.post('/', verifyToken, validate(createProjectSchema), async (req, res) =>
         name,
         description,
         visible: visible !== false,
+        projectKind: 'rental',
         hasPassword: !!password,
         properties: [],
         propertyGroups: [],

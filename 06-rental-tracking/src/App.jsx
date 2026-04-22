@@ -1,12 +1,15 @@
 import { useState, useEffect } from 'react'
 import HomePage from './pages/HomePage'
 import ProjectDetailPage from './pages/ProjectDetailPage'
+import UtilityBillPage from './pages/UtilityBillPage'
 import AdminSyncPage from './pages/AdminSyncPage'
 import { ProjectFormModal } from './components/ProjectFormModal'
+import { UtilityBillFormModal } from './components/UtilityBillFormModal'
 import { 
   loadRentalData, 
   saveRentalData,
   createProject as apiCreateProject,
+  createUtilityProject,
   deleteProject as apiDeleteProject,
   updateProjectData as apiUpdateProjectData
 } from './utils/dataManagerAPI'
@@ -57,29 +60,41 @@ function App() {
   
   // 状态管理
   const [rentalData, setRentalData] = useState({ projects: [] })
-  const [currentView, setCurrentView] = useState('home') // 'home' | 'project-detail'
+  const [currentView, setCurrentView] = useState('home') // 'home' | 'project-detail' | 'utility-bill'
   const [selectedProject, setSelectedProject] = useState(null)
   const [isLoading, setIsLoading] = useState(true) // 加载状态
   const [showCreateModal, setShowCreateModal] = useState(false) // 创建项目对话框
   const [createLoading, setCreateLoading] = useState(false) // 创建项目加载状态
+  const [showUtilityCreateModal, setShowUtilityCreateModal] = useState(false)
+  const [utilityCreateLoading, setUtilityCreateLoading] = useState(false)
 
-  // 加载数据
+  // 加载数据（管理员登录状态变化时重拉列表，以便显示/隐藏水电单）
   useEffect(() => {
+    let cancelled = false
     const loadData = async () => {
       try {
         setIsLoading(true)
         const data = await loadRentalData()
-        setRentalData(data)
+        if (!cancelled) {
+          setRentalData(data)
+        }
       } catch (error) {
-        console.error('加载数据失败:', error)
-        alert('加载数据失败，请检查后端服务是否启动')
+        if (!cancelled) {
+          console.error('加载数据失败:', error)
+          alert('加载数据失败，请检查后端服务是否启动')
+        }
       } finally {
-        setIsLoading(false)
+        if (!cancelled) {
+          setIsLoading(false)
+        }
       }
     }
-    
+
     loadData()
-  }, [])
+    return () => {
+      cancelled = true
+    }
+  }, [isAdmin])
 
   // 保存数据
   const handleDataUpdate = async (newData) => {
@@ -102,8 +117,17 @@ function App() {
     }
   }
 
-  // 选择项目（进入项目详情页）
+  // 选择项目（进入项目详情页或水电单页）
   const handleProjectSelect = (project) => {
+    if (project.projectKind === 'utility') {
+      if (!isAdmin) {
+        alert('水电单仅管理员可访问')
+        return
+      }
+      setSelectedProject(project)
+      setCurrentView('utility-bill')
+      return
+    }
     setSelectedProject(project)
     setCurrentView('project-detail')
   }
@@ -114,6 +138,15 @@ function App() {
     setSelectedProject(null)
   }
 
+  const handleUtilityBillSaved = async () => {
+    const data = await loadRentalData()
+    setRentalData(data)
+    if (selectedProject?.id) {
+      const next = data.projects.find((p) => p.id === selectedProject.id)
+      if (next) setSelectedProject(next)
+    }
+  }
+
   // 添加新项目（管理员功能）
   const handleAddProject = () => {
     if (!isAdmin) {
@@ -122,6 +155,33 @@ function App() {
     }
     
     setShowCreateModal(true)
+  }
+
+  const handleAddUtilityProject = () => {
+    if (!isAdmin) {
+      alert('请先登录管理员账号')
+      return
+    }
+    setShowUtilityCreateModal(true)
+  }
+
+  const handleCreateUtilityProjectSubmit = async ({ name, description }) => {
+    setUtilityCreateLoading(true)
+    try {
+      await createUtilityProject({ name, description })
+      await reloadData()
+      setShowUtilityCreateModal(false)
+      alert('水电单项目已创建')
+      return { success: true }
+    } catch (error) {
+      console.error('创建水电单失败:', error)
+      return {
+        success: false,
+        error: error.message || '创建水电单失败'
+      }
+    } finally {
+      setUtilityCreateLoading(false)
+    }
   }
   
   // 创建项目
@@ -236,10 +296,19 @@ function App() {
               projects={rentalData.projects}
               onProjectSelect={handleProjectSelect}
               onAddProject={handleAddProject}
+              onAddUtilityProject={handleAddUtilityProject}
               onDeleteProject={handleDeleteProject}
               onUpdateProject={handleProjectUpdate}
               isAdmin={isAdmin}
             />
+          ) : currentView === 'utility-bill' ? (
+            selectedProject ? (
+              <UtilityBillPage
+                project={selectedProject}
+                onBack={handleBackToHome}
+                onSaved={handleUtilityBillSaved}
+              />
+            ) : null
           ) : (
             <ProjectDetailPage
               project={selectedProject}
@@ -258,6 +327,13 @@ function App() {
         onSubmit={handleCreateProject}
         loading={createLoading}
         mode="create"
+      />
+
+      <UtilityBillFormModal
+        isOpen={showUtilityCreateModal}
+        onClose={() => setShowUtilityCreateModal(false)}
+        onSubmit={handleCreateUtilityProjectSubmit}
+        loading={utilityCreateLoading}
       />
     </div>
   )

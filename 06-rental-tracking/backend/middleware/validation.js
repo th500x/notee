@@ -26,7 +26,27 @@ const createProjectSchema = Joi.object({
       'string.min': '项目密码至少6个字符',
       'string.max': '项目密码不能超过50个字符'
     }),
-  visible: Joi.boolean().optional()
+  visible: Joi.boolean().optional(),
+  projectKind: Joi.string().valid('rental', 'utility').optional()
+});
+
+const utilitySheetRowSchema = Joi.object({
+  id: Joi.string().required(),
+  roomNumber: Joi.string().allow('').max(100).default(''),
+  lastMonthElectric: Joi.number().min(0).default(0),
+  currentMonthElectric: Joi.number().min(0).default(0),
+  lastMonthWater: Joi.number().min(0).default(0),
+  currentMonthWater: Joi.number().min(0).default(0)
+});
+
+const utilitySheetUpdateSchema = Joi.object({
+  utilitySheet: Joi.object({
+    pricePerKwh: Joi.number().min(0).default(0),
+    pricePerWaterUnit: Joi.number().min(0).default(0),
+    readingMonthText: Joi.string().allow('').max(200).default(''),
+    readingDateText: Joi.string().allow('').max(200).default(''),
+    rows: Joi.array().items(utilitySheetRowSchema).max(200).default([])
+  }).required()
 });
 
 /**
@@ -234,5 +254,6 @@ module.exports = {
   createProjectSchema,
   updateProjectSchema,
   projectDataSchema,
-  recordsSchema
+  recordsSchema,
+  utilitySheetUpdateSchema
 };

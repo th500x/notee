@@ -1,62 +1,89 @@
 /**
- * 阿里云OSS服务
- * 
- * @description 处理照片上传到阿里云OSS
- * @module backend/services/ossService
+ * 阿里云 OSS（无密钥时不在启动期初始化，便于本地开发）
  */
 
-require('dotenv').config({ path: __dirname + '/../.env' });
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '../.env') });
+require('dotenv').config({ path: path.join(__dirname, '../.env.local'), override: true });
+
 const OSS = require('ali-oss');
 
-// OSS客户端配置
-const client = new OSS({
-  region: process.env.OSS_REGION || 'oss-cn-heyuan',
-  accessKeyId: process.env.OSS_ACCESS_KEY_ID,
-  accessKeySecret: process.env.OSS_ACCESS_KEY_SECRET,
-  bucket: process.env.OSS_BUCKET || '06-rental-tracking'
-});
+let ossClient = null;
+let ossDisabledLogged = false;
+
+function hasOssCredentials() {
+  const id = process.env.OSS_ACCESS_KEY_ID && String(process.env.OSS_ACCESS_KEY_ID).trim();
+  const secret = process.env.OSS_ACCESS_KEY_SECRET && String(process.env.OSS_ACCESS_KEY_SECRET).trim();
+  return !!(id && secret);
+}
+
+function getOssClient() {
+  if (ossClient !== null) {
+    return ossClient;
+  }
+  if (!hasOssCredentials()) {
+    if (!ossDisabledLogged) {
+      ossDisabledLogged = true;
+      console.warn(
+        '[OSS] 未配置 OSS_ACCESS_KEY_ID / OSS_ACCESS_KEY_SECRET，照片上传相关接口将返回错误（其余 API 正常）'
+      );
+    }
+    return null;
+  }
+  ossClient = new OSS({
+    region: process.env.OSS_REGION || 'oss-cn-heyuan',
+    accessKeyId: process.env.OSS_ACCESS_KEY_ID.trim(),
+    accessKeySecret: process.env.OSS_ACCESS_KEY_SECRET.trim(),
+    bucket: process.env.OSS_BUCKET || '06-rental-tracking'
+  });
+  return ossClient;
+}
+
+function requireOssClient() {
+  const client = getOssClient();
+  if (!client) {
+    throw new Error('本地未配置阿里云 OSS 密钥，无法使用照片上传（请设置 OSS_ACCESS_KEY_ID 与 OSS_ACCESS_KEY_SECRET）');
+  }
+  return client;
+}
+
+function isOssAvailable() {
+  return hasOssCredentials();
+}
 
 /**
  * 上传照片到OSS
- * @param {Buffer} fileBuffer - 文件Buffer
- * @param {string} fileName - 文件名
- * @returns {Promise<Object>} 上传结果
  */
 async function uploadPhoto(fileBuffer, fileName) {
+  const client = requireOssClient();
   try {
-    // 生成唯一文件名
     const timestamp = Date.now();
     const randomStr = Math.random().toString(36).substring(2, 9);
     const ext = fileName.split('.').pop();
     const photoId = `${timestamp}-${randomStr}`;
     const uniqueFileName = `photos/${new Date().getFullYear()}/${(new Date().getMonth() + 1).toString().padStart(2, '0')}/${photoId}.${ext}`;
-    
-    // 上传到OSS
+
     const result = await client.put(uniqueFileName, fileBuffer);
-    
-    // 强制使用 HTTPS URL（避免 Mixed Content 警告）
     const httpsUrl = result.url.replace(/^http:/, 'https:');
-    
-    // 返回结果
+
     return {
-      id: uniqueFileName, // 使用OSS路径作为ID，方便删除
-      url: httpsUrl, // 使用 HTTPS URL
-      name: fileName, // 原始文件名
+      id: uniqueFileName,
+      url: httpsUrl,
+      name: fileName,
       size: fileBuffer.length,
       uploadedAt: new Date().toISOString()
     };
   } catch (error) {
-    console.error('❌ OSS上传失败:', error);
+    console.error('OSS upload failed:', error);
     throw new Error('照片上传失败: ' + error.message);
   }
 }
 
 /**
  * 删除OSS中的照片
- * @param {string} fileName - OSS中的文件名（不含域名）
- * @returns {Promise<Object>} 删除结果
  */
 async function deletePhoto(fileName) {
+  const client = requireOssClient();
   try {
     await client.delete(fileName);
     return {
@@ -64,17 +91,16 @@ async function deletePhoto(fileName) {
       message: '照片已删除'
     };
   } catch (error) {
-    console.error('❌ OSS删除失败:', error);
+    console.error('OSS delete failed:', error);
     throw new Error('照片删除失败: ' + error.message);
   }
 }
 
 /**
  * 批量删除照片
- * @param {Array<string>} fileNames - 文件名数组
- * @returns {Promise<Object>} 删除结果
  */
 async function deletePhotos(fileNames) {
+  const client = requireOssClient();
   try {
     const result = await client.deleteMulti(fileNames);
     return {
@@ -83,16 +109,22 @@ async function deletePhotos(fileNames) {
       message: `成功删除${result.deleted.length}张照片`
     };
   } catch (error) {
-    console.error('❌ OSS批量删除失败:', error);
+    console.error('OSS batch delete failed:', error);
     throw new Error('批量删除失败: ' + error.message);
   }
 }
 
 /**
  * 检查OSS连接状态
- * @returns {Promise<Object>} 连接状态
  */
 async function checkConnection() {
+  const client = getOssClient();
+  if (!client) {
+    return {
+      success: false,
+      message: 'OSS 未配置（缺少密钥）'
+    };
+  }
   try {
     await client.getBucketInfo();
     return {
@@ -102,7 +134,7 @@ async function checkConnection() {
       region: process.env.OSS_REGION
     };
   } catch (error) {
-    console.error('❌ OSS连接失败:', error);
+    console.error('OSS check failed:', error);
     return {
       success: false,
       message: 'OSS连接失败: ' + error.message
@@ -114,5 +146,6 @@ module.exports = {
   uploadPhoto,
   deletePhoto,
   deletePhotos,
-  checkConnection
+  checkConnection,
+  isOssAvailable
 };

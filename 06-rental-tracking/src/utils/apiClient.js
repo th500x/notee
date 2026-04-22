@@ -94,6 +94,16 @@ export async function createProject(projectData) {
 }
 
 /**
+ * 保存水电单表格（管理员 Token）
+ */
+export async function updateUtilitySheet(projectId, utilitySheet) {
+  return apiRequest(`/${projectId}/utility-sheet`, {
+    method: 'PUT',
+    body: JSON.stringify({ utilitySheet })
+  });
+}
+
+/**
  * 更新项目信息
  * @param {string} projectId - 项目ID
  * @param {object} projectData - 项目数据

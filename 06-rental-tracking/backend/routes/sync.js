@@ -43,9 +43,15 @@ router.get('/export', async (req, res) => {
         description: project.description,
         password: project.password,
         visible: project.visible,
+        project_kind: project.project_kind || 'rental',
         properties: parseJSON(project.properties, []),
         property_groups: parseJSON(project.property_groups, []),
         expenses: parseJSON(project.expenses, []),
+        utility_sheet: project.utility_sheet != null
+          ? (typeof project.utility_sheet === 'string'
+            ? parseJSON(project.utility_sheet, null)
+            : project.utility_sheet)
+          : null,
         version: project.version,
         created_at: project.created_at,
         updated_at: project.updated_at
@@ -111,9 +117,11 @@ router.post('/import', async (req, res) => {
                 description = ?,
                 password = ?,
                 visible = ?,
+                project_kind = ?,
                 properties = ?,
                 property_groups = ?,
                 expenses = ?,
+                utility_sheet = ?,
                 version = ?,
                 updated_at = NOW()
               WHERE id = ?`,
@@ -122,9 +130,13 @@ router.post('/import', async (req, res) => {
                 project.description,
                 project.password,
                 project.visible,
-                JSON.stringify(project.properties),
-                JSON.stringify(project.property_groups),
-                JSON.stringify(project.expenses),
+                project.project_kind || 'rental',
+                JSON.stringify(project.properties || []),
+                JSON.stringify(project.property_groups || []),
+                JSON.stringify(project.expenses || []),
+                project.utility_sheet != null
+                  ? JSON.stringify(project.utility_sheet)
+                  : null,
                 project.version,
                 project.id
               ]
@@ -144,19 +156,23 @@ router.post('/import', async (req, res) => {
           
           await db.query(
             `INSERT INTO projects (
-              id, name, description, password, visible,
-              properties, property_groups, expenses, version,
+              id, name, description, password, visible, project_kind,
+              properties, property_groups, expenses, utility_sheet, version,
               created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
               project.id,
               project.name,
               project.description,
               project.password,
               project.visible,
-              JSON.stringify(project.properties),
-              JSON.stringify(project.property_groups),
-              JSON.stringify(project.expenses),
+              project.project_kind || 'rental',
+              JSON.stringify(project.properties || []),
+              JSON.stringify(project.property_groups || []),
+              JSON.stringify(project.expenses || []),
+              project.utility_sheet != null
+                ? JSON.stringify(project.utility_sheet)
+                : null,
               project.version,
               createdAt,
               updatedAt

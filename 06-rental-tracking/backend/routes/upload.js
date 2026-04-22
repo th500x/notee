@@ -34,7 +34,19 @@ const upload = multer({
  * @body {files} photo - 照片文件（最多3张）
  * @returns {Object} { success, photo: { id, url, name, size } }
  */
-router.post('/photos', upload.single('photo'), async (req, res) => {
+router.post(
+  '/photos',
+  (req, res, next) => {
+    if (!ossService.isOssAvailable()) {
+      return res.status(503).json({
+        success: false,
+        error: '未配置阿里云 OSS 密钥，照片上传不可用（本地可忽略，填写 OSS_ACCESS_KEY_ID / OSS_ACCESS_KEY_SECRET 后重启）'
+      });
+    }
+    next();
+  },
+  upload.single('photo'),
+  async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({
@@ -66,7 +78,8 @@ router.post('/photos', upload.single('photo'), async (req, res) => {
       error: error.message || '照片上传失败'
     });
   }
-});
+  }
+);
 
 /**
  * 删除OSS上的照片
@@ -77,6 +90,13 @@ router.post('/photos', upload.single('photo'), async (req, res) => {
  */
 router.delete('/photos/:photoId', async (req, res) => {
   try {
+    if (!ossService.isOssAvailable()) {
+      return res.status(503).json({
+        success: false,
+        error: '未配置阿里云 OSS 密钥，无法删除远端照片'
+      });
+    }
+
     const { photoId } = req.params;
 
     if (!photoId) {

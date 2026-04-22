@@ -41,9 +41,16 @@ export function useAdmin() {
    * 检查登录状态
    */
   useEffect(() => {
+    const devAdminUi =
+      import.meta.env.DEV && import.meta.env.VITE_RENTAL_TRACKING_DEV_SKIP_ADMIN === '1'
+    if (devAdminUi) {
+      setIsLoggedIn(true)
+      console.warn('[useAdmin] VITE_RENTAL_TRACKING_DEV_SKIP_ADMIN=1: UI as admin (dev only)')
+      return
+    }
     const isValid = tokenManager.isValid()
     setIsLoggedIn(isValid)
-    
+
     if (isValid) {
       console.log('[useAdmin] 管理员已登录')
     }

@@ -68,6 +68,27 @@ export const createProject = async (projectData) => {
 };
 
 /**
+ * 创建水电单项目（管理员，无项目密码）
+ */
+export const createUtilityProject = async ({ name, description }) => {
+  try {
+    const response = await api.createProject({
+      name,
+      description: description || '',
+      projectKind: 'utility',
+      visible: true
+    });
+    if (response.success) {
+      return response.project;
+    }
+    throw new Error(response.error || '创建水电单失败');
+  } catch (error) {
+    console.error('创建水电单失败:', error);
+    throw error;
+  }
+};
+
+/**
  * 更新项目信息
  */
 export const updateProjectInfo = async (projectId, projectData) => {

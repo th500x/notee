@@ -1,7 +1,17 @@
 /**
  * 项目卡片组件
  */
-function ProjectCard({ project, stats, isUnlocked, hasPassword, onSelect, onUnlock, onEdit, isAdmin }) {
+function ProjectCard({
+  project,
+  stats,
+  isUnlocked,
+  hasPassword,
+  onSelect,
+  onUnlock,
+  onEdit,
+  isAdmin,
+  isUtilityProject = false
+}) {
   // 如果项目被锁定，显示锁定状态
   if (!isUnlocked) {
     return (
@@ -54,7 +64,12 @@ function ProjectCard({ project, stats, isUnlocked, hasPassword, onSelect, onUnlo
           <div className="flex-1">
             <div className="flex items-center gap-2 mb-1">
               <h3 className="text-xl font-bold">{project.name}</h3>
-              {hasPassword && (
+              {isUtilityProject && (
+                <span className="text-xs bg-white/25 px-2 py-0.5 rounded" title="水电单（管理员）">
+                  💡
+                </span>
+              )}
+              {hasPassword && !isUtilityProject && (
                 <span className="text-xs bg-white/20 px-2 py-0.5 rounded" title="此项目有密码保护">
                   🔐
                 </span>
@@ -79,19 +94,27 @@ function ProjectCard({ project, stats, isUnlocked, hasPassword, onSelect, onUnlo
         </div>
         <div className="flex items-center gap-4 mt-4 text-sm">
           <div>
-            <span className="text-blue-100">房源数</span>
+            <span className="text-blue-100">{isUtilityProject ? '计费行数' : '房源数'}</span>
             <span className="ml-2 font-bold text-lg">{stats.totalProperties}</span>
           </div>
-          <div>
-            <span className="text-blue-100">缴租率</span>
-            <span className="ml-2 font-bold text-lg">{stats.paymentRate}%</span>
-          </div>
+          {!isUtilityProject && (
+            <div>
+              <span className="text-blue-100">缴租率</span>
+              <span className="ml-2 font-bold text-lg">{stats.paymentRate}%</span>
+            </div>
+          )}
         </div>
       </div>
 
       {/* 卡片内容 - 统计数据 */}
       <div className="p-6">
-        <div className="grid grid-cols-2 gap-4">
+        {isUtilityProject ? (
+          <p className="text-gray-600 text-sm">
+            Last / current electric and water readings; one rate for the whole sheet; open the page for
+            English UI, totals, and export.
+          </p>
+        ) : null}
+        <div className={`grid grid-cols-2 gap-4 ${isUtilityProject ? 'hidden' : ''}`}>
           {/* 左列：上月数据 */}
           <div className="space-y-3">
             <div className="text-xs text-gray-500 font-medium mb-2">上月数据</div>
@@ -156,7 +179,7 @@ function ProjectCard({ project, stats, isUnlocked, hasPassword, onSelect, onUnlo
           onClick={onSelect}
           className="w-full mt-6 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
         >
-          查看详情 →
+          {isUtilityProject ? 'Open utility bill →' : '查看详情 →'}
         </button>
       </div>
     </div>

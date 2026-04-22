@@ -23,7 +23,15 @@ import {
  * - 非管理员：需要输入项目密码才能看到对应项目（只需输入一次）
  * - 项目密码缓存7天
  */
-function HomePage({ projects, onProjectSelect, onAddProject, onDeleteProject, onUpdateProject, isAdmin }) {
+function HomePage({
+  projects,
+  onProjectSelect,
+  onAddProject,
+  onAddUtilityProject,
+  onDeleteProject,
+  onUpdateProject,
+  isAdmin
+}) {
   const [editingProject, setEditingProject] = useState(null)
   const [showEditDialog, setShowEditDialog] = useState(false)
   const [editLoading, setEditLoading] = useState(false)
@@ -183,19 +191,37 @@ function HomePage({ projects, onProjectSelect, onAddProject, onDeleteProject, on
   }
   // 选择项目（已通过密码验证的项目可以直接访问）
   const handleSelectProject = async (project) => {
-    // 管理员直接访问
+    if (project.projectKind === 'utility') {
+      if (!isAdmin) {
+        return
+      }
+      onProjectSelect(project)
+      return
+    }
     if (isAdmin) {
       onProjectSelect(project)
       return
     }
-    
-    // 非管理员：如果项目在可访问列表中，说明已经通过密码验证，直接访问
-    // 不需要再次输入密码
     onProjectSelect(project)
   }
 
   // 计算项目统计数据（使用 useMemo 缓存）
   const getProjectStats = useMemo(() => (project) => {
+    if (project.projectKind === 'utility') {
+      const n = project.utilitySheet?.rows?.length ?? 0
+      return {
+        totalProperties: n,
+        rentedAndNewContract: 0,
+        paidProperties: 0,
+        paymentRate: 0,
+        monthlyIncome: 0,
+        monthlyExpenses: 0,
+        monthlyProfit: 0,
+        lastMonthIncome: 0,
+        lastMonthExpenses: 0,
+        lastMonthProfit: 0
+      }
+    }
     // 获取所有房源（默认分组 + 自定义分组）
     const properties = getAllProperties(project)
     const expenses = project.expenses || []
@@ -298,13 +324,24 @@ function HomePage({ projects, onProjectSelect, onAddProject, onDeleteProject, on
       <div className="flex justify-between items-center">
         <h3 className="text-2xl font-bold text-gray-900">项目列表</h3>
         {isAdmin && (
-          <button
-            onClick={onAddProject}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium flex items-center gap-2"
-          >
-            <span>➕</span>
-            <span>创建新项目</span>
-          </button>
+          <div className="flex flex-wrap gap-2 justify-end">
+            <button
+              type="button"
+              onClick={onAddUtilityProject}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium flex items-center gap-2"
+            >
+              <span>➕</span>
+              <span>创建水电单</span>
+            </button>
+            <button
+              type="button"
+              onClick={onAddProject}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium flex items-center gap-2"
+            >
+              <span>➕</span>
+              <span>创建新项目</span>
+            </button>
+          </div>
         )}
       </div>
 
@@ -317,7 +354,9 @@ function HomePage({ projects, onProjectSelect, onAddProject, onDeleteProject, on
       ) : (() => {
         // 管理员：显示所有项目
         // 非管理员：只显示可访问的项目（通过后端验证）
-        const displayProjects = (isAdmin ? projects : accessibleProjects).filter(p => p.visible !== false)
+        const displayProjects = (isAdmin ? projects : accessibleProjects).filter(
+          (p) => p.visible !== false && (isAdmin || p.projectKind !== 'utility')
+        )
         
         if (displayProjects.length === 0) {
           return (
@@ -366,6 +405,7 @@ function HomePage({ projects, onProjectSelect, onAddProject, onDeleteProject, on
                   stats={stats}
                   isUnlocked={shouldShowUnlocked}
                   hasPassword={project.hasPassword}
+                  isUtilityProject={project.projectKind === 'utility'}
                   onSelect={() => handleSelectProject(project)}
                   onUnlock={() => handleUnlockProject(project)}
                   onEdit={() => handleEditProject(project)}

@@ -17,7 +17,7 @@ if %errorlevel% == 0 (
     echo ✅ 数据库初始化成功！
     echo ========================================
     echo.
-    echo 数据库名: 06-rental-tracking
+    echo 数据库名: 06_rental_tracking
     echo 表名: projects
     echo.
     echo 下一步：

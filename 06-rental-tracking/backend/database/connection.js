@@ -4,7 +4,9 @@
  * @description 管理MySQL数据库连接池
  */
 
-require('dotenv').config({ path: __dirname + '/../.env' });
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '../.env') });
+require('dotenv').config({ path: path.join(__dirname, '../.env.local'), override: true });
 const mysql = require('mysql2/promise');
 
 /**

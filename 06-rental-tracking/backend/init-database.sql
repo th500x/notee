@@ -1,12 +1,12 @@
 -- 租赁追踪系统数据库初始化脚本
 
--- 创建数据库（如果不存在）
-CREATE DATABASE IF NOT EXISTS notee_rental_tracking 
-  DEFAULT CHARACTER SET utf8mb4 
+-- 创建数据库（如果不存在）；与文档及 backend/.env 默认 DB_NAME 一致（名称以数字开头需反引号）
+CREATE DATABASE IF NOT EXISTS `06_rental_tracking`
+  DEFAULT CHARACTER SET utf8mb4
   COLLATE utf8mb4_unicode_ci;
 
 -- 使用数据库
-USE notee_rental_tracking;
+USE `06_rental_tracking`;
 
 -- 创建项目表
 CREATE TABLE IF NOT EXISTS projects (
@@ -15,9 +15,11 @@ CREATE TABLE IF NOT EXISTS projects (
   description TEXT COMMENT '项目描述',
   password VARCHAR(255) COMMENT '项目密码',
   visible BOOLEAN DEFAULT TRUE COMMENT '是否可见',
+  project_kind VARCHAR(20) NOT NULL DEFAULT 'rental' COMMENT 'rental | utility',
   properties JSON COMMENT '房源数据（JSON格式）',
   property_groups JSON COMMENT '房源分组（JSON格式）',
   expenses JSON COMMENT '开支数据（JSON格式）',
+  utility_sheet JSON NULL COMMENT '水电单表格数据（仅 utility）',
   version INT DEFAULT 1 COMMENT '数据版本号',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
