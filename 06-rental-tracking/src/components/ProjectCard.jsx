@@ -15,7 +15,7 @@ function ProjectCard({
   // 如果项目被锁定，显示锁定状态
   if (!isUnlocked) {
     return (
-      <div className="bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow overflow-hidden">
+      <div className="bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow overflow-hidden flex flex-col h-full">
         {/* 卡片头部 - 锁定状态 */}
         <div className="bg-gradient-to-r from-gray-400 to-gray-500 p-6 text-white">
           <div className="flex items-start justify-between mb-2">
@@ -55,11 +55,11 @@ function ProjectCard({
     )
   }
 
-  // 解锁状态 - 显示完整信息
+  // 解锁状态 - 显示完整信息（flex 列 + h-full：与同行房源卡等高时，CTA 统一贴底对齐）
   return (
-    <div className="bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow overflow-hidden">
+    <div className="bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow overflow-hidden flex flex-col h-full">
       {/* 卡片头部 - 渐变背景 */}
-      <div className="bg-gradient-to-r from-blue-500 to-purple-600 p-6 text-white">
+      <div className="bg-gradient-to-r from-blue-500 to-purple-600 p-6 text-white shrink-0">
         <div className="flex items-start justify-between mb-2">
           <div className="flex-1">
             <div className="flex items-center gap-2 mb-1">
@@ -106,15 +106,16 @@ function ProjectCard({
         </div>
       </div>
 
-      {/* 卡片内容 - 统计数据 */}
-      <div className="p-6">
-        {isUtilityProject ? (
-          <p className="text-gray-600 text-sm">
-            Last / current electric and water readings; one rate for the whole sheet; open the page for
-            English UI, totals, and export.
-          </p>
-        ) : null}
-        <div className={`grid grid-cols-2 gap-4 ${isUtilityProject ? 'hidden' : ''}`}>
+      {/* 卡片内容：可伸展区占满剩余高度，按钮始终在卡片底部 */}
+      <div className="p-6 flex flex-col flex-1 min-h-0">
+        <div className="flex-1 min-h-0">
+          {isUtilityProject ? (
+            <p className="text-gray-600 text-sm">
+              Last / current electric and water readings; one rate for the whole sheet; open the page for
+              English UI, totals, and export.
+            </p>
+          ) : null}
+          <div className={`grid grid-cols-2 gap-4 ${isUtilityProject ? 'hidden' : ''}`}>
           {/* 左列：上月数据 */}
           <div className="space-y-3">
             <div className="text-xs text-gray-500 font-medium mb-2">上月数据</div>
@@ -173,8 +174,9 @@ function ProjectCard({
             </div>
           </div>
         </div>
+        </div>
 
-        {/* 查看详情 / 进入水电单：固定高度，避免英文换行撑高 */}
+        {/* 查看详情 / 进入水电单：固定行高，与同行卡片底部对齐 */}
         <button
           type="button"
           onClick={onSelect}
