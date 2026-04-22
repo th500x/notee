@@ -217,74 +217,109 @@ export function buildRoadPassableKeySetForMarch(roadCells, cells, mapColumns, ma
   return set;
 }
 
-function bfsShortestPath(roadPassable, startKey, endKey, mapColumns, mapRows) {
-  if (!roadPassable.has(startKey) || !roadPassable.has(endKey)) return null;
-  const queue = [startKey];
-  const came = new Map([[startKey, null]]);
+/** 道路子图 BFS 最短路长（步数） */
+function bfsRoadDistances(roadPassable, seedKeys, mapColumns, mapRows) {
+  const dist = new Map();
+  const queue = [];
+  for (const sk of seedKeys) {
+    if (!roadPassable.has(sk)) continue;
+    if (!dist.has(sk)) {
+      dist.set(sk, 0);
+      queue.push(sk);
+    }
+  }
   while (queue.length) {
     const k = queue.shift();
-    if (k === endKey) break;
+    const d = dist.get(k);
     const [x, y] = k.split(',').map(Number);
     for (const [dx, dy] of DIRS4) {
       const nx = x + dx;
       const ny = y + dy;
       if (nx < 0 || ny < 0 || nx >= mapColumns || ny >= mapRows) continue;
       const nk = `${nx},${ny}`;
-      if (!roadPassable.has(nk) || came.has(nk)) continue;
-      came.set(nk, k);
+      if (!roadPassable.has(nk) || dist.has(nk)) continue;
+      dist.set(nk, d + 1);
       queue.push(nk);
     }
   }
-  if (!came.has(endKey)) return null;
-  const keys = [];
-  let cur = endKey;
-  while (cur != null) {
-    keys.push(cur);
-    cur = came.get(cur);
+  return dist;
+}
+
+function edgeDistanceToMapBounds(x, y, mapColumns, mapRows) {
+  return Math.min(x, y, mapColumns - 1 - x, mapRows - 1 - y);
+}
+
+/** 从 cur 沿最短路向起点方向退一步：在 distFrom 比 cur 浅 1 的邻格中选 distTo 更小、且更远离地图边界的格（打破「等长最短路贴边走」） */
+function pickPredecessorTowardStart(roadPassable, curKey, distFrom, distTo, mapColumns, mapRows) {
+  const [cx, cy] = curKey.split(',').map(Number);
+  const depth = distFrom.get(curKey);
+  if (depth == null || depth <= 0) return null;
+  let bestNk = null;
+  let bestDto = Infinity;
+  let bestEdge = -Infinity;
+  for (const [dx, dy] of DIRS4) {
+    const nx = cx + dx;
+    const ny = cy + dy;
+    if (nx < 0 || ny < 0 || nx >= mapColumns || ny >= mapRows) continue;
+    const nk = `${nx},${ny}`;
+    if (!roadPassable.has(nk)) continue;
+    if (distFrom.get(nk) !== depth - 1) continue;
+    const dto = distTo.get(nk);
+    if (dto == null) continue;
+    const ed = edgeDistanceToMapBounds(nx, ny, mapColumns, mapRows);
+    if (
+      bestNk == null ||
+      dto < bestDto ||
+      (dto === bestDto && ed > bestEdge) ||
+      (dto === bestDto && ed === bestEdge && nk < bestNk)
+    ) {
+      bestNk = nk;
+      bestDto = dto;
+      bestEdge = ed;
+    }
   }
-  keys.reverse();
-  return keys.map((key) => {
+  return bestNk;
+}
+
+function reconstructShortestPathGoalBiased(roadPassable, distFrom, endKey, mapColumns, mapRows) {
+  if (!distFrom.has(endKey)) return null;
+  const distTo = bfsRoadDistances(roadPassable, [endKey], mapColumns, mapRows);
+  const keysRev = [endKey];
+  let cur = endKey;
+  while (distFrom.get(cur) > 0) {
+    const pred = pickPredecessorTowardStart(roadPassable, cur, distFrom, distTo, mapColumns, mapRows);
+    if (!pred) return null;
+    keysRev.push(pred);
+    cur = pred;
+  }
+  keysRev.reverse();
+  return keysRev.map((key) => {
     const [x, y] = key.split(',').map(Number);
     return { x, y };
   });
 }
 
+function bfsShortestPath(roadPassable, startKey, endKey, mapColumns, mapRows) {
+  if (!roadPassable.has(startKey) || !roadPassable.has(endKey)) return null;
+  const distFrom = bfsRoadDistances(roadPassable, [startKey], mapColumns, mapRows);
+  return reconstructShortestPathGoalBiased(roadPassable, distFrom, endKey, mapColumns, mapRows);
+}
+
 function multiSourceBfsShortest(roadPassable, startKeys, endKey, mapColumns, mapRows) {
   if (!roadPassable.has(endKey)) return null;
-  const queue = [];
-  const came = new Map();
-  for (const sk of startKeys) {
-    if (!roadPassable.has(sk)) continue;
-    came.set(sk, null);
-    queue.push(sk);
-  }
-  if (!queue.length) return null;
-  while (queue.length) {
-    const k = queue.shift();
-    if (k === endKey) break;
-    const [x, y] = k.split(',').map(Number);
-    for (const [dx, dy] of DIRS4) {
-      const nx = x + dx;
-      const ny = y + dy;
-      if (nx < 0 || ny < 0 || nx >= mapColumns || ny >= mapRows) continue;
-      const nk = `${nx},${ny}`;
-      if (!roadPassable.has(nk) || came.has(nk)) continue;
-      came.set(nk, k);
-      queue.push(nk);
-    }
-  }
-  if (!came.has(endKey)) return null;
-  const keys = [];
-  let cur = endKey;
-  while (cur != null) {
-    keys.push(cur);
-    cur = came.get(cur);
-  }
-  keys.reverse();
-  return keys.map((key) => {
-    const [x, y] = key.split(',').map(Number);
-    return { x, y };
-  });
+  const seeds = [...startKeys].filter((sk) => roadPassable.has(sk));
+  if (!seeds.length) return null;
+  const distFrom = bfsRoadDistances(roadPassable, seeds, mapColumns, mapRows);
+  return reconstructShortestPathGoalBiased(roadPassable, distFrom, endKey, mapColumns, mapRows);
+}
+
+/** 与文件内 `bfsShortestPath` 同语义，供 game 侧 `@/utils/strategicRoadMarchPath` 复用 */
+export function bfsShortestPathRoad(roadPassable, startKey, endKey, mapColumns, mapRows) {
+  return bfsShortestPath(roadPassable, startKey, endKey, mapColumns, mapRows);
+}
+
+export function multiSourceBfsShortestRoad(roadPassable, startKeys, endKey, mapColumns, mapRows) {
+  return multiSourceBfsShortest(roadPassable, startKeys, endKey, mapColumns, mapRows);
 }
 
 /**

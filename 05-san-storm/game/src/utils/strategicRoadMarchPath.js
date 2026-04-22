@@ -7,19 +7,15 @@ import {
   buildRoadPassableKeySetForMarch,
   buildMarchPathToStrategicPoi as buildMarchPathToStrategicPoiShared,
   resolveOffRoadMarchDepartureFootprintKeys,
+  roadKeysAdjacentToFootprint,
+  bfsShortestPathRoad,
+  multiSourceBfsShortestRoad,
 } from '@shared/utils/strategicMarchPoi.js';
 
 /** 与 backend/services/roadEncounterService.js 一致 */
 export const MARCH_FREE_MOVES_PER_DAY = 50;
 export const MARCH_FOOD_PER_STEP = 10;
 export const MARCH_RESERVE_FOOD_DAILY_LIMIT = 500;
-
-const DIRS4 = [
-  [1, 0],
-  [-1, 0],
-  [0, 1],
-  [0, -1],
-];
 
 /**
  * @param {object[][]|null|undefined} cells
@@ -68,88 +64,6 @@ export function collectMainCityFootprintKeys(cells, mainCityId) {
 
 /** 可落脚道路格（含匪寨 1×2/2×1 占格从道路集合剔除，与后端 `loadRoadGrid` 一致） */
 export const buildRoadPassableKeySet = buildRoadPassableKeySetForMarch;
-
-function bfsShortestPath(roadPassable, startKey, endKey, mapColumns, mapRows) {
-  if (!roadPassable.has(startKey) || !roadPassable.has(endKey)) return null;
-  const queue = [startKey];
-  const came = new Map([[startKey, null]]);
-  while (queue.length) {
-    const k = queue.shift();
-    if (k === endKey) break;
-    const [x, y] = k.split(',').map(Number);
-    for (const [dx, dy] of DIRS4) {
-      const nx = x + dx;
-      const ny = y + dy;
-      if (nx < 0 || ny < 0 || nx >= mapColumns || ny >= mapRows) continue;
-      const nk = `${nx},${ny}`;
-      if (!roadPassable.has(nk) || came.has(nk)) continue;
-      came.set(nk, k);
-      queue.push(nk);
-    }
-  }
-  if (!came.has(endKey)) return null;
-  const keys = [];
-  let cur = endKey;
-  while (cur != null) {
-    keys.push(cur);
-    cur = came.get(cur);
-  }
-  keys.reverse();
-  return keys.map((key) => {
-    const [x, y] = key.split(',').map(Number);
-    return { x, y };
-  });
-}
-
-function multiSourceBfsShortest(roadPassable, startKeys, endKey, mapColumns, mapRows) {
-  if (!roadPassable.has(endKey)) return null;
-  const queue = [];
-  const came = new Map();
-  for (const sk of startKeys) {
-    if (!roadPassable.has(sk)) continue;
-    came.set(sk, null);
-    queue.push(sk);
-  }
-  if (!queue.length) return null;
-  while (queue.length) {
-    const k = queue.shift();
-    if (k === endKey) break;
-    const [x, y] = k.split(',').map(Number);
-    for (const [dx, dy] of DIRS4) {
-      const nx = x + dx;
-      const ny = y + dy;
-      if (nx < 0 || ny < 0 || nx >= mapColumns || ny >= mapRows) continue;
-      const nk = `${nx},${ny}`;
-      if (!roadPassable.has(nk) || came.has(nk)) continue;
-      came.set(nk, k);
-      queue.push(nk);
-    }
-  }
-  if (!came.has(endKey)) return null;
-  const keys = [];
-  let cur = endKey;
-  while (cur != null) {
-    keys.push(cur);
-    cur = came.get(cur);
-  }
-  keys.reverse();
-  return keys.map((key) => {
-    const [x, y] = key.split(',').map(Number);
-    return { x, y };
-  });
-}
-
-function roadKeysAdjacentToFootprint(footprintKeys, roadPassable) {
-  const out = new Set();
-  for (const fk of footprintKeys) {
-    const [gx, gy] = fk.split(',').map(Number);
-    for (const [dx, dy] of DIRS4) {
-      const nk = `${gx + dx},${gy + dy}`;
-      if (roadPassable.has(nk)) out.add(nk);
-    }
-  }
-  return out;
-}
 
 /**
  * @param {object} p
@@ -203,7 +117,7 @@ export function buildMarchPath({
     if (startKey === targetKey) {
       return { ok: true, path: [{ x: Math.trunc(rx), y: Math.trunc(ry) }], onRoadAtStart: true };
     }
-    const path = bfsShortestPath(roadPassable, startKey, targetKey, mapColumns, mapRows);
+    const path = bfsShortestPathRoad(roadPassable, startKey, targetKey, mapColumns, mapRows);
     if (!path) return { ok: false, error: '无法沿道路到达该格' };
     return { ok: true, path, onRoadAtStart: true };
   }
@@ -222,7 +136,7 @@ export function buildMarchPath({
   }
   const starts = roadKeysAdjacentToFootprint(footprint, roadPassable);
   if (!starts.size) return { ok: false, error: '出发地旁没有可通行的道路格' };
-  const path = multiSourceBfsShortest(roadPassable, starts, targetKey, mapColumns, mapRows);
+  const path = multiSourceBfsShortestRoad(roadPassable, starts, targetKey, mapColumns, mapRows);
   if (!path) return { ok: false, error: '无法沿道路到达该格' };
   return { ok: true, path, onRoadAtStart: false };
 }

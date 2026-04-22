@@ -129,6 +129,42 @@ async function resolveStaleRoadEncountersAtCell(conn, season, junId, px, py) {
   );
 }
 
+/**
+ * 交战格上对手久未活跃且尚未写入 battle_id：视为无法完成本场，解锁避免攻方永久 409。
+ */
+async function resolveAbandonedRoadFightOnCellIfOpponentOffline(conn, season, junId, px, py, moverId) {
+  const s = String(season || '').trim();
+  const j = String(junId || '').trim();
+  const x = toInt(px);
+  const y = toInt(py);
+  const mid = String(moverId || '').trim();
+  if (!s || !j || x == null || y == null || !mid) return;
+  const sec = Math.ceil(DEFAULT_ONLINE_MS / 1000);
+  const [frows] = await conn.query(
+    `SELECT encounter_id, attacker_player_id, defender_player_id, battle_id
+       FROM road_encounters
+      WHERE season = ? AND jun_id = ? AND position_x = ? AND position_y = ?
+        AND status = 'fighting'
+        AND (attacker_player_id = ? OR defender_player_id = ?)
+      FOR UPDATE`,
+    [s, j, x, y, mid, mid],
+  );
+  for (const fr of frows) {
+    const bid = fr.battle_id != null ? String(fr.battle_id).trim() : '';
+    if (bid) continue;
+    const att = String(fr.attacker_player_id || '').trim();
+    const def = String(fr.defender_player_id || '').trim();
+    const opp = mid === att ? def : att;
+    if (!opp) continue;
+    // eslint-disable-next-line no-await-in-loop
+    if (await isPlayerRecentlyActive(opp)) continue;
+    // eslint-disable-next-line no-await-in-loop
+    await conn.query(`UPDATE road_encounters SET status = 'resolved', ended_at = NOW() WHERE encounter_id = ?`, [
+      fr.encounter_id,
+    ]);
+  }
+}
+
 // ── 守门开关 ──────────────────────────────────────────────────────────────────
 
 /**
@@ -534,6 +570,7 @@ async function moveAlongRoad(playerId, body) {
     // 先清本格幽灵遭遇，避免「B 仍站着、库里有 fighting 但攻方已不在格」→ A 途经 B 格被误拦或守方被误锁
     if (onRoad && startX != null && startY != null) {
       await resolveStaleRoadEncountersAtCell(conn, season, junId, startX, startY);
+      await resolveAbandonedRoadFightOnCellIfOpponentOffline(conn, season, junId, startX, startY, pid);
     }
 
     // 遭遇进行中：**攻防任一方**均不可离开交战格，直至 `road_encounters` 为 `resolved`（守方遇袭 / 观战口径不变）。
@@ -657,6 +694,7 @@ async function moveAlongRoad(playerId, body) {
       }
 
       await resolveStaleRoadEncountersAtCell(conn, season, junId, sx, sy);
+      await resolveAbandonedRoadFightOnCellIfOpponentOffline(conn, season, junId, sx, sy, pid);
 
       // 1) 交战登记格：仅禁止「非本格遭遇参与方」跨入（31-6 §五「占格与锁格」）；与 `road_intercept` 无关。遭遇双方沿路移动/截断由下方同格敌对逻辑处理。
       const [lockRows] = await conn.query(
@@ -679,15 +717,54 @@ async function moveAlongRoad(playerId, body) {
         }
       }
 
-      // 2) 同格玩家
-      const [occRows] = await conn.query(
-        `SELECT player_id, faction_id, road_intercept
-           FROM players
-          WHERE road_jun_id = ? AND road_position_x = ? AND road_position_y = ?
-            AND player_id <> ?
-          ORDER BY player_id
+      // 2) 同格玩家（与 `getRoadPresence` 一致：仅「近期活跃」账号算占格；久未活跃敌对先自动退让，避免离线叠坐标假遭遇 / 409）
+      const onlineSec = Math.ceil(DEFAULT_ONLINE_MS / 1000);
+      const [ghostRows] = await conn.query(
+        `SELECT p.player_id, p.faction_id
+           FROM players p
+           INNER JOIN accounts a ON a.id = p.player_id
+          WHERE p.road_jun_id = ? AND p.road_position_x = ? AND p.road_position_y = ?
+            AND p.player_id <> ?
+            AND GREATEST(COALESCE(UNIX_TIMESTAMP(p.last_active_at), 0),
+                          COALESCE(UNIX_TIMESTAMP(a.lastActiveAt), 0)) <= UNIX_TIMESTAMP(NOW()) - ?
+          ORDER BY p.player_id
           FOR UPDATE`,
-        [junId, sx, sy, pid],
+        [junId, sx, sy, pid, onlineSec],
+      );
+      for (const gr of ghostRows) {
+        if (!isHostileByFaction(player.faction_id, gr.faction_id)) continue;
+        // eslint-disable-next-line no-await-in-loop
+        const ret = await applyFactionPlayerRoadRetreat(conn, {
+          junId,
+          grid,
+          countyCityRows,
+          playerId: gr.player_id,
+          fromX: sx,
+          fromY: sy,
+          noticeText: buildRoadGateFailRetreatNotice('道路坐标久未活跃，已自动退让'),
+        });
+        if (ret.ok) {
+          defenderAutoRetreats.push({
+            defenderPlayerId: String(gr.player_id),
+            retreatX: ret.retreatX,
+            retreatY: ret.retreatY,
+            retreatCityId: ret.retreatCityId || undefined,
+            reason: '道路坐标久未活跃',
+          });
+        }
+      }
+
+      const [occRows] = await conn.query(
+        `SELECT p.player_id, p.faction_id, p.road_intercept
+           FROM players p
+           INNER JOIN accounts a ON a.id = p.player_id
+          WHERE p.road_jun_id = ? AND p.road_position_x = ? AND p.road_position_y = ?
+            AND p.player_id <> ?
+            AND GREATEST(COALESCE(UNIX_TIMESTAMP(p.last_active_at), 0),
+                          COALESCE(UNIX_TIMESTAMP(a.lastActiveAt), 0)) > UNIX_TIMESTAMP(NOW()) - ?
+          ORDER BY p.player_id
+          FOR UPDATE`,
+        [junId, sx, sy, pid, onlineSec],
       );
       if (occRows.length) {
         let defender = null;
