@@ -47,6 +47,10 @@ export default function UtilityBillPage({ project, onBack, onSaved }) {
   const [saving, setSaving] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [error, setError] = useState('')
+  const [exportPickerOpen, setExportPickerOpen] = useState(false)
+  /** row id -> include in PNG export */
+  const [exportRowSelected, setExportRowSelected] = useState({})
+  const [exportPickerNotice, setExportPickerNotice] = useState('')
 
   useEffect(() => {
     setSheet(normalizeSheet(project?.utilitySheet))
@@ -119,12 +123,45 @@ export default function UtilityBillPage({ project, onBack, onSaved }) {
     }
   }
 
-  const handleExport = async () => {
+  const openExportPicker = () => {
+    setError('')
+    if (sheet.rows.length === 0) {
+      setError('Add at least one row before exporting.')
+      return
+    }
+    setExportPickerNotice('')
+    setExportRowSelected(Object.fromEntries(sheet.rows.map((r) => [r.id, true])))
+    setExportPickerOpen(true)
+  }
+
+  const closeExportPicker = () => {
+    setExportPickerOpen(false)
+    setExportPickerNotice('')
+  }
+
+  const toggleExportRow = (rowId) => {
+    setExportPickerNotice('')
+    setExportRowSelected((prev) => ({ ...prev, [rowId]: !prev[rowId] }))
+  }
+
+  const setAllExportRows = (value) => {
+    setExportPickerNotice('')
+    setExportRowSelected(Object.fromEntries(sheet.rows.map((r) => [r.id, value])))
+  }
+
+  const handleConfirmExport = async () => {
+    const picked = sheet.rows.filter((r) => exportRowSelected[r.id])
+    if (picked.length === 0) {
+      setExportPickerNotice('Select at least one row to export.')
+      return
+    }
+    setExportPickerOpen(false)
     setExporting(true)
     setError('')
     try {
       const { exportUtilityBillToImage } = await import('../utils/exportToImage')
-      await exportUtilityBillToImage(sheet, project.name)
+      const sheetForExport = { ...sheet, rows: picked }
+      await exportUtilityBillToImage(sheetForExport, project.name)
     } catch (e) {
       setError(e.message || 'Export failed')
     } finally {
@@ -399,7 +436,7 @@ export default function UtilityBillPage({ project, onBack, onSaved }) {
         </button>
         <button
           type="button"
-          onClick={handleExport}
+          onClick={openExportPicker}
           disabled={exporting}
           className="px-6 py-3 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-medium disabled:opacity-50 flex items-center gap-2"
         >
@@ -407,6 +444,91 @@ export default function UtilityBillPage({ project, onBack, onSaved }) {
           <span>{exporting ? 'Exporting…' : 'Export'}</span>
         </button>
       </div>
+
+      {exportPickerOpen ? (
+        <div
+          className="fixed inset-0 bg-black/50 flex items-start justify-center z-50 p-4 overflow-y-auto"
+          onClick={closeExportPicker}
+          role="presentation"
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl max-w-lg w-full my-12 animate-slideUp"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-labelledby="export-picker-title"
+          >
+            <div className="flex items-center justify-between p-6 border-b">
+              <h3 id="export-picker-title" className="text-xl font-semibold text-gray-900">
+                Rows to export
+              </h3>
+              <button
+                type="button"
+                onClick={closeExportPicker}
+                className="text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded p-2 transition-colors"
+              >
+                <span className="text-2xl leading-none">×</span>
+              </button>
+            </div>
+            <p className="px-6 pt-2 text-sm text-gray-600">
+              Only checked rows appear in the PNG. Shared rates and billing month/date always apply.
+            </p>
+            {exportPickerNotice ? (
+              <p className="px-6 pt-2 text-sm text-red-600">{exportPickerNotice}</p>
+            ) : null}
+            <div className="px-6 py-3 flex gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={() => setAllExportRows(true)}
+                className="text-sm px-3 py-1.5 rounded-lg bg-gray-100 text-gray-800 hover:bg-gray-200"
+              >
+                Select all
+              </button>
+              <button
+                type="button"
+                onClick={() => setAllExportRows(false)}
+                className="text-sm px-3 py-1.5 rounded-lg bg-gray-100 text-gray-800 hover:bg-gray-200"
+              >
+                Clear all
+              </button>
+            </div>
+            <ul className="px-6 pb-4 max-h-[min(50vh,320px)] overflow-y-auto space-y-2 border-b border-gray-100">
+              {sheet.rows.map((row, idx) => {
+                const label = (row.roomNumber && String(row.roomNumber).trim()) || `Row ${idx + 1} (no unit)`
+                return (
+                  <li key={row.id} className="flex items-center gap-3 py-2 border-b border-gray-50 last:border-0">
+                    <input
+                      id={`export-row-${row.id}`}
+                      type="checkbox"
+                      className="h-4 w-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+                      checked={!!exportRowSelected[row.id]}
+                      onChange={() => toggleExportRow(row.id)}
+                    />
+                    <label htmlFor={`export-row-${row.id}`} className="flex-1 text-sm text-gray-800 cursor-pointer">
+                      {label}
+                    </label>
+                  </li>
+                )
+              })}
+            </ul>
+            <div className="p-6 flex gap-3">
+              <button
+                type="button"
+                onClick={closeExportPicker}
+                className="flex-1 px-4 py-3 bg-gray-100 text-gray-800 rounded-lg hover:bg-gray-200 font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmExport}
+                className="flex-1 px-4 py-3 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-medium"
+              >
+                Export PNG
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }
