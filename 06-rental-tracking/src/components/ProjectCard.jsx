@@ -174,10 +174,11 @@ function ProjectCard({
           </div>
         </div>
 
-        {/* 查看详情按钮 */}
+        {/* 查看详情 / 进入水电单：固定高度，避免英文换行撑高 */}
         <button
+          type="button"
           onClick={onSelect}
-          className="w-full mt-6 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+          className="w-full mt-6 h-10 shrink-0 inline-flex items-center justify-center px-4 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors whitespace-nowrap"
         >
           {isUtilityProject ? 'Open utility bill →' : '查看详情 →'}
         </button>
