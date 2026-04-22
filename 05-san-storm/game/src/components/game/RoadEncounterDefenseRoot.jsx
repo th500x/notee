@@ -44,17 +44,33 @@ export default function RoadEncounterDefenseRoot({ children, onBusyChange }) {
   const roadDefPollRef = useRef(null);
   const roadDefenseNotifiedEncounterIdRef = useRef(null);
   const pollRoadPendingRef = useRef(null);
+  const refreshPlayerRef = useRef(refreshPlayer);
+  refreshPlayerRef.current = refreshPlayer;
+  const roadDefenseAlertRef = useRef(null);
+  roadDefenseAlertRef.current = roadDefenseAlert;
+  const roadAwaitingRef = useRef(null);
+  roadAwaitingRef.current = roadAwaitingAuthoritativeOutcome;
+  const roadOutcomeModalRef = useRef(null);
+  roadOutcomeModalRef.current = roadAuthoritativeOutcomeModal;
+  const defenderReplayRef = useRef(null);
+  defenderReplayRef.current = defenderAuthoritativeReplayOverlay;
+  /** 回放结束取结算载荷：勿依赖闭包里的 overlay，避免 refresh 重渲染后 payload 丢失 */
+  const defenderReplayOutcomePayloadRef = useRef(null);
+  defenderReplayOutcomePayloadRef.current = defenderAuthoritativeReplayOverlay?.outcomeForModal ?? null;
 
   const beginRoadDefenseSilence = useCallback((alert) => {
     if (!alert?.encounterId) return;
     silencedRoadEncounterIdRef.current = alert.encounterId;
+    roadAwaitingRef.current = { encounterId: alert.encounterId };
     setRoadDefenseAlert(null);
+    roadDefenseAlertRef.current = null;
     setRoadAwaitingAuthoritativeOutcome({ encounterId: alert.encounterId });
   }, []);
 
   const bumpCachesAfterRoadOutcome = useCallback(() => {
-    refreshPlayer({ silent: true });
-  }, [refreshPlayer]);
+    silencedRoadEncounterIdRef.current = null;
+    refreshPlayerRef.current?.({ silent: true });
+  }, []);
 
   const pollRoadPending = useCallback(async () => {
     const pid = player?.player_id;
@@ -63,9 +79,22 @@ export default function RoadEncounterDefenseRoot({ children, onBusyChange }) {
       const res = await playerAPI.getRoadPendingEncounter(pid);
       const enc = res?.success && res.data?.encounter ? res.data.encounter : null;
       if (!enc) {
-        silencedRoadEncounterIdRef.current = null;
-        roadDefenseNotifiedEncounterIdRef.current = null;
+        const alertSnap = roadDefenseAlertRef.current;
+        const awaiting = !!roadAwaitingRef.current;
+        const replay = !!defenderReplayRef.current;
+        const modal = !!roadOutcomeModalRef.current;
+        const hasPostBattleFlow = awaiting || replay || modal;
+        // 战后仍停在遇袭弹窗：自动进入裁定查询，避免攻方先点确定后守方只剩空白
+        if (alertSnap?.encounterId && !hasPostBattleFlow) {
+          silencedRoadEncounterIdRef.current = alertSnap.encounterId;
+          roadAwaitingRef.current = { encounterId: alertSnap.encounterId };
+          setRoadAwaitingAuthoritativeOutcome({ encounterId: alertSnap.encounterId });
+        } else if (!hasPostBattleFlow) {
+          silencedRoadEncounterIdRef.current = null;
+          roadDefenseNotifiedEncounterIdRef.current = null;
+        }
         setRoadDefenseAlert(null);
+        roadDefenseAlertRef.current = null;
         return;
       }
       if (worldMapOverlayRefs.pvpDefenseAlertActive) {
@@ -147,16 +176,19 @@ export default function RoadEncounterDefenseRoot({ children, onBusyChange }) {
     const pid = player?.player_id;
     if (!eid || !pid) return undefined;
     let cancelled = false;
+    /** 避免裁定已返回后 interval 再次 tick 重复 setState，打断 SiegeReplayMini 自动播放 */
+    let outcomeHandled = false;
     const tick = async () => {
-      if (cancelled) return;
+      if (cancelled || outcomeHandled) return;
       try {
         const r = await playerAPI.getRoadEncounterAuthoritativeOutcome(pid, eid);
-        if (cancelled || !r?.success || !r.data) return;
+        if (cancelled || outcomeHandled || !r?.success || !r.data) return;
         if (r.data.pending) return;
+        outcomeHandled = true;
         setRoadAwaitingAuthoritativeOutcome(null);
         silencedRoadEncounterIdRef.current = null;
         if (r.data.noReplay || r.data.legacyClientSettlement) {
-          await refreshPlayer({ silent: true });
+          await refreshPlayerRef.current?.({ silent: true });
           return;
         }
         const raw = { ...r.data };
@@ -164,6 +196,7 @@ export default function RoadEncounterDefenseRoot({ children, onBusyChange }) {
         if (isRoadAuthoritativeBattleLogReplayable(raw.battleLog)) {
           const logStr = Array.isArray(raw.battleLog) ? raw.battleLog.join('\n') : String(raw.battleLog || '');
           setDefenderAuthoritativeReplayOverlay({
+            encounterId: eid,
             battleLogStr: logStr,
             initialAttackerTroops: raw.initialAttackerTroops,
             initialDefenderTroops: raw.initialDefenderTroops,
@@ -174,7 +207,7 @@ export default function RoadEncounterDefenseRoot({ children, onBusyChange }) {
         } else {
           setRoadAuthoritativeOutcomeModal(raw);
         }
-        await refreshPlayer({ silent: true });
+        await refreshPlayerRef.current?.({ silent: true });
       } catch {
         setRoadAwaitingAuthoritativeOutcome(null);
         silencedRoadEncounterIdRef.current = null;
@@ -186,7 +219,7 @@ export default function RoadEncounterDefenseRoot({ children, onBusyChange }) {
       cancelled = true;
       clearInterval(iv);
     };
-  }, [roadAwaitingAuthoritativeOutcome?.encounterId, player?.player_id, refreshPlayer]);
+  }, [roadAwaitingAuthoritativeOutcome?.encounterId, player?.player_id]);
 
   const overlayGateEpoch = useSyncExternalStore(
     subscribeWorldMapOverlayGate,
@@ -253,16 +286,16 @@ export default function RoadEncounterDefenseRoot({ children, onBusyChange }) {
                 initialAttackerTroops={defenderAuthoritativeReplayOverlay.initialAttackerTroops}
                 initialDefenderTroops={defenderAuthoritativeReplayOverlay.initialDefenderTroops}
                 onPlaybackComplete={() => {
-                  const payload = defenderAuthoritativeReplayOverlay.outcomeForModal;
+                  const payload = defenderReplayOutcomePayloadRef.current;
                   setDefenderAuthoritativeReplayOverlay(null);
                   if (payload) setRoadAuthoritativeOutcomeModal(payload);
-                  refreshPlayer({ silent: true });
+                  refreshPlayerRef.current?.({ silent: true });
                 }}
                 onClose={() => {
-                  const payload = defenderAuthoritativeReplayOverlay.outcomeForModal;
+                  const payload = defenderReplayOutcomePayloadRef.current;
                   setDefenderAuthoritativeReplayOverlay(null);
                   if (payload) setRoadAuthoritativeOutcomeModal(payload);
-                  refreshPlayer({ silent: true });
+                  refreshPlayerRef.current?.({ silent: true });
                 }}
               />
             </div>

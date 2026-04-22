@@ -146,6 +146,12 @@ export default function SiegeReplayMini({
   const mounted = useRef(true);
   const playingRef = useRef(false);
   const playbackCompleteFiredRef = useRef(false);
+  /** 父组件重渲染不应打断异步逐条播放；与 cleanup 联动使旧一轮立即收束 */
+  const playbackGenRef = useRef(0);
+  const onPlaybackCompleteRef = useRef(onPlaybackComplete);
+  const onCloseRef = useRef(onClose);
+  onPlaybackCompleteRef.current = onPlaybackComplete;
+  onCloseRef.current = onClose;
 
   useEffect(() => {
     mounted.current = true;
@@ -179,32 +185,45 @@ export default function SiegeReplayMini({
     if (playbackCompleteFiredRef.current) return;
     playbackCompleteFiredRef.current = true;
     try {
-      onPlaybackComplete?.();
+      onPlaybackCompleteRef.current?.();
     } catch (_) {
       /* 回调异常不阻断关闭 */
     }
-  }, [onPlaybackComplete]);
+  }, []);
 
-  const playAll = useCallback(async () => {
-    if (!animSteps.length || playingRef.current) return;
-    playingRef.current = true;
-    setPlaying(true);
-    resetHp();
-    setHi(-1);
-    for (let i = 0; i < animSteps.length; i++) {
-      if (!mounted.current) break;
-      setHi(i);
-      const s = animSteps[i];
-      if (hasTroopBar && s.damage > 0) {
-        if (s.side === 'atk') setDefHp((h) => Math.max(0, (h ?? 0) - s.damage));
-        else setAtkHp((h) => Math.max(0, (h ?? 0) - s.damage));
+  const playAll = useCallback(
+    async (expectedGen) => {
+      const myGen = expectedGen != null ? expectedGen : playbackGenRef.current;
+      if (!animSteps.length || playingRef.current) return;
+      playbackCompleteFiredRef.current = false;
+      playingRef.current = true;
+      setPlaying(true);
+      resetHp();
+      setHi(-1);
+      for (let i = 0; i < animSteps.length; i++) {
+        if (!mounted.current || playbackGenRef.current !== myGen) {
+          playingRef.current = false;
+          if (mounted.current) setPlaying(false);
+          return;
+        }
+        setHi(i);
+        const s = animSteps[i];
+        if (hasTroopBar && s.damage > 0) {
+          if (s.side === 'atk') setDefHp((h) => Math.max(0, (h ?? 0) - s.damage));
+          else setAtkHp((h) => Math.max(0, (h ?? 0) - s.damage));
+        }
+        await new Promise((r) => setTimeout(r, STEP_MS));
       }
-      await new Promise((r) => setTimeout(r, STEP_MS));
-    }
-    playingRef.current = false;
-    if (mounted.current) setPlaying(false);
-    if (mounted.current) firePlaybackCompleteOnce();
-  }, [animSteps, resetHp, hasTroopBar, firePlaybackCompleteOnce]);
+      if (!mounted.current || playbackGenRef.current !== myGen) {
+        playingRef.current = false;
+        return;
+      }
+      playingRef.current = false;
+      if (mounted.current) setPlaying(false);
+      if (mounted.current) firePlaybackCompleteOnce();
+    },
+    [animSteps, resetHp, hasTroopBar, firePlaybackCompleteOnce],
+  );
 
   useEffect(() => {
     if (!open) return undefined;
@@ -212,12 +231,16 @@ export default function SiegeReplayMini({
       const t = window.setTimeout(() => firePlaybackCompleteOnce(), 0);
       return () => window.clearTimeout(t);
     }
-    const t = window.setTimeout(() => playAll(), 0);
+    const myGen = ++playbackGenRef.current;
+    const t = window.setTimeout(() => {
+      if (playbackGenRef.current !== myGen) return;
+      playAll(myGen);
+    }, 0);
     return () => {
       window.clearTimeout(t);
+      playbackGenRef.current += 1;
       playingRef.current = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- 仅首次打开/条数变化时自动播一遍
   }, [open, animSteps.length, playAll, firePlaybackCompleteOnce]);
 
   const cur = hi >= 0 ? animSteps[hi] : null;
@@ -310,7 +333,10 @@ export default function SiegeReplayMini({
         <button
           type="button"
           disabled={playing || !animSteps.length}
-          onClick={() => playAll()}
+          onClick={() => {
+            const g = ++playbackGenRef.current;
+            playAll(g);
+          }}
           className="px-5 py-1.5 rounded-md border border-amber-600/50 bg-stone-900 text-amber-400 text-xs min-w-[5rem] disabled:opacity-40"
         >
           重播
@@ -318,9 +344,10 @@ export default function SiegeReplayMini({
         <button
           type="button"
           onClick={() => {
+            playbackGenRef.current += 1;
             playingRef.current = false;
             firePlaybackCompleteOnce();
-            onClose?.();
+            onCloseRef.current?.();
           }}
           className="px-5 py-1.5 rounded-md border border-stone-600/50 bg-stone-900 text-stone-400 text-xs min-w-[5rem] hover:border-stone-500"
         >

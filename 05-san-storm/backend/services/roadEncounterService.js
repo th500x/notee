@@ -1235,7 +1235,8 @@ async function recordEncounterBattleSettlement(attackerPlayerId, body) {
   try {
     await conn.beginTransaction();
     const [encRows] = await conn.query(
-      `SELECT encounter_id, status, attacker_player_id, defender_player_id, gatekeeper_player_id
+      `SELECT encounter_id, status, attacker_player_id, defender_player_id, gatekeeper_player_id,
+              season, jun_id, position_x, position_y
          FROM road_encounters WHERE encounter_id = ? FOR UPDATE`,
       [encounterId],
     );
@@ -1408,6 +1409,37 @@ async function recordEncounterBattleSettlement(attackerPlayerId, body) {
           `UPDATE players SET road_intercept = 0, road_updated_at = NOW() WHERE player_id = ?`,
           [gatekeeper],
         );
+      }
+    }
+
+    const loserPlayerId = defenderWon ? String(row.attacker_player_id || '').trim() : defenderPlayerId;
+    const cellX = toInt(row.position_x);
+    const cellY = toInt(row.position_y);
+    const encSeason = String(row.season || '').trim();
+    const encJun = String(row.jun_id || '').trim();
+    if (loserPlayerId && cellX != null && cellY != null && encSeason && encJun) {
+      try {
+        const grid = await loadRoadGrid(encSeason, encJun);
+        if (grid?.rawCells?.length) {
+          const [cRows] = await conn.query(
+            `SELECT city_id, city_type, position_x, position_y, faction_id FROM cities WHERE jun_id = ? AND season = ?`,
+            [encJun, encSeason],
+          );
+          const ret = await applyFactionPlayerRoadRetreat(conn, {
+            junId: encJun,
+            grid,
+            countyCityRows: cRows,
+            playerId: loserPlayerId,
+            fromX: cellX,
+            fromY: cellY,
+            noticeText: buildRoadBattleDefeatRetreatNotice(),
+          });
+          if (!ret.ok) {
+            console.warn('[roadEncounterService] recordEncounterBattleSettlement loser retreat skipped:', ret.error);
+          }
+        }
+      } catch (lzErr) {
+        console.warn('[roadEncounterService] recordEncounterBattleSettlement loser retreat', lzErr);
       }
     }
 
@@ -1591,48 +1623,6 @@ function siegeNpcDisplayNamesRoad(npcs) {
     if (label) names.push(String(label).trim());
   }
   return names;
-}
-
-async function applyRoadEncounterLoserRetreatOnly(encRow, defenderWon) {
-  const loserPlayerId = defenderWon ? encRow.attacker_player_id : encRow.defender_player_id;
-  const cellX = toInt(encRow.position_x);
-  const cellY = toInt(encRow.position_y);
-  const encSeason = String(encRow.season || '').trim();
-  const encJun = String(encRow.jun_id || '').trim();
-  if (!loserPlayerId || cellX == null || cellY == null || !encSeason || !encJun) return;
-  const conn = await pool.getConnection();
-  try {
-    await conn.beginTransaction();
-    const grid = await loadRoadGrid(encSeason, encJun);
-    if (!grid?.rawCells?.length) {
-      await conn.rollback();
-      return;
-    }
-    const [cRows] = await conn.query(
-      `SELECT city_id, city_type, position_x, position_y, faction_id FROM cities WHERE jun_id = ? AND season = ?`,
-      [encJun, encSeason],
-    );
-    const ret = await applyFactionPlayerRoadRetreat(conn, {
-      junId: encJun,
-      grid,
-      countyCityRows: cRows,
-      playerId: String(loserPlayerId).trim(),
-      fromX: cellX,
-      fromY: cellY,
-      noticeText: buildRoadBattleDefeatRetreatNotice(),
-    });
-    if (!ret.ok) {
-      console.warn('[roadEncounterService] authoritative road loser retreat skipped:', ret.error);
-    }
-    await conn.commit();
-  } catch (e) {
-    try {
-      await conn.rollback();
-    } catch (_) {}
-    console.warn('[roadEncounterService] authoritative road loser retreat', e);
-  } finally {
-    conn.release();
-  }
 }
 
 async function doResolveAuthoritativeRoadEncounter(attackerId, encounterId) {
@@ -1870,10 +1860,6 @@ async function doResolveAuthoritativeRoadEncounter(attackerId, encounterId) {
       console.error('[roadEncounterService] authoritative_resolution_json write', e);
     }
   }
-
-  try {
-    await applyRoadEncounterLoserRetreatOnly(row, !sim.attackerWon);
-  } catch (_) {}
 
   return {
     ok: true,
