@@ -596,8 +596,7 @@ function PropertyListPanel({ project, selectedProperty, onPropertySelect, onAddP
   // 动态导入导出函数
   const handleExport = async () => {
     const { exportPropertiesToImage, getAllPropertiesForExport } = await import('../utils/exportToImage')
-    const { getCurrentPropertyStatus } = await import('../utils/propertyStatus')
-    
+
     const allProperties = getAllPropertiesForExport(project)
     
     // 只导出"新合同"和"出租中"的房源，过滤掉"空置中"
