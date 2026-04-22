@@ -32,8 +32,8 @@ function ProjectCard({
                   onEdit()
                 }}
                 className="text-white hover:text-gray-200 ml-2 px-2 py-1 rounded hover:bg-white/10 transition-colors"
-                title="编辑项目"
-              >
+                title={isUtilityProject ? '编辑水电单' : '编辑项目'}
+                >
                 ⚙️
               </button>
             )}
@@ -86,7 +86,7 @@ function ProjectCard({
                 onEdit()
               }}
               className="text-white hover:text-blue-200 ml-2 px-2 py-1 rounded hover:bg-white/10 transition-colors"
-              title="编辑项目"
+              title={isUtilityProject ? '编辑水电单' : '编辑项目'}
             >
               ⚙️
             </button>

@@ -299,6 +299,7 @@ function App() {
               onAddUtilityProject={handleAddUtilityProject}
               onDeleteProject={handleDeleteProject}
               onUpdateProject={handleProjectUpdate}
+              onReloadProjects={reloadData}
               isAdmin={isAdmin}
             />
           ) : currentView === 'utility-bill' ? (

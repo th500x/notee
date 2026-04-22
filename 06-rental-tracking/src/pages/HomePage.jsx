@@ -4,6 +4,7 @@ import * as api from '../utils/apiClient'
 import { getCurrentPropertyStatus } from '../utils/propertyStatus'
 import { getAllProperties } from '../utils/propertyUtils'
 import { ProjectFormModal } from '../components/ProjectFormModal'
+import { UtilityBillFormModal } from '../components/UtilityBillFormModal'
 import { UnlockProjectModal } from '../components/UnlockProjectModal'
 import { ProjectPasswordDialog } from '../components/ProjectPasswordDialog'
 import ProjectCard from '../components/ProjectCard'
@@ -30,10 +31,12 @@ function HomePage({
   onAddUtilityProject,
   onDeleteProject,
   onUpdateProject,
+  onReloadProjects = async () => {},
   isAdmin
 }) {
   const [editingProject, setEditingProject] = useState(null)
   const [showEditDialog, setShowEditDialog] = useState(false)
+  const [showUtilityEditDialog, setShowUtilityEditDialog] = useState(false)
   const [editLoading, setEditLoading] = useState(false)
   const [showUnlockModal, setShowUnlockModal] = useState(false)
   const [unlockingProject, setUnlockingProject] = useState(null)
@@ -138,15 +141,24 @@ function HomePage({
     }
   }
 
-  // 打开编辑对话框
+  // 打开编辑对话框（租赁 → ProjectFormModal；水电 → 仅名称/描述）
   const handleEditProject = (project) => {
     setEditingProject(project)
-    setShowEditDialog(true)
+    if (project.projectKind === 'utility') {
+      setShowUtilityEditDialog(true)
+    } else {
+      setShowEditDialog(true)
+    }
   }
 
-  // 关闭编辑对话框
+  // 关闭租赁项目编辑对话框
   const handleCloseEditDialog = () => {
     setShowEditDialog(false)
+    setEditingProject(null)
+  }
+
+  const handleCloseUtilityEditDialog = () => {
+    setShowUtilityEditDialog(false)
     setEditingProject(null)
   }
 
@@ -188,6 +200,33 @@ function HomePage({
   const handleDeleteProject = () => {
     onDeleteProject(editingProject.id)
     handleCloseEditDialog()
+  }
+
+  /** 仅更新水电单项目名称与描述（保留 visible，不改密码/抄表数据） */
+  const handleSaveUtilityProjectMeta = async ({ name, description }) => {
+    if (!editingProject || editingProject.projectKind !== 'utility') {
+      return { success: false, error: '无效项目' }
+    }
+    setEditLoading(true)
+    try {
+      await updateProjectInfo(editingProject.id, {
+        name,
+        description: description || '',
+        visible: editingProject.visible !== false
+      })
+      await onReloadProjects()
+      handleCloseUtilityEditDialog()
+      alert('✅ 水电单已更新')
+      return { success: true }
+    } catch (error) {
+      console.error('更新水电单失败:', error)
+      return {
+        success: false,
+        error: error.message || '更新失败'
+      }
+    } finally {
+      setEditLoading(false)
+    }
   }
   // 选择项目（已通过密码验证的项目可以直接访问）
   const handleSelectProject = async (project) => {
@@ -417,8 +456,8 @@ function HomePage({
         )
       })()}
 
-      {/* 编辑项目对话框 */}
-      {showEditDialog && editingProject && (
+      {/* 编辑租赁项目对话框 */}
+      {showEditDialog && editingProject && editingProject.projectKind !== 'utility' && (
         <ProjectFormModal
           isOpen={showEditDialog}
           onClose={handleCloseEditDialog}
@@ -427,6 +466,18 @@ function HomePage({
           initialData={editingProject}
           loading={editLoading}
           mode="edit"
+        />
+      )}
+
+      {/* 编辑水电单：仅名称与描述 */}
+      {showUtilityEditDialog && editingProject && editingProject.projectKind === 'utility' && (
+        <UtilityBillFormModal
+          isOpen={showUtilityEditDialog}
+          onClose={handleCloseUtilityEditDialog}
+          onSubmit={handleSaveUtilityProjectMeta}
+          loading={editLoading}
+          mode="edit"
+          initialProject={editingProject}
         />
       )}
       

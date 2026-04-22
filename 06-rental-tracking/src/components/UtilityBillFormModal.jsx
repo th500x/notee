@@ -1,20 +1,37 @@
 import { useState, useEffect } from 'react'
 
 /**
- * 创建水电单弹窗：仅项目名称 + 描述，样式对齐 ProjectFormModal
+ * 水电单弹窗：仅项目名称 + 描述（创建或编辑），样式对齐 ProjectFormModal
+ * @param {'create'|'edit'} mode
+ * @param {object|null} initialProject 编辑时传入当前项目（取 name / description）
  */
-export function UtilityBillFormModal({ isOpen, onClose, onSubmit, loading = false }) {
+export function UtilityBillFormModal({
+  isOpen,
+  onClose,
+  onSubmit,
+  loading = false,
+  mode = 'create',
+  initialProject = null
+}) {
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [error, setError] = useState('')
 
+  const isEdit = mode === 'edit'
+
   useEffect(() => {
-    if (isOpen) {
+    if (!isOpen) return
+    if (isEdit && initialProject) {
+      setName(typeof initialProject.name === 'string' ? initialProject.name : '')
+      setDescription(
+        typeof initialProject.description === 'string' ? initialProject.description : ''
+      )
+    } else {
       setName('')
       setDescription('')
-      setError('')
     }
-  }, [isOpen])
+    setError('')
+  }, [isOpen, isEdit, initialProject])
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA') {
@@ -39,7 +56,7 @@ export function UtilityBillFormModal({ isOpen, onClose, onSubmit, loading = fals
     setError('')
     const result = await onSubmit({ name: name.trim(), description: description.trim() })
     if (!result.success) {
-      setError(result.error || '创建失败')
+      setError(result.error || (isEdit ? '保存失败' : '创建失败'))
     }
   }
 
@@ -55,7 +72,9 @@ export function UtilityBillFormModal({ isOpen, onClose, onSubmit, loading = fals
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between p-6 border-b">
-          <h3 className="text-xl font-semibold text-gray-900">➕ 创建水电单</h3>
+          <h3 className="text-xl font-semibold text-gray-900">
+            {isEdit ? '✏️ 编辑水电单' : '➕ 创建水电单'}
+          </h3>
           <button
             type="button"
             onClick={onClose}
@@ -121,7 +140,7 @@ export function UtilityBillFormModal({ isOpen, onClose, onSubmit, loading = fals
             className="flex-1 px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors font-medium disabled:bg-gray-400 disabled:cursor-not-allowed"
             disabled={loading}
           >
-            {loading ? '创建中...' : '确认'}
+            {loading ? (isEdit ? '保存中...' : '创建中...') : isEdit ? '保存' : '确认'}
           </button>
         </div>
       </div>
