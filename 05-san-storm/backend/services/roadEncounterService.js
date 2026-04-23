@@ -373,6 +373,9 @@ function validatePathShape(path) {
 /**
  * 沿路移动（权威写位置 + 粮草 / 势力储备）
  *
+ * `confirmFoodCost=true`：表示玩家已确认愿意按规则扣费；**本段步数与扣粮以服务端最终采用的 `resolvedPath` 为准**
+ *（无 `targetPoiId` 时在事务内用 `shared/utils/strategicMarchPoi` 与 POI 行军同源 BFS 重算最短路，不再信任客户端折线中间格）。
+ *
  * @param {string} playerId
  * @param {{ season: string, junId: string, path: Array<{x:number,y:number}>, clientRequestId: string, confirmFoodCost: boolean }} body
  */
@@ -450,9 +453,16 @@ async function moveAlongRoad(playerId, body) {
       };
     }
 
+    const roadPassableForMarch = marchPoi.buildRoadPassableKeySetForMarch(
+      grid.roadCellsRaw || [],
+      grid.rawCells,
+      grid.mapColumns,
+      grid.mapRows,
+    );
+
     const targetPoiIdRaw = body.targetPoiId != null ? String(body.targetPoiId).trim() : '';
     const marchToBanditPoi = !!targetPoiIdRaw && marchPoi.isBanditMapObjectId(targetPoiIdRaw);
-    let resolvedPath = Array.isArray(body.path) ? body.path : [];
+    let resolvedPath = [];
     let poiAnchorEnd = null;
 
     if (targetPoiIdRaw) {
@@ -501,6 +511,69 @@ async function moveAlongRoad(playerId, body) {
       }
       resolvedPath = built.path;
       poiAnchorEnd = built.poiAnchor || null;
+    } else {
+      const clientPath = Array.isArray(body.path) ? body.path : [];
+      const clientShapeErr = validatePathShape(clientPath);
+      if (clientShapeErr) {
+        await conn.rollback();
+        return { ok: false, status: 400, error: clientShapeErr };
+      }
+      const last = clientPath[clientPath.length - 1];
+      const endX = toInt(last.x);
+      const endY = toInt(last.y);
+      const endKey = cellKey(endX, endY);
+      if (!roadPassableForMarch.has(endKey)) {
+        await conn.rollback();
+        return { ok: false, status: 400, error: '终点不在可通行道路格（或位于战略对象占格）' };
+      }
+
+      const sx0 = toInt(player.road_position_x);
+      const sy0 = toInt(player.road_position_y);
+      const startKeyIfRoad =
+        sx0 != null && sy0 != null && player.road_jun_id === junId ? cellKey(sx0, sy0) : null;
+      const onRoadForBfs = startKeyIfRoad != null && roadPassableForMarch.has(startKeyIfRoad);
+
+      let bfsPath = null;
+      if (onRoadForBfs) {
+        bfsPath = marchPoi.bfsShortestPathRoad(
+          roadPassableForMarch,
+          startKeyIfRoad,
+          endKey,
+          grid.mapColumns,
+          grid.mapRows,
+        );
+      } else {
+        const footprint = marchPoi.resolveOffRoadMarchDepartureFootprintKeys(
+          grid.rawCells,
+          player,
+          junId,
+          grid.mapColumns,
+          grid.mapRows,
+          (cells, mainId) => findMainCityFootprint(cells, mainId, grid.mapColumns, grid.mapRows),
+          { mainCityDbRow, citiesInCountyRows: countyCityRows },
+        );
+        if (!footprint.size) {
+          await conn.rollback();
+          return { ok: false, status: 400, error: '未设置主城或不在可识别的城/寨占格上，无法起步' };
+        }
+        const starts = marchPoi.roadKeysAdjacentToFootprint(footprint, roadPassableForMarch);
+        if (!starts.size) {
+          await conn.rollback();
+          return { ok: false, status: 400, error: '出发地旁没有可通行的道路格' };
+        }
+        bfsPath = marchPoi.multiSourceBfsShortestRoad(
+          roadPassableForMarch,
+          starts,
+          endKey,
+          grid.mapColumns,
+          grid.mapRows,
+        );
+      }
+      if (!bfsPath?.length) {
+        await conn.rollback();
+        return { ok: false, status: 400, error: '无法沿道路到达目标道路格' };
+      }
+      resolvedPath = bfsPath;
     }
 
     const pathShapeErr = validatePathShape(resolvedPath);
@@ -509,20 +582,20 @@ async function moveAlongRoad(playerId, body) {
       return { ok: false, status: 400, error: pathShapeErr };
     }
 
-    // 解算起点：path[0] 必须等于当前 road_position（若已在路上），
-    // 或当 player 未在路上时为主城块邻接的道路格。
+    // 解算起点：path[0] 必须等于当前 road_position（若已在可通行道路格上），
+    // 或当 player 未在路上时为城/寨块邻接的道路格（与 BFS 首格一致）。
     const startX = toInt(player.road_position_x);
     const startY = toInt(player.road_position_y);
     const startKey =
       startX != null && startY != null && player.road_jun_id === junId ? cellKey(startX, startY) : null;
-    const onRoad = startKey != null && grid.cells.has(startKey);
+    const onRoad = startKey != null && roadPassableForMarch.has(startKey);
 
     const first = resolvedPath[0];
     const firstX = toInt(first.x);
     const firstY = toInt(first.y);
-    if (!grid.cells.has(cellKey(firstX, firstY))) {
+    if (!roadPassableForMarch.has(cellKey(firstX, firstY))) {
       await conn.rollback();
-      return { ok: false, status: 400, error: `起点 (${firstX},${firstY}) 非道路格` };
+      return { ok: false, status: 400, error: `起点 (${firstX},${firstY}) 非可通行道路格` };
     }
 
     if (onRoad) {
@@ -559,17 +632,13 @@ async function moveAlongRoad(playerId, body) {
       }
     }
 
-    // 道路 / 2×2 对象占格校验：逐步
+    // 道路可通行集（已扣 2×2 战略对象占格）：逐步
     for (const step of resolvedPath) {
       const sx = toInt(step.x);
       const sy = toInt(step.y);
-      if (!grid.cells.has(cellKey(sx, sy))) {
+      if (!roadPassableForMarch.has(cellKey(sx, sy))) {
         await conn.rollback();
-        return { ok: false, status: 400, error: `(${sx},${sy}) 非道路格` };
-      }
-      if (grid.blocked.has(cellKey(sx, sy))) {
-        await conn.rollback();
-        return { ok: false, status: 400, error: `(${sx},${sy}) 被 2×2 战略对象占据` };
+        return { ok: false, status: 400, error: `(${sx},${sy}) 非可通行道路格` };
       }
     }
 
