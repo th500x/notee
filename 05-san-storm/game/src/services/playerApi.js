@@ -714,8 +714,8 @@ export const playerAPI = {
   },
 
   /**
-   * 消耗匪寨攻打次数（开战前由战斗入口调用）
-   * @param {'consume'} action
+   * 匪寨攻打配额变更：`consume` 开战扣次；`reset_tower` 战败放弃，层进度回到第 1 层（不返还次数）。
+   * @param {'consume'|'reset_tower'} action
    */
   async updateBanditRaidQuota(playerId, banditPoiId, action) {
     const response = await fetchWithTimeout(`${API_CONFIG.BASE_URL}/players/${playerId}/bandit-raid-quota`, {

@@ -14,6 +14,7 @@ import {
   poolFactionDigitFromPlayerFactionId,
   cardMatchesPlayerPoolFaction,
 } from '@/utils/poolCardFilters';
+import PlayerTopResourceBadges from '@/components/game/PlayerTopResourceBadges';
 
 const poolDebug = import.meta.env.DEV;
 
@@ -119,17 +120,22 @@ export default function CardPoolDrawer({
                       rounded-t-2xl flex flex-col top-[4.5rem] sm:top-14 min-h-0 overflow-hidden
                       isolate">
 
-        {/* 标题栏 */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-stone-700 flex-shrink-0">
-          <div className="flex items-center gap-2">
-            <span className="text-amber-400 text-sm font-bold">
+        {/* 标题栏：与大地图顶栏同口径的四项资源靠右上（三公府封赏卡池） */}
+        <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-stone-700 flex-shrink-0 min-w-0">
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            <span className="text-amber-400 text-sm font-bold truncate">
               {poolType === 'troop' ? '⚔️' : '🎴'} {POOL_LABEL[poolType]}
             </span>
-            <span className="text-stone-500 text-xs">
+            <span className="text-stone-500 text-xs shrink-0">
               （{poolType === 'troop' ? '每次2张' : '每次1张'}）
             </span>
           </div>
-          <button onClick={onClose} className="text-stone-400 hover:text-white text-xl px-2 py-1">✕</button>
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 pointer-events-auto">
+            <PlayerTopResourceBadges variant="panel" />
+            <button type="button" onClick={onClose} className="text-stone-400 hover:text-white text-xl px-2 py-1 shrink-0" aria-label="关闭">
+              ✕
+            </button>
+          </div>
         </div>
 
         {/* 概率展示条 */}

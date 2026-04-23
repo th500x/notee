@@ -5,6 +5,7 @@
 const path = require('path');
 const { pathToFileURL } = require('url');
 const { pool } = require('../database/connection');
+const campaignService = require('./campaignService');
 
 const BUCKET = 'byBanditMapObjectId';
 const BANDIT_MAP_OBJECT_ID_RE = /^san_\d+_bandit_[1-9]_[a-z0-9_]+$/i;
@@ -35,7 +36,7 @@ function parseBanditProgress(raw) {
 /**
  * @param {string} playerId
  * @param {{ banditPoiId: string, attackedLayer: number }} payload
- * @returns {Promise<{ ok: boolean, error?: string, nextStored?: number }>}
+ * @returns {Promise<{ ok: boolean, error?: string, nextStored?: number, banditBadgeGranted?: { itemId: string, quantity: number, displayName: string|null }, banditBadgeError?: string }>}
  */
 async function applyBanditRaidVictory(playerId, payload) {
   const banditPoiId = String(payload?.banditPoiId || '').trim();
@@ -49,7 +50,7 @@ async function applyBanditRaidVictory(playerId, payload) {
 
   const { BANDIT_PERSONAL_TOTAL_LAYERS, banditCombatLayerFromStoredNext, banditStoredNextLayerAfterVictory } =
     await loadBanditRaidRewards();
-  const maxP = Math.max(1, Math.floor(Number(BANDIT_PERSONAL_TOTAL_LAYERS)) || 12);
+  const maxP = Math.max(1, Math.floor(Number(BANDIT_PERSONAL_TOTAL_LAYERS)) || 20);
   if (attackedLayer > maxP) {
     return { ok: false, error: '层数越界' };
   }
@@ -104,7 +105,21 @@ async function applyBanditRaidVictory(playerId, payload) {
     ]);
 
     await conn.commit();
-    return { ok: true, nextStored: newStored };
+
+    let banditBadgeGranted = null;
+    let banditBadgeError = null;
+    if (attackedLayer === maxP) {
+      try {
+        const bg = await campaignService.grantSeasonBadgeToPlayer(playerId, 1);
+        if (bg.ok) banditBadgeGranted = bg.badge;
+        else banditBadgeError = bg.error || 'badge grant failed';
+      } catch (be) {
+        banditBadgeError = be.message || 'badge grant failed';
+        console.error('[banditRaidSettlement] grantSeasonBadgeToPlayer:', be);
+      }
+    }
+
+    return { ok: true, nextStored: newStored, banditBadgeGranted, banditBadgeError };
   } catch (e) {
     await conn.rollback();
     return { ok: false, error: e.message || '匪寨结算失败' };

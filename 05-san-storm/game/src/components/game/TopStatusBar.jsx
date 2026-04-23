@@ -8,6 +8,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { usePlayerContext } from '@/contexts/PlayerContext';
 import { computeDisplayGameDate } from '@/utils/gameTime';
+import PlayerTopResourceBadges from '@/components/game/PlayerTopResourceBadges';
 
 const TAB_TITLES = {
   lineup: '编组配置',
@@ -22,21 +23,8 @@ function getXunLabel(day) {
   return '下旬';
 }
 
-function ResourceBadge({ icon, value, low = false, compact = false }) {
-  return (
-    <div
-      className={`flex items-center rounded-full text-white ${
-        compact ? 'space-x-0 px-1 py-0.5 text-[10px] leading-tight' : 'space-x-0.5 px-1.5 py-0.5 text-xs'
-      } ${low ? 'bg-red-500/30 animate-pulse' : 'bg-black/20'}`}
-    >
-      <span className="shrink-0">{icon}</span>
-      <span className="font-medium tabular-nums">{value ?? '-'}</span>
-    </div>
-  );
-}
-
 export default function TopStatusBar({ activeTab, onOpenSidebar, onOpenCampaignCenter }) {
-  const { player, loading, gameTime } = usePlayerContext();
+  const { gameTime } = usePlayerContext();
   const [timeTick, setTimeTick] = useState(0);
 
   useEffect(() => {
@@ -108,16 +96,7 @@ export default function TopStatusBar({ activeTab, onOpenSidebar, onOpenCampaignC
 
       {/* 下行（窄屏）= 资源；宽屏 = 与左组同一行 */}
       <div className="flex flex-1 items-center justify-between sm:justify-end gap-1 sm:gap-2 min-w-0 w-full sm:w-auto overflow-x-auto pb-0.5 sm:pb-0">
-        {loading ? (
-          <span className="text-white/60 text-xs">加载中...</span>
-        ) : (
-          <>
-            <ResourceBadge icon="🎖️" value={player?.reputation} compact />
-            <ResourceBadge icon="🤝" value={player?.contribution} compact />
-            <ResourceBadge icon="💰" value={player?.silver} low={player?.silver < 10} compact />
-            <ResourceBadge icon="🌾" value={player?.food} low={player?.food < 100} compact />
-          </>
-        )}
+        <PlayerTopResourceBadges variant="map" />
         {settingsBtn('hidden sm:flex ml-1')}
       </div>
     </div>

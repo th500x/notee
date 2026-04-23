@@ -173,6 +173,8 @@ router.post('/', async (req, res) => {
     await battleService.saveChestRewards(playerId, chestRewards);
     const postEffects = await battleService.applyBattlePostEffects(playerId, { troopCasualties, moraleUpdates });
 
+    let banditBadgeGranted = null;
+    let banditBadgeError = null;
     if (!req.body.recordOnly && result === 'win' && battleType === 'pve_bandit' && rewards?.banditRaidSettlement) {
       const settle = await banditRaidSettlementService.applyBanditRaidVictory(playerId, rewards.banditRaidSettlement);
       if (!settle.ok) {
@@ -181,6 +183,8 @@ router.post('/', async (req, res) => {
           message: settle.error || '匪寨进度结算失败',
         });
       }
+      if (settle.banditBadgeGranted) banditBadgeGranted = settle.banditBadgeGranted;
+      if (settle.banditBadgeError) banditBadgeError = settle.banditBadgeError;
     }
 
     if (!req.body.recordOnly && result === 'win' && rewards?.smallMapPveLoot) {
@@ -195,6 +199,8 @@ router.post('/', async (req, res) => {
       success: true,
       battle,
       veteranPromotions: postEffects?.veteranPromotions || [],
+      ...(banditBadgeGranted ? { banditBadgeGranted } : {}),
+      ...(banditBadgeError ? { banditBadgeError } : {}),
     });
   } catch (error) {
     console.error('[battles] ========================================');

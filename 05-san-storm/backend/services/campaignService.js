@@ -368,6 +368,23 @@ async function getItemDisplayName(itemId) {
 /**
  * 按各次挑战中的最高分（bestScore）发奖并标记 rewardClaimed
  */
+/**
+ * 与 `claimCampaignReward` 中徽章发放同源：`resolveCampaignBadgeItemId` → **`item_season_badge`** + `playerItemsService.addItem`。
+ * 匪寨通关第 20 层等场景复用（不经 `campaign_progress` 领奖状态机）。
+ * @param {string} playerId
+ * @param {number} [quantity]
+ * @returns {Promise<{ ok: boolean, error?: string, badge?: { itemId: string, quantity: number, displayName: string|null } }>}
+ */
+async function grantSeasonBadgeToPlayer(playerId, quantity = 1) {
+  const q = Math.max(1, Math.floor(Number(quantity)) || 1);
+  const itemId = resolveCampaignBadgeItemId('1');
+  if (!itemId) return { ok: false, error: 'no badge item' };
+  const addRes = await playerItemsService.addItem(playerId, itemId, q);
+  if (!addRes.ok) return { ok: false, error: addRes.error || 'badge grant failed' };
+  const displayName = await getItemDisplayName(itemId);
+  return { ok: true, badge: { itemId, quantity: q, displayName } };
+}
+
 async function claimCampaignReward(playerId, campaignId) {
   const def = await getDefinition(campaignId);
   if (!def) return { ok: false, error: 'unknown campaign' };
@@ -448,4 +465,5 @@ module.exports = {
   patchCampaignProgress,
   applyBattleSettlement,
   claimCampaignReward,
+  grantSeasonBadgeToPlayer,
 };

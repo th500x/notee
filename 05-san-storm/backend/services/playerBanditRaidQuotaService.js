@@ -98,7 +98,7 @@ async function ensurePlayerProgressRow(playerId) {
 
 /** 与 `banditRaidLayerRewards.banditCombatLayerFromStoredNext` 同算式（CJS 侧避免循环依赖） */
 function combatLayerFromStoredNext(storedNext, maxPersonalLayers) {
-  const maxP = Math.max(1, Math.floor(Number(maxPersonalLayers)) || 12);
+  const maxP = Math.max(1, Math.floor(Number(maxPersonalLayers)) || 20);
   const s = Math.floor(Number(storedNext));
   if (!Number.isFinite(s) || s < 1) return 1;
   if (s > maxP) return null;
@@ -106,7 +106,7 @@ function combatLayerFromStoredNext(storedNext, maxPersonalLayers) {
 }
 
 function normalizeStoredNextLayer(raw, maxPersonalLayers) {
-  const maxP = Math.max(1, Math.floor(Number(maxPersonalLayers)) || 12);
+  const maxP = Math.max(1, Math.floor(Number(maxPersonalLayers)) || 20);
   const s0 = Math.floor(Number(raw));
   if (!Number.isFinite(s0) || s0 < 1) return 1;
   return Math.min(maxP + 1, s0);
@@ -152,7 +152,7 @@ async function getRaidQuotaState(playerId, banditPoiId) {
 
   await ensurePlayerProgressRow(playerId);
   const roster = await loadSmallMapEnemyRoster();
-  const maxPersonalLayers = Number(roster.BANDIT_PERSONAL_TOTAL_LAYERS) || 12;
+  const maxPersonalLayers = Number(roster.BANDIT_PERSONAL_TOTAL_LAYERS) || 20;
 
   const [rows] = await pool.query('SELECT bandit_progress FROM player_progress WHERE player_id = ?', [
     playerId,
@@ -216,11 +216,56 @@ async function getRaidQuotaState(playerId, banditPoiId) {
 }
 
 /**
+ * 战败结算「放弃」：本匪寨 **`nextLayer` → 1**（从第 1 层重打），**不**返还已消耗的攻打次数。
  * @param {string} playerId
  * @param {string} banditPoiId
- * @param {'consume'} action
+ */
+async function resetBanditRaidTowerProgress(playerId, banditPoiId) {
+  const id = String(banditPoiId || '').trim();
+  if (!BANDIT_MAP_OBJECT_ID_RE.test(id)) {
+    return { ok: false, status: 400, error: '无效的匪寨地图对象 ID' };
+  }
+
+  await ensurePlayerProgressRow(playerId);
+  const roster = await loadSmallMapEnemyRoster();
+  const maxPersonalLayers = Number(roster.BANDIT_PERSONAL_TOTAL_LAYERS) || 20;
+
+  const [rows] = await pool.query('SELECT bandit_progress FROM player_progress WHERE player_id = ?', [playerId]);
+  const row = rows[0] || {};
+  const bp = parseBanditProgress(row.bandit_progress);
+  if (!bp[BUCKET] || typeof bp[BUCKET] !== 'object') bp[BUCKET] = {};
+
+  const currentSerial = banditWindowSerialAt();
+  const prevEntry = bp[BUCKET][id] && typeof bp[BUCKET][id] === 'object' ? { ...bp[BUCKET][id] } : {};
+  const prevRaid = prevEntry.raid && typeof prevEntry.raid === 'object' ? { ...prevEntry.raid } : {};
+  const acc = accrueRaidQuota(prevRaid, currentSerial);
+
+  bp[BUCKET][id] = {
+    ...prevEntry,
+    nextLayer: 1,
+    raid: {
+      remaining: acc.remaining,
+      lastAccruedSerial: acc.lastAccruedSerial,
+    },
+  };
+
+  await pool.query('UPDATE player_progress SET bandit_progress = ? WHERE player_id = ?', [
+    JSON.stringify(bp),
+    playerId,
+  ]);
+
+  return getRaidQuotaState(playerId, id);
+}
+
+/**
+ * @param {string} playerId
+ * @param {string} banditPoiId
+ * @param {'consume'|'reset_tower'} action
  */
 async function applyRaidQuotaAction(playerId, banditPoiId, action) {
+  if (action === 'reset_tower') {
+    return resetBanditRaidTowerProgress(playerId, banditPoiId);
+  }
   if (action !== 'consume') {
     return { ok: false, status: 400, error: '无效的 action' };
   }
@@ -231,7 +276,7 @@ async function applyRaidQuotaAction(playerId, banditPoiId, action) {
 
   await ensurePlayerProgressRow(playerId);
   const roster = await loadSmallMapEnemyRoster();
-  const maxPersonalLayers = Number(roster.BANDIT_PERSONAL_TOTAL_LAYERS) || 12;
+  const maxPersonalLayers = Number(roster.BANDIT_PERSONAL_TOTAL_LAYERS) || 20;
 
   const [rows] = await pool.query('SELECT bandit_progress FROM player_progress WHERE player_id = ?', [
     playerId,

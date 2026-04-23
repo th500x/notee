@@ -47,7 +47,7 @@ export const BANDIT_NPC_SLOTS_BY_TIER = {
 };
 
 /** 单玩家单匪寨「郡内爬塔」总层数（与 17-6 §2、§7 一致） */
-export const BANDIT_PERSONAL_TOTAL_LAYERS = 12;
+export const BANDIT_PERSONAL_TOTAL_LAYERS = 20;
 
 /**
  * 战略地图匪寨格 ID（独立地图对象，非 `san_*_city_{1-7}_*`）。格式：`san_{赛季}_bandit_{1-9}_{区域 slug}`。
@@ -69,15 +69,15 @@ export const EVENT_PUNISHMENT_COMBAT_BANDIT_LOCATION_SLOT_RARITIES = [
 ];
 
 /**
- * 匪寨层数 1…12 → 难度档
+ * 匪寨层数 1…20 → 难度档（四档区间：1–8 / 9–14 / 15–18 / 19–20）
  * @param {number} layer
  * @returns {'normal'|'rare'|'epic'|'legendary'}
  */
 export function banditTierFromLayer(layer) {
   const n = Math.max(1, Math.min(BANDIT_PERSONAL_TOTAL_LAYERS, Math.floor(Number(layer) || 1)));
-  if (n <= 3) return 'normal';
-  if (n <= 6) return 'rare';
-  if (n <= 9) return 'epic';
+  if (n <= 8) return 'normal';
+  if (n <= 14) return 'rare';
+  if (n <= 18) return 'epic';
   return 'legendary';
 }
 
@@ -106,7 +106,7 @@ const BANDIT_TIER_ZH = {
 
 /**
  * 四槽稀有度在定序上的最小/最大跨度（非编制口径；编制见 {@link banditNpcTroopCompositionZhFromLayer}）。
- * @param {number} layer - 当前爬层 1…12
+ * @param {number} layer - 当前爬层 1…20
  * @returns {{ min: string, max: string, minLabel: string, maxLabel: string, dashRange: string } | null}
  */
 export function banditNpcTroopRarityZhRangeFromLayer(layer) {

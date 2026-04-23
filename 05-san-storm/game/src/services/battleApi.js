@@ -42,6 +42,8 @@ export const battleAPI = {
           success: true,
           battle: data.battle,
           veteranPromotions: Array.isArray(data.veteranPromotions) ? data.veteranPromotions : [],
+          banditBadgeGranted: data.banditBadgeGranted || null,
+          banditBadgeError: data.banditBadgeError || null,
         };
       }
       const detail = [data.message, data.error, data.sqlMessage].filter(Boolean).join(' | ');

@@ -967,7 +967,7 @@ router.get('/:playerId/bandit-raid-quota', async (req, res) => {
 
 /**
  * POST /api/players/:playerId/bandit-raid-quota
- * body: { banditPoiId, action: 'consume' }
+ * body: { banditPoiId, action: 'consume' | 'reset_tower' } — `reset_tower`：战败放弃，个人层进度回到第 1 层，不返还攻打次数。
  */
 router.post('/:playerId/bandit-raid-quota', async (req, res) => {
   try {

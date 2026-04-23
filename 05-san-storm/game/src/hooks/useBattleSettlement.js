@@ -161,6 +161,8 @@ export function useBattleSettlement({
       const battleId = `battle_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
       persistedBattleId = battleId;
       let attackerBattleSaved = false;
+      let banditBadgeGranted = null;
+      let banditBadgeError = null;
       const manualChests =
         typeof manualBattleRef.current?.getCollectedChestRewards === 'function'
           ? manualBattleRef.current.getCollectedChestRewards()
@@ -227,6 +229,8 @@ export function useBattleSettlement({
           if (saveRes?.success) {
             attackerBattleSaved = true;
             veteranPromotions = saveRes.veteranPromotions || [];
+            banditBadgeGranted = saveRes.banditBadgeGranted || null;
+            banditBadgeError = saveRes.banditBadgeError || null;
             break;
           }
           if (attempt < 2) await new Promise((r) => setTimeout(r, 180));
@@ -288,6 +292,8 @@ export function useBattleSettlement({
         battleId: persistedBattleId || undefined,
         /** 消灭的敌方「编制」数；`killedIndices` 依赖 `_npcIndex`，小型图随机敌可能为空，UI 应优先用本字段 */
         totalKills,
+        ...(banditBadgeGranted ? { banditBadgeGranted } : {}),
+        ...(banditBadgeError ? { banditBadgeError } : {}),
         ...(defenderLineupTroopUpdates?.length
           ? { defenderLineupTroopUpdates }
           : {}),

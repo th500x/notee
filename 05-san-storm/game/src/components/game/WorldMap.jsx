@@ -104,6 +104,8 @@ function StrategicSettlementCard({
   onConfirm,
   /** 匪寨胜利：左侧「继续」进入下一层（不扣次）；与 `onConfirm`（退出）并存时渲染双按钮 */
   onBanditContinue = null,
+  /** 匪寨战败：左侧「放弃」重置个人层进度为第 1 层；与 `onConfirm`（右侧「确定」仅关闭）并存 */
+  onBanditDefeatAbandon = null,
   settlementKind = 'siege',
   /** `settlementKind === 'bandit'` 时用于顶栏 emoji：胜利 ⚔️ / 失败 💀（匪寨不展示本场击杀行，不能再用击杀数推 emoji） */
   banditOutcome = null,
@@ -127,6 +129,9 @@ function StrategicSettlementCard({
   siegeCompleted = false,
   battleReportFailed = false,
   extraFooterNote = null,
+  /** 匪寨通关第 20 层：`POST /api/battles` 经 `grantSeasonBadgeToPlayer` 发放的赛季徽章 */
+  banditBadgeGranted = null,
+  banditBadgeError = null,
 }) {
   const sr = Math.max(0, Number(silverReward) || 0);
   const rr = Math.max(0, Number(reputationReward) || 0);
@@ -177,6 +182,17 @@ function StrategicSettlementCard({
             ))}
           </div>
         )}
+        {banditBadgeGranted && (banditBadgeGranted.displayName || banditBadgeGranted.itemId) ? (
+          <div className="text-sm text-emerald-300/95">
+            🎖️ 获得 {banditBadgeGranted.displayName || banditBadgeGranted.itemId}
+            {Number(banditBadgeGranted.quantity) > 1 ? ` ×${banditBadgeGranted.quantity}` : ''}
+          </div>
+        ) : null}
+        {banditBadgeError ? (
+          <div className="text-xs text-amber-200/90 text-left leading-snug">
+            徽章未能自动入库：{banditBadgeError}（本场银两等仍按服务端为准，可稍后重试。）
+          </div>
+        ) : null}
         {kc != null && settlementKind === 'siege' ? (
           <div className="text-sm text-gray-300">本场击杀：{kc}</div>
         ) : null}
@@ -235,6 +251,23 @@ function StrategicSettlementCard({
               className="flex-1 min-w-0 rounded-lg bg-gradient-to-r from-amber-700 to-yellow-700 py-2.5 text-sm font-bold text-amber-100"
             >
               退出
+            </button>
+          </div>
+        ) : typeof onBanditDefeatAbandon === 'function' ? (
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={onBanditDefeatAbandon}
+              className="flex-1 min-w-0 rounded-lg border border-stone-500 bg-stone-800 py-2.5 text-sm font-bold text-stone-200 hover:bg-stone-700"
+            >
+              放弃
+            </button>
+            <button
+              type="button"
+              onClick={onConfirm}
+              className="flex-1 min-w-0 rounded-lg bg-gradient-to-r from-amber-700 to-yellow-700 py-2.5 text-sm font-bold text-amber-100"
+            >
+              确定
             </button>
           </div>
         ) : (
@@ -886,7 +919,7 @@ export default function WorldMap({
         tacticalScoreText,
         defeatHint:
           result !== 'victory'
-            ? '本场已扣攻打次数，个人层与全服耐久不因失败前进。'
+            ? '本场已扣攻打次数，个人层与全服耐久不因失败前进。左侧「放弃」将本寨层进度重置为第 1 层（已扣次数不返还）；「确定」仅关闭。'
             : null,
       });
       setPostBanditRaidRefreshKey((k) => k + 1);
@@ -901,6 +934,33 @@ export default function WorldMap({
     setBanditRaidResult(null);
     setPostBanditRaidRefreshKey((k) => k + 1);
   }, []);
+
+  /** 匪寨战败「放弃」：`reset_tower` 将本寨 `nextLayer` 置 1，不返还攻打次数 */
+  const handleBanditRaidAbandon = useCallback(async () => {
+    if (!banditRaidResult || banditRaidResult.result === 'victory') return;
+    const banditPoiId = banditRaidResult.banditPoiId;
+    if (!banditPoiId || !player?.player_id) {
+      closeBanditRaidResult();
+      return;
+    }
+    try {
+      const res = await playerAPI.updateBanditRaidQuota(player.player_id, banditPoiId, 'reset_tower');
+      if (!res?.success) {
+        setSimpleAlertMessage(
+          typeof res?.error === 'string' && res.error.trim() ? res.error : '重置层数失败',
+        );
+        return;
+      }
+    } catch (e) {
+      setSimpleAlertMessage(e?.message || '重置层数失败');
+      return;
+    }
+    setBanditRaidResult(null);
+    setPostBanditRaidRefreshKey((k) => k + 1);
+    setGarrisonStatsRefreshKey((k) => k + 1);
+    refreshPlayer({ silent: true });
+    bumpStrategicRoadPresenceRef.current?.();
+  }, [banditRaidResult, player?.player_id, closeBanditRaidResult, refreshPlayer]);
 
   /** 匪寨胜利结算「继续」：不调用 consume，直接进下一层（次数已在首层攻打时扣除） */
   const handleBanditRaidContinue = useCallback(async () => {
@@ -1625,6 +1685,9 @@ export default function WorldMap({
                 onBanditContinue={
                   banditRaidResult.result === 'victory' ? handleBanditRaidContinue : null
                 }
+                onBanditDefeatAbandon={
+                  banditRaidResult.result !== 'victory' ? handleBanditRaidAbandon : null
+                }
                 banditOutcome={banditRaidResult.result}
                 settlementKind="bandit"
                 silverReward={banditRaidResult.silverReward}
@@ -1642,6 +1705,8 @@ export default function WorldMap({
                 siegeCompleted={false}
                 battleReportFailed={banditRaidResult.meta?.battleReportSaved === false}
                 extraFooterNote={banditRaidResult.defeatHint}
+                banditBadgeGranted={banditRaidResult.meta?.banditBadgeGranted}
+                banditBadgeError={banditRaidResult.meta?.banditBadgeError}
               />
             ) : null}
           </div>,

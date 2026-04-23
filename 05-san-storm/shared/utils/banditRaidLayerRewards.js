@@ -18,7 +18,7 @@ const TIER_IMMEDIATE = {
 };
 
 /**
- * `player_progress.bandit_progress` 中 per-匪寨 **`nextLayer`**：1…N 为待挑战层，**N+1** 表示已通 N 层（如 13=12 层全通）。
+ * `player_progress.bandit_progress` 中 per-匪寨 **`nextLayer`**：1…N 为待挑战层，**N+1** 表示已通 N 层（如 21=20 层全通）。
  * @param {number|string|null|undefined} storedNext
  * @param {number} [maxLayers]
  * @returns {number|null} 当前应打的层 1…maxLayers；已全通返回 **null**
@@ -46,18 +46,19 @@ export function banditStoredNextLayerAfterVictory(attackedLayer, maxLayers = BAN
 
 /**
  * 供 `POST /api/battles` **`rewards.smallMapPveLoot`** 与 `applyDeclaredSmallMapPveLoot` 使用（仅数值 + 装备池稀有度）。
- * @param {number} layer 当前挑战层 1…12
+ * @param {number} layer 当前挑战层 1…20
  * @returns {{ reputation: number, silver: number, food: number, bestEnemyRarity: string, rollEquipment: boolean }}
  */
 export function buildBanditLayerSmallMapPveLoot(layer) {
-  const maxP = Math.max(1, Math.floor(Number(BANDIT_PERSONAL_TOTAL_LAYERS)) || 12);
+  const maxP = Math.max(1, Math.floor(Number(BANDIT_PERSONAL_TOTAL_LAYERS)) || 20);
   const L = Math.max(1, Math.min(maxP, Math.floor(Number(layer)) || 1));
   const tier = banditTierFromLayer(L);
   const base = TIER_IMMEDIATE[tier] || TIER_IMMEDIATE.normal;
   let silver = base.silver;
-  if (L === 3) silver += 30;
-  if (L === 6) silver += 60;
-  if (L === 9) silver += 90;
+  if (L === 8) silver += 80;
+  if (L === 14) silver += 120;
+  if (L === 18) silver += 120;
+  if (L === 20) silver += 80;
   const slots = banditNpcSlotRaritiesFromLayer(L);
   const bestEnemyRarity = slots.length ? bestRarityOf(...slots) : 'common';
   return {
