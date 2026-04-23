@@ -74,6 +74,40 @@ function toInt(v) {
   return Number.isFinite(n) ? Math.trunc(n) : null;
 }
 
+/** 生产/本地对照道路寻路：设 `SAN_STORM_ROAD_MOVE_DEBUG=1` 后每次 `moveAlongRoad` 打一行 JSON（勿长期开）。 */
+function isRoadMoveDebugEnabled() {
+  const v = String(process.env.SAN_STORM_ROAD_MOVE_DEBUG || '').trim().toLowerCase();
+  return v === '1' || v === 'true' || v === 'yes';
+}
+
+function roadMoveDebugStepKey(step) {
+  const x = toInt(step?.x);
+  const y = toInt(step?.y);
+  return x != null && y != null ? `${x},${y}` : null;
+}
+
+/** 对比请求 path 与权威 resolvedPath（同索引格键 `gx,gy`）。 */
+function compareClientServerPathForDebug(clientPath, serverPath) {
+  const cl = Array.isArray(clientPath) ? clientPath.length : 0;
+  const sl = Array.isArray(serverPath) ? serverPath.length : 0;
+  const max = Math.max(cl, sl);
+  for (let i = 0; i < max; i++) {
+    const ck = i < cl ? roadMoveDebugStepKey(clientPath[i]) : null;
+    const sk = i < sl ? roadMoveDebugStepKey(serverPath[i]) : null;
+    if (ck !== sk) {
+      return {
+        match: false,
+        firstMismatchIndex: i,
+        clientLen: cl,
+        serverLen: sl,
+        clientKey: ck,
+        serverKey: sk,
+      };
+    }
+  }
+  return { match: true, firstMismatchIndex: null, clientLen: cl, serverLen: sl };
+}
+
 function buildPlayerRoadSnapshot(player) {
   return {
     road_jun_id: player.road_jun_id || null,
@@ -570,10 +604,70 @@ async function moveAlongRoad(playerId, body) {
         );
       }
       if (!bfsPath?.length) {
+        if (isRoadMoveDebugEnabled()) {
+          console.log(
+            '[roadMoveDebug]',
+            JSON.stringify({
+              tag: 'moveAlongRoad:noBfsPath',
+              pid,
+              season,
+              junId,
+              endKey,
+              startKeyIfRoad,
+              onRoadForBfs,
+              roadPassableCount: roadPassableForMarch.size,
+              gridCellsCount: grid.cells ? grid.cells.size : 0,
+            }),
+          );
+        }
         await conn.rollback();
         return { ok: false, status: 400, error: '无法沿道路到达目标道路格' };
       }
       resolvedPath = bfsPath;
+    }
+
+    if (isRoadMoveDebugEnabled()) {
+      try {
+        const dbg = {
+          tag: 'moveAlongRoad:resolved',
+          pid,
+          rid:
+            clientRequestId.length > 12
+              ? `${String(clientRequestId).slice(0, 10)}…`
+              : clientRequestId,
+          season,
+          junId,
+          hasTargetPoiId: Boolean(targetPoiIdRaw),
+          targetPoiId: targetPoiIdRaw || undefined,
+          gridSource: grid.source,
+          mapColumns: grid.mapColumns,
+          mapRows: grid.mapRows,
+          gridCellsCount: grid.cells ? grid.cells.size : 0,
+          roadPassableCount: roadPassableForMarch.size,
+          roadCellsRawLen: Array.isArray(grid.roadCellsRaw) ? grid.roadCellsRaw.length : 0,
+          resolvedLen: resolvedPath.length,
+          resolvedStart: roadMoveDebugStepKey(resolvedPath[0]),
+          resolvedEnd: roadMoveDebugStepKey(resolvedPath[resolvedPath.length - 1]),
+          playerRoadJun: player.road_jun_id || null,
+          playerRoadPos: [toInt(player.road_position_x), toInt(player.road_position_y)],
+        };
+        dbg.roadBoundaryCellCount = marchPoi.computeRoadBoundaryKeys(
+          roadPassableForMarch,
+          grid.mapColumns,
+          grid.mapRows,
+        ).size;
+        if (!targetPoiIdRaw && Array.isArray(body.path)) {
+          dbg.clientPathLen = body.path.length;
+          dbg.clientEnd = roadMoveDebugStepKey(body.path[body.path.length - 1]);
+          dbg.pathCompare = compareClientServerPathForDebug(body.path, resolvedPath);
+        }
+        if (targetPoiIdRaw && poiAnchorEnd) {
+          dbg.poiAnchorEnd = poiAnchorEnd;
+        }
+        console.log('[roadMoveDebug]', JSON.stringify(dbg));
+      } catch (logErr) {
+        console.warn('[roadMoveDebug] log failed', logErr && logErr.message);
+      }
     }
 
     const pathShapeErr = validatePathShape(resolvedPath);
