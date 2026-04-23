@@ -9,6 +9,7 @@
 import { mkdirSync, writeFileSync, readFileSync, existsSync } from 'fs';
 import { fileURLToPath, pathToFileURL } from 'url';
 import { dirname as pathDirname, resolve } from 'path';
+import { createRequire } from 'module';
 
 const __dirname = pathDirname(fileURLToPath(import.meta.url));
 
@@ -64,9 +65,26 @@ async function main() {
       /* 旧文件损坏或不可解析时仅重写底板，不阻塞合并 */
     }
   }
+  const bandPath = resolve(__dirname, '../../shared/utils/strategicBanditPlaceholderPhase1.js');
+  const { ensureYingchuanMergedMapCells } = await import(pathToFileURL(bandPath).href);
+  payload.cells = ensureYingchuanMergedMapCells(payload.cells, result.seed, {
+    roadCells: Array.isArray(payload.roadCells) ? payload.roadCells : null,
+    mapColumns: payload.mapColumns,
+    mapRows: payload.mapRows,
+  });
   mkdirSync(pathDirname(absOut), { recursive: true });
   writeFileSync(absOut, `${JSON.stringify(payload, null, 2)}\n`, 'utf8');
   console.log(`OK wrote ${absOut} version=${version}`);
+
+  try {
+    const require = createRequire(import.meta.url);
+    require('dotenv').config({ path: resolve(__dirname, '../.env') });
+    const { syncBanditsFromYingchuanMergedDisk } = require('../services/banditInstanceService.js');
+    const sync = await syncBanditsFromYingchuanMergedDisk({ mergedAbsPath: absOut });
+    console.log('[bandits]', JSON.stringify(sync));
+  } catch (e) {
+    console.warn('[bandits] sync skipped:', e?.message || e);
+  }
 }
 
 main().catch((e) => {

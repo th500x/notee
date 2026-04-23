@@ -9,7 +9,7 @@ import { isBanditMapObjectId } from '@shared/utils/smallMapEnemyRoster.js';
  * - {any_wilderness} / {any_market}：任意开启荒郊 / 集市 的城（大中小均可；兼容旧 city_type=wilderness|market 行）
  * - {city_major_wilderness} / {city_medium_wilderness} / {city_major_market} / {city_medium_market}：按城格类型 + 开关细分
  * - {city_major} / {city_medium} / {city_small}：仅按城格类型匹配（不等同于荒郊/集市开关）
- * - {any_bandit}：匪寨地图对象 city_id
+ * - {any_bandit}：匪寨地图对象 ID（`san_*_bandit_*`，与 `banditPoiId` / `targetPoiId` 同族）
  */
 
 /** @type {readonly string[]} */

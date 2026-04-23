@@ -14,7 +14,7 @@ const { isPlayerRecentlyActive, DEFAULT_ONLINE_MS } = require('../utils/playerAc
 
 /**
  * GET /api/pvp/online-defenders/:cityId
- * 检查城市是否有在线驻守玩家
+ * 仅统计 **当前** 整编兵力 ≥ 800 的驻地槽且在线的玩家（与攻城、defenders 列表同一口径）。
  * query: { attackerId, attackerFaction }
  */
 router.get('/online-defenders/:cityId', async (req, res) => {

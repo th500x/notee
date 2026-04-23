@@ -10,6 +10,7 @@ const battleService = require('../services/battleService');
 const campaignService = require('../services/campaignService');
 const statisticsDeltaService = require('../services/statisticsDeltaService');
 const smallMapBattleLootService = require('../services/smallMapBattleLootService');
+const banditRaidSettlementService = require('../services/banditRaidSettlementService');
 
 /**
  * 获取玩家战斗记录列表
@@ -107,7 +108,15 @@ router.post('/', async (req, res) => {
     }
 
     // 枚举值校验
-    const validBattleTypes = ['pvp_field', 'pvp_siege', 'pvp_defense', 'pve_campaign', 'pve_event', 'pve_siege'];
+    const validBattleTypes = [
+      'pvp_field',
+      'pvp_siege',
+      'pvp_defense',
+      'pve_campaign',
+      'pve_event',
+      'pve_siege',
+      'pve_bandit',
+    ];
     const validOpponentTypes = ['player', 'campaign_enemy', 'event_enemy'];
     const validResults = ['win', 'lose', 'draw'];
 
@@ -163,6 +172,16 @@ router.post('/', async (req, res) => {
     await battleService.applyBattleScore(playerId, rewards?.battleScore);
     await battleService.saveChestRewards(playerId, chestRewards);
     const postEffects = await battleService.applyBattlePostEffects(playerId, { troopCasualties, moraleUpdates });
+
+    if (!req.body.recordOnly && result === 'win' && battleType === 'pve_bandit' && rewards?.banditRaidSettlement) {
+      const settle = await banditRaidSettlementService.applyBanditRaidVictory(playerId, rewards.banditRaidSettlement);
+      if (!settle.ok) {
+        return res.status(400).json({
+          success: false,
+          message: settle.error || '匪寨进度结算失败',
+        });
+      }
+    }
 
     if (!req.body.recordOnly && result === 'win' && rewards?.smallMapPveLoot) {
       try {

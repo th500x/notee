@@ -4,7 +4,6 @@ import {
   campaignTerrainUrl,
   campaignObjectUrl,
   buildCampaignVisualVariants,
-  strategicMapObjectIs2x2,
 } from '@/utils/campaignMapVisualAssets';
 import { tacticalFireFrameUrl } from '@/components/battle/battleConstants';
 import {
@@ -31,7 +30,7 @@ function wsTerrainFallbackClass(terrain) {
  * 与 `CampaignMapTile` 职责分离（无战役部署、无战斗引擎宿主）。
  * 瓦片素材路径复用 `campaignMapVisualAssets`（与 BattleTile 同源 PNG）。
  * @param {object|null} [cityRow] - 锚点格 `cityId` 对应 `cities` 行（ fort 用 `build_status` 选空置/建成图）
- * @param {{ anchorR: number, anchorC: number, anchorCell: object }|null} [strategicCover] - 本格是否属于某 2×2 战略城点的锚点或延伸格
+ * @param {{ anchorR: number, anchorC: number, anchorCell: object, footprintKind?: 'city_2x2'|'bandit_2x1'|'bandit_1x2' }|null} [strategicCover] - 本格是否属于某多格战略 POI 的锚点或延伸格
  */
 function WorldStrategicMapTile({
   cell,
@@ -64,20 +63,31 @@ function WorldStrategicMapTile({
   const bgV = c.base === 'plain_wasteland' ? variants.bgWaste : variants.bgGrass;
   const bgSrc = campaignBgUrl(c.base || 'plain_grassland', bgV);
 
+  const footprintKind = strategicCover?.footprintKind ?? null;
+  const isCityFootprint2x2 = footprintKind === 'city_2x2';
+  const isBanditDomino = footprintKind === 'bandit_2x1' || footprintKind === 'bandit_1x2';
+  const hasMultiCellFootprint = !!(strategicCover && footprintKind);
+
   const anchor = strategicCover?.anchorCell;
   const effectiveObject = anchor?.object ?? c.object;
-  const isFootprint2x2 =
-    strategicCover && strategicMapObjectIs2x2(strategicCover.anchorCell?.object);
   const isAnchorTile =
     strategicCover &&
     strategicCover.anchorR === gridY &&
     strategicCover.anchorC === gridX;
 
+  const objectSpanClass = useMemo(() => {
+    if (!hasMultiCellFootprint || !isAnchorTile) return '';
+    if (footprintKind === 'city_2x2') return 'ws-object-span-2';
+    if (footprintKind === 'bandit_2x1') return 'ws-object-span-2x1';
+    if (footprintKind === 'bandit_1x2') return 'ws-object-span-1x2';
+    return '';
+  }, [hasMultiCellFootprint, isAnchorTile, footprintKind]);
+
   const terrainSrc = campaignTerrainUrl(c.terrain, variants);
   const fallbackCls = wsTerrainFallbackClass(c.terrain);
 
   const objSrc = useMemo(() => {
-    if (isFootprint2x2 && !isAnchorTile) return null;
+    if (hasMultiCellFootprint && !isAnchorTile) return null;
     if (!effectiveObject) return null;
     if (effectiveObject === 'fort' && cityRow) {
       return campaignObjectUrl('fort', {
@@ -85,18 +95,20 @@ function WorldStrategicMapTile({
       });
     }
     return campaignObjectUrl(effectiveObject);
-  }, [isFootprint2x2, isAnchorTile, effectiveObject, cityRow]);
+  }, [hasMultiCellFootprint, isAnchorTile, effectiveObject, cityRow]);
 
-  const object2x2 = isFootprint2x2 && isAnchorTile && !!objSrc;
+  const showSpanningStrategicObject = hasMultiCellFootprint && isAnchorTile && !!objSrc;
+  /** 与 `StrategicMapSelfPawn` 道路「来战」同源：`ws-map-self-pawn-intercept-pulse` */
+  const banditInterceptGlow = isBanditDomino && showSpanningStrategicObject;
 
   const fid = cityRow?.faction_id ?? cityRow?.factionId;
   const factionHex = fid ? getFactionRepresentativeColor(fid) : null;
   const factionTintRgba = factionHex ? hexToRgba(factionHex, 0.42) : null;
 
   const labelLines = useMemo(() => {
-    if (!isFootprint2x2 || !isAnchorTile || !effectiveObject) return null;
+    if (!hasMultiCellFootprint || !isAnchorTile || !effectiveObject) return null;
     return getStrategicMapCityLabelLines(cityRow, anchor, effectiveObject);
-  }, [isFootprint2x2, isAnchorTile, effectiveObject, cityRow, anchor]);
+  }, [hasMultiCellFootprint, isAnchorTile, effectiveObject, cityRow, anchor]);
 
   const cityLabelColorStyle = useMemo(() => {
     if (!labelLines) return undefined;
@@ -134,13 +146,17 @@ function WorldStrategicMapTile({
   const isClickTooltip = tooltipPointerMode === 'click';
   const marchPick = !!strategicMarchMode && typeof onStrategicMarchCellPick === 'function';
 
+  /** 仅锚点格抬 z-index / overflow：延伸格若同权会盖住邻格溢出的 2×2 立绘（与旧 `ws-tile-object-2x2` 一致） */
+  const anchorStrategicFootprintRaised = hasMultiCellFootprint && isAnchorTile;
+
   return (
     <div
-      className={`ws-map-tile${object2x2 ? ' ws-tile-object-2x2' : ''}${
+      className={`ws-map-tile${anchorStrategicFootprintRaised ? ' ws-tile-strategic-footprint' : ''}${
         isClickTooltip || marchPick ? ' ws-map-tile--tooltip-click' : ''
       }`}
       data-strategic-y={gridY}
       data-strategic-x={gridX}
+      data-strategic-footprint-kind={isAnchorTile && footprintKind ? footprintKind : undefined}
       onMouseEnter={isClickTooltip || marchPick ? undefined : onHover}
       onMouseLeave={isClickTooltip || marchPick ? undefined : onLeave}
       onClick={
@@ -164,7 +180,7 @@ function WorldStrategicMapTile({
           }}
         />
       )}
-      {isFootprint2x2 && factionTintRgba ? (
+      {isCityFootprint2x2 && factionTintRgba ? (
         <div
           className="ws-layer ws-faction-bg-tint"
           style={{ background: factionTintRgba, zIndex: 1 }}
@@ -188,7 +204,7 @@ function WorldStrategicMapTile({
             }}
           />
         ))}
-      {object2x2 && isAnchorTile && subsidiaryHubGlow ? (
+      {isCityFootprint2x2 && isAnchorTile && subsidiaryHubGlow ? (
         <div
           className="ws-layer ws-object-span-2 ws-subsidiary-hub-glow"
           aria-hidden
@@ -201,7 +217,11 @@ function WorldStrategicMapTile({
       {objSrc &&
         (oOk ? (
           <img
-            className={`ws-layer${object2x2 ? ' ws-object-span-2' : ''}`}
+            className={`ws-layer${
+              showSpanningStrategicObject && objectSpanClass
+                ? ` ${objectSpanClass} ws-strategic-footprint-visual`
+                : ''
+            }${banditInterceptGlow ? ' ws-strategic-bandit-intercept-glow' : ''}`}
             src={objSrc}
             alt=""
             draggable={false}
@@ -209,7 +229,19 @@ function WorldStrategicMapTile({
             style={{ zIndex: 2 }}
           />
         ) : (
-          <div className={`ws-obj-fallback${object2x2 ? ' ws-obj-fallback-2x2' : ''}`}>
+          <div
+            className={`ws-obj-fallback${
+              showSpanningStrategicObject
+                ? footprintKind === 'city_2x2'
+                  ? ' ws-obj-fallback-2x2'
+                  : footprintKind === 'bandit_2x1'
+                    ? ' ws-obj-fallback-2x1'
+                    : footprintKind === 'bandit_1x2'
+                      ? ' ws-obj-fallback-1x2'
+                      : ''
+                : ''
+            }${banditInterceptGlow ? ' ws-strategic-bandit-intercept-glow' : ''}`}
+          >
             {effectiveObject === 'military_camp'
               ? '营'
               : effectiveObject === 'military_tower'
@@ -218,15 +250,25 @@ function WorldStrategicMapTile({
                   ? '城'
                   : effectiveObject === 'fort'
                     ? '据'
-                    : '·'}
+                    : isBanditDomino
+                      ? '寨'
+                      : '·'}
           </div>
         ))}
       {labelLines && (
-        <div className="ws-strategic-label ws-object-span-2" aria-hidden>
-          <div className="ws-strategic-label-type" style={cityLabelColorStyle}>
-            {labelLines.line1}
-          </div>
-          <div className="ws-strategic-label-name" style={cityLabelColorStyle}>
+        <div
+          className={`ws-strategic-label${showSpanningStrategicObject && objectSpanClass ? ` ${objectSpanClass}` : ''}`}
+          aria-hidden
+        >
+          {labelLines.line1 ? (
+            <div className="ws-strategic-label-type" style={cityLabelColorStyle}>
+              {labelLines.line1}
+            </div>
+          ) : null}
+          <div
+            className={`ws-strategic-label-name${isBanditDomino ? ' ws-strategic-label-name--bandit-primary' : ''}`}
+            style={cityLabelColorStyle}
+          >
             {labelLines.line2}
           </div>
           {labelLines.line3 ? (
@@ -236,7 +278,7 @@ function WorldStrategicMapTile({
           ) : null}
         </div>
       )}
-      {isFootprint2x2 && isAnchorTile && factionLogoUrl && factionLogoOk ? (
+      {isCityFootprint2x2 && isAnchorTile && factionLogoUrl && factionLogoOk ? (
         <div className="ws-strategic-faction-logo-wrap ws-object-span-2" aria-hidden>
           <div className="ws-strategic-faction-logo-stack">
             {Array.from({ length: factionMarkerCount }, (_, i) => (

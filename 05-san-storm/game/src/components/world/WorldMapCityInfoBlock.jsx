@@ -7,8 +7,14 @@
  */
 import { useState, useCallback, useEffect, useRef, useLayoutEffect } from 'react';
 import ExploreLocationDockPanel from '@/components/event/ExploreLocationDockPanel';
+import BanditStrongholdDockPanel from '@/components/event/BanditStrongholdDockPanel';
 import { filterPlayerItemsForExploreLocation } from '@/components/event/eventUtils';
 import { PHASE } from '@/components/event/EventConstants';
+import { useBanditRaidQuota } from '@/hooks/useBanditRaidQuota';
+import { usePlayerContext } from '@/contexts/PlayerContext';
+import { validateMainLineupBattleGate } from '@/utils/mainLineupTroops';
+import { buildBanditLayerSmallMapPveLoot } from '@shared/utils/banditRaidLayerRewards';
+import { banditNpcSlotRaritiesFromLayer } from '@shared/utils/smallMapEnemyRoster';
 
 function fmtStat(n) {
   if (n == null || Number.isNaN(n)) return '—';
@@ -74,6 +80,8 @@ export default function WorldMapCityInfoBlock({
   /** 「三公府」：官职晋升、朝政（朝贡等）；`(cityId, cityBaseName?) => void` */
   onOpenSanGongFu = null,
   cityId = null,
+  /** 匪寨地图对象 ID（`san_*_bandit_*`）；与行军 `targetPoiId` 同族。匪寨面板勿用 `cityId`。 */
+  banditPoiId = null,
   onOpenGarrison,
   playerOnDutyForThisCity = false,
   /** async (cityId, nextOnDuty) => void */
@@ -96,6 +104,14 @@ export default function WorldMapCityInfoBlock({
   uniformStrategicPanel = false,
   /** 非己方且可攻打时，由上层注入（战略 tooltip 内发起攻城） */
   onStartSiege = null,
+  /** 匪寨：扣次成功后 `(payload) => void`，payload 见攻打按钮内组装 */
+  onStartBanditRaid = null,
+  /** 与攻城一致的战略门闸；非空时展示在攻打按钮下方 */
+  banditRaidStartBlockedReason = null,
+  /** 匪寨战后 bump，用于刷新 `useBanditRaidQuota` */
+  postBanditRaidRefreshKey = 0,
+  /** 为 true 时仅渲染匪寨攻打面板（依赖 **`banditPoiId`**，与行军 `targetPoiId` 同族） */
+  isBanditStronghold = false,
 }) {
   const [dutyBusy, setDutyBusy] = useState(false);
   const [mainCityBusy, setMainCityBusy] = useState(false);
@@ -110,6 +126,19 @@ export default function WorldMapCityInfoBlock({
   const mkt = subsidiaryExplore?.market ?? null;
 
   const ov = cityOverview ?? {};
+
+  const banditQuota = useBanditRaidQuota(
+    isBanditStronghold ? playerId : null,
+    isBanditStronghold ? banditPoiId : null,
+  );
+  const { refresh: refreshBanditQuota } = banditQuota;
+  const { cards: lineupCards, player: lineupPlayer } = usePlayerContext();
+  const [banditAttackNote, setBanditAttackNote] = useState('');
+
+  useEffect(() => {
+    if (!isBanditStronghold || !banditPoiId) return;
+    void refreshBanditQuota();
+  }, [postBanditRaidRefreshKey, isBanditStronghold, banditPoiId, refreshBanditQuota]);
 
   const renderSubsidiaryExplorePanel = (kind, info) => {
     if (!subsidiaryExploreEmbed || !info?.cityId) return null;
@@ -159,7 +188,7 @@ export default function WorldMapCityInfoBlock({
   };
 
   useLayoutEffect(() => {
-    if (!cityId) {
+    if (isBanditStronghold || !cityId) {
       prevSegmentForPersistRef.current = null;
       setSegment('garrison');
       return;
@@ -168,10 +197,10 @@ export default function WorldMapCityInfoBlock({
     const saved = lastStrategicSubsidiarySegmentByCityId.get(String(cityId));
     if (PERSIST_STRATEGIC_SUBSIDIARY_SEGMENTS.has(saved)) setSegment(saved);
     else setSegment('garrison');
-  }, [cityId]);
+  }, [cityId, isBanditStronghold]);
 
   useEffect(() => {
-    if (!cityId) return;
+    if (isBanditStronghold || !cityId) return;
     const prev = prevSegmentForPersistRef.current;
     prevSegmentForPersistRef.current = segment;
     if (PERSIST_STRATEGIC_SUBSIDIARY_SEGMENTS.has(segment)) {
@@ -179,11 +208,15 @@ export default function WorldMapCityInfoBlock({
     } else if (segment === 'garrison' && prev != null && prev !== 'garrison') {
       lastStrategicSubsidiarySegmentByCityId.delete(String(cityId));
     }
-  }, [cityId, segment]);
+  }, [cityId, segment, isBanditStronghold]);
 
   useEffect(() => {
     if (!uniformStrategicPanel) setTabPaneSizePx(null);
-  }, [cityId, uniformStrategicPanel]);
+  }, [cityId, banditPoiId, uniformStrategicPanel]);
+
+  useEffect(() => {
+    setBanditAttackNote('');
+  }, [banditPoiId]);
 
   useLayoutEffect(() => {
     if (uniformStrategicPanel) return undefined;
@@ -200,7 +233,7 @@ export default function WorldMapCityInfoBlock({
     const ro = new ResizeObserver(apply);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [segment, cityId, uniformStrategicPanel]);
+  }, [segment, cityId, banditPoiId, uniformStrategicPanel]);
 
   const canShowSetMainCityBtn =
     showOwnCityActions &&
@@ -331,6 +364,91 @@ export default function WorldMapCityInfoBlock({
           <span className="text-stone-400 font-normal text-xs ml-1">· {siegeTargetLabel}</span>
         </div>
         <div className="text-stone-400 text-xs mt-0.5">{syncErrorMessage}</div>
+      </div>
+    );
+  }
+
+  if (isBanditStronghold && banditPoiId && uniformStrategicPanel && !playerId) {
+    return (
+      <div className="text-sm text-stone-200 wm-city-info-block min-w-0 w-full px-3 py-2">
+        <div className="font-medium text-amber-200/95 leading-tight">{cityTitle}</div>
+        <div className="text-stone-400 text-xs mt-2">登录后可查看攻打次数与敌军稀有度区间。</div>
+      </div>
+    );
+  }
+
+  if (isBanditStronghold && banditPoiId && uniformStrategicPanel) {
+    return (
+      <div className="text-sm text-stone-200 wm-city-info-block min-w-0 w-full">
+        <BanditStrongholdDockPanel
+          title={cityTitle}
+          difficultyHint={banditQuota.difficultyHint}
+          nextLayer={banditQuota.nextLayer}
+          personalTotalLayers={banditQuota.personalTotalLayers}
+          worldDurability={banditQuota.worldDurability}
+          loading={!banditQuota.loaded}
+          remaining={banditQuota.remaining}
+          max={banditQuota.max}
+          minutesUntilRefill={banditQuota.minutesUntilRefill}
+          refillPerWindow={banditQuota.refillPerWindow}
+          canAttack={!!banditQuota.loaded && banditQuota.canBattle}
+          onAttack={async () => {
+            setBanditAttackNote('');
+            if (typeof onStartBanditRaid !== 'function') {
+              setBanditAttackNote('攻打入口未就绪');
+              return;
+            }
+            if (banditRaidStartBlockedReason && String(banditRaidStartBlockedReason).trim()) {
+              setBanditAttackNote(String(banditRaidStartBlockedReason).trim());
+              return;
+            }
+            if (!banditQuota.loaded || !banditQuota.canBattle) {
+              setBanditAttackNote('当前不可攻打（次数、个人塔进度或全服耐久已达上限）');
+              return;
+            }
+            if (banditQuota.towerCompleted) {
+              setBanditAttackNote('本寨个人塔已通关。');
+              return;
+            }
+            const attackedLayer = Number(banditQuota.nextLayer);
+            if (!Number.isFinite(attackedLayer) || attackedLayer < 1) {
+              setBanditAttackNote('层进度异常，请稍后重开面板。');
+              return;
+            }
+            const gate = validateMainLineupBattleGate({
+              cards: lineupCards,
+              playerUnits: null,
+              playerFood: lineupPlayer?.food ?? 0,
+            });
+            if (!gate.ok) {
+              setBanditAttackNote(gate.message || '无法开战');
+              return;
+            }
+            const cr = await banditQuota.consume();
+            if (!cr.ok) {
+              const err =
+                typeof cr.error === 'string' && cr.error.trim()
+                  ? cr.error.trim()
+                  : '攻打次数不足或条件不满足';
+              setBanditAttackNote(err);
+              return;
+            }
+            const enemySlotRarities = banditNpcSlotRaritiesFromLayer(attackedLayer);
+            const lootBase = buildBanditLayerSmallMapPveLoot(attackedLayer);
+            onStartBanditRaid({
+              banditPoiId,
+              attackedLayer,
+              enemySlotRarities,
+              smallMapPveLoot: {
+                ...lootBase,
+                banditRaidSettlement: { banditPoiId, attackedLayer },
+              },
+            });
+          }}
+        />
+        {banditAttackNote ? (
+          <div className="text-center text-[10px] text-amber-200/90 px-2 py-1">{banditAttackNote}</div>
+        ) : null}
       </div>
     );
   }

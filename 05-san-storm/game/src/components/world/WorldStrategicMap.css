@@ -116,8 +116,8 @@
   height: var(--ws-tile);
 }
 
-/* 战略对象 2×2：锚点格左上，PNG 铺满两格宽 + 中间 1px gap（与 .ws-map-grid gap 一致） */
-.ws-map-tile.ws-tile-object-2x2 {
+/* 战略多格对象：锚点格左上，PNG 跨格 + 中间 1px gap（与 .ws-map-grid gap 一致） */
+.ws-map-tile.ws-tile-strategic-footprint {
   z-index: 4;
   overflow: visible;
 }
@@ -136,6 +136,27 @@
   height: calc(2 * var(--ws-tile) + 1px);
   max-width: none;
   max-height: none;
+}
+
+/* 匪寨骨牌 2×1 / 1×2（锚点左上） */
+.ws-map-tile .ws-layer.ws-object-span-2x1 {
+  width: calc(2 * var(--ws-tile) + 1px);
+  height: 100%;
+  max-width: none;
+}
+
+.ws-map-tile .ws-layer.ws-object-span-1x2 {
+  width: 100%;
+  height: calc(2 * var(--ws-tile) + 1px);
+  max-height: none;
+}
+
+/* 匪寨占位：与本人道路「来战」头像同源赤红脉冲（`@keyframes ws-map-self-pawn-intercept-pulse`） */
+.ws-map-tile .ws-layer.ws-strategic-bandit-intercept-glow,
+.ws-map-tile .ws-obj-fallback.ws-strategic-bandit-intercept-glow {
+  border-radius: 3px;
+  box-sizing: border-box;
+  animation: ws-map-self-pawn-intercept-pulse 1.15s ease-in-out infinite;
 }
 
 /* 已占城：底板grass 上叠势力代表色（中立无 faction_id 时不渲染） */
@@ -228,6 +249,13 @@
   word-break: break-all;
 }
 
+/* 匪寨：仅保留郡名行时，字号/字重与原先首行类型标签一致（色仍走行内 stance） */
+.ws-strategic-label-name.ws-strategic-label-name--bandit-primary {
+  margin-top: 0;
+  font-size: clamp(7px, calc(var(--ws-tile) * 0.38), 11px);
+  font-weight: 800;
+}
+
 /* 长官名：字号与城名一致；与 `cityService` lord_character_name / 玩家长官角色名一致；无长官时不渲染 */
 .ws-strategic-label-lord {
   margin-top: 1px;
@@ -241,6 +269,18 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.ws-strategic-label.ws-object-span-2x1 {
+  width: calc(2 * var(--ws-tile) + 1px);
+  height: 100%;
+  justify-content: center;
+}
+
+.ws-strategic-label.ws-object-span-1x2 {
+  width: 100%;
+  height: calc(2 * var(--ws-tile) + 1px);
+  justify-content: center;
 }
 
 /* 2×2 锚点格：势力六芒星落在整块区域右下角（单格边长约 30%），压在建筑立绘之上 */
@@ -410,6 +450,26 @@
   width: calc(2 * var(--ws-tile) + 1px);
   height: calc(2 * var(--ws-tile) + 1px);
   font-size: 14px;
+}
+
+.ws-obj-fallback.ws-obj-fallback-2x1 {
+  top: 0;
+  left: 0;
+  right: auto;
+  bottom: auto;
+  width: calc(2 * var(--ws-tile) + 1px);
+  height: 100%;
+  font-size: 13px;
+}
+
+.ws-obj-fallback.ws-obj-fallback-1x2 {
+  top: 0;
+  left: 0;
+  right: auto;
+  bottom: auto;
+  width: 100%;
+  height: calc(2 * var(--ws-tile) + 1px);
+  font-size: 13px;
 }
 
 .ws-quad-marker {

@@ -1,6 +1,6 @@
 /**
  * 小型战术地图战斗壳层（8×10 格）
- * 适用：pve_event（事件战）、pve_siege（攻城战）、pvp_siege（PVP 攻城）
+ * 适用：pve_event（事件战）、pve_bandit（匪寨）、pve_siege（攻城战）、pvp_siege（PVP 攻城）
  *
  * @see LargeMapBattle  大型战役地图（16×20，pve_campaign）
  *
@@ -41,7 +41,7 @@ const STAGE = { LOADING: 'loading', READY: 'ready' };
  * @param {number}  [silverAmount]
  * @param {number}  [playerFood]
  * @param {string}  [playerId]
- * @param {string}  [battleType]                     'pve_event'|'pve_siege'|'pvp_siege'
+ * @param {string}  [battleType]                     'pve_event'|'pve_bandit'|'pve_siege'|'pvp_siege'
  * @param {string}  [opponentName]
  * @param {function} onBattleEnd                     (result, silverSpent, scoreResult, killedIndices, meta)
  * @param {object}  [defenseReportMeta]              驻守战：为守城方写镜像战报
@@ -130,8 +130,9 @@ export default function SmallMapBattle({
 
   useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; }; }, []);
 
-  // ── 离开超时（仅 pve_event / pve_siege） ──
-  const awayTimeoutEnabled = battleType === 'pve_event' || battleType === 'pve_siege';
+  // ── 离开超时（小型图 PVE：事件 / 匪寨 / 攻城） ──
+  const awayTimeoutEnabled =
+    battleType === 'pve_event' || battleType === 'pve_bandit' || battleType === 'pve_siege';
   const { pendingAwayNoticeRef } = useAwayTimeout({
     enabled: awayTimeoutEnabled,
     battlePlaying: bm.battlePlaying,

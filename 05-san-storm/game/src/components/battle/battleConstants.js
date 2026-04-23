@@ -21,6 +21,7 @@ export const TILE_INFO = {
   city_small: { badge: '🏘️', name: '小城', attrs: '战略层城点（测试）\n可通行' },
   gate: { badge: '🚩', name: '关隘', attrs: '战略层城点（测试）\n可通行' },
   fort: { badge: '🏰', name: '预设据点（空地）', attrs: '可建造 fort 槽位（战略层）\n可通行' },
+  bandit_camp: { badge: '⚔', name: '匪寨', attrs: '战略 POI（阶段一占位）\n可通行至寨心' },
 };
 
 /** 着火格：与林/丘移耗叠加；回合末烧兵（见 tacticalBattleEngine + getMoveCost） */
@@ -87,6 +88,7 @@ export function campaignObjectToTileInfoKey(objectId) {
   if (id === 'city_small') return 'city_small';
   if (id === 'gate') return 'gate';
   if (id === 'fort') return 'fort';
+  if (id === 'bandit_horiz' || id === 'bandit_vert') return 'bandit_camp';
   if (id === 'rock' || id === 'military_tower' || id === 'military_camp') return 'rock';
   return null;
 }

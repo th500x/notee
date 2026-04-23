@@ -179,6 +179,15 @@ export function useBattleSettlement({
           scoreDetails: scoreResult.details,
           ...(battleType === 'pve_campaign' && campaignId ? { campaignId } : {}),
         };
+        if (result === 'victory' && smallMapPveLoot && typeof smallMapPveLoot === 'object') {
+          const { banditRaidSettlement: _br, ...lootForService } = smallMapPveLoot;
+          if (Object.keys(lootForService).length > 0) {
+            rewards.smallMapPveLoot = lootForService;
+          }
+          if (battleType === 'pve_bandit' && smallMapPveLoot.banditRaidSettlement) {
+            rewards.banditRaidSettlement = smallMapPveLoot.banditRaidSettlement;
+          }
+        }
         const silverSpentNum = Math.max(0, Math.floor(silverSpent));
         const deployFoodNum = Math.max(0, Math.floor(Number(deploymentFoodCost) || 0));
         const attackerPayload = {
@@ -277,6 +286,8 @@ export function useBattleSettlement({
         chestRewards: chestRewardsSnapshot,
         veteranPromotions,
         battleId: persistedBattleId || undefined,
+        /** 消灭的敌方「编制」数；`killedIndices` 依赖 `_npcIndex`，小型图随机敌可能为空，UI 应优先用本字段 */
+        totalKills,
         ...(defenderLineupTroopUpdates?.length
           ? { defenderLineupTroopUpdates }
           : {}),

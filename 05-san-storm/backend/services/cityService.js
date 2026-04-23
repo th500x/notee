@@ -382,6 +382,8 @@ async function initiateSiege(cityId, playerId) {
 
   // ── 已占领城市：先查玩家防守者 ──
   // 防守顺序：① 披挂上阵玩家（on_duty=TRUE）→ ② 普通驻守玩家 → ③ NPC守军
+  // 玩家守军是否「有效」由 garrisonService 列表侧已按 MIN_GARRISON_TOTAL_TROOPS（800）过滤；此处仍用
+  // buildDefenderLineupForCityDefense 取 units，避免与列表口径漂移。
   if (isCityOccupiedForNpcGarrison(city)) {
     // 按顺序构建防守者队列：先 on_duty，再普通驻守
     const onDutyDefenders = await garrisonService.getCityOnDutyDefenders(cityId, city.faction_id);
@@ -393,13 +395,9 @@ async function initiateSiege(cityId, playerId) {
     for (const def of allDefenders) {
       if (def.player_id === playerId) continue; // 跳过攻城方自己
 
-      const units =
-        def.defense_source === 'main_lineup'
-          ? await garrisonService.buildDefenseUnitsFromMainLineup(def.player_id)
-          : await garrisonService.buildDefenseUnits(def);
-      // 总兵力达下限才作为有效防守者（披挂上阵 PVP 与普通驻守异步一致，均适用）
-      const totalTroops = units.reduce((sum, u) => sum + u.currentTroops, 0);
-      if (totalTroops < garrisonService.MIN_GARRISON_TOTAL_TROOPS) continue;
+      // 有效守军门槛：与列表/统计/遇袭 API 相同，须走 garrisonService.buildDefenderLineupForCityDefense（≥800）
+      const { units, meetsStationedTroopGate } = await garrisonService.buildDefenderLineupForCityDefense(def);
+      if (!meetsStationedTroopGate) continue;
 
       const war = await getOrCreateWar(cityId, city);
       const defLockKey = `def|${war.war_id}|${def.player_id}|${def.garrison_slot}`;

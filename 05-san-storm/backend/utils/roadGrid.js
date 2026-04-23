@@ -24,6 +24,7 @@ const {
   normalizeRoadCellList,
   buildStrategicObjectFootprintBlockedSet,
 } = require('../../shared/utils/strategicRoadOverlay.js');
+const { ensureYingchuanMergedMapCells } = require('../../shared/utils/strategicBanditPlaceholderPhase1.js');
 
 const SHARED_WORLDMAP_PUBLIC_DIR = path.join(__dirname, '../../public/data/worldmap');
 
@@ -79,14 +80,24 @@ async function loadRoadGrid(season, junId) {
   const road = normalizeRoadCellList(json.roadCells);
   const cells = new Map();
   for (const { gx, gy } of road) cells.set(cellKey(gx, gy), true);
-  const blocked = buildStrategicObjectFootprintBlockedSet(json.cells, mapColumns, mapRows);
+  const bareJun = String(junId || '').replace(/^san_1_jun_/, '');
+  const mergedSeed = Number(json.seed);
+  const terrainCells =
+    bareJun === 'yingchuan'
+      ? ensureYingchuanMergedMapCells(json.cells, Number.isFinite(mergedSeed) ? mergedSeed : 0, {
+          roadCells: Array.isArray(json.roadCells) ? json.roadCells : null,
+          mapColumns,
+          mapRows,
+        })
+      : json.cells;
+  const blocked = buildStrategicObjectFootprintBlockedSet(terrainCells, mapColumns, mapRows);
   return {
     source: 'json',
     cells,
     blocked,
     mapColumns,
     mapRows,
-    rawCells: json.cells,
+    rawCells: terrainCells,
     roadCellsRaw: Array.isArray(json.roadCells) ? json.roadCells : [],
   };
 }

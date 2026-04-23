@@ -16,6 +16,8 @@ const Player = require('../models/Player');
 
 /**
  * GET /api/garrisons/city/:cityId/defenders
+ * 仅返回 **当前** 整编兵力 ≥ `garrisonService.MIN_GARRISON_TOTAL_TROOPS`（800）的驻地槽；
+ * 与 `initiateSiege`、大地图驻地统计同一口径，勿改回仅依赖 `is_active`。
  */
 router.get('/city/:cityId/defenders', async (req, res) => {
   try {
@@ -32,6 +34,7 @@ router.get('/city/:cityId/defenders', async (req, res) => {
 
 /**
  * GET /api/garrisons/stats/cities
+ * `slot_count` 仅计当前整编兵力 ≥ 800 的槽位（与攻城、defenders 一致）。
  */
 router.get('/stats/cities', async (req, res) => {
   try {

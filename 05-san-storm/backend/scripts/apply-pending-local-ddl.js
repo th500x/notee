@@ -67,6 +67,9 @@ const MIGRATION_FILES = [
   'config-events-drop-min-position-level.sql',
   'config-factions-add-initial-city-id.sql',
   'player-progress-drop-tutorial-columns.sql',
+  'add-player-progress-bandit-progress.sql',
+  'create-bandits-table.sql',
+  'alter-battles-add-pve-bandit-type.sql',
 ];
 
 function stripSqlComments(sql) {

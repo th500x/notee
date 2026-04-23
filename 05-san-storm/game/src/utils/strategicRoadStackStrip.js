@@ -23,7 +23,7 @@ export function roadCellStackKey(junId, rx, ry) {
  * @param {object} p
  * @param {string} p.countyJunId - 当前郡
  * @param {string|null|undefined} p.focalPlayerId
- * @param {string|null|undefined} p.focalJunId - 焦点玩家 `road_jun_id`
+ * @param {string|null|undefined} p.focalJunId - 已弃用叠站键来源；**叠站键一律用 `countyJunId`**（与当前郡视图、`road-presence` 的 `junId` 一致）。
  * @param {unknown} p.focalRx
  * @param {unknown} p.focalRy
  * @param {string|null|undefined} p.selfPlayerId
@@ -33,7 +33,7 @@ export function roadCellStackKey(junId, rx, ry) {
  * @param {string|null|undefined} [p.selfPortraitUrl]
  * @param {string|null|undefined} [p.selfCharacterName]
  * @param {string|null|undefined} [p.selfDisplayName] - 本人悬停条 `title`（如 `[势力]角色名`）
- * @param {Array<{ playerId: string, roadPositionX?: number, roadPositionY?: number, avatar?: string|null, characterName?: string|null, factionName?: string|null }>} p.othersRows - `road-presence` 的 others（不含本人）
+ * @param {Array<{ playerId: string, roadJunId?: string|null, roadPositionX?: number, roadPositionY?: number, avatar?: string|null, characterName?: string|null, factionName?: string|null }>} p.othersRows - `road-presence` 的 others（不含本人）；叠站键以 **`countyJunId`** 为准
  * @returns {{ stripPeers: { playerId: string, portraitUrl: string|null, centerGlyph: string, stackTitle: string }[], showEllipsis: boolean, stackTotal: number }}
  */
 export function buildStrategicRoadStackStripForFocal({
@@ -51,8 +51,9 @@ export function buildStrategicRoadStackStripForFocal({
   selfDisplayName = null,
   othersRows,
 }) {
-  const focalKey = roadCellStackKey(focalJunId || countyJunId, focalRx, focalRy);
   const county = String(countyJunId || '').trim();
+  /** 同郡视图内叠站：键须与 `road-presence` 的 `junId` 一致（`WorldYingchuanMapSection` 传当前郡 `countyJunId`）。 */
+  const focalKey = roadCellStackKey(county, focalRx, focalRy);
   if (!focalKey || !county || !focalPlayerId) {
     return { stripPeers: [], showEllipsis: false, stackTotal: 0 };
   }
@@ -74,7 +75,7 @@ export function buildStrategicRoadStackStripForFocal({
     });
   };
 
-  const selfKey = roadCellStackKey(selfJunId, selfRx, selfRy);
+  const selfKey = roadCellStackKey(county, selfRx, selfRy);
   if (selfPlayerId && selfKey === focalKey) {
     pushMember(selfPlayerId, selfPortraitUrl, selfCharacterName, selfDisplayName);
   }

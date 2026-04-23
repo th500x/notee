@@ -15,6 +15,7 @@ import {
   YINGCHUAN_COUNTY_MAP_COLS,
   YINGCHUAN_COUNTY_MAP_ROWS,
 } from '@shared/utils/junCountyMapGenerator';
+import { ensureYingchuanMergedMapCells } from '@shared/utils/strategicBanditPlaceholderPhase1.js';
 import { useStrategicCountyCityRuntime } from '@/hooks/useStrategicCountyCityRuntime';
 import { API_CONFIG } from '@/constants';
 import { useStrategicMapNavigation } from '@/contexts/StrategicMapNavigationContext';
@@ -29,6 +30,11 @@ import {
   collectStrategicPoiFootprint,
   buildStrategicPoiFootprintFromDbCityRow,
 } from '@shared/utils/strategicMarchPoi.js';
+import { readStrategicCellAnchorId } from '@shared/utils/strategicCellAnchorId.js';
+import {
+  findActiveRoadEncounterLockOnCell,
+  isPlayerRoadEncounterParticipant,
+} from '@shared/utils/roadEncounterLockPassage.js';
 import StrategicMarchMoveConfirm from './StrategicMarchMoveConfirm';
 import { buildStrategicRoadStackStripForFocal, roadCellStackKey } from '@/utils/strategicRoadStackStrip';
 
@@ -148,6 +154,7 @@ function computeDefaultTilePx() {
 /**
  * 游戏主界面大地图：颍川郡四象限合并 32×40 战略格网（缩放以滚轮 / 触控为主）。
  * 优先读取 `public/data/worldmap/san_1_jun_yingchuan_merged.json`（含 version，与后台生成一致）；
+ * 读入后对 `cells` 调用 `ensureYingchuanMergedMapCells`（与生成器幂等），使旧快照仍含阶段一匪寨占位。
  * 缺失或无效时回退为 `generateYingchuanCountyMergedSimulated`（内存即时生成）。
  */
 export default function WorldYingchuanMapSection({
@@ -180,10 +187,18 @@ export default function WorldYingchuanMapSection({
   strategicCityLabelNonHostileFactionIds = null,
   /** 大地图全屏浮层（三公府等）是否打开：`WorldMap` 注入，用于收起格上网格 tooltip */
   strategicFullScreenOverlayOpen = false,
+  /** 攻城/探索战斗等：`WorldMap` 注入，为 true 时不渲染 event_hint portal（避免压住战场/弹窗） */
+  strategicMapEventHintSuppressed = false,
   /** 探索结算后指引文案（`event_hint`）；锚在本人路点漫画对白框 */
   pendingMapEventHint = null,
   /** 向 `useEventSystem` 提交战略格网上下文，用于 `exploreLocationId` 与城 footprint 对齐（教程链 `{city_medium}` 等） */
   onExploreAnchorGridContext = null,
+  /** 匪寨：战略 tooltip 内扣次成功后由 `WorldMap` 打开小型图战斗 */
+  onStartBanditRaid = null,
+  /** 不可开战时的说明（与攻城 `phase` / `siegeData` 门闸一致） */
+  banditRaidStartBlockedReason = null,
+  /** 匪寨战后 bump，`WorldMapCityInfoBlock` 内拉取最新攻打次数与层进度 */
+  postBanditRaidRefreshKey = 0,
 }) {
   const [merged, setMerged] = useState(null);
   const [garrisonStatsByCityId, setGarrisonStatsByCityId] = useState({});
@@ -219,9 +234,15 @@ export default function WorldYingchuanMapSection({
         const data = await res.json();
         if (!data || !Array.isArray(data.cells)) throw new Error('invalid merged');
         if (cancelled) return;
+        const seed = normalizeMergedMapSeed(data);
+        const cells = ensureYingchuanMergedMapCells(data.cells, seed, {
+          roadCells: Array.isArray(data.roadCells) ? data.roadCells : null,
+          mapColumns: data.mapColumns ?? YINGCHUAN_COUNTY_MAP_COLS,
+          mapRows: data.mapRows ?? YINGCHUAN_COUNTY_MAP_ROWS,
+        });
         setMerged({
-          cells: data.cells,
-          seed: normalizeMergedMapSeed(data),
+          cells,
+          seed,
           version: data.version,
           mapColumns: data.mapColumns ?? YINGCHUAN_COUNTY_MAP_COLS,
           mapRows: data.mapRows ?? YINGCHUAN_COUNTY_MAP_ROWS,
@@ -430,17 +451,16 @@ export default function WorldYingchuanMapSection({
     const nameSeq = Array.from(charName);
     const centerGlyph = nameSeq.length ? nameSeq[nameSeq.length - 1] : '…';
     const { current: troopsCurrent, max: troopsMax } = sumEquippedTroopStrength(ctxCards);
-    const focalJun = String(ctxPlayer?.road_jun_id || '');
     const focalRx = Number(ctxPlayer?.road_position_x);
     const focalRy = Number(ctxPlayer?.road_position_y);
     const strip = buildStrategicRoadStackStripForFocal({
       countyJunId,
       focalPlayerId: playerId,
-      focalJunId: focalJun,
+      focalJunId: countyJunId,
       focalRx,
       focalRy,
       selfPlayerId: playerId,
-      selfJunId: focalJun,
+      selfJunId: countyJunId,
       selfRx: focalRx,
       selfRy: focalRy,
       selfPortraitUrl: portraitUrl,
@@ -541,21 +561,19 @@ export default function WorldYingchuanMapSection({
    */
   const strategicOtherPawns = useMemo(() => {
     if (!Array.isArray(roadPresence?.others) || !roadPresence.others.length) return [];
-    const selfJun = String(ctxPlayer?.road_jun_id || '');
     const selfRx = Number(ctxPlayer?.road_position_x);
     const selfRy = Number(ctxPlayer?.road_position_y);
     const selfPortraitUrl = resolveSelfMapPortraitUrl(ctxPlayer, ctxCards, attributeBonusBySlot);
     const selfCharName = String(ctxPlayer?.character_name || '').trim() || '…';
     const selfFactionName = String(ctxPlayer?.faction_name || '').trim();
     const selfDisplayName = selfFactionName ? `[${selfFactionName}]${selfCharName}` : selfCharName;
-    const selfStackKey = roadCellStackKey(selfJun, selfRx, selfRy);
+    const selfStackKey = roadCellStackKey(countyJunId, selfRx, selfRy);
     return roadPresence.others
       .map((other) => {
         const rx = Number(other.roadPositionX);
         const ry = Number(other.roadPositionY);
         if (!Number.isFinite(rx) || !Number.isFinite(ry)) return null;
-        const otherJun = String(other.roadJunId ?? other.road_jun_id ?? countyJunId).trim();
-        const otherStackKey = roadCellStackKey(otherJun, rx, ry);
+        const otherStackKey = roadCellStackKey(countyJunId, rx, ry);
         // 与本人同坐标叠站：只保留「本人」大头像 + strip 小头像；勿再画他人整颗 pawn，否则后绘盖住本人且点击落到无行军菜单的层上
         if (
           playerId &&
@@ -591,7 +609,7 @@ export default function WorldYingchuanMapSection({
           focalRx: rx,
           focalRy: ry,
           selfPlayerId: playerId,
-          selfJunId: selfJun,
+          selfJunId: countyJunId,
           selfRx,
           selfRy,
           selfPortraitUrl,
@@ -683,24 +701,27 @@ export default function WorldYingchuanMapSection({
       setMarchSubmitError('');
       const cell = cells[gy]?.[gx];
       const cover = resolveStrategicTileCityCover(cells, gy, gx);
-      let poiCityId = null;
-      if (cover?.anchorCell?.cityId) poiCityId = String(cover.anchorCell.cityId);
-      else if (cell?.cityId) {
-        const cid = String(cell.cityId);
-        const rowHint = cityById?.[cid];
-        const fpMeta = rowHint
-          ? buildStrategicPoiFootprintFromDbCityRow(rowHint, cols, rows, cells)
-          : collectStrategicPoiFootprint(cells, cid, cols, rows);
-        if (fpMeta?.keys?.has(`${gx},${gy}`)) poiCityId = cid;
+      let marchTargetPoiId = null;
+      const anchorPid = readStrategicCellAnchorId(cover?.anchorCell);
+      if (anchorPid) marchTargetPoiId = String(anchorPid);
+      else {
+        const cid = readStrategicCellAnchorId(cell);
+        if (cid) {
+          const rowHint = cityById?.[cid];
+          const fpMeta = rowHint
+            ? buildStrategicPoiFootprintFromDbCityRow(rowHint, cols, rows, cells)
+            : collectStrategicPoiFootprint(cells, cid, cols, rows);
+          if (fpMeta?.keys?.has(`${gx},${gy}`)) marchTargetPoiId = cid;
+        }
       }
 
       let pathRes = null;
       const marchMainRow = playerMainCityId ? cityById?.[playerMainCityId] : null;
-      if (poiCityId) {
-        const row = cityById?.[poiCityId];
+      if (marchTargetPoiId) {
+        const row = cityById?.[marchTargetPoiId];
         const gate = canPlayerMarchToPoiCity({
           cityRow: row,
-          cityId: poiCityId,
+          targetPoiId: marchTargetPoiId,
           playerFactionId: ctxPlayer?.faction_id,
         });
         if (!gate.ok) {
@@ -714,7 +735,7 @@ export default function WorldYingchuanMapSection({
           mapRows: rows,
           countyJunId,
           player: ctxPlayer,
-          targetCityId: poiCityId,
+          targetPoiId: marchTargetPoiId,
           targetCityDbRow: row ?? null,
           mainCityDbRow: marchMainRow ?? null,
           citiesInCountyRows: countyCityRows,
@@ -737,7 +758,16 @@ export default function WorldYingchuanMapSection({
         setMarchToast({ type: 'error', message: pathRes.error });
         return;
       }
-      // 不在此用 road-presence 的 lockedCells 否决整段路径：§四 敌对同格为「踏入才遭遇+截断」；§五 锁格语义是禁止第三者闯入已登记交战格（由服务端逐格校验），非「来战则禁止预览途经」。
+      const lastRoad = pathRes.path[pathRes.path.length - 1];
+      const lockOnDest = findActiveRoadEncounterLockOnCell(strategicRoadLockedCells, lastRoad.x, lastRoad.y);
+      if (lockOnDest && !isPlayerRoadEncounterParticipant(lockOnDest, playerId)) {
+        setMarchToast({
+          type: 'error',
+          message: '目标格道路交战进行中，不可作为落脚点；请改选交战格后方或其它道路格（途经交战格可正常寻路）。',
+        });
+        return;
+      }
+      // 交战格：仅禁止「以该格为道路段终点」；整段最短路预览不因 lockedCells 否决（过境由服务端放行）。
       const preview = estimateMarchFoodCost({
         path: pathRes.path,
         onRoadAtStart: pathRes.onRoadAtStart,
@@ -767,8 +797,8 @@ export default function WorldYingchuanMapSection({
         }
         encounterHint = '落点上有其他势力玩家；提交后可能触发道路遭遇战（以服务端判定为准）。';
       }
-      const tid = pathRes.targetCityId || null;
-      const targetCityName =
+      const tid = pathRes.targetPoiId || null;
+      const poiTargetName =
         tid && cityById?.[tid]
           ? String(cityById[tid].city_name || cityById[tid].cityName || '').trim()
           : '';
@@ -777,8 +807,8 @@ export default function WorldYingchuanMapSection({
         onRoadAtStart: pathRes.onRoadAtStart,
         preview,
         encounterHint,
-        targetCityId: tid,
-        targetCityName: targetCityName || null,
+        targetPoiId: tid,
+        poiTargetName: poiTargetName || null,
       });
     },
     [
@@ -792,6 +822,7 @@ export default function WorldYingchuanMapSection({
       rows,
       countyJunId,
       roadPresence,
+      strategicRoadLockedCells,
       cityById,
       countyCityRows,
       playerMainCityId,
@@ -820,7 +851,7 @@ export default function WorldYingchuanMapSection({
         clientRequestId,
         confirmFoodCost: true,
       };
-      if (marchConfirm.targetCityId) body.targetCityId = marchConfirm.targetCityId;
+      if (marchConfirm.targetPoiId) body.targetPoiId = marchConfirm.targetPoiId;
       const res = await playerAPI.roadMove(playerId, body);
       if (!res?.success) {
         const msg = res?.error || res?.message || '移动失败';
@@ -938,6 +969,7 @@ export default function WorldYingchuanMapSection({
           strategicCityLabelAllyFactionIds={strategicCityLabelAllyFactionIds}
           strategicCityLabelNonHostileFactionIds={strategicCityLabelNonHostileFactionIds}
           strategicFullScreenOverlayOpen={strategicFullScreenOverlayOpen}
+          strategicMapEventHintSuppressed={strategicMapEventHintSuppressed}
           pendingMapEventHint={pendingMapEventHint}
           meta={null}
           strategicSelfPawn={strategicSelfPawn}
@@ -949,6 +981,9 @@ export default function WorldYingchuanMapSection({
           onStrategicSelfMarchModeExit={exitStrategicMarchMode}
           onStrategicMarchCellPick={handleStrategicMarchCellPick}
           onStrategicRoadSelfUpdated={onStrategicRoadSelfUpdated}
+          onStartBanditRaid={onStartBanditRaid}
+          banditRaidStartBlockedReason={banditRaidStartBlockedReason}
+          postBanditRaidRefreshKey={postBanditRaidRefreshKey}
         />
       </div>
       {strategicMarchMode ? (
@@ -976,7 +1011,7 @@ export default function WorldYingchuanMapSection({
         pathLength={marchConfirm?.path?.length ?? 0}
         preview={marchConfirm?.preview}
         encounterHint={marchConfirm?.encounterHint}
-        poiTargetName={marchConfirm?.targetCityName || null}
+        poiTargetName={marchConfirm?.poiTargetName || null}
       />
       {marchToast ? (
         <div

@@ -8,6 +8,11 @@ import {
   buildStrategicObjectFootprintBlockedSet,
 } from './strategicRoadOverlay.js';
 import { isHostileByFaction } from './roadDiplomacy.js';
+import { readStrategicCellAnchorId } from './strategicCellAnchorId.js';
+import { isBanditMapObjectId } from './smallMapEnemyRoster.js';
+
+/** 与 `smallMapEnemyRoster.isBanditMapObjectId` 同义；供 CJS `require` 侧（如 `roadEncounterService`）判定匪寨终点，避免误查 `cities`。 */
+export { isBanditMapObjectId };
 
 const DIRS4 = [
   [1, 0],
@@ -25,11 +30,6 @@ const DIRS8 = [
   [-1, -1],
 ];
 
-/** 匪寨 `city_id` 识别（与 13-1 口径一致，写死扩展） */
-export function isBanditCityId(cityId) {
-  return /(^|_)bandit(_|$)/i.test(String(cityId || ''));
-}
-
 /** 可作为 POI 终点的城池类 `object`（2×2 左上锚点；不含关隘/据点） */
 export function isCityPoiStrategicObject(objectType) {
   const o = String(objectType || '');
@@ -43,14 +43,14 @@ export function isAllowedPlayerCityPoiCityType(cityType) {
 }
 
 /**
- * @param {object|null|undefined} cityRow - `cityById[cityId]`（camelCase 或 snake_case）
- * @param {string} cityId
+ * @param {object|null|undefined} cityRow - `cityById[…]`（camelCase 或 snake_case）；匪寨可无表行
+ * @param {string} targetPoiId - 城池主键或 **匪寨地图对象 ID** `san_*_bandit_*`（与 HTTP `targetPoiId` / `banditPoiId` 同族）
  * @param {string|number|null|undefined} playerFactionId
  */
-export function canPlayerMarchToPoiCity({ cityRow, cityId, playerFactionId }) {
-  const id = String(cityId || '').trim();
-  if (!id) return { ok: false, error: '缺少城池标识' };
-  if (isBanditCityId(id)) return { ok: true };
+export function canPlayerMarchToPoiCity({ cityRow, targetPoiId, playerFactionId }) {
+  const id = String(targetPoiId || '').trim();
+  if (!id) return { ok: false, error: '缺少战略 POI 标识' };
+  if (isBanditMapObjectId(id)) return { ok: true };
   const row = cityRow || {};
   const ct = row.city_type ?? row.cityType;
   if (!isAllowedPlayerCityPoiCityType(ct)) {
@@ -65,13 +65,13 @@ export function canPlayerMarchToPoiCity({ cityRow, cityId, playerFactionId }) {
 
 /**
  * @param {object[][]} cells
- * @param {string} cityId
+ * @param {string} targetPoiId - 城池锚点 id 或匪寨 **`banditPoiId`**
  * @param {number} mapColumns
  * @param {number} mapRows
  * @returns {{ keys: Set<string>, anchorGx: number, anchorGy: number, width: number, height: number, kind: 'city_2x2'|'bandit_domino' } | null}
  */
-export function collectStrategicPoiFootprint(cells, cityId, mapColumns, mapRows) {
-  const id = String(cityId || '').trim();
+export function collectStrategicPoiFootprint(cells, targetPoiId, mapColumns, mapRows) {
+  const id = String(targetPoiId || '').trim();
   if (!id || !cells?.length) return null;
 
   for (let gy = 0; gy < mapRows; gy++) {
@@ -79,7 +79,8 @@ export function collectStrategicPoiFootprint(cells, cityId, mapColumns, mapRows)
     if (!row) continue;
     for (let gx = 0; gx < mapColumns; gx++) {
       const cell = row[gx];
-      if (!cell?.cityId || String(cell.cityId) !== id) continue;
+      const cellAnchor = readStrategicCellAnchorId(cell);
+      if (!cellAnchor || cellAnchor !== id) continue;
       if (isCityPoiStrategicObject(cell.object)) {
         const keys = new Set();
         for (let dy = 0; dy < 2; dy++) {
@@ -94,7 +95,7 @@ export function collectStrategicPoiFootprint(cells, cityId, mapColumns, mapRows)
     }
   }
 
-  if (isBanditCityId(id)) {
+  if (isBanditMapObjectId(id)) {
     let minX = Infinity;
     let minY = Infinity;
     let maxX = -Infinity;
@@ -105,7 +106,8 @@ export function collectStrategicPoiFootprint(cells, cityId, mapColumns, mapRows)
       if (!row) continue;
       for (let gx = 0; gx < mapColumns; gx++) {
         const cell = row[gx];
-        if (!cell?.cityId || String(cell.cityId) !== id) continue;
+        const cellAnchor = readStrategicCellAnchorId(cell);
+        if (!cellAnchor || cellAnchor !== id) continue;
         any = true;
         minX = Math.min(minX, gx);
         minY = Math.min(minY, gy);
@@ -162,7 +164,7 @@ export function buildStrategicPoiFootprintFromDbCityRow(cityRow, mapColumns, map
     return null;
   }
 
-  if (isBanditCityId(id)) {
+  if (isBanditMapObjectId(id)) {
     if (cellsFallback?.length) {
       return collectStrategicPoiFootprint(cellsFallback, String(id), mapColumns, mapRows);
     }
@@ -249,14 +251,27 @@ function edgeDistanceToMapBounds(x, y, mapColumns, mapRows) {
   return Math.min(x, y, mapColumns - 1 - x, mapRows - 1 - y);
 }
 
-/** 从 cur 沿最短路向起点方向退一步：在 distFrom 比 cur 浅 1 的邻格中选 distTo 更小、且更远离地图边界的格（打破「等长最短路贴边走」） */
-function pickPredecessorTowardStart(roadPassable, curKey, distFrom, distTo, mapColumns, mapRows) {
+function manhattanToCell(nx, ny, gx, gy) {
+  return Math.abs(nx - gx) + Math.abs(ny - gy);
+}
+
+/**
+ * 从 cur 沿最短路向起点方向退一步。
+ * 在「distFrom 比 cur 浅 1」且落在 **某条** s→t 最短路上的邻格中选前驱。
+ *
+ * 注意：等长最短路时所有合法前驱的 distTo 相同，仅靠「离边更远」仍是软启发，会出现先贴地图边再折向目标。
+ * 定稿（与产品一致）：**绝对优先**禁止「前一步更靠内、当前步严格更靠边界」的边（前驱 pred→cur 若 ed(cur)<ed(pred) 视为朝边界走）；
+ * 仅当所有最短路前驱都会触发该情况时才回退接受。再按更靠内、再按更靠近终点格 (endGx,endGy) 打破平局。
+ */
+function pickPredecessorTowardStart(roadPassable, curKey, distFrom, distTo, mapColumns, mapRows, endGx, endGy) {
   const [cx, cy] = curKey.split(',').map(Number);
   const depth = distFrom.get(curKey);
   if (depth == null || depth <= 0) return null;
-  let bestNk = null;
-  let bestDto = Infinity;
-  let bestEdge = -Infinity;
+  const edCur = edgeDistanceToMapBounds(cx, cy, mapColumns, mapRows);
+
+  /** @type {{ nk: string, dto: number, ed: number, manEnd: number }[]} */
+  const onShortest = [];
+  let minDto = Infinity;
   for (const [dx, dy] of DIRS4) {
     const nx = cx + dx;
     const ny = cy + dy;
@@ -266,28 +281,44 @@ function pickPredecessorTowardStart(roadPassable, curKey, distFrom, distTo, mapC
     if (distFrom.get(nk) !== depth - 1) continue;
     const dto = distTo.get(nk);
     if (dto == null) continue;
-    const ed = edgeDistanceToMapBounds(nx, ny, mapColumns, mapRows);
+    minDto = Math.min(minDto, dto);
+    onShortest.push({
+      nk,
+      dto,
+      ed: edgeDistanceToMapBounds(nx, ny, mapColumns, mapRows),
+      manEnd: manhattanToCell(nx, ny, endGx, endGy),
+    });
+  }
+  if (!onShortest.length) return null;
+
+  const sp = onShortest.filter((c) => c.dto === minDto);
+  if (!sp.length) return null;
+
+  const noBoundaryStep = sp.filter((c) => edCur >= c.ed);
+  const pool = noBoundaryStep.length ? noBoundaryStep : sp;
+
+  let best = pool[0];
+  for (let i = 1; i < pool.length; i++) {
+    const c = pool[i];
     if (
-      bestNk == null ||
-      dto < bestDto ||
-      (dto === bestDto && ed > bestEdge) ||
-      (dto === bestDto && ed === bestEdge && nk < bestNk)
+      c.ed > best.ed ||
+      (c.ed === best.ed && c.manEnd < best.manEnd) ||
+      (c.ed === best.ed && c.manEnd === best.manEnd && c.nk < best.nk)
     ) {
-      bestNk = nk;
-      bestDto = dto;
-      bestEdge = ed;
+      best = c;
     }
   }
-  return bestNk;
+  return best.nk;
 }
 
 function reconstructShortestPathGoalBiased(roadPassable, distFrom, endKey, mapColumns, mapRows) {
   if (!distFrom.has(endKey)) return null;
+  const [endGx, endGy] = endKey.split(',').map(Number);
   const distTo = bfsRoadDistances(roadPassable, [endKey], mapColumns, mapRows);
   const keysRev = [endKey];
   let cur = endKey;
   while (distFrom.get(cur) > 0) {
-    const pred = pickPredecessorTowardStart(roadPassable, cur, distFrom, distTo, mapColumns, mapRows);
+    const pred = pickPredecessorTowardStart(roadPassable, cur, distFrom, distTo, mapColumns, mapRows, endGx, endGy);
     if (!pred) return null;
     keysRev.push(pred);
     cur = pred;
@@ -334,7 +365,7 @@ export function findPoiFootprintKeysContainingCell(cells, gx, gy, mapColumns, ma
     if (!row) continue;
     for (let ci = 0; ci < mapColumns; ci++) {
       const cell = row[ci];
-      const cid = cell?.cityId ? String(cell.cityId) : '';
+      const cid = readStrategicCellAnchorId(cell);
       if (!cid || seenIds.has(cid)) continue;
       seenIds.add(cid);
       const fp = collectStrategicPoiFootprint(cells, cid, mapColumns, mapRows);
@@ -491,7 +522,7 @@ export function pickNearestRoadTargetMultiStart(roadPassable, startKeys, candida
  * @param {number} mapRows
  * @param {string} countyJunId
  * @param {object} player - profile.player
- * @param {string} targetCityId
+ * @param {string} targetPoiId - 允许作为终点的战略 POI：本势力城心（`cities` 主键）或郡内匪寨 **`banditPoiId` / `san_*_bandit_*`**；HTTP 见 **04-1 §15.4** `targetPoiId`。
  * @param {(keys: Set<string>) => Set<string>} [collectMainCityFootprint] - 注入以便与后端 `roadGrid` 一致
  * @param {Set<string>|null|undefined} [hostileOccupiedRoadKeys] - 已废弃：最短路按**完整**道路网计算；敌对叠格在逐步 `moveAlongRoad` 时触发遭遇/拦截，不作为寻路障碍（与产品「始终最短路径」一致）。
  */
@@ -502,7 +533,7 @@ export function buildMarchPathToStrategicPoi({
   mapRows,
   countyJunId,
   player,
-  targetCityId,
+  targetPoiId,
   collectMainCityFootprintKeys,
   targetCityDbRow = null,
   mainCityDbRow = null,
@@ -520,10 +551,10 @@ export function buildMarchPathToStrategicPoi({
     poi = buildStrategicPoiFootprintFromDbCityRow(targetCityDbRow, mapColumns, mapRows, cells);
   }
   if (!poi?.keys?.size) {
-    poi = collectStrategicPoiFootprint(cells, targetCityId, mapColumns, mapRows);
+    poi = collectStrategicPoiFootprint(cells, targetPoiId, mapColumns, mapRows);
   }
   if (!poi?.keys?.size) {
-    return { ok: false, error: '目标城池不在当前郡格网内' };
+    return { ok: false, error: '目标战略点不在当前郡格网内' };
   }
   const adjRoad = roadKeysAdjacentOrDiagonalToFootprint(poi.keys, roadPassable);
   if (!adjRoad.size) {
@@ -567,6 +598,6 @@ export function buildMarchPathToStrategicPoi({
     path,
     onRoadAtStart: !!onRoadCell,
     poiAnchor: { x: poi.anchorGx, y: poi.anchorGy },
-    targetCityId: String(targetCityId),
+    targetPoiId: String(targetPoiId),
   };
 }

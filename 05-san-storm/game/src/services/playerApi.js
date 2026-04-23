@@ -174,8 +174,8 @@ export const playerAPI = {
   /**
    * 道路：沿路移动（权威写格位 + 粮草）；须 `confirmFoodCost: true` 与唯一 `clientRequestId`。
    * @param {string} playerId
-   * @param {{ season: string, junId: string, path: Array<{x:number,y:number}>, clientRequestId: string, confirmFoodCost: true, targetCityId?: string }} body
-   * `targetCityId` 可选：31-6 §9.4 本势力城心或郡内匪寨终点时传入，服务端重算 path 并校验 POI。
+   * @param {{ season: string, junId: string, path: Array<{x:number,y:number}>, clientRequestId: string, confirmFoodCost: true, targetPoiId?: string }} body
+   * `targetPoiId` 可选：31-6 §9.4 本势力城心（`cities` 主键）或郡内匪寨（**`banditPoiId` / `san_*_bandit_*`**）终点时传入；服务端重算 path 并校验 POI。
    */
   async roadMove(playerId, body) {
     const response = await fetchWithTimeout(
@@ -700,6 +700,30 @@ export const playerAPI = {
       body: JSON.stringify({ batch, index })
     });
     return response.json();
+  },
+
+  /**
+   * 匪寨攻打次数（与探索分立）。`banditPoiId`：**匪寨地图对象 ID** `san_*_bandit_*`（04-1 §15），与行军 `targetPoiId` 同族。
+   */
+  async getBanditRaidQuota(playerId, banditPoiId) {
+    const q = encodeURIComponent(String(banditPoiId || '').trim());
+    const response = await fetchWithTimeout(
+      `${API_CONFIG.BASE_URL}/players/${playerId}/bandit-raid-quota?banditPoiId=${q}`,
+    );
+    return jsonFromApiResponse(response, '获取匪寨攻打配额');
+  },
+
+  /**
+   * 消耗匪寨攻打次数（开战前由战斗入口调用）
+   * @param {'consume'} action
+   */
+  async updateBanditRaidQuota(playerId, banditPoiId, action) {
+    const response = await fetchWithTimeout(`${API_CONFIG.BASE_URL}/players/${playerId}/bandit-raid-quota`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ banditPoiId, action }),
+    });
+    return jsonFromApiResponse(response, '更新匪寨攻打配额');
   },
 
   /**

@@ -9,6 +9,7 @@
 
 const { pool } = require('../database/connection');
 const { ts } = require('../utils/playerActivity');
+const garrisonService = require('./garrisonService');
 
 // ── 配置 ──
 const ONLINE_THRESHOLD_MS = 5 * 60 * 1000;  // 5分钟内活跃 = 在线
@@ -43,11 +44,12 @@ function cleanExpired() {
 setInterval(cleanExpired, 5000);
 
 /**
- * 检查城市是否有在线驻守玩家
+ * 检查城市是否有「有效驻地守军」且在线的玩家（遇袭通知等）。
+ * 与攻城相同：仅 **当前** 整编兵力 ≥ `MIN_GARRISON_TOTAL_TROOPS` 的驻地槽参与，不能仅靠 `is_active`。
  */
 async function getOnlineDefenders(cityId, attackerId, attackerFaction) {
   const [rows] = await pool.query(
-    `SELECT g.player_id, g.garrison_slot, p.character_name, p.position_level,
+    `SELECT g.*, p.character_name, p.position_level,
             p.last_active_at AS playerActive, a.lastActiveAt AS accountActive
      FROM player_garrison g
      JOIN players p ON g.player_id = p.player_id
@@ -60,8 +62,10 @@ async function getOnlineDefenders(cityId, attackerId, attackerFaction) {
     [cityId, attackerId, attackerFaction]
   );
 
+  const troopOk = await garrisonService.filterCityDefenseRowsByMinStationedTroop(rows);
+
   const now = Date.now();
-  return rows.filter((r) => {
+  return troopOk.filter((r) => {
     const lastSeen = Math.max(ts(r.playerActive), ts(r.accountActive));
     return lastSeen && now - lastSeen < ONLINE_THRESHOLD_MS;
   });

@@ -7,6 +7,7 @@
  *      触发遭遇时瞬间占格（road_encounters.status='fighting'）、同一事务提交；
  *      攻方未达开战门闸时 **禁止** 踏入存在敌对玩家的道路格（整单 409，避免卡住）；守方未达门闸则不登记遭遇并将其 **`road_position_*` 写回最近己方城锚格**（共享 `roadBattleRetreatPlacement`）；
  *      非敌对（M2：同势力；缺 faction 视为非敌对）同格：允许叠站并继续本段路径，不因途经友军/中立而阻断。
+ *      **交战格锁**：`pending`/`fighting` 时，非攻防双方 **不得将本格作为本次道路段终点**；**过境**（同请求内非最后道路步）视为透明，不 409、亦不触发与格上敌对之新遭遇。
  *   3. 郡内 presence：仅在线他人 road_position + 锁格；
  *   4. 战后解锁：写 status='resolved'、ended_at、battle_id；战败方移回最近己方城；守门方战败关闭 `road_intercept`。
  *
@@ -26,6 +27,10 @@ const { applyTroopDurabilityExhaustion } = require('./troopDurabilityService');
 const { checkAndApplyVeteran } = require('./veteranService');
 const smallMapBattleLootService = require('./smallMapBattleLootService');
 const { KILL_SILVER_REWARD } = require('../../shared/utils/siegeKillEconomyByRarity.cjs');
+const {
+  isPlayerRoadEncounterParticipant,
+  isNonParticipantFinalRoadStepOntoEncounter,
+} = require('../../shared/utils/roadEncounterLockPassage.js');
 const {
   applyFactionPlayerRoadRetreat,
   buildRoadGateFailRetreatNotice,
@@ -445,25 +450,30 @@ async function moveAlongRoad(playerId, body) {
       };
     }
 
-    const targetCityIdRaw = body.targetCityId != null ? String(body.targetCityId).trim() : '';
+    const targetPoiIdRaw = body.targetPoiId != null ? String(body.targetPoiId).trim() : '';
+    const marchToBanditPoi = !!targetPoiIdRaw && marchPoi.isBanditMapObjectId(targetPoiIdRaw);
     let resolvedPath = Array.isArray(body.path) ? body.path : [];
     let poiAnchorEnd = null;
 
-    if (targetCityIdRaw) {
-      const [cRows] = await conn.query(
-        `SELECT city_id AS cityId, city_type AS cityType, faction_id AS factionId,
-                position_x AS positionX, position_y AS positionY
-           FROM cities WHERE city_id = ? LIMIT 1`,
-        [targetCityIdRaw],
-      );
-      if (!cRows.length) {
-        await conn.rollback();
-        return { ok: false, status: 404, error: '目标城池不存在' };
+    if (targetPoiIdRaw) {
+      /** 匪寨 `san_*_bandit_*` 与 `cities` 表拆库拆语义；寻路 footprint 来自合并图 `cells`，不得强依赖 `cities` 行。 */
+      let cityRow = null;
+      if (!marchPoi.isBanditMapObjectId(targetPoiIdRaw)) {
+        const [cRows] = await conn.query(
+          `SELECT city_id AS cityId, city_type AS cityType, faction_id AS factionId,
+                  position_x AS positionX, position_y AS positionY
+             FROM cities WHERE city_id = ? LIMIT 1`,
+          [targetPoiIdRaw],
+        );
+        if (!cRows.length) {
+          await conn.rollback();
+          return { ok: false, status: 404, error: '目标战略点不存在' };
+        }
+        cityRow = cRows[0];
       }
-      const cityRow = cRows[0];
       const acc = marchPoi.canPlayerMarchToPoiCity({
         cityRow,
-        cityId: targetCityIdRaw,
+        targetPoiId: targetPoiIdRaw,
         playerFactionId: player.faction_id,
       });
       if (!acc.ok) {
@@ -478,7 +488,7 @@ async function moveAlongRoad(playerId, body) {
         mapRows: grid.mapRows,
         countyJunId: junId,
         player,
-        targetCityId: targetCityIdRaw,
+        targetPoiId: targetPoiIdRaw,
         collectMainCityFootprintKeys: (cells, mainId) =>
           findMainCityFootprint(cells, mainId, grid.mapColumns, grid.mapRows),
         targetCityDbRow: cityRow,
@@ -696,7 +706,7 @@ async function moveAlongRoad(playerId, body) {
       await resolveStaleRoadEncountersAtCell(conn, season, junId, sx, sy);
       await resolveAbandonedRoadFightOnCellIfOpponentOffline(conn, season, junId, sx, sy, pid);
 
-      // 1) 交战登记格：仅禁止「非本格遭遇参与方」跨入（31-6 §五「占格与锁格」）；与 `road_intercept` 无关。遭遇双方沿路移动/截断由下方同格敌对逻辑处理。
+      // 1) 交战登记格：非攻防双方 **不得以本格为本次道路段最后一步**；过境（同请求内后续仍有道路步）不拦。与 `road_intercept` 无关。
       const [lockRows] = await conn.query(
         `SELECT encounter_id, attacker_player_id, defender_player_id
            FROM road_encounters
@@ -705,15 +715,24 @@ async function moveAlongRoad(playerId, body) {
           FOR UPDATE`,
         [season, junId, sx, sy],
       );
+      let skipHostileBecauseEncounterTransit = false;
       if (lockRows.length) {
         const lr = lockRows[0];
-        const att = lr.attacker_player_id != null ? String(lr.attacker_player_id).trim() : '';
-        const def = lr.defender_player_id != null ? String(lr.defender_player_id).trim() : '';
-        const moving = String(pid).trim();
-        const isParticipant = (att && moving === att) || (def && moving === def);
+        const lockMeta = {
+          attackerPlayerId: lr.attacker_player_id,
+          defenderPlayerId: lr.defender_player_id,
+        };
+        const isParticipant = isPlayerRoadEncounterParticipant(lockMeta, pid);
         if (!isParticipant) {
-          await conn.rollback();
-          return { ok: false, status: 409, error: `(${sx},${sy}) 交战进行中，非本场双方不可闯入` };
+          if (isNonParticipantFinalRoadStepOntoEncounter(i, steps.length)) {
+            await conn.rollback();
+            return {
+              ok: false,
+              status: 409,
+              error: `(${sx},${sy}) 道路交战进行中，不可将该格作为本次行军道路终点`,
+            };
+          }
+          skipHostileBecauseEncounterTransit = true;
         }
       }
 
@@ -767,6 +786,19 @@ async function moveAlongRoad(playerId, body) {
         [junId, sx, sy, pid, onlineSec],
       );
       if (occRows.length) {
+        if (skipHostileBecauseEncounterTransit) {
+          lastX = sx;
+          lastY = sy;
+          stepsApplied = i + 1;
+          continue;
+        }
+        /** 行军目标为战略匪寨时：最后一道路步不登记道路遭遇（与 31-6 / 17-6 一致；遭遇仅道路格常规规则）。 */
+        if (marchToBanditPoi && i === steps.length - 1) {
+          lastX = sx;
+          lastY = sy;
+          stepsApplied = i + 1;
+          continue;
+        }
         let defender = null;
         for (const row of occRows) {
           if (isHostileByFaction(player.faction_id, row.faction_id)) {
@@ -943,7 +975,7 @@ async function moveAlongRoad(playerId, body) {
         path: resolvedPath,
         stepsApplied,
         poiAnchor: poiAnchorEnd || undefined,
-        targetCityId: targetCityIdRaw || undefined,
+        targetPoiId: targetPoiIdRaw || undefined,
         costFood: playerFoodUse,
         costFreeSteps: usedFreeThisMove,
         costReserveFood: reserveFoodUse,
@@ -988,6 +1020,7 @@ async function getRoadPresence(season, junId, callerPlayerId) {
               p.faction_id AS factionId,
               p.faction_name AS factionName,
               p.avatar AS avatar,
+              p.road_jun_id AS roadJunId,
               p.road_position_x AS roadPositionX,
               p.road_position_y AS roadPositionY,
               p.road_intercept AS roadIntercept,

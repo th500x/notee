@@ -1,8 +1,9 @@
 /**
- * 战略大地图：根据 `city_id` 在合并格网中查找城市锚点格，供「自身标记」等与格心像素对齐。
+ * 战略大地图：在合并格网中解析城/匪寨 POI 锚点与「自身标记」立点像素（城 `cityId`、匪寨 `banditPoiId`，见 `readStrategicCellAnchorId`）。
  */
 
 import { strategicMapObjectIs2x2 } from '@/utils/campaignMapVisualAssets';
+import { readStrategicCellAnchorId } from '@shared/utils/strategicCellAnchorId.js';
 import {
   buildRoadPassableKeySetForMarch,
   collectStrategicPoiFootprint,
@@ -139,17 +140,18 @@ export function resolveStrategicRecordedStandpointPx({
     if (!fp) {
       const fpKeys = findPoiFootprintKeysContainingCell(cells, Math.trunc(rx), Math.trunc(ry), mapColumns, mapRows);
       if (fpKeys?.size) {
-        let cid = '';
+        let poiId = '';
         for (const fk of fpKeys) {
           const [gx, gy] = fk.split(',').map(Number);
           const c = cells[gy]?.[gx];
-          if (c?.cityId) {
-            cid = String(c.cityId);
+          const aid = readStrategicCellAnchorId(c);
+          if (aid) {
+            poiId = String(aid);
             break;
           }
         }
-        if (cid) {
-          fp = collectStrategicPoiFootprint(cells, cid, mapColumns, mapRows);
+        if (poiId) {
+          fp = collectStrategicPoiFootprint(cells, poiId, mapColumns, mapRows);
         }
       }
     }
@@ -229,17 +231,18 @@ export function resolveStrategicRecordedStandpointCell({
     if (!fp) {
       const fpKeys = findPoiFootprintKeysContainingCell(cells, Math.trunc(rx), Math.trunc(ry), mapColumns, mapRows);
       if (fpKeys?.size) {
-        let cid = '';
+        let poiId = '';
         for (const fk of fpKeys) {
           const [gx, gy] = fk.split(',').map(Number);
           const c = cells[gy]?.[gx];
-          if (c?.cityId) {
-            cid = String(c.cityId);
+          const aid = readStrategicCellAnchorId(c);
+          if (aid) {
+            poiId = String(aid);
             break;
           }
         }
-        if (cid) {
-          fp = collectStrategicPoiFootprint(cells, cid, mapColumns, mapRows);
+        if (poiId) {
+          fp = collectStrategicPoiFootprint(cells, poiId, mapColumns, mapRows);
         }
       }
     }

@@ -4,6 +4,7 @@
  */
 
 import { generateCampaignMapSimulated, randomCampaignMapSeed, QUAD_ORIGIN, QUAD_W, QUAD_H } from './campaignMapGenerator.js';
+import { applyYingchuanPhase1BanditPlaceholders } from './strategicBanditPlaceholderPhase1.js';
 import junYingchuanQuadA from '../data/worldmap/san_1_jun_yingchuan_quad_A.preset.json' with { type: 'json' };
 import junYingchuanQuadB from '../data/worldmap/san_1_jun_yingchuan_quad_B.preset.json' with { type: 'json' };
 import junYingchuanQuadC from '../data/worldmap/san_1_jun_yingchuan_quad_C.preset.json' with { type: 'json' };
@@ -314,6 +315,8 @@ export function generateYingchuanCountyMergedSimulated(options = {}) {
       if (merged[gy][gx] == null) merged[gy][gx] = emptyCountyCell(gx, gy);
     }
   }
+
+  applyYingchuanPhase1BanditPlaceholders(merged, seed);
 
   return {
     cells: merged,

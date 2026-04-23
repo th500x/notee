@@ -5,8 +5,8 @@ import { createPortal } from 'react-dom';
  * 大地图 `event_hint`：优先锚在玩家路点（与 `StrategicMapSelfPawn` 同 `cx/cy`）；若无坐标则锚在地图滚动区上沿居中。
  * 展开时点任意处收束为「指引」按钮，再点「指引」展开。
  *
- * portal 在 `document.body` 上须用 **z ≥ 10090**：低于 `GamePage` 全屏壳 `z-[100]` 会被整块主界面盖住；
- * 须高于 `AncientModal` 的 `z-[10080]`，否则关奖励后仍看不见。
+ * portal 在 `document.body` 上：须 **低于** `AncientModal`（`z-[10080]`）与战略格 `tile-tooltip--portal`（`z-[10050]`），
+ * 避免压住城备/荒郊等浮层、攻城与战斗；仅作大地图内轻提示。
  *
  * @param {number|null|undefined} cx - 格网内像素；与 `cy` 同时有效时使用锚点 DOM
  * @param {number|null|undefined} cy
@@ -114,12 +114,12 @@ export default function StrategicMapEventHintBubble({
               <>
                 <button
                   type="button"
-                  className="ws-map-event-hint__backdrop fixed inset-0 z-[10090] cursor-default bg-transparent"
+                  className="ws-map-event-hint__backdrop fixed inset-0 z-[10040] cursor-default bg-transparent"
                   aria-label="收合指引"
                   onClick={() => setCollapsed(true)}
                 />
                 <div
-                  className="fixed z-[10091] w-[min(60vw,10rem)] cursor-default"
+                  className="fixed z-[10041] w-[min(60vw,10rem)] cursor-default"
                   style={{
                     left: Math.min(
                       window.innerWidth - 12,
@@ -156,7 +156,7 @@ export default function StrategicMapEventHintBubble({
             ) : (
               <button
                 type="button"
-                className="ws-map-event-hint__pill fixed z-[10091] rounded-full border border-amber-400/75 bg-amber-950/92 px-2 py-0.5 text-[10px] font-medium leading-tight text-amber-100/95 shadow hover:bg-amber-900/95 sm:text-[11px] sm:px-2.5 sm:py-1"
+                className="ws-map-event-hint__pill fixed z-[10041] rounded-full border border-amber-400/75 bg-amber-950/92 px-2 py-0.5 text-[10px] font-medium leading-tight text-amber-100/95 shadow hover:bg-amber-900/95 sm:text-[11px] sm:px-2.5 sm:py-1"
                 style={{
                   left: Math.min(
                     window.innerWidth - 12,

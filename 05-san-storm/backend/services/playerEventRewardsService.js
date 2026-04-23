@@ -120,6 +120,33 @@ async function executeEventRewards(playerId, body) {
     );
   }
 
+  /** 事件级 `required_items` 中的链钥匙道具（如 item_troop_tag）；见 config_events.required_items */
+  const eventRequiredItemsRaw = eventRows[0].required_items
+    ? String(eventRows[0].required_items).trim()
+    : '';
+  const eventChainItemKeys = new Set();
+  if (eventRequiredItemsRaw) {
+    for (const s of eventRequiredItemsRaw.split(';')) {
+      const seg = playerExploreEventService.parseEventCostSegment(s);
+      if (!seg) continue;
+      if (seg.key && (seg.key.startsWith('item_') || seg.key.includes('_item_'))) {
+        eventChainItemKeys.add(seg.key);
+      }
+    }
+  }
+
+  /**
+   * 因子判定 → 凶/大凶 → 先进惩罚战：首次 POST /rewards 无 battleResult 时若已扣链钥匙，
+   * 战后第二次 POST 会再扣一次 → 400 道具不足。此处暂缓扣事件级链钥匙，待带 battleResult 的结算再扣。
+   * （吉/鸿运直接领奖不走战斗，仍在本请求扣。）
+   */
+  const deferEventChainItemsUntilBattle =
+    !battleResult &&
+    optionKey === 'A' &&
+    !!option.triggerBattle &&
+    eventChainItemKeys.size > 0 &&
+    (fortune.fortuneName === '凶' || fortune.fortuneName === '大凶');
+
   const resourceFields = ['silver', 'food', 'reputation', 'contribution', 'morale'];
   let troopRepairResults = [];
   let deferredRepairSegments = [];
@@ -139,6 +166,9 @@ async function executeEventRewards(playerId, body) {
         continue;
       }
       if (key.includes('_item_') || key.startsWith('item_')) {
+        if (deferEventChainItemsUntilBattle && eventChainItemKeys.has(key)) {
+          continue;
+        }
         const specialEffect = await getItemSpecialEffect(key);
         if (
           isTroopDurabilityRepairEffect(specialEffect) &&

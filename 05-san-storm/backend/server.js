@@ -12,6 +12,7 @@ const cors = require('cors');
 const cron = require('node-cron');
 const { testConnection } = require('./database/connection');
 const characterRankService = require('./services/characterRankService');
+const banditInstanceService = require('./services/banditInstanceService');
 
 /** 与 01-1-DATABASE_DESIGN.md 临时表清理示例一致：每天凌晨 3:00（默认进程本地时区；生产可设 CRON_TZ=Asia/Shanghai） */
 function scheduleTempTableCleanup() {
@@ -187,8 +188,19 @@ app.listen(PORT, async () => {
   const dbConnected = await testConnection();
   if (!dbConnected) {
     console.log('⚠️  警告: 数据库连接失败，请检查配置');
+  } else {
+    try {
+      const sync = await banditInstanceService.syncBanditsFromYingchuanMergedDisk();
+      if (sync.ok && sync.ensured > 0) {
+        console.log(
+          `[Bandits] 已与合并图对齐：新增 ${sync.ensured} 行，POI=${(sync.banditIds || []).join(',')}（source=${sync.source || 'cells'}）`,
+        );
+      }
+    } catch (e) {
+      console.warn('[Bandits] 启动时同步失败（可稍后执行 node scripts/sync-bandits-from-merged-map.js）:', e.message);
+    }
   }
-  
+
   console.log('========================================');
   console.log('✅ 服务器启动成功！');
   console.log('========================================');

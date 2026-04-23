@@ -78,7 +78,7 @@ router.post('/generate-merged-map', async (req, res) => {
         error: '当前仅支持颍川郡 san_1_jun_yingchuan 生成合并图；其它郡后续迭代',
       });
     }
-    const result = worldMapAdminService.generateYingchuanMergedMap({ seed });
+    const result = await worldMapAdminService.generateYingchuanMergedMap({ seed });
     res.json({ success: true, data: result });
   } catch (err) {
     console.error('[admin/world-map] generate-merged-map:', err);

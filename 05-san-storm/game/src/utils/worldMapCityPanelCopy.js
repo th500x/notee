@@ -2,6 +2,8 @@
  * 大地图单城信息：与战略格网 tooltip 等共用字段解析与 `WorldMapCityInfoBlock` 入参构造。
  */
 
+import { isBanditMapObjectId } from '@shared/utils/smallMapEnemyRoster';
+
 export const WORLD_MAP_DEFAULT_FACTION_LABELS = {
   san_1_faction_1001: '刘备',
   san_1_faction_2001: '曹操',
@@ -14,8 +16,13 @@ export const WORLD_MAP_DEFAULT_FACTION_LABELS = {
 
 export function worldMapCityTitleFromRow(cityRow) {
   if (!cityRow) return '城池';
+  const bpid = cityRow.banditPoiId ?? cityRow.bandit_poi_id;
+  const ct = cityRow.city_type ?? cityRow.cityType;
   const base = cityRow.city_name ?? cityRow.cityName ?? '城池';
   const s = String(base);
+  if (ct === 'bandit_camp' || isBanditMapObjectId(bpid)) return s;
+  const cid = cityRow.city_id ?? cityRow.cityId;
+  if (isBanditMapObjectId(cid)) return s;
   return s.endsWith('城') ? s : `${s}城`;
 }
 
@@ -222,21 +229,33 @@ export function buildWorldMapCityPanelProps(cityRow, opts = {}) {
   const npcTotal = Array.isArray(npcArr) ? npcArr.length : '?';
 
   const cityIdVal = cityRow?.city_id ?? cityRow?.cityId ?? null;
+  const banditPoiIdVal = cityRow?.banditPoiId ?? cityRow?.bandit_poi_id ?? null;
+  const cityType = cityRow?.city_type ?? cityRow?.cityType ?? null;
+  const isBanditStronghold = !!(
+    (banditPoiIdVal && isBanditMapObjectId(banditPoiIdVal)) ||
+    (cityType === 'bandit_camp' && (banditPoiIdVal || cityIdVal)) ||
+    (cityIdVal && isBanditMapObjectId(cityIdVal))
+  );
+  const banditPoiId = isBanditStronghold
+    ? String(banditPoiIdVal || (isBanditMapObjectId(cityIdVal) ? cityIdVal : '') || '').trim() || null
+    : null;
+  const cityId = isBanditStronghold ? null : cityIdVal;
+
   const cityBaseName = worldMapCityBaseNameFromRow(cityRow);
-  const showOwnCityActions = isOwnCity && !!playerId && !!cityIdVal;
+  const showOwnCityActions = isOwnCity && !!playerId && !!cityId;
 
   const subsidiaryExplore =
-    cityIdVal && cityById && isStrategicMainCityRow(cityRow)
-      ? subsidiaryWildernessAndMarketFromCityMap(cityById, cityIdVal)
+    cityId && cityById && isStrategicMainCityRow(cityRow) && !isBanditStronghold
+      ? subsidiaryWildernessAndMarketFromCityMap(cityById, cityId)
       : { wilderness: null, market: null };
 
   const lordDisplayLabel = worldMapLordDisplayFromRow(cityRow);
   const cityDefenseCoefficient = worldMapCityDefenseDisplayFromRow(cityRow);
   const cityOverview = worldMapCityOverviewFromRow(cityRow);
-  const cityType = cityRow?.city_type ?? cityRow?.cityType ?? null;
 
   return {
     cityTitle,
+    isBanditStronghold,
     siegeTargetLabel,
     subtitleText,
     factionId: fid,
@@ -254,7 +273,8 @@ export function buildWorldMapCityPanelProps(cityRow, opts = {}) {
     npcAlive: cityRow?.npc_garrison_alive ?? cityRow?.npcGarrisonAlive,
     npcTotal,
     syncErrorMessage: null,
-    cityId: cityIdVal,
+    cityId,
+    banditPoiId,
     cityBaseName,
     showOwnCityActions,
     subsidiaryExplore,

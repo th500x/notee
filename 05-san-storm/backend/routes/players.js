@@ -13,6 +13,7 @@ const characterRankService = require('../services/characterRankService');
 const playerCardLineupService = require('../services/playerCardLineupService');
 const playerExploreEventService = require('../services/playerExploreEventService');
 const playerExploreQuotaService = require('../services/playerExploreQuotaService');
+const playerBanditRaidQuotaService = require('../services/playerBanditRaidQuotaService');
 const playerItemsService = require('../services/playerItemsService');
 const playerRerollService = require('../services/playerRerollService');
 const playerProfileService = require('../services/playerProfileService');
@@ -431,8 +432,9 @@ router.get('/:playerId/road/self', async (req, res) => {
 
 /**
  * POST /api/players/:playerId/road/move
- * body: { season, junId, path:[{x,y}], clientRequestId, confirmFoodCost:true }
+ * body: { season, junId, path:[{x,y}], clientRequestId, confirmFoodCost:true, targetPoiId? }
  * 权威写 players.road_position_* + 粮草链路（player.food → factions.reserve_food 日上限 500）。
+ * 可选 targetPoiId：31-6 §9.4 城心/匪寨终点（cities.city_id），见 04-1 §15.4。
  */
 router.post('/:playerId/road/move', async (req, res) => {
   try {
@@ -938,6 +940,48 @@ router.delete('/:playerId/items', async (req, res) => {
   } catch (error) {
     console.error('[Players] 消耗道具失败:', error);
     res.status(500).json({ success: false, error: '消耗道具失败', message: error.message });
+  }
+});
+
+// ── 匪寨攻打次数（战略格；与探索配额分立）──────────────────────────────────────
+
+/**
+ * GET /api/players/:playerId/bandit-raid-quota?banditPoiId=san_1_bandit_1_yingchuan
+ * `banditPoiId`：匪寨地图对象 ID（04-1 §15），与 `targetPoiId` 同族。
+ * `data.worldDurability`：null 或 { maxLayers, clearedLayers, layersRemaining }（与 `bandits` 列语义一致）。
+ */
+router.get('/:playerId/bandit-raid-quota', async (req, res) => {
+  try {
+    const banditPoiId = req.query.banditPoiId;
+    if (!banditPoiId || String(banditPoiId).trim() === '') {
+      return res.status(400).json({ success: false, error: '缺少 banditPoiId（匪寨地图对象 ID，04-1 §15）' });
+    }
+    const result = await playerBanditRaidQuotaService.getRaidQuotaState(req.params.playerId, banditPoiId);
+    if (!result.ok) return res.status(result.status).json({ success: false, error: result.error });
+    res.json({ success: true, data: result.data });
+  } catch (error) {
+    console.error('[Players] 获取匪寨攻打配额失败:', error);
+    res.status(500).json({ success: false, error: '获取匪寨攻打配额失败' });
+  }
+});
+
+/**
+ * POST /api/players/:playerId/bandit-raid-quota
+ * body: { banditPoiId, action: 'consume' }
+ */
+router.post('/:playerId/bandit-raid-quota', async (req, res) => {
+  try {
+    const { banditPoiId, action } = req.body || {};
+    const result = await playerBanditRaidQuotaService.applyRaidQuotaAction(
+      req.params.playerId,
+      banditPoiId,
+      action,
+    );
+    if (!result.ok) return res.status(result.status).json({ success: false, error: result.error });
+    res.json({ success: true, data: result.data });
+  } catch (error) {
+    console.error('[Players] 更新匪寨攻打配额失败:', error);
+    res.status(500).json({ success: false, error: '更新匪寨攻打配额失败' });
   }
 });
 

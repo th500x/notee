@@ -72,6 +72,14 @@ export default function RoadEncounterDefenseRoot({ children, onBusyChange }) {
     refreshPlayerRef.current?.({ silent: true });
   }, []);
 
+  /** 仅大地图挂载时：才用 WorldMap 写入的 ref 与道路遇袭去重（子页签下 WorldMap 已卸载，ref 不得挡弹窗） */
+  const isRoadDefenseSuppressedByWorldMap = useCallback((encounterId) => {
+    if (!worldMapOverlayRefs.worldMapMounted) return false;
+    if (worldMapOverlayRefs.pvpDefenseAlertActive) return true;
+    const sid = worldMapOverlayRefs.siegeRoadEncounterId;
+    return sid != null && String(sid) === String(encounterId);
+  }, []);
+
   const pollRoadPending = useCallback(async () => {
     const pid = player?.player_id;
     if (!pid) return;
@@ -97,12 +105,7 @@ export default function RoadEncounterDefenseRoot({ children, onBusyChange }) {
         roadDefenseAlertRef.current = null;
         return;
       }
-      if (worldMapOverlayRefs.pvpDefenseAlertActive) {
-        setRoadDefenseAlert(null);
-        return;
-      }
-      const sid = worldMapOverlayRefs.siegeRoadEncounterId;
-      if (sid != null && String(sid) === String(enc.encounterId)) {
+      if (isRoadDefenseSuppressedByWorldMap(enc.encounterId)) {
         setRoadDefenseAlert(null);
         return;
       }
@@ -130,7 +133,7 @@ export default function RoadEncounterDefenseRoot({ children, onBusyChange }) {
     } catch {
       /* 静默 */
     }
-  }, [player?.player_id]);
+  }, [player?.player_id, isRoadDefenseSuppressedByWorldMap]);
 
   pollRoadPendingRef.current = pollRoadPending;
 
@@ -227,14 +230,13 @@ export default function RoadEncounterDefenseRoot({ children, onBusyChange }) {
     () => 0,
   );
 
+  /** WorldMap 挂载/卸载或互斥 ref 变化后立即拉一次遇袭，避免子页签下多等一个轮询周期 */
+  useEffect(() => {
+    pollRoadPendingRef.current?.();
+  }, [overlayGateEpoch]);
+
   const showRoadDefenseEncounterModal =
-    !!roadDefenseAlert &&
-    !worldMapOverlayRefs.pvpDefenseAlertActive &&
-    !(
-      worldMapOverlayRefs.siegeRoadEncounterId != null &&
-      String(worldMapOverlayRefs.siegeRoadEncounterId) === String(roadDefenseAlert.encounterId)
-    );
-  void overlayGateEpoch;
+    !!roadDefenseAlert && !isRoadDefenseSuppressedByWorldMap(roadDefenseAlert.encounterId);
 
   /** 仅在有可见阻塞层时占用 `eventBusy`：`roadAwaiting` 无 UI，不应藏底栏；遇袭被攻城互斥隐藏时同理 */
   useEffect(() => {

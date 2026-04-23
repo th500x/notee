@@ -792,7 +792,12 @@ function BattleCard({
         <span className="text-sm">{isWin ? '✅' : '❌'}</span>
         <div className="flex-1 min-w-0">
           <div className="text-xs text-amber-100 truncate">
-            {battle.opponentName || (battle.battleType === 'pve_campaign' ? '战役' : '事件战斗')}
+            {battle.opponentName ||
+              (battle.battleType === 'pve_campaign'
+                ? '战役'
+                : battle.battleType === 'pve_bandit'
+                  ? '匪寨'
+                  : '事件战斗')}
           </div>
           <div className="text-[10px] text-amber-200/50">
             评分：<span className={gradeColor}>{grade}</span> · {score}分

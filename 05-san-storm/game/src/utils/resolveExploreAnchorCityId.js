@@ -73,7 +73,7 @@ export function resolveExploreAnchorCityIdFromPlayerRoad(player, citiesList) {
  * 会先命中该行并提前返回，导致合并格上实际所处的中/小城 `city_id` 永远进不了探索锚点；须**优先**按合并格 `cells`
  * 反查 POI（与 `resolveStrategicRecordedStandpointPx` 的离路回退一致），再库 footprint，最后才用路点锚格匹配。
  *
- * **邻接道路格**：行军终点常在城块 2×2 **外侧**的合法道路格（或未带 `targetCityId` 时仅走到邻格），坐标不在 footprint 内。
+ * **邻接道路格**：行军终点常在城块 2×2 **外侧**的合法道路格（或未带 `targetPoiId` 时仅走到邻格），坐标不在 footprint 内。
  * 此时仍应把探索锚点视为该城，否则 `exploreLocationId` 为空、`{city_medium}` 链事件（如教程 1002）池恒为空。
  *
  * @param {object|null|undefined} player

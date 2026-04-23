@@ -4,6 +4,10 @@
  * 防守单位构建（属性加成计算、buildDefenseUnits 等）已提取至 garrisonBuildService.js。
  * 此文件保持对外公开 API 不变，仍从 garrisonBuildService 再导出这些函数。
  *
+ * **有效守军（产品常量 `MIN_GARRISON_TOTAL_TROOPS`）**：凡对外「谁算在守这座城」的列表、统计、遇袭、
+ * 攻城玩家守军环节，一律经 `buildDefenderLineupForCityDefense` / `filterCityDefenseRowsByMinStationedTroop`，
+ * 不得仅凭 `player_garrison.is_active` 判定（见该常量注释）。
+ *
  * @module backend/services/garrisonService
  */
 
@@ -18,7 +22,16 @@ const CARD_FIELDS = [
 
 const GARRISON_TROOP_FIELDS = ['char1_troop1', 'char1_troop2', 'char2_troop1', 'char2_troop2'];
 
-/** 驻地槽「计入守军、可出战」的编队总兵力下限（与开战上阵总兵力规则独立；披挂≥800） */
+/**
+ * 驻地槽 / 披挂待战：视为「有效防守驻军」的最低总兵力（**当前**可出战兵力之和，与 `buildDefenseUnits` /
+ * `buildDefenseUnitsFromMainLineup` 口径一致，与开战上阵编组下限 `MIN_MAIN_LINEUP_TROOPS_BATTLE` 无关）。
+ *
+ * **通用规则（列表、统计、攻城、在线遇袭等一律遵守）**：
+ * - 仅当本阈值判定为「达到」时，该防守者才参与对外展示、遇袭候选、与 `initiateSiege` 的玩家守军环节。
+ * - `player_garrison.is_active` 在保存时按当时配置写入，**战后掉兵可能仍为 TRUE**；因此**禁止**仅凭
+ *   `is_active` 或 SQL 计数代表「有效守军」，必须经过 `buildDefenderLineupForCityDefense`（或同等
+ *   build + sum）复核。
+ */
 const MIN_GARRISON_TOTAL_TROOPS = 800;
 
 /** 开战 / 攻城等：上阵编组（is_equipped 部队）总兵力下限，全战斗通用 */
@@ -107,6 +120,44 @@ async function validateMainLineupBattleGateOnConn(conn, playerId) {
     return { ok: false, error: `出征需粮草 ${need}（当前 ${food}），粮草不足` };
   }
   return { ok: true };
+}
+
+/**
+ * 整编防守方当前可出战部队并计算总兵力：**唯一**与 `cityService.initiateSiege` 对齐的「是否算有效守军」入口。
+ *
+ * @param {object} defRow `player_garrison` 联结 `players` 的完整行，或 `getCityOnDutyDefenders` 返回的合成行
+ *   （须含 `player_id`；若 `defense_source === 'main_lineup'` 则走上阵编组，否则走驻地槽 `buildDefenseUnits`）。
+ * @returns {{ units: Array, totalTroops: number, meetsStationedTroopGate: boolean }}
+ */
+async function buildDefenderLineupForCityDefense(defRow) {
+  const fromMainLineup = defRow.defense_source === 'main_lineup';
+  const units = fromMainLineup
+    ? await garrisonBuildService.buildDefenseUnitsFromMainLineup(defRow.player_id)
+    : await garrisonBuildService.buildDefenseUnits(defRow);
+  const totalTroops = units.reduce((sum, u) => sum + (u.currentTroops || 0), 0);
+  return {
+    units,
+    totalTroops,
+    meetsStationedTroopGate: totalTroops >= MIN_GARRISON_TOTAL_TROOPS,
+  };
+}
+
+/**
+ * 保留「当前总兵力 ≥ MIN_GARRISON_TOTAL_TROOPS」的防守行，**顺序不变**（用于 defenders 列表、在线遇袭、统计等）。
+ * @param {object[]} rows
+ * @param {number} [chunkSize]
+ */
+async function filterCityDefenseRowsByMinStationedTroop(rows, chunkSize = 16) {
+  if (!rows || rows.length === 0) return [];
+  const out = [];
+  for (let i = 0; i < rows.length; i += chunkSize) {
+    const chunk = rows.slice(i, i + chunkSize);
+    const results = await Promise.all(chunk.map((r) => buildDefenderLineupForCityDefense(r)));
+    for (let j = 0; j < chunk.length; j++) {
+      if (results[j].meetsStationedTroopGate) out.push(chunk[j]);
+    }
+  }
+  return out;
 }
 
 /** 将本次 POST 与库中已有驻守行合并，避免请求体漏键导致将领2 部队未纳入总兵力 */
@@ -415,8 +466,8 @@ async function stripGarrisonOnCityConquest(conn, cityId, winnerFactionId) {
 }
 
 /**
- * 鑾峰彇鏌愪釜鍩庡競鐨勬墍鏈夋縺娲婚┗瀹堥厤缃紙鎸夊畼鑱屼紭鍏堢骇鎺掑簭锛? * 鐢ㄤ簬鏀诲煄鏃惰幏鍙栭槻瀹堣€呴槦鍒? * @param {string} cityId
- * @param {string|null|undefined} ownerFactionId 鍩庢睜褰撳墠褰掑睘鍔垮姏锛涗粎缁熻鏈娍鍔涢┗瀹堬紝閬垮厤鏄撲富鍚庤剰鏁版嵁
+ * 某城「驻地槽」防守者列表（API：`GET /api/garrisons/city/:cityId/defenders`）。
+ * 先按库 `is_active` 缩小候选，再按 **当前** 整编兵力 ≥ `MIN_GARRISON_TOTAL_TROOPS` 过滤（与攻城一致）。
  */
 async function getCityDefenders(cityId, ownerFactionId) {
   let sql = `
@@ -433,11 +484,13 @@ async function getCityDefenders(cityId, ownerFactionId) {
   }
   sql += ' ORDER BY p.position_level ASC, g.garrison_slot ASC';
   const [rows] = await pool.query(sql, params);
-  return rows;
+  return filterCityDefenseRowsByMinStationedTroop(rows);
 }
 
 /**
- * 鎶寕涓婇樀闃插畧鑰咃細浠呯湅 players.on_duty + on_duty_city_id锛屼笌椹诲湴缂栫粍琛ㄦ棤鍏炽€? * 鎴樻枟鍗曚綅鏉ヨ嚜涓婇樀缂栫粍锛坕s_equipped锛夛紝瑙?buildDefenseUnitsFromMainLineup銆? */
+ * 披挂上阵待战本城的玩家（与 `player_garrison` 无直接关系；战力来自上阵编组）。
+ * 返回前同样必须满足 **当前** 整编兵力 ≥ `MIN_GARRISON_TOTAL_TROOPS`，与 `initiateSiege` 一致。
+ */
 async function getCityOnDutyDefenders(cityId, ownerFactionId) {
   let sql = `
      SELECT p.player_id, p.character_name, p.faction_id, p.faction_name,
@@ -458,11 +511,12 @@ async function getCityOnDutyDefenders(cityId, ownerFactionId) {
   }
   sql += ' ORDER BY p.position_level ASC, p.player_id ASC';
   const [rows] = await pool.query(sql, params);
-  return rows;
+  return filterCityDefenseRowsByMinStationedTroop(rows);
 }
 
 /**
- * 鑾峰彇鏌愪釜鍩庡競鐨勬櫘閫氶┗瀹堥槻瀹堣€咃紙on_duty=FALSE锛屾寜瀹樿亴浼樺厛绾ф帓搴忥級
+ * 普通驻地槽防守者（排除披挂上阵者），供攻城队列等使用。
+ * 在 `is_active` 候选之上再按 **当前** 整编兵力 ≥ `MIN_GARRISON_TOTAL_TROOPS` 过滤。
  */
 async function getCityGarrisonDefenders(cityId, ownerFactionId) {
   let sql = `
@@ -479,26 +533,42 @@ async function getCityGarrisonDefenders(cityId, ownerFactionId) {
   }
   sql += ' ORDER BY p.position_level ASC, g.garrison_slot ASC';
   const [rows] = await pool.query(sql, params);
-  return rows;
+  return filterCityDefenseRowsByMinStationedTroop(rows);
 }
 
 /**
- * 鑾峰彇鍩庡競椹诲畧缁熻锛堢敤浜庡湴鍥炬樉绀猴級
+ * 城市驻地统计（大地图城备 tooltip `GET /api/garrisons/stats/cities`）。
+ * `slot_count` / `player_count` 仅计 **当前** 整编兵力达 `MIN_GARRISON_TOTAL_TROOPS` 的槽位（与 `initiateSiege` 一致）。
  */
 async function getCityGarrisonStats() {
-  const [rows] = await pool.query(
-    `SELECT g.city_id, g.city_name,
-            COUNT(DISTINCT g.player_id) AS player_count,
-            COUNT(*) AS slot_count
+  const [allSlots] = await pool.query(
+    `SELECT g.*
      FROM player_garrison g
      JOIN players p ON g.player_id = p.player_id
      JOIN cities c ON c.city_id = g.city_id
      WHERE g.is_active = TRUE AND g.city_id IS NOT NULL
-       AND c.faction_id IS NOT NULL AND p.faction_id = c.faction_id
-     GROUP BY g.city_id, g.city_name
-     ORDER BY slot_count DESC`
+       AND c.faction_id IS NOT NULL AND p.faction_id = c.faction_id`
   );
-  return rows;
+  const effective = await filterCityDefenseRowsByMinStationedTroop(allSlots);
+  const byCity = new Map();
+  for (const row of effective) {
+    const cid = row.city_id;
+    let agg = byCity.get(cid);
+    if (!agg) {
+      agg = { city_name: row.city_name, slotCount: 0, playerIds: new Set() };
+      byCity.set(cid, agg);
+    }
+    agg.slotCount += 1;
+    agg.playerIds.add(row.player_id);
+  }
+  return [...byCity.entries()]
+    .map(([city_id, v]) => ({
+      city_id,
+      city_name: v.city_name,
+      player_count: v.playerIds.size,
+      slot_count: v.slotCount,
+    }))
+    .sort((a, b) => b.slot_count - a.slot_count);
 }
 
 
@@ -547,6 +617,8 @@ module.exports = {
   getCityOnDutyDefenders,
   getCityGarrisonDefenders,
   getCityGarrisonStats,
+  buildDefenderLineupForCityDefense,
+  filterCityDefenseRowsByMinStationedTroop,
   clearInvalidOnDutySelection,
   // ── 工具函数（本文件实现）──
   sumTroopInstancesTotalTroops,

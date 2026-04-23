@@ -27,6 +27,7 @@ import {
   normalizeRoadCellList,
   ROAD_CONNECTIVITY_4,
 } from '@shared/utils/strategicRoadOverlay.js';
+import { ensureYingchuanMergedMapCells } from '@shared/utils/strategicBanditPlaceholderPhase1.js';
 
 /** 批量 NPC 守军：与 cityService NPC_TROOP_COUNT_* 的 city_type 键一致 */
 const NPC_BATCH_CITY_TYPES = [
@@ -297,8 +298,15 @@ export default function JunCountyMapGeneratorManager({ embedded = false }) {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       if (!data || !Array.isArray(data.cells)) throw new Error('无效合并图');
+      const seed0 = Number(data.seed);
+      const seed = Number.isFinite(seed0) ? seed0 : Number(data.version) || 0;
+      const cells = ensureYingchuanMergedMapCells(data.cells, seed, {
+        roadCells: Array.isArray(data.roadCells) ? data.roadCells : null,
+        mapColumns: data.mapColumns ?? 32,
+        mapRows: data.mapRows ?? 40,
+      });
       setRoadEdit({
-        cells: data.cells,
+        cells,
         mapColumns: data.mapColumns ?? 32,
         mapRows: data.mapRows ?? 40,
         roadCells: normalizeRoadCellList(data.roadCells),

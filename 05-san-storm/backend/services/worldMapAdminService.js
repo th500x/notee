@@ -11,6 +11,8 @@ const {
   buildStrategicObjectFootprintBlockedSet,
   ROAD_CONNECTIVITY_4,
 } = require('../../shared/utils/strategicRoadOverlay.js');
+const { ensureYingchuanMergedMapCells } = require('../../shared/utils/strategicBanditPlaceholderPhase1.js');
+const banditInstanceService = require('./banditInstanceService');
 
 const SHARED_WORLDMAP_DIR = path.join(__dirname, '../../shared/data/worldmap');
 const MERGED_REL_PUBLIC = 'data/worldmap/san_1_jun_yingchuan_merged.json';
@@ -163,7 +165,7 @@ function preservedRoadLayerFrom(prev) {
  * 仅颍川郡：调用 Node 脚本写入与游戏内同路径的合并 JSON。
  * 若磁盘上已有 `roadCells`，合并进新文件（避免「生成地图」冲掉道路编辑）。
  */
-function generateYingchuanMergedMap({ seed } = {}) {
+async function generateYingchuanMergedMap({ seed } = {}) {
   const prev = readMergedJsonIfExists();
   const preserved = preservedRoadLayerFrom(prev);
 
@@ -186,6 +188,13 @@ function generateYingchuanMergedMap({ seed } = {}) {
     raw = fs.readFileSync(outAbs, 'utf8');
     data = JSON.parse(raw);
   }
+  let banditsSync = null;
+  try {
+    banditsSync = await banditInstanceService.syncBanditsFromYingchuanMergedDisk();
+  } catch (e) {
+    console.warn('[worldMapAdmin] bandits 同步失败（不影响合并图写入）:', e.message);
+  }
+
   return {
     path: MERGED_REL_PUBLIC,
     absolutePath: outAbs,
@@ -195,6 +204,7 @@ function generateYingchuanMergedMap({ seed } = {}) {
     mapColumns: data.mapColumns,
     mapRows: data.mapRows,
     generatedAt: data.generatedAt,
+    banditsSync,
   };
 }
 
@@ -233,7 +243,17 @@ function saveRoadCellsToMergedMap(payload) {
 
   const roadConnectivity = payload?.roadConnectivity === '8' ? '8' : ROAD_CONNECTIVITY_4;
   const roadCells = normalizeRoadCellList(payload?.roadCells);
-  const blocked = buildStrategicObjectFootprintBlockedSet(data.cells, mapColumns, mapRows);
+  const mergedSeed = Number(data.seed);
+  const cellsForBlocked = ensureYingchuanMergedMapCells(
+    data.cells,
+    Number.isFinite(mergedSeed) ? mergedSeed : 0,
+    {
+      roadCells: Array.isArray(data.roadCells) ? data.roadCells : null,
+      mapColumns,
+      mapRows,
+    },
+  );
+  const blocked = buildStrategicObjectFootprintBlockedSet(cellsForBlocked, mapColumns, mapRows);
 
   for (const { gx, gy } of roadCells) {
     if (gx < 0 || gy < 0 || gx >= mapColumns || gy >= mapRows) {

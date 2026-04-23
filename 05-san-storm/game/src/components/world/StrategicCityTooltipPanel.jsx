@@ -5,12 +5,20 @@
 import { useMemo, memo } from 'react';
 import WorldMapCityInfoBlock from '@/components/world/WorldMapCityInfoBlock';
 import { useSiegeQuota } from '@/hooks/useSiegeQuota';
+import { isBanditMapObjectId } from '@shared/utils/smallMapEnemyRoster';
 
 function StrategicCityTooltipPanel({ content }) {
   const cityId = content?.cityId ?? null;
   const playerId = content?.playerId ?? null;
-  const siegeQuotaHook = useSiegeQuota(playerId, cityId);
-  const siegeQuota = cityId && playerId ? siegeQuotaHook : content?.siegeQuota ?? null;
+  const skipSiegeQuota =
+    content?.isBanditStronghold === true ||
+    !!(content?.banditPoiId && isBanditMapObjectId(content.banditPoiId));
+  const siegeQuotaHook = useSiegeQuota(
+    skipSiegeQuota ? null : playerId,
+    skipSiegeQuota ? null : cityId,
+  );
+  const siegeQuota =
+    cityId && playerId && !skipSiegeQuota ? siegeQuotaHook : content?.siegeQuota ?? null;
 
   const {
     type: _t,

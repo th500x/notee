@@ -4,6 +4,10 @@
  */
 
 import { ASSET_BASE } from '@/components/battle/battleConstants';
+import {
+  STRATEGIC_BANDIT_DOMINO_OBJECT_H,
+  STRATEGIC_BANDIT_DOMINO_OBJECT_V,
+} from '@shared/utils/strategicBanditPlaceholderPhase1.js';
 
 /** 与生成器 seed 对齐，为各层选 01~05 变体（确定性） */
 export function buildCampaignVisualVariants(seed) {
@@ -64,6 +68,8 @@ export function campaignObjectUrl(objectType, opts = {}) {
     trap: 'trap_01.png',
     military_tower: 'military_tower_01.png',
     military_camp: 'military_camp_01.png',
+    bandit_horiz: 'bandit_01.png',
+    bandit_vert: 'bandit_02.png',
     city_major: 'city_major_01.png',
     city_medium: 'city_medium_01.png',
     city_small: 'city_small_01.png',
@@ -84,6 +90,17 @@ export function strategicMapObjectIs2x2(objectType) {
     objectType === 'gate' ||
     objectType === 'fort'
   );
+}
+
+/**
+ * 匪寨骨牌锚点格 `object` → 战略格 footprint（与 `strategicBanditPlaceholderPhase1` 键一致）。
+ * @param {string|null|undefined} objectType
+ * @returns {'bandit_2x1'|'bandit_1x2'|null}
+ */
+export function strategicMapBanditDominoFootprintKind(objectType) {
+  if (objectType === STRATEGIC_BANDIT_DOMINO_OBJECT_H) return 'bandit_2x1';
+  if (objectType === STRATEGIC_BANDIT_DOMINO_OBJECT_V) return 'bandit_1x2';
+  return null;
 }
 
 export const CAMPAIGN_MAP_W = 16;

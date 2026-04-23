@@ -46,6 +46,9 @@ export const BANDIT_NPC_SLOTS_BY_TIER = {
   legendary: ['legendary', 'legendary', 'legendary', 'legendary'],
 };
 
+/** 单玩家单匪寨「郡内爬塔」总层数（与 17-6 §2、§7 一致） */
+export const BANDIT_PERSONAL_TOTAL_LAYERS = 12;
+
 /**
  * 战略地图匪寨格 ID（独立地图对象，非 `san_*_city_{1-7}_*`）。格式：`san_{赛季}_bandit_{1-9}_{区域 slug}`。
  * @see `docs/00-base/04-1-ID_NAMING_GUIDE.md` §15
@@ -58,7 +61,7 @@ export function isBanditMapObjectId(id) {
 }
 
 /**
- * 探索事件惩罚战：当前探索点 `city_id` 符合 {@link isBanditMapObjectId} 时使用，四槽均为传奇。
+ * 探索事件惩罚战：当前探索点 id 为 **匪寨地图对象 ID**（{@link isBanditMapObjectId}）时使用，四槽均为传奇。
  * 与匪寨玩法层数、爬层产出等无关；攻城/NPC 走 {@link resolveCityBanditTier}。
  */
 export const EVENT_PUNISHMENT_COMBAT_BANDIT_LOCATION_SLOT_RARITIES = [
@@ -71,7 +74,7 @@ export const EVENT_PUNISHMENT_COMBAT_BANDIT_LOCATION_SLOT_RARITIES = [
  * @returns {'normal'|'rare'|'epic'|'legendary'}
  */
 export function banditTierFromLayer(layer) {
-  const n = Math.max(1, Math.min(12, Math.floor(Number(layer) || 1)));
+  const n = Math.max(1, Math.min(BANDIT_PERSONAL_TOTAL_LAYERS, Math.floor(Number(layer) || 1)));
   if (n <= 3) return 'normal';
   if (n <= 6) return 'rare';
   if (n <= 9) return 'epic';
@@ -82,6 +85,87 @@ export function banditTierFromLayer(layer) {
 export function banditNpcSlotRaritiesFromLayer(layer) {
   const tier = banditTierFromLayer(layer);
   return [...BANDIT_NPC_SLOTS_BY_TIER[tier]];
+}
+
+/** 匪寨敌军编制：四槽各稀有度中文（与 17-6 §2、`BANDIT_NPC_SLOTS_BY_TIER` 一致）。 */
+const BANDIT_RARITY_ZH = {
+  common: '普通',
+  rare: '稀有',
+  epic: '史诗',
+  legendary: '传奇',
+  core: '核心',
+};
+
+/** 难度档中文（与普通/稀有/史诗/传奇卡牌稀有度同名；勿与「关卡层」混淆）。 */
+const BANDIT_TIER_ZH = {
+  normal: '普通档',
+  rare: '稀有档',
+  epic: '史诗档',
+  legendary: '传奇档',
+};
+
+/**
+ * 四槽稀有度在定序上的最小/最大跨度（非编制口径；编制见 {@link banditNpcTroopCompositionZhFromLayer}）。
+ * @param {number} layer - 当前爬层 1…12
+ * @returns {{ min: string, max: string, minLabel: string, maxLabel: string, dashRange: string } | null}
+ */
+export function banditNpcTroopRarityZhRangeFromLayer(layer) {
+  const tier = banditTierFromLayer(layer);
+  const slots = BANDIT_NPC_SLOTS_BY_TIER[tier];
+  if (!Array.isArray(slots) || slots.length === 0) return null;
+  let minI = 99;
+  let maxI = -1;
+  for (const r of slots) {
+    const n = normalizeBattleRarity(r);
+    const i = RARITY_ORDER.indexOf(n);
+    if (i < 0) continue;
+    if (i < minI) minI = i;
+    if (i > maxI) maxI = i;
+  }
+  if (maxI < 0) return null;
+  const min = RARITY_ORDER[minI];
+  const max = RARITY_ORDER[maxI];
+  const minLabel = BANDIT_RARITY_ZH[min] || min;
+  const maxLabel = BANDIT_RARITY_ZH[max] || max;
+  return { min, max, minLabel, maxLabel, dashRange: `${minLabel}-${maxLabel}` };
+}
+
+/**
+ * 当前层对应匪寨 NPC 四槽编制的中文摘要（如 `2 普通 + 2 稀有`），与 `BANDIT_NPC_SLOTS_BY_TIER` 一致。
+ * @param {number} layer
+ * @returns {string|null}
+ */
+export function banditNpcTroopCompositionZhFromLayer(layer) {
+  const slots = banditNpcSlotRaritiesFromLayer(layer);
+  if (!Array.isArray(slots) || slots.length === 0) return null;
+  /** @type {Map<string, number>} */
+  const counts = new Map();
+  for (const r of slots) {
+    const n = normalizeBattleRarity(r);
+    counts.set(n, (counts.get(n) || 0) + 1);
+  }
+  const parts = [];
+  for (const key of RARITY_ORDER) {
+    const c = counts.get(key);
+    if (c > 0) {
+      const label = BANDIT_RARITY_ZH[key] || key;
+      parts.push(`${c} ${label}`);
+    }
+  }
+  return parts.length > 0 ? parts.join(' + ') : null;
+}
+
+/**
+ * 战略匪寨浮层右上「难度：…」；与 17-6 §2 编制表、`BANDIT_NPC_SLOTS_BY_TIER` 一致。
+ * @param {number} layer
+ * @returns {string|null} 例：`难度：普通档（2 普通 + 2 稀有）`
+ */
+export function banditNpcTroopDifficultyHintFromLayer(layer) {
+  const tier = banditTierFromLayer(layer);
+  const tierZh = BANDIT_TIER_ZH[tier] || tier;
+  const comp = banditNpcTroopCompositionZhFromLayer(layer);
+  if (!comp) return null;
+  return `难度：${tierZh}（${comp}）`;
 }
 
 function shuffle(arr) {
@@ -245,13 +329,13 @@ export function cityTypeToBanditTier(cityType) {
 }
 
 /**
- * 城市格点 → 匪寨难度档（攻城 NPC 等）：`city_id` 为匪寨地图对象时固定一档，否则按城市 `city_type`。
+ * 城市格点 → 匪寨难度档（攻城 NPC 等）：锚点 id 为 **匪寨地图对象** `san_*_bandit_*` 时固定一档，否则按 `city_type`。
  * @param {string|null|undefined} cityType
- * @param {string|null|undefined} cityId
+ * @param {string|null|undefined} poiRowOrGridId - 库行主键列取值或格网 **`banditPoiId`**（匪寨时同族）
  * @returns {'normal'|'rare'|'epic'|'legendary'}
  */
-export function resolveCityBanditTier(cityType, cityId) {
-  if (isBanditMapObjectId(cityId)) return 'normal';
+export function resolveCityBanditTier(cityType, poiRowOrGridId) {
+  if (isBanditMapObjectId(poiRowOrGridId)) return 'normal';
   return cityTypeToBanditTier(cityType);
 }
 

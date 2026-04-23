@@ -5,6 +5,9 @@
 
 /** @typedef {{ gx: number, gy: number }} RoadCell */
 
+import { readStrategicCellAnchorId } from './strategicCellAnchorId.js';
+import { isBanditMapObjectId } from './smallMapEnemyRoster.js';
+
 /** 四邻接（默认寻路/画线主轴） */
 export const ROAD_CONNECTIVITY_4 = '4';
 /** 八邻接（含对角线段） */
@@ -28,10 +31,6 @@ export function strategicMapObjectIs2x2(objectType) {
  * @param {number} mapRows
  * @returns {Set<string>} `"gx,gy"` 键
  */
-function isBanditCityIdForRoadBlock(cityId) {
-  return /(^|_)bandit(_|$)/i.test(String(cityId || ''));
-}
-
 /**
  * 匪寨在合并图中为 **1×2 或 2×1** 两格（与城类 2×2 区分）；道路寻路不得落入其占格。
  * @param {object[][]} cells
@@ -46,8 +45,8 @@ function addBanditDominoFootprintsToBlocked(cells, mapColumns, mapRows, blocked)
     if (!row) continue;
     for (let gx = 0; gx < mapColumns; gx++) {
       const cell = row[gx];
-      const cid = cell?.cityId ? String(cell.cityId) : '';
-      if (!cid || !isBanditCityIdForRoadBlock(cid)) continue;
+      const cid = readStrategicCellAnchorId(cell);
+      if (!cid || !isBanditMapObjectId(cid)) continue;
       if (!byId.has(cid)) byId.set(cid, []);
       byId.get(cid).push({ gx, gy });
     }
@@ -77,7 +76,7 @@ export function buildStrategicObjectFootprintBlockedSet(cells, mapColumns, mapRo
   for (let gy = 0; gy < mapRows; gy++) {
     for (let gx = 0; gx < mapColumns; gx++) {
       const cell = cells[gy]?.[gx];
-      if (!cell?.cityId || !strategicMapObjectIs2x2(cell.object)) continue;
+      if (!readStrategicCellAnchorId(cell) || !strategicMapObjectIs2x2(cell.object)) continue;
       for (let dy = 0; dy < 2; dy++) {
         for (let dx = 0; dx < 2; dx++) {
           const x = gx + dx;

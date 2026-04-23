@@ -23,6 +23,8 @@ import { API_CONFIG, getRarityHex, getRarityLabelCn } from '@/constants';
 import SiegeReplayMini from '@/components/game/SiegeReplayMini';
 import { validateMainLineupBattleGate } from '@/utils/mainLineupTroops';
 import { shortEquipmentDisplayName } from '@/utils/equipmentDisplayName';
+import { buildBanditLayerSmallMapPveLoot } from '@shared/utils/banditRaidLayerRewards';
+import { banditNpcSlotRaritiesFromLayer } from '@shared/utils/smallMapEnemyRoster';
 import {
   getConfiguredGarrisonCityIds,
   MAX_GARRISON_CONFIGURED_CITIES,
@@ -94,6 +96,161 @@ function AuthoritativeSiegeReplayButton({
   );
 }
 
+/**
+ * 攻城 / 匪寨小型图战后结算：同一容器、标题「战斗结算」与同色系奖励行（避免另起一套样式）。
+ * @param {'siege'|'bandit'} settlementKind
+ */
+function StrategicSettlementCard({
+  onConfirm,
+  /** 匪寨胜利：左侧「继续」进入下一层（不扣次）；与 `onConfirm`（退出）并存时渲染双按钮 */
+  onBanditContinue = null,
+  settlementKind = 'siege',
+  /** `settlementKind === 'bandit'` 时用于顶栏 emoji：胜利 ⚔️ / 失败 💀（匪寨不展示本场击杀行，不能再用击杀数推 emoji） */
+  banditOutcome = null,
+  silverReward = 0,
+  reputationReward = 0,
+  contributionReward = 0,
+  equipmentDrop = null,
+  chestRewards = [],
+  killCount = null,
+  /** 攻城累计段：npcTotal>0 时展示「累计已消灭」 */
+  siegeNpcKilled = null,
+  siegeNpcTotal = null,
+  /** 匪寨：副标题层名 */
+  banditOpponentName = '',
+  /** 匪寨：如「战术评分：C · 757 分」 */
+  tacticalScoreText = null,
+  authoritativeBattleLog = null,
+  initialAttackerTroops = null,
+  initialDefenderTroops = null,
+  showZeroKillNote = false,
+  siegeCompleted = false,
+  battleReportFailed = false,
+  extraFooterNote = null,
+}) {
+  const sr = Math.max(0, Number(silverReward) || 0);
+  const rr = Math.max(0, Number(reputationReward) || 0);
+  const cr = Math.max(0, Number(contributionReward) || 0);
+  const kc = killCount != null && Number.isFinite(Number(killCount)) ? Number(killCount) : null;
+  const kcShown = kc != null ? kc : 0;
+  /** 攻城：`(击杀||银两||贡献)`；匪寨：按胜负（结算卡不展示击杀行） */
+  const showVictoryEmoji =
+    settlementKind === 'bandit'
+      ? banditOutcome === 'victory'
+      : !!((kc != null ? kcShown : 0) || sr || cr);
+
+  const chestList = Array.isArray(chestRewards) ? chestRewards : [];
+
+  return (
+    <div className="flex min-h-0 flex-1 items-center justify-center bg-black/80 backdrop-blur-sm">
+      <div className="mx-4 w-full max-w-sm rounded-xl border border-amber-500/30 bg-gray-900/95 p-6 text-center space-y-3">
+        <div className="text-4xl">{showVictoryEmoji ? '⚔️' : '💀'}</div>
+        <div className="text-xl font-bold text-amber-400">战斗结算</div>
+        {settlementKind === 'bandit' && banditOpponentName ? (
+          <div className="text-sm text-stone-300">{banditOpponentName}</div>
+        ) : null}
+        {tacticalScoreText ? (
+          <div className="text-sm text-gray-300">{tacticalScoreText}</div>
+        ) : null}
+        {sr > 0 && <div className="text-amber-300 text-sm">💰 获得 {sr} 银两</div>}
+        {rr > 0 && <div className="text-yellow-300 text-sm">⭐ 获得 {rr} 声望</div>}
+        {cr > 0 && <div className="text-sky-300 text-sm">贡献 +{cr}</div>}
+        {equipmentDrop && (
+          <div
+            className="text-sm font-medium"
+            style={{ color: getRarityHex(equipmentDrop.rarity) }}
+          >
+            🎁 攻城战后随机掉落（约 5%）：{equipmentDrop.name}（{getRarityLabelCn(equipmentDrop.rarity)}）
+          </div>
+        )}
+        {chestList.length > 0 && (
+          <div className="mt-1 space-y-1 border-t border-amber-500/25 pt-2 text-left text-sm">
+            <div className="text-[11px] text-stone-500">📦 地图内宝箱</div>
+            {chestList.map((r, i) => (
+              <div
+                key={`${r.equipmentId || 'eq'}-${i}`}
+                className="text-sm font-medium"
+                style={{ color: getRarityHex(r.rarity) }}
+              >
+                {shortEquipmentDisplayName(r.name)}（{getRarityLabelCn(r.rarity)}）
+              </div>
+            ))}
+          </div>
+        )}
+        {kc != null && settlementKind === 'siege' ? (
+          <div className="text-sm text-gray-300">本场击杀：{kc}</div>
+        ) : null}
+        {settlementKind === 'siege' ? (
+          <div className="text-sm text-gray-400">
+            NPC守军：本场消灭 {kcShown} 支
+            {siegeNpcTotal != null && Number(siegeNpcTotal) > 0 && (
+              <>
+                {' '}
+                · 累计已消灭 {siegeNpcKilled ?? 0}/{siegeNpcTotal}
+              </>
+            )}
+          </div>
+        ) : null}
+        {extraFooterNote ? (
+          <div className="text-xs text-stone-500 text-center leading-snug">{extraFooterNote}</div>
+        ) : null}
+        {battleReportFailed ? (
+          <div className="text-xs text-red-300 text-left leading-snug">
+            战报未能可靠保存到服务器，奖励以服务端记录为准；若反复出现请稍后重试或联系管理。
+          </div>
+        ) : null}
+        {Array.isArray(authoritativeBattleLog) && authoritativeBattleLog.length > 0 && (
+          <>
+            <AuthoritativeSiegeReplayButton
+              battleLogLines={authoritativeBattleLog}
+              initialAttackerTroops={initialAttackerTroops}
+              initialDefenderTroops={initialDefenderTroops}
+            />
+            <details className="mt-2 max-h-32 overflow-y-auto text-left text-[11px] text-stone-400">
+              <summary className="cursor-pointer text-amber-500/90">文字战报（服务端）</summary>
+              <pre className="mt-1 whitespace-pre-wrap font-sans">{authoritativeBattleLog.join('\n')}</pre>
+            </details>
+          </>
+        )}
+        {showZeroKillNote && (
+          <div className="text-xs text-stone-500">（目标已被其他玩家击杀，无新增奖励）</div>
+        )}
+        {siegeCompleted && (
+          <div className="rounded-lg border border-amber-500/30 bg-amber-900/50 p-3">
+            <div className="font-bold text-amber-400">🏰 城池攻破！</div>
+          </div>
+        )}
+        {typeof onBanditContinue === 'function' ? (
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={onBanditContinue}
+              className="flex-1 min-w-0 rounded-lg bg-gradient-to-r from-amber-700 to-yellow-700 py-2.5 text-sm font-bold text-amber-100"
+            >
+              继续
+            </button>
+            <button
+              type="button"
+              onClick={onConfirm}
+              className="flex-1 min-w-0 rounded-lg bg-gradient-to-r from-amber-700 to-yellow-700 py-2.5 text-sm font-bold text-amber-100"
+            >
+              退出
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={onConfirm}
+            className="w-full rounded-lg bg-gradient-to-r from-amber-700 to-yellow-700 py-2.5 text-sm font-bold text-amber-100"
+          >
+            确定
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function WorldMap({
   onEventBusyChange,
   sanGongFuCardPool,
@@ -136,6 +293,25 @@ export default function WorldMap({
   const [siegeLoading, setSiegeLoading] = useState(false);
   /** 驻守统计全图拉取在 `WorldYingchuanMapSection`；披挂等操作后 bump 以刷新格上 tooltip 用槽数 */
   const [garrisonStatsRefreshKey, setGarrisonStatsRefreshKey] = useState(0);
+  /** 匪寨小型图战斗：与攻城互斥；payload 见 `handleBanditRaidStart` */
+  const [banditRaidData, setBanditRaidData] = useState(null);
+  /** 匪寨战后结算面板（与攻城 `siegeResult` 同层 portal，点确定后关闭） */
+  const [banditRaidResult, setBanditRaidResult] = useState(null);
+  /** 匪寨战后 bump：战略 tooltip 内 `useBanditRaidQuota` 主动刷新 */
+  const [postBanditRaidRefreshKey, setPostBanditRaidRefreshKey] = useState(0);
+  const banditRaidDataRef = useRef(null);
+  useEffect(() => {
+    banditRaidDataRef.current = banditRaidData;
+  }, [banditRaidData]);
+
+  const banditRaidStartBlockedReason = useMemo(() => {
+    const phaseOk = phase === PHASE.IDLE || phase === PHASE.RETURNING;
+    if (!phaseOk) return '当前处于事件/探索流程中，请返回空闲后再攻打匪寨';
+    if (siegeData) return '已有攻城或结算占用，请先结束上一场';
+    if (banditRaidData) return '匪寨战斗进行中';
+    if (banditRaidResult) return '请先关闭上一场匪寨结算';
+    return null;
+  }, [phase, siegeData, banditRaidData, banditRaidResult]);
 
   // ── 驻地编组面板（由格上 tooltip「驻地编组」打开，必带 cityId） ──
   const [showGarrison, setShowGarrison] = useState(false);
@@ -185,6 +361,8 @@ export default function WorldMap({
     authoritativeReplayOverlay: false,
     siegeResult: false,
     siegeData: false,
+    banditRaidData: false,
+    banditRaidResult: false,
     roadAuthoritativeOutcomeModal: false,
     pvpAttackerAdjudicating: false,
     pvpDefenseOutcome: false,
@@ -232,10 +410,12 @@ export default function WorldMap({
   }, [player?.player_id, onDuty]);
 
   useEffect(() => {
+    worldMapOverlayRefs.worldMapMounted = true;
     worldMapOverlayRefs.pvpDefenseAlertActive = !!pvpDefenseAlert;
     worldMapOverlayRefs.siegeRoadEncounterId = siegeData?.roadEncounterId ?? null;
     notifyWorldMapOverlayGate();
     return () => {
+      worldMapOverlayRefs.worldMapMounted = false;
       worldMapOverlayRefs.pvpDefenseAlertActive = false;
       worldMapOverlayRefs.siegeRoadEncounterId = null;
       notifyWorldMapOverlayGate();
@@ -291,6 +471,8 @@ export default function WorldMap({
             b.authoritativeReplayOverlay ||
             b.siegeResult ||
             b.siegeData ||
+            b.banditRaidData ||
+            b.banditRaidResult ||
             b.roadAuthoritativeOutcomeModal ||
             b.pvpAttackerAdjudicating ||
             b.pvpDefenseOutcome ||
@@ -325,6 +507,8 @@ export default function WorldMap({
             bq.authoritativeReplayOverlay ||
             bq.siegeResult ||
             bq.siegeData ||
+            bq.banditRaidData ||
+            bq.banditRaidResult ||
             bq.roadAuthoritativeOutcomeModal ||
             bq.pvpAttackerAdjudicating ||
             bq.pvpDefenseOutcome ||
@@ -360,6 +544,8 @@ export default function WorldMap({
       bq.authoritativeReplayOverlay ||
       bq.siegeResult ||
       bq.siegeData ||
+      bq.banditRaidData ||
+      bq.banditRaidResult ||
       bq.roadAuthoritativeOutcomeModal ||
       bq.pvpAttackerAdjudicating ||
       bq.pvpDefenseOutcome ||
@@ -384,6 +570,8 @@ export default function WorldMap({
     roadFriction.roadDefenseAlert,
     roadFriction.roadAwaitingAuthoritativeOutcome,
     roadFriction.roadDefenseAuthoritativeReplayOpen,
+    banditRaidData,
+    banditRaidResult,
   ]);
 
   useEffect(() => {
@@ -564,6 +752,14 @@ export default function WorldMap({
       setSimpleAlertMessage('已有战斗或结算占用，请先结束上一场或刷新页面后再试。');
       return;
     }
+    if (banditRaidData) {
+      setSimpleAlertMessage('匪寨战斗进行中，请先结束上一场后再发起攻城。');
+      return;
+    }
+    if (banditRaidResult) {
+      setSimpleAlertMessage('请先关闭匪寨结算面板后再发起攻城。');
+      return;
+    }
     if (worldMapCityIsPlayerSameFaction(cityRow, player?.faction_id)) return;
 
     const qRes = await fetchSiegeQuotaJson(player.player_id, cityId);
@@ -632,7 +828,142 @@ export default function WorldMap({
       setSimpleAlertMessage(e?.message || '网络异常，攻城请求失败');
     }
     setSiegeLoading(false);
-  }, [phase, siegeData, player, cards, attributeBonusBySlot]);
+  }, [phase, siegeData, banditRaidData, banditRaidResult, player, cards, attributeBonusBySlot]);
+
+  const handleBanditRaidStart = useCallback((payload) => {
+    if (!player?.player_id) return;
+    if (!payload?.banditPoiId || payload?.attackedLayer == null) return;
+    if (!payload?.smallMapPveLoot || typeof payload.smallMapPveLoot !== 'object') return;
+    if (!Array.isArray(payload.enemySlotRarities) || payload.enemySlotRarities.length !== 4) return;
+    const layer = Number(payload.attackedLayer);
+    setBanditRaidData({
+      banditPoiId: String(payload.banditPoiId).trim(),
+      attackedLayer: layer,
+      enemySlotRarities: payload.enemySlotRarities,
+      smallMapPveLoot: payload.smallMapPveLoot,
+      opponentName: `匪寨 · 第 ${Number.isFinite(layer) ? layer : 1} 层`,
+    });
+  }, [player?.player_id]);
+
+  const handleBanditRaidEnd = useCallback(
+    (result, silverSpent, scoreResult, killedIndices, meta) => {
+      const cur = banditRaidDataRef.current;
+      const opponentName = cur?.opponentName || '匪寨';
+      const rawLoot = cur?.smallMapPveLoot && typeof cur.smallMapPveLoot === 'object' ? cur.smallMapPveLoot : {};
+      const lootRest = { ...rawLoot };
+      delete lootRest.banditRaidSettlement;
+      let silverReward = 0;
+      let reputationReward = 0;
+      if (result === 'victory') {
+        silverReward = Math.max(0, Number(lootRest.silver) || 0);
+        reputationReward = Math.max(0, Number(lootRest.reputation) || 0);
+      }
+      const tk =
+        meta?.totalKills != null && Number.isFinite(Number(meta.totalKills))
+          ? Math.max(0, Math.floor(Number(meta.totalKills)))
+          : Array.isArray(killedIndices)
+            ? killedIndices.length
+            : 0;
+      const killCount = tk;
+      const sc = scoreResult && typeof scoreResult === 'object' ? scoreResult : null;
+      const tacticalScoreText =
+        sc && (sc.grade != null || sc.score != null)
+          ? `战术评分：${sc.grade ?? '-'} · ${Number(sc.score) || 0} 分`
+          : null;
+      setBanditRaidData(null);
+      setBanditRaidResult({
+        result,
+        banditPoiId: cur?.banditPoiId != null ? String(cur.banditPoiId).trim() : null,
+        attackedLayer: cur?.attackedLayer != null ? Number(cur.attackedLayer) : null,
+        silverSpent: Math.max(0, Number(silverSpent) || 0),
+        scoreResult: sc,
+        killedIndices: Array.isArray(killedIndices) ? killedIndices : [],
+        meta: meta && typeof meta === 'object' ? meta : {},
+        opponentName,
+        silverReward,
+        reputationReward,
+        killCount,
+        tacticalScoreText,
+        defeatHint:
+          result !== 'victory'
+            ? '本场已扣攻打次数，个人层与全服耐久不因失败前进。'
+            : null,
+      });
+      setPostBanditRaidRefreshKey((k) => k + 1);
+      setGarrisonStatsRefreshKey((k) => k + 1);
+      refreshPlayer({ silent: true });
+      bumpStrategicRoadPresenceRef.current?.();
+    },
+    [refreshPlayer],
+  );
+
+  const closeBanditRaidResult = useCallback(() => {
+    setBanditRaidResult(null);
+    setPostBanditRaidRefreshKey((k) => k + 1);
+  }, []);
+
+  /** 匪寨胜利结算「继续」：不调用 consume，直接进下一层（次数已在首层攻打时扣除） */
+  const handleBanditRaidContinue = useCallback(async () => {
+    if (!banditRaidResult || banditRaidResult.result !== 'victory') return;
+    const banditPoiId = banditRaidResult.banditPoiId;
+    if (!banditPoiId || !player?.player_id) return;
+    setBanditRaidResult(null);
+    try {
+      const res = await playerAPI.getBanditRaidQuota(player.player_id, banditPoiId);
+      if (!res?.success || !res.data) {
+        setSimpleAlertMessage(typeof res?.error === 'string' && res.error.trim() ? res.error : '无法读取匪寨攻打进度');
+        return;
+      }
+      const d = res.data;
+      const wd = d.worldDurability;
+      const worldDepleted =
+        wd &&
+        typeof wd === 'object' &&
+        Number.isFinite(Number(wd.layersRemaining)) &&
+        Number(wd.layersRemaining) <= 0;
+      if (d.towerCompleted) {
+        setSimpleAlertMessage('本寨个人塔已通关。');
+        return;
+      }
+      if (worldDepleted) {
+        setSimpleAlertMessage('本寨全服耐久已耗尽，无法继续攻打。');
+        return;
+      }
+      if (!d.canBattle) {
+        setSimpleAlertMessage('当前不可继续攻打（攻打次数或条件不足）。');
+        return;
+      }
+      const attackedLayer = Number(d.nextLayer);
+      if (!Number.isFinite(attackedLayer) || attackedLayer < 1) {
+        setSimpleAlertMessage('层进度异常，请返回大地图重试。');
+        return;
+      }
+      const gate = validateMainLineupBattleGate({
+        cards,
+        playerUnits: null,
+        playerFood: player?.food ?? 0,
+      });
+      if (!gate.ok) {
+        setSimpleAlertMessage(gate.message || '无法进入下一层');
+        return;
+      }
+      const enemySlotRarities = banditNpcSlotRaritiesFromLayer(attackedLayer);
+      const lootBase = buildBanditLayerSmallMapPveLoot(attackedLayer);
+      setBanditRaidData({
+        banditPoiId: String(banditPoiId).trim(),
+        attackedLayer,
+        enemySlotRarities,
+        smallMapPveLoot: {
+          ...lootBase,
+          banditRaidSettlement: { banditPoiId: String(banditPoiId).trim(), attackedLayer },
+        },
+        opponentName: `匪寨 · 第 ${attackedLayer} 层`,
+      });
+      setPostBanditRaidRefreshKey((k) => k + 1);
+    } catch (e) {
+      setSimpleAlertMessage(e?.message || '网络异常');
+    }
+  }, [banditRaidResult, player?.player_id, player?.food, cards]);
 
   // 战斗结束
   const handleSiegeEnd = useCallback(async (result, silverSpent, scoreResult, killedIndices, meta) => {
@@ -893,6 +1224,8 @@ export default function WorldMap({
   useEffect(() => {
     const busy = [PHASE.EVENT, PHASE.ROLLING, PHASE.RESULT, PHASE.BATTLE, PHASE.REWARD, PHASE.MINIGAME, PHASE.RETURNING].includes(phase)
       || !!siegeData
+      || !!banditRaidData
+      || !!banditRaidResult
       || !!pvpChallenge
       || !!pvpDefenseWaiting
       || !!pvpAttackerAdjudicating
@@ -904,6 +1237,8 @@ export default function WorldMap({
     phase,
     onEventBusyChange,
     siegeData,
+    banditRaidData,
+    banditRaidResult,
     pvpChallenge,
     pvpDefenseWaiting,
     pvpAttackerAdjudicating,
@@ -922,6 +1257,27 @@ export default function WorldMap({
   const strategicFullScreenOverlayOpen =
     showSanGongFu || !!showGarrison || !!showBarracksPost;
 
+  /** 攻城/探索/道路等全屏或模态流程中不渲染大地图 event_hint portal，避免「指引」压在战斗或弹窗之上 */
+  const strategicMapEventHintSuppressed =
+    !!siegeData ||
+    !!siegeResult ||
+    !!banditRaidData ||
+    !!banditRaidResult ||
+    !!pvpChallenge ||
+    !!pvpDefenseWaiting ||
+    !!roadAttackerAlert ||
+    !!authoritativeReplayOverlay ||
+    roadFriction.roadDefenseAuthoritativeReplayOpen ||
+    [
+      PHASE.EVENT,
+      PHASE.ROLLING,
+      PHASE.RESULT,
+      PHASE.BATTLE,
+      PHASE.REWARD,
+      PHASE.MINIGAME,
+      PHASE.RETURNING,
+    ].includes(phase);
+
   const pvpCountdownDisplay = useMemo(() => {
     if (!pvpChallenge?.countdownEndsAt) return Math.max(0, Number(pvpCountdown) || 0);
     return Math.max(0, Math.ceil((pvpChallenge.countdownEndsAt - pvpSiegeNowTick) / 1000));
@@ -932,6 +1288,8 @@ export default function WorldMap({
       !!authoritativeReplayOverlay || roadFriction.roadDefenseAuthoritativeReplayOpen,
     siegeResult: !!siegeResult,
     siegeData: !!siegeData,
+    banditRaidData: !!banditRaidData,
+    banditRaidResult: !!banditRaidResult,
     roadAuthoritativeOutcomeModal: roadFriction.roadAuthoritativeOutcomeModal,
     pvpAttackerAdjudicating: !!pvpAttackerAdjudicating,
     pvpDefenseOutcome: !!pvpDefenseOutcome,
@@ -948,6 +1306,7 @@ export default function WorldMap({
         className="flex-1 min-h-0 h-full"
         bumpStrategicRoadPresenceRef={bumpStrategicRoadPresenceRef}
         strategicFullScreenOverlayOpen={strategicFullScreenOverlayOpen}
+        strategicMapEventHintSuppressed={strategicMapEventHintSuppressed}
         pendingMapEventHint={pendingMapEventHint}
         playerId={player?.player_id}
         playerFactionId={player?.faction_id}
@@ -971,6 +1330,9 @@ export default function WorldMap({
         onDutyError={setSimpleAlertMessage}
         subsidiaryExploreEmbed={subsidiaryExploreEmbed}
         onExploreAnchorGridContext={onExploreAnchorGridContext}
+        onStartBanditRaid={handleBanditRaidStart}
+        banditRaidStartBlockedReason={banditRaidStartBlockedReason}
+        postBanditRaidRefreshKey={postBanditRaidRefreshKey}
       />
 
       {/* ── PVP 攻城方等待界面 ── */}
@@ -1050,7 +1412,7 @@ export default function WorldMap({
           document.body,
         )}
 
-      {roadAttackerAlert && !siegeData && (
+      {roadAttackerAlert && !siegeData && !banditRaidData && !banditRaidResult && (
         <AncientModal
           isOpen
           type="warning"
@@ -1072,6 +1434,8 @@ export default function WorldMap({
 
       {roadGateRetreatNotice &&
         !siegeData &&
+        !banditRaidData &&
+        !banditRaidResult &&
         !roadFriction.roadDefenseAlert &&
         !pvpDefenseAlert &&
         !roadAttackerAlert && (
@@ -1088,7 +1452,7 @@ export default function WorldMap({
         </AncientModal>
       )}
 
-      {pvpDefenseAlert && !siegeData && (
+      {pvpDefenseAlert && !siegeData && !banditRaidData && !banditRaidResult && (
         <AncientModal
           isOpen
           type="warning"
@@ -1170,10 +1534,25 @@ export default function WorldMap({
 
       {/* 攻城/道路战斗与结算：挂 body，避免 GamePage main overflow-hidden 裁切 fixed 全屏层 */}
       {typeof document !== 'undefined' &&
-        ((siegeData && !siegeResult) || siegeResult) &&
+        ((siegeData && !siegeResult) || siegeResult || banditRaidData || banditRaidResult) &&
         createPortal(
           <div className="pointer-events-auto fixed inset-0 z-[225] flex min-h-0 flex-col">
-            {siegeData && !siegeResult ? (
+            {banditRaidData ? (
+              <BattleArena
+                key={`bandit-${banditRaidData.banditPoiId}-${banditRaidData.attackedLayer}`}
+                playerUnits={buildPlayerUnitsFromContext(player, cards, attributeBonusBySlot)}
+                cards={cards}
+                enemySlotRarities={banditRaidData.enemySlotRarities}
+                silverAmount={player?.silver ?? 0}
+                playerFood={player?.food ?? 0}
+                playerId={player?.player_id}
+                battleType="pve_bandit"
+                opponentName={banditRaidData.opponentName || '匪寨'}
+                smallMapPveLoot={banditRaidData.smallMapPveLoot}
+                onBattleEnd={handleBanditRaidEnd}
+              />
+            ) : null}
+            {!banditRaidData && siegeData && !siegeResult ? (
               <BattleArena
                 key={siegeData.roadEncounterId || siegeData.warId || siegeData.cityName || 'siege'}
                 playerUnits={buildPlayerUnitsFromContext(player, cards, attributeBonusBySlot)}
@@ -1220,76 +1599,50 @@ export default function WorldMap({
                 }
               />
             ) : null}
-            {siegeResult ? (
-              <div className="flex min-h-0 flex-1 items-center justify-center bg-black/80 backdrop-blur-sm">
-                <div className="mx-4 w-full max-w-sm rounded-xl border border-amber-500/30 bg-gray-900/95 p-6 text-center space-y-3">
-                  <div className="text-4xl">{(siegeResult.killCount || siegeResult.silverReward || siegeResult.contributionReward) ? '⚔️' : '💀'}</div>
-                  <div className="text-xl font-bold text-amber-400">战斗结算</div>
-                  {siegeResult.silverReward > 0 && <div className="text-amber-300 text-sm">💰 获得 {siegeResult.silverReward} 银两</div>}
-                  {siegeResult.reputationReward > 0 && <div className="text-yellow-300 text-sm">⭐ 获得 {siegeResult.reputationReward} 声望</div>}
-                  {siegeResult.contributionReward > 0 && (
-                    <div className="text-sky-300 text-sm">贡献 +{siegeResult.contributionReward}</div>
-                  )}
-                  {siegeResult.equipmentDrop && (
-                    <div
-                      className="text-sm font-medium"
-                      style={{ color: getRarityHex(siegeResult.equipmentDrop.rarity) }}
-                    >
-                      🎁 攻城战后随机掉落（约 5%）：{siegeResult.equipmentDrop.name}（{getRarityLabelCn(siegeResult.equipmentDrop.rarity)}）
-                    </div>
-                  )}
-                  {Array.isArray(siegeResult.chestRewards) && siegeResult.chestRewards.length > 0 && (
-                    <div className="mt-1 space-y-1 border-t border-amber-500/25 pt-2 text-left text-sm">
-                      <div className="text-[11px] text-stone-500">📦 地图内宝箱</div>
-                      {siegeResult.chestRewards.map((r, i) => (
-                        <div
-                          key={`${r.equipmentId || 'eq'}-${i}`}
-                          className="text-sm font-medium"
-                          style={{ color: getRarityHex(r.rarity) }}
-                        >
-                          {shortEquipmentDisplayName(r.name)}（{getRarityLabelCn(r.rarity)}）
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  {siegeResult.killCount != null && <div className="text-sm text-gray-300">本场击杀：{siegeResult.killCount}</div>}
-                  <div className="text-sm text-gray-400">
-                    NPC守军：本场消灭 {siegeResult.killCount ?? 0} 支
-                    {siegeResult.npcTotal != null && siegeResult.npcTotal > 0 && (
-                      <>
-                        {' '}
-                        · 累计已消灭 {siegeResult.npcKilled}/{siegeResult.npcTotal}
-                      </>
-                    )}
-                  </div>
-                  {Array.isArray(siegeResult.authoritativeBattleLog) && siegeResult.authoritativeBattleLog.length > 0 && (
-                    <>
-                      <AuthoritativeSiegeReplayButton
-                        battleLogLines={siegeResult.authoritativeBattleLog}
-                        initialAttackerTroops={siegeResult.initialAttackerTroops}
-                        initialDefenderTroops={siegeResult.initialDefenderTroops}
-                      />
-                      <details className="mt-2 max-h-32 overflow-y-auto text-left text-[11px] text-stone-400">
-                        <summary className="cursor-pointer text-amber-500/90">文字战报（服务端）</summary>
-                        <pre className="mt-1 whitespace-pre-wrap font-sans">{siegeResult.authoritativeBattleLog.join('\n')}</pre>
-                      </details>
-                    </>
-                  )}
-                  {siegeResult.killCount === 0 && <div className="text-xs text-stone-500">（目标已被其他玩家击杀，无新增奖励）</div>}
-                  {siegeResult.siegeCompleted && (
-                    <div className="rounded-lg border border-amber-500/30 bg-amber-900/50 p-3">
-                      <div className="font-bold text-amber-400">🏰 城池攻破！</div>
-                    </div>
-                  )}
-                  <button
-                    type="button"
-                    onClick={closeSiegeResult}
-                    className="w-full rounded-lg bg-gradient-to-r from-amber-700 to-yellow-700 py-2.5 text-sm font-bold text-amber-100"
-                  >
-                    确定
-                  </button>
-                </div>
-              </div>
+            {!banditRaidData && siegeResult ? (
+              <StrategicSettlementCard
+                onConfirm={closeSiegeResult}
+                settlementKind="siege"
+                silverReward={siegeResult.silverReward}
+                reputationReward={siegeResult.reputationReward}
+                contributionReward={siegeResult.contributionReward}
+                equipmentDrop={siegeResult.equipmentDrop ?? null}
+                chestRewards={siegeResult.chestRewards}
+                killCount={siegeResult.killCount}
+                siegeNpcKilled={siegeResult.npcKilled}
+                siegeNpcTotal={siegeResult.npcTotal}
+                authoritativeBattleLog={siegeResult.authoritativeBattleLog}
+                initialAttackerTroops={siegeResult.initialAttackerTroops}
+                initialDefenderTroops={siegeResult.initialDefenderTroops}
+                showZeroKillNote={siegeResult.killCount === 0}
+                siegeCompleted={!!siegeResult.siegeCompleted}
+                battleReportFailed={false}
+              />
+            ) : null}
+            {banditRaidResult ? (
+              <StrategicSettlementCard
+                onConfirm={closeBanditRaidResult}
+                onBanditContinue={
+                  banditRaidResult.result === 'victory' ? handleBanditRaidContinue : null
+                }
+                banditOutcome={banditRaidResult.result}
+                settlementKind="bandit"
+                silverReward={banditRaidResult.silverReward}
+                reputationReward={banditRaidResult.reputationReward}
+                contributionReward={0}
+                equipmentDrop={null}
+                chestRewards={banditRaidResult.meta?.chestRewards}
+                killCount={null}
+                banditOpponentName={banditRaidResult.opponentName}
+                tacticalScoreText={banditRaidResult.tacticalScoreText}
+                authoritativeBattleLog={null}
+                initialAttackerTroops={null}
+                initialDefenderTroops={null}
+                showZeroKillNote={false}
+                siegeCompleted={false}
+                battleReportFailed={banditRaidResult.meta?.battleReportSaved === false}
+                extraFooterNote={banditRaidResult.defeatHint}
+              />
             ) : null}
           </div>,
           document.body,
