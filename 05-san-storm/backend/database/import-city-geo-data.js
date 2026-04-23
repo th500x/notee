@@ -20,6 +20,7 @@
  *   - 种子 JSON 里 `initialFactionId` 若为 `""` 会规范为 SQL NULL，避免误写入空串触发外键失败。
  *   - **status**：`faction_id` 非空时写入 `owned`（叙事/开局归属与大地图「势力」展示、攻城同势力判定一致）；
  *     无势力则为 `neutral`。与 `cityService.isCityOccupiedForNpcGarrison` 及管理页「归属势力方」批量逻辑对齐。
+ *   - **position_x / position_y**：种子缺省（JSON 无字段或为 null）时，**重复导入不覆盖**库内已有坐标（避免冲掉管理端「坐标入库」）；种子显式给出数值（含 0）时仍按种子更新。
  *   - 写入 `wilderness_enabled` / `market_enabled` / `initial_lord_character_id`（来自 JSON 布尔与 `initialLordCharacterId`）；**不使用** `parent_city_id`。
  *
  * 用法:
@@ -196,8 +197,8 @@ async function insertCityRow(conn, c) {
       wilderness_enabled = VALUES(wilderness_enabled),
       market_enabled = VALUES(market_enabled),
       initial_lord_character_id = VALUES(initial_lord_character_id),
-      position_x = VALUES(position_x),
-      position_y = VALUES(position_y),
+      position_x = IF(VALUES(position_x) IS NOT NULL, VALUES(position_x), cities.position_x),
+      position_y = IF(VALUES(position_y) IS NOT NULL, VALUES(position_y), cities.position_y),
       population = VALUES(population),
       trading = VALUES(trading),
       farming = VALUES(farming),

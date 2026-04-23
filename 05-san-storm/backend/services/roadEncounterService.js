@@ -74,35 +74,6 @@ function toInt(v) {
   return Number.isFinite(n) ? Math.trunc(n) : null;
 }
 
-/** TEMP：moveAlongRoad 诊断（边界寻路问题定位后整段删除）。 */
-function roadMoveDebugStepKey(step) {
-  const x = toInt(step?.x);
-  const y = toInt(step?.y);
-  return x != null && y != null ? `${x},${y}` : null;
-}
-
-/** 对比请求 path 与权威 resolvedPath（同索引格键 `gx,gy`）。 */
-function compareClientServerPathForDebug(clientPath, serverPath) {
-  const cl = Array.isArray(clientPath) ? clientPath.length : 0;
-  const sl = Array.isArray(serverPath) ? serverPath.length : 0;
-  const max = Math.max(cl, sl);
-  for (let i = 0; i < max; i++) {
-    const ck = i < cl ? roadMoveDebugStepKey(clientPath[i]) : null;
-    const sk = i < sl ? roadMoveDebugStepKey(serverPath[i]) : null;
-    if (ck !== sk) {
-      return {
-        match: false,
-        firstMismatchIndex: i,
-        clientLen: cl,
-        serverLen: sl,
-        clientKey: ck,
-        serverKey: sk,
-      };
-    }
-  }
-  return { match: true, firstMismatchIndex: null, clientLen: cl, serverLen: sl };
-}
-
 function buildPlayerRoadSnapshot(player) {
   return {
     road_jun_id: player.road_jun_id || null,
@@ -599,66 +570,10 @@ async function moveAlongRoad(playerId, body) {
         );
       }
       if (!bfsPath?.length) {
-        console.error(
-          '[roadMoveDebug]',
-          JSON.stringify({
-            tag: 'moveAlongRoad:noBfsPath',
-            pid,
-            season,
-            junId,
-            endKey,
-            startKeyIfRoad,
-            onRoadForBfs,
-            roadPassableCount: roadPassableForMarch.size,
-            gridCellsCount: grid.cells ? grid.cells.size : 0,
-          }),
-        );
         await conn.rollback();
         return { ok: false, status: 400, error: '无法沿道路到达目标道路格' };
       }
       resolvedPath = bfsPath;
-    }
-
-    try {
-      const dbg = {
-        tag: 'moveAlongRoad:resolved',
-        pid,
-        rid:
-          clientRequestId.length > 12
-            ? `${String(clientRequestId).slice(0, 10)}…`
-            : clientRequestId,
-        season,
-        junId,
-        hasTargetPoiId: Boolean(targetPoiIdRaw),
-        targetPoiId: targetPoiIdRaw || undefined,
-        gridSource: grid.source,
-        mapColumns: grid.mapColumns,
-        mapRows: grid.mapRows,
-        gridCellsCount: grid.cells ? grid.cells.size : 0,
-        roadPassableCount: roadPassableForMarch.size,
-        roadCellsRawLen: Array.isArray(grid.roadCellsRaw) ? grid.roadCellsRaw.length : 0,
-        resolvedLen: resolvedPath.length,
-        resolvedStart: roadMoveDebugStepKey(resolvedPath[0]),
-        resolvedEnd: roadMoveDebugStepKey(resolvedPath[resolvedPath.length - 1]),
-        playerRoadJun: player.road_jun_id || null,
-        playerRoadPos: [toInt(player.road_position_x), toInt(player.road_position_y)],
-      };
-      dbg.roadBoundaryCellCount = marchPoi.computeRoadBoundaryKeys(
-        roadPassableForMarch,
-        grid.mapColumns,
-        grid.mapRows,
-      ).size;
-      if (!targetPoiIdRaw && Array.isArray(body.path)) {
-        dbg.clientPathLen = body.path.length;
-        dbg.clientEnd = roadMoveDebugStepKey(body.path[body.path.length - 1]);
-        dbg.pathCompare = compareClientServerPathForDebug(body.path, resolvedPath);
-      }
-      if (targetPoiIdRaw && poiAnchorEnd) {
-        dbg.poiAnchorEnd = poiAnchorEnd;
-      }
-      console.error('[roadMoveDebug]', JSON.stringify(dbg));
-    } catch (logErr) {
-      console.error('[roadMoveDebug] log failed', logErr && logErr.message);
     }
 
     const pathShapeErr = validatePathShape(resolvedPath);
@@ -773,6 +688,74 @@ async function moveAlongRoad(playerId, body) {
     }
 
     if (!steps.length) {
+      const axSnap = poiAnchorEnd != null ? toInt(poiAnchorEnd.x) : null;
+      const aySnap = poiAnchorEnd != null ? toInt(poiAnchorEnd.y) : null;
+      const canPoiSnapFromAdjRoad =
+        !!targetPoiIdRaw &&
+        poiAnchorEnd != null &&
+        Number.isFinite(axSnap) &&
+        Number.isFinite(aySnap) &&
+        onRoad &&
+        startX != null &&
+        startY != null &&
+        String(player.road_jun_id || '').trim() === String(junId).trim() &&
+        resolvedPath.length === 1 &&
+        toInt(resolvedPath[0].x) === startX &&
+        toInt(resolvedPath[0].y) === startY;
+
+      if (canPoiSnapFromAdjRoad) {
+        const [trapRows0] = await conn.query(
+          `SELECT encounter_id, position_x, position_y
+             FROM road_encounters
+            WHERE status = 'fighting' AND season = ? AND jun_id = ?
+              AND position_x = ? AND position_y = ?
+              AND (attacker_player_id = ? OR defender_player_id = ?)
+            LIMIT 1`,
+          [season, junId, startX, startY, pid, pid],
+        );
+        if (trapRows0.length) {
+          await conn.rollback();
+          return {
+            ok: false,
+            status: 409,
+            error:
+              '道路遭遇进行中，本场结束前不可离开交战格（若已收到遇袭提示，可点「确定」进场观战）',
+          };
+        }
+        await resolveStaleRoadEncountersAtCell(conn, season, junId, startX, startY);
+        await resolveAbandonedRoadFightOnCellIfOpponentOffline(conn, season, junId, startX, startY, pid);
+
+        await conn.query(
+          `UPDATE players SET road_last_request_id = ?, road_jun_id = ?, road_position_x = ?, road_position_y = ?, road_updated_at = NOW() WHERE player_id = ?`,
+          [clientRequestId, junId, axSnap, aySnap, pid],
+        );
+        await conn.commit();
+        const [finalRowsSnap] = await pool.query(
+          `SELECT food, road_jun_id, road_position_x, road_position_y, road_intercept, road_updated_at,
+                  road_move_free_used, road_reserve_used
+             FROM players WHERE player_id = ?`,
+          [pid],
+        );
+        const finSnap = finalRowsSnap[0] || {};
+        return {
+          ok: true,
+          data: {
+            ...buildPlayerRoadSnapshot(finSnap),
+            food: Number(finSnap.food) || 0,
+            idempotent: false,
+            path: resolvedPath,
+            stepsApplied: 0,
+            poiAnchor: poiAnchorEnd,
+            targetPoiId: targetPoiIdRaw,
+            costFood: 0,
+            costFreeSteps: 0,
+            costReserveFood: 0,
+            encounter: null,
+            defenderAutoRetreats: [],
+          },
+        };
+      }
+
       // 等价于原地路径；为避免扣费又告知起点一致，直接视为 noop 幂等成功。
       await conn.query(`UPDATE players SET road_last_request_id = ? WHERE player_id = ?`, [clientRequestId, pid]);
       await conn.commit();

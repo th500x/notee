@@ -18,6 +18,7 @@ export default function StrategicMarchMoveConfirm({
   if (!open) return null;
 
   const p = preview || {};
+  const adjRoadEnterPoi = !!poiTargetName && pathLength === 1 && Number(p.steps) === 0;
   const reserveWarn = p.reserveExceeded
     ? `势力池垫粮将超出当日上限（还差 ${Math.max(0, (p.reserveFromFaction || 0) - (p.reserveRemaining || 0))}），请缩短路程或改日再试。`
     : null;
@@ -42,15 +43,24 @@ export default function StrategicMarchMoveConfirm({
           </p>
         ) : null}
         <p className="mt-2 text-sm leading-relaxed text-stone-300">
-          本段共 <strong className="text-amber-200">{pathLength}</strong> 步（道路邻接）。
-          {p.freeSteps != null ? (
+          {adjRoadEnterPoi ? (
             <>
-              {' '}
-              其中免费格 <strong>{p.freeSteps}</strong>，需扣粮 <strong>{p.paidSteps || 0}</strong> 格 ×10 =
-              <strong className="text-amber-200"> {p.totalFoodCost ?? 0}</strong> 粮草（先个人粮草{' '}
-              <strong>{p.foodFromPlayer ?? 0}</strong>，不足部分势力池 <strong>{p.reserveFromFaction ?? 0}</strong>）。
+              您已在目标邻接道路上，确认后将<strong className="text-amber-200">直接进入城寨锚格</strong>
+              ，本段<strong className="text-amber-200">不消耗沿路步数与粮草</strong>。
             </>
-          ) : null}
+          ) : (
+            <>
+              本段共 <strong className="text-amber-200">{pathLength}</strong> 步（道路邻接）。
+              {p.freeSteps != null ? (
+                <>
+                  {' '}
+                  其中免费格 <strong>{p.freeSteps}</strong>，需扣粮 <strong>{p.paidSteps || 0}</strong> 格 ×10 =
+                  <strong className="text-amber-200"> {p.totalFoodCost ?? 0}</strong> 粮草（先个人粮草{' '}
+                  <strong>{p.foodFromPlayer ?? 0}</strong>，不足部分势力池 <strong>{p.reserveFromFaction ?? 0}</strong>）。
+                </>
+              ) : null}
+            </>
+          )}
         </p>
         {encounterHint ? (
           <p className="mt-2 rounded border border-amber-900/60 bg-amber-950/40 px-2 py-1.5 text-xs text-amber-100/95">{encounterHint}</p>

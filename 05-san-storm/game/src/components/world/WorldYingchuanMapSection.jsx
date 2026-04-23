@@ -773,7 +773,8 @@ export default function WorldYingchuanMapSection({
         onRoadAtStart: pathRes.onRoadAtStart,
         player: ctxPlayer,
       });
-      if (!preview.steps) {
+      // 无 targetPoiId：纯道路点选，0 步即原地。有 targetPoiId：可能已在城/寨邻接道路上，仍应允许确认入城（城心锚格）。
+      if (!preview.steps && !pathRes.targetPoiId) {
         setMarchToast({ type: 'info', message: '目标与当前立点相同，无需移动' });
         return;
       }
