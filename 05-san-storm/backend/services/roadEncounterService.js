@@ -74,12 +74,7 @@ function toInt(v) {
   return Number.isFinite(n) ? Math.trunc(n) : null;
 }
 
-/** 生产/本地对照道路寻路：设 `SAN_STORM_ROAD_MOVE_DEBUG=1` 后每次 `moveAlongRoad` 打一行 JSON（勿长期开）。 */
-function isRoadMoveDebugEnabled() {
-  const v = String(process.env.SAN_STORM_ROAD_MOVE_DEBUG || '').trim().toLowerCase();
-  return v === '1' || v === 'true' || v === 'yes';
-}
-
+/** TEMP：moveAlongRoad 诊断（边界寻路问题定位后整段删除）。 */
 function roadMoveDebugStepKey(step) {
   const x = toInt(step?.x);
   const y = toInt(step?.y);
@@ -604,70 +599,66 @@ async function moveAlongRoad(playerId, body) {
         );
       }
       if (!bfsPath?.length) {
-        if (isRoadMoveDebugEnabled()) {
-          console.log(
-            '[roadMoveDebug]',
-            JSON.stringify({
-              tag: 'moveAlongRoad:noBfsPath',
-              pid,
-              season,
-              junId,
-              endKey,
-              startKeyIfRoad,
-              onRoadForBfs,
-              roadPassableCount: roadPassableForMarch.size,
-              gridCellsCount: grid.cells ? grid.cells.size : 0,
-            }),
-          );
-        }
+        console.error(
+          '[roadMoveDebug]',
+          JSON.stringify({
+            tag: 'moveAlongRoad:noBfsPath',
+            pid,
+            season,
+            junId,
+            endKey,
+            startKeyIfRoad,
+            onRoadForBfs,
+            roadPassableCount: roadPassableForMarch.size,
+            gridCellsCount: grid.cells ? grid.cells.size : 0,
+          }),
+        );
         await conn.rollback();
         return { ok: false, status: 400, error: '无法沿道路到达目标道路格' };
       }
       resolvedPath = bfsPath;
     }
 
-    if (isRoadMoveDebugEnabled()) {
-      try {
-        const dbg = {
-          tag: 'moveAlongRoad:resolved',
-          pid,
-          rid:
-            clientRequestId.length > 12
-              ? `${String(clientRequestId).slice(0, 10)}…`
-              : clientRequestId,
-          season,
-          junId,
-          hasTargetPoiId: Boolean(targetPoiIdRaw),
-          targetPoiId: targetPoiIdRaw || undefined,
-          gridSource: grid.source,
-          mapColumns: grid.mapColumns,
-          mapRows: grid.mapRows,
-          gridCellsCount: grid.cells ? grid.cells.size : 0,
-          roadPassableCount: roadPassableForMarch.size,
-          roadCellsRawLen: Array.isArray(grid.roadCellsRaw) ? grid.roadCellsRaw.length : 0,
-          resolvedLen: resolvedPath.length,
-          resolvedStart: roadMoveDebugStepKey(resolvedPath[0]),
-          resolvedEnd: roadMoveDebugStepKey(resolvedPath[resolvedPath.length - 1]),
-          playerRoadJun: player.road_jun_id || null,
-          playerRoadPos: [toInt(player.road_position_x), toInt(player.road_position_y)],
-        };
-        dbg.roadBoundaryCellCount = marchPoi.computeRoadBoundaryKeys(
-          roadPassableForMarch,
-          grid.mapColumns,
-          grid.mapRows,
-        ).size;
-        if (!targetPoiIdRaw && Array.isArray(body.path)) {
-          dbg.clientPathLen = body.path.length;
-          dbg.clientEnd = roadMoveDebugStepKey(body.path[body.path.length - 1]);
-          dbg.pathCompare = compareClientServerPathForDebug(body.path, resolvedPath);
-        }
-        if (targetPoiIdRaw && poiAnchorEnd) {
-          dbg.poiAnchorEnd = poiAnchorEnd;
-        }
-        console.log('[roadMoveDebug]', JSON.stringify(dbg));
-      } catch (logErr) {
-        console.warn('[roadMoveDebug] log failed', logErr && logErr.message);
+    try {
+      const dbg = {
+        tag: 'moveAlongRoad:resolved',
+        pid,
+        rid:
+          clientRequestId.length > 12
+            ? `${String(clientRequestId).slice(0, 10)}…`
+            : clientRequestId,
+        season,
+        junId,
+        hasTargetPoiId: Boolean(targetPoiIdRaw),
+        targetPoiId: targetPoiIdRaw || undefined,
+        gridSource: grid.source,
+        mapColumns: grid.mapColumns,
+        mapRows: grid.mapRows,
+        gridCellsCount: grid.cells ? grid.cells.size : 0,
+        roadPassableCount: roadPassableForMarch.size,
+        roadCellsRawLen: Array.isArray(grid.roadCellsRaw) ? grid.roadCellsRaw.length : 0,
+        resolvedLen: resolvedPath.length,
+        resolvedStart: roadMoveDebugStepKey(resolvedPath[0]),
+        resolvedEnd: roadMoveDebugStepKey(resolvedPath[resolvedPath.length - 1]),
+        playerRoadJun: player.road_jun_id || null,
+        playerRoadPos: [toInt(player.road_position_x), toInt(player.road_position_y)],
+      };
+      dbg.roadBoundaryCellCount = marchPoi.computeRoadBoundaryKeys(
+        roadPassableForMarch,
+        grid.mapColumns,
+        grid.mapRows,
+      ).size;
+      if (!targetPoiIdRaw && Array.isArray(body.path)) {
+        dbg.clientPathLen = body.path.length;
+        dbg.clientEnd = roadMoveDebugStepKey(body.path[body.path.length - 1]);
+        dbg.pathCompare = compareClientServerPathForDebug(body.path, resolvedPath);
       }
+      if (targetPoiIdRaw && poiAnchorEnd) {
+        dbg.poiAnchorEnd = poiAnchorEnd;
+      }
+      console.error('[roadMoveDebug]', JSON.stringify(dbg));
+    } catch (logErr) {
+      console.error('[roadMoveDebug] log failed', logErr && logErr.message);
     }
 
     const pathShapeErr = validatePathShape(resolvedPath);
