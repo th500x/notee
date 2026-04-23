@@ -191,7 +191,7 @@ export default function WorldYingchuanMapSection({
   strategicMapEventHintSuppressed = false,
   /** 探索结算后指引文案（`event_hint`）；锚在本人路点漫画对白框 */
   pendingMapEventHint = null,
-  /** 向 `useEventSystem` 提交战略格网上下文，用于 `exploreLocationId` 与城 footprint 对齐（教程链 `{city_medium}` 等） */
+  /** 向 `useEventSystem` 提交战略格网上下文，用于 `exploreLocationId` 与城 POI footprint 内落格对齐（`{city_*}` 等到城才匹配） */
   onExploreAnchorGridContext = null,
   /** 匪寨：战略 tooltip 内扣次成功后由 `WorldMap` 打开小型图战斗 */
   onStartBanditRaid = null,

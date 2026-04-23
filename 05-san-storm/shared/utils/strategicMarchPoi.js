@@ -1,6 +1,9 @@
 /**
  * 战略行军：城心 / 匪寨 POI 终点（31-6 §9.4）。
  * 与 `game/src/utils/strategicRoadMarchPath.js`、`roadEncounterService.moveAlongRoad` 共用寻路语义。
+ *
+ * 道路最短路：边界格（四邻存在非道路）默认可作 **仅起点/终点**；BFS 禁作途经，无内道宽时回退全道路网。
+ * 等长路回溯：用 **走廊向内深度** 打破平局（勿用离地图矩形边的距离）。
  */
 
 import {
@@ -219,6 +222,94 @@ export function buildRoadPassableKeySetForMarch(roadCells, cells, mapColumns, ma
   return set;
 }
 
+/**
+ * 道路格中与「非道路」四邻的格子（道路子图嵌入网格的边界格）。
+ * 用于：① 最短路途经禁穿边界（仅起点/终点可落位，与产品「不贴外缘跑」一致）；② 走廊深度（离该边界越远越「内道」）。
+ */
+export function computeRoadBoundaryKeys(roadPassable, mapColumns, mapRows) {
+  const out = new Set();
+  for (const k of roadPassable) {
+    const [x, y] = k.split(',').map(Number);
+    let touchesOffRoad = false;
+    for (const [dx, dy] of DIRS4) {
+      const nx = x + dx;
+      const ny = y + dy;
+      if (nx < 0 || ny < 0 || nx >= mapColumns || ny >= mapRows) {
+        touchesOffRoad = true;
+        break;
+      }
+      const nk = `${nx},${ny}`;
+      if (!roadPassable.has(nk)) {
+        touchesOffRoad = true;
+        break;
+      }
+    }
+    if (touchesOffRoad) out.add(k);
+  }
+  return out;
+}
+
+/**
+ * 从所有道路边界格多源 BFS 向内填层数：边界为 0，越靠走廊内部数字越大（单格宽道路全为 0）。
+ * @param {Set<string>} boundaryKeys - `computeRoadBoundaryKeys` 结果
+ * @returns {Map<string, number>}
+ */
+export function computeRoadCorridorInwardDepth(roadPassable, boundaryKeys, mapColumns, mapRows) {
+  const depth = new Map();
+  const queue = [];
+  for (const k of boundaryKeys) {
+    if (!roadPassable.has(k)) continue;
+    depth.set(k, 0);
+    queue.push(k);
+  }
+  while (queue.length) {
+    const k = queue.shift();
+    const d = depth.get(k);
+    const [x, y] = k.split(',').map(Number);
+    for (const [dx, dy] of DIRS4) {
+      const nx = x + dx;
+      const ny = y + dy;
+      if (nx < 0 || ny < 0 || nx >= mapColumns || ny >= mapRows) continue;
+      const nk = `${nx},${ny}`;
+      if (!roadPassable.has(nk) || depth.has(nk)) continue;
+      depth.set(nk, d + 1);
+      queue.push(nk);
+    }
+  }
+  return depth;
+}
+
+/**
+ * 道路 BFS：四邻 `nk` 若为道路边界格，则仅当 `nk ∈ boundaryBypass` 时允许进入（用于「边界不可穿越、仅端点可落」）。
+ */
+function bfsRoadDistancesWithBoundaryBypass(roadPassable, boundaryKeys, seedKeys, boundaryBypass, mapColumns, mapRows) {
+  const dist = new Map();
+  const queue = [];
+  const seeds = [...seedKeys].filter((sk) => roadPassable.has(sk));
+  for (const sk of seeds) {
+    if (!dist.has(sk)) {
+      dist.set(sk, 0);
+      queue.push(sk);
+    }
+  }
+  while (queue.length) {
+    const k = queue.shift();
+    const d = dist.get(k);
+    const [x, y] = k.split(',').map(Number);
+    for (const [dx, dy] of DIRS4) {
+      const nx = x + dx;
+      const ny = y + dy;
+      if (nx < 0 || ny < 0 || nx >= mapColumns || ny >= mapRows) continue;
+      const nk = `${nx},${ny}`;
+      if (!roadPassable.has(nk) || dist.has(nk)) continue;
+      if (boundaryKeys.has(nk) && !boundaryBypass.has(nk)) continue;
+      dist.set(nk, d + 1);
+      queue.push(nk);
+    }
+  }
+  return dist;
+}
+
 /** 道路子图 BFS 最短路长（步数） */
 function bfsRoadDistances(roadPassable, seedKeys, mapColumns, mapRows) {
   const dist = new Map();
@@ -247,10 +338,6 @@ function bfsRoadDistances(roadPassable, seedKeys, mapColumns, mapRows) {
   return dist;
 }
 
-function edgeDistanceToMapBounds(x, y, mapColumns, mapRows) {
-  return Math.min(x, y, mapColumns - 1 - x, mapRows - 1 - y);
-}
-
 function manhattanToCell(nx, ny, gx, gy) {
   return Math.abs(nx - gx) + Math.abs(ny - gy);
 }
@@ -259,19 +346,31 @@ function manhattanToCell(nx, ny, gx, gy) {
  * 从 cur 沿最短路向起点方向退一步。
  * 在「distFrom 比 cur 浅 1」且落在 **某条** s→t 最短路上的邻格中选前驱。
  *
- * 注意：等长最短路时所有合法前驱的 distTo 相同，仅靠「离边更远」仍是软启发，会出现先贴地图边再折向目标。
- * 定稿（与产品一致）：**绝对优先**禁止「前一步更靠内、当前步严格更靠边界」的边（前驱 pred→cur 若 ed(cur)<ed(pred) 视为朝边界走）；
- * 仅当所有最短路前驱都会触发该情况时才回退接受。再按更靠内、再按更靠近终点格 (endGx,endGy) 打破平局。
+ * 平局：**道路走廊深度**（`computeRoadCorridorInwardDepth`：离「贴非道路」的道路边界越远越大）。
+ * 曾用「离地图矩形边」距离，与道路外缘无关，易把部队线拽成贴道路边界/贴图边；已废弃。
+ *
+ * 过滤：优先排除「从更靠走廊内部的格走到更靠边界的外侧格」的一步（rdCur < c.rd）；若过滤后为空则回退接受全部最短路前驱。
+ * 再按 rd 更大（更内道）、再按更靠近终点格 (endGx,endGy)、再按字典序。
  */
-function pickPredecessorTowardStart(roadPassable, curKey, distFrom, distTo, mapColumns, mapRows, endGx, endGy) {
-  const [cx, cy] = curKey.split(',').map(Number);
+function pickPredecessorTowardStart(
+  roadPassable,
+  curKey,
+  distFrom,
+  distTo,
+  mapColumns,
+  mapRows,
+  endGx,
+  endGy,
+  corridorDepth,
+) {
   const depth = distFrom.get(curKey);
   if (depth == null || depth <= 0) return null;
-  const edCur = edgeDistanceToMapBounds(cx, cy, mapColumns, mapRows);
+  const rdCur = corridorDepth.get(curKey) ?? 0;
 
-  /** @type {{ nk: string, dto: number, ed: number, manEnd: number }[]} */
+  /** @type {{ nk: string, dto: number, rd: number, manEnd: number }[]} */
   const onShortest = [];
   let minDto = Infinity;
+  const [cx, cy] = curKey.split(',').map(Number);
   for (const [dx, dy] of DIRS4) {
     const nx = cx + dx;
     const ny = cy + dy;
@@ -285,7 +384,7 @@ function pickPredecessorTowardStart(roadPassable, curKey, distFrom, distTo, mapC
     onShortest.push({
       nk,
       dto,
-      ed: edgeDistanceToMapBounds(nx, ny, mapColumns, mapRows),
+      rd: corridorDepth.get(nk) ?? 0,
       manEnd: manhattanToCell(nx, ny, endGx, endGy),
     });
   }
@@ -294,16 +393,16 @@ function pickPredecessorTowardStart(roadPassable, curKey, distFrom, distTo, mapC
   const sp = onShortest.filter((c) => c.dto === minDto);
   if (!sp.length) return null;
 
-  const noBoundaryStep = sp.filter((c) => edCur >= c.ed);
+  const noBoundaryStep = sp.filter((c) => rdCur >= c.rd);
   const pool = noBoundaryStep.length ? noBoundaryStep : sp;
 
   let best = pool[0];
   for (let i = 1; i < pool.length; i++) {
     const c = pool[i];
     if (
-      c.ed > best.ed ||
-      (c.ed === best.ed && c.manEnd < best.manEnd) ||
-      (c.ed === best.ed && c.manEnd === best.manEnd && c.nk < best.nk)
+      c.rd > best.rd ||
+      (c.rd === best.rd && c.manEnd < best.manEnd) ||
+      (c.rd === best.rd && c.manEnd === best.manEnd && c.nk < best.nk)
     ) {
       best = c;
     }
@@ -311,14 +410,25 @@ function pickPredecessorTowardStart(roadPassable, curKey, distFrom, distTo, mapC
   return best.nk;
 }
 
-function reconstructShortestPathGoalBiased(roadPassable, distFrom, endKey, mapColumns, mapRows) {
+function reconstructShortestPathGoalBiased(roadPassable, distFrom, distTo, endKey, mapColumns, mapRows) {
   if (!distFrom.has(endKey)) return null;
+  const boundaryKeys = computeRoadBoundaryKeys(roadPassable, mapColumns, mapRows);
+  const corridorDepth = computeRoadCorridorInwardDepth(roadPassable, boundaryKeys, mapColumns, mapRows);
   const [endGx, endGy] = endKey.split(',').map(Number);
-  const distTo = bfsRoadDistances(roadPassable, [endKey], mapColumns, mapRows);
   const keysRev = [endKey];
   let cur = endKey;
   while (distFrom.get(cur) > 0) {
-    const pred = pickPredecessorTowardStart(roadPassable, cur, distFrom, distTo, mapColumns, mapRows, endGx, endGy);
+    const pred = pickPredecessorTowardStart(
+      roadPassable,
+      cur,
+      distFrom,
+      distTo,
+      mapColumns,
+      mapRows,
+      endGx,
+      endGy,
+      corridorDepth,
+    );
     if (!pred) return null;
     keysRev.push(pred);
     cur = pred;
@@ -332,16 +442,34 @@ function reconstructShortestPathGoalBiased(roadPassable, distFrom, endKey, mapCo
 
 function bfsShortestPath(roadPassable, startKey, endKey, mapColumns, mapRows) {
   if (!roadPassable.has(startKey) || !roadPassable.has(endKey)) return null;
-  const distFrom = bfsRoadDistances(roadPassable, [startKey], mapColumns, mapRows);
-  return reconstructShortestPathGoalBiased(roadPassable, distFrom, endKey, mapColumns, mapRows);
+  const boundaryKeys = computeRoadBoundaryKeys(roadPassable, mapColumns, mapRows);
+  const bypass = new Set([startKey, endKey]);
+  let distFrom = bfsRoadDistancesWithBoundaryBypass(roadPassable, boundaryKeys, [startKey], bypass, mapColumns, mapRows);
+  let distTo;
+  if (!distFrom.has(endKey)) {
+    distFrom = bfsRoadDistances(roadPassable, [startKey], mapColumns, mapRows);
+    distTo = bfsRoadDistances(roadPassable, [endKey], mapColumns, mapRows);
+  } else {
+    distTo = bfsRoadDistancesWithBoundaryBypass(roadPassable, boundaryKeys, [endKey], bypass, mapColumns, mapRows);
+  }
+  return reconstructShortestPathGoalBiased(roadPassable, distFrom, distTo, endKey, mapColumns, mapRows);
 }
 
 function multiSourceBfsShortest(roadPassable, startKeys, endKey, mapColumns, mapRows) {
   if (!roadPassable.has(endKey)) return null;
   const seeds = [...startKeys].filter((sk) => roadPassable.has(sk));
   if (!seeds.length) return null;
-  const distFrom = bfsRoadDistances(roadPassable, seeds, mapColumns, mapRows);
-  return reconstructShortestPathGoalBiased(roadPassable, distFrom, endKey, mapColumns, mapRows);
+  const boundaryKeys = computeRoadBoundaryKeys(roadPassable, mapColumns, mapRows);
+  const bypass = new Set([...seeds, endKey]);
+  let distFrom = bfsRoadDistancesWithBoundaryBypass(roadPassable, boundaryKeys, seeds, bypass, mapColumns, mapRows);
+  let distTo;
+  if (!distFrom.has(endKey)) {
+    distFrom = bfsRoadDistances(roadPassable, seeds, mapColumns, mapRows);
+    distTo = bfsRoadDistances(roadPassable, [endKey], mapColumns, mapRows);
+  } else {
+    distTo = bfsRoadDistancesWithBoundaryBypass(roadPassable, boundaryKeys, [endKey], bypass, mapColumns, mapRows);
+  }
+  return reconstructShortestPathGoalBiased(roadPassable, distFrom, distTo, endKey, mapColumns, mapRows);
 }
 
 /** 与文件内 `bfsShortestPath` 同语义，供 game 侧 `@/utils/strategicRoadMarchPath` 复用 */

@@ -354,9 +354,9 @@ export default function useEventSystem(player, cards, options = {}) {
   }, []);
 
   /**
-   * 当前探索锚点 `city_id`：
+   * 当前探索锚点 `city_id`（「到了哪座城」）：
    * - 事件进行中由本局已选 `startExplore(override)` 保持，不随地图移动被冲掉；
-   * - **IDLE** 时以 `road_*` + `cities` 库坐标解析的立足城为准（M2 按位置抽池），随移动/回城更新。
+   * - **IDLE** 时：路格须在城 **POI footprint 内**（或库 `position_*` 与路格一致）才更新；**非**路边即算到城（见 `resolveExploreAnchorCityIdFromStrategicGrid`）。
    * 池过滤见 `filterExploreEventsPool` + `exploreLocationMatchesEvent`。
    */
   const [exploreLocationId, setExploreLocationId] = useState(null);
