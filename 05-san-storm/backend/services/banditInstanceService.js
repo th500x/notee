@@ -6,7 +6,9 @@ const fs = require('fs');
 const path = require('path');
 const { pool } = require('../database/connection');
 const { readStrategicCellAnchorId } = require('../../shared/utils/strategicCellAnchorId.js');
-const { YINGCHUAN_PHASE1_BANDIT_POI_IDS } = require('../../shared/utils/strategicBanditPlaceholderPhase1.js');
+const {
+  getPhase1BanditPoiIdsForJun,
+} = require('../../shared/utils/strategicBanditPlaceholderPhase1.js');
 
 const MERGED_REL_PUBLIC = 'data/worldmap/san_1_jun_yingchuan_merged.json';
 
@@ -47,24 +49,43 @@ async function ensureBanditRowsForPoiIds(banditIds, junId) {
   const jun = String(junId || '').trim() || 'san_1_jun_yingchuan';
   const ids = [...new Set((banditIds || []).map((s) => String(s || '').trim()).filter((id) => BANDIT_MAP_OBJECT_ID_RE.test(id)))].sort();
   let ensured = 0;
+  let repaired = 0;
   for (let i = 0; i < ids.length; i++) {
     const banditId = ids[i];
+    const slot = Math.min(255, i);
     const [r] = await pool.query(
-      `INSERT IGNORE INTO bandits (bandit_id, jun_id, slot_index, tile_key, max_layers, cleared_layers, status)
-       VALUES (?, ?, ?, NULL, 200, 0, 'active')`,
-      [banditId, jun, Math.min(255, i)]
+      `INSERT INTO bandits (bandit_id, jun_id, slot_index, tile_key, max_layers, cleared_layers, status)
+       VALUES (?, ?, ?, NULL, 200, 0, 'active')
+       ON DUPLICATE KEY UPDATE
+         jun_id = VALUES(jun_id),
+         slot_index = VALUES(slot_index),
+         max_layers = IF(COALESCE(max_layers, 0) <= 0, 200, max_layers),
+         cleared_layers = IF(cleared_layers IS NULL, 0, cleared_layers)`,
+      [banditId, jun, slot]
     );
-    if (r.affectedRows > 0) ensured += 1;
+    if (r.affectedRows === 1) ensured += 1;
+    else if (r.affectedRows === 2) repaired += 1;
   }
-  return { ensured, banditIds: ids };
+  return { ensured, repaired, banditIds: ids };
 }
 
 /**
- * 读取颍川合并图 JSON，按格上网匪寨锚点补全 `bandits`。
- * @param {{ mergedAbsPath?: string }|null} [options] - `mergedAbsPath`：覆盖默认 `public/data/worldmap/san_1_jun_yingchuan_merged.json`（CLI `--out` 时用）
+ * 无合并图时也可调用：按郡阶段一约定补 **`bandits`** 两行（颍川 / 汝南）。
+ * @param {string} junId
+ * @returns {Promise<{ ensured: number, repaired: number, banditIds: string[] }>}
+ */
+async function ensurePhase1BanditsForJunDb(junId) {
+  const ids = getPhase1BanditPoiIdsForJun(junId);
+  if (!ids.length) return { ensured: 0, repaired: 0, banditIds: [] };
+  return ensureBanditRowsForPoiIds([...ids], junId);
+}
+
+/**
+ * 读取单郡 `*_merged.json`，按格上网匪寨锚点补全 `bandits`（`jun_id` 取 JSON `junId`）。
+ * @param {{ mergedAbsPath?: string }|null} [options] - `mergedAbsPath`：缺省为颍川默认路径（兼容旧调用）
  * @returns {Promise<{ ok: boolean, reason?: string, junId?: string, ensured?: number, banditIds?: string[], source?: string }>}
  */
-async function syncBanditsFromYingchuanMergedDisk(options = null) {
+async function syncBanditsFromMergedDisk(options = null) {
   const abs = (options && options.mergedAbsPath) || publicMergedAbsPath();
   if (!fs.existsSync(abs)) {
     return { ok: false, reason: 'NO_MERGED_FILE', banditIds: [] };
@@ -79,22 +100,34 @@ async function syncBanditsFromYingchuanMergedDisk(options = null) {
   const junId = String(data.junId || '').trim() || 'san_1_jun_yingchuan';
   let banditIds = collectBanditPoiIdsFromCells(cells);
   let source = 'cells';
-  /** 格网未带锚点字段的旧快照：颍川阶段一仍按生成器约定补两行（与 `ensureYingchuanMergedMapCells` 一致） */
-  if (banditIds.length === 0 && junId === 'san_1_jun_yingchuan' && Array.isArray(cells) && cells.length > 0) {
-    banditIds = [...YINGCHUAN_PHASE1_BANDIT_POI_IDS];
-    source = 'phase1_fallback';
+  /** 格网未带锚点字段的旧快照：仍按阶段一约定补两行（颍川 / 汝南各一组 id） */
+  if (banditIds.length === 0 && Array.isArray(cells) && cells.length > 0) {
+    const fallback = getPhase1BanditPoiIdsForJun(junId);
+    if (fallback.length) {
+      banditIds = [...fallback];
+      source = 'phase1_fallback';
+    }
   }
   if (banditIds.length === 0) {
     return { ok: true, junId, ensured: 0, banditIds: [], reason: 'NO_BANDIT_CELLS' };
   }
-  const { ensured } = await ensureBanditRowsForPoiIds(banditIds, junId);
-  return { ok: true, junId, ensured, banditIds, source };
+  const phase1Extra = getPhase1BanditPoiIdsForJun(junId);
+  const mergedIds = [...new Set([...banditIds, ...phase1Extra])].sort();
+  const { ensured, repaired, banditIds: ensuredIds } = await ensureBanditRowsForPoiIds(mergedIds, junId);
+  return { ok: true, junId, ensured, repaired, banditIds: ensuredIds, source };
+}
+
+/** @deprecated 请使用 {@link syncBanditsFromMergedDisk} */
+async function syncBanditsFromYingchuanMergedDisk(options = null) {
+  return syncBanditsFromMergedDisk(options);
 }
 
 module.exports = {
   BANDIT_MAP_OBJECT_ID_RE,
   collectBanditPoiIdsFromCells,
   ensureBanditRowsForPoiIds,
+  ensurePhase1BanditsForJunDb,
+  syncBanditsFromMergedDisk,
   syncBanditsFromYingchuanMergedDisk,
   publicMergedAbsPath,
 };

@@ -165,6 +165,11 @@
   mix-blend-mode: multiply;
 }
 
+/* 大城立绘较满、底层 tint 不易透出：在对象层之上再叠径向叠色，与中城观感对齐 */
+.ws-map-tile .ws-faction-city-front-vignette {
+  box-sizing: border-box;
+}
+
 /* 主城含荒郊/集市入口：与 CardPoolPoolButton / 封赏卡池同系的琥珀底光 + 横向扫光（仅 2×2 锚点格） */
 .ws-subsidiary-hub-glow {
   pointer-events: none;
@@ -300,7 +305,7 @@
   pointer-events: none;
 }
 
-/* 大城 3 / 中城 2 枚竖排；小城等 1 枚 */
+/* 中城 / 大城 2 枚竖排；小城等 1 枚 */
 .ws-strategic-faction-logo-stack {
   display: flex;
   flex-direction: column;

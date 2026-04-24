@@ -29,6 +29,23 @@ export async function fetchJunPresetStatus(junId) {
   return parseJson(res);
 }
 
+/** @param {string} junId @param {'A'|'B'|'C'|'D'|string} quad */
+export async function fetchJunQuadPreset(junId, quad) {
+  const q = String(quad || '').trim().toUpperCase();
+  const res = await fetch(
+    `${base}/jun/${encodeURIComponent(junId)}/quad-preset/${encodeURIComponent(q)}`,
+  );
+  const data = await parseJson(res);
+  if (!res.ok) {
+    if (data && typeof data === 'object' && data.success === false) return data;
+    return {
+      success: false,
+      error: (data && typeof data === 'object' && data.error) || `HTTP ${res.status}`,
+    };
+  }
+  return data;
+}
+
 export async function postCoordinatesToDb(junId) {
   const res = await fetch(`${base}/coordinates-to-db`, {
     method: 'POST',

@@ -15,6 +15,33 @@ import {
 const GAP_PX = 1;
 
 /**
+ * 叠放大地图上 POI footprint 的 `keys` 为世界行 `gy`，而 `buildStrategicPoiFootprintFromDbCityRow` 的
+ * `anchorGx/anchorGy` 仍为库内郡坐标左上。像素/滚动须用 **keys 中 (gy,x) 字典序最小** 的格作为合并网左上，
+ * 否则汝南城会被画到颍川条带（本地行号被当成世界行）。
+ * @param {{ keys?: Set<string>, anchorGx: number, anchorGy: number }} fp
+ * @returns {{ gx: number, gy: number }}
+ */
+function mergedGridTopLeftFromFootprint(fp) {
+  if (!fp?.keys?.size) {
+    return { gx: Math.trunc(Number(fp?.anchorGx) || 0), gy: Math.trunc(Number(fp?.anchorGy) || 0) };
+  }
+  let bestX = Infinity;
+  let bestY = Infinity;
+  for (const k of fp.keys) {
+    const [x, y] = String(k).split(',').map(Number);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+    if (y < bestY || (y === bestY && x < bestX)) {
+      bestY = y;
+      bestX = x;
+    }
+  }
+  if (!Number.isFinite(bestX) || !Number.isFinite(bestY)) {
+    return { gx: Math.trunc(Number(fp.anchorGx) || 0), gy: Math.trunc(Number(fp.anchorGy) || 0) };
+  }
+  return { gx: bestX, gy: bestY };
+}
+
+/**
  * @param {object[][]|null|undefined} cells
  * @param {string|null|undefined} mainCityId - `players.main_city_id` / `cities.city_id`
  * @returns {{ anchorR: number, anchorC: number, footprint: '2x2' | '1x1' } | null}
@@ -156,9 +183,10 @@ export function resolveStrategicRecordedStandpointPx({
       }
     }
     if (fp) {
+      const tl = mergedGridTopLeftFromFootprint(fp);
       return {
         ...strategicPoiBlockCenterPx(
-          { anchorR: fp.anchorGy, anchorC: fp.anchorGx, width: fp.width, height: fp.height },
+          { anchorR: tl.gy, anchorC: tl.gx, width: fp.width, height: fp.height },
           tilePx,
         ),
         onRoadCell: false,
@@ -175,9 +203,10 @@ export function resolveStrategicRecordedStandpointPx({
   if (row) {
     const fpDb = buildStrategicPoiFootprintFromDbCityRow(row, mapColumns, mapRows, cells);
     if (fpDb) {
+      const tlDb = mergedGridTopLeftFromFootprint(fpDb);
       return {
         ...strategicPoiBlockCenterPx(
-          { anchorR: fpDb.anchorGy, anchorC: fpDb.anchorGx, width: fpDb.width, height: fpDb.height },
+          { anchorR: tlDb.gy, anchorC: tlDb.gx, width: fpDb.width, height: fpDb.height },
           tilePx,
         ),
         onRoadCell: false,
@@ -247,7 +276,7 @@ export function resolveStrategicRecordedStandpointCell({
       }
     }
     if (fp) {
-      return { gx: fp.anchorGx, gy: fp.anchorGy };
+      return mergedGridTopLeftFromFootprint(fp);
     }
   }
   const mid = String(mainCityId || '').trim();
@@ -259,7 +288,7 @@ export function resolveStrategicRecordedStandpointCell({
       : null);
   if (row) {
     const fpDb = buildStrategicPoiFootprintFromDbCityRow(row, mapColumns, mapRows, cells);
-    if (fpDb) return { gx: fpDb.anchorGx, gy: fpDb.anchorGy };
+    if (fpDb) return mergedGridTopLeftFromFootprint(fpDb);
   }
   const anchor = findStrategicCityAnchorForMainCity(cells, mid);
   if (!anchor) return null;

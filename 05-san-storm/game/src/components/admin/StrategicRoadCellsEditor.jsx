@@ -5,7 +5,7 @@
 import { useRef, useCallback, useMemo, useState, useLayoutEffect } from 'react';
 import {
   buildStrategicRoadOverlayPathD,
-  buildStrategicObjectFootprintBlockedSet,
+  buildStrategicRoadPaintBlockedLayers,
   ROAD_CONNECTIVITY_4,
   ROAD_CONNECTIVITY_8,
 } from '@shared/utils/strategicRoadOverlay.js';
@@ -82,10 +82,11 @@ export default function StrategicRoadCellsEditor({
     };
   }, [fixedTile, mapColumns, mapRows, maxTilePx, minTilePx, tilePxFixed]);
 
-  const blocked = useMemo(
-    () => buildStrategicObjectFootprintBlockedSet(cells, mapColumns, mapRows),
+  const blockedLayers = useMemo(
+    () => buildStrategicRoadPaintBlockedLayers(cells, mapColumns, mapRows),
     [cells, mapColumns, mapRows],
   );
+  const blocked = blockedLayers.combined;
 
   const roadKeySet = useMemo(() => new Set(roadCells.map((c) => `${c.gx},${c.gy}`)), [roadCells]);
 
@@ -170,7 +171,7 @@ export default function StrategicRoadCellsEditor({
           <option value={ROAD_CONNECTIVITY_8}>八连通（含对角）</option>
         </select>
         <span className="text-gray-500 text-xs">
-          已选 {roadCells.length} 格 · 禁区为城/关/据点 2×2（不可涂）
+          已选 {roadCells.length} 格 · 红框＝城/关/据点 2×2，紫框＝颍川阶段一匪寨骨牌（均不可涂；贴邻时易看成「叠城」，实为两类禁区并排）
           {!fixedTile ? ` · 格宽 ${tilePx}px（随窗口变化）` : ''}
         </span>
       </div>
@@ -195,19 +196,31 @@ export default function StrategicRoadCellsEditor({
           {cells.map((row, ri) =>
             row.map((cell, ci) => {
               const k = `${ci},${ri}`;
-              const isBlocked = blocked.has(k);
+              const inStrategic = blockedLayers.strategic.has(k);
+              const inBandit = blockedLayers.bandit.has(k);
+              const isBlocked = inStrategic || inBandit;
               const isRoad = roadKeySet.has(k);
+              const blockRing = inStrategic
+                ? 'ring-1 ring-red-900/50 cursor-not-allowed'
+                : inBandit
+                  ? 'ring-1 ring-violet-500/65 cursor-not-allowed'
+                  : '';
+              const blockTitle = inStrategic
+                ? `城关/据点禁区 (${ci},${ri})`
+                : inBandit
+                  ? `匪寨骨牌禁区 (${ci},${ri})`
+                  : `(${ci},${ri})`;
               return (
                 <div
                   key={k}
                   role="presentation"
-                  className={`box-border shrink-0 ${cellPreviewClass(cell)} ${
-                    isBlocked ? 'ring-1 ring-red-900/50 cursor-not-allowed' : 'cursor-crosshair'
-                  } ${isRoad && !isBlocked ? 'ring-1 ring-amber-400/55' : ''}`}
+                  className={`box-border shrink-0 ${cellPreviewClass(cell)} ${blockRing || 'cursor-crosshair'} ${
+                    isRoad && !isBlocked ? 'ring-1 ring-amber-400/55' : ''
+                  }`}
                   style={{ width: tilePx, height: tilePx }}
                   onPointerDown={(e) => !isBlocked && onCellPointerDown(e, ci, ri)}
                   onPointerEnter={(e) => !isBlocked && onCellPointerEnter(e, ci, ri)}
-                  title={isBlocked ? `禁区 (${ci},${ri})` : `(${ci},${ri})`}
+                  title={isBlocked ? blockTitle : `(${ci},${ri})`}
                 />
               );
             }),

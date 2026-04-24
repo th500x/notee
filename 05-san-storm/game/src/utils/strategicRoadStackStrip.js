@@ -52,7 +52,7 @@ export function buildStrategicRoadStackStripForFocal({
   othersRows,
 }) {
   const county = String(countyJunId || '').trim();
-  /** 同郡视图内叠站：键须与 `road-presence` 的 `junId` 一致（`WorldYingchuanMapSection` 传当前郡 `countyJunId`）。 */
+  /** 同郡视图内叠站：键须与 `road-presence` 的 `junId` 一致（`StrategicWorldMapSection` 传玩家当前 `road_jun_id` 对应郡 `countyJunId`）。 */
   const focalKey = roadCellStackKey(county, focalRx, focalRy);
   if (!focalKey || !county || !focalPlayerId) {
     return { stripPeers: [], showEllipsis: false, stackTotal: 0 };

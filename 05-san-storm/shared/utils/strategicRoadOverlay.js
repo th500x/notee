@@ -70,9 +70,15 @@ function addBanditDominoFootprintsToBlocked(cells, mapColumns, mapRows, blocked)
   }
 }
 
-export function buildStrategicObjectFootprintBlockedSet(cells, mapColumns, mapRows) {
-  const blocked = new Set();
-  if (!cells?.length) return blocked;
+/**
+ * 道路涂抹禁区：城关据点 2×2 与匪寨骨牌 2 格（并集用于判「能否画路」）。
+ * @returns {{ strategic: Set<string>, bandit: Set<string>, combined: Set<string> }} 键均为 `"gx,gy"`
+ */
+export function buildStrategicRoadPaintBlockedLayers(cells, mapColumns, mapRows) {
+  const strategic = new Set();
+  const bandit = new Set();
+  const empty = { strategic, bandit, combined: new Set() };
+  if (!cells?.length) return empty;
   for (let gy = 0; gy < mapRows; gy++) {
     for (let gx = 0; gx < mapColumns; gx++) {
       const cell = cells[gy]?.[gx];
@@ -81,13 +87,20 @@ export function buildStrategicObjectFootprintBlockedSet(cells, mapColumns, mapRo
         for (let dx = 0; dx < 2; dx++) {
           const x = gx + dx;
           const y = gy + dy;
-          if (x < mapColumns && y < mapRows) blocked.add(`${x},${y}`);
+          if (x < mapColumns && y < mapRows) strategic.add(`${x},${y}`);
         }
       }
     }
   }
-  addBanditDominoFootprintsToBlocked(cells, mapColumns, mapRows, blocked);
-  return blocked;
+  addBanditDominoFootprintsToBlocked(cells, mapColumns, mapRows, bandit);
+  const combined = new Set(strategic);
+  for (const k of bandit) combined.add(k);
+  return { strategic, bandit, combined };
+}
+
+export function buildStrategicObjectFootprintBlockedSet(cells, mapColumns, mapRows) {
+  const { combined } = buildStrategicRoadPaintBlockedLayers(cells, mapColumns, mapRows);
+  return combined;
 }
 
 /**

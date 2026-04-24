@@ -51,12 +51,12 @@ export function getStrategicFactionLogoUrl(factionId) {
 }
 
 /**
- * 战略格 2×2 锚点右下角势力六芒星个数：小城 / 关隘 / 据点等 **1**；中城 **2**；大城 **3**（竖排叠放）。
+ * 战略格 2×2 锚点右下角势力六芒星个数：小城 / 关隘 / 据点等 **1**；**中城 / 大城均为 2**（与中城立绘角标一致；大城另叠前层径向 tint 见 `WorldStrategicMapTile`）。
  * 优先 `cityRow.city_type`（与库/API），否则回退锚点格 `object`（`city_*`）。
  *
  * @param {object|null|undefined} cityRow
  * @param {string|null|undefined} effectiveObject - 锚点格 object 键
- * @returns {number} 1 | 2 | 3
+ * @returns {number} 1 | 2
  */
 export function getStrategicFactionMarkerCount(cityRow, effectiveObject) {
   const ct = cityRow?.city_type ?? cityRow?.cityType;
@@ -69,7 +69,6 @@ export function getStrategicFactionMarkerCount(cityRow, effectiveObject) {
         : effectiveObject === 'city_small'
           ? 'city_small'
           : null);
-  if (resolved === 'city_major') return 3;
-  if (resolved === 'city_medium') return 2;
+  if (resolved === 'city_major' || resolved === 'city_medium') return 2;
   return 1;
 }

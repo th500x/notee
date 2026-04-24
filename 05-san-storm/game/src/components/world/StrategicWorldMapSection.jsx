@@ -37,9 +37,14 @@ import {
 } from '@shared/utils/roadEncounterLockPassage.js';
 import StrategicMarchMoveConfirm from './StrategicMarchMoveConfirm';
 import { buildStrategicRoadStackStripForFocal, roadCellStackKey } from '@/utils/strategicRoadStackStrip';
-
-/** 与管理员「生成地图」写出路径一致：Vite publicDir → 05-san-storm/public */
-const MERGED_MAP_REL = 'data/worldmap/san_1_jun_yingchuan_merged.json';
+import {
+  buildSan1YuVerticalStackFromMergedPayloads,
+  stackWorldGyFromLocalJunRow,
+  stackLocalJunRowFromWorldGy,
+  stackWorldRowOffsetForJunId,
+  SAN_1_STRATEGIC_VERTICAL_STACK_JUN_ORDER,
+  STRATEGIC_COUNTY_MAP_ROWS,
+} from '@shared/utils/strategicWorldMapStack.js';
 
 /** 合并图缺 `seed` 时勿卡「加载中」：`buildCampaignVisualVariants` 已用 `Number(seed)||0`；此处与之一致 */
 function normalizeMergedMapSeed(data) {
@@ -152,12 +157,9 @@ function computeDefaultTilePx() {
 }
 
 /**
- * 游戏主界面大地图：颍川郡四象限合并 32×40 战略格网（缩放以滚轮 / 触控为主）。
- * 优先读取 `public/data/worldmap/san_1_jun_yingchuan_merged.json`（含 version，与后台生成一致）；
- * 读入后对 `cells` 调用 `ensureYingchuanMergedMapCells`（与生成器幂等），使旧快照仍含阶段一匪寨占位。
- * 缺失或无效时回退为 `generateYingchuanCountyMergedSimulated`（内存即时生成）。
+ * 游戏主界面战略大地图：S1 豫州颍川 + 汝南垂直拼接为单视口（`shared/utils/strategicWorldMapStack`），与 `*_merged.json` 及 `road_jun_id` 郡内坐标对齐。
  */
-export default function WorldYingchuanMapSection({
+export default function StrategicWorldMapSection({
   className = '',
   /** 由 `WorldMap` 注入：`{ current: () => void }`，用于守方道路坐标被服务端改写后立即 bump `road-presence` */
   bumpStrategicRoadPresenceRef = null,
@@ -201,6 +203,7 @@ export default function WorldYingchuanMapSection({
   postBanditRaidRefreshKey = 0,
 }) {
   const [merged, setMerged] = useState(null);
+  const [mapLoadError, setMapLoadError] = useState(null);
   const [garrisonStatsByCityId, setGarrisonStatsByCityId] = useState({});
   /**
    * 郡内他人道路 presence（仅在线 + 锁格），与 31-6 §12.2 / 02 §2.1.2（3）一致。
@@ -226,51 +229,84 @@ export default function WorldYingchuanMapSection({
 
   useEffect(() => {
     let cancelled = false;
-    const url = `${import.meta.env.BASE_URL}${MERGED_MAP_REL}`;
+    setMerged(null);
+    setMapLoadError(null);
+    const baseUrl = `${import.meta.env.BASE_URL}`;
     (async () => {
       try {
-        const res = await fetch(url, { cache: 'no-store' });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
-        if (!data || !Array.isArray(data.cells)) throw new Error('invalid merged');
-        if (cancelled) return;
-        const seed = normalizeMergedMapSeed(data);
-        const cells = ensureYingchuanMergedMapCells(data.cells, seed, {
-          roadCells: Array.isArray(data.roadCells) ? data.roadCells : null,
-          mapColumns: data.mapColumns ?? YINGCHUAN_COUNTY_MAP_COLS,
-          mapRows: data.mapRows ?? YINGCHUAN_COUNTY_MAP_ROWS,
+        const fetchJunMerged = async (jid) => {
+          const rel = `data/worldmap/${encodeURIComponent(jid)}_merged.json`;
+          const res = await fetch(`${baseUrl}${rel}`, { cache: 'no-store' });
+          if (!res.ok) throw new Error(String(res.status));
+          return res.json();
+        };
+        let topJson = null;
+        try {
+          topJson = await fetchJunMerged('san_1_jun_yingchuan');
+        } catch {
+          topJson = null;
+        }
+        if (!topJson?.cells?.length) {
+          const fb = generateYingchuanCountyMergedSimulated({});
+          topJson = {
+            cells: fb.cells,
+            seed: fb.seed,
+            version: null,
+            mapColumns: fb.mapColumns ?? YINGCHUAN_COUNTY_MAP_COLS,
+            mapRows: fb.mapRows ?? YINGCHUAN_COUNTY_MAP_ROWS,
+            junId: 'san_1_jun_yingchuan',
+            season: 'san_1',
+            roadCells: null,
+            roadConnectivity: '4',
+          };
+        } else {
+          const seedTop = normalizeMergedMapSeed(topJson);
+          topJson = {
+            ...topJson,
+            cells: ensureYingchuanMergedMapCells(topJson.cells, seedTop, {
+              roadCells: Array.isArray(topJson.roadCells) ? topJson.roadCells : null,
+              mapColumns: topJson.mapColumns ?? YINGCHUAN_COUNTY_MAP_COLS,
+              mapRows: topJson.mapRows ?? YINGCHUAN_COUNTY_MAP_ROWS,
+            }),
+          };
+        }
+        let bottomJson = null;
+        try {
+          bottomJson = await fetchJunMerged('san_1_jun_runan');
+        } catch {
+          bottomJson = null;
+        }
+        const stack = buildSan1YuVerticalStackFromMergedPayloads({
+          yingchuan: topJson,
+          runan: bottomJson,
         });
+        if (!stack.ok) {
+          if (!cancelled) setMapLoadError(stack.error || '大地图拼接失败');
+          return;
+        }
+        if (cancelled) return;
+        const seed = normalizeMergedMapSeed(topJson);
         setMerged({
-          cells,
+          cells: stack.cells,
           seed,
-          version: data.version,
-          mapColumns: data.mapColumns ?? YINGCHUAN_COUNTY_MAP_COLS,
-          mapRows: data.mapRows ?? YINGCHUAN_COUNTY_MAP_ROWS,
-          junId: data.junId,
-          season: data.season,
-          roadCells: Array.isArray(data.roadCells) ? data.roadCells : null,
-          roadConnectivity: data.roadConnectivity === '8' ? '8' : '4',
+          version: topJson.version,
+          mapColumns: stack.mapColumns,
+          mapRows: stack.mapRows,
+          junId: 'san_1_strategic_stack_yu',
+          season: stack.season,
+          roadCells: stack.roadCells,
+          roadConnectivity: stack.roadConnectivity,
         });
-      } catch {
-        if (cancelled) return;
-        const fb = generateYingchuanCountyMergedSimulated({});
-        setMerged({
-          cells: fb.cells,
-          seed: fb.seed,
-          version: null,
-          mapColumns: fb.mapColumns ?? YINGCHUAN_COUNTY_MAP_COLS,
-          mapRows: fb.mapRows ?? YINGCHUAN_COUNTY_MAP_ROWS,
-          junId: 'san_1_jun_yingchuan',
-          season: 'san_1',
-          roadCells: null,
-          roadConnectivity: '4',
-        });
+      } catch (e) {
+        if (!cancelled) setMapLoadError(e?.message || '大地图加载失败');
       }
     })();
     return () => {
       cancelled = true;
     };
   }, []);
+
+  const strategicNav = useStrategicMapNavigation();
 
   useEffect(() => {
     if (!playerId) {
@@ -295,26 +331,63 @@ export default function WorldYingchuanMapSection({
   }, [playerId, garrisonStatsRefreshKey]);
 
   useEffect(() => {
-    if (!playerId || !merged?.junId || !merged?.season) {
+    if (!playerId || !merged?.season) {
       setRoadPresence(null);
       return undefined;
     }
     let cancelled = false;
+    const season = merged.season;
+    const runanWorldGyOffset = STRATEGIC_COUNTY_MAP_ROWS;
     const fetchPresence = async () => {
       try {
-        const url = `${API_CONFIG.BASE_URL}/cities/road-presence?season=${encodeURIComponent(merged.season)}&junId=${encodeURIComponent(merged.junId)}&playerId=${encodeURIComponent(playerId)}`;
-        const res = await fetch(url, { cache: 'no-store' });
-        if (!res.ok) return;
-        const json = await res.json();
-        if (cancelled || !json?.success) return;
-        setRoadPresence(json.data || null);
+        const fetchOne = async (jid) => {
+          const url = `${API_CONFIG.BASE_URL}/cities/road-presence?season=${encodeURIComponent(season)}&junId=${encodeURIComponent(jid)}&playerId=${encodeURIComponent(playerId)}`;
+          const res = await fetch(url, { cache: 'no-store' });
+          if (!res.ok) return null;
+          const json = await res.json();
+          return json?.success ? json.data : null;
+        };
+        const [p0, p1] = await Promise.all([
+          fetchOne(SAN_1_STRATEGIC_VERTICAL_STACK_JUN_ORDER[0]),
+          fetchOne(SAN_1_STRATEGIC_VERTICAL_STACK_JUN_ORDER[1]),
+        ]);
+        if (cancelled) return;
+        const j0 = SAN_1_STRATEGIC_VERTICAL_STACK_JUN_ORDER[0];
+        const j1 = SAN_1_STRATEGIC_VERTICAL_STACK_JUN_ORDER[1];
+        const others = [];
+        if (Array.isArray(p0?.others)) {
+          for (const o of p0.others) others.push({ ...o, roadJunId: j0 });
+        }
+        if (Array.isArray(p1?.others)) {
+          for (const o of p1.others) others.push({ ...o, roadJunId: j1 });
+        }
+        const lockedCells = [];
+        if (Array.isArray(p0?.lockedCells)) {
+          for (const l of p0.lockedCells) lockedCells.push({ ...l });
+        }
+        if (Array.isArray(p1?.lockedCells)) {
+          for (const l of p1.lockedCells) {
+            const py = Number(l.positionY ?? l.position_y);
+            lockedCells.push({
+              ...l,
+              ...(Number.isFinite(py)
+                ? { positionY: py + runanWorldGyOffset, position_y: py + runanWorldGyOffset }
+                : {}),
+            });
+          }
+        }
+        setRoadPresence({
+          season,
+          junId: merged.junId,
+          others,
+          lockedCells,
+        });
       } catch {
         /* 读接口失败静默重试（下一轮 tick） */
       }
     };
     roadPresenceFetchRef.current = fetchPresence;
     fetchPresence();
-    // 3s：他人路点依赖本接口；守方被门闸击退时另由 `WorldMap` bump；原 30s 易导致「A 已走、B 仍见旧格」
     const id = setInterval(() => {
       if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
       fetchPresence();
@@ -348,15 +421,12 @@ export default function WorldYingchuanMapSection({
   const cells = merged?.cells;
   const seed = merged ? normalizeMergedMapSeed(merged) : 0;
 
-  const countyJunId = merged?.junId || 'san_1_jun_yingchuan';
   const countySeason = merged?.season || 'san_1';
-  /** 合并图主键为颍川郡，但象限 C 含汝南行政城点；需同时拉汝南 `cities` 才能合并 tooltip 运行时块。 */
-  const cityRuntimeJunIds = useMemo(() => {
-    if (countyJunId === 'san_1_jun_yingchuan') {
-      return ['san_1_jun_yingchuan', 'san_1_jun_runan'];
-    }
-    return [countyJunId];
-  }, [countyJunId]);
+  const cityRuntimeJunIds = useMemo(() => [...SAN_1_STRATEGIC_VERTICAL_STACK_JUN_ORDER], []);
+  const playerMarchJunId = useMemo(
+    () => String(ctxPlayer?.road_jun_id || 'san_1_jun_yingchuan').trim() || 'san_1_jun_yingchuan',
+    [ctxPlayer?.road_jun_id],
+  );
   const { cityById, factionNameById } = useStrategicCountyCityRuntime({
     junIds: cityRuntimeJunIds,
     season: countySeason,
@@ -383,8 +453,6 @@ export default function WorldYingchuanMapSection({
     () => (playerMainCityId ? cityById?.[playerMainCityId] : null),
     [cityById, playerMainCityId],
   );
-
-  const strategicNav = useStrategicMapNavigation();
 
   const [tilePx, setTilePx] = useState(() => computeDefaultTilePx());
 
@@ -424,16 +492,22 @@ export default function WorldYingchuanMapSection({
       }
     }
     if (!fromMarchAnim) {
+      const prx = Number(ctxPlayer?.road_position_x);
+      const pry = Number(ctxPlayer?.road_position_y);
+      const worldRy =
+        ctxPlayer?.road_jun_id && Number.isFinite(prx) && Number.isFinite(pry)
+          ? stackWorldGyFromLocalJunRow(ctxPlayer.road_jun_id, pry)
+          : pry;
       const stand = resolveStrategicRecordedStandpointPx({
         cells,
         roadCells: merged?.roadCells,
         mapColumns: cols,
         mapRows: rows,
-        countyJunId,
+        countyJunId: playerMarchJunId,
         tilePx,
         playerRoadJunId: ctxPlayer?.road_jun_id,
         roadX: ctxPlayer?.road_position_x,
-        roadY: ctxPlayer?.road_position_y,
+        roadY: worldRy,
         mainCityId: playerMainCityId,
         citiesInCountyRows: countyCityRows,
         mainCityDbRow: mainCityRowFromApi,
@@ -454,13 +528,13 @@ export default function WorldYingchuanMapSection({
     const focalRx = Number(ctxPlayer?.road_position_x);
     const focalRy = Number(ctxPlayer?.road_position_y);
     const strip = buildStrategicRoadStackStripForFocal({
-      countyJunId,
+      countyJunId: playerMarchJunId,
       focalPlayerId: playerId,
-      focalJunId: countyJunId,
+      focalJunId: playerMarchJunId,
       focalRx,
       focalRy,
       selfPlayerId: playerId,
-      selfJunId: countyJunId,
+      selfJunId: playerMarchJunId,
       selfRx: focalRx,
       selfRy: focalRy,
       selfPortraitUrl: portraitUrl,
@@ -494,7 +568,7 @@ export default function WorldYingchuanMapSection({
     ctxCards,
     ctxPlayer,
     attributeBonusBySlot,
-    countyJunId,
+    playerMarchJunId,
     roadMarchAnimation,
     roadPresence?.others,
     countyCityRows,
@@ -512,15 +586,21 @@ export default function WorldYingchuanMapSection({
       const gy = Number(cell?.y);
       if (Number.isFinite(gx) && Number.isFinite(gy)) return { gx, gy };
     }
+    const prx = Number(ctxPlayer?.road_position_x);
+    const pry = Number(ctxPlayer?.road_position_y);
+    const worldRy =
+      ctxPlayer?.road_jun_id && Number.isFinite(prx) && Number.isFinite(pry)
+        ? stackWorldGyFromLocalJunRow(ctxPlayer.road_jun_id, pry)
+        : pry;
     return resolveStrategicRecordedStandpointCell({
       cells,
       roadCells: merged?.roadCells,
       mapColumns: cols,
       mapRows: rows,
-      countyJunId,
+      countyJunId: playerMarchJunId,
       playerRoadJunId: ctxPlayer?.road_jun_id,
       roadX: ctxPlayer?.road_position_x,
-      roadY: ctxPlayer?.road_position_y,
+      roadY: worldRy,
       mainCityId: playerMainCityId,
       citiesInCountyRows: countyCityRows,
       mainCityDbRow: mainCityRowFromApi,
@@ -531,7 +611,7 @@ export default function WorldYingchuanMapSection({
     merged?.roadCells,
     cols,
     rows,
-    countyJunId,
+    playerMarchJunId,
     ctxPlayer?.road_jun_id,
     ctxPlayer?.road_position_x,
     ctxPlayer?.road_position_y,
@@ -567,13 +647,14 @@ export default function WorldYingchuanMapSection({
     const selfCharName = String(ctxPlayer?.character_name || '').trim() || '…';
     const selfFactionName = String(ctxPlayer?.faction_name || '').trim();
     const selfDisplayName = selfFactionName ? `[${selfFactionName}]${selfCharName}` : selfCharName;
-    const selfStackKey = roadCellStackKey(countyJunId, selfRx, selfRy);
+    const selfStackKey = roadCellStackKey(playerMarchJunId, selfRx, selfRy);
     return roadPresence.others
       .map((other) => {
         const rx = Number(other.roadPositionX);
         const ry = Number(other.roadPositionY);
         if (!Number.isFinite(rx) || !Number.isFinite(ry)) return null;
-        const otherStackKey = roadCellStackKey(countyJunId, rx, ry);
+        const otherJun = String(other.roadJunId || SAN_1_STRATEGIC_VERTICAL_STACK_JUN_ORDER[0]).trim();
+        const otherStackKey = roadCellStackKey(otherJun, rx, ry);
         // 与本人同坐标叠站：只保留「本人」大头像 + strip 小头像；勿再画他人整颗 pawn，否则后绘盖住本人且点击落到无行军菜单的层上
         if (
           playerId &&
@@ -584,32 +665,33 @@ export default function WorldYingchuanMapSection({
         ) {
           return null;
         }
+        const worldRyOther = stackWorldGyFromLocalJunRow(otherJun, ry);
         const pos = resolveStrategicRecordedStandpointPx({
           cells,
           roadCells: merged?.roadCells,
           mapColumns: cols,
           mapRows: rows,
-          countyJunId,
+          countyJunId: otherJun,
           tilePx,
-          playerRoadJunId: countyJunId,
+          playerRoadJunId: otherJun,
           roadX: rx,
-          roadY: ry,
+          roadY: worldRyOther,
           mainCityId: null,
         });
         const { cx, cy } =
-          pos.cx != null && pos.cy != null ? pos : strategicRoadCellCenterPx(rx, ry, tilePx);
+          pos.cx != null && pos.cy != null ? pos : strategicRoadCellCenterPx(rx, worldRyOther, tilePx);
         const charName = String(other.characterName || '').trim() || '…';
         const factionName = String(other.factionName || '').trim();
         const displayName = factionName ? `[${factionName}]${charName}` : charName;
         const nameSeq = Array.from(charName);
         const strip = buildStrategicRoadStackStripForFocal({
-          countyJunId,
+          countyJunId: otherJun,
           focalPlayerId: String(other.playerId),
-          focalJunId: countyJunId,
+          focalJunId: otherJun,
           focalRx: rx,
           focalRy: ry,
           selfPlayerId: playerId,
-          selfJunId: countyJunId,
+          selfJunId: playerMarchJunId,
           selfRx,
           selfRy,
           selfPortraitUrl,
@@ -638,7 +720,7 @@ export default function WorldYingchuanMapSection({
     merged?.roadCells,
     cols,
     rows,
-    countyJunId,
+    playerMarchJunId,
     ctxPlayer,
     ctxCards,
     attributeBonusBySlot,
@@ -698,7 +780,14 @@ export default function WorldYingchuanMapSection({
         setMarchToast({ type: 'error', message: '当前地图暂无道路数据' });
         return;
       }
+      const clickSlice = stackLocalJunRowFromWorldGy(gy);
+      if (!clickSlice) {
+        setMarchToast({ type: 'error', message: '目标格坐标无效' });
+        return;
+      }
       setMarchSubmitError('');
+      const useWorldStackMarch = rows > STRATEGIC_COUNTY_MAP_ROWS;
+
       const cell = cells[gy]?.[gx];
       const cover = resolveStrategicTileCityCover(cells, gy, gx);
       let marchTargetPoiId = null;
@@ -733,12 +822,13 @@ export default function WorldYingchuanMapSection({
           roadCells: merged.roadCells,
           mapColumns: cols,
           mapRows: rows,
-          countyJunId,
+          countyJunId: playerMarchJunId,
           player: ctxPlayer,
           targetPoiId: marchTargetPoiId,
           targetCityDbRow: row ?? null,
           mainCityDbRow: marchMainRow ?? null,
           citiesInCountyRows: countyCityRows,
+          useWorldStackRoadCoords: useWorldStackMarch,
         });
       } else {
         pathRes = buildMarchPath({
@@ -746,12 +836,13 @@ export default function WorldYingchuanMapSection({
           roadCells: merged.roadCells,
           mapColumns: cols,
           mapRows: rows,
-          countyJunId,
+          countyJunId: playerMarchJunId,
           player: ctxPlayer,
           targetGx: gx,
           targetGy: gy,
           mainCityDbRow: marchMainRow ?? null,
           citiesInCountyRows: countyCityRows,
+          useWorldStackRoadCoords: useWorldStackMarch,
         });
       }
       if (!pathRes.ok) {
@@ -780,9 +871,19 @@ export default function WorldYingchuanMapSection({
       }
       const others = Array.isArray(roadPresence?.others) ? roadPresence.others : [];
       const last = pathRes.path[pathRes.path.length - 1];
-      const occ = others.find(
-        (o) => Number(o.roadPositionX) === last.x && Number(o.roadPositionY) === last.y,
-      );
+      const lastLoc = stackLocalJunRowFromWorldGy(last.y);
+      const lastStackKey =
+        lastLoc && Number.isFinite(last.x)
+          ? roadCellStackKey(lastLoc.junId, last.x, lastLoc.localGy)
+          : null;
+      const occ = others.find((o) => {
+        const j = String(o.roadJunId || SAN_1_STRATEGIC_VERTICAL_STACK_JUN_ORDER[0]).trim();
+        const rx = Number(o.roadPositionX);
+        const ry = Number(o.roadPositionY);
+        if (!Number.isFinite(rx) || !Number.isFinite(ry)) return false;
+        const k = roadCellStackKey(j, rx, ry);
+        return lastStackKey && k === lastStackKey;
+      });
       let encounterHint = null;
       if (occ) {
         const sameFaction =
@@ -821,7 +922,7 @@ export default function WorldYingchuanMapSection({
       cells,
       cols,
       rows,
-      countyJunId,
+      playerMarchJunId,
       roadPresence,
       strategicRoadLockedCells,
       cityById,
@@ -847,7 +948,7 @@ export default function WorldYingchuanMapSection({
           : `march_${Date.now()}_${Math.random().toString(16).slice(2)}`;
       const body = {
         season: countySeason,
-        junId: countyJunId,
+        junId: playerMarchJunId,
         path: marchConfirm.path,
         clientRequestId,
         confirmFoodCost: true,
@@ -889,7 +990,14 @@ export default function WorldYingchuanMapSection({
         Array.isArray(res.data?.path) && res.data.path.length ? res.data.path : reqPath;
       const sa = Number(res.data?.stepsApplied);
       const stepsApplied = Number.isFinite(sa) ? sa : fullPath.length;
-      const animPath = buildMarchAnimPath(onRoadAtStart, fullPath, stepsApplied);
+      /** 叠放大地图：`road/move` 的 `path` 已是世界行 gy，勿再按起点郡加偏移（汝南否则会 +40 越界，动画被跳过或瞬移）。单郡 40 行时 `y` 为郡内坐标，需加偏移对齐视口。 */
+      const pathAlreadyWorldGy = rows > STRATEGIC_COUNTY_MAP_ROWS;
+      const marchOff = pathAlreadyWorldGy ? 0 : stackWorldRowOffsetForJunId(playerMarchJunId);
+      const fullPathWorld = fullPath.map((p) => ({
+        x: Number(p?.x),
+        y: Number(p?.y) + marchOff,
+      }));
+      const animPath = buildMarchAnimPath(onRoadAtStart, fullPathWorld, stepsApplied);
 
       if (animPath.length <= 1) {
         await refresh({ silent: true });
@@ -914,9 +1022,33 @@ export default function WorldYingchuanMapSection({
       setMarchToast({ type: 'error', message: err?.message || '网络错误' });
       window.setTimeout(() => setMarchToast(null), 8000);
     }
-  }, [marchConfirm, playerId, countySeason, countyJunId, refresh, onRoadEncounterBattle, exitStrategicMarchMode]);
+  }, [
+    marchConfirm,
+    playerId,
+    countySeason,
+    playerMarchJunId,
+    rows,
+    refresh,
+    onRoadEncounterBattle,
+    exitStrategicMarchMode,
+  ]);
 
   const onStrategicRoadSelfUpdated = useCallback(() => refresh({ silent: true }), [refresh]);
+
+  if (mapLoadError) {
+    return (
+      <div className={`flex flex-col min-h-0 h-full bg-stone-950 items-center justify-center gap-3 px-4 ${className}`}>
+        <div className="text-center text-stone-400 text-sm">{mapLoadError}</div>
+        <button
+          type="button"
+          className="rounded-lg border border-amber-700/50 bg-stone-900 px-4 py-2 text-sm text-amber-200 hover:bg-stone-800"
+          onClick={() => window.location.reload()}
+        >
+          刷新页面
+        </button>
+      </div>
+    );
+  }
 
   if (!merged?.cells?.length) {
     return (

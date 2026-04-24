@@ -11,6 +11,7 @@ import {
   bfsShortestPathRoad,
   multiSourceBfsShortestRoad,
 } from '@shared/utils/strategicMarchPoi.js';
+import { stackWorldGyFromLocalJunRow } from '@shared/utils/strategicWorldMapStack.js';
 
 /** 与 backend/services/roadEncounterService.js 一致 */
 export const MARCH_FREE_MOVES_PER_DAY = 50;
@@ -76,6 +77,7 @@ export const buildRoadPassableKeySet = buildRoadPassableKeySetForMarch;
  * @param {number} p.targetGx
  * @param {number} p.targetGy
  * @param {Set<string>|null|undefined} [p.hostileOccupiedRoadKeys] 已废弃，不参与寻路（保留入参兼容旧调用）。
+ * @param {boolean} [p.useWorldStackRoadCoords] 叠放大地图时 `targetGy` / 起点为 **世界行**。
  * @returns {{ ok: true, path: {x:number,y:number}[], onRoadAtStart: boolean } | { ok: false, error: string }}
  */
 export function buildMarchPath({
@@ -90,6 +92,7 @@ export function buildMarchPath({
   mainCityDbRow = null,
   citiesInCountyRows = null,
   hostileOccupiedRoadKeys = null,
+  useWorldStackRoadCoords = false,
 }) {
   if (!cells?.length || !roadCells?.length) {
     return { ok: false, error: '当前地图缺少道路数据' };
@@ -108,8 +111,14 @@ export function buildMarchPath({
   const roadJun = player?.road_jun_id || null;
   const rx = Number(player?.road_position_x);
   const ry = Number(player?.road_position_y);
+  const startWy =
+    useWorldStackRoadCoords && roadJun && Number.isFinite(rx) && Number.isFinite(ry)
+      ? stackWorldGyFromLocalJunRow(roadJun, Math.trunc(ry))
+      : Math.trunc(ry);
   const startKeyIf =
-    roadJun === countyJunId && Number.isFinite(rx) && Number.isFinite(ry) ? `${Math.trunc(rx)},${Math.trunc(ry)}` : null;
+    roadJun === countyJunId && Number.isFinite(rx) && Number.isFinite(ry)
+      ? `${Math.trunc(rx)},${startWy}`
+      : null;
   const onRoad = !!startKeyIf && roadPassable.has(startKeyIf);
 
   if (onRoad) {
@@ -130,6 +139,7 @@ export function buildMarchPath({
     mapRows,
     collectMainCityFootprintKeys,
     { mainCityDbRow, citiesInCountyRows },
+    useWorldStackRoadCoords,
   );
   if (!footprint.size) {
     return { ok: false, error: '未设置主城或不在可识别的城/寨占格上，无法沿路出发' };
@@ -154,6 +164,7 @@ export function buildMarchPathToPoi(p) {
     mainCityDbRow: p.mainCityDbRow ?? null,
     citiesInCountyRows: p.citiesInCountyRows ?? null,
     hostileOccupiedRoadKeys: p.hostileOccupiedRoadKeys ?? null,
+    useWorldStackRoadCoords: p.useWorldStackRoadCoords ?? false,
   });
 }
 

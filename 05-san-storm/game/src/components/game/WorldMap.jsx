@@ -1,5 +1,5 @@
 /**
- * 大地图：颍川郡战略格网（world）；攻城/城况/荒郊等经格上 tooltip 与共享面板。
+ * 大地图：郡级战略格网（world，默认颍川，可通过州郡条切换汝南等已产出 `merged.json` 的郡）；攻城/城况/荒郊等经格上 tooltip 与共享面板。
  */
 
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
@@ -29,7 +29,7 @@ import {
   getConfiguredGarrisonCityIds,
   MAX_GARRISON_CONFIGURED_CITIES,
 } from '@/utils/garrisonScopeUtils';
-import WorldYingchuanMapSection from '@/components/world/WorldYingchuanMapSection';
+import StrategicWorldMapSection from '@/components/world/StrategicWorldMapSection';
 import { worldMapCityIsPlayerSameFaction } from '@/utils/worldMapCityPanelCopy';
 import { worldMapOverlayRefs, notifyWorldMapOverlayGate } from '@/utils/worldMapOverlayRefs';
 import PvpDefenseOutcomeModal from '@/components/game/PvpDefenseOutcomeModal';
@@ -292,7 +292,7 @@ export default function WorldMap({
 }) {
   const { player, cards, attributeBonusBySlot, refresh: refreshPlayer } = usePlayerContext();
   const roadFriction = useRoadDefenseFriction();
-  /** 与 `WorldYingchuanMapSection` 同步：战略格网 + 郡内城行，供探索锚点在「路格≠库锚格」时用 footprint 反查 city_id */
+  /** 与 `StrategicWorldMapSection` 同步：战略格网 + 郡内城行，供探索锚点在「路格≠库锚格」时用 footprint 反查 city_id */
   const exploreAnchorGridRef = useRef(null);
   const [exploreAnchorGridSeq, setExploreAnchorGridSeq] = useState(0);
   const onExploreAnchorGridContext = useCallback((ctx) => {
@@ -324,7 +324,7 @@ export default function WorldMap({
   const [siegeData, setSiegeData] = useState(null); // 非null时进入战斗
   const [siegeResult, setSiegeResult] = useState(null); // 战斗结算
   const [siegeLoading, setSiegeLoading] = useState(false);
-  /** 驻守统计全图拉取在 `WorldYingchuanMapSection`；披挂等操作后 bump 以刷新格上 tooltip 用槽数 */
+  /** 驻守统计全图拉取在 `StrategicWorldMapSection`；披挂等操作后 bump 以刷新格上 tooltip 用槽数 */
   const [garrisonStatsRefreshKey, setGarrisonStatsRefreshKey] = useState(0);
   /** 匪寨小型图战斗：与攻城互斥；payload 见 `handleBanditRaidStart` */
   const [banditRaidData, setBanditRaidData] = useState(null);
@@ -405,7 +405,7 @@ export default function WorldMap({
     roadAwaitingAuthoritativeOutcome: false,
     roadDefenseOutcomeReplay: false,
   });
-  /** 由 `WorldYingchuanMapSection` 注入：道路坐标刷新后 bump 郡内他人 presence，与守方自刷新互补 */
+  /** 由 `StrategicWorldMapSection` 注入：道路坐标刷新后 bump 郡内他人 presence，与守方自刷新互补 */
   const bumpStrategicRoadPresenceRef = useRef(null);
   /** 与上次 `getRoadSelf` 快照比较，避免无意义的 profile 重拉 */
   const lastApiRoadSnapRef = useRef('');
@@ -1362,7 +1362,7 @@ export default function WorldMap({
 
   return (
     <div className="relative flex flex-col h-full min-h-0 w-full bg-stone-950">
-      <WorldYingchuanMapSection
+      <StrategicWorldMapSection
         className="flex-1 min-h-0 h-full"
         bumpStrategicRoadPresenceRef={bumpStrategicRoadPresenceRef}
         strategicFullScreenOverlayOpen={strategicFullScreenOverlayOpen}

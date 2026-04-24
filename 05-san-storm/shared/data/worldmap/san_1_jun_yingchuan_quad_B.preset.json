@@ -46,11 +46,11 @@
       "sub_quad": "A1"
     },
     {
-      "city_id": "san_1_city_3_xuchang",
+      "city_id": "san_1_city_2_xuchang",
       "city_name": "许昌",
       "gx": 8,
       "gy": 17,
-      "object": "city_small",
+      "object": "city_medium",
       "sub_quad": "A3"
     },
     {

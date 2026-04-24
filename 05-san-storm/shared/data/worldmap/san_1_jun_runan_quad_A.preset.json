@@ -1,0 +1,67 @@
+{
+  "preset_kind": "jun_major_quad",
+  "jun_quad_id": "san_1_jun_runan_quad_A",
+  "campaign_id": "san_1_jun_runan_quad_A",
+  "generator_version": "jun-major-A.v0",
+  "seed": 1758370158,
+  "map_columns": 16,
+  "map_rows": 20,
+  "boundary_river_continuity": false,
+  "boundary_road_continuity": false,
+  "quad_A_base_tiles": "plain_grassland;plain_wasteland",
+  "quad_A_terrain_tiles": "",
+  "quad_A_object_tiles": "",
+  "quad_A_effect_tiles": "",
+  "quad_A_units_spec": "",
+  "quad_B_base_tiles": "plain_grassland;plain_wasteland",
+  "quad_B_terrain_tiles": "",
+  "quad_B_object_tiles": "",
+  "quad_B_effect_tiles": "",
+  "quad_B_units_spec": "",
+  "quad_C_base_tiles": "plain_grassland;plain_wasteland",
+  "quad_C_terrain_tiles": "",
+  "quad_C_object_tiles": "",
+  "quad_C_effect_tiles": "",
+  "quad_C_units_spec": "",
+  "quad_D_base_tiles": "plain_grassland;plain_wasteland",
+  "quad_D_terrain_tiles": "",
+  "quad_D_object_tiles": "",
+  "quad_D_effect_tiles": "",
+  "quad_D_units_spec": "",
+  "strategic_cities": [
+    {
+      "city_id": "san_1_city_3_xiping",
+      "city_name": "西平",
+      "gx": 5,
+      "gy": 1,
+      "object": "city_small",
+      "sub_quad": "A1"
+    },
+    {
+      "city_id": "san_1_city_3_wufang",
+      "city_name": "吴房",
+      "gx": 11,
+      "gy": 17,
+      "object": "city_small",
+      "sub_quad": "A3"
+    },
+    {
+      "city_id": "san_1_city_3_quyang",
+      "city_name": "灈阳",
+      "gx": 14,
+      "gy": 18,
+      "object": "city_small",
+      "sub_quad": "A3"
+    }
+  ],
+  "strategic_forts": [
+    {
+      "city_id": "san_1_city_5_1_runan",
+      "city_name": "汝南据点",
+      "gx": 11,
+      "gy": 6,
+      "sub_quad": "A2"
+    }
+  ],
+  "notes": "汝南郡象限 A（郡内 gx0～15, gy0～19）；strategic_cities 为 16×20 局部坐标，与 docs/tools/city/config_city_template.csv 叙事坐标一致。"
+}

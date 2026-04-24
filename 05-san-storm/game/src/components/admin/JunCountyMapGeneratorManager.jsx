@@ -7,8 +7,6 @@ import { useMemo, useState, useEffect } from 'react';
 import { useAdmin } from '@/hooks/useAdmin';
 import {
   generateJunCountyMajorQuadSimulated,
-  getJunQuadPresetById,
-  JUN_QUAD_PRESET_IDS,
   randomCampaignMapSeed,
 } from '@shared/utils/junCountyMapGenerator';
 import CampaignMapGrid from '@/components/campaign/CampaignMapGrid';
@@ -16,6 +14,7 @@ import { useAdminToast } from '@/components/admin/useAdminToast';
 import {
   fetchGeoOptions,
   fetchJunPresetStatus,
+  fetchJunQuadPreset,
   postCoordinatesToDb,
   postBoundariesToDb,
   postGenerateMergedMap,
@@ -27,7 +26,9 @@ import {
   normalizeRoadCellList,
   ROAD_CONNECTIVITY_4,
 } from '@shared/utils/strategicRoadOverlay.js';
-import { ensureYingchuanMergedMapCells } from '@shared/utils/strategicBanditPlaceholderPhase1.js';
+import { ensureJunMergedMapCells } from '@shared/utils/strategicBanditPlaceholderPhase1.js';
+
+const JUN_QUAD_LETTERS = ['A', 'B', 'C', 'D'];
 
 /** 批量 NPC 守军：与 cityService NPC_TROOP_COUNT_* 的 city_type 键一致 */
 const NPC_BATCH_CITY_TYPES = [
@@ -38,13 +39,34 @@ const NPC_BATCH_CITY_TYPES = [
   { key: 'fort', label: '据点 fort' },
 ];
 
+/** 与 `backend/services/cityService.js` NPC_TROOP_COUNT_* 一致，打开页面即可直接批量生成 */
+const NPC_BATCH_COUNT_DEFAULTS = {
+  city_small: '200',
+  city_medium: '280',
+  city_major: '360',
+  gate: '360',
+  fort: '280',
+};
+
+/** 读州/郡 id 名：兼容 camelCase、snake_case、全小写别名（mysql2 个别环境） */
+function pickGeoId(row, camel, snake) {
+  const lcCamel = String(camel).toLowerCase();
+  const lcSnake = String(snake).toLowerCase();
+  const v =
+    row[camel] ??
+    row[snake] ??
+    row[lcCamel] ??
+    row[lcSnake];
+  return String(v ?? '').trim();
+}
+
 /** 兼容 camelCase / snake_case，避免 MySQL 驱动或代理改写字段后下拉无选项、受控 value 失效 */
 function normalizeGeoOptions(raw) {
   const zhouIn = Array.isArray(raw?.zhou) ? raw.zhou : [];
   const junIn = Array.isArray(raw?.jun) ? raw.jun : [];
   const zhou = zhouIn
     .map((row) => {
-      const id = String(row.zhouId ?? row.zhou_id ?? '').trim();
+      const id = pickGeoId(row, 'zhouId', 'zhou_id');
       return {
         zhouId: id,
         zhouName: row.zhouName ?? row.zhou_name ?? id,
@@ -54,8 +76,8 @@ function normalizeGeoOptions(raw) {
     .filter((z) => z.zhouId);
   const jun = junIn
     .map((row) => {
-      const id = String(row.junId ?? row.jun_id ?? '').trim();
-      const zid = String(row.zhouId ?? row.zhou_id ?? '').trim();
+      const id = pickGeoId(row, 'junId', 'jun_id');
+      const zid = pickGeoId(row, 'zhouId', 'zhou_id');
       return {
         junId: id,
         junName: row.junName ?? row.jun_name ?? id,
@@ -73,7 +95,10 @@ function normalizeGeoOptions(raw) {
 export default function JunCountyMapGeneratorManager({ embedded = false }) {
   const { isLoggedIn, loading: adminLoading } = useAdmin();
   const { showToast, Toast } = useAdminToast();
-  const [junQuadId, setJunQuadId] = useState(() => JUN_QUAD_PRESET_IDS[0] || '');
+  const [junQuadId, setJunQuadId] = useState('');
+  const [loadedPreset, setLoadedPreset] = useState(null);
+  const [presetLoading, setPresetLoading] = useState(false);
+  const [presetLoadError, setPresetLoadError] = useState(null);
   const [seed, setSeed] = useState(null);
   const [seedInput, setSeedInput] = useState('');
   const [randomizeCityPositions, setRandomizeCityPositions] = useState(false);
@@ -89,23 +114,30 @@ export default function JunCountyMapGeneratorManager({ embedded = false }) {
   const [busyCoords, setBusyCoords] = useState(false);
   const [busyBounds, setBusyBounds] = useState(false);
   const [busyMerge, setBusyMerge] = useState(false);
-  /** 颍川 merged 快照：供道路格涂抹编辑 */
+  /** 当前郡 merged 快照：供道路格涂抹编辑 */
   const [roadEdit, setRoadEdit] = useState(null);
   const [busyRoadSave, setBusyRoadSave] = useState(false);
 
   /** 郡内批量 NPC：与攻城逻辑一致 — 势力方 = faction_id 非空且 status=owned；NPC 方 = 其余 */
   const [npcOwnershipMode, setNpcOwnershipMode] = useState('player_owned');
   const [npcCountInputs, setNpcCountInputs] = useState(() =>
-    Object.fromEntries(NPC_BATCH_CITY_TYPES.map(({ key }) => [key, ''])),
+    Object.fromEntries(
+      NPC_BATCH_CITY_TYPES.map(({ key }) => [key, NPC_BATCH_COUNT_DEFAULTS[key] ?? '']),
+    ),
   );
   const [busyNpcBatch, setBusyNpcBatch] = useState(false);
 
-  const preset = useMemo(() => (junQuadId ? getJunQuadPresetById(junQuadId) : null), [junQuadId]);
-
   const junOptions = useMemo(() => {
     if (!geoOptions?.jun?.length) return [];
-    if (!zhouId) return geoOptions.jun;
-    return geoOptions.jun.filter((j) => j.zhouId === zhouId);
+    const raw = !zhouId ? [...geoOptions.jun] : geoOptions.jun.filter((j) => j.zhouId === zhouId);
+    const seen = new Set();
+    const out = [];
+    for (const j of raw) {
+      if (!j?.junId || seen.has(j.junId)) continue;
+      seen.add(j.junId);
+      out.push(j);
+    }
+    return out;
   }, [geoOptions, zhouId]);
 
   useEffect(() => {
@@ -174,19 +206,78 @@ export default function JunCountyMapGeneratorManager({ embedded = false }) {
     };
   }, [selectedJunId]);
 
+  useEffect(() => {
+    if (!selectedJunId) {
+      setJunQuadId('');
+      return;
+    }
+    setJunQuadId((prev) => {
+      const m = prev?.match(/_quad_(A|B|C|D)$/);
+      const letter = m ? m[1] : 'A';
+      return `${selectedJunId}_quad_${letter}`;
+    });
+  }, [selectedJunId]);
+
+  useEffect(() => {
+    if (!junQuadId) {
+      setLoadedPreset(null);
+      setPresetLoadError(null);
+      setPresetLoading(false);
+      return;
+    }
+    const m = junQuadId.match(/^(.+)_quad_(A|B|C|D)$/i);
+    if (!m) {
+      setLoadedPreset(null);
+      setPresetLoadError('象限 id 格式应为 {jun_id}_quad_{A|B|C|D}');
+      setPresetLoading(false);
+      return;
+    }
+    const [, junId, quad] = m;
+    let cancelled = false;
+    setPresetLoading(true);
+    setPresetLoadError(null);
+    setLoadedPreset(null);
+    (async () => {
+      try {
+        const res = await fetchJunQuadPreset(junId, quad);
+        if (cancelled) return;
+        if (!res.success) {
+          setPresetLoadError(
+            typeof res.error === 'string' ? res.error : '加载 preset 失败（请确认 shared/data/worldmap 下已有文件）',
+          );
+          return;
+        }
+        setLoadedPreset(res.data);
+      } catch (e) {
+        if (!cancelled) {
+          setPresetLoadError(e?.message || '加载失败');
+        }
+      } finally {
+        if (!cancelled) setPresetLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [junQuadId]);
+
   const result = useMemo(() => {
-    if (!preset || seed == null) return null;
-    return generateJunCountyMajorQuadSimulated(preset, { seed, randomizeCityPositions });
-  }, [preset, seed, randomizeCityPositions]);
+    if (!loadedPreset || seed == null) return null;
+    return generateJunCountyMajorQuadSimulated(loadedPreset, { seed, randomizeCityPositions });
+  }, [loadedPreset, seed, randomizeCityPositions]);
 
   useEffect(() => {
     setSeed(null);
     setSeedInput('');
-  }, [junQuadId, preset]);
+  }, [junQuadId, loadedPreset]);
 
   const handleGenerate = () => {
-    if (!preset) {
-      showToast('未找到该郡象限 preset', 'error');
+    if (presetLoading) {
+      showToast('preset 加载中，请稍候', 'info');
+      return;
+    }
+    if (!loadedPreset) {
+      showToast(presetLoadError || '未找到该郡象限 preset（请确认磁盘文件与下方所选郡一致）', 'error');
       return;
     }
     const trimmed = seedInput.trim();
@@ -203,11 +294,11 @@ export default function JunCountyMapGeneratorManager({ embedded = false }) {
   };
 
   const handleDownloadPreset = () => {
-    if (!preset || seed == null) {
+    if (!loadedPreset || seed == null) {
       showToast('请先生成预览', 'info');
       return;
     }
-    const out = { ...preset, seed };
+    const out = { ...loadedPreset, seed };
     const blob = new Blob([JSON.stringify(out, null, 2)], { type: 'application/json;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -270,13 +361,14 @@ export default function JunCountyMapGeneratorManager({ embedded = false }) {
   };
 
   const handleGenerateMergedMap = async () => {
-    if (selectedJunId !== 'san_1_jun_yingchuan' || !presetGate?.complete) return;
+    if (!selectedJunId || !presetGate?.complete) return;
     setBusyMerge(true);
     try {
       const res = await postGenerateMergedMap(selectedJunId, seed);
       if (res.success) {
+        setRoadEdit(null);
         showToast(
-          `已生成合并大地图 version=${res.data?.version} → 游戏读取 ${res.data?.path}（请刷新主界面大地图）`,
+          `已生成合并大地图 version=${res.data?.version} → 游戏读取 ${res.data?.path}（请刷新主界面大地图；若需道路编辑，请再点一次「加载合并图（道路编辑）」）`,
           'success',
         );
       } else {
@@ -288,19 +380,19 @@ export default function JunCountyMapGeneratorManager({ embedded = false }) {
   };
 
   const handleLoadMergedForRoadEdit = async () => {
-    if (selectedJunId !== 'san_1_jun_yingchuan') {
-      showToast('当前仅颍川郡支持道路编辑', 'info');
+    if (!selectedJunId) {
+      showToast('请先选择郡', 'info');
       return;
     }
     try {
-      const url = `${import.meta.env.BASE_URL}data/worldmap/san_1_jun_yingchuan_merged.json`;
+      const url = `${import.meta.env.BASE_URL}data/worldmap/${encodeURIComponent(selectedJunId)}_merged.json`;
       const res = await fetch(url, { cache: 'no-store' });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       if (!data || !Array.isArray(data.cells)) throw new Error('无效合并图');
       const seed0 = Number(data.seed);
       const seed = Number.isFinite(seed0) ? seed0 : Number(data.version) || 0;
-      const cells = ensureYingchuanMergedMapCells(data.cells, seed, {
+      const cells = ensureJunMergedMapCells(data.cells, seed, selectedJunId, {
         roadCells: Array.isArray(data.roadCells) ? data.roadCells : null,
         mapColumns: data.mapColumns ?? 32,
         mapRows: data.mapRows ?? 40,
@@ -373,7 +465,7 @@ export default function JunCountyMapGeneratorManager({ embedded = false }) {
   };
 
   const handleSaveRoadCells = async () => {
-    if (!roadEdit || selectedJunId !== 'san_1_jun_yingchuan') return;
+    if (!roadEdit || !selectedJunId) return;
     setBusyRoadSave(true);
     try {
       const res = await postSaveMergedRoadCells(
@@ -428,11 +520,62 @@ export default function JunCountyMapGeneratorManager({ embedded = false }) {
             <p className="text-sm text-gray-600 mt-1">
               郡大象限 preset → 生成预览（可填 seed 复现）→ 确认后下载 JSON 固化到{' '}
               <code className="bg-gray-100 px-1 rounded text-xs">shared/data/worldmap/</code>
+              （象限列表随「州/郡」中所选郡；文件名为约定{' '}
+              <code className="bg-gray-100 px-1 text-xs">{'{jun_id}_quad_{A|B|C|D}.preset.json'}</code>）
             </p>
           </div>
         </div>
 
         <div className="bg-white rounded-lg shadow p-6 space-y-4">
+          <p className="text-xs text-amber-950/90 leading-relaxed rounded-md border border-amber-200/90 bg-amber-50/80 px-3 py-2">
+            <strong>联动说明</strong>：下面「郡象限」四个选项<strong>不是</strong>全地图 preset 总表，而是<strong>当前所选郡</strong>的 A～D（
+            <code className="bg-white/90 px-1 rounded text-[11px]">{'{jun_id}_quad_A'}</code>
+            …D）。要选汝南的四个文件，请先把「郡」改为<strong>汝南郡</strong>（可与下方 M2 卡片二选一，同一状态）。
+          </p>
+          <div className="flex flex-wrap items-end gap-3 pb-1 border-b border-slate-100">
+            <div className="min-w-[160px] flex-1">
+              <label className="block text-xs font-medium text-gray-600 mb-1">州（与 M2 同步）</label>
+              <select
+                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm bg-white"
+                value={geoLoading ? '' : zhouId}
+                onChange={(e) => setZhouId(e.target.value)}
+                disabled={geoLoading || !(geoOptions.zhou?.length > 0)}
+              >
+                {geoLoading ? (
+                  <option value="">加载中…</option>
+                ) : (geoOptions.zhou || []).length === 0 ? (
+                  <option value="">无州数据</option>
+                ) : (
+                  (geoOptions.zhou || []).map((z) => (
+                    <option key={z.zhouId} value={z.zhouId}>
+                      {z.zhouName || z.zhouId}
+                    </option>
+                  ))
+                )}
+              </select>
+            </div>
+            <div className="min-w-[180px] flex-1">
+              <label className="block text-xs font-medium text-gray-600 mb-1">郡（与 M2 同步）</label>
+              <select
+                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm bg-white"
+                value={geoLoading ? '' : selectedJunId}
+                onChange={(e) => setSelectedJunId(e.target.value)}
+                disabled={geoLoading || junOptions.length === 0}
+              >
+                {geoLoading ? (
+                  <option value="">加载中…</option>
+                ) : junOptions.length === 0 ? (
+                  <option value="">暂无郡</option>
+                ) : (
+                  junOptions.map((j) => (
+                    <option key={j.junId} value={j.junId}>
+                      {j.junName || j.junId}
+                    </option>
+                  ))
+                )}
+              </select>
+            </div>
+          </div>
           <div className="flex flex-wrap items-end gap-4">
             <div className="min-w-[280px] flex-1">
               <label className="block text-sm font-medium text-gray-700 mb-1">郡象限（preset 模板）</label>
@@ -440,14 +583,27 @@ export default function JunCountyMapGeneratorManager({ embedded = false }) {
                 className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
                 value={junQuadId}
                 onChange={(e) => setJunQuadId(e.target.value)}
+                disabled={!selectedJunId || geoLoading || presetLoading}
               >
-                {JUN_QUAD_PRESET_IDS.length === 0 && <option value="">暂无预设</option>}
-                {JUN_QUAD_PRESET_IDS.map((id) => (
-                  <option key={id} value={id}>
-                    {id}
-                  </option>
-                ))}
+                {!selectedJunId ? (
+                  <option value="">请先在上栏选择州 / 郡</option>
+                ) : (
+                  JUN_QUAD_LETTERS.map((letter) => {
+                    const id = `${selectedJunId}_quad_${letter}`;
+                    return (
+                      <option key={id} value={id}>
+                        {letter} 象限 · {id}
+                      </option>
+                    );
+                  })
+                )}
               </select>
+              {presetLoading && (
+                <p className="text-xs text-slate-600 mt-1">正在从服务器读取 preset…</p>
+              )}
+              {presetLoadError && !presetLoading && (
+                <p className="text-xs text-red-700 mt-1">{presetLoadError}</p>
+              )}
             </div>
             <div className="min-w-[200px]">
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -473,7 +629,7 @@ export default function JunCountyMapGeneratorManager({ embedded = false }) {
             </label>
             <button
               type="button"
-              disabled={!preset}
+              disabled={!loadedPreset || presetLoading}
               onClick={handleGenerate}
               className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
             >
@@ -481,7 +637,20 @@ export default function JunCountyMapGeneratorManager({ embedded = false }) {
             </button>
             <button
               type="button"
-              disabled={!preset || seed == null}
+              disabled={!selectedJunId || !presetGate?.complete || busyMerge}
+              onClick={handleGenerateMergedMap}
+              className="px-4 py-2 bg-violet-700 text-white rounded-md hover:bg-violet-800 disabled:opacity-50 self-end"
+              title={
+                !presetGate?.complete
+                  ? '请先补齐该郡四象限 preset 文件'
+                  : '服务端合并四象限 → public/data/worldmap/{jun_id}_merged.json（与命令行 merge 脚本一致）'
+              }
+            >
+              {busyMerge ? '生成地图…' : '生成地图'}
+            </button>
+            <button
+              type="button"
+              disabled={!loadedPreset || presetLoading || seed == null}
               onClick={handleDownloadPreset}
               className="px-4 py-2 bg-emerald-600 text-white rounded-md hover:bg-emerald-700 disabled:opacity-50"
             >
@@ -502,8 +671,9 @@ export default function JunCountyMapGeneratorManager({ embedded = false }) {
           <p className="text-xs text-gray-600 leading-relaxed">
             数据来源：
             <span className="text-sky-800 ml-1">
-              郡地图 preset 由前端从 <code className="bg-gray-100 px-1">shared/data/worldmap/</code> 打包载入，无独立 GET
-              API（与战役 preset 不同）。
+              郡地图 preset 由管理后端从 <code className="bg-gray-100 px-1">shared/data/worldmap/</code> 按郡读取（
+              <code className="bg-gray-100 px-1 text-xs">GET /api/admin/world-map/jun/:junId/quad-preset/:quad</code>
+              ），与战役 preset 接口分离。
             </span>
           </p>
         </div>
@@ -514,7 +684,7 @@ export default function JunCountyMapGeneratorManager({ embedded = false }) {
             选项来自 MySQL <code className="bg-gray-100 px-1">config_zhou</code> /{' '}
             <code className="bg-gray-100 px-1">config_jun</code>。若某郡四象限 preset 文件齐全（
             <code className="bg-gray-100 px-1 text-xs">{'{jun_id}_quad_A～D.preset.json'}</code>
-            ），方可执行入库与生成（颍川郡已对齐）。
+            ），方可执行坐标入库；合并写出 merged JSON 请用上方「生成地图」。
           </p>
           {geoLoadError && (
             <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-md px-3 py-2">
@@ -576,7 +746,7 @@ export default function JunCountyMapGeneratorManager({ embedded = false }) {
           <div className="border border-slate-200 rounded-lg p-4 space-y-3 bg-slate-50/60">
             <h3 className="text-sm font-semibold text-gray-900">郡内 NPC 守军（批量）</h3>
             <p className="text-xs text-gray-600 leading-relaxed">
-              使用上方<strong>州 / 郡</strong>当前选项。按城市归属分两档批量调用{' '}
+              使用<strong>州 / 郡</strong>当前选项（与页首预设区、本卡片下拉同一套）。按城市归属分两档批量调用{' '}
               <code className="bg-white px-1 rounded border border-slate-200 text-[11px]">generateNpcGarrison</code> 与
               脚本 <code className="bg-white px-1 rounded border border-slate-200 text-[11px]">troopCountOverride</code>（支数
               1～2000）。仅对<strong>已填写支数</strong>的城市类型生效；某城类型未填则跳过该城。
@@ -654,21 +824,6 @@ export default function JunCountyMapGeneratorManager({ embedded = false }) {
             >
               {busyBounds ? '边界入库…' : '边界入库'}
             </button>
-            <button
-              type="button"
-              disabled={
-                selectedJunId !== 'san_1_jun_yingchuan' || !presetGate?.complete || busyMerge
-              }
-              onClick={handleGenerateMergedMap}
-              className="px-4 py-2 bg-violet-700 text-white rounded-md hover:bg-violet-800 disabled:opacity-50 text-sm"
-              title={
-                selectedJunId !== 'san_1_jun_yingchuan'
-                  ? '当前仅颍川郡 san_1_jun_yingchuan 支持服务端合并写出'
-                  : ''
-              }
-            >
-              {busyMerge ? '生成地图…' : '生成地图'}
-            </button>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -683,9 +838,9 @@ export default function JunCountyMapGeneratorManager({ embedded = false }) {
             />
           </div>
           <p className="text-xs text-gray-500 leading-relaxed">
-            <strong>生成地图</strong> 写入{' '}
-            <code className="bg-gray-100 px-1">public/data/worldmap/san_1_jun_yingchuan_merged.json</code>（与主界面大地图
-            读取路径一致），并带 <code className="bg-gray-100 px-1">version</code>。原先无该文件时，主界面用内存即时生成；生成后优先读此文件。
+            上方紫色 <strong>生成地图</strong> 写入{' '}
+            <code className="bg-gray-100 px-1">public/data/worldmap/{'{jun_id}'}_merged.json</code>（与主界面按郡读取路径一致），并带{' '}
+            <code className="bg-gray-100 px-1">version</code>。原先无该文件时，主界面可用内存回退（颍川等已打包 preset 的郡）。
           </p>
           <p className="text-xs text-amber-900/90 leading-relaxed mt-1.5 border border-amber-200/80 bg-amber-50/80 rounded px-2 py-1.5">
             若在本机用命令行跑{' '}
@@ -695,7 +850,7 @@ export default function JunCountyMapGeneratorManager({ embedded = false }) {
           </p>
 
           <div className="border-t border-slate-200 pt-4 mt-2 space-y-3">
-            <h3 className="text-sm font-semibold text-gray-900">道路层（颍川合并图）</h3>
+            <h3 className="text-sm font-semibold text-gray-900">道路层（郡合并图）</h3>
             <p className="text-xs text-gray-600 leading-relaxed">
               以 <strong>道路格集合</strong> <code className="bg-gray-100 px-1">roadCells</code> 为准（郡内{' '}
               <code className="bg-gray-100 px-1">gx, gy</code>）；寻路与叠线均用同一套{' '}
@@ -705,14 +860,10 @@ export default function JunCountyMapGeneratorManager({ embedded = false }) {
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
-                disabled={selectedJunId !== 'san_1_jun_yingchuan'}
+                disabled={!selectedJunId}
                 onClick={handleLoadMergedForRoadEdit}
                 className="px-3 py-1.5 bg-slate-700 text-white rounded-md hover:bg-slate-800 disabled:opacity-50 text-sm"
-                title={
-                  selectedJunId !== 'san_1_jun_yingchuan'
-                    ? '仅颍川郡'
-                    : '从 public 读取合并 JSON'
-                }
+                title="从 public 读取当前郡的 merged JSON"
               >
                 加载合并图（道路编辑）
               </button>

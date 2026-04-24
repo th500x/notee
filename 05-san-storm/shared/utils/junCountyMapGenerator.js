@@ -1,14 +1,11 @@
 /**
  * 郡大地图 · 单大象限（16×20）模拟生成：复用战役 `generateCampaignMapSimulated`，再叠加 strategic_cities、strategic_forts。
- * 与 `san_1_jun_yingchuan_quad_{A|B|C|D}.preset.json` 对齐；非战役 preset，勿写入 san_1_camp_*。
+ * 与 `{jun_id}_quad_{A|B|C|D}.preset.json` 约定对齐；非战役 preset，勿写入 san_1_camp_*。
  */
 
 import { generateCampaignMapSimulated, randomCampaignMapSeed, QUAD_ORIGIN, QUAD_W, QUAD_H } from './campaignMapGenerator.js';
-import { applyYingchuanPhase1BanditPlaceholders } from './strategicBanditPlaceholderPhase1.js';
-import junYingchuanQuadA from '../data/worldmap/san_1_jun_yingchuan_quad_A.preset.json' with { type: 'json' };
-import junYingchuanQuadB from '../data/worldmap/san_1_jun_yingchuan_quad_B.preset.json' with { type: 'json' };
-import junYingchuanQuadC from '../data/worldmap/san_1_jun_yingchuan_quad_C.preset.json' with { type: 'json' };
-import junYingchuanQuadD from '../data/worldmap/san_1_jun_yingchuan_quad_D.preset.json' with { type: 'json' };
+import { applyJunPhase1BanditPlaceholders } from './strategicBanditPlaceholderPhase1.js';
+import { YINGCHUAN_QUAD_PRESETS_BY_LETTER } from './junYingchuanQuadPresets.js';
 
 /** 小象限名 → 与战役 quad 键相同的原点 [col0, row0]（大象限 A 内）；顺时针 A1→A2→A3→A4，A3=右下 C、A4=左下 D */
 const SUBQUAD_ORIGIN_IN_MAJOR_A = {
@@ -189,33 +186,30 @@ function stripJunOnlyFields(junPreset) {
   return rest;
 }
 
-export const JUN_QUAD_PRESETS_BY_ID = {
-  san_1_jun_yingchuan_quad_A: junYingchuanQuadA,
-  san_1_jun_yingchuan_quad_B: junYingchuanQuadB,
-  san_1_jun_yingchuan_quad_C: junYingchuanQuadC,
-  san_1_jun_yingchuan_quad_D: junYingchuanQuadD,
-};
-
 /**
- * 颍川郡标准画布 32×40：四大象限左上角在郡内全局坐标 (gx, gy)。
+ * 标准郡画布 32×40：四大象限左上角在郡内全局坐标 (gx, gy)。
  * 排布为「上排 A|B、下排 D|C」，与 31-5 / landmarks CSV 一致。
  * 拼接时：局部 (lc, lr) → 全局 (originGx + lc, originGy + lr)。
  */
-export const SAN_1_JUN_YINGCHUAN_MAJOR_QUAD_ORIGIN = {
+export const COUNTY_MAJOR_QUAD_ORIGIN = {
   A: { originGx: 0, originGy: 0 },
   B: { originGx: 16, originGy: 0 },
   C: { originGx: 16, originGy: 20 },
   D: { originGx: 0, originGy: 20 },
 };
 
-export const JUN_QUAD_PRESET_IDS = Object.keys(JUN_QUAD_PRESETS_BY_ID);
+/** @deprecated 历史命名，与 COUNTY_MAJOR_QUAD_ORIGIN 相同 */
+export const SAN_1_JUN_YINGCHUAN_MAJOR_QUAD_ORIGIN = COUNTY_MAJOR_QUAD_ORIGIN;
 
-export function getJunQuadPresetById(id) {
-  return JUN_QUAD_PRESETS_BY_ID[id] ?? null;
-}
+const COUNTY_MERGE_QUAD_ORDER = [
+  { majorKey: 'A' },
+  { majorKey: 'B' },
+  { majorKey: 'C' },
+  { majorKey: 'D' },
+];
 
 /**
- * @param {object} junPreset - 与 san_1_jun_yingchuan_quad_A.preset.json 同形
+ * @param {object} junPreset - 与 san_1_jun_*_quad_A.preset.json 同形
  * @param {{ seed?: number, randomizeCityPositions?: boolean }} options
  */
 export function generateJunCountyMajorQuadSimulated(junPreset, options = {}) {
@@ -235,19 +229,16 @@ export function generateJunCountyMajorQuadSimulated(junPreset, options = {}) {
 }
 
 export function generateJunYingchuanQuadA(options = {}) {
-  return generateJunCountyMajorQuadSimulated(junYingchuanQuadA, options);
+  return generateJunCountyMajorQuadSimulated(YINGCHUAN_QUAD_PRESETS_BY_LETTER.A, options);
 }
 
-/** 颍川郡工具画布合并后尺寸（与 31-5 / landmarks 一致） */
-export const YINGCHUAN_COUNTY_MAP_COLS = 32;
-export const YINGCHUAN_COUNTY_MAP_ROWS = 40;
+/** 郡工具画布合并后尺寸（与 31-5 / landmarks 一致） */
+export const COUNTY_MAP_COLS = 32;
+export const COUNTY_MAP_ROWS = 40;
 
-const YINGCHUAN_MERGE_QUAD_ORDER = [
-  { presetId: 'san_1_jun_yingchuan_quad_A', majorKey: 'A' },
-  { presetId: 'san_1_jun_yingchuan_quad_B', majorKey: 'B' },
-  { presetId: 'san_1_jun_yingchuan_quad_C', majorKey: 'C' },
-  { presetId: 'san_1_jun_yingchuan_quad_D', majorKey: 'D' },
-];
+/** @deprecated 历史命名 */
+export const YINGCHUAN_COUNTY_MAP_COLS = COUNTY_MAP_COLS;
+export const YINGCHUAN_COUNTY_MAP_ROWS = COUNTY_MAP_ROWS;
 
 function deepCloneCell(cell) {
   if (cell == null) return null;
@@ -272,22 +263,35 @@ function emptyCountyCell(gx, gy) {
 
 /**
  * 四象限 preset → 单张郡画布 32×40（先合成再测；底板四块可相同 seed 下重复，仅城/据点坐标按全局对齐）。
- * @param {{ seed?: number, randomizeCityPositions?: boolean }} options
+ * @param {{
+ *   presetsByQuad: Record<'A'|'B'|'C'|'D', object>,
+ *   junId: string,
+ *   seed?: number,
+ *   randomizeCityPositions?: boolean,
+ * }} options
  */
-export function generateYingchuanCountyMergedSimulated(options = {}) {
-  const W = YINGCHUAN_COUNTY_MAP_COLS;
-  const H = YINGCHUAN_COUNTY_MAP_ROWS;
+export function generateJunCountyMergedSimulated(options) {
+  const presetsByQuad = options?.presetsByQuad;
+  const junId = String(options?.junId || '').trim();
+  if (!presetsByQuad || !junId) {
+    throw new Error('generateJunCountyMergedSimulated: 需要 junId 与 presetsByQuad { A,B,C,D }');
+  }
+  const W = COUNTY_MAP_COLS;
+  const H = COUNTY_MAP_ROWS;
+  const first = presetsByQuad.A;
   const seed =
     options.seed != null
       ? Number(options.seed)
-      : Number(junYingchuanQuadA.seed) || randomCampaignMapSeed();
+      : first && first.seed != null
+        ? Number(first.seed)
+        : randomCampaignMapSeed();
 
   const merged = Array.from({ length: H }, () => Array.from({ length: W }, () => null));
 
-  for (const { presetId, majorKey } of YINGCHUAN_MERGE_QUAD_ORDER) {
-    const preset = JUN_QUAD_PRESETS_BY_ID[presetId];
+  for (const { majorKey } of COUNTY_MERGE_QUAD_ORDER) {
+    const preset = presetsByQuad[majorKey];
     if (!preset) continue;
-    const { originGx, originGy } = SAN_1_JUN_YINGCHUAN_MAJOR_QUAD_ORIGIN[majorKey];
+    const { originGx, originGy } = COUNTY_MAJOR_QUAD_ORIGIN[majorKey];
     const sim = generateJunCountyMajorQuadSimulated(preset, {
       seed,
       randomizeCityPositions: !!options.randomizeCityPositions,
@@ -316,15 +320,30 @@ export function generateYingchuanCountyMergedSimulated(options = {}) {
     }
   }
 
-  applyYingchuanPhase1BanditPlaceholders(merged, seed);
+  if (junId === 'san_1_jun_yingchuan' || junId === 'san_1_jun_runan') {
+    applyJunPhase1BanditPlaceholders(merged, seed, junId, null);
+  }
 
   return {
     cells: merged,
     seed,
     mapColumns: W,
     mapRows: H,
-    campaignId: 'san_1_jun_yingchuan_county_merged',
+    campaignId: `${junId}_county_merged`,
+    junId,
   };
+}
+
+/**
+ * 颍川郡内存合并（主界面无 merged 文件时回退）；preset 自 `junYingchuanQuadPresets` 打包。
+ * @param {{ seed?: number, randomizeCityPositions?: boolean }} options
+ */
+export function generateYingchuanCountyMergedSimulated(options = {}) {
+  return generateJunCountyMergedSimulated({
+    ...options,
+    junId: 'san_1_jun_yingchuan',
+    presetsByQuad: YINGCHUAN_QUAD_PRESETS_BY_LETTER,
+  });
 }
 
 export { randomCampaignMapSeed } from './campaignMapGenerator.js';

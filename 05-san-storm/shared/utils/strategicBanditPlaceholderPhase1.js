@@ -1,11 +1,11 @@
 /**
- * 匪寨大地图阶段一（17-6 §1.2）：颍川合并图每郡 2 个占位，形状为 **2×1** 或 **1×2** 骨牌，
- * 两格共用 **`banditPoiId`**（`san_1_bandit_{1|2}_yingchuan`，与 04-1 §15 / `targetPoiId` 同族）。与 `strategicRoadOverlay` 禁区一致。
+ * 匪寨大地图阶段一（17-6 §1.2）：S1 豫州 **颍川 / 汝南** 郡各 **2** 枚占位（**1×2** 或 **2×1** 骨牌），
+ * 两格共用 **`banditPoiId`**（`san_{赛季}_bandit_{1|2}_{郡 slug}`，与 04-1 §15 / `targetPoiId` 同族）。与 `strategicRoadOverlay` 禁区一致。
  *
  * 依赖 `cells[row][col]` 的 terrain / object / `banditPoiId`（读旧快照时仍可能带 `cityId`，由 `readStrategicCellAnchorId` 统一识别）；可选 `roadCells`：**不占道路格**，且优先 **四邻贴路**。
  */
 
-import { normalizeRoadCellList } from './strategicRoadOverlay.js';
+import { normalizeRoadCellList, buildStrategicObjectFootprintBlockedSet } from './strategicRoadOverlay.js';
 import { readStrategicCellAnchorId } from './strategicCellAnchorId.js';
 
 /** 锚点格 `object`：水平两格宽 → `bandit_horiz`；垂直两格高 → `bandit_vert`；延伸格 `object` 置空。 */
@@ -17,6 +17,23 @@ export const YINGCHUAN_PHASE1_BANDIT_POI_IDS = [
   'san_1_bandit_1_yingchuan',
   'san_1_bandit_2_yingchuan',
 ];
+
+/** 汝南郡阶段一：须与 `jun_id === san_1_jun_runan` 及合并图 `junId` 一致，勿复用颍川 `*_yingchuan` ID（行军 `collectStrategicPoiFootprint` 以锚点 id 匹配）。 */
+export const RUNAN_PHASE1_BANDIT_POI_IDS = ['san_1_bandit_1_runan', 'san_1_bandit_2_runan'];
+
+/** strip 时用：清除误写入邻郡 slug 的旧占位 */
+export const ALL_SAN1_YU_PHASE1_BANDIT_POI_IDS = [...YINGCHUAN_PHASE1_BANDIT_POI_IDS, ...RUNAN_PHASE1_BANDIT_POI_IDS];
+
+/**
+ * @param {string|null|undefined} junId - `san_1_jun_yingchuan` / `san_1_jun_runan`
+ * @returns {readonly string[]}
+ */
+export function getPhase1BanditPoiIdsForJun(junId) {
+  const j = String(junId || '').trim();
+  if (j === 'san_1_jun_runan') return RUNAN_PHASE1_BANDIT_POI_IDS;
+  if (j === 'san_1_jun_yingchuan') return YINGCHUAN_PHASE1_BANDIT_POI_IDS;
+  return [];
+}
 
 class SeededRandom {
   constructor(seed) {
@@ -175,9 +192,10 @@ function paintDomino(cells, gx, gy, orientation, banditPoiId, displayName, occup
   }
 }
 
-export function stripYingchuanPhase1BanditCells(cells) {
+/** 去掉 S1 豫州两郡阶段一匪寨占位（含历史上误写入汝南底板上的 `*_yingchuan` id）。 */
+export function stripPhase1BanditCells(cells) {
   if (!cells?.length) return;
-  const idSet = new Set(YINGCHUAN_PHASE1_BANDIT_POI_IDS);
+  const idSet = new Set(ALL_SAN1_YU_PHASE1_BANDIT_POI_IDS);
   for (let gy = 0; gy < cells.length; gy++) {
     const row = cells[gy];
     if (!row) continue;
@@ -197,13 +215,20 @@ export function stripYingchuanPhase1BanditCells(cells) {
   }
 }
 
+/** @deprecated 语义已扩展为「两郡阶段一」；请优先使用 {@link stripPhase1BanditCells} */
+export const stripYingchuanPhase1BanditCells = stripPhase1BanditCells;
+
 /**
  * @param {object[][]} cells
  * @param {number} seed
+ * @param {string} junId - `san_1_jun_yingchuan` / `san_1_jun_runan`
  * @param {{ roadCells?: unknown, mapColumns?: number, mapRows?: number }|null|undefined} [placement]
  */
-export function applyYingchuanPhase1BanditPlaceholders(cells, seed = 0, placement = null) {
+export function applyJunPhase1BanditPlaceholders(cells, seed = 0, junId, placement = null) {
   if (!cells?.length || !cells[0]?.length) return;
+  const poiIds = getPhase1BanditPoiIdsForJun(junId);
+  if (!poiIds.length) return;
+
   const H = cells.length;
   const W = cells[0].length;
   const rng = new SeededRandom((Number(seed) ^ 0xbadcafe) >>> 0);
@@ -216,13 +241,7 @@ export function applyYingchuanPhase1BanditPlaceholders(cells, seed = 0, placemen
       ? buildRoadKeySet(roadCells, mapColumns, mapRows)
       : null;
 
-  const occupied = new Set();
-  for (let gy = 0; gy < H; gy++) {
-    for (let gx = 0; gx < W; gx++) {
-      const cell = cells[gy][gx];
-      if (readStrategicCellAnchorId(cell)) occupied.add(`${gx},${gy}`);
-    }
-  }
+  const occupied = buildStrategicObjectFootprintBlockedSet(cells, W, H);
 
   const margin = 2;
   const gxMin = margin;
@@ -231,8 +250,11 @@ export function applyYingchuanPhase1BanditPlaceholders(cells, seed = 0, placemen
   const gyMax = H - 2 - margin;
   if (gxMax < gxMin || gyMax < gyMin) return;
 
-  for (let i = 0; i < YINGCHUAN_PHASE1_BANDIT_POI_IDS.length; i++) {
-    const banditPoiId = YINGCHUAN_PHASE1_BANDIT_POI_IDS[i];
+  const isRunan = String(junId || '').trim() === 'san_1_jun_runan';
+  const displayNames = isRunan ? ['汝南匪寨（一）', '汝南匪寨（二）'] : ['颍川匪寨（一）', '颍川匪寨（二）'];
+
+  for (let i = 0; i < poiIds.length; i++) {
+    const banditPoiId = poiIds[i];
     let already = false;
     for (let gy = 0; gy < H && !already; gy++) {
       for (let gx = 0; gx < W; gx++) {
@@ -245,7 +267,7 @@ export function applyYingchuanPhase1BanditPlaceholders(cells, seed = 0, placemen
     }
     if (already) continue;
 
-    const displayName = i === 0 ? '颍川匪寨（一）' : '颍川匪寨（二）';
+    const displayName = displayNames[i] || `匪寨（${i + 1}）`;
     let ok = false;
 
     const tryPaint = (requireRoadTouch) => {
@@ -274,8 +296,51 @@ export function applyYingchuanPhase1BanditPlaceholders(cells, seed = 0, placemen
 }
 
 /**
- * 浅拷贝格网后幂等写入颍川阶段一匪寨占位。
- * 若提供非空 `roadCells`：先去掉本阶段匪寨再按「不占道 + 贴路优先」重放，与磁盘旧快照/生成器无道路信息时对齐。
+ * @param {object[][]} cells
+ * @param {number} seed
+ * @param {{ roadCells?: unknown, mapColumns?: number, mapRows?: number }|null|undefined} [placement]
+ */
+export function applyYingchuanPhase1BanditPlaceholders(cells, seed = 0, placement = null) {
+  applyJunPhase1BanditPlaceholders(cells, seed, 'san_1_jun_yingchuan', placement);
+}
+
+/**
+ * 浅拷贝格网后：先 strip 两郡阶段一匪寨占位，再按 **junId** 写入该郡两枚占位（仅颍川 / 汝南）。
+ * 其它 `junId`：原样浅拷贝返回（不 strip），避免误伤未约定匪寨占位之郡。
+ *
+ * @param {object[][]} cells
+ * @param {number} [seed]
+ * @param {string} junId
+ * @param {{ roadCells?: unknown, mapColumns?: number, mapRows?: number }|null} [options]
+ * @returns {object[][]}
+ */
+export function ensureJunMergedMapCells(cells, seed = 0, junId, options = null) {
+  if (!cells?.length || !cells[0]?.length) return cells || [];
+  const cloned = cells.map((row) =>
+    (row || []).map((cell) => (cell && typeof cell === 'object' ? { ...cell } : cell)),
+  );
+  const jid = String(junId || '').trim();
+  const poiIds = getPhase1BanditPoiIdsForJun(jid);
+  if (!poiIds.length) {
+    return cloned;
+  }
+
+  const roadCells = options?.roadCells;
+  const mapColumns = options?.mapColumns;
+  const mapRows = options?.mapRows;
+  const hasRoads = Array.isArray(roadCells) && roadCells.length > 0;
+
+  stripPhase1BanditCells(cloned);
+  if (hasRoads) {
+    applyJunPhase1BanditPlaceholders(cloned, seed, jid, { roadCells, mapColumns, mapRows });
+  } else {
+    applyJunPhase1BanditPlaceholders(cloned, seed, jid, null);
+  }
+  return cloned;
+}
+
+/**
+ * 浅拷贝格网后幂等写入 **颍川** 阶段一匪寨占位（= `ensureJunMergedMapCells(..., san_1_jun_yingchuan, …)`）。
  *
  * @param {object[][]} cells
  * @param {number} [seed] 与合并图 `seed` 一致（缺省 0）
@@ -283,20 +348,5 @@ export function applyYingchuanPhase1BanditPlaceholders(cells, seed = 0, placemen
  * @returns {object[][]} 新二维数组（不修改入参）
  */
 export function ensureYingchuanMergedMapCells(cells, seed = 0, options = null) {
-  if (!cells?.length || !cells[0]?.length) return cells || [];
-  const cloned = cells.map((row) =>
-    (row || []).map((cell) => (cell && typeof cell === 'object' ? { ...cell } : cell)),
-  );
-  const roadCells = options?.roadCells;
-  const mapColumns = options?.mapColumns;
-  const mapRows = options?.mapRows;
-  const hasRoads = Array.isArray(roadCells) && roadCells.length > 0;
-
-  if (hasRoads) {
-    stripYingchuanPhase1BanditCells(cloned);
-    applyYingchuanPhase1BanditPlaceholders(cloned, seed, { roadCells, mapColumns, mapRows });
-  } else {
-    applyYingchuanPhase1BanditPlaceholders(cloned, seed, null);
-  }
-  return cloned;
+  return ensureJunMergedMapCells(cells, seed, 'san_1_jun_yingchuan', options);
 }

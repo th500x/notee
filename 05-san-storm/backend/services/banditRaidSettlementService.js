@@ -81,8 +81,9 @@ async function applyBanditRaidVictory(playerId, payload) {
     }
 
     const newStored = banditStoredNextLayerAfterVictory(attackedLayer, maxP);
+    const { raid: _legacyRaid, ...prevWithoutRaid } = prevEntry;
     bp[BUCKET][banditPoiId] = {
-      ...prevEntry,
+      ...prevWithoutRaid,
       nextLayer: newStored,
     };
 

@@ -26,6 +26,9 @@ const {
 } = require('../../shared/utils/strategicRoadOverlay.js');
 const { ensureYingchuanMergedMapCells } = require('../../shared/utils/strategicBanditPlaceholderPhase1.js');
 
+/** S1 豫州大地图垂直叠放郡（与 `shared/utils/strategicWorldMapStack.js` 一致） */
+const SAN_1_YU_STACK_JUN_IDS = ['san_1_jun_yingchuan', 'san_1_jun_runan'];
+
 const SHARED_WORLDMAP_PUBLIC_DIR = path.join(__dirname, '../../public/data/worldmap');
 
 function mergedJsonFilename(junId) {
@@ -63,6 +66,62 @@ function neighborOffsets4() {
  * @param {string} season
  * @param {string} junId
  */
+function isSan1YuStackRoadJunId(junId) {
+  const j = String(junId || '').trim();
+  return SAN_1_YU_STACK_JUN_IDS.includes(j);
+}
+
+/**
+ * 颍川 + 汝南垂直叠放道路权威栅格（世界行 `gy` 与前端 `StrategicWorldMapSection` 一致）。
+ * @param {string} [_season] 预留与 DB 道路表对齐；现仅从磁盘 merged 构造
+ * @returns {Promise<object|null>} 与 `loadRoadGrid` 同形字段 + `isSan1YuVerticalStack: true`
+ */
+async function loadRoadGridSan1YuVerticalStack(_season) {
+  let stackMod;
+  try {
+    stackMod = await import('../../shared/utils/strategicWorldMapStack.js');
+  } catch (e) {
+    console.error('[roadGrid] loadRoadGridSan1YuVerticalStack import', e);
+    return null;
+  }
+  const top = readMergedJson('san_1_jun_yingchuan');
+  if (!top?.cells?.length || !Array.isArray(top.cells[0])) return null;
+  const mapColumns = Number(top.columns || top.mapColumns || 32);
+  const mapRowsSlice = Math.min(40, Number(top.mapRows) || 40, top.cells.length);
+  const mergedSeed = Number(top.seed);
+  const topJunBare = String(top.junId || 'san_1_jun_yingchuan').replace(/^san_1_jun_/, '');
+  const terrainCellsTop =
+    topJunBare === 'yingchuan'
+      ? ensureYingchuanMergedMapCells(top.cells, Number.isFinite(mergedSeed) ? mergedSeed : 0, {
+          roadCells: Array.isArray(top.roadCells) ? top.roadCells : null,
+          mapColumns,
+          mapRows: mapRowsSlice,
+        })
+      : top.cells;
+  const topAdj = { ...top, cells: terrainCellsTop, mapColumns, mapRows: mapRowsSlice };
+  const bottom = readMergedJson('san_1_jun_runan');
+  const built = stackMod.buildSan1YuVerticalStackFromMergedPayloads({
+    yingchuan: topAdj,
+    runan: bottom && bottom.cells?.length ? bottom : null,
+  });
+  if (!built?.ok || !built.cells?.length) return null;
+  const road = normalizeRoadCellList(built.roadCells);
+  const cells = new Map();
+  for (const { gx, gy } of road) cells.set(cellKey(gx, gy), true);
+  const blocked = buildStrategicObjectFootprintBlockedSet(built.cells, built.mapColumns, built.mapRows);
+  return {
+    source: 'json',
+    cells,
+    blocked,
+    mapColumns: built.mapColumns,
+    mapRows: built.mapRows,
+    rawCells: built.cells,
+    roadCellsRaw: built.roadCells || [],
+    isSan1YuVerticalStack: true,
+    stackJunIds: SAN_1_YU_STACK_JUN_IDS,
+  };
+}
+
 async function loadRoadGrid(season, junId) {
   const json = readMergedJson(junId);
   if (!json || !Array.isArray(json.cells) || !Array.isArray(json.roadCells)) {
@@ -164,6 +223,8 @@ function isNeighbor4(ax, ay, bx, by) {
 
 module.exports = {
   loadRoadGrid,
+  loadRoadGridSan1YuVerticalStack,
+  isSan1YuStackRoadJunId,
   findMainCityFootprint,
   cellKey,
   isNeighbor4,

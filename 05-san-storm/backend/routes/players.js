@@ -948,7 +948,7 @@ router.delete('/:playerId/items', async (req, res) => {
 /**
  * GET /api/players/:playerId/bandit-raid-quota?banditPoiId=san_1_bandit_1_yingchuan
  * `banditPoiId`：匪寨地图对象 ID（04-1 §15），与 `targetPoiId` 同族。
- * `data.worldDurability`：null 或 { maxLayers, clearedLayers, layersRemaining }（与 `bandits` 列语义一致）。
+ * `data.worldDurability`：null 或 { maxLayers, clearedLayers, layersRemaining }（与 `bandits` 列语义一致）。`data.junId`：该匪寨所属郡（攻打次数按郡共用）。
  */
 router.get('/:playerId/bandit-raid-quota', async (req, res) => {
   try {

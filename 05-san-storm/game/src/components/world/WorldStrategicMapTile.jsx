@@ -246,7 +246,9 @@ function WorldStrategicMapTile({
               ? '营'
               : effectiveObject === 'military_tower'
                 ? '塔'
-                : effectiveObject === 'city_medium' || effectiveObject === 'city_small'
+                : effectiveObject === 'city_medium' ||
+                    effectiveObject === 'city_small' ||
+                    effectiveObject === 'city_major'
                   ? '城'
                   : effectiveObject === 'fort'
                     ? '据'
@@ -255,6 +257,21 @@ function WorldStrategicMapTile({
                       : '·'}
           </div>
         ))}
+      {isCityFootprint2x2 &&
+      isAnchorTile &&
+      factionHex &&
+      effectiveObject === 'city_major' ? (
+        <div
+          className="ws-layer ws-object-span-2 ws-faction-city-front-vignette"
+          aria-hidden
+          style={{
+            zIndex: 3,
+            pointerEvents: 'none',
+            mixBlendMode: 'multiply',
+            background: `radial-gradient(ellipse 88% 82% at 50% 58%, ${hexToRgba(factionHex, 0.38)} 0%, transparent 72%)`,
+          }}
+        />
+      ) : null}
       {labelLines && (
         <div
           className={`ws-strategic-label${showSpanningStrategicObject && objectSpanClass ? ` ${objectSpanClass}` : ''}`}

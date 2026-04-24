@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { playerAPI } from '@/services/playerApi';
 
 /**
- * 战略匪寨攻打次数：GET 服务端 `bandit_progress` 合并窗口后快照；每分钟轻刷。
+ * 战略匪寨攻打次数：GET 服务端按 **郡** 合并后的 `bandit_progress.byJunRaidQuota` 快照；每分钟轻刷。
  * @param {string|null|undefined} playerId
  * @param {string|null|undefined} banditPoiId - 匪寨地图对象 ID **`san_*_bandit_*`**（04-1 §15）
  */

@@ -17,7 +17,22 @@
 
 const crypto = require('crypto');
 const { pool } = require('../database/connection');
-const { loadRoadGrid, findMainCityFootprint, cellKey, isNeighbor4 } = require('../utils/roadGrid');
+const {
+  loadRoadGrid,
+  loadRoadGridSan1YuVerticalStack,
+  isSan1YuStackRoadJunId,
+  findMainCityFootprint,
+  cellKey,
+  isNeighbor4,
+} = require('../utils/roadGrid');
+
+let strategicStackModPromise = null;
+async function getStrategicStackModule() {
+  if (!strategicStackModPromise) {
+    strategicStackModPromise = import('../../shared/utils/strategicWorldMapStack.js');
+  }
+  return strategicStackModPromise;
+}
 const marchPoi = require('../../shared/utils/strategicMarchPoi.js');
 const { isHostileByFaction } = require('../utils/roadDiplomacy');
 const { isPlayerRecentlyActive, DEFAULT_ONLINE_MS } = require('../utils/playerActivity');
@@ -393,12 +408,6 @@ async function moveAlongRoad(playerId, body) {
   const clientRequestId = String(body.clientRequestId || '').trim();
   if (!clientRequestId) return { ok: false, status: 400, error: '缺少 clientRequestId' };
 
-  // 先加载栅格与当前 presence / 锁格（事务外读，事务内二次校验最关键的「锁格」）
-  const grid = await loadRoadGrid(season, junId);
-  if (grid.source === 'none' || !grid.cells.size) {
-    return { ok: false, status: 400, error: `郡 ${junId} 缺少道路栅格数据（merged.json 未生成或无 roadCells）` };
-  }
-
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
@@ -417,10 +426,41 @@ async function moveAlongRoad(playerId, body) {
       return { ok: false, status: 404, error: '玩家不存在' };
     }
 
-    const [countyCityRows] = await conn.query(
-      `SELECT city_id, city_type, position_x, position_y, faction_id FROM cities WHERE jun_id = ? AND season = ?`,
-      [junId, season],
-    );
+    if (String(player.road_jun_id || '').trim() !== junId) {
+      await conn.rollback();
+      return { ok: false, status: 400, error: 'junId 须与当前 road_jun_id 一致' };
+    }
+
+    let grid = null;
+    if (isSan1YuStackRoadJunId(player.road_jun_id)) {
+      grid = await loadRoadGridSan1YuVerticalStack(season);
+    }
+    if (!grid || grid.source === 'none' || !grid.cells.size) {
+      grid = await loadRoadGrid(season, junId);
+    }
+    if (grid.source === 'none' || !grid.cells.size) {
+      await conn.rollback();
+      return { ok: false, status: 400, error: `郡 ${junId} 缺少道路栅格数据（merged.json 未生成或无 roadCells）` };
+    }
+    const useStackGrid = !!grid.isSan1YuVerticalStack;
+    const stackMod = useStackGrid ? await getStrategicStackModule() : null;
+
+    let countyCityRows;
+    if (useStackGrid && Array.isArray(grid.stackJunIds) && grid.stackJunIds.length >= 2) {
+      const [ccRows] = await conn.query(
+        `SELECT city_id, city_type, position_x, position_y, faction_id, jun_id
+           FROM cities WHERE season = ? AND jun_id IN (?, ?)`,
+        [season, grid.stackJunIds[0], grid.stackJunIds[1]],
+      );
+      countyCityRows = ccRows;
+    } else {
+      const [ccRows] = await conn.query(
+        `SELECT city_id, city_type, position_x, position_y, faction_id, jun_id
+           FROM cities WHERE jun_id = ? AND season = ?`,
+        [junId, season],
+      );
+      countyCityRows = ccRows;
+    }
     const mainCityDbRow =
       player.main_city_id != null && String(player.main_city_id).trim() !== ''
         ? countyCityRows.find((r) => String(r.city_id) === String(player.main_city_id)) || null
@@ -464,6 +504,7 @@ async function moveAlongRoad(playerId, body) {
     const marchToBanditPoi = !!targetPoiIdRaw && marchPoi.isBanditMapObjectId(targetPoiIdRaw);
     let resolvedPath = [];
     let poiAnchorEnd = null;
+    let poiAnchorJunIdEnd = null;
 
     if (targetPoiIdRaw) {
       /** 匪寨 `san_*_bandit_*` 与 `cities` 表拆库拆语义；寻路 footprint 来自合并图 `cells`，不得强依赖 `cities` 行。 */
@@ -471,7 +512,7 @@ async function moveAlongRoad(playerId, body) {
       if (!marchPoi.isBanditMapObjectId(targetPoiIdRaw)) {
         const [cRows] = await conn.query(
           `SELECT city_id AS cityId, city_type AS cityType, faction_id AS factionId,
-                  position_x AS positionX, position_y AS positionY
+                  position_x AS positionX, position_y AS positionY, jun_id AS junId
              FROM cities WHERE city_id = ? LIMIT 1`,
           [targetPoiIdRaw],
         );
@@ -504,6 +545,7 @@ async function moveAlongRoad(playerId, body) {
         targetCityDbRow: cityRow,
         mainCityDbRow,
         citiesInCountyRows: countyCityRows,
+        useWorldStackRoadCoords: useStackGrid,
       });
       if (!built.ok) {
         await conn.rollback();
@@ -511,6 +553,7 @@ async function moveAlongRoad(playerId, body) {
       }
       resolvedPath = built.path;
       poiAnchorEnd = built.poiAnchor || null;
+      poiAnchorJunIdEnd = built.poiAnchorJunId || null;
     } else {
       const clientPath = Array.isArray(body.path) ? body.path : [];
       const clientShapeErr = validatePathShape(clientPath);
@@ -529,8 +572,12 @@ async function moveAlongRoad(playerId, body) {
 
       const sx0 = toInt(player.road_position_x);
       const sy0 = toInt(player.road_position_y);
+      const sy0World =
+        useStackGrid && stackMod && sx0 != null && sy0 != null && player.road_jun_id
+          ? stackMod.stackWorldGyFromLocalJunRow(String(player.road_jun_id).trim(), sy0)
+          : sy0;
       const startKeyIfRoad =
-        sx0 != null && sy0 != null && player.road_jun_id === junId ? cellKey(sx0, sy0) : null;
+        sx0 != null && sy0 != null && player.road_jun_id === junId ? cellKey(sx0, sy0World) : null;
       const onRoadForBfs = startKeyIfRoad != null && roadPassableForMarch.has(startKeyIfRoad);
 
       let bfsPath = null;
@@ -551,6 +598,7 @@ async function moveAlongRoad(playerId, body) {
           grid.mapRows,
           (cells, mainId) => findMainCityFootprint(cells, mainId, grid.mapColumns, grid.mapRows),
           { mainCityDbRow, citiesInCountyRows: countyCityRows },
+          useStackGrid,
         );
         if (!footprint.size) {
           await conn.rollback();
@@ -586,8 +634,14 @@ async function moveAlongRoad(playerId, body) {
     // 或当 player 未在路上时为城/寨块邻接的道路格（与 BFS 首格一致）。
     const startX = toInt(player.road_position_x);
     const startY = toInt(player.road_position_y);
+    const startYWorld =
+      useStackGrid && stackMod && startX != null && startY != null && player.road_jun_id
+        ? stackMod.stackWorldGyFromLocalJunRow(String(player.road_jun_id).trim(), startY)
+        : startY;
     const startKey =
-      startX != null && startY != null && player.road_jun_id === junId ? cellKey(startX, startY) : null;
+      startX != null && startY != null && player.road_jun_id === junId
+        ? cellKey(startX, startYWorld)
+        : null;
     const onRoad = startKey != null && roadPassableForMarch.has(startKey);
 
     const first = resolvedPath[0];
@@ -599,9 +653,13 @@ async function moveAlongRoad(playerId, body) {
     }
 
     if (onRoad) {
-      if (firstX !== startX || firstY !== startY) {
+      if (firstX !== startX || firstY !== startYWorld) {
         await conn.rollback();
-        return { ok: false, status: 400, error: `路径起点须为当前道路位置 (${startX},${startY})` };
+        return {
+          ok: false,
+          status: 400,
+          error: `路径起点须为当前道路位置 (${startX},${startY})`,
+        };
       }
     } else {
       // 首跳：道路格须 4-邻接 **当前离路所占城/寨块**（优先 `road_position` 所在 POI）或 **主城块**（回退）。
@@ -613,6 +671,7 @@ async function moveAlongRoad(playerId, body) {
         grid.mapRows,
         (cells, mainId) => findMainCityFootprint(cells, mainId, grid.mapColumns, grid.mapRows),
         { mainCityDbRow, citiesInCountyRows: countyCityRows },
+        useStackGrid,
       );
       if (!footprint.size) {
         await conn.rollback();
@@ -671,9 +730,17 @@ async function moveAlongRoad(playerId, body) {
         for (const step of steps) {
           const sx = toInt(step.x);
           const sy = toInt(step.y);
-          if (sx !== ex || sy !== ey) {
-            leavesCell = true;
-            break;
+          if (!useStackGrid) {
+            if (sx !== ex || sy !== ey) {
+              leavesCell = true;
+              break;
+            }
+          } else if (stackMod) {
+            const loc = stackMod.stackLocalJunRowFromWorldGy(sy);
+            if (!loc || loc.junId !== junId || sx !== ex || loc.localGy !== ey) {
+              leavesCell = true;
+              break;
+            }
           }
         }
         if (leavesCell) {
@@ -701,7 +768,7 @@ async function moveAlongRoad(playerId, body) {
         String(player.road_jun_id || '').trim() === String(junId).trim() &&
         resolvedPath.length === 1 &&
         toInt(resolvedPath[0].x) === startX &&
-        toInt(resolvedPath[0].y) === startY;
+        toInt(resolvedPath[0].y) === startYWorld;
 
       if (canPoiSnapFromAdjRoad) {
         const [trapRows0] = await conn.query(
@@ -725,9 +792,12 @@ async function moveAlongRoad(playerId, body) {
         await resolveStaleRoadEncountersAtCell(conn, season, junId, startX, startY);
         await resolveAbandonedRoadFightOnCellIfOpponentOffline(conn, season, junId, startX, startY, pid);
 
+        /** 叠放图：贴城锚格坐标为郡内本地格，条带须与当前立足道路一致；勿盲信可能滞后的 `poiAnchorJunIdEnd`（库 `cities.jun_id` 与路径终点条带不一致时会写错郡）。 */
+        const snapJun =
+          useStackGrid && stackMod ? String(junId).trim() : poiAnchorJunIdEnd || junId;
         await conn.query(
           `UPDATE players SET road_last_request_id = ?, road_jun_id = ?, road_position_x = ?, road_position_y = ?, road_updated_at = NOW() WHERE player_id = ?`,
-          [clientRequestId, junId, axSnap, aySnap, pid],
+          [clientRequestId, snapJun, axSnap, aySnap, pid],
         );
         await conn.commit();
         const [finalRowsSnap] = await pool.query(
@@ -821,27 +891,47 @@ async function moveAlongRoad(playerId, body) {
     }
 
     // 逐格落脚 — 在事务内对每个候选格做 SELECT FOR UPDATE 锁检查（road_encounters + 占格玩家）。
+    const retreatGridByJun = new Map();
+    const loadRetreatGrid = async (jid) => {
+      const j = String(jid || '').trim();
+      if (!j) return grid;
+      if (retreatGridByJun.has(j)) return retreatGridByJun.get(j);
+      const g = await loadRoadGrid(season, j);
+      retreatGridByJun.set(j, g);
+      return g;
+    };
+    const cityRowsForJun = (j) =>
+      (countyCityRows || []).filter((r) => String(r.jun_id ?? r.junId ?? '') === String(j));
+
+    const startWalkWy =
+      useStackGrid && stackMod && onRoad && startX != null && startY != null && player.road_jun_id
+        ? stackMod.stackWorldGyFromLocalJunRow(String(player.road_jun_id).trim(), startY)
+        : startY;
     let lastX = onRoad ? startX : null;
-    let lastY = onRoad ? startY : null;
+    let lastY = onRoad ? startWalkWy : null;
     let encounter = null;
     let stepsApplied = 0;
     /** @type {Array<{ defenderPlayerId: string, retreatX?: number, retreatY?: number, reason?: string }>} */
     const defenderAutoRetreats = [];
 
     for (let i = 0; i < steps.length; i++) {
-      const sx = toInt(steps[i].x);
-      const sy = toInt(steps[i].y);
+      const wsx = toInt(steps[i].x);
+      const wsy = toInt(steps[i].y);
+      const locStep = useStackGrid && stackMod ? stackMod.stackLocalJunRowFromWorldGy(wsy) : null;
+      const stepJun = locStep ? locStep.junId : junId;
+      const stepPy = locStep ? locStep.localGy : wsy;
+      const stepPx = wsx;
 
       // 与前一格的邻接：若 onRoad，则 lastX/Y 为当前；否则 first 是 lastX=null，首跳不要求与 lastX 相邻（已在主城邻接校验过）。
       if (lastX != null && lastY != null) {
-        if (!isNeighbor4(lastX, lastY, sx, sy)) {
+        if (!isNeighbor4(lastX, lastY, wsx, wsy)) {
           await conn.rollback();
-          return { ok: false, status: 400, error: `(${lastX},${lastY}) → (${sx},${sy}) 非相邻` };
+          return { ok: false, status: 400, error: `(${lastX},${lastY}) → (${wsx},${wsy}) 非相邻` };
         }
       }
 
-      await resolveStaleRoadEncountersAtCell(conn, season, junId, sx, sy);
-      await resolveAbandonedRoadFightOnCellIfOpponentOffline(conn, season, junId, sx, sy, pid);
+      await resolveStaleRoadEncountersAtCell(conn, season, stepJun, stepPx, stepPy);
+      await resolveAbandonedRoadFightOnCellIfOpponentOffline(conn, season, stepJun, stepPx, stepPy, pid);
 
       // 1) 交战登记格：非攻防双方 **不得以本格为本次道路段最后一步**；过境（同请求内后续仍有道路步）不拦。与 `road_intercept` 无关。
       const [lockRows] = await conn.query(
@@ -850,7 +940,7 @@ async function moveAlongRoad(playerId, body) {
           WHERE season = ? AND jun_id = ? AND position_x = ? AND position_y = ?
             AND status IN ('pending','fighting')
           FOR UPDATE`,
-        [season, junId, sx, sy],
+        [season, stepJun, stepPx, stepPy],
       );
       let skipHostileBecauseEncounterTransit = false;
       if (lockRows.length) {
@@ -885,18 +975,18 @@ async function moveAlongRoad(playerId, body) {
                           COALESCE(UNIX_TIMESTAMP(a.lastActiveAt), 0)) <= UNIX_TIMESTAMP(NOW()) - ?
           ORDER BY p.player_id
           FOR UPDATE`,
-        [junId, sx, sy, pid, onlineSec],
+        [stepJun, stepPx, stepPy, pid, onlineSec],
       );
       for (const gr of ghostRows) {
         if (!isHostileByFaction(player.faction_id, gr.faction_id)) continue;
         // eslint-disable-next-line no-await-in-loop
         const ret = await applyFactionPlayerRoadRetreat(conn, {
-          junId,
-          grid,
-          countyCityRows,
+          junId: stepJun,
+          grid: await loadRetreatGrid(stepJun),
+          countyCityRows: cityRowsForJun(stepJun).length ? cityRowsForJun(stepJun) : countyCityRows,
           playerId: gr.player_id,
-          fromX: sx,
-          fromY: sy,
+          fromX: stepPx,
+          fromY: stepPy,
           noticeText: buildRoadGateFailRetreatNotice('道路坐标久未活跃，已自动退让'),
         });
         if (ret.ok) {
@@ -920,19 +1010,19 @@ async function moveAlongRoad(playerId, body) {
                           COALESCE(UNIX_TIMESTAMP(a.lastActiveAt), 0)) > UNIX_TIMESTAMP(NOW()) - ?
           ORDER BY p.player_id
           FOR UPDATE`,
-        [junId, sx, sy, pid, onlineSec],
+        [stepJun, stepPx, stepPy, pid, onlineSec],
       );
       if (occRows.length) {
         if (skipHostileBecauseEncounterTransit) {
-          lastX = sx;
-          lastY = sy;
+          lastX = wsx;
+          lastY = wsy;
           stepsApplied = i + 1;
           continue;
         }
         /** 行军目标为战略匪寨时：最后一道路步不登记道路遭遇（与 31-6 / 17-6 一致；遭遇仅道路格常规规则）。 */
         if (marchToBanditPoi && i === steps.length - 1) {
-          lastX = sx;
-          lastY = sy;
+          lastX = wsx;
+          lastY = wsy;
           stepsApplied = i + 1;
           continue;
         }
@@ -945,8 +1035,8 @@ async function moveAlongRoad(playerId, body) {
         }
         if (!defender) {
           // 格上仅有非敌对玩家（M2：同势力等）：允许同格叠站，继续走后续路径。
-          lastX = sx;
-          lastY = sy;
+          lastX = wsx;
+          lastY = wsy;
           stepsApplied = i + 1;
           continue;
         }
@@ -972,12 +1062,12 @@ async function moveAlongRoad(playerId, body) {
         const gate = await garrisonService.validateMainLineupBattleGateOnConn(conn, other.player_id);
         if (!gate.ok) {
           const ret = await applyFactionPlayerRoadRetreat(conn, {
-            junId,
-            grid,
-            countyCityRows,
+            junId: stepJun,
+            grid: await loadRetreatGrid(stepJun),
+            countyCityRows: cityRowsForJun(stepJun).length ? cityRowsForJun(stepJun) : countyCityRows,
             playerId: other.player_id,
-            fromX: sx,
-            fromY: sy,
+            fromX: stepPx,
+            fromY: stepPy,
             noticeText: buildRoadGateFailRetreatNotice(gate.error),
           });
           if (!ret.ok) {
@@ -996,13 +1086,13 @@ async function moveAlongRoad(playerId, body) {
             retreatCityId: ret.retreatCityId || undefined,
             reason: gate.error || '未满足开战条件',
           });
-          lastX = sx;
-          lastY = sy;
+          lastX = wsx;
+          lastY = wsy;
           stepsApplied = i + 1;
           continue;
         }
         // 敌对且守方满足开战门闸 → 登记遭遇（status='fighting'），攻方落脚到该格，后续 steps 中断。
-        const encounterId = newEncounterId(junId);
+        const encounterId = newEncounterId(stepJun);
         // 守门方：仅当格上防守方处于开战模式时记入 gatekeeper（31-6 §五）；其余敌对遭遇 gatekeeper 置空。
         const gatekeeperId = other.road_intercept ? other.player_id : null;
         await conn.query(
@@ -1011,33 +1101,56 @@ async function moveAlongRoad(playerId, body) {
                attacker_player_id, defender_player_id, gatekeeper_player_id,
                status, started_at)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'fighting', NOW())`,
-          [encounterId, season, junId, sx, sy, pid, other.player_id, gatekeeperId],
+          [encounterId, season, stepJun, stepPx, stepPy, pid, other.player_id, gatekeeperId],
         );
         encounter = {
           encounterId,
           season,
-          junId,
-          positionX: sx,
-          positionY: sy,
+          junId: stepJun,
+          positionX: stepPx,
+          positionY: stepPy,
           attackerPlayerId: pid,
           defenderPlayerId: other.player_id,
           gatekeeperPlayerId: gatekeeperId,
           status: 'fighting',
         };
-        lastX = sx;
-        lastY = sy;
+        lastX = wsx;
+        lastY = wsy;
         stepsApplied = i + 1;
         break;
       }
 
-      lastX = sx;
-      lastY = sy;
+      lastX = wsx;
+      lastY = wsy;
       stepsApplied = i + 1;
     }
 
+    let appliedPoiSnap = false;
     if (poiAnchorEnd && lastX != null && lastY != null && !encounter && stepsApplied === steps.length) {
       lastX = poiAnchorEnd.x;
       lastY = poiAnchorEnd.y;
+      appliedPoiSnap = true;
+    }
+
+    let destRoadJunId = junId;
+    let destPx = lastX;
+    let destPy = lastY;
+    if (appliedPoiSnap) {
+      /** 路径最后一格世界行 → 条带：与 BFS 终点一致，优先于 `poiAnchorJunIdEnd`（避免库 jun 与合并图不一致导致「颍川 id + 汝南格」）。 */
+      let pathEndJunId = null;
+      if (useStackGrid && stackMod && Array.isArray(resolvedPath) && resolvedPath.length) {
+        const wy = toInt(resolvedPath[resolvedPath.length - 1]?.y);
+        const zEnd = stackMod.stackLocalJunRowFromWorldGy(wy);
+        if (zEnd?.junId) pathEndJunId = zEnd.junId;
+      }
+      if (pathEndJunId) destRoadJunId = pathEndJunId;
+      else if (poiAnchorJunIdEnd) destRoadJunId = poiAnchorJunIdEnd;
+    } else if (useStackGrid && stackMod && destPx != null && destPy != null) {
+      const z = stackMod.stackLocalJunRowFromWorldGy(destPy);
+      if (z) {
+        destRoadJunId = z.junId;
+        destPy = z.localGy;
+      }
     }
 
     // 若中途遇敌停下，只对已走过的 steps 扣粮草 / 免费格；重新按 stepsApplied 结算
@@ -1070,9 +1183,9 @@ async function moveAlongRoad(playerId, body) {
         WHERE player_id = ?`,
       [
         playerFoodUse,
-        junId,
-        lastX,
-        lastY,
+        destRoadJunId,
+        destPx,
+        destPy,
         todayStr,
         (freeDateStr === todayStr ? (Number(player.road_move_free_used) || 0) : 0) + usedFreeThisMove,
         todayStr,

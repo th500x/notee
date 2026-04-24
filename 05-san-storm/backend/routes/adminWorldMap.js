@@ -38,6 +38,21 @@ router.get('/jun/:junId/preset-status', async (req, res) => {
   }
 });
 
+/** 单象限 preset 原文 JSON（管理员页从 shared/data/worldmap 读取，不写死郡列表） */
+router.get('/jun/:junId/quad-preset/:quad', async (req, res) => {
+  try {
+    const { junId, quad } = req.params;
+    const data = worldMapAdminService.readQuadPresetJson(junId, quad);
+    res.json({ success: true, data });
+  } catch (err) {
+    console.error('[admin/world-map] quad-preset:', err);
+    const code = err.code;
+    const status =
+      code === 'VALIDATION' ? 400 : code === 'NOT_FOUND' ? 404 : 500;
+    res.status(status).json({ success: false, error: err.message || '读取失败' });
+  }
+});
+
 router.post('/coordinates-to-db', async (req, res) => {
   try {
     const { junId } = req.body || {};
@@ -66,23 +81,22 @@ router.post('/boundaries-to-db', async (req, res) => {
 });
 
 /**
- * 生成合并大地图 JSON（当前仅 san_1_jun_yingchuan）→ public/data/worldmap/san_1_jun_yingchuan_merged.json
+ * 生成合并大地图 JSON → public/data/worldmap/{jun_id}_merged.json（四象限 preset 须齐全）
  */
 router.post('/generate-merged-map', async (req, res) => {
   try {
     const { junId, seed } = req.body || {};
     const jid = (junId || '').trim();
-    if (jid !== 'san_1_jun_yingchuan') {
-      return res.status(400).json({
-        success: false,
-        error: '当前仅支持颍川郡 san_1_jun_yingchuan 生成合并图；其它郡后续迭代',
-      });
+    if (!jid) {
+      return res.status(400).json({ success: false, error: '需要 junId' });
     }
-    const result = await worldMapAdminService.generateYingchuanMergedMap({ seed });
+    const result = await worldMapAdminService.generateJunMergedMap({ junId: jid, seed });
     res.json({ success: true, data: result });
   } catch (err) {
     console.error('[admin/world-map] generate-merged-map:', err);
-    res.status(500).json({ success: false, error: err.message || '生成失败' });
+    const code = err.code;
+    const status = code === 'PRESET_INCOMPLETE' || code === 'VALIDATION' ? 400 : 500;
+    res.status(status).json({ success: false, error: clientErrorMessage(err, '生成失败') });
   }
 });
 

@@ -188,7 +188,7 @@ function buildStrategicWorldMapCityTooltip(row, anchorKey, hd, onDutyCount) {
 }
 
 /**
- * 战略层郡大地图格网（如颍川 32×40）。
+ * 战略层郡大地图格网（单郡 32×40；多郡垂直叠放时可为 32×80 等）。
  * 与 `CampaignMapGrid` 分离：无战役部署、无部队层、无战斗引擎。
  * Tooltip：城池有 **`cityId`** 且在 `cityById` 有行时，与 `WorldMapCityInfoBlock` 同款（驻地编组 / 披挂 / 攻城等）。
  * 匪寨用格上 **`banditPoiId`**（`readStrategicCellAnchorId`）；可无表行：合成最小行走匪寨专用面板。
@@ -988,11 +988,13 @@ export default function WorldStrategicMapGrid({
                   />
                 </svg>
               ) : null}
-              <div className="ws-quad-overlay" aria-hidden>
-                {['A', 'B', 'C', 'D'].map((q) => (
-                  <div key={q} className={WS_QUAD_CLASS[q]} title={`大象限 ${q}`} />
-                ))}
-              </div>
+              {mapRows === 40 ? (
+                <div className="ws-quad-overlay" aria-hidden>
+                  {['A', 'B', 'C', 'D'].map((q) => (
+                    <div key={q} className={WS_QUAD_CLASS[q]} title={`大象限 ${q}`} />
+                  ))}
+                </div>
+              ) : null}
               {strategicSelfPawn &&
               Number.isFinite(strategicSelfPawn.cx) &&
               Number.isFinite(strategicSelfPawn.cy) ? (

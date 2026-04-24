@@ -95,7 +95,9 @@ function CampaignMapTile({
               ? '营'
               : cell.object === 'military_tower'
                 ? '塔'
-                : cell.object === 'city_medium' || cell.object === 'city_small'
+                : cell.object === 'city_medium' ||
+                    cell.object === 'city_small' ||
+                    cell.object === 'city_major'
                   ? '城'
                   : cell.object === 'fort'
                     ? '据'

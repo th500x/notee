@@ -8,6 +8,7 @@ import {
   mapCornerEntryRowBoxStyle,
   mapCornerEntryStackOuterStyle,
 } from '@/components/game/mapCornerEntryUi';
+import { stackWorldGyFromLocalJunRow } from '@shared/utils/strategicWorldMapStack.js';
 
 function sortBySortOrderThenName(rows, nameKey) {
   return [...(rows || [])].sort((a, b) => {
@@ -76,7 +77,7 @@ function focusCityId(city) {
 
 /**
  * 大地图：州下拉 + 所选州下属郡列表；点郡将视口滚到该郡在库中有 position_x/y 的战略格（大→中→小→关→据点），缺省再走 merged 格网 resolve。
- * `variant="mapOverlay"`：叠在战略格网上（`WorldYingchuanMapSection` 内 absolute），与左下角排行/聊天同为「浮在地图上」的交互层。
+ * `variant="mapOverlay"`：叠在战略格网上（`StrategicWorldMapSection` 内 absolute），与左下角排行/聊天同为「浮在地图上」的交互层。
  * 样式对齐左下角「排行 / 聊天」入口条（`mapCornerEntryUi`）。
  *
  * @param {{ variant?: 'toolbar' | 'mapOverlay'; locateSelfCell?: () => { gx: number; gy: number } | null }} [props]
@@ -160,6 +161,7 @@ export default function ZhouJunMapJumpPanel({ variant = 'toolbar', locateSelfCel
           setJumpHint('未找到该郡城市的战略坐标（库中 position_x/y）');
           return;
         }
+        const worldGy = stackWorldGyFromLocalJunRow(String(jun.junId), gy);
         // 避免按钮 focus 触发外层 main 的 scrollIntoView，与地图内滚动抢一帧
         if (typeof document !== 'undefined' && document.activeElement instanceof HTMLElement) {
           document.activeElement.blur();
@@ -168,7 +170,7 @@ export default function ZhouJunMapJumpPanel({ variant = 'toolbar', locateSelfCel
         // 等当前 tick 里 setState（如 jumpBusy）提交后再滚，减少与外层滚动/锚定的竞态
         queueMicrotask(() => {
           requestAnimationFrame(() => {
-            nav.scrollToStrategicCell(gx, gy);
+            nav.scrollToStrategicCell(gx, worldGy);
           });
         });
       } catch {

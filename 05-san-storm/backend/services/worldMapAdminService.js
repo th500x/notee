@@ -11,13 +11,21 @@ const {
   buildStrategicObjectFootprintBlockedSet,
   ROAD_CONNECTIVITY_4,
 } = require('../../shared/utils/strategicRoadOverlay.js');
-const { ensureYingchuanMergedMapCells } = require('../../shared/utils/strategicBanditPlaceholderPhase1.js');
+const { ensureJunMergedMapCells } = require('../../shared/utils/strategicBanditPlaceholderPhase1.js');
 const banditInstanceService = require('./banditInstanceService');
 
 const SHARED_WORLDMAP_DIR = path.join(__dirname, '../../shared/data/worldmap');
-const MERGED_REL_PUBLIC = 'data/worldmap/san_1_jun_yingchuan_merged.json';
 
-/** 与 shared/utils/junCountyMapGenerator SAN_1_JUN_YINGCHUAN_MAJOR_QUAD_ORIGIN 一致（32×40 郡画布） */
+function mergedJsonRelPath(junId) {
+  const jid = String(junId || '').trim();
+  if (!jid) return null;
+  return `data/worldmap/${jid}_merged.json`;
+}
+
+/** 颍川默认路径（兼容旧引用） */
+const MERGED_REL_PUBLIC = mergedJsonRelPath('san_1_jun_yingchuan');
+
+/** 与 shared/utils/junCountyMapGenerator COUNTY_MAJOR_QUAD_ORIGIN 一致（32×40 郡画布） */
 const MAJOR_QUAD_ORIGIN = {
   A: { originGx: 0, originGy: 0 },
   B: { originGx: 16, originGy: 0 },
@@ -42,15 +50,35 @@ function checkJunPresetsComplete(junId) {
 }
 
 async function listZhouJun() {
+  // 使用物理列名并在 Node 侧映射：避免 mysql2 / 平台对 SELECT AS 别名大小写表现不一致，
+  // 导致前端 normalizeGeoOptions 读不到 junId/zhouId、郡行被 filter 掉（用户库已有汝南却下拉不显示）。
   const [zhouRows] = await pool.query(
-    `SELECT zhou_id AS zhouId, season, zhou_name AS zhouName, sort_order AS sortOrder, enabled, description
+    `SELECT zhou_id, season, zhou_name, sort_order, enabled, description
      FROM config_zhou ORDER BY sort_order ASC, zhou_id ASC`
   );
   const [junRows] = await pool.query(
-    `SELECT jun_id AS junId, season, zhou_id AS zhouId, jun_name AS junName, sort_order AS sortOrder, enabled, description
+    `SELECT jun_id, season, zhou_id, jun_name, sort_order, enabled, description
      FROM config_jun ORDER BY sort_order ASC, jun_id ASC`
   );
-  return { zhou: zhouRows, jun: junRows };
+  return {
+    zhou: zhouRows.map((r) => ({
+      zhouId: r.zhou_id,
+      season: r.season,
+      zhouName: r.zhou_name,
+      sortOrder: r.sort_order,
+      enabled: r.enabled,
+      description: r.description,
+    })),
+    jun: junRows.map((r) => ({
+      junId: r.jun_id,
+      season: r.season,
+      zhouId: r.zhou_id,
+      junName: r.jun_name,
+      sortOrder: r.sort_order,
+      enabled: r.enabled,
+      description: r.description,
+    })),
+  };
 }
 
 /**
@@ -96,7 +124,22 @@ async function importCoordinatesFromPresets(junId) {
     await applyAnchors(preset.strategic_forts || [], originGx, originGy);
   }
 
-  return { junId, updated, skippedNotInDb: [...new Set(notFound)] };
+  /** 匪寨不占 `cities` 坐标列；从已存在的 `public/.../{junId}_merged.json` 格网幂等补 `bandits`（与「生成地图」CLI 一致）。 */
+  let banditsSync = null;
+  let phase1BanditsEnsured = null;
+  if (junId === 'san_1_jun_yingchuan' || junId === 'san_1_jun_runan') {
+    try {
+      phase1BanditsEnsured = await banditInstanceService.ensurePhase1BanditsForJunDb(junId);
+      const mergedAbs = publicMergedAbsPath(junId);
+      if (fs.existsSync(mergedAbs)) {
+        banditsSync = await banditInstanceService.syncBanditsFromMergedDisk({ mergedAbsPath: mergedAbs });
+      }
+    } catch (e) {
+      console.warn('[worldMapAdmin] importCoordinates bandits sync:', e?.message || e);
+    }
+  }
+
+  return { junId, updated, skippedNotInDb: [...new Set(notFound)], banditsSync, phase1BanditsEnsured };
 }
 
 /**
@@ -134,12 +177,18 @@ async function importBoundaries({ season, edges }) {
   return { season, inserted };
 }
 
-function publicMergedAbsPath() {
-  return path.join(__dirname, '../../public', MERGED_REL_PUBLIC);
+function publicMergedAbsPath(junId) {
+  const rel = mergedJsonRelPath(junId);
+  if (!rel) {
+    const err = new Error('需要 junId');
+    err.code = 'VALIDATION';
+    throw err;
+  }
+  return path.join(__dirname, '../../public', rel);
 }
 
-function readMergedJsonIfExists() {
-  const outAbs = publicMergedAbsPath();
+function readMergedJsonIfExists(junId) {
+  const outAbs = publicMergedAbsPath(junId);
   if (!fs.existsSync(outAbs)) return null;
   try {
     const raw = fs.readFileSync(outAbs, 'utf8');
@@ -147,6 +196,33 @@ function readMergedJsonIfExists() {
   } catch {
     return null;
   }
+}
+
+/**
+ * 读取单象限 preset JSON（管理员页预览用）。
+ * @param {string} junId
+ * @param {string} quad - A|B|C|D
+ */
+function readQuadPresetJson(junId, quad) {
+  const jid = String(junId || '').trim();
+  const q = String(quad || '').trim().toUpperCase();
+  if (!jid) {
+    const err = new Error('需要 junId');
+    err.code = 'VALIDATION';
+    throw err;
+  }
+  if (!['A', 'B', 'C', 'D'].includes(q)) {
+    const err = new Error('quad 须为 A、B、C 或 D');
+    err.code = 'VALIDATION';
+    throw err;
+  }
+  const fp = path.join(SHARED_WORLDMAP_DIR, `${jid}_quad_${q}.preset.json`);
+  if (!fs.existsSync(fp)) {
+    const err = new Error(`文件不存在：${path.basename(fp)}`);
+    err.code = 'NOT_FOUND';
+    throw err;
+  }
+  return JSON.parse(fs.readFileSync(fp, 'utf8'));
 }
 
 /**
@@ -162,17 +238,31 @@ function preservedRoadLayerFrom(prev) {
 }
 
 /**
- * 仅颍川郡：调用 Node 脚本写入与游戏内同路径的合并 JSON。
+ * 任意郡：四象限 preset 齐全时调用 Node 脚本写入 `public/data/worldmap/{junId}_merged.json`。
  * 若磁盘上已有 `roadCells`，合并进新文件（避免「生成地图」冲掉道路编辑）。
+ * @param {{ junId: string, seed?: number|string }} params
  */
-async function generateYingchuanMergedMap({ seed } = {}) {
-  const prev = readMergedJsonIfExists();
+async function generateJunMergedMap({ junId, seed } = {}) {
+  const jid = String(junId || '').trim();
+  if (!jid) {
+    const err = new Error('需要 junId');
+    err.code = 'VALIDATION';
+    throw err;
+  }
+  const { complete, missing } = checkJunPresetsComplete(jid);
+  if (!complete) {
+    const err = new Error(`郡 ${jid} 缺少 preset 文件：${missing.join(', ')}`);
+    err.code = 'PRESET_INCOMPLETE';
+    throw err;
+  }
+
+  const prev = readMergedJsonIfExists(jid);
   const preserved = preservedRoadLayerFrom(prev);
 
   const script = path.join(__dirname, '../scripts/worldmap-merge-yingchuan.mjs');
-  const outAbs = publicMergedAbsPath();
-  const outRel = '../public/data/worldmap/san_1_jun_yingchuan_merged.json';
-  const args = [script, '--out', outRel];
+  const outAbs = publicMergedAbsPath(jid);
+  const outRel = `../public/data/worldmap/${jid}_merged.json`;
+  const args = [script, '--out', outRel, '--jun-id', jid];
   if (seed != null && seed !== '') args.push('--seed', String(seed));
   execFileSync(process.execPath, args, {
     cwd: path.join(__dirname, '..'),
@@ -189,17 +279,22 @@ async function generateYingchuanMergedMap({ seed } = {}) {
     data = JSON.parse(raw);
   }
   let banditsSync = null;
-  try {
-    banditsSync = await banditInstanceService.syncBanditsFromYingchuanMergedDisk();
-  } catch (e) {
-    console.warn('[worldMapAdmin] bandits 同步失败（不影响合并图写入）:', e.message);
+  if (jid === 'san_1_jun_yingchuan' || jid === 'san_1_jun_runan') {
+    try {
+      banditsSync = await banditInstanceService.syncBanditsFromMergedDisk({
+        mergedAbsPath: outAbs,
+      });
+    } catch (e) {
+      console.warn('[worldMapAdmin] bandits 同步失败（不影响合并图写入）:', e.message);
+    }
   }
 
+  const relPath = mergedJsonRelPath(jid);
   return {
-    path: MERGED_REL_PUBLIC,
+    path: relPath,
     absolutePath: outAbs,
     version: data.version,
-    junId: data.junId,
+    junId: data.junId || jid,
     seed: data.seed,
     mapColumns: data.mapColumns,
     mapRows: data.mapRows,
@@ -214,12 +309,12 @@ async function generateYingchuanMergedMap({ seed } = {}) {
  */
 function saveRoadCellsToMergedMap(payload) {
   const junId = (payload?.junId || '').trim();
-  if (junId !== 'san_1_jun_yingchuan') {
-    const err = new Error('当前仅支持颍川郡 san_1_jun_yingchuan 道路保存');
-    err.code = 'JUN_UNSUPPORTED';
+  if (!junId) {
+    const err = new Error('需要 junId');
+    err.code = 'VALIDATION';
     throw err;
   }
-  const outAbs = publicMergedAbsPath();
+  const outAbs = publicMergedAbsPath(junId);
   if (!fs.existsSync(outAbs)) {
     const err = new Error('合并地图文件不存在，请先执行「生成地图」');
     err.code = 'NO_MERGED_FILE';
@@ -229,6 +324,12 @@ function saveRoadCellsToMergedMap(payload) {
   const data = JSON.parse(raw);
   if (!data.cells || !Array.isArray(data.cells)) {
     const err = new Error('合并 JSON 无效（缺 cells）');
+    err.code = 'INVALID_MERGED';
+    throw err;
+  }
+  const fileJunId = String(data.junId || '').trim();
+  if (fileJunId && fileJunId !== junId) {
+    const err = new Error(`合并 JSON 的 junId（${fileJunId}）与当前请求（${junId}）不一致`);
     err.code = 'INVALID_MERGED';
     throw err;
   }
@@ -244,9 +345,10 @@ function saveRoadCellsToMergedMap(payload) {
   const roadConnectivity = payload?.roadConnectivity === '8' ? '8' : ROAD_CONNECTIVITY_4;
   const roadCells = normalizeRoadCellList(payload?.roadCells);
   const mergedSeed = Number(data.seed);
-  const cellsForBlocked = ensureYingchuanMergedMapCells(
+  const cellsForBlocked = ensureJunMergedMapCells(
     data.cells,
     Number.isFinite(mergedSeed) ? mergedSeed : 0,
+    junId,
     {
       roadCells: Array.isArray(data.roadCells) ? data.roadCells : null,
       mapColumns,
@@ -276,7 +378,7 @@ function saveRoadCellsToMergedMap(payload) {
   fs.writeFileSync(outAbs, `${JSON.stringify(data, null, 2)}\n`, 'utf8');
 
   return {
-    path: MERGED_REL_PUBLIC,
+    path: mergedJsonRelPath(junId),
     absolutePath: outAbs,
     version: data.version,
     roadCellCount: roadCells.length,
@@ -409,11 +511,16 @@ async function batchNpcGarrisonByJun({ junId, ownershipMode, counts, season }) {
 module.exports = {
   SHARED_WORLDMAP_DIR,
   MERGED_REL_PUBLIC,
+  mergedJsonRelPath,
+  publicMergedAbsPath,
   listZhouJun,
   checkJunPresetsComplete,
+  readQuadPresetJson,
   importCoordinatesFromPresets,
   importBoundaries,
-  generateYingchuanMergedMap,
+  generateJunMergedMap,
+  /** @deprecated 使用 generateJunMergedMap */
+  generateYingchuanMergedMap: (opts) => generateJunMergedMap({ junId: 'san_1_jun_yingchuan', ...opts }),
   saveRoadCellsToMergedMap,
   batchNpcGarrisonByJun,
 };

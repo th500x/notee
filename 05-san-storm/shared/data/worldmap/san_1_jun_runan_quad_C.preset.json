@@ -1,0 +1,99 @@
+{
+  "preset_kind": "jun_major_quad",
+  "jun_quad_id": "san_1_jun_runan_quad_C",
+  "campaign_id": "san_1_jun_runan_quad_C",
+  "generator_version": "jun-major-C.v0",
+  "seed": 1758370158,
+  "map_columns": 16,
+  "map_rows": 20,
+  "boundary_river_continuity": false,
+  "boundary_road_continuity": false,
+  "quad_A_base_tiles": "plain_grassland;plain_wasteland",
+  "quad_A_terrain_tiles": "",
+  "quad_A_object_tiles": "",
+  "quad_A_effect_tiles": "",
+  "quad_A_units_spec": "",
+  "quad_B_base_tiles": "plain_grassland;plain_wasteland",
+  "quad_B_terrain_tiles": "",
+  "quad_B_object_tiles": "",
+  "quad_B_effect_tiles": "",
+  "quad_B_units_spec": "",
+  "quad_C_base_tiles": "plain_grassland;plain_wasteland",
+  "quad_C_terrain_tiles": "",
+  "quad_C_object_tiles": "",
+  "quad_C_effect_tiles": "",
+  "quad_C_units_spec": "",
+  "quad_D_base_tiles": "plain_grassland;plain_wasteland",
+  "quad_D_terrain_tiles": "",
+  "quad_D_object_tiles": "",
+  "quad_D_effect_tiles": "",
+  "quad_D_units_spec": "",
+  "strategic_cities": [
+    {
+      "city_id": "san_1_city_3_yichun",
+      "city_name": "宜春",
+      "gx": 1,
+      "gy": 0,
+      "object": "city_small",
+      "sub_quad": "C1"
+    },
+    {
+      "city_id": "san_1_city_3_ancheng",
+      "city_name": "安城",
+      "gx": 5,
+      "gy": 1,
+      "object": "city_small",
+      "sub_quad": "C1"
+    },
+    {
+      "city_id": "san_1_city_1_runan",
+      "city_name": "汝南",
+      "gx": 4,
+      "gy": 4,
+      "object": "city_major",
+      "sub_quad": "C1"
+    },
+    {
+      "city_id": "san_1_city_3_baoxin",
+      "city_name": "褒信",
+      "gx": 14,
+      "gy": 8,
+      "object": "city_small",
+      "sub_quad": "C2"
+    },
+    {
+      "city_id": "san_1_city_3_yinqiang",
+      "city_name": "㶏强",
+      "gx": 9,
+      "gy": 12,
+      "object": "city_small",
+      "sub_quad": "C3"
+    },
+    {
+      "city_id": "san_1_city_3_xihua",
+      "city_name": "西华",
+      "gx": 14,
+      "gy": 17,
+      "object": "city_small",
+      "sub_quad": "C3"
+    },
+    {
+      "city_id": "san_1_city_3_xinxi",
+      "city_name": "新息",
+      "gx": 10,
+      "gy": 18,
+      "object": "city_small",
+      "sub_quad": "C3"
+    },
+    {
+      "city_id": "san_1_city_3_anyang",
+      "city_name": "安阳",
+      "gx": 2,
+      "gy": 16,
+      "object": "city_small",
+      "sub_quad": "C4"
+    }
+  ],
+  "strategic_forts": [],
+  "notes": "汝南郡象限 C（郡内 gx16～31, gy20～39）；㶏强、西华叙事属汝南郡、坐标在颍川合并图 C 象限，与本郡 quad 一致。"
+}
