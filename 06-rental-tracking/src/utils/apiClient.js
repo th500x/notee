@@ -104,6 +104,16 @@ export async function updateUtilitySheet(projectId, utilitySheet) {
 }
 
 /**
+ * 保存账目单 JSON（管理员 Token）
+ */
+export async function updateAccountingSheet(projectId, accountingSheet) {
+  return apiRequest(`/${projectId}/accounting-sheet`, {
+    method: 'PUT',
+    body: JSON.stringify({ accountingSheet })
+  });
+}
+
+/**
  * 更新项目信息
  * @param {string} projectId - 项目ID
  * @param {object} projectData - 项目数据

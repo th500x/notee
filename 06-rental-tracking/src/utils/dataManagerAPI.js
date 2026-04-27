@@ -35,8 +35,11 @@ export const loadRentalData = async () => {
  */
 export const saveRentalData = async (data) => {
   try {
-    // 遍历所有项目并更新
+    // 遍历所有项目并更新（水电单 / 账目单走专用接口，不参与整包保存）
     for (const project of data.projects) {
+      if (project.projectKind === 'utility' || project.projectKind === 'accounting') {
+        continue;
+      }
       try {
         await api.updateProjectData(project.id, project);
       } catch (error) {
@@ -84,6 +87,27 @@ export const createUtilityProject = async ({ name, description }) => {
     throw new Error(response.error || '创建水电单失败');
   } catch (error) {
     console.error('创建水电单失败:', error);
+    throw error;
+  }
+};
+
+/**
+ * 创建账目单项目（管理员，无项目密码；与水电单同属 admin-only 类型）
+ */
+export const createAccountingProject = async ({ name, description }) => {
+  try {
+    const response = await api.createProject({
+      name,
+      description: description || '',
+      projectKind: 'accounting',
+      visible: true
+    });
+    if (response.success) {
+      return response.project;
+    }
+    throw new Error(response.error || '创建账目单失败');
+  } catch (error) {
+    console.error('创建账目单失败:', error);
     throw error;
   }
 };

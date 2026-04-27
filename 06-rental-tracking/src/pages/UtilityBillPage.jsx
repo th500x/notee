@@ -473,7 +473,7 @@ export default function UtilityBillPage({ project, onBack, onSaved }) {
             <tfoot className="bg-gray-50 border-t-2 border-gray-200 font-semibold">
               <tr>
                 <td className="p-3 text-gray-800" colSpan={3}>
-                  Totals
+                  Total
                 </td>
                 <td className="p-3 text-blue-700">{totals.electricUnits.toFixed(2)} kWh</td>
                 <td className="p-3" colSpan={2} />

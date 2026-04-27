@@ -1,9 +1,15 @@
 import { useState, useEffect } from 'react'
 
+const VARIANT_LABELS = {
+  utility: { create: '➕ 创建水电单', edit: '✏️ 编辑水电单' },
+  accounting: { create: '➕ 创建账目单', edit: '✏️ 编辑账目单' }
+}
+
 /**
- * 水电单弹窗：仅项目名称 + 描述（创建或编辑），样式对齐 ProjectFormModal
+ * 水电单 / 账目单弹窗：仅项目名称 + 描述（创建或编辑），样式对齐 ProjectFormModal
  * @param {'create'|'edit'} mode
  * @param {object|null} initialProject 编辑时传入当前项目（取 name / description）
+ * @param {'utility'|'accounting'} variant 文案与用途（默认水电单）
  */
 export function UtilityBillFormModal({
   isOpen,
@@ -11,13 +17,15 @@ export function UtilityBillFormModal({
   onSubmit,
   loading = false,
   mode = 'create',
-  initialProject = null
+  initialProject = null,
+  variant = 'utility'
 }) {
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [error, setError] = useState('')
 
   const isEdit = mode === 'edit'
+  const labels = VARIANT_LABELS[variant] || VARIANT_LABELS.utility
 
   useEffect(() => {
     if (!isOpen) return
@@ -73,7 +81,7 @@ export function UtilityBillFormModal({
       >
         <div className="flex items-center justify-between p-6 border-b">
           <h3 className="text-xl font-semibold text-gray-900">
-            {isEdit ? '✏️ 编辑水电单' : '➕ 创建水电单'}
+            {isEdit ? labels.edit : labels.create}
           </h3>
           <button
             type="button"

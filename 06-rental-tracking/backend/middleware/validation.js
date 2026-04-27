@@ -6,6 +6,7 @@
  */
 
 const Joi = require('joi');
+const { EXPENSE_CATEGORY_KEYS } = require('../utils/accountingSheet');
 
 /**
  * 项目创建验证规则
@@ -27,7 +28,7 @@ const createProjectSchema = Joi.object({
       'string.max': '项目密码不能超过50个字符'
     }),
   visible: Joi.boolean().optional(),
-  projectKind: Joi.string().valid('rental', 'utility').optional()
+  projectKind: Joi.string().valid('rental', 'utility', 'accounting').optional()
 });
 
 const utilitySheetRowSchema = Joi.object({
@@ -46,6 +47,57 @@ const utilitySheetUpdateSchema = Joi.object({
     readingMonthText: Joi.string().allow('').max(200).default(''),
     readingDateText: Joi.string().allow('').max(200).default(''),
     rows: Joi.array().items(utilitySheetRowSchema).max(200).default([])
+  }).required()
+});
+
+const monthKeyString = Joi.string().pattern(/^\d{4}-\d{2}$/);
+const accountingExprString = Joi.string().max(500).allow('');
+/** 空串或 ISO YYYY-MM-DD（日历合法性由 normalize 再收紧） */
+const accountingIsoDate = Joi.string().max(10).allow('').pattern(/^$|^\d{4}-\d{2}-\d{2}$/);
+
+const accountingRentMonthSchema = Joi.object({
+  in: accountingExprString.default(''),
+  out: accountingExprString.default(''),
+  settle: accountingExprString.default(''),
+  payRent: accountingIsoDate.default('')
+});
+
+const accountingRentRowSchema = Joi.object({
+  id: Joi.string().max(100).required(),
+  room: Joi.string().max(200).allow('').default(''),
+  declaration: accountingIsoDate.default(''),
+  actualRent: accountingIsoDate.default(''),
+  agency: accountingExprString.default(''),
+  remarks: accountingExprString.default(''),
+  price: accountingExprString.default(''),
+  deposit: accountingExprString.default(''),
+  months: Joi.object().pattern(/^\d{4}-\d{2}$/, accountingRentMonthSchema).default({})
+});
+
+const accountingExpenseRowSchema = Joi.object({
+  categoryKey: Joi.string()
+    .valid(...EXPENSE_CATEGORY_KEYS)
+    .required(),
+  months: Joi.object()
+    .pattern(/^\d{4}-\d{2}$/, Joi.object({ out: accountingExprString.default('') }))
+    .default({})
+});
+
+const accountingSheetUpdateSchema = Joi.object({
+  accountingSheet: Joi.object({
+    monthKeys: Joi.array().items(monthKeyString).length(2).required(),
+    rentRows: Joi.array().items(accountingRentRowSchema).max(200).default([]),
+    expenseRows: Joi.array().items(accountingExpenseRowSchema).max(20).default([]),
+    monthlySummary: Joi.object()
+      .pattern(
+        /^\d{4}-\d{2}$/,
+        Joi.object({
+          balance: Joi.number().optional(),
+          income: Joi.number().optional(),
+          expense: Joi.number().optional()
+        })
+      )
+      .default({})
   }).required()
 });
 
@@ -255,5 +307,6 @@ module.exports = {
   updateProjectSchema,
   projectDataSchema,
   recordsSchema,
-  utilitySheetUpdateSchema
+  utilitySheetUpdateSchema,
+  accountingSheetUpdateSchema
 };

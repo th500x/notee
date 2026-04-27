@@ -9,7 +9,19 @@
 const express = require('express');
 const router = express.Router();
 const { pool } = require('./database/connection');
-const { validate, createProjectSchema, updateProjectSchema, projectDataSchema, recordsSchema, utilitySheetUpdateSchema } = require('./middleware/validation');
+const {
+  validate,
+  createProjectSchema,
+  updateProjectSchema,
+  projectDataSchema,
+  recordsSchema,
+  utilitySheetUpdateSchema,
+  accountingSheetUpdateSchema
+} = require('./middleware/validation');
+const {
+  defaultAccountingSheet,
+  normalizeAccountingSheet
+} = require('./utils/accountingSheet');
 const { auditLog } = require('./middleware/auditLog');
 const { hashPassword, verifyPassword } = require('./utils/passwordUtils');
 const { verifyToken, decodeTokenOptional } = require('./middleware/auth');
@@ -47,13 +59,19 @@ function mapProjectRow(row) {
     password: undefined,
     property_groups: undefined,
     utility_sheet: undefined,
+    accounting_sheet: undefined,
     project_kind: undefined,
-    hasPassword: kind === 'utility' ? false : !!row.password
+    hasPassword: kind === 'utility' || kind === 'accounting' ? false : !!row.password
   };
   if (kind === 'utility') {
     mapped.utilitySheet = normalizeUtilitySheet(parseJSON(row.utility_sheet, {}));
+    mapped.accountingSheet = undefined;
+  } else if (kind === 'accounting') {
+    mapped.utilitySheet = undefined;
+    mapped.accountingSheet = normalizeAccountingSheet(parseJSON(row.accounting_sheet, null));
   } else {
     mapped.utilitySheet = undefined;
+    mapped.accountingSheet = undefined;
   }
   return mapped;
 }
@@ -237,6 +255,63 @@ router.put('/:id/utility-sheet', verifyToken, validate(utilitySheetUpdateSchema)
 });
 
 /**
+ * 保存账目单 JSON（仅 project_kind = accounting）
+ * PUT /api/rental-tracking/:id/accounting-sheet
+ */
+router.put('/:id/accounting-sheet', verifyToken, validate(accountingSheetUpdateSchema), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const normalized = normalizeAccountingSheet(req.body.accountingSheet);
+
+    const [rows] = await pool.execute(
+      'SELECT project_kind, accounting_sheet FROM projects WHERE id = ?',
+      [id]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: '项目不存在'
+      });
+    }
+
+    if ((rows[0].project_kind || 'rental') !== 'accounting') {
+      return res.status(400).json({
+        success: false,
+        error: '该项目不是账目单'
+      });
+    }
+
+    /** 客户端 payload 常只带当前双月的 monthlySummary；与库内已有合并，避免保存抹掉脚本导入的历史月 */
+    const existingNorm = normalizeAccountingSheet(parseJSON(rows[0].accounting_sheet, null));
+    const mergedMonthlySummary = {
+      ...(existingNorm.monthlySummary || {}),
+      ...(normalized.monthlySummary || {})
+    };
+    const toStore = normalizeAccountingSheet({
+      ...normalized,
+      monthlySummary: mergedMonthlySummary
+    });
+
+    await pool.execute(
+      'UPDATE projects SET accounting_sheet = ?, version = version + 1 WHERE id = ?',
+      [JSON.stringify(toStore), id]
+    );
+
+    res.json({
+      success: true,
+      message: '账目单已保存'
+    });
+  } catch (error) {
+    console.error('[API] 保存账目单失败:', error);
+    res.status(500).json({
+      success: false,
+      error: '保存账目单失败'
+    });
+  }
+});
+
+/**
  * 获取单个项目详情
  * GET /api/rental-tracking/:id
  */
@@ -261,12 +336,15 @@ router.get('/:id', async (req, res) => {
     const project = rows[0];
     const kind = project.project_kind || 'rental';
 
-    if (kind === 'utility') {
+    if (kind === 'utility' || kind === 'accounting') {
       const auth = decodeTokenOptional(req);
       if (!auth) {
         return res.status(403).json({
           success: false,
-          error: '需要管理员登录后才能访问水电单'
+          error:
+            kind === 'utility'
+              ? '需要管理员登录后才能访问水电单'
+              : '需要管理员登录后才能访问账目单'
         });
       }
     } else {
@@ -302,19 +380,24 @@ router.get('/:id', async (req, res) => {
 router.post('/', verifyToken, validate(createProjectSchema), async (req, res) => {
   try {
     const { name, description, password, visible, projectKind } = req.body;
-    const kind = projectKind === 'utility' ? 'utility' : 'rental';
-    
+    const kind =
+      projectKind === 'utility'
+        ? 'utility'
+        : projectKind === 'accounting'
+          ? 'accounting'
+          : 'rental';
+
     // 生成项目ID
     const id = `project-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    
+
     if (kind === 'utility') {
       const sheetJson = JSON.stringify(defaultUtilitySheet());
       const sql = `
         INSERT INTO projects (
           id, name, description, password, visible, project_kind,
-          properties, property_groups, expenses, utility_sheet, version
+          properties, property_groups, expenses, utility_sheet, accounting_sheet, version
         )
-        VALUES (?, ?, ?, NULL, ?, 'utility', '[]', '[]', '[]', ?, 1)
+        VALUES (?, ?, ?, NULL, ?, 'utility', '[]', '[]', '[]', ?, NULL, 1)
       `;
       await pool.execute(sql, [
         id,
@@ -342,15 +425,51 @@ router.post('/', verifyToken, validate(createProjectSchema), async (req, res) =>
       });
       return;
     }
-    
+
+    if (kind === 'accounting') {
+      const sheetJson = JSON.stringify(defaultAccountingSheet());
+      const sql = `
+        INSERT INTO projects (
+          id, name, description, password, visible, project_kind,
+          properties, property_groups, expenses, utility_sheet, accounting_sheet, version
+        )
+        VALUES (?, ?, ?, NULL, ?, 'accounting', '[]', '[]', '[]', NULL, ?, 1)
+      `;
+      await pool.execute(sql, [
+        id,
+        name,
+        description || null,
+        visible !== false,
+        sheetJson
+      ]);
+
+      res.json({
+        success: true,
+        project: {
+          id,
+          name,
+          description,
+          visible: visible !== false,
+          projectKind: 'accounting',
+          hasPassword: false,
+          properties: [],
+          propertyGroups: [],
+          expenses: [],
+          accountingSheet: defaultAccountingSheet(),
+          version: 1
+        }
+      });
+      return;
+    }
+
     const hashedPassword = password ? await hashPassword(password) : null;
     
     const sql = `
       INSERT INTO projects (
         id, name, description, password, visible, project_kind,
-        properties, property_groups, expenses, utility_sheet, version
+        properties, property_groups, expenses, utility_sheet, accounting_sheet, version
       )
-      VALUES (?, ?, ?, ?, ?, 'rental', ?, ?, ?, NULL, ?)
+      VALUES (?, ?, ?, ?, ?, 'rental', ?, ?, ?, NULL, NULL, ?)
     `;
     
     await pool.execute(sql, [
@@ -506,17 +625,25 @@ router.put('/:id/data', verifyToken, validate(projectDataSchema), async (req, re
     
     // 获取当前项目（用于版本控制）
     const [rows] = await pool.execute(
-      'SELECT version FROM projects WHERE id = ?',
+      'SELECT version, project_kind FROM projects WHERE id = ?',
       [id]
     );
-    
+
     if (rows.length === 0) {
       return res.status(404).json({
         success: false,
         error: '项目不存在'
       });
     }
-    
+
+    const rowKind = rows[0].project_kind || 'rental';
+    if (rowKind === 'utility' || rowKind === 'accounting') {
+      return res.status(400).json({
+        success: false,
+        error: '水电单与账目单不使用整包数据更新接口'
+      });
+    }
+
     const currentVersion = rows[0].version;
     
     // 暂时禁用版本控制（单用户系统不需要）
@@ -565,9 +692,22 @@ router.put('/:id/records', verifyToken, validate(recordsSchema), async (req, res
   try {
     const { id } = req.params;
     const { properties, expenses } = req.body;
-    
-    // Token 已通过 verifyToken 中间件验证
-    
+
+    const [kindRows] = await pool.execute(
+      'SELECT project_kind FROM projects WHERE id = ?',
+      [id]
+    );
+    if (kindRows.length === 0) {
+      return res.status(404).json({ success: false, error: '项目不存在' });
+    }
+    const rk = kindRows[0].project_kind || 'rental';
+    if (rk === 'utility' || rk === 'accounting') {
+      return res.status(400).json({
+        success: false,
+        error: '水电单与账目单不使用收支记录整表更新接口'
+      });
+    }
+
     // 更新收支记录
     const sql = `
       UPDATE projects 

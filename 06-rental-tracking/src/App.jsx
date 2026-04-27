@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import HomePage from './pages/HomePage'
 import ProjectDetailPage from './pages/ProjectDetailPage'
 import UtilityBillPage from './pages/UtilityBillPage'
+import AccountingSheetPage from './pages/AccountingSheetPage'
 import AdminSyncPage from './pages/AdminSyncPage'
 import { ProjectFormModal } from './components/ProjectFormModal'
 import { UtilityBillFormModal } from './components/UtilityBillFormModal'
@@ -10,6 +11,7 @@ import {
   saveRentalData,
   createProject as apiCreateProject,
   createUtilityProject,
+  createAccountingProject,
   deleteProject as apiDeleteProject,
   updateProjectData as apiUpdateProjectData
 } from './utils/dataManagerAPI'
@@ -60,13 +62,15 @@ function App() {
   
   // 状态管理
   const [rentalData, setRentalData] = useState({ projects: [] })
-  const [currentView, setCurrentView] = useState('home') // 'home' | 'project-detail' | 'utility-bill'
+  const [currentView, setCurrentView] = useState('home') // 'home' | 'project-detail' | 'utility-bill' | 'accounting-sheet'
   const [selectedProject, setSelectedProject] = useState(null)
   const [isLoading, setIsLoading] = useState(true) // 加载状态
   const [showCreateModal, setShowCreateModal] = useState(false) // 创建项目对话框
   const [createLoading, setCreateLoading] = useState(false) // 创建项目加载状态
   const [showUtilityCreateModal, setShowUtilityCreateModal] = useState(false)
   const [utilityCreateLoading, setUtilityCreateLoading] = useState(false)
+  const [showAccountingCreateModal, setShowAccountingCreateModal] = useState(false)
+  const [accountingCreateLoading, setAccountingCreateLoading] = useState(false)
 
   // 加载数据（管理员登录状态变化时重拉列表，以便显示/隐藏水电单）
   useEffect(() => {
@@ -128,6 +132,15 @@ function App() {
       setCurrentView('utility-bill')
       return
     }
+    if (project.projectKind === 'accounting') {
+      if (!isAdmin) {
+        alert('账目单仅管理员可访问')
+        return
+      }
+      setSelectedProject(project)
+      setCurrentView('accounting-sheet')
+      return
+    }
     setSelectedProject(project)
     setCurrentView('project-detail')
   }
@@ -147,6 +160,17 @@ function App() {
     }
   }
 
+  const handleAccountingSheetSaved = handleUtilityBillSaved
+
+  /** 账目页挂载或外部改库后，用单项目 GET 刷新快照，避免一直用首页列表里的旧 accountingSheet */
+  const handleAccountingProjectSynced = useCallback((freshProject) => {
+    setSelectedProject(freshProject)
+    setRentalData((prev) => ({
+      ...prev,
+      projects: prev.projects.map((p) => (p.id === freshProject.id ? freshProject : p))
+    }))
+  }, [])
+
   // 添加新项目（管理员功能）
   const handleAddProject = () => {
     if (!isAdmin) {
@@ -163,6 +187,14 @@ function App() {
       return
     }
     setShowUtilityCreateModal(true)
+  }
+
+  const handleAddAccountingProject = () => {
+    if (!isAdmin) {
+      alert('请先登录管理员账号')
+      return
+    }
+    setShowAccountingCreateModal(true)
   }
 
   const handleCreateUtilityProjectSubmit = async ({ name, description }) => {
@@ -183,7 +215,26 @@ function App() {
       setUtilityCreateLoading(false)
     }
   }
-  
+
+  const handleCreateAccountingProjectSubmit = async ({ name, description }) => {
+    setAccountingCreateLoading(true)
+    try {
+      await createAccountingProject({ name, description })
+      await reloadData()
+      setShowAccountingCreateModal(false)
+      alert('账目单项目已创建')
+      return { success: true }
+    } catch (error) {
+      console.error('创建账目单失败:', error)
+      return {
+        success: false,
+        error: error.message || '创建账目单失败'
+      }
+    } finally {
+      setAccountingCreateLoading(false)
+    }
+  }
+
   // 创建项目
   const handleCreateProject = async (formData) => {
     setCreateLoading(true)
@@ -297,6 +348,7 @@ function App() {
               onProjectSelect={handleProjectSelect}
               onAddProject={handleAddProject}
               onAddUtilityProject={handleAddUtilityProject}
+              onAddAccountingProject={handleAddAccountingProject}
               onDeleteProject={handleDeleteProject}
               onUpdateProject={handleProjectUpdate}
               onReloadProjects={reloadData}
@@ -308,6 +360,15 @@ function App() {
                 project={selectedProject}
                 onBack={handleBackToHome}
                 onSaved={handleUtilityBillSaved}
+              />
+            ) : null
+          ) : currentView === 'accounting-sheet' ? (
+            selectedProject ? (
+              <AccountingSheetPage
+                project={selectedProject}
+                onBack={handleBackToHome}
+                onSaved={handleAccountingSheetSaved}
+                onProjectSynced={handleAccountingProjectSynced}
               />
             ) : null
           ) : (
@@ -335,6 +396,15 @@ function App() {
         onClose={() => setShowUtilityCreateModal(false)}
         onSubmit={handleCreateUtilityProjectSubmit}
         loading={utilityCreateLoading}
+        variant="utility"
+      />
+
+      <UtilityBillFormModal
+        isOpen={showAccountingCreateModal}
+        onClose={() => setShowAccountingCreateModal(false)}
+        onSubmit={handleCreateAccountingProjectSubmit}
+        loading={accountingCreateLoading}
+        variant="accounting"
       />
     </div>
   )

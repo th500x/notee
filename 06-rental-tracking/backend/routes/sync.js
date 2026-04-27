@@ -52,6 +52,11 @@ router.get('/export', async (req, res) => {
             ? parseJSON(project.utility_sheet, null)
             : project.utility_sheet)
           : null,
+        accounting_sheet: project.accounting_sheet != null
+          ? (typeof project.accounting_sheet === 'string'
+            ? parseJSON(project.accounting_sheet, null)
+            : project.accounting_sheet)
+          : null,
         version: project.version,
         created_at: project.created_at,
         updated_at: project.updated_at
@@ -122,6 +127,7 @@ router.post('/import', async (req, res) => {
                 property_groups = ?,
                 expenses = ?,
                 utility_sheet = ?,
+                accounting_sheet = ?,
                 version = ?,
                 updated_at = NOW()
               WHERE id = ?`,
@@ -136,6 +142,9 @@ router.post('/import', async (req, res) => {
                 JSON.stringify(project.expenses || []),
                 project.utility_sheet != null
                   ? JSON.stringify(project.utility_sheet)
+                  : null,
+                project.accounting_sheet != null
+                  ? JSON.stringify(project.accounting_sheet)
                   : null,
                 project.version,
                 project.id
@@ -157,9 +166,9 @@ router.post('/import', async (req, res) => {
           await db.query(
             `INSERT INTO projects (
               id, name, description, password, visible, project_kind,
-              properties, property_groups, expenses, utility_sheet, version,
+              properties, property_groups, expenses, utility_sheet, accounting_sheet, version,
               created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
               project.id,
               project.name,
@@ -172,6 +181,9 @@ router.post('/import', async (req, res) => {
               JSON.stringify(project.expenses || []),
               project.utility_sheet != null
                 ? JSON.stringify(project.utility_sheet)
+                : null,
+              project.accounting_sheet != null
+                ? JSON.stringify(project.accounting_sheet)
                 : null,
               project.version,
               createdAt,

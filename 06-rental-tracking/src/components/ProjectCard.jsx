@@ -10,8 +10,10 @@ function ProjectCard({
   onUnlock,
   onEdit,
   isAdmin,
-  isUtilityProject = false
+  isUtilityProject = false,
+  isAccountingProject = false
 }) {
+  const isAdminOnlySheet = isUtilityProject || isAccountingProject
   // 如果项目被锁定，显示锁定状态
   if (!isUnlocked) {
     return (
@@ -32,7 +34,13 @@ function ProjectCard({
                   onEdit()
                 }}
                 className="text-white hover:text-gray-200 ml-2 px-2 py-1 rounded hover:bg-white/10 transition-colors"
-                title={isUtilityProject ? '编辑水电单' : '编辑项目'}
+                title={
+                  isUtilityProject
+                    ? '编辑水电单'
+                    : isAccountingProject
+                      ? '编辑账目单'
+                      : '编辑项目'
+                }
                 >
                 ⚙️
               </button>
@@ -69,7 +77,12 @@ function ProjectCard({
                   💡
                 </span>
               )}
-              {hasPassword && !isUtilityProject && (
+              {isAccountingProject && (
+                <span className="text-xs bg-white/25 px-2 py-0.5 rounded" title="账目单（管理员）">
+                  📒
+                </span>
+              )}
+              {hasPassword && !isAdminOnlySheet && (
                 <span className="text-xs bg-white/20 px-2 py-0.5 rounded" title="此项目有密码保护">
                   🔐
                 </span>
@@ -86,7 +99,13 @@ function ProjectCard({
                 onEdit()
               }}
               className="text-white hover:text-blue-200 ml-2 px-2 py-1 rounded hover:bg-white/10 transition-colors"
-              title={isUtilityProject ? '编辑水电单' : '编辑项目'}
+              title={
+                isUtilityProject
+                  ? '编辑水电单'
+                  : isAccountingProject
+                    ? '编辑账目单'
+                    : '编辑项目'
+              }
             >
               ⚙️
             </button>
@@ -94,10 +113,12 @@ function ProjectCard({
         </div>
         <div className="flex items-center gap-4 mt-4 text-sm">
           <div>
-            <span className="text-blue-100">{isUtilityProject ? '计费行数' : '房源数'}</span>
+            <span className="text-blue-100">
+              {isUtilityProject ? '计费行数' : isAccountingProject ? '租金行' : '房源数'}
+            </span>
             <span className="ml-2 font-bold text-lg">{stats.totalProperties}</span>
           </div>
-          {!isUtilityProject && (
+          {!isAdminOnlySheet && (
             <div>
               <span className="text-blue-100">缴租率</span>
               <span className="ml-2 font-bold text-lg">{stats.paymentRate}%</span>
@@ -115,7 +136,12 @@ function ProjectCard({
               English UI, totals, and export.
             </p>
           ) : null}
-          <div className={`grid grid-cols-2 gap-4 ${isUtilityProject ? 'hidden' : ''}`}>
+          {isAccountingProject ? (
+            <p className="text-gray-600 text-sm">
+              管理员专用账目入口；后续可在此扩展分类、流水与导出等能力。
+            </p>
+          ) : null}
+          <div className={`grid grid-cols-2 gap-4 ${isAdminOnlySheet ? 'hidden' : ''}`}>
           {/* 左列：上月数据 */}
           <div className="space-y-3">
             <div className="text-xs text-gray-500 font-medium mb-2">上月数据</div>
@@ -182,7 +208,11 @@ function ProjectCard({
           onClick={onSelect}
           className="w-full mt-6 h-10 shrink-0 inline-flex items-center justify-center px-4 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors whitespace-nowrap"
         >
-          {isUtilityProject ? 'Open utility bill →' : '查看详情 →'}
+          {isUtilityProject
+            ? 'Open utility bill →'
+            : isAccountingProject
+              ? '进入账目单 →'
+              : '查看详情 →'}
         </button>
       </div>
     </div>
