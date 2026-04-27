@@ -214,6 +214,13 @@ export function withComputedMonthlySummary(sheet) {
   return { ...sheet, monthlySummary: next };
 }
 
+/** 将某月在当前明细表上的 SETTLE 合计与支出合计写入一条 summary（供滚月后保留历史行） */
+function freezeMonthSummaryFromSheet(sheet, monthKey) {
+  const income = sumSettleForMonth(sheet, monthKey);
+  const expense = sumExpenseOutForMonth(sheet, monthKey);
+  return { income, expense, balance: income - expense };
+}
+
 /**
  * 按「今天」自然月对齐双月窗口：与当前窗口一致则不变；
  * 否则若旧右月 = 新左月则左移数据；否则保留固定列、清空月份格后套新窗口。
@@ -227,6 +234,16 @@ export function rolloverAccountingWindowFromToday(sheet) {
   }
 
   const slide = o1 === n0;
+
+  /** 滚月前：把即将从表中消失的月份的最终合计写入 monthlySummary，避免「收支账目」丢历史月 */
+  const monthlySummary = { ...sheet.monthlySummary };
+  if (slide) {
+    monthlySummary[o0] = freezeMonthSummaryFromSheet(sheet, o0);
+    delete monthlySummary[o1];
+  } else {
+    monthlySummary[o0] = freezeMonthSummaryFromSheet(sheet, o0);
+    monthlySummary[o1] = freezeMonthSummaryFromSheet(sheet, o1);
+  }
 
   const emptyRent = () => ({ [n0]: emptyRentMonthCells(), [n1]: emptyRentMonthCells() });
 
@@ -262,10 +279,6 @@ export function rolloverAccountingWindowFromToday(sheet) {
     }));
     expenseRows = buildDefaultExpenseRows(target);
   }
-
-  const monthlySummary = { ...sheet.monthlySummary };
-  delete monthlySummary[o0];
-  delete monthlySummary[o1];
 
   return {
     ...sheet,

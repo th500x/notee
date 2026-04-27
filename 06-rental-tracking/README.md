@@ -123,6 +123,7 @@ npm run dev
 
 - 界面以 **`monthKeys`** 两列为表头（展示上可格式化为类似 `2026/4/1`）。
 - **切换当月 / 对齐自然月**：逻辑在 `src/utils/accountingSheetModel.js` 的 **`rolloverAccountingWindowFromToday`**：若旧窗口右月等于新窗口左月则**左移**复制一列数据；否则清空两月格子并套用新 `monthKeys`（避免跨月丢数据策略在产品层定义）。
+- **收支账目历史月**：滚月**之前**，会把即将从租金/支出表上消失的月份（左移时仅**左列**；非左移时**两列**）按当前明细用 SETTLE 与支出 OUT **写入 `monthlySummary`**，以便「收支账目」里仍能看到该月最终合计；右列与新区间左列同月时会删掉该键的 summary 条目，由新窗口**实时计算**与下次**保存**时的 `withComputedMonthlySummary` 再写回。
 
 ### 4.6 前端页面结构
 
@@ -147,32 +148,51 @@ npm run dev
 
 ## 五、认证与本地开发旁路（重要）
 
-### 5.1 正常行为（生产或提交前应保持）
+本节约定：**如何暂时关掉「全局管理员 + JWT」限制以便本地测账目/水电**，以及**推送 GitHub 前必须恢复**的操作与规则。
 
-- **全局管理员**：通过主站颁发的 JWT，存于前端 `localStorage`（见 `tokenManager` / `useAdmin`），请求头带 **`Authorization: Bearer <token>`**。
-- 无有效 JWT 时：**列表不展示** `utility` / `accounting`，**写操作**依赖 JWT 的路由会 **401**。
+### 5.1 正常行为（生产与日常开发默认）
 
-### 5.2 仅本地：临时旁路（便于不测主站登录）
+- **全局管理员**：通过主站颁发的 JWT，存于前端 `localStorage`（`tokenManager` / `useAdmin`），请求 API 时带 **`Authorization: Bearer <token>`**。
+- 无有效 JWT 时：**列表不展示** `utility` / `accounting`；依赖 **`verifyToken`** 的写接口返回 **401**。
+- 这与仓库根 **`AGENTS.md`**、**`.cursor/rules`** 中「生产须认证」的约定一致；旁路**仅**允许在**本机**、**短期**使用。
 
-复制示例文件并启用开关（**二者建议成对使用**）：
+### 5.2 何时需要「临时旁路」
 
-| 文件 | 变量 | 作用 |
-|------|------|------|
-| **`backend/.env.local`** | `RENTAL_TRACKING_DEV_SKIP_JWT=1` | `decodeTokenOptional` 将请求视为已认证；`verifyToken` 跳过校验；**列表等同管理员可见全部 `project_kind`**。控制台会打 `[Auth] RENTAL_TRACKING_DEV_SKIP_JWT=1` 警告。 |
-| **子项目根目录 `.env.development.local`** | `VITE_RENTAL_TRACKING_DEV_SKIP_ADMIN=1` | 仅在 **Vite `DEV`** 下：`useAdmin` 直接 **`isLoggedIn === true`**，UI 上可点创建账目单等。 |
+在**本地**出现以下情况时，可考虑短期开启（仍**不要**用于任何线上或共享服务器）：
 
-示例模板：
+- 不想反复走主站登录，但要测 **账目单 / 水电单** 的列表、创建或 `PUT` 写接口；
+- 前端已能打开子项目，但 **`localStorage` 里没有有效 Bearer**，导致接口 403。
 
-- `backend/.env.local.example`
-- `.env.development.local.example`
+### 5.3 如何启用（仅本机）
 
-### 5.3 推送 GitHub 前必做（安全）
+1. **后端**（`06-rental-tracking/backend/`）：复制 **`backend/.env.local.example`** 为 **`backend/.env.local`**（该文件被根目录 `.gitignore` 忽略，**不得** `git add -f` 提交）。在文件中增加一行（或取消注释）：
+   - **`RENTAL_TRACKING_DEV_SKIP_JWT=1`**
+   - 含义见 `backend/middleware/auth.js`：`decodeTokenOptional` / `verifyToken` 在本地视为已通过；控制台会出现 **`[Auth] RENTAL_TRACKING_DEV_SKIP_JWT=1`** 警告。
+2. **前端**（子项目根 `06-rental-tracking/`，与 `package.json` 同级）：复制 **`.env.development.local.example`** 为 **`.env.development.local`**（同样 gitignored）。增加一行：
+   - **`VITE_RENTAL_TRACKING_DEV_SKIP_ADMIN=1`**
+   - 含义见 `src/hooks/useAdmin.js`：仅在 **`import.meta.env.DEV`** 下把 **`isLoggedIn`** 视为已登录，便于点「创建账目单」等 UI。
+3. **重启进程**（改 env 后必须做，否则读不到新变量）：
+   - 停掉再启动 **`backend`** 的 `node server.js`（或 `npm start`）；
+   - 停掉再启动 **Vite**（`npm run dev`）。
 
-1. **删除或注释**上述两个文件中的 **`RENTAL_TRACKING_DEV_SKIP_JWT`**、**`VITE_RENTAL_TRACKING_DEV_SKIP_ADMIN`**，或删除整个本地文件（若文件仅含旁路用途）。  
-2. **不要**将真实的 **`backend/.env`**（含 `JWT_SECRET`、数据库密码、OSS 密钥）提交到仓库。  
-3. 重新启动后端与前端，确认未带旁路时行为符合「仅 JWT 管理员可操作敏感能力」。
+**建议**：后端 JWT 旁路与前端 UI 旁路**成对开关**，避免「UI 以为已登录但 API 仍 403」或反向不一致。
 
-> **说明**：`.env.local`、`.env.development.local` 通常已在 `.gitignore` 中；若误提交含 `=1` 的旁路文件，等于把「免 JWT」开关泄露给克隆仓库的人，务必在 PR 前检查 `git status`。
+### 5.4 如何关闭并恢复「正常管理员验证」
+
+1. **删除**上述两个本地文件；或打开文件**删掉 / 注释掉**含 `RENTAL_TRACKING_DEV_SKIP_JWT`、`VITE_RENTAL_TRACKING_DEV_SKIP_ADMIN` 的行（保留其它合法配置亦可）。
+2. **再次重启**后端与 Vite（与启用时相同）。
+3. 用浏览器**正常主站登录**拿到 JWT 后，确认：未登录时**看不到** utility/accounting 卡片；写接口**无 Bearer 时 401**。
+
+### 5.5 推送 GitHub / 合并 PR 前的硬性规则（必读）
+
+| 规则 | 说明 |
+|------|------|
+| **推送前必须关旁路** | 合并进 `main` / 发 PR 前，本机须已按 **§5.4** 关闭旁路，并重启验证；**禁止**把 `=1` 的旁路开关留在会进入版本库的配置里。 |
+| **禁止提交旁路 env** | `backend/.env.local`、`.env.development.local` 等应在 `.gitignore` 中；**不要用** `git add -f` 把它们推进远程。若误提交，等于向所有克隆者广播「可免 JWT」。 |
+| **禁止提交真实密钥** | `backend/.env` 中的 `JWT_SECRET`、数据库密码、OSS 等**不得**入库；协作者各自本地配置。 |
+| **推送前自检** | 执行 **`git status`**，确认暂存区**没有**任何 `.env*` 旁路文件路径；再 `git push`。 |
+
+> **仓库级提醒**：根目录 **`AGENTS.md`** 对 `docs/`、`.cursor/`、`.gitignore` 与提交范围有总述；本节的「旁路仅本地、推送前恢复」是对 **06 子项目** 操作步骤的落地备忘。
 
 ---
 
@@ -185,21 +205,46 @@ npm run dev
 | `backend/middleware/auth.js` | JWT 与 `RENTAL_TRACKING_DEV_SKIP_JWT` |
 | `backend/middleware/validation.js` | Joi schema，含 `accountingSheetUpdateSchema` |
 | `backend/database/migrations/002-add-accounting-sheet.sql` | 账目单列 DDL |
+| `backend/scripts/list-accounting-projects.js` | 列出账目项目 `id`（见 **§6.1**） |
+| `backend/scripts/import-history-monthly-summary.js` | `npm run import:history-monthly`（见 **§6.1**） |
 | `src/hooks/useAdmin.js` | `VITE_RENTAL_TRACKING_DEV_SKIP_ADMIN` |
 | `src/config/index.js` | `VITE_API_URL`、`VITE_UPLOAD_API_URL` 等 |
 
 **危险操作**：`npm run db:reset-local`（在 `backend`）会按脚本重置本地数据，执行前请确认脚本说明与备份。
 
-### 6.1 历史收支导入（`history.md` → `monthlySummary`）
+### 6.1 查账目项目 `id`、导入历史收支（`history.md` → `monthlySummary`）
 
-- **文件位置（默认）**：子项目根目录 **`history.md`**（与 `backend/` 同级）。格式：**制表符**分隔；第一列日期 **`YYYY/M/D`**（如 `2024/4/1`）；第二列 **IN**（收入）；第三列 **OUT**（支出）；数字可含英文逗号千分位。
-- **命令**（在 **`06-rental-tracking/backend`**）：
+以下命令均在 **`06-rental-tracking/backend`** 目录执行（需已配置 **`backend/.env`** 连接 MySQL）。
+
+#### 查询 `project_kind = accounting` 的项目 `id`
 
 ```bash
+cd backend
+node scripts/list-accounting-projects.js
+```
+
+- 列出当前库中**全部账目项目**的 `id`、`name`、`project_kind`、`visible`、`created_at`（JSON 输出）。
+- 按名称子串筛选（例如名称含「测试账目」）：
+
+```bash
+node scripts/list-accounting-projects.js --name=测试账目
+```
+
+将输出里的 **`id`** 复制给下面导入命令的 **`--project-id`**。
+
+#### 将 `history.md` 合并进指定项目的 `monthlySummary`
+
+- **文件位置（默认）**：子项目根目录 **`history.md`**（与 `backend/` 同级）。格式：**制表符**分隔；第一列日期 **`YYYY/M/D`**（如 `2024/4/1`）；第二列 **IN**（收入）；第三列 **OUT**（支出）；数字可含英文逗号千分位。
+
+```bash
+cd backend
 npm run import:history-monthly -- --project-id=<账目项目 id>
-# 自定义路径:
-node scripts/import-history-monthly-summary.js --project-id=<id> --file="D:/Google Docs/KIRO/notee/06-rental-tracking/history.md"
-# 只看解析结果不写库:
+```
+
+等价写法（便于自定义 `history.md` 路径）：
+
+```bash
+node scripts/import-history-monthly-summary.js --project-id=<id> --file="D:/path/to/history.md"
 node scripts/import-history-monthly-summary.js --project-id=<id> --dry-run
 ```
 

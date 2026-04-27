@@ -82,7 +82,7 @@ export function AccountingRentTab({ sheet, setSheet }) {
   return (
     <div className="bg-white rounded-lg shadow-md overflow-x-auto">
       <div className="bg-gradient-to-r from-blue-500 to-purple-600 px-6 py-4 text-white">
-        <h3 className="text-lg font-semibold">租金记录 · Rent</h3>
+        <h3 className="text-lg font-semibold">租金记录 · INCOME</h3>
         <p className="text-xs text-blue-100 mt-1">
           申报 / 实际为完整日期；交租仅填月/日（年份取该列月份）；SETTLE = IN − OUT 自动计算；收入汇总以此为准。
         </p>
