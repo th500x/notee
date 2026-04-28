@@ -66,10 +66,10 @@ export default function AccountingSheetPage({ project, onBack, onSaved, onProjec
     };
   }, [project?.id, onProjectSynced]);
 
-  /** 仅随项目 id / 服务端 version 同步，避免依赖 accountingSheet 引用导致不触发或误用旧快照 */
+  /** 仅切换项目时从 props 重置；勿在 version 变化时整表覆盖，否则异步列表刷新会用旧快照冲掉本地未保存编辑（表现为输入被清空）。 */
   useEffect(() => {
     setSheet(normalizeAccountingSheet(project?.accountingSheet));
-  }, [project?.id, project?.version]);
+  }, [project?.id]);
 
   const handleSave = useCallback(async () => {
     setError('');
@@ -77,6 +77,15 @@ export default function AccountingSheetPage({ project, onBack, onSaved, onProjec
     try {
       const payload = withComputedMonthlySummary(sheet);
       await api.updateAccountingSheet(project.id, payload);
+      try {
+        const fresh = await api.getProject(project.id);
+        if (fresh?.success && fresh.project) {
+          setSheet(normalizeAccountingSheet(fresh.project.accountingSheet));
+          if (onProjectSynced) onProjectSynced(fresh.project);
+        }
+      } catch (e) {
+        console.warn('[AccountingSheetPage] 保存后刷新详情失败', e);
+      }
       if (onSaved) await onSaved();
       alert('已保存。');
     } catch (e) {
@@ -84,7 +93,7 @@ export default function AccountingSheetPage({ project, onBack, onSaved, onProjec
     } finally {
       setSaving(false);
     }
-  }, [sheet, project?.id, onSaved]);
+  }, [sheet, project?.id, onSaved, onProjectSynced]);
 
   const handleRolloverMonth = () => {
     const ok = window.confirm(

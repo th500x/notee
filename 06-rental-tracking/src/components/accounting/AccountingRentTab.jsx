@@ -145,6 +145,7 @@ export function AccountingRentTab({ sheet, setSheet }) {
                     valueIso={row.declaration}
                     onCommit={(v) => patchDetail(row.id, 'declaration', v)}
                     variant="ymd"
+                    emphasizeIfCurrentMonth
                   />
                 </td>
                 <td className="p-1 border border-gray-100">
@@ -152,6 +153,7 @@ export function AccountingRentTab({ sheet, setSheet }) {
                     valueIso={row.actualRent}
                     onCommit={(v) => patchDetail(row.id, 'actualRent', v)}
                     variant="ymd"
+                    emphasizeIfCurrentMonth
                   />
                 </td>
                 <td className="p-1 border border-gray-100 max-w-[min(12rem,22vw)]">

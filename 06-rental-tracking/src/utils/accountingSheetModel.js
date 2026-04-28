@@ -92,7 +92,7 @@ export function normalizeAccountingSheet(raw) {
   const [m0, m1] = monthKeys;
 
   const rentRows = Array.isArray(raw.rentRows)
-    ? raw.rentRows.slice(0, 200).map((row) => {
+    ? raw.rentRows.slice(0, 200).map((row, rowIdx) => {
         const months = {};
         for (const mk of [m0, m1]) {
           const cell = row.months && row.months[mk] ? row.months[mk] : {};
@@ -113,7 +113,7 @@ export function normalizeAccountingSheet(raw) {
           id:
             typeof row.id === 'string' && row.id
               ? row.id
-              : `acc-r-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+              : `acc-r-${rowIdx}-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
           room: typeof row.room === 'string' ? row.room.slice(0, 200) : '',
           declaration: sanitizeIsoDateField(
             typeof row.declaration === 'string' ? row.declaration : ''
@@ -290,7 +290,14 @@ export function rolloverAccountingWindowFromToday(sheet) {
 }
 
 export function newRentRowId() {
-  return `acc-r-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+  try {
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+      return `acc-r-${crypto.randomUUID()}`;
+    }
+  } catch {
+    /* ignore */
+  }
+  return `acc-r-${Date.now()}-${Math.random().toString(36).slice(2, 11)}-${Math.random().toString(36).slice(2, 11)}`;
 }
 
 export function emptyRentRow(monthKeys) {
