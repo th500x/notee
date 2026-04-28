@@ -31,24 +31,22 @@ const inputCls =
   'w-full min-w-0 px-2 py-1.5 border border-gray-200 rounded text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-100';
 
 const narrowTextCls = `${inputCls} truncate cursor-help min-w-0 w-full`;
-const COMPACT_COL_TD = 'w-[5rem] min-w-[5rem] max-w-[5rem] box-border';
-/** ROOM：优先占用横向空间 */
-const ROOM_COL_TD = 'min-w-[12rem] w-[min(20rem,32vw)] max-w-none box-border';
+
+/** 与改版前「中介」列同一套约束：只设上限、不设最小宽度，避免被撑宽；三列（中介 / 备注 / 删）统一 */
+const COMPACT_COL_TD = 'max-w-[min(12rem,22vw)] min-w-0 align-top';
+
+/** ROOM：加大可读下限，并用百分比把表中剩余横向空间让给房间号（勿再用固定 5rem 锁窄列） */
+const ROOM_COL_TD = 'min-w-[13rem] w-[26%] max-w-none align-top box-border';
 const ROOM_COL_TH = ROOM_COL_TD;
 
 /** 可录入格：ROOM(0)…备注(4)、PRICE(5)、DEPOSIT(6)、双月 IN/OUT/交租（右月交租为列 14），不含只读 SETTLE 与删钮 */
 const RENT_GRID_COL_MAX = 14;
 
-/** 实际列有日期且某月交租仍为空时该月格为红横杠；用于筛选 */
-function rowHasPendingPayRentPlaceholder(row, monthKeys) {
+/** 「实际」有日期且当月（右列 / `currentMonthKey`）交租仍为空 — 与右列红横杠一致；筛选仅判断右列，不看左月 */
+function rowHasPendingPayRentPlaceholder(row, currentMonthKey) {
   if (!isIsoDateString(sanitizeIsoDateField(row.actualRent))) return false;
-  for (const mk of monthKeys) {
-    const cell = row.months?.[mk] || emptyRentMonthCells();
-    if (!isIsoDateString(sanitizeIsoDateField(cell.payRent || ''))) {
-      return true;
-    }
-  }
-  return false;
+  const cell = row.months?.[currentMonthKey] || emptyRentMonthCells();
+  return !isIsoDateString(sanitizeIsoDateField(cell.payRent || ''));
 }
 
 function sumMonthSettleRows(rows, monthKey) {
@@ -260,8 +258,8 @@ export function AccountingRentTab({ sheet, setSheet }) {
 
   const displayRows = useMemo(() => {
     if (!filterPendingPayRent) return sheet.rentRows;
-    return sheet.rentRows.filter((r) => rowHasPendingPayRentPlaceholder(r, [m0, m1]));
-  }, [sheet.rentRows, filterPendingPayRent, m0, m1]);
+    return sheet.rentRows.filter((r) => rowHasPendingPayRentPlaceholder(r, m1));
+  }, [sheet.rentRows, filterPendingPayRent, m1]);
 
   const sensors = useSensors(
     useSensor(MouseSensor, {
@@ -408,13 +406,13 @@ export function AccountingRentTab({ sheet, setSheet }) {
         <p className="text-xs text-blue-100 mt-1">
           申报 / 实际为完整日期；交租仅填月/日（年份取该列月份）；SETTLE = IN − OUT 自动计算；收入汇总以此为准。PRICE/DEPOSIT
           合计为各行公式求值之和；录入时光标在格内时可用 ↑↓←→ 在格间移动（与水电单一致）。ROOM
-          左侧握柄可拖动排序；鼠标拖动约 10px 起拖，触控请长按约 0.28s 后再拖。最右列「删」上方为「筛选」，可只显示「实际」有日期且交租仍为空（红横杠）的房间行。
+          左侧握柄可拖动排序；鼠标拖动约 10px 起拖，触控请长按约 0.28s 后再拖。最右列「删」上方为「筛选」，仅按当月（右列）交租是否仍为空过滤，左月不参与。
         </p>
       </div>
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
         <table
           ref={rentTableRef}
-          className="min-w-[1000px] w-full text-sm border-collapse table-fixed"
+          className="min-w-[1000px] w-full text-sm border-collapse"
         >
           <thead>
             <tr className="bg-gray-900 text-white">
@@ -472,7 +470,7 @@ export function AccountingRentTab({ sheet, setSheet }) {
                       ? 'bg-amber-500 text-gray-900 shadow-sm'
                       : 'bg-white/15 text-white hover:bg-white/25'
                   }`}
-                  title="开启后仅列出「实际」有日期且至少一个月交租仍为空（红横杠）的房间；再点恢复全部"
+                  title="开启后仅列出「实际」有日期且当月（右列）交租仍为空（红横杠）的房间；左月交租不参与筛选。再点恢复全部"
                 >
                   筛选
                 </button>
