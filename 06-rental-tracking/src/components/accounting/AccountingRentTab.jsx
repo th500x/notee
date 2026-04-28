@@ -33,9 +33,9 @@ const inputCls =
 
 const narrowTextCls = `${inputCls} truncate cursor-help`;
 
-/** 与公式列一致最小宽度 4rem；上限避免单列无限撑开 */
+/** 与公式列一致最小宽度 4rem；上限 8rem，避免中介/备注等与日期列被拉得过宽 */
 const COMPACT_COL_TD =
-  'max-w-[min(12rem,22vw)] min-w-[4rem] align-top box-border';
+  'max-w-[8rem] min-w-[4rem] align-top box-border';
 
 /** ROOM：仅满足房号短码；含左侧拖动手柄的整列宽，避免再占 26% 表宽 */
 const ROOM_COL_TD = 'w-[8.5rem] min-w-[4rem] max-w-[8.5rem] align-top box-border';
