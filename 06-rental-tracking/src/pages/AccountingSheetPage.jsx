@@ -97,7 +97,7 @@ export default function AccountingSheetPage({ project, onBack, onSaved, onProjec
 
   const handleRolloverMonth = () => {
     const ok = window.confirm(
-      '将按「今天」所在自然月重置双月窗口：删除更早一月列、左移一月并新增当月空列。未保存的修改会随本地状态一起被重排，是否继续？'
+      '将按「今天」所在自然月对齐双月窗口：更早一月列移出视野；左列收编为原右月数据，右列复制左列各格且仅清空「交租」日期。未保存的修改会随本地状态一起被重排，是否继续？'
     );
     if (!ok) return;
     setSheet((prev) => rolloverAccountingWindowFromToday(prev));

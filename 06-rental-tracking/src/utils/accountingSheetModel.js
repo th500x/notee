@@ -251,24 +251,38 @@ export function rolloverAccountingWindowFromToday(sheet) {
   let expenseRows;
 
   if (slide) {
+    // 左列 n0 = 原右月 o1 整格左移，含 in/out/settle/payRent（交租日期保留）；
+    // 右列 n1 = 同左列 in/out/settle 复制一份，仅 payRent 清空（新当月待填交租日）。
     rentRows = sheet.rentRows.map((r) => {
       const months = r.months || {};
+      const leftMerged = months[o1]
+        ? { ...emptyRentMonthCells(), ...months[o1] }
+        : emptyRentMonthCells();
+      const inStr = typeof leftMerged.in === 'string' ? leftMerged.in.slice(0, 500) : '';
+      const outStr = typeof leftMerged.out === 'string' ? leftMerged.out.slice(0, 500) : '';
+      const settleNum = computeSettleFromInOut({ in: inStr, out: outStr });
       return {
         ...r,
         months: {
-          [n0]: months[o1] ? { ...emptyRentMonthCells(), ...months[o1] } : emptyRentMonthCells(),
-          [n1]: emptyRentMonthCells()
+          [n0]: leftMerged,
+          [n1]: {
+            in: inStr,
+            out: outStr,
+            settle: Number.isFinite(settleNum) ? String(settleNum) : '',
+            payRent: ''
+          }
         }
       };
     });
     expenseRows = sheet.expenseRows.map((r) => {
       const months = r.months || {};
       const outOld = months[o1] && typeof months[o1].out === 'string' ? months[o1].out : '';
+      const outStr = typeof outOld === 'string' ? outOld.slice(0, 500) : '';
       return {
         ...r,
         months: {
-          [n0]: { out: outOld },
-          [n1]: { out: '' }
+          [n0]: { out: outStr },
+          [n1]: { out: outStr }
         }
       };
     });

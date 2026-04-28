@@ -25,6 +25,7 @@ import {
   computeSettleFromInOut
 } from '../../utils/accountingSheetModel';
 import { evaluateArithmeticExpression, formatAccountingNumber } from '../../utils/accountingExpression';
+import { isIsoDateString, sanitizeIsoDateField } from '../../utils/accountingDates';
 
 const inputCls =
   'w-full min-w-0 px-2 py-1.5 border border-gray-200 rounded text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-100';
@@ -202,6 +203,10 @@ function SortableRentRow({
                 onCommit={(v) => patchMonthCell(row.id, mk, 'payRent', v)}
                 variant="md"
                 anchorMonthKey={mk}
+                mdEmptyAsRed={
+                  isIsoDateString(sanitizeIsoDateField(row.actualRent)) &&
+                  !isIsoDateString(sanitizeIsoDateField(cell.payRent || ''))
+                }
                 rentNavSlot={`${rowIndex}-${baseCol + 3}`}
                 onGridArrowKeyDown={(e) => handleRentNavKeyDown(e, rowIndex, baseCol + 3)}
               />

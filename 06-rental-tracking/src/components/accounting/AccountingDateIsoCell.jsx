@@ -4,7 +4,8 @@ import {
   formatMdSlash,
   sanitizeIsoDateField,
   parseMdTextToIso,
-  isIsoInCurrentCalendarMonth
+  isIsoInCurrentCalendarMonth,
+  isIsoDateString
 } from '../../utils/accountingDates';
 
 const baseCls =
@@ -14,7 +15,7 @@ const baseCls =
  * ISO 日期格：
  * - `ymd`：申报/实际，展示 YYYY/M/D；编辑用原生 date。
  * - `md`：交租，展示 M/D；编辑仅「月/日」文本，年份取自列锚 `anchorMonthKey`（`YYYY-MM`）。
- * - `emphasizeIfCurrentMonth`：仅 `ymd` 时，若日期**月份**与今天所在月相同则红色强调（**不限年份**）。
+ * - `mdEmptyAsRed`：仅 `md`（交租）时，由父级在「实际」有日期且交租仍为空时传 true，空值「—」用红色。
  */
 export function AccountingDateIsoCell({
   valueIso,
@@ -22,6 +23,7 @@ export function AccountingDateIsoCell({
   variant = 'ymd',
   anchorMonthKey,
   emphasizeIfCurrentMonth = false,
+  mdEmptyAsRed = false,
   rentNavSlot,
   onGridArrowKeyDown
 }) {
@@ -38,6 +40,10 @@ export function AccountingDateIsoCell({
     isIsoInCurrentCalendarMonth(isoForMonthAccent);
   const monthAccentCls = monthAccentRed ? ' text-red-600 font-semibold' : ' text-gray-900';
 
+  const mdEmptyHighlight =
+    variant === 'md' && mdEmptyAsRed && !isIsoDateString(iso);
+  const mdCls = mdEmptyHighlight ? ' text-red-600 font-semibold' : ' text-gray-900';
+
   useEffect(() => {
     if (!editing) {
       const next = sanitizeIsoDateField(valueIso);
@@ -53,7 +59,7 @@ export function AccountingDateIsoCell({
     return (
       <input
         type="date"
-        className={`${baseCls} bg-white${monthAccentCls}`}
+        className={`${baseCls} bg-white${variant === 'ymd' ? monthAccentCls : mdCls}`}
         value={draftYmd}
         onChange={(e) => setDraftYmd(e.target.value)}
         onBlur={() => {
@@ -85,7 +91,7 @@ export function AccountingDateIsoCell({
       <input
         type="text"
         inputMode="text"
-        className={`${baseCls} bg-white text-left font-mono text-gray-900`}
+        className={`${baseCls} bg-white text-left font-mono${mdCls}`}
         value={draftMd}
         placeholder="月/日"
         onChange={(e) => setDraftMd(e.target.value)}
@@ -140,7 +146,9 @@ export function AccountingDateIsoCell({
         }
       }}
       data-rent-nav={rentNavSlot}
-      className={`${baseCls} text-left bg-white hover:bg-gray-50${monthAccentCls}`}
+      className={`${baseCls} text-left bg-white hover:bg-gray-50${
+        variant === 'ymd' ? monthAccentCls : mdCls
+      }`}
     >
       {display}
     </button>
