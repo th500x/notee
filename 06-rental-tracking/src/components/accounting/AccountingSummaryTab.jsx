@@ -78,10 +78,10 @@ export function AccountingSummaryTab({ sheet }) {
               Month
             </th>
             <th className="p-1.5 sm:p-2 text-right border border-gray-700 text-[10px] sm:text-xs font-medium leading-tight whitespace-normal">
-              Income (SETTLE Σ)
+              Income
             </th>
             <th className="p-1.5 sm:p-2 text-right border border-gray-700 text-[10px] sm:text-xs font-medium leading-tight whitespace-normal">
-              Expense (OUT Σ)
+              Expense
             </th>
             <th className="p-1.5 sm:p-2 text-right border border-gray-700 text-[10px] sm:text-xs font-medium leading-tight whitespace-normal">
               当前盈余
