@@ -15,18 +15,15 @@ export function isIsoDateString(s) {
   return dt.getFullYear() === y && dt.getMonth() === mo - 1 && dt.getDate() === d;
 }
 
-/** @param {Date} [d] 基准日（默认今日） */
-export function currentCalendarYearMonthKey(d = new Date()) {
-  const y = d.getFullYear();
-  const mo = d.getMonth() + 1;
-  return `${y}-${String(mo).padStart(2, '0')}`;
-}
-
-/** ISO 日期所在自然月是否为「当前年月」（与日历「本月」一致） */
+/**
+ * ISO 日期的公历「月份」与 refDate 所在月份相同则为 true（忽略年份）。
+ * 用于申报/实际列：当月相关的日期一律红色提示。
+ */
 export function isIsoInCurrentCalendarMonth(iso, refDate = new Date()) {
   if (!isIsoDateString(iso)) return false;
-  const ym = iso.slice(0, 7);
-  return ym === currentCalendarYearMonthKey(refDate);
+  const mo = Number(iso.slice(5, 7));
+  if (!Number.isInteger(mo) || mo < 1 || mo > 12) return false;
+  return mo === refDate.getMonth() + 1;
 }
 
 /**

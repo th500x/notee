@@ -14,7 +14,7 @@ const baseCls =
  * ISO 日期格：
  * - `ymd`：申报/实际，展示 YYYY/M/D；编辑用原生 date。
  * - `md`：交租，展示 M/D；编辑仅「月/日」文本，年份取自列锚 `anchorMonthKey`（`YYYY-MM`）。
- * - `emphasizeIfCurrentMonth`：仅 `ymd` 时，若日期所在自然月为**今天所在月**，用红色字强调。
+ * - `emphasizeIfCurrentMonth`：仅 `ymd` 时，若日期**月份**与今天所在月相同则红色强调（**不限年份**）。
  */
 export function AccountingDateIsoCell({
   valueIso,
