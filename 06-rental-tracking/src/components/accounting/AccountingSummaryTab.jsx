@@ -57,21 +57,35 @@ export function AccountingSummaryTab({ sheet }) {
   }, [sheet, m0, m1]);
 
   return (
-    <div className="bg-white rounded-lg shadow-md overflow-x-auto">
-      <div className="bg-gradient-to-r from-blue-500 to-purple-600 px-6 py-4 text-white">
+    <div className="bg-white rounded-lg shadow-md min-w-0 max-w-full w-full">
+      <div className="w-full min-w-0 bg-gradient-to-r from-blue-500 to-purple-600 px-4 sm:px-6 py-4 text-white box-border">
         <h3 className="text-lg font-semibold">收支账目 · Summary</h3>
-        <p className="text-xs text-blue-100 mt-1">
+        <p className="text-xs text-blue-100 mt-1 leading-relaxed">
           当前双月窗口（{monthKeyToHeaderLabel(m0)} / {monthKeyToHeaderLabel(m1)}）按租金 SETTLE 与支出 OUT
           实时计算；其它月份可来自历史导入（仅影响本表，不改租金/支出明细）。
         </p>
       </div>
-      <table className="min-w-[420px] w-full text-sm border-collapse">
+      <table className="w-full min-w-0 max-w-full table-fixed text-sm border-collapse">
+        <colgroup>
+          <col className="w-[26%]" />
+          <col className="w-[25%]" />
+          <col className="w-[25%]" />
+          <col className="w-[24%]" />
+        </colgroup>
         <thead>
           <tr className="bg-gray-800 text-white">
-            <th className="p-2 text-left border border-gray-700">Month</th>
-            <th className="p-2 text-right border border-gray-700">Income (SETTLE Σ)</th>
-            <th className="p-2 text-right border border-gray-700">Expense (OUT Σ)</th>
-            <th className="p-2 text-right border border-gray-700">当前盈余</th>
+            <th className="p-1.5 sm:p-2 text-left border border-gray-700 text-[11px] sm:text-sm font-medium leading-tight whitespace-normal">
+              Month
+            </th>
+            <th className="p-1.5 sm:p-2 text-right border border-gray-700 text-[10px] sm:text-xs font-medium leading-tight whitespace-normal">
+              Income (SETTLE Σ)
+            </th>
+            <th className="p-1.5 sm:p-2 text-right border border-gray-700 text-[10px] sm:text-xs font-medium leading-tight whitespace-normal">
+              Expense (OUT Σ)
+            </th>
+            <th className="p-1.5 sm:p-2 text-right border border-gray-700 text-[10px] sm:text-xs font-medium leading-tight whitespace-normal">
+              当前盈余
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -80,16 +94,22 @@ export function AccountingSummaryTab({ sheet }) {
               key={r.mk}
               className={`border-b border-gray-100 ${r.mode === 'imported' ? 'bg-amber-50/40' : ''}`}
             >
-              <td className="p-2 font-medium text-gray-900 border border-gray-100">
+              <td className="p-1.5 sm:p-2 font-medium text-gray-900 border border-gray-100 text-[11px] sm:text-sm align-top break-words">
                 {monthKeyToHeaderLabel(r.mk)}
                 {r.mode === 'imported' ? (
-                  <span className="ml-1 text-[10px] font-normal text-amber-800">历史</span>
+                  <span className="ml-0.5 text-[9px] font-normal text-amber-800 whitespace-nowrap">
+                    历史
+                  </span>
                 ) : null}
               </td>
-              <td className="p-2 text-right border border-gray-100">{formatAccountingNumber(r.income)}</td>
-              <td className="p-2 text-right border border-gray-100">{formatAccountingNumber(r.expense)}</td>
+              <td className="p-1.5 sm:p-2 text-right border border-gray-100 text-[11px] sm:text-sm tabular-nums">
+                {formatAccountingNumber(r.income)}
+              </td>
+              <td className="p-1.5 sm:p-2 text-right border border-gray-100 text-[11px] sm:text-sm tabular-nums">
+                {formatAccountingNumber(r.expense)}
+              </td>
               <td
-                className={`p-2 text-right font-semibold border border-gray-100 ${
+                className={`p-1.5 sm:p-2 text-right font-semibold border border-gray-100 text-[11px] sm:text-sm tabular-nums ${
                   !Number.isFinite(r.balance)
                     ? 'text-gray-500'
                     : r.balance >= 0

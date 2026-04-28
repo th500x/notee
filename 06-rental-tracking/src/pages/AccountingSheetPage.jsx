@@ -104,7 +104,7 @@ export default function AccountingSheetPage({ project, onBack, onSaved, onProjec
   };
 
   return (
-    <div className="space-y-6">
+    <div className="w-full min-w-0 space-y-6">
       <div className="flex items-center gap-4 flex-wrap">
         <button
           type="button"
@@ -147,15 +147,17 @@ export default function AccountingSheetPage({ project, onBack, onSaved, onProjec
       {activeTab === 'summary' ? <AccountingSummaryTab sheet={sheet} /> : null}
 
       {error ? (
-        <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">{error}</div>
+        <div className="w-full min-w-0 p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
+          {error}
+        </div>
       ) : null}
 
-      <div className="flex flex-wrap gap-3 items-center">
+      <div className="grid w-full min-w-0 grid-cols-2 gap-3">
         <button
           type="button"
           onClick={handleSave}
           disabled={saving}
-          className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium disabled:opacity-50"
+          className="min-w-0 py-3 px-3 sm:px-6 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium disabled:opacity-50 text-sm sm:text-base text-center"
         >
           {saving ? '保存中…' : '保存到服务器'}
         </button>
@@ -163,7 +165,7 @@ export default function AccountingSheetPage({ project, onBack, onSaved, onProjec
           type="button"
           onClick={handleRolloverMonth}
           disabled={saving}
-          className="px-6 py-3 bg-amber-500 text-white rounded-lg hover:bg-amber-600 font-medium disabled:opacity-50"
+          className="min-w-0 py-3 px-3 sm:px-6 bg-amber-500 text-white rounded-lg hover:bg-amber-600 font-medium disabled:opacity-50 text-sm sm:text-base text-center"
         >
           切换当月
         </button>

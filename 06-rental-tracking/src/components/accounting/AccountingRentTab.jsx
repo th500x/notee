@@ -402,8 +402,8 @@ export function AccountingRentTab({ sheet, setSheet }) {
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-md min-w-0 max-w-full">
-      <div className="bg-gradient-to-r from-blue-500 to-purple-600 px-6 py-4 text-white">
+    <div className="bg-white rounded-lg shadow-md min-w-0 max-w-full w-full">
+      <div className="w-full min-w-0 bg-gradient-to-r from-blue-500 to-purple-600 px-4 sm:px-6 py-4 text-white box-border">
         <h3 className="text-lg font-semibold">租金记录 · INCOME</h3>
         <p className="text-xs text-blue-100 mt-1">
           申报 / 实际为完整日期；交租仅填月/日（年份取该列月份）；SETTLE = IN − OUT 自动计算；收入汇总以此为准。PRICE/DEPOSIT
@@ -547,11 +547,11 @@ export function AccountingRentTab({ sheet, setSheet }) {
           </tbody>
         </table>
       </DndContext>
-      <div className="p-4 border-t border-gray-100">
+      <div className="w-full min-w-0 box-border p-4 border-t border-gray-100">
         <button
           type="button"
           onClick={addRow}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium"
+          className="w-full sm:w-auto px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium text-center"
         >
           + 添加行
         </button>

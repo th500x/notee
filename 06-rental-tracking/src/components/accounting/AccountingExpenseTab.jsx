@@ -43,19 +43,26 @@ export function AccountingExpenseTab({ sheet, setSheet }) {
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-md overflow-x-auto">
-      <div className="bg-gradient-to-r from-blue-500 to-purple-600 px-6 py-4 text-white">
+    <div className="bg-white rounded-lg shadow-md min-w-0 max-w-full w-full">
+      <div className="w-full min-w-0 bg-gradient-to-r from-blue-500 to-purple-600 px-4 sm:px-6 py-4 text-white box-border">
         <h3 className="text-lg font-semibold">支出记录 · EXPENSES</h3>
         <p className="text-xs text-blue-100 mt-1">固定类目，双月 OUT；与 xlsx EXPENSES 表一致。</p>
       </div>
-      <table className="min-w-[640px] w-full text-sm border-collapse">
+      <table className="w-full min-w-0 max-w-full table-fixed text-sm border-collapse">
+        <colgroup>
+          <col className="w-[36%]" />
+          <col className="w-[32%]" />
+          <col className="w-[32%]" />
+        </colgroup>
         <thead>
           <tr className="bg-gray-900 text-white">
-            <th className="p-2 text-left border border-gray-700 w-40">ITEM</th>
-            <th className="p-2 text-center border border-gray-700 font-semibold">
+            <th className="p-1.5 sm:p-2 text-left border border-gray-700 text-xs sm:text-sm font-semibold">
+              ITEM
+            </th>
+            <th className="p-1.5 sm:p-2 text-center border border-gray-700 font-semibold text-[11px] sm:text-sm leading-tight">
               {monthKeyToHeaderLabel(m0)}
             </th>
-            <th className="p-2 text-center border border-gray-700 font-semibold">
+            <th className="p-1.5 sm:p-2 text-center border border-gray-700 font-semibold text-[11px] sm:text-sm leading-tight">
               {monthKeyToHeaderLabel(m1)}
             </th>
           </tr>
@@ -63,15 +70,19 @@ export function AccountingExpenseTab({ sheet, setSheet }) {
         <tbody>
           {sheet.expenseRows.map((row) => (
             <tr key={row.categoryKey} className="border-b border-gray-100">
-              <td className="p-2 font-medium text-gray-800 border border-gray-100">{row.categoryKey}</td>
-              <td className="p-1 border border-gray-100">
+              <td className="p-1.5 sm:p-2 font-medium text-gray-800 border border-gray-100 text-xs sm:text-sm break-words align-top">
+                {row.categoryKey}
+              </td>
+              <td className="p-1 border border-gray-100 min-w-0 align-top">
                 <AccountingFormulaCell
+                  className="!min-w-0 max-w-full"
                   valueExpr={(row.months[m0] || {}).out || ''}
                   onCommit={(v) => patchOut(row.categoryKey, m0, v)}
                 />
               </td>
-              <td className="p-1 border border-gray-100">
+              <td className="p-1 border border-gray-100 min-w-0 align-top">
                 <AccountingFormulaCell
+                  className="!min-w-0 max-w-full"
                   valueExpr={(row.months[m1] || {}).out || ''}
                   onCommit={(v) => patchOut(row.categoryKey, m1, v)}
                 />
@@ -79,11 +90,11 @@ export function AccountingExpenseTab({ sheet, setSheet }) {
             </tr>
           ))}
           <tr className="bg-gray-50 font-semibold border-t-2 border-gray-300">
-            <td className="p-2 border border-gray-200">Total</td>
-            <td className="p-2 border border-gray-200 text-right">
+            <td className="p-1.5 sm:p-2 border border-gray-200 text-xs sm:text-sm">Total</td>
+            <td className="p-1.5 sm:p-2 border border-gray-200 text-right text-xs sm:text-sm tabular-nums">
               {formatAccountingNumber(totals.t0)}
             </td>
-            <td className="p-2 border border-gray-200 text-right">
+            <td className="p-1.5 sm:p-2 border border-gray-200 text-right text-xs sm:text-sm tabular-nums">
               {formatAccountingNumber(totals.t1)}
             </td>
           </tr>
