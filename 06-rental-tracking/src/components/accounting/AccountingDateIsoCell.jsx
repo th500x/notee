@@ -42,7 +42,7 @@ export function AccountingDateIsoCell({
 
   const mdEmptyHighlight =
     variant === 'md' && mdEmptyAsRed && !isIsoDateString(iso);
-  const mdCls = mdEmptyHighlight ? ' text-red-600 font-semibold' : ' text-gray-900';
+  const mdCls = mdEmptyHighlight ? ' text-red-600 font-bold' : ' text-gray-900';
 
   useEffect(() => {
     if (!editing) {

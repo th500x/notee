@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useRef, useCallback } from 'react';
+import { Fragment, useMemo, useRef, useCallback, useState } from 'react';
 import {
   DndContext,
   closestCenter,
@@ -32,25 +32,37 @@ const inputCls =
 
 const narrowTextCls = `${inputCls} truncate cursor-help max-w-[min(12rem,22vw)]`;
 
-/** 可录入格：ROOM(0)…备注(4)、PRICE(5)、DEPOSIT(6)、双月 IN/OUT/交租(7–12)，不含只读 SETTLE 与删钮（与水电单表格方向键规则一致） */
-const RENT_GRID_COL_MAX = 12;
+/** 可录入格：ROOM(0)…备注(4)、PRICE(5)、DEPOSIT(6)、双月 IN/OUT/交租（右月交租为列 14），不含只读 SETTLE、筛选列与删钮 */
+const RENT_GRID_COL_MAX = 14;
 
-function updateRentRow(sheet, rowId, updater) {
-  return {
-    ...sheet,
-    rentRows: sheet.rentRows.map((r) => (r.id === rowId ? updater(r) : r))
-  };
+/** 实际列有日期且某月交租仍为空时该月格为红横杠；用于筛选 */
+function rowHasPendingPayRentPlaceholder(row, monthKeys) {
+  if (!isIsoDateString(sanitizeIsoDateField(row.actualRent))) return false;
+  for (const mk of monthKeys) {
+    const cell = row.months?.[mk] || emptyRentMonthCells();
+    if (!isIsoDateString(sanitizeIsoDateField(cell.payRent || ''))) {
+      return true;
+    }
+  }
+  return false;
 }
 
-function sumMonthSettle(sheet, monthKey) {
+function sumMonthSettleRows(rows, monthKey) {
   let s = 0;
-  for (const row of sheet.rentRows) {
+  for (const row of rows) {
     const cell = row.months && row.months[monthKey];
     if (!cell) continue;
     const v = computeSettleFromInOut(cell);
     if (Number.isFinite(v)) s += v;
   }
   return s;
+}
+
+function updateRentRow(sheet, rowId, updater) {
+  return {
+    ...sheet,
+    rentRows: sheet.rentRows.map((r) => (r.id === rowId ? updater(r) : r))
+  };
 }
 
 function sumExprField(rows, field) {
@@ -70,10 +82,12 @@ function SortableRentRow({
   patchDetail,
   patchMonthCell,
   handleRentNavKeyDown,
-  removeRow
+  removeRow,
+  sortableDisabled
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id: row.id
+    id: row.id,
+    disabled: sortableDisabled
   });
 
   const style = {
@@ -92,9 +106,17 @@ function SortableRentRow({
         <div className="flex items-stretch gap-1 min-w-0">
           <button
             type="button"
-            className="shrink-0 flex flex-col items-center justify-center w-7 rounded border border-transparent hover:border-gray-300 hover:bg-gray-100 text-gray-500 cursor-grab active:cursor-grabbing touch-none select-none"
+            className={`shrink-0 flex flex-col items-center justify-center w-7 rounded border border-transparent text-gray-500 touch-none select-none ${
+              sortableDisabled
+                ? 'opacity-40 cursor-not-allowed pointer-events-none'
+                : 'hover:border-gray-300 hover:bg-gray-100 cursor-grab active:cursor-grabbing'
+            }`}
             aria-label="拖动排序（触控请长按）"
-            title="拖动排序；触控可长按后再拖"
+            title={
+              sortableDisabled
+                ? '筛选模式下不可拖动排序，请先关闭「筛选」'
+                : '拖动排序；触控可长按后再拖'
+            }
             {...attributes}
             {...listeners}
           >
@@ -211,6 +233,9 @@ function SortableRentRow({
                 onGridArrowKeyDown={(e) => handleRentNavKeyDown(e, rowIndex, baseCol + 3)}
               />
             </td>
+            {mi === 1 ? (
+              <td className="p-1 border border-gray-100 bg-gray-900/5" aria-hidden="true" />
+            ) : null}
           </Fragment>
         );
       })}
@@ -229,7 +254,13 @@ function SortableRentRow({
 
 export function AccountingRentTab({ sheet, setSheet }) {
   const [m0, m1] = sheet.monthKeys;
+  const [filterPendingPayRent, setFilterPendingPayRent] = useState(false);
   const rentTableRef = useRef(null);
+
+  const displayRows = useMemo(() => {
+    if (!filterPendingPayRent) return sheet.rentRows;
+    return sheet.rentRows.filter((r) => rowHasPendingPayRentPlaceholder(r, [m0, m1]));
+  }, [sheet.rentRows, filterPendingPayRent, m0, m1]);
 
   const sensors = useSensors(
     useSensor(MouseSensor, {
@@ -246,7 +277,7 @@ export function AccountingRentTab({ sheet, setSheet }) {
     })
   );
 
-  const sortableIds = useMemo(() => sheet.rentRows.map((r) => r.id), [sheet.rentRows]);
+  const sortableIds = useMemo(() => displayRows.map((r) => r.id), [displayRows]);
 
   const onDragEnd = useCallback(
     (event) => {
@@ -265,12 +296,12 @@ export function AccountingRentTab({ sheet, setSheet }) {
 
   const totals = useMemo(
     () => ({
-      m0Settle: sumMonthSettle(sheet, m0),
-      m1Settle: sumMonthSettle(sheet, m1),
-      priceSum: sumExprField(sheet.rentRows, 'price'),
-      depositSum: sumExprField(sheet.rentRows, 'deposit')
+      m0Settle: sumMonthSettleRows(displayRows, m0),
+      m1Settle: sumMonthSettleRows(displayRows, m1),
+      priceSum: sumExprField(displayRows, 'price'),
+      depositSum: sumExprField(displayRows, 'deposit')
     }),
-    [sheet, m0, m1]
+    [displayRows, m0, m1]
   );
 
   const focusRentCell = useCallback((rowIndex, colIndex) => {
@@ -293,7 +324,7 @@ export function AccountingRentTab({ sheet, setSheet }) {
   const handleRentNavKeyDown = useCallback(
     (e, rowIndex, colIndex) => {
       if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) return;
-      const rowCount = sheet.rentRows.length;
+      const rowCount = displayRows.length;
       if (rowCount === 0) return;
       e.preventDefault();
       e.stopPropagation();
@@ -330,7 +361,7 @@ export function AccountingRentTab({ sheet, setSheet }) {
 
       focusRentCell(r, c);
     },
-    [sheet.rentRows.length, focusRentCell]
+    [displayRows.length, focusRentCell]
   );
 
   const patchMonthCell = (rowId, monthKey, field, expr) =>
@@ -376,11 +407,11 @@ export function AccountingRentTab({ sheet, setSheet }) {
         <p className="text-xs text-blue-100 mt-1">
           申报 / 实际为完整日期；交租仅填月/日（年份取该列月份）；SETTLE = IN − OUT 自动计算；收入汇总以此为准。PRICE/DEPOSIT
           合计为各行公式求值之和；录入时光标在格内时可用 ↑↓←→ 在格间移动（与水电单一致）。ROOM
-          左侧握柄可拖动排序；鼠标拖动约 10px 起拖，触控请长按约 0.28s 后再拖。
+          左侧握柄可拖动排序；鼠标拖动约 10px 起拖，触控请长按约 0.28s 后再拖。右侧「筛选」可只显示「实际」有日期且交租仍为空（红横杠）的房间行。
         </p>
       </div>
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
-        <table ref={rentTableRef} className="min-w-[1100px] w-full text-sm border-collapse">
+        <table ref={rentTableRef} className="min-w-[1140px] w-full text-sm border-collapse">
           <thead>
             <tr className="bg-gray-900 text-white">
               <th colSpan={7} className="p-2 text-center font-semibold border border-gray-700">
@@ -389,7 +420,7 @@ export function AccountingRentTab({ sheet, setSheet }) {
               <th colSpan={4} className="p-2 text-center font-semibold border border-gray-700">
                 {monthKeyToHeaderLabel(m0)}
               </th>
-              <th colSpan={4} className="p-2 text-center font-semibold border border-gray-700">
+              <th colSpan={5} className="p-2 text-center font-semibold border border-gray-700">
                 {monthKeyToHeaderLabel(m1)}
               </th>
               <th className="p-2 w-14 border border-gray-700" />
@@ -412,20 +443,40 @@ export function AccountingRentTab({ sheet, setSheet }) {
                   {h}
                 </th>
               ))}
+              <th className="p-2 border border-gray-700 w-[4.5rem]">
+                <button
+                  type="button"
+                  onClick={() => setFilterPendingPayRent((v) => !v)}
+                  className={`w-full rounded px-1.5 py-1 text-[11px] font-semibold tracking-tight transition-colors ${
+                    filterPendingPayRent
+                      ? 'bg-amber-500 text-gray-900 shadow-sm'
+                      : 'bg-white/15 text-white hover:bg-white/25'
+                  }`}
+                  title="开启后仅列出「实际」有日期且至少一个月交租仍为空（红横杠）的房间；再点恢复全部"
+                >
+                  筛选
+                </button>
+              </th>
               <th className="p-2 border border-gray-700" />
             </tr>
           </thead>
           <tbody>
             {sheet.rentRows.length === 0 ? (
               <tr>
-                <td colSpan={16} className="p-8 text-center text-gray-500">
+                <td colSpan={17} className="p-8 text-center text-gray-500">
                   暂无房间行，请点击下方「添加行」。
+                </td>
+              </tr>
+            ) : displayRows.length === 0 ? (
+              <tr>
+                <td colSpan={17} className="p-8 text-center text-gray-500">
+                  当前筛选下没有「交租待登记」的房间行，请关闭「筛选」或补录交租日期。
                 </td>
               </tr>
             ) : (
               <>
                 <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
-                  {sheet.rentRows.map((row, rowIndex) => (
+                  {displayRows.map((row, rowIndex) => (
                     <SortableRentRow
                       key={row.id}
                       row={row}
@@ -436,6 +487,7 @@ export function AccountingRentTab({ sheet, setSheet }) {
                       patchMonthCell={patchMonthCell}
                       handleRentNavKeyDown={handleRentNavKeyDown}
                       removeRow={removeRow}
+                      sortableDisabled={filterPendingPayRent}
                     />
                   ))}
                 </SortableContext>
@@ -469,6 +521,7 @@ export function AccountingRentTab({ sheet, setSheet }) {
                     {formatAccountingNumber(totals.m1Settle)}
                   </td>
                   <td className="p-2 border border-gray-200 text-center text-gray-400">—</td>
+                  <td className="p-2 border border-gray-200 bg-gray-100" />
                   <td className="p-2 border border-gray-200" />
                 </tr>
               </>
