@@ -30,9 +30,13 @@ import { isIsoDateString, sanitizeIsoDateField } from '../../utils/accountingDat
 const inputCls =
   'w-full min-w-0 px-2 py-1.5 border border-gray-200 rounded text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-100';
 
-const narrowTextCls = `${inputCls} truncate cursor-help max-w-[min(12rem,22vw)]`;
+const narrowTextCls = `${inputCls} truncate cursor-help min-w-0 w-full`;
+const COMPACT_COL_TD = 'w-[5rem] min-w-[5rem] max-w-[5rem] box-border';
+/** ROOM：优先占用横向空间 */
+const ROOM_COL_TD = 'min-w-[12rem] w-[min(20rem,32vw)] max-w-none box-border';
+const ROOM_COL_TH = ROOM_COL_TD;
 
-/** 可录入格：ROOM(0)…备注(4)、PRICE(5)、DEPOSIT(6)、双月 IN/OUT/交租（右月交租为列 14），不含只读 SETTLE、筛选列与删钮 */
+/** 可录入格：ROOM(0)…备注(4)、PRICE(5)、DEPOSIT(6)、双月 IN/OUT/交租（右月交租为列 14），不含只读 SETTLE 与删钮 */
 const RENT_GRID_COL_MAX = 14;
 
 /** 实际列有日期且某月交租仍为空时该月格为红横杠；用于筛选 */
@@ -102,7 +106,7 @@ function SortableRentRow({
       style={style}
       className={`border-b border-gray-100 hover:bg-gray-50/80 ${isDragging ? 'bg-blue-50/90 shadow-sm ring-1 ring-blue-200/80' : ''}`}
     >
-      <td className="p-1 border border-gray-100">
+      <td className={`p-1 border border-gray-100 ${ROOM_COL_TD}`}>
         <div className="flex items-stretch gap-1 min-w-0">
           <button
             type="button"
@@ -152,7 +156,7 @@ function SortableRentRow({
           onGridArrowKeyDown={(e) => handleRentNavKeyDown(e, rowIndex, 2)}
         />
       </td>
-      <td className="p-1 border border-gray-100 max-w-[min(12rem,22vw)]">
+      <td className={`p-1 border border-gray-100 ${COMPACT_COL_TD}`}>
         <input
           className={narrowTextCls}
           value={row.agency}
@@ -162,7 +166,7 @@ function SortableRentRow({
           onKeyDown={(e) => handleRentNavKeyDown(e, rowIndex, 3)}
         />
       </td>
-      <td className="p-1 border border-gray-100 max-w-[min(12rem,22vw)]">
+      <td className={`p-1 border border-gray-100 ${COMPACT_COL_TD}`}>
         <input
           className={narrowTextCls}
           value={row.remarks}
@@ -233,13 +237,10 @@ function SortableRentRow({
                 onGridArrowKeyDown={(e) => handleRentNavKeyDown(e, rowIndex, baseCol + 3)}
               />
             </td>
-            {mi === 1 ? (
-              <td className="p-1 border border-gray-100 bg-gray-900/5" aria-hidden="true" />
-            ) : null}
           </Fragment>
         );
       })}
-      <td className="p-1 border border-gray-100 text-center">
+      <td className={`p-1 border border-gray-100 text-center align-middle ${COMPACT_COL_TD}`}>
         <button
           type="button"
           onClick={() => removeRow(row.id)}
@@ -407,11 +408,14 @@ export function AccountingRentTab({ sheet, setSheet }) {
         <p className="text-xs text-blue-100 mt-1">
           申报 / 实际为完整日期；交租仅填月/日（年份取该列月份）；SETTLE = IN − OUT 自动计算；收入汇总以此为准。PRICE/DEPOSIT
           合计为各行公式求值之和；录入时光标在格内时可用 ↑↓←→ 在格间移动（与水电单一致）。ROOM
-          左侧握柄可拖动排序；鼠标拖动约 10px 起拖，触控请长按约 0.28s 后再拖。右侧「筛选」可只显示「实际」有日期且交租仍为空（红横杠）的房间行。
+          左侧握柄可拖动排序；鼠标拖动约 10px 起拖，触控请长按约 0.28s 后再拖。最右列「删」上方为「筛选」，可只显示「实际」有日期且交租仍为空（红横杠）的房间行。
         </p>
       </div>
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
-        <table ref={rentTableRef} className="min-w-[1140px] w-full text-sm border-collapse">
+        <table
+          ref={rentTableRef}
+          className="min-w-[1000px] w-full text-sm border-collapse table-fixed"
+        >
           <thead>
             <tr className="bg-gray-900 text-white">
               <th colSpan={7} className="p-2 text-center font-semibold border border-gray-700">
@@ -420,17 +424,31 @@ export function AccountingRentTab({ sheet, setSheet }) {
               <th colSpan={4} className="p-2 text-center font-semibold border border-gray-700">
                 {monthKeyToHeaderLabel(m0)}
               </th>
-              <th colSpan={5} className="p-2 text-center font-semibold border border-gray-700">
+              <th colSpan={4} className="p-2 text-center font-semibold border border-gray-700">
                 {monthKeyToHeaderLabel(m1)}
               </th>
-              <th className="p-2 w-14 border border-gray-700" />
+              <th
+                className={`p-2 text-center font-semibold border border-gray-700 ${COMPACT_COL_TD}`}
+              />
             </tr>
             <tr className="bg-gray-800 text-white text-xs">
-              <th className="p-2 border border-gray-700 text-left">ROOM</th>
+              <th
+                className={`p-2 border border-gray-700 text-left align-bottom ${ROOM_COL_TH}`}
+              >
+                ROOM
+              </th>
               <th className="p-2 border border-gray-700 text-left">申报</th>
               <th className="p-2 border border-gray-700 text-left">实际</th>
-              <th className="p-2 border border-gray-700 text-left">中介</th>
-              <th className="p-2 border border-gray-700 text-left">备注</th>
+              <th
+                className={`p-2 border border-gray-700 text-left font-medium ${COMPACT_COL_TD}`}
+              >
+                中介
+              </th>
+              <th
+                className={`p-2 border border-gray-700 text-left font-medium ${COMPACT_COL_TD}`}
+              >
+                备注
+              </th>
               <th className="p-2 border border-gray-900 bg-black text-left">PRICE</th>
               <th className="p-2 border border-gray-900 bg-black text-left">DEPOSIT</th>
               {['IN', 'OUT', 'SETTLE', '交租'].map((h) => (
@@ -443,11 +461,13 @@ export function AccountingRentTab({ sheet, setSheet }) {
                   {h}
                 </th>
               ))}
-              <th className="p-2 border border-gray-700 w-[4.5rem]">
+              <th
+                className={`p-1 border border-gray-700 text-center align-middle ${COMPACT_COL_TD}`}
+              >
                 <button
                   type="button"
                   onClick={() => setFilterPendingPayRent((v) => !v)}
-                  className={`w-full rounded px-1.5 py-1 text-[11px] font-semibold tracking-tight transition-colors ${
+                  className={`w-full rounded px-0.5 py-1 text-[10px] leading-tight font-semibold tracking-tight transition-colors ${
                     filterPendingPayRent
                       ? 'bg-amber-500 text-gray-900 shadow-sm'
                       : 'bg-white/15 text-white hover:bg-white/25'
@@ -457,19 +477,18 @@ export function AccountingRentTab({ sheet, setSheet }) {
                   筛选
                 </button>
               </th>
-              <th className="p-2 border border-gray-700" />
             </tr>
           </thead>
           <tbody>
             {sheet.rentRows.length === 0 ? (
               <tr>
-                <td colSpan={17} className="p-8 text-center text-gray-500">
+                <td colSpan={16} className="p-8 text-center text-gray-500">
                   暂无房间行，请点击下方「添加行」。
                 </td>
               </tr>
             ) : displayRows.length === 0 ? (
               <tr>
-                <td colSpan={17} className="p-8 text-center text-gray-500">
+                <td colSpan={16} className="p-8 text-center text-gray-500">
                   当前筛选下没有「交租待登记」的房间行，请关闭「筛选」或补录交租日期。
                 </td>
               </tr>
@@ -521,8 +540,7 @@ export function AccountingRentTab({ sheet, setSheet }) {
                     {formatAccountingNumber(totals.m1Settle)}
                   </td>
                   <td className="p-2 border border-gray-200 text-center text-gray-400">—</td>
-                  <td className="p-2 border border-gray-200 bg-gray-100" />
-                  <td className="p-2 border border-gray-200" />
+                  <td className={`p-2 border border-gray-200 ${COMPACT_COL_TD}`} />
                 </tr>
               </>
             )}
