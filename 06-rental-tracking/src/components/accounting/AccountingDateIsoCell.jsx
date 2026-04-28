@@ -9,7 +9,7 @@ import {
 } from '../../utils/accountingDates';
 
 const baseCls =
-  'min-h-[2.25rem] w-full min-w-0 border border-gray-200 rounded px-2 py-1.5 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-100';
+  'min-h-[2.25rem] w-full min-w-[4rem] border border-gray-200 rounded px-2 py-1.5 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-100';
 
 /**
  * ISO 日期格：

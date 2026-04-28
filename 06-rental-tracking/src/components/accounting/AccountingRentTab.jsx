@@ -27,17 +27,18 @@ import {
 import { evaluateArithmeticExpression, formatAccountingNumber } from '../../utils/accountingExpression';
 import { isIsoDateString, sanitizeIsoDateField } from '../../utils/accountingDates';
 
+/** 与公式格 / 日期格相同的可视高度与边框，保证各行「框体」一致 */
 const inputCls =
-  'w-full min-w-0 px-2 py-1.5 border border-gray-200 rounded text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-100';
+  'w-full min-w-0 min-h-[2.25rem] box-border px-2 py-1.5 border border-gray-200 rounded text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-100';
 
-const narrowTextCls = `${inputCls} truncate cursor-help min-w-0 w-full`;
+const narrowTextCls = `${inputCls} truncate cursor-help`;
 
-/** 与公式列一致最小宽度 4.5rem；上限仍与改版前「中介」一致，避免单列无限撑开 */
+/** 与公式列一致最小宽度 4rem；上限避免单列无限撑开 */
 const COMPACT_COL_TD =
-  'max-w-[min(12rem,22vw)] min-w-[4.5rem] align-top box-border';
+  'max-w-[min(12rem,22vw)] min-w-[4rem] align-top box-border';
 
-/** ROOM：加大可读下限，并用百分比把表中剩余横向空间让给房间号（勿再用固定 5rem 锁窄列） */
-const ROOM_COL_TD = 'min-w-[13rem] w-[26%] max-w-none align-top box-border';
+/** ROOM：仅满足房号短码；含左侧拖动手柄的整列宽，避免再占 26% 表宽 */
+const ROOM_COL_TD = 'w-[8.5rem] min-w-[4rem] max-w-[8.5rem] align-top box-border';
 const ROOM_COL_TH = ROOM_COL_TD;
 
 /** 可录入格：ROOM(0)…备注(4)、PRICE(5)、DEPOSIT(6)、双月 IN/OUT/交租（右月交租为列 14），不含只读 SETTLE 与删钮 */
@@ -127,7 +128,7 @@ function SortableRentRow({
             <span className="text-[10px] leading-none tracking-tighter opacity-80 -mt-0.5">⋮</span>
           </button>
           <input
-            className={`${inputCls} flex-1 min-w-0`}
+            className={inputCls}
             value={row.room}
             data-rent-nav={`${rowIndex}-0`}
             onChange={(e) => patchDetail(row.id, 'room', e.target.value)}
@@ -135,7 +136,7 @@ function SortableRentRow({
           />
         </div>
       </td>
-      <td className="p-1 border border-gray-100">
+      <td className={`p-1 border border-gray-100 ${COMPACT_COL_TD}`}>
         <AccountingDateIsoCell
           valueIso={row.declaration}
           onCommit={(v) => patchDetail(row.id, 'declaration', v)}
@@ -145,7 +146,7 @@ function SortableRentRow({
           onGridArrowKeyDown={(e) => handleRentNavKeyDown(e, rowIndex, 1)}
         />
       </td>
-      <td className="p-1 border border-gray-100">
+      <td className={`p-1 border border-gray-100 ${COMPACT_COL_TD}`}>
         <AccountingDateIsoCell
           valueIso={row.actualRent}
           onCommit={(v) => patchDetail(row.id, 'actualRent', v)}
@@ -216,7 +217,7 @@ function SortableRentRow({
             </td>
             <td className="p-1 border border-gray-100 bg-slate-50">
               <div
-                className="min-h-[2.25rem] w-full min-w-[4.5rem] border border-gray-200 rounded px-2 py-1.5 text-sm text-right font-mono text-gray-800 cursor-help"
+                className="min-h-[2.25rem] w-full min-w-[4rem] border border-gray-200 rounded px-2 py-1.5 text-sm text-right font-mono text-gray-800 cursor-help"
                 title={settleTitle}
               >
                 {formatAccountingNumber(settleVal)}
@@ -401,7 +402,7 @@ export function AccountingRentTab({ sheet, setSheet }) {
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-md overflow-x-auto">
+    <div className="bg-white rounded-lg shadow-md min-w-0 max-w-full">
       <div className="bg-gradient-to-r from-blue-500 to-purple-600 px-6 py-4 text-white">
         <h3 className="text-lg font-semibold">租金记录 · INCOME</h3>
         <p className="text-xs text-blue-100 mt-1">
@@ -413,7 +414,7 @@ export function AccountingRentTab({ sheet, setSheet }) {
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
         <table
           ref={rentTableRef}
-          className="min-w-[1000px] w-full text-sm border-collapse"
+          className="w-full min-w-0 max-w-full text-sm border-collapse"
         >
           <thead>
             <tr className="bg-gray-900 text-white">
@@ -436,8 +437,8 @@ export function AccountingRentTab({ sheet, setSheet }) {
               >
                 ROOM
               </th>
-              <th className="p-2 border border-gray-700 text-left">申报</th>
-              <th className="p-2 border border-gray-700 text-left">实际</th>
+              <th className={`p-2 border border-gray-700 text-left ${COMPACT_COL_TD}`}>申报</th>
+              <th className={`p-2 border border-gray-700 text-left ${COMPACT_COL_TD}`}>实际</th>
               <th
                 className={`p-2 border border-gray-700 text-left font-medium ${COMPACT_COL_TD}`}
               >
