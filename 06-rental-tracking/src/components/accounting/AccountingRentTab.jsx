@@ -32,8 +32,9 @@ const inputCls =
 
 const narrowTextCls = `${inputCls} truncate cursor-help min-w-0 w-full`;
 
-/** 与改版前「中介」列同一套约束：只设上限、不设最小宽度，避免被撑宽；三列（中介 / 备注 / 删）统一 */
-const COMPACT_COL_TD = 'max-w-[min(12rem,22vw)] min-w-0 align-top';
+/** 与公式列一致最小宽度 4.5rem；上限仍与改版前「中介」一致，避免单列无限撑开 */
+const COMPACT_COL_TD =
+  'max-w-[min(12rem,22vw)] min-w-[4.5rem] align-top box-border';
 
 /** ROOM：加大可读下限，并用百分比把表中剩余横向空间让给房间号（勿再用固定 5rem 锁窄列） */
 const ROOM_COL_TD = 'min-w-[13rem] w-[26%] max-w-none align-top box-border';
