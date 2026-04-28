@@ -21,7 +21,9 @@ export function AccountingDateIsoCell({
   onCommit,
   variant = 'ymd',
   anchorMonthKey,
-  emphasizeIfCurrentMonth = false
+  emphasizeIfCurrentMonth = false,
+  rentNavSlot,
+  onGridArrowKeyDown
 }) {
   const [editing, setEditing] = useState(false);
   const [draftYmd, setDraftYmd] = useState('');
@@ -59,11 +61,19 @@ export function AccountingDateIsoCell({
           setEditing(false);
         }}
         onKeyDown={(e) => {
+          if (
+            onGridArrowKeyDown &&
+            ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)
+          ) {
+            onGridArrowKeyDown(e);
+            return;
+          }
           if (e.key === 'Enter') {
             e.preventDefault();
             e.target.blur();
           }
         }}
+        data-rent-nav={rentNavSlot}
         autoFocus
         title="选择日期；留空可清除"
       />
@@ -89,11 +99,19 @@ export function AccountingDateIsoCell({
           setEditing(false);
         }}
         onKeyDown={(e) => {
+          if (
+            onGridArrowKeyDown &&
+            ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)
+          ) {
+            onGridArrowKeyDown(e);
+            return;
+          }
           if (e.key === 'Enter') {
             e.preventDefault();
             e.target.blur();
           }
         }}
+        data-rent-nav={rentNavSlot}
         autoFocus
         title={`仅填月/日，年份取本列 ${anchorMonthKey || '?'}`}
       />
@@ -113,6 +131,15 @@ export function AccountingDateIsoCell({
             : '点击选择日期'
       }
       onClick={() => setEditing(true)}
+      onKeyDown={(e) => {
+        if (
+          onGridArrowKeyDown &&
+          ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)
+        ) {
+          onGridArrowKeyDown(e);
+        }
+      }}
+      data-rent-nav={rentNavSlot}
       className={`${baseCls} text-left bg-white hover:bg-gray-50${monthAccentCls}`}
     >
       {display}

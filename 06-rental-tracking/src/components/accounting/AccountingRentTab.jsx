@@ -1,4 +1,4 @@
-import { Fragment, useMemo } from 'react';
+import { Fragment, useMemo, useRef, useCallback } from 'react';
 import { AccountingFormulaCell } from './AccountingFormulaCell';
 import { AccountingDateIsoCell } from './AccountingDateIsoCell';
 import {
@@ -7,12 +7,15 @@ import {
   monthKeyToHeaderLabel,
   computeSettleFromInOut
 } from '../../utils/accountingSheetModel';
-import { formatAccountingNumber } from '../../utils/accountingExpression';
+import { evaluateArithmeticExpression, formatAccountingNumber } from '../../utils/accountingExpression';
 
 const inputCls =
   'w-full min-w-0 px-2 py-1.5 border border-gray-200 rounded text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-100';
 
 const narrowTextCls = `${inputCls} truncate cursor-help max-w-[min(12rem,22vw)]`;
+
+/** 可录入格：ROOM(0)…备注(4)、PRICE(5)、DEPOSIT(6)、双月 IN/OUT/交租(7–12)，不含只读 SETTLE 与删钮（与水电单表格方向键规则一致） */
+const RENT_GRID_COL_MAX = 12;
 
 function updateRentRow(sheet, rowId, updater) {
   return {
@@ -32,15 +35,87 @@ function sumMonthSettle(sheet, monthKey) {
   return s;
 }
 
+function sumExprField(rows, field) {
+  let s = 0;
+  for (const row of rows) {
+    const v = evaluateArithmeticExpression(row[field]);
+    if (Number.isFinite(v)) s += v;
+  }
+  return s;
+}
+
 export function AccountingRentTab({ sheet, setSheet }) {
   const [m0, m1] = sheet.monthKeys;
+  const rentTableRef = useRef(null);
 
   const totals = useMemo(
     () => ({
       m0Settle: sumMonthSettle(sheet, m0),
-      m1Settle: sumMonthSettle(sheet, m1)
+      m1Settle: sumMonthSettle(sheet, m1),
+      priceSum: sumExprField(sheet.rentRows, 'price'),
+      depositSum: sumExprField(sheet.rentRows, 'deposit')
     }),
     [sheet, m0, m1]
+  );
+
+  const focusRentCell = useCallback((rowIndex, colIndex) => {
+    requestAnimationFrame(() => {
+      const root = rentTableRef.current;
+      const el = root?.querySelector(`[data-rent-nav="${rowIndex}-${colIndex}"]`) ?? null;
+      if (el && typeof el.focus === 'function') {
+        el.focus();
+        if (typeof el.select === 'function') {
+          try {
+            el.select();
+          } catch {
+            /* ignore */
+          }
+        }
+      }
+    });
+  }, []);
+
+  const handleRentNavKeyDown = useCallback(
+    (e, rowIndex, colIndex) => {
+      if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) return;
+      const rowCount = sheet.rentRows.length;
+      if (rowCount === 0) return;
+      e.preventDefault();
+      e.stopPropagation();
+
+      const maxC = RENT_GRID_COL_MAX;
+      let r = rowIndex;
+      let c = colIndex;
+
+      if (e.key === 'ArrowUp') {
+        if (r <= 0) return;
+        r -= 1;
+      } else if (e.key === 'ArrowDown') {
+        if (r >= rowCount - 1) return;
+        r += 1;
+      } else if (e.key === 'ArrowLeft') {
+        if (c > 0) {
+          c -= 1;
+        } else if (rowIndex > 0) {
+          r = rowIndex - 1;
+          c = maxC;
+        } else {
+          return;
+        }
+      } else if (e.key === 'ArrowRight') {
+        if (c < maxC) {
+          c += 1;
+        } else if (rowIndex < rowCount - 1) {
+          r = rowIndex + 1;
+          c = 0;
+        } else {
+          return;
+        }
+      }
+
+      focusRentCell(r, c);
+    },
+    [sheet.rentRows.length, focusRentCell]
   );
 
   const patchMonthCell = (rowId, monthKey, field, expr) =>
@@ -84,10 +159,11 @@ export function AccountingRentTab({ sheet, setSheet }) {
       <div className="bg-gradient-to-r from-blue-500 to-purple-600 px-6 py-4 text-white">
         <h3 className="text-lg font-semibold">租金记录 · INCOME</h3>
         <p className="text-xs text-blue-100 mt-1">
-          申报 / 实际为完整日期；交租仅填月/日（年份取该列月份）；SETTLE = IN − OUT 自动计算；收入汇总以此为准。
+          申报 / 实际为完整日期；交租仅填月/日（年份取该列月份）；SETTLE = IN − OUT 自动计算；收入汇总以此为准。PRICE/DEPOSIT
+          合计为各行公式求值之和；录入时光标在格内时可用 ↑↓←→ 在格间移动（与水电单一致）。
         </p>
       </div>
-      <table className="min-w-[1100px] w-full text-sm border-collapse">
+      <table ref={rentTableRef} className="min-w-[1100px] w-full text-sm border-collapse">
         <thead>
           <tr className="bg-gray-900 text-white">
             <th colSpan={7} className="p-2 text-center font-semibold border border-gray-700">
@@ -131,122 +207,160 @@ export function AccountingRentTab({ sheet, setSheet }) {
             </tr>
           ) : (
             <>
-            {sheet.rentRows.map((row) => (
-              <tr key={row.id} className="border-b border-gray-100 hover:bg-gray-50/80">
-                <td className="p-1 border border-gray-100">
-                  <input
-                    className={inputCls}
-                    value={row.room}
-                    onChange={(e) => patchDetail(row.id, 'room', e.target.value)}
-                  />
+              {sheet.rentRows.map((row, rowIndex) => (
+                <tr key={row.id} className="border-b border-gray-100 hover:bg-gray-50/80">
+                  <td className="p-1 border border-gray-100">
+                    <input
+                      className={inputCls}
+                      value={row.room}
+                      data-rent-nav={`${rowIndex}-0`}
+                      onChange={(e) => patchDetail(row.id, 'room', e.target.value)}
+                      onKeyDown={(e) => handleRentNavKeyDown(e, rowIndex, 0)}
+                    />
+                  </td>
+                  <td className="p-1 border border-gray-100">
+                    <AccountingDateIsoCell
+                      valueIso={row.declaration}
+                      onCommit={(v) => patchDetail(row.id, 'declaration', v)}
+                      variant="ymd"
+                      emphasizeIfCurrentMonth
+                      rentNavSlot={`${rowIndex}-1`}
+                      onGridArrowKeyDown={(e) => handleRentNavKeyDown(e, rowIndex, 1)}
+                    />
+                  </td>
+                  <td className="p-1 border border-gray-100">
+                    <AccountingDateIsoCell
+                      valueIso={row.actualRent}
+                      onCommit={(v) => patchDetail(row.id, 'actualRent', v)}
+                      variant="ymd"
+                      emphasizeIfCurrentMonth
+                      rentNavSlot={`${rowIndex}-2`}
+                      onGridArrowKeyDown={(e) => handleRentNavKeyDown(e, rowIndex, 2)}
+                    />
+                  </td>
+                  <td className="p-1 border border-gray-100 max-w-[min(12rem,22vw)]">
+                    <input
+                      className={narrowTextCls}
+                      value={row.agency}
+                      data-rent-nav={`${rowIndex}-3`}
+                      title={row.agency && row.agency.trim() ? row.agency : undefined}
+                      onChange={(e) => patchDetail(row.id, 'agency', e.target.value)}
+                      onKeyDown={(e) => handleRentNavKeyDown(e, rowIndex, 3)}
+                    />
+                  </td>
+                  <td className="p-1 border border-gray-100 max-w-[min(12rem,22vw)]">
+                    <input
+                      className={narrowTextCls}
+                      value={row.remarks}
+                      data-rent-nav={`${rowIndex}-4`}
+                      title={row.remarks && row.remarks.trim() ? row.remarks : undefined}
+                      onChange={(e) => patchDetail(row.id, 'remarks', e.target.value)}
+                      onKeyDown={(e) => handleRentNavKeyDown(e, rowIndex, 4)}
+                    />
+                  </td>
+                  <td className="p-1 border border-gray-100 bg-gray-50">
+                    <AccountingFormulaCell
+                      valueExpr={row.price}
+                      onCommit={(v) => patchDetail(row.id, 'price', v)}
+                      rentNavSlot={`${rowIndex}-5`}
+                      onGridArrowKeyDown={(e) => handleRentNavKeyDown(e, rowIndex, 5)}
+                    />
+                  </td>
+                  <td className="p-1 border border-gray-100 bg-gray-50">
+                    <AccountingFormulaCell
+                      valueExpr={row.deposit}
+                      onCommit={(v) => patchDetail(row.id, 'deposit', v)}
+                      rentNavSlot={`${rowIndex}-6`}
+                      onGridArrowKeyDown={(e) => handleRentNavKeyDown(e, rowIndex, 6)}
+                    />
+                  </td>
+                  {[m0, m1].map((mk, mi) => {
+                    const cell = row.months[mk] || emptyRentMonthCells();
+                    const settleVal = computeSettleFromInOut(cell);
+                    const settleTitle = `SETTLE = IN − OUT → ${formatAccountingNumber(settleVal)}（IN: ${cell.in || '—'} · OUT: ${cell.out || '—'}）`;
+                    const baseCol = 7 + mi * 4;
+                    return (
+                      <Fragment key={`${row.id}-${mk}-block`}>
+                        <td className="p-1 border border-gray-100">
+                          <AccountingFormulaCell
+                            valueExpr={cell.in || ''}
+                            onCommit={(v) => patchMonthCell(row.id, mk, 'in', v)}
+                            rentNavSlot={`${rowIndex}-${baseCol}`}
+                            onGridArrowKeyDown={(e) => handleRentNavKeyDown(e, rowIndex, baseCol)}
+                          />
+                        </td>
+                        <td className="p-1 border border-gray-100">
+                          <AccountingFormulaCell
+                            valueExpr={cell.out || ''}
+                            onCommit={(v) => patchMonthCell(row.id, mk, 'out', v)}
+                            rentNavSlot={`${rowIndex}-${baseCol + 1}`}
+                            onGridArrowKeyDown={(e) => handleRentNavKeyDown(e, rowIndex, baseCol + 1)}
+                          />
+                        </td>
+                        <td className="p-1 border border-gray-100 bg-slate-50">
+                          <div
+                            className="min-h-[2.25rem] w-full min-w-[4.5rem] border border-gray-200 rounded px-2 py-1.5 text-sm text-right font-mono text-gray-800 cursor-help"
+                            title={settleTitle}
+                          >
+                            {formatAccountingNumber(settleVal)}
+                          </div>
+                        </td>
+                        <td className="p-1 border border-gray-100">
+                          <AccountingDateIsoCell
+                            valueIso={cell.payRent || ''}
+                            onCommit={(v) => patchMonthCell(row.id, mk, 'payRent', v)}
+                            variant="md"
+                            anchorMonthKey={mk}
+                            rentNavSlot={`${rowIndex}-${baseCol + 3}`}
+                            onGridArrowKeyDown={(e) => handleRentNavKeyDown(e, rowIndex, baseCol + 3)}
+                          />
+                        </td>
+                      </Fragment>
+                    );
+                  })}
+                  <td className="p-1 border border-gray-100 text-center">
+                    <button
+                      type="button"
+                      onClick={() => removeRow(row.id)}
+                      className="text-red-600 hover:text-red-800 text-xs px-1"
+                    >
+                      删
+                    </button>
+                  </td>
+                </tr>
+              ))}
+              <tr className="bg-gray-50 font-semibold border-t-2 border-gray-300">
+                <td colSpan={5} className="p-2 border border-gray-200">
+                  Total
                 </td>
-                <td className="p-1 border border-gray-100">
-                  <AccountingDateIsoCell
-                    valueIso={row.declaration}
-                    onCommit={(v) => patchDetail(row.id, 'declaration', v)}
-                    variant="ymd"
-                    emphasizeIfCurrentMonth
-                  />
+                <td className="p-2 border border-gray-200 text-right bg-gray-100 font-mono">
+                  {formatAccountingNumber(totals.priceSum)}
                 </td>
-                <td className="p-1 border border-gray-100">
-                  <AccountingDateIsoCell
-                    valueIso={row.actualRent}
-                    onCommit={(v) => patchDetail(row.id, 'actualRent', v)}
-                    variant="ymd"
-                    emphasizeIfCurrentMonth
-                  />
+                <td className="p-2 border border-gray-200 text-right bg-gray-100 font-mono">
+                  {formatAccountingNumber(totals.depositSum)}
                 </td>
-                <td className="p-1 border border-gray-100 max-w-[min(12rem,22vw)]">
-                  <input
-                    className={narrowTextCls}
-                    value={row.agency}
-                    title={row.agency && row.agency.trim() ? row.agency : undefined}
-                    onChange={(e) => patchDetail(row.id, 'agency', e.target.value)}
-                  />
+                <td
+                  colSpan={2}
+                  className="p-2 border border-gray-200 text-center text-gray-400 text-xs font-normal"
+                >
+                  —
                 </td>
-                <td className="p-1 border border-gray-100 max-w-[min(12rem,22vw)]">
-                  <input
-                    className={narrowTextCls}
-                    value={row.remarks}
-                    title={row.remarks && row.remarks.trim() ? row.remarks : undefined}
-                    onChange={(e) => patchDetail(row.id, 'remarks', e.target.value)}
-                  />
+                <td className="p-2 border border-gray-200 text-right bg-slate-100">
+                  {formatAccountingNumber(totals.m0Settle)}
                 </td>
-                <td className="p-1 border border-gray-100 bg-gray-50">
-                  <AccountingFormulaCell
-                    valueExpr={row.price}
-                    onCommit={(v) => patchDetail(row.id, 'price', v)}
-                  />
+                <td className="p-2 border border-gray-200 text-center text-gray-400">—</td>
+                <td
+                  colSpan={2}
+                  className="p-2 border border-gray-200 text-center text-gray-400 text-xs font-normal"
+                >
+                  —
                 </td>
-                <td className="p-1 border border-gray-100 bg-gray-50">
-                  <AccountingFormulaCell
-                    valueExpr={row.deposit}
-                    onCommit={(v) => patchDetail(row.id, 'deposit', v)}
-                  />
+                <td className="p-2 border border-gray-200 text-right bg-slate-100">
+                  {formatAccountingNumber(totals.m1Settle)}
                 </td>
-                {[m0, m1].map((mk) => {
-                  const cell = row.months[mk] || emptyRentMonthCells();
-                  const settleVal = computeSettleFromInOut(cell);
-                  const settleTitle = `SETTLE = IN − OUT → ${formatAccountingNumber(settleVal)}（IN: ${cell.in || '—'} · OUT: ${cell.out || '—'}）`;
-                  return (
-                    <Fragment key={`${row.id}-${mk}-block`}>
-                      <td className="p-1 border border-gray-100">
-                        <AccountingFormulaCell
-                          valueExpr={cell.in || ''}
-                          onCommit={(v) => patchMonthCell(row.id, mk, 'in', v)}
-                        />
-                      </td>
-                      <td className="p-1 border border-gray-100">
-                        <AccountingFormulaCell
-                          valueExpr={cell.out || ''}
-                          onCommit={(v) => patchMonthCell(row.id, mk, 'out', v)}
-                        />
-                      </td>
-                      <td className="p-1 border border-gray-100 bg-slate-50">
-                        <div
-                          className="min-h-[2.25rem] w-full min-w-[4.5rem] border border-gray-200 rounded px-2 py-1.5 text-sm text-right font-mono text-gray-800 cursor-help"
-                          title={settleTitle}
-                        >
-                          {formatAccountingNumber(settleVal)}
-                        </div>
-                      </td>
-                      <td className="p-1 border border-gray-100">
-                        <AccountingDateIsoCell
-                          valueIso={cell.payRent || ''}
-                          onCommit={(v) => patchMonthCell(row.id, mk, 'payRent', v)}
-                          variant="md"
-                          anchorMonthKey={mk}
-                        />
-                      </td>
-                    </Fragment>
-                  );
-                })}
-                <td className="p-1 border border-gray-100 text-center">
-                  <button
-                    type="button"
-                    onClick={() => removeRow(row.id)}
-                    className="text-red-600 hover:text-red-800 text-xs px-1"
-                  >
-                    删
-                  </button>
-                </td>
+                <td className="p-2 border border-gray-200 text-center text-gray-400">—</td>
+                <td className="p-2 border border-gray-200" />
               </tr>
-            ))}
-            <tr className="bg-gray-50 font-semibold border-t-2 border-gray-300">
-              <td colSpan={9} className="p-2 border border-gray-200">
-                Total
-              </td>
-              <td className="p-2 border border-gray-200 text-right bg-slate-100">
-                {formatAccountingNumber(totals.m0Settle)}
-              </td>
-              <td className="p-2 border border-gray-200 text-center text-gray-400">—</td>
-              <td colSpan={2} className="p-2 border border-gray-200 bg-gray-50" aria-hidden="true" />
-              <td className="p-2 border border-gray-200 text-right bg-slate-100">
-                {formatAccountingNumber(totals.m1Settle)}
-              </td>
-              <td className="p-2 border border-gray-200 text-center text-gray-400">—</td>
-              <td className="p-2 border border-gray-200" />
-            </tr>
             </>
           )}
         </tbody>

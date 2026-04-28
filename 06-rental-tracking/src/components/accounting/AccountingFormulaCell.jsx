@@ -9,7 +9,10 @@ export function AccountingFormulaCell({
   onCommit,
   className = '',
   disabled = false,
-  align = 'right'
+  align = 'right',
+  // rentNavSlot + onGridArrowKeyDown：租金表 `data-rent-nav` 与方向键（与水电单一致）
+  rentNavSlot,
+  onGridArrowKeyDown
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(String(valueExpr ?? ''));
@@ -39,11 +42,19 @@ export function AccountingFormulaCell({
           setEditing(false);
         }}
         onKeyDown={(e) => {
+          if (
+            onGridArrowKeyDown &&
+            ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)
+          ) {
+            onGridArrowKeyDown(e);
+            return;
+          }
           if (e.key === 'Enter') {
             e.preventDefault();
             e.target.blur();
           }
         }}
+        data-rent-nav={rentNavSlot}
         autoFocus
         title="支持算术表达式，如 =6000-5000"
       />
@@ -56,6 +67,15 @@ export function AccountingFormulaCell({
       disabled={disabled}
       title={String(valueExpr || '').trim() ? `公式/原值：${valueExpr}` : '点击输入'}
       onClick={() => !disabled && setEditing(true)}
+      onKeyDown={(e) => {
+        if (
+          onGridArrowKeyDown &&
+          ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)
+        ) {
+          onGridArrowKeyDown(e);
+        }
+      }}
+      data-rent-nav={rentNavSlot}
       className={`${baseCls} ${className} ${align === 'right' ? 'text-right' : 'text-left'} bg-white hover:bg-gray-50 text-gray-900 disabled:opacity-50`}
     >
       {displayText}
