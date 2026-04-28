@@ -402,23 +402,17 @@ export function AccountingRentTab({ sheet, setSheet }) {
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-md min-w-0 max-w-full w-full">
-      {/* 与宽表同宽：顶栏 / 表 / 底栏一体横向滚动，竖屏时渐变与「+ 添加行」与表单对齐（不改表结构） */}
-      <div className="overflow-x-auto overscroll-x-contain">
-        <div className="inline-block min-w-full align-top">
-          <div className="w-full min-w-0 bg-gradient-to-r from-blue-500 to-purple-600 px-4 sm:px-6 py-4 text-white box-border">
-            <h3 className="text-lg font-semibold">租金记录 · INCOME</h3>
-            <p className="text-xs text-blue-100 mt-1">
-              申报 / 实际为完整日期；交租仅填月/日（年份取该列月份）；SETTLE = IN − OUT 自动计算；收入汇总以此为准。PRICE/DEPOSIT
-              合计为各行公式求值之和；录入时光标在格内时可用 ↑↓←→ 在格间移动（与水电单一致）。ROOM
-              左侧握柄可拖动排序；鼠标拖动约 10px 起拖，触控请长按约 0.28s 后再拖。最右列「删」上方为「筛选」，仅按当月（右列）交租是否仍为空过滤，左月不参与。
-            </p>
-          </div>
-          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
-            <table
-              ref={rentTableRef}
-              className="min-w-full w-max max-w-none text-sm border-collapse"
-            >
+    <div className="w-full min-w-0">
+      {/* 顶栏/表/底栏共宽：随表固有宽度撑开；禁止 overflow-x-auto（不要区域拖动条） */}
+      <div className="inline-block min-w-full max-w-none align-top bg-white rounded-lg shadow-md box-border">
+        <div className="w-full min-w-0 bg-gradient-to-r from-blue-500 to-purple-600 px-4 sm:px-6 py-3 sm:py-4 text-white box-border">
+          <h3 className="text-lg font-semibold">租金记录 · INCOME</h3>
+        </div>
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+          <table
+            ref={rentTableRef}
+            className="min-w-full w-max max-w-none text-sm border-collapse"
+          >
           <thead>
             <tr className="bg-gray-900 text-white">
               <th colSpan={7} className="p-2 text-center font-semibold border border-gray-700">
@@ -550,15 +544,14 @@ export function AccountingRentTab({ sheet, setSheet }) {
           </tbody>
         </table>
       </DndContext>
-          <div className="w-full min-w-0 box-border border-t border-gray-100 p-4">
-            <button
-              type="button"
-              onClick={addRow}
-              className="w-full sm:w-auto px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium text-center"
-            >
-              + 添加行
-            </button>
-          </div>
+        <div className="w-full min-w-0 box-border border-t border-gray-100 p-4">
+          <button
+            type="button"
+            onClick={addRow}
+            className="w-full sm:w-auto px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium text-center"
+          >
+            + 添加行
+          </button>
         </div>
       </div>
     </div>
