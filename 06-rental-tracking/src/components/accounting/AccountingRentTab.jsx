@@ -20,7 +20,6 @@ import { AccountingFormulaCell } from './AccountingFormulaCell';
 import { AccountingDateIsoCell } from './AccountingDateIsoCell';
 import {
   emptyRentMonthCells,
-  emptyRentRow,
   monthKeyToHeaderLabel,
   computeSettleFromInOut
 } from '../../utils/accountingSheetModel';
@@ -387,13 +386,6 @@ export function AccountingRentTab({ sheet, setSheet }) {
       }))
     );
 
-  const addRow = () => {
-    setSheet((prev) => ({
-      ...prev,
-      rentRows: [...prev.rentRows, emptyRentRow(prev.monthKeys)]
-    }));
-  };
-
   const removeRow = (rowId) => {
     setSheet((prev) => ({
       ...prev,
@@ -480,7 +472,7 @@ export function AccountingRentTab({ sheet, setSheet }) {
             {sheet.rentRows.length === 0 ? (
               <tr>
                 <td colSpan={16} className="p-8 text-center text-gray-500">
-                  暂无房间行，请点击下方「添加行」。
+                  暂无房间行，请点击页面底部「添加条目」。
                 </td>
               </tr>
             ) : displayRows.length === 0 ? (
@@ -544,15 +536,6 @@ export function AccountingRentTab({ sheet, setSheet }) {
           </tbody>
         </table>
       </DndContext>
-        <div className="w-full min-w-0 box-border border-t border-gray-100 p-4">
-          <button
-            type="button"
-            onClick={addRow}
-            className="w-full sm:w-auto px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium text-center"
-          >
-            + 添加行
-          </button>
-        </div>
       </div>
     </div>
   );

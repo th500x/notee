@@ -3,7 +3,8 @@ import * as api from '../utils/apiClient';
 import {
   normalizeAccountingSheet,
   withComputedMonthlySummary,
-  rolloverAccountingWindowFromToday
+  rolloverAccountingWindowFromToday,
+  emptyRentRow
 } from '../utils/accountingSheetModel';
 import { AccountingRentTab } from '../components/accounting/AccountingRentTab';
 import { AccountingExpenseTab } from '../components/accounting/AccountingExpenseTab';
@@ -16,7 +17,7 @@ const TABS = [
 ];
 
 /**
- * 账目单主页面：三 Tab + 保存 / 切换当月（对齐水电单布局风格）。
+ * 账目单主页面：三 Tab + 添加条目（租金）/ 保存 / 切换当月。
  */
 export default function AccountingSheetPage({ project, onBack, onSaved, onProjectSynced }) {
   const [activeTab, setActiveTab] = useState('rent');
@@ -103,6 +104,13 @@ export default function AccountingSheetPage({ project, onBack, onSaved, onProjec
     setSheet((prev) => rolloverAccountingWindowFromToday(prev));
   };
 
+  const handleAddRentRow = useCallback(() => {
+    setSheet((prev) => ({
+      ...prev,
+      rentRows: [...prev.rentRows, emptyRentRow(prev.monthKeys)]
+    }));
+  }, []);
+
   return (
     <div className="w-full min-w-0 space-y-6">
       <div className="flex items-center gap-4 flex-wrap">
@@ -152,7 +160,19 @@ export default function AccountingSheetPage({ project, onBack, onSaved, onProjec
         </div>
       ) : null}
 
-      <div className="grid w-full min-w-0 grid-cols-2 gap-3">
+      <div
+        className={`grid w-full min-w-0 gap-3 ${activeTab === 'rent' ? 'grid-cols-3' : 'grid-cols-2'}`}
+      >
+        {activeTab === 'rent' ? (
+          <button
+            type="button"
+            onClick={handleAddRentRow}
+            disabled={saving}
+            className="min-w-0 py-3 px-3 sm:px-4 bg-slate-700 text-white rounded-lg hover:bg-slate-800 font-medium disabled:opacity-50 text-sm sm:text-base text-center"
+          >
+            添加条目
+          </button>
+        ) : null}
         <button
           type="button"
           onClick={handleSave}
