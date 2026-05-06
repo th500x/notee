@@ -62,13 +62,16 @@ function scheduleTempTableCleanup() {
 }
 
 const app = express();
+// Nginx 反代必设：否则 express-rate-limit v8 检测到 X-Forwarded-For 但 trust proxy 为默认 false 时会校验失败抛错，登录等 POST 表现为 500。
+app.set('trust proxy', 1);
+
 const PORT = process.env.PORT || 3005;
 
 /**
  * CORS 收口（必改 #1）：
- *   - 默认白名单包含本地常用端口（root 5173、game 3002、wiki 3004）。
- *   - 生产部署用 .env `CORS_ALLOWED_ORIGINS=https://a.example.com,https://b.example.com` 覆盖。
- *   - 同源（无 Origin 头）一律放行（curl / 同站 server-side fetch 不受影响）。
+ *   - 默认白名单含本地常用端口 + notee.vip 正式域（与 `.env.example` 示例一致）。
+ *   - 生产另有域名时用 .env `CORS_ALLOWED_ORIGINS=...` **覆盖整份白名单**。
+ *   - 无 Origin 头一律放行（curl / 部分同源 GET）。
  */
 const DEFAULT_DEV_ORIGINS = [
   'http://localhost:5173',
@@ -77,6 +80,8 @@ const DEFAULT_DEV_ORIGINS = [
   'http://127.0.0.1:5173',
   'http://127.0.0.1:3002',
   'http://127.0.0.1:3004',
+  'https://notee.vip',
+  'https://www.notee.vip',
 ];
 const ALLOWED_ORIGINS = (process.env.CORS_ALLOWED_ORIGINS || '')
   .split(',')
