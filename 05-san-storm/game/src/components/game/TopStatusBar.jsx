@@ -6,7 +6,7 @@
  */
 
 import { useState, useEffect, useMemo } from 'react';
-import { usePlayerContext } from '@/contexts/PlayerContext';
+import { useGameTime } from '@/contexts/PlayerContext';
 import { computeDisplayGameDate } from '@/utils/gameTime';
 import PlayerTopResourceBadges from '@/components/game/PlayerTopResourceBadges';
 
@@ -24,7 +24,9 @@ function getXunLabel(day) {
 }
 
 export default function TopStatusBar({ activeTab, onOpenSidebar, onOpenCampaignCenter }) {
-  const { gameTime } = usePlayerContext();
+  // CR A7（2026-04-29）：本组件只读 gameTime，用细粒度 hook 显式声明；
+  // 待未来切到 selector 引擎后，玩家粮草滴答等不会再触发顶栏重渲染。
+  const gameTime = useGameTime();
   const [timeTick, setTimeTick] = useState(0);
 
   useEffect(() => {

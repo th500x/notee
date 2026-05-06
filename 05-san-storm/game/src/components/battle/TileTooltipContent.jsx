@@ -4,8 +4,8 @@
  * 供 BattleMap（小型地图）与 CampaignMapGrid（大型地图）共用。
  * 父组件负责定位（fixed + x/y）和显示隐藏；本组件只渲染内层 DOM。
  *
- * @param {{ type: 'troop'|'tile'|'worldMapCity', troop?, fc?, hpPct?, rarityName?, typeName?,
- *            charLine?, critDodge?, info?, infoKey? }} content - buildTroopTooltipContent() 返回值或地形 tile 内容
+ * @param {{ type: 'troop'|'tile'|'manualSkill'|'worldMapCity', troop?, fc?, hpPct?, rarityName?, typeName?,
+ *            charLine?, critDodge?, info?, infoKey?, title?, titleColor?, attrs? }} content
  */
 import { memo } from 'react';
 import WorldMapCityInfoBlock from '@/components/world/WorldMapCityInfoBlock';
@@ -52,6 +52,18 @@ function TileTooltipContent({ content }) {
       <>
         <div className="tt-name">{info.badge} {info.name}</div>
         <div className="tt-attrs" style={{ whiteSpace: 'pre-line' }}>{info.attrs}</div>
+      </>
+    );
+  }
+
+  if (content.type === 'manualSkill') {
+    const { title, titleColor, attrs } = content;
+    return (
+      <>
+        <div className="tt-name" style={{ color: titleColor || '#e2e8f0' }}>
+          {title}
+        </div>
+        <div className="tt-attrs" style={{ whiteSpace: 'pre-line' }}>{attrs}</div>
       </>
     );
   }

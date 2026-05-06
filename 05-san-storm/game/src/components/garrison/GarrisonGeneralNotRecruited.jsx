@@ -46,11 +46,17 @@ export default function GarrisonGeneralNotRecruited({
           <div
             key={card.instance_id}
             className="cursor-pointer hover:brightness-110 active:scale-95 transition-all"
-            style={{ width: 128, height: 192 }}
+            style={{ width: 128, minHeight: 208 }}
             onClick={() => onEquipCharacter(card)}
           >
             <div style={{ transform: 'scale(0.5)', transformOrigin: 'top left', width: 256 }}>
-              <CharacterCard character={toCharCardData(card)} skillsMap={skillsMap} showDetails={false} baseUrl={baseUrl} disableHoverScale />
+              <CharacterCard
+                character={toCharCardData(card, {}, skillsMap)}
+                skillsMap={skillsMap}
+                showDetails
+                baseUrl={baseUrl}
+                disableHoverScale
+              />
             </div>
           </div>
         ))}

@@ -375,7 +375,7 @@ async function drawSingleCard(connection, playerId, poolType, factionId, current
       `SELECT trait_modifier FROM config_characters WHERE character_id = ?`, [card.card_id]
     );
     const traitMod = charConfig[0]?.trait_modifier ?? 0;
-    const initialMorale = 70 + traitMod;
+    const initialMorale = 70 + traitMod * 2;
 
     await connection.query(
       `INSERT INTO player_cards (instance_id, player_id, card_type, card_id, rarity, morale, obtained_at)

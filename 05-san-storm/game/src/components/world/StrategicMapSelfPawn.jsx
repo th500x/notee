@@ -1,7 +1,7 @@
 /**
  * 战略大地图：玩家自身占位。圆形内为角色名末字；键鼠悬停圆形时显示全名与兵力 tooltip。
  * 触摸 / 粗指针：`pointerType==='touch'`（不依赖 `(pointer: coarse)`，避免竖屏误判）；短按同时显示与悬停同内容的 tooltip +「行军」「关闭」「来战」；长按约 1s 松手后直接进入行军模式（与点「行军」等价）。
- * 键鼠：单击打开操作条（与悬停可同时看到 tooltip）；双击圆形直接进入行军模式（**竖屏 `(orientation: portrait)`** 或**有触屏能力**时禁用双击进军，避免手机/平板误触）。
+ * 键鼠：单击打开操作条（与悬停可同时看到 tooltip）。**一键进军**请使用道路格双击 / 触摸双触（见 `WorldStrategicMapTile` 与 **31-6 §9.3**），**不在**本人叠层上绑双击，避免竖屏单点被误判为双击。
  */
 
 import { useState, useCallback, useSyncExternalStore, useRef, useEffect } from 'react';
@@ -32,22 +32,6 @@ function getPointerCoarseSnapshot() {
 }
 
 function getPointerCoarseServerSnapshot() {
-  return false;
-}
-
-function subscribeOrientationPortrait(cb) {
-  if (typeof window === 'undefined') return () => {};
-  const mq = window.matchMedia('(orientation: portrait)');
-  mq.addEventListener('change', cb);
-  return () => mq.removeEventListener('change', cb);
-}
-
-function getOrientationPortraitSnapshot() {
-  if (typeof window === 'undefined') return false;
-  return window.matchMedia('(orientation: portrait)').matches;
-}
-
-function getOrientationPortraitServerSnapshot() {
   return false;
 }
 
@@ -109,11 +93,6 @@ export default function StrategicMapSelfPawn({
     subscribePointerCoarse,
     getPointerCoarseSnapshot,
     getPointerCoarseServerSnapshot,
-  );
-  const portraitOrientation = useSyncExternalStore(
-    subscribeOrientationPortrait,
-    getOrientationPortraitSnapshot,
-    getOrientationPortraitServerSnapshot,
   );
   const [hover, setHover] = useState(false);
   const [showActionPopover, setShowActionPopover] = useState(false);
@@ -336,21 +315,6 @@ export default function StrategicMapSelfPawn({
     [selfMarchUi],
   );
 
-  const onHitDoubleClick = useCallback(
-    (e) => {
-      if (!selfMarchUi) return;
-      if (portraitOrientation) return;
-      if (coarsePointer) return;
-      // 二合一设备常报告 fine pointer，双击易与触屏连点混淆 → 仅纯键鼠环境允许双击进军
-      if (typeof navigator !== 'undefined' && Number(navigator.maxTouchPoints) > 0) return;
-      e.stopPropagation();
-      e.preventDefault();
-      setShowActionPopover(false);
-      if (typeof onEnterMarchMode === 'function') onEnterMarchMode();
-    },
-    [selfMarchUi, portraitOrientation, coarsePointer, onEnterMarchMode],
-  );
-
   const handleMarchButton = useCallback(() => {
     setInterceptPanel(null);
     setInterceptError('');
@@ -412,7 +376,6 @@ export default function StrategicMapSelfPawn({
           onMouseEnter={onEnter}
           onMouseLeave={onLeave}
           onClick={selfMarchUi ? onHitClick : undefined}
-          onDoubleClick={selfMarchUi && !portraitOrientation ? onHitDoubleClick : undefined}
           onPointerDown={selfMarchUi ? onPointerDown : undefined}
           onPointerMove={selfMarchUi ? onPointerMove : undefined}
           onPointerUp={selfMarchUi ? onPointerUp : undefined}

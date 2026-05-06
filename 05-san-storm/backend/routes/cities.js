@@ -11,34 +11,35 @@ const router = express.Router();
 const cityService = require('../services/cityService');
 const roadEncounterService = require('../services/roadEncounterService');
 const { pool } = require('../database/connection');
+const { requireAuth } = require('../middleware/auth');
+const { wrap500 } = require('../utils/httpError');
+const {
+  calcHourlyQuotaWithRestWindow,
+  EXPLORATION_AND_SIEGE_QUOTA_DEFAULTS,
+} = require('../utils/hourlyQuotaWithRestWindow');
 
-// ── 攻城配额（与探索配额机制一致） ──
-const SIEGE_REFILL_PER_HOUR = 6;
-const SIEGE_MAX_QUOTA = 18;
-const SIEGE_REST_START = 0;
-const SIEGE_REST_END = 8;
+/**
+ * 鉴权：含 GET 城况列表 / 详情 / 道路 presence + POST 攻城 / 配额变更等。
+ * 现阶段所有端点都在登录后调用（角色创建步骤完成 → 进入大地图 → 才会触发 cities API），
+ * 顶层挂 `requireAuth` 关闭匿名访问。细粒度 `requireSelf` 留下一阶段。
+ */
+router.use(requireAuth);
 
-function isSiegeRestHour(h) { return h >= SIEGE_REST_START && h < SIEGE_REST_END; }
-function getHourTs(d) { return new Date(d.getFullYear(), d.getMonth(), d.getDate(), d.getHours()).getTime(); }
-function countActiveHours(from, to) {
-  if (to <= from) return 0;
-  let c = 0, ts = from, i = 0;
-  while (ts < to && i < 48) { if (!isSiegeRestHour(new Date(ts).getHours())) c++; ts += 3600000; i++; }
-  return c;
-}
+// ── 攻城配额（与探索配额算法同源：`hourlyQuotaWithRestWindow.js`） ──
+const SIEGE_REFILL_PER_HOUR = EXPLORATION_AND_SIEGE_QUOTA_DEFAULTS.refillPerHour;
+const SIEGE_MAX_QUOTA = EXPLORATION_AND_SIEGE_QUOTA_DEFAULTS.maxQuota;
+const SIEGE_REST_START = EXPLORATION_AND_SIEGE_QUOTA_DEFAULTS.restHourStart;
+const SIEGE_REST_END = EXPLORATION_AND_SIEGE_QUOTA_DEFAULTS.restHourEnd;
+
 function calcSiegeQuota(remaining, lastRefillTs) {
-  const now = new Date(), curTs = getHourTs(now);
-  if (!lastRefillTs) return { remaining: isSiegeRestHour(now.getHours()) ? 0 : SIEGE_REFILL_PER_HOUR, lastRefillTs: curTs };
-  const active = countActiveHours(lastRefillTs, curTs);
-  if (active > 0) return { remaining: Math.min((remaining || 0) + active * SIEGE_REFILL_PER_HOUR, SIEGE_MAX_QUOTA), lastRefillTs: curTs };
-  return { remaining: remaining || 0, lastRefillTs };
+  return calcHourlyQuotaWithRestWindow(remaining, lastRefillTs, new Date(), EXPLORATION_AND_SIEGE_QUOTA_DEFAULTS);
 }
 
 /**
  * GET /api/cities
  * 获取所有城市列表
  */
-router.get('/', async (req, res) => {
+router.get('/', async (req, res, next) => {
   try {
     const { season, junId, jun_id } = req.query;
     const jid = String(junId || jun_id || '').trim();
@@ -49,8 +50,7 @@ router.get('/', async (req, res) => {
     });
     res.json({ success: true, cities, count: cities.length });
   } catch (error) {
-    console.error('[Cities] 获取城市列表失败:', error);
-    res.status(500).json({ success: false, error: '获取城市列表失败' });
+    return next(wrap500(error, '获取城市列表失败'));
   }
 });
 
@@ -59,7 +59,7 @@ router.get('/', async (req, res) => {
  * 返回郡内 **在线** 他人道路坐标摘要 + road_encounters 锁格（02 §2.1.2（3）、31-6 §十二）。
  * 注意：本路由必须在 `/:cityId` 之前注册，避免被其吞掉。
  */
-router.get('/road-presence', async (req, res) => {
+router.get('/road-presence', async (req, res, next) => {
   try {
     const { season, junId, jun_id } = req.query;
     const jid = String(junId || jun_id || '').trim();
@@ -69,8 +69,7 @@ router.get('/road-presence', async (req, res) => {
     if (!out.ok) return res.status(out.status).json({ success: false, error: out.error });
     res.json({ success: true, data: out.data });
   } catch (error) {
-    console.error('[Cities] 获取道路 presence 失败:', error);
-    res.status(500).json({ success: false, error: '获取道路 presence 失败', message: error.message });
+    return next(wrap500(error, '获取道路 presence 失败'));
   }
 });
 
@@ -78,15 +77,14 @@ router.get('/road-presence', async (req, res) => {
  * GET /api/cities/:cityId
  * 获取单个城市详情（含 NPC 守军）
  */
-router.get('/:cityId', async (req, res) => {
+router.get('/:cityId', async (req, res, next) => {
   try {
     const city = await cityService.getCityInfo(req.params.cityId);
     if (!city) return res.status(404).json({ success: false, error: '城市不存在' });
     const { npcGarrisonLedgerAt, ...data } = city;
     res.json({ success: true, data });
   } catch (error) {
-    console.error('[Cities] 获取城市详情失败:', error);
-    res.status(500).json({ success: false, error: '获取城市详情失败' });
+    return next(wrap500(error, '获取城市详情失败'));
   }
 });
 
@@ -94,7 +92,7 @@ router.get('/:cityId', async (req, res) => {
  * POST /api/cities/:cityId/generate-npc
  * 为城市生成/刷新 NPC 守军
  */
-router.post('/:cityId/generate-npc', async (req, res) => {
+router.post('/:cityId/generate-npc', async (req, res, next) => {
   try {
     const raw = req.body?.troopCountOverride ?? req.body?.troopCount;
     const n = raw != null && raw !== '' ? Number(raw) : NaN;
@@ -102,8 +100,7 @@ router.post('/:cityId/generate-npc', async (req, res) => {
     const result = await cityService.generateNpcGarrison(req.params.cityId, opts);
     res.json({ success: true, data: result });
   } catch (error) {
-    console.error('[Cities] 生成NPC守军失败:', error);
-    res.status(500).json({ success: false, error: error.message });
+    return next(wrap500(error, '生成NPC守军失败'));
   }
 });
 
@@ -112,7 +109,7 @@ router.post('/:cityId/generate-npc', async (req, res) => {
  * 发起攻城战（返回 NPC 守军供前端战斗使用）
  * body: { playerId }
  */
-router.post('/:cityId/siege', async (req, res) => {
+router.post('/:cityId/siege', async (req, res, next) => {
   try {
     const { playerId } = req.body;
     if (!playerId) return res.status(400).json({ success: false, error: '缺少 playerId' });
@@ -130,7 +127,7 @@ router.post('/:cityId/siege', async (req, res) => {
  * 记录攻城战斗结果
  * body: { warId, playerId, factionId, killedIndices, result }
  */
-router.post('/siege-result', async (req, res) => {
+router.post('/siege-result', async (req, res, next) => {
   try {
     const { warId, playerId, factionId, killedIndices, result, silverSpent,
             battleScore, battleReportSaved,
@@ -150,8 +147,7 @@ router.post('/siege-result', async (req, res) => {
     );
     res.json({ success: true, data });
   } catch (error) {
-    console.error('[Cities] 记录攻城结果失败:', error);
-    res.status(500).json({ success: false, error: error.message });
+    return next(wrap500(error, '记录攻城结果失败'));
   }
 });
 
@@ -159,7 +155,7 @@ router.post('/siege-result', async (req, res) => {
  * GET /api/cities/:cityId/active-war
  * 获取城市当前活跃战事（势力击杀排行）
  */
-router.get('/:cityId/active-war', async (req, res) => {
+router.get('/:cityId/active-war', async (req, res, next) => {
   try {
     const [rows] = await pool.query(
       "SELECT * FROM wars WHERE target_city_id = ? AND status = 'active' ORDER BY created_at DESC LIMIT 1",
@@ -173,7 +169,7 @@ router.get('/:cityId/active-war', async (req, res) => {
     }
     res.json({ success: true, data: { ...war, faction_kills: factionKills } });
   } catch (error) {
-    res.status(500).json({ success: false, error: '获取战事失败' });
+    return next(wrap500(error, '获取战事失败'));
   }
 });
 
@@ -181,7 +177,7 @@ router.get('/:cityId/active-war', async (req, res) => {
  * GET /api/cities/:cityId/siege-quota
  * 获取攻城配额（与探索配额机制一致）
  */
-router.get('/:cityId/siege-quota', async (req, res) => {
+router.get('/:cityId/siege-quota', async (req, res, next) => {
   try {
     const { playerId } = req.query;
     if (!playerId) return res.status(400).json({ success: false, error: '缺少 playerId' });
@@ -200,8 +196,7 @@ router.get('/:cityId/siege-quota', async (req, res) => {
     }
     res.json({ success: true, data: { remaining: saved.remaining, lastRefillTs: saved.lastRefillTs, max: SIEGE_MAX_QUOTA, refillPerHour: SIEGE_REFILL_PER_HOUR } });
   } catch (error) {
-    console.error('[Cities] 获取攻城配额失败:', error);
-    res.status(500).json({ success: false, error: '获取攻城配额失败' });
+    return next(wrap500(error, '获取攻城配额失败'));
   }
 });
 
@@ -210,7 +205,7 @@ router.get('/:cityId/siege-quota', async (req, res) => {
  * 更新攻城配额
  * body: { playerId, action: 'consume' | 'refund' | 'fillMax' }
  */
-router.post('/:cityId/siege-quota', async (req, res) => {
+router.post('/:cityId/siege-quota', async (req, res, next) => {
   try {
     const { playerId, action } = req.body;
     if (!playerId || !['consume', 'refund', 'fillMax'].includes(action)) {
@@ -238,8 +233,7 @@ router.post('/:cityId/siege-quota', async (req, res) => {
     );
     res.json({ success: true, data: { remaining: newRemaining, lastRefillTs: current.lastRefillTs, max: SIEGE_MAX_QUOTA } });
   } catch (error) {
-    console.error('[Cities] 更新攻城配额失败:', error);
-    res.status(500).json({ success: false, error: '更新攻城配额失败' });
+    return next(wrap500(error, '更新攻城配额失败'));
   }
 });
 
@@ -247,14 +241,13 @@ router.post('/:cityId/siege-quota', async (req, res) => {
  * GET /api/cities/war/:warId
  * 获取战事状态
  */
-router.get('/war/:warId', async (req, res) => {
+router.get('/war/:warId', async (req, res, next) => {
   try {
     const war = await cityService.getWarStatus(req.params.warId);
     if (!war) return res.status(404).json({ success: false, error: '战事不存在' });
     res.json({ success: true, data: war });
   } catch (error) {
-    console.error('[Cities] 获取战事状态失败:', error);
-    res.status(500).json({ success: false, error: '获取战事状态失败' });
+    return next(wrap500(error, '获取战事状态失败'));
   }
 });
 

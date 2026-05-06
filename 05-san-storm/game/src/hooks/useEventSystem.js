@@ -12,7 +12,8 @@
 
 import { useState, useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { API_CONFIG } from '@/constants';
-import { useExploreQuota } from '@/hooks/useExploreQuota';
+import { fetchWithTimeout } from '@/services/httpClient';
+import { usePlayerContext } from '@/contexts/PlayerContext';
 import { PHASE, FORTUNE_LEVELS } from '@/components/event/EventConstants';
 import {
   pickRandomEvent,
@@ -20,7 +21,7 @@ import {
   filterExploreEventsPool,
   getExploreOptionResolution,
   eventSkipsExploreQuota,
-  getEffectiveExploreChainMaxCompleted,
+  getTutorialChainCompletedLevelForPool,
   TUTORIAL_EXPLORE_CHAIN_ID,
 } from '@/components/event/eventUtils';
 import { validateMainLineupBattleGate } from '@/utils/mainLineupTroops';
@@ -34,10 +35,26 @@ import {
   resolveExploreAnchorCityIdFromPlayerRoad,
   resolveExploreAnchorCityIdFromStrategicGrid,
 } from '@/utils/resolveExploreAnchorCityId.js';
+import { clearInflightBattleTroopSnapshot } from '@/utils/inflightBattleTroopSnapshot';
 
 function pendingMapEventHintStorageKey(playerId) {
   const id = playerId != null ? String(playerId).trim() : '';
   return id ? `pending_map_event_hint_${id}` : null;
+}
+
+/** 与 `pending_event_${playerId}` 并列：存 phase / chosenOption / fortune，供 F5 后恢复荒郊等探索子流程（仅大地图权威实例读写）。 */
+function exploreResumeStorageKey(pendingKey) {
+  return pendingKey ? `${pendingKey}_resume` : null;
+}
+
+function clearExploreResumeLocal(pendingKey) {
+  const rk = exploreResumeStorageKey(pendingKey);
+  if (!rk) return;
+  try {
+    localStorage.removeItem(rk);
+  } catch {
+    /* ignore */
+  }
 }
 
 /** 与大地图探索、荒郊/集市内嵌条、匪寨格共用的配置池；勿只拉 explore（荒郊/集市在库中为 wilderness / market） */
@@ -108,7 +125,7 @@ export default function useEventSystem(player, cards, options = {}) {
   const persistMapEventHint = options.persistMapEventHint === true;
   const exploreAnchorGridRef = options.exploreAnchorGridRef;
   const exploreAnchorGridSeq = options.exploreAnchorGridSeq ?? 0;
-  const quota = useExploreQuota(player?.player_id);
+  const { exploreQuota: quota } = usePlayerContext();
 
   // 事件数据（全量）
   const [allExploreEvents, setAllExploreEvents] = useState([]);
@@ -163,26 +180,6 @@ export default function useEventSystem(player, cards, options = {}) {
     }
   }, [pendingKey]);
 
-  // player 加载后从 localStorage 恢复 pendingEvent
-  // 如果检测到事件进行中（选了选项但未完成），视为失败：清除事件，次数不退还
-  useEffect(() => {
-    if (!pendingKey) return;
-    const inProgress = localStorage.getItem(pendingKey + '_inprogress');
-    if (inProgress) {
-      // 事件进行中刷新 → 失败处理
-      localStorage.removeItem(pendingKey + '_inprogress');
-      localStorage.removeItem(pendingKey);
-      setPendingEventRaw(null);
-      console.warn('[useEventSystem] 检测到未完成事件，视为失败处理');
-      return;
-    }
-    try {
-      const saved = localStorage.getItem(pendingKey);
-      if (saved) setPendingEventRaw(JSON.parse(saved));
-    } catch { /* ignore */ }
-  }, [pendingKey]);
-
-  // 后端实际发放的奖励详情（含随机卡牌的实际cardId）
   const [rewardDetails, setRewardDetails] = useState(null);
   /** 教程链官职授予短期遮罩 */
   const [positionAnimation, setPositionAnimation] = useState(null);
@@ -190,6 +187,91 @@ export default function useEventSystem(player, cards, options = {}) {
   const pendingRewardResponse = useRef(null);
   /** 教程 IDLE 自动 startExplore 失败（池为空等）时避免死循环 */
   const tutorialExploreBlockedRef = useRef(false);
+
+  // 仅大地图权威实例：从 localStorage 恢复 pending + 子流程（F5 后续战/掷骰/结算壳）；勿在探索 Tab 第二实例执行以免双写。
+  useEffect(() => {
+    if (!pendingKey || !persistMapEventHint) return;
+
+    const hadInProgress = localStorage.getItem(`${pendingKey}_inprogress`) === '1';
+    if (hadInProgress) {
+      try {
+        localStorage.removeItem(`${pendingKey}_inprogress`);
+      } catch {
+        /* ignore */
+      }
+    }
+
+    let pendingFromLs = null;
+    try {
+      const s = localStorage.getItem(pendingKey);
+      if (s) pendingFromLs = JSON.parse(s);
+    } catch {
+      /* ignore */
+    }
+
+    const rk = exploreResumeStorageKey(pendingKey);
+    let resume = null;
+    try {
+      if (rk) {
+        const rs = localStorage.getItem(rk);
+        if (rs) resume = JSON.parse(rs);
+      }
+    } catch {
+      /* ignore */
+    }
+
+    if (pendingFromLs) {
+      setPendingEventRaw(pendingFromLs);
+    }
+
+    const phasesNeedResume = new Set([
+      PHASE.ROLLING,
+      PHASE.RESULT,
+      PHASE.BATTLE,
+      PHASE.MINIGAME,
+      PHASE.REWARD,
+      PHASE.RETURNING,
+    ]);
+
+    if (resume && typeof resume.phase === 'string' && pendingFromLs && phasesNeedResume.has(resume.phase)) {
+      setCurrentEvent(pendingFromLs);
+      if (resume.chosenOptionKey != null) setChosenOptionKey(resume.chosenOptionKey);
+      if (resume.chosenOption != null) setChosenOption(resume.chosenOption);
+      if (resume.fortune != null) setFortune(resume.fortune);
+      setPhase(resume.phase);
+    } else if (pendingFromLs && !resume) {
+      setCurrentEvent(pendingFromLs);
+      setPhase(PHASE.EVENT);
+    }
+  }, [pendingKey, persistMapEventHint]);
+
+  useEffect(() => {
+    if (!pendingKey || !persistMapEventHint) return;
+    const rk = exploreResumeStorageKey(pendingKey);
+    if (!rk) return;
+    const persistPhases = new Set([
+      PHASE.ROLLING,
+      PHASE.RESULT,
+      PHASE.BATTLE,
+      PHASE.MINIGAME,
+      PHASE.REWARD,
+      PHASE.RETURNING,
+    ]);
+    if (!currentEvent || !persistPhases.has(phase)) return;
+    try {
+      localStorage.setItem(
+        rk,
+        JSON.stringify({
+          phase,
+          chosenOptionKey,
+          chosenOption,
+          fortune,
+        }),
+      );
+    } catch {
+      /* ignore */
+    }
+  }, [phase, chosenOptionKey, chosenOption, fortune, currentEvent, pendingKey, persistMapEventHint]);
 
   // 将玩家属性转为显示值
   const playerAttrs = useMemo(() => toDisplayAttrs(player), [player]);
@@ -217,9 +299,8 @@ export default function useEventSystem(player, cards, options = {}) {
   }, [allExploreEvents]);
 
   const tutorialChainCompleted = useMemo(
-    () => getEffectiveExploreChainMaxCompleted(
+    () => getTutorialChainCompletedLevelForPool(
       allExploreEvents,
-      TUTORIAL_EXPLORE_CHAIN_ID,
       completedEvents,
       playerItemCounts
     ),
@@ -255,7 +336,7 @@ export default function useEventSystem(player, cards, options = {}) {
     const base = API_CONFIG.BASE_URL;
     Promise.all(
       EXPLORE_RELATED_TRIGGER_CONTEXTS.map((ctx) =>
-        fetch(`${base}/config/events?triggerContext=${encodeURIComponent(ctx)}`)
+        fetchWithTimeout(`${base}/config/events?triggerContext=${encodeURIComponent(ctx)}`)
           .then((r) => r.json())
           .catch(() => ({ success: false, events: [] }))
       )
@@ -288,11 +369,13 @@ export default function useEventSystem(player, cards, options = {}) {
   const refetchExploreProgress = useCallback(async () => {
     if (!player?.player_id) return null;
     try {
-      const res = await fetch(`${API_CONFIG.BASE_URL}/players/${player.player_id}/events/explore`);
+      const res = await fetchWithTimeout(`${API_CONFIG.BASE_URL}/players/${player.player_id}/events/explore`);
       const data = await res.json();
       if (data.success) {
         const ev = data.data.events || {};
-        setCompletedEvents(ev);
+        // 合并而非整表覆盖：某次拉取若缺键/不完整，勿把教程链进度「抹成 0」，
+        // 否则 `filterExploreEventsPool` 会误判教程未通、锁死教程链，荒郊等格出现「有次数但 0 事件」且易误触 `fillMax`。
+        setCompletedEvents((prev) => ({ ...prev, ...ev }));
         setExploreSessionLock(data.data.sessionLock ?? null);
         return ev;
       }
@@ -328,7 +411,7 @@ export default function useEventSystem(player, cards, options = {}) {
       setPlayerItemCounts({});
       return;
     }
-    fetch(`${API_CONFIG.BASE_URL}/players/${player.player_id}/items`)
+    fetchWithTimeout(`${API_CONFIG.BASE_URL}/players/${player.player_id}/items`)
       .then(r => r.json())
       .then(d => {
         if (d.success && d.data?.items) {
@@ -345,7 +428,7 @@ export default function useEventSystem(player, cards, options = {}) {
   /** 城市列表：解析 location 占位符（含 {city_medium_wilderness} 等）、探索池与 exploreLocationMatchesEvent 对齐 */
   const [citiesList, setCitiesList] = useState([]);
   useEffect(() => {
-    fetch(`${API_CONFIG.BASE_URL}/cities?season=san_1`)
+    fetchWithTimeout(`${API_CONFIG.BASE_URL}/cities?season=san_1`)
       .then((r) => r.json())
       .then((d) => {
         if (d.success && d.cities) setCitiesList(d.cities);
@@ -420,6 +503,38 @@ export default function useEventSystem(player, cards, options = {}) {
     }
   }, [persistMapEventHint, player?.player_id, pendingMapEventHint]);
 
+  /**
+   * 教程链 IDLE、且尚无 `closeReward` 写入的 pending：用**下一环**模板上的 `event_hint` 作为大地图指引
+   *（`event_hint` 列语义为「当前环玩家应做的事」；领奖后 `closeReward` 亦优先写入下一环文案）。
+   */
+  const tutorialIdleMapEventHint = useMemo(() => {
+    if (!persistMapEventHint || !isTutorial || phase !== PHASE.IDLE) return null;
+    if (!exploreProgressReady || !allExploreEvents?.length) return null;
+    const nextLvl = tutorialChainCompleted + 1;
+    if (nextLvl < 1 || nextLvl > tutorialChainMaxLevel) return null;
+    const nextEvt = allExploreEvents.find(
+      (e) =>
+        String(e.chain_id || '').trim() === TUTORIAL_EXPLORE_CHAIN_ID &&
+        Number(e.chain_level) === nextLvl
+    );
+    const hn = nextEvt?.event_hint ?? nextEvt?.eventHint;
+    return typeof hn === 'string' && hn.trim() ? hn.trim() : null;
+  }, [
+    persistMapEventHint,
+    isTutorial,
+    phase,
+    exploreProgressReady,
+    tutorialChainCompleted,
+    tutorialChainMaxLevel,
+    allExploreEvents,
+  ]);
+
+  const mapEventHintDisplay = useMemo(() => {
+    const p = pendingMapEventHint && String(pendingMapEventHint).trim();
+    if (p) return p;
+    return tutorialIdleMapEventHint || null;
+  }, [pendingMapEventHint, tutorialIdleMapEventHint]);
+
   // 根据地点 + 链进度过滤可用事件池（用于 UI 展示默认地点池子大小等）
   const exploreEvents = useMemo(() => {
     if (!exploreProgressReady) return [];
@@ -449,7 +564,7 @@ export default function useEventSystem(player, cards, options = {}) {
 
   // 加载道具名称映射
   useEffect(() => {
-    fetch(`${API_CONFIG.BASE_URL}/config/items`)
+    fetchWithTimeout(`${API_CONFIG.BASE_URL}/config/items`)
       .then(res => res.json())
       .then(data => {
         if (data.success && data.items) {
@@ -506,6 +621,14 @@ export default function useEventSystem(player, cards, options = {}) {
    */
   const startExplore = useCallback((locationOverride, exploreOpts, completedEventsOverride, playerItemCountsOverride) => {
     if (!playerAttrs) return false;
+    if (pendingKey) {
+      clearExploreResumeLocal(pendingKey);
+      try {
+        localStorage.removeItem(`${pendingKey}_inprogress`);
+      } catch {
+        /* ignore */
+      }
+    }
     const hasCompletedOverride =
       completedEventsOverride != null && typeof completedEventsOverride === 'object';
     if (!hasCompletedOverride && !exploreProgressReady) return false;
@@ -565,12 +688,23 @@ export default function useEventSystem(player, cards, options = {}) {
     if (!raw) return false;
     if (!eventSkipsExploreQuota(raw) && !quota.canExplore) return false;
 
-    const { explore_anchor_city_id: _a, explore_subsidiary_kind: _k, ...eventCore } = raw;
+    const {
+      explore_anchor_city_id: _a,
+      explore_subsidiary_kind: _k,
+      _exploreQuotaConsumed: exploreQuotaAlreadyCharged,
+      ...eventCore
+    } = raw;
     const event = {
       ...eventCore,
       explore_anchor_city_id: locIdNorm,
       explore_subsidiary_kind: subsidiaryKind,
     };
+    // 与匪寨/攻城一致：在「已抽到事件并进入 EVENT」时即扣探索次数，避免仅弹出事件未点选项时 F5 仍显示满次数。
+    // `_exploreQuotaConsumed` 随 pending 写入 localStorage，刷新后同一条 pending 不会二次扣费。
+    if (!eventSkipsExploreQuota(event)) {
+      if (!exploreQuotaAlreadyCharged) quota.consume();
+      event._exploreQuotaConsumed = true;
+    }
 
     setPendingEvent(event);
     setCurrentEvent(event);
@@ -597,6 +731,7 @@ export default function useEventSystem(player, cards, options = {}) {
     player?.reputation,
     setPendingEvent,
     exploreProgressReady,
+    pendingKey,
   ]);
 
   /** 探索结算 RETURNING→IDLE：先拉库内 explore_events，再用快照抽下一环（避免教程 autoplay 抢在 setState 前重复链首） */
@@ -612,11 +747,11 @@ export default function useEventSystem(player, cards, options = {}) {
       if (cancelled) return;
       tutorialDeferExploreAutoplayRef.current = false;
       if (!tutorialAutoplay || !isTutorial || eventsLoading || needsLineupFirst) return;
-      if (tutorialExploreBlockedRef.current) return;
+      tutorialExploreBlockedRef.current = false;
       if (serverEv == null) return;
       let countsFresh = null;
       try {
-        const ir = await fetch(`${API_CONFIG.BASE_URL}/players/${player.player_id}/items`);
+        const ir = await fetchWithTimeout(`${API_CONFIG.BASE_URL}/players/${player.player_id}/items`);
         const idata = await ir.json();
         if (idata.success && idata.data?.items) {
           const m = {};
@@ -653,9 +788,10 @@ export default function useEventSystem(player, cards, options = {}) {
   }, [tutorialChainCompleted]);
 
   /**
-   * 教程自动探索在池空或配额不足时会 `tutorialExploreBlockedRef = true`。
+   * 教程自动探索在池空或次数不足时会 `tutorialExploreBlockedRef = true`。
    * - 空 → 非空：首次有锚点，允许重试（原逻辑）。
    * - 非空 A → 非空 B：换城后池可能从中空变为有（例链 2 仅 `{city_medium}`），须解除 block，否则会卡死在黄条「请前往中城」。
+   * - **同格**升声望、补探索次数、背包出现链钥匙、合并格 `exploreAnchorGridSeq` 刷新：见下方 `tutorialAutoplayGateRef`。
    */
   const prevExploreLocationIdRef = useRef(exploreLocationId);
   useEffect(() => {
@@ -676,10 +812,51 @@ export default function useEventSystem(player, cards, options = {}) {
     }
   }, [exploreLocationId]);
 
+  /**
+   * 教程 IDLE 自动 `startExplore`：曾在「池空 / 次数不足 / 声望未达 min_reputation」时置 `tutorialExploreBlockedRef`，
+   * 若仅 **`exploreLocationId`** 变化才解除封锁，则**同格**升声望、补次数、背包出现链钥匙后**永不重试**（汝阳中城 + rep≥10 仍不开局）。
+   * 在下列「闸门」任一变化时解除封锁再抽池；`startExplore` 仍失败则再次封锁，避免无意义空转。
+   */
+  const tutorialAutoplayGateRef = useRef({
+    rep: null,
+    canQx: null,
+    loc: null,
+    chainDone: null,
+    gridSeq: null,
+    itemsJson: null,
+  });
   useEffect(() => {
     if (!tutorialAutoplay || !isTutorial || phase !== PHASE.IDLE || eventsLoading || needsLineupFirst) return;
     if (!exploreProgressReady) return;
     if (tutorialDeferExploreAutoplayRef.current) return;
+
+    const repN = Number(player?.reputation ?? 0);
+    const canQx = !!quota.canExplore;
+    const locN = exploreLocationId != null ? String(exploreLocationId).trim() : '';
+    const chainDone = tutorialChainCompleted;
+    const gridSeq = exploreAnchorGridSeq ?? 0;
+    const itemsJson = JSON.stringify(playerItemCounts || {});
+
+    const g = tutorialAutoplayGateRef.current;
+    const gateChanged =
+      g.rep !== repN ||
+      g.canQx !== canQx ||
+      g.loc !== locN ||
+      g.chainDone !== chainDone ||
+      g.gridSeq !== gridSeq ||
+      g.itemsJson !== itemsJson;
+    if (gateChanged) {
+      tutorialExploreBlockedRef.current = false;
+      tutorialAutoplayGateRef.current = {
+        rep: repN,
+        canQx,
+        loc: locN,
+        chainDone,
+        gridSeq,
+        itemsJson,
+      };
+    }
+
     if (tutorialExploreBlockedRef.current) return;
     const ok = startExplore();
     if (ok === false) tutorialExploreBlockedRef.current = true;
@@ -695,15 +872,30 @@ export default function useEventSystem(player, cards, options = {}) {
     startExplore,
     exploreAnchorGridSeq,
     exploreProgressReady,
+    player?.reputation,
+    quota.canExplore,
   ]);
 
-  // 关闭事件对话框（未选择选项，不消耗次数）
+  // 关闭事件对话框（未选选项）：已在本轮 `startExplore` 扣过次数则退还，并清空 pending，避免与「已扣费」状态不一致。
   const closeEvent = useCallback(() => {
+    clearInflightBattleTroopSnapshot();
+    if (pendingKey) {
+      clearExploreResumeLocal(pendingKey);
+      try {
+        localStorage.removeItem(`${pendingKey}_inprogress`);
+      } catch {
+        /* ignore */
+      }
+    }
     tutorialExploreBlockedRef.current = false;
     strategicExploreReopenBridge.clear();
+    if (currentEvent && !eventSkipsExploreQuota(currentEvent)) {
+      quota.refund();
+    }
     setPhase(PHASE.IDLE);
     setCurrentEvent(null);
-  }, []);
+    setPendingEvent(null);
+  }, [currentEvent, quota, setPendingEvent, pendingKey]);
 
   // 请求后端发放奖励（统一入口）
   const requestRewards = useCallback((optKey, extraBody = {}) => {
@@ -716,7 +908,7 @@ export default function useEventSystem(player, cards, options = {}) {
       general2Attrs: general2,
       ...extraBody,
     };
-    return fetch(`${API_CONFIG.BASE_URL}/players/${player.player_id}/rewards`, {
+    return fetchWithTimeout(`${API_CONFIG.BASE_URL}/players/${player.player_id}/rewards`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
@@ -732,6 +924,7 @@ export default function useEventSystem(player, cards, options = {}) {
       const err = data?.error || '';
       const isDup = err.includes('已完成') || err.includes('重复');
       if (isDup) {
+        clearInflightBattleTroopSnapshot();
         console.log('[useEventSystem] 事件已完成或重复领取，跳过并退还探索次数');
         if (!eventSkipsExploreQuota(currentEvent)) quota.refund();
         refetchExploreProgress();
@@ -746,9 +939,25 @@ export default function useEventSystem(player, cards, options = {}) {
         setBattleSilverSpent(0);
         setBattleScore(null);
         setBattleChestRewards([]);
-        if (pendingKey) localStorage.removeItem(pendingKey + '_inprogress');
+        if (pendingKey) {
+          clearExploreResumeLocal(pendingKey);
+          try {
+            localStorage.removeItem(`${pendingKey}_inprogress`);
+          } catch {
+            /* ignore */
+          }
+        }
         setPhase(PHASE.IDLE);
         return false;
+      }
+      clearInflightBattleTroopSnapshot();
+      if (pendingKey) {
+        clearExploreResumeLocal(pendingKey);
+        try {
+          localStorage.removeItem(`${pendingKey}_inprogress`);
+        } catch {
+          /* ignore */
+        }
       }
       if (!eventSkipsExploreQuota(currentEvent)) quota.refund();
       setRewardDetails({ rewards: [], bonusRewards: [] });
@@ -762,7 +971,6 @@ export default function useEventSystem(player, cards, options = {}) {
       setBattleSilverSpent(0);
       setBattleScore(null);
       setBattleChestRewards([]);
-      if (pendingKey) localStorage.removeItem(pendingKey + '_inprogress');
       setPhase(PHASE.IDLE);
       return false;
     }
@@ -781,7 +989,7 @@ export default function useEventSystem(player, cards, options = {}) {
       troopRepair: data.data.troopRepair || null,
     });
     if (player?.player_id) {
-      fetch(`${API_CONFIG.BASE_URL}/players/${player.player_id}/items`)
+      fetchWithTimeout(`${API_CONFIG.BASE_URL}/players/${player.player_id}/items`)
         .then(r => r.json())
         .then(d => {
           if (d.success && d.data?.items) {
@@ -799,9 +1007,8 @@ export default function useEventSystem(player, cards, options = {}) {
     return true;
   }, [quota, setPendingEvent, pendingKey, player?.player_id, refetchExploreProgress, currentEvent]);
 
-  // 选择选项
+  // 选择选项（探索次数已在 `startExplore` 扣除，此处不再 consume）
   const chooseOption = useCallback((option, optionKey) => {
-    if (!eventSkipsExploreQuota(currentEvent)) quota.consume();
     setChosenOption(option);
     setChosenOptionKey(optionKey);
     pendingRewardResponse.current = null;
@@ -848,9 +1055,45 @@ export default function useEventSystem(player, cards, options = {}) {
         });
       }
     }, 1000);
-  }, [quota, requestRewards, applyRewardResponse, pendingKey, currentEvent]);
+  }, [requestRewards, applyRewardResponse, pendingKey, currentEvent]);
 
-  const dismissBattleEntryBlocked = useCallback(() => setBattleEntryBlockedMessage(null), []);
+  /** 凶/大凶选战但门闸失败：关弹窗后必须回到 IDLE，否则 phase 仍停在 RESULT，`eventBusy` 会一直挡住底栏（见 14-1 开战门闸与大地图一致）。不退还探索次数（已 startExplore 扣费）。 */
+  const dismissBattleEntryBlocked = useCallback(() => {
+    clearInflightBattleTroopSnapshot();
+    setBattleEntryBlockedMessage(null);
+    strategicExploreReopenBridge.clear();
+    tutorialExploreBlockedRef.current = false;
+    if (pendingKey) {
+      clearExploreResumeLocal(pendingKey);
+      try {
+        localStorage.removeItem(`${pendingKey}_inprogress`);
+      } catch {
+        /* ignore */
+      }
+    }
+    if (persistMapEventHint && player?.player_id) {
+      try {
+        const k = pendingMapEventHintStorageKey(player.player_id);
+        if (k) sessionStorage.removeItem(k);
+      } catch {
+        /* ignore */
+      }
+    }
+    setPendingMapEventHint(null);
+    setCurrentEvent(null);
+    setPendingEvent(null);
+    setChosenOption(null);
+    setChosenOptionKey(null);
+    setFortune(null);
+    setMinigameInfo(null);
+    setBattleResult(null);
+    setBattleSilverSpent(0);
+    setBattleScore(null);
+    setBattleChestRewards([]);
+    setRewardDetails(null);
+    setPhase(PHASE.IDLE);
+    void refetchExploreProgress();
+  }, [pendingKey, setPendingEvent, persistMapEventHint, player?.player_id, refetchExploreProgress]);
 
   // 判定结果确认
   const confirmResult = useCallback(() => {
@@ -921,7 +1164,7 @@ export default function useEventSystem(player, cards, options = {}) {
 
     if (ev && optKey && player?.player_id) {
       try {
-        await fetch(`${API_CONFIG.BASE_URL}/players/${player.player_id}/events`, {
+        await fetchWithTimeout(`${API_CONFIG.BASE_URL}/players/${player.player_id}/events`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -935,6 +1178,15 @@ export default function useEventSystem(player, cards, options = {}) {
           ...prev,
           [ev.event_id]: { status: 'completed' },
         }));
+        const lvl = Number(ev.chain_level);
+        if (
+          chainIdNorm === TUTORIAL_EXPLORE_CHAIN_ID &&
+          tutorialChainMaxLevel > 0 &&
+          Number.isFinite(lvl) &&
+          lvl === tutorialChainMaxLevel
+        ) {
+          quota.fillMax();
+        }
       } catch (err2) {
         console.error('[useEventSystem] 记录事件进度失败:', err2);
       }
@@ -942,8 +1194,24 @@ export default function useEventSystem(player, cards, options = {}) {
 
     let nextMapEventHint = null;
     if (ev) {
-      const h = ev.event_hint ?? ev.eventHint;
-      nextMapEventHint = typeof h === 'string' && h.trim() ? h.trim() : null;
+      const hSelf = ev.event_hint ?? ev.eventHint;
+      const selfHint = typeof hSelf === 'string' && hSelf.trim() ? hSelf.trim() : null;
+      if (chainIdNorm === TUTORIAL_EXPLORE_CHAIN_ID && tutorialChainMaxLevel > 0) {
+        const lvl = Number(ev.chain_level);
+        let nextHint = null;
+        if (Number.isFinite(lvl) && lvl >= 1 && lvl < tutorialChainMaxLevel) {
+          const nextEvt = allExploreEvents.find(
+            (e) =>
+              String(e.chain_id || '').trim() === TUTORIAL_EXPLORE_CHAIN_ID &&
+              Number(e.chain_level) === lvl + 1
+          );
+          const hn = nextEvt?.event_hint ?? nextEvt?.eventHint;
+          nextHint = typeof hn === 'string' && hn.trim() ? hn.trim() : null;
+        }
+        nextMapEventHint = nextHint || selfHint;
+      } else {
+        nextMapEventHint = selfHint;
+      }
       setPendingMapEventHint(nextMapEventHint);
       const anchorCityId = ev.explore_anchor_city_id;
       const subKind = ev.explore_subsidiary_kind;
@@ -980,7 +1248,14 @@ export default function useEventSystem(player, cards, options = {}) {
     setPendingEvent(null);
     setRewardDetails(null);
     setBattleChestRewards([]);
-    if (pendingKey) localStorage.removeItem(pendingKey + '_inprogress');
+    if (pendingKey) {
+      clearExploreResumeLocal(pendingKey);
+      try {
+        localStorage.removeItem(`${pendingKey}_inprogress`);
+      } catch {
+        /* ignore */
+      }
+    }
 
     if (tutorialPosAnim) {
       setPositionAnimation(positionDetail);
@@ -991,7 +1266,18 @@ export default function useEventSystem(player, cards, options = {}) {
     } else {
       setTimeout(() => setPhase(PHASE.IDLE), 1000);
     }
-  }, [currentEvent, chosenOptionKey, player?.player_id, rewardDetails, pendingKey, setPendingEvent, persistMapEventHint]);
+  }, [
+    currentEvent,
+    chosenOptionKey,
+    player?.player_id,
+    rewardDetails,
+    pendingKey,
+    setPendingEvent,
+    persistMapEventHint,
+    tutorialChainMaxLevel,
+    quota,
+    allExploreEvents,
+  ]);
 
   const isSuccess = isFortuneSuccess(fortune);
 
@@ -1047,8 +1333,19 @@ export default function useEventSystem(player, cards, options = {}) {
     /** 服务端会话锁 JSON；新开探索/教程链前可依此禁止并行（PATCH 写入见 playerApi.patchExploreSessionLock） */
     exploreSessionLock,
 
-    /** 完成探索事件后在大地图展示的下一步提示（来自事件 `event_hint`） */
+    /** 完成探索事件后在大地图展示的下一步提示（`event_hint`）；教程链优先取下一环模板文案 */
     pendingMapEventHint,
+    /** 大地图气泡用：`pendingMapEventHint` 或教程 IDLE 时由下一环 `event_hint` 推导 */
+    mapEventHintDisplay,
+
+    /** 教程链进行中时供大地图等展示「教程 current/max」（与 `isTutorial` 同条件） */
+    tutorialExploreStep:
+      tutorialChainMaxLevel > 0 && tutorialChainCompleted < tutorialChainMaxLevel
+        ? {
+            current: Math.min(tutorialChainCompleted + 1, tutorialChainMaxLevel),
+            max: tutorialChainMaxLevel,
+          }
+        : null,
 
     isTutorial,
     showLineupGuide,

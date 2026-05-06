@@ -5,7 +5,7 @@
  * @module services/dataService
  */
 
-import { get } from './api';
+import { getJson } from './httpClient';
 import { dataConfig } from '@/config';
 
 // 数据缓存
@@ -91,7 +91,7 @@ export async function loadSharedData(resource) {
   
   // 加载数据
   const url = `${dataConfig.basePath}data/shared/${resource}.json`;
-  const data = await get(url);
+  const data = await getJson(url);
   
   // 缓存数据
   setCache(cacheKey, data);
@@ -115,7 +115,7 @@ export async function loadSeasonData(season, resource) {
   
   // 加载数据
   const url = `${dataConfig.basePath}data/seasons/${season}/${resource}.json`;
-  const data = await get(url);
+  const data = await getJson(url);
   
   // 缓存数据
   setCache(cacheKey, data);

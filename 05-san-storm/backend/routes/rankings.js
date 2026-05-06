@@ -10,6 +10,7 @@
 const express = require('express');
 const router = express.Router();
 const rankingService = require('../services/rankingService');
+const { wrap500 } = require('../utils/httpError');
 
 /**
  * GET /api/rankings/overall
@@ -18,7 +19,7 @@ const rankingService = require('../services/rankingService');
  * Query: serverId（可选，缺省且带 playerId 时由 accounts 反查）, limit, playerId,
  *   sort（可选：avg | wins | reputation | events | badges；后两者均按道具 item_season_badge 持有量排序，默认 avg）
  */
-router.get('/overall', async (req, res) => {
+router.get('/overall', async (req, res, next) => {
   try {
     const limit = req.query.limit;
     const playerId = req.query.playerId || null;
@@ -42,7 +43,7 @@ router.get('/overall', async (req, res) => {
  *
  * Query: campaignId（必填）, serverId（可选）, limit, playerId
  */
-router.get('/campaign', async (req, res) => {
+router.get('/campaign', async (req, res, next) => {
   try {
     const campaignId = req.query.campaignId || '';
     const limit = req.query.limit;
@@ -72,7 +73,7 @@ router.get('/campaign', async (req, res) => {
  *
  * Query: ?limit=10&playerId=p001
  */
-router.get('/:eventId', async (req, res) => {
+router.get('/:eventId', async (req, res, next) => {
   try {
     const { eventId } = req.params;
     const limit = req.query.limit;
@@ -82,8 +83,7 @@ router.get('/:eventId', async (req, res) => {
 
     res.json({ success: true, data });
   } catch (error) {
-    console.error('[rankings] 获取排行榜失败:', error);
-    res.status(500).json({ success: false, error: '获取排行榜失败' });
+    return next(wrap500(error, '获取排行榜失败'));
   }
 });
 

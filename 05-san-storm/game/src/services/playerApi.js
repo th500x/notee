@@ -5,29 +5,7 @@
  */
 
 import { API_CONFIG } from '../constants';
-
-/**
- * 带超时的fetch请求
- */
-async function fetchWithTimeout(url, options = {}, timeout = API_CONFIG.TIMEOUT) {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeout);
-  
-  try {
-    const response = await fetch(url, {
-      ...options,
-      signal: controller.signal
-    });
-    clearTimeout(timeoutId);
-    return response;
-  } catch (error) {
-    clearTimeout(timeoutId);
-    if (error.name === 'AbortError') {
-      throw new Error('请求超时，请检查网络连接后重试');
-    }
-    throw error;
-  }
-}
+import { fetchWithTimeout } from './httpClient';
 
 /** 道路遭遇等：非 JSON / 连错端口时避免 `response.json()` 抛错导致界面无声失败 */
 async function jsonFromApiResponse(response, contextLabel) {

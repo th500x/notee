@@ -5,6 +5,7 @@
 import { useEffect, useLayoutEffect, useMemo, useState, memo } from 'react';
 import { createPortal } from 'react-dom';
 import { API_CONFIG } from '@/constants';
+import { fetchWithTimeout } from '@/services/httpClient';
 import { WORLD_MAP_DEFAULT_FACTION_LABELS } from '@/utils/worldMapCityPanelCopy';
 
 const GAP_PX = 8;
@@ -71,7 +72,7 @@ function StrategicSiegeWarFloatingPanel({
       return undefined;
     }
     let cancelled = false;
-    fetch(`${API_CONFIG.BASE_URL}/cities/${encodeURIComponent(cityId)}/active-war`)
+    fetchWithTimeout(`${API_CONFIG.BASE_URL}/cities/${encodeURIComponent(cityId)}/active-war`)
       .then((r) => r.json())
       .then((res) => {
         if (cancelled || !res?.success) return;

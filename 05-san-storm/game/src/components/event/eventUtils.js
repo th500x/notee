@@ -360,7 +360,10 @@ export function getActiveExploreChainId(allEvents, completedEvents, playerItemCo
     }
     if (maxLevel <= 0) continue;
 
-    const eff = getEffectiveExploreChainMaxCompleted(allEvents, cid, completedEvents, playerItemCounts);
+    const eff =
+      cid === TUTORIAL_EXPLORE_CHAIN_ID
+        ? getTutorialChainCompletedLevelForPool(allEvents, completedEvents, playerItemCounts)
+        : getEffectiveExploreChainMaxCompleted(allEvents, cid, completedEvents, playerItemCounts);
     if (eff > 0 && eff < maxLevel) {
       let firstCompleteTime = Infinity;
       for (const e of chainEvents) {
@@ -467,6 +470,45 @@ export function getEffectiveExploreChainMaxCompleted(allEvents, chainId, complet
 }
 
 /**
+ * 教程链：按 `explore_events` 从链首起**连续** completed 的最大 `chain_level`（不看背包 snapshot）。
+ */
+function getTutorialStrictConsecutiveCompletedMaxLevel(allEvents, completedEvents) {
+  const chainLevelNum = (lv) => {
+    const n = Number(lv);
+    return Number.isFinite(n) && n > 0 ? n : 0;
+  };
+  const chainEvents = allEvents
+    .filter((e) => String(e.chain_id || '').trim() === TUTORIAL_EXPLORE_CHAIN_ID)
+    .sort((a, b) => chainLevelNum(a.chain_level) - chainLevelNum(b.chain_level));
+  let n = 0;
+  for (const evt of chainEvents) {
+    const L = chainLevelNum(evt.chain_level);
+    if (L !== n + 1) break;
+    if (completedEvents[evt.event_id]?.status !== 'completed') break;
+    n = L;
+  }
+  return n;
+}
+
+/**
+ * 教程链在 **`filterExploreEventsPool` / `isTutorial`** 上用的「已完成环数」：
+ * `getEffectiveExploreChainMaxCompleted` 在「下一环 `required_items` 尚未出现在 `playerItemCounts` snapshot」时会少算 1，
+ * 导致已连续通关 L、池却仍只认 L−1、只匹配第 L 环模板（如 1003 的 `{any_bandit}`），**中城汝阳**等处池恒空。
+ * 当严格连打层数 **高于** 有效环且有效环 ≥1 时取严格值；**不回卷** eff=0、strict=1（仍靠 `getEffective` 支撑链 1 无钥重做）。
+ */
+export function getTutorialChainCompletedLevelForPool(allEvents, completedEvents, playerItemCounts) {
+  const eff = getEffectiveExploreChainMaxCompleted(
+    allEvents,
+    TUTORIAL_EXPLORE_CHAIN_ID,
+    completedEvents,
+    playerItemCounts
+  );
+  const strict = getTutorialStrictConsecutiveCompletedMaxLevel(allEvents, completedEvents);
+  if (strict > eff && eff >= 1) return strict;
+  return eff;
+}
+
+/**
  * 与后端 `playerExploreEventService.isExploreChainStrandedRedo` 一致：
  * 本环已在 `completedEvents` 为 completed，且不满足下一环 `required_items`、且下一环尚未 completed → 允许本环留在池内重做。
  * 其它「本环已 completed」须从池内剔除，否则会出现有效进度已推进却仍抽到该环、而后端拒领奖励。
@@ -526,6 +568,13 @@ export function filterExploreEventsPool(
       playerItemCounts
     );
   }
+  if (chainIds.includes(TUTORIAL_EXPLORE_CHAIN_ID)) {
+    chainMaxCompleted[TUTORIAL_EXPLORE_CHAIN_ID] = getTutorialChainCompletedLevelForPool(
+      allEvents,
+      completedEvents,
+      playerItemCounts
+    );
+  }
 
   const chainMaxLevel = {};
   for (const evt of allEvents) {
@@ -551,11 +600,11 @@ export function filterExploreEventsPool(
   }
 
   /**
-   * 非教程链：一条链未完成时，`getActiveExploreChainId` + 下方 `if (activeChainId)` 已保证不会混入其它
-   * `chain_id` 的事件（无链事件在链进行中亦被挡在锁外）。
+   * 非教程链：一条链未完成时，若「下一环」在当前城此荒郊/集市子条无可匹配 location，临时解除链锁，
+   * 以便无链荒郊等仍可出现（子条 UI 不致恒为 0 件）。
    *
-   * 若「下一环」在当前格无可匹配 location，仅在荒郊/集市子条（`subsidiaryKind` 有值）解除链锁，避免
-   * 子条 UI 恒显示 0 件。教程链未完成时永不解除（由 `tutorialChainIncomplete` 锁死 `activeChainId`）。
+   * **教程链未完成**：**不**在此解除链锁——荒郊/集市子条与默认探索池均**只**放行 `chain_tutorial_v1`，
+   * 不混入其它 `trigger_context` 事件；避免未完成教程时在各城「正常探索」。
    */
   if (!tutorialChainIncomplete && subsidiaryKind && activeChainId && locationId) {
     const hasNextAtLocation = allEvents.some((evt) => {

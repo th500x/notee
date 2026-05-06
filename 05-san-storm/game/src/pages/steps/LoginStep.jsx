@@ -1,8 +1,13 @@
 /**
  * 登录步骤
+ *
+ * 支持"软重登"模式：
+ *   - `prefillId`：检测到旧 localStorage 没有有效 token / 运行时 401 时由 `useAuthFlow` 注入，
+ *     用于预填账号（用户只需输密码）。
+ *   - `reauthReason`：'NO_TOKEN_LOCAL' / 'NO_TOKEN' / 'TOKEN_EXPIRED' / 'BAD_TOKEN'（及未列出的服务端原因码时的兜底文案），控制提示文案。
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { gameUserAPI } from '@/services/api';
 import { validateIdFormat } from '@/pages/steps/authUtils';
 import {
@@ -13,11 +18,33 @@ import {
   getErrorMessage
 } from '@/utils/passwordAttemptLimiter';
 
-export function LoginStep({ selectedServer, onLoginSuccess, onServerMismatch, onBack }) {
-  const [loginId, setLoginId] = useState('');
+function reauthHint(reason) {
+  if (!reason) return null;
+  switch (reason) {
+    case 'TOKEN_EXPIRED':
+      return '会话已过期，请重新输入密码继续游戏。';
+    case 'BAD_TOKEN':
+      return '登录凭证无效（常见于服务重启或密钥轮换后旧令牌作废），请重新输入密码。';
+    case 'NO_TOKEN':
+      return '服务端未识别当前会话，请重新输入密码。';
+    case 'NO_TOKEN_LOCAL':
+      return '本机未检测到有效登录会话，请重新输入密码。';
+    default:
+      return '需要重新验证身份，请重新输入密码以继续。';
+  }
+}
+
+export function LoginStep({ selectedServer, onLoginSuccess, onServerMismatch, onBack, prefillId, reauthReason }) {
+  const [loginId, setLoginId] = useState(prefillId ? String(prefillId).toUpperCase() : '');
   const [loginPassword, setLoginPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (prefillId) setLoginId(String(prefillId).toUpperCase());
+  }, [prefillId]);
+
+  const reauthMsg = reauthHint(reauthReason);
 
   const handleSubmit = async () => {
     if (!loginId || !loginPassword) {
@@ -76,7 +103,13 @@ export function LoginStep({ selectedServer, onLoginSuccess, onServerMismatch, on
     <div className="max-w-md mx-auto">
       <div className="bg-white rounded-lg shadow-md p-6">
         <h2 className="text-xl font-bold text-gray-900 mb-4 text-center">账号登录</h2>
-        
+
+        {reauthMsg && (
+          <div className="mb-4 p-3 rounded-md bg-amber-50 border border-amber-200 text-amber-800 text-sm">
+            {reauthMsg}
+          </div>
+        )}
+
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -86,9 +119,10 @@ export function LoginStep({ selectedServer, onLoginSuccess, onServerMismatch, on
               type="text"
               value={loginId}
               onChange={(e) => setLoginId(e.target.value.toUpperCase())}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono disabled:bg-gray-100"
               placeholder="请输入4位游戏ID"
               maxLength={4}
+              readOnly={Boolean(prefillId)}
             />
           </div>
           

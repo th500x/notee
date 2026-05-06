@@ -21,6 +21,16 @@ const MAIN_TABS = [
   { id: 'notice', label: '公告' },
 ];
 
+/** 与 `SanGongTributePanel` 朝贡说明条同源样式（border / 背景 / 标题琥珀色 + 正文 text-[10px] text-stone-400） */
+const POSITION_REROLL_HINT_BOX = (
+  <div className="mb-2 shrink-0 rounded-lg border border-amber-900/25 bg-stone-900/40 px-2 py-2">
+    <div className="text-xs font-semibold text-amber-500/95">说明</div>
+    <p className="mt-1 break-words text-[10px] leading-snug text-stone-400">
+      官职属性重随请进入上阵编组界面-点击官职卡牌-点击属性重随按钮
+    </p>
+  </div>
+);
+
 function PlaceholderCell({ text }) {
   return (
     <div className="flex h-full min-h-[6rem] flex-col items-center justify-center rounded-lg bg-stone-900/40 px-2 text-center">
@@ -78,13 +88,9 @@ function PromotionListBody({
   if (notice) {
     return <p className="py-6 text-center text-sm text-amber-400/90">{notice}</p>;
   }
-  if (!positions || positions.length === 0) {
-    return <p className="py-6 text-center text-sm text-stone-500">暂无可展示官职</p>;
-  }
-
   const openDetail = (row) => setDetailRow(row);
 
-  const tiles = positions.map((row) => {
+  const tiles = (positions || []).map((row) => {
     const pos = row.position;
     return (
       <div
@@ -159,13 +165,25 @@ function PromotionListBody({
       </div>
     ) : null;
 
-  const tileGrid = <div className="flex flex-wrap gap-2">{tiles}</div>;
+  const tileGrid =
+    positions && positions.length > 0 ? <div className="flex flex-wrap gap-2">{tiles}</div> : null;
+
+  const listMain = (
+    <>
+      {POSITION_REROLL_HINT_BOX}
+      {!positions || positions.length === 0 ? (
+        <p className="py-6 text-center text-sm text-stone-500">暂无可展示官职</p>
+      ) : (
+        tileGrid
+      )}
+    </>
+  );
 
   if (layoutLandscape) {
     return (
       <div className="flex h-full min-h-0 flex-col pb-2">
         <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden pr-0.5">
-          {tileGrid}
+          {listMain}
         </div>
         {detailOverlay}
       </div>
@@ -174,7 +192,7 @@ function PromotionListBody({
 
   return (
     <div className="pb-4">
-      {tileGrid}
+      {listMain}
       {detailOverlay}
     </div>
   );

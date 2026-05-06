@@ -6,13 +6,18 @@ import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { usePlayerContext } from '@/contexts/PlayerContext';
 import { useRoadDefenseFriction } from '@/contexts/RoadDefenseFrictionContext';
+import { useSkillsMap } from '@/hooks/useSkillsMap';
 import useEventSystem from '@/hooks/useEventSystem';
 import ExplorePanel from '@/components/event/ExplorePanel';
 import BattleArena from '@/components/battle/BattleArena';
 import { buildPlayerUnitsFromContext } from '@/utils/battlePlayerBuilder';
+import { clearInflightBattleTroopSnapshot } from '@/utils/inflightBattleTroopSnapshot';
 import { fetchSiegeQuotaJson, postSiegeQuotaAction } from '@/hooks/useSiegeQuota';
 import { PHASE } from '@/components/event/EventConstants';
 import { playerAPI } from '@/services/playerApi';
+import { fetchWithTimeout } from '@/services/httpClient';
+import { usePvpDefenseAlertPoll } from '@/hooks/usePvpDefenseAlertPoll';
+import { useCountdownTicker } from '@/hooks/useCountdownTicker';
 import AncientModal from '@/components/common/AncientModal';
 import GarrisonLineup from '@/components/garrison/GarrisonLineup';
 import MainCityBarracksPostPanel from '@/components/garrison/MainCityBarracksPostPanel';
@@ -112,6 +117,8 @@ function StrategicSettlementCard({
   silverReward = 0,
   reputationReward = 0,
   contributionReward = 0,
+  /** 匪寨/攻城等即时粮草奖励（与 `smallMapPveLoot.food` / 服务端 settlement 对齐） */
+  foodReward = 0,
   equipmentDrop = null,
   chestRewards = [],
   killCount = null,
@@ -136,13 +143,14 @@ function StrategicSettlementCard({
   const sr = Math.max(0, Number(silverReward) || 0);
   const rr = Math.max(0, Number(reputationReward) || 0);
   const cr = Math.max(0, Number(contributionReward) || 0);
+  const fr = Math.max(0, Number(foodReward) || 0);
   const kc = killCount != null && Number.isFinite(Number(killCount)) ? Number(killCount) : null;
   const kcShown = kc != null ? kc : 0;
-  /** 攻城：`(击杀||银两||贡献)`；匪寨：按胜负（结算卡不展示击杀行） */
+  /** 攻城：`(击杀||银两||贡献||粮草)`；匪寨：按胜负（结算卡不展示击杀行） */
   const showVictoryEmoji =
     settlementKind === 'bandit'
       ? banditOutcome === 'victory'
-      : !!((kc != null ? kcShown : 0) || sr || cr);
+      : !!((kc != null ? kcShown : 0) || sr || cr || fr);
 
   const chestList = Array.isArray(chestRewards) ? chestRewards : [];
 
@@ -157,9 +165,10 @@ function StrategicSettlementCard({
         {tacticalScoreText ? (
           <div className="text-sm text-gray-300">{tacticalScoreText}</div>
         ) : null}
-        {sr > 0 && <div className="text-amber-300 text-sm">💰 获得 {sr} 银两</div>}
         {rr > 0 && <div className="text-yellow-300 text-sm">⭐ 获得 {rr} 声望</div>}
         {cr > 0 && <div className="text-sky-300 text-sm">贡献 +{cr}</div>}
+        {sr > 0 && <div className="text-amber-300 text-sm">💰 获得 {sr} 银两</div>}
+        {fr > 0 && <div className="text-lime-200/95 text-sm">🌾 获得 {fr} 粮草</div>}
         {equipmentDrop && (
           <div
             className="text-sm font-medium"
@@ -291,6 +300,11 @@ export default function WorldMap({
   blockTutorialAutoplay = false,
 }) {
   const { player, cards, attributeBonusBySlot, refresh: refreshPlayer } = usePlayerContext();
+  const skillsMap = useSkillsMap();
+  const battlePlayerUnits = useMemo(
+    () => buildPlayerUnitsFromContext(player, cards, attributeBonusBySlot, skillsMap),
+    [player, cards, attributeBonusBySlot, skillsMap],
+  );
   const roadFriction = useRoadDefenseFriction();
   /** 与 `StrategicWorldMapSection` 同步：战略格网 + 郡内城行，供探索锚点在「路格≠库锚格」时用 footprint 反查 city_id */
   const exploreAnchorGridRef = useRef(null);
@@ -308,7 +322,7 @@ export default function WorldMap({
   });
   const {
     phase,
-    pendingMapEventHint,
+    mapEventHintDisplay,
     quota,
     eventsLoading,
     explorePoolAt,
@@ -316,6 +330,7 @@ export default function WorldMap({
     citiesList,
     itemNameMap,
     isTutorial,
+    tutorialExploreStep,
     positionAnimation,
     showLineupGuide,
   } = eventSystem;
@@ -366,7 +381,13 @@ export default function WorldMap({
   const pvpResolveOnceRef = useRef(false);
 
   // ── 防守方：轮询是否有 PVP 挑战 ──
-  const [pvpDefenseAlert, setPvpDefenseAlert] = useState(null); // 防守方收到的挑战通知
+  /** 防守方遇袭通知 —— 由 `usePvpDefenseAlertPoll` 维护：3000ms 轮询 + Notification + 静默 challengeId 生命周期 */
+  const {
+    alert: pvpDefenseAlert,
+    setAlert: setPvpDefenseAlert,
+    dismiss: dismissPvpDefenseAlert,
+    reset: resetPvpDefenseSilence,
+  } = usePvpDefenseAlertPoll({ playerId: player?.player_id, enabled: !!onDuty });
   const [pvpDefenseWaiting, setPvpDefenseWaiting] = useState(null); // { challengeId, attackerName, startedAt } 已接受，等待裁定
   const [pvpDefenseOutcome, setPvpDefenseOutcome] = useState(null); // 裁定结果展示
   /** 攻城方：倒计时结束或对方已 accept，等待 siege-resolve 与最短 3s 裁定 UI */
@@ -375,17 +396,17 @@ export default function WorldMap({
   const [simpleAlertMessage, setSimpleAlertMessage] = useState(null);
   /** 设为主城成功后立刻用于 UI，避免等 profile 返回前按钮仍可点（战略 tooltip 另见 WorldStrategicMapGrid 同步） */
   const [pendingMainCityCityId, setPendingMainCityCityId] = useState(null);
-  const defPollRef = useRef(null);
   const pvpDefenseOutcomeHandledRef = useRef(false);
-  /** 用户已点「确定」或窗口到期进入裁定等待时，不再重复弹出遇袭框（pending 轮询会持续数秒） */
-  const silencedDefenseChallengeRef = useRef(null);
 
   /** 道路遭遇 · 攻方：`road/move` 触发遭遇后先提示再进场（与守方对称，复用 AncientModal） */
   const [roadAttackerAlert, setRoadAttackerAlert] = useState(null);
   /** 守方：因道路开战门闸不足被移回城内时的一次性文案（GET road/self 读即清库） */
   const [roadGateRetreatNotice, setRoadGateRetreatNotice] = useState(null);
-  /** 披挂 PVP 攻城倒计时用「绝对时刻」刷新 UI，避免后台标签页 `setInterval` 节流卡死 */
-  const [pvpSiegeNowTick, setPvpSiegeNowTick] = useState(() => Date.now());
+  /**
+   * 披挂 PVP 攻城倒计时用「绝对时刻」刷新 UI，避免后台标签页 `setInterval` 节流卡死。
+   * 由 `useCountdownTicker` 内部维护；hook 仅在攻方挑战 `countdownEndsAt` 存在时启动 400ms ticker。
+   */
+  const pvpSiegeNowTick = useCountdownTicker(!!pvpChallenge?.countdownEndsAt);
   /** 服务端裁定后、进结算页面前的「攻城战报·简化回放」全屏层（攻城道路同源 `SiegeReplayMini`） */
   const [authoritativeReplayOverlay, setAuthoritativeReplayOverlay] = useState(null);
   /** `getRoadSelf` 读到的退让文案在战斗演示/结算未结束前先暂存，避免盖住回放 */
@@ -410,37 +431,7 @@ export default function WorldMap({
   /** 与上次 `getRoadSelf` 快照比较，避免无意义的 profile 重拉 */
   const lastApiRoadSnapRef = useRef('');
 
-  useEffect(() => {
-    if (!player?.player_id || !onDuty) return;
-    const pollPending = async () => {
-      try {
-        const res = await fetch(`${API_CONFIG.BASE_URL}/pvp/pending/${player.player_id}`).then(r => r.json());
-        if (res.success && res.challenge) {
-          const c = res.challenge;
-          if (silencedDefenseChallengeRef.current && silencedDefenseChallengeRef.current === c.challengeId) {
-            return;
-          }
-          if (silencedDefenseChallengeRef.current && silencedDefenseChallengeRef.current !== c.challengeId) {
-            silencedDefenseChallengeRef.current = null;
-          }
-          setPvpDefenseAlert(c);
-          if (Notification.permission === 'granted') {
-            new Notification('🏰 城池遭袭', {
-              body: `${c.attackerName} 正在攻打我方城池，${c.remainingSeconds} 秒内可点确定查看战报`,
-              tag: 'siege-pvp',
-            });
-          } else if (Notification.permission !== 'denied') {
-            Notification.requestPermission();
-          }
-        } else if (res.success && !res.challenge) {
-          silencedDefenseChallengeRef.current = null;
-        }
-      } catch {}
-    };
-    pollPending();
-    defPollRef.current = setInterval(pollPending, 3000);
-    return () => clearInterval(defPollRef.current);
-  }, [player?.player_id, onDuty]);
+  // PVP 守城遇袭轮询已迁出至 `hooks/usePvpDefenseAlertPoll`（CR 必改 #7 第一阶段，2026-04-29）。
 
   useEffect(() => {
     worldMapOverlayRefs.worldMapMounted = true;
@@ -458,14 +449,13 @@ export default function WorldMap({
   /** 遇袭：关闭通知并进入「裁定中」轮询（与是否点确定一致；不再调用 /accept，避免与 siege-resolve 竞态） */
   const beginDefenseFollowUp = useCallback((alert) => {
     if (!alert?.challengeId) return;
-    silencedDefenseChallengeRef.current = alert.challengeId;
-    setPvpDefenseAlert(null);
+    dismissPvpDefenseAlert(alert.challengeId);
     setPvpDefenseWaiting({
       challengeId: alert.challengeId,
       attackerName: alert.attackerName || '未知',
       startedAt: Date.now(),
     });
-  }, []);
+  }, [dismissPvpDefenseAlert]);
 
   // 遇袭通知：产品在约 waitSeconds 后自动关闭并进入裁定等待
   useEffect(() => {
@@ -812,7 +802,7 @@ export default function WorldMap({
     }
     setSiegeLoading(true);
     try {
-      const res = await fetch(`${API_CONFIG.BASE_URL}/cities/${encodeURIComponent(cityId)}/siege`, {
+      const res = await fetchWithTimeout(`${API_CONFIG.BASE_URL}/cities/${encodeURIComponent(cityId)}/siege`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ playerId: player.player_id }),
       }).then(r => r.json());
@@ -821,7 +811,7 @@ export default function WorldMap({
 
         if (res.data.defenderType === 'pvp_online') {
           try {
-            const pvpRes = await fetch(`${API_CONFIG.BASE_URL}/pvp/challenge`, {
+            const pvpRes = await fetchWithTimeout(`${API_CONFIG.BASE_URL}/pvp/challenge`, {
               method: 'POST', headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 warId: res.data.warId, cityId,
@@ -840,7 +830,6 @@ export default function WorldMap({
                 waitSeconds: ws,
               });
               setPvpCountdown(ws);
-              setPvpSiegeNowTick(Date.now());
               setSiegeResult(null);
             }
           } catch (e) {
@@ -887,9 +876,11 @@ export default function WorldMap({
       delete lootRest.banditRaidSettlement;
       let silverReward = 0;
       let reputationReward = 0;
+      let foodReward = 0;
       if (result === 'victory') {
         silverReward = Math.max(0, Number(lootRest.silver) || 0);
         reputationReward = Math.max(0, Number(lootRest.reputation) || 0);
+        foodReward = Math.max(0, Number(lootRest.food) || 0);
       }
       const tk =
         meta?.totalKills != null && Number.isFinite(Number(meta.totalKills))
@@ -915,6 +906,7 @@ export default function WorldMap({
         opponentName,
         silverReward,
         reputationReward,
+        foodReward,
         killCount,
         tacticalScoreText,
         defeatHint:
@@ -938,6 +930,7 @@ export default function WorldMap({
   /** 匪寨战败「放弃」：`reset_tower` 将本寨 `nextLayer` 置 1，不返还攻打次数 */
   const handleBanditRaidAbandon = useCallback(async () => {
     if (!banditRaidResult || banditRaidResult.result === 'victory') return;
+    clearInflightBattleTroopSnapshot();
     const banditPoiId = banditRaidResult.banditPoiId;
     if (!banditPoiId || !player?.player_id) {
       closeBanditRaidResult();
@@ -1070,7 +1063,7 @@ export default function WorldMap({
     }
 
     try {
-      const res = await fetch(`${API_CONFIG.BASE_URL}/cities/siege-result`, {
+      const res = await fetchWithTimeout(`${API_CONFIG.BASE_URL}/cities/siege-result`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           warId: siegeData.warId, playerId: player.player_id,
@@ -1111,13 +1104,6 @@ export default function WorldMap({
 
   const closeSiegeResult = useCallback(() => { setSiegeData(null); setSiegeResult(null); }, []);
 
-  /** 攻城方倒计时 UI：按绝对时刻刷新，避免后台标签页 `setInterval(1000)` 停住导致永不请求裁定 */
-  useEffect(() => {
-    if (!pvpChallenge?.countdownEndsAt) return undefined;
-    const iv = setInterval(() => setPvpSiegeNowTick(Date.now()), 400);
-    return () => clearInterval(iv);
-  }, [pvpChallenge?.countdownEndsAt]);
-
   // ── PVP 攻城方：`deadline` 触发 `siege-resolve` → 最短裁定 UI → 简化回放 → 结算 ──
   useEffect(() => {
     if (!pvpChallenge || !player?.player_id) return;
@@ -1135,7 +1121,7 @@ export default function WorldMap({
       });
       setPvpChallenge(null);
       try {
-        const r = await fetch(`${API_CONFIG.BASE_URL}/pvp/siege-resolve`, {
+        const r = await fetchWithTimeout(`${API_CONFIG.BASE_URL}/pvp/siege-resolve`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ challengeId: ch.challengeId, attackerId: player.player_id }),
@@ -1210,7 +1196,7 @@ export default function WorldMap({
     const poll = async () => {
       if (pvpDefenseOutcomeHandledRef.current) return;
       try {
-        const r = await fetch(
+        const r = await fetchWithTimeout(
           `${API_CONFIG.BASE_URL}/pvp/challenge/${pvpDefenseWaiting.challengeId}/siege-outcome?playerId=${encodeURIComponent(player.player_id)}`
         ).then((x) => x.json());
         if (r.success && r.outcome && !pvpDefenseOutcomeHandledRef.current) {
@@ -1230,16 +1216,6 @@ export default function WorldMap({
     const id = setInterval(poll, 2000);
     return () => clearInterval(id);
   }, [pvpDefenseWaiting, player?.player_id, refreshPlayer]);
-
-  // 新手指引完成时，给满探索次数
-  const prevTutorialRef = useRef(isTutorial);
-  useEffect(() => {
-    if (prevTutorialRef.current && !isTutorial) {
-      // tutorial 刚从 active 变为 inactive → 新手指引完成
-      quota.fillMax();
-    }
-    prevTutorialRef.current = isTutorial;
-  }, [isTutorial]);
 
   // 加载玩家道具
   const [playerItems, setPlayerItems] = useState([]);
@@ -1278,7 +1254,10 @@ export default function WorldMap({
     if (prev !== PHASE.RETURNING || phase !== PHASE.IDLE) return;
     fetchItems();
     refreshPlayer({ silent: true });
-  }, [phase, fetchItems, refreshPlayer]);
+    if (typeof quota.reloadFromServer === 'function') {
+      void quota.reloadFromServer();
+    }
+  }, [phase, fetchItems, refreshPlayer, quota]);
 
   // 通知父组件事件是否进行中（隐藏底部Tab）
   useEffect(() => {
@@ -1367,7 +1346,7 @@ export default function WorldMap({
         bumpStrategicRoadPresenceRef={bumpStrategicRoadPresenceRef}
         strategicFullScreenOverlayOpen={strategicFullScreenOverlayOpen}
         strategicMapEventHintSuppressed={strategicMapEventHintSuppressed}
-        pendingMapEventHint={pendingMapEventHint}
+        pendingMapEventHint={mapEventHintDisplay}
         playerId={player?.player_id}
         playerFactionId={player?.faction_id}
         siegeLoading={siegeLoading}
@@ -1393,6 +1372,7 @@ export default function WorldMap({
         onStartBanditRaid={handleBanditRaidStart}
         banditRaidStartBlockedReason={banditRaidStartBlockedReason}
         postBanditRaidRefreshKey={postBanditRaidRefreshKey}
+        strategicTutorialExploreStep={tutorialExploreStep}
       />
 
       {/* ── PVP 攻城方等待界面 ── */}
@@ -1445,7 +1425,7 @@ export default function WorldMap({
         <PvpDefenseOutcomeModal
           outcome={pvpDefenseOutcome}
           onClose={() => {
-            silencedDefenseChallengeRef.current = null;
+            resetPvpDefenseSilence();
             setPvpDefenseOutcome(null);
           }}
         />
@@ -1600,7 +1580,7 @@ export default function WorldMap({
             {banditRaidData ? (
               <BattleArena
                 key={`bandit-${banditRaidData.banditPoiId}-${banditRaidData.attackedLayer}`}
-                playerUnits={buildPlayerUnitsFromContext(player, cards, attributeBonusBySlot)}
+                playerUnits={battlePlayerUnits}
                 cards={cards}
                 enemySlotRarities={banditRaidData.enemySlotRarities}
                 silverAmount={player?.silver ?? 0}
@@ -1615,7 +1595,7 @@ export default function WorldMap({
             {!banditRaidData && siegeData && !siegeResult ? (
               <BattleArena
                 key={siegeData.roadEncounterId || siegeData.warId || siegeData.cityName || 'siege'}
-                playerUnits={buildPlayerUnitsFromContext(player, cards, attributeBonusBySlot)}
+                playerUnits={battlePlayerUnits}
                 cards={cards}
                 enemyUnits={siegeData.npcGarrison}
                 silverAmount={player?.silver ?? 0}
@@ -1666,6 +1646,7 @@ export default function WorldMap({
                 silverReward={siegeResult.silverReward}
                 reputationReward={siegeResult.reputationReward}
                 contributionReward={siegeResult.contributionReward}
+                foodReward={siegeResult.foodReward ?? 0}
                 equipmentDrop={siegeResult.equipmentDrop ?? null}
                 chestRewards={siegeResult.chestRewards}
                 killCount={siegeResult.killCount}
@@ -1693,6 +1674,7 @@ export default function WorldMap({
                 silverReward={banditRaidResult.silverReward}
                 reputationReward={banditRaidResult.reputationReward}
                 contributionReward={0}
+                foodReward={banditRaidResult.foodReward ?? 0}
                 equipmentDrop={null}
                 chestRewards={banditRaidResult.meta?.chestRewards}
                 killCount={null}

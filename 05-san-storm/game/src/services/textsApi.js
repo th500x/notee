@@ -3,20 +3,7 @@
  */
 
 import { API_CONFIG } from '../constants';
-
-async function fetchWithTimeout(url, options = {}, timeout = API_CONFIG.TIMEOUT) {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeout);
-  try {
-    const response = await fetch(url, { ...options, signal: controller.signal });
-    clearTimeout(timeoutId);
-    return response;
-  } catch (error) {
-    clearTimeout(timeoutId);
-    if (error.name === 'AbortError') throw new Error('请求超时');
-    throw error;
-  }
-}
+import { fetchWithTimeout } from './httpClient';
 
 export const textsAPI = {
   summary: async (playerId) => {

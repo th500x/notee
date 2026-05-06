@@ -6,6 +6,8 @@
  */
 
 const express = require('express');
+const { requireAuth, requireSelf } = require('../middleware/auth');
+const { roadMoveLimiter } = require('../middleware/rateLimit');
 const Player = require('../models/Player');
 const PlayerService = require('../services/playerService');
 const equipmentSetService = require('../services/equipmentSetService');
@@ -21,6 +23,7 @@ const playerStatisticsService = require('../services/playerStatisticsService');
 const playerEventRewardsService = require('../services/playerEventRewardsService');
 const playerCreationService = require('../services/playerCreationService');
 const playerMainCityService = require('../services/playerMainCityService');
+const { getAvatarCategories } = require('../services/avatarService');
 const mainCityBarracksStorageService = require('../services/mainCityBarracksStorageService');
 const positionPromotionService = require('../services/positionPromotionService');
 const factionOverviewService = require('../services/factionOverviewService');
@@ -29,57 +32,36 @@ const roadEncounterService = require('../services/roadEncounterService');
 
 const router = express.Router();
 
+/**
+ * 鉴权（必改 #1）：
+ *   - `router.use(requireAuth)` —— 本路由全部接口都要求合法 JWT。
+ *   - `router.param('playerId', requireSelf())` —— 任何 URL 含 `:playerId` 的路由，须 token.sub 与之匹配（admin 角色除外）。
+ *   - `/:playerId/texts/*` 由子路由 `texts.js` 承载，使用 `mergeParams:true`；上行 requireAuth 已覆盖，
+ *     这里在挂载点再显式套一层 `requireSelf()` 以避免 `router.param` 不传播到子路由的歧义（见
+ *     [Express 4.x router.param docs](https://expressjs.com/en/4x/api.html#router.param)）。
+ *   - 注意：`/avatars`、`/check/:playerId`、`/generate-attributes`、`/validate-name`、`/create`
+ *     等不带或带 `:playerId` 的注册 / 角色创建辅助接口同样要求 token；前端 `gameUserAPI.login`
+ *     成功后即写入 token，再进入角色创建流程，因此不会破坏现有用户路径。
+ */
+router.use(requireAuth);
+router.param('playerId', requireSelf());
+
 // ── 头像 ────────────────────────────────────────────────────────────────────
 
 /**
  * GET /api/players/avatars
  * 获取可用头像列表（按分类分组）
+ *
+ * 实现：见 `services/avatarService.js` —— 异步 fs.promises.readdir + TTL 缓存（生产 5 分钟、
+ * 开发 30 秒；可由 `AVATAR_CACHE_TTL_MS` 覆盖）+ 单飞防击穿。本路由仅做 HTTP 适配。
  */
-router.get('/avatars', async (req, res) => {
+router.get('/avatars', async (req, res, next) => {
   try {
-    const fs = require('fs');
-    const path = require('path');
-
-    const avatarDir = path.join(__dirname, '../../public/assets/san_1_ui_card/avatar');
-    if (!fs.existsSync(avatarDir)) {
-      return res.json({ success: true, data: { categories: [] } });
-    }
-
-    const categoryLabels = {
-      '01_elder_male_scholar':   '白须儒雅',
-      '02_elder_male_warrior':   '白须老将',
-      '03_elder_female_noble':   '年上贵妇',
-      '04_elder_female_folk':    '年上内助',
-      '05_mid_male_scholar':     '中年谋士',
-      '06_mid_male_warrior':     '中年将军',
-      '07_mid_female_noble':     '人妻少妇',
-      '08_mid_female_warrior':   '人妻女将',
-      '09_young_male_scholar':   '青年书生',
-      '10_young_male_warrior':   '青年将官',
-      '11_young_female_scholar': '青年才女',
-      '12_young_female_warrior': '青年女侠',
-    };
-
-    const dirs = fs.readdirSync(avatarDir, { withFileTypes: true })
-      .filter(d => d.isDirectory())
-      .sort((a, b) => a.name.localeCompare(b.name));
-
-    const categories = dirs.map(dir => {
-      const dirPath = path.join(avatarDir, dir.name);
-      const files   = fs.readdirSync(dirPath)
-        .filter(f => /\.(png|jpg|jpeg|gif|webp)$/i.test(f))
-        .sort();
-      return {
-        id:      dir.name,
-        label:   categoryLabels[dir.name] || dir.name,
-        avatars: files.map(f => `assets/san_1_ui_card/avatar/${dir.name}/${f}`),
-      };
-    }).filter(c => c.avatars.length > 0);
-
+    const categories = await getAvatarCategories();
+    res.set('Cache-Control', 'private, max-age=60');
     res.json({ success: true, data: { categories } });
   } catch (error) {
-    console.error('[Players] 获取头像列表失败:', error);
-    res.status(500).json({ success: false, error: '获取头像列表失败', message: error.message });
+    return next(wrap500(error, '获取头像列表失败'));
   }
 });
 
@@ -89,18 +71,18 @@ router.get('/avatars', async (req, res) => {
  * GET /api/players/check/:playerId
  * 检查玩家是否存在
  */
-router.get('/check/:playerId', async (req, res) => {
+router.get('/check/:playerId', async (req, res, next) => {
   try {
     const exists = await Player.exists(req.params.playerId);
     res.json({ success: true, data: { exists } });
   } catch (error) {
-    console.error('[Players] 检查玩家失败:', error);
-    res.status(500).json({ success: false, error: '检查玩家失败', message: error.message });
+    return next(wrap500(error, '检查玩家失败'));
   }
 });
 
 const textsRouter = require('./texts');
-router.use('/:playerId/texts', textsRouter);
+const { wrap500 } = require('../utils/httpError');
+router.use('/:playerId/texts', requireSelf(), textsRouter);
 
 // ── 角色创建辅助 ──────────────────────────────────────────────────────────────
 
@@ -108,14 +90,13 @@ router.use('/:playerId/texts', textsRouter);
  * POST /api/players/generate-attributes
  * 生成属性方案（9选1）
  */
-router.post('/generate-attributes', async (req, res) => {
+router.post('/generate-attributes', async (req, res, next) => {
   try {
     const { rarity = 'common' } = req.body;
     const options = await PlayerService.generateAttributeOptions(rarity);
     res.json({ success: true, data: { options } });
   } catch (error) {
-    console.error('[Players] 生成属性方案失败:', error);
-    res.status(500).json({ success: false, error: '生成属性方案失败', message: error.message });
+    return next(wrap500(error, '生成属性方案失败'));
   }
 });
 
@@ -123,7 +104,7 @@ router.post('/generate-attributes', async (req, res) => {
  * POST /api/players/validate-name
  * 验证角色名（格式 + 重名检查）
  */
-router.post('/validate-name', async (req, res) => {
+router.post('/validate-name', async (req, res, next) => {
   try {
     const { characterName, serverId } = req.body;
     const validation = PlayerService.validateCharacterName(characterName);
@@ -136,8 +117,7 @@ router.post('/validate-name', async (req, res) => {
     }
     res.json({ success: true, data: { valid: true } });
   } catch (error) {
-    console.error('[Players] 验证角色名失败:', error);
-    res.status(500).json({ success: false, error: '验证角色名失败', message: error.message });
+    return next(wrap500(error, '验证角色名失败'));
   }
 });
 
@@ -145,7 +125,7 @@ router.post('/validate-name', async (req, res) => {
  * POST /api/players/create
  * 创建玩家角色
  */
-router.post('/create', async (req, res) => {
+router.post('/create', async (req, res, next) => {
   try {
     const {
       playerId, characterName, factionId, factionName,
@@ -154,6 +134,11 @@ router.post('/create', async (req, res) => {
 
     if (!playerId || !characterName || !factionId || !factionName || !attributes || !serverId) {
       return res.status(400).json({ success: false, error: '缺少必填字段' });
+    }
+
+    const devBypass = req.player._devBypass && req.player.sub == null;
+    if (!devBypass && req.player.role !== 'admin' && String(playerId) !== String(req.player.sub)) {
+      return res.status(403).json({ success: false, error: '无权为他人创建角色', code: 'FORBIDDEN' });
     }
 
     const player = await PlayerService.createCharacter({
@@ -167,8 +152,7 @@ router.post('/create', async (req, res) => {
 
     res.json({ success: true, message: '角色创建成功', data: player });
   } catch (error) {
-    console.error('[Players] 创建角色失败:', error);
-    res.status(500).json({ success: false, error: error.message || '创建角色失败' });
+    return next(wrap500(error, '创建角色失败'));
   }
 });
 
@@ -176,7 +160,7 @@ router.post('/create', async (req, res) => {
  * GET /api/players/:playerId/factions/available
  * 获取可用势力列表（含当前玩家数与推荐标记）
  */
-router.get('/:playerId/factions/available', async (req, res) => {
+router.get('/:playerId/factions/available', async (req, res, next) => {
   try {
     const { playerId } = req.params;
     console.log('[Factions] 获取可用势力列表, playerId:', playerId);
@@ -186,8 +170,7 @@ router.get('/:playerId/factions/available', async (req, res) => {
     }
     res.json({ success: true, data: { factions: result.factions } });
   } catch (error) {
-    console.error('[Players] 获取可用势力失败:', error);
-    res.status(500).json({ success: false, error: '获取可用势力失败', message: error.message });
+    return next(wrap500(error, '获取可用势力失败'));
   }
 });
 
@@ -195,7 +178,7 @@ router.get('/:playerId/factions/available', async (req, res) => {
  * GET /api/players/:playerId/faction/overview
  * 势力 Tab「势力信息」象限：官职、人数、城市摘要、五维档位、储备（camelCase）
  */
-router.get('/:playerId/faction/overview', async (req, res) => {
+router.get('/:playerId/faction/overview', async (req, res, next) => {
   try {
     const { playerId } = req.params;
     const result = await factionOverviewService.getFactionOverviewForPlayer(playerId);
@@ -226,8 +209,7 @@ router.get('/:playerId/faction/overview', async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('[Players] faction/overview', error);
-    res.status(500).json({ success: false, error: '获取势力信息失败', message: error.message });
+    return next(wrap500(error, '获取势力信息失败'));
   }
 });
 
@@ -235,7 +217,7 @@ router.get('/:playerId/faction/overview', async (req, res) => {
  * GET /api/players/:playerId/troops/initial
  * 获取初始部队选项
  */
-router.get('/:playerId/troops/initial', async (req, res) => {
+router.get('/:playerId/troops/initial', async (req, res, next) => {
   try {
     const { factionId } = req.query;
     if (!factionId) {
@@ -244,8 +226,7 @@ router.get('/:playerId/troops/initial', async (req, res) => {
     const result = await playerCreationService.getInitialTroopOptions(factionId);
     res.json({ success: true, data: result });
   } catch (error) {
-    console.error('[Players] 获取初始部队选项失败:', error);
-    res.status(500).json({ success: false, error: '获取初始部队选项失败', message: error.message });
+    return next(wrap500(error, '获取初始部队选项失败'));
   }
 });
 
@@ -253,13 +234,12 @@ router.get('/:playerId/troops/initial', async (req, res) => {
  * GET /api/players/:playerId/creation-progress
  * 获取角色创建进度草稿
  */
-router.get('/:playerId/creation-progress', async (req, res) => {
+router.get('/:playerId/creation-progress', async (req, res, next) => {
   try {
     const progress = await playerCreationService.getCreationProgress(req.params.playerId);
     res.json({ success: true, data: progress });
   } catch (error) {
-    console.error('[Players] 获取角色创建进度失败:', error);
-    res.status(500).json({ success: false, error: '获取角色创建进度失败', message: error.message });
+    return next(wrap500(error, '获取角色创建进度失败'));
   }
 });
 
@@ -267,13 +247,12 @@ router.get('/:playerId/creation-progress', async (req, res) => {
  * POST /api/players/:playerId/creation-progress
  * 保存角色创建进度草稿
  */
-router.post('/:playerId/creation-progress', async (req, res) => {
+router.post('/:playerId/creation-progress', async (req, res, next) => {
   try {
     await playerCreationService.saveCreationProgress(req.params.playerId, req.body);
     res.json({ success: true, message: '进度已保存' });
   } catch (error) {
-    console.error('[Players] 保存角色创建进度失败:', error);
-    res.status(500).json({ success: false, error: '保存角色创建进度失败', message: error.message });
+    return next(wrap500(error, '保存角色创建进度失败'));
   }
 });
 
@@ -281,7 +260,7 @@ router.post('/:playerId/creation-progress', async (req, res) => {
  * POST /api/players/:playerId/generate-attributes-batch
  * 生成属性方案（新批次），扣除银两
  */
-router.post('/:playerId/generate-attributes-batch', async (req, res) => {
+router.post('/:playerId/generate-attributes-batch', async (req, res, next) => {
   try {
     const { rarity = 'common' } = req.body;
     const result = await playerCreationService.generateAttributesBatch(req.params.playerId, rarity);
@@ -293,8 +272,7 @@ router.post('/:playerId/generate-attributes-batch', async (req, res) => {
     }
     res.json({ success: true, data: result.data });
   } catch (error) {
-    console.error('[Players] 生成属性批次失败:', error);
-    res.status(500).json({ success: false, error: '生成属性批次失败', message: error.message });
+    return next(wrap500(error, '生成属性批次失败'));
   }
 });
 
@@ -302,7 +280,7 @@ router.post('/:playerId/generate-attributes-batch', async (req, res) => {
  * POST /api/players/:playerId/select-option
  * 选择属性方案
  */
-router.post('/:playerId/select-option', async (req, res) => {
+router.post('/:playerId/select-option', async (req, res, next) => {
   try {
     const { batch, index } = req.body;
     if (batch === undefined || index === undefined) {
@@ -311,8 +289,7 @@ router.post('/:playerId/select-option', async (req, res) => {
     await playerCreationService.selectAttributeOption(req.params.playerId, batch, index);
     res.json({ success: true, message: '方案已选择' });
   } catch (error) {
-    console.error('[Players] 选择属性方案失败:', error);
-    res.status(500).json({ success: false, error: '选择属性方案失败', message: error.message });
+    return next(wrap500(error, '选择属性方案失败'));
   }
 });
 
@@ -320,13 +297,12 @@ router.post('/:playerId/select-option', async (req, res) => {
  * DELETE /api/players/:playerId/creation-progress
  * 删除角色创建进度草稿（角色创建完成后调用）
  */
-router.delete('/:playerId/creation-progress', async (req, res) => {
+router.delete('/:playerId/creation-progress', async (req, res, next) => {
   try {
     await playerCreationService.deleteCreationProgress(req.params.playerId);
     res.json({ success: true, message: '进度已删除' });
   } catch (error) {
-    console.error('[Players] 删除角色创建进度失败:', error);
-    res.status(500).json({ success: false, error: '删除角色创建进度失败', message: error.message });
+    return next(wrap500(error, '删除角色创建进度失败'));
   }
 });
 
@@ -336,7 +312,7 @@ router.delete('/:playerId/creation-progress', async (req, res) => {
  * GET /api/players/:playerId/character-rank?bucket=…
  * bucket：main:player | main:character1 | main:character2 | garrison:槽位:char1|char2
  */
-router.get('/:playerId/character-rank', async (req, res) => {
+router.get('/:playerId/character-rank', async (req, res, next) => {
   try {
     const { playerId } = req.params;
     const bucket = req.query.bucket;
@@ -346,8 +322,7 @@ router.get('/:playerId/character-rank', async (req, res) => {
     const data = await characterRankService.getCharacterRankForBucket(playerId, bucket);
     res.json({ success: true, data });
   } catch (error) {
-    console.error('[Players] character-rank 失败:', error);
-    res.status(500).json({ success: false, error: '查询将领排名失败', message: error.message });
+    return next(wrap500(error, '查询将领排名失败'));
   }
 });
 
@@ -355,7 +330,7 @@ router.get('/:playerId/character-rank', async (req, res) => {
  * GET /api/players/:playerId/statistics
  * 个人中心「统计」：读取 statistics 表一行（camelCase）
  */
-router.get('/:playerId/statistics', async (req, res) => {
+router.get('/:playerId/statistics', async (req, res, next) => {
   try {
     const result = await playerStatisticsService.getPlayerStatistics(req.params.playerId);
     if (result.notFound) {
@@ -363,8 +338,7 @@ router.get('/:playerId/statistics', async (req, res) => {
     }
     res.json({ success: true, data: result.data });
   } catch (error) {
-    console.error('[Players] 获取统计数据失败:', error);
-    res.status(500).json({ success: false, error: '获取统计数据失败', message: error.message });
+    return next(wrap500(error, '获取统计数据失败'));
   }
 });
 
@@ -376,7 +350,7 @@ router.get('/:playerId/statistics', async (req, res) => {
  * POST /api/players/:playerId/main-city
  * body: { cityId } — 设为主城（存卡）；首次免费，再次更换 500 银 + 24h 冷却；仅大城/中城、本势力占城。
  */
-router.post('/:playerId/main-city', async (req, res) => {
+router.post('/:playerId/main-city', async (req, res, next) => {
   try {
     const { playerId } = req.params;
     const { cityId } = req.body || {};
@@ -386,8 +360,7 @@ router.post('/:playerId/main-city', async (req, res) => {
     }
     res.json({ success: true, data: out.data });
   } catch (error) {
-    console.error('[Players] 设置主城失败:', error);
-    res.status(500).json({ success: false, error: '设置主城失败', message: error.message });
+    return next(wrap500(error, '设置主城失败'));
   }
 });
 
@@ -398,7 +371,7 @@ router.post('/:playerId/main-city', async (req, res) => {
  * body: { enable: boolean, clientRequestId?: string }
  * 开启（0→1）扣 40 银；已为 1 不再扣；enable:false 关闭（默认不退费）。
  */
-router.post('/:playerId/road/intercept', async (req, res) => {
+router.post('/:playerId/road/intercept', async (req, res, next) => {
   try {
     const { playerId } = req.params;
     const { enable, clientRequestId } = req.body || {};
@@ -409,8 +382,7 @@ router.post('/:playerId/road/intercept', async (req, res) => {
     if (!out.ok) return res.status(out.status).json({ success: false, error: out.error });
     res.json({ success: true, data: out.data });
   } catch (error) {
-    console.error('[Players] 切换道路开战模式失败:', error);
-    res.status(500).json({ success: false, error: '切换道路开战模式失败', message: error.message });
+    return next(wrap500(error, '切换道路开战模式失败'));
   }
 });
 
@@ -418,15 +390,14 @@ router.post('/:playerId/road/intercept', async (req, res) => {
  * GET /api/players/:playerId/road/self
  * 返回本人 road_jun_id / road_position_x/y / road_intercept / road_updated_at。
  */
-router.get('/:playerId/road/self', async (req, res) => {
+router.get('/:playerId/road/self', async (req, res, next) => {
   try {
     const { playerId } = req.params;
     const out = await roadEncounterService.getSelfRoadState(playerId);
     if (!out.ok) return res.status(out.status).json({ success: false, error: out.error });
     res.json({ success: true, data: out.data });
   } catch (error) {
-    console.error('[Players] 读取道路状态失败:', error);
-    res.status(500).json({ success: false, error: '读取道路状态失败', message: error.message });
+    return next(wrap500(error, '读取道路状态失败'));
   }
 });
 
@@ -436,15 +407,14 @@ router.get('/:playerId/road/self', async (req, res) => {
  * 权威写 players.road_position_* + 粮草链路（player.food → factions.reserve_food 日上限 500）。
  * 可选 targetPoiId：31-6 §9.4 城心/匪寨终点（cities.city_id），见 04-1 §15.4。
  */
-router.post('/:playerId/road/move', async (req, res) => {
+router.post('/:playerId/road/move', roadMoveLimiter, async (req, res, next) => {
   try {
     const { playerId } = req.params;
     const out = await roadEncounterService.moveAlongRoad(playerId, req.body || {});
     if (!out.ok) return res.status(out.status).json({ success: false, error: out.error });
     res.json({ success: true, data: out.data });
   } catch (error) {
-    console.error('[Players] 沿路移动失败:', error);
-    res.status(500).json({ success: false, error: '沿路移动失败', message: error.message });
+    return next(wrap500(error, '沿路移动失败'));
   }
 });
 
@@ -453,15 +423,14 @@ router.post('/:playerId/road/move', async (req, res) => {
  * body: { encounterId, battleId?, defenderWon: boolean }
  * 战后解锁：road_encounters.status='resolved'；守门方战败关闭 road_intercept。
  */
-router.post('/:playerId/road/resolve-encounter', async (req, res) => {
+router.post('/:playerId/road/resolve-encounter', async (req, res, next) => {
   try {
     const { playerId } = req.params;
     const out = await roadEncounterService.resolveEncounter(playerId, req.body || {});
     if (!out.ok) return res.status(out.status).json({ success: false, error: out.error });
     res.json({ success: true, data: out.data });
   } catch (error) {
-    console.error('[Players] 解锁道路遭遇失败:', error);
-    res.status(500).json({ success: false, error: '解锁道路遭遇失败', message: error.message });
+    return next(wrap500(error, '解锁道路遭遇失败'));
   }
 });
 
@@ -469,15 +438,14 @@ router.post('/:playerId/road/resolve-encounter', async (req, res) => {
  * GET /api/players/:playerId/road/pending-encounter
  * 守方立点与交战格一致且 fighting 时返回遇袭摘要，否则 encounter=null（与 `/pvp/pending` 对称）。
  */
-router.get('/:playerId/road/pending-encounter', async (req, res) => {
+router.get('/:playerId/road/pending-encounter', async (req, res, next) => {
   try {
     const { playerId } = req.params;
     const out = await roadEncounterService.getPendingDefenderEncounter(playerId);
     if (!out.ok) return res.status(out.status).json({ success: false, error: out.error });
     res.json({ success: true, data: out.data });
   } catch (error) {
-    console.error('[Players] 道路遇袭轮询失败:', error);
-    res.status(500).json({ success: false, error: '道路遇袭轮询失败', message: error.message });
+    return next(wrap500(error, '道路遇袭轮询失败'));
   }
 });
 
@@ -485,7 +453,7 @@ router.get('/:playerId/road/pending-encounter', async (req, res) => {
  * GET /api/players/:playerId/road/encounter-battle?encounterId=&spectator=1
  * 道路遭遇：默认进攻方开战数据；`spectator=1` 时为守方观战（skipSiegeResult + npcGarrison=攻方上阵）。
  */
-router.get('/:playerId/road/encounter-battle', async (req, res) => {
+router.get('/:playerId/road/encounter-battle', async (req, res, next) => {
   try {
     const { playerId } = req.params;
     const encounterId = req.query.encounterId != null ? String(req.query.encounterId).trim() : '';
@@ -494,8 +462,7 @@ router.get('/:playerId/road/encounter-battle', async (req, res) => {
     if (!out.ok) return res.status(out.status).json({ success: false, error: out.error });
     res.json({ success: true, data: out.data });
   } catch (error) {
-    console.error('[Players] 道路遭遇开战数据失败:', error);
-    res.status(500).json({ success: false, error: '道路遭遇开战数据失败', message: error.message });
+    return next(wrap500(error, '道路遭遇开战数据失败'));
   }
 });
 
@@ -503,7 +470,7 @@ router.get('/:playerId/road/encounter-battle', async (req, res) => {
  * POST /api/players/:playerId/road/encounter-authoritative-resolve
  * body: { encounterId } — 与披挂攻城同源 `runSiegePvpSkirmish` 单场服务端推演并写库（进攻方）
  */
-router.post('/:playerId/road/encounter-authoritative-resolve', async (req, res) => {
+router.post('/:playerId/road/encounter-authoritative-resolve', async (req, res, next) => {
   try {
     const { playerId } = req.params;
     const encounterId = req.body?.encounterId != null ? String(req.body.encounterId).trim() : '';
@@ -511,8 +478,7 @@ router.post('/:playerId/road/encounter-authoritative-resolve', async (req, res) 
     if (!out.ok) return res.status(out.status).json({ success: false, error: out.error });
     res.json({ success: true, data: out.data });
   } catch (error) {
-    console.error('[Players] 道路权威结算失败:', error);
-    res.status(500).json({ success: false, error: '道路权威结算失败', message: error.message });
+    return next(wrap500(error, '道路权威结算失败'));
   }
 });
 
@@ -520,7 +486,7 @@ router.post('/:playerId/road/encounter-authoritative-resolve', async (req, res) 
  * GET /api/players/:playerId/road/encounter-authoritative-outcome?encounterId=
  * 攻守双方轮询：fighting 时 pending；resolved 后返回推演快照 JSON
  */
-router.get('/:playerId/road/encounter-authoritative-outcome', async (req, res) => {
+router.get('/:playerId/road/encounter-authoritative-outcome', async (req, res, next) => {
   try {
     const { playerId } = req.params;
     const encounterId = req.query.encounterId != null ? String(req.query.encounterId).trim() : '';
@@ -528,8 +494,7 @@ router.get('/:playerId/road/encounter-authoritative-outcome', async (req, res) =
     if (!out.ok) return res.status(out.status).json({ success: false, error: out.error });
     res.json({ success: true, data: out.data });
   } catch (error) {
-    console.error('[Players] 道路裁定查询失败:', error);
-    res.status(500).json({ success: false, error: '道路裁定查询失败', message: error.message });
+    return next(wrap500(error, '道路裁定查询失败'));
   }
 });
 
@@ -537,15 +502,14 @@ router.get('/:playerId/road/encounter-authoritative-outcome', async (req, res) =
  * POST /api/players/:playerId/road/encounter-battle-result
  * body: { encounterId, factionId, killedIndices, result, silverSpent?, battleScore?, battleReportSaved?, battleId? }
  */
-router.post('/:playerId/road/encounter-battle-result', async (req, res) => {
+router.post('/:playerId/road/encounter-battle-result', async (req, res, next) => {
   try {
     const { playerId } = req.params;
     const out = await roadEncounterService.recordEncounterBattleSettlement(playerId, req.body || {});
     if (!out.ok) return res.status(out.status).json({ success: false, error: out.error });
     res.json({ success: true, data: out.data });
   } catch (error) {
-    console.error('[Players] 道路遭遇结算失败:', error);
-    res.status(500).json({ success: false, error: '道路遭遇结算失败', message: error.message });
+    return next(wrap500(error, '道路遭遇结算失败'));
   }
 });
 
@@ -553,7 +517,7 @@ router.post('/:playerId/road/encounter-battle-result', async (req, res) => {
  * POST /api/players/:playerId/main-city-barracks/transfer-in
  * body: { instanceIds: string[] } — 军营池 → 主城驻军所仓库
  */
-router.post('/:playerId/main-city-barracks/transfer-in', async (req, res) => {
+router.post('/:playerId/main-city-barracks/transfer-in', async (req, res, next) => {
   try {
     const { playerId } = req.params;
     const out = await mainCityBarracksStorageService.transferIn(playerId, req.body?.instanceIds);
@@ -562,8 +526,7 @@ router.post('/:playerId/main-city-barracks/transfer-in', async (req, res) => {
     }
     res.json({ success: true });
   } catch (error) {
-    console.error('[Players] 驻军所转入失败:', error);
-    res.status(500).json({ success: false, error: '驻军所转入失败', message: error.message });
+    return next(wrap500(error, '驻军所转入失败'));
   }
 });
 
@@ -571,7 +534,7 @@ router.post('/:playerId/main-city-barracks/transfer-in', async (req, res) => {
  * POST /api/players/:playerId/main-city-barracks/transfer-out
  * body: { instanceIds: string[] } — 驻军所仓库 → 军营池（受军营部队 20 张上限约束）
  */
-router.post('/:playerId/main-city-barracks/transfer-out', async (req, res) => {
+router.post('/:playerId/main-city-barracks/transfer-out', async (req, res, next) => {
   try {
     const { playerId } = req.params;
     const out = await mainCityBarracksStorageService.transferOut(playerId, req.body?.instanceIds);
@@ -580,8 +543,7 @@ router.post('/:playerId/main-city-barracks/transfer-out', async (req, res) => {
     }
     res.json({ success: true });
   } catch (error) {
-    console.error('[Players] 驻军所转出失败:', error);
-    res.status(500).json({ success: false, error: '驻军所转出失败', message: error.message });
+    return next(wrap500(error, '驻军所转出失败'));
   }
 });
 
@@ -589,7 +551,7 @@ router.post('/:playerId/main-city-barracks/transfer-out', async (req, res) => {
  * GET /api/players/:playerId/san-gong-fu/promotions
  * 三公府 · 官职：下一品阶（position_level = 当前 − 1）可晋升列表
  */
-router.get('/:playerId/san-gong-fu/promotions', async (req, res) => {
+router.get('/:playerId/san-gong-fu/promotions', async (req, res, next) => {
   try {
     const { playerId } = req.params;
     const out = await positionPromotionService.getPromotionsForPlayer(playerId);
@@ -598,8 +560,7 @@ router.get('/:playerId/san-gong-fu/promotions', async (req, res) => {
     }
     res.json({ success: true, data: out.data });
   } catch (error) {
-    console.error('[Players] 三公府晋升列表失败:', error);
-    res.status(500).json({ success: false, error: '获取晋升列表失败', message: error.message });
+    return next(wrap500(error, '获取晋升列表失败'));
   }
 });
 
@@ -607,7 +568,7 @@ router.get('/:playerId/san-gong-fu/promotions', async (req, res) => {
  * POST /api/players/:playerId/san-gong-fu/promote
  * body: { positionId: string }
  */
-router.post('/:playerId/san-gong-fu/promote', async (req, res) => {
+router.post('/:playerId/san-gong-fu/promote', async (req, res, next) => {
   try {
     const { playerId } = req.params;
     const positionId = req.body?.positionId;
@@ -617,8 +578,7 @@ router.post('/:playerId/san-gong-fu/promote', async (req, res) => {
     }
     res.json({ success: true, data: out.data });
   } catch (error) {
-    console.error('[Players] 三公府晋升失败:', error);
-    res.status(500).json({ success: false, error: '晋升失败', message: error.message });
+    return next(wrap500(error, '晋升失败'));
   }
 });
 
@@ -626,14 +586,13 @@ router.post('/:playerId/san-gong-fu/promote', async (req, res) => {
  * GET /api/players/:playerId/san-gong-fu/tribute-status
  * 朝政 · 朝贡：当日已上缴张数 / 剩余额度
  */
-router.get('/:playerId/san-gong-fu/tribute-status', async (req, res) => {
+router.get('/:playerId/san-gong-fu/tribute-status', async (req, res, next) => {
   try {
     const { playerId } = req.params;
     const data = await sanGongTributeService.getTributeDailyStatus(playerId);
     res.json({ success: true, data });
   } catch (error) {
-    console.error('[Players] 朝贡额度查询失败:', error);
-    res.status(500).json({ success: false, error: '朝贡额度查询失败', message: error.message });
+    return next(wrap500(error, '朝贡额度查询失败'));
   }
 });
 
@@ -641,7 +600,7 @@ router.get('/:playerId/san-gong-fu/tribute-status', async (req, res) => {
  * POST /api/players/:playerId/san-gong-fu/tribute
  * body: { instanceIds: string[] } — 销毁军营池部队卡，按攻城单杀银两/贡献 1.5 倍发玩家；势力储备银两同额、粮草=银两×5
  */
-router.post('/:playerId/san-gong-fu/tribute', async (req, res) => {
+router.post('/:playerId/san-gong-fu/tribute', async (req, res, next) => {
   try {
     const { playerId } = req.params;
     const out = await sanGongTributeService.submitTroopTribute(playerId, req.body?.instanceIds);
@@ -650,12 +609,11 @@ router.post('/:playerId/san-gong-fu/tribute', async (req, res) => {
     }
     res.json({ success: true, data: out });
   } catch (error) {
-    console.error('[Players] 朝贡失败:', error);
-    res.status(500).json({ success: false, error: '朝贡失败', message: error.message });
+    return next(wrap500(error, '朝贡失败'));
   }
 });
 
-router.get('/:playerId/profile', async (req, res) => {
+router.get('/:playerId/profile', async (req, res, next) => {
   try {
     const result = await playerProfileService.getPlayerProfile(req.params.playerId);
     if (result.notFound) {
@@ -663,8 +621,7 @@ router.get('/:playerId/profile', async (req, res) => {
     }
     res.json({ success: true, data: result.data });
   } catch (error) {
-    console.error('[Players] 获取玩家档案失败:', error);
-    res.status(500).json({ success: false, error: '获取玩家档案失败', message: error.message });
+    return next(wrap500(error, '获取玩家档案失败'));
   }
 });
 
@@ -675,14 +632,13 @@ router.get('/:playerId/profile', async (req, res) => {
  * 装备卡牌到指定槽位
  * body: { instanceId, equippedBy, equippedSlot }
  */
-router.post('/:playerId/cards/equip', async (req, res) => {
+router.post('/:playerId/cards/equip', async (req, res, next) => {
   try {
     const result = await playerCardLineupService.equipCard(req.params.playerId, req.body);
     if (!result.ok) return res.status(result.status).json({ success: false, error: result.error });
     res.json({ success: true });
   } catch (error) {
-    console.error('[Players] 装备卡牌失败:', error);
-    res.status(500).json({ success: false, error: '装备卡牌失败', message: error.message });
+    return next(wrap500(error, '装备卡牌失败'));
   }
 });
 
@@ -691,14 +647,13 @@ router.post('/:playerId/cards/equip', async (req, res) => {
  * 卸下卡牌
  * body: { instanceId }
  */
-router.post('/:playerId/cards/unequip', async (req, res) => {
+router.post('/:playerId/cards/unequip', async (req, res, next) => {
   try {
     const result = await playerCardLineupService.unequipCard(req.params.playerId, req.body);
     if (!result.ok) return res.status(result.status).json({ success: false, error: result.error });
     res.json({ success: true });
   } catch (error) {
-    console.error('[Players] 卸下卡牌失败:', error);
-    res.status(500).json({ success: false, error: '卸下卡牌失败', message: error.message });
+    return next(wrap500(error, '卸下卡牌失败'));
   }
 });
 
@@ -729,14 +684,13 @@ function equipmentSetHttpFromError(err) {
  * GET /api/players/:playerId/equipment-set/draft
  * 获取或创建当前唯一草稿装备卡
  */
-router.get('/:playerId/equipment-set/draft', async (req, res) => {
+router.get('/:playerId/equipment-set/draft', async (req, res, next) => {
   try {
     const row  = await equipmentSetService.getOrCreateDraftSet(req.params.playerId);
     const data = equipmentSetService.parseSetData(row.equipment_set_data);
     res.json({ success: true, data: { instance_id: row.instance_id, equipment_set_data: data } });
   } catch (error) {
-    console.error('[Players] equipment-set draft:', error);
-    res.status(500).json({ success: false, error: '获取草稿套装失败', message: error.message });
+    return next(wrap500(error, '获取草稿套装失败'));
   }
 });
 
@@ -744,7 +698,7 @@ router.get('/:playerId/equipment-set/draft', async (req, res) => {
  * GET /api/players/:playerId/equipment-set/:setInstanceId
  * 单条套装（用于编辑已命名装备卡）
  */
-router.get('/:playerId/equipment-set/:setInstanceId', async (req, res) => {
+router.get('/:playerId/equipment-set/:setInstanceId', async (req, res, next) => {
   try {
     const { playerId, setInstanceId } = req.params;
     const row  = await equipmentSetService.getEquipmentSetById(playerId, setInstanceId);
@@ -753,8 +707,7 @@ router.get('/:playerId/equipment-set/:setInstanceId', async (req, res) => {
   } catch (error) {
     const mapped = equipmentSetHttpFromError(error);
     if (mapped) return res.status(mapped.status).json(mapped.body);
-    console.error('[Players] equipment-set get:', error);
-    res.status(500).json({ success: false, error: '读取套装失败', message: error.message });
+    return next(wrap500(error, '读取套装失败'));
   }
 });
 
@@ -762,7 +715,7 @@ router.get('/:playerId/equipment-set/:setInstanceId', async (req, res) => {
  * POST /api/players/:playerId/equipment-set/rename
  * body: { setInstanceId, displayName }
  */
-router.post('/:playerId/equipment-set/rename', async (req, res) => {
+router.post('/:playerId/equipment-set/rename', async (req, res, next) => {
   try {
     const { setInstanceId, displayName } = req.body || {};
     if (!setInstanceId) return res.status(400).json({ success: false, error: '缺少 setInstanceId' });
@@ -771,8 +724,7 @@ router.post('/:playerId/equipment-set/rename', async (req, res) => {
   } catch (error) {
     const mapped = equipmentSetHttpFromError(error);
     if (mapped) return res.status(mapped.status).json(mapped.body);
-    console.error('[Players] equipment-set rename:', error);
-    res.status(500).json({ success: false, error: '重命名失败', message: error.message });
+    return next(wrap500(error, '重命名失败'));
   }
 });
 
@@ -780,7 +732,7 @@ router.post('/:playerId/equipment-set/rename', async (req, res) => {
  * POST /api/players/:playerId/equipment-set/slot
  * body: { setInstanceId, slot, equipmentInstanceId|null }
  */
-router.post('/:playerId/equipment-set/slot', async (req, res) => {
+router.post('/:playerId/equipment-set/slot', async (req, res, next) => {
   try {
     const { setInstanceId, slot, equipmentInstanceId } = req.body || {};
     if (!setInstanceId || !slot) {
@@ -793,8 +745,7 @@ router.post('/:playerId/equipment-set/slot', async (req, res) => {
   } catch (error) {
     const mapped = equipmentSetHttpFromError(error);
     if (mapped) return res.status(mapped.status).json(mapped.body);
-    console.error('[Players] equipment-set slot:', error);
-    res.status(500).json({ success: false, error: '更新套装槽位失败', message: error.message });
+    return next(wrap500(error, '更新套装槽位失败'));
   }
 });
 
@@ -802,7 +753,7 @@ router.post('/:playerId/equipment-set/slot', async (req, res) => {
  * POST /api/players/:playerId/equipment-set/finalize
  * body: { setInstanceId, displayName }
  */
-router.post('/:playerId/equipment-set/finalize', async (req, res) => {
+router.post('/:playerId/equipment-set/finalize', async (req, res, next) => {
   try {
     const { setInstanceId, displayName } = req.body || {};
     if (!setInstanceId) return res.status(400).json({ success: false, error: '缺少 setInstanceId' });
@@ -811,8 +762,7 @@ router.post('/:playerId/equipment-set/finalize', async (req, res) => {
   } catch (error) {
     const mapped = equipmentSetHttpFromError(error);
     if (mapped) return res.status(mapped.status).json(mapped.body);
-    console.error('[Players] equipment-set finalize:', error);
-    res.status(500).json({ success: false, error: '命名套装失败', message: error.message });
+    return next(wrap500(error, '命名套装失败'));
   }
 });
 
@@ -822,14 +772,13 @@ router.post('/:playerId/equipment-set/finalize', async (req, res) => {
  * POST /api/players/:playerId/rewards
  * 执行奖励发放（后端重新计算 multiplier，不信任前端传值）
  */
-router.post('/:playerId/rewards', async (req, res) => {
+router.post('/:playerId/rewards', async (req, res, next) => {
   try {
     const out = await playerEventRewardsService.executeEventRewards(req.params.playerId, req.body);
     if (!out.ok) return res.status(out.status).json(out.json);
     res.json({ success: true, data: out.data });
   } catch (error) {
-    console.error('[Players] 执行奖励失败:', error);
-    res.status(500).json({ success: false, error: '执行奖励失败', message: error.message });
+    return next(wrap500(error, '执行奖励失败'));
   }
 });
 
@@ -837,13 +786,12 @@ router.post('/:playerId/rewards', async (req, res) => {
  * GET /api/players/:playerId/events/explore
  * 获取玩家探索事件进度（含每日重置检查）
  */
-router.get('/:playerId/events/explore', async (req, res) => {
+router.get('/:playerId/events/explore', async (req, res, next) => {
   try {
     const result = await playerExploreEventService.getExploreEvents(req.params.playerId);
     res.json({ success: true, data: result });
   } catch (error) {
-    console.error('[Players] 获取探索事件进度失败:', error);
-    res.status(500).json({ success: false, error: '获取探索事件进度失败' });
+    return next(wrap500(error, '获取探索事件进度失败'));
   }
 });
 
@@ -851,7 +799,7 @@ router.get('/:playerId/events/explore', async (req, res) => {
  * PATCH /api/players/:playerId/events/explore/session-lock
  * body: { sessionLock: object | null } — 探索/教程链进行中会话（跨设备）；清空传 null
  */
-router.patch('/:playerId/events/explore/session-lock', async (req, res) => {
+router.patch('/:playerId/events/explore/session-lock', async (req, res, next) => {
   try {
     if (!Object.prototype.hasOwnProperty.call(req.body || {}, 'sessionLock')) {
       return res.status(400).json({ success: false, error: '缺少 sessionLock 字段（清空锁请传 null）' });
@@ -863,8 +811,7 @@ router.patch('/:playerId/events/explore/session-lock', async (req, res) => {
     await playerExploreEventService.setExploreSessionLock(req.params.playerId, sessionLock);
     res.json({ success: true });
   } catch (error) {
-    console.error('[Players] 更新探索会话锁失败:', error);
-    res.status(500).json({ success: false, error: '更新探索会话锁失败', message: error.message });
+    return next(wrap500(error, '更新探索会话锁失败'));
   }
 });
 
@@ -873,7 +820,7 @@ router.patch('/:playerId/events/explore/session-lock', async (req, res) => {
  * 记录事件进度
  * body: { eventId, eventType, status?, data? }
  */
-router.post('/:playerId/events', async (req, res) => {
+router.post('/:playerId/events', async (req, res, next) => {
   try {
     const { eventId, eventType, status = 'completed', data = {} } = req.body;
     if (!eventId || !eventType) {
@@ -887,8 +834,7 @@ router.post('/:playerId/events', async (req, res) => {
     }
     res.json({ success: true, data: { eventId: result.eventId, field: result.field, status: result.status } });
   } catch (error) {
-    console.error('[Players] 记录事件进度失败:', error);
-    res.status(500).json({ success: false, error: '记录事件进度失败', message: error.message });
+    return next(wrap500(error, '记录事件进度失败'));
   }
 });
 
@@ -898,14 +844,13 @@ router.post('/:playerId/events', async (req, res) => {
  * GET /api/players/:playerId/items
  * 获取玩家道具列表
  */
-router.get('/:playerId/items', async (req, res) => {
+router.get('/:playerId/items', async (req, res, next) => {
   try {
     const result = await playerItemsService.listItems(req.params.playerId);
     if (result.notFound) return res.status(404).json({ success: false, error: '玩家不存在' });
     res.json({ success: true, data: { items: result.items } });
   } catch (error) {
-    console.error('[Players] 获取道具失败:', error);
-    res.status(500).json({ success: false, error: '获取道具失败', message: error.message });
+    return next(wrap500(error, '获取道具失败'));
   }
 });
 
@@ -914,15 +859,14 @@ router.get('/:playerId/items', async (req, res) => {
  * 添加道具（事件奖励发放）
  * body: { itemId, quantity? }
  */
-router.post('/:playerId/items', async (req, res) => {
+router.post('/:playerId/items', async (req, res, next) => {
   try {
     const { itemId, quantity = 1 } = req.body;
     const result = await playerItemsService.addItem(req.params.playerId, itemId, quantity);
     if (!result.ok) return res.status(result.status).json({ success: false, error: result.error });
     res.json({ success: true, data: { itemId: result.itemId, quantity: result.quantity } });
   } catch (error) {
-    console.error('[Players] 添加道具失败:', error);
-    res.status(500).json({ success: false, error: '添加道具失败', message: error.message });
+    return next(wrap500(error, '添加道具失败'));
   }
 });
 
@@ -931,15 +875,14 @@ router.post('/:playerId/items', async (req, res) => {
  * 消耗道具（事件链 required_items 扣除）
  * body: { itemId, quantity? }
  */
-router.delete('/:playerId/items', async (req, res) => {
+router.delete('/:playerId/items', async (req, res, next) => {
   try {
     const { itemId, quantity = 1 } = req.body;
     const result = await playerItemsService.consumeItem(req.params.playerId, itemId, quantity);
     if (!result.ok) return res.status(result.status).json({ success: false, error: result.error });
     res.json({ success: true, data: { itemId: result.itemId, remaining: result.remaining } });
   } catch (error) {
-    console.error('[Players] 消耗道具失败:', error);
-    res.status(500).json({ success: false, error: '消耗道具失败', message: error.message });
+    return next(wrap500(error, '消耗道具失败'));
   }
 });
 
@@ -950,7 +893,7 @@ router.delete('/:playerId/items', async (req, res) => {
  * `banditPoiId`：匪寨地图对象 ID（04-1 §15），与 `targetPoiId` 同族。
  * `data.worldDurability`：null 或 { maxLayers, clearedLayers, layersRemaining }（与 `bandits` 列语义一致）。`data.junId`：该匪寨所属郡（攻打次数按郡共用）。
  */
-router.get('/:playerId/bandit-raid-quota', async (req, res) => {
+router.get('/:playerId/bandit-raid-quota', async (req, res, next) => {
   try {
     const banditPoiId = req.query.banditPoiId;
     if (!banditPoiId || String(banditPoiId).trim() === '') {
@@ -960,8 +903,7 @@ router.get('/:playerId/bandit-raid-quota', async (req, res) => {
     if (!result.ok) return res.status(result.status).json({ success: false, error: result.error });
     res.json({ success: true, data: result.data });
   } catch (error) {
-    console.error('[Players] 获取匪寨攻打配额失败:', error);
-    res.status(500).json({ success: false, error: '获取匪寨攻打配额失败' });
+    return next(wrap500(error, '获取匪寨攻打配额失败'));
   }
 });
 
@@ -969,7 +911,7 @@ router.get('/:playerId/bandit-raid-quota', async (req, res) => {
  * POST /api/players/:playerId/bandit-raid-quota
  * body: { banditPoiId, action: 'consume' | 'reset_tower' } — `reset_tower`：战败放弃，个人层进度回到第 1 层，不返还攻打次数。
  */
-router.post('/:playerId/bandit-raid-quota', async (req, res) => {
+router.post('/:playerId/bandit-raid-quota', async (req, res, next) => {
   try {
     const { banditPoiId, action } = req.body || {};
     const result = await playerBanditRaidQuotaService.applyRaidQuotaAction(
@@ -980,8 +922,7 @@ router.post('/:playerId/bandit-raid-quota', async (req, res) => {
     if (!result.ok) return res.status(result.status).json({ success: false, error: result.error });
     res.json({ success: true, data: result.data });
   } catch (error) {
-    console.error('[Players] 更新匪寨攻打配额失败:', error);
-    res.status(500).json({ success: false, error: '更新匪寨攻打配额失败' });
+    return next(wrap500(error, '更新匪寨攻打配额失败'));
   }
 });
 
@@ -991,7 +932,7 @@ router.post('/:playerId/bandit-raid-quota', async (req, res) => {
  * GET /api/players/:playerId/explore-quota
  * 获取探索配额（服务端计算恢复，防跨浏览器重复恢复）
  */
-router.get('/:playerId/explore-quota', async (req, res) => {
+router.get('/:playerId/explore-quota', async (req, res, next) => {
   try {
     const data = await playerExploreQuotaService.getExploreQuotaState(req.params.playerId);
     res.json({
@@ -1004,8 +945,7 @@ router.get('/:playerId/explore-quota', async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('[Players] 获取探索配额失败:', error);
-    res.status(500).json({ success: false, error: '获取探索配额失败' });
+    return next(wrap500(error, '获取探索配额失败'));
   }
 });
 
@@ -1014,7 +954,7 @@ router.get('/:playerId/explore-quota', async (req, res) => {
  * 更新探索配额（消耗/退还/填满）
  * body: { action: 'consume' | 'refund' | 'fillMax' }
  */
-router.post('/:playerId/explore-quota', async (req, res) => {
+router.post('/:playerId/explore-quota', async (req, res, next) => {
   try {
     const { action } = req.body;
     if (!['consume', 'refund', 'fillMax'].includes(action)) {
@@ -1024,8 +964,7 @@ router.post('/:playerId/explore-quota', async (req, res) => {
     if (!result.ok) return res.status(400).json({ success: false, error: result.error });
     res.json({ success: true, data: result.data });
   } catch (error) {
-    console.error('[Players] 更新探索配额失败:', error);
-    res.status(500).json({ success: false, error: '更新探索配额失败' });
+    return next(wrap500(error, '更新探索配额失败'));
   }
 });
 
@@ -1035,14 +974,13 @@ router.post('/:playerId/explore-quota', async (req, res) => {
  * GET /api/players/:playerId/reroll-status
  * 获取属性随机状态
  */
-router.get('/:playerId/reroll-status', async (req, res) => {
+router.get('/:playerId/reroll-status', async (req, res, next) => {
   try {
     const result = await playerRerollService.getRerollStatus(req.params.playerId);
     if (result.notFound) return res.status(404).json({ success: false, error: '玩家不存在' });
     res.json({ success: true, data: result.data });
   } catch (error) {
-    console.error('[Players] 获取属性随机状态失败:', error);
-    res.status(500).json({ success: false, error: '获取属性随机状态失败', message: error.message });
+    return next(wrap500(error, '获取属性随机状态失败'));
   }
 });
 
@@ -1050,15 +988,14 @@ router.get('/:playerId/reroll-status', async (req, res) => {
  * POST /api/players/:playerId/reroll-attributes
  * 执行属性随机（扣银两、生成3方案、记录批次）
  */
-router.post('/:playerId/reroll-attributes', async (req, res) => {
+router.post('/:playerId/reroll-attributes', async (req, res, next) => {
   try {
     const result = await playerRerollService.rerollAttributes(req.params.playerId);
     if (result.notFound)   return res.status(404).json({ success: false, error: '玩家不存在' });
     if (result.badRequest) return res.status(400).json({ success: false, error: result.badRequest });
     res.json({ success: true, data: result.data });
   } catch (error) {
-    console.error('[Players] 属性随机失败:', error);
-    res.status(500).json({ success: false, error: '属性随机失败', message: error.message });
+    return next(wrap500(error, '属性随机失败'));
   }
 });
 
@@ -1066,7 +1003,7 @@ router.post('/:playerId/reroll-attributes', async (req, res) => {
  * POST /api/players/:playerId/reroll-confirm
  * 确认选择属性方案（更新7属性+技能）
  */
-router.post('/:playerId/reroll-confirm', async (req, res) => {
+router.post('/:playerId/reroll-confirm', async (req, res, next) => {
   try {
     const { batch, index } = req.body;
     const result = await playerRerollService.rerollConfirm(req.params.playerId, batch, index);
@@ -1074,8 +1011,7 @@ router.post('/:playerId/reroll-confirm', async (req, res) => {
     if (result.badRequest) return res.status(400).json({ success: false, error: result.badRequest });
     res.json({ success: true, data: result.data });
   } catch (error) {
-    console.error('[Players] 确认属性方案失败:', error);
-    res.status(500).json({ success: false, error: '确认属性方案失败', message: error.message });
+    return next(wrap500(error, '确认属性方案失败'));
   }
 });
 
@@ -1085,7 +1021,7 @@ router.post('/:playerId/reroll-confirm', async (req, res) => {
  * GET /api/players/:playerId
  * 获取玩家信息
  */
-router.get('/:playerId', async (req, res) => {
+router.get('/:playerId', async (req, res, next) => {
   try {
     const { playerId } = req.params;
     const player = await Player.getById(playerId);
@@ -1094,8 +1030,7 @@ router.get('/:playerId', async (req, res) => {
     }
     res.json({ success: true, data: player });
   } catch (error) {
-    console.error('[Players] 获取玩家信息失败:', error);
-    res.status(500).json({ success: false, error: '获取玩家信息失败', message: error.message });
+    return next(wrap500(error, '获取玩家信息失败'));
   }
 });
 

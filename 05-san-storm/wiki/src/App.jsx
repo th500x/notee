@@ -1,4 +1,5 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import ErrorBoundary from '@shared/components/common/ErrorBoundary';
 import HomePage from '@/pages/HomePage';
 import CharactersPage from '@/pages/CharactersPage';
 import PositionsPage from '@/pages/PositionsPage';
@@ -31,16 +32,18 @@ function App() {
           </div>
         </header>
         <main className="max-w-7xl mx-auto px-4 py-8">
-          <Routes>
-            <Route path="/" element={<HomePage />} />
-            <Route path="/san_1" element={<San1Page />} />
-            <Route path="/factions" element={<FactionsPage />} />
-            <Route path="/positions" element={<PositionsPage />} />
-            <Route path="/characters" element={<CharactersPage />} />
-            <Route path="/troops" element={<TroopsPage />} />
-            <Route path="/equipment" element={<EquipmentPage />} />
-            <Route path="/titles-achievements" element={<TitlesAchievementsPage />} />
-          </Routes>
+          <ErrorBoundary>
+            <Routes>
+              <Route path="/" element={<HomePage />} />
+              <Route path="/san_1" element={<San1Page />} />
+              <Route path="/factions" element={<FactionsPage />} />
+              <Route path="/positions" element={<PositionsPage />} />
+              <Route path="/characters" element={<CharactersPage />} />
+              <Route path="/troops" element={<TroopsPage />} />
+              <Route path="/equipment" element={<EquipmentPage />} />
+              <Route path="/titles-achievements" element={<TitlesAchievementsPage />} />
+            </Routes>
+          </ErrorBoundary>
         </main>
         <footer className="bg-white border-t border-gray-200 mt-12">
           <div className="max-w-7xl mx-auto px-4 py-6">

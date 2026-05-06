@@ -8,34 +8,9 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import {
-  gameIntroMessages,
-  gameIntroContentParagraphClass,
-} from '@/data/texts/gameIntroMessages';
-import { ILLUS_BG_FILES as BG_IMAGES, ILLUS_BG_DIR as BG_DIR } from '@/data/illusBgFiles';
-const BG_CACHE_KEY = 'game_intro_bg';
-const BG_CACHE_DAYS = 7;
-
-/** 获取随机背景图（缓存7天） */
-function getRandomBg() {
-  try {
-    const cached = localStorage.getItem(BG_CACHE_KEY);
-    if (cached) {
-      const { file, expires } = JSON.parse(cached);
-      if (Date.now() < expires && BG_IMAGES.includes(file)) {
-        return BG_DIR + file;
-      }
-    }
-  } catch {}
-  const file = BG_IMAGES[Math.floor(Math.random() * BG_IMAGES.length)];
-  try {
-    localStorage.setItem(BG_CACHE_KEY, JSON.stringify({
-      file,
-      expires: Date.now() + BG_CACHE_DAYS * 86400000
-    }));
-  } catch {}
-  return BG_DIR + file;
-}
+import { gameIntroMessages } from '@/data/texts/gameIntroMessages';
+import { ParchmentMessageCard } from '@/components/tutorial/ParchmentMessageCard';
+import { getRandomGameIntroBackgroundUrl } from '@/utils/gameIntroBackground';
 
 // 卡片固定尺寸（与将领卡/部队卡一致）
 const CARD_W = 256;
@@ -75,49 +50,13 @@ const IntroCard = ({ message, isVisible, quadrant }) => {
         ${isVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'}`}
       style={{ width: CARD_W, height: CARD_H, ...posStyle }}
     >
-      {/* 外框（木纹质感） */}
-      <div className="w-full h-full rounded-lg border-2 border-amber-700/60 shadow-2xl overflow-hidden"
-        style={{
-          background: 'linear-gradient(135deg, #3a2a1a 0%, #4a3828 50%, #3a2a1a 100%)',
-        }}
-      >
-        {/* 内层纸张 */}
-        <div className="m-1.5 h-[calc(100%-12px)] rounded overflow-hidden flex flex-col"
-          style={{
-            background: 'linear-gradient(180deg, #f5edd6 0%, #efe4c8 30%, #f0e6cc 100%)',
-          }}
-        >
-          {/* 标题栏 */}
-          <div className="px-4 py-2.5 bg-gradient-to-r from-amber-800 via-amber-700 to-amber-800 flex-shrink-0">
-            <div className="flex items-center gap-2 text-amber-100">
-              {message.icon && <span className="text-lg">{message.icon}</span>}
-              <span className="text-sm font-bold tracking-wider">{message.title}</span>
-            </div>
-          </div>
-          <div className="h-0.5 bg-gradient-to-r from-transparent via-amber-700/30 to-transparent flex-shrink-0" />
-
-          {/* 内容（可滚动，段落间用分隔线） */}
-          <div className="flex-1 px-3 py-3 overflow-y-auto">
-            {message.content.split('\n').map((paragraph, i, arr) => (
-              <div key={i}>
-                <p className={gameIntroContentParagraphClass}>{paragraph}</p>
-                {i < arr.length - 1 && (
-                  <div className="flex items-center gap-2 my-2">
-                    <div className="flex-1 h-px bg-gradient-to-r from-transparent via-amber-600/40 to-transparent" />
-                    <div className="w-1 h-1 rotate-45 bg-amber-600/60" />
-                    <div className="flex-1 h-px bg-gradient-to-r from-transparent via-amber-600/40 to-transparent" />
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-
-          {/* 底部提示 */}
-          <div className="px-4 py-2 text-center flex-shrink-0">
-            <span className="text-xs text-amber-700/60 animate-pulse">点击继续 ▸</span>
-          </div>
-        </div>
-      </div>
+      <ParchmentMessageCard
+        className="w-full h-full"
+        icon={message.icon}
+        title={message.title}
+        content={message.content}
+        footer={<span className="text-xs text-amber-700/60 animate-pulse">点击继续 ▸</span>}
+      />
     </div>
   );
 };
@@ -144,7 +83,7 @@ const GameIntroOverlay = ({ onComplete }) => {
   const [groupIndex, setGroupIndex] = useState(0);
   const [isVisible, setIsVisible] = useState(false);
   const [isExiting, setIsExiting] = useState(false);
-  const [bgPath] = useState(() => getRandomBg());
+  const [bgPath] = useState(() => getRandomGameIntroBackgroundUrl());
 
   // 响应式：竖屏时缩小卡片
   const [isPortrait, setIsPortrait] = useState(() => window.innerWidth < 768);

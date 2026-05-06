@@ -1,6 +1,11 @@
 /**
  * 战斗地图 UI 常量（格网尺寸与分区来自共享战术格网定义）
  */
+import { getTacticalActiveSkillCastRange } from '@shared/utils/tacticalSkillCastRange';
+import {
+  getEffectiveCritRateFromCharacter,
+  getEffectiveDodgeRateFromCharacter,
+} from '@/systems/combatSystem';
 
 export {
   TACTICAL_GRID_WIDTH as MAP_W,
@@ -148,15 +153,51 @@ export const RARITY_LABEL = { common: '普通', rare: '稀有', epic: '史诗', 
 export const FACTION_COLOR = { player: '#5ab0ff', ally: '#4ade80', enemy: '#ff7060' };
 
 /**
+ * 阶段4/5 伤害技：`target_range` 在棋盘上展开的作用格数/语义（与「锚点可达曼哈顿格数」无关）。
+ * 与 `shared/utils/skillPhase4ActiveDamage.js` 中 `cellsForPhase4TargetPattern` / `pickPhase4LineCellsForAnchor` 一致。
+ */
+export function buildSkillShapeRangeDescription(slot) {
+  const tr = String(slot?.targetRange || '').toLowerCase();
+  if (tr === 'line') {
+    return '作用形状：直线共 3 格（锚点居中，向两侧各 1 格；横/竖取命中敌军较多的一侧）';
+  }
+  if (tr === 'cross') {
+    return '作用形状：十字至多 5 格（锚点 + 四正交相邻）';
+  }
+  if (tr === 'square') {
+    return '作用形状：2×2 田字共 4 格（锚点为左上）';
+  }
+  if (tr === 'single') {
+    return '作用形状：单体 1 格（仅锚点格）';
+  }
+  if (tr === 'random') {
+    return '作用形状：随机多目标（目标均在「锚点可达距离」曼哈顿池内抽取）';
+  }
+  return `作用形状代码：${slot?.targetRange || '—'}`;
+}
+
+/** 手动伤害技预览：锚点射程（技能 ID）+ 作用形状说明（勿与直线 3 格混淆） */
+export function buildSkillDamagePreviewMetaLines(slot) {
+  if (!slot) return [];
+  const castCells = getTacticalActiveSkillCastRange(slot.skillId);
+  return [
+    `技能：${slot.name || '—'}`,
+    `锚点可达距离（曼哈顿）：${castCells} 格（施法者→可选锚点敌军格；由技能 ID 稀有度千位决定，与后端一致）`,
+    buildSkillShapeRangeDescription(slot),
+  ];
+}
+
+/**
  * 战术图名条上「士气」数字的 inline 色（仅普通单位）。
  * boss / hero / 主公槽由 `.is-commander-boss` 等 CSS 18K 金覆盖，不用此函数。
- * 规则：≤20 红，≥80 绿，其余（20～80 之间）白。
+ * 整数点档位：＜40 红，40～59 琥珀，60～79 白，≥80 绿。
  */
 export function moraleInlineColorForTroopBar(morale) {
   const m = Number(morale ?? 0);
-  if (m <= 20) return '#F44336';
-  if (m >= 80) return '#4CAF50';
-  return '#FFFFFF';
+  if (m < 40) return '#F44336';
+  if (m < 60) return '#FFC107';
+  if (m < 80) return '#FFFFFF';
+  return '#4CAF50';
 }
 
 /**
@@ -176,11 +217,110 @@ export function buildTroopTooltipContent(troop) {
   const charLine = charDisplay ? `将领: ${charDisplay}` : null;
   const critDodge = ch
     ? {
-        crit: (((Number(ch.courage) || 0) + (Number(ch.luck) || 0)) / 80 * 100).toFixed(1),
-        dodge: (Number(ch.luck) || 0).toFixed(1),
+        crit: (getEffectiveCritRateFromCharacter(ch) * 100).toFixed(1),
+        dodge: (getEffectiveDodgeRateFromCharacter(ch) * 100).toFixed(1),
       }
     : null;
   return { type: 'troop', troop, fc, hpPct, rarityName, typeName, charLine, critDodge, isEnemy: troop.faction === 'enemy' };
+}
+
+/**
+ * 手动行动阶段：主动技预览（**治疗**）浮层内容，
+ * 与 `TileTooltipContent` 中部队块同源（`.tt-name` + `.tt-attrs`），由 `AttackPreview` 对治疗路径挂 body portal 复用。
+ * 形状/随机**伤害**预览已改用 `ManualAttackPreviewPanel` 与普攻同位，不再经本函数 `kind: 'shape'` / `randomStrike` 分支（保留供旧调用或调试）。
+ *
+ * @param {{
+ *   kind: 'shape',
+ *   slot: object,
+ *   victimLines: string[],
+ *   casterTroop: object|null,
+ *   footerHint?: string,
+ * } | {
+ *   kind: 'heal',
+ *   slot: object,
+ *   selfGain: number,
+ *   allyGain: number,
+ *   casterTroop?: object|null,
+ *   phase5HealDamage?: boolean,
+ *   footerHint?: string,
+ * } | {
+ *   kind: 'randomStrike',
+ *   slot: object,
+ *   estimate: { damage: number, hitRate: number, critRate: number },
+ *   footerHint?: string,
+ * }} payload
+ */
+export function buildManualActiveSkillPreviewTooltipContent(payload) {
+  const footer =
+    payload.footerHint ??
+    (payload.kind === 'heal' && payload.phase5HealDamage
+      ? '再次点击确认：先回复再追击敌军'
+      : payload.kind === 'heal'
+        ? '再次点击确认施放'
+        : payload.kind === 'randomStrike'
+          ? '再次点击确认（目标随机抽取）'
+          : '再次点击锚点格确认施放');
+
+  if (payload.kind === 'shape') {
+    const isStrategy = String(payload.slot?.damageType || '').toLowerCase() === 'strategy';
+    const casterName =
+      payload.casterTroop?.displayName ||
+      payload.casterTroop?.name ||
+      '我军';
+    const skillName = payload.slot?.name || '主动技';
+    const lines = payload.victimLines?.length ? payload.victimLines.join('\n') : '';
+    const attrs = [lines, `施放者: ${casterName}`, footer].filter(Boolean).join('\n\n');
+    return {
+      type: 'manualSkill',
+      title: `${skillName}（范围）`,
+      titleColor: isStrategy ? '#7dd3fc' : '#e2e8f0',
+      attrs,
+    };
+  }
+
+  if (payload.kind === 'heal') {
+    const parts = [];
+    if (payload.selfGain > 0) parts.push(`自军 +${payload.selfGain}`);
+    if (payload.allyGain > 0) parts.push(`目标 +${payload.allyGain}`);
+    const casterName =
+      payload.casterTroop?.displayName ||
+      payload.casterTroop?.character?.courtesyName ||
+      payload.casterTroop?.name ||
+      '';
+    const head = casterName ? `施放者: ${casterName}\n\n` : '';
+    const attrs = `${head}${parts.join('  ·  ')}\n\n${footer}`;
+    return {
+      type: 'manualSkill',
+      title: `💚 ${payload.slot?.name || '治疗'}`,
+      titleColor: '#7fefa8',
+      attrs,
+    };
+  }
+
+  if (payload.kind === 'randomStrike') {
+    const isStrategy = String(payload.slot?.damageType || '').toLowerCase() === 'strategy';
+    const est = payload.estimate;
+    const casterName =
+      payload.casterTroop?.displayName ||
+      payload.casterTroop?.character?.courtesyName ||
+      payload.casterTroop?.name ||
+      '';
+    const lines = [];
+    if (casterName) lines.push(`施放者: ${casterName}`);
+    lines.push('参考目标（其一）预估');
+    lines.push(`伤害 ~${est.damage}`);
+    lines.push(`命中 ${(est.hitRate * 100).toFixed(1)}% · 暴击 ${(est.critRate * 100).toFixed(1)}%`);
+    lines.push(footer);
+    const attrs = lines.join('\n');
+    return {
+      type: 'manualSkill',
+      title: `⚡ ${payload.slot?.name || '技能'}（随机多目标）`,
+      titleColor: isStrategy ? '#7dd3fc' : '#e2e8f0',
+      attrs,
+    };
+  }
+
+  return null;
 }
 
 /**
@@ -188,7 +328,11 @@ export function buildTroopTooltipContent(troop) {
  * 部队 tooltip 一律在指针**上方**展开，避免敌方原先「向下」偏移在靠近视口底边时裁切射程等末行。
  */
 export function tooltipTransformForContent(content) {
-  if (content?.type === 'troop') {
+  if (
+    content?.type === 'troop' ||
+    content?.type === 'manualSkill' ||
+    content?.type === 'attackPreviewPortal'
+  ) {
     return 'translate(-50%, calc(-100% - 10px))';
   }
   if (content?.isEnemy) {

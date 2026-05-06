@@ -29,6 +29,10 @@ import {
   useBattleAnimations,
 } from '@/battle/useBattleAnimations';
 import { trimSkipForTroop } from '@/battle/battleLogPolicy';
+import { tryDecidePhase3AiHeal } from '@/battle/phase3HealAi';
+import { tryDecidePhase4AiDamage } from '@/battle/phase4DamageAi';
+import { tryDecidePhase5AiComposite } from '@/battle/phase5CompositeAi';
+import { isMoraleCollapsed } from '@/systems/combatSystem';
 
 export { setBattleAnimationSkipDelays };
 
@@ -122,9 +126,12 @@ export function useBattleEngine({
     battleAttack, battleCrit, battleMiss,
     battleKill, runBattleKill,
     applyEndOfRoundFire,
-    battleRanged, battleSkill,
+    battleRanged, performSkillDemoStrike,
     checkTrap, battleMove,
     performAttack, performCounterAttack,
+    performPhase3Heal,
+    performPhase4Damage,
+    performPhase5Composite,
   } = useBattleAnimations({
     battleSurfaceRef, mapCardRef, mapResult, addLog, speedRef, battleTroops, trimAllyBattleLog,
   });
@@ -574,6 +581,12 @@ export function useBattleEngine({
       if (!trimSkipForTroop(trimAllyBattleLog, troop)) addLog(fmt.fmtTurnStart(troop), 'round');
       await sleep(200, speedRef.current);
 
+      if (isMoraleCollapsed(troop)) {
+        if (!trimSkipForTroop(trimAllyBattleLog, troop)) addLog(fmt.fmtMoraleCollapseSkip(troop), 'move');
+        await sleep(200, speedRef.current);
+        continue;
+      }
+
       // ── 手动模式：仅 faction:'player' 我军暂停；faction:'ally' 友军 NPC 走下方 AI
       if (!autoBattleRef.current && manualBattleRef?.current && troop.faction === 'player') {
         await manualBattleRef.current.startManualTurn(troop);
@@ -596,6 +609,52 @@ export function useBattleEngine({
           return notifyCampaignCommanderEnd(campMove);
         }
         if (troop.currentTroops <= 0) continue;
+      }
+
+      const healChoice = tryDecidePhase3AiHeal(troop, battleTroops);
+      if (healChoice) {
+        await performPhase3Heal(troop, healChoice.target, healChoice.slot);
+        if (shouldChest && troop.currentTroops > 0) {
+          await checkChestAuto(troop);
+        }
+        await sleep(200, speedRef.current);
+        continue;
+      }
+
+      const p4Choice = tryDecidePhase4AiDamage(troop, battleTroops, mapResult);
+      if (p4Choice) {
+        await performPhase4Damage(troop, p4Choice.slot, p4Choice.victims);
+        for (const v of p4Choice.victims) {
+          if (v && v.currentTroops <= 0) {
+            const c = await runBattleKill(v);
+            if (c === 'player_win' || c === 'enemy_win') {
+              return notifyCampaignCommanderEnd(c);
+            }
+          }
+        }
+        if (shouldChest && troop.currentTroops > 0) {
+          await checkChestAuto(troop);
+        }
+        await sleep(200, speedRef.current);
+        continue;
+      }
+
+      const p5Choice = tryDecidePhase5AiComposite(troop, battleTroops, mapResult);
+      if (p5Choice) {
+        const killCandidates = await performPhase5Composite(troop, p5Choice.slot, p5Choice.victims);
+        for (const v of killCandidates || []) {
+          if (v && v.currentTroops <= 0) {
+            const c = await runBattleKill(v);
+            if (c === 'player_win' || c === 'enemy_win') {
+              return notifyCampaignCommanderEnd(c);
+            }
+          }
+        }
+        if (shouldChest && troop.currentTroops > 0) {
+          await checkChestAuto(troop);
+        }
+        await sleep(200, speedRef.current);
+        continue;
       }
 
       if (decision.target && decision.target.currentTroops > 0) {
@@ -642,7 +701,9 @@ export function useBattleEngine({
     return 'continue';
   }, [battleTroops, setBattleTroops, setRoundNum, autoFormation, mapResult, addLog, trimAllyBattleLog,
       applyFormationBuffs, formationGroupAction, battleMove, performAttack, runBattleKill, performCounterAttack,
-      applyEndOfRoundFire, notifyCampaignCommanderEnd, checkChestAuto]);
+      applyEndOfRoundFire, notifyCampaignCommanderEnd, checkChestAuto, performPhase3Heal, performPhase4Damage,
+      performPhase5Composite,
+    ]);
 
   // ── 播放回合 ──────────────────────────────────────────────────────────────
 
@@ -750,10 +811,20 @@ export function useBattleEngine({
   const playSkillDemo = useCallback(async () => {
     if (battlePlaying || battleTroops.length < 6) return;
     setBattlePlaying(true);
-    const names = ['破阵', '火攻', '落雷', '连弩齐射'];
-    await battleSkill(battleTroops[4], battleTroops[1], Math.floor(120 + Math.random() * 100), names[Math.floor(Math.random() * names.length)]);
+    const demos = [
+      { name: '破阵', damageType: 'physical' },
+      { name: '火攻', damageType: 'strategy' },
+      { name: '落雷', damageType: 'strategy' },
+      { name: '连弩齐射', damageType: 'physical' },
+    ];
+    const pick = demos[Math.floor(Math.random() * demos.length)];
+    await performSkillDemoStrike(battleTroops[4], battleTroops[1], {
+      skillName: pick.name,
+      damageType: pick.damageType,
+      skillDamageMultiplier: 1.1 + Math.random() * 0.25,
+    });
     setBattlePlaying(false);
-  }, [battlePlaying, battleTroops, setBattlePlaying, battleSkill]);
+  }, [battlePlaying, battleTroops, setBattlePlaying, performSkillDemoStrike]);
 
   const playRangedDemo = useCallback(async () => {
     if (battlePlaying || battleTroops.length < 6) return;
@@ -764,7 +835,7 @@ export function useBattleEngine({
 
   return {
     playBattleRound,
-    performAttack, performCounterAttack, battleKill, battleMove,
+    performAttack, performCounterAttack, performPhase3Heal, performPhase4Damage, performPhase5Composite, battleKill, battleMove,
     formationGroupMove, removeFormationBuffs,
     playAtkDemo, playCritDemo, playMissDemo, playSkillDemo, playRangedDemo,
     autoChestReward,

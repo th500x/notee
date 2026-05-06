@@ -2,22 +2,7 @@
  * 战役中心 API（config_campaigns + campaign_progress）
  */
 import { API_CONFIG } from '../constants';
-
-async function fetchWithTimeout(url, options = {}, timeout = API_CONFIG.TIMEOUT) {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeout);
-  try {
-    const response = await fetch(url, { ...options, signal: controller.signal });
-    clearTimeout(timeoutId);
-    return response;
-  } catch (error) {
-    clearTimeout(timeoutId);
-    if (error.name === 'AbortError') {
-      throw new Error('请求超时，请检查网络连接后重试');
-    }
-    throw error;
-  }
-}
+import { fetchWithTimeout } from './httpClient';
 
 const BASE = `${API_CONFIG.BASE_URL}/campaign`;
 

@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { API_CONFIG } from '@/constants';
 import { loadSharedData } from '@/services/dataService';
+import { fetchWithTimeout } from '@/services/httpClient';
 
 /**
  * 按郡拉取 `cities` 与势力名映射，供战略大地图 tooltip 按 city_id 合并运行时信息。
@@ -40,7 +41,7 @@ export function useStrategicCountyCityRuntime({ junId, junIds, season, refreshKe
         const citiesResults = await Promise.all(
           ids.map((jid) => {
             const qs = new URLSearchParams({ season, junId: jid });
-            return fetch(`${API_CONFIG.BASE_URL}/cities?${qs}`).then((r) => r.json());
+            return fetchWithTimeout(`${API_CONFIG.BASE_URL}/cities?${qs}`).then((r) => r.json());
           })
         );
         const factionsData = await loadSharedData('factions');

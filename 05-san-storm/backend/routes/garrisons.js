@@ -11,6 +11,16 @@ const router = express.Router();
 const garrisonService = require('../services/garrisonService');
 const characterRankService = require('../services/characterRankService');
 const Player = require('../models/Player');
+const { requireAuth, requireSelf } = require('../middleware/auth');
+const { wrap500 } = require('../utils/httpError');
+
+/**
+ * 鉴权（必改 #1）：本路由全部接口要求合法 JWT；URL 含 `:playerId` 的路由须 token.sub 与之匹配。
+ * 仅查城防御者 / 全局统计的接口（`/city/:cityId/defenders`、`/stats/cities` 等）也要求登录，
+ * 防止未登录爬库；这与玩法一致——任何"看城防"操作都需要在游戏内进行。
+ */
+router.use(requireAuth);
+router.param('playerId', requireSelf());
 
 // ── 静态路由（必须在动态 /:playerId 之前） ──
 
@@ -19,7 +29,7 @@ const Player = require('../models/Player');
  * 仅返回 **当前** 整编兵力 ≥ `garrisonService.MIN_GARRISON_TOTAL_TROOPS`（800）的驻地槽；
  * 与 `initiateSiege`、大地图驻地统计同一口径，勿改回仅依赖 `is_active`。
  */
-router.get('/city/:cityId/defenders', async (req, res) => {
+router.get('/city/:cityId/defenders', async (req, res, next) => {
   try {
     const { pool } = require('../database/connection');
     const [cityRows] = await pool.query('SELECT faction_id FROM cities WHERE city_id = ?', [req.params.cityId]);
@@ -27,8 +37,7 @@ router.get('/city/:cityId/defenders', async (req, res) => {
     const defenders = await garrisonService.getCityDefenders(req.params.cityId, ownerFaction);
     res.json({ success: true, defenders, count: defenders.length });
   } catch (error) {
-    console.error('[Garrisons] 获取城市防守者失败:', error);
-    res.status(500).json({ success: false, error: '获取城市防守者失败' });
+    return next(wrap500(error, '获取城市防守者失败'));
   }
 });
 
@@ -36,20 +45,19 @@ router.get('/city/:cityId/defenders', async (req, res) => {
  * GET /api/garrisons/stats/cities
  * `slot_count` 仅计当前整编兵力 ≥ 800 的槽位（与攻城、defenders 一致）。
  */
-router.get('/stats/cities', async (req, res) => {
+router.get('/stats/cities', async (req, res, next) => {
   try {
     const stats = await garrisonService.getCityGarrisonStats();
     res.json({ success: true, stats });
   } catch (error) {
-    console.error('[Garrisons] 获取驻守统计失败:', error);
-    res.status(500).json({ success: false, error: '获取驻守统计失败' });
+    return next(wrap500(error, '获取驻守统计失败'));
   }
 });
 
 /**
  * GET /api/garrisons/city/:cityId/on-duty-count
  */
-router.get('/city/:cityId/on-duty-count', async (req, res) => {
+router.get('/city/:cityId/on-duty-count', async (req, res, next) => {
   try {
     const { pool } = require('../database/connection');
     // 与驻地守军统计无关：只计「选择披挂上阵」且待战目标为本城、与城同势力的玩家
@@ -65,8 +73,7 @@ router.get('/city/:cityId/on-duty-count', async (req, res) => {
     );
     res.json({ success: true, count: rows[0]?.count || 0 });
   } catch (error) {
-    console.error('[Garrisons] 获取披挂上阵人数失败:', error);
-    res.status(500).json({ success: false, error: '获取披挂上阵人数失败' });
+    return next(wrap500(error, '获取披挂上阵人数失败'));
   }
 });
 
@@ -76,7 +83,7 @@ router.get('/city/:cityId/on-duty-count', async (req, res) => {
  * POST /api/garrisons/:playerId/on-duty
  * 注意：必须在 /:playerId/:slot 之前，否则 "on-duty" 会被当作 slot
  */
-router.post('/:playerId/on-duty', async (req, res) => {
+router.post('/:playerId/on-duty', async (req, res, next) => {
   try {
     const { onDuty, cityId } = req.body;
     const { pool } = require('../database/connection');
@@ -118,8 +125,7 @@ router.post('/:playerId/on-duty', async (req, res) => {
     await Player.updateLastActive(playerId);
     res.json({ success: true, onDuty: !!onDuty });
   } catch (error) {
-    console.error('[Garrisons] 切换披挂上阵失败:', error);
-    res.status(500).json({ success: false, error: '切换披挂上阵失败' });
+    return next(wrap500(error, '切换披挂上阵失败'));
   }
 });
 
@@ -127,7 +133,7 @@ router.post('/:playerId/on-duty', async (req, res) => {
  * GET /api/garrisons/:playerId/by-city/:cityId
  * 获取玩家在某城的驻地槽位（须在 /:playerId/:slot 之前注册，避免 by-city 被当成 slot）
  */
-router.get('/:playerId/by-city/:cityId', async (req, res) => {
+router.get('/:playerId/by-city/:cityId', async (req, res, next) => {
   try {
     const garrisons = await garrisonService.getPlayerGarrisonsForCity(
       req.params.playerId,
@@ -135,8 +141,7 @@ router.get('/:playerId/by-city/:cityId', async (req, res) => {
     );
     res.json({ success: true, garrisons });
   } catch (error) {
-    console.error('[Garrisons] 按城获取驻守配置失败:', error);
-    res.status(500).json({ success: false, error: '按城获取驻守配置失败' });
+    return next(wrap500(error, '按城获取驻守配置失败'));
   }
 });
 
@@ -144,13 +149,12 @@ router.get('/:playerId/by-city/:cityId', async (req, res) => {
  * GET /api/garrisons/:playerId
  * 获取玩家所有驻守配置
  */
-router.get('/:playerId', async (req, res) => {
+router.get('/:playerId', async (req, res, next) => {
   try {
     const garrisons = await garrisonService.getPlayerGarrisons(req.params.playerId);
     res.json({ success: true, garrisons });
   } catch (error) {
-    console.error('[Garrisons] 获取驻守配置失败:', error);
-    res.status(500).json({ success: false, error: '获取驻守配置失败' });
+    return next(wrap500(error, '获取驻守配置失败'));
   }
 });
 
@@ -158,7 +162,7 @@ router.get('/:playerId', async (req, res) => {
  * GET /api/garrisons/:playerId/:slot
  * 获取玩家某个槽位的驻守配置
  */
-router.get('/:playerId/:slot', async (req, res) => {
+router.get('/:playerId/:slot', async (req, res, next) => {
   try {
     const cityId = req.query.cityId;
     if (!cityId || String(cityId).trim() === '') {
@@ -171,8 +175,7 @@ router.get('/:playerId/:slot', async (req, res) => {
     );
     res.json({ success: true, garrison: slot });
   } catch (error) {
-    console.error('[Garrisons] 获取驻守槽位失败:', error);
-    res.status(500).json({ success: false, error: '获取驻守槽位失败' });
+    return next(wrap500(error, '获取驻守槽位失败'));
   }
 });
 
@@ -186,7 +189,7 @@ router.get('/:playerId/:slot', async (req, res) => {
  *   char2_card, char2_equipment_card, char2_title, char2_achievement, char2_treasure, char2_troop1, char2_troop2
  * }
  */
-router.post('/:playerId/:slot', async (req, res) => {
+router.post('/:playerId/:slot', async (req, res, next) => {
   try {
     const { playerId, slot } = req.params;
     const slotNumber = parseInt(slot);
@@ -203,8 +206,7 @@ router.post('/:playerId/:slot', async (req, res) => {
     characterRankService.refreshSnapshotsForPlayer(playerId).catch(() => {});
     res.json(result);
   } catch (error) {
-    console.error('[Garrisons] 保存驻守配置失败:', error);
-    res.status(500).json({ success: false, error: '保存驻守配置失败' });
+    return next(wrap500(error, '保存驻守配置失败'));
   }
 });
 
@@ -212,7 +214,7 @@ router.post('/:playerId/:slot', async (req, res) => {
  * DELETE /api/garrisons/:playerId/:slot
  * 清空驻守槽位
  */
-router.delete('/:playerId/:slot', async (req, res) => {
+router.delete('/:playerId/:slot', async (req, res, next) => {
   try {
     const { playerId } = req.params;
     const cityId = req.query.cityId;
@@ -226,8 +228,7 @@ router.delete('/:playerId/:slot', async (req, res) => {
     characterRankService.refreshSnapshotsForPlayer(playerId).catch(() => {});
     res.json(result);
   } catch (error) {
-    console.error('[Garrisons] 清空驻守槽位失败:', error);
-    res.status(500).json({ success: false, error: '清空驻守槽位失败' });
+    return next(wrap500(error, '清空驻守槽位失败'));
   }
 });
 

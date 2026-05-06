@@ -16,6 +16,7 @@ import { PHASE, FACTOR_CN } from './EventConstants';
 import { parseRewards, parseRequiredItems, isFactorOption } from './eventUtils';
 import { getOptionFactorFields } from '@shared/utils/eventOptionFactor.js';
 import { API_CONFIG, getRarityHex, getRarityLabelCn } from '@/constants';
+import { fetchWithTimeout } from '@/services/httpClient';
 import { loadSharedData } from '@/services/dataService';
 import TroopCard from '@shared/components/card/TroopCard';
 import CharacterCard from '@shared/components/card/CharacterCard';
@@ -355,7 +356,7 @@ function RewardDisplay({
       else if (cardType === 'character') { endpoint = 'characters'; dataKey = 'character'; }
       else if (cardType === 'title') { endpoint = 'titles'; dataKey = 'title'; }
       else { endpoint = 'equipment'; dataKey = 'equipment'; }
-      const res = await fetch(`${API_CONFIG.BASE_URL}/config/${endpoint}/${cardId}`);
+      const res = await fetchWithTimeout(`${API_CONFIG.BASE_URL}/config/${endpoint}/${cardId}`);
       const data = await res.json();
       if (data.success) {
         setPreviewCard({ data: data[dataKey] || data.troop || data.character || data.equipment || data.title, type: cardType });
@@ -504,25 +505,6 @@ function RewardDisplay({
               </div>
             </div>
           )}
-          {Array.isArray(battleChestRewards) && battleChestRewards.length > 0 && (
-            <>
-              <Divider />
-              <div className="text-left">
-                <div className="text-[11px] text-stone-500 mb-1.5">📦 地图内宝箱</div>
-                <div className="space-y-1">
-                  {battleChestRewards.map((r, i) => (
-                    <div
-                      key={`${r.equipmentId || 'chest'}-${i}`}
-                      className="text-sm font-medium"
-                      style={{ color: getRarityHex(r.rarity) }}
-                    >
-                      🛡️ {shortEquipmentDisplayName(r.name)}（{getRarityLabelCn(r.rarity)}）
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </>
-          )}
           <Divider />
         </>
       )}
@@ -543,6 +525,26 @@ function RewardDisplay({
           <RewardItem key={i} reward={r} onCardClick={handleCardClick} />
         ))}
       </div>
+
+      {battleResult && Array.isArray(battleChestRewards) && battleChestRewards.length > 0 && (
+        <>
+          <Divider />
+          <div className="text-left mb-3">
+            <div className="text-[11px] text-stone-500 mb-1.5">📦 地图内宝箱</div>
+            <div className="space-y-1">
+              {battleChestRewards.map((r, i) => (
+                <div
+                  key={`${r.equipmentId || 'chest'}-${i}`}
+                  className="text-sm font-medium"
+                  style={{ color: getRarityHex(r.rarity) }}
+                >
+                  🛡️ {shortEquipmentDisplayName(r.name)}（{getRarityLabelCn(r.rarity)}）
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
 
       {/* 鸿运额外奖励 */}
       {fortune?.name === '鸿运' && bonusRewards.length > 0 && (

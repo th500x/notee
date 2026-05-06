@@ -48,6 +48,8 @@ const CampaignMapGrid = forwardRef(function CampaignMapGrid(
     manualHighlightModel = null,
     manualChrome = null,
     tooltipApiRef = null,
+    /** 与 `BattleMap` 一致：存在普攻/治疗/形状伤害预览时，不显示敌军 hover 部队 tooltip，避免与预估叠层 */
+    suppressEnemyTroopTooltip = false,
     roundNum = 0,
     /** 手动战斗时显示在「第N回合」徽章右侧的提示（战役大图等） */
     manualActionHintText = null,
@@ -58,9 +60,16 @@ const CampaignMapGrid = forwardRef(function CampaignMapGrid(
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
   const { tooltipRef, tooltipStyle } = useTileTooltipClamp(tooltipContent, tooltipPos);
 
+  const suppressEnemyTroopTooltipRef = useRef(false);
+  suppressEnemyTroopTooltipRef.current = suppressEnemyTroopTooltip;
+
   if (tooltipApiRef) {
     tooltipApiRef.current = {
       showTroopTooltip(troop, clientX, clientY) {
+        if (suppressEnemyTroopTooltipRef.current && troop?.faction === 'enemy') {
+          setTooltipContent(null);
+          return;
+        }
         setTooltipContent(buildTroopTooltipContent(troop));
         setTooltipPos({ x: clientX, y: clientY });
       },
@@ -69,8 +78,8 @@ const CampaignMapGrid = forwardRef(function CampaignMapGrid(
 
   // ── Tooltip：与 BattleMap 统一的 mouseEnter 方案 ─────────────────────────
   // 用 ref 包裹使 handleHover 引用稳定，避免 320 格因 onHover 变化全量 re-render
-  const hoverDataRef = useRef({ battleTroops, cells });
-  hoverDataRef.current = { battleTroops, cells };
+  const hoverDataRef = useRef({ battleTroops, cells, suppressEnemyTroopTooltip });
+  hoverDataRef.current = { battleTroops, cells, suppressEnemyTroopTooltip };
 
   const handleHover = useCallback((e) => {
     const tile = e.currentTarget;
@@ -78,10 +87,14 @@ const CampaignMapGrid = forwardRef(function CampaignMapGrid(
     const y = Number(tile.dataset.tacticalY);
     const x = Number(tile.dataset.tacticalX);
     if (Number.isNaN(y) || Number.isNaN(x)) return;
-    const { battleTroops: bt, cells: cl } = hoverDataRef.current;
+    const { battleTroops: bt, cells: cl, suppressEnemyTroopTooltip: blockEnemyTip } = hoverDataRef.current;
     if (troopId) {
       const troop = bt.find((t) => t.id === troopId && t.currentTroops > 0);
       if (troop) {
+        if (blockEnemyTip && troop.faction === 'enemy') {
+          setTooltipContent(null);
+          return;
+        }
         setTooltipContent(buildTroopTooltipContent(troop));
         setTooltipPos({ x: e.clientX, y: e.clientY });
         return;
@@ -147,7 +160,8 @@ const CampaignMapGrid = forwardRef(function CampaignMapGrid(
                 else if (mh.kind === 'move') {
                   manualHl = 'move';
                   manualMoveCost = mh.cost ?? null;
-                } else if (mh.kind === 'atk') manualHl = 'atk';
+                } else if (mh.kind === 'heal') manualHl = 'heal';
+                else if (mh.kind === 'atk') manualHl = 'atk';
                 return (
                   <CampaignMapTile
                     key={`${ri}-${ci}`}

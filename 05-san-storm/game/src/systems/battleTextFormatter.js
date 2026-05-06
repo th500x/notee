@@ -68,19 +68,91 @@ export function fmtKill(troop) {
   return `💀 ${label(troop)} ${pick(PHRASES.kill)}！`;
 }
 
+/** 技能被动·首击免疫（对攻方一次攻击） */
+export function fmtFirstHitImmune(def, atk) {
+  return `🛡️ ${label(def)} 触发「首击免疫」，${label(atk)} 的本次伤害无效`;
+}
+
+/** 首击免疫抵消环境/陷阱等伤害来源 */
+export function fmtFirstHitImmuneEnvironmental(troop, sourceLabel) {
+  return `🛡️ ${label(troop)} 触发「首击免疫」，${sourceLabel} 伤害无效`;
+}
+
 /** 远程攻击 */
 export function fmtRanged(atk, def) {
   return `🏹 ${label(atk)} 远程攻击 ${label(def)}`;
 }
 
-/** 技能攻击 */
-export function fmtSkill(atk, def, skillName) {
-  return `🔮 ${label(atk)} 施放【${skillName}】→ ${label(def)}`;
+/** 阶段3·主动纯治疗（明镜 / 祈愿 等） */
+export function fmtPhase3HealActive(actor, skillName, selfGain, allyTroop, allyGain) {
+  const head = `💚 ${label(actor)} 施放【${skillName || '治疗'}】`;
+  const parts = [];
+  if (selfGain > 0) {
+    parts.push(`自军回复 ${selfGain}（余 ${actor.currentTroops}/${actor.maxTroops}）`);
+  }
+  if (allyGain > 0 && allyTroop) {
+    parts.push(`${label(allyTroop)} 回复 ${allyGain}（余 ${allyTroop.currentTroops}/${allyTroop.maxTroops}）`);
+  }
+  const tail = parts.length ? `  → ${parts.join('；')}` : '';
+  return `${head}${tail}`;
 }
 
-/** 技能结果 */
-export function fmtSkillResult(def, dmg) {
-  return `  → ${label(def)} 损失 ${dmg} 兵力（剩余 ${def.currentTroops}/${def.maxTroops}）`;
+/** 阶段4·主动纯伤害（多目标一次施放） */
+export function fmtPhase4DamageOpening(actor, skillName, targetCount) {
+  const n = Math.max(1, Math.floor(Number(targetCount) || 1));
+  return `⚡ ${label(actor)} 施放【${skillName || '技能'}】（${n} 目标）`;
+}
+
+/** 阶段5·复合主动：主段起手（战报；飘字由动画层） */
+export function fmtPhase5CompositeOpening(actor, skillName, effectKey) {
+  const tag =
+    effectKey === 'damage_dot'
+      ? '灼燃'
+      : effectKey === 'damage_debuff'
+        ? '破甲'
+        : effectKey === 'damage_heal'
+          ? '攻心'
+          : effectKey === 'heal_damage'
+            ? '血路'
+            : '复合';
+  return `⚔ ${label(actor)} 施放【${skillName || '技能'}】（${tag}）`;
+}
+
+/** 阶段5·heal_damage：治疗段 */
+export function fmtPhase5HealDamageHeal(actor, skillName, selfGain, allyGain) {
+  const bits = [];
+  if (selfGain > 0) bits.push(`自军 +${selfGain}`);
+  if (allyGain > 0) bits.push(`友军 +${allyGain}`);
+  return `💚 ${label(actor)}【${skillName || '技能'}】${bits.join('，')}`;
+}
+
+/** 阶段5·heal_damage：治疗后的随机追击 */
+export function fmtPhase5HealDamageStrike(actor, def) {
+  return `  → ${label(actor)} 追袭 ${label(def)}`;
+}
+
+/** 阶段5·灼烧段 */
+export function fmtPhase5BurnTick(def, loss, roundIdx, totalRounds) {
+  return `🔥 ${label(def)} 灼烧 ${roundIdx}/${totalRounds}，损失 ${loss}（余 ${def.currentTroops}/${def.maxTroops}）`;
+}
+
+/** 阶段5·固伤段 */
+export function fmtPhase5FlatDamage(def, loss) {
+  return `  → ${label(def)} 追加固伤 ${loss}（余 ${def.currentTroops}/${def.maxTroops}）`;
+}
+
+/** 阶段5·减益提醒（无兵力时再扣时仍记） */
+export function fmtPhase5DebuffNotify(def, debuffLabel) {
+  return `⚠ ${label(def)} 受减益：${debuffLabel}`;
+}
+
+/** 阶段5·damage_heal：治疗段（主伤已记 fmtAttackResult） */
+export function fmtPhase5DamageHealSegment(actor, skillName, selfGain, healTarget, allyGain) {
+  const head = `💚 ${label(actor)}【${skillName || '技能'}】回复`;
+  const parts = [];
+  if (selfGain > 0) parts.push(`自军 ${selfGain}`);
+  if (allyGain > 0 && healTarget) parts.push(`${label(healTarget)} ${allyGain}`);
+  return `${head}：${parts.join('；')}`;
 }
 
 /** 踩陷阱 */
@@ -112,6 +184,11 @@ export function fmtRoundStart(roundNum) {
 export function fmtTurnStart(troop) {
   const fIcon = troop.faction === 'player' ? '🔵' : '🔴';
   return `${fIcon} ${label(troop)} 行动（速度${troop.speed || 4}）`;
+}
+
+/** 士气崩溃（整数点 ＜40）：本回合无法行动 */
+export function fmtMoraleCollapseSkip(troop) {
+  return `  💀 ${label(troop)} 士气崩溃，无法行动，原地待机`;
 }
 
 /** 无目标 */

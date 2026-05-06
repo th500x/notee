@@ -14,6 +14,7 @@ import { battleAPI } from '@/services/battleApi';
 import { textsAPI } from '@/services/textsApi';
 import { chatAPI } from '@/services/chatApi';
 import { API_CONFIG } from '@/constants';
+import { fetchWithTimeout } from '@/services/httpClient';
 import AncientModal from '@/components/common/AncientModal';
 import {
   MAP_CORNER_ENTRY_ROW_CLASS,
@@ -137,7 +138,7 @@ function memorialPublicFileUrl(filename) {
 async function pickMemorialBattleIllusUrl() {
   try {
     const apiBase = String(API_CONFIG.BASE_URL || '').replace(/\/$/, '');
-    const r = await fetch(`${apiBase}/memorial/illus-battle-list`, { cache: 'no-store' });
+    const r = await fetchWithTimeout(`${apiBase}/memorial/illus-battle-list`, { cache: 'no-store' });
     if (r.ok) {
       const data = await r.json();
       const files = Array.isArray(data?.files) ? data.files.filter(Boolean) : [];

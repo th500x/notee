@@ -6,8 +6,9 @@
 const express = require('express');
 const router = express.Router();
 const configTextService = require('../services/configTextService');
+const { wrap500 } = require('../utils/httpError');
 
-router.get('/', async (req, res) => {
+router.get('/', async (req, res, next) => {
   try {
     const { enabledOnly } = req.query;
     const list = await configTextService.listTemplates({
@@ -15,12 +16,11 @@ router.get('/', async (req, res) => {
     });
     res.json({ success: true, data: list, total: list.length });
   } catch (err) {
-    console.error('[admin/config-texts] list:', err);
-    res.status(500).json({ success: false, error: err.message || '查询失败' });
+    return next(wrap500(err, '查询失败'));
   }
 });
 
-router.post('/trial-send', async (req, res) => {
+router.post('/trial-send', async (req, res, next) => {
   try {
     // 须透传 target_type、faction_id 等，否则「全部/势力」试发拿不到参数
     const result = await configTextService.trialSend(req.body || {});
@@ -31,7 +31,7 @@ router.post('/trial-send', async (req, res) => {
   }
 });
 
-router.get('/:templateId', async (req, res) => {
+router.get('/:templateId', async (req, res, next) => {
   try {
     const row = await configTextService.getTemplate(req.params.templateId);
     if (!row) {
@@ -39,12 +39,11 @@ router.get('/:templateId', async (req, res) => {
     }
     res.json({ success: true, data: row });
   } catch (err) {
-    console.error('[admin/config-texts] get:', err);
-    res.status(500).json({ success: false, error: err.message || '查询失败' });
+    return next(wrap500(err, '查询失败'));
   }
 });
 
-router.post('/', async (req, res) => {
+router.post('/', async (req, res, next) => {
   try {
     const row = await configTextService.createTemplate(req.body);
     res.status(201).json({ success: true, data: row });
@@ -55,7 +54,7 @@ router.post('/', async (req, res) => {
   }
 });
 
-router.put('/:templateId', async (req, res) => {
+router.put('/:templateId', async (req, res, next) => {
   try {
     const row = await configTextService.updateTemplate(req.params.templateId, req.body);
     if (!row) {
@@ -68,7 +67,7 @@ router.put('/:templateId', async (req, res) => {
   }
 });
 
-router.delete('/:templateId', async (req, res) => {
+router.delete('/:templateId', async (req, res, next) => {
   try {
     const ok = await configTextService.deleteTemplate(req.params.templateId);
     if (!ok) {
@@ -76,8 +75,7 @@ router.delete('/:templateId', async (req, res) => {
     }
     res.json({ success: true });
   } catch (err) {
-    console.error('[admin/config-texts] delete:', err);
-    res.status(500).json({ success: false, error: err.message || '删除失败' });
+    return next(wrap500(err, '删除失败'));
   }
 });
 

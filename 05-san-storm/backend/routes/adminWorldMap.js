@@ -4,6 +4,7 @@
 const express = require('express');
 const router = express.Router();
 const worldMapAdminService = require('../services/worldMapAdminService');
+const { wrap500 } = require('../utils/httpError');
 
 /** 把 mysql2 常见错误转成管理页可读中文（避免仅显示 connect ECONNREFUSED） */
 function clientErrorMessage(err, fallback) {
@@ -17,43 +18,43 @@ function clientErrorMessage(err, fallback) {
   return err.message || fallback;
 }
 
-router.get('/geo-options', async (req, res) => {
+router.get('/geo-options', async (req, res, next) => {
   try {
     const data = await worldMapAdminService.listZhouJun();
     res.json({ success: true, data });
   } catch (err) {
-    console.error('[admin/world-map] geo-options:', err);
-    res.status(500).json({ success: false, error: clientErrorMessage(err, '查询失败') });
+    return next(wrap500(err, clientErrorMessage(err, '查询失败')));
   }
 });
 
-router.get('/jun/:junId/preset-status', async (req, res) => {
+router.get('/jun/:junId/preset-status', async (req, res, next) => {
   try {
     const { junId } = req.params;
     const st = worldMapAdminService.checkJunPresetsComplete(junId);
     res.json({ success: true, data: st });
   } catch (err) {
-    console.error('[admin/world-map] preset-status:', err);
-    res.status(500).json({ success: false, error: err.message || '查询失败' });
+    return next(wrap500(err, '查询失败'));
   }
 });
 
 /** 单象限 preset 原文 JSON（管理员页从 shared/data/worldmap 读取，不写死郡列表） */
-router.get('/jun/:junId/quad-preset/:quad', async (req, res) => {
+router.get('/jun/:junId/quad-preset/:quad', async (req, res, next) => {
   try {
     const { junId, quad } = req.params;
     const data = worldMapAdminService.readQuadPresetJson(junId, quad);
     res.json({ success: true, data });
   } catch (err) {
-    console.error('[admin/world-map] quad-preset:', err);
     const code = err.code;
     const status =
       code === 'VALIDATION' ? 400 : code === 'NOT_FOUND' ? 404 : 500;
+    if (status >= 500) {
+      return next(wrap500(err, '读取失败'));
+    }
     res.status(status).json({ success: false, error: err.message || '读取失败' });
   }
 });
 
-router.post('/coordinates-to-db', async (req, res) => {
+router.post('/coordinates-to-db', async (req, res, next) => {
   try {
     const { junId } = req.body || {};
     if (!junId || typeof junId !== 'string') {
@@ -68,7 +69,7 @@ router.post('/coordinates-to-db', async (req, res) => {
   }
 });
 
-router.post('/boundaries-to-db', async (req, res) => {
+router.post('/boundaries-to-db', async (req, res, next) => {
   try {
     const { season, edges } = req.body || {};
     const result = await worldMapAdminService.importBoundaries({ season, edges });
@@ -83,7 +84,7 @@ router.post('/boundaries-to-db', async (req, res) => {
 /**
  * 生成合并大地图 JSON → public/data/worldmap/{jun_id}_merged.json（四象限 preset 须齐全）
  */
-router.post('/generate-merged-map', async (req, res) => {
+router.post('/generate-merged-map', async (req, res, next) => {
   try {
     const { junId, seed } = req.body || {};
     const jid = (junId || '').trim();
@@ -103,7 +104,7 @@ router.post('/generate-merged-map', async (req, res) => {
 /**
  * 写入 merged.json 的 `roadCells` / `roadConnectivity`（与 §11 道路栅格一致），并刷新 `version`。
  */
-router.post('/save-merged-road-cells', async (req, res) => {
+router.post('/save-merged-road-cells', async (req, res, next) => {
   try {
     const { junId, roadCells, roadConnectivity } = req.body || {};
     const result = worldMapAdminService.saveRoadCellsToMergedMap({
@@ -113,7 +114,6 @@ router.post('/save-merged-road-cells', async (req, res) => {
     });
     res.json({ success: true, data: result });
   } catch (err) {
-    console.error('[admin/world-map] save-merged-road-cells:', err);
     const code = err.code;
     const status =
       code === 'JUN_UNSUPPORTED' || code === 'NO_MERGED_FILE' || code === 'INVALID_MERGED'
@@ -121,6 +121,9 @@ router.post('/save-merged-road-cells', async (req, res) => {
         : code === 'OUT_OF_BOUNDS' || code === 'BLOCKED_CELL'
           ? 400
           : 500;
+    if (status >= 500) {
+      return next(wrap500(err, '保存失败'));
+    }
     res.status(status).json({ success: false, error: err.message || '保存失败' });
   }
 });
@@ -129,7 +132,7 @@ router.post('/save-merged-road-cells', async (req, res) => {
  * 按郡批量生成 NPC 守军（管理页）；与 seed-xinye-npc-garrison-400 同属 troopCountOverride 路径。
  * body: { junId, ownershipMode: 'player_owned' | 'npc_side', counts: { city_small?, city_medium?, ... }, season? }
  */
-router.post('/batch-npc-garrison', async (req, res) => {
+router.post('/batch-npc-garrison', async (req, res, next) => {
   try {
     const { junId, ownershipMode, counts, season } = req.body || {};
     const result = await worldMapAdminService.batchNpcGarrisonByJun({

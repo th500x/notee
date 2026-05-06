@@ -9,6 +9,15 @@
  * @see docs/10-core-system/17-1-COMBAT_SYSTEM.md
  */
 
+import {
+  applyPhase2ConditionalIncomingMult,
+  previewCasualtiesAfterPhase2FirstHit,
+} from '@shared/utils/skillPhase2Passive';
+import {
+  getTraitOutgoingDamageMult,
+  getTraitDefenderDefenseStrengthMult,
+} from '@shared/utils/characterTraitBonuses';
+
 // ── 精锐小队战损比例（troopWeight > 1）────────────────────────────────────────
 // 仅影响「当前兵力/最大兵力」在攻防上的线性缩放；满编时与 troopWeight=1 一致，残血时衰减慢于线性。
 // 现阶段仅燕云十八等配置了 troop_weight>1 的部队会走此分支，其余部队仍为 current/max。
@@ -71,7 +80,22 @@ export function troopDamageToCasualties(defender, rawDamage) {
   return Math.max(1, Math.round(raw / w));
 }
 
-// ── 士气攻防系数 ──────────────────────────────────────────────────────────────
+// ── 士气攻防系数（战术整数点 0～120，与 UI/文档一致）──────────────────────────────
+
+/** 士气崩溃分界线：整数点严格小于此值（即 39 及以下）本回合无法行动 */
+export const MORALE_COLLAPSE_THRESHOLD = 40;
+
+/**
+ * @param {number|object} troopOrMorale - 士气点数或含 `morale` 的部队对象
+ */
+export function isMoraleCollapsed(troopOrMorale) {
+  const raw =
+    typeof troopOrMorale === 'number'
+      ? troopOrMorale
+      : troopOrMorale?.morale;
+  const m = Math.round(Number(raw ?? 70));
+  return m < MORALE_COLLAPSE_THRESHOLD;
+}
 
 /**
  * 根据部队士气返回攻防系数
@@ -79,10 +103,11 @@ export function troopDamageToCasualties(defender, rawDamage) {
  * @returns {{ attack: number, defense: number }}
  */
 export function getMoraleEffects(troop) {
-  const m = troop.morale || 70;
-  if (m >= 80) return { attack: 1.10, defense: 1.05 };  // 高昂/超高昂
-  if (m > 20)  return { attack: 1.00, defense: 1.00 };  // 普通
-  return { attack: 0.95, defense: 0.90 };                // 低落
+  const m = Math.round(Number(troop?.morale ?? 70));
+  if (m >= 80) return { attack: 1.10, defense: 1.05 };
+  if (m >= 60) return { attack: 1.00, defense: 1.00 };
+  if (m >= 40) return { attack: 0.95, defense: 0.90 };
+  return { attack: 0.90, defense: 0.85 };
 }
 
 // ── 地形防御加成 ──────────────────────────────────────────────────────────────
@@ -102,6 +127,64 @@ export function getTerrainDefBonus(y, x, terrain) {
   return 1.0;
 }
 
+// ── 将领被动 · 阶段1（与 @shared/utils/skillPhase1Passive 装配字段一致）────────────────
+
+/** @param {object|null|undefined} ch */
+function skillPhase1Combat(ch) {
+  return ch?._skillPhase1Combat || null;
+}
+
+export function getEffectiveCritRateFromCharacter(ac) {
+  if (!ac) return 0.1;
+  const base = ((ac.courage || 5) + (ac.luck || 5)) / 80;
+  const add = skillPhase1Combat(ac)?.critRate || 0;
+  return Math.min(0.25, Math.max(0, base + add));
+}
+
+export function getEffectiveDodgeRateFromCharacter(dc) {
+  if (!dc) return 0.05;
+  const base = (dc.luck || 5) / 100;
+  const add = skillPhase1Combat(dc)?.dodgeRate || 0;
+  return Math.min(0.45, Math.max(0, base + add));
+}
+
+export function getEffectiveHitRatePreview(ac, dc) {
+  const dodge = getEffectiveDodgeRateFromCharacter(dc);
+  const hitAdd = skillPhase1Combat(ac)?.hitRate || 0;
+  return Math.min(0.99, Math.max(0.05, 1 - dodge + hitAdd));
+}
+
+function applyPhase1OutgoingCharacterDamageMult(ac, totalDmg) {
+  const s1 = skillPhase1Combat(ac);
+  if (!s1?.damageBonus) return totalDmg;
+  return totalDmg * (1 + s1.damageBonus);
+}
+
+function applyPhase1TroopOutgoingMult(atk, totalDmg) {
+  const m = atk.phase1OutgoingDamageMult;
+  if (m == null || m <= 0) return totalDmg;
+  return totalDmg * m;
+}
+
+function applyPhase1IncomingReduction(dc, totalDmg) {
+  const s1 = skillPhase1Combat(dc);
+  if (!s1) return totalDmg;
+  let mult = 1;
+  if (s1.physicalReduction) mult *= (1 - s1.physicalReduction);
+  if (s1.strategyReduction) mult *= (1 - s1.strategyReduction);
+  if (s1.damageReduction) mult *= (1 - s1.damageReduction);
+  let out = totalDmg * mult;
+  if (s1.strategyVulnerable) out *= (1 + s1.strategyVulnerable);
+  return out;
+}
+
+/** 阶段1 + 阶段2条件减免（首击免疫不在此，在兵力折算后处理） */
+function applyPhase1And2IncomingReduction(defTroop, dc, totalDmg, options = {}) {
+  let d = applyPhase1IncomingReduction(dc, totalDmg);
+  d = applyPhase2ConditionalIncomingMult(defTroop, dc, d, options.battleTroops);
+  return d;
+}
+
 // ── 完整伤害计算 ──────────────────────────────────────────────────────────────
 
 /**
@@ -109,7 +192,12 @@ export function getTerrainDefBonus(y, x, terrain) {
  * @param {Object} atk - 攻击方部队
  * @param {Object} def - 防守方部队
  * @param {string[][]} terrain - 地形二维数组（mapResult.terrain）
- * @param {{ strike?: 'normal' | 'counter' }} [options] - `counter`：本次为反击（与主动一击兵力系数/镜像倍率不同）
+ * @param {{
+ *   strike?: 'normal' | 'counter',
+ *   battleTroops?: object[],
+ *   damageKind?: 'physical' | 'strategy',
+ *   skillDamageMultiplier?: number,
+ * }} [options] - `counter`：本次为反击；`battleTroops`：有则结算坚韧等「场上编制数」条件减免；`damageKind`+`skillDamageMultiplier`：阶段4 主动纯伤等
  * @returns {number} 伤害值（最小1）
  */
 export function calcDamage(atk, def, terrain, options = {}) {
@@ -120,11 +208,12 @@ export function calcDamage(atk, def, terrain, options = {}) {
   const defWorn = (def.rarity === 'legendary' && def.battleCount != null && def.maxBattleCount != null && def.battleCount >= def.maxBattleCount);
   const WORN_PENALTY = 0.80; // 攻防×0.8 = -20%
 
-  // 1. 单兵基础攻击力 = 部队攻击力 + 将领武力×6
+  // 1. 单兵基础攻击力 = 部队攻击力 + 将领主属性×6（物理：武力；谋略：智力；防御侧暂与普攻线一致）
   // ?? 而非 ||：attack=0 是合法的「极弱」设定，不应被当成缺失数据触发 fallback
   const troopAtk = ((atk.attack ?? 100) / 10) * (atkWorn ? WORN_PENALTY : 1);
-  const combat = ac ? (ac.combat || 5) : 5;
-  const singleAtk = troopAtk + combat * 6;
+  const dk = options.damageKind === 'strategy' ? 'strategy' : 'physical';
+  const primary = ac ? (dk === 'strategy' ? (ac.intelligence || 5) : (ac.combat || 5)) : 5;
+  const singleAtk = troopAtk + primary * 6;
 
   // 2. 勇气加成 = 1 + courage/40
   const courage = ac ? (ac.courage || 5) : 5;
@@ -138,6 +227,7 @@ export function calcDamage(atk, def, terrain, options = {}) {
   // 4. 士气攻击系数
   const atkMorale = getMoraleEffects(atk);
   totalDmg *= atkMorale.attack;
+  totalDmg *= getTraitOutgoingDamageMult(ac);
 
   // 4.5 阵型攻击加成
   if (atk._formationBuffs && atk._formationBuffs.attackBonus) {
@@ -148,7 +238,8 @@ export function calcDamage(atk, def, terrain, options = {}) {
   const troopDef = ((def.defense ?? 50) / 10) * (defWorn ? WORN_PENALTY : 1);
   const dCombat = dc ? (dc.combat || 5) : 5;
   const dCommand = dc ? (dc.command || 5) : 5;
-  const singleDef = troopDef + dCommand * 5 + dCombat * 3;
+  const singleDefBase = troopDef + dCommand * 5 + dCombat * 3;
+  const singleDef = singleDefBase * getTraitDefenderDefenseStrengthMult(dc);
   const defRatio = troopStrengthRatioFromCasualties(def);
   const totalDef = singleDef * defRatio;
   const defReduction = totalDef / (totalDef + 140);
@@ -209,10 +300,17 @@ export function calcDamage(atk, def, terrain, options = {}) {
     if (dist <= 1) totalDmg *= ARCHER_MELEE_DAMAGE_MULT;
   }
 
+  totalDmg = applyPhase1OutgoingCharacterDamageMult(ac, totalDmg);
+  totalDmg = applyPhase1TroopOutgoingMult(atk, totalDmg);
+  totalDmg = applyPhase1And2IncomingReduction(def, dc, totalDmg, options);
+
+  const skMult = Number(options.skillDamageMultiplier);
+  if (Number.isFinite(skMult) && skMult > 0) totalDmg *= skMult;
+
   // ═══ 第三部分：特殊加成（暂不实装，预留接口）═══
   // totalDmg *= (1 + factionBonus + sageBonus);
 
-  // 11. 随机浮动 ±10%
+  // 12. 随机浮动 ±10%
   totalDmg *= (0.9 + Math.random() * 0.2);
 
   return Math.max(1, Math.round(totalDmg));
@@ -225,8 +323,13 @@ export function calcDamage(atk, def, terrain, options = {}) {
  * @param {Object} atk - 攻击方部队
  * @param {Object} def - 防守方部队
  * @param {string[][]} terrain - 地形二维数组
- * @param {{ strike?: 'normal' | 'counter' }} [options] - 与 calcDamage 一致
- * @returns {{ damage: number, critRate: number, hitRate: number, critDamage: number }} damage/critDamage 为防守方兵力条实际扣减（精锐已除 troopWeight）
+ * @param {{
+ *   strike?: 'normal' | 'counter',
+ *   battleTroops?: object[],
+ *   damageKind?: 'physical' | 'strategy',
+ *   skillDamageMultiplier?: number,
+ * }} [options] - 与 calcDamage 一致
+ * @returns {{ damage: number, critRate: number, hitRate: number, critDamage: number }} damage/critDamage 为防守方兵力条实际扣减（精锐已除 troopWeight）；含首击免疫预览
  */
 export function estimateDamage(atk, def, terrain, options = {}) {
   const ac = atk.character, dc = def.character;
@@ -236,8 +339,9 @@ export function estimateDamage(atk, def, terrain, options = {}) {
   const defWorn = (def.rarity === 'legendary' && def.battleCount != null && def.maxBattleCount != null && def.battleCount >= def.maxBattleCount);
   const WORN_PENALTY = 0.80;
   const troopAtk = ((atk.attack ?? 100) / 10) * (atkWorn ? WORN_PENALTY : 1);
-  const combat = ac ? (ac.combat || 5) : 5;
-  const singleAtk = troopAtk + combat * 6;
+  const dk = options.damageKind === 'strategy' ? 'strategy' : 'physical';
+  const primary = ac ? (dk === 'strategy' ? (ac.intelligence || 5) : (ac.combat || 5)) : 5;
+  const singleAtk = troopAtk + primary * 6;
   const courage = ac ? (ac.courage || 5) : 5;
   const courageBonus = 1 + (courage / 40);
   const singleFinal = singleAtk * courageBonus;
@@ -245,11 +349,13 @@ export function estimateDamage(atk, def, terrain, options = {}) {
   let totalDmg = singleFinal * atkRatio;
   const atkMorale = getMoraleEffects(atk);
   totalDmg *= atkMorale.attack;
+  totalDmg *= getTraitOutgoingDamageMult(ac);
   if (atk._formationBuffs?.attackBonus) totalDmg *= (1 + atk._formationBuffs.attackBonus);
   const troopDef = ((def.defense ?? 50) / 10) * (defWorn ? WORN_PENALTY : 1);
   const dCombat = dc ? (dc.combat || 5) : 5;
   const dCommand = dc ? (dc.command || 5) : 5;
-  const singleDef = troopDef + dCommand * 5 + dCombat * 3;
+  const singleDefBase = troopDef + dCommand * 5 + dCombat * 3;
+  const singleDef = singleDefBase * getTraitDefenderDefenseStrengthMult(dc);
   const defRatio = troopStrengthRatioFromCasualties(def);
   const totalDef = singleDef * defRatio;
   const defReduction = totalDef / (totalDef + 140);
@@ -285,16 +391,22 @@ export function estimateDamage(atk, def, terrain, options = {}) {
     if (dist <= 1) totalDmg *= ARCHER_MELEE_DAMAGE_MULT;
   }
 
+  totalDmg = applyPhase1OutgoingCharacterDamageMult(ac, totalDmg);
+  totalDmg = applyPhase1TroopOutgoingMult(atk, totalDmg);
+  totalDmg = applyPhase1And2IncomingReduction(def, dc, totalDmg, options);
+
+  const skMult = Number(options.skillDamageMultiplier);
+  if (Number.isFinite(skMult) && skMult > 0) totalDmg *= skMult;
+
   const rawDamage = Math.max(1, Math.round(totalDmg));
-  const damage = troopDamageToCasualties(def, rawDamage);
-  const critDamage = troopDamageToCasualties(def, Math.round(rawDamage * 1.5));
+  const damage = previewCasualtiesAfterPhase2FirstHit(def, troopDamageToCasualties(def, rawDamage));
+  const critDamage = previewCasualtiesAfterPhase2FirstHit(def, troopDamageToCasualties(def, Math.round(rawDamage * 1.5)));
 
-  // 暴击率 / 命中率
-  const dodgeRate = dc ? (dc.luck || 5) / 100 : 0.05;
-  const hitRate = 1 - dodgeRate;
-  const critRate = ac ? ((ac.courage || 5) + (ac.luck || 5)) / 80 : 0.1;
+  const dodgeRate = getEffectiveDodgeRateFromCharacter(dc);
+  const hitRate = getEffectiveHitRatePreview(ac, dc);
+  const critRate = getEffectiveCritRateFromCharacter(ac);
 
-  return { damage, critRate: Math.min(critRate, 0.25), hitRate, critDamage };
+  return { damage, critRate, hitRate, critDamage };
 }
 
 // ── 暴击/闪避判定 ─────────────────────────────────────────────────────────────
@@ -307,11 +419,9 @@ export function estimateDamage(atk, def, terrain, options = {}) {
  */
 export function rollCritDodge(atk, def) {
   const ac = atk.character, dc = def.character;
-  // 闪避率 = luck/100
-  const dodgeRate = dc ? (dc.luck || 5) / 100 : 0.05;
+  const dodgeRate = getEffectiveDodgeRateFromCharacter(dc);
   if (Math.random() < dodgeRate) return 'dodge';
-  // 暴击率 = (courage+luck)/80
-  const critRate = ac ? ((ac.courage || 5) + (ac.luck || 5)) / 80 : 0.1;
+  const critRate = getEffectiveCritRateFromCharacter(ac);
   if (Math.random() < critRate) return 'crit';
   return 'normal';
 }

@@ -13,6 +13,33 @@ const cron = require('node-cron');
 const { testConnection } = require('./database/connection');
 const characterRankService = require('./services/characterRankService');
 const banditInstanceService = require('./services/banditInstanceService');
+const { notFoundHandler, errorHandler } = require('./middleware/errorHandler');
+
+/**
+ * 启动期硬性检查：JWT_SECRET 缺失 / 过短即拒绝启动。
+ * 与 `middleware/auth.js` 一致；不允许"开发期默认 secret"静默兜底（见 `notee-code-quality-and-debugging.mdc` §1）。
+ *
+ * 例外：仅当 **本地开发期** 同时满足 `NODE_ENV !== 'production'` 与 `JWT_DEV_BYPASS=1` 时，
+ *      允许 JWT_SECRET 缺失（此时 `requireAuth` 走 `tryDevBypass` 兜底，不会调用 `jwt.verify`）。
+ *      生产环境下 `JWT_DEV_BYPASS` 永远被忽略；本启动检查仍按生产标准强制 JWT_SECRET。
+ */
+function assertJwtSecret() {
+  const secret = process.env.JWT_SECRET;
+  if (!secret || secret.length < 16) {
+    if (process.env.NODE_ENV !== 'production' && process.env.JWT_DEV_BYPASS === '1') {
+      console.warn('[startup] ⚠️  JWT_DEV_BYPASS=1 已启用，跳过 JWT_SECRET 启动检查（仅本地开发期）');
+      return;
+    }
+    console.error('========================================');
+    console.error('❌ 启动失败：JWT_SECRET 未配置或过短');
+    console.error('   请在 backend/.env 内设置至少 16 字符的 JWT_SECRET');
+    console.error('   参考：JWT_SECRET=$(openssl rand -hex 32)');
+    console.error('   或本地开发期：在 backend/.env 内加 JWT_DEV_BYPASS=1（仅 NODE_ENV!=production 生效）');
+    console.error('========================================');
+    process.exit(1);
+  }
+}
+assertJwtSecret();
 
 /** 与 01-1-DATABASE_DESIGN.md 临时表清理示例一致：每天凌晨 3:00（默认进程本地时区；生产可设 CRON_TZ=Asia/Shanghai） */
 function scheduleTempTableCleanup() {
@@ -37,13 +64,38 @@ function scheduleTempTableCleanup() {
 const app = express();
 const PORT = process.env.PORT || 3005;
 
-// CORS配置 - 开发环境允许所有来源
-app.use(cors({
-  origin: true,
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
-}));
+/**
+ * CORS 收口（必改 #1）：
+ *   - 默认白名单包含本地常用端口（root 5173、game 3002、wiki 3004）。
+ *   - 生产部署用 .env `CORS_ALLOWED_ORIGINS=https://a.example.com,https://b.example.com` 覆盖。
+ *   - 同源（无 Origin 头）一律放行（curl / 同站 server-side fetch 不受影响）。
+ */
+const DEFAULT_DEV_ORIGINS = [
+  'http://localhost:5173',
+  'http://localhost:3002',
+  'http://localhost:3004',
+  'http://127.0.0.1:5173',
+  'http://127.0.0.1:3002',
+  'http://127.0.0.1:3004',
+];
+const ALLOWED_ORIGINS = (process.env.CORS_ALLOWED_ORIGINS || '')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
+const ORIGIN_WHITELIST = ALLOWED_ORIGINS.length > 0 ? ALLOWED_ORIGINS : DEFAULT_DEV_ORIGINS;
+
+app.use(
+  cors({
+    origin(origin, cb) {
+      if (!origin) return cb(null, true);
+      if (ORIGIN_WHITELIST.includes(origin)) return cb(null, true);
+      return cb(new Error(`CORS blocked: ${origin}`));
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+  })
+);
 
 app.use(express.json({ limit: '10mb' }));
 
@@ -160,16 +212,8 @@ app.get('/api/health', async (req, res) => {
   });
 });
 
-// 错误处理
-app.use((err, req, res, next) => {
-  console.error('Error:', err);
-  res.status(500).json({ success: false, error: '服务器内部错误' });
-});
-
-// 404：无 path 的 `use` 接住所有未匹配路由，始终返回 JSON（避免浏览器看到 HTML Cannot GET）
-app.use((req, res) => {
-  res.status(404).json({ success: false, error: '接口不存在', path: req.originalUrl || req.url });
-});
+app.use(notFoundHandler);
+app.use(errorHandler);
 
 // 启动服务器
 app.listen(PORT, async () => {
@@ -188,17 +232,6 @@ app.listen(PORT, async () => {
   const dbConnected = await testConnection();
   if (!dbConnected) {
     console.log('⚠️  警告: 数据库连接失败，请检查配置');
-  } else {
-    try {
-      const sync = await banditInstanceService.syncBanditsFromYingchuanMergedDisk();
-      if (sync.ok && sync.ensured > 0) {
-        console.log(
-          `[Bandits] 已与合并图对齐：新增 ${sync.ensured} 行，POI=${(sync.banditIds || []).join(',')}（source=${sync.source || 'cells'}）`,
-        );
-      }
-    } catch (e) {
-      console.warn('[Bandits] 启动时同步失败（可稍后执行 node scripts/sync-bandits-from-merged-map.js）:', e.message);
-    }
   }
 
   console.log('========================================');
@@ -207,6 +240,28 @@ app.listen(PORT, async () => {
   console.log('');
 
   scheduleTempTableCleanup();
+
+  /**
+   * 匪寨同步异步后置（CR P2，2026-04-29）：
+   * 原实现把 `syncBanditsFromYingchuanMergedDisk()` 放在 `app.listen` 回调内 `await`，
+   * 导致冷启动时若该同步耗时 / 报错（合并图磁盘抖动、表不存在等），"✅ 服务器启动成功" 提示会被
+   * 推迟，反复重启时易让人误以为后端没起。改用 `setImmediate` 让 listen 回调立即完成，
+   * 同步任务在事件循环下一轮跑；任何失败仅 console.warn，**不**影响 HTTP 服务可用性。
+   */
+  if (dbConnected) {
+    setImmediate(async () => {
+      try {
+        const sync = await banditInstanceService.syncBanditsFromYingchuanMergedDisk();
+        if (sync.ok && sync.ensured > 0) {
+          console.log(
+            `[Bandits] 已与合并图对齐：新增 ${sync.ensured} 行，POI=${(sync.banditIds || []).join(',')}（source=${sync.source || 'cells'}）`,
+          );
+        }
+      } catch (e) {
+        console.warn('[Bandits] 启动时同步失败（可稍后执行 node scripts/sync-bandits-from-merged-map.js）:', e.message);
+      }
+    });
+  }
   const tzHint = process.env.CRON_TZ ? `CRON_TZ=${process.env.CRON_TZ}` : '本地时区';
   console.log(`⏰ 将领排名快照清理：每日 03:00（${tzHint}），与数据库设计文档临时表清理节奏一致`);
 });

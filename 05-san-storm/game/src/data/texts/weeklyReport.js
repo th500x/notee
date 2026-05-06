@@ -108,15 +108,15 @@ M1完成，进入M2阶段
   {
     week: 'W09',
     date: '3月30日-4月5日',
-    content: `架构优化，auth.js/players.js/arrisonLineup.jsx/LineupTab.jsx/SmallMapBattle.jsx/LargeMapBattle.jsx`,
+    content: `第一轮CR`,
     color: 'from-blue-400 to-blue-500',
     borderColor: 'border-blue-400',
   },  
 
   {
     week: 'W10',
-    date: '4月6日-4月12日',
-    content: `战役系统/排行系统初步完成`,
+    date: '4月6日-4月30日',
+    content: `战役系统/排行系统/豫州两郡上线/城市和探索系统重构/匪寨系统/第二轮CR`,
     color: 'from-blue-400 to-blue-500',
     borderColor: 'border-blue-400',
   },  

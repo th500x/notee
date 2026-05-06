@@ -35,6 +35,7 @@ function AuthFlowPage() {
     currentUser,
     serverSwitchUser,
     confirmCount,
+    reauthPrefill,
     handleServerSelect,
     handleStartRegister,
     handleStartLogin,
@@ -142,6 +143,8 @@ function AuthFlowPage() {
           onLoginSuccess={handleLoginSuccess}
           onServerMismatch={handleServerMismatch}
           onBack={handleBack}
+          prefillId={reauthPrefill?.id}
+          reauthReason={reauthPrefill?.reason}
         />
       )}
 

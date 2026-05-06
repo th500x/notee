@@ -8,6 +8,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { gameUserAPI } from '@/services/api';
+import { playerTokenManager } from '@/utils/playerTokenManager';
 import { useAdminToast } from '@/components/admin/useAdminToast';
 
 // 获取当前批次信息的函数（与注册系统相同）
@@ -153,6 +154,7 @@ const UserManager = () => {
               const stillExists = checkResult.data.some(u => u.id === current.id);
               if (!stillExists) {
                 localStorage.removeItem('gameUser');
+                playerTokenManager.clear();
                 setCurrentUser(null);
               }
             }
@@ -168,6 +170,7 @@ const UserManager = () => {
           const current = JSON.parse(localStorage.getItem('gameUser') || 'null');
           if (current && result.userIds && result.userIds.includes(current.id)) {
             localStorage.removeItem('gameUser');
+            playerTokenManager.clear();
             setCurrentUser(null);
           }
           loadUserData();
@@ -197,6 +200,7 @@ const UserManager = () => {
         const current = JSON.parse(localStorage.getItem('gameUser') || 'null');
         if (current && current.id === userId) {
           localStorage.removeItem('gameUser');
+          playerTokenManager.clear();
           setCurrentUser(null);
         }
         loadUserData();

@@ -15,6 +15,29 @@ import {
 import { getBattleFieldTroopPortraitUrlAttempts } from '@shared/utils/troopIconUrls';
 import { API_CONFIG } from '@/constants';
 import { initialMoraleFromCharacter } from '@/utils/npcMorale';
+import { collectCharacterSkillIdsFromConfig } from '@shared/utils/skillPhase1Passive';
+import {
+  attachPhase2CombatToCharacter,
+  buildPhase2DefensiveConfigFromSkillIds,
+  initBattlePhase2Runtime,
+} from '@shared/utils/skillPhase2Passive';
+import {
+  attachPhase3HealToCharacter,
+  buildPhase3HealSlotsFromSkillIds,
+  initBattlePhase3HealRuntime,
+} from '@shared/utils/skillPhase3ActiveHeal';
+import {
+  attachPhase4DamageToCharacter,
+  buildPhase4DamageSlotsFromSkillIds,
+  initBattlePhase4DamageRuntime,
+} from '@shared/utils/skillPhase4ActiveDamage';
+import {
+  attachPhase5CompositeToCharacter,
+  buildPhase5CompositeSlotsFromSkillIds,
+  initBattlePhase5CompositeRuntime,
+} from '@shared/utils/skillPhase5CompositeDamage';
+import { getMapTerrainDimensions } from '@shared/utils/tacticalBattleGrid';
+import { fetchWithTimeout } from '@/services/httpClient';
 const base = () => import.meta.env.BASE_URL;
 
 /** 战斗地图部队图标：`san_1_battle/player|enemy/`（与 TroopLayer 一致） */
@@ -81,8 +104,8 @@ export function useBattleMap() {
     const load = async () => {
       try {
         const [troopRes, charRes] = await Promise.all([
-          fetch(`${API_CONFIG.BASE_URL}/config/troops?season=san_1`),
-          fetch(`${API_CONFIG.BASE_URL}/config/characters?season=san_1`),
+          fetchWithTimeout(`${API_CONFIG.BASE_URL}/config/troops?season=san_1`),
+          fetchWithTimeout(`${API_CONFIG.BASE_URL}/config/characters?season=san_1`),
         ]);
         const troopData = await troopRes.json();
         const charData = await charRes.json();
@@ -209,6 +232,34 @@ export function useBattleMap() {
       const pos = enemyPositions[i];
       // 2 将领：各带 2 部队；3 将领（5 部队）：0,1 / 2,3 / 4
       const char = enemyChars[Math.floor(i / 2)] || null;
+      const charForBattle =
+        char && opts.skillsMap
+          ? attachPhase5CompositeToCharacter(
+              attachPhase4DamageToCharacter(
+                attachPhase3HealToCharacter(
+                  attachPhase2CombatToCharacter(
+                    { ...char },
+                    buildPhase2DefensiveConfigFromSkillIds(
+                      collectCharacterSkillIdsFromConfig(char),
+                      opts.skillsMap,
+                    ),
+                  ),
+                  buildPhase3HealSlotsFromSkillIds(
+                    collectCharacterSkillIdsFromConfig(char),
+                    opts.skillsMap,
+                  ),
+                ),
+                buildPhase4DamageSlotsFromSkillIds(
+                  collectCharacterSkillIdsFromConfig(char),
+                  opts.skillsMap,
+                ),
+              ),
+              buildPhase5CompositeSlotsFromSkillIds(
+                collectCharacterSkillIdsFromConfig(char),
+                opts.skillsMap,
+              ),
+            )
+          : char;
       const morale = initialMoraleFromCharacter(char);
       const attempts = getBattleFieldTroopPortraitUrlAttempts({ ...tr, faction: 'enemy' }, base());
       return {
@@ -219,7 +270,7 @@ export function useBattleMap() {
         x: pos.x,
         currentTroops: tr.maxTroops,
         initialTroops: tr.maxTroops,
-        character: char,
+        character: charForBattle,
         displayName: char ? (char.courtesyName || char.name) : tr.name,
         morale,
         imgSrc: attempts[0],
@@ -229,6 +280,11 @@ export function useBattleMap() {
     });
 
     const result = [...playerResult, ...enemyResult];
+    initBattlePhase2Runtime(result);
+    const { w: tw, h: th } = getMapTerrainDimensions(mapResult);
+    initBattlePhase3HealRuntime(result, th, tw);
+    initBattlePhase4DamageRuntime(result, th, tw);
+    initBattlePhase5CompositeRuntime(result, th, tw);
     setBattleTroops(result);
     return result;
   }, [allTroops, allCharacters]);

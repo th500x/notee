@@ -11,16 +11,18 @@ import { useCallback, useMemo } from 'react';
 import { usePlayerContext } from '@/contexts/PlayerContext';
 import BattleArena from '@/components/battle/BattleArena';
 import { buildPlayerUnitsFromContext } from '@/utils/battlePlayerBuilder';
+import { useSkillsMap } from '@/hooks/useSkillsMap';
 
 export default function EventBattle({
   onBattleEnd, playerId, playerName, playerSilver, currentEvent, chosenOption,
   enemySlotRarities = null,
 }) {
   const { player, cards, attributeBonusBySlot } = usePlayerContext();
+  const skillsMap = useSkillsMap();
 
   const playerUnits = useMemo(
-    () => buildPlayerUnitsFromContext(player, cards, attributeBonusBySlot),
-    [player, cards, attributeBonusBySlot]
+    () => buildPlayerUnitsFromContext(player, cards, attributeBonusBySlot, skillsMap),
+    [player, cards, attributeBonusBySlot, skillsMap],
   );
 
   /** 选项因子为 type-b 时在默认惩罚战编制上多一槽敌方部队（将领/部队与事件稀有度池一致） */

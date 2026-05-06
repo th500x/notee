@@ -1,7 +1,7 @@
 /**
  * 势力 Tab「势力信息」象限：官职要员、人数统计、城市摘要、五维+档位、储备
  *
- * 五维势力标量（与 `01-DATABASE_DESIGN` §3.2.10、`12-2-CARD_POOL_SYSTEM` §2.4.1 一致）：
+ * 五维势力标量（与 `01-DATABASE_DESIGN` §3.2.10、`13-3-CARD_POOL_SYSTEM` §2.4.1 一致）：
  * - 参与集合 `C`：**仅** `city_major` / `city_medium` / `city_small` 且 `status = 'owned'`；
  *   **`gate` / `fort` 不计入** 五维与 `n`。
  * - `n = |C|`；`n = 0` → 五维全 0。

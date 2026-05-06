@@ -1,6 +1,8 @@
 /**
  * 步骤1.5：游戏特色介绍对话框文案
  * 触发时机：角色创建完成后，进入游戏大地图时自动显示
+ *
+ * `gameIntroContentParagraphClass` 由 `ParchmentMessageCard` 与更新公告全屏层复用，改样式时请同步两处视觉。
  */
 
 /** 介绍正文在卡片内的 Tailwind 类（由 GameIntroOverlay 引用，与文案同目录便于一起调） */

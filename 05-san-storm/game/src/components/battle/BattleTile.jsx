@@ -10,7 +10,7 @@ function BattleTile({
   terrain, variants, obj, cellOnFire = false, troop, showTroops, deployHighlight,
   /** 事件战战前：与战役一致，当前选中的我军部署单位 */
   preBattleDeploySelected = false,
-  /** @type {'active'|'move'|'atk'|null} */
+  /** @type {'active'|'move'|'skillPreview'|'atk'|'heal'|null} */
   manualHl = null,
   manualMoveCost = null,
   onHover, onLeave, onClick,
@@ -76,6 +76,8 @@ function BattleTile({
         </div>
       )}
       {manualHl === 'atk' && <div className="manual-hl atk-target" aria-hidden />}
+      {manualHl === 'heal' && <div className="manual-hl heal-target" aria-hidden />}
+      {manualHl === 'skillPreview' && <div className="manual-hl skill-preview" aria-hidden />}
       {showTroops && troop && troop.currentTroops > 0 && <TroopLayer troop={troop} />}
     </div>
   );

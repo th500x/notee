@@ -551,6 +551,68 @@ export function findPoiFootprintKeysContainingCell(cells, gx, gy, mapColumns, ma
   return null;
 }
 
+/**
+ * 合并战略格网坐标 `(mergedGx, mergedGy)`：玩家是否站在 **POI 占地块内**（城 2×2 / 匪寨骨牌；**非**道路格）。
+ * 与 `game/src/utils/strategicMapCityAnchor.js` 中 `resolveStrategicRecordedStandpointPx` 的「在路上 vs 离路入块」一致：
+ * 坐标落在 **`roadCells` 可通行集**内 → 返回 `''`（即使贴城也不可交互进城防面板）。
+ *
+ * @param {object[][]} cells
+ * @param {{ gx: number, gy: number }[]|null|undefined} roadCells
+ * @param {number} mapColumns
+ * @param {number} mapRows
+ * @param {number} mergedGx
+ * @param {number} mergedGy
+ * @param {object[]|null|undefined} citiesInCountyRows
+ * @returns {string} 城池 `city_id` 或匪寨 **`banditPoiId`**；否则 `''`
+ */
+export function resolveMergedStandpointStrategicPoiAnchorId(
+  cells,
+  roadCells,
+  mapColumns,
+  mapRows,
+  mergedGx,
+  mergedGy,
+  citiesInCountyRows,
+) {
+  if (!cells?.length) return '';
+  const pass = buildRoadPassableKeySetForMarch(roadCells, cells, mapColumns, mapRows);
+  const rx = Math.trunc(Number(mergedGx));
+  const ry = Math.trunc(Number(mergedGy));
+  if (!Number.isFinite(rx) || !Number.isFinite(ry)) return '';
+  if (pass.has(`${rx},${ry}`)) return '';
+
+  let fp = null;
+  if (Array.isArray(citiesInCountyRows) && citiesInCountyRows.length) {
+    fp = resolvePoiFootprintAtCellFromDb(citiesInCountyRows, rx, ry, mapColumns, mapRows, cells);
+  }
+  if (!fp) {
+    const fpKeys = findPoiFootprintKeysContainingCell(cells, rx, ry, mapColumns, mapRows);
+    if (fpKeys?.size) {
+      let poiId = '';
+      for (const fk of fpKeys) {
+        const [gx, gy] = fk.split(',').map(Number);
+        const c = cells[gy]?.[gx];
+        const aid = readStrategicCellAnchorId(c);
+        if (aid) {
+          poiId = String(aid);
+          break;
+        }
+      }
+      if (poiId) {
+        fp = collectStrategicPoiFootprint(cells, poiId, mapColumns, mapRows);
+      }
+    }
+  }
+  if (!fp?.keys?.size) return '';
+  for (const fk of fp.keys) {
+    const [gx, gy] = fk.split(',').map(Number);
+    const c = cells[gy]?.[gx];
+    const aid = readStrategicCellAnchorId(c);
+    if (aid) return String(aid).trim();
+  }
+  return '';
+}
+
 export function roadKeysAdjacentToFootprint(footprintKeys, roadPassable) {
   const out = new Set();
   for (const fk of footprintKeys) {

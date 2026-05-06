@@ -11,7 +11,7 @@ AFTER character_type;
 
 -- 添加 target_type 字段（在 effect_value 之后）
 ALTER TABLE config_skills 
-ADD COLUMN target_type VARCHAR(50) COMMENT '目标类型（single/cross/square/line_horizontal/self/ally_single/ally_area/random_enemies/area_3x3）' 
+ADD COLUMN target_type VARCHAR(50) COMMENT '目标类型（single/cross/square/line/self/ally_single/ally_line/ally_square/random 等；历史曾用 line_horizontal/ally_area/random_enemies）' 
 AFTER effect_value;
 
 -- 验证修改

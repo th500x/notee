@@ -80,7 +80,7 @@ export default function GarrisonGeneralPanel({
     );
   }
 
-  const charData = toCharCardData(charCard, attributeBonus);
+  const charData = toCharCardData(charCard, attributeBonus, skillsMap);
 
   if (isLandscape) {
     const cardScale = CARD_SCALE_LANDSCAPE;

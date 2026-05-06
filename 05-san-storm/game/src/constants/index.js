@@ -5,12 +5,14 @@
 
 // ==================== 存储键名 ====================
 export const STORAGE_KEYS = {
-  ADMIN_TOKEN: 'notee-admin-token',     // 管理员Token（统一认证）
-  TOKEN_EXPIRY: 'notee-token-expiry'    // Token过期时间
+  ADMIN_TOKEN: 'notee-admin-token',     // 管理员Token（与主站后端 3001 通用）
+  TOKEN_EXPIRY: 'notee-token-expiry',   // 管理员 Token 过期时间
+  PLAYER_TOKEN: 'sanstorm-player-token',         // 玩家会话 JWT（来自 05-san-storm 后端 3005）
+  PLAYER_TOKEN_EXPIRY: 'sanstorm-player-expiry', // 玩家会话过期时间（毫秒）
 };
 
 // ==================== Token配置 ====================
-export const TOKEN_DURATION = 30 * 24 * 60 * 60 * 1000;  // 30天（毫秒）
+export const TOKEN_DURATION = 30 * 24 * 60 * 60 * 1000;  // 管理员 Token 30天（毫秒）
 
 // ==================== API配置 ====================
 export const API_CONFIG = {

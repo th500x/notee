@@ -6,14 +6,22 @@
 
 const express = require('express');
 const chatService = require('../services/chatService');
+const { requireAuth } = require('../middleware/auth');
+const { wrap500 } = require('../utils/httpError');
 
 const router = express.Router();
+
+/**
+ * 鉴权：聊天全部端点（meta / 历史 / 发送 / 军团信息）依赖 query/body.playerId 鉴定本人；
+ * 顶层挂 `requireAuth` 关闭匿名访问，细粒度 `requireSelf` 留下一阶段。
+ */
+router.use(requireAuth);
 
 /**
  * GET /api/chats/meta?playerId=&channelType=&channelId=
  * 当前频道最大 chat_id（轻量轮询，无列表负载）
  */
-router.get('/meta', async (req, res) => {
+router.get('/meta', async (req, res, next) => {
   try {
     const { playerId, channelType, channelId } = req.query;
     if (!playerId) {
@@ -31,8 +39,7 @@ router.get('/meta', async (req, res) => {
     }
     res.json({ success: true, data: { maxChatId: result.maxChatId } });
   } catch (err) {
-    console.error('[chats] meta', err);
-    res.status(500).json({ success: false, error: '查询失败' });
+    return next(wrap500(err, '查询失败'));
   }
 });
 
@@ -40,7 +47,7 @@ router.get('/meta', async (req, res) => {
  * GET /api/chats/legion-info?playerId=
  * 当前角色所属军团（用于前端军团频道）
  */
-router.get('/legion-info', async (req, res) => {
+router.get('/legion-info', async (req, res, next) => {
   try {
     const { playerId } = req.query;
     if (!playerId) {
@@ -49,8 +56,7 @@ router.get('/legion-info', async (req, res) => {
     const data = await chatService.getLegionForPlayer(playerId);
     res.json({ success: true, data });
   } catch (err) {
-    console.error('[chats] legion-info', err);
-    res.status(500).json({ success: false, error: '查询失败' });
+    return next(wrap500(err, '查询失败'));
   }
 });
 
@@ -58,7 +64,7 @@ router.get('/legion-info', async (req, res) => {
  * POST /api/chats
  * body: { playerId, channelType, channelId?, content }
  */
-router.post('/', async (req, res) => {
+router.post('/', async (req, res, next) => {
   try {
     const { playerId, channelType, channelId, content } = req.body || {};
     if (!playerId) {
@@ -76,15 +82,14 @@ router.post('/', async (req, res) => {
     }
     res.json({ success: true, data: result.message });
   } catch (err) {
-    console.error('[chats] POST', err);
-    res.status(500).json({ success: false, error: '发送失败', message: err.message });
+    return next(wrap500(err, '发送失败'));
   }
 });
 
 /**
  * GET /api/chats?playerId=&channelType=&channelId=&limit=
  */
-router.get('/', async (req, res) => {
+router.get('/', async (req, res, next) => {
   try {
     const { playerId, channelType, channelId, limit } = req.query;
     if (!playerId) {
@@ -109,8 +114,7 @@ router.get('/', async (req, res) => {
       },
     });
   } catch (err) {
-    console.error('[chats] GET', err);
-    res.status(500).json({ success: false, error: '查询失败', message: err.message });
+    return next(wrap500(err, '查询失败'));
   }
 });
 

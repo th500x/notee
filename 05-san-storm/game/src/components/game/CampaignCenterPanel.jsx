@@ -9,6 +9,7 @@ import AncientModal from '@/components/common/AncientModal';
 import { usePlayerContext } from '@/contexts/PlayerContext';
 import { campaignAPI } from '@/services/campaignApi';
 import { validateMainLineupBattleGate } from '@/utils/mainLineupTroops';
+import { clearInflightBattleTroopSnapshot } from '@/utils/inflightBattleTroopSnapshot';
 
 function posterUrlFor(filename) {
   const base = import.meta.env.BASE_URL || '/';
@@ -100,6 +101,11 @@ export default function CampaignCenterPanel({ playerId, open, onClose, season = 
     }
   };
 
+  const handleCampaignCenterClose = useCallback(() => {
+    clearInflightBattleTroopSnapshot();
+    onClose?.();
+  }, [onClose]);
+
   if (!open) return null;
 
   if (battleCtx) {
@@ -112,6 +118,7 @@ export default function CampaignCenterPanel({ playerId, open, onClose, season = 
           maxRounds={battleCtx.maxRounds}
           playerId={playerId}
           onClose={() => {
+            clearInflightBattleTroopSnapshot();
             setBattleCtx(null);
             load();
             onClaimed?.();
@@ -140,7 +147,7 @@ export default function CampaignCenterPanel({ playerId, open, onClose, season = 
             <button
               type="button"
               className="shrink-0 rounded-lg bg-stone-700 px-2.5 py-1.5 text-sm text-stone-100 active:bg-stone-600 sm:px-3"
-              onClick={onClose}
+              onClick={handleCampaignCenterClose}
             >
               关闭
             </button>
@@ -249,8 +256,14 @@ export default function CampaignCenterPanel({ playerId, open, onClose, season = 
           type="warning"
           title="无法开战"
           confirmText="确定"
-          onClose={() => setBattleEntryGateMessage(null)}
-          onConfirm={() => setBattleEntryGateMessage(null)}
+          onClose={() => {
+            clearInflightBattleTroopSnapshot();
+            setBattleEntryGateMessage(null);
+          }}
+          onConfirm={() => {
+            clearInflightBattleTroopSnapshot();
+            setBattleEntryGateMessage(null);
+          }}
         >
           <p className="text-center text-gray-800 text-sm">{battleEntryGateMessage}</p>
           <p className="text-center text-gray-500 text-xs mt-2">请返回编组调整兵力或补充粮草后再试。</p>

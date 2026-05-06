@@ -7,17 +7,31 @@
  *
  * 导出：
  *   - 模块函数：resolveTileElement / resolveSurfaceRoot / sleep / setBattleAnimationSkipDelays
- *   - Hook：   useBattleAnimations({ battleSurfaceRef, mapCardRef, mapResult, addLog, speedRef, battleTroops })
+ *   - Hook：   useBattleAnimations（含 performPhase3Heal / performPhase4Damage / performPhase5Composite、performSkillDemoStrike）
  */
 
 import { useCallback } from 'react';
 import { calcDamage, rollCritDodge, troopDamageToCasualties } from '@/systems/combatSystem';
+import { resolveIncomingCasualtiesWithPhase2FirstHit } from '@shared/utils/skillPhase2Passive';
+import {
+  applyPhase3HealMutation,
+  consumePhase3HealCharge,
+  listPhase3HealTargetTroops,
+  previewPhase3HealGains,
+} from '@shared/utils/skillPhase3ActiveHeal';
+import { applyPhase4CostSelf, consumePhase4DamageCharge, pickPhase4RandomVictims } from '@shared/utils/skillPhase4ActiveDamage';
+import {
+  consumePhase5CompositeCharge,
+  phase5HealSlotStub,
+} from '@shared/utils/skillPhase5CompositeDamage';
+import { getTacticalActiveSkillCastRange } from '@shared/utils/tacticalSkillCastRange';
 import { bindTroopPortraitImg } from '@/utils/troopBattlePortrait';
 import { dist, troopAttackRange } from '@/battle/ai/battleTurnAi';
 import { mapTileIndex, tacticalTileIndex } from '@shared/utils/tacticalBattleGrid';
 import { outcomeIfCommanderEliminated } from '@/systems/battleCampaignRules';
 import * as fmt from '@/systems/battleTextFormatter';
 import { moraleInlineColorForTroopBar } from '@/components/battle/battleConstants';
+import { applyMoraleOnStackEliminated } from '@/battle/commanderMorale';
 import { trimSkipForCombatPair, trimSkipForTroop } from '@/battle/battleLogPolicy';
 
 const GAME_BASE_URL =
@@ -143,6 +157,26 @@ export function useBattleAnimations({
       setTimeout(() => n.remove(), 1000);
     },
     [getTileEl, battleSurfaceRef, mapCardRef],
+  );
+
+  /** 大字技能名 `.skill-name-pop`：锚定在施法部队所在格中心（相对战术图容器），避免固定屏心误判阵营 */
+  const positionSkillNamePopAtActor = useCallback(
+    (sn, actor) => {
+      if (!sn || !actor) return;
+      const card = resolveSurfaceRoot(battleSurfaceRef, mapCardRef);
+      if (!card) return;
+      const tile = getTileEl(actor);
+      if (tile) {
+        const tr = tile.getBoundingClientRect();
+        const cr = card.getBoundingClientRect();
+        sn.style.left = `${tr.left - cr.left + tr.width / 2}px`;
+        sn.style.top = `${tr.top - cr.top + tr.height / 2}px`;
+      } else {
+        sn.style.left = '50%';
+        sn.style.top = '40%';
+      }
+    },
+    [battleSurfaceRef, mapCardRef, getTileEl],
   );
 
   // ── 兵力方格更新 ──────────────────────────────────────────────────────────
@@ -301,22 +335,129 @@ export function useBattleAnimations({
     [addLog, addBattleAnim, showDmg, trimAllyBattleLog],
   );
 
+  /** 将领被动·首击免疫：不扣兵力，消耗一次次数 */
+  const battleFirstHitImmune = useCallback(
+    async (atk, def) => {
+      if (!trimSkipForCombatPair(trimAllyBattleLog, atk, def)) addLog(fmt.fmtFirstHitImmune(def, atk), 'skill');
+      addBattleAnim(def, 'anim-hit', 450);
+      showDmg(def, '0 免疫', 'skill-phase2-immune');
+      await sleep(550, speedRef.current);
+    },
+    [addLog, addBattleAnim, showDmg, trimAllyBattleLog],
+  );
+
+  /**
+   * 阶段4 / 阶段5 主动伤害共用：单目标一段（闪避 → `calcDamage` → 首击免疫 → 扣兵 → 飘字）。
+   * `shakeGate.shook`：同一施放扫多目标时，仅**首次实际扣兵**时 `shakeMap` 一次，与历史阶段4一致。
+   * @param {object} actor
+   * @param {object} def
+   * @param {object} strikeOpts `combatSystem` 用 strike 选项（须含 `battleTroops`、`damageKind`、`skillDamageMultiplier`）
+   * @param {'physical'|'strategy'} dk
+   * @param {{ shook: boolean }} shakeGate 可变；调用前置 `{ shook: false }`
+   */
+  const strikeActiveSkillDamageOnce = useCallback(
+    async (actor, def, strikeOpts, dk, shakeGate) => {
+      if (!def || def.currentTroops <= 0) return;
+      const dmgTypeCls = dk === 'strategy' ? 'skill-strategy' : 'skill-physical';
+      const roll = rollCritDodge(actor, def);
+      if (roll === 'dodge') {
+        await battleMiss(actor, def);
+        return;
+      }
+      const rawDmg = calcDamage(actor, def, mapResult ? mapResult.terrain : null, strikeOpts);
+      const dmgMult = roll === 'crit' ? 1.5 : 1;
+      const rawApplied = troopDamageToCasualties(def, Math.round(rawDmg * dmgMult));
+      const r = resolveIncomingCasualtiesWithPhase2FirstHit(def, rawApplied);
+      if (r.immuneTriggered) {
+        await battleFirstHitImmune(actor, def);
+        await sleep(280, speedRef.current);
+        return;
+      }
+      addBattleAnim(def, roll === 'crit' ? 'anim-crit-hit' : 'anim-hit', roll === 'crit' ? 560 : 480);
+      if (!shakeGate.shook) {
+        shakeMap(220);
+        shakeGate.shook = true;
+      }
+      def.currentTroops = Math.max(0, def.currentTroops - r.casualties);
+      updateTroopHp(def);
+      const label = roll === 'crit' ? `-${r.casualties} ★` : `-${r.casualties}`;
+      const cls =
+        roll === 'crit' ? (dk === 'strategy' ? 'skill-strategy-crit' : 'skill-physical-crit') : dmgTypeCls;
+      showDmg(def, label, cls);
+      if (!trimSkipForCombatPair(trimAllyBattleLog, actor, def)) {
+        addLog(fmt.fmtAttackResult(def, r.casualties), 'skill');
+      }
+      await sleep(480, speedRef.current);
+    },
+    [
+      addBattleAnim,
+      shakeMap,
+      updateTroopHp,
+      showDmg,
+      trimAllyBattleLog,
+      battleMiss,
+      battleFirstHitImmune,
+      mapResult,
+      speedRef,
+      addLog,
+    ],
+  );
+
+  /**
+   * 演示用单次主动伤害：全屏闪与技能名配色同阶段4，结算走 `strikeActiveSkillDamageOnce`（物白/谋色飘字及暴击变体）。
+   * 不消耗阶段4/5 次数；供 `playSkillDemo`。
+   */
+  const performSkillDemoStrike = useCallback(
+    async (actor, def, { skillName, damageType = 'physical', skillDamageMultiplier = 1 } = {}) => {
+      if (!actor || !def || def.currentTroops <= 0) return;
+      const dk = String(damageType).toLowerCase() === 'strategy' ? 'strategy' : 'physical';
+      const mult = Number(skillDamageMultiplier);
+      const strikeOpts = {
+        strike: 'normal',
+        battleTroops,
+        damageKind: dk,
+        skillDamageMultiplier: Number.isFinite(mult) && mult > 0 ? mult : 1,
+      };
+      const flash = document.createElement('div');
+      flash.className = 'skill-flash';
+      flash.style.background = dk === 'strategy' ? 'rgba(56, 189, 248, 0.38)' : 'rgba(255, 255, 255, 0.32)';
+      document.body.appendChild(flash);
+      setTimeout(() => flash.remove(), 420);
+      const card = resolveSurfaceRoot(battleSurfaceRef, mapCardRef);
+      if (card) {
+        const sn = document.createElement('div');
+        sn.className = 'skill-name-pop';
+        sn.textContent = skillName || '技能';
+        sn.style.color = dk === 'strategy' ? '#7dd3fc' : '#f1f5f9';
+        card.style.position = 'relative';
+        positionSkillNamePopAtActor(sn, actor);
+        card.appendChild(sn);
+        setTimeout(() => sn.remove(), 1100);
+      }
+      await sleep(380, speedRef.current);
+      if (!trimSkipForTroop(trimAllyBattleLog, actor)) {
+        addLog(fmt.fmtPhase4DamageOpening(actor, skillName || '技能', 1), 'skill');
+      }
+      const shakeGate = { shook: false };
+      await strikeActiveSkillDamageOnce(actor, def, strikeOpts, dk, shakeGate);
+    },
+    [
+      battleSurfaceRef,
+      mapCardRef,
+      speedRef,
+      trimAllyBattleLog,
+      addLog,
+      battleTroops,
+      strikeActiveSkillDamageOnce,
+      positionSkillNamePopAtActor,
+    ],
+  );
+
   const battleKill = useCallback(
     async (troop) => {
       if (!trimSkipForTroop(trimAllyBattleLog, troop)) addLog(fmt.fmtKill(troop), 'death');
+      applyMoraleOnStackEliminated(battleTroops, troop);
       troop.currentTroops = 0;
-      // 士气变化：消灭敌方 → 击杀方将领 +10；己方被消灭 → 该将领 -8
-      const killerFaction = troop.faction === 'player' ? 'enemy' : 'player';
-      for (const t of battleTroops) {
-        if (t.faction === troop.faction && t.character === troop.character && t.currentTroops > 0) {
-          t.morale = Math.max(0, Math.min(120, (t.morale || 70) - 8));
-        }
-      }
-      for (const t of battleTroops) {
-        if (t.faction === killerFaction && t.currentTroops > 0) {
-          t.morale = Math.max(0, Math.min(120, (t.morale || 70) + 10));
-        }
-      }
       const layer = getTroopLayer(troop);
       if (layer) {
         layer.classList.add('anim-death');
@@ -358,11 +499,20 @@ export function useBattleAnimations({
         const cur = troop.currentTroops;
         const loss = Math.min(cur, Math.floor(cur * 0.2));
         if (loss <= 0) continue;
+        const r = resolveIncomingCasualtiesWithPhase2FirstHit(troop, loss);
+        if (r.casualties <= 0) {
+          if (r.immuneTriggered) {
+            if (!trimSkipForTroop(trimAllyBattleLog, troop)) addLog(fmt.fmtFirstHitImmuneEnvironmental(troop, '着火格'), 'skill');
+            showDmg(troop, '0 免疫', 'skill-phase2-immune');
+            await sleep(180, speedRef.current);
+          }
+          continue;
+        }
         anyDamage = true;
-        troop.currentTroops = cur - loss;
+        troop.currentTroops = cur - r.casualties;
         updateTroopHp(troop);
-        showDmg(troop, `-${loss}🔥`, 'normal');
-        if (!trimSkipForTroop(trimAllyBattleLog, troop)) addLog(fmt.fmtFireTerrain(troop, loss), 'attack');
+        showDmg(troop, `-${r.casualties}🔥`, 'normal');
+        if (!trimSkipForTroop(trimAllyBattleLog, troop)) addLog(fmt.fmtFireTerrain(troop, r.casualties), 'attack');
         await sleep(180, speedRef.current);
         if (troop.currentTroops <= 0) {
           const c = await runBattleKill(troop);
@@ -371,7 +521,7 @@ export function useBattleAnimations({
       }
       return { outcome, anyDamage };
     },
-    [mapResult, updateTroopHp, showDmg, addLog, runBattleKill, speedRef, trimAllyBattleLog],
+    [mapResult, updateTroopHp, showDmg, addLog, runBattleKill, speedRef, trimAllyBattleLog, fmt],
   );
 
   const battleRanged = useCallback(
@@ -411,34 +561,361 @@ export function useBattleAnimations({
     [addLog, getTileEl, battleSurfaceRef, mapCardRef, addBattleAnim, updateTroopHp, showDmg, trimAllyBattleLog],
   );
 
-  const battleSkill = useCallback(
-    async (atk, def, dmg, skillName) => {
-      const applied = troopDamageToCasualties(def, dmg);
-      if (!trimSkipForCombatPair(trimAllyBattleLog, atk, def)) addLog(fmt.fmtSkill(atk, def, skillName), 'skill');
+  /** 阶段3·主动纯治疗（明镜 / 祈愿）：与 `skillPhase3ActiveHeal` 结算一致 */
+  const performPhase3Heal = useCallback(
+    async (actor, targetTroop, slot) => {
+      if (!actor || !targetTroop || !slot) return;
+      const { selfGain, allyGain } = applyPhase3HealMutation(actor, targetTroop, slot);
+      if (selfGain + allyGain <= 0) return;
+      consumePhase3HealCharge(actor, slot.skillId);
+
       const flash = document.createElement('div');
       flash.className = 'skill-flash';
-      flash.style.background = 'rgba(192,132,252,0.5)';
+      flash.style.background = 'rgba(72, 200, 120, 0.42)';
       document.body.appendChild(flash);
-      setTimeout(() => flash.remove(), 500);
+      setTimeout(() => flash.remove(), 450);
+
       const card = resolveSurfaceRoot(battleSurfaceRef, mapCardRef);
       if (card) {
         const sn = document.createElement('div');
         sn.className = 'skill-name-pop';
-        sn.textContent = skillName;
+        sn.textContent = slot.name || '治疗';
+        sn.style.color = '#8fef9a';
         card.style.position = 'relative';
+        positionSkillNamePopAtActor(sn, actor);
         card.appendChild(sn);
-        setTimeout(() => sn.remove(), 1200);
+        setTimeout(() => sn.remove(), 1100);
       }
-      await sleep(600, speedRef.current);
-      addBattleAnim(def, 'anim-crit-hit', 600);
-      shakeMap();
-      def.currentTroops = Math.max(0, def.currentTroops - applied);
-      updateTroopHp(def);
-      showDmg(def, `-${applied}`, 'crit');
-      if (!trimSkipForCombatPair(trimAllyBattleLog, atk, def)) addLog(fmt.fmtSkillResult(def, applied), 'skill');
-      await sleep(800, speedRef.current);
+      await sleep(420, speedRef.current);
+
+      const sameUnit =
+        targetTroop === actor ||
+        (targetTroop.id != null && actor.id != null && String(targetTroop.id) === String(actor.id));
+      if (sameUnit) {
+        updateTroopHp(actor);
+        showDmg(actor, `+${selfGain + allyGain}`, 'skill-heal');
+      } else {
+        if (selfGain > 0) {
+          updateTroopHp(actor);
+          showDmg(actor, `+${selfGain}`, 'skill-heal');
+        }
+        if (allyGain > 0) {
+          updateTroopHp(targetTroop);
+          showDmg(targetTroop, `+${allyGain}`, 'skill-heal');
+        }
+      }
+      addBattleAnim(actor, 'anim-hit', 380);
+      if (!trimSkipForTroop(trimAllyBattleLog, actor)) {
+        addLog(fmt.fmtPhase3HealActive(actor, slot.name, selfGain, targetTroop, allyGain), 'skill');
+      }
+      await sleep(520, speedRef.current);
     },
-    [addLog, battleSurfaceRef, mapCardRef, addBattleAnim, shakeMap, updateTroopHp, showDmg, trimAllyBattleLog],
+    [
+      addLog,
+      battleSurfaceRef,
+      mapCardRef,
+      addBattleAnim,
+      updateTroopHp,
+      showDmg,
+      trimAllyBattleLog,
+      speedRef,
+      positionSkillNamePopAtActor,
+    ],
+  );
+
+  /** 阶段4·主动纯伤害：不触发反击；飘字色相见 `BattleMap.css`（物白 / 谋冷色） */
+  const performPhase4Damage = useCallback(
+    async (actor, slot, victims) => {
+      if (!actor || !slot || !Array.isArray(victims) || victims.length === 0) return;
+      const alive = victims.filter((v) => v && v.currentTroops > 0);
+      if (!alive.length) return;
+      if (!consumePhase4DamageCharge(actor, slot.skillId)) return;
+
+      const { paid } = applyPhase4CostSelf(actor, slot.costSelf);
+      if (paid > 0) updateTroopHp(actor);
+
+      const dk = String(slot.damageType || 'physical').toLowerCase() === 'strategy' ? 'strategy' : 'physical';
+      const mult = Number(slot.damageMultiplier);
+      const strikeOpts = {
+        strike: 'normal',
+        battleTroops,
+        damageKind: dk,
+        skillDamageMultiplier: Number.isFinite(mult) && mult > 0 ? mult : 1,
+      };
+
+      const flash = document.createElement('div');
+      flash.className = 'skill-flash';
+      flash.style.background = dk === 'strategy' ? 'rgba(56, 189, 248, 0.38)' : 'rgba(255, 255, 255, 0.32)';
+      document.body.appendChild(flash);
+      setTimeout(() => flash.remove(), 420);
+
+      const card = resolveSurfaceRoot(battleSurfaceRef, mapCardRef);
+      if (card) {
+        const sn = document.createElement('div');
+        sn.className = 'skill-name-pop';
+        sn.textContent = slot.name || '技能';
+        sn.style.color = dk === 'strategy' ? '#7dd3fc' : '#f1f5f9';
+        card.style.position = 'relative';
+        positionSkillNamePopAtActor(sn, actor);
+        card.appendChild(sn);
+        setTimeout(() => sn.remove(), 1100);
+      }
+      await sleep(380, speedRef.current);
+
+      if (!trimSkipForTroop(trimAllyBattleLog, actor)) {
+        addLog(fmt.fmtPhase4DamageOpening(actor, slot.name, alive.length), 'skill');
+      }
+
+      const shakeGate = { shook: false };
+      let si = 0;
+      for (const def of alive) {
+        if (def.currentTroops <= 0) continue;
+        await sleep(45 * si, speedRef.current);
+        si += 1;
+        await strikeActiveSkillDamageOnce(actor, def, strikeOpts, dk, shakeGate);
+      }
+    },
+    [
+      addLog,
+      battleSurfaceRef,
+      mapCardRef,
+      addBattleAnim,
+      updateTroopHp,
+      showDmg,
+      trimAllyBattleLog,
+      speedRef,
+      mapResult,
+      battleTroops,
+      strikeActiveSkillDamageOnce,
+      positionSkillNamePopAtActor,
+    ],
+  );
+
+  /**
+   * 将领主动 · 阶段5 复合：`damage_dot` / `damage_debuff` / `damage_heal` / `heal_damage`。
+   * `victims`：与阶段4相同（形状锚点展开或随机池）；`heal_damage` 时传 `[]`，由本函数内随机段。
+   * 不触发反击；治疗段不扣阶段3次数（仅扣阶段5次数）。
+   */
+  const performPhase5Composite = useCallback(
+    async (actor, slot, victims) => {
+      if (!actor || !slot) return [];
+      const eff = String(slot.skillEffectType || '').toLowerCase();
+
+      const dk = String(slot.damageType || 'physical').toLowerCase() === 'strategy' ? 'strategy' : 'physical';
+      const mult = Number(slot.damageMultiplier);
+      const strikeOpts = {
+        strike: 'normal',
+        battleTroops,
+        damageKind: dk,
+        skillDamageMultiplier: Number.isFinite(mult) && mult > 0 ? mult : 1,
+      };
+
+      const playPhase5OpenFlash = async () => {
+        const flash = document.createElement('div');
+        flash.className = 'skill-flash';
+        flash.style.background = dk === 'strategy' ? 'rgba(56, 189, 248, 0.38)' : 'rgba(255, 255, 255, 0.32)';
+        document.body.appendChild(flash);
+        setTimeout(() => flash.remove(), 420);
+        const card = resolveSurfaceRoot(battleSurfaceRef, mapCardRef);
+        if (card) {
+          const sn = document.createElement('div');
+          sn.className = 'skill-name-pop';
+          sn.textContent = slot.name || '技能';
+          sn.style.color = dk === 'strategy' ? '#7dd3fc' : '#f1f5f9';
+          card.style.position = 'relative';
+          positionSkillNamePopAtActor(sn, actor);
+          card.appendChild(sn);
+          setTimeout(() => sn.remove(), 1100);
+        }
+        await sleep(380, speedRef.current);
+      };
+
+      const playHealSegmentVisual = async (selfGain, allyGain, targetTroop) => {
+        const flash = document.createElement('div');
+        flash.className = 'skill-flash';
+        flash.style.background = 'rgba(72, 200, 120, 0.42)';
+        document.body.appendChild(flash);
+        setTimeout(() => flash.remove(), 450);
+        const card = resolveSurfaceRoot(battleSurfaceRef, mapCardRef);
+        if (card) {
+          const sn = document.createElement('div');
+          sn.className = 'skill-name-pop';
+          sn.textContent = slot.name || '治疗';
+          sn.style.color = '#8fef9a';
+          card.style.position = 'relative';
+          positionSkillNamePopAtActor(sn, actor);
+          card.appendChild(sn);
+          setTimeout(() => sn.remove(), 1100);
+        }
+        await sleep(420, speedRef.current);
+        const sameUnit =
+          targetTroop === actor ||
+          (targetTroop.id != null && actor.id != null && String(targetTroop.id) === String(actor.id));
+        if (sameUnit) {
+          updateTroopHp(actor);
+          showDmg(actor, `+${selfGain + allyGain}`, 'skill-heal');
+        } else {
+          if (selfGain > 0) {
+            updateTroopHp(actor);
+            showDmg(actor, `+${selfGain}`, 'skill-heal');
+          }
+          if (allyGain > 0) {
+            updateTroopHp(targetTroop);
+            showDmg(targetTroop, `+${allyGain}`, 'skill-heal');
+          }
+        }
+        addBattleAnim(actor, 'anim-hit', 380);
+        await sleep(520, speedRef.current);
+      };
+
+      if (eff === 'heal_damage') {
+        const stub = phase5HealSlotStub(slot);
+        const pre = previewPhase3HealGains(actor, actor, stub);
+        if (pre.selfGain + pre.allyGain <= 0) return [];
+        if (!consumePhase5CompositeCharge(actor, slot.skillId)) return [];
+        const { paid } = applyPhase4CostSelf(actor, slot.costSelf);
+        if (paid > 0) updateTroopHp(actor);
+        const { selfGain, allyGain } = applyPhase3HealMutation(actor, actor, stub);
+        if (!trimSkipForTroop(trimAllyBattleLog, actor)) {
+          addLog(fmt.fmtPhase5HealDamageHeal(actor, slot.name, selfGain, allyGain), 'skill');
+        }
+        await playHealSegmentVisual(selfGain, allyGain, actor);
+        const strikeCast = getTacticalActiveSkillCastRange(slot.skillId);
+        const strikeList = pickPhase4RandomVictims(
+          actor,
+          { targetRange: 'random', targetCount: '1', skillId: slot.skillId },
+          battleTroops,
+          strikeCast,
+        );
+        if (!strikeList.length) return [];
+        if (!trimSkipForCombatPair(trimAllyBattleLog, actor, strikeList[0])) {
+          addLog(fmt.fmtPhase5HealDamageStrike(actor, strikeList[0]), 'skill');
+        }
+        await playPhase5OpenFlash();
+        const strikeShake = { shook: false };
+        for (const def of strikeList) {
+          await strikeActiveSkillDamageOnce(actor, def, strikeOpts, dk, strikeShake);
+        }
+        return strikeList;
+      }
+
+      const alive = (victims || []).filter((v) => v && v.currentTroops > 0);
+      if (!alive.length) return [];
+      if (!consumePhase5CompositeCharge(actor, slot.skillId)) return [];
+      const { paid } = applyPhase4CostSelf(actor, slot.costSelf);
+      if (paid > 0) updateTroopHp(actor);
+
+      await playPhase5OpenFlash();
+      if (!trimSkipForTroop(trimAllyBattleLog, actor)) {
+        addLog(fmt.fmtPhase5CompositeOpening(actor, slot.name, eff), 'skill');
+      }
+
+      const shakeGate = { shook: false };
+      let si = 0;
+      for (const def of alive) {
+        if (def.currentTroops <= 0) continue;
+        await sleep(45 * si, speedRef.current);
+        si += 1;
+        await strikeActiveSkillDamageOnce(actor, def, strikeOpts, dk, shakeGate);
+      }
+
+      if (eff === 'damage_dot' && slot.burn) {
+        const { rounds, dotRatio } = slot.burn;
+        for (const def of alive) {
+          if (!def || def.currentTroops <= 0) continue;
+          for (let ri = 0; ri < rounds; ri++) {
+            if (def.currentTroops <= 0) break;
+            const cur = def.currentTroops;
+            const dotRaw = Math.min(cur, Math.floor(cur * dotRatio));
+            if (dotRaw <= 0) continue;
+            const r = resolveIncomingCasualtiesWithPhase2FirstHit(def, dotRaw);
+            if (r.immuneTriggered) {
+              await battleFirstHitImmune(actor, def);
+              await sleep(200, speedRef.current);
+              continue;
+            }
+            addBattleAnim(def, 'anim-hit', 420);
+            def.currentTroops = Math.max(0, def.currentTroops - r.casualties);
+            updateTroopHp(def);
+            showDmg(def, `-${r.casualties}🔥`, 'skill-dot-fire');
+            if (!trimSkipForCombatPair(trimAllyBattleLog, actor, def)) {
+              addLog(fmt.fmtPhase5BurnTick(def, r.casualties, ri + 1, rounds), 'skill');
+            }
+            await sleep(380, speedRef.current);
+          }
+        }
+      }
+
+      if (eff === 'damage_debuff') {
+        for (const def of alive) {
+          if (!def || def.currentTroops <= 0) continue;
+          const fd = slot.flatDamage != null ? Math.max(0, Math.floor(Number(slot.flatDamage))) : 0;
+          if (fd > 0) {
+            const rawApplied = troopDamageToCasualties(def, fd);
+            const r = resolveIncomingCasualtiesWithPhase2FirstHit(def, rawApplied);
+            if (r.immuneTriggered) {
+              await battleFirstHitImmune(actor, def);
+              await sleep(220, speedRef.current);
+            } else {
+              addBattleAnim(def, 'anim-hit', 450);
+              def.currentTroops = Math.max(0, def.currentTroops - r.casualties);
+              updateTroopHp(def);
+              showDmg(def, `-${r.casualties}`, 'skill-special');
+              if (!trimSkipForCombatPair(trimAllyBattleLog, actor, def)) {
+                addLog(fmt.fmtPhase5FlatDamage(def, r.casualties), 'skill');
+              }
+              await sleep(400, speedRef.current);
+            }
+          }
+          const lab = slot.debuffLabel != null ? String(slot.debuffLabel).trim() : '';
+          if (lab) {
+            showDmg(def, `⚠ ${lab.length > 18 ? `${lab.slice(0, 16)}…` : lab}`, 'skill-special');
+            if (!trimSkipForCombatPair(trimAllyBattleLog, actor, def)) {
+              addLog(fmt.fmtPhase5DebuffNotify(def, lab), 'skill');
+            }
+            await sleep(350, speedRef.current);
+          }
+        }
+      }
+
+      if (eff === 'damage_heal') {
+        const stub = phase5HealSlotStub(slot);
+        const cands = listPhase3HealTargetTroops(actor, stub, battleTroops);
+        let healTarget = actor;
+        for (const t of cands) {
+          const p = previewPhase3HealGains(actor, t, stub);
+          if (p.allyGain > 0 && t !== actor) {
+            healTarget = t;
+            break;
+          }
+        }
+        const { selfGain, allyGain } = applyPhase3HealMutation(actor, healTarget, stub);
+        if (selfGain + allyGain > 0) {
+          if (!trimSkipForTroop(trimAllyBattleLog, actor)) {
+            addLog(fmt.fmtPhase5DamageHealSegment(actor, slot.name, selfGain, healTarget, allyGain), 'skill');
+          }
+          await playHealSegmentVisual(selfGain, allyGain, healTarget);
+        }
+      }
+      return alive;
+    },
+    [
+      addLog,
+      battleSurfaceRef,
+      mapCardRef,
+      addBattleAnim,
+      updateTroopHp,
+      showDmg,
+      trimAllyBattleLog,
+      speedRef,
+      mapResult,
+      battleTroops,
+      strikeActiveSkillDamageOnce,
+      listPhase3HealTargetTroops,
+      previewPhase3HealGains,
+      battleFirstHitImmune,
+      positionSkillNamePopAtActor,
+    ],
   );
 
   // ── 陷阱检查 ─────────────────────────────────────────────────────────────
@@ -449,17 +926,22 @@ export function useBattleAnimations({
       const obj = mapResult.objects.find((o) => o.y === y && o.x === x && o.type === 'trap');
       if (obj) {
         const trapDmg = troopDamageToCasualties(troop, 50);
-        troop.currentTroops = Math.max(0, troop.currentTroops - trapDmg);
+        const r = resolveIncomingCasualtiesWithPhase2FirstHit(troop, trapDmg);
+        if (r.immuneTriggered) {
+          if (!trimSkipForTroop(trimAllyBattleLog, troop)) addLog(fmt.fmtFirstHitImmuneEnvironmental(troop, '陷阱'), 'skill');
+          showDmg(troop, '0 免疫', 'skill-phase2-immune');
+          await sleep(400, speedRef.current);
+          return;
+        }
+        troop.currentTroops = Math.max(0, troop.currentTroops - r.casualties);
         updateTroopHp(troop);
-        showDmg(troop, `-${trapDmg} ⚠️`, 'normal');
-        if (!trimSkipForTroop(trimAllyBattleLog, troop)) addLog(fmt.fmtTrap(troop, trapDmg), 'attack');
+        showDmg(troop, `-${r.casualties} ⚠️`, 'normal');
+        if (!trimSkipForTroop(trimAllyBattleLog, troop)) addLog(fmt.fmtTrap(troop, r.casualties), 'attack');
         await sleep(400, speedRef.current);
       }
     },
-    [mapResult, updateTroopHp, showDmg, addLog, trimAllyBattleLog],
+    [mapResult, updateTroopHp, showDmg, addLog, trimAllyBattleLog, fmt, speedRef],
   );
-
-  // ── 移动部队（逐格动画） ──────────────────────────────────────────────────
 
   const battleMove = useCallback(
     async (troop, path) => {
@@ -512,21 +994,32 @@ export function useBattleAnimations({
         if (!trimSkipForTroop(trimAllyBattleLog, atk)) addLog(fmt.fmtOutOfRange(atk, d0, atkRange), 'move');
         return 0;
       }
+      const strikeOpts = { strike: 'normal', battleTroops };
       const roll = rollCritDodge(atk, def);
-      const dmg = calcDamage(atk, def, mapResult ? mapResult.terrain : null, { strike: 'normal' });
+      const dmg = calcDamage(atk, def, mapResult ? mapResult.terrain : null, strikeOpts);
       if (roll === 'dodge') { await battleMiss(atk, def); return 0; }
       if (roll === 'crit') {
         const cd = troopDamageToCasualties(def, Math.round(dmg * 1.5));
-        await battleCrit(atk, def, cd);
-        return cd;
+        const r = resolveIncomingCasualtiesWithPhase2FirstHit(def, cd);
+        if (r.immuneTriggered) {
+          await battleFirstHitImmune(atk, def);
+          return 0;
+        }
+        await battleCrit(atk, def, r.casualties);
+        return r.casualties;
       }
       const applied = troopDamageToCasualties(def, dmg);
+      const r = resolveIncomingCasualtiesWithPhase2FirstHit(def, applied);
+      if (r.immuneTriggered) {
+        await battleFirstHitImmune(atk, def);
+        return 0;
+      }
       const wt = atk.weaponType || '';
-      if (wt.startsWith('archer') && atkRange >= 2) { await battleRanged(atk, def, applied, '➤'); }
-      else { await battleAttack(atk, def, applied); }
-      return applied;
+      if (wt.startsWith('archer') && atkRange >= 2) { await battleRanged(atk, def, r.casualties, '➤'); }
+      else { await battleAttack(atk, def, r.casualties); }
+      return r.casualties;
     },
-    [addLog, mapResult, battleMiss, battleCrit, battleRanged, battleAttack, trimAllyBattleLog],
+    [addLog, mapResult, battleMiss, battleCrit, battleRanged, battleAttack, trimAllyBattleLog, battleTroops, battleFirstHitImmune],
   );
 
   const performCounterAttack = useCallback(
@@ -537,21 +1030,31 @@ export function useBattleAnimations({
       if (d > defRange) return;
       if (!trimSkipForCombatPair(trimAllyBattleLog, def, atk)) addLog(fmt.fmtCounter(def), 'attack');
       await sleep(150, speedRef.current);
+      const strikeOpts = { strike: 'counter', battleTroops };
       const roll = rollCritDodge(def, atk);
-      const dmg = calcDamage(def, atk, mapResult ? mapResult.terrain : null, { strike: 'counter' });
+      const dmg = calcDamage(def, atk, mapResult ? mapResult.terrain : null, strikeOpts);
+      const victim = atk;
+      const aggressor = def;
       if (roll === 'dodge') { await battleMiss(def, atk); }
       else if (roll === 'crit') {
-        await battleCrit(def, atk, troopDamageToCasualties(atk, Math.round(dmg * 1.5)));
+        const cd = troopDamageToCasualties(victim, Math.round(dmg * 1.5));
+        const r = resolveIncomingCasualtiesWithPhase2FirstHit(victim, cd);
+        if (r.immuneTriggered) await battleFirstHitImmune(aggressor, victim);
+        else await battleCrit(def, atk, r.casualties);
       } else {
-        const applied = troopDamageToCasualties(atk, dmg);
-        const wt = def.weaponType || '';
-        if (wt.startsWith('archer') && defRange >= 2) await battleRanged(def, atk, applied, '➤');
-        else await battleAttack(def, atk, applied);
+        const applied = troopDamageToCasualties(victim, dmg);
+        const r = resolveIncomingCasualtiesWithPhase2FirstHit(victim, applied);
+        if (r.immuneTriggered) await battleFirstHitImmune(aggressor, victim);
+        else {
+          const wt = def.weaponType || '';
+          if (wt.startsWith('archer') && defRange >= 2) await battleRanged(def, atk, r.casualties, '➤');
+          else await battleAttack(def, atk, r.casualties);
+        }
       }
       if (atk.currentTroops <= 0) return runBattleKill(atk);
       return undefined;
     },
-    [addLog, mapResult, battleMiss, battleCrit, battleRanged, battleAttack, runBattleKill, trimAllyBattleLog],
+    [addLog, mapResult, battleMiss, battleCrit, battleRanged, battleAttack, runBattleKill, trimAllyBattleLog, battleTroops, battleFirstHitImmune],
   );
 
   return {
@@ -560,8 +1063,12 @@ export function useBattleAnimations({
     battleAttack, battleCrit, battleMiss,
     battleKill, runBattleKill,
     applyEndOfRoundFire,
-    battleRanged, battleSkill,
+    battleRanged,
+    performSkillDemoStrike,
     checkTrap, battleMove,
     performAttack, performCounterAttack,
+    performPhase3Heal,
+    performPhase4Damage,
+    performPhase5Composite,
   };
 }

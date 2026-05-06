@@ -6,6 +6,7 @@
 
 import { useState, useEffect } from 'react';
 import { playerAPI } from '@/services/playerApi';
+import { playerTokenManager } from '@/utils/playerTokenManager';
 
 export function usePlayer(playerId) {
   const [player, setPlayer] = useState(null);
@@ -42,6 +43,7 @@ export function usePlayer(playerId) {
       if (err.message?.includes('404') || err.message?.includes('不存在')) {
         console.warn('[usePlayer] 用户可能已被删除，清除本地登录状态');
         localStorage.removeItem('gameUser');
+        playerTokenManager.clear();
       }
       setError(err.message);
       setPlayer(null);

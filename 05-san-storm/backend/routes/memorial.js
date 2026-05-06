@@ -11,8 +11,17 @@ const fs = require('fs/promises');
 const path = require('path');
 const { pool } = require('../database/connection');
 const { putPngBuffer } = require('../utils/ossMemorial');
+const { requireAuth } = require('../middleware/auth');
+const { wrap500 } = require('../utils/httpError');
 
 const router = express.Router();
+
+/**
+ * 鉴权：纪念图 POST 上传必须登录；GET 配额 / 列表 / 下载在当前前端只在登录后调用，
+ * 顶层挂 `requireAuth` 统一关匿名。若未来需要"未登录公开浏览纪念图"，再单独把 list / file
+ * 拆出免鉴权挂载点。
+ */
+router.use(requireAuth);
 
 /** 生产/测试：纪念图每日次数不限（便于验收；正式玩家仍为每日 1 次） */
 const MEMORIAL_UNLIMITED_PLAYER_IDS = new Set(['04DO']);
@@ -60,7 +69,7 @@ async function getTodayBattleMemorial(playerId) {
   return rows[0] || null;
 }
 
-router.get('/battle/quota', async (req, res) => {
+router.get('/battle/quota', async (req, res, next) => {
   try {
     const { playerId } = req.query;
     if (!playerId) {
@@ -79,8 +88,7 @@ router.get('/battle/quota', async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('[memorial/battle/quota] 失败:', error);
-    return res.status(500).json({ success: false, error: '获取纪念图配额失败' });
+    return next(wrap500(error, '获取纪念图配额失败'));
   }
 });
 
@@ -88,7 +96,7 @@ router.get('/battle/quota', async (req, res) => {
  * 代理下载：前端对 OSS 直链 fetch 会触发 CORS，改为同源请求本接口，由服务端拉取 OSS 再流式返回。
  * GET /api/memorial/battle/download?playerId=&id=（memorial_images.id）
  */
-router.get('/battle/download', async (req, res) => {
+router.get('/battle/download', async (req, res, next) => {
   try {
     const { playerId, id } = req.query;
     if (!playerId || id == null || String(id).trim() === '') {
@@ -143,14 +151,16 @@ router.get('/battle/download', async (req, res) => {
         }
       });
   } catch (error) {
-    console.error('[memorial/battle/download]', error);
-    if (!res.headersSent) {
-      res.status(500).json({ success: false, error: '下载失败' });
+    if (res.headersSent) {
+      // 流已经开始写出，错误处理只能就地结束响应；交给 errorHandler 反而触发"headers already sent"
+      console.error('[memorial/battle/download] headers already sent', error);
+      return;
     }
+    return next(wrap500(error, '下载失败'));
   }
 });
 
-router.post('/battle', async (req, res) => {
+router.post('/battle', async (req, res, next) => {
   try {
     const { playerId, battleId, imageBase64 } = req.body || {};
     if (!playerId || !battleId || !imageBase64) {
@@ -254,8 +264,7 @@ router.post('/battle', async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('[memorial/battle] 失败:', error);
-    return res.status(500).json({ success: false, error: '生成战斗纪念图失败' });
+    return next(wrap500(error, '生成战斗纪念图失败'));
   }
 });
 
@@ -263,7 +272,7 @@ router.post('/battle', async (req, res) => {
  * 列出纪念海报底图文件名（png/jpg/webp），供客户端随机选图。
  * 管理员往 05-san-storm/public/assets/san_1_memorial/illus_battle/ 增删文件即可（与 Vite publicDir 一致）。
  */
-router.get('/illus-battle-list', async (req, res) => {
+router.get('/illus-battle-list', async (req, res, next) => {
   try {
     await fs.mkdir(GAME_PUBLIC_MEMORIAL_ILLUS, { recursive: true });
     const names = await fs.readdir(GAME_PUBLIC_MEMORIAL_ILLUS);
@@ -279,7 +288,7 @@ router.get('/illus-battle-list', async (req, res) => {
  * 兼容旧数据：早期 image_url 指向本地 /api/memorial/file/xxx 时仍可访问。
  * 新记录均为 OSS HTTPS 直链，不再写入本地。
  */
-router.get('/file/:filename', async (req, res) => {
+router.get('/file/:filename', async (req, res, next) => {
   try {
     const file = String(req.params.filename || '');
     if (!/^[a-zA-Z0-9._-]+\.png$/.test(file)) {

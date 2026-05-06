@@ -29,6 +29,12 @@ export const mapCornerEntryStackOuterStyle = {
 export const MAP_CORNER_ENTRY_ROW_CLASS =
   'box-border flex items-center overflow-hidden rounded-lg border border-amber-700/40 bg-black/80 px-2 text-xs font-medium hover:bg-black/70 transition-colors';
 
+/**
+ * 左上 **`ZhouJunMapJumpPanel`** 专用：左右 **`px-1`**（排行 / 聊天仍 **`px-2`**），便于 66px 格内「匪寨」「攻城」等完整显示。
+ */
+export const MAP_CORNER_ENTRY_ROW_CLASS_ZHOU_JUN =
+  'box-border flex items-center overflow-hidden rounded-lg border border-amber-700/40 bg-black/80 px-1 text-xs font-medium hover:bg-black/70 transition-colors';
+
 /** 州郡条底部一行提示：与入口同宽、单行省略，不占可变高度 */
 export const mapCornerEntryHintRowStyle = {
   width: MAP_CORNER_ENTRY_W_PX,
@@ -37,5 +43,19 @@ export const mapCornerEntryHintRowStyle = {
   height: 18,
   minHeight: 18,
   maxHeight: 18,
+  boxSizing: 'border-box',
+};
+
+/** 郡名与右侧匪寨钮水平间距（与 `gap-1` 一致） */
+export const MAP_CORNER_JUN_PAIR_GAP_PX = 4;
+
+/** 郡名 66 + 间距 + 匪寨 66（`ZhouJunMapJumpPanel` 有匪寨时州下拉与郡行同总宽） */
+export const MAP_CORNER_ZHOU_JUN_PAIR_ROW_W_PX =
+  MAP_CORNER_ENTRY_W_PX + MAP_CORNER_JUN_PAIR_GAP_PX + MAP_CORNER_ENTRY_W_PX;
+
+export const mapCornerZhouJunStackWideOuterStyle = {
+  width: MAP_CORNER_ZHOU_JUN_PAIR_ROW_W_PX,
+  minWidth: MAP_CORNER_ZHOU_JUN_PAIR_ROW_W_PX,
+  maxWidth: MAP_CORNER_ZHOU_JUN_PAIR_ROW_W_PX,
   boxSizing: 'border-box',
 };

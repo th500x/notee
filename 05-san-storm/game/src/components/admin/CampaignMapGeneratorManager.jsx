@@ -11,6 +11,7 @@ import {
   randomCampaignMapSeed,
 } from '@shared/utils/campaignMapGenerator';
 import { API_CONFIG } from '@/constants';
+import { fetchWithTimeout } from '@/services/httpClient';
 import CampaignMapGrid from '@/components/campaign/CampaignMapGrid';
 import { useAdminToast } from '@/components/admin/useAdminToast';
 
@@ -40,7 +41,7 @@ export default function CampaignMapGeneratorManager() {
     if (!campaignId) return;
     let cancelled = false;
     const base = API_CONFIG.BASE_URL.replace(/\/$/, '');
-    fetch(`${base}/campaign/presets/${campaignId}`)
+    fetchWithTimeout(`${base}/campaign/presets/${campaignId}`)
       .then((r) => r.json())
       .then((j) => {
         if (cancelled) return;

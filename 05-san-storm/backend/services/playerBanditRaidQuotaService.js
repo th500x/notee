@@ -1,13 +1,23 @@
 /**
  * 匪寨「攻打」次数：与探索配额分立；存 `player_progress.bandit_progress.byJunRaidQuota[<jun_id>]`。
  * 同一郡内多座匪寨（阶段一各 2 枚）**共用**剩余次数；**个人爬塔进度**仍为 `byBanditMapObjectId[<匪寨地图对象 ID>].nextLayer`。
- * 规则：初始 6；每跨越一个日历 8 小时整点窗口 +6；上限 18。
+ * 档序列与补点算法见 `backend/utils/banditRaidQuotaAccrual.js`（单源）。
  */
 
 const path = require('path');
 const { pathToFileURL } = require('url');
 const { pool } = require('../database/connection');
 const { getPhase1BanditPoiIdsForJun } = require('../../shared/utils/strategicBanditPlaceholderPhase1.js');
+const {
+  BANDIT_RAID_QUOTA_DEFAULTS,
+  banditWindowSerialAt,
+  msUntilNextBanditQuotaBoundary,
+  accrueBanditRaidQuota,
+} = require('../utils/banditRaidQuotaAccrual');
+
+const RAID_INITIAL = BANDIT_RAID_QUOTA_DEFAULTS.initial;
+const RAID_MAX = BANDIT_RAID_QUOTA_DEFAULTS.max;
+const RAID_PER_WINDOW = BANDIT_RAID_QUOTA_DEFAULTS.perWindow;
 
 const BANDIT_MAP_OBJECT_ID_RE = /^san_\d+_bandit_[1-9]_[a-z0-9_]+$/i;
 
@@ -16,9 +26,10 @@ const BUCKET = 'byBanditMapObjectId';
 /** 攻打次数按郡共享（`config_jun.jun_id`） */
 const JUN_RAID_BUCKET = 'byJunRaidQuota';
 
-const RAID_INITIAL = 6;
-const RAID_MAX = 18;
-const RAID_PER_WINDOW = 6;
+/** @returns {number} 距下一 8 小时档边界的整分钟数（≥0） */
+function minutesUntilNextBanditBoundary() {
+  return Math.ceil(msUntilNextBanditQuotaBoundary() / 60000);
+}
 
 let rosterEsmPromise = null;
 function loadSmallMapEnemyRoster() {
@@ -27,33 +38,6 @@ function loadSmallMapEnemyRoster() {
     rosterEsmPromise = import(pathToFileURL(filePath).href);
   }
   return rosterEsmPromise;
-}
-
-function banditWindowSerialAt(date = new Date()) {
-  const d = new Date(date);
-  const y = d.getFullYear();
-  const mo = d.getMonth();
-  const day = d.getDate();
-  const h = d.getHours();
-  const midnight = new Date(y, mo, day, 0, 0, 0, 0).getTime();
-  const daySerial = Math.floor(midnight / 86400000);
-  const widx = h < 8 ? 0 : h < 16 ? 1 : 2;
-  return daySerial * 3 + widx;
-}
-
-function nextBanditBoundaryMs(date = new Date()) {
-  const d = new Date(date);
-  const y = d.getFullYear();
-  const mo = d.getMonth();
-  const day = d.getDate();
-  const h = d.getHours();
-  if (h < 8) return new Date(y, mo, day, 8, 0, 0, 0).getTime();
-  if (h < 16) return new Date(y, mo, day, 16, 0, 0, 0).getTime();
-  return new Date(y, mo, day + 1, 0, 0, 0, 0).getTime();
-}
-
-function minutesUntilNextBanditBoundary() {
-  return Math.max(0, Math.ceil((nextBanditBoundaryMs() - Date.now()) / 60000));
 }
 
 /**
@@ -115,34 +99,6 @@ function normalizeStoredNextLayer(raw, maxPersonalLayers) {
   return Math.min(maxP + 1, s0);
 }
 
-function accrueRaidQuota(raid, currentSerial) {
-  let remaining = Number.isFinite(Number(raid?.remaining)) ? Number(raid.remaining) : RAID_INITIAL;
-  let lastSerial =
-    raid?.lastAccruedSerial != null && Number.isFinite(Number(raid.lastAccruedSerial))
-      ? Number(raid.lastAccruedSerial)
-      : null;
-
-  if (lastSerial == null) {
-    const r0 = Math.min(RAID_MAX, Math.max(0, RAID_INITIAL));
-    return { remaining: r0, lastAccruedSerial: currentSerial, changed: true };
-  }
-
-  let changed = false;
-  while (lastSerial < currentSerial) {
-    lastSerial += 1;
-    remaining = Math.min(RAID_MAX, remaining + RAID_PER_WINDOW);
-    changed = true;
-  }
-
-  const clamped = Math.min(RAID_MAX, Math.max(0, remaining));
-  if (clamped !== remaining) {
-    remaining = clamped;
-    changed = true;
-  }
-
-  return { remaining, lastAccruedSerial: lastSerial, changed };
-}
-
 /**
  * @param {string} banditPoiId
  * @returns {Promise<string|null>}
@@ -178,12 +134,12 @@ function migrateJunRaidFromLegacyIfNeeded(bp, junId, currentSerial) {
   for (const pid of pidList) {
     const prevEntry = bp[BUCKET][pid] && typeof bp[BUCKET][pid] === 'object' ? { ...bp[BUCKET][pid] } : {};
     const prevRaid = prevEntry.raid && typeof prevEntry.raid === 'object' ? { ...prevEntry.raid } : {};
-    collected.push(accrueRaidQuota(prevRaid, currentSerial));
+    collected.push(accrueBanditRaidQuota(prevRaid, currentSerial));
   }
   let remaining;
   let lastAccruedSerial;
   if (!collected.length) {
-    const a = accrueRaidQuota({}, currentSerial);
+    const a = accrueBanditRaidQuota({}, currentSerial);
     remaining = a.remaining;
     lastAccruedSerial = a.lastAccruedSerial;
   } else {
@@ -234,7 +190,7 @@ async function getRaidQuotaState(playerId, banditPoiId) {
     bp[JUN_RAID_BUCKET][junId] && typeof bp[JUN_RAID_BUCKET][junId] === 'object'
       ? { ...bp[JUN_RAID_BUCKET][junId] }
       : {};
-  const acc = accrueRaidQuota(junRaidPrev, currentSerial);
+  const acc = accrueBanditRaidQuota(junRaidPrev, currentSerial);
   bp[JUN_RAID_BUCKET][junId] = {
     remaining: acc.remaining,
     lastAccruedSerial: acc.lastAccruedSerial,
@@ -320,7 +276,7 @@ async function resetBanditRaidTowerProgress(playerId, banditPoiId) {
     bp[JUN_RAID_BUCKET][junId] && typeof bp[JUN_RAID_BUCKET][junId] === 'object'
       ? { ...bp[JUN_RAID_BUCKET][junId] }
       : {};
-  const acc = accrueRaidQuota(junRaidPrev, currentSerial);
+  const acc = accrueBanditRaidQuota(junRaidPrev, currentSerial);
   bp[JUN_RAID_BUCKET][junId] = {
     remaining: acc.remaining,
     lastAccruedSerial: acc.lastAccruedSerial,
@@ -379,7 +335,7 @@ async function applyRaidQuotaAction(playerId, banditPoiId, action) {
     bp[JUN_RAID_BUCKET][junId] && typeof bp[JUN_RAID_BUCKET][junId] === 'object'
       ? { ...bp[JUN_RAID_BUCKET][junId] }
       : {};
-  const acc = accrueRaidQuota(junRaidPrev, currentSerial);
+  const acc = accrueBanditRaidQuota(junRaidPrev, currentSerial);
   if (acc.remaining <= 0) {
     return { ok: false, status: 400, error: '攻打次数不足' };
   }

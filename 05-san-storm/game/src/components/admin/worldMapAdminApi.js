@@ -1,4 +1,5 @@
 import { API_CONFIG } from '@/constants';
+import { fetchWithTimeout } from '@/services/httpClient';
 
 const base = `${API_CONFIG.BASE_URL}/admin/world-map`;
 
@@ -12,7 +13,7 @@ async function parseJson(res) {
 }
 
 export async function fetchGeoOptions() {
-  const res = await fetch(`${base}/geo-options`);
+  const res = await fetchWithTimeout(`${base}/geo-options`);
   const data = await parseJson(res);
   if (!res.ok) {
     if (data && typeof data === 'object' && data.success === false) return data;
@@ -25,14 +26,14 @@ export async function fetchGeoOptions() {
 }
 
 export async function fetchJunPresetStatus(junId) {
-  const res = await fetch(`${base}/jun/${encodeURIComponent(junId)}/preset-status`);
+  const res = await fetchWithTimeout(`${base}/jun/${encodeURIComponent(junId)}/preset-status`);
   return parseJson(res);
 }
 
 /** @param {string} junId @param {'A'|'B'|'C'|'D'|string} quad */
 export async function fetchJunQuadPreset(junId, quad) {
   const q = String(quad || '').trim().toUpperCase();
-  const res = await fetch(
+  const res = await fetchWithTimeout(
     `${base}/jun/${encodeURIComponent(junId)}/quad-preset/${encodeURIComponent(q)}`,
   );
   const data = await parseJson(res);
@@ -47,7 +48,7 @@ export async function fetchJunQuadPreset(junId, quad) {
 }
 
 export async function postCoordinatesToDb(junId) {
-  const res = await fetch(`${base}/coordinates-to-db`, {
+  const res = await fetchWithTimeout(`${base}/coordinates-to-db`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ junId }),
@@ -56,7 +57,7 @@ export async function postCoordinatesToDb(junId) {
 }
 
 export async function postBoundariesToDb(season, edges) {
-  const res = await fetch(`${base}/boundaries-to-db`, {
+  const res = await fetchWithTimeout(`${base}/boundaries-to-db`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ season, edges }),
@@ -65,7 +66,7 @@ export async function postBoundariesToDb(season, edges) {
 }
 
 export async function postGenerateMergedMap(junId, seed) {
-  const res = await fetch(`${base}/generate-merged-map`, {
+  const res = await fetchWithTimeout(`${base}/generate-merged-map`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ junId, seed: seed != null ? Number(seed) : undefined }),
@@ -75,7 +76,7 @@ export async function postGenerateMergedMap(junId, seed) {
 
 /** @param {string} junId @param {{ gx: number, gy: number }[]} roadCells @param {'4'|'8'} [roadConnectivity] */
 export async function postSaveMergedRoadCells(junId, roadCells, roadConnectivity) {
-  const res = await fetch(`${base}/save-merged-road-cells`, {
+  const res = await fetchWithTimeout(`${base}/save-merged-road-cells`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ junId, roadCells, roadConnectivity }),
@@ -90,7 +91,7 @@ export async function postSaveMergedRoadCells(junId, roadCells, roadConnectivity
  * @param {string} [season] 与 config_jun 同季，缺省则不限 season（多季同 jun_id 时会都命中）
  */
 export async function postBatchNpcGarrison(junId, ownershipMode, counts, season) {
-  const res = await fetch(`${base}/batch-npc-garrison`, {
+  const res = await fetchWithTimeout(`${base}/batch-npc-garrison`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ junId, ownershipMode, counts, season }),

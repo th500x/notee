@@ -6,8 +6,17 @@
 const express = require('express');
 const path = require('path');
 const campaignService = require('../services/campaignService');
+const { requireAuth } = require('../middleware/auth');
+const { wrap500 } = require('../utils/httpError');
 
 const router = express.Router();
+
+/**
+ * 鉴权：含玩家进度 patch / 领奖 / 战役中心（query.playerId）等私有端点；
+ * `definitions` / `presets` 是公开模板但当前前端只在登录后访问，统一顶层挂 `requireAuth` 关闭匿名访问。
+ * 细粒度 `requireSelf` 留下一阶段。
+ */
+router.use(requireAuth);
 
 const PRESET_FILES = {
   san_1_camp_1001_v1: path.join(__dirname, '../../shared/data/campaign/san_1_camp_1001_v1.preset.json'),
@@ -24,14 +33,13 @@ function loadPreset(id) {
 /**
  * GET /api/campaign/definitions?season=san_1
  */
-router.get('/definitions', async (req, res) => {
+router.get('/definitions', async (req, res, next) => {
   try {
     const season = req.query.season || 'san_1';
     const definitions = await campaignService.listDefinitions(season);
     res.json({ success: true, season, definitions });
   } catch (e) {
-    console.error('[campaign] definitions:', e);
-    res.status(500).json({ success: false, error: e.message });
+    return next(wrap500(e, '获取战役定义失败'));
   }
 });
 
@@ -39,7 +47,7 @@ router.get('/definitions', async (req, res) => {
  * GET /api/campaign/center?playerId=&season=
  * 合并配置 + 进度 + autoOpenCampaignId（可玩中 era 最早的一场）
  */
-router.get('/center', async (req, res) => {
+router.get('/center', async (req, res, next) => {
   try {
     const { playerId, season } = req.query;
     if (!playerId) {
@@ -48,8 +56,7 @@ router.get('/center', async (req, res) => {
     const payload = await campaignService.getCampaignCenterPayload(playerId, season || 'san_1');
     res.json({ success: true, ...payload });
   } catch (e) {
-    console.error('[campaign] center:', e);
-    res.status(500).json({ success: false, error: e.message });
+    return next(wrap500(e, '获取战役中心数据失败'));
   }
 });
 
@@ -57,7 +64,7 @@ router.get('/center', async (req, res) => {
  * PATCH /api/campaign/progress
  * body: { playerId, patch: { [campaign_id]: { ...partial } } }
  */
-router.patch('/progress', async (req, res) => {
+router.patch('/progress', async (req, res, next) => {
   try {
     const { playerId, patch } = req.body;
     if (!playerId || !patch) {
@@ -66,8 +73,7 @@ router.patch('/progress', async (req, res) => {
     const map = await campaignService.patchCampaignProgress(playerId, patch);
     res.json({ success: true, campaign_progress: map });
   } catch (e) {
-    console.error('[campaign] patch progress:', e);
-    res.status(500).json({ success: false, error: e.message });
+    return next(wrap500(e, '更新战役进度失败'));
   }
 });
 
@@ -75,7 +81,7 @@ router.patch('/progress', async (req, res) => {
  * POST /api/campaign/claim-reward
  * body: { playerId, campaignId }
  */
-router.post('/claim-reward', async (req, res) => {
+router.post('/claim-reward', async (req, res, next) => {
   try {
     const { playerId, campaignId } = req.body;
     if (!playerId || !campaignId) {
@@ -87,8 +93,7 @@ router.post('/claim-reward', async (req, res) => {
     }
     res.json({ success: true, ...result });
   } catch (e) {
-    console.error('[campaign] claim-reward:', e);
-    res.status(500).json({ success: false, error: e.message });
+    return next(wrap500(e, '领取战役奖励失败'));
   }
 });
 

@@ -1,14 +1,45 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { loadSharedData } from '@/services/dataService';
 import { API_CONFIG } from '@/constants';
+import { fetchWithTimeout } from '@/services/httpClient';
 import { useStrategicMapNavigation } from '@/contexts/StrategicMapNavigationContext';
 import {
-  MAP_CORNER_ENTRY_ROW_CLASS,
+  MAP_CORNER_ENTRY_H_PX,
+  MAP_CORNER_ENTRY_ROW_CLASS_ZHOU_JUN,
+  MAP_CORNER_ZHOU_JUN_PAIR_ROW_W_PX,
   mapCornerEntryHintRowStyle,
   mapCornerEntryRowBoxStyle,
   mapCornerEntryStackOuterStyle,
+  mapCornerZhouJunStackWideOuterStyle,
 } from '@/components/game/mapCornerEntryUi';
 import { stackWorldGyFromLocalJunRow } from '@shared/utils/strategicWorldMapStack.js';
+
+/**
+ * 「主词 + 空格 + 数字/省略」拆分：后半为次数或省略号时单独小号渲染（方案 2，不改 66px 栅格）。
+ * @returns {{ head: string, tail: string | null }}
+ */
+function splitZhouJunStatLabel(raw) {
+  const s = String(raw ?? '').trim();
+  if (!s) return { head: '', tail: null };
+  const re = /^(.+?)\s+([\d./]+|[…]|\.{2,3})$/u;
+  const m = s.match(re);
+  if (!m) return { head: s, tail: null };
+  return { head: m[1], tail: m[2] };
+}
+
+function ZhouJunStatCaption({ text }) {
+  const { head, tail } = splitZhouJunStatLabel(text);
+  return (
+    <span className="flex w-full min-w-0 items-baseline justify-start gap-0.5 overflow-hidden text-left">
+      <span className="min-w-0 shrink truncate">{head}</span>
+      {tail != null ? (
+        <span className="shrink-0 text-[9px] font-medium tabular-nums leading-none text-stone-200/95">
+          {tail}
+        </span>
+      ) : null}
+    </span>
+  );
+}
 
 function sortBySortOrderThenName(rows, nameKey) {
   return [...(rows || [])].sort((a, b) => {
@@ -78,11 +109,20 @@ function focusCityId(city) {
 /**
  * 大地图：州下拉 + 所选州下属郡列表；点郡将视口滚到该郡在库中有 position_x/y 的战略格（大→中→小→关→据点），缺省再走 merged 格网 resolve。
  * `variant="mapOverlay"`：叠在战略格网上（`StrategicWorldMapSection` 内 absolute），与左下角排行/聊天同为「浮在地图上」的交互层。
- * 样式对齐左下角「排行 / 聊天」入口条（`mapCornerEntryUi`）。
  *
- * @param {{ variant?: 'toolbar' | 'mapOverlay'; locateSelfCell?: () => { gx: number; gy: number } | null }} [props]
+ * **大地图进度条**：**州下拉**与 **「我在哪」** 同一行、**各 66×36**、间距与郡行一致（`gap-1`）；有「我在哪」时栈外宽与 **郡+匪寨** 同为 **`MAP_CORNER_ZHOU_JUN_PAIR_ROW_W_PX`**。**郡与匪寨** 仍 `items-stretch` 并排；**探索 / 攻城** 单列 66px（`self-start`）。**探索 / 教程 / 攻城 / 匪寨** 次数用 **`ZhouJunStatCaption`** 小号数字。
+ *
+ * @param {{
+ *   variant?: 'toolbar' | 'mapOverlay';
+ *   locateSelfCell?: () => { gx: number; gy: number } | null;
+ *   progressSidebar?: null | {
+ *     explore: { label: string; title?: string; disabled?: boolean; requestLocate: () => string | null };
+ *     siege: { label: string; title?: string; disabled?: boolean; requestLocate: () => string | null };
+ *     banditByJunId: Record<string, { label: string; title?: string; requestLocate: () => string | null }>;
+ *   };
+ * }} [props]
  */
-export default function ZhouJunMapJumpPanel({ variant = 'toolbar', locateSelfCell = null }) {
+export default function ZhouJunMapJumpPanel({ variant = 'toolbar', locateSelfCell = null, progressSidebar = null }) {
   const nav = useStrategicMapNavigation();
   const [zhouRows, setZhouRows] = useState([]);
   const [junRows, setJunRows] = useState([]);
@@ -128,6 +168,29 @@ export default function ZhouJunMapJumpPanel({ variant = 'toolbar', locateSelfCel
     return junRows.filter((j) => String(j.zhouId) === String(zhouId));
   }, [junRows, zhouId]);
 
+  const showJunBanditPairRows = useMemo(() => {
+    if (variant !== 'mapOverlay' || !progressSidebar?.banditByJunId) return false;
+    return junsInZhou.some((j) => progressSidebar.banditByJunId[String(j.junId)]);
+  }, [variant, progressSidebar, junsInZhou]);
+
+  const showLocateSelf = typeof locateSelfCell === 'function';
+  /** 州+「我在哪」双格或郡+匪寨双列：栈外宽 136px，与 `mapCornerZhouJunStackWideOuterStyle` 一致 */
+  const stackWide = showJunBanditPairRows || showLocateSelf;
+  const stackOuterStyle = stackWide ? mapCornerZhouJunStackWideOuterStyle : mapCornerEntryStackOuterStyle;
+
+  const hintRowStyle = useMemo(
+    () =>
+      stackWide
+        ? {
+            ...mapCornerEntryHintRowStyle,
+            width: MAP_CORNER_ZHOU_JUN_PAIR_ROW_W_PX,
+            minWidth: MAP_CORNER_ZHOU_JUN_PAIR_ROW_W_PX,
+            maxWidth: MAP_CORNER_ZHOU_JUN_PAIR_ROW_W_PX,
+          }
+        : mapCornerEntryHintRowStyle,
+    [stackWide],
+  );
+
   const season = selectedZhou?.season || zhouRows[0]?.season || 'san_1';
 
   const handleJunClick = useCallback(
@@ -142,7 +205,7 @@ export default function ZhouJunMapJumpPanel({ variant = 'toolbar', locateSelfCel
       setJumpHint(null);
       try {
         const qs = new URLSearchParams({ season, junId: String(jun.junId) });
-        const res = await fetch(`${API_CONFIG.BASE_URL}/cities?${qs}`);
+        const res = await fetchWithTimeout(`${API_CONFIG.BASE_URL}/cities?${qs}`);
         const data = await res.json();
         const cities = data?.success && Array.isArray(data.cities) ? data.cities : [];
         const focus = pickJunFocusCity(cities);
@@ -162,12 +225,10 @@ export default function ZhouJunMapJumpPanel({ variant = 'toolbar', locateSelfCel
           return;
         }
         const worldGy = stackWorldGyFromLocalJunRow(String(jun.junId), gy);
-        // 避免按钮 focus 触发外层 main 的 scrollIntoView，与地图内滚动抢一帧
         if (typeof document !== 'undefined' && document.activeElement instanceof HTMLElement) {
           document.activeElement.blur();
         }
         setJumpHint(null);
-        // 等当前 tick 里 setState（如 jumpBusy）提交后再滚，减少与外层滚动/锚定的竞态
         queueMicrotask(() => {
           requestAnimationFrame(() => {
             nav.scrollToStrategicCell(gx, worldGy);
@@ -203,18 +264,48 @@ export default function ZhouJunMapJumpPanel({ variant = 'toolbar', locateSelfCel
     });
   }, [nav, locateSelfCell]);
 
+  const runProgressLocate = useCallback((req) => {
+    if (typeof req !== 'function') return;
+    const err = req();
+    if (err) setJumpHint(err);
+    else setJumpHint(null);
+  }, []);
+
   const selectInBoxClass =
-    'h-full min-h-0 w-full min-w-0 max-w-full flex-1 border-0 bg-transparent py-0 pl-2 pr-7 text-xs font-medium text-amber-300 outline-none appearance-none cursor-pointer truncate bg-[length:0.75rem] bg-[right_0.35rem_center] bg-no-repeat disabled:opacity-60';
+    'h-full min-h-0 w-full min-w-0 max-w-full flex-1 border-0 bg-transparent py-0 pl-1 pr-6 text-xs font-medium text-amber-300 outline-none appearance-none cursor-pointer truncate bg-[length:0.75rem] bg-[right_0.25rem_center] bg-no-repeat disabled:opacity-60';
+
+  /** 州下拉独占一行（无「我在哪」且非双列郡时）撑满 66；否则州格固定 66，与郡钮同宽 */
+  const zhouSelectOuterStyle = useMemo(() => {
+    if (showLocateSelf) {
+      return {
+        ...mapCornerEntryRowBoxStyle,
+        flex: '0 0 auto',
+      };
+    }
+    if (showJunBanditPairRows) {
+      return {
+        width: '100%',
+        minWidth: 0,
+        maxWidth: '100%',
+        flex: '1 1 0%',
+        height: MAP_CORNER_ENTRY_H_PX,
+        minHeight: MAP_CORNER_ENTRY_H_PX,
+        maxHeight: MAP_CORNER_ENTRY_H_PX,
+        boxSizing: 'border-box',
+      };
+    }
+    return mapCornerEntryRowBoxStyle;
+  }, [showJunBanditPairRows, showLocateSelf]);
 
   return (
     <div
       className="flex flex-col gap-1.5 self-start shrink-0 overflow-hidden"
-      style={mapCornerEntryStackOuterStyle}
+      style={stackOuterStyle}
     >
       {loadErr ? (
         <div
           style={mapCornerEntryRowBoxStyle}
-          className={`${MAP_CORNER_ENTRY_ROW_CLASS} justify-start text-amber-600/90`}
+          className={`${MAP_CORNER_ENTRY_ROW_CLASS_ZHOU_JUN} self-start justify-start text-amber-600/90`}
         >
           <span className="block w-full min-w-0 truncate text-left">{loadErr}</span>
         </div>
@@ -224,65 +315,145 @@ export default function ZhouJunMapJumpPanel({ variant = 'toolbar', locateSelfCel
             选择州
           </label>
           <div
-            style={mapCornerEntryRowBoxStyle}
-            className="relative z-0 box-border flex shrink-0 items-stretch overflow-hidden rounded-lg border border-amber-700/40 bg-black/80 hover:bg-black/70"
+            className={`box-border flex w-full min-w-0 shrink-0 items-stretch ${showLocateSelf ? 'flex-row gap-1' : ''}`}
+            style={
+              showLocateSelf
+                ? {
+                    width: MAP_CORNER_ZHOU_JUN_PAIR_ROW_W_PX,
+                    minWidth: MAP_CORNER_ZHOU_JUN_PAIR_ROW_W_PX,
+                    maxWidth: MAP_CORNER_ZHOU_JUN_PAIR_ROW_W_PX,
+                  }
+                : undefined
+            }
           >
-            <select
-              id="zhou-jun-map-zhou-select"
-              value={zhouId}
-              onChange={(e) => setZhouId(e.target.value)}
-              disabled={!zhouRows.length}
-              title={selectedZhou?.zhouName || ''}
-              className={selectInBoxClass}
-              style={{
-                backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23fcd34d' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")`,
-              }}
+            <div
+              style={zhouSelectOuterStyle}
+              className="relative z-0 box-border flex min-w-0 items-stretch overflow-hidden rounded-lg border border-amber-700/40 bg-black/80 hover:bg-black/70"
             >
-              {zhouRows.map((z) => (
-                <option key={z.zhouId} value={z.zhouId}>
-                  {z.zhouName || z.zhouId}
-                </option>
-              ))}
-            </select>
+              <select
+                id="zhou-jun-map-zhou-select"
+                value={zhouId}
+                onChange={(e) => setZhouId(e.target.value)}
+                disabled={!zhouRows.length}
+                title={selectedZhou?.zhouName || ''}
+                className={selectInBoxClass}
+                style={{
+                  backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23fcd34d' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")`,
+                }}
+              >
+                {zhouRows.map((z) => (
+                  <option key={z.zhouId} value={z.zhouId}>
+                    {z.zhouName || z.zhouId}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {showLocateSelf ? (
+              <button
+                type="button"
+                disabled={jumpBusy}
+                onClick={handleLocateSelf}
+                title="将地图视口滚到本人标记所在格"
+                style={mapCornerEntryRowBoxStyle}
+                className={`${MAP_CORNER_ENTRY_ROW_CLASS_ZHOU_JUN} shrink-0 justify-start text-left text-stone-100 disabled:opacity-60`}
+              >
+                <span className="block w-full min-w-0 truncate text-left">我在哪</span>
+              </button>
+            ) : null}
           </div>
 
           {zhouId && junsInZhou.length > 0 ? (
             <div
-              className={`relative z-10 flex min-w-0 max-w-full flex-col gap-1 ${variant === 'mapOverlay' ? '' : 'mt-6'}`}
+              className={`relative z-10 flex min-w-0 w-full flex-col gap-1 ${variant === 'mapOverlay' ? '' : 'mt-6'}`}
             >
-              {junsInZhou.map((j) => (
-                <button
-                  key={j.junId}
-                  type="button"
-                  disabled={jumpBusy}
-                  onClick={() => handleJunClick(j)}
-                  title={j.junName || j.junId}
-                  style={mapCornerEntryRowBoxStyle}
-                  className={`${MAP_CORNER_ENTRY_ROW_CLASS} justify-start text-left text-stone-100 disabled:opacity-60`}
-                >
-                  <span className="block w-full min-w-0 truncate text-left">{j.junName || j.junId}</span>
-                </button>
-              ))}
+              {junsInZhou.map((j) => {
+                const bandit =
+                  showJunBanditPairRows && progressSidebar
+                    ? progressSidebar.banditByJunId[String(j.junId)]
+                    : null;
+                if (showJunBanditPairRows) {
+                  return (
+                    <div
+                      key={j.junId}
+                      className="flex w-full min-w-0 flex-row items-stretch gap-1"
+                    >
+                      <button
+                        type="button"
+                        disabled={jumpBusy}
+                        onClick={() => handleJunClick(j)}
+                        title={j.junName || j.junId}
+                        style={mapCornerEntryRowBoxStyle}
+                        className={`${MAP_CORNER_ENTRY_ROW_CLASS_ZHOU_JUN} shrink-0 justify-start text-left text-stone-100 disabled:opacity-60`}
+                      >
+                        <span className="block w-full min-w-0 truncate text-left">{j.junName || j.junId}</span>
+                      </button>
+                      {bandit ? (
+                        <button
+                          type="button"
+                          disabled={jumpBusy}
+                          onClick={() => runProgressLocate(bandit.requestLocate)}
+                          title={bandit.title || bandit.label}
+                          style={mapCornerEntryRowBoxStyle}
+                          className={`${MAP_CORNER_ENTRY_ROW_CLASS_ZHOU_JUN} shrink-0 justify-start text-left text-stone-100 disabled:opacity-60`}
+                        >
+                          <ZhouJunStatCaption text={bandit.label} />
+                        </button>
+                      ) : (
+                        <div
+                          className="shrink-0"
+                          style={mapCornerEntryRowBoxStyle}
+                          aria-hidden
+                        />
+                      )}
+                    </div>
+                  );
+                }
+                return (
+                  <button
+                    key={j.junId}
+                    type="button"
+                    disabled={jumpBusy}
+                    onClick={() => handleJunClick(j)}
+                    title={j.junName || j.junId}
+                    style={mapCornerEntryRowBoxStyle}
+                    className={`${MAP_CORNER_ENTRY_ROW_CLASS_ZHOU_JUN} justify-start text-left text-stone-100 disabled:opacity-60`}
+                  >
+                    <span className="block w-full min-w-0 truncate text-left">{j.junName || j.junId}</span>
+                  </button>
+                );
+              })}
             </div>
           ) : null}
 
-          {typeof locateSelfCell === 'function' ? (
-            <button
-              type="button"
-              disabled={jumpBusy}
-              onClick={handleLocateSelf}
-              title="将地图视口滚到本人标记所在格"
-              style={mapCornerEntryRowBoxStyle}
-              className={`${MAP_CORNER_ENTRY_ROW_CLASS} justify-start text-left text-stone-100 disabled:opacity-60`}
-            >
-              <span className="block w-full min-w-0 truncate text-left">我在哪</span>
-            </button>
+          {progressSidebar ? (
+            <>
+              <button
+                type="button"
+                disabled={jumpBusy || !!progressSidebar.explore?.disabled}
+                onClick={() => runProgressLocate(progressSidebar.explore?.requestLocate)}
+                title={progressSidebar.explore?.title || progressSidebar.explore?.label}
+                style={mapCornerEntryRowBoxStyle}
+                className={`${MAP_CORNER_ENTRY_ROW_CLASS_ZHOU_JUN} self-start justify-start text-left text-stone-100 disabled:opacity-60`}
+              >
+                <ZhouJunStatCaption text={progressSidebar.explore?.label} />
+              </button>
+              <button
+                type="button"
+                disabled={jumpBusy || !!progressSidebar.siege?.disabled}
+                onClick={() => runProgressLocate(progressSidebar.siege?.requestLocate)}
+                title={progressSidebar.siege?.title || progressSidebar.siege?.label}
+                style={mapCornerEntryRowBoxStyle}
+                className={`${MAP_CORNER_ENTRY_ROW_CLASS_ZHOU_JUN} self-start justify-start text-left text-stone-100 disabled:opacity-60`}
+              >
+                <ZhouJunStatCaption text={progressSidebar.siege?.label} />
+              </button>
+            </>
           ) : null}
 
           {jumpHint ? (
             <div
-              style={mapCornerEntryHintRowStyle}
-              className="flex max-w-full shrink-0 items-center overflow-hidden px-0.5 text-[10px] leading-none text-amber-600/90"
+              style={hintRowStyle}
+              className="flex max-w-full shrink-0 items-center self-start overflow-hidden px-0.5 text-[10px] leading-none text-amber-600/90"
             >
               <span className="min-w-0 truncate" title={jumpHint}>
                 {jumpHint}

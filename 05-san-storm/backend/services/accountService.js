@@ -5,6 +5,7 @@
 
 const bcrypt = require('bcrypt');
 const { pool } = require('../database/connection');
+const { signPlayerToken } = require('../middleware/auth');
 
 /** 系统占位账号（传书 sender_id 外键），禁止注册与登录 */
 const SYSTEM_ACCOUNT_ID = 'sys1';
@@ -29,11 +30,15 @@ function randomRegisterCandidateId() {
 
 /**
  * 随机抽取当前未被 accounts 占用的游戏 ID（服务端权威，排除「已注册」）。
+ *
+ * 实现：每轮在内存生成一批候选（去重、排除参数），用单条 `IN (?)` 一次性查 DB 哪些已占用，
+ * 剩余即可用；最多 8 轮即可拿到目标数量。DB 调用从原 ~2500 次串行降至 ≤8 次。
+ *
  * @param {{ count?: number, excludeIds?: string[] }} opts
  * @returns {Promise<{ ok: true, ids: string[], partial: boolean } | { ok: false, status: number, error: string }>}
  */
 async function pickRegisterIdCandidates(opts = {}) {
-  const count = Math.min(Math.max(parseInt(opts.count, 10) || 5, 1), 20);
+  const want = Math.min(Math.max(parseInt(opts.count, 10) || 5, 1), 20);
   const exclude = new Set(
     [SYSTEM_ACCOUNT_ID, ...(opts.excludeIds || [])]
       .map((x) => String(x).trim())
@@ -41,20 +46,30 @@ async function pickRegisterIdCandidates(opts = {}) {
   );
 
   const picked = [];
-  const pickedSet = new Set();
-  let attempts = 0;
-  const maxAttempts = Math.max(count * 500, 2500);
+  const seen = new Set();
 
-  while (picked.length < count && attempts < maxAttempts) {
-    attempts += 1;
-    const id = randomRegisterCandidateId();
-    if (exclude.has(id) || pickedSet.has(id)) continue;
+  for (let round = 0; round < 8 && picked.length < want; round += 1) {
+    const batchSize = Math.max(want * 4, 20);
+    const batch = [];
+    let inMemAttempts = 0;
+    while (batch.length < batchSize && inMemAttempts < batchSize * 20) {
+      inMemAttempts += 1;
+      const id = randomRegisterCandidateId();
+      if (exclude.has(id) || seen.has(id)) continue;
+      batch.push(id);
+      seen.add(id);
+    }
+    if (batch.length === 0) break;
 
-    const [rows] = await pool.query('SELECT 1 AS ok FROM accounts WHERE id = ? LIMIT 1', [id]);
-    if (rows.length > 0) continue;
-
-    picked.push(id);
-    pickedSet.add(id);
+    const placeholders = batch.map(() => '?').join(',');
+    const [rows] = await pool.query(
+      `SELECT id FROM accounts WHERE id IN (${placeholders})`,
+      batch
+    );
+    const taken = new Set(rows.map((r) => String(r.id)));
+    for (const id of batch) {
+      if (!taken.has(id) && picked.length < want) picked.push(id);
+    }
   }
 
   if (picked.length === 0) {
@@ -68,7 +83,7 @@ async function pickRegisterIdCandidates(opts = {}) {
   return {
     ok: true,
     ids: picked,
-    partial: picked.length < count,
+    partial: picked.length < want,
   };
 }
 
@@ -129,40 +144,64 @@ async function register(body) {
   const currentSeason =
     serverConfig.length > 0 ? serverConfig[0].current_season : 'san_0_m1/san_1';
 
+  /**
+   * 事务包裹「写 accounts 行」，避免与未来扩展（如同步初始化 players 行）之间出现孤立账号。
+   * 当前仅一条 INSERT 也走事务，是为后续接入"注册即 player 初始化"留接口。
+   */
+  const connection = await pool.getConnection();
+  await connection.beginTransaction();
   try {
-    await pool.query(
-      `
-      INSERT INTO accounts (
-        id, password, birthMonth, serverId,
-        current_season, machineId, clientIP,
-        province, city, status
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')
-    `,
-      [
-        id,
-        hashedPassword,
-        birthMonth,
-        serverId,
-        currentSeason,
-        resolvedMachineId,
-        resolvedClientIP,
-        province || null,
-        city || null,
-      ]
-    );
-  } catch (err) {
-    if (isDuplicateKeyError(err)) {
-      return { ok: false, status: 400, error: 'ID已被使用' };
+    try {
+      await connection.query(
+        `
+        INSERT INTO accounts (
+          id, password, birthMonth, serverId,
+          current_season, machineId, clientIP,
+          province, city, status
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')
+      `,
+        [
+          id,
+          hashedPassword,
+          birthMonth,
+          serverId,
+          currentSeason,
+          resolvedMachineId,
+          resolvedClientIP,
+          province || null,
+          city || null,
+        ]
+      );
+    } catch (err) {
+      await connection.rollback();
+      connection.release();
+      if (isDuplicateKeyError(err)) {
+        return { ok: false, status: 400, error: 'ID已被使用' };
+      }
+      throw err;
     }
+
+    const [newAccount] = await connection.query('SELECT * FROM accounts WHERE id = ?', [id]);
+    if (!newAccount.length) {
+      await connection.rollback();
+      connection.release();
+      throw new Error('注册后读取账号失败');
+    }
+
+    await connection.commit();
+    connection.release();
+
+    const { password: _, ...accountData } = newAccount[0];
+    const tokenInfo = signPlayerToken({ id: accountData.id, role: 'player' });
+    return {
+      ok: true,
+      accountData: { ...accountData, token: tokenInfo.token, tokenExpiresAt: tokenInfo.expiresAt },
+    };
+  } catch (err) {
+    try { await connection.rollback(); } catch (_) { /* ignore */ }
+    connection.release();
     throw err;
   }
-
-  const [newAccount] = await pool.query('SELECT * FROM accounts WHERE id = ?', [id]);
-  if (!newAccount.length) {
-    throw new Error('注册后读取账号失败');
-  }
-  const { password: _, ...accountData } = newAccount[0];
-  return { ok: true, accountData };
 }
 
 /**
@@ -225,7 +264,11 @@ async function login(id, password) {
   );
 
   const { password: _, ...accountData } = account;
-  return { ok: true, accountData };
+  const tokenInfo = signPlayerToken({ id: accountData.id, role: 'player' });
+  return {
+    ok: true,
+    accountData: { ...accountData, token: tokenInfo.token, tokenExpiresAt: tokenInfo.expiresAt },
+  };
 }
 
 async function listAccountsWithServerName() {

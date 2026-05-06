@@ -224,7 +224,7 @@ export default function GarrisonBackpack({
                       className="cursor-pointer overflow-hidden"
                       onClick={() => setPreviewCard({ card, type: 'character' })}>
                       <div style={{ transform: 'scale(0.5)', transformOrigin: 'top left', width: 256 }}>
-                        <CharacterCard character={toCharCardData(card)} skillsMap={skillsMap} showDetails={true} baseUrl={baseUrl} disableHoverScale />
+                        <CharacterCard character={toCharCardData(card, {}, skillsMap)} skillsMap={skillsMap} showDetails={true} baseUrl={baseUrl} disableHoverScale />
                       </div>
                     </div>
                   ))}
@@ -315,7 +315,7 @@ export default function GarrisonBackpack({
           onClick={() => setPreviewCard(null)}>
           <div onClick={e => e.stopPropagation()}>
             {previewCard.type === 'character' && (
-              <CharacterCard character={toCharCardData(previewCard.card)} skillsMap={skillsMap} showDetails={true} baseUrl={baseUrl} />
+              <CharacterCard character={toCharCardData(previewCard.card, {}, skillsMap)} skillsMap={skillsMap} showDetails={true} baseUrl={baseUrl} />
             )}
             {previewCard.type === 'troop' && (
               <TroopCard troop={toTroopCardData(previewCard.card)} skillsMap={skillsMap} showDetails={true} baseUrl={baseUrl} />

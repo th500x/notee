@@ -1,7 +1,7 @@
 /**
  * BattleMap - 战术格网网格 + 行标签 + 区域色条（尺寸见 tacticalBattleGrid）
  */
-import { memo, useCallback, useState, useMemo } from 'react';
+import { memo, useCallback, useState, useMemo, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import {
   MAP_W, MAP_H, ZONE, buildTroopTooltipContent, buildTacticalTileTooltipInfo,
@@ -48,6 +48,13 @@ function BattleMap({
     if (troopId) {
       const troop = battleTroops.find(t => t.id === troopId);
       if (!troop) return;
+      const manualPreviewBlocksEnemyTroopTip =
+        !!manualProps &&
+        !!(manualProps.attackPreview || manualProps.healPreview || manualProps.phase4ShapeOverlay);
+      if (manualPreviewBlocksEnemyTroopTip && troop.faction === 'enemy') {
+        setTooltipContent(null);
+        return;
+      }
       setTooltipContent(buildTroopTooltipContent(troop));
     } else {
       const ter = terrain[y]?.[x];
@@ -58,7 +65,7 @@ function BattleMap({
       setTooltipContent({ type: 'tile', info });
     }
     setTooltipPos({ x: e.clientX, y: e.clientY });
-  }, [battleTroops, terrain, objMap, cellFire]);
+  }, [battleTroops, terrain, objMap, cellFire, manualProps]);
 
   const handleMove = useCallback((e) => {
     if (tooltipContent) {
@@ -70,10 +77,59 @@ function BattleMap({
     setTooltipContent(null);
   }, []);
 
+  const skillArmSlotTouchTimerRef = useRef(null);
+  const clearSkillArmSlotTouchTimer = useCallback(() => {
+    if (skillArmSlotTouchTimerRef.current != null) {
+      clearTimeout(skillArmSlotTouchTimerRef.current);
+      skillArmSlotTouchTimerRef.current = null;
+    }
+  }, []);
+  useEffect(() => () => clearSkillArmSlotTouchTimer(), [clearSkillArmSlotTouchTimer]);
+
+  const openArmedSkillTooltipAt = useCallback((clientX, clientY) => {
+    const ui = manualProps?.phase3HealUi;
+    if (!ui?.armedSkillSidebarVisible) return;
+    const title = String(ui.armedSkillName || '').trim() || '主动技';
+    const rawDesc = String(ui.armedSkillDescription || '').trim();
+    const chDisp = String(ui.armedSkillChargesDisplay || '').trim();
+    const attrs = [chDisp && `本场可用：${chDisp}`, rawDesc].filter(Boolean).join('\n\n') || '暂无说明';
+    setTooltipContent({
+      type: 'manualSkill',
+      title,
+      titleColor: '#fef3c7',
+      attrs,
+    });
+    setTooltipPos({ x: clientX, y: clientY });
+  }, [manualProps]);
+
+  const handleSkillArmNameSlotMouseEnter = useCallback((e) => {
+    openArmedSkillTooltipAt(e.clientX, e.clientY);
+  }, [openArmedSkillTooltipAt]);
+
+  const handleSkillArmNameSlotTouchStart = useCallback((e) => {
+    clearSkillArmSlotTouchTimer();
+    const touch = e.touches?.[0];
+    if (!touch) return;
+    skillArmSlotTouchTimerRef.current = window.setTimeout(() => {
+      skillArmSlotTouchTimerRef.current = null;
+      openArmedSkillTooltipAt(touch.clientX, touch.clientY);
+    }, 400);
+  }, [openArmedSkillTooltipAt, clearSkillArmSlotTouchTimer]);
+
+  const handleSkillArmNameSlotTouchEnd = useCallback(() => {
+    clearSkillArmSlotTouchTimer();
+    handleLeave();
+  }, [clearSkillArmSlotTouchTimer, handleLeave]);
+
   // ── 手动回合：左侧栏中部合并格内「技能 / 待机」（与中间战场区两行对齐） ──
   const manualSidebarActions = useMemo(() => {
     if (!manualProps) return null;
-    const { phase, activeTroop, formationTroops, onStandby, onFormationStandby } = manualProps;
+    const {
+      phase, activeTroop, formationTroops, onStandby, onFormationStandby,
+      toggleSkillTargeting, cyclePhase3HealSlot, phase3HealUi,
+      skillPickerOpen, skillPickerItems, dismissSkillPicker, selectSkillArm,
+      skillTargetingActive,
+    } = manualProps;
     const isFormationMove = phase === MANUAL_PHASE.FORMATION_MOVE;
     const isFormationAction = phase === MANUAL_PHASE.FORMATION_ACTION;
     const isSingleMove = phase === MANUAL_PHASE.SELECT_MOVE;
@@ -91,7 +147,36 @@ function BattleMap({
     }
 
     const handleStandby = isFormation ? onFormationStandby : onStandby;
-    return { handleStandby };
+    const hasSkillSlots =
+      (isSingleMove || isSingleAction) &&
+      (((activeTroop?.character?._skillPhase3Heal?.slots?.length ?? 0) > 0) ||
+        ((activeTroop?.character?._skillPhase4Damage?.slots?.length ?? 0) > 0) ||
+        ((activeTroop?.character?._skillPhase5Composite?.slots?.length ?? 0) > 0));
+    const skillChargesReady =
+      hasSkillSlots &&
+      (((activeTroop?.character?._skillPhase3Heal?.slots || []).some(
+        (s) => (activeTroop._phase3HealRuntime?.chargesBySkillId?.[s.skillId] ?? 0) > 0,
+      )) ||
+        ((activeTroop?.character?._skillPhase4Damage?.slots || []).some(
+          (s) => (activeTroop._phase4DamageRuntime?.chargesBySkillId?.[s.skillId] ?? 0) > 0,
+        )) ||
+        ((activeTroop?.character?._skillPhase5Composite?.slots || []).some(
+          (s) => (activeTroop._phase5CompositeRuntime?.chargesBySkillId?.[s.skillId] ?? 0) > 0,
+        )));
+    const skillBtnDisabled = !skillChargesReady;
+    return {
+      handleStandby,
+      cyclePhase3HealSlot,
+      phase3HealUi,
+      healCharges: skillChargesReady,
+      skillBtnDisabled,
+      skillPickerOpen,
+      skillPickerItems,
+      dismissSkillPicker,
+      selectSkillArm,
+      skillTargetingActive,
+      toggleSkillTargeting,
+    };
   }, [manualProps]);
 
   /** 与 ZONE.deployC 中部两行对齐：y=4、5（0-based） */
@@ -101,10 +186,51 @@ function BattleMap({
   const rowLabels = [];
   for (let y = 0; y < MAP_H; y++) {
     if (y === MANUAL_ACTION_ROW_START + 1 && manualSidebarActions) continue;
+    if (
+      y === MANUAL_ACTION_ROW_START - 1 &&
+      manualSidebarActions &&
+      manualSidebarActions.phase3HealUi?.armedSkillSidebarVisible
+    ) {
+      const ui = manualSidebarActions.phase3HealUi;
+      const displayName = String(ui?.armedSkillName || '').trim() || '—';
+      const chargesDisp = String(ui?.armedSkillChargesDisplay || '').trim();
+      rowLabels.push(
+        <div
+          key="manual-skill-arm-caption"
+          className="row-label row-label-zone-battle row-label-skill-arm-caption"
+          onMouseEnter={handleSkillArmNameSlotMouseEnter}
+          onMouseLeave={handleLeave}
+          onTouchStart={handleSkillArmNameSlotTouchStart}
+          onTouchEnd={handleSkillArmNameSlotTouchEnd}
+          onTouchCancel={handleSkillArmNameSlotTouchEnd}
+        >
+          <div className="skill-arm-name">{displayName}</div>
+          {chargesDisp ? <div className="skill-arm-charges">{chargesDisp}</div> : null}
+        </div>,
+      );
+      continue;
+    }
     if (y === MANUAL_ACTION_ROW_START && manualSidebarActions) {
       rowLabels.push(
         <div key="manual-actions" className="row-label row-label-zone-c row-label--manual-actions">
-          <button type="button" className="row-label-action-btn" disabled title="技能系统尚未实装">
+          <button
+            type="button"
+            className={`row-label-action-btn${manualSidebarActions.skillTargetingActive ? ' row-label-action-btn--skill-armed' : ''}`}
+            disabled={manualSidebarActions.skillBtnDisabled}
+            title={
+              manualSidebarActions.skillBtnDisabled
+                ? '本部队无可用主动技或次数已尽'
+                : manualSidebarActions.skillTargetingActive
+                  ? '当前为技能施放模式，再点一次切回普攻'
+                  : manualProps?.phase === MANUAL_PHASE.SELECT_MOVE
+                    ? '进入技能施放预览（再点一次关闭；未走光移动力前仍可走蓝格）'
+                    : '点击进入技能施放模式（再点一次关闭）'
+            }
+            onClick={(e) => {
+              e.stopPropagation();
+              manualSidebarActions.toggleSkillTargeting?.();
+            }}
+          >
             技能
           </button>
           <button type="button" className="row-label-action-btn" onClick={manualSidebarActions.handleStandby}>
@@ -197,7 +323,8 @@ function BattleMap({
                 else if (mh.kind === 'move') {
                   manualHl = 'move';
                   manualMoveCost = mh.cost ?? null;
-                } else if (mh.kind === 'atk') manualHl = 'atk';
+                } else if (mh.kind === 'heal') manualHl = 'heal';
+                else if (mh.kind === 'atk') manualHl = 'atk';
                 const tileTroop =
                   showTroops
                     ? troopMap[key]
@@ -230,9 +357,13 @@ function BattleMap({
               })
             )}
           </div>
-          {/* 攻击预览浮层 */}
-          {manualProps?.attackPreview && (
-            <AttackPreview preview={manualProps.attackPreview} />
+          {/* 攻击 / 治疗预览浮层 */}
+          {(manualProps?.attackPreview || manualProps?.healPreview || manualProps?.phase4ShapeOverlay) && (
+            <AttackPreview
+              attackPreview={manualProps.attackPreview}
+              healPreview={manualProps.healPreview}
+              phase4ShapeOverlay={manualProps.phase4ShapeOverlay}
+            />
           )}
           <div className="map-zone-bar">
             <div className={`zone-bar-seg ${bA}`} />
@@ -241,6 +372,102 @@ function BattleMap({
           </div>
         </div>
       </div>
+
+      {manualProps?.skillPickerOpen && manualProps?.skillPickerItems?.length > 0 && typeof document !== 'undefined' && createPortal(
+        <div
+          role="presentation"
+          className="manual-skill-picker-backdrop"
+          onClick={manualProps.dismissSkillPicker}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 80,
+            background: 'rgba(15, 23, 42, 0.35)',
+          }}
+        >
+          <div
+            role="dialog"
+            aria-label="选择主动技"
+            className="manual-skill-picker-panel"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              position: 'absolute',
+              left: 12,
+              top: '18%',
+              minWidth: 220,
+              maxWidth: 'min(92vw, 320px)',
+              padding: '10px 12px',
+              borderRadius: 10,
+              background: 'linear-gradient(180deg, #1e293b 0%, #0f172a 100%)',
+              border: '1px solid rgba(148, 163, 184, 0.45)',
+              boxShadow: '0 8px 28px rgba(0,0,0,0.45)',
+              color: '#e2e8f0',
+              fontSize: 12,
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+              <span style={{ fontWeight: 700 }}>主动技</span>
+              <button
+                type="button"
+                onClick={manualProps.dismissSkillPicker}
+                style={{
+                  border: 'none',
+                  background: 'transparent',
+                  color: '#94a3b8',
+                  cursor: 'pointer',
+                  fontSize: 16,
+                  lineHeight: 1,
+                }}
+              >
+                ✕
+              </button>
+            </div>
+            {manualProps.phase3HealUi?.canCycle && (
+              <button
+                type="button"
+                onClick={() => manualProps.cyclePhase3HealSlot?.()}
+                style={{
+                  width: '100%',
+                  marginBottom: 8,
+                  padding: '6px 8px',
+                  fontSize: 11,
+                  borderRadius: 6,
+                  border: '1px solid rgba(251, 191, 36, 0.35)',
+                  background: 'rgba(30, 41, 59, 0.9)',
+                  color: '#fbbf24',
+                  cursor: 'pointer',
+                }}
+              >
+                快速轮换当前武装
+              </button>
+            )}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {manualProps.skillPickerItems.map((it) => (
+                <button
+                  key={it.armIndex}
+                  type="button"
+                  disabled={it.disabled}
+                  onClick={() => manualProps.selectSkillArm?.(it.armIndex)}
+                  style={{
+                    textAlign: 'left',
+                    padding: '8px 10px',
+                    borderRadius: 6,
+                    border: '1px solid rgba(71, 85, 105, 0.6)',
+                    background: it.disabled ? 'rgba(30, 41, 59, 0.5)' : 'rgba(51, 65, 85, 0.55)',
+                    color: it.disabled ? '#64748b' : '#f1f5f9',
+                    cursor: it.disabled ? 'not-allowed' : 'pointer',
+                    fontSize: 12,
+                  }}
+                >
+                  {it.label}
+                  <span style={{ float: 'right', opacity: 0.85 }}>×{it.charges}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>,
+        document.body,
+      )}
 
       {/* Tooltip：挂到 body，避免战斗壳层 overflow/transform 裁切 */}
       {tooltipContent && typeof document !== 'undefined' && createPortal(

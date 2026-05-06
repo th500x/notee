@@ -41,6 +41,7 @@ export function useTileTooltipClamp(tooltipContent, tooltipPos) {
     };
 
     const measureOverflow = () => {
+      if (tooltipContent?.type === 'attackPreviewPortal') return false;
       const el = tooltipRef.current;
       if (!el) return false;
       const r = el.getBoundingClientRect();

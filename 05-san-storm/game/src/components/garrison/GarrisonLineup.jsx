@@ -7,10 +7,16 @@
  */
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { usePlayerContext } from '@/contexts/PlayerContext';
+import {
+  usePlayer,
+  useCards,
+  useAttributeBonusBySlot,
+  usePlayerRefresh,
+} from '@/contexts/PlayerContext';
 import { useLifeStages } from '@/hooks/useLifeStages';
+import { useSkillsMap } from '@/hooks/useSkillsMap';
+import { useSilentProfilePoll } from '@/hooks/useSilentProfilePoll';
 import { garrisonAPI } from '@/services/garrisonApi';
-import { loadSharedData } from '@/services/dataService';
 import CharacterCard from '@shared/components/card/CharacterCard';
 import TroopCard from '@shared/components/card/TroopCard';
 import TitleAchievementCard from '@shared/components/card/TitleAchievementCard';
@@ -26,8 +32,6 @@ import GarrisonBackpack from './GarrisonBackpack';
 import TabSubNav from '@/components/game/TabSubNav';
 import QuadrantGrid from '@/components/game/QuadrantGrid';
 import { useGameTabLandscape } from '@/components/game/TabPageCloseAffordance';
-
-const GARRISON_PROFILE_POLL_MS = 60_000;
 
 const GARRISON_POOL_SUB_TABS = [
   { id: 'A', label: '🏰 驻地A' },
@@ -51,14 +55,17 @@ export default function GarrisonLineup({
   cityId,
   cityName = '城池',
 }) {
-  const { player, cards, refresh, attributeBonusBySlot } = usePlayerContext();
+  // CR A7（2026-04-29）：按字段订阅，与 LineupTab 一致
+  const player = usePlayer();
+  const cards = useCards();
+  const refresh = usePlayerRefresh();
+  const attributeBonusBySlot = useAttributeBonusBySlot();
   const { getCharacterLifeStage } = useLifeStages();
 
   const [activePool, setActivePool]         = useState('A');
   const [activeChar, setActiveChar]         = useState('char1');
   const [garrisonA, setGarrisonA]           = useState(null);
   const [garrisonB, setGarrisonB]           = useState(null);
-  const [skillsMap, setSkillsMap]           = useState({});
   const [selectedSlot, setSelectedSlot]     = useState(null);
   const [drawerOpen, setDrawerOpen]         = useState(false);
   const [detailCard, setDetailCard]         = useState(null);
@@ -69,16 +76,9 @@ export default function GarrisonLineup({
   const [garrisonOccupiedInstanceIds, setGarrisonOccupiedInstanceIds] = useState(() => new Set());
   const isLandscape = useGameTabLandscape();
 
-  /* ── 技能配置加载 ── */
-  useEffect(() => {
-    loadSharedData('skills').then(d => {
-      if (d?.skills) {
-        const map = {};
-        d.skills.forEach(s => { map[s.id] = s; });
-        setSkillsMap(map);
-      }
-    }).catch(() => {});
-  }, []);
+  /* ── 共享 hooks（与 LineupTab 共用，CR C5 抽出） ── */
+  const skillsMap = useSkillsMap();
+  useSilentProfilePoll(refresh);
 
   /* ── 驻守数据：本城槽位 + 全城池占用实例（与上阵编组 LineupTab 一致用 getAll） ── */
   const loadGarrisonData = useCallback(async () => {
@@ -103,13 +103,6 @@ export default function GarrisonLineup({
   }, [player?.player_id, cityId]);
 
   useEffect(() => { loadGarrisonData(); }, [loadGarrisonData]);
-
-  /* ── 定时轮询档案（兵力自然恢复） ── */
-  useEffect(() => {
-    refresh({ silent: true });
-    const id = setInterval(() => refresh({ silent: true }), GARRISON_PROFILE_POLL_MS);
-    return () => clearInterval(id);
-  }, [refresh]);
 
   /* ── 切换卡池时清除激活提示 ── */
   useEffect(() => { setActivationHint(null); }, [activePool]);
@@ -431,7 +424,7 @@ export default function GarrisonLineup({
       {/* ── 卡牌详情浮层 ── */}
       {detailCard && (() => {
         const isCharCard    = detailCard.card.card_type === 'character';
-        const overlayChar   = isCharCard ? toCharCardData(detailCard.card) : null;
+        const overlayChar   = isCharCard ? toCharCardData(detailCard.card, {}, skillsMap) : null;
         const lifeStageData = overlayChar ? getCharacterLifeStage(overlayChar.id) : null;
         const baseUrl = import.meta.env.BASE_URL;
         return (
@@ -527,7 +520,7 @@ export default function GarrisonLineup({
 }
 
 
-/** 底部抽屉 — 选卡面板（复用 LineupTab 的 CardDrawer 模式） */
+/** 底部抽屉 — 选卡面板（与 `LineupCardDrawer` 一致：将领缩略用 showDetails + minHeight，避免 0.5 缩放下卡面下半截空白） */
 function GarrisonDrawer({ slot, cards, skillsMap, onSelect, onClose }) {
   const baseUrl        = import.meta.env.BASE_URL;
   const isCharSlot     = slot.id === 'character';
@@ -564,10 +557,21 @@ function GarrisonDrawer({ slot, cards, skillsMap, onSelect, onClose }) {
                   {grouped[rarity].map(card => (
                     <div key={card.instance_id} onClick={() => onSelect(card)}
                       className="cursor-pointer hover:brightness-110 active:scale-95 transition-all"
-                      style={{ width: 128, height: isCharSlot ? 192 : isTitleSlot ? 96 : isEquipSetSlot ? 96 : 192 }}>
+                      style={{
+                        width: 128,
+                        ...(isCharSlot
+                          ? { minHeight: 208 }
+                          : { height: isTitleSlot ? 96 : isEquipSetSlot ? 96 : 192 }),
+                      }}>
                       <div style={{ transform: 'scale(0.5)', transformOrigin: 'top left', width: 256 }}>
                         {isCharSlot ? (
-                          <CharacterCard character={toCharCardData(card)} skillsMap={skillsMap} showDetails={false} baseUrl={baseUrl} disableHoverScale />
+                          <CharacterCard
+                            character={toCharCardData(card, {}, skillsMap)}
+                            skillsMap={skillsMap}
+                            showDetails
+                            baseUrl={baseUrl}
+                            disableHoverScale
+                          />
                         ) : isTitleSlot ? (
                           <TitleAchievementCard item={toTitleCardData(card)} type="title" baseUrl={baseUrl} />
                         ) : isEquipSetSlot ? (

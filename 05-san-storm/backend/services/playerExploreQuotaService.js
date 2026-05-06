@@ -1,52 +1,23 @@
 /**
  * 探索配额：服务端恢复与消耗（与 routes/players explore-quota 行为一致）
+ *
+ * 恢复算法与攻城配额共用 `backend/utils/hourlyQuotaWithRestWindow.js`，见 docs/10-core-system/15-2。
  */
 
 const { pool } = require('../database/connection');
+const {
+  calcHourlyQuotaWithRestWindow,
+  EXPLORATION_AND_SIEGE_QUOTA_DEFAULTS,
+} = require('../utils/hourlyQuotaWithRestWindow');
 
-const EXPLORE_REFILL_PER_HOUR = 6;
-const EXPLORE_MAX_QUOTA = 18;
-const EXPLORE_REST_START = 0;
-const EXPLORE_REST_END = 8;
+const EXPLORE_REFILL_PER_HOUR = EXPLORATION_AND_SIEGE_QUOTA_DEFAULTS.refillPerHour;
+const EXPLORE_MAX_QUOTA = EXPLORATION_AND_SIEGE_QUOTA_DEFAULTS.maxQuota;
+const EXPLORE_REST_START = EXPLORATION_AND_SIEGE_QUOTA_DEFAULTS.restHourStart;
+const EXPLORE_REST_END = EXPLORATION_AND_SIEGE_QUOTA_DEFAULTS.restHourEnd;
 
-function isExploreRestHour(hour) {
-  return hour >= EXPLORE_REST_START && hour < EXPLORE_REST_END;
-}
-
-function getHourTs(date) {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate(), date.getHours()).getTime();
-}
-
-function countExploreActiveHours(fromTs, toTs) {
-  if (toTs <= fromTs) return 0;
-  let count = 0;
-  let ts = fromTs;
-  let i = 0;
-  while (ts < toTs && i < 48) {
-    if (!isExploreRestHour(new Date(ts).getHours())) count++;
-    ts += 3600000;
-    i++;
-  }
-  return count;
-}
-
+/** 与 `calcHourlyQuotaWithRestWindow(..., EXPLORATION_AND_SIEGE_QUOTA_DEFAULTS)` 等价；保留导出供测试 require */
 function calcServerQuota(remaining, lastRefillTs) {
-  const now = new Date();
-  const currentHourTs = getHourTs(now);
-  if (!lastRefillTs) {
-    return {
-      remaining: isExploreRestHour(now.getHours()) ? 0 : EXPLORE_REFILL_PER_HOUR,
-      lastRefillTs: currentHourTs,
-    };
-  }
-  const activeHours = countExploreActiveHours(lastRefillTs, currentHourTs);
-  if (activeHours > 0) {
-    return {
-      remaining: Math.min((remaining || 0) + activeHours * EXPLORE_REFILL_PER_HOUR, EXPLORE_MAX_QUOTA),
-      lastRefillTs: currentHourTs,
-    };
-  }
-  return { remaining: remaining || 0, lastRefillTs };
+  return calcHourlyQuotaWithRestWindow(remaining, lastRefillTs, new Date(), EXPLORATION_AND_SIEGE_QUOTA_DEFAULTS);
 }
 
 async function getExploreQuotaState(playerId) {
@@ -56,9 +27,11 @@ async function getExploreQuotaState(playerId) {
     [playerId]
   );
   const row = rows[0] || {};
-  const saved = calcServerQuota(
+  const saved = calcHourlyQuotaWithRestWindow(
     row.explore_quota_remaining,
-    row.explore_quota_refill_ts ? Number(row.explore_quota_refill_ts) : null
+    row.explore_quota_refill_ts ? Number(row.explore_quota_refill_ts) : null,
+    new Date(),
+    EXPLORATION_AND_SIEGE_QUOTA_DEFAULTS
   );
   if (
     saved.lastRefillTs !== (row.explore_quota_refill_ts ? Number(row.explore_quota_refill_ts) : null) ||
@@ -84,9 +57,11 @@ async function applyExploreQuotaAction(playerId, action) {
     [playerId]
   );
   const row = rows[0] || {};
-  const current = calcServerQuota(
+  const current = calcHourlyQuotaWithRestWindow(
     row.explore_quota_remaining,
-    row.explore_quota_refill_ts ? Number(row.explore_quota_refill_ts) : null
+    row.explore_quota_refill_ts ? Number(row.explore_quota_refill_ts) : null,
+    new Date(),
+    EXPLORATION_AND_SIEGE_QUOTA_DEFAULTS
   );
   let newRemaining = current.remaining;
   if (action === 'consume') {
@@ -110,6 +85,8 @@ async function applyExploreQuotaAction(playerId, action) {
 module.exports = {
   EXPLORE_MAX_QUOTA,
   EXPLORE_REFILL_PER_HOUR,
+  EXPLORE_REST_START,
+  EXPLORE_REST_END,
   calcServerQuota,
   getExploreQuotaState,
   applyExploreQuotaAction,

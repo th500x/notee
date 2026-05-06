@@ -36,6 +36,7 @@ import AncientModal from '@/components/common/AncientModal';
 import '@/components/battle/BattleMap.css';
 import { validateMainLineupBattleGate } from '@/utils/mainLineupTroops';
 import { API_CONFIG } from '@/constants';
+import { writeInflightBattleTroopSnapshot } from '@/utils/inflightBattleTroopSnapshot';
 
 const STAGE = { LOADING: 'loading', READY: 'ready' };
 const BATTLE_TYPE = 'pve_campaign';
@@ -57,7 +58,9 @@ function isHumanPlayerTroop(t) {
  * @param {Array}   [cards]             PlayerContext.cards，出征门槛校验
  * @param {object}  [campaignMapSim]    generateCampaignMapSimulated 结果
  * @param {object}  [campaignPreset]    战役 preset（含 quad_C deploy 矩形）
+ * @param {object}  [campaignPreset]    战役 preset（含 quad_C deploy 矩形）
  * @param {string}  [campaignBattleTitle]
+ * @param {Record<string, object>} [skillsMap] skills.json 字典；战役 NPC 阶段2被动
  */
 export default function LargeMapBattle({
   playerUnits,
@@ -75,6 +78,7 @@ export default function LargeMapBattle({
   campaignBattleTitle = '',
   minRounds = null,
   maxRounds = 30,
+  skillsMap = null,
 }) {
   const [stage, setStage] = useState(STAGE.LOADING);
   const [layoutWidth, setLayoutWidth] = useState('auto');
@@ -89,10 +93,13 @@ export default function LargeMapBattle({
   const playBattleRoundRef = useRef(() => {});
   const battleStartedRef = useRef(false);
   const battleSettledRef = useRef(false);
-
   const bm = useBattleMap();
   const bmRef = useRef(bm);
   bmRef.current = bm;
+  const playerIdRef = useRef(playerId);
+  playerIdRef.current = playerId;
+  const stageRef = useRef(stage);
+  stageRef.current = stage;
   const autoBattleRef = useRef(bm.autoBattle);
   autoBattleRef.current = bm.autoBattle;
 
@@ -117,9 +124,14 @@ export default function LargeMapBattle({
   const manual = useManualBattle({
     battleTroops: bm.battleTroops, mapResult: bm.mapResult,
     performAttack: engine.performAttack, performCounterAttack: engine.performCounterAttack,
+    performPhase3Heal: engine.performPhase3Heal,
+    performPhase4Damage: engine.performPhase4Damage,
+    performPhase5Composite: engine.performPhase5Composite,
     battleKill: engine.battleKill, battleMove: engine.battleMove,
     formationGroupMove: engine.formationGroupMove, removeFormationBuffs: engine.removeFormationBuffs,
     addLog: bm.addLog,
+    requireSkillModeToggle: false,
+    skillsMap: skillsMap || {},
   });
 
   manualBattleRef.current = manual;
@@ -172,6 +184,26 @@ export default function LargeMapBattle({
   useEffect(() => {
     if (bm.battlePlaying) battleStartedRef.current = true;
   }, [bm.battlePlaying]);
+
+  useEffect(() => {
+    if (!playerId || stage !== STAGE.READY) return undefined;
+    const playerTroops = (bm.battleTroops || []).filter((t) => t.faction === 'player');
+    if (playerTroops.length === 0) return undefined;
+    writeInflightBattleTroopSnapshot(playerId, playerTroops);
+
+    const flushInflightSnap = () => {
+      const pid = playerIdRef.current;
+      const b = bmRef.current;
+      if (!pid || stageRef.current !== STAGE.READY) return;
+      const rows = (b.battleTroops || []).filter((t) => t.faction === 'player');
+      if (rows.length === 0) return;
+      writeInflightBattleTroopSnapshot(pid, rows);
+    };
+    window.addEventListener('pagehide', flushInflightSnap);
+    return () => {
+      window.removeEventListener('pagehide', flushInflightSnap);
+    };
+  }, [playerId, stage, bm.battleTroops]);
 
   // ── sendBeacon：页面关闭/刷新视为中断，计为一次失败 ──
   useEffect(() => {
@@ -340,10 +372,12 @@ export default function LargeMapBattle({
     clickIsCurrentActorCell,
   ]);
 
-  // ── 初始化 ──
+  // 须等 skills.json 就绪后再写入战场部队，否则 NPC/我方将领阶段1 被动未叠入 `character._skillPhase1Combat`
   useEffect(() => {
     if (initRef.current || !playerUnits || playerUnits.length === 0) return;
     if (!campaignMapSim || !campaignPreset || bm.allTroops.length < 1) return;
+    if (Object.keys(skillsMap || {}).length === 0) return;
+
     initRef.current = true;
 
     bm.setMapResult(buildCampaignBattleMapResult(campaignMapSim));
@@ -354,6 +388,7 @@ export default function LargeMapBattle({
         deployRect: getPlayerDeployRectGlobal(campaignPreset),
         allTroops: bm.allTroops,
         allCharacters: bm.allCharacters,
+        skillsMap: skillsMap || undefined,
       }),
     );
     bm.toggleBattle();
@@ -361,8 +396,8 @@ export default function LargeMapBattle({
     bm.toggleAutoFormation(false); // 战役关闭自动阵型，避免首回合挪动 ally/NPC
     // 保持 isBattle=false：战前 CampaignMapGrid 显示蓝色部署区
     setStage(STAGE.READY);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playerUnits, campaignMapSim, campaignPreset, bm.allTroops.length]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playerUnits, campaignMapSim, campaignPreset, bm.allTroops.length, skillsMap, silverAmount]);
 
   // ── 开战（含门槛校验 + 战略→战术坐标写入） ──
   const [battleGateModalOpen, setBattleGateModalOpen] = useState(false);
@@ -417,7 +452,31 @@ export default function LargeMapBattle({
     const isFormation = phase === MANUAL_PHASE.FORMATION_MOVE || phase === MANUAL_PHASE.FORMATION_ACTION;
     const isMove = phase === MANUAL_PHASE.SELECT_MOVE || phase === MANUAL_PHASE.FORMATION_MOVE;
     const isAction = phase === MANUAL_PHASE.SELECT_ACTION || phase === MANUAL_PHASE.FORMATION_ACTION;
+    const isSingleAction = phase === MANUAL_PHASE.SELECT_ACTION;
     if (!isMove && !isAction) return null;
+
+    const healSlots = activeTroop?.character?._skillPhase3Heal?.slots;
+    const p4Slots = activeTroop?.character?._skillPhase4Damage?.slots;
+    const p5Slots = activeTroop?.character?._skillPhase5Composite?.slots;
+    const healCharges =
+      isSingleAction &&
+      healSlots?.length > 0 &&
+      healSlots.some(
+        (s) => (activeTroop._phase3HealRuntime?.chargesBySkillId?.[s.skillId] ?? 0) > 0,
+      );
+    const p4Charges =
+      isSingleAction &&
+      p4Slots?.length > 0 &&
+      p4Slots.some(
+        (s) => (activeTroop._phase4DamageRuntime?.chargesBySkillId?.[s.skillId] ?? 0) > 0,
+      );
+    const p5Charges =
+      isSingleAction &&
+      p5Slots?.length > 0 &&
+      p5Slots.some(
+        (s) => (activeTroop._phase5CompositeRuntime?.chargesBySkillId?.[s.skillId] ?? 0) > 0,
+      );
+    const anySkillCharges = healCharges || p4Charges || p5Charges;
 
     let ty, tx;
     if (isFormation && formationTroops?.length) {
@@ -449,7 +508,15 @@ export default function LargeMapBattle({
           gap: 0, zIndex: 50, pointerEvents: 'auto',
         }}
       >
-        <button type="button" className="floating-act" disabled title="技能系统尚未实装">🔮 技能</button>
+        <button
+          type="button"
+          className="floating-act"
+          disabled={!anySkillCharges}
+          title={manual.activeSkillArmUi?.armedLabel || (anySkillCharges ? '切换主动技' : '无可用主动技')}
+          onClick={() => manual.cycleActiveSkillArm?.()}
+        >
+          🔮 技能
+        </button>
         <button type="button" className="floating-act" onClick={onStandby}>💤 待机</button>
       </div>
     ) : null;
@@ -457,7 +524,14 @@ export default function LargeMapBattle({
     return (
       <>
         {actionMenu}
-        {manual.attackPreview && <AttackPreview preview={manual.attackPreview} campaignGridOverlay />}
+        {(manual.attackPreview || manual.healPreview || manual.phase4ShapeOverlay) && (
+          <AttackPreview
+            attackPreview={manual.attackPreview}
+            healPreview={manual.healPreview}
+            phase4ShapeOverlay={manual.phase4ShapeOverlay}
+            campaignGridOverlay
+          />
+        )}
       </>
     );
   }, [bm.autoBattle, manual, manualActionMenuOpen]);
@@ -513,6 +587,11 @@ export default function LargeMapBattle({
               manualHighlightModel={!bm.autoBattle ? manual.manualHighlightModel : null}
               manualChrome={campaignManualChrome}
               tooltipApiRef={campaignTooltipApiRef}
+              suppressEnemyTroopTooltip={
+                bm.battlePlaying &&
+                !bm.autoBattle &&
+                !!(manual.attackPreview || manual.healPreview || manual.phase4ShapeOverlay)
+              }
               roundNum={bm.roundNum}
               manualActionHintText={
                 bm.battlePlaying && !bm.autoBattle && bm.roundNum > 0 ? '请点击当前部队打开行动' : null

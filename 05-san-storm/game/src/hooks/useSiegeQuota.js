@@ -4,6 +4,7 @@
  */
 import { useState, useEffect, useCallback } from 'react';
 import { API_CONFIG } from '@/constants';
+import { fetchWithTimeout } from '@/services/httpClient';
 
 const MAX_QUOTA = 18;
 const REFILL_PER_HOUR = 6;
@@ -15,13 +16,13 @@ function isRestHour(h) { return h >= REST_START && h < REST_END; }
 /** 供战略 tooltip / 攻城发起前校验等复用（与 hook 内请求一致） */
 export function fetchSiegeQuotaJson(playerId, cityId) {
   if (!playerId || !cityId) return Promise.resolve({ success: false });
-  return fetch(`${API_CONFIG.BASE_URL}/cities/${cityId}/siege-quota?playerId=${playerId}`)
+  return fetchWithTimeout(`${API_CONFIG.BASE_URL}/cities/${cityId}/siege-quota?playerId=${playerId}`)
     .then((r) => r.json());
 }
 
 export function postSiegeQuotaAction(playerId, cityId, action) {
   if (!playerId || !cityId) return Promise.resolve({ success: false });
-  return fetch(`${API_CONFIG.BASE_URL}/cities/${cityId}/siege-quota`, {
+  return fetchWithTimeout(`${API_CONFIG.BASE_URL}/cities/${cityId}/siege-quota`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ playerId, action }),

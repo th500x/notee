@@ -27,7 +27,7 @@
         "san_1_skill_1_5002",
         "san_1_skill_2_5002"
       ],
-      "troopAffinity": "infantry:5",
+      "troopAffinity": "infantry:6",
       "bonds": [
         "桃园",
         "汉室"
@@ -360,7 +360,7 @@
         "san_1_skill_1_5004",
         "san_1_skill_2_5002"
       ],
-      "troopAffinity": "cavalry:5",
+      "troopAffinity": "cavalry:6",
       "bonds": [
         "魏武",
         "曹氏"
@@ -388,14 +388,14 @@
       "politics": 8,
       "charm": 7.7,
       "trait": "brave",
-      "trait_modifier": 5,
+      "trait_modifier": 6,
       "skill_1": "san_1_skill_1_4003",
       "skill_2": "san_1_skill_2_4003",
       "skills": [
         "san_1_skill_1_4003",
         "san_1_skill_2_4003"
       ],
-      "troopAffinity": "cavalry:5",
+      "troopAffinity": "cavalry:6",
       "bonds": [
         "魏武",
         "夏侯",
@@ -424,14 +424,14 @@
       "politics": 5.2,
       "charm": 8.2,
       "trait": "brave",
-      "trait_modifier": 5,
+      "trait_modifier": 6,
       "skill_1": "san_1_skill_1_4004",
       "skill_2": "san_1_skill_2_4010",
       "skills": [
         "san_1_skill_1_4004",
         "san_1_skill_2_4010"
       ],
-      "troopAffinity": "archer:5",
+      "troopAffinity": "archer:6",
       "bonds": [
         "魏武",
         "夏侯",
@@ -795,7 +795,7 @@
       "politics": 6.7,
       "charm": 7,
       "trait": "brave",
-      "trait_modifier": 5,
+      "trait_modifier": 6,
       "skill_1": "san_1_skill_1_4003",
       "skill_2": "san_1_skill_2_4008",
       "skills": [
@@ -830,7 +830,7 @@
       "politics": 6,
       "charm": 6.8,
       "trait": "brave",
-      "trait_modifier": 5,
+      "trait_modifier": 6,
       "skill_1": "san_1_skill_1_3005",
       "skill_2": "san_1_skill_2_3003",
       "skills": [
@@ -864,7 +864,7 @@
       "politics": 6.8,
       "charm": 7.2,
       "trait": "brave",
-      "trait_modifier": 5,
+      "trait_modifier": 6,
       "skill_1": "san_1_skill_1_3006",
       "skill_2": "san_1_skill_2_3004",
       "skills": [
@@ -1129,7 +1129,7 @@
       "politics": 6.9,
       "charm": 7.4,
       "trait": "brave",
-      "trait_modifier": 5,
+      "trait_modifier": 6,
       "skill_1": "san_1_skill_1_4003",
       "skill_2": "san_1_skill_2_4003",
       "skills": [
@@ -1304,7 +1304,7 @@
       "politics": 7.2,
       "charm": 6.3,
       "trait": "brave",
-      "trait_modifier": 5,
+      "trait_modifier": 6,
       "skill_1": "san_1_skill_1_3006",
       "skill_2": "san_1_skill_2_3003",
       "skills": [
@@ -1338,7 +1338,7 @@
       "politics": 7.7,
       "charm": 6.3,
       "trait": "brave",
-      "trait_modifier": 5,
+      "trait_modifier": 6,
       "skill_1": "san_1_skill_1_3005",
       "skill_2": "san_1_skill_2_3003",
       "skills": [
@@ -1508,7 +1508,7 @@
       "politics": 7.5,
       "charm": 7.9,
       "trait": "timid",
-      "trait_modifier": -5,
+      "trait_modifier": -6,
       "skill_1": "san_1_skill_1_1004",
       "skill_2": "san_1_skill_2_1002",
       "skills": [
@@ -1540,7 +1540,7 @@
       "politics": 6.7,
       "charm": 7.9,
       "trait": "timid",
-      "trait_modifier": -5,
+      "trait_modifier": -6,
       "skill_1": "san_1_skill_1_1003",
       "skill_2": "san_1_skill_2_1005",
       "skills": [
@@ -1572,7 +1572,7 @@
       "politics": 7.9,
       "charm": 6,
       "trait": "timid",
-      "trait_modifier": -5,
+      "trait_modifier": -6,
       "skill_1": "san_1_skill_1_1004",
       "skill_2": "san_1_skill_2_1001",
       "skills": [
@@ -1604,7 +1604,7 @@
       "politics": 7.5,
       "charm": 7.7,
       "trait": "timid",
-      "trait_modifier": -5,
+      "trait_modifier": -6,
       "skill_1": "san_1_skill_1_1006",
       "skill_2": "san_1_skill_2_1001",
       "skills": [
@@ -1670,14 +1670,14 @@
       "politics": 8.4,
       "charm": 8.3,
       "trait": "brave",
-      "trait_modifier": 5,
+      "trait_modifier": 6,
       "skill_1": "san_1_skill_1_4008",
       "skill_2": "san_1_skill_2_4012",
       "skills": [
         "san_1_skill_1_4008",
         "san_1_skill_2_4012"
       ],
-      "troopAffinity": "cavalry:5",
+      "troopAffinity": "cavalry:6",
       "bonds": [
         "酒池",
         "无双"
@@ -1705,7 +1705,7 @@
       "politics": 7.4,
       "charm": 5.4,
       "trait": "brave",
-      "trait_modifier": 5,
+      "trait_modifier": 6,
       "skill_1": "san_1_skill_1_3005",
       "skill_2": "san_1_skill_2_3005",
       "skills": [
@@ -1977,7 +1977,7 @@
       "politics": 5.6,
       "charm": 5,
       "trait": "timid",
-      "trait_modifier": -5,
+      "trait_modifier": -6,
       "skill_1": "san_1_skill_1_1002",
       "skill_2": "san_1_skill_2_1004",
       "skills": [
@@ -4374,7 +4374,7 @@
       "politics": 5.7,
       "charm": 5.7,
       "trait": "timid",
-      "trait_modifier": -5,
+      "trait_modifier": -6,
       "skill_1": "san_1_skill_1_1006",
       "skill_2": "san_1_skill_2_1001",
       "skills": [
@@ -4406,7 +4406,7 @@
       "politics": 5.7,
       "charm": 5.7,
       "trait": "timid",
-      "trait_modifier": -5,
+      "trait_modifier": -6,
       "skill_1": "san_1_skill_1_1006",
       "skill_2": "san_1_skill_2_1001",
       "skills": [
@@ -4438,14 +4438,14 @@
       "politics": 8.8,
       "charm": 6.1,
       "trait": "brave",
-      "trait_modifier": 5,
+      "trait_modifier": 6,
       "skill_1": "san_1_skill_1_4001",
       "skill_2": "san_1_skill_2_4010",
       "skills": [
         "san_1_skill_1_4001",
         "san_1_skill_2_4010"
       ],
-      "troopAffinity": "archer:5",
+      "troopAffinity": "archer:8",
       "bonds": [
         "五虎",
         "神射"
@@ -4472,8 +4472,8 @@
       "intelligence": 8.6,
       "politics": 9.3,
       "charm": 8.6,
-      "trait": "reckless",
-      "trait_modifier": 8,
+      "trait": "brave",
+      "trait_modifier": 6,
       "skill_1": "san_1_skill_1_4006",
       "skill_2": "san_1_skill_2_4008",
       "skills": [

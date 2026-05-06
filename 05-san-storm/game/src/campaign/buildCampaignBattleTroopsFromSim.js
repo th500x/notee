@@ -10,6 +10,27 @@
 import { getBattleFieldTroopPortraitUrlAttempts, getCampaignMapTroopPortraitUrlAttempts } from '@shared/utils/troopIconUrls';
 import { initialMoraleFromCharacter } from '@/utils/npcMorale';
 import { listPassableDeployCellsInRect } from '@/utils/campaignDeployRect';
+import { collectCharacterSkillIdsFromConfig } from '@shared/utils/skillPhase1Passive';
+import {
+  attachPhase2CombatToCharacter,
+  buildPhase2DefensiveConfigFromSkillIds,
+  initBattlePhase2Runtime,
+} from '@shared/utils/skillPhase2Passive';
+import {
+  attachPhase3HealToCharacter,
+  buildPhase3HealSlotsFromSkillIds,
+  initBattlePhase3HealRuntime,
+} from '@shared/utils/skillPhase3ActiveHeal';
+import {
+  attachPhase4DamageToCharacter,
+  buildPhase4DamageSlotsFromSkillIds,
+  initBattlePhase4DamageRuntime,
+} from '@shared/utils/skillPhase4ActiveDamage';
+import {
+  attachPhase5CompositeToCharacter,
+  buildPhase5CompositeSlotsFromSkillIds,
+  initBattlePhase5CompositeRuntime,
+} from '@shared/utils/skillPhase5CompositeDamage';
 const base = () => import.meta.env.BASE_URL;
 
 /**
@@ -19,6 +40,7 @@ const base = () => import.meta.env.BASE_URL;
  * @param {object|null} opts.deployRect — `getPlayerDeployRectGlobal` 结果；用于我方初始落位
  * @param {Array} opts.allTroops
  * @param {Array} opts.allCharacters
+ * @param {Record<string, object>} [opts.skillsMap] skills.json 字典；有则 NPC 将领叠阶段2被动
  */
 export function buildCampaignBattleTroopsFromSim({
   playerUnits,
@@ -26,6 +48,7 @@ export function buildCampaignBattleTroopsFromSim({
   deployRect,
   allTroops,
   allCharacters,
+  skillsMap = null,
 }) {
   const passable =
     deployRect && campaignMapSim?.cells
@@ -90,7 +113,10 @@ export function buildCampaignBattleTroopsFromSim({
       const charName = raw
         ? raw.courtesyName || raw.courtesy_name || raw.name || raw.character_name || raw.characterName
         : null;
-      const morale = Number.isFinite(Number(cu.morale)) ? Number(cu.morale) : initialMoraleFromCharacter(raw);
+      const traitPts = Number(raw?.trait_modifier ?? raw?.traitModifier ?? 0);
+      const morale = Number.isFinite(Number(cu.morale))
+        ? Math.max(0, Math.min(120, Number(cu.morale) + traitPts * 2))
+        : initialMoraleFromCharacter(raw);
 
       // ally1/ally2 → faction:'ally'，AI 控制以 enemy 为目标；enemy → 保持 enemy 阵营
       const battleFaction = fac === 'enemy' ? 'enemy' : 'ally';
@@ -126,12 +152,47 @@ export function buildCampaignBattleTroopsFromSim({
         ...(cu.battleAiStyle ? { battleAiStyle: cu.battleAiStyle } : {}),
         character:
           raw && charName
-            ? {
-                name: charName,
-                courtesyName: charName,
-                luck, courage, combat, command,
-                intelligence: intel, politics: pol, charm,
-              }
+            ? (skillsMap
+                ? attachPhase5CompositeToCharacter(
+                    attachPhase4DamageToCharacter(
+                      attachPhase3HealToCharacter(
+                        attachPhase2CombatToCharacter(
+                          {
+                            name: charName,
+                            courtesyName: charName,
+                            luck, courage, combat, command,
+                            intelligence: intel, politics: pol, charm,
+                            trait: raw?.trait,
+                            traitModifier: raw?.trait_modifier ?? raw?.traitModifier,
+                          },
+                          buildPhase2DefensiveConfigFromSkillIds(
+                            collectCharacterSkillIdsFromConfig(raw),
+                            skillsMap,
+                          ),
+                        ),
+                        buildPhase3HealSlotsFromSkillIds(
+                          collectCharacterSkillIdsFromConfig(raw),
+                          skillsMap,
+                        ),
+                      ),
+                      buildPhase4DamageSlotsFromSkillIds(
+                        collectCharacterSkillIdsFromConfig(raw),
+                        skillsMap,
+                      ),
+                    ),
+                    buildPhase5CompositeSlotsFromSkillIds(
+                      collectCharacterSkillIdsFromConfig(raw),
+                      skillsMap,
+                    ),
+                  )
+                : {
+                    name: charName,
+                    courtesyName: charName,
+                    luck, courage, combat, command,
+                    intelligence: intel, politics: pol, charm,
+                    trait: raw?.trait,
+                    traitModifier: raw?.trait_modifier ?? raw?.traitModifier,
+                  })
             : null,
         displayName: charName || tr.name,
         morale,
@@ -144,5 +205,12 @@ export function buildCampaignBattleTroopsFromSim({
     }
   }
 
-  return [...playerResult, ...npcResult];
+  const merged = [...playerResult, ...npcResult];
+  initBattlePhase2Runtime(merged);
+  const mapH = cells.length || 10;
+  const mapW = (cells[0] && cells[0].length) || 8;
+  initBattlePhase3HealRuntime(merged, mapH, mapW);
+  initBattlePhase4DamageRuntime(merged, mapH, mapW);
+  initBattlePhase5CompositeRuntime(merged, mapH, mapW);
+  return merged;
 }

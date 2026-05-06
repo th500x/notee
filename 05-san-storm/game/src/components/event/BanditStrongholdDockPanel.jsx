@@ -19,6 +19,7 @@ import { useState } from 'react';
  *   refillPerWindow: number,
  *   canAttack: boolean,
  *   onAttack: () => void | Promise<void>,
+ *   interactionsLocked?: boolean,
  * }} props
  */
 export default function BanditStrongholdDockPanel({
@@ -32,6 +33,7 @@ export default function BanditStrongholdDockPanel({
   max,
   minutesUntilRefill,
   refillPerWindow,
+  interactionsLocked = false,
   canAttack,
   onAttack,
 }) {
@@ -105,14 +107,16 @@ export default function BanditStrongholdDockPanel({
         <div>16:00~24:00</div>
       </div>
 
-      <button
-        type="button"
-        disabled={!canAttack || busy || loading}
-        onClick={() => void handleAttack()}
-        className="mt-3 w-full py-2 rounded-lg text-xs font-bold bg-gradient-to-r from-orange-700 to-red-700 text-amber-50 disabled:from-stone-700 disabled:to-stone-700 disabled:text-stone-500"
-      >
-        {busy ? '…' : '⚔️ 攻打匪寨'}
-      </button>
+      {!interactionsLocked ? (
+        <button
+          type="button"
+          disabled={!canAttack || busy || loading}
+          onClick={() => void handleAttack()}
+          className="mt-3 w-full py-2 rounded-lg text-xs font-bold bg-gradient-to-r from-orange-700 to-red-700 text-amber-50 disabled:from-stone-700 disabled:to-stone-700 disabled:text-stone-500"
+        >
+          {busy ? '…' : '⚔️ 攻打匪寨'}
+        </button>
+      ) : null}
     </div>
   );
 }

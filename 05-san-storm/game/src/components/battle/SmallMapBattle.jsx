@@ -29,6 +29,8 @@ import '@/components/battle/BattleMap.css';
 import { ZONE } from '@/components/battle/battleConstants';
 import { getMoveCost } from '@/systems/battleFlowManager';
 import { validateMainLineupBattleGate } from '@/utils/mainLineupTroops';
+import { writeInflightBattleTroopSnapshot } from '@/utils/inflightBattleTroopSnapshot';
+import { useSkillsMap } from '@/hooks/useSkillsMap';
 
 const STAGE = { LOADING: 'loading', READY: 'ready' };
 
@@ -82,10 +84,14 @@ export default function SmallMapBattle({
   const manualBattleRef = useRef(null);
   const siegeAutoStartedRef = useRef(false);
   const playBattleRoundRef = useRef(() => {});
-
   const bm = useBattleMap();
+  const skillsMap = useSkillsMap();
   const bmRef = useRef(bm);
   bmRef.current = bm;
+  const playerIdRef = useRef(playerId);
+  playerIdRef.current = playerId;
+  const stageRef = useRef(stage);
+  stageRef.current = stage;
   const autoBattleRef = useRef(bm.autoBattle);
   autoBattleRef.current = bm.autoBattle;
 
@@ -111,9 +117,13 @@ export default function SmallMapBattle({
   const manual = useManualBattle({
     battleTroops: bm.battleTroops, mapResult: bm.mapResult,
     performAttack: engine.performAttack, performCounterAttack: engine.performCounterAttack,
+    performPhase3Heal: engine.performPhase3Heal,
+    performPhase4Damage: engine.performPhase4Damage,
+    performPhase5Composite: engine.performPhase5Composite,
     battleKill: engine.battleKill, battleMove: engine.battleMove,
     formationGroupMove: engine.formationGroupMove, removeFormationBuffs: engine.removeFormationBuffs,
     addLog: bm.addLog,
+    skillsMap,
     onManualPlayerActionCommitted,
   });
 
@@ -171,10 +181,13 @@ export default function SmallMapBattle({
     onBattleEnd: wrappedOnBattleEnd,
   });
 
-  // ── 初始化 ──
+  // 须等 skills.json 字典就绪后再落子，否则 buildPlayerUnitsFromContext / assignRealBattleTroops
+  // 叠不上阶段1 被动（如战神 critRate），预估与 hover 与结算不一致。
   useEffect(() => {
     if (initRef.current || !playerUnits || playerUnits.length === 0) return;
     if (!enemyUnits && bm.allTroops.length < 3) return;
+    if (Object.keys(skillsMap || {}).length === 0) return;
+
     initRef.current = true;
 
     bm.generate('standard');
@@ -185,6 +198,7 @@ export default function SmallMapBattle({
       bm.assignRealBattleTroops(playerUnits, enemyRarity || 'common', {
         extraEnemyCharacterIds: eventExtraEnemyCharacterIds,
         eventPunishmentExtraSlot,
+        skillsMap,
         ...(Array.isArray(enemySlotRarities) && enemySlotRarities.length === 4
           ? { enemySlotRarities }
           : {}),
@@ -197,8 +211,40 @@ export default function SmallMapBattle({
     bm.toggleAutoFormation(true);
     bm.toggleBattle();
     setStage(STAGE.READY);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playerUnits, enemyUnits, enemyRarity, enemySlotRarities, eventExtraEnemyCharacterIds, eventPunishmentExtraSlot, bm.allTroops.length]);
+    // bm.* 来自 useBattleMap；不把整个 bm 列入依赖以免多余重跑 init
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    playerUnits,
+    enemyUnits,
+    enemyRarity,
+    enemySlotRarities,
+    eventExtraEnemyCharacterIds,
+    eventPunishmentExtraSlot,
+    bm.allTroops.length,
+    skillsMap,
+    silverAmount,
+  ]);
+
+  /** 须用 stage===READY 判断「仍在战术壳内」，勿用 battlePlaying：后者仅在 playBattleRound 动画循环内为 true，回合间隙为 false 导致快照从不写入。 */
+  useEffect(() => {
+    if (!playerId || stage !== STAGE.READY) return undefined;
+    const playerTroops = (bm.battleTroops || []).filter((t) => t.faction === 'player');
+    if (playerTroops.length === 0) return undefined;
+    writeInflightBattleTroopSnapshot(playerId, playerTroops);
+
+    const flushInflightSnap = () => {
+      const pid = playerIdRef.current;
+      const b = bmRef.current;
+      if (!pid || stageRef.current !== STAGE.READY) return;
+      const rows = (b.battleTroops || []).filter((t) => t.faction === 'player');
+      if (rows.length === 0) return;
+      writeInflightBattleTroopSnapshot(pid, rows);
+    };
+    window.addEventListener('pagehide', flushInflightSnap);
+    return () => {
+      window.removeEventListener('pagehide', flushInflightSnap);
+    };
+  }, [playerId, stage, bm.battleTroops]);
 
   // 攻城 / PVP：若我方单位为空或敌方阵容缺失，init 会永远不跑 → 长期「正在准备战场…」且无控制台报错
   useEffect(() => {
@@ -319,10 +365,15 @@ export default function SmallMapBattle({
         )}
         {bm.mapResult && (
           <div>
+            {/*
+              小型图战前常把 bm.isBattle 抵消为 false（双次 toggleBattle），实战中应以 playing/回合为准，
+              否则 BattleMap 左侧「战区」行标、技能名格等依赖 isBattle 的分支在交战中永远不成立。
+            */}
             <BattleMap
               mapResult={bm.mapResult} mapLabel={bm.mapLabel}
               battleTroops={bm.battleTroops} showTroops={false}
-              isBattle={bm.isBattle} roundNum={bm.roundNum}
+              isBattle={bm.isBattle || bm.battlePlaying || bm.roundNum > 0}
+              roundNum={bm.roundNum}
               highlightPlayerDeployZone={bm.roundNum === 0 && !bm.battlePlaying && !bm.isBattle}
               preBattleDeployTroopId={
                 bm.roundNum === 0 && !bm.battlePlaying && !bm.autoBattle ? eventDeployTroopId : null
@@ -336,6 +387,16 @@ export default function SmallMapBattle({
                 formationTroops: manual.formationTroops, reachableTiles: manual.reachableTiles,
                 onStandby: manual.handleStandby, onFormationStandby: manual.handleFormationStandby,
                 attackPreview: manual.attackPreview,
+                healPreview: manual.healPreview,
+                phase4ShapeOverlay: manual.phase4ShapeOverlay,
+                toggleSkillTargeting: manual.toggleSkillTargeting,
+                dismissSkillPicker: manual.dismissSkillPicker,
+                skillTargetingActive: manual.skillTargetingActive,
+                selectSkillArm: manual.selectSkillArm,
+                skillPickerOpen: manual.skillPickerOpen,
+                skillPickerItems: manual.skillPickerItems,
+                cyclePhase3HealSlot: manual.cyclePhase3HealSlot,
+                phase3HealUi: manual.phase3HealUi,
                 chestReward: manual.chestReward, confirmChestReward: manual.confirmChestReward,
                 manualHighlightModel: manual.manualHighlightModel,
               } : undefined}

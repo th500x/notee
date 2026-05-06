@@ -653,7 +653,7 @@ async function executeRewards(playerId, rewardStr, multiplier, factionId) {
           const [charCfg] = await connection.query(
             'SELECT trait_modifier FROM config_characters WHERE character_id = ?', [realCardId]
           );
-          insertData.morale = 70 + (charCfg[0]?.trait_modifier ?? 0);
+          insertData.morale = 70 + (charCfg[0]?.trait_modifier ?? 0) * 2;
         }
         await connection.query('INSERT INTO player_cards SET ?', [insertData]);
         details.push({ type: 'card', cardType, cardId: realCardId, cardName, instanceId });
@@ -707,7 +707,7 @@ async function executeRewards(playerId, rewardStr, multiplier, factionId) {
           const [charCfg] = await connection.query(
             'SELECT trait_modifier FROM config_characters WHERE character_id = ?', [card.card_id]
           );
-          insertData.morale = 70 + (charCfg[0]?.trait_modifier ?? 0);
+          insertData.morale = 70 + (charCfg[0]?.trait_modifier ?? 0) * 2;
         }
         await connection.query('INSERT INTO player_cards SET ?', [insertData]);
         drawnCardIdsByType[typeKey].push(card.card_id);
@@ -864,7 +864,7 @@ async function grantSpecificCardsOnConnection(connection, playerId, factionId, c
         const [charCfg] = await connection.query(
           'SELECT trait_modifier FROM config_characters WHERE character_id = ?', [realCardId]
         );
-        insertData.morale = 70 + (charCfg[0]?.trait_modifier ?? 0);
+        insertData.morale = 70 + (charCfg[0]?.trait_modifier ?? 0) * 2;
       }
       await connection.query('INSERT INTO player_cards SET ?', [insertData]);
       details.push({ type: 'card', cardType, cardId: realCardId, cardName, instanceId });

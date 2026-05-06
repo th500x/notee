@@ -1,4 +1,4 @@
-import { memo, useEffect, useMemo, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   campaignBgUrl,
   campaignTerrainUrl,
@@ -28,6 +28,7 @@ function wsTerrainFallbackClass(terrain) {
 /**
  * 战略层郡大地图单格：仅地形 / 对象 / 特效展示。
  * 与 `CampaignMapTile` 职责分离（无战役部署、无战斗引擎宿主）。
+ * 浏览模式且格点属于 **`buildRoadPassableKeySetForMarch`** 可通行道路时：键鼠 **`click` `detail===2`**、触摸 **短间隔两次 `touchend`** 可请求进入行军模式（与本人叠层点「行军」等价；非道路格无效）。
  * 瓦片素材路径复用 `campaignMapVisualAssets`（与 BattleTile 同源 PNG）。
  * @param {object|null} [cityRow] - 锚点格 `cityId` 对应 `cities` 行（ fort 用 `build_status` 选空置/建成图）
  * @param {{ anchorR: number, anchorC: number, anchorCell: object, footprintKind?: 'city_2x2'|'bandit_2x1'|'bandit_1x2' }|null} [strategicCover] - 本格是否属于某多格战略 POI 的锚点或延伸格
@@ -50,6 +51,12 @@ function WorldStrategicMapTile({
   exploreRemainBadge = false,
   /** 行军模式：在「非点击出 tooltip」的指针下仍要点格选路 */
   strategicMarchMode = false,
+  /** 浏览模式：允许道路格双击 / 触摸双触请求进入行军（由格网根据 `strategicMarchMode` 等计算） */
+  canRoadDoubleEnterMarch = false,
+  /** `(gx, gy)` → `StrategicWorldMapSection.openMarchConfirmForStrategicCell` */
+  onStrategicRoadDoubleEnterMarch = null,
+  /** `buildRoadPassableKeySetForMarch` 的 Set；`null` 时不处理道路双击 */
+  roadMarchPassableKeySet = null,
   /** @param {number} gx @param {number} gy */
   onStrategicMarchCellPick = null,
   playerFactionId = null,
@@ -146,6 +153,65 @@ function WorldStrategicMapTile({
   const isClickTooltip = tooltipPointerMode === 'click';
   const marchPick = !!strategicMarchMode && typeof onStrategicMarchCellPick === 'function';
 
+  const marchRoadCellKey = `${gridX},${gridY}`;
+  const isMarchRoadCell = !!(
+    roadMarchPassableKeySet &&
+    typeof roadMarchPassableKeySet.has === 'function' &&
+    roadMarchPassableKeySet.has(marchRoadCellKey)
+  );
+  const needsRoadDblMarch =
+    !!canRoadDoubleEnterMarch &&
+    isMarchRoadCell &&
+    typeof onStrategicRoadDoubleEnterMarch === 'function';
+
+  const roadTouchDblPrevRef = useRef(0);
+
+  const handleRoadTouchEndMarchDbl = useCallback(
+    (e) => {
+      if (!needsRoadDblMarch) return;
+      if (e.touches && e.touches.length > 0) return;
+      if (!e.changedTouches?.[0]) return;
+      const now = Date.now();
+      const prev = roadTouchDblPrevRef.current;
+      if (prev > 0 && now - prev < 420 && now - prev > 40) {
+        e.preventDefault();
+        e.stopPropagation();
+        roadTouchDblPrevRef.current = 0;
+        onStrategicRoadDoubleEnterMarch(gridX, gridY);
+      } else {
+        roadTouchDblPrevRef.current = now;
+      }
+    },
+    [needsRoadDblMarch, onStrategicRoadDoubleEnterMarch],
+  );
+
+  const handleTileStrategicClick = useCallback(
+    (e) => {
+      if (needsRoadDblMarch && e.detail === 2) {
+        e.preventDefault();
+        e.stopPropagation();
+        onStrategicRoadDoubleEnterMarch(gridX, gridY);
+        return;
+      }
+      if (marchPick || (isClickTooltip && typeof onTooltipClick === 'function')) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (marchPick) onStrategicMarchCellPick(gridX, gridY);
+        else if (isClickTooltip && typeof onTooltipClick === 'function') onTooltipClick(e);
+      }
+    },
+    [
+      needsRoadDblMarch,
+      onStrategicRoadDoubleEnterMarch,
+      marchPick,
+      isClickTooltip,
+      onTooltipClick,
+      onStrategicMarchCellPick,
+      gridX,
+      gridY,
+    ],
+  );
+
   /** 仅锚点格抬 z-index / overflow：延伸格若同权会盖住邻格溢出的 2×2 立绘（与旧 `ws-tile-object-2x2` 一致） */
   const anchorStrategicFootprintRaised = hasMultiCellFootprint && isAnchorTile;
 
@@ -160,15 +226,11 @@ function WorldStrategicMapTile({
       onMouseEnter={isClickTooltip || marchPick ? undefined : onHover}
       onMouseLeave={isClickTooltip || marchPick ? undefined : onLeave}
       onClick={
-        marchPick || (isClickTooltip && typeof onTooltipClick === 'function')
-          ? (e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              if (marchPick) onStrategicMarchCellPick(gridX, gridY);
-              else if (isClickTooltip && typeof onTooltipClick === 'function') onTooltipClick(e);
-            }
+        needsRoadDblMarch || marchPick || (isClickTooltip && typeof onTooltipClick === 'function')
+          ? handleTileStrategicClick
           : undefined
       }
+      onTouchEnd={needsRoadDblMarch ? handleRoadTouchEndMarchDbl : undefined}
     >
       {bgOk ? (
         <img className="ws-layer" src={bgSrc} alt="" draggable={false} onError={() => setBgOk(false)} />

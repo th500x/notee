@@ -7,6 +7,7 @@
 const express = require('express');
 const { pool } = require('../database/connection');
 const gameTimeService = require('../services/gameTimeService');
+const { wrap500 } = require('../utils/httpError');
 
 const router = express.Router();
 
@@ -14,7 +15,7 @@ const router = express.Router();
  * GET /api/servers/:serverId/game-time
  * 当前游戏历法（config_servers + 实时计算）
  */
-router.get('/:serverId/game-time', async (req, res) => {
+router.get('/:serverId/game-time', async (req, res, next) => {
   try {
     const { serverId } = req.params;
     const fullSelect = `SELECT server_id, opened_at, season_start_time,
@@ -46,12 +47,7 @@ router.get('/:serverId/game-time', async (req, res) => {
     }
     res.json({ success: true, data: gameTime });
   } catch (error) {
-    console.error('[Servers] game-time 失败:', error);
-    res.status(500).json({
-      success: false,
-      error: '获取游戏时间失败',
-      message: error.message,
-    });
+    return next(wrap500(error, '获取游戏时间失败'));
   }
 });
 
@@ -59,7 +55,7 @@ router.get('/:serverId/game-time', async (req, res) => {
  * GET /api/servers
  * 获取服务器列表（包含实时人数统计）
  */
-router.get('/', async (req, res) => {
+router.get('/', async (req, res, next) => {
   try {
     // 查询服务器列表，并统计每个服务器的玩家数
     const [servers] = await pool.query(`
@@ -94,12 +90,7 @@ router.get('/', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('[Servers] 获取服务器列表失败:', error);
-    res.status(500).json({ 
-      success: false,
-      error: '获取服务器列表失败',
-      message: error.message 
-    });
+    return next(wrap500(error, '获取服务器列表失败'));
   }
 });
 
@@ -107,7 +98,7 @@ router.get('/', async (req, res) => {
  * GET /api/servers/:serverId
  * 获取服务器详情（包含实时人数统计）
  */
-router.get('/:serverId', async (req, res) => {
+router.get('/:serverId', async (req, res, next) => {
   try {
     const { serverId } = req.params;
 
@@ -149,12 +140,7 @@ router.get('/:serverId', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('[Servers] 获取服务器详情失败:', error);
-    res.status(500).json({ 
-      success: false,
-      error: '获取服务器详情失败',
-      message: error.message 
-    });
+    return next(wrap500(error, '获取服务器详情失败'));
   }
 });
 

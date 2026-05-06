@@ -12,6 +12,7 @@ import {
   mirrorTroopsForDefenderBattleScore,
 } from '@/systems/battleScoreSystem';
 import { battleAPI } from '@/services/battleApi';
+import { clearInflightBattleTroopSnapshot } from '@/utils/inflightBattleTroopSnapshot';
 
 const STAGE_READY = 'ready';
 
@@ -310,6 +311,7 @@ export function useBattleSettlement({
         };
         if (mountedRef.current) setAwayNoticeOpen(true);
       } else {
+        clearInflightBattleTroopSnapshot();
         onBattleEndRef.current?.(
           result,
           silverSpent > 0 ? silverSpent : 0,
@@ -330,6 +332,7 @@ export function useBattleSettlement({
     if (!p) return;
     pendingAwayEndRef.current = null;
     setAwayNoticeOpen(false);
+    clearInflightBattleTroopSnapshot();
     onBattleEndRef.current?.(p.result, p.silverSpent, p.scoreResult, p.killedIndices, p.meta);
   }, []);
 

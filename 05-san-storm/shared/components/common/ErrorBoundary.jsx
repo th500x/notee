@@ -1,8 +1,14 @@
 /**
- * ErrorBoundary - 全局错误捕获
- * 
+ * ErrorBoundary - 全局错误捕获（game / wiki 共享）
+ *
  * 捕获子组件渲染时的 JS 错误，显示友好提示而不是白屏。
  * 同时显示错误详情，方便用户截图反馈。
+ *
+ * **CR Q6（2026-04-29）**：原本仅 `game/src/components/common/ErrorBoundary.jsx` 有，wiki 端
+ * `App.jsx` 顶层未裹一层，子页面顶层抛错时 → 白屏。本文件提到 `shared/` 后两端共用，
+ * 同时与 03-SHARED_COMPONENTS 设计一致。
+ *
+ * @module shared/components/common/ErrorBoundary
  */
 import React from 'react';
 
@@ -19,7 +25,6 @@ class ErrorBoundary extends React.Component {
   componentDidCatch(error, errorInfo) {
     this.setState({ errorInfo });
     console.error('[ErrorBoundary]', error, errorInfo);
-    // 尝试记录更多上下文
     try {
       const gameUser = localStorage.getItem('gameUser');
       console.error('[ErrorBoundary] gameUser:', gameUser);

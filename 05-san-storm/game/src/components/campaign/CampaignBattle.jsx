@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { usePlayerContext } from '@/contexts/PlayerContext';
 import LargeMapBattle from '@/components/campaign/LargeMapBattle';
 import { buildPlayerUnitsFromContext } from '@/utils/battlePlayerBuilder';
+import { useSkillsMap } from '@/hooks/useSkillsMap';
 import { campaignAPI } from '@/services/campaignApi';
 import { generateCampaignMapSimulated } from '@shared/utils/campaignMapGenerator';
 import { getRarityHex, getRarityLabelCn } from '@/constants';
@@ -22,6 +23,7 @@ export default function CampaignBattle({
   onClose,
 }) {
   const { player, cards, attributeBonusBySlot } = usePlayerContext();
+  const skillsMap = useSkillsMap();
   const [status, setStatus] = useState('loading');
   const [errorMessage, setErrorMessage] = useState('');
   const [campaignMapSim, setCampaignMapSim] = useState(null);
@@ -65,8 +67,8 @@ export default function CampaignBattle({
   }, [campaignId]);
 
   const playerUnits = useMemo(
-    () => buildPlayerUnitsFromContext(player, cards, attributeBonusBySlot),
-    [player, cards, attributeBonusBySlot],
+    () => buildPlayerUnitsFromContext(player, cards, attributeBonusBySlot, skillsMap),
+    [player, cards, attributeBonusBySlot, skillsMap],
   );
 
   const deploymentFoodCost = useMemo(
@@ -136,6 +138,7 @@ export default function CampaignBattle({
         campaignMapSim={campaignMapSim}
         campaignPreset={campaignPreset}
         campaignBattleTitle={campaignName}
+        skillsMap={skillsMap}
         onBattleEnd={handleEnd}
       />
       {battleEndOverlay && (

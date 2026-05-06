@@ -9,7 +9,7 @@
  * @param {Object} character - 将领数据对象
  * @param {string} character.id - 将领ID
  * @param {string} character.name - 将领名称
- * @param {string} character.rarity - 稀有度 (core/legendary/epic/rare/common/mythic)
+ * @param {string} character.rarity - 稀有度 (core/legendary/epic/rare/common)
  * @param {string} character.stage - 生涯阶段 (early/peak/late/dead)
  * @param {number} character.luck - 运气值
  * @param {number} character.courage - 勇猛
@@ -86,17 +86,37 @@ const RARITY_CONFIG = {
     border: 'border-gray-400',
     glow: 'shadow-gray-300/50',
   },
-  mythic: {
-    name: '神话',
-    gradient: 'from-red-200 to-red-300',
-    border: 'border-red-400',
-    glow: 'shadow-red-300/50',
-  }
 };
 
 /**
- * 性格特质配置
+ * 兵种适性 · 性格特质 — 卡面「特性」条（tooltip 与技能/羁绊一致）
  */
+const AFFINITY_META = {
+  infantry: { short: '步', label: '步兵', icon: '🛡️' },
+  cavalry: { short: '骑', label: '骑兵', icon: '🐎' },
+  archer: { short: '弓', label: '弓兵', icon: '🏹' },
+};
+
+function parseTroopAffinityString(affinityStr) {
+  const affinities = {};
+  if (!affinityStr || typeof affinityStr !== 'string') return affinities;
+  affinityStr.split(';').forEach((pair) => {
+    const [troopType, bonus] = pair.split(':');
+    const key = troopType && troopType.trim();
+    if (!key) return;
+    const n = parseInt(String(bonus).trim(), 10);
+    affinities[key] = Number.isFinite(n) ? n : 0;
+  });
+  return affinities;
+}
+
+function affinityChipTooltip(type, bonus) {
+  const row = AFFINITY_META[type];
+  return row
+    ? `${row.label}适性 +${bonus}%。该将领统率${row.label}部队时，按规则获得属性发挥加成。`
+    : `兵种适性「${type}」+${bonus}%。（配置扩展类型，详情以数值与战斗结算为准。）`;
+}
+
 const TRAIT_CONFIG = {
   brave: {
     name: '勇猛',
@@ -155,6 +175,18 @@ const STAGE_MAP = {
  */
 function getRarityConfig(rarity) {
   return RARITY_CONFIG[rarity] || RARITY_CONFIG.common;
+}
+
+/** 战术地图已接主动技的阶段上限（阶段 1～5 已实装） */
+const TACTICS_ACTIVE_SKILL_IMPLEMENTED_PHASE_MAX = 5;
+
+/**
+ * @param {object|undefined|null} skill skillsMap 项
+ */
+function isSkillImplementedInTactics(skill) {
+  if (!skill || typeof skill !== 'object') return false;
+  const ph = Number(skill.implementationPhase);
+  return Number.isFinite(ph) && ph >= 1 && ph <= TACTICS_ACTIVE_SKILL_IMPLEMENTED_PHASE_MAX;
 }
 
 /**
@@ -352,13 +384,13 @@ function CharacterCard({
             {/* 士气显示（编组界面传入） */}
             {character.morale != null && (() => {
               const m = character.morale;
-              const moraleColor = m >= 80 ? '#FFD700' : m >= 50 ? '#4CAF50' : m >= 20 ? '#FFC107' : '#F44336';
+              const moraleColor = m >= 80 ? '#FFD700' : m >= 60 ? '#4CAF50' : m >= 40 ? '#FFC107' : '#F44336';
               const tooltipKey = 'morale';
               const moraleStatus = m >= 100 ? { label: '超高昂', atk: '+10%', def: '+5%' }
                 : m >= 80 ? { label: '高昂', atk: '+10%', def: '+5%' }
-                : m > 20 ? { label: '普通', atk: '无', def: '无' }
-                : m > 0 ? { label: '低落', atk: '-5%', def: '-10%' }
-                : { label: '崩溃', atk: '将领受伤', def: '部队失控' };
+                : m >= 60 ? { label: '普通', atk: '无', def: '无' }
+                : m >= 40 ? { label: '低落', atk: '-5%', def: '-10%' }
+                : { label: '崩溃', atk: '-10%', def: '-15%' };
               return (
                 <div className="relative">
                   <div
@@ -536,14 +568,24 @@ function CharacterCard({
               {/* 如果没有特性数据，显示两个"暂无"框 */}
               {!character.troopAffinity && !character.trait ? (
                 <>
-                  <div className="flex items-center justify-center gap-0.5 px-1.5 py-0.5 rounded bg-gray-200/80 border border-gray-300 text-[11px]">
-                    <span>⭐</span>
-                    <span className={`font-bold text-gray-400`}>无</span>
-                  </div>
-                  <div className="flex items-center justify-center gap-0.5 px-1.5 py-0.5 rounded bg-gray-200/80 border border-gray-300 text-[11px]">
-                    <span>⭐</span>
-                    <span className={`font-bold text-gray-400`}>无</span>
-                  </div>
+                  {['no_trait_a', 'no_trait_b'].map((tooltipKey) => (
+                    <div
+                      key={tooltipKey}
+                      className="relative flex cursor-pointer items-center justify-center gap-0.5 rounded border border-gray-300 bg-gray-200/80 px-1.5 py-0.5 text-[11px]"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setActiveTooltip(activeTooltip === tooltipKey ? null : tooltipKey);
+                      }}
+                    >
+                      <span>⭐</span>
+                      <span className="font-bold text-gray-400">无</span>
+                      {activeTooltip === tooltipKey && (
+                        <div className="pointer-events-none absolute bottom-full left-0 z-50 mb-1 max-w-[220px] break-words rounded bg-gray-900 px-2 py-1 text-[10px] text-white shadow-lg">
+                          暂无兵种适性与性格词条。
+                        </div>
+                      )}
+                    </div>
+                  ))}
                 </>
               ) : (
                 <>
@@ -551,47 +593,72 @@ function CharacterCard({
                   {character.troopAffinity && (
                     <>
                       {(() => {
-                        const parseAffinity = (affinityStr) => {
-                          const affinities = {};
-                          if (!affinityStr) return affinities;
-                          affinityStr.split(';').forEach(pair => {
-                            const [troopType, bonus] = pair.split(':');
-                            affinities[troopType] = parseInt(bonus) || 0;
-                          });
-                          return affinities;
-                        };
-                        
-                        const affinities = parseAffinity(character.troopAffinity);
-                        const troopIcons = { infantry: '🛡️', cavalry: '🐎', archer: '🏹' };
-                        const troopNames = { infantry: '步', cavalry: '骑', archer: '弓' };
-                        
+                        const affinities = parseTroopAffinityString(character.troopAffinity);
                         return Object.entries(affinities)
-                          .filter(([_, bonus]) => bonus > 0)
-                          .map(([type, bonus]) => (
-                            <div key={type} className="flex items-center justify-center gap-0.5 px-1.5 py-0.5 rounded bg-gray-200/80 border border-gray-300 text-[11px]">
-                              <span className="text-yellow-600">{troopIcons[type]}</span>
-                              <span className="text-gray-700 font-bold">{troopNames[type]}</span>
-                              <span className="text-yellow-600 font-bold">+{bonus}%</span>
-                            </div>
-                          ));
+                          .filter(([, bonus]) => bonus > 0)
+                          .map(([type, bonus]) => {
+                            const meta = AFFINITY_META[type];
+                            const icon = meta?.icon ?? '⚔️';
+                            const short = meta?.short ?? String(type).slice(0, 1);
+                            const tooltipKey = `affinity_${type}`;
+                            const tooltipText = affinityChipTooltip(type, bonus);
+                            return (
+                              <div
+                                key={type}
+                                className="relative flex cursor-pointer items-center justify-center gap-0.5 rounded border border-gray-300 bg-gray-200/80 px-1.5 py-0.5 text-[11px]"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setActiveTooltip(activeTooltip === tooltipKey ? null : tooltipKey);
+                                }}
+                              >
+                                <span className="text-yellow-600">{icon}</span>
+                                <span className="font-bold text-gray-700">{short}</span>
+                                <span className="font-bold text-yellow-600">+{bonus}%</span>
+                                {activeTooltip === tooltipKey && tooltipText && (
+                                  <div className="pointer-events-none absolute bottom-full left-0 z-50 mb-1 max-w-[220px] break-words rounded bg-gray-900 px-2 py-1 text-[10px] text-white shadow-lg">
+                                    {tooltipText}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          });
                       })()}
                     </>
                   )}
                   
                   {/* 性格特质 */}
                   {character.trait && TRAIT_CONFIG[character.trait] && (
-                    <div 
-                      className="flex items-center justify-center gap-0.5 px-1.5 py-0.5 rounded bg-gray-200/80 border border-gray-300 text-[11px]"
+                    <div
+                      className="relative flex cursor-pointer items-center justify-center gap-0.5 rounded border border-gray-300 bg-gray-200/80 px-1.5 py-0.5 text-[11px]"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const tooltipKey = 'trait_personality';
+                        setActiveTooltip(activeTooltip === tooltipKey ? null : tooltipKey);
+                      }}
                     >
                       <span>{TRAIT_CONFIG[character.trait].icon}</span>
                       <span className={`font-bold ${TRAIT_CONFIG[character.trait].color}`}>
                         {TRAIT_CONFIG[character.trait].name[0]}
                       </span>
-                      {character.traitModifier !== 0 && (
+                      {character.traitModifier != null && character.traitModifier !== 0 && (
                         <span className={`font-bold ${character.traitModifier > 0 ? 'text-green-400' : 'text-red-400'}`}>
-                          {character.traitModifier > 0 ? '+' : ''}{character.traitModifier}%
+                          {character.traitModifier > 0 ? '+' : ''}{character.traitModifier}
                         </span>
                       )}
+                      {activeTooltip === 'trait_personality' && (() => {
+                        const t = TRAIT_CONFIG[character.trait];
+                        let tip = `${t.name}：${t.description}`;
+                        if (character.traitModifier != null && character.traitModifier !== 0) {
+                          const tm = character.traitModifier;
+                          const sign = tm > 0 ? '+' : '';
+                          tip += ` 配置修正值：${sign}${tm}；相对基础士气 70 累计 ${sign}${tm * 2} 点；战斗另有性格伤害乘子。`;
+                        }
+                        return (
+                          <div className="pointer-events-none absolute bottom-full left-0 z-50 mb-1 max-w-[220px] break-words rounded bg-gray-900 px-2 py-1 text-[10px] text-white shadow-lg">
+                            {tip}
+                          </div>
+                        );
+                      })()}
                     </div>
                   )}
                 </>
@@ -613,18 +680,28 @@ function CharacterCard({
                 const isActive = skillId && typeof skillId === 'string' && skillId.startsWith('san_1_skill_1_');
                 const skillRarityConfig = skill ? getRarityConfig(skill.rarity) : rarityConfig;
                 const tooltipKey = `skill_${index}`;
-                const tooltipText = skill ? (skill.description || skill.name) : skillId;
-                
+                const tacticsOk = isSkillImplementedInTactics(skill);
+                const tooltipText = skill
+                  ? (tacticsOk ? (skill.description || skill.name) : `【战术未实装】${skill.description || skill.name || ''}`.trim())
+                  : `【战术未实装】${skillId || ''}`.trim();
+
+                const placeholderClasses =
+                  'bg-gray-200/90 border border-dashed border-gray-400 text-gray-500 opacity-90 saturate-0 cursor-default';
+                const normalClasses = `
+                      cursor-pointer
+                      bg-gradient-to-r ${skillRarityConfig.gradient} bg-opacity-20 border ${skillRarityConfig.border} border-opacity-40
+                    `;
+
                 return (
                   <div 
                     key={index}
                     className={`
-                      relative px-1.5 py-1 rounded text-[10px] text-center cursor-pointer
-                      bg-gradient-to-r ${skillRarityConfig.gradient} bg-opacity-20 border ${skillRarityConfig.border} border-opacity-40
+                      relative px-1.5 py-1 rounded text-[10px] text-center
+                      ${tacticsOk ? normalClasses : placeholderClasses}
                     `}
                     onClick={(e) => { e.stopPropagation(); setActiveTooltip(activeTooltip === tooltipKey ? null : tooltipKey); }}
                   >
-                    <span className="font-bold truncate block text-gray-900">
+                    <span className={`font-bold truncate block ${tacticsOk ? 'text-gray-900' : 'text-gray-600'}`}>
                       {isActive ? '⚔️' : '🛡️'} {skill ? skill.name : skillId}
                     </span>
                     {activeTooltip === tooltipKey && tooltipText && (

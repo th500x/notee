@@ -1,18 +1,163 @@
 /**
- * AttackPreview - 攻击预览浮层
+ * AttackPreview - 手动回合：普攻预估浮层 + 主动技预览锚点（治疗 / 形状 / 随机）
  *
- * 第一次点击敌人时显示预估伤害、暴击率、命中率。
- * 再次点击同一敌人确认攻击。
+ * 伤害类主动技（形状锚点、随机索敌）与普通攻击共用 `ManualAttackPreviewPanel`，且与普攻相同
+ * 挂在 `map-wrapper` 内锚点格上方（`translateY(-100%)`），避免 body portal 被 `useTileTooltipClamp` 居中后遮挡单位。
+ * 治疗预览仍走 body portal + `TileTooltipContent`（`attackPreviewPortal` 类型不参与整屏居中）。
  */
-import { memo } from 'react';
+import { memo, useMemo, useRef, useState, useLayoutEffect } from 'react';
+import { createPortal } from 'react-dom';
+import { buildManualActiveSkillPreviewTooltipContent, buildSkillDamagePreviewMetaLines } from './battleConstants';
+import { useTileTooltipClamp } from './useTileTooltipClamp';
+import TileTooltipContent from './TileTooltipContent';
+import { ManualAttackPreviewPanel } from './ManualAttackPreviewPanel';
+
+function anchorPositionForCell(target, campaignGridOverlay) {
+  if (!target) return null;
+  return campaignGridOverlay
+    ? {
+        top: `calc(${target.y} * (var(--camp-tile, var(--tile)) + 1px))`,
+        left: `calc(${target.x} * (var(--camp-tile, var(--tile)) + 1px))`,
+      }
+    : {
+        top: `calc(${target.y} * (var(--tile) + 1px))`,
+        left: `calc(var(--label-w) + 4px + ${target.x} * (var(--tile) + 1px))`,
+      };
+}
 
 function AttackPreview({
-  preview,
-  /** 战役整图叠加层：目标坐标已为全局格，直接用 camp-tile 步进 */
+  attackPreview = null,
+  healPreview = null,
+  phase4ShapeOverlay = null,
   campaignGridOverlay = false,
 }) {
-  if (!preview) return null;
-  const { target, estimate, counterEstimate } = preview;
+  const healAnchorRef = useRef(null);
+  const [tipPos, setTipPos] = useState({ x: 0, y: 0 });
+
+  const healPortalContent = useMemo(() => {
+    if (attackPreview && !attackPreview.phase4Random) {
+      return null;
+    }
+    if (!healPreview) return null;
+    return buildManualActiveSkillPreviewTooltipContent({
+      kind: 'heal',
+      slot: healPreview.slot,
+      selfGain: healPreview.selfGain,
+      allyGain: healPreview.allyGain,
+      casterTroop: healPreview.casterTroop,
+      phase5HealDamage: healPreview.phase5HealDamage,
+    });
+  }, [healPreview, attackPreview]);
+
+  const damageInlinePayload = useMemo(() => {
+    if (attackPreview && !attackPreview.phase4Random) return null;
+    if (phase4ShapeOverlay?.anchorEstimate && phase4ShapeOverlay.slot) {
+      const dk = String(phase4ShapeOverlay.slot.damageType || 'physical').toLowerCase() === 'strategy'
+        ? 'strategy'
+        : 'physical';
+      return {
+        tone: dk,
+        estimate: phase4ShapeOverlay.anchorEstimate.estimate,
+        counterEstimate: phase4ShapeOverlay.anchorEstimate.counterEstimate,
+        metaLines: phase4ShapeOverlay.skillMetaLines || [],
+        footer: '再次点击锚点格确认施放',
+      };
+    }
+    if (attackPreview?.phase4Random) {
+      const slot = attackPreview.phase4Random.slot;
+      const dk = String(slot?.damageType || 'physical').toLowerCase() === 'strategy' ? 'strategy' : 'physical';
+      return {
+        tone: dk,
+        estimate: attackPreview.estimate,
+        counterEstimate: attackPreview.counterEstimate ?? null,
+        metaLines: buildSkillDamagePreviewMetaLines(slot),
+        footer: '再次点击确认（目标随机抽取）',
+      };
+    }
+    return null;
+  }, [phase4ShapeOverlay, attackPreview]);
+
+  const damageAnchorTarget =
+    phase4ShapeOverlay?.anchor || (attackPreview?.phase4Random ? attackPreview.target : null);
+
+  const healClampMarker = healPortalContent ? { type: 'attackPreviewPortal' } : null;
+
+  useLayoutEffect(() => {
+    if (!healClampMarker || !healAnchorRef.current) return;
+    const r = healAnchorRef.current.getBoundingClientRect();
+    setTipPos({ x: r.left + r.width / 2, y: r.top });
+  }, [healClampMarker, healPreview, campaignGridOverlay]);
+
+  const { tooltipRef, tooltipStyle } = useTileTooltipClamp(healClampMarker, tipPos);
+
+  const healAnchorTarget = healPreview?.target;
+  const healAnchorStyle =
+    healPortalContent && healAnchorTarget
+      ? {
+          position: 'absolute',
+          ...anchorPositionForCell(healAnchorTarget, campaignGridOverlay),
+          width: campaignGridOverlay ? 'var(--camp-tile, var(--tile))' : 'var(--tile)',
+          height: campaignGridOverlay ? 'var(--camp-tile, var(--tile))' : 'var(--tile)',
+          zIndex: 55,
+          pointerEvents: 'none',
+        }
+      : null;
+
+  const healPortalEl =
+    healPortalContent && healAnchorStyle && typeof document !== 'undefined'
+      ? createPortal(
+          <div className="tile-tooltip tile-tooltip--portal" ref={tooltipRef} style={tooltipStyle}>
+            <TileTooltipContent content={healPortalContent} />
+          </div>,
+          document.body,
+        )
+      : null;
+
+  const damagePos =
+    damageInlinePayload && damageAnchorTarget
+      ? {
+          position: 'absolute',
+          ...anchorPositionForCell(damageAnchorTarget, campaignGridOverlay),
+          width: campaignGridOverlay ? 'var(--camp-tile, var(--tile))' : 'var(--tile)',
+          zIndex: 56,
+          pointerEvents: 'none',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+        }
+      : null;
+
+  const damageInlineEl =
+    damageInlinePayload && damagePos ? (
+      <div className="atk-preview-overlay" style={damagePos}>
+        <div style={{ transform: 'translateY(-100%)' }}>
+          <ManualAttackPreviewPanel
+            tone={damageInlinePayload.tone === 'strategy' ? 'strategy' : 'physical'}
+            estimate={damageInlinePayload.estimate}
+            counterEstimate={damageInlinePayload.counterEstimate}
+            metaLines={damageInlinePayload.metaLines}
+            footer={damageInlinePayload.footer}
+          />
+        </div>
+      </div>
+    ) : null;
+
+  if (healPortalContent && healAnchorStyle) {
+    return (
+      <>
+        <div ref={healAnchorRef} className="atk-preview-overlay" style={healAnchorStyle} />
+        {healPortalEl}
+        {damageInlineEl}
+      </>
+    );
+  }
+
+  if (damageInlineEl) {
+    return <>{damageInlineEl}</>;
+  }
+
+  if (!attackPreview || attackPreview.phase4Random) return null;
+  const { target } = attackPreview;
 
   const pos = campaignGridOverlay
     ? {
@@ -23,6 +168,8 @@ function AttackPreview({
         top: `calc(${target.y} * (var(--tile) + 1px))`,
         left: `calc(var(--label-w) + 4px + ${target.x} * (var(--tile) + 1px))`,
       };
+
+  const { estimate, counterEstimate } = attackPreview;
 
   return (
     <div
@@ -38,42 +185,13 @@ function AttackPreview({
         alignItems: 'center',
       }}
     >
-      {/* 浮层在瓦片上方 */}
-      <div
-        style={{
-          transform: 'translateY(-100%)',
-          background: 'rgba(0,0,0,0.88)',
-          border: '1px solid rgba(255,100,80,0.6)',
-          borderRadius: 6,
-          padding: '5px 8px',
-          color: '#fff',
-          fontSize: 11,
-          lineHeight: 1.5,
-          whiteSpace: 'nowrap',
-          textAlign: 'center',
-          boxShadow: '0 2px 12px rgba(255,60,40,0.3)',
-        }}
-      >
-        <div style={{ color: '#ff9080', fontWeight: 600, marginBottom: 2 }}>⚔️ 预估伤害</div>
-        <div style={{ fontSize: 16, fontWeight: 700, color: '#ffd700' }}>~{estimate.damage}</div>
-        <div style={{ fontSize: 10, color: '#aaa', marginTop: 2 }}>
-          命中 {(estimate.hitRate * 100).toFixed(1)}% &nbsp; 暴击 {(estimate.critRate * 100).toFixed(1)}%
-        </div>
-        <div style={{ fontSize: 10, color: '#ffb347' }}>
-          暴击伤害 ~{estimate.critDamage}
-        </div>
-        {counterEstimate != null && (
-          <div style={{ marginTop: 4, paddingTop: 4, borderTop: '1px solid rgba(255,255,255,0.15)' }}>
-            <div style={{ color: '#8ec5ff', fontWeight: 600, marginBottom: 2 }}>🛡️ 预估反击</div>
-            <div style={{ fontSize: 14, fontWeight: 700, color: '#9ecbff' }}>~{counterEstimate.damage}</div>
-            <div style={{ fontSize: 10, color: '#aaa' }}>
-              命中 {(counterEstimate.hitRate * 100).toFixed(1)}% &nbsp; 暴击 {(counterEstimate.critRate * 100).toFixed(1)}%
-            </div>
-          </div>
-        )}
-        <div style={{ marginTop: 3, fontSize: 10, color: '#ff9080', animation: 'pulse 1.5s infinite' }}>
-          再次点击确认攻击
-        </div>
+      <div style={{ transform: 'translateY(-100%)' }}>
+        <ManualAttackPreviewPanel
+          tone="physical"
+          estimate={estimate}
+          counterEstimate={counterEstimate}
+          footer="再次点击确认攻击"
+        />
       </div>
     </div>
   );

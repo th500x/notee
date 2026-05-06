@@ -5,11 +5,12 @@
  */
 
 import { API_CONFIG } from '../constants';
+import { fetchWithTimeout } from './httpClient';
 
 async function fetchJSON(url, options = {}) {
-  const res = await fetch(url, {
-    headers: { 'Content-Type': 'application/json' },
+  const res = await fetchWithTimeout(url, {
     ...options,
+    headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
   });
   return res.json();
 }

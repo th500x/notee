@@ -29,7 +29,7 @@ import PlaceholderTab from '@/components/game/tabs/PlaceholderTab';
 import WorldMap from '@/components/game/WorldMap';
 import RoadEncounterDefenseRoot from '@/components/game/RoadEncounterDefenseRoot';
 import JunCountyQuadPreviewPanel from '@/components/game/JunCountyQuadPreviewPanel';
-import UpdateNoticePanel from '@/components/game/UpdateNoticePanel';
+import UpdateNoticeFullScreenOverlay from '@/components/game/UpdateNoticeFullScreenOverlay';
 import { getActiveUpdateNotice } from '@/data/texts/updateAnnouncements';
 import { shouldShowUpdateNotice, dismissUpdateNotice } from '@/utils/updateNoticeLogic';
 import { isGameIntroCompletedForPlayer, markGameIntroCompletedForPlayer } from '@/utils/gameIntroFlags';
@@ -194,13 +194,12 @@ function GamePageInner({ onLogout, accountId }) {
               <div className="pointer-events-none z-40 flex shrink-0 flex-col gap-1.5 px-3 pt-1 pb-1">
                 <AnnouncementBar />
                 <RankingPanel />
-                {activeUpdateNotice && updateNoticeOpen && (
-                  <UpdateNoticePanel notice={activeUpdateNotice} onClose={handleDismissUpdateNotice} />
-                )}
               </div>
               <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
                 <WorldMap
-                  blockTutorialAutoplay={gameIntroOpen}
+                  blockTutorialAutoplay={
+                    gameIntroOpen || (!!activeUpdateNotice && updateNoticeOpen)
+                  }
                   onEventBusyChange={setWorldMapEventBusy}
                   sanGongFuCardPool={{
                     onOpenPool: setOpenPool,
@@ -288,6 +287,16 @@ function GamePageInner({ onLogout, accountId }) {
       {junQuadPreviewOpen && (
         <JunCountyQuadPreviewPanel onClose={() => setJunQuadPreviewOpen(false)} />
       )}
+
+      {activeTab === null &&
+        activeUpdateNotice &&
+        updateNoticeOpen &&
+        !gameIntroOpen && (
+          <UpdateNoticeFullScreenOverlay
+            notice={activeUpdateNotice}
+            onDismiss={handleDismissUpdateNotice}
+          />
+        )}
 
       {gameIntroOpen && gameIntroStorageId ? (
         <Suspense fallback={null}>

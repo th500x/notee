@@ -23,6 +23,7 @@ export default function ExploreTab({ onClose }) {
     startExplore,
     exploreLocationId,
     citiesList,
+    isTutorial,
   } = eventSystem;
 
   const [exploreHover, setExploreHover] = useState(null);
@@ -46,7 +47,8 @@ export default function ExploreTab({ onClose }) {
     phase === PHASE.IDLE &&
     !eventsLoading &&
     poolLen > 0 &&
-    quota.canExplore;
+    quota.canExplore &&
+    !isTutorial;
   const poolEmpty = phase === PHASE.IDLE && !eventsLoading && poolLen <= 0;
 
   const quotaBlock = (
@@ -121,6 +123,7 @@ export default function ExploreTab({ onClose }) {
             <div className="text-white/60 text-xs">
               {eventsLoading ? '加载事件中...'
                 : !hasAnchor ? '请在大地图立足或打开城池后再试（等待同步 cities）'
+                : isTutorial ? '新手教程进行中：请在大地图跟随【指引】完成教程链，结束后再使用此处探索'
                 : !quota.canExplore ? '探索次数不足'
                 : poolEmpty ? '本地点暂无可探索事件'
                 : `点击探索（${poolLen}种事件）`}

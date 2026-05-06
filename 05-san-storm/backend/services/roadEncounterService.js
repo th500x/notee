@@ -13,9 +13,16 @@
  *
  * 所有对 players 的写入先 `SELECT … FOR UPDATE`；遭遇占格也在事务内 `SELECT … FOR UPDATE`。
  * 幂等：同一 `clientRequestId` 命中 players.road_last_request_id 时返回当前快照，不重复扣费 / 移格。
+ *
+ * 物理拆分（2026-04-29，CR 必改 #6 第一阶段；行为零变动）：
+ *   - 常量 + 纯 helper          → `services/road/roadShared.js`
+ *   - Stale / 幽灵清理           → `services/road/roadStaleCleanup.js`
+ *   - 守门开关 `setIntercept`    → `services/road/roadInterceptService.js`
+ *   - 自身 / 郡内他人 / 守方轮询 → `services/road/roadPresenceService.js`
+ *   本文件保留：`moveAlongRoad`、战斗周期（payload / record / resolve）、权威推演与查询；
+ *   对外 `module.exports` 不变，路由层 `roadEncounterService.xxx(...)` 全部继续可用。
  */
 
-const crypto = require('crypto');
 const { pool } = require('../database/connection');
 const {
   loadRoadGrid,
@@ -26,13 +33,6 @@ const {
   isNeighbor4,
 } = require('../utils/roadGrid');
 
-let strategicStackModPromise = null;
-async function getStrategicStackModule() {
-  if (!strategicStackModPromise) {
-    strategicStackModPromise = import('../../shared/utils/strategicWorldMapStack.js');
-  }
-  return strategicStackModPromise;
-}
 const marchPoi = require('../../shared/utils/strategicMarchPoi.js');
 const { isHostileByFaction } = require('../utils/roadDiplomacy');
 const { isPlayerRecentlyActive, DEFAULT_ONLINE_MS } = require('../utils/playerActivity');
@@ -62,351 +62,196 @@ const {
 } = require('../utils/battleScore.cjs');
 const { buildDefenderSiegePvpBattleLog } = require('../utils/siegeDefenseBattleLog');
 
+const {
+  INTERCEPT_COST_SILVER,
+  FREE_MOVES_PER_DAY,
+  FOOD_PER_STEP,
+  RESERVE_FOOD_DAILY_LIMIT,
+  ROAD_DEFENDER_ALERT_SEC,
+  STALE_FIGHT_SQL_MIN,
+  getStrategicStackModule,
+  newEncounterId,
+  toInt,
+  buildPlayerRoadSnapshot,
+  validatePathShape,
+  sumSiegeNpcStartingTroopsRoad,
+  siegeNpcDisplayNamesRoad,
+} = require('./road/roadShared');
+const {
+  resolveStaleRoadEncountersAtCell,
+  resolveAbandonedRoadFightOnCellIfOpponentOffline,
+} = require('./road/roadStaleCleanup');
+const { setIntercept } = require('./road/roadInterceptService');
+const {
+  getSelfRoadState,
+  getRoadPresence,
+  getPendingDefenderEncounter,
+} = require('./road/roadPresenceService');
+
 const { WIN_REPUTATION_REWARD } = smallMapBattleLootService;
 
-const INTERCEPT_COST_SILVER = 40;                 // 31-6 §三（暂定）
-const FREE_MOVES_PER_DAY = 50;                    // 31-6 §9.1
-const FOOD_PER_STEP = 10;                         // 31-6 §9.1
-const RESERVE_FOOD_DAILY_LIMIT = 500;             // 31-6 §十
-/** 守方遇袭弹窗倒计时长（秒），与攻城披挂 `WAIT_IN_GAME` 产品口径对齐 */
-const ROAD_DEFENDER_ALERT_SEC = 10;
-/**
- * `fighting` 且从未写入 `battle_id`、超过此时长仍无结算提交：视为客户端未进战/未打完等卡死，自动 `cancelled` 释放格锁。
- * 须明显长于单场本地战可能时长；短于「玩家长期挂机不关页」误伤窗口。
- */
-const STALE_FIGHTING_NO_SETTLEMENT_MINUTES = 5;
-/** MySQL/MariaDB 预编译对 `INTERVAL ? MINUTE` 常不生效，Stale 清理须用字面分钟数（仅来自上常数，禁止拼接用户输入） */
-const STALE_FIGHT_SQL_MIN = Math.max(1, Math.min(10080, Math.floor(Number(STALE_FIGHTING_NO_SETTLEMENT_MINUTES) || 5)));
-
-function newEncounterId(junId) {
-  const bare = String(junId || '').replace(/^san_1_jun_/, '') || 'jun';
-  const rnd = crypto.randomBytes(3).toString('hex');
-  return `re_${bare}_${Date.now()}_${rnd}`.slice(0, 50);
-}
-
-function toInt(v) {
-  const n = Number(v);
-  return Number.isFinite(n) ? Math.trunc(n) : null;
-}
-
-function buildPlayerRoadSnapshot(player) {
-  return {
-    road_jun_id: player.road_jun_id || null,
-    road_position_x: player.road_position_x != null ? Number(player.road_position_x) : null,
-    road_position_y: player.road_position_y != null ? Number(player.road_position_y) : null,
-    road_intercept: player.road_intercept ? 1 : 0,
-    road_updated_at: player.road_updated_at || null,
-  };
-}
+// ── moveAlongRoad 内部 helper（CR 必改 #6 第二阶段，2026-04-29）─────────────────
+// 仅供 moveAlongRoad 内部使用，**不**导出。设计原则：
+//   - 入参纯函数 / 局部读库不跨语义，便于将主体函数从 ~870 行降到可阅读的骨架；
+//   - 所有 helper 失败统一返回 `{ ok: false, status, error }`，主流程一行 `if (!r.ok) return r;`；
+//   - 不改任何外部行为：移格规则、错误文案、HTTP 码、扣费口径全部沿用旧实现。
 
 /**
- * 交战格「幽灵」：`road_encounters` 仍为 pending/fighting，但攻防未同时立于该格坐标（断线、未结算、旧数据等）。
- * 若不清理，第三者或守方会被「非本场不可闯入 / 守方禁离格」误伤。本事务内直接 resolved。
- *
- * @param {*} conn 事务连接（`getConnection`）
- */
-async function resolveStaleRoadEncountersAtCell(conn, season, junId, px, py) {
-  const s = String(season || '').trim();
-  const j = String(junId || '').trim();
-  const x = toInt(px);
-  const y = toInt(py);
-  if (!s || !j || x == null || y == null) return;
-  // 双方仍站在格上但长期无结算（未进战、前端异常、旧 bug）：`battle_id` 不会被写入，不能仅靠下行「幽灵」条件解锁。
-  await conn.query(
-    `UPDATE road_encounters e
-        SET e.status = 'cancelled', e.ended_at = NOW()
-      WHERE e.season = ? AND e.jun_id = ?
-        AND e.position_x = ? AND e.position_y = ?
-        AND e.status = 'fighting'
-        AND e.battle_id IS NULL
-        AND e.started_at IS NOT NULL
-        AND e.started_at < DATE_SUB(NOW(), INTERVAL ${STALE_FIGHT_SQL_MIN} MINUTE)`,
-    [s, j, x, y],
-  );
-  await conn.query(
-    `UPDATE road_encounters e
-        SET e.status = 'resolved', e.ended_at = NOW()
-      WHERE e.season = ? AND e.jun_id = ?
-        AND e.position_x = ? AND e.position_y = ?
-        AND e.status IN ('pending','fighting')
-        AND NOT (
-          EXISTS (
-            SELECT 1 FROM players pa
-            WHERE pa.player_id = e.attacker_player_id
-              AND pa.road_jun_id = e.jun_id
-              AND pa.road_position_x = e.position_x
-              AND pa.road_position_y = e.position_y
-          )
-          AND EXISTS (
-            SELECT 1 FROM players pd
-            WHERE pd.player_id = e.defender_player_id
-              AND pd.road_jun_id = e.jun_id
-              AND pd.road_position_x = e.position_x
-              AND pd.road_position_y = e.position_y
-          )
-        )`,
-    [s, j, x, y],
-  );
-}
-
-/**
- * 交战格上对手久未活跃且尚未写入 battle_id：视为无法完成本场，解锁避免攻方永久 409。
- */
-async function resolveAbandonedRoadFightOnCellIfOpponentOffline(conn, season, junId, px, py, moverId) {
-  const s = String(season || '').trim();
-  const j = String(junId || '').trim();
-  const x = toInt(px);
-  const y = toInt(py);
-  const mid = String(moverId || '').trim();
-  if (!s || !j || x == null || y == null || !mid) return;
-  const sec = Math.ceil(DEFAULT_ONLINE_MS / 1000);
-  const [frows] = await conn.query(
-    `SELECT encounter_id, attacker_player_id, defender_player_id, battle_id
-       FROM road_encounters
-      WHERE season = ? AND jun_id = ? AND position_x = ? AND position_y = ?
-        AND status = 'fighting'
-        AND (attacker_player_id = ? OR defender_player_id = ?)
-      FOR UPDATE`,
-    [s, j, x, y, mid, mid],
-  );
-  for (const fr of frows) {
-    const bid = fr.battle_id != null ? String(fr.battle_id).trim() : '';
-    if (bid) continue;
-    const att = String(fr.attacker_player_id || '').trim();
-    const def = String(fr.defender_player_id || '').trim();
-    const opp = mid === att ? def : att;
-    if (!opp) continue;
-    // eslint-disable-next-line no-await-in-loop
-    if (await isPlayerRecentlyActive(opp)) continue;
-    // eslint-disable-next-line no-await-in-loop
-    await conn.query(`UPDATE road_encounters SET status = 'resolved', ended_at = NOW() WHERE encounter_id = ?`, [
-      fr.encounter_id,
-    ]);
-  }
-}
-
-// ── 守门开关 ──────────────────────────────────────────────────────────────────
-
-/**
+ * 移格请求入参校验。
  * @param {string} playerId
- * @param {boolean} enable
- * @param {string} [clientRequestId]
+ * @param {Object} body
+ * @returns {{ ok:true, pid:string, season:string, junId:string, clientRequestId:string } | { ok:false, status:number, error:string }}
  */
-async function setIntercept(playerId, enable, clientRequestId) {
+function validateMoveAlongRoadInput(playerId, body) {
   const pid = String(playerId || '').trim();
   if (!pid) return { ok: false, status: 400, error: '缺少 playerId' };
-
-  const conn = await pool.getConnection();
-  try {
-    await conn.beginTransaction();
-    const [rows] = await conn.query(
-      `SELECT player_id, silver, road_intercept, road_jun_id, road_position_x, road_position_y,
-              road_updated_at, road_last_request_id
-         FROM players WHERE player_id = ? FOR UPDATE`,
-      [pid],
-    );
-    const player = rows[0];
-    if (!player) {
-      await conn.rollback();
-      return { ok: false, status: 404, error: '玩家不存在' };
-    }
-
-    const reqId = clientRequestId ? String(clientRequestId).trim() : '';
-    if (reqId && player.road_last_request_id === reqId) {
-      await conn.commit();
-      return { ok: true, data: { ...buildPlayerRoadSnapshot(player), silver: Number(player.silver) || 0, costSilver: 0, idempotent: true } };
-    }
-
-    const want = enable ? 1 : 0;
-    const cur = player.road_intercept ? 1 : 0;
-    let cost = 0;
-
-    if (want === 1 && cur === 0) {
-      const silver = Number(player.silver) || 0;
-      if (silver < INTERCEPT_COST_SILVER) {
-        await conn.rollback();
-        return { ok: false, status: 409, error: `开启开战模式需 ${INTERCEPT_COST_SILVER} 银两` };
-      }
-      cost = INTERCEPT_COST_SILVER;
-      await conn.query(
-        `UPDATE players
-            SET silver = silver - ?,
-                road_intercept = 1,
-                road_updated_at = NOW(),
-                road_last_request_id = ?
-          WHERE player_id = ?`,
-        [INTERCEPT_COST_SILVER, reqId || null, pid],
-      );
-    } else if (want === 0 && cur === 1) {
-      await conn.query(
-        `UPDATE players
-            SET road_intercept = 0,
-                road_updated_at = NOW(),
-                road_last_request_id = ?
-          WHERE player_id = ?`,
-        [reqId || null, pid],
-      );
-    } else {
-      await conn.query(
-        `UPDATE players SET road_last_request_id = ? WHERE player_id = ?`,
-        [reqId || null, pid],
-      );
-    }
-
-    const [after] = await conn.query(
-      `SELECT silver, road_intercept, road_jun_id, road_position_x, road_position_y, road_updated_at
-         FROM players WHERE player_id = ?`,
-      [pid],
-    );
-    await conn.commit();
-
-    if (cost > 0) {
-      try { await statisticsDeltaService.incrementSpent(pid, { silver: cost }); } catch (_) {}
-    }
-
-    return {
-      ok: true,
-      data: {
-        ...buildPlayerRoadSnapshot(after[0]),
-        silver: Number(after[0].silver) || 0,
-        costSilver: cost,
-        idempotent: false,
-      },
-    };
-  } catch (e) {
-    try { await conn.rollback(); } catch (_) {}
-    if (/Unknown column/i.test(e.message || '')) {
-      return { ok: false, status: 503, error: '数据库缺少道路状态列；请在 backend 目录执行 `node scripts/apply-pending-local-ddl.js` 应用 add-players-road-state.sql' };
-    }
-    console.error('[roadEncounterService] setIntercept', e);
-    return { ok: false, status: 500, error: e.message || '设置开战模式失败' };
-  } finally {
-    conn.release();
-  }
-}
-
-// ── 自身道路状态 ──────────────────────────────────────────────────────────────
-
-async function getSelfRoadState(playerId) {
-  const pid = String(playerId || '').trim();
-  if (!pid) return { ok: false, status: 400, error: '缺少 playerId' };
-  const conn = await pool.getConnection();
-  try {
-    await conn.beginTransaction();
-    const [rows] = await conn.query(
-      `SELECT road_jun_id, road_position_x, road_position_y, road_intercept, road_updated_at,
-              food, silver,
-              road_reserve_date, road_reserve_used,
-              road_move_free_date, road_move_free_used,
-              road_client_notice
-         FROM players WHERE player_id = ? FOR UPDATE`,
-      [pid],
-    );
-    if (!rows.length) {
-      await conn.rollback();
-      return { ok: false, status: 404, error: '玩家不存在' };
-    }
-    const r = rows[0];
-    let pendingRoadNotice = null;
-    const rawNotice = r.road_client_notice != null ? String(r.road_client_notice).trim() : '';
-    if (rawNotice) {
-      pendingRoadNotice = rawNotice;
-      await conn.query(`UPDATE players SET road_client_notice = NULL WHERE player_id = ?`, [pid]);
-    }
-    await conn.commit();
-    return {
-      ok: true,
-      data: {
-        ...buildPlayerRoadSnapshot(r),
-        food: Number(r.food) || 0,
-        silver: Number(r.silver) || 0,
-        roadReserveDate: r.road_reserve_date || null,
-        roadReserveUsed: Number(r.road_reserve_used) || 0,
-        roadMoveFreeDate: r.road_move_free_date || null,
-        roadMoveFreeUsed: Number(r.road_move_free_used) || 0,
-        pendingRoadNotice: pendingRoadNotice || undefined,
-      },
-    };
-  } catch (e) {
-    try {
-      await conn.rollback();
-    } catch (_) {}
-    if (/Unknown column/i.test(e.message || '') && /road_client_notice/i.test(e.message || '')) {
-      const [rows] = await pool.query(
-        `SELECT road_jun_id, road_position_x, road_position_y, road_intercept, road_updated_at,
-                food, silver,
-                road_reserve_date, road_reserve_used,
-                road_move_free_date, road_move_free_used
-           FROM players WHERE player_id = ?`,
-        [pid],
-      );
-      if (!rows.length) return { ok: false, status: 404, error: '玩家不存在' };
-      const r = rows[0];
-      return {
-        ok: true,
-        data: {
-          ...buildPlayerRoadSnapshot(r),
-          food: Number(r.food) || 0,
-          silver: Number(r.silver) || 0,
-          roadReserveDate: r.road_reserve_date || null,
-          roadReserveUsed: Number(r.road_reserve_used) || 0,
-          roadMoveFreeDate: r.road_move_free_date || null,
-          roadMoveFreeUsed: Number(r.road_move_free_used) || 0,
-        },
-      };
-    }
-    if (/Unknown column/i.test(e.message || '')) {
-      return { ok: false, status: 503, error: '数据库缺少道路状态列；请执行 add-players-road-state.sql' };
-    }
-    throw e;
-  } finally {
-    conn.release();
-  }
-}
-
-// ── 沿路移动 ──────────────────────────────────────────────────────────────────
-
-/** 判断 path 是否合法（非空、逐格相邻、格坐标为整数） */
-function validatePathShape(path) {
-  if (!Array.isArray(path) || !path.length) return '路径为空';
-  for (const step of path) {
-    if (!step || typeof step !== 'object') return '路径格式错误';
-    const x = toInt(step.x);
-    const y = toInt(step.y);
-    if (x == null || y == null) return '路径格坐标缺失';
-  }
-  for (let i = 1; i < path.length; i++) {
-    const a = path[i - 1];
-    const b = path[i];
-    if (!isNeighbor4(Number(a.x), Number(a.y), Number(b.x), Number(b.y))) {
-      return '路径格非 4-邻接';
-    }
-  }
-  return null;
-}
-
-/**
- * 沿路移动（权威写位置 + 粮草 / 势力储备）
- *
- * `confirmFoodCost=true`：表示玩家已确认愿意按规则扣费；**本段步数与扣粮以服务端最终采用的 `resolvedPath` 为准**
- *（无 `targetPoiId` 时在事务内用 `shared/utils/strategicMarchPoi` 与 POI 行军同源 BFS 重算最短路，不再信任客户端折线中间格）。
- *
- * @param {string} playerId
- * @param {{ season: string, junId: string, path: Array<{x:number,y:number}>, clientRequestId: string, confirmFoodCost: boolean }} body
- */
-async function moveAlongRoad(playerId, body) {
-  const pid = String(playerId || '').trim();
-  if (!pid) return { ok: false, status: 400, error: '缺少 playerId' };
-
   if (body?.confirmFoodCost !== true) {
     return { ok: false, status: 400, error: '缺少 confirmFoodCost=true（与 31-6 §9.1 强制确认一致）' };
   }
   const season = String(body.season || '').trim();
   const junId = String(body.junId || '').trim();
   if (!season || !junId) return { ok: false, status: 400, error: '缺少 season / junId' };
-
   const clientRequestId = String(body.clientRequestId || '').trim();
   if (!clientRequestId) return { ok: false, status: 400, error: '缺少 clientRequestId' };
+  return { ok: true, pid, season, junId, clientRequestId };
+}
+
+/**
+ * 同 `clientRequestId` 复发：commit 当前事务，重读最新玩家状态后拼接幂等返回包。
+ *
+ * 抽出原因：原内联块约 25 行（再查 SELECT + commit + 组装 snapshot），与主流程的 trap / 路径解算 /
+ * 逐格落脚之间没有依赖；抽出后主体一行 `return await commitIdempotentMoveSnapshot(...)` 即可。
+ *
+ * @param {import('mysql2/promise').PoolConnection} conn 已经在事务中
+ * @param {import('mysql2/promise').Pool|null} pool2 仅当外层在 commit 后还需读最新行时使用；当前实现内联读已经在 commit 前做完，故 pool2 暂不需要
+ * @param {string} pid
+ * @param {Object} player FOR UPDATE 取出的当前行
+ * @param {string} clientRequestId
+ * @param {Array<{x:number,y:number}>} bodyPath body.path（可空）
+ * @returns {Promise<{ ok:true, data:object }>}
+ */
+async function commitIdempotentMoveSnapshot(conn, pid, player, clientRequestId, bodyPath) {
+  const [again] = await conn.query(
+    `SELECT road_jun_id, road_position_x, road_position_y, road_intercept, road_updated_at,
+            food, road_move_free_used, road_reserve_used
+       FROM players WHERE player_id = ?`,
+    [pid],
+  );
+  await conn.commit();
+  const p2 = again[0] || player;
+  const idemPath = Array.isArray(bodyPath) && bodyPath.length ? bodyPath : [];
+  return {
+    ok: true,
+    data: {
+      ...buildPlayerRoadSnapshot(p2),
+      food: Number(p2.food) || 0,
+      idempotent: true,
+      path: idemPath,
+      stepsApplied: idemPath.length,
+      costFood: 0,
+      costFreeSteps: 0,
+      costReserveFood: 0,
+      encounter: null,
+    },
+  };
+}
+
+/**
+ * 当日免费格 / 势力池粮草使用预算。
+ * 纯函数：根据玩家当前状态 + 本次步数，算出免费抵扣 / 个人粮 / 势力池三段如何瓜分。
+ * **不**做合法性判断（势力池是否足够留给 `assertFactionReserveFoodSufficient`）。
+ *
+ * 同时返回 `freeDateStr` / `reserveDateStr`（与 today 比对的 ISO 日期），
+ * 用于主流程在二次扣费场景下"今天才使用过 → 累加上去；非今天 → 从 0 重置"的判断口径，
+ * 与重构前的内联实现完全一致。
+ *
+ * @returns {{
+ *   todayStr: string,
+ *   freeDateStr: string|null,
+ *   reserveDateStr: string|null,
+ *   freeUsed: number,
+ *   reserveUsed: number,
+ *   usedFreeThisMove: number,
+ *   paidSteps: number,
+ *   totalFoodCost: number,
+ *   playerFoodUse: number,
+ *   reserveFoodUse: number,
+ * }}
+ */
+function computeMoveFoodPlan(player, stepsCount) {
+  const today = new Date();
+  const todayStr =
+    `${today.getFullYear()}-` +
+    `${String(today.getMonth() + 1).padStart(2, '0')}-` +
+    `${String(today.getDate()).padStart(2, '0')}`;
+  const freeDateStr = player.road_move_free_date
+    ? new Date(player.road_move_free_date).toISOString().slice(0, 10)
+    : null;
+  const reserveDateStr = player.road_reserve_date
+    ? new Date(player.road_reserve_date).toISOString().slice(0, 10)
+    : null;
+  const freeUsed = freeDateStr === todayStr ? Number(player.road_move_free_used) || 0 : 0;
+  const reserveUsed = reserveDateStr === todayStr ? Number(player.road_reserve_used) || 0 : 0;
+  let freeRemaining = Math.max(0, FREE_MOVES_PER_DAY - freeUsed);
+
+  let usedFreeThisMove = 0;
+  let paidSteps = 0;
+  for (let i = 0; i < stepsCount; i++) {
+    if (freeRemaining > 0) {
+      freeRemaining--;
+      usedFreeThisMove++;
+    } else {
+      paidSteps++;
+    }
+  }
+  const totalFoodCost = paidSteps * FOOD_PER_STEP;
+  const playerFoodUse = Math.min(totalFoodCost, Number(player.food) || 0);
+  const reserveFoodUse = totalFoodCost - playerFoodUse;
+  return {
+    todayStr,
+    freeDateStr,
+    reserveDateStr,
+    freeUsed,
+    reserveUsed,
+    usedFreeThisMove,
+    paidSteps,
+    totalFoodCost,
+    playerFoodUse,
+    reserveFoodUse,
+  };
+}
+
+/**
+ * 仅当本次需从势力池垫粮时，对 `factions.reserve_food` 行加锁并校验是否足量。
+ * 不写入；后续真正扣减仍由主流程在同事务内执行（保留与库存档号一致的写动作）。
+ *
+ * @returns {Promise<{ ok:true } | { ok:false, status:number, error:string }>}
+ */
+async function assertFactionReserveFoodSufficient(conn, factionId, reserveFoodUse) {
+  if (reserveFoodUse <= 0) return { ok: true };
+  const [fRows] = await conn.query(
+    `SELECT id, reserve_food FROM factions WHERE id = ? FOR UPDATE`,
+    [factionId],
+  );
+  const faction = fRows[0];
+  if (!faction) {
+    return { ok: false, status: 500, error: '玩家势力不存在，无法从势力池扣粮' };
+  }
+  if ((Number(faction.reserve_food) || 0) < reserveFoodUse) {
+    return {
+      ok: false,
+      status: 409,
+      error: `势力粮草储备不足（需 ${reserveFoodUse}、现 ${faction.reserve_food}）`,
+    };
+  }
+  return { ok: true };
+}
+
+// ── 沿路移动 ──────────────────────────────────────────────────────────────────
+async function moveAlongRoad(playerId, body) {
+  const inputCheck = validateMoveAlongRoadInput(playerId, body);
+  if (!inputCheck.ok) return inputCheck;
+  const { pid, season, junId, clientRequestId } = inputCheck;
 
   const conn = await pool.getConnection();
   try {
@@ -468,29 +313,7 @@ async function moveAlongRoad(playerId, body) {
 
     // 幂等：已处理过同一请求 id → 返回当前快照，不重复扣费 / 移格。
     if (player.road_last_request_id && player.road_last_request_id === clientRequestId) {
-      const [again] = await conn.query(
-        `SELECT road_jun_id, road_position_x, road_position_y, road_intercept, road_updated_at,
-                food, road_move_free_used, road_reserve_used
-           FROM players WHERE player_id = ?`,
-        [pid],
-      );
-      await conn.commit();
-      const p2 = again[0] || player;
-      const idemPath = Array.isArray(body.path) && body.path.length ? body.path : [];
-      return {
-        ok: true,
-        data: {
-          ...buildPlayerRoadSnapshot(p2),
-          food: Number(p2.food) || 0,
-          idempotent: true,
-          path: idemPath,
-          stepsApplied: idemPath.length,
-          costFood: 0,
-          costFreeSteps: 0,
-          costReserveFood: 0,
-          encounter: null,
-        },
-      };
+      return await commitIdempotentMoveSnapshot(conn, pid, player, clientRequestId, body.path);
     }
 
     const roadPassableForMarch = marchPoi.buildRoadPassableKeySetForMarch(
@@ -845,49 +668,20 @@ async function moveAlongRoad(playerId, body) {
     }
 
     // 今日免费格重置（与 attr_reroll 同型）
-    const today = new Date();
-    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-    const freeDateStr = player.road_move_free_date ? new Date(player.road_move_free_date).toISOString().slice(0, 10) : null;
-    const reserveDateStr = player.road_reserve_date ? new Date(player.road_reserve_date).toISOString().slice(0, 10) : null;
-    let freeUsed = freeDateStr === todayStr ? (Number(player.road_move_free_used) || 0) : 0;
-    let reserveUsed = reserveDateStr === todayStr ? (Number(player.road_reserve_used) || 0) : 0;
-    let freeRemaining = Math.max(0, FREE_MOVES_PER_DAY - freeUsed);
+    const foodPlan = computeMoveFoodPlan(player, steps.length);
+    const { todayStr, freeDateStr, reserveDateStr, freeUsed, reserveUsed, paidSteps, totalFoodCost } = foodPlan;
+    let { usedFreeThisMove, playerFoodUse, reserveFoodUse } = foodPlan;
     const reserveRemaining = Math.max(0, RESERVE_FOOD_DAILY_LIMIT - reserveUsed);
-
-    let usedFreeThisMove = 0;
-    let paidSteps = 0; // 需付费的格数
-    for (let i = 0; i < steps.length; i++) {
-      if (freeRemaining > 0) {
-        freeRemaining--;
-        usedFreeThisMove++;
-      } else {
-        paidSteps++;
-      }
-    }
-    const totalFoodCost = paidSteps * FOOD_PER_STEP;
-    let playerFoodUse = Math.min(totalFoodCost, Number(player.food) || 0);
-    let reserveFoodUse = totalFoodCost - playerFoodUse;
 
     if (reserveFoodUse > reserveRemaining) {
       await conn.rollback();
       return { ok: false, status: 409, error: `粮草不足且势力池垫粮将超当日 500 粮上限（还差 ${reserveFoodUse - reserveRemaining}）` };
     }
 
-    // 从势力池扣减时须校验 factions.reserve_food 足量
-    if (reserveFoodUse > 0) {
-      const [fRows] = await conn.query(
-        `SELECT id, reserve_food FROM factions WHERE id = ? FOR UPDATE`,
-        [player.faction_id],
-      );
-      const faction = fRows[0];
-      if (!faction) {
-        await conn.rollback();
-        return { ok: false, status: 500, error: '玩家势力不存在，无法从势力池扣粮' };
-      }
-      if ((Number(faction.reserve_food) || 0) < reserveFoodUse) {
-        await conn.rollback();
-        return { ok: false, status: 409, error: `势力粮草储备不足（需 ${reserveFoodUse}、现 ${faction.reserve_food}）` };
-      }
+    const reserveCheck = await assertFactionReserveFoodSufficient(conn, player.faction_id, reserveFoodUse);
+    if (!reserveCheck.ok) {
+      await conn.rollback();
+      return reserveCheck;
     }
 
     // 逐格落脚 — 在事务内对每个候选格做 SELECT FOR UPDATE 锁检查（road_encounters + 占格玩家）。
@@ -1249,163 +1043,6 @@ async function moveAlongRoad(playerId, body) {
 }
 
 // ── 郡内 presence（仅在线他人 + 锁格） ────────────────────────────────────────
-
-/**
- * @param {string} season
- * @param {string} junId
- * @param {string} callerPlayerId  不把自己列入「他人」
- */
-async function getRoadPresence(season, junId, callerPlayerId) {
-  const s = String(season || '').trim();
-  const j = String(junId || '').trim();
-  const caller = String(callerPlayerId || '').trim();
-  if (!s || !j) return { ok: false, status: 400, error: '缺少 season / junId' };
-
-  const thresholdSec = Math.ceil(DEFAULT_ONLINE_MS / 1000);
-
-  try {
-    const [others] = await pool.query(
-      `SELECT p.player_id AS playerId,
-              p.character_name AS characterName,
-              p.faction_id AS factionId,
-              p.faction_name AS factionName,
-              p.avatar AS avatar,
-              p.road_jun_id AS roadJunId,
-              p.road_position_x AS roadPositionX,
-              p.road_position_y AS roadPositionY,
-              p.road_intercept AS roadIntercept,
-              p.road_updated_at AS roadUpdatedAt
-         FROM players p
-         INNER JOIN accounts a ON a.id = p.player_id
-        WHERE p.road_jun_id = ?
-          AND p.road_position_x IS NOT NULL
-          AND p.road_position_y IS NOT NULL
-          AND p.player_id <> ?
-          AND GREATEST(COALESCE(UNIX_TIMESTAMP(p.last_active_at), 0),
-                       COALESCE(UNIX_TIMESTAMP(a.lastActiveAt), 0))
-              > UNIX_TIMESTAMP(NOW()) - ?`,
-      [j, caller || '', thresholdSec],
-    );
-
-    const [locks] = await pool.query(
-      `SELECT encounter_id AS encounterId,
-              position_x AS positionX,
-              position_y AS positionY,
-              status,
-              attacker_player_id AS attackerPlayerId,
-              defender_player_id AS defenderPlayerId,
-              started_at AS startedAt
-         FROM road_encounters
-        WHERE season = ? AND jun_id = ? AND status IN ('pending','fighting')`,
-      [s, j],
-    );
-
-    return {
-      ok: true,
-      data: {
-        season: s,
-        junId: j,
-        thresholdMs: DEFAULT_ONLINE_MS,
-        others: others.map((r) => ({
-          playerId: r.playerId,
-          characterName: r.characterName,
-          factionId: r.factionId,
-          factionName: r.factionName,
-          avatar: r.avatar || null,
-          roadPositionX: Number(r.roadPositionX),
-          roadPositionY: Number(r.roadPositionY),
-          roadIntercept: r.roadIntercept ? 1 : 0,
-          roadUpdatedAt: r.roadUpdatedAt || null,
-        })),
-        lockedCells: locks.map((r) => ({
-          encounterId: r.encounterId,
-          positionX: Number(r.positionX),
-          positionY: Number(r.positionY),
-          status: r.status,
-          attackerPlayerId: r.attackerPlayerId,
-          defenderPlayerId: r.defenderPlayerId,
-          startedAt: r.startedAt || null,
-        })),
-      },
-    };
-  } catch (e) {
-    if (/road_encounters/i.test(e.message || '') && /doesn't exist/i.test(e.message || '')) {
-      return { ok: false, status: 503, error: '数据库缺少 road_encounters 表；请执行 create-road-encounters.sql' };
-    }
-    if (/Unknown column/i.test(e.message || '')) {
-      return { ok: false, status: 503, error: '数据库缺少道路状态列；请执行 add-players-road-state.sql' };
-    }
-    throw e;
-  }
-}
-
-// ── 道路遭遇：守方遇袭轮询（与攻城 `/pvp/pending` 对称）────────────────────────
-
-/**
- * 若当前用户为某条 fighting 遭遇的防守方且立点与交战格一致，返回遇袭摘要（否则 encounter=null）。
- *
- * @param {string} defenderPlayerId
- */
-async function getPendingDefenderEncounter(defenderPlayerId) {
-  const pid = String(defenderPlayerId || '').trim();
-  if (!pid) return { ok: false, status: 400, error: '缺少 playerId' };
-  try {
-    // 与 `resolveStaleRoadEncountersAtCell` 同阈值：守方轮询也能摘掉「永不结束」的 fighting，避免 UI 永久遇袭
-    await pool.query(
-      `UPDATE road_encounters e
-          SET e.status = 'cancelled', e.ended_at = NOW()
-        WHERE e.status = 'fighting'
-          AND e.battle_id IS NULL
-          AND e.started_at IS NOT NULL
-          AND e.started_at < DATE_SUB(NOW(), INTERVAL ${STALE_FIGHT_SQL_MIN} MINUTE)
-          AND (e.attacker_player_id = ? OR e.defender_player_id = ?)`,
-      [pid, pid],
-    );
-    const [rows] = await pool.query(
-      `SELECT e.encounter_id AS encounterId,
-              e.attacker_player_id AS attackerPlayerId,
-              e.started_at AS startedAt,
-              pa.character_name AS attackerName
-         FROM road_encounters e
-         INNER JOIN players pd ON pd.player_id = e.defender_player_id
-         LEFT JOIN players pa ON pa.player_id = e.attacker_player_id
-        WHERE e.defender_player_id = ?
-          AND e.status = 'fighting'
-          AND pd.road_jun_id = e.jun_id
-          AND pd.road_position_x = e.position_x
-          AND pd.road_position_y = e.position_y
-        ORDER BY e.started_at DESC
-        LIMIT 1`,
-      [pid],
-    );
-    if (!rows.length) {
-      return { ok: true, data: { encounter: null } };
-    }
-    const r = rows[0];
-    const startedMs = r.startedAt ? new Date(r.startedAt).getTime() : Date.now();
-    const elapsedSec = Math.max(0, (Date.now() - startedMs) / 1000);
-    const remainingSeconds = Math.max(0, Math.ceil(ROAD_DEFENDER_ALERT_SEC - elapsedSec));
-    return {
-      ok: true,
-      data: {
-        encounter: {
-          encounterId: r.encounterId,
-          attackerPlayerId: r.attackerPlayerId,
-          attackerName: r.attackerName || '敌方',
-          waitSeconds: ROAD_DEFENDER_ALERT_SEC,
-          remainingSeconds,
-        },
-      },
-    };
-  } catch (e) {
-    if (/road_encounters/i.test(e.message || '') && /doesn't exist/i.test(e.message || '')) {
-      return { ok: false, status: 503, error: '数据库缺少 road_encounters 表；请执行 create-road-encounters.sql' };
-    }
-    console.error('[roadEncounterService] getPendingDefenderEncounter', e);
-    return { ok: false, status: 500, error: e.message || '查询道路遇袭失败' };
-  }
-}
-
 // ── 道路遭遇：开战数据（客户端进 BattleArena）──────────────────────────────────
 
 /**
@@ -1964,27 +1601,6 @@ async function resolveEncounter(playerId, body) {
 // ── 道路遭遇：服务端权威推演（与 `siegePvpResolveService` 同源 `runSiegePvpSkirmish`）────────────────
 
 const authoritativeRoadResolveLocks = new Map();
-
-function sumSiegeNpcStartingTroopsRoad(npcs) {
-  if (!Array.isArray(npcs)) return 0;
-  return npcs.reduce((sum, n) => {
-    const cur = n?.currentTroops;
-    const mx = n?.maxTroops;
-    const v = cur != null && cur !== '' ? Number(cur) : Number(mx);
-    return sum + (Number.isFinite(v) ? Math.max(0, Math.round(v)) : 0);
-  }, 0);
-}
-
-function siegeNpcDisplayNamesRoad(npcs) {
-  const names = [];
-  for (const n of npcs || []) {
-    const c = n.character;
-    const label = (c && (c.courtesyName || c.name)) || n.troopName;
-    if (label) names.push(String(label).trim());
-  }
-  return names;
-}
-
 async function doResolveAuthoritativeRoadEncounter(attackerId, encounterId) {
   const [rows] = await pool.query(
     `SELECT encounter_id, status, attacker_player_id, defender_player_id,

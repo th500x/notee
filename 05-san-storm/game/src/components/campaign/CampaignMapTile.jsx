@@ -127,6 +127,10 @@ function CampaignMapTile({
         </div>
       )}
       {manualHl === 'atk' && <div className="manual-hl atk-target campaign-manual-hl" aria-hidden />}
+      {manualHl === 'heal' && <div className="manual-hl heal-target campaign-manual-hl" aria-hidden />}
+      {manualHl === 'skillPreview' && (
+        <div className="manual-hl skill-preview campaign-manual-hl" aria-hidden />
+      )}
       <span className="camp-quad-marker">{cell.quad}</span>
     </div>
   );

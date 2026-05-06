@@ -25,6 +25,7 @@ import {
 } from '@shared/utils/strategicRoadOverlay.js';
 import { isBanditMapObjectId } from '@shared/utils/smallMapEnemyRoster';
 import { readStrategicCellAnchorId } from '@shared/utils/strategicCellAnchorId.js';
+import { buildRoadPassableKeySetForMarch } from '@shared/utils/strategicMarchPoi.js';
 import '@/components/battle/BattleMap.css';
 import './WorldStrategicMap.css';
 import { PHASE } from '@/components/event/EventConstants';
@@ -91,11 +92,12 @@ function buildStrategicWorldMapCityTooltip(row, anchorKey, hd, onDutyCount) {
     !!hd.playerFactionId &&
     worldMapCityIsPlayerSameFaction(row, hd.playerFactionId);
   const canAct = !!(isOwn && hd.playerId && anchorKey && !base.isBanditStronghold);
-  const hasSubsidiaryTabs = !!(base.subsidiaryExplore?.wilderness || base.subsidiaryExplore?.market);
-  /** 城备/城况等分段需可点击，与无附属荒郊/集市时一致 */
-  const hasCityInfoTabs = !base.syncErrorMessage;
+  const standingId = String(hd.playerStandingPoiAnchorId || '').trim();
+  const anchorNorm = String(anchorKey || '').trim();
+  const atThisPoi = !!anchorNorm && standingId !== '' && standingId === anchorNorm;
   const canSetMainCity =
     canAct &&
+    atThisPoi &&
     worldMapCityTypeAllowsMainCitySet(row) &&
     typeof hd.onSetMainCityRequest === 'function';
 
@@ -104,41 +106,50 @@ function buildStrategicWorldMapCityTooltip(row, anchorKey, hd, onDutyCount) {
     !isOwn &&
     !!hd.playerId &&
     typeof hd.onStartSiegeForCity === 'function';
+  const canSiegeHere = !!(canSiegeThis && atThisPoi);
+
+  /** 完整战略面板（含远距离只读）：用于 tooltip portal 粘滞悬停；与「可操作」解耦，见 `poiInteractionsLocked`。 */
+  const canShowFullStrategicTooltip =
+    !base.syncErrorMessage && !!anchorNorm && (!!row || base.isBanditStronghold);
+  const poiInteractionsLocked = !!anchorNorm && !atThisPoi && canShowFullStrategicTooltip;
+
+  const interactive = canShowFullStrategicTooltip;
 
   return {
     type: 'worldMapCity',
-    interactive: canAct || hasSubsidiaryTabs || hasCityInfoTabs || canSetMainCity || canSiegeThis,
+    interactive,
+    poiInteractionsLocked,
     ...base,
     cityId: base.isBanditStronghold ? null : anchorKey,
     banditPoiId: base.isBanditStronghold ? base.banditPoiId ?? anchorKey : base.banditPoiId ?? null,
     factionDisplayMap: { ...WORLD_MAP_DEFAULT_FACTION_LABELS, ...fb },
     onStartSiege:
-      canSiegeThis
+      canSiegeHere
         ? () => {
             hd.onStartSiegeForCity(anchorKey, row);
             hd.closeStrategicCityTooltip?.();
           }
         : undefined,
-    showOwnCityActions: canAct,
+    showOwnCityActions: !!(canAct && atThisPoi),
     playerOnDutyForThisCity: !!(
       hd.playerOnDuty &&
       !base.isBanditStronghold &&
       hd.playerOnDutyCityId === anchorKey
     ),
     onOpenGarrison:
-      canAct && typeof hd.onOpenGarrisonForCity === 'function'
+      canAct && atThisPoi && typeof hd.onOpenGarrisonForCity === 'function'
         ? () => {
             hd.onOpenGarrisonForCity(anchorKey, base.cityBaseName);
             hd.closeStrategicCityTooltip?.();
           }
         : undefined,
     onToggleDutyRequest:
-      canAct && typeof hd.onToggleDutyForCity === 'function'
+      canAct && atThisPoi && typeof hd.onToggleDutyForCity === 'function'
         ? hd.onToggleDutyForCity
         : undefined,
     onDutyError: typeof hd.onDutyError === 'function' ? hd.onDutyError : undefined,
     onAfterOwnCityAction:
-      canAct && typeof hd.closeStrategicCityTooltip === 'function'
+      canAct && atThisPoi && typeof hd.closeStrategicCityTooltip === 'function'
         ? hd.closeStrategicCityTooltip
         : undefined,
     subsidiaryExploreEmbed: hd.subsidiaryExploreEmbed ?? null,
@@ -170,7 +181,7 @@ function buildStrategicWorldMapCityTooltip(row, anchorKey, hd, onDutyCount) {
     /** 战略地图：外框 295×395px 写死（BattleMap.css） */
     uniformStrategicPanel: true,
     onStartBanditRaid:
-      base.isBanditStronghold && typeof hd.onStartBanditRaid === 'function'
+      base.isBanditStronghold && atThisPoi && typeof hd.onStartBanditRaid === 'function'
         ? (payload) => {
             hd.onStartBanditRaid(payload);
             hd.closeStrategicCityTooltip?.();
@@ -250,10 +261,21 @@ export default function WorldStrategicMapGrid({
   strategicMarchMode = false,
   /** `road/move` 成功后跳跳棋逐格回放中：禁行军格点选与再次进入行军 */
   strategicRoadMarchAnimating = false,
+  /**
+   * 合并格网下玩家当前是否立于 **POI 占地块内**（非道路格）：城池 `city_id` 或匪寨 **`banditPoiId`**；在路上则为 `''`。
+   * 由 `StrategicWorldMapSection` 用 `resolveMergedStandpointStrategicPoiAnchorId` 计算（行军动画步与 profile 路点优先一致）。
+   */
+  playerStandingPoiAnchorId = '',
   onStrategicSelfMarchModeRequest = null,
   onStrategicSelfMarchModeExit = null,
   /** 行军模式下点击道路格 `(gridX, gridY)`（与 `data-strategic-x/y` 一致） */
   onStrategicMarchCellPick = null,
+  /**
+   * 道路格双击 / 触摸双触：直接打开沿路移动确认（与寻路预览同源；不经底栏说明条）。
+   * @param {number} gx
+   * @param {number} gy
+   */
+  onStrategicRoadDoubleMarchToCell = null,
   /** 道路开战模式切换成功后刷新档案（`road_intercept` / 银两） */
   onStrategicRoadSelfUpdated = null,
   /** 探索结算后大地图指引文案（`event_hint`）；漫画对白框锚在本人路点 */
@@ -363,6 +385,7 @@ export default function WorldStrategicMapGrid({
     onStartBanditRaid,
     banditRaidStartBlockedReason,
     postBanditRaidRefreshKey,
+    playerStandingPoiAnchorId,
   };
 
   const scheduleLeaveFromTile = useCallback(() => {
@@ -436,6 +459,7 @@ export default function WorldStrategicMapGrid({
     onStartBanditRaid,
     banditRaidStartBlockedReason,
     postBanditRaidRefreshKey,
+    playerStandingPoiAnchorId,
   ]);
 
   useEffect(() => {
@@ -904,6 +928,19 @@ export default function WorldStrategicMapGrid({
     return buildStrategicRoadOverlayPathD(roadCells, conn, mapColumns, mapRows);
   }, [roadCells, roadConnectivity, mapColumns, mapRows]);
 
+  const roadMarchPassableKeySet = useMemo(() => {
+    if (!cells?.length || !roadCells?.length) return null;
+    try {
+      return buildRoadPassableKeySetForMarch(roadCells, cells, mapColumns, mapRows);
+    } catch {
+      return null;
+    }
+  }, [cells, roadCells, mapColumns, mapRows]);
+
+  const canRoadDoubleEnterMarch =
+    !strategicRoadMarchAnimating &&
+    typeof onStrategicRoadDoubleMarchToCell === 'function';
+
   return (
     <div
       className={`ws-map-card ${county ? 'ws-map-card--county flex-1 min-h-0 flex flex-col h-full' : ''}`}
@@ -944,7 +981,6 @@ export default function WorldStrategicMapGrid({
                       ri === cover.anchorR &&
                       ci === cover.anchorC + 1 &&
                       !!q?.loaded &&
-                      !subsidiaryExploreEmbed?.isTutorial &&
                       (Number(q.remaining) || 0) > 0;
                     return (
                       <WorldStrategicMapTile
@@ -966,6 +1002,9 @@ export default function WorldStrategicMapGrid({
                         onTooltipClick={handleOpenTooltipFromTileEvent}
                         strategicMarchMode={!!strategicMarchMode && !strategicRoadMarchAnimating}
                         onStrategicMarchCellPick={onStrategicMarchCellPick}
+                        canRoadDoubleEnterMarch={canRoadDoubleEnterMarch}
+                        onStrategicRoadDoubleEnterMarch={onStrategicRoadDoubleMarchToCell}
+                        roadMarchPassableKeySet={roadMarchPassableKeySet}
                       />
                     );
                   }),
@@ -1088,6 +1127,8 @@ export default function WorldStrategicMapGrid({
             typeof document !== 'undefined' &&
             tooltipContent.type === 'worldMapCity' &&
             tooltipContent.uniformStrategicPanel &&
+            tooltipContent.interactive &&
+            !tooltipContent.poiInteractionsLocked &&
             tooltipContent.cityId &&
             !tooltipContent.isBanditStronghold && (
               <StrategicSiegeWarFloatingPanel

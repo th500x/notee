@@ -7,14 +7,21 @@
  * 命名规范：toXxxCardData(card, ...) → 转换后的 props 对象
  */
 
+import {
+  applyPhase1CoreDeltasToCharacterProps,
+  buildPhase1BundleFromSkillIds,
+  collectCharacterSkillIdsFromConfig,
+} from '@shared/utils/skillPhase1Passive';
+
 /**
  * 将将领卡原始实例转为 CharacterCard props
  * @param {object} card - 后端卡牌实例（含 config、card_id、morale 等）
  * @param {object} [attributeBonus={}] - 后端 attributeBonusBySlot 中对应的加成
+ * @param {Record<string, object>|null} [skillsMap] - 若传入则叠阶段1被动数值（与 `battlePlayerBuilder` / `combatSystem` 同源）
  */
-export function toCharCardData(card, attributeBonus) {
+export function toCharCardData(card, attributeBonus = {}, skillsMap = null) {
   const cfg = card.config || {};
-  return {
+  let out = {
     id: cfg.id || card.card_id,
     name: cfg.name || card.card_id,
     rarity: cfg.rarity || card.rarity || 'common',
@@ -37,6 +44,11 @@ export function toCharCardData(card, attributeBonus) {
     morale: card.morale ?? null,
     attributeBonus: attributeBonus || {},
   };
+  if (skillsMap && typeof skillsMap === 'object') {
+    const bundle = buildPhase1BundleFromSkillIds(collectCharacterSkillIdsFromConfig(cfg), skillsMap);
+    out = applyPhase1CoreDeltasToCharacterProps(out, bundle);
+  }
+  return out;
 }
 
 /**

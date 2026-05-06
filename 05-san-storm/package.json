@@ -20,7 +20,6 @@
     "init:db": "cd backend && npm run init-db"
   },
   "dependencies": {
-    "csv-parser": "^3.2.0",
     "prop-types": "^15.8.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
@@ -33,7 +32,11 @@
     "tailwindcss": "^3.3.6",
     "vite": "^5.0.8"
   },
-  "keywords": ["game", "strategy", "three-kingdoms"],
+  "keywords": [
+    "game",
+    "strategy",
+    "three-kingdoms"
+  ],
   "author": "Notee.vip",
   "license": "UNLICENSED"
 }

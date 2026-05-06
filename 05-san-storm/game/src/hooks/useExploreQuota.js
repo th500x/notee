@@ -7,7 +7,7 @@
  * - 晚间 00:00~08:00 不补充次数（💤休息时间）
  * - 数据存储在后端 player_events 表，防止跨浏览器重复恢复
  */
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { playerAPI } from '@/services/playerApi';
 
 const REFILL_PER_HOUR = 6;
@@ -88,6 +88,17 @@ export function useExploreQuota(playerId) {
     playerAPI.updateExploreQuota(playerId, 'fillMax').catch(() => {});
   }, [playerId]);
 
+  /** 与 `refreshPlayer` 等并列：事件结算/RETURNING→IDLE 后拉服务端真实剩余次数，避免 UI 长期停在乐观值或被误触的 fillMax 覆盖 */
+  const reloadFromServer = useCallback(() => {
+    if (!playerId) return Promise.resolve();
+    return playerAPI.getExploreQuota(playerId).then((res) => {
+      if (res.success) {
+        setQuota({ remaining: res.data.remaining, lastRefillTs: res.data.lastRefillTs });
+        setLoaded(true);
+      }
+    });
+  }, [playerId]);
+
   // 倒计时计算
   const now = Date.now();
   const currentHour = new Date().getHours();
@@ -102,16 +113,31 @@ export function useExploreQuota(playerId) {
     minutesUntilRefill = Math.max(0, Math.ceil((nextRefillTs - now) / 60_000));
   }
 
-  return {
-    remaining: quota.remaining,
-    max: MAX_QUOTA,
-    canExplore: loaded && quota.remaining > 0,
-    consume,
-    refund,
-    fillMax,
-    minutesUntilRefill,
-    inRestPeriod: isRestHour(currentHour),
-    refillPerHour: REFILL_PER_HOUR,
-    loaded,
-  };
+  return useMemo(
+    () => ({
+      remaining: quota.remaining,
+      max: MAX_QUOTA,
+      canExplore: loaded && quota.remaining > 0,
+      consume,
+      refund,
+      fillMax,
+      minutesUntilRefill,
+      inRestPeriod: isRestHour(currentHour),
+      refillPerHour: REFILL_PER_HOUR,
+      loaded,
+      reloadFromServer,
+    }),
+    [
+      quota.remaining,
+      quota.lastRefillTs,
+      loaded,
+      playerId,
+      consume,
+      refund,
+      fillMax,
+      reloadFromServer,
+      minutesUntilRefill,
+      currentHour,
+    ],
+  );
 }

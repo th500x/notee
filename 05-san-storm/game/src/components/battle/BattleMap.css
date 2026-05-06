@@ -82,8 +82,56 @@
   cursor: not-allowed;
   color: #887;
 }
+.row-label-action-btn--skill-armed {
+  background: rgba(90, 62, 28, 0.95);
+  color: #fef3c7;
+  box-shadow: inset 0 0 0 1px rgba(251, 191, 36, 0.42);
+}
+/* 技能模式下「技能」键上方一格：当前武装主动技名称 + 本场剩余/上限次数（悬停 / 长按见主数据 description） */
+.row-label-skill-arm-caption {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: stretch;
+  padding: 2px 0 1px;
+  box-sizing: border-box;
+  max-height: var(--tile);
+  background: rgba(28, 28, 36, 0.92);
+  border: 1px solid rgba(180, 170, 140, 0.28);
+  cursor: default;
+  user-select: none;
+  overflow: hidden;
+}
+.row-label-skill-arm-caption .skill-arm-name {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  font-size: 9px;
+  font-weight: bold;
+  letter-spacing: 0.12em;
+  line-height: 1.05;
+  color: #e8dcc8;
+}
+.row-label-skill-arm-caption .skill-arm-charges {
+  flex-shrink: 0;
+  writing-mode: horizontal-tb;
+  font-size: 7px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  text-align: center;
+  color: #fde68a;
+  padding: 0 1px 1px;
+}
 @media (max-width: 520px) {
   .row-label-action-btn { font-size: 8px; letter-spacing: 0.1em; }
+  .row-label-skill-arm-caption .skill-arm-name { font-size: 8px; letter-spacing: 0.1em; }
+  .row-label-skill-arm-caption .skill-arm-charges { font-size: 6px; }
 }
 
 .map-grid { display:grid; grid-template-columns:repeat(8,var(--tile)); grid-template-rows:repeat(10,var(--tile)); gap:1px; background:#0a0a14; border:1px solid #222; }
@@ -217,13 +265,27 @@
 .dmg-num.normal { color:#fff; }
 .dmg-num.crit   { color:#fbbf24; font-size:18px; }
 .dmg-num.miss   { color:#a78bfa; font-size:12px; font-style:italic; }
+/* 阶段4 主动纯伤飘字：物白对齐普攻；谋略冷青蓝，与火焰红、治疗绿区分 */
+.dmg-num.skill-physical { color:#fff; text-shadow:0 0 6px rgba(255,255,255,.35); }
+.dmg-num.skill-strategy { color:#7dd3fc; text-shadow:0 0 10px rgba(56,189,248,.55); }
+.dmg-num.skill-physical-crit { color:#fef08a; font-size:17px; text-shadow:0 0 8px rgba(250,204,21,.45); }
+.dmg-num.skill-strategy-crit { color:#bae6fd; font-size:17px; text-shadow:0 0 12px rgba(125,211,252,.65); }
+/* 阶段2 首击免疫飘字：提醒黄（与减益/固伤黄系一致，区别于治疗绿） */
+.dmg-num.skill-phase2-immune { color:#fde047; text-shadow:0 0 8px rgba(250,204,21,.45); font-size:13px; }
+/* 阶段3 / 阶段5 治疗段飘字：绿 */
+.dmg-num.skill-heal { color:#4ade80; text-shadow:0 0 10px rgba(74,222,128,.5); font-size:15px; }
+/* 阶段5 灼烧段：火焰红 */
+.dmg-num.skill-dot-fire { color:#fb7185; text-shadow:0 0 10px rgba(248,113,113,.55); font-size:14px; }
+/* 阶段5 固伤 / 减益提醒：琥珀黄 */
+.dmg-num.skill-special { color:#fbbf24; text-shadow:0 0 8px rgba(251,191,36,.4); font-size:13px; }
 
 .projectile { position:absolute; z-index:150; pointer-events:none; font-size:24px; filter:drop-shadow(0 0 6px rgba(255,200,50,.6)); }
 
 .skill-flash { position:fixed; inset:0; z-index:500; pointer-events:none; animation:skill-flash-anim .5s ease-out forwards; }
 @keyframes skill-flash-anim { 0%{opacity:0} 20%{opacity:.7} 100%{opacity:0} }
 
-.skill-name-pop { position:absolute; z-index:400; pointer-events:none; left:50%; top:40%; transform:translate(-50%,-50%) scale(.3); font-size:28px; font-weight:900; color:#fff; text-shadow:0 0 20px rgba(192,132,252,.9),0 0 40px rgba(192,132,252,.5),0 2px 4px rgba(0,0,0,.8); white-space:nowrap; letter-spacing:4px; animation:skill-pop 1.2s ease-out forwards; }
+/* left/top 由 useBattleAnimations.positionSkillNamePopAtActor 按施法者格心设置，避免整图居中与敌格重叠产生歧义 */
+.skill-name-pop { position:absolute; z-index:400; pointer-events:none; transform:translate(-50%,-50%) scale(.3); font-size:28px; font-weight:900; color:#fff; text-shadow:0 0 20px rgba(192,132,252,.9),0 0 40px rgba(192,132,252,.5),0 2px 4px rgba(0,0,0,.8); white-space:nowrap; letter-spacing:4px; animation:skill-pop 1.2s ease-out forwards; }
 @keyframes skill-pop { 0%{transform:translate(-50%,-50%) scale(.3);opacity:0} 15%{transform:translate(-50%,-50%) scale(1.3);opacity:1} 30%,70%{transform:translate(-50%,-50%) scale(1);opacity:1} 100%{transform:translate(-50%,-50%) scale(1.2);opacity:0} }
 
 .move-hl { position:absolute; inset:4px; border-radius:4px; pointer-events:none; z-index:5; animation:hl-fade 1.5s ease-out forwards; }
@@ -287,6 +349,8 @@
 .manual-hl { position:absolute; inset:0; border-radius:4px; z-index:6; pointer-events:none; }
 .manual-hl.move-range { background:rgba(59,130,246,.35); border:2px solid rgba(59,130,246,.7); box-shadow:inset 0 0 10px rgba(59,130,246,.35); animation:manual-pulse 1.5s ease-in-out infinite; }
 .manual-hl.atk-target { background:rgba(239,68,68,.35); border:2px solid rgba(239,68,68,.8); box-shadow:inset 0 0 12px rgba(239,68,68,.4); animation:manual-pulse 1.2s ease-in-out infinite; }
+.manual-hl.heal-target { background:rgba(34,197,94,.26); border:2px solid rgba(74,222,128,.82); box-shadow:inset 0 0 12px rgba(34,197,94,.32); animation:manual-pulse 1.2s ease-in-out infinite; }
+.manual-hl.skill-preview { background:rgba(248,250,252,.2); border:2px solid rgba(226,232,240,.88); box-shadow:inset 0 0 12px rgba(255,255,255,.22); animation:manual-pulse 1.35s ease-in-out infinite; }
 .manual-hl.active-troop { background:rgba(250,204,21,.2); border:2px solid rgba(250,204,21,.7); box-shadow:0 0 14px rgba(250,204,21,.4); animation:manual-pulse 1.8s ease-in-out infinite; }
 @keyframes manual-pulse { 0%,100%{opacity:.7} 50%{opacity:1} }
 

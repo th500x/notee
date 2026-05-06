@@ -8,33 +8,32 @@
 
 const express = require('express');
 const textsService = require('../services/textsService');
+const { wrap500 } = require('../utils/httpError');
 
 const router = express.Router({ mergeParams: true });
 
-router.get('/summary', async (req, res) => {
+router.get('/summary', async (req, res, next) => {
   try {
     const { playerId } = req.params;
     const unreadCount = await textsService.countUnread(playerId);
     res.json({ success: true, unreadCount });
   } catch (err) {
-    console.error('[texts/summary]', err);
-    res.status(500).json({ success: false, error: '查询失败' });
+    return next(wrap500(err, '查询失败'));
   }
 });
 
-router.get('/', async (req, res) => {
+router.get('/', async (req, res, next) => {
   try {
     const { playerId } = req.params;
     const limit = req.query.limit;
     const texts = await textsService.listInbox(playerId, { limit });
     res.json({ success: true, texts });
   } catch (err) {
-    console.error('[texts/list]', err);
-    res.status(500).json({ success: false, error: '查询失败' });
+    return next(wrap500(err, '查询失败'));
   }
 });
 
-router.post('/:textId/read', async (req, res) => {
+router.post('/:textId/read', async (req, res, next) => {
   try {
     const { playerId, textId } = req.params;
     const ok = await textsService.markRead(playerId, textId);
@@ -43,12 +42,11 @@ router.post('/:textId/read', async (req, res) => {
     }
     res.json({ success: true });
   } catch (err) {
-    console.error('[texts/read]', err);
-    res.status(500).json({ success: false, error: '更新失败' });
+    return next(wrap500(err, '更新失败'));
   }
 });
 
-router.post('/:textId/claim', async (req, res) => {
+router.post('/:textId/claim', async (req, res, next) => {
   try {
     const { playerId, textId } = req.params;
     const result = await textsService.claimReward(playerId, textId);
@@ -64,8 +62,7 @@ router.post('/:textId/claim', async (req, res) => {
     }
     res.json({ success: true, data: { details: safeDetails }, details: safeDetails });
   } catch (err) {
-    console.error('[texts/claim]', err);
-    res.status(500).json({ success: false, error: '领取失败' });
+    return next(wrap500(err, '领取失败'));
   }
 });
 

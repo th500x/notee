@@ -6,6 +6,10 @@
  */
 import { getBattleFieldTroopPortraitUrlAttempts } from '@shared/utils/troopIconUrls';
 import { initialMoraleFromCharacter } from '@/utils/npcMorale';
+import { initBattlePhase2Runtime } from '@shared/utils/skillPhase2Passive';
+import { initBattlePhase3HealRuntime } from '@shared/utils/skillPhase3ActiveHeal';
+import { initBattlePhase4DamageRuntime } from '@shared/utils/skillPhase4ActiveDamage';
+import { initBattlePhase5CompositeRuntime } from '@shared/utils/skillPhase5CompositeDamage';
 
 const PLAYER_POSITIONS = [
   { y: 9, x: 1 }, { y: 9, x: 4 }, { y: 9, x: 7 },
@@ -105,5 +109,10 @@ export function buildSiegeUnits({ playerUnits, enemyUnits, baseUrl }) {
     };
   });
 
-  return [...playerTroops, ...enemyTroops];
+  const out = [...playerTroops, ...enemyTroops];
+  initBattlePhase2Runtime(out);
+  initBattlePhase3HealRuntime(out, 10, 8);
+  initBattlePhase4DamageRuntime(out, 10, 8);
+  initBattlePhase5CompositeRuntime(out, 10, 8);
+  return out;
 }

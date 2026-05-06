@@ -63,6 +63,10 @@ export default function WorldMapCityInfoBlock({
   siegeTargetLabel = '可攻打',
   /** 非空时仅渲染标题 + 错误说明（城况未同步等） */
   syncErrorMessage = null,
+  /**
+   * 战略格：`true` 时保留完整城况/匪寨信息展示，但隐藏驻军、攻城、荒郊集市探索、匪寨攻打等 **可操作** 入口（角色未立于该 POI）。
+   */
+  poiInteractionsLocked = false,
   /** 攻打按钮用短城名（`worldMapCityBaseNameFromRow`） */
   cityBaseName = '城池',
   /** 与 buildWorldMapCityPanelProps：同势力且已登录且有 cityId */
@@ -141,18 +145,24 @@ export default function WorldMapCityInfoBlock({
   }, [postBanditRaidRefreshKey, isBanditStronghold, banditPoiId, refreshBanditQuota]);
 
   const renderSubsidiaryExplorePanel = (kind, info) => {
+    if (poiInteractionsLocked && uniformStrategicPanel) {
+      return (
+        <div className="text-stone-500 text-xs py-6 px-2 text-center leading-snug">
+          抵达该城后方可进行荒郊/集市探索。
+        </div>
+      );
+    }
     if (!subsidiaryExploreEmbed || !info?.cityId) return null;
     const loc = info.cityId;
     const subsidiaryKind = kind === 'market' ? 'market' : 'wilderness';
     const poolEvents = subsidiaryExploreEmbed.explorePoolAt(loc, subsidiaryKind);
     const poolLen = poolEvents.length;
+    /** 教程链未完成时池内仅 `chain_tutorial_v1`（见 `filterExploreEventsPool`）；按真实 `poolLen` 判空，勿用 `!isTutorial` 伪造可点。 */
     const poolEmpty =
-      !subsidiaryExploreEmbed.isTutorial &&
       subsidiaryExploreEmbed.phase === PHASE.IDLE &&
       !subsidiaryExploreEmbed.eventsLoading &&
       poolLen <= 0;
     const canStart =
-      !subsidiaryExploreEmbed.isTutorial &&
       subsidiaryExploreEmbed.phase === PHASE.IDLE &&
       !subsidiaryExploreEmbed.eventsLoading &&
       poolLen > 0 &&
@@ -391,6 +401,7 @@ export default function WorldMapCityInfoBlock({
           max={banditQuota.max}
           minutesUntilRefill={banditQuota.minutesUntilRefill}
           refillPerWindow={banditQuota.refillPerWindow}
+          interactionsLocked={!!poiInteractionsLocked}
           canAttack={!!banditQuota.loaded && banditQuota.canBattle}
           onAttack={async () => {
             setBanditAttackNote('');

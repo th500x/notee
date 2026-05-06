@@ -1,6 +1,6 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useState, lazy, Suspense } from 'react';
-import ErrorBoundary from '@/components/common/ErrorBoundary';
+import ErrorBoundary from '@shared/components/common/ErrorBoundary';
 import { useAdmin } from '@/hooks/useAdmin';
 import { weeklyReportCard } from '@/data/texts/weeklyReport';
 
@@ -11,6 +11,7 @@ const MailManagerPage = lazy(() => import('@/pages/admin/MailManagerPage'));
 const ActivityManagerPage = lazy(() => import('@/pages/admin/ActivityManagerPage'));
 const CampaignMapGeneratorManagerPage = lazy(() => import('@/pages/admin/CampaignMapGeneratorManagerPage'));
 const JunCountyMapGeneratorManagerPage = lazy(() => import('@/pages/admin/JunCountyMapGeneratorManagerPage'));
+const BattleAnimationDemoPage = lazy(() => import('@/pages/BattleAnimationDemoPage'));
 
 function RouteLoading() {
   return (
@@ -91,6 +92,12 @@ function App() {
                     <p className="text-sm text-gray-600 text-center">{weeklyReportCard.description}</p>
                   </a>
 
+                  <a href={`${import.meta.env.BASE_URL}battle-animation-demo`} className="block bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow cursor-pointer h-full flex flex-col border border-amber-100">
+                    <div className="text-4xl mb-4 text-center">🎬</div>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2 text-center">战斗动画 Demo</h3>
+                    <p className="text-sm text-gray-600 text-center">引擎 play*Demo · 占位地图与兵力（开发调试用）</p>
+                  </a>
+
                   {isLoggedIn && (
                     <>
                     <a href={`${import.meta.env.BASE_URL}user-manager`} className="block bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow cursor-pointer h-full flex flex-col border-2 border-red-300">
@@ -132,6 +139,7 @@ function App() {
             <Route path="/campaign-map-demo" element={<Navigate to="/campaign-map-manager" replace />} />
             <Route path="/campaign-map-manager" element={<CampaignMapGeneratorManagerPage />} />
             <Route path="/three-kingdoms-map" element={<JunCountyMapGeneratorManagerPage />} />
+            <Route path="/battle-animation-demo" element={<BattleAnimationDemoPage />} />
 
           </Routes>
           </Suspense>

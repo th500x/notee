@@ -58,10 +58,36 @@ function troopDamageToCasualties(defender, rawDamage) {
 }
 
 function getMoraleEffects(troop) {
-  const m = troop.morale || 70;
+  const m = Math.round(Number(troop?.morale ?? 70));
   if (m >= 80) return { attack: 1.1, defense: 1.05 };
-  if (m > 20) return { attack: 1.0, defense: 1.0 };
-  return { attack: 0.95, defense: 0.9 };
+  if (m >= 60) return { attack: 1.0, defense: 1.0 };
+  if (m >= 40) return { attack: 0.95, defense: 0.9 };
+  return { attack: 0.9, defense: 0.85 };
+}
+
+/** 与 `shared/utils/characterTraitBonuses.js` 保持数值一致 */
+function normTraitKey(trait) {
+  if (trait == null || trait === '') return '';
+  return String(trait).trim().toLowerCase();
+}
+const TRAIT_OUTGOING_DAMAGE_MULT = {
+  brave: 1.06,
+  reckless: 1.08,
+  calm: 1.02,
+  normal: 1,
+  cautious: 0.98,
+  timid: 0.94,
+};
+const TRAIT_DEFENDER_DEFENSE_STRENGTH_MULT = { reckless: 0.98 };
+function getTraitOutgoingDamageMultFromAc(ac) {
+  const k = normTraitKey(ac?.trait);
+  const m = k ? TRAIT_OUTGOING_DAMAGE_MULT[k] : undefined;
+  return typeof m === 'number' && m > 0 ? m : 1;
+}
+function getTraitDefenderDefenseStrengthMultFromDc(dc) {
+  const k = normTraitKey(dc?.trait);
+  const m = k ? TRAIT_DEFENDER_DEFENSE_STRENGTH_MULT[k] : undefined;
+  return typeof m === 'number' && m > 0 ? m : 1;
 }
 
 function getTerrainDefBonus(y, x, terrain) {
@@ -102,6 +128,7 @@ function calcDamageSeeded(atk, def, terrain, rng, options = {}) {
   let totalDmg = singleFinal * atkRatio;
   const atkMorale = getMoraleEffects(atk);
   totalDmg *= atkMorale.attack;
+  totalDmg *= getTraitOutgoingDamageMultFromAc(ac);
   if (atk._formationBuffs && atk._formationBuffs.attackBonus) {
     totalDmg *= 1 + atk._formationBuffs.attackBonus;
   }
@@ -109,7 +136,8 @@ function calcDamageSeeded(atk, def, terrain, rng, options = {}) {
   const troopDef = ((def.defense || 50) / 10) * (defWorn ? WORN_PENALTY : 1);
   const dCombat = dc ? dc.combat || 5 : 5;
   const dCommand = dc ? dc.command || 5 : 5;
-  const singleDef = troopDef + dCommand * 5 + dCombat * 3;
+  const singleDefBase = troopDef + dCommand * 5 + dCombat * 3;
+  const singleDef = singleDefBase * getTraitDefenderDefenseStrengthMultFromDc(dc);
   const defRatio = troopStrengthRatioFromCasualties(def);
   const totalDef = singleDef * defRatio;
   const defReduction = totalDef / (totalDef + 140);

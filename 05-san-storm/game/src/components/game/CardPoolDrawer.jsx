@@ -6,8 +6,10 @@
  *              严格复用编组-军营的卡牌预览模式（scale 0.5, 128x192, skillsMap）
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { RARITY_LABELS, RARITY_COLORS, API_CONFIG } from '@/constants';
+import { fetchWithTimeout } from '@/services/httpClient';
+import { useCards } from '@/contexts/PlayerContext';
 import TroopCard from '@shared/components/card/TroopCard';
 import CharacterCard from '@shared/components/card/CharacterCard';
 import {
@@ -37,6 +39,23 @@ export default function CardPoolDrawer({
   onDraw, onClearResult, onClose, onRefreshStatus,
 }) {
   const baseUrl = import.meta.env.BASE_URL;
+  const inventoryCards = useCards();
+  const ownedPoolConfigIds = useMemo(() => {
+    const want = poolType === 'troop' ? 'troop' : 'character';
+    const s = new Set();
+    for (const c of inventoryCards) {
+      if (c.card_type === want && c.card_id != null && String(c.card_id).length > 0) {
+        s.add(String(c.card_id));
+      }
+    }
+    return s;
+  }, [inventoryCards, poolType]);
+
+  const isPoolConfigOwned = useCallback(
+    (configId) => ownedPoolConfigIds.has(String(configId)),
+    [ownedPoolConfigIds],
+  );
+
   const poolStatus = status?.[poolType];
   const [poolCards, setPoolCards] = useState([]);
   const [cardsLoading, setCardsLoading] = useState(true);
@@ -50,7 +69,7 @@ export default function CardPoolDrawer({
     setCardsLoading(true);
     try {
       const endpoint = poolType === 'troop' ? 'troops' : 'characters';
-      const res = await fetch(`${API_CONFIG.BASE_URL}/config/${endpoint}`);
+      const res = await fetchWithTimeout(`${API_CONFIG.BASE_URL}/config/${endpoint}`);
       const data = await res.json();
       if (data.success) {
         const allCards = (data[endpoint] || []).filter((c) => c.rarity !== 'core');
@@ -163,37 +182,53 @@ export default function CardPoolDrawer({
                   {rarityLabel[rarity] || rarity}（{grouped[rarity].length}）
                 </div>
                 <div className="flex flex-wrap gap-1.5">
-                  {grouped[rarity].map(card => (
-                    <div
-                      key={card.id}
-                      style={{ width: 128, height: 192 }}
-                      className="cursor-pointer overflow-hidden rounded-sm bg-stone-900"
-                      onClick={() => setPreviewCard(card)}
-                    >
+                  {grouped[rarity].map(card => {
+                    const owned = isPoolConfigOwned(card.id);
+                    return (
                       <div
-                        style={{
-                          transform: 'scale(0.5)',
-                          transformOrigin: 'top left',
-                          width: 256,
-                          height: 384,
-                          overflow: 'hidden',
-                        }}
+                        key={card.id}
+                        style={{ width: 128, height: 192 }}
+                        className="relative cursor-pointer overflow-hidden rounded-sm bg-stone-900"
+                        onClick={() => setPreviewCard(card)}
+                        aria-label={owned ? `${card.name || card.id}（已拥有）` : (card.name || String(card.id))}
                       >
-                        {poolType === 'troop' ? (
-                          <TroopCard
-                            troop={card}
-                            skillsMap={skillsMap}
-                            showDetails
-                            baseUrl={baseUrl}
-                            disableHoverScale
-                            suppressSkillTooltips
-                          />
-                        ) : (
-                          <CharacterCard character={card} skillsMap={skillsMap} showDetails={true} baseUrl={baseUrl} disableHoverScale />
+                        <div
+                          style={{
+                            transform: 'scale(0.5)',
+                            transformOrigin: 'top left',
+                            width: 256,
+                            height: 384,
+                            overflow: 'hidden',
+                          }}
+                        >
+                          {poolType === 'troop' ? (
+                            <TroopCard
+                              troop={card}
+                              skillsMap={skillsMap}
+                              showDetails
+                              baseUrl={baseUrl}
+                              disableHoverScale
+                              suppressSkillTooltips
+                            />
+                          ) : (
+                            <CharacterCard character={card} skillsMap={skillsMap} showDetails={true} baseUrl={baseUrl} disableHoverScale />
+                          )}
+                        </div>
+                        {owned && (
+                          <div
+                            className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-sm bg-black/45"
+                            aria-hidden
+                          >
+                            <span
+                              className="min-w-[5.25rem] rounded-lg border-2 border-amber-500/75 bg-neutral-950 px-3.5 py-2 text-center text-[11px] font-bold leading-snug text-amber-50 shadow-xl ring-2 ring-black/40"
+                            >
+                              已拥有
+                            </span>
+                          </div>
                         )}
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             ))
