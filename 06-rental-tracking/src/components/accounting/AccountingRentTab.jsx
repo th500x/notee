@@ -25,7 +25,7 @@ import {
 import { evaluateArithmeticExpression, formatAccountingNumber } from '../../utils/accountingExpression';
 import { isIsoDateString, sanitizeIsoDateField } from '../../utils/accountingDates';
 
-/** dnd-kit 在静止时也可能给出恒等 transform；写在 tr 上会新建包含块，导致子 td 的 position:sticky 失效 */
+/** dnd-kit 在静止时也可能给出恒等 transform；写在 tr 上会给子格新建包含块，恒等时勿写 transform */
 function sortableTransformIsActive(t) {
   if (t == null) return false;
   const x = t.x ?? 0;
@@ -49,11 +49,7 @@ const COMPACT_COL_TD =
 const ROOM_COL_TD = 'w-[8.5rem] min-w-[4rem] max-w-[8.5rem] align-top box-border';
 const ROOM_COL_TH = ROOM_COL_TD;
 
-/** 手机横滑编辑时：ROOM 列固定在滚动容器左侧，避免房号滚出屏幕 */
-const STICKY_ROOM_Z_BODY = 'sticky left-0 z-[12] shadow-[4px_0_10px_-4px_rgba(0,0,0,0.15)]';
-const STICKY_ROOM_Z_HEAD = 'sticky left-0 z-[13] shadow-[4px_0_10px_-4px_rgba(0,0,0,0.25)]';
-
-/** 可录入格：ROOM(0)…备注(4)、PRICE(5)、DEPOSIT(6)、双月 IN/OUT/交租（右月交租为列 14），不含只读 SETTLE 与删钮 */
+/** 可录入格：ROOM(0)…备注(4)、PRICE(5)、DEPOSIT(6)、双月 IN/OUT/交租（右月交租为列 14），不含只读 SETTLE、镜像 ROOM 与删钮 */
 const RENT_GRID_COL_MAX = 14;
 
 /** 「实际」有日期且当月（右列 / `currentMonthKey`）交租仍为空 — 与右列红横杠一致；筛选仅判断右列，不看左月 */
@@ -119,7 +115,7 @@ function SortableRentRow({
       className={`border-b border-gray-100 hover:bg-gray-50/80 ${isDragging ? 'bg-blue-50/90 shadow-sm ring-1 ring-blue-200/80' : ''}`}
     >
       <td
-        className={`p-1 border border-gray-100 ${ROOM_COL_TD} ${STICKY_ROOM_Z_BODY} ${
+        className={`p-1 border border-gray-100 ${ROOM_COL_TD} ${
           isDragging ? 'bg-blue-50/95' : 'bg-white'
         }`}
       >
@@ -257,6 +253,14 @@ function SortableRentRow({
           </Fragment>
         );
       })}
+      <td
+        className={`p-1 border border-gray-100 ${ROOM_COL_TD} bg-slate-50`}
+        title="只读：与左侧房号同步"
+      >
+        <div className="min-h-[2.25rem] w-full min-w-0 box-border px-2 py-1.5 border border-gray-200 rounded text-sm text-gray-800 truncate tabular-nums">
+          {row.room ? String(row.room) : '—'}
+        </div>
+      </td>
       <td className={`p-1 border border-gray-100 text-center align-middle ${COMPACT_COL_TD}`}>
         <button
           type="button"
@@ -408,21 +412,15 @@ export function AccountingRentTab({ sheet, setSheet }) {
 
   return (
     <div className="w-full min-w-0">
-      {/*
-        ROOM 的 sticky 依赖本层 overflow-x 作为滚动条。
-        在滚动容器上声明 pan-x + pan-y + pinch-zoom，由该层统一吃横/纵与缩放；子控件勿再写 touch-manipulation（会拦横向手势传到 overflow-x 祖先）。
-      */}
       <div className="inline-block min-w-full max-w-none align-top bg-white rounded-lg shadow-md box-border">
-        <div className="overflow-x-auto overscroll-x-contain w-full min-w-0 [-webkit-overflow-scrolling:touch] [touch-action:pan-x_pan-y_pinch-zoom]">
-          <div className="w-max min-w-full">
-            <div className="w-full min-w-0 bg-gradient-to-r from-blue-500 to-purple-600 px-4 sm:px-6 py-3 sm:py-4 text-white box-border">
-              <h3 className="text-lg font-semibold">租金记录 · INCOME</h3>
-            </div>
-            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
-              <table
-                ref={rentTableRef}
-                className="min-w-full w-max max-w-none text-sm border-separate border-spacing-0"
-              >
+        <div className="w-full min-w-0 bg-gradient-to-r from-blue-500 to-purple-600 px-4 sm:px-6 py-3 sm:py-4 text-white box-border">
+          <h3 className="text-lg font-semibold">租金记录 · INCOME</h3>
+        </div>
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+          <table
+            ref={rentTableRef}
+            className="min-w-full w-max max-w-none text-sm border-separate border-spacing-0"
+          >
           <thead>
             <tr className="bg-gray-900 text-white">
               <th colSpan={7} className="p-2 text-center font-semibold border border-gray-700">
@@ -434,13 +432,17 @@ export function AccountingRentTab({ sheet, setSheet }) {
               <th colSpan={4} className="p-2 text-center font-semibold border border-gray-700">
                 {monthKeyToHeaderLabel(m1)}
               </th>
+              <th className="p-2 text-center font-semibold border border-gray-700 text-xs leading-tight">
+                ROOM
+                <span className="mt-0.5 block text-[10px] font-normal opacity-80">（镜像·只读）</span>
+              </th>
               <th
                 className={`p-2 text-center font-semibold border border-gray-700 ${COMPACT_COL_TD}`}
               />
             </tr>
             <tr className="bg-gray-800 text-white text-xs">
               <th
-                className={`p-2 border border-gray-700 text-left align-bottom ${ROOM_COL_TH} ${STICKY_ROOM_Z_HEAD} bg-gray-800`}
+                className={`p-2 border border-gray-700 text-left align-bottom ${ROOM_COL_TH} bg-gray-800`}
               >
                 ROOM
               </th>
@@ -469,6 +471,12 @@ export function AccountingRentTab({ sheet, setSheet }) {
                 </th>
               ))}
               <th
+                className={`p-2 border border-gray-700 text-left ${ROOM_COL_TH} bg-gray-800`}
+                title="只读：与左侧房号同步"
+              >
+                ROOM
+              </th>
+              <th
                 className={`p-1 border border-gray-700 text-center align-middle ${COMPACT_COL_TD}`}
               >
                 <button
@@ -489,13 +497,13 @@ export function AccountingRentTab({ sheet, setSheet }) {
           <tbody>
             {sheet.rentRows.length === 0 ? (
               <tr>
-                <td colSpan={16} className="p-8 text-center text-gray-500">
+                <td colSpan={17} className="p-8 text-center text-gray-500">
                   暂无房间行，请点击页面底部「添加条目」。
                 </td>
               </tr>
             ) : displayRows.length === 0 ? (
               <tr>
-                <td colSpan={16} className="p-8 text-center text-gray-500">
+                <td colSpan={17} className="p-8 text-center text-gray-500">
                   当前筛选下没有「交租待登记」的房间行，请关闭「筛选」或补录交租日期。
                 </td>
               </tr>
@@ -518,10 +526,7 @@ export function AccountingRentTab({ sheet, setSheet }) {
                   ))}
                 </SortableContext>
                 <tr className="bg-gray-50 font-semibold border-t-2 border-gray-300">
-                  <td
-                    colSpan={5}
-                    className={`p-2 border border-gray-200 ${STICKY_ROOM_Z_BODY} bg-gray-50`}
-                  >
+                  <td colSpan={5} className="p-2 border border-gray-200 bg-gray-50">
                     Total
                   </td>
                   <td className="p-2 border border-gray-200 text-right bg-gray-100 font-mono">
@@ -550,15 +555,16 @@ export function AccountingRentTab({ sheet, setSheet }) {
                     {formatAccountingNumber(totals.m1Settle)}
                   </td>
                   <td className="p-2 border border-gray-200 text-center text-gray-400">—</td>
+                  <td className={`p-2 border border-gray-200 ${ROOM_COL_TD} bg-gray-100 text-center text-gray-400`}>
+                    —
+                  </td>
                   <td className={`p-2 border border-gray-200 ${COMPACT_COL_TD}`} />
                 </tr>
               </>
             )}
           </tbody>
-              </table>
-            </DndContext>
-          </div>
-        </div>
+          </table>
+        </DndContext>
       </div>
     </div>
   );
