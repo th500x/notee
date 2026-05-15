@@ -8,9 +8,8 @@ import {
   isIsoDateString
 } from '../../utils/accountingDates';
 
-/** 展示态多为 button；touch-manipulation 兼顾缩放与把横/纵滑交给祖先滚动条、页面 */
 const baseCls =
-  'min-h-[2.25rem] w-full min-w-[4rem] border border-gray-200 rounded px-2 py-1.5 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-100 touch-manipulation';
+  'min-h-[2.25rem] w-full min-w-[4rem] border border-gray-200 rounded px-2 py-1.5 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-100';
 
 /**
  * ISO 日期格：

@@ -37,7 +37,7 @@ function sortableTransformIsActive(t) {
 
 /** 与公式格 / 日期格相同的可视高度与边框，保证各行「框体」一致 */
 const inputCls =
-  'w-full min-w-0 min-h-[2.25rem] box-border px-2 py-1.5 border border-gray-200 rounded text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-100 touch-manipulation';
+  'w-full min-w-0 min-h-[2.25rem] box-border px-2 py-1.5 border border-gray-200 rounded text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-100';
 
 const narrowTextCls = `${inputCls} truncate cursor-help`;
 
@@ -261,7 +261,7 @@ function SortableRentRow({
         <button
           type="button"
           onClick={() => removeRow(row.id)}
-          className="text-red-600 hover:text-red-800 text-xs px-1 touch-manipulation"
+          className="text-red-600 hover:text-red-800 text-xs px-1"
         >
           删
         </button>
@@ -410,10 +410,10 @@ export function AccountingRentTab({ sheet, setSheet }) {
     <div className="w-full min-w-0">
       {/*
         ROOM 的 sticky 依赖本层 overflow-x 作为滚动条。
-        滚动容器不写 touch-action：写 pan-x 不含 pan-y 会禁掉在表区域的纵向滑页；子控件用 touch-manipulation 即可兼顾缩放与滚动。
+        在滚动容器上声明 pan-x + pan-y + pinch-zoom，由该层统一吃横/纵与缩放；子控件勿再写 touch-manipulation（会拦横向手势传到 overflow-x 祖先）。
       */}
       <div className="inline-block min-w-full max-w-none align-top bg-white rounded-lg shadow-md box-border">
-        <div className="overflow-x-auto overscroll-x-contain w-full min-w-0 [-webkit-overflow-scrolling:touch]">
+        <div className="overflow-x-auto overscroll-x-contain w-full min-w-0 [-webkit-overflow-scrolling:touch] [touch-action:pan-x_pan-y_pinch-zoom]">
           <div className="w-max min-w-full">
             <div className="w-full min-w-0 bg-gradient-to-r from-blue-500 to-purple-600 px-4 sm:px-6 py-3 sm:py-4 text-white box-border">
               <h3 className="text-lg font-semibold">租金记录 · INCOME</h3>
@@ -474,7 +474,7 @@ export function AccountingRentTab({ sheet, setSheet }) {
                 <button
                   type="button"
                   onClick={() => setFilterPendingPayRent((v) => !v)}
-                  className={`w-full rounded px-0.5 py-1 text-[10px] leading-tight font-semibold tracking-tight transition-colors touch-manipulation ${
+                  className={`w-full rounded px-0.5 py-1 text-[10px] leading-tight font-semibold tracking-tight transition-colors ${
                     filterPendingPayRent
                       ? 'bg-amber-500 text-gray-900 shadow-sm'
                       : 'bg-white/15 text-white hover:bg-white/25'

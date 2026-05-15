@@ -26,9 +26,8 @@ export function AccountingFormulaCell({
   const displayEval = evaluateArithmeticExpression(valueExpr);
   const displayText = formatAccountingNumber(displayEval);
 
-  /** Android Chrome：展示态 button 上双指缩放；touch-manipulation 比手写 pan-* 更不挡外层 overflow-x 横滑与页面纵滑 */
   const baseCls =
-    'min-h-[2.25rem] w-full min-w-[4rem] border border-gray-200 rounded px-2 py-1.5 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-100 touch-manipulation';
+    'min-h-[2.25rem] w-full min-w-[4rem] border border-gray-200 rounded px-2 py-1.5 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-100';
 
   if (editing) {
     return (
