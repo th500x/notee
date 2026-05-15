@@ -5,5 +5,5 @@
 ## 2026-05-15
 
 - **照片单张上限**：2MB → 5MB（`src/config/index.js`、`backend/routes/upload.js`、`backend/middleware/validation.js`）。
-- **账目单租金表（手机）**：`AccountingRentTab.jsx` — ROOM 列 `position: sticky`，横滑时房号列固定在左侧。
+- **账目单租金表（手机）**：`AccountingRentTab.jsx` — ROOM 列 `position: sticky`，横滑时房号列固定在左侧。（**2026-05-15 修订**：`useSortable` 在 `<tr>` 上的恒等 `transform` 会破坏 `sticky`，改为仅在非恒等变换时写 `transform`；`max-lg` 内层 `overflow-x-auto` 作为横向滚动与 sticky 的参照；表 `border-separate border-spacing-0` 以利 WebKit。）
 - **房源状态跨月**：`propertyStatus.js` — `getPropertyStatus` 在无当月状态时继承上一有记录月份的状态；`PropertyDetail.jsx` — 添加/编辑收支记录时默认状态与保存后的 `property.status` 与之一致。

@@ -26,6 +26,16 @@ import {
 import { evaluateArithmeticExpression, formatAccountingNumber } from '../../utils/accountingExpression';
 import { isIsoDateString, sanitizeIsoDateField } from '../../utils/accountingDates';
 
+/** dnd-kit 在静止时也可能给出恒等 transform；写在 tr 上会新建包含块，导致子 td 的 position:sticky 失效 */
+function sortableTransformIsActive(t) {
+  if (t == null) return false;
+  const x = t.x ?? 0;
+  const y = t.y ?? 0;
+  const sx = t.scaleX ?? 1;
+  const sy = t.scaleY ?? 1;
+  return x !== 0 || y !== 0 || sx !== 1 || sy !== 1;
+}
+
 /** 与公式格 / 日期格相同的可视高度与边框，保证各行「框体」一致 */
 const inputCls =
   'w-full min-w-0 min-h-[2.25rem] box-border px-2 py-1.5 border border-gray-200 rounded text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-100';
@@ -97,9 +107,9 @@ function SortableRentRow({
     disabled: sortableDisabled
   });
 
+  const dragT = sortableTransformIsActive(transform);
   const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
+    ...(dragT ? { transform: CSS.Transform.toString(transform), transition } : {}),
     ...(isDragging ? { opacity: 0.92, zIndex: 2, position: 'relative' } : {})
   };
 
@@ -403,16 +413,18 @@ export function AccountingRentTab({ sheet, setSheet }) {
 
   return (
     <div className="w-full min-w-0">
-      {/* 顶栏/表/底栏共宽：随表固有宽度撑开；禁止 overflow-x-auto（不要区域拖动条） */}
+      {/* 桌面宽屏：仍由页面级横向滚动；中小屏：本区域 overflow-x-auto 作为 sticky 的滚动参照 */}
       <div className="inline-block min-w-full max-w-none align-top bg-white rounded-lg shadow-md box-border">
-        <div className="w-full min-w-0 bg-gradient-to-r from-blue-500 to-purple-600 px-4 sm:px-6 py-3 sm:py-4 text-white box-border">
-          <h3 className="text-lg font-semibold">租金记录 · INCOME</h3>
-        </div>
-        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
-          <table
-            ref={rentTableRef}
-            className="min-w-full w-max max-w-none text-sm border-collapse"
-          >
+        <div className="max-lg:overflow-x-auto max-lg:overscroll-x-contain max-lg:w-full max-lg:min-w-0 [touch-action:manipulation] [-webkit-overflow-scrolling:touch]">
+          <div className="w-max min-w-full">
+            <div className="w-full min-w-0 bg-gradient-to-r from-blue-500 to-purple-600 px-4 sm:px-6 py-3 sm:py-4 text-white box-border">
+              <h3 className="text-lg font-semibold">租金记录 · INCOME</h3>
+            </div>
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+              <table
+                ref={rentTableRef}
+                className="min-w-full w-max max-w-none text-sm border-separate border-spacing-0"
+              >
           <thead>
             <tr className="bg-gray-900 text-white">
               <th colSpan={7} className="p-2 text-center font-semibold border border-gray-700">
@@ -545,8 +557,10 @@ export function AccountingRentTab({ sheet, setSheet }) {
               </>
             )}
           </tbody>
-        </table>
-      </DndContext>
+              </table>
+            </DndContext>
+          </div>
+        </div>
       </div>
     </div>
   );
