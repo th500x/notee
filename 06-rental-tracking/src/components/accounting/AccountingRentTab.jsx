@@ -3,7 +3,8 @@ import {
   DndContext,
   closestCenter,
   KeyboardSensor,
-  PointerSensor,
+  MouseSensor,
+  TouchSensor,
   useSensor,
   useSensors
 } from '@dnd-kit/core';
@@ -37,7 +38,7 @@ function sortableTransformIsActive(t) {
 
 /** 与公式格 / 日期格相同的可视高度与边框，保证各行「框体」一致 */
 const inputCls =
-  'w-full min-w-0 min-h-[2.25rem] box-border px-2 py-1.5 border border-gray-200 rounded text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-100';
+  'w-full min-w-0 min-h-[2.25rem] box-border px-2 py-1.5 border border-gray-200 rounded text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-100 [touch-action:pan-x_pan-y_pinch-zoom]';
 
 const narrowTextCls = `${inputCls} truncate cursor-help`;
 
@@ -261,7 +262,7 @@ function SortableRentRow({
         <button
           type="button"
           onClick={() => removeRow(row.id)}
-          className="text-red-600 hover:text-red-800 text-xs px-1"
+          className="text-red-600 hover:text-red-800 text-xs px-1 [touch-action:pan-x_pan-y_pinch-zoom]"
         >
           删
         </button>
@@ -281,9 +282,11 @@ export function AccountingRentTab({ sheet, setSheet }) {
   }, [sheet.rentRows, filterPendingPayRent, m1]);
 
   const sensors = useSensors(
-    // 仅用 Pointer：避免 Mouse+Touch 双传感器在可滚动区域内与 Chrome 横滑抢手势
-    useSensor(PointerSensor, {
-      activationConstraint: { distance: 14 }
+    useSensor(MouseSensor, {
+      activationConstraint: { distance: 10 }
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: { delay: 300, tolerance: 32 }
     }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates
@@ -408,19 +411,16 @@ export function AccountingRentTab({ sheet, setSheet }) {
 
   return (
     <div className="w-full min-w-0">
-      {/* 桌面宽屏：仍由页面级横向滚动；中小屏：本区域 overflow-x-auto 作为 sticky 的滚动参照 */}
+      {/* 横向滚动交给视口/页面：避免内层 overflow-x + Dnd 与 Chrome 双指缩放/横滑冲突；ROOM sticky 仍依赖 border-separate + tr 上非恒等 transform 不写 */}
       <div className="inline-block min-w-full max-w-none align-top bg-white rounded-lg shadow-md box-border">
-        {/* 滚动容器不设 touch-action：避免与 Chrome 内层 button 默认 manipulation 叠加后横滑失效 */}
-        <div className="max-lg:overflow-x-auto max-lg:overscroll-x-contain max-lg:w-full max-lg:min-w-0 [-webkit-overflow-scrolling:touch]">
-          <div className="w-max min-w-full">
-            <div className="w-full min-w-0 bg-gradient-to-r from-blue-500 to-purple-600 px-4 sm:px-6 py-3 sm:py-4 text-white box-border">
-              <h3 className="text-lg font-semibold">租金记录 · INCOME</h3>
-            </div>
-            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
-              <table
-                ref={rentTableRef}
-                className="min-w-full w-max max-w-none text-sm border-separate border-spacing-0 [&_input]:touch-auto [&_button:not([data-rent-drag-handle])]:touch-pan-y"
-              >
+        <div className="w-full min-w-0 bg-gradient-to-r from-blue-500 to-purple-600 px-4 sm:px-6 py-3 sm:py-4 text-white box-border">
+          <h3 className="text-lg font-semibold">租金记录 · INCOME</h3>
+        </div>
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+          <table
+            ref={rentTableRef}
+            className="min-w-full w-max max-w-none text-sm border-separate border-spacing-0"
+          >
           <thead>
             <tr className="bg-gray-900 text-white">
               <th colSpan={7} className="p-2 text-center font-semibold border border-gray-700">
@@ -472,7 +472,7 @@ export function AccountingRentTab({ sheet, setSheet }) {
                 <button
                   type="button"
                   onClick={() => setFilterPendingPayRent((v) => !v)}
-                  className={`w-full rounded px-0.5 py-1 text-[10px] leading-tight font-semibold tracking-tight transition-colors ${
+                  className={`w-full rounded px-0.5 py-1 text-[10px] leading-tight font-semibold tracking-tight transition-colors [touch-action:pan-x_pan-y_pinch-zoom] ${
                     filterPendingPayRent
                       ? 'bg-amber-500 text-gray-900 shadow-sm'
                       : 'bg-white/15 text-white hover:bg-white/25'
@@ -553,10 +553,8 @@ export function AccountingRentTab({ sheet, setSheet }) {
               </>
             )}
           </tbody>
-              </table>
-            </DndContext>
-          </div>
-        </div>
+          </table>
+        </DndContext>
       </div>
     </div>
   );
