@@ -37,7 +37,7 @@ function sortableTransformIsActive(t) {
 
 /** 与公式格 / 日期格相同的可视高度与边框，保证各行「框体」一致 */
 const inputCls =
-  'w-full min-w-0 min-h-[2.25rem] box-border px-2 py-1.5 border border-gray-200 rounded text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-100 [touch-action:pan-x_pan-y_pinch-zoom]';
+  'w-full min-w-0 min-h-[2.25rem] box-border px-2 py-1.5 border border-gray-200 rounded text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-100 touch-manipulation';
 
 const narrowTextCls = `${inputCls} truncate cursor-help`;
 
@@ -261,7 +261,7 @@ function SortableRentRow({
         <button
           type="button"
           onClick={() => removeRow(row.id)}
-          className="text-red-600 hover:text-red-800 text-xs px-1 [touch-action:pan-x_pan-y_pinch-zoom]"
+          className="text-red-600 hover:text-red-800 text-xs px-1 touch-manipulation"
         >
           删
         </button>
@@ -409,13 +409,11 @@ export function AccountingRentTab({ sheet, setSheet }) {
   return (
     <div className="w-full min-w-0">
       {/*
-        ROOM 的 sticky 依赖本层 overflow-x 作为滚动条；勿写 pan-y 在滚动容器上（易与 Chrome 横滑命中冲突）。
-        仅 pan-x + pinch-zoom：横滑给本层，纵向交给页面；双指缩放仍可用。拖动手柄 touch-none 不变。
+        ROOM 的 sticky 依赖本层 overflow-x 作为滚动条。
+        滚动容器不写 touch-action：写 pan-x 不含 pan-y 会禁掉在表区域的纵向滑页；子控件用 touch-manipulation 即可兼顾缩放与滚动。
       */}
       <div className="inline-block min-w-full max-w-none align-top bg-white rounded-lg shadow-md box-border">
-        <div
-          className="overflow-x-auto overscroll-x-contain w-full min-w-0 [-webkit-overflow-scrolling:touch] [touch-action:pan-x_pinch-zoom]"
-        >
+        <div className="overflow-x-auto overscroll-x-contain w-full min-w-0 [-webkit-overflow-scrolling:touch]">
           <div className="w-max min-w-full">
             <div className="w-full min-w-0 bg-gradient-to-r from-blue-500 to-purple-600 px-4 sm:px-6 py-3 sm:py-4 text-white box-border">
               <h3 className="text-lg font-semibold">租金记录 · INCOME</h3>
@@ -476,7 +474,7 @@ export function AccountingRentTab({ sheet, setSheet }) {
                 <button
                   type="button"
                   onClick={() => setFilterPendingPayRent((v) => !v)}
-                  className={`w-full rounded px-0.5 py-1 text-[10px] leading-tight font-semibold tracking-tight transition-colors [touch-action:pan-x_pan-y_pinch-zoom] ${
+                  className={`w-full rounded px-0.5 py-1 text-[10px] leading-tight font-semibold tracking-tight transition-colors touch-manipulation ${
                     filterPendingPayRent
                       ? 'bg-amber-500 text-gray-900 shadow-sm'
                       : 'bg-white/15 text-white hover:bg-white/25'
