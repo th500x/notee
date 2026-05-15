@@ -3,8 +3,7 @@ import {
   DndContext,
   closestCenter,
   KeyboardSensor,
-  MouseSensor,
-  TouchSensor,
+  PointerSensor,
   useSensor,
   useSensors
 } from '@dnd-kit/core';
@@ -127,16 +126,17 @@ function SortableRentRow({
         <div className="flex items-stretch gap-1 min-w-0">
           <button
             type="button"
+            data-rent-drag-handle
             className={`shrink-0 flex flex-col items-center justify-center w-7 rounded border border-transparent text-gray-500 touch-none select-none ${
               sortableDisabled
                 ? 'opacity-40 cursor-not-allowed pointer-events-none'
                 : 'hover:border-gray-300 hover:bg-gray-100 cursor-grab active:cursor-grabbing'
             }`}
-            aria-label="拖动排序（触控请长按）"
+            aria-label="拖动排序"
             title={
               sortableDisabled
                 ? '筛选模式下不可拖动排序，请先关闭「筛选」'
-                : '拖动排序；触控可长按后再拖'
+                : '按住左侧 ⋮ 柄拖动以调整行顺序'
             }
             {...attributes}
             {...listeners}
@@ -281,15 +281,9 @@ export function AccountingRentTab({ sheet, setSheet }) {
   }, [sheet.rentRows, filterPendingPayRent, m1]);
 
   const sensors = useSensors(
-    useSensor(MouseSensor, {
-      activationConstraint: { distance: 10 }
-    }),
-    useSensor(TouchSensor, {
-      activationConstraint: {
-        delay: 280,
-        // 横滑看右侧列时位移较大；过小易被判定为「取消长按排序」或与滚动抢手势
-        tolerance: 28
-      }
+    // 仅用 Pointer：避免 Mouse+Touch 双传感器在可滚动区域内与 Chrome 横滑抢手势
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: 14 }
     }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates
@@ -416,7 +410,8 @@ export function AccountingRentTab({ sheet, setSheet }) {
     <div className="w-full min-w-0">
       {/* 桌面宽屏：仍由页面级横向滚动；中小屏：本区域 overflow-x-auto 作为 sticky 的滚动参照 */}
       <div className="inline-block min-w-full max-w-none align-top bg-white rounded-lg shadow-md box-border">
-        <div className="max-lg:overflow-x-auto max-lg:overscroll-x-contain max-lg:w-full max-lg:min-w-0 [-webkit-overflow-scrolling:touch] [touch-action:pan-x_pan-y_pinch-zoom]">
+        {/* 滚动容器不设 touch-action：避免与 Chrome 内层 button 默认 manipulation 叠加后横滑失效 */}
+        <div className="max-lg:overflow-x-auto max-lg:overscroll-x-contain max-lg:w-full max-lg:min-w-0 [-webkit-overflow-scrolling:touch]">
           <div className="w-max min-w-full">
             <div className="w-full min-w-0 bg-gradient-to-r from-blue-500 to-purple-600 px-4 sm:px-6 py-3 sm:py-4 text-white box-border">
               <h3 className="text-lg font-semibold">租金记录 · INCOME</h3>
@@ -424,7 +419,7 @@ export function AccountingRentTab({ sheet, setSheet }) {
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
               <table
                 ref={rentTableRef}
-                className="min-w-full w-max max-w-none text-sm border-separate border-spacing-0"
+                className="min-w-full w-max max-w-none text-sm border-separate border-spacing-0 [&_input]:touch-auto [&_button:not([data-rent-drag-handle])]:touch-pan-y"
               >
           <thead>
             <tr className="bg-gray-900 text-white">
