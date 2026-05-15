@@ -287,7 +287,8 @@ export function AccountingRentTab({ sheet, setSheet }) {
     useSensor(TouchSensor, {
       activationConstraint: {
         delay: 280,
-        tolerance: 8
+        // 横滑看右侧列时位移较大；过小易被判定为「取消长按排序」或与滚动抢手势
+        tolerance: 28
       }
     }),
     useSensor(KeyboardSensor, {
@@ -415,7 +416,7 @@ export function AccountingRentTab({ sheet, setSheet }) {
     <div className="w-full min-w-0">
       {/* 桌面宽屏：仍由页面级横向滚动；中小屏：本区域 overflow-x-auto 作为 sticky 的滚动参照 */}
       <div className="inline-block min-w-full max-w-none align-top bg-white rounded-lg shadow-md box-border">
-        <div className="max-lg:overflow-x-auto max-lg:overscroll-x-contain max-lg:w-full max-lg:min-w-0 [touch-action:manipulation] [-webkit-overflow-scrolling:touch]">
+        <div className="max-lg:overflow-x-auto max-lg:overscroll-x-contain max-lg:w-full max-lg:min-w-0 [-webkit-overflow-scrolling:touch] [touch-action:pan-x_pan-y_pinch-zoom]">
           <div className="w-max min-w-full">
             <div className="w-full min-w-0 bg-gradient-to-r from-blue-500 to-purple-600 px-4 sm:px-6 py-3 sm:py-4 text-white box-border">
               <h3 className="text-lg font-semibold">租金记录 · INCOME</h3>
