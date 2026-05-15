@@ -411,16 +411,23 @@ export function AccountingRentTab({ sheet, setSheet }) {
 
   return (
     <div className="w-full min-w-0">
-      {/* 横向滚动交给视口/页面：避免内层 overflow-x + Dnd 与 Chrome 双指缩放/横滑冲突；ROOM sticky 仍依赖 border-separate + tr 上非恒等 transform 不写 */}
+      {/*
+        ROOM 的 position:sticky 必须相对「本区域」的横向滚动条（overflow-x）；视口级横滑在部分浏览器下首列不吸顶。
+        滚动容器显式 pan-x + pan-y + pinch-zoom：保留横滑与双指缩放（勿在整表上仅用 touch-pan-y）。
+      */}
       <div className="inline-block min-w-full max-w-none align-top bg-white rounded-lg shadow-md box-border">
-        <div className="w-full min-w-0 bg-gradient-to-r from-blue-500 to-purple-600 px-4 sm:px-6 py-3 sm:py-4 text-white box-border">
-          <h3 className="text-lg font-semibold">租金记录 · INCOME</h3>
-        </div>
-        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
-          <table
-            ref={rentTableRef}
-            className="min-w-full w-max max-w-none text-sm border-separate border-spacing-0"
-          >
+        <div
+          className="overflow-x-auto overscroll-x-contain w-full min-w-0 [-webkit-overflow-scrolling:touch] [touch-action:pan-x_pan-y_pinch-zoom]"
+        >
+          <div className="w-max min-w-full">
+            <div className="w-full min-w-0 bg-gradient-to-r from-blue-500 to-purple-600 px-4 sm:px-6 py-3 sm:py-4 text-white box-border">
+              <h3 className="text-lg font-semibold">租金记录 · INCOME</h3>
+            </div>
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+              <table
+                ref={rentTableRef}
+                className="min-w-full w-max max-w-none text-sm border-separate border-spacing-0"
+              >
           <thead>
             <tr className="bg-gray-900 text-white">
               <th colSpan={7} className="p-2 text-center font-semibold border border-gray-700">
@@ -553,8 +560,10 @@ export function AccountingRentTab({ sheet, setSheet }) {
               </>
             )}
           </tbody>
-          </table>
-        </DndContext>
+              </table>
+            </DndContext>
+          </div>
+        </div>
       </div>
     </div>
   );
