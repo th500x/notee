@@ -423,57 +423,57 @@ export function AccountingRentTab({ sheet, setSheet }) {
           >
           <thead>
             <tr className="bg-gray-900 text-white">
-              <th colSpan={7} className="p-2 text-center font-semibold border border-gray-700">
+              <th colSpan={7} className="p-2 text-center align-middle font-semibold border border-gray-700">
                 DETAILS
               </th>
-              <th colSpan={4} className="p-2 text-center font-semibold border border-gray-700">
+              <th colSpan={4} className="p-2 text-center align-middle font-semibold border border-gray-700">
                 {monthKeyToHeaderLabel(m0)}
               </th>
-              <th colSpan={4} className="p-2 text-center font-semibold border border-gray-700">
+              <th colSpan={4} className="p-2 text-center align-middle font-semibold border border-gray-700">
                 {monthKeyToHeaderLabel(m1)}
               </th>
               <th
-                className={`p-2 text-center font-semibold border border-gray-700 text-xs leading-tight ${COMPACT_COL_TD}`}
+                className={`p-2 text-center align-middle font-semibold border border-gray-700 text-xs leading-tight ${COMPACT_COL_TD}`}
               >
                 ROOM
                 <span className="mt-0.5 block text-[10px] font-normal opacity-80">（镜像·只读）</span>
               </th>
               <th
-                className={`p-2 text-center font-semibold border border-gray-700 ${COMPACT_COL_TD}`}
+                className={`p-2 text-center align-middle font-semibold border border-gray-700 ${COMPACT_COL_TD}`}
               />
             </tr>
             <tr className="bg-gray-800 text-white text-xs">
               <th
-                className={`p-2 border border-gray-700 text-left align-bottom ${ROOM_COL_TH} bg-gray-800`}
+                className={`p-2 border border-gray-700 text-center align-middle ${ROOM_COL_TH} bg-gray-800`}
               >
                 ROOM
               </th>
-              <th className={`p-2 border border-gray-700 text-left ${COMPACT_COL_TD}`}>申报</th>
-              <th className={`p-2 border border-gray-700 text-left ${COMPACT_COL_TD}`}>实际</th>
+              <th className={`p-2 border border-gray-700 text-center align-middle ${COMPACT_COL_TD}`}>申报</th>
+              <th className={`p-2 border border-gray-700 text-center align-middle ${COMPACT_COL_TD}`}>实际</th>
               <th
-                className={`p-2 border border-gray-700 text-left font-medium ${COMPACT_COL_TD}`}
+                className={`p-2 border border-gray-700 text-center align-middle font-medium ${COMPACT_COL_TD}`}
               >
                 中介
               </th>
               <th
-                className={`p-2 border border-gray-700 text-left font-medium ${COMPACT_COL_TD}`}
+                className={`p-2 border border-gray-700 text-center align-middle font-medium ${COMPACT_COL_TD}`}
               >
                 备注
               </th>
-              <th className="p-2 border border-gray-900 bg-black text-left">PRICE</th>
-              <th className="p-2 border border-gray-900 bg-black text-left">DEPOSIT</th>
+              <th className="p-2 border border-gray-900 bg-black text-center align-middle">PRICE</th>
+              <th className="p-2 border border-gray-900 bg-black text-center align-middle">DEPOSIT</th>
               {['IN', 'OUT', 'SETTLE', '交租'].map((h) => (
-                <th key={`${m0}-${h}`} className="p-2 border border-gray-700 font-medium">
+                <th key={`${m0}-${h}`} className="p-2 border border-gray-700 font-medium text-center align-middle">
                   {h}
                 </th>
               ))}
               {['IN', 'OUT', 'SETTLE', '交租'].map((h) => (
-                <th key={`${m1}-${h}`} className="p-2 border border-gray-700 font-medium">
+                <th key={`${m1}-${h}`} className="p-2 border border-gray-700 font-medium text-center align-middle">
                   {h}
                 </th>
               ))}
               <th
-                className={`p-2 border border-gray-700 text-left ${COMPACT_COL_TD} bg-gray-800`}
+                className={`p-2 border border-gray-700 text-center align-middle ${COMPACT_COL_TD} bg-gray-800`}
                 title="只读：与左侧房号同步"
               >
                 ROOM
@@ -484,7 +484,7 @@ export function AccountingRentTab({ sheet, setSheet }) {
                 <button
                   type="button"
                   onClick={() => setFilterPendingPayRent((v) => !v)}
-                  className={`w-full rounded px-0.5 py-1 text-[10px] leading-tight font-semibold tracking-tight transition-colors ${
+                  className={`flex w-full min-h-[2.25rem] items-center justify-center rounded px-0.5 py-1 text-[10px] leading-tight font-semibold tracking-tight transition-colors ${
                     filterPendingPayRent
                       ? 'bg-amber-500 text-gray-900 shadow-sm'
                       : 'bg-white/15 text-white hover:bg-white/25'

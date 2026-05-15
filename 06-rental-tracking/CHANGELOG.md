@@ -5,5 +5,5 @@
 ## 2026-05-15
 
 - **照片单张上限**：2MB → 5MB（`src/config/index.js`、`backend/routes/upload.js`、`backend/middleware/validation.js`）。
-- **账目单租金表（手机）**：已取消左侧 ROOM 列 `position:sticky` 与内层 `overflow-x-auto` 触控包装，表格随页面横纵滑动与系统缩放（避免触控与 sticky 反复打架）。**右侧镜像 ROOM**：在右月「交租」列与「删」列之间增加只读列，内容与左侧房号同步展示；列宽与「申报」「实际」同为 `COMPACT_COL_TD`（`max-w-[8rem] min-w-[4rem]`），左侧 ROOM 列宽不变。`useSortable` 仍在 `<tr>` 上仅在非恒等 `transform` 时写 `transform`；表 `border-separate border-spacing-0`；行拖拽为 `PointerSensor`（手柄 `touch-none`）。
+- **账目单租金表（手机）**：已取消左侧 ROOM 列 `position:sticky` 与内层 `overflow-x-auto` 触控包装，表格随页面横纵滑动与系统缩放（避免触控与 sticky 反复打架）。**右侧镜像 ROOM**：在右月「交租」列与「删」列之间增加只读列，内容与左侧房号同步展示；列宽与「申报」「实际」同为 `COMPACT_COL_TD`（`max-w-[8rem] min-w-[4rem]`），左侧 ROOM 列宽不变。**表头**：租金表 thead 两行列名统一 `text-center align-middle`；「筛选」按钮在格内 `flex` 居中。`useSortable` 仍在 `<tr>` 上仅在非恒等 `transform` 时写 `transform`；表 `border-separate border-spacing-0`；行拖拽为 `PointerSensor`（手柄 `touch-none`）。
 - **房源状态跨月**：`propertyStatus.js` — `getPropertyStatus` 在无当月状态时继承上一有记录月份的状态；`PropertyDetail.jsx` — 添加/编辑收支记录时默认状态与保存后的 `property.status` 与之一致。
