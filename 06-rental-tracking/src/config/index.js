@@ -62,7 +62,7 @@ export const config = {
   oss: {
     region: import.meta.env.VITE_OSS_REGION || 'oss-ap-southeast-1',
     bucket: import.meta.env.VITE_OSS_BUCKET || 'notee-rental',
-    maxFileSize: 2 * 1024 * 1024, // 2MB
+    maxFileSize: 5 * 1024 * 1024, // 5MB
     maxPhotosPerRecord: 3, // 每条记录最多3张照片
     allowedTypes: ['image/jpeg', 'image/png', 'image/jpg'], // 允许的文件类型
   },
@@ -186,7 +186,7 @@ export const MONTH_NAMES_SHORT = [
  */
 export const LIMITS = {
   MAX_PHOTOS_PER_RECORD: 3, // 每条记录最多3张照片
-  MAX_PHOTO_SIZE: 2 * 1024 * 1024, // 2MB
+  MAX_PHOTO_SIZE: 5 * 1024 * 1024, // 5MB
   MAX_PROPERTIES_PER_PROJECT: 100, // 每个项目最多100个房源
   MAX_RECORDS_PER_PROPERTY: 1000, // 每个房源最多1000条记录
   MAX_EXPENSES_PER_PROJECT: 500, // 每个项目最多500条开支

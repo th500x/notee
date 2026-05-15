@@ -221,7 +221,8 @@ function PropertyDetail({ property, project, selectedYear, selectedMonth, viewMo
       expenses: 0,
       note: '',
       isPaid: false,
-      status: property.status || 'vacant',  // 初始化状态字段
+      // 继承「该月及之前月份」已推断状态，避免仅改单月为出租中后新月份弹窗仍默认新合同
+      status: getPropertyStatus(property, dateStr),
       photos: [],  // 初始化照片数组
       _hasMonthPaidRecord: hasMonthPaidRecord // 用于UI判断
     })
@@ -249,7 +250,7 @@ function PropertyDetail({ property, project, selectedYear, selectedMonth, viewMo
       expenses: record.expenses || 0,
       note: record.note || '',
       isPaid: record.isPaid || false,
-      status: record.status || property.status || 'vacant',  // 添加status字段
+      status: record.status || getPropertyStatus(property, record.date) || 'vacant',  // 旧记录无 status 时按月份推断
       photos: record.photos || [],  // 保留照片数据
       _hasMonthPaidRecord: hasMonthPaidRecord
     })
@@ -280,9 +281,10 @@ function PropertyDetail({ property, project, selectedYear, selectedMonth, viewMo
       updatedRecords = [...(property.records || []), newRecord]
     }
     
-    // 更新房源数据
+    // 更新房源数据：同步顶层 status，便于列表/导出等与「最近一条带状态记录」一致
     onPropertyUpdate({
       ...property,
+      status: newRecord.status || property.status || 'vacant',
       records: updatedRecords
     })
     

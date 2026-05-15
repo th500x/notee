@@ -174,9 +174,9 @@ const propertySchema = Joi.object({
           url: Joi.string().uri().optional(),
           data: Joi.string().optional(),
           name: Joi.string().max(255).optional(),
-          size: Joi.number().max(2 * 1024 * 1024).optional()
+          size: Joi.number().max(5 * 1024 * 1024).optional()
             .messages({
-              'number.max': '照片大小不能超过2MB'
+              'number.max': '照片大小不能超过5MB'
             }),
           uploadedAt: Joi.string().optional()
         })

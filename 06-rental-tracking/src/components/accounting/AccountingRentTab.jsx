@@ -40,6 +40,10 @@ const COMPACT_COL_TD =
 const ROOM_COL_TD = 'w-[8.5rem] min-w-[4rem] max-w-[8.5rem] align-top box-border';
 const ROOM_COL_TH = ROOM_COL_TD;
 
+/** 手机横滑编辑时：ROOM 列固定在滚动容器左侧，避免房号滚出屏幕 */
+const STICKY_ROOM_Z_BODY = 'sticky left-0 z-[12] shadow-[4px_0_10px_-4px_rgba(0,0,0,0.15)]';
+const STICKY_ROOM_Z_HEAD = 'sticky left-0 z-[13] shadow-[4px_0_10px_-4px_rgba(0,0,0,0.25)]';
+
 /** 可录入格：ROOM(0)…备注(4)、PRICE(5)、DEPOSIT(6)、双月 IN/OUT/交租（右月交租为列 14），不含只读 SETTLE 与删钮 */
 const RENT_GRID_COL_MAX = 14;
 
@@ -105,7 +109,11 @@ function SortableRentRow({
       style={style}
       className={`border-b border-gray-100 hover:bg-gray-50/80 ${isDragging ? 'bg-blue-50/90 shadow-sm ring-1 ring-blue-200/80' : ''}`}
     >
-      <td className={`p-1 border border-gray-100 ${ROOM_COL_TD}`}>
+      <td
+        className={`p-1 border border-gray-100 ${ROOM_COL_TD} ${STICKY_ROOM_Z_BODY} ${
+          isDragging ? 'bg-blue-50/95' : 'bg-white'
+        }`}
+      >
         <div className="flex items-stretch gap-1 min-w-0">
           <button
             type="button"
@@ -422,7 +430,7 @@ export function AccountingRentTab({ sheet, setSheet }) {
             </tr>
             <tr className="bg-gray-800 text-white text-xs">
               <th
-                className={`p-2 border border-gray-700 text-left align-bottom ${ROOM_COL_TH}`}
+                className={`p-2 border border-gray-700 text-left align-bottom ${ROOM_COL_TH} ${STICKY_ROOM_Z_HEAD} bg-gray-800`}
               >
                 ROOM
               </th>
@@ -500,7 +508,10 @@ export function AccountingRentTab({ sheet, setSheet }) {
                   ))}
                 </SortableContext>
                 <tr className="bg-gray-50 font-semibold border-t-2 border-gray-300">
-                  <td colSpan={5} className="p-2 border border-gray-200">
+                  <td
+                    colSpan={5}
+                    className={`p-2 border border-gray-200 ${STICKY_ROOM_Z_BODY} bg-gray-50`}
+                  >
                     Total
                   </td>
                   <td className="p-2 border border-gray-200 text-right bg-gray-100 font-mono">

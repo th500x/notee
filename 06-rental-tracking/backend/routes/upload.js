@@ -14,7 +14,7 @@ const ossService = require('../services/ossService');
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
-    fileSize: 2 * 1024 * 1024, // 限制2MB
+    fileSize: 5 * 1024 * 1024, // 限制 5MB
     files: 3 // 最多3个文件
   },
   fileFilter: (req, file, cb) => {
@@ -127,7 +127,7 @@ router.use((error, req, res, next) => {
     if (error.code === 'LIMIT_FILE_SIZE') {
       return res.status(400).json({
         success: false,
-        error: '照片大小不能超过2MB'
+        error: '照片大小不能超过5MB'
       });
     }
     if (error.code === 'LIMIT_FILE_COUNT') {
