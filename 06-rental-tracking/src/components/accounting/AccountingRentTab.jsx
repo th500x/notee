@@ -3,8 +3,7 @@ import {
   DndContext,
   closestCenter,
   KeyboardSensor,
-  MouseSensor,
-  TouchSensor,
+  PointerSensor,
   useSensor,
   useSensors
 } from '@dnd-kit/core';
@@ -282,11 +281,9 @@ export function AccountingRentTab({ sheet, setSheet }) {
   }, [sheet.rentRows, filterPendingPayRent, m1]);
 
   const sensors = useSensors(
-    useSensor(MouseSensor, {
-      activationConstraint: { distance: 10 }
-    }),
-    useSensor(TouchSensor, {
-      activationConstraint: { delay: 300, tolerance: 32 }
+    // 监听器仅在拖动手柄上：Pointer 即可覆盖触控，避免 TouchSensor 与横向滚动条抢 touchmove
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: 8 }
     }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates
@@ -412,12 +409,12 @@ export function AccountingRentTab({ sheet, setSheet }) {
   return (
     <div className="w-full min-w-0">
       {/*
-        ROOM 的 position:sticky 必须相对「本区域」的横向滚动条（overflow-x）；视口级横滑在部分浏览器下首列不吸顶。
-        滚动容器显式 pan-x + pan-y + pinch-zoom：保留横滑与双指缩放（勿在整表上仅用 touch-pan-y）。
+        ROOM 的 sticky 依赖本层 overflow-x 作为滚动条；勿写 pan-y 在滚动容器上（易与 Chrome 横滑命中冲突）。
+        仅 pan-x + pinch-zoom：横滑给本层，纵向交给页面；双指缩放仍可用。拖动手柄 touch-none 不变。
       */}
       <div className="inline-block min-w-full max-w-none align-top bg-white rounded-lg shadow-md box-border">
         <div
-          className="overflow-x-auto overscroll-x-contain w-full min-w-0 [-webkit-overflow-scrolling:touch] [touch-action:pan-x_pan-y_pinch-zoom]"
+          className="overflow-x-auto overscroll-x-contain w-full min-w-0 [-webkit-overflow-scrolling:touch] [touch-action:pan-x_pinch-zoom]"
         >
           <div className="w-max min-w-full">
             <div className="w-full min-w-0 bg-gradient-to-r from-blue-500 to-purple-600 px-4 sm:px-6 py-3 sm:py-4 text-white box-border">
