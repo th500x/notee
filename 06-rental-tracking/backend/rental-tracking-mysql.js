@@ -27,12 +27,20 @@ const { hashPassword, verifyPassword } = require('./utils/passwordUtils');
 const { verifyToken, decodeTokenOptional } = require('./middleware/auth');
 const { parseJSON } = require('./utils/jsonParser');
 
+function sanitizeUtilityIsoYmd(v) {
+  if (typeof v !== 'string') return '';
+  const t = v.trim();
+  return /^\d{4}-\d{2}-\d{2}$/.test(t) ? t : '';
+}
+
 function defaultUtilitySheet() {
   return {
     pricePerKwh: 0,
     pricePerWaterUnit: 0,
     readingMonthText: '',
     readingDateText: '',
+    readingPeriodStartIso: '',
+    readingPeriodEndIso: '',
     rows: []
   };
 }
@@ -44,6 +52,8 @@ function normalizeUtilitySheet(raw) {
     pricePerWaterUnit: Number(obj.pricePerWaterUnit) || 0,
     readingMonthText: typeof obj.readingMonthText === 'string' ? obj.readingMonthText : '',
     readingDateText: typeof obj.readingDateText === 'string' ? obj.readingDateText : '',
+    readingPeriodStartIso: sanitizeUtilityIsoYmd(obj.readingPeriodStartIso),
+    readingPeriodEndIso: sanitizeUtilityIsoYmd(obj.readingPeriodEndIso),
     rows: Array.isArray(obj.rows) ? obj.rows : []
   };
 }

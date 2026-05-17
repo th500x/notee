@@ -40,14 +40,28 @@ const utilitySheetRowSchema = Joi.object({
   currentMonthWater: Joi.number().min(0).default(0)
 });
 
+/** Empty or strict YYYY-MM-DD (utility billing period). */
+const utilityIsoYmd = Joi.string().max(10).allow('').pattern(/^$|^\d{4}-\d{2}-\d{2}$/);
+
 const utilitySheetUpdateSchema = Joi.object({
   utilitySheet: Joi.object({
     pricePerKwh: Joi.number().min(0).default(0),
     pricePerWaterUnit: Joi.number().min(0).default(0),
     readingMonthText: Joi.string().allow('').max(200).default(''),
     readingDateText: Joi.string().allow('').max(200).default(''),
+    readingPeriodStartIso: utilityIsoYmd.default(''),
+    readingPeriodEndIso: utilityIsoYmd.default(''),
     rows: Joi.array().items(utilitySheetRowSchema).max(200).default([])
-  }).required()
+  })
+    .custom((value, helpers) => {
+      const start = (value.readingPeriodStartIso || '').trim();
+      const end = (value.readingPeriodEndIso || '').trim();
+      if (start && end && end <= start) {
+        return helpers.message('Current reading date must be after the previous reading date.');
+      }
+      return value;
+    })
+    .required()
 });
 
 const monthKeyString = Joi.string().pattern(/^\d{4}-\d{2}$/);

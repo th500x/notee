@@ -1,5 +1,10 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import * as api from '../utils/apiClient'
+import {
+  addCalendarDaysIsoYmd,
+  isUtilityReadingPeriodOrderValid,
+  sanitizeOptionalIsoYmd
+} from '../utils/utilityBillingPeriod'
 
 function emptySheet() {
   return {
@@ -7,6 +12,8 @@ function emptySheet() {
     pricePerWaterUnit: 0,
     readingMonthText: '',
     readingDateText: '',
+    readingPeriodStartIso: '',
+    readingPeriodEndIso: '',
     rows: []
   }
 }
@@ -18,6 +25,8 @@ function normalizeSheet(raw) {
     pricePerWaterUnit: Number(raw.pricePerWaterUnit) || 0,
     readingMonthText: typeof raw.readingMonthText === 'string' ? raw.readingMonthText : '',
     readingDateText: typeof raw.readingDateText === 'string' ? raw.readingDateText : '',
+    readingPeriodStartIso: sanitizeOptionalIsoYmd(raw.readingPeriodStartIso),
+    readingPeriodEndIso: sanitizeOptionalIsoYmd(raw.readingPeriodEndIso),
     rows: Array.isArray(raw.rows) ? raw.rows : []
   }
 }
@@ -133,6 +142,21 @@ export default function UtilityBillPage({ project, onBack, onSaved }) {
     return { electricUnits, waterUnits, amount }
   }, [sheet])
 
+  const periodOrderInvalid = useMemo(
+    () => !isUtilityReadingPeriodOrderValid(sheet.readingPeriodStartIso, sheet.readingPeriodEndIso),
+    [sheet.readingPeriodStartIso, sheet.readingPeriodEndIso]
+  )
+
+  const prevDateMax = useMemo(() => {
+    const end = sanitizeOptionalIsoYmd(sheet.readingPeriodEndIso)
+    return end ? addCalendarDaysIsoYmd(end, -1) : undefined
+  }, [sheet.readingPeriodEndIso])
+
+  const currDateMin = useMemo(() => {
+    const start = sanitizeOptionalIsoYmd(sheet.readingPeriodStartIso)
+    return start ? addCalendarDaysIsoYmd(start, 1) : undefined
+  }, [sheet.readingPeriodStartIso])
+
   const updatePrice = (field, value) => {
     const n = value === '' ? 0 : Number(value)
     setSheet((prev) => ({ ...prev, [field]: Number.isFinite(n) ? n : 0 }))
@@ -175,6 +199,10 @@ export default function UtilityBillPage({ project, onBack, onSaved }) {
 
   const handleSave = async () => {
     setError('')
+    if (periodOrderInvalid) {
+      setError('Current reading date must be after the previous reading date.')
+      return
+    }
     setSaving(true)
     try {
       await api.updateUtilitySheet(project.id, sheet)
@@ -189,6 +217,10 @@ export default function UtilityBillPage({ project, onBack, onSaved }) {
 
   const openExportPicker = () => {
     setError('')
+    if (periodOrderInvalid) {
+      setError('Fix billing period before exporting: current reading date must be after the previous reading date.')
+      return
+    }
     if (sheet.rows.length === 0) {
       setError('Add at least one row before exporting.')
       return
@@ -217,6 +249,10 @@ export default function UtilityBillPage({ project, onBack, onSaved }) {
     const picked = sheet.rows.filter((r) => exportRowSelected[r.id])
     if (picked.length === 0) {
       setExportPickerNotice('Select at least one row to export.')
+      return
+    }
+    if (!isUtilityReadingPeriodOrderValid(sheet.readingPeriodStartIso, sheet.readingPeriodEndIso)) {
+      setExportPickerNotice('Fix billing period: current reading date must be after the previous reading date.')
       return
     }
     setExportPickerOpen(false)
@@ -316,27 +352,44 @@ export default function UtilityBillPage({ project, onBack, onSaved }) {
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <h3 className="text-lg font-semibold shrink-0">Meter readings</h3>
             <div className="flex flex-wrap items-end gap-4 lg:justify-end">
-              <div className="min-w-[160px]">
-                <label className="block text-xs font-medium text-blue-100 mb-1">
-                  Billing month (this reading)
-                </label>
-                <input
-                  type="text"
-                  className={headerInputCls}
-                  placeholder="e.g. April 2026"
-                  value={sheet.readingMonthText}
-                  onChange={(e) => updateMeta('readingMonthText', e.target.value)}
-                />
-              </div>
-              <div className="min-w-[160px]">
-                <label className="block text-xs font-medium text-blue-100 mb-1">Reading date</label>
-                <input
-                  type="text"
-                  className={headerInputCls}
-                  placeholder="e.g. 2026-04-22"
-                  value={sheet.readingDateText}
-                  onChange={(e) => updateMeta('readingDateText', e.target.value)}
-                />
+              <div className="flex flex-col gap-1 min-w-0">
+                <span className="text-xs font-medium text-blue-100">Billing period</span>
+                <div className="flex flex-wrap items-end gap-2">
+                  <div className="flex flex-col gap-0.5 min-w-[140px]">
+                    <label htmlFor="ub-period-start" className="text-[10px] font-medium text-blue-200/90">
+                      Previous reading
+                    </label>
+                    <input
+                      id="ub-period-start"
+                      type="date"
+                      className={headerInputCls}
+                      value={sheet.readingPeriodStartIso || ''}
+                      max={prevDateMax || ''}
+                      onChange={(e) => updateMeta('readingPeriodStartIso', e.target.value)}
+                    />
+                  </div>
+                  <span className="hidden sm:inline pb-2 text-sm text-blue-100/90" aria-hidden="true">
+                    →
+                  </span>
+                  <div className="flex flex-col gap-0.5 min-w-[140px]">
+                    <label htmlFor="ub-period-end" className="text-[10px] font-medium text-blue-200/90">
+                      Current reading
+                    </label>
+                    <input
+                      id="ub-period-end"
+                      type="date"
+                      className={headerInputCls}
+                      min={currDateMin || ''}
+                      value={sheet.readingPeriodEndIso || ''}
+                      onChange={(e) => updateMeta('readingPeriodEndIso', e.target.value)}
+                    />
+                  </div>
+                </div>
+                {periodOrderInvalid ? (
+                  <p className="text-xs text-red-200 max-w-[min(100%,22rem)]">
+                    Current reading date must be after the previous reading date.
+                  </p>
+                ) : null}
               </div>
               <button
                 type="button"
@@ -494,7 +547,7 @@ export default function UtilityBillPage({ project, onBack, onSaved }) {
         <button
           type="button"
           onClick={handleSave}
-          disabled={saving}
+          disabled={saving || periodOrderInvalid}
           className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium disabled:opacity-50"
         >
           {saving ? 'Saving…' : 'Save to server'}
@@ -511,7 +564,7 @@ export default function UtilityBillPage({ project, onBack, onSaved }) {
         <button
           type="button"
           onClick={openExportPicker}
-          disabled={exporting}
+          disabled={exporting || periodOrderInvalid}
           className="px-6 py-3 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-medium disabled:opacity-50 flex items-center gap-2"
         >
           <span>📊</span>
@@ -544,7 +597,8 @@ export default function UtilityBillPage({ project, onBack, onSaved }) {
               </button>
             </div>
             <p className="px-6 pt-2 text-sm text-gray-600">
-              Only checked rows appear in the PNG. Shared rates and billing month/date always apply.
+              Only checked rows appear in the PNG. Shared rates and billing period (previous → current reading
+              dates) apply.
             </p>
             {exportPickerNotice ? (
               <p className="px-6 pt-2 text-sm text-red-600">{exportPickerNotice}</p>

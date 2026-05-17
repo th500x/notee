@@ -8,6 +8,7 @@
  */
 
 import { getAllProperties } from './propertyUtils'
+import { formatUtilityBillingPeriodSubtitle } from './utilityBillingPeriod'
 
 /**
  * 导出房源列表为图片
@@ -181,8 +182,7 @@ export async function exportUtilityBillToImage(sheet, projectName) {
   const rows = Array.isArray(sheet?.rows) ? sheet.rows : []
   const pk = Number(sheet?.pricePerKwh) || 0
   const pw = Number(sheet?.pricePerWaterUnit) || 0
-  const monthLabel = sheet?.readingMonthText || '—'
-  const dateLabel = sheet?.readingDateText || '—'
+  const billingPeriodLine = formatUtilityBillingPeriodSubtitle(sheet)
 
   const canvas = document.createElement('canvas')
   const ctx = canvas.getContext('2d')
@@ -209,7 +209,7 @@ export async function exportUtilityBillToImage(sheet, projectName) {
   ctx.font = '15px Arial, sans-serif'
   ctx.fillStyle = '#4b5563'
   ctx.textAlign = 'center'
-  ctx.fillText(`Billing month: ${monthLabel}     Reading date: ${dateLabel}`, canvas.width / 2, padding + 52)
+  ctx.fillText(billingPeriodLine, canvas.width / 2, padding + 52)
   ctx.fillText(
     `Price per kWh: ${pk}     Price per water unit: ${pw}`,
     canvas.width / 2,
