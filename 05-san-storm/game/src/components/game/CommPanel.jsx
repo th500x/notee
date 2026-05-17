@@ -2,7 +2,8 @@
  * CommPanel - 通信浮层（左下角）
  * 
  * @description 三Tab布局：📜战报 | 📮传书 | 💬聊天（均已对接后端）
- *              收起态入口主标识：未读传书 > 聊天新消息角标 > 默认入口「聊天」
+ *              收起态入口主标识：未读传书 > 聊天新消息角标 > 默认入口「聊天」；
+ *              有未读传书或天下频道新消息时，左侧 emoji 加深红描边提示（不自动展开面板）
  *              大地图视图下显示，Tab页面内隐藏
  * 
  * @see docs/30-frontend/32-1-GAME_UI_DESIGN.md §1.7（路径相对 `05-san-storm/`）
@@ -426,20 +427,6 @@ export default function CommPanel({ visible, unreadChatCount: unreadChatProp = 0
     return () => window.clearInterval(id);
   }, [visible, player?.player_id]);
 
-  /** 本会话首次进入大地图：自动展开通信浮层并落在「聊天」Tab（便于看到公屏） */
-  useEffect(() => {
-    if (!visible || !player?.player_id) return;
-    const k = `san_comm_auto_open_${player.player_id}`;
-    try {
-      if (sessionStorage.getItem(k)) return;
-      sessionStorage.setItem(k, '1');
-      setActiveTab('chat');
-      setOpen(true);
-    } catch {
-      /* ignore */
-    }
-  }, [visible, player?.player_id]);
-
   const syncWorldSeen = useCallback(
     (maxChatId) => {
       if (maxChatId == null) return;
@@ -572,6 +559,15 @@ export default function CommPanel({ visible, unreadChatCount: unreadChatProp = 0
   if (!open) {
     const { icon, label, count, tab } = minimizedEntry;
     const suffix = count > 0 ? ` (${count})` : '';
+    const chatBadge = Math.max(chatNotifyCount, unreadChatProp || 0);
+    const showEmojiNotifyOutline = unreadTextCount > 0 || chatBadge > 0;
+    /** 深红描边（text-shadow 模拟），便于在琥珀底上凸显左侧 emoji */
+    const emojiNotifyStyle = showEmojiNotifyOutline
+      ? {
+          textShadow:
+            '-1px -1px 0 #7f1d1d, 1px -1px 0 #7f1d1d, -1px 1px 0 #7f1d1d, 1px 1px 0 #7f1d1d, 0 -1px 0 #450a0a, 0 1px 0 #450a0a, -1px 0 0 #450a0a, 1px 0 0 #450a0a',
+        }
+      : undefined;
     return (
       <>
         <button
@@ -583,9 +579,14 @@ export default function CommPanel({ visible, unreadChatCount: unreadChatProp = 0
           style={mapCornerEntryRowBoxStyle}
           className={`fixed bottom-20 left-2 z-40 justify-start text-amber-300 ${MAP_CORNER_ENTRY_ROW_CLASS}`}
         >
-          <span className="block w-full min-w-0 truncate text-left">
-            {icon} {label}
-            {suffix}
+          <span className="flex w-full min-w-0 items-center gap-1 text-left">
+            <span style={emojiNotifyStyle} className="inline-flex shrink-0 select-none leading-none">
+              {icon}
+            </span>
+            <span className="min-w-0 truncate">
+              {label}
+              {suffix}
+            </span>
           </span>
         </button>
         {mailClaimModalEl}
@@ -1151,7 +1152,13 @@ function TextMailTab({ playerId, onUnreadChange, onClaimed, onShowClaimResult, o
   return (
     <div className={COMM_TAB_BODY_CLASS}>
       <div className={COMM_TAB_TOP_SLOT_CLASS}>
-        <div className="flex justify-end">
+        {/* 与 ChatTab 第一行（天下/势力/军团）同高同宽占位，使下一行「刷新」与聊天 Tab 对齐 */}
+        <div className="invisible pointer-events-none flex px-1 py-0 gap-0.5 select-none" aria-hidden>
+          <span className="flex-1 py-1 text-[10px] rounded text-center">天下</span>
+          <span className="flex-1 py-1 text-[10px] rounded text-center">势力</span>
+          <span className="flex-1 py-1 text-[10px] rounded text-center">军团</span>
+        </div>
+        <div className="flex justify-end px-1.5">
           <button
             type="button"
             onClick={() => loadTexts()}

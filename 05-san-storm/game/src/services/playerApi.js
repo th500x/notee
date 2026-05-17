@@ -115,6 +115,20 @@ export const playerAPI = {
     }
   },
 
+  async getFactionBulletin(playerId, { limit = 50 } = {}) {
+    try {
+      const qs = new URLSearchParams({ limit: String(limit) }).toString();
+      const response = await fetchWithTimeout(
+        `${API_CONFIG.BASE_URL}/players/${playerId}/faction/bulletin?${qs}`,
+        { method: 'GET', headers: { 'Content-Type': 'application/json' } },
+      );
+      return response.json();
+    } catch (error) {
+      console.error('获取势力公告失败:', error);
+      throw error;
+    }
+  },
+
   /**
    * 设置主城（存卡）：首次免费；再次更换 500 银 + 24h 冷却；仅大城/中城、本势力占城。
    */
@@ -165,6 +179,23 @@ export const playerAPI = {
       },
     );
     return jsonFromApiResponse(response, '道路移动');
+  },
+
+  /**
+   * 口谕 👍👎 嘉奖：`reaction` 为 `up`（银两）或 `down`（声望）；服务端按 20 分钟槽幂等。
+   * @param {string} playerId
+   * @param {{ reaction: 'up' | 'down', scope?: 'casual' | 'active_war' }} body
+   */
+  async submitKingEdictFeedback(playerId, body) {
+    const response = await fetchWithTimeout(
+      `${API_CONFIG.BASE_URL}/players/${playerId}/king-edict-feedback`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      },
+    );
+    return jsonFromApiResponse(response, '口谕嘉奖');
   },
 
   /** 道路：战后解锁遭遇实例；`defenderWon` 由客户端战报结果传入 */
@@ -267,7 +298,7 @@ export const playerAPI = {
     return response.json();
   },
 
-  /** 朝政 · 朝贡：当日已上缴 / 剩余额度 */
+  /** 互动 · 朝贡：当日已上缴 / 剩余额度 */
   async getSanGongFuTributeStatus(playerId) {
     const response = await fetchWithTimeout(
       `${API_CONFIG.BASE_URL}/players/${playerId}/san-gong-fu/tribute-status`,
@@ -276,7 +307,7 @@ export const playerAPI = {
     return response.json();
   },
 
-  /** 朝政 · 朝贡：销毁所选军营池部队卡并发奖 */
+  /** 互动 · 朝贡：销毁所选军营池部队卡并发奖 */
   async submitSanGongFuTribute(playerId, instanceIds) {
     const response = await fetchWithTimeout(
       `${API_CONFIG.BASE_URL}/players/${playerId}/san-gong-fu/tribute`,
@@ -284,6 +315,59 @@ export const playerAPI = {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ instanceIds }),
+      },
+    );
+    return response.json();
+  },
+
+  /** 互动 · 封赏 · 俸禄：当日是否已领、国力档位、是否可领 */
+  async getSanGongFuStipendStatus(playerId) {
+    const response = await fetchWithTimeout(
+      `${API_CONFIG.BASE_URL}/players/${playerId}/san-gong-fu/stipend-status`,
+      { method: 'GET', headers: { 'Content-Type': 'application/json' } },
+    );
+    return response.json();
+  },
+
+  /** 互动 · 封赏 · 俸禄：领取当日银两与粮草（服务器日历日每账号 1 次） */
+  async claimSanGongFuStipend(playerId) {
+    const response = await fetchWithTimeout(
+      `${API_CONFIG.BASE_URL}/players/${playerId}/san-gong-fu/stipend-claim`,
+      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) },
+    );
+    return response.json();
+  },
+
+  /** 三公府 · 朝政：本势力攻方进行中的攻城类 PVP 战事列表（品阶 Lv≤3） */
+  async getSanGongFuPvpAttackingWars(playerId) {
+    const response = await fetchWithTimeout(
+      `${API_CONFIG.BASE_URL}/players/${playerId}/san-gong-fu/pvp-attacking-wars`,
+      { method: 'GET', headers: { 'Content-Type': 'application/json' } },
+    );
+    return response.json();
+  },
+
+  /** 三公府 · 朝政：主动结束一条攻方 siege 战事（结算统计 TODO） */
+  async cancelSanGongFuPvpAttackingWar(playerId, pvpWarId, body = {}) {
+    const response = await fetchWithTimeout(
+      `${API_CONFIG.BASE_URL}/players/${playerId}/san-gong-fu/pvp-attacking-wars/${encodeURIComponent(pvpWarId)}/cancel`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body || {}),
+      },
+    );
+    return response.json();
+  },
+
+  /** 三公府 · 朝政：结束本势力有参与的进行中中立城 PVE（`wars`），品阶门闸与 PVP 撤战一致 */
+  async cancelSanGongFuPveAttackingWar(playerId, warId, body = {}) {
+    const response = await fetchWithTimeout(
+      `${API_CONFIG.BASE_URL}/players/${playerId}/san-gong-fu/pve-attacking-wars/${encodeURIComponent(warId)}/cancel`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body || {}),
       },
     );
     return response.json();
@@ -738,5 +822,21 @@ export const playerAPI = {
       }
     );
     return response.json();
+  },
+
+  /**
+   * 大地图「攻城」滚屏：本人有参与的 **active PVE `wars`**（与 `wars_pvp` 共用 `player_events` 攻城次数）。
+   * @param {string} playerId
+   * @param {string} factionId
+   * @param {string} season
+   */
+  async getActivePveSiegeWarsMap(playerId, factionId, season) {
+    const qs = new URLSearchParams({
+      playerId: String(playerId || ''),
+      factionId: String(factionId || ''),
+      season: String(season || ''),
+    }).toString();
+    const response = await fetchWithTimeout(`${API_CONFIG.BASE_URL}/cities/active-pve-siege-wars?${qs}`);
+    return jsonFromApiResponse(response, '活跃 PVE 攻城');
   },
 };

@@ -15,11 +15,19 @@ const { checkAndApplyVeteran } = require('./veteranService');
  * @returns {Promise<Object>} 保存的战斗记录
  */
 async function saveBattle(battleData) {
+  // 17-2 §1.5：war_id（PVE）/ pvp_war_id（PVP）互斥，至多一个非空；
+  // 由调用方保证，但在写入处加防御性断言避免脏挂。
+  if (battleData.warId && battleData.pvpWarId) {
+    throw new Error(
+      `[battleService] war_id 与 pvp_war_id 不能同时非空（battleId=${battleData.battleId}）`,
+    );
+  }
   // 前端传入camelCase，转换为模型需要的snake_case
   const data = {
     battle_id: battleData.battleId,
     player_id: battleData.playerId,
     war_id: battleData.warId || null,
+    pvp_war_id: battleData.pvpWarId || null,
     battle_type: battleData.battleType,
     opponent_type: battleData.opponentType,
     opponent_id: battleData.opponentId || null,

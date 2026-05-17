@@ -1,8 +1,8 @@
 /**
 
- * 势力 Tab — 竖屏三子 Tab + 横屏四象限
+ * 势力 Tab — 竖屏四子 Tab + 横屏四象限（同一套分区，仅布局不同）
 
- * 「势力信息」象限已接 GET /api/players/:id/faction/overview
+ * 「势力信息」→ GET /api/players/:id/faction/overview；「公告」→ GET …/faction/bulletin
 
  */
 
@@ -21,22 +21,19 @@ import { usePlayerContext } from '@/contexts/PlayerContext';
 import { playerAPI } from '@/services/playerApi';
 
 import FactionInfoPanel from '@/components/game/faction/FactionInfoPanel';
+import FactionWarDynamicsSection from '@/components/game/faction/FactionWarDynamicsSection';
+import FactionBulletinSection from '@/components/game/faction/FactionBulletinSection';
 
 
 
 const SUB_TABS = [
-
   { id: 'factionInfo', label: '势力信息' },
-
   { id: 'dynamics', label: '势力动态' },
-
   { id: 'cities', label: '城市与长官' },
-
+  { id: 'bulletin', label: '公告' },
 ];
 
-
-
-const QUADRANT_BULLETIN_ID = 'bulletinSupply';
+const QUADRANT_BULLETIN_ID = 'bulletin';
 
 
 
@@ -65,6 +62,7 @@ export default function FactionTab({ onClose }) {
   const { player } = usePlayerContext();
 
   const playerId = player?.player_id;
+  const factionId = player?.faction_id || null;
 
   const [activeSubTabId, setActiveSubTabId] = useState('factionInfo');
 
@@ -138,10 +136,6 @@ export default function FactionTab({ onClose }) {
 
     () => ({
 
-      factionInfo: null,
-
-      dynamics: '战事/建造/公告等动态列表（占位）。',
-
       cities: '势力城市列表与长官入口（占位）；军团可放二级。',
 
     }),
@@ -152,71 +146,74 @@ export default function FactionTab({ onClose }) {
 
 
 
-  const factionInfoBody = (
+  const { quadrantCells, dynamicsBody } = useMemo(() => {
 
-    <FactionInfoPanel overview={overview} loading={overviewLoading} error={overviewError} />
+    const factionInfoBodyInner = (
 
-  );
+      <FactionInfoPanel overview={overview} loading={overviewLoading} error={overviewError} />
 
+    );
 
+    const dynamicsBodyInner = (
+      <div className="flex flex-col gap-3 text-left">
+        <FactionWarDynamicsSection factionId={factionId} />
+        <p className="text-xs leading-relaxed text-stone-500">
+          建造等动态（占位）；战事摘要见上。势力公告与横屏第四象限相同，请切至「公告」子 Tab。
+        </p>
+      </div>
+    );
 
-  const quadrantCells = useMemo(
+    return {
 
-    () => [
+      dynamicsBody: dynamicsBodyInner,
 
-      {
+      quadrantCells: [
 
-        id: 'factionInfo',
+        {
 
-        title: '势力信息',
+          id: 'factionInfo',
 
-        content: shellBlock(factionInfoBody),
+          title: '势力信息',
 
-      },
+          content: shellBlock(factionInfoBodyInner),
 
-      {
+        },
 
-        id: 'dynamics',
+        {
 
-        title: '势力动态与外交',
+          id: 'dynamics',
 
-        content: shellBlock(<p className="text-xs leading-relaxed">{portraitCopy.dynamics}</p>),
+          title: '势力动态与外交',
 
-      },
+          content: shellBlock(dynamicsBodyInner),
 
-      {
+        },
 
-        id: 'cities',
+        {
 
-        title: '城市与长官',
+          id: 'cities',
 
-        content: shellBlock(<p className="text-xs leading-relaxed">{portraitCopy.cities}</p>),
+          title: '城市与长官',
 
-      },
+          content: shellBlock(<p className="text-xs leading-relaxed">{portraitCopy.cities}</p>),
 
-      {
+        },
 
-        id: QUADRANT_BULLETIN_ID,
+        {
 
-        title: '公告 / 军需',
+          id: QUADRANT_BULLETIN_ID,
 
-        content: shellBlock(
+          title: '公告',
 
-          <p className="text-xs leading-relaxed">
+          content: shellBlock(<FactionBulletinSection playerId={playerId} />),
 
-            势力公告摘要、贡献军需入口等（占位）；与 `factions` / 12-2 对齐后接 API。
+        },
 
-          </p>,
+      ],
 
-        ),
+    };
 
-      },
-
-    ],
-
-    [portraitCopy.dynamics, portraitCopy.cities, overview, overviewLoading, overviewError],
-
-  );
+  }, [portraitCopy.cities, factionId, playerId, overview, overviewLoading, overviewError]);
 
 
 
@@ -264,20 +261,22 @@ export default function FactionTab({ onClose }) {
 
             {activeSubTabId === 'factionInfo' ? (
 
-              shellBlock(factionInfoBody)
-
-            ) : (
-
               shellBlock(
 
-                <p className="text-xs leading-relaxed text-stone-300">
-
-                  {portraitCopy[activeSubTabId] ?? portraitCopy.dynamics}
-
-                </p>,
+                <FactionInfoPanel overview={overview} loading={overviewLoading} error={overviewError} />,
 
               )
 
+            ) : activeSubTabId === 'dynamics' ? (
+              shellBlock(dynamicsBody)
+            ) : activeSubTabId === 'bulletin' ? (
+              shellBlock(<FactionBulletinSection playerId={playerId} />)
+            ) : (
+              shellBlock(
+                <p className="text-xs leading-relaxed text-stone-300">
+                  {portraitCopy[activeSubTabId] ?? portraitCopy.cities}
+                </p>,
+              )
             )}
 
           </div>

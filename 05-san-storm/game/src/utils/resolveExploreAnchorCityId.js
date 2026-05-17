@@ -64,7 +64,7 @@ export function resolveExploreAnchorCityIdFromPlayerRoad(player, citiesList) {
 }
 
 /**
- * 在「路点坐标 = 库内城心锚格」匹配失败时，用战略合并格 `cells` + 库 footprint（与 `resolveStrategicRecordedStandpointPx` 离路立点一致）
+ * 在「路点坐标 = 库内城心锚格」匹配失败时，用战略合并格 `cells` + 库 footprint（与 `resolveStrategicRecordedStandpointPx` 离路立点一致，**均无主城回退**）
  * 反查当前 `(road_x, road_y)` 落在哪座城的 POI **占地内**，得到 `city_id`。
  *
  * **产品规则（与事件系统一致）**：凡按城类型 / 具体城 `city_id` 匹配的 **`location`**（`{city_small}`、`{city_medium}`、`{city_major}` 等），
@@ -76,7 +76,7 @@ export function resolveExploreAnchorCityIdFromPlayerRoad(player, citiesList) {
  * 须用格网 + **`buildStrategicPoiFootprintFromDbCityRow`** 命中 footprint。
  *
  * 另一典型场景：`road_position` 恰与库内**关隘/据点**等行的 `position_x/y` 重合时，`resolveExploreAnchorCityIdFromPlayerRoad`
- * 会先命中该行；故须**优先**按合并格 `cells` 反查 POI（与 `resolveStrategicRecordedStandpointPx` 离路回退一致），再库 footprint，最后才路点锚格匹配。
+ * 会先命中该行；故须**优先**按合并格 `cells` 反查 POI（与 `resolveStrategicRecordedStandpointPx` 离路解析一致），再库 footprint，最后才路点锚格匹配。
  *
  * @param {object|null|undefined} player
  * @param {Array<object>|null|undefined} citiesList - 全量或郡内城行，用于 `countyCityRows` 缺省时的回退

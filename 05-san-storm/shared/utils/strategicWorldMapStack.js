@@ -11,6 +11,76 @@ export const STRATEGIC_COUNTY_MAP_ROWS = 40;
 export const SAN_1_STRATEGIC_VERTICAL_STACK_JUN_ORDER = ['san_1_jun_yingchuan', 'san_1_jun_runan'];
 
 /**
+ * 颍川郡合并画布 32×40 内：**大象限 C** 原 (16,20)，其内 **战役子块 C**（小象限 A3 / 右下 8×10）相对偏移 (8,10)，
+ * 即郡内 gx∈[24,31]、gy∈[30,39]（与 `campaignMapGenerator.QUAD_ORIGIN.C` 嵌在 `COUNTY_MAJOR_QUAD_ORIGIN.C` 内一致）。
+ * 口语「颍川 C3」划属汝南行政，**非**整个大象限 C（16×31, gy≥20）。
+ */
+const SAN1_YU_YINGCHUAN_FILE_C3_MIN_GX = 24;
+const SAN1_YU_YINGCHUAN_FILE_C3_MIN_GY = 30;
+const SAN1_YU_YINGCHUAN_FILE_C3_MAX_GX = 31;
+const SAN1_YU_YINGCHUAN_FILE_C3_MAX_GY = 39;
+
+/**
+ * S1 豫州战略格网：道路「郡界」着色等用的 **行政郡** id（非叠放文件来源）。
+ * - 世界行 `gy >= 40`：汝南合并带。
+ * - `gy < 40` 且格落在颍川文件 **C3**（大象限 C 内右下 8×10）：汝南。
+ * - 其余上半带：颍川。
+ *
+ * @param {number} gx
+ * @param {number} gy 世界行（叠放画布）
+ * @returns {'san_1_jun_yingchuan' | 'san_1_jun_runan'}
+ */
+export function san1YuStrategicAdminJunIdAtWorldCell(gx, gy) {
+  const gxi = Math.trunc(Number(gx));
+  const gyi = Math.trunc(Number(gy));
+  if (!Number.isFinite(gxi) || !Number.isFinite(gyi)) return 'san_1_jun_yingchuan';
+  if (gyi >= STRATEGIC_COUNTY_MAP_ROWS) return 'san_1_jun_runan';
+  if (
+    gxi >= SAN1_YU_YINGCHUAN_FILE_C3_MIN_GX &&
+    gxi <= SAN1_YU_YINGCHUAN_FILE_C3_MAX_GX &&
+    gyi >= SAN1_YU_YINGCHUAN_FILE_C3_MIN_GY &&
+    gyi <= SAN1_YU_YINGCHUAN_FILE_C3_MAX_GY
+  ) {
+    return 'san_1_jun_runan';
+  }
+  return 'san_1_jun_yingchuan';
+}
+
+/**
+ * S1 豫州叠图：行政郡可读的几何「接缝」折线（格网坐标，与道路 `viewBox` 一致）。
+ * - **叠带缝**：`y = 40` 上仅 `x ∈ [0,24]` 画横线（C3 正下亦为汝南，不画 24～32 段，避免误缝）。
+ * **C3 周界**（与颍川其余分界）：`x=24` 自 `y=40` 上至 `y=30`，再 `y=30` 至 `x=32`，再 `x=32` 下至 `y=40`（与叠带缝一笔相连，呈「┌」接横线状）。
+ * 单郡高度（无下叠）时：仅画 C3 矩形周界。
+ *
+ * @param {number} mapColumns
+ * @param {number} mapRows
+ * @returns {string} SVG path `d`，可能为空串
+ */
+export function buildSan1YuStrategicSeamGuidePathD(mapColumns, mapRows) {
+  const W = Math.max(0, Math.trunc(Number(mapColumns)) || 0);
+  const H = Math.max(0, Math.trunc(Number(mapRows)) || 0);
+  if (W < 2 || H < 2) return '';
+
+  const xL = SAN1_YU_YINGCHUAN_FILE_C3_MIN_GX;
+  const xR = Math.min(W, SAN1_YU_YINGCHUAN_FILE_C3_MAX_GX + 1);
+  const yT = SAN1_YU_YINGCHUAN_FILE_C3_MIN_GY;
+  const yB = STRATEGIC_COUNTY_MAP_ROWS;
+  const pieces = [];
+
+  if (H > STRATEGIC_COUNTY_MAP_ROWS && W > 0 && xL <= W && xR > xL && yT < yB) {
+    const xSeamEnd = Math.min(W, xL);
+    pieces.push(`M 0 ${yB} L ${xSeamEnd} ${yB} L ${xL} ${yT} L ${xR} ${yT} L ${xR} ${yB}`);
+  } else if (W > xL && H > yT && xR > xL) {
+    const yBB = Math.min(H, yB);
+    if (yBB > yT) {
+      pieces.push(`M ${xL} ${yT} L ${xR} ${yT} L ${xR} ${yBB} L ${xL} ${yBB} L ${xL} ${yT}`);
+    }
+  }
+
+  return pieces.join(' ');
+}
+
+/**
  * @param {string} junId
  * @returns {number} 该郡在垂直叠放中的世界行起点（向下为正；颍川 0、汝南 40）
  */

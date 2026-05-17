@@ -27,8 +27,13 @@ const { getAvatarCategories } = require('../services/avatarService');
 const mainCityBarracksStorageService = require('../services/mainCityBarracksStorageService');
 const positionPromotionService = require('../services/positionPromotionService');
 const factionOverviewService = require('../services/factionOverviewService');
+const factionBulletinService = require('../services/factionBulletinService');
 const sanGongTributeService = require('../services/sanGongTributeService');
+const sanGongStipendService = require('../services/sanGongStipendService');
 const roadEncounterService = require('../services/roadEncounterService');
+const pvpWarService = require('../services/pvpWarService');
+const cityService = require('../services/cityService');
+const kingEdictFeedbackService = require('../services/kingEdictFeedbackService');
 
 const router = express.Router();
 
@@ -206,10 +211,38 @@ router.get('/:playerId/faction/overview', async (req, res, next) => {
         citiesSmallByZhou: d.citiesSmallByZhou,
         citiesGateByZhou: d.citiesGateByZhou,
         citiesFortByZhou: d.citiesFortByZhou,
+        playersReal: d.playersReal,
+        playersNpc: d.playersNpc,
+        legions: d.legions,
+        citiesList: d.citiesList,
       },
     });
   } catch (error) {
     return next(wrap500(error, '获取势力信息失败'));
+  }
+});
+
+/**
+ * GET /api/players/:playerId/faction/bulletin?limit=50
+ * 势力 Tab「公告」象限：按玩家所属势力拉取战事/系统流水（新在前）。
+ */
+router.get('/:playerId/faction/bulletin', async (req, res, next) => {
+  try {
+    const { playerId } = req.params;
+    const lim = Math.min(100, Math.max(1, Number(req.query.limit) || 50));
+    const row = await Player.getById(playerId);
+    if (!row) {
+      return res.status(404).json({ success: false, error: '玩家不存在' });
+    }
+    const factionId = row.faction_id || null;
+    if (!factionId) {
+      return res.json({ success: true, data: { entries: [] } });
+    }
+    const entries = await factionBulletinService.listForFaction(factionId, { limit: lim });
+    res.set('Cache-Control', 'no-store');
+    res.json({ success: true, data: { entries, factionId } });
+  } catch (error) {
+    return next(wrap500(error, '获取势力公告失败'));
   }
 });
 
@@ -583,6 +616,27 @@ router.post('/:playerId/san-gong-fu/promote', async (req, res, next) => {
 });
 
 /**
+ * POST /api/players/:playerId/king-edict-feedback
+ * body: { reaction: 'up' | 'down', scope?: 'casual' | 'active_war' } — 口谕 👍/👎；`scope` 缺省为 casual；与主动战事口谕分轨幂等。
+ */
+router.post('/:playerId/king-edict-feedback', async (req, res, next) => {
+  try {
+    const { playerId } = req.params;
+    const reaction = req.body?.reaction;
+    const scope = req.body?.scope === 'active_war' ? 'active_war' : 'casual';
+    const out = await kingEdictFeedbackService.submitKingEdictFeedback(playerId, reaction, {
+      scope,
+    });
+    if (!out.ok) {
+      return res.status(out.status).json({ success: false, error: out.error });
+    }
+    res.json({ success: true, data: out.data });
+  } catch (error) {
+    return next(wrap500(error, '口谕嘉奖失败'));
+  }
+});
+
+/**
  * GET /api/players/:playerId/san-gong-fu/tribute-status
  * 朝政 · 朝贡：当日已上缴张数 / 剩余额度
  */
@@ -610,6 +664,99 @@ router.post('/:playerId/san-gong-fu/tribute', async (req, res, next) => {
     res.json({ success: true, data: out });
   } catch (error) {
     return next(wrap500(error, '朝贡失败'));
+  }
+});
+
+/**
+ * GET /api/players/:playerId/san-gong-fu/stipend-status
+ * 互动 · 封赏 · 俸禄：当日是否已领、国力档位、是否可领
+ */
+router.get('/:playerId/san-gong-fu/stipend-status', async (req, res, next) => {
+  try {
+    const { playerId } = req.params;
+    const data = await sanGongStipendService.getStipendStatus(playerId);
+    res.json({ success: true, data });
+  } catch (error) {
+    return next(wrap500(error, '俸禄状态查询失败'));
+  }
+});
+
+/**
+ * POST /api/players/:playerId/san-gong-fu/stipend-claim
+ * 领取当日俸禄（服务器日历日每账号最多 1 次；银两/粮草由国力档位与随机区间结算）
+ */
+router.post('/:playerId/san-gong-fu/stipend-claim', async (req, res, next) => {
+  try {
+    const { playerId } = req.params;
+    const out = await sanGongStipendService.claimStipend(playerId);
+    if (!out.ok) {
+      return res.status(out.status).json({ success: false, error: out.error });
+    }
+    res.json({ success: true, data: out });
+  } catch (error) {
+    return next(wrap500(error, '领取俸禄失败'));
+  }
+});
+
+/**
+ * GET /api/players/:playerId/san-gong-fu/pvp-attacking-wars
+ * 朝政 · 势力战事：本势力作为攻方、进行中的攻城类（siege）PVP 战事列表（品阶 Lv≤3）。
+ */
+router.get('/:playerId/san-gong-fu/pvp-attacking-wars', async (req, res, next) => {
+  try {
+    const { playerId } = req.params;
+    const data = await pvpWarService.listSanGongAttackingSiegeWarsForPlayer(playerId);
+    res.json({ success: true, data });
+  } catch (error) {
+    const code = Number(error.statusCode);
+    if (code >= 400 && code < 500) {
+      return res.status(code).json({ success: false, error: error.message });
+    }
+    return next(wrap500(error, '查询势力战事失败'));
+  }
+});
+
+/**
+ * POST /api/players/:playerId/san-gong-fu/pvp-attacking-wars/:pvpWarId/cancel
+ * body: { reason?: string } — 攻方朝政入口主动撤战（结算统计 TODO，见 pvpWarService.cancelPvpWar）。
+ */
+router.post('/:playerId/san-gong-fu/pvp-attacking-wars/:pvpWarId/cancel', async (req, res, next) => {
+  try {
+    const { playerId, pvpWarId } = req.params;
+    const data = await pvpWarService.cancelAttackingSiegeWarViaSanGongChaoZheng(
+      playerId,
+      pvpWarId,
+      req.body || {},
+    );
+    res.json({ success: true, data });
+  } catch (error) {
+    const code = Number(error.statusCode);
+    if (code >= 400 && code < 500) {
+      return res.status(code).json({ success: false, error: error.message });
+    }
+    return next(wrap500(error, '结束势力战事失败'));
+  }
+});
+
+/**
+ * POST /api/players/:playerId/san-gong-fu/pve-attacking-wars/:warId/cancel
+ * body: { reason?: string } — 朝政入口结束本势力有参与的 **进行中** 中立城 PVE（`wars`）。
+ */
+router.post('/:playerId/san-gong-fu/pve-attacking-wars/:warId/cancel', async (req, res, next) => {
+  try {
+    const { playerId, warId } = req.params;
+    const data = await cityService.cancelActivePveSiegeWarViaSanGongChaoZheng(
+      playerId,
+      warId,
+      req.body || {},
+    );
+    res.json({ success: true, data });
+  } catch (error) {
+    const code = Number(error.statusCode);
+    if (code >= 400 && code < 500) {
+      return res.status(code).json({ success: false, error: error.message });
+    }
+    return next(wrap500(error, '结束中立城攻城战事失败'));
   }
 });
 

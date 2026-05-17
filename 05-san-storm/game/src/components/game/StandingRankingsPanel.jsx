@@ -1,7 +1,7 @@
 /**
  * 常驻排行榜面板（总体 / 战役）
  *
- * @description 入口在左下角、通信面板「聊天」按钮上方；与活动榜 RankingPanel 分离。
+ * @description 入口在左下角、**口谕（`KingEdictPanel`，`bottom-44`）** 下方、通信面板「聊天」按钮上方；与活动榜 RankingPanel 分离。
  * 配色与 Tab 区固定高度与 CommPanel（战报/传书/聊天）对齐，避免透明难读与切换跳动。
  * @see docs/20-data-layer/27-2-RANKING_PANEL.md
  * 视觉与 CommPanel（战报/传书/聊天）一致，见 18-1-BATTLE_REPORT_SYSTEM.md / 32-1-GAME_UI_DESIGN §1.7

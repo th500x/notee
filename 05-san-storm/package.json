@@ -17,7 +17,9 @@
     "install:game": "cd game && npm install",
     "install:backend": "cd backend && npm install",
     "install:all": "npm run install:wiki && npm run install:game && npm run install:backend",
-    "init:db": "cd backend && npm run init-db"
+    "init:db": "cd backend && npm run init-db",
+    "test:automated": "node scripts/run-automated-checks.cjs",
+    "test:automated:quick": "node scripts/run-automated-checks.cjs --quick --no-backend"
   },
   "dependencies": {
     "prop-types": "^15.8.1",

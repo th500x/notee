@@ -31,7 +31,7 @@ function wsTerrainFallbackClass(terrain) {
  * 浏览模式且格点属于 **`buildRoadPassableKeySetForMarch`** 可通行道路时：键鼠 **`click` `detail===2`**、触摸 **短间隔两次 `touchend`** 可请求进入行军模式（与本人叠层点「行军」等价；非道路格无效）。
  * 瓦片素材路径复用 `campaignMapVisualAssets`（与 BattleTile 同源 PNG）。
  * @param {object|null} [cityRow] - 锚点格 `cityId` 对应 `cities` 行（ fort 用 `build_status` 选空置/建成图）
- * @param {{ anchorR: number, anchorC: number, anchorCell: object, footprintKind?: 'city_2x2'|'bandit_2x1'|'bandit_1x2' }|null} [strategicCover] - 本格是否属于某多格战略 POI 的锚点或延伸格
+ * @param {{ anchorR: number, anchorC: number, anchorCell: object, footprintKind?: 'city_2x2'|'bandit_2x1'|'bandit_1x2'|'pvp_camp_2x1'|'pvp_camp_1x2' }|null} [strategicCover] - 本格是否属于某多格战略 POI 的锚点或延伸格
  */
 function WorldStrategicMapTile({
   cell,
@@ -73,6 +73,7 @@ function WorldStrategicMapTile({
   const footprintKind = strategicCover?.footprintKind ?? null;
   const isCityFootprint2x2 = footprintKind === 'city_2x2';
   const isBanditDomino = footprintKind === 'bandit_2x1' || footprintKind === 'bandit_1x2';
+  const isPvpCampDomino = footprintKind === 'pvp_camp_2x1' || footprintKind === 'pvp_camp_1x2';
   const hasMultiCellFootprint = !!(strategicCover && footprintKind);
 
   const anchor = strategicCover?.anchorCell;
@@ -85,8 +86,8 @@ function WorldStrategicMapTile({
   const objectSpanClass = useMemo(() => {
     if (!hasMultiCellFootprint || !isAnchorTile) return '';
     if (footprintKind === 'city_2x2') return 'ws-object-span-2';
-    if (footprintKind === 'bandit_2x1') return 'ws-object-span-2x1';
-    if (footprintKind === 'bandit_1x2') return 'ws-object-span-1x2';
+    if (footprintKind === 'bandit_2x1' || footprintKind === 'pvp_camp_2x1') return 'ws-object-span-2x1';
+    if (footprintKind === 'bandit_1x2' || footprintKind === 'pvp_camp_1x2') return 'ws-object-span-1x2';
     return '';
   }, [hasMultiCellFootprint, isAnchorTile, footprintKind]);
 
@@ -107,6 +108,7 @@ function WorldStrategicMapTile({
   const showSpanningStrategicObject = hasMultiCellFootprint && isAnchorTile && !!objSrc;
   /** 与 `StrategicMapSelfPawn` 道路「来战」同源：`ws-map-self-pawn-intercept-pulse` */
   const banditInterceptGlow = isBanditDomino && showSpanningStrategicObject;
+  const dominoLikeLabel = isBanditDomino || isPvpCampDomino;
 
   const fid = cityRow?.faction_id ?? cityRow?.factionId;
   const factionHex = fid ? getFactionRepresentativeColor(fid) : null;
@@ -296,9 +298,9 @@ function WorldStrategicMapTile({
               showSpanningStrategicObject
                 ? footprintKind === 'city_2x2'
                   ? ' ws-obj-fallback-2x2'
-                  : footprintKind === 'bandit_2x1'
+                  : footprintKind === 'bandit_2x1' || footprintKind === 'pvp_camp_2x1'
                     ? ' ws-obj-fallback-2x1'
-                    : footprintKind === 'bandit_1x2'
+                    : footprintKind === 'bandit_1x2' || footprintKind === 'pvp_camp_1x2'
                       ? ' ws-obj-fallback-1x2'
                       : ''
                 : ''
@@ -316,7 +318,9 @@ function WorldStrategicMapTile({
                     ? '据'
                     : isBanditDomino
                       ? '寨'
-                      : '·'}
+                      : isPvpCampDomino
+                        ? '营'
+                        : '·'}
           </div>
         ))}
       {isCityFootprint2x2 &&
@@ -345,7 +349,7 @@ function WorldStrategicMapTile({
             </div>
           ) : null}
           <div
-            className={`ws-strategic-label-name${isBanditDomino ? ' ws-strategic-label-name--bandit-primary' : ''}`}
+            className={`ws-strategic-label-name${dominoLikeLabel ? ' ws-strategic-label-name--bandit-primary' : ''}`}
             style={cityLabelColorStyle}
           >
             {labelLines.line2}

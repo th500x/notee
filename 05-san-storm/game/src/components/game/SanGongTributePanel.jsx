@@ -1,5 +1,5 @@
 /**
- * 三公府 · 朝政 · 朝贡：与驻军所「军营」相同的部队池展示与缩略卡样式；每日最多上缴 5 张。
+ * 三公府 · 互动 · 朝贡：与驻军所「军营」相同的部队池展示与缩略卡样式；每日最多上缴 5 张。
  */
 
 import { useState, useEffect, useCallback, useMemo } from 'react';

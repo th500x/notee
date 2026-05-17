@@ -96,9 +96,45 @@ async function loadGameTimeForPlayer(playerId) {
   }
 }
 
+/**
+ * 取势力内任意一员的 `serverId` 推算游戏历（与 `loadGameTimeForPlayer` 同源 config_servers）。
+ * AI 君主主动开战等无 proposer 玩家时使用。
+ *
+ * @param {string} factionId
+ * @returns {Promise<object|null>}
+ */
+async function loadGameTimeForFaction(factionId) {
+  const fid = String(factionId || '').trim();
+  if (!fid) return null;
+  try {
+    const [rows] = await pool.query(
+      `SELECT a.serverId AS serverId
+       FROM players p
+       INNER JOIN accounts a ON a.id = p.player_id
+       WHERE p.faction_id = ?
+       LIMIT 1`,
+      [fid],
+    );
+    const serverId = rows[0]?.serverId;
+    if (!serverId) return null;
+    const [srvRows] = await pool.query(
+      `SELECT server_id, opened_at, season_start_time,
+              game_time_start_year, game_time_start_month, game_time_start_day,
+              game_time_real_hours_per_game_day
+       FROM config_servers WHERE server_id = ?`,
+      [serverId],
+    );
+    return computeGameTimeFromServerRow(srvRows[0]);
+  } catch (e) {
+    console.warn('[gameTimeService] loadGameTimeForFaction:', e.message);
+    return null;
+  }
+}
+
 module.exports = {
   DAYS_PER_GAME_MONTH,
   advanceGameCalendar,
   computeGameTimeFromServerRow,
   loadGameTimeForPlayer,
+  loadGameTimeForFaction,
 };

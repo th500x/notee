@@ -1,7 +1,7 @@
 /**
  * 卡池入口单键（将领 / 部队）及同系样式的其它入口（如三公府·封赏·俸禄占位）。
  *
- * 原位于大地图顶栏 `CardPoolEntry` 内；顶栏入口已迁至 **三公府 → 朝政 → 封赏**，本组件为唯一按钮壳实现。
+ * 原位于大地图顶栏 `CardPoolEntry` 内；顶栏入口已迁至 **三公府 → 互动 → 封赏**，本组件为唯一按钮壳实现。
  * 外层若需不挡地图点击，由父级包 `pointer-events-none`，本按钮根节点须 `pointer-events-auto`（见 `SanGongFuFengShangPanel`）。
  */
 
@@ -21,6 +21,7 @@ export function CardPoolPoolButton({
   onClick,
   tooltip,
   drawerOpen = false,
+  disabled = false,
 }) {
   const [showTip, setShowTip] = useState(false);
   const longTimer = useRef(null);
@@ -61,8 +62,11 @@ export function CardPoolPoolButton({
     >
       <button
         type="button"
+        disabled={disabled}
         onClick={onClick}
-        className="relative h-[72px] w-[100px] overflow-hidden rounded-xl border-2 border-amber-400/70 bg-gradient-to-br from-amber-900/90 via-yellow-800/80 to-amber-900/90 shadow-lg shadow-amber-500/30 transition-all hover:border-amber-300 hover:shadow-amber-400/50 active:scale-95"
+        className={`relative h-[72px] w-[100px] overflow-hidden rounded-xl border-2 border-amber-400/70 bg-gradient-to-br from-amber-900/90 via-yellow-800/80 to-amber-900/90 shadow-lg shadow-amber-500/30 transition-all hover:border-amber-300 hover:shadow-amber-400/50 active:scale-95 ${
+          disabled ? 'opacity-55 cursor-not-allowed' : ''
+        }`}
       >
         <div className="absolute inset-0 animate-shimmer bg-gradient-to-r from-transparent via-amber-300/20 to-transparent" />
         <div className="relative flex h-full flex-col items-center justify-center">

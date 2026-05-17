@@ -9,6 +9,12 @@ const { pool } = require('../database/connection');
 
 require('dotenv').config({ path: path.join(__dirname, '../.env') });
 
+/** 仅 RENAME：源表不存在时跳过（新库或未走过旧表名） */
+const MIGRATION_FILES_SKIP_NO_SUCH_TABLE = new Set([
+  'rename-faction-bulletin-entries-to-faction-bulletins.sql',
+  'rename-temp-character-ranking-snapshots-to-temp-character-ranking.sql',
+]);
+
 /** 含 SET/PREPARE/EXECUTE 的多句迁移须 multipleStatements（pool.query 默认仅执行首句） */
 const MIGRATION_FILES_NEED_MULTIPLE_STATEMENTS = new Set([
   'cities-drop-fk-parent-city.sql',
@@ -58,6 +64,7 @@ const MIGRATION_FILES = [
   'player-cards-add-main-city-barracks-storage.sql',
   'player-cards-drop-barracks-sort.sql',
   'player-events-add-san-gong-tribute-daily.sql',
+  'player-events-add-san-gong-stipend-claim-date.sql',
   'create-road-encounters.sql',
   'add-players-road-state.sql',
   'add-players-road-client-notice.sql',
@@ -70,6 +77,11 @@ const MIGRATION_FILES = [
   'add-player-progress-bandit-progress.sql',
   'create-bandits-table.sql',
   'alter-battles-add-pve-bandit-type.sql',
+  'create-wars-pvp-table.sql',
+  'alter-battles-add-pvp-war-id.sql',
+  'rename-faction-bulletin-entries-to-faction-bulletins.sql',
+  'create-faction-bulletins.sql',
+  'rename-temp-character-ranking-snapshots-to-temp-character-ranking.sql',
 ];
 
 function stripSqlComments(sql) {
@@ -95,6 +107,11 @@ function stripSqlComments(sql) {
       console.log(`OK: ${file}`);
     } catch (e) {
       if (
+        MIGRATION_FILES_SKIP_NO_SUCH_TABLE.has(file) &&
+        (e.code === 'ER_NO_SUCH_TABLE' || e.errno === 1146)
+      ) {
+        console.log(`SKIP (no source table): ${file}`);
+      } else if (
         e.code === 'ER_DUP_FIELDNAME' ||
         e.code === 'ER_TABLE_EXISTS_ERROR' ||
         e.code === 'ER_CANT_DROP_FIELD_OR_KEY' ||

@@ -76,8 +76,8 @@ router.get('/online-defenders/:cityId', async (req, res, next) => {
  */
 router.post('/challenge', async (req, res, next) => {
   try {
-    const { warId, cityId, attackerId, attackerFaction, defenderId, defenderGarrisonSlot: slotBody } = req.body;
-    if (!warId || !cityId || !attackerId || !defenderId) {
+    const { warId, pvpWarId, cityId, attackerId, attackerFaction, defenderId, defenderGarrisonSlot: slotBody } = req.body;
+    if ((!warId && !pvpWarId) || !cityId || !attackerId || !defenderId) {
       return res.status(400).json({ success: false, error: '缺少必要参数' });
     }
     if (!assertSelf(req, res, attackerId, 'attackerId')) return;
@@ -91,7 +91,7 @@ router.post('/challenge', async (req, res, next) => {
     const defenderIsInGame = await isPlayerRecentlyActive(defenderId, DEFAULT_ONLINE_MS);
 
     const result = pvpService.createChallenge({
-      warId, cityId, attackerId, attackerFaction,
+      warId, pvpWarId, cityId, attackerId, attackerFaction,
       defenderId, defenderGarrisonSlot,
       defenderIsInGame,
     });

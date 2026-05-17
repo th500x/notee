@@ -8,6 +8,7 @@
  * - 各维：`avg = (Σ 各城该维) / n`，**势力标量** `total = avg * (1 + 0.05 * n)`（非简单 SUM）。
  * 聚合 SQL 只用 `cities` 单表，避免对 config 表 JOIN 后重复计城。
  * **「规模」城市数**：`status='owned'` 的 **全部 `city_type` 行数**（含关隘/据点），与公式 **`n` 分开**。
+ * **列表字段**（供势力信息 UI 弹层）：`playersReal` / `playersNpc`（`[官职]名`，按 **品阶 `position_level` 升序** 即高→低，同阶按 **`config_positions.position_rank`**、角色名）；`legions` / `citiesList`（与四项计数同源）。
  */
 
 const { pool } = require('../database/connection');
@@ -85,17 +86,22 @@ async function getFactionOverviewForPlayer(playerId) {
         citiesSmallByZhou: [],
         citiesGateByZhou: [],
         citiesFortByZhou: [],
+        playersReal: [],
+        playersNpc: [],
+        legions: [],
+        citiesList: [],
       },
     };
   }
 
   const [fRows] = await pool.query(
-    `SELECT id, faction_name, reserve_silver, reserve_food,
+    `SELECT id, season, faction_name, reserve_silver, reserve_food,
             COALESCE(player_count, 0) AS player_count
      FROM factions WHERE id = ? LIMIT 1`,
     [factionId]
   );
   const f = fRows[0] || {};
+  const factionSeason = String(f.season || 'san_1').trim() || 'san_1';
 
   let monarchDisplayName = null;
   try {
@@ -147,15 +153,70 @@ async function getFactionOverviewForPlayer(playerId) {
   const playerCountReal = Number(countRows[0]?.realCount) || 0;
   const playerCountNpc = Number(countRows[0]?.aiCount) || 0;
 
+  const [realPlayerRows] = await pool.query(
+    `SELECT p.player_id AS playerId, p.character_name AS characterName,
+            COALESCE(NULLIF(TRIM(p.current_position_name), ''), cp.position_name) AS positionName,
+            COALESCE(p.position_level, cp.position_level) AS positionLevel
+     FROM players p
+     INNER JOIN accounts a ON a.id = p.player_id
+     LEFT JOIN config_positions cp ON cp.position_id = p.current_position_id AND cp.season = ?
+     WHERE p.faction_id = ? AND p.player_id <> 'sys1' AND a.account_type = 'real'
+     ORDER BY COALESCE(COALESCE(p.position_level, cp.position_level), 999) ASC,
+              COALESCE(cp.position_rank, 999999) ASC,
+              p.character_name`,
+    [factionSeason, factionId],
+  );
+  const playersReal = (realPlayerRows || []).map((r) => ({
+    playerId: r.playerId,
+    characterName: r.characterName || r.playerId,
+    positionName: r.positionName || null,
+  }));
+
+  const [npcPlayerRows] = await pool.query(
+    `SELECT p.player_id AS playerId, p.character_name AS characterName,
+            COALESCE(NULLIF(TRIM(p.current_position_name), ''), cp.position_name) AS positionName,
+            COALESCE(p.position_level, cp.position_level) AS positionLevel
+     FROM players p
+     INNER JOIN accounts a ON a.id = p.player_id
+     LEFT JOIN config_positions cp ON cp.position_id = p.current_position_id AND cp.season = ?
+     WHERE p.faction_id = ? AND p.player_id <> 'sys1' AND a.account_type = 'ai'
+     ORDER BY COALESCE(COALESCE(p.position_level, cp.position_level), 999) ASC,
+              COALESCE(cp.position_rank, 999999) ASC,
+              p.character_name`,
+    [factionSeason, factionId],
+  );
+  const playersNpc = (npcPlayerRows || []).map((r) => ({
+    playerId: r.playerId,
+    characterName: r.characterName || r.playerId,
+    positionName: r.positionName || null,
+  }));
+
   let legionCount = 0;
+  let legions = [];
   try {
     const [legionRows] = await pool.query(
       "SELECT COUNT(*) AS c FROM legions WHERE faction_id = ? AND status = 'active'",
       [factionId]
     );
     legionCount = Number(legionRows[0]?.c) || 0;
+    const [legionListRows] = await pool.query(
+      `SELECT l.legion_id AS legionId, l.legion_name AS legionName, l.member_count AS memberCount,
+              pc.character_name AS commanderName
+       FROM legions l
+       LEFT JOIN players pc ON pc.player_id = l.commander_id
+       WHERE l.faction_id = ? AND l.status = 'active'
+       ORDER BY l.legion_name`,
+      [factionId],
+    );
+    legions = (legionListRows || []).map((r) => ({
+      legionId: r.legionId,
+      legionName: r.legionName || r.legionId,
+      memberCount: Number(r.memberCount) || 0,
+      commanderName: r.commanderName || null,
+    }));
   } catch (_) {
     legionCount = 0;
+    legions = [];
   }
 
   const typePh = CITY_TYPES_FOR_FACTION_FIVE_STATS.map(() => '?').join(', ');
@@ -227,6 +288,20 @@ async function getFactionOverviewForPlayer(playerId) {
   const citiesGateByZhou = sortZhouCounts(gateByZhou);
   const citiesFortByZhou = sortZhouCounts(fortByZhou);
 
+  const citiesList = Array.from(cityRowById.values())
+    .map((c) => ({
+      cityId: c.city_id,
+      cityName: c.city_name || c.city_id,
+      cityType: c.city_type,
+      zhouName: c.zhouName || null,
+      junName: c.junName || null,
+    }))
+    .sort((a, b) => {
+      const ja = String(a.junName || a.zhouName || '').localeCompare(String(b.junName || b.zhouName || ''), 'zh-Hans-CN');
+      if (ja !== 0) return ja;
+      return String(a.cityName || '').localeCompare(String(b.cityName || ''), 'zh-Hans-CN');
+    });
+
   const totals = computeFactionFiveScalarsFromSums(
     {
       sum_population: aggRow.sum_population,
@@ -257,6 +332,10 @@ async function getFactionOverviewForPlayer(playerId) {
       citiesSmallByZhou,
       citiesGateByZhou,
       citiesFortByZhou,
+      playersReal,
+      playersNpc,
+      legions,
+      citiesList,
     },
   };
 }

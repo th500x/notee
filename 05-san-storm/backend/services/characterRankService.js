@@ -12,7 +12,7 @@ const BUCKETS = {
   mainChar2: 'main:character2',
 };
 
-/** 与前端 GarrisonStatsPanel 一致：短 bucket 段，避免 temp_character_ranking_snapshots.bucket VARCHAR(48) 溢出 */
+/** 与前端 GarrisonStatsPanel 一致：短 bucket 段，避免 temp_character_ranking.bucket VARCHAR(48) 溢出 */
 function garrisonBucketCitySeg(cityId) {
   const s = String(cityId || '');
   let h = 2166136261 >>> 0;
@@ -141,7 +141,7 @@ async function loadGarrisonCharacterBase(poolConn, instanceId, playerId) {
 
 async function upsertSnapshotRow(conn, playerId, serverId, bucket, tuple) {
   await conn.query(
-    `INSERT INTO temp_character_ranking_snapshots
+    `INSERT INTO temp_character_ranking
      (player_id, server_id, bucket, ranking_score, luck, combat, courage, command, intelligence, politics, charm)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON DUPLICATE KEY UPDATE
@@ -184,7 +184,7 @@ async function refreshSnapshotsForPlayer(playerId) {
     const basePlayer = playerRowToDisplayBase(pRow);
 
     const conn = pool;
-    await conn.query('DELETE FROM temp_character_ranking_snapshots WHERE player_id = ?', [playerId]);
+    await conn.query('DELETE FROM temp_character_ranking WHERE player_id = ?', [playerId]);
 
     if (basePlayer) {
       const eff = mergeBaseAndBonusDisplay(basePlayer, bonusMain.player || {});
@@ -227,7 +227,7 @@ async function refreshSnapshotsForPlayer(playerId) {
     return { ok: true, serverId };
   } catch (e) {
     if (e.code === 'ER_NO_SUCH_TABLE') {
-      console.warn('[CharacterRank] temp_character_ranking_snapshots 未创建，请执行 migrations/create-temp-character-ranking-snapshots.sql');
+      console.warn('[CharacterRank] temp_character_ranking 未创建，请执行 migrations/create-temp-character-ranking.sql');
       return { ok: false, error: 'no_table' };
     }
     throw e;
@@ -247,13 +247,13 @@ async function getCharacterRankForBucket(playerId, bucket) {
 
   const [mine] = await pool.query(
     `SELECT ranking_score, luck, combat, courage, command, intelligence, politics, charm
-     FROM temp_character_ranking_snapshots
+     FROM temp_character_ranking
      WHERE player_id = ? AND bucket = ?`,
     [playerId, bucket]
   );
   if (!mine.length) {
     const [[{ total = 0 } = {}]] = await pool.query(
-      `SELECT COUNT(*) AS total FROM temp_character_ranking_snapshots WHERE server_id = ? AND bucket = ?`,
+      `SELECT COUNT(*) AS total FROM temp_character_ranking WHERE server_id = ? AND bucket = ?`,
       [serverId, bucket]
     );
     return {
@@ -268,12 +268,12 @@ async function getCharacterRankForBucket(playerId, bucket) {
 
   const m = mine[0];
   const [[{ total = 0 } = {}]] = await pool.query(
-    `SELECT COUNT(*) AS total FROM temp_character_ranking_snapshots WHERE server_id = ? AND bucket = ?`,
+    `SELECT COUNT(*) AS total FROM temp_character_ranking WHERE server_id = ? AND bucket = ?`,
     [serverId, bucket]
   );
 
   const [higherRows] = await pool.query(
-    `SELECT COUNT(*) AS c FROM temp_character_ranking_snapshots t
+    `SELECT COUNT(*) AS c FROM temp_character_ranking t
      WHERE t.server_id = ? AND t.bucket = ?
      AND (t.ranking_score, t.luck, t.combat, t.courage, t.command, t.intelligence, t.politics, t.charm)
      > (?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -306,7 +306,7 @@ async function getCharacterRankForBucket(playerId, bucket) {
 async function deleteExpiredSnapshots() {
   try {
     const [r] = await pool.query(
-      `DELETE FROM temp_character_ranking_snapshots WHERE updated_at < DATE_SUB(NOW(), INTERVAL 14 DAY)`
+      `DELETE FROM temp_character_ranking WHERE updated_at < DATE_SUB(NOW(), INTERVAL 14 DAY)`
     );
     return { affectedRows: r.affectedRows || 0 };
   } catch (e) {

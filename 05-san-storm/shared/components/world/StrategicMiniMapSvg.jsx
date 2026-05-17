@@ -1,0 +1,216 @@
+/**
+ * 战略缩略图：单 SVG、viewBox 与大地图格坐标一致（性能优先，无 per-tile DOM）。
+ * 仅 props 驱动，不依赖 PlayerContext（可测 / 可文档化）。
+ */
+
+import { memo } from 'react';
+
+/**
+ * @typedef {{ cityId: string, x: number, y: number, w: number, h: number, fill: string, stroke?: string }} StrategicMiniMapCityRect
+ */
+
+function findCityRect(cityRects, cityId) {
+  if (cityId == null || cityId === '') return null;
+  return cityRects.find((c) => String(c.cityId) === String(cityId)) ?? null;
+}
+
+/** 最近 3 敌对 / 最近 3 中立：格心叠「可」字，补描边环辨识度 */
+function proximityCanLabel(cityRects, cityId) {
+  const r = findCityRect(cityRects, cityId);
+  if (!r) return null;
+  const fs = Math.max(0.42, Math.min(r.w, r.h) * 0.55);
+  const sw = Math.max(0.035, fs * 0.09);
+  return (
+    <text
+      key={`ph-can-${cityId}`}
+      x={r.x + r.w / 2}
+      y={r.y + r.h / 2}
+      textAnchor="middle"
+      dominantBaseline="central"
+      fill="rgba(254,252,232,0.98)"
+      stroke="rgba(28,25,23,0.9)"
+      strokeWidth={sw}
+      paintOrder="stroke fill"
+      fontSize={fs}
+      fontWeight="700"
+      fontFamily="ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif"
+      style={{ pointerEvents: 'none' }}
+    >
+      可
+    </text>
+  );
+}
+
+/** 软/硬描边环；`layer`：under 在城块下，over 在城块上 */
+function proximityHighlightRing(cityRects, cityId, kind, layer) {
+  const r = findCityRect(cityRects, cityId);
+  if (!r) return null;
+  const hostile = kind === 'hostile';
+  if (layer === 'under') {
+    const stroke = hostile ? 'rgba(248,113,113,0.22)' : 'rgba(125,211,252,0.32)';
+    const pad = 0.32;
+    return (
+      <rect
+        key={`ph-soft-${kind}-${cityId}`}
+        x={r.x - pad}
+        y={r.y - pad}
+        width={r.w + pad * 2}
+        height={r.h + pad * 2}
+        rx={0.34}
+        ry={0.34}
+        fill="none"
+        stroke={stroke}
+        strokeWidth={0.48}
+        style={{ pointerEvents: 'none' }}
+      />
+    );
+  }
+  const stroke = hostile ? 'rgba(252,165,165,0.95)' : 'rgba(147,197,253,0.95)';
+  const pad = 0.1;
+  return (
+    <rect
+      key={`ph-hard-${kind}-${cityId}`}
+      x={r.x - pad}
+      y={r.y - pad}
+      width={r.w + pad * 2}
+      height={r.h + pad * 2}
+      rx={0.26}
+      ry={0.26}
+      fill="none"
+      stroke={stroke}
+      strokeWidth={0.12}
+      style={{ pointerEvents: 'none' }}
+    />
+  );
+}
+
+/**
+ * 跨行政郡道路叠线 path `d`（如 S1 郡界土黄色），与 `roadPathD` 同坐标系；可选空串。
+ *
+ * @param {{
+ *   mapColumns: number,
+ *   mapRows: number,
+ *   roadPathD: string,
+ *   roadAdminBoundaryPathD?: string,
+ *   cityRects: StrategicMiniMapCityRect[],
+ *   selfMarker?: { cx: number, cy: number, fill?: string, stroke?: string } | null,
+ *   selectedCityId?: string | null,
+ *   onCitySelect?: (cityId: string, event: { nativeEvent: unknown }) => void,
+ *   proximityHighlight?: { hostileCityIds?: string[], neutralCityIds?: string[] } | null,
+ *   className?: string,
+ *   'aria-label'?: string,
+ * }} props
+ */
+function StrategicMiniMapSvg({
+  mapColumns,
+  mapRows,
+  roadPathD,
+  roadAdminBoundaryPathD = '',
+  cityRects,
+  selfMarker = null,
+  selectedCityId = null,
+  onCitySelect = null,
+  proximityHighlight = null,
+  className = '',
+  'aria-label': ariaLabel = '战略缩略图',
+}) {
+  const W = Math.max(1, Number(mapColumns) || 1);
+  const H = Math.max(1, Number(mapRows) || 1);
+  const d = typeof roadPathD === 'string' ? roadPathD : '';
+  const dAdmin = typeof roadAdminBoundaryPathD === 'string' ? roadAdminBoundaryPathD : '';
+
+  const hostileHighlightIds = Array.isArray(proximityHighlight?.hostileCityIds)
+    ? proximityHighlight.hostileCityIds.filter((id) => id != null && String(id).trim() !== '')
+    : [];
+  const neutralHighlightIds = Array.isArray(proximityHighlight?.neutralCityIds)
+    ? proximityHighlight.neutralCityIds.filter((id) => id != null && String(id).trim() !== '')
+    : [];
+  const proximityLabelCityIds = [...new Set([...hostileHighlightIds, ...neutralHighlightIds])];
+
+  return (
+    <svg
+      className={className}
+      viewBox={`0 0 ${W} ${H}`}
+      preserveAspectRatio="xMidYMid meet"
+      role="img"
+      aria-label={ariaLabel}
+      shapeRendering="optimizeSpeed"
+    >
+      <rect x={0} y={0} width={W} height={H} fill="#1c1917" />
+      {d ? (
+        <path
+          d={d}
+          fill="none"
+          stroke="rgba(148,163,184,0.55)"
+          strokeWidth={0.35}
+          strokeLinecap="square"
+        />
+      ) : null}
+      {dAdmin ? (
+        <path
+          d={dAdmin}
+          fill="none"
+          stroke="rgba(218, 170, 85, 0.98)"
+          strokeWidth={0.95}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      ) : null}
+      {hostileHighlightIds.map((cityId) =>
+        proximityHighlightRing(cityRects, cityId, 'hostile', 'under'),
+      )}
+      {neutralHighlightIds.map((cityId) =>
+        proximityHighlightRing(cityRects, cityId, 'neutral', 'under'),
+      )}
+      {cityRects.map((r) => {
+        const sel = selectedCityId != null && String(selectedCityId) === String(r.cityId);
+        return (
+          <rect
+            key={r.cityId}
+            data-strategic-mini-city={String(r.cityId)}
+            x={r.x}
+            y={r.y}
+            width={r.w}
+            height={r.h}
+            rx={0.22}
+            ry={0.22}
+            fill={r.fill}
+            stroke={sel ? 'rgba(250,204,21,0.95)' : r.stroke ?? 'rgba(15,23,42,0.65)'}
+            strokeWidth={sel ? 0.22 : 0.08}
+            className={onCitySelect ? 'cursor-pointer' : undefined}
+            style={onCitySelect ? { pointerEvents: 'auto' } : undefined}
+            onClick={
+              onCitySelect
+                ? (e) => {
+                    e.stopPropagation();
+                    onCitySelect(String(r.cityId), e);
+                  }
+                : undefined
+            }
+          />
+        );
+      })}
+      {hostileHighlightIds.map((cityId) =>
+        proximityHighlightRing(cityRects, cityId, 'hostile', 'over'),
+      )}
+      {neutralHighlightIds.map((cityId) =>
+        proximityHighlightRing(cityRects, cityId, 'neutral', 'over'),
+      )}
+      {proximityLabelCityIds.map((cityId) => proximityCanLabel(cityRects, cityId))}
+      {selfMarker &&
+      Number.isFinite(selfMarker.cx) &&
+      Number.isFinite(selfMarker.cy) ? (
+        <circle
+          cx={selfMarker.cx}
+          cy={selfMarker.cy}
+          r={0.42}
+          fill={selfMarker.fill ?? '#fde047'}
+          stroke={selfMarker.stroke ?? '#0c0a09'}
+          strokeWidth={0.1}
+        />
+      ) : null}
+    </svg>
+  );
+}
+
+export default memo(StrategicMiniMapSvg);

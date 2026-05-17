@@ -2,6 +2,8 @@
  * 行军模式：沿路移动前粮草与步数确认（与 `POST …/road/move` + 31-6 §9.1 一致）。
  */
 
+import { MARCH_FOOD_PER_STEP } from '@/utils/strategicRoadMarchPath';
+
 export default function StrategicMarchMoveConfirm({
   open,
   onClose,
@@ -54,7 +56,8 @@ export default function StrategicMarchMoveConfirm({
               {p.freeSteps != null ? (
                 <>
                   {' '}
-                  其中免费格 <strong>{p.freeSteps}</strong>，需扣粮 <strong>{p.paidSteps || 0}</strong> 格 ×10 =
+                  其中免费格 <strong>{p.freeSteps}</strong>，需扣粮 <strong>{p.paidSteps || 0}</strong> 格 ×
+                  {MARCH_FOOD_PER_STEP} =
                   <strong className="text-amber-200"> {p.totalFoodCost ?? 0}</strong> 粮草（先个人粮草{' '}
                   <strong>{p.foodFromPlayer ?? 0}</strong>，不足部分势力池 <strong>{p.reserveFromFaction ?? 0}</strong>）。
                 </>

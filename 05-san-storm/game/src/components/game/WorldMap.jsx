@@ -24,6 +24,7 @@ import MainCityBarracksPostPanel from '@/components/garrison/MainCityBarracksPos
 import SanGongFuPanel from '@/components/game/SanGongFuPanel';
 import PositionCard from '@shared/components/card/PositionCard';
 import { garrisonAPI } from '@/services/garrisonApi';
+import { warAPI } from '@/services/warApi';
 import { API_CONFIG, getRarityHex, getRarityLabelCn } from '@/constants';
 import SiegeReplayMini from '@/components/game/SiegeReplayMini';
 import { validateMainLineupBattleGate } from '@/utils/mainLineupTroops';
@@ -802,30 +803,61 @@ export default function WorldMap({
     }
     setSiegeLoading(true);
     try {
-      const res = await fetchWithTimeout(`${API_CONFIG.BASE_URL}/cities/${encodeURIComponent(cityId)}/siege`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ playerId: player.player_id }),
-      }).then(r => r.json());
+      // 17-2 §1.4 / §1.9：已占领敌对城走 PVP（wars_pvp）；中立城走 PVE（wars）
+      const targetIsOccupied = !!(cityRow && cityRow.faction_id);
+      let res;
+      let pvpWarIdForResult = null;
+      if (targetIsOccupied) {
+        const activeRes = await warAPI.getActiveByCity(cityId);
+        const pvpWar = activeRes?.success ? activeRes.data : null;
+        if (!pvpWar || pvpWar.status !== 'active') {
+          setSiegeLoading(false);
+          setSimpleAlertMessage(
+            '该城已被势力占领，需先由君主宣战、放置攻方大本营进入战事才能发起攻城',
+          );
+          return;
+        }
+        const sg = await warAPI.initiateAttackerCitySiege(pvpWar.pvpWarId, player.player_id);
+        if (!sg?.success) {
+          setSiegeLoading(false);
+          setSimpleAlertMessage(sg?.error || '攻城请求失败，请稍后重试');
+          return;
+        }
+        res = { success: true, data: { ...sg.data, playerFaction: player.faction_id } };
+        pvpWarIdForResult = pvpWar.pvpWarId;
+      } else {
+        res = await fetchWithTimeout(`${API_CONFIG.BASE_URL}/cities/${encodeURIComponent(cityId)}/siege`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ playerId: player.player_id }),
+        }).then(r => r.json());
+      }
+
       if (res.success) {
         await postSiegeQuotaAction(player.player_id, cityId, 'consume');
+        const enriched = pvpWarIdForResult
+          ? { ...res.data, pvpWarId: pvpWarIdForResult }
+          : res.data;
 
-        if (res.data.defenderType === 'pvp_online') {
+        if (enriched.defenderType === 'pvp_online') {
           try {
             const pvpRes = await fetchWithTimeout(`${API_CONFIG.BASE_URL}/pvp/challenge`, {
               method: 'POST', headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                warId: res.data.warId, cityId,
-                attackerId: player.player_id, attackerFaction: res.data.playerFaction,
-                defenderId: res.data.defenderPlayerId,
-                defenderGarrisonSlot: res.data.defenderGarrisonSlot,
+                warId: enriched.warId || null,
+                pvpWarId: enriched.pvpWarId || null,
+                cityId,
+                attackerId: player.player_id,
+                attackerFaction: enriched.playerFaction || player.faction_id,
+                defenderId: enriched.defenderPlayerId,
+                defenderGarrisonSlot: enriched.defenderGarrisonSlot,
               }),
             }).then(r => r.json());
             if (pvpRes.success) {
               const ws = Number(pvpRes.waitSeconds) || 10;
               setPvpChallenge({
                 ...pvpRes,
-                siegeData: res.data,
-                defenderName: res.data.defenderName,
+                siegeData: enriched,
+                defenderName: enriched.defenderName,
                 countdownEndsAt: Date.now() + ws * 1000,
                 waitSeconds: ws,
               });
@@ -834,10 +866,10 @@ export default function WorldMap({
             }
           } catch (e) {
             console.error('[PVP] 创建挑战失败:', e);
-            setSiegeData(res.data); setSiegeResult(null);
+            setSiegeData(enriched); setSiegeResult(null);
           }
         } else {
-          setSiegeData(res.data); setSiegeResult(null);
+          setSiegeData(enriched); setSiegeResult(null);
         }
       } else {
         setSimpleAlertMessage(
@@ -851,6 +883,76 @@ export default function WorldMap({
     }
     setSiegeLoading(false);
   }, [phase, siegeData, banditRaidData, banditRaidResult, player, cards, attributeBonusBySlot]);
+
+  const startPvpBaseCampSiege = useCallback(
+    async (pvpWarId, warSlice) => {
+      if (!pvpWarId || !player?.player_id) return;
+      const targetCityId = warSlice?.targetCityId;
+      if (!targetCityId) return;
+      const phaseOk = phase === PHASE.IDLE || phase === PHASE.RETURNING;
+      if (!phaseOk) {
+        setSimpleAlertMessage('当前处于事件/探索流程中，请返回空闲后再发起');
+        return;
+      }
+      if (siegeData) {
+        setSimpleAlertMessage('已有战斗或结算占用，请先结束上一场或刷新页面后再试。');
+        return;
+      }
+      if (banditRaidData) {
+        setSimpleAlertMessage('匪寨战斗进行中，请先结束上一场后再试。');
+        return;
+      }
+      if (banditRaidResult) {
+        setSimpleAlertMessage('请先关闭匪寨结算面板后再试。');
+        return;
+      }
+      const qRes = await fetchSiegeQuotaJson(player.player_id, targetCityId);
+      if (!qRes.success || !(Number(qRes.data?.remaining) > 0)) {
+        setSimpleAlertMessage('攻城次数不足');
+        return;
+      }
+      const gate = validateMainLineupBattleGate({
+        cards,
+        playerUnits: null,
+        playerFood: player?.food ?? 0,
+      });
+      if (!gate.ok) {
+        setSimpleAlertMessage(gate.message);
+        return;
+      }
+      setSiegeLoading(true);
+      try {
+        const sg = await warAPI.initiateBaseCampSiege(pvpWarId, player.player_id);
+        if (!sg?.success || !sg.data) {
+          setSimpleAlertMessage(sg?.error || '攻打大本营请求失败，请稍后重试');
+          return;
+        }
+        const d = sg.data;
+        const opp =
+          (warSlice?.attackerFactionName && String(warSlice.attackerFactionName).trim()) ||
+          '攻方';
+        setSiegeData({
+          pvpDefenderBaseCampSiege: true,
+          pvpWarId: d.pvpWarId || pvpWarId,
+          targetCityId: d.targetCityId || targetCityId,
+          cityName: d.targetCityName || warSlice?.targetCityName || '目标城',
+          defenderType: 'npc',
+          npcGarrison: Array.isArray(d.baseCampSlice) ? d.baseCampSlice : [],
+          npcBatchIndex: d.batchIndex ?? 0,
+          npcAlive: d.baseCampAlive,
+          npcTotal: d.baseCampTotal,
+          isPvp: false,
+          opponentName: `${opp}大本营守军`,
+        });
+        setSiegeResult(null);
+      } catch (e) {
+        setSimpleAlertMessage(e?.message || '网络异常，攻打大本营失败');
+      } finally {
+        setSiegeLoading(false);
+      }
+    },
+    [phase, siegeData, banditRaidData, banditRaidResult, player, cards],
+  );
 
   const handleBanditRaidStart = useCallback((payload) => {
     if (!player?.player_id) return;
@@ -1049,6 +1151,7 @@ export default function WorldMap({
           setSiegeResult({
             ...res.data,
             chestRewards: Array.isArray(meta?.chestRewards) ? meta.chestRewards : [],
+            battleReportFailed: meta?.battleReportSaved === false,
           });
         } else {
           setSiegeResult({ npcKilled: 0, killCount: 0, npcTotal: 0, silverReward: 0, error: res.error });
@@ -1063,32 +1166,76 @@ export default function WorldMap({
     }
 
     try {
-      const res = await fetchWithTimeout(`${API_CONFIG.BASE_URL}/cities/siege-result`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          warId: siegeData.warId, playerId: player.player_id,
-          factionId: siegeData.playerFaction,
+      if (siegeData.pvpDefenderBaseCampSiege && siegeData.pvpWarId) {
+        const res = await warAPI.recordBaseCampSiegeResult(siegeData.pvpWarId, {
+          playerId: player.player_id,
           killedIndices: killedIndices || [],
           result: result === 'victory' ? 'win' : 'lose',
           silverSpent: silverSpent || 0,
           battleScore: Number(scoreResult?.score) || 0,
-          battleReportSaved: meta?.battleReportSaved !== false,
+          battleReportSaved: meta?.battleReportSaved,
+        });
+        if (res.success) {
+          const d = res.data && typeof res.data === 'object' ? res.data : {};
+          setSiegeResult({
+            ...d,
+            killCount: d.killCount ?? 0,
+            npcKilled: d.npcKilled ?? d.killCount ?? 0,
+            npcTotal: d.npcTotal ?? siegeData.npcTotal ?? null,
+            siegeCompleted: !!d.siegeCompleted,
+            chestRewards: Array.isArray(meta?.chestRewards) ? meta.chestRewards : [],
+            battleReportFailed: meta?.battleReportSaved === false,
+          });
+        } else {
+          setSiegeResult({ npcKilled: 0, killCount: 0, npcTotal: 0, silverReward: 0, error: res.error });
+        }
+        setGarrisonStatsRefreshKey((k) => k + 1);
+        refreshPlayer({ silent: true });
+        return;
+      }
+
+      const isPvpWar = !!siegeData.pvpWarId;
+      let res;
+      if (isPvpWar) {
+        res = await warAPI.recordAttackerCitySiegeResult(siegeData.pvpWarId, {
+          playerId: player.player_id,
           defenderType: siegeData.defenderType || 'npc',
           defenderPlayerId: siegeData.defenderPlayerId || null,
           defenderGarrisonSlot: siegeData.defenderGarrisonSlot ?? null,
           garrisonUnits: (siegeData.defenderType === 'player_garrison' || siegeData.defenderType === 'pvp_online')
             ? siegeData.npcGarrison
             : null,
+          killedIndices: killedIndices || [],
+          result: result === 'victory' ? 'win' : 'lose',
+          silverSpent: silverSpent || 0,
+          battleScore: Number(scoreResult?.score) || 0,
+          battleReportSaved: meta?.battleReportSaved !== false,
           npcBatchIndex: siegeData.defenderType === 'npc' ? siegeData.npcBatchIndex ?? null : null,
           ...(Array.isArray(meta?.defenderLineupTroopUpdates) && meta.defenderLineupTroopUpdates.length
             ? { defenderLineupTroopUpdates: meta.defenderLineupTroopUpdates }
             : {}),
-        }),
-      }).then(r => r.json());
+        });
+      } else {
+        res = await fetchWithTimeout(`${API_CONFIG.BASE_URL}/cities/siege-result`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            warId: siegeData.warId, playerId: player.player_id,
+            factionId: siegeData.playerFaction,
+            killedIndices: killedIndices || [],
+            result: result === 'victory' ? 'win' : 'lose',
+            silverSpent: silverSpent || 0,
+            battleScore: Number(scoreResult?.score) || 0,
+            battleReportSaved: meta?.battleReportSaved !== false,
+            defenderType: siegeData.defenderType || 'npc',
+            npcBatchIndex: siegeData.defenderType === 'npc' ? siegeData.npcBatchIndex ?? null : null,
+          }),
+        }).then(r => r.json());
+      }
       if (res.success) {
         setSiegeResult({
           ...res.data,
           chestRewards: Array.isArray(meta?.chestRewards) ? meta.chestRewards : [],
+          battleReportFailed: meta?.battleReportSaved === false,
         });
       } else {
         // 后端报错，仍然显示结算页（无奖励数据）
@@ -1373,6 +1520,7 @@ export default function WorldMap({
         banditRaidStartBlockedReason={banditRaidStartBlockedReason}
         postBanditRaidRefreshKey={postBanditRaidRefreshKey}
         strategicTutorialExploreStep={tutorialExploreStep}
+        onStartPvpBaseCampSiege={startPvpBaseCampSiege}
       />
 
       {/* ── PVP 攻城方等待界面 ── */}
@@ -1604,11 +1752,13 @@ export default function WorldMap({
                 battleType={siegeData.isPvp ? 'pvp_siege' : 'pve_siege'}
                 siegeDefenderType={siegeData.defenderType || 'npc'}
                 opponentName={
-                  siegeData.pvpSiegeRole === 'defender'
-                    ? (siegeData.attackerName || '攻城方')
-                    : siegeData.isPvp
-                      ? (siegeData.defenderName || `${siegeData.cityName || ''}守军`)
-                      : `${siegeData.cityName}守军`
+                  siegeData.pvpDefenderBaseCampSiege
+                    ? siegeData.opponentName || '攻方大本营守军'
+                    : siegeData.pvpSiegeRole === 'defender'
+                      ? siegeData.attackerName || '攻城方'
+                      : siegeData.isPvp
+                        ? siegeData.defenderName || `${siegeData.cityName || ''}守军`
+                        : `${siegeData.cityName}守军`
                 }
                 onBattleEnd={handleSiegeEnd}
                 recordOnly={!!siegeData.skipSiegeResult}
@@ -1657,7 +1807,7 @@ export default function WorldMap({
                 initialDefenderTroops={siegeResult.initialDefenderTroops}
                 showZeroKillNote={siegeResult.killCount === 0}
                 siegeCompleted={!!siegeResult.siegeCompleted}
-                battleReportFailed={false}
+                battleReportFailed={!!siegeResult.battleReportFailed}
               />
             ) : null}
             {banditRaidResult ? (

@@ -108,9 +108,9 @@ function focusCityId(city) {
 
 /**
  * 大地图：州下拉 + 所选州下属郡列表；点郡将视口滚到该郡在库中有 position_x/y 的战略格（大→中→小→关→据点），缺省再走 merged 格网 resolve。
- * `variant="mapOverlay"`：叠在战略格网上（`StrategicWorldMapSection` 内 absolute），与左下角排行/聊天同为「浮在地图上」的交互层。
+ * `variant="mapOverlay"`：叠在战略格网上（`StrategicWorldMapSection` 内 absolute），与左下角口谕/排行/聊天同为「浮在地图上」的交互层。
  *
- * **大地图进度条**：**州下拉**与 **「我在哪」** 同一行、**各 66×36**、间距与郡行一致（`gap-1`）；有「我在哪」时栈外宽与 **郡+匪寨** 同为 **`MAP_CORNER_ZHOU_JUN_PAIR_ROW_W_PX`**。**郡与匪寨** 仍 `items-stretch` 并排；**探索 / 攻城** 单列 66px（`self-start`）。**探索 / 教程 / 攻城 / 匪寨** 次数用 **`ZhouJunStatCaption`** 小号数字。
+ * **大地图进度条**：**州下拉**与 **「我在哪」** 同一行、**各 66×36**、间距与郡行一致（`gap-1`）；有「我在哪」时栈外宽与 **郡+匪寨** 同为 **`MAP_CORNER_ZHOU_JUN_PAIR_ROW_W_PX`**。**郡与匪寨** 仍 `items-stretch` 并排；**探索 / 攻城** 单列 66px（`self-start`）。**探索 / 教程 / 攻城 / 匪寨** 次数用 **`ZhouJunStatCaption`** 小号数字。**攻城**：**`攻城 x/x`** 与 **PVE `wars` / PVP `wars_pvp` 共用** `player_events` 次数；无 **可定位的进行中目标**（本人参与的 active **PVE wars** 或本势力 **wars_pvp** `pending`/`active`，同城 **PVP 优先**）时整钮禁用；有可点，按创建时间升序循环滚屏（见 **31-1 §〇**）。
  *
  * @param {{
  *   variant?: 'toolbar' | 'mapOverlay';

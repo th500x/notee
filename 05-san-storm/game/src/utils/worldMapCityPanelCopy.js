@@ -115,8 +115,8 @@ export function worldMapCityOverviewFromRow(cityRow) {
  */
 export function worldMapCityIsPlayerSameFaction(cityRow, playerFactionId) {
   const cityFid = cityRow?.faction_id ?? cityRow?.factionId;
-  if (!cityFid || !playerFactionId) return false;
-  return cityFid === playerFactionId;
+  if (cityFid == null || cityFid === '' || playerFactionId == null || playerFactionId === '') return false;
+  return String(cityFid).trim() === String(playerFactionId).trim();
 }
 
 /** 仅大城、中城可设为玩家主城（存卡） */

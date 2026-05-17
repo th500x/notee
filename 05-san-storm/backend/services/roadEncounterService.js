@@ -28,7 +28,6 @@ const {
   loadRoadGrid,
   loadRoadGridSan1YuVerticalStack,
   isSan1YuStackRoadJunId,
-  findMainCityFootprint,
   cellKey,
   isNeighbor4,
 } = require('../utils/roadGrid');
@@ -306,10 +305,41 @@ async function moveAlongRoad(playerId, body) {
       );
       countyCityRows = ccRows;
     }
-    const mainCityDbRow =
-      player.main_city_id != null && String(player.main_city_id).trim() !== ''
-        ? countyCityRows.find((r) => String(r.city_id) === String(player.main_city_id)) || null
-        : null;
+
+    /** 与客户端 `StrategicWorldMapSection` 同源：离路出发须识别攻方大本营 footprint（无主城回退）。 */
+    let pvpBaseCampsForMarch = [];
+    if (useStackGrid && player.faction_id != null && String(player.faction_id).trim() !== '') {
+      const [pvpWarCampRows] = await conn.query(
+        `SELECT pvp_war_id AS pvpWarId, target_city_id AS targetCityId, base_camp AS baseCamp
+           FROM wars_pvp
+          WHERE status = 'active' AND season = ? AND attacker_faction_id = ?
+          LIMIT 80`,
+        [season, player.faction_id],
+      );
+      for (const row of pvpWarCampRows || []) {
+        let bc = row.baseCamp;
+        if (typeof bc === 'string') {
+          try {
+            bc = JSON.parse(bc);
+          } catch {
+            bc = null;
+          }
+        }
+        if (!bc || typeof bc !== 'object' || !Array.isArray(bc.cells) || !bc.cells.length) continue;
+        const tid = row.targetCityId != null ? String(row.targetCityId).trim() : '';
+        let junPatch = String(bc.junId ?? bc.jun_id ?? '').trim();
+        if (!junPatch && tid && Array.isArray(countyCityRows)) {
+          const cr = countyCityRows.find((r) => String(r.city_id ?? r.cityId ?? '').trim() === tid);
+          const jfrom = cr?.jun_id ?? cr?.junId;
+          if (jfrom) junPatch = String(jfrom).trim();
+        }
+        pvpBaseCampsForMarch.push({
+          ...bc,
+          ...(junPatch ? { junId: junPatch } : {}),
+          pvpWarId: String(row.pvpWarId || '').trim(),
+        });
+      }
+    }
 
     // 幂等：已处理过同一请求 id → 返回当前快照，不重复扣费 / 移格。
     if (player.road_last_request_id && player.road_last_request_id === clientRequestId) {
@@ -325,30 +355,62 @@ async function moveAlongRoad(playerId, body) {
 
     const targetPoiIdRaw = body.targetPoiId != null ? String(body.targetPoiId).trim() : '';
     const marchToBanditPoi = !!targetPoiIdRaw && marchPoi.isBanditMapObjectId(targetPoiIdRaw);
+    let marchToPvpCampPoi = false;
+    let pvpCampBaseCampJson = null;
+    let pvpCampAttackerFactionId = null;
     let resolvedPath = [];
     let poiAnchorEnd = null;
     let poiAnchorJunIdEnd = null;
 
     if (targetPoiIdRaw) {
-      /** 匪寨 `san_*_bandit_*` 与 `cities` 表拆库拆语义；寻路 footprint 来自合并图 `cells`，不得强依赖 `cities` 行。 */
+      /**
+       * 匪寨 `san_*_bandit_*` 与 `cities` 拆库。
+       * PVP：`pvp_war_id` 与 `city_id` 不同命名空间，但仍须 **先查 wars_pvp**——若先查 cities 且因脏数据/误传 id 命中城行，
+       * 会跳过战事分支，寻路按城心走（表现为「点大本营却到目标中城」）。
+       */
       let cityRow = null;
       if (!marchPoi.isBanditMapObjectId(targetPoiIdRaw)) {
-        const [cRows] = await conn.query(
-          `SELECT city_id AS cityId, city_type AS cityType, faction_id AS factionId,
-                  position_x AS positionX, position_y AS positionY, jun_id AS junId
-             FROM cities WHERE city_id = ? LIMIT 1`,
+        const [wRowsFirst] = await conn.query(
+          `SELECT attacker_faction_id AS attackerFactionId, base_camp AS baseCamp
+             FROM wars_pvp WHERE pvp_war_id = ? AND status = 'active' LIMIT 1`,
           [targetPoiIdRaw],
         );
-        if (!cRows.length) {
+        if (wRowsFirst.length) {
+          let bc = wRowsFirst[0].baseCamp;
+          if (typeof bc === 'string') {
+            try {
+              bc = JSON.parse(bc);
+            } catch {
+              bc = null;
+            }
+          }
+          if (bc && Array.isArray(bc.cells) && bc.cells.length) {
+            marchToPvpCampPoi = true;
+            pvpCampBaseCampJson = bc;
+            pvpCampAttackerFactionId = wRowsFirst[0].attackerFactionId;
+          }
+        }
+        if (!marchToPvpCampPoi) {
+          const [cRows] = await conn.query(
+            `SELECT city_id AS cityId, city_type AS cityType, faction_id AS factionId,
+                    position_x AS positionX, position_y AS positionY, jun_id AS junId
+               FROM cities WHERE city_id = ? LIMIT 1`,
+            [targetPoiIdRaw],
+          );
+          if (cRows.length) {
+            cityRow = cRows[0];
+          }
+        }
+        if (!cityRow && !marchToBanditPoi && !marchToPvpCampPoi) {
           await conn.rollback();
           return { ok: false, status: 404, error: '目标战略点不存在' };
         }
-        cityRow = cRows[0];
       }
       const acc = marchPoi.canPlayerMarchToPoiCity({
         cityRow,
         targetPoiId: targetPoiIdRaw,
         playerFactionId: player.faction_id,
+        pvpCampAttackerFactionId: marchToPvpCampPoi ? pvpCampAttackerFactionId : null,
       });
       if (!acc.ok) {
         await conn.rollback();
@@ -363,12 +425,11 @@ async function moveAlongRoad(playerId, body) {
         countyJunId: junId,
         player,
         targetPoiId: targetPoiIdRaw,
-        collectMainCityFootprintKeys: (cells, mainId) =>
-          findMainCityFootprint(cells, mainId, grid.mapColumns, grid.mapRows),
         targetCityDbRow: cityRow,
-        mainCityDbRow,
         citiesInCountyRows: countyCityRows,
         useWorldStackRoadCoords: useStackGrid,
+        pvpCampBaseCamp: marchToPvpCampPoi ? pvpCampBaseCampJson : null,
+        pvpBaseCamps: pvpBaseCampsForMarch.length ? pvpBaseCampsForMarch : null,
       });
       if (!built.ok) {
         await conn.rollback();
@@ -419,13 +480,20 @@ async function moveAlongRoad(playerId, body) {
           junId,
           grid.mapColumns,
           grid.mapRows,
-          (cells, mainId) => findMainCityFootprint(cells, mainId, grid.mapColumns, grid.mapRows),
-          { mainCityDbRow, citiesInCountyRows: countyCityRows },
+          {
+            citiesInCountyRows: countyCityRows,
+            pvpBaseCamps: pvpBaseCampsForMarch.length ? pvpBaseCampsForMarch : null,
+          },
           useStackGrid,
         );
         if (!footprint.size) {
           await conn.rollback();
-          return { ok: false, status: 400, error: '未设置主城或不在可识别的城/寨占格上，无法起步' };
+          return {
+            ok: false,
+            status: 400,
+            error:
+              '离路起点无法解析：当前坐标须落在库城/格网城寨/PVP 攻方大本营等已登记 POI 占格内（不以主城替代）。请刷新地图或核对 road_position。',
+          };
         }
         const starts = marchPoi.roadKeysAdjacentToFootprint(footprint, roadPassableForMarch);
         if (!starts.size) {
@@ -485,20 +553,27 @@ async function moveAlongRoad(playerId, body) {
         };
       }
     } else {
-      // 首跳：道路格须 4-邻接 **当前离路所占城/寨块**（优先 `road_position` 所在 POI）或 **主城块**（回退）。
+      // 首跳：道路格须 4-邻接 **当前离路所占** 库城/格网城寨/PVP 攻方大本营 POI 块（与 `resolveOffRoadMarchDepartureFootprintKeys` 一致，无主城回退）。
       const footprint = marchPoi.resolveOffRoadMarchDepartureFootprintKeys(
         grid.rawCells,
         player,
         junId,
         grid.mapColumns,
         grid.mapRows,
-        (cells, mainId) => findMainCityFootprint(cells, mainId, grid.mapColumns, grid.mapRows),
-        { mainCityDbRow, citiesInCountyRows: countyCityRows },
+        {
+          citiesInCountyRows: countyCityRows,
+          pvpBaseCamps: pvpBaseCampsForMarch.length ? pvpBaseCampsForMarch : null,
+        },
         useStackGrid,
       );
       if (!footprint.size) {
         await conn.rollback();
-        return { ok: false, status: 400, error: '未设置主城或不在可识别的城/寨占格上，无法起步' };
+        return {
+          ok: false,
+          status: 400,
+          error:
+            '离路起点无法解析：当前坐标须落在库城/格网城寨/PVP 攻方大本营等已登记 POI 占格内（不以主城替代）。请刷新地图或核对 road_position。',
+        };
       }
       let adjacent = false;
       for (const k of footprint) {
@@ -510,7 +585,7 @@ async function moveAlongRoad(playerId, body) {
       }
       if (!adjacent) {
         await conn.rollback();
-        return { ok: false, status: 400, error: '首跳须为出发城/寨邻接的道路格' };
+        return { ok: false, status: 400, error: '首跳须为出发 POI 占格（城/寨/攻方大本营）四邻接的道路格' };
       }
     }
 
@@ -813,8 +888,8 @@ async function moveAlongRoad(playerId, body) {
           stepsApplied = i + 1;
           continue;
         }
-        /** 行军目标为战略匪寨时：最后一道路步不登记道路遭遇（与 31-6 / 17-6 一致；遭遇仅道路格常规规则）。 */
-        if (marchToBanditPoi && i === steps.length - 1) {
+        /** 行军目标为战略匪寨 / PVP 攻方大本营时：最后一道路步不登记道路遭遇（与 31-6 / 17-6 一致）。 */
+        if ((marchToBanditPoi || marchToPvpCampPoi) && i === steps.length - 1) {
           lastX = wsx;
           lastY = wsy;
           stepsApplied = i + 1;

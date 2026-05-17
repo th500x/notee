@@ -1,5 +1,5 @@
 /**
- * 大城/中城「三公府」全屏：官职 · 朝政（朝贡 + 封赏卡池入口）· 军团/公告占位
+ * 大城/中城「三公府」全屏：官职 · 互动（朝贡 + 封赏）· 朝政（三公入口）· 公告占位
  */
 
 import { useCallback, useEffect, useState, useMemo } from 'react';
@@ -13,11 +13,13 @@ import QuadrantGrid from '@/components/game/QuadrantGrid';
 import { TabPageCloseButton, useGameTabLandscape } from '@/components/game/TabPageCloseAffordance';
 import SanGongTributePanel from '@/components/game/SanGongTributePanel';
 import SanGongFuFengShangPanel from '@/components/game/SanGongFuFengShangPanel';
+import SanGongFuChaoZhengPanel from '@/components/game/SanGongFuChaoZhengPanel';
+import SanGongFuFactionWarDrawer from '@/components/game/SanGongFuFactionWarDrawer';
 
 const MAIN_TABS = [
   { id: 'position', label: '官职' },
+  { id: 'interaction', label: '互动' },
   { id: 'court', label: '朝政' },
-  { id: 'legion', label: '军团' },
   { id: 'notice', label: '公告' },
 ];
 
@@ -212,6 +214,7 @@ export default function SanGongFuPanel({
   const [error, setError] = useState(null);
   const [payload, setPayload] = useState(null);
   const [promotingId, setPromotingId] = useState(null);
+  const [factionWarDrawerOpen, setFactionWarDrawerOpen] = useState(false);
 
   const load = useCallback(async () => {
     if (!player?.player_id) return;
@@ -265,6 +268,9 @@ export default function SanGongFuPanel({
   const notice = payload?.notice;
   const positions = payload?.positions || [];
   const playerReputation = payload?.playerReputation ?? 0;
+  /** 与晋升接口同源，避免档案字段滞后；口径同卡牌「品阶 Lv」（数字越小品阶越高） */
+  const playerPositionLevel =
+    payload?.playerPositionLevel ?? player?.position_level ?? player?.positionLevel;
 
   const promotionBody = (
     <PromotionListBody
@@ -293,6 +299,8 @@ export default function SanGongFuPanel({
           troopRemaining={sanGongFuCardPool.troopRemaining ?? '?'}
           charRemaining={sanGongFuCardPool.charRemaining ?? '?'}
           dailyLimit={sanGongFuCardPool.dailyLimit ?? 5}
+          playerId={player?.player_id}
+          onAfterStipendClaim={() => refresh({ silent: true })}
         />
       ) : (
         <div className="shrink-0 rounded-lg border border-stone-700/40 bg-stone-900/30 px-2 py-2 text-center">
@@ -303,10 +311,18 @@ export default function SanGongFuPanel({
     </div>
   );
 
+  const chaoZhengBody = (
+    <SanGongFuChaoZhengPanel
+      positionLevel={playerPositionLevel}
+      factionWarDrawerOpen={factionWarDrawerOpen}
+      onOpenFactionWars={() => setFactionWarDrawerOpen(true)}
+    />
+  );
+
   const landscapeCells = [
     { id: 'sg-q1', title: '官职 · 晋级', content: promotionBody },
-    { id: 'sg-q2', title: '朝政', content: courtBody },
-    { id: 'sg-q3', title: '军团', content: <PlaceholderCell text="敬请期待" /> },
+    { id: 'sg-q2', title: '互动', content: courtBody },
+    { id: 'sg-q3', title: '朝政', content: chaoZhengBody },
     { id: 'sg-q4', title: '公告', content: <PlaceholderCell text="敬请期待" /> },
   ];
 
@@ -338,14 +354,27 @@ export default function SanGongFuPanel({
           <div className="h-full min-h-0 overflow-y-auto px-2 pt-2">
             {activeTab === 'position' ? (
               promotionBody
-            ) : activeTab === 'court' ? (
+            ) : activeTab === 'interaction' ? (
               courtBody
+            ) : activeTab === 'court' ? (
+              chaoZhengBody
             ) : (
               <PlaceholderCell text="该分区敬请期待" />
             )}
           </div>
         )}
       </div>
+
+      {player?.player_id ? (
+        <SanGongFuFactionWarDrawer
+          playerId={player.player_id}
+          factionId={player.faction_id ?? player.factionId ?? null}
+          player={player}
+          open={factionWarDrawerOpen}
+          onClose={() => setFactionWarDrawerOpen(false)}
+          onWarEnded={() => refresh({ silent: true })}
+        />
+      ) : null}
     </div>
   );
 }

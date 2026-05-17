@@ -26,9 +26,10 @@
 | `texts` | 列表 `ORDER BY created_at`；复合索引含 `created_at` | `services/textsService.js` |
 | `chats` | 限流/按日计数/排序依赖 `created_at`；索引 | `services/chatService.js` |
 | `wars` | `ORDER BY created_at DESC` 取最新活跃战事 | `routes/cities.js` |
+| `faction_bulletins` | 公告流水 `ORDER BY id DESC`；`created_at` 供展示/排查 | `services/factionBulletinService.js` |
 | `memorial_images` | 查询与更新使用 `created_at` | `routes/memorial.js` |
 | `temp_character_creation` | 多处 `updated_at = CURRENT_TIMESTAMP`；调试脚本读两列 | `services/playerCreationService.js`, `check-progress.js` |
-| `temp_character_ranking_snapshots` | **`created_at`**（首次插入）+ **`updated_at`**（刷新与 **14 天 TTL 清理**）；`KEY idx_updated_at` | `services/characterRankService.js`；老库补 `created_at` 见 `migrations/add-temp-character-ranking-snapshots-created-at.sql` |
+| `temp_character_ranking` | **`created_at`**（首次插入）+ **`updated_at`**（刷新与 **14 天 TTL 清理**）；`KEY idx_updated_at` | `services/characterRankService.js`；老库补列见 `migrations/add-temp-character-ranking-snapshots-created-at.sql`（表名仍为旧名时先执行，再 `rename-temp-character-ranking-snapshots-to-temp-character-ranking.sql`） |
 | `temp_ranking_snapshots` | **`created_at`** + **`updated_at`**（`ON UPDATE`，冻结 `UPDATE` 会刷新）；活动快照 TTL 仍看 **`expires_at`** | `services/rankingService.js`；老库补 `updated_at` 见 `migrations/add-temp-ranking-snapshots-updated-at.sql` |
 | `statistics` | API 返回 `createdAt`/`updatedAt` | `services/playerStatisticsService.js` |
 | `servers` | 运维脚本展示 `created_at` | `database/scripts/query-servers.js` |

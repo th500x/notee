@@ -74,6 +74,30 @@ router.get('/road-presence', async (req, res, next) => {
 });
 
 /**
+ * GET /api/cities/active-pve-siege-wars?season=san_1&playerId=…&factionId=…
+ * 大地图「攻城」钮：与 `wars_pvp` 共用攻城次数；返回本人有参与的 **active PVE wars** 目标城列表（见 cityService.listActivePveSiegeTargetsForMap）。
+ * 须在 `/:cityId` 之前注册。
+ */
+router.get('/active-pve-siege-wars', async (req, res, next) => {
+  try {
+    const season = String(req.query.season || '').trim();
+    const playerId = String(req.query.playerId || req.query.player_id || '').trim();
+    const factionId = String(req.query.factionId || req.query.faction_id || '').trim();
+    if (!season) return res.status(400).json({ success: false, error: '缺少 season' });
+    if (!playerId || !factionId) {
+      return res.status(400).json({ success: false, error: '缺少 playerId / factionId' });
+    }
+    if (req.player.role !== 'admin' && String(req.player.sub) !== playerId) {
+      return res.status(403).json({ success: false, error: '无权访问他人数据' });
+    }
+    const wars = await cityService.listActivePveSiegeTargetsForMap({ playerId, factionId, season });
+    res.json({ success: true, wars, count: wars.length });
+  } catch (error) {
+    return next(wrap500(error, '获取活跃 PVE 攻城列表失败'));
+  }
+});
+
+/**
  * GET /api/cities/:cityId
  * 获取单个城市详情（含 NPC 守军）
  */

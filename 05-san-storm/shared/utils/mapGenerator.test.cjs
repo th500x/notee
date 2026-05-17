@@ -168,3 +168,6 @@ const same = JSON.stringify(r1.terrain) === JSON.stringify(r2.terrain) &&
              JSON.stringify(r1.objects) === JSON.stringify(r2.objects);
 console.log(same ? '✅ 种子复现正常' : '❌ 种子复现失败');
 printMap(r1);
+if (!same) {
+  process.exitCode = 1;
+}

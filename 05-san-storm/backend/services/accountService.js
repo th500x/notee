@@ -412,7 +412,7 @@ async function clearPlayerGameData(userId) {
 /**
  * 删除账号。chats/texts → players 已为 ON DELETE CASCADE（见 migrations/alter-texts-chats-fk-on-delete-cascade.sql）；
  * 删 accounts 会级联删 players，再级联清理聊天与传书。
- * temp_character_ranking_snapshots 无 FK，仍手动删。
+ * temp_character_ranking 无 FK，仍手动删。
  */
 async function deleteAccount(userId) {
   const [users] = await pool.query('SELECT id FROM accounts WHERE id = ?', [userId]);
@@ -424,7 +424,7 @@ async function deleteAccount(userId) {
   await connection.beginTransaction();
   try {
     try {
-      await connection.query('DELETE FROM temp_character_ranking_snapshots WHERE player_id = ?', [
+      await connection.query('DELETE FROM temp_character_ranking WHERE player_id = ?', [
         userId,
       ]);
     } catch (e) {
@@ -459,7 +459,7 @@ async function deleteAllBannedAccounts() {
   await connection.beginTransaction();
   try {
     try {
-      await connection.query('DELETE FROM temp_character_ranking_snapshots WHERE player_id IN (?)', [
+      await connection.query('DELETE FROM temp_character_ranking WHERE player_id IN (?)', [
         bannedIds,
       ]);
     } catch (e) {

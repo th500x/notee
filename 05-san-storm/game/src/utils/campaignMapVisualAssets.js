@@ -70,6 +70,9 @@ export function campaignObjectUrl(objectType, opts = {}) {
     military_camp: 'military_camp_01.png',
     bandit_horiz: 'bandit_01.png',
     bandit_vert: 'bandit_02.png',
+    // PVP 攻方大本营：须与 PNG 像素长宽比一致（`camp_01` 128×64=横骨牌，`camp_02` 64×128=竖骨牌），同匪寨 bandit_01/02
+    pvp_camp_horiz: 'camp_01.png',
+    pvp_camp_vert: 'camp_02.png',
     city_major: 'city_major_01.png',
     city_medium: 'city_medium_01.png',
     city_small: 'city_small_01.png',

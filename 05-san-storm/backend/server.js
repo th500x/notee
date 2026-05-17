@@ -13,6 +13,12 @@ const cron = require('node-cron');
 const { testConnection } = require('./database/connection');
 const characterRankService = require('./services/characterRankService');
 const banditInstanceService = require('./services/banditInstanceService');
+const pvpWarService = require('./services/pvpWarService');
+const aiKingConfigService = require('./services/aiKingConfigService');
+const aiKingActiveDecisionService = require('./services/aiKingActiveDecisionService');
+const {
+  AiKingHourlyScheduler,
+} = require('./services/aiKingHourlyScheduler');
 const { notFoundHandler, errorHandler } = require('./middleware/errorHandler');
 
 /**
@@ -40,6 +46,58 @@ function assertJwtSecret() {
   }
 }
 assertJwtSecret();
+
+/**
+ * PVP 战事 tick：每 5 分钟扫描 active 战事的 24h 超时 / 大本营清零 / 城内 NPC 清零。
+ * 与 17-2 §6 「胜负判定每 N 分钟」对齐；定时任务负担小（17-2 §13.1）。
+ */
+function schedulePvpWarTick() {
+  const tz = process.env.CRON_TZ;
+  const opts = tz ? { timezone: tz } : {};
+  cron.schedule(
+    '*/5 * * * *',
+    async () => {
+      try {
+        await pvpWarService.tickActivePvpWars();
+      } catch (err) {
+        console.error('[pvpWar] tick 失败:', err.message);
+      }
+    },
+    opts,
+  );
+}
+
+/**
+ * AI 君主主动决策小时调度（41-2 §2 / §3 / §5）：
+ *   - 每分钟扫描所有配置君主的「本小时 slot」是否到点；到点则触发主动决策入口。
+ *   - 重启恢复：方案 B（不入库，按剩余时段就地重掷；详见 41-2 §2「重启恢复」）。
+ *   - 与 PVP tick 完全独立；不与被动审批共享随机序列。
+ */
+function scheduleAiKingHourlyTick() {
+  const tz = process.env.CRON_TZ;
+  const opts = tz ? { timezone: tz } : {};
+  const scheduler = new AiKingHourlyScheduler({
+    onFire: async ({ factionId }) => {
+      try {
+        await aiKingActiveDecisionService.decide({ factionId });
+      } catch (err) {
+        console.error(`[aiKing][hourly] decide error factionId=${factionId}: ${err.message}`);
+      }
+    },
+  });
+  cron.schedule(
+    '* * * * *',
+    async () => {
+      try {
+        await scheduler.runMinuteTick();
+      } catch (err) {
+        console.error('[aiKing][hourly] tick 失败:', err.message);
+      }
+    },
+    opts,
+  );
+  return scheduler;
+}
 
 /** 与 01-1-DATABASE_DESIGN.md 临时表清理示例一致：每天凌晨 3:00（默认进程本地时区；生产可设 CRON_TZ=Asia/Shanghai） */
 function scheduleTempTableCleanup() {
@@ -197,6 +255,12 @@ const pvpRouter = require('./routes/pvp');
 app.use('/api/pvp', pvpRouter);
 
 /**
+ * PVP 势力战事（17-2 M2 · wars_pvp）
+ */
+const pvpWarsRouter = require('./routes/pvpWars');
+app.use('/api/pvp-wars', pvpWarsRouter);
+
+/**
  * 战役地图 preset（与 shared/data/campaign 同步）
  */
 const campaignMapsRouter = require('./routes/campaignMaps');
@@ -245,6 +309,21 @@ app.listen(PORT, async () => {
   console.log('');
 
   scheduleTempTableCleanup();
+  schedulePvpWarTick();
+
+  // 启动期预加载 AI 君主配置：JSON 解析 / 字段校验失败立即抛错（早失败）。
+  try {
+    const kings = aiKingConfigService.listAllKings();
+    console.log(
+      `[aiKing] loaded ${kings.length} kings: ` +
+        kings
+          .map((k) => `${k.characterName}(${k.factionId}, hourlyDecisions=${k.hourlyDecisions ?? 0})`)
+          .join(' / '),
+    );
+  } catch (err) {
+    console.error('[aiKing] 加载 ai-kings.json 失败:', err.message);
+  }
+  scheduleAiKingHourlyTick();
 
   /**
    * 匪寨同步异步后置（CR P2，2026-04-29）：

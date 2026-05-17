@@ -23,7 +23,7 @@ const INTERCEPT_COST_SILVER = 40; // 31-6 §三
 const FREE_MOVES_PER_DAY = 50; // 31-6 §9.1
 
 /** 单步付费粮草（个人粮 → 势力池兜底） */
-const FOOD_PER_STEP = 10; // 31-6 §9.1
+const FOOD_PER_STEP = 2; // 31-6 §9.1
 
 /** 单日势力池"垫粮"上限（同一势力下属玩家共享） */
 const RESERVE_FOOD_DAILY_LIMIT = 500; // 31-6 §十

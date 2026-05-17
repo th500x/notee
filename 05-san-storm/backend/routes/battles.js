@@ -89,7 +89,7 @@ router.get('/:id', async (req, res, next) => {
  * POST /api/battles
  * 
  * Body: {
- *   battleId, playerId, warId?,
+ *   battleId, playerId, warId?, pvpWarId?,
  *   battleType, opponentType, opponentId?, opponentName?,
  *   result,
  *   playerTeam?, opponentTeam?, battleLog?,

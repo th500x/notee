@@ -25,7 +25,7 @@ class Battle {
 
     await pool.query(`
       INSERT INTO battles (
-        battle_id, player_id, war_id,
+        battle_id, player_id, war_id, pvp_war_id,
         battle_type, opponent_type, opponent_id, opponent_name,
         result,
         player_team, opponent_team, battle_log,
@@ -33,7 +33,7 @@ class Battle {
         rewards,
         is_favorited, log_expires_at, battle_at
       ) VALUES (
-        ?, ?, ?,
+        ?, ?, ?, ?,
         ?, ?, ?, ?,
         ?,
         ?, ?, ?,
@@ -45,6 +45,7 @@ class Battle {
       data.battle_id,
       data.player_id,
       data.war_id || null,
+      data.pvp_war_id || null,
       data.battle_type,
       data.opponent_type,
       data.opponent_id || null,
@@ -103,7 +104,7 @@ class Battle {
 
     const [rows] = await pool.query(`
       SELECT 
-        battle_id, player_id, war_id,
+        battle_id, player_id, war_id, pvp_war_id,
         battle_type, opponent_type, opponent_id, opponent_name,
         result,
         player_team, opponent_team,
@@ -198,6 +199,7 @@ class Battle {
       battleId: row.battle_id,
       playerId: row.player_id,
       warId: row.war_id || null,
+      pvpWarId: row.pvp_war_id || null,
       battleType: row.battle_type,
       opponentType: row.opponent_type,
       opponentId: row.opponent_id || null,

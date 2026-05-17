@@ -69,7 +69,7 @@ function TileTooltipContent({ content }) {
   }
 
   if (content.type === 'worldMapCity') {
-    if (content.uniformStrategicPanel && content.cityId) {
+    if (content.uniformStrategicPanel && (content.cityId || content.pvpAttackerBaseCampStrategic)) {
       return <StrategicCityTooltipPanel content={content} />;
     }
     const blockProps = { ...content };

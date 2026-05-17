@@ -8,15 +8,19 @@ import {
   parentCityIdsWithSubsidiaryExplore,
   worldMapCityIsPlayerSameFaction,
   worldMapCityTypeAllowsMainCitySet,
+  worldMapRegionLabelFromRow,
+  worldMapCityDefenseDisplayFromRow,
 } from '@/utils/worldMapCityPanelCopy';
 import { garrisonAPI } from '@/services/garrisonApi';
 import {
   resolveStrategicTileCityCover,
+  resolveStrategicTilePvpCampCover,
   STRATEGIC_MAP_FOOTPRINT_VISUAL_SELECTOR,
 } from '@/utils/strategicMapTileContext';
 import { useTileTooltipClamp } from '@/components/battle/useTileTooltipClamp';
 import TileTooltipContent from '@/components/battle/TileTooltipContent';
 import StrategicSiegeWarFloatingPanel from '@/components/world/StrategicSiegeWarFloatingPanel';
+import StrategicPvpWarFloatingPanel from '@/components/world/StrategicPvpWarFloatingPanel';
 import { useStrategicMapTooltipClickMode } from '@/hooks/useStrategicMapTooltipClickMode';
 import { useStrategicMapNavigation } from '@/contexts/StrategicMapNavigationContext';
 import {
@@ -25,7 +29,10 @@ import {
 } from '@shared/utils/strategicRoadOverlay.js';
 import { isBanditMapObjectId } from '@shared/utils/smallMapEnemyRoster';
 import { readStrategicCellAnchorId } from '@shared/utils/strategicCellAnchorId.js';
-import { buildRoadPassableKeySetForMarch } from '@shared/utils/strategicMarchPoi.js';
+import {
+  buildRoadPassableKeySetForMarch,
+  isPvpWarMarchTargetId,
+} from '@shared/utils/strategicMarchPoi.js';
 import '@/components/battle/BattleMap.css';
 import './WorldStrategicMap.css';
 import { PHASE } from '@/components/event/EventConstants';
@@ -66,6 +73,57 @@ function syntheticBanditProgressRowFromAnchorCell(banditPoiId, hintCell) {
 }
 
 /**
+ * 本人立于「目标城 = 当前 tooltip 城」的 PVP 攻方大本营 footprint 时，`playerStandingPoiAnchorId` 为 `pvpWarId`，
+ * 与 `anchorKey`（城 id）不等，但城备仍应视为「在本城语境」以显示三公府/驻军所等。
+ *
+ * @param {object} hd - hoverDataRef.current（须含 `pvpBaseCamps`）
+ * @param {string} anchorNorm - 当前城 `cityId`
+ */
+function isStandingOwnCityLinkedPvpCampTheater(hd, anchorNorm) {
+  const stand = String(hd.playerStandingPoiAnchorId || '').trim();
+  const cityId = String(anchorNorm || '').trim();
+  if (!stand || !cityId) return false;
+  const camps = hd.pvpBaseCamps;
+  if (!Array.isArray(camps) || !camps.length) return false;
+  const war = camps.find((w) => String(w?.pvpWarId ?? w?.pvp_war_id ?? '').trim() === stand);
+  if (!war) return false;
+  const targetCityId = String(war.targetCityId ?? war.target_city_id ?? '').trim();
+  return targetCityId !== '' && targetCityId === String(cityId).trim();
+}
+
+/** 路点格解析的 `pvpWarId`（`playerStandingPvpWarId`）与当前 tooltip 城为同一场战事目标城 */
+function isStandingPvpWarIdLinkedToCityTooltip(hd, anchorNorm) {
+  const warId = String(hd.playerStandingPvpWarId || '').trim();
+  const cityId = String(anchorNorm || '').trim();
+  if (!warId || !cityId) return false;
+  const camps = hd.pvpBaseCamps;
+  if (!Array.isArray(camps) || !camps.length) return false;
+  const war = camps.find((w) => String(w?.pvpWarId ?? w?.pvp_war_id ?? '').trim() === warId);
+  if (!war) return false;
+  const targetCityId = String(war.targetCityId ?? war.target_city_id ?? '').trim();
+  return targetCityId !== '' && targetCityId === String(cityId).trim();
+}
+
+/**
+ * 守方立于攻方大本营格（`standingId` 为 pvpWarId）、点开 **该战事目标城** tooltip：城表 `faction_id` 与
+ * `playerFactionId` 可能因类型/缓存不一致导致 `isOwn` 为 false，仍须能开城备（三公府/驻军所）。
+ */
+function canStrategicCityWarTheaterOwnActions(hd, anchorNorm) {
+  if (!hd.playerId || !anchorNorm) return false;
+  const stand = String(hd.playerStandingPoiAnchorId || '').trim();
+  if (!isPvpWarMarchTargetId(stand)) return false;
+  const camps = hd.pvpBaseCamps;
+  if (!Array.isArray(camps) || !camps.length) return false;
+  const war = camps.find((w) => String(w?.pvpWarId ?? w?.pvp_war_id ?? '').trim() === stand);
+  if (!war) return false;
+  const tid = String(war.targetCityId ?? war.target_city_id ?? '').trim();
+  if (tid !== String(anchorNorm).trim()) return false;
+  const defF = String(war.defenderFactionId ?? war.defender_faction_id ?? '').trim();
+  const pf = String(hd.playerFactionId || '').trim();
+  return defF !== '' && pf !== '' && String(defF).trim() === String(pf).trim();
+}
+
+/**
  * @param {object} row - cities 行或匪寨合成行
  * @param {string} anchorKey - 城池：`cityId`；匪寨：**`banditPoiId`**
  * @param {object} hd - hoverDataRef.current
@@ -93,19 +151,42 @@ function buildStrategicWorldMapCityTooltip(row, anchorKey, hd, onDutyCount) {
     worldMapCityIsPlayerSameFaction(row, hd.playerFactionId);
   const canAct = !!(isOwn && hd.playerId && anchorKey && !base.isBanditStronghold);
   const standingId = String(hd.playerStandingPoiAnchorId || '').trim();
+  const standWarFromCell = String(hd.playerStandingPvpWarId || '').trim();
   const anchorNorm = String(anchorKey || '').trim();
-  const atThisPoi = !!anchorNorm && standingId !== '' && standingId === anchorNorm;
+  const atThisPoiStrict = !!anchorNorm && standingId !== '' && standingId === anchorNorm;
+  /** 立于攻方大本营格、tooltip 为「该战事目标城」：与城 id 不同仍视为同城语境（城备按钮），不要求先 isOwn（势力 id 类型不一致时 isOwn 会误判）。 */
+  const atThisPoiWarTheaterToThisCity =
+    !!anchorNorm &&
+    !!standingId &&
+    isPvpWarMarchTargetId(standingId) &&
+    isStandingOwnCityLinkedPvpCampTheater(hd, anchorNorm);
+  const atThisPoi =
+    atThisPoiStrict ||
+    atThisPoiWarTheaterToThisCity ||
+    !!(
+      isOwn &&
+      anchorNorm &&
+      standWarFromCell &&
+      isPvpWarMarchTargetId(standWarFromCell) &&
+      isStandingPvpWarIdLinkedToCityTooltip(hd, anchorNorm)
+    );
   const canSetMainCity =
     canAct &&
     atThisPoi &&
     worldMapCityTypeAllowsMainCitySet(row) &&
     typeof hd.onSetMainCityRequest === 'function';
 
+  const canOwnCityPanel = !!(
+    atThisPoi &&
+    (canAct || (atThisPoiWarTheaterToThisCity && canStrategicCityWarTheaterOwnActions(hd, anchorNorm)))
+  );
+
   const canSiegeThis =
     !base.isBanditStronghold &&
     !isOwn &&
     !!hd.playerId &&
     typeof hd.onStartSiegeForCity === 'function';
+  /** 立于攻方大本营 footprint 时 `playerStandingPoiAnchorId` 为 `pvpWarId`，与城 `city_id` 不等但须能点 **战事目标城** 走 `initiateAttackerCitySiege`（勿再用 `!atThisPoiWarTheaterToThisCity` 关死入口）。 */
   const canSiegeHere = !!(canSiegeThis && atThisPoi);
 
   /** 完整战略面板（含远距离只读）：用于 tooltip portal 粘滞悬停；与「可操作」解耦，见 `poiInteractionsLocked`。 */
@@ -130,28 +211,24 @@ function buildStrategicWorldMapCityTooltip(row, anchorKey, hd, onDutyCount) {
             hd.closeStrategicCityTooltip?.();
           }
         : undefined,
-    showOwnCityActions: !!(canAct && atThisPoi),
+    showOwnCityActions: canOwnCityPanel,
     playerOnDutyForThisCity: !!(
       hd.playerOnDuty &&
       !base.isBanditStronghold &&
       hd.playerOnDutyCityId === anchorKey
     ),
     onOpenGarrison:
-      canAct && atThisPoi && typeof hd.onOpenGarrisonForCity === 'function'
+      canOwnCityPanel && typeof hd.onOpenGarrisonForCity === 'function'
         ? () => {
             hd.onOpenGarrisonForCity(anchorKey, base.cityBaseName);
             hd.closeStrategicCityTooltip?.();
           }
         : undefined,
     onToggleDutyRequest:
-      canAct && atThisPoi && typeof hd.onToggleDutyForCity === 'function'
+      canOwnCityPanel && typeof hd.onToggleDutyForCity === 'function'
         ? hd.onToggleDutyForCity
         : undefined,
     onDutyError: typeof hd.onDutyError === 'function' ? hd.onDutyError : undefined,
-    onAfterOwnCityAction:
-      canAct && atThisPoi && typeof hd.closeStrategicCityTooltip === 'function'
-        ? hd.closeStrategicCityTooltip
-        : undefined,
     subsidiaryExploreEmbed: hd.subsidiaryExploreEmbed ?? null,
     closeStrategicCityTooltip:
       typeof hd.closeStrategicCityTooltip === 'function' ? hd.closeStrategicCityTooltip : undefined,
@@ -195,6 +272,91 @@ function buildStrategicWorldMapCityTooltip(row, anchorKey, hd, onDutyCount) {
       base.isBanditStronghold && Number.isFinite(Number(hd.postBanditRaidRefreshKey))
         ? Number(hd.postBanditRaidRefreshKey)
         : 0,
+  };
+}
+
+/**
+ * PVP 攻方大本营：复用 `WorldMapCityInfoBlock` 城备布局；长官=战事发起人，披挂/驻地固定为无。
+ * **守方攻打**：须本人路点锚在 **该战事目标城** `targetCityId`（战事城池）格网内；在毗邻道路或仅 hover 大本营格而未到目标城时不出击按钮。
+ *
+ * @param {object} warSlice - `listWars` 与 `base_camp` 合并切片（含 `pvpWarId`、`targetCityId`、`sideStats` 等）
+ * @param {object} hd - `hoverDataRef.current`
+ */
+function buildStrategicPvpBaseCampTooltip(warSlice, hd) {
+  const fb = hd.factionNameById || {};
+  const row = hd.cityById?.[warSlice.targetCityId] || null;
+  const regionLabel = row ? worldMapRegionLabelFromRow(row) : '';
+  const defFid = warSlice.defenderFactionId;
+  const attFid = warSlice.attackerFactionId;
+  const playerFid = hd.playerFactionId;
+  const isDef = !!(playerFid && String(playerFid) === String(defFid));
+  const pvpId = String(warSlice.pvpWarId || '').trim();
+  /** 守方须立于该战事 **目标城**（`targetCityId`）格网内方可攻打攻方大本营；毗邻道路或非战事城均不可。 */
+  const targetCityId = String(warSlice.targetCityId ?? warSlice.target_city_id ?? '').trim();
+  const standPoi = String(hd.playerStandingPoiAnchorId || '').trim();
+  const atWarTheaterCity = !!(isDef && targetCityId && standPoi === targetCityId);
+  const canStrike =
+    isDef &&
+    atWarTheaterCity &&
+    hd.playerId &&
+    typeof hd.onStartPvpBaseCampSiege === 'function' &&
+    String(warSlice.status || 'active') === 'active';
+
+  const proposer = warSlice.sideStats?.proposer;
+  const lord =
+    (proposer?.displayName && String(proposer.displayName).trim()) ||
+    warSlice.attackerFactionName ||
+    fb[attFid] ||
+    WORLD_MAP_DEFAULT_FACTION_LABELS[attFid] ||
+    '—';
+
+  return {
+    type: 'worldMapCity',
+    interactive: true,
+    poiInteractionsLocked: isDef && !atWarTheaterCity,
+    uniformStrategicPanel: true,
+    pvpAttackerBaseCampStrategic: true,
+    pvpWarId: pvpId,
+    siegeQuotaCityId: warSlice.targetCityId,
+    cityId: null,
+    banditPoiId: null,
+    cityTitle: warSlice.warName || '攻方营寨',
+    subtitleText:
+      warSlice.targetCityName != null && String(warSlice.targetCityName).trim()
+        ? `目标城池：${warSlice.targetCityName}`
+        : null,
+    siegeTargetLabel: isDef
+      ? atWarTheaterCity
+        ? '可出击'
+        : '请抵达目标城（战事城池）'
+      : '敌方营地',
+    lordDisplayLabel: lord,
+    factionId: attFid,
+    factionLabel:
+      warSlice.attackerFactionName || fb[attFid] || WORLD_MAP_DEFAULT_FACTION_LABELS[attFid] || '—',
+    regionLabel,
+    cityDefenseCoefficient: worldMapCityDefenseDisplayFromRow(row),
+    npcAlive: warSlice.npcAlive,
+    npcTotal: warSlice.npcTotal != null ? warSlice.npcTotal : '?',
+    garrisonSlotCount: null,
+    garrisonCap: null,
+    onDutyCount: null,
+    syncErrorMessage: null,
+    siegeLoading: hd.siegeLoading === true,
+    playerId: hd.playerId,
+    showOwnCityActions: false,
+    playerOnDutyForThisCity: false,
+    cityBaseName: '攻方大本营',
+    onStartSiege:
+      canStrike && pvpId
+        ? () => {
+            hd.onStartPvpBaseCampSiege(pvpId, warSlice);
+            hd.closeStrategicCityTooltip?.();
+          }
+        : undefined,
+    factionDisplayMap: { ...WORLD_MAP_DEFAULT_FACTION_LABELS, ...fb },
+    subsidiaryExploreEmbed: null,
+    closeStrategicCityTooltip: hd.closeStrategicCityTooltip,
   };
 }
 
@@ -285,6 +447,12 @@ export default function WorldStrategicMapGrid({
   /** 与攻城相同的战略门闸文案；有值时 tooltip 内攻打按钮旁展示 */
   banditRaidStartBlockedReason = null,
   postBanditRaidRefreshKey = 0,
+  /** 活跃 PVP 战事攻方大本营切片（由 `StrategicWorldMapSection` 轮询 `warAPI.listWars` 注入） */
+  pvpBaseCamps = [],
+  /** 本人路点落在大本营 footprint 内时的 `pvpWarId`（行军终点 / 格上网锚点等） */
+  playerStandingPvpWarId = '',
+  /** 守方在大本营面板发起攻打：`(pvpWarId, warSlice) => void`（须已立于战事目标城，见 `buildStrategicPvpBaseCampTooltip`） */
+  onStartPvpBaseCampSiege = null,
 }) {
   const strategicNav = useStrategicMapNavigation();
   const tooltipClickMode = useStrategicMapTooltipClickMode();
@@ -316,6 +484,8 @@ export default function WorldStrategicMapGrid({
   const hoverDataRef = useRef({});
   /** 战略城池 tooltip 打开时记录锚点，便于 profile 刷新后重建内容（否则 mainCityId 等仍是快照） */
   const strategicCityTooltipMetaRef = useRef({ cityId: null, banditPoiId: null, onDutyCount: null });
+  /** 使进行中的 `getOnDutyCount` 回调在关层 / 新开拉取 / 披挂档案变更后丢弃，避免旧响应写回人数。 */
+  const strategicOnDutyCountFetchTokenRef = useRef(0);
 
   /**
    * 探索结算关弹窗后，浏览器常把同一指针的后续 click 落在底下的战略格上；在「点击模式」下会触发
@@ -334,6 +504,7 @@ export default function WorldStrategicMapGrid({
 
   const dismissTooltip = useCallback(() => {
     hoverGenRef.current += 1;
+    strategicOnDutyCountFetchTokenRef.current += 1;
     lastTooltipAnchorKeyRef.current = null;
     strategicCityTooltipMetaRef.current = { cityId: null, banditPoiId: null, onDutyCount: null };
     setTooltipContent(null);
@@ -386,6 +557,9 @@ export default function WorldStrategicMapGrid({
     banditRaidStartBlockedReason,
     postBanditRaidRefreshKey,
     playerStandingPoiAnchorId,
+    playerStandingPvpWarId,
+    onStartPvpBaseCampSiege,
+    pvpBaseCamps,
   };
 
   const scheduleLeaveFromTile = useCallback(() => {
@@ -460,7 +634,39 @@ export default function WorldStrategicMapGrid({
     banditRaidStartBlockedReason,
     postBanditRaidRefreshKey,
     playerStandingPoiAnchorId,
+    playerStandingPvpWarId,
+    pvpBaseCamps,
   ]);
+
+  /** `refreshPlayer` 后 meta 里 `onDutyCount` 仍可能是打开时的快照；重拉与本城一致的披挂人数。 */
+  useEffect(() => {
+    const m = strategicCityTooltipMetaRef.current;
+    const cityId = m?.cityId;
+    if (!cityId) return;
+    const tc = tooltipContentRef.current;
+    if (!tc || tc.type !== 'worldMapCity' || String(tc.cityId) !== String(cityId)) return;
+    strategicOnDutyCountFetchTokenRef.current += 1;
+    const onDutyCountToken = strategicOnDutyCountFetchTokenRef.current;
+    let cancelled = false;
+    garrisonAPI.getOnDutyCount(cityId).then((res) => {
+      if (cancelled) return;
+      if (onDutyCountToken !== strategicOnDutyCountFetchTokenRef.current) return;
+      const duty = res.success ? Number(res.count) : null;
+      const d = Number.isFinite(duty) ? duty : null;
+      strategicCityTooltipMetaRef.current = {
+        ...strategicCityTooltipMetaRef.current,
+        cityId,
+        onDutyCount: d,
+      };
+      const hd = hoverDataRef.current;
+      const row = hd.cityById?.[cityId];
+      if (!row) return;
+      setTooltipContent(buildStrategicWorldMapCityTooltip(row, cityId, hd, d));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [playerOnDuty, playerOnDutyCityId]);
 
   useEffect(() => {
     if (!strategicNav?.registerResolveStrategicAnchorForCityId) return undefined;
@@ -709,8 +915,41 @@ export default function WorldStrategicMapGrid({
     const cell = hoverDataRef.current.cells[y]?.[x];
     const hd = hoverDataRef.current;
     const { cityById: cb } = hd;
-    const cover = resolveStrategicTileCityCover(hoverDataRef.current.cells, y, x);
-    const tooltipCell = cover?.anchorCell ?? cell;
+    const cover =
+      resolveStrategicTileCityCover(hoverDataRef.current.cells, y, x) ||
+      resolveStrategicTilePvpCampCover(y, x, pvpBaseCamps, hoverDataRef.current.cells);
+
+    const pvpWarIdHit = cover?.pvpWarId ? String(cover.pvpWarId).trim() : '';
+    if (cover?.footprintKind?.startsWith('pvp_camp') && pvpWarIdHit) {
+      const warSlice = pvpBaseCamps.find((c) => String(c.pvpWarId) === pvpWarIdHit) || null;
+      if (warSlice) {
+        const tc0 = tooltipContentRef.current;
+        const samePvpCampTooltip =
+          tc0?.pvpAttackerBaseCampStrategic &&
+          tc0?.pvpWarId != null &&
+          String(tc0.pvpWarId) === pvpWarIdHit;
+        if (
+          tooltipClickMode &&
+          tc0 &&
+          tc0.type === 'worldMapCity' &&
+          tc0.interactive &&
+          samePvpCampTooltip
+        ) {
+          if (Date.now() < suppressStrategicCityClickDismissUntilRef.current) {
+            return;
+          }
+          closeTooltipNow();
+          return;
+        }
+        lastTooltipAnchorKeyRef.current = `pvpCamp:${pvpWarIdHit}`;
+        strategicCityTooltipMetaRef.current = { cityId: null, banditPoiId: null, onDutyCount: null };
+        setTooltipContent(buildStrategicPvpBaseCampTooltip(warSlice, hd));
+        setTooltipPos({ x: e.clientX, y: e.clientY });
+        return;
+      }
+    }
+
+    const tooltipCell = cover?.anchorCell ? { ...(cell || {}), ...cover.anchorCell } : cell;
     const anchorId = readStrategicCellAnchorId(tooltipCell);
     const banditPoiId = anchorId && isBanditMapObjectId(anchorId) ? anchorId : null;
     const siegeCityId = banditPoiId ? null : anchorId || null;
@@ -752,8 +991,11 @@ export default function WorldStrategicMapGrid({
       setTooltipContent(buildStrategicWorldMapCityTooltip(row, siegeCityId, hd, null));
       setTooltipPos({ x: e.clientX, y: e.clientY });
 
+      strategicOnDutyCountFetchTokenRef.current += 1;
+      const onDutyCountToken = strategicOnDutyCountFetchTokenRef.current;
       garrisonAPI.getOnDutyCount(siegeCityId).then((res) => {
         if (g !== hoverGenRef.current) return;
+        if (onDutyCountToken !== strategicOnDutyCountFetchTokenRef.current) return;
         const duty = res.success ? Number(res.count) : null;
         const hd2 = hoverDataRef.current;
         strategicCityTooltipMetaRef.current = {
@@ -817,6 +1059,7 @@ export default function WorldStrategicMapGrid({
     clearLeaveTooltipTimer,
     tooltipClickMode,
     closeTooltipNow,
+    pvpBaseCamps,
   ]);
 
   /** 荒郊/集市结算后：不依赖「抑制误点」，主动重建同城战略城池 portal（与瓦片点击路径一致） */
@@ -857,8 +1100,11 @@ export default function WorldStrategicMapGrid({
     setTooltipContent(buildStrategicWorldMapCityTooltip(row, anchorCityId, hd, null));
     setTooltipPos({ x: px, y: py });
 
+    strategicOnDutyCountFetchTokenRef.current += 1;
+    const onDutyCountToken = strategicOnDutyCountFetchTokenRef.current;
     garrisonAPI.getOnDutyCount(anchorCityId).then((res) => {
       if (g !== hoverGenRef.current) return;
+      if (onDutyCountToken !== strategicOnDutyCountFetchTokenRef.current) return;
       const duty = res.success ? Number(res.count) : null;
       const hd2 = hoverDataRef.current;
       const row2 = hd2.cityById?.[anchorCityId];
@@ -969,9 +1215,18 @@ export default function WorldStrategicMapGrid({
               <div className="ws-map-grid">
                 {cells.map((row, ri) =>
                   row.map((cell, ci) => {
-                    const cover = resolveStrategicTileCityCover(cells, ri, ci);
+                    const cover =
+                      resolveStrategicTileCityCover(cells, ri, ci) ||
+                      resolveStrategicTilePvpCampCover(ri, ci, pvpBaseCamps, cells);
                     const anchorId = readStrategicCellAnchorId(cover?.anchorCell) || null;
-                    const cityRow = anchorId && cityById ? cityById[anchorId] : null;
+                    let cityRow = anchorId && cityById ? cityById[anchorId] : null;
+                    if (!cityRow && cover?.footprintKind?.startsWith?.('pvp_camp')) {
+                      const af = cover.attackerFactionId ?? cover.attacker_faction_id;
+                      if (af != null && String(af).trim() !== '') {
+                        const fid = String(af).trim();
+                        cityRow = { faction_id: fid, factionId: fid };
+                      }
+                    }
                     const subsidiaryHubGlow =
                       !!anchorId && !!subsidiaryParentIds && subsidiaryParentIds.has(String(anchorId));
                     const q = subsidiaryExploreEmbed?.quota;
@@ -1131,16 +1386,28 @@ export default function WorldStrategicMapGrid({
             !tooltipContent.poiInteractionsLocked &&
             tooltipContent.cityId &&
             !tooltipContent.isBanditStronghold && (
-              <StrategicSiegeWarFloatingPanel
-                anchorRef={tooltipRef}
-                tooltipPos={tooltipPos}
-                cityId={tooltipContent.cityId}
-                factionDisplayMap={tooltipContent.factionDisplayMap}
-                enabled
-                tooltipClickMode={tooltipClickMode}
-                clearLeaveTooltipTimer={clearLeaveTooltipTimer}
-                scheduleLeaveFromTile={scheduleLeaveFromTileIfAllowed}
-              />
+              <>
+                <StrategicSiegeWarFloatingPanel
+                  anchorRef={tooltipRef}
+                  tooltipPos={tooltipPos}
+                  cityId={tooltipContent.cityId}
+                  factionDisplayMap={tooltipContent.factionDisplayMap}
+                  enabled
+                  tooltipClickMode={tooltipClickMode}
+                  clearLeaveTooltipTimer={clearLeaveTooltipTimer}
+                  scheduleLeaveFromTile={scheduleLeaveFromTileIfAllowed}
+                />
+                <StrategicPvpWarFloatingPanel
+                  anchorRef={tooltipRef}
+                  tooltipPos={tooltipPos}
+                  cityId={tooltipContent.cityId}
+                  factionDisplayMap={tooltipContent.factionDisplayMap}
+                  enabled
+                  tooltipClickMode={tooltipClickMode}
+                  clearLeaveTooltipTimer={clearLeaveTooltipTimer}
+                  scheduleLeaveFromTile={scheduleLeaveFromTileIfAllowed}
+                />
+              </>
             )}
         </div>
       </div>

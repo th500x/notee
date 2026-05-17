@@ -8,17 +8,20 @@ import { useSiegeQuota } from '@/hooks/useSiegeQuota';
 import { isBanditMapObjectId } from '@shared/utils/smallMapEnemyRoster';
 
 function StrategicCityTooltipPanel({ content }) {
-  const cityId = content?.cityId ?? null;
+  const quotaCityId =
+    content?.pvpAttackerBaseCampStrategic && content?.siegeQuotaCityId
+      ? content.siegeQuotaCityId
+      : content?.cityId ?? null;
   const playerId = content?.playerId ?? null;
   const skipSiegeQuota =
     content?.isBanditStronghold === true ||
     !!(content?.banditPoiId && isBanditMapObjectId(content.banditPoiId));
   const siegeQuotaHook = useSiegeQuota(
     skipSiegeQuota ? null : playerId,
-    skipSiegeQuota ? null : cityId,
+    skipSiegeQuota ? null : quotaCityId,
   );
   const siegeQuota =
-    cityId && playerId && !skipSiegeQuota ? siegeQuotaHook : content?.siegeQuota ?? null;
+    quotaCityId && playerId && !skipSiegeQuota ? siegeQuotaHook : content?.siegeQuota ?? null;
 
   const {
     type: _t,

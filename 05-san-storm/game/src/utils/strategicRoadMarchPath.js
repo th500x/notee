@@ -15,10 +15,11 @@ import { stackWorldGyFromLocalJunRow } from '@shared/utils/strategicWorldMapStac
 
 /** 与 backend/services/roadEncounterService.js 一致 */
 export const MARCH_FREE_MOVES_PER_DAY = 50;
-export const MARCH_FOOD_PER_STEP = 10;
+export const MARCH_FOOD_PER_STEP = 2;
 export const MARCH_RESERVE_FOOD_DAILY_LIMIT = 500;
 
 /**
+ * 按格网 `cityId` 收集某城 footprint（工具函数）。**战略离路行军出发**已不使用 `main_city_id` 回退，勿再接入 `resolveOffRoadMarchDepartureFootprintKeys`。
  * @param {object[][]|null|undefined} cells
  * @param {string|null|undefined} mainCityId
  * @returns {Set<string>} `"gx,gy"`
@@ -78,6 +79,7 @@ export const buildRoadPassableKeySet = buildRoadPassableKeySetForMarch;
  * @param {number} p.targetGy
  * @param {Set<string>|null|undefined} [p.hostileOccupiedRoadKeys] 已废弃，不参与寻路（保留入参兼容旧调用）。
  * @param {boolean} [p.useWorldStackRoadCoords] 叠放大地图时 `targetGy` / 起点为 **世界行**。
+ * @param {Array<{ junId?: string, cells?: string[], pvpWarId?: string }>|null|undefined} [p.pvpBaseCamps] 离路出发 footprint（大本营等）
  * @returns {{ ok: true, path: {x:number,y:number}[], onRoadAtStart: boolean } | { ok: false, error: string }}
  */
 export function buildMarchPath({
@@ -89,10 +91,10 @@ export function buildMarchPath({
   player,
   targetGx,
   targetGy,
-  mainCityDbRow = null,
   citiesInCountyRows = null,
   hostileOccupiedRoadKeys = null,
   useWorldStackRoadCoords = false,
+  pvpBaseCamps = null,
 }) {
   if (!cells?.length || !roadCells?.length) {
     return { ok: false, error: '当前地图缺少道路数据' };
@@ -115,10 +117,12 @@ export function buildMarchPath({
     useWorldStackRoadCoords && roadJun && Number.isFinite(rx) && Number.isFinite(ry)
       ? stackWorldGyFromLocalJunRow(roadJun, Math.trunc(ry))
       : Math.trunc(ry);
-  const startKeyIf =
-    roadJun === countyJunId && Number.isFinite(rx) && Number.isFinite(ry)
-      ? `${Math.trunc(rx)},${startWy}`
-      : null;
+  const canUseStartKey =
+    Number.isFinite(rx) &&
+    Number.isFinite(ry) &&
+    !!String(roadJun || '').trim() &&
+    (useWorldStackRoadCoords ? true : String(roadJun).trim() === String(countyJunId || '').trim());
+  const startKeyIf = canUseStartKey ? `${Math.trunc(rx)},${startWy}` : null;
   const onRoad = !!startKeyIf && roadPassable.has(startKeyIf);
 
   if (onRoad) {
@@ -137,12 +141,15 @@ export function buildMarchPath({
     countyJunId,
     mapColumns,
     mapRows,
-    collectMainCityFootprintKeys,
-    { mainCityDbRow, citiesInCountyRows },
+    { citiesInCountyRows, pvpBaseCamps },
     useWorldStackRoadCoords,
   );
   if (!footprint.size) {
-    return { ok: false, error: '未设置主城或不在可识别的城/寨占格上，无法沿路出发' };
+    return {
+      ok: false,
+      error:
+        '离路起点无法解析：当前坐标须落在库城/格网城寨/PVP 攻方大本营等已登记 POI 占格内（不以主城替代）。请刷新地图或核对 road_position。',
+    };
   }
   const starts = roadKeysAdjacentToFootprint(footprint, roadPassable);
   if (!starts.size) return { ok: false, error: '出发地旁没有可通行的道路格' };
@@ -159,17 +166,17 @@ export function buildMarchPath({
 export function buildMarchPathToPoi(p) {
   return buildMarchPathToStrategicPoiShared({
     ...p,
-    collectMainCityFootprintKeys: (cells, mainId) => collectMainCityFootprintKeys(cells, mainId),
     targetCityDbRow: p.targetCityDbRow ?? null,
-    mainCityDbRow: p.mainCityDbRow ?? null,
     citiesInCountyRows: p.citiesInCountyRows ?? null,
     hostileOccupiedRoadKeys: p.hostileOccupiedRoadKeys ?? null,
     useWorldStackRoadCoords: p.useWorldStackRoadCoords ?? false,
+    pvpCampBaseCamp: p.pvpCampBaseCamp ?? null,
+    pvpBaseCamps: p.pvpBaseCamps ?? null,
   });
 }
 
 /**
- * 与 `moveAlongRoad` 中「先扣免费格再每格 10 粮」一致（不模拟遭遇截断）。
+ * 与 `moveAlongRoad` 中「先扣免费格再每格付费粮（`MARCH_FOOD_PER_STEP`）」一致（不模拟遭遇截断）。
  * @param {object} p
  * @param {{x:number,y:number}[]} p.path
  * @param {boolean} p.onRoadAtStart

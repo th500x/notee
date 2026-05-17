@@ -34,3 +34,22 @@ export function computeDisplayGameDate(gt) {
   const elapsedGameDays = Math.floor(elapsedHours / hoursPer);
   return advanceGameCalendar(gt.startYear, gt.startMonth, gt.startDay, elapsedGameDays);
 }
+
+/**
+ * 与 `warInitiationCostService.gameCalendarMonthOrdinal` 一致：当前游戏历第几个自然月（1 起算），用于 UI 与 17-2 发动倍率说明。
+ * @param {object|null|undefined} gt - profile `gameTime`（须含 year/month/startYear/startMonth）
+ * @returns {number}
+ */
+export function gameCalendarMonthOrdinal(gt) {
+  if (!gt) return 1;
+  const y = Number(gt.year);
+  const m = Number(gt.month);
+  const sy = Number(gt.startYear ?? 184);
+  const sm = Number(gt.startMonth ?? 1);
+  if (!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(sy) || !Number.isFinite(sm)) {
+    return 1;
+  }
+  const abs = (yy, mm) => yy * 12 + (mm - 1);
+  const delta = abs(y, m) - abs(sy, sm);
+  return Math.max(1, delta + 1);
+}

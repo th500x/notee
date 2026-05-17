@@ -133,7 +133,7 @@ export default function CampaignCenterPanel({ playerId, open, onClose, season = 
 
   return (
     <div
-      className="fixed inset-0 z-[220] flex flex-col bg-black/55 backdrop-blur-[2px]"
+      className="fixed inset-0 z-[220] flex flex-col bg-black/60"
       role="dialog"
       aria-modal="true"
       aria-labelledby="campaign-center-title"

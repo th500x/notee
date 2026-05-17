@@ -70,10 +70,13 @@ function CampaignFlipCard({
       aria-label="战役卡牌，点击翻面"
     >
       <div
-        className="relative w-full h-full transition-transform duration-700"
+        className="relative w-full h-full transition-transform duration-700 ease-in-out"
         style={{
           transformStyle: 'preserve-3d',
-          transform: isFlipped ? 'rotateY(180deg)' : 'rotateY(0deg)',
+          /* translateZ(0)：合成层，减轻半透明遮罩上 3D 翻转的卡顿 */
+          transform: isFlipped
+            ? 'rotateY(180deg) translateZ(0)'
+            : 'rotateY(0deg) translateZ(0)',
         }}
       >
         {/* 正面 */}

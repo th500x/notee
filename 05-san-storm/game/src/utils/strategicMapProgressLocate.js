@@ -1,5 +1,5 @@
 /**
- * 战略大地图「进度条」一键定位：最近己方中/大城、郡内最近匪寨锚点格等（世界格坐标 gy 与合并 `cells` 一致）。
+ * 战略大地图「进度条」一键定位：最近己方中/大城、郡内匪寨锚点格（首点最近、同郡再点按稳定序循环切换）等（世界格坐标 gy 与合并 `cells` 一致）。
  */
 
 import { stackWorldGyFromLocalJunRow, stackLocalJunRowFromWorldGy } from '@shared/utils/strategicWorldMapStack.js';
@@ -100,8 +100,63 @@ export function findNearestFactionMajorMediumCityStrategicCell(cities, playerFac
  * @param {string} junId
  * @param {{ gx: number, gy: number }|null|undefined} refCell
  */
+/**
+ * 骨牌匪寨可能在合并格网占多格；定位滚屏只需每 **`banditPoiId`** 保留一格代表坐标。
+ * @param {Array<{ gx: number, gy: number, banditPoiId: string }>|null|undefined} rawList
+ * @returns {Array<{ gx: number, gy: number, banditPoiId: string }>}
+ */
+export function dedupeBanditAnchorCellsByPoiId(rawList) {
+  if (!rawList?.length) return [];
+  /** @type {Map<string, { gx: number, gy: number, banditPoiId: string }>} */
+  const byId = new Map();
+  for (const c of rawList) {
+    const id = String(c?.banditPoiId ?? '').trim();
+    if (!id) continue;
+    if (!byId.has(id)) byId.set(id, { gx: c.gx, gy: c.gy, banditPoiId: id });
+  }
+  return Array.from(byId.values());
+}
+
+/**
+ * 本郡多寨时循环顺序：先按世界格 **gy、gx**，再按 **`banditPoiId`** 字符串，保证稳定。
+ * @param {Array<{ gx: number, gy: number, banditPoiId: string }>} list
+ */
+export function sortBanditAnchorsStableByGridOrder(list) {
+  return [...(list || [])].sort((a, b) => {
+    const dy = a.gy - b.gy;
+    if (dy !== 0) return dy;
+    const dx = a.gx - b.gx;
+    if (dx !== 0) return dx;
+    return String(a.banditPoiId).localeCompare(String(b.banditPoiId), 'en');
+  });
+}
+
+/**
+ * 郡条「匪寨」定位：**首次**（或上次寨已从格网消失）→ 距 **`refCell`** 曼哈顿最近的一座；**同郡再次点击** → 在稳定排序的各寨间 **循环** 下一座。
+ * @param {Record<string, Array<{ gx: number, gy: number, banditPoiId: string }>>} byJun
+ * @param {string} junId
+ * @param {{ gx: number, gy: number }|null|undefined} refCell
+ * @param {string|null|undefined} lastBanditPoiId - 该郡上一次滚屏定位的 **`banditPoiId`**（由调用方 ref 维护）
+ * @returns {{ gx: number, gy: number, banditPoiId: string } | null}
+ */
+export function pickBanditProgressLocateTarget(byJun, junId, refCell, lastBanditPoiId) {
+  const j = String(junId || '').trim();
+  const unique = sortBanditAnchorsStableByGridOrder(dedupeBanditAnchorCellsByPoiId(byJun?.[j]));
+  if (!unique.length) return null;
+  if (unique.length === 1) return unique[0];
+  const last = lastBanditPoiId != null ? String(lastBanditPoiId).trim() : '';
+  if (!last) {
+    return pickNearestStrategicCell(refCell, unique) ?? unique[0];
+  }
+  const idx = unique.findIndex((u) => u.banditPoiId === last);
+  if (idx < 0) {
+    return pickNearestStrategicCell(refCell, unique) ?? unique[0];
+  }
+  return unique[(idx + 1) % unique.length];
+}
+
 export function pickNearestBanditStrategicCellInJun(byJun, junId, refCell) {
   const j = String(junId || '').trim();
-  const list = byJun?.[j];
-  return pickNearestStrategicCell(refCell, list || []);
+  const list = dedupeBanditAnchorCellsByPoiId(byJun?.[j]);
+  return pickNearestStrategicCell(refCell, list);
 }

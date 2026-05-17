@@ -11,6 +11,7 @@ const equipmentSetService = require('./equipmentSetService');
 const { getFactionFromTroopId } = require('./troopIdHelpers');
 const playerCardLineupService = require('./playerCardLineupService');
 const statisticsDeltaService = require('./statisticsDeltaService');
+const staleStrategicRoadStandRepairService = require('./staleStrategicRoadStandRepairService');
 
 /**
  * @returns {Promise<{ notFound: true } | { data: object }>}
@@ -25,6 +26,20 @@ async function getPlayerProfile(playerId) {
   if (clearedStaleOnDuty) {
     player.on_duty = false;
     player.on_duty_city_id = null;
+  }
+
+  try {
+    const standPatch = await staleStrategicRoadStandRepairService.repairStaleStandIfNeededAfterProfileLoad(
+      pool,
+      playerId,
+    );
+    if (standPatch) {
+      if (standPatch.road_position_x != null) player.road_position_x = standPatch.road_position_x;
+      if (standPatch.road_position_y != null) player.road_position_y = standPatch.road_position_y;
+      if (standPatch.road_client_notice != null) player.road_client_notice = standPatch.road_client_notice;
+    }
+  } catch (e) {
+    console.error('[playerProfileService] stale road stand repair skipped:', e?.message || e);
   }
 
   let positionConfig = null;

@@ -82,9 +82,12 @@ async function applyBanditRaidVictory(playerId, payload) {
 
     const newStored = banditStoredNextLayerAfterVictory(attackedLayer, maxP);
     const { raid: _legacyRaid, ...prevWithoutRaid } = prevEntry;
+    const postTowerTs =
+      attackedLayer === maxP && newStored > maxP ? { postTowerStallCompletedAtMs: Date.now() } : {};
     bp[BUCKET][banditPoiId] = {
       ...prevWithoutRaid,
       nextLayer: newStored,
+      ...postTowerTs,
     };
 
     const [uBand] = await conn.query(

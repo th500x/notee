@@ -30,6 +30,9 @@ const CITY_TYPE_TO_LABEL = {
  */
 export function getStrategicMapCityLabelLines(cityRow, anchorCell, effectiveObject) {
   if (!effectiveObject) return null;
+  if (effectiveObject === 'pvp_camp_horiz' || effectiveObject === 'pvp_camp_vert') {
+    return { line1: '', line2: '攻方大本营' };
+  }
   const banditTile = isBanditStrategicObject(effectiveObject);
   if (!banditTile && !OBJECT_TO_TYPE[effectiveObject]) return null;
 

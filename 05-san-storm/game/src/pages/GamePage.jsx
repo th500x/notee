@@ -17,6 +17,7 @@ import BottomTabNav from '@/components/game/BottomTabNav';
 import PersonalSidebar from '@/components/game/PersonalSidebar';
 import CommPanel from '@/components/game/CommPanel';
 import StandingRankingsPanel from '@/components/game/StandingRankingsPanel';
+import KingEdictPanel from '@/components/game/KingEdictPanel';
 import CardPoolDrawer from '@/components/game/CardPoolDrawer';
 import CampaignCenterPanel from '@/components/game/CampaignCenterPanel';
 import AttrRerollDrawer from '@/components/game/AttrRerollDrawer';
@@ -25,7 +26,7 @@ import { loadSharedData } from '@/services/dataService';
 import LineupTab from '@/components/game/tabs/LineupTab';
 import MainCityTab from '@/components/game/tabs/MainCityTab';
 import FactionTab from '@/components/game/tabs/FactionTab';
-import PlaceholderTab from '@/components/game/tabs/PlaceholderTab';
+import WorldMapTab from '@/components/game/tabs/WorldMapTab';
 import WorldMap from '@/components/game/WorldMap';
 import RoadEncounterDefenseRoot from '@/components/game/RoadEncounterDefenseRoot';
 import JunCountyQuadPreviewPanel from '@/components/game/JunCountyQuadPreviewPanel';
@@ -162,7 +163,7 @@ function GamePageInner({ onLogout, accountId }) {
       case 'faction':
         return <FactionTab onClose={handleCloseToMap} />;
       case 'map':
-        return <PlaceholderTab tabId={activeTab} onClose={handleCloseToMap} />;
+        return <WorldMapTab onClose={handleCloseToMap} />;
       default:
         return null;
     }
@@ -226,6 +227,11 @@ function GamePageInner({ onLogout, accountId }) {
           onLogout={handleLogout}
         />
 
+        <KingEdictPanel
+          visible={activeTab === null && !eventBusy}
+          playerId={playerId}
+          factionId={player?.faction_id}
+        />
         <StandingRankingsPanel visible={activeTab === null && !eventBusy} playerId={playerId} />
         <CommPanel visible={activeTab === null && !eventBusy} />
       </div>

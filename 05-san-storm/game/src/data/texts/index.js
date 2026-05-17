@@ -9,8 +9,9 @@
  * ├── gameIntroMessages.js   # 游戏特色介绍（开局叠加层）
  * ├── tutorialDraftPlaceholders.js  # 文档/占位用叙述块
  * ├── weeklyReport.js   # 项目周报（首页卡片 + 周报页全文）
- * ├── events.js         # 事件系统对话文本
- * ├── tips.js           # 系统提示/公告文本
+ * ├── kingSpeechCasualChat.zh.json  # AI君主闲聊文案池（五种 speechStyle × casualChat）
+ * ├── buildKingSpeechCasualChat.zh.mjs  # 生成上列 JSON（需改版书时运行）
+ * ├── equipmentSetNameParts.json  # 装备随机命名词缀分桶
  * └── index.js          # 统一导出
  */
 
@@ -35,3 +36,5 @@ export {
   weeklyReportTestRewardP1,
   weeklyReportMilestones,
 } from './weeklyReport';
+
+export { default as kingSpeechCasualChatZh } from './kingSpeechCasualChat.zh.json';

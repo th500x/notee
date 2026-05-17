@@ -1,11 +1,16 @@
 /**
  * 披挂上阵 · 服务端权威结算（仅 defenderGarrisonSlot === 0）
- * 驻地 / NPC 仍走客户端 BattleArena + /cities/siege-result
+ *
+ * 17-2 §1.4 / §1.7：披挂上阵实时挑战只在「PVP 战事 active」状态下成立，
+ * 战果一律写 `wars_pvp` via `pvpWarService.recordAttackerCitySiegeResult`，
+ * 不再回写 `wars` (PVE) 表。
+ *
+ * 驻地 / NPC 异步分支：前端走客户端 BattleArena + /api/pvp-wars/:id/city-siege-result。
  */
 
-const cityService = require('./cityService');
 const garrisonService = require('./garrisonService');
 const pvpService = require('./pvpService');
+const pvpWarService = require('./pvpWarService');
 const battleService = require('./battleService');
 const { runSiegePvpSkirmish, hashSeed } = require('./siegePvpSkirmish');
 const { pool } = require('../database/connection');
@@ -69,6 +74,11 @@ async function doResolveAuthoritativeSiegePvp(params) {
     err.code = 'NOT_PVP_ON_DUTY';
     throw err;
   }
+  if (!c.pvpWarId) {
+    const err = new Error('披挂上阵实时挑战需在 PVP 战事下成立（缺少 pvpWarId）');
+    err.code = 'NOT_PVP_WAR';
+    throw err;
+  }
   if (!canResolveChallenge(c)) {
     const err = new Error('挑战尚未进入可结算阶段');
     err.code = 'NOT_READY';
@@ -87,7 +97,7 @@ async function doResolveAuthoritativeSiegePvp(params) {
   const initialAttackerTroops = sumSiegeNpcStartingTroops(attackerNpcs);
   const initialDefenderTroops = sumSiegeNpcStartingTroops(defenderNpcs);
 
-  const seed = hashSeed([c.warId, challengeId, attackerId, c.defenderId]);
+  const seed = hashSeed([c.pvpWarId || c.warId, challengeId, attackerId, c.defenderId]);
   const sim = runSiegePvpSkirmish(attackerNpcs, defenderNpcs, seed);
   const result = sim.attackerWon ? 'win' : 'lose';
   const killedIndices = sim.killedIndices;
@@ -130,19 +140,18 @@ async function doResolveAuthoritativeSiegePvp(params) {
     currentTroops: Math.max(0, Math.round(Number(sim.defenderTroopsEnd[i]?.currentTroops) || 0)),
   })).filter((u) => u.instanceId);
 
-  const recordPayload = await cityService.recordSiegeResult(
-    c.warId,
+  const recordPayload = await pvpWarService.recordAttackerCitySiegeResult(
+    c.pvpWarId,
     attackerId,
-    attackerFaction,
-    killedIndices,
-    result,
-    0,
     {
       defenderType: 'pvp_online',
       defenderPlayerId: c.defenderId,
       defenderGarrisonSlot: 0,
       garrisonUnits: defenderNpcs,
       defenderLineupTroopUpdates,
+      killedIndices,
+      result,
+      silverSpent: 0,
     },
   );
 
@@ -156,7 +165,7 @@ async function doResolveAuthoritativeSiegePvp(params) {
     console.error('[siegePvpResolve] attacker lineup casualties', {
       message: e.message,
       attackerId,
-      warId: c.warId,
+      pvpWarId: c.pvpWarId,
     });
   }
 
@@ -168,7 +177,7 @@ async function doResolveAuthoritativeSiegePvp(params) {
     await battleService.saveBattle({
       battleId,
       playerId: attackerId,
-      warId: c.warId,
+      pvpWarId: c.pvpWarId,
       battleType: 'pvp_siege',
       opponentType: 'player',
       opponentId: c.defenderId,
@@ -202,7 +211,7 @@ async function doResolveAuthoritativeSiegePvp(params) {
       sqlMessage: e.sqlMessage,
       battleId,
       attackerId,
-      warId: c.warId,
+      pvpWarId: c.pvpWarId,
     });
   }
 
@@ -211,7 +220,7 @@ async function doResolveAuthoritativeSiegePvp(params) {
     await battleService.saveBattle({
       battleId: defBattleId,
       playerId: c.defenderId,
-      warId: c.warId,
+      pvpWarId: c.pvpWarId,
       battleType: 'pvp_defense',
       opponentType: 'player',
       opponentId: attackerId,
@@ -246,7 +255,7 @@ async function doResolveAuthoritativeSiegePvp(params) {
       sqlMessage: e.sqlMessage,
       battleId: defBattleId,
       defenderId: c.defenderId,
-      warId: c.warId,
+      pvpWarId: c.pvpWarId,
     });
   }
 
@@ -273,7 +282,8 @@ async function doResolveAuthoritativeSiegePvp(params) {
     battleSeed: sim.battleSeed,
     battleLog: sim.battleLog,
     siegeData: recordPayload,
-    warId: c.warId,
+    warId: c.warId || null,
+    pvpWarId: c.pvpWarId,
     cityId: c.cityId,
     defenderId: c.defenderId,
     attackerId,
@@ -299,7 +309,8 @@ async function doResolveAuthoritativeSiegePvp(params) {
     killedIndices,
     result,
     siegeData: recordPayload,
-    warId: c.warId,
+    warId: c.warId || null,
+    pvpWarId: c.pvpWarId,
     cityId: c.cityId,
     defenderId: c.defenderId,
     attackerId,

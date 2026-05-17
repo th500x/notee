@@ -12,7 +12,80 @@ const { checkAndApplyVeteran } = require('./veteranService');
 const garrisonService = require('./garrisonService');
 const statisticsDeltaService = require('./statisticsDeltaService');
 const smallMapBattleLootService = require('./smallMapBattleLootService');
+const factionBulletinService = require('./factionBulletinService');
+const gameTimeService = require('./gameTimeService');
+const warInitiationCostService = require('./warInitiationCostService');
 const { KILL_SILVER_REWARD } = require('../../shared/utils/siegeKillEconomyByRarity.cjs');
+const { isAllowedPlayerCityPoiCityType } = require('../../shared/utils/strategicMarchPoi.js');
+const {
+  calcHourlyQuotaWithRestWindow,
+  EXPLORATION_AND_SIEGE_QUOTA_DEFAULTS,
+} = require('../utils/hourlyQuotaWithRestWindow');
+
+function calcSiegeQuotaForPlayer(remaining, lastRefillTs) {
+  return calcHourlyQuotaWithRestWindow(
+    remaining,
+    lastRefillTs,
+    new Date(),
+    EXPLORATION_AND_SIEGE_QUOTA_DEFAULTS,
+  );
+}
+
+/**
+ * 与 `routes/cities` POST `/siege-quota` 同源：扣 1 次攻城次数（PVP 守方打大本营与攻城共用 `player_events` 桶）。
+ * @param {string} playerId
+ * @param {import('mysql2/promise').PoolConnection|null} [conn]
+ * @returns {Promise<boolean>} 是否成功扣减
+ */
+async function tryConsumeSiegeQuotaOnce(playerId, conn = null) {
+  const runner = conn || pool;
+  const pid = String(playerId || '').trim();
+  if (!pid) return false;
+  await runner.query('INSERT IGNORE INTO player_events (player_id) VALUES (?)', [pid]);
+  const [rows] = await runner.query(
+    'SELECT siege_quota_remaining, siege_quota_refill_ts FROM player_events WHERE player_id = ? FOR UPDATE',
+    [pid],
+  );
+  const row = rows[0] || {};
+  const current = calcSiegeQuotaForPlayer(
+    row.siege_quota_remaining,
+    row.siege_quota_refill_ts ? Number(row.siege_quota_refill_ts) : null,
+  );
+  if (current.remaining <= 0) return false;
+  const newRemaining = current.remaining - 1;
+  await runner.query(
+    'UPDATE player_events SET siege_quota_remaining = ?, siege_quota_refill_ts = ? WHERE player_id = ?',
+    [newRemaining, String(current.lastRefillTs), pid],
+  );
+  return true;
+}
+
+/**
+ * 攻城次数 +1（上限封顶）；用于扣次后握手失败回滚。
+ * @param {string} playerId
+ * @param {import('mysql2/promise').PoolConnection|null} [conn]
+ */
+async function refundSiegeQuotaOnce(playerId, conn = null) {
+  const runner = conn || pool;
+  const pid = String(playerId || '').trim();
+  if (!pid) return;
+  await runner.query('INSERT IGNORE INTO player_events (player_id) VALUES (?)', [pid]);
+  const [rows] = await runner.query(
+    'SELECT siege_quota_remaining, siege_quota_refill_ts FROM player_events WHERE player_id = ? FOR UPDATE',
+    [pid],
+  );
+  const row = rows[0] || {};
+  const current = calcSiegeQuotaForPlayer(
+    row.siege_quota_remaining,
+    row.siege_quota_refill_ts ? Number(row.siege_quota_refill_ts) : null,
+  );
+  const maxQ = EXPLORATION_AND_SIEGE_QUOTA_DEFAULTS.maxQuota;
+  const newRemaining = Math.min(current.remaining + 1, maxQ);
+  await runner.query(
+    'UPDATE player_events SET siege_quota_remaining = ?, siege_quota_refill_ts = ? WHERE player_id = ?',
+    [newRemaining, String(current.lastRefillTs), pid],
+  );
+}
 
 /**
  * 库列 `city_id` / `player_garrison_capacity` → 对外兼容 `id` / `garrison_capacity`（JSON 与旧前端）
@@ -55,6 +128,16 @@ function tryAcquireSiegeLock(lockKey, attackerId) {
 function releaseSiegeLock(lockKey, attackerId) {
   const cur = siegeLocks.get(lockKey);
   if (cur && cur.attackerId === attackerId) siegeLocks.delete(lockKey);
+}
+
+/** 朝政撤 PVE 攻城：清扫本战事 NPC 批次的内存锁（不依赖占锁玩家 id）。 */
+function releaseAllSiegeMemoryLocksForPveWar(warId) {
+  const wid = String(warId || '').trim();
+  if (!wid) return;
+  const prefix = `def|${wid}|`;
+  for (const key of Array.from(siegeLocks.keys())) {
+    if (String(key).startsWith(prefix)) siegeLocks.delete(key);
+  }
 }
 
 /** NPC 守军在锁键中使用的伪防守者 ID（与真实 player_id 区分），键格式同驻守：def|warId|防守者|槽位 */
@@ -356,21 +439,137 @@ async function getCityInfo(cityId) {
   };
 }
 
+/** 同一势力在 `wars`（PVE 中立城攻城）进行中战事条数上限；与 `pvpWarService` 的 PVP 上限并列（每类各 1）。 */
+const MAX_CONCURRENT_PVE_WARS_PER_ATTACKER_FACTION = 1;
+
+function parseFactionKillsColumn(raw) {
+  if (!raw) return {};
+  if (typeof raw === 'object' && !Array.isArray(raw)) return { ...raw };
+  if (typeof raw === 'string') {
+    try {
+      const o = JSON.parse(raw);
+      return o && typeof o === 'object' && !Array.isArray(o) ? o : {};
+    } catch {
+      return {};
+    }
+  }
+  return {};
+}
+
+async function playerHasPveSiegeBattleForWar(playerId, warId) {
+  const pid = String(playerId || '').trim();
+  const wid = String(warId || '').trim();
+  if (!pid || !wid) return false;
+  const [rows] = await pool.query(
+    "SELECT 1 FROM battles WHERE player_id = ? AND battle_type = 'pve_siege' AND war_id = ? LIMIT 1",
+    [pid, wid],
+  );
+  return rows.length > 0;
+}
+
+async function factionParticipatesInPveWarRow(warRow, factionId, playerId) {
+  const fid = String(factionId || '').trim();
+  if (!fid || !warRow) return false;
+  const fk = parseFactionKillsColumn(warRow.faction_kills);
+  if (Object.prototype.hasOwnProperty.call(fk, fid)) return true;
+  return playerHasPveSiegeBattleForWar(playerId, warRow.war_id);
+}
+
 /**
- * 发起攻城战（创建 war 记录，返回 NPC 守军供前端战斗）
+ * 本势力在指定赛季下「占用 PVE 攻城槽」的进行中 `wars` 列表（去重 `war_id`）。
+ * 参与判定：`faction_kills` 含该势力键，或 **当前**归属该势力的成员存在 `battles.pve_siege` 且 `war_id` 命中 **同季 active siege**。
+ *
+ * **与旧版 `countActivePveSiegeWarsForFaction` 的差异**：`battles` 侧必须通过 `wars`+`cities.season` 约束，
+ * 不得仅 `SELECT DISTINCT war_id FROM battles WHERE player_id IN (...)`，否则会把已结束或其它语境下的
+ * `war_id` 混入集合，造成「界面无战事仍 atPveCap」的假阳性。
+ *
+ * @param {string} factionId
+ * @param {{ excludeWarId?: string, season?: string }} [opts]
+ * @returns {Promise<{ count: number, wars: Array<{ warId: string, targetCityId: string, targetCityName: string|null, via: 'faction_kills'|'battle' }> }>}
+ */
+async function getActivePveSiegeParticipationForFaction(factionId, opts = {}) {
+  const fid = String(factionId || '').trim();
+  if (!fid) return { count: 0, wars: [] };
+  const excludeWarId = opts.excludeWarId ? String(opts.excludeWarId).trim() : '';
+  const season = String(opts.season || 'san_1').trim() || 'san_1';
+
+  const [warRows] = await pool.query(
+    `SELECT w.war_id, w.faction_kills, w.target_city_id, w.target_city_name
+       FROM wars w
+       INNER JOIN cities c ON c.city_id = w.target_city_id
+       WHERE w.status = 'active' AND w.war_type = 'siege' AND c.season = ?`,
+    [season],
+  );
+
+  const [battleRows] = await pool.query(
+    `SELECT DISTINCT b.war_id AS warId
+       FROM battles b
+       INNER JOIN players p ON p.player_id = b.player_id AND p.faction_id = ?
+       INNER JOIN wars w ON w.war_id = b.war_id AND w.status = 'active' AND w.war_type = 'siege'
+       INNER JOIN cities c ON c.city_id = w.target_city_id AND c.season = ?
+       WHERE b.battle_type = 'pve_siege' AND b.war_id IS NOT NULL`,
+    [fid, season],
+  );
+  const battleWarIds = new Set(battleRows.map((r) => r.warId).filter(Boolean));
+
+  const wars = [];
+  const seen = new Set();
+  for (const row of warRows) {
+    if (excludeWarId && row.war_id === excludeWarId) continue;
+    const fk = parseFactionKillsColumn(row.faction_kills);
+    const inFk = Object.prototype.hasOwnProperty.call(fk, fid);
+    const inBattle = battleWarIds.has(row.war_id);
+    if (!inFk && !inBattle) continue;
+    if (seen.has(row.war_id)) continue;
+    seen.add(row.war_id);
+    wars.push({
+      warId: row.war_id,
+      targetCityId: row.target_city_id,
+      targetCityName: row.target_city_name || null,
+      via: inFk ? 'faction_kills' : 'battle',
+    });
+  }
+  return { count: wars.length, wars };
+}
+
+/**
+ * 数 `wars` 中 active 的 siege 行（同 `getActivePveSiegeParticipationForFaction`）。
+ *
+ * @param {string} factionId
+ * @param {{ excludeWarId?: string, season?: string }} [opts]
+ *   - `season`：仅计 **目标城** `cities.season` 匹配的 active 攻城行；缺省 `san_1`。
+ */
+async function countActivePveSiegeWarsForFaction(factionId, opts = {}) {
+  const { count } = await getActivePveSiegeParticipationForFaction(factionId, opts);
+  return count;
+}
+
+/**
+ * 发起攻城战（**仅中立城 PVE**；已占领的敌对势力城走 `pvpWarService.initiateAttackerCitySiege`）。
+ *
+ * 17-2 §1.4 / §1.9 / IMPLEMENTATION-PLAN §1.9：cityService 不处理 PVP 战事；
+ * 中立城 → `wars` + `faction_kills` 抢桶；占领城 → `wars_pvp` + 大本营 + 攻占即归属。
  */
 async function initiateSiege(cityId, playerId) {
   const city = await getCityInfo(cityId);
   if (!city) throw new Error('城市不存在');
 
-  // 获取玩家势力
   const [playerRows] = await pool.query('SELECT faction_id FROM players WHERE player_id = ?', [playerId]);
   if (!playerRows.length) throw new Error('玩家不存在');
   const playerFaction = playerRows[0].faction_id;
 
-  // 如果城市已被自己势力占领，不能攻打
   if (city.faction_id && city.faction_id === playerFaction) {
     throw new Error('不能攻打己方城市');
+  }
+
+  if (!city.faction_id && !isAllowedPlayerCityPoiCityType(city.city_type)) {
+    throw new Error('中立 PVE 攻城仅针对大城/中城/小城，不含关隘、据点等');
+  }
+
+  if (isCityOccupiedForNpcGarrison(city)) {
+    throw new Error(
+      '该城已被势力占领，请通过势力战事路径攻打（需先由君主宣战、放置攻方大本营）',
+    );
   }
 
   const attackerLineupTroops = await garrisonService.sumMainLineupEquippedTroopTroops(pool, playerId);
@@ -380,58 +579,7 @@ async function initiateSiege(cityId, playerId) {
     );
   }
 
-  // ── 已占领城市：先查玩家防守者 ──
-  // 防守顺序：① 披挂上阵玩家（on_duty=TRUE）→ ② 普通驻守玩家 → ③ NPC守军
-  // 玩家守军是否「有效」由 garrisonService 列表侧已按 MIN_GARRISON_TOTAL_TROOPS（800）过滤；此处仍用
-  // buildDefenderLineupForCityDefense 取 units，避免与列表口径漂移。
-  if (isCityOccupiedForNpcGarrison(city)) {
-    // 按顺序构建防守者队列：先 on_duty，再普通驻守
-    const onDutyDefenders = await garrisonService.getCityOnDutyDefenders(cityId, city.faction_id);
-    const garrisonDefenders = await garrisonService.getCityGarrisonDefenders(cityId, city.faction_id);
-    const onDutyPlayerIds = new Set(onDutyDefenders.map((d) => d.player_id));
-    const garrisonOnly = garrisonDefenders.filter((d) => !onDutyPlayerIds.has(d.player_id));
-    const allDefenders = [...onDutyDefenders, ...garrisonOnly];
-
-    for (const def of allDefenders) {
-      if (def.player_id === playerId) continue; // 跳过攻城方自己
-
-      // 有效守军门槛：与列表/统计/遇袭 API 相同，须走 garrisonService.buildDefenderLineupForCityDefense（≥800）
-      const { units, meetsStationedTroopGate } = await garrisonService.buildDefenderLineupForCityDefense(def);
-      if (!meetsStationedTroopGate) continue;
-
-      const war = await getOrCreateWar(cityId, city);
-      const defLockKey = `def|${war.war_id}|${def.player_id}|${def.garrison_slot}`;
-      if (!tryAcquireSiegeLock(defLockKey, playerId)) continue;
-
-      // 构建防守单位（BattleArena格式：属性×10）
-      const garrisonUnits = garrisonService.mapBuiltUnitsToSiegeNpcFormat(units);
-
-      const isOnDuty = def.defense_source === 'main_lineup' || !!def.on_duty;
-
-      // 披挂上阵：待战方用上阵编组，与驻地编组无关；一律走实时 PVP 挑战（接受/超时自动战）。
-      if (isOnDuty) {
-        return {
-          warId: war.war_id, cityId, cityName: city.city_name, cityType: city.city_type,
-          npcGarrison: garrisonUnits, npcAlive: garrisonUnits.length, npcTotal: garrisonUnits.length,
-          playerFaction, defenderType: 'pvp_online',
-          defenderName: def.character_name, defenderPlayerId: def.player_id,
-          defenderGarrisonSlot: def.garrison_slot,
-        };
-      }
-
-      // 普通驻守玩家 → 异步PVE（驻守卡池作为NPC）
-      return {
-        warId: war.war_id, cityId, cityName: city.city_name, cityType: city.city_type,
-        npcGarrison: garrisonUnits, npcAlive: garrisonUnits.length, npcTotal: garrisonUnits.length,
-        playerFaction, defenderType: 'player_garrison',
-        defenderName: def.character_name, defenderPlayerId: def.player_id,
-        defenderGarrisonSlot: def.garrison_slot,
-      };
-    }
-    // 所有玩家防守者总兵力不足 → 继续到 NPC 守军
-  }
-
-  // ── NPC 守军逻辑（中立城市 或 玩家防守者全部跳过） ──
+  // ── NPC 守军逻辑（仅中立城；已占领城此前已抛错） ──
   // 无编制 / 全灭 → 整表生成；已占领且损兵 → 仅次日 8:00 起按缺额比例恢复（M1：50% 缺额）
   let needRefresh = false;
   if (!city.npc_garrison || city.npc_garrison_alive <= 0) {
@@ -471,18 +619,48 @@ async function initiateSiege(cityId, playerId) {
     [cityId]
   );
 
+  if (!city.faction_id && !existingWar.length) {
+    const strategicWarTargetProximityService = require('./strategicWarTargetProximityService');
+    await strategicWarTargetProximityService.assertNeutralPveTargetInMapRange(
+      playerFaction,
+      cityId,
+      String(city.season || 'san_1').trim() || 'san_1',
+    );
+  }
+
   let war;
   if (existingWar.length > 0) {
     war = existingWar[0];
+    if (!(await factionParticipatesInPveWarRow(war, playerFaction, playerId))) {
+      const siegeSeason = String(city.season || 'san_1').trim() || 'san_1';
+      const other = await countActivePveSiegeWarsForFaction(playerFaction, {
+        excludeWarId: war.war_id,
+        season: siegeSeason,
+      });
+      if (other >= MAX_CONCURRENT_PVE_WARS_PER_ATTACKER_FACTION) {
+        throw new Error(
+          `贵方势力已有一场进行中的中立城攻城战事（PVE，上限 ${MAX_CONCURRENT_PVE_WARS_PER_ATTACKER_FACTION}），请先告捷或结束他处战事后再攻此城`,
+        );
+      }
+    }
   } else {
+    const siegeSeason = String(city.season || 'san_1').trim() || 'san_1';
+    const existingOther = await countActivePveSiegeWarsForFaction(playerFaction, { season: siegeSeason });
+    if (existingOther >= MAX_CONCURRENT_PVE_WARS_PER_ATTACKER_FACTION) {
+      throw new Error(
+        `贵方势力已有一场进行中的中立城攻城战事（PVE，上限 ${MAX_CONCURRENT_PVE_WARS_PER_ATTACKER_FACTION}），请先告捷后再开新城`,
+      );
+    }
     const warId = `war_${cityId}_${Date.now()}`;
+    const fkSeed = JSON.stringify({ [playerFaction]: 0 });
     await pool.query(
       `INSERT INTO wars (war_id, war_name, war_type, target_city_id, target_city_name,
         faction_kills, status, npc_total, npc_killed)
-       VALUES (?, ?, 'siege', ?, ?, '{}', 'active', ?, 0)`,
-      [warId, `${city.city_name}攻城战`, cityId, city.city_name, city.npc_garrison_alive]
+       VALUES (?, ?, 'siege', ?, ?, ?, 'active', ?, 0)`,
+      [warId, `${city.city_name}攻城战`, cityId, city.city_name, fkSeed, city.npc_garrison_alive],
     );
-    war = { war_id: warId, faction_kills: {} };
+    war = { war_id: warId, faction_kills: JSON.parse(fkSeed) };
+    factionBulletinService.logPveWarStarted(playerFaction, city.city_name, cityId);
   }
 
   // NPC 守军：与驻守相同逻辑——按「顺位批次」分配，每批最多 4 支；def|warId|_npc|批次 被占用则自动试下一批
@@ -551,239 +729,48 @@ async function initiateSiege(cityId, playerId) {
 }
 
 /**
- * 记录攻城战斗结果（玩家打完一场后调用）
- * 
- * @param {string} warId - 战事ID
- * @param {string} playerId - 玩家ID
- * @param {string} factionId - 玩家势力ID
- * @param {Array<number>} killedIndices - 本场战斗消灭的 NPC 索引列表
- * @param {string} result - 战斗结果 win/lose
- * @param {number} silverSpent - 战斗中消耗的银两（自动战斗费用）
- * @param {object} defenderInfo - 防守者信息
+ * 记录攻城战斗结果（仅 PVE 中立城 NPC 守军）。
+ *
+ * 17-2 §1.4 / §1.9：占领城的玩家披挂 / 驻守 / NPC 守军走 `pvpWarService.recordAttackerCitySiegeResult`；
+ * 本函数仅服务 `wars` (PVE) 表 + `faction_kills` 多势力抢桶。
+ *
+ * @param {string} warId
+ * @param {string} playerId
+ * @param {string} factionId
+ * @param {Array<number>} killedIndices
+ * @param {string} result - win / lose
+ * @param {number} silverSpent
+ * @param {object} defenderInfo - 仅 `npcBatchIndex` / `battleScore` / `battleReportSaved` 在 PVE 路径生效
  */
 async function recordSiegeResult(warId, playerId, factionId, killedIndices, result, silverSpent = 0, defenderInfo = {}) {
   const {
-    defenderType, defenderPlayerId, garrisonUnits, defenderGarrisonSlot, npcBatchIndex,
-    battleScore, battleReportSaved,
-    /** 披挂权威结算：按推演结果写回防守方各部队兵力（含战损未全灭） */
-    defenderLineupTroopUpdates,
+    defenderType,
+    npcBatchIndex,
+    battleScore,
+    battleReportSaved,
   } = defenderInfo || {};
+  if (defenderType && defenderType !== 'npc') {
+    throw new Error(
+      `[cityService] PVE 路径仅支持 NPC 守军（defenderType=${defenderType}）；玩家披挂/驻守战果请走 PVP 路径`,
+    );
+  }
   const shouldFallbackAddBattleScore = Number(battleScore) > 0 && battleReportSaved === false;
 
-  const defSlotForLock =
-    defenderGarrisonSlot != null
-      ? Number(defenderGarrisonSlot)
-      : (Array.isArray(garrisonUnits) ? garrisonUnits.find(u => u && u._garrisonSlot != null)?._garrisonSlot : null);
   let defLockReleased = false;
   const releaseDefenderSiegeLockIfNeeded = () => {
     if (defLockReleased) return;
-    if (defenderType === 'npc') {
-      if (npcBatchIndex != null && !Number.isNaN(Number(npcBatchIndex))) {
-        releaseSiegeLock(`def|${warId}|${NPC_SIEGE_LOCK_DEFENDER_ID}|${Number(npcBatchIndex)}`, playerId);
-      } else {
-        // 前端未传批次时仍要释放，否则内存锁永久占用该战事
-        for (let b = 0; b < NPC_LOCK_SWEEP; b++) {
-          releaseSiegeLock(`def|${warId}|${NPC_SIEGE_LOCK_DEFENDER_ID}|${b}`, playerId);
-        }
+    if (npcBatchIndex != null && !Number.isNaN(Number(npcBatchIndex))) {
+      releaseSiegeLock(`def|${warId}|${NPC_SIEGE_LOCK_DEFENDER_ID}|${Number(npcBatchIndex)}`, playerId);
+    } else {
+      for (let b = 0; b < NPC_LOCK_SWEEP; b++) {
+        releaseSiegeLock(`def|${warId}|${NPC_SIEGE_LOCK_DEFENDER_ID}|${b}`, playerId);
       }
-      defLockReleased = true;
-      return;
     }
-    if (!['player_garrison', 'pvp_online'].includes(defenderType || '')) return;
-    if (defenderPlayerId == null || defSlotForLock == null || Number.isNaN(Number(defSlotForLock))) return;
-    releaseSiegeLock(`def|${warId}|${defenderPlayerId}|${Number(defSlotForLock)}`, playerId);
     defLockReleased = true;
   };
 
   try {
-  // ── 玩家防守者：更新驻守部队兵力 + 耐久度 + 驻守状态（含在线 PVP 异步结算，需带 garrisonUnits） ──
-  if ((defenderType === 'player_garrison' || defenderType === 'pvp_online') && garrisonUnits && Array.isArray(garrisonUnits)) {
-    const conn = await pool.getConnection();
-    try {
-      await conn.beginTransaction();
-      const [warRows] = await conn.query("SELECT * FROM wars WHERE war_id = ? AND status = 'active' FOR UPDATE", [warId]);
-      if (!warRows.length) throw new Error('战事不存在或已结束');
-      const war = warRows[0];
-      let factionKills = war.faction_kills ? (typeof war.faction_kills === 'string' ? JSON.parse(war.faction_kills) : war.faction_kills) : {};
-      let killCount = 0;
-      let silverReward = 0;
-
-      // 收集参战的所有部队实例ID（用于更新 battle_count）
-      const allTroopInstanceIds = garrisonUnits
-        .filter(u => u && u._troopInstanceId)
-        .map(u => u._troopInstanceId);
-
-      const useLineupUpdates =
-        Array.isArray(defenderLineupTroopUpdates) && defenderLineupTroopUpdates.length > 0;
-
-      if (useLineupUpdates) {
-        for (const u of defenderLineupTroopUpdates) {
-          if (!u?.instanceId || !defenderPlayerId) continue;
-          const maxT = u.maxTroops != null ? Number(u.maxTroops) : 9999;
-          const cur = Math.max(0, Math.min(maxT, Math.round(Number(u.currentTroops) || 0)));
-          await conn.query(
-            `UPDATE player_cards SET current_troops = ?, last_troops_lost_at = ? WHERE instance_id = ? AND player_id = ?`,
-            [cur, cur < maxT ? new Date() : null, u.instanceId, defenderPlayerId],
-          );
-        }
-        for (const idx of killedIndices) {
-          const unit = garrisonUnits[idx];
-          if (!unit) continue;
-          killCount++;
-          silverReward += KILL_SILVER_REWARD[unit.rarity] || 10;
-        }
-      } else {
-        for (const idx of killedIndices) {
-          const unit = garrisonUnits[idx];
-          if (!unit || !unit._troopInstanceId) continue;
-          await conn.query('UPDATE player_cards SET current_troops = 0, last_troops_lost_at = NOW() WHERE instance_id = ?', [unit._troopInstanceId]);
-          killCount++;
-          silverReward += KILL_SILVER_REWARD[unit.rarity] || 10;
-        }
-      }
-
-      // 所有参战部队卡的 battle_count + 1（耐久度消耗），同步递增 lifetime_battle_count
-      if (allTroopInstanceIds.length > 0) {
-        const ph = allTroopInstanceIds.map(() => '?').join(',');
-        await conn.query(
-          `UPDATE player_cards SET battle_count = LEAST(
-             GREATEST(COALESCE(battle_count, 0), 0) + 1,
-             COALESCE(max_battle_count, 60)
-           ),
-           lifetime_battle_count = COALESCE(lifetime_battle_count, 0) + 1
-           WHERE instance_id IN (${ph})`,
-          allTroopInstanceIds
-        );
-      }
-
-      // 与上阵结算一致：用尽的金/白/蓝/紫处理 + 从驻守槽强制清空（橙 legendary 保留在槽内）
-      const defenderPlayerIds = [
-        ...new Set(garrisonUnits.map((u) => u && u._garrisonPlayerId).filter(Boolean)),
-      ];
-      const runQ = (sql, params) => conn.query(sql, params);
-      for (const defPid of defenderPlayerIds) {
-        await applyTroopDurabilityExhaustion(runQ, defPid);
-      }
-
-      // Bug fix: 检查该驻守槽位是否所有部队都被消灭（兵力=0），如果是则 is_active=FALSE
-      const siegeTargetCityId = war.target_city_id;
-      // 收集本次防守涉及的 player_id + city_id + garrison_slot 组合
-      const garrisonKeys = new Map(); // key: "playerId|cityId|slot" → value: { playerId, slot, garrisonCityId }
-      for (const unit of garrisonUnits) {
-        if (!unit || !unit._garrisonPlayerId || unit._garrisonSlot == null) continue;
-        const gc = unit._garrisonCityId || siegeTargetCityId;
-        const key = `${unit._garrisonPlayerId}|${gc}|${unit._garrisonSlot}`;
-        if (!garrisonKeys.has(key)) {
-          garrisonKeys.set(key, {
-            playerId: unit._garrisonPlayerId,
-            slot: unit._garrisonSlot,
-            garrisonCityId: unit._garrisonCityId || null,
-          });
-        }
-      }
-      for (const { playerId: gPlayerId, slot, garrisonCityId } of garrisonKeys.values()) {
-        const rowCityId = garrisonCityId || siegeTargetCityId;
-        const [slotRows] = await conn.query(
-          'SELECT char1_troop1, char1_troop2, char2_troop1, char2_troop2 FROM player_garrison WHERE player_id = ? AND city_id = ? AND garrison_slot = ?',
-          [gPlayerId, rowCityId, slot]
-        );
-        if (!slotRows.length) continue;
-        const troopIds = [slotRows[0].char1_troop1, slotRows[0].char1_troop2, slotRows[0].char2_troop1, slotRows[0].char2_troop2].filter(Boolean);
-        if (troopIds.length === 0) {
-          await conn.query(
-            'UPDATE player_garrison SET is_active = FALSE WHERE player_id = ? AND city_id = ? AND garrison_slot = ?',
-            [gPlayerId, rowCityId, slot]
-          );
-          continue;
-        }
-        const totalTroopsLeft = await garrisonService.sumTroopInstancesTotalTroops(conn, gPlayerId, troopIds);
-        if (totalTroopsLeft < garrisonService.MIN_GARRISON_TOTAL_TROOPS) {
-          await conn.query(
-            'UPDATE player_garrison SET is_active = FALSE WHERE player_id = ? AND city_id = ? AND garrison_slot = ?',
-            [gPlayerId, rowCityId, slot]
-          );
-        }
-      }
-
-      factionKills[factionId] = (factionKills[factionId] || 0) + killCount;
-      const netSilver = silverReward - (silverSpent > 0 ? silverSpent : 0);
-      if (netSilver !== 0) {
-        await conn.query('UPDATE players SET silver = GREATEST(0, silver + ?) WHERE player_id = ?', [netSilver, playerId]);
-      }
-      let reputationReward = 0;
-      if (result === 'win' && killCount > 0) {
-        const killedRarities = killedIndices.map(i => garrisonUnits[i]?.rarity).filter(Boolean);
-        const rarityOrder = ['common', 'rare', 'epic', 'legendary', 'core'];
-        const bestRarity = killedRarities.sort((a, b) => rarityOrder.indexOf(b) - rarityOrder.indexOf(a))[0] || 'common';
-        reputationReward = WIN_REPUTATION_REWARD[bestRarity] || 5;
-        await conn.query('UPDATE players SET reputation = reputation + ? WHERE player_id = ?', [reputationReward, playerId]);
-      }
-      // 仅累计势力击杀；勿写入 wars.npc_killed（该字段语义为「NPC 守军消灭数」，与披挂/驻地战果混加会导致 NPC 线误判易主）
-      await conn.query('UPDATE wars SET faction_kills = ? WHERE war_id = ?', [JSON.stringify(factionKills), warId]);
-
-      // 披挂上阵：攻城方胜利时解除待战状态（列表人数与状态同步）
-      if (defenderType === 'pvp_online' && result === 'win' && defenderPlayerId) {
-        await conn.query(
-          'UPDATE players SET on_duty = FALSE, on_duty_city_id = NULL WHERE player_id = ?',
-          [defenderPlayerId]
-        );
-      }
-
-      // 兜底：当前端战报未落库时，在攻城结算阶段补记活动战斗积分（避免排行榜漏加）
-      if (shouldFallbackAddBattleScore) {
-        await conn.query(
-          'UPDATE statistics SET total_battle_score = total_battle_score + ? WHERE player_id = ?',
-          [Number(battleScore), playerId]
-        );
-        console.log(
-          `[siege-score-fallback] ${JSON.stringify({
-            warId,
-            playerId,
-            battleScore: Number(battleScore),
-            defenderType: defenderType || 'unknown',
-            source: 'recordSiegeResult.player_defender',
-          })}`
-        );
-      }
-
-      await conn.commit();
-      const siegeSilverSpent = Math.max(0, Math.floor(Number(silverSpent) || 0));
-      if (siegeSilverSpent > 0) {
-        await statisticsDeltaService.incrementSpent(playerId, { silver: siegeSilverSpent });
-      }
-      await statisticsDeltaService.recordEarned(playerId, {
-        ...(silverReward > 0 ? { silver: silverReward } : {}),
-        ...(reputationReward > 0 ? { reputation: reputationReward } : {}),
-      });
-
-      // 老兵系统：检查防守方参战部队是否达到晋升阈值
-      let defenderVeteranPromotions = [];
-      if (defenderPlayerId) {
-        try {
-          defenderVeteranPromotions = await checkAndApplyVeteran((sql, params) => pool.query(sql, params), defenderPlayerId);
-          if (defenderVeteranPromotions.length > 0) {
-            console.log(`[cityService] 老兵晋升(守方): player=${defenderPlayerId}, ${defenderVeteranPromotions.length}张卡`);
-          }
-        } catch (vetErr) {
-          console.error('[cityService] 老兵检查(守方)失败:', vetErr);
-        }
-      }
-
-      return {
-        warId, factionKills, npcKilled: killCount, npcTotal: garrisonUnits.length, siegeCompleted: false, winnerFaction: null,
-        silverReward, reputationReward, equipmentDrop: null,
-        defenderType: defenderType === 'pvp_online' ? 'pvp_online' : 'player_garrison',
-        defenderVeteranPromotions,
-      };
-    } catch (error) {
-      await conn.rollback();
-      throw error;
-    } finally {
-      conn.release();
-    }
-  }
-
-  // ── NPC 守军：原有逻辑 ──
+  // ── 仅 PVE 中立城 NPC 守军：玩家披挂 / 驻守 → pvpWarService.recordAttackerCitySiegeResult ──
   const connection = await pool.getConnection();
   try {
     await connection.beginTransaction();
@@ -955,6 +942,11 @@ async function recordSiegeResult(warId, playerId, factionId, killedIndices, resu
 
     await connection.commit();
 
+    if (siegeCompleted && winnerFaction) {
+      const cityLabel = war.target_city_name || war.target_city_id || '城池';
+      factionBulletinService.logPveWarSiegeCompleted(winnerFaction, cityLabel, war.target_city_id);
+    }
+
     const siegeSilverSpentNpc = Math.max(0, Math.floor(Number(silverSpent) || 0));
     if (siegeSilverSpentNpc > 0) {
       await statisticsDeltaService.incrementSpent(playerId, { silver: siegeSilverSpentNpc });
@@ -971,6 +963,21 @@ async function recordSiegeResult(warId, playerId, factionId, killedIndices, resu
       } catch (e) {
         console.error('[CityService] 攻破后刷新NPC失败:', e);
       }
+    }
+
+    // PVP 战事旁路：若该城存在 attackerFaction 匹配的 active wars_pvp，则把 attacker.npcKills/.battles/.wins/.losses
+    // 写回 side_stats；攻破时同时把 wars_pvp 标记 capture_city（兜底于 tick 检测）。lazy require 以避免循环依赖。
+    try {
+      const pvpWarService = require('./pvpWarService');
+      await pvpWarService.notifyAttackerCityCombat({
+        targetCityId: war.target_city_id,
+        attackerFactionId: factionId,
+        result,
+        npcKilled: actualKillCount,
+        cityCaptured: siegeCompleted,
+      });
+    } catch (notifyErr) {
+      console.error('[CityService] notifyAttackerCityCombat 失败（不影响 PVE 主路径）:', notifyErr.message);
     }
 
     return {
@@ -1043,14 +1050,342 @@ async function getWarStatus(warId) {
   return { ...war, faction_kills: factionKills };
 }
 
+/**
+ * AI 君主主动开启 PVE 战事（白色 NPC 中立城）。
+ *
+ * 与 `initiateSiege` 同口径：相同 `wars` 行结构（`war_type='siege'`、`faction_kills` 见下、
+ * `npc_total = npc_garrison_alive`），玩家随后通过 `initiateSiege` / 大地图入口加入即可。
+ * 区别是：本入口 **不需要攻方玩家**，由 AI 君主在 `aiKingActiveDecisionService.decide()`
+ * 内部调用；不调度具体战斗、不写其它表。
+ *
+ * 校验 / 行为：
+ *   1. 城存在、faction_id IS NULL（中立白城）、未进入 `isCityOccupiedForNpcGarrison`；
+ *   2. 若 NPC 守军未生成（`npc_garrison_alive <= 0` / 无编制）→ 调 `generateNpcGarrison`；
+ *   3. 同城唯一：已存在 active `wars` 行 → 返回该行，**不**新建（幂等）；
+ *   4. 否则插入 `wars` 行；`bulletinFactionId` 有值时写入 `faction_kills` 该键（初值 0）以占用 PVE 并发槽；
+ *      无 `bulletinFactionId` 时仍为 `'{}'`（系统路径不设势力上限）；
+ *   5. 有 `bulletinFactionId` 且新建前：该势力进行中 PVE 已达上限则拒绝；**新建 `wars` 行**时同事务内自 `factions.reserve_silver` / `reserve_food` 按 17-2 §3.2 扣发动消耗（储备不足则整单失败）。
+ *
+ * **不写**：不在 `wars` 上加 attacker_player_id / proposer_player_id（表无此列）；
+ * AI 君主 `character_id` 仅落 `[aiKing][active]` 审计日志（由调用方负责）。
+ *
+ * @param {string} cityId
+ * @param {{ openedByCharacterId?: string, bulletinFactionId?: string }} [opts] - 仅用于日志；`bulletinFactionId` 有值且新建 wars 行时写入势力公告
+ * @returns {Promise<{ warId: string, created: boolean, war: object, npcAlive: number, openedByCharacterId: string|null }>}
+ */
+async function openPveWarOnNeutralCity(cityId, opts = {}) {
+  const openedByCharacterId = opts.openedByCharacterId || null;
+  const bulletinFactionId = opts.bulletinFactionId || null;
+  const city = await getCityInfo(cityId);
+  if (!city) throw new Error('城市不存在');
+  if (city.faction_id) {
+    throw new Error('目标城非中立城（已有归属），不能走 PVE 路径开战');
+  }
+  if (!isAllowedPlayerCityPoiCityType(city.city_type)) {
+    throw new Error('PVE 中立城攻城仅针对大城/中城/小城，不含关隘、据点等');
+  }
+  if (isCityOccupiedForNpcGarrison(city)) {
+    throw new Error('该城已被势力占领，请通过 PVP 战事路径');
+  }
+
+  // 同城唯一：已有 active wars 行 → 幂等返回（即便 NPC 守军已半灭，玩家仍可加入该 wars 行）
+  const [existingWars] = await pool.query(
+    "SELECT * FROM wars WHERE target_city_id = ? AND status = 'active'",
+    [cityId],
+  );
+  if (existingWars.length > 0) {
+    return {
+      warId: existingWars[0].war_id,
+      created: false,
+      war: existingWars[0],
+      npcAlive: Number(city.npc_garrison_alive || 0),
+      openedByCharacterId,
+    };
+  }
+
+  if (bulletinFactionId && String(bulletinFactionId).trim()) {
+    const strategicWarTargetProximityService = require('./strategicWarTargetProximityService');
+    await strategicWarTargetProximityService.assertNeutralPveTargetInMapRange(
+      String(bulletinFactionId).trim(),
+      cityId,
+      String(city.season || 'san_1').trim() || 'san_1',
+    );
+  }
+
+  // 确保 NPC 守军已生成（与 initiateSiege 同口径）
+  let cityRefreshed = city;
+  if (!cityRefreshed.npc_garrison || Number(cityRefreshed.npc_garrison_alive) <= 0) {
+    await generateNpcGarrison(cityId);
+    cityRefreshed = await getCityInfo(cityId);
+  }
+  const npcAlive = Number(cityRefreshed.npc_garrison_alive || 0);
+  if (npcAlive <= 0) {
+    throw new Error(`目标城 ${cityId} 无 NPC 守军可生成`);
+  }
+
+  if (bulletinFactionId) {
+    const bf = String(bulletinFactionId).trim();
+    const siegeSeason = String(cityRefreshed.season || 'san_1').trim() || 'san_1';
+    const existingOther = await countActivePveSiegeWarsForFaction(bf, { season: siegeSeason });
+    if (existingOther >= MAX_CONCURRENT_PVE_WARS_PER_ATTACKER_FACTION) {
+      throw new Error(
+        `[cityService] 势力 ${bf} 进行中的 PVE 攻城战事已达上限（${MAX_CONCURRENT_PVE_WARS_PER_ATTACKER_FACTION}），无法新建`,
+      );
+    }
+  }
+
+  const warId = `war_${cityId}_${Date.now()}`;
+  const fkInsert =
+    bulletinFactionId && String(bulletinFactionId).trim()
+      ? JSON.stringify({ [String(bulletinFactionId).trim()]: 0 })
+      : '{}';
+
+  if (bulletinFactionId && String(bulletinFactionId).trim()) {
+    const bf = String(bulletinFactionId).trim();
+    const conn = await pool.getConnection();
+    try {
+      await conn.beginTransaction();
+      const [ex2] = await conn.query(
+        "SELECT * FROM wars WHERE target_city_id = ? AND status = 'active' LIMIT 1",
+        [cityId],
+      );
+      if (ex2.length > 0) {
+        await conn.rollback();
+        return {
+          warId: ex2[0].war_id,
+          created: false,
+          war: ex2[0],
+          npcAlive: Number(cityRefreshed.npc_garrison_alive || 0),
+          openedByCharacterId,
+        };
+      }
+      const gt = await gameTimeService.loadGameTimeForFaction(bf);
+      await warInitiationCostService.assertAndDeductInTransaction(
+        conn,
+        bf,
+        cityRefreshed.city_type,
+        gt,
+      );
+      await conn.query(
+        `INSERT INTO wars (war_id, war_name, war_type, target_city_id, target_city_name,
+           faction_kills, status, npc_total, npc_killed)
+         VALUES (?, ?, 'siege', ?, ?, ?, 'active', ?, 0)`,
+        [warId, `${cityRefreshed.city_name}攻城战`, cityId, cityRefreshed.city_name, fkInsert, npcAlive],
+      );
+      await conn.commit();
+    } catch (e) {
+      try {
+        await conn.rollback();
+      } catch (_) {
+        /* ignore */
+      }
+      throw e;
+    } finally {
+      conn.release();
+    }
+  } else {
+    await pool.query(
+      `INSERT INTO wars (war_id, war_name, war_type, target_city_id, target_city_name,
+         faction_kills, status, npc_total, npc_killed)
+       VALUES (?, ?, 'siege', ?, ?, ?, 'active', ?, 0)`,
+      [warId, `${cityRefreshed.city_name}攻城战`, cityId, cityRefreshed.city_name, fkInsert, npcAlive],
+    );
+  }
+
+  console.log(
+    `[cityService] openPveWarOnNeutralCity created warId=${warId} cityId=${cityId} ` +
+      `cityName=${cityRefreshed.city_name} npcAlive=${npcAlive} ` +
+      `openedBy=${openedByCharacterId || 'system'}`,
+  );
+
+  if (bulletinFactionId) {
+    factionBulletinService.logPveWarStarted(bulletinFactionId, cityRefreshed.city_name, cityId);
+  }
+
+  return {
+    warId,
+    created: true,
+    war: { war_id: warId, status: 'active', target_city_id: cityId },
+    npcAlive,
+    openedByCharacterId,
+  };
+}
+
+/**
+ * 大地图「攻城」进度钮：玩家有参与的 **PVE `wars`**（`active`）。
+ * 参与判定：`faction_kills` 含本势力键，或 `battles` 存在本人 `pve_siege` 且 `war_id` 命中。
+ * 与 `wars_pvp` 共用同一套 **攻城次数**（`player_events.siege_quota_*`）；本列表仅用于滚屏定位。
+ *
+ * @param {{ playerId: string, factionId: string, season: string }} p
+ * @returns {Promise<Array<{ warId: string, targetCityId: string, targetCityName: string|null, createdAt: string|null }>>}
+ */
+async function listActivePveSiegeTargetsForMap({ playerId, factionId, season }) {
+  const sid = String(season || '').trim();
+  const fid = String(factionId || '').trim();
+  const pid = String(playerId || '').trim();
+  if (!sid || !fid || !pid) return [];
+
+  const [warRows] = await pool.query(
+    `SELECT w.war_id AS warId, w.target_city_id AS targetCityId, w.target_city_name AS targetCityName,
+            w.created_at AS createdAt, w.faction_kills AS factionKillsRaw
+     FROM wars w
+     INNER JOIN cities c ON c.city_id = w.target_city_id
+     WHERE w.status = 'active' AND w.war_type = 'siege' AND c.season = ?`,
+    [sid],
+  );
+
+  const [battleRows] = await pool.query(
+    `SELECT DISTINCT b.war_id AS warId
+       FROM battles b
+       INNER JOIN wars w ON w.war_id = b.war_id AND w.status = 'active' AND w.war_type = 'siege'
+       INNER JOIN cities c ON c.city_id = w.target_city_id AND c.season = ?
+       WHERE b.player_id = ? AND b.battle_type = 'pve_siege' AND b.war_id IS NOT NULL`,
+    [sid, pid],
+  );
+  const battleWarIds = new Set(battleRows.map((r) => r.warId).filter(Boolean));
+
+  const out = [];
+  for (const row of warRows) {
+    let fk = row.factionKillsRaw;
+    if (typeof fk === 'string') {
+      try {
+        fk = JSON.parse(fk);
+      } catch {
+        fk = {};
+      }
+    }
+    if (!fk || typeof fk !== 'object') fk = {};
+    const inFk = Object.prototype.hasOwnProperty.call(fk, fid);
+    const inBattle = battleWarIds.has(row.warId);
+    if (!inFk && !inBattle) continue;
+    out.push({
+      warId: row.warId,
+      targetCityId: row.targetCityId,
+      targetCityName: row.targetCityName || null,
+      createdAt: row.createdAt || null,
+    });
+  }
+  return out;
+}
+
+/** 与 `pvpWarService.assertSanGongChaoZhengPvpWarGate` 一致：朝政势力战事品阶门闸。 */
+const MAX_POSITION_LEVEL_SANGONG_CHAOZHENG_WAR = 3;
+
+function sanGongChaoZhengClientError(message) {
+  const e = new Error(message);
+  e.statusCode = 400;
+  return e;
+}
+
+async function assertSanGongChaoZhengWarGate(playerId) {
+  const pid = String(playerId || '').trim();
+  if (!pid) throw sanGongChaoZhengClientError('缺少玩家 ID');
+  const [pRows] = await pool.query(
+    'SELECT player_id, faction_id, position_level FROM players WHERE player_id = ? LIMIT 1',
+    [pid],
+  );
+  if (!pRows.length) throw sanGongChaoZhengClientError('玩家不存在');
+  const pl = Number(pRows[0].position_level);
+  if (!Number.isFinite(pl) || pl > MAX_POSITION_LEVEL_SANGONG_CHAOZHENG_WAR) {
+    throw sanGongChaoZhengClientError('需三阶及以上官职（朝政品阶 Lv≤3）方可操作势力战事');
+  }
+  const factionId = String(pRows[0].faction_id || '').trim();
+  if (!factionId) throw sanGongChaoZhengClientError('玩家未加入势力，无法操作势力战事');
+  return { factionId, positionLevel: pl };
+}
+
+/**
+ * 三公府 · 朝政：结束本势力有参与的 **进行中** 中立城 PVE（`wars` active siege）。
+ * 将战事标记为 `completed`（`winner_faction_id` 置空），清内存 NPC 攻城锁，写势力公告。
+ *
+ * @param {string} playerId
+ * @param {string} warId
+ * @param {{ reason?: string }} [body]
+ */
+async function cancelActivePveSiegeWarViaSanGongChaoZheng(playerId, warId, body = {}) {
+  const pid = String(playerId || '').trim();
+  const wid = String(warId || '').trim();
+  if (!pid || !wid) throw sanGongChaoZhengClientError('缺少玩家或战事 ID');
+
+  const { factionId } = await assertSanGongChaoZhengWarGate(pid);
+
+  const [warRows] = await pool.query(
+    `SELECT w.war_id, w.target_city_id, w.target_city_name, c.season AS _city_season
+       FROM wars w
+       INNER JOIN cities c ON c.city_id = w.target_city_id
+       WHERE w.war_id = ? AND w.status = 'active' AND w.war_type = 'siege'`,
+    [wid],
+  );
+  if (!warRows.length) throw sanGongChaoZhengClientError('战事不存在或已结束');
+
+  const season = String(warRows[0]._city_season || 'san_1').trim() || 'san_1';
+  const part = await getActivePveSiegeParticipationForFaction(factionId, { season });
+  const hit = (part.wars || []).some((x) => String(x.warId) === wid);
+  if (!hit) throw sanGongChaoZhengClientError('本势力未参与该中立城攻城，无法从此入口结束');
+
+  const reason =
+    String(body?.reason || '').trim() || '三阶及以上官职主动撤战（三公府·朝政）';
+
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    const [locked] = await conn.query(
+      "SELECT war_id FROM wars WHERE war_id = ? AND status = 'active' FOR UPDATE",
+      [wid],
+    );
+    if (!locked.length) {
+      await conn.rollback();
+      throw sanGongChaoZhengClientError('战事不存在或已结束');
+    }
+    await conn.query(
+      `UPDATE wars SET status = 'completed', winner_faction_id = NULL, end_time = NOW() WHERE war_id = ?`,
+      [wid],
+    );
+    await conn.commit();
+  } catch (e) {
+    try {
+      await conn.rollback();
+    } catch (_) {
+      /* ignore */
+    }
+    throw e;
+  } finally {
+    conn.release();
+  }
+
+  releaseAllSiegeMemoryLocksForPveWar(wid);
+
+  const cityLabel =
+    String(warRows[0].target_city_name || '').trim() ||
+    String(warRows[0].target_city_id || '').trim() ||
+    '中立城';
+  factionBulletinService.appendSafe(
+    factionId,
+    `PVE 战事结束：朝政撤战，已中止对「${cityLabel}」的攻城（${reason}）`.slice(0, 512),
+  );
+
+  return { warId: wid, status: 'completed', targetCityId: warRows[0].target_city_id, targetCityName: warRows[0].target_city_name };
+}
+
 module.exports = {
   formatCityRowForApi,
   listCitiesForApi,
   generateNpcGarrison,
   getCityInfo,
   initiateSiege,
+  openPveWarOnNeutralCity,
   recordSiegeResult,
   getWarStatus,
   parseNpcGarrisonStored,
+  serializeNpcGarrisonStored,
   NPC_TROOP_COUNT_OWNED,
+  listActivePveSiegeTargetsForMap,
+  getActivePveSiegeParticipationForFaction,
+  cancelActivePveSiegeWarViaSanGongChaoZheng,
+  tryConsumeSiegeQuotaOnce,
+  refundSiegeQuotaOnce,
+  countActivePveSiegeWarsForFaction,
+  MAX_CONCURRENT_PVE_WARS_PER_ATTACKER_FACTION,
+  /** 供 `pvpWarService` 等复用：据点 PVP 目标须与此口径一致 */
+  isCityOccupiedForNpcGarrison,
 };

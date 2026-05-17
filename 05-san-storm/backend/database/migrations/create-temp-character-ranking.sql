@@ -1,8 +1,8 @@
--- 将领排名快照（临时表）：同服同 bucket 可排序缓存，详见 docs/00-base/01-1-DATABASE_DESIGN.md §4.5
--- 与 UI 口径：docs/30-frontend/32-1-GAME_UI_DESIGN.md §9.1.2（相对 05-san-storm/）
--- 历史表名：player_character_rank_snapshot / temp_character_rank_snapshots → 见 migrations/rename-*.sql
+-- 将领排名快照（临时表）：表名 `temp_character_ranking`（两词 + ranking）
+-- 详见 docs/00-base/01-database-split/60-tables-other.md §3.2.25；UI 口径见 docs/30-frontend/32-1-GAME_UI_DESIGN.md §9.1.2
+-- 历史表名链：player_character_rank_snapshot → … → temp_character_ranking_snapshots → 见 migrations/rename-*.sql
 
-CREATE TABLE IF NOT EXISTS temp_character_ranking_snapshots (
+CREATE TABLE IF NOT EXISTS temp_character_ranking (
   player_id VARCHAR(8) NOT NULL COMMENT '玩家角色 ID',
   server_id VARCHAR(64) NOT NULL COMMENT '服务器（accounts.serverId）',
   bucket VARCHAR(48) NOT NULL COMMENT '槽位键，如 main:player、garrison:2:char1',

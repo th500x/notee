@@ -15,6 +15,7 @@ import {
   stackWorldGyFromLocalJunRow,
   stackLocalJunRowFromWorldGy,
   STRATEGIC_COUNTY_MAP_ROWS,
+  SAN_1_STRATEGIC_VERTICAL_STACK_JUN_ORDER,
 } from './strategicWorldMapStack.js';
 import { isHostileByFaction } from './roadDiplomacy.js';
 import { readStrategicCellAnchorId } from './strategicCellAnchorId.js';
@@ -22,6 +23,13 @@ import { isBanditMapObjectId } from './smallMapEnemyRoster.js';
 
 /** 与 `smallMapEnemyRoster.isBanditMapObjectId` 同义；供 CJS `require` 侧（如 `roadEncounterService`）判定匪寨终点，避免误查 `cities`。 */
 export { isBanditMapObjectId };
+
+/** `wars_pvp.pvp_war_id`（如 `san_1_war_0015`）。与 `cities.city_id`、匪寨 id 区分；缺 baseCamp 时不得回退城心寻路。 */
+export function isPvpWarMarchTargetId(id) {
+  const t = String(id || '').trim();
+  if (!t || isBanditMapObjectId(t)) return false;
+  return t.includes('_war_');
+}
 
 const DIRS4 = [
   [1, 0],
@@ -56,10 +64,15 @@ export function isAllowedPlayerCityPoiCityType(cityType) {
  * @param {string} targetPoiId - 城池主键或 **匪寨地图对象 ID** `san_*_bandit_*`（与 HTTP `targetPoiId` / `banditPoiId` 同族）
  * @param {string|number|null|undefined} playerFactionId
  */
-export function canPlayerMarchToPoiCity({ cityRow, targetPoiId, playerFactionId }) {
+export function canPlayerMarchToPoiCity({ cityRow, targetPoiId, playerFactionId, pvpCampAttackerFactionId = null }) {
   const id = String(targetPoiId || '').trim();
   if (!id) return { ok: false, error: '缺少战略 POI 标识' };
   if (isBanditMapObjectId(id)) return { ok: true };
+  const attFid = pvpCampAttackerFactionId != null ? String(pvpCampAttackerFactionId).trim() : '';
+  if (attFid) {
+    if (String(playerFactionId ?? '') === attFid) return { ok: true };
+    return { ok: false, error: '仅攻方势力可移动至本方大本营' };
+  }
   const row = cityRow || {};
   const ct = row.city_type ?? row.cityType;
   if (!isAllowedPlayerCityPoiCityType(ct)) {
@@ -74,12 +87,13 @@ export function canPlayerMarchToPoiCity({ cityRow, targetPoiId, playerFactionId 
 
 /**
  * @param {object[][]} cells
- * @param {string} targetPoiId - 城池锚点 id 或匪寨 **`banditPoiId`**
+ * @param {string} targetPoiId - 城池锚点 id、匪寨 **`banditPoiId`** 或 PVP **`pvpWarId`**
  * @param {number} mapColumns
  * @param {number} mapRows
- * @returns {{ keys: Set<string>, anchorGx: number, anchorGy: number, width: number, height: number, kind: 'city_2x2'|'bandit_domino' } | null}
+ * @param {Array<{ pvpWarId?: string, pvp_war_id?: string, cells?: string[] }>|null|undefined} [pvpBaseCamps] - 仅当 `targetPoiId` 为战事 id 时用于 **`base_camp`** footprint（格上可无锚点）
+ * @returns {{ keys: Set<string>, anchorGx: number, anchorGy: number, width: number, height: number, kind: 'city_2x2'|'bandit_domino'|'pvp_camp_domino', poiAnchorId?: string } | null}
  */
-export function collectStrategicPoiFootprint(cells, targetPoiId, mapColumns, mapRows) {
+export function collectStrategicPoiFootprint(cells, targetPoiId, mapColumns, mapRows, pvpBaseCamps = null) {
   const id = String(targetPoiId || '').trim();
   if (!id || !cells?.length) return null;
 
@@ -108,6 +122,7 @@ export function collectStrategicPoiFootprint(cells, targetPoiId, mapColumns, map
           width: 2,
           height: 2,
           kind: 'city_2x2',
+          poiAnchorId: id,
           poiPlayerRoadJunId: locJun?.junId ?? null,
           poiPlayerRoadLocalX: gx,
           poiPlayerRoadLocalY: locJun ? gy - yOff : gy,
@@ -155,12 +170,194 @@ export function collectStrategicPoiFootprint(cells, targetPoiId, mapColumns, map
       width: w,
       height: h,
       kind: 'bandit_domino',
+      poiAnchorId: id,
       poiPlayerRoadJunId: locJunB?.junId ?? null,
       poiPlayerRoadLocalX: minX,
       poiPlayerRoadLocalY: locJunB ? minY - yOffB : minY,
     };
   }
 
+  if (isPvpWarMarchTargetId(id) && Array.isArray(pvpBaseCamps) && pvpBaseCamps.length) {
+    const row = pvpBaseCamps.find((c) => String(c.pvpWarId ?? c.pvp_war_id ?? '').trim() === id);
+    if (row?.cells?.length) return collectStrategicPvpCampFootprintFromBaseCamp(row, mapColumns, mapRows);
+  }
+
+  return null;
+}
+
+/**
+ * @param {string} jj
+ * @param {number} minWX
+ * @param {number} minWY
+ * @param {number} maxWX
+ * @param {number} maxWY
+ * @param {number} mapRows
+ */
+function buildPvpCampDominoFootprintFromWorldRect(jj, minWX, minWY, maxWX, maxWY, mapRows) {
+  const w = maxWX - minWX + 1;
+  const h = maxWY - minWY + 1;
+  if (w * h !== 2 || (w !== 2 && h !== 2)) return null;
+  const keys = new Set();
+  for (let y = minWY; y <= maxWY; y++) {
+    for (let x = minWX; x <= maxWX; x++) {
+      keys.add(`${x},${y}`);
+    }
+  }
+  const locJun = mapRows > STRATEGIC_COUNTY_MAP_ROWS ? stackLocalJunRowFromWorldGy(minWY) : null;
+  const yOff = locJun ? stackWorldRowOffsetForJunId(locJun.junId) : 0;
+  return {
+    keys,
+    anchorGx: minWX,
+    anchorGy: minWY,
+    width: w,
+    height: h,
+    kind: 'pvp_camp_domino',
+    poiPlayerRoadJunId: jj,
+    poiPlayerRoadLocalX: minWX,
+    poiPlayerRoadLocalY: locJun ? minWY - yOff : minWY,
+  };
+}
+
+/**
+ * 与 `pvpWarService.findBaseCampCandidatePlacements` 一致：贴城、不占路、**骨牌至少一格四邻接道路**；锚格 + 朝向决定郡内两格，再投到世界格。
+ * 当 `base_camp.cells` 与锚点不同步时仍以锚点为准，避免「只点到延伸格 / 少一格」时 footprint 与瓦片 span 错位。
+ *
+ * @param {object} camp
+ * @param {string} jj
+ * @param {number} mapColumns
+ * @param {number} mapRows
+ */
+function tryPvpCampFootprintFromAnchorOrientation(camp, jj, mapColumns, mapRows) {
+  const oxRaw = camp.anchorOx ?? camp.anchor_ox;
+  const oyRaw = camp.anchorOy ?? camp.anchor_oy;
+  const aoX = Math.trunc(Number(oxRaw));
+  const aoY = Math.trunc(Number(oyRaw));
+  if (!Number.isFinite(aoX) || !Number.isFinite(aoY)) return null;
+  const orient = String(camp.orientation || 'horizontal').toLowerCase();
+  const vertical = orient === 'vertical';
+  const locPairs = vertical
+    ? [
+        [aoX, aoY],
+        [aoX, aoY + 1],
+      ]
+    : [
+        [aoX, aoY],
+        [aoX + 1, aoY],
+      ];
+  let minWX = Infinity;
+  let minWY = Infinity;
+  let maxWX = -Infinity;
+  let maxWY = -Infinity;
+  for (const [lx, ly] of locPairs) {
+    if (lx < 0 || ly < 0 || lx >= mapColumns || ly >= STRATEGIC_COUNTY_MAP_ROWS) return null;
+    const wy = stackWorldGyFromLocalJunRow(jj, ly);
+    minWX = Math.min(minWX, lx);
+    minWY = Math.min(minWY, wy);
+    maxWX = Math.max(maxWX, lx);
+    maxWY = Math.max(maxWY, wy);
+  }
+  return buildPvpCampDominoFootprintFromWorldRect(jj, minWX, minWY, maxWX, maxWY, mapRows);
+}
+
+/**
+ * 服务端落库时写入的 **叠放世界格** `"gx,wy"`（与 `players.road_position` + 合并 `cells` 下标一致），
+ * 优先于 `cells` 郡内坐标换算，避免 `junId` 滞后或重复换算导致 footprint 与真实瓦片错位。
+ *
+ * @param {object} camp
+ * @param {number} mapColumns
+ * @param {number} mapRows
+ */
+function tryPvpCampFootprintFromWorldCellKeys(camp, mapColumns, mapRows) {
+  const raw = camp.worldCellKeys ?? camp.world_cell_keys;
+  if (!Array.isArray(raw) || raw.length < 2) return null;
+  const jj = String(camp.junId || camp.jun_id || '').trim();
+  if (!jj) return null;
+  let minWX = Infinity;
+  let minWY = Infinity;
+  let maxWX = -Infinity;
+  let maxWY = -Infinity;
+  const keys = new Set();
+  for (const k of raw) {
+    const parts = String(k)
+      .split(',')
+      .map((s) => Number(String(s).trim()));
+    const x = parts[0];
+    const y = parts[1];
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+    if (x < 0 || y < 0 || x >= mapColumns || y >= mapRows) return null;
+    keys.add(`${x},${y}`);
+    minWX = Math.min(minWX, x);
+    minWY = Math.min(minWY, y);
+    maxWX = Math.max(maxWX, x);
+    maxWY = Math.max(maxWY, y);
+  }
+  if (keys.size !== 2) return null;
+  return buildPvpCampDominoFootprintFromWorldRect(jj, minWX, minWY, maxWX, maxWY, mapRows);
+}
+
+/**
+ * 仅从 `cells` 字符串列表包络得到 footprint（与历史实现一致）。
+ *
+ * @param {object} camp
+ * @param {string} jj
+ * @param {number} mapRows
+ */
+function tryPvpCampFootprintFromExplicitCells(camp, jj, mapRows) {
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  let any = false;
+  for (const k of camp.cells) {
+    const parts = String(k)
+      .split(',')
+      .map((s) => Number(String(s).trim()));
+    const lx = parts[0];
+    const ly = parts[1];
+    if (!Number.isFinite(lx) || !Number.isFinite(ly)) continue;
+    const wy = stackWorldGyFromLocalJunRow(jj, ly);
+    any = true;
+    minX = Math.min(minX, lx);
+    minY = Math.min(minY, wy);
+    maxX = Math.max(maxX, lx);
+    maxY = Math.max(maxY, wy);
+  }
+  if (!any) return null;
+  return buildPvpCampDominoFootprintFromWorldRect(jj, minX, minY, maxX, maxY, mapRows);
+}
+
+/**
+ * PVP 攻方大本营：与匪寨同为 2×1 / 1×2 骨牌。
+ * 优先 **`worldCellKeys`**（服务端落库的世界格 `"gx,wy"`）；否则 `base_camp.cells` 为郡内 `"gx,gy"` 再换世界行；
+ * 再回退 `anchorOx/anchorOy` + `orientation`（与后端选位一致）。
+ *
+ * @param {object|null|undefined} camp - `wars_pvp.base_camp` JSON（可选 **`worldCellKeys`** 世界格、`cells` 郡内格、`junId`、锚点等）
+ * @returns {{ keys: Set<string>, anchorGx: number, anchorGy: number, width: number, height: number, kind: 'pvp_camp_domino', poiPlayerRoadJunId: string|null, poiPlayerRoadLocalX: number, poiPlayerRoadLocalY: number } | null}
+ */
+export function collectStrategicPvpCampFootprintFromBaseCamp(camp, mapColumns, mapRows) {
+  if (!camp) return null;
+  const cols = Math.trunc(Number(mapColumns));
+  const rows = Math.trunc(Number(mapRows));
+  if (Number.isFinite(cols) && Number.isFinite(rows) && cols > 0 && rows > 0) {
+    const fromWorld = tryPvpCampFootprintFromWorldCellKeys(camp, cols, rows);
+    if (fromWorld) return fromWorld;
+  }
+  if (!Array.isArray(camp.cells) || !camp.cells.length) return null;
+  const jidRaw = String(camp.junId || camp.jun_id || '').trim();
+  const junCandidates = jidRaw ? [jidRaw] : [...SAN_1_STRATEGIC_VERTICAL_STACK_JUN_ORDER];
+
+  for (const jid of junCandidates) {
+    const jj = String(jid || '').trim();
+    if (!jj) continue;
+    const fromCells = tryPvpCampFootprintFromExplicitCells(camp, jj, mapRows);
+    if (fromCells) return fromCells;
+  }
+  for (const jid of junCandidates) {
+    const jj = String(jid || '').trim();
+    if (!jj) continue;
+    const fromAnchor = tryPvpCampFootprintFromAnchorOrientation(camp, jj, mapColumns, mapRows);
+    if (fromAnchor) return fromAnchor;
+  }
   return null;
 }
 
@@ -172,7 +369,7 @@ export function collectStrategicPoiFootprint(cells, targetPoiId, mapColumns, map
  * @param {number} mapColumns
  * @param {number} mapRows
  * @param {object[][]|null|undefined} [cellsFallback]
- * @returns {{ keys: Set<string>, anchorGx: number, anchorGy: number, width: number, height: number, kind: string } | null}
+ * @returns {{ keys: Set<string>, anchorGx: number, anchorGy: number, width: number, height: number, kind: string, poiAnchorId?: string } | null}
  */
 export function buildStrategicPoiFootprintFromDbCityRow(cityRow, mapColumns, mapRows, cellsFallback = null) {
   const id = cityRow?.city_id ?? cityRow?.cityId ?? cityRow?.id;
@@ -208,8 +405,8 @@ export function buildStrategicPoiFootprintFromDbCityRow(cityRow, mapColumns, map
 
   if (isAllowedPlayerCityPoiCityType(ct)) {
     const rowJun = String(
-    cityRow?.jun_id ?? cityRow?.junId ?? cityRow?.JUN_ID ?? cityRow?.JUNID ?? '',
-  ).trim();
+      cityRow?.jun_id ?? cityRow?.junId ?? cityRow?.JUN_ID ?? cityRow?.JUNID ?? '',
+    ).trim();
     const useWorldKeys =
       !!cellsFallback?.length && cellsFallback.length > STRATEGIC_COUNTY_MAP_ROWS && !!rowJun;
     const yOff = useWorldKeys ? stackWorldRowOffsetForJunId(rowJun) : 0;
@@ -228,6 +425,7 @@ export function buildStrategicPoiFootprintFromDbCityRow(cityRow, mapColumns, map
       width: 2,
       height: 2,
       kind: 'city_2x2',
+      poiAnchorId: String(id).trim(),
       poiPlayerRoadJunId: rowJun || null,
       poiPlayerRoadLocalX: gx,
       poiPlayerRoadLocalY: gy,
@@ -552,9 +750,68 @@ export function findPoiFootprintKeysContainingCell(cells, gx, gy, mapColumns, ma
 }
 
 /**
- * 合并战略格网坐标 `(mergedGx, mergedGy)`：玩家是否站在 **POI 占地块内**（城 2×2 / 匪寨骨牌；**非**道路格）。
- * 与 `game/src/utils/strategicMapCityAnchor.js` 中 `resolveStrategicRecordedStandpointPx` 的「在路上 vs 离路入块」一致：
- * 坐标落在 **`roadCells` 可通行集**内 → 返回 `''`（即使贴城也不可交互进城防面板）。
+ * 合并图世界格 `(mergedGx, mergedGy)` 是否落在 PVP 攻方大本营 footprint 内（与 `collectStrategicPvpCampFootprintFromBaseCamp` 一致）。
+ *
+ * @param {number} mergedGy - 世界行（与 `cells` 下标一致）
+ * @param {number} mergedGx - 世界列
+ * @param {Array<{ junId?: string, cells?: string[], pvpWarId?: string, anchorOx?: number, anchorOy?: number, orientation?: string }>|null|undefined} pvpBaseCamps
+ * @param {number} mapColumns - 与合并 `cells[0].length` 一致
+ * @param {number} mapRows - 与 `cells.length` 一致
+ * @returns {string} 非空则为 `pvpWarId`
+ */
+export function resolvePvpBaseCampWarIdAtMergedCell(mergedGy, mergedGx, pvpBaseCamps, mapColumns, mapRows) {
+  if (!pvpBaseCamps?.length) return '';
+  const ri = Math.trunc(Number(mergedGy));
+  const ci = Math.trunc(Number(mergedGx));
+  if (!Number.isFinite(ri) || !Number.isFinite(ci)) return '';
+  const here = `${ci},${ri}`;
+  const cols = Math.trunc(Number(mapColumns));
+  const rows = Math.trunc(Number(mapRows));
+  if (Number.isFinite(cols) && Number.isFinite(rows) && cols > 0 && rows > 0) {
+    for (const c of pvpBaseCamps) {
+      if (!c?.cells?.length) continue;
+      const fp = collectStrategicPvpCampFootprintFromBaseCamp(c, cols, rows);
+      if (fp?.keys?.has(here)) {
+        const wid = String(c.pvpWarId || '').trim();
+        if (wid) return wid;
+      }
+    }
+    // 勿在此处 return：collect 与格网/郡字段偶发不同步时，须继续走下方按 cells+郡 的硬匹配（与 resolveStrategicTilePvpCampCover 第二段一致）。
+  }
+  for (const c of pvpBaseCamps) {
+    if (!c?.cells?.length) continue;
+    const jid = String(c.junId || c.jun_id || '').trim();
+    const junCandidates = jid ? [jid] : [...SAN_1_STRATEGIC_VERTICAL_STACK_JUN_ORDER];
+    let hit = false;
+    outerJun: for (const jtry of junCandidates) {
+      const jj = String(jtry || '').trim();
+      if (!jj) continue;
+      for (const k of c.cells) {
+        const parts = String(k)
+          .split(',')
+          .map((s) => Number(String(s).trim()));
+        const lx = parts[0];
+        const ly = parts[1];
+        if (!Number.isFinite(lx) || !Number.isFinite(ly)) continue;
+        const wy = stackWorldGyFromLocalJunRow(jj, ly);
+        if (`${lx},${wy}` === here) {
+          hit = true;
+          break outerJun;
+        }
+      }
+    }
+    if (!hit) continue;
+    const wid = String(c.pvpWarId || '').trim();
+    if (wid) return wid;
+  }
+  return '';
+}
+
+/**
+ * 合并战略格网坐标 `(mergedGx, mergedGy)`：玩家当前位置对应的 **可交互 POI 锚点**（城 2×2 / 匪寨骨牌；**非**道路格为默认）。
+ * 与 `game/src/utils/strategicMapCityAnchor.js` 中 `resolveStrategicRecordedStandpointPx` 的「在路上 vs 离路入块 / 大本营 footprint」判定一致（该函数**不回退主城**，未命中则 `standpointError`）。
+ * 坐标落在 **`roadCells` 可通行集**内 → 一般返回 `''`（贴城道路格不进面板）；
+ * **例外**：库内 **城池 2×2 footprint** 仍包含该格时返回城 `city_id`（避免城块与路网重叠时「己方驻地」与按钮丢失）。
  *
  * @param {object[][]} cells
  * @param {{ gx: number, gy: number }[]|null|undefined} roadCells
@@ -563,7 +820,8 @@ export function findPoiFootprintKeysContainingCell(cells, gx, gy, mapColumns, ma
  * @param {number} mergedGx
  * @param {number} mergedGy
  * @param {object[]|null|undefined} citiesInCountyRows
- * @returns {string} 城池 `city_id` 或匪寨 **`banditPoiId`**；否则 `''`
+ * @param {Array<{ junId?: string, cells?: string[], pvpWarId?: string }>|null|undefined} [pvpBaseCamps] — 仅在 **库内城/匪寨 footprint 未命中** 时再判大本营；缺 `junId` 时按豫州叠放郡序逐郡试算 `cells`（与 `resolveStrategicTilePvpCampCover` 一致）
+ * @returns {string} 城池 `city_id`、匪寨 **`banditPoiId`** 或 **`pvpWarId`**；否则 `''`
  */
 export function resolveMergedStandpointStrategicPoiAnchorId(
   cells,
@@ -573,13 +831,52 @@ export function resolveMergedStandpointStrategicPoiAnchorId(
   mergedGx,
   mergedGy,
   citiesInCountyRows,
+  pvpBaseCamps = null,
 ) {
   if (!cells?.length) return '';
   const pass = buildRoadPassableKeySetForMarch(roadCells, cells, mapColumns, mapRows);
   const rx = Math.trunc(Number(mergedGx));
   const ry = Math.trunc(Number(mergedGy));
   if (!Number.isFinite(rx) || !Number.isFinite(ry)) return '';
-  if (pass.has(`${rx},${ry}`)) return '';
+  if (pass.has(`${rx},${ry}`)) {
+    // 城 2×2 内格若仍落在 `roadCells` 可通行集（叠图/数据偏差），早退 `''` 会使「己方驻地」与三公府/驻军所按钮并存失败（典型：颍川阳翟）。
+    if (Array.isArray(citiesInCountyRows) && citiesInCountyRows.length) {
+      const fpRoad = resolvePoiFootprintAtCellFromDb(citiesInCountyRows, rx, ry, mapColumns, mapRows, cells);
+      const roadPid =
+        fpRoad?.poiAnchorId != null && String(fpRoad.poiAnchorId).trim() !== ''
+          ? String(fpRoad.poiAnchorId).trim()
+          : '';
+      if (roadPid && fpRoad.kind === 'city_2x2' && !isBanditMapObjectId(roadPid)) {
+        return roadPid;
+      }
+    }
+    // 库 position 与合并 cells 城块错位时 DB 不命中；仍须从格网解析「落在城内可通行格」的城锚点（与 off-road 分支一致）。
+    const fpKeysRoad = findPoiFootprintKeysContainingCell(cells, rx, ry, mapColumns, mapRows);
+    if (fpKeysRoad?.size) {
+      let poiIdRoad = '';
+      for (const fk of fpKeysRoad) {
+        const [gx2, gy2] = fk.split(',').map(Number);
+        const c2 = cells[gy2]?.[gx2];
+        const aid2 = readStrategicCellAnchorId(c2);
+        if (aid2) {
+          poiIdRoad = String(aid2).trim();
+          break;
+        }
+      }
+      if (poiIdRoad && !isBanditMapObjectId(poiIdRoad)) {
+        const fpCellRoad = collectStrategicPoiFootprint(cells, poiIdRoad, mapColumns, mapRows);
+        const kRoad = `${rx},${ry}`;
+        if (
+          fpCellRoad?.kind === 'city_2x2' &&
+          fpCellRoad.keys?.has(kRoad) &&
+          fpCellRoad.poiAnchorId
+        ) {
+          return String(fpCellRoad.poiAnchorId).trim();
+        }
+      }
+    }
+    return '';
+  }
 
   let fp = null;
   if (Array.isArray(citiesInCountyRows) && citiesInCountyRows.length) {
@@ -603,13 +900,27 @@ export function resolveMergedStandpointStrategicPoiAnchorId(
       }
     }
   }
-  if (!fp?.keys?.size) return '';
-  for (const fk of fp.keys) {
-    const [gx, gy] = fk.split(',').map(Number);
-    const c = cells[gy]?.[gx];
-    const aid = readStrategicCellAnchorId(c);
-    if (aid) return String(aid).trim();
+  if (fp?.keys?.size) {
+    const pid =
+      fp.poiAnchorId != null && String(fp.poiAnchorId).trim() !== ''
+        ? String(fp.poiAnchorId).trim()
+        : '';
+    if (pid) return pid;
+    for (const fk of fp.keys) {
+      const [gx, gy] = fk.split(',').map(Number);
+      const c = cells[gy]?.[gx];
+      const aid = readStrategicCellAnchorId(c);
+      if (aid) return String(aid).trim();
+    }
   }
+  const cellDirect = cells[ry]?.[rx];
+  const directAid = readStrategicCellAnchorId(cellDirect);
+  if (directAid) {
+    const d = String(directAid).trim();
+    if (d) return d;
+  }
+  const pvpWarStanding = resolvePvpBaseCampWarIdAtMergedCell(ry, rx, pvpBaseCamps, mapColumns, mapRows);
+  if (pvpWarStanding) return pvpWarStanding;
   return '';
 }
 
@@ -666,8 +977,11 @@ export function buildHostileOccupiedRoadKeysFromPlayersRows(moverFactionId, rows
 }
 
 /**
- * 离路时沿路出发/首跳校验用的 **城寨占格**：`road_position` 若在某一城/寨 POI 块内则 **优先** 用该块（已到城 A 但 `main_city_id` 仍为阳翟时，不得从主城块出发）。
- * @param {(cells: object[][], mainId: string) => Set<string>|null|undefined} collectMainCityFootprintKeys
+ * 离路时沿路出发/首跳：**仅** `road_position` 命中的已知 POI 占格 — PVP 攻方大本营、库城 DB footprint、格网城寨。
+ * **禁止**以 `main_city_id` / 主城格网作回退；未命中返回空 `Set`，由调用方显式报错。
+ * @param {object} [poiOptions]
+ * @param {object[]|null|undefined} [poiOptions.citiesInCountyRows]
+ * @param {Array<{ junId?: string, cells?: string[], pvpWarId?: string }>|null|undefined} [poiOptions.pvpBaseCamps]
  * @returns {Set<string>}
  */
 export function resolveOffRoadMarchDepartureFootprintKeys(
@@ -676,24 +990,37 @@ export function resolveOffRoadMarchDepartureFootprintKeys(
   countyJunId,
   mapColumns,
   mapRows,
-  collectMainCityFootprintKeys,
   poiOptions = {},
   useWorldStackRoadCoords = false,
 ) {
-  const {
-    mainCityDbRow = null,
-    citiesInCountyRows = null,
-  } = poiOptions || {};
+  const { citiesInCountyRows = null, pvpBaseCamps = null } = poiOptions || {};
 
   const roadJun = player?.road_jun_id || null;
   const rx = Number(player?.road_position_x);
   const ry = Number(player?.road_position_y);
-  if (roadJun === countyJunId && Number.isFinite(rx) && Number.isFinite(ry)) {
+  /** 单郡图：坐标属 `road_jun_id` 本地格，须 `roadJun === countyJunId`；豫州叠放合并格网用世界行，允许 `road_jun_id` 为汝南而 `countyJunId` 为颍川等（与 `buildMarchPath` 起点一致）。 */
+  const canProbePlayerCell =
+    Number.isFinite(rx) &&
+    Number.isFinite(ry) &&
+    !!String(roadJun || '').trim() &&
+    (useWorldStackRoadCoords ? true : String(roadJun).trim() === String(countyJunId || '').trim());
+  if (canProbePlayerCell) {
     const wx = Math.trunc(rx);
     const wyProbe =
       useWorldStackRoadCoords && roadJun
         ? stackWorldGyFromLocalJunRow(roadJun, Math.trunc(ry))
         : Math.trunc(ry);
+    // 大本营须优先于库城 footprint：否则 `road_position` 与某城 DB 框重叠时会误用错误 POI 邻路出发。
+    if (Array.isArray(pvpBaseCamps) && pvpBaseCamps.length) {
+      const wid = resolvePvpBaseCampWarIdAtMergedCell(wyProbe, wx, pvpBaseCamps, mapColumns, mapRows);
+      if (wid) {
+        const camp = pvpBaseCamps.find((c) => String(c?.pvpWarId || '').trim() === wid);
+        if (camp) {
+          const fpCamp = collectStrategicPvpCampFootprintFromBaseCamp(camp, mapColumns, mapRows);
+          if (fpCamp?.keys?.size) return fpCamp.keys;
+        }
+      }
+    }
     let poiFp = null;
     if (Array.isArray(citiesInCountyRows) && citiesInCountyRows.length) {
       poiFp = findPoiFootprintKeysContainingCellFromDb(
@@ -709,15 +1036,6 @@ export function resolveOffRoadMarchDepartureFootprintKeys(
       poiFp = findPoiFootprintKeysContainingCell(cells, wx, wyProbe, mapColumns, mapRows);
     }
     if (poiFp?.size) return poiFp;
-  }
-  const mainId = player?.main_city_id;
-  if (mainCityDbRow && mainId) {
-    const fpDb = buildStrategicPoiFootprintFromDbCityRow(mainCityDbRow, mapColumns, mapRows, cells);
-    if (fpDb?.keys?.size) return fpDb.keys;
-  }
-  if (typeof collectMainCityFootprintKeys === 'function' && mainId) {
-    const fpMain = collectMainCityFootprintKeys(cells, mainId);
-    if (fpMain?.size) return fpMain;
   }
   return new Set();
 }
@@ -767,18 +1085,6 @@ export function pickNearestRoadTargetMultiStart(roadPassable, startKeys, candida
 }
 
 /**
- * @param {object[][]} cells
- * @param {unknown} roadCells
- * @param {number} mapColumns
- * @param {number} mapRows
- * @param {string} countyJunId
- * @param {object} player - profile.player
- * @param {string} targetPoiId - 允许作为终点的战略 POI：本势力城心（`cities` 主键）或郡内匪寨 **`banditPoiId` / `san_*_bandit_*`**；HTTP 见 **04-1 §15.4** `targetPoiId`。
- * @param {(keys: Set<string>) => Set<string>} [collectMainCityFootprint] - 注入以便与后端 `roadGrid` 一致
- * @param {Set<string>|null|undefined} [hostileOccupiedRoadKeys] - 已废弃：最短路按**完整**道路网计算；敌对叠格在逐步 `moveAlongRoad` 时触发遭遇/拦截，不作为寻路障碍（与产品「始终最短路径」一致）。
- * @param {boolean} [useWorldStackRoadCoords] - 为 true 时 `roadCells` / `cells` 使用 **世界行 gy**（颍川+汝南叠放），`player.road_position_*` 仍为 **郡内本地**。
- */
-/**
  * POI 入城/寨后写库用：锚格为 **郡内** `road_position_*`，并须带 **`road_jun_id`**（叠放寻路时 footprint 已用世界行键）。
  * @param {object|null|undefined} targetCityDbRow - `buildMarchPathToStrategicPoi` 的库城行（含 `jun_id` / `junId`）
  * @param {object[]|null|undefined} citiesInCountyRows - 多郡合并查询时可反查 `jun_id`
@@ -810,6 +1116,9 @@ function buildPoiPlayerRoadWriteSnap(poi, targetCityDbRow = null, citiesInCounty
   return { poiAnchor: { x: poi.anchorGx, y: poi.anchorGy }, poiAnchorJunId: null };
 }
 
+/**
+ * 战略 POI 行军：终点城/匪寨/攻方大本营；离路出发仅 {@link resolveOffRoadMarchDepartureFootprintKeys}（**不以主城替代**）。
+ */
 export function buildMarchPathToStrategicPoi({
   cells,
   roadCells,
@@ -818,12 +1127,14 @@ export function buildMarchPathToStrategicPoi({
   countyJunId,
   player,
   targetPoiId,
-  collectMainCityFootprintKeys,
   targetCityDbRow = null,
-  mainCityDbRow = null,
   citiesInCountyRows = null,
   hostileOccupiedRoadKeys = null,
   useWorldStackRoadCoords = false,
+  /** `wars_pvp.base_camp` 对象：行军终点为攻方大本营时由调用方传入（与匪寨同为骨牌 footprint） */
+  pvpCampBaseCamp = null,
+  /** 活跃战事大本营列表（与战略格 `pvpBaseCamps` 同源）：离路出发时解析 **当前立点** 是否在大本营 footprint 内 */
+  pvpBaseCamps = null,
 }) {
   if (!cells?.length || !roadCells?.length) {
     return { ok: false, error: '当前地图缺少道路数据' };
@@ -831,12 +1142,32 @@ export function buildMarchPathToStrategicPoi({
   const roadPassable = buildRoadPassableKeySetForMarch(roadCells, cells, mapColumns, mapRows);
   /* 保留入参以兼容旧调用；寻路不再剔除敌对占格。 */
   void hostileOccupiedRoadKeys;
-  let poi = null;
-  if (targetCityDbRow) {
-    poi = buildStrategicPoiFootprintFromDbCityRow(targetCityDbRow, mapColumns, mapRows, cells);
+  /** 与匪寨一致：`targetPoiId` 为 PVP 战事且带 `baseCamp` 时 **仅** 用大本营 footprint，禁止回退到 `cities` 城心（否则表现为「点大本营却寻路到目标城」）。 */
+  const isPvpCampMarch =
+    !!(pvpCampBaseCamp && Array.isArray(pvpCampBaseCamp.cells) && pvpCampBaseCamp.cells.length);
+  if (isPvpWarMarchTargetId(targetPoiId) && !isPvpCampMarch) {
+    return {
+      ok: false,
+      error:
+        '该目标为 PVP 战事但未携带攻方大本营（baseCamp），无法寻路；请刷新战事列表后重试（不得以城心替代）。',
+    };
   }
-  if (!poi?.keys?.size) {
-    poi = collectStrategicPoiFootprint(cells, targetPoiId, mapColumns, mapRows);
+  let poi = null;
+  if (isPvpCampMarch) {
+    poi = collectStrategicPvpCampFootprintFromBaseCamp(pvpCampBaseCamp, mapColumns, mapRows);
+    if (!poi?.keys?.size) {
+      return {
+        ok: false,
+        error: '攻方大本营 footprint 无法解析（请核对 wars_pvp.base_camp 与合并地图叠放）',
+      };
+    }
+  } else {
+    if (targetCityDbRow) {
+      poi = buildStrategicPoiFootprintFromDbCityRow(targetCityDbRow, mapColumns, mapRows, cells);
+    }
+    if (!poi?.keys?.size) {
+      poi = collectStrategicPoiFootprint(cells, targetPoiId, mapColumns, mapRows);
+    }
   }
   if (!poi?.keys?.size) {
     return { ok: false, error: '目标战略点不在当前郡格网内' };
@@ -853,10 +1184,12 @@ export function buildMarchPathToStrategicPoi({
     useWorldStackRoadCoords && roadJun && Number.isFinite(rx) && Number.isFinite(ry)
       ? stackWorldGyFromLocalJunRow(roadJun, Math.trunc(ry))
       : Math.trunc(ry);
-  const startKeyIfRoad =
-    roadJun === countyJunId && Number.isFinite(rx) && Number.isFinite(ry)
-      ? `${Math.trunc(rx)},${startWy}`
-      : null;
+  const canUseStartKeyRoad =
+    Number.isFinite(rx) &&
+    Number.isFinite(ry) &&
+    !!String(roadJun || '').trim() &&
+    (useWorldStackRoadCoords ? true : String(roadJun).trim() === String(countyJunId || '').trim());
+  const startKeyIfRoad = canUseStartKeyRoad ? `${Math.trunc(rx)},${startWy}` : null;
   const onRoadCell = startKeyIfRoad && roadPassable.has(startKeyIfRoad);
 
   let path = null;
@@ -869,14 +1202,15 @@ export function buildMarchPathToStrategicPoi({
       countyJunId,
       mapColumns,
       mapRows,
-      collectMainCityFootprintKeys,
-      { mainCityDbRow, citiesInCountyRows },
+      { citiesInCountyRows, pvpBaseCamps: pvpBaseCamps ?? null },
       useWorldStackRoadCoords,
     );
     if (!footprintKeys.size) {
-      const mainId = player?.main_city_id;
-      if (!mainId) return { ok: false, error: '未设置主城且未在道路上，无法出发' };
-      return { ok: false, error: '主城不在当前郡地图内' };
+      return {
+        ok: false,
+        error:
+          '离路起点无法解析：当前坐标须落在库城/格网城寨/PVP 攻方大本营等已登记 POI 占格内（不以主城替代）。请刷新地图或核对 road_position。',
+      };
     }
     const starts = roadKeysAdjacentToFootprint(footprintKeys, roadPassable);
     if (!starts.size) return { ok: false, error: '出发地旁没有可通行的道路格' };

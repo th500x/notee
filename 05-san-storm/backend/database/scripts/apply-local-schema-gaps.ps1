@@ -23,7 +23,7 @@ $files = @(
   "create-chats-table.sql",
   "create-config-texts.sql",
   "create-memorial-images-table.sql",
-  "create-temp-character-ranking-snapshots.sql",
+  "create-temp-character-ranking.sql",
   "add-card-pool-tables.sql",
   "create-temp-ranking-snapshots-table.sql",
   "create-player-garrison.sql",

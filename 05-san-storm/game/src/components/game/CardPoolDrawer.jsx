@@ -17,6 +17,7 @@ import {
   cardMatchesPlayerPoolFaction,
 } from '@/utils/poolCardFilters';
 import PlayerTopResourceBadges from '@/components/game/PlayerTopResourceBadges';
+import PoolResultModalFrame from '@/components/game/PoolResultModalFrame';
 
 const poolDebug = import.meta.env.DEV;
 
@@ -310,95 +311,82 @@ function DrawResultOverlay({ poolType, cards, poolCards, skillsMap, baseUrl, rar
   const hasPitySuppressed = Array.isArray(cards) && cards.some((c) => c.pityLegendarySuppressed);
 
   return (
-    <>
-      <div className="fixed inset-0 bg-black/70 z-[210]" onClick={onClose} />
-      <div className="fixed inset-0 z-[211] flex items-center justify-center px-4" onClick={onClose}>
-        <div className="bg-stone-900 border-2 border-amber-600/50 rounded-2xl p-4 max-w-md w-full shadow-2xl"
-             onClick={e => e.stopPropagation()}>
-          <h3 className="text-amber-400 text-center font-bold mb-4">
-            {poolType === 'troop' ? '⚔️ 部队卡抽取结果' : '🎴 将领卡抽取结果'}
-          </h3>
-          {hasPitySuppressed && (
-            <div className="mb-3 px-3 py-2 rounded-lg bg-amber-950/80 border border-amber-600/40 text-[11px] leading-relaxed text-amber-100/95">
-              <span className="text-amber-400 font-semibold">保底说明：</span>
-              本轮已触发<span className="text-orange-300">传奇保底</span>，但因<span className="text-orange-200">今日传奇卡已达获取上限</span>（每池每日最多 1 张），系统已按规则将档位降为史诗或稀有；<span className="text-stone-300">保底计数已重置</span>，并非界面错误。
-            </div>
-          )}
-          <div className="flex justify-center gap-3 flex-wrap">
-            {cards.map((card, i) => {
-              // 优先使用完整配置数据，fallback 到基础字段
-              const fullConfig = poolCardsMap[card.cardId];
-              return (
-                <div key={i} className="flex flex-col items-center">
-                  <div style={{ width: 128, height: 192 }} className="overflow-hidden rounded-lg bg-stone-900">
-                    <div
-                      style={{
-                        transform: 'scale(0.5)',
-                        transformOrigin: 'top left',
-                        width: 256,
-                        height: 384,
-                        overflow: 'hidden',
-                      }}
-                    >
-                      {poolType === 'troop' ? (
-                        <TroopCard
-                          troop={fullConfig || { id: card.cardId, name: card.cardName, rarity: card.rarity }}
-                          skillsMap={skillsMap}
-                          showDetails
-                          baseUrl={baseUrl}
-                          disableHoverScale
-                          suppressSkillTooltips
-                        />
-                      ) : (
-                        <CharacterCard
-                          character={fullConfig || { id: card.cardId, name: card.cardName, rarity: card.rarity }}
-                          skillsMap={skillsMap}
-                          showDetails={true}
-                          baseUrl={baseUrl}
-                          disableHoverScale
-                        />
-                      )}
-                    </div>
-                  </div>
-                  <div className="mt-1 text-center">
-                    <div className="text-xs font-bold" style={{ color: RARITY_COLORS[card.rarity] }}>
-                      {RARITY_LABELS[card.rarity]}
-                    </div>
-                    <div className="text-stone-300 text-[10px]">{card.cardName || '未知'}</div>
-                    {card.pityLegendarySuppressed && (
-                      <div className="mt-1 text-[10px] text-amber-200/90 max-w-[140px] leading-snug">
-                        本张：保底传奇 → 因今日上限实为「{rarityLabel[card.rarity] || card.rarity}」
-                      </div>
-                    )}
-                  </div>
-                  {card.compensated && (
-                    <div className="mt-0.5 text-[10px] text-amber-400/80 bg-amber-900/30 px-2 py-0.5 rounded">
-                      {card.compensation?.type === 'silver' ? `💰+${card.compensation.amount}` : `🌾+${card.compensation.amount}`}
-                      <span className="text-stone-500 ml-1">
-                        {card.reason === 'character_duplicate'
-                          ? '(已持有)'
-                          : card.reason === 'character_rarity_limit'
-                            ? '(稀有度已满)'
-                            : card.reason === 'troop_limit'
-                              ? '(超限)'
-                              : card.reason === 'no_card_available'
-                                ? '(无可抽候选)'
-                                : ''}
-                      </span>
-                    </div>
+    <PoolResultModalFrame
+      title={poolType === 'troop' ? '⚔️ 部队卡抽取结果' : '🎴 将领卡抽取结果'}
+      onClose={onClose}
+    >
+      {hasPitySuppressed && (
+        <div className="mb-3 px-3 py-2 rounded-lg bg-amber-950/80 border border-amber-600/40 text-[11px] leading-relaxed text-amber-100/95">
+          <span className="text-amber-400 font-semibold">保底说明：</span>
+          本轮已触发<span className="text-orange-300">传奇保底</span>，但因<span className="text-orange-200">今日传奇卡已达获取上限</span>（每池每日最多 1 张），系统已按规则将档位降为史诗或稀有；<span className="text-stone-300">保底计数已重置</span>，并非界面错误。
+        </div>
+      )}
+      <div className="flex justify-center gap-3 flex-wrap">
+        {cards.map((card, i) => {
+          const fullConfig = poolCardsMap[card.cardId];
+          return (
+            <div key={i} className="flex flex-col items-center">
+              <div style={{ width: 128, height: 192 }} className="overflow-hidden rounded-lg bg-stone-900">
+                <div
+                  style={{
+                    transform: 'scale(0.5)',
+                    transformOrigin: 'top left',
+                    width: 256,
+                    height: 384,
+                    overflow: 'hidden',
+                  }}
+                >
+                  {poolType === 'troop' ? (
+                    <TroopCard
+                      troop={fullConfig || { id: card.cardId, name: card.cardName, rarity: card.rarity }}
+                      skillsMap={skillsMap}
+                      showDetails
+                      baseUrl={baseUrl}
+                      disableHoverScale
+                      suppressSkillTooltips
+                    />
+                  ) : (
+                    <CharacterCard
+                      character={fullConfig || { id: card.cardId, name: card.cardName, rarity: card.rarity }}
+                      skillsMap={skillsMap}
+                      showDetails={true}
+                      baseUrl={baseUrl}
+                      disableHoverScale
+                    />
                   )}
                 </div>
-              );
-            })}
-          </div>
-          <button
-            onClick={onClose}
-            className="w-full mt-4 py-2 bg-stone-700 hover:bg-stone-600 text-stone-300 rounded-lg text-sm transition-colors"
-          >
-            确认
-          </button>
-        </div>
+              </div>
+              <div className="mt-1 text-center">
+                <div className="text-xs font-bold" style={{ color: RARITY_COLORS[card.rarity] }}>
+                  {RARITY_LABELS[card.rarity]}
+                </div>
+                <div className="text-stone-300 text-[10px]">{card.cardName || '未知'}</div>
+                {card.pityLegendarySuppressed && (
+                  <div className="mt-1 text-[10px] text-amber-200/90 max-w-[140px] leading-snug">
+                    本张：保底传奇 → 因今日上限实为「{rarityLabel[card.rarity] || card.rarity}」
+                  </div>
+                )}
+              </div>
+              {card.compensated && (
+                <div className="mt-0.5 text-[10px] text-amber-400/80 bg-amber-900/30 px-2 py-0.5 rounded">
+                  {card.compensation?.type === 'silver' ? `💰+${card.compensation.amount}` : `🌾+${card.compensation.amount}`}
+                  <span className="text-stone-500 ml-1">
+                    {card.reason === 'character_duplicate'
+                      ? '(已持有)'
+                      : card.reason === 'character_rarity_limit'
+                        ? '(稀有度已满)'
+                        : card.reason === 'troop_limit'
+                          ? '(超限)'
+                          : card.reason === 'no_card_available'
+                            ? '(无可抽候选)'
+                            : ''}
+                  </span>
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
-    </>
+    </PoolResultModalFrame>
   );
 }

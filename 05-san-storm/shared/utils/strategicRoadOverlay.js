@@ -201,3 +201,198 @@ export function buildStrategicRoadOverlayPathD(roadCells, connectivity, mapColum
   if (!segments.length) return '';
   return segments.map((s) => `M ${s.x1} ${s.y1} L ${s.x2} ${s.y2}`).join(' ');
 }
+
+/**
+ * 道路邻边中，两端格 `adminJunAt(gx,gy)` 不同的线段（用于小地图郡界土黄叠线）。
+ * 与 `buildStrategicRoadOverlaySegments` 同一去重规则（无向边只保留一次）。
+ *
+ * @param {RoadCell[]|unknown} roadCells
+ * @param {'4'|'8'} connectivity
+ * @param {number} mapColumns
+ * @param {number} mapRows
+ * @param {(gx: number, gy: number) => string} adminJunAt
+ * @returns {{ x1: number, y1: number, x2: number, y2: number }[]}
+ */
+export function buildStrategicRoadAdminJurisdictionBoundarySegments(
+  roadCells,
+  connectivity,
+  mapColumns,
+  mapRows,
+  adminJunAt,
+) {
+  if (typeof adminJunAt !== 'function') return [];
+  const list = Array.isArray(roadCells) ? normalizeRoadCellList(roadCells) : [];
+  const set = new Set(list.map((c) => `${c.gx},${c.gy}`));
+  const dirs = connectivity === ROAD_CONNECTIVITY_8 ? DIRS_8 : DIRS_4;
+  const segments = [];
+
+  for (const key of set) {
+    const [gxs, gys] = key.split(',');
+    const gx = Number(gxs);
+    const gy = Number(gys);
+    for (const [dx, dy] of dirs) {
+      const ngx = gx + dx;
+      const ngy = gy + dy;
+      if (ngx < 0 || ngy < 0 || ngx >= mapColumns || ngy >= mapRows) continue;
+      if (!set.has(`${ngx},${ngy}`)) continue;
+      if (adminJunAt(gx, gy) === adminJunAt(ngx, ngy)) continue;
+      if (gx < ngx || (gx === ngx && gy < ngy)) {
+        segments.push({
+          x1: gx + 0.5,
+          y1: gy + 0.5,
+          x2: ngx + 0.5,
+          y2: ngy + 0.5,
+        });
+      }
+    }
+  }
+  return segments;
+}
+
+function roadCenterNodeKey(x, y) {
+  const a = Math.round(Number(x) * 2);
+  const b = Math.round(Number(y) * 2);
+  return `${a},${b}`;
+}
+
+function roadCenterCoordFromNodeKey(k) {
+  const [a, b] = String(k).split(',').map(Number);
+  return { x: a / 2, y: b / 2 };
+}
+
+function roadCenterEdgeMultiKey(k1, k2) {
+  return k1 < k2 ? `${k1}~${k2}` : `${k2}~${k1}`;
+}
+
+function roadCenterEdgeCount(multi, k1, k2) {
+  return multi.get(roadCenterEdgeMultiKey(k1, k2)) || 0;
+}
+
+function roadCenterTakeEdge(multi, k1, k2) {
+  const ek = roadCenterEdgeMultiKey(k1, k2);
+  const c = multi.get(ek) || 0;
+  if (c <= 0) return false;
+  multi.set(ek, c - 1);
+  return true;
+}
+
+/**
+ * 将格心线段（道路邻接等）按共端点连成折线，供郡界叠线一笔画式描边（避免「一小截一小截」的 M L M L）。
+ * @param {{ x1: number, y1: number, x2: number, y2: number }[]} segments
+ * @returns {Array<Array<{ x: number, y: number }>>}
+ */
+export function mergeRoadCenterSegmentsToPolylines(segments) {
+  if (!Array.isArray(segments) || !segments.length) return [];
+  const multi = new Map();
+  const adj = new Map();
+
+  for (const s of segments) {
+    const k1 = roadCenterNodeKey(s.x1, s.y1);
+    const k2 = roadCenterNodeKey(s.x2, s.y2);
+    const ek = roadCenterEdgeMultiKey(k1, k2);
+    multi.set(ek, (multi.get(ek) || 0) + 1);
+    if (!adj.has(k1)) adj.set(k1, []);
+    if (!adj.has(k2)) adj.set(k2, []);
+    if (!adj.get(k1).includes(k2)) adj.get(k1).push(k2);
+    if (!adj.get(k2).includes(k1)) adj.get(k2).push(k1);
+  }
+
+  const pickNext = (prev, cur) => {
+    for (const nb of adj.get(cur) || []) {
+      if (nb === prev) continue;
+      if (roadCenterEdgeCount(multi, cur, nb) > 0) return nb;
+    }
+    return null;
+  };
+
+  const dedupeConsecutive = (pts) => {
+    const out = [];
+    for (const p of pts) {
+      const last = out[out.length - 1];
+      if (last && Math.abs(last.x - p.x) < 1e-6 && Math.abs(last.y - p.y) < 1e-6) continue;
+      out.push(p);
+    }
+    if (out.length >= 2) {
+      const a = out[0];
+      const b = out[out.length - 1];
+      if (Math.abs(a.x - b.x) < 1e-6 && Math.abs(a.y - b.y) < 1e-6) out.pop();
+    }
+    return out;
+  };
+
+  const polylines = [];
+  while (true) {
+    let seedEk = null;
+    for (const [ek, c] of multi) {
+      if (c > 0) {
+        seedEk = ek;
+        break;
+      }
+    }
+    if (!seedEk) break;
+    const [ka, kb] = seedEk.split('~');
+    roadCenterTakeEdge(multi, ka, kb);
+    const pt = roadCenterCoordFromNodeKey;
+    const pts = [pt(ka), pt(kb)];
+    let prev = ka;
+    let cur = kb;
+    while (true) {
+      const nxt = pickNext(prev, cur);
+      if (!nxt) break;
+      roadCenterTakeEdge(multi, cur, nxt);
+      pts.push(pt(nxt));
+      prev = cur;
+      cur = nxt;
+    }
+    prev = kb;
+    cur = ka;
+    const prefix = [];
+    while (true) {
+      const nxt = pickNext(prev, cur);
+      if (!nxt) break;
+      roadCenterTakeEdge(multi, cur, nxt);
+      prefix.push(pt(nxt));
+      prev = cur;
+      cur = nxt;
+    }
+    polylines.push(dedupeConsecutive([...prefix.reverse(), ...pts]));
+  }
+  return polylines;
+}
+
+function roadCenterPolylinesToSvgPathD(polylines) {
+  const parts = [];
+  for (const pts of polylines) {
+    if (!pts || pts.length < 2) continue;
+    parts.push(
+      `M ${pts[0].x} ${pts[0].y}${pts
+        .slice(1)
+        .map((p) => ` L ${p.x} ${p.y}`)
+        .join('')}`,
+    );
+  }
+  return parts.join(' ');
+}
+
+/**
+ * @param {(gx: number, gy: number) => string} adminJunAt
+ * @returns {string} SVG path `d`，可能为空串
+ */
+export function buildStrategicRoadAdminJurisdictionBoundaryPathD(
+  roadCells,
+  connectivity,
+  mapColumns,
+  mapRows,
+  adminJunAt,
+) {
+  const segments = buildStrategicRoadAdminJurisdictionBoundarySegments(
+    roadCells,
+    connectivity,
+    mapColumns,
+    mapRows,
+    adminJunAt,
+  );
+  if (!segments.length) return '';
+  const polylines = mergeRoadCenterSegmentsToPolylines(segments);
+  return roadCenterPolylinesToSvgPathD(polylines);
+}

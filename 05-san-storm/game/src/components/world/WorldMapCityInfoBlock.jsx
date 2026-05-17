@@ -9,6 +9,7 @@ import { useState, useCallback, useEffect, useRef, useLayoutEffect } from 'react
 import ExploreLocationDockPanel from '@/components/event/ExploreLocationDockPanel';
 import BanditStrongholdDockPanel from '@/components/event/BanditStrongholdDockPanel';
 import { filterPlayerItemsForExploreLocation } from '@/components/event/eventUtils';
+import WorldMapCityCombatSummaryBlock from '@/components/world/WorldMapCityCombatSummaryBlock';
 import { PHASE } from '@/components/event/EventConstants';
 import { useBanditRaidQuota } from '@/hooks/useBanditRaidQuota';
 import { usePlayerContext } from '@/contexts/PlayerContext';
@@ -81,7 +82,7 @@ export default function WorldMapCityInfoBlock({
   onSetMainCityError = null,
   /** 已是主城时「驻军所」入口；`(cityId, cityBaseName?) => void` */
   onOpenBarracksPost = null,
-  /** 「三公府」：官职晋升、朝政（朝贡等）；`(cityId, cityBaseName?) => void` */
+  /** 「三公府」：官职晋升、互动（朝贡等）·朝政占位；`(cityId, cityBaseName?) => void` */
   onOpenSanGongFu = null,
   cityId = null,
   /** 匪寨地图对象 ID（`san_*_bandit_*`）；与行军 `targetPoiId` 同族。匪寨面板勿用 `cityId`。 */
@@ -91,7 +92,7 @@ export default function WorldMapCityInfoBlock({
   /** async (cityId, nextOnDuty) => void */
   onToggleDutyRequest,
   onDutyError,
-  /** 披挂切换成功后回调（战略 tooltip 可关闭以便刷新状态） */
+  /** 可选：披挂等操作成功后的额外回调（战略格网已不再用于关 tooltip；见 `WorldStrategicMapGrid`） */
   onAfterOwnCityAction,
   /** 荒郊/集市：`buildWorldMapCityPanelProps` + `cityById` 解析 */
   subsidiaryExplore = null,
@@ -116,6 +117,10 @@ export default function WorldMapCityInfoBlock({
   postBanditRaidRefreshKey = 0,
   /** 为 true 时仅渲染匪寨攻打面板（依赖 **`banditPoiId`**，与行军 `targetPoiId` 同族） */
   isBanditStronghold = false,
+  /**
+   * PVP 攻方大本营战略格：披挂/驻地固定为无；攻城次数仍按 **`siegeQuotaCityId`**（目标城）桶。
+   */
+  pvpAttackerBaseCampStrategic = false,
 }) {
   const [dutyBusy, setDutyBusy] = useState(false);
   const [mainCityBusy, setMainCityBusy] = useState(false);
@@ -349,7 +354,8 @@ export default function WorldMapCityInfoBlock({
     !showOwnCityActions &&
     !!playerId &&
     typeof onStartSiege === 'function' &&
-    siegeTargetLabel === '可攻打';
+    (siegeTargetLabel === '可攻打' ||
+      (pvpAttackerBaseCampStrategic && siegeTargetLabel === '可出击'));
 
   const segBtn = (key, label) => (
     <button
@@ -464,22 +470,7 @@ export default function WorldMapCityInfoBlock({
     );
   }
 
-  const dutyNum = typeof onDutyCount === 'number' && Number.isFinite(onDutyCount) ? onDutyCount : null;
-  const dutyShown = dutyNum === null ? '—' : String(dutyNum);
-  const dutyGreen = dutyNum != null && dutyNum > 0;
-
-  const slotNum =
-    typeof garrisonSlotCount === 'number' && Number.isFinite(garrisonSlotCount)
-      ? garrisonSlotCount
-      : null;
-  const slotShown = slotNum === null ? '—' : String(slotNum);
-
   const subtitle = siegeLoading ? '准备中...' : subtitleText;
-
-  const defenseShown =
-    cityDefenseCoefficient != null && Number.isFinite(Number(cityDefenseCoefficient))
-      ? String(cityDefenseCoefficient)
-      : '—';
 
   const garrisonBody = (
     <>
@@ -566,20 +557,16 @@ export default function WorldMapCityInfoBlock({
           每小时+{siegeQuota?.refillPerHour ?? 6}次 · 上限{siegeQuota?.max ?? 18}次 · 0:00~8:00💤
         </div>
       ) : null}
-      <div className="text-stone-300 text-xs mt-2 border-t border-stone-600 pt-2 whitespace-normal">
-        披挂上阵：
-        <span className={dutyGreen ? 'text-green-400' : 'text-stone-500'}>{dutyShown}</span>
-        <span className="text-stone-500">（守方兵力≥800；攻方兵力≥200）</span>
-        <br />
-        驻地守军：
-        <span className={slotNum === null ? 'text-stone-500' : 'text-cyan-400'}>{slotShown}</span>
-        <span className="text-stone-500"> / </span>
-        <span className="text-cyan-300/90">{garrisonCap != null ? garrisonCap : '?'}</span>
-        <br />
-        NPC守军：<span className="text-amber-400">{npcAlive ?? '?'}</span> / {npcTotal}
-        <br />
-        防守系数：<span className="text-stone-200">{defenseShown}</span>
-      </div>
+      <WorldMapCityCombatSummaryBlock
+        className="mt-2"
+        pvpAttackerBaseCampStrategic={pvpAttackerBaseCampStrategic}
+        onDutyCount={onDutyCount}
+        garrisonSlotCount={garrisonSlotCount}
+        garrisonCap={garrisonCap}
+        npcAlive={npcAlive}
+        npcTotal={npcTotal}
+        cityDefenseCoefficient={cityDefenseCoefficient}
+      />
       {showActions ? (
         <div className="mt-3 space-y-1.5">
           <button
@@ -595,10 +582,21 @@ export default function WorldMapCityInfoBlock({
             onClick={handleToggleDuty}
             className={`w-full py-2 rounded-lg text-xs font-bold ${
               playerOnDutyForThisCity
-                ? 'bg-gradient-to-r from-green-700 to-emerald-700 text-green-100'
+                ? 'bg-gradient-to-r from-green-700 to-emerald-700 text-green-100 flex items-center justify-between gap-2 px-2.5'
                 : 'bg-gradient-to-r from-stone-700 to-stone-600 text-stone-300'}`}
           >
-            {dutyBusy ? '…' : playerOnDutyForThisCity ? '⚔️ 驻守待机中...' : '🛡️ 披挂上阵'}
+            {dutyBusy ? (
+              '…'
+            ) : playerOnDutyForThisCity ? (
+              <>
+                <span className="shrink-0">⚔️ 驻守待机中...</span>
+                <span className="max-w-[58%] text-right text-[9px] font-normal leading-tight text-green-100/75">
+                  （守方兵力≥800；攻方兵力≥200）
+                </span>
+              </>
+            ) : (
+              '🛡️ 披挂上阵'
+            )}
           </button>
         </div>
       ) : null}
@@ -610,7 +608,15 @@ export default function WorldMapCityInfoBlock({
             disabled={siegeLoading || !siegeQuota?.loaded || !siegeQuota.canSiege}
             className="w-full py-2 rounded-lg text-xs font-bold bg-gradient-to-r from-red-700 to-orange-700 text-white disabled:from-stone-700 disabled:text-stone-500"
           >
-            {siegeLoading ? '准备中...' : !siegeQuota?.loaded ? '攻城次数加载中…' : !siegeQuota.canSiege ? '次数不足' : `⚔️ 攻打${cityBaseName}`}
+            {siegeLoading
+              ? '准备中...'
+              : !siegeQuota?.loaded
+                ? '攻城次数加载中…'
+                : !siegeQuota.canSiege
+                  ? '次数不足'
+                  : pvpAttackerBaseCampStrategic
+                    ? '⚔️ 攻打大本营'
+                    : `⚔️ 攻打${cityBaseName}`}
           </button>
         </div>
       ) : null}

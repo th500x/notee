@@ -3,7 +3,7 @@
  * 与探索 / 攻城「每小时 +6、0–8 点休息」**不同网格**，故 **独立** 于 `hourlyQuotaWithRestWindow.js`。
  *
  * @see docs/10-core-system/15-2-SERVER_REFRESH_AND_LIMITS.md
- * @see docs/10-core-system/17-6-BANDIT_SYSTEM.md
+ * @see docs/10-core-system/17-6-BANDIT_SYSTEM.md（个人塔次日 08:00 **整塔重置 `nextLayer`→1** 见 **`playerBanditRaidQuotaService.maybeResetPostTowerStallProgress`**）
  */
 
 'use strict';

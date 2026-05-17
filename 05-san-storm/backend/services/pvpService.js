@@ -74,7 +74,7 @@ async function getOnlineDefenders(cityId, attackerId, attackerFaction) {
 /**
  * 创建 PVP 挑战
  */
-function createChallenge({ warId, cityId, attackerId, attackerFaction, defenderId, defenderGarrisonSlot, defenderIsInGame }) {
+function createChallenge({ warId, pvpWarId, cityId, attackerId, attackerFaction, defenderId, defenderGarrisonSlot, defenderIsInGame }) {
   // 清理该防守方之前的未完成挑战
   const oldId = defenderIndex.get(defenderId);
   if (oldId) {
@@ -90,7 +90,8 @@ function createChallenge({ warId, cityId, attackerId, attackerFaction, defenderI
 
   const challenge = {
     challengeId,
-    warId,
+    warId: warId || null,
+    pvpWarId: pvpWarId || null,
     cityId,
     attackerId,
     attackerFaction,
@@ -137,7 +138,8 @@ async function checkPendingChallenge(defenderId) {
 
   return {
     challengeId: c.challengeId,
-    warId: c.warId,
+    warId: c.warId || null,
+    pvpWarId: c.pvpWarId || null,
     cityId: c.cityId,
     attackerId: c.attackerId,
     attackerName,
@@ -239,7 +241,8 @@ async function getDefenderBattleContext(challengeId, defenderId) {
 
   return {
     ok: true,
-    warId: c.warId,
+    warId: c.warId || null,
+    pvpWarId: c.pvpWarId || null,
     cityId: c.cityId,
     cityName,
     attackerFaction: c.attackerFaction,
@@ -285,6 +288,25 @@ function getSiegeOutcome(challengeId) {
   return { ...c.siegeOutcome, challengeId };
 }
 
+/**
+ * PVP 战事取消或终局时：移除内存中仍挂该 `pvpWarId` 的披挂挑战，避免守方轮询到已废止战事。
+ * @param {string} pvpWarId
+ * @returns {number} 删除条数
+ */
+function removeChallengesForPvpWar(pvpWarId) {
+  const tid = String(pvpWarId || '').trim();
+  if (!tid) return 0;
+  let n = 0;
+  for (const [id, c] of challenges) {
+    if (String(c.pvpWarId || '') === tid) {
+      challenges.delete(id);
+      if (c.defenderId) defenderIndex.delete(c.defenderId);
+      n += 1;
+    }
+  }
+  return n;
+}
+
 module.exports = {
   getOnlineDefenders,
   createChallenge,
@@ -296,6 +318,7 @@ module.exports = {
   peekChallenge,
   markSiegeResolved,
   getSiegeOutcome,
+  removeChallengesForPvpWar,
   WAIT_IN_GAME,
   WAIT_NOT_IN_GAME,
 };
