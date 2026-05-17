@@ -11,13 +11,6 @@ const { wrap500 } = require('../utils/httpError');
 
 const router = express.Router();
 
-/**
- * 鉴权：含玩家进度 patch / 领奖 / 战役中心（query.playerId）等私有端点；
- * `definitions` / `presets` 是公开模板但当前前端只在登录后访问，统一顶层挂 `requireAuth` 关闭匿名访问。
- * 细粒度 `requireSelf` 留下一阶段。
- */
-router.use(requireAuth);
-
 const PRESET_FILES = {
   san_1_camp_1001_v1: path.join(__dirname, '../../shared/data/campaign/san_1_camp_1001_v1.preset.json'),
   san_1_camp_1001_v2: path.join(__dirname, '../../shared/data/campaign/san_1_camp_1001_v2.preset.json'),
@@ -29,6 +22,35 @@ function loadPreset(id) {
   // eslint-disable-next-line import/no-dynamic-require, global-require
   return require(fp);
 }
+
+/**
+ * 公开：静态 preset 与仓库内 JSON 同源，无玩家隐私。
+ * 战役地图管理页（`useAdmin` + `notee-admin-token`）**不**持有玩家 JWT，`fetchWithTimeout` 无法代附
+ * `Authorization: Bearer <player>`；若仍挂 `requireAuth` 会导致生产环境 **401**，误判「API 离线」。
+ */
+router.get('/presets', (req, res) => {
+  res.json({
+    success: true,
+    ids: Object.keys(PRESET_FILES),
+  });
+});
+
+/**
+ * GET /api/campaign/presets/:id
+ */
+router.get('/presets/:id', (req, res) => {
+  const preset = loadPreset(req.params.id);
+  if (!preset) {
+    return res.status(404).json({ success: false, error: 'unknown preset' });
+  }
+  res.json({ success: true, preset });
+});
+
+/**
+ * 鉴权：玩家进度 patch / 领奖 / 战役中心 / definitions 等须登录。
+ * `GET /presets`、`GET /presets/:id` 已置于上方，**不**经本中间件。
+ */
+router.use(requireAuth);
 
 /**
  * GET /api/campaign/definitions?season=san_1
@@ -95,27 +117,6 @@ router.post('/claim-reward', async (req, res, next) => {
   } catch (e) {
     return next(wrap500(e, '领取战役奖励失败'));
   }
-});
-
-/**
- * GET /api/campaign/presets
- */
-router.get('/presets', (req, res) => {
-  res.json({
-    success: true,
-    ids: Object.keys(PRESET_FILES),
-  });
-});
-
-/**
- * GET /api/campaign/presets/:id
- */
-router.get('/presets/:id', (req, res) => {
-  const preset = loadPreset(req.params.id);
-  if (!preset) {
-    return res.status(404).json({ success: false, error: 'unknown preset' });
-  }
-  res.json({ success: true, preset });
 });
 
 module.exports = router;

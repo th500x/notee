@@ -42,9 +42,17 @@ export default function CampaignMapGeneratorManager() {
     let cancelled = false;
     const base = API_CONFIG.BASE_URL.replace(/\/$/, '');
     fetchWithTimeout(`${base}/campaign/presets/${campaignId}`)
-      .then((r) => r.json())
+      .then((r) => {
+        if (cancelled) return null;
+        if (!r.ok) {
+          setApiOk(false);
+          setApiError(`HTTP ${r.status}`);
+          return null;
+        }
+        return r.json();
+      })
       .then((j) => {
-        if (cancelled) return;
+        if (cancelled || j == null) return;
         if (j.success && j.preset?.campaign_id === campaignId) setApiOk(true);
         else setApiOk(false);
       })
