@@ -154,6 +154,10 @@ export function getAllPropertiesForExport(project) {
   return getAllProperties(project)
 }
 
+/** PNG export: rows with low water usage get a light row fill (readability vs emphasis). */
+const UTILITY_EXPORT_LOW_WATER_UNITS_MAX = 20
+const UTILITY_EXPORT_LOW_WATER_ROW_FILL = '#f3f4f6'
+
 function utilRowUsage(row, pricePerKwh, pricePerWaterUnit) {
   const le = Number(row.lastMonthElectric) || 0
   const ce = Number(row.currentMonthElectric) || 0
@@ -251,12 +255,20 @@ export async function exportUtilityBillToImage(sheet, projectName) {
     ctx.textAlign = 'center'
     ctx.fillText('No rows', canvas.width / 2, tableStartY + rowHeight + 20)
   } else {
+    const dataRowTop = (index) => tableStartY + 40 + index * rowHeight
+    const dataRowTextY = (index) => dataRowTop(index) + 34
+
     rows.forEach((row, index) => {
       const { electricUnits, waterUnits, subtotal } = utilRowUsage(row, pk, pw)
       totalE += electricUnits
       totalW += waterUnits
       totalAmt += subtotal
-      const rowY = tableStartY + rowHeight * (index + 1) + 28
+      const rowTop = dataRowTop(index)
+      const rowY = dataRowTextY(index)
+      if (waterUnits <= UTILITY_EXPORT_LOW_WATER_UNITS_MAX) {
+        ctx.fillStyle = UTILITY_EXPORT_LOW_WATER_ROW_FILL
+        ctx.fillRect(padding, rowTop, canvas.width - padding * 2, rowHeight)
+      }
       const rowData = [
         String(row.roomNumber ?? ''),
         String(row.lastMonthElectric ?? ''),
@@ -278,8 +290,8 @@ export async function exportUtilityBillToImage(sheet, projectName) {
       ctx.strokeStyle = '#e5e7eb'
       ctx.lineWidth = 1
       ctx.beginPath()
-      ctx.moveTo(padding, rowY + 14)
-      ctx.lineTo(canvas.width - padding, rowY + 14)
+      ctx.moveTo(padding, rowTop + rowHeight)
+      ctx.lineTo(canvas.width - padding, rowTop + rowHeight)
       ctx.stroke()
     })
   }
