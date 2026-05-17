@@ -155,9 +155,12 @@ export function getAllPropertiesForExport(project) {
   return getAllProperties(project)
 }
 
-/** PNG export: rows with low water usage get a light row fill (readability vs emphasis). */
+/** PNG export: low water usage → shade only Last water / Curr. water / Water u. columns. */
 const UTILITY_EXPORT_LOW_WATER_UNITS_MAX = 20
-const UTILITY_EXPORT_LOW_WATER_ROW_FILL = '#f3f4f6'
+const UTILITY_EXPORT_LOW_WATER_BAND_FILL = '#cbd5e1'
+/** Column indices in `columnWidths` matching Last water, Curr. water, Water u. */
+const UTILITY_EXPORT_WATER_COL_FIRST = 4
+const UTILITY_EXPORT_WATER_COL_LAST = 6
 
 function utilRowUsage(row, pricePerKwh, pricePerWaterUnit) {
   const le = Number(row.lastMonthElectric) || 0
@@ -191,6 +194,12 @@ export async function exportUtilityBillToImage(sheet, projectName) {
   const headerBlock = 100
   const rowHeight = 46
   const columnWidths = [100, 100, 100, 88, 100, 100, 88, 100]
+  const waterBandLeft =
+    padding +
+    columnWidths.slice(0, UTILITY_EXPORT_WATER_COL_FIRST).reduce((a, b) => a + b, 0)
+  const waterBandWidth = columnWidths
+    .slice(UTILITY_EXPORT_WATER_COL_FIRST, UTILITY_EXPORT_WATER_COL_LAST + 1)
+    .reduce((a, b) => a + b, 0)
   const totalWidth = columnWidths.reduce((a, b) => a + b, 0) + padding * 2
   const tableRows = Math.max(rows.length, 1)
   const totalHeight = padding + headerBlock + rowHeight * (tableRows + 2) + padding + 40
@@ -266,8 +275,8 @@ export async function exportUtilityBillToImage(sheet, projectName) {
       const rowTop = dataRowTop(index)
       const rowY = dataRowTextY(index)
       if (waterUnits <= UTILITY_EXPORT_LOW_WATER_UNITS_MAX) {
-        ctx.fillStyle = UTILITY_EXPORT_LOW_WATER_ROW_FILL
-        ctx.fillRect(padding, rowTop, canvas.width - padding * 2, rowHeight)
+        ctx.fillStyle = UTILITY_EXPORT_LOW_WATER_BAND_FILL
+        ctx.fillRect(waterBandLeft, rowTop, waterBandWidth, rowHeight)
       }
       const rowData = [
         String(row.roomNumber ?? ''),
