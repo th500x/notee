@@ -1359,15 +1359,6 @@ export default function StrategicWorldMapSection({
         targetPoiId: tid,
         poiTargetName: poiTargetName || null,
       });
-      // eslint-disable-next-line no-console -- 行军确认：对照瞬移 / targetPoiId
-      console.info('[SanStorm:march-confirm]', {
-        gx,
-        gy,
-        targetPoiId: tid,
-        pathLen: pathRes.path?.length,
-        last: pathRes.path?.[pathRes.path.length - 1],
-        onRoadAtStart: pathRes.onRoadAtStart,
-      });
     },
     [
       roadMarchAnimation,
@@ -1416,13 +1407,6 @@ export default function StrategicWorldMapSection({
         confirmFoodCost: true,
       };
       if (marchConfirm.targetPoiId) body.targetPoiId = marchConfirm.targetPoiId;
-      // eslint-disable-next-line no-console -- road/move 请求体
-      console.info('[SanStorm:road-move-req]', {
-        junId: body.junId,
-        targetPoiId: body.targetPoiId ?? null,
-        pathLen: body.path?.length,
-        last: body.path?.[body.path?.length - 1],
-      });
       const res = await playerAPI.roadMove(playerId, body);
       if (!res?.success) {
         const msg = res?.error || res?.message || '移动失败';
@@ -1459,15 +1443,6 @@ export default function StrategicWorldMapSection({
         Array.isArray(res.data?.path) && res.data.path.length ? res.data.path : reqPath;
       const sa = Number(res.data?.stepsApplied);
       const stepsApplied = Number.isFinite(sa) ? sa : fullPath.length;
-      // eslint-disable-next-line no-console -- road/move 成功：对照瞬移 / snap
-      console.info('[SanStorm:road-move-res]', {
-        targetPoiId: res.data?.targetPoiId ?? null,
-        poiAnchor: res.data?.poiAnchor ?? null,
-        stepsApplied,
-        pathLen: fullPath.length,
-        last: fullPath[fullPath.length - 1],
-        idempotent: !!res.data?.idempotent,
-      });
       /** 叠放大地图：`road/move` 的 `path` 已是世界行 gy，勿再按起点郡加偏移（汝南否则会 +40 越界，动画被跳过或瞬移）。单郡 40 行时 `y` 为郡内坐标，需加偏移对齐视口。 */
       const pathAlreadyWorldGy = rows > STRATEGIC_COUNTY_MAP_ROWS;
       const marchOff = pathAlreadyWorldGy ? 0 : stackWorldRowOffsetForJunId(playerMarchJunId);
@@ -1613,6 +1588,7 @@ export default function StrategicWorldMapSection({
         loading={marchSubmitLoading}
         errorMessage={marchSubmitError}
         pathLength={marchConfirm?.path?.length ?? 0}
+        billableRoadSteps={marchConfirm?.preview?.steps ?? 0}
         preview={marchConfirm?.preview}
         encounterHint={marchConfirm?.encounterHint}
         poiTargetName={marchConfirm?.poiTargetName || null}

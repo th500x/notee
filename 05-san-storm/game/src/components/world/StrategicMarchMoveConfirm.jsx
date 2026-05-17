@@ -10,7 +10,10 @@ export default function StrategicMarchMoveConfirm({
   onConfirm,
   loading,
   errorMessage,
+  /** 路径顶点数（含起点）；用于「已在目标邻接道路」等判定 */
   pathLength,
+  /** 与粮草预览一致：沿路边数（路上出发时为 path 边数 = pathLength−1） */
+  billableRoadSteps,
   preview,
   /** 落点有其他玩家时提示（遭遇以服务端为准） */
   encounterHint,
@@ -52,7 +55,7 @@ export default function StrategicMarchMoveConfirm({
             </>
           ) : (
             <>
-              本段共 <strong className="text-amber-200">{pathLength}</strong> 步（道路邻接）。
+              本段共 <strong className="text-amber-200">{billableRoadSteps}</strong> 步（道路邻接）。
               {p.freeSteps != null ? (
                 <>
                   {' '}
@@ -65,6 +68,14 @@ export default function StrategicMarchMoveConfirm({
             </>
           )}
         </p>
+        {p.freeQuotaPerDay != null && p.freeQuotaRemainingAfterMarch != null ? (
+          <p className="mt-1.5 text-sm leading-relaxed text-stone-400">
+            剩余免费格 / 总共免费格（本段完成后今日）：
+            <strong className="text-stone-200">{p.freeQuotaRemainingAfterMarch}</strong>
+            <span className="text-stone-500"> / </span>
+            <strong className="text-stone-200">{p.freeQuotaPerDay}</strong>
+          </p>
+        ) : null}
         {encounterHint ? (
           <p className="mt-2 rounded border border-amber-900/60 bg-amber-950/40 px-2 py-1.5 text-xs text-amber-100/95">{encounterHint}</p>
         ) : null}

@@ -77,22 +77,37 @@ async function getStipendStatus(playerId) {
     };
   }
 
-  await pool.query('INSERT IGNORE INTO player_events (player_id) VALUES (?)', [pid]);
-  const [rows] = await pool.query(
-    'SELECT san_gong_stipend_claim_date FROM player_events WHERE player_id = ?',
-    [pid],
-  );
-  const [dr] = await pool.query('SELECT CURDATE() AS d');
-  const todayStr = mysqlDateToYmd(dr[0].d);
-  const stored = mysqlDateToYmd(rows[0]?.san_gong_stipend_claim_date);
-  const claimedToday = !!(stored && stored === todayStr);
+  let claimedToday = false;
+  let stipendDateSchemaOk = true;
+  try {
+    await pool.query('INSERT IGNORE INTO player_events (player_id) VALUES (?)', [pid]);
+    const [rows] = await pool.query(
+      'SELECT san_gong_stipend_claim_date FROM player_events WHERE player_id = ?',
+      [pid],
+    );
+    const [dr] = await pool.query('SELECT CURDATE() AS d');
+    const todayStr = mysqlDateToYmd(dr[0].d);
+    const stored = mysqlDateToYmd(rows[0]?.san_gong_stipend_claim_date);
+    claimedToday = !!(stored && stored === todayStr);
+  } catch (e) {
+    const msg = e?.message || String(e);
+    if (/Unknown column ['`]san_gong_stipend_claim_date/i.test(msg)) {
+      stipendDateSchemaOk = false;
+      claimedToday = false;
+    } else {
+      throw e;
+    }
+  }
 
   const overview = await factionOverviewService.getFactionOverviewForPlayer(pid);
   const supplyTier =
     overview && overview.data && !overview.notFound ? overview.data.supplyTier ?? null : null;
 
   let blockReason = null;
-  if (overview?.notFound) blockReason = '玩家不存在';
+  if (!stipendDateSchemaOk) {
+    blockReason =
+      '俸禄数据未就绪：请在服务器执行迁移 `player-events-add-san-gong-stipend-claim-date.sql`（或本地 `node scripts/apply-pending-local-ddl.js`）后重试';
+  } else if (overview?.notFound) blockReason = '玩家不存在';
   else if (!overview?.data?.factionId) blockReason = '无势力归属，无法领取俸禄';
   else if (supplyTier == null) blockReason = '势力国力未达最低档位（D），暂不可领取俸禄';
   else if (claimedToday) blockReason = '今日俸禄已领取';

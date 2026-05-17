@@ -183,6 +183,17 @@ export function buildMarchPathToPoi(p) {
  * @param {object} p.player
  */
 export function estimateMarchFoodCost({ path, onRoadAtStart, player }) {
+  const todayStr = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}`;
+  const fd = player?.road_move_free_date;
+  const freeDateStr = fd ? new Date(fd).toISOString().slice(0, 10) : null;
+  const freeUsedBase = freeDateStr === todayStr ? Number(player?.road_move_free_used) || 0 : 0;
+
+  const rd = player?.road_reserve_date;
+  const reserveDateStr = rd ? new Date(rd).toISOString().slice(0, 10) : null;
+  const reserveUsedBase = reserveDateStr === todayStr ? Number(player?.road_reserve_used) || 0 : 0;
+
+  const freeQuotaBeforeMarch = Math.max(0, MARCH_FREE_MOVES_PER_DAY - freeUsedBase);
+
   const stepsLen = onRoadAtStart ? Math.max(0, path.length - 1) : path.length;
   if (stepsLen <= 0) {
     return {
@@ -194,19 +205,13 @@ export function estimateMarchFoodCost({ path, onRoadAtStart, player }) {
       totalFoodCost: 0,
       reserveRemaining: MARCH_RESERVE_FOOD_DAILY_LIMIT,
       reserveExceeded: false,
+      freeQuotaPerDay: MARCH_FREE_MOVES_PER_DAY,
+      freeQuotaRemainingBeforeMarch: freeQuotaBeforeMarch,
+      freeQuotaRemainingAfterMarch: freeQuotaBeforeMarch,
     };
   }
 
-  const todayStr = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}`;
-  const fd = player?.road_move_free_date;
-  const freeDateStr = fd ? new Date(fd).toISOString().slice(0, 10) : null;
-  const freeUsedBase = freeDateStr === todayStr ? Number(player?.road_move_free_used) || 0 : 0;
-
-  const rd = player?.road_reserve_date;
-  const reserveDateStr = rd ? new Date(rd).toISOString().slice(0, 10) : null;
-  const reserveUsedBase = reserveDateStr === todayStr ? Number(player?.road_reserve_used) || 0 : 0;
-
-  let freeRem = Math.max(0, MARCH_FREE_MOVES_PER_DAY - freeUsedBase);
+  let freeRem = freeQuotaBeforeMarch;
   let usedFree = 0;
   let paid = 0;
   for (let i = 0; i < stepsLen; i++) {
@@ -232,5 +237,8 @@ export function estimateMarchFoodCost({ path, onRoadAtStart, player }) {
     totalFoodCost: totalFood,
     reserveRemaining: reserveRem,
     reserveExceeded: fromReserve > reserveRem,
+    freeQuotaPerDay: MARCH_FREE_MOVES_PER_DAY,
+    freeQuotaRemainingBeforeMarch: freeQuotaBeforeMarch,
+    freeQuotaRemainingAfterMarch: freeRem,
   };
 }
