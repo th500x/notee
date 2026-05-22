@@ -9,6 +9,7 @@ import { TaxRentTab } from '../components/tax/TaxRentTab';
 export default function TaxSheetPage({ project, onBack, onSaved, onProjectSynced }) {
   const [sheet, setSheet] = useState(() => normalizeTaxSheet(project?.taxSheet));
   const [saving, setSaving] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -87,6 +88,23 @@ export default function TaxSheetPage({ project, onBack, onSaved, onProjectSynced
     sheet.sourceAccountingProjectId ||
     '';
 
+  const handleExport = useCallback(async () => {
+    if (sheet.rows.length === 0) {
+      setError('请先添加至少一行再导出。');
+      return;
+    }
+    setError('');
+    setExporting(true);
+    try {
+      const { exportTaxBillToImage } = await import('../utils/exportToImage');
+      await exportTaxBillToImage(sheet, project.name, sourceLabel);
+    } catch (e) {
+      setError(e.message || '导出失败');
+    } finally {
+      setExporting(false);
+    }
+  }, [sheet, project.name, sourceLabel]);
+
   return (
     <div className="w-full min-w-0 space-y-6">
       <div className="flex items-center gap-4 flex-wrap">
@@ -115,11 +133,11 @@ export default function TaxSheetPage({ project, onBack, onSaved, onProjectSynced
         </div>
       ) : null}
 
-      <div className="grid w-full min-w-0 gap-3 grid-cols-2">
+      <div className="grid w-full min-w-0 gap-3 grid-cols-3">
         <button
           type="button"
           onClick={handleAddRow}
-          disabled={saving}
+          disabled={saving || exporting}
           className="min-w-0 py-3 px-3 sm:px-4 bg-slate-700 text-white rounded-lg hover:bg-slate-800 font-medium disabled:opacity-50 text-sm sm:text-base text-center"
         >
           添加条目
@@ -127,10 +145,19 @@ export default function TaxSheetPage({ project, onBack, onSaved, onProjectSynced
         <button
           type="button"
           onClick={handleSave}
-          disabled={saving}
+          disabled={saving || exporting}
           className="min-w-0 py-3 px-3 sm:px-6 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium disabled:opacity-50 text-sm sm:text-base text-center"
         >
           {saving ? '保存中…' : '保存到服务器'}
+        </button>
+        <button
+          type="button"
+          onClick={handleExport}
+          disabled={exporting || saving || sheet.rows.length === 0}
+          className="min-w-0 py-3 px-3 sm:px-6 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-medium disabled:opacity-50 text-sm sm:text-base text-center flex items-center justify-center gap-2"
+        >
+          <span>📊</span>
+          <span>{exporting ? '导出中…' : '导出项目'}</span>
         </button>
       </div>
     </div>

@@ -352,3 +352,143 @@ export async function exportUtilityBillToImage(sheet, projectName) {
     }, 'image/png')
   })
 }
+
+function downloadCanvasPng(canvas, filename) {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (!blob) {
+        reject(new Error('Could not create PNG'))
+        return
+      }
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = filename
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
+      resolve()
+    }, 'image/png')
+  })
+}
+
+/**
+ * 导出税费单为 PNG（canvas 模式与 exportUtilityBillToImage 一致）
+ * @param {object} sheet - taxSheet
+ * @param {string} projectName
+ * @param {string} [sourceLabel] - 来源账目单名称（可选副标题）
+ */
+export async function exportTaxBillToImage(sheet, projectName, sourceLabel = '') {
+  const safeName = (projectName || 'tax').replace(/[\\/:*?"<>|]/g, '_')
+  const rows = Array.isArray(sheet?.rows) ? sheet.rows : []
+  const headers = ['ROOM', 'ROOM No.', 'Condo', 'Owner', 'Passport', 'TAX No.', 'Note']
+  const columnWidths = [110, 100, 100, 100, 100, 100, 140]
+
+  const canvas = document.createElement('canvas')
+  const ctx = canvas.getContext('2d')
+
+  const padding = 40
+  const headerBlock = sourceLabel ? 100 : 80
+  const rowHeight = 44
+  const totalWidth = columnWidths.reduce((a, b) => a + b, 0) + padding * 2
+  const tableRows = Math.max(rows.length, 1)
+  const totalHeight = padding + headerBlock + rowHeight * (tableRows + 1) + padding
+
+  canvas.width = totalWidth
+  canvas.height = totalHeight
+
+  ctx.fillStyle = '#ffffff'
+  ctx.fillRect(0, 0, canvas.width, canvas.height)
+
+  ctx.font = 'bold 22px Arial, sans-serif'
+  ctx.fillStyle = '#1f2937'
+  ctx.textAlign = 'center'
+  ctx.fillText(`${projectName || 'Project'} — Tax registration`, canvas.width / 2, padding + 28)
+
+  if (sourceLabel) {
+    ctx.font = '15px Arial, sans-serif'
+    ctx.fillStyle = '#4b5563'
+    ctx.fillText(`Source accounting: ${sourceLabel}`, canvas.width / 2, padding + 54)
+  }
+
+  const tableStartY = padding + headerBlock
+
+  ctx.font = 'bold 15px Arial, sans-serif'
+  ctx.fillStyle = '#374151'
+  let currentX = padding
+  headers.forEach((header, index) => {
+    const centerX = currentX + columnWidths[index] / 2
+    ctx.textAlign = 'center'
+    ctx.fillText(header, centerX, tableStartY + 28)
+    currentX += columnWidths[index]
+  })
+
+  ctx.strokeStyle = '#d1d5db'
+  ctx.lineWidth = 2
+  ctx.beginPath()
+  ctx.moveTo(padding, tableStartY + 40)
+  ctx.lineTo(canvas.width - padding, tableStartY + 40)
+  ctx.stroke()
+
+  ctx.font = '14px Arial, sans-serif'
+  if (rows.length === 0) {
+    ctx.fillStyle = '#9ca3af'
+    ctx.textAlign = 'center'
+    ctx.fillText('No rows', canvas.width / 2, tableStartY + rowHeight + 20)
+  } else {
+    rows.forEach((row, index) => {
+      const rowTop = tableStartY + 40 + index * rowHeight
+      const rowY = rowTop + 32
+      const rowData = [
+        String(row.room ?? ''),
+        String(row.roomNo ?? ''),
+        String(row.condo ?? ''),
+        String(row.owner ?? ''),
+        String(row.passport ?? ''),
+        String(row.taxNo ?? ''),
+        String(row.note ?? '')
+      ]
+      ctx.fillStyle = '#1f2937'
+      currentX = padding
+      rowData.forEach((data, colIndex) => {
+        const centerX = currentX + columnWidths[colIndex] / 2
+        ctx.textAlign = 'center'
+        const text =
+          data.length > 18 && colIndex === headers.length - 1
+            ? `${data.slice(0, 16)}…`
+            : data
+        ctx.fillText(text, centerX, rowY)
+        currentX += columnWidths[colIndex]
+      })
+      ctx.strokeStyle = '#e5e7eb'
+      ctx.lineWidth = 1
+      ctx.beginPath()
+      ctx.moveTo(padding, rowTop + rowHeight)
+      ctx.lineTo(canvas.width - padding, rowTop + rowHeight)
+      ctx.stroke()
+    })
+  }
+
+  ctx.strokeStyle = '#9ca3af'
+  ctx.lineWidth = 2
+  ctx.strokeRect(
+    padding,
+    tableStartY,
+    canvas.width - padding * 2,
+    rowHeight * (rows.length > 0 ? rows.length : 1)
+  )
+
+  currentX = padding
+  for (let i = 0; i < columnWidths.length - 1; i++) {
+    currentX += columnWidths[i]
+    ctx.strokeStyle = '#e5e7eb'
+    ctx.lineWidth = 1
+    ctx.beginPath()
+    ctx.moveTo(currentX, tableStartY)
+    ctx.lineTo(currentX, tableStartY + rowHeight * (rows.length > 0 ? rows.length : 1))
+    ctx.stroke()
+  }
+
+  return downloadCanvasPng(canvas, `${safeName}_tax_registration.png`)
+}

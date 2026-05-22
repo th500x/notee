@@ -1,4 +1,30 @@
-/** 税费单表格：ROOM 列版式与账目单租金表一致 */
+import { useMemo, useCallback } from 'react';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  arrayMove,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+
+/** dnd-kit 静止时勿写恒等 transform 到 tr（与账目单 AccountingRentTab 一致） */
+function sortableTransformIsActive(t) {
+  if (t == null) return false;
+  const x = t.x ?? 0;
+  const y = t.y ?? 0;
+  const sx = t.scaleX ?? 1;
+  const sy = t.scaleY ?? 1;
+  return x !== 0 || y !== 0 || sx !== 1 || sy !== 1;
+}
 
 const inputCls =
   'w-full min-w-0 min-h-[2.25rem] box-border px-2 py-1.5 border border-gray-200 rounded text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-100';
@@ -25,19 +51,41 @@ function updateTaxRow(sheet, rowId, updater) {
   };
 }
 
-function TaxDataRow({ row, rowIndex, patchField, removeRow }) {
+function SortableTaxRow({ row, rowIndex, patchField, removeRow }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: row.id
+  });
+
+  const dragT = sortableTransformIsActive(transform);
+  const style = {
+    ...(dragT ? { transform: CSS.Transform.toString(transform), transition } : {}),
+    ...(isDragging ? { opacity: 0.92, zIndex: 2, position: 'relative' } : {})
+  };
+
   return (
-    <tr className="border-b border-gray-100 hover:bg-gray-50/80">
-      <td className={`p-1 border border-gray-100 ${ROOM_COL_TD} bg-white`}>
+    <tr
+      ref={setNodeRef}
+      style={style}
+      className={`border-b border-gray-100 hover:bg-gray-50/80 ${isDragging ? 'bg-blue-50/90 shadow-sm ring-1 ring-blue-200/80' : ''}`}
+    >
+      <td
+        className={`p-1 border border-gray-100 ${ROOM_COL_TD} ${
+          isDragging ? 'bg-blue-50/95' : 'bg-white'
+        }`}
+      >
         <div className="flex items-stretch gap-1 min-w-0">
-          <span
-            className="shrink-0 flex flex-col items-center justify-center w-7 rounded border border-transparent text-gray-300 touch-none select-none opacity-50"
-            title="税费单 ROOM 与来源账目单同步，可在此编辑房号"
-            aria-hidden
+          <button
+            type="button"
+            data-tax-drag-handle
+            className="shrink-0 flex flex-col items-center justify-center w-7 rounded border border-transparent text-gray-500 touch-none select-none hover:border-gray-300 hover:bg-gray-100 cursor-grab active:cursor-grabbing"
+            aria-label="拖动排序"
+            title="按住左侧 ⋮ 柄拖动以调整行顺序"
+            {...attributes}
+            {...listeners}
           >
-            <span className="text-[10px] leading-none tracking-tighter">⋮</span>
-            <span className="text-[10px] leading-none tracking-tighter -mt-0.5">⋮</span>
-          </span>
+            <span className="text-[10px] leading-none tracking-tighter opacity-80">⋮</span>
+            <span className="text-[10px] leading-none tracking-tighter opacity-80 -mt-0.5">⋮</span>
+          </button>
           <input
             className={inputCls}
             value={row.room}
@@ -87,6 +135,32 @@ export function TaxRentTab({ sheet, setSheet, sourceLabel }) {
     }));
   };
 
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: 8 }
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates
+    })
+  );
+
+  const sortableIds = useMemo(() => sheet.rows.map((r) => r.id), [sheet.rows]);
+
+  const onDragEnd = useCallback(
+    (event) => {
+      const { active, over } = event;
+      if (!over || active.id === over.id) return;
+      setSheet((prev) => {
+        const rows = prev.rows;
+        const oldIndex = rows.findIndex((r) => r.id === active.id);
+        const newIndex = rows.findIndex((r) => r.id === over.id);
+        if (oldIndex < 0 || newIndex < 0) return prev;
+        return { ...prev, rows: arrayMove(rows, oldIndex, newIndex) };
+      });
+    },
+    [setSheet]
+  );
+
   const colSpan = 1 + DETAIL_FIELDS.length + 1;
 
   return (
@@ -98,49 +172,53 @@ export function TaxRentTab({ sheet, setSheet, sourceLabel }) {
             <p className="text-xs text-blue-100 mt-1">房源来源：{sourceLabel}</p>
           ) : null}
         </div>
-        <table className="min-w-full w-max max-w-none text-sm border-separate border-spacing-0">
-          <thead>
-            <tr className="bg-gray-800 text-white text-xs">
-              <th
-                className={`p-2 border border-gray-700 text-center align-middle ${ROOM_COL_TD} bg-gray-800`}
-              >
-                ROOM
-              </th>
-              {DETAIL_FIELDS.map(({ label }) => (
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+          <table className="min-w-full w-max max-w-none text-sm border-separate border-spacing-0">
+            <thead>
+              <tr className="bg-gray-800 text-white text-xs">
                 <th
-                  key={label}
+                  className={`p-2 border border-gray-700 text-center align-middle ${ROOM_COL_TD} bg-gray-800`}
+                >
+                  ROOM
+                </th>
+                {DETAIL_FIELDS.map(({ label }) => (
+                  <th
+                    key={label}
+                    className={`p-2 border border-gray-700 text-center align-middle ${COMPACT_COL_TD}`}
+                  >
+                    {label}
+                  </th>
+                ))}
+                <th
                   className={`p-2 border border-gray-700 text-center align-middle ${COMPACT_COL_TD}`}
                 >
-                  {label}
+                  删
                 </th>
-              ))}
-              <th
-                className={`p-2 border border-gray-700 text-center align-middle ${COMPACT_COL_TD}`}
-              >
-                删
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {sheet.rows.length === 0 ? (
-              <tr>
-                <td colSpan={colSpan} className="p-8 text-center text-gray-500">
-                  暂无 ROOM 行，请点击页面底部「添加条目」。
-                </td>
               </tr>
-            ) : (
-              sheet.rows.map((row, rowIndex) => (
-                <TaxDataRow
-                  key={row.id}
-                  row={row}
-                  rowIndex={rowIndex}
-                  patchField={patchField}
-                  removeRow={removeRow}
-                />
-              ))
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {sheet.rows.length === 0 ? (
+                <tr>
+                  <td colSpan={colSpan} className="p-8 text-center text-gray-500">
+                    暂无 ROOM 行，请点击页面底部「添加条目」。
+                  </td>
+                </tr>
+              ) : (
+                <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
+                  {sheet.rows.map((row, rowIndex) => (
+                    <SortableTaxRow
+                      key={row.id}
+                      row={row}
+                      rowIndex={rowIndex}
+                      patchField={patchField}
+                      removeRow={removeRow}
+                    />
+                  ))}
+                </SortableContext>
+              )}
+            </tbody>
+          </table>
+        </DndContext>
       </div>
     </div>
   );
