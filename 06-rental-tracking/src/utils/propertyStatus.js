@@ -79,11 +79,11 @@ export function getPropertyBackgroundColor(property, targetMonth) {
   const status = getPropertyStatus(property, targetMonth)
 
   if (status === 'new-contract') {
-    return 'bg-blue-50 hover:bg-blue-100'
+    return 'bg-blue-100 hover:bg-blue-200'
   }
 
   if (status === 'vacant') {
-    return 'bg-gray-50 hover:bg-gray-100'
+    return 'bg-gray-200 hover:bg-gray-300'
   }
 
   return 'bg-white hover:bg-gray-50'
@@ -124,8 +124,8 @@ export function getStatusText(status) {
  */
 export function getStatusClassName(status) {
   const classMap = {
-    vacant: 'bg-gray-100 text-gray-700',
-    'new-contract': 'bg-blue-100 text-blue-700',
+    vacant: 'bg-gray-300 text-gray-800',
+    'new-contract': 'bg-blue-200 text-blue-800',
     rented: 'bg-green-100 text-green-700'
   }
   return classMap[status] || 'bg-gray-100 text-gray-700'

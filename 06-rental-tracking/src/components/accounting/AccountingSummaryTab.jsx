@@ -1,6 +1,19 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { formatAccountingNumber, evaluateArithmeticExpression } from '../../utils/accountingExpression';
 import { monthKeyToHeaderLabel, computeSettleFromInOut } from '../../utils/accountingSheetModel';
+
+/** 收支账目默认展示最近 6 个自然月（含当月）；更早月份默认折叠 */
+const SUMMARY_VISIBLE_MONTH_COUNT = 6;
+
+function getSummaryVisibleCutoffMonthKey(now = new Date()) {
+  let year = now.getFullYear();
+  let monthIndex = now.getMonth() - (SUMMARY_VISIBLE_MONTH_COUNT - 1);
+  while (monthIndex < 0) {
+    monthIndex += 12;
+    year -= 1;
+  }
+  return `${year}-${String(monthIndex + 1).padStart(2, '0')}`;
+}
 
 function sumSettleMonth(sheet, monthKey) {
   let s = 0;
@@ -24,15 +37,51 @@ function sumExpenseMonth(sheet, monthKey) {
   return s;
 }
 
+function SummaryDataRow({ row }) {
+  const r = row;
+  return (
+    <tr
+      className={`border-b border-gray-100 ${r.mode === 'imported' ? 'bg-amber-50/40' : ''}`}
+    >
+      <td className="p-1.5 sm:p-2 font-medium text-gray-900 border border-gray-100 text-[11px] sm:text-sm align-top break-words">
+        {monthKeyToHeaderLabel(r.mk)}
+        {r.mode === 'imported' ? (
+          <span className="ml-0.5 text-[9px] font-normal text-amber-800 whitespace-nowrap">
+            历史
+          </span>
+        ) : null}
+      </td>
+      <td className="p-1.5 sm:p-2 text-right border border-gray-100 text-[11px] sm:text-sm tabular-nums">
+        {formatAccountingNumber(r.income)}
+      </td>
+      <td className="p-1.5 sm:p-2 text-right border border-gray-100 text-[11px] sm:text-sm tabular-nums">
+        {formatAccountingNumber(r.expense)}
+      </td>
+      <td
+        className={`p-1.5 sm:p-2 text-right font-semibold border border-gray-100 text-[11px] sm:text-sm tabular-nums ${
+          !Number.isFinite(r.balance)
+            ? 'text-gray-500'
+            : r.balance >= 0
+              ? 'text-green-700'
+              : 'text-red-700'
+        }`}
+      >
+        {formatAccountingNumber(r.balance)}
+      </td>
+    </tr>
+  );
+}
+
 export function AccountingSummaryTab({ sheet }) {
   const [m0, m1] = sheet.monthKeys;
+  const [showOlderHistory, setShowOlderHistory] = useState(false);
 
-  const rows = useMemo(() => {
+  const { rows, olderRows, recentRows, visibleCutoffMk } = useMemo(() => {
     const mkRe = /^\d{4}-\d{2}$/;
     const fromSummary = Object.keys(sheet.monthlySummary || {}).filter((k) => mkRe.test(k));
     const allMonths = [...new Set([...fromSummary, m0, m1])].sort((a, b) => a.localeCompare(b));
 
-    return allMonths.map((mk) => {
+    const allRows = allMonths.map((mk) => {
       const isWindow = mk === m0 || mk === m1;
       if (isWindow) {
         const income = sumSettleMonth(sheet, mk);
@@ -54,7 +103,20 @@ export function AccountingSummaryTab({ sheet }) {
         mode: 'imported'
       };
     });
+
+    const cutoff = getSummaryVisibleCutoffMonthKey();
+    const older = allRows.filter((r) => r.mk < cutoff);
+    const recent = allRows.filter((r) => r.mk >= cutoff);
+
+    return {
+      rows: allRows,
+      olderRows: older,
+      recentRows: recent,
+      visibleCutoffMk: cutoff
+    };
   }, [sheet, m0, m1]);
+
+  const hasOlderRows = olderRows.length > 0;
 
   return (
     <div className="bg-white rounded-lg shadow-md min-w-0 max-w-full w-full">
@@ -62,7 +124,8 @@ export function AccountingSummaryTab({ sheet }) {
         <h3 className="text-lg font-semibold">收支账目 · Summary</h3>
         <p className="text-xs text-blue-100 mt-1 leading-relaxed">
           当前双月窗口（{monthKeyToHeaderLabel(m0)} / {monthKeyToHeaderLabel(m1)}）按租金 SETTLE 与支出 OUT
-          实时计算；其它月份可来自历史导入（仅影响本表，不改租金/支出明细）。
+          实时计算；其它月份可来自历史导入（仅影响本表，不改租金/支出明细）。默认仅展开最近 {SUMMARY_VISIBLE_MONTH_COUNT}{' '}
+          个月（自 {monthKeyToHeaderLabel(visibleCutoffMk)} 起）。
         </p>
       </div>
       <table className="w-full min-w-0 max-w-full table-fixed text-sm border-collapse">
@@ -89,38 +152,32 @@ export function AccountingSummaryTab({ sheet }) {
           </tr>
         </thead>
         <tbody>
-          {rows.map((r) => (
-            <tr
-              key={r.mk}
-              className={`border-b border-gray-100 ${r.mode === 'imported' ? 'bg-amber-50/40' : ''}`}
-            >
-              <td className="p-1.5 sm:p-2 font-medium text-gray-900 border border-gray-100 text-[11px] sm:text-sm align-top break-words">
-                {monthKeyToHeaderLabel(r.mk)}
-                {r.mode === 'imported' ? (
-                  <span className="ml-0.5 text-[9px] font-normal text-amber-800 whitespace-nowrap">
-                    历史
-                  </span>
-                ) : null}
-              </td>
-              <td className="p-1.5 sm:p-2 text-right border border-gray-100 text-[11px] sm:text-sm tabular-nums">
-                {formatAccountingNumber(r.income)}
-              </td>
-              <td className="p-1.5 sm:p-2 text-right border border-gray-100 text-[11px] sm:text-sm tabular-nums">
-                {formatAccountingNumber(r.expense)}
-              </td>
-              <td
-                className={`p-1.5 sm:p-2 text-right font-semibold border border-gray-100 text-[11px] sm:text-sm tabular-nums ${
-                  !Number.isFinite(r.balance)
-                    ? 'text-gray-500'
-                    : r.balance >= 0
-                      ? 'text-green-700'
-                      : 'text-red-700'
-                }`}
-              >
-                {formatAccountingNumber(r.balance)}
+          {hasOlderRows ? (
+            <tr className="border-b border-gray-200 bg-gray-50">
+              <td colSpan={4} className="p-2 border border-gray-100">
+                <button
+                  type="button"
+                  onClick={() => setShowOlderHistory((v) => !v)}
+                  className="w-full text-center text-xs sm:text-sm font-medium text-blue-700 hover:text-blue-900 py-1"
+                >
+                  {showOlderHistory
+                    ? `▲ 折叠 ${olderRows.length} 个月前的历史账单`
+                    : `▼ 展开 ${olderRows.length} 个月前的历史账单（早于 ${monthKeyToHeaderLabel(visibleCutoffMk)}）`}
+                </button>
               </td>
             </tr>
+          ) : null}
+          {showOlderHistory && olderRows.map((r) => <SummaryDataRow key={r.mk} row={r} />)}
+          {recentRows.map((r) => (
+            <SummaryDataRow key={r.mk} row={r} />
           ))}
+          {rows.length === 0 ? (
+            <tr>
+              <td colSpan={4} className="p-4 text-center text-gray-500 text-sm">
+                暂无账目数据
+              </td>
+            </tr>
+          ) : null}
         </tbody>
       </table>
     </div>

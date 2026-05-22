@@ -120,8 +120,8 @@ export const PROPERTY_STATUS = {
 export const PROPERTY_STATUS_INFO = {
   [PROPERTY_STATUS.VACANT]: {
     label: '空置中',
-    color: 'bg-gray-100 text-gray-800',
-    badge: 'bg-gray-500',
+    color: 'bg-gray-200 text-gray-800',
+    badge: 'bg-gray-600',
   },
   [PROPERTY_STATUS.RENTED]: {
     label: '出租中',
@@ -130,8 +130,8 @@ export const PROPERTY_STATUS_INFO = {
   },
   [PROPERTY_STATUS.NEW_CONTRACT]: {
     label: '新合同',
-    color: 'bg-blue-100 text-blue-800',
-    badge: 'bg-blue-500',
+    color: 'bg-blue-200 text-blue-800',
+    badge: 'bg-blue-600',
   },
 }
 

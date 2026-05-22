@@ -811,15 +811,15 @@ function PropertyListPanel({ project, selectedProperty, onPropertySelect, onAddP
                 {stats.rented}
               </div>
             </div>
-            <div className="text-center p-2 bg-blue-50 rounded">
-              <div className="text-xs text-gray-600">新合同</div>
-              <div className="text-lg font-bold text-blue-600">
+            <div className="text-center p-2 bg-blue-100 rounded">
+              <div className="text-xs text-blue-800">新合同</div>
+              <div className="text-lg font-bold text-blue-700">
                 {stats.newContract}
               </div>
             </div>
-            <div className="text-center p-2 bg-gray-50 rounded">
-              <div className="text-xs text-gray-600">空置中</div>
-              <div className="text-lg font-bold text-gray-600">
+            <div className="text-center p-2 bg-gray-200 rounded">
+              <div className="text-xs text-gray-700">空置中</div>
+              <div className="text-lg font-bold text-gray-700">
                 {stats.vacant}
               </div>
             </div>
