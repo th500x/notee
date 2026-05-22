@@ -8,6 +8,7 @@
     "dev": "nodemon server.js",
     "migrate:utility": "node scripts/apply-utility-bill-migration.js",
     "migrate:accounting": "node scripts/apply-accounting-sheet-migration.js",
+    "migrate:tax": "node scripts/apply-tax-sheet-migration.js",
     "db:reset-local": "node scripts/reset-local-unified-06.js --yes"
   },
   "keywords": [

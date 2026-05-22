@@ -37,7 +37,11 @@ export const saveRentalData = async (data) => {
   try {
     // 遍历所有项目并更新（水电单 / 账目单走专用接口，不参与整包保存）
     for (const project of data.projects) {
-      if (project.projectKind === 'utility' || project.projectKind === 'accounting') {
+      if (
+        project.projectKind === 'utility' ||
+        project.projectKind === 'accounting' ||
+        project.projectKind === 'tax'
+      ) {
         continue;
       }
       try {
@@ -108,6 +112,28 @@ export const createAccountingProject = async ({ name, description }) => {
     throw new Error(response.error || '创建账目单失败');
   } catch (error) {
     console.error('创建账目单失败:', error);
+    throw error;
+  }
+};
+
+/**
+ * 创建税费单项目（须指定来源账目单 id，服务端复制 ROOM 行）
+ */
+export const createTaxProject = async ({ name, description, sourceAccountingProjectId }) => {
+  try {
+    const response = await api.createProject({
+      name,
+      description: description || '',
+      projectKind: 'tax',
+      sourceAccountingProjectId,
+      visible: true
+    });
+    if (response.success) {
+      return response.project;
+    }
+    throw new Error(response.error || '创建税费单失败');
+  } catch (error) {
+    console.error('创建税费单失败:', error);
     throw error;
   }
 };

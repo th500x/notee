@@ -3,15 +3,18 @@ import HomePage from './pages/HomePage'
 import ProjectDetailPage from './pages/ProjectDetailPage'
 import UtilityBillPage from './pages/UtilityBillPage'
 import AccountingSheetPage from './pages/AccountingSheetPage'
+import TaxSheetPage from './pages/TaxSheetPage'
 import AdminSyncPage from './pages/AdminSyncPage'
 import { ProjectFormModal } from './components/ProjectFormModal'
 import { UtilityBillFormModal } from './components/UtilityBillFormModal'
+import { TaxBillFormModal } from './components/TaxBillFormModal'
 import { 
   loadRentalData, 
   saveRentalData,
   createProject as apiCreateProject,
   createUtilityProject,
   createAccountingProject,
+  createTaxProject,
   deleteProject as apiDeleteProject,
   updateProjectData as apiUpdateProjectData
 } from './utils/dataManagerAPI'
@@ -62,7 +65,7 @@ function App() {
   
   // 状态管理
   const [rentalData, setRentalData] = useState({ projects: [] })
-  const [currentView, setCurrentView] = useState('home') // 'home' | 'project-detail' | 'utility-bill' | 'accounting-sheet'
+  const [currentView, setCurrentView] = useState('home') // 'home' | 'project-detail' | 'utility-bill' | 'accounting-sheet' | 'tax-sheet'
   const [selectedProject, setSelectedProject] = useState(null)
   const [isLoading, setIsLoading] = useState(true) // 加载状态
   const [showCreateModal, setShowCreateModal] = useState(false) // 创建项目对话框
@@ -71,6 +74,8 @@ function App() {
   const [utilityCreateLoading, setUtilityCreateLoading] = useState(false)
   const [showAccountingCreateModal, setShowAccountingCreateModal] = useState(false)
   const [accountingCreateLoading, setAccountingCreateLoading] = useState(false)
+  const [showTaxCreateModal, setShowTaxCreateModal] = useState(false)
+  const [taxCreateLoading, setTaxCreateLoading] = useState(false)
 
   // 加载数据（管理员登录状态变化时重拉列表，以便显示/隐藏水电单）
   useEffect(() => {
@@ -141,6 +146,15 @@ function App() {
       setCurrentView('accounting-sheet')
       return
     }
+    if (project.projectKind === 'tax') {
+      if (!isAdmin) {
+        alert('税费单仅管理员可访问')
+        return
+      }
+      setSelectedProject(project)
+      setCurrentView('tax-sheet')
+      return
+    }
     setSelectedProject(project)
     setCurrentView('project-detail')
   }
@@ -161,6 +175,15 @@ function App() {
   }
 
   const handleAccountingSheetSaved = handleUtilityBillSaved
+  const handleTaxSheetSaved = handleUtilityBillSaved
+
+  const handleTaxProjectSynced = useCallback((freshProject) => {
+    setSelectedProject(freshProject)
+    setRentalData((prev) => ({
+      ...prev,
+      projects: prev.projects.map((p) => (p.id === freshProject.id ? freshProject : p))
+    }))
+  }, [])
 
   /** 账目页挂载或外部改库后，用单项目 GET 刷新快照，避免一直用首页列表里的旧 accountingSheet */
   const handleAccountingProjectSynced = useCallback((freshProject) => {
@@ -197,6 +220,14 @@ function App() {
     setShowAccountingCreateModal(true)
   }
 
+  const handleAddTaxProject = () => {
+    if (!isAdmin) {
+      alert('请先登录管理员账号')
+      return
+    }
+    setShowTaxCreateModal(true)
+  }
+
   const handleCreateUtilityProjectSubmit = async ({ name, description }) => {
     setUtilityCreateLoading(true)
     try {
@@ -213,6 +244,29 @@ function App() {
       }
     } finally {
       setUtilityCreateLoading(false)
+    }
+  }
+
+  const handleCreateTaxProjectSubmit = async ({
+    name,
+    description,
+    sourceAccountingProjectId
+  }) => {
+    setTaxCreateLoading(true)
+    try {
+      await createTaxProject({ name, description, sourceAccountingProjectId })
+      await reloadData()
+      setShowTaxCreateModal(false)
+      alert('税费单项目已创建')
+      return { success: true }
+    } catch (error) {
+      console.error('创建税费单失败:', error)
+      return {
+        success: false,
+        error: error.message || '创建税费单失败'
+      }
+    } finally {
+      setTaxCreateLoading(false)
     }
   }
 
@@ -347,8 +401,12 @@ function App() {
               projects={rentalData.projects}
               onProjectSelect={handleProjectSelect}
               onAddProject={handleAddProject}
+              onAddTaxProject={handleAddTaxProject}
               onAddUtilityProject={handleAddUtilityProject}
               onAddAccountingProject={handleAddAccountingProject}
+              accountingProjects={rentalData.projects.filter(
+                (p) => p.projectKind === 'accounting'
+              )}
               onDeleteProject={handleDeleteProject}
               onUpdateProject={handleProjectUpdate}
               onReloadProjects={reloadData}
@@ -369,6 +427,15 @@ function App() {
                 onBack={handleBackToHome}
                 onSaved={handleAccountingSheetSaved}
                 onProjectSynced={handleAccountingProjectSynced}
+              />
+            ) : null
+          ) : currentView === 'tax-sheet' ? (
+            selectedProject ? (
+              <TaxSheetPage
+                project={selectedProject}
+                onBack={handleBackToHome}
+                onSaved={handleTaxSheetSaved}
+                onProjectSynced={handleTaxProjectSynced}
               />
             ) : null
           ) : (
@@ -405,6 +472,15 @@ function App() {
         onSubmit={handleCreateAccountingProjectSubmit}
         loading={accountingCreateLoading}
         variant="accounting"
+      />
+
+      <TaxBillFormModal
+        isOpen={showTaxCreateModal}
+        onClose={() => setShowTaxCreateModal(false)}
+        onSubmit={handleCreateTaxProjectSubmit}
+        loading={taxCreateLoading}
+        mode="create"
+        accountingProjects={rentalData.projects.filter((p) => p.projectKind === 'accounting')}
       />
     </div>
   )

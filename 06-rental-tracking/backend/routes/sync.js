@@ -57,6 +57,11 @@ router.get('/export', async (req, res) => {
             ? parseJSON(project.accounting_sheet, null)
             : project.accounting_sheet)
           : null,
+        tax_sheet: project.tax_sheet != null
+          ? (typeof project.tax_sheet === 'string'
+            ? parseJSON(project.tax_sheet, null)
+            : project.tax_sheet)
+          : null,
         version: project.version,
         created_at: project.created_at,
         updated_at: project.updated_at
@@ -128,6 +133,7 @@ router.post('/import', async (req, res) => {
                 expenses = ?,
                 utility_sheet = ?,
                 accounting_sheet = ?,
+                tax_sheet = ?,
                 version = ?,
                 updated_at = NOW()
               WHERE id = ?`,
@@ -146,6 +152,7 @@ router.post('/import', async (req, res) => {
                 project.accounting_sheet != null
                   ? JSON.stringify(project.accounting_sheet)
                   : null,
+                project.tax_sheet != null ? JSON.stringify(project.tax_sheet) : null,
                 project.version,
                 project.id
               ]
@@ -166,9 +173,9 @@ router.post('/import', async (req, res) => {
           await db.query(
             `INSERT INTO projects (
               id, name, description, password, visible, project_kind,
-              properties, property_groups, expenses, utility_sheet, accounting_sheet, version,
+              properties, property_groups, expenses, utility_sheet, accounting_sheet, tax_sheet, version,
               created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
               project.id,
               project.name,
@@ -185,6 +192,7 @@ router.post('/import', async (req, res) => {
               project.accounting_sheet != null
                 ? JSON.stringify(project.accounting_sheet)
                 : null,
+              project.tax_sheet != null ? JSON.stringify(project.tax_sheet) : null,
               project.version,
               createdAt,
               updatedAt

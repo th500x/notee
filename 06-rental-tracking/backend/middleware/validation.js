@@ -28,7 +28,15 @@ const createProjectSchema = Joi.object({
       'string.max': '项目密码不能超过50个字符'
     }),
   visible: Joi.boolean().optional(),
-  projectKind: Joi.string().valid('rental', 'utility', 'accounting').optional()
+  projectKind: Joi.string().valid('rental', 'utility', 'accounting', 'tax').optional(),
+  sourceAccountingProjectId: Joi.when('projectKind', {
+    is: 'tax',
+    then: Joi.string().min(1).max(50).required().messages({
+      'any.required': '请选择房源来源账目单',
+      'string.empty': '请选择房源来源账目单'
+    }),
+    otherwise: Joi.string().max(50).allow('').optional()
+  })
 });
 
 const utilitySheetRowSchema = Joi.object({
@@ -112,6 +120,26 @@ const accountingSheetUpdateSchema = Joi.object({
         })
       )
       .default({})
+  }).required()
+});
+
+const taxSheetRowSchema = Joi.object({
+  id: Joi.string().max(100).required(),
+  room: Joi.string().max(200).allow('').default(''),
+  sourceRentRowId: Joi.string().max(100).allow('').default(''),
+  roomNo: Joi.string().max(200).allow('').default(''),
+  condo: Joi.string().max(200).allow('').default(''),
+  owner: Joi.string().max(200).allow('').default(''),
+  passport: Joi.string().max(200).allow('').default(''),
+  taxNo: Joi.string().max(200).allow('').default(''),
+  note: Joi.string().max(500).allow('').default('')
+});
+
+const taxSheetUpdateSchema = Joi.object({
+  taxSheet: Joi.object({
+    sourceAccountingProjectId: Joi.string().max(50).required(),
+    sourceAccountingProjectName: Joi.string().max(255).allow('').default(''),
+    rows: Joi.array().items(taxSheetRowSchema).max(200).default([])
   }).required()
 });
 
@@ -322,5 +350,6 @@ module.exports = {
   projectDataSchema,
   recordsSchema,
   utilitySheetUpdateSchema,
-  accountingSheetUpdateSchema
+  accountingSheetUpdateSchema,
+  taxSheetUpdateSchema
 };

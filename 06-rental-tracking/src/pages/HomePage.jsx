@@ -5,6 +5,7 @@ import { getCurrentPropertyStatus } from '../utils/propertyStatus'
 import { getAllProperties } from '../utils/propertyUtils'
 import { ProjectFormModal } from '../components/ProjectFormModal'
 import { UtilityBillFormModal } from '../components/UtilityBillFormModal'
+import { TaxBillFormModal } from '../components/TaxBillFormModal'
 import { UnlockProjectModal } from '../components/UnlockProjectModal'
 import { ProjectPasswordDialog } from '../components/ProjectPasswordDialog'
 import ProjectCard from '../components/ProjectCard'
@@ -28,8 +29,10 @@ function HomePage({
   projects,
   onProjectSelect,
   onAddProject,
+  onAddTaxProject,
   onAddUtilityProject,
   onAddAccountingProject,
+  accountingProjects = [],
   onDeleteProject,
   onUpdateProject,
   onReloadProjects = async () => {},
@@ -145,7 +148,11 @@ function HomePage({
   // 打开编辑对话框（租赁 → ProjectFormModal；水电 → 仅名称/描述）
   const handleEditProject = (project) => {
     setEditingProject(project)
-    if (project.projectKind === 'utility' || project.projectKind === 'accounting') {
+    if (
+      project.projectKind === 'utility' ||
+      project.projectKind === 'accounting' ||
+      project.projectKind === 'tax'
+    ) {
       setShowUtilityEditDialog(true)
     } else {
       setShowEditDialog(true)
@@ -208,10 +215,12 @@ function HomePage({
     if (
       !editingProject ||
       (editingProject.projectKind !== 'utility' &&
-        editingProject.projectKind !== 'accounting')
+        editingProject.projectKind !== 'accounting' &&
+        editingProject.projectKind !== 'tax')
     ) {
       return { success: false, error: '无效项目' }
     }
+    /* tax / utility / accounting 共用：仅更新名称与描述 */
     setEditLoading(true)
     try {
       await updateProjectInfo(editingProject.id, {
@@ -224,7 +233,9 @@ function HomePage({
       alert(
         editingProject.projectKind === 'accounting'
           ? '✅ 账目单已更新'
-          : '✅ 水电单已更新'
+          : editingProject.projectKind === 'tax'
+            ? '✅ 税费单已更新'
+            : '✅ 水电单已更新'
       )
       return { success: true }
     } catch (error) {
@@ -239,7 +250,11 @@ function HomePage({
   }
   // 选择项目（已通过密码验证的项目可以直接访问）
   const handleSelectProject = async (project) => {
-    if (project.projectKind === 'utility' || project.projectKind === 'accounting') {
+    if (
+      project.projectKind === 'utility' ||
+      project.projectKind === 'accounting' ||
+      project.projectKind === 'tax'
+    ) {
       if (!isAdmin) {
         return
       }
@@ -255,13 +270,19 @@ function HomePage({
 
   // 计算项目统计数据（使用 useMemo 缓存）
   const getProjectStats = useMemo(() => (project) => {
-    if (project.projectKind === 'utility' || project.projectKind === 'accounting') {
+    if (
+      project.projectKind === 'utility' ||
+      project.projectKind === 'accounting' ||
+      project.projectKind === 'tax'
+    ) {
       const n =
         project.projectKind === 'utility'
           ? project.utilitySheet?.rows?.length ?? 0
           : project.projectKind === 'accounting'
             ? project.accountingSheet?.rentRows?.length ?? 0
-            : 0
+            : project.projectKind === 'tax'
+              ? project.taxSheet?.rows?.length ?? 0
+              : 0
       return {
         totalProperties: n,
         rentedAndNewContract: 0,
@@ -380,6 +401,14 @@ function HomePage({
           <div className="flex flex-wrap gap-2 justify-end">
             <button
               type="button"
+              onClick={onAddTaxProject}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium flex items-center gap-2"
+            >
+              <span>➕</span>
+              <span>创建税费单</span>
+            </button>
+            <button
+              type="button"
               onClick={onAddUtilityProject}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium flex items-center gap-2"
             >
@@ -418,7 +447,10 @@ function HomePage({
         const displayProjects = (isAdmin ? projects : accessibleProjects).filter(
           (p) =>
             p.visible !== false &&
-            (isAdmin || (p.projectKind !== 'utility' && p.projectKind !== 'accounting'))
+            (isAdmin ||
+              (p.projectKind !== 'utility' &&
+                p.projectKind !== 'accounting' &&
+                p.projectKind !== 'tax'))
         )
         
         if (displayProjects.length === 0) {
@@ -470,6 +502,7 @@ function HomePage({
                   hasPassword={project.hasPassword}
                   isUtilityProject={project.projectKind === 'utility'}
                   isAccountingProject={project.projectKind === 'accounting'}
+                  isTaxProject={project.projectKind === 'tax'}
                   onSelect={() => handleSelectProject(project)}
                   onUnlock={() => handleUnlockProject(project)}
                   onEdit={() => handleEditProject(project)}
@@ -485,7 +518,8 @@ function HomePage({
       {showEditDialog &&
         editingProject &&
         editingProject.projectKind !== 'utility' &&
-        editingProject.projectKind !== 'accounting' && (
+        editingProject.projectKind !== 'accounting' &&
+        editingProject.projectKind !== 'tax' && (
         <ProjectFormModal
           isOpen={showEditDialog}
           onClose={handleCloseEditDialog}
@@ -510,6 +544,18 @@ function HomePage({
           mode="edit"
           initialProject={editingProject}
           variant={editingProject.projectKind === 'accounting' ? 'accounting' : 'utility'}
+        />
+      )}
+
+      {showUtilityEditDialog && editingProject && editingProject.projectKind === 'tax' && (
+        <TaxBillFormModal
+          isOpen={showUtilityEditDialog}
+          onClose={handleCloseUtilityEditDialog}
+          onSubmit={handleSaveUtilityProjectMeta}
+          loading={editLoading}
+          mode="edit"
+          initialProject={editingProject}
+          accountingProjects={accountingProjects}
         />
       )}
       

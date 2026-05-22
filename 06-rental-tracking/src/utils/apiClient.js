@@ -114,6 +114,16 @@ export async function updateAccountingSheet(projectId, accountingSheet) {
 }
 
 /**
+ * 保存税费单 JSON（管理员 Token）
+ */
+export async function updateTaxSheet(projectId, taxSheet) {
+  return apiRequest(`/${projectId}/tax-sheet`, {
+    method: 'PUT',
+    body: JSON.stringify({ taxSheet })
+  });
+}
+
+/**
  * 更新项目信息
  * @param {string} projectId - 项目ID
  * @param {object} projectData - 项目数据

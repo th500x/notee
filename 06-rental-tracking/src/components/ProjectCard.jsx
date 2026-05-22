@@ -11,9 +11,10 @@ function ProjectCard({
   onEdit,
   isAdmin,
   isUtilityProject = false,
-  isAccountingProject = false
+  isAccountingProject = false,
+  isTaxProject = false
 }) {
-  const isAdminOnlySheet = isUtilityProject || isAccountingProject
+  const isAdminOnlySheet = isUtilityProject || isAccountingProject || isTaxProject
   // 如果项目被锁定，显示锁定状态
   if (!isUnlocked) {
     return (
@@ -39,7 +40,9 @@ function ProjectCard({
                     ? '编辑水电单'
                     : isAccountingProject
                       ? '编辑账目单'
-                      : '编辑项目'
+                      : isTaxProject
+                        ? '编辑税费单'
+                        : '编辑项目'
                 }
                 >
                 ⚙️
@@ -82,6 +85,11 @@ function ProjectCard({
                   📒
                 </span>
               )}
+              {isTaxProject && (
+                <span className="text-xs bg-white/25 px-2 py-0.5 rounded" title="税费单（管理员）">
+                  🧾
+                </span>
+              )}
               {hasPassword && !isAdminOnlySheet && (
                 <span className="text-xs bg-white/20 px-2 py-0.5 rounded" title="此项目有密码保护">
                   🔐
@@ -114,7 +122,13 @@ function ProjectCard({
         <div className="flex items-center gap-4 mt-4 text-sm">
           <div>
             <span className="text-blue-100">
-              {isUtilityProject ? '计费行数' : isAccountingProject ? '租金行' : '房源数'}
+              {isUtilityProject
+                ? '计费行数'
+                : isAccountingProject
+                  ? '租金行'
+                  : isTaxProject
+                    ? '税费行'
+                    : '房源数'}
             </span>
             <span className="ml-2 font-bold text-lg">{stats.totalProperties}</span>
           </div>
@@ -139,6 +153,11 @@ function ProjectCard({
           {isAccountingProject ? (
             <p className="text-gray-600 text-sm">
               管理员专用账目入口；后续可在此扩展分类、流水与导出等能力。
+            </p>
+          ) : null}
+          {isTaxProject ? (
+            <p className="text-gray-600 text-sm">
+              自所选账目单复制 ROOM 行；登记 ROOM No.、Condo、Owner、Passport、TAX No.、Note。
             </p>
           ) : null}
           <div className={`grid grid-cols-2 gap-4 ${isAdminOnlySheet ? 'hidden' : ''}`}>
@@ -212,7 +231,9 @@ function ProjectCard({
             ? 'Open utility bill →'
             : isAccountingProject
               ? '进入账目单 →'
-              : '查看详情 →'}
+              : isTaxProject
+                ? '进入税费单 →'
+                : '查看详情 →'}
         </button>
       </div>
     </div>

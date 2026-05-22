@@ -16,12 +16,17 @@ const {
   projectDataSchema,
   recordsSchema,
   utilitySheetUpdateSchema,
-  accountingSheetUpdateSchema
+  accountingSheetUpdateSchema,
+  taxSheetUpdateSchema
 } = require('./middleware/validation');
 const {
   defaultAccountingSheet,
   normalizeAccountingSheet
 } = require('./utils/accountingSheet');
+const {
+  normalizeTaxSheet,
+  buildTaxSheetFromAccountingRow
+} = require('./utils/taxSheet');
 const { auditLog } = require('./middleware/auditLog');
 const { hashPassword, verifyPassword } = require('./utils/passwordUtils');
 const { verifyToken, decodeTokenOptional } = require('./middleware/auth');
@@ -70,18 +75,27 @@ function mapProjectRow(row) {
     property_groups: undefined,
     utility_sheet: undefined,
     accounting_sheet: undefined,
+    tax_sheet: undefined,
     project_kind: undefined,
-    hasPassword: kind === 'utility' || kind === 'accounting' ? false : !!row.password
+    hasPassword:
+      kind === 'utility' || kind === 'accounting' || kind === 'tax' ? false : !!row.password
   };
   if (kind === 'utility') {
     mapped.utilitySheet = normalizeUtilitySheet(parseJSON(row.utility_sheet, {}));
     mapped.accountingSheet = undefined;
+    mapped.taxSheet = undefined;
   } else if (kind === 'accounting') {
     mapped.utilitySheet = undefined;
     mapped.accountingSheet = normalizeAccountingSheet(parseJSON(row.accounting_sheet, null));
+    mapped.taxSheet = undefined;
+  } else if (kind === 'tax') {
+    mapped.utilitySheet = undefined;
+    mapped.accountingSheet = undefined;
+    mapped.taxSheet = normalizeTaxSheet(parseJSON(row.tax_sheet, null));
   } else {
     mapped.utilitySheet = undefined;
     mapped.accountingSheet = undefined;
+    mapped.taxSheet = undefined;
   }
   return mapped;
 }
@@ -322,6 +336,52 @@ router.put('/:id/accounting-sheet', verifyToken, validate(accountingSheetUpdateS
 });
 
 /**
+ * 保存税费单 JSON（仅 project_kind = tax）
+ * PUT /api/rental-tracking/:id/tax-sheet
+ */
+router.put('/:id/tax-sheet', verifyToken, validate(taxSheetUpdateSchema), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const normalized = normalizeTaxSheet(req.body.taxSheet);
+
+    const [rows] = await pool.execute(
+      'SELECT project_kind FROM projects WHERE id = ?',
+      [id]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: '项目不存在'
+      });
+    }
+
+    if ((rows[0].project_kind || 'rental') !== 'tax') {
+      return res.status(400).json({
+        success: false,
+        error: '该项目不是税费单'
+      });
+    }
+
+    await pool.execute(
+      'UPDATE projects SET tax_sheet = ?, version = version + 1 WHERE id = ?',
+      [JSON.stringify(normalized), id]
+    );
+
+    res.json({
+      success: true,
+      message: '税费单已保存'
+    });
+  } catch (error) {
+    console.error('[API] 保存税费单失败:', error);
+    res.status(500).json({
+      success: false,
+      error: '保存税费单失败'
+    });
+  }
+});
+
+/**
  * 获取单个项目详情
  * GET /api/rental-tracking/:id
  */
@@ -346,15 +406,14 @@ router.get('/:id', async (req, res) => {
     const project = rows[0];
     const kind = project.project_kind || 'rental';
 
-    if (kind === 'utility' || kind === 'accounting') {
+    if (kind === 'utility' || kind === 'accounting' || kind === 'tax') {
       const auth = decodeTokenOptional(req);
       if (!auth) {
+        const kindLabel =
+          kind === 'utility' ? '水电单' : kind === 'accounting' ? '账目单' : '税费单';
         return res.status(403).json({
           success: false,
-          error:
-            kind === 'utility'
-              ? '需要管理员登录后才能访问水电单'
-              : '需要管理员登录后才能访问账目单'
+          error: `需要管理员登录后才能访问${kindLabel}`
         });
       }
     } else {
@@ -389,13 +448,16 @@ router.get('/:id', async (req, res) => {
  */
 router.post('/', verifyToken, validate(createProjectSchema), async (req, res) => {
   try {
-    const { name, description, password, visible, projectKind } = req.body;
+    const { name, description, password, visible, projectKind, sourceAccountingProjectId } =
+      req.body;
     const kind =
       projectKind === 'utility'
         ? 'utility'
         : projectKind === 'accounting'
           ? 'accounting'
-          : 'rental';
+          : projectKind === 'tax'
+            ? 'tax'
+            : 'rental';
 
     // 生成项目ID
     const id = `project-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -405,9 +467,9 @@ router.post('/', verifyToken, validate(createProjectSchema), async (req, res) =>
       const sql = `
         INSERT INTO projects (
           id, name, description, password, visible, project_kind,
-          properties, property_groups, expenses, utility_sheet, accounting_sheet, version
+          properties, property_groups, expenses, utility_sheet, accounting_sheet, tax_sheet, version
         )
-        VALUES (?, ?, ?, NULL, ?, 'utility', '[]', '[]', '[]', ?, NULL, 1)
+        VALUES (?, ?, ?, NULL, ?, 'utility', '[]', '[]', '[]', ?, NULL, NULL, 1)
       `;
       await pool.execute(sql, [
         id,
@@ -441,9 +503,9 @@ router.post('/', verifyToken, validate(createProjectSchema), async (req, res) =>
       const sql = `
         INSERT INTO projects (
           id, name, description, password, visible, project_kind,
-          properties, property_groups, expenses, utility_sheet, accounting_sheet, version
+          properties, property_groups, expenses, utility_sheet, accounting_sheet, tax_sheet, version
         )
-        VALUES (?, ?, ?, NULL, ?, 'accounting', '[]', '[]', '[]', NULL, ?, 1)
+        VALUES (?, ?, ?, NULL, ?, 'accounting', '[]', '[]', '[]', NULL, ?, NULL, 1)
       `;
       await pool.execute(sql, [
         id,
@@ -472,14 +534,69 @@ router.post('/', verifyToken, validate(createProjectSchema), async (req, res) =>
       return;
     }
 
+    if (kind === 'tax') {
+      const [srcRows] = await pool.execute(
+        'SELECT id, name, project_kind, accounting_sheet FROM projects WHERE id = ?',
+        [sourceAccountingProjectId]
+      );
+      if (srcRows.length === 0) {
+        return res.status(400).json({
+          success: false,
+          error: '所选账目单不存在'
+        });
+      }
+      let taxSheet;
+      try {
+        taxSheet = buildTaxSheetFromAccountingRow(srcRows[0]);
+      } catch (e) {
+        return res.status(400).json({
+          success: false,
+          error: e.message || '无法从账目单生成税费表'
+        });
+      }
+      const sheetJson = JSON.stringify(taxSheet);
+      const sql = `
+        INSERT INTO projects (
+          id, name, description, password, visible, project_kind,
+          properties, property_groups, expenses, utility_sheet, accounting_sheet, tax_sheet, version
+        )
+        VALUES (?, ?, ?, NULL, ?, 'tax', '[]', '[]', '[]', NULL, NULL, ?, 1)
+      `;
+      await pool.execute(sql, [
+        id,
+        name,
+        description || null,
+        visible !== false,
+        sheetJson
+      ]);
+
+      res.json({
+        success: true,
+        project: {
+          id,
+          name,
+          description,
+          visible: visible !== false,
+          projectKind: 'tax',
+          hasPassword: false,
+          properties: [],
+          propertyGroups: [],
+          expenses: [],
+          taxSheet,
+          version: 1
+        }
+      });
+      return;
+    }
+
     const hashedPassword = password ? await hashPassword(password) : null;
     
     const sql = `
       INSERT INTO projects (
         id, name, description, password, visible, project_kind,
-        properties, property_groups, expenses, utility_sheet, accounting_sheet, version
+        properties, property_groups, expenses, utility_sheet, accounting_sheet, tax_sheet, version
       )
-      VALUES (?, ?, ?, ?, ?, 'rental', ?, ?, ?, NULL, NULL, ?)
+      VALUES (?, ?, ?, ?, ?, 'rental', ?, ?, ?, NULL, NULL, NULL, ?)
     `;
     
     await pool.execute(sql, [
@@ -647,10 +764,10 @@ router.put('/:id/data', verifyToken, validate(projectDataSchema), async (req, re
     }
 
     const rowKind = rows[0].project_kind || 'rental';
-    if (rowKind === 'utility' || rowKind === 'accounting') {
+    if (rowKind === 'utility' || rowKind === 'accounting' || rowKind === 'tax') {
       return res.status(400).json({
         success: false,
-        error: '水电单与账目单不使用整包数据更新接口'
+        error: '水电单、账目单与税费单不使用整包数据更新接口'
       });
     }
 
@@ -711,10 +828,10 @@ router.put('/:id/records', verifyToken, validate(recordsSchema), async (req, res
       return res.status(404).json({ success: false, error: '项目不存在' });
     }
     const rk = kindRows[0].project_kind || 'rental';
-    if (rk === 'utility' || rk === 'accounting') {
+    if (rk === 'utility' || rk === 'accounting' || rk === 'tax') {
       return res.status(400).json({
         success: false,
-        error: '水电单与账目单不使用收支记录整表更新接口'
+        error: '水电单、账目单与税费单不使用收支记录整表更新接口'
       });
     }
 
