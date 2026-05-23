@@ -130,13 +130,13 @@ export default function TaxSheetPage({ project, onBack, onSaved, onProjectSynced
     try {
       const { exportTaxBillToImage } = await import('../utils/exportToImage');
       const sheetForExport = { ...sheet, rows: picked };
-      await exportTaxBillToImage(sheetForExport, project.name, sourceLabel);
+      await exportTaxBillToImage(sheetForExport, project.name);
     } catch (e) {
       setError(e.message || '导出失败');
     } finally {
       setExporting(false);
     }
-  }, [sheet, exportRowSelected, project.name, sourceLabel]);
+  }, [sheet, exportRowSelected, project.name]);
 
   return (
     <div className="w-full min-w-0 space-y-6">
@@ -220,7 +220,6 @@ export default function TaxSheetPage({ project, onBack, onSaved, onProjectSynced
             </div>
             <p className="px-6 pt-2 text-sm text-gray-600">
               Only checked rows appear in the PNG.
-              {sourceLabel ? ` Source accounting: ${sourceLabel}.` : ''}
             </p>
             {exportPickerNotice ? (
               <p className="px-6 pt-2 text-sm text-red-600">{exportPickerNotice}</p>

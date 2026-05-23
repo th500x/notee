@@ -413,9 +413,8 @@ function drawTaxCellText(ctx, text, x, y, colWidth) {
  * 导出税费单为 PNG（canvas 模式与 exportUtilityBillToImage 一致）
  * @param {object} sheet - taxSheet
  * @param {string} projectName
- * @param {string} [sourceLabel] - 来源账目单名称（可选副标题）
  */
-export async function exportTaxBillToImage(sheet, projectName, sourceLabel = '') {
+export async function exportTaxBillToImage(sheet, projectName) {
   const safeName = (projectName || 'tax').replace(/[\\/:*?"<>|]/g, '_')
   const rows = Array.isArray(sheet?.rows) ? sheet.rows : []
 
@@ -424,7 +423,7 @@ export async function exportTaxBillToImage(sheet, projectName, sourceLabel = '')
 
   const columnWidths = measureTaxExportColumnWidths(ctx, rows)
   const padding = 40
-  const headerBlock = sourceLabel ? 100 : 80
+  const headerBlock = 80
   const rowHeight = 44
   const tableInnerWidth = columnWidths.reduce((a, b) => a + b, 0)
   const totalWidth = tableInnerWidth + padding * 2
@@ -444,13 +443,6 @@ export async function exportTaxBillToImage(sheet, projectName, sourceLabel = '')
   ctx.textAlign = 'center'
   ctx.textBaseline = 'alphabetic'
   ctx.fillText(title, canvas.width / 2, padding + 28)
-
-  if (sourceLabel) {
-    ctx.font = '15px Arial, sans-serif'
-    ctx.fillStyle = '#4b5563'
-    const sub = `Source accounting: ${sourceLabel}`
-    ctx.fillText(sub, canvas.width / 2, padding + 54)
-  }
 
   const tableStartY = padding + headerBlock
   const headerRowH = 40
