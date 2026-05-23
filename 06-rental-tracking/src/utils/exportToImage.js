@@ -373,6 +373,42 @@ function downloadCanvasPng(canvas, filename) {
   })
 }
 
+const TAX_EXPORT_HEADERS = ['ROOM', 'ROOM No.', 'Condo', 'Owner', 'Passport', 'TAX No.', 'Note']
+const TAX_EXPORT_ROW_KEYS = ['room', 'roomNo', 'condo', 'owner', 'passport', 'taxNo', 'note']
+const TAX_EXPORT_MIN_COL_WIDTHS = [72, 72, 88, 72, 88, 72, 96]
+const TAX_EXPORT_CELL_PAD_X = 14
+
+/** 按表头 + 各行单元格文字测量列宽，避免固定宽度导致导出 PNG 文字叠在一起 */
+function measureTaxExportColumnWidths(ctx, rows) {
+  const headerFont = 'bold 15px Arial, sans-serif'
+  const dataFont = '14px Arial, sans-serif'
+  return TAX_EXPORT_HEADERS.map((header, colIndex) => {
+    ctx.font = headerFont
+    let maxW = ctx.measureText(header).width
+    ctx.font = dataFont
+    const key = TAX_EXPORT_ROW_KEYS[colIndex]
+    for (const row of rows) {
+      const text = String(row[key] ?? '')
+      if (text) maxW = Math.max(maxW, ctx.measureText(text).width)
+    }
+    const minW = TAX_EXPORT_MIN_COL_WIDTHS[colIndex] ?? 72
+    return Math.ceil(Math.max(minW, maxW + TAX_EXPORT_CELL_PAD_X * 2))
+  })
+}
+
+function drawTaxCellText(ctx, text, x, y, colWidth) {
+  const innerX = x + TAX_EXPORT_CELL_PAD_X
+  const maxInner = colWidth - TAX_EXPORT_CELL_PAD_X * 2
+  ctx.save()
+  ctx.beginPath()
+  ctx.rect(innerX, y - 18, maxInner, 22)
+  ctx.clip()
+  ctx.textAlign = 'left'
+  ctx.textBaseline = 'middle'
+  ctx.fillText(text, innerX, y)
+  ctx.restore()
+}
+
 /**
  * 导出税费单为 PNG（canvas 模式与 exportUtilityBillToImage 一致）
  * @param {object} sheet - taxSheet
@@ -382,17 +418,18 @@ function downloadCanvasPng(canvas, filename) {
 export async function exportTaxBillToImage(sheet, projectName, sourceLabel = '') {
   const safeName = (projectName || 'tax').replace(/[\\/:*?"<>|]/g, '_')
   const rows = Array.isArray(sheet?.rows) ? sheet.rows : []
-  const headers = ['ROOM', 'ROOM No.', 'Condo', 'Owner', 'Passport', 'TAX No.', 'Note']
-  const columnWidths = [110, 100, 100, 100, 100, 100, 140]
 
   const canvas = document.createElement('canvas')
   const ctx = canvas.getContext('2d')
 
+  const columnWidths = measureTaxExportColumnWidths(ctx, rows)
   const padding = 40
   const headerBlock = sourceLabel ? 100 : 80
   const rowHeight = 44
-  const totalWidth = columnWidths.reduce((a, b) => a + b, 0) + padding * 2
+  const tableInnerWidth = columnWidths.reduce((a, b) => a + b, 0)
+  const totalWidth = tableInnerWidth + padding * 2
   const tableRows = Math.max(rows.length, 1)
+  const tableBodyRows = rows.length > 0 ? rows.length : 1
   const totalHeight = padding + headerBlock + rowHeight * (tableRows + 1) + padding
 
   canvas.width = totalWidth
@@ -401,64 +438,57 @@ export async function exportTaxBillToImage(sheet, projectName, sourceLabel = '')
   ctx.fillStyle = '#ffffff'
   ctx.fillRect(0, 0, canvas.width, canvas.height)
 
+  const title = `${projectName || 'Project'} — Tax registration`
   ctx.font = 'bold 22px Arial, sans-serif'
   ctx.fillStyle = '#1f2937'
   ctx.textAlign = 'center'
-  ctx.fillText(`${projectName || 'Project'} — Tax registration`, canvas.width / 2, padding + 28)
+  ctx.textBaseline = 'alphabetic'
+  ctx.fillText(title, canvas.width / 2, padding + 28)
 
   if (sourceLabel) {
     ctx.font = '15px Arial, sans-serif'
     ctx.fillStyle = '#4b5563'
-    ctx.fillText(`Source accounting: ${sourceLabel}`, canvas.width / 2, padding + 54)
+    const sub = `Source accounting: ${sourceLabel}`
+    ctx.fillText(sub, canvas.width / 2, padding + 54)
   }
 
   const tableStartY = padding + headerBlock
+  const headerRowH = 40
 
   ctx.font = 'bold 15px Arial, sans-serif'
   ctx.fillStyle = '#374151'
   let currentX = padding
-  headers.forEach((header, index) => {
-    const centerX = currentX + columnWidths[index] / 2
-    ctx.textAlign = 'center'
-    ctx.fillText(header, centerX, tableStartY + 28)
+  TAX_EXPORT_HEADERS.forEach((header, index) => {
+    drawTaxCellText(ctx, header, currentX, tableStartY + 26, columnWidths[index])
     currentX += columnWidths[index]
   })
 
   ctx.strokeStyle = '#d1d5db'
   ctx.lineWidth = 2
   ctx.beginPath()
-  ctx.moveTo(padding, tableStartY + 40)
-  ctx.lineTo(canvas.width - padding, tableStartY + 40)
+  ctx.moveTo(padding, tableStartY + headerRowH)
+  ctx.lineTo(canvas.width - padding, tableStartY + headerRowH)
   ctx.stroke()
 
   ctx.font = '14px Arial, sans-serif'
   if (rows.length === 0) {
     ctx.fillStyle = '#9ca3af'
     ctx.textAlign = 'center'
-    ctx.fillText('No rows', canvas.width / 2, tableStartY + rowHeight + 20)
+    ctx.fillText('No rows', canvas.width / 2, tableStartY + headerRowH + rowHeight / 2 + 8)
   } else {
     rows.forEach((row, index) => {
-      const rowTop = tableStartY + 40 + index * rowHeight
-      const rowY = rowTop + 32
-      const rowData = [
-        String(row.room ?? ''),
-        String(row.roomNo ?? ''),
-        String(row.condo ?? ''),
-        String(row.owner ?? ''),
-        String(row.passport ?? ''),
-        String(row.taxNo ?? ''),
-        String(row.note ?? '')
-      ]
+      const rowTop = tableStartY + headerRowH + index * rowHeight
+      const rowY = rowTop + rowHeight / 2 + 4
       ctx.fillStyle = '#1f2937'
       currentX = padding
-      rowData.forEach((data, colIndex) => {
-        const centerX = currentX + columnWidths[colIndex] / 2
-        ctx.textAlign = 'center'
-        const text =
-          data.length > 18 && colIndex === headers.length - 1
-            ? `${data.slice(0, 16)}…`
-            : data
-        ctx.fillText(text, centerX, rowY)
+      TAX_EXPORT_ROW_KEYS.forEach((key, colIndex) => {
+        drawTaxCellText(
+          ctx,
+          String(row[key] ?? ''),
+          currentX,
+          rowY,
+          columnWidths[colIndex]
+        )
         currentX += columnWidths[colIndex]
       })
       ctx.strokeStyle = '#e5e7eb'
@@ -470,14 +500,10 @@ export async function exportTaxBillToImage(sheet, projectName, sourceLabel = '')
     })
   }
 
+  const tableHeight = rowHeight * tableBodyRows
   ctx.strokeStyle = '#9ca3af'
   ctx.lineWidth = 2
-  ctx.strokeRect(
-    padding,
-    tableStartY,
-    canvas.width - padding * 2,
-    rowHeight * (rows.length > 0 ? rows.length : 1)
-  )
+  ctx.strokeRect(padding, tableStartY, canvas.width - padding * 2, headerRowH + tableHeight)
 
   currentX = padding
   for (let i = 0; i < columnWidths.length - 1; i++) {
@@ -486,7 +512,7 @@ export async function exportTaxBillToImage(sheet, projectName, sourceLabel = '')
     ctx.lineWidth = 1
     ctx.beginPath()
     ctx.moveTo(currentX, tableStartY)
-    ctx.lineTo(currentX, tableStartY + rowHeight * (rows.length > 0 ? rows.length : 1))
+    ctx.lineTo(currentX, tableStartY + headerRowH + tableHeight)
     ctx.stroke()
   }
 
