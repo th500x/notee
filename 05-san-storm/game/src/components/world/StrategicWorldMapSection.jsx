@@ -200,18 +200,35 @@ function readSelfPlayerRoadGrid(player) {
 
 /** 与战术图 BattleMap.css：`--tile: 48px`；窄屏 `(100vw - 61px) / 8` */
 export const WORLD_MAP_TILE_MIN = 12;
-export const WORLD_MAP_TILE_MAX = 56;
+/** 滚轮/捏合放大硬顶（防异常视口算出过大格） */
+export const WORLD_MAP_TILE_ABSOLUTE_CAP = 128;
+
+/**
+ * 视口宽度下铺满地图列数（含格间 1px gap）所需单格边长。
+ * 豫州双郡叠放时高度仍须滚动，上限只按宽度算，避免 1920 屏两侧留黑边。
+ */
+export function computeMaxTilePx(mapColumns) {
+  if (typeof window === 'undefined') return 56;
+  const cols = Math.max(1, Number(mapColumns) || 32);
+  const availW = Math.max(280, window.innerWidth - 16);
+  const byWidth = Math.floor((availW - (cols - 1)) / cols);
+  return Math.min(
+    WORLD_MAP_TILE_ABSOLUTE_CAP,
+    Math.max(WORLD_MAP_TILE_MIN + 1, byWidth),
+  );
+}
 
 /**
  * 默认单格边长：对齐战斗地图瓦片视觉（可读性优先，允许滚动查看全图）。
  */
-function computeDefaultTilePx() {
+function computeDefaultTilePx(mapColumns) {
   if (typeof window === 'undefined') return 48;
   const w = window.innerWidth;
   const availW = Math.max(280, w - 16);
   const battleRef =
     w >= 521 ? 48 : Math.min(48, Math.max(26, Math.floor((availW - 61) / 8)));
-  return Math.min(WORLD_MAP_TILE_MAX, Math.max(22, battleRef));
+  const maxPx = computeMaxTilePx(mapColumns);
+  return Math.min(maxPx, Math.max(22, battleRef));
 }
 
 /**
@@ -634,19 +651,31 @@ export default function StrategicWorldMapSection({
     [cityById, playerMainCityId],
   );
 
-  const [tilePx, setTilePx] = useState(() => computeDefaultTilePx());
+  const [tilePx, setTilePx] = useState(() => computeDefaultTilePx(cols));
+  const [maxTilePx, setMaxTilePx] = useState(() => computeMaxTilePx(cols));
 
   useEffect(() => {
-    if (cols && rows) setTilePx(computeDefaultTilePx());
+    const syncTileBounds = () => {
+      const nextMax = computeMaxTilePx(cols);
+      setMaxTilePx(nextMax);
+      setTilePx((p) => Math.min(nextMax, Math.max(WORLD_MAP_TILE_MIN, p)));
+    };
+    syncTileBounds();
+    window.addEventListener('resize', syncTileBounds);
+    return () => window.removeEventListener('resize', syncTileBounds);
+  }, [cols]);
+
+  useEffect(() => {
+    if (cols && rows) setTilePx(computeDefaultTilePx(cols));
   }, [cols, rows]);
 
   const onWheelZoomSteps = useCallback((steps) => {
     if (steps === 0) return;
     setTilePx((p) => {
       const next = p + steps * 2;
-      return Math.min(WORLD_MAP_TILE_MAX, Math.max(WORLD_MAP_TILE_MIN, next));
+      return Math.min(maxTilePx, Math.max(WORLD_MAP_TILE_MIN, next));
     });
-  }, []);
+  }, [maxTilePx]);
 
   /**
    * 自身标记立点（31-6 §12.1）：`resolveStrategicRecordedStandpointPx`（道路格心 / 离路城寨块心 / 攻方大本营）。
@@ -1553,7 +1582,7 @@ export default function StrategicWorldMapSection({
           tilePx={tilePx}
           setTilePx={setTilePx}
           minTilePx={WORLD_MAP_TILE_MIN}
-          maxTilePx={WORLD_MAP_TILE_MAX}
+          maxTilePx={maxTilePx}
           cityById={cityById}
           factionNameById={factionNameById}
           playerId={playerId}
