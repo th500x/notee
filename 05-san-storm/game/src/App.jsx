@@ -1,5 +1,5 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { useState, lazy, Suspense } from 'react';
+import { lazy, Suspense } from 'react';
 import ErrorBoundary from '@shared/components/common/ErrorBoundary';
 import { useAdmin } from '@/hooks/useAdmin';
 import { weeklyReportCard } from '@/data/texts/weeklyReport';
@@ -23,24 +23,8 @@ function RouteLoading() {
 }
 
 function App() {
-  const { isLoggedIn, loading, login, logout, devBypass, toggleDevBypass } = useAdmin();
-  
-  // 管理员登录对话框状态
-  const [showLoginDialog, setShowLoginDialog] = useState(false);
-  const [password, setPassword] = useState('');
-  const [loginError, setLoginError] = useState('');
-  
-  const handleLogin = async (e) => {
-    e.preventDefault();
-    setLoginError('');
-    const result = await login(password);
-    if (result.success) {
-      setShowLoginDialog(false);
-      setPassword('');
-    } else {
-      setLoginError(result.error || '登录失败');
-    }
-  };
+  const { isLoggedIn, devBypass, toggleDevBypass } = useAdmin();
+
   return (
     <Router basename="/05-san-storm/game">
       <div className="min-h-screen bg-gray-50">
@@ -125,35 +109,22 @@ function App() {
                       <h3 className="text-lg font-semibold text-gray-900 mb-2 text-center">三国地图</h3>
                       <p className="text-sm text-gray-600 text-center">郡象限 · 颍川 A · 底板与城点（测试）</p>
                     </a>
-                    </>
-                  )}
-
-                  <button
-                    type="button"
-                    onClick={toggleDevBypass}
-                    className="block bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow cursor-pointer h-full flex flex-col border-2 border-violet-200 text-left w-full"
-                  >
-                    <div className="text-4xl mb-4 text-center">{devBypass ? '🛠️' : '🏭'}</div>
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2 text-center">
-                      {devBypass ? '开发环境' : '生产环境'}
-                    </h3>
-                    <p className="text-sm text-gray-600 text-center">
-                      {devBypass
-                        ? '已跳过管理员登录；点击切换为生产环境'
-                        : '管理员卡片须登录；点击切换为开发环境'}
-                    </p>
-                  </button>
-
-                  {!isLoggedIn && (
                     <button
                       type="button"
-                      onClick={() => setShowLoginDialog(true)}
-                      className="block bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow cursor-pointer h-full flex flex-col border-2 border-slate-300 text-left w-full"
+                      onClick={toggleDevBypass}
+                      className="block bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow cursor-pointer h-full flex flex-col border-2 border-violet-200 text-left w-full"
                     >
-                      <div className="text-4xl mb-4 text-center">🔒</div>
-                      <h3 className="text-lg font-semibold text-gray-900 mb-2 text-center">管理员登录</h3>
-                      <p className="text-sm text-gray-600 text-center">输入密码后显示管理员功能卡片</p>
+                      <div className="text-4xl mb-4 text-center">{devBypass ? '🛠️' : '🏭'}</div>
+                      <h3 className="text-lg font-semibold text-gray-900 mb-2 text-center">
+                        {devBypass ? '开发环境' : '生产环境'}
+                      </h3>
+                      <p className="text-sm text-gray-600 text-center">
+                        {devBypass
+                          ? '已跳过管理员登录；点击切换为生产环境'
+                          : '当前为生产模式；点击切换为开发环境'}
+                      </p>
                     </button>
+                    </>
                   )}
                 </div>
               </div>
@@ -183,44 +154,6 @@ function App() {
             </div>
           </div>
         </footer>
-
-        {/* 管理员登录对话框 */}
-        {showLoginDialog && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowLoginDialog(false)}>
-            <div className="bg-white rounded-lg shadow-xl p-6 w-80" onClick={e => e.stopPropagation()}>
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">🔒 管理员认证</h3>
-              <form onSubmit={handleLogin}>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  placeholder="请输入管理员密码"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 mb-3"
-                  autoFocus
-                />
-                {loginError && (
-                  <p className="text-sm text-red-500 mb-3">{loginError}</p>
-                )}
-                <div className="flex gap-2">
-                  <button
-                    type="submit"
-                    disabled={loading || !password}
-                    className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 transition-colors"
-                  >
-                    {loading ? '验证中...' : '登录'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => { setShowLoginDialog(false); setPassword(''); setLoginError(''); }}
-                    className="px-4 py-2 bg-gray-100 text-gray-600 rounded-md hover:bg-gray-200 transition-colors"
-                  >
-                    取消
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
       </div>
     </Router>
   );
