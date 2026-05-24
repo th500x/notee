@@ -1,5 +1,5 @@
 /**
- * statistics 表经济类累计：统一有符号增量（与 players 资源变动语义对齐）
+ * player_statistics 表经济类累计：统一有符号增量（与 players 资源变动语义对齐）
  *
  * - silver / food / contribution：delta > 0 → total_*_earned；delta < 0 → total_*_spent（绝对值）
  * - reputation：仅有 total_reputation_earned；delta < 0 时用 GREATEST(0, earned + delta) 下调（无 spent 列）
@@ -69,11 +69,11 @@ async function applyResourceDelta(playerId, deltas = {}, connection = null) {
   if (setParts.length === 0) return;
 
   params.push(pid);
-  const sql = `UPDATE statistics SET ${setParts.join(', ')} WHERE player_id = ?`;
+  const sql = `UPDATE player_statistics SET ${setParts.join(', ')} WHERE player_id = ?`;
   const exec = connection ? connection.query.bind(connection) : pool.query.bind(pool);
   const [r] = await exec(sql, params);
   if (!r.affectedRows) {
-    console.warn('[statisticsDelta] 未命中 statistics 行', { playerId: pid, deltas: { silver, food, reputation, contribution } });
+    console.warn('[statisticsDelta] 未命中 player_statistics 行', { playerId: pid, deltas: { silver, food, reputation, contribution } });
   }
 }
 

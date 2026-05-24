@@ -65,3 +65,15 @@ export function strategicCityLabelInlineColorStyle(stance) {
   if (!hex) return undefined;
   return { color: hex };
 }
+
+/** @param {string} hex - `#rrggbb` */
+export function hexToRgba(hex, alpha) {
+  if (!hex || typeof hex !== 'string' || !hex.startsWith('#')) return null;
+  const h = hex.slice(1);
+  if (h.length !== 6) return null;
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  if (Number.isNaN(r) || Number.isNaN(g) || Number.isNaN(b)) return null;
+  return `rgba(${r},${g},${b},${alpha})`;
+}

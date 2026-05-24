@@ -1,5 +1,5 @@
 /**
- * 势力 Tab ·「势力动态与外交」— 战事摘要（17-2 wars_pvp）
+ * 势力 Tab ·「外交」— 战事摘要（17-2 wars_pvp）
  * 数据：`warAPI.listWars({ factionId, status: pending|active })`，与大地图浮层分立。
  */
 

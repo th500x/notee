@@ -20,7 +20,7 @@
 const INTERCEPT_COST_SILVER = 40; // 31-6 §三
 
 /** 每日免费"自由步"上限（每位玩家） */
-const FREE_MOVES_PER_DAY = 50; // 31-6 §9.1
+const FREE_MOVES_PER_DAY = 300; // 31-6 §9.1；31-5 §一（2026-05-19：50→300）
 
 /** 单步付费粮草（个人粮 → 势力池兜底） */
 const FOOD_PER_STEP = 2; // 31-6 §9.1

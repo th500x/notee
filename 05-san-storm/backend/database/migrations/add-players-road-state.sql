@@ -1,6 +1,6 @@
 -- 玩家道路状态列（01-DATABASE_DESIGN.md §3.2.24「与 players 表的关系」）
 -- 覆盖：当前道路位置 / 守门开关 / 势力池垫粮日累计 / 每日免费格配额 / 幂等最近请求。
--- 每日免费格配额（road_move_free_*）为 31-6 §9.1「每日前 50 格减免」落地所需的审计列；
+-- 每日免费格配额（road_move_free_*）为 31-6 §9.1 / 31-5 §一「每日前 N 格减免」落地所需的审计列（N 见 roadConfig.FREE_MOVES_PER_DAY，当前 300）；
 -- 与 reserve 列并列，和 attr_reroll_date / attr_reroll_count 风格一致。
 
 ALTER TABLE players
@@ -21,7 +21,7 @@ ALTER TABLE players
   ADD COLUMN road_move_free_date DATE NULL
     COMMENT '每日免费格日界（31-6 §9.1）：与 road_reserve_date 口径一致',
   ADD COLUMN road_move_free_used INT NOT NULL DEFAULT 0
-    COMMENT '当日已消耗的免费格计数（31-6 §9.1 前 50 格免费，溢出按 10 粮/格）',
+    COMMENT '当日已消耗的免费格计数（31-6 §9.1；免费上限见 roadConfig.FREE_MOVES_PER_DAY）',
   ADD COLUMN road_last_request_id VARCHAR(64) NULL
     COMMENT '最近一次道路写操作幂等键（02 §2.1.2「通用约定·幂等」）',
   ADD INDEX idx_players_road_cell (road_jun_id, road_position_x, road_position_y);

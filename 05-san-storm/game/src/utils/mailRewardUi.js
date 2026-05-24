@@ -65,6 +65,12 @@ export function describeMailAttachments(attachments, maps = {}) {
       lines.push(`🔑 ${name} ×${q}`);
     }
   }
+  if (attachments.positionId) {
+    lines.push('👑 大司空任命（领取后授官并卸旧职）');
+  }
+  if (attachments.grantKingStipend === true) {
+    lines.push('💰 君主封赏俸禄（按势力国力档与官职加成结算）');
+  }
   if (Array.isArray(attachments.cards)) {
     for (const raw of attachments.cards) {
       const id = String(raw).trim();

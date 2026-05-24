@@ -285,7 +285,7 @@ export function calcDamage(atk, def, terrain, options = {}) {
     totalDmg *= adaptCoeff;
   }
 
-  // 10. 官职兵种加成（攻击方将领的官职对该兵种的加成）
+  // 10. 官职兵种加成（攻击方 character.positionBonuses；开战前由 positionCombatBonuses 装配）
   const atkType = atk.troopType || 'infantry';
   const posBonus = ac?.positionBonuses;
   if (posBonus) {

@@ -16,6 +16,7 @@ const {
   rollCritDodgeSeeded,
   troopDamageToCasualties,
 } = require('../lib/siegeCombatCore.cjs');
+const { normalizePositionCombatBonuses } = require('../../shared/utils/positionCombatBonuses.cjs');
 
 /**
  * 推演占位坐标：双方排在同一行、**相邻两格**（曼哈顿距=1），任意攻方↔守方随机对位时都在近战/弓程内，
@@ -83,6 +84,7 @@ function siegeNpcToTroop(npc, faction, posIndex, side, rng) {
   };
   if (npc.character) {
     const c = npc.character;
+    const posBonuses = normalizePositionCombatBonuses(c.positionBonuses);
     base.character = {
       name: c.name,
       courtesyName: c.courtesyName || c.name,
@@ -93,6 +95,7 @@ function siegeNpcToTroop(npc, faction, posIndex, side, rng) {
       intelligence: (c.intelligence != null ? c.intelligence : 50) / 10,
       politics: (c.politics != null ? c.politics : 50) / 10,
       charm: (c.charm != null ? c.charm : 50) / 10,
+      ...(posBonuses ? { positionBonuses: posBonuses } : {}),
     };
   } else {
     base.character = null;

@@ -119,7 +119,7 @@ class Player {
 
       // 创建玩家统计表
       await pool.query(`
-        INSERT INTO statistics (player_id)
+        INSERT INTO player_statistics (player_id)
         VALUES (?)
       `, [player_id]);
 

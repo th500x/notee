@@ -10,6 +10,7 @@ import { initBattlePhase2Runtime } from '@shared/utils/skillPhase2Passive';
 import { initBattlePhase3HealRuntime } from '@shared/utils/skillPhase3ActiveHeal';
 import { initBattlePhase4DamageRuntime } from '@shared/utils/skillPhase4ActiveDamage';
 import { initBattlePhase5CompositeRuntime } from '@shared/utils/skillPhase5CompositeDamage';
+import { normalizePositionCombatBonuses } from '@/utils/positionCombatBonuses';
 
 const PLAYER_POSITIONS = [
   { y: 9, x: 1 }, { y: 9, x: 4 }, { y: 9, x: 7 },
@@ -67,6 +68,7 @@ export function buildSiegeUnits({ playerUnits, enemyUnits, baseUrl }) {
     const attempts = getBattleFieldTroopPortraitUrlAttempts({ ...npcTroopMeta, faction: 'enemy' }, baseUrl);
     // DB 原始属性为 0–100 尺度，÷10 转为 0–10
     const attr = (v, fallback = 5) => (v != null ? Number(v) / 10 : fallback);
+    const enemyPosBonuses = normalizePositionCombatBonuses(raw?.positionBonuses);
     return {
       id: npc.troopId + '_e' + i,
       name: npc.troopName,
@@ -98,6 +100,7 @@ export function buildSiegeUnits({ playerUnits, enemyUnits, baseUrl }) {
         intelligence: attr(raw.intelligence),
         politics: attr(raw.politics),
         charm: attr(raw.charm),
+        ...(enemyPosBonuses ? { positionBonuses: enemyPosBonuses } : {}),
       } : null,
       displayName: charName || npc.troopName,
       morale,

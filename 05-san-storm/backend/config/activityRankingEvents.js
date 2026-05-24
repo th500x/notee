@@ -1,6 +1,6 @@
 /**
  * 活动排行榜：与前端 announcements.js 中对应公告的 ranking 时间保持一致。
- * 用于在活动结束后冻结积分（不再随 statistics 继续增长）。
+ * 用于在活动结束后冻结积分（不再随 player_statistics 继续增长）。
  * @see game/src/data/texts/announcements.js
  */
 module.exports = {

@@ -3,7 +3,7 @@
  *（己方城 footprint 中心曼哈顿距 → 全图取最近 3 敌对城 + 最近 3 中立城）。
  *
  * 数据源：`cities.position_x/y` 为 **郡内** 锚格（与 `worldMapAdminService` 写入一致）；
- * 豫州多郡垂直叠放时须用 `stackWorldGyFromLocalJunRow(jun_id, position_y)` 转成 **合并画布世界行**，
+ * 豫州多郡垂直叠放时须用 `strategicGridCoordinates.worldMapCellFromCityDbRow` 转成 **合并画布世界行**，
  * 与 `collectStrategicCityFootprintsForMiniMap(merged.cells)` 一致。列 `gx` 与单郡宽一致，仍为 `position_x`。
  */
 
@@ -11,7 +11,7 @@ const { pool } = require('../database/connection');
 const {
   computeStrategicMiniMapProximityHighlights,
 } = require('../../shared/utils/computeStrategicMiniMapProximityHighlights.js');
-const { stackWorldGyFromLocalJunRow } = require('../../shared/utils/strategicWorldMapStack.js');
+const { worldMapCellFromCityDbRow } = require('../../shared/utils/strategicGridCoordinates.js');
 
 /**
  * @param {string} season
@@ -36,8 +36,9 @@ async function loadFootprintsAndCityByIdForSeason(season) {
     const localGy = Math.trunc(Number(r.position_y));
     if (!Number.isFinite(localGx) || !Number.isFinite(localGy)) continue;
     const junId = String(r.jun_id || '').trim();
-    const anchorGx = localGx;
-    const anchorGy = junId ? stackWorldGyFromLocalJunRow(junId, localGy) : localGy;
+    const w = worldMapCellFromCityDbRow(r);
+    const anchorGx = w?.gx ?? localGx;
+    const anchorGy = w?.worldGy ?? localGy;
     footprints.push({
       cityId: id,
       anchorGx,

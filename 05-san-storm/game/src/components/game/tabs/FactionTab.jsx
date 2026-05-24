@@ -1,35 +1,22 @@
 /**
-
  * 势力 Tab — 竖屏四子 Tab + 横屏四象限（同一套分区，仅布局不同）
-
- * 「势力信息」→ GET /api/players/:id/faction/overview；「公告」→ GET …/faction/bulletin
-
+ * 「势力信息」「军团」→ GET /api/players/:id/faction/overview（军团只读展示，编制在三公府）
+ * 「公告」→ GET …/san-gong-fu/bulletin（谕旨/文书/战事）+ 外交占位
  */
-
-
-
 import { useMemo, useState, useEffect, useCallback } from 'react';
-
 import { TabPageCloseButton, useGameTabLandscape } from '@/components/game/TabPageCloseAffordance';
-
 import TabSubNav from '@/components/game/TabSubNav';
-
 import QuadrantGrid from '@/components/game/QuadrantGrid';
-
 import { usePlayerContext } from '@/contexts/PlayerContext';
-
 import { playerAPI } from '@/services/playerApi';
-
 import FactionInfoPanel from '@/components/game/faction/FactionInfoPanel';
-import FactionWarDynamicsSection from '@/components/game/faction/FactionWarDynamicsSection';
 import FactionBulletinSection from '@/components/game/faction/FactionBulletinSection';
-
-
+import FactionLegionSection from '@/components/game/faction/FactionLegionSection';
 
 const SUB_TABS = [
   { id: 'factionInfo', label: '势力信息' },
-  { id: 'dynamics', label: '势力动态' },
-  { id: 'cities', label: '城市与长官' },
+  { id: 'cityOfficials', label: '城市长官' },
+  { id: 'legion', label: '军团' },
   { id: 'bulletin', label: '公告' },
 ];
 
@@ -62,8 +49,6 @@ export default function FactionTab({ onClose }) {
   const { player } = usePlayerContext();
 
   const playerId = player?.player_id;
-  const factionId = player?.faction_id || null;
-
   const [activeSubTabId, setActiveSubTabId] = useState('factionInfo');
 
   const [overview, setOverview] = useState(null);
@@ -122,98 +107,68 @@ export default function FactionTab({ onClose }) {
 
 
 
-  /** 进入本 Tab 或切回「势力信息」时拉取，避免后端已更新但页面仍用旧 state */
+  /** 进入本 Tab、横屏、或切至「势力信息 / 军团」时拉取 overview */
   useEffect(() => {
     if (!playerId) return;
-    if (isLandscape || activeSubTabId === 'factionInfo') {
+    if (isLandscape || activeSubTabId === 'factionInfo' || activeSubTabId === 'legion') {
       loadOverview();
     }
   }, [playerId, isLandscape, activeSubTabId, loadOverview]);
 
-
-
   const portraitCopy = useMemo(
-
     () => ({
-
-      cities: '势力城市列表与长官入口（占位）；军团可放二级。',
-
+      cityOfficials:
+        '本势力各城长官任命与任免入口（占位，规则待实装）。',
     }),
-
     [],
-
   );
 
+  const cityOfficialsBody = (
+    <p className="text-xs leading-relaxed text-stone-300">{portraitCopy.cityOfficials}</p>
+  );
 
+  const legionBody = (
+    <FactionLegionSection
+      overview={overview}
+      loading={overviewLoading}
+      error={overviewError}
+    />
+  );
 
-  const { quadrantCells, dynamicsBody } = useMemo(() => {
-
-    const factionInfoBodyInner = (
-
-      <FactionInfoPanel overview={overview} loading={overviewLoading} error={overviewError} />
-
-    );
-
-    const dynamicsBodyInner = (
-      <div className="flex flex-col gap-3 text-left">
-        <FactionWarDynamicsSection factionId={factionId} />
-        <p className="text-xs leading-relaxed text-stone-500">
-          建造等动态（占位）；战事摘要见上。势力公告与横屏第四象限相同，请切至「公告」子 Tab。
-        </p>
-      </div>
-    );
-
-    return {
-
-      dynamicsBody: dynamicsBodyInner,
-
-      quadrantCells: [
-
-        {
-
-          id: 'factionInfo',
-
-          title: '势力信息',
-
-          content: shellBlock(factionInfoBodyInner),
-
-        },
-
-        {
-
-          id: 'dynamics',
-
-          title: '势力动态与外交',
-
-          content: shellBlock(dynamicsBodyInner),
-
-        },
-
-        {
-
-          id: 'cities',
-
-          title: '城市与长官',
-
-          content: shellBlock(<p className="text-xs leading-relaxed">{portraitCopy.cities}</p>),
-
-        },
-
-        {
-
-          id: QUADRANT_BULLETIN_ID,
-
-          title: '公告',
-
-          content: shellBlock(<FactionBulletinSection playerId={playerId} />),
-
-        },
-
-      ],
-
-    };
-
-  }, [portraitCopy.cities, factionId, playerId, overview, overviewLoading, overviewError]);
+  const quadrantCells = useMemo(
+    () => [
+      {
+        id: 'factionInfo',
+        title: '势力信息',
+        content: shellBlock(
+          <FactionInfoPanel overview={overview} loading={overviewLoading} error={overviewError} />,
+        ),
+      },
+      {
+        id: 'cityOfficials',
+        title: '城市长官',
+        content: shellBlock(cityOfficialsBody),
+      },
+      {
+        id: 'legion',
+        title: '军团',
+        content: shellBlock(legionBody),
+      },
+      {
+        id: QUADRANT_BULLETIN_ID,
+        title: '公告',
+        content: shellBlock(<FactionBulletinSection playerId={playerId} />),
+      },
+    ],
+    [
+      cityOfficialsBody,
+      legionBody,
+      playerId,
+      overview,
+      overviewLoading,
+      overviewError,
+    ],
+  );
 
 
 
@@ -267,17 +222,13 @@ export default function FactionTab({ onClose }) {
 
               )
 
-            ) : activeSubTabId === 'dynamics' ? (
-              shellBlock(dynamicsBody)
+            ) : activeSubTabId === 'cityOfficials' ? (
+              shellBlock(cityOfficialsBody)
+            ) : activeSubTabId === 'legion' ? (
+              shellBlock(legionBody)
             ) : activeSubTabId === 'bulletin' ? (
               shellBlock(<FactionBulletinSection playerId={playerId} />)
-            ) : (
-              shellBlock(
-                <p className="text-xs leading-relaxed text-stone-300">
-                  {portraitCopy[activeSubTabId] ?? portraitCopy.cities}
-                </p>,
-              )
-            )}
+            ) : null}
 
           </div>
 

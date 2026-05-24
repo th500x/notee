@@ -14,6 +14,7 @@ import TroopCard from '@shared/components/card/TroopCard';
 import CharacterCard from '@shared/components/card/CharacterCard';
 import {
   poolFactionDigitFromPlayerFactionId,
+  poolSeasonFromPlayerFactionId,
   cardMatchesPlayerPoolFaction,
 } from '@/utils/poolCardFilters';
 import PlayerTopResourceBadges from '@/components/game/PlayerTopResourceBadges';
@@ -70,18 +71,25 @@ export default function CardPoolDrawer({
     setCardsLoading(true);
     try {
       const endpoint = poolType === 'troop' ? 'troops' : 'characters';
-      const res = await fetchWithTimeout(`${API_CONFIG.BASE_URL}/config/${endpoint}`);
+      const season = poolSeasonFromPlayerFactionId(factionId);
+      const res = await fetchWithTimeout(
+        `${API_CONFIG.BASE_URL}/config/${endpoint}?season=${encodeURIComponent(season)}`,
+      );
       const data = await res.json();
       if (data.success) {
         const allCards = (data[endpoint] || []).filter((c) => c.rarity !== 'core');
         const factionNum = poolFactionDigitFromPlayerFactionId(factionId);
         const pType = poolType === 'troop' ? 'troop' : 'character';
+        const bySeason = allCards.filter(
+          (c) => !c.season || String(c.season) === season || String(c.id || '').startsWith(`${season}_`),
+        );
         const filtered = factionNum
-          ? allCards.filter((c) => cardMatchesPlayerPoolFaction(c?.id, pType, factionNum))
-          : allCards;
+          ? bySeason.filter((c) => cardMatchesPlayerPoolFaction(c?.id, pType, factionNum))
+          : bySeason;
 
         if (poolDebug) {
           console.log('[CardPoolDrawer]', endpoint, {
+            season,
             factionId,
             factionDigit: factionNum,
             raw: allCards.length,

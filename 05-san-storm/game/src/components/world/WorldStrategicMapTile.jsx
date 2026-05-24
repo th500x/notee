@@ -17,6 +17,7 @@ import {
   getStrategicCityLabelStance,
   strategicCityLabelInlineColorStyle,
 } from '@/utils/strategicMapCityLabelStance';
+import { strategicTerritoryOverlayRgba } from '@shared/utils/strategicTerritoryFlood.js';
 
 function wsTerrainFallbackClass(terrain) {
   if (terrain === 'lake') return 'ws-terrain-fallback ws-terrain-lake';
@@ -64,6 +65,8 @@ function WorldStrategicMapTile({
   strategicCityLabelAllyFactionIds = null,
   /** 显式非敌对 `faction_id`（停战、任务保护势力等） */
   strategicCityLabelNonHostileFactionIds = null,
+  /** 道路 BFS 领土立场：`own` | `hostile` | `ally`（仅视觉叠层） */
+  territoryStance = null,
 }) {
   const c = cell || {};
   const variants = useMemo(() => buildCampaignVisualVariants(seed), [seed]);
@@ -113,6 +116,11 @@ function WorldStrategicMapTile({
   const fid = cityRow?.faction_id ?? cityRow?.factionId;
   const factionHex = fid ? getFactionRepresentativeColor(fid) : null;
   const factionTintRgba = factionHex ? hexToRgba(factionHex, 0.42) : null;
+  const territoryOverlayRgba = useMemo(
+    () => strategicTerritoryOverlayRgba(territoryStance),
+    [territoryStance],
+  );
+  const showLegacyFactionCityTint = isCityFootprint2x2 && factionTintRgba && !territoryOverlayRgba;
 
   const labelLines = useMemo(() => {
     if (!hasMultiCellFootprint || !isAnchorTile || !effectiveObject) return null;
@@ -244,7 +252,14 @@ function WorldStrategicMapTile({
           }}
         />
       )}
-      {isCityFootprint2x2 && factionTintRgba ? (
+      {territoryOverlayRgba ? (
+        <div
+          className="ws-layer ws-territory-stance-tint"
+          style={{ background: territoryOverlayRgba, zIndex: 1 }}
+          aria-hidden
+        />
+      ) : null}
+      {showLegacyFactionCityTint ? (
         <div
           className="ws-layer ws-faction-bg-tint"
           style={{ background: factionTintRgba, zIndex: 1 }}

@@ -21,10 +21,25 @@ const WIN_REPUTATION_REWARD = {
   common: 5,
 };
 
+const RARITY_ORDER = ['common', 'rare', 'epic', 'legendary', 'core'];
+
 function normalizeRarity(r) {
   const x = String(r || '').toLowerCase();
   if (x === 'core' || x === 'legendary' || x === 'epic' || x === 'rare' || x === 'common') return x;
   return 'common';
+}
+
+/**
+ * 从击杀列表取最高稀有度（装备池 / 胜利声望表共用）。
+ * @param {string[]} rarities
+ * @returns {string}
+ */
+function pickBestRarityFromKills(rarities) {
+  const arr = (Array.isArray(rarities) ? rarities : [])
+    .map((r) => normalizeRarity(r))
+    .filter(Boolean);
+  if (!arr.length) return 'common';
+  return arr.sort((a, b) => RARITY_ORDER.indexOf(b) - RARITY_ORDER.indexOf(a))[0];
 }
 
 /**
@@ -96,13 +111,7 @@ async function grantWinContributionAndEquipment(connection, playerId, killedUnit
       playerId,
     ]);
   }
-  const rarityOrder = ['common', 'rare', 'epic', 'legendary', 'core'];
-  const bestForDrop =
-    arr.length > 0
-      ? [...arr]
-          .map((x) => normalizeRarity(x))
-          .sort((a, b) => rarityOrder.indexOf(b) - rarityOrder.indexOf(a))[0]
-      : 'common';
+  const bestForDrop = pickBestRarityFromKills(arr);
   const equipmentDrop = await tryRollEquipmentDrop(connection, playerId, bestForDrop);
   return { contributionReward, equipmentDrop };
 }
@@ -168,6 +177,7 @@ module.exports = {
   WIN_REPUTATION_REWARD,
   WIN_CONTRIBUTION_REWARD_SIEGE_NPC,
   normalizeRarity,
+  pickBestRarityFromKills,
   tryRollEquipmentDrop,
   grantWinReputationAndEquipment,
   grantWinContributionAndEquipment,

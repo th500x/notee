@@ -62,6 +62,9 @@ async function executeEventRewards(playerId, body) {
     return { ok: false, status: 400, json: { success: false, error: '无效的选项' } };
   }
 
+  const skipTroopRepairOnConsume =
+    playerExploreEventService.isTroopChainFinaleInsuranceOption(eventId, optionKey);
+
   if (eventRows[0].required_items) {
     const eventItems = eventRows[0].required_items;
     option.requiredItems = option.requiredItems
@@ -215,33 +218,35 @@ async function executeEventRewards(playerId, body) {
             },
           };
         }
-        const specialEffect = await getItemSpecialEffect(key);
-        if (isTroopDurabilityRepairEffect(specialEffect)) {
-          if (isLegendaryTroopRepairEffect(specialEffect)) {
-            const [chk] = await pool.query(
-              `SELECT instance_id FROM player_cards
-               WHERE player_id = ? AND card_type = 'troop' AND rarity = 'legendary' LIMIT 1`,
-              [playerId]
-            );
-            if (chk.length === 0) {
-              return {
-                ok: false,
-                status: 400,
-                json: { success: false, error: '暂无传奇部队，无法完成整编旧部' },
-              };
-            }
-          } else if (isCoreTroopRepairEffect(specialEffect)) {
-            const [chk] = await pool.query(
-              `SELECT instance_id FROM player_cards
-               WHERE player_id = ? AND card_type = 'troop' AND rarity = 'core' LIMIT 1`,
-              [playerId]
-            );
-            if (chk.length === 0) {
-              return {
-                ok: false,
-                status: 400,
-                json: { success: false, error: '暂无核心部队，无法完成整编旧部' },
-              };
+        if (!skipTroopRepairOnConsume) {
+          const specialEffect = await getItemSpecialEffect(key);
+          if (isTroopDurabilityRepairEffect(specialEffect)) {
+            if (isLegendaryTroopRepairEffect(specialEffect)) {
+              const [chk] = await pool.query(
+                `SELECT instance_id FROM player_cards
+                 WHERE player_id = ? AND card_type = 'troop' AND rarity = 'legendary' LIMIT 1`,
+                [playerId]
+              );
+              if (chk.length === 0) {
+                return {
+                  ok: false,
+                  status: 400,
+                  json: { success: false, error: '暂无传奇部队，无法完成整编旧部' },
+                };
+              }
+            } else if (isCoreTroopRepairEffect(specialEffect)) {
+              const [chk] = await pool.query(
+                `SELECT instance_id FROM player_cards
+                 WHERE player_id = ? AND card_type = 'troop' AND rarity = 'core' LIMIT 1`,
+                [playerId]
+              );
+              if (chk.length === 0) {
+                return {
+                  ok: false,
+                  status: 400,
+                  json: { success: false, error: '暂无核心部队，无法完成整编旧部' },
+                };
+              }
             }
           }
         }
@@ -271,28 +276,30 @@ async function executeEventRewards(playerId, body) {
         if (items[key] <= 0) delete items[key];
         await pool.query('UPDATE players SET items = ? WHERE player_id = ?', [JSON.stringify(items), playerId]);
 
-        const specialEffect = await getItemSpecialEffect(key);
-        if (isTroopDurabilityRepairEffect(specialEffect)) {
-          for (let u = 0; u < amount; u++) {
-            try {
-              const one = await applyTroopRepairEffect(pool.query.bind(pool), playerId, specialEffect);
-              troopRepairResults.push(one);
-            } catch (e) {
-              if (e.code === 'NO_LEGENDARY_TROOP') {
-                return {
-                  ok: false,
-                  status: 400,
-                  json: { success: false, error: '暂无传奇部队，无法完成整编旧部' },
-                };
+        if (!skipTroopRepairOnConsume) {
+          const specialEffect = await getItemSpecialEffect(key);
+          if (isTroopDurabilityRepairEffect(specialEffect)) {
+            for (let u = 0; u < amount; u++) {
+              try {
+                const one = await applyTroopRepairEffect(pool.query.bind(pool), playerId, specialEffect);
+                troopRepairResults.push(one);
+              } catch (e) {
+                if (e.code === 'NO_LEGENDARY_TROOP') {
+                  return {
+                    ok: false,
+                    status: 400,
+                    json: { success: false, error: '暂无传奇部队，无法完成整编旧部' },
+                  };
+                }
+                if (e.code === 'NO_CORE_TROOP') {
+                  return {
+                    ok: false,
+                    status: 400,
+                    json: { success: false, error: '暂无核心部队，无法完成整编旧部' },
+                  };
+                }
+                throw e;
               }
-              if (e.code === 'NO_CORE_TROOP') {
-                return {
-                  ok: false,
-                  status: 400,
-                  json: { success: false, error: '暂无核心部队，无法完成整编旧部' },
-                };
-              }
-              throw e;
             }
           }
         }
@@ -343,28 +350,30 @@ async function executeEventRewards(playerId, body) {
         if (items[key] <= 0) delete items[key];
         await pool.query('UPDATE players SET items = ? WHERE player_id = ?', [JSON.stringify(items), playerId]);
 
-        const specialEffect = await getItemSpecialEffect(key);
-        if (isTroopDurabilityRepairEffect(specialEffect)) {
-          for (let u = 0; u < amount; u++) {
-            try {
-              const one = await applyTroopRepairEffect(pool.query.bind(pool), playerId, specialEffect);
-              troopRepairResults.push(one);
-            } catch (e) {
-              if (e.code === 'NO_LEGENDARY_TROOP') {
-                return {
-                  ok: false,
-                  status: 400,
-                  json: { success: false, error: '暂无传奇部队，无法完成整编旧部' },
-                };
+        if (!skipTroopRepairOnConsume) {
+          const specialEffect = await getItemSpecialEffect(key);
+          if (isTroopDurabilityRepairEffect(specialEffect)) {
+            for (let u = 0; u < amount; u++) {
+              try {
+                const one = await applyTroopRepairEffect(pool.query.bind(pool), playerId, specialEffect);
+                troopRepairResults.push(one);
+              } catch (e) {
+                if (e.code === 'NO_LEGENDARY_TROOP') {
+                  return {
+                    ok: false,
+                    status: 400,
+                    json: { success: false, error: '暂无传奇部队，无法完成整编旧部' },
+                  };
+                }
+                if (e.code === 'NO_CORE_TROOP') {
+                  return {
+                    ok: false,
+                    status: 400,
+                    json: { success: false, error: '暂无核心部队，无法完成整编旧部' },
+                  };
+                }
+                throw e;
               }
-              if (e.code === 'NO_CORE_TROOP') {
-                return {
-                  ok: false,
-                  status: 400,
-                  json: { success: false, error: '暂无核心部队，无法完成整编旧部' },
-                };
-              }
-              throw e;
             }
           }
         }
@@ -409,7 +418,7 @@ async function executeEventRewards(playerId, body) {
   // 探索事件战：客户端在战报 POST /api/battles 成功后勿再传 battleScore，否则会与 battleService.applyBattleScore 重复累加（场均虚高）
   if (battleScore && battleScore > 0) {
     console.log(`[PlayerEventRewards] 更新战斗积分: playerId=${playerId}, battleScore=${battleScore}`);
-    await pool.query('UPDATE statistics SET total_battle_score = total_battle_score + ? WHERE player_id = ?', [
+    await pool.query('UPDATE player_statistics SET total_battle_score = total_battle_score + ? WHERE player_id = ?', [
       battleScore,
       playerId,
     ]);

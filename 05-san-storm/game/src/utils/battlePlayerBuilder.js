@@ -29,6 +29,10 @@ import {
   buildPhase5CompositeSlotsFromSkillIds,
 } from '@shared/utils/skillPhase5CompositeDamage';
 import { applyInflightTroopSnapshotToBuiltUnits } from '@/utils/inflightBattleTroopSnapshot';
+import {
+  attachPositionCombatBonuses,
+  getPositionCombatBonusesFromPlayer,
+} from '@/utils/positionCombatBonuses';
 
 function buildTroopUnit(troopCard, charData, morale, phase1Bundle) {
   const cfg = troopCard.config || {};
@@ -69,6 +73,9 @@ function buildTroopUnit(troopCard, charData, morale, phase1Bundle) {
 export function buildPlayerUnitsFromContext(player, cards, attributeBonusBySlot = {}, skillsMap = {}) {
   if (!cards || cards.length === 0 || !player) return [];
   const units = [];
+  const posCombatBonuses = getPositionCombatBonusesFromPlayer(player);
+  const withPositionCombat = (charData) =>
+    posCombatBonuses ? attachPositionCombatBonuses(charData, posCombatBonuses) : charData;
   const playerBonus = attributeBonusBySlot?.player || {};
   const char1Bonus = attributeBonusBySlot?.character1 || {};
   const char2Bonus = attributeBonusBySlot?.character2 || {};
@@ -107,7 +114,10 @@ export function buildPlayerUnitsFromContext(player, cards, attributeBonusBySlot 
       ),
       playerPhase5Slots,
     );
-    units.push({ ...buildTroopUnit(playerTroop, charData, player.morale ?? 70, playerPhase1), lineupSlot: 'player' });
+    units.push({
+      ...buildTroopUnit(playerTroop, withPositionCombat(charData), player.morale ?? 70, playerPhase1),
+      lineupSlot: 'player',
+    });
   }
 
   // 将领1 + 将领1部队
@@ -144,7 +154,10 @@ export function buildPlayerUnitsFromContext(player, cards, attributeBonusBySlot 
       p5slots1,
     );
     for (const t of char1Troops) {
-      units.push({ ...buildTroopUnit(t, charData, char1Card.morale ?? 70, p1), lineupSlot: 'character1' });
+      units.push({
+        ...buildTroopUnit(t, withPositionCombat(charData), char1Card.morale ?? 70, p1),
+        lineupSlot: 'character1',
+      });
     }
   }
 
@@ -182,7 +195,10 @@ export function buildPlayerUnitsFromContext(player, cards, attributeBonusBySlot 
       p5slots2,
     );
     for (const t of char2Troops) {
-      units.push({ ...buildTroopUnit(t, charData, char2Card.morale ?? 70, p1), lineupSlot: 'character2' });
+      units.push({
+        ...buildTroopUnit(t, withPositionCombat(charData), char2Card.morale ?? 70, p1),
+        lineupSlot: 'character2',
+      });
     }
   }
 
@@ -222,7 +238,7 @@ export function buildPlayerUnitsFromContext(player, cards, attributeBonusBySlot 
     if (tid && usedTroopIds.has(tid)) continue;
     if (tid) usedTroopIds.add(tid);
     units.push({
-      ...buildTroopUnit(c, playerCommander, player.morale ?? 70, playerPhase1),
+      ...buildTroopUnit(c, withPositionCombat(playerCommander), player.morale ?? 70, playerPhase1),
       lineupSlot: 'player',
     });
   }

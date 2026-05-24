@@ -201,7 +201,7 @@ export default function ActivityManager() {
           <div>
             <h1 className="text-2xl font-bold text-gray-900">活动管理</h1>
             <p className="text-sm text-gray-600 mt-1">
-              活动排名 Top30 · announcements.js · temp_ranking_snapshots
+              活动排名 Top30 · announcements.js · temp_event_ranking
             </p>
           </div>
         </div>

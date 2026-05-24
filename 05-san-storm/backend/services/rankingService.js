@@ -3,7 +3,7 @@
  * 排行榜数据查询、快照补建、积分冻结均在此处理；路由层只做 HTTP 映射。
  *
  * @see docs/10-core-system/19-1-STATISTICS_RANKING_SYSTEM.md
- * @see docs/00-base/01-1-DATABASE_DESIGN.md §4.3 temp_ranking_snapshots
+ * @see docs/00-base/01-1-DATABASE_DESIGN.md §4.3 temp_event_ranking
  * @module backend/services/rankingService
  */
 
@@ -64,7 +64,7 @@ async function countOverallPlayersAbove(poolRef, {
   const R = OVERALL_AVG_EXPR;
   const B = OVERALL_BADGE_COUNT_EXPR;
   const base = `
-    FROM statistics s
+    FROM player_statistics s
     INNER JOIN players p ON p.player_id = s.player_id
     INNER JOIN accounts a ON a.id = p.player_id
       AND a.serverId = ?
@@ -147,7 +147,7 @@ const SCORE_WEIGHTS = { battle: 1, events: 300, rep: 30, sf: 3 };
 let _schemaCache = { checked: false, hasColumns: false };
 
 /**
- * 检测 temp_ranking_snapshots 是否含 frozen_delta_* 列（只查一次）。
+ * 检测 temp_event_ranking 是否含 frozen_delta_* 列（只查一次）。
  * 有则用 COALESCE 兼容冻结 / 实时两种状态；无则仅用实时差值（旧行为）。
  */
 async function getDeltaSqlFragments() {
@@ -155,7 +155,7 @@ async function getDeltaSqlFragments() {
     try {
       const [rows] = await pool.query(
         `SELECT COUNT(*) AS c FROM information_schema.COLUMNS
-         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'temp_ranking_snapshots'
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'temp_event_ranking'
          AND COLUMN_NAME = 'frozen_delta_battle'`,
       );
       _schemaCache.hasColumns = Number(rows[0]?.c) > 0;
@@ -197,14 +197,14 @@ async function ensureRankingFrozen(eventId, hasColumns) {
 
   try {
     const [done] = await pool.query(
-      'SELECT frozen_at FROM temp_ranking_snapshots WHERE event_id = ? AND frozen_at IS NOT NULL LIMIT 1',
+      'SELECT frozen_at FROM temp_event_ranking WHERE event_id = ? AND frozen_at IS NOT NULL LIMIT 1',
       [eventId],
     );
     if (done.length > 0) return;
 
     await pool.query(
-      `UPDATE temp_ranking_snapshots snap
-       JOIN statistics s ON s.player_id = snap.player_id
+      `UPDATE temp_event_ranking snap
+       JOIN player_statistics s ON s.player_id = snap.player_id
        SET
          snap.frozen_delta_battle       = ${LEGACY_DELTA.battle},
          snap.frozen_delta_events       = ${LEGACY_DELTA.events},
@@ -229,14 +229,14 @@ async function ensureRankingFrozen(eventId, hasColumns) {
  */
 async function ensurePlayerSnapshot(eventId, playerId) {
   const [snapCheck] = await pool.query(
-    'SELECT 1 FROM temp_ranking_snapshots WHERE event_id = ? AND player_id = ?',
+    'SELECT 1 FROM temp_event_ranking WHERE event_id = ? AND player_id = ?',
     [eventId, playerId],
   );
   if (snapCheck.length > 0) return true;
 
   try {
     await pool.query(
-      `INSERT IGNORE INTO temp_ranking_snapshots
+      `INSERT IGNORE INTO temp_event_ranking
          (event_id, player_id,
           snapshot_battle_score, snapshot_events_completed,
           snapshot_reputation, snapshot_contribution,
@@ -246,11 +246,11 @@ async function ensurePlayerSnapshot(eventId, playerId) {
          s.total_reputation_earned, s.total_contribution_earned,
          s.total_gold_earned, s.total_food_earned,
          DATE_ADD(NOW(), INTERVAL 30 DAY)
-       FROM statistics s WHERE s.player_id = ?`,
+       FROM player_statistics s WHERE s.player_id = ?`,
       [eventId, playerId, playerId],
     );
     const [rechk] = await pool.query(
-      'SELECT 1 FROM temp_ranking_snapshots WHERE event_id = ? AND player_id = ?',
+      'SELECT 1 FROM temp_event_ranking WHERE event_id = ? AND player_id = ?',
       [eventId, playerId],
     );
     return rechk.length > 0;
@@ -302,8 +302,8 @@ async function getRankings(eventId, { limit = 10, playerId = null } = {}) {
        (${d.rep})    AS delta_rep_contrib,
        (${d.sf})     AS delta_silver_food,
        (${scoreSql}) AS total_score
-     FROM statistics s
-     JOIN temp_ranking_snapshots snap ON s.player_id = snap.player_id AND snap.event_id = ?
+     FROM player_statistics s
+     JOIN temp_event_ranking snap ON s.player_id = snap.player_id AND snap.event_id = ?
      JOIN players p ON s.player_id = p.player_id
      ORDER BY total_score DESC, delta_battle DESC, delta_events DESC, delta_rep_contrib DESC, delta_silver_food DESC
      LIMIT ?`,
@@ -323,8 +323,8 @@ async function getRankings(eventId, { limit = 10, playerId = null } = {}) {
            (${d.rep})    AS delta_rep_contrib,
            (${d.sf})     AS delta_silver_food,
            (${scoreSql}) AS total_score
-         FROM statistics s
-         JOIN temp_ranking_snapshots snap ON s.player_id = snap.player_id AND snap.event_id = ?
+         FROM player_statistics s
+         JOIN temp_event_ranking snap ON s.player_id = snap.player_id AND snap.event_id = ?
          WHERE s.player_id = ?`,
         [eventId, playerId],
       );
@@ -332,8 +332,8 @@ async function getRankings(eventId, { limit = 10, playerId = null } = {}) {
         const myTotal = Number(myRows[0].total_score) || 0;
         const [rankRows] = await pool.query(
           `SELECT COUNT(*) AS higher_count
-           FROM statistics s
-           JOIN temp_ranking_snapshots snap ON s.player_id = snap.player_id AND snap.event_id = ?
+           FROM player_statistics s
+           JOIN temp_event_ranking snap ON s.player_id = snap.player_id AND snap.event_id = ?
            WHERE (${scoreSql}) > ?`,
           [eventId, myTotal],
         );
@@ -351,7 +351,7 @@ async function getRankings(eventId, { limit = 10, playerId = null } = {}) {
 
   // 总参与人数
   const [countRows] = await pool.query(
-    'SELECT COUNT(*) AS total FROM temp_ranking_snapshots WHERE event_id = ?',
+    'SELECT COUNT(*) AS total FROM temp_event_ranking WHERE event_id = ?',
     [eventId],
   );
 
@@ -388,7 +388,7 @@ async function getOverallRankings(opts = {}) {
   }
 
   const baseJoin = `
-    FROM statistics s
+    FROM player_statistics s
     INNER JOIN players p ON p.player_id = s.player_id
     INNER JOIN accounts a ON a.id = p.player_id
       AND a.serverId = ?
@@ -449,7 +449,7 @@ async function getOverallRankings(opts = {}) {
          s.wins,
          p.reputation,
          ${OVERALL_BADGE_COUNT_EXPR} AS badge_count
-       FROM statistics s
+       FROM player_statistics s
        INNER JOIN players p ON p.player_id = s.player_id
        INNER JOIN accounts a ON a.id = p.player_id AND a.serverId = ?
        WHERE p.player_id = ?

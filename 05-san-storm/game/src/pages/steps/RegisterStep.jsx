@@ -162,7 +162,7 @@ export function RegisterStep({ selectedServer, onRegisterSuccess, onBack }) {
                 )}
                 {idPoolSource === 'local' && (
                   <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded px-2 py-1 mb-3">
-                    当前为离线候选；若注册提示 ID 已被使用，请刷新重试
+                    当前为离线候选；若注册失败，请刷新页面或确认后端已启动后重试
                   </p>
                 )}
                 <div className="space-y-2 mb-6">

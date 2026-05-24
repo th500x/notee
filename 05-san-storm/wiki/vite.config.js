@@ -28,7 +28,18 @@ export default defineConfig({
   },
   server: {
     port: 3001,
+    strictPort: true,
     open: true,
+    fs: {
+      allow: ['..'],
+    },
+    // 与 game 一致：开发走同源 /api 代理到 3005，避免直连跨域
+    proxy: {
+      '/api': {
+        target: 'http://127.0.0.1:3005',
+        changeOrigin: true,
+      },
+    },
     // 配置静态资源缓存响应头（开发环境）
     headers: {
       // 字体文件缓存 1 年

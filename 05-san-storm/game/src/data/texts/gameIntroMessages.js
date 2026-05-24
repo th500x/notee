@@ -29,7 +29,7 @@ export const gameIntroMessages = [
     position: 'bottom-right',
     icon: '🎲',
     title: '《氪金之路》',
-    content: '通过激活码开通的赛季战令是唯一氪金点（并可通过拉新免费获取），主要目的提高游戏性，平衡体验影响承诺不会超过5%',
+    content: '通过激活码开通的赛季战令是唯一氪金点（并可通过拉新免费获取），主要目的提高游戏性，平衡影响极小',
   },
   {
     id: 4,

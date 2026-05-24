@@ -525,16 +525,17 @@ async function placeAttackerBaseCampAndActivate(pvpWarId) {
   }
   const pick = pickBaseCampPlacement(candidates, pvpWarId);
 
-  const { stackWorldGyFromLocalJunRow } = await import('../../shared/utils/strategicWorldMapStack.js');
-  const worldCellKeys = pick.cells.map((cellKey) => {
-    const parts = String(cellKey)
-      .split(',')
-      .map((s) => Number(String(s).trim()));
-    const lx = parts[0];
-    const ly = parts[1];
-    const wy = stackWorldGyFromLocalJunRow(junId, ly);
-    return `${lx},${wy}`;
-  });
+  const gridCoords = require('../../shared/utils/strategicGridCoordinates.js');
+  const worldCellKeys = pick.cells
+    .map((cellKey) => {
+      const parts = String(cellKey)
+        .split(',')
+        .map((s) => Number(String(s).trim()));
+      const lx = parts[0];
+      const ly = parts[1];
+      return gridCoords.worldMapCellKeyFromPlayerRoadLocal(junId, lx, ly);
+    })
+    .filter(Boolean);
 
   const npcCount = computeBaseCampNpcCount(targetCity);
   const npcUnits = await generateBaseCampNpcUnits(targetCity, npcCount);
@@ -670,8 +671,9 @@ async function cancelPvpWar(pvpWarId, opts = {}) {
   return WarPvp.getById(pvpWarId);
 }
 
-/** 与 `SanGongFuChaoZhengPanel` 朝政品阶门闸一致：品阶 Lv ≤ 3（数字越小越高）。 */
-const MAX_POSITION_LEVEL_SANGONG_CHAOZHENG_PVP_WAR = 3;
+const {
+  assertChaoZhengPositionLevel,
+} = require('../../shared/utils/sanGongPositionGates.cjs');
 
 function sanGongClientError(message) {
   const err = new Error(message);
@@ -695,8 +697,10 @@ async function assertSanGongChaoZhengPvpWarGate(playerId) {
   if (!pRows.length) throw sanGongClientError('玩家不存在');
 
   const pl = Number(pRows[0].position_level);
-  if (!Number.isFinite(pl) || pl > MAX_POSITION_LEVEL_SANGONG_CHAOZHENG_PVP_WAR) {
-    throw sanGongClientError('需三阶及以上官职（朝政品阶 Lv≤3）方可操作势力战事');
+  try {
+    assertChaoZhengPositionLevel(pl);
+  } catch (e) {
+    throw sanGongClientError(e.message);
   }
   const factionId = String(pRows[0].faction_id || '').trim();
   if (!factionId) throw sanGongClientError('玩家未加入势力，无法操作势力战事');
@@ -948,7 +952,7 @@ async function recordBaseCampSiegeResult(pvpWarId, playerId, payload) {
 
     if (shouldFallbackBattleScore) {
       await conn.query(
-        'UPDATE statistics SET total_battle_score = total_battle_score + ? WHERE player_id = ?',
+        'UPDATE player_statistics SET total_battle_score = total_battle_score + ? WHERE player_id = ?',
         [Number(battleScore), playerId],
       );
     }
@@ -1290,7 +1294,6 @@ async function recordAttackerCitySiegeResult(pvpWarId, attackerPlayerId, payload
   const { checkAndApplyVeteran } = require('./veteranService');
   const { applyTroopDurabilityExhaustion } = require('./troopDurabilityService');
   const { KILL_SILVER_REWARD } = require('../../shared/utils/siegeKillEconomyByRarity.cjs');
-  const { WIN_REPUTATION_REWARD } = smallMapBattleLootService;
 
   const {
     defenderType = 'npc',
@@ -1462,20 +1465,19 @@ async function recordAttackerCitySiegeResult(pvpWarId, attackerPlayerId, payload
         }
       }
 
-      // 信誉（仅胜利时按击杀稀有度结算）
+      // 声望 + 装备掷骰（与贡献封装对称；仅玩家守军胜利且有击杀）
       if (result === 'win' && actualKillCount > 0) {
         const killedRarities = killedIndices
           .map((i) => garrisonUnits[i]?.rarity)
           .filter(Boolean);
-        const rarityOrder = ['common', 'rare', 'epic', 'legendary', 'core'];
-        const bestRarity =
-          killedRarities.sort((a, b) => rarityOrder.indexOf(b) - rarityOrder.indexOf(a))[0] ||
-          'common';
-        reputationReward = WIN_REPUTATION_REWARD[bestRarity] || 5;
-        await conn.query(
-          'UPDATE players SET reputation = reputation + ? WHERE player_id = ?',
-          [reputationReward, attackerPlayerId],
+        const bestRarity = smallMapBattleLootService.pickBestRarityFromKills(killedRarities);
+        const repLoot = await smallMapBattleLootService.grantWinReputationAndEquipment(
+          conn,
+          attackerPlayerId,
+          bestRarity,
         );
+        reputationReward = repLoot.reputationReward;
+        if (!equipmentDrop) equipmentDrop = repLoot.equipmentDrop;
       }
 
       // 披挂上阵：攻方胜利则解除待战状态
@@ -1578,7 +1580,7 @@ async function recordAttackerCitySiegeResult(pvpWarId, attackerPlayerId, payload
 
     if (shouldFallbackBattleScore) {
       await conn.query(
-        'UPDATE statistics SET total_battle_score = total_battle_score + ? WHERE player_id = ?',
+        'UPDATE player_statistics SET total_battle_score = total_battle_score + ? WHERE player_id = ?',
         [Number(battleScore), attackerPlayerId],
       );
     }

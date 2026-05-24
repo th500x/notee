@@ -13,10 +13,8 @@ import {
   STRATEGIC_BANDIT_DOMINO_OBJECT_H,
   STRATEGIC_BANDIT_DOMINO_OBJECT_V,
 } from '@shared/utils/strategicBanditPlaceholderPhase1.js';
-import {
-  stackWorldGyFromLocalJunRow,
-  SAN_1_STRATEGIC_VERTICAL_STACK_JUN_ORDER,
-} from '@shared/utils/strategicWorldMapStack.js';
+import { playerRoadToWorldMapCell } from '@shared/utils/strategicGridCoordinates.js';
+import { SAN_1_STRATEGIC_VERTICAL_STACK_JUN_ORDER } from '@shared/utils/strategicWorldMapStack.js';
 import { collectStrategicPvpCampFootprintFromBaseCamp } from '@shared/utils/strategicMarchPoi.js';
 
 /** 与瓦片内跨格对象图同挂，供滚动居中 / tooltip 锚点取几何中心 */
@@ -158,8 +156,8 @@ export function resolveStrategicTilePvpCampCover(ri, ci, pvpBaseCamps, cellsForD
         const lx = parts[0];
         const ly = parts[1];
         if (!Number.isFinite(lx) || !Number.isFinite(ly)) continue;
-        const wy = stackWorldGyFromLocalJunRow(jj, ly);
-        if (`${lx},${wy}` === here) {
+        const wCell = playerRoadToWorldMapCell(jj, lx, ly);
+        if (wCell && `${wCell.gx},${wCell.worldGy}` === here) {
           hit = true;
           matchedJun = jj;
           break outerJun;
@@ -170,7 +168,8 @@ export function resolveStrategicTilePvpCampCover(ri, ci, pvpBaseCamps, cellsForD
     const anchorJun = jid || matchedJun;
     const anchorLx = Number(c.anchorOx) || 0;
     const anchorLy = Number(c.anchorOy) || 0;
-    const anchorWy = stackWorldGyFromLocalJunRow(anchorJun, anchorLy);
+    const anchorWorld = playerRoadToWorldMapCell(anchorJun, anchorLx, anchorLy);
+    const anchorWy = anchorWorld?.worldGy ?? anchorLy;
     const orient = String(c.orientation || 'horizontal').toLowerCase();
     const vertical = orient === 'vertical';
     const footprintKind = vertical ? 'pvp_camp_1x2' : 'pvp_camp_2x1';

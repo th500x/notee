@@ -292,7 +292,9 @@ async function importPositions(connection) {
         position.icon || null,
         position.color || null,
         position.description || null,
-        position.requirement === 'AI' || position.requirement === '待定' ? 0 : parseInt(position.requirement) || 0,
+        position.requirement === 'AI' || position.requirement === 'KING_DAILY' || position.requirement === '待定'
+          ? 0
+          : parseInt(position.requirement) || 0,
         JSON.stringify(positionBonuses),
         JSON.stringify(position.permissions || [])
       ]);

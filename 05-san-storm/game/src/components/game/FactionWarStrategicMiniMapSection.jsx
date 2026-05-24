@@ -13,10 +13,10 @@ import {
 import { collectStrategicCityFootprintsForMiniMap } from '@shared/utils/strategicMiniMapGeometry.js';
 import {
   SAN_1_STRATEGIC_VERTICAL_STACK_JUN_ORDER,
-  stackWorldGyFromLocalJunRow,
   san1YuStrategicAdminJunIdAtWorldCell,
   buildSan1YuStrategicSeamGuidePathD,
 } from '@shared/utils/strategicWorldMapStack.js';
+import { playerRoadToWorldMapCell } from '@shared/utils/strategicGridCoordinates.js';
 import StrategicMiniMapSvg from '@shared/components/world/StrategicMiniMapSvg.jsx';
 import { buildStrategicMiniMapCityRects } from '@/utils/buildStrategicMiniMapCityRects';
 import { computeStrategicMiniMapProximityHighlights } from '@/utils/computeStrategicMiniMapProximityHighlights';
@@ -145,10 +145,10 @@ export default function FactionWarStrategicMiniMapSection({
     const lx = Number(player.road_position_x ?? player.roadPositionX);
     const ly = Number(player.road_position_y ?? player.roadPositionY);
     if (!junId || !Number.isFinite(lx) || !Number.isFinite(ly)) return null;
-    const wy = stackWorldGyFromLocalJunRow(String(junId).trim(), ly);
-    if (!Number.isFinite(wy)) return null;
-    const gx = Math.trunc(lx);
-    const gy = Math.trunc(wy);
+    const w = playerRoadToWorldMapCell(String(junId).trim(), lx, ly);
+    if (!w) return null;
+    const gx = w.gx;
+    const gy = w.worldGy;
     if (gx < 0 || gy < 0 || gx >= mapColumns || gy >= mapRows) return null;
     return {
       cx: gx + 0.5,

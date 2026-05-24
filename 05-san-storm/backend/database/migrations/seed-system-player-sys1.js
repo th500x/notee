@@ -67,7 +67,7 @@ async function main() {
   );
 
   await pool.query(
-    `INSERT INTO statistics (player_id) VALUES (?)
+    `INSERT INTO player_statistics (player_id) VALUES (?)
      ON DUPLICATE KEY UPDATE player_id = player_id`,
     [SYS_ID]
   );

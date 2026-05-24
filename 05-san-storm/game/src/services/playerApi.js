@@ -115,11 +115,12 @@ export const playerAPI = {
     }
   },
 
-  async getFactionBulletin(playerId, { limit = 50 } = {}) {
+  async getFactionBulletin(playerId, { limit = 50, category = null } = {}) {
     try {
-      const qs = new URLSearchParams({ limit: String(limit) }).toString();
+      const qs = new URLSearchParams({ limit: String(limit) });
+      if (category) qs.set('category', String(category));
       const response = await fetchWithTimeout(
-        `${API_CONFIG.BASE_URL}/players/${playerId}/faction/bulletin?${qs}`,
+        `${API_CONFIG.BASE_URL}/players/${playerId}/faction/bulletin?${qs.toString()}`,
         { method: 'GET', headers: { 'Content-Type': 'application/json' } },
       );
       return response.json();
@@ -338,7 +339,7 @@ export const playerAPI = {
     return response.json();
   },
 
-  /** 三公府 · 朝政：本势力攻方进行中的攻城类 PVP 战事列表（品阶 Lv≤3） */
+  /** 三公府 · 朝政：本势力攻方进行中的攻城类 PVP 战事列表（品阶 Lv≤1） */
   async getSanGongFuPvpAttackingWars(playerId) {
     const response = await fetchWithTimeout(
       `${API_CONFIG.BASE_URL}/players/${playerId}/san-gong-fu/pvp-attacking-wars`,
@@ -373,6 +374,38 @@ export const playerAPI = {
     return response.json();
   },
 
+  /** 势力 Tab · 公告：谕旨 / 文书 / 战事（只读）+ 外交占位 */
+  async getSanGongFuBulletin(playerId, { limitPerCategory = 30 } = {}) {
+    const qs = new URLSearchParams({ limitPerCategory: String(limitPerCategory) });
+    const response = await fetchWithTimeout(
+      `${API_CONFIG.BASE_URL}/players/${playerId}/san-gong-fu/bulletin?${qs.toString()}`,
+      { method: 'GET', headers: { 'Content-Type': 'application/json' } },
+    );
+    return response.json();
+  },
+
+  /** 三公府 · 朝政 · 文书：当日发布次数（一品 position_level = 1） */
+  async getSanGongFuDocumentStatus(playerId) {
+    const response = await fetchWithTimeout(
+      `${API_CONFIG.BASE_URL}/players/${playerId}/san-gong-fu/document-status`,
+      { method: 'GET', headers: { 'Content-Type': 'application/json' } },
+    );
+    return response.json();
+  },
+
+  /** 三公府 · 朝政 · 文书：发布（body 为正文，每日最多 3 条） */
+  async postSanGongFuDocument(playerId, body) {
+    const response = await fetchWithTimeout(
+      `${API_CONFIG.BASE_URL}/players/${playerId}/san-gong-fu/document`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ body }),
+      },
+    );
+    return response.json();
+  },
+
   /** 军营池 → 主城驻军所仓库 */
   async transferMainCityBarracksIn(playerId, instanceIds) {
     const response = await fetchWithTimeout(
@@ -400,7 +433,7 @@ export const playerAPI = {
   },
 
   /**
-   * 个人中心「统计」：statistics 表一行
+   * 个人中心「统计」：player_statistics 表一行
    */
   async getStatistics(playerId) {
     try {

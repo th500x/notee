@@ -2,7 +2,10 @@
  * 战略大地图「进度条」一键定位：最近己方中/大城、郡内匪寨锚点格（首点最近、同郡再点按稳定序循环切换）等（世界格坐标 gy 与合并 `cells` 一致）。
  */
 
-import { stackWorldGyFromLocalJunRow, stackLocalJunRowFromWorldGy } from '@shared/utils/strategicWorldMapStack.js';
+import {
+  worldMapCellFromCityDbRow,
+  playerRoadJunSliceFromWorldGy,
+} from '@shared/utils/strategicGridCoordinates.js';
 import { readStrategicCellAnchorId } from '@shared/utils/strategicCellAnchorId.js';
 import { isBanditMapObjectId } from '@shared/utils/smallMapEnemyRoster';
 
@@ -20,9 +23,9 @@ export function cityDbPosToWorldStrategicCell(city) {
   const lx = Number(city?.position_x ?? city?.positionX);
   const ly = Number(city?.position_y ?? city?.positionY);
   if (!jid || !Number.isFinite(lx) || !Number.isFinite(ly)) return null;
-  const gx = Math.trunc(lx);
-  const worldGy = stackWorldGyFromLocalJunRow(jid, Math.trunc(ly));
-  return { gx, gy: worldGy };
+  const w = worldMapCellFromCityDbRow(city);
+  if (!w) return null;
+  return { gx: w.gx, gy: w.worldGy };
 }
 
 function manhattan(ax, ay, bx, by) {
@@ -60,7 +63,7 @@ export function collectBanditAnchorCellsByJunFromWorldGrid(cells) {
   for (let wy = 0; wy < cells.length; wy++) {
     const row = cells[wy];
     if (!row) continue;
-    const loc = stackLocalJunRowFromWorldGy(wy);
+    const loc = playerRoadJunSliceFromWorldGy(wy);
     const junId = loc?.junId;
     if (!junId) continue;
     for (let gx = 0; gx < row.length; gx++) {

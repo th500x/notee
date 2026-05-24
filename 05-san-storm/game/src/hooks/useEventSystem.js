@@ -22,6 +22,7 @@ import {
   getExploreOptionResolution,
   eventSkipsExploreQuota,
   getTutorialChainCompletedLevelForPool,
+  getTutorialChainCompletedLevelForMapHint,
   TUTORIAL_EXPLORE_CHAIN_ID,
 } from '@/components/event/eventUtils';
 import { validateMainLineupBattleGate } from '@/utils/mainLineupTroops';
@@ -118,10 +119,11 @@ const DEFAULT_GENERAL = {
 };
 
 /**
- * @param {{ tutorialAutoplay?: boolean, persistMapEventHint?: boolean, exploreAnchorGridRef?: { current: null | { cells: unknown[][], mapColumns: number, mapRows: number, countyCityRows?: object[] } }, exploreAnchorGridSeq?: number }} [options] — 仅大地图挂载时应为 true，用于教程链 IDLE 自动开事件；探索 Tab 等第二实例勿开，避免双轨。
+ * @param {{ tutorialAutoplay?: boolean, suppressMapEventHint?: boolean, persistMapEventHint?: boolean, exploreAnchorGridRef?: { current: null | { cells: unknown[][], mapColumns: number, mapRows: number, countyCityRows?: object[] } }, exploreAnchorGridSeq?: number }} [options] — 仅大地图挂载时应为 true，用于教程链 IDLE 自动开事件；探索 Tab 等第二实例勿开，避免双轨。
  */
 export default function useEventSystem(player, cards, options = {}) {
   const tutorialAutoplay = options.tutorialAutoplay === true;
+  const suppressMapEventHint = options.suppressMapEventHint === true;
   const persistMapEventHint = options.persistMapEventHint === true;
   const exploreAnchorGridRef = options.exploreAnchorGridRef;
   const exploreAnchorGridSeq = options.exploreAnchorGridSeq ?? 0;
@@ -161,6 +163,8 @@ export default function useEventSystem(player, cards, options = {}) {
   const [minigameInfo, setMinigameInfo] = useState(null);
   /** 进入惩罚战斗前校验失败（避免进入无退出的 BattleArena） */
   const [battleEntryBlockedMessage, setBattleEntryBlockedMessage] = useState(null);
+  /** 奖励发放 API 失败（传奇/核心部队、道具不足等）：须弹窗告知玩家 */
+  const [exploreNoticeMessage, setExploreNoticeMessage] = useState(null);
 
   // 未完成的事件（关闭对话框后保留，下次探索复用）
   // 持久化到 localStorage，防止刷新页面刷事件
@@ -305,6 +309,12 @@ export default function useEventSystem(player, cards, options = {}) {
       playerItemCounts
     ),
     [allExploreEvents, completedEvents, playerItemCounts]
+  );
+
+  /** 大地图 `event_hint` 用严格连打环数（与左上角「教程 n/max」一致，不受背包钥匙抬高） */
+  const tutorialChainCompletedForHint = useMemo(
+    () => getTutorialChainCompletedLevelForMapHint(allExploreEvents, completedEvents),
+    [allExploreEvents, completedEvents]
   );
 
   /** M2：是否处于教程流程仅看 `chain_tutorial_v1` 的 explore 进度，不用 tutorial_step */
@@ -504,36 +514,63 @@ export default function useEventSystem(player, cards, options = {}) {
   }, [persistMapEventHint, player?.player_id, pendingMapEventHint]);
 
   /**
-   * 教程链 IDLE、且尚无 `closeReward` 写入的 pending：用**下一环**模板上的 `event_hint` 作为大地图指引
-   *（`event_hint` 列语义为「当前环玩家应做的事」；领奖后 `closeReward` 亦优先写入下一环文案）。
+   * 教程链 IDLE、且尚无 `closeReward` 写入的 pending：用**上一环已完成模板**上的 `event_hint`。
+   * `event_hint` 写在 chain_level=N 表示「进行教程第 N+1 步 / 触发第 N+1 环前」应做的事（例 2/6 显示 1001 文案，非 1002）。
    */
   const tutorialIdleMapEventHint = useMemo(() => {
-    if (!persistMapEventHint || !isTutorial || phase !== PHASE.IDLE) return null;
+    if (suppressMapEventHint || !persistMapEventHint || !isTutorial || phase !== PHASE.IDLE) return null;
     if (!exploreProgressReady || !allExploreEvents?.length) return null;
-    const nextLvl = tutorialChainCompleted + 1;
-    if (nextLvl < 1 || nextLvl > tutorialChainMaxLevel) return null;
-    const nextEvt = allExploreEvents.find(
+    const currentStep = tutorialChainCompletedForHint + 1;
+    if (currentStep < 1 || currentStep > tutorialChainMaxLevel) return null;
+    const hintChainLevel = Math.max(1, tutorialChainCompletedForHint);
+    const hintEvt = allExploreEvents.find(
       (e) =>
         String(e.chain_id || '').trim() === TUTORIAL_EXPLORE_CHAIN_ID &&
-        Number(e.chain_level) === nextLvl
+        Number(e.chain_level) === hintChainLevel
     );
-    const hn = nextEvt?.event_hint ?? nextEvt?.eventHint;
+    const hn = hintEvt?.event_hint ?? hintEvt?.eventHint;
     return typeof hn === 'string' && hn.trim() ? hn.trim() : null;
   }, [
+    suppressMapEventHint,
     persistMapEventHint,
     isTutorial,
     phase,
     exploreProgressReady,
-    tutorialChainCompleted,
+    tutorialChainCompletedForHint,
     tutorialChainMaxLevel,
     allExploreEvents,
   ]);
 
+  /** 教程进行中：用推导文案覆盖 session 内旧的「下一环」匪寨等脏数据 */
+  useEffect(() => {
+    if (!persistMapEventHint || !isTutorial || phase !== PHASE.IDLE || !tutorialIdleMapEventHint) return;
+    const canonical = String(tutorialIdleMapEventHint).trim();
+    const pending = pendingMapEventHint && String(pendingMapEventHint).trim();
+    if (pending === canonical) return;
+    setPendingMapEventHint(canonical);
+  }, [
+    persistMapEventHint,
+    isTutorial,
+    phase,
+    tutorialIdleMapEventHint,
+    pendingMapEventHint,
+  ]);
+
   const mapEventHintDisplay = useMemo(() => {
+    if (suppressMapEventHint) return null;
+    if (isTutorial && phase === PHASE.IDLE && tutorialIdleMapEventHint) {
+      return tutorialIdleMapEventHint;
+    }
     const p = pendingMapEventHint && String(pendingMapEventHint).trim();
     if (p) return p;
     return tutorialIdleMapEventHint || null;
-  }, [pendingMapEventHint, tutorialIdleMapEventHint]);
+  }, [
+    suppressMapEventHint,
+    isTutorial,
+    phase,
+    pendingMapEventHint,
+    tutorialIdleMapEventHint,
+  ]);
 
   // 根据地点 + 链进度过滤可用事件池（用于 UI 展示默认地点池子大小等）
   const exploreEvents = useMemo(() => {
@@ -621,6 +658,7 @@ export default function useEventSystem(player, cards, options = {}) {
    */
   const startExplore = useCallback((locationOverride, exploreOpts, completedEventsOverride, playerItemCountsOverride) => {
     if (!playerAttrs) return false;
+    setExploreNoticeMessage(null);
     if (pendingKey) {
       clearExploreResumeLocal(pendingKey);
       try {
@@ -876,8 +914,46 @@ export default function useEventSystem(player, cards, options = {}) {
     quota.canExplore,
   ]);
 
+  /** 探索中断：关弹窗、清 pending、回 IDLE（开战门闸与奖励失败共用） */
+  const resetExploreSessionAfterAbort = useCallback(() => {
+    clearInflightBattleTroopSnapshot();
+    strategicExploreReopenBridge.clear();
+    tutorialExploreBlockedRef.current = false;
+    if (pendingKey) {
+      clearExploreResumeLocal(pendingKey);
+      try {
+        localStorage.removeItem(`${pendingKey}_inprogress`);
+      } catch {
+        /* ignore */
+      }
+    }
+    if (persistMapEventHint && player?.player_id) {
+      try {
+        const k = pendingMapEventHintStorageKey(player.player_id);
+        if (k) sessionStorage.removeItem(k);
+      } catch {
+        /* ignore */
+      }
+    }
+    setPendingMapEventHint(null);
+    setCurrentEvent(null);
+    setPendingEvent(null);
+    setChosenOption(null);
+    setChosenOptionKey(null);
+    setFortune(null);
+    setMinigameInfo(null);
+    setBattleResult(null);
+    setBattleSilverSpent(0);
+    setBattleScore(null);
+    setBattleChestRewards([]);
+    setRewardDetails(null);
+    setPhase(PHASE.IDLE);
+    void refetchExploreProgress();
+  }, [pendingKey, setPendingEvent, persistMapEventHint, player?.player_id, refetchExploreProgress]);
+
   // 关闭事件对话框（未选选项）：已在本轮 `startExplore` 扣过次数则退还，并清空 pending，避免与「已扣费」状态不一致。
   const closeEvent = useCallback(() => {
+    setExploreNoticeMessage(null);
     clearInflightBattleTroopSnapshot();
     if (pendingKey) {
       clearExploreResumeLocal(pendingKey);
@@ -920,58 +996,20 @@ export default function useEventSystem(player, cards, options = {}) {
   // 应用后端返回的fortune和奖励到state；失败时退回 IDLE 并退还次数，避免卡在 REWARD/RESULT 导致全图无法点
   const applyRewardResponse = useCallback((data) => {
     if (!data?.success) {
-      console.error('[useEventSystem] 奖励发放失败:', data?.error);
-      const err = data?.error || '';
+      const err =
+        (data && typeof data.error === 'string' && data.error.trim())
+        || (data == null ? '网络异常，请稍后重试' : '奖励发放失败，请稍后重试');
+      console.error('[useEventSystem] 奖励发放失败:', err);
       const isDup = err.includes('已完成') || err.includes('重复');
       if (isDup) {
-        clearInflightBattleTroopSnapshot();
         console.log('[useEventSystem] 事件已完成或重复领取，跳过并退还探索次数');
         if (!eventSkipsExploreQuota(currentEvent)) quota.refund();
-        refetchExploreProgress();
-        setCurrentEvent(null);
-        setPendingEvent(null);
-        setChosenOption(null);
-        setChosenOptionKey(null);
-        setRewardDetails(null);
-        setFortune(null);
-        setMinigameInfo(null);
-        setBattleResult(null);
-        setBattleSilverSpent(0);
-        setBattleScore(null);
-        setBattleChestRewards([]);
-        if (pendingKey) {
-          clearExploreResumeLocal(pendingKey);
-          try {
-            localStorage.removeItem(`${pendingKey}_inprogress`);
-          } catch {
-            /* ignore */
-          }
-        }
-        setPhase(PHASE.IDLE);
+        resetExploreSessionAfterAbort();
         return false;
       }
-      clearInflightBattleTroopSnapshot();
-      if (pendingKey) {
-        clearExploreResumeLocal(pendingKey);
-        try {
-          localStorage.removeItem(`${pendingKey}_inprogress`);
-        } catch {
-          /* ignore */
-        }
-      }
       if (!eventSkipsExploreQuota(currentEvent)) quota.refund();
-      setRewardDetails({ rewards: [], bonusRewards: [] });
-      setCurrentEvent(null);
-      setPendingEvent(null);
-      setChosenOption(null);
-      setChosenOptionKey(null);
-      setFortune(null);
-      setMinigameInfo(null);
-      setBattleResult(null);
-      setBattleSilverSpent(0);
-      setBattleScore(null);
-      setBattleChestRewards([]);
-      setPhase(PHASE.IDLE);
+      setExploreNoticeMessage(err);
+      resetExploreSessionAfterAbort();
       return false;
     }
     const sf = data.data.fortune;
@@ -1005,7 +1043,7 @@ export default function useEventSystem(player, cards, options = {}) {
       refetchExploreProgress();
     }
     return true;
-  }, [quota, setPendingEvent, pendingKey, player?.player_id, refetchExploreProgress, currentEvent]);
+  }, [quota, currentEvent, resetExploreSessionAfterAbort, player?.player_id, refetchExploreProgress]);
 
   // 选择选项（探索次数已在 `startExplore` 扣除，此处不再 consume）
   const chooseOption = useCallback((option, optionKey) => {
@@ -1057,43 +1095,16 @@ export default function useEventSystem(player, cards, options = {}) {
     }, 1000);
   }, [requestRewards, applyRewardResponse, pendingKey, currentEvent]);
 
-  /** 凶/大凶选战但门闸失败：关弹窗后必须回到 IDLE，否则 phase 仍停在 RESULT，`eventBusy` 会一直挡住底栏（见 14-1 开战门闸与大地图一致）。不退还探索次数（已 startExplore 扣费）。 */
+  /** 凶/大凶选战但门闸失败：关弹窗后必须回到 IDLE，否则 phase 仍停在 RESULT，`eventBusy` 会一直挡住底栏。不退还探索次数（已 startExplore 扣费）。 */
   const dismissBattleEntryBlocked = useCallback(() => {
-    clearInflightBattleTroopSnapshot();
     setBattleEntryBlockedMessage(null);
-    strategicExploreReopenBridge.clear();
-    tutorialExploreBlockedRef.current = false;
-    if (pendingKey) {
-      clearExploreResumeLocal(pendingKey);
-      try {
-        localStorage.removeItem(`${pendingKey}_inprogress`);
-      } catch {
-        /* ignore */
-      }
-    }
-    if (persistMapEventHint && player?.player_id) {
-      try {
-        const k = pendingMapEventHintStorageKey(player.player_id);
-        if (k) sessionStorage.removeItem(k);
-      } catch {
-        /* ignore */
-      }
-    }
-    setPendingMapEventHint(null);
-    setCurrentEvent(null);
-    setPendingEvent(null);
-    setChosenOption(null);
-    setChosenOptionKey(null);
-    setFortune(null);
-    setMinigameInfo(null);
-    setBattleResult(null);
-    setBattleSilverSpent(0);
-    setBattleScore(null);
-    setBattleChestRewards([]);
-    setRewardDetails(null);
-    setPhase(PHASE.IDLE);
-    void refetchExploreProgress();
-  }, [pendingKey, setPendingEvent, persistMapEventHint, player?.player_id, refetchExploreProgress]);
+    resetExploreSessionAfterAbort();
+  }, [resetExploreSessionAfterAbort]);
+
+  const dismissExploreNotice = useCallback(() => {
+    setExploreNoticeMessage(null);
+    resetExploreSessionAfterAbort();
+  }, [resetExploreSessionAfterAbort]);
 
   // 判定结果确认
   const confirmResult = useCallback(() => {
@@ -1196,22 +1207,8 @@ export default function useEventSystem(player, cards, options = {}) {
     if (ev) {
       const hSelf = ev.event_hint ?? ev.eventHint;
       const selfHint = typeof hSelf === 'string' && hSelf.trim() ? hSelf.trim() : null;
-      if (chainIdNorm === TUTORIAL_EXPLORE_CHAIN_ID && tutorialChainMaxLevel > 0) {
-        const lvl = Number(ev.chain_level);
-        let nextHint = null;
-        if (Number.isFinite(lvl) && lvl >= 1 && lvl < tutorialChainMaxLevel) {
-          const nextEvt = allExploreEvents.find(
-            (e) =>
-              String(e.chain_id || '').trim() === TUTORIAL_EXPLORE_CHAIN_ID &&
-              Number(e.chain_level) === lvl + 1
-          );
-          const hn = nextEvt?.event_hint ?? nextEvt?.eventHint;
-          nextHint = typeof hn === 'string' && hn.trim() ? hn.trim() : null;
-        }
-        nextMapEventHint = nextHint || selfHint;
-      } else {
-        nextMapEventHint = selfHint;
-      }
+      // 教程链 event_hint 写在第 L 环、指引第 L+1 步；勿再取 L+1 环模板（会与 2/6 误显匪寨等）
+      nextMapEventHint = selfHint;
       setPendingMapEventHint(nextMapEventHint);
       const anchorCityId = ev.explore_anchor_city_id;
       const subKind = ev.explore_subsidiary_kind;
@@ -1315,6 +1312,8 @@ export default function useEventSystem(player, cards, options = {}) {
     playerId: player?.player_id || null,
     battleEntryBlockedMessage,
     dismissBattleEntryBlocked,
+    exploreNoticeMessage,
+    dismissExploreNotice,
 
     // 操作
     startExplore,
@@ -1333,9 +1332,9 @@ export default function useEventSystem(player, cards, options = {}) {
     /** 服务端会话锁 JSON；新开探索/教程链前可依此禁止并行（PATCH 写入见 playerApi.patchExploreSessionLock） */
     exploreSessionLock,
 
-    /** 完成探索事件后在大地图展示的下一步提示（`event_hint`）；教程链优先取下一环模板文案 */
+    /** 完成探索事件后在大地图展示的下一步提示（`event_hint`）；教程链取刚完成环模板文案 */
     pendingMapEventHint,
-    /** 大地图气泡用：`pendingMapEventHint` 或教程 IDLE 时由下一环 `event_hint` 推导 */
+    /** 大地图气泡用：`pendingMapEventHint` 或教程 IDLE 时由「当前步对应上一环」`event_hint` 推导 */
     mapEventHintDisplay,
 
     /** 教程链进行中时供大地图等展示「教程 current/max」（与 `isTutorial` 同条件） */

@@ -136,7 +136,7 @@ router.post('/', async (req, res, next) => {
 
     const { rewards, chestRewards, troopCasualties, moraleUpdates } = req.body;
 
-    // statistics 场次/胜负/杀伤 在 battleService.saveBattle 内累加（与攻城等服务端写战报共用）
+    // player_statistics 场次/胜负/杀伤 在 battleService.saveBattle 内累加（与攻城等服务端写战报共用）
     // 战役：客户端上报自动战斗银两 + 出征粮草（避免与事件奖励/攻城结算重复计数）
     if (battleType === 'pve_campaign') {
       await statisticsDeltaService.incrementSpent(playerId, {

@@ -215,6 +215,23 @@ async function maybeResetExploreEventChainsDaily(playerId) {
   }
 }
 
+/**
+ * 部队耐久整编链终章（传奇/核心）：选项 B 为保底路径 — 仍扣事件级链钥匙道具并发奖，不校验/不执行耐久修复。
+ * @see docs/10-core-system/14-1-EVENT_SYSTEM.md §道具 special_effect
+ */
+const TROOP_CHAIN_FINALE_INSURANCE_OPTION_B_EVENT_IDS = new Set([
+  'san_1_event_2003',
+  'san_1_event_2006',
+]);
+
+/**
+ * @param {string} eventId
+ * @param {string} optionKey - 'A' | 'B'
+ */
+function isTroopChainFinaleInsuranceOption(eventId, optionKey) {
+  return optionKey === 'B' && TROOP_CHAIN_FINALE_INSURANCE_OPTION_B_EVENT_IDS.has(String(eventId || '').trim());
+}
+
 /** 带战斗的选项：整编类道具是否延后到战斗奖励之后（仅选项 A 可能进惩罚战） */
 function shouldDeferTroopRepairAfterBattleRewards(option, battleResult, fortune, optionKey) {
   if (optionKey === 'B') return false;
@@ -358,6 +375,7 @@ module.exports = {
   isExploreChainStrandedRedo,
   maybeResetExploreEventChainsDaily,
   shouldDeferTroopRepairAfterBattleRewards,
+  isTroopChainFinaleInsuranceOption,
   recordExploreChainEventCompleted,
   getExploreEvents,
   setExploreSessionLock,

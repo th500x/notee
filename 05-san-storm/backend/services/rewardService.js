@@ -16,6 +16,7 @@ const { pool } = require('../database/connection');
 const statisticsDeltaService = require('./statisticsDeltaService');
 const { getOptionFactorFields } = require('../../shared/utils/eventOptionFactor.js');
 const { expandRewardPresetsForExecute } = require('../../shared/utils/eventRewardPresets.js');
+const { drawRandomPositionByLevel } = require('../../shared/utils/eventPositionRewardPools.cjs');
 
 /** MySQL ENUM / 大小写 / 空值 → 标准稀有度字符串 */
 function normalizeEnumRarity(raw) {
@@ -178,6 +179,18 @@ function parseRewardString(rewardStr) {
       }
     }
 
+    // 随机官职: random:position:level:{N}（须在 random_card 之前分支）
+    if (t.startsWith('random:position:')) {
+      const parts = t.split(':');
+      if (parts[1] === 'position' && parts[2] === 'level') {
+        const positionLevel = parseInt(parts[3], 10);
+        if (Number.isFinite(positionLevel)) {
+          return { type: 'random_position', positionLevel };
+        }
+      }
+      return { type: 'unknown', raw: t };
+    }
+
     // 随机卡牌: random:type:rarity[:qty]
     if (t.startsWith('random:')) {
       const parts = t.split(':');
@@ -209,7 +222,7 @@ function parseRewardString(rewardStr) {
       };
     }
 
-    // 官职: san_1_position_junhou
+    // 官职: san_1_position_junhou 等固定 id
     if (t.includes('_position_')) {
       return {
         type: 'position',
@@ -243,7 +256,6 @@ function replaceFactionWildcard(cardId, factionId) {
   // 替换 _x 为 _势力编号
   return cardId.replace(/_x/, `_${factionNumber}`);
 }
-
 
 // ── 从稀有度获取 max_battle_count ────────────────────────────
 
@@ -555,11 +567,22 @@ async function executeRewards(playerId, rewardStr, multiplier, factionId) {
       details.push({ type: 'item', itemId: r.itemId, itemName, quantity: qty });
     }
 
-    // ── 2.5 官职奖励 → 更新 players 表的官职字段 ──
-    for (const r of rewards.filter(r => r.type === 'position')) {
+    // ── 2.5 官职奖励 → 更新 players 表的官职字段（固定 id 或 random:position:level:N）──
+    for (const r of rewards.filter((x) => x.type === 'position' || x.type === 'random_position')) {
+      let positionId = r.type === 'position' ? r.positionId : null;
+      if (r.type === 'random_position') {
+        positionId = await drawRandomPositionByLevel(connection, {
+          factionId,
+          positionLevel: r.positionLevel,
+        });
+      }
+      if (!positionId) {
+        console.error('[Rewards] 官职奖励池为空或无法解析:', r);
+        continue;
+      }
       const [posRows] = await connection.query(
         'SELECT position_id, position_name, position_level FROM config_positions WHERE position_id = ?',
-        [r.positionId]
+        [positionId]
       );
       if (posRows[0]) {
         const pos = posRows[0];
@@ -715,9 +738,9 @@ async function executeRewards(playerId, rewardStr, multiplier, factionId) {
       }
     }
 
-    // ── 5. 更新 statistics.total_events_completed ──
+    // ── 5. 更新 player_statistics.total_events_completed ──
     await connection.query(
-      'UPDATE statistics SET total_events_completed = total_events_completed + 1 WHERE player_id = ?',
+      'UPDATE player_statistics SET total_events_completed = total_events_completed + 1 WHERE player_id = ?',
       [playerId]
     );
 
@@ -730,6 +753,39 @@ async function executeRewards(playerId, rewardStr, multiplier, factionId) {
   } finally {
     connection.release();
   }
+}
+
+/**
+ * 在已有事务 connection 上授予官职（与 grantPositionById 语义一致）
+ * @param {import('mysql2/promise').PoolConnection} connection
+ */
+async function grantPositionOnConnection(connection, playerId, positionId) {
+  const pid = String(playerId || '').trim();
+  const posId = String(positionId || '').trim();
+  if (!pid || !posId) {
+    return { ok: false, status: 400, error: '参数无效' };
+  }
+  const [posRows] = await connection.query(
+    'SELECT position_id, position_name, position_level FROM config_positions WHERE position_id = ?',
+    [posId],
+  );
+  if (!posRows[0]) {
+    return { ok: false, status: 404, error: '官职不存在' };
+  }
+  const pos = posRows[0];
+  await connection.query(
+    'UPDATE players SET current_position_id = ?, current_position_name = ?, position_level = ? WHERE player_id = ?',
+    [pos.position_id, pos.position_name, pos.position_level, pid],
+  );
+  return {
+    ok: true,
+    detail: {
+      type: 'position',
+      positionId: pos.position_id,
+      positionName: pos.position_name,
+      positionLevel: pos.position_level,
+    },
+  };
 }
 
 /**
@@ -747,30 +803,16 @@ async function grantPositionById(playerId, positionId) {
   const connection = await pool.getConnection();
   try {
     await connection.beginTransaction();
-    const [posRows] = await connection.query(
-      'SELECT position_id, position_name, position_level FROM config_positions WHERE position_id = ?',
-      [posId],
-    );
-    if (!posRows[0]) {
+    const grant = await grantPositionOnConnection(connection, pid, posId);
+    if (!grant.ok) {
       await connection.rollback();
-      return { ok: false, status: 404, error: '官职不存在' };
+      return grant;
     }
-    const pos = posRows[0];
-    await connection.query(
-      'UPDATE players SET current_position_id = ?, current_position_name = ?, position_level = ? WHERE player_id = ?',
-      [pos.position_id, pos.position_name, pos.position_level, pid],
-    );
     await connection.commit();
-    console.log(`[Rewards] grantPositionById: ${pos.position_name} (Lv.${pos.position_level}) → ${pid}`);
-    return {
-      ok: true,
-      detail: {
-        type: 'position',
-        positionId: pos.position_id,
-        positionName: pos.position_name,
-        positionLevel: pos.position_level,
-      },
-    };
+    console.log(
+      `[Rewards] grantPositionById: ${grant.detail.positionName} (Lv.${grant.detail.positionLevel}) → ${pid}`,
+    );
+    return grant;
   } catch (e) {
     await connection.rollback();
     console.error('[rewardService] grantPositionById', e);
@@ -880,5 +922,6 @@ module.exports = {
   grantSpecificCardsOnConnection,
   executeRewards,
   grantPositionById,
+  grantPositionOnConnection,
   FORTUNE_MULTIPLIERS,
 };

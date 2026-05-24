@@ -14,6 +14,11 @@
  */
 
 import { RARITY_LABEL, RARITY_COLOR_MINI } from './lineupSlots';
+import {
+  formatStipendContributionCompact,
+  formatStipendReputationCompact,
+  formatStipendResourceCompact,
+} from '@shared/utils/formatPositionStipendBonuses.js';
 
 export default function LineupEquipSlot({ slot, content, isSelected, onClick, baseUrl, skillsMap, mini = false }) {
   const isEmpty = !content;
@@ -153,23 +158,23 @@ export default function LineupEquipSlot({ slot, content, isSelected, onClick, ba
           <span className="text-white font-medium truncate" style={{ fontSize: fs1 }}>{content.name}</span>
           <span className={`font-bold flex-shrink-0 ${RARITY_COLOR_MINI[rarity]}`} style={{ fontSize: fsR }}>{RARITY_LABEL[rarity]}</span>
         </div>
-        {(bonuses.reputationBonus > 0 ||
-          bonuses.contributionBonus > 0 ||
-          bonuses.resourceBonus > 0) && (
+        {(formatStipendReputationCompact(bonuses.reputationBonus) ||
+          formatStipendContributionCompact(bonuses.contributionBonus) ||
+          formatStipendResourceCompact(bonuses.resourceBonus)) && (
           <div className="flex items-center gap-1 w-full flex-wrap">
-            {bonuses.reputationBonus > 0 && (
+            {formatStipendReputationCompact(bonuses.reputationBonus) && (
               <span className="text-purple-400" style={{ fontSize: fs2 }}>
-                声+{(bonuses.reputationBonus * 100).toFixed(0)}%
+                {formatStipendReputationCompact(bonuses.reputationBonus)}
               </span>
             )}
-            {bonuses.contributionBonus > 0 && (
+            {formatStipendContributionCompact(bonuses.contributionBonus) && (
               <span className="text-cyan-400" style={{ fontSize: fs2 }}>
-                贡+{(bonuses.contributionBonus * 100).toFixed(0)}%
+                {formatStipendContributionCompact(bonuses.contributionBonus)}
               </span>
             )}
-            {bonuses.resourceBonus > 0 && (
+            {formatStipendResourceCompact(bonuses.resourceBonus) && (
               <span className="text-yellow-400" style={{ fontSize: fs2 }}>
-                资+{(bonuses.resourceBonus * 100).toFixed(0)}%
+                {formatStipendResourceCompact(bonuses.resourceBonus)}
               </span>
             )}
           </div>

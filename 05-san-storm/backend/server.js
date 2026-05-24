@@ -99,6 +99,27 @@ function scheduleAiKingHourlyTick() {
   return scheduler;
 }
 
+function scheduleKingDasikongDailyTick() {
+  const tz = process.env.CRON_TZ;
+  const opts = tz ? { timezone: tz } : {};
+  const aiKingDasikongDailyService = require('./services/aiKingDasikongDailyService');
+  cron.schedule(
+    '0 0 * * *',
+    async () => {
+      try {
+        const result = await aiKingDasikongDailyService.runDailyTick();
+        const summary = (result.results || [])
+          .map((r) => `${r.factionId}:${r.skipped ? 'skip' : r.bootstrapped ? 'bootstrap' : r.winner?.playerId || 'none'}`)
+          .join('; ');
+        console.log(`[aiKing][dasikong] daily tick done ${summary}`);
+      } catch (err) {
+        console.error('[aiKing][dasikong] daily tick 失败:', err.message);
+      }
+    },
+    opts,
+  );
+}
+
 /** 与 01-1-DATABASE_DESIGN.md 临时表清理示例一致：每天凌晨 3:00（默认进程本地时区；生产可设 CRON_TZ=Asia/Shanghai） */
 function scheduleTempTableCleanup() {
   const tz = process.env.CRON_TZ;
@@ -133,9 +154,11 @@ const PORT = process.env.PORT || 3005;
  */
 const DEFAULT_DEV_ORIGINS = [
   'http://localhost:5173',
+  'http://localhost:3001',
   'http://localhost:3002',
   'http://localhost:3004',
   'http://127.0.0.1:5173',
+  'http://127.0.0.1:3001',
   'http://127.0.0.1:3002',
   'http://127.0.0.1:3004',
   'https://notee.vip',
@@ -236,6 +259,9 @@ app.use('/api/admin/config-texts', adminConfigTextsRouter);
 const adminWorldMapRouter = require('./routes/adminWorldMap');
 app.use('/api/admin/world-map', adminWorldMapRouter);
 
+const adminKingDasikongRouter = require('./routes/adminKingDasikong');
+app.use('/api/admin/king-dasikong', adminKingDasikongRouter);
+
 /**
  * 纪念图（MVP：Battle）
  */
@@ -324,6 +350,7 @@ app.listen(PORT, async () => {
     console.error('[aiKing] 加载 ai-kings.json 失败:', err.message);
   }
   scheduleAiKingHourlyTick();
+  scheduleKingDasikongDailyTick();
 
   /**
    * 匪寨同步异步后置（CR P2，2026-04-29）：

@@ -1,10 +1,15 @@
 /**
- * 三公府 · 互动 · 封赏 · 俸禄：按势力国力档位（supplyTier S～D，与 11-1 / factionSupplyTierService 一致）每日领取银两与粮草。
+ * 三公府 · 互动 · 封赏 · 俸禄：按势力国力档位（supplyTier S～D）每日领取银两与粮草；
+ * 叠加当前官职 position_bonuses（声望/贡献固定整数、银粮 ×resource 倍数）。
  */
 
 const { pool } = require('../database/connection');
 const factionOverviewService = require('./factionOverviewService');
 const statisticsDeltaService = require('./statisticsDeltaService');
+const {
+  applyStipendResourceMultiplier,
+  loadPositionStipendBonusesForPlayer,
+} = require('../../shared/utils/positionStipendBonuses.cjs');
 
 /** 国力档位 → 银两基准系数（粮草 = 本次银两 × 5，同一随机因子） */
 const SILVER_COEFFICIENT_BY_TIER = {
@@ -113,6 +118,7 @@ async function getStipendStatus(playerId) {
   else if (claimedToday) blockReason = '今日俸禄已领取';
 
   const canClaim = !blockReason;
+  const positionStipend = await loadPositionStipendBonusesForPlayer(pool, pid);
 
   return {
     claimedToday,
@@ -121,6 +127,60 @@ async function getStipendStatus(playerId) {
     supplyTier,
     canClaim,
     blockReason,
+    positionStipend,
+  };
+}
+
+/**
+ * 君主大司空传书俸禄：与 claimStipend 同公式，但不占用 san_gong_stipend_claim_date
+ * @param {import('mysql2/promise').PoolConnection} connection
+ * @param {string} playerId
+ * @param {string} supplyTier
+ * @returns {Promise<{ ok: true, silver: number, food: number, reputationGrant: number, contributionGrant: number } | { ok: false, error: string }>}
+ */
+async function grantKingStipendBonusOnConnection(connection, playerId, supplyTier) {
+  const pid = String(playerId || '').trim();
+  const tier = String(supplyTier || '').toUpperCase();
+  if (!pid) return { ok: false, error: '缺少 playerId' };
+  if (tier == null || SILVER_COEFFICIENT_BY_TIER[tier] == null) {
+    return { ok: false, error: '势力国力未达最低档位（D），暂不可领取俸禄' };
+  }
+
+  const rolled = rollStipendAmountsForTier(tier);
+  if (!rolled || rolled.silver < 1) return { ok: false, error: '俸禄结算异常' };
+
+  const positionStipend = await loadPositionStipendBonusesForPlayer(connection, pid);
+  const { silver, food } = applyStipendResourceMultiplier(
+    rolled.silver,
+    rolled.food,
+    positionStipend.resourceMultiplier,
+  );
+  const { reputationGrant, contributionGrant } = positionStipend;
+
+  const playerSets = ['silver = silver + ?', 'food = food + ?'];
+  const playerParams = [silver, food];
+  if (reputationGrant > 0) {
+    playerSets.push('reputation = reputation + ?');
+    playerParams.push(reputationGrant);
+  }
+  if (contributionGrant > 0) {
+    playerSets.push('contribution = GREATEST(0, contribution + ?)');
+    playerParams.push(contributionGrant);
+  }
+  playerParams.push(pid);
+  await connection.query(
+    `UPDATE players SET ${playerSets.join(', ')} WHERE player_id = ?`,
+    playerParams,
+  );
+
+  return {
+    ok: true,
+    silver,
+    food,
+    supplyTier: tier,
+    reputationGrant,
+    contributionGrant,
+    resourceMultiplier: positionStipend.resourceMultiplier,
   };
 }
 
@@ -145,7 +205,15 @@ async function claimStipend(playerId) {
 
   const rolled = rollStipendAmountsForTier(supplyTier);
   if (!rolled || rolled.silver < 1) return { ok: false, status: 500, error: '俸禄结算异常' };
-  const { silver, food } = rolled;
+  const positionStipend = await loadPositionStipendBonusesForPlayer(pool, pid);
+  const baseSilver = rolled.silver;
+  const baseFood = rolled.food;
+  const { silver, food } = applyStipendResourceMultiplier(
+    baseSilver,
+    baseFood,
+    positionStipend.resourceMultiplier,
+  );
+  const { reputationGrant, contributionGrant } = positionStipend;
 
   const conn = await pool.getConnection();
   try {
@@ -170,11 +238,21 @@ async function claimStipend(playerId) {
       return { ok: false, status: 400, error: '今日俸禄已领取' };
     }
 
-    await conn.query('UPDATE players SET silver = silver + ?, food = food + ? WHERE player_id = ?', [
-      silver,
-      food,
-      pid,
-    ]);
+    const playerSets = ['silver = silver + ?', 'food = food + ?'];
+    const playerParams = [silver, food];
+    if (reputationGrant > 0) {
+      playerSets.push('reputation = reputation + ?');
+      playerParams.push(reputationGrant);
+    }
+    if (contributionGrant > 0) {
+      playerSets.push('contribution = GREATEST(0, contribution + ?)');
+      playerParams.push(contributionGrant);
+    }
+    playerParams.push(pid);
+    await conn.query(
+      `UPDATE players SET ${playerSets.join(', ')} WHERE player_id = ?`,
+      playerParams,
+    );
     await conn.query(`UPDATE player_events SET san_gong_stipend_claim_date = ? WHERE player_id = ?`, [
       todayStr,
       pid,
@@ -200,14 +278,27 @@ async function claimStipend(playerId) {
   await statisticsDeltaService.recordEarned(pid, {
     ...(silver > 0 ? { silver } : {}),
     ...(food > 0 ? { food } : {}),
+    ...(reputationGrant > 0 ? { reputation: reputationGrant } : {}),
+    ...(contributionGrant > 0 ? { contribution: contributionGrant } : {}),
   });
 
-  return { ok: true, silver, food, supplyTier };
+  return {
+    ok: true,
+    silver,
+    food,
+    supplyTier,
+    baseSilver,
+    baseFood,
+    resourceMultiplier: positionStipend.resourceMultiplier,
+    reputationGranted: reputationGrant,
+    contributionGranted: contributionGrant,
+  };
 }
 
 module.exports = {
   getStipendStatus,
   claimStipend,
+  grantKingStipendBonusOnConnection,
   rollStipendAmountsForTier,
   SILVER_COEFFICIENT_BY_TIER,
   MAX_CLAIMS_PER_CALENDAR_DAY,

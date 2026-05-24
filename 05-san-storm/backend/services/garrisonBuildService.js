@@ -17,6 +17,10 @@
 const { pool } = require('../database/connection');
 const { applyTroopDurabilityExhaustion } = require('./troopDurabilityService');
 const equipmentSetService = require('./equipmentSetService');
+const {
+  attachPositionCombatBonuses,
+  loadPositionCombatBonusesForPlayer,
+} = require('../../shared/utils/positionCombatBonuses.cjs');
 
 /** 单部队参战最低兵力（兵力为 0 不参战；总兵力验证在 saveGarrison / initiateSiege） */
 const MIN_TROOPS_TO_DEFEND = 1;
@@ -287,6 +291,9 @@ async function getGarrisonSlotAttributeBonusByChar(conn, garrisonSlot) {
  */
 async function buildDefenseUnits(garrisonSlot) {
   const units = [];
+  const defenderPosBonuses = await loadPositionCombatBonusesForPlayer(pool, garrisonSlot.player_id);
+  const withPositionCombat = (charData) =>
+    attachPositionCombatBonuses(charData, defenderPosBonuses);
   const garrisonAttrBonusByChar = await getGarrisonSlotAttributeBonusByChar(pool, garrisonSlot);
   const charSlots = [
     { cardField: 'char1_card', troop1Field: 'char1_troop1', troop2Field: 'char1_troop2' },
@@ -321,7 +328,9 @@ async function buildDefenseUnits(garrisonSlot) {
       traitModifier: charCfg.trait_modifier || 0,
     };
     const charKey = cs.cardField === 'char1_card' ? 'char1' : 'char2';
-    const charData = applyCharBonusToCharData(charDataBase, garrisonAttrBonusByChar[charKey] || {});
+    const charData = withPositionCombat(
+      applyCharBonusToCharData(charDataBase, garrisonAttrBonusByChar[charKey] || {}),
+    );
 
     const troopInstanceIds = [garrisonSlot[cs.troop1Field], garrisonSlot[cs.troop2Field]].filter(Boolean);
     for (const troopInstId of troopInstanceIds) {
@@ -387,6 +396,9 @@ async function buildDefenseUnits(garrisonSlot) {
  */
 async function buildDefenseUnitsFromMainLineup(defenderPlayerId) {
   const units = [];
+  const defenderPosBonuses = await loadPositionCombatBonusesForPlayer(pool, defenderPlayerId);
+  const withPositionCombat = (charData) =>
+    attachPositionCombatBonuses(charData, defenderPosBonuses);
   const attrBonusBySlot = await getMainLineupAttributeBonusBySlot(pool, defenderPlayerId);
   const [pRows] = await pool.query(
     `SELECT player_id, character_name, combat, command, intelligence, politics, charm, courage, luck, morale
@@ -449,7 +461,11 @@ async function buildDefenseUnitsFromMainLineup(defenderPlayerId) {
       intelligence: pRow.intelligence / 10, luck: pRow.luck / 10,
       courage: pRow.courage / 10, traitModifier: 0,
     };
-    pushUnit(playerTroopRows[0], applyCharBonusToCharData(charDataBase, attrBonusBySlot.player || {}), pRow.morale ?? 70);
+    pushUnit(
+      playerTroopRows[0],
+      withPositionCombat(applyCharBonusToCharData(charDataBase, attrBonusBySlot.player || {})),
+      pRow.morale ?? 70,
+    );
   }
 
   // 将领 1/2 各自部队槽
@@ -475,7 +491,9 @@ async function buildDefenseUnitsFromMainLineup(defenderPlayerId) {
       intelligence: charCfg.intelligence / 10, luck: charCfg.luck / 10,
       courage: charCfg.courage / 10, traitModifier: charCfg.trait_modifier || 0,
     };
-    const charData = applyCharBonusToCharData(charDataBase, attrBonusBySlot[cs.by] || {});
+    const charData = withPositionCombat(
+      applyCharBonusToCharData(charDataBase, attrBonusBySlot[cs.by] || {}),
+    );
 
     for (const slot of cs.troopSlots) {
       const [troopRows] = await pool.query(
@@ -576,6 +594,7 @@ function mapBuiltUnitsToSiegeNpcFormat(units) {
           politics:      50,
           charm:         50,
           traitModifier: u.character.traitModifier || 0,
+          ...(u.character.positionBonuses ? { positionBonuses: u.character.positionBonuses } : {}),
         }
       : null,
     alive: true,

@@ -317,6 +317,7 @@ export default function WorldMap({
 
   const eventSystem = useEventSystem(player, cards, {
     tutorialAutoplay: !blockTutorialAutoplay,
+    suppressMapEventHint: blockTutorialAutoplay,
     persistMapEventHint: true,
     exploreAnchorGridRef,
     exploreAnchorGridSeq,
@@ -429,6 +430,8 @@ export default function WorldMap({
   });
   /** 由 `StrategicWorldMapSection` 注入：道路坐标刷新后 bump 郡内他人 presence，与守方自刷新互补 */
   const bumpStrategicRoadPresenceRef = useRef(null);
+  /** 道路跳跳棋回放中：暂缓 `getRoadSelf` 触发的 profile refresh，避免服务端已落库而动画未播完时误弹「道路位置已调整」 */
+  const strategicRoadMarchAnimatingRef = useRef(false);
   /** 与上次 `getRoadSelf` 快照比较，避免无意义的 profile 重拉 */
   const lastApiRoadSnapRef = useRef('');
 
@@ -488,10 +491,15 @@ export default function WorldMap({
         const d = res.data;
         const j = d.road_jun_id != null ? String(d.road_jun_id) : '';
         const snap = `${j}|${d.road_position_x}|${d.road_position_y}`;
+        if (strategicRoadMarchAnimatingRef.current) {
+          lastApiRoadSnapRef.current = snap;
+          return;
+        }
         const notice = typeof d.pendingRoadNotice === 'string' ? d.pendingRoadNotice.trim() : '';
         if (notice) {
           const b = roadNoticeUiBlockRef.current;
           const noticeBlocked =
+            blockTutorialAutoplay ||
             b.authoritativeReplayOverlay ||
             b.siegeResult ||
             b.siegeData ||
@@ -528,6 +536,7 @@ export default function WorldMap({
         if (queued) {
           const bq = roadNoticeUiBlockRef.current;
           const stillBlocked =
+            blockTutorialAutoplay ||
             bq.authoritativeReplayOverlay ||
             bq.siegeResult ||
             bq.siegeData ||
@@ -557,7 +566,7 @@ export default function WorldMap({
       cancelled = true;
       clearInterval(iv);
     };
-  }, [player?.player_id, refreshPlayer]);
+  }, [player?.player_id, refreshPlayer, blockTutorialAutoplay]);
 
   /** 阻塞 UI 关闭后立刻弹出已暂存的退让提示（不必再等下一轮 getRoadSelf） */
   useEffect(() => {
@@ -565,6 +574,7 @@ export default function WorldMap({
     if (!queued) return;
     const bq = roadNoticeUiBlockRef.current;
     const stillBlocked =
+      blockTutorialAutoplay ||
       bq.authoritativeReplayOverlay ||
       bq.siegeResult ||
       bq.siegeData ||
@@ -596,6 +606,7 @@ export default function WorldMap({
     roadFriction.roadDefenseAuthoritativeReplayOpen,
     banditRaidData,
     banditRaidResult,
+    blockTutorialAutoplay,
   ]);
 
   useEffect(() => {
@@ -1445,6 +1456,7 @@ export default function WorldMap({
 
   /** 攻城/探索/道路等全屏或模态流程中不渲染大地图 event_hint portal，避免「指引」压在战斗或弹窗之上 */
   const strategicMapEventHintSuppressed =
+    blockTutorialAutoplay ||
     !!siegeData ||
     !!siegeResult ||
     !!banditRaidData ||
@@ -1491,6 +1503,9 @@ export default function WorldMap({
       <StrategicWorldMapSection
         className="flex-1 min-h-0 h-full"
         bumpStrategicRoadPresenceRef={bumpStrategicRoadPresenceRef}
+        onRoadMarchAnimatingChange={(animating) => {
+          strategicRoadMarchAnimatingRef.current = !!animating;
+        }}
         strategicFullScreenOverlayOpen={strategicFullScreenOverlayOpen}
         strategicMapEventHintSuppressed={strategicMapEventHintSuppressed}
         pendingMapEventHint={mapEventHintDisplay}

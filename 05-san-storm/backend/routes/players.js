@@ -28,6 +28,7 @@ const mainCityBarracksStorageService = require('../services/mainCityBarracksStor
 const positionPromotionService = require('../services/positionPromotionService');
 const factionOverviewService = require('../services/factionOverviewService');
 const factionBulletinService = require('../services/factionBulletinService');
+const sanGongDocumentService = require('../services/sanGongDocumentService');
 const sanGongTributeService = require('../services/sanGongTributeService');
 const sanGongStipendService = require('../services/sanGongStipendService');
 const roadEncounterService = require('../services/roadEncounterService');
@@ -223,13 +224,14 @@ router.get('/:playerId/faction/overview', async (req, res, next) => {
 });
 
 /**
- * GET /api/players/:playerId/faction/bulletin?limit=50
- * 势力 Tab「公告」象限：按玩家所属势力拉取战事/系统流水（新在前）。
+ * GET /api/players/:playerId/faction/bulletin?limit=50&category=war
+ * 势力 Tab「公告」：按玩家所属势力拉取公告（默认全部分类；传 category 可筛选）。
  */
 router.get('/:playerId/faction/bulletin', async (req, res, next) => {
   try {
     const { playerId } = req.params;
     const lim = Math.min(100, Math.max(1, Number(req.query.limit) || 50));
+    const category = req.query.category != null ? String(req.query.category).trim() : null;
     const row = await Player.getById(playerId);
     if (!row) {
       return res.status(404).json({ success: false, error: '玩家不存在' });
@@ -238,7 +240,10 @@ router.get('/:playerId/faction/bulletin', async (req, res, next) => {
     if (!factionId) {
       return res.json({ success: true, data: { entries: [] } });
     }
-    const entries = await factionBulletinService.listForFaction(factionId, { limit: lim });
+    const entries = await factionBulletinService.listForFaction(factionId, {
+      limit: lim,
+      category: category || null,
+    });
     res.set('Cache-Control', 'no-store');
     res.json({ success: true, data: { entries, factionId } });
   } catch (error) {
@@ -361,7 +366,7 @@ router.get('/:playerId/character-rank', async (req, res, next) => {
 
 /**
  * GET /api/players/:playerId/statistics
- * 个人中心「统计」：读取 statistics 表一行（camelCase）
+ * 个人中心「统计」：读取 player_statistics 表一行（camelCase）
  */
 router.get('/:playerId/statistics', async (req, res, next) => {
   try {
@@ -700,7 +705,7 @@ router.post('/:playerId/san-gong-fu/stipend-claim', async (req, res, next) => {
 
 /**
  * GET /api/players/:playerId/san-gong-fu/pvp-attacking-wars
- * 朝政 · 势力战事：本势力作为攻方、进行中的攻城类（siege）PVP 战事列表（品阶 Lv≤3）。
+ * 朝政 · 势力战事：本势力作为攻方、进行中的攻城类（siege）PVP 战事列表（品阶 Lv≤1）。
  */
 router.get('/:playerId/san-gong-fu/pvp-attacking-wars', async (req, res, next) => {
   try {
@@ -757,6 +762,64 @@ router.post('/:playerId/san-gong-fu/pve-attacking-wars/:warId/cancel', async (re
       return res.status(code).json({ success: false, error: error.message });
     }
     return next(wrap500(error, '结束中立城攻城战事失败'));
+  }
+});
+
+/**
+ * GET /api/players/:playerId/san-gong-fu/bulletin?limitPerCategory=30
+ * 三公府 · 公告象限：谕旨 / 文书 / 战事 三分区列表
+ */
+router.get('/:playerId/san-gong-fu/bulletin', async (req, res, next) => {
+  try {
+    const { playerId } = req.params;
+    const limitPerCategory = Math.min(50, Math.max(1, Number(req.query.limitPerCategory) || 30));
+    const row = await Player.getById(playerId);
+    if (!row) {
+      return res.status(404).json({ success: false, error: '玩家不存在' });
+    }
+    const factionId = row.faction_id || null;
+    if (!factionId) {
+      return res.json({
+        success: true,
+        data: { factionId: null, edicts: [], documents: [], wars: [] },
+      });
+    }
+    const grouped = await factionBulletinService.listGroupedForFaction(factionId, {
+      limitPerCategory,
+    });
+    res.set('Cache-Control', 'no-store');
+    res.json({ success: true, data: { factionId, ...grouped } });
+  } catch (error) {
+    return next(wrap500(error, '获取三公府公告失败'));
+  }
+});
+
+/**
+ * GET /api/players/:playerId/san-gong-fu/document-status
+ * 朝政 · 文书发布：当日剩余次数（一品 position_level = 1）
+ */
+router.get('/:playerId/san-gong-fu/document-status', async (req, res, next) => {
+  try {
+    const status = await sanGongDocumentService.getDocumentDailyStatus(req.params.playerId);
+    res.json({ success: true, data: status });
+  } catch (error) {
+    return next(wrap500(error, '获取文书发布状态失败'));
+  }
+});
+
+/**
+ * POST /api/players/:playerId/san-gong-fu/document
+ * body: { body: string }
+ */
+router.post('/:playerId/san-gong-fu/document', async (req, res, next) => {
+  try {
+    const out = await sanGongDocumentService.postDocument(req.params.playerId, req.body?.body);
+    if (!out.ok) {
+      return res.status(out.status).json({ success: false, error: out.error });
+    }
+    res.json({ success: true, data: out.data });
+  } catch (error) {
+    return next(wrap500(error, '发布文书失败'));
   }
 });
 

@@ -5,7 +5,7 @@
  */
 
 import React, { useState, useMemo } from 'react';
-import { useCharacters } from '@/hooks/useCharacters';
+import { useCharacters, listFactionsForSeason } from '@/hooks/useCharacters';
 import { useSkills } from '@/hooks/useSkills';
 import { useBonds } from '@/hooks/useBonds';
 import { useLifeStages } from '@/hooks/useLifeStages';
@@ -25,6 +25,20 @@ function CharactersPage() {
   });
   const [sortBy, setSortBy] = useState('rarity'); // 默认按稀有度排序
   const [sortOrder, setSortOrder] = useState('desc'); // 默认降序
+
+  const factionOptions = useMemo(
+    () => listFactionsForSeason(characters, filters.season),
+    [characters, filters.season]
+  );
+
+  const handleSeasonChange = (season) => {
+    setFilters((prev) => {
+      const validFactions = new Set(listFactionsForSeason(characters, season));
+      const faction =
+        prev.faction === 'all' || validFactions.has(prev.faction) ? prev.faction : 'all';
+      return { ...prev, season, faction };
+    });
+  };
 
   // 应用筛选和排序
   const displayedCharacters = useMemo(() => {
@@ -68,10 +82,11 @@ function CharactersPage() {
           {/* 赛季筛选 */}
           <select
             value={filters.season}
-            onChange={(e) => setFilters({ ...filters, season: e.target.value })}
+            onChange={(e) => handleSeasonChange(e.target.value)}
             className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             <option value="all">全部赛季</option>
+            <option value="san_0">san_0 楚汉争霸</option>
             <option value="san_1">san_1 黄巾之乱</option>
             <option value="san_2">san_2 董卓之乱</option>
             <option value="san_3">san_3 群雄割据</option>
@@ -84,16 +99,11 @@ function CharactersPage() {
             className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             <option value="all">全部势力</option>
-            <option value="通用">通用</option>
-            <option value="刘备">刘备</option>
-            <option value="曹操">曹操</option>
-            <option value="孙坚">孙坚</option>
-            <option value="袁绍">袁绍</option>
-            <option value="董卓">董卓</option>
-            <option value="汉室">汉室</option>
-            <option value="黄巾">黄巾</option>
-            <option value="北疆">北疆</option>
-            <option value="众生">众生</option>
+            {factionOptions.map((name) => (
+              <option key={name} value={name}>
+                {name}
+              </option>
+            ))}
           </select>
           
           {/* 稀有度筛选 */}

@@ -3,7 +3,10 @@
  */
 
 const { pool } = require('../database/connection');
-const { grantSpecificCardsOnConnection } = require('./rewardService');
+const { grantSpecificCardsOnConnection, grantPositionOnConnection } = require('./rewardService');
+const { grantKingStipendBonusOnConnection } = require('./sanGongStipendService');
+const factionOverviewService = require('./factionOverviewService');
+const statisticsDeltaService = require('./statisticsDeltaService');
 
 const RESOURCE_KEYS = ['silver', 'food', 'reputation', 'contribution', 'morale'];
 
@@ -122,7 +125,7 @@ async function claimReward(playerId, textId) {
     await connection.beginTransaction();
 
     const [rows] = await connection.query(
-      `SELECT text_id, type, attachments, is_claimed, is_deleted, receiver_id
+      `SELECT text_id, type, attachments, is_claimed, is_deleted, receiver_id, expires_at
        FROM texts WHERE text_id = ? FOR UPDATE`,
       [textId]
     );
@@ -130,6 +133,10 @@ async function claimReward(playerId, textId) {
     if (!row || !sameReceiverAsPlayer(row.receiver_id, playerId) || row.is_deleted) {
       await connection.rollback();
       return { ok: false, error: '传书不存在' };
+    }
+    if (row.expires_at && new Date(row.expires_at) <= new Date()) {
+      await connection.rollback();
+      return { ok: false, error: '传书已过期' };
     }
     if (row.type !== 'reward') {
       await connection.rollback();
@@ -162,6 +169,43 @@ async function claimReward(playerId, textId) {
     }
 
     const p = pRows[0];
+
+    const positionId = att.positionId != null ? String(att.positionId).trim() : '';
+    if (positionId) {
+      const grant = await grantPositionOnConnection(connection, playerId, positionId);
+      if (!grant.ok) {
+        await connection.rollback();
+        return { ok: false, error: grant.error || '授予官职失败' };
+      }
+      details.push(grant.detail);
+    }
+
+    if (att.grantKingStipend === true) {
+      const overview = await factionOverviewService.getFactionOverviewForPlayer(playerId);
+      if (overview?.notFound) {
+        await connection.rollback();
+        return { ok: false, error: '玩家不存在' };
+      }
+      const supplyTier = overview?.data?.supplyTier;
+      const stipend = await grantKingStipendBonusOnConnection(connection, playerId, supplyTier);
+      if (!stipend.ok) {
+        await connection.rollback();
+        return { ok: false, error: stipend.error || '俸禄发放失败' };
+      }
+      if (stipend.silver > 0) {
+        details.push({ type: 'resource', resource: 'silver', amount: stipend.silver });
+      }
+      if (stipend.food > 0) {
+        details.push({ type: 'resource', resource: 'food', amount: stipend.food });
+      }
+      if (stipend.reputationGrant > 0) {
+        details.push({ type: 'resource', resource: 'reputation', amount: stipend.reputationGrant });
+      }
+      if (stipend.contributionGrant > 0) {
+        details.push({ type: 'resource', resource: 'contribution', amount: stipend.contributionGrant });
+      }
+    }
+
     const updates = {};
     for (const key of RESOURCE_KEYS) {
       if (att[key] != null && Number.isFinite(Number(att[key]))) {
@@ -235,6 +279,25 @@ async function claimReward(playerId, textId) {
     );
 
     await connection.commit();
+
+    if (att.grantKingStipend === true) {
+      const stipendDetail = details.filter((d) => d.type === 'resource');
+      const earned = {};
+      for (const d of stipendDetail) {
+        if (d.resource === 'silver') earned.silver = d.amount;
+        if (d.resource === 'food') earned.food = d.amount;
+        if (d.resource === 'reputation') earned.reputation = d.amount;
+        if (d.resource === 'contribution') earned.contribution = d.amount;
+      }
+      if (Object.keys(earned).length) {
+        try {
+          await statisticsDeltaService.recordEarned(playerId, earned);
+        } catch (e) {
+          console.warn('[textsService] recordEarned after king stipend:', e.message);
+        }
+      }
+    }
+
     return { ok: true, details };
   } catch (e) {
     await connection.rollback();

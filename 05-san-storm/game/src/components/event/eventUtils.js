@@ -171,6 +171,11 @@ export function parseRewards(str, itemNameMap, multiplier) {
     if (t.startsWith('reputation:')) { const v = Math.floor(parseInt(t.split(':')[1]) * m); return { text: `🎖️ 声望 +${v}` }; }
     if (t.startsWith('contribution:')) { const v = Math.floor(parseInt(t.split(':')[1]) * m); return { text: `🤝 贡献 +${v}` }; }
     if (t.startsWith('morale:')) { const v = Math.floor(parseInt(t.split(':')[1]) * m); return { text: `💪 士气 +${v}` }; }
+    if (t.startsWith('random:position:level:')) {
+      const parts = t.split(':');
+      const lvl = parts[3] || '?';
+      return { text: `👑 随机官职（品阶 Lv.${lvl}）`, isPosition: true };
+    }
     if (t.startsWith('random:')) {
       const parts = t.split(':');
       const type = parts[1] === 'equipment' ? '装备件' : parts[1] === 'char' ? '将领' : '部队';
@@ -488,6 +493,14 @@ function getTutorialStrictConsecutiveCompletedMaxLevel(allEvents, completedEvent
     n = L;
   }
   return n;
+}
+
+/**
+ * 教程链大地图 `event_hint`：仅按 `explore_events` **连续 completed** 计数，不用背包钥匙推进的有效环。
+ * （与 `getTutorialChainCompletedLevelForPool` 分离，避免已拿 item_tutorial_2 却未打完 1002 时误显第 3 步匪寨文案。）
+ */
+export function getTutorialChainCompletedLevelForMapHint(allEvents, completedEvents) {
+  return getTutorialStrictConsecutiveCompletedMaxLevel(allEvents, completedEvents);
 }
 
 /**
@@ -822,5 +835,31 @@ export function resolveCityRowTypeForWildernessHint(citiesList, cityId) {
  */
 export function resolveCityTypeForWildernessTroopHint(citiesList, exploreLocationId) {
   return resolveCityRowTypeForWildernessHint(citiesList, exploreLocationId);
+}
+
+/**
+ * 探索奖励 API 失败时弹窗副文案（与后端 `playerEventRewardsService` 等返回的 error 对齐）
+ * @param {string|null|undefined} message
+ * @returns {string|null}
+ */
+export function exploreRewardFailureSubhint(message) {
+  const t = String(message || '').trim();
+  if (!t) return '探索次数已退还，请稍后重试。';
+  if (t.includes('传奇部队')) {
+    return '请先在编组中装备或获得传奇（橙色）部队后再完成该选项。探索次数已退还。';
+  }
+  if (t.includes('核心部队')) {
+    return '请先在编组中装备或获得核心（金色）部队后再完成该选项。探索次数已退还。';
+  }
+  if (t.includes('道具不足')) {
+    return '背包中缺少所需道具，请先完成前置探索事件。探索次数已退还。';
+  }
+  if (/银两|粮草|声望|贡献/.test(t) && t.includes('不足')) {
+    return '请补足资源或道具后重新探索。探索次数已退还。';
+  }
+  if (t.includes('已完成') || t.includes('重复')) {
+    return null;
+  }
+  return '探索次数已退还，请调整后重新探索。';
 }
 

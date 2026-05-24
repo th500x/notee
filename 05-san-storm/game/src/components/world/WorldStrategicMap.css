@@ -165,6 +165,11 @@
   mix-blend-mode: multiply;
 }
 
+/* 道路 BFS 控制区：己方淡蓝 / 敌对淡红 / 盟友淡紫（与城名标签立场同色） */
+.ws-map-tile .ws-territory-stance-tint {
+  pointer-events: none;
+}
+
 /* 大城立绘较满、底层 tint 不易透出：在对象层之上再叠径向叠色，与中城观感对齐 */
 .ws-map-tile .ws-faction-city-front-vignette {
   box-sizing: border-box;

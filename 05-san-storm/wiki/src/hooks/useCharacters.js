@@ -8,6 +8,30 @@
 import { useState, useEffect, useMemo } from 'react';
 import { loadSharedData } from '@/services/dataService';
 
+/** 从将领 ID 解析赛季（如 san_0_char_1001 → san_0） */
+export function seasonIdFromCharacterId(id) {
+  const m = String(id || '').match(/^(san_\d+)_char_/);
+  return m ? m[1] : null;
+}
+
+/**
+ * 按赛季汇总势力选项（数据驱动，不写死 san_1 列表）
+ * @param {Array} characters
+ * @param {string} season - 'all' | 'san_0' | 'san_1' …
+ */
+export function listFactionsForSeason(characters, season = 'all') {
+  const pool =
+    season === 'all'
+      ? characters
+      : characters.filter((c) => seasonIdFromCharacterId(c.id) === season);
+  const names = [...new Set(pool.map((c) => c.faction).filter(Boolean))];
+  return names.sort((a, b) => {
+    if (a === '通用') return -1;
+    if (b === '通用') return 1;
+    return a.localeCompare(b, 'zh-Hans');
+  });
+}
+
 /**
  * 使用武将数据
  * @returns {Object} { characters, loading, error, refetch, filterCharacters, sortCharacters }
@@ -45,15 +69,10 @@ export function useCharacters() {
     return (filters = {}) => {
       let filtered = [...characters];
 
-      // 按赛季筛选
+      // 按赛季筛选（卡牌 ID：san_{n}_char_*）
       if (filters.season && filters.season !== 'all') {
-        // 从ID中提取赛季信息：san_1_char_1001 -> 赛季号1代表san_1
-        const seasonNumber = filters.season.replace('san_', ''); // 'san_1' -> '1'
-        filtered = filtered.filter(char => {
-          // 新格式：san_1_char_1001 -> 提取第一个下划线后的数字
-          const match = char.id.match(/san_(\d+)_char/);
-          return match && match[1] === seasonNumber;
-        });
+        const idPrefix = `${filters.season}_char_`;
+        filtered = filtered.filter((char) => char.id?.startsWith(idPrefix));
       }
 
       // 按势力筛选

@@ -7,6 +7,7 @@
 
 const { loadRoadGrid } = require('../utils/roadGrid');
 const { applyFactionPlayerRoadRetreat } = require('../utils/roadBattleRetreatPlacement');
+const gridCoords = require('../../shared/utils/strategicGridCoordinates.js');
 
 async function fetchCitiesInJun(conn, season, junId) {
   const j = String(junId || '').trim();
@@ -26,7 +27,6 @@ async function fetchCitiesInJun(conn, season, junId) {
 async function buildCityFootprintWorldKeys(cityRow, grid) {
   const keys = new Set();
   if (!cityRow || !grid?.mapColumns || !grid?.mapRows) return keys;
-  const { stackWorldGyFromLocalJunRow } = await import('../../shared/utils/strategicWorldMapStack.js');
   const junId = String(cityRow.jun_id ?? cityRow.junId ?? '').trim();
   const mapColumns = Number(grid.mapColumns);
   const mapRows = Number(grid.mapRows);
@@ -35,11 +35,10 @@ async function buildCityFootprintWorldKeys(cityRow, grid) {
   if (!junId || !Number.isFinite(px) || !Number.isFinite(py)) return keys;
   for (let dy = 0; dy < 2; dy++) {
     for (let dx = 0; dx < 2; dx++) {
-      const lx = px + dx;
-      const ly = py + dy;
-      if (lx >= 0 && ly >= 0 && lx < mapColumns && ly < mapRows) {
-        keys.add(`${lx},${stackWorldGyFromLocalJunRow(junId, ly)}`);
-      }
+      const lx = Math.trunc(px + dx);
+      const ly = Math.trunc(py + dy);
+      const k = gridCoords.worldMapCellKeyFromPlayerRoadLocal(junId, lx, ly);
+      if (k) keys.add(k);
     }
   }
   return keys;
@@ -59,7 +58,6 @@ async function buildBaseCampWorldFootprintKeys(baseCamp) {
     }
   }
   if (keys.size) return keys;
-  const { stackWorldGyFromLocalJunRow } = await import('../../shared/utils/strategicWorldMapStack.js');
   const junId = String(baseCamp.junId || '').trim();
   if (!junId || !Array.isArray(baseCamp.cells)) return keys;
   for (const cellKey of baseCamp.cells) {
@@ -69,7 +67,8 @@ async function buildBaseCampWorldFootprintKeys(baseCamp) {
     const lx = parts[0];
     const ly = parts[1];
     if (!Number.isFinite(lx) || !Number.isFinite(ly)) continue;
-    keys.add(`${lx},${stackWorldGyFromLocalJunRow(junId, ly)}`);
+    const k = gridCoords.worldMapCellKeyFromPlayerRoadLocal(junId, lx, ly);
+    if (k) keys.add(k);
   }
   return keys;
 }
@@ -88,7 +87,6 @@ async function relocateFactionPlayersStandingOnFootprint(conn, p) {
   if (!fid || !j || !footprintWorldKeys?.size || !grid?.rawCells?.length) {
     return { moved: [] };
   }
-  const { stackWorldGyFromLocalJunRow } = await import('../../shared/utils/strategicWorldMapStack.js');
   const [rows] = await conn.query(
     `SELECT player_id, road_position_x, road_position_y
      FROM players
@@ -102,8 +100,7 @@ async function relocateFactionPlayersStandingOnFootprint(conn, p) {
   for (const pl of rows || []) {
     const lx = Math.trunc(Number(pl.road_position_x));
     const ly = Math.trunc(Number(pl.road_position_y));
-    const wy = stackWorldGyFromLocalJunRow(j, ly);
-    const k = `${lx},${wy}`;
+    const k = gridCoords.worldMapCellKeyFromPlayerRoadLocal(j, lx, ly);
     if (!footprintWorldKeys.has(k)) continue;
     const r = await applyFactionPlayerRoadRetreat(conn, {
       junId: j,

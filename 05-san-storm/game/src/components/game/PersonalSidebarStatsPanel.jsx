@@ -11,7 +11,7 @@ function formatInt(n) {
   return Math.round(v).toLocaleString('zh-CN');
 }
 
-/** statistics 表时长字段按秒计（见库设计） */
+/** player_statistics 表时长字段按秒计（见库设计） */
 function formatDurationSeconds(sec) {
   const s = Math.max(0, Math.floor(Number(sec) || 0));
   if (s < 60) return `${s} 秒`;
@@ -133,7 +133,7 @@ export default function PersonalSidebarStatsPanel({ playerId, onBack }) {
             </Section>
 
             <p className="text-[11px] text-gray-400 pt-1">
-              数据来自服务端 statistics 表。银两/粮草/贡献的累计获得与累计消耗由后端统一写入（与 players 资源变动一致）；游戏时长仍依赖会话统计接入。
+              数据来自服务端 player_statistics 表。银两/粮草/贡献的累计获得与累计消耗由后端统一写入（与 players 资源变动一致）；游戏时长仍依赖会话统计接入。
             </p>
           </div>
         )}

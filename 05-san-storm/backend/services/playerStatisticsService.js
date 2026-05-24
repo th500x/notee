@@ -1,7 +1,7 @@
 /**
- * 玩家 statistics 表读取（个人中心「统计」页）
+ * player_statistics 表读取（个人中心「统计」页）
  *
- * @see prod_schema.sql `statistics`
+ * @see prod_schema.sql `player_statistics`
  */
 
 const { pool } = require('../database/connection');
@@ -54,7 +54,7 @@ async function getPlayerStatistics(playerId) {
             total_gold_earned, total_gold_spent, total_food_earned, total_food_spent,
             total_contribution_earned, total_contribution_spent, total_reputation_earned,
             created_at, updated_at
-     FROM statistics WHERE player_id = ?`,
+     FROM player_statistics WHERE player_id = ?`,
     [playerId],
   );
   if (!rows.length) {

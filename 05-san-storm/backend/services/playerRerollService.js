@@ -1,25 +1,85 @@
 /**
- * 官职属性随机（reroll）：状态查询、执行随机、确认方案
+ * 官职属性随机（reroll）：状态查询、执行随机、确认方案、大司空卸职自动重随
  */
 
 const { pool } = require('../database/connection');
 const PlayerService = require('./playerService');
 const statisticsDeltaService = require('./statisticsDeltaService');
+const { getRerollRarityForPlayer } = require('../../shared/utils/positionRerollRarity.cjs');
 
 const REROLL_COST = { common: 10, rare: 50, epic: 250, legendary: 500, core: 750 };
 const REROLL_DAILY_LIMIT = 2;
 
-function getPositionRarity(positionLevel) {
-  if (positionLevel <= 3) return 'core';
-  if (positionLevel === 4) return 'legendary';
-  if (positionLevel === 5) return 'epic';
-  if (positionLevel <= 7) return 'rare';
-  return 'common';
+function extractAttrsFromOption(option) {
+  const attrs = option.attributesInt || {};
+  const toInt = (v) => Math.round((v || 0) * 10);
+  return {
+    luck: attrs.luck ?? toInt(option.attributes?.luck),
+    courage: attrs.courage ?? toInt(option.attributes?.courage),
+    combat: attrs.combat ?? toInt(option.attributes?.combat),
+    command: attrs.command ?? toInt(option.attributes?.command),
+    intelligence: attrs.intelligence ?? toInt(option.attributes?.intelligence),
+    politics: attrs.politics ?? toInt(option.attributes?.politics),
+    charm: attrs.charm ?? toInt(option.attributes?.charm),
+    skill1: option.skills?.skill_1?.id || option.skills?.skill_1 || null,
+    skill2: option.skills?.skill_2?.id || option.skills?.skill_2 || null,
+  };
+}
+
+/**
+ * @param {import('mysql2/promise').Pool|import('mysql2/promise').PoolConnection} db
+ */
+async function applyAttributeOption(db, playerId, option, opts = {}) {
+  const { clearBatches = true } = opts;
+  const a = extractAttrsFromOption(option);
+  const sql = clearBatches
+    ? `UPDATE players SET
+         luck = ?, courage = ?, combat = ?, command = ?,
+         intelligence = ?, politics = ?, charm = ?,
+         skill_1 = ?, skill_2 = ?,
+         attr_reroll_batches = NULL,
+         attr_reroll_selected_batch = NULL,
+         attr_reroll_selected_index = NULL
+       WHERE player_id = ?`
+    : `UPDATE players SET
+         luck = ?, courage = ?, combat = ?, command = ?,
+         intelligence = ?, politics = ?, charm = ?,
+         skill_1 = ?, skill_2 = ?
+       WHERE player_id = ?`;
+  await db.query(sql, [
+    a.luck,
+    a.courage,
+    a.combat,
+    a.command,
+    a.intelligence,
+    a.politics,
+    a.charm,
+    a.skill1,
+    a.skill2,
+    playerId,
+  ]);
+  return {
+    attributes: option.attributes,
+    skills: option.skills,
+    type: option.type,
+  };
+}
+
+/**
+ * 服务端自动重随（不扣银、不占日限）：卸大司空等系统回退时调用
+ * @param {import('mysql2/promise').PoolConnection} connection
+ */
+async function autoRerollAttributesForRarity(connection, playerId, rarity) {
+  const options = await PlayerService.generateAttributeOptions(rarity);
+  const index = Math.floor(Math.random() * options.length);
+  const option = options[index];
+  const applied = await applyAttributeOption(connection, playerId, option, { clearBatches: true });
+  return { rarity, index, ...applied };
 }
 
 async function getRerollStatus(playerId) {
   const [rows] = await pool.query(
-    `SELECT position_level, silver,
+    `SELECT position_level, current_position_id, silver,
             IF(attr_reroll_date = CURDATE(), attr_reroll_count, 0) AS today_used,
             attr_reroll_batches,
             attr_reroll_selected_batch, attr_reroll_selected_index
@@ -28,7 +88,10 @@ async function getRerollStatus(playerId) {
   );
   if (!rows.length) return { notFound: true };
   const p = rows[0];
-  const rarity = getPositionRarity(p.position_level ?? 8);
+  const rarity = getRerollRarityForPlayer({
+    positionLevel: p.position_level,
+    currentPositionId: p.current_position_id,
+  });
   const cost = REROLL_COST[rarity];
   const remaining = REROLL_DAILY_LIMIT - (p.today_used || 0);
   const batches = p.attr_reroll_batches
@@ -53,7 +116,7 @@ async function getRerollStatus(playerId) {
 
 async function rerollAttributes(playerId) {
   const [rows] = await pool.query(
-    `SELECT position_level, silver,
+    `SELECT position_level, current_position_id, silver,
             IF(attr_reroll_date = CURDATE(), attr_reroll_count, 0) AS today_used,
             attr_reroll_batches
      FROM players WHERE player_id = ?`,
@@ -61,7 +124,10 @@ async function rerollAttributes(playerId) {
   );
   if (!rows.length) return { notFound: true };
   const p = rows[0];
-  const rarity = getPositionRarity(p.position_level ?? 8);
+  const rarity = getRerollRarityForPlayer({
+    positionLevel: p.position_level,
+    currentPositionId: p.current_position_id,
+  });
   const cost = REROLL_COST[rarity];
   const remaining = REROLL_DAILY_LIMIT - (p.today_used || 0);
 
@@ -139,49 +205,17 @@ async function rerollConfirm(playerId, batch, index) {
   }
 
   const option = targetBatch.options[index];
-  const attrs = option.attributesInt || {};
-  const toInt = (v) => Math.round((v || 0) * 10);
-  const luck = attrs.luck ?? toInt(option.attributes?.luck);
-  const courage = attrs.courage ?? toInt(option.attributes?.courage);
-  const combat = attrs.combat ?? toInt(option.attributes?.combat);
-  const command = attrs.command ?? toInt(option.attributes?.command);
-  const intelligence = attrs.intelligence ?? toInt(option.attributes?.intelligence);
-  const politics = attrs.politics ?? toInt(option.attributes?.politics);
-  const charm = attrs.charm ?? toInt(option.attributes?.charm);
-  const skill1 = option.skills?.skill_1?.id || option.skills?.skill_1 || null;
-  const skill2 = option.skills?.skill_2?.id || option.skills?.skill_2 || null;
+  const applied = await applyAttributeOption(pool, playerId, option, { clearBatches: true });
 
   await pool.query(
-    `UPDATE players SET
-      luck = ?, courage = ?, combat = ?, command = ?,
-      intelligence = ?, politics = ?, charm = ?,
-      skill_1 = ?, skill_2 = ?,
-      attr_reroll_batches = NULL,
-      attr_reroll_selected_batch = ?,
-      attr_reroll_selected_index = ?
-     WHERE player_id = ?`,
-    [
-      luck,
-      courage,
-      combat,
-      command,
-      intelligence,
-      politics,
-      charm,
-      skill1,
-      skill2,
-      batch,
-      index,
-      playerId,
-    ]
+    `UPDATE players SET attr_reroll_selected_batch = ?, attr_reroll_selected_index = ? WHERE player_id = ?`,
+    [batch, index, playerId]
   );
 
   return {
     ok: true,
     data: {
-      attributes: option.attributes,
-      skills: option.skills,
-      type: option.type,
+      ...applied,
       selectedBatch: batch,
       selectedIndex: index,
     },
@@ -192,6 +226,8 @@ module.exports = {
   getRerollStatus,
   rerollAttributes,
   rerollConfirm,
+  autoRerollAttributesForRarity,
+  applyAttributeOption,
   REROLL_COST,
   REROLL_DAILY_LIMIT,
 };

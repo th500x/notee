@@ -1,7 +1,7 @@
 /**
- * 大城/中城「三公府」全屏：官职 · 互动（朝贡 + 封赏）· 朝政（三公入口）· 公告占位
+ * 大城/中城「三公府」全屏：官职 · 互动 · 军团 · 朝政（横屏四象限同序；竖屏 Tab 同序）
+ * 势力公告（谕旨/文书/战事）见大地图底栏「势力」Tab · 公告象限。
  */
-
 import { useCallback, useEffect, useState, useMemo } from 'react';
 import { usePlayerContext } from '@/contexts/PlayerContext';
 import { playerAPI } from '@/services/playerApi';
@@ -14,13 +14,13 @@ import { TabPageCloseButton, useGameTabLandscape } from '@/components/game/TabPa
 import SanGongTributePanel from '@/components/game/SanGongTributePanel';
 import SanGongFuFengShangPanel from '@/components/game/SanGongFuFengShangPanel';
 import SanGongFuChaoZhengPanel from '@/components/game/SanGongFuChaoZhengPanel';
+import SanGongFuLegionPanel from '@/components/game/SanGongFuLegionPanel';
 import SanGongFuFactionWarDrawer from '@/components/game/SanGongFuFactionWarDrawer';
-
 const MAIN_TABS = [
   { id: 'position', label: '官职' },
   { id: 'interaction', label: '互动' },
+  { id: 'legion', label: '军团' },
   { id: 'court', label: '朝政' },
-  { id: 'notice', label: '公告' },
 ];
 
 /** 与 `SanGongTributePanel` 朝贡说明条同源样式（border / 背景 / 标题琥珀色 + 正文 text-[10px] text-stone-400） */
@@ -32,15 +32,6 @@ const POSITION_REROLL_HINT_BOX = (
     </p>
   </div>
 );
-
-function PlaceholderCell({ text }) {
-  return (
-    <div className="flex h-full min-h-[6rem] flex-col items-center justify-center rounded-lg bg-stone-900/40 px-2 text-center">
-      <div className="text-2xl opacity-30">🏛️</div>
-      <p className="mt-2 text-xs text-stone-500">{text}</p>
-    </div>
-  );
-}
 
 function PromotionListBody({
   loading,
@@ -287,9 +278,8 @@ export default function SanGongFuPanel({
 
   /** 横屏四象限已同时展示四分区，不再用 Tab 切换；象限标题即分区名 */
   const courtBody = (
-    <div className="flex h-full min-h-0 flex-col gap-2 overflow-hidden">
-      {/* flex 列 + min-h-0：让子面板获得确定高度，内部 overflow-y-auto 才能滚动完整卡面 */}
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-amber-900/20 bg-stone-950/30 p-1">
+    <div className="flex h-full min-h-0 flex-col gap-2 overflow-y-auto">
+      <div className="shrink-0 rounded-lg border border-amber-900/20 bg-stone-950/30 p-1">
         <SanGongTributePanel />
       </div>
       {sanGongFuCardPool?.onOpenPool ? (
@@ -313,17 +303,22 @@ export default function SanGongFuPanel({
 
   const chaoZhengBody = (
     <SanGongFuChaoZhengPanel
+      playerId={player?.player_id}
       positionLevel={playerPositionLevel}
       factionWarDrawerOpen={factionWarDrawerOpen}
       onOpenFactionWars={() => setFactionWarDrawerOpen(true)}
     />
   );
 
+  const legionBody = (
+    <SanGongFuLegionPanel positionLevel={playerPositionLevel} />
+  );
+
   const landscapeCells = [
     { id: 'sg-q1', title: '官职 · 晋级', content: promotionBody },
     { id: 'sg-q2', title: '互动', content: courtBody },
-    { id: 'sg-q3', title: '朝政', content: chaoZhengBody },
-    { id: 'sg-q4', title: '公告', content: <PlaceholderCell text="敬请期待" /> },
+    { id: 'sg-q3', title: '军团', content: legionBody },
+    { id: 'sg-q4', title: '朝政', content: chaoZhengBody },
   ];
 
   return (
@@ -356,10 +351,10 @@ export default function SanGongFuPanel({
               promotionBody
             ) : activeTab === 'interaction' ? (
               courtBody
-            ) : activeTab === 'court' ? (
-              chaoZhengBody
+            ) : activeTab === 'legion' ? (
+              legionBody
             ) : (
-              <PlaceholderCell text="该分区敬请期待" />
+              chaoZhengBody
             )}
           </div>
         )}

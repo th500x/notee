@@ -16,7 +16,8 @@ function getAiOnlyPositionIds() {
     const fp = path.join(__dirname, '../../public/data/shared/positions.json');
     const j = JSON.parse(fs.readFileSync(fp, 'utf8'));
     for (const p of j.positions || []) {
-      if (String(p.requirement || '').trim().toUpperCase() === 'AI') {
+      const req = String(p.requirement || '').trim().toUpperCase();
+      if (req === 'AI' || req === 'KING_DAILY') {
         aiPositionIdsCache.add(p.id);
       }
     }

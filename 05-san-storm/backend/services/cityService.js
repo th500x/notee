@@ -157,8 +157,6 @@ const NPC_TROOP_COUNT_OWNED = {
 /** M1：已占领城 NPC 在「次日 8:00」**单次恢复支数** = `round(编制上限支数 × 本系数)`；上限为当前 `npc_garrison` 槽位数（如小城 200 支则每次 +100，且 `min(上限, 当前存活 + 恢复量)`）。时间锚点仍按 `ledgerAt` 推算次日 8:00。 */
 const NPC_OWNED_DAILY_RECOVERY_RATIO = 0.5;
 
-const { WIN_REPUTATION_REWARD } = smallMapBattleLootService;
-
 /** npc_garrison 存库仅支持 { units: Array, ledgerAt?: string }；根级 JSON 数组不再解析（须先跑 wrap-* 迁移） */
 function parseNpcGarrisonStored(raw) {
   if (raw == null || raw === '') return { units: null, ledgerAt: null };
@@ -926,7 +924,7 @@ async function recordSiegeResult(warId, playerId, factionId, killedIndices, resu
     // 兜底：当前端战报未落库时，在攻城结算阶段补记活动战斗积分（避免排行榜漏加）
     if (shouldFallbackAddBattleScore) {
       await connection.query(
-        'UPDATE statistics SET total_battle_score = total_battle_score + ? WHERE player_id = ?',
+        'UPDATE player_statistics SET total_battle_score = total_battle_score + ? WHERE player_id = ?',
         [Number(battleScore), playerId]
       );
       console.log(
@@ -1268,8 +1266,9 @@ async function listActivePveSiegeTargetsForMap({ playerId, factionId, season }) 
   return out;
 }
 
-/** 与 `pvpWarService.assertSanGongChaoZhengPvpWarGate` 一致：朝政势力战事品阶门闸。 */
-const MAX_POSITION_LEVEL_SANGONG_CHAOZHENG_WAR = 3;
+const {
+  assertChaoZhengPositionLevel,
+} = require('../../shared/utils/sanGongPositionGates.cjs');
 
 function sanGongChaoZhengClientError(message) {
   const e = new Error(message);
@@ -1286,8 +1285,10 @@ async function assertSanGongChaoZhengWarGate(playerId) {
   );
   if (!pRows.length) throw sanGongChaoZhengClientError('玩家不存在');
   const pl = Number(pRows[0].position_level);
-  if (!Number.isFinite(pl) || pl > MAX_POSITION_LEVEL_SANGONG_CHAOZHENG_WAR) {
-    throw sanGongChaoZhengClientError('需三阶及以上官职（朝政品阶 Lv≤3）方可操作势力战事');
+  try {
+    assertChaoZhengPositionLevel(pl);
+  } catch (e) {
+    throw sanGongChaoZhengClientError(e.message);
   }
   const factionId = String(pRows[0].faction_id || '').trim();
   if (!factionId) throw sanGongChaoZhengClientError('玩家未加入势力，无法操作势力战事');
@@ -1324,7 +1325,7 @@ async function cancelActivePveSiegeWarViaSanGongChaoZheng(playerId, warId, body 
   if (!hit) throw sanGongChaoZhengClientError('本势力未参与该中立城攻城，无法从此入口结束');
 
   const reason =
-    String(body?.reason || '').trim() || '三阶及以上官职主动撤战（三公府·朝政）';
+    String(body?.reason || '').trim() || '一阶及以上官职主动撤战（三公府·朝政）';
 
   const conn = await pool.getConnection();
   try {

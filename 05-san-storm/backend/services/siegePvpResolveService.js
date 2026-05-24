@@ -263,18 +263,18 @@ async function doResolveAuthoritativeSiegePvp(params) {
   try {
     if (atkBattleScore.score > 0) {
       await pool.query(
-        'UPDATE statistics SET total_battle_score = total_battle_score + ? WHERE player_id = ?',
+        'UPDATE player_statistics SET total_battle_score = total_battle_score + ? WHERE player_id = ?',
         [atkBattleScore.score, attackerId],
       );
     }
     if (defBattleScore.score > 0) {
       await pool.query(
-        'UPDATE statistics SET total_battle_score = total_battle_score + ? WHERE player_id = ?',
+        'UPDATE player_statistics SET total_battle_score = total_battle_score + ? WHERE player_id = ?',
         [defBattleScore.score, c.defenderId],
       );
     }
   } catch (e) {
-    console.error('[siegePvpResolve] statistics battle score', e);
+    console.error('[siegePvpResolve] player_statistics battle score', e);
   }
 
   const outcome = {

@@ -12,7 +12,7 @@ import {
   mapCornerEntryStackOuterStyle,
   mapCornerZhouJunStackWideOuterStyle,
 } from '@/components/game/mapCornerEntryUi';
-import { stackWorldGyFromLocalJunRow } from '@shared/utils/strategicWorldMapStack.js';
+import { playerRoadToWorldMapCell } from '@shared/utils/strategicGridCoordinates.js';
 
 /**
  * 「主词 + 空格 + 数字/省略」拆分：后半为次数或省略号时单独小号渲染（方案 2，不改 66px 栅格）。
@@ -224,7 +224,12 @@ export default function ZhouJunMapJumpPanel({ variant = 'toolbar', locateSelfCel
           setJumpHint('未找到该郡城市的战略坐标（库中 position_x/y）');
           return;
         }
-        const worldGy = stackWorldGyFromLocalJunRow(String(jun.junId), gy);
+        const w = playerRoadToWorldMapCell(String(jun.junId), gx, gy);
+        if (!w) {
+          setJumpHint('未找到该郡城市的战略坐标（库中 position_x/y）');
+          return;
+        }
+        const worldGy = w.worldGy;
         if (typeof document !== 'undefined' && document.activeElement instanceof HTMLElement) {
           document.activeElement.blur();
         }

@@ -69,17 +69,14 @@ export const GENERAL_SLOTS = [
   { id: 'treasure',     label: '宝物',   icon: '💎', side: 'right', implemented: false },
 ];
 
+import { getRerollRarityForPlayer } from '@/utils/positionRerollRarity.js';
+
 /**
  * 玩家官职等级 → CharacterCard 渲染用稀有度。
- * 官职级别越低（1=最高）稀有度越高，与设计文档 14-OFFICIAL_POSITION_SYSTEM.md 一致。
+ * 官职级别越低（1=最高）稀有度越高；大司空任职期间固定 legendary（见 positionRerollRarity.cjs）。
  */
-export function getPositionRarity(level) {
-  if (level == null) return 'common';
-  if (level <= 3) return 'core';
-  if (level === 4) return 'legendary';
-  if (level === 5) return 'epic';
-  if (level <= 7) return 'rare';
-  return 'common';
+export function getPositionRarity(level, currentPositionId = null) {
+  return getRerollRarityForPlayer({ positionLevel: level, currentPositionId });
 }
 
 /** 同稀有度内保持原序，跨稀有度按 RARITY_ORDER 升序 */

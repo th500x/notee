@@ -4,6 +4,7 @@
  */
 
 const marchPoi = require('../../shared/utils/strategicMarchPoi.js');
+const { playerRoadAnchorDistance } = require('../../shared/utils/strategicGridCoordinates.js');
 
 function toInt(v) {
   const n = Number(v);
@@ -49,15 +50,17 @@ function resolveCityAnchorStandCell(grid, countyCityRows, cityId) {
  * @param {object} playerRow - `faction_id`, `main_city_id`
  * @returns {{ x: number, y: number, retreatCityId?: string } | null}
  */
-function resolveFactionPlayerRoadRetreatStandCell(grid, countyCityRows, playerRow, fromX, fromY) {
+function resolveFactionPlayerRoadRetreatStandCell(grid, countyCityRows, playerRow, fromX, fromY, fromJunId) {
   const fx = toInt(fromX);
   const fy = toInt(fromY);
   if (fx == null || fy == null) return null;
+  const fromJun = String(fromJunId || playerRow?.road_jun_id || '').trim();
+  const fromLocal = fromJun ? { junId: fromJun, gx: fx, gy: fy } : null;
   const fac = playerRow?.faction_id != null ? String(playerRow.faction_id).trim() : '';
   let best = null;
   let bestD = Infinity;
   let bestCityId = null;
-  if (fac && Array.isArray(countyCityRows)) {
+  if (fac && Array.isArray(countyCityRows) && fromLocal) {
     for (const row of countyCityRows) {
       const rowFac = row.faction_id != null ? String(row.faction_id).trim() : '';
       if (!rowFac || rowFac !== fac) continue;
@@ -65,7 +68,10 @@ function resolveFactionPlayerRoadRetreatStandCell(grid, countyCityRows, playerRo
       if (!cid) continue;
       const stand = resolveCityAnchorStandCell(grid, countyCityRows, cid);
       if (!stand) continue;
-      const d = Math.abs(stand.x - fx) + Math.abs(stand.y - fy);
+      const rowJun = String(row.jun_id ?? row.junId ?? '').trim();
+      if (!rowJun) continue;
+      const standLocal = { junId: rowJun, gx: stand.x, gy: stand.y };
+      const d = playerRoadAnchorDistance(standLocal, fromLocal);
       if (bestCityId == null || d < bestD || (d === bestD && cid.localeCompare(bestCityId) < 0)) {
         bestD = d;
         best = stand;
@@ -117,7 +123,7 @@ async function applyFactionPlayerRoadRetreat(conn, p) {
   );
   const row = rows[0];
   if (!row) return { ok: false, error: '玩家不存在' };
-  const stand = resolveFactionPlayerRoadRetreatStandCell(grid, countyCityRows, row, fromX, fromY);
+  const stand = resolveFactionPlayerRoadRetreatStandCell(grid, countyCityRows, row, fromX, fromY, junId);
   if (!stand) return { ok: false, error: '无可用己方城锚格' };
   const { retreatCityId, ...pos } = stand;
   await conn.query(

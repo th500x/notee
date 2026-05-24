@@ -11,10 +11,11 @@ import {
   bfsShortestPathRoad,
   multiSourceBfsShortestRoad,
 } from '@shared/utils/strategicMarchPoi.js';
-import { stackWorldGyFromLocalJunRow } from '@shared/utils/strategicWorldMapStack.js';
+import { playerRoadToWorldMapCell } from '@shared/utils/strategicGridCoordinates.js';
 
 /** 与 backend/services/roadEncounterService.js 一致 */
-export const MARCH_FREE_MOVES_PER_DAY = 50;
+/** 须与 `backend/config/roadConfig.js` · `FREE_MOVES_PER_DAY` 一致 */
+export const MARCH_FREE_MOVES_PER_DAY = 300;
 export const MARCH_FOOD_PER_STEP = 2;
 export const MARCH_RESERVE_FOOD_DAILY_LIMIT = 500;
 
@@ -113,10 +114,11 @@ export function buildMarchPath({
   const roadJun = player?.road_jun_id || null;
   const rx = Number(player?.road_position_x);
   const ry = Number(player?.road_position_y);
-  const startWy =
+  const startWorld =
     useWorldStackRoadCoords && roadJun && Number.isFinite(rx) && Number.isFinite(ry)
-      ? stackWorldGyFromLocalJunRow(roadJun, Math.trunc(ry))
-      : Math.trunc(ry);
+      ? playerRoadToWorldMapCell(roadJun, Math.trunc(rx), Math.trunc(ry))
+      : null;
+  const startWy = startWorld ? startWorld.worldGy : Math.trunc(ry);
   const canUseStartKey =
     Number.isFinite(rx) &&
     Number.isFinite(ry) &&

@@ -1,5 +1,5 @@
 /**
- * 三公府 · 互动 · 封赏：俸禄（国力档位日领）+ 礼盒（占位）+ 将领/部队卡池入口（与 `CardPoolPoolButton` 同源样式）。
+ * 三公府 · 互动 · 封赏：俸禄（国力档位日领）+ 礼盒/兑换（占位）+ 将领/部队卡池入口（与 `CardPoolPoolButton` 同源样式）。
  * 打开卡池后仍由 `GamePage` 的 `CardPoolDrawer` + `useCardPool` 承接（经 `onOpenPool`）。
  */
 
@@ -18,10 +18,13 @@ const SUPPLY_TIER_LINE_HEX = {
 };
 
 const STIPEND_TOOLTIP =
-  '按本势力国力档位（S～D，与势力信息象限一致）领取银两与粮草：档位越高基准越大；本次在 80%～120%（含端点）间均匀随机后折算银两，粮草恒为本次银两的 5 倍。每服务器自然日 1 次（与文档「每日 24:00」换日一致，见 15-2）。国力未达 D 档不可领。';
+  '按本势力国力档位（S～D）领取银两与粮草：档位越高基准越大；本次在 80%～120%（含端点）均匀随机后折算银两，粮草为银两×5。当前官职另加：声望/贡献为固定整数，银粮按官职资源倍数（如×1.2）结算。每服务器自然日 1 次。国力未达 D 档不可领。';
 
 const GIFT_BOX_TOOLTIP =
   '规划：消耗银两开启礼盒，随机获得物品（道具/卡池等细则待定）。当前仅为入口占位。';
+
+const EXCHANGE_TOOLTIP =
+  '规划：消耗指定资源或道具兑换奖励（兑换池、日限与扣费细则待定）。当前仅为入口占位。';
 
 /**
  * @param {{
@@ -97,6 +100,11 @@ export default function SanGongFuFengShangPanel({
           silver: res.data.silver,
           food: res.data.food,
           supplyTier: res.data.supplyTier,
+          baseSilver: res.data.baseSilver,
+          baseFood: res.data.baseFood,
+          resourceMultiplier: res.data.resourceMultiplier,
+          reputationGranted: res.data.reputationGranted ?? 0,
+          contributionGranted: res.data.contributionGranted ?? 0,
         });
         await loadStipend();
         await onAfterStipendClaim?.();
@@ -155,6 +163,18 @@ export default function SanGongFuFengShangPanel({
           }}
         />
         <CardPoolPoolButton
+          icon="🔄"
+          label="兑换"
+          subLabel="敬请期待"
+          remaining={0}
+          dailyLimit={1}
+          drawerOpen={drawerOpen}
+          tooltip={EXCHANGE_TOOLTIP}
+          onClick={() => {
+            setToast('兑换功能筹备中，敬请期待');
+          }}
+        />
+        <CardPoolPoolButton
           icon="🎴"
           label="将领卡池"
           remaining={charRemaining}
@@ -189,10 +209,27 @@ export default function SanGongFuFengShangPanel({
                 <div className="mt-1 text-base font-bold tabular-nums text-lime-200">+{stipendResult.food}</div>
               </div>
             </div>
-            <div className="mt-3 text-center">
+            <div className="mt-3 text-center space-y-1">
               <div className="text-xs font-bold" style={{ color: tierHex }}>
                 国力 {String(stipendResult.supplyTier).toUpperCase()}
               </div>
+              {stipendResult.resourceMultiplier > 1 &&
+              (stipendResult.baseSilver != null || stipendResult.baseFood != null) ? (
+                <div className="text-stone-400 text-[10px]">
+                  官职资源 ×{stipendResult.resourceMultiplier}
+                  {stipendResult.baseSilver != null ? `（银 ${stipendResult.baseSilver}→${stipendResult.silver}）` : ''}
+                </div>
+              ) : null}
+              {stipendResult.reputationGranted > 0 ? (
+                <div className="text-purple-300 text-[10px] tabular-nums">
+                  声望 +{stipendResult.reputationGranted}
+                </div>
+              ) : null}
+              {stipendResult.contributionGranted > 0 ? (
+                <div className="text-cyan-300 text-[10px] tabular-nums">
+                  贡献 +{stipendResult.contributionGranted}
+                </div>
+              ) : null}
               <div className="mt-0.5 text-stone-300 text-[10px]">获得银两与粮草</div>
             </div>
           </div>

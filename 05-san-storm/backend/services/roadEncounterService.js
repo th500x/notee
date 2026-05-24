@@ -68,7 +68,6 @@ const {
   RESERVE_FOOD_DAILY_LIMIT,
   ROAD_DEFENDER_ALERT_SEC,
   STALE_FIGHT_SQL_MIN,
-  getStrategicStackModule,
   newEncounterId,
   toInt,
   buildPlayerRoadSnapshot,
@@ -80,6 +79,39 @@ const {
   resolveStaleRoadEncountersAtCell,
   resolveAbandonedRoadFightOnCellIfOpponentOffline,
 } = require('./road/roadStaleCleanup');
+const gridCoords = require('../../shared/utils/strategicGridCoordinates.js');
+
+/**
+ * 写库统一为 PlayerRoadCell（`road_jun_id` + 郡内本地格）。
+ * @returns {{ junId: string, gx: number, gy: number }}
+ */
+function resolveMoveDestinationPlayerRoad({
+  appliedPoiSnap,
+  poiAnchorEnd,
+  poiAnchorJunIdEnd,
+  lastWorldGx,
+  lastWorldGy,
+  useStackGrid,
+  requestJunId,
+}) {
+  if (appliedPoiSnap && poiAnchorEnd) {
+    const junForPoi =
+      poiAnchorJunIdEnd != null && String(poiAnchorJunIdEnd).trim()
+        ? String(poiAnchorJunIdEnd).trim()
+        : String(requestJunId || '').trim();
+    const dest = gridCoords.playerRoadDestFromPoiAnchor(poiAnchorEnd, junForPoi);
+    if (dest) return dest;
+  }
+  if (useStackGrid) {
+    const dest = gridCoords.playerRoadDestFromWorldPathEnd(lastWorldGx, lastWorldGy);
+    if (dest) return dest;
+  }
+  return {
+    junId: String(requestJunId || '').trim(),
+    gx: toInt(lastWorldGx) ?? 0,
+    gy: toInt(lastWorldGy) ?? 0,
+  };
+}
 const { setIntercept } = require('./road/roadInterceptService');
 const {
   getSelfRoadState,
@@ -87,7 +119,6 @@ const {
   getPendingDefenderEncounter,
 } = require('./road/roadPresenceService');
 
-const { WIN_REPUTATION_REWARD } = smallMapBattleLootService;
 
 // ── moveAlongRoad 内部 helper（CR 必改 #6 第二阶段，2026-04-29）─────────────────
 // 仅供 moveAlongRoad 内部使用，**不**导出。设计原则：
@@ -287,7 +318,6 @@ async function moveAlongRoad(playerId, body) {
       return { ok: false, status: 400, error: `郡 ${junId} 缺少道路栅格数据（merged.json 未生成或无 roadCells）` };
     }
     const useStackGrid = !!grid.isSan1YuVerticalStack;
-    const stackMod = useStackGrid ? await getStrategicStackModule() : null;
 
     let countyCityRows;
     if (useStackGrid && Array.isArray(grid.stackJunIds) && grid.stackJunIds.length >= 2) {
@@ -456,10 +486,11 @@ async function moveAlongRoad(playerId, body) {
 
       const sx0 = toInt(player.road_position_x);
       const sy0 = toInt(player.road_position_y);
-      const sy0World =
-        useStackGrid && stackMod && sx0 != null && sy0 != null && player.road_jun_id
-          ? stackMod.stackWorldGyFromLocalJunRow(String(player.road_jun_id).trim(), sy0)
-          : sy0;
+      const sy0WorldCell =
+        useStackGrid && sx0 != null && sy0 != null && player.road_jun_id
+          ? gridCoords.playerRoadToWorldMapCell(String(player.road_jun_id).trim(), sx0, sy0)
+          : null;
+      const sy0World = sy0WorldCell ? sy0WorldCell.worldGy : sy0;
       const startKeyIfRoad =
         sx0 != null && sy0 != null && player.road_jun_id === junId ? cellKey(sx0, sy0World) : null;
       const onRoadForBfs = startKeyIfRoad != null && roadPassableForMarch.has(startKeyIfRoad);
@@ -525,10 +556,11 @@ async function moveAlongRoad(playerId, body) {
     // 或当 player 未在路上时为城/寨块邻接的道路格（与 BFS 首格一致）。
     const startX = toInt(player.road_position_x);
     const startY = toInt(player.road_position_y);
-    const startYWorld =
-      useStackGrid && stackMod && startX != null && startY != null && player.road_jun_id
-        ? stackMod.stackWorldGyFromLocalJunRow(String(player.road_jun_id).trim(), startY)
-        : startY;
+    const startYWorldCell =
+      useStackGrid && startX != null && startY != null && player.road_jun_id
+        ? gridCoords.playerRoadToWorldMapCell(String(player.road_jun_id).trim(), startX, startY)
+        : null;
+    const startYWorld = startYWorldCell ? startYWorldCell.worldGy : startY;
     const startKey =
       startX != null && startY != null && player.road_jun_id === junId
         ? cellKey(startX, startYWorld)
@@ -633,9 +665,9 @@ async function moveAlongRoad(playerId, body) {
               leavesCell = true;
               break;
             }
-          } else if (stackMod) {
-            const loc = stackMod.stackLocalJunRowFromWorldGy(sy);
-            if (!loc || loc.junId !== junId || sx !== ex || loc.localGy !== ey) {
+          } else if (useStackGrid) {
+            const loc = gridCoords.worldMapCellToPlayerRoad(sx, sy);
+            if (!loc || loc.junId !== junId || sx !== ex || loc.gy !== ey) {
               leavesCell = true;
               break;
             }
@@ -690,12 +722,14 @@ async function moveAlongRoad(playerId, body) {
         await resolveStaleRoadEncountersAtCell(conn, season, junId, startX, startY);
         await resolveAbandonedRoadFightOnCellIfOpponentOffline(conn, season, junId, startX, startY, pid);
 
-        /** 叠放图：贴城锚格坐标为郡内本地格，条带须与当前立足道路一致；勿盲信可能滞后的 `poiAnchorJunIdEnd`（库 `cities.jun_id` 与路径终点条带不一致时会写错郡）。 */
-        const snapJun =
-          useStackGrid && stackMod ? String(junId).trim() : poiAnchorJunIdEnd || junId;
+        const snapDest =
+          gridCoords.playerRoadDestFromPoiAnchor(
+            { x: axSnap, y: aySnap },
+            poiAnchorJunIdEnd || junId,
+          ) || { junId: String(junId).trim(), gx: axSnap, gy: aySnap };
         await conn.query(
           `UPDATE players SET road_last_request_id = ?, road_jun_id = ?, road_position_x = ?, road_position_y = ?, road_updated_at = NOW() WHERE player_id = ?`,
-          [clientRequestId, snapJun, axSnap, aySnap, pid],
+          [clientRequestId, snapDest.junId, snapDest.gx, snapDest.gy, pid],
         );
         await conn.commit();
         const [finalRowsSnap] = await pool.query(
@@ -772,10 +806,11 @@ async function moveAlongRoad(playerId, body) {
     const cityRowsForJun = (j) =>
       (countyCityRows || []).filter((r) => String(r.jun_id ?? r.junId ?? '') === String(j));
 
-    const startWalkWy =
-      useStackGrid && stackMod && onRoad && startX != null && startY != null && player.road_jun_id
-        ? stackMod.stackWorldGyFromLocalJunRow(String(player.road_jun_id).trim(), startY)
-        : startY;
+    const startWalkWorldCell =
+      useStackGrid && onRoad && startX != null && startY != null && player.road_jun_id
+        ? gridCoords.playerRoadToWorldMapCell(String(player.road_jun_id).trim(), startX, startY)
+        : null;
+    const startWalkWy = startWalkWorldCell ? startWalkWorldCell.worldGy : startY;
     let lastX = onRoad ? startX : null;
     let lastY = onRoad ? startWalkWy : null;
     let encounter = null;
@@ -786,7 +821,7 @@ async function moveAlongRoad(playerId, body) {
     for (let i = 0; i < steps.length; i++) {
       const wsx = toInt(steps[i].x);
       const wsy = toInt(steps[i].y);
-      const locStep = useStackGrid && stackMod ? stackMod.stackLocalJunRowFromWorldGy(wsy) : null;
+      const locStep = useStackGrid ? gridCoords.worldMapCellToPlayerRoad(wsx, wsy) : null;
       const stepJun = locStep ? locStep.junId : junId;
       const stepPy = locStep ? locStep.localGy : wsy;
       const stepPx = wsx;
@@ -1001,26 +1036,18 @@ async function moveAlongRoad(playerId, body) {
       appliedPoiSnap = true;
     }
 
-    let destRoadJunId = junId;
-    let destPx = lastX;
-    let destPy = lastY;
-    if (appliedPoiSnap) {
-      /** 路径最后一格世界行 → 条带：与 BFS 终点一致，优先于 `poiAnchorJunIdEnd`（避免库 jun 与合并图不一致导致「颍川 id + 汝南格」）。 */
-      let pathEndJunId = null;
-      if (useStackGrid && stackMod && Array.isArray(resolvedPath) && resolvedPath.length) {
-        const wy = toInt(resolvedPath[resolvedPath.length - 1]?.y);
-        const zEnd = stackMod.stackLocalJunRowFromWorldGy(wy);
-        if (zEnd?.junId) pathEndJunId = zEnd.junId;
-      }
-      if (pathEndJunId) destRoadJunId = pathEndJunId;
-      else if (poiAnchorJunIdEnd) destRoadJunId = poiAnchorJunIdEnd;
-    } else if (useStackGrid && stackMod && destPx != null && destPy != null) {
-      const z = stackMod.stackLocalJunRowFromWorldGy(destPy);
-      if (z) {
-        destRoadJunId = z.junId;
-        destPy = z.localGy;
-      }
-    }
+    const destPlayerRoad = resolveMoveDestinationPlayerRoad({
+      appliedPoiSnap,
+      poiAnchorEnd,
+      poiAnchorJunIdEnd,
+      lastWorldGx: lastX,
+      lastWorldGy: lastY,
+      useStackGrid: !!useStackGrid,
+      requestJunId: junId,
+    });
+    const destRoadJunId = destPlayerRoad.junId;
+    const destPx = destPlayerRoad.gx;
+    const destPy = destPlayerRoad.gy;
 
     // 若中途遇敌停下，只对已走过的 steps 扣粮草 / 免费格；重新按 stepsApplied 结算
     if (stepsApplied < steps.length) {
@@ -1044,6 +1071,7 @@ async function moveAlongRoad(playerId, body) {
               road_position_x = ?,
               road_position_y = ?,
               road_updated_at = NOW(),
+              road_client_notice = NULL,
               road_move_free_date = ?,
               road_move_free_used = ?,
               road_reserve_date = ?,
@@ -1439,24 +1467,25 @@ async function recordEncounterBattleSettlement(attackerPlayerId, body) {
     }
 
     let reputationReward = 0;
+    let equipmentDrop = null;
     if (result === 'win' && killCount > 0) {
       const killedRarities = killedIndices
         .map((j) => garrisonUnits[Number(j)]?.rarity)
         .filter(Boolean);
-      const rarityOrder = ['common', 'rare', 'epic', 'legendary', 'core'];
-      const bestRarity =
-        killedRarities.sort((a, b) => rarityOrder.indexOf(b) - rarityOrder.indexOf(a))[0] || 'common';
-      reputationReward = WIN_REPUTATION_REWARD[bestRarity] || 5;
-      await conn.query('UPDATE players SET reputation = reputation + ? WHERE player_id = ?', [
-        reputationReward,
+      const bestRarity = smallMapBattleLootService.pickBestRarityFromKills(killedRarities);
+      const repLoot = await smallMapBattleLootService.grantWinReputationAndEquipment(
+        conn,
         pid,
-      ]);
+        bestRarity,
+      );
+      reputationReward = repLoot.reputationReward;
+      equipmentDrop = repLoot.equipmentDrop;
     }
 
     const shouldFallbackAddBattleScore = Number(battleScore) > 0 && battleReportSaved === false;
     if (shouldFallbackAddBattleScore) {
       await conn.query(
-        'UPDATE statistics SET total_battle_score = total_battle_score + ? WHERE player_id = ?',
+        'UPDATE player_statistics SET total_battle_score = total_battle_score + ? WHERE player_id = ?',
         [Number(battleScore), pid],
       );
     }
@@ -1549,6 +1578,7 @@ async function recordEncounterBattleSettlement(attackerPlayerId, body) {
         npcTotal: garrisonUnits.length,
         silverReward,
         reputationReward,
+        equipmentDrop,
         siegeCompleted: false,
         defenderType: 'road_encounter',
         defenderVeteranPromotions,

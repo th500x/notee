@@ -50,6 +50,6 @@ INSERT INTO player_events (player_id)
 VALUES ('sys1')
 ON DUPLICATE KEY UPDATE player_id = player_id;
 
-INSERT INTO statistics (player_id)
+INSERT INTO player_statistics (player_id)
 VALUES ('sys1')
 ON DUPLICATE KEY UPDATE player_id = player_id;

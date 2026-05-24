@@ -44,7 +44,7 @@ async function saveBattle(battleData) {
   };
 
   const created = await Battle.create(data);
-  // 与 POST /api/battles 及服务端直接 saveBattle（如攻城推演）共用：插入成功后再累加 statistics
+  // 与 POST /api/battles 及服务端直接 saveBattle（如攻城推演）共用：插入成功后再累加 player_statistics
   await applyBattleStatistics(battleData.playerId, {
     result: battleData.result,
     totalDamageDealt: battleData.totalDamageDealt,
@@ -109,7 +109,7 @@ async function unfavoriteBattle(playerId, battleId) {
 }
 
 /**
- * 更新活动排行积分（statistics.total_battle_score）。
+ * 更新活动排行积分（player_statistics.total_battle_score）。
  * recordOnly 路径和普通路径均调用此函数；失败时仅记录日志，不阻断主流程。
  *
  * @param {string} playerId
@@ -120,7 +120,7 @@ async function applyBattleScore(playerId, battleScore) {
   if (!score || score <= 0) return;
   try {
     await pool.query(
-      'UPDATE statistics SET total_battle_score = total_battle_score + ? WHERE player_id = ?',
+      'UPDATE player_statistics SET total_battle_score = total_battle_score + ? WHERE player_id = ?',
       [score, playerId],
     );
     console.log(`[battleService] 战斗积分更新: +${score} player=${playerId}`);
@@ -130,7 +130,7 @@ async function applyBattleScore(playerId, battleScore) {
 }
 
 /**
- * 战后累加 statistics：场次、胜负平、胜率、歼敌/自损兵力、击杀数。
+ * 战后累加 player_statistics：场次、胜负平、胜率、歼敌/自损兵力、击杀数。
  * 在 battles 表插入成功之后调用；仅打日志，不阻断主流程。
  *
  * @param {string} playerId
@@ -151,7 +151,7 @@ async function applyBattleStatistics(playerId, payload) {
 
   try {
     const [r1] = await pool.query(
-      `UPDATE statistics SET
+      `UPDATE player_statistics SET
         total_battles = total_battles + 1,
         wins = wins + ?,
         losses = losses + ?,
@@ -163,11 +163,11 @@ async function applyBattleStatistics(playerId, payload) {
       [w, l, d, dd, dt, k, pid],
     );
     if (!r1.affectedRows) {
-      console.warn('[battleService] statistics 累加未命中行（无 statistics 行或 player_id 不匹配）:', pid);
+      console.warn('[battleService] player_statistics 累加未命中行（无 player_statistics 行或 player_id 不匹配）:', pid);
       return;
     }
     await pool.query(
-      `UPDATE statistics SET
+      `UPDATE player_statistics SET
         win_rate = CASE
           WHEN total_battles > 0 THEN ROUND(100 * wins / total_battles, 2)
           ELSE 0
@@ -175,9 +175,9 @@ async function applyBattleStatistics(playerId, payload) {
        WHERE player_id = ?`,
       [pid],
     );
-    console.log(`[battleService] statistics 累加: player=${pid} result=${result} dmg ${dd}/${dt} kills=${k}`);
+    console.log(`[battleService] player_statistics 累加: player=${pid} result=${result} dmg ${dd}/${dt} kills=${k}`);
   } catch (err) {
-    console.error('[battleService] statistics 累加失败:', err);
+    console.error('[battleService] player_statistics 累加失败:', err);
   }
 }
 

@@ -13,7 +13,7 @@ import EventBattle from './EventBattle';
 import EventGobang from './EventGobang';
 import EventBlackjack from './EventBlackjack';
 import { PHASE, FACTOR_CN } from './EventConstants';
-import { parseRewards, parseRequiredItems, isFactorOption } from './eventUtils';
+import { parseRewards, parseRequiredItems, isFactorOption, exploreRewardFailureSubhint } from './eventUtils';
 import { getOptionFactorFields } from '@shared/utils/eventOptionFactor.js';
 import { API_CONFIG, getRarityHex, getRarityLabelCn } from '@/constants';
 import { fetchWithTimeout } from '@/services/httpClient';
@@ -37,8 +37,14 @@ export default function ExplorePanel({ eventSystem }) {
     closeEvent, chooseOption, confirmResult, endBattle, endMinigame, closeReward,
     rewardDetails, battleScore, battleChestRewards = [], playerId, isTutorial,
     battleEntryBlockedMessage, dismissBattleEntryBlocked,
+    exploreNoticeMessage, dismissExploreNotice,
     eventBattleEnemySlotRarities = null,
   } = eventSystem;
+
+  const exploreNoticeSubhint = useMemo(
+    () => exploreRewardFailureSubhint(exploreNoticeMessage),
+    [exploreNoticeMessage],
+  );
 
   const [hoveredOption, setHoveredOption] = useState(null);
 
@@ -134,6 +140,23 @@ export default function ExplorePanel({ eventSystem }) {
         >
           <p className="text-gray-800 text-sm text-center">{battleEntryBlockedMessage}</p>
           <p className="text-center text-gray-500 text-xs mt-2">请返回编组调整兵力或补充粮草后再试。</p>
+        </AncientModal>
+      )}
+
+      {/* ===== 奖励发放失败（传奇/核心部队、道具不足等） ===== */}
+      {exploreNoticeMessage && (
+        <AncientModal
+          isOpen
+          type="warning"
+          title="无法完成探索"
+          confirmText="确定"
+          onClose={dismissExploreNotice}
+          onConfirm={dismissExploreNotice}
+        >
+          <p className="text-gray-800 text-sm text-center">{exploreNoticeMessage}</p>
+          {exploreNoticeSubhint ? (
+            <p className="text-center text-gray-500 text-xs mt-2">{exploreNoticeSubhint}</p>
+          ) : null}
         </AncientModal>
       )}
 

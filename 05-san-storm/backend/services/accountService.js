@@ -16,6 +16,21 @@ function isDuplicateKeyError(err) {
   return err && (err.code === 'ER_DUP_ENTRY' || err.errno === 1062);
 }
 
+/** MySQL 唯一键冲突 → 用户可见文案（勿一律写成「ID 已被使用」） */
+function registerDuplicateKeyMessage(err) {
+  const msg = String(err?.sqlMessage || err?.message || '');
+  if (/idx_machine_id|machineId/i.test(msg)) {
+    return '本浏览器已绑定游戏账号，请使用已有账号登录';
+  }
+  if (/idx_client_ip|clientIP/i.test(msg)) {
+    return '当前网络环境下已有账号注册记录，请使用已有账号登录';
+  }
+  if (/PRIMARY|'id'|`id`/i.test(msg)) {
+    return '该游戏ID已被注册，请返回重新选择ID';
+  }
+  return '注册信息与他人账号冲突，请更换游戏ID或换浏览器后重试';
+}
+
 /** 与前端 authUtils 一致：首位批次 0–9，后三位 A–Z / 0–9 */
 const REGISTER_ID_CHARSET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
 
@@ -116,7 +131,21 @@ async function register(body) {
 
   const [existingId] = await pool.query('SELECT id FROM accounts WHERE id = ?', [id]);
   if (existingId.length > 0) {
-    return { ok: false, status: 400, error: 'ID已被使用' };
+    return { ok: false, status: 400, error: '该游戏ID已被注册，请返回重新选择ID' };
+  }
+
+  if (resolvedMachineId !== 'unknown') {
+    const [sameMachine] = await pool.query(
+      'SELECT id FROM accounts WHERE machineId = ? LIMIT 1',
+      [resolvedMachineId]
+    );
+    if (sameMachine.length > 0) {
+      return {
+        ok: false,
+        status: 409,
+        error: '本浏览器已绑定游戏账号，请使用已有账号登录',
+      };
+    }
   }
 
   /** 同一浏览器指纹在冷却期内仅允许注册一次（见 .env REGISTER_MACHINE_COOLDOWN_HOURS；0=关闭）。不依赖外网 IP，减轻 NAT/校园网误伤。 */
@@ -130,9 +159,21 @@ async function register(body) {
       return {
         ok: false,
         status: 429,
-        error: '该设备近期已注册过账号，请使用已有账号登录',
+        error: '该设备在冷却期内已注册过账号，请使用已有账号登录',
       };
     }
+  }
+
+  const [sameClientIp] = await pool.query(
+    'SELECT id FROM accounts WHERE clientIP = ? LIMIT 1',
+    [resolvedClientIP]
+  );
+  if (sameClientIp.length > 0) {
+    const ipMsg =
+      resolvedClientIP === '0.0.0.0'
+        ? '未上报网络地址且占位地址已被占用，无法重复注册；请使用已有账号登录'
+        : '当前网络环境下已有账号注册记录，请使用已有账号登录';
+    return { ok: false, status: 409, error: ipMsg };
   }
 
   const hashedPassword = await bcrypt.hash(password, BCRYPT_ROUNDS);
@@ -176,7 +217,11 @@ async function register(body) {
       await connection.rollback();
       connection.release();
       if (isDuplicateKeyError(err)) {
-        return { ok: false, status: 400, error: 'ID已被使用' };
+        return {
+          ok: false,
+          status: 409,
+          error: registerDuplicateKeyMessage(err),
+        };
       }
       throw err;
     }
@@ -370,7 +415,7 @@ async function clearPlayerGameData(userId) {
     'player_garrison',
     'player_progress',
     'player_synthesis',
-    'statistics',
+    'player_statistics',
     'season_records',
     'temp_character_creation',
     'players',
@@ -497,7 +542,7 @@ async function purgeAllPlayerData() {
     'player_garrison',
     'player_progress',
     'player_synthesis',
-    'statistics',
+    'player_statistics',
     'season_records',
     'temp_character_creation',
     'players',

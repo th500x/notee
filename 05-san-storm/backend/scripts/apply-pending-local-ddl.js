@@ -13,12 +13,21 @@ require('dotenv').config({ path: path.join(__dirname, '../.env') });
 const MIGRATION_FILES_SKIP_NO_SUCH_TABLE = new Set([
   'rename-faction-bulletin-entries-to-faction-bulletins.sql',
   'rename-temp-character-ranking-snapshots-to-temp-character-ranking.sql',
+  'rename-statistics-to-player-statistics.sql',
+  'rename-temp-ranking-snapshots-to-temp-event-ranking.sql',
 ]);
 
 /** 含 SET/PREPARE/EXECUTE 的多句迁移须 multipleStatements（pool.query 默认仅执行首句） */
 const MIGRATION_FILES_NEED_MULTIPLE_STATEMENTS = new Set([
   'cities-drop-fk-parent-city.sql',
   'player-garrison-composite-city-primary-key.sql',
+  'seed-system-player-sys1.sql',
+]);
+
+/** 多句 DDL/DML（无 PROCEDURE）；逐句 pool.query，避免 MariaDB 单包拒执行 */
+const MIGRATION_FILES_SPLIT_STATEMENTS = new Set([
+  'config-positions-drop-legacy-bonus-columns-json-type.sql',
+  'add-faction-bulletins-category.sql',
 ]);
 
 async function runMigrationSql(sql, file) {
@@ -57,6 +66,11 @@ const MIGRATION_FILES = [
   'add-veteran-columns.sql',
   'migrate-players-items-item-badge-to-season-badge.sql',
   'rename-config-items-item-badge-to-item-season-badge.sql',
+  'add-config-items-item-type-season-badge.sql',
+  'add-cities-description.sql',
+  'add-temp-ranking-snapshots-updated-at.sql',
+  'add-temp-ranking-snapshots-frozen-deltas.sql',
+  'add-temp-ranking-snapshots-baseline-date.sql',
   'player-garrison-composite-city-primary-key.sql',
   'cities-rename-commerce-columns-to-trading.sql',
   'factions-rename-reserve-silver-food.sql',
@@ -81,7 +95,13 @@ const MIGRATION_FILES = [
   'alter-battles-add-pvp-war-id.sql',
   'rename-faction-bulletin-entries-to-faction-bulletins.sql',
   'create-faction-bulletins.sql',
+  'add-faction-bulletins-category.sql',
+  'player-events-add-san-gong-document-daily.sql',
   'rename-temp-character-ranking-snapshots-to-temp-character-ranking.sql',
+  'rename-statistics-to-player-statistics.sql',
+  'rename-temp-ranking-snapshots-to-temp-event-ranking.sql',
+  'config-positions-drop-legacy-bonus-columns-json-type.sql',
+  'seed-system-player-sys1.sql',
 ];
 
 function stripSqlComments(sql) {
@@ -103,7 +123,17 @@ function stripSqlComments(sql) {
       continue;
     }
     try {
-      await runMigrationSql(sql, file);
+      if (MIGRATION_FILES_SPLIT_STATEMENTS.has(file)) {
+        const statements = sql
+          .split(';')
+          .map((s) => s.trim())
+          .filter(Boolean);
+        for (const stmt of statements) {
+          await pool.query(stmt);
+        }
+      } else {
+        await runMigrationSql(sql, file);
+      }
       console.log(`OK: ${file}`);
     } catch (e) {
       if (

@@ -7,9 +7,18 @@
  * 本模块兜底 **已离线** 或 **迁离逻辑未命中**（例如占格键世界行 Y 与库不一致）的残留坐标。
  */
 
-const { loadRoadGrid } = require('../utils/roadGrid');
+const {
+  loadRoadGrid,
+  loadRoadGridSan1YuVerticalStack,
+  isSan1YuStackRoadJunId,
+} = require('../utils/roadGrid');
 const marchPoi = require('../../shared/utils/strategicMarchPoi.js');
 const { applyFactionPlayerRoadRetreat } = require('../utils/roadBattleRetreatPlacement');
+const {
+  playerRoadToWorldMapCell,
+  worldMapCellKey,
+  worldMapCellKeyFromPlayerRoadLocal,
+} = require('../../shared/utils/strategicGridCoordinates.js');
 
 const NOTICE_STALE_STAND =
   '此前战事已结束或地图目标已变更，原立足格已不可用，已为您移至本郡距此最近的己方城池。'.slice(0, 510);
@@ -24,6 +33,29 @@ async function fetchCitiesInJun(conn, season, junId) {
     [j, s],
   );
   return rows || [];
+}
+
+async function fetchCitiesForRoadGrid(conn, season, junId, grid) {
+  if (grid?.isSan1YuVerticalStack && Array.isArray(grid.stackJunIds) && grid.stackJunIds.length >= 2) {
+    const s = String(season || 'san_1').trim();
+    const [rows] = await conn.query(
+      `SELECT city_id, city_name, position_x, position_y, jun_id, faction_id, city_type, season
+       FROM cities WHERE season = ? AND jun_id IN (?, ?)`,
+      [s, grid.stackJunIds[0], grid.stackJunIds[1]],
+    );
+    return rows || [];
+  }
+  return fetchCitiesInJun(conn, season, junId);
+}
+
+async function loadRoadGridForJun(season, junId) {
+  const s = String(season || 'san_1').trim();
+  const j = String(junId || '').trim();
+  if (isSan1YuStackRoadJunId(j)) {
+    const stacked = await loadRoadGridSan1YuVerticalStack(s);
+    if (stacked && stacked.source !== 'none' && stacked.rawCells?.length) return stacked;
+  }
+  return loadRoadGrid(s, j);
 }
 
 function parseBaseCampJson(raw) {
@@ -45,9 +77,8 @@ async function cellTouchesActivePvpBaseCamp(conn, roadJunId, lx, ly) {
   const ty = Math.trunc(Number(ly));
   if (!j || !Number.isFinite(tx) || !Number.isFinite(ty)) return false;
 
-  const { stackWorldGyFromLocalJunRow } = await import('../../shared/utils/strategicWorldMapStack.js');
   const selfLocal = `${tx},${ty}`;
-  const selfWorld = `${tx},${stackWorldGyFromLocalJunRow(j, ty)}`;
+  const selfWorld = worldMapCellKeyFromPlayerRoadLocal(j, tx, ty);
 
   const [rows] = await conn.query(
     `SELECT base_camp FROM wars_pvp WHERE status IN ('pending','active') AND base_camp IS NOT NULL`,
@@ -88,7 +119,7 @@ async function evaluateAndRepairLockedPlayer(conn, pl) {
   if (!Number.isFinite(rx) || !Number.isFinite(ry)) return null;
 
   const season = 'san_1';
-  const grid = await loadRoadGrid(season, junId);
+  const grid = await loadRoadGridForJun(season, junId);
   if (grid.source === 'none' || !grid.rawCells?.length) return null;
 
   const pass = marchPoi.buildRoadPassableKeySetForMarch(
@@ -97,31 +128,51 @@ async function evaluateAndRepairLockedPlayer(conn, pl) {
     grid.mapColumns,
     grid.mapRows,
   );
-  const k = `${Math.trunc(rx)},${Math.trunc(ry)}`;
-  if (pass.has(k)) return null;
+  const countyRows = await fetchCitiesForRoadGrid(conn, season, junId, grid);
 
-  const countyRows = await fetchCitiesInJun(conn, season, junId);
-  if (
-    marchPoi.resolvePoiFootprintAtCellFromDb(
-      countyRows,
-      Math.trunc(rx),
-      Math.trunc(ry),
+  const isStandValidAtWorld = (ew) => {
+    if (!ew) return false;
+    const kk = worldMapCellKey(ew.gx, ew.worldGy);
+    if (pass.has(kk)) return true;
+    if (
+      marchPoi.resolvePoiFootprintAtCellFromDb(
+        countyRows,
+        ew.gx,
+        ew.worldGy,
+        grid.mapColumns,
+        grid.mapRows,
+        grid.rawCells,
+      )
+    ) {
+      return true;
+    }
+    const fpKeys = marchPoi.findPoiFootprintKeysContainingCell(
+      grid.rawCells,
+      ew.gx,
+      ew.worldGy,
       grid.mapColumns,
       grid.mapRows,
-      grid.rawCells,
-    )
-  ) {
-    return null;
-  }
+    );
+    return !!fpKeys?.size;
+  };
 
-  const fpKeys = marchPoi.findPoiFootprintKeysContainingCell(
-    grid.rawCells,
-    Math.trunc(rx),
-    Math.trunc(ry),
-    grid.mapColumns,
-    grid.mapRows,
-  );
-  if (fpKeys?.size) return null;
+  const evalWorld = playerRoadToWorldMapCell(junId, rx, ry);
+  if (!evalWorld) return null;
+  if (isStandValidAtWorld(evalWorld)) return null;
+
+  if (grid?.isSan1YuVerticalStack && Array.isArray(grid.stackJunIds) && grid.stackJunIds.length >= 2) {
+    for (const tryJun of grid.stackJunIds) {
+      const tj = String(tryJun || '').trim();
+      if (!tj || tj === junId) continue;
+      const ewAlt = playerRoadToWorldMapCell(tj, rx, ry);
+      if (!isStandValidAtWorld(ewAlt)) continue;
+      await conn.query(
+        `UPDATE players SET road_jun_id = ?, road_updated_at = NOW() WHERE player_id = ?`,
+        [tj, pid],
+      );
+      return null;
+    }
+  }
 
   if (await cellTouchesActivePvpBaseCamp(conn, junId, rx, ry)) return null;
 

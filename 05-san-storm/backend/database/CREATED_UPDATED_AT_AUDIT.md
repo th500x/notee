@@ -30,8 +30,8 @@
 | `memorial_images` | 查询与更新使用 `created_at` | `routes/memorial.js` |
 | `temp_character_creation` | 多处 `updated_at = CURRENT_TIMESTAMP`；调试脚本读两列 | `services/playerCreationService.js`, `check-progress.js` |
 | `temp_character_ranking` | **`created_at`**（首次插入）+ **`updated_at`**（刷新与 **14 天 TTL 清理**）；`KEY idx_updated_at` | `services/characterRankService.js`；老库补列见 `migrations/add-temp-character-ranking-snapshots-created-at.sql`（表名仍为旧名时先执行，再 `rename-temp-character-ranking-snapshots-to-temp-character-ranking.sql`） |
-| `temp_ranking_snapshots` | **`created_at`** + **`updated_at`**（`ON UPDATE`，冻结 `UPDATE` 会刷新）；活动快照 TTL 仍看 **`expires_at`** | `services/rankingService.js`；老库补 `updated_at` 见 `migrations/add-temp-ranking-snapshots-updated-at.sql` |
-| `statistics` | API 返回 `createdAt`/`updatedAt` | `services/playerStatisticsService.js` |
+| `temp_event_ranking` | **`created_at`** + **`updated_at`**（`ON UPDATE`，冻结 `UPDATE` 会刷新）；活动快照 TTL 仍看 **`expires_at`** | `services/rankingService.js`；老库补 `updated_at` 见 `migrations/add-temp-ranking-snapshots-updated-at.sql` |
+| `player_statistics` | API 返回 `createdAt`/`updatedAt` | `services/playerStatisticsService.js` |
 | `servers` | 运维脚本展示 `created_at` | `database/scripts/query-servers.js` |
 
 ---
@@ -71,7 +71,7 @@
 
 ## 5. 仅 `created_at`（无 `updated_at` 或逻辑未用）
 
-（当前无常驻条目；`temp_ranking_snapshots` 已含 `updated_at`，见第 2 节。）
+（当前无常驻条目；`temp_event_ranking` 已含 `updated_at`，见第 2 节。）
 
 ---
 

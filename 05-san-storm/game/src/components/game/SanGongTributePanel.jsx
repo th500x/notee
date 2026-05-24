@@ -1,5 +1,5 @@
 /**
- * 三公府 · 互动 · 朝贡：与驻军所「军营」相同的部队池展示与缩略卡样式；每日最多上缴 5 张。
+ * 三公府 · 互动 · 朝贡：每日最多上缴 5 张军营池部队卡；选卡经 `SanGongTributeSelectModal` 弹窗完成。
  */
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
@@ -16,7 +16,7 @@ import { tributeCompensationPerTroopCard } from '@/utils/siegeKillEconomyTribute
 import TroopCard from '@shared/components/card/TroopCard';
 import { toTroopCardData } from '@/utils/cardDataTransforms';
 import { loadSharedData } from '@/services/dataService';
-import { MAX_LINEUP_BARRACKS_TROOP_CARDS } from '@/constants/barracksLimits';
+import SanGongTributeSelectModal from '@/components/game/SanGongTributeSelectModal';
 
 const MAX_SELECT = 5;
 
@@ -39,6 +39,7 @@ export default function SanGongTributePanel() {
   const [occupiedIds, setOccupiedIds] = useState(() => new Set());
   const [skillsMap, setSkillsMap] = useState({});
   const [selected, setSelected] = useState(() => new Set());
+  const [selectModalOpen, setSelectModalOpen] = useState(false);
   const [previewCard, setPreviewCard] = useState(null);
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState(null);
@@ -97,6 +98,8 @@ export default function SanGongTributePanel() {
   );
   const poolByRarity = useMemo(() => groupTroopCardsByRarity(poolTroops), [poolTroops]);
 
+  const selectionCap = Math.min(MAX_SELECT, Math.max(0, tributeStatus.remainingToday ?? 0));
+
   useEffect(() => {
     setSelected((prev) => {
       const next = new Set();
@@ -113,20 +116,28 @@ export default function SanGongTributePanel() {
     (id) => {
       setSelected((s) => {
         if (s.has(id)) return toggleInSet(s, id);
-        const cap = Math.min(MAX_SELECT, Math.max(0, tributeStatus.remainingToday ?? 0));
-        if (cap <= 0) {
+        if (selectionCap <= 0) {
           setToast('今日朝贡额度已用尽');
           return s;
         }
-        if (s.size >= cap) {
-          setToast(`本日还可朝贡 ${cap} 张，已达可选上限`);
+        if (s.size >= selectionCap) {
+          setToast(`本日还可朝贡 ${selectionCap} 张，已达可选上限`);
           return s;
         }
         return toggleInSet(s, id);
       });
     },
-    [tributeStatus.remainingToday],
+    [selectionCap],
   );
+
+  const openSelectModal = useCallback(() => {
+    if (selectionCap <= 0) {
+      setToast('今日朝贡额度已用尽');
+      return;
+    }
+    setSelected(new Set());
+    setSelectModalOpen(true);
+  }, [selectionCap]);
 
   const handleTribute = useCallback(async () => {
     if (!player?.player_id || busy || selected.size === 0) return;
@@ -137,6 +148,7 @@ export default function SanGongTributePanel() {
       if (res.success) {
         const d = res.data || {};
         setSelected(new Set());
+        setSelectModalOpen(false);
         setToast(
           `朝贡完成：银两 +${d.silver ?? 0}，贡献 +${d.contribution ?? 0}；势力储备银两 +${d.factionSilver ?? 0}、粮草 +${d.factionFood ?? 0}`,
         );
@@ -152,93 +164,50 @@ export default function SanGongTributePanel() {
     }
   }, [player?.player_id, busy, selected, refresh, loadStatus]);
 
-  const renderTroopThumb = (card) => {
-    const id = card.instance_id;
-    const isSel = selected.has(id);
-    return (
-      <div
-        key={id}
-        role="button"
-        tabIndex={0}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            onToggleSelect(id);
-          }
-        }}
-        style={{ width: 128, height: 192 }}
-        className={`cursor-pointer overflow-hidden rounded-lg border-2 transition-colors ${
-          isSel ? 'border-amber-400 shadow-[0_0_10px_rgba(251,191,36,0.35)]' : 'border-stone-700/60 hover:border-amber-700/50'
-        }`}
-        onClick={() => onToggleSelect(id)}
-        onDoubleClick={(e) => {
-          e.stopPropagation();
-          setPreviewCard(card);
-        }}
-      >
-        <div style={{ transform: 'scale(0.5)', transformOrigin: 'top left', width: 256 }}>
-          <TroopCard
-            troop={toTroopCardData(card)}
-            skillsMap={skillsMap}
-            showDetails
-            baseUrl={baseUrl}
-            disableHoverScale
-          />
-        </div>
-      </div>
-    );
-  };
+  const canOpenSelect = selectionCap > 0 && !busy;
 
   return (
     <div className="flex h-full min-h-0 w-full min-w-0 flex-col text-left">
-      <div className="mb-2 shrink-0 rounded-lg border border-amber-900/25 bg-stone-900/40 px-2 py-2">
+      <div className="rounded-lg border border-amber-900/25 bg-stone-900/40 px-2 py-2">
         <div className="text-xs font-semibold text-amber-500/95">朝贡</div>
         <p className="mt-1 break-words text-[10px] leading-snug text-stone-400">{TRIBUTE_REWARD_SUMMARY_LINE}</p>
         <p className="mt-1 text-[10px] text-stone-500">
-          今日已朝贡 {tributeStatus.usedToday ?? 0} / {tributeStatus.maxPerDay ?? 5}，还可选 {tributeStatus.remainingToday ?? 5} 张额度；当前已选 {selected.size} 张
+          今日已朝贡 {tributeStatus.usedToday ?? 0} / {tributeStatus.maxPerDay ?? 5}，还可选{' '}
+          {tributeStatus.remainingToday ?? 5} 张额度
         </p>
         <button
           type="button"
-          disabled={busy || selected.size === 0}
-          onClick={handleTribute}
+          disabled={!canOpenSelect}
+          onClick={openSelectModal}
           className="mt-2 w-full rounded-md border border-amber-700/50 bg-amber-950/50 py-2 text-xs font-bold text-amber-200 hover:bg-amber-900/40 disabled:opacity-40"
         >
-          {busy ? '处理中…' : '确认朝贡'}
+          选择朝贡
         </button>
       </div>
 
       {toast ? (
-        <div className="mb-2 shrink-0 rounded border border-stone-600/50 bg-stone-800/80 px-2 py-1.5 text-[11px] text-stone-200">
+        <div className="mt-2 rounded border border-stone-600/50 bg-stone-800/80 px-2 py-1.5 text-[11px] text-stone-200">
           {toast}
         </div>
       ) : null}
 
-      <div className="flex min-h-0 flex-1 flex-col rounded-md border border-stone-700/35 bg-stone-950/40 p-1">
-        <div className="mb-1 shrink-0 text-[10px] text-stone-600">军营列表可上下滚动查看完整卡牌</div>
-        <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain pb-1 touch-pan-y [-webkit-overflow-scrolling:touch]">
-        <div className="mb-1 flex items-baseline justify-between gap-2">
-          <h3 className="text-xs font-semibold text-stone-400">军营（与驻军所军营池一致）</h3>
-          <span className="text-[10px] text-amber-500/90">
-            当前 {poolTroops.length}/{MAX_LINEUP_BARRACKS_TROOP_CARDS} 张
-          </span>
-        </div>
-        {poolTroops.length === 0 ? (
-          <p className="text-center text-xs text-stone-500">军营池内暂无可展示的部队卡</p>
-        ) : (
-          <div className="space-y-2">
-            {poolByRarity.map(({ rarity, cards: rCards }) => (
-              <div key={`t-${rarity}`}>
-                <div className="mb-1 px-1 text-[10px] text-stone-500">
-                  {RARITY_LABEL[rarity] || rarity}（{rCards.length}）
-                </div>
-                <div className="flex flex-wrap gap-2">{rCards.map((card) => renderTroopThumb(card))}</div>
-              </div>
-            ))}
-          </div>
-        )}
-        <p className="mt-2 text-[10px] text-stone-600">双击卡面可全尺寸预览</p>
-        </div>
-      </div>
+      <SanGongTributeSelectModal
+        open={selectModalOpen}
+        onClose={() => {
+          if (busy) return;
+          setSelectModalOpen(false);
+          setSelected(new Set());
+        }}
+        poolTroops={poolTroops}
+        poolByRarity={poolByRarity}
+        skillsMap={skillsMap}
+        selected={selected}
+        onToggleSelect={onToggleSelect}
+        selectionCap={selectionCap}
+        busy={busy}
+        onConfirm={handleTribute}
+        onPreviewCard={setPreviewCard}
+      />
 
       {previewCard && (
         <div

@@ -7,7 +7,6 @@
  * 目录结构：
  * data/texts/
  * ├── gameIntroMessages.js   # 游戏特色介绍（开局叠加层）
- * ├── tutorialDraftPlaceholders.js  # 文档/占位用叙述块
  * ├── weeklyReport.js   # 项目周报（首页卡片 + 周报页全文）
  * ├── kingSpeechCasualChat.zh.json  # AI君主闲聊文案池（五种 speechStyle × casualChat）
  * ├── buildKingSpeechCasualChat.zh.mjs  # 生成上列 JSON（需改版书时运行）
@@ -16,17 +15,6 @@
  */
 
 export { gameIntroMessages } from './gameIntroMessages';
-export {
-  event0_equipmentTutorial,
-  event1_dialogue,
-  event2_gobang,
-  event3_battle,
-  enterCity,
-  lordPromotion,
-  changsheCampaign,
-  tutorialComplete,
-  battlePassIntro,
-} from './tutorialDraftPlaceholders';
 
 export {
   weeklyReportCard,

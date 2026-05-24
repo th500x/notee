@@ -33,6 +33,7 @@ import {
   buildRoadPassableKeySetForMarch,
   isPvpWarMarchTargetId,
 } from '@shared/utils/strategicMarchPoi.js';
+import { buildStrategicTerritoryStanceMap } from '@shared/utils/strategicTerritoryFlood.js';
 import '@/components/battle/BattleMap.css';
 import './WorldStrategicMap.css';
 import { PHASE } from '@/components/event/EventConstants';
@@ -1183,6 +1184,33 @@ export default function WorldStrategicMapGrid({
     }
   }, [cells, roadCells, mapColumns, mapRows]);
 
+  const territoryStanceMap = useMemo(() => {
+    if (!playerFactionId || !cells?.length) return null;
+    try {
+      return buildStrategicTerritoryStanceMap({
+        cells,
+        roadCells,
+        cityById,
+        mapColumns,
+        mapRows,
+        playerFactionId,
+        allyFactionIds: strategicCityLabelAllyFactionIds,
+        nonHostileFactionIds: strategicCityLabelNonHostileFactionIds,
+      });
+    } catch {
+      return null;
+    }
+  }, [
+    cells,
+    roadCells,
+    cityById,
+    mapColumns,
+    mapRows,
+    playerFactionId,
+    strategicCityLabelAllyFactionIds,
+    strategicCityLabelNonHostileFactionIds,
+  ]);
+
   const canRoadDoubleEnterMarch =
     !strategicRoadMarchAnimating &&
     typeof onStrategicRoadDoubleMarchToCell === 'function';
@@ -1260,6 +1288,7 @@ export default function WorldStrategicMapGrid({
                         canRoadDoubleEnterMarch={canRoadDoubleEnterMarch}
                         onStrategicRoadDoubleEnterMarch={onStrategicRoadDoubleMarchToCell}
                         roadMarchPassableKeySet={roadMarchPassableKeySet}
+                        territoryStance={territoryStanceMap?.get(`${ci},${ri}`) ?? null}
                       />
                     );
                   }),

@@ -11,12 +11,21 @@ import {
   buildStrategicObjectFootprintBlockedSet,
 } from './strategicRoadOverlay.js';
 import {
+  playerRoadToWorldMapCell,
+  worldMapCellKey,
+  playerRoadJunSliceFromWorldGy,
   stackWorldRowOffsetForJunId,
-  stackWorldGyFromLocalJunRow,
-  stackLocalJunRowFromWorldGy,
   STRATEGIC_COUNTY_MAP_ROWS,
   SAN_1_STRATEGIC_VERTICAL_STACK_JUN_ORDER,
-} from './strategicWorldMapStack.js';
+} from './strategicGridCoordinates.js';
+
+export {
+  playerRoadToWorldMapCell,
+  worldMapCellToPlayerRoad,
+  worldMapCellKey,
+  isStackedWorldMap,
+  playerRoadDestFromPoiAnchor,
+} from './strategicGridCoordinates.js';
 import { isHostileByFaction } from './roadDiplomacy.js';
 import { readStrategicCellAnchorId } from './strategicCellAnchorId.js';
 import { isBanditMapObjectId } from './smallMapEnemyRoster.js';
@@ -113,19 +122,20 @@ export function collectStrategicPoiFootprint(cells, targetPoiId, mapColumns, map
             if (x < mapColumns && y < mapRows) keys.add(`${x},${y}`);
           }
         }
-        const locJun = mapRows > STRATEGIC_COUNTY_MAP_ROWS ? stackLocalJunRowFromWorldGy(gy) : null;
+        const locJun = mapRows > STRATEGIC_COUNTY_MAP_ROWS ? playerRoadJunSliceFromWorldGy(gy) : null;
         const yOff = locJun ? stackWorldRowOffsetForJunId(locJun.junId) : 0;
+        const localAnchorGy = locJun ? gy - yOff : gy;
         return {
           keys,
           anchorGx: gx,
-          anchorGy: gy,
+          anchorGy: localAnchorGy,
           width: 2,
           height: 2,
           kind: 'city_2x2',
           poiAnchorId: id,
           poiPlayerRoadJunId: locJun?.junId ?? null,
           poiPlayerRoadLocalX: gx,
-          poiPlayerRoadLocalY: locJun ? gy - yOff : gy,
+          poiPlayerRoadLocalY: localAnchorGy,
         };
       }
     }
@@ -161,7 +171,7 @@ export function collectStrategicPoiFootprint(cells, targetPoiId, mapColumns, map
         keys.add(`${x},${y}`);
       }
     }
-    const locJunB = mapRows > STRATEGIC_COUNTY_MAP_ROWS ? stackLocalJunRowFromWorldGy(minY) : null;
+    const locJunB = mapRows > STRATEGIC_COUNTY_MAP_ROWS ? playerRoadJunSliceFromWorldGy(minY) : null;
     const yOffB = locJunB ? stackWorldRowOffsetForJunId(locJunB.junId) : 0;
     return {
       keys,
@@ -203,7 +213,7 @@ function buildPvpCampDominoFootprintFromWorldRect(jj, minWX, minWY, maxWX, maxWY
       keys.add(`${x},${y}`);
     }
   }
-  const locJun = mapRows > STRATEGIC_COUNTY_MAP_ROWS ? stackLocalJunRowFromWorldGy(minWY) : null;
+  const locJun = mapRows > STRATEGIC_COUNTY_MAP_ROWS ? playerRoadJunSliceFromWorldGy(minWY) : null;
   const yOff = locJun ? stackWorldRowOffsetForJunId(locJun.junId) : 0;
   return {
     keys,
@@ -250,7 +260,9 @@ function tryPvpCampFootprintFromAnchorOrientation(camp, jj, mapColumns, mapRows)
   let maxWY = -Infinity;
   for (const [lx, ly] of locPairs) {
     if (lx < 0 || ly < 0 || lx >= mapColumns || ly >= STRATEGIC_COUNTY_MAP_ROWS) return null;
-    const wy = stackWorldGyFromLocalJunRow(jj, ly);
+    const wCell = playerRoadToWorldMapCell(jj, lx, ly);
+    if (!wCell) return null;
+    const wy = wCell.worldGy;
     minWX = Math.min(minWX, lx);
     minWY = Math.min(minWY, wy);
     maxWX = Math.max(maxWX, lx);
@@ -315,7 +327,9 @@ function tryPvpCampFootprintFromExplicitCells(camp, jj, mapRows) {
     const lx = parts[0];
     const ly = parts[1];
     if (!Number.isFinite(lx) || !Number.isFinite(ly)) continue;
-    const wy = stackWorldGyFromLocalJunRow(jj, ly);
+    const wCell = playerRoadToWorldMapCell(jj, lx, ly);
+    if (!wCell) continue;
+    const wy = wCell.worldGy;
     any = true;
     minX = Math.min(minX, lx);
     minY = Math.min(minY, wy);
@@ -793,8 +807,9 @@ export function resolvePvpBaseCampWarIdAtMergedCell(mergedGy, mergedGx, pvpBaseC
         const lx = parts[0];
         const ly = parts[1];
         if (!Number.isFinite(lx) || !Number.isFinite(ly)) continue;
-        const wy = stackWorldGyFromLocalJunRow(jj, ly);
-        if (`${lx},${wy}` === here) {
+        const wCell = playerRoadToWorldMapCell(jj, lx, ly);
+        if (!wCell) continue;
+        if (`${wCell.gx},${wCell.worldGy}` === here) {
           hit = true;
           break outerJun;
         }
@@ -1005,11 +1020,9 @@ export function resolveOffRoadMarchDepartureFootprintKeys(
     !!String(roadJun || '').trim() &&
     (useWorldStackRoadCoords ? true : String(roadJun).trim() === String(countyJunId || '').trim());
   if (canProbePlayerCell) {
-    const wx = Math.trunc(rx);
-    const wyProbe =
-      useWorldStackRoadCoords && roadJun
-        ? stackWorldGyFromLocalJunRow(roadJun, Math.trunc(ry))
-        : Math.trunc(ry);
+    const probeWorld = playerRoadToWorldMapCell(roadJun, rx, ry);
+    const wx = probeWorld?.gx ?? Math.trunc(rx);
+    const wyProbe = probeWorld?.worldGy ?? Math.trunc(ry);
     // 大本营须优先于库城 footprint：否则 `road_position` 与某城 DB 框重叠时会误用错误 POI 邻路出发。
     if (Array.isArray(pvpBaseCamps) && pvpBaseCamps.length) {
       const wid = resolvePvpBaseCampWarIdAtMergedCell(wyProbe, wx, pvpBaseCamps, mapColumns, mapRows);
@@ -1093,27 +1106,40 @@ function buildPoiPlayerRoadWriteSnap(poi, targetCityDbRow = null, citiesInCounty
   if (!poi || !Number.isFinite(poi.anchorGx) || !Number.isFinite(poi.anchorGy)) {
     return { poiAnchor: null, poiAnchorJunId: null };
   }
-  if (poi.poiPlayerRoadJunId && poi.poiPlayerRoadLocalX != null && poi.poiPlayerRoadLocalY != null) {
-    return {
-      poiAnchor: { x: poi.poiPlayerRoadLocalX, y: poi.poiPlayerRoadLocalY },
-      poiAnchorJunId: poi.poiPlayerRoadJunId,
-    };
+  const localX =
+    poi.poiPlayerRoadLocalX != null && Number.isFinite(Number(poi.poiPlayerRoadLocalX))
+      ? Math.trunc(Number(poi.poiPlayerRoadLocalX))
+      : Math.trunc(poi.anchorGx);
+  const localY =
+    poi.poiPlayerRoadLocalY != null && Number.isFinite(Number(poi.poiPlayerRoadLocalY))
+      ? Math.trunc(Number(poi.poiPlayerRoadLocalY))
+      : Math.trunc(poi.anchorGy);
+  let junId = String(poi.poiPlayerRoadJunId || '').trim();
+  if (!junId && targetCityDbRow) {
+    junId = String(
+      targetCityDbRow.jun_id ?? targetCityDbRow.junId ?? targetCityDbRow.JUN_ID ?? '',
+    ).trim();
+  }
+  const poiCid = String(poi.poiAnchorId || '').trim();
+  if (!junId && poiCid && Array.isArray(citiesInCountyRows) && citiesInCountyRows.length) {
+    const hit = citiesInCountyRows.find((r) => String(r.city_id ?? r.cityId ?? '').trim() === poiCid);
+    junId = String(hit?.jun_id ?? hit?.junId ?? '').trim();
   }
   const cid =
     targetCityDbRow != null
       ? String(targetCityDbRow.city_id ?? targetCityDbRow.cityId ?? targetCityDbRow.id ?? '').trim()
       : '';
-  if (cid && Array.isArray(citiesInCountyRows) && citiesInCountyRows.length) {
+  if (!junId && cid && Array.isArray(citiesInCountyRows) && citiesInCountyRows.length) {
     const hit = citiesInCountyRows.find((r) => String(r.city_id ?? r.cityId ?? '').trim() === cid);
-    const j = String(hit?.jun_id ?? hit?.junId ?? '').trim();
-    if (j) {
-      return {
-        poiAnchor: { x: poi.anchorGx, y: poi.anchorGy },
-        poiAnchorJunId: j,
-      };
-    }
+    junId = String(hit?.jun_id ?? hit?.junId ?? '').trim();
   }
-  return { poiAnchor: { x: poi.anchorGx, y: poi.anchorGy }, poiAnchorJunId: null };
+  if (junId) {
+    return {
+      poiAnchor: { x: localX, y: localY },
+      poiAnchorJunId: junId,
+    };
+  }
+  return { poiAnchor: { x: localX, y: localY }, poiAnchorJunId: null };
 }
 
 /**
@@ -1180,10 +1206,8 @@ export function buildMarchPathToStrategicPoi({
   const roadJun = player?.road_jun_id || null;
   const rx = Number(player?.road_position_x);
   const ry = Number(player?.road_position_y);
-  const startWy =
-    useWorldStackRoadCoords && roadJun && Number.isFinite(rx) && Number.isFinite(ry)
-      ? stackWorldGyFromLocalJunRow(roadJun, Math.trunc(ry))
-      : Math.trunc(ry);
+  const startWorld = playerRoadToWorldMapCell(roadJun, rx, ry);
+  const startWy = startWorld?.worldGy ?? Math.trunc(ry);
   const canUseStartKeyRoad =
     Number.isFinite(rx) &&
     Number.isFinite(ry) &&

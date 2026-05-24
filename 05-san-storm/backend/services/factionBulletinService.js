@@ -1,11 +1,18 @@
 /**
- * 势力公告流水（大地图「势力」Tab：横屏第四象限与竖屏「公告」子 Tab 共用）
+ * 势力公告流水
+ * - 大地图「势力」Tab：战事摘要（category=war）
+ * - 三公府「公告」象限：谕旨 edict / 文书 document / 战事 war
  *
- * 表：`faction_bulletins`（见 migrations/create-faction-bulletins.sql；旧名迁移 rename-faction-bulletin-entries-to-faction-bulletins.sql）
- * 写入：PVP/PVE 战事发起与结束时由业务服务 fire-and-forget 调用，失败仅打日志。
+ * 表：`faction_bulletins`（见 migrations/create-faction-bulletins.sql、add-faction-bulletins-category.sql）
  */
 
 const { pool } = require('../database/connection');
+
+const CATEGORY = {
+  EDICT: 'edict',
+  DOCUMENT: 'document',
+  WAR: 'war',
+};
 
 function formatTimestamp(d = new Date()) {
   const p = (n) => String(n).padStart(2, '0');
@@ -13,61 +20,130 @@ function formatTimestamp(d = new Date()) {
 }
 
 /**
+ * @param {import('mysql2/promise').Pool|import('mysql2/promise').PoolConnection} db
  * @param {string} factionId
- * @param {string} textWithoutBracket - 不含时间戳的正文，将自动前缀 `[YYYY-MM-DD HH:mm:ss] `
+ * @param {string} textWithoutBracket
+ * @param {{ category?: string, authorPlayerId?: string|null, authorName?: string|null }} [opts]
+ * @returns {Promise<number>} insert id
  */
-async function append(factionId, textWithoutBracket) {
-  if (!factionId || typeof textWithoutBracket !== 'string') return;
+async function appendOnConnection(db, factionId, textWithoutBracket, opts = {}) {
+  if (!factionId || typeof textWithoutBracket !== 'string') return 0;
+  const category = opts.category || CATEGORY.WAR;
   const body = `[${formatTimestamp()}] ${textWithoutBracket}`.slice(0, 512);
-  await pool.query(
-    'INSERT INTO faction_bulletins (faction_id, body) VALUES (?, ?)',
-    [factionId, body],
+  const [result] = await db.query(
+    `INSERT INTO faction_bulletins (faction_id, category, body, author_player_id, author_name)
+     VALUES (?, ?, ?, ?, ?)`,
+    [
+      factionId,
+      category,
+      body,
+      opts.authorPlayerId || null,
+      opts.authorName || null,
+    ],
   );
+  return Number(result.insertId) || 0;
 }
 
 /**
- * 非阻塞写入（避免战事事务回滚受公告失败牵连）。
- *
  * @param {string} factionId
  * @param {string} textWithoutBracket
+ * @param {{ category?: string, authorPlayerId?: string|null, authorName?: string|null }} [opts]
  */
-function appendSafe(factionId, textWithoutBracket) {
-  append(factionId, textWithoutBracket).catch((err) => {
+async function append(factionId, textWithoutBracket, opts = {}) {
+  return appendOnConnection(pool, factionId, textWithoutBracket, opts);
+}
+
+function appendSafe(factionId, textWithoutBracket, opts = {}) {
+  append(factionId, textWithoutBracket, opts).catch((err) => {
     console.error('[factionBulletin] append failed:', factionId, err.message);
   });
 }
 
+function mapRow(r) {
+  return {
+    id: Number(r.id),
+    category: r.category || CATEGORY.WAR,
+    body: r.body,
+    authorPlayerId: r.authorPlayerId || r.author_player_id || null,
+    authorName: r.authorName || r.author_name || null,
+    createdAt: r.createdAt instanceof Date ? r.createdAt.toISOString() : String(r.createdAt),
+  };
+}
+
 /**
  * @param {string} factionId
- * @param {{ limit?: number }} [opts]
- * @returns {Promise<Array<{ id: number, body: string, createdAt: string }>>}
+ * @param {{ limit?: number, category?: string|null }} [opts]
  */
 async function listForFaction(factionId, opts = {}) {
   if (!factionId) return [];
   const limit = Math.min(100, Math.max(1, Number(opts.limit) || 50));
-  const [rows] = await pool.query(
-    'SELECT id, body, created_at AS createdAt FROM faction_bulletins WHERE faction_id = ? ORDER BY id DESC LIMIT ?',
-    [factionId, limit],
-  );
-  return rows.map((r) => ({
-    id: Number(r.id),
-    body: r.body,
-    createdAt: r.createdAt instanceof Date ? r.createdAt.toISOString() : String(r.createdAt),
-  }));
-}
+  const category = opts.category != null && String(opts.category).trim()
+    ? String(opts.category).trim()
+    : null;
 
-/** PVP 战事已 active（含大本营） */
-function logPvpWarStarted(war) {
-  const city = war.targetCityName || war.targetCityId || '目标城';
-  const attName = war.attackerFactionName || '敌军';
-  appendSafe(war.attackerFactionId, `PVP 战事：我军向「${city}」进军，战事已开（攻方）。`);
-  appendSafe(war.defenderFactionId, `PVP 战事：「${attName}」进犯我方「${city}」，战事已开（守方）。`);
+  let sql = `SELECT id, category, body, author_player_id AS authorPlayerId, author_name AS authorName,
+                    created_at AS createdAt
+             FROM faction_bulletins WHERE faction_id = ?`;
+  const params = [factionId];
+  if (category) {
+    sql += ' AND category = ?';
+    params.push(category);
+  }
+  sql += ' ORDER BY id DESC LIMIT ?';
+  params.push(limit);
+
+  try {
+    const [rows] = await pool.query(sql, params);
+    return rows.map(mapRow);
+  } catch (e) {
+    if (/Unknown column ['`]category/i.test(e?.message || '')) {
+      const [rows] = await pool.query(
+        'SELECT id, body, created_at AS createdAt FROM faction_bulletins WHERE faction_id = ? ORDER BY id DESC LIMIT ?',
+        [factionId, limit],
+      );
+      return rows.map((r) => mapRow({ ...r, category: CATEGORY.WAR }));
+    }
+    throw e;
+  }
 }
 
 /**
- * @param {object} war - formatPvpWarRow
- * @param {{ status: string, winnerFactionId?: string|null, victoryCondition?: string|null, cancelReason?: string, endedByOfficial?: boolean, neverActivated?: boolean }} end
+ * @param {string} factionId
+ * @param {{ limitPerCategory?: number }} [opts]
  */
+async function listGroupedForFaction(factionId, opts = {}) {
+  const limit = Math.min(50, Math.max(1, Number(opts.limitPerCategory) || 30));
+  const [edicts, documents, wars] = await Promise.all([
+    listForFaction(factionId, { limit, category: CATEGORY.EDICT }),
+    listForFaction(factionId, { limit, category: CATEGORY.DOCUMENT }),
+    listForFaction(factionId, { limit, category: CATEGORY.WAR }),
+  ]);
+  return { edicts, documents, wars };
+}
+
+/** AI 君主 · 每日大司空任命谕旨 */
+function logDasikongEdict(factionId, kingName, winnerName, totalScore) {
+  const king = String(kingName || '君主').trim();
+  const winner = String(winnerName || '—').trim();
+  const score = Math.max(0, Math.floor(Number(totalScore) || 0));
+  appendSafe(
+    factionId,
+    `【谕旨】${king}：依昨日群臣功绩，册封 ${winner} 为大司空（日榜 ${score} 分）。`,
+    { category: CATEGORY.EDICT },
+  );
+}
+
+function logPvpWarStarted(war) {
+  const city = war.targetCityName || war.targetCityId || '目标城';
+  const attName = war.attackerFactionName || '敌军';
+  appendSafe(war.attackerFactionId, `PVP 战事：我军向「${city}」进军，战事已开（攻方）。`, {
+    category: CATEGORY.WAR,
+  });
+  appendSafe(war.defenderFactionId, `PVP 战事：「${attName}」进犯我方「${city}」，战事已开（守方）。`, {
+    category: CATEGORY.WAR,
+  });
+}
+
 function logPvpWarEnded(war, end) {
   const city = war.targetCityName || war.targetCityId || '目标城';
   const { status, winnerFactionId, endedByOfficial, cancelReason, neverActivated } = end;
@@ -77,10 +153,12 @@ function logPvpWarEnded(war, end) {
     appendSafe(
       war.attackerFactionId,
       `战事结束：由一品官职官员（position_level=1）主持结案，本场战事已止${reason}`,
+      { category: CATEGORY.WAR },
     );
     appendSafe(
       war.defenderFactionId,
       `战事结束：由一品官职官员（position_level=1）主持结案，本场战事已止${reason}`,
+      { category: CATEGORY.WAR },
     );
     return;
   }
@@ -89,18 +167,24 @@ function logPvpWarEnded(war, end) {
     appendSafe(
       war.attackerFactionId,
       `战事筹划已解除：针对「${city}」的进犯未落营开战，草案已撤销。`,
+      { category: CATEGORY.WAR },
     );
     appendSafe(
       war.defenderFactionId,
       `战事筹划已解除：敌方针对「${city}」的进犯未正式开战，草案已撤销。`,
+      { category: CATEGORY.WAR },
     );
     return;
   }
 
   if (status === 'cancelled') {
     const tail = cancelReason ? ` ${String(cancelReason).slice(0, 120)}` : '';
-    appendSafe(war.attackerFactionId, `战事结束：本场已撤销/解除。${tail}`.trim());
-    appendSafe(war.defenderFactionId, `战事结束：本场已撤销/解除。${tail}`.trim());
+    appendSafe(war.attackerFactionId, `战事结束：本场已撤销/解除。${tail}`.trim(), {
+      category: CATEGORY.WAR,
+    });
+    appendSafe(war.defenderFactionId, `战事结束：本场已撤销/解除。${tail}`.trim(), {
+      category: CATEGORY.WAR,
+    });
     return;
   }
 
@@ -109,36 +193,40 @@ function logPvpWarEnded(war, end) {
   const win = winnerFactionId;
 
   if (status === 'completed' && win === att) {
-    appendSafe(att, `战事结束：我军告捷，「${city}」战局已定（攻方胜利）。`);
-    appendSafe(def, `战事结束：我军失利，「${city}」战局已定（守方失利）。`);
+    appendSafe(att, `战事结束：我军告捷，「${city}」战局已定（攻方胜利）。`, { category: CATEGORY.WAR });
+    appendSafe(def, `战事结束：我军失利，「${city}」战局已定（守方失利）。`, { category: CATEGORY.WAR });
   } else if (status === 'completed' && win === def) {
-    appendSafe(att, `战事结束：我军失利，「${city}」战局已定（守方固守/终局）。`);
-    appendSafe(def, `战事结束：我军告捷，「${city}」战局已定（守方胜利）。`);
+    appendSafe(att, `战事结束：我军失利，「${city}」战局已定（守方固守/终局）。`, { category: CATEGORY.WAR });
+    appendSafe(def, `战事结束：我军告捷，「${city}」战局已定（守方胜利）。`, { category: CATEGORY.WAR });
   } else if (status === 'failed' && win === def) {
-    appendSafe(att, `战事结束：我军失利，「${city}」战局已定（大本营失守）。`);
-    appendSafe(def, `战事结束：我军告捷，「${city}」战局已定（守方胜利）。`);
+    appendSafe(att, `战事结束：我军失利，「${city}」战局已定（大本营失守）。`, { category: CATEGORY.WAR });
+    appendSafe(def, `战事结束：我军告捷，「${city}」战局已定（守方胜利）。`, { category: CATEGORY.WAR });
   } else {
-    appendSafe(att, `战事结束：「${city}」战事已结案（${status || '—'}）。`);
-    appendSafe(def, `战事结束：「${city}」战事已结案（${status || '—'}）。`);
+    appendSafe(att, `战事结束：「${city}」战事已结案（${status || '—'}）。`, { category: CATEGORY.WAR });
+    appendSafe(def, `战事结束：「${city}」战事已结案（${status || '—'}）。`, { category: CATEGORY.WAR });
   }
 }
 
 function logPveWarStarted(factionId, cityName, cityId) {
   const label = cityName || cityId || '中立城';
-  appendSafe(factionId, `PVE 战事：我军对中立城「${label}」发起攻城，战事已开。`);
+  appendSafe(factionId, `PVE 战事：我军对中立城「${label}」发起攻城，战事已开。`, { category: CATEGORY.WAR });
 }
 
 function logPveWarSiegeCompleted(winnerFactionId, cityName, cityId) {
   if (!winnerFactionId) return;
   const label = cityName || cityId || '城池';
-  appendSafe(winnerFactionId, `PVE 战事结束：我军击破「${label}」守军，城池易主。`);
+  appendSafe(winnerFactionId, `PVE 战事结束：我军击破「${label}」守军，城池易主。`, { category: CATEGORY.WAR });
 }
 
 module.exports = {
+  CATEGORY,
   formatTimestamp,
   append,
+  appendOnConnection,
   appendSafe,
   listForFaction,
+  listGroupedForFaction,
+  logDasikongEdict,
   logPvpWarStarted,
   logPvpWarEnded,
   logPveWarStarted,

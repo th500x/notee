@@ -33,6 +33,7 @@ import JunCountyQuadPreviewPanel from '@/components/game/JunCountyQuadPreviewPan
 import UpdateNoticeFullScreenOverlay from '@/components/game/UpdateNoticeFullScreenOverlay';
 import { getActiveUpdateNotice } from '@/data/texts/updateAnnouncements';
 import { shouldShowUpdateNotice, dismissUpdateNotice } from '@/utils/updateNoticeLogic';
+import { useFactionBulletinUnread } from '@/hooks/useFactionBulletinUnread';
 import { isGameIntroCompletedForPlayer, markGameIntroCompletedForPlayer } from '@/utils/gameIntroFlags';
 
 const GameIntroOverlay = lazy(() => import('@/components/tutorial/GameIntroOverlay'));
@@ -50,6 +51,7 @@ export default function GamePage({ user, onLogout }) {
 function GamePageInner({ onLogout, accountId }) {
   const { player, refresh } = usePlayerContext();
   const playerId = player?.player_id;
+  const factionBulletinUnread = useFactionBulletinUnread(playerId);
   /** 与创角清 localStorage 的 id 一致；profile 加载前即可决定是否展示特色介绍 */
   const gameIntroStorageId = accountId || player?.player_id;
 
@@ -218,7 +220,11 @@ function GamePageInner({ onLogout, accountId }) {
         </main>
 
         {!eventBusy && (
-          <BottomTabNav activeTab={activeTab} onTabChange={setActiveTab} />
+          <BottomTabNav
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+            tabNotifyDots={{ faction: factionBulletinUnread }}
+          />
         )}
 
         <PersonalSidebar

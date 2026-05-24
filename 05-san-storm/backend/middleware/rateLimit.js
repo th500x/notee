@@ -40,7 +40,7 @@ const loginLimiter = rateLimit({
   standardHeaders: 'draft-7',
   legacyHeaders: false,
   keyGenerator: ipKey,
-  message: { success: false, error: '登录尝试过于频繁，请稍后再试', code: 'RATE_LIMITED' },
+  message: { success: false, error: '注册或登录尝试过于频繁，请稍后再试', code: 'RATE_LIMITED' },
 });
 
 /** 注册候选 ID 抽取（per IP，1 分钟 30 次） */
