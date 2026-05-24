@@ -23,7 +23,7 @@ function RouteLoading() {
 }
 
 function App() {
-  const { isLoggedIn, loading, login, logout } = useAdmin();
+  const { isLoggedIn, loading, login, logout, devBypass, toggleDevBypass } = useAdmin();
   
   // 管理员登录对话框状态
   const [showLoginDialog, setShowLoginDialog] = useState(false);
@@ -126,6 +126,34 @@ function App() {
                       <p className="text-sm text-gray-600 text-center">郡象限 · 颍川 A · 底板与城点（测试）</p>
                     </a>
                     </>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={toggleDevBypass}
+                    className="block bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow cursor-pointer h-full flex flex-col border-2 border-violet-200 text-left w-full"
+                  >
+                    <div className="text-4xl mb-4 text-center">{devBypass ? '🛠️' : '🏭'}</div>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2 text-center">
+                      {devBypass ? '开发环境' : '生产环境'}
+                    </h3>
+                    <p className="text-sm text-gray-600 text-center">
+                      {devBypass
+                        ? '已跳过管理员登录；点击切换为生产环境'
+                        : '管理员卡片须登录；点击切换为开发环境'}
+                    </p>
+                  </button>
+
+                  {!isLoggedIn && (
+                    <button
+                      type="button"
+                      onClick={() => setShowLoginDialog(true)}
+                      className="block bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow cursor-pointer h-full flex flex-col border-2 border-slate-300 text-left w-full"
+                    >
+                      <div className="text-4xl mb-4 text-center">🔒</div>
+                      <h3 className="text-lg font-semibold text-gray-900 mb-2 text-center">管理员登录</h3>
+                      <p className="text-sm text-gray-600 text-center">输入密码后显示管理员功能卡片</p>
+                    </button>
                   )}
                 </div>
               </div>
