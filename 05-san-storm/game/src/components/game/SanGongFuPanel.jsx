@@ -16,6 +16,7 @@ import SanGongFuFengShangPanel from '@/components/game/SanGongFuFengShangPanel';
 import SanGongFuChaoZhengPanel from '@/components/game/SanGongFuChaoZhengPanel';
 import SanGongFuLegionPanel from '@/components/game/SanGongFuLegionPanel';
 import SanGongFuFactionWarDrawer from '@/components/game/SanGongFuFactionWarDrawer';
+import SanGongFuFactionPolicyDrawer from '@/components/game/SanGongFuFactionPolicyDrawer';
 const MAIN_TABS = [
   { id: 'position', label: '官职' },
   { id: 'interaction', label: '互动' },
@@ -206,6 +207,7 @@ export default function SanGongFuPanel({
   const [payload, setPayload] = useState(null);
   const [promotingId, setPromotingId] = useState(null);
   const [factionWarDrawerOpen, setFactionWarDrawerOpen] = useState(false);
+  const [factionPolicyDrawerOpen, setFactionPolicyDrawerOpen] = useState(false);
 
   const load = useCallback(async () => {
     if (!player?.player_id) return;
@@ -307,6 +309,8 @@ export default function SanGongFuPanel({
       positionLevel={playerPositionLevel}
       factionWarDrawerOpen={factionWarDrawerOpen}
       onOpenFactionWars={() => setFactionWarDrawerOpen(true)}
+      factionPolicyDrawerOpen={factionPolicyDrawerOpen}
+      onOpenFactionPolicies={() => setFactionPolicyDrawerOpen(true)}
     />
   );
 
@@ -368,6 +372,14 @@ export default function SanGongFuPanel({
           open={factionWarDrawerOpen}
           onClose={() => setFactionWarDrawerOpen(false)}
           onWarEnded={() => refresh({ silent: true })}
+        />
+      ) : null}
+
+      {player?.player_id ? (
+        <SanGongFuFactionPolicyDrawer
+          factionId={player.faction_id ?? player.factionId ?? null}
+          open={factionPolicyDrawerOpen}
+          onClose={() => setFactionPolicyDrawerOpen(false)}
         />
       ) : null}
     </div>

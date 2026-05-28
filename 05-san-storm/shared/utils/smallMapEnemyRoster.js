@@ -46,7 +46,7 @@ export const BANDIT_NPC_SLOTS_BY_TIER = {
   legendary: ['legendary', 'legendary', 'legendary', 'legendary'],
 };
 
-/** 单玩家单匪寨「郡内爬塔」总层数（与 17-6 §2、§7 一致） */
+/** 单玩家单匪寨「郡内爬塔」总层数（与 17-7 §2、§7 一致） */
 export const BANDIT_PERSONAL_TOTAL_LAYERS = 20;
 
 /**
@@ -87,7 +87,7 @@ export function banditNpcSlotRaritiesFromLayer(layer) {
   return [...BANDIT_NPC_SLOTS_BY_TIER[tier]];
 }
 
-/** 匪寨敌军编制：四槽各稀有度中文（与 17-6 §2、`BANDIT_NPC_SLOTS_BY_TIER` 一致）。 */
+/** 匪寨敌军编制：四槽各稀有度中文（与 17-7 §2、`BANDIT_NPC_SLOTS_BY_TIER` 一致）。 */
 const BANDIT_RARITY_ZH = {
   common: '普通',
   rare: '稀有',
@@ -156,7 +156,7 @@ export function banditNpcTroopCompositionZhFromLayer(layer) {
 }
 
 /**
- * 战略匪寨浮层右上「难度：…」；与 17-6 §2 编制表、`BANDIT_NPC_SLOTS_BY_TIER` 一致。
+ * 战略匪寨浮层右上「难度：…」；与 17-7 §2 编制表、`BANDIT_NPC_SLOTS_BY_TIER` 一致。
  * @param {number} layer
  * @returns {string|null} 例：`难度：普通档（2 普通 + 2 稀有）`
  */

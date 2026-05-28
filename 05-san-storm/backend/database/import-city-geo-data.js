@@ -287,15 +287,16 @@ async function ensureRuntimeFactionsForCitySeed(conn, cityRecords) {
     await conn.query(
       `INSERT INTO factions (
         id, season, faction_name,
-        reserve_silver, reserve_food,
         troop_orange_probability, character_orange_probability,
         player_count, city_count, total_power, last_settlement_at
-      ) VALUES (?, ?, ?, 0, 0, 0, 0, 0, 0, 0, NULL)
+      ) VALUES (?, ?, ?, 0, 0, 0, 0, 0, NULL)
       ON DUPLICATE KEY UPDATE
         season = VALUES(season),
         faction_name = VALUES(faction_name)`,
       [r.faction_id, r.season, r.faction_name]
     );
+    const factionReserveService = require('../services/factionReserveService');
+    await factionReserveService.ensurePoolRow(conn, r.faction_id);
   }
   console.log(`  factions（运行时）: 已从 config_factions 补全 ${missing.length} 条（${missing.join(', ')}）`);
 }

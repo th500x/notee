@@ -216,6 +216,9 @@ router.get('/:playerId/faction/overview', async (req, res, next) => {
         playersNpc: d.playersNpc,
         legions: d.legions,
         citiesList: d.citiesList,
+        cityRecoveryCounts: d.cityRecoveryCounts,
+        reserveRecoveryEstimate: d.reserveRecoveryEstimate,
+        reserveLedgerSummary: d.reserveLedgerSummary,
       },
     });
   } catch (error) {

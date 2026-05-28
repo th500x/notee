@@ -3,7 +3,7 @@
  * HTTP 映射层：参数解析 + 调用 rankingService，无直接 SQL。
  *
  * @see docs/20-data-layer/27-1-STATISTICS_RANKING_SYSTEM.md（活动榜）
- * @see docs/20-data-layer/27-2-RANKING_PANEL.md（常驻榜 overall / campaign）
+ * @see docs/10-core-system/18-4-RANKING_SYSTEM.md（常驻榜 overall / campaign）
  * @see docs/00-base/01-DATABASE_DESIGN.md §4.3 temp_event_ranking
  */
 

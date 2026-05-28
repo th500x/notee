@@ -158,10 +158,11 @@ async function submitTroopTribute(playerId, instanceIds) {
     }
 
     const factionFood = totalSilver * 5;
-    await conn.query(
-      'UPDATE factions SET reserve_silver = reserve_silver + ?, reserve_food = reserve_food + ? WHERE id = ?',
-      [totalSilver, factionFood, factionId],
-    );
+    const factionReserveService = require('./factionReserveService');
+    await factionReserveService.creditPoolOnConnection(conn, factionId, {
+      silver: totalSilver,
+      food: factionFood,
+    });
 
     await conn.commit();
 

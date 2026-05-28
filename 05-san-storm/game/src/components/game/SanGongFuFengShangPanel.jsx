@@ -17,8 +17,7 @@ const SUPPLY_TIER_LINE_HEX = {
   D: '#78716c',
 };
 
-const STIPEND_TOOLTIP =
-  '按本势力国力档位（S～D）领取银两与粮草：档位越高基准越大；本次在 80%～120%（含端点）均匀随机后折算银两，粮草为银两×5。当前官职另加：声望/贡献为固定整数，银粮按官职资源倍数（如×1.2）结算。每服务器自然日 1 次。国力未达 D 档不可领。';
+const STIPEND_TOOLTIP = '按本势力国力档位（S～D）领取银两与粮草：档位越高基准越大。';
 
 const GIFT_BOX_TOOLTIP =
   '规划：消耗银两开启礼盒，随机获得物品（道具/卡池等细则待定）。当前仅为入口占位。';
@@ -100,9 +99,14 @@ export default function SanGongFuFengShangPanel({
           silver: res.data.silver,
           food: res.data.food,
           supplyTier: res.data.supplyTier,
+          rollPercent: res.data.rollPercent,
+          tierCoeff: res.data.tierCoeff,
           baseSilver: res.data.baseSilver,
           baseFood: res.data.baseFood,
+          appliedSilver: res.data.appliedSilver,
+          appliedFood: res.data.appliedFood,
           resourceMultiplier: res.data.resourceMultiplier,
+          rationBonus: res.data.rationBonus,
           reputationGranted: res.data.reputationGranted ?? 0,
           contributionGranted: res.data.contributionGranted ?? 0,
         });
@@ -213,11 +217,34 @@ export default function SanGongFuFengShangPanel({
               <div className="text-xs font-bold" style={{ color: tierHex }}>
                 国力 {String(stipendResult.supplyTier).toUpperCase()}
               </div>
+              {Number.isFinite(stipendResult.rollPercent) &&
+              stipendResult.baseSilver != null &&
+              stipendResult.baseFood != null ? (
+                <div className="text-stone-400 text-[10px] leading-snug">
+                  本次随机 <span className="text-amber-200/90">{stipendResult.rollPercent}%</span>
+                  {' · '}
+                  基础俸禄 B：银 {stipendResult.baseSilver} · 粮 {stipendResult.baseFood}
+                  {Number.isFinite(stipendResult.tierCoeff) ? (
+                    <span className="text-stone-500">
+                      {' '}
+                      （档系数 {stipendResult.tierCoeff}）
+                    </span>
+                  ) : null}
+                </div>
+              ) : null}
               {stipendResult.resourceMultiplier > 1 &&
-              (stipendResult.baseSilver != null || stipendResult.baseFood != null) ? (
+              stipendResult.appliedSilver != null &&
+              stipendResult.appliedFood != null ? (
                 <div className="text-stone-400 text-[10px]">
-                  官职资源 ×{stipendResult.resourceMultiplier}
-                  {stipendResult.baseSilver != null ? `（银 ${stipendResult.baseSilver}→${stipendResult.silver}）` : ''}
+                  官职资源 ×{stipendResult.resourceMultiplier} → 银 {stipendResult.appliedSilver} · 粮{' '}
+                  {stipendResult.appliedFood}
+                </div>
+              ) : null}
+              {stipendResult.rationBonus &&
+              (stipendResult.rationBonus.bonusSilver > 0 || stipendResult.rationBonus.bonusFood > 0) ? (
+                <div className="text-amber-200/80 text-[10px]">
+                  粮饷政策 Bonus +{stipendResult.rationBonus.bonusSilver} 银 · +
+                  {stipendResult.rationBonus.bonusFood} 粮（{stipendResult.rationBonus.bonusPctApplied}%）
                 </div>
               ) : null}
               {stipendResult.reputationGranted > 0 ? (

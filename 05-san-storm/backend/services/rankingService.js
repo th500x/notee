@@ -2,7 +2,8 @@
  * 活动排行榜服务
  * 排行榜数据查询、快照补建、积分冻结均在此处理；路由层只做 HTTP 映射。
  *
- * @see docs/10-core-system/19-1-STATISTICS_RANKING_SYSTEM.md
+ * @see docs/20-data-layer/27-1-STATISTICS_RANKING_SYSTEM.md（活动榜）
+ * @see docs/10-core-system/18-4-RANKING_SYSTEM.md（常驻榜）
  * @see docs/00-base/01-1-DATABASE_DESIGN.md §4.3 temp_event_ranking
  * @module backend/services/rankingService
  */
@@ -11,14 +12,14 @@ const { pool } = require('../database/connection');
 const ACTIVITY_RANKING_EVENTS = require('../config/activityRankingEvents');
 const campaignService = require('./campaignService');
 
-/** 常驻总体榜：最低战斗场次（与 27-2 一致） */
+/** 常驻总体榜：最低战斗场次（与 18-4 一致） */
 const OVERALL_MIN_BATTLES = 10;
 const OVERALL_DEFAULT_LIMIT = 30;
 const OVERALL_MAX_LIMIT = 50;
 const CAMPAIGN_DEFAULT_LIMIT = 30;
 const CAMPAIGN_MAX_LIMIT = 50;
 
-/** SQL 表达式：场均战后分（与 27-2、getOverallRankings 列表一致） */
+/** SQL 表达式：场均战后分（与 18-4、getOverallRankings 列表一致） */
 const OVERALL_AVG_EXPR = 'ROUND(s.total_battle_score / s.total_battles)';
 
 /**
@@ -363,14 +364,14 @@ async function getRankings(eventId, { limit = 10, playerId = null } = {}) {
   };
 }
 
-// ── 常驻排行榜（27-2）：总体 / 战役，与活动榜 getRankings 分离 ─────────────────
+// ── 常驻排行榜（18-4）：总体 / 战役，与活动榜 getRankings 分离 ─────────────────
 
 /**
  * @param {object} opts
  * @param {number} [opts.limit]
  * @param {string} [opts.playerId]
  * @param {string} [opts.serverId]
- * @param {string} [opts.sort] avg | wins | reputation | events | badges（主排序；events/badges 均为黄巾徽章持有量，见 27-2）
+ * @param {string} [opts.sort] avg | wins | reputation | events | badges（主排序；events/badges 均为赛季徽章持有量，见 18-4）
  */
 async function getOverallRankings(opts = {}) {
   const rawLimit = Number(opts.limit) || OVERALL_DEFAULT_LIMIT;

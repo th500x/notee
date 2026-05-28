@@ -12,7 +12,7 @@ import PlayerTopResourceBadges from '@/components/game/PlayerTopResourceBadges';
 
 const TAB_TITLES = {
   lineup: '编组配置',
-  faction: '势力管理',
+  faction: '势力',
   city: '主城',
   map: '世界地图',
 };

@@ -6,19 +6,16 @@
 const { pool } = require('../database/connection');
 const factionOverviewService = require('./factionOverviewService');
 const statisticsDeltaService = require('./statisticsDeltaService');
+const factionPolicyService = require('./factionPolicyService');
 const {
   applyStipendResourceMultiplier,
   loadPositionStipendBonusesForPlayer,
 } = require('../../shared/utils/positionStipendBonuses.cjs');
-
-/** 国力档位 → 银两基准系数（粮草 = 本次银两 × 5，同一随机因子） */
-const SILVER_COEFFICIENT_BY_TIER = {
-  S: 300,
-  A: 240,
-  B: 180,
-  C: 120,
-  D: 60,
-};
+const {
+  SILVER_COEFFICIENT_BY_TIER,
+  rollStipendAmountsForTier,
+} = require('./stipendTierCoefficients');
+const factionReserveService = require('./factionReserveService');
 
 const MAX_CLAIMS_PER_CALENDAR_DAY = 1;
 
@@ -32,29 +29,6 @@ function mysqlDateToYmd(val) {
   }
   const s = String(val);
   return s.length >= 10 ? s.slice(0, 10) : s;
-}
-
-/**
- * 本次俸禄百分比：在 **80～120（含）** 整数上均匀随机，再按 `floor(coeff × pct / 100)` 发银两，
- * 使 S 档银两必在 **240～360**、粮草在 **1200～1800**（粮草恒为银两 ×5）。
- * @returns {number} 80..120
- */
-function randomStipendPercentInclusive() {
-  return 80 + Math.floor(Math.random() * 41);
-}
-
-/**
- * @param {string} tier
- * @returns {{ silver: number, food: number } | null}
- */
-function rollStipendAmountsForTier(tier) {
-  const t = String(tier || '').toUpperCase();
-  const coeff = SILVER_COEFFICIENT_BY_TIER[t];
-  if (coeff == null) return null;
-  const pct = randomStipendPercentInclusive();
-  const silver = Math.floor((coeff * pct) / 100);
-  const food = silver * 5;
-  return { silver, food };
 }
 
 /**
@@ -178,6 +152,12 @@ async function grantKingStipendBonusOnConnection(connection, playerId, supplyTie
     silver,
     food,
     supplyTier: tier,
+    rollPercent: rolled.rollPercent,
+    tierCoeff: rolled.tierCoeff,
+    baseSilver: rolled.silver,
+    baseFood: rolled.food,
+    appliedSilver: silver,
+    appliedFood: food,
     reputationGrant,
     contributionGrant,
     resourceMultiplier: positionStipend.resourceMultiplier,
@@ -208,12 +188,19 @@ async function claimStipend(playerId) {
   const positionStipend = await loadPositionStipendBonusesForPlayer(pool, pid);
   const baseSilver = rolled.silver;
   const baseFood = rolled.food;
-  const { silver, food } = applyStipendResourceMultiplier(
+  const { silver: appliedSilver, food: appliedFood } = applyStipendResourceMultiplier(
     baseSilver,
     baseFood,
     positionStipend.resourceMultiplier,
   );
+  let silver = appliedSilver;
+  let food = appliedFood;
   const { reputationGrant, contributionGrant } = positionStipend;
+
+  // 11-3 §3.1 粮饷加成 Bonus 的运行结果（在 try 内填值；外部统计与返回体也要引用）
+  let bonusSilver = 0;
+  let bonusFood = 0;
+  let bonusPctApplied = 0;
 
   const conn = await pool.getConnection();
   try {
@@ -238,8 +225,52 @@ async function claimStipend(playerId) {
       return { ok: false, status: 400, error: '今日俸禄已领取' };
     }
 
+    // 11-3 §3.1 粮饷加成 Bonus：在 claimStipend 同事务挂 5%~50% 追加 Bonus，
+    // 自势力池（faction_reserve · pool）扣；池不足时 **仅 Bonus 不发**（基础 B 照常入账，符合 §3.1 O1）。
+    // Bonus 基数 B 取 §8.4.2.2 第 2 步「官职 resource 倍数」applied 后 写入玩家的 (silver, food) — 即本函数的 silver/food。
+    try {
+      const eff = await factionPolicyService.getEffectiveRationBonus(overview.data.factionId);
+      bonusPctApplied = Number(eff.bonusPct) || 0;
+      if (bonusPctApplied > 0) {
+        const wantSilver = Math.floor((silver * bonusPctApplied) / 100);
+        const wantFood = Math.floor((food * bonusPctApplied) / 100);
+        if (wantSilver > 0 || wantFood > 0) {
+          const bal = await factionReserveService.getPoolBalance(conn, overview.data.factionId, {
+            forUpdate: true,
+          });
+          const rs = bal.silver;
+          const rf = bal.food;
+          if (rs >= wantSilver && rf >= wantFood) {
+            await factionReserveService.deductPoolOnConnection(conn, overview.data.factionId, {
+              silver: wantSilver,
+              food: wantFood,
+            });
+            await factionReserveService.addUsageOnConnection(
+              conn,
+              overview.data.factionId,
+              factionReserveService.CATEGORY.STIPEND_BONUS,
+              { silver: wantSilver, food: wantFood },
+            );
+            bonusSilver = wantSilver;
+            bonusFood = wantFood;
+          } else {
+            // 池不足：仅 Bonus 不发，基础俸禄继续入账（不抛错、不消费政策 CD）
+            console.log(
+              `[stipendBonus] insufficient reserves faction=${overview.data.factionId} ` +
+                `want=${wantSilver}/${wantFood} have=${rs}/${rf} → bonus dropped`,
+            );
+          }
+        }
+      }
+    } catch (bonusErr) {
+      // Bonus 计算或扣减出错不能拖垮主流程；记日志即可，仍按基础 B 入账
+      console.error('[stipendBonus] failed to apply ration_bonus (basic stipend unaffected):', bonusErr);
+    }
+
+    const totalSilver = silver + bonusSilver;
+    const totalFood = food + bonusFood;
     const playerSets = ['silver = silver + ?', 'food = food + ?'];
-    const playerParams = [silver, food];
+    const playerParams = [totalSilver, totalFood];
     if (reputationGrant > 0) {
       playerSets.push('reputation = reputation + ?');
       playerParams.push(reputationGrant);
@@ -275,20 +306,38 @@ async function claimStipend(playerId) {
     conn.release();
   }
 
+  // 统计：基础 + Bonus 合并入账（与 players.silver / food 实际增加一致）
+  const finalSilver = silver + (bonusSilver || 0);
+  const finalFood = food + (bonusFood || 0);
   await statisticsDeltaService.recordEarned(pid, {
-    ...(silver > 0 ? { silver } : {}),
-    ...(food > 0 ? { food } : {}),
+    ...(finalSilver > 0 ? { silver: finalSilver } : {}),
+    ...(finalFood > 0 ? { food: finalFood } : {}),
     ...(reputationGrant > 0 ? { reputation: reputationGrant } : {}),
     ...(contributionGrant > 0 ? { contribution: contributionGrant } : {}),
   });
 
   return {
     ok: true,
-    silver,
-    food,
+    silver: finalSilver,
+    food: finalFood,
     supplyTier,
+    /** 本次 80～120 随机百分比（展示用） */
+    rollPercent: rolled.rollPercent,
+    tierCoeff: rolled.tierCoeff,
+    /** 随机后的基础俸禄 B（官职倍数前） */
     baseSilver,
     baseFood,
+    /** 官职 resource 倍数 applied 后、粮饷政策 Bonus 前 */
+    appliedSilver,
+    appliedFood,
+    /** 政策 Bonus 实际入账（池不足时为 0；用于前端显示「俸禄 + Bonus」） */
+    rationBonus: {
+      bonusPctApplied: bonusPctApplied || 0,
+      bonusSilver: bonusSilver || 0,
+      bonusFood: bonusFood || 0,
+      /** 政策上配置的 pct（若 pool 不足导致未发，仍能让 UI 提示玩家） */
+      attemptedPct: bonusPctApplied || 0,
+    },
     resourceMultiplier: positionStipend.resourceMultiplier,
     reputationGranted: reputationGrant,
     contributionGranted: contributionGrant,

@@ -39,6 +39,7 @@ import StrategicWorldMapSection from '@/components/world/StrategicWorldMapSectio
 import { worldMapCityIsPlayerSameFaction } from '@/utils/worldMapCityPanelCopy';
 import { worldMapOverlayRefs, notifyWorldMapOverlayGate } from '@/utils/worldMapOverlayRefs';
 import PvpDefenseOutcomeModal from '@/components/game/PvpDefenseOutcomeModal';
+import { imperialMarchNpcToAllyUnit } from '@/utils/imperialMarchSiegeAlly';
 
 /** 裁定中遮罩最短展示时长（与其它短动画一致，约 3 秒） */
 const PVP_ADJUDICATION_UI_MS = 3000;
@@ -339,6 +340,10 @@ export default function WorldMap({
 
   // ── 城市攻城状态 ──
   const [siegeData, setSiegeData] = useState(null); // 非null时进入战斗
+  const imperialMarchAllyUnits = useMemo(() => {
+    const u = imperialMarchNpcToAllyUnit(siegeData?.imperialMarchAlly);
+    return u ? [u] : [];
+  }, [siegeData?.imperialMarchAlly]);
   const [siegeResult, setSiegeResult] = useState(null); // 战斗结算
   const [siegeLoading, setSiegeLoading] = useState(false);
   /** 驻守统计全图拉取在 `StrategicWorldMapSection`；披挂等操作后 bump 以刷新格上 tooltip 用槽数 */
@@ -1761,6 +1766,7 @@ export default function WorldMap({
                 playerUnits={battlePlayerUnits}
                 cards={cards}
                 enemyUnits={siegeData.npcGarrison}
+                allyUnits={imperialMarchAllyUnits}
                 silverAmount={player?.silver ?? 0}
                 playerFood={player?.food ?? 0}
                 playerId={player?.player_id}

@@ -1,33 +1,123 @@
 /**
- * 三公府 · 势力战事 —「谏言决算」：展示目标城、资源消耗说明、君主同意率预览（与 `preview-approval` / remonstrance-panel 同源字段）。
- * 正式「提交谏言」写库链路可后续接 `POST /api/pvp-wars/proposals`；本窗先以确认与可读信息为主。
+ * 三公府 · 势力战事 —「谏言决算」：目标城、发动费、AI 审批预览、临时政策三开关与提交。
  */
+
+import { useCallback, useMemo, useState } from 'react';
+import {
+  TRANSIENT_POLICY_KEY,
+  TRANSIENT_POLICY_META,
+  TRANSIENT_POLICY_ORDER,
+} from '@/constants/factionPolicyLabels';
 
 /**
  * @param {{
  *   open: boolean,
  *   onClose: () => void,
  *   targetCityName: string,
+ *   targetCityId?: string|null,
  *   proposalKind: 'pvp' | 'pve',
- *   approvalPreview: { base?: number, minRate?: number, maxRate?: number, saturated?: boolean, note?: string } | null,
- *   proposalCost: {
- *     monthOrdinal?: number,
- *     multiplierPercent?: number,
- *     reserves?: { silver?: number, food?: number },
- *     tiers?: Record<string, { silver: number, food: number, baselineSilver?: number, baselineFood?: number }>,
- *   } | null,
- *   targetCityType?: string | null,
+ *   approvalPreview: object|null,
+ *   proposalCost: object|null,
+ *   targetCityType?: string|null,
+ *   transientPolicyFees?: Record<string, { silver: number, food: number }>|null,
+ *   canSubmit?: boolean,
+ *   submitDisabledReason?: string,
+ *   onSubmit?: (transientPolicies: { frontAssault: boolean, rearAssault: boolean, imperialMarch: boolean }) => Promise<{ ok: boolean, message?: string }>,
  * }} props
  */
 export default function WarRemonstranceSettlementModal({
   open,
   onClose,
   targetCityName,
-  targetCityType,
+  targetCityId,
   proposalKind,
   approvalPreview,
   proposalCost,
+  targetCityType,
+  transientPolicyFees,
+  canSubmit = false,
+  submitDisabledReason,
+  onSubmit,
 }) {
+  const [frontAssault, setFrontAssault] = useState(false);
+  const [rearAssault, setRearAssault] = useState(false);
+  const [imperialMarch, setImperialMarch] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState('');
+
+  const showTransient = proposalKind === 'pvp';
+
+  const policyFeeTotal = useMemo(() => {
+    let silver = 0;
+    let food = 0;
+    const fees = transientPolicyFees || {};
+    if (frontAssault && fees.frontAssault) {
+      silver += fees.frontAssault.silver || 0;
+      food += fees.frontAssault.food || 0;
+    }
+    if (rearAssault && fees.rearAssault) {
+      silver += fees.rearAssault.silver || 0;
+      food += fees.rearAssault.food || 0;
+    }
+    if (imperialMarch && fees.imperialMarch) {
+      silver += fees.imperialMarch.silver || 0;
+      food += fees.imperialMarch.food || 0;
+    }
+    return { silver, food };
+  }, [frontAssault, rearAssault, imperialMarch, transientPolicyFees]);
+
+  const reserves = proposalCost?.reserves || {};
+  const policyAffordable =
+    (Number(reserves.silver) || 0) >= policyFeeTotal.silver &&
+    (Number(reserves.food) || 0) >= policyFeeTotal.food;
+
+  const ct = String(targetCityType || '').trim();
+  const tier = ct && proposalCost?.tiers?.[ct] ? proposalCost.tiers[ct] : null;
+  const warSilver = tier?.silver || 0;
+  const warFood = tier?.food || 0;
+  const totalSilver = warSilver + policyFeeTotal.silver;
+  const totalFood = warFood + policyFeeTotal.food;
+  const warAffordable =
+    (Number(reserves.silver) || 0) >= totalSilver &&
+    (Number(reserves.food) || 0) >= totalFood;
+
+  const handleSubmit = useCallback(async () => {
+    if (!canSubmit || !onSubmit || submitting) return;
+    if (!warAffordable || (showTransient && !policyAffordable)) {
+      setSubmitError('势力储备不足以支付发动费与已选临时政策');
+      return;
+    }
+    setSubmitting(true);
+    setSubmitError('');
+    try {
+      const res = await onSubmit({
+        frontAssault: showTransient && frontAssault,
+        rearAssault: showTransient && rearAssault,
+        imperialMarch: showTransient && imperialMarch,
+      });
+      if (res?.ok) {
+        onClose();
+      } else {
+        setSubmitError(res?.message || '谏言提交失败');
+      }
+    } catch (e) {
+      setSubmitError(e?.message || '谏言提交失败');
+    } finally {
+      setSubmitting(false);
+    }
+  }, [
+    canSubmit,
+    onSubmit,
+    submitting,
+    warAffordable,
+    policyAffordable,
+    showTransient,
+    frontAssault,
+    rearAssault,
+    imperialMarch,
+    onClose,
+  ]);
+
   if (!open) return null;
 
   const kindLabel = proposalKind === 'pvp' ? '势力 PVP 攻城' : '中立城 PVE 攻城';
@@ -35,13 +125,16 @@ export default function WarRemonstranceSettlementModal({
   const minR = approvalPreview?.minRate;
   const maxR = approvalPreview?.maxRate;
   const pct = (x) => (Number.isFinite(x) ? `${Math.round(Number(x) * 100)}%` : '—');
-
-  const ct = String(targetCityType || '').trim();
-  const tier = ct && proposalCost?.tiers?.[ct] ? proposalCost.tiers[ct] : null;
   const mult = proposalCost?.multiplierPercent;
   const mo = proposalCost?.monthOrdinal;
-  const rs = proposalCost?.reserves?.silver;
-  const rf = proposalCost?.reserves?.food;
+  const rs = reserves.silver;
+  const rf = reserves.food;
+
+  const submitBlocked =
+    !canSubmit ||
+    submitting ||
+    !warAffordable ||
+    (showTransient && policyFeeTotal.silver + policyFeeTotal.food > 0 && !policyAffordable);
 
   return (
     <>
@@ -52,7 +145,7 @@ export default function WarRemonstranceSettlementModal({
         aria-hidden
       />
       <div
-        className="fixed left-1/2 top-1/2 z-[139] w-[min(92vw,22rem)] -translate-x-1/2 -translate-y-1/2 rounded-xl border border-amber-700/55 bg-stone-900 p-4 shadow-2xl ring-1 ring-stone-950/80"
+        className="fixed left-1/2 top-1/2 z-[139] max-h-[90vh] w-[min(92vw,24rem)] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-xl border border-amber-700/55 bg-stone-900 p-4 shadow-2xl ring-1 ring-stone-950/80"
         role="dialog"
         aria-modal="true"
         aria-labelledby="war-remonstrance-title"
@@ -74,72 +167,120 @@ export default function WarRemonstranceSettlementModal({
         <div className="space-y-3 text-left text-xs leading-relaxed text-stone-300">
           <div>
             <span className="text-stone-500">目标城</span>{' '}
-            <span className="font-semibold text-amber-100/95">{targetCityName || '—'}</span>
+            <span className="font-semibold text-amber-100/95">{targetCityName || targetCityId || '—'}</span>
             <span className="mx-1.5 text-stone-600">·</span>
-            <span className="text-stone-500">谏言类型</span>{' '}
+            <span className="text-stone-500">类型</span>{' '}
             <span className="text-amber-200/90">{kindLabel}</span>
           </div>
 
           <div className="rounded-lg border border-stone-600/70 bg-stone-950 px-2.5 py-2">
-            <div className="text-[11px] font-semibold text-amber-500/95">资源与谏言消耗</div>
+            <div className="text-[11px] font-semibold text-amber-500/95">资源与发动消耗</div>
             {Number.isFinite(mo) && Number.isFinite(mult) ? (
               <p className="mt-1.5 text-[11px] text-stone-300">
-                当前游戏历第 <strong className="text-amber-200/95">{mo}</strong> 个自然月，发动倍率{' '}
-                <strong className="text-amber-200/95">{mult}%</strong>（基准 × {Number(mult) / 100}）。
+                游戏历第 <strong className="text-amber-200/95">{mo}</strong> 月，消耗倍率{' '}
+                <strong className="text-amber-200/95">{mult}%</strong>。
               </p>
             ) : null}
             {Number.isFinite(rs) && Number.isFinite(rf) ? (
               <p className="mt-1 text-[11px] text-stone-400">
-                本势力池现状：银两 <span className="text-stone-200">{rs}</span> · 粮草{' '}
+                势力储备：银 <span className="text-stone-200">{rs}</span> · 粮{' '}
                 <span className="text-stone-200">{rf}</span>
               </p>
             ) : null}
             {tier ? (
               <p className="mt-1.5 text-[11px] text-amber-100/90">
-                本目标类型「<span className="font-mono text-[10px]">{ct}</span>」预计扣除：银两{' '}
-                <strong>{tier.silver}</strong> · 粮草 <strong>{tier.food}</strong>
-                {Number.isFinite(tier.baselineSilver) ? (
-                  <span className="text-stone-500">
-                    {' '}
-                    （基准 {tier.baselineSilver} / {tier.baselineFood}）
+                发动战事（落营激活时扣）：银 <strong>{warSilver}</strong> · 粮 <strong>{warFood}</strong>
+              </p>
+            ) : null}
+            {showTransient && policyFeeTotal.silver + policyFeeTotal.food > 0 ? (
+              <p className="mt-1 text-[11px] text-amber-100/85">
+                已选临时政策：银 <strong>{policyFeeTotal.silver}</strong> · 粮{' '}
+                <strong>{policyFeeTotal.food}</strong>（审批通过时与发动费一并扣除）
+              </p>
+            ) : null}
+            {(totalSilver > 0 || totalFood > 0) && (
+              <p className="mt-1 text-[11px] font-medium text-stone-200">
+                合计：银 {totalSilver} · 粮 {totalFood}
+                {!warAffordable ? (
+                  <span className="ml-1 text-red-400/95">
+                    （储备不足
+                    {Number.isFinite(rs) && Number.isFinite(rf)
+                      ? ` · 当前储备：银 ${rs} · 粮 ${rf}`
+                      : ''}
+                    ）
                   </span>
                 ) : null}
-                ；不足则服务器拒绝落地战事。
               </p>
-            ) : ct ? (
-              <p className="mt-1 text-[10px] text-amber-600/90">该城类型暂无扣费档说明，仍以服务器校验为准。</p>
-            ) : null}
-            <p className="mt-1.5 text-[10px] text-stone-500">
-              11-3 为战事期内临时政策扣费，与「发动战事」本扣分列。
-            </p>
+            )}
           </div>
+
+          {showTransient ? (
+            <div className="rounded-lg border border-stone-600/70 bg-stone-950 px-2.5 py-2">
+              <div className="text-[11px] font-semibold text-amber-500/95">临时政策（PVP · 合并审批）</div>
+              <ul className="mt-2 space-y-2">
+                {TRANSIENT_POLICY_ORDER.map((key) => {
+                  const meta = TRANSIENT_POLICY_META[key];
+                  const fee = transientPolicyFees?.[meta.feeKey];
+                  const on =
+                    key === TRANSIENT_POLICY_KEY.FRONT_ASSAULT
+                      ? frontAssault
+                      : key === TRANSIENT_POLICY_KEY.REAR_ASSAULT
+                        ? rearAssault
+                        : imperialMarch;
+                  const setOn =
+                    key === TRANSIENT_POLICY_KEY.FRONT_ASSAULT
+                      ? setFrontAssault
+                      : key === TRANSIENT_POLICY_KEY.REAR_ASSAULT
+                        ? setRearAssault
+                        : setImperialMarch;
+                  return (
+                    <li key={key} className="flex gap-2">
+                      <label className="flex shrink-0 cursor-pointer items-start gap-1.5">
+                        <input
+                          type="checkbox"
+                          className="mt-0.5"
+                          checked={on}
+                          onChange={(e) => setOn(e.target.checked)}
+                        />
+                        <span>
+                          <span className="font-medium text-amber-100/90">{meta.label}</span>
+                          {fee ? (
+                            <span className="ml-1 text-[10px] text-stone-500">
+                              +{fee.silver}银 / +{fee.food}粮
+                            </span>
+                          ) : null}
+                        </span>
+                      </label>
+                      <p className="text-[10px] leading-snug text-stone-500">{meta.summary}</p>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ) : null}
 
           <div className="rounded-lg border border-stone-600/70 bg-stone-950 px-2.5 py-2">
             <div className="text-[11px] font-semibold text-amber-500/95">AI 君主同意率（预览）</div>
             <p className="mt-1 text-[11px] text-stone-300">
-              基准倾向约 <strong className="text-amber-200/95">{pct(base)}</strong>
+              基准约 <strong className="text-amber-200/95">{pct(base)}</strong>
               {Number.isFinite(minR) && Number.isFinite(maxR) ? (
                 <>
                   {' '}
-                  ；掷骰后抽检大致区间 <strong className="text-amber-200/95">{pct(minR)}</strong>～
+                  ；区间 <strong className="text-amber-200/95">{pct(minR)}</strong>～
                   <strong className="text-amber-200/95">{pct(maxR)}</strong>
                 </>
               ) : null}
               。
             </p>
             {approvalPreview?.saturated ? (
-              <p className="mt-1 text-[10px] text-amber-400/90">
-                当前势力占城较多，君主在战事类谏言上的倾向已按规制略作收敛。
-              </p>
-            ) : null}
-            {approvalPreview?.note ? (
-              <p className="mt-1 text-[10px] text-stone-500">{approvalPreview.note}</p>
+              <p className="mt-1 text-[10px] text-amber-400/90">占城较多时，战事谏言倾向略作收敛。</p>
             ) : null}
           </div>
 
-          <p className="text-[10px] text-stone-500">
-            正式发起提案时，服务器还将校验邻接关系、战略地图距离（最近 3 敌对 / 最近 3 中立）、同城战事唯一、并行战事上限等条件。
-          </p>
+          {submitDisabledReason ? (
+            <p className="text-[10px] text-amber-500/95">{submitDisabledReason}</p>
+          ) : null}
+          {submitError ? <p className="text-[10px] text-red-400/95">{submitError}</p> : null}
         </div>
 
         <div className="mt-4 flex justify-end gap-2 border-t border-stone-700/60 pt-3">
@@ -148,8 +289,22 @@ export default function WarRemonstranceSettlementModal({
             onClick={onClose}
             className="rounded-lg border border-stone-600 bg-stone-800 px-3 py-1.5 text-xs font-medium text-stone-200 hover:bg-stone-700"
           >
-            关闭
+            取消
           </button>
+          {onSubmit ? (
+            <button
+              type="button"
+              disabled={submitBlocked}
+              onClick={handleSubmit}
+              className={`rounded-lg border px-3 py-1.5 text-xs font-semibold ${
+                submitBlocked
+                  ? 'cursor-not-allowed border-stone-600 bg-stone-800/50 text-stone-500'
+                  : 'border-amber-600 bg-amber-900/50 text-amber-100 hover:bg-amber-800/60'
+              }`}
+            >
+              {submitting ? '提交中…' : '提交谏言'}
+            </button>
+          ) : null}
         </div>
       </div>
     </>

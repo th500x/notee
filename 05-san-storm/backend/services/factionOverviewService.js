@@ -13,6 +13,8 @@
 
 const { pool } = require('../database/connection');
 const { computeSupplyTier } = require('./factionSupplyTierService');
+const { estimateDailyReserveRecovery } = require('./factionReserveRecoveryService');
+const factionReserveService = require('./factionReserveService');
 
 /** 参与势力五维标量计算的 `cities.city_type`（关隘、据点排除） */
 const CITY_TYPES_FOR_FACTION_FIVE_STATS = ['city_major', 'city_medium', 'city_small'];
@@ -90,17 +92,18 @@ async function getFactionOverviewForPlayer(playerId) {
         playersNpc: [],
         legions: [],
         citiesList: [],
+        reserveLedgerSummary: null,
       },
     };
   }
 
   const [fRows] = await pool.query(
-    `SELECT id, season, faction_name, reserve_silver, reserve_food,
-            COALESCE(player_count, 0) AS player_count
+    `SELECT id, season, faction_name, COALESCE(player_count, 0) AS player_count
      FROM factions WHERE id = ? LIMIT 1`,
     [factionId]
   );
   const f = fRows[0] || {};
+  const poolBal = await factionReserveService.getPoolBalance(pool, factionId);
   const factionSeason = String(f.season || 'san_1').trim() || 'san_1';
 
   let monarchDisplayName = null;
@@ -259,12 +262,16 @@ async function getFactionOverviewForPlayer(playerId) {
   const smallByZhou = {};
   const gateByZhou = {};
   const fortByZhou = {};
+  let cityRecoveryCounts = { small: 0, medium: 0, major: 0 };
   /** JOIN 可能重复同一 city_id；列表与州计数只认一城一行 */
   const cityRowById = new Map();
   for (const row of cityRows) {
     if (!cityRowById.has(row.city_id)) cityRowById.set(row.city_id, row);
   }
   for (const c of cityRowById.values()) {
+    if (c.city_type === 'city_small') cityRecoveryCounts.small += 1;
+    else if (c.city_type === 'city_medium') cityRecoveryCounts.medium += 1;
+    else if (c.city_type === 'city_major') cityRecoveryCounts.major += 1;
     const zhou = c.zhouName || '—';
     const jun = c.junName || '—';
     const name = c.city_name || c.city_id;
@@ -313,13 +320,17 @@ async function getFactionOverviewForPlayer(playerId) {
     nSupply
   );
   const { tier: supplyTier } = computeSupplyTier(totals);
+  const reserveRecoveryEstimate = estimateDailyReserveRecovery(supplyTier, cityRecoveryCounts);
+  const reserveLedgerSummary = await factionReserveService.getLedgerSummaryForFaction(factionId, {
+    reserveRecoveryEstimate,
+  });
 
   return {
     data: {
       factionId,
       factionName: f.faction_name || factionName,
-      reserveSilver: Number(f.reserve_silver) || 0,
-      reserveFood: Number(f.reserve_food) || 0,
+      reserveSilver: poolBal?.silver ?? 0,
+      reserveFood: poolBal?.food ?? 0,
       totals,
       supplyTier,
       playerCountReal,
@@ -336,6 +347,9 @@ async function getFactionOverviewForPlayer(playerId) {
       playersNpc,
       legions,
       citiesList,
+      cityRecoveryCounts,
+      reserveRecoveryEstimate,
+      reserveLedgerSummary,
     },
   };
 }

@@ -1,7 +1,7 @@
 /**
  * 匪寨「攻打」次数：与探索配额分立；存 `player_progress.bandit_progress.byJunRaidQuota[<jun_id>]`。
  * 同一郡内多座匪寨（阶段一各 2 枚）**共用**剩余次数；**个人爬塔进度**仍为 `byBanditMapObjectId[<匪寨地图对象 ID>].nextLayer`。
- * **个人塔已通 20 层**且全服耐久未耗尽时：自通关时刻起跨过 **下一日历日 08:00**（Node 墙钟）后，惰性将 **`nextLayer` 置回 1**（**从头再打** 1…20 层，见 17-6 / 15-2）。
+ * **个人塔已通 20 层**且全服耐久未耗尽时：自通关时刻起跨过 **下一日历日 08:00**（Node 墙钟）后，惰性将 **`nextLayer` 置回 1**（**从头再打** 1…20 层，见 17-7 / 15-2）。
  * 档序列与补点算法见 `backend/utils/banditRaidQuotaAccrual.js`（单源）。
  */
 
@@ -50,7 +50,7 @@ function nextDaily8amAfterMs(completedAtMs) {
 }
 
 /**
- * 已通个人 20 层且全服耐久仍在：跨 **次日 08:00** 将 **`nextLayer` 置为 1**（个人塔**从头**重打，仍可通过每层胜利推进 **`bandits.cleared_layers`**，见 17-6 / 15-2）。
+ * 已通个人 20 层且全服耐久仍在：跨 **次日 08:00** 将 **`nextLayer` 置为 1**（个人塔**从头**重打，仍可通过每层胜利推进 **`bandits.cleared_layers`**，见 17-7 / 15-2）。
  * @returns {boolean} 是否改写了 `bp`（需落库）
  */
 async function maybeResetPostTowerStallProgress(bp, banditPoiId, maxPersonalLayers) {
@@ -90,7 +90,7 @@ function loadSmallMapEnemyRoster() {
 }
 
 /**
- * 读 `bandits` 全服累计耗层（见 17-6 §4）；对外 **camelCase** 与列语义对齐：`maxLayers`、`clearedLayers`、`layersRemaining`。
+ * 读 `bandits` 全服累计耗层（见 17-7 §4）；对外 **camelCase** 与列语义对齐：`maxLayers`、`clearedLayers`、`layersRemaining`。
  * 表或行缺失时返回 null，不打断配额接口。
  * @param {string} banditPoiId
  * @returns {Promise<{ maxLayers: number, clearedLayers: number, layersRemaining: number } | null>}

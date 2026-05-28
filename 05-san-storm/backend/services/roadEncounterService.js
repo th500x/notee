@@ -3,7 +3,7 @@
  *
  * 责任：
  *   1. 守门开关（road_intercept）事务与银两扣减；
- *   2. 沿路移动事务：逐格校验道路集合、邻接、占格、M2 敌对、粮草链路（player.food → factions.reserve_food）、
+ *   2. 沿路移动事务：逐格校验道路集合、邻接、占格、M2 敌对、粮草链路（player.food → faction_reserve · pool）、
  *      触发遭遇时瞬间占格（road_encounters.status='fighting'）、同一事务提交；
  *      攻方未达开战门闸时 **禁止** 踏入存在敌对玩家的道路格（整单 409，避免卡住）；守方未达门闸则不登记遭遇并将其 **`road_position_*` 写回最近己方城锚格**（共享 `roadBattleRetreatPlacement`）；
  *      非敌对（M2：同势力；缺 faction 视为非敌对）同格：允许叠站并继续本段路径，不因途经友军/中立而阻断。
@@ -252,26 +252,21 @@ function computeMoveFoodPlan(player, stepsCount) {
 }
 
 /**
- * 仅当本次需从势力池垫粮时，对 `factions.reserve_food` 行加锁并校验是否足量。
+ * 仅当本次需从势力池垫粮时，对 `faction_reserve`（pool）行加锁并校验是否足量。
  * 不写入；后续真正扣减仍由主流程在同事务内执行（保留与库存档号一致的写动作）。
  *
  * @returns {Promise<{ ok:true } | { ok:false, status:number, error:string }>}
  */
 async function assertFactionReserveFoodSufficient(conn, factionId, reserveFoodUse) {
   if (reserveFoodUse <= 0) return { ok: true };
-  const [fRows] = await conn.query(
-    `SELECT id, reserve_food FROM factions WHERE id = ? FOR UPDATE`,
-    [factionId],
-  );
-  const faction = fRows[0];
-  if (!faction) {
-    return { ok: false, status: 500, error: '玩家势力不存在，无法从势力池扣粮' };
-  }
-  if ((Number(faction.reserve_food) || 0) < reserveFoodUse) {
+  const factionReserveService = require('./factionReserveService');
+  await factionReserveService.ensurePoolRow(conn, factionId);
+  const bal = await factionReserveService.getPoolBalance(conn, factionId, { forUpdate: true });
+  if (bal.food < reserveFoodUse) {
     return {
       ok: false,
       status: 409,
-      error: `势力粮草储备不足（需 ${reserveFoodUse}、现 ${faction.reserve_food}）`,
+      error: `势力粮草储备不足（需 ${reserveFoodUse}、现 ${bal.food}）`,
     };
   }
   return { ok: true };
@@ -923,7 +918,7 @@ async function moveAlongRoad(playerId, body) {
           stepsApplied = i + 1;
           continue;
         }
-        /** 行军目标为战略匪寨 / PVP 攻方大本营时：最后一道路步不登记道路遭遇（与 31-6 / 17-6 一致）。 */
+        /** 行军目标为战略匪寨 / PVP 攻方大本营时：最后一道路步不登记道路遭遇（与 31-6 / 17-7 一致）。 */
         if ((marchToBanditPoi || marchToPvpCampPoi) && i === steps.length - 1) {
           lastX = wsx;
           lastY = wsy;
@@ -1093,9 +1088,15 @@ async function moveAlongRoad(playerId, body) {
     );
 
     if (reserveFoodUse > 0) {
-      await conn.query(
-        `UPDATE factions SET reserve_food = reserve_food - ? WHERE id = ?`,
-        [reserveFoodUse, player.faction_id],
+      const factionReserveService = require('./factionReserveService');
+      await factionReserveService.deductPoolOnConnection(conn, player.faction_id, {
+        food: reserveFoodUse,
+      });
+      await factionReserveService.addUsageOnConnection(
+        conn,
+        player.faction_id,
+        factionReserveService.CATEGORY.MARCH_FOOD,
+        { food: reserveFoodUse },
       );
     }
 

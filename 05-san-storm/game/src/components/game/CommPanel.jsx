@@ -746,7 +746,7 @@ function BattleCard({
       if (playerId && memorialRowId) {
         const apiBase = String(API_CONFIG.BASE_URL || '').replace(/\/$/, '');
         const proxyUrl = `${apiBase}/memorial/battle/download?playerId=${encodeURIComponent(playerId)}&id=${encodeURIComponent(String(memorialRowId))}`;
-        response = await fetch(proxyUrl, { cache: 'no-store' });
+        response = await fetchWithTimeout(proxyUrl, { cache: 'no-store' });
       } else {
         const bustUrl = `${todayMemorialUrl}${todayMemorialUrl.includes('?') ? '&' : '?'}_=${Date.now()}`;
         response = await fetch(bustUrl, { cache: 'no-store' });

@@ -14,6 +14,24 @@ const CATEGORY = {
   WAR: 'war',
 };
 
+/** 势力 Tab 公告 · 谕旨 / 文书 / 战事：仅保留最近 3 天（墙钟）；外交等其它类目不受限 */
+const BULLETIN_RETENTION_DAYS = 3;
+const BULLETIN_RETENTION_MS = BULLETIN_RETENTION_DAYS * 24 * 60 * 60 * 1000;
+
+const RETENTION_CATEGORIES = new Set([
+  CATEGORY.EDICT,
+  CATEGORY.DOCUMENT,
+  CATEGORY.WAR,
+]);
+
+function retentionCutoffDate(nowMs = Date.now()) {
+  return new Date(nowMs - BULLETIN_RETENTION_MS);
+}
+
+function categoryUsesRetention(category) {
+  return category != null && RETENTION_CATEGORIES.has(category);
+}
+
 function formatTimestamp(d = new Date()) {
   const p = (n) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
@@ -71,6 +89,33 @@ function mapRow(r) {
 }
 
 /**
+ * 删除本势力下超过保留期的谕旨 / 文书 / 战事行（外交等类目不删）。
+ *
+ * @param {string} factionId
+ */
+async function purgeExpiredBulletinsForFaction(factionId) {
+  if (!factionId) return 0;
+  const cutoff = retentionCutoffDate();
+  try {
+    const [result] = await pool.query(
+      `DELETE FROM faction_bulletins
+       WHERE faction_id = ? AND category IN (?, ?, ?) AND created_at < ?`,
+      [factionId, CATEGORY.EDICT, CATEGORY.DOCUMENT, CATEGORY.WAR, cutoff],
+    );
+    return Number(result.affectedRows) || 0;
+  } catch (e) {
+    if (/Unknown column ['`]category/i.test(e?.message || '')) {
+      const [result] = await pool.query(
+        'DELETE FROM faction_bulletins WHERE faction_id = ? AND created_at < ?',
+        [factionId, cutoff],
+      );
+      return Number(result.affectedRows) || 0;
+    }
+    throw e;
+  }
+}
+
+/**
  * @param {string} factionId
  * @param {{ limit?: number, category?: string|null }} [opts]
  */
@@ -80,6 +125,8 @@ async function listForFaction(factionId, opts = {}) {
   const category = opts.category != null && String(opts.category).trim()
     ? String(opts.category).trim()
     : null;
+  const retention = categoryUsesRetention(category);
+  const cutoff = retention ? retentionCutoffDate() : null;
 
   let sql = `SELECT id, category, body, author_player_id AS authorPlayerId, author_name AS authorName,
                     created_at AS createdAt
@@ -89,6 +136,10 @@ async function listForFaction(factionId, opts = {}) {
     sql += ' AND category = ?';
     params.push(category);
   }
+  if (retention && cutoff) {
+    sql += ' AND created_at >= ?';
+    params.push(cutoff);
+  }
   sql += ' ORDER BY id DESC LIMIT ?';
   params.push(limit);
 
@@ -97,10 +148,16 @@ async function listForFaction(factionId, opts = {}) {
     return rows.map(mapRow);
   } catch (e) {
     if (/Unknown column ['`]category/i.test(e?.message || '')) {
-      const [rows] = await pool.query(
-        'SELECT id, body, created_at AS createdAt FROM faction_bulletins WHERE faction_id = ? ORDER BY id DESC LIMIT ?',
-        [factionId, limit],
-      );
+      let legacySql =
+        'SELECT id, body, created_at AS createdAt FROM faction_bulletins WHERE faction_id = ?';
+      const legacyParams = [factionId];
+      if (retention && cutoff) {
+        legacySql += ' AND created_at >= ?';
+        legacyParams.push(cutoff);
+      }
+      legacySql += ' ORDER BY id DESC LIMIT ?';
+      legacyParams.push(limit);
+      const [rows] = await pool.query(legacySql, legacyParams);
       return rows.map((r) => mapRow({ ...r, category: CATEGORY.WAR }));
     }
     throw e;
@@ -112,6 +169,7 @@ async function listForFaction(factionId, opts = {}) {
  * @param {{ limitPerCategory?: number }} [opts]
  */
 async function listGroupedForFaction(factionId, opts = {}) {
+  await purgeExpiredBulletinsForFaction(factionId);
   const limit = Math.min(50, Math.max(1, Number(opts.limitPerCategory) || 30));
   const [edicts, documents, wars] = await Promise.all([
     listForFaction(factionId, { limit, category: CATEGORY.EDICT }),
@@ -133,9 +191,14 @@ function logDasikongEdict(factionId, kingName, winnerName, totalScore) {
   );
 }
 
-function logPvpWarStarted(war) {
+async function logPvpWarStarted(war) {
   const city = war.targetCityName || war.targetCityId || '目标城';
-  const attName = war.attackerFactionName || '敌军';
+  let attName = war.attackerFactionName || null;
+  if (war.attackerFactionId) {
+    const resolved = await require('./factionDisplayName').resolveFactionDisplayName(war.attackerFactionId);
+    if (resolved) attName = resolved;
+  }
+  if (!attName) attName = '敌军';
   appendSafe(war.attackerFactionId, `PVP 战事：我军向「${city}」进军，战事已开（攻方）。`, {
     category: CATEGORY.WAR,
   });
@@ -218,8 +281,55 @@ function logPveWarSiegeCompleted(winnerFactionId, cityName, cityId) {
   appendSafe(winnerFactionId, `PVE 战事结束：我军击破「${label}」守军，城池易主。`, { category: CATEGORY.WAR });
 }
 
+/**
+ * 征发 AI 军团 · 前军 / 后军窗战果摘要（11-3 §5.5.2 · 不写 battles 表）。
+ *
+ * @param {{
+ *   factionId: string,
+ *   campLabel: string,
+ *   cityName: string,
+ *   outcome: 'good'|'poor',
+ *   totalKills: number,
+ *   battlesRun: number,
+ *   stoppedEarly?: boolean,
+ * }} payload
+ */
+function logConscriptAssaultSummary(payload) {
+  const {
+    factionId,
+    campLabel = '征发军团',
+    cityName = '目标城',
+    outcome = 'poor',
+    totalKills = 0,
+    battlesRun = 0,
+    stoppedEarly = false,
+  } = payload || {};
+  if (!factionId) return;
+  const city = String(cityName || '目标城').trim();
+  const kills = Math.max(0, Math.floor(Number(totalKills) || 0));
+  const runs = Math.max(0, Math.floor(Number(battlesRun) || 0));
+  if (outcome === 'good' && kills >= 1) {
+    appendSafe(
+      factionId,
+      `【${campLabel}】向「${city}」突击 ${runs} 场，消灭守军 ${kills} 支，战果显赫。`,
+      { category: CATEGORY.WAR },
+    );
+    return;
+  }
+  const early = stoppedEarly ? '（征发部队已溃散停战）' : '';
+  appendSafe(
+    factionId,
+    `【${campLabel}】向「${city}」突击 ${runs} 场，守军奋勇抵抗，我军无奈撤退${early}。`,
+    { category: CATEGORY.WAR },
+  );
+}
+
 module.exports = {
   CATEGORY,
+  BULLETIN_RETENTION_DAYS,
+  BULLETIN_RETENTION_MS,
+  retentionCutoffDate,
+  purgeExpiredBulletinsForFaction,
   formatTimestamp,
   append,
   appendOnConnection,
@@ -231,4 +341,5 @@ module.exports = {
   logPvpWarEnded,
   logPveWarStarted,
   logPveWarSiegeCompleted,
+  logConscriptAssaultSummary,
 };

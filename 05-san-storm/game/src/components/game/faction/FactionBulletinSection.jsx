@@ -1,7 +1,7 @@
 /**
  * 势力 Tab ·「公告」（横屏右下象限 / 竖屏子 Tab）
  * 纯展示：谕旨 · 文书 · 战事 · 外交（后一类占位）
- * 数据：GET /api/players/:playerId/san-gong-fu/bulletin（前三类）；外交待实装
+ * 数据：GET /api/players/:playerId/san-gong-fu/bulletin（前三类仅展示最近 3 天，服务端同步删过期行；外交无此限制，待实装）
  */
 
 import { useCallback, useEffect, useState } from 'react';

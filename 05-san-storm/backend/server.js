@@ -99,6 +99,29 @@ function scheduleAiKingHourlyTick() {
   return scheduler;
 }
 
+function scheduleFactionReserveRecoveryDailyTick() {
+  const tz = process.env.CRON_TZ;
+  const opts = tz ? { timezone: tz } : {};
+  const { runDailyReserveRecoveryTick } = require('./services/factionReserveRecoveryService');
+  cron.schedule(
+    '0 0 * * *',
+    async () => {
+      try {
+        const result = await runDailyReserveRecoveryTick();
+        if (!result.ok) {
+          console.error('[factionReserve] daily tick:', result.error);
+          return;
+        }
+        const n = (result.results || []).length;
+        console.log(`[factionReserve] daily tick ${result.date} applied=${n}`);
+      } catch (err) {
+        console.error('[factionReserve] daily tick 失败:', err.message);
+      }
+    },
+    opts,
+  );
+}
+
 function scheduleKingDasikongDailyTick() {
   const tz = process.env.CRON_TZ;
   const opts = tz ? { timezone: tz } : {};
@@ -214,6 +237,10 @@ app.use('/api/servers', serverRouter);
 const playerRouter = require('./routes/players');
 app.use('/api/players', playerRouter);
 
+/** 旧版静态包：单数 /api/player（与 /api/players 并存，见 routes/legacyPlayerApi.js） */
+const legacyPlayerApiRouter = require('./routes/legacyPlayerApi');
+app.use('/api/player', legacyPlayerApiRouter);
+
 /**
  * 配置数据路由（将领、部队、技能等）
  */
@@ -287,6 +314,12 @@ const pvpWarsRouter = require('./routes/pvpWars');
 app.use('/api/pvp-wars', pvpWarsRouter);
 
 /**
+ * 势力政策（11-3 · 长效政策提案 / 朝政面板）
+ */
+const factionPoliciesRouter = require('./routes/factionPolicies');
+app.use('/api/faction-policies', factionPoliciesRouter);
+
+/**
  * 战役地图 preset（与 shared/data/campaign 同步）
  */
 const campaignMapsRouter = require('./routes/campaignMaps');
@@ -350,6 +383,7 @@ app.listen(PORT, async () => {
     console.error('[aiKing] 加载 ai-kings.json 失败:', err.message);
   }
   scheduleAiKingHourlyTick();
+  scheduleFactionReserveRecoveryDailyTick();
   scheduleKingDasikongDailyTick();
 
   /**

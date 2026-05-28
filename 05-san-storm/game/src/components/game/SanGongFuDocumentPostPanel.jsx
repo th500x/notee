@@ -72,7 +72,7 @@ export default function SanGongFuDocumentPostPanel({ playerId, onPosted }) {
   return (
     <div className="shrink-0 rounded-lg border border-amber-800/35 bg-stone-900/40 px-2 py-2 text-left">
       <div className="mb-1 flex items-baseline justify-between gap-2">
-        <div className="text-[10px] font-semibold text-amber-400/95">发布文书</div>
+        <div className="text-[10px] font-semibold text-amber-400/95">文书</div>
         <div className="text-[9px] tabular-nums text-amber-400/70">今日剩余 {subLabel}</div>
       </div>
       <p className="mb-2 text-[10px] leading-snug text-stone-500">
@@ -99,7 +99,7 @@ export default function SanGongFuDocumentPostPanel({ playerId, onPosted }) {
           onClick={onSubmit}
           className="rounded border border-amber-700/50 bg-amber-900/40 px-3 py-1 text-[10px] font-semibold text-amber-200 transition-colors hover:bg-amber-800/50 disabled:cursor-not-allowed disabled:opacity-45"
         >
-          {submitting ? '发布中…' : '发布公告'}
+          {submitting ? '发布中…' : '发布文书'}
         </button>
       </div>
     </div>

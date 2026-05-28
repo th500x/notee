@@ -1,6 +1,7 @@
 /**
  * 与前端 game/src/systems/battleScoreSystem.js 同公式，供服务端攻城 PVP 结算写战报积分。
- * 术语与战报 UI 一致：歼敌评分、战损评分；战损保底（歼敌×0.3）/ 安慰保底见源码注释。
+ * 术语与战报 UI 一致：歼敌评分、战损评分；战损保底/安慰保底见 17-1 §9.4。
+ * @see docs/10-core-system/17-1-COMBAT_SYSTEM.md §9
  * 评分 = 各部队 round(基础分×损失比例) 之和；与 killTroops/lossTroops（兵力人数）不同量纲。
  */
 

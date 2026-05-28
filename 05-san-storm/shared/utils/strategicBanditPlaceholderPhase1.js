@@ -1,5 +1,5 @@
 /**
- * 匪寨大地图阶段一（17-6 §1.2）：S1 豫州 **颍川 / 汝南** 郡各 **2** 枚占位（**1×2** 或 **2×1** 骨牌），
+ * 匪寨大地图阶段一（17-7 §1.2）：S1 豫州 **颍川 / 汝南** 郡各 **2** 枚占位（**1×2** 或 **2×1** 骨牌），
  * 两格共用 **`banditPoiId`**（`san_{赛季}_bandit_{1|2}_{郡 slug}`，与 04-1 §15 / `targetPoiId` 同族）。与 `strategicRoadOverlay` 禁区一致。
  *
  * 依赖 `cells[row][col]` 的 terrain / object / `banditPoiId`（读旧快照时仍可能带 `cityId`，由 `readStrategicCellAnchorId` 统一识别）；可选 `roadCells`：**不占道路格**，且优先 **四邻贴路**。
@@ -12,7 +12,7 @@ import { readStrategicCellAnchorId } from './strategicCellAnchorId.js';
 export const STRATEGIC_BANDIT_DOMINO_OBJECT_H = 'bandit_horiz';
 export const STRATEGIC_BANDIT_DOMINO_OBJECT_V = 'bandit_vert';
 
-/** 与 13-1 / 17-6 文档示例一致（颍川郡阶段一固定 2 个匪寨地图对象 ID） */
+/** 与 13-1 / 17-7 文档示例一致（颍川郡阶段一固定 2 个匪寨地图对象 ID） */
 export const YINGCHUAN_PHASE1_BANDIT_POI_IDS = [
   'san_1_bandit_1_yingchuan',
   'san_1_bandit_2_yingchuan',

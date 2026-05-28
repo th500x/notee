@@ -15,6 +15,7 @@ const MIGRATION_FILES_SKIP_NO_SUCH_TABLE = new Set([
   'rename-temp-character-ranking-snapshots-to-temp-character-ranking.sql',
   'rename-statistics-to-player-statistics.sql',
   'rename-temp-ranking-snapshots-to-temp-event-ranking.sql',
+  'migrate-faction-reserve-usage-into-unified.sql',
 ]);
 
 /** 含 SET/PREPARE/EXECUTE 的多句迁移须 multipleStatements（pool.query 默认仅执行首句） */
@@ -28,6 +29,7 @@ const MIGRATION_FILES_NEED_MULTIPLE_STATEMENTS = new Set([
 const MIGRATION_FILES_SPLIT_STATEMENTS = new Set([
   'config-positions-drop-legacy-bonus-columns-json-type.sql',
   'add-faction-bulletins-category.sql',
+  'factions-drop-reserve-columns.sql',
 ]);
 
 async function runMigrationSql(sql, file) {
@@ -102,6 +104,14 @@ const MIGRATION_FILES = [
   'rename-temp-ranking-snapshots-to-temp-event-ranking.sql',
   'config-positions-drop-legacy-bonus-columns-json-type.sql',
   'seed-system-player-sys1.sql',
+  'create-faction-policies.sql',
+  'create-wars-pvp-policies.sql',
+  'add-faction-reserve-recovery-applied-date.sql',
+  'create-faction-reserve-usage.sql',
+  'create-faction-reserve-unified.sql',
+  'migrate-faction-reserve-pool-from-factions.sql',
+  'migrate-faction-reserve-usage-into-unified.sql',
+  'factions-drop-reserve-columns.sql',
 ];
 
 function stripSqlComments(sql) {

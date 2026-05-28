@@ -1,0 +1,332 @@
+/**
+ * 势力银粮储备 · 统一数据访问（`faction_reserve` 表）
+ *
+ * - `category = pool`：当前余额 + 日恢复幂等日
+ * - 入账/出账 category：按大类累计统计（非逐笔流水）
+ *
+ * @see 11-3-FACTION_POLICY_SYSTEM.md · 势力储备入账/出账
+ */
+
+const { pool } = require('../database/connection');
+
+const CATEGORY = Object.freeze({
+  POOL: 'pool',
+  DAILY_RECOVERY: 'daily_recovery',
+  SIEGE_SETTLEMENT: 'siege_settlement',
+  WAR_START: 'war_start',
+  MARCH_FOOD: 'march_food',
+  STIPEND_BONUS: 'stipend_bonus',
+});
+
+const CREDIT_CATEGORY_META = [
+  {
+    key: CATEGORY.DAILY_RECOVERY,
+    label: '每日恢复',
+    hint: '每日 00:00 按国力档与占城规模入账',
+  },
+  {
+    key: CATEGORY.SIEGE_SETTLEMENT,
+    label: '结算入账',
+    hint: '攻城战斗净收益中按城战奖赏政策划入势力池的部分',
+  },
+];
+
+/** @deprecated 使用 CREDIT_CATEGORY_META */
+const INCOME_CATEGORY_META = CREDIT_CATEGORY_META;
+
+const EXPENSE_CATEGORY_META = [
+  { key: CATEGORY.WAR_START, label: '战事消耗', hint: '开启战事（含发动费与宣战临时政策费）' },
+  { key: CATEGORY.MARCH_FOOD, label: '行军消耗', hint: '玩家个人粮草不足时自势力池垫粮' },
+  { key: CATEGORY.STIPEND_BONUS, label: '俸禄奖赏', hint: '封赏俸禄领取时的粮饷政策 Bonus' },
+];
+
+/** @deprecated 使用 EXPENSE_CATEGORY_META */
+const USAGE_CATEGORY_META = EXPENSE_CATEGORY_META;
+
+/**
+ * @param {import('mysql2/promise').PoolConnection} conn
+ * @param {string} factionId
+ */
+async function ensurePoolRow(conn, factionId) {
+  const fid = String(factionId || '').trim();
+  if (!fid) return;
+  await conn.query(
+    `INSERT IGNORE INTO faction_reserve (faction_id, category, silver, food)
+     VALUES (?, ?, 0, 0)`,
+    [fid, CATEGORY.POOL],
+  );
+}
+
+/**
+ * @param {import('mysql2/promise').Pool | import('mysql2/promise').PoolConnection} db
+ * @param {string} factionId
+ * @param {{ forUpdate?: boolean }} [opts]
+ * @returns {Promise<{ silver: number, food: number, recoveryAppliedDate: string|null } | null>}
+ */
+async function getPoolBalance(db, factionId, opts = {}) {
+  const fid = String(factionId || '').trim();
+  if (!fid) return null;
+  const lock = opts.forUpdate ? ' FOR UPDATE' : '';
+  const [rows] = await db.query(
+    `SELECT silver, food, recovery_applied_date AS recoveryAppliedDate
+     FROM faction_reserve
+     WHERE faction_id = ? AND category = ?${lock}`,
+    [fid, CATEGORY.POOL],
+  );
+  if (!rows.length) {
+    return { silver: 0, food: 0, recoveryAppliedDate: null };
+  }
+  const r = rows[0];
+  const d = r.recoveryAppliedDate;
+  let recoveryAppliedDate = null;
+  if (d != null) {
+    if (d instanceof Date) {
+      recoveryAppliedDate = d.toISOString().slice(0, 10);
+    } else {
+      recoveryAppliedDate = String(d).slice(0, 10);
+    }
+  }
+  return {
+    silver: Number(r.silver) || 0,
+    food: Number(r.food) || 0,
+    recoveryAppliedDate,
+  };
+}
+
+/**
+ * @param {import('mysql2/promise').PoolConnection} conn
+ * @param {string} factionId
+ * @param {{ silver?: number, food?: number }} amounts
+ */
+/**
+ * @param {import('mysql2/promise').PoolConnection} conn
+ * @param {string} factionId
+ * @param {{ silver?: number, food?: number }} amounts
+ * @param {{ ledgerCategory?: string }} [opts] 同时累计到收支详情（入账类 category）
+ */
+async function creditPoolOnConnection(conn, factionId, amounts = {}, opts = {}) {
+  const fid = String(factionId || '').trim();
+  if (!fid) return;
+  const silver = Math.max(0, Math.floor(Number(amounts.silver) || 0));
+  const food = Math.max(0, Math.floor(Number(amounts.food) || 0));
+  if (silver === 0 && food === 0) return;
+  await ensurePoolRow(conn, fid);
+  await conn.query(
+    `UPDATE faction_reserve
+     SET silver = silver + ?, food = food + ?
+     WHERE faction_id = ? AND category = ?`,
+    [silver, food, fid, CATEGORY.POOL],
+  );
+  if (opts.ledgerCategory) {
+    await addLedgerCategoryOnConnection(conn, fid, opts.ledgerCategory, { silver, food });
+  }
+}
+
+/**
+ * @param {import('mysql2/promise').PoolConnection} conn
+ * @param {string} factionId
+ * @param {{ silver?: number, food?: number }} amounts
+ * @param {{ errorCode?: string, errorPrefix?: string }} [opts]
+ * @returns {Promise<{ silver: number, food: number }>}
+ */
+async function deductPoolOnConnection(conn, factionId, amounts = {}, opts = {}) {
+  const fid = String(factionId || '').trim();
+  const prefix = opts.errorPrefix || '[factionReserve]';
+  const silver = Math.max(0, Math.floor(Number(amounts.silver) || 0));
+  const food = Math.max(0, Math.floor(Number(amounts.food) || 0));
+  if (!fid) {
+    const err = new Error(`${prefix} 缺少 factionId`);
+    err.code = 'FACTION_NOT_FOUND';
+    throw err;
+  }
+  await ensurePoolRow(conn, fid);
+  const bal = await getPoolBalance(conn, fid, { forUpdate: true });
+  if (bal.silver < silver || bal.food < food) {
+    const err = new Error(
+      `${prefix} 势力银粮储备不足（需 ${silver} 银、${food} 粮；当前 ${bal.silver} 银、${bal.food} 粮）`,
+    );
+    err.code = opts.errorCode || 'INSUFFICIENT_FACTION_RESERVES';
+    err.details = {
+      reserveSilver: bal.silver,
+      reserveFood: bal.food,
+      needSilver: silver,
+      needFood: food,
+    };
+    throw err;
+  }
+  if (silver > 0 || food > 0) {
+    await conn.query(
+      `UPDATE faction_reserve
+       SET silver = silver - ?, food = food - ?
+       WHERE faction_id = ? AND category = ?`,
+      [silver, food, fid, CATEGORY.POOL],
+    );
+  }
+  return { silver, food };
+}
+
+/**
+ * @param {import('mysql2/promise').PoolConnection} conn
+ * @param {string} factionId
+ * @param {string} category
+ * @param {{ silver?: number, food?: number }} amounts
+ */
+async function addLedgerCategoryOnConnection(conn, factionId, category, amounts = {}) {
+  const fid = String(factionId || '').trim();
+  const cat = String(category || '').trim();
+  if (!fid || !cat || cat === CATEGORY.POOL) return;
+  const silver = Math.max(0, Math.floor(Number(amounts.silver) || 0));
+  const food = Math.max(0, Math.floor(Number(amounts.food) || 0));
+  if (silver === 0 && food === 0) return;
+  await conn.query(
+    `INSERT INTO faction_reserve (faction_id, category, silver, food)
+     VALUES (?, ?, ?, ?)
+     ON DUPLICATE KEY UPDATE
+       silver = silver + VALUES(silver),
+       food = food + VALUES(food)`,
+    [fid, cat, silver, food],
+  );
+}
+
+/** 出账累计（兼容旧名） */
+async function addUsageOnConnection(conn, factionId, category, amounts = {}) {
+  return addLedgerCategoryOnConnection(conn, factionId, category, amounts);
+}
+
+/**
+ * @param {import('mysql2/promise').PoolConnection} conn
+ * @param {string} factionId
+ * @param {string} dateStr YYYY-MM-DD
+ */
+async function setRecoveryAppliedDateOnConnection(conn, factionId, dateStr) {
+  const fid = String(factionId || '').trim();
+  if (!fid) return;
+  await ensurePoolRow(conn, fid);
+  await conn.query(
+    `UPDATE faction_reserve SET recovery_applied_date = ? WHERE faction_id = ? AND category = ?`,
+    [dateStr, fid, CATEGORY.POOL],
+  );
+}
+
+/**
+ * @param {import('mysql2/promise').PoolConnection} conn
+ * @param {string} factionId
+ * @param {{ silver: number, food: number, recoveryAppliedDate: string }} payload
+ */
+async function creditRecoveryOnConnection(conn, factionId, payload) {
+  const fid = String(factionId || '').trim();
+  if (!fid) return;
+  const silver = Math.max(0, Math.floor(Number(payload.silver) || 0));
+  const food = Math.max(0, Math.floor(Number(payload.food) || 0));
+  await ensurePoolRow(conn, fid);
+  await conn.query(
+    `UPDATE faction_reserve
+     SET silver = silver + ?,
+         food = food + ?,
+         recovery_applied_date = ?
+     WHERE faction_id = ? AND category = ?`,
+    [silver, food, payload.recoveryAppliedDate, fid, CATEGORY.POOL],
+  );
+  if (silver > 0 || food > 0) {
+    await addLedgerCategoryOnConnection(conn, fid, CATEGORY.DAILY_RECOVERY, { silver, food });
+  }
+}
+
+function buildCategoryRows(meta, byCat, hintOverrides = {}) {
+  const categories = meta.map((m) => ({
+    key: m.key,
+    label: m.label,
+    hint: hintOverrides[m.key] ?? m.hint,
+    silver: byCat[m.key]?.silver || 0,
+    food: byCat[m.key]?.food || 0,
+  }));
+  return {
+    categories,
+    totalSilver: categories.reduce((s, c) => s + c.silver, 0),
+    totalFood: categories.reduce((s, c) => s + c.food, 0),
+  };
+}
+
+/**
+ * @param {object|null|undefined} reserveRecoveryEstimate
+ * @returns {string}
+ */
+function buildDailyRecoveryHint(reserveRecoveryEstimate) {
+  const est = reserveRecoveryEstimate;
+  if (!est || est.supplyTier == null) {
+    return '无国力档时无每日恢复';
+  }
+  const fmt = (n) => Math.max(0, Math.floor(Number(n) || 0)).toLocaleString('zh-CN');
+  return `银 ${fmt(est.estimatedSilverMin)}～${fmt(est.estimatedSilverMax)} · 粮 ${fmt(est.estimatedFoodMin)}～${fmt(est.estimatedFoodMax)}（0:00 入账）`;
+}
+
+/**
+ * @param {string} factionId
+ * @param {{ reserveRecoveryEstimate?: object|null }} [opts]
+ */
+async function getLedgerSummaryForFaction(factionId, opts = {}) {
+  const fid = String(factionId || '').trim();
+  if (!fid) return null;
+  const dailyRecoveryHint = buildDailyRecoveryHint(opts.reserveRecoveryEstimate);
+  let rows;
+  try {
+    [rows] = await pool.query(
+      `SELECT category, silver, food
+       FROM faction_reserve
+       WHERE faction_id = ? AND category <> ?`,
+      [fid, CATEGORY.POOL],
+    );
+  } catch (e) {
+    if (/Unknown table ['`]faction_reserve/i.test(e?.message || '')) {
+      return {
+        credit: buildCategoryRows(CREDIT_CATEGORY_META, {}, { [CATEGORY.DAILY_RECOVERY]: dailyRecoveryHint }),
+        expense: buildCategoryRows(EXPENSE_CATEGORY_META, {}),
+        schemaMissing: true,
+      };
+    }
+    throw e;
+  }
+  const byCat = {};
+  for (const r of rows) {
+    byCat[r.category] = {
+      silver: Number(r.silver) || 0,
+      food: Number(r.food) || 0,
+    };
+  }
+  return {
+    credit: buildCategoryRows(CREDIT_CATEGORY_META, byCat, {
+      [CATEGORY.DAILY_RECOVERY]: dailyRecoveryHint,
+    }),
+    expense: buildCategoryRows(EXPENSE_CATEGORY_META, byCat),
+  };
+}
+
+/**
+ * @param {string} factionId
+ * @returns {Promise<{ categories: Array<object>, totalSilver: number, totalFood: number, schemaMissing?: boolean } | null>}
+ */
+async function getUsageSummaryForFaction(factionId) {
+  const ledger = await getLedgerSummaryForFaction(factionId);
+  if (!ledger) return null;
+  return { ...ledger.expense, schemaMissing: ledger.schemaMissing };
+}
+
+module.exports = {
+  CATEGORY,
+  CREDIT_CATEGORY_META,
+  INCOME_CATEGORY_META,
+  EXPENSE_CATEGORY_META,
+  CATEGORY_META: EXPENSE_CATEGORY_META,
+  USAGE_CATEGORY_META,
+  ensurePoolRow,
+  getPoolBalance,
+  creditPoolOnConnection,
+  deductPoolOnConnection,
+  addLedgerCategoryOnConnection,
+  addUsageOnConnection,
+  setRecoveryAppliedDateOnConnection,
+  creditRecoveryOnConnection,
+  buildDailyRecoveryHint,
+  getLedgerSummaryForFaction,
+  getUsageSummaryForFaction,
+};

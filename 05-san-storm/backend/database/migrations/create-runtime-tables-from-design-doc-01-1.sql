@@ -32,8 +32,6 @@ CREATE TABLE IF NOT EXISTS factions (
   id VARCHAR(50) PRIMARY KEY COMMENT 'faction id',
   season VARCHAR(20) NOT NULL,
   faction_name VARCHAR(100) NOT NULL,
-  reserve_silver INT DEFAULT 0 COMMENT '银两储备（30%城市产出）',
-  reserve_food INT DEFAULT 0 COMMENT '粮草储备（30%城市产出）',
   total_population BIGINT NOT NULL DEFAULT 0,
   total_trading BIGINT NOT NULL DEFAULT 0,
   total_farming BIGINT NOT NULL DEFAULT 0,
@@ -61,6 +59,18 @@ CREATE TABLE IF NOT EXISTS factions (
   INDEX idx_season (season),
   INDEX idx_faction_name (faction_name)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Faction runtime';
+
+-- §3.2.10c Faction reserve pool + usage aggregates
+CREATE TABLE IF NOT EXISTS faction_reserve (
+  faction_id VARCHAR(50) NOT NULL,
+  category VARCHAR(32) NOT NULL COMMENT 'pool | war_start | march_food | stipend_bonus',
+  silver BIGINT NOT NULL DEFAULT 0,
+  food BIGINT NOT NULL DEFAULT 0,
+  recovery_applied_date DATE NULL COMMENT 'pool row only',
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (faction_id, category),
+  INDEX idx_faction (faction_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Faction silver/food pool and spend aggregates';
 
 -- §3.2.12 Legions (requires factions)
 CREATE TABLE IF NOT EXISTS legions (

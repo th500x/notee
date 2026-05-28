@@ -16,6 +16,10 @@ const factionBulletinService = require('./factionBulletinService');
 const gameTimeService = require('./gameTimeService');
 const warInitiationCostService = require('./warInitiationCostService');
 const { KILL_SILVER_REWARD } = require('../../shared/utils/siegeKillEconomyByRarity.cjs');
+const {
+  applyToSiegeReward: applySiegeRewardSplit,
+} = require('../../shared/utils/siegeRewardSplitPolicy.cjs');
+const factionPolicyService = require('./factionPolicyService');
 const { isAllowedPlayerCityPoiCityType } = require('../../shared/utils/strategicMarchPoi.js');
 const {
   calcHourlyQuotaWithRestWindow,
@@ -840,13 +844,40 @@ async function recordSiegeResult(warId, playerId, factionId, killedIndices, resu
     // 势力击杀只计算实际从alive变dead的数量（防止重复上报）
     factionKills[factionId] = (factionKills[factionId] || 0) + actualKillCount;
 
-    // 4. 发放银两奖励（扣除战斗消耗后的净值）
+    // 4. 发放银两奖励：先算净值（毛 − silverSpent），再按势力政策 `siege_reward` 拆分个人 / 势力池。
+    //    粮草当前结算无产生（净粮 = 0）；策略函数支持但本路径不入账。
+    //    策略未生效（无 approved 行）时 `personalSharePct = 100`，与 17-2 / 11-3「政策实装前个人全收」一致。
     const netSilver = silverReward - (silverSpent > 0 ? silverSpent : 0);
     if (netSilver !== 0) {
-      await connection.query(
-        'UPDATE players SET silver = GREATEST(0, silver + ?) WHERE player_id = ?',
-        [netSilver, playerId]
-      );
+      if (netSilver < 0) {
+        // 玩家本场净亏（仅银两端）：直接全数从玩家扣，势力池不参与；与历史口径一致。
+        await connection.query(
+          'UPDATE players SET silver = GREATEST(0, silver + ?) WHERE player_id = ?',
+          [netSilver, playerId]
+        );
+      } else {
+        const siegePolicy = await factionPolicyService.getEffectiveSiegeReward(factionId);
+        const split = applySiegeRewardSplit({
+          netSilver,
+          netFood: 0,
+          personalSharePct: siegePolicy.personalSharePct,
+        });
+        if (split.personalSilver > 0) {
+          await connection.query(
+            'UPDATE players SET silver = GREATEST(0, silver + ?) WHERE player_id = ?',
+            [split.personalSilver, playerId]
+          );
+        }
+        if (split.factionSilver > 0 && factionId) {
+          const factionReserveService = require('./factionReserveService');
+          await factionReserveService.creditPoolOnConnection(
+            connection,
+            factionId,
+            { silver: split.factionSilver, food: split.factionFood || 0 },
+            { ledgerCategory: factionReserveService.CATEGORY.SIEGE_SETTLEMENT },
+          );
+        }
+      }
     }
 
     // 4.5 胜利额外奖励：贡献 + 装备掉落（NPC 守军线）

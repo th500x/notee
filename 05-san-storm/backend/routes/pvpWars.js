@@ -24,7 +24,7 @@
 const express = require('express');
 const router = express.Router();
 const { requireAuth } = require('../middleware/auth');
-const { wrap500 } = require('../utils/httpError');
+const { wrap500, httpError } = require('../utils/httpError');
 const { pool } = require('../database/connection');
 const pvpWarService = require('../services/pvpWarService');
 const passiveApprovalService = require('../services/passiveApprovalService');
@@ -35,6 +35,8 @@ const Player = require('../models/Player');
 const cityService = require('../services/cityService');
 const gameTimeService = require('../services/gameTimeService');
 const warInitiationCostService = require('../services/warInitiationCostService');
+const policyProposerAuth = require('../services/policyProposerAuth');
+const warPolicyTransientService = require('../services/warPolicyTransientService');
 
 /**
  * 取势力当前占有城数（启用 *_eff 饱和调制时供被动审批 / 主动决策共用）。
@@ -90,10 +92,18 @@ router.get('/preview-approval', async (req, res, next) => {
  *   proposerPlayerId,
  *   proposalId?,                // 调用方可传入用于审计追踪
  *   serverId?,
+ *   transientPolicies?: {       // 11-3 §4 临时政策 · 合并审批/扣费/激活（合意 2026-05-25）
+ *     frontAssault?: boolean,
+ *     rearAssault?: boolean,
+ *     imperialMarch?: boolean,
+ *   },
  * }
  *
+ * 鉴权（11-3 §7.1 · 2026-05-25 收紧）：提议者 `current_position_id` 必须为
+ * **大将军 / 大司空**；势力身份必须与 `attackerFactionId` 一致。不符合 → 403。
+ *
  * 返回：
- *   { approval: <审批审计>, war?: <若通过则返回新建草案 pvp war>, draftCreated: bool }
+ *   { approval: <审批审计>, war?: <若通过则返回新建草案 pvp war>, draftCreated: bool, transientPoliciesApplied?: object }
  */
 router.post('/proposals', async (req, res, next) => {
   try {
@@ -104,6 +114,7 @@ router.post('/proposals', async (req, res, next) => {
       proposerPlayerId,
       proposalId,
       serverId,
+      transientPolicies: rawTransientPolicies,
     } = req.body || {};
     if (!attackerFactionId || !targetCityId) {
       return res.status(400).json({
@@ -117,6 +128,24 @@ router.post('/proposals', async (req, res, next) => {
         error: `该势力暂未配置 AI 君主（M2 仅汉室/黄巾/刘备）：${attackerFactionId}`,
       });
     }
+
+    // 提议者职务校验（11-3 §7.1 · 2026-05-25 · 战事谏言 + 临时政策同步收紧到大将军/大司空）
+    const proposerPid = String(proposerPlayerId || '').trim();
+    if (!proposerPid) {
+      throw httpError(400, '缺少 proposerPlayerId（战事谏言须由具体官员提交）', 'MISSING_PROPOSER');
+    }
+    const proposerPlayer = await Player.getById(proposerPid);
+    if (!proposerPlayer) {
+      throw httpError(404, '提议者玩家不存在', 'PROPOSER_NOT_FOUND');
+    }
+    if (String(proposerPlayer.faction_id || '').trim() !== String(attackerFactionId).trim()) {
+      throw httpError(403, '提议者势力身份与发起方不符', 'PROPOSER_FACTION_MISMATCH');
+    }
+    // 大将军 / 大司空 才可提交战事谏言（同步支配临时政策）
+    policyProposerAuth.assertPolicyProposer(proposerPlayer, policyProposerAuth.POLICY_SCOPE.TRANSIENT);
+
+    // 规整临时政策 + 业务级合法性预检（后军禁开等 4xx）
+    const normalizedPolicies = warPolicyTransientService.normalizeTransientPolicies(rawTransientPolicies);
 
     const cityCount = await fetchFactionCityCountForKing(attackerFactionId);
     const approval = passiveApprovalService.resolvePassiveApproval({
@@ -132,21 +161,16 @@ router.post('/proposals', async (req, res, next) => {
         data: {
           approval,
           draftCreated: false,
+          /** 驳回时回传客户端勾选，便于前端展示「提议未通过、未扣费」 */
+          transientPoliciesProposed: normalizedPolicies,
         },
       });
     }
 
+    const nm = String(proposerPlayer.character_name || '').trim();
+    const proposer = { kind: 'player', playerId: proposerPid, displayName: nm || proposerPid };
+
     let war = null;
-    let proposer = null;
-    const proposerPid = String(proposerPlayerId || '').trim();
-    if (proposerPid) {
-      const [pnRows] = await pool.query(
-        'SELECT character_name FROM players WHERE player_id = ? LIMIT 1',
-        [proposerPid],
-      );
-      const nm = String(pnRows[0]?.character_name || '').trim();
-      proposer = { kind: 'player', playerId: proposerPid, displayName: nm || proposerPid };
-    }
     try {
       war = await pvpWarService.createPvpWarDraftAndActivate({
         season,
@@ -154,11 +178,15 @@ router.post('/proposals', async (req, res, next) => {
         targetCityId,
         serverId,
         proposer,
+        transientPolicies: normalizedPolicies,
       });
     } catch (createErr) {
-      return res.status(409).json({
+      // 储备不足 / 后军禁开 等业务级错误已经是 4xx — 透传 status；其它走 409 兜底
+      const code = createErr.status || createErr.statusCode || 409;
+      return res.status(code).json({
         success: false,
-        error: createErr.message,
+        error: createErr.publicMessage || createErr.message,
+        code: createErr.code || undefined,
         approval,
       });
     }
@@ -169,7 +197,8 @@ router.post('/proposals', async (req, res, next) => {
         approval,
         draftCreated: true,
         war,
-        proposerPlayerId: proposerPlayerId || null,
+        proposerPlayerId,
+        transientPoliciesApplied: normalizedPolicies,
       },
     });
   } catch (error) {
@@ -285,22 +314,26 @@ router.get('/remonstrance-panel', async (req, res, next) => {
     const maxPvp = pvpWarService.MAX_CONCURRENT_PVP_WARS_PER_ATTACKER_FACTION;
     const maxPve = cityService.MAX_CONCURRENT_PVE_WARS_PER_ATTACKER_FACTION;
 
-    const [fResRows] = await pool.query(
-      'SELECT reserve_silver, reserve_food FROM factions WHERE id = ? LIMIT 1',
-      [factionId],
-    );
+    const factionReserveService = require('../services/factionReserveService');
+    const poolBal = await factionReserveService.getPoolBalance(pool, factionId);
     const reserves = {
-      silver: Number(fResRows[0]?.reserve_silver) || 0,
-      food: Number(fResRows[0]?.reserve_food) || 0,
+      silver: poolBal?.silver ?? 0,
+      food: poolBal?.food ?? 0,
     };
     const gameTime = await gameTimeService.loadGameTimeForPlayer(String(accountId));
     const proposalCost = warInitiationCostService.buildProposalCostPanelPayload(gameTime, reserves);
+    const transientPolicyFees = {
+      frontAssault: warPolicyTransientService.POLICY_FEES.frontAssault,
+      rearAssault: warPolicyTransientService.POLICY_FEES.rearAssault,
+      imperialMarch: warPolicyTransientService.POLICY_FEES.imperialMarch,
+    };
 
     res.json({
       success: true,
       data: {
         pvpTargets: (pvpTargets || []).map(formatRemonstranceCityRow).filter(Boolean),
         pveTargets: (pveTargets || []).map(formatRemonstranceCityRow).filter(Boolean),
+        transientPolicyFees,
         warLimits: {
           pvpActiveOrPending: pvpCount,
           pvpMax: maxPvp,
@@ -329,6 +362,62 @@ router.get('/:id', async (req, res, next) => {
     res.json({ success: true, data: war });
   } catch (error) {
     return next(wrap500(error, '获取战事详情失败'));
+  }
+});
+
+/**
+ * GET /api/pvp-wars/:id/phase
+ *
+ * 单点查阶段（11-3 §5 实装段3）：返回当前阶段标签 + T0/T1/midArmyAt/tEnd/rearWindow +
+ * 玩家是否允许攻城 + 临时政策开关。供前端战事浮层、阶段提示、玩家攻城按钮置灰使用。
+ *
+ * 若该场战事没有 `wars_pvp_policies` 行（未勾选任何临时政策），返回 `phase=mid_army`、
+ * `playerSiegeAllowed=true`、`policies=null` — 与现行无阶段机口径兼容。
+ */
+router.get('/:id/phase', async (req, res, next) => {
+  try {
+    const war = await WarPvp.getById(req.params.id);
+    if (!war) return res.status(404).json({ success: false, error: '战事不存在' });
+    const warPhaseService = require('../services/warPhaseService');
+    const policiesRow = await warPolicyTransientService.getPoliciesForWar(req.params.id);
+    if (!policiesRow) {
+      // 兼容：无临时政策时不启用阶段机
+      return res.json({
+        success: true,
+        data: {
+          pvpWarId: war.pvpWarId,
+          status: war.status,
+          phase: war.status === 'active' ? warPhaseService.PHASE.MID_ARMY : warPhaseService.PHASE.NOT_ACTIVE,
+          playerSiegeAllowed: war.status === 'active',
+          policies: null,
+        },
+      });
+    }
+    const snap = warPhaseService.getPhaseSnapshot(war, policiesRow);
+    res.json({
+      success: true,
+      data: {
+        pvpWarId: war.pvpWarId,
+        status: war.status,
+        phase: snap.phase,
+        t0: snap.t0 || null,
+        t1: snap.t1 || null,
+        midArmyAt: snap.midArmyAt || null,
+        tEnd: snap.tEnd || null,
+        rearWindow: snap.rearWindow || null,
+        playerSiegeAllowed: snap.playerSiegeAllowed,
+        reason: snap.reason || null,
+        policies: {
+          frontAssault: policiesRow.frontAssault,
+          rearAssault: policiesRow.rearAssault,
+          imperialMarch: policiesRow.imperialMarch,
+          imperialMarchExpiresAt: policiesRow.imperialMarchExpiresAt,
+          phaseSnapshotJson: policiesRow.phaseSnapshotJson,
+        },
+      },
+    });
+  } catch (error) {
+    return next(wrap500(error, '获取战事阶段失败'));
   }
 });
 

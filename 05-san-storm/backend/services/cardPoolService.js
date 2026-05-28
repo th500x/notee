@@ -7,6 +7,7 @@
 
 const { pool } = require('../database/connection');
 const statisticsDeltaService = require('./statisticsDeltaService');
+const factionPolicyService = require('./factionPolicyService');
 
 // ── 概率配置（模拟满发展度3000）─────────────────────────────
 
@@ -37,7 +38,7 @@ const DAILY_RARITY_CAP = { legendary: 1, epic: 2 };
 // ── 补偿常量 ─────────────────────────────────────────────────
 
 const CHARACTER_DUPLICATE_COMPENSATION = { common: 20, rare: 40, epic: 60, legendary: 80 };
-/** 将领按稀有度总张数达上限时的银两补偿（与 rewardService、21-CHARACTER_SYSTEM §2.2 一致） */
+/** 将领按稀有度总张数达上限时的银两补偿（与 21-1 §8.1 一致） */
 const CHARACTER_LIMIT_BY_RARITY = { legendary: 8, epic: 12, rare: 12, common: 8 };
 const CHARACTER_OVER_LIMIT_COMPENSATION = { legendary: 80, epic: 60, rare: 40, common: 20 };
 /** 无可抽候选时仍返回银两补偿（与返回体 compensation 一致，须实际入账） */
@@ -127,6 +128,12 @@ async function drawFromPool(playerId, poolType) {
     // 5. 获取保底计数（最新一条记录的 pity_count）
     const pityCount = await getPityCount(connection, playerId, poolType);
 
+    // 5b. 招贤纳士政策（11-3 §3.3）：政策为「approved + enabled」时追加 san_0 段映射（楚汉时代池）
+    //   - 仅在本次抽取入口读一次，避免每张卡都跑一次 SQL
+    //   - `san_0_char_*` 与默认 `likeNeutral`（`san_1_char_0xxx` 本赛季通用 50 张）前缀不同，
+    //     两个池子互不重叠：招贤 ON 后真的会多出对应势力的楚汉时代段（扶苏/项羽/刘邦…）
+    const recruitEff = await factionPolicyService.getEffectiveRecruit(player.faction_id);
+
     // 6. 扣除银两
     await connection.query(
       'UPDATE players SET silver = silver - ? WHERE player_id = ?',
@@ -141,7 +148,8 @@ async function drawFromPool(playerId, poolType) {
     for (let i = 0; i < cardsPerDraw; i++) {
       const result = await drawSingleCard(
         connection, playerId, poolType, player.faction_id,
-        runningPity, todayRarityCounts, results
+        runningPity, todayRarityCounts, results,
+        recruitEff
       );
 
       // 计算本张卡后的 pity_count：①抽到传奇（含重复/上限补偿，仍为传奇稀有度）或 ②本轮触发了硬保底（即使被每日上限降级为史诗）均归零
@@ -217,7 +225,7 @@ async function drawFromPool(playerId, poolType) {
 /**
  * 抽取单张卡牌（不写入记录，由调用方统一写入）
  */
-async function drawSingleCard(connection, playerId, poolType, factionId, currentPity, todayRarityCounts, previousResults) {
+async function drawSingleCard(connection, playerId, poolType, factionId, currentPity, todayRarityCounts, previousResults, recruitEff = null) {
   const { season, factionNumber } = parseFactionId(factionId);
 
   // 决定稀有度
@@ -265,13 +273,24 @@ async function drawSingleCard(connection, playerId, poolType, factionId, current
 
   const likeFaction = `${season}_${idPrefix}_${factionNumber}%`;
   const likeNeutral = `${season}_${idPrefix}_0%`;
+  // 招贤纳士政策（11-3 §3.3）：approved + enabled 时追加 `san_0_<kind>_<band>%`（楚汉时代池）。
+  // 注意前缀不同：`likeNeutral = san_1_<kind>_0xxx`（赛季通用）与 `san_0_<kind>_<band>xxx`（楚汉时代）
+  // 是两个互不重叠的池子；招贤 ON 时实际拓展池子（五势力 → 楚汉秦末段；黄巾 → 楚汉项楚段；汉室 → 楚汉西汉段）。
+  // 实装段 2.2：仅 character / troop 两类同处理；future 若新增其它 idPrefix 需补字段。
+  const recruitLike =
+    recruitEff && recruitEff.enabled && recruitEff.san0Band
+      ? `san_0_${idPrefix}_${recruitEff.san0Band}%`
+      : null;
+
+  const extraLikeClause = recruitLike ? ` OR ${idField} LIKE ?` : '';
+  const extraLikeParams = recruitLike ? [recruitLike] : [];
 
   // 仅在已确定的 rarity 下，在符合条件的行中均匀随机（多一张同稀有度卡不会改变上文的 rollRarity 概率）
   let query = `SELECT ${idField} AS card_id, ${nameField} AS card_name, rarity
     FROM ${table}
-    WHERE rarity = ? AND (${idField} LIKE ? OR ${idField} LIKE ?)${excludeClausePrimary}
+    WHERE rarity = ? AND (${idField} LIKE ? OR ${idField} LIKE ?${extraLikeClause})${excludeClausePrimary}
     ORDER BY RAND() LIMIT 1`;
-  let params = [rarity, likeFaction, likeNeutral, ...excludePoolIdsPrimary];
+  let params = [rarity, likeFaction, likeNeutral, ...extraLikeParams, ...excludePoolIdsPrimary];
 
   let [rows] = await connection.query(query, params);
 
@@ -281,9 +300,9 @@ async function drawSingleCard(connection, playerId, poolType, factionId, current
       : '';
     const dupQuery = `SELECT ${idField} AS card_id, ${nameField} AS card_name, rarity
       FROM ${table}
-      WHERE rarity = ? AND (${idField} LIKE ? OR ${idField} LIKE ?)${excludeClauseDupOnly}
+      WHERE rarity = ? AND (${idField} LIKE ? OR ${idField} LIKE ?${extraLikeClause})${excludeClauseDupOnly}
       ORDER BY RAND() LIMIT 1`;
-    const dupParams = [rarity, likeFaction, likeNeutral, ...excludeIds];
+    const dupParams = [rarity, likeFaction, likeNeutral, ...extraLikeParams, ...excludeIds];
     [rows] = await connection.query(dupQuery, dupParams);
   }
 

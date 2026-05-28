@@ -1,5 +1,5 @@
 /**
- * 匪寨爬塔单层奖励与层进度工具（17-6 §7；与 `smallMapEnemyRoster` 同链）。
+ * 匪寨爬塔单层奖励与层进度工具（17-7 §7；与 `smallMapEnemyRoster` 同链）。
  * @module @shared/utils/banditRaidLayerRewards
  */
 

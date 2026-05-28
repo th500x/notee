@@ -3,6 +3,8 @@
  * @module services/warInitiationCostService
  */
 
+const factionReserveService = require('./factionReserveService');
+
 /**
  * 基准消耗（银两 / 粮草，整数）；与 `cities.city_type` 对齐。
  * 小城 | 中城+据点 | 大城+关隘
@@ -81,7 +83,7 @@ function computeScaledCostForCityType(cityType, gameTime) {
 }
 
 /**
- * 同事务内锁定攻方势力并扣减 `reserve_silver` / `reserve_food`。
+ * 同事务内锁定攻方势力池并扣减银粮（`faction_reserve` · pool）。
  *
  * @param {import('mysql2/promise').PoolConnection} conn
  * @param {string} factionId
@@ -93,28 +95,31 @@ async function assertAndDeductInTransaction(conn, factionId, cityType, gameTime)
   const fid = String(factionId || '').trim();
   if (!fid) throw new Error('[warInitCost] 缺少 factionId');
   const cost = computeScaledCostForCityType(cityType, gameTime);
-  const [rows] = await conn.query(
-    'SELECT id, reserve_silver, reserve_food FROM factions WHERE id = ? FOR UPDATE',
-    [fid],
-  );
-  if (!rows.length) {
-    const err = new Error('[warInitCost] 攻方势力不存在');
-    err.code = 'FACTION_NOT_FOUND';
-    throw err;
-  }
-  const rs = Number(rows[0].reserve_silver) || 0;
-  const rf = Number(rows[0].reserve_food) || 0;
-  if (rs < cost.silver || rf < cost.food) {
-    const err = new Error(
-      `势力银粮储备不足以发动本场战事（需 ${cost.silver} 银、${cost.food} 粮；当前储备 ${rs} 银、${rf} 粮）`,
+  try {
+    await factionReserveService.deductPoolOnConnection(
+      conn,
+      fid,
+      { silver: cost.silver, food: cost.food },
+      { errorPrefix: '[warInitCost] 攻方势力', errorCode: 'INSUFFICIENT_FACTION_RESERVES' },
     );
-    err.code = 'INSUFFICIENT_FACTION_RESERVES';
-    err.details = { ...cost, reserveSilver: rs, reserveFood: rf };
-    throw err;
+  } catch (e) {
+    if (e.code === 'INSUFFICIENT_FACTION_RESERVES' && e.details) {
+      const rs = e.details.reserveSilver;
+      const rf = e.details.reserveFood;
+      const err = new Error(
+        `势力银粮储备不足以发动本场战事（需 ${cost.silver} 银、${cost.food} 粮；当前储备 ${rs} 银、${rf} 粮）`,
+      );
+      err.code = 'INSUFFICIENT_FACTION_RESERVES';
+      err.details = { ...cost, reserveSilver: rs, reserveFood: rf };
+      throw err;
+    }
+    throw e;
   }
-  await conn.query(
-    'UPDATE factions SET reserve_silver = reserve_silver - ?, reserve_food = reserve_food - ? WHERE id = ?',
-    [cost.silver, cost.food, fid],
+  await factionReserveService.addUsageOnConnection(
+    conn,
+    fid,
+    factionReserveService.CATEGORY.WAR_START,
+    { silver: cost.silver, food: cost.food },
   );
   return cost;
 }

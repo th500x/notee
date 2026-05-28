@@ -27,6 +27,8 @@ const TIER1_POSITION_LEVEL = 1;
  *   positionLevel?: number|null,
  *   onOpenFactionWars?: () => void,
  *   factionWarDrawerOpen?: boolean,
+ *   onOpenFactionPolicies?: () => void,
+ *   factionPolicyDrawerOpen?: boolean,
  *   onDocumentPosted?: () => void,
  * }} props
  */
@@ -35,6 +37,8 @@ export default function SanGongFuChaoZhengPanel({
   positionLevel,
   onOpenFactionWars,
   factionWarDrawerOpen = false,
+  onOpenFactionPolicies,
+  factionPolicyDrawerOpen = false,
   onDocumentPosted,
 }) {
   const lv = Number(positionLevel);
@@ -57,9 +61,10 @@ export default function SanGongFuChaoZhengPanel({
           <CardPoolPoolButton
             icon="📜"
             label="势力政策"
-            subLabel="敬请期待"
-            onClick={() => {}}
-            tooltip="势力政策、文书发布与战事提议/结案等（占位，规则待实装）"
+            subLabel="长效四类"
+            drawerOpen={factionPolicyDrawerOpen}
+            onClick={() => onOpenFactionPolicies?.()}
+            tooltip="查看本势力当前生效的四类长效政策（粮饷加成 / 城战奖赏 / 招贤纳士 / 内政目标），并由大司马 / 大司空向 AI 君主谏言修改。"
           />
         </div>
       </div>

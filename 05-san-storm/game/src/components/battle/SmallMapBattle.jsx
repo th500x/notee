@@ -40,6 +40,7 @@ const STAGE = { LOADING: 'loading', READY: 'ready' };
  * @param {string[]} [enemySlotRarities]             可选：长度 4 时每槽稀有度（匪寨等，见 @shared/utils/smallMapEnemyRoster）
  * @param {object|null} [smallMapPveLoot]           可选：胜利时写入 rewards.smallMapPveLoot，后端 smallMapBattleLootService 即发奖
  * @param {Array}   [enemyUnits]                     攻城模式：直接传入敌方 NPC 阵容
+ * @param {Array}   [allyUnits]                      御驾等友军（攻城，最多 1 支）
  * @param {number}  [silverAmount]
  * @param {number}  [playerFood]
  * @param {string}  [playerId]
@@ -59,6 +60,7 @@ export default function SmallMapBattle({
   enemySlotRarities = null,
   smallMapPveLoot = null,
   enemyUnits,
+  allyUnits = null,
   silverAmount = 0,
   playerFood = 0,
   playerId,
@@ -193,7 +195,12 @@ export default function SmallMapBattle({
     bm.generate('standard');
 
     if (enemyUnits) {
-      bm.setBattleTroops(buildSiegeUnits({ playerUnits, enemyUnits, baseUrl: import.meta.env.BASE_URL }));
+      bm.setBattleTroops(buildSiegeUnits({
+        playerUnits,
+        enemyUnits,
+        allyUnits: Array.isArray(allyUnits) ? allyUnits : [],
+        baseUrl: import.meta.env.BASE_URL,
+      }));
     } else {
       bm.assignRealBattleTroops(playerUnits, enemyRarity || 'common', {
         extraEnemyCharacterIds: eventExtraEnemyCharacterIds,
@@ -216,6 +223,7 @@ export default function SmallMapBattle({
   }, [
     playerUnits,
     enemyUnits,
+    allyUnits,
     enemyRarity,
     enemySlotRarities,
     eventExtraEnemyCharacterIds,

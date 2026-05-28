@@ -53,17 +53,33 @@ export const warAPI = {
   /**
    * 发起宣战提案（君主被动审批）。通过则返回 draft 战事行（`pending` 状态，无大本营）。
    */
-  async submitProposal({ attackerFactionId, targetCityId, season, proposerPlayerId, proposalId }) {
+  async submitProposal({
+    attackerFactionId,
+    targetCityId,
+    season,
+    proposerPlayerId,
+    proposalId,
+    transientPolicies,
+  }) {
+    const body = {
+      attackerFactionId,
+      targetCityId,
+      season,
+      proposerPlayerId,
+      proposalId,
+    };
+    if (transientPolicies && typeof transientPolicies === 'object') {
+      body.transientPolicies = transientPolicies;
+    }
     return fetchJSON(`${BASE}/proposals`, {
       method: 'POST',
-      body: JSON.stringify({
-        attackerFactionId,
-        targetCityId,
-        season,
-        proposerPlayerId,
-        proposalId,
-      }),
+      body: JSON.stringify(body),
     });
+  },
+
+  /** 单场战事阶段快照（11-3 · 临时政策阶段机） */
+  async getWarPhase(pvpWarId) {
+    return fetchJSON(`${BASE}/${encodeURIComponent(pvpWarId)}/phase`);
   },
 
   /** 列出战事（按状态/城/势力/赛季筛选） */

@@ -75,6 +75,78 @@ function OfficeDutyGrid({ officeHolders }) {
   );
 }
 
+/** @param {{ label: string, hint: string, silver: number, food: number, key: string }} c */
+function LedgerCategoryCard({ c }) {
+  return (
+    <li className="rounded border border-stone-800/80 bg-stone-900/40 px-2 py-1.5">
+      <div className="text-xs text-stone-200">{c.label}</div>
+      <div className="text-[10px] leading-snug text-stone-500">{c.hint}</div>
+      <div className="mt-0.5 text-[11px] tabular-nums text-stone-300">
+        银 {fmtNum(c.silver)} · 粮 {fmtNum(c.food)}
+      </div>
+    </li>
+  );
+}
+
+function ReserveLedgerPopover({ open, anchorRect, ledger, onClose }) {
+  if (!open || typeof document === 'undefined' || !anchorRect) return null;
+
+  const pad = 8;
+  const panelW = Math.min(300, window.innerWidth - pad * 2);
+  let left = anchorRect.right - panelW;
+  left = Math.max(pad, Math.min(left, window.innerWidth - panelW - pad));
+  const maxH = Math.min(420, window.innerHeight * 0.6);
+  let top = anchorRect.bottom + 6;
+  if (top + maxH > window.innerHeight - pad) {
+    top = Math.max(pad, anchorRect.top - maxH - 6);
+  }
+
+  const credit = ledger?.credit;
+  const expense = ledger?.expense;
+
+  return createPortal(
+    <>
+      <button
+        type="button"
+        className="fixed inset-0 z-[130] cursor-default bg-black/40"
+        aria-label="关闭收支详情"
+        onClick={onClose}
+      />
+      <div
+        className="fixed z-[131] overflow-y-auto rounded-lg border border-amber-900/50 bg-stone-950/95 p-3 shadow-xl"
+        style={{ left, top, width: panelW, maxHeight: maxH }}
+        role="dialog"
+        aria-label="储备收支详情"
+      >
+        <div className="mb-2 text-[11px] font-semibold text-amber-400/95">储备收支详情（累计）</div>
+        {ledger?.schemaMissing ? (
+          <p className="text-[10px] text-stone-500">统计表未就绪，新收支将在迁移后累计。</p>
+        ) : null}
+        <div className="mb-1 text-[10px] font-medium text-emerald-500/90">入账</div>
+        <ul className="mb-2 list-none space-y-2 pl-0">
+          {(credit?.categories || []).map((c) => (
+            <LedgerCategoryCard key={c.key} c={c} />
+          ))}
+        </ul>
+        <div className="mb-1 border-t border-stone-800/80 pt-2 text-[10px] tabular-nums text-emerald-200/80">
+          入账合计：银 {fmtNum(credit?.totalSilver)} · 粮 {fmtNum(credit?.totalFood)}
+        </div>
+        <div className="mb-1 mt-2 text-[10px] font-medium text-rose-400/90">消耗</div>
+        <ul className="list-none space-y-2 pl-0">
+          {(expense?.categories || []).map((c) => (
+            <LedgerCategoryCard key={c.key} c={c} />
+          ))}
+        </ul>
+        <div className="mt-2 border-t border-stone-800 pt-2 text-[11px] tabular-nums text-amber-200/90">
+          消耗合计：银 {fmtNum(expense?.totalSilver)} · 粮 {fmtNum(expense?.totalFood)}
+        </div>
+        <p className="mt-2 text-[10px] leading-snug text-stone-600">自本功能上线后累计；不含朝贡等其它入账路径。</p>
+      </div>
+    </>,
+    document.body,
+  );
+}
+
 function ScaleDetailPopover({ openKey, anchorRect, overview, onClose }) {
   useEffect(() => {
     if (!openKey) return undefined;
@@ -252,6 +324,36 @@ export default function FactionInfoPanel({ overview, loading, error }) {
     };
   }, [scaleOpenKey]);
 
+  const [reserveLedgerOpen, setReserveLedgerOpen] = useState(false);
+  const reserveLedgerBtnRef = useRef(/** @type {HTMLButtonElement | null} */ (null));
+  const [reserveLedgerAnchor, setReserveLedgerAnchor] = useState(/** @type {DOMRect | null} */ (null));
+
+  useEffect(() => {
+    if (!reserveLedgerOpen) {
+      setReserveLedgerAnchor(null);
+      return undefined;
+    }
+    const sync = () => {
+      setReserveLedgerAnchor(reserveLedgerBtnRef.current?.getBoundingClientRect?.() || null);
+    };
+    sync();
+    window.addEventListener('scroll', sync, true);
+    window.addEventListener('resize', sync);
+    return () => {
+      window.removeEventListener('scroll', sync, true);
+      window.removeEventListener('resize', sync);
+    };
+  }, [reserveLedgerOpen]);
+
+  useEffect(() => {
+    if (!reserveLedgerOpen) return undefined;
+    const onKey = (e) => {
+      if (e.key === 'Escape') setReserveLedgerOpen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [reserveLedgerOpen]);
+
   if (loading) {
     return (
       <div className="flex min-h-[6rem] items-center justify-center text-stone-500">
@@ -284,7 +386,7 @@ export default function FactionInfoPanel({ overview, loading, error }) {
   const tierLabel = overview.supplyTier ? `${overview.supplyTier}档` : '无档';
   const fiveLine = `人口 ${fmtNum(t.population)} · 商业 ${fmtNum(t.trading)} · 农业 ${fmtNum(t.farming)} · 军事 ${fmtNum(t.military)} · 文化 ${fmtNum(t.culture)} → ${tierLabel}`;
 
-  const reserveLine = `银两储备 ${fmtNum(overview.reserveSilver)} · 粮草储备 ${fmtNum(overview.reserveFood)}`;
+  const reserveLedgerSummary = overview.reserveLedgerSummary;
 
   return (
     <div className="flex flex-col gap-3 text-left">
@@ -293,6 +395,12 @@ export default function FactionInfoPanel({ overview, loading, error }) {
         anchorRect={anchorRect}
         overview={overview}
         onClose={closeScale}
+      />
+      <ReserveLedgerPopover
+        open={reserveLedgerOpen}
+        anchorRect={reserveLedgerAnchor}
+        ledger={reserveLedgerSummary}
+        onClose={() => setReserveLedgerOpen(false)}
       />
       <div>
         <SectionTitle>要职</SectionTitle>
@@ -368,7 +476,19 @@ export default function FactionInfoPanel({ overview, loading, error }) {
       <div>
         <SectionTitle>国力与储备</SectionTitle>
         <Line>{fiveLine}</Line>
-        <div className="mt-0.5 text-xs leading-snug text-stone-300">{reserveLine}</div>
+        <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs leading-snug text-stone-300">
+          <span>
+            银两储备 {fmtNum(overview.reserveSilver)} · 粮草储备 {fmtNum(overview.reserveFood)}
+          </span>
+          <button
+            ref={reserveLedgerBtnRef}
+            type="button"
+            className="shrink-0 rounded border border-amber-800/60 bg-amber-950/40 px-1.5 py-0 text-[10px] text-amber-300/95 underline-offset-2 hover:bg-amber-900/30 hover:underline focus:outline-none focus-visible:ring-1 focus-visible:ring-amber-500/60"
+            onClick={() => setReserveLedgerOpen((v) => !v)}
+          >
+            收支详情
+          </button>
+        </div>
       </div>
     </div>
   );

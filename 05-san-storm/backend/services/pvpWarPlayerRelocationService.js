@@ -2,7 +2,7 @@
  * PVP 战事终局：将仍站在「目标城占格 / 攻方大本营占格」上的玩家 `road_position_*`
  * 写回本郡距其当前格 **最近的己方城池锚格**（与 `roadBattleRetreatPlacement` 同源语义）。
  *
- * @see docs/10-core-system/17-2-WAR_SYSTEM.md · 终局与地图态
+ * @see docs/10-core-system/17-3-WAR_SYSTEM.md · 终局与地图态
  */
 
 const { loadRoadGrid } = require('../utils/roadGrid');

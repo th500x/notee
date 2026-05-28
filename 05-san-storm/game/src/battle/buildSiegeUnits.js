@@ -22,13 +22,17 @@ const ENEMY_POSITIONS = [
   { y: 1, x: 3 }, { y: 1, x: 7 },
 ];
 
+/** 御驾友军落位（11-3 §6 · 玩家阵线左侧） */
+const ALLY_POSITIONS = [{ y: 8, x: 0 }];
+
 /**
  * @param {Array} playerUnits  - 我方编组单位（最多 5 个）
  * @param {Array} enemyUnits   - 驻守 NPC 单位（最多 4 个）
+ * @param {Array} [allyUnits]  - 御驾等友军（最多 1 支）
  * @param {string} baseUrl     - import.meta.env.BASE_URL
  * @returns {Array} battleTroops
  */
-export function buildSiegeUnits({ playerUnits, enemyUnits, baseUrl }) {
+export function buildSiegeUnits({ playerUnits, enemyUnits, allyUnits = [], baseUrl }) {
   const playerTroops = playerUnits.slice(0, 5).map((unit, i) => {
     const attempts = getBattleFieldTroopPortraitUrlAttempts({ ...unit.troop, faction: 'player' }, baseUrl);
     return {
@@ -112,7 +116,35 @@ export function buildSiegeUnits({ playerUnits, enemyUnits, baseUrl }) {
     };
   });
 
-  const out = [...playerTroops, ...enemyTroops];
+  const allyTroops = allyUnits.slice(0, 1).map((unit, i) => {
+    const attempts = getBattleFieldTroopPortraitUrlAttempts(
+      { ...unit.troop, faction: 'ally1' },
+      baseUrl,
+    );
+    return {
+      ...unit.troop,
+      id: unit.troop.id + '_a' + i,
+      faction: 'ally',
+      campaignNpcForce: 'ally1',
+      y: ALLY_POSITIONS[i].y,
+      x: ALLY_POSITIONS[i].x,
+      currentTroops: unit.currentTroops ?? unit.troop.maxTroops,
+      initialTroops: unit.currentTroops ?? unit.troop.maxTroops,
+      maxTroops: unit.maxTroops ?? unit.troop.maxTroops,
+      character: unit.character || null,
+      displayName: unit.character
+        ? (unit.character.courtesyName || unit.character.name)
+        : unit.troop.name,
+      morale: unit.morale ?? 85,
+      imgSrc: attempts[0],
+      imgPortraitAttempts: attempts,
+      imgFallback: attempts[attempts.length - 1],
+      _npcIndex: unit._npcIndex,
+      imperialMarch: !!unit.imperialMarch,
+    };
+  });
+
+  const out = [...playerTroops, ...allyTroops, ...enemyTroops];
   initBattlePhase2Runtime(out);
   initBattlePhase3HealRuntime(out, 10, 8);
   initBattlePhase4DamageRuntime(out, 10, 8);

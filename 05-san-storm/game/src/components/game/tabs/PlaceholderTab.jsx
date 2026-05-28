@@ -7,7 +7,7 @@
 import { TabPageCloseButton, useGameTabLandscape } from '@/components/game/TabPageCloseAffordance';
 
 const TAB_INFO = {
-  faction: { icon: '⚔️', title: '势力管理', desc: '势力信息、外交、资源兑换等功能' },
+  faction: { icon: '⚔️', title: '势力', desc: '势力信息、外交、资源兑换等功能' },
   city:    { icon: '🏰', title: '主城',     desc: '驻地管理、仓库、守城配置等功能' },
   map:     { icon: '🗺️', title: '世界地图', desc: '城市分布、事件标记、战事导航等功能' },
 };

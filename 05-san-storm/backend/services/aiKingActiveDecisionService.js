@@ -9,7 +9,11 @@
  *        · PVP 红色敌对城  → `pvpWarService.createPvpWarDraft`（去除已存在 active 战事的城）
  *        · PVE 白色 NPC 城 → `cityService.openPveWarOnNeutralCity`（幂等：已有 active wars 行直接复用；
  *          无 NPC 守军时按现有 `generateNpcGarrison` 自动生成）
- *   3. 势力政策意图：11-3 表未实装期间仅日志，**不**写未定义业务表。
+ *   3. 势力政策意图：11-3 `faction_policies` DDL **已落地**（实装段1）；玩家被动谏言走
+ *      `routes/factionPolicies.js` + `factionPolicyService.submitLongTermProposal`。AI 君主
+ *      **主动**写库（"君主自决修改政策"）属新玩法行为，需产品授权（哪些类目可主动改、频率、
+ *      是否允许覆盖玩家近期谏言通过的配置等）；M2 仍保留日志意图 + `recordRecentDecision` 内存
+ *      留痕，前端「君主口谕」可读取。见 41-2 §阶段4「保留日志意图」。
  *
  * `proposerPlayerId` 口径：主动通道用 **AI 君主自身 `character_id`**（如 `san_1_char_7001`）；
  * 与玩家被动通道（真实 `player_id`）显式区分；当前 `wars_pvp` 表无 proposer 列，所以
@@ -290,13 +294,19 @@ async function decide(input) {
   }
 
   if (picked === 'policy') {
-    // 11-3 政策草案表 / 阶段任务 M2 未实装：仅日志意图，**不写未定义业务表**。
-    console.log(`${auditPrefix} → intent=policy (11-3 not wired; log only)`);
+    // [TODO · 未来玩法精调] AI 主动改政策仍是「仅日志 + 内存留痕」基础框架。
+    //   gated by product/gameplay authorization
+    //   11-3 实装段1：`faction_policies` DDL 已建、玩家被动谏言链已通；AI **主动** 写库的产品
+    //   行为（哪些类目可自决、频率、是否覆盖玩家已审批配置）尚未定稿，故保持仅日志意图 +
+    //   `recordRecentDecision` 内存留痕（41-2 §阶段4 / 11-3 §1.5 TODO 41-ai）。
+    //   后续放开主动写库时，在 `factionPolicyService` 增加 `applyKingAutonomousChange(...)`
+    //   即可（绕过被动审批 / 自带 24h CD）。
+    console.log(`${auditPrefix} → intent=policy (autonomous write awaiting game-design authorization; log only)`);
     return finalize({
       factionId,
       intentType: INTENT_TYPE.POLICY,
       ok: true,
-      reason: 'logged_only_pending_11_3_ddl',
+      reason: 'awaiting_autonomous_policy_design',
       eff,
       weights,
     });

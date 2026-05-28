@@ -26,6 +26,10 @@ const { loadRoadGrid } = require('../utils/roadGrid');
 const {
   normalizeRoadCellList,
 } = require('../../shared/utils/strategicRoadOverlay.js');
+const {
+  applyToSiegeReward: applySiegeRewardSplit,
+} = require('../../shared/utils/siegeRewardSplitPolicy.cjs');
+const factionPolicyService = require('./factionPolicyService');
 
 /** 大本营 NPC 守军 = 目标城满编 NPC 总支数 × 80%（17-2 §1.6 / 实现计划 §1.5）。 */
 const BASE_CAMP_NPC_RATIO_TO_FULL_GARRISON = 0.8;
@@ -335,16 +339,9 @@ async function createPvpWarDraft(input) {
     );
   }
 
-  const [attRows] = await pool.query(
-    'SELECT id, faction_name FROM factions WHERE id = ? LIMIT 1',
-    [attackerFactionId],
-  );
-  const [defRows] = await pool.query(
-    'SELECT id, faction_name FROM factions WHERE id = ? LIMIT 1',
-    [city.faction_id],
-  );
-  const attackerFactionName = attRows[0]?.faction_name || null;
-  const defenderFactionName = defRows[0]?.faction_name || null;
+  const { resolveFactionDisplayName } = require('./factionDisplayName');
+  const attackerFactionName = await resolveFactionDisplayName(attackerFactionId);
+  const defenderFactionName = await resolveFactionDisplayName(city.faction_id);
 
   const conn = await pool.getConnection();
   try {
@@ -398,13 +395,17 @@ async function createPvpWarDraft(input) {
  * 创建草案后立即落攻方大本营并 **pending → active**（AI 君主 / 被动提案等无人手点「放置大本营」的场景）。
  * 若选位或地图数据失败：取消该草案并抛出原错误，避免库里堆积「待发兵」僵尸行。
  *
- * @param {object} input - 同 {@link createPvpWarDraft}
+ * @param {object} input - 同 {@link createPvpWarDraft}，可附加 `transientPolicies`：
+ *        `{ frontAssault: boolean, rearAssault: boolean, imperialMarch: boolean }`
+ *        （合意 · 2026-05-25 · 11-3 §7.1：战事提案 + 临时政策合并审批/扣费/激活）。
  * @returns {Promise<object>} 已 active 且含 baseCamp 的战事
  */
 async function createPvpWarDraftAndActivate(input) {
   const draft = await createPvpWarDraft(input);
   try {
-    return await placeAttackerBaseCampAndActivate(draft.pvpWarId);
+    return await placeAttackerBaseCampAndActivate(draft.pvpWarId, {
+      transientPolicies: input && input.transientPolicies ? input.transientPolicies : null,
+    });
   } catch (err) {
     try {
       await cancelPvpWar(draft.pvpWarId, {
@@ -457,10 +458,18 @@ async function activatePendingPvpDrafts() {
  * 在目标城外放置攻方大本营 + 生成 NPC 守军 + 战事 pending → active。
  * 落地：写入 `wars_pvp.base_camp` JSON，包含锚格、朝向、占用格、NPC 总支/存活、贴图键、junId。
  *
+ * **临时政策（11-3 §4 / §5 / §6 · 实装段3）**：
+ *   若入参传入 `transientPolicies`，在 **同一事务** 内追加：① 扣临时政策费；② 写
+ *   `wars_pvp_policies` 行（含 phase_snapshot_json、imperial_march_expires_at）。任一失败
+ *   整事务回滚 → 战事不激活 / 政策不写入 / 资源不扣（合意 · 2026-05-25）。
+ *
  * @param {string} pvpWarId
+ * @param {object} [opts]
+ * @param {{ frontAssault: boolean, rearAssault: boolean, imperialMarch: boolean }} [opts.transientPolicies]
+ *        来自路由层规整后的临时政策开关；缺省 = 三项全 OFF（不写 `wars_pvp_policies` 行）。
  * @returns {Promise<object>} formatted pvp war（含 base_camp、status=active）
  */
-async function placeAttackerBaseCampAndActivate(pvpWarId) {
+async function placeAttackerBaseCampAndActivate(pvpWarId, opts = {}) {
   const war = await WarPvp.getById(pvpWarId);
   if (!war) throw new Error(`[pvpWar] 战事不存在: ${pvpWarId}`);
   if (war.status !== WarPvp.WAR_PVP_STATUS.PENDING) {
@@ -562,6 +571,13 @@ async function placeAttackerBaseCampAndActivate(pvpWarId) {
   const gameTime =
     (await gameTimeService.loadGameTimeForFaction(war.attackerFactionId)) || null;
 
+  const warPolicyTransientService = require('./warPolicyTransientService');
+  const normalizedPolicies = warPolicyTransientService.normalizeTransientPolicies(
+    opts.transientPolicies,
+  );
+  // 入事务前做无副作用的政策合法性校验（避免无意义事务开销）；后军禁开等业务级 4xx 在此抛出
+  warPolicyTransientService.validateTransientPolicies(normalizedPolicies, now, endTime);
+
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
@@ -570,6 +586,12 @@ async function placeAttackerBaseCampAndActivate(pvpWarId) {
       war.attackerFactionId,
       targetCity.city_type,
       gameTime,
+    );
+    // 临时政策费（11-3 §4 固定价，不随档位/月倍率）— 与发动费同事务；任一不足 → 整体回滚
+    const policyFeesPaid = await warPolicyTransientService.assertAndDeductPolicyFeesInTransaction(
+      conn,
+      war.attackerFactionId,
+      normalizedPolicies,
     );
     const prevSide =
       war.sideStats && typeof war.sideStats === 'object' && !Array.isArray(war.sideStats)
@@ -598,6 +620,21 @@ async function placeAttackerBaseCampAndActivate(pvpWarId) {
       },
       conn,
     );
+    // 仅当至少一项 ON 才写 `wars_pvp_policies` 行（全 OFF 时无需占行）
+    const anyOn =
+      normalizedPolicies.frontAssault ||
+      normalizedPolicies.rearAssault ||
+      normalizedPolicies.imperialMarch;
+    if (anyOn) {
+      await warPolicyTransientService.writePoliciesAndSnapshot(
+        conn,
+        pvpWarId,
+        normalizedPolicies,
+        now,
+        endTime,
+        policyFeesPaid,
+      );
+    }
     await conn.commit();
   } catch (e) {
     try {
@@ -615,7 +652,7 @@ async function placeAttackerBaseCampAndActivate(pvpWarId) {
       `anchor=(${pick.anchorOx},${pick.anchorOy}) orient=${pick.orientation} npc=${npcCount}`,
   );
   const activated = await WarPvp.getById(pvpWarId);
-  factionBulletinService.logPvpWarStarted(activated);
+  await factionBulletinService.logPvpWarStarted(activated);
   return activated;
 }
 
@@ -1120,6 +1157,16 @@ async function initiateAttackerCitySiege(pvpWarId, attackerPlayerId) {
     throw new Error(`[pvpWar] 战事未进行中（${war.status}）`);
   }
 
+  // 阶段门禁（11-3 §5 实装段3 · 2026-05-25）：
+  //   仅当本场战事存在 `wars_pvp_policies` 行（即提案时勾选了任一临时政策）才启用阶段机；
+  //   否则保持现行兼容（无通知期 / 全程可攻）。门禁覆盖：通知期 / 前军期 / 后军窗。
+  const warPolicyTransientService = require('./warPolicyTransientService');
+  const warPhaseService = require('./warPhaseService');
+  const policiesRow = await warPolicyTransientService.getPoliciesForWar(pvpWarId);
+  if (policiesRow) {
+    warPhaseService.assertPlayerSiegeAllowed(war, policiesRow);
+  }
+
   const [pRows] = await pool.query(
     'SELECT player_id, faction_id FROM players WHERE player_id = ?',
     [attackerPlayerId],
@@ -1165,7 +1212,7 @@ async function initiateAttackerCitySiege(pvpWarId, attackerPlayerId) {
 
     const garrisonUnits = garrisonService.mapBuiltUnitsToSiegeNpcFormat(units);
     const isOnDuty = def.defense_source === 'main_lineup' || !!def.on_duty;
-    return {
+    const garrisonPayload = {
       pvpWarId,
       cityId: city.city_id,
       cityName: city.city_name,
@@ -1180,6 +1227,15 @@ async function initiateAttackerCitySiege(pvpWarId, attackerPlayerId) {
       defenderPlayerId: def.player_id,
       defenderGarrisonSlot: def.garrison_slot ?? 0,
     };
+    if (!isOnDuty && policiesRow) {
+      const imperialMarchService = require('./imperialMarchService');
+      return await imperialMarchService.attachImperialMarchToSiegePayload(
+        garrisonPayload,
+        war,
+        policiesRow,
+      );
+    }
+    return garrisonPayload;
   }
 
   // ── 2) 玩家防御链全跳过 → NPC 守军（按 4 支一批顺位抢锁） ──
@@ -1221,7 +1277,7 @@ async function initiateAttackerCitySiege(pvpWarId, attackerPlayerId) {
     throw new Error('[pvpWar] 当前各战线均有友军交战中，请稍后再试');
   }
 
-  return {
+  const payload = {
     pvpWarId,
     cityId: city.city_id,
     cityName: city.city_name,
@@ -1234,6 +1290,13 @@ async function initiateAttackerCitySiege(pvpWarId, attackerPlayerId) {
     defenderType: 'npc',
     npcBatchIndex,
   };
+
+  if (policiesRow) {
+    const imperialMarchService = require('./imperialMarchService');
+    return await imperialMarchService.attachImperialMarchToSiegePayload(payload, war, policiesRow);
+  }
+
+  return payload;
 }
 
 /**
@@ -1539,12 +1602,40 @@ async function recordAttackerCitySiegeResult(pvpWarId, attackerPlayerId, payload
     // npcKills：保持现有字段名，语义为「攻方对目标城所有守军（NPC + 玩家披挂 + 普通驻守）的累计击杀」
     sideStats.attacker.npcKills = (sideStats.attacker.npcKills || 0) + actualKillCount;
 
+    // 银两净值（毛 − silverSpent），按 11-3 §3.2 城战奖赏政策拆分个人 / 攻方势力池。
+    // 粮草端当前结算无产生（净粮 = 0）；策略函数支持但本路径不入账。
+    // 策略未生效（无 approved 行）时 `personalSharePct = 100`，与 17-2 / 11-3「政策实装前个人全收」一致。
     const netSilver = silverReward - (silverSpent > 0 ? silverSpent : 0);
     if (netSilver !== 0) {
-      await conn.query(
-        'UPDATE players SET silver = GREATEST(0, silver + ?) WHERE player_id = ?',
-        [netSilver, attackerPlayerId],
-      );
+      if (netSilver < 0) {
+        // 玩家本场净亏：直接全数扣个人，势力池不参与（与历史口径一致）。
+        await conn.query(
+          'UPDATE players SET silver = GREATEST(0, silver + ?) WHERE player_id = ?',
+          [netSilver, attackerPlayerId],
+        );
+      } else {
+        const siegePolicy = await factionPolicyService.getEffectiveSiegeReward(war.attackerFactionId);
+        const split = applySiegeRewardSplit({
+          netSilver,
+          netFood: 0,
+          personalSharePct: siegePolicy.personalSharePct,
+        });
+        if (split.personalSilver > 0) {
+          await conn.query(
+            'UPDATE players SET silver = GREATEST(0, silver + ?) WHERE player_id = ?',
+            [split.personalSilver, attackerPlayerId],
+          );
+        }
+        if (split.factionSilver > 0 && war.attackerFactionId) {
+          const factionReserveService = require('./factionReserveService');
+          await factionReserveService.creditPoolOnConnection(
+            conn,
+            war.attackerFactionId,
+            { silver: split.factionSilver, food: split.factionFood || 0 },
+            { ledgerCategory: factionReserveService.CATEGORY.SIEGE_SETTLEMENT },
+          );
+        }
+      }
     }
 
     let nextStatus = war.status;
@@ -1674,6 +1765,12 @@ async function recordAttackerCitySiegeResult(pvpWarId, attackerPlayerId, payload
  */
 async function tickActivePvpWars() {
   await activatePendingPvpDrafts();
+  try {
+    const { tickWarPhasePolicies } = require('./aiConscriptLegionService');
+    await tickWarPhasePolicies();
+  } catch (e) {
+    console.error('[pvpWar] tickWarPhasePolicies:', e.message);
+  }
   const cityService = require('./cityService');
   const wars = await WarPvp.listWars({ status: ['active'], limit: 200 });
   const now = Date.now();
