@@ -4,7 +4,7 @@
  *
  * @see docs/30-frontend/32-3-ANNOUNCEMENTS.md §4（活动榜）
  * @see docs/10-core-system/18-4-RANKING_SYSTEM.md（常驻榜）
- * @see docs/00-base/00-base/01-database-split/00-overview.md §4.3 temp_event_ranking
+ * @see docs/00-base/01-database-split/60-tables-other.md §6 temp_event_ranking
  * @module backend/services/rankingService
  */
 

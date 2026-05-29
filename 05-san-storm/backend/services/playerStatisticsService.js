@@ -1,7 +1,7 @@
 /**
  * player_statistics 表读取（个人中心「统计」页）
  *
- * @see prod_schema.sql `player_statistics`
+ * @see docs/00-base/01-database-split/60-tables-other.md player_statistics
  */
 
 const { pool } = require('../database/connection');

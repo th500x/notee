@@ -1,5 +1,5 @@
 /**
- * PVP 势力战事服务（17-2 M2）
+ * PVP 势力战事服务（17-3 M2）
  *
  * 职责：
  *   1. 战事生命周期：草案（pending）→ 活跃（active）→ 结算（completed/failed/cancelled）
@@ -31,10 +31,10 @@ const {
 } = require('../../shared/utils/siegeRewardSplitPolicy.cjs');
 const factionPolicyService = require('./factionPolicyService');
 
-/** 大本营 NPC 守军 = 目标城满编 NPC 总支数 × 80%（17-2 §1.6 / 实现计划 §1.5）。 */
+/** 大本营 NPC 守军 = 目标城满编 NPC 总支数 × 80%（17-3 §1.6 / 实现计划 §1.5）。 */
 const BASE_CAMP_NPC_RATIO_TO_FULL_GARRISON = 0.8;
 
-/** 单场 PVP 战事最长时长（自然 24h，17-2 §0 / §6.2）。 */
+/** 单场 PVP 战事最长时长（自然 24h，17-3 §0 / §6.2）。 */
 const PVP_WAR_DURATION_MS = 24 * 60 * 60 * 1000;
 
 /**
@@ -98,7 +98,7 @@ function dominoTouchesRoadFourWay(cellKeys, roadKeys) {
 /**
  * 在目标城 footprint 边相邻的范围内寻找可放下 1×2 / 2×1 大本营的合法槽位。
  *
- * 规则（与 17-2 §1.6 / 实现计划一致，并叠 **邻路** 约束）：
+ * 规则（与 17-3 §1.6 / 实现计划一致，并叠 **邻路** 约束）：
  *   - 两格均在地图内、不在 `blocked`（其它城/关/匪寨 footprint）、不在道路集合
  *   - 不与本郡内已有 active PVP 战事的大本营 footprint 重叠
  *   - 至少一格与目标城 footprint 4 邻接（"贴城"），且不落在 footprint 内
@@ -215,7 +215,7 @@ async function collectOccupiedCampCellsInJun(junId, excludePvpWarId = null) {
 // ==================== NPC 守军生成（大本营） ====================
 
 /**
- * 大本营 NPC 守军支数：与目标城同档但只取 80%（17-2 §1.6）。
+ * 大本营 NPC 守军支数：与目标城同档但只取 80%（17-3 §1.6）。
  * 不读取 city 的当前 `npc_garrison_alive`（残余），改用 cityType 满编档；这也避免战时残余传染。
  */
 function computeBaseCampNpcCount(cityRow) {
@@ -328,7 +328,7 @@ async function createPvpWarDraft(input) {
   const existing = await WarPvp.getActiveByCity(targetCityId);
   if (existing) {
     throw new Error(
-      `[pvpWar] 目标城已有进行中 PVP 战事：${existing.pvpWarId}（同城仅一场，17-2 §1.4）`,
+      `[pvpWar] 目标城已有进行中 PVP 战事：${existing.pvpWarId}（同城仅一场，17-3 §1.4）`,
     );
   }
 
@@ -693,7 +693,7 @@ async function cancelPvpWar(pvpWarId, opts = {}) {
     `[pvpWar] cancelPvpWar ok: ${pvpWarId} reason=${opts.reason || ''} byAdmin=${!!opts.byAdmin}`,
   );
 
-  // TODO(17-2 结算): 主动撤战 / cancel 的势力与个人统计、奖惩与战报摘要（当前仅终局库状态 + 势力公告）。
+  // TODO(17-3 结算): 主动撤战 / cancel 的势力与个人统计、奖惩与战报摘要（当前仅终局库状态 + 势力公告）。
 
   if (!opts.silentBulletin) {
     const neverActivated = wasPending && !hadBaseCamp;
@@ -801,7 +801,7 @@ async function cancelAttackingSiegeWarViaSanGongChaoZheng(playerId, pvpWarId, bo
 
 /**
  * 玩家（守方）发起对攻方大本营的攻击：取出当前一批存活 NPC（最多 4 支）。
- * 与 cityService NPC 攻城分批一致；锁键单独以 pvpWarId 命名空间，不与城战锁冲突（17-2 §1.7）。
+ * 与 cityService NPC 攻城分批一致；锁键单独以 pvpWarId 命名空间，不与城战锁冲突（17-3 §1.7）。
  *
  * @param {string} pvpWarId
  * @param {string} playerId - 守方玩家
@@ -1085,7 +1085,7 @@ async function recordBaseCampSiegeResult(pvpWarId, playerId, payload) {
 
 // ==================== 攻方对目标城出击（PVP 专属，独立于 PVE） ====================
 //
-// 语义对齐 17-2 §1.4 / §1.7 / §1.9 与 M1 占领城防御链：
+// 语义对齐 17-3 §1.4 / §1.7 / §1.9 与 M1 占领城防御链：
 //   1) 披挂上阵（pvp_online，实时同步）
 //   2) 普通驻守玩家（player_garrison，异步 PVE）
 //   3) NPC 守军（npc，异步 PVE）
@@ -1136,7 +1136,7 @@ function releaseAllPvpWarMemoryLocks(pvpWarId) {
 /**
  * 发起一场对目标城的攻城战斗（PVP 战事内攻方主动出击，三类防守者通用入口）。
  *
- * 防守者优先级（与 17-2 §1.4 / §1.7、M1 cityService 占领城分支语义一致）：
+ * 防守者优先级（与 17-3 §1.4 / §1.7、M1 cityService 占领城分支语义一致）：
  *   ① 披挂上阵玩家（实时 PVP，pvp_online）
  *   ② 普通驻守玩家（异步 PVE，player_garrison）
  *   ③ NPC 守军（异步 PVE，npc）
@@ -1604,7 +1604,7 @@ async function recordAttackerCitySiegeResult(pvpWarId, attackerPlayerId, payload
 
     // 银两净值（毛 − silverSpent），按 11-3 §3.2 城战奖赏政策拆分个人 / 攻方势力池。
     // 粮草端当前结算无产生（净粮 = 0）；策略函数支持但本路径不入账。
-    // 策略未生效（无 approved 行）时 `personalSharePct = 100`，与 17-2 / 11-3「政策实装前个人全收」一致。
+    // 策略未生效（无 approved 行）时 `personalSharePct = 100`，与 17-3 / 11-3「政策实装前个人全收」一致。
     const netSilver = silverReward - (silverSpent > 0 ? silverSpent : 0);
     if (netSilver !== 0) {
       if (netSilver < 0) {

@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS wars_pvp_policies (
   imperial_march_enabled TINYINT(1) NOT NULL DEFAULT 0 COMMENT '御驾亲征',
 
   config_json JSON NULL COMMENT '开关与扩展参数（与上三列合并维护，便于段3 扩 phase 参数）',
-  fees_deducted_json JSON NULL COMMENT '宣战时自 factions.reserve_* 扣费快照（与勾选同事务）',
+  fees_deducted_json JSON NULL COMMENT '宣战时自 faction_reserve pool 扣费快照（与勾选同事务）',
   phase_snapshot_json JSON NULL COMMENT 'T0 冻结：阶段表、后军 H:00 窗、前/后军剩余进攻配额（M×K）',
 
   imperial_march_expires_at DATETIME NULL COMMENT '御驾亲征 1h 墙钟到期',

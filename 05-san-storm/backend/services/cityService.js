@@ -1096,7 +1096,7 @@ async function getWarStatus(warId) {
  *   3. 同城唯一：已存在 active `wars` 行 → 返回该行，**不**新建（幂等）；
  *   4. 否则插入 `wars` 行；`bulletinFactionId` 有值时写入 `faction_kills` 该键（初值 0）以占用 PVE 并发槽；
  *      无 `bulletinFactionId` 时仍为 `'{}'`（系统路径不设势力上限）；
- *   5. 有 `bulletinFactionId` 且新建前：该势力进行中 PVE 已达上限则拒绝；**新建 `wars` 行**时同事务内自 `factions.reserve_silver` / `reserve_food` 按 17-2 §3.2 扣发动消耗（储备不足则整单失败）。
+ *   5. 有 `bulletinFactionId` 且新建前：该势力进行中 PVE 已达上限则拒绝；**新建 `wars` 行**时同事务内自 **`faction_reserve` pool** 按 **17-3 §3** 扣发动消耗（`warInitiationCostService`，储备不足则整单失败）。
  *
  * **不写**：不在 `wars` 上加 attacker_player_id / proposer_player_id（表无此列）；
  * AI 君主 `character_id` 仅落 `[aiKing][active]` 审计日志（由调用方负责）。

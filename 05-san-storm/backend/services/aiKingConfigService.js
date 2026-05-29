@@ -1,7 +1,7 @@
 /**
  * AI 君主配置加载服务（M2 · 不入库 · JSON 固化）
  *
- * 数据源：`public/data/shared/ai-kings.json`（与 41-AI_KING_SYSTEM 形状一致）。
+ * 数据源：`public/data/shared/ai-kings.json`（与 41-1-AI_KING_SYSTEM 形状一致）。
  * 加载策略：进程启动后惰性加载并缓存；JSON 校验失败 / 关键字段缺失 → 早失败抛错（禁止静默兜底默认君主）。
  *
  * @module services/aiKingConfigService
@@ -12,7 +12,7 @@ const path = require('path');
 
 const AI_KINGS_JSON_PATH = path.join(__dirname, '../../public/data/shared/ai-kings.json');
 
-/** `speechStyle` 闭集（与 41-AI_KING_SYSTEM.md「speechStyle 定稿」一致） */
+/** `speechStyle` 闭集（与 41-1-AI_KING_SYSTEM.md「speechStyle 定稿」一致） */
 const SPEECH_STYLE_KEYS = new Set(['overlord', 'benevolent', 'moderate', 'decadent', 'tyrant']);
 
 /** factionId → king 配置 */

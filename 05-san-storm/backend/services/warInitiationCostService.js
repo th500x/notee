@@ -1,5 +1,5 @@
 /**
- * 发动战事（PVP / PVE）自势力池扣费：档位基准 × 游戏历自然月倍率（见 17-2、15-1、41-1）。
+ * 发动战事（PVP / PVE）自势力池扣费：档位基准 × 游戏历自然月倍率（见 17-3、15-1、41-1）。
  * @module services/warInitiationCostService
  */
 

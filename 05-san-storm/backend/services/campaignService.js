@@ -13,7 +13,7 @@ const {
   CAMPAIGN_MAX_CHALLENGE_PLAYS,
 } = require('../config/campaignConfig');
 
-/** 战后综合分 → 评级与倍率（与 16 §7 / 19-1 一致） */
+/** 战后综合分 → 评级与倍率（与 16-1 §7 / 17-1 §9.6 一致） */
 function gradeFromBattleScore(score) {
   const s = Number(score) || 0;
   if (s >= 5000) return { grade: 'S', multiplier: 2.0 };
