@@ -104,6 +104,30 @@ const v = {
     return (val, name) => (values.includes(val) ? null : `${name} 必须为 ${values.join(' / ')} 之一`);
   },
 
+  /** 字面量：值必须严格等于给定常量（如 `confirmFoodCost: true`）。 */
+  literal(value) {
+    return (val, name) => (val === value ? null : `${name} 必须为 ${JSON.stringify(value)}`);
+  },
+
+  /**
+   * 数组（含长度与可选元素校验）。元素校验失败时字段名形如 `path[2].x`。
+   * @param {{ minLength?: number, maxLength?: number, itemValidator?: FieldValidator }} [opts]
+   */
+  array({ minLength = 0, maxLength = Number.POSITIVE_INFINITY, itemValidator = null } = {}) {
+    return (val, name) => {
+      if (!Array.isArray(val)) return `${name} 必须为数组`;
+      if (val.length < minLength) return `${name} 至少需要 ${minLength} 个元素`;
+      if (val.length > maxLength) return `${name} 不能超过 ${maxLength} 个元素`;
+      if (itemValidator) {
+        for (let i = 0; i < val.length; i++) {
+          const err = itemValidator(val[i], `${name}[${i}]`);
+          if (err) return err;
+        }
+      }
+      return null;
+    };
+  },
+
   /** 通用 ID 模式 `[a-zA-Z0-9_-]+`，并按可选最大长度约束。 */
   idLike({ max = 128 } = {}) {
     const re = /^[a-zA-Z0-9_-]+$/;
