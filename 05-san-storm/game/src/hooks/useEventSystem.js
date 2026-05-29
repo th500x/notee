@@ -69,8 +69,8 @@ export default function useEventSystem(player, cards, options = {}) {
     exploreSessionLock,
     setExploreSessionLock,
     refetchExploreProgress,
+    refetchExplorePlayerBundle,
     playerItemCounts,
-    setPlayerItemCounts,
     citiesList,
     itemNameMap,
   } = useExploreEventCatalog(player?.player_id);
@@ -587,29 +587,18 @@ export default function useEventSystem(player, cards, options = {}) {
 
     let cancelled = false;
     (async () => {
-      const serverEv = await refetchExploreProgress();
+      const bundle = await refetchExplorePlayerBundle();
       if (cancelled) return;
       tutorialDeferExploreAutoplayRef.current = false;
       if (!tutorialAutoplay || !isTutorial || eventsLoading || needsLineupFirst) return;
       tutorialExploreBlockedRef.current = false;
-      if (serverEv == null) return;
-      let countsFresh = null;
-      try {
-        const ir = await fetchWithTimeout(`${API_CONFIG.BASE_URL}/players/${player.player_id}/items`);
-        const idata = await ir.json();
-        if (idata.success && idata.data?.items) {
-          const m = {};
-          for (const it of idata.data.items) {
-            if (it.itemId && it.quantity > 0) m[it.itemId] = it.quantity;
-          }
-          countsFresh = m;
-          if (!cancelled) setPlayerItemCounts(m);
-        }
-      } catch {
-        /* 背包拉取失败则仍用 state 内 counts */
-      }
-      if (cancelled) return;
-      const ok = startExplore(undefined, undefined, serverEv, countsFresh ?? undefined);
+      if (bundle.events == null) return;
+      const ok = startExplore(
+        undefined,
+        undefined,
+        bundle.events,
+        bundle.itemCounts ?? undefined,
+      );
       if (ok === false) tutorialExploreBlockedRef.current = true;
     })();
 
@@ -618,8 +607,7 @@ export default function useEventSystem(player, cards, options = {}) {
     };
   }, [
     phase,
-    player?.player_id,
-    refetchExploreProgress,
+    refetchExplorePlayerBundle,
     tutorialAutoplay,
     isTutorial,
     eventsLoading,
@@ -833,23 +821,10 @@ export default function useEventSystem(player, cards, options = {}) {
       troopRepair: data.data.troopRepair || null,
     });
     if (player?.player_id) {
-      fetchWithTimeout(`${API_CONFIG.BASE_URL}/players/${player.player_id}/items`)
-        .then(r => r.json())
-        .then(d => {
-          if (d.success && d.data?.items) {
-            const m = {};
-            for (const it of d.data.items) {
-              if (it.itemId && it.quantity > 0) m[it.itemId] = it.quantity;
-            }
-            setPlayerItemCounts(m);
-          }
-        })
-        .catch(() => {});
-      // 与后端 /rewards 写入 explore_events 同步，避免关面板前本地进度滞后仍抽到链上一环
-      refetchExploreProgress();
+      void refetchExplorePlayerBundle();
     }
     return true;
-  }, [quota, currentEvent, resetExploreSessionAfterAbort, player?.player_id, refetchExploreProgress]);
+  }, [quota, currentEvent, resetExploreSessionAfterAbort, player?.player_id, refetchExplorePlayerBundle]);
 
   // 选择选项（探索次数已在 `startExplore` 扣除，此处不再 consume）
   const chooseOption = useCallback((option, optionKey) => {
