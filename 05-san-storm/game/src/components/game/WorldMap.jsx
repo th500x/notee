@@ -3,7 +3,6 @@
  */
 
 import { useState, useRef, useCallback, useEffect, useMemo, lazy, Suspense } from 'react';
-import { createPortal } from 'react-dom';
 import { usePlayerContext } from '@/contexts/PlayerContext';
 import { useRoadDefenseFriction } from '@/contexts/RoadDefenseFrictionContext';
 import { useSkillsMap } from '@/hooks/useSkillsMap';
@@ -17,19 +16,17 @@ import { playerAPI } from '@/services/playerApi';
 import { fetchWithTimeout } from '@/services/httpClient';
 import { usePvpDefenseAlertPoll } from '@/hooks/usePvpDefenseAlertPoll';
 import { useCountdownTicker } from '@/hooks/useCountdownTicker';
-import AncientModal from '@/components/common/AncientModal';
+import { useRoadSelfPresencePoll } from '@/hooks/useRoadSelfPresencePoll';
+import { usePvpSiegeAdjudication } from '@/hooks/usePvpSiegeAdjudication';
 const ExplorePanel = lazy(() => import('@/components/event/ExplorePanel'));
-const BattleArena = lazy(() => import('@/components/battle/BattleArena'));
 const GarrisonLineup = lazy(() => import('@/components/garrison/GarrisonLineup'));
 const MainCityBarracksPostPanel = lazy(() => import('@/components/garrison/MainCityBarracksPostPanel'));
 const SanGongFuPanel = lazy(() => import('@/components/game/SanGongFuPanel'));
 import PositionCard from '@shared/components/card/PositionCard';
 import { garrisonAPI } from '@/services/garrisonApi';
 import { warAPI } from '@/services/warApi';
-import { API_CONFIG, getRarityHex, getRarityLabelCn } from '@/constants';
-import SiegeReplayMini from '@/components/game/SiegeReplayMini';
+import { API_CONFIG } from '@/constants';
 import { validateMainLineupBattleGate } from '@/utils/mainLineupTroops';
-import { shortEquipmentDisplayName } from '@/utils/equipmentDisplayName';
 import { buildBanditLayerSmallMapPveLoot } from '@shared/utils/banditRaidLayerRewards';
 import { banditNpcSlotRaritiesFromLayer } from '@shared/utils/smallMapEnemyRoster';
 import {
@@ -37,300 +34,11 @@ import {
   MAX_GARRISON_CONFIGURED_CITIES,
 } from '@/utils/garrisonScopeUtils';
 import StrategicWorldMapSection from '@/components/world/StrategicWorldMapSection';
+import WorldMapAlertOverlays from '@/components/world/WorldMapAlertOverlays';
+import WorldMapBattlePortal from '@/components/world/WorldMapBattlePortal';
 import { worldMapCityIsPlayerSameFaction } from '@/utils/worldMapCityPanelCopy';
 import { worldMapOverlayRefs, notifyWorldMapOverlayGate } from '@/utils/worldMapOverlayRefs';
-import PvpDefenseOutcomeModal from '@/components/game/PvpDefenseOutcomeModal';
 import { imperialMarchNpcToAllyUnit } from '@/utils/imperialMarchSiegeAlly';
-
-/** 裁定中遮罩最短展示时长（与其它短动画一致，约 3 秒） */
-const PVP_ADJUDICATION_UI_MS = 3000;
-
-function scheduleAfterMinAdjudicationUi(startedAt, fn) {
-  const elapsed = Date.now() - startedAt;
-  const wait = Math.max(0, PVP_ADJUDICATION_UI_MS - elapsed);
-  if (wait <= 0) {
-    fn();
-    return;
-  }
-  setTimeout(fn, wait);
-}
-
-/** 攻城结算里服务端权威战报的简化回放入口 */
-function AuthoritativeSiegeReplayButton({
-  battleLogLines,
-  initialAttackerTroops,
-  initialDefenderTroops,
-}) {
-  const [open, setOpen] = useState(false);
-  const logStr = Array.isArray(battleLogLines) ? battleLogLines.join('\n') : '';
-  const canReplay =
-    logStr.length > 12 &&
-    /═══\s*第\s*\d+\s*回合\s*═══/.test(logStr) &&
-    /次攻击/.test(logStr) &&
-    /\[攻方\]/.test(logStr);
-  if (!canReplay) return null;
-  return (
-    <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="w-full py-2 rounded-lg bg-stone-800 border border-amber-600/40 text-amber-200 text-xs hover:bg-stone-700"
-      >
-        攻城战报 · 简化回放
-      </button>
-      {open && (
-        <AncientModal
-          isOpen
-          onClose={() => setOpen(false)}
-          type="confirm"
-          title="攻城战报 · 简化回放"
-          hideButtons
-          width="max-w-md"
-        >
-          <div className="-mx-2 -my-2 bg-[#1a1a2e] rounded p-2 text-left">
-            <SiegeReplayMini
-              open
-              onClose={() => setOpen(false)}
-              battleLog={logStr}
-              leftLabel="攻方"
-              rightLabel="守军"
-              initialAttackerTroops={initialAttackerTroops}
-              initialDefenderTroops={initialDefenderTroops}
-            />
-          </div>
-        </AncientModal>
-      )}
-    </>
-  );
-}
-
-/**
- * 攻城 / 匪寨小型图战后结算：同一容器、标题「战斗结算」与同色系奖励行（避免另起一套样式）。
- * @param {'siege'|'bandit'} settlementKind
- */
-function StrategicSettlementCard({
-  onConfirm,
-  /** 匪寨胜利：左侧「继续」进入下一层（不扣次）；与 `onConfirm`（退出）并存时渲染双按钮 */
-  onBanditContinue = null,
-  /** 匪寨战败：左侧「放弃」重置个人层进度为第 1 层；与 `onConfirm`（右侧「确定」仅关闭）并存 */
-  onBanditDefeatAbandon = null,
-  settlementKind = 'siege',
-  /** `settlementKind === 'bandit'` 时用于顶栏 emoji：胜利 ⚔️ / 失败 💀（匪寨不展示本场击杀行，不能再用击杀数推 emoji） */
-  banditOutcome = null,
-  silverReward = 0,
-  reputationReward = 0,
-  contributionReward = 0,
-  /** 匪寨/攻城等即时粮草奖励（与 `smallMapPveLoot.food` / 服务端 settlement 对齐） */
-  foodReward = 0,
-  /** 匪寨：当层基础银两/粮草（不含通关档里程碑） */
-  banditBaseSilver = 0,
-  banditBaseFood = 0,
-  /** 匪寨：通关档里程碑追加（如第 8 层普通档 +80 银两） */
-  banditMilestone = null,
-  equipmentDrop = null,
-  chestRewards = [],
-  killCount = null,
-  /** 攻城累计段：npcTotal>0 时展示「累计已消灭」 */
-  siegeNpcKilled = null,
-  siegeNpcTotal = null,
-  /** 匪寨：副标题层名 */
-  banditOpponentName = '',
-  /** 匪寨：如「战术评分：C · 757 分」 */
-  tacticalScoreText = null,
-  authoritativeBattleLog = null,
-  initialAttackerTroops = null,
-  initialDefenderTroops = null,
-  showZeroKillNote = false,
-  siegeCompleted = false,
-  battleReportFailed = false,
-  extraFooterNote = null,
-  /** 匪寨通关第 20 层：`POST /api/battles` 经 `grantSeasonBadgeToPlayer` 发放的赛季徽章 */
-  banditBadgeGranted = null,
-  banditBadgeError = null,
-}) {
-  const sr = Math.max(0, Number(silverReward) || 0);
-  const rr = Math.max(0, Number(reputationReward) || 0);
-  const cr = Math.max(0, Number(contributionReward) || 0);
-  const fr = Math.max(0, Number(foodReward) || 0);
-  const bbs = Math.max(0, Number(banditBaseSilver) || 0);
-  const bbf = Math.max(0, Number(banditBaseFood) || 0);
-  const milestone =
-    banditMilestone && typeof banditMilestone === 'object' ? banditMilestone : null;
-  const msSilver = milestone ? Math.max(0, Number(milestone.silver) || 0) : 0;
-  const msFood = milestone ? Math.max(0, Number(milestone.food) || 0) : 0;
-  const kc = killCount != null && Number.isFinite(Number(killCount)) ? Number(killCount) : null;
-  const kcShown = kc != null ? kc : 0;
-  /** 攻城：`(击杀||银两||贡献||粮草)`；匪寨：按胜负（结算卡不展示击杀行） */
-  const showVictoryEmoji =
-    settlementKind === 'bandit'
-      ? banditOutcome === 'victory'
-      : !!((kc != null ? kcShown : 0) || sr || cr || fr);
-
-  const chestList = Array.isArray(chestRewards) ? chestRewards : [];
-
-  return (
-    <div className="flex min-h-0 flex-1 items-center justify-center bg-black/80 backdrop-blur-sm">
-      <div className="mx-4 w-full max-w-sm rounded-xl border border-amber-500/30 bg-gray-900/95 p-6 text-center space-y-3">
-        <div className="text-4xl">{showVictoryEmoji ? '⚔️' : '💀'}</div>
-        <div className="text-xl font-bold text-amber-400">战斗结算</div>
-        {settlementKind === 'bandit' && banditOpponentName ? (
-          <div className="text-sm text-stone-300">{banditOpponentName}</div>
-        ) : null}
-        {tacticalScoreText ? (
-          <div className="text-sm text-gray-300">{tacticalScoreText}</div>
-        ) : null}
-        {rr > 0 && <div className="text-yellow-300 text-sm">⭐ 获得 {rr} 声望</div>}
-        {cr > 0 && <div className="text-sky-300 text-sm">贡献 +{cr}</div>}
-        {settlementKind === 'bandit' && banditOutcome === 'victory' ? (
-          <>
-            {(bbs > 0 || bbf > 0) && (
-              <div className="text-stone-400 text-xs pt-0.5">本层战斗奖励</div>
-            )}
-            {bbs > 0 && <div className="text-amber-300 text-sm">💰 获得 {bbs} 银两</div>}
-            {bbf > 0 && <div className="text-lime-200/95 text-sm">🌾 获得 {bbf} 粮草</div>}
-            {milestone && (msSilver > 0 || msFood > 0) && (
-              <>
-                <div className="text-stone-400 text-xs pt-1 border-t border-amber-500/20 mt-1">
-                  通关第 {milestone.layer} 层（{milestone.tierLabel || milestone.tier}档）
-                </div>
-                {msSilver > 0 && (
-                  <div className="text-amber-200 text-sm">💰 获得 {msSilver} 银两</div>
-                )}
-                {msFood > 0 && (
-                  <div className="text-lime-200/90 text-sm">🌾 获得 {msFood} 粮草</div>
-                )}
-              </>
-            )}
-          </>
-        ) : (
-          <>
-            {sr > 0 && <div className="text-amber-300 text-sm">💰 获得 {sr} 银两</div>}
-            {fr > 0 && <div className="text-lime-200/95 text-sm">🌾 获得 {fr} 粮草</div>}
-          </>
-        )}
-        {equipmentDrop && (
-          <div
-            className="text-sm font-medium"
-            style={{ color: getRarityHex(equipmentDrop.rarity) }}
-          >
-            🎁 攻城战后随机掉落（约 5%）：{equipmentDrop.name}（{getRarityLabelCn(equipmentDrop.rarity)}）
-          </div>
-        )}
-        {chestList.length > 0 && (
-          <div className="mt-1 space-y-1 border-t border-amber-500/25 pt-2 text-left text-sm">
-            <div className="text-[11px] text-stone-500">📦 地图内宝箱</div>
-            {chestList.map((r, i) => (
-              <div
-                key={`${r.equipmentId || 'eq'}-${i}`}
-                className="text-sm font-medium"
-                style={{ color: getRarityHex(r.rarity) }}
-              >
-                {shortEquipmentDisplayName(r.name)}（{getRarityLabelCn(r.rarity)}）
-              </div>
-            ))}
-          </div>
-        )}
-        {banditBadgeGranted && (banditBadgeGranted.displayName || banditBadgeGranted.itemId) ? (
-          <div className="text-sm text-emerald-300/95">
-            🎖️ 获得 {banditBadgeGranted.displayName || banditBadgeGranted.itemId}
-            {Number(banditBadgeGranted.quantity) > 1 ? ` ×${banditBadgeGranted.quantity}` : ''}
-          </div>
-        ) : null}
-        {banditBadgeError ? (
-          <div className="text-xs text-amber-200/90 text-left leading-snug">
-            徽章未能自动入库：{banditBadgeError}（本场银两等仍按服务端为准，可稍后重试。）
-          </div>
-        ) : null}
-        {kc != null && settlementKind === 'siege' ? (
-          <div className="text-sm text-gray-300">本场击杀：{kc}</div>
-        ) : null}
-        {settlementKind === 'siege' ? (
-          <div className="text-sm text-gray-400">
-            NPC守军：本场消灭 {kcShown} 支
-            {siegeNpcTotal != null && Number(siegeNpcTotal) > 0 && (
-              <>
-                {' '}
-                · 累计已消灭 {siegeNpcKilled ?? 0}/{siegeNpcTotal}
-              </>
-            )}
-          </div>
-        ) : null}
-        {extraFooterNote ? (
-          <div className="text-xs text-stone-500 text-center leading-snug">{extraFooterNote}</div>
-        ) : null}
-        {battleReportFailed ? (
-          <div className="text-xs text-red-300 text-left leading-snug">
-            战报未能可靠保存到服务器，奖励以服务端记录为准；若反复出现请稍后重试或联系管理。
-          </div>
-        ) : null}
-        {Array.isArray(authoritativeBattleLog) && authoritativeBattleLog.length > 0 && (
-          <>
-            <AuthoritativeSiegeReplayButton
-              battleLogLines={authoritativeBattleLog}
-              initialAttackerTroops={initialAttackerTroops}
-              initialDefenderTroops={initialDefenderTroops}
-            />
-            <details className="mt-2 max-h-32 overflow-y-auto text-left text-[11px] text-stone-400">
-              <summary className="cursor-pointer text-amber-500/90">文字战报（服务端）</summary>
-              <pre className="mt-1 whitespace-pre-wrap font-sans">{authoritativeBattleLog.join('\n')}</pre>
-            </details>
-          </>
-        )}
-        {showZeroKillNote && (
-          <div className="text-xs text-stone-500">（目标已被其他玩家击杀，无新增奖励）</div>
-        )}
-        {siegeCompleted && (
-          <div className="rounded-lg border border-amber-500/30 bg-amber-900/50 p-3">
-            <div className="font-bold text-amber-400">🏰 城池攻破！</div>
-          </div>
-        )}
-        {typeof onBanditContinue === 'function' ? (
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={onBanditContinue}
-              className="flex-1 min-w-0 rounded-lg bg-gradient-to-r from-amber-700 to-yellow-700 py-2.5 text-sm font-bold text-amber-100"
-            >
-              继续
-            </button>
-            <button
-              type="button"
-              onClick={onConfirm}
-              className="flex-1 min-w-0 rounded-lg bg-gradient-to-r from-amber-700 to-yellow-700 py-2.5 text-sm font-bold text-amber-100"
-            >
-              退出
-            </button>
-          </div>
-        ) : typeof onBanditDefeatAbandon === 'function' ? (
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={onBanditDefeatAbandon}
-              className="flex-1 min-w-0 rounded-lg border border-stone-500 bg-stone-800 py-2.5 text-sm font-bold text-stone-200 hover:bg-stone-700"
-            >
-              放弃
-            </button>
-            <button
-              type="button"
-              onClick={onConfirm}
-              className="flex-1 min-w-0 rounded-lg bg-gradient-to-r from-amber-700 to-yellow-700 py-2.5 text-sm font-bold text-amber-100"
-            >
-              确定
-            </button>
-          </div>
-        ) : (
-          <button
-            type="button"
-            onClick={onConfirm}
-            className="w-full rounded-lg bg-gradient-to-r from-amber-700 to-yellow-700 py-2.5 text-sm font-bold text-amber-100"
-          >
-            确定
-          </button>
-        )}
-      </div>
-    </div>
-  );
-}
 
 export default function WorldMap({
   onEventBusyChange,
@@ -424,43 +132,42 @@ export default function WorldMap({
   const sanGongAnimTimerRef = useRef(null);
   const [onDuty, setOnDuty] = useState(false); // 玩家是否处于披挂待命（任意城）
 
-  // ── PVP 挑战状态 ──
-  const [pvpChallenge, setPvpChallenge] = useState(null); // { challengeId, waitSeconds, defenseUnits, ... }
-  const [pvpCountdown, setPvpCountdown] = useState(0);
-  const pvpTimerRef = useRef(null);
-  const pvpResolveOnceRef = useRef(false);
+  const [simpleAlertMessage, setSimpleAlertMessage] = useState(null);
+  const [pendingMainCityCityId, setPendingMainCityCityId] = useState(null);
+  const [roadAttackerAlert, setRoadAttackerAlert] = useState(null);
 
-  // ── 防守方：轮询是否有 PVP 挑战 ──
-  /** 防守方遇袭通知 —— 由 `usePvpDefenseAlertPoll` 维护：3000ms 轮询 + Notification + 静默 challengeId 生命周期 */
+  const bumpGarrisonStats = useCallback(() => {
+    setGarrisonStatsRefreshKey((k) => k + 1);
+  }, []);
+
+  const {
+    pvpChallenge,
+    setPvpChallenge,
+    pvpCountdown,
+    setPvpCountdown,
+    pvpDefenseWaiting,
+    pvpDefenseOutcome,
+    setPvpDefenseOutcome,
+    pvpAttackerAdjudicating,
+    authoritativeReplayOverlay,
+    setAuthoritativeReplayOverlay,
+    beginDefenseFollowUp: beginDefenseFollowUpCore,
+  } = usePvpSiegeAdjudication({
+    playerId: player?.player_id,
+    refreshPlayer,
+    onGarrisonStatsBump: bumpGarrisonStats,
+    setSiegeResult,
+    setSimpleAlertMessage,
+  });
+
   const {
     alert: pvpDefenseAlert,
-    setAlert: setPvpDefenseAlert,
     dismiss: dismissPvpDefenseAlert,
     reset: resetPvpDefenseSilence,
   } = usePvpDefenseAlertPoll({ playerId: player?.player_id, enabled: !!onDuty });
-  const [pvpDefenseWaiting, setPvpDefenseWaiting] = useState(null); // { challengeId, attackerName, startedAt } 已接受，等待裁定
-  const [pvpDefenseOutcome, setPvpDefenseOutcome] = useState(null); // 裁定结果展示
-  /** 攻城方：倒计时结束或对方已 accept，等待 siege-resolve 与最短 3s 裁定 UI */
-  const [pvpAttackerAdjudicating, setPvpAttackerAdjudicating] = useState(null); // { defenderName, startedAt }
-  /** 统一替代 window.alert（攻城/驻守等 API 错误） */
-  const [simpleAlertMessage, setSimpleAlertMessage] = useState(null);
-  /** 设为主城成功后立刻用于 UI，避免等 profile 返回前按钮仍可点（战略 tooltip 另见 WorldStrategicMapGrid 同步） */
-  const [pendingMainCityCityId, setPendingMainCityCityId] = useState(null);
-  const pvpDefenseOutcomeHandledRef = useRef(false);
 
-  /** 道路遭遇 · 攻方：`road/move` 触发遭遇后先提示再进场（与守方对称，复用 AncientModal） */
-  const [roadAttackerAlert, setRoadAttackerAlert] = useState(null);
-  /** 守方：因道路开战门闸不足被移回城内时的一次性文案（GET road/self 读即清库） */
-  const [roadGateRetreatNotice, setRoadGateRetreatNotice] = useState(null);
-  /**
-   * 披挂 PVP 攻城倒计时用「绝对时刻」刷新 UI，避免后台标签页 `setInterval` 节流卡死。
-   * 由 `useCountdownTicker` 内部维护；hook 仅在攻方挑战 `countdownEndsAt` 存在时启动 400ms ticker。
-   */
   const pvpSiegeNowTick = useCountdownTicker(!!pvpChallenge?.countdownEndsAt);
-  /** 服务端裁定后、进结算页面前的「攻城战报·简化回放」全屏层（攻城道路同源 `SiegeReplayMini`） */
-  const [authoritativeReplayOverlay, setAuthoritativeReplayOverlay] = useState(null);
-  /** `getRoadSelf` 读到的退让文案在战斗演示/结算未结束前先暂存，避免盖住回放 */
-  const deferredRoadGateNoticeRef = useRef(null);
+
   const roadNoticeUiBlockRef = useRef({
     authoritativeReplayOverlay: false,
     siegeResult: false,
@@ -476,14 +183,33 @@ export default function WorldMap({
     roadAwaitingAuthoritativeOutcome: false,
     roadDefenseOutcomeReplay: false,
   });
-  /** 由 `StrategicWorldMapSection` 注入：道路坐标刷新后 bump 郡内他人 presence，与守方自刷新互补 */
   const bumpStrategicRoadPresenceRef = useRef(null);
-  /** 道路跳跳棋回放中：暂缓 `getRoadSelf` 触发的 profile refresh，避免服务端已落库而动画未播完时误弹「道路位置已调整」 */
   const strategicRoadMarchAnimatingRef = useRef(false);
-  /** 与上次 `getRoadSelf` 快照比较，避免无意义的 profile 重拉 */
-  const lastApiRoadSnapRef = useRef('');
 
-  // PVP 守城遇袭轮询已迁出至 `hooks/usePvpDefenseAlertPoll`（CR 必改 #7 第一阶段，2026-04-29）。
+  const { roadGateRetreatNotice, setRoadGateRetreatNotice } = useRoadSelfPresencePoll({
+    playerId: player?.player_id,
+    refreshPlayer,
+    blockTutorialAutoplay,
+    roadNoticeUiBlockRef,
+    roadDefenseOutcomeReplayBlockingRef: roadFriction.roadDefenseOutcomeReplayBlockingRef,
+    bumpStrategicRoadPresenceRef,
+    strategicRoadMarchAnimatingRef,
+    noticeUnblockDeps: [
+      authoritativeReplayOverlay,
+      siegeResult,
+      siegeData,
+      roadFriction.roadAuthoritativeOutcomeModal,
+      pvpAttackerAdjudicating,
+      pvpDefenseOutcome,
+      roadAttackerAlert,
+      pvpChallenge,
+      roadFriction.roadDefenseAlert,
+      roadFriction.roadAwaitingAuthoritativeOutcome,
+      roadFriction.roadDefenseAuthoritativeReplayOpen,
+      banditRaidData,
+      banditRaidResult,
+    ],
+  });
 
   useEffect(() => {
     worldMapOverlayRefs.worldMapMounted = true;
@@ -498,18 +224,11 @@ export default function WorldMap({
     };
   }, [pvpDefenseAlert, siegeData?.roadEncounterId]);
 
-  /** 遇袭：关闭通知并进入「裁定中」轮询（与是否点确定一致；不再调用 /accept，避免与 siege-resolve 竞态） */
-  const beginDefenseFollowUp = useCallback((alert) => {
-    if (!alert?.challengeId) return;
-    dismissPvpDefenseAlert(alert.challengeId);
-    setPvpDefenseWaiting({
-      challengeId: alert.challengeId,
-      attackerName: alert.attackerName || '未知',
-      startedAt: Date.now(),
-    });
-  }, [dismissPvpDefenseAlert]);
+  const beginDefenseFollowUp = useCallback(
+    (alert) => beginDefenseFollowUpCore(alert, dismissPvpDefenseAlert),
+    [beginDefenseFollowUpCore, dismissPvpDefenseAlert],
+  );
 
-  // 遇袭通知：产品在约 waitSeconds 后自动关闭并进入裁定等待
   useEffect(() => {
     const id = pvpDefenseAlert?.challengeId;
     if (!id || !pvpDefenseAlert?.waitSeconds) return undefined;
@@ -518,144 +237,6 @@ export default function WorldMap({
     const t = setTimeout(() => beginDefenseFollowUp(snap), sec * 1000);
     return () => clearTimeout(t);
   }, [pvpDefenseAlert?.challengeId, pvpDefenseAlert?.waitSeconds, beginDefenseFollowUp]);
-
-  /**
-   * 道路：本人 `road_*` 与一次性退让提示（守方被攻方踏格门闸击退时）。
-   * 短间隔拉 `GET road/self`（读即清 `pendingRoadNotice`），位置变化则 `refresh` 以立刻移动本人叠层。
-   */
-  useEffect(() => {
-    const pid = player?.player_id;
-    if (!pid) {
-      lastApiRoadSnapRef.current = '';
-      return undefined;
-    }
-    let cancelled = false;
-    const tick = async () => {
-      if (cancelled) return;
-      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
-      try {
-        const res = await playerAPI.getRoadSelf(pid);
-        if (cancelled || !res?.success || !res.data) return;
-        const d = res.data;
-        const j = d.road_jun_id != null ? String(d.road_jun_id) : '';
-        const snap = `${j}|${d.road_position_x}|${d.road_position_y}`;
-        if (strategicRoadMarchAnimatingRef.current) {
-          lastApiRoadSnapRef.current = snap;
-          return;
-        }
-        const notice = typeof d.pendingRoadNotice === 'string' ? d.pendingRoadNotice.trim() : '';
-        if (notice) {
-          const b = roadNoticeUiBlockRef.current;
-          const noticeBlocked =
-            blockTutorialAutoplay ||
-            b.authoritativeReplayOverlay ||
-            b.siegeResult ||
-            b.siegeData ||
-            b.banditRaidData ||
-            b.banditRaidResult ||
-            b.roadAuthoritativeOutcomeModal ||
-            b.pvpAttackerAdjudicating ||
-            b.pvpDefenseOutcome ||
-            b.roadAttackerAlert ||
-            b.pvpChallenge ||
-            b.roadDefenseAlert ||
-            b.roadAwaitingAuthoritativeOutcome ||
-            roadFriction.roadDefenseOutcomeReplayBlockingRef.current;
-          if (noticeBlocked) {
-            deferredRoadGateNoticeRef.current = notice;
-          } else {
-            setRoadGateRetreatNotice(notice);
-          }
-        }
-        if (lastApiRoadSnapRef.current === '') {
-          lastApiRoadSnapRef.current = snap;
-          if (notice) {
-            await refreshPlayer({ silent: true });
-            bumpStrategicRoadPresenceRef.current?.();
-          }
-          return;
-        }
-        if (snap !== lastApiRoadSnapRef.current || notice) {
-          lastApiRoadSnapRef.current = snap;
-          await refreshPlayer({ silent: true });
-          bumpStrategicRoadPresenceRef.current?.();
-        }
-        const queued = deferredRoadGateNoticeRef.current;
-        if (queued) {
-          const bq = roadNoticeUiBlockRef.current;
-          const stillBlocked =
-            blockTutorialAutoplay ||
-            bq.authoritativeReplayOverlay ||
-            bq.siegeResult ||
-            bq.siegeData ||
-            bq.banditRaidData ||
-            bq.banditRaidResult ||
-            bq.roadAuthoritativeOutcomeModal ||
-            bq.pvpAttackerAdjudicating ||
-            bq.pvpDefenseOutcome ||
-            bq.roadAttackerAlert ||
-            bq.pvpChallenge ||
-            bq.roadDefenseAlert ||
-            bq.roadAwaitingAuthoritativeOutcome ||
-            roadFriction.roadDefenseOutcomeReplayBlockingRef.current;
-          if (!stillBlocked) {
-            deferredRoadGateNoticeRef.current = null;
-            setRoadGateRetreatNotice(queued);
-          }
-        }
-      } catch {
-        /* 静默 */
-      }
-    };
-    lastApiRoadSnapRef.current = '';
-    tick();
-    const iv = setInterval(tick, 700);
-    return () => {
-      cancelled = true;
-      clearInterval(iv);
-    };
-  }, [player?.player_id, refreshPlayer, blockTutorialAutoplay]);
-
-  /** 阻塞 UI 关闭后立刻弹出已暂存的退让提示（不必再等下一轮 getRoadSelf） */
-  useEffect(() => {
-    const queued = deferredRoadGateNoticeRef.current;
-    if (!queued) return;
-    const bq = roadNoticeUiBlockRef.current;
-    const stillBlocked =
-      blockTutorialAutoplay ||
-      bq.authoritativeReplayOverlay ||
-      bq.siegeResult ||
-      bq.siegeData ||
-      bq.banditRaidData ||
-      bq.banditRaidResult ||
-      bq.roadAuthoritativeOutcomeModal ||
-      bq.pvpAttackerAdjudicating ||
-      bq.pvpDefenseOutcome ||
-      bq.roadAttackerAlert ||
-      bq.pvpChallenge ||
-      bq.roadDefenseAlert ||
-      bq.roadAwaitingAuthoritativeOutcome ||
-      roadFriction.roadDefenseOutcomeReplayBlockingRef.current;
-    if (!stillBlocked) {
-      deferredRoadGateNoticeRef.current = null;
-      setRoadGateRetreatNotice(queued);
-    }
-  }, [
-    authoritativeReplayOverlay,
-    siegeResult,
-    siegeData,
-    roadFriction.roadAuthoritativeOutcomeModal,
-    pvpAttackerAdjudicating,
-    pvpDefenseOutcome,
-    roadAttackerAlert,
-    pvpChallenge,
-    roadFriction.roadDefenseAlert,
-    roadFriction.roadAwaitingAuthoritativeOutcome,
-    roadFriction.roadDefenseAuthoritativeReplayOpen,
-    banditRaidData,
-    banditRaidResult,
-    blockTutorialAutoplay,
-  ]);
 
   useEffect(() => {
     if (player?.on_duty == null) return;
@@ -1320,119 +901,6 @@ export default function WorldMap({
 
   const closeSiegeResult = useCallback(() => { setSiegeData(null); setSiegeResult(null); }, []);
 
-  // ── PVP 攻城方：`deadline` 触发 `siege-resolve` → 最短裁定 UI → 简化回放 → 结算 ──
-  useEffect(() => {
-    if (!pvpChallenge || !player?.player_id) return;
-    pvpResolveOnceRef.current = false;
-
-    const runResolve = async () => {
-      if (pvpResolveOnceRef.current) return;
-      pvpResolveOnceRef.current = true;
-      if (pvpTimerRef.current) clearTimeout(pvpTimerRef.current);
-      const ch = pvpChallenge;
-      const adjudicationStartedAt = Date.now();
-      setPvpAttackerAdjudicating({
-        defenderName: ch.defenderName || '未知',
-        startedAt: adjudicationStartedAt,
-      });
-      setPvpChallenge(null);
-      try {
-        const r = await fetchWithTimeout(`${API_CONFIG.BASE_URL}/pvp/siege-resolve`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ challengeId: ch.challengeId, attackerId: player.player_id }),
-        }).then((x) => x.json());
-        if (r.success && r.data?.siegeData) {
-          const siegeResultSnapshot = {
-            ...r.data.siegeData,
-            authoritativeBattleLog: r.data.battleLog,
-            battleSeed: r.data.battleSeed,
-            siegeReplayAttackerNames: r.data.siegeReplayAttackerNames,
-            siegeReplayDefenderNames: r.data.siegeReplayDefenderNames,
-            initialAttackerTroops: r.data.initialAttackerTroops,
-            initialDefenderTroops: r.data.initialDefenderTroops,
-          };
-          const logStr = Array.isArray(r.data.battleLog) ? r.data.battleLog.join('\n') : '';
-          scheduleAfterMinAdjudicationUi(adjudicationStartedAt, () => {
-            setPvpAttackerAdjudicating(null);
-            setAuthoritativeReplayOverlay({
-              battleLogStr: logStr,
-              initialAttackerTroops: r.data.initialAttackerTroops,
-              initialDefenderTroops: r.data.initialDefenderTroops,
-              leftLabel: '攻方',
-              rightLabel: '守军',
-              onPlaybackComplete: () => {
-                setAuthoritativeReplayOverlay(null);
-                setSiegeResult(siegeResultSnapshot);
-                setGarrisonStatsRefreshKey((k) => k + 1);
-                refreshPlayer({ silent: true });
-              },
-            });
-          });
-        } else {
-          scheduleAfterMinAdjudicationUi(adjudicationStartedAt, () => {
-            setPvpAttackerAdjudicating(null);
-            setSimpleAlertMessage(r.error || '攻城结算失败');
-          });
-        }
-      } catch (e) {
-        console.error('[PVP] siege-resolve', e);
-        scheduleAfterMinAdjudicationUi(adjudicationStartedAt, () => {
-          setPvpAttackerAdjudicating(null);
-          setSimpleAlertMessage('攻城结算请求失败');
-        });
-      }
-    };
-
-    const endsAt = Number(pvpChallenge.countdownEndsAt) || Date.now() + 10_000;
-    const delay = Math.max(0, endsAt - Date.now());
-    pvpTimerRef.current = setTimeout(runResolve, delay);
-
-    const onVis = () => {
-      if (typeof document === 'undefined' || document.visibilityState !== 'visible') return;
-      if (Date.now() < endsAt) return;
-      clearTimeout(pvpTimerRef.current);
-      runResolve();
-    };
-    if (typeof document !== 'undefined') document.addEventListener('visibilitychange', onVis);
-
-    return () => {
-      clearTimeout(pvpTimerRef.current);
-      if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', onVis);
-    };
-  }, [pvpChallenge, player?.player_id, refreshPlayer]);
-
-  // ── 防守方：已点「进入战场」→ 轮询服务端裁定结果 ──
-  useEffect(() => {
-    if (!pvpDefenseWaiting?.challengeId || !player?.player_id) {
-      pvpDefenseOutcomeHandledRef.current = false;
-      return;
-    }
-    pvpDefenseOutcomeHandledRef.current = false;
-    const poll = async () => {
-      if (pvpDefenseOutcomeHandledRef.current) return;
-      try {
-        const r = await fetchWithTimeout(
-          `${API_CONFIG.BASE_URL}/pvp/challenge/${pvpDefenseWaiting.challengeId}/siege-outcome?playerId=${encodeURIComponent(player.player_id)}`
-        ).then((x) => x.json());
-        if (r.success && r.outcome && !pvpDefenseOutcomeHandledRef.current) {
-          pvpDefenseOutcomeHandledRef.current = true;
-          const startedAt = pvpDefenseWaiting.startedAt ?? Date.now();
-          const outcome = r.outcome;
-          scheduleAfterMinAdjudicationUi(startedAt, () => {
-            setPvpDefenseWaiting(null);
-            setPvpDefenseOutcome(outcome);
-            setGarrisonStatsRefreshKey((k) => k + 1);
-            refreshPlayer({ silent: true });
-          });
-        }
-      } catch {}
-    };
-    poll();
-    const id = setInterval(poll, 2000);
-    return () => clearInterval(id);
-  }, [pvpDefenseWaiting, player?.player_id, refreshPlayer]);
-
   // 加载玩家道具
   const [playerItems, setPlayerItems] = useState([]);
   const fetchItems = useCallback(() => {
@@ -1596,159 +1064,39 @@ export default function WorldMap({
         onStartPvpBaseCampSiege={startPvpBaseCampSiege}
       />
 
-      {/* ── PVP 攻城方等待界面 ── */}
-      {pvpChallenge && (
-        <AncientModal isOpen type="confirm" title="⚔️ 攻城对战" preventClose hideButtons>
-          <div className="text-center space-y-4">
-            <p className="text-gray-800 text-base">
-              约 <span className="text-red-700 font-bold text-xl">{pvpCountdownDisplay}</span> 秒后由服务端裁定本场（AI 代打）
-            </p>
-            <p className="text-gray-500 text-xs">
-              对手：{pvpChallenge.defenderName || '未知'}
-            </p>
-            <div className="w-full bg-gray-300 rounded-full h-2 overflow-hidden">
-              <div
-                className="h-full bg-gradient-to-r from-amber-600 to-red-600 transition-all duration-1000"
-                style={{
-                  width: `${Math.min(100, (pvpCountdownDisplay / Math.max(1, Number(pvpChallenge.waitSeconds) || 10)) * 100)}%`,
-                }}
-              />
-            </div>
-            <p className="text-gray-400 text-xs">无需对方点接受，请稍候…</p>
-          </div>
-        </AncientModal>
-      )}
-
-      {/* ── PVP 防守方通知弹窗 ── */}
-      {pvpAttackerAdjudicating && (
-        <AncientModal isOpen type="confirm" title="⚔️ 战场裁定中" preventClose hideButtons>
-          <div className="text-center space-y-3 text-gray-800 text-sm py-2 px-1">
-            <p>本场由服务端演算，请稍候…</p>
-            <p className="text-gray-500 text-xs">
-              守军主公：<span className="text-amber-800 font-semibold">{pvpAttackerAdjudicating.defenderName}</span>
-            </p>
-          </div>
-        </AncientModal>
-      )}
-
-      {pvpDefenseWaiting && (
-        <AncientModal isOpen type="confirm" title="⚔️ 战场裁定中" preventClose hideButtons>
-          <div className="text-center space-y-3 text-gray-700 text-sm py-2 px-1">
-            <p>本场由服务端演算，请稍候…</p>
-            <p className="text-gray-500 text-xs">
-              攻城方：<span className="text-red-800 font-semibold">{pvpDefenseWaiting.attackerName || '未知'}</span>
-            </p>
-          </div>
-        </AncientModal>
-      )}
-
-      {pvpDefenseOutcome && (
-        <PvpDefenseOutcomeModal
-          outcome={pvpDefenseOutcome}
-          onClose={() => {
-            resetPvpDefenseSilence();
-            setPvpDefenseOutcome(null);
-          }}
-        />
-      )}
-
-      {typeof document !== 'undefined' &&
-        authoritativeReplayOverlay &&
-        createPortal(
-          <div className="pointer-events-auto fixed inset-0 z-[235] flex items-center justify-center bg-black/85 px-3 py-6">
-            <div className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-xl border border-amber-600/40 bg-[#12121e] p-3 shadow-2xl">
-              <div className="text-center text-amber-200/95 text-sm font-bold mb-2">战场演示</div>
-              <SiegeReplayMini
-                open
-                battleLog={authoritativeReplayOverlay.battleLogStr}
-                leftLabel={authoritativeReplayOverlay.leftLabel || '攻方'}
-                rightLabel={authoritativeReplayOverlay.rightLabel || '守军'}
-                initialAttackerTroops={authoritativeReplayOverlay.initialAttackerTroops}
-                initialDefenderTroops={authoritativeReplayOverlay.initialDefenderTroops}
-                onPlaybackComplete={authoritativeReplayOverlay.onPlaybackComplete}
-                onClose={() => setAuthoritativeReplayOverlay(null)}
-              />
-            </div>
-          </div>,
-          document.body,
-        )}
-
-      {roadAttackerAlert && !siegeData && !banditRaidData && !banditRaidResult && (
-        <AncientModal
-          isOpen
-          type="warning"
-          title="🛤️ 道路遭遇"
-          confirmText="确定"
-          showCancel={false}
-          invokeOnCloseAfterConfirm={false}
-          onConfirm={confirmRoadAttackerEnterBattle}
-          onClose={() => setRoadAttackerAlert(null)}
-        >
-          <div className="text-center space-y-3">
-            <p className="text-gray-800 text-base">您已与对方在道路上触发对战。</p>
-            <p className="text-gray-800">
-              点击 <span className="font-semibold text-amber-900">确定</span> 由服务端权威推演本场（与攻城披挂同源），先观看战场演示再进入结算。
-            </p>
-          </div>
-        </AncientModal>
-      )}
-
-      {roadGateRetreatNotice &&
-        !siegeData &&
-        !banditRaidData &&
-        !banditRaidResult &&
-        !roadFriction.roadDefenseAlert &&
-        !pvpDefenseAlert &&
-        !roadAttackerAlert && (
-        <AncientModal
-          isOpen
-          type="info"
-          title="道路位置已调整"
-          confirmText="知道了"
-          showCancel={false}
-          onConfirm={() => setRoadGateRetreatNotice(null)}
-          onClose={() => setRoadGateRetreatNotice(null)}
-        >
-          <p className="text-gray-800 text-sm text-left leading-relaxed px-1">{roadGateRetreatNotice}</p>
-        </AncientModal>
-      )}
-
-      {pvpDefenseAlert && !siegeData && !banditRaidData && !banditRaidResult && (
-        <AncientModal
-          isOpen
-          type="warning"
-          title="🏰 城池遭袭"
-          confirmText="确定"
-          showCancel={false}
-          onConfirm={() => beginDefenseFollowUp(pvpDefenseAlert)}
-        >
-          <div className="text-center space-y-3">
-            <p className="text-gray-800 text-base">
-              <span className="font-bold text-red-700">{pvpDefenseAlert.attackerName}</span> 正在攻打城池
-            </p>
-            <p className="text-gray-800">
-              点击 <span className="font-semibold text-amber-900">确定</span> 可等待裁定结束后在战报中查看文字记录；也可稍后打开「聊天」面板「战报」页。
-            </p>
-            <p className="text-gray-800">
-              约 <span className="text-red-700 font-bold text-xl">{pvpDefenseAlert.remainingSeconds}</span> 秒后本提示将自动关闭（战斗由服务端 AI 演算，与是否观战无关）。
-            </p>
-            <p className="text-gray-500 text-xs">提示关闭后请勿反复操作，稍候即弹出裁定结果。</p>
-          </div>
-        </AncientModal>
-      )}
-
-      {simpleAlertMessage != null && (
-        <AncientModal
-          isOpen
-          type="warning"
-          title="提示"
-          confirmText="确定"
-          onConfirm={() => setSimpleAlertMessage(null)}
-          onClose={() => setSimpleAlertMessage(null)}
-        >
-          <p className="text-center text-gray-800 text-sm whitespace-pre-wrap">{simpleAlertMessage}</p>
-        </AncientModal>
-      )}
+      <WorldMapAlertOverlays
+        pvpChallenge={pvpChallenge}
+        pvpCountdownDisplay={pvpCountdownDisplay}
+        pvpAttackerAdjudicating={pvpAttackerAdjudicating}
+        pvpDefenseWaiting={pvpDefenseWaiting}
+        pvpDefenseOutcome={pvpDefenseOutcome}
+        onPvpDefenseOutcomeClose={() => {
+          resetPvpDefenseSilence();
+          setPvpDefenseOutcome(null);
+        }}
+        authoritativeReplayOverlay={authoritativeReplayOverlay}
+        onAuthoritativeReplayClose={() => setAuthoritativeReplayOverlay(null)}
+        roadAttackerAlert={roadAttackerAlert}
+        onRoadAttackerConfirm={confirmRoadAttackerEnterBattle}
+        onRoadAttackerClose={() => setRoadAttackerAlert(null)}
+        roadGateRetreatNotice={roadGateRetreatNotice}
+        onRoadGateNoticeClose={() => setRoadGateRetreatNotice(null)}
+        showRoadGateNotice={
+          !siegeData &&
+          !banditRaidData &&
+          !banditRaidResult &&
+          !roadFriction.roadDefenseAlert &&
+          !pvpDefenseAlert &&
+          !roadAttackerAlert
+        }
+        pvpDefenseAlert={pvpDefenseAlert}
+        onPvpDefenseAlertConfirm={() => beginDefenseFollowUp(pvpDefenseAlert)}
+        simpleAlertMessage={simpleAlertMessage}
+        onSimpleAlertClose={() => setSimpleAlertMessage(null)}
+        siegeData={siegeData}
+        banditRaidData={banditRaidData}
+        banditRaidResult={banditRaidResult}
+      />
 
       {/* ── 驻地编组面板 ── */}
       {showGarrison && garrisonCityId ? (
@@ -1799,138 +1147,25 @@ export default function WorldMap({
         </div>
       ) : null}
 
-      {/* 攻城/道路战斗与结算：挂 body，避免 GamePage main overflow-hidden 裁切 fixed 全屏层 */}
-      {typeof document !== 'undefined' &&
-        ((siegeData && !siegeResult) || siegeResult || banditRaidData || banditRaidResult) &&
-        createPortal(
-          <div className="pointer-events-auto fixed inset-0 z-[225] flex min-h-0 flex-col">
-            {banditRaidData ? (
-              <Suspense fallback={<ChunkLoadFallback label="进入战场…" />}>
-                <BattleArena
-                  key={`bandit-${banditRaidData.banditPoiId}-${banditRaidData.attackedLayer}`}
-                  playerUnits={battlePlayerUnits}
-                  cards={cards}
-                  enemySlotRarities={banditRaidData.enemySlotRarities}
-                  silverAmount={player?.silver ?? 0}
-                  playerFood={player?.food ?? 0}
-                  playerId={player?.player_id}
-                  battleType="pve_bandit"
-                  opponentName={banditRaidData.opponentName || '匪寨'}
-                  smallMapPveLoot={banditRaidData.smallMapPveLoot}
-                  onBattleEnd={handleBanditRaidEnd}
-                />
-              </Suspense>
-            ) : null}
-            {!banditRaidData && siegeData && !siegeResult ? (
-              <Suspense fallback={<ChunkLoadFallback label="进入战场…" />}>
-                <BattleArena
-                  key={siegeData.roadEncounterId || siegeData.warId || siegeData.cityName || 'siege'}
-                  playerUnits={battlePlayerUnits}
-                  cards={cards}
-                  enemyUnits={siegeData.npcGarrison}
-                  allyUnits={imperialMarchAllyUnits}
-                  silverAmount={player?.silver ?? 0}
-                  playerFood={player?.food ?? 0}
-                  playerId={player?.player_id}
-                  battleType={siegeData.isPvp ? 'pvp_siege' : 'pve_siege'}
-                  siegeDefenderType={siegeData.defenderType || 'npc'}
-                  opponentName={
-                    siegeData.pvpDefenderBaseCampSiege
-                      ? siegeData.opponentName || '攻方大本营守军'
-                      : siegeData.pvpSiegeRole === 'defender'
-                        ? siegeData.attackerName || '攻城方'
-                        : siegeData.isPvp
-                          ? siegeData.defenderName || `${siegeData.cityName || ''}守军`
-                          : `${siegeData.cityName}守军`
-                  }
-                  onBattleEnd={handleSiegeEnd}
-                  recordOnly={!!siegeData.skipSiegeResult}
-                  defenseReportMeta={
-                    siegeData.pvpSiegeRole === 'defender'
-                      ? null
-                      : siegeData.defenderType === 'player_garrison' && siegeData.defenderPlayerId
-                        ? {
-                            warId: siegeData.warId,
-                            defenderPlayerId: siegeData.defenderPlayerId,
-                            defenderGarrisonSlot: siegeData.defenderGarrisonSlot,
-                            attackerPlayerId: player?.player_id,
-                            attackerName: player?.character_name || player?.name || '攻城方',
-                            cityName: siegeData.cityName,
-                            defenderName: siegeData.defenderName,
-                          }
-                        : siegeData.defenderType === 'pvp_online' && siegeData.defenderPlayerId
-                          ? {
-                              warId: siegeData.warId,
-                              defenderPlayerId: siegeData.defenderPlayerId,
-                              defenderGarrisonSlot: siegeData.defenderGarrisonSlot ?? 0,
-                              attackerPlayerId: player?.player_id,
-                              attackerName: player?.character_name || player?.name || '攻城方',
-                              cityName: siegeData.cityName,
-                              defenderName: siegeData.defenderName,
-                            }
-                          : null
-                  }
-                />
-              </Suspense>
-            ) : null}
-            {!banditRaidData && siegeResult ? (
-              <StrategicSettlementCard
-                onConfirm={closeSiegeResult}
-                settlementKind="siege"
-                silverReward={siegeResult.silverReward}
-                reputationReward={siegeResult.reputationReward}
-                contributionReward={siegeResult.contributionReward}
-                foodReward={siegeResult.foodReward ?? 0}
-                equipmentDrop={siegeResult.equipmentDrop ?? null}
-                chestRewards={siegeResult.chestRewards}
-                killCount={siegeResult.killCount}
-                siegeNpcKilled={siegeResult.npcKilled}
-                siegeNpcTotal={siegeResult.npcTotal}
-                authoritativeBattleLog={siegeResult.authoritativeBattleLog}
-                initialAttackerTroops={siegeResult.initialAttackerTroops}
-                initialDefenderTroops={siegeResult.initialDefenderTroops}
-                showZeroKillNote={siegeResult.killCount === 0}
-                siegeCompleted={!!siegeResult.siegeCompleted}
-                battleReportFailed={!!siegeResult.battleReportFailed}
-              />
-            ) : null}
-            {banditRaidResult ? (
-              <StrategicSettlementCard
-                onConfirm={closeBanditRaidResult}
-                onBanditContinue={
-                  banditRaidResult.result === 'victory' ? handleBanditRaidContinue : null
-                }
-                onBanditDefeatAbandon={
-                  banditRaidResult.result !== 'victory' ? handleBanditRaidAbandon : null
-                }
-                banditOutcome={banditRaidResult.result}
-                settlementKind="bandit"
-                silverReward={banditRaidResult.silverReward}
-                reputationReward={banditRaidResult.reputationReward}
-                contributionReward={0}
-                foodReward={banditRaidResult.foodReward ?? 0}
-                banditBaseSilver={banditRaidResult.banditBaseSilver ?? 0}
-                banditBaseFood={banditRaidResult.banditBaseFood ?? 0}
-                banditMilestone={banditRaidResult.banditMilestone ?? null}
-                equipmentDrop={null}
-                chestRewards={banditRaidResult.meta?.chestRewards}
-                killCount={null}
-                banditOpponentName={banditRaidResult.opponentName}
-                tacticalScoreText={banditRaidResult.tacticalScoreText}
-                authoritativeBattleLog={null}
-                initialAttackerTroops={null}
-                initialDefenderTroops={null}
-                showZeroKillNote={false}
-                siegeCompleted={false}
-                battleReportFailed={banditRaidResult.meta?.battleReportSaved === false}
-                extraFooterNote={banditRaidResult.defeatHint}
-                banditBadgeGranted={banditRaidResult.meta?.banditBadgeGranted}
-                banditBadgeError={banditRaidResult.meta?.banditBadgeError}
-              />
-            ) : null}
-          </div>,
-          document.body,
-        )}
+      <WorldMapBattlePortal
+        open={
+          !!(siegeData && !siegeResult) || !!siegeResult || !!banditRaidData || !!banditRaidResult
+        }
+        banditRaidData={banditRaidData}
+        siegeData={siegeData}
+        siegeResult={siegeResult}
+        banditRaidResult={banditRaidResult}
+        battlePlayerUnits={battlePlayerUnits}
+        cards={cards}
+        player={player}
+        imperialMarchAllyUnits={imperialMarchAllyUnits}
+        onBanditBattleEnd={handleBanditRaidEnd}
+        onSiegeBattleEnd={handleSiegeEnd}
+        onCloseSiegeResult={closeSiegeResult}
+        onCloseBanditResult={closeBanditRaidResult}
+        onBanditContinue={handleBanditRaidContinue}
+        onBanditDefeatAbandon={handleBanditRaidAbandon}
+      />
 
       {/* 官职装配动画（教程链事件获得官职后） */}
       {positionAnimation && (
