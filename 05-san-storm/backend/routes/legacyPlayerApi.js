@@ -11,24 +11,29 @@ const battleService = require('../services/battleService');
 const textsService = require('../services/textsService');
 const playerExploreEventService = require('../services/playerExploreEventService');
 const { wrap500 } = require('../utils/httpError');
+const { validateParams } = require('../middleware/validation');
+const textSchemas = require('../middleware/validationSchemas/texts');
 
 const router = express.Router();
 
 router.use(requireAuth);
 router.param('playerId', requireSelf());
 
-/** GET /api/player/:playerId/battleRecord/:battleId → 同 GET /api/battles/:battleId */
-router.get('/:playerId/battleRecord/:battleId', async (req, res, next) => {
-  try {
-    const battle = await battleService.getBattleDetail(req.params.battleId);
-    if (!battle) {
-      return res.status(404).json({ success: false, message: '战斗记录不存在' });
+router.get(
+  '/:playerId/battleRecord/:battleId',
+  validateParams(textSchemas.legacyBattleIdParam),
+  async (req, res, next) => {
+    try {
+      const battle = await battleService.getBattleDetail(req.params.battleId);
+      if (!battle) {
+        return res.status(404).json({ success: false, message: '战斗记录不存在' });
+      }
+      return res.json({ success: true, battle });
+    } catch (error) {
+      return next(wrap500(error, '获取战斗记录失败'));
     }
-    return res.json({ success: true, battle });
-  } catch (error) {
-    return next(wrap500(error, '获取战斗记录失败'));
-  }
-});
+  },
+);
 
 async function textsSummaryHandler(req, res, next) {
   try {
@@ -40,19 +45,21 @@ async function textsSummaryHandler(req, res, next) {
   }
 }
 
-/** 旧路径拼写 trans；现行为 texts */
 router.get('/:playerId/trans/summary', textsSummaryHandler);
 router.get('/:playerId/texts/summary', textsSummaryHandler);
 
-/** 旧探索笔记接口 → 现行 explore 进度快照 */
-router.get('/:playerId/explore/note/:noteId', async (req, res, next) => {
-  try {
-    const { playerId } = req.params;
-    const data = await playerExploreEventService.getExploreEvents(playerId);
-    return res.json({ success: true, data });
-  } catch (error) {
-    return next(wrap500(error, '获取探索进度失败'));
-  }
-});
+router.get(
+  '/:playerId/explore/note/:noteId',
+  validateParams(textSchemas.legacyNoteIdParam),
+  async (req, res, next) => {
+    try {
+      const { playerId } = req.params;
+      const data = await playerExploreEventService.getExploreEvents(playerId);
+      return res.json({ success: true, data });
+    } catch (error) {
+      return next(wrap500(error, '获取探索进度失败'));
+    }
+  },
+);
 
 module.exports = router;

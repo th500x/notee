@@ -48,6 +48,19 @@ const cardRarity = v.enum(['common', 'rare', 'epic', 'legendary', 'core']);
 /** 探索 / 攻城配额 action */
 const quotaAction = v.enum(['consume', 'refund', 'fillMax']);
 
+/** 聊天频道 */
+const chatChannelType = v.enum(['world', 'faction', 'legion']);
+
+/** query limit（字符串数字） */
+const queryLimit = v.pattern(/^\d+$/, '正整数');
+
+/** 驻地槽 1–12（`:slot` path 段） */
+const garrisonSlotParam = (val, name) => {
+  const n = parseInt(String(val), 10);
+  if (!Number.isInteger(n) || n < 1 || n > 12) return `${name} 须在 1–12 之间`;
+  return null;
+};
+
 /** 可选 null 或实例 ID（卸下套装槽） */
 const optionalNullableInstanceId = v.optional((val, name) => {
   if (val === undefined || val === null) return null;
@@ -69,5 +82,8 @@ module.exports = {
   warId,
   cardRarity,
   quotaAction,
+  chatChannelType,
+  queryLimit,
+  garrisonSlotParam,
   optionalNullableInstanceId,
 };

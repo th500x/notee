@@ -1,30 +1,18 @@
 /**
  * 排行榜路由
  * HTTP 映射层：参数解析 + 调用 rankingService，无直接 SQL。
- *
- * @see docs/30-frontend/32-3-ANNOUNCEMENTS.md §4（活动榜）
- * @see docs/10-core-system/18-4-RANKING_SYSTEM.md（常驻榜 overall / campaign）
- * @see docs/00-base/01-database-split/60-tables-other.md §6 temp_event_ranking
  */
 
 const express = require('express');
 const router = express.Router();
 const rankingService = require('../services/rankingService');
 const { wrap500 } = require('../utils/httpError');
+const { validateParams, validateQuery } = require('../middleware/validation');
+const rankingSchemas = require('../middleware/validationSchemas/rankings');
 
-/**
- * GET /api/rankings/overall
- * 常驻 · 总体排名（场均战后分，同服）
- *
- * Query: serverId（可选，缺省且带 playerId 时由 accounts 反查）, limit, playerId,
- *   sort（可选：avg | wins | reputation | events | badges；后两者均按道具 item_season_badge 持有量排序，默认 avg）
- */
-router.get('/overall', async (req, res, next) => {
+router.get('/overall', validateQuery(rankingSchemas.overallQuery), async (req, res, next) => {
   try {
-    const limit = req.query.limit;
-    const playerId = req.query.playerId || null;
-    const serverId = req.query.serverId || null;
-    const sort = req.query.sort || null;
+    const { limit, playerId, serverId, sort } = req.query;
     const data = await rankingService.getOverallRankings({ limit, playerId, serverId, sort });
     res.json({ success: true, data });
   } catch (error) {
@@ -37,18 +25,9 @@ router.get('/overall', async (req, res, next) => {
   }
 });
 
-/**
- * GET /api/rankings/campaign
- * 常驻 · 单场战役最高分榜（同服）
- *
- * Query: campaignId（必填）, serverId（可选）, limit, playerId
- */
-router.get('/campaign', async (req, res, next) => {
+router.get('/campaign', validateQuery(rankingSchemas.campaignQuery), async (req, res, next) => {
   try {
-    const campaignId = req.query.campaignId || '';
-    const limit = req.query.limit;
-    const playerId = req.query.playerId || null;
-    const serverId = req.query.serverId || null;
+    const { campaignId, limit, playerId, serverId } = req.query;
     const data = await rankingService.getCampaignRankings({
       campaignId,
       limit,
@@ -67,24 +46,20 @@ router.get('/campaign', async (req, res, next) => {
   }
 });
 
-/**
- * GET /api/rankings/:eventId
- * 活动排行榜（须注册在 overall / campaign 之后）
- *
- * Query: ?limit=10&playerId=p001
- */
-router.get('/:eventId', async (req, res, next) => {
-  try {
-    const { eventId } = req.params;
-    const limit = req.query.limit;
-    const playerId = req.query.playerId || null;
-
-    const data = await rankingService.getRankings(eventId, { limit, playerId });
-
-    res.json({ success: true, data });
-  } catch (error) {
-    return next(wrap500(error, '获取排行榜失败'));
-  }
-});
+router.get(
+  '/:eventId',
+  validateParams(rankingSchemas.eventIdParam),
+  validateQuery(rankingSchemas.eventRankingsQuery),
+  async (req, res, next) => {
+    try {
+      const { eventId } = req.params;
+      const { limit, playerId } = req.query;
+      const data = await rankingService.getRankings(eventId, { limit, playerId });
+      res.json({ success: true, data });
+    } catch (error) {
+      return next(wrap500(error, '获取排行榜失败'));
+    }
+  },
+);
 
 module.exports = router;

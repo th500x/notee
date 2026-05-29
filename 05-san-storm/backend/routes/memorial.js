@@ -13,6 +13,8 @@ const { pool } = require('../database/connection');
 const { putPngBuffer } = require('../utils/ossMemorial');
 const { requireAuth } = require('../middleware/auth');
 const { wrap500 } = require('../utils/httpError');
+const { validateBody, validateParams, validateQuery } = require('../middleware/validation');
+const memorialSchemas = require('../middleware/validationSchemas/memorial');
 
 const router = express.Router();
 
@@ -80,12 +82,9 @@ function formatMemorialTodayRecord(row) {
   };
 }
 
-router.get('/battle/quota', async (req, res, next) => {
+router.get('/battle/quota', validateQuery(memorialSchemas.playerIdQuery), async (req, res, next) => {
   try {
     const { playerId } = req.query;
-    if (!playerId) {
-      return res.status(400).json({ success: false, error: '缺少 playerId' });
-    }
     const today = await getTodayBattleMemorial(playerId);
     const used = Boolean(today);
     const isUnlimitedTester = isMemorialUnlimitedTester(playerId);
@@ -108,12 +107,9 @@ router.get('/battle/quota', async (req, res, next) => {
  * 代理下载：前端对 OSS 直链 fetch 会触发 CORS，改为同源请求本接口，由服务端拉取 OSS 再流式返回。
  * GET /api/memorial/battle/download?playerId=&id=（memorial_images.id）
  */
-router.get('/battle/download', async (req, res, next) => {
+router.get('/battle/download', validateQuery(memorialSchemas.battleDownloadQuery), async (req, res, next) => {
   try {
     const { playerId, id } = req.query;
-    if (!playerId || id == null || String(id).trim() === '') {
-      return res.status(400).json({ success: false, error: '缺少 playerId 或 id' });
-    }
     const [rows] = await pool.query(
       `SELECT id, image_url FROM memorial_images
         WHERE id = ? AND player_id = ? AND image_type = 'battle'
@@ -172,12 +168,9 @@ router.get('/battle/download', async (req, res, next) => {
   }
 });
 
-router.post('/battle', async (req, res, next) => {
+router.post('/battle', validateBody(memorialSchemas.battleMemorialBody), async (req, res, next) => {
   try {
     const { playerId, battleId, imageBase64 } = req.body || {};
-    if (!playerId || !battleId || !imageBase64) {
-      return res.status(400).json({ success: false, error: '缺少必填字段 playerId/battleId/imageBase64' });
-    }
 
     const isUnlimitedTester = isMemorialUnlimitedTester(playerId);
     const today = await getTodayBattleMemorial(playerId);
@@ -300,12 +293,9 @@ router.get('/illus-battle-list', async (req, res, next) => {
  * 兼容旧数据：早期 image_url 指向本地 /api/memorial/file/xxx 时仍可访问。
  * 新记录均为 OSS HTTPS 直链，不再写入本地。
  */
-router.get('/file/:filename', async (req, res, next) => {
+router.get('/file/:filename', validateParams(memorialSchemas.memorialFilenameParam), async (req, res, next) => {
   try {
     const file = String(req.params.filename || '');
-    if (!/^[a-zA-Z0-9._-]+\.png$/.test(file)) {
-      return res.status(400).json({ success: false, error: '非法文件名' });
-    }
     const absPath = path.join(MEMORIAL_ROOT, file);
     return res.sendFile(absPath);
   } catch (error) {
