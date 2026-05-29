@@ -1,18 +1,9 @@
 /**
- * 战术图玩家单位兵力：上限须来自 config_troops.max_troops（+ bonus_max_troops），
- * 禁止按稀有度套默认模板，禁止展平到 battleTroops 时被全量配置对象覆盖。
- *
- * 权威顺序：`troops.json`（CSV 流水线）→ 运行时 catalog（API）→ 编组 bundled 字段（仅兜底）。
+ * 战术图玩家单位兵力：上限来自 GET /config/troops（+ bonus_max_troops），
+ * 展平到 battleTroops 时剥离 troop 上的 maxTroops，避免 `...tr` 覆盖正确值。
  *
  * @see docs/20-data-layer/22-1-TROOP_SYSTEM.md §4.1
  */
-
-import troopsCatalog from '../../public/data/shared/troops.json';
-
-const STATIC_TROOP_BY_ID = Object.create(null);
-for (const row of troopsCatalog.troops || []) {
-  if (row?.id) STATIC_TROOP_BY_ID[row.id] = row;
-}
 
 function normalizeConfigTroopId(raw) {
   if (raw == null || raw === '') return '';
@@ -23,7 +14,7 @@ function normalizeConfigTroopId(raw) {
 }
 
 /**
- * @param {object|null|undefined} unit `buildPlayerUnitsFromContext` 产出
+ * @param {object|null|undefined} unit
  * @param {string|null|undefined} [cardId]
  */
 export function resolveTroopConfigId(unit, cardId) {
@@ -35,38 +26,12 @@ export function resolveTroopConfigId(unit, cardId) {
 }
 
 /**
- * @param {string|null|undefined} troopId
- * @param {Record<string, { maxTroops?: number }>|null|undefined} [catalogById]
- */
-export function lookupTroopBaseMaxTroops(troopId, catalogById) {
-  const id = normalizeConfigTroopId(troopId);
-  if (!id) return 0;
-  const staticMax = Math.round(Number(STATIC_TROOP_BY_ID[id]?.maxTroops) || 0);
-  if (staticMax > 0) return staticMax;
-  if (catalogById && catalogById[id]) {
-    return Math.round(Number(catalogById[id].maxTroops) || 0);
-  }
-  return 0;
-}
-
-/**
- * 合并静态 JSON 与 API 列表；兵力上限以 JSON 为准（避免库表未同步仍显示 core 默认 520）。
- * @param {Array<{ id?: string, maxTroops?: number }>} [apiTroops]
+ * @param {Array<{ id?: string, maxTroops?: number }>} [apiTroops] useBattleMap 的 allTroops（须全量，勿用敌方过滤池）
  */
 export function buildTroopCatalogById(apiTroops) {
   const map = Object.create(null);
-  for (const id of Object.keys(STATIC_TROOP_BY_ID)) {
-    map[id] = STATIC_TROOP_BY_ID[id];
-  }
   for (const t of apiTroops || []) {
-    if (!t?.id) continue;
-    const staticRow = STATIC_TROOP_BY_ID[t.id];
-    const staticMax = staticRow ? Math.round(Number(staticRow.maxTroops) || 0) : 0;
-    map[t.id] = {
-      ...(staticRow || {}),
-      ...t,
-      maxTroops: staticMax > 0 ? staticMax : Math.round(Number(t.maxTroops) || 0),
-    };
+    if (t?.id) map[t.id] = t;
   }
   return map;
 }
@@ -80,7 +45,10 @@ export function resolveBattleTroopCaps(unit, catalogById) {
   const bonus = Math.max(0, Math.round(Number(unit?.bonus_max_troops) || 0));
   const troopId = resolveTroopConfigId(unit, unit?.card_id);
 
-  let base = lookupTroopBaseMaxTroops(troopId, catalogById);
+  let base = 0;
+  if (troopId && catalogById && catalogById[troopId]) {
+    base = Math.round(Number(catalogById[troopId].maxTroops) || 0);
+  }
   if (base <= 0) {
     const troop = unit?.troop && typeof unit.troop === 'object' ? unit.troop : {};
     const bundled = Math.round(Number(unit.maxTroops ?? troop.maxTroops ?? troop.max_troops) || 0);

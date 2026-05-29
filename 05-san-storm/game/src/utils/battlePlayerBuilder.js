@@ -19,24 +19,19 @@ import {
   getPositionCombatBonusesFromPlayer,
 } from '@/utils/positionCombatBonuses';
 import { attachTroopAffinityToCharacter } from '@/utils/troopAffinityCombat';
-import { lookupTroopBaseMaxTroops } from '@shared/utils/resolveTroopBattleCaps';
 
 function buildTroopUnit(troopCard, charData, morale, phase1Bundle) {
   const cfg = troopCard.config || {};
-  const troopConfigId = cfg.id || troopCard.card_id;
   const vetMult = 1 + (Number(troopCard.veteran_bonus_pct) || 0) / 100;
   const baseRange = cfg.range || 1;
   const rangeBonus = phase1Bundle ? phase1RangeBonusForTroopType(phase1Bundle, cfg.troopType) : 0;
   const dmgMult = phase1Bundle ? phase1TroopTypeDamageMult(phase1Bundle, cfg.troopType) : 1;
   const bonusMax = Math.max(0, Math.round(Number(troopCard.bonus_max_troops) || 0));
-  let baseMax = lookupTroopBaseMaxTroops(troopConfigId, null);
-  if (baseMax <= 0) {
-    baseMax = Math.max(0, Math.round(Number(cfg.maxTroops ?? cfg.max_troops) || 0));
-  }
+  const baseMax = Math.max(0, Math.round(Number(cfg.maxTroops ?? cfg.max_troops) || 0));
   const maxTroops = baseMax + bonusMax;
   return {
     troop: {
-      id: troopConfigId,
+      id: cfg.id || troopCard.card_id,
       instanceId: troopCard.instance_id,
       name: cfg.name || troopCard.card_id,
       rarity: cfg.rarity || troopCard.rarity || 'common',
