@@ -109,6 +109,15 @@ const v = {
     return (val, name) => (val === value ? null : `${name} 必须为 ${JSON.stringify(value)}`);
   },
 
+  /** `null` 或普通对象（非数组）；用于 `sessionLock: null` 清空锁。 */
+  nullableObject() {
+    return (val, name) => {
+      if (val === null) return null;
+      if (typeof val === 'object' && !Array.isArray(val)) return null;
+      return `${name} 须为对象或 null`;
+    };
+  },
+
   /**
    * 数组（含长度与可选元素校验）。元素校验失败时字段名形如 `path[2].x`。
    * @param {{ minLength?: number, maxLength?: number, itemValidator?: FieldValidator }} [opts]
