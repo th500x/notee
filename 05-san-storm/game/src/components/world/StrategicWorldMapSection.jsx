@@ -27,6 +27,7 @@ import { API_CONFIG } from '@/constants';
 import { fetchWithTimeout } from '@/services/httpClient';
 import { useStrategicMapNavigation } from '@/contexts/StrategicMapNavigationContext';
 import { playerAPI } from '@/services/playerApi';
+import { createRoadClientRequestId } from '@/utils/roadClientRequestId';
 import { warAPI } from '@/services/warApi';
 import {
   buildMarchPath,
@@ -1405,6 +1406,7 @@ export default function StrategicWorldMapSection({
         encounterHint,
         targetPoiId: tid,
         poiTargetName: poiTargetName || null,
+        clientRequestId: createRoadClientRequestId('move'),
       });
     },
     [
@@ -1443,9 +1445,7 @@ export default function StrategicWorldMapSection({
     setMarchSubmitError('');
     try {
       const clientRequestId =
-        typeof crypto !== 'undefined' && crypto.randomUUID
-          ? crypto.randomUUID()
-          : `march_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+        marchConfirm.clientRequestId || createRoadClientRequestId('move');
       const body = {
         season: countySeason,
         junId: playerMarchJunId,

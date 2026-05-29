@@ -6,6 +6,7 @@
 
 import { useState, useCallback, useSyncExternalStore, useRef, useEffect } from 'react';
 import { playerAPI } from '@/services/playerApi';
+import { createRoadClientRequestId } from '@/utils/roadClientRequestId';
 
 const BASE = typeof import.meta !== 'undefined' && import.meta.env?.BASE_URL ? import.meta.env.BASE_URL : '/';
 
@@ -98,6 +99,7 @@ export default function StrategicMapSelfPawn({
   const [showActionPopover, setShowActionPopover] = useState(false);
   /** `null` | `'enable'` | `'disable'`：道路开战扣银确认 / 休战确认 */
   const [interceptPanel, setInterceptPanel] = useState(null);
+  const [interceptClientRequestId, setInterceptClientRequestId] = useState(null);
   const [interceptBusy, setInterceptBusy] = useState(false);
   const [interceptError, setInterceptError] = useState('');
   /** 触摸长按「一键进军」档：与悬停同文案的 tooltip 仅在该档为 true（短按与操作条同显时不单独依赖此项） */
@@ -338,10 +340,7 @@ export default function StrategicMapSelfPawn({
     }
     setInterceptBusy(true);
     setInterceptError('');
-    const rid =
-      typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
-        ? crypto.randomUUID()
-        : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    const rid = interceptClientRequestId || createRoadClientRequestId('intercept');
     try {
       const res = await playerAPI.setRoadIntercept(interceptPlayerId, enable, rid);
       if (!res?.success) {
@@ -356,7 +355,7 @@ export default function StrategicMapSelfPawn({
     } finally {
       setInterceptBusy(false);
     }
-  }, [interceptControlsEnabled, interceptPanel, interceptPlayerId, interceptSilver, onRoadSelfUpdated]);
+  }, [interceptControlsEnabled, interceptPanel, interceptPlayerId, interceptSilver, interceptClientRequestId, onRoadSelfUpdated]);
 
   const silverShort =
     interceptPanel === 'enable' &&
@@ -504,6 +503,7 @@ export default function StrategicMapSelfPawn({
                     onClick={(e) => {
                       e.stopPropagation();
                       setInterceptError('');
+                      setInterceptClientRequestId(createRoadClientRequestId('intercept'));
                       setInterceptPanel(roadIntercept === 1 ? 'disable' : 'enable');
                     }}
                   >

@@ -33,6 +33,9 @@ const {
   toInt,
   buildPlayerRoadSnapshot,
   validatePathShape,
+  matchesMoveRequestId,
+  scopedRoadRequestId,
+  ROAD_REQ_SCOPE,
 } = require('./roadShared');
 const {
   resolveStaleRoadEncountersAtCell,
@@ -228,6 +231,7 @@ async function moveAlongRoad(playerId, body) {
   const inputCheck = validateMoveAlongRoadInput(playerId, body);
   if (!inputCheck.ok) return inputCheck;
   const { pid, season, junId, clientRequestId } = inputCheck;
+  const scopedMoveReqId = scopedRoadRequestId(ROAD_REQ_SCOPE.MOVE, clientRequestId);
 
   const conn = await pool.getConnection();
   try {
@@ -318,7 +322,7 @@ async function moveAlongRoad(playerId, body) {
     }
 
     // 幂等：已处理过同一请求 id → 返回当前快照，不重复扣费 / 移格。
-    if (player.road_last_request_id && player.road_last_request_id === clientRequestId) {
+    if (matchesMoveRequestId(player.road_last_request_id, clientRequestId)) {
       return await commitIdempotentMoveSnapshot(conn, pid, player, clientRequestId, body.path);
     }
 
@@ -675,7 +679,7 @@ async function moveAlongRoad(playerId, body) {
           ) || { junId: String(junId).trim(), gx: axSnap, gy: aySnap };
         await conn.query(
           `UPDATE players SET road_last_request_id = ?, road_jun_id = ?, road_position_x = ?, road_position_y = ?, road_updated_at = NOW() WHERE player_id = ?`,
-          [clientRequestId, snapDest.junId, snapDest.gx, snapDest.gy, pid],
+          [scopedMoveReqId, snapDest.junId, snapDest.gx, snapDest.gy, pid],
         );
         await conn.commit();
         const [finalRowsSnap] = await pool.query(
@@ -705,7 +709,7 @@ async function moveAlongRoad(playerId, body) {
       }
 
       // 等价于原地路径；为避免扣费又告知起点一致，直接视为 noop 幂等成功。
-      await conn.query(`UPDATE players SET road_last_request_id = ? WHERE player_id = ?`, [clientRequestId, pid]);
+      await conn.query(`UPDATE players SET road_last_request_id = ? WHERE player_id = ?`, [scopedMoveReqId, pid]);
       await conn.commit();
       return {
         ok: true,
@@ -1033,7 +1037,7 @@ async function moveAlongRoad(playerId, body) {
         (freeDateStr === todayStr ? (Number(player.road_move_free_used) || 0) : 0) + usedFreeThisMove,
         todayStr,
         (reserveDateStr === todayStr ? (Number(player.road_reserve_used) || 0) : 0) + reserveFoodUse,
-        clientRequestId,
+        scopedMoveReqId,
         pid,
       ],
     );

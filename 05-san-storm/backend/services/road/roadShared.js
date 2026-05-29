@@ -106,6 +106,35 @@ function siegeNpcDisplayNamesRoad(npcs) {
     .filter(Boolean);
 }
 
+/** 道路写操作幂等键前缀（同列 `road_last_request_id`，按操作分域，避免 move/intercept 互相覆盖） */
+const ROAD_REQ_SCOPE = {
+  MOVE: 'move',
+  INTERCEPT: 'intercept',
+};
+
+function scopedRoadRequestId(scope, clientRequestId) {
+  const id = String(clientRequestId || '').trim();
+  if (!id) return '';
+  const prefix = `${scope}:`;
+  return id.startsWith(prefix) ? id : `${prefix}${id}`;
+}
+
+/** move 幂等匹配：新格式 `move:<uuid>`；兼容历史裸 uuid */
+function matchesMoveRequestId(stored, clientRequestId) {
+  const id = String(clientRequestId || '').trim();
+  if (!id || stored == null || stored === '') return false;
+  const s = String(stored);
+  return s === scopedRoadRequestId(ROAD_REQ_SCOPE.MOVE, id) || s === id;
+}
+
+/** intercept 幂等匹配：新格式 `intercept:<uuid>`；兼容历史裸 uuid */
+function matchesInterceptRequestId(stored, clientRequestId) {
+  const id = String(clientRequestId || '').trim();
+  if (!id || stored == null || stored === '') return false;
+  const s = String(stored);
+  return s === scopedRoadRequestId(ROAD_REQ_SCOPE.INTERCEPT, id) || s === id;
+}
+
 module.exports = {
   // 业务常量
   INTERCEPT_COST_SILVER,
@@ -123,4 +152,8 @@ module.exports = {
   validatePathShape,
   sumSiegeNpcStartingTroopsRoad,
   siegeNpcDisplayNamesRoad,
+  ROAD_REQ_SCOPE,
+  scopedRoadRequestId,
+  matchesMoveRequestId,
+  matchesInterceptRequestId,
 };

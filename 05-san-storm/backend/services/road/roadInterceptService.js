@@ -10,7 +10,13 @@
 
 const { pool } = require('../../database/connection');
 const statisticsDeltaService = require('../statisticsDeltaService');
-const { INTERCEPT_COST_SILVER, buildPlayerRoadSnapshot } = require('./roadShared');
+const {
+  INTERCEPT_COST_SILVER,
+  buildPlayerRoadSnapshot,
+  matchesInterceptRequestId,
+  scopedRoadRequestId,
+  ROAD_REQ_SCOPE,
+} = require('./roadShared');
 
 /**
  * @param {string} playerId
@@ -37,11 +43,12 @@ async function setIntercept(playerId, enable, clientRequestId) {
     }
 
     const reqId = clientRequestId ? String(clientRequestId).trim() : '';
-    if (reqId && player.road_last_request_id === reqId) {
+    if (reqId && matchesInterceptRequestId(player.road_last_request_id, reqId)) {
       await conn.commit();
       return { ok: true, data: { ...buildPlayerRoadSnapshot(player), silver: Number(player.silver) || 0, costSilver: 0, idempotent: true } };
     }
 
+    const scopedReqId = reqId ? scopedRoadRequestId(ROAD_REQ_SCOPE.INTERCEPT, reqId) : null;
     const want = enable ? 1 : 0;
     const cur = player.road_intercept ? 1 : 0;
     let cost = 0;
@@ -60,7 +67,7 @@ async function setIntercept(playerId, enable, clientRequestId) {
                 road_updated_at = NOW(),
                 road_last_request_id = ?
           WHERE player_id = ?`,
-        [INTERCEPT_COST_SILVER, reqId || null, pid],
+        [INTERCEPT_COST_SILVER, scopedReqId, pid],
       );
     } else if (want === 0 && cur === 1) {
       await conn.query(
@@ -69,12 +76,12 @@ async function setIntercept(playerId, enable, clientRequestId) {
                 road_updated_at = NOW(),
                 road_last_request_id = ?
           WHERE player_id = ?`,
-        [reqId || null, pid],
+        [scopedReqId, pid],
       );
     } else {
       await conn.query(
         `UPDATE players SET road_last_request_id = ? WHERE player_id = ?`,
-        [reqId || null, pid],
+        [scopedReqId, pid],
       );
     }
 
