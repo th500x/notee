@@ -56,7 +56,7 @@ export function checkFormation(formation, troops, terrain) {
     for (const [type, count] of Object.entries(formation.reqTypes)) {
       const have = troops.filter(t => {
         const wt = t.weaponType || '';
-        const troopType = wt.split('_')[0] || '';
+        const troopType = t.troopType || wt.split('_')[0] || '';
         return troopType === type;
       }).length;
       if (have < count) return { ok: false, reason: `需要${count}支${type}` };

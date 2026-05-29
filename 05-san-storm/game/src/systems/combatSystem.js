@@ -295,6 +295,9 @@ export function calcDamage(atk, def, terrain, options = {}) {
     totalDmg *= (1 + posBonusVal);
   }
 
+  // 10.5 将领兵种适性（与 estimateDamage / siegeCombatCore 一致；22-1 §5）
+  totalDmg *= getTroopAffinityOutgoingDamageMult(ac, atkType);
+
   // 11. 弓兵近战惩罚：弓兵攻击相邻格目标时，总伤害×ARCHER_MELEE_DAMAGE_MULT
   if (atkType === 'archer') {
     const dist = Math.abs(atk.y - def.y) + Math.abs(atk.x - def.x);

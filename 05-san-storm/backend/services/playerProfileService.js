@@ -171,7 +171,7 @@ async function getPlayerProfile(playerId) {
       `
         SELECT troop_id, troop_name, troop_type, weapon_type,
                rarity, attack, defense, speed, movement, \`range\` AS troop_range,
-               max_troops, special_ability, description
+               max_troops, troop_weight, special_ability, description
         FROM config_troops
         WHERE troop_id IN (${placeholders})
       `,
