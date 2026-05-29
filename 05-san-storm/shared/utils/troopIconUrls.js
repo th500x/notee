@@ -5,9 +5,30 @@
  * - **战役大地图格**：`san_1_battle/{ally1|ally2|…}/` → `getCampaignMapTroopPortraitUrlAttempts`。
  *
  * 专属 `{配置ID}.png` 优先于 `troop_r{1-4}_{weapon}.png` 当且仅当：稀有度 **core**，或 **北疆 8xxx / 众生 9xxx**（`_troop_` 后数字首位为 8 或 9）。无同名 PNG 时回退稀有度通用图（卡面 `san_1_ui_card/troop/`、战斗瓦片 `san_1_battle/{player|enemy|ally…}/` 共用本判定）。
+ *
+ * 部队元数据（稀有度 / 兵种 / 武器）由应用层注入，避免 shared 硬绑 `public/data` 路径：
+ *   `configureTroopIconMetaCatalog(troopsCatalog)` — 见 `game/src/bootstrap/troopIconUrlsCatalog.js`。
  */
 
-import troopsCatalog from '../../public/data/shared/troops.json';
+/** @type {Map<string, object>} */
+let troopMetaById = new Map();
+
+/**
+ * 注入部队配置目录（`troops.json` 或 `{ troops: [...] }`）；可重复调用以热更新。
+ * @param {{ troops?: object[] }|object[]} catalog
+ */
+export function configureTroopIconMetaCatalog(catalog) {
+  const troops = Array.isArray(catalog) ? catalog : catalog?.troops ?? [];
+  troopMetaById = new Map(
+    troops.filter((t) => t && t.id).map((t) => [String(t.id), t]),
+  );
+}
+
+/** @param {string} id */
+export function getTroopIconMetaById(id) {
+  if (!id) return null;
+  return troopMetaById.get(String(id)) ?? null;
+}
 
 const RARITY_UI_PREFIX = {
   common: 'r1',
@@ -16,8 +37,6 @@ const RARITY_UI_PREFIX = {
   legendary: 'r4',
   core: 'r4',
 };
-
-const troopMetaById = new Map((troopsCatalog.troops || []).map((t) => [t.id, t]));
 
 /**
  * 与 `battleConstants` 中地图素材一致：保证以「应用根」为基准，避免 SPA 子路由（如 `/campaign-map-demo`）下
@@ -180,7 +199,7 @@ export function getBattleFieldTroopPortraitUrlAttempts(troop, baseUrl = '') {
  */
 export function getCampaignMapTroopPortraitUrlAttempts(troopId, baseUrl = '', faction = 'enemy') {
   const id = normalizeTroopAssetId(troopId);
-  const meta = id ? troopMetaById.get(id) : null;
+  const meta = getTroopIconMetaById(id);
   const stub = meta
     ? {
         id: meta.id,

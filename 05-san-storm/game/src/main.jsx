@@ -6,6 +6,7 @@
 
 import React from 'react';
 import ReactDOM from 'react-dom/client';
+import './bootstrap/troopIconUrlsCatalog.js';
 import App from './App.jsx';
 import './styles/index.css';
 
