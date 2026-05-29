@@ -34,16 +34,16 @@ export default function LineupCardDetailOverlay({
   const baseUrl = import.meta.env.BASE_URL;
   const isTroopSlot = slot.id === 'troop' || slot.id === 'troop1' || slot.id === 'troop2';
   const isTitleSlot = slot.id === 'title';
-  const isEquipmentSetSlot = slot.id === 'equipmentSet' && card?.card_type === 'equipmentSet';
+  const isEquipmentSetSlot = slot.id === 'equipmentSet' && card?.cardType === 'equipmentSet';
   const isPositionSlot = slot.id === 'position';
   const isCharacterSlot = slot.id === 'character';
 
   const equipmentCards = useMemo(
-    () => allCards.filter((c) => c.card_type === 'equipment'),
+    () => allCards.filter((c) => c.cardType === 'equipment'),
     [allCards]
   );
   const resolveEquipPiece = (instanceId) =>
-    equipmentCards.find((c) => c.instance_id === instanceId) || null;
+    equipmentCards.find((c) => c.instanceId === instanceId) || null;
 
   const characterCardPayload = isCharacterSlot ? toCharCardData(card, {}, skillsMap) : null;
   const lifeStageForChar =

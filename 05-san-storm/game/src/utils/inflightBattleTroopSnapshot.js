@@ -15,9 +15,7 @@ const STORAGE_KEY = 'san_inflight_battle_troops_v1';
 function troopBattleInstanceId(t) {
   if (!t) return null;
   if (t.instanceId != null && String(t.instanceId).trim() !== '') return String(t.instanceId);
-  if (t.instance_id != null && String(t.instance_id).trim() !== '') return String(t.instance_id);
   if (t.troop?.instanceId != null && String(t.troop.instanceId).trim() !== '') return String(t.troop.instanceId);
-  if (t.troop?.instance_id != null && String(t.troop.instance_id).trim() !== '') return String(t.troop.instance_id);
   return null;
 }
 
@@ -114,9 +112,7 @@ export function applyInflightTroopSnapshotToBuiltUnits(playerId, units) {
     const id =
       u?.troop?.instanceId != null
         ? String(u.troop.instanceId)
-        : u?.troop?.instance_id != null
-          ? String(u.troop.instance_id)
-          : '';
+        : '';
     if (!id || !map.has(id)) return u;
     const snap = map.get(id);
     const max = Math.max(0, Math.round(Number(u.maxTroops) || 0));

@@ -51,10 +51,10 @@ export default function GamePage({ user, onLogout }) {
 
 function GamePageInner({ onLogout, accountId }) {
   const { player, refresh } = usePlayerContext();
-  const playerId = player?.player_id;
+  const playerId = player?.playerId;
   const factionBulletinUnread = useFactionBulletinUnread(playerId);
   /** 与创角清 localStorage 的 id 一致；profile 加载前即可决定是否展示特色介绍 */
-  const gameIntroStorageId = accountId || player?.player_id;
+  const gameIntroStorageId = accountId || player?.playerId;
 
   const [activeTab, setActiveTab] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -254,7 +254,7 @@ function GamePageInner({ onLogout, accountId }) {
         <KingEdictPanel
           visible={activeTab === null && !eventBusy}
           playerId={playerId}
-          factionId={player?.faction_id}
+          factionId={player?.factionId}
         />
         <StandingRankingsPanel visible={activeTab === null && !eventBusy} playerId={playerId} />
         <CommPanel visible={activeTab === null && !eventBusy} />
@@ -270,7 +270,7 @@ function GamePageInner({ onLogout, accountId }) {
             drawResult={cardPool.drawResult}
             error={cardPool.error}
             skillsMap={skillsMap}
-            factionId={player?.faction_id}
+            factionId={player?.factionId}
             playerSilver={player?.silver}
             onDraw={async () => {
               await cardPool.draw(openPool);
@@ -287,7 +287,7 @@ function GamePageInner({ onLogout, accountId }) {
         <Suspense fallback={null}>
           <AttrRerollDrawer
             playerId={playerId}
-            playerName={player?.character_name}
+            playerName={player?.characterName}
             skillsMap={skillsMap}
             onClose={() => {
               setOpenReroll(false);

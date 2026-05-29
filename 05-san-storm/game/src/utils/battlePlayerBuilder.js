@@ -22,18 +22,18 @@ import { attachTroopAffinityToCharacter } from '@/utils/troopAffinityCombat';
 
 function buildTroopUnit(troopCard, charData, morale, phase1Bundle) {
   const cfg = troopCard.config || {};
-  const vetMult = 1 + (Number(troopCard.veteran_bonus_pct) || 0) / 100;
+  const vetMult = 1 + (Number(troopCard.veteranBonusPct) || 0) / 100;
   const baseRange = cfg.range || 1;
   const rangeBonus = phase1Bundle ? phase1RangeBonusForTroopType(phase1Bundle, cfg.troopType) : 0;
   const dmgMult = phase1Bundle ? phase1TroopTypeDamageMult(phase1Bundle, cfg.troopType) : 1;
-  const bonusMax = Math.max(0, Math.round(Number(troopCard.bonus_max_troops) || 0));
+  const bonusMax = Math.max(0, Math.round(Number(troopCard.bonusMaxTroops) || 0));
   const baseMax = Math.max(0, Math.round(Number(cfg.maxTroops ?? cfg.max_troops) || 0));
   const maxTroops = baseMax + bonusMax;
   return {
     troop: {
-      id: cfg.id || troopCard.card_id,
-      instanceId: troopCard.instance_id,
-      name: cfg.name || troopCard.card_id,
+      id: cfg.id || troopCard.cardId,
+      instanceId: troopCard.instanceId,
+      name: cfg.name || troopCard.cardId,
       rarity: cfg.rarity || troopCard.rarity || 'common',
       troopType: cfg.troopType,
       weaponType: cfg.weaponType,
@@ -44,8 +44,8 @@ function buildTroopUnit(troopCard, charData, morale, phase1Bundle) {
       range: Math.max(1, baseRange + rangeBonus),
       maxTroops,
       troopWeight: cfg.troopWeight || 1,
-      battleCount: troopCard.battle_count ?? 0,
-      maxBattleCount: troopCard.max_battle_count ?? 25,
+      battleCount: troopCard.battleCount ?? 0,
+      maxBattleCount: troopCard.maxBattleCount ?? 25,
       skills: cfg.skills || [],
       phase1OutgoingDamageMult: dmgMult,
       infantryCounter: cfg.infantryCounter ?? 1,
@@ -59,7 +59,7 @@ function buildTroopUnit(troopCard, charData, morale, phase1Bundle) {
     },
     character: charData,
     bonus_max_troops: bonusMax,
-    currentTroops: troopCard.current_troops ?? maxTroops,
+    currentTroops: troopCard.currentTroops ?? maxTroops,
     maxTroops,
     morale: morale ?? 70,
   };
@@ -88,14 +88,14 @@ export function buildPlayerUnitsFromContext(player, cards, attributeBonusBySlot 
   const char2Bonus = attributeBonusBySlot?.character2 || {};
   const withBonus = (base, bonus10) => Number(base || 0) + (Number(bonus10 || 0) / 10);
 
-  const playerSkillIds = resolveBattleSkillIds([player?.skill_1, player?.skill_2].filter(Boolean));
+  const playerSkillIds = resolveBattleSkillIds([player?.skill1, player?.skill2].filter(Boolean));
   const playerPhase1 = buildPhase1BundleFromSkillIds(playerSkillIds, skillsMap);
 
-  const playerTroop = cards.find(c => c.card_type === 'troop' && c.is_equipped && c.equipped_by === 'player' && c.equipped_slot === 'troop');
+  const playerTroop = cards.find(c => c.cardType === 'troop' && c.isEquipped && c.equippedBy === 'player' && c.equippedSlot === 'troop');
   if (playerTroop) {
     const { character: charData, phase1Bundle } = buildCommanderCharData({
-      name: player.character_name,
-      courtesyName: player.character_name,
+      name: player.characterName,
+      courtesyName: player.characterName,
       combat: withBonus(player.combat / 10, playerBonus.combat),
       command: withBonus(player.command / 10, playerBonus.command),
       intelligence: withBonus(player.intelligence / 10, playerBonus.intelligence),
@@ -106,17 +106,17 @@ export function buildPlayerUnitsFromContext(player, cards, attributeBonusBySlot 
       traitModifier: 0,
     }, skillsMap, playerSkillIds);
     units.push({
-      ...buildTroopUnit(playerTroop, withCombatCharacter(charData, player.troop_affinity), player.morale ?? 70, phase1Bundle ?? playerPhase1),
+      ...buildTroopUnit(playerTroop, withCombatCharacter(charData, player.troopAffinity), player.morale ?? 70, phase1Bundle ?? playerPhase1),
       lineupSlot: 'player',
     });
   }
 
-  const char1Card = cards.find(c => c.card_type === 'character' && c.is_equipped && c.equipped_by === 'character1' && c.equipped_slot === 'character');
-  const char1Troops = cards.filter(c => c.card_type === 'troop' && c.is_equipped && c.equipped_by === 'character1');
+  const char1Card = cards.find(c => c.cardType === 'character' && c.isEquipped && c.equippedBy === 'character1' && c.equippedSlot === 'character');
+  const char1Troops = cards.filter(c => c.cardType === 'troop' && c.isEquipped && c.equippedBy === 'character1');
   if (char1Card && char1Troops.length > 0) {
     const cfg = char1Card.config || {};
     const { character: charData, phase1Bundle } = buildCommanderCharData({
-      name: cfg.name || char1Card.card_id, courtesyName: cfg.name || char1Card.card_id,
+      name: cfg.name || char1Card.cardId, courtesyName: cfg.name || char1Card.cardId,
       combat: withBonus(cfg.combat || 5, char1Bonus.combat),
       command: withBonus(cfg.command || 5, char1Bonus.command),
       intelligence: withBonus(cfg.intelligence || 5, char1Bonus.intelligence),
@@ -134,12 +134,12 @@ export function buildPlayerUnitsFromContext(player, cards, attributeBonusBySlot 
     }
   }
 
-  const char2Card = cards.find(c => c.card_type === 'character' && c.is_equipped && c.equipped_by === 'character2' && c.equipped_slot === 'character');
-  const char2Troops = cards.filter(c => c.card_type === 'troop' && c.is_equipped && c.equipped_by === 'character2');
+  const char2Card = cards.find(c => c.cardType === 'character' && c.isEquipped && c.equippedBy === 'character2' && c.equippedSlot === 'character');
+  const char2Troops = cards.filter(c => c.cardType === 'troop' && c.isEquipped && c.equippedBy === 'character2');
   if (char2Card && char2Troops.length > 0) {
     const cfg = char2Card.config || {};
     const { character: charData, phase1Bundle } = buildCommanderCharData({
-      name: cfg.name || char2Card.card_id, courtesyName: cfg.name || char2Card.card_id,
+      name: cfg.name || char2Card.cardId, courtesyName: cfg.name || char2Card.cardId,
       combat: withBonus(cfg.combat || 5, char2Bonus.combat),
       command: withBonus(cfg.command || 5, char2Bonus.command),
       intelligence: withBonus(cfg.intelligence || 5, char2Bonus.intelligence),
@@ -163,8 +163,8 @@ export function buildPlayerUnitsFromContext(player, cards, attributeBonusBySlot 
       .filter(Boolean),
   );
   const { character: playerCommander, phase1Bundle: commanderPhase1 } = buildCommanderCharData({
-    name: player.character_name,
-    courtesyName: player.character_name,
+    name: player.characterName,
+    courtesyName: player.characterName,
     combat: withBonus(player.combat / 10, playerBonus.combat),
     command: withBonus(player.command / 10, playerBonus.command),
     intelligence: withBonus(player.intelligence / 10, playerBonus.intelligence),
@@ -175,15 +175,15 @@ export function buildPlayerUnitsFromContext(player, cards, attributeBonusBySlot 
     traitModifier: 0,
   }, skillsMap, playerSkillIds);
   for (const c of cards) {
-    if (c.card_type !== 'troop' || !c.is_equipped) continue;
-    const tid = c.instance_id != null ? String(c.instance_id) : '';
+    if (c.cardType !== 'troop' || !c.isEquipped) continue;
+    const tid = c.instanceId != null ? String(c.instanceId) : '';
     if (tid && usedTroopIds.has(tid)) continue;
     if (tid) usedTroopIds.add(tid);
     units.push({
-      ...buildTroopUnit(c, withCombatCharacter(playerCommander, player.troop_affinity), player.morale ?? 70, commanderPhase1 ?? playerPhase1),
+      ...buildTroopUnit(c, withCombatCharacter(playerCommander, player.troopAffinity), player.morale ?? 70, commanderPhase1 ?? playerPhase1),
       lineupSlot: 'player',
     });
   }
 
-  return applyInflightTroopSnapshotToBuiltUnits(player?.player_id ?? player?.playerId, units);
+  return applyInflightTroopSnapshotToBuiltUnits(player?.playerId, units);
 }

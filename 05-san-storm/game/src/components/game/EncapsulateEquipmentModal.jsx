@@ -81,7 +81,7 @@ const rarityColor = {
 /** 装备件摘要：固定展示 6 项（勇智/武政/统魅），不显示运气 */
 function getEquipmentSlotMini(card) {
   const cfg = card?.config || {};
-  const name = cfg.equipmentName || card?.card_id || '—';
+  const name = cfg.equipmentName || card?.cardId || '—';
   const rarity = cfg.rarity || card?.rarity || 'common';
   const effect = cfg.specialEffectDesc || '';
   const defs = [
@@ -119,8 +119,8 @@ function equipmentCardToTitleListItem(card) {
     }
   }
   return {
-    id: cfg.equipmentId || card.card_id,
-    name: cfg.equipmentName || card.card_id,
+    id: cfg.equipmentId || card.cardId,
+    name: cfg.equipmentName || card.cardId,
     rarity: cfg.rarity || card.rarity || 'common',
     attributeBonus,
     specialEffectDesc: cfg.specialEffectDesc || undefined,
@@ -178,7 +178,7 @@ function EncapsulatePickDrawer({ open, headerTitle, categoryLabel, cards, busy, 
                 <div className="flex flex-wrap gap-2">
                   {grouped[rarity].map((card) => (
                     <div
-                      key={card.instance_id}
+                      key={card.instanceId}
                       role="button"
                       tabIndex={0}
                       onClick={() => !busy && onPick(card)}
@@ -291,8 +291,8 @@ function toEquipmentCardData(card) {
     .filter((k) => cfg[`${k}Bonus`])
     .map((k) => ({ key: k, value: cfg[`${k}Bonus`] }));
   return {
-    id: cfg.equipmentId || card.card_id,
-    name: cfg.equipmentName || card.card_id,
+    id: cfg.equipmentId || card.cardId,
+    name: cfg.equipmentName || card.cardId,
     rarity: cfg.rarity || card.rarity || 'common',
     equipmentType: cfg.equipmentType || 'weapon',
     bonus,
@@ -433,7 +433,7 @@ export default function EncapsulateEquipmentModal({
   const resolveCard = useCallback(
     (instanceId) => {
       if (!instanceId) return null;
-      return equipmentCards.find((c) => c.instance_id === instanceId) || null;
+      return equipmentCards.find((c) => c.instanceId === instanceId) || null;
     },
     [equipmentCards]
   );
@@ -499,7 +499,7 @@ export default function EncapsulateEquipmentModal({
       setBusy(true);
       setApiErr(null);
       try {
-        const r = await playerAPI.assignEquipmentSetSlot(playerId, draftId, selectedId, card.instance_id);
+        const r = await playerAPI.assignEquipmentSetSlot(playerId, draftId, selectedId, card.instanceId);
         if (!r.success) {
           setApiErr(r.error || '装配失败');
           return;
@@ -593,8 +593,8 @@ export default function EncapsulateEquipmentModal({
     );
     return equipmentCards.filter((c) => {
       if ((c.config?.equipmentType || 'weapon') !== t) return false;
-      if (placed.has(c.instance_id)) return false;
-      const b = c.bound_equipment_set_instance_id;
+      if (placed.has(c.instanceId)) return false;
+      const b = c.boundEquipmentSetInstanceId;
       if (b && b !== draftId) return false;
       return true;
     });

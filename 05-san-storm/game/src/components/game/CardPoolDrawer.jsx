@@ -46,8 +46,8 @@ export default function CardPoolDrawer({
     const want = poolType === 'troop' ? 'troop' : 'character';
     const s = new Set();
     for (const c of inventoryCards) {
-      if (c.card_type === want && c.card_id != null && String(c.card_id).length > 0) {
-        s.add(String(c.card_id));
+      if (c.cardType === want && c.cardId != null && String(c.cardId).length > 0) {
+        s.add(String(c.cardId));
       }
     }
     return s;

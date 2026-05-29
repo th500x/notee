@@ -22,8 +22,8 @@ import {
 export function toCharCardData(card, attributeBonus = {}, skillsMap = null) {
   const cfg = card.config || {};
   let out = {
-    id: cfg.id || card.card_id,
-    name: cfg.name || card.card_id,
+    id: cfg.id || card.cardId,
+    name: cfg.name || card.cardId,
     rarity: cfg.rarity || card.rarity || 'common',
     stage: cfg.stage,
     luck: cfg.luck,
@@ -58,8 +58,8 @@ export function toCharCardData(card, attributeBonus = {}, skillsMap = null) {
 export function toTroopCardData(card) {
   const cfg = card.config || {};
   return {
-    id: cfg.id || card.card_id,
-    name: cfg.name || card.card_id,
+    id: cfg.id || card.cardId,
+    name: cfg.name || card.cardId,
     rarity: cfg.rarity || card.rarity,
     troopType: cfg.troopType,
     weaponType: cfg.weaponType,
@@ -69,12 +69,12 @@ export function toTroopCardData(card) {
     speed: cfg.speed,
     movement: cfg.movement,
     range: cfg.range,
-    maxTroops: (cfg.maxTroops || 0) + (card.bonus_max_troops || 0),
-    currentTroops: card.current_troops,
+    maxTroops: (cfg.maxTroops || 0) + (card.bonusMaxTroops || 0),
+    currentTroops: card.currentTroops,
     skills: cfg.skills || [],
     description: cfg.description,
-    battleCount: card.battle_count ?? 0,
-    maxBattleCount: card.max_battle_count ?? 10,
+    battleCount: card.battleCount ?? 0,
+    maxBattleCount: card.maxBattleCount ?? 10,
     infantryCounter: cfg.infantryCounter,
     cavalryCounter: cfg.cavalryCounter,
     archerCounter: cfg.archerCounter,
@@ -83,8 +83,8 @@ export function toTroopCardData(card) {
     hillAdapt: cfg.hillAdapt,
     forestAdapt: cfg.forestAdapt,
     siegeAdapt: cfg.siegeAdapt,
-    veteranTier: card.veteran_tier ?? 0,
-    veteranBonusPct: Number(card.veteran_bonus_pct) || 0,
+    veteranTier: card.veteranTier ?? 0,
+    veteranBonusPct: Number(card.veteranBonusPct) || 0,
   };
 }
 
@@ -99,8 +99,8 @@ export function toEquipCardData(card) {
     .filter(k => cfg[`${k}Bonus`])
     .map(k => ({ key: k, value: cfg[`${k}Bonus`] }));
   return {
-    id: cfg.equipmentId || card.card_id,
-    name: cfg.equipmentName || card.card_id,
+    id: cfg.equipmentId || card.cardId,
+    name: cfg.equipmentName || card.cardId,
     rarity: cfg.rarity || card.rarity || 'common',
     equipmentType: cfg.equipmentType || 'weapon',
     bonus,
@@ -117,8 +117,8 @@ export function toEquipCardData(card) {
 export function toTitleCardData(card) {
   const cfg = card.config || {};
   return {
-    id: cfg.id || card.card_id,
-    name: cfg.name || card.card_id,
+    id: cfg.id || card.cardId,
+    name: cfg.name || card.cardId,
     rarity: cfg.rarity || card.rarity || 'common',
     description: cfg.description,
     attributeBonus: cfg.attributeBonus || {},

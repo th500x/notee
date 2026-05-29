@@ -11,7 +11,7 @@
  *     的 14 字段口径。
  *
  * 使用：
- *   const occupiedIds = useGarrisonOccupiedIds(player?.player_id, [cards]);
+ *   const occupiedIds = useGarrisonOccupiedIds(player?.playerId, [cards]);
  *
  * 第二参数 `dependencies` 是触发重拉的依赖（通常传 `[cards]`，让"装备 / 卸下后 cards 变化"
  * 重新拉取，与原 `LineupTab` 行为一致）。失败时返回空 `Set`。

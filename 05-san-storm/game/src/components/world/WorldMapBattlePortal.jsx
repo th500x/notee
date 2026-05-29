@@ -36,7 +36,7 @@ export default function WorldMapBattlePortal({
             enemySlotRarities={banditRaidData.enemySlotRarities}
             silverAmount={player?.silver ?? 0}
             playerFood={player?.food ?? 0}
-            playerId={player?.player_id}
+            playerId={player?.playerId}
             battleType="pve_bandit"
             opponentName={banditRaidData.opponentName || '匪寨'}
             smallMapPveLoot={banditRaidData.smallMapPveLoot}
@@ -54,7 +54,7 @@ export default function WorldMapBattlePortal({
             allyUnits={imperialMarchAllyUnits}
             silverAmount={player?.silver ?? 0}
             playerFood={player?.food ?? 0}
-            playerId={player?.player_id}
+            playerId={player?.playerId}
             battleType={siegeData.isPvp ? 'pvp_siege' : 'pve_siege'}
             siegeDefenderType={siegeData.defenderType || 'npc'}
             opponentName={
@@ -80,8 +80,8 @@ export default function WorldMapBattlePortal({
                       warId: siegeData.warId,
                       defenderPlayerId: siegeData.defenderPlayerId,
                       defenderGarrisonSlot: siegeData.defenderGarrisonSlot,
-                      attackerPlayerId: player?.player_id,
-                      attackerName: player?.character_name || player?.name || '攻城方',
+                      attackerPlayerId: player?.playerId,
+                      attackerName: player?.characterName || player?.name || '攻城方',
                       cityName: siegeData.cityName,
                       defenderName: siegeData.defenderName,
                     }
@@ -90,8 +90,8 @@ export default function WorldMapBattlePortal({
                         warId: siegeData.warId,
                         defenderPlayerId: siegeData.defenderPlayerId,
                         defenderGarrisonSlot: siegeData.defenderGarrisonSlot ?? 0,
-                        attackerPlayerId: player?.player_id,
-                        attackerName: player?.character_name || player?.name || '攻城方',
+                        attackerPlayerId: player?.playerId,
+                        attackerName: player?.characterName || player?.name || '攻城方',
                         cityName: siegeData.cityName,
                         defenderName: siegeData.defenderName,
                       }

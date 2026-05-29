@@ -23,11 +23,11 @@ import EquipmentSetSquares from './EquipmentSetSquares';
 export default function LineupCardDrawer({ slot, cards, allCards = [], skillsMap, onSelect, onClose }) {
   const baseUrl = import.meta.env.BASE_URL;
   const equipmentCards = useMemo(
-    () => allCards.filter((c) => c.card_type === 'equipment'),
+    () => allCards.filter((c) => c.cardType === 'equipment'),
     [allCards]
   );
   const resolveEquipPiece = (instanceId) =>
-    equipmentCards.find((c) => c.instance_id === instanceId) || null;
+    equipmentCards.find((c) => c.instanceId === instanceId) || null;
 
   const rarityGroups = groupCardsByRarity(cards);
   const isTitleSlot = slot?.id === 'title';
@@ -60,7 +60,7 @@ export default function LineupCardDrawer({ slot, cards, allCards = [], skillsMap
                 <div className="flex flex-wrap gap-2">
                   {groupCards.map((card) => (
                     <div
-                      key={card.instance_id}
+                      key={card.instanceId}
                       onClick={() => onSelect(card)}
                       className="cursor-pointer hover:brightness-110 active:scale-95 transition-all"
                       style={{

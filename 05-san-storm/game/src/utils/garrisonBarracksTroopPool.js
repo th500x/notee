@@ -8,7 +8,7 @@ export const RARITY_ORDER = { common: 0, rare: 1, epic: 2, legendary: 3, core: 4
 export const RARITY_LABEL = { common: '普通', rare: '稀有', epic: '史诗', legendary: '传奇', core: '核心' };
 
 export function isMainCityBarracksStored(card) {
-  const v = card?.main_city_barracks_storage;
+  const v = card?.mainCityBarracksStorage;
   return v === 1 || v === true || String(v) === '1';
 }
 
@@ -20,13 +20,13 @@ export function isMainCityBarracksStored(card) {
 export function filterBarracksTroopCards(cards, occupiedIds) {
   const occ = occupiedIds instanceof Set ? occupiedIds : new Set(occupiedIds || []);
   return (cards || []).filter((c) => {
-    if (!c || c.card_type === 'equipmentSet') return false;
-    if (c.is_equipped || occ.has(c.instance_id)) return false;
+    if (!c || c.cardType === 'equipmentSet') return false;
+    if (c.isEquipped || occ.has(c.instanceId)) return false;
     if (isMainCityBarracksStored(c)) return false;
-    if (c.card_type === 'equipment' && c.bound_equipment_set_instance_id) return false;
-    if (c.card_type !== 'troop') return false;
-    const maxBattle = c.max_battle_count ?? 10;
-    const count = Math.max(0, c.battle_count ?? 0);
+    if (c.cardType === 'equipment' && c.boundEquipmentSetInstanceId) return false;
+    if (c.cardType !== 'troop') return false;
+    const maxBattle = c.maxBattleCount ?? 10;
+    const count = Math.max(0, c.battleCount ?? 0);
     return count < maxBattle || c.rarity === 'legendary';
   });
 }
@@ -39,9 +39,9 @@ export function filterBarracksTroopCards(cards, occupiedIds) {
 export function filterWarehouseTroopCards(cards, occupiedIds) {
   const occ = occupiedIds instanceof Set ? occupiedIds : new Set(occupiedIds || []);
   return (cards || []).filter((c) => {
-    if (!c || c.card_type !== 'troop') return false;
+    if (!c || c.cardType !== 'troop') return false;
     if (!isMainCityBarracksStored(c)) return false;
-    if (c.is_equipped || occ.has(c.instance_id)) return false;
+    if (c.isEquipped || occ.has(c.instanceId)) return false;
     return true;
   });
 }
@@ -57,8 +57,8 @@ export function sortBarracksTroopsForDisplay(troopCards) {
     const ra = RARITY_ORDER[a.config?.rarity || a.rarity || 'common'] ?? 99;
     const rb = RARITY_ORDER[b.config?.rarity || b.rarity || 'common'] ?? 99;
     if (ra !== rb) return ra - rb;
-    const ta = a.obtained_at ? new Date(a.obtained_at).getTime() : 0;
-    const tb = b.obtained_at ? new Date(b.obtained_at).getTime() : 0;
+    const ta = a.obtainedAt ? new Date(a.obtainedAt).getTime() : 0;
+    const tb = b.obtainedAt ? new Date(b.obtainedAt).getTime() : 0;
     return ta - tb;
   });
   return sorted;

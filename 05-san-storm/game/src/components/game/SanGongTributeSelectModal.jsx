@@ -16,7 +16,7 @@ const TROOP_THUMB_H = 192;
 const TROOP_CARD_SCALE = 0.5;
 
 function TributeTroopThumb({ card, skillsMap, baseUrl, isSel, onToggleSelect, onPreviewCard }) {
-  const id = card.instance_id;
+  const id = card.instanceId;
   return (
     <div
       role="button"
@@ -133,11 +133,11 @@ export default function SanGongTributeSelectModal({
                   <div className="flex flex-wrap gap-2">
                     {rCards.map((card) => (
                       <TributeTroopThumb
-                        key={card.instance_id}
+                        key={card.instanceId}
                         card={card}
                         skillsMap={skillsMap}
                         baseUrl={baseUrl}
-                        isSel={selected.has(card.instance_id)}
+                        isSel={selected.has(card.instanceId)}
                         onToggleSelect={onToggleSelect}
                         onPreviewCard={onPreviewCard}
                       />

@@ -55,7 +55,7 @@ export function useWorldMapStrategicBattles({
   }, [phase, siegeData, banditRaidData, banditRaidResult]);
 
   const confirmRoadAttackerEnterBattle = useCallback(async () => {
-    if (!roadAttackerAlert?.encounterId || !player?.player_id) return;
+    if (!roadAttackerAlert?.encounterId || !player?.playerId) return;
     const eid = roadAttackerAlert.encounterId;
     const gate = validateMainLineupBattleGate({
       cards,
@@ -67,7 +67,7 @@ export function useWorldMapStrategicBattles({
       return;
     }
     try {
-      const res = await playerAPI.resolveRoadEncounterAuthoritative(player.player_id, eid);
+      const res = await playerAPI.resolveRoadEncounterAuthoritative(player.playerId, eid);
       if (!res?.success || !res.data) {
         setSimpleAlertMessage(res?.error || '道路权威结算失败');
         return;
@@ -112,7 +112,7 @@ export function useWorldMapStrategicBattles({
   ]);
 
   const startSiegeForCity = useCallback(async (cityId, cityRow) => {
-    if (!cityId || !player?.player_id) return;
+    if (!cityId || !player?.playerId) return;
     const phaseOk = phase === PHASE.IDLE || phase === PHASE.RETURNING;
     if (!phaseOk) {
       setSimpleAlertMessage('当前处于事件/探索流程中，请返回空闲后再发起攻城');
@@ -130,9 +130,9 @@ export function useWorldMapStrategicBattles({
       setSimpleAlertMessage('请先关闭匪寨结算面板后再发起攻城。');
       return;
     }
-    if (worldMapCityIsPlayerSameFaction(cityRow, player?.faction_id)) return;
+    if (worldMapCityIsPlayerSameFaction(cityRow, player?.factionId)) return;
 
-    const qRes = await fetchSiegeQuotaJson(player.player_id, cityId);
+    const qRes = await fetchSiegeQuotaJson(player.playerId, cityId);
     if (!qRes.success || !(Number(qRes.data?.remaining) > 0)) {
       setSimpleAlertMessage('攻城次数不足');
       return;
@@ -162,24 +162,24 @@ export function useWorldMapStrategicBattles({
           );
           return;
         }
-        const sg = await warAPI.initiateAttackerCitySiege(pvpWar.pvpWarId, player.player_id);
+        const sg = await warAPI.initiateAttackerCitySiege(pvpWar.pvpWarId, player.playerId);
         if (!sg?.success) {
           setSiegeLoading(false);
           setSimpleAlertMessage(sg?.error || '攻城请求失败，请稍后重试');
           return;
         }
-        res = { success: true, data: { ...sg.data, playerFaction: player.faction_id } };
+        res = { success: true, data: { ...sg.data, playerFaction: player.factionId } };
         pvpWarIdForResult = pvpWar.pvpWarId;
       } else {
         res = await fetchWithTimeout(`${API_CONFIG.BASE_URL}/cities/${encodeURIComponent(cityId)}/siege`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ playerId: player.player_id }),
+          body: JSON.stringify({ playerId: player.playerId }),
         }).then((r) => r.json());
       }
 
       if (res.success) {
-        await postSiegeQuotaAction(player.player_id, cityId, 'consume');
+        await postSiegeQuotaAction(player.playerId, cityId, 'consume');
         const enriched = pvpWarIdForResult
           ? { ...res.data, pvpWarId: pvpWarIdForResult }
           : res.data;
@@ -193,8 +193,8 @@ export function useWorldMapStrategicBattles({
                 warId: enriched.warId || null,
                 pvpWarId: enriched.pvpWarId || null,
                 cityId,
-                attackerId: player.player_id,
-                attackerFaction: enriched.playerFaction || player.faction_id,
+                attackerId: player.playerId,
+                attackerFaction: enriched.playerFaction || player.factionId,
                 defenderId: enriched.defenderPlayerId,
                 defenderGarrisonSlot: enriched.defenderGarrisonSlot,
               }),
@@ -244,7 +244,7 @@ export function useWorldMapStrategicBattles({
 
   const startPvpBaseCampSiege = useCallback(
     async (pvpWarId, warSlice) => {
-      if (!pvpWarId || !player?.player_id) return;
+      if (!pvpWarId || !player?.playerId) return;
       const targetCityId = warSlice?.targetCityId;
       if (!targetCityId) return;
       const phaseOk = phase === PHASE.IDLE || phase === PHASE.RETURNING;
@@ -264,7 +264,7 @@ export function useWorldMapStrategicBattles({
         setSimpleAlertMessage('请先关闭匪寨结算面板后再试。');
         return;
       }
-      const qRes = await fetchSiegeQuotaJson(player.player_id, targetCityId);
+      const qRes = await fetchSiegeQuotaJson(player.playerId, targetCityId);
       if (!qRes.success || !(Number(qRes.data?.remaining) > 0)) {
         setSimpleAlertMessage('攻城次数不足');
         return;
@@ -280,7 +280,7 @@ export function useWorldMapStrategicBattles({
       }
       setSiegeLoading(true);
       try {
-        const sg = await warAPI.initiateBaseCampSiege(pvpWarId, player.player_id);
+        const sg = await warAPI.initiateBaseCampSiege(pvpWarId, player.playerId);
         if (!sg?.success || !sg.data) {
           setSimpleAlertMessage(sg?.error || '攻打大本营请求失败，请稍后重试');
           return;
@@ -313,7 +313,7 @@ export function useWorldMapStrategicBattles({
   );
 
   const handleBanditRaidStart = useCallback((payload) => {
-    if (!player?.player_id) return;
+    if (!player?.playerId) return;
     if (!payload?.banditPoiId || payload?.attackedLayer == null) return;
     if (!payload?.smallMapPveLoot || typeof payload.smallMapPveLoot !== 'object') return;
     if (!Array.isArray(payload.enemySlotRarities) || payload.enemySlotRarities.length !== 4) return;
@@ -325,7 +325,7 @@ export function useWorldMapStrategicBattles({
       smallMapPveLoot: payload.smallMapPveLoot,
       opponentName: `匪寨 · 第 ${Number.isFinite(layer) ? layer : 1} 层`,
     });
-  }, [player?.player_id]);
+  }, [player?.playerId]);
 
   const handleBanditRaidEnd = useCallback(
     (result, silverSpent, scoreResult, killedIndices, meta) => {
@@ -401,12 +401,12 @@ export function useWorldMapStrategicBattles({
     if (!banditRaidResult || banditRaidResult.result === 'victory') return;
     clearInflightBattleTroopSnapshot();
     const banditPoiId = banditRaidResult.banditPoiId;
-    if (!banditPoiId || !player?.player_id) {
+    if (!banditPoiId || !player?.playerId) {
       closeBanditRaidResult();
       return;
     }
     try {
-      const res = await playerAPI.updateBanditRaidQuota(player.player_id, banditPoiId, 'reset_tower');
+      const res = await playerAPI.updateBanditRaidQuota(player.playerId, banditPoiId, 'reset_tower');
       if (!res?.success) {
         setSimpleAlertMessage(
           typeof res?.error === 'string' && res.error.trim() ? res.error : '重置层数失败',
@@ -424,7 +424,7 @@ export function useWorldMapStrategicBattles({
     bumpStrategicRoadPresenceRef?.current?.();
   }, [
     banditRaidResult,
-    player?.player_id,
+    player?.playerId,
     closeBanditRaidResult,
     refreshPlayer,
     setSimpleAlertMessage,
@@ -435,10 +435,10 @@ export function useWorldMapStrategicBattles({
   const handleBanditRaidContinue = useCallback(async () => {
     if (!banditRaidResult || banditRaidResult.result !== 'victory') return;
     const banditPoiId = banditRaidResult.banditPoiId;
-    if (!banditPoiId || !player?.player_id) return;
+    if (!banditPoiId || !player?.playerId) return;
     setBanditRaidResult(null);
     try {
-      const res = await playerAPI.getBanditRaidQuota(player.player_id, banditPoiId);
+      const res = await playerAPI.getBanditRaidQuota(player.playerId, banditPoiId);
       if (!res?.success || !res.data) {
         setSimpleAlertMessage(typeof res?.error === 'string' && res.error.trim() ? res.error : '无法读取匪寨攻打进度');
         return;
@@ -492,7 +492,7 @@ export function useWorldMapStrategicBattles({
     } catch (e) {
       setSimpleAlertMessage(e?.message || '网络异常');
     }
-  }, [banditRaidResult, player?.player_id, player?.food, cards, setSimpleAlertMessage]);
+  }, [banditRaidResult, player?.playerId, player?.food, cards, setSimpleAlertMessage]);
 
   const handleSiegeEnd = useCallback(async (result, silverSpent, scoreResult, killedIndices, meta) => {
     if (!siegeData) return;
@@ -506,7 +506,7 @@ export function useWorldMapStrategicBattles({
 
     if (siegeData.roadEncounterId) {
       try {
-        const res = await playerAPI.submitRoadEncounterBattleResult(player.player_id, {
+        const res = await playerAPI.submitRoadEncounterBattleResult(player.playerId, {
           encounterId: siegeData.roadEncounterId,
           factionId: siegeData.playerFaction,
           killedIndices: killedIndices || [],
@@ -540,7 +540,7 @@ export function useWorldMapStrategicBattles({
     try {
       if (siegeData.pvpDefenderBaseCampSiege && siegeData.pvpWarId) {
         const res = await warAPI.recordBaseCampSiegeResult(siegeData.pvpWarId, {
-          playerId: player.player_id,
+          playerId: player.playerId,
           killedIndices: killedIndices || [],
           result: result === 'victory' ? 'win' : 'lose',
           silverSpent: silverSpent || 0,
@@ -570,7 +570,7 @@ export function useWorldMapStrategicBattles({
       let res;
       if (isPvpWar) {
         res = await warAPI.recordAttackerCitySiegeResult(siegeData.pvpWarId, {
-          playerId: player.player_id,
+          playerId: player.playerId,
           defenderType: siegeData.defenderType || 'npc',
           defenderPlayerId: siegeData.defenderPlayerId || null,
           defenderGarrisonSlot: siegeData.defenderGarrisonSlot ?? null,
@@ -593,7 +593,7 @@ export function useWorldMapStrategicBattles({
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             warId: siegeData.warId,
-            playerId: player.player_id,
+            playerId: player.playerId,
             factionId: siegeData.playerFaction,
             killedIndices: killedIndices || [],
             result: result === 'victory' ? 'win' : 'lose',

@@ -51,11 +51,11 @@ export default function MainCityBarracksPostPanel({ cityId: _cityId, cityName = 
   }, []);
 
   useEffect(() => {
-    if (!player?.player_id) return undefined;
+    if (!player?.playerId) return undefined;
     let cancelled = false;
     (async () => {
       try {
-        const res = await garrisonAPI.getAll(player.player_id);
+        const res = await garrisonAPI.getAll(player.playerId);
         if (cancelled) return;
         if (res.success) {
           setOccupiedIds(collectGarrisonOccupiedInstanceIds(res.garrisons || []));
@@ -67,7 +67,7 @@ export default function MainCityBarracksPostPanel({ cityId: _cityId, cityName = 
     return () => {
       cancelled = true;
     };
-  }, [player?.player_id]);
+  }, [player?.playerId]);
 
   const poolTroops = useMemo(
     () => getBarracksTroopCardsSorted(cards, occupiedIds),
@@ -85,14 +85,14 @@ export default function MainCityBarracksPostPanel({ cityId: _cityId, cityName = 
     setSelectedPool((prev) => {
       const next = new Set();
       prev.forEach((id) => {
-        if (poolTroops.some((c) => c.instance_id === id)) next.add(id);
+        if (poolTroops.some((c) => c.instanceId === id)) next.add(id);
       });
       return next;
     });
     setSelectedWarehouse((prev) => {
       const next = new Set();
       prev.forEach((id) => {
-        if (warehouseTroops.some((c) => c.instance_id === id)) next.add(id);
+        if (warehouseTroops.some((c) => c.instanceId === id)) next.add(id);
       });
       return next;
     });
@@ -101,11 +101,11 @@ export default function MainCityBarracksPostPanel({ cityId: _cityId, cityName = 
   const baseUrl = import.meta.env.BASE_URL;
 
   const handleTransferIn = useCallback(async () => {
-    if (!player?.player_id || busy || selectedPool.size === 0) return;
+    if (!player?.playerId || busy || selectedPool.size === 0) return;
     setBusy(true);
     setToast(null);
     try {
-      const res = await playerAPI.transferMainCityBarracksIn(player.player_id, [...selectedPool]);
+      const res = await playerAPI.transferMainCityBarracksIn(player.playerId, [...selectedPool]);
       if (res.success) {
         setSelectedPool(new Set());
         await refresh({ silent: true });
@@ -118,10 +118,10 @@ export default function MainCityBarracksPostPanel({ cityId: _cityId, cityName = 
     } finally {
       setBusy(false);
     }
-  }, [player?.player_id, busy, selectedPool, refresh, onAfterSave]);
+  }, [player?.playerId, busy, selectedPool, refresh, onAfterSave]);
 
   const handleTransferOut = useCallback(async () => {
-    if (!player?.player_id || busy || selectedWarehouse.size === 0) return;
+    if (!player?.playerId || busy || selectedWarehouse.size === 0) return;
     const n = selectedWarehouse.size;
     const poolCount = poolTroops.length;
     const slotsLeft = MAX_LINEUP_BARRACKS_TROOP_CARDS - poolCount;
@@ -136,7 +136,7 @@ export default function MainCityBarracksPostPanel({ cityId: _cityId, cityName = 
     setBusy(true);
     setToast(null);
     try {
-      const res = await playerAPI.transferMainCityBarracksOut(player.player_id, [...selectedWarehouse]);
+      const res = await playerAPI.transferMainCityBarracksOut(player.playerId, [...selectedWarehouse]);
       if (res.success) {
         setSelectedWarehouse(new Set());
         await refresh({ silent: true });
@@ -149,10 +149,10 @@ export default function MainCityBarracksPostPanel({ cityId: _cityId, cityName = 
     } finally {
       setBusy(false);
     }
-  }, [player?.player_id, busy, selectedWarehouse, poolTroops.length, refresh, onAfterSave]);
+  }, [player?.playerId, busy, selectedWarehouse, poolTroops.length, refresh, onAfterSave]);
 
   const renderTroopThumb = (card, selectedSet, setSelected, otherSet) => {
-    const id = card.instance_id;
+    const id = card.instanceId;
     const selected = selectedSet.has(id);
     return (
       <div

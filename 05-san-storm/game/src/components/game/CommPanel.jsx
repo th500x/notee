@@ -50,7 +50,7 @@ export default function CommPanel({ visible, unreadChatCount: unreadChatProp = 0
     showEmojiNotifyOutline,
   } = useCommPanelNotify({
     visible,
-    playerId: player?.player_id,
+    playerId: player?.playerId,
     unreadChatProp,
   });
 
@@ -67,8 +67,8 @@ export default function CommPanel({ visible, unreadChatCount: unreadChatProp = 0
     handleToggleFavorite,
     handleCreateBattleMemorial,
   } = useCommPanelBattles({
-    playerId: player?.player_id,
-    playerName: player?.character_name,
+    playerId: player?.playerId,
+    playerName: player?.characterName,
     open,
     activeTab,
     onShowModal: showModal,
@@ -168,12 +168,12 @@ export default function CommPanel({ visible, unreadChatCount: unreadChatProp = 0
               memorialQuota={battleMemorialQuota}
               creatingMemorialBattleId={creatingMemorialBattleId}
               onCreateMemorial={handleCreateBattleMemorial}
-              playerId={player?.player_id}
+              playerId={player?.playerId}
             />
           )}
           {activeTab === 'text' && (
             <TextMailTab
-              playerId={player?.player_id}
+              playerId={player?.playerId}
               onUnreadChange={refreshTextUnread}
               onClaimed={refreshPlayer}
               onShowClaimResult={(lines) =>

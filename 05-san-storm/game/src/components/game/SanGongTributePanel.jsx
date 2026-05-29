@@ -60,25 +60,25 @@ export default function SanGongTributePanel() {
   }, []);
 
   const loadStatus = useCallback(async () => {
-    if (!player?.player_id) return;
+    if (!player?.playerId) return;
     try {
-      const res = await playerAPI.getSanGongFuTributeStatus(player.player_id);
+      const res = await playerAPI.getSanGongFuTributeStatus(player.playerId);
       if (res.success && res.data) setTributeStatus(res.data);
     } catch {
       /* ignore */
     }
-  }, [player?.player_id]);
+  }, [player?.playerId]);
 
   useEffect(() => {
     loadStatus();
   }, [loadStatus]);
 
   useEffect(() => {
-    if (!player?.player_id) return undefined;
+    if (!player?.playerId) return undefined;
     let cancelled = false;
     (async () => {
       try {
-        const res = await garrisonAPI.getAll(player.player_id);
+        const res = await garrisonAPI.getAll(player.playerId);
         if (cancelled) return;
         if (res.success) {
           setOccupiedIds(collectGarrisonOccupiedInstanceIds(res.garrisons || []));
@@ -90,7 +90,7 @@ export default function SanGongTributePanel() {
     return () => {
       cancelled = true;
     };
-  }, [player?.player_id]);
+  }, [player?.playerId]);
 
   const poolTroops = useMemo(
     () => getBarracksTroopCardsSorted(cards, occupiedIds),
@@ -104,7 +104,7 @@ export default function SanGongTributePanel() {
     setSelected((prev) => {
       const next = new Set();
       prev.forEach((id) => {
-        if (poolTroops.some((c) => c.instance_id === id)) next.add(id);
+        if (poolTroops.some((c) => c.instanceId === id)) next.add(id);
       });
       return next;
     });
@@ -140,11 +140,11 @@ export default function SanGongTributePanel() {
   }, [selectionCap]);
 
   const handleTribute = useCallback(async () => {
-    if (!player?.player_id || busy || selected.size === 0) return;
+    if (!player?.playerId || busy || selected.size === 0) return;
     setBusy(true);
     setToast(null);
     try {
-      const res = await playerAPI.submitSanGongFuTribute(player.player_id, [...selected]);
+      const res = await playerAPI.submitSanGongFuTribute(player.playerId, [...selected]);
       if (res.success) {
         const d = res.data || {};
         setSelected(new Set());
@@ -162,7 +162,7 @@ export default function SanGongTributePanel() {
     } finally {
       setBusy(false);
     }
-  }, [player?.player_id, busy, selected, refresh, loadStatus]);
+  }, [player?.playerId, busy, selected, refresh, loadStatus]);
 
   const canOpenSelect = selectionCap > 0 && !busy;
 

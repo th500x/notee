@@ -210,11 +210,11 @@ export default function SanGongFuPanel({
   const [factionPolicyDrawerOpen, setFactionPolicyDrawerOpen] = useState(false);
 
   const load = useCallback(async () => {
-    if (!player?.player_id) return;
+    if (!player?.playerId) return;
     setLoading(true);
     setError(null);
     try {
-      const res = await playerAPI.getSanGongFuPromotions(player.player_id);
+      const res = await playerAPI.getSanGongFuPromotions(player.playerId);
       if (res.success) {
         setPayload(res.data);
       } else {
@@ -227,7 +227,7 @@ export default function SanGongFuPanel({
     } finally {
       setLoading(false);
     }
-  }, [player?.player_id]);
+  }, [player?.playerId]);
 
   useEffect(() => {
     load();
@@ -235,11 +235,11 @@ export default function SanGongFuPanel({
 
   const onPromote = useCallback(
     async (positionId) => {
-      if (!player?.player_id || !positionId) return false;
+      if (!player?.playerId || !positionId) return false;
       setPromotingId(positionId);
       setError(null);
       try {
-        const res = await playerAPI.promoteSanGongFu(player.player_id, positionId);
+        const res = await playerAPI.promoteSanGongFu(player.playerId, positionId);
         if (res.success && res.data) {
           onPromoted?.(res.data);
           await refresh({ silent: true });
@@ -255,7 +255,7 @@ export default function SanGongFuPanel({
         setPromotingId(null);
       }
     },
-    [player?.player_id, refresh, load, onPromoted],
+    [player?.playerId, refresh, load, onPromoted],
   );
 
   const notice = payload?.notice;
@@ -263,7 +263,7 @@ export default function SanGongFuPanel({
   const playerReputation = payload?.playerReputation ?? 0;
   /** 与晋升接口同源，避免档案字段滞后；口径同卡牌「品阶 Lv」（数字越小品阶越高） */
   const playerPositionLevel =
-    payload?.playerPositionLevel ?? player?.position_level ?? player?.positionLevel;
+    payload?.playerPositionLevel ?? player?.positionLevel;
 
   const promotionBody = (
     <PromotionListBody
@@ -291,7 +291,7 @@ export default function SanGongFuPanel({
           troopRemaining={sanGongFuCardPool.troopRemaining ?? '?'}
           charRemaining={sanGongFuCardPool.charRemaining ?? '?'}
           dailyLimit={sanGongFuCardPool.dailyLimit ?? 5}
-          playerId={player?.player_id}
+          playerId={player?.playerId}
           onAfterStipendClaim={() => refresh({ silent: true })}
         />
       ) : (
@@ -305,7 +305,7 @@ export default function SanGongFuPanel({
 
   const chaoZhengBody = (
     <SanGongFuChaoZhengPanel
-      playerId={player?.player_id}
+      playerId={player?.playerId}
       positionLevel={playerPositionLevel}
       factionWarDrawerOpen={factionWarDrawerOpen}
       onOpenFactionWars={() => setFactionWarDrawerOpen(true)}
@@ -364,10 +364,10 @@ export default function SanGongFuPanel({
         )}
       </div>
 
-      {player?.player_id ? (
+      {player?.playerId ? (
         <SanGongFuFactionWarDrawer
-          playerId={player.player_id}
-          factionId={player.faction_id ?? player.factionId ?? null}
+          playerId={player.playerId}
+          factionId={player.factionId ?? null}
           player={player}
           open={factionWarDrawerOpen}
           onClose={() => setFactionWarDrawerOpen(false)}
@@ -375,9 +375,9 @@ export default function SanGongFuPanel({
         />
       ) : null}
 
-      {player?.player_id ? (
+      {player?.playerId ? (
         <SanGongFuFactionPolicyDrawer
-          factionId={player.faction_id ?? player.factionId ?? null}
+          factionId={player.factionId ?? null}
           open={factionPolicyDrawerOpen}
           onClose={() => setFactionPolicyDrawerOpen(false)}
         />

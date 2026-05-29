@@ -33,6 +33,6 @@ export function attachPositionCombatBonuses(charData, bonuses) {
  * @returns {object|null}
  */
 export function getPositionCombatBonusesFromPlayer(player) {
-  const pb = player?.position_config?.position_bonuses;
+  const pb = player?.positionConfig?.positionBonuses;
   return normalizePositionCombatBonuses(pb);
 }

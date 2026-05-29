@@ -259,7 +259,7 @@ export default function SanGongFuFactionWarDrawer({ playerId, factionId, player,
 
   if (!open) return null;
 
-  const playerFactionId = factionId || player?.faction_id || player?.factionId || null;
+  const playerFactionId = factionId || player?.factionId || player?.factionId || null;
   const selectedCityName =
     selectionMeta && !selectionMeta.invalid && selectionMeta.row
       ? selectionMeta.row.cityName || selectionMeta.row.cityId

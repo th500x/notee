@@ -20,14 +20,14 @@ export function useWorldMapExploreSubsidiary({
   const [playerItems, setPlayerItems] = useState([]);
 
   const fetchItems = useCallback(() => {
-    if (!player?.player_id) return;
+    if (!player?.playerId) return;
     playerAPI
-      .getItems(player.player_id)
+      .getItems(player.playerId)
       .then((res) => {
         if (res.success) setPlayerItems(res.data.items || []);
       })
       .catch(() => {});
-  }, [player?.player_id]);
+  }, [player?.playerId]);
 
   useEffect(() => {
     fetchItems();

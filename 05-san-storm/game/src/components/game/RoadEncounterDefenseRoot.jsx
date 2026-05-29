@@ -81,7 +81,7 @@ export default function RoadEncounterDefenseRoot({ children, onBusyChange }) {
   }, []);
 
   const pollRoadPending = useCallback(async () => {
-    const pid = player?.player_id;
+    const pid = player?.playerId;
     if (!pid) return;
     try {
       const res = await playerAPI.getRoadPendingEncounter(pid);
@@ -133,13 +133,13 @@ export default function RoadEncounterDefenseRoot({ children, onBusyChange }) {
     } catch {
       /* 静默 */
     }
-  }, [player?.player_id, isRoadDefenseSuppressedByWorldMap]);
+  }, [player?.playerId, isRoadDefenseSuppressedByWorldMap]);
 
   pollRoadPendingRef.current = pollRoadPending;
 
   /** 仅依赖 player_id：互斥状态在 poll 内读 refs，避免与 WorldMap 不同步 */
   useEffect(() => {
-    if (!player?.player_id) return undefined;
+    if (!player?.playerId) return undefined;
     const run = () => {
       pollRoadPendingRef.current?.();
     };
@@ -148,7 +148,7 @@ export default function RoadEncounterDefenseRoot({ children, onBusyChange }) {
     return () => {
       if (roadDefPollRef.current) clearInterval(roadDefPollRef.current);
     };
-  }, [player?.player_id]);
+  }, [player?.playerId]);
 
   useEffect(() => {
     const onVis = () => {
@@ -176,7 +176,7 @@ export default function RoadEncounterDefenseRoot({ children, onBusyChange }) {
 
   useEffect(() => {
     const eid = roadAwaitingAuthoritativeOutcome?.encounterId;
-    const pid = player?.player_id;
+    const pid = player?.playerId;
     if (!eid || !pid) return undefined;
     let cancelled = false;
     /** 避免裁定已返回后 interval 再次 tick 重复 setState，打断 SiegeReplayMini 自动播放 */
@@ -222,7 +222,7 @@ export default function RoadEncounterDefenseRoot({ children, onBusyChange }) {
       cancelled = true;
       clearInterval(iv);
     };
-  }, [roadAwaitingAuthoritativeOutcome?.encounterId, player?.player_id]);
+  }, [roadAwaitingAuthoritativeOutcome?.encounterId, player?.playerId]);
 
   const overlayGateEpoch = useSyncExternalStore(
     subscribeWorldMapOverlayGate,

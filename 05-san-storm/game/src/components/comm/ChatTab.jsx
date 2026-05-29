@@ -35,10 +35,10 @@ function ChatTab({ player, onWorldReadSynced }) {
   const [sendError, setSendError] = useState('');
   const [sending, setSending] = useState(false);
 
-  const playerId = player?.player_id;
-  const factionId = player?.faction_id;
-  const factionLabel = player?.faction_name || '势力';
-  const pos = Number(player?.position_level ?? 8);
+  const playerId = player?.playerId;
+  const factionId = player?.factionId;
+  const factionLabel = player?.factionName || '势力';
+  const pos = Number(player?.positionLevel ?? 8);
 
   const canWorld = pos <= 7;
   const canFaction = pos <= 7 && !!factionId;

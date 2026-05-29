@@ -39,14 +39,14 @@ export default function LineupEquipSlot({ slot, content, isSelected, onClick, ba
   /* ── 已装备部队卡摘要 ── */
   if (!isLocked && !isEmpty && isTroopSlot) {
     const cfg = content.config || {};
-    const name = cfg.name || content.card_id;
+    const name = cfg.name || content.cardId;
     const rarity = cfg.rarity || content.rarity || 'common';
-    const maxBattle = content.max_battle_count ?? 10;
-    const used = Math.max(0, Math.min(content.battle_count ?? 0, maxBattle));
+    const maxBattle = content.maxBattleCount ?? 10;
+    const used = Math.max(0, Math.min(content.battleCount ?? 0, maxBattle));
     const remaining = Math.max(0, maxBattle - used);
     const durability = `${remaining}/${maxBattle}`;
-    const troops = `${content.current_troops ?? cfg.maxTroops ?? '?'}`;
-    const maxTroops = (cfg.maxTroops || 0) + (content.bonus_max_troops || 0);
+    const troops = `${content.currentTroops ?? cfg.maxTroops ?? '?'}`;
+    const maxTroops = (cfg.maxTroops || 0) + (content.bonusMaxTroops || 0);
     const atk = ((cfg.attack || 0) + (content.bonus_attack || 0) / 10).toFixed(0);
     const def = ((cfg.defense || 0) + (content.bonus_defense || 0) / 10).toFixed(0);
     const spd = (cfg.speed ?? 0) + (content.bonus_speed || 0);
@@ -100,7 +100,7 @@ export default function LineupEquipSlot({ slot, content, isSelected, onClick, ba
   const isTitleSlot = slot.id === 'title';
   if (!isLocked && !isEmpty && isTitleSlot) {
     const cfg = content.config || {};
-    const name = cfg.name || content.card_id;
+    const name = cfg.name || content.cardId;
     const rarity = cfg.rarity || content.rarity || 'common';
     const bonus = cfg.attributeBonus || {};
     const bonusLabels = { luck: '运', courage: '勇', combat: '武', command: '统', intelligence: '智', politics: '政', charm: '魅' };
@@ -144,7 +144,7 @@ export default function LineupEquipSlot({ slot, content, isSelected, onClick, ba
   const isPositionSlot = slot.id === 'position';
   if (!isLocked && !isEmpty && isPositionSlot) {
     const rarity = content.rarity || 'common';
-    const bonuses = content.position_bonuses || {};
+    const bonuses = content.positionBonuses || {};
 
     return (
       <button
@@ -199,7 +199,7 @@ export default function LineupEquipSlot({ slot, content, isSelected, onClick, ba
   const isEquipmentSetSlot = slot.id === 'equipmentSet';
   if (!isLocked && !isEmpty && isEquipmentSetSlot) {
     const cfg = content.config || {};
-    const name = cfg.displayName || content.card_id || '装备卡';
+    const name = cfg.displayName || content.cardId || '装备卡';
     const rarity = cfg.rarity || content.rarity || 'common';
     const bonus = cfg.attributeBonus || {};
     const ordered = [

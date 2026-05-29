@@ -4,6 +4,7 @@
  * @description 处理玩家相关的API请求
  */
 
+import { formatPlayerProfilePayloadForApi } from '@shared/utils/formatPlayerProfileApi';
 import { API_CONFIG } from '../constants';
 import { fetchWithTimeout } from './httpClient';
 
@@ -92,6 +93,9 @@ export const playerAPI = {
         headers: { 'Content-Type': 'application/json' }
       });
       const data = await response.json();
+      if (data?.success && data.data) {
+        return { ...data, data: formatPlayerProfilePayloadForApi(data.data) };
+      }
       return data;
     } catch (error) {
       console.error('获取玩家档案失败:', error);

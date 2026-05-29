@@ -36,8 +36,8 @@ export default function WorldMapTab({ onClose }) {
   const isLandscape = useGameTabLandscape();
   const close = typeof onClose === 'function' ? onClose : () => {};
   const { player } = usePlayerContext();
-  const playerFactionId = player?.faction_id ?? null;
-  const playerId = player?.player_id ?? player?.playerId ?? null;
+  const playerFactionId = player?.factionId ?? null;
+  const playerId = player?.playerId ?? null;
 
   const { status: stackStatus, merged, error: stackError } = useSan1StrategicMergedStack();
   const [cityRefreshKey, setCityRefreshKey] = useState(0);
@@ -133,9 +133,9 @@ export default function WorldMapTab({ onClose }) {
 
   const selfMarker = useMemo(() => {
     if (!player || !merged?.cells?.length) return null;
-    const junId = player.road_jun_id ?? player.roadJunId;
-    const lx = Number(player.road_position_x ?? player.roadPositionX);
-    const ly = Number(player.road_position_y ?? player.roadPositionY);
+    const junId = player.roadJunId;
+    const lx = Number(player.roadPositionX);
+    const ly = Number(player.roadPositionY);
     if (!junId || !Number.isFinite(lx) || !Number.isFinite(ly)) return null;
     const w = playerRoadToWorldMapCell(String(junId).trim(), lx, ly);
     if (!w) return null;

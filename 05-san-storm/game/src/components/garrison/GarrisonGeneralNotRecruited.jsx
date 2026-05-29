@@ -44,7 +44,7 @@ export default function GarrisonGeneralNotRecruited({
       <div className="flex flex-wrap gap-2 justify-center">
         {sortByRarity(unequippedCharacters).map(card => (
           <div
-            key={card.instance_id}
+            key={card.instanceId}
             className="cursor-pointer hover:brightness-110 active:scale-95 transition-all"
             style={{ width: 128, minHeight: 208 }}
             onClick={() => onEquipCharacter(card)}

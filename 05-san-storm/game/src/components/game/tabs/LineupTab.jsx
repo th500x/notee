@@ -59,7 +59,7 @@ export default function LineupTab({ onClose, onOpenAttributeReroll }) {
    * 装备卡装到驻地后仍可能在上阵选卡列表里出现；CR C5（2026-04-29）一并修复。
    * 第二参数传 `[cards]` 让"装备 / 卸下后 cards 变化"重新拉取，与原行为一致。
    */
-  const garrisonIds = useGarrisonOccupiedIds(player?.player_id, [cards]);
+  const garrisonIds = useGarrisonOccupiedIds(player?.playerId, [cards]);
 
   const isLandscape = useGameTabLandscape();
 
@@ -90,7 +90,7 @@ export default function LineupTab({ onClose, onOpenAttributeReroll }) {
   const handleEquipCharacter = useCallback(async (card, subTab) => {
     const equippedBy = subTab === 'char1' ? 'character1' : 'character2';
     try {
-      const result = await playerAPI.equipCard(player.player_id, card.instance_id, equippedBy, 'character');
+      const result = await playerAPI.equipCard(player.playerId, card.instanceId, equippedBy, 'character');
       if (result.success) refresh();
       else console.error('[LineupTab] 装备将领失败:', result.error);
     } catch (err) {
@@ -122,50 +122,50 @@ export default function LineupTab({ onClose, onOpenAttributeReroll }) {
   }
 
   /* ── 卡牌分类（按上阵装备情况切片） ── */
-  const troopCards = cards.filter((c) => c.card_type === 'troop');
-  const titleCards = cards.filter((c) => c.card_type === 'title');
-  const characterCards = cards.filter((c) => c.card_type === 'character');
+  const troopCards = cards.filter((c) => c.cardType === 'troop');
+  const titleCards = cards.filter((c) => c.cardType === 'title');
+  const characterCards = cards.filter((c) => c.cardType === 'character');
 
-  const playerTroops = troopCards.filter((c) => c.equipped_by === 'player' && c.is_equipped && c.equipped_slot === 'troop');
-  const playerTitles = titleCards.filter((c) => c.equipped_by === 'player' && c.is_equipped && c.equipped_slot === 'title');
+  const playerTroops = troopCards.filter((c) => c.equippedBy === 'player' && c.isEquipped && c.equippedSlot === 'troop');
+  const playerTitles = titleCards.filter((c) => c.equippedBy === 'player' && c.isEquipped && c.equippedSlot === 'title');
 
-  const char1Troops = troopCards.filter((c) => c.equipped_by === 'character1' && c.is_equipped && (c.equipped_slot === 'troop1' || c.equipped_slot === 'troop2'));
-  const char1Titles = titleCards.filter((c) => c.equipped_by === 'character1' && c.is_equipped && c.equipped_slot === 'title');
-  const char1Character = characterCards.find((c) => c.equipped_by === 'character1' && c.is_equipped && c.equipped_slot === 'character');
+  const char1Troops = troopCards.filter((c) => c.equippedBy === 'character1' && c.isEquipped && (c.equippedSlot === 'troop1' || c.equippedSlot === 'troop2'));
+  const char1Titles = titleCards.filter((c) => c.equippedBy === 'character1' && c.isEquipped && c.equippedSlot === 'title');
+  const char1Character = characterCards.find((c) => c.equippedBy === 'character1' && c.isEquipped && c.equippedSlot === 'character');
 
-  const char2Troops = troopCards.filter((c) => c.equipped_by === 'character2' && c.is_equipped && (c.equipped_slot === 'troop1' || c.equipped_slot === 'troop2'));
-  const char2Titles = titleCards.filter((c) => c.equipped_by === 'character2' && c.is_equipped && c.equipped_slot === 'title');
-  const char2Character = characterCards.find((c) => c.equipped_by === 'character2' && c.is_equipped && c.equipped_slot === 'character');
+  const char2Troops = troopCards.filter((c) => c.equippedBy === 'character2' && c.isEquipped && (c.equippedSlot === 'troop1' || c.equippedSlot === 'troop2'));
+  const char2Titles = titleCards.filter((c) => c.equippedBy === 'character2' && c.isEquipped && c.equippedSlot === 'title');
+  const char2Character = characterCards.find((c) => c.equippedBy === 'character2' && c.isEquipped && c.equippedSlot === 'character');
 
   /* ── 可装备池（已排除被驻地占用的实例 + 主城驻军所仓库内卡） ── */
   const unequippedTroops = troopCards.filter((c) => {
-    if (c.is_equipped || garrisonIds.has(c.instance_id)) return false;
+    if (c.isEquipped || garrisonIds.has(c.instanceId)) return false;
     if (isMainCityBarracksStored(c)) return false;
     return true;
   });
-  const unequippedTitles = titleCards.filter((c) => !c.is_equipped && !garrisonIds.has(c.instance_id));
-  const unequippedCharacters = characterCards.filter((c) => !c.is_equipped && !garrisonIds.has(c.instance_id));
+  const unequippedTitles = titleCards.filter((c) => !c.isEquipped && !garrisonIds.has(c.instanceId));
+  const unequippedCharacters = characterCards.filter((c) => !c.isEquipped && !garrisonIds.has(c.instanceId));
   const unequippedEquipmentSets = cards.filter(
     (c) =>
-      c.card_type === 'equipmentSet' &&
+      c.cardType === 'equipmentSet' &&
       c.config?.displayName &&
       String(c.config.displayName).trim() &&
-      !c.is_equipped &&
-      !garrisonIds.has(c.instance_id)
+      !c.isEquipped &&
+      !garrisonIds.has(c.instanceId)
   );
   const allUnequipped = cards.filter((c) => {
-    if (c.card_type === 'equipmentSet') return false;
-    if (c.is_equipped || garrisonIds.has(c.instance_id)) return false;
-    if (c.card_type === 'equipment' && c.bound_equipment_set_instance_id) return false;
+    if (c.cardType === 'equipmentSet') return false;
+    if (c.isEquipped || garrisonIds.has(c.instanceId)) return false;
+    if (c.cardType === 'equipment' && c.boundEquipmentSetInstanceId) return false;
     if (isMainCityBarracksStored(c)) return false;
     return true;
   });
   const encapsulateEquipmentPool = cards.filter(
-    (c) => c.card_type === 'equipment' && !c.is_equipped && !garrisonIds.has(c.instance_id)
+    (c) => c.cardType === 'equipment' && !c.isEquipped && !garrisonIds.has(c.instanceId)
   );
   const equipmentSetCards = cards.filter(
     (c) =>
-      c.card_type === 'equipmentSet' &&
+      c.cardType === 'equipmentSet' &&
       c.config?.displayName &&
       String(c.config.displayName).trim()
   );
@@ -189,16 +189,16 @@ export default function LineupTab({ onClose, onOpenAttributeReroll }) {
         case 'equipmentSet':
           return cards.find(
             (c) =>
-              c.card_type === 'equipmentSet' &&
-              c.is_equipped &&
-              c.equipped_by === 'player' &&
-              c.equipped_slot === 'equipmentSet'
+              c.cardType === 'equipmentSet' &&
+              c.isEquipped &&
+              c.equippedBy === 'player' &&
+              c.equippedSlot === 'equipmentSet'
           ) || null;
         case 'title':
           return playerTitles[0] || null;
         case 'position':
-          return player?.position_config || (player?.current_position_name
-            ? { name: player.current_position_name, level: player.position_level }
+          return player?.positionConfig || (player?.currentPositionName
+            ? { name: player.currentPositionName, level: player.positionLevel }
             : null);
         default:
           return null;
@@ -209,14 +209,14 @@ export default function LineupTab({ onClose, onOpenAttributeReroll }) {
     const titles = subTab === 'char1' ? char1Titles : char2Titles;
     const equipmentSet = cards.find(
       (c) =>
-        c.card_type === 'equipmentSet' &&
-        c.is_equipped &&
-        c.equipped_by === (subTab === 'char1' ? 'character1' : 'character2') &&
-        c.equipped_slot === 'equipmentSet'
+        c.cardType === 'equipmentSet' &&
+        c.isEquipped &&
+        c.equippedBy === (subTab === 'char1' ? 'character1' : 'character2') &&
+        c.equippedSlot === 'equipmentSet'
     );
     switch (slot.id) {
-      case 'troop1': return troops.find((c) => c.equipped_slot === 'troop1') || null;
-      case 'troop2': return troops.find((c) => c.equipped_slot === 'troop2') || null;
+      case 'troop1': return troops.find((c) => c.equippedSlot === 'troop1') || null;
+      case 'troop2': return troops.find((c) => c.equippedSlot === 'troop2') || null;
       case 'equipmentSet': return equipmentSet || null;
       case 'title': return titles[0] || null;
       default: return null;
@@ -231,8 +231,8 @@ export default function LineupTab({ onClose, onOpenAttributeReroll }) {
     }
     if (selectedSlot.id === 'troop' || selectedSlot.id === 'troop1' || selectedSlot.id === 'troop2') {
       return unequippedTroops.filter((c) => {
-        const maxBattle = c.max_battle_count ?? 10;
-        const count = Math.max(0, c.battle_count ?? 0);
+        const maxBattle = c.maxBattleCount ?? 10;
+        const count = Math.max(0, c.battleCount ?? 0);
         const isExpired = count >= maxBattle;
         if (!isExpired) return true;
         return c.rarity === 'legendary';
@@ -243,7 +243,7 @@ export default function LineupTab({ onClose, onOpenAttributeReroll }) {
     return [];
   };
 
-  const playerLineupTabLabel = `[${player?.character_name || '玩家'}]`;
+  const playerLineupTabLabel = `[${player?.characterName || '玩家'}]`;
   const lineupSubNavTabs = [
     { id: 'player', label: playerLineupTabLabel },
     { id: 'char1', label: '将领1' },
@@ -266,7 +266,7 @@ export default function LineupTab({ onClose, onOpenAttributeReroll }) {
           skillsMap={skillsMap}
           statsPanel={playerTroops.length > 0 ? (
             <LineupStatsPanel player={player} troops={playerTroops} compact
-              playerId={player?.player_id} rankBucket="main:player" />
+              playerId={player?.playerId} rankBucket="main:player" />
           ) : null}
           attributeBonus={attributeBonusBySlot.player}
         />
@@ -287,7 +287,7 @@ export default function LineupTab({ onClose, onOpenAttributeReroll }) {
           statsPanel={char1Troops.length > 0 ? (
             <LineupStatsPanel player={player} troops={char1Troops} compact
               attrs={char1Character?.config ? { combat: char1Character.config.combat, command: char1Character.config.command, courage: char1Character.config.courage, luck: char1Character.config.luck } : null}
-              playerId={player?.player_id} rankBucket="main:character1" />
+              playerId={player?.playerId} rankBucket="main:character1" />
           ) : null}
           attributeBonus={attributeBonusBySlot.character1}
           generalCard={char1Character}
@@ -307,7 +307,7 @@ export default function LineupTab({ onClose, onOpenAttributeReroll }) {
           cards={allUnequipped}
           skillsMap={skillsMap}
           isLandscape={isLandscape}
-          playerId={player?.player_id}
+          playerId={player?.playerId}
           onAfterEncapsulateChange={refresh}
           encapsulateEquipmentPool={encapsulateEquipmentPool}
           equipmentSetCards={equipmentSetCards}
@@ -330,7 +330,7 @@ export default function LineupTab({ onClose, onOpenAttributeReroll }) {
           statsPanel={char2Troops.length > 0 ? (
             <LineupStatsPanel player={player} troops={char2Troops} compact
               attrs={char2Character?.config ? { combat: char2Character.config.combat, command: char2Character.config.command, courage: char2Character.config.courage, luck: char2Character.config.luck } : null}
-              playerId={player?.player_id} rankBucket="main:character2" />
+              playerId={player?.playerId} rankBucket="main:character2" />
           ) : null}
           attributeBonus={attributeBonusBySlot.character2}
           generalCard={char2Character}
@@ -400,7 +400,7 @@ export default function LineupTab({ onClose, onOpenAttributeReroll }) {
                 : activeSubTab === 'char1' ? 'main:character1' : 'main:character2';
               return subTroops.length > 0 ? (
                 <LineupStatsPanel player={player} troops={subTroops} attrs={generalAttrs}
-                  playerId={player?.player_id} rankBucket={rankBucket} />
+                  playerId={player?.playerId} rankBucket={rankBucket} />
               ) : null;
             })()}
 
@@ -408,7 +408,7 @@ export default function LineupTab({ onClose, onOpenAttributeReroll }) {
               cards={allUnequipped}
               skillsMap={skillsMap}
               isLandscape={isLandscape}
-              playerId={player?.player_id}
+              playerId={player?.playerId}
               onAfterEncapsulateChange={refresh}
               encapsulateEquipmentPool={encapsulateEquipmentPool}
               equipmentSetCards={equipmentSetCards}
@@ -433,9 +433,9 @@ export default function LineupTab({ onClose, onOpenAttributeReroll }) {
             const slot = detailCard.slot;
             let owner = detailCard.slotOwner;
             if (!owner && slot?.id === 'character' && detailCard.card) {
-              const cid = detailCard.card.instance_id;
-              if (char1Character?.instance_id === cid) owner = 'char1';
-              else if (char2Character?.instance_id === cid) owner = 'char2';
+              const cid = detailCard.card.instanceId;
+              if (char1Character?.instanceId === cid) owner = 'char1';
+              else if (char2Character?.instanceId === cid) owner = 'char2';
             }
             setDetailCard(null);
             setSelectedSlot({ ...slot, slotOwner: owner || activeSubTab });
@@ -443,7 +443,7 @@ export default function LineupTab({ onClose, onOpenAttributeReroll }) {
           }}
           onUnequip={async () => {
             try {
-              const result = await playerAPI.unequipCard(player.player_id, detailCard.card.instance_id);
+              const result = await playerAPI.unequipCard(player.playerId, detailCard.card.instanceId);
               if (result.success) {
                 await refresh();
               } else {
@@ -469,7 +469,7 @@ export default function LineupTab({ onClose, onOpenAttributeReroll }) {
             const equippedBy = owner === 'player' ? 'player'
               : owner === 'char1' ? 'character1' : 'character2';
             try {
-              const result = await playerAPI.equipCard(player.player_id, card.instance_id, equippedBy, selectedSlot.id);
+              const result = await playerAPI.equipCard(player.playerId, card.instanceId, equippedBy, selectedSlot.id);
               if (result.success) {
                 await refresh();
               } else {

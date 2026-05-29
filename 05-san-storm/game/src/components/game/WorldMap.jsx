@@ -137,7 +137,7 @@ export default function WorldMap({
     setAuthoritativeReplayOverlay,
     beginDefenseFollowUp: beginDefenseFollowUpCore,
   } = usePvpSiegeAdjudication({
-    playerId: player?.player_id,
+    playerId: player?.playerId,
     refreshPlayer,
     onGarrisonStatsBump: bumpGarrisonStats,
     setSiegeResult,
@@ -194,7 +194,7 @@ export default function WorldMap({
     alert: pvpDefenseAlert,
     dismiss: dismissPvpDefenseAlert,
     reset: resetPvpDefenseSilence,
-  } = usePvpDefenseAlertPoll({ playerId: player?.player_id, enabled: !!onDuty });
+  } = usePvpDefenseAlertPoll({ playerId: player?.playerId, enabled: !!onDuty });
 
   const pvpSiegeNowTick = useCountdownTicker(!!pvpChallenge?.countdownEndsAt);
 
@@ -214,7 +214,7 @@ export default function WorldMap({
     roadDefenseOutcomeReplay: false,
   });
   const { roadGateRetreatNotice, setRoadGateRetreatNotice } = useRoadSelfPresencePoll({
-    playerId: player?.player_id,
+    playerId: player?.playerId,
     refreshPlayer,
     blockTutorialAutoplay,
     roadNoticeUiBlockRef,
@@ -354,18 +354,18 @@ export default function WorldMap({
         strategicFullScreenOverlayOpen={strategicFullScreenOverlayOpen}
         strategicMapEventHintSuppressed={strategicMapEventHintSuppressed}
         pendingMapEventHint={mapEventHintDisplay}
-        playerId={player?.player_id}
-        playerFactionId={player?.faction_id}
+        playerId={player?.playerId}
+        playerFactionId={player?.factionId}
         siegeLoading={siegeLoading}
         onStartSiegeForCity={startSiegeForCity}
         onRoadEncounterBattle={(enc) => {
           if (enc?.encounterId) setRoadAttackerAlert(enc);
         }}
         garrisonStatsRefreshKey={garrisonStatsRefreshKey}
-        playerOnDuty={!!player?.on_duty}
-        playerOnDutyCityId={player?.on_duty_city_id ?? null}
+        playerOnDuty={!!player?.onDuty}
+        playerOnDutyCityId={player?.onDuty_city_id ?? null}
         playerMainCityId={playerMainCityIdForUi}
-        playerMainCityChangedAt={player?.main_city_changed_at ?? null}
+        playerMainCityChangedAt={player?.mainCityChangedAt ?? null}
         playerSilver={player?.silver ?? null}
         onSetMainCityRequest={handleSetMainCityRequest}
         onSetMainCityError={setSimpleAlertMessage}

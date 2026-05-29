@@ -106,14 +106,14 @@ export default function GarrisonBackpack({
   const encapsulateEquipmentCards =
     encapsulateEquipmentPool.length > 0
       ? encapsulateEquipmentPool
-      : cards.filter(c => c.card_type === 'equipment');
+      : cards.filter(c => c.cardType === 'equipment');
 
   const resolveEquipPiece = (instanceId) =>
-    encapsulateEquipmentCards.find(c => c.instance_id === instanceId) || null;
+    encapsulateEquipmentCards.find(c => c.instanceId === instanceId) || null;
 
   const byType = {};
   cards.forEach(card => {
-    const t = card.card_type || 'troop';
+    const t = card.cardType || 'troop';
     if (!byType[t]) byType[t] = [];
     byType[t].push(card);
   });
@@ -220,7 +220,7 @@ export default function GarrisonBackpack({
                 <div className="text-stone-500 text-[10px] mb-1 px-1">{RARITY_LABEL[rarity]}（{rCards.length}）</div>
                 <div className="flex flex-wrap gap-1.5">
                   {rCards.map(card => (
-                    <div key={card.instance_id} style={{ width: 128, height: 192 }}
+                    <div key={card.instanceId} style={{ width: 128, height: 192 }}
                       className="cursor-pointer overflow-hidden"
                       onClick={() => setPreviewCard({ card, type: 'character' })}>
                       <div style={{ transform: 'scale(0.5)', transformOrigin: 'top left', width: 256 }}>
@@ -237,7 +237,7 @@ export default function GarrisonBackpack({
                 <div className="text-stone-500 text-[10px] mb-1 px-1">{RARITY_LABEL[rarity]}（{rCards.length}）</div>
                 <div className="flex flex-wrap gap-1.5">
                   {rCards.map(card => (
-                    <div key={card.instance_id} style={{ width: 128, height: 192 }}
+                    <div key={card.instanceId} style={{ width: 128, height: 192 }}
                       className="cursor-pointer overflow-hidden"
                       onClick={() => setPreviewCard({ card, type: 'troop' })}>
                       <div style={{ transform: 'scale(0.5)', transformOrigin: 'top left', width: 256 }}>
@@ -254,7 +254,7 @@ export default function GarrisonBackpack({
                 <div className="text-stone-500 text-[10px] mb-1 px-1">{RARITY_LABEL[rarity]}（{rCards.length}）</div>
                 <div className="flex flex-wrap gap-1.5">
                   {rCards.map(card => (
-                    <div key={card.instance_id} style={{ width: 128, height: 96 }}
+                    <div key={card.instanceId} style={{ width: 128, height: 96 }}
                       className="cursor-pointer"
                       onClick={() => setPreviewCard({ card, type: 'equipment' })}>
                       <div style={{ transform: 'scale(0.5)', transformOrigin: 'top left', width: 256 }}>
@@ -277,7 +277,7 @@ export default function GarrisonBackpack({
                 <div className="text-stone-500 text-[10px] mb-1 px-1">{RARITY_LABEL[rarity]}（{rCards.length}）</div>
                 <div className="flex flex-wrap gap-1.5">
                   {rCards.map(card => (
-                    <div key={card.instance_id} style={{ width: 128, height: 96 }}
+                    <div key={card.instanceId} style={{ width: 128, height: 96 }}
                       className="cursor-pointer"
                       onClick={() => setPreviewCard({ card, type: 'title' })}>
                       <div style={{ transform: 'scale(0.5)', transformOrigin: 'top left', width: 256 }}>
@@ -351,10 +351,10 @@ function EquipmentSetGrid({ equipmentSetCards, resolveEquipPiece, onEdit }) {
         const cfg = card.config || {};
         const titleColorClass = RARITY_TEXT[card.config?.rarity || card.rarity || 'common'] || 'text-white';
         return (
-          <button key={card.instance_id} type="button"
+          <button key={card.instanceId} type="button"
             className="relative cursor-pointer overflow-hidden"
             style={{ width: 128, height: 192 }}
-            onClick={() => onEdit(card.instance_id)}>
+            onClick={() => onEdit(card.instanceId)}>
             <div
               className="relative rounded-xl border-[3px] border-stone-500/70
                 bg-gradient-to-b from-stone-700/90 via-stone-800/90 to-stone-950/95

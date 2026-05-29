@@ -79,7 +79,7 @@ export function PlayerProvider({ playerId, children }) {
 
   const refresh = useCallback((options) => loadProfile(options), [loadProfile]);
 
-  const exploreQuotaPlayerId = profile?.player?.player_id ?? profile?.player?.playerId ?? playerId ?? null;
+  const exploreQuotaPlayerId = profile?.player?.playerId ?? playerId ?? null;
   const exploreQuota = useExploreQuota(exploreQuotaPlayerId);
 
   const value = useMemo(() => {

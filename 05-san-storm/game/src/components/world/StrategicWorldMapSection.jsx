@@ -152,9 +152,9 @@ function buildMarchAnimPath(onRoadAtStart, fullPath, stepsApplied) {
 /** 已装备部队卡：当前兵力合计 / 上限合计（与披挂口径一致） */
 /** 大地图本人头像（与 `strategicSelfPawn` 一致：character1 装备立绘优先） */
 function resolveSelfMapPortraitUrl(ctxPlayer, ctxCards, attributeBonusBySlot) {
-  const characterCards = (ctxCards || []).filter((c) => c.card_type === 'character');
+  const characterCards = (ctxCards || []).filter((c) => c.cardType === 'character');
   const char1 = characterCards.find(
-    (c) => c.equipped_by === 'character1' && c.is_equipped && c.equipped_slot === 'character',
+    (c) => c.equippedBy === 'character1' && c.isEquipped && c.equippedSlot === 'character',
   );
   let portraitUrl = ctxPlayer?.avatar || null;
   if (char1) {
@@ -169,12 +169,12 @@ function sumEquippedTroopStrength(cards) {
   let current = 0;
   let max = 0;
   for (const c of cards || []) {
-    if (c?.card_type !== 'troop' || !c?.is_equipped) continue;
+    if (c?.cardType !== 'troop' || !c?.isEquipped) continue;
     const cfgMax = Number(c.config?.maxTroops) || 0;
-    const bonus = Number(c.bonus_max_troops) || 0;
+    const bonus = Number(c.bonusMaxTroops) || 0;
     const cap = cfgMax + bonus;
     max += cap;
-    const raw = c.current_troops;
+    const raw = c.currentTroops;
     const cur = raw != null && raw !== '' ? Number(raw) : cap;
     current += Number.isFinite(cur) ? cur : cap;
   }
@@ -182,7 +182,7 @@ function sumEquippedTroopStrength(cards) {
 }
 
 /**
- * 本人路点格：`getProfile` 多为 snake_case；与 `road-presence` 对齐时可带 camelCase。
+ * 本人路点格：与 `road-presence` 对齐的 camelCase 档案字段。
  * 合并图 `cells` 常先于档案就绪：`player == null` 时勿调用 `resolveStrategicRecordedStandpointPx`，否则会 NaN→误报「坐标无效」。
  * @returns {{ hasPlayer: boolean, rx: number, ry: number, junId: string|null }}
  */
@@ -190,11 +190,11 @@ function readSelfPlayerRoadGrid(player) {
   if (!player || typeof player !== 'object') {
     return { hasPlayer: false, rx: NaN, ry: NaN, junId: null };
   }
-  const rawX = player.road_position_x ?? player.roadPositionX;
-  const rawY = player.road_position_y ?? player.roadPositionY;
+  const rawX = player.roadPositionX;
+  const rawY = player.roadPositionY;
   const rx = Number(rawX);
   const ry = Number(rawY);
-  const jid = player.road_jun_id ?? player.roadJunId;
+  const jid = player.roadJunId;
   const junId = jid != null && String(jid).trim() ? String(jid).trim() : null;
   return { hasPlayer: true, rx, ry, junId };
 }
@@ -514,9 +514,9 @@ export default function StrategicWorldMapSection({
   const cityRuntimeJunIds = useMemo(() => [...SAN_1_STRATEGIC_VERTICAL_STACK_JUN_ORDER], []);
   const playerMarchJunId = useMemo(
     () =>
-      String(ctxPlayer?.road_jun_id ?? ctxPlayer?.roadJunId ?? 'san_1_jun_yingchuan').trim() ||
+      String(ctxPlayer?.roadJunId ?? 'san_1_jun_yingchuan').trim() ||
       'san_1_jun_yingchuan',
-    [ctxPlayer?.road_jun_id, ctxPlayer?.roadJunId],
+    [ctxPlayer?.roadJunId],
   );
   const { cityById, factionNameById } = useStrategicCountyCityRuntime({
     junIds: cityRuntimeJunIds,
@@ -733,8 +733,8 @@ export default function StrategicWorldMapSection({
     }
 
     const portraitUrl = resolveSelfMapPortraitUrl(ctxPlayer, ctxCards, attributeBonusBySlot);
-    const factionName = String(ctxPlayer?.faction_name || '').trim();
-    const charName = String(ctxPlayer?.character_name || '').trim() || '…';
+    const factionName = String(ctxPlayer?.factionName || '').trim();
+    const charName = String(ctxPlayer?.characterName || '').trim() || '…';
     const displayName = factionName ? `[${factionName}]${charName}` : charName;
     const nameSeq = Array.from(charName);
     const centerGlyph = nameSeq.length ? nameSeq[nameSeq.length - 1] : '…';
@@ -764,7 +764,7 @@ export default function StrategicWorldMapSection({
       centerGlyph,
       troopsCurrent,
       troopsMax,
-      roadIntercept: ctxPlayer?.road_intercept ? 1 : 0,
+      roadIntercept: ctxPlayer?.roadIntercept ? 1 : 0,
       pawnPlayerId: playerId || null,
       playerSilver: Number.isFinite(Number(ctxPlayer?.silver)) ? Number(ctxPlayer.silver) : null,
       onRoad: useRoad,
@@ -1099,8 +1099,8 @@ export default function StrategicWorldMapSection({
     const selfRx = selfRoad.hasPlayer ? selfRoad.rx : NaN;
     const selfRy = selfRoad.hasPlayer ? selfRoad.ry : NaN;
     const selfPortraitUrl = resolveSelfMapPortraitUrl(ctxPlayer, ctxCards, attributeBonusBySlot);
-    const selfCharName = String(ctxPlayer?.character_name || '').trim() || '…';
-    const selfFactionName = String(ctxPlayer?.faction_name || '').trim();
+    const selfCharName = String(ctxPlayer?.characterName || '').trim() || '…';
+    const selfFactionName = String(ctxPlayer?.factionName || '').trim();
     const selfDisplayName = selfFactionName ? `[${selfFactionName}]${selfCharName}` : selfCharName;
     const selfStackKey = roadCellStackKey(playerMarchJunId, selfRx, selfRy);
     return roadPresence.others
@@ -1285,7 +1285,7 @@ export default function StrategicWorldMapSection({
         const gate = canPlayerMarchToPoiCity({
           cityRow: row,
           targetPoiId: marchTargetPoiId,
-          playerFactionId: ctxPlayer?.faction_id,
+          playerFactionId: ctxPlayer?.factionId,
           pvpCampAttackerFactionId:
             pvpCampSlice && String(pvpCampSlice.pvpWarId || '') === String(marchTargetPoiId)
               ? pvpCampSlice.attackerFactionId
@@ -1373,9 +1373,9 @@ export default function StrategicWorldMapSection({
       let encounterHint = null;
       if (occ) {
         const sameFaction =
-          ctxPlayer.faction_id != null &&
+          ctxPlayer.factionId != null &&
           occ.factionId != null &&
-          String(ctxPlayer.faction_id) === String(occ.factionId);
+          String(ctxPlayer.factionId) === String(occ.factionId);
         if (sameFaction) {
           setMarchToast({
             type: 'error',

@@ -29,17 +29,17 @@ export function useWorldMapCityPanels({
   const [pendingMainCityCityId, setPendingMainCityCityId] = useState(null);
 
   useEffect(() => {
-    if (player?.on_duty == null) return;
-    setOnDuty(!!player.on_duty);
-  }, [player?.on_duty]);
+    if (player?.onDuty == null) return;
+    setOnDuty(!!player.onDuty);
+  }, [player?.onDuty]);
 
   useEffect(() => {
     if (pendingMainCityCityId == null) return;
-    const cur = player?.main_city_id;
+    const cur = player?.mainCityId;
     if (cur != null && String(cur) === String(pendingMainCityCityId)) {
       setPendingMainCityCityId(null);
     }
-  }, [player?.main_city_id, pendingMainCityCityId]);
+  }, [player?.mainCityId, pendingMainCityCityId]);
 
   useEffect(
     () => () => {
@@ -49,14 +49,14 @@ export function useWorldMapCityPanels({
   );
 
   const playerMainCityIdForUi =
-    pendingMainCityCityId != null ? pendingMainCityCityId : (player?.main_city_id ?? null);
+    pendingMainCityCityId != null ? pendingMainCityCityId : (player?.mainCityId ?? null);
 
   const bumpStrategicMapRuntimeCaches = bumpGarrisonStats;
 
   const handleToggleDutyForCity = useCallback(
     async (cityId, newVal) => {
-      if (!player?.player_id) return false;
-      const res = await garrisonAPI.setOnDuty(player.player_id, newVal, cityId);
+      if (!player?.playerId) return false;
+      const res = await garrisonAPI.setOnDuty(player.playerId, newVal, cityId);
       if (res.success) {
         await refreshPlayer();
         bumpGarrisonStats();
@@ -65,14 +65,14 @@ export function useWorldMapCityPanels({
       if (res.error) setSimpleAlertMessage(res.error);
       return false;
     },
-    [player?.player_id, refreshPlayer, bumpGarrisonStats, setSimpleAlertMessage],
+    [player?.playerId, refreshPlayer, bumpGarrisonStats, setSimpleAlertMessage],
   );
 
   const handleSetMainCityRequest = useCallback(
     async (targetCityId) => {
-      if (!player?.player_id || !targetCityId) return;
+      if (!player?.playerId || !targetCityId) return;
       try {
-        const res = await playerAPI.setMainCity(player.player_id, targetCityId);
+        const res = await playerAPI.setMainCity(player.playerId, targetCityId);
         if (res.success) {
           const d = res.data || {};
           let msg;
@@ -93,7 +93,7 @@ export function useWorldMapCityPanels({
         setSimpleAlertMessage(e?.message || '设置主城失败');
       }
     },
-    [player?.player_id, refreshPlayer, setSimpleAlertMessage],
+    [player?.playerId, refreshPlayer, setSimpleAlertMessage],
   );
 
   const handleOpenBarracksPost = useCallback((cityId, cityBaseName) => {
@@ -129,9 +129,9 @@ export function useWorldMapCityPanels({
 
   const openGarrisonForCity = useCallback(
     async (cityId, cityBaseName) => {
-      if (!player?.player_id || !cityId) return;
+      if (!player?.playerId || !cityId) return;
       try {
-        const res = await garrisonAPI.getAll(player.player_id);
+        const res = await garrisonAPI.getAll(player.playerId);
         if (!res.success) {
           setSimpleAlertMessage(res.error || '无法加载驻地信息，请稍后重试');
           return;
@@ -151,7 +151,7 @@ export function useWorldMapCityPanels({
         setSimpleAlertMessage(e?.message || '打开驻地编组失败');
       }
     },
-    [player?.player_id, setSimpleAlertMessage],
+    [player?.playerId, setSimpleAlertMessage],
   );
 
   const closeGarrisonPanel = useCallback(() => {

@@ -37,8 +37,8 @@ export default function LineupStatsPanel({
     const cfg = card.config || {};
     const atk = cfg.attack || 0;
     const def = cfg.defense || 0;
-    const maxTroops = (cfg.maxTroops || 0) + (card.bonus_max_troops || 0);
-    const currentTroops = card.current_troops ?? maxTroops;
+    const maxTroops = (cfg.maxTroops || 0) + (card.bonusMaxTroops || 0);
+    const currentTroops = card.currentTroops ?? maxTroops;
     const lostTroops = Math.max(0, maxTroops - currentTroops);
 
     const unitAtk = (atk + combat * 6) * (1 + courage / 40);
@@ -53,7 +53,7 @@ export default function LineupStatsPanel({
     totalDeployCost += deployCost;
     totalRecoverCost += recoverCost;
 
-    return { equippedBy: card.equipped_by, power, deployCost, recoverCost, remainingMin, currentTroops, maxTroops };
+    return { equippedBy: card.equippedBy, power, deployCost, recoverCost, remainingMin, currentTroops, maxTroops };
   });
 
   // 按 equippedBy 分组取最长恢复时间，然后取所有组中最长（玩家 / 将领并行恢复，取最慢）

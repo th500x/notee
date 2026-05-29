@@ -111,9 +111,9 @@ export function buildMarchPath({
     return { ok: false, error: '请选择道路格作为目标' };
   }
 
-  const roadJun = player?.road_jun_id || null;
-  const rx = Number(player?.road_position_x);
-  const ry = Number(player?.road_position_y);
+  const roadJun = player?.roadJunId || null;
+  const rx = Number(player?.roadPositionX);
+  const ry = Number(player?.roadPositionY);
   const startWorld =
     useWorldStackRoadCoords && roadJun && Number.isFinite(rx) && Number.isFinite(ry)
       ? playerRoadToWorldMapCell(roadJun, Math.trunc(rx), Math.trunc(ry))
@@ -186,13 +186,13 @@ export function buildMarchPathToPoi(p) {
  */
 export function estimateMarchFoodCost({ path, onRoadAtStart, player }) {
   const todayStr = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}`;
-  const fd = player?.road_move_free_date;
+  const fd = player?.roadMoveFreeDate;
   const freeDateStr = fd ? new Date(fd).toISOString().slice(0, 10) : null;
-  const freeUsedBase = freeDateStr === todayStr ? Number(player?.road_move_free_used) || 0 : 0;
+  const freeUsedBase = freeDateStr === todayStr ? Number(player?.roadMoveFreeUsed) || 0 : 0;
 
-  const rd = player?.road_reserve_date;
+  const rd = player?.roadReserveDate;
   const reserveDateStr = rd ? new Date(rd).toISOString().slice(0, 10) : null;
-  const reserveUsedBase = reserveDateStr === todayStr ? Number(player?.road_reserve_used) || 0 : 0;
+  const reserveUsedBase = reserveDateStr === todayStr ? Number(player?.roadReserveUsed) || 0 : 0;
 
   const freeQuotaBeforeMarch = Math.max(0, MARCH_FREE_MOVES_PER_DAY - freeUsedBase);
 

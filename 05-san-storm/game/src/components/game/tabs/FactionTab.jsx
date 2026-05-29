@@ -48,7 +48,7 @@ export default function FactionTab({ onClose }) {
 
   const { player } = usePlayerContext();
 
-  const playerId = player?.player_id;
+  const playerId = player?.playerId;
   const [activeSubTabId, setActiveSubTabId] = useState('factionInfo');
 
   const [overview, setOverview] = useState(null);

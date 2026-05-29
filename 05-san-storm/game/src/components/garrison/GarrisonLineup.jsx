@@ -82,11 +82,11 @@ export default function GarrisonLineup({
 
   /* ── 驻守数据：本城槽位 + 全城池占用实例（与上阵编组 LineupTab 一致用 getAll） ── */
   const loadGarrisonData = useCallback(async () => {
-    if (!player?.player_id || !cityId) return;
+    if (!player?.playerId || !cityId) return;
     try {
       const [byCityRes, allRes] = await Promise.all([
-        garrisonAPI.getByCity(player.player_id, cityId),
-        garrisonAPI.getAll(player.player_id),
+        garrisonAPI.getByCity(player.playerId, cityId),
+        garrisonAPI.getAll(player.playerId),
       ]);
       if (byCityRes.success) {
         const list = byCityRes.garrisons || [];
@@ -100,7 +100,7 @@ export default function GarrisonLineup({
     } catch (e) {
       console.error('[GarrisonLineup] 加载驻守数据失败:', e);
     }
-  }, [player?.player_id, cityId]);
+  }, [player?.playerId, cityId]);
 
   useEffect(() => { loadGarrisonData(); }, [loadGarrisonData]);
 
@@ -116,10 +116,10 @@ export default function GarrisonLineup({
     return ['char1_troop1', 'char1_troop2', 'char2_troop1', 'char2_troop2'].reduce((sum, f) => {
       const id = currentGarrison[f];
       if (!id) return sum;
-      const c = cards.find(x => x.instance_id === id);
+      const c = cards.find(x => x.instanceId === id);
       if (!c) return sum;
-      const max = (c.config?.maxTroops || 0) + (c.bonus_max_troops || 0);
-      return sum + (c.current_troops ?? max);
+      const max = (c.config?.maxTroops || 0) + (c.bonusMaxTroops || 0);
+      return sum + (c.currentTroops ?? max);
     }, 0);
   }, [currentGarrison, cards]);
 
@@ -128,17 +128,17 @@ export default function GarrisonLineup({
     if (!currentGarrison) return null;
     const instanceId = currentGarrison[fieldName];
     if (!instanceId) return null;
-    return cards.find(c => c.instance_id === instanceId) || null;
+    return cards.find(c => c.instanceId === instanceId) || null;
   }, [currentGarrison, cards]);
 
   /* ── 保存驻守配置 ── */
   const saveGarrison = useCallback(async (fieldName, instanceId) => {
-    if (!player?.player_id) return;
+    if (!player?.playerId) return;
     setSaving(true);
     try {
       let base = {};
       try {
-        const slotRes = await garrisonAPI.getSlot(player.player_id, currentSlotNum, cityId);
+        const slotRes = await garrisonAPI.getSlot(player.playerId, currentSlotNum, cityId);
         if (slotRes.success && slotRes.garrison) base = { ...slotRes.garrison };
       } catch (_) { /* ignore */ }
       if (!base || Object.keys(base).length === 0) base = { ...(currentGarrison || {}) };
@@ -157,7 +157,7 @@ export default function GarrisonLineup({
       };
       config[fieldName] = instanceId;
 
-      const res = await garrisonAPI.save(player.player_id, currentSlotNum, config);
+      const res = await garrisonAPI.save(player.playerId, currentSlotNum, config);
       if (res.success) {
         await loadGarrisonData();
         await refresh();
@@ -176,7 +176,7 @@ export default function GarrisonLineup({
       console.error('[GarrisonLineup] 保存失败:', e);
     }
     setSaving(false);
-  }, [player?.player_id, currentSlotNum, currentGarrison, loadGarrisonData, refresh, cityId, cityName, onAfterMutation]);
+  }, [player?.playerId, currentSlotNum, currentGarrison, loadGarrisonData, refresh, cityId, cityName, onAfterMutation]);
 
   /* ── 抽屉/详情控制 ── */
   const closeDrawer = useCallback(() => {
@@ -203,12 +203,12 @@ export default function GarrisonLineup({
       : slotId === 'equipmentSet'
         ? `${charKey}_equipment_card`
         : `${charKey}_${slotId}`;
-    await saveGarrison(fieldName, card.instance_id);
+    await saveGarrison(fieldName, card.instanceId);
     closeDrawer();
   }, [selectedSlot, saveGarrison, closeDrawer]);
 
   const handleEquipCharacter = useCallback(async (card, charKey) => {
-    await saveGarrison(`${charKey}_card`, card.instance_id);
+    await saveGarrison(`${charKey}_card`, card.instanceId);
   }, [saveGarrison]);
 
   const handleGeneralCardClick = useCallback((card, charKey) => {
@@ -225,8 +225,8 @@ export default function GarrisonLineup({
   const resolveDetailCharKey = useCallback(() => {
     if (!detailCard) return null;
     let ck = detailCard.charKey;
-    if (!ck && detailCard.slot?.id === 'character' && detailCard.card?.instance_id && currentGarrison) {
-      const cid = detailCard.card.instance_id;
+    if (!ck && detailCard.slot?.id === 'character' && detailCard.card?.instanceId && currentGarrison) {
+      const cid = detailCard.card.instanceId;
       if (currentGarrison.char1_card === cid)      ck = 'char1';
       else if (currentGarrison.char2_card === cid) ck = 'char2';
     }
@@ -243,21 +243,21 @@ export default function GarrisonLineup({
   /* ── 卡牌分类（占用 = 任意城池驻地槽，与后端 save 冲突检测一致） ── */
   const occupiedIds = garrisonOccupiedInstanceIds;
 
-  const characterCards   = cards.filter(c => c.card_type === 'character');
-  const troopCards       = cards.filter(c => c.card_type === 'troop');
-  const titleCards       = cards.filter(c => c.card_type === 'title');
+  const characterCards   = cards.filter(c => c.cardType === 'character');
+  const troopCards       = cards.filter(c => c.cardType === 'troop');
+  const titleCards       = cards.filter(c => c.cardType === 'title');
   const equipmentSetCards = cards.filter(
-    c => c.card_type === 'equipmentSet' && c.config?.displayName && String(c.config.displayName).trim()
+    c => c.cardType === 'equipmentSet' && c.config?.displayName && String(c.config.displayName).trim()
   );
   const availableCards = cards.filter(c => {
-    if (c.card_type === 'equipmentSet') return false;
-    if (c.is_equipped || occupiedIds.has(c.instance_id)) return false;
-    if (c.card_type === 'equipment' && c.bound_equipment_set_instance_id) return false;
+    if (c.cardType === 'equipmentSet') return false;
+    if (c.isEquipped || occupiedIds.has(c.instanceId)) return false;
+    if (c.cardType === 'equipment' && c.boundEquipmentSetInstanceId) return false;
     if (isMainCityBarracksStored(c)) return false;
     return true;
   });
   const encapsulateEquipmentPool = cards.filter(
-    c => c.card_type === 'equipment' && !c.is_equipped && !occupiedIds.has(c.instance_id)
+    c => c.cardType === 'equipment' && !c.isEquipped && !occupiedIds.has(c.instanceId)
   );
 
   const getAvailableCards = useCallback((type) => {
@@ -267,11 +267,11 @@ export default function GarrisonLineup({
       : type === 'equipmentSet'          ? equipmentSetCards
       : [];
     return pool.filter(c => {
-      if (c.is_equipped || occupiedIds.has(c.instance_id)) return false;
+      if (c.isEquipped || occupiedIds.has(c.instanceId)) return false;
       if (isMainCityBarracksStored(c)) return false;
       if (type !== 'troop') return true;
-      const maxBattle = c.max_battle_count ?? 10;
-      const count     = Math.max(0, c.battle_count ?? 0);
+      const maxBattle = c.maxBattleCount ?? 10;
+      const count     = Math.max(0, c.battleCount ?? 0);
       return count < maxBattle || c.rarity === 'legendary';
     });
   }, [characterCards, troopCards, titleCards, equipmentSetCards, occupiedIds]);
@@ -301,7 +301,7 @@ export default function GarrisonLineup({
     garrison: currentGarrison,
     cards,
     getCardFromGarrison,
-    playerId: player?.player_id,
+    playerId: player?.playerId,
   });
 
   const garrisonLandscapeCells = [
@@ -328,7 +328,7 @@ export default function GarrisonLineup({
           cards={availableCards}
           skillsMap={skillsMap}
           isLandscape={isLandscape}
-          playerId={player?.player_id}
+          playerId={player?.playerId}
           onAfterEncapsulateChange={refresh}
           encapsulateEquipmentPool={encapsulateEquipmentPool}
           equipmentSetCards={equipmentSetCards}
@@ -405,14 +405,14 @@ export default function GarrisonLineup({
               cards={cards}
               getCardFromGarrison={getCardFromGarrison}
               attributeBonus={getGarrisonBonus(activeChar)}
-              playerId={player?.player_id}
+              playerId={player?.playerId}
             />
 
             <GarrisonBackpack
               cards={availableCards}
               skillsMap={skillsMap}
               isLandscape={isLandscape}
-              playerId={player?.player_id}
+              playerId={player?.playerId}
               onAfterEncapsulateChange={refresh}
               encapsulateEquipmentPool={encapsulateEquipmentPool}
               equipmentSetCards={equipmentSetCards}
@@ -423,7 +423,7 @@ export default function GarrisonLineup({
 
       {/* ── 卡牌详情浮层 ── */}
       {detailCard && (() => {
-        const isCharCard    = detailCard.card.card_type === 'character';
+        const isCharCard    = detailCard.card.cardType === 'character';
         const overlayChar   = isCharCard ? toCharCardData(detailCard.card, {}, skillsMap) : null;
         const lifeStageData = overlayChar ? getCharacterLifeStage(overlayChar.id) : null;
         const baseUrl = import.meta.env.BASE_URL;
@@ -443,15 +443,15 @@ export default function GarrisonLineup({
                   <p className="text-stone-500 text-[11px] text-center">点击卡牌可翻面查看生涯</p>
                 )}
                 <div style={{ transform: `scale(${CARD_SCALE_DETAIL_MODAL})`, transformOrigin: 'top center' }}>
-                  {detailCard.card.card_type === 'character' ? (
+                  {detailCard.card.cardType === 'character' ? (
                     <CharacterCard character={overlayChar} skillsMap={skillsMap} showDetails={true}
                       baseUrl={baseUrl} lifeStageData={lifeStageData} disableHoverScale />
-                  ) : detailCard.card.card_type === 'troop' ? (
+                  ) : detailCard.card.cardType === 'troop' ? (
                     <TroopCard troop={toTroopCardData(detailCard.card)} skillsMap={skillsMap}
                       showDetails={true} baseUrl={baseUrl} disableHoverScale />
-                  ) : detailCard.card.card_type === 'title' ? (
+                  ) : detailCard.card.cardType === 'title' ? (
                     <TitleAchievementCard item={toTitleCardData(detailCard.card)} type="title" baseUrl={baseUrl} />
-                  ) : detailCard.card.card_type === 'equipment' ? (
+                  ) : detailCard.card.cardType === 'equipment' ? (
                     <EquipmentCard equipment={toEquipCardData(detailCard.card)} baseUrl={baseUrl} />
                   ) : (
                     <div className="text-stone-400 text-sm text-center py-8">卡牌预览</div>
@@ -555,7 +555,7 @@ function GarrisonDrawer({ slot, cards, skillsMap, onSelect, onClose }) {
                 <div className="text-stone-500 text-xs mb-1.5 px-1">{rarityLabel[rarity]}（{grouped[rarity].length}）</div>
                 <div className="flex flex-wrap gap-2">
                   {grouped[rarity].map(card => (
-                    <div key={card.instance_id} onClick={() => onSelect(card)}
+                    <div key={card.instanceId} onClick={() => onSelect(card)}
                       className="cursor-pointer hover:brightness-110 active:scale-95 transition-all"
                       style={{
                         width: 128,
@@ -576,7 +576,7 @@ function GarrisonDrawer({ slot, cards, skillsMap, onSelect, onClose }) {
                           <TitleAchievementCard item={toTitleCardData(card)} type="title" baseUrl={baseUrl} />
                         ) : isEquipSetSlot ? (
                           <div className="w-[256px] h-[192px] rounded-xl bg-stone-800 border-2 border-amber-700/40 p-3 flex flex-col justify-between">
-                            <div className="text-amber-200 text-sm font-bold truncate">{card.config?.displayName || card.instance_id}</div>
+                            <div className="text-amber-200 text-sm font-bold truncate">{card.config?.displayName || card.instanceId}</div>
                             <div className="text-stone-400 text-xs">装备卡</div>
                           </div>
                         ) : (

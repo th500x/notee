@@ -12,6 +12,7 @@ const { getFactionFromTroopId } = require('./troopIdHelpers');
 const playerCardLineupService = require('./playerCardLineupService');
 const statisticsDeltaService = require('./statisticsDeltaService');
 const staleStrategicRoadStandRepairService = require('./staleStrategicRoadStandRepairService');
+const { formatPlayerProfilePayloadForApi } = require('../../shared/utils/formatPlayerProfileApi.cjs');
 
 /**
  * @returns {Promise<{ notFound: true } | { data: object }>}
@@ -465,57 +466,18 @@ async function getPlayerProfile(playerId) {
   const gameTime = await gameTimeService.loadGameTimeForPlayer(playerId);
 
   return {
-    data: {
+    data: formatPlayerProfilePayloadForApi({
       player: {
-        player_id: player.player_id,
-        character_name: player.character_name,
-        faction_id: player.faction_id,
-        faction_name: player.faction_name,
-        avatar: player.avatar,
-        reputation: player.reputation,
-        reputation_to_next: player.reputation_to_next,
-        contribution: player.contribution,
+        ...player,
         silver: latestResources.silver ?? player.silver,
         food: latestResources.food ?? player.food,
-        combat: player.combat,
-        intelligence: player.intelligence,
-        command: player.command,
-        politics: player.politics,
-        charm: player.charm,
-        courage: player.courage,
-        luck: player.luck,
-        skill_1: player.skill_1,
-        skill_2: player.skill_2,
-        current_position_id: player.current_position_id,
-        current_position_name: player.current_position_name,
-        position_level: player.position_level,
         position_config: positionConfig,
-        morale: player.morale,
-        items: player.items ? (typeof player.items === 'string' ? JSON.parse(player.items) : player.items) : {},
-        troop_affinity: player.troop_affinity,
-        trait: player.trait,
-        trait_modifier: player.trait_modifier,
-        on_duty: !!player.on_duty,
-        on_duty_city_id: player.on_duty_city_id || null,
-        main_city_id: player.main_city_id || null,
-        main_city_changed_at: player.main_city_changed_at || null,
-        road_jun_id: player.road_jun_id || null,
-        road_position_x: player.road_position_x != null ? Number(player.road_position_x) : null,
-        road_position_y: player.road_position_y != null ? Number(player.road_position_y) : null,
-        road_intercept: player.road_intercept ? 1 : 0,
-        road_updated_at: player.road_updated_at || null,
-        road_reserve_date: player.road_reserve_date || null,
-        road_reserve_used: Number(player.road_reserve_used) || 0,
-        road_move_free_date: player.road_move_free_date || null,
-        road_move_free_used: Number(player.road_move_free_used) || 0,
-        bonus_backpack_capacity: player.bonus_backpack_capacity ?? 0,
-        bonus_daily_events: player.bonus_daily_events ?? 0,
         attribute_bonus: attributeBonusBySlot.player,
       },
       cards: enrichedCards,
       attributeBonusBySlot,
       gameTime,
-    },
+    }),
   };
 }
 

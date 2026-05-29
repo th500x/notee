@@ -8,11 +8,11 @@ export const MIN_MAIN_LINEUP_TROOPS_BATTLE = 200;
 
 export function sumEquippedTroopTroopsFromCards(cards) {
   if (!Array.isArray(cards)) return 0;
-  const troops = cards.filter(c => c.card_type === 'troop' && c.is_equipped);
+  const troops = cards.filter(c => c.cardType === 'troop' && c.isEquipped);
   return troops.reduce((s, c) => {
     const cfg = c.config || {};
-    const max = (cfg.maxTroops || 0) + (c.bonus_max_troops || 0);
-    return s + (c.current_troops ?? max);
+    const max = (cfg.maxTroops || 0) + (c.bonusMaxTroops || 0);
+    return s + (c.currentTroops ?? max);
   }, 0);
 }
 
@@ -34,11 +34,11 @@ export function getMainLineupTroopTotalForBattleGate(cards, playerUnits) {
  */
 export function getMainLineupBattleFoodDeployCost(cards, playerUnits) {
   if (cards?.length) {
-    const troops = cards.filter((c) => c.card_type === 'troop' && c.is_equipped);
+    const troops = cards.filter((c) => c.cardType === 'troop' && c.isEquipped);
     return troops.reduce((s, c) => {
       const cfg = c.config || {};
-      const max = (cfg.maxTroops || 0) + (c.bonus_max_troops || 0);
-      const current = c.current_troops ?? max;
+      const max = (cfg.maxTroops || 0) + (c.bonusMaxTroops || 0);
+      const current = c.currentTroops ?? max;
       return s + Math.ceil(Math.max(0, current) / 20);
     }, 0);
   }

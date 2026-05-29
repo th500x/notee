@@ -73,7 +73,7 @@ export default function useEventSystem(player, cards, options = {}) {
     playerItemCounts,
     citiesList,
     itemNameMap,
-  } = useExploreEventCatalog(player?.player_id);
+  } = useExploreEventCatalog(player?.playerId);
 
   // 流程状态
   const [phase, setPhase] = useState(PHASE.IDLE);
@@ -94,7 +94,7 @@ export default function useEventSystem(player, cards, options = {}) {
 
   // 未完成的事件（关闭对话框后保留，下次探索复用）
   // 持久化到 localStorage，防止刷新页面刷事件
-  const pendingKey = player?.player_id ? `pending_event_${player.player_id}` : null;
+  const pendingKey = player?.playerId ? `pending_event_${player.playerId}` : null;
   const [pendingEvent, setPendingEventRaw] = useState(() => {
     if (!pendingKey) return null;
     try {
@@ -256,7 +256,7 @@ export default function useEventSystem(player, cards, options = {}) {
 
   const hasEquippedLineup = useMemo(() => {
     if (!cards || cards.length === 0) return false;
-    return cards.some((c) => c.card_type === 'troop' && c.is_equipped);
+    return cards.some((c) => c.cardType === 'troop' && c.isEquipped);
   }, [cards]);
 
   /** 已完成 2 环时下一环为指引叁（chain_level 3），未装部队则拦截自动开局并显示引导 */
@@ -290,9 +290,9 @@ export default function useEventSystem(player, cards, options = {}) {
     });
   }, [
     phase,
-    player?.road_jun_id,
-    player?.road_position_x,
-    player?.road_position_y,
+    player?.roadJunId,
+    player?.roadPositionX,
+    player?.roadPositionY,
     citiesList,
     exploreAnchorGridRef,
     exploreAnchorGridSeq,
@@ -306,7 +306,7 @@ export default function useEventSystem(player, cards, options = {}) {
    */
   useLayoutEffect(() => {
     if (!persistMapEventHint) return;
-    const k = pendingMapEventHintStorageKey(player?.player_id);
+    const k = pendingMapEventHintStorageKey(player?.playerId);
     if (!k) return;
     try {
       const raw = sessionStorage.getItem(k);
@@ -317,12 +317,12 @@ export default function useEventSystem(player, cards, options = {}) {
     } catch {
       /* ignore */
     }
-  }, [persistMapEventHint, player?.player_id]);
+  }, [persistMapEventHint, player?.playerId]);
 
   // 仅在有文案时写入；不在此处 removeItem——否则首帧 pending 仍为 null 时会在 layout  hydrate 之前误删 session（刷新/Strict 双挂载后指引丢失）。
   useEffect(() => {
     if (!persistMapEventHint) return;
-    const k = pendingMapEventHintStorageKey(player?.player_id);
+    const k = pendingMapEventHintStorageKey(player?.playerId);
     if (!k) return;
     const t = pendingMapEventHint && String(pendingMapEventHint).trim();
     if (!t) return;
@@ -331,7 +331,7 @@ export default function useEventSystem(player, cards, options = {}) {
     } catch {
       /* ignore */
     }
-  }, [persistMapEventHint, player?.player_id, pendingMapEventHint]);
+  }, [persistMapEventHint, player?.playerId, pendingMapEventHint]);
 
   /**
    * 教程链 IDLE、且尚无 `closeReward` 写入的 pending：用**上一环已完成模板**上的 `event_hint`。
@@ -423,9 +423,9 @@ export default function useEventSystem(player, cards, options = {}) {
     if (!currentEvent?.location) {
       return { displayLocationId: '', cityName: '', isPlaceholder: false };
     }
-    const seed = `${player?.player_id || ''}:${currentEvent.event_id}:${currentEvent.location}`;
+    const seed = `${player?.playerId || ''}:${currentEvent.event_id}:${currentEvent.location}`;
     return resolveEventLocationForUi(currentEvent.location, citiesList, seed);
-  }, [currentEvent, citiesList, player?.player_id]);
+  }, [currentEvent, citiesList, player?.playerId]);
 
   const eventLocationLabel = useMemo(() => {
     if (!currentEvent?.location) return '';
@@ -583,7 +583,7 @@ export default function useEventSystem(player, cards, options = {}) {
   useEffect(() => {
     const prev = prevPhaseForExploreRef.current;
     prevPhaseForExploreRef.current = phase;
-    if (prev !== PHASE.RETURNING || phase !== PHASE.IDLE || !player?.player_id) return undefined;
+    if (prev !== PHASE.RETURNING || phase !== PHASE.IDLE || !player?.playerId) return undefined;
 
     let cancelled = false;
     (async () => {
@@ -721,9 +721,9 @@ export default function useEventSystem(player, cards, options = {}) {
         /* ignore */
       }
     }
-    if (persistMapEventHint && player?.player_id) {
+    if (persistMapEventHint && player?.playerId) {
       try {
-        const k = pendingMapEventHintStorageKey(player.player_id);
+        const k = pendingMapEventHintStorageKey(player.playerId);
         if (k) sessionStorage.removeItem(k);
       } catch {
         /* ignore */
@@ -743,7 +743,7 @@ export default function useEventSystem(player, cards, options = {}) {
     setRewardDetails(null);
     setPhase(PHASE.IDLE);
     void refetchExploreProgress();
-  }, [pendingKey, setPendingEvent, persistMapEventHint, player?.player_id, refetchExploreProgress]);
+  }, [pendingKey, setPendingEvent, persistMapEventHint, player?.playerId, refetchExploreProgress]);
 
   // 关闭事件对话框（未选选项）：已在本轮 `startExplore` 扣过次数则退还，并清空 pending，避免与「已扣费」状态不一致。
   const closeEvent = useCallback(() => {
@@ -769,7 +769,7 @@ export default function useEventSystem(player, cards, options = {}) {
 
   // 请求后端发放奖励（统一入口）
   const requestRewards = useCallback((optKey, extraBody = {}) => {
-    if (!currentEvent || !player?.player_id) return Promise.resolve(null);
+    if (!currentEvent || !player?.playerId) return Promise.resolve(null);
     const body = {
       eventId: currentEvent.event_id,
       optionKey: optKey,
@@ -778,7 +778,7 @@ export default function useEventSystem(player, cards, options = {}) {
       general2Attrs: general2,
       ...extraBody,
     };
-    return fetchWithTimeout(`${API_CONFIG.BASE_URL}/players/${player.player_id}/rewards`, {
+    return fetchWithTimeout(`${API_CONFIG.BASE_URL}/players/${player.playerId}/rewards`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
@@ -820,11 +820,11 @@ export default function useEventSystem(player, cards, options = {}) {
       bonusRewards: data.data.bonusRewards || [],
       troopRepair: data.data.troopRepair || null,
     });
-    if (player?.player_id) {
+    if (player?.playerId) {
       void refetchExplorePlayerBundle();
     }
     return true;
-  }, [quota, currentEvent, resetExploreSessionAfterAbort, player?.player_id, refetchExplorePlayerBundle]);
+  }, [quota, currentEvent, resetExploreSessionAfterAbort, player?.playerId, refetchExplorePlayerBundle]);
 
   // 选择选项（探索次数已在 `startExplore` 扣除，此处不再 consume）
   const chooseOption = useCallback((option, optionKey) => {
@@ -954,9 +954,9 @@ export default function useEventSystem(player, cards, options = {}) {
     const optKey = chosenOptionKey;
     const chainIdNorm = String(ev?.chain_id || '').trim();
 
-    if (ev && optKey && player?.player_id) {
+    if (ev && optKey && player?.playerId) {
       try {
-        await fetchWithTimeout(`${API_CONFIG.BASE_URL}/players/${player.player_id}/events`, {
+        await fetchWithTimeout(`${API_CONFIG.BASE_URL}/players/${player.playerId}/events`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -1004,9 +1004,9 @@ export default function useEventSystem(player, cards, options = {}) {
       setPendingMapEventHint(null);
     }
 
-    if (persistMapEventHint && player?.player_id) {
+    if (persistMapEventHint && player?.playerId) {
       try {
-        const k = pendingMapEventHintStorageKey(player.player_id);
+        const k = pendingMapEventHintStorageKey(player.playerId);
         if (k) {
           if (nextMapEventHint) sessionStorage.setItem(k, nextMapEventHint);
           else sessionStorage.removeItem(k);
@@ -1047,7 +1047,7 @@ export default function useEventSystem(player, cards, options = {}) {
   }, [
     currentEvent,
     chosenOptionKey,
-    player?.player_id,
+    player?.playerId,
     rewardDetails,
     pendingKey,
     setPendingEvent,
@@ -1090,7 +1090,7 @@ export default function useEventSystem(player, cards, options = {}) {
     rewardDetails,
     battleScore,
     battleChestRewards,
-    playerId: player?.player_id || null,
+    playerId: player?.playerId || null,
     battleEntryBlockedMessage,
     dismissBattleEntryBlocked,
     exploreNoticeMessage,

@@ -15,7 +15,7 @@ export const DEFAULT_GENERAL = {
 export function toDisplayAttrs(player) {
   if (!player) return null;
   return {
-    name: player.character_name,
+    name: player.characterName,
     luck: player.luck / 10,
     courage: player.courage / 10,
     command: player.command / 10,
@@ -29,7 +29,7 @@ export function toDisplayAttrs(player) {
 /** 从 cards 提取已装备将领配置属性（显示值） */
 export function getEquippedGenerals(cards) {
   if (!cards || cards.length === 0) return [];
-  const equipped = cards.filter((c) => c.card_type === 'character' && c.is_equipped);
+  const equipped = cards.filter((c) => c.cardType === 'character' && c.isEquipped);
   return equipped.map((c) => {
     const cfg = c.config;
     if (cfg) {

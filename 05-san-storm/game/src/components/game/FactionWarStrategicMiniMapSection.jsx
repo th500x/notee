@@ -48,7 +48,7 @@ export default function FactionWarStrategicMiniMapSection({
   deferParentClearWithinSelector = null,
   className = '',
 }) {
-  const playerId = player?.player_id ?? player?.playerId ?? null;
+  const playerId = player?.playerId ?? null;
   const { status: stackStatus, merged, error: stackError } = useSan1StrategicMergedStack();
   const [cityRefreshKey, setCityRefreshKey] = useState(0);
   const [garrisonStatsByCityId, setGarrisonStatsByCityId] = useState({});
@@ -141,9 +141,9 @@ export default function FactionWarStrategicMiniMapSection({
 
   const selfMarker = useMemo(() => {
     if (!player || !merged?.cells?.length) return null;
-    const junId = player.road_jun_id ?? player.roadJunId;
-    const lx = Number(player.road_position_x ?? player.roadPositionX);
-    const ly = Number(player.road_position_y ?? player.roadPositionY);
+    const junId = player.roadJunId;
+    const lx = Number(player.roadPositionX);
+    const ly = Number(player.roadPositionY);
     if (!junId || !Number.isFinite(lx) || !Number.isFinite(ly)) return null;
     const w = playerRoadToWorldMapCell(String(junId).trim(), lx, ly);
     if (!w) return null;

@@ -60,8 +60,8 @@ export default function GarrisonStatsPanel({
     const tc           = card.config || {};
     const atk          = tc.attack || 0;
     const def          = tc.defense || 0;
-    const maxTroops    = (tc.maxTroops || 0) + (card.bonus_max_troops || 0);
-    const currentTroops = card.current_troops ?? maxTroops;
+    const maxTroops    = (tc.maxTroops || 0) + (card.bonusMaxTroops || 0);
+    const currentTroops = card.currentTroops ?? maxTroops;
 
     const unitAtk   = (atk + combat * 6) * (1 + courage / 40);
     const unitDef   = def + command * 5 + combat * 3;

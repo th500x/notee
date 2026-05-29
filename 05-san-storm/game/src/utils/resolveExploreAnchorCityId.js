@@ -16,9 +16,9 @@ import {
  * @returns {{ gx: number, worldGy: number }|null}
  */
 function resolveWorldMapCellFromPlayerRoad(player, mapRows) {
-  const j = String(player?.road_jun_id ?? player?.roadJunId ?? '').trim();
-  const lx = Math.trunc(Number(player?.road_position_x ?? player?.roadPositionX));
-  const ly = Math.trunc(Number(player?.road_position_y ?? player?.roadPositionY));
+  const j = String(player?.roadJunId ?? '').trim();
+  const lx = Math.trunc(Number(player?.roadPositionX));
+  const ly = Math.trunc(Number(player?.roadPositionY));
   if (!j || !Number.isFinite(lx) || !Number.isFinite(ly)) return null;
   if (isStackedWorldMap(mapRows)) {
     const w = playerRoadToWorldMapCell(j, lx, ly);
@@ -63,10 +63,10 @@ function exploreAnchorIdFromMergedGridCells(cells, gx, worldGy, mapColumns, mapR
 export function resolveExploreAnchorCityIdFromPlayerRoad(player, citiesList) {
   if (!player || !Array.isArray(citiesList) || citiesList.length === 0) return null;
 
-  const jRaw = player.road_jun_id ?? player.roadJunId;
+  const jRaw = player.roadJunId;
   const j = jRaw != null ? String(jRaw).trim() : '';
-  const x = player.road_position_x ?? player.roadPositionX;
-  const y = player.road_position_y ?? player.roadPositionY;
+  const x = player.roadPositionX;
+  const y = player.roadPositionY;
   if (!j || x == null || y == null) return null;
 
   const nx = Number(x);

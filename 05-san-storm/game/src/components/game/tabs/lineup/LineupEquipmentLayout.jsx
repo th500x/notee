@@ -22,15 +22,15 @@ import {
  */
 function buildCharCardData({ activeSubTab, player, generalCard, attributeBonus, skillsMap }) {
   if (activeSubTab === 'player' && player) {
-    const playerSkillIds = [player.skill_1, player.skill_2].filter(Boolean);
+    const playerSkillIds = [player.skill1, player.skill2].filter(Boolean);
     const phase1 = skillsMap && typeof skillsMap === 'object'
       ? buildPhase1BundleFromSkillIds(playerSkillIds, skillsMap)
       : null;
     const base = {
-      id: player.player_id,
-      name: player.character_name,
+      id: player.playerId,
+      name: player.characterName,
       avatar: player.avatar,
-      rarity: getPositionRarity(player.position_level, player.current_position_id),
+      rarity: getPositionRarity(player.positionLevel, player.currentPositionId),
       luck: player.luck / 10,
       courage: player.courage / 10,
       combat: player.combat / 10,

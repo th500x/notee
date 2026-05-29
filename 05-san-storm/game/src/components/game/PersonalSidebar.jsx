@@ -111,7 +111,7 @@ export default function PersonalSidebar({ open, onClose, onLogout }) {
           </div>
         ) : subView === 'stats' ? (
           <div className="flex flex-1 flex-col min-h-0 overflow-hidden">
-            <PersonalSidebarStatsPanel playerId={player?.player_id} onBack={() => setSubView(null)} />
+            <PersonalSidebarStatsPanel playerId={player?.playerId} onBack={() => setSubView(null)} />
           </div>
         ) : subView === 'mechanics' ? (
           <div className="flex flex-1 flex-col min-h-0 overflow-hidden">
@@ -131,9 +131,9 @@ export default function PersonalSidebar({ open, onClose, onLogout }) {
                     />
                   )}
                   <div className="min-w-0">
-                    <div className="font-bold text-gray-900 truncate">{player.character_name}</div>
-                    <div className="text-sm text-gray-600 truncate" title={player.player_id}>
-                      用户ID：{player.player_id || '—'}
+                    <div className="font-bold text-gray-900 truncate">{player.characterName}</div>
+                    <div className="text-sm text-gray-600 truncate" title={player.playerId}>
+                      用户ID：{player.playerId || '—'}
                     </div>
                   </div>
                 </div>
