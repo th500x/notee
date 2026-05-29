@@ -37,8 +37,8 @@ assert('intercept retry after move stored', matchesInterceptRequestId(interceptS
 assert('move does not match intercept scoped', !matchesMoveRequestId(interceptScoped, uuid));
 assert('intercept does not match move scoped', !matchesInterceptRequestId(moveScoped, uuid));
 
-assert('legacy bare uuid move', matchesMoveRequestId(uuid, uuid));
-assert('legacy bare uuid intercept', matchesInterceptRequestId(uuid, uuid));
+assert('bare uuid does not match move', !matchesMoveRequestId(uuid, uuid));
+assert('bare uuid does not match intercept', !matchesInterceptRequestId(uuid, uuid));
 
 console.log(ok ? '\nALL PASS' : '\nSOME FAILED');
 process.exit(ok ? 0 : 1);

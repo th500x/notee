@@ -971,7 +971,7 @@ export function roadKeysAdjacentOrDiagonalToFootprint(footprintKeys, roadPassabl
 }
 
 /**
- * profile API（camelCase）与 DB 行（snake_case）两用的道路立点字段。
+ * profile / 道路 API 的道路立点字段（camelCase）。
  * @param {object|null|undefined} player
  * @returns {{ roadJunId: string|null, roadPositionX: number, roadPositionY: number }}
  */
@@ -979,17 +979,17 @@ export function playerRoadStandFromProfile(player) {
   if (!player || typeof player !== 'object') {
     return { roadJunId: null, roadPositionX: NaN, roadPositionY: NaN };
   }
-  const rawJun = player.roadJunId ?? player.road_jun_id ?? null;
+  const rawJun = player.roadJunId ?? null;
   const roadJunId =
     rawJun != null && String(rawJun).trim() ? String(rawJun).trim() : null;
-  const roadPositionX = Number(player.roadPositionX ?? player.road_position_x);
-  const roadPositionY = Number(player.roadPositionY ?? player.road_position_y);
+  const roadPositionX = Number(player.roadPositionX);
+  const roadPositionY = Number(player.roadPositionY);
   return { roadJunId, roadPositionX, roadPositionY };
 }
 
 /**
  * @param {string|null|undefined} moverFactionId
- * @param {Iterable<object>|null|undefined} rows - `road-presence.others` 或 SQL 行（camelCase / snake_case 混排）
+ * @param {Iterable<object>|null|undefined} rows - `road-presence.others`（camelCase）
  * @returns {Set<string>}
  */
 export function buildHostileOccupiedRoadKeysFromPlayersRows(moverFactionId, rows) {
@@ -997,10 +997,10 @@ export function buildHostileOccupiedRoadKeysFromPlayersRows(moverFactionId, rows
   if (rows == null) return out;
   for (const r of rows) {
     if (!r || typeof r !== 'object') continue;
-    const fid = r.factionId ?? r.faction_id;
+    const fid = r.factionId;
     if (!isHostileByFaction(moverFactionId, fid)) continue;
-    const x = Math.trunc(Number(r.roadPositionX ?? r.road_position_x));
-    const y = Math.trunc(Number(r.roadPositionY ?? r.road_position_y));
+    const x = Math.trunc(Number(r.roadPositionX));
+    const y = Math.trunc(Number(r.roadPositionY));
     if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
     out.add(`${x},${y}`);
   }

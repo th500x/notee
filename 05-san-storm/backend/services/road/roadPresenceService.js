@@ -63,30 +63,6 @@ async function getSelfRoadState(playerId) {
     try {
       await conn.rollback();
     } catch (_) {}
-    if (/Unknown column/i.test(e.message || '') && /road_client_notice/i.test(e.message || '')) {
-      const [rows] = await pool.query(
-        `SELECT road_jun_id, road_position_x, road_position_y, road_intercept, road_updated_at,
-                food, silver,
-                road_reserve_date, road_reserve_used,
-                road_move_free_date, road_move_free_used
-           FROM players WHERE player_id = ?`,
-        [pid],
-      );
-      if (!rows.length) return { ok: false, status: 404, error: '玩家不存在' };
-      const r = rows[0];
-      return {
-        ok: true,
-        data: {
-          ...buildPlayerRoadSnapshot(r),
-          food: Number(r.food) || 0,
-          silver: Number(r.silver) || 0,
-          roadReserveDate: r.road_reserve_date || null,
-          roadReserveUsed: Number(r.road_reserve_used) || 0,
-          roadMoveFreeDate: r.road_move_free_date || null,
-          roadMoveFreeUsed: Number(r.road_move_free_used) || 0,
-        },
-      };
-    }
     if (/Unknown column/i.test(e.message || '')) {
       return { ok: false, status: 503, error: '数据库缺少道路状态列；请执行 add-players-road-state.sql' };
     }

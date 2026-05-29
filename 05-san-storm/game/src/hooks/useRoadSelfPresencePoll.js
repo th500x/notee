@@ -52,8 +52,8 @@ export function useRoadSelfPresencePoll({
         const res = await playerAPI.getRoadSelf(playerId);
         if (cancelled || !res?.success || !res.data) return;
         const d = res.data;
-        const j = d.road_jun_id != null ? String(d.road_jun_id) : '';
-        const snap = `${j}|${d.road_position_x}|${d.road_position_y}`;
+        const j = d.roadJunId != null ? String(d.roadJunId) : '';
+        const snap = `${j}|${d.roadPositionX}|${d.roadPositionY}`;
         if (strategicRoadMarchAnimatingRef?.current) {
           lastApiRoadSnapRef.current = snap;
           return;

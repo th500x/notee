@@ -60,11 +60,11 @@ function toInt(v) {
 
 function buildPlayerRoadSnapshot(player) {
   return {
-    road_jun_id: player.road_jun_id || null,
-    road_position_x: player.road_position_x != null ? Number(player.road_position_x) : null,
-    road_position_y: player.road_position_y != null ? Number(player.road_position_y) : null,
-    road_intercept: player.road_intercept ? 1 : 0,
-    road_updated_at: player.road_updated_at || null,
+    roadJunId: player.road_jun_id || null,
+    roadPositionX: player.road_position_x != null ? Number(player.road_position_x) : null,
+    roadPositionY: player.road_position_y != null ? Number(player.road_position_y) : null,
+    roadIntercept: player.road_intercept ? 1 : 0,
+    roadUpdatedAt: player.road_updated_at || null,
   };
 }
 
@@ -119,20 +119,18 @@ function scopedRoadRequestId(scope, clientRequestId) {
   return id.startsWith(prefix) ? id : `${prefix}${id}`;
 }
 
-/** move 幂等匹配：新格式 `move:<uuid>`；兼容历史裸 uuid */
+/** move 幂等匹配：`move:<uuid>` 精确匹配 */
 function matchesMoveRequestId(stored, clientRequestId) {
   const id = String(clientRequestId || '').trim();
   if (!id || stored == null || stored === '') return false;
-  const s = String(stored);
-  return s === scopedRoadRequestId(ROAD_REQ_SCOPE.MOVE, id) || s === id;
+  return String(stored) === scopedRoadRequestId(ROAD_REQ_SCOPE.MOVE, id);
 }
 
-/** intercept 幂等匹配：新格式 `intercept:<uuid>`；兼容历史裸 uuid */
+/** intercept 幂等匹配：`intercept:<uuid>` 精确匹配 */
 function matchesInterceptRequestId(stored, clientRequestId) {
   const id = String(clientRequestId || '').trim();
   if (!id || stored == null || stored === '') return false;
-  const s = String(stored);
-  return s === scopedRoadRequestId(ROAD_REQ_SCOPE.INTERCEPT, id) || s === id;
+  return String(stored) === scopedRoadRequestId(ROAD_REQ_SCOPE.INTERCEPT, id);
 }
 
 module.exports = {

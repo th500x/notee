@@ -1497,8 +1497,8 @@ export default function StrategicWorldMapSection({
       let animPath = buildMarchAnimPath(onRoadAtStart, fullPathWorld, stepsApplied);
       const poiAnchor = res.data?.poiAnchor;
       const destJun =
-        res.data?.road_jun_id != null
-          ? String(res.data.road_jun_id).trim()
+        res.data?.roadJunId != null
+          ? String(res.data.roadJunId).trim()
           : String(marchConfirm.targetPoiId ? playerMarchJunId : '').trim();
       if (
         poiAnchor &&
