@@ -1,6 +1,7 @@
 {
   "name": "san-storm-game",
   "version": "1.0.0",
+  "private": true,
   "description": "真三风云 - 游戏系统",
   "type": "module",
   "scripts": {
@@ -11,6 +12,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@san-storm/shared": "1.0.0",
     "html2canvas": "^1.4.1",
     "prop-types": "^15.8.1",
     "react": "^18.2.0",

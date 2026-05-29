@@ -1,25 +1,26 @@
 {
   "name": "@san-storm/shared",
   "version": "1.0.0",
+  "private": true,
   "description": "真三风云 - 共享组件库",
-  "main": "components/index.js",
   "type": "module",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+  "exports": {
+    "./components/*": "./components/*",
+    "./utils/*": "./utils/*",
+    "./styles/*": "./styles/*"
   },
+  "scripts": {},
   "keywords": [
     "san-storm",
     "shared",
     "components",
     "react"
   ],
-  "author": "Kiro AI",
+  "author": "Notee.vip",
   "license": "MIT",
   "peerDependencies": {
     "react": "^18.0.0",
     "react-dom": "^18.0.0",
     "prop-types": "^15.8.0"
-  },
-  "devDependencies": {},
-  "dependencies": {}
+  }
 }

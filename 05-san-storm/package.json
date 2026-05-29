@@ -1,43 +1,31 @@
 {
   "name": "san-storm",
   "version": "1.0.0",
-  "description": "真三风云 - 三国策略战棋游戏",
-  "type": "module",
+  "private": true,
+  "description": "真三风云 - 三国策略战棋游戏（npm workspaces 根）",
+  "workspaces": [
+    "game",
+    "wiki",
+    "backend",
+    "shared"
+  ],
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview",
-    "dev:wiki": "cd wiki && npm run dev",
-    "dev:game": "cd game && npm run dev",
-    "dev:backend": "cd backend && npm run dev",
-    "build:wiki": "cd wiki && npm run build",
-    "build:game": "cd game && npm run build",
+    "dev:wiki": "npm run dev -w san-storm-wiki",
+    "dev:game": "npm run dev -w san-storm-game",
+    "dev:backend": "npm run dev -w san-storm-backend",
+    "build:wiki": "npm run build -w san-storm-wiki",
+    "build:game": "npm run build -w san-storm-game",
+    "build:vps": "npm run build:vps -w san-storm-game",
     "build:all": "npm run build:wiki && npm run build:game",
-    "install:wiki": "cd wiki && npm install",
-    "install:game": "cd game && npm install",
-    "install:backend": "cd backend && npm install",
-    "install:all": "npm run install:wiki && npm run install:game && npm run install:backend",
-    "init:db": "cd backend && npm run init-db",
+    "init:db": "npm run init-db -w san-storm-backend",
     "test:automated": "node scripts/run-automated-checks.cjs",
     "test:automated:quick": "node scripts/run-automated-checks.cjs --quick --no-backend"
-  },
-  "dependencies": {
-    "prop-types": "^15.8.1",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "react-router-dom": "^6.20.0"
-  },
-  "devDependencies": {
-    "@vitejs/plugin-react": "^4.2.1",
-    "autoprefixer": "^10.4.16",
-    "postcss": "^8.4.32",
-    "tailwindcss": "^3.3.6",
-    "vite": "^5.0.8"
   },
   "keywords": [
     "game",
     "strategy",
-    "three-kingdoms"
+    "three-kingdoms",
+    "workspaces"
   ],
   "author": "Notee.vip",
   "license": "UNLICENSED"
