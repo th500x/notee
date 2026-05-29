@@ -36,6 +36,18 @@ const itemId = v.idLike({ max: 128 });
 /** 匪寨地图对象 ID（04-1 §15） */
 const banditPoiId = v.pattern(/^san_\d+_bandit_[1-9]_[a-z0-9_]+$/i, 'san_1_bandit_1_…');
 
+/** 势力 ID */
+const factionId = v.pattern(/^san_\d+_faction_\d+$/, 'san_1_faction_1001 …');
+
+/** 战事 / 挑战 ID */
+const warId = v.idLike({ max: 128 });
+
+/** 卡牌稀有度 */
+const cardRarity = v.enum(['common', 'rare', 'epic', 'legendary', 'core']);
+
+/** 探索 / 攻城配额 action */
+const quotaAction = v.enum(['consume', 'refund', 'fillMax']);
+
 /** 可选 null 或实例 ID（卸下套装槽） */
 const optionalNullableInstanceId = v.optional((val, name) => {
   if (val === undefined || val === null) return null;
@@ -53,5 +65,9 @@ module.exports = {
   setInstanceId,
   itemId,
   banditPoiId,
+  factionId,
+  warId,
+  cardRarity,
+  quotaAction,
   optionalNullableInstanceId,
 };

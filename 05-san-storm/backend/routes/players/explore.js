@@ -14,11 +14,15 @@ const { replyServiceOut, withRoute } = require('../../utils/routeAdapter');
 
 const router = express.Router();
 
-router.post('/:playerId/rewards', withRoute('执行奖励失败', async (req, res) => {
-  const out = await playerEventRewardsService.executeEventRewards(req.params.playerId, req.body);
-  if (!out.ok) return res.status(out.status).json(out.json);
-  res.json({ success: true, data: out.data });
-}));
+router.post(
+  '/:playerId/rewards',
+  validateBody(exploreSchemas.eventRewardsBody),
+  withRoute('执行奖励失败', async (req, res) => {
+    const out = await playerEventRewardsService.executeEventRewards(req.params.playerId, req.body);
+    if (!out.ok) return res.status(out.status).json(out.json);
+    res.json({ success: true, data: out.data });
+  }),
+);
 
 router.get('/:playerId/events/explore', withRoute('获取探索事件进度失败', async (req, res) => {
   const result = await playerExploreEventService.getExploreEvents(req.params.playerId);

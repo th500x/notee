@@ -118,6 +118,14 @@ const v = {
     };
   },
 
+  /** 普通对象（非 null、非数组）。 */
+  plainObject() {
+    return (val, name) => {
+      if (typeof val !== 'object' || val === null || Array.isArray(val)) return `${name} 必须为对象`;
+      return null;
+    };
+  },
+
   /**
    * 数组（含长度与可选元素校验）。元素校验失败时字段名形如 `path[2].x`。
    * @param {{ minLength?: number, maxLength?: number, itemValidator?: FieldValidator }} [opts]
@@ -244,6 +252,15 @@ function validateQuery(schema) {
   };
 }
 
+/** 要求 `req.body` 本身为 JSON 对象（创角进度等「整包 body」端点）。 */
+function validateBodyIsPlainObject() {
+  return (req, res, next) => {
+    const err = v.plainObject()(req.body, 'body');
+    if (err) return next(httpError(400, err, 'VALIDATION_FAILED'));
+    next();
+  };
+}
+
 /* ── 兼容：旧的 troop 校验 ────────────────────────────────────────────────────
  * `routes/config.js` 仍在 import 这两个名字；继续保留导出，不动其调用方。
  * 内部改写为新的 schema 形式后管道统一。
@@ -267,6 +284,7 @@ module.exports = {
   validateBody,
   validateParams,
   validateQuery,
+  validateBodyIsPlainObject,
   // 兼容：旧导出
   validateTroopQuery,
   validateTroopId,
