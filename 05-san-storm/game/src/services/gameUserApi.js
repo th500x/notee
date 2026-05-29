@@ -4,8 +4,7 @@
  * 覆盖：
  *   - 玩家注册 / 登录 / 验证（写 `playerTokenManager`，后续 `httpClient` 自动附 Bearer）。
  *   - 管理员侧账号操作（封禁 / 解封 / 删除 / 一键清理 / 切服）——通过 `useAdmin` / `UserManager`
- *     调用，路径仍是 3005 的 `/auth/*`，需要管理员特权（依赖后端 `requireAdmin`，待主站
- *     管理员令牌打通后再加；当前为开放路由，前端 UI 入口受限）。
+ *     调用；`httpClient` 对 `/auth/users` 等路径自动附主站 `notee-admin-token`。
  *
  * @module services/gameUserApi
  */

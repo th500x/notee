@@ -7,7 +7,7 @@
 const express = require('express');
 const accountService = require('../services/accountService');
 const { loginLimiter, registerCandidatesLimiter } = require('../middleware/rateLimit');
-const { requireAuth } = require('../middleware/auth');
+const { requireAdminAccess } = require('../middleware/auth');
 const { wrap500 } = require('../utils/httpError');
 const { validateBody, v } = require('../middleware/validation');
 
@@ -17,9 +17,8 @@ const router = express.Router();
  * 鉴权策略：
  *   - 登录注册前置端点（`/register-candidates` / `/register` / `/verify/:id` / `/login`）**不**挂 `requireAuth`，
  *     否则前端尚未拿到 token，登录链路被自我堵死；
- *   - 管理员侧端点（`/users` 列表 / `/ban` / `/unban` / `/user/:userId*` / `/users/*` 批量 / `/switch-server`）逐条挂 `requireAuth`，
- *     关闭匿名访问。**admin 角色细分**（要求 `req.player.role==='admin'`）需打通主站 3001 管理员令牌后再做，
- *     当前阶段先关匿名，避免规模性数据被未登录脚本批量删除 / 改库。
+ *   - 管理员侧端点（`/users` 列表 / `/ban` / `/unban` / `/user/:userId*` / `/users/*` 批量 / `/switch-server`）
+ *     挂 `requireAdminAccess`（主站 global JWT + `GLOBAL_JWT_SECRET`）。
  */
 
 /**
@@ -141,7 +140,7 @@ router.post(
 /**
  * GET /api/auth/users
  */
-router.get('/users', requireAuth, async (req, res, next) => {
+router.get('/users', requireAdminAccess, async (req, res, next) => {
   try {
     const accounts = await accountService.listAccountsWithServerName();
     return res.json({
@@ -159,7 +158,7 @@ router.get('/users', requireAuth, async (req, res, next) => {
  */
 router.post(
   '/ban',
-  requireAuth,
+  requireAdminAccess,
   validateBody({
     userId: v.required(v.nonEmptyString({ max: 64 })),
     reason: v.optional(v.string({ max: 1024 })),
@@ -180,7 +179,7 @@ router.post(
  */
 router.post(
   '/unban',
-  requireAuth,
+  requireAdminAccess,
   validateBody({
     userId: v.required(v.nonEmptyString({ max: 64 })),
   }),
@@ -197,7 +196,7 @@ router.post(
 /**
  * DELETE /api/auth/user/:userId/game-data
  */
-router.delete('/user/:userId/game-data', requireAuth, async (req, res, next) => {
+router.delete('/user/:userId/game-data', requireAdminAccess, async (req, res, next) => {
   try {
     const { userId } = req.params;
     if (!userId) {
@@ -224,7 +223,7 @@ router.delete('/user/:userId/game-data', requireAuth, async (req, res, next) => 
 /**
  * DELETE /api/auth/user/:userId
  */
-router.delete('/user/:userId', requireAuth, async (req, res, next) => {
+router.delete('/user/:userId', requireAdminAccess, async (req, res, next) => {
   try {
     const { userId } = req.params;
     if (!userId) {
@@ -247,7 +246,7 @@ router.delete('/user/:userId', requireAuth, async (req, res, next) => {
  * POST /api/auth/users/ban-inactive
  * 封禁「游戏内最后活跃」已超过指定天数的账号（默认 14 天）
  */
-router.post('/users/ban-inactive', requireAuth, async (req, res, next) => {
+router.post('/users/ban-inactive', requireAdminAccess, async (req, res, next) => {
   try {
     const days = req.body.days != null ? req.body.days : 14;
     const reason = req.body.reason;
@@ -265,7 +264,7 @@ router.post('/users/ban-inactive', requireAuth, async (req, res, next) => {
 /**
  * DELETE /api/auth/users/banned
  */
-router.delete('/users/banned', requireAuth, async (req, res, next) => {
+router.delete('/users/banned', requireAdminAccess, async (req, res, next) => {
   try {
     const result = await accountService.deleteAllBannedAccounts();
     return res.json({
@@ -281,7 +280,7 @@ router.delete('/users/banned', requireAuth, async (req, res, next) => {
 /**
  * DELETE /api/auth/users/purge-all
  */
-router.delete('/users/purge-all', requireAuth, async (req, res, next) => {
+router.delete('/users/purge-all', requireAdminAccess, async (req, res, next) => {
   try {
     const { deletedCounts, nullifiedCounts } = await accountService.purgeAllPlayerData();
     return res.json({
@@ -300,7 +299,7 @@ router.delete('/users/purge-all', requireAuth, async (req, res, next) => {
  */
 router.post(
   '/switch-server',
-  requireAuth,
+  requireAdminAccess,
   validateBody({
     userId: v.required(v.nonEmptyString({ max: 64 })),
     newServerId: v.required(v.nonEmptyString({ max: 64 })),

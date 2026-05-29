@@ -6,6 +6,8 @@
  *   - `requireSelf(paramKey)`：在 `requireAuth` 之后使用；要求 token 中的 `sub`（账号 ID）与
  *     URL 路径中的 `:playerId` 一致，否则 403。**与本人 ID 不一致的越权访问统一拦在中间件层**，
  *     `routes/players.js` 等子路径无需重复散落 `if (req.params.playerId !== ...)` 类校验。
+ *   - `requireAdmin`：在 `requireAuth` 之后使用；要求 `role === 'admin'`（玩家 JWT 或主站 global JWT）。
+ *   - `requireAdminAccess`：`requireAuth` + `requireAdmin` 组合；支持 `ADMIN_DEV_BYPASS` 本地兜底。
  *   - `signPlayerToken(account)`：登录 / 注册时调用，签发玩家会话 JWT。
  *
  * 与 `02-architecture-split/11-backend-layering.md §2.1.2` 蓝图对齐：
@@ -30,6 +32,12 @@ function getSecret() {
     err.code = 'JWT_SECRET_MISSING';
     throw err;
   }
+  return secret;
+}
+
+function getGlobalJwtSecret() {
+  const secret = process.env.GLOBAL_JWT_SECRET;
+  if (!secret || secret.length < 16) return null;
   return secret;
 }
 
@@ -79,7 +87,35 @@ function isDevBypassOn() {
 }
 
 /**
+ * 仅开发期：当 `NODE_ENV !== 'production'` 且 `ADMIN_DEV_BYPASS=1` 时启用。
+ * 仅用于 `/api/admin/*` 等管理路由；与前端 `adminDevBypass` 切换配合，生产永远忽略。
+ */
+function isAdminDevBypassOn() {
+  return process.env.NODE_ENV !== 'production' && process.env.ADMIN_DEV_BYPASS === '1';
+}
+
+function tryVerifyGlobalAdminToken(token) {
+  const secret = getGlobalJwtSecret();
+  if (!secret) return null;
+  try {
+    const payload = jwt.verify(token, secret, { algorithms: ['HS256'] });
+    if (!payload || payload.type !== 'global' || payload.access !== 'granted') return null;
+    return {
+      sub: 'global-admin',
+      role: 'admin',
+      iat: payload.iat,
+      exp: payload.exp,
+      _globalAdmin: true,
+      project: payload.project,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Express 中间件：要求合法 JWT；解析后挂到 `req.player = { sub, role, iat, exp }`。
+ * 接受玩家 JWT（`JWT_SECRET`）或主站管理员 JWT（`GLOBAL_JWT_SECRET`，payload.type=global）。
  */
 function requireAuth(req, res, next) {
   const token = parseBearer(req);
@@ -94,18 +130,44 @@ function requireAuth(req, res, next) {
     }
     return res.status(401).json({ success: false, error: '未登录或会话已失效', code: 'NO_TOKEN' });
   }
-  let payload;
+
+  let playerExpired = false;
   try {
-    payload = jwt.verify(token, getSecret(), { algorithms: ['HS256'] });
+    const payload = jwt.verify(token, getSecret(), { algorithms: ['HS256'] });
+    if (payload && payload.sub) {
+      req.player = payload;
+      return next();
+    }
   } catch (err) {
-    const code = err && err.name === 'TokenExpiredError' ? 'TOKEN_EXPIRED' : 'BAD_TOKEN';
-    return res.status(401).json({ success: false, error: '会话已失效，请重新登录', code });
+    if (err && err.name === 'TokenExpiredError') playerExpired = true;
   }
-  if (!payload || !payload.sub) {
-    return res.status(401).json({ success: false, error: '令牌缺少 sub 字段', code: 'BAD_TOKEN' });
+
+  const adminPayload = tryVerifyGlobalAdminToken(token);
+  if (adminPayload) {
+    req.player = adminPayload;
+    return next();
   }
-  req.player = payload;
-  next();
+
+  const code = playerExpired ? 'TOKEN_EXPIRED' : 'BAD_TOKEN';
+  return res.status(401).json({ success: false, error: '会话已失效，请重新登录', code });
+}
+
+/**
+ * 管理路由专用：`requireAuth` + `requireAdmin`；缺失 token 时可用 `ADMIN_DEV_BYPASS=1` 兜底。
+ */
+function requireAdminAccess(req, res, next) {
+  const token = parseBearer(req);
+  if (!token && isAdminDevBypassOn()) {
+    if (!global.__ADMIN_DEV_BYPASS_WARNED__) {
+      global.__ADMIN_DEV_BYPASS_WARNED__ = true;
+      console.warn('[auth] ⚠️  ADMIN_DEV_BYPASS=1 已启用 —— 仅供本地管理页调试，请勿在生产配置该环境变量');
+    }
+    req.player = { sub: 'dev-admin', role: 'admin', _devBypass: true };
+    return next();
+  }
+  requireAuth(req, res, () => {
+    requireAdmin(req, res, next);
+  });
 }
 
 /**
@@ -153,6 +215,7 @@ module.exports = {
   requireAuth,
   requireSelf,
   requireAdmin,
+  requireAdminAccess,
   signPlayerToken,
   getTokenTtlSeconds,
 };

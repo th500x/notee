@@ -1,9 +1,7 @@
 /**
  * 管理员 · 传书模板 config_texts API（san-storm 后端 3005）
  *
- * 走 `/admin/config-texts/*`；后端 `routes/adminConfigTexts.js` 维护，需要管理员
- * 特权（`requireAdmin` 待主站令牌打通后接入；当前后端开放，前端入口受 `MailManager`
- * 等管理员页面限制）。
+ * 走 `/admin/config-texts/*`；后端 `requireAdminAccess` + 前端 `httpClient` 自动附主站 admin token。
  *
  * @module services/adminConfigTextsApi
  */

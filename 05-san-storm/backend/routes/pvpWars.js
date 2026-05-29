@@ -23,7 +23,7 @@
 
 const express = require('express');
 const router = express.Router();
-const { requireAuth } = require('../middleware/auth');
+const { requireAuth, requireAdmin } = require('../middleware/auth');
 const { wrap500, httpError } = require('../utils/httpError');
 const { pool } = require('../database/connection');
 const pvpWarService = require('../services/pvpWarService');
@@ -571,7 +571,7 @@ router.post(
  * POST /api/pvp-wars/tick
  * 调试入口（实际由 server.js cron 自动跑）。
  */
-router.post('/tick', async (req, res, next) => {
+router.post('/tick', requireAdmin, async (req, res, next) => {
   try {
     const data = await pvpWarService.tickActivePvpWars();
     res.json({ success: true, data });
@@ -585,7 +585,7 @@ router.post('/tick', async (req, res, next) => {
  * 调试 / dev：手动触发一次 AI 君主主动决策（不真调写库）。
  * Body: { factionId }
  */
-router.post('/active-decision-dry-run', validateBody(pvpWarSchemas.factionIdBody), async (req, res, next) => {
+router.post('/active-decision-dry-run', requireAdmin, validateBody(pvpWarSchemas.factionIdBody), async (req, res, next) => {
   try {
     const { factionId } = req.body;
     if (!aiKingConfigService.hasKingForFaction(factionId)) {

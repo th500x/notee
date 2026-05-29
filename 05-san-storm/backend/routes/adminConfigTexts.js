@@ -1,14 +1,17 @@
 /**
  * 管理员：传书模板 config_texts CRUD + 试发
- * 安全级别与 GET /api/auth/users 一致（由前端管理员入口控制）；生产环境建议加鉴权
+ * 鉴权：`requireAdminAccess`（主站 global JWT 或 `ADMIN_DEV_BYPASS` 本地兜底）。
  */
 
 const express = require('express');
 const router = express.Router();
+const { requireAdminAccess } = require('../middleware/auth');
 const configTextService = require('../services/configTextService');
 const { wrap500 } = require('../utils/httpError');
 const { validateBody, validateParams, validateQuery } = require('../middleware/validation');
 const configTextSchemas = require('../middleware/validationSchemas/adminConfigTexts');
+
+router.use(requireAdminAccess);
 
 router.get('/', validateQuery(configTextSchemas.listQuery), async (req, res, next) => {
   try {

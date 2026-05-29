@@ -3,6 +3,7 @@
  */
 const express = require('express');
 const router = express.Router();
+const { requireAdminAccess } = require('../middleware/auth');
 const worldMapAdminService = require('../services/worldMapAdminService');
 const { wrap500 } = require('../utils/httpError');
 const { validateBody, validateParams } = require('../middleware/validation');
@@ -18,6 +19,8 @@ function clientErrorMessage(err, fallback) {
   }
   return err.message || fallback;
 }
+
+router.use(requireAdminAccess);
 
 router.get('/geo-options', async (req, res, next) => {
   try {
