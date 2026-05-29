@@ -2,6 +2,9 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 
+/** `npm run build:vps` 时开启：压低 Rollup 并行，减轻 rendering chunks 内存峰值 */
+const lowMemBuild = process.env.VITE_LOW_MEM_BUILD === '1';
+
 // https://vitejs.dev/config/
 // 静态资源使用 05-san-storm/public（与 wiki 共用），不依赖 game/public 下符号链接
 //（Linux 上 core.symlinks=false 时链接会变成文本文件，导致 vite build ENOENT）
@@ -67,10 +70,14 @@ export default defineConfig({
     outDir: 'dist',
     assetsDir: 'assets',
     sourcemap: false,
+    minify: 'esbuild',
+    cssMinify: 'esbuild',
     /** 关闭 gzip 体积统计，减轻低配 VPS 连续 build 时的内存峰值 */
     reportCompressedSize: false,
     chunkSizeWarningLimit: 480,
     rollupOptions: {
+      /** rendering chunks 阶段默认并行较高；低配机易 OOM 死机 */
+      maxParallelFileOps: lowMemBuild ? 2 : 20,
       onwarn(warning, warn) {
         // 抑制 public 目录字体文件的路径解析警告
         if (warning.message?.includes('JYHPHS.woff2')) return;
