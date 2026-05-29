@@ -13,6 +13,8 @@ export const STORAGE_KEYS = {
 
 // ==================== Token配置 ====================
 export const TOKEN_DURATION = 30 * 24 * 60 * 60 * 1000;  // 管理员 Token 30天（毫秒）
+/** 玩家会话 JWT 本地过期兜底（毫秒），须与后端 `PLAYER_TOKEN_TTL_SECONDS` 默认一致 */
+export const PLAYER_TOKEN_DURATION_MS = 30 * 24 * 60 * 60 * 1000;
 
 // ==================== API配置 ====================
 export const API_CONFIG = {

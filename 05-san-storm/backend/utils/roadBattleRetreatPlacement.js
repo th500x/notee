@@ -1,5 +1,5 @@
 /**
- * 道路开战门闸退让 / 战后败退：将玩家 `road_position_*` 落到本郡「最近己方城」锚格（与 §9.4 离路立点一致）。
+ * 道路开战门闸退让 / 战后败退：将玩家 `road_position_*` 落到本郡「最近己方城」锚格（31-6 §7 离路立点）。
  * 供 `roadEncounterService.moveAlongRoad`、`resolveEncounter` 共用。
  */
 

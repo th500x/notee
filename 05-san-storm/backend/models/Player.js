@@ -64,7 +64,7 @@ class Player {
         initial_silver = 0,
         initial_food = 0,
         /**
-         * 战略大地图当前坐标（31-6 §12.1 / §9.4）：与 `main_city_id`（归属主城）分列。
+         * 战略大地图当前坐标（31-6 §9.1 / §7）：与 `main_city_id`（归属主城）分列。
          * 出生落在势力初始城：写入该城在格网上的占位锚格 `(gx,gy)` + `jun_id`，客户端按离路城块绘制。
          */
         road_jun_id = null,

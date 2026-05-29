@@ -16,7 +16,7 @@
  *
  * @see docs/90-assets/91-2-MAP_AUTO_GENERATION.md
  * @see docs/90-assets/91-3-CAMPAIGN_MAP_GENERATION.md
- * @see docs/tools/campaign/CAMPAIGN_MAP.md
+ * @see docs/tools/campaign/README.md
  */
 
 import { parseIdColonCount } from './parseIdColonCount.js';

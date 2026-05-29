@@ -52,7 +52,7 @@ function exploreAnchorIdFromMergedGridCells(cells, gx, worldGy, mapColumns, mapR
 }
 
 /**
- * 将玩家战略立足点（`players.road_*`，与 31-6 §9.4 离路锚格、`cities.position_x/y` 对齐）
+ * 将玩家战略立足点（`players.road_*`，与 31-6 §7 离路锚格、`cities.position_x/y` 对齐）
  * 解析为用于探索池过滤的锚点 id（城池 `city_id` 或匪寨 `san_*_bandit_*`）。
  * 探索触发与配表 `location` 占位符的匹配见 `exploreLocationMatchesEvent` / `filterExploreEventsPool`。
  *

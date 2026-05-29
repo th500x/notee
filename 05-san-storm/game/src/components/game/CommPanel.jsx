@@ -6,7 +6,7 @@
  *              有未读传书或天下频道新消息时，左侧 emoji 加深红描边提示（不自动展开面板）
  *              大地图视图下显示，Tab页面内隐藏
  * 
- * @see docs/30-frontend/32-1-GAME_UI_DESIGN.md §1.7（路径相对 `05-san-storm/`）
+ * @see docs/30-frontend/32-5-PLAYER_CORNER.md
  */
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
@@ -72,6 +72,13 @@ function uniqueTroopNames(list) {
     out.push(name);
   }
   return out;
+}
+
+/** 今日纪念图记录上的战报 id（API 统一 camelCase：battleId） */
+function memorialRecordBattleId(record) {
+  if (!record) return null;
+  const id = record.battleId;
+  return id != null && String(id).trim() !== '' ? String(id).trim() : null;
 }
 
 function resolveMemorialFileUrl(rawUrl) {
@@ -734,8 +741,11 @@ function BattleCard({
 }) {
   const isWin = battle.result === 'win';
   const timeStr = formatRelativeTime(battle.battleAt);
-  const isTodayMemorialBattle = battle.battleId && memorialQuota?.todayRecord?.battle_id === battle.battleId;
-  const todayMemorialUrl = resolveMemorialFileUrl(memorialQuota?.todayRecord?.image_url || '');
+  const todayMemorialBattleId = memorialRecordBattleId(memorialQuota?.todayRecord);
+  const battleIdStr = battle.battleId != null ? String(battle.battleId).trim() : '';
+  const isTodayMemorialBattle =
+    Boolean(battleIdStr) && Boolean(todayMemorialBattleId) && todayMemorialBattleId === battleIdStr;
+  const todayMemorialUrl = resolveMemorialFileUrl(memorialQuota?.todayRecord?.imageUrl || '');
 
   const handleDownloadTodayMemorial = async (e) => {
     e.stopPropagation();
@@ -837,7 +847,18 @@ function BattleCard({
       {isExpanded && !detail && (
         <div className="px-2 py-2 text-center text-amber-200/40 text-[10px]">加载中...</div>
       )}
-      {isExpanded && (
+      {isExpanded && isTodayMemorialBattle && todayMemorialUrl && (
+        <div className="px-2 pb-2">
+          <button
+            type="button"
+            onClick={handleDownloadTodayMemorial}
+            className="w-full py-1.5 rounded text-[10px] border border-emerald-600/45 bg-emerald-800/35 text-emerald-100 hover:bg-emerald-700/40 transition-colors"
+          >
+            🖼️ 下载今日纪念图
+          </button>
+        </div>
+      )}
+      {isExpanded && !isTodayMemorialBattle && (
         <div className="px-2 pb-2">
           <button
             type="button"
@@ -852,7 +873,7 @@ function BattleCard({
           >
             {creatingMemorial ? '纪念图生成中…' : '🖼️ 转为纪念图'}
           </button>
-          {(memorialQuota?.remaining ?? 0) <= 0 && (
+          {(memorialQuota?.remaining ?? 0) <= 0 && !isTodayMemorialBattle && (
             <div className="text-[10px] text-amber-200/35 mt-1 text-center">今日生成次数1/1，请明日再来</div>
           )}
         </div>

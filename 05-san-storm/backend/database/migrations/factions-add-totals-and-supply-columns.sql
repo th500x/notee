@@ -1,4 +1,4 @@
--- factions：五维势力标量 + 军需 quota + 档位快照（与 01-DATABASE_DESIGN.md §3.2.10 一致）
+-- factions：五维势力标量 + 军需 quota + 档位快照（01-database-split/30-tables-world §3.2.10）
 -- 列已存在时整条 ALTER 可能报 Duplicate；脚本会 SKIP。
 
 ALTER TABLE factions

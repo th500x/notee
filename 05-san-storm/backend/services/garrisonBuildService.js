@@ -21,6 +21,7 @@ const {
   attachPositionCombatBonuses,
   loadPositionCombatBonusesForPlayer,
 } = require('../../shared/utils/positionCombatBonuses.cjs');
+const { attachTroopAffinityToCharacter } = require('../../shared/utils/troopAffinityCombat.cjs');
 
 /** 单部队参战最低兵力（兵力为 0 不参战；总兵力验证在 saveGarrison / initiateSiege） */
 const MIN_TROOPS_TO_DEFEND = 1;
@@ -326,10 +327,15 @@ async function buildDefenseUnits(garrisonSlot) {
       luck:         charCfg.luck / 10,
       courage:      charCfg.courage / 10,
       traitModifier: charCfg.trait_modifier || 0,
+      skill_1: charCfg.skill_1 || null,
+      skill_2: charCfg.skill_2 || null,
     };
     const charKey = cs.cardField === 'char1_card' ? 'char1' : 'char2';
-    const charData = withPositionCombat(
-      applyCharBonusToCharData(charDataBase, garrisonAttrBonusByChar[charKey] || {}),
+    const charData = attachTroopAffinityToCharacter(
+      withPositionCombat(
+        applyCharBonusToCharData(charDataBase, garrisonAttrBonusByChar[charKey] || {}),
+      ),
+      charCfg.troop_affinity,
     );
 
     const troopInstanceIds = [garrisonSlot[cs.troop1Field], garrisonSlot[cs.troop2Field]].filter(Boolean);
@@ -401,7 +407,7 @@ async function buildDefenseUnitsFromMainLineup(defenderPlayerId) {
     attachPositionCombatBonuses(charData, defenderPosBonuses);
   const attrBonusBySlot = await getMainLineupAttributeBonusBySlot(pool, defenderPlayerId);
   const [pRows] = await pool.query(
-    `SELECT player_id, character_name, combat, command, intelligence, politics, charm, courage, luck, morale
+    `SELECT player_id, character_name, combat, command, intelligence, politics, charm, courage, luck, morale, troop_affinity, skill_1, skill_2
      FROM players WHERE player_id = ?`,
     [defenderPlayerId],
   );
@@ -460,10 +466,15 @@ async function buildDefenseUnitsFromMainLineup(defenderPlayerId) {
       combat: pRow.combat / 10, command: pRow.command / 10,
       intelligence: pRow.intelligence / 10, luck: pRow.luck / 10,
       courage: pRow.courage / 10, traitModifier: 0,
+      skill_1: pRow.skill_1 || null,
+      skill_2: pRow.skill_2 || null,
     };
     pushUnit(
       playerTroopRows[0],
-      withPositionCombat(applyCharBonusToCharData(charDataBase, attrBonusBySlot.player || {})),
+      attachTroopAffinityToCharacter(
+        withPositionCombat(applyCharBonusToCharData(charDataBase, attrBonusBySlot.player || {})),
+        pRow.troop_affinity,
+      ),
       pRow.morale ?? 70,
     );
   }
@@ -476,7 +487,8 @@ async function buildDefenseUnitsFromMainLineup(defenderPlayerId) {
     const [charRows] = await pool.query(
       `SELECT pc.instance_id, pc.card_id, pc.rarity, pc.morale,
               cc.character_name, cc.luck, cc.courage, cc.combat, cc.command,
-              cc.intelligence, cc.politics, cc.charm, cc.trait, cc.trait_modifier
+              cc.intelligence, cc.politics, cc.charm, cc.trait, cc.trait_modifier,
+              cc.skill_1, cc.skill_2, cc.troop_affinity
        FROM player_cards pc
        JOIN config_characters cc ON pc.card_id = cc.character_id
        WHERE pc.player_id = ? AND pc.is_equipped = TRUE
@@ -490,9 +502,14 @@ async function buildDefenseUnitsFromMainLineup(defenderPlayerId) {
       combat: charCfg.combat / 10, command: charCfg.command / 10,
       intelligence: charCfg.intelligence / 10, luck: charCfg.luck / 10,
       courage: charCfg.courage / 10, traitModifier: charCfg.trait_modifier || 0,
+      skill_1: charCfg.skill_1 || null,
+      skill_2: charCfg.skill_2 || null,
     };
-    const charData = withPositionCombat(
-      applyCharBonusToCharData(charDataBase, attrBonusBySlot[cs.by] || {}),
+    const charData = attachTroopAffinityToCharacter(
+      withPositionCombat(
+        applyCharBonusToCharData(charDataBase, attrBonusBySlot[cs.by] || {}),
+      ),
+      charCfg.troop_affinity,
     );
 
     for (const slot of cs.troopSlots) {
@@ -595,6 +612,10 @@ function mapBuiltUnitsToSiegeNpcFormat(units) {
           charm:         50,
           traitModifier: u.character.traitModifier || 0,
           ...(u.character.positionBonuses ? { positionBonuses: u.character.positionBonuses } : {}),
+          ...(u.character.troopAffinity ? { troopAffinity: u.character.troopAffinity } : {}),
+          ...(u.character.troopAffinities ? { troopAffinities: u.character.troopAffinities } : {}),
+          ...(u.character.skill_1 ? { skill_1: u.character.skill_1 } : {}),
+          ...(u.character.skill_2 ? { skill_2: u.character.skill_2 } : {}),
         }
       : null,
     alive: true,

@@ -1,5 +1,5 @@
 /**
- * 行军模式：沿路移动前粮草与步数确认（与 `POST …/road/move` + 31-6 §9.1 一致）。
+ * 行军模式：沿路移动前粮草与步数确认（与 `POST …/road/move` + 31-6 §6 一致）。
  */
 
 import { MARCH_FOOD_PER_STEP } from '@/utils/strategicRoadMarchPath';

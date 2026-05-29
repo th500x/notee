@@ -136,7 +136,7 @@ function validateMoveAlongRoadInput(playerId, body) {
   const pid = String(playerId || '').trim();
   if (!pid) return { ok: false, status: 400, error: '缺少 playerId' };
   if (body?.confirmFoodCost !== true) {
-    return { ok: false, status: 400, error: '缺少 confirmFoodCost=true（与 31-6 §9.1 强制确认一致）' };
+    return { ok: false, status: 400, error: '缺少 confirmFoodCost=true（与 31-6 §6 强制确认一致）' };
   }
   const season = String(body.season || '').trim();
   const junId = String(body.junId || '').trim();
@@ -918,7 +918,7 @@ async function moveAlongRoad(playerId, body) {
           stepsApplied = i + 1;
           continue;
         }
-        /** 行军目标为战略匪寨 / PVP 攻方大本营时：最后一道路步不登记道路遭遇（与 31-6 / 17-7 一致）。 */
+        /** 行军目标为战略匪寨 / PVP 攻方大本营时：最后一道路步不登记道路遭遇（31-6 §4.2 / 17-7）。 */
         if ((marchToBanditPoi || marchToPvpCampPoi) && i === steps.length - 1) {
           lastX = wsx;
           lastY = wsy;
@@ -992,7 +992,7 @@ async function moveAlongRoad(playerId, body) {
         }
         // 敌对且守方满足开战门闸 → 登记遭遇（status='fighting'），攻方落脚到该格，后续 steps 中断。
         const encounterId = newEncounterId(stepJun);
-        // 守门方：仅当格上防守方处于开战模式时记入 gatekeeper（31-6 §五）；其余敌对遭遇 gatekeeper 置空。
+        // 守门方：仅当格上防守方处于开战模式时记入 gatekeeper（31-6 §5）；其余敌对遭遇 gatekeeper 置空。
         const gatekeeperId = other.road_intercept ? other.player_id : null;
         await conn.query(
           `INSERT INTO road_encounters
@@ -1601,7 +1601,7 @@ async function recordEncounterBattleSettlement(attackerPlayerId, body) {
 /**
  * 战后收尾：
  *   - road_encounters: status=resolved, battle_id, ended_at
- *   - 守门方若战败，关闭其 road_intercept（31-6 §三）
+ *   - 守门方若战败，关闭其 road_intercept（31-6 §3）
  *   - 战败方移回本郡最近己方城（`roadBattleRetreatPlacement`）
  *
  * @param {string} playerId   发起方（通常 = attacker，亦支持 defender 主动上报）

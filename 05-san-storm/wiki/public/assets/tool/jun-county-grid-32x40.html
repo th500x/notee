@@ -63,7 +63,7 @@ button.primary:hover { background: #1d4ed8; }
 
 <h1>郡标准画布 32×40 格坐标</h1>
 <p class="subtitle">
-  纯本地使用，与叙事模板、<code>docs/30-frontend/31-5-WORLD_MAP_GENERATION.md</code> §3.2～§3.3 一致：<strong>gx</strong> = 列（左→右 0～31），<strong>gy</strong> = 行（上→下 0～39）。<br>
+  纯本地使用，与叙事模板、<code>docs/30-frontend/31-2-WORLD_MAP.md</code> §3.2～§3.3 一致：<strong>gx</strong> = 列（左→右 0～31），<strong>gy</strong> = 行（上→下 0～39）。<br>
   <strong>大象限（全郡 32×40，gy 增大向下）：</strong><code>A | B / D | C</code> —— <strong>A</strong>左上 <strong>B</strong>右上 <strong>D</strong>左下 <strong>C</strong>右下（各 16×20；与 31-5 §3.2 一致，<strong>不是</strong>「先读完一行 AB 再读 CD」的字母顺序）。<br>
   <strong>小象限（块内顺时针 A1→A2→A3→A4，即 <code>A1 A2 / A4 A3</code>）：</strong>左上=A1、右上=A2、<strong>左下=A4</strong>、<strong>右下=A3</strong>（各 8×10）。勿与「第 1～4 象限按行编号」混用。<br>
   <strong>注意：</strong>策划表里的 B3/C3 等须与下方读数一致；只抄 <code>gx,gy</code> 易与印象代号不符。

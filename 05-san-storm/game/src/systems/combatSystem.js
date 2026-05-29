@@ -3,7 +3,7 @@
  *
  * 三层伤害计算体系：
  *   第一部分：基础公式（将领属性+部队属性+士气+阵型+防御+兵力比例）
- *   第二部分：适应性修正（兵种相性+地形适应+官职兵种加成）
+ *   第二部分：适应性修正（兵种相性+地形适应+官职兵种加成+将领兵种适性）
  *   第三部分：特殊加成（势力/仙人，暂不实装）
  *
  * @see docs/10-core-system/17-1-COMBAT_SYSTEM.md
@@ -17,6 +17,7 @@ import {
   getTraitOutgoingDamageMult,
   getTraitDefenderDefenseStrengthMult,
 } from '@shared/utils/characterTraitBonuses';
+import { getTroopAffinityOutgoingDamageMult } from '@/utils/troopAffinityCombat';
 
 // ── 精锐小队战损比例（troopWeight > 1）────────────────────────────────────────
 // 仅影响「当前兵力/最大兵力」在攻防上的线性缩放；满编时与 troopWeight=1 一致，残血时衰减慢于线性。
@@ -382,11 +383,13 @@ export function estimateDamage(atk, def, terrain, options = {}) {
     const adaptKey = (terrain[atk.y]?.[atk.x] || 'plain') + 'Adapt';
     totalDmg *= (atk[adaptKey] ?? 1.0);
   }
+  const atkTypeEst = atk.troopType || 'infantry';
   const posBonus = ac?.positionBonuses;
-  if (posBonus) totalDmg *= (1 + (posBonus[(atk.troopType || 'infantry') + 'Bonus'] || 0));
+  if (posBonus) totalDmg *= (1 + (posBonus[atkTypeEst + 'Bonus'] || 0));
+  totalDmg *= getTroopAffinityOutgoingDamageMult(ac, atkTypeEst);
 
   // 弓兵近战惩罚：弓兵攻击相邻格目标时，总伤害×ARCHER_MELEE_DAMAGE_MULT
-  if ((atk.troopType || 'infantry') === 'archer') {
+  if (atkTypeEst === 'archer') {
     const dist = Math.abs(atk.y - def.y) + Math.abs(atk.x - def.x);
     if (dist <= 1) totalDmg *= ARCHER_MELEE_DAMAGE_MULT;
   }

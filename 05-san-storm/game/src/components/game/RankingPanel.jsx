@@ -7,8 +7,8 @@
  * - 每5分钟自动刷新排名数据（折叠状态下不刷新）
  * - 活动未开始显示倒计时，已结束显示最终排名定格
  * 
- * @see docs/30-frontend/32-1-GAME_UI_DESIGN.md §1.5、32-3-GAME_ANNOUNCEMENTS_DESIGN.md §4（路径相对 `05-san-storm/`）
- * @see 19-1-STATISTICS_RANKING_SYSTEM.md 排行榜系统
+ * @see docs/30-frontend/32-3-ANNOUNCEMENTS.md §4
+ * @see docs/30-frontend/32-3-ANNOUNCEMENTS.md §4 活动排名
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';

@@ -11,6 +11,9 @@ import { initBattlePhase3HealRuntime } from '@shared/utils/skillPhase3ActiveHeal
 import { initBattlePhase4DamageRuntime } from '@shared/utils/skillPhase4ActiveDamage';
 import { initBattlePhase5CompositeRuntime } from '@shared/utils/skillPhase5CompositeDamage';
 import { normalizePositionCombatBonuses } from '@/utils/positionCombatBonuses';
+import { attachTroopAffinityToCharacter } from '@/utils/troopAffinityCombat';
+import { enrichBattleUnitWithSkillPhases } from '@shared/utils/battleSkillAssembly';
+import { flattenPlayerUnitToBattleTroop } from '@shared/utils/resolveTroopBattleCaps';
 
 const PLAYER_POSITIONS = [
   { y: 9, x: 1 }, { y: 9, x: 4 }, { y: 9, x: 7 },
@@ -29,33 +32,20 @@ const ALLY_POSITIONS = [{ y: 8, x: 0 }];
  * @param {Array} playerUnits  - 我方编组单位（最多 5 个）
  * @param {Array} enemyUnits   - 驻守 NPC 单位（最多 4 个）
  * @param {Array} [allyUnits]  - 御驾等友军（最多 1 支）
+ * @param {Record<string, object>} [skillsMap] skills.json 字典；有则守军叠阶段1～5（与玩家同源）
  * @param {string} baseUrl     - import.meta.env.BASE_URL
  * @returns {Array} battleTroops
  */
-export function buildSiegeUnits({ playerUnits, enemyUnits, allyUnits = [], baseUrl }) {
-  const playerTroops = playerUnits.slice(0, 5).map((unit, i) => {
-    const attempts = getBattleFieldTroopPortraitUrlAttempts({ ...unit.troop, faction: 'player' }, baseUrl);
-    return {
-      ...unit.troop,
-      id: unit.troop.id + '_p' + i,
-      faction: 'player',
-      y: PLAYER_POSITIONS[i].y,
-      x: PLAYER_POSITIONS[i].x,
-      currentTroops: unit.currentTroops ?? unit.troop.maxTroops,
-      initialTroops: unit.currentTroops ?? unit.troop.maxTroops,
-      maxTroops: unit.maxTroops ?? unit.troop.maxTroops,
-      character: unit.character || null,
-      displayName: unit.character
-        ? (unit.character.courtesyName || unit.character.name)
-        : unit.troop.name,
-      morale: unit.morale ?? 70,
-      instanceId: unit.troop.instanceId,
-      ...(unit.lineupSlot ? { lineupSlot: unit.lineupSlot } : {}),
-      imgSrc: attempts[0],
-      imgPortraitAttempts: attempts,
-      imgFallback: attempts[attempts.length - 1],
-    };
-  });
+export function buildSiegeUnits({ playerUnits, enemyUnits, allyUnits = [], skillsMap = null, baseUrl, catalogById = null }) {
+  const playerTroops = playerUnits.slice(0, 5).map((unit, i) =>
+    flattenPlayerUnitToBattleTroop(unit, i, {
+      pos: PLAYER_POSITIONS[i],
+      catalogById,
+      baseUrl,
+      getPortraitAttempts: (trMeta, bUrl) =>
+        getBattleFieldTroopPortraitUrlAttempts(trMeta, bUrl),
+    }),
+  );
 
   const enemyTroops = enemyUnits.slice(0, 4).map((npc, i) => {
     const raw = npc.character;
@@ -73,7 +63,27 @@ export function buildSiegeUnits({ playerUnits, enemyUnits, allyUnits = [], baseU
     // DB 原始属性为 0–100 尺度，÷10 转为 0–10
     const attr = (v, fallback = 5) => (v != null ? Number(v) / 10 : fallback);
     const enemyPosBonuses = normalizePositionCombatBonuses(raw?.positionBonuses);
-    return {
+    const baseRange = (() => {
+      const r = Number(npc.range ?? npc.attackRange);
+      return Number.isFinite(r) && r > 0 ? r : 1;
+    })();
+    const charBase = raw && charName
+      ? attachTroopAffinityToCharacter({
+          name: charName,
+          courtesyName: charName,
+          luck: attr(raw.luck),
+          courage: attr(raw.courage),
+          combat: attr(raw.combat),
+          command: attr(raw.command),
+          intelligence: attr(raw.intelligence),
+          politics: attr(raw.politics),
+          charm: attr(raw.charm),
+          trait: raw.trait,
+          traitModifier: raw.traitModifier ?? raw.trait_modifier ?? 0,
+          ...(enemyPosBonuses ? { positionBonuses: enemyPosBonuses } : {}),
+        }, raw.troopAffinity ?? raw.troop_affinity)
+      : null;
+    const troopBase = {
       id: npc.troopId + '_e' + i,
       name: npc.troopName,
       rarity: npc.rarity,
@@ -83,29 +93,24 @@ export function buildSiegeUnits({ playerUnits, enemyUnits, allyUnits = [], baseU
       defense: npc.defense,
       speed: npc.speed,
       movement: npc.movement,
-      range: (() => {
-        const raw = npc.range ?? npc.attackRange;
-        const r = Number(raw);
-        return Number.isFinite(r) && r > 0 ? r : null;
-      })(),
+      range: baseRange,
       maxTroops: npc.maxTroops,
+      troopWeight: npc.troopWeight ?? 1,
+    };
+    const { troop: enrichedTroop, character: battleChar } = enrichBattleUnitWithSkillPhases({
+      troop: troopBase,
+      character: charBase,
+      skillIdSource: raw,
+      skillsMap,
+    });
+    return {
+      ...enrichedTroop,
       currentTroops: npc.currentTroops ?? npc.maxTroops,
       initialTroops: npc.currentTroops ?? npc.maxTroops,
       faction: 'enemy',
       y: ENEMY_POSITIONS[i].y,
       x: ENEMY_POSITIONS[i].x,
-      character: raw && charName ? {
-        name: charName,
-        courtesyName: charName,
-        luck: attr(raw.luck),
-        courage: attr(raw.courage),
-        combat: attr(raw.combat),
-        command: attr(raw.command),
-        intelligence: attr(raw.intelligence),
-        politics: attr(raw.politics),
-        charm: attr(raw.charm),
-        ...(enemyPosBonuses ? { positionBonuses: enemyPosBonuses } : {}),
-      } : null,
+      character: battleChar,
       displayName: charName || npc.troopName,
       morale,
       imgSrc: attempts[0],

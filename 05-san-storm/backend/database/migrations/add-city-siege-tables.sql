@@ -1,4 +1,4 @@
--- 城市攻城系统：cities + wars（与 docs/00-base/01-DATABASE_DESIGN.md §3.2.11 对齐）
+-- 城市攻城系统：cities + wars（01-database-split/30-tables-world §3.2.11、50-tables-battle §3.2.18）
 -- 依赖：factions、players 已存在（外键）
 -- 若库中已有旧版 cities（列/枚举不全），CREATE IF NOT EXISTS 不会升级表结构。
 -- 全量对齐：备份后执行 rebuild-cities-table.sql，再跑 import-city-geo-data.js（见该文件头注释）。

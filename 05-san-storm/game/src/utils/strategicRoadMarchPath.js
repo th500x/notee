@@ -161,7 +161,7 @@ export function buildMarchPath({
 }
 
 /**
- * 行军终点为 **本势力城心** 或 **匪寨**（31-6 §9.4）；道路段子路径 + `poiAnchor`。
+ * 行军终点为 **本势力城心** 或 **匪寨**（31-6 §7）；道路段子路径 + `poiAnchor`。
  * @param {object} p
  * @param {string} p.targetPoiId
  */

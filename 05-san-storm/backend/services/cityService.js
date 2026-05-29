@@ -325,6 +325,9 @@ async function generateNpcGarrison(cityId, opts = {}) {
         politics: character.politics,
         charm: character.charm,
         traitModifier: character.trait_modifier || 0,
+        troopAffinity: character.troop_affinity || null,
+        skill_1: character.skill_1 || null,
+        skill_2: character.skill_2 || null,
       } : null,
       alive: true,
     });

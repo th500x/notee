@@ -3,7 +3,7 @@
  *
  * 与 `utils/tokenManager.js`（管理员 Token，3001 主站后端签发）相互独立：
  *   - 管理员 Token 写入 `STORAGE_KEYS.ADMIN_TOKEN`，30 天有效期；
- *   - 玩家 Token 写入 `STORAGE_KEYS.PLAYER_TOKEN`，由后端 `JWT_SECRET` + `PLAYER_TOKEN_TTL_SECONDS` 决定（默认 8h）；
+ *   - 玩家 Token 写入 `STORAGE_KEYS.PLAYER_TOKEN`，由后端 `JWT_SECRET` + `PLAYER_TOKEN_TTL_SECONDS` 决定（默认 30 天）；
  *
  * 由 `gameUserAPI.login` / `gameUserAPI.register` 在收到响应后调用 `save({ token, tokenExpiresAt })`
  * 存入；`apiFetch`（services/httpClient.js）会自动读取并附加 `Authorization: Bearer <token>` 头。
@@ -11,7 +11,7 @@
  * @module utils/playerTokenManager
  */
 
-import { STORAGE_KEYS } from '../constants';
+import { STORAGE_KEYS, PLAYER_TOKEN_DURATION_MS } from '../constants';
 
 /**
  * 持久化 `gameUser` 时不应写入 JWT，避免与独立 key 双轨不同步（刷新后误判「无 token」）。
@@ -75,7 +75,7 @@ export const playerTokenManager = {
       localStorage.setItem(STORAGE_KEYS.PLAYER_TOKEN, token);
       const expiry = Number.isFinite(tokenExpiresAt)
         ? tokenExpiresAt
-        : Date.now() + 8 * 60 * 60 * 1000;
+        : Date.now() + PLAYER_TOKEN_DURATION_MS;
       localStorage.setItem(STORAGE_KEYS.PLAYER_TOKEN_EXPIRY, String(expiry));
     } catch (err) {
       console.error('[PlayerTokenManager] 保存 token 失败:', err);

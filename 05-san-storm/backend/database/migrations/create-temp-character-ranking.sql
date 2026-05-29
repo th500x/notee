@@ -1,5 +1,5 @@
 -- 将领排名快照（临时表）：表名 `temp_character_ranking`（两词 + ranking）
--- 详见 docs/00-base/01-database-split/60-tables-other.md §3.2.25；UI 口径见 docs/30-frontend/32-1-GAME_UI_DESIGN.md §9.1.2
+-- 详见 docs/00-base/01-database-split/60-tables-other.md §3.2.25；UI 口径见 docs/30-frontend/32-1-BOTTOM_TABS.md §3.1
 -- 历史表名链：player_character_rank_snapshot → … → temp_character_ranking_snapshots → 见 migrations/rename-*.sql
 
 CREATE TABLE IF NOT EXISTS temp_character_ranking (

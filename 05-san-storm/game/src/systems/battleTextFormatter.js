@@ -3,7 +3,7 @@
  * 
  * @description 为战斗引擎的日志添加趣味性描述短语，
  *              生成可读性强的文字战报，用于保存到数据库。
- * @see 01-1-DATABASE_DESIGN.md 战斗数据格式说明
+ * @see 00-base/01-database-split/00-overview.md 战斗数据格式说明
  * 
  * 使用方式：引擎中 addLog(fmt.attack(atk, def, dmg)) 替代手写字符串
  */

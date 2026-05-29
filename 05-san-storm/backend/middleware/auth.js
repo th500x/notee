@@ -14,14 +14,14 @@
  * 配套规则：
  *   - JWT_SECRET 走环境变量；缺失则 server.js 拒绝启动（不允许"开发期默认 secret"静默兜底）。
  *   - Token 中仅放 `sub`（账号 ID）+ `role`（player / admin）+ `iat / exp`；不放敏感字段。
- *   - 默认有效期 8h；可由 .env `PLAYER_TOKEN_TTL_SECONDS` 覆盖。
+ *   - 默认有效期 30 天；可由 .env `PLAYER_TOKEN_TTL_SECONDS` 覆盖。
  *
  * @module middleware/auth
  */
 
 const jwt = require('jsonwebtoken');
 
-const DEFAULT_TTL_SECONDS = 60 * 60 * 8;
+const DEFAULT_TTL_SECONDS = 30 * 24 * 60 * 60;
 
 function getSecret() {
   const secret = process.env.JWT_SECRET;

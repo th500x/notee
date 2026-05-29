@@ -12,21 +12,21 @@
  *   `require('./services/road/roadShared')` 取常量的代码路径不变；这样既得到"集中调整入口"，
  *   又避免历史调用点（已在 `roadEncounterService.js` / `roadInterceptService.js` 等多处）的批量改动。
  *
- * @see docs/30-frontend/31-6-STRATEGIC_ROAD_PVP.md
+ * @see docs/30-frontend/31-6-STRATEGIC_ROAD_MARCH.md
  * @see docs/00-base/02-architecture-split/12-road-encounter-api.md
  */
 
 /** 开启 / 关闭道路拦截（守门）单次费用，扣银两 */
-const INTERCEPT_COST_SILVER = 40; // 31-6 §三
+const INTERCEPT_COST_SILVER = 40; // 31-6 §3
 
 /** 每日免费"自由步"上限（每位玩家） */
-const FREE_MOVES_PER_DAY = 300; // 31-6 §9.1；31-5 §一（2026-05-19：50→300）
+const FREE_MOVES_PER_DAY = 300; // 31-6 §6；31-2（2026-05-19：50→300）
 
 /** 单步付费粮草（个人粮 → 势力池兜底） */
-const FOOD_PER_STEP = 2; // 31-6 §9.1
+const FOOD_PER_STEP = 2; // 31-6 §6
 
 /** 单日势力池"垫粮"上限（同一势力下属玩家共享） */
-const RESERVE_FOOD_DAILY_LIMIT = 500; // 31-6 §十
+const RESERVE_FOOD_DAILY_LIMIT = 500; // 31-6 §6
 
 /** 守方遇袭弹窗倒计时长（秒），与攻城披挂 `WAIT_IN_GAME` 产品口径对齐 */
 const ROAD_DEFENDER_ALERT_SEC = 10;

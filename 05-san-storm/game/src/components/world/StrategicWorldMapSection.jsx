@@ -15,6 +15,7 @@ import {
   collectBanditAnchorCellsByJunFromWorldGrid,
   findNearestFactionMajorMediumCityStrategicCell,
   pickBanditProgressLocateTarget,
+  scrollToCityById,
 } from '@/utils/strategicMapProgressLocate';
 import './WorldStrategicMap.css';
 import { YINGCHUAN_COUNTY_MAP_COLS, YINGCHUAN_COUNTY_MAP_ROWS } from '@shared/utils/junCountyMapGenerator';
@@ -100,7 +101,7 @@ function buildOngoingSiegeLocateTargets(pvpWars, pveWars) {
   });
 }
 
-/** 道路移动成功后跳跳棋逐格回放（31-6 §9.1）；纯前端、不额外请求 */
+/** 道路移动成功后跳跳棋逐格回放（31-6 §6）；纯前端、不额外请求 */
 const MARCH_ANIM_MS_PER_STEP = 200;
 
 /**
@@ -287,14 +288,14 @@ export default function StrategicWorldMapSection({
   const [mapLoadError, setMapLoadError] = useState(null);
   const [garrisonStatsByCityId, setGarrisonStatsByCityId] = useState({});
   /**
-   * 郡内他人道路 presence（仅在线 + 锁格），与 31-6 §12.2 / 02 §2.1.2（3）一致。
+   * 郡内他人道路 presence（仅在线 + 锁格），与 31-6 §9.2 / 02 §2.1.2（3）一致。
    * 轮询粒度与现网拉城列表同量级；窗口未聚焦时不轮询以省服。
    */
   const [roadPresence, setRoadPresence] = useState(null);
   /** 供行军成功后立即拉取郡内他人路点（与轮询互补） */
   const roadPresenceFetchRef = useRef(() => Promise.resolve());
   const { player: ctxPlayer, cards: ctxCards, attributeBonusBySlot, refresh, exploreQuota } = usePlayerContext();
-  /** 行军模式：与 31-6 §9.3 一致 */
+  /** 行军模式：与 31-6 §8 一致 */
   const [strategicMarchMode, setStrategicMarchMode] = useState(false);
   /** @type {null | { path: Array<{x:number,y:number}>, onRoadAtStart: boolean, preview: object, encounterHint: string|null }} */
   const [marchConfirm, setMarchConfirm] = useState(null);
@@ -678,7 +679,7 @@ export default function StrategicWorldMapSection({
   }, [maxTilePx]);
 
   /**
-   * 自身标记立点（31-6 §12.1）：`resolveStrategicRecordedStandpointPx`（道路格心 / 离路城寨块心 / 攻方大本营）。
+   * 自身标记立点（31-6 §9.1）：`resolveStrategicRecordedStandpointPx`（道路格心 / 离路城寨块心 / 攻方大本营）。
    * 不再回退主城；解析失败时 `standpointError` 非空，由 effect 弹 Toast。
    */
   const strategicSelfPawn = useMemo(() => {
@@ -1019,6 +1020,17 @@ export default function StrategicWorldMapSection({
     const ok = scrollStrategicCellNow(cell.gx, cell.gy);
     return ok ? null : '地图未就绪';
   }, [strategicNav, ongoingSiegeLocateTargets, countyCityRows, scrollStrategicCellNow]);
+
+  useEffect(() => {
+    const cityId = strategicNav?.peekPendingScrollToCityId?.();
+    if (!cityId) return;
+    const ok = scrollToCityById(cityId, {
+      cities: countyCityRows,
+      nav: strategicNav,
+      scrollNow: scrollStrategicCellNow,
+    });
+    if (ok) strategicNav?.clearPendingScrollToCityId?.();
+  }, [strategicNav, countyCityRows, cells, scrollStrategicCellNow]);
 
   const mapJumpProgressSidebar = useMemo(() => {
     if (!cells?.length) return null;

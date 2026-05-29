@@ -3,7 +3,7 @@
  *
  * **与玩家 Token 的边界**：
  *   - 本模块管理的是 **管理员密码登录** 后由主站后端（3001）签发的字符串 token，键 `STORAGE_KEYS.ADMIN_TOKEN`，30 天有效期。
- *   - **玩家会话 JWT** 由 05-san-storm 后端（3005）签发、`utils/playerTokenManager.js` 管理，键 `STORAGE_KEYS.PLAYER_TOKEN`，默认 8h；与本模块**互不影响**。
+ *   - **玩家会话 JWT** 由 05-san-storm 后端（3005）签发、`utils/playerTokenManager.js` 管理，键 `STORAGE_KEYS.PLAYER_TOKEN`，默认 30 天；与本模块**互不影响**。
  *   - 携带请求头时：管理员请求需手动附 `Authorization`；玩家请求由 `services/httpClient.js` 自动附加。
  */
 

@@ -414,9 +414,9 @@ export default function WorldStrategicMapGrid({
   strategicFullScreenOverlayOpen = false,
   /** 攻城/探索战斗等：`WorldMap` 为 true 时不显示 event_hint portal */
   strategicMapEventHintSuppressed = false,
-  /** 玩家自身标记（主城块中心；见 31-6）：`cx, cy, portraitUrl, displayName, centerGlyph, troopsCurrent, troopsMax` */
+  /** 玩家自身标记（主城块中心；见 31-6 §9）：`cx, cy, portraitUrl, displayName, centerGlyph, troopsCurrent, troopsMax` */
   strategicSelfPawn = null,
-  /** 郡内在线他人道路 pawn 列表（31-6 §12.2、02 §2.1.2（3））；`road-presence` 结果 */
+  /** 郡内在线他人道路 pawn 列表（31-6 §9.2、02 §2.1.2（3））；`road-presence` 结果 */
   strategicOtherPawns = null,
   /** 郡内 road_encounters 锁格列表（status IN ('pending','fighting')）；用于高亮与落点禁区提示 */
   strategicRoadLockedCells = null,

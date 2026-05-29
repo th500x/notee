@@ -1,4 +1,4 @@
--- 匪寨世界实例表；列与 01-DATABASE_DESIGN.md 附.1、§3.2.11a 一致
+-- 匪寨世界实例表（01-database-split/30-tables-world §3.2.11a）
 CREATE TABLE IF NOT EXISTS bandits (
   bandit_id VARCHAR(32) NOT NULL COMMENT '匪寨实例 ID',
   jun_id VARCHAR(64) NOT NULL COMMENT '郡 ID，FK → config_jun.jun_id，与 cities.jun_id 命名一致',

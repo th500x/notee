@@ -1,6 +1,6 @@
 /**
  * 更新公告：大地图首屏全屏层，点击任意处关闭（与开局介绍共用羊皮纸卡片与背景管线）
- * @see docs/30-frontend/32-3-GAME_ANNOUNCEMENTS_DESIGN.md
+ * @see docs/30-frontend/32-3-ANNOUNCEMENTS.md
  */
 
 import { useState, useEffect, useCallback } from 'react';

@@ -22,7 +22,7 @@ function reauthHint(reason) {
   if (!reason) return null;
   switch (reason) {
     case 'TOKEN_EXPIRED':
-      return '会话已过期，请重新输入密码继续游戏。';
+      return '登录已过期，请重新输入密码。';
     case 'BAD_TOKEN':
       return '登录凭证无效（常见于服务重启或密钥轮换后旧令牌作废），请重新输入密码。';
     case 'NO_TOKEN':

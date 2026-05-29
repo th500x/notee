@@ -56,7 +56,7 @@ router.get('/', async (req, res, next) => {
 
 /**
  * GET /api/cities/road-presence?season=san_1&junId=...
- * 返回郡内 **在线** 他人道路坐标摘要 + road_encounters 锁格（02 §2.1.2（3）、31-6 §十二）。
+ * 返回郡内 **在线** 他人道路坐标摘要 + road_encounters 锁格（02 §2.1.2（3）、31-6 §9）。
  * 注意：本路由必须在 `/:cityId` 之前注册，避免被其吞掉。
  */
 router.get('/road-presence', async (req, res, next) => {

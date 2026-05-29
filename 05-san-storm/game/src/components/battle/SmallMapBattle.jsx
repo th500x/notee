@@ -195,11 +195,17 @@ export default function SmallMapBattle({
     bm.generate('standard');
 
     if (enemyUnits) {
+      const catalogById = Object.create(null);
+      for (const row of bm.allTroops || []) {
+        if (row?.id) catalogById[row.id] = row;
+      }
       bm.setBattleTroops(buildSiegeUnits({
         playerUnits,
         enemyUnits,
         allyUnits: Array.isArray(allyUnits) ? allyUnits : [],
+        skillsMap,
         baseUrl: import.meta.env.BASE_URL,
+        catalogById,
       }));
     } else {
       bm.assignRealBattleTroops(playerUnits, enemyRarity || 'common', {

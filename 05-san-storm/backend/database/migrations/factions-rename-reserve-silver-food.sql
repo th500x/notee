@@ -1,4 +1,4 @@
--- factions：资源储备列重命名（与 01-DATABASE_DESIGN.md §3.2.10 一致）
+-- factions：资源储备列重命名（历史迁移；现行见 01-database-split/30-tables-world §3.2.10c faction_reserve）
 -- 已为新列名时可跳过（apply-pending-local-ddl 会吞 Unknown column）。
 
 ALTER TABLE factions

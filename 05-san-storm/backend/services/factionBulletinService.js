@@ -41,31 +41,52 @@ function formatTimestamp(d = new Date()) {
  * @param {import('mysql2/promise').Pool|import('mysql2/promise').PoolConnection} db
  * @param {string} factionId
  * @param {string} textWithoutBracket
- * @param {{ category?: string, authorPlayerId?: string|null, authorName?: string|null }} [opts]
+ * @param {{ category?: string, authorPlayerId?: string|null, authorName?: string|null, targetCityId?: string|null }} [opts]
  * @returns {Promise<number>} insert id
  */
 async function appendOnConnection(db, factionId, textWithoutBracket, opts = {}) {
   if (!factionId || typeof textWithoutBracket !== 'string') return 0;
   const category = opts.category || CATEGORY.WAR;
   const body = `[${formatTimestamp()}] ${textWithoutBracket}`.slice(0, 512);
-  const [result] = await db.query(
-    `INSERT INTO faction_bulletins (faction_id, category, body, author_player_id, author_name)
-     VALUES (?, ?, ?, ?, ?)`,
-    [
-      factionId,
-      category,
-      body,
-      opts.authorPlayerId || null,
-      opts.authorName || null,
-    ],
-  );
-  return Number(result.insertId) || 0;
+  const targetCityId =
+    opts.targetCityId != null && String(opts.targetCityId).trim()
+      ? String(opts.targetCityId).trim().slice(0, 64)
+      : null;
+  try {
+    const [result] = await db.query(
+      `INSERT INTO faction_bulletins (faction_id, category, body, target_city_id, author_player_id, author_name)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [
+        factionId,
+        category,
+        body,
+        targetCityId,
+        opts.authorPlayerId || null,
+        opts.authorName || null,
+      ],
+    );
+    return Number(result.insertId) || 0;
+  } catch (e) {
+    if (!/Unknown column ['`]target_city_id/i.test(e?.message || '')) throw e;
+    const [result] = await db.query(
+      `INSERT INTO faction_bulletins (faction_id, category, body, author_player_id, author_name)
+       VALUES (?, ?, ?, ?, ?)`,
+      [
+        factionId,
+        category,
+        body,
+        opts.authorPlayerId || null,
+        opts.authorName || null,
+      ],
+    );
+    return Number(result.insertId) || 0;
+  }
 }
 
 /**
  * @param {string} factionId
  * @param {string} textWithoutBracket
- * @param {{ category?: string, authorPlayerId?: string|null, authorName?: string|null }} [opts]
+ * @param {{ category?: string, authorPlayerId?: string|null, authorName?: string|null, targetCityId?: string|null }} [opts]
  */
 async function append(factionId, textWithoutBracket, opts = {}) {
   return appendOnConnection(pool, factionId, textWithoutBracket, opts);
@@ -78,10 +99,15 @@ function appendSafe(factionId, textWithoutBracket, opts = {}) {
 }
 
 function mapRow(r) {
+  const rawTarget =
+    r.targetCityId != null ? r.targetCityId : r.target_city_id;
+  const targetCityId =
+    rawTarget != null && String(rawTarget).trim() !== '' ? String(rawTarget).trim() : null;
   return {
     id: Number(r.id),
     category: r.category || CATEGORY.WAR,
     body: r.body,
+    targetCityId,
     authorPlayerId: r.authorPlayerId || r.author_player_id || null,
     authorName: r.authorName || r.author_name || null,
     createdAt: r.createdAt instanceof Date ? r.createdAt.toISOString() : String(r.createdAt),
@@ -128,7 +154,8 @@ async function listForFaction(factionId, opts = {}) {
   const retention = categoryUsesRetention(category);
   const cutoff = retention ? retentionCutoffDate() : null;
 
-  let sql = `SELECT id, category, body, author_player_id AS authorPlayerId, author_name AS authorName,
+  let sql = `SELECT id, category, body, target_city_id AS targetCityId,
+                    author_player_id AS authorPlayerId, author_name AS authorName,
                     created_at AS createdAt
              FROM faction_bulletins WHERE faction_id = ?`;
   const params = [factionId];
@@ -147,6 +174,24 @@ async function listForFaction(factionId, opts = {}) {
     const [rows] = await pool.query(sql, params);
     return rows.map(mapRow);
   } catch (e) {
+    if (/Unknown column ['`]target_city_id/i.test(e?.message || '')) {
+      let fallbackSql = `SELECT id, category, body, author_player_id AS authorPlayerId, author_name AS authorName,
+                                created_at AS createdAt
+                         FROM faction_bulletins WHERE faction_id = ?`;
+      const fallbackParams = [factionId];
+      if (category) {
+        fallbackSql += ' AND category = ?';
+        fallbackParams.push(category);
+      }
+      if (retention && cutoff) {
+        fallbackSql += ' AND created_at >= ?';
+        fallbackParams.push(cutoff);
+      }
+      fallbackSql += ' ORDER BY id DESC LIMIT ?';
+      fallbackParams.push(limit);
+      const [rows] = await pool.query(fallbackSql, fallbackParams);
+      return rows.map(mapRow);
+    }
     if (/Unknown column ['`]category/i.test(e?.message || '')) {
       let legacySql =
         'SELECT id, body, created_at AS createdAt FROM faction_bulletins WHERE faction_id = ?';
@@ -193,6 +238,7 @@ function logDasikongEdict(factionId, kingName, winnerName, totalScore) {
 
 async function logPvpWarStarted(war) {
   const city = war.targetCityName || war.targetCityId || '目标城';
+  const targetCityId = war.targetCityId || null;
   let attName = war.attackerFactionName || null;
   if (war.attackerFactionId) {
     const resolved = await require('./factionDisplayName').resolveFactionDisplayName(war.attackerFactionId);
@@ -201,14 +247,17 @@ async function logPvpWarStarted(war) {
   if (!attName) attName = '敌军';
   appendSafe(war.attackerFactionId, `PVP 战事：我军向「${city}」进军，战事已开（攻方）。`, {
     category: CATEGORY.WAR,
+    targetCityId,
   });
   appendSafe(war.defenderFactionId, `PVP 战事：「${attName}」进犯我方「${city}」，战事已开（守方）。`, {
     category: CATEGORY.WAR,
+    targetCityId,
   });
 }
 
 function logPvpWarEnded(war, end) {
   const city = war.targetCityName || war.targetCityId || '目标城';
+  const targetCityId = war.targetCityId || null;
   const { status, winnerFactionId, endedByOfficial, cancelReason, neverActivated } = end;
 
   if (endedByOfficial) {
@@ -230,12 +279,12 @@ function logPvpWarEnded(war, end) {
     appendSafe(
       war.attackerFactionId,
       `战事筹划已解除：针对「${city}」的进犯未落营开战，草案已撤销。`,
-      { category: CATEGORY.WAR },
+      { category: CATEGORY.WAR, targetCityId },
     );
     appendSafe(
       war.defenderFactionId,
       `战事筹划已解除：敌方针对「${city}」的进犯未正式开战，草案已撤销。`,
-      { category: CATEGORY.WAR },
+      { category: CATEGORY.WAR, targetCityId },
     );
     return;
   }
@@ -256,29 +305,37 @@ function logPvpWarEnded(war, end) {
   const win = winnerFactionId;
 
   if (status === 'completed' && win === att) {
-    appendSafe(att, `战事结束：我军告捷，「${city}」战局已定（攻方胜利）。`, { category: CATEGORY.WAR });
-    appendSafe(def, `战事结束：我军失利，「${city}」战局已定（守方失利）。`, { category: CATEGORY.WAR });
+    appendSafe(att, `战事结束：我军告捷，「${city}」战局已定（攻方胜利）。`, { category: CATEGORY.WAR, targetCityId });
+    appendSafe(def, `战事结束：我军失利，「${city}」战局已定（守方失利）。`, { category: CATEGORY.WAR, targetCityId });
   } else if (status === 'completed' && win === def) {
-    appendSafe(att, `战事结束：我军失利，「${city}」战局已定（守方固守/终局）。`, { category: CATEGORY.WAR });
-    appendSafe(def, `战事结束：我军告捷，「${city}」战局已定（守方胜利）。`, { category: CATEGORY.WAR });
+    appendSafe(att, `战事结束：我军失利，「${city}」战局已定（守方固守/终局）。`, { category: CATEGORY.WAR, targetCityId });
+    appendSafe(def, `战事结束：我军告捷，「${city}」战局已定（守方胜利）。`, { category: CATEGORY.WAR, targetCityId });
   } else if (status === 'failed' && win === def) {
-    appendSafe(att, `战事结束：我军失利，「${city}」战局已定（大本营失守）。`, { category: CATEGORY.WAR });
-    appendSafe(def, `战事结束：我军告捷，「${city}」战局已定（守方胜利）。`, { category: CATEGORY.WAR });
+    appendSafe(att, `战事结束：我军失利，「${city}」战局已定（大本营失守）。`, { category: CATEGORY.WAR, targetCityId });
+    appendSafe(def, `战事结束：我军告捷，「${city}」战局已定（守方胜利）。`, { category: CATEGORY.WAR, targetCityId });
   } else {
-    appendSafe(att, `战事结束：「${city}」战事已结案（${status || '—'}）。`, { category: CATEGORY.WAR });
-    appendSafe(def, `战事结束：「${city}」战事已结案（${status || '—'}）。`, { category: CATEGORY.WAR });
+    appendSafe(att, `战事结束：「${city}」战事已结案（${status || '—'}）。`, { category: CATEGORY.WAR, targetCityId });
+    appendSafe(def, `战事结束：「${city}」战事已结案（${status || '—'}）。`, { category: CATEGORY.WAR, targetCityId });
   }
 }
 
 function logPveWarStarted(factionId, cityName, cityId) {
   const label = cityName || cityId || '中立城';
-  appendSafe(factionId, `PVE 战事：我军对中立城「${label}」发起攻城，战事已开。`, { category: CATEGORY.WAR });
+  const targetCityId = cityId || null;
+  appendSafe(factionId, `PVE 战事：我军对中立城「${label}」发起攻城，战事已开。`, {
+    category: CATEGORY.WAR,
+    targetCityId,
+  });
 }
 
 function logPveWarSiegeCompleted(winnerFactionId, cityName, cityId) {
   if (!winnerFactionId) return;
   const label = cityName || cityId || '城池';
-  appendSafe(winnerFactionId, `PVE 战事结束：我军击破「${label}」守军，城池易主。`, { category: CATEGORY.WAR });
+  const targetCityId = cityId || null;
+  appendSafe(winnerFactionId, `PVE 战事结束：我军击破「${label}」守军，城池易主。`, {
+    category: CATEGORY.WAR,
+    targetCityId,
+  });
 }
 
 /**
@@ -288,6 +345,7 @@ function logPveWarSiegeCompleted(winnerFactionId, cityName, cityId) {
  *   factionId: string,
  *   campLabel: string,
  *   cityName: string,
+ *   cityId?: string,
  *   outcome: 'good'|'poor',
  *   totalKills: number,
  *   battlesRun: number,
@@ -299,6 +357,7 @@ function logConscriptAssaultSummary(payload) {
     factionId,
     campLabel = '征发军团',
     cityName = '目标城',
+    cityId = null,
     outcome = 'poor',
     totalKills = 0,
     battlesRun = 0,
@@ -306,13 +365,14 @@ function logConscriptAssaultSummary(payload) {
   } = payload || {};
   if (!factionId) return;
   const city = String(cityName || '目标城').trim();
+  const targetCityId = cityId || null;
   const kills = Math.max(0, Math.floor(Number(totalKills) || 0));
   const runs = Math.max(0, Math.floor(Number(battlesRun) || 0));
   if (outcome === 'good' && kills >= 1) {
     appendSafe(
       factionId,
       `【${campLabel}】向「${city}」突击 ${runs} 场，消灭守军 ${kills} 支，战果显赫。`,
-      { category: CATEGORY.WAR },
+      { category: CATEGORY.WAR, targetCityId },
     );
     return;
   }
@@ -320,7 +380,7 @@ function logConscriptAssaultSummary(payload) {
   appendSafe(
     factionId,
     `【${campLabel}】向「${city}」突击 ${runs} 场，守军奋勇抵抗，我军无奈撤退${early}。`,
-    { category: CATEGORY.WAR },
+    { category: CATEGORY.WAR, targetCityId },
   );
 }
 

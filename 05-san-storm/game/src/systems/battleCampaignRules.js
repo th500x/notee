@@ -1,6 +1,6 @@
 /**
  * 战役/特殊战斗规则：主将身份（hero/boss）与 NPC AI 战斗风格。
- * 策划与 CSV 约定见 docs/tools/campaign/CAMPAIGN_MAP.md
+ * 策划与 CSV 约定见 docs/tools/campaign/README.md
  *
  * 部队对象可选字段：
  * - commanderRole: 'hero' | 'boss' — 可选；友军 hero：同一将领（`campaignCharId`）下**全部**带 hero 的 stack 灭尽才败；无 `campaignCharId` 时退化为「任一支 hero stack 灭即败」。敌军 boss：**全部**带 boss 标记的敌方 stack 歼灭后战役胜利（同一将领多支 stack 均须消灭）

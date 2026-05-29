@@ -1,6 +1,6 @@
 /**
  * 将领被动 · 阶段1（纯数值 / 常驻百分比）技能：从 `specialEffect` 字符串解析并与战斗/面板共用。
- * 契约见 `docs/00-base/04-2-TERM_GUIDE.csv`、`docs/20-data-layer/23-SKILL_SYSTEM.md` 阶段1首批。
+ * 契约见 `docs/00-base/04-2-DATA_TERM_DICTIONARY.md`、`docs/20-data-layer/23-SKILL_SYSTEM.md` 阶段1首批。
  *
  * 规则：仅处理 `type === 'passive'` 且 `specialEffect` 中**每一段** key 均在下表内；
  * 若任一段无法识别则**整技能跳过**（避免半套效果）。

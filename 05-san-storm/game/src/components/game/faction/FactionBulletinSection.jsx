@@ -4,13 +4,23 @@
  * 数据：GET /api/players/:playerId/san-gong-fu/bulletin（前三类仅展示最近 3 天，服务端同步删过期行；外交无此限制，待实装）
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { playerAPI } from '@/services/playerApi';
+import { API_CONFIG } from '@/constants';
+import { fetchWithTimeout } from '@/services/httpClient';
+import { useStrategicMapNavigation } from '@/contexts/StrategicMapNavigationContext';
+import {
+  buildCityIdToNameMap,
+  buildCityNameToIdMap,
+} from '@/utils/strategicMapProgressLocate';
 import {
   computeMaxFactionBulletinId,
   markFactionBulletinsSeenUpTo,
 } from '@/utils/factionBulletinReadState';
-function BulletinBlock({ title, entries, emptyText, loading }) {
+
+const QUOTED_NAME_RE = /「([^」]+)」/g;
+
+function BulletinBlock({ title, entries, emptyText, loading, renderEntryBody }) {
   return (
     <div className="shrink-0 rounded-lg border border-stone-700/40 bg-stone-900/30 px-2 py-2 text-left">
       <div className="mb-2 text-left text-[10px] font-semibold text-amber-500/90">{title}</div>
@@ -22,7 +32,7 @@ function BulletinBlock({ title, entries, emptyText, loading }) {
         <ul className="max-h-[min(22vh,9rem)] space-y-1.5 overflow-y-auto pr-0.5 text-[10px] leading-snug text-stone-200/95">
           {entries.map((e) => (
             <li key={e.id} className="break-words border-b border-stone-800/50 pb-1.5 last:border-0 last:pb-0">
-              {e.body}
+              {typeof renderEntryBody === 'function' ? renderEntryBody(e) : e.body}
             </li>
           ))}
         </ul>
@@ -31,13 +41,61 @@ function BulletinBlock({ title, entries, emptyText, loading }) {
   );
 }
 
+function resolveQuotedCityId(quotedName, entryTargetCityId, cityNameToId, cityIdToName) {
+  const name = String(quotedName || '').trim();
+  if (!name) return null;
+  if (entryTargetCityId) {
+    const targetName = cityIdToName.get(String(entryTargetCityId));
+    if (targetName && targetName === name) return String(entryTargetCityId);
+    return null;
+  }
+  return cityNameToId.get(name) || null;
+}
+
+function renderWarBulletinBody(entry, { cityNameToId, cityIdToName, onCityNavigate }) {
+  const body = entry?.body || '';
+  if (!body) return null;
+  const entryTargetCityId = entry?.targetCityId || null;
+  const parts = [];
+  let last = 0;
+  let key = 0;
+  let match;
+  QUOTED_NAME_RE.lastIndex = 0;
+  while ((match = QUOTED_NAME_RE.exec(body))) {
+    if (match.index > last) parts.push(body.slice(last, match.index));
+    const name = match[1];
+    const cityId = resolveQuotedCityId(name, entryTargetCityId, cityNameToId, cityIdToName);
+    const full = `「${name}」`;
+    if (cityId && typeof onCityNavigate === 'function') {
+      parts.push(
+        <button
+          key={`city-${key++}`}
+          type="button"
+          className="inline text-amber-400/95 underline decoration-amber-600/50 underline-offset-2 hover:text-amber-300"
+          title="定位至该城（大地图）"
+          onClick={() => onCityNavigate(cityId)}
+        >
+          {full}
+        </button>,
+      );
+    } else {
+      parts.push(full);
+    }
+    last = match.index + match[0].length;
+  }
+  if (last < body.length) parts.push(body.slice(last));
+  return parts.length ? parts : body;
+}
+
 /**
- * @param {{ playerId?: string|null, refreshKey?: number, markRead?: boolean }} props
+ * @param {{ playerId?: string|null, refreshKey?: number, markRead?: boolean, onClose?: () => void }} props
  */
-export default function FactionBulletinSection({ playerId, refreshKey = 0, markRead = true }) {
+export default function FactionBulletinSection({ playerId, refreshKey = 0, markRead = true, onClose }) {
+  const strategicNav = useStrategicMapNavigation();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [cities, setCities] = useState([]);
 
   const load = useCallback(async () => {
     if (!playerId) {
@@ -79,6 +137,46 @@ export default function FactionBulletinSection({ playerId, refreshKey = 0, markR
     markFactionBulletinsSeenUpTo(playerId, computeMaxFactionBulletinId(data));
   }, [markRead, playerId, loading, data]);
 
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const qs = new URLSearchParams({ season: 'san_1' });
+        const res = await fetchWithTimeout(`${API_CONFIG.BASE_URL}/cities?${qs}`);
+        const json = await res.json();
+        const rows = json?.success && Array.isArray(json.cities) ? json.cities : [];
+        if (!cancelled) setCities(rows);
+      } catch {
+        if (!cancelled) setCities([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const cityNameToId = useMemo(() => buildCityNameToIdMap(cities), [cities]);
+  const cityIdToName = useMemo(() => buildCityIdToNameMap(cities), [cities]);
+
+  const handleCityNavigate = useCallback(
+    (cityId) => {
+      if (!cityId) return;
+      strategicNav?.queueScrollToCityId?.(cityId);
+      if (typeof onClose === 'function') onClose();
+    },
+    [strategicNav, onClose],
+  );
+
+  const renderWarEntryBody = useCallback(
+    (entry) =>
+      renderWarBulletinBody(entry, {
+        cityNameToId,
+        cityIdToName,
+        onCityNavigate: handleCityNavigate,
+      }),
+    [cityNameToId, cityIdToName, handleCityNavigate],
+  );
+
   if (!playerId) {
     return <p className="text-xs text-stone-500">暂无</p>;
   }
@@ -107,6 +205,7 @@ export default function FactionBulletinSection({ playerId, refreshKey = 0, markR
         entries={data?.wars}
         loading={loading}
         emptyText="暂无战事通知。攻防守战事发起或结束后将自动记入。"
+        renderEntryBody={renderWarEntryBody}
       />
       <BulletinBlock
         title="外交"

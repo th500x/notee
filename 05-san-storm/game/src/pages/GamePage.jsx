@@ -15,28 +15,29 @@ import AnnouncementBar from '@/components/game/AnnouncementBar';
 import RankingPanel from '@/components/game/RankingPanel';
 import BottomTabNav from '@/components/game/BottomTabNav';
 import PersonalSidebar from '@/components/game/PersonalSidebar';
-import CommPanel from '@/components/game/CommPanel';
-import StandingRankingsPanel from '@/components/game/StandingRankingsPanel';
-import KingEdictPanel from '@/components/game/KingEdictPanel';
-import CardPoolDrawer from '@/components/game/CardPoolDrawer';
-import CampaignCenterPanel from '@/components/game/CampaignCenterPanel';
-import AttrRerollDrawer from '@/components/game/AttrRerollDrawer';
+import ChunkLoadFallback from '@/components/game/ChunkLoadFallback';
+import RoadEncounterDefenseRoot from '@/components/game/RoadEncounterDefenseRoot';
+import UpdateNoticeFullScreenOverlay from '@/components/game/UpdateNoticeFullScreenOverlay';
 import { useCardPool } from '@/hooks/useCardPool';
 import { loadSharedData } from '@/services/dataService';
-import LineupTab from '@/components/game/tabs/LineupTab';
-import MainCityTab from '@/components/game/tabs/MainCityTab';
-import FactionTab from '@/components/game/tabs/FactionTab';
-import WorldMapTab from '@/components/game/tabs/WorldMapTab';
-import WorldMap from '@/components/game/WorldMap';
-import RoadEncounterDefenseRoot from '@/components/game/RoadEncounterDefenseRoot';
-import JunCountyQuadPreviewPanel from '@/components/game/JunCountyQuadPreviewPanel';
-import UpdateNoticeFullScreenOverlay from '@/components/game/UpdateNoticeFullScreenOverlay';
 import { getActiveUpdateNotice } from '@/data/texts/updateAnnouncements';
 import { shouldShowUpdateNotice, dismissUpdateNotice } from '@/utils/updateNoticeLogic';
 import { useFactionBulletinUnread } from '@/hooks/useFactionBulletinUnread';
 import { isGameIntroCompletedForPlayer, markGameIntroCompletedForPlayer } from '@/utils/gameIntroFlags';
 
 const GameIntroOverlay = lazy(() => import('@/components/tutorial/GameIntroOverlay'));
+const WorldMap = lazy(() => import('@/components/game/WorldMap'));
+const LineupTab = lazy(() => import('@/components/game/tabs/LineupTab'));
+const MainCityTab = lazy(() => import('@/components/game/tabs/MainCityTab'));
+const FactionTab = lazy(() => import('@/components/game/tabs/FactionTab'));
+const WorldMapTab = lazy(() => import('@/components/game/tabs/WorldMapTab'));
+const CommPanel = lazy(() => import('@/components/game/CommPanel'));
+const StandingRankingsPanel = lazy(() => import('@/components/game/StandingRankingsPanel'));
+const KingEdictPanel = lazy(() => import('@/components/game/KingEdictPanel'));
+const CardPoolDrawer = lazy(() => import('@/components/game/CardPoolDrawer'));
+const CampaignCenterPanel = lazy(() => import('@/components/game/CampaignCenterPanel'));
+const AttrRerollDrawer = lazy(() => import('@/components/game/AttrRerollDrawer'));
+const JunCountyQuadPreviewPanel = lazy(() => import('@/components/game/JunCountyQuadPreviewPanel'));
 
 export default function GamePage({ user, onLogout }) {
   return (
@@ -152,20 +153,35 @@ function GamePageInner({ onLogout, accountId }) {
   };
 
   const renderTabContent = () => {
+    const tabFallback = <ChunkLoadFallback label="页面加载中…" />;
     switch (activeTab) {
       case 'lineup':
         return (
-          <LineupTab
-            onClose={handleCloseToMap}
-            onOpenAttributeReroll={() => setOpenReroll(true)}
-          />
+          <Suspense fallback={tabFallback}>
+            <LineupTab
+              onClose={handleCloseToMap}
+              onOpenAttributeReroll={() => setOpenReroll(true)}
+            />
+          </Suspense>
         );
       case 'city':
-        return <MainCityTab onClose={handleCloseToMap} />;
+        return (
+          <Suspense fallback={tabFallback}>
+            <MainCityTab onClose={handleCloseToMap} />
+          </Suspense>
+        );
       case 'faction':
-        return <FactionTab onClose={handleCloseToMap} />;
+        return (
+          <Suspense fallback={tabFallback}>
+            <FactionTab onClose={handleCloseToMap} />
+          </Suspense>
+        );
       case 'map':
-        return <WorldMapTab onClose={handleCloseToMap} />;
+        return (
+          <Suspense fallback={tabFallback}>
+            <WorldMapTab onClose={handleCloseToMap} />
+          </Suspense>
+        );
       default:
         return null;
     }
@@ -199,19 +215,21 @@ function GamePageInner({ onLogout, accountId }) {
                 <RankingPanel />
               </div>
               <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-                <WorldMap
-                  blockTutorialAutoplay={
-                    gameIntroOpen || (!!activeUpdateNotice && updateNoticeOpen)
-                  }
-                  onEventBusyChange={setWorldMapEventBusy}
-                  sanGongFuCardPool={{
-                    onOpenPool: setOpenPool,
-                    drawerOpen: !!openPool,
-                    troopRemaining: cardPool.status?.troop?.remainingDraws ?? '?',
-                    charRemaining: cardPool.status?.character?.remainingDraws ?? '?',
-                    dailyLimit: cardPool.status?.troop?.dailyLimit ?? 5,
-                  }}
-                />
+                <Suspense fallback={<ChunkLoadFallback label="大地图加载中…" />}>
+                  <WorldMap
+                    blockTutorialAutoplay={
+                      gameIntroOpen || (!!activeUpdateNotice && updateNoticeOpen)
+                    }
+                    onEventBusyChange={setWorldMapEventBusy}
+                    sanGongFuCardPool={{
+                      onOpenPool: setOpenPool,
+                      drawerOpen: !!openPool,
+                      troopRemaining: cardPool.status?.troop?.remainingDraws ?? '?',
+                      charRemaining: cardPool.status?.character?.remainingDraws ?? '?',
+                      dailyLimit: cardPool.status?.troop?.dailyLimit ?? 5,
+                    }}
+                  />
+                </Suspense>
               </div>
             </div>
           ) : (
@@ -243,48 +261,53 @@ function GamePageInner({ onLogout, accountId }) {
       </div>
 
       {/* 卡池抽屉（渲染在 pointer-events-none 容器外面） */}
-      {openPool && (
-        <CardPoolDrawer
-          poolType={openPool}
-          status={cardPool.status}
-          loading={cardPool.loading}
-          drawResult={cardPool.drawResult}
-          error={cardPool.error}
-          skillsMap={skillsMap}
-          factionId={player?.faction_id}
-          playerSilver={player?.silver}
-          onDraw={async () => {
-            await cardPool.draw(openPool);
-            await refresh({ silent: true });
-          }}
-          onClearResult={cardPool.clearResult}
-          onClose={() => { setOpenPool(null); cardPool.clearResult(); }}
-          onRefreshStatus={cardPool.loadStatus}
-        />
-      )}
+      {openPool ? (
+        <Suspense fallback={null}>
+          <CardPoolDrawer
+            poolType={openPool}
+            status={cardPool.status}
+            loading={cardPool.loading}
+            drawResult={cardPool.drawResult}
+            error={cardPool.error}
+            skillsMap={skillsMap}
+            factionId={player?.faction_id}
+            playerSilver={player?.silver}
+            onDraw={async () => {
+              await cardPool.draw(openPool);
+              await refresh({ silent: true });
+            }}
+            onClearResult={cardPool.clearResult}
+            onClose={() => { setOpenPool(null); cardPool.clearResult(); }}
+            onRefreshStatus={cardPool.loadStatus}
+          />
+        </Suspense>
+      ) : null}
 
-      {/* 属性随机抽屉 */}
-      {openReroll && playerId && (
-        <AttrRerollDrawer
-          playerId={playerId}
-          playerName={player?.character_name}
-          skillsMap={skillsMap}
-          onClose={() => {
-            setOpenReroll(false);
-            refresh();
-          }}
-          onConfirm={() => refresh()}
-        />
-      )}
+      {openReroll && playerId ? (
+        <Suspense fallback={null}>
+          <AttrRerollDrawer
+            playerId={playerId}
+            playerName={player?.character_name}
+            skillsMap={skillsMap}
+            onClose={() => {
+              setOpenReroll(false);
+              refresh();
+            }}
+            onConfirm={() => refresh()}
+          />
+        </Suspense>
+      ) : null}
 
-        {playerId && (
-        <CampaignCenterPanel
-          playerId={playerId}
-          open={campaignOpen}
-          onClose={() => setCampaignOpen(false)}
-          onClaimed={refresh}
-        />
-      )}
+      {playerId ? (
+        <Suspense fallback={null}>
+          <CampaignCenterPanel
+            playerId={playerId}
+            open={campaignOpen}
+            onClose={() => setCampaignOpen(false)}
+            onClaimed={refresh}
+          />
+        </Suspense>
+      ) : null}
 
       {activeTab === null && !eventBusy && (
         <button
@@ -296,9 +319,11 @@ function GamePageInner({ onLogout, accountId }) {
         </button>
       )}
 
-      {junQuadPreviewOpen && (
-        <JunCountyQuadPreviewPanel onClose={() => setJunQuadPreviewOpen(false)} />
-      )}
+      {junQuadPreviewOpen ? (
+        <Suspense fallback={null}>
+          <JunCountyQuadPreviewPanel onClose={() => setJunQuadPreviewOpen(false)} />
+        </Suspense>
+      ) : null}
 
       {activeTab === null &&
         activeUpdateNotice &&

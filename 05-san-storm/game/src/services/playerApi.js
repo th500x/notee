@@ -168,7 +168,7 @@ export const playerAPI = {
    * 道路：沿路移动（权威写格位 + 粮草）；须 `confirmFoodCost: true` 与唯一 `clientRequestId`。
    * @param {string} playerId
    * @param {{ season: string, junId: string, path: Array<{x:number,y:number}>, clientRequestId: string, confirmFoodCost: true, targetPoiId?: string }} body
-   * `targetPoiId` 可选：31-6 §9.4 本势力城心（`cities` 主键）或郡内匪寨（**`banditPoiId` / `san_*_bandit_*`**）终点时传入；服务端重算 path 并校验 POI。
+   * `targetPoiId` 可选：31-6 §7 本势力城心（`cities` 主键）或郡内匪寨（**`banditPoiId` / `san_*_bandit_*`**）终点时传入；服务端重算 path 并校验 POI。
    */
   async roadMove(playerId, body) {
     const response = await fetchWithTimeout(

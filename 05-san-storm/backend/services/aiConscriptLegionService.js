@@ -324,6 +324,7 @@ async function runConscriptAssaultWindow(war, assaultKind) {
       factionId: war.attackerFactionId,
       campLabel,
       cityName,
+      cityId: war.targetCityId,
       outcome: lastOutcome,
       totalKills,
       battlesRun,

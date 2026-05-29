@@ -1,6 +1,6 @@
 /**
  * 将结构化bonus数据转换为中文展示文本
- * 基于 06-BONUS_TERMINOLOGY.csv 术语表
+ * 基于 04-2-DATA_TERM_DICTIONARY.md 加成项术语
  * @param {Object} bonus - { key: string, value?: number }
  * @returns {string} 中文展示文本
  */
@@ -47,7 +47,7 @@ function formatBonus(bonus) {
 /**
  * 解析势力加成数据，从结构化JSON生成中文展示
  * 数据来源：faction_bonuses [{ key, value }]
- * 术语表：06-BONUS_TERMINOLOGY.csv
+ * 术语表：docs/00-base/04-2-DATA_TERM_DICTIONARY.md §1
  */
 function parseBonuses(faction) {
   let raw = faction.faction_bonuses;

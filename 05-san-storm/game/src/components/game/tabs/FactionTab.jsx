@@ -157,7 +157,7 @@ export default function FactionTab({ onClose }) {
       {
         id: QUADRANT_BULLETIN_ID,
         title: '公告',
-        content: shellBlock(<FactionBulletinSection playerId={playerId} />),
+        content: shellBlock(<FactionBulletinSection playerId={playerId} onClose={close} />),
       },
     ],
     [
@@ -167,6 +167,7 @@ export default function FactionTab({ onClose }) {
       overview,
       overviewLoading,
       overviewError,
+      close,
     ],
   );
 
@@ -227,7 +228,7 @@ export default function FactionTab({ onClose }) {
             ) : activeSubTabId === 'legion' ? (
               shellBlock(legionBody)
             ) : activeSubTabId === 'bulletin' ? (
-              shellBlock(<FactionBulletinSection playerId={playerId} />)
+              shellBlock(<FactionBulletinSection playerId={playerId} onClose={close} />)
             ) : null}
 
           </div>

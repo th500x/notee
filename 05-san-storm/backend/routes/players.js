@@ -446,7 +446,7 @@ router.get('/:playerId/road/self', async (req, res, next) => {
  * POST /api/players/:playerId/road/move
  * body: { season, junId, path:[{x,y}], clientRequestId, confirmFoodCost:true, targetPoiId? }
  * 权威写 players.road_position_* + 粮草链路（player.food → factions.reserve_food 日上限 500）。
- * 可选 targetPoiId：31-6 §9.4 城心/匪寨终点（cities.city_id），见 04-1 §15.4。
+ * 可选 targetPoiId：31-6 §7 城心/匪寨终点（cities.city_id），见 04-1 §15.4。
  */
 router.post('/:playerId/road/move', roadMoveLimiter, async (req, res, next) => {
   try {

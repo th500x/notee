@@ -69,6 +69,17 @@ async function getTodayBattleMemorial(playerId) {
   return rows[0] || null;
 }
 
+/** 纪念图「今日记录」→ 对外 API（camelCase，与 Battle.formatRow 一致） */
+function formatMemorialTodayRecord(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    battleId: row.battle_id,
+    imageUrl: row.image_url,
+    createdAt: row.created_at,
+  };
+}
+
 router.get('/battle/quota', async (req, res, next) => {
   try {
     const { playerId } = req.query;
@@ -78,13 +89,14 @@ router.get('/battle/quota', async (req, res, next) => {
     const today = await getTodayBattleMemorial(playerId);
     const used = Boolean(today);
     const isUnlimitedTester = isMemorialUnlimitedTester(playerId);
+    const todayRecord = formatMemorialTodayRecord(today);
     return res.json({
       success: true,
       data: {
         dailyLimit: isUnlimitedTester ? 9999 : 1,
         usedToday: used ? 1 : 0,
         remaining: isUnlimitedTester ? 9999 : (used ? 0 : 1),
-        todayRecord: today,
+        todayRecord,
       },
     });
   } catch (error) {
@@ -174,7 +186,7 @@ router.post('/battle', async (req, res, next) => {
         success: false,
         code: 'DAILY_LIMIT',
         error: '今日生成次数1/1，请明日再来',
-        data: { todayRecord: today },
+        data: { todayRecord: formatMemorialTodayRecord(today) },
       });
     }
 

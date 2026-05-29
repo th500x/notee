@@ -1,5 +1,5 @@
 /**
- * 战役象限丙玩家部署区：与 docs/tools/campaign/CAMPAIGN_MAP.md §8 一致。
+ * 战役象限丙玩家部署区：与 docs/tools/campaign/README.md §11 一致。
  * 锚点为象限东南角格，向西 columns 列、向北 rows 行（矩形向西北延伸）。
  */
 

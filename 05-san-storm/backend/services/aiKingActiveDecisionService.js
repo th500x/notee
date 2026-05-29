@@ -1,7 +1,7 @@
 /**
  * AI 君主主动决策服务（M2）
  *
- * 与 41-2-AI_KING_M2_IMPLEMENTATION-PLAN.md §3 / §5 一致：
+ * 与 41-1-AI_KING_SYSTEM.md §8 一致：
  *   1. 单次入口在「战事 / 政策」两类意图间按 *_eff 加权抽签
  *      （战事 ← aggressionEff；政策 ← evolutionEff）。
  *   2. 战事意图：
@@ -13,14 +13,14 @@
  *      `routes/factionPolicies.js` + `factionPolicyService.submitLongTermProposal`。AI 君主
  *      **主动**写库（"君主自决修改政策"）属新玩法行为，需产品授权（哪些类目可主动改、频率、
  *      是否允许覆盖玩家近期谏言通过的配置等）；M2 仍保留日志意图 + `recordRecentDecision` 内存
- *      留痕，前端「君主口谕」可读取。见 41-2 §阶段4「保留日志意图」。
+ *      留痕，前端「君主口谕」可读取。见 41-1 §8 §阶段4「保留日志意图」。
  *
  * `proposerPlayerId` 口径：主动通道用 **AI 君主自身 `character_id`**（如 `san_1_char_7001`）；
  * 与玩家被动通道（真实 `player_id`）显式区分；当前 `wars_pvp` 表无 proposer 列，所以
  * 仅以日志关键字 `[aiKing][active]` 留痕，不做兜底替换。
  *
  * 与被动审批的关系：本服务不调用 `passiveApprovalService`；两条通道独立运行
- * （41-2 §3「主动 / 被动两条通道」）。
+ * （41-1 §8 §3「主动 / 被动两条通道」）。
  *
  * @module backend/services/aiKingActiveDecisionService
  */
@@ -36,7 +36,7 @@ const {
 const { isAllowedPlayerCityPoiCityType } = require('../../shared/utils/strategicMarchPoi.js');
 const strategicWarTargetProximityService = require('./strategicWarTargetProximityService');
 
-/** 意图类型常量；与 41-2 §3 表「编码示意」一致。 */
+/** 意图类型常量；与 41-1 §8 §3 表「编码示意」一致。 */
 const INTENT_TYPE = Object.freeze({
   WAR_PVP: 'active_war_intent_pvp',
   WAR_PVE: 'active_war_intent_pve',
@@ -298,7 +298,7 @@ async function decide(input) {
     //   gated by product/gameplay authorization
     //   11-3 实装段1：`faction_policies` DDL 已建、玩家被动谏言链已通；AI **主动** 写库的产品
     //   行为（哪些类目可自决、频率、是否覆盖玩家已审批配置）尚未定稿，故保持仅日志意图 +
-    //   `recordRecentDecision` 内存留痕（41-2 §阶段4 / 11-3 §1.5 TODO 41-ai）。
+    //   `recordRecentDecision` 内存留痕（41-1 §8 §阶段4 / 11-3 §1.5 TODO 41-ai）。
     //   后续放开主动写库时，在 `factionPolicyService` 增加 `applyKingAutonomousChange(...)`
     //   即可（绕过被动审批 / 自带 24h CD）。
     console.log(`${auditPrefix} → intent=policy (autonomous write awaiting game-design authorization; log only)`);

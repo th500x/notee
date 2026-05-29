@@ -6,7 +6,7 @@
  *
  * **CR Q6（2026-04-29）**：原本仅 `game/src/components/common/ErrorBoundary.jsx` 有，wiki 端
  * `App.jsx` 顶层未裹一层，子页面顶层抛错时 → 白屏。本文件提到 `shared/` 后两端共用，
- * 同时与 03-SHARED_COMPONENTS 设计一致。
+ * 同时与 03-1-SHARED_COMPONENTS 设计一致。
  *
  * @module shared/components/common/ErrorBoundary
  */

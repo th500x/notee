@@ -1,7 +1,7 @@
 # `created_at` / `updated_at` 使用审计与精简清单
 
 生成方式：扫描 `backend/database/migrations/*.sql` 中含 `created_at` 或 `updated_at` 的表定义，并与 `05-san-storm/backend/**/*.js` 中的列名引用交叉比对（未扫前端 `game/`：当前无直接引用）。  
-若线上库表来自历史脚本或 `01-DATABASE_DESIGN.md` 与迁移不一致，删列前请以 **实际 `SHOW CREATE TABLE`** 为准。
+若线上库表来自历史脚本或 `01-database-split/` 与迁移不一致，删列前请以 **实际 `SHOW CREATE TABLE`** 为准。
 
 ---
 
@@ -52,7 +52,7 @@
 
 1. [ ] `SHOW CREATE TABLE \`表名\`` 确认列存在且无外键/触发器依赖。  
 2. [ ] 新增迁移：`ALTER TABLE ... DROP COLUMN created_at`, `DROP COLUMN updated_at`（若仅有 `created_at` 则只删一列）。  
-3. [ ] 同步更新 `05-san-storm/docs/00-base/01-DATABASE_DESIGN.md` 对应表结构。  
+3. [ ] 同步更新 `05-san-storm/docs/00-base/01-database-split/` 对应分册表结构。  
 4. [ ] 若有 `SELECT *` 或 admin 全量返回，按第 3 节处理后再上线迁移。  
 5. [ ] 在测试库跑导入脚本 / 核心接口冒烟。
 

@@ -3,6 +3,8 @@
  * @see game/src/systems/combatSystem.js
  */
 
+const { getTroopAffinityOutgoingDamageMult } = require('../../shared/utils/troopAffinityCombat.cjs');
+
 const ELITE_TROOP_STRENGTH_EXPONENT = 0.8;
 /** 与 `game/src/systems/combatSystem.js` 的 `ARCHER_MELEE_DAMAGE_MULT` 一致 */
 const ARCHER_MELEE_DAMAGE_MULT = 0.8;
@@ -177,6 +179,7 @@ function calcDamageSeeded(atk, def, terrain, rng, options = {}) {
     const posBonusKey = atkType + 'Bonus';
     totalDmg *= 1 + (posBonus[posBonusKey] || 0);
   }
+  totalDmg *= getTroopAffinityOutgoingDamageMult(ac, atkType);
 
   if (atkType === 'archer') {
     const dist = Math.abs(atk.y - def.y) + Math.abs(atk.x - def.x);

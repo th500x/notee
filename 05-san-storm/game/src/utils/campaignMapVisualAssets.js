@@ -1,6 +1,6 @@
 /**
  * 战役地图 Demo 视觉：与 Event 战斗 BattleTile 同源路径（assets/san_1_map）。
- * @see docs/tools/campaign/CAMPAIGN_MAP.md
+ * @see docs/tools/campaign/README.md
  */
 
 import { ASSET_BASE } from '@/components/battle/battleConstants';

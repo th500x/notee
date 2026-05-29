@@ -18,7 +18,7 @@ ALTER TABLE config_skills
 -- 2. 新增 special_effect
 ALTER TABLE config_skills
   ADD COLUMN special_effect VARCHAR(200) NULL
-    COMMENT '特殊效果编码，分号分隔多个效果。格式见 05-TERM_GUIDE.csv special_effect 节'
+    COMMENT '特殊效果编码，分号分隔多个效果。格式见 04-2-DATA_TERM_DICTIONARY.md §4'
     AFTER skill_type;
 
 -- 3. 新增 damage_multiplier

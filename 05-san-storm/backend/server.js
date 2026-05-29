@@ -68,9 +68,9 @@ function schedulePvpWarTick() {
 }
 
 /**
- * AI 君主主动决策小时调度（41-2 §2 / §3 / §5）：
+ * AI 君主主动决策小时调度（41-1 §8）：
  *   - 每分钟扫描所有配置君主的「本小时 slot」是否到点；到点则触发主动决策入口。
- *   - 重启恢复：方案 B（不入库，按剩余时段就地重掷；详见 41-2 §2「重启恢复」）。
+ *   - 重启恢复：方案 B（不入库，按剩余时段就地重掷；详见 41-1 §8.1）。
  *   - 与 PVP tick 完全独立；不与被动审批共享随机序列。
  */
 function scheduleAiKingHourlyTick() {
@@ -143,7 +143,7 @@ function scheduleKingDasikongDailyTick() {
   );
 }
 
-/** 与 01-1-DATABASE_DESIGN.md 临时表清理示例一致：每天凌晨 3:00（默认进程本地时区；生产可设 CRON_TZ=Asia/Shanghai） */
+/** 与 00-base/01-database-split/00-overview.md 临时表清理示例一致：每天凌晨 3:00（默认进程本地时区；生产可设 CRON_TZ=Asia/Shanghai） */
 function scheduleTempTableCleanup() {
   const tz = process.env.CRON_TZ;
   const opts = tz ? { timezone: tz } : {};

@@ -944,7 +944,7 @@ export default function JunCountyMapGeneratorManager({ embedded = false }) {
                   <code className="bg-gray-100 px-1">strategic_forts</code> 叠加（<code className="bg-gray-100 px-1">object=fort</code>
                   ，坐标固定、不受「城点随机」影响）。
                   <br />
-                  <span className="text-gray-500">详见 docs/tools/map、31-5-WORLD_MAP_GENERATION.md（§九 管线、§十 fort）</span>
+                  <span className="text-gray-500">详见 docs/tools/map、31-2-WORLD_MAP.md（§九 管线、§十 fort）</span>
                 </>
               }
               showStaticNpcUnits={false}

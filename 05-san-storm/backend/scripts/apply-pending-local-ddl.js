@@ -29,6 +29,7 @@ const MIGRATION_FILES_NEED_MULTIPLE_STATEMENTS = new Set([
 const MIGRATION_FILES_SPLIT_STATEMENTS = new Set([
   'config-positions-drop-legacy-bonus-columns-json-type.sql',
   'add-faction-bulletins-category.sql',
+  'add-faction-bulletins-target-city-id.sql',
   'factions-drop-reserve-columns.sql',
 ]);
 
@@ -98,6 +99,7 @@ const MIGRATION_FILES = [
   'rename-faction-bulletin-entries-to-faction-bulletins.sql',
   'create-faction-bulletins.sql',
   'add-faction-bulletins-category.sql',
+  'add-faction-bulletins-target-city-id.sql',
   'player-events-add-san-gong-document-daily.sql',
   'rename-temp-character-ranking-snapshots-to-temp-character-ranking.sql',
   'rename-statistics-to-player-statistics.sql',

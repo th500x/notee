@@ -17,6 +17,21 @@ const TIER_IMMEDIATE = {
   legendary: { reputation: 4, silver: 40, food: 200 },
 };
 
+/** 通关第 8 / 14 / 18 / 20 层时，在当层基础奖励之外追加的银两（与 17-7 §7 一致） */
+const LAYER_MILESTONE_SILVER = {
+  8: 80,
+  14: 120,
+  18: 120,
+  20: 80,
+};
+
+const TIER_LABEL_CN = {
+  normal: '普通',
+  rare: '稀有',
+  epic: '史诗',
+  legendary: '传奇',
+};
+
 /**
  * `player_progress.bandit_progress` 中 per-匪寨 **`nextLayer`**：1…N 为待挑战层，**N+1** 表示已通 N 层（如 21=20 层全通）。
  * @param {number|string|null|undefined} storedNext
@@ -49,23 +64,62 @@ export function banditStoredNextLayerAfterVictory(attackedLayer, maxLayers = BAN
  * @param {number} layer 当前挑战层 1…20
  * @returns {{ reputation: number, silver: number, food: number, bestEnemyRarity: string, rollEquipment: boolean }}
  */
-export function buildBanditLayerSmallMapPveLoot(layer) {
+/**
+ * 当层「基础」奖励（不含通关档里程碑银两）。
+ * @param {number} layer
+ */
+export function buildBanditLayerBaseLoot(layer) {
   const maxP = Math.max(1, Math.floor(Number(BANDIT_PERSONAL_TOTAL_LAYERS)) || 20);
   const L = Math.max(1, Math.min(maxP, Math.floor(Number(layer)) || 1));
   const tier = banditTierFromLayer(L);
   const base = TIER_IMMEDIATE[tier] || TIER_IMMEDIATE.normal;
-  let silver = base.silver;
-  if (L === 8) silver += 80;
-  if (L === 14) silver += 120;
-  if (L === 18) silver += 120;
-  if (L === 20) silver += 80;
   const slots = banditNpcSlotRaritiesFromLayer(L);
   const bestEnemyRarity = slots.length ? bestRarityOf(...slots) : 'common';
   return {
+    layer: L,
+    tier,
+    tierLabel: TIER_LABEL_CN[tier] || tier,
     reputation: base.reputation,
-    silver,
+    silver: base.silver,
     food: base.food,
     bestEnemyRarity,
     rollEquipment: true,
+  };
+}
+
+/**
+ * 通关档里程碑追加（仅 8 / 14 / 18 / 20 层有银两加成；无则 null）。
+ * @param {number} layer
+ * @returns {{ layer: number, tier: string, tierLabel: string, silver: number, food: number }|null}
+ */
+export function buildBanditLayerMilestoneLoot(layer) {
+  const maxP = Math.max(1, Math.floor(Number(BANDIT_PERSONAL_TOTAL_LAYERS)) || 20);
+  const L = Math.max(1, Math.min(maxP, Math.floor(Number(layer)) || 1));
+  const extraSilver = LAYER_MILESTONE_SILVER[L];
+  if (!extraSilver) return null;
+  const tier = banditTierFromLayer(L);
+  return {
+    layer: L,
+    tier,
+    tierLabel: TIER_LABEL_CN[tier] || tier,
+    silver: extraSilver,
+    food: 0,
+  };
+}
+
+/**
+ * 匪寨单层胜利即时奖励（基础 + 里程碑合计，供发奖 API 使用）。
+ * @param {number} layer
+ */
+export function buildBanditLayerSmallMapPveLoot(layer) {
+  const base = buildBanditLayerBaseLoot(layer);
+  const milestone = buildBanditLayerMilestoneLoot(layer);
+  const silver = base.silver + (milestone?.silver || 0);
+  return {
+    ...base,
+    silver,
+    baseSilver: base.silver,
+    baseFood: base.food,
+    milestone,
   };
 }

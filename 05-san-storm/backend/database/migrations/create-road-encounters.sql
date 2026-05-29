@@ -1,4 +1,4 @@
--- 道路遭遇实例表（01-DATABASE_DESIGN.md §3.2.24；玩法：31-6）
+-- 道路遭遇实例表（01-database-split/60-tables-other §3.2.24；31-6-STRATEGIC_ROAD_MARCH §5）
 -- 交战格锁 + 战后 battle_id 回填；battle_type 复用 'pvp_field'。
 -- 安全重复执行：CREATE TABLE IF NOT EXISTS。
 
@@ -31,4 +31,4 @@ CREATE TABLE IF NOT EXISTS road_encounters (
   INDEX idx_road_encounter_attacker (attacker_player_id),
   INDEX idx_road_encounter_defender (defender_player_id),
   INDEX idx_road_encounter_battle (battle_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='道路遭遇实例表（31-6）';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='道路遭遇实例表（31-6 §5）';

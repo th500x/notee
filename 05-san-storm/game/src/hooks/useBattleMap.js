@@ -15,30 +15,23 @@ import {
 import { getBattleFieldTroopPortraitUrlAttempts } from '@shared/utils/troopIconUrls';
 import { API_CONFIG } from '@/constants';
 import { initialMoraleFromCharacter } from '@/utils/npcMorale';
-import { collectCharacterSkillIdsFromConfig } from '@shared/utils/skillPhase1Passive';
-import {
-  attachPhase2CombatToCharacter,
-  buildPhase2DefensiveConfigFromSkillIds,
-  initBattlePhase2Runtime,
-} from '@shared/utils/skillPhase2Passive';
-import {
-  attachPhase3HealToCharacter,
-  buildPhase3HealSlotsFromSkillIds,
-  initBattlePhase3HealRuntime,
-} from '@shared/utils/skillPhase3ActiveHeal';
-import {
-  attachPhase4DamageToCharacter,
-  buildPhase4DamageSlotsFromSkillIds,
-  initBattlePhase4DamageRuntime,
-} from '@shared/utils/skillPhase4ActiveDamage';
-import {
-  attachPhase5CompositeToCharacter,
-  buildPhase5CompositeSlotsFromSkillIds,
-  initBattlePhase5CompositeRuntime,
-} from '@shared/utils/skillPhase5CompositeDamage';
+import { enrichBattleUnitWithSkillPhases } from '@shared/utils/battleSkillAssembly';
+import { initBattlePhase2Runtime } from '@shared/utils/skillPhase2Passive';
+import { initBattlePhase3HealRuntime } from '@shared/utils/skillPhase3ActiveHeal';
+import { initBattlePhase4DamageRuntime } from '@shared/utils/skillPhase4ActiveDamage';
+import { initBattlePhase5CompositeRuntime } from '@shared/utils/skillPhase5CompositeDamage';
 import { getMapTerrainDimensions } from '@shared/utils/tacticalBattleGrid';
+import { flattenPlayerUnitToBattleTroop } from '@shared/utils/resolveTroopBattleCaps';
 import { fetchWithTimeout } from '@/services/httpClient';
 const base = () => import.meta.env.BASE_URL;
+
+function buildTroopCatalogById(allTroops) {
+  const map = Object.create(null);
+  for (const t of allTroops || []) {
+    if (t?.id) map[t.id] = t;
+  }
+  return map;
+}
 
 /** 战斗地图部队图标：`san_1_battle/player|enemy/`（与 TroopLayer 一致） */
 function getTroopImg(troop) {
@@ -150,31 +143,16 @@ export function useBattleMap() {
         ];
     const enemyCount = useFiveEnemy ? 5 : 4;
 
-    // 构建我方部队（最多5个）
-    const playerResult = playerUnits.slice(0, 5).map((unit, i) => {
-      const pos = playerPositions[i];
-      const tr = unit.troop;
-      const char = unit.character || null;
-      const morale = unit.morale ?? 70;
-      const attempts = getBattleFieldTroopPortraitUrlAttempts({ ...tr, faction: 'player' }, base());
-      return {
-        ...tr,
-        id: tr.id + '_p' + i,
-        faction: 'player',
-        y: pos.y,
-        x: pos.x,
-        currentTroops: unit.currentTroops ?? tr.maxTroops,
-        initialTroops: unit.currentTroops ?? tr.maxTroops,
-        maxTroops: unit.maxTroops ?? tr.maxTroops,
-        character: char,
-        displayName: char ? (char.courtesyName || char.name) : tr.name,
-        morale,
-        ...(unit.lineupSlot ? { lineupSlot: unit.lineupSlot } : {}),
-        imgSrc: attempts[0],
-        imgPortraitAttempts: attempts,
-        imgFallback: attempts[attempts.length - 1],
-      };
-    });
+    const catalogById = buildTroopCatalogById(allTroops);
+    const playerResult = playerUnits.slice(0, 5).map((unit, i) =>
+      flattenPlayerUnitToBattleTroop(unit, i, {
+        pos: playerPositions[i],
+        catalogById,
+        baseUrl: base(),
+        getPortraitAttempts: (trMeta, bUrl) =>
+          getBattleFieldTroopPortraitUrlAttempts(trMeta, bUrl),
+      }),
+    );
 
     // ── 敌方：按事件稀有度从配置池选将领 + 部队（可选：指定额外敌方将领 → 5 部队 / 3 将领位） ──
     const rarityMap = { common: 'common', rare: 'rare', epic: 'epic', legendary: 'legendary', core: 'core' };
@@ -232,38 +210,31 @@ export function useBattleMap() {
       const pos = enemyPositions[i];
       // 2 将领：各带 2 部队；3 将领（5 部队）：0,1 / 2,3 / 4
       const char = enemyChars[Math.floor(i / 2)] || null;
-      const charForBattle =
-        char && opts.skillsMap
-          ? attachPhase5CompositeToCharacter(
-              attachPhase4DamageToCharacter(
-                attachPhase3HealToCharacter(
-                  attachPhase2CombatToCharacter(
-                    { ...char },
-                    buildPhase2DefensiveConfigFromSkillIds(
-                      collectCharacterSkillIdsFromConfig(char),
-                      opts.skillsMap,
-                    ),
-                  ),
-                  buildPhase3HealSlotsFromSkillIds(
-                    collectCharacterSkillIdsFromConfig(char),
-                    opts.skillsMap,
-                  ),
-                ),
-                buildPhase4DamageSlotsFromSkillIds(
-                  collectCharacterSkillIdsFromConfig(char),
-                  opts.skillsMap,
-                ),
-              ),
-              buildPhase5CompositeSlotsFromSkillIds(
-                collectCharacterSkillIdsFromConfig(char),
-                opts.skillsMap,
-              ),
-            )
-          : char;
+      const charBase = char
+        ? {
+            name: char.courtesyName || char.name,
+            courtesyName: char.courtesyName || char.name,
+            luck: char.luck,
+            courage: char.courage,
+            combat: char.combat,
+            command: char.command,
+            intelligence: char.intelligence,
+            politics: char.politics,
+            charm: char.charm,
+            trait: char.trait,
+            traitModifier: char.traitModifier ?? char.trait_modifier ?? 0,
+          }
+        : null;
+      const { troop: enrichedTroop, character: charForBattle } = enrichBattleUnitWithSkillPhases({
+        troop: tr,
+        character: charBase,
+        skillIdSource: char,
+        skillsMap: opts.skillsMap,
+      });
       const morale = initialMoraleFromCharacter(char);
       const attempts = getBattleFieldTroopPortraitUrlAttempts({ ...tr, faction: 'enemy' }, base());
       return {
-        ...tr,
+        ...enrichedTroop,
         id: tr.id + '_e' + i,
         faction: 'enemy',
         y: pos.y,

@@ -163,3 +163,48 @@ export function pickNearestBanditStrategicCellInJun(byJun, junId, refCell) {
   const list = dedupeBanditAnchorCellsByPoiId(byJun?.[j]);
   return pickNearestStrategicCell(refCell, list);
 }
+
+/**
+ * 将视口滚至指定 city_id（库 position 或 merged 格网锚点）。
+ * @param {string} cityId
+ * @param {{ cities?: object[], nav: object|null, scrollNow?: (gx:number, gy:number)=>void }} opts
+ * @returns {boolean}
+ */
+export function scrollToCityById(cityId, { cities, nav, scrollNow }) {
+  const id = cityId != null ? String(cityId).trim() : '';
+  if (!id || !nav?.scrollToStrategicCell) return false;
+  const row =
+    (cities || []).find((c) => String(c.city_id ?? c.cityId ?? c.id ?? '').trim() === id) || null;
+  let cell = row ? cityDbPosToWorldStrategicCell(row) : null;
+  if (!cell && typeof nav.resolveStrategicAnchorForCityId === 'function') {
+    cell = nav.resolveStrategicAnchorForCityId(id);
+  }
+  if (!cell || !Number.isFinite(cell.gx) || !Number.isFinite(cell.gy)) return false;
+  if (typeof scrollNow === 'function') scrollNow(cell.gx, cell.gy);
+  else nav.scrollToStrategicCell(cell.gx, cell.gy);
+  return true;
+}
+
+/** @returns {Map<string, string>} cityName → cityId */
+export function buildCityNameToIdMap(cities) {
+  /** @type {Map<string, string>} */
+  const byName = new Map();
+  for (const c of cities || []) {
+    const id = String(c.city_id ?? c.cityId ?? c.id ?? '').trim();
+    const name = String(c.city_name ?? c.cityName ?? '').trim();
+    if (id && name && !byName.has(name)) byName.set(name, id);
+  }
+  return byName;
+}
+
+/** @returns {Map<string, string>} cityId → cityName */
+export function buildCityIdToNameMap(cities) {
+  /** @type {Map<string, string>} */
+  const byId = new Map();
+  for (const c of cities || []) {
+    const id = String(c.city_id ?? c.cityId ?? c.id ?? '').trim();
+    const name = String(c.city_name ?? c.cityName ?? '').trim();
+    if (id && name) byId.set(id, name);
+  }
+  return byId;
+}

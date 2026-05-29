@@ -1,6 +1,6 @@
 /**
  * 战术地图上主动技能（阶段3/4/5）每 **skillId** 的初始剩余次数。
- * 与 `31-1-MAP_SYSTEM.md` §1.1、**`23-SKILL_SYSTEM.md`**「使用次数规则」一致：
+ * 与 `31-3-SMALL_MAP.md` §2、**`23-SKILL_SYSTEM.md`**「使用次数规则」一致：
  * **小型 8×10 → 1 次，中型 10×16 → 2 次，大型 16×20 → 3 次**。无冷却，仅扣次数，可连续回合施放直至用尽。
  *
  * `rows` / `cols` 须与 `mapResult.terrain` 的 **高 × 宽** 一致（即 `getMapTerrainDimensions` 的 `h`、`w`，

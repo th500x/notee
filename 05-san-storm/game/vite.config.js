@@ -67,6 +67,9 @@ export default defineConfig({
     outDir: 'dist',
     assetsDir: 'assets',
     sourcemap: false,
+    /** 关闭 gzip 体积统计，减轻低配 VPS 连续 build 时的内存峰值 */
+    reportCompressedSize: false,
+    chunkSizeWarningLimit: 480,
     rollupOptions: {
       onwarn(warning, warn) {
         // 抑制 public 目录字体文件的路径解析警告
@@ -76,6 +79,7 @@ export default defineConfig({
       output: {
         manualChunks(id) {
           if (!id.includes('node_modules')) return;
+          if (/[/\\]node_modules[/\\]html2canvas/.test(id)) return 'vendor-html2canvas';
           if (
             /[/\\]node_modules[/\\]react[/\\]/.test(id) ||
             /[/\\]node_modules[/\\]react-dom[/\\]/.test(id) ||

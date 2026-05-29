@@ -231,7 +231,7 @@ export default function CampaignMapGeneratorManager() {
                 <>
                   与小型战斗地图相同素材路径；未放入 PNG 时底板/地形回退为纯色块。
                   <br />
-                  <span className="text-gray-500">详见 docs/tools/campaign/CAMPAIGN_MAP.md</span>
+                  <span className="text-gray-500">详见 docs/tools/campaign/README.md</span>
                 </>
               }
             />

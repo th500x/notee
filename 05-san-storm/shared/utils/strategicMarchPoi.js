@@ -1,5 +1,5 @@
 /**
- * 战略行军：城心 / 匪寨 POI 终点（31-6 §9.4）。
+ * 战略行军：城心 / 匪寨 POI 终点（31-6 §7）。
  * 与 `game/src/utils/strategicRoadMarchPath.js`、`roadEncounterService.moveAlongRoad` 共用寻路语义。
  *
  * 道路最短路：边界格（四邻存在非道路）默认可作 **仅起点/终点**；BFS 禁作途经，无内道宽时回退全道路网。

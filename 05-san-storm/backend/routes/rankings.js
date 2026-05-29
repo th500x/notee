@@ -2,9 +2,9 @@
  * 排行榜路由
  * HTTP 映射层：参数解析 + 调用 rankingService，无直接 SQL。
  *
- * @see docs/20-data-layer/27-1-STATISTICS_RANKING_SYSTEM.md（活动榜）
+ * @see docs/30-frontend/32-3-ANNOUNCEMENTS.md §4（活动榜）
  * @see docs/10-core-system/18-4-RANKING_SYSTEM.md（常驻榜 overall / campaign）
- * @see docs/00-base/01-DATABASE_DESIGN.md §4.3 temp_event_ranking
+ * @see docs/00-base/01-database-split/20-tables-player.md temp_event_ranking
  */
 
 const express = require('express');

@@ -2,14 +2,13 @@
  * 大地图：郡级战略格网（world，默认颍川，可通过州郡条切换汝南等已产出 `merged.json` 的郡）；攻城/城况/荒郊等经格上 tooltip 与共享面板。
  */
 
-import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
+import { useState, useRef, useCallback, useEffect, useMemo, lazy, Suspense } from 'react';
 import { createPortal } from 'react-dom';
 import { usePlayerContext } from '@/contexts/PlayerContext';
 import { useRoadDefenseFriction } from '@/contexts/RoadDefenseFrictionContext';
 import { useSkillsMap } from '@/hooks/useSkillsMap';
 import useEventSystem from '@/hooks/useEventSystem';
-import ExplorePanel from '@/components/event/ExplorePanel';
-import BattleArena from '@/components/battle/BattleArena';
+import ChunkLoadFallback from '@/components/game/ChunkLoadFallback';
 import { buildPlayerUnitsFromContext } from '@/utils/battlePlayerBuilder';
 import { clearInflightBattleTroopSnapshot } from '@/utils/inflightBattleTroopSnapshot';
 import { fetchSiegeQuotaJson, postSiegeQuotaAction } from '@/hooks/useSiegeQuota';
@@ -19,9 +18,11 @@ import { fetchWithTimeout } from '@/services/httpClient';
 import { usePvpDefenseAlertPoll } from '@/hooks/usePvpDefenseAlertPoll';
 import { useCountdownTicker } from '@/hooks/useCountdownTicker';
 import AncientModal from '@/components/common/AncientModal';
-import GarrisonLineup from '@/components/garrison/GarrisonLineup';
-import MainCityBarracksPostPanel from '@/components/garrison/MainCityBarracksPostPanel';
-import SanGongFuPanel from '@/components/game/SanGongFuPanel';
+const ExplorePanel = lazy(() => import('@/components/event/ExplorePanel'));
+const BattleArena = lazy(() => import('@/components/battle/BattleArena'));
+const GarrisonLineup = lazy(() => import('@/components/garrison/GarrisonLineup'));
+const MainCityBarracksPostPanel = lazy(() => import('@/components/garrison/MainCityBarracksPostPanel'));
+const SanGongFuPanel = lazy(() => import('@/components/game/SanGongFuPanel'));
 import PositionCard from '@shared/components/card/PositionCard';
 import { garrisonAPI } from '@/services/garrisonApi';
 import { warAPI } from '@/services/warApi';
@@ -121,6 +122,11 @@ function StrategicSettlementCard({
   contributionReward = 0,
   /** 匪寨/攻城等即时粮草奖励（与 `smallMapPveLoot.food` / 服务端 settlement 对齐） */
   foodReward = 0,
+  /** 匪寨：当层基础银两/粮草（不含通关档里程碑） */
+  banditBaseSilver = 0,
+  banditBaseFood = 0,
+  /** 匪寨：通关档里程碑追加（如第 8 层普通档 +80 银两） */
+  banditMilestone = null,
   equipmentDrop = null,
   chestRewards = [],
   killCount = null,
@@ -146,6 +152,12 @@ function StrategicSettlementCard({
   const rr = Math.max(0, Number(reputationReward) || 0);
   const cr = Math.max(0, Number(contributionReward) || 0);
   const fr = Math.max(0, Number(foodReward) || 0);
+  const bbs = Math.max(0, Number(banditBaseSilver) || 0);
+  const bbf = Math.max(0, Number(banditBaseFood) || 0);
+  const milestone =
+    banditMilestone && typeof banditMilestone === 'object' ? banditMilestone : null;
+  const msSilver = milestone ? Math.max(0, Number(milestone.silver) || 0) : 0;
+  const msFood = milestone ? Math.max(0, Number(milestone.food) || 0) : 0;
   const kc = killCount != null && Number.isFinite(Number(killCount)) ? Number(killCount) : null;
   const kcShown = kc != null ? kc : 0;
   /** 攻城：`(击杀||银两||贡献||粮草)`；匪寨：按胜负（结算卡不展示击杀行） */
@@ -169,8 +181,33 @@ function StrategicSettlementCard({
         ) : null}
         {rr > 0 && <div className="text-yellow-300 text-sm">⭐ 获得 {rr} 声望</div>}
         {cr > 0 && <div className="text-sky-300 text-sm">贡献 +{cr}</div>}
-        {sr > 0 && <div className="text-amber-300 text-sm">💰 获得 {sr} 银两</div>}
-        {fr > 0 && <div className="text-lime-200/95 text-sm">🌾 获得 {fr} 粮草</div>}
+        {settlementKind === 'bandit' && banditOutcome === 'victory' ? (
+          <>
+            {(bbs > 0 || bbf > 0) && (
+              <div className="text-stone-400 text-xs pt-0.5">本层战斗奖励</div>
+            )}
+            {bbs > 0 && <div className="text-amber-300 text-sm">💰 获得 {bbs} 银两</div>}
+            {bbf > 0 && <div className="text-lime-200/95 text-sm">🌾 获得 {bbf} 粮草</div>}
+            {milestone && (msSilver > 0 || msFood > 0) && (
+              <>
+                <div className="text-stone-400 text-xs pt-1 border-t border-amber-500/20 mt-1">
+                  通关第 {milestone.layer} 层（{milestone.tierLabel || milestone.tier}档）
+                </div>
+                {msSilver > 0 && (
+                  <div className="text-amber-200 text-sm">💰 获得 {msSilver} 银两</div>
+                )}
+                {msFood > 0 && (
+                  <div className="text-lime-200/90 text-sm">🌾 获得 {msFood} 粮草</div>
+                )}
+              </>
+            )}
+          </>
+        ) : (
+          <>
+            {sr > 0 && <div className="text-amber-300 text-sm">💰 获得 {sr} 银两</div>}
+            {fr > 0 && <div className="text-lime-200/95 text-sm">🌾 获得 {fr} 粮草</div>}
+          </>
+        )}
         {equipmentDrop && (
           <div
             className="text-sm font-medium"
@@ -307,6 +344,12 @@ export default function WorldMap({
     () => buildPlayerUnitsFromContext(player, cards, attributeBonusBySlot, skillsMap),
     [player, cards, attributeBonusBySlot, skillsMap],
   );
+
+  /** 大地图挂载后预取战术图分包，减少首次攻城/匪寨/探索战的等待 */
+  useEffect(() => {
+    void import('@/components/battle/BattleArena');
+  }, []);
+
   const roadFriction = useRoadDefenseFriction();
   /** 与 `StrategicWorldMapSection` 同步：战略格网 + 郡内城行，供探索锚点在「路格≠库锚格」时用 footprint 反查 city_id */
   const exploreAnchorGridRef = useRef(null);
@@ -995,10 +1038,17 @@ export default function WorldMap({
       let silverReward = 0;
       let reputationReward = 0;
       let foodReward = 0;
+      let banditBaseSilver = 0;
+      let banditBaseFood = 0;
+      let banditMilestone = null;
       if (result === 'victory') {
         silverReward = Math.max(0, Number(lootRest.silver) || 0);
         reputationReward = Math.max(0, Number(lootRest.reputation) || 0);
         foodReward = Math.max(0, Number(lootRest.food) || 0);
+        banditBaseSilver = Math.max(0, Number(lootRest.baseSilver ?? lootRest.silver) || 0);
+        banditBaseFood = Math.max(0, Number(lootRest.baseFood ?? lootRest.food) || 0);
+        banditMilestone =
+          lootRest.milestone && typeof lootRest.milestone === 'object' ? lootRest.milestone : null;
       }
       const tk =
         meta?.totalKills != null && Number.isFinite(Number(meta.totalKills))
@@ -1025,6 +1075,9 @@ export default function WorldMap({
         silverReward,
         reputationReward,
         foodReward,
+        banditBaseSilver,
+        banditBaseFood,
+        banditMilestone,
         killCount,
         tacticalScoreText,
         defeatHint:
@@ -1699,36 +1752,42 @@ export default function WorldMap({
 
       {/* ── 驻地编组面板 ── */}
       {showGarrison && garrisonCityId ? (
-        <GarrisonLineup
-          onClose={() => {
-            setShowGarrison(false);
-            bumpStrategicMapRuntimeCaches();
-          }}
-          onAfterMutation={bumpStrategicMapRuntimeCaches}
-          cityId={garrisonCityId}
-          cityName={garrisonCityName || '城池'}
-        />
+        <Suspense fallback={<ChunkLoadFallback label="编组面板加载中…" />}>
+          <GarrisonLineup
+            onClose={() => {
+              setShowGarrison(false);
+              bumpStrategicMapRuntimeCaches();
+            }}
+            onAfterMutation={bumpStrategicMapRuntimeCaches}
+            cityId={garrisonCityId}
+            cityName={garrisonCityName || '城池'}
+          />
+        </Suspense>
       ) : null}
 
       {showBarracksPost && barracksPostCityId ? (
-        <MainCityBarracksPostPanel
-          cityId={barracksPostCityId}
-          cityName={barracksPostCityName || '城池'}
-          onClose={() => {
-            setShowBarracksPost(false);
-            setBarracksPostCityId(null);
-          }}
-          onAfterSave={bumpStrategicMapRuntimeCaches}
-        />
+        <Suspense fallback={<ChunkLoadFallback label="军营面板加载中…" />}>
+          <MainCityBarracksPostPanel
+            cityId={barracksPostCityId}
+            cityName={barracksPostCityName || '城池'}
+            onClose={() => {
+              setShowBarracksPost(false);
+              setBarracksPostCityId(null);
+            }}
+            onAfterSave={bumpStrategicMapRuntimeCaches}
+          />
+        </Suspense>
       ) : null}
 
       {showSanGongFu ? (
-        <SanGongFuPanel
-          cityName={sanGongFuCityName || '城池'}
-          onClose={() => setShowSanGongFu(false)}
-          onPromoted={handleSanGongPromoted}
-          sanGongFuCardPool={sanGongFuCardPool}
-        />
+        <Suspense fallback={<ChunkLoadFallback label="三公府加载中…" />}>
+          <SanGongFuPanel
+            cityName={sanGongFuCityName || '城池'}
+            onClose={() => setShowSanGongFu(false)}
+            onPromoted={handleSanGongPromoted}
+            sanGongFuCardPool={sanGongFuCardPool}
+          />
+        </Suspense>
       ) : null}
 
       {sanGongPositionAnim?.position ? (
@@ -1746,69 +1805,73 @@ export default function WorldMap({
         createPortal(
           <div className="pointer-events-auto fixed inset-0 z-[225] flex min-h-0 flex-col">
             {banditRaidData ? (
-              <BattleArena
-                key={`bandit-${banditRaidData.banditPoiId}-${banditRaidData.attackedLayer}`}
-                playerUnits={battlePlayerUnits}
-                cards={cards}
-                enemySlotRarities={banditRaidData.enemySlotRarities}
-                silverAmount={player?.silver ?? 0}
-                playerFood={player?.food ?? 0}
-                playerId={player?.player_id}
-                battleType="pve_bandit"
-                opponentName={banditRaidData.opponentName || '匪寨'}
-                smallMapPveLoot={banditRaidData.smallMapPveLoot}
-                onBattleEnd={handleBanditRaidEnd}
-              />
+              <Suspense fallback={<ChunkLoadFallback label="进入战场…" />}>
+                <BattleArena
+                  key={`bandit-${banditRaidData.banditPoiId}-${banditRaidData.attackedLayer}`}
+                  playerUnits={battlePlayerUnits}
+                  cards={cards}
+                  enemySlotRarities={banditRaidData.enemySlotRarities}
+                  silverAmount={player?.silver ?? 0}
+                  playerFood={player?.food ?? 0}
+                  playerId={player?.player_id}
+                  battleType="pve_bandit"
+                  opponentName={banditRaidData.opponentName || '匪寨'}
+                  smallMapPveLoot={banditRaidData.smallMapPveLoot}
+                  onBattleEnd={handleBanditRaidEnd}
+                />
+              </Suspense>
             ) : null}
             {!banditRaidData && siegeData && !siegeResult ? (
-              <BattleArena
-                key={siegeData.roadEncounterId || siegeData.warId || siegeData.cityName || 'siege'}
-                playerUnits={battlePlayerUnits}
-                cards={cards}
-                enemyUnits={siegeData.npcGarrison}
-                allyUnits={imperialMarchAllyUnits}
-                silverAmount={player?.silver ?? 0}
-                playerFood={player?.food ?? 0}
-                playerId={player?.player_id}
-                battleType={siegeData.isPvp ? 'pvp_siege' : 'pve_siege'}
-                siegeDefenderType={siegeData.defenderType || 'npc'}
-                opponentName={
-                  siegeData.pvpDefenderBaseCampSiege
-                    ? siegeData.opponentName || '攻方大本营守军'
-                    : siegeData.pvpSiegeRole === 'defender'
-                      ? siegeData.attackerName || '攻城方'
-                      : siegeData.isPvp
-                        ? siegeData.defenderName || `${siegeData.cityName || ''}守军`
-                        : `${siegeData.cityName}守军`
-                }
-                onBattleEnd={handleSiegeEnd}
-                recordOnly={!!siegeData.skipSiegeResult}
-                defenseReportMeta={
-                  siegeData.pvpSiegeRole === 'defender'
-                    ? null
-                    : siegeData.defenderType === 'player_garrison' && siegeData.defenderPlayerId
-                      ? {
-                          warId: siegeData.warId,
-                          defenderPlayerId: siegeData.defenderPlayerId,
-                          defenderGarrisonSlot: siegeData.defenderGarrisonSlot,
-                          attackerPlayerId: player?.player_id,
-                          attackerName: player?.character_name || player?.name || '攻城方',
-                          cityName: siegeData.cityName,
-                          defenderName: siegeData.defenderName,
-                        }
-                      : siegeData.defenderType === 'pvp_online' && siegeData.defenderPlayerId
+              <Suspense fallback={<ChunkLoadFallback label="进入战场…" />}>
+                <BattleArena
+                  key={siegeData.roadEncounterId || siegeData.warId || siegeData.cityName || 'siege'}
+                  playerUnits={battlePlayerUnits}
+                  cards={cards}
+                  enemyUnits={siegeData.npcGarrison}
+                  allyUnits={imperialMarchAllyUnits}
+                  silverAmount={player?.silver ?? 0}
+                  playerFood={player?.food ?? 0}
+                  playerId={player?.player_id}
+                  battleType={siegeData.isPvp ? 'pvp_siege' : 'pve_siege'}
+                  siegeDefenderType={siegeData.defenderType || 'npc'}
+                  opponentName={
+                    siegeData.pvpDefenderBaseCampSiege
+                      ? siegeData.opponentName || '攻方大本营守军'
+                      : siegeData.pvpSiegeRole === 'defender'
+                        ? siegeData.attackerName || '攻城方'
+                        : siegeData.isPvp
+                          ? siegeData.defenderName || `${siegeData.cityName || ''}守军`
+                          : `${siegeData.cityName}守军`
+                  }
+                  onBattleEnd={handleSiegeEnd}
+                  recordOnly={!!siegeData.skipSiegeResult}
+                  defenseReportMeta={
+                    siegeData.pvpSiegeRole === 'defender'
+                      ? null
+                      : siegeData.defenderType === 'player_garrison' && siegeData.defenderPlayerId
                         ? {
                             warId: siegeData.warId,
                             defenderPlayerId: siegeData.defenderPlayerId,
-                            defenderGarrisonSlot: siegeData.defenderGarrisonSlot ?? 0,
+                            defenderGarrisonSlot: siegeData.defenderGarrisonSlot,
                             attackerPlayerId: player?.player_id,
                             attackerName: player?.character_name || player?.name || '攻城方',
                             cityName: siegeData.cityName,
                             defenderName: siegeData.defenderName,
                           }
-                        : null
-                }
-              />
+                        : siegeData.defenderType === 'pvp_online' && siegeData.defenderPlayerId
+                          ? {
+                              warId: siegeData.warId,
+                              defenderPlayerId: siegeData.defenderPlayerId,
+                              defenderGarrisonSlot: siegeData.defenderGarrisonSlot ?? 0,
+                              attackerPlayerId: player?.player_id,
+                              attackerName: player?.character_name || player?.name || '攻城方',
+                              cityName: siegeData.cityName,
+                              defenderName: siegeData.defenderName,
+                            }
+                          : null
+                  }
+                />
+              </Suspense>
             ) : null}
             {!banditRaidData && siegeResult ? (
               <StrategicSettlementCard
@@ -1846,6 +1909,9 @@ export default function WorldMap({
                 reputationReward={banditRaidResult.reputationReward}
                 contributionReward={0}
                 foodReward={banditRaidResult.foodReward ?? 0}
+                banditBaseSilver={banditRaidResult.banditBaseSilver ?? 0}
+                banditBaseFood={banditRaidResult.banditBaseFood ?? 0}
+                banditMilestone={banditRaidResult.banditMilestone ?? null}
                 equipmentDrop={null}
                 chestRewards={banditRaidResult.meta?.chestRewards}
                 killCount={null}
@@ -1905,7 +1971,9 @@ export default function WorldMap({
         </div>
       )}
 
-      <ExplorePanel eventSystem={eventSystem} />
+      <Suspense fallback={null}>
+        <ExplorePanel eventSystem={eventSystem} />
+      </Suspense>
     </div>
   );
 }

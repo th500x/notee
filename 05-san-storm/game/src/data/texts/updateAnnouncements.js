@@ -6,7 +6,7 @@
  * **同一条 id 下若修改 title/content**：`updateNoticeLogic` 会用正文指纹判定「文案已变」，用户关闭过一次后仍会在
  * 下次刷新/回到大地图时再弹一次（详见设计文档 §5）。
  *
- * @see docs/30-frontend/32-3-GAME_ANNOUNCEMENTS_DESIGN.md（路径相对 `05-san-storm/`）
+ * @see docs/30-frontend/32-3-ANNOUNCEMENTS.md（路径相对 `05-san-storm/`）
  */
 
 const updateAnnouncements = [
