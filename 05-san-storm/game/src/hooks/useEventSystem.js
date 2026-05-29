@@ -530,7 +530,7 @@ export default function useEventSystem(player, cards, options = {}) {
 
     const raw = (usePending && poolIds.has(usePending.event_id) ? usePending : null) || pickRandomEvent(pool);
     if (!raw) return false;
-    if (!eventSkipsExploreQuota(raw) && !quota.canExplore) return false;
+    if (!eventSkipsExploreQuota(raw) && !quota?.canExplore) return false;
 
     const {
       explore_anchor_city_id: _a,
@@ -546,7 +546,7 @@ export default function useEventSystem(player, cards, options = {}) {
     // 与匪寨/攻城一致：在「已抽到事件并进入 EVENT」时即扣探索次数，避免仅弹出事件未点选项时 F5 仍显示满次数。
     // `_exploreQuotaConsumed` 随 pending 写入 localStorage，刷新后同一条 pending 不会二次扣费。
     if (!eventSkipsExploreQuota(event)) {
-      if (!exploreQuotaAlreadyCharged) quota.consume();
+      if (!exploreQuotaAlreadyCharged) quota?.consume?.();
       event._exploreQuotaConsumed = true;
     }
 
@@ -705,7 +705,7 @@ export default function useEventSystem(player, cards, options = {}) {
     exploreAnchorGridSeq,
     exploreProgressReady,
     player?.reputation,
-    quota.canExplore,
+    quota?.canExplore,
   ]);
 
   /** 探索中断：关弹窗、清 pending、回 IDLE（开战门闸与奖励失败共用） */

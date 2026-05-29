@@ -26,7 +26,10 @@ function App() {
   const { isLoggedIn, devBypass, toggleDevBypass } = useAdmin();
 
   return (
-    <Router basename="/05-san-storm/game">
+    <Router
+      basename="/05-san-storm/game"
+      future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+    >
       <div className="min-h-screen bg-gray-50">
         <header className="bg-white shadow-sm border-b">
           <div className="max-w-7xl mx-auto px-4 py-6">

@@ -41,6 +41,21 @@ const EMPTY_BONUS_BY_SLOT = Object.freeze({
   character2: Object.freeze({}),
 });
 
+/** 首帧占位：与 useExploreQuota 未加载时的语义一致，避免子组件读到 null */
+const EMPTY_EXPLORE_QUOTA = Object.freeze({
+  remaining: 0,
+  max: 18,
+  canExplore: false,
+  consume: () => {},
+  refund: () => {},
+  fillMax: () => {},
+  minutesUntilRefill: 0,
+  inRestPeriod: false,
+  refillPerHour: 6,
+  loaded: false,
+  reloadFromServer: () => Promise.resolve(),
+});
+
 function buildContextView(state) {
   return {
     player: state.player,
@@ -67,7 +82,7 @@ function createPlayerStore() {
     loading: true,
     error: null,
     refresh: () => {},
-    exploreQuota: null,
+    exploreQuota: EMPTY_EXPLORE_QUOTA,
   };
   let contextView = buildContextView(state);
   let loadStatusView = buildLoadStatusView(state);
@@ -166,10 +181,6 @@ export function PlayerProvider({ playerId, children }) {
 
   const refresh = useCallback((options) => loadProfile(options), [loadProfile]);
 
-  useLayoutEffect(() => {
-    store.setState({ refresh });
-  }, [store, refresh]);
-
   useEffect(() => {
     loadProfile();
   }, [loadProfile]);
@@ -177,8 +188,8 @@ export function PlayerProvider({ playerId, children }) {
   const exploreQuota = useExploreQuota(playerId);
 
   useLayoutEffect(() => {
-    store.setState({ exploreQuota });
-  }, [store, exploreQuota]);
+    store.setState({ refresh, exploreQuota });
+  }, [store, refresh, exploreQuota]);
 
   return (
     <PlayerStoreContext.Provider value={store}>
