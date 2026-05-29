@@ -384,6 +384,31 @@ function logConscriptAssaultSummary(payload) {
   );
 }
 
+const Player = require('../models/Player');
+
+async function getBulletinForPlayer(playerId, opts = {}) {
+  const row = await Player.getById(playerId);
+  if (!row) return { notFound: true, error: '玩家不存在' };
+  const factionId = row.faction_id || null;
+  if (!factionId) return { ok: true, data: { entries: [], factionId: null } };
+  const limit = Math.min(100, Math.max(1, Number(opts.limit) || 50));
+  const category = opts.category != null ? String(opts.category).trim() : null;
+  const entries = await listForFaction(factionId, { limit, category: category || null });
+  return { ok: true, data: { entries, factionId } };
+}
+
+async function getSanGongGroupedBulletinForPlayer(playerId, opts = {}) {
+  const row = await Player.getById(playerId);
+  if (!row) return { notFound: true, error: '玩家不存在' };
+  const factionId = row.faction_id || null;
+  if (!factionId) {
+    return { ok: true, data: { factionId: null, edicts: [], documents: [], wars: [] } };
+  }
+  const limitPerCategory = Math.min(50, Math.max(1, Number(opts.limitPerCategory) || 30));
+  const grouped = await listGroupedForFaction(factionId, { limitPerCategory });
+  return { ok: true, data: { factionId, ...grouped } };
+}
+
 module.exports = {
   CATEGORY,
   BULLETIN_RETENTION_DAYS,
@@ -396,6 +421,8 @@ module.exports = {
   appendSafe,
   listForFaction,
   listGroupedForFaction,
+  getBulletinForPlayer,
+  getSanGongGroupedBulletinForPlayer,
   logDasikongEdict,
   logPvpWarStarted,
   logPvpWarEnded,

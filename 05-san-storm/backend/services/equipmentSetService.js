@@ -385,6 +385,32 @@ async function finalizeSet(playerId, setInstanceId, displayName) {
   }
 }
 
+const EQUIPMENT_SET_HTTP_ERRORS = {
+  INVALID_SLOT: [400, '槽位无效'],
+  SET_NOT_FOUND: [404, '套装卡不存在'],
+  RENAME_DRAFT_USE_FINALIZE: [400, '草稿套装请通过「完成封装」命名'],
+  EQUIPMENT_NOT_FOUND: [404, '装备件不存在'],
+  ALREADY_EQUIPPED: [400, '该装备件已上阵，请先卸下'],
+  TYPE_MISMATCH: [400, '装备类型与槽位不符'],
+  BOUND_ELSEWHERE: [400, '该装备件已编入其他套装'],
+  DUPLICATE_PIECE: [400, '套装内不能重复放入同一件'],
+  CANNOT_REMOVE_FINALIZED_SLOT: [400, '已封装装备卡仅支持更换，不可卸下'],
+  INVALID_NAME: [400, '名称需在 1～12 字'],
+  ALREADY_FINALIZED: [400, '该套装已命名'],
+  INCOMPLETE: [400, '四个槽位均需放入装备件后才能命名'],
+};
+
+function mapHttpError(err) {
+  const row = EQUIPMENT_SET_HTTP_ERRORS[err?.code];
+  if (row) return { status: row[0], body: { success: false, error: row[1], code: err.code } };
+  return null;
+}
+
+function formatSetRow(row) {
+  const data = parseSetData(row.equipment_set_data);
+  return { instance_id: row.instance_id, equipment_set_data: data };
+}
+
 module.exports = {
   SHELL_CARD_ID,
   DATA_KEYS,
@@ -399,4 +425,6 @@ module.exports = {
   allSlotsFilled,
   slotMatchesEquipmentType,
   equipmentTypeFromCardId,
+  mapHttpError,
+  formatSetRow,
 };
