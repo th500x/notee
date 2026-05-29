@@ -7,7 +7,7 @@
  */
 
 import { useState, useEffect, useMemo } from 'react';
-import { gameUserAPI } from '@/services/api';
+import { gameUserAPI } from '@/services/gameUserApi';
 import { playerTokenManager } from '@/utils/playerTokenManager';
 import { useAdminToast } from '@/components/admin/useAdminToast';
 

@@ -8,7 +8,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { rankingsAPI } from '@/services/api';
+import { rankingsAPI } from '@/services/rankingsApi';
 import { campaignAPI } from '@/services/campaignApi';
 import {
   MAP_CORNER_ENTRY_ROW_CLASS,

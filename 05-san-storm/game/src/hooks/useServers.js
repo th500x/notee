@@ -6,7 +6,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import { serversAPI } from '@/services/api';
+import { serversAPI } from '@/services/serversApi';
 import { SERVER_STATUS } from '@/constants';
 import { gameConfig } from '@/config';
 

@@ -3,7 +3,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import { adminConfigTextsAPI } from '@/services/api';
+import { adminConfigTextsAPI } from '@/services/adminConfigTextsApi';
 import { useAdminToast } from '@/components/admin/useAdminToast';
 
 /** S1 七势力（与 public/data/shared/factions.json 一致） */

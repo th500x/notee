@@ -3,7 +3,7 @@
  */
 
 import { useState } from 'react';
-import { gameUserAPI } from '@/services/api';
+import { gameUserAPI } from '@/services/gameUserApi';
 import AncientModal from '@/components/common/AncientModal';
 
 export function ServerWarningStep({ 

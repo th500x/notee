@@ -5,7 +5,7 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import { getAllAnnouncements } from '@/data/texts/announcements';
-import { rankingsAPI } from '@/services/api';
+import { rankingsAPI } from '@/services/rankingsApi';
 import { useAdminToast } from '@/components/admin/useAdminToast';
 
 const LS_KEY = 'san_storm_activity_ranking_export_v1';

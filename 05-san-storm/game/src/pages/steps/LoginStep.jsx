@@ -8,7 +8,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import { gameUserAPI } from '@/services/api';
+import { gameUserAPI } from '@/services/gameUserApi';
 import { validateIdFormat } from '@/pages/steps/authUtils';
 import {
   checkLockStatus,

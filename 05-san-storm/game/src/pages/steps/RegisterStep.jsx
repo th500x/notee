@@ -3,7 +3,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import { gameUserAPI } from '@/services/api';
+import { gameUserAPI } from '@/services/gameUserApi';
 import { generateIdOptions, getMachineFingerprint } from '@/pages/steps/authUtils';
 import UserAgreementModal from '@/components/auth/UserAgreementModal';
 

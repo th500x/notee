@@ -13,7 +13,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { getLatestAnnouncement } from '@/data/texts/announcements';
-import { rankingsAPI } from '@/services/api';
+import { rankingsAPI } from '@/services/rankingsApi';
 
 /** 计算剩余时间的可读文本 */
 function formatTimeRemaining(endTime) {

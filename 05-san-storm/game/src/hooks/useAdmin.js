@@ -5,7 +5,7 @@
  * 生产默认：须 `notee-admin-token` 有效；开发 bypass 见 `utils/adminDevBypass.js` 与首页环境切换卡片。
  */
 import { useState, useEffect, useCallback } from 'react';
-import { authAPI } from '../services/api';
+import { authAPI } from '@/services/authApi';
 import { tokenManager } from '../utils/tokenManager';
 import {
   readAdminDevBypass,
