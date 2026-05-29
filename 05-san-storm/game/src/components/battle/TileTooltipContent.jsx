@@ -6,6 +6,7 @@
  *
  * @param {{ type: 'troop'|'tile'|'manualSkill'|'worldMapCity', troop?, fc?, hpPct?, rarityName?, typeName?,
  *            charLine?, critDodge?, info?, infoKey?, title?, titleColor?, attrs? }} content
+ *   charLine — 第二行副标题；部队 tooltip 为「部队: {部队卡名}」（与顶栏将领名区分）
  */
 import { memo } from 'react';
 import WorldMapCityInfoBlock from '@/components/world/WorldMapCityInfoBlock';

@@ -103,7 +103,7 @@ function buildOngoingSiegeLocateTargets(pvpWars, pveWars) {
 }
 
 /** 道路移动成功后跳跳棋逐格回放（31-6 §6）；纯前端、不额外请求 */
-const MARCH_ANIM_MS_PER_STEP = 200;
+const MARCH_ANIM_MS_PER_STEP = 150;
 
 /**
  * `road/move` 成功后的提示：遭遇战优先；否则守方被门闸击退时给说明；默认成功。
@@ -972,6 +972,18 @@ export default function StrategicWorldMapSection({
     },
     [strategicNav],
   );
+
+  /** 行军逐格回放：视口居中跟随本人 pawn（31-6 §6） */
+  useEffect(() => {
+    const anim = roadMarchAnimation;
+    if (!anim?.path?.length) return;
+    const i = Math.min(anim.stepIndex, anim.path.length - 1);
+    const cell = anim.path[i];
+    const gx = Number(cell?.x);
+    const gy = Number(cell?.y);
+    if (!Number.isFinite(gx) || !Number.isFinite(gy)) return;
+    scrollStrategicCellNow(gx, gy);
+  }, [roadMarchAnimation, scrollStrategicCellNow]);
 
   const requestExploreProgressLocate = useCallback(() => {
     if (!strategicNav?.scrollToStrategicCell) return '地图未就绪';

@@ -27,13 +27,11 @@ const { attachSiegeCityDefenseToPayload } = require('../../shared/utils/siegeCit
 const {
   normalizeRoadCellList,
 } = require('../../shared/utils/strategicRoadOverlay.js');
-const {
-  applyToSiegeReward: applySiegeRewardSplit,
-} = require('../../shared/utils/siegeRewardSplitPolicy.cjs');
-const factionPolicyService = require('./factionPolicyService');
 
-/** 大本营 NPC 守军 = 目标城满编 NPC 总支数 × 80%（17-3 §1.6 / 实现计划 §1.5）。 */
-const BASE_CAMP_NPC_RATIO_TO_FULL_GARRISON = 0.8;
+const {
+  BASE_CAMP_NPC_RATIO_TO_FULL_GARRISON,
+  BASE_CAMP_SIEGE_FOOD_COST_MULTIPLIER,
+} = require('../../shared/utils/pvpBaseCampConstants.cjs');
 
 /** 单场 PVP 战事最长时长（自然 24h，17-3 §0 / §6.2）。 */
 const PVP_WAR_DURATION_MS = 24 * 60 * 60 * 1000;
@@ -854,6 +852,34 @@ async function initiateBaseCampSiege(pvpWarId, playerId) {
     throw new Error('[pvpWar] 大本营当前有友军在交战，请稍后再试');
   }
 
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    const gate = await garrisonService.validateMainLineupBattleGateOnConn(conn, playerId, {
+      foodCostMultiplier: BASE_CAMP_SIEGE_FOOD_COST_MULTIPLIER,
+    });
+    if (!gate.ok) {
+      await conn.rollback();
+      releaseBaseCampLock(pvpWarId, playerId);
+      await cityService.refundSiegeQuotaOnce(playerId);
+      throw new Error(gate.error);
+    }
+    await garrisonService.deductMainLineupBattleFoodDeployCostOnConn(conn, playerId, {
+      foodCostMultiplier: BASE_CAMP_SIEGE_FOOD_COST_MULTIPLIER,
+      foodNeed: gate.foodNeed,
+    });
+    await conn.commit();
+  } catch (e) {
+    try {
+      await conn.rollback();
+    } catch (_) {}
+    releaseBaseCampLock(pvpWarId, playerId);
+    await cityService.refundSiegeQuotaOnce(playerId);
+    throw e;
+  } finally {
+    conn.release();
+  }
+
   const maxBatch = Math.ceil(aliveEntries.length / 4);
   const batchIndex = 0;
   const slice = aliveEntries.slice(batchIndex * 4, batchIndex * 4 + 4);
@@ -875,6 +901,7 @@ async function initiateBaseCampSiege(pvpWarId, playerId) {
 /**
  * 写入大本营 NPC 战斗结果：将 killedIndices 翻为 alive=false；触发胜负检查。
  * 奖励口径对齐 `cityService.recordSiegeResult`（PVE 攻城 NPC）：按击杀稀有度银两、扣本场消耗、
+ * 净银两经 **守方势力** `siege_reward` 政策拆分个人 / 势力池；
  * 胜利时有击杀则贡献 + 装备掷骰（`smallMapBattleLootService.grantWinContributionAndEquipment`）。
  *
  * @param {string} pvpWarId
@@ -952,12 +979,12 @@ async function recordBaseCampSiegeResult(pvpWarId, playerId, payload) {
 
     const siegeSilverSpent = Math.max(0, Math.floor(Number(silverSpent) || 0));
     const netSilver = silverReward - (siegeSilverSpent > 0 ? siegeSilverSpent : 0);
-    if (netSilver !== 0) {
-      await conn.query(
-        'UPDATE players SET silver = GREATEST(0, silver + ?) WHERE player_id = ?',
-        [netSilver, playerId],
-      );
-    }
+    const { creditSiegeNetSilverOnConnection } = require('../utils/siegeRewardSettlement');
+    const siegeSplit = await creditSiegeNetSilverOnConnection(conn, {
+      playerId,
+      beneficiaryFactionId: war.defenderFactionId,
+      netSilver,
+    });
 
     if (result === 'win' && actualKillCount > 0 && killRaritiesThisRound.length > 0) {
       const loot = await smallMapBattleLootService.grantWinContributionAndEquipment(
@@ -1066,6 +1093,10 @@ async function recordBaseCampSiegeResult(pvpWarId, playerId, payload) {
       winnerFactionId,
       victoryCondition,
       silverReward,
+      personalSilverEarned: siegeSplit.personalSilverEarned,
+      factionSilverToPool: siegeSplit.factionSilverToPool,
+      siegeRewardPersonalSharePct: siegeSplit.siegeRewardPersonalSharePct,
+      siegeRewardPolicySource: siegeSplit.siegeRewardPolicySource,
       reputationReward,
       contributionReward,
       equipmentDrop,
@@ -1605,39 +1636,14 @@ async function recordAttackerCitySiegeResult(pvpWarId, attackerPlayerId, payload
 
     // 银两净值（毛 − silverSpent），按 11-3 §3.2 城战奖赏政策拆分个人 / 攻方势力池。
     // 粮草端当前结算无产生（净粮 = 0）；策略函数支持但本路径不入账。
-    // 策略未生效（无 approved 行）时 `personalSharePct = 100`，与 17-3 / 11-3「政策实装前个人全收」一致。
+    // 无 DB 行时 `getEffectiveSiegeReward` → 默认 80/20（11-3 §2.2）；谏言仅改比例。
     const netSilver = silverReward - (silverSpent > 0 ? silverSpent : 0);
-    if (netSilver !== 0) {
-      if (netSilver < 0) {
-        // 玩家本场净亏：直接全数扣个人，势力池不参与（与历史口径一致）。
-        await conn.query(
-          'UPDATE players SET silver = GREATEST(0, silver + ?) WHERE player_id = ?',
-          [netSilver, attackerPlayerId],
-        );
-      } else {
-        const siegePolicy = await factionPolicyService.getEffectiveSiegeReward(war.attackerFactionId);
-        const split = applySiegeRewardSplit({
-          netSilver,
-          netFood: 0,
-          personalSharePct: siegePolicy.personalSharePct,
-        });
-        if (split.personalSilver > 0) {
-          await conn.query(
-            'UPDATE players SET silver = GREATEST(0, silver + ?) WHERE player_id = ?',
-            [split.personalSilver, attackerPlayerId],
-          );
-        }
-        if (split.factionSilver > 0 && war.attackerFactionId) {
-          const factionReserveService = require('./factionReserveService');
-          await factionReserveService.creditPoolOnConnection(
-            conn,
-            war.attackerFactionId,
-            { silver: split.factionSilver, food: split.factionFood || 0 },
-            { ledgerCategory: factionReserveService.CATEGORY.SIEGE_SETTLEMENT },
-          );
-        }
-      }
-    }
+    const { creditSiegeNetSilverOnConnection } = require('../utils/siegeRewardSettlement');
+    const siegeSplit = await creditSiegeNetSilverOnConnection(conn, {
+      playerId: attackerPlayerId,
+      beneficiaryFactionId: war.attackerFactionId,
+      netSilver,
+    });
 
     let nextStatus = war.status;
     let winnerFactionId = war.winnerFactionId || null;
@@ -1739,6 +1745,10 @@ async function recordAttackerCitySiegeResult(pvpWarId, attackerPlayerId, payload
       winnerFactionId,
       victoryCondition,
       silverReward,
+      personalSilverEarned: siegeSplit.personalSilverEarned,
+      factionSilverToPool: siegeSplit.factionSilverToPool,
+      siegeRewardPersonalSharePct: siegeSplit.siegeRewardPersonalSharePct,
+      siegeRewardPolicySource: siegeSplit.siegeRewardPolicySource,
       reputationReward,
       contributionReward,
       equipmentDrop,
@@ -1929,6 +1939,7 @@ module.exports = {
   // 常量
   PVP_WAR_DURATION_MS,
   BASE_CAMP_NPC_RATIO_TO_FULL_GARRISON,
+  BASE_CAMP_SIEGE_FOOD_COST_MULTIPLIER,
   MAX_CONCURRENT_PVP_WARS_PER_ATTACKER_FACTION,
   BASE_CAMP_SPRITE_VERTICAL,
   BASE_CAMP_SPRITE_HORIZONTAL,

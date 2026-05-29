@@ -1219,35 +1219,6 @@
       "description": "并州精骑，骁勇善战"
     },
     {
-      "id": "san_1_troop_5008",
-      "name": "貂蝉卫队",
-      "rarity": "core",
-      "troopType": "cavalry",
-      "weaponType": "cavalry_lance",
-      "range": 1,
-      "attack": 7.4,
-      "defense": 6.7,
-      "speed": 5,
-      "movement": 5,
-      "maxTroops": 280,
-      "troopWeight": 2,
-      "infantryCounter": 1.1,
-      "cavalryCounter": 1,
-      "archerCounter": 1.2,
-      "siegeCounter": 1.1,
-      "plainAdapt": 1.2,
-      "hillAdapt": 0.9,
-      "forestAdapt": 0.8,
-      "siegeAdapt": 0.9,
-      "skill_3": "",
-      "skill_4": "TBD",
-      "skills": [
-        "TBD"
-      ],
-      "attackEffect": "",
-      "description": "尚无记载"
-    },
-    {
       "id": "san_1_troop_6001",
       "name": "司隶部曲",
       "rarity": "common",

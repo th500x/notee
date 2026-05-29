@@ -61,19 +61,17 @@ const RATION_BONUS = Object.freeze({
 /**
  * §3.2 城战奖赏：攻城净收益中 **银两、粮草** 拆分（声望/贡献不受本类目影响，永远 100% 个人）。
  * - 个人份额 0%～100%，势力份额 = 100 − 个人；个人取整后余数留势力池
- * - 默认 **80 / 20**（11-3 R4）；段2 才在 `recordSiegeResult` / `recordAttackerCitySiegeResult` 消费
- * - **政策未实装 / 表无行** 时回退 **个人 100%**（与 17-2 现行口径一致）
+ * - 默认 **80 / 20**（11-3 R4）；M2 段2 起 **无 DB 行即按此默认拆分**，无需君主批准
+ * - 谏言 / 审批仅用于 **修改** 比例；有行时用 `config_json.personalSharePct`（驳回不覆盖已生效 config）
+ * - **段2 接入前** 曾用 `preStageFallbackPersonalSharePct`（100%）；已废止，勿再引用
  */
 const SIEGE_REWARD = Object.freeze({
   minPersonalSharePct: 0,
   maxPersonalSharePct: 100,
   stepPct: 1,
-  /** 政策实装且无 `faction_policies` 行 → 80/20（11-3 R4 默认 seed） */
+  /** 实装后无 DB 行时的生效默认（11-3 R4） */
   defaultPersonalSharePct: 80,
-  /**
-   * **段2 接入前** 临时回退值；与 17-2 实装计划「政策未实装前银粮个人全收」一致。
-   * 段2 完成后保持该值不变，由 `factionPolicyService.getEffectiveSiegeReward` 处决定切换。
-   */
+  /** @deprecated 段2 前临时值；`getEffectiveSiegeReward` 已改用 `defaultPersonalSharePct` */
   preStageFallbackPersonalSharePct: 100,
 });
 

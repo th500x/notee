@@ -108,6 +108,7 @@ export function buildPlayerUnitsFromContext(player, cards, attributeBonusBySlot 
     units.push({
       ...buildTroopUnit(playerTroop, withCombatCharacter(charData, player.troopAffinity), player.morale ?? 70, phase1Bundle ?? playerPhase1),
       lineupSlot: 'player',
+      commanderMoraleTarget: 'player',
     });
   }
 
@@ -130,6 +131,8 @@ export function buildPlayerUnitsFromContext(player, cards, attributeBonusBySlot 
       units.push({
         ...buildTroopUnit(t, withCombatCharacter(charData, cfg.troopAffinity), char1Card.morale ?? 70, phase1Bundle),
         lineupSlot: 'character1',
+        commanderMoraleTarget: 'character',
+        commanderInstanceId: char1Card.instanceId,
       });
     }
   }
@@ -153,6 +156,8 @@ export function buildPlayerUnitsFromContext(player, cards, attributeBonusBySlot 
       units.push({
         ...buildTroopUnit(t, withCombatCharacter(charData, cfg.troopAffinity), char2Card.morale ?? 70, phase1Bundle),
         lineupSlot: 'character2',
+        commanderMoraleTarget: 'character',
+        commanderInstanceId: char2Card.instanceId,
       });
     }
   }
@@ -182,6 +187,7 @@ export function buildPlayerUnitsFromContext(player, cards, attributeBonusBySlot 
     units.push({
       ...buildTroopUnit(c, withCombatCharacter(playerCommander, player.troopAffinity), player.morale ?? 70, commanderPhase1 ?? playerPhase1),
       lineupSlot: 'player',
+      commanderMoraleTarget: 'player',
     });
   }
 

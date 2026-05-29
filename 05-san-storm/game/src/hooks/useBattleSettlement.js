@@ -13,6 +13,7 @@ import {
 } from '@/systems/battleScoreSystem';
 import { battleAPI } from '@/services/battleApi';
 import { clearInflightBattleTroopSnapshot } from '@/utils/inflightBattleTroopSnapshot';
+import { buildMoralePersistUpdatesFromBattleTroops } from '@/battle/commanderMorale';
 
 const STAGE_READY = 'ready';
 
@@ -134,14 +135,7 @@ export function useBattleSettlement({
         .filter((t) => t.instanceId)
         .map((t) => ({ instanceId: t.instanceId, currentTroops: Math.max(0, t.currentTroops) }));
 
-      const moraleUpdates = [];
-      if (playerTroops.length > 0) {
-        const alivePT = playerTroops.find((t) => t.currentTroops > 0) || playerTroops[0];
-        moraleUpdates.push({ target: 'player', morale: alivePT.morale ?? 70 });
-      }
-      for (const t of playerTroops) {
-        if (t.instanceId) moraleUpdates.push({ target: 'card', instanceId: t.instanceId, morale: t.morale ?? 70 });
-      }
+      const moraleUpdates = buildMoralePersistUpdatesFromBattleTroops(playerTroops);
 
       /** 须在 try/catch 外声明：endMeta 在 catch 之后读取，避免块级作用域 ReferenceError */
       let veteranPromotions = [];

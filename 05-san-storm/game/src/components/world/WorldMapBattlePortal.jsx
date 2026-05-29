@@ -105,6 +105,9 @@ export default function WorldMapBattlePortal({
           onConfirm={onCloseSiegeResult}
           settlementKind="siege"
           silverReward={siegeResult.silverReward}
+          personalSilverEarned={siegeResult.personalSilverEarned}
+          factionSilverToPool={siegeResult.factionSilverToPool}
+          siegeRewardPersonalSharePct={siegeResult.siegeRewardPersonalSharePct}
           reputationReward={siegeResult.reputationReward}
           contributionReward={siegeResult.contributionReward}
           foodReward={siegeResult.foodReward ?? 0}

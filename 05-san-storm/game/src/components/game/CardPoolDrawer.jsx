@@ -6,7 +6,7 @@
  *              严格复用编组-军营的卡牌预览模式（scale 0.5, 128x192, skillsMap）
  */
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { RARITY_LABELS, RARITY_COLORS, API_CONFIG } from '@/constants';
 import { fetchWithTimeout } from '@/services/httpClient';
 import { useCards } from '@/contexts/PlayerContext';
@@ -17,6 +17,11 @@ import {
   poolSeasonFromPlayerFactionId,
   cardMatchesPlayerPoolFaction,
 } from '@/utils/poolCardFilters';
+import {
+  getNextCardPoolDrawRefreshAt,
+  formatCardPoolDrawRefreshCountdown,
+} from '@/utils/cardPoolHalfDayRefresh';
+import { useCountdownTicker } from '@/hooks/useCountdownTicker';
 import PlayerTopResourceBadges from '@/components/game/PlayerTopResourceBadges';
 import PoolResultModalFrame from '@/components/game/PoolResultModalFrame';
 
@@ -59,6 +64,29 @@ export default function CardPoolDrawer({
   );
 
   const poolStatus = status?.[poolType];
+  const nowTick = useCountdownTicker(!!poolType, 60_000);
+  const nextDrawRefreshAt = useMemo(
+    () => getNextCardPoolDrawRefreshAt(new Date(nowTick)),
+    [nowTick],
+  );
+  const drawRefreshCountdownLabel = useMemo(
+    () => formatCardPoolDrawRefreshCountdown(nextDrawRefreshAt, nowTick),
+    [nextDrawRefreshAt, nowTick],
+  );
+  const autoRefreshBoundaryRef = useRef(0);
+
+  useEffect(() => {
+    if (!poolType || typeof onRefreshStatus !== 'function') return;
+    const msLeft = nextDrawRefreshAt.getTime() - nowTick;
+    if (msLeft > 1500) return;
+    const boundary = nextDrawRefreshAt.getTime();
+    if (autoRefreshBoundaryRef.current === boundary) return;
+    if (msLeft <= 0) {
+      autoRefreshBoundaryRef.current = boundary;
+      onRefreshStatus();
+    }
+  }, [poolType, nextDrawRefreshAt, nowTick, onRefreshStatus]);
+
   const [poolCards, setPoolCards] = useState([]);
   const [cardsLoading, setCardsLoading] = useState(true);
   const [showResult, setShowResult] = useState(false);
@@ -253,10 +281,16 @@ export default function CardPoolDrawer({
                 {poolStatus?.pityCount ?? 0}/{poolStatus?.pityThreshold ?? 50}
               </span>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-stone-400 text-xs">今日剩余</span>
-              <span className={`text-xs font-bold ${(poolStatus?.remainingDraws ?? 0) > 0 ? 'text-green-400' : 'text-red-400'}`}>
+            <div className="flex flex-wrap items-center justify-end gap-x-2 gap-y-0.5 max-w-[62%]">
+              <span className="text-stone-400 text-xs shrink-0">今日剩余</span>
+              <span className={`text-xs font-bold tabular-nums shrink-0 ${(poolStatus?.remainingDraws ?? 0) > 0 ? 'text-green-400' : 'text-red-400'}`}>
                 {poolStatus?.remainingDraws ?? 0}/{poolStatus?.dailyLimit ?? 5}
+              </span>
+              <span
+                className="text-[10px] tabular-nums text-stone-500 shrink-0"
+                title="半天窗刷新后可再抽（08:00 / 12:00）"
+              >
+                {drawRefreshCountdownLabel}
               </span>
             </div>
           </div>

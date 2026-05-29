@@ -103,9 +103,10 @@ async function sumMainLineupBattleFoodDeployCost(conn, playerId) {
  * 道路遭遇等：在已有事务连接上校验「上阵总兵力 + 出征粮草」（与攻城/野战入口一致）。
  * @param {import('mysql2').PoolConnection} conn
  * @param {string} playerId
+ * @param {{ foodCostMultiplier?: number }} [opts]
  * @returns {Promise<{ ok: true } | { ok: false, error: string }>}
  */
-async function validateMainLineupBattleGateOnConn(conn, playerId) {
+async function validateMainLineupBattleGateOnConn(conn, playerId, opts = {}) {
   const troops = await sumMainLineupEquippedTroopTroops(conn, playerId);
   if (troops < MIN_MAIN_LINEUP_TROOPS_BATTLE) {
     return {
@@ -115,11 +116,37 @@ async function validateMainLineupBattleGateOnConn(conn, playerId) {
   }
   const [pRows] = await conn.query('SELECT food FROM players WHERE player_id = ? FOR UPDATE', [playerId]);
   const food = Number(pRows[0]?.food) || 0;
-  const need = await sumMainLineupBattleFoodDeployCost(conn, playerId);
+  const baseNeed = await sumMainLineupBattleFoodDeployCost(conn, playerId);
+  const mult = Math.max(1, Math.floor(Number(opts.foodCostMultiplier) || 1));
+  const need = baseNeed * mult;
   if (food < need) {
-    return { ok: false, error: `出征需粮草 ${need}（当前 ${food}），粮草不足` };
+    return {
+      ok: false,
+      error: mult > 1
+        ? `出征需粮草 ${need}（常规 ${baseNeed} × ${mult}；当前 ${food}），粮草不足`
+        : `出征需粮草 ${need}（当前 ${food}），粮草不足`,
+    };
   }
-  return { ok: true };
+  return { ok: true, foodNeed: need };
+}
+
+/**
+ * 扣减出征粮草（须与 validateMainLineupBattleGateOnConn 同口径；调用前须已 FOR UPDATE 玩家行）。
+ * @param {import('mysql2').PoolConnection} conn
+ * @param {string} playerId
+ * @param {{ foodCostMultiplier?: number, foodNeed?: number }} [opts]
+ */
+async function deductMainLineupBattleFoodDeployCostOnConn(conn, playerId, opts = {}) {
+  const mult = Math.max(1, Math.floor(Number(opts.foodCostMultiplier) || 1));
+  const need =
+    opts.foodNeed != null && Number.isFinite(Number(opts.foodNeed))
+      ? Math.max(0, Math.floor(Number(opts.foodNeed)))
+      : (await sumMainLineupBattleFoodDeployCost(conn, playerId)) * mult;
+  if (need <= 0) return 0;
+  await conn.query('UPDATE players SET food = GREATEST(0, food - ?) WHERE player_id = ?', [need, playerId]);
+  const statisticsDeltaService = require('./statisticsDeltaService');
+  await statisticsDeltaService.incrementSpent(playerId, { food: need });
+  return need;
 }
 
 /**
@@ -625,6 +652,7 @@ module.exports = {
   sumMainLineupEquippedTroopTroops,
   sumMainLineupBattleFoodDeployCost,
   validateMainLineupBattleGateOnConn,
+  deductMainLineupBattleFoodDeployCostOnConn,
   MIN_GARRISON_TOTAL_TROOPS,
   MIN_MAIN_LINEUP_TROOPS_BATTLE,
   // ── 防守单位构建（再导出自 garrisonBuildService）──

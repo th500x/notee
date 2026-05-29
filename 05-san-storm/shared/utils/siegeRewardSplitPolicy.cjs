@@ -4,7 +4,8 @@
  * 攻城奖赏 · 个人/势力池 拆分（11-3 §3.2 · 城战奖赏）
  *
  * **纯函数**：不读库、不读配置；只接受「净银两 / 净粮草」与 `personalSharePct`，返回拆分结果。
- * 适用面：PVE `cityService.recordSiegeResult` 与 PVP `pvpWarService.recordAttackerCitySiegeResult`。
+ * 适用面：PVE `cityService.recordSiegeResult`、PVP 攻方 `pvpWarService.recordAttackerCitySiegeResult`、
+ * PVP 守方打大本营 `pvpWarService.recordBaseCampSiegeResult`。
  *
  * 公式（11-3 §3.2）：
  *   - `personalSilver = floor(netSilver × personalSharePct / 100)`

@@ -98,11 +98,8 @@ async function findAllPoliciesByFaction(factionId) {
 }
 
 /**
- * 取势力某类目的「当前生效配置」：优先 `faction_policies` 行（最近一次 approved 写入的
- * `config_json`），否则回退到 `factionPolicyDefaults.getDefaultConfigForCategory(category)`。
- *
- * **注意**：行存在但 `last_outcome === 'rejected'` 时仍以行内 `config_json` 为准 —— 因为
- * 驳回不影响当前生效配置，只更新 CD。首次审批之前无行 → 回退默认。
+ * 取势力某类目的「当前生效配置」：有 `faction_policies` 行则用行内 `config_json`（驳回不覆盖 config），
+ * 否则回退 `factionPolicyDefaults.getDefaultConfigForCategory(category)`。
  *
  * @param {string} factionId
  * @param {string} category
@@ -393,36 +390,46 @@ async function submitLongTermProposal(input) {
 }
 
 /**
- * 取「城战奖赏」当前生效拆分比例（攻方势力银两/粮草拆分）。
+ * 取「城战奖赏」当前生效拆分比例（参战势力银两/粮草拆分）。
  *
- * 语义对齐 11-3 §3.2 / 17-2 §8.2 「政策实装前个人全收」口径，**保守择优**：
- *   - 行 **不存在** → 100% 个人（`pre_stage_default`）
- *   - 行存在但 `last_outcome !== 'approved'`（首次提案就驳回时 INSERT 占位、或最近一次 rejected）→ 100% 个人
- *   - 行存在且 `last_outcome === 'approved'` → 用 `row.config.personalSharePct`
+ * **语义与 `getEffectivePolicy` 一致**（11-3 §2.2 · 段2 已实装）：
+ *   - **无 `faction_policies` 行** → **`defaultPersonalSharePct`（80/20）**，无需君主批准
+ *   - **有行** → 用行内 `config_json.personalSharePct`（仅 **approved** 提案会覆盖 config；驳回保留旧配置）
+ *   - 谏言 / 审批仅用于 **修改** 比例，不改变「实装后默认即 80/20」
  *
- * 与 `getEffectivePolicy(...)` 的差异：后者是「面板/UI 展示用」（要看到提案历史与现配置），
- * **本函数是「战斗结算生效用」**：仅在「最近一次审批通过」时才让政策真正影响战斗收益，
- * 避免把"被驳回的提案占位 config"误算成"生效配置"。
- *
- * **注意**：service 在 `submitLongTermProposal` 写入时已严格区分 approved（覆盖 config）/ rejected
- * （仅更新 CD，不覆盖 config）。若先 approved 80→后 rejected 50：行 `config.personalSharePct = 80`、
- * `last_outcome = 'rejected'`。按本函数当前判定，此时回退 100% —— 这是「保守」的设计取舍，
- * 与 11-3 §3.2「类目生效后」语义一致：每一次新提案审批结果作为「当前是否启用该类目」的开关。
+ * 与 `getEffectiveRationBonus` / `getEffectiveRecruit` 不同：后二者「无 approved 行」时不生效（0% / OFF）；
+ * 城战奖赏在 M2 段2 起 **默认即拆分**。
  *
  * @param {string} factionId
  * @returns {Promise<{
  *   personalSharePct: number,
- *   source: 'approved_row' | 'pre_stage_default',
+ *   source: 'category_default' | 'policy_row',
  *   row: object|null,
  * }>}
  */
+async function getEffectiveSiegeReward(factionId) {
+  const { source, config, row } = await getEffectivePolicy(
+    factionId,
+    defaults.POLICY_CATEGORIES.SIEGE_REWARD,
+  );
+  const rawPct = Number(config?.personalSharePct);
+  const personalSharePct = Number.isFinite(rawPct)
+    ? Math.max(0, Math.min(100, Math.round(rawPct)))
+    : defaults.SIEGE_REWARD.defaultPersonalSharePct;
+  return {
+    personalSharePct,
+    source: source === 'row' ? 'policy_row' : 'category_default',
+    row,
+  };
+}
+
 /**
  * 取「内政目标」当前生效维度（人口 / 商业 / 农业 / 军事 / 文化）。
  *
  * **当前状态**：内政玩法（§3.4）尚未实装，**本函数仅作单点读 hook 占位** —— 未来内政服务在加算
  * 贡献奖励 +50% 时 **必须** 通过本函数取生效目标，**禁止** 自行 SQL 兜底（与 notee-code-quality P0 一致）。
  *
- * 语义同其它 `getEffective*`：未 approved → 返回 `goal=null`（即「无加成」）。
+ * 语义同其它 `getEffective*`（除城战奖赏外）：未 approved → 返回 `goal=null`（即「无加成」）。
  *
  * @param {string} factionId
  * @returns {Promise<{
@@ -460,9 +467,7 @@ async function getEffectiveDomesticGoal(factionId) {
 /**
  * 取「粮饷加成」当前生效 Bonus 百分比（俸禄发放合并用）。
  *
- * 与 `getEffectiveSiegeReward` 同源「保守择优」语义：
- *   - 行 **不存在** / `last_outcome !== 'approved'` → 不生效（返回 `bonusPct=0`），即「未提案前无 Bonus」
- *   - 行存在 + approved → 用 `row.config.bonusPct`（5～50 之间）
+ * 须 **approved** 才生效：无行 / 未批准 → `bonusPct=0`（无 Bonus）。
  *
  * 俸禄发放（`sanGongStipendService.claimStipend`）须 **直接** 通过本函数读，**禁止** 自行 SQL 兜底。
  *
@@ -507,9 +512,7 @@ async function getEffectiveRationBonus(factionId) {
 /**
  * 取「招贤纳士」当前是否生效及对应 `san_0` 段（卡池采样合并用）。
  *
- * 与 `getEffectiveSiegeReward` 同源「保守择优」语义：
- *   - 行 **不存在** / `last_outcome !== 'approved'` / `config.enabled !== true` → 不生效（返回 `enabled=false / san0Band=null`）
- *   - 行存在 + approved + enabled=true → 按 `factionPolicyDefaults.getRecruitMappingForFaction` 取段
+ * 与 `getEffectiveSiegeReward` 不同：招贤须 **approved + enabled** 才生效。
  *
  * 卡池层（`cardPoolService.drawSingleCard`）须 **直接** 通过本函数读，**禁止** 自行 `pool.query` 兜底。
  *
@@ -542,29 +545,6 @@ async function getEffectiveRecruit(factionId) {
   return {
     enabled: true,
     san0Band: mapping.san0Band,
-    source: 'approved_row',
-    row: formatted,
-  };
-}
-
-async function getEffectiveSiegeReward(factionId) {
-  const fallback = {
-    personalSharePct: defaults.SIEGE_REWARD.preStageFallbackPersonalSharePct,
-    source: 'pre_stage_default',
-    row: null,
-  };
-  const row = await findFactionPolicyRow(factionId, defaults.POLICY_CATEGORIES.SIEGE_REWARD);
-  if (!row) return fallback;
-  const formatted = formatFactionPolicyRow(row);
-  if (formatted.lastOutcome !== 'approved') {
-    return { ...fallback, row: formatted };
-  }
-  const pct = Number(formatted.config?.personalSharePct);
-  if (!Number.isFinite(pct)) {
-    return { ...fallback, row: formatted };
-  }
-  return {
-    personalSharePct: Math.max(0, Math.min(100, Math.round(pct))),
     source: 'approved_row',
     row: formatted,
   };

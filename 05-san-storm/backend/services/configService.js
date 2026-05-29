@@ -236,6 +236,7 @@ function formatCharacterData(char) {
     name: char.character_name,
     courtesyName: char.courtesy_name || '',
     rarity: char.rarity,
+    gender: char.gender === 'female' ? 'female' : 'male',
     faction: char.faction || '',
     season: char.season,
     

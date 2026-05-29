@@ -64,6 +64,9 @@ export default function StrategicSettlementCard({
   settlementKind = 'siege',
   banditOutcome = null,
   silverReward = 0,
+  personalSilverEarned = null,
+  factionSilverToPool = 0,
+  siegeRewardPersonalSharePct = null,
   reputationReward = 0,
   contributionReward = 0,
   foodReward = 0,
@@ -88,6 +91,15 @@ export default function StrategicSettlementCard({
   banditBadgeError = null,
 }) {
   const sr = Math.max(0, Number(silverReward) || 0);
+  const personalSilver =
+    personalSilverEarned != null && Number.isFinite(Number(personalSilverEarned))
+      ? Math.max(0, Number(personalSilverEarned))
+      : sr;
+  const factionPoolSilver = Math.max(0, Number(factionSilverToPool) || 0);
+  const sharePct =
+    siegeRewardPersonalSharePct != null && Number.isFinite(Number(siegeRewardPersonalSharePct))
+      ? Math.round(Number(siegeRewardPersonalSharePct))
+      : null;
   const rr = Math.max(0, Number(reputationReward) || 0);
   const cr = Math.max(0, Number(contributionReward) || 0);
   const fr = Math.max(0, Number(foodReward) || 0);
@@ -102,7 +114,7 @@ export default function StrategicSettlementCard({
   const showVictoryEmoji =
     settlementKind === 'bandit'
       ? banditOutcome === 'victory'
-      : !!((kc != null ? kcShown : 0) || sr || cr || fr);
+      : !!((kc != null ? kcShown : 0) || personalSilver || cr || fr);
 
   const chestList = Array.isArray(chestRewards) ? chestRewards : [];
 
@@ -142,7 +154,18 @@ export default function StrategicSettlementCard({
           </>
         ) : (
           <>
-            {sr > 0 && <div className="text-amber-300 text-sm">💰 获得 {sr} 银两</div>}
+            {personalSilver > 0 && (
+              <div className="text-amber-300 text-sm">💰 获得 {personalSilver} 银两</div>
+            )}
+            {factionPoolSilver > 0 && (
+              <div className="text-stone-400 text-xs">
+                另有 {factionPoolSilver} 银两入势力池
+                {sharePct != null && sharePct < 100 ? `（城战奖赏 · 个人 ${sharePct}%）` : ''}
+              </div>
+            )}
+            {sr > 0 && personalSilver !== sr && personalSilver <= 0 && (
+              <div className="text-amber-300 text-sm">💰 本场净银 {sr}（已按政策入势力池）</div>
+            )}
             {fr > 0 && <div className="text-lime-200/95 text-sm">🌾 获得 {fr} 粮草</div>}
           </>
         )}

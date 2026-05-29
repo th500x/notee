@@ -205,7 +205,8 @@ export function moraleInlineColorForTroopBar(morale) {
  * 纯函数，无副作用。
  *
  * @param {object} troop - 战斗部队对象（含 faction/rarity/troopType/character 等字段）
- * @returns {{ type: 'troop', troop, fc, hpPct, rarityName, typeName, charLine, critDodge, isEnemy }}
+ * @returns {{ type: 'troop', troop, fc, hpPct, rarityName, typeName, charLine: string|null, critDodge, isEnemy }}
+ *   charLine — 「部队: {部队卡名}」；与顶栏 `displayName`（将领名）相同时省略
  */
 export function buildTroopTooltipContent(troop) {
   const fc = FACTION_COLOR[troop.faction] || '#ccc';
@@ -213,8 +214,10 @@ export function buildTroopTooltipContent(troop) {
   const rarityName = RARITY_LABEL[troop.rarity] || troop.rarity;
   const typeName = TYPE_LABEL[troop.troopType] || troop.troopType;
   const ch = troop.character;
-  const charDisplay = ch && (ch.courtesyName || ch.name || ch.courtesy_name || ch.character_name);
-  const charLine = charDisplay ? `将领: ${charDisplay}` : null;
+  const headerName = String(troop.displayName || troop.name || '').trim();
+  const troopCardName = String(troop.name || '').trim();
+  const charLine =
+    troopCardName && troopCardName !== headerName ? `部队: ${troopCardName}` : null;
   const critDodge = ch
     ? {
         crit: (getEffectiveCritRateFromCharacter(ch) * 100).toFixed(1),

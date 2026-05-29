@@ -618,6 +618,11 @@ export default function WorldMapCityInfoBlock({
                     ? '⚔️ 攻打大本营'
                     : `⚔️ 攻打${cityBaseName}`}
           </button>
+          {pvpAttackerBaseCampStrategic ? (
+            <div className="text-center text-[10px] text-amber-200/90 mt-1.5 px-1">
+              攻打大本营的粮草消耗为2倍
+            </div>
+          ) : null}
         </div>
       ) : null}
     </>

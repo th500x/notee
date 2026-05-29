@@ -36,6 +36,13 @@ function extractSeason(id) {
   return match ? match[1] : null;
 }
 
+function normalizeImportGender(raw, name) {
+  const g = String(raw || 'male').trim().toLowerCase();
+  if (g === 'male' || g === 'female') return g;
+  console.warn(`[importCharacters] ${name || '?'}: 未知 gender "${raw}"，按 male`);
+  return 'male';
+}
+
 /**
  * 导入将领配置数据
  */
@@ -70,16 +77,17 @@ async function importCharacters(connection) {
       // 将属性值×10存储（符合数据库设计规范）
       await connection.query(`
         INSERT INTO config_characters (
-          character_id, season, character_name, courtesy_name, rarity, faction,
+          character_id, season, character_name, courtesy_name, rarity, gender, faction,
           luck, courage, combat, command, intelligence, politics, charm,
           birth_year, death_year, stage, character_type,
           skill_1, skill_2, troop_affinity, trait, trait_modifier, character_extra
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON DUPLICATE KEY UPDATE
           season = VALUES(season),
           character_name = VALUES(character_name),
           courtesy_name = VALUES(courtesy_name),
           rarity = VALUES(rarity),
+          gender = VALUES(gender),
           faction = VALUES(faction),
           luck = VALUES(luck),
           courage = VALUES(courage),
@@ -104,6 +112,7 @@ async function importCharacters(connection) {
         char.name,
         char.courtesyName || null,
         char.rarity,
+        normalizeImportGender(char.gender, char.name),
         char.faction || null,
         Math.round(char.luck * 10),        // 运气×10
         Math.round(char.courage * 10),     // 勇气×10

@@ -15,6 +15,7 @@ import { factionPolicyAPI } from '@/services/factionPolicyApi';
 import PlayerTopResourceBadges from '@/components/game/PlayerTopResourceBadges';
 import FactionPolicyRemonstranceModal from '@/components/game/FactionPolicyRemonstranceModal';
 import {
+  POLICY_CATEGORY,
   POLICY_CATEGORY_META,
   POLICY_CATEGORY_ORDER,
   POLICY_OUTCOME_LABEL,
@@ -79,6 +80,16 @@ function PolicyCard({
           <p className="mt-1.5 text-[11px] text-stone-300">
             当前：<span className="font-semibold text-amber-100/95">{valueLabel}</span>
           </p>
+          {category === POLICY_CATEGORY.SIEGE_REWARD && isDefault ? (
+            <p className="mt-0.5 text-[10px] leading-snug text-emerald-400/90">
+              战斗结算：按上方默认比例拆分净银两/净粮草（实装后默认生效，无需批准）
+            </p>
+          ) : null}
+          {category === POLICY_CATEGORY.SIEGE_REWARD && !isDefault ? (
+            <p className="mt-0.5 text-[10px] leading-snug text-emerald-400/90">
+              战斗结算：攻城 / 打大本营等净收益按上方比例拆分（声望、贡献、装备仍 100% 个人）
+            </p>
+          ) : null}
           {policy.lastOutcome ? (
             <p className="mt-0.5 text-[10px] text-stone-500">
               最近一次：

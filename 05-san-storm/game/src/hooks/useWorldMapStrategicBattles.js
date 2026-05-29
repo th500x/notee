@@ -9,6 +9,7 @@ import { fetchSiegeQuotaJson, postSiegeQuotaAction } from '@/hooks/useSiegeQuota
 import { warAPI } from '@/services/warApi';
 import { API_CONFIG } from '@/constants';
 import { validateMainLineupBattleGate } from '@/utils/mainLineupTroops';
+import { BASE_CAMP_SIEGE_FOOD_COST_MULTIPLIER } from '@shared/utils/pvpBaseCampConstants';
 import { clearInflightBattleTroopSnapshot } from '@/utils/inflightBattleTroopSnapshot';
 import { buildBanditLayerSmallMapPveLoot } from '@shared/utils/banditRaidLayerRewards';
 import { banditNpcSlotRaritiesFromLayer } from '@shared/utils/smallMapEnemyRoster';
@@ -273,6 +274,7 @@ export function useWorldMapStrategicBattles({
         cards,
         playerUnits: null,
         playerFood: player?.food ?? 0,
+        foodCostMultiplier: BASE_CAMP_SIEGE_FOOD_COST_MULTIPLIER,
       });
       if (!gate.ok) {
         setSimpleAlertMessage(gate.message);
@@ -303,13 +305,14 @@ export function useWorldMapStrategicBattles({
           opponentName: `${opp}大本营守军`,
         });
         setSiegeResult(null);
+        refreshPlayer({ silent: true });
       } catch (e) {
         setSimpleAlertMessage(e?.message || '网络异常，攻打大本营失败');
       } finally {
         setSiegeLoading(false);
       }
     },
-    [phase, siegeData, banditRaidData, banditRaidResult, player, cards, setSimpleAlertMessage],
+    [phase, siegeData, banditRaidData, banditRaidResult, player, cards, setSimpleAlertMessage, refreshPlayer],
   );
 
   const handleBanditRaidStart = useCallback((payload) => {

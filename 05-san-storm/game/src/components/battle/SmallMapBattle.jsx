@@ -30,6 +30,7 @@ import '@/components/battle/BattleMap.css';
 import { ZONE } from '@/components/battle/battleConstants';
 import { getMoveCost } from '@/systems/battleFlowManager';
 import { validateMainLineupBattleGate } from '@/utils/mainLineupTroops';
+import { BASE_CAMP_SIEGE_FOOD_COST_MULTIPLIER } from '@shared/utils/pvpBaseCampConstants';
 import { writeInflightBattleTroopSnapshot } from '@/utils/inflightBattleTroopSnapshot';
 import { useSkillsMap } from '@/hooks/useSkillsMap';
 import { resolveSiegeCityDefenseMultFromOpts } from '@shared/utils/siegeCityDefenseMult';
@@ -107,6 +108,7 @@ export default function SmallMapBattle({
   const autoBattleRef = useRef(bm.autoBattle);
   autoBattleRef.current = bm.autoBattle;
 
+  const siegeFoodCostMultiplier = pvpDefenderBaseCampSiege ? BASE_CAMP_SIEGE_FOOD_COST_MULTIPLIER : 1;
   const resolvedSiegeCityDefenseMult =
     battleType === 'pve_siege' || battleType === 'pvp_siege'
       ? (pvpDefenderBaseCampSiege
@@ -302,7 +304,9 @@ export default function SmallMapBattle({
   useEffect(() => {
     if (stage !== STAGE.READY || siegeAutoStartedRef.current) return;
     if (!enemyUnits || enemyUnits.length === 0 || battleType !== 'pvp_siege') return;
-    const v = validateMainLineupBattleGate({ recordOnly, cards, playerUnits, playerFood });
+    const v = validateMainLineupBattleGate({
+      recordOnly, cards, playerUnits, playerFood, foodCostMultiplier: siegeFoodCostMultiplier,
+    });
     if (!v.ok) {
       setBattleGateMessage(v.message || '无法开战');
       setBattleGateModalOpen(true);
@@ -311,7 +315,7 @@ export default function SmallMapBattle({
     siegeAutoStartedRef.current = true;
     const t = requestAnimationFrame(() => { playBattleRoundRef.current(); });
     return () => cancelAnimationFrame(t);
-  }, [stage, enemyUnits, battleType, recordOnly, cards, playerUnits, playerFood]);
+  }, [stage, enemyUnits, battleType, recordOnly, cards, playerUnits, playerFood, siegeFoodCostMultiplier]);
 
   // ── 渲染部队到 DOM（战前可重复刷新；战中由引擎维护，勿全量覆盖） ──
   useEffect(() => {
@@ -381,14 +385,16 @@ export default function SmallMapBattle({
 
   const startBattleWithLineupGate = useCallback(() => {
     if (recordOnly) { playBattleRoundRef.current(); return; }
-    const v = validateMainLineupBattleGate({ recordOnly, cards, playerUnits, playerFood });
+    const v = validateMainLineupBattleGate({
+      recordOnly, cards, playerUnits, playerFood, foodCostMultiplier: siegeFoodCostMultiplier,
+    });
     if (!v.ok) {
       setBattleGateMessage(v.message || '条件不足');
       setBattleGateModalOpen(true);
       return;
     }
     playBattleRoundRef.current();
-  }, [recordOnly, cards, playerUnits, playerFood]);
+  }, [recordOnly, cards, playerUnits, playerFood, siegeFoodCostMultiplier]);
 
   return (
     <div className="fixed inset-0 z-[60] overflow-auto bg-[#1a1a2e]">

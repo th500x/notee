@@ -63,6 +63,8 @@ export function validateMainLineupBattleGate({
   cards = null,
   playerUnits = null,
   playerFood = 0,
+  /** 守方打攻方大本营等：出征粮草 = 常规 × 倍数（默认 1） */
+  foodCostMultiplier = 1,
 }) {
   if (recordOnly) return { ok: true };
   const lineupTroopTotal = getMainLineupTroopTotalForBattleGate(cards, playerUnits);
@@ -72,12 +74,16 @@ export function validateMainLineupBattleGate({
       message: `上阵编组总兵力需≥${MIN_MAIN_LINEUP_TROOPS_BATTLE}（当前 ${lineupTroopTotal}）。`,
     };
   }
-  const need = getMainLineupBattleFoodDeployCost(cards, playerUnits);
+  const baseNeed = getMainLineupBattleFoodDeployCost(cards, playerUnits);
+  const mult = Math.max(1, Math.floor(Number(foodCostMultiplier) || 1));
+  const need = baseNeed * mult;
   const have = Number(playerFood) || 0;
   if (have < need) {
     return {
       ok: false,
-      message: `出征需粮草 ${need}（当前 ${have}），粮草不足。`,
+      message: mult > 1
+        ? `出征需粮草 ${need}（常规 ${baseNeed} × ${mult}；当前 ${have}），粮草不足。`
+        : `出征需粮草 ${need}（当前 ${have}），粮草不足。`,
     };
   }
   return { ok: true };

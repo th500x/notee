@@ -971,7 +971,7 @@ export function roadKeysAdjacentOrDiagonalToFootprint(footprintKeys, roadPassabl
 }
 
 /**
- * profile / 道路 API 的道路立点字段（camelCase）。
+ * profile / 道路 API / DB `players` 行的道路立点字段（camelCase 或 snake_case）。
  * @param {object|null|undefined} player
  * @returns {{ roadJunId: string|null, roadPositionX: number, roadPositionY: number }}
  */
@@ -979,11 +979,11 @@ export function playerRoadStandFromProfile(player) {
   if (!player || typeof player !== 'object') {
     return { roadJunId: null, roadPositionX: NaN, roadPositionY: NaN };
   }
-  const rawJun = player.roadJunId ?? null;
+  const rawJun = player.roadJunId ?? player.road_jun_id ?? null;
   const roadJunId =
     rawJun != null && String(rawJun).trim() ? String(rawJun).trim() : null;
-  const roadPositionX = Number(player.roadPositionX);
-  const roadPositionY = Number(player.roadPositionY);
+  const roadPositionX = Number(player.roadPositionX ?? player.road_position_x);
+  const roadPositionY = Number(player.roadPositionY ?? player.road_position_y);
   return { roadJunId, roadPositionX, roadPositionY };
 }
 
