@@ -10,6 +10,7 @@ import {
   roadKeysAdjacentToFootprint,
   bfsShortestPathRoad,
   multiSourceBfsShortestRoad,
+  playerRoadStandFromProfile,
 } from '@shared/utils/strategicMarchPoi.js';
 import { playerRoadToWorldMapCell } from '@shared/utils/strategicGridCoordinates.js';
 
@@ -111,9 +112,7 @@ export function buildMarchPath({
     return { ok: false, error: '请选择道路格作为目标' };
   }
 
-  const roadJun = player?.roadJunId || null;
-  const rx = Number(player?.roadPositionX);
-  const ry = Number(player?.roadPositionY);
+  const { roadJunId: roadJun, roadPositionX: rx, roadPositionY: ry } = playerRoadStandFromProfile(player);
   const startWorld =
     useWorldStackRoadCoords && roadJun && Number.isFinite(rx) && Number.isFinite(ry)
       ? playerRoadToWorldMapCell(roadJun, Math.trunc(rx), Math.trunc(ry))

@@ -971,7 +971,23 @@ export function roadKeysAdjacentOrDiagonalToFootprint(footprintKeys, roadPassabl
 }
 
 /**
- * 郡内他人路点中、相对 `moverFactionId` 为敌对势力的格键（`"gx,gy"`），用于沿路 BFS 绕行（不可途经叠格）。
+ * profile API（camelCase）与 DB 行（snake_case）两用的道路立点字段。
+ * @param {object|null|undefined} player
+ * @returns {{ roadJunId: string|null, roadPositionX: number, roadPositionY: number }}
+ */
+export function playerRoadStandFromProfile(player) {
+  if (!player || typeof player !== 'object') {
+    return { roadJunId: null, roadPositionX: NaN, roadPositionY: NaN };
+  }
+  const rawJun = player.roadJunId ?? player.road_jun_id ?? null;
+  const roadJunId =
+    rawJun != null && String(rawJun).trim() ? String(rawJun).trim() : null;
+  const roadPositionX = Number(player.roadPositionX ?? player.road_position_x);
+  const roadPositionY = Number(player.roadPositionY ?? player.road_position_y);
+  return { roadJunId, roadPositionX, roadPositionY };
+}
+
+/**
  * @param {string|null|undefined} moverFactionId
  * @param {Iterable<object>|null|undefined} rows - `road-presence.others` 或 SQL 行（camelCase / snake_case 混排）
  * @returns {Set<string>}
@@ -1010,9 +1026,7 @@ export function resolveOffRoadMarchDepartureFootprintKeys(
 ) {
   const { citiesInCountyRows = null, pvpBaseCamps = null } = poiOptions || {};
 
-  const roadJun = player?.road_jun_id || null;
-  const rx = Number(player?.road_position_x);
-  const ry = Number(player?.road_position_y);
+  const { roadJunId: roadJun, roadPositionX: rx, roadPositionY: ry } = playerRoadStandFromProfile(player);
   /** 单郡图：坐标属 `road_jun_id` 本地格，须 `roadJun === countyJunId`；豫州叠放合并格网用世界行，允许 `road_jun_id` 为汝南而 `countyJunId` 为颍川等（与 `buildMarchPath` 起点一致）。 */
   const canProbePlayerCell =
     Number.isFinite(rx) &&
@@ -1203,9 +1217,7 @@ export function buildMarchPathToStrategicPoi({
     return { ok: false, error: '目标旁无可用道路格，无法接近' };
   }
 
-  const roadJun = player?.road_jun_id || null;
-  const rx = Number(player?.road_position_x);
-  const ry = Number(player?.road_position_y);
+  const { roadJunId: roadJun, roadPositionX: rx, roadPositionY: ry } = playerRoadStandFromProfile(player);
   const startWorld = playerRoadToWorldMapCell(roadJun, rx, ry);
   const startWy = startWorld?.worldGy ?? Math.trunc(ry);
   const canUseStartKeyRoad =
