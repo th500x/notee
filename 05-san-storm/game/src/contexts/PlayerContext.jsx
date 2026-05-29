@@ -17,7 +17,7 @@
  * - `usePlayerRefresh()`         — 主动重拉档案的回调；`refresh({ silent: true })` 不触发 loading 状态
  * - `usePlayerLoadStatus()`      — `{ loading, error }` 加载状态
  *
- * 底层：`useSyncExternalStore` + 字段 selector；仅订阅所读 slice 的组件在其它字段变化时不 re-render。
+ * 底层：`useSyncExternalStore` + store 内稳定快照；getSnapshot 须纯函数（同次 render 双调返回同一引用）。
  *
  * @see CR 报告 §3.5 A7、`02-architecture-split/20-frontend-game.md §8`
  */
@@ -41,15 +41,21 @@ const EMPTY_BONUS_BY_SLOT = Object.freeze({
   character2: Object.freeze({}),
 });
 
-function shallowEqual(a, b) {
-  if (Object.is(a, b)) return true;
-  if (!a || !b || typeof a !== 'object' || typeof b !== 'object') return false;
-  const keysA = Object.keys(a);
-  if (keysA.length !== Object.keys(b).length) return false;
-  for (const key of keysA) {
-    if (!Object.is(a[key], b[key])) return false;
-  }
-  return true;
+function buildContextView(state) {
+  return {
+    player: state.player,
+    cards: state.cards,
+    attributeBonusBySlot: state.attributeBonusBySlot,
+    gameTime: state.gameTime,
+    loading: state.loading,
+    error: state.error,
+    refresh: state.refresh,
+    exploreQuota: state.exploreQuota,
+  };
+}
+
+function buildLoadStatusView(state) {
+  return { loading: state.loading, error: state.error };
 }
 
 function createPlayerStore() {
@@ -63,10 +69,19 @@ function createPlayerStore() {
     refresh: () => {},
     exploreQuota: null,
   };
+  let contextView = buildContextView(state);
+  let loadStatusView = buildLoadStatusView(state);
   const listeners = new Set();
+
+  function rebuildViews() {
+    contextView = buildContextView(state);
+    loadStatusView = buildLoadStatusView(state);
+  }
 
   return {
     getState: () => state,
+    getContextView: () => contextView,
+    getLoadStatusView: () => loadStatusView,
     setState(partial) {
       let changed = false;
       for (const key of Object.keys(partial)) {
@@ -77,6 +92,7 @@ function createPlayerStore() {
       }
       if (!changed) return;
       state = { ...state, ...partial };
+      rebuildViews();
       listeners.forEach((listener) => listener());
     },
     subscribe(listener) {
@@ -96,43 +112,14 @@ function usePlayerStore() {
   return store;
 }
 
-/**
- * @template T
- * @param {(state: ReturnType<ReturnType<typeof createPlayerStore>['getState']>) => T} selector
- * @param {(a: T, b: T) => boolean} [isEqual]
- */
-function usePlayerStoreSelector(selector, isEqual = Object.is) {
+/** @param {() => T} getSnapshot 须在同次 render 内多次调用返回同一引用（store 快照） */
+function usePlayerStoreSnapshot(getSnapshot) {
   const store = usePlayerStore();
-  const selectorRef = useRef(selector);
-  selectorRef.current = selector;
-  const isEqualRef = useRef(isEqual);
-  isEqualRef.current = isEqual;
-  const sliceRef = useRef(undefined);
-
-  const getSnapshot = useCallback(() => {
-    const nextSelected = selectorRef.current(store.getState());
-    const cached = sliceRef.current;
-    if (cached !== undefined && isEqualRef.current(cached, nextSelected)) {
-      return cached;
-    }
-    sliceRef.current = nextSelected;
-    return nextSelected;
-  }, [store]);
-
-  return useSyncExternalStore(store.subscribe, getSnapshot, getSnapshot);
-}
-
-function selectPlayerContextView(state) {
-  return {
-    player: state.player,
-    cards: state.cards,
-    attributeBonusBySlot: state.attributeBonusBySlot,
-    gameTime: state.gameTime,
-    loading: state.loading,
-    error: state.error,
-    refresh: state.refresh,
-    exploreQuota: state.exploreQuota,
-  };
+  const getSnapshotRef = useRef(getSnapshot);
+  getSnapshotRef.current = getSnapshot;
+  const subscribe = store.subscribe;
+  const readSnapshot = useCallback(() => getSnapshotRef.current(), [store]);
+  return useSyncExternalStore(subscribe, readSnapshot, readSnapshot);
 }
 
 export function PlayerProvider({ playerId, children }) {
@@ -204,38 +191,42 @@ export function PlayerProvider({ playerId, children }) {
  * 整体 ctx hook（向后兼容；细粒度读请用 selector hook）。
  */
 export function usePlayerContext() {
-  return usePlayerStoreSelector(selectPlayerContextView, shallowEqual);
+  const store = usePlayerStore();
+  return usePlayerStoreSnapshot(() => store.getContextView());
 }
 
 /** 当前玩家档案对象（含资源 / 属性 / 官职 / morale 等）。未加载时为 `null`。 */
 export function usePlayer() {
-  return usePlayerStoreSelector((state) => state.player);
+  const store = usePlayerStore();
+  return usePlayerStoreSnapshot(() => store.getState().player);
 }
 
 /** 当前玩家全部卡牌实例。未加载时为冻结的空数组。 */
 export function useCards() {
-  return usePlayerStoreSelector((state) => state.cards);
+  const store = usePlayerStore();
+  return usePlayerStoreSnapshot(() => store.getState().cards);
 }
 
 /** 槽位属性加成快照（`player` / `character1` / `character2` / `garrison_*`）。 */
 export function useAttributeBonusBySlot() {
-  return usePlayerStoreSelector((state) => state.attributeBonusBySlot);
+  const store = usePlayerStore();
+  return usePlayerStoreSnapshot(() => store.getState().attributeBonusBySlot);
 }
 
 /** 后端推算的"游戏时间"（赛季内统一时钟，与现实时间不同）。未加载时为 `null`。 */
 export function useGameTime() {
-  return usePlayerStoreSelector((state) => state.gameTime);
+  const store = usePlayerStore();
+  return usePlayerStoreSnapshot(() => store.getState().gameTime);
 }
 
 /** 主动重拉档案的回调；`refresh({ silent: true })` 不触发 loading 状态。 */
 export function usePlayerRefresh() {
-  return usePlayerStoreSelector((state) => state.refresh);
+  const store = usePlayerStore();
+  return usePlayerStoreSnapshot(() => store.getState().refresh);
 }
 
 /** 加载状态 `{ loading, error }`。 */
 export function usePlayerLoadStatus() {
-  return usePlayerStoreSelector(
-    (state) => ({ loading: state.loading, error: state.error }),
-    shallowEqual,
-  );
+  const store = usePlayerStore();
+  return usePlayerStoreSnapshot(() => store.getLoadStatusView());
 }
