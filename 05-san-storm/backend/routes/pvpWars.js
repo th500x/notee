@@ -37,6 +37,8 @@ const gameTimeService = require('../services/gameTimeService');
 const warInitiationCostService = require('../services/warInitiationCostService');
 const policyProposerAuth = require('../services/policyProposerAuth');
 const warPolicyTransientService = require('../services/warPolicyTransientService');
+const { validateBody, validateParams, validateQuery } = require('../middleware/validation');
+const pvpWarSchemas = require('../middleware/validationSchemas/pvpWars');
 
 /**
  * 取势力当前占有城数（启用 *_eff 饱和调制时供被动审批 / 主动决策共用）。
@@ -59,15 +61,9 @@ router.use(requireAuth);
  * GET /api/pvp-wars/preview-approval?factionId=...&proposalType=war|policy
  * 仅返回区间 [base, min(1, base × 1.2)]；当次仍走完整骰子+抽检。
  */
-router.get('/preview-approval', async (req, res, next) => {
+router.get('/preview-approval', validateQuery(pvpWarSchemas.previewApprovalQuery), async (req, res, next) => {
   try {
     const { factionId, proposalType } = req.query;
-    if (!factionId || !proposalType) {
-      return res.status(400).json({ success: false, error: '缺少 factionId / proposalType' });
-    }
-    if (proposalType !== 'war' && proposalType !== 'policy') {
-      return res.status(400).json({ success: false, error: 'proposalType 仅支持 war / policy' });
-    }
     if (!aiKingConfigService.hasKingForFaction(String(factionId))) {
       return res.status(404).json({ success: false, error: '该势力暂未配置 AI 君主（M2 仅汉室/黄巾/刘备）' });
     }
@@ -105,7 +101,7 @@ router.get('/preview-approval', async (req, res, next) => {
  * 返回：
  *   { approval: <审批审计>, war?: <若通过则返回新建草案 pvp war>, draftCreated: bool, transientPoliciesApplied?: object }
  */
-router.post('/proposals', async (req, res, next) => {
+router.post('/proposals', validateBody(pvpWarSchemas.proposalsBody), async (req, res, next) => {
   try {
     const {
       season = 'san_1',
@@ -115,13 +111,7 @@ router.post('/proposals', async (req, res, next) => {
       proposalId,
       serverId,
       transientPolicies: rawTransientPolicies,
-    } = req.body || {};
-    if (!attackerFactionId || !targetCityId) {
-      return res.status(400).json({
-        success: false,
-        error: '缺少 attackerFactionId / targetCityId',
-      });
-    }
+    } = req.body;
     if (!aiKingConfigService.hasKingForFaction(attackerFactionId)) {
       return res.status(400).json({
         success: false,
@@ -211,7 +201,7 @@ router.post('/proposals', async (req, res, next) => {
 /**
  * GET /api/pvp-wars?status=active|pending|completed|failed|cancelled&factionId=...&season=...&limit=...
  */
-router.get('/', async (req, res, next) => {
+router.get('/', validateQuery(pvpWarSchemas.listWarsQuery), async (req, res, next) => {
   try {
     const { status, factionId, season, limit } = req.query;
     const wars = await WarPvp.listWars({
@@ -229,7 +219,7 @@ router.get('/', async (req, res, next) => {
 /**
  * GET /api/pvp-wars/by-city/:cityId/active
  */
-router.get('/by-city/:cityId/active', async (req, res, next) => {
+router.get('/by-city/:cityId/active', validateParams(pvpWarSchemas.cityIdParam), async (req, res, next) => {
   try {
     const war = await WarPvp.getActiveByCity(req.params.cityId);
     res.json({ success: true, data: war || null });
@@ -245,12 +235,9 @@ router.get('/by-city/:cityId/active', async (req, res, next) => {
  * 给「君主口谕」前端拉势力君主最近一次主动决策动向（内存留痕，TTL 60 分钟）。
  * 无任何最近动向时返回 `data: null`，前端 fallback 到闲聊池。
  */
-router.get('/king-recent-decision', async (req, res, next) => {
+router.get('/king-recent-decision', validateQuery(pvpWarSchemas.factionIdQuery), async (req, res, next) => {
   try {
     const { factionId } = req.query;
-    if (!factionId) {
-      return res.status(400).json({ success: false, error: '缺少 factionId' });
-    }
     if (!aiKingConfigService.hasKingForFaction(String(factionId))) {
       return res.json({ success: true, data: null });
     }
@@ -280,12 +267,9 @@ function formatRemonstranceCityRow(r) {
  * 及当前势力战事并行上限、战事类被动审批预览。须登录且 `factionId` 与当前角色一致。
  * `season`（可选，默认 `san_1`）：计 **PVE 进行中条数** 时仅统计 **目标城** 属该赛季的 `wars`，与 `listActivePveSiegeTargetsForMap` / 大地图 active PVE 列表一致。
  */
-router.get('/remonstrance-panel', async (req, res, next) => {
+router.get('/remonstrance-panel', validateQuery(pvpWarSchemas.remonstrancePanelQuery), async (req, res, next) => {
   try {
-    const factionId = String(req.query.factionId || '').trim();
-    if (!factionId) {
-      return res.status(400).json({ success: false, error: '缺少 factionId' });
-    }
+    const factionId = String(req.query.factionId).trim();
     const accountId = req.player?.sub;
     if (!accountId) {
       return res.status(401).json({ success: false, error: '未登录' });
@@ -355,7 +339,7 @@ router.get('/remonstrance-panel', async (req, res, next) => {
 /**
  * GET /api/pvp-wars/:id
  */
-router.get('/:id', async (req, res, next) => {
+router.get('/:id', validateParams(pvpWarSchemas.warIdParam), async (req, res, next) => {
   try {
     const war = await WarPvp.getById(req.params.id);
     if (!war) return res.status(404).json({ success: false, error: '战事不存在' });
@@ -374,7 +358,7 @@ router.get('/:id', async (req, res, next) => {
  * 若该场战事没有 `wars_pvp_policies` 行（未勾选任何临时政策），返回 `phase=mid_army`、
  * `playerSiegeAllowed=true`、`policies=null` — 与现行无阶段机口径兼容。
  */
-router.get('/:id/phase', async (req, res, next) => {
+router.get('/:id/phase', validateParams(pvpWarSchemas.warIdParam), async (req, res, next) => {
   try {
     const war = await WarPvp.getById(req.params.id);
     if (!war) return res.status(404).json({ success: false, error: '战事不存在' });
@@ -427,7 +411,7 @@ router.get('/:id/phase', async (req, res, next) => {
  * POST /api/pvp-wars/:id/place-base-camp
  * Body: {} （锚点由算法择一；详见 17-2 §1.6 / 实现计划 §1.5、§12-D）
  */
-router.post('/:id/place-base-camp', async (req, res, next) => {
+router.post('/:id/place-base-camp', validateParams(pvpWarSchemas.warIdParam), async (req, res, next) => {
   try {
     const war = await pvpWarService.placeAttackerBaseCampAndActivate(req.params.id);
     res.json({ success: true, data: war });
@@ -440,9 +424,13 @@ router.post('/:id/place-base-camp', async (req, res, next) => {
  * POST /api/pvp-wars/:id/cancel
  * Body: { reason?: string, byAdmin?: bool, endedByOfficial?: bool } —— `endedByOfficial` 为真时写入「一品官职（position_level=1）主持结案」类公告
  */
-router.post('/:id/cancel', async (req, res, next) => {
+router.post(
+  '/:id/cancel',
+  validateParams(pvpWarSchemas.warIdParam),
+  validateBody(pvpWarSchemas.cancelWarBody),
+  async (req, res, next) => {
   try {
-    const { reason, byAdmin, endedByOfficial } = req.body || {};
+    const { reason, byAdmin, endedByOfficial } = req.body;
     const war = await pvpWarService.cancelPvpWar(req.params.id, {
       reason,
       byAdmin,
@@ -452,7 +440,8 @@ router.post('/:id/cancel', async (req, res, next) => {
   } catch (error) {
     return res.status(400).json({ success: false, error: error.message });
   }
-});
+  },
+);
 
 // ==================== 大本营 NPC 战斗握手 ====================
 
@@ -460,25 +449,32 @@ router.post('/:id/cancel', async (req, res, next) => {
  * POST /api/pvp-wars/:id/base-camp-siege
  * Body: { playerId }（守方）
  */
-router.post('/:id/base-camp-siege', async (req, res, next) => {
+router.post(
+  '/:id/base-camp-siege',
+  validateParams(pvpWarSchemas.warIdParam),
+  validateBody(pvpWarSchemas.playerIdBody),
+  async (req, res, next) => {
   try {
-    const { playerId } = req.body || {};
-    if (!playerId) return res.status(400).json({ success: false, error: '缺少 playerId' });
+    const { playerId } = req.body;
     const data = await pvpWarService.initiateBaseCampSiege(req.params.id, playerId);
     res.json({ success: true, data });
   } catch (error) {
     return res.status(400).json({ success: false, error: error.message });
   }
-});
+  },
+);
 
 /**
  * POST /api/pvp-wars/:id/base-camp-siege-result
  * Body: { playerId, killedIndices, result, silverSpent?, battleScore?, battleReportSaved? }
  */
-router.post('/:id/base-camp-siege-result', async (req, res, next) => {
+router.post(
+  '/:id/base-camp-siege-result',
+  validateParams(pvpWarSchemas.warIdParam),
+  validateBody(pvpWarSchemas.baseCampSiegeResultBody),
+  async (req, res, next) => {
   try {
-    const { playerId, killedIndices, result, battleScore, silverSpent, battleReportSaved } = req.body || {};
-    if (!playerId) return res.status(400).json({ success: false, error: '缺少 playerId' });
+    const { playerId, killedIndices, result, battleScore, silverSpent, battleReportSaved } = req.body;
     const data = await pvpWarService.recordBaseCampSiegeResult(req.params.id, playerId, {
       killedIndices: killedIndices || [],
       result: result || 'win',
@@ -490,7 +486,8 @@ router.post('/:id/base-camp-siege-result', async (req, res, next) => {
   } catch (error) {
     return next(wrap500(error, '写入大本营战斗结果失败'));
   }
-});
+  },
+);
 
 // ==================== 攻方对目标城战斗握手（三类防守者通用） ====================
 
@@ -501,16 +498,20 @@ router.post('/:id/base-camp-siege-result', async (req, res, next) => {
  * 返回：{ defenderType: 'pvp_online'|'player_garrison'|'npc',
  *        npcGarrison: [...], defenderPlayerId?, defenderGarrisonSlot?, npcBatchIndex?, ... }
  */
-router.post('/:id/city-siege', async (req, res, next) => {
+router.post(
+  '/:id/city-siege',
+  validateParams(pvpWarSchemas.warIdParam),
+  validateBody(pvpWarSchemas.playerIdBody),
+  async (req, res, next) => {
   try {
-    const { playerId } = req.body || {};
-    if (!playerId) return res.status(400).json({ success: false, error: '缺少 playerId' });
+    const { playerId } = req.body;
     const data = await pvpWarService.initiateAttackerCitySiege(req.params.id, playerId);
     res.json({ success: true, data });
   } catch (error) {
     return res.status(400).json({ success: false, error: error.message });
   }
-});
+  },
+);
 
 /**
  * POST /api/pvp-wars/:id/city-siege-result
@@ -524,7 +525,11 @@ router.post('/:id/city-siege', async (req, res, next) => {
  *   npcBatchIndex?,                                   // NPC 分支
  * }
  */
-router.post('/:id/city-siege-result', async (req, res, next) => {
+router.post(
+  '/:id/city-siege-result',
+  validateParams(pvpWarSchemas.warIdParam),
+  validateBody(pvpWarSchemas.citySiegeResultBody),
+  async (req, res, next) => {
   try {
     const {
       playerId,
@@ -539,8 +544,7 @@ router.post('/:id/city-siege-result', async (req, res, next) => {
       battleScore,
       battleReportSaved,
       npcBatchIndex,
-    } = req.body || {};
-    if (!playerId) return res.status(400).json({ success: false, error: '缺少 playerId' });
+    } = req.body;
     const data = await pvpWarService.recordAttackerCitySiegeResult(req.params.id, playerId, {
       defenderType: defenderType || 'npc',
       defenderPlayerId: defenderPlayerId || null,
@@ -560,7 +564,8 @@ router.post('/:id/city-siege-result', async (req, res, next) => {
   } catch (error) {
     return next(wrap500(error, '写入目标城战斗结果失败'));
   }
-});
+  },
+);
 
 /**
  * POST /api/pvp-wars/tick
@@ -580,12 +585,9 @@ router.post('/tick', async (req, res, next) => {
  * 调试 / dev：手动触发一次 AI 君主主动决策（不真调写库）。
  * Body: { factionId }
  */
-router.post('/active-decision-dry-run', async (req, res, next) => {
+router.post('/active-decision-dry-run', validateBody(pvpWarSchemas.factionIdBody), async (req, res, next) => {
   try {
-    const { factionId } = req.body || {};
-    if (!factionId) {
-      return res.status(400).json({ success: false, error: '缺少 factionId' });
-    }
+    const { factionId } = req.body;
     if (!aiKingConfigService.hasKingForFaction(factionId)) {
       return res
         .status(404)

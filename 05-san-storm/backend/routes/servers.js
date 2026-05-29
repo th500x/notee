@@ -1,6 +1,6 @@
 /**
  * 服务器路由
- * 
+ *
  * @description 处理服务器列表和详情查询
  */
 
@@ -8,14 +8,12 @@ const express = require('express');
 const { pool } = require('../database/connection');
 const gameTimeService = require('../services/gameTimeService');
 const { wrap500 } = require('../utils/httpError');
+const { validateParams } = require('../middleware/validation');
+const serverSchemas = require('../middleware/validationSchemas/servers');
 
 const router = express.Router();
 
-/**
- * GET /api/servers/:serverId/game-time
- * 当前游戏历法（config_servers + 实时计算）
- */
-router.get('/:serverId/game-time', async (req, res, next) => {
+router.get('/:serverId/game-time', validateParams(serverSchemas.serverIdParam), async (req, res, next) => {
   try {
     const { serverId } = req.params;
     const fullSelect = `SELECT server_id, opened_at, season_start_time,
@@ -29,7 +27,7 @@ router.get('/:serverId/game-time', async (req, res, next) => {
       if (e.code === 'ER_BAD_FIELD_ERROR' || /Unknown column/i.test(e.message || '')) {
         [rows] = await pool.query(
           'SELECT server_id, opened_at, season_start_time FROM config_servers WHERE server_id = ?',
-          [serverId]
+          [serverId],
         );
       } else {
         throw e;
@@ -51,13 +49,8 @@ router.get('/:serverId/game-time', async (req, res, next) => {
   }
 });
 
-/**
- * GET /api/servers
- * 获取服务器列表（包含实时人数统计）
- */
 router.get('/', async (req, res, next) => {
   try {
-    // 查询服务器列表，并统计每个服务器的玩家数
     const [servers] = await pool.query(`
       SELECT 
         s.server_id as id,
@@ -83,26 +76,20 @@ router.get('/', async (req, res, next) => {
       ORDER BY s.is_recommended DESC, s.opened_at DESC
     `);
 
-    res.json({ 
+    res.json({
       success: true,
       data: servers,
-      total: servers.length
+      total: servers.length,
     });
-
   } catch (error) {
     return next(wrap500(error, '获取服务器列表失败'));
   }
 });
 
-/**
- * GET /api/servers/:serverId
- * 获取服务器详情（包含实时人数统计）
- */
-router.get('/:serverId', async (req, res, next) => {
+router.get('/:serverId', validateParams(serverSchemas.serverIdParam), async (req, res, next) => {
   try {
     const { serverId } = req.params;
 
-    // 查询服务器详情
     const [servers] = await pool.query(`
       SELECT 
         s.server_id as id,
@@ -128,17 +115,16 @@ router.get('/:serverId', async (req, res, next) => {
     `, [serverId]);
 
     if (servers.length === 0) {
-      return res.status(404).json({ 
+      return res.status(404).json({
         success: false,
-        error: '服务器不存在'
+        error: '服务器不存在',
       });
     }
 
-    res.json({ 
+    res.json({
       success: true,
-      data: servers[0]
+      data: servers[0],
     });
-
   } catch (error) {
     return next(wrap500(error, '获取服务器详情失败'));
   }

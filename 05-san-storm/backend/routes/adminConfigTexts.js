@@ -7,12 +7,14 @@ const express = require('express');
 const router = express.Router();
 const configTextService = require('../services/configTextService');
 const { wrap500 } = require('../utils/httpError');
+const { validateBody, validateParams, validateQuery } = require('../middleware/validation');
+const configTextSchemas = require('../middleware/validationSchemas/adminConfigTexts');
 
-router.get('/', async (req, res, next) => {
+router.get('/', validateQuery(configTextSchemas.listQuery), async (req, res, next) => {
   try {
     const { enabledOnly } = req.query;
     const list = await configTextService.listTemplates({
-      enabledOnly: enabledOnly === '1' || enabledOnly === 'true'
+      enabledOnly: enabledOnly === '1' || enabledOnly === 'true',
     });
     res.json({ success: true, data: list, total: list.length });
   } catch (err) {
@@ -20,10 +22,9 @@ router.get('/', async (req, res, next) => {
   }
 });
 
-router.post('/trial-send', async (req, res, next) => {
+router.post('/trial-send', validateBody(configTextSchemas.trialSendBody), async (req, res, next) => {
   try {
-    // 须透传 target_type、faction_id 等，否则「全部/势力」试发拿不到参数
-    const result = await configTextService.trialSend(req.body || {});
+    const result = await configTextService.trialSend(req.body);
     res.json({ success: true, data: result });
   } catch (err) {
     console.error('[admin/config-texts] trial-send:', err);
@@ -31,7 +32,7 @@ router.post('/trial-send', async (req, res, next) => {
   }
 });
 
-router.get('/:templateId', async (req, res, next) => {
+router.get('/:templateId', validateParams(configTextSchemas.templateIdParam), async (req, res, next) => {
   try {
     const row = await configTextService.getTemplate(req.params.templateId);
     if (!row) {
@@ -43,7 +44,7 @@ router.get('/:templateId', async (req, res, next) => {
   }
 });
 
-router.post('/', async (req, res, next) => {
+router.post('/', validateBody(configTextSchemas.createTemplateBody), async (req, res, next) => {
   try {
     const row = await configTextService.createTemplate(req.body);
     res.status(201).json({ success: true, data: row });
@@ -54,20 +55,25 @@ router.post('/', async (req, res, next) => {
   }
 });
 
-router.put('/:templateId', async (req, res, next) => {
-  try {
-    const row = await configTextService.updateTemplate(req.params.templateId, req.body);
-    if (!row) {
-      return res.status(404).json({ success: false, error: '模板不存在' });
+router.put(
+  '/:templateId',
+  validateParams(configTextSchemas.templateIdParam),
+  validateBody(configTextSchemas.updateTemplateBody),
+  async (req, res, next) => {
+    try {
+      const row = await configTextService.updateTemplate(req.params.templateId, req.body);
+      if (!row) {
+        return res.status(404).json({ success: false, error: '模板不存在' });
+      }
+      res.json({ success: true, data: row });
+    } catch (err) {
+      console.error('[admin/config-texts] update:', err);
+      res.status(400).json({ success: false, error: err.message || '更新失败' });
     }
-    res.json({ success: true, data: row });
-  } catch (err) {
-    console.error('[admin/config-texts] update:', err);
-    res.status(400).json({ success: false, error: err.message || '更新失败' });
-  }
-});
+  },
+);
 
-router.delete('/:templateId', async (req, res, next) => {
+router.delete('/:templateId', validateParams(configTextSchemas.templateIdParam), async (req, res, next) => {
   try {
     const ok = await configTextService.deleteTemplate(req.params.templateId);
     if (!ok) {

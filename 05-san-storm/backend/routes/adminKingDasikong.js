@@ -6,8 +6,10 @@ const express = require('express');
 const router = express.Router();
 const aiKingDasikongDailyService = require('../services/aiKingDasikongDailyService');
 const { wrap500 } = require('../utils/httpError');
+const { validateBody } = require('../middleware/validation');
+const adminKingSchemas = require('../middleware/validationSchemas/adminKingDasikong');
 
-router.post('/daily-tick', async (req, res, next) => {
+router.post('/daily-tick', validateBody(adminKingSchemas.dailyTickBody), async (req, res, next) => {
   try {
     const factionId = req.body?.factionId != null ? String(req.body.factionId).trim() : '';
     const result = await aiKingDasikongDailyService.runDailyTick(

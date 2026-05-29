@@ -61,6 +61,12 @@ const garrisonSlotParam = (val, name) => {
   return null;
 };
 
+/** 区服 ID */
+const serverId = v.pattern(/^san_\d+_server_\d+$/, 'san_1_server_1 …');
+
+/** 大地图象限 preset */
+const mapQuad = v.enum(['A', 'B', 'C', 'D', 'a', 'b', 'c', 'd']);
+
 /** 可选 null 或实例 ID（卸下套装槽） */
 const optionalNullableInstanceId = v.optional((val, name) => {
   if (val === undefined || val === null) return null;
@@ -85,5 +91,7 @@ module.exports = {
   chatChannelType,
   queryLimit,
   garrisonSlotParam,
+  serverId,
+  mapQuad,
   optionalNullableInstanceId,
 };
