@@ -48,11 +48,54 @@ const dbConfig = {
   timezone: process.env.DB_TIMEZONE || 'local',
   dateStrings: ['DATE'],
   waitForConnections: true,
-  connectionLimit: 10,
-  queueLimit: 0,
+  connectionLimit: parsePoolInt(process.env.DB_CONNECTION_LIMIT, 10, 1, 100),
+  queueLimit: parsePoolInt(process.env.DB_QUEUE_LIMIT, 0, 0, 1000),
   enableKeepAlive: true,
   keepAliveInitialDelay: 0
 };
+
+function parsePoolInt(raw, fallback, min, max) {
+  const n = Number.parseInt(String(raw ?? ''), 10);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(max, Math.max(min, n));
+}
+
+/**
+ * 连接池配置快照（日志 / 压测脚本用；不含密码）。
+ */
+function getPoolConfig() {
+  return {
+    host: dbConfig.host,
+    port: dbConfig.port,
+    database: dbConfig.database,
+    connectionLimit: dbConfig.connectionLimit,
+    queueLimit: dbConfig.queueLimit,
+    waitForConnections: dbConfig.waitForConnections,
+  };
+}
+
+/**
+ * mysql2 内部池瞬时指标（dev 压测 / 运维点检）。
+ */
+function getPoolStats() {
+  const inner = pool.pool;
+  if (!inner) {
+    return {
+      connectionLimit: dbConfig.connectionLimit,
+      queueLimit: dbConfig.queueLimit,
+      allConnections: null,
+      freeConnections: null,
+      queuedAcquires: null,
+    };
+  }
+  return {
+    connectionLimit: dbConfig.connectionLimit,
+    queueLimit: dbConfig.queueLimit,
+    allConnections: inner._allConnections?.length ?? 0,
+    freeConnections: inner._freeConnections?.length ?? 0,
+    queuedAcquires: inner._connectionQueue?.length ?? 0,
+  };
+}
 
 /**
  * 创建连接池
@@ -68,6 +111,7 @@ async function testConnection() {
     console.log('✅ MySQL数据库连接成功');
     console.log(`📍 数据库: ${dbConfig.database}`);
     console.log(`🔗 主机: ${dbConfig.host}:${dbConfig.port}`);
+    console.log(`🔌 连接池: limit=${dbConfig.connectionLimit}, queueLimit=${dbConfig.queueLimit}`);
     console.log(`🕐 时区: ${dbConfig.timezone}（mysql2 → DB DATETIME 解析方向；'local' 表示按进程本地时区，与 DB session 自然对齐） / DATE 列保留字符串原文`);
     connection.release();
     return true;
@@ -137,5 +181,7 @@ module.exports = {
   query,
   transaction,
   testConnection,
-  closePool
+  closePool,
+  getPoolConfig,
+  getPoolStats,
 };
