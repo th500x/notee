@@ -154,10 +154,21 @@ function troopPortraitAttemptsSan1BattleSubdir(troop, baseUrl, subdir) {
 
 /**
  * 小型战斗地图等：`troop.faction === 'player'` → `san_1_battle/player/`，否则 → `enemy/`。
+ * 我方：在战斗目录专属图缺失时，**先接卡面目录** `san_1_ui_card/troop/` 再回退战斗稀有度通用图，避免与编组卡面立绘不一致。
  */
 export function getBattleFieldTroopPortraitUrlAttempts(troop, baseUrl = '') {
   const subdir = troop && troop.faction === 'player' ? 'player' : 'enemy';
-  return troopPortraitAttemptsSan1BattleSubdir(troop, baseUrl, subdir);
+  const battleAttempts = troopPortraitAttemptsSan1BattleSubdir(troop, baseUrl, subdir);
+  if (subdir !== 'player') return battleAttempts;
+  const cardAttempts = getTroopPortraitUrlAttempts(troop, baseUrl);
+  const seen = new Set();
+  const merged = [];
+  for (const url of [...cardAttempts, ...battleAttempts]) {
+    if (!url || seen.has(url)) continue;
+    seen.add(url);
+    merged.push(url);
+  }
+  return merged.length > 0 ? merged : battleAttempts;
 }
 
 /**

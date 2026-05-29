@@ -13,7 +13,10 @@ import { initBattlePhase5CompositeRuntime } from '@shared/utils/skillPhase5Compo
 import { normalizePositionCombatBonuses } from '@/utils/positionCombatBonuses';
 import { attachTroopAffinityToCharacter } from '@/utils/troopAffinityCombat';
 import { enrichBattleUnitWithSkillPhases } from '@shared/utils/battleSkillAssembly';
-import { flattenPlayerUnitToBattleTroop } from '@shared/utils/resolveTroopBattleCaps';
+import {
+  buildTroopCatalogById,
+  flattenPlayerUnitToBattleTroop,
+} from '@shared/utils/resolveTroopBattleCaps';
 
 const PLAYER_POSITIONS = [
   { y: 9, x: 1 }, { y: 9, x: 4 }, { y: 9, x: 7 },
@@ -37,10 +40,11 @@ const ALLY_POSITIONS = [{ y: 8, x: 0 }];
  * @returns {Array} battleTroops
  */
 export function buildSiegeUnits({ playerUnits, enemyUnits, allyUnits = [], skillsMap = null, baseUrl, catalogById = null }) {
+  const catalog = catalogById || buildTroopCatalogById();
   const playerTroops = playerUnits.slice(0, 5).map((unit, i) =>
     flattenPlayerUnitToBattleTroop(unit, i, {
       pos: PLAYER_POSITIONS[i],
-      catalogById,
+      catalogById: catalog,
       baseUrl,
       getPortraitAttempts: (trMeta, bUrl) =>
         getBattleFieldTroopPortraitUrlAttempts(trMeta, bUrl),

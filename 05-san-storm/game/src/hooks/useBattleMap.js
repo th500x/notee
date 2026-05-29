@@ -21,17 +21,12 @@ import { initBattlePhase3HealRuntime } from '@shared/utils/skillPhase3ActiveHeal
 import { initBattlePhase4DamageRuntime } from '@shared/utils/skillPhase4ActiveDamage';
 import { initBattlePhase5CompositeRuntime } from '@shared/utils/skillPhase5CompositeDamage';
 import { getMapTerrainDimensions } from '@shared/utils/tacticalBattleGrid';
-import { flattenPlayerUnitToBattleTroop } from '@shared/utils/resolveTroopBattleCaps';
+import {
+  buildTroopCatalogById,
+  flattenPlayerUnitToBattleTroop,
+} from '@shared/utils/resolveTroopBattleCaps';
 import { fetchWithTimeout } from '@/services/httpClient';
 const base = () => import.meta.env.BASE_URL;
-
-function buildTroopCatalogById(allTroops) {
-  const map = Object.create(null);
-  for (const t of allTroops || []) {
-    if (t?.id) map[t.id] = t;
-  }
-  return map;
-}
 
 /** 战斗地图部队图标：`san_1_battle/player|enemy/`（与 TroopLayer 一致） */
 function getTroopImg(troop) {

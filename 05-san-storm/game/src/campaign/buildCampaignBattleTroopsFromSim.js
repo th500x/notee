@@ -11,7 +11,10 @@ import { getBattleFieldTroopPortraitUrlAttempts, getCampaignMapTroopPortraitUrlA
 import { initialMoraleFromCharacter } from '@/utils/npcMorale';
 import { listPassableDeployCellsInRect } from '@/utils/campaignDeployRect';
 import { enrichBattleUnitWithSkillPhases } from '@shared/utils/battleSkillAssembly';
-import { flattenPlayerUnitToBattleTroop } from '@shared/utils/resolveTroopBattleCaps';
+import {
+  buildTroopCatalogById,
+  flattenPlayerUnitToBattleTroop,
+} from '@shared/utils/resolveTroopBattleCaps';
 import { initBattlePhase2Runtime } from '@shared/utils/skillPhase2Passive';
 import { initBattlePhase3HealRuntime } from '@shared/utils/skillPhase3ActiveHeal';
 import { initBattlePhase4DamageRuntime } from '@shared/utils/skillPhase4ActiveDamage';
@@ -35,10 +38,7 @@ export function buildCampaignBattleTroopsFromSim({
   allCharacters,
   skillsMap = null,
 }) {
-  const catalogById = Object.create(null);
-  for (const row of allTroops || []) {
-    if (row?.id) catalogById[row.id] = row;
-  }
+  const catalogById = buildTroopCatalogById(allTroops);
   const passable =
     deployRect && campaignMapSim?.cells
       ? listPassableDeployCellsInRect(campaignMapSim.cells, deployRect)

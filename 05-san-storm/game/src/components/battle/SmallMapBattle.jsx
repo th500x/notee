@@ -16,6 +16,7 @@ import { useManualBattle } from '@/hooks/useManualBattle';
 import { useAwayTimeout } from '@/hooks/useAwayTimeout';
 import { useBattleSettlement } from '@/hooks/useBattleSettlement';
 import { buildSiegeUnits } from '@/battle/buildSiegeUnits';
+import { buildTroopCatalogById } from '@shared/utils/resolveTroopBattleCaps';
 import { renderTroopsToBattleMapDom } from '@/battle/renderTroopsToBattleMapDom';
 import { createTacticalMapCardSurface } from '@/battle/tacticalMapCardSurface';
 import BattleMap from '@/components/battle/BattleMap';
@@ -195,10 +196,7 @@ export default function SmallMapBattle({
     bm.generate('standard');
 
     if (enemyUnits) {
-      const catalogById = Object.create(null);
-      for (const row of bm.allTroops || []) {
-        if (row?.id) catalogById[row.id] = row;
-      }
+      const catalogById = buildTroopCatalogById(bm.allTroops);
       bm.setBattleTroops(buildSiegeUnits({
         playerUnits,
         enemyUnits,
