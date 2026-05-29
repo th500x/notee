@@ -59,11 +59,8 @@ router.post(
     const player = await PlayerService.createCharacter({
       playerId, characterName, factionId, factionName, attributes,
       skills: skills || null, serverId, initialSilver: initialSilver || 0, avatar: avatar || null,
+      initialTroops: initialTroops || [],
     });
-
-    if (initialTroops && initialTroops.length > 0) {
-      await PlayerService.addInitialTroops(playerId, initialTroops);
-    }
 
     res.json({ success: true, message: '角色创建成功', data: player });
   }),

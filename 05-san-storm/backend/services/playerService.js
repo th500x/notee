@@ -5,7 +5,7 @@
  */
 
 const Player = require('../models/Player');
-const { pool } = require('../database/connection');
+const { pool, transaction } = require('../database/connection');
 
 class PlayerService {
   /**
@@ -578,7 +578,8 @@ class PlayerService {
       skills, // 技能 {skill_1, skill_2}
       serverId,
       initialSilver = 0, // 剩余银两（从角色创建带入游戏）
-      avatar = null // 头像路径
+      avatar = null, // 头像路径
+      initialTroops = [],
     } = data;
 
     // 验证角色名
@@ -687,8 +688,27 @@ class PlayerService {
       road_position_y: roadPy,
     };
 
-    const player = await Player.create(playerData);
-    return player;
+    return transaction(async (conn) => {
+      const [existingRows] = await conn.query(
+        'SELECT player_id FROM players WHERE player_id = ? FOR UPDATE',
+        [playerId],
+      );
+      if (existingRows.length > 0) {
+        throw new Error('该账号已创建角色');
+      }
+
+      await Player.create(playerData, conn);
+
+      if (initialTroops.length > 0) {
+        await this.addInitialTroops(playerId, initialTroops, conn);
+      }
+
+      const player = await Player._getByIdConn(conn, playerId);
+      if (!player) {
+        throw new Error('角色创建后读取失败');
+      }
+      return player;
+    });
   }
 
   /**
@@ -696,8 +716,10 @@ class PlayerService {
    * @param {string} playerId - 玩家ID
    * @param {Array<string>} troopIds - 部队卡ID数组
    */
-  static async addInitialTroops(playerId, troopIds) {
-    const { pool } = require('../database/connection');
+  static async addInitialTroops(playerId, troopIds, conn = null) {
+    const exec = conn
+      ? (sql, params) => conn.query(sql, params)
+      : (sql, params) => pool.query(sql, params);
 
     for (const troopId of troopIds) {
       // 查询部队配置
@@ -717,7 +739,7 @@ class PlayerService {
       const instanceId = `${playerId}_troop_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
       // 插入卡牌实例
-      await pool.query(`
+      await exec(`
         INSERT INTO player_cards (
           instance_id, player_id, card_type, card_id, rarity,
           current_troops, battle_count, max_battle_count

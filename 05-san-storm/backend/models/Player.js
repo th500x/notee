@@ -4,7 +4,7 @@
  * @description 处理玩家角色相关的数据库操作
  */
 
-const { pool } = require('../database/connection');
+const { pool, transaction } = require('../database/connection');
 
 class Player {
   /**
@@ -34,11 +34,40 @@ class Player {
   }
 
   /**
-   * 创建玩家角色
-   * @param {Object} playerData - 玩家数据
+   * 创建玩家角色及关联进度表（players + progress/events/statistics）。
+   * @param {Object} playerData
+   * @param {import('mysql2/promise').PoolConnection} [conn] 事务连接；省略时自建事务
    * @returns {Promise<Object>}
    */
-  static async create(playerData) {
+  static async create(playerData, conn = null) {
+    if (conn) {
+      await this._insertPlayerBundle(conn, playerData);
+      return this._getByIdConn(conn, playerData.player_id);
+    }
+    return transaction(async (connection) => {
+      await this._insertPlayerBundle(connection, playerData);
+      return this._getByIdConn(connection, playerData.player_id);
+    });
+  }
+
+  /**
+   * @param {import('mysql2/promise').PoolConnection} conn
+   * @param {string} playerId
+   * @returns {Promise<Object|null>}
+   */
+  static async _getByIdConn(conn, playerId) {
+    const [rows] = await conn.query(
+      'SELECT * FROM players WHERE player_id = ?',
+      [playerId],
+    );
+    return rows.length > 0 ? rows[0] : null;
+  }
+
+  /**
+   * @param {import('mysql2/promise').PoolConnection} conn
+   * @param {Object} playerData
+   */
+  static async _insertPlayerBundle(conn, playerData) {
       const {
         player_id,
         character_name,
@@ -73,7 +102,7 @@ class Player {
       } = playerData;
 
       // 插入玩家数据
-      await pool.query(`
+      await conn.query(`
         INSERT INTO players (
           player_id, character_name, faction_id, faction_name, avatar,
           combat, intelligence, command, politics, charm, courage, luck,
@@ -106,25 +135,23 @@ class Player {
       ]);
 
       // 创建玩家进度表（教程进度见 explore_events / 教程链）
-      await pool.query(`
+      await conn.query(`
         INSERT INTO player_progress (player_id)
         VALUES (?)
       `, [player_id]);
 
       // 创建玩家事件进度表
-      await pool.query(`
+      await conn.query(`
         INSERT INTO player_events (player_id)
         VALUES (?)
       `, [player_id]);
 
       // 创建玩家统计表
-      await pool.query(`
+      await conn.query(`
         INSERT INTO player_statistics (player_id)
         VALUES (?)
       `, [player_id]);
-
-      return await this.getById(player_id);
-    }
+  }
 
 
   /**

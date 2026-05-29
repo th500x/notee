@@ -186,8 +186,7 @@ async function register(body) {
     serverConfig.length > 0 ? serverConfig[0].current_season : 'san_0_m1/san_1';
 
   /**
-   * 事务包裹「写 accounts 行」，避免与未来扩展（如同步初始化 players 行）之间出现孤立账号。
-   * 当前仅一条 INSERT 也走事务，是为后续接入"注册即 player 初始化"留接口。
+   * 事务包裹 accounts INSERT（注册与创角分两步；players 初始化见 PlayerService.createCharacter）。
    */
   const connection = await pool.getConnection();
   await connection.beginTransaction();
