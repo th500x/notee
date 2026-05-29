@@ -37,86 +37,17 @@ import {
   resolveExploreAnchorCityIdFromStrategicGrid,
 } from '@/utils/resolveExploreAnchorCityId.js';
 import { clearInflightBattleTroopSnapshot } from '@/utils/inflightBattleTroopSnapshot';
-
-function pendingMapEventHintStorageKey(playerId) {
-  const id = playerId != null ? String(playerId).trim() : '';
-  return id ? `pending_map_event_hint_${id}` : null;
-}
-
-/** 与 `pending_event_${playerId}` 并列：存 phase / chosenOption / fortune，供 F5 后恢复荒郊等探索子流程（仅大地图权威实例读写）。 */
-function exploreResumeStorageKey(pendingKey) {
-  return pendingKey ? `${pendingKey}_resume` : null;
-}
-
-function clearExploreResumeLocal(pendingKey) {
-  const rk = exploreResumeStorageKey(pendingKey);
-  if (!rk) return;
-  try {
-    localStorage.removeItem(rk);
-  } catch {
-    /* ignore */
-  }
-}
-
-/** 与大地图探索、荒郊/集市内嵌条、匪寨格共用的配置池；勿只拉 explore（荒郊/集市在库中为 wilderness / market） */
-const EXPLORE_RELATED_TRIGGER_CONTEXTS = ['explore', 'wilderness', 'market', 'mystery', 'tutorial'];
-
-/**
- * 将 PlayerContext 的 player 数据（×10存储）转为显示值（个位数）
- * 与 ExploreDemo 的 MOCK_PLAYER 格式一致
- */
-function toDisplayAttrs(player) {
-  if (!player) return null;
-  return {
-    name: player.character_name,
-    luck:         player.luck / 10,
-    courage:      player.courage / 10,
-    command:      player.command / 10,
-    combat:       player.combat / 10,
-    intelligence: player.intelligence / 10,
-    politics:     player.politics / 10,
-    charm:        player.charm / 10,
-  };
-}
-
-/**
- * 从 cards 中提取已装备的将领配置属性（显示值）
- * 将领卡的 config 中属性已经是 camelCase 且已÷10（由后端 formatCharacterData 处理）
- * 如果将领卡尚未实装配置关联，使用默认值
- */
-function getEquippedGenerals(cards) {
-  if (!cards || cards.length === 0) return [];
-  // 筛选已装备的将领卡
-  const equipped = cards.filter(c => c.card_type === 'character' && c.is_equipped);
-  return equipped.map(c => {
-    const cfg = c.config;
-    if (cfg) {
-      return {
-        name: cfg.name || '将领',
-        luck:         cfg.luck ?? 5.0,
-        courage:      cfg.courage ?? 5.0,
-        command:      cfg.command ?? 5.0,
-        combat:       cfg.combat ?? 5.0,
-        intelligence: cfg.intelligence ?? 5.0,
-        politics:     cfg.politics ?? 5.0,
-        charm:        cfg.charm ?? 5.0,
-      };
-    }
-    // 无配置时使用默认值
-    return {
-      name: '未知将领',
-      luck: 5.0, courage: 5.0, command: 5.0, combat: 5.0,
-      intelligence: 5.0, politics: 5.0, charm: 5.0,
-    };
-  });
-}
-
-// 默认将领（当玩家未装备将领时使用）
-const DEFAULT_GENERAL = {
-  name: '无将领',
-  luck: 5.0, courage: 5.0, command: 5.0, combat: 5.0,
-  intelligence: 5.0, politics: 5.0, charm: 5.0,
-};
+import {
+  pendingMapEventHintStorageKey,
+  exploreResumeStorageKey,
+  clearExploreResumeLocal,
+} from '@/utils/eventExplorePersistence';
+import {
+  toDisplayAttrs,
+  getEquippedGenerals,
+  DEFAULT_GENERAL,
+} from '@/utils/eventPlayerDisplayAdapters';
+import useExploreEventCatalog from '@/hooks/useExploreEventCatalog';
 
 /**
  * @param {{ tutorialAutoplay?: boolean, suppressMapEventHint?: boolean, persistMapEventHint?: boolean, exploreAnchorGridRef?: { current: null | { cells: unknown[][], mapColumns: number, mapRows: number, countyCityRows?: object[] } }, exploreAnchorGridSeq?: number }} [options] — 仅大地图挂载时应为 true，用于教程链 IDLE 自动开事件；探索 Tab 等第二实例勿开，避免双轨。
@@ -129,25 +60,20 @@ export default function useEventSystem(player, cards, options = {}) {
   const exploreAnchorGridSeq = options.exploreAnchorGridSeq ?? 0;
   const { exploreQuota: quota } = usePlayerContext();
 
-  // 事件数据（全量）
-  const [allExploreEvents, setAllExploreEvents] = useState([]);
-  const [eventsLoading, setEventsLoading] = useState(true);
-
-  // 玩家事件进度 { eventId: { status, ... } }
-  const [completedEvents, setCompletedEvents] = useState({});
-  /**
-   * 首次 GET /events/explore 落位前为 false：此时 `completedEvents` 仍是初始 `{}`，若 `allExploreEvents` 已加载，
-   * `getEffectiveExploreChainMaxCompleted` 会把教程链算成未推进，池里误含 1001，`tutorialAutoplay` 会抢先开局（刷新后重复链首）。
-   */
-  const [exploreProgressReady, setExploreProgressReady] = useState(false);
-  /** 服务端 `explore_session_lock`：链式探索/教程独占会话（跨设备）；见 PATCH …/events/explore/session-lock */
-  const [exploreSessionLock, setExploreSessionLock] = useState(null);
-
-  /** 背包道具数量 { item_id: qty }，用于事件链 required_items 过滤（链1 选 B 无道具则不得抽链2） */
-  const [playerItemCounts, setPlayerItemCounts] = useState({});
-
-  // 道具名称映射 { item_id → item_name }
-  const [itemNameMap, setItemNameMap] = useState({});
+  const {
+    allExploreEvents,
+    eventsLoading,
+    completedEvents,
+    setCompletedEvents,
+    exploreProgressReady,
+    exploreSessionLock,
+    setExploreSessionLock,
+    refetchExploreProgress,
+    playerItemCounts,
+    setPlayerItemCounts,
+    citiesList,
+    itemNameMap,
+  } = useExploreEventCatalog(player?.player_id);
 
   // 流程状态
   const [phase, setPhase] = useState(PHASE.IDLE);
@@ -340,112 +266,6 @@ export default function useEventSystem(player, cards, options = {}) {
     !hasEquippedLineup;
   const showLineupGuide = needsLineupFirst && phase === PHASE.IDLE;
 
-  // 从 API 合并加载探索相关事件（荒郊/集市/匪寨与 explore 分 trigger_context，单拉 explore 会导致池恒为空）
-  useEffect(() => {
-    let cancelled = false;
-    const base = API_CONFIG.BASE_URL;
-    Promise.all(
-      EXPLORE_RELATED_TRIGGER_CONTEXTS.map((ctx) =>
-        fetchWithTimeout(`${base}/config/events?triggerContext=${encodeURIComponent(ctx)}`)
-          .then((r) => r.json())
-          .catch(() => ({ success: false, events: [] }))
-      )
-    )
-      .then((results) => {
-        if (cancelled) return;
-        const byId = new Map();
-        for (const data of results) {
-          if (!data?.success || !Array.isArray(data.events)) continue;
-          for (const e of data.events) {
-            if (e?.event_id) byId.set(e.event_id, e);
-          }
-        }
-        setAllExploreEvents(Array.from(byId.values()));
-        const anySuccess = results.some((d) => d?.success);
-        if (!anySuccess) {
-          const msg = results.find((d) => d?.message)?.message;
-          console.error('[useEventSystem] 加载事件失败:', msg || '全部请求失败');
-        }
-      })
-      .catch((err) => {
-        if (!cancelled) console.error('[useEventSystem] 请求事件API失败:', err);
-      })
-      .finally(() => {
-        if (!cancelled) setEventsLoading(false);
-      });
-    return () => { cancelled = true; };
-  }, []);
-
-  const refetchExploreProgress = useCallback(async () => {
-    if (!player?.player_id) return null;
-    try {
-      const res = await fetchWithTimeout(`${API_CONFIG.BASE_URL}/players/${player.player_id}/events/explore`);
-      const data = await res.json();
-      if (data.success) {
-        const ev = data.data.events || {};
-        // 合并而非整表覆盖：某次拉取若缺键/不完整，勿把教程链进度「抹成 0」，
-        // 否则 `filterExploreEventsPool` 会误判教程未通、锁死教程链，荒郊等格出现「有次数但 0 事件」且易误触 `fillMax`。
-        setCompletedEvents((prev) => ({ ...prev, ...ev }));
-        setExploreSessionLock(data.data.sessionLock ?? null);
-        return ev;
-      }
-    } catch (err) {
-      console.error('[useEventSystem] 加载事件进度失败:', err);
-    }
-    return null;
-  }, [player?.player_id]);
-
-  // 加载玩家事件进度；切换角色时先置「未就绪」避免用空进度抽池
-  useEffect(() => {
-    if (!player?.player_id) {
-      setExploreProgressReady(false);
-      return undefined;
-    }
-    setExploreProgressReady(false);
-    let cancelled = false;
-    (async () => {
-      try {
-        await refetchExploreProgress();
-      } finally {
-        if (!cancelled) setExploreProgressReady(true);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [player?.player_id, refetchExploreProgress]);
-
-  // 同步背包道具（探索池过滤链式事件用）
-  useEffect(() => {
-    if (!player?.player_id) {
-      setPlayerItemCounts({});
-      return;
-    }
-    fetchWithTimeout(`${API_CONFIG.BASE_URL}/players/${player.player_id}/items`)
-      .then(r => r.json())
-      .then(d => {
-        if (d.success && d.data?.items) {
-          const m = {};
-          for (const it of d.data.items) {
-            if (it.itemId && it.quantity > 0) m[it.itemId] = it.quantity;
-          }
-          setPlayerItemCounts(m);
-        }
-      })
-      .catch(() => {});
-  }, [player?.player_id]);
-
-  /** 城市列表：解析 location 占位符（含 {city_medium_wilderness} 等）、探索池与 exploreLocationMatchesEvent 对齐 */
-  const [citiesList, setCitiesList] = useState([]);
-  useEffect(() => {
-    fetchWithTimeout(`${API_CONFIG.BASE_URL}/cities?season=san_1`)
-      .then((r) => r.json())
-      .then((d) => {
-        if (d.success && d.cities) setCitiesList(d.cities);
-      })
-      .catch(() => {});
-  }, []);
-
   /**
    * 当前探索锚点 `city_id`（「到了哪座城」）：
    * - 事件进行中由本局已选 `startExplore(override)` 保持，不随地图移动被冲掉；
@@ -598,20 +418,6 @@ export default function useEventSystem(player, cards, options = {}) {
       player?.reputation ?? 0
     );
   }, [exploreProgressReady, allExploreEvents, completedEvents, playerItemCounts, citiesList, player?.reputation]);
-
-  // 加载道具名称映射
-  useEffect(() => {
-    fetchWithTimeout(`${API_CONFIG.BASE_URL}/config/items`)
-      .then(res => res.json())
-      .then(data => {
-        if (data.success && data.items) {
-          const map = {};
-          data.items.forEach(i => { map[i.item_id] = i.item_name; });
-          setItemNameMap(map);
-        }
-      })
-      .catch(err => console.error('[useEventSystem] 加载道具配置失败:', err));
-  }, []);
 
   const resolvedEventLocation = useMemo(() => {
     if (!currentEvent?.location) {
