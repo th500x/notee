@@ -97,6 +97,8 @@ export function useBattleEngine({
   setBattleEndReason = null,
   /** 战役：战报省略友军 ally 流水，减小 battle_log（仅 LargeMapBattle 开启） */
   trimAllyBattleLog = false,
+  /** 攻城：守方城防倍率（cityDefense/100）；仅 def._siegeCityDefender 主动一击 */
+  siegeCityDefenseMult = 1,
 }) {
   const speedRef = useRef(1);
   const roundNumRef = useRef(roundNum);
@@ -134,6 +136,7 @@ export function useBattleEngine({
     performPhase5Composite,
   } = useBattleAnimations({
     battleSurfaceRef, mapCardRef, mapResult, addLog, speedRef, battleTroops, trimAllyBattleLog,
+    siegeCityDefenseMult,
   });
 
   /** 战役主将（boss/hero）即时胜负：写入 battleEndReason，供 useBattleSettlement 在「敌军未全灭」等情况下仍能结算 */

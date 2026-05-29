@@ -17,6 +17,7 @@ const {
   troopDamageToCasualties,
 } = require('../lib/siegeCombatCore.cjs');
 const { normalizePositionCombatBonuses } = require('../../shared/utils/positionCombatBonuses.cjs');
+const { resolveSiegeCityDefenseMultFromOpts } = require('../../shared/utils/siegeCityDefenseMult.cjs');
 
 /**
  * 推演占位坐标：双方排在同一行、**相邻两格**（曼哈顿距=1），任意攻方↔守方随机对位时都在近战/弓程内，
@@ -107,7 +108,8 @@ function siegeNpcToTroop(npc, faction, posIndex, side, rng) {
 /**
  * @returns {{ attackerWon: boolean, killedIndices: number[], battleLog: string[], rounds: number, battleSeed: number, attackerTroopsEnd: object[], defenderTroopsEnd: object[] }}
  */
-function runSiegePvpSkirmish(attackerSiegeNpcs, defenderSiegeNpcs, seedInput) {
+function runSiegePvpSkirmish(attackerSiegeNpcs, defenderSiegeNpcs, seedInput, opts = {}) {
+  const siegeCityDefenseMult = resolveSiegeCityDefenseMultFromOpts(opts);
   const battleSeed =
     typeof seedInput === 'number' && !Number.isNaN(seedInput)
       ? seedInput >>> 0
@@ -172,7 +174,10 @@ function runSiegePvpSkirmish(attackerSiegeNpcs, defenderSiegeNpcs, seedInput) {
         logs.push(`第 ${attackInRound} 次攻击：[${atkLab}]${an} 攻击被闪避。`);
         continue;
       }
-      let dmg = calcDamageSeeded(atk, def, null, rng, { strike: 'normal' });
+      let dmg = calcDamageSeeded(atk, def, null, rng, {
+        strike: 'normal',
+        ...(def.faction === 'enemy' ? { siegeCityDefenseMult } : {}),
+      });
       if (roll === 'crit') dmg = Math.max(1, Math.round(dmg * 1.5));
       const cas = troopDamageToCasualties(def, dmg);
       def.currentTroops = Math.max(0, def.currentTroops - cas);

@@ -18,6 +18,7 @@ import {
   getTraitDefenderDefenseStrengthMult,
 } from '@shared/utils/characterTraitBonuses';
 import { getTroopAffinityOutgoingDamageMult } from '@/utils/troopAffinityCombat';
+import { resolveSiegeCityDefenseMultFromOpts } from '@shared/utils/siegeCityDefenseMult';
 
 // ── 精锐小队战损比例（troopWeight > 1）────────────────────────────────────────
 // 仅影响「当前兵力/最大兵力」在攻防上的线性缩放；满编时与 troopWeight=1 一致，残血时衰减慢于线性。
@@ -198,7 +199,9 @@ function applyPhase1And2IncomingReduction(defTroop, dc, totalDmg, options = {}) 
  *   battleTroops?: object[],
  *   damageKind?: 'physical' | 'strategy',
  *   skillDamageMultiplier?: number,
- * }} [options] - `counter`：本次为反击；`battleTroops`：有则结算坚韧等「场上编制数」条件减免；`damageKind`+`skillDamageMultiplier`：阶段4 主动纯伤等
+ *   siegeCityDefenseMult?: number,
+ *   cityDefense?: number,
+ * }} [options] - `counter`：本次为反击；`battleTroops`：有则结算坚韧等「场上编制数」条件减免；`damageKind`+`skillDamageMultiplier`：阶段4 主动纯伤等；攻城守方防御：`siegeCityDefenseMult` 或 `cityDefense`（仅 def 为守城方时由调用方传入）
  * @returns {number} 伤害值（最小1）
  */
 export function calcDamage(atk, def, terrain, options = {}) {
@@ -242,7 +245,8 @@ export function calcDamage(atk, def, terrain, options = {}) {
   const singleDefBase = troopDef + dCommand * 5 + dCombat * 3;
   const singleDef = singleDefBase * getTraitDefenderDefenseStrengthMult(dc);
   const defRatio = troopStrengthRatioFromCasualties(def);
-  const totalDef = singleDef * defRatio;
+  const siegeDefMult = resolveSiegeCityDefenseMultFromOpts(options);
+  const totalDef = singleDef * defRatio * siegeDefMult;
   const defReduction = totalDef / (totalDef + 140);
   const defMorale = getMoraleEffects(def);
   let defMultiplier = defReduction * defMorale.defense;

@@ -4,6 +4,7 @@
  */
 
 const { getTroopAffinityOutgoingDamageMult } = require('../../shared/utils/troopAffinityCombat.cjs');
+const { resolveSiegeCityDefenseMultFromOpts } = require('../../shared/utils/siegeCityDefenseMult.cjs');
 
 const ELITE_TROOP_STRENGTH_EXPONENT = 0.8;
 /** 与 `game/src/systems/combatSystem.js` 的 `ARCHER_MELEE_DAMAGE_MULT` 一致 */
@@ -102,7 +103,7 @@ function getTerrainDefBonus(y, x, terrain) {
 
 /**
  * @param {() => number} rng 0..1
- * @param {{ strike?: 'normal' | 'counter' }} [options] 与前端 `combatSystem.calcDamage` 一致；主动一击 `normal`、反击 `counter`
+ * @param {{ strike?: 'normal' | 'counter', siegeCityDefenseMult?: number, cityDefense?: number }} [options] 与前端 `combatSystem.calcDamage` 一致；主动一击 `normal`、反击 `counter`；攻城守方防御仅 normal 且 def 为守城方时由调用方传 `siegeCityDefenseMult`
  */
 function calcDamageSeeded(atk, def, terrain, rng, options = {}) {
   const ac = atk.character;
@@ -141,7 +142,8 @@ function calcDamageSeeded(atk, def, terrain, rng, options = {}) {
   const singleDefBase = troopDef + dCommand * 5 + dCombat * 3;
   const singleDef = singleDefBase * getTraitDefenderDefenseStrengthMultFromDc(dc);
   const defRatio = troopStrengthRatioFromCasualties(def);
-  const totalDef = singleDef * defRatio;
+  const siegeDefMult = resolveSiegeCityDefenseMultFromOpts(options);
+  const totalDef = singleDef * defRatio * siegeDefMult;
   const defReduction = totalDef / (totalDef + 140);
   const defMorale = getMoraleEffects(def);
   let defMultiplier = defReduction * defMorale.defense;

@@ -93,6 +93,7 @@ export function resolveSurfaceRoot(battleSurfaceRef, mapCardRef) {
  * @param {function}               params.addLog           - 战斗日志追加函数
  * @param {React.MutableRefObject} params.speedRef         - 动画速度倍率（ref，不触发重渲染）
  * @param {Array}                  params.battleTroops     - 当前战场所有部队（可变数组）
+ * @param {number}                 [params.siegeCityDefenseMult=1] - 攻城守方城防倍率（仅 def._siegeCityDefender 且主动一击）
  * @param {boolean}                [params.trimAllyBattleLog] - 战役：省略友军相关战报行（入库体积）
  */
 export function useBattleAnimations({
@@ -102,6 +103,7 @@ export function useBattleAnimations({
   addLog,
   speedRef,
   battleTroops,
+  siegeCityDefenseMult = 1,
   trimAllyBattleLog = false,
 }) {
   // ── DOM helpers ───────────────────────────────────────────────────────────
@@ -986,6 +988,16 @@ export function useBattleAnimations({
 
   // ── 执行攻击 / 反击 ──────────────────────────────────────────────────────
 
+  const siegeStrikeOptsForDef = useCallback(
+    (def, baseOpts) => {
+      if (def._siegeCityDefender && siegeCityDefenseMult > 0) {
+        return { ...baseOpts, siegeCityDefenseMult };
+      }
+      return baseOpts;
+    },
+    [siegeCityDefenseMult],
+  );
+
   const performAttack = useCallback(
     async (atk, def) => {
       const d0 = dist(atk, def);
@@ -994,7 +1006,7 @@ export function useBattleAnimations({
         if (!trimSkipForTroop(trimAllyBattleLog, atk)) addLog(fmt.fmtOutOfRange(atk, d0, atkRange), 'move');
         return 0;
       }
-      const strikeOpts = { strike: 'normal', battleTroops };
+      const strikeOpts = siegeStrikeOptsForDef(def, { strike: 'normal', battleTroops });
       const roll = rollCritDodge(atk, def);
       const dmg = calcDamage(atk, def, mapResult ? mapResult.terrain : null, strikeOpts);
       if (roll === 'dodge') { await battleMiss(atk, def); return 0; }
@@ -1019,7 +1031,7 @@ export function useBattleAnimations({
       else { await battleAttack(atk, def, r.casualties); }
       return r.casualties;
     },
-    [addLog, mapResult, battleMiss, battleCrit, battleRanged, battleAttack, trimAllyBattleLog, battleTroops, battleFirstHitImmune],
+    [addLog, mapResult, battleMiss, battleCrit, battleRanged, battleAttack, trimAllyBattleLog, battleTroops, battleFirstHitImmune, siegeStrikeOptsForDef],
   );
 
   const performCounterAttack = useCallback(

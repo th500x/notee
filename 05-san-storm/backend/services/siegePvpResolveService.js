@@ -12,6 +12,7 @@ const garrisonService = require('./garrisonService');
 const pvpService = require('./pvpService');
 const pvpWarService = require('./pvpWarService');
 const battleService = require('./battleService');
+const cityService = require('./cityService');
 const { runSiegePvpSkirmish, hashSeed } = require('./siegePvpSkirmish');
 const { pool } = require('../database/connection');
 const { buildDefenderSiegePvpBattleLog } = require('../utils/siegeDefenseBattleLog');
@@ -98,7 +99,10 @@ async function doResolveAuthoritativeSiegePvp(params) {
   const initialDefenderTroops = sumSiegeNpcStartingTroops(defenderNpcs);
 
   const seed = hashSeed([c.pvpWarId || c.warId, challengeId, attackerId, c.defenderId]);
-  const sim = runSiegePvpSkirmish(attackerNpcs, defenderNpcs, seed);
+  const city = c.cityId ? await cityService.getCityInfo(c.cityId) : null;
+  const sim = runSiegePvpSkirmish(attackerNpcs, defenderNpcs, seed, {
+    cityDefense: city?.defense ?? 100,
+  });
   const result = sim.attackerWon ? 'win' : 'lose';
   const killedIndices = sim.killedIndices;
   const battleLogText = sim.battleLog.join('\n');

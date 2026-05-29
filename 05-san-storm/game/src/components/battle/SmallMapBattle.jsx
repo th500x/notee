@@ -32,6 +32,7 @@ import { getMoveCost } from '@/systems/battleFlowManager';
 import { validateMainLineupBattleGate } from '@/utils/mainLineupTroops';
 import { writeInflightBattleTroopSnapshot } from '@/utils/inflightBattleTroopSnapshot';
 import { useSkillsMap } from '@/hooks/useSkillsMap';
+import { resolveSiegeCityDefenseMultFromOpts } from '@shared/utils/siegeCityDefenseMult';
 
 const STAGE = { LOADING: 'loading', READY: 'ready' };
 
@@ -51,6 +52,10 @@ const STAGE = { LOADING: 'loading', READY: 'ready' };
  * @param {object}  [defenseReportMeta]              驻守战：为守城方写镜像战报
  * @param {boolean} [recordOnly]                     仅记录战报，不通过 /battles 改兵力
  * @param {string}  [siegeDefenderType]              攻城积分倍率类型
+ * @param {number}  [cityDefense]                    攻城目标城 `cities.defense`（API cityDefense）
+ * @param {number}  [siegeCityDefenseMult]           预计算城防倍率（与 cityDefense 二选一）
+ * @param {string}  [pvpSiegeRole]                     `attacker`|`defender`（道路观战守方为 defender）
+ * @param {boolean} [pvpDefenderBaseCampSiege]         攻方大本营战，不传城防倍率
  * @param {Array}   [eventExtraEnemyCharacterIds]    事件惩罚战额外将领（指定将领 ID 时 5 编制；与 eventPunishmentExtraSlot 二选一，新配置已不用）
  * @param {boolean} [eventPunishmentExtraSlot]        事件因子 type-b：在默认编制上多 1 支敌方部队（池同事件稀有度）
  * @param {Array}   [cards]                          PlayerContext.cards，用于出征门槛校验
@@ -71,6 +76,10 @@ export default function SmallMapBattle({
   defenseReportMeta = null,
   recordOnly = false,
   siegeDefenderType = null,
+  cityDefense = null,
+  siegeCityDefenseMult: siegeCityDefenseMultProp = null,
+  pvpSiegeRole = null,
+  pvpDefenderBaseCampSiege = false,
   eventExtraEnemyCharacterIds = null,
   eventPunishmentExtraSlot = false,
   cards = null,
@@ -98,6 +107,18 @@ export default function SmallMapBattle({
   const autoBattleRef = useRef(bm.autoBattle);
   autoBattleRef.current = bm.autoBattle;
 
+  const resolvedSiegeCityDefenseMult =
+    battleType === 'pve_siege' || battleType === 'pvp_siege'
+      ? (pvpDefenderBaseCampSiege
+        ? 1
+        : resolveSiegeCityDefenseMultFromOpts({
+          cityDefense,
+          siegeCityDefenseMult: siegeCityDefenseMultProp,
+        }))
+      : 1;
+  const siegeCityDefenderFaction =
+    pvpSiegeRole === 'defender' ? 'player' : 'enemy';
+
   const engine = useBattleEngine({
     battleTroops: bm.battleTroops, setBattleTroops: bm.setBattleTroops,
     mapResult: bm.mapResult, addLog: bm.addLog, setLogs: bm.setLogs,
@@ -108,6 +129,7 @@ export default function SmallMapBattle({
     autoBattle: bm.autoBattle, autoFormation: bm.autoFormation,
     mapCardRef, battleSurfaceRef, manualBattleRef,
     setBattleEndReason: bm.setBattleEndReason,
+    siegeCityDefenseMult: resolvedSiegeCityDefenseMult,
   });
 
   playBattleRoundRef.current = engine.playBattleRound;
@@ -204,6 +226,7 @@ export default function SmallMapBattle({
         skillsMap,
         baseUrl: import.meta.env.BASE_URL,
         catalogById,
+        siegeCityDefenderFaction,
       }));
     } else {
       bm.assignRealBattleTroops(playerUnits, enemyRarity || 'common', {

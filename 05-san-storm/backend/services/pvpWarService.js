@@ -23,6 +23,7 @@ const gameTimeService = require('./gameTimeService');
 const warInitiationCostService = require('./warInitiationCostService');
 const factionBulletinService = require('./factionBulletinService');
 const { loadRoadGrid } = require('../utils/roadGrid');
+const { attachSiegeCityDefenseToPayload } = require('../../shared/utils/siegeCityDefenseMult.cjs');
 const {
   normalizeRoadCellList,
 } = require('../../shared/utils/strategicRoadOverlay.js');
@@ -1212,7 +1213,7 @@ async function initiateAttackerCitySiege(pvpWarId, attackerPlayerId) {
 
     const garrisonUnits = garrisonService.mapBuiltUnitsToSiegeNpcFormat(units);
     const isOnDuty = def.defense_source === 'main_lineup' || !!def.on_duty;
-    const garrisonPayload = {
+    const garrisonPayload = attachSiegeCityDefenseToPayload({
       pvpWarId,
       cityId: city.city_id,
       cityName: city.city_name,
@@ -1226,7 +1227,7 @@ async function initiateAttackerCitySiege(pvpWarId, attackerPlayerId) {
       defenderName: def.character_name || null,
       defenderPlayerId: def.player_id,
       defenderGarrisonSlot: def.garrison_slot ?? 0,
-    };
+    }, city);
     if (!isOnDuty && policiesRow) {
       const imperialMarchService = require('./imperialMarchService');
       return await imperialMarchService.attachImperialMarchToSiegePayload(
@@ -1277,7 +1278,7 @@ async function initiateAttackerCitySiege(pvpWarId, attackerPlayerId) {
     throw new Error('[pvpWar] 当前各战线均有友军交战中，请稍后再试');
   }
 
-  const payload = {
+  const payload = attachSiegeCityDefenseToPayload({
     pvpWarId,
     cityId: city.city_id,
     cityName: city.city_name,
@@ -1289,7 +1290,7 @@ async function initiateAttackerCitySiege(pvpWarId, attackerPlayerId) {
     defenderFactionId: war.defenderFactionId,
     defenderType: 'npc',
     npcBatchIndex,
-  };
+  }, city);
 
   if (policiesRow) {
     const imperialMarchService = require('./imperialMarchService');

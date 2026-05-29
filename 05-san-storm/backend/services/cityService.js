@@ -25,6 +25,7 @@ const {
   calcHourlyQuotaWithRestWindow,
   EXPLORATION_AND_SIEGE_QUOTA_DEFAULTS,
 } = require('../utils/hourlyQuotaWithRestWindow');
+const { attachSiegeCityDefenseToPayload } = require('../../shared/utils/siegeCityDefenseMult.cjs');
 
 function calcSiegeQuotaForPlayer(remaining, lastRefillTs) {
   return calcHourlyQuotaWithRestWindow(
@@ -719,7 +720,7 @@ async function initiateSiege(cityId, playerId) {
     index: gi,
   }));
 
-  return {
+  return attachSiegeCityDefenseToPayload({
     warId: war.war_id,
     cityId,
     cityName: city.city_name,
@@ -730,7 +731,7 @@ async function initiateSiege(cityId, playerId) {
     playerFaction,
     defenderType: 'npc',
     npcBatchIndex,
-  };
+  }, city);
 }
 
 /**

@@ -37,18 +37,36 @@ const ALLY_POSITIONS = [{ y: 8, x: 0 }];
  * @param {Array} [allyUnits]  - 御驾等友军（最多 1 支）
  * @param {Record<string, object>} [skillsMap] skills.json 字典；有则守军叠阶段1～5（与玩家同源）
  * @param {string} baseUrl     - import.meta.env.BASE_URL
+ * @param {'player'|'enemy'} [siegeCityDefenderFaction='enemy'] 攻城守城方阵营（玩家守城时为 `player`）
  * @returns {Array} battleTroops
  */
-export function buildSiegeUnits({ playerUnits, enemyUnits, allyUnits = [], skillsMap = null, baseUrl, catalogById = null }) {
+export function buildSiegeUnits({
+  playerUnits,
+  enemyUnits,
+  allyUnits = [],
+  skillsMap = null,
+  baseUrl,
+  catalogById = null,
+  siegeCityDefenderFaction = 'enemy',
+}) {
   const catalog = catalogById || buildTroopCatalogById();
+  const tagSiegeCityDefender = (troop) => {
+    if (siegeCityDefenderFaction && troop.faction === siegeCityDefenderFaction) {
+      return { ...troop, _siegeCityDefender: true };
+    }
+    return troop;
+  };
+
   const playerTroops = playerUnits.slice(0, 5).map((unit, i) =>
-    flattenPlayerUnitToBattleTroop(unit, i, {
-      pos: PLAYER_POSITIONS[i],
-      catalogById: catalog,
-      baseUrl,
-      getPortraitAttempts: (trMeta, bUrl) =>
-        getBattleFieldTroopPortraitUrlAttempts(trMeta, bUrl),
-    }),
+    tagSiegeCityDefender(
+      flattenPlayerUnitToBattleTroop(unit, i, {
+        pos: PLAYER_POSITIONS[i],
+        catalogById: catalog,
+        baseUrl,
+        getPortraitAttempts: (trMeta, bUrl) =>
+          getBattleFieldTroopPortraitUrlAttempts(trMeta, bUrl),
+      }),
+    ),
   );
 
   const enemyTroops = enemyUnits.slice(0, 4).map((npc, i) => {
@@ -107,7 +125,7 @@ export function buildSiegeUnits({ playerUnits, enemyUnits, allyUnits = [], skill
       skillIdSource: raw,
       skillsMap,
     });
-    return {
+    return tagSiegeCityDefender({
       ...enrichedTroop,
       currentTroops: npc.currentTroops ?? npc.maxTroops,
       initialTroops: npc.currentTroops ?? npc.maxTroops,
@@ -122,7 +140,7 @@ export function buildSiegeUnits({ playerUnits, enemyUnits, allyUnits = [], skill
       imgFallback: attempts[attempts.length - 1],
       _npcIndex: npc.index,
       instanceId: npc._troopInstanceId || null,
-    };
+    });
   });
 
   const allyTroops = allyUnits.slice(0, 1).map((unit, i) => {

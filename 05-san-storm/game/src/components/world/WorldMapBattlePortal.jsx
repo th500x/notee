@@ -68,6 +68,10 @@ export default function WorldMapBattlePortal({
             }
             onBattleEnd={onSiegeBattleEnd}
             recordOnly={!!siegeData.skipSiegeResult}
+            cityDefense={siegeData.pvpDefenderBaseCampSiege ? undefined : siegeData.cityDefense}
+            siegeCityDefenseMult={siegeData.pvpDefenderBaseCampSiege ? undefined : siegeData.siegeCityDefenseMult}
+            pvpSiegeRole={siegeData.pvpSiegeRole}
+            pvpDefenderBaseCampSiege={!!siegeData.pvpDefenderBaseCampSiege}
             defenseReportMeta={
               siegeData.pvpSiegeRole === 'defender'
                 ? null

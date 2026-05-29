@@ -275,7 +275,9 @@ async function runConscriptAssaultWindow(war, assaultKind) {
       if (!defenders.length) break;
 
       const seed = `conscript|${war.pvpWarId}|${assaultKind}|${n}|${Date.now()}`;
-      const sim = runSiegePvpSkirmish(attackerRoster, defenders, seed);
+      const sim = runSiegePvpSkirmish(attackerRoster, defenders, seed, {
+        cityDefense: city?.defense ?? 100,
+      });
       battlesRun += 1;
 
       attackerRoster = sim.attackerTroopsEnd.map((t, i) => ({
