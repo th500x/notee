@@ -1243,7 +1243,8 @@ async function listActivePveSiegeTargetsForMap({ playerId, factionId, season }) 
 
   const [warRows] = await pool.query(
     `SELECT w.war_id AS warId, w.target_city_id AS targetCityId, w.target_city_name AS targetCityName,
-            w.created_at AS createdAt, w.faction_kills AS factionKillsRaw
+            w.created_at AS createdAt, w.start_time AS startTime, w.end_time AS endTime,
+            w.faction_kills AS factionKillsRaw
      FROM wars w
      INNER JOIN cities c ON c.city_id = w.target_city_id
      WHERE w.status = 'active' AND w.war_type = 'siege' AND c.season = ?`,
@@ -1279,6 +1280,8 @@ async function listActivePveSiegeTargetsForMap({ playerId, factionId, season }) 
       targetCityId: row.targetCityId,
       targetCityName: row.targetCityName || null,
       createdAt: row.createdAt || null,
+      startTime: row.startTime || row.createdAt || null,
+      endTime: row.endTime || null,
     });
   }
   return out;

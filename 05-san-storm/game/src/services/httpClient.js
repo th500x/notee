@@ -88,7 +88,7 @@ export async function fetchWithTimeout(url, options = {}, timeout = API_CONFIG.T
       signal: controller.signal,
     });
     clearTimeout(timeoutId);
-    if (response.status === 401 && shouldAttachPlayerToken(url)) {
+    if (response.status === 401 && shouldAttachPlayerToken(url) && !shouldAttachAdminToken(url)) {
       await maybeEmitSessionExpired(response);
     }
     return response;

@@ -97,9 +97,53 @@ async function runDailyTickForFaction(factionId, king) {
 
     if (snapCount === 0) {
       await kingDasikongRankingService.resetFactionBaselines(connection, fid, todayYmd, EVENT_ID);
-      await connection.commit();
-      console.log(`[aiKing][dasikong] faction=${fid} bootstrapped baselines (${todayYmd})`);
-      return { ok: true, factionId: fid, bootstrapped: true, baselineDate: todayYmd };
+      const afterCount = await kingDasikongRankingService.countFactionSnapshots(connection, fid, EVENT_ID);
+      const eligible = await kingDasikongRankingService.countEligibleRealPlayers(connection, fid);
+      const pastBootstrapDay = await kingDasikongRankingService.isFactionPastDasikongBootstrapDay(
+        connection,
+        fid,
+      );
+
+      if (afterCount === 0) {
+        await connection.commit();
+        console.log(
+          `[aiKing][dasikong] faction=${fid} bootstrapped baselines (${todayYmd}) ` +
+            `snapshots=0 eligibleReal=${eligible}`,
+        );
+        if (eligible > 0) {
+          console.warn(
+            `[aiKing][dasikong] faction=${fid} bootstrap inserted 0 snapshots despite ${eligible} eligible players — check temp_event_ranking migration`,
+          );
+        }
+        return {
+          ok: true,
+          factionId: fid,
+          bootstrapped: true,
+          baselineDate: todayYmd,
+          snapshotCount: 0,
+          eligibleReal: eligible,
+        };
+      }
+
+      if (!pastBootstrapDay) {
+        await connection.commit();
+        console.log(
+          `[aiKing][dasikong] faction=${fid} bootstrapped baselines (${todayYmd}) ` +
+            `snapshots=${afterCount} eligibleReal=${eligible} (first day, skip appointment)`,
+        );
+        return {
+          ok: true,
+          factionId: fid,
+          bootstrapped: true,
+          baselineDate: todayYmd,
+          snapshotCount: afterCount,
+          eligibleReal: eligible,
+        };
+      }
+
+      console.log(
+        `[aiKing][dasikong] faction=${fid} recovery bootstrap (${todayYmd}) snapshots=${afterCount} — continuing to appointment`,
+      );
     }
 
     const winner = await kingDasikongRankingService.pickDailyWinner(connection, fid, EVENT_ID);
@@ -120,7 +164,8 @@ async function runDailyTickForFaction(factionId, king) {
           `score=${winner.totalScore} textId=${textId} demoted=${demoted.length}`,
       );
     } else {
-      console.log(`[aiKing][dasikong] faction=${fid} no eligible winner`);
+      const eligible = await kingDasikongRankingService.countEligibleRealPlayers(connection, fid);
+      console.log(`[aiKing][dasikong] faction=${fid} no eligible winner (eligibleReal=${eligible})`);
     }
 
     await kingDasikongRankingService.resetFactionBaselines(connection, fid, todayYmd, EVENT_ID);

@@ -87,16 +87,6 @@ const UserManager = () => {
     setLoading(true);
     setError('');
     try {
-      if (!playerTokenManager.get()) {
-        setUsers([]);
-        setError(
-          '用户列表与封禁等接口需要「游戏账号」登录后的玩家 Token（与首页管理员口令是两套）。请先完成一次游戏内登录，再回到本页点刷新。',
-        );
-        const current = JSON.parse(localStorage.getItem('gameUser') || 'null');
-        setCurrentUser(current);
-        setBatchInfo(getCurrentBatchInfo());
-        return;
-      }
       const result = await gameUserAPI.getAllUsers();
       if (result.success) {
         setUsers(result.data);

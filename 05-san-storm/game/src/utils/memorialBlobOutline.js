@@ -1,0 +1,186 @@
+/**
+ * 战斗纪念图 · 按文字 bbox 包裹的闭合手绘流线框（两大块背景）。
+ * 路径由 seed 决定，同 battleId 可复现。
+ */
+
+/** @param {string|number|null|undefined} input */
+export function hashMemorialSeed(input) {
+  const s = String(input ?? 'memorial');
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i += 1) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+/** @param {number} seed */
+function mulberry32(seed) {
+  let a = seed >>> 0;
+  return () => {
+    a |= 0;
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/**
+ * @param {Array<{ x: number, y: number }>} points
+ * @returns {string}
+ */
+function catmullRomClosedBezierPath(points) {
+  const n = points.length;
+  if (n < 3) return '';
+  const d = [];
+  for (let i = 0; i < n; i += 1) {
+    const p0 = points[(i - 1 + n) % n];
+    const p1 = points[i];
+    const p2 = points[(i + 1) % n];
+    const p3 = points[(i + 2) % n];
+    const cp1x = p1.x + (p2.x - p0.x) / 6;
+    const cp1y = p1.y + (p2.y - p0.y) / 6;
+    const cp2x = p2.x - (p3.x - p1.x) / 6;
+    const cp2y = p2.y - (p3.y - p1.y) / 6;
+    if (i === 0) d.push(`M ${p1.x.toFixed(2)} ${p1.y.toFixed(2)}`);
+    d.push(
+      `C ${cp1x.toFixed(2)} ${cp1y.toFixed(2)}, ${cp2x.toFixed(2)} ${cp2y.toFixed(2)}, ${p2.x.toFixed(2)} ${p2.y.toFixed(2)}`,
+    );
+  }
+  d.push('Z');
+  return d.join(' ');
+}
+
+/**
+ * @param {number} width
+ * @param {number} height
+ * @param {number} seed
+ * @param {{ pointCount?: number, wobble?: number }} [opts]
+ * @returns {Array<{ x: number, y: number }>}
+ */
+function generateBlobControlPoints(width, height, seed, opts = {}) {
+  const rand = mulberry32(seed);
+  const pointCount = opts.pointCount ?? 16;
+  const wobble = opts.wobble ?? 0.14;
+  const cx = width / 2;
+  const cy = height / 2;
+  const rxBase = width / 2;
+  const ryBase = height / 2;
+  const points = [];
+  for (let i = 0; i < pointCount; i += 1) {
+    const angle = (i / pointCount) * Math.PI * 2 - Math.PI / 2;
+    const angleJitter = (rand() - 0.5) * wobble * 1.4;
+    const a = angle + angleJitter;
+    const rScale = 0.9 + rand() * 0.14;
+    const rx = rxBase * rScale * (0.96 + rand() * 0.08);
+    const ry = ryBase * rScale * (0.94 + rand() * 0.1);
+    points.push({
+      x: cx + Math.cos(a) * rx,
+      y: cy + Math.sin(a) * ry,
+    });
+  }
+  return points;
+}
+
+/**
+ * 在平滑轮廓上叠加手绘毛边折线（略偏移的第二笔）。
+ * @param {Array<{ x: number, y: number }>} points
+ * @param {number} seed
+ * @param {number} subdivisions
+ * @returns {string}
+ */
+function roughSketchClosedPath(points, seed, subdivisions = 4) {
+  const rand = mulberry32(seed ^ 0x9e3779b9);
+  const n = points.length;
+  if (n < 2) return '';
+  const roughAmp = 1.8 + rand() * 1.2;
+  const samples = [];
+  for (let i = 0; i < n; i += 1) {
+    const p0 = points[i];
+    const p1 = points[(i + 1) % n];
+    samples.push({ x: p0.x, y: p0.y });
+    for (let s = 1; s < subdivisions; s += 1) {
+      const t = s / subdivisions;
+      samples.push({
+        x: p0.x + (p1.x - p0.x) * t + (rand() - 0.5) * roughAmp,
+        y: p0.y + (p1.y - p0.y) * t + (rand() - 0.5) * roughAmp,
+      });
+    }
+  }
+  const parts = [`M ${samples[0].x.toFixed(2)} ${samples[0].y.toFixed(2)}`];
+  for (let i = 1; i < samples.length; i += 1) {
+    parts.push(`L ${samples[i].x.toFixed(2)} ${samples[i].y.toFixed(2)}`);
+  }
+  parts.push('Z');
+  return parts.join(' ');
+}
+
+/**
+ * @param {number} width
+ * @param {number} height
+ * @param {number} seed
+ * @returns {{ fillPath: string, sketchPath: string, accentPath: string }}
+ */
+export function generateMemorialBlobPaths(width, height, seed) {
+  const w = Math.max(48, width);
+  const h = Math.max(48, height);
+  const smoothPoints = generateBlobControlPoints(w, h, seed, { pointCount: 16, wobble: 0.16 });
+  const fillPath = catmullRomClosedBezierPath(smoothPoints);
+  const sketchPath = roughSketchClosedPath(smoothPoints, seed + 17, 5);
+  const accentPoints = smoothPoints.map((p, i) => {
+    const rand = mulberry32(seed + i * 101);
+    return {
+      x: p.x + (rand() - 0.5) * 2.2,
+      y: p.y + (rand() - 0.5) * 2.2,
+    };
+  });
+  const accentPath = roughSketchClosedPath(accentPoints, seed + 33, 3);
+  return { fillPath, sketchPath, accentPath };
+}
+
+/**
+ * @param {{ x: number, y: number, width: number, height: number, seed: number }} p
+ * @returns {string}
+ */
+export function buildMemorialBlobSvgHtml({ x, y, width, height, seed }) {
+  const { fillPath, sketchPath, accentPath } = generateMemorialBlobPaths(width, height, seed);
+  return `
+    <svg xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 ${width} ${height}"
+      width="${width}" height="${height}"
+      style="position:absolute;left:${x}px;top:${y}px;overflow:visible;pointer-events:none;"
+      aria-hidden="true">
+      <path d="${fillPath}" fill="rgba(72,68,64,0.42)" stroke="none"/>
+      <path d="${sketchPath}" fill="none" stroke="rgba(212,175,55,0.38)" stroke-width="2.2"
+        stroke-linejoin="round" stroke-linecap="round"/>
+      <path d="${accentPath}" fill="none" stroke="rgba(255,248,220,0.22)" stroke-width="1.1"
+        stroke-linejoin="round" stroke-linecap="round" opacity="0.85"/>
+    </svg>`;
+}
+
+const DEFAULT_PAD = 16;
+
+/**
+ * 在 container 内为各文字块插入手绘 blob（需已完成 layout）。
+ * @param {HTMLElement} container
+ * @param {Array<{ element: HTMLElement, seed: number, pad?: number }>} blocks
+ */
+export function attachMemorialBlobOutlines(container, blocks) {
+  const layer = container.querySelector('[data-memorial-blob-layer]');
+  if (!layer) return;
+  const rootRect = container.getBoundingClientRect();
+  const html = blocks
+    .map(({ element, seed, pad = DEFAULT_PAD }) => {
+      const r = element.getBoundingClientRect();
+      if (r.width < 2 || r.height < 2) return '';
+      const x = r.left - rootRect.left - pad;
+      const y = r.top - rootRect.top - pad;
+      const w = r.width + pad * 2;
+      const h = r.height + pad * 2;
+      return buildMemorialBlobSvgHtml({ x, y, width: w, height: h, seed });
+    })
+    .filter(Boolean)
+    .join('');
+  layer.innerHTML = html;
+}

@@ -15,7 +15,7 @@ const PAD = 0.07;
  * @param {string|null|undefined} playerFactionId
  * @param {Set<string>|string[]|null|undefined} allyFactionIds
  * @param {Set<string>|string[]|null|undefined} nonHostileFactionIds
- * @returns {Array<{ cityId: string, x: number, y: number, w: number, h: number, fill: string, stroke: string }>}
+ * @returns {Array<{ cityId: string, x: number, y: number, w: number, h: number, fill: string, stroke: string, cityType?: string|null }>}
  */
 export function buildStrategicMiniMapCityRects(
   footprints,
@@ -30,6 +30,7 @@ export function buildStrategicMiniMapCityRects(
   for (const fp of list) {
     const row = byId[fp.cityId];
     const fid = row?.faction_id ?? row?.factionId ?? null;
+    const cityType = row?.city_type ?? row?.cityType ?? null;
     const stance = getStrategicCityLabelStance({
       cityFactionId: fid,
       playerFactionId,
@@ -50,6 +51,7 @@ export function buildStrategicMiniMapCityRects(
       h: fp.heightCells - PAD * 2,
       fill,
       stroke: 'rgba(12,10,9,0.72)',
+      cityType,
     });
   }
   return out;

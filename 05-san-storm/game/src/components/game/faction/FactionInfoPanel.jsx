@@ -51,7 +51,64 @@ const OFFICE_GRID_ROWS = [
   ['san_1_position_sizhen', 'san_1_position_sizheng'],
 ];
 
-function OfficeDutyGrid({ officeHolders }) {
+function DailyActivityRankingPopover({ open, anchorRect, ranking, onClose }) {
+  if (!open || typeof document === 'undefined' || !anchorRect) return null;
+
+  const pad = 8;
+  const panelW = Math.min(280, window.innerWidth - pad * 2);
+  let left = anchorRect.right - panelW;
+  left = Math.max(pad, Math.min(left, window.innerWidth - panelW - pad));
+  const maxH = Math.min(360, window.innerHeight * 0.55);
+  let top = anchorRect.bottom + 6;
+  if (top + maxH > window.innerHeight - pad) {
+    top = Math.max(pad, anchorRect.top - maxH - 6);
+  }
+
+  const rows = ranking || [];
+
+  return createPortal(
+    <>
+      <button
+        type="button"
+        className="fixed inset-0 z-[130] cursor-default bg-black/40"
+        aria-label="关闭日活跃榜"
+        onClick={onClose}
+      />
+      <div
+        className="fixed z-[131] overflow-y-auto rounded-lg border border-amber-900/50 bg-stone-950/95 p-3 shadow-xl"
+        style={{ left, top, width: panelW, maxHeight: maxH }}
+        role="dialog"
+        aria-label="日活跃榜"
+      >
+        <div className="mb-2 text-[11px] font-semibold text-amber-400/95">日活跃榜（今日增量）</div>
+        {rows.length === 0 ? (
+          <p className="text-[10px] leading-snug text-stone-500">暂无排名数据。每日 00:00 重置基准后累计。</p>
+        ) : (
+          <ol className="list-none space-y-1.5 pl-0">
+            {rows.map((r) => (
+              <li
+                key={r.playerId}
+                className="flex items-baseline justify-between gap-2 rounded border border-stone-800/80 bg-stone-900/40 px-2 py-1 text-xs"
+              >
+                <span className="min-w-0 text-stone-200">
+                  <span className="mr-1.5 tabular-nums text-amber-300/90">{r.rank}.</span>
+                  {r.characterName || r.playerId}
+                </span>
+                <span className="shrink-0 tabular-nums text-stone-400">{fmtNum(r.totalScore)} 分</span>
+              </li>
+            ))}
+          </ol>
+        )}
+        <p className="mt-2 text-[10px] leading-snug text-stone-600">
+          与每日大司空决选同口径；已任 Lv≤2 高官者仍计入本榜，但不参与大司空任命。
+        </p>
+      </div>
+    </>,
+    document.body,
+  );
+}
+
+function OfficeDutyGrid({ officeHolders, dailyActivityButton }) {
   const byId = Object.fromEntries((officeHolders || []).map((o) => [o.positionId, o]));
 
   const cell = (pid) => {
@@ -59,6 +116,8 @@ function OfficeDutyGrid({ officeHolders }) {
     if (!o) return '—';
     return `${o.label}：${o.characterName || '空缺'}`;
   };
+
+  const DASIKONG_ID = 'san_1_position_dasikong';
 
   return (
     <div className="flex flex-col gap-1 text-xs leading-snug text-stone-300">
@@ -68,7 +127,14 @@ function OfficeDutyGrid({ officeHolders }) {
           <span className="shrink-0 text-stone-600 select-none" aria-hidden>
             /
           </span>
-          <span className="min-w-0 flex-1 text-left">{cell(pair[1])}</span>
+          {pair[1] === DASIKONG_ID && dailyActivityButton ? (
+            <span className="inline-flex min-w-0 flex-1 flex-wrap items-baseline gap-x-1 text-left">
+              <span>{cell(pair[1])}</span>
+              {dailyActivityButton}
+            </span>
+          ) : (
+            <span className="min-w-0 flex-1 text-left">{cell(pair[1])}</span>
+          )}
         </div>
       ))}
     </div>
@@ -290,7 +356,13 @@ function ScaleStatSeg({ label, count, statKey, activeKey, onOpen }) {
   );
 }
 
-export default function FactionInfoPanel({ overview, loading, error }) {
+export default function FactionInfoPanel({
+  overview,
+  loading,
+  error,
+  showDailyActivityRanking = true,
+  showReserveBalanceRow = true,
+}) {
   const [scaleOpenKey, setScaleOpenKey] = useState(/** @type {ScaleOpenKey} */ (null));
   const [anchorRect, setAnchorRect] = useState(/** @type {DOMRect | null} */ (null));
   const scaleAnchorElRef = useRef(/** @type {HTMLElement | null} */ (null));
@@ -328,6 +400,10 @@ export default function FactionInfoPanel({ overview, loading, error }) {
   const reserveLedgerBtnRef = useRef(/** @type {HTMLButtonElement | null} */ (null));
   const [reserveLedgerAnchor, setReserveLedgerAnchor] = useState(/** @type {DOMRect | null} */ (null));
 
+  const [dailyRankingOpen, setDailyRankingOpen] = useState(false);
+  const dailyRankingBtnRef = useRef(/** @type {HTMLButtonElement | null} */ (null));
+  const [dailyRankingAnchor, setDailyRankingAnchor] = useState(/** @type {DOMRect | null} */ (null));
+
   useEffect(() => {
     if (!reserveLedgerOpen) {
       setReserveLedgerAnchor(null);
@@ -353,6 +429,32 @@ export default function FactionInfoPanel({ overview, loading, error }) {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [reserveLedgerOpen]);
+
+  useEffect(() => {
+    if (!dailyRankingOpen) {
+      setDailyRankingAnchor(null);
+      return undefined;
+    }
+    const sync = () => {
+      setDailyRankingAnchor(dailyRankingBtnRef.current?.getBoundingClientRect?.() || null);
+    };
+    sync();
+    window.addEventListener('scroll', sync, true);
+    window.addEventListener('resize', sync);
+    return () => {
+      window.removeEventListener('scroll', sync, true);
+      window.removeEventListener('resize', sync);
+    };
+  }, [dailyRankingOpen]);
+
+  useEffect(() => {
+    if (!dailyRankingOpen) return undefined;
+    const onKey = (e) => {
+      if (e.key === 'Escape') setDailyRankingOpen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [dailyRankingOpen]);
 
   if (loading) {
     return (
@@ -387,6 +489,10 @@ export default function FactionInfoPanel({ overview, loading, error }) {
   const fiveLine = `人口 ${fmtNum(t.population)} · 商业 ${fmtNum(t.trading)} · 农业 ${fmtNum(t.farming)} · 军事 ${fmtNum(t.military)} · 文化 ${fmtNum(t.culture)} → ${tierLabel}`;
 
   const reserveLedgerSummary = overview.reserveLedgerSummary;
+  const dailyActivityRanking = overview.dailyActivityRanking || [];
+
+  const ledgerDetailBtnClass =
+    'shrink-0 rounded border border-amber-800/60 bg-amber-950/40 px-1.5 py-0 text-[10px] text-amber-300/95 underline-offset-2 hover:bg-amber-900/30 hover:underline focus:outline-none focus-visible:ring-1 focus-visible:ring-amber-500/60';
 
   return (
     <div className="flex flex-col gap-3 text-left">
@@ -397,14 +503,34 @@ export default function FactionInfoPanel({ overview, loading, error }) {
         onClose={closeScale}
       />
       <ReserveLedgerPopover
-        open={reserveLedgerOpen}
+        open={reserveLedgerOpen && showReserveBalanceRow}
         anchorRect={reserveLedgerAnchor}
         ledger={reserveLedgerSummary}
         onClose={() => setReserveLedgerOpen(false)}
       />
+      <DailyActivityRankingPopover
+        open={dailyRankingOpen && showDailyActivityRanking}
+        anchorRect={dailyRankingAnchor}
+        ranking={dailyActivityRanking}
+        onClose={() => setDailyRankingOpen(false)}
+      />
       <div>
         <SectionTitle>要职</SectionTitle>
-        <OfficeDutyGrid officeHolders={overview.officeHolders} />
+        <OfficeDutyGrid
+          officeHolders={overview.officeHolders}
+          dailyActivityButton={
+            showDailyActivityRanking ? (
+              <button
+                ref={dailyRankingBtnRef}
+                type="button"
+                className={ledgerDetailBtnClass}
+                onClick={() => setDailyRankingOpen((v) => !v)}
+              >
+                日活跃榜
+              </button>
+            ) : null
+          }
+        />
       </div>
       <div>
         <SectionTitle>规模</SectionTitle>
@@ -476,19 +602,21 @@ export default function FactionInfoPanel({ overview, loading, error }) {
       <div>
         <SectionTitle>国力与储备</SectionTitle>
         <Line>{fiveLine}</Line>
-        <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs leading-snug text-stone-300">
-          <span>
-            银两储备 {fmtNum(overview.reserveSilver)} · 粮草储备 {fmtNum(overview.reserveFood)}
-          </span>
-          <button
-            ref={reserveLedgerBtnRef}
-            type="button"
-            className="shrink-0 rounded border border-amber-800/60 bg-amber-950/40 px-1.5 py-0 text-[10px] text-amber-300/95 underline-offset-2 hover:bg-amber-900/30 hover:underline focus:outline-none focus-visible:ring-1 focus-visible:ring-amber-500/60"
-            onClick={() => setReserveLedgerOpen((v) => !v)}
-          >
-            收支详情
-          </button>
-        </div>
+        {showReserveBalanceRow ? (
+          <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs leading-snug text-stone-300">
+            <span>
+              银两储备 {fmtNum(overview.reserveSilver)} · 粮草储备 {fmtNum(overview.reserveFood)}
+            </span>
+            <button
+              ref={reserveLedgerBtnRef}
+              type="button"
+              className={ledgerDetailBtnClass}
+              onClick={() => setReserveLedgerOpen((v) => !v)}
+            >
+              收支详情
+            </button>
+          </div>
+        ) : null}
       </div>
     </div>
   );

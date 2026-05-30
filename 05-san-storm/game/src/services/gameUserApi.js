@@ -3,8 +3,8 @@
  *
  * 覆盖：
  *   - 玩家注册 / 登录 / 验证（写 `playerTokenManager`，后续 `httpClient` 自动附 Bearer）。
- *   - 管理员侧账号操作（封禁 / 解封 / 删除 / 一键清理 / 切服）——通过 `useAdmin` / `UserManager`
- *     调用；`httpClient` 对 `/auth/users` 等路径自动附主站 `notee-admin-token`。
+ *   - 管理员侧账号操作（封禁 / 解封 / 删除 / 一键清理 / 切服）——仅需主站 `notee-admin-token`；
+ *     `httpClient` 对 `/auth/users` 等路径自动附管理员 JWT，**不需要**游戏玩家 Token。
  *
  * @module services/gameUserApi
  */
@@ -202,6 +202,13 @@ export const gameUserAPI = {
       });
 
       const data = await response.json();
+
+      if (response.status === 401 || response.status === 403) {
+        return {
+          success: false,
+          error: data.error || '需要管理员权限，请在主页重新登录',
+        };
+      }
 
       if (data.success) {
         console.log('[GameUserAPI] 获取用户列表成功', data.total);

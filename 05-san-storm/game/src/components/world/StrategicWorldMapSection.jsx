@@ -29,6 +29,7 @@ import { useStrategicMapNavigation } from '@/contexts/StrategicMapNavigationCont
 import { playerAPI } from '@/services/playerApi';
 import { createRoadClientRequestId } from '@/utils/roadClientRequestId';
 import { warAPI } from '@/services/warApi';
+import { buildMapCornerOngoingWarEntries } from '@/utils/mapCornerOngoingWars';
 import {
   buildMarchPath,
   buildMarchPathToPoi,
@@ -551,11 +552,15 @@ export default function StrategicWorldMapSection({
    * PVE `wars`（本人参与且 active）+ 本势力 `wars_pvp`（pending/active），按目标城去重（同城 PVP 优先），
    * 再按创建时间升序；「攻城」钮循环滚屏至 `targetCityId`。
    */
+  const [ongoingPvpWarsList, setOngoingPvpWarsList] = useState([]);
+  const [ongoingPveWarsList, setOngoingPveWarsList] = useState([]);
   const [ongoingSiegeLocateTargets, setOngoingSiegeLocateTargets] = useState([]);
   const siegeWarCycleIndexRef = useRef(0);
 
   useEffect(() => {
     if (!playerFactionId && !playerId) {
+      setOngoingPvpWarsList([]);
+      setOngoingPveWarsList([]);
       setOngoingSiegeLocateTargets([]);
       return undefined;
     }
@@ -607,9 +612,15 @@ export default function StrategicWorldMapSection({
 
         const [pvpSorted, pveSorted] = await Promise.all([pvpPromise, pvePromise]);
         if (cancelled) return;
+        setOngoingPvpWarsList(pvpSorted);
+        setOngoingPveWarsList(pveSorted);
         setOngoingSiegeLocateTargets(buildOngoingSiegeLocateTargets(pvpSorted, pveSorted));
       } catch {
-        if (!cancelled) setOngoingSiegeLocateTargets([]);
+        if (!cancelled) {
+          setOngoingPvpWarsList([]);
+          setOngoingPveWarsList([]);
+          setOngoingSiegeLocateTargets([]);
+        }
       }
     };
     void load();
@@ -1034,6 +1045,31 @@ export default function StrategicWorldMapSection({
     return ok ? null : '地图未就绪';
   }, [strategicNav, ongoingSiegeLocateTargets, countyCityRows, scrollStrategicCellNow]);
 
+  const ongoingWarEntries = useMemo(() => {
+    const pveWithFaction = (ongoingPveWarsList || []).map((w) => ({
+      ...w,
+      attackerFactionName: w.attackerFactionName || ctxPlayer?.factionName || null,
+    }));
+    return buildMapCornerOngoingWarEntries({
+      pvpWars: ongoingPvpWarsList,
+      pveWars: pveWithFaction,
+      playerFactionId,
+    });
+  }, [ongoingPvpWarsList, ongoingPveWarsList, playerFactionId, ctxPlayer?.factionName]);
+
+  const scrollToWarTargetCity = useCallback(
+    (targetCityId) => {
+      const cityId = String(targetCityId || '').trim();
+      if (!cityId || !strategicNav?.scrollToStrategicCell) return;
+      const row =
+        countyCityRows.find((c) => String(c.city_id ?? c.cityId ?? c.id ?? '').trim() === cityId) || null;
+      if (!row) return;
+      const cell = cityDbPosToWorldStrategicCell(row);
+      if (cell) scrollStrategicCellNow(cell.gx, cell.gy);
+    },
+    [strategicNav, countyCityRows, scrollStrategicCellNow],
+  );
+
   useEffect(() => {
     const cityId = strategicNav?.peekPendingScrollToCityId?.();
     if (!cityId) return;
@@ -1084,6 +1120,13 @@ export default function StrategicWorldMapSection({
         requestLocate: requestSiegeProgressLocate,
       },
       banditByJunId,
+      ongoingWars: ongoingWarEntries.map((entry) => ({
+        entry,
+        requestLocate: () => {
+          scrollToWarTargetCity(entry.targetCityId);
+          return null;
+        },
+      })),
     };
   }, [
     cells,
@@ -1100,6 +1143,8 @@ export default function StrategicWorldMapSection({
     requestBanditProgressLocate,
     requestSiegeProgressLocate,
     ongoingSiegeLocateTargets.length,
+    ongoingWarEntries,
+    scrollToWarTargetCity,
   ]);
 
   /**

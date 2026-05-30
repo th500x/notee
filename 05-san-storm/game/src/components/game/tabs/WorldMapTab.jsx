@@ -28,6 +28,8 @@ import { fetchWithTimeout } from '@/services/httpClient';
 import { garrisonAPI } from '@/services/garrisonApi';
 import { buildWorldMapCityPanelProps, worldMapCityTitleFromRow } from '@/utils/worldMapCityPanelCopy';
 import WorldMapCityCombatSummaryBlock from '@/components/world/WorldMapCityCombatSummaryBlock';
+import WorldMapFactionStrip from '@/components/game/WorldMapFactionStrip';
+import { playerAPI } from '@/services/playerApi';
 
 /** 与 `useSilentProfilePoll` 默认周期一致（编组 Tab 等静默档案刷新） */
 const CITY_POLL_MS = 60_000;
@@ -42,6 +44,9 @@ export default function WorldMapTab({ onClose }) {
   const { status: stackStatus, merged, error: stackError } = useSan1StrategicMergedStack();
   const [cityRefreshKey, setCityRefreshKey] = useState(0);
   const [garrisonStatsByCityId, setGarrisonStatsByCityId] = useState({});
+  const [factionWorldRows, setFactionWorldRows] = useState([]);
+  const [factionWorldLoading, setFactionWorldLoading] = useState(true);
+  const [factionWorldError, setFactionWorldError] = useState(null);
   /** 缩略图选中城：含指针位置供浮层定位；再点同城关闭。 */
   const [miniPick, setMiniPick] = useState(null);
   const [miniOnDutyCount, setMiniOnDutyCount] = useState(null);
@@ -77,6 +82,40 @@ export default function WorldMapTab({ onClose }) {
         setGarrisonStatsByCityId(m);
       })
       .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [playerId, cityRefreshKey]);
+
+  useEffect(() => {
+    if (!playerId) {
+      setFactionWorldRows([]);
+      setFactionWorldLoading(false);
+      setFactionWorldError(null);
+      return undefined;
+    }
+    let cancelled = false;
+    setFactionWorldLoading(true);
+    playerAPI
+      .getFactionWorldOverviews(playerId)
+      .then((res) => {
+        if (cancelled) return;
+        if (!res?.success) {
+          setFactionWorldRows([]);
+          setFactionWorldError(res?.error || '势力数据加载失败');
+          return;
+        }
+        setFactionWorldRows(res.data?.factions || []);
+        setFactionWorldError(null);
+      })
+      .catch((e) => {
+        if (cancelled) return;
+        setFactionWorldRows([]);
+        setFactionWorldError(e?.message || '势力数据加载失败');
+      })
+      .finally(() => {
+        if (!cancelled) setFactionWorldLoading(false);
+      });
     return () => {
       cancelled = true;
     };
@@ -248,7 +287,7 @@ export default function WorldMapTab({ onClose }) {
           <div className="flex-1 px-3 py-2">
             <div className="text-sm font-semibold text-amber-100">战略一览</div>
             <div className="text-[11px] text-stone-400">
-              与大地图同色：己方蓝 · 敌对红 · 中立白 · 非敌对绿/琥珀
+              左：战略缩略图 · 右：七势力概览（悬浮/点击看详情）
             </div>
           </div>
           <TabPageCloseButton onClose={close} variant="bar" />
@@ -261,7 +300,7 @@ export default function WorldMapTab({ onClose }) {
           <div className="shrink-0">
             <div className="text-sm font-semibold text-amber-100">战略一览</div>
             <div className="text-[11px] text-stone-400">
-              道路与城块与主界面大地图同源；归属约 1 分钟刷新（与编组页静默刷新同周期；页签隐藏时不刷新）。
+              道路与城块与主界面大地图同源；归属与势力约 1 分钟刷新（页签隐藏时不刷新）。
             </div>
           </div>
         )}
@@ -272,70 +311,81 @@ export default function WorldMapTab({ onClose }) {
           </div>
         ) : null}
 
-        <div className="relative flex min-h-0 min-w-0 flex-1 items-center justify-center rounded-lg border border-amber-900/35 bg-stone-950/80 p-1">
-          {stackStatus === 'ready' && merged?.cells?.length ? (
-            <StrategicMiniMapSvg
-              className="h-full w-full max-h-[min(72vh,520px)] max-w-full"
-              mapColumns={mapColumns}
-              mapRows={mapRows}
-              roadPathD={roadPathD}
-              roadAdminBoundaryPathD={roadAdminBoundaryPathD}
-              cityRects={cityRects}
-              selfMarker={selfMarker}
-              selectedCityId={miniPick?.cityId ?? null}
-              onCitySelect={handleMiniCitySelect}
-              proximityHighlight={proximityHighlight}
-              aria-label="豫州战略缩略图"
-            />
-          ) : stackStatus === 'error' ? (
-            <div className="px-4 text-center text-sm text-red-300/95">
-              {stackError || '无法加载合并地图'}
-            </div>
-          ) : (
-            <div className="text-sm text-stone-400">加载中…</div>
-          )}
-
-          {miniPick && miniPanelProps ? (
-            <div
-              ref={miniTooltipRef}
-              className="pointer-events-auto fixed z-[80] max-w-[min(92vw,280px)] rounded-md border border-stone-600/90 bg-black/82 px-3 py-2.5 text-left shadow-xl backdrop-blur-[2px]"
-              style={{
-                left: Math.min(
-                  Math.max(8, miniPick.x + 10),
-                  typeof window !== 'undefined'
-                    ? Math.max(8, window.innerWidth - 292)
-                    : miniPick.x + 10,
-                ),
-                top: Math.min(
-                  Math.max(8, miniPick.y + 8),
-                  typeof window !== 'undefined'
-                    ? Math.max(8, window.innerHeight - 220)
-                    : miniPick.y + 8,
-                ),
-              }}
-            >
-              <div className="border-b border-stone-600/80 pb-1.5 text-sm font-semibold text-stone-100">
-                {miniPanelProps.cityTitle || worldMapCityTitleFromRow(cityById[miniPick.cityId])}
+        <div className="flex min-h-0 min-w-0 flex-1 flex-row gap-2">
+          <div className="relative flex min-h-0 min-w-0 flex-[3] items-center justify-center rounded-lg border border-amber-900/35 bg-stone-950/80 p-1">
+            {stackStatus === 'ready' && merged?.cells?.length ? (
+              <StrategicMiniMapSvg
+                className="h-full w-full max-h-full max-w-full"
+                mapColumns={mapColumns}
+                mapRows={mapRows}
+                roadPathD={roadPathD}
+                roadAdminBoundaryPathD={roadAdminBoundaryPathD}
+                cityRects={cityRects}
+                selfMarker={selfMarker}
+                selectedCityId={miniPick?.cityId ?? null}
+                onCitySelect={handleMiniCitySelect}
+                proximityHighlight={proximityHighlight}
+                aria-label="豫州战略缩略图"
+              />
+            ) : stackStatus === 'error' ? (
+              <div className="px-4 text-center text-sm text-red-300/95">
+                {stackError || '无法加载合并地图'}
               </div>
-              {!cityById[miniPick.cityId] ? (
-                <div className="pt-2 text-xs text-amber-200/90">
-                  暂无该点城池档案（归属同步中或 ID 不一致）。
+            ) : (
+              <div className="text-sm text-stone-400">加载中…</div>
+            )}
+
+            {miniPick && miniPanelProps ? (
+              <div
+                ref={miniTooltipRef}
+                className="pointer-events-auto fixed z-[80] max-w-[min(92vw,280px)] rounded-md border border-stone-600/90 bg-black/82 px-3 py-2.5 text-left shadow-xl backdrop-blur-[2px]"
+                style={{
+                  left: Math.min(
+                    Math.max(8, miniPick.x + 10),
+                    typeof window !== 'undefined'
+                      ? Math.max(8, window.innerWidth - 292)
+                      : miniPick.x + 10,
+                  ),
+                  top: Math.min(
+                    Math.max(8, miniPick.y + 8),
+                    typeof window !== 'undefined'
+                      ? Math.max(8, window.innerHeight - 220)
+                      : miniPick.y + 8,
+                  ),
+                }}
+              >
+                <div className="border-b border-stone-600/80 pb-1.5 text-sm font-semibold text-stone-100">
+                  {miniPanelProps.cityTitle || worldMapCityTitleFromRow(cityById[miniPick.cityId])}
                 </div>
-              ) : (
-                <WorldMapCityCombatSummaryBlock
-                  withTopRule={false}
-                  className="mt-0"
-                  pvpAttackerBaseCampStrategic={false}
-                  onDutyCount={miniPanelProps.onDutyCount}
-                  garrisonSlotCount={miniPanelProps.garrisonSlotCount}
-                  garrisonCap={miniPanelProps.garrisonCap}
-                  npcAlive={miniPanelProps.npcAlive}
-                  npcTotal={miniPanelProps.npcTotal}
-                  cityDefenseCoefficient={miniPanelProps.cityDefenseCoefficient}
-                />
-              )}
-            </div>
-          ) : null}
+                {!cityById[miniPick.cityId] ? (
+                  <div className="pt-2 text-xs text-amber-200/90">
+                    暂无该点城池档案（归属同步中或 ID 不一致）。
+                  </div>
+                ) : (
+                  <WorldMapCityCombatSummaryBlock
+                    withTopRule={false}
+                    className="mt-0"
+                    pvpAttackerBaseCampStrategic={false}
+                    onDutyCount={miniPanelProps.onDutyCount}
+                    garrisonSlotCount={miniPanelProps.garrisonSlotCount}
+                    garrisonCap={miniPanelProps.garrisonCap}
+                    npcAlive={miniPanelProps.npcAlive}
+                    npcTotal={miniPanelProps.npcTotal}
+                    cityDefenseCoefficient={miniPanelProps.cityDefenseCoefficient}
+                  />
+                )}
+              </div>
+            ) : null}
+          </div>
+
+          <div className="flex min-h-0 min-w-0 flex-[2] flex-col overflow-y-auto rounded-lg border border-amber-900/35 bg-stone-950/50 p-2">
+            <WorldMapFactionStrip
+              factions={factionWorldRows}
+              loading={factionWorldLoading}
+              error={factionWorldError}
+              isLandscape={isLandscape}
+            />
+          </div>
         </div>
       </div>
     </div>

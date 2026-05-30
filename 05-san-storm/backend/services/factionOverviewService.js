@@ -15,6 +15,8 @@ const { pool } = require('../database/connection');
 const { computeSupplyTier } = require('./factionSupplyTierService');
 const { estimateDailyReserveRecovery } = require('./factionReserveRecoveryService');
 const factionReserveService = require('./factionReserveService');
+const kingDasikongRankingService = require('./kingDasikongRankingService');
+const { SAN_1_PLAYABLE_FACTION_IDS } = require('../../shared/utils/san1PlayableFactions.cjs');
 
 /** 参与势力五维标量计算的 `cities.city_type`（关隘、据点排除） */
 const CITY_TYPES_FOR_FACTION_FIVE_STATS = ['city_major', 'city_medium', 'city_small'];
@@ -58,52 +60,49 @@ const PLAYER_HELD_POSITION_IDS = OFFICE_SLOTS.filter((s) => s.positionId !== 'sa
   (s) => s.positionId,
 );
 
+function buildEmptyFactionOverview() {
+  return {
+    factionId: null,
+    factionName: null,
+    reserveSilver: 0,
+    reserveFood: 0,
+    totals: { population: 0, trading: 0, farming: 0, military: 0, culture: 0 },
+    supplyTier: null,
+    playerCountReal: 0,
+    playerCountNpc: 0,
+    legionCount: 0,
+    cityCount: 0,
+    officeHolders: OFFICE_SLOTS.map((s) => ({ positionId: s.positionId, label: s.label, characterName: null })),
+    citiesMajorLines: [],
+    citiesMediumLines: [],
+    citiesSmallByZhou: [],
+    citiesGateByZhou: [],
+    citiesFortByZhou: [],
+    playersReal: [],
+    playersNpc: [],
+    legions: [],
+    citiesList: [],
+    reserveLedgerSummary: null,
+    dailyActivityRanking: [],
+  };
+}
+
 /**
- * @param {string} playerId
- * @returns {Promise<{ notFound: true } | { data: object }>}
+ * @param {string} factionId
+ * @returns {Promise<{ data: object }>}
  */
-async function getFactionOverviewForPlayer(playerId) {
-  const [pRows] = await pool.query(
-    'SELECT player_id, faction_id, faction_name FROM players WHERE player_id = ? LIMIT 1',
-    [playerId]
-  );
-  if (!pRows.length) return { notFound: true };
-  const { faction_id: factionId, faction_name: factionName } = pRows[0];
-  if (!factionId) {
-    return {
-      data: {
-        factionId: null,
-        factionName: null,
-        reserveSilver: 0,
-        reserveFood: 0,
-        totals: { population: 0, trading: 0, farming: 0, military: 0, culture: 0 },
-        supplyTier: null,
-        playerCountReal: 0,
-        playerCountNpc: 0,
-        legionCount: 0,
-        cityCount: 0,
-        officeHolders: OFFICE_SLOTS.map((s) => ({ positionId: s.positionId, label: s.label, characterName: null })),
-        citiesMajorLines: [],
-        citiesMediumLines: [],
-        citiesSmallByZhou: [],
-        citiesGateByZhou: [],
-        citiesFortByZhou: [],
-        playersReal: [],
-        playersNpc: [],
-        legions: [],
-        citiesList: [],
-        reserveLedgerSummary: null,
-      },
-    };
-  }
+async function getFactionOverviewByFactionId(factionId) {
+  const fid = String(factionId || '').trim();
+  if (!fid) return { data: buildEmptyFactionOverview() };
 
   const [fRows] = await pool.query(
     `SELECT id, season, faction_name, COALESCE(player_count, 0) AS player_count
      FROM factions WHERE id = ? LIMIT 1`,
-    [factionId]
+    [fid]
   );
   const f = fRows[0] || {};
-  const poolBal = await factionReserveService.getPoolBalance(pool, factionId);
+  const factionName = f.faction_name || null;
+  const poolBal = await factionReserveService.getPoolBalance(pool, fid);
   const factionSeason = String(f.season || 'san_1').trim() || 'san_1';
 
   let monarchDisplayName = null;
@@ -115,7 +114,7 @@ async function getFactionOverviewForPlayer(playerId) {
        LEFT JOIN config_characters cc ON cc.character_id = cf.faction_leader AND cc.season = cf.season
        WHERE f.id = ?
        LIMIT 1`,
-      [factionId]
+      [fid]
     );
     monarchDisplayName = cfgRows[0]?.monarchCharacterName || null;
   } catch (_) {
@@ -131,7 +130,7 @@ async function getFactionOverviewForPlayer(playerId) {
        AND p.player_id <> 'sys1'
        AND p.current_position_id IN (${posPlaceholders})
      GROUP BY p.current_position_id`,
-    [factionId, ...PLAYER_HELD_POSITION_IDS]
+    [fid, ...PLAYER_HELD_POSITION_IDS]
   );
   const holderByPos = {};
   for (const row of holderRows) {
@@ -151,7 +150,7 @@ async function getFactionOverviewForPlayer(playerId) {
      FROM players p
      INNER JOIN accounts a ON a.id = p.player_id
      WHERE p.faction_id = ? AND p.player_id <> 'sys1'`,
-    [factionId]
+    [fid]
   );
   const playerCountReal = Number(countRows[0]?.realCount) || 0;
   const playerCountNpc = Number(countRows[0]?.aiCount) || 0;
@@ -167,7 +166,7 @@ async function getFactionOverviewForPlayer(playerId) {
      ORDER BY COALESCE(COALESCE(p.position_level, cp.position_level), 999) ASC,
               COALESCE(cp.position_rank, 999999) ASC,
               p.character_name`,
-    [factionSeason, factionId],
+    [factionSeason, fid],
   );
   const playersReal = (realPlayerRows || []).map((r) => ({
     playerId: r.playerId,
@@ -186,7 +185,7 @@ async function getFactionOverviewForPlayer(playerId) {
      ORDER BY COALESCE(COALESCE(p.position_level, cp.position_level), 999) ASC,
               COALESCE(cp.position_rank, 999999) ASC,
               p.character_name`,
-    [factionSeason, factionId],
+    [factionSeason, fid],
   );
   const playersNpc = (npcPlayerRows || []).map((r) => ({
     playerId: r.playerId,
@@ -199,7 +198,7 @@ async function getFactionOverviewForPlayer(playerId) {
   try {
     const [legionRows] = await pool.query(
       "SELECT COUNT(*) AS c FROM legions WHERE faction_id = ? AND status = 'active'",
-      [factionId]
+      [fid]
     );
     legionCount = Number(legionRows[0]?.c) || 0;
     const [legionListRows] = await pool.query(
@@ -209,7 +208,7 @@ async function getFactionOverviewForPlayer(playerId) {
        LEFT JOIN players pc ON pc.player_id = l.commander_id
        WHERE l.faction_id = ? AND l.status = 'active'
        ORDER BY l.legion_name`,
-      [factionId],
+      [fid],
     );
     legions = (legionListRows || []).map((r) => ({
       legionId: r.legionId,
@@ -234,14 +233,14 @@ async function getFactionOverviewForPlayer(playerId) {
      FROM cities c
      WHERE c.faction_id = ? AND c.status = 'owned'
        AND c.city_type IN (${typePh})`,
-    [factionId, ...CITY_TYPES_FOR_FACTION_FIVE_STATS]
+    [fid, ...CITY_TYPES_FOR_FACTION_FIVE_STATS]
   );
   const aggRow = aggRows[0] || {};
   const nSupply = Number(aggRow.n_supply_cities) || 0;
 
   const [allOwnedCountRows] = await pool.query(
     `SELECT COUNT(*) AS c FROM cities c WHERE c.faction_id = ? AND c.status = 'owned'`,
-    [factionId]
+    [fid]
   );
   const cityCount = Number(allOwnedCountRows[0]?.c) || 0;
 
@@ -254,7 +253,7 @@ async function getFactionOverviewForPlayer(playerId) {
      LEFT JOIN config_zhou z ON z.zhou_id = c.zhou_id AND z.season = c.season
      LEFT JOIN config_jun j ON j.jun_id = c.jun_id AND j.season = c.season
      WHERE c.faction_id = ? AND c.status = 'owned'`,
-    [factionId]
+    [fid]
   );
 
   const citiesMajorLines = [];
@@ -321,14 +320,20 @@ async function getFactionOverviewForPlayer(playerId) {
   );
   const { tier: supplyTier } = computeSupplyTier(totals);
   const reserveRecoveryEstimate = estimateDailyReserveRecovery(supplyTier, cityRecoveryCounts);
-  const reserveLedgerSummary = await factionReserveService.getLedgerSummaryForFaction(factionId, {
+  const reserveLedgerSummary = await factionReserveService.getLedgerSummaryForFaction(fid, {
     reserveRecoveryEstimate,
   });
+  let dailyActivityRanking = [];
+  try {
+    dailyActivityRanking = await kingDasikongRankingService.listDailyActivityRanking(fid, 10);
+  } catch (e) {
+    console.warn('[factionOverview] dailyActivityRanking failed:', e.message);
+  }
 
   return {
     data: {
-      factionId,
-      factionName: f.faction_name || factionName,
+      factionId: fid,
+      factionName,
       reserveSilver: poolBal?.silver ?? 0,
       reserveFood: poolBal?.food ?? 0,
       totals,
@@ -350,11 +355,43 @@ async function getFactionOverviewForPlayer(playerId) {
       cityRecoveryCounts,
       reserveRecoveryEstimate,
       reserveLedgerSummary,
+      dailyActivityRanking,
     },
   };
 }
 
+/**
+ * @param {string} playerId
+ * @returns {Promise<{ notFound: true } | { data: object }>}
+ */
+async function getFactionOverviewForPlayer(playerId) {
+  const [pRows] = await pool.query(
+    'SELECT player_id, faction_id, faction_name FROM players WHERE player_id = ? LIMIT 1',
+    [playerId],
+  );
+  if (!pRows.length) return { notFound: true };
+  const { faction_id: factionId } = pRows[0];
+  if (!factionId) return { data: buildEmptyFactionOverview() };
+  return getFactionOverviewByFactionId(factionId);
+}
+
+/**
+ * 地图 Tab 右侧：san_1 七势力概览（与势力 Tab「势力信息」同源）。
+ * @returns {Promise<{ factions: Array<{ factionId: string, overview: object }> }>}
+ */
+async function listSan1PlayableFactionOverviews() {
+  const factions = await Promise.all(
+    SAN_1_PLAYABLE_FACTION_IDS.map(async (factionId) => {
+      const { data: overview } = await getFactionOverviewByFactionId(factionId);
+      return { factionId, overview };
+    }),
+  );
+  return { factions };
+}
+
 module.exports = {
   getFactionOverviewForPlayer,
+  getFactionOverviewByFactionId,
+  listSan1PlayableFactionOverviews,
   OFFICE_SLOTS,
 };

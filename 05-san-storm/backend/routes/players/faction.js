@@ -17,6 +17,12 @@ router.get('/:playerId/faction/overview', withRoute('获取势力信息失败', 
   res.json({ success: true, data: result.data });
 }));
 
+router.get('/:playerId/faction/world-overviews', withRoute('获取全图势力概览失败', async (req, res) => {
+  const result = await factionOverviewService.listSan1PlayableFactionOverviews();
+  res.set('Cache-Control', 'no-store');
+  res.json({ success: true, data: result });
+}));
+
 router.get(
   '/:playerId/faction/bulletin',
   validateQuery(factionSchemas.bulletinQuery),

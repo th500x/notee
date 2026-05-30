@@ -12,6 +12,7 @@ import {
   mapCornerEntryStackOuterStyle,
   mapCornerZhouJunStackWideOuterStyle,
 } from '@/components/game/mapCornerEntryUi';
+import MapCornerOngoingWarButton from '@/components/game/MapCornerOngoingWarButton';
 import { playerRoadToWorldMapCell } from '@shared/utils/strategicGridCoordinates.js';
 
 /**
@@ -119,6 +120,7 @@ function focusCityId(city) {
  *     explore: { label: string; title?: string; disabled?: boolean; requestLocate: () => string | null };
  *     siege: { label: string; title?: string; disabled?: boolean; requestLocate: () => string | null };
  *     banditByJunId: Record<string, { label: string; title?: string; requestLocate: () => string | null }>;
+ *     ongoingWars?: Array<{ entry: object; requestLocate: () => string | null }>;
  *   };
  * }} [props]
  */
@@ -452,6 +454,13 @@ export default function ZhouJunMapJumpPanel({ variant = 'toolbar', locateSelfCel
               >
                 <ZhouJunStatCaption text={progressSidebar.siege?.label} />
               </button>
+              {(progressSidebar.ongoingWars || []).map(({ entry, requestLocate }) => (
+                <MapCornerOngoingWarButton
+                  key={entry.id}
+                  entry={entry}
+                  onLocate={() => runProgressLocate(requestLocate)}
+                />
+              ))}
             </>
           ) : null}
 

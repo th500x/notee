@@ -1,7 +1,8 @@
 -- Activity ranking: frozen deltas after event end (see routes/rankings.js, config/activityRankingEvents.js)
 -- Use UTF-8 when piping to mysql.exe; COMMENT kept ASCII-only for Windows CLI compatibility.
+-- 老库若仍为 temp_ranking_snapshots，请先跑 rename-temp-ranking-snapshots-to-temp-event-ranking.sql
 
-ALTER TABLE temp_ranking_snapshots
+ALTER TABLE temp_event_ranking
   ADD COLUMN frozen_at DATETIME NULL DEFAULT NULL COMMENT 'set when scores frozen',
   ADD COLUMN frozen_delta_battle INT NULL,
   ADD COLUMN frozen_delta_events INT NULL,

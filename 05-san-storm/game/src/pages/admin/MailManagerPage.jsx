@@ -4,12 +4,13 @@
 
 import React from 'react';
 import MailManager from '@/components/admin/MailManager';
+import AdminPageGate from '@/components/admin/AdminPageGate';
 
 function MailManagerPage() {
   return (
-    <div>
+    <AdminPageGate>
       <MailManager />
-    </div>
+    </AdminPageGate>
   );
 }
 

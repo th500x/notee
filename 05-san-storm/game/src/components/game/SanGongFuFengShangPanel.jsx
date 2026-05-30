@@ -221,15 +221,19 @@ export default function SanGongFuFengShangPanel({
               stipendResult.baseSilver != null &&
               stipendResult.baseFood != null ? (
                 <div className="text-stone-400 text-[10px] leading-snug">
-                  本次随机 <span className="text-amber-200/90">{stipendResult.rollPercent}%</span>
-                  {' · '}
-                  基础俸禄 B：银 {stipendResult.baseSilver} · 粮 {stipendResult.baseFood}
+                  基础俸禄 B：
                   {Number.isFinite(stipendResult.tierCoeff) ? (
-                    <span className="text-stone-500">
-                      {' '}
-                      （档系数 {stipendResult.tierCoeff}）
-                    </span>
+                    <>
+                      <span className="text-stone-500">档系数 {stipendResult.tierCoeff}</span>
+                      {' × '}
+                    </>
                   ) : null}
+                  随机 <span className="text-amber-200/90">{stipendResult.rollPercent}%</span>
+                  {' → 银 '}
+                  {stipendResult.baseSilver}
+                  {' · 粮 '}
+                  {stipendResult.baseFood}
+                  <span className="block text-stone-500">（银向下取整；粮 = 银 × 5）</span>
                 </div>
               ) : null}
               {stipendResult.resourceMultiplier > 1 &&

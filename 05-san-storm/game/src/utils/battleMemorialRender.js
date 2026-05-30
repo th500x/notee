@@ -4,6 +4,7 @@
 import { API_CONFIG } from '@/constants';
 import { fetchWithTimeout } from '@/services/httpClient';
 import { buildBattleScoreFormulaLines } from '@/systems/battleScoreSystem';
+import { attachMemorialBlobOutlines, hashMemorialSeed } from '@/utils/memorialBlobOutline';
 
 async function blobToDataUrl(blob) {
   return new Promise((resolve, reject) => {
@@ -129,9 +130,7 @@ function preloadMemorialIllusImage(url) {
   });
 }
 
-/** 文案块：淡灰半透明底 + 白色字（与彩绘底图对比度平衡） */
-const MEMORIAL_PANEL =
-  'background:rgba(72,68,64,0.4);border:1px solid rgba(212,175,55,0.35);border-radius:10px;box-sizing:border-box;';
+/** 文案块：由 attachMemorialBlobOutlines 按实测 bbox 插入手绘 SVG 底 */
 const MEMORIAL_TEXT_MAIN = 'color:#f8f7f4;';
 const MEMORIAL_TEXT_MUTE = 'color:rgba(255,255,255,0.82);';
 /** 纪念图字体：public/fonts/JYHPHS.woff2；html2canvas 前需 fonts.load */
@@ -142,13 +141,14 @@ async function renderBattleMemorialBlob({ playerName, playerId, battle, detail }
    * 768×1152 纪念海报字号（px）：
    * 主标题 36 · 日期 20 · 角标 emoji 52 · 对阵 22 · 战报块 20
    * 区块标题「战斗评分…」22 · 大号评分 30
-   * 歼敌/倍率说明 · 计分步骤①②③ · 无 scoreDetails 提示 → 均为 18
-   * 第三块文案框固定 576×504（宽×高）
+   * 歼敌/倍率说明 · 计分步骤 · 无 scoreDetails 提示 → 均为 18
+   * 两大块手绘流线框：右上「标题+对阵」· 左下「计分全文」（高度随内容）
    */
   const illusUrl = await pickMemorialBattleIllusUrl();
   await preloadMemorialIllusImage(illusUrl);
 
   const fontWoff2Href = publicAssetUrl('fonts/JYHPHS.woff2');
+  const battleSeed = hashMemorialSeed(battle?.battleId ?? battle?.id ?? playerId);
 
   const root = document.createElement('div');
   root.style.position = 'fixed';
@@ -192,6 +192,8 @@ async function renderBattleMemorialBlob({ playerName, playerId, battle, detail }
   const illusImg = illusUrl
     ? `<img src="${illusUrl}" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;" />`
     : '';
+  const trophyEmoji = battle?.result === 'win' ? '🏆' : battle?.result === 'lose' ? '⚔️' : '📜';
+  const resultLabel = battle?.result === 'win' ? '胜利' : battle?.result === 'lose' ? '失败' : '平局';
   root.innerHTML = `
     <style>
       @font-face {
@@ -205,25 +207,25 @@ async function renderBattleMemorialBlob({ playerName, playerId, battle, detail }
     <div style="position:relative;width:768px;height:1152px;overflow:hidden;">
       <div style="position:absolute;inset:0;background:#2a231c;">${illusImg}</div>
       <div style="position:absolute;inset:0;background:rgba(0,0,0,0.06);pointer-events:none;"></div>
-      <div style="position:relative;z-index:1;box-sizing:border-box;min-height:1152px;height:100%;display:flex;flex-direction:column;padding:16px;gap:12px;">
-        <div style="flex:0 0 auto;width:384px;box-sizing:border-box;align-self:flex-end;${MEMORIAL_PANEL}padding:14px 16px;display:flex;justify-content:space-between;align-items:flex-start;">
-          <div>
-            <div style="font-size:36px;font-weight:700;${MEMORIAL_TEXT_MAIN}">战斗纪念图</div>
-            <div style="margin-top:6px;font-size:20px;${MEMORIAL_TEXT_MUTE}">真三风云 · ${formatDateYMD(memorialDate)}</div>
+      <div data-memorial-stage style="position:relative;z-index:1;box-sizing:border-box;min-height:1152px;height:100%;display:flex;flex-direction:column;padding:16px;gap:20px;">
+        <div data-memorial-blob-layer style="position:absolute;inset:0;z-index:0;pointer-events:none;"></div>
+        <div data-memorial-block="summary" style="position:relative;z-index:1;flex:0 0 auto;width:min(100%,420px);box-sizing:border-box;align-self:flex-end;padding:14px 16px;display:flex;flex-direction:column;gap:12px;">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
+            <div>
+              <div style="font-size:36px;font-weight:700;${MEMORIAL_TEXT_MAIN}">战斗纪念图</div>
+              <div style="margin-top:6px;font-size:20px;${MEMORIAL_TEXT_MUTE}">真三风云 · ${formatDateYMD(memorialDate)}</div>
+            </div>
+            <div style="font-size:52px;line-height:1;flex-shrink:0;">${trophyEmoji}</div>
           </div>
-          <div style="font-size:52px;line-height:1;">${battle?.result === 'win' ? '🏆' : battle?.result === 'lose' ? '⚔️' : '📜'}</div>
-        </div>
-        <div style="flex:0 0 auto;width:384px;box-sizing:border-box;align-self:flex-end;${MEMORIAL_PANEL}padding:14px 16px;display:flex;flex-direction:column;">
-          <div style="font-size:22px;font-weight:600;${MEMORIAL_TEXT_MAIN}">${formatMemorialPlayerLine(playerName, playerId)} vs ${memorialHtmlEscape(battle?.opponentName || '事件敌军')}</div>
-          <div style="height:10px;flex-shrink:0;"></div>
+          <div style="font-size:22px;font-weight:600;line-height:1.35;${MEMORIAL_TEXT_MAIN}">${formatMemorialPlayerLine(playerName, playerId)} vs ${memorialHtmlEscape(battle?.opponentName || '事件敌军')}</div>
           <div style="display:flex;flex-direction:column;gap:6px;font-size:20px;line-height:1.45;${MEMORIAL_TEXT_MAIN}">
-            <div>结果：${battle?.result === 'win' ? '胜利' : battle?.result === 'lose' ? '失败' : '平局'}</div>
+            <div>结果：${resultLabel}</div>
             <div>类型：${d?.battleType || battle?.battleType || '-'}</div>
             <div>我方阵容：${playerLine}</div>
             <div>敌方阵容：${opponentLine}</div>
           </div>
         </div>
-        <div style="flex:0 0 auto;width:576px;height:504px;min-height:504px;max-height:504px;box-sizing:border-box;align-self:flex-start;${MEMORIAL_PANEL}padding:14px 16px;display:flex;flex-direction:column;font-size:18px;line-height:1.5;overflow:hidden;">
+        <div data-memorial-block="score" style="position:relative;z-index:1;flex:0 0 auto;width:min(100%,600px);box-sizing:border-box;align-self:flex-start;padding:14px 16px;display:flex;flex-direction:column;font-size:18px;line-height:1.5;">
           <div style="font-weight:700;flex-shrink:0;font-size:22px;${MEMORIAL_TEXT_MAIN}">战斗评分 + 完整计分步骤</div>
           <div style="height:10px;flex-shrink:0;"></div>
           <div style="margin-bottom:12px;flex-shrink:0;">
@@ -234,7 +236,7 @@ async function renderBattleMemorialBlob({ playerName, playerId, battle, detail }
             <div style="margin-top:4px;font-size:18px;${MEMORIAL_TEXT_MUTE}">回合倍率 ×${turnM ?? '-'}（第${roundNum ?? '-'}回合）</div>
           </div>
           <div style="height:1px;background:rgba(255,255,255,0.22);margin:0 0 12px 0;flex-shrink:0;"></div>
-          <div style="font-size:18px;line-height:1.45;flex:1 1 auto;min-height:0;overflow:visible;${MEMORIAL_TEXT_MAIN}">${scoreLineHtml}</div>
+          <div style="font-size:18px;line-height:1.45;${MEMORIAL_TEXT_MAIN}">${scoreLineHtml}</div>
         </div>
       </div>
     </div>
@@ -253,6 +255,17 @@ async function renderBattleMemorialBlob({ playerName, playerId, battle, detail }
     }
     if (illusUrl) {
       await new Promise((r) => setTimeout(r, 120));
+    }
+    const stage = root.querySelector('[data-memorial-stage]');
+    const summaryEl = root.querySelector('[data-memorial-block="summary"]');
+    const scoreEl = root.querySelector('[data-memorial-block="score"]');
+    if (stage && summaryEl && scoreEl) {
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+      attachMemorialBlobOutlines(stage, [
+        { element: summaryEl, seed: battleSeed ^ 0x11111111 },
+        { element: scoreEl, seed: battleSeed ^ 0x22222222 },
+      ]);
+      await new Promise((r) => setTimeout(r, 40));
     }
     const { default: html2canvas } = await import('html2canvas');
     const canvas = await html2canvas(root, {

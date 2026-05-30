@@ -3,12 +3,13 @@
  */
 
 import ActivityManager from '@/components/admin/ActivityManager';
+import AdminPageGate from '@/components/admin/AdminPageGate';
 
 function ActivityManagerPage() {
   return (
-    <div>
+    <AdminPageGate>
       <ActivityManager />
-    </div>
+    </AdminPageGate>
   );
 }
 

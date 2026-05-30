@@ -11,14 +11,33 @@ const {
   DASIKONG_APPOINTMENT_EXCLUDE_MAX_LEVEL,
 } = require('../config/kingDasikongDaily');
 
-const DELTA = {
-  battle: 's.total_battle_score - COALESCE(snap.snapshot_battle_score, 0)',
-  events: 's.total_events_completed - COALESCE(snap.snapshot_events_completed, 0)',
-  rep: `(s.total_reputation_earned - COALESCE(snap.snapshot_reputation, 0)
-        + s.total_contribution_earned - COALESCE(snap.snapshot_contribution, 0))`,
-  sf: `(s.total_gold_earned - COALESCE(snap.snapshot_silver, 0)
-        + s.total_food_earned - COALESCE(snap.snapshot_food, 0))`,
+const STAT = {
+  battle: 'COALESCE(s.total_battle_score, 0)',
+  events: 'COALESCE(s.total_events_completed, 0)',
+  repEarned: 'COALESCE(s.total_reputation_earned, 0)',
+  contribEarned: 'COALESCE(s.total_contribution_earned, 0)',
+  silver: 'COALESCE(s.total_gold_earned, 0)',
+  food: 'COALESCE(s.total_food_earned, 0)',
 };
+
+const DELTA = {
+  battle: `${STAT.battle} - COALESCE(snap.snapshot_battle_score, 0)`,
+  events: `${STAT.events} - COALESCE(snap.snapshot_events_completed, 0)`,
+  rep: `(${STAT.repEarned} - COALESCE(snap.snapshot_reputation, 0)
+        + ${STAT.contribEarned} - COALESCE(snap.snapshot_contribution, 0))`,
+  sf: `(${STAT.silver} - COALESCE(snap.snapshot_silver, 0)
+        + ${STAT.food} - COALESCE(snap.snapshot_food, 0))`,
+};
+
+/** 势力内真实活跃玩家（以 players 为驱动，statistics 可缺行） */
+const REAL_PLAYERS_IN_FACTION = `
+  FROM players p
+  INNER JOIN accounts a ON a.id = p.player_id
+    AND a.account_type = 'real'
+    AND a.status = 'active'
+  LEFT JOIN player_statistics s ON s.player_id = p.player_id
+  WHERE p.faction_id = ? AND p.player_id <> 'sys1'
+`;
 
 function totalScoreSql() {
   const w = SCORE_WEIGHTS;
@@ -27,13 +46,6 @@ function totalScoreSql() {
         + (${DELTA.rep}) * ${w.rep}
         + (${DELTA.sf}) * ${w.sf}`;
 }
-
-const REAL_PLAYER_JOIN = `
-  INNER JOIN players p ON p.player_id = s.player_id
-  INNER JOIN accounts a ON a.id = p.player_id
-    AND a.account_type = 'real'
-    AND a.status = 'active'
-`;
 
 /**
  * @param {import('mysql2/promise').PoolConnection} connection
@@ -78,16 +90,11 @@ async function resetFactionBaselines(connection, factionId, baselineDateYmd, eve
        baseline_date, expires_at
      )
      SELECT ?, p.player_id,
-       s.total_battle_score, s.total_events_completed,
-       s.total_reputation_earned, s.total_contribution_earned,
-       s.total_gold_earned, s.total_food_earned,
+       ${STAT.battle}, ${STAT.events},
+       ${STAT.repEarned}, ${STAT.contribEarned},
+       ${STAT.silver}, ${STAT.food},
        ?, DATE_ADD(NOW(), INTERVAL 90 DAY)
-     FROM player_statistics s
-     INNER JOIN players p ON p.player_id = s.player_id
-     INNER JOIN accounts a ON a.id = p.player_id
-       AND a.account_type = 'real'
-       AND a.status = 'active'
-     WHERE p.faction_id = ?
+     ${REAL_PLAYERS_IN_FACTION}
      ON DUPLICATE KEY UPDATE
        snapshot_battle_score = VALUES(snapshot_battle_score),
        snapshot_events_completed = VALUES(snapshot_events_completed),
@@ -115,31 +122,29 @@ async function pickDailyWinner(connection, factionId, eventId = EVENT_ID) {
   const scoreSql = totalScoreSql();
   const [rows] = await connection.query(
     `SELECT
-       s.player_id,
+       p.player_id,
        p.character_name,
        (${DELTA.battle}) AS delta_battle,
        (${DELTA.events}) AS delta_events,
        (${DELTA.rep}) AS delta_rep_contrib,
        (${DELTA.sf}) AS delta_silver_food,
        (${scoreSql}) AS total_score
-     FROM player_statistics s
-     ${REAL_PLAYER_JOIN}
-     LEFT JOIN temp_event_ranking snap
-       ON snap.player_id = s.player_id AND snap.event_id = ?
-     WHERE p.faction_id = ?
+     ${REAL_PLAYERS_IN_FACTION}
        AND (
          p.position_level IS NULL
          OR p.position_level > ?
          OR p.current_position_id = ?
        )
+     LEFT JOIN temp_event_ranking snap
+       ON snap.player_id = p.player_id AND snap.event_id = ?
      ORDER BY total_score DESC,
        delta_battle DESC,
        delta_events DESC,
        delta_rep_contrib DESC,
        delta_silver_food DESC,
-       s.player_id ASC
+       p.player_id ASC
      LIMIT 1`,
-    [eventId, factionId, DASIKONG_APPOINTMENT_EXCLUDE_MAX_LEVEL, DASIKONG_POSITION_ID],
+    [factionId, DASIKONG_APPOINTMENT_EXCLUDE_MAX_LEVEL, DASIKONG_POSITION_ID, eventId],
   );
   const row = rows[0];
   if (!row?.player_id) return null;
@@ -148,6 +153,65 @@ async function pickDailyWinner(connection, factionId, eventId = EVENT_ID) {
     characterName: row.character_name || row.player_id,
     totalScore: Number(row.total_score) || 0,
   };
+}
+
+/**
+ * 势力内日活跃榜（展示用，不含高官豁免过滤）
+ * @param {string} factionId
+ * @param {number} [limit=10]
+ * @param {import('mysql2/promise').PoolConnection} [connection]
+ */
+async function listDailyActivityRanking(factionId, limit = 10, connection = null) {
+  const lim = Math.max(1, Math.min(50, Number(limit) || 10));
+  const scoreSql = totalScoreSql();
+  const q = connection || pool;
+  const [rows] = await q.query(
+    `SELECT
+       p.player_id AS playerId,
+       p.character_name AS characterName,
+       (${scoreSql}) AS totalScore
+     ${REAL_PLAYERS_IN_FACTION}
+     LEFT JOIN temp_event_ranking snap
+       ON snap.player_id = p.player_id AND snap.event_id = ?
+     ORDER BY totalScore DESC, p.player_id ASC
+     LIMIT ?`,
+    [factionId, EVENT_ID, lim],
+  );
+  return (rows || []).map((r, idx) => ({
+    rank: idx + 1,
+    playerId: r.playerId,
+    characterName: r.characterName || r.playerId,
+    totalScore: Math.max(0, Math.floor(Number(r.totalScore) || 0)),
+  }));
+}
+
+/**
+ * 势力是否已过「首日仅建基准」阶段（任一真实玩家角色创建于今日之前）
+ * @param {import('mysql2/promise').PoolConnection} connection
+ */
+async function isFactionPastDasikongBootstrapDay(connection, factionId) {
+  const [rows] = await connection.query(
+    `SELECT 1 FROM players p
+     INNER JOIN accounts a ON a.id = p.player_id
+       AND a.account_type = 'real' AND a.status = 'active'
+     WHERE p.faction_id = ? AND p.player_id <> 'sys1'
+       AND p.created_at < CURDATE()
+     LIMIT 1`,
+    [factionId],
+  );
+  return rows.length > 0;
+}
+
+/**
+ * @param {import('mysql2/promise').PoolConnection} connection
+ */
+async function countEligibleRealPlayers(connection, factionId) {
+  const [rows] = await connection.query(
+    `SELECT COUNT(*) AS c
+     ${REAL_PLAYERS_IN_FACTION}`,
+    [factionId],
+  );
+  return Number(rows[0]?.c) || 0;
 }
 
 /** @returns {Promise<string>} YYYY-MM-DD */
@@ -167,8 +231,11 @@ module.exports = {
   EVENT_ID,
   hasProcessedToday,
   countFactionSnapshots,
+  countEligibleRealPlayers,
+  isFactionPastDasikongBootstrapDay,
   resetFactionBaselines,
   pickDailyWinner,
+  listDailyActivityRanking,
   getServerDateYmd,
   totalScoreSql,
 };

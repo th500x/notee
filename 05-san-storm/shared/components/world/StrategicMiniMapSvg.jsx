@@ -6,29 +6,27 @@
 import { memo } from 'react';
 
 /**
- * @typedef {{ cityId: string, x: number, y: number, w: number, h: number, fill: string, stroke?: string }} StrategicMiniMapCityRect
+ * @typedef {{ cityId: string, x: number, y: number, w: number, h: number, fill: string, stroke?: string, cityType?: string|null }} StrategicMiniMapCityRect
  */
 
-function findCityRect(cityRects, cityId) {
-  if (cityId == null || cityId === '') return null;
-  return cityRects.find((c) => String(c.cityId) === String(cityId)) ?? null;
+const TIER_STAR_FILL = '#fde047';
+const TIER_STAR_STROKE = 'rgba(28,25,23,0.82)';
+
+function tierStarFontSize(r) {
+  return Math.max(0.5, Math.min(r.w, r.h) * 0.52);
 }
 
-/** 最近 3 敌对 / 最近 3 中立：格心叠「可」字，补描边环辨识度 */
-function proximityCanLabel(cityRects, cityId) {
-  const r = findCityRect(cityRects, cityId);
-  if (!r) return null;
-  const fs = Math.max(0.42, Math.min(r.w, r.h) * 0.55);
-  const sw = Math.max(0.035, fs * 0.09);
+function tierStarText(key, x, y, fs) {
+  const sw = Math.max(0.04, fs * 0.1);
   return (
     <text
-      key={`ph-can-${cityId}`}
-      x={r.x + r.w / 2}
-      y={r.y + r.h / 2}
+      key={key}
+      x={x}
+      y={y}
       textAnchor="middle"
       dominantBaseline="central"
-      fill="rgba(254,252,232,0.98)"
-      stroke="rgba(28,25,23,0.9)"
+      fill={TIER_STAR_FILL}
+      stroke={TIER_STAR_STROKE}
       strokeWidth={sw}
       paintOrder="stroke fill"
       fontSize={fs}
@@ -36,18 +34,43 @@ function proximityCanLabel(cityRects, cityId) {
       fontFamily="ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif"
       style={{ pointerEvents: 'none' }}
     >
-      可
+      ★
     </text>
   );
 }
 
-/** 软/硬描边环；`layer`：under 在城块下，over 在城块上 */
+/** 中城 1 星 · 大城 2 星（城块中心，便于区分级别） */
+function cityTierStars(r) {
+  const ct = r.cityType;
+  if (ct !== 'city_medium' && ct !== 'city_major') return null;
+  const fs = tierStarFontSize(r);
+  const cx = r.x + r.w / 2;
+  const cy = r.y + r.h / 2;
+  if (ct === 'city_medium') {
+    return tierStarText(`tier-star-${r.cityId}`, cx, cy, fs);
+  }
+  const gap = fs * 0.5;
+  return (
+    <g key={`tier-stars-${r.cityId}`} style={{ pointerEvents: 'none' }}>
+      {tierStarText(`tier-star-${r.cityId}-0`, cx - gap / 2, cy, fs)}
+      {tierStarText(`tier-star-${r.cityId}-1`, cx + gap / 2, cy, fs)}
+    </g>
+  );
+}
+
+function findCityRect(cityRects, cityId) {
+  if (cityId == null || cityId === '') return null;
+  return cityRects.find((c) => String(c.cityId) === String(cityId)) ?? null;
+}
+
+/** 最近 3 敌对 / 最近 3 中立：双层描边环 + 缓慢脉冲（无中心文字） */
 function proximityHighlightRing(cityRects, cityId, kind, layer) {
   const r = findCityRect(cityRects, cityId);
   if (!r) return null;
   const hostile = kind === 'hostile';
+  const pulseDur = '2.8s';
   if (layer === 'under') {
-    const stroke = hostile ? 'rgba(248,113,113,0.22)' : 'rgba(125,211,252,0.32)';
+    const stroke = hostile ? 'rgb(248,113,113)' : 'rgb(125,211,252)';
     const pad = 0.32;
     return (
       <rect
@@ -60,12 +83,20 @@ function proximityHighlightRing(cityRects, cityId, kind, layer) {
         ry={0.34}
         fill="none"
         stroke={stroke}
+        strokeOpacity={0.22}
         strokeWidth={0.48}
         style={{ pointerEvents: 'none' }}
-      />
+      >
+        <animate
+          attributeName="stroke-opacity"
+          values="0.1;0.42;0.1"
+          dur={pulseDur}
+          repeatCount="indefinite"
+        />
+      </rect>
     );
   }
-  const stroke = hostile ? 'rgba(252,165,165,0.95)' : 'rgba(147,197,253,0.95)';
+  const stroke = hostile ? 'rgb(252,165,165)' : 'rgb(147,197,253)';
   const pad = 0.1;
   return (
     <rect
@@ -78,9 +109,23 @@ function proximityHighlightRing(cityRects, cityId, kind, layer) {
       ry={0.26}
       fill="none"
       stroke={stroke}
+      strokeOpacity={0.55}
       strokeWidth={0.12}
       style={{ pointerEvents: 'none' }}
-    />
+    >
+      <animate
+        attributeName="stroke-opacity"
+        values="0.35;1;0.35"
+        dur={pulseDur}
+        repeatCount="indefinite"
+      />
+      <animate
+        attributeName="stroke-width"
+        values="0.1;0.28;0.1"
+        dur={pulseDur}
+        repeatCount="indefinite"
+      />
+    </rect>
   );
 }
 
@@ -125,7 +170,6 @@ function StrategicMiniMapSvg({
   const neutralHighlightIds = Array.isArray(proximityHighlight?.neutralCityIds)
     ? proximityHighlight.neutralCityIds.filter((id) => id != null && String(id).trim() !== '')
     : [];
-  const proximityLabelCityIds = [...new Set([...hostileHighlightIds, ...neutralHighlightIds])];
 
   return (
     <svg
@@ -196,7 +240,7 @@ function StrategicMiniMapSvg({
       {neutralHighlightIds.map((cityId) =>
         proximityHighlightRing(cityRects, cityId, 'neutral', 'over'),
       )}
-      {proximityLabelCityIds.map((cityId) => proximityCanLabel(cityRects, cityId))}
+      {cityRects.map((r) => cityTierStars(r))}
       {selfMarker &&
       Number.isFinite(selfMarker.cx) &&
       Number.isFinite(selfMarker.cy) ? (

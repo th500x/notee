@@ -6,12 +6,13 @@
 
 import React from 'react';
 import UserManager from '@/components/admin/UserManager';
+import AdminPageGate from '@/components/admin/AdminPageGate';
 
 function UserManagerPage() {
   return (
-    <div>
+    <AdminPageGate>
       <UserManager />
-    </div>
+    </AdminPageGate>
   );
 }
 

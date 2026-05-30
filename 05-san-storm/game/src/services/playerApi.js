@@ -115,6 +115,20 @@ export const playerAPI = {
     }
   },
 
+  /** 地图 Tab：san_1 七势力概览（与势力信息同源） */
+  async getFactionWorldOverviews(playerId) {
+    try {
+      const response = await fetchWithTimeout(
+        `${API_CONFIG.BASE_URL}/players/${playerId}/faction/world-overviews`,
+        { method: 'GET', headers: { 'Content-Type': 'application/json' } },
+      );
+      return response.json();
+    } catch (error) {
+      console.error('获取全图势力概览失败:', error);
+      throw error;
+    }
+  },
+
   async getFactionBulletin(playerId, { limit = 50, category = null } = {}) {
     try {
       const qs = new URLSearchParams({ limit: String(limit) });

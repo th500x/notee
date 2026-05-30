@@ -268,11 +268,11 @@ export default function FactionWarStrategicMiniMapSection({
           {statusLine}
         </div>
       ) : null}
-      <div className="relative flex min-h-[140px] w-full flex-1 items-center justify-center rounded-lg border border-amber-900/35 bg-stone-950/80 p-1 sm:min-h-[180px]">
+      <div className="relative mx-auto w-full max-h-[min(72vh,640px)] aspect-[32/40] overflow-hidden rounded-lg border border-amber-900/35 bg-stone-950/80 p-1">
         {stackStatus === 'ready' && merged?.cells?.length ? (
           <>
             <StrategicMiniMapSvg
-              className="h-full w-full max-h-[min(40vh,360px)] max-w-full"
+              className="h-full w-full max-h-full max-w-full"
               mapColumns={mapColumns}
               mapRows={mapRows}
               roadPathD={roadPathD}
