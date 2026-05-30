@@ -16,6 +16,7 @@
     "build:wiki": "npm run build -w san-storm-wiki",
     "build:game": "npm run build -w san-storm-game",
     "build:vps": "npm run build:vps -w san-storm-game",
+    "build:vps:safe": "bash scripts/build-game-on-vps.sh",
     "build:all": "npm run build:wiki && npm run build:game",
     "init:db": "npm run init-db -w san-storm-backend",
     "test:automated": "node scripts/run-automated-checks.cjs",
