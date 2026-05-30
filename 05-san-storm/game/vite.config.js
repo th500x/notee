@@ -99,7 +99,7 @@ export default defineConfig({
           ) {
             return 'vendor-react';
           }
-          return 'vendor-libs';
+          /* 勿再 catch-all 为 vendor-libs：易触发循环依赖 → Cannot access 'X' before initialization */
         },
       },
     },
