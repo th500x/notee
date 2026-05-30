@@ -47,6 +47,21 @@ function assertJwtSecret() {
 }
 assertJwtSecret();
 
+function warnGlobalJwtSecretInProduction() {
+  const secret = process.env.GLOBAL_JWT_SECRET;
+  if (secret && secret.length >= 16) return;
+  if (process.env.NODE_ENV !== 'production') {
+    console.warn('[startup] ⚠️  GLOBAL_JWT_SECRET 未配置 —— 管理端 API 无法验主站 JWT（本地可设 ADMIN_DEV_BYPASS=1）');
+    return;
+  }
+  console.error('========================================');
+  console.error('⚠️  GLOBAL_JWT_SECRET 未配置或过短');
+  console.error('   /api/auth/users、/api/admin/* 等管理端点将无法验主站管理员令牌');
+  console.error('   请在 backend/.env 设置与 notee/backend JWT_SECRET 相同的 GLOBAL_JWT_SECRET');
+  console.error('========================================');
+}
+warnGlobalJwtSecretInProduction();
+
 /**
  * PVP 战事 tick：每 5 分钟扫描 active 战事的 24h 超时 / 大本营清零 / 城内 NPC 清零。
  * 与 17-2 §6 「胜负判定每 N 分钟」对齐；定时任务负担小（17-2 §13.1）。

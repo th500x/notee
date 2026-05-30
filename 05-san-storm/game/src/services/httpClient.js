@@ -19,7 +19,7 @@
 import { playerTokenManager } from '../utils/playerTokenManager';
 import { tokenManager } from '../utils/tokenManager';
 import { API_CONFIG } from '../constants';
-import { emitSessionExpired } from '../utils/sessionEvents';
+import { emitSessionExpired, emitAdminSessionExpired } from '../utils/sessionEvents';
 
 /**
  * 仅当请求指向 san-storm 后端（3005，对应 `API_CONFIG.BASE_URL`）时附加玩家 token。
@@ -45,7 +45,7 @@ function extractPathname(url) {
 /** 管理端 API：须主站 global JWT（`notee-admin-token`）或本地 ADMIN_DEV_BYPASS。 */
 function isAdminApiPath(pathname) {
   if (pathname.includes('/admin/')) return true;
-  if (/\/auth\/(users|ban|unban|switch-server)(\/|$)/.test(pathname)) return true;
+  if (/\/auth\/(users|ban|unban|switch-server|admin-session)(\/|$)/.test(pathname)) return true;
   if (/\/auth\/user\//.test(pathname)) return true;
   if (/\/pvp-wars\/(tick|active-decision-dry-run)(\/|$)/.test(pathname)) return true;
   return false;
@@ -88,7 +88,9 @@ export async function fetchWithTimeout(url, options = {}, timeout = API_CONFIG.T
       signal: controller.signal,
     });
     clearTimeout(timeoutId);
-    if (response.status === 401 && shouldAttachPlayerToken(url) && !shouldAttachAdminToken(url)) {
+    if (response.status === 401 && shouldAttachAdminToken(url)) {
+      await maybeClearAdminToken(response);
+    } else if (response.status === 401 && shouldAttachPlayerToken(url) && !shouldAttachAdminToken(url)) {
       await maybeEmitSessionExpired(response);
     }
     return response;
@@ -98,6 +100,20 @@ export async function fetchWithTimeout(url, options = {}, timeout = API_CONFIG.T
       throw new Error('请求超时，请检查网络连接后重试');
     }
     throw error;
+  }
+}
+
+async function maybeClearAdminToken(response) {
+  try {
+    const cloned = response.clone();
+    const body = await cloned.json();
+    const code = body && body.code;
+    if (code === 'NO_TOKEN' || code === 'BAD_TOKEN' || code === 'TOKEN_EXPIRED') {
+      tokenManager.clear();
+      emitAdminSessionExpired({ reason: code });
+    }
+  } catch {
+    /* ignore */
   }
 }
 

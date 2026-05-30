@@ -5,7 +5,11 @@
 const STORAGE_KEY = 'san-storm-game-admin-dev-bypass';
 const CHANGE_EVENT = 'san-storm-admin-dev-bypass-change';
 
+/** 生产构建永远禁用 bypass（避免线上误开导致管理 API 401） */
+const bypassAllowed = !import.meta.env.PROD;
+
 export function readAdminDevBypass() {
+  if (!bypassAllowed) return false;
   try {
     return localStorage.getItem(STORAGE_KEY) === '1';
   } catch {
@@ -14,6 +18,7 @@ export function readAdminDevBypass() {
 }
 
 export function setAdminDevBypass(enabled) {
+  if (!bypassAllowed) return;
   try {
     if (enabled) localStorage.setItem(STORAGE_KEY, '1');
     else localStorage.removeItem(STORAGE_KEY);

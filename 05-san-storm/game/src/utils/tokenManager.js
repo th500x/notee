@@ -9,6 +9,20 @@
 
 import { STORAGE_KEYS, TOKEN_DURATION } from '../constants';
 
+function parseJwtExpiryMs(token) {
+  try {
+    const parts = token.split('.');
+    if (parts.length < 2) return null;
+    const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+    if (payload && typeof payload.exp === 'number') {
+      return payload.exp * 1000;
+    }
+  } catch {
+    /* ignore */
+  }
+  return null;
+}
+
 export const tokenManager = {
   /**
    * 保存 Token 到 localStorage
@@ -16,7 +30,11 @@ export const tokenManager = {
   save: (token) => {
     try {
       localStorage.setItem(STORAGE_KEYS.ADMIN_TOKEN, token);
-      localStorage.setItem(STORAGE_KEYS.TOKEN_EXPIRY, Date.now() + TOKEN_DURATION);
+      const jwtExpiry = parseJwtExpiryMs(token);
+      const expiry = jwtExpiry && jwtExpiry > Date.now()
+        ? jwtExpiry
+        : Date.now() + TOKEN_DURATION;
+      localStorage.setItem(STORAGE_KEYS.TOKEN_EXPIRY, expiry);
     } catch (error) {
       console.error('[TokenManager] 保存token失败:', error);
     }

@@ -65,7 +65,42 @@ export const authAPI = {
 
   isAuthenticated: () => {
     return tokenManager.isValid();
-  }
+  },
+
+  /**
+   * 向 san-storm 后端探活：主站 JWT 是否被 GLOBAL_JWT_SECRET 接受
+   */
+  verifySanStormSession: async () => {
+    if (!tokenManager.isValid()) return { ok: false, reason: 'NO_TOKEN' };
+    try {
+      const response = await fetchWithTimeout(`${API_CONFIG.BASE_URL}/auth/admin-session`, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      if (response.ok) return { ok: true };
+      let body = {};
+      try {
+        body = await response.json();
+      } catch {
+        /* ignore */
+      }
+      if (response.status === 401) {
+        tokenManager.clear();
+        return { ok: false, reason: body.code || 'BAD_TOKEN', error: body.error };
+      }
+      if (response.status === 503 && body.code === 'GLOBAL_JWT_NOT_CONFIGURED') {
+        return {
+          ok: false,
+          reason: 'GLOBAL_JWT_NOT_CONFIGURED',
+          error: body.error || '服务端未配置 GLOBAL_JWT_SECRET',
+        };
+      }
+      return { ok: false, reason: 'VERIFY_FAILED', error: body.error || `HTTP ${response.status}` };
+    } catch (error) {
+      console.error('[AuthAPI] 管理员会话探活失败', error);
+      return { ok: false, reason: 'NETWORK', error: error.message };
+    }
+  },
 };
 
 export default authAPI;

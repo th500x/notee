@@ -148,6 +148,15 @@ function requireAuth(req, res, next) {
     return next();
   }
 
+  const decoded = jwt.decode(token);
+  if (decoded && decoded.type === 'global' && !getGlobalJwtSecret()) {
+    return res.status(503).json({
+      success: false,
+      error: '服务端未配置 GLOBAL_JWT_SECRET，无法验主站管理员令牌',
+      code: 'GLOBAL_JWT_NOT_CONFIGURED',
+    });
+  }
+
   const code = playerExpired ? 'TOKEN_EXPIRED' : 'BAD_TOKEN';
   return res.status(401).json({ success: false, error: '会话已失效，请重新登录', code });
 }

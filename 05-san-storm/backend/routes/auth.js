@@ -138,6 +138,14 @@ router.post(
 });
 
 /**
+ * GET /api/auth/admin-session
+ * 轻量探活：校验主站 global JWT 是否被 san-storm 后端接受（AdminPageGate / useAdmin 用）
+ */
+router.get('/admin-session', requireAdminAccess, (req, res) => {
+  return res.json({ success: true, role: 'admin' });
+});
+
+/**
  * GET /api/auth/users
  */
 router.get('/users', requireAdminAccess, async (req, res, next) => {
