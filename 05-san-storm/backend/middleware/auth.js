@@ -36,7 +36,8 @@ function getSecret() {
 }
 
 function getGlobalJwtSecret() {
-  const secret = process.env.GLOBAL_JWT_SECRET;
+  // 主站 global 管理员 JWT（与 notee/backend 的 JWT_SECRET 同值）
+  const secret = process.env.MAIN_JWT_SECRET || process.env.GLOBAL_JWT_SECRET;
   if (!secret || secret.length < 16) return null;
   return secret;
 }
@@ -115,7 +116,7 @@ function tryVerifyGlobalAdminToken(token) {
 
 /**
  * Express 中间件：要求合法 JWT；解析后挂到 `req.player = { sub, role, iat, exp }`。
- * 接受玩家 JWT（`JWT_SECRET`）或主站管理员 JWT（`GLOBAL_JWT_SECRET`，payload.type=global）。
+ * 接受玩家 JWT（`JWT_SECRET`）或主站管理员 JWT（`MAIN_JWT_SECRET` / `GLOBAL_JWT_SECRET`，payload.type=global）。
  */
 function requireAuth(req, res, next) {
   const token = parseBearer(req);
@@ -146,15 +147,6 @@ function requireAuth(req, res, next) {
   if (adminPayload) {
     req.player = adminPayload;
     return next();
-  }
-
-  const decoded = jwt.decode(token);
-  if (decoded && decoded.type === 'global' && !getGlobalJwtSecret()) {
-    return res.status(503).json({
-      success: false,
-      error: '服务端未配置 GLOBAL_JWT_SECRET，无法验主站管理员令牌',
-      code: 'GLOBAL_JWT_NOT_CONFIGURED',
-    });
   }
 
   const code = playerExpired ? 'TOKEN_EXPIRED' : 'BAD_TOKEN';

@@ -206,16 +206,7 @@ export const gameUserAPI = {
       if (response.status === 401 || response.status === 403) {
         return {
           success: false,
-          error: data.error || '需要管理员权限，请重新登录',
-        };
-      }
-
-      if (response.status === 503 && data.code === 'GLOBAL_JWT_NOT_CONFIGURED') {
-        return {
-          success: false,
-          error:
-            data.error ||
-            '服务端未配置 GLOBAL_JWT_SECRET，请在 san-storm 后端 .env 设置与主站 JWT_SECRET 相同的值',
+          error: data.error || '需要管理员权限，请在主站重新登录',
         };
       }
 

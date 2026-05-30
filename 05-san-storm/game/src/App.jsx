@@ -1,8 +1,7 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { lazy, Suspense, useState } from 'react';
+import { lazy, Suspense } from 'react';
 import ErrorBoundary from '@shared/components/common/ErrorBoundary';
 import { useAdmin } from '@/hooks/useAdmin';
-import AdminLoginModal from '@/components/admin/AdminLoginModal';
 import { weeklyReportCard } from '@/data/texts/weeklyReport';
 
 const AuthFlowPage = lazy(() => import('@/pages/AuthFlowPage'));
@@ -24,21 +23,8 @@ function RouteLoading() {
 }
 
 function App() {
-  const { isLoggedIn, devBypass, toggleDevBypass, login, loading: adminLoading, sessionError } = useAdmin();
-  const [adminLoginOpen, setAdminLoginOpen] = useState(false);
-  const [adminLoginLoading, setAdminLoginLoading] = useState(false);
+  const { isLoggedIn, devBypass, toggleDevBypass } = useAdmin();
   const showDevToggle = !import.meta.env.PROD;
-
-  const handleAdminLogin = async (password) => {
-    setAdminLoginLoading(true);
-    try {
-      const result = await login(password);
-      if (result.success) setAdminLoginOpen(false);
-      return result;
-    } finally {
-      setAdminLoginLoading(false);
-    }
-  };
 
   return (
     <Router
@@ -99,20 +85,6 @@ function App() {
                     <h3 className="text-lg font-semibold text-gray-900 mb-2 text-center">战斗动画 Demo</h3>
                     <p className="text-sm text-gray-600 text-center">引擎 play*Demo · 占位地图与兵力（开发调试用）</p>
                   </a>
-
-                  {!isLoggedIn && !adminLoading && (
-                    <button
-                      type="button"
-                      onClick={() => setAdminLoginOpen(true)}
-                      className="block bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow cursor-pointer h-full flex flex-col border-2 border-blue-200 text-left w-full"
-                    >
-                      <div className="text-4xl mb-4 text-center">🔒</div>
-                      <h3 className="text-lg font-semibold text-gray-900 mb-2 text-center">管理员登录</h3>
-                      <p className="text-sm text-gray-600 text-center">
-                        {sessionError || '主站密码 · 解锁用户管理等后台卡片'}
-                      </p>
-                    </button>
-                  )}
 
                   {isLoggedIn && (
                     <>
@@ -178,12 +150,6 @@ function App() {
           </Suspense>
           </ErrorBoundary>
         </main>
-        <AdminLoginModal
-          isOpen={adminLoginOpen}
-          onClose={() => setAdminLoginOpen(false)}
-          onLogin={handleAdminLogin}
-          loading={adminLoginLoading}
-        />
         <footer className="bg-white border-t border-gray-200 mt-12">
           <div className="max-w-7xl mx-auto px-4 py-6">
             <div className="text-center space-y-2">

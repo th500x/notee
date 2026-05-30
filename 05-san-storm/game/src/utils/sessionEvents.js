@@ -21,7 +21,6 @@
  */
 
 export const SESSION_EXPIRED_EVENT = 'sanstorm:session-expired';
-export const ADMIN_SESSION_EXPIRED_EVENT = 'sanstorm:admin-session-expired';
 
 /**
  * 触发"会话已失效"事件。
@@ -50,24 +49,4 @@ export function onSessionExpired(handler) {
   };
   window.addEventListener(SESSION_EXPIRED_EVENT, wrapper);
   return () => window.removeEventListener(SESSION_EXPIRED_EVENT, wrapper);
-}
-
-export function emitAdminSessionExpired(detail = {}) {
-  if (typeof window === 'undefined') return;
-  try {
-    window.dispatchEvent(new CustomEvent(ADMIN_SESSION_EXPIRED_EVENT, { detail }));
-  } catch {
-    /* ignore */
-  }
-}
-
-export function onAdminSessionExpired(handler) {
-  if (typeof window === 'undefined') return () => {};
-  const wrapper = (e) => {
-    try { handler(e?.detail || {}); } catch (err) {
-      console.error('[sessionEvents] admin handler error', err);
-    }
-  };
-  window.addEventListener(ADMIN_SESSION_EXPIRED_EVENT, wrapper);
-  return () => window.removeEventListener(ADMIN_SESSION_EXPIRED_EVENT, wrapper);
 }

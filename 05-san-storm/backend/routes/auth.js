@@ -18,7 +18,7 @@ const router = express.Router();
  *   - 登录注册前置端点（`/register-candidates` / `/register` / `/verify/:id` / `/login`）**不**挂 `requireAuth`，
  *     否则前端尚未拿到 token，登录链路被自我堵死；
  *   - 管理员侧端点（`/users` 列表 / `/ban` / `/unban` / `/user/:userId*` / `/users/*` 批量 / `/switch-server`）
- *     挂 `requireAdminAccess`（主站 global JWT + `GLOBAL_JWT_SECRET`）。
+ *     挂 `requireAdminAccess`（主站 global JWT + `MAIN_JWT_SECRET`）。
  */
 
 /**
@@ -135,14 +135,6 @@ router.post(
   } catch (error) {
     return next(wrap500(error, '登录失败'));
   }
-});
-
-/**
- * GET /api/auth/admin-session
- * 轻量探活：校验主站 global JWT 是否被 san-storm 后端接受（AdminPageGate / useAdmin 用）
- */
-router.get('/admin-session', requireAdminAccess, (req, res) => {
-  return res.json({ success: true, role: 'admin' });
 });
 
 /**

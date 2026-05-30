@@ -19,7 +19,7 @@
 import { playerTokenManager } from '../utils/playerTokenManager';
 import { tokenManager } from '../utils/tokenManager';
 import { API_CONFIG } from '../constants';
-import { emitSessionExpired, emitAdminSessionExpired } from '../utils/sessionEvents';
+import { emitSessionExpired } from '../utils/sessionEvents';
 
 /**
  * 仅当请求指向 san-storm 后端（3005，对应 `API_CONFIG.BASE_URL`）时附加玩家 token。
@@ -45,7 +45,7 @@ function extractPathname(url) {
 /** 管理端 API：须主站 global JWT（`notee-admin-token`）或本地 ADMIN_DEV_BYPASS。 */
 function isAdminApiPath(pathname) {
   if (pathname.includes('/admin/')) return true;
-  if (/\/auth\/(users|ban|unban|switch-server|admin-session)(\/|$)/.test(pathname)) return true;
+  if (/\/auth\/(users|ban|unban|switch-server)(\/|$)/.test(pathname)) return true;
   if (/\/auth\/user\//.test(pathname)) return true;
   if (/\/pvp-wars\/(tick|active-decision-dry-run)(\/|$)/.test(pathname)) return true;
   return false;
@@ -110,7 +110,6 @@ async function maybeClearAdminToken(response) {
     const code = body && body.code;
     if (code === 'NO_TOKEN' || code === 'BAD_TOKEN' || code === 'TOKEN_EXPIRED') {
       tokenManager.clear();
-      emitAdminSessionExpired({ reason: code });
     }
   } catch {
     /* ignore */
