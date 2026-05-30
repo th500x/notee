@@ -1,7 +1,7 @@
 /**
  * 管理员 · 传书模板 config_texts API（san-storm 后端 3005）
  *
- * 走 `/admin/config-texts/*`；后端 `requireAdminAccess` + 前端 `httpClient` 自动附主站 admin token。
+ * 走 `/admin/config-texts/*`；入口鉴权见前端 `AdminPageGate` / `useAdmin`（主站 JWT）。
  *
  * @module services/adminConfigTextsApi
  */

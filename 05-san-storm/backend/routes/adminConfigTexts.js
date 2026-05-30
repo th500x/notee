@@ -1,17 +1,14 @@
 /**
  * 管理员：传书模板 config_texts CRUD + 试发
- * 鉴权：`requireAdminAccess`（主站 global JWT 或 `ADMIN_DEV_BYPASS` 本地兜底）。
+ * 入口鉴权：前端 useAdmin / AdminPageGate（主站 JWT）。
  */
 
 const express = require('express');
 const router = express.Router();
-const { requireAdminAccess } = require('../middleware/auth');
 const configTextService = require('../services/configTextService');
 const { wrap500 } = require('../utils/httpError');
 const { validateBody, validateParams, validateQuery } = require('../middleware/validation');
 const configTextSchemas = require('../middleware/validationSchemas/adminConfigTexts');
-
-router.use(requireAdminAccess);
 
 router.get('/', validateQuery(configTextSchemas.listQuery), async (req, res, next) => {
   try {

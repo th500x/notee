@@ -22,10 +22,10 @@ export default function AdminPageGate({ children }) {
         <div className="bg-amber-50 border border-amber-200 rounded-lg p-8 text-center space-y-3">
           <p className="text-gray-800">此页面需要管理员权限。</p>
           <p className="text-sm text-gray-600">
-            请在 notee.vip 主站页脚点击管理员入口登录（写入主站 JWT，无需游戏内账号）。
+            请在 notee.vip 主站页脚通过管理员入口登录（写入主站 JWT，无需游戏内账号）。
           </p>
           <a href="/" className="text-blue-600 hover:underline inline-block">
-            前往主站登录
+            前往主站
           </a>
         </div>
       </div>

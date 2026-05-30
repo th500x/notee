@@ -3,8 +3,8 @@
  *
  * 覆盖：
  *   - 玩家注册 / 登录 / 验证（写 `playerTokenManager`，后续 `httpClient` 自动附 Bearer）。
- *   - 管理员侧账号操作（封禁 / 解封 / 删除 / 一键清理 / 切服）——仅需主站 `notee-admin-token`；
- *     `httpClient` 对 `/auth/users` 等路径自动附管理员 JWT，**不需要**游戏玩家 Token。
+ *   - 管理员侧账号操作（封禁 / 解封 / 删除 / 一键清理 / 切服）——入口由主站 JWT（`notee-admin-token`）
+ *     与 `AdminPageGate` 控制；**不需要**游戏玩家 Token。
  *
  * @module services/gameUserApi
  */

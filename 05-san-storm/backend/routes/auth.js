@@ -7,7 +7,6 @@
 const express = require('express');
 const accountService = require('../services/accountService');
 const { loginLimiter, registerCandidatesLimiter } = require('../middleware/rateLimit');
-const { requireAdminAccess } = require('../middleware/auth');
 const { wrap500 } = require('../utils/httpError');
 const { validateBody, v } = require('../middleware/validation');
 
@@ -17,8 +16,8 @@ const router = express.Router();
  * 鉴权策略：
  *   - 登录注册前置端点（`/register-candidates` / `/register` / `/verify/:id` / `/login`）**不**挂 `requireAuth`，
  *     否则前端尚未拿到 token，登录链路被自我堵死；
- *   - 管理员侧端点（`/users` 列表 / `/ban` / `/unban` / `/user/:userId*` / `/users/*` 批量 / `/switch-server`）
- *     挂 `requireAdminAccess`（主站 global JWT + `MAIN_JWT_SECRET`）。
+ *   - 管理员侧端点（`/users` 列表 / `/ban` / …）：**不挂后端 JWT**；与全站一致，由前端 `useAdmin` +
+ *     主站登录写入的 `notee-admin-token` 控制入口显隐（AdminPageGate）。
  */
 
 /**
@@ -140,7 +139,7 @@ router.post(
 /**
  * GET /api/auth/users
  */
-router.get('/users', requireAdminAccess, async (req, res, next) => {
+router.get('/users', async (req, res, next) => {
   try {
     const accounts = await accountService.listAccountsWithServerName();
     return res.json({
@@ -158,7 +157,6 @@ router.get('/users', requireAdminAccess, async (req, res, next) => {
  */
 router.post(
   '/ban',
-  requireAdminAccess,
   validateBody({
     userId: v.required(v.nonEmptyString({ max: 64 })),
     reason: v.optional(v.string({ max: 1024 })),
@@ -179,7 +177,6 @@ router.post(
  */
 router.post(
   '/unban',
-  requireAdminAccess,
   validateBody({
     userId: v.required(v.nonEmptyString({ max: 64 })),
   }),
@@ -196,7 +193,7 @@ router.post(
 /**
  * DELETE /api/auth/user/:userId/game-data
  */
-router.delete('/user/:userId/game-data', requireAdminAccess, async (req, res, next) => {
+router.delete('/user/:userId/game-data', async (req, res, next) => {
   try {
     const { userId } = req.params;
     if (!userId) {
@@ -223,7 +220,7 @@ router.delete('/user/:userId/game-data', requireAdminAccess, async (req, res, ne
 /**
  * DELETE /api/auth/user/:userId
  */
-router.delete('/user/:userId', requireAdminAccess, async (req, res, next) => {
+router.delete('/user/:userId', async (req, res, next) => {
   try {
     const { userId } = req.params;
     if (!userId) {
@@ -246,7 +243,7 @@ router.delete('/user/:userId', requireAdminAccess, async (req, res, next) => {
  * POST /api/auth/users/ban-inactive
  * 封禁「游戏内最后活跃」已超过指定天数的账号（默认 14 天）
  */
-router.post('/users/ban-inactive', requireAdminAccess, async (req, res, next) => {
+router.post('/users/ban-inactive', async (req, res, next) => {
   try {
     const days = req.body.days != null ? req.body.days : 14;
     const reason = req.body.reason;
@@ -264,7 +261,7 @@ router.post('/users/ban-inactive', requireAdminAccess, async (req, res, next) =>
 /**
  * DELETE /api/auth/users/banned
  */
-router.delete('/users/banned', requireAdminAccess, async (req, res, next) => {
+router.delete('/users/banned', async (req, res, next) => {
   try {
     const result = await accountService.deleteAllBannedAccounts();
     return res.json({
@@ -280,7 +277,7 @@ router.delete('/users/banned', requireAdminAccess, async (req, res, next) => {
 /**
  * DELETE /api/auth/users/purge-all
  */
-router.delete('/users/purge-all', requireAdminAccess, async (req, res, next) => {
+router.delete('/users/purge-all', async (req, res, next) => {
   try {
     const { deletedCounts, nullifiedCounts } = await accountService.purgeAllPlayerData();
     return res.json({
@@ -299,7 +296,6 @@ router.delete('/users/purge-all', requireAdminAccess, async (req, res, next) => 
  */
 router.post(
   '/switch-server',
-  requireAdminAccess,
   validateBody({
     userId: v.required(v.nonEmptyString({ max: 64 })),
     newServerId: v.required(v.nonEmptyString({ max: 64 })),

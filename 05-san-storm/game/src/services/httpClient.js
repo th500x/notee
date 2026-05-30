@@ -3,9 +3,8 @@
  *
  * 职责：
  *   1. 封装 `fetch` 超时（与 API_CONFIG.TIMEOUT 一致）。
- *   2. **自动附加 `Authorization: Bearer` 头**：
- *      - 管理 API（`/admin/*`、部分 `/auth/*`、调试 tick）：优先 `tokenManager`（主站 3001 global JWT）；
- *      - 其余 san-storm 请求：`playerTokenManager` 玩家 JWT。
+ *   2. **自动附加 `Authorization: Bearer <playerToken>` 头**（来自 `playerTokenManager`）；
+ *      管理员 Token（`tokenManager` / 3001 主站）由调用方按需手动附加，不在此通用客户端里混入。
  *   3. **响应侧统一处理鉴权失效**：识别 `401 + code ∈ NO_TOKEN / BAD_TOKEN / TOKEN_EXPIRED`，
  *      派发 `sanstorm:session-expired` 事件，由 `useAuthFlow` 引导用户走"软重登"。
  *      普通业务 401 / 密码错误的 401（无 code 字段）不会触发此通道。
@@ -17,7 +16,6 @@
  */
 
 import { playerTokenManager } from '../utils/playerTokenManager';
-import { tokenManager } from '../utils/tokenManager';
 import { API_CONFIG } from '../constants';
 import { emitSessionExpired } from '../utils/sessionEvents';
 
@@ -30,30 +28,6 @@ function shouldAttachPlayerToken(url) {
   if (!url) return false;
   if (url.startsWith('/')) return true;
   return url.startsWith(API_CONFIG.BASE_URL);
-}
-
-function extractPathname(url) {
-  if (!url) return '';
-  if (url.startsWith('/')) return url.split('?')[0];
-  try {
-    return new URL(url).pathname;
-  } catch {
-    return url.split('?')[0];
-  }
-}
-
-/** 管理端 API：须主站 global JWT（`notee-admin-token`）或本地 ADMIN_DEV_BYPASS。 */
-function isAdminApiPath(pathname) {
-  if (pathname.includes('/admin/')) return true;
-  if (/\/auth\/(users|ban|unban|switch-server)(\/|$)/.test(pathname)) return true;
-  if (/\/auth\/user\//.test(pathname)) return true;
-  if (/\/pvp-wars\/(tick|active-decision-dry-run)(\/|$)/.test(pathname)) return true;
-  return false;
-}
-
-function shouldAttachAdminToken(url) {
-  if (!shouldAttachPlayerToken(url)) return false;
-  return isAdminApiPath(extractPathname(url));
 }
 
 /**
@@ -69,12 +43,7 @@ export async function fetchWithTimeout(url, options = {}, timeout = API_CONFIG.T
   const timeoutId = setTimeout(() => controller.abort(), timeout);
 
   const headers = new Headers(options.headers || {});
-  if (shouldAttachAdminToken(url)) {
-    const adminToken = tokenManager.get();
-    if (adminToken && !headers.has('Authorization')) {
-      headers.set('Authorization', `Bearer ${adminToken}`);
-    }
-  } else if (shouldAttachPlayerToken(url)) {
+  if (shouldAttachPlayerToken(url)) {
     const token = playerTokenManager.get();
     if (token && !headers.has('Authorization')) {
       headers.set('Authorization', `Bearer ${token}`);
@@ -88,9 +57,7 @@ export async function fetchWithTimeout(url, options = {}, timeout = API_CONFIG.T
       signal: controller.signal,
     });
     clearTimeout(timeoutId);
-    if (response.status === 401 && shouldAttachAdminToken(url)) {
-      await maybeClearAdminToken(response);
-    } else if (response.status === 401 && shouldAttachPlayerToken(url) && !shouldAttachAdminToken(url)) {
+    if (response.status === 401 && shouldAttachPlayerToken(url)) {
       await maybeEmitSessionExpired(response);
     }
     return response;
@@ -100,19 +67,6 @@ export async function fetchWithTimeout(url, options = {}, timeout = API_CONFIG.T
       throw new Error('请求超时，请检查网络连接后重试');
     }
     throw error;
-  }
-}
-
-async function maybeClearAdminToken(response) {
-  try {
-    const cloned = response.clone();
-    const body = await cloned.json();
-    const code = body && body.code;
-    if (code === 'NO_TOKEN' || code === 'BAD_TOKEN' || code === 'TOKEN_EXPIRED') {
-      tokenManager.clear();
-    }
-  } catch {
-    /* ignore */
   }
 }
 
