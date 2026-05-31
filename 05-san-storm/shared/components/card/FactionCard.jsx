@@ -4,6 +4,11 @@
  * @param {Object} bonus - { key: string, value?: number }
  * @returns {string} 中文展示文本
  */
+import {
+  readFactionBalanceBonusSilver,
+  formatFactionBalanceBonusPreview,
+} from '@shared/utils/factionBalanceBonus.js';
+
 const BONUS_CN_MAP = {
   politics_bonus: (v) => `势力内政值${v > 0 ? '+' : ''}${v}%`,
   charm_bonus: (v) => `势力魅力值${v > 0 ? '+' : ''}${v}%`,
@@ -108,6 +113,8 @@ function FactionCard({ faction, leaderName, selected = false, disabled = false, 
   const isFull = faction.isFull ?? faction.is_full;
   // recommended 从 difficulty 推导：简单 = 推荐
   const recommended = faction.recommended ?? (faction.difficulty === '简单');
+  const balanceBonusSilver = readFactionBalanceBonusSilver(faction);
+  const balanceBonusLabel = formatFactionBalanceBonusPreview(balanceBonusSilver);
 
   // 使用 parseBonuses 统一处理所有格式
   const bonuses = parseBonuses(faction);
@@ -292,6 +299,19 @@ function FactionCard({ faction, leaderName, selected = false, disabled = false, 
             </div>
           </div>
         )}
+
+        {/* 人数平衡补偿预览（创角完成时服务端结算） */}
+        {balanceBonusLabel ? (
+          <div className="relative px-3 py-2 bg-amber-950/40 backdrop-blur-sm border-t border-amber-700/40">
+            <div className="flex items-center justify-between gap-2 text-xs">
+              <div className="flex items-center gap-1 min-w-0">
+                <span className="text-amber-300 shrink-0">💰</span>
+                <span className="text-amber-100 font-semibold truncate">{balanceBonusLabel}</span>
+              </div>
+              <span className="text-amber-200/70 text-[10px] shrink-0">创角时发放</span>
+            </div>
+          </div>
+        ) : null}
 
         {/* 难度信息 */}
         <div className="relative px-3 py-2 bg-gray-800/90 backdrop-blur-sm border-t border-gray-700">

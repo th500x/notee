@@ -129,7 +129,7 @@ export default function FactionWarDynamicsSection({ factionId }) {
               </Line>
               <Line>
                 <span className="text-stone-500">士气：</span>
-                攻方 {war.attackerMorale ?? '—'} / 守方 {war.defenderMorale ?? '—'}
+                攻方 {war.attackerWarMorale ?? '—'} / 守方 {war.defenderWarMorale ?? '—'}
               </Line>
             </div>
           );

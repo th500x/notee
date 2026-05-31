@@ -24,7 +24,9 @@ const WAR_PVP_VICTORY_CONDITIONS = Object.freeze({
   CAPTURE_CITY: 'capture_city',
   ELIMINATE_BASE_CAMP: 'eliminate_attacker_base_camp',
   HOLD_CITY: 'hold_city',
+  /** @deprecated 旧 break_morale；新战事用 WAR_MORALE_RACE */
   BREAK_MORALE: 'break_morale',
+  WAR_MORALE_RACE: 'war_morale_race',
   TIMEOUT: 'timeout',
 });
 
@@ -65,8 +67,10 @@ function formatPvpWarRow(row) {
     attackerFactionName: row.attacker_faction_name || null,
     defenderFactionId: row.defender_faction_id,
     defenderFactionName: row.defender_faction_name || null,
-    attackerMorale: Number(row.attacker_morale ?? 100),
-    defenderMorale: Number(row.defender_morale ?? 100),
+    attackerWarMorale:
+      row.attacker_war_morale != null ? Number(row.attacker_war_morale) : null,
+    defenderWarMorale:
+      row.defender_war_morale != null ? Number(row.defender_war_morale) : null,
     status: row.status,
     winnerFactionId: row.winner_faction_id || null,
     victoryCondition: row.victory_condition || null,
@@ -189,7 +193,7 @@ async function insertPvpWar(record, conn = null) {
        target_city_id, target_city_name,
        attacker_faction_id, attacker_faction_name,
        defender_faction_id, defender_faction_name,
-       attacker_morale, defender_morale,
+       attacker_war_morale, defender_war_morale,
        status, winner_faction_id, victory_condition,
        base_camp, side_stats, duel_history,
        start_time, end_time, settled_at, settlement_phase
@@ -215,8 +219,12 @@ async function insertPvpWar(record, conn = null) {
       record.attackerFactionName || null,
       record.defenderFactionId,
       record.defenderFactionName || null,
-      Number.isFinite(record.attackerMorale) ? record.attackerMorale : 100,
-      Number.isFinite(record.defenderMorale) ? record.defenderMorale : 100,
+      record.attackerWarMorale != null && Number.isFinite(record.attackerWarMorale)
+        ? record.attackerWarMorale
+        : null,
+      record.defenderWarMorale != null && Number.isFinite(record.defenderWarMorale)
+        ? record.defenderWarMorale
+        : null,
       record.status || WAR_PVP_STATUS.PENDING,
       record.winnerFactionId || null,
       record.victoryCondition || null,
@@ -244,8 +252,8 @@ async function updatePvpWar(pvpWarId, patch, conn = null) {
   const map = {
     warName: 'war_name',
     status: 'status',
-    attackerMorale: 'attacker_morale',
-    defenderMorale: 'defender_morale',
+    attackerWarMorale: 'attacker_war_morale',
+    defenderWarMorale: 'defender_war_morale',
     winnerFactionId: 'winner_faction_id',
     victoryCondition: 'victory_condition',
     startTime: 'start_time',

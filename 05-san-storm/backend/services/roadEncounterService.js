@@ -495,6 +495,7 @@ async function recordEncounterBattleSettlement(attackerPlayerId, body) {
       defenderVeteranPromotions = await checkAndApplyVeteran(
         (sql, params) => pool.query(sql, params),
         defenderPlayerId,
+        { instanceIds: allTroopInstanceIds },
       );
     } catch (vetErr) {
       console.error('[roadEncounterService] defender veteran', vetErr);

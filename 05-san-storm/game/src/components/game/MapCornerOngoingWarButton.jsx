@@ -12,6 +12,7 @@ import {
   buildMapCornerWarTooltip,
   formatMapCornerWarLabel,
 } from '@/utils/mapCornerOngoingWars';
+import WarMoraleRaceBar, { shouldShowWarMoraleBar } from '@/components/game/WarMoraleRaceBar';
 
 function prefersHoverUi() {
   if (typeof window === 'undefined') return true;
@@ -68,6 +69,11 @@ export default function MapCornerOngoingWarButton({ entry, onLocate }) {
   const label = formatMapCornerWarLabel(entry.targetCityName, entry.targetCityId);
   const textClass = entry.isOffensive ? 'text-sky-400/95' : 'text-red-400/95';
   const tooltipText = buildMapCornerWarTooltip(entry);
+  const showMoraleBar = shouldShowWarMoraleBar(
+    entry.attackerWarMorale,
+    entry.defenderWarMorale,
+    entry.hasWarMoraleInit,
+  );
 
   const handleClick = () => {
     if (typeof onLocate === 'function') onLocate();
@@ -113,24 +119,33 @@ export default function MapCornerOngoingWarButton({ entry, onLocate }) {
   return (
     <>
       {panel}
-      <button
-        ref={btnRef}
-        type="button"
-        style={mapCornerEntryRowBoxStyle}
-        className={`${MAP_CORNER_ENTRY_ROW_CLASS_ZHOU_JUN} self-start justify-start text-left ${textClass}`}
-        onMouseEnter={() => {
-          if (!prefersHoverUi()) return;
-          syncAnchor();
-          setHoverOpen(true);
-        }}
-        onMouseLeave={() => {
-          if (!prefersHoverUi()) return;
-          setHoverOpen(false);
-        }}
-        onClick={handleClick}
-      >
-        <span className="block w-full min-w-0 truncate text-left">{label}</span>
-      </button>
+      <div className="flex w-full flex-col gap-0.5 self-start">
+        {showMoraleBar ? (
+          <WarMoraleRaceBar
+            attackerWarMorale={entry.attackerWarMorale}
+            defenderWarMorale={entry.defenderWarMorale}
+            isOffensive={entry.isOffensive}
+          />
+        ) : null}
+        <button
+          ref={btnRef}
+          type="button"
+          style={mapCornerEntryRowBoxStyle}
+          className={`${MAP_CORNER_ENTRY_ROW_CLASS_ZHOU_JUN} justify-start text-left ${textClass}`}
+          onMouseEnter={() => {
+            if (!prefersHoverUi()) return;
+            syncAnchor();
+            setHoverOpen(true);
+          }}
+          onMouseLeave={() => {
+            if (!prefersHoverUi()) return;
+            setHoverOpen(false);
+          }}
+          onClick={handleClick}
+        >
+          <span className="block w-full min-w-0 truncate text-left">{label}</span>
+        </button>
+      </div>
     </>
   );
 }

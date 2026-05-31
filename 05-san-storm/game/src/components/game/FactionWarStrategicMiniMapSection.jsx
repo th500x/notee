@@ -36,6 +36,7 @@ const CITY_POLL_MS = 60_000;
  *   onCitySelect: (cityId: string, event: { nativeEvent: unknown }) => void,
  *   onMiniMapTooltipDismiss?: () => void,
  *   deferParentClearWithinSelector?: string|null,
+ *   proximityHighlightOverride?: { hostileCityIds?: string[], neutralCityIds?: string[] }|null,
  *   className?: string,
  * }} props
  */
@@ -46,6 +47,7 @@ export default function FactionWarStrategicMiniMapSection({
   onCitySelect,
   onMiniMapTooltipDismiss,
   deferParentClearWithinSelector = null,
+  proximityHighlightOverride = null,
   className = '',
 }) {
   const playerId = player?.playerId ?? null;
@@ -134,10 +136,19 @@ export default function FactionWarStrategicMiniMapSection({
     [footprints, cityById, playerFactionId],
   );
 
-  const proximityHighlight = useMemo(
-    () => computeStrategicMiniMapProximityHighlights(footprints, cityById, playerFactionId, null, null),
-    [footprints, cityById, playerFactionId],
-  );
+  const proximityHighlight = useMemo(() => {
+    if (proximityHighlightOverride) {
+      return {
+        hostileCityIds: Array.isArray(proximityHighlightOverride.hostileCityIds)
+          ? proximityHighlightOverride.hostileCityIds
+          : [],
+        neutralCityIds: Array.isArray(proximityHighlightOverride.neutralCityIds)
+          ? proximityHighlightOverride.neutralCityIds
+          : [],
+      };
+    }
+    return computeStrategicMiniMapProximityHighlights(footprints, cityById, playerFactionId, null, null);
+  }, [proximityHighlightOverride, footprints, cityById, playerFactionId]);
 
   const selfMarker = useMemo(() => {
     if (!player || !merged?.cells?.length) return null;

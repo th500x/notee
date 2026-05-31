@@ -8,10 +8,50 @@
  */
 
 const { pool } = require('../database/connection');
+const { loadRoadGridSan1YuVerticalStack } = require('../utils/roadGrid');
 const {
   computeStrategicMiniMapProximityHighlights,
 } = require('../../shared/utils/computeStrategicMiniMapProximityHighlights.js');
 const { worldMapCellFromCityDbRow } = require('../../shared/utils/strategicGridCoordinates.js');
+
+/**
+ * 与前端 `collectStrategicCityFootprintsForMiniMap(merged.cells)` 同源（合并豫州栈 JSON）。
+ * @param {string} season
+ * @returns {Promise<Array<object>|null>}
+ */
+async function loadFootprintsFromMergedStack(season) {
+  const s = String(season || 'san_1').trim() || 'san_1';
+  if (s !== 'san_1') return null;
+  try {
+    const stack = await loadRoadGridSan1YuVerticalStack(s);
+    if (!stack?.rawCells?.length) return null;
+    const { collectStrategicCityFootprintsForMiniMap } = await import(
+      '../../shared/utils/strategicMiniMapGeometry.js'
+    );
+    return collectStrategicCityFootprintsForMiniMap(
+      stack.rawCells,
+      stack.mapColumns,
+      stack.mapRows,
+    );
+  } catch (e) {
+    console.warn('[strategicWarTargetProximity] merged stack footprints:', e.message);
+    return null;
+  }
+}
+
+function buildDbFootprint(r) {
+  const localGx = Math.trunc(Number(r.position_x));
+  const localGy = Math.trunc(Number(r.position_y));
+  if (!Number.isFinite(localGx) || !Number.isFinite(localGy)) return null;
+  const w = worldMapCellFromCityDbRow(r);
+  return {
+    cityId: String(r.city_id || '').trim(),
+    anchorGx: w?.gx ?? localGx,
+    anchorGy: w?.worldGy ?? localGy,
+    widthCells: 2,
+    heightCells: 2,
+  };
+}
 
 /**
  * @param {string} season
@@ -27,31 +67,28 @@ async function loadFootprintsAndCityByIdForSeason(season) {
        AND position_y IS NOT NULL`,
     [s],
   );
-  const footprints = [];
   const cityById = {};
   for (const r of rows) {
     const id = String(r.city_id || '').trim();
     if (!id) continue;
-    const localGx = Math.trunc(Number(r.position_x));
-    const localGy = Math.trunc(Number(r.position_y));
-    if (!Number.isFinite(localGx) || !Number.isFinite(localGy)) continue;
-    const junId = String(r.jun_id || '').trim();
-    const w = worldMapCellFromCityDbRow(r);
-    const anchorGx = w?.gx ?? localGx;
-    const anchorGy = w?.worldGy ?? localGy;
-    footprints.push({
-      cityId: id,
-      anchorGx,
-      anchorGy,
-      widthCells: 2,
-      heightCells: 2,
-    });
     cityById[id] = {
       faction_id: r.faction_id,
       factionId: r.faction_id,
       city_type: r.city_type,
       cityType: r.city_type,
     };
+  }
+
+  const mergedFootprints = await loadFootprintsFromMergedStack(s);
+  let footprints = [];
+  if (mergedFootprints?.length) {
+    footprints = mergedFootprints.filter((fp) => cityById[String(fp.cityId || '').trim()]);
+  }
+  if (!footprints.length) {
+    for (const r of rows) {
+      const fp = buildDbFootprint(r);
+      if (fp?.cityId) footprints.push(fp);
+    }
   }
   return { footprints, cityById };
 }

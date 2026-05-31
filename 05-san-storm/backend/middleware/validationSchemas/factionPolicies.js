@@ -20,7 +20,14 @@ const longTermProposalBody = {
   proposalId: v.optional(v.idLike({ max: 128 })),
 };
 
+const previewApprovalBody = {
+  factionId: v.required(factionId),
+  category: v.required(v.enum(POLICY_CATEGORIES)),
+  config: v.required(v.plainObject()),
+};
+
 module.exports = {
   panelQuery,
   longTermProposalBody,
+  previewApprovalBody,
 };

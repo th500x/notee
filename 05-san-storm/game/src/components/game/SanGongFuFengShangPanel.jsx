@@ -1,5 +1,5 @@
 /**
- * 三公府 · 互动 · 封赏：俸禄（国力档位日领）+ 礼盒/兑换（占位）+ 将领/部队卡池入口（与 `CardPoolPoolButton` 同源样式）。
+ * 三公府 · 互动 · 封赏：俸禄（国力档位日领）+ 礼盒/兑换/军备（占位）+ 将领/部队卡池入口（与 `CardPoolPoolButton` 同源样式）。
  * 打开卡池后仍由 `GamePage` 的 `CardPoolDrawer` + `useCardPool` 承接（经 `onOpenPool`）。
  */
 
@@ -24,6 +24,9 @@ const GIFT_BOX_TOOLTIP =
 
 const EXCHANGE_TOOLTIP =
   '规划：消耗指定资源或道具兑换奖励（兑换池、日限与扣费细则待定）。当前仅为入口占位。';
+
+const ARMAMENT_TOOLTIP =
+  '规划：消耗贡献值兑换额外探索/战斗/匪寨次数（每日 0:00 重置兑换机会，细则见 12-1 §4.3）。当前仅为入口占位。';
 
 /**
  * @param {{
@@ -142,7 +145,7 @@ export default function SanGongFuFengShangPanel({
           {toast}
         </div>
       ) : null}
-      <div className="flex flex-wrap justify-start gap-3">
+      <div className="flex flex-wrap justify-start gap-3 overflow-visible">
         <CardPoolPoolButton
           icon="💰"
           label="俸禄"
@@ -176,6 +179,18 @@ export default function SanGongFuFengShangPanel({
           tooltip={EXCHANGE_TOOLTIP}
           onClick={() => {
             setToast('兑换功能筹备中，敬请期待');
+          }}
+        />
+        <CardPoolPoolButton
+          icon="🛡️"
+          label="军备"
+          subLabel="敬请期待"
+          remaining={0}
+          dailyLimit={1}
+          drawerOpen={drawerOpen}
+          tooltip={ARMAMENT_TOOLTIP}
+          onClick={() => {
+            setToast('军备功能筹备中，敬请期待');
           }}
         />
         <CardPoolPoolButton

@@ -267,13 +267,21 @@ function GamePageInner({ onLogout, accountId }) {
             poolType={openPool}
             status={cardPool.status}
             loading={cardPool.loading}
+            choiceLoading={cardPool.choiceLoading}
             drawResult={cardPool.drawResult}
+            duplicateChoiceError={cardPool.duplicateChoiceError}
             error={cardPool.error}
             skillsMap={skillsMap}
             factionId={player?.factionId}
             playerSilver={player?.silver}
-            onDraw={async () => {
-              await cardPool.draw(openPool);
+            onDraw={async (poolSeason) => {
+              const res = await cardPool.draw(openPool, poolSeason);
+              if (!res?.duplicateChoiceRequired) {
+                await refresh({ silent: true });
+              }
+            }}
+            onResolveDuplicateChoice={cardPool.resolveDuplicateChoice}
+            onAfterDuplicateChoice={async () => {
               await refresh({ silent: true });
             }}
             onClearResult={cardPool.clearResult}

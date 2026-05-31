@@ -20,14 +20,14 @@ CREATE TABLE IF NOT EXISTS wars_pvp (
   defender_faction_id VARCHAR(50) NOT NULL COMMENT '守方势力 → factions.id',
   defender_faction_name VARCHAR(100) NULL COMMENT '守方势力名（冗余）',
 
-  attacker_morale INT NOT NULL DEFAULT 100 COMMENT '攻方士气 0～100',
-  defender_morale INT NOT NULL DEFAULT 100 COMMENT '守方士气 0～100',
+  attacker_war_morale INT NULL DEFAULT NULL COMMENT '攻方战事竞态士气 0～120（与 defender 之和恒120；落营激活写入）',
+  defender_war_morale INT NULL DEFAULT NULL COMMENT '守方战事竞态士气 0～120',
 
   status ENUM('pending', 'active', 'completed', 'failed', 'cancelled') NOT NULL DEFAULT 'pending'
     COMMENT 'pending=已创建待开打；active；completed；failed；cancelled',
 
   winner_faction_id VARCHAR(50) NULL COMMENT '获胜势力（终局写入）→ factions.id',
-  victory_condition VARCHAR(64) NULL COMMENT '终局条件代码：capture_city | eliminate_attacker_base_camp | hold_city | break_morale | timeout 等',
+  victory_condition VARCHAR(64) NULL COMMENT '终局条件代码：capture_city | eliminate_attacker_base_camp | hold_city | war_morale_race | timeout 等',
 
   base_camp JSON NULL COMMENT '攻方城外大本营：锚格、朝向、占用格、NPC总支/存活、贴图键等（见 17-2 实现计划 §1.6a）',
   side_stats JSON NULL COMMENT '攻守双方累计战况摘要（场次、胜负、杀伤等，便于列表/面板）',

@@ -12,6 +12,8 @@ import {
   buildPhase1BundleFromSkillIds,
   collectCharacterSkillIdsFromConfig,
 } from '@shared/utils/skillPhase1Passive';
+import { parseEnhanceSlots } from '@shared/utils/characterEnhanceCombat';
+import { applyVeteranBonusToTroopCombatStats } from '@shared/utils/troopVeteranDisplay';
 
 /**
  * 将将领卡原始实例转为 CharacterCard props
@@ -42,6 +44,7 @@ export function toCharCardData(card, attributeBonus = {}, skillsMap = null) {
     description: cfg.description,
     avatar: cfg.avatar,
     morale: card.morale ?? null,
+    characterEnhanceSlots: parseEnhanceSlots(card.characterEnhanceSlots ?? card.character_enhance_slots),
     attributeBonus: attributeBonus || {},
   };
   if (skillsMap && typeof skillsMap === 'object') {
@@ -57,6 +60,16 @@ export function toCharCardData(card, attributeBonus = {}, skillsMap = null) {
  */
 export function toTroopCardData(card) {
   const cfg = card.config || {};
+  const veteranBonusPct = Number(card.veteranBonusPct) || 0;
+  const combatStats = applyVeteranBonusToTroopCombatStats(
+    {
+      attack: cfg.attack || 0,
+      defense: cfg.defense || 0,
+      speed: cfg.speed,
+      movement: cfg.movement,
+    },
+    veteranBonusPct,
+  );
   return {
     id: cfg.id || card.cardId,
     name: cfg.name || card.cardId,
@@ -64,10 +77,10 @@ export function toTroopCardData(card) {
     troopType: cfg.troopType,
     weaponType: cfg.weaponType,
     faction: cfg.faction,
-    attack: cfg.attack || 0,
-    defense: cfg.defense || 0,
-    speed: cfg.speed,
-    movement: cfg.movement,
+    attack: combatStats.attack,
+    defense: combatStats.defense,
+    speed: combatStats.speed,
+    movement: combatStats.movement,
     range: cfg.range,
     maxTroops: (cfg.maxTroops || 0) + (card.bonusMaxTroops || 0),
     currentTroops: card.currentTroops,
@@ -84,7 +97,8 @@ export function toTroopCardData(card) {
     forestAdapt: cfg.forestAdapt,
     siegeAdapt: cfg.siegeAdapt,
     veteranTier: card.veteranTier ?? 0,
-    veteranBonusPct: Number(card.veteranBonusPct) || 0,
+    veteranBonusPct,
+    lifetimeBattleCount: card.lifetimeBattleCount ?? 0,
   };
 }
 

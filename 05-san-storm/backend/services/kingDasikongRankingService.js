@@ -30,14 +30,26 @@ const DELTA = {
 };
 
 /** 势力内真实活跃玩家（以 players 为驱动，statistics 可缺行） */
-const REAL_PLAYERS_IN_FACTION = `
+const REAL_PLAYERS_FROM = `
   FROM players p
   INNER JOIN accounts a ON a.id = p.player_id
     AND a.account_type = 'real'
     AND a.status = 'active'
-  LEFT JOIN player_statistics s ON s.player_id = p.player_id
-  WHERE p.faction_id = ? AND p.player_id <> 'sys1'
-`;
+  LEFT JOIN player_statistics s ON s.player_id = p.player_id`;
+
+const REAL_PLAYERS_FACTION_WHERE = `
+  WHERE p.faction_id = ? AND p.player_id <> 'sys1'`;
+
+/** INSERT … SELECT 等仅需 FROM+WHERE 的场景 */
+const REAL_PLAYERS_IN_FACTION = `
+  ${REAL_PLAYERS_FROM}
+  ${REAL_PLAYERS_FACTION_WHERE}`;
+
+/** 日榜 delta 查询：JOIN 必须在 WHERE 之前 */
+const REAL_PLAYERS_WITH_SNAP_JOIN = `
+  ${REAL_PLAYERS_FROM}
+  LEFT JOIN temp_event_ranking snap
+    ON snap.player_id = p.player_id AND snap.event_id = ?`;
 
 function totalScoreSql() {
   const w = SCORE_WEIGHTS;
@@ -70,6 +82,8 @@ async function countFactionSnapshots(connection, factionId, eventId = EVENT_ID) 
   const [rows] = await connection.query(
     `SELECT COUNT(*) AS c FROM temp_event_ranking snap
      INNER JOIN players p ON p.player_id = snap.player_id
+     INNER JOIN accounts a ON a.id = p.player_id
+       AND a.account_type = 'real' AND a.status = 'active'
      WHERE snap.event_id = ? AND p.faction_id = ?`,
     [eventId, factionId],
   );
@@ -129,14 +143,13 @@ async function pickDailyWinner(connection, factionId, eventId = EVENT_ID) {
        (${DELTA.rep}) AS delta_rep_contrib,
        (${DELTA.sf}) AS delta_silver_food,
        (${scoreSql}) AS total_score
-     ${REAL_PLAYERS_IN_FACTION}
+     ${REAL_PLAYERS_WITH_SNAP_JOIN}
+     ${REAL_PLAYERS_FACTION_WHERE}
        AND (
          p.position_level IS NULL
          OR p.position_level > ?
          OR p.current_position_id = ?
        )
-     LEFT JOIN temp_event_ranking snap
-       ON snap.player_id = p.player_id AND snap.event_id = ?
      ORDER BY total_score DESC,
        delta_battle DESC,
        delta_events DESC,
@@ -144,7 +157,7 @@ async function pickDailyWinner(connection, factionId, eventId = EVENT_ID) {
        delta_silver_food DESC,
        p.player_id ASC
      LIMIT 1`,
-    [factionId, DASIKONG_APPOINTMENT_EXCLUDE_MAX_LEVEL, DASIKONG_POSITION_ID, eventId],
+    [eventId, factionId, DASIKONG_APPOINTMENT_EXCLUDE_MAX_LEVEL, DASIKONG_POSITION_ID],
   );
   const row = rows[0];
   if (!row?.player_id) return null;
@@ -170,12 +183,11 @@ async function listDailyActivityRanking(factionId, limit = 10, connection = null
        p.player_id AS playerId,
        p.character_name AS characterName,
        (${scoreSql}) AS totalScore
-     ${REAL_PLAYERS_IN_FACTION}
-     LEFT JOIN temp_event_ranking snap
-       ON snap.player_id = p.player_id AND snap.event_id = ?
+     ${REAL_PLAYERS_WITH_SNAP_JOIN}
+     ${REAL_PLAYERS_FACTION_WHERE}
      ORDER BY totalScore DESC, p.player_id ASC
      LIMIT ?`,
-    [factionId, EVENT_ID, lim],
+    [EVENT_ID, factionId, lim],
   );
   return (rows || []).map((r, idx) => ({
     rank: idx + 1,

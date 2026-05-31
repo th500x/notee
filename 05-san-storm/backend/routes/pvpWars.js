@@ -257,6 +257,7 @@ function formatRemonstranceCityRow(r) {
     junId: r.jun_id || null,
     defenderFactionId: r.faction_id || null,
     inMapWarRemonstranceRange: r._remonstranceMapRangeOk === true,
+    activePvpWarId: r._activePvpWarId || null,
   };
 }
 
@@ -282,10 +283,8 @@ router.get('/remonstrance-panel', validateQuery(pvpWarSchemas.remonstrancePanelQ
       return res.status(404).json({ success: false, error: '该势力暂未配置 AI 君主' });
     }
     const season = String(req.query.season || '').trim() || 'san_1';
-    const { pvpTargets, pveTargets } = await aiKingActiveDecisionService.collectCandidateTargets(
-      factionId,
-      season,
-    );
+    const { pvpTargets, pveTargets, pvpExcludedActiveWar } =
+      await aiKingActiveDecisionService.collectCandidateTargets(factionId, season);
     const cityCount = await fetchFactionCityCountForKing(factionId);
     const approvalPreview = passiveApprovalService.previewApprovalRange({
       factionId,
@@ -317,6 +316,7 @@ router.get('/remonstrance-panel', validateQuery(pvpWarSchemas.remonstrancePanelQ
       data: {
         pvpTargets: (pvpTargets || []).map(formatRemonstranceCityRow).filter(Boolean),
         pveTargets: (pveTargets || []).map(formatRemonstranceCityRow).filter(Boolean),
+        pvpExcludedActiveWar: (pvpExcludedActiveWar || []).map(formatRemonstranceCityRow).filter(Boolean),
         transientPolicyFees,
         warLimits: {
           pvpActiveOrPending: pvpCount,

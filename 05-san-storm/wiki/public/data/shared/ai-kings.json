@@ -25,7 +25,10 @@
       },
       "speechStyle": "decadent",
       "hourlyDecisions": 1,
-      "charmBonus": 1.0
+      "charmBonus": 1.0,
+      "approvalTraits": {
+        "honorsUnconditionalBenefit": true
+      }
     },
     {
       "factionId": "san_1_faction_7001",
@@ -50,7 +53,10 @@
       },
       "speechStyle": "overlord",
       "hourlyDecisions": 3,
-      "charmBonus": 1.0
+      "charmBonus": 1.0,
+      "approvalTraits": {
+        "honorsUnconditionalBenefit": true
+      }
     },
     {
       "factionId": "san_1_faction_1001",
@@ -75,7 +81,10 @@
       },
       "speechStyle": "benevolent",
       "hourlyDecisions": 2,
-      "charmBonus": 1.0
+      "charmBonus": 1.0,
+      "approvalTraits": {
+        "honorsUnconditionalBenefit": true
+      }
     }
   ],
   "metadata": {

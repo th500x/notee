@@ -95,6 +95,7 @@ const MIGRATION_FILES = [
   'create-bandits-table.sql',
   'alter-battles-add-pve-bandit-type.sql',
   'create-wars-pvp-table.sql',
+  'alter-wars-pvp-rename-war-morale-columns.sql',
   'alter-battles-add-pvp-war-id.sql',
   'rename-faction-bulletin-entries-to-faction-bulletins.sql',
   'create-faction-bulletins.sql',
@@ -114,6 +115,8 @@ const MIGRATION_FILES = [
   'migrate-faction-reserve-pool-from-factions.sql',
   'migrate-faction-reserve-usage-into-unified.sql',
   'factions-drop-reserve-columns.sql',
+  'add-player-cards-character-enhance-slots.sql',
+  'alter-temp-card-pool-draws-duplicate-choice.sql',
 ];
 
 function stripSqlComments(sql) {

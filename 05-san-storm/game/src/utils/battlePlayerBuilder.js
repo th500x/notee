@@ -19,6 +19,7 @@ import {
   getPositionCombatBonusesFromPlayer,
 } from '@/utils/positionCombatBonuses';
 import { attachTroopAffinityToCharacter } from '@/utils/troopAffinityCombat';
+import { attachEnhancePctToCharacter } from '@shared/utils/characterEnhanceCombat';
 
 function buildTroopUnit(troopCard, charData, morale, phase1Bundle) {
   const cfg = troopCard.config || {};
@@ -77,10 +78,11 @@ export function buildPlayerUnitsFromContext(player, cards, attributeBonusBySlot 
   if (!cards || cards.length === 0 || !player) return [];
   const units = [];
   const posCombatBonuses = getPositionCombatBonusesFromPlayer(player);
-  const withCombatCharacter = (charData, troopAffinity) => {
+  const withCombatCharacter = (charData, troopAffinity, enhanceSlots) => {
     let c = charData;
     if (posCombatBonuses) c = attachPositionCombatBonuses(c, posCombatBonuses);
     if (troopAffinity) c = attachTroopAffinityToCharacter(c, troopAffinity);
+    if (enhanceSlots) c = attachEnhancePctToCharacter(c, enhanceSlots);
     return c;
   };
   const playerBonus = attributeBonusBySlot?.player || {};
@@ -129,7 +131,7 @@ export function buildPlayerUnitsFromContext(player, cards, attributeBonusBySlot 
     }, skillsMap, cfg);
     for (const t of char1Troops) {
       units.push({
-        ...buildTroopUnit(t, withCombatCharacter(charData, cfg.troopAffinity), char1Card.morale ?? 70, phase1Bundle),
+        ...buildTroopUnit(t, withCombatCharacter(charData, cfg.troopAffinity, char1Card.characterEnhanceSlots), char1Card.morale ?? 70, phase1Bundle),
         lineupSlot: 'character1',
         commanderMoraleTarget: 'character',
         commanderInstanceId: char1Card.instanceId,
@@ -154,7 +156,7 @@ export function buildPlayerUnitsFromContext(player, cards, attributeBonusBySlot 
     }, skillsMap, cfg);
     for (const t of char2Troops) {
       units.push({
-        ...buildTroopUnit(t, withCombatCharacter(charData, cfg.troopAffinity), char2Card.morale ?? 70, phase1Bundle),
+        ...buildTroopUnit(t, withCombatCharacter(charData, cfg.troopAffinity, char2Card.characterEnhanceSlots), char2Card.morale ?? 70, phase1Bundle),
         lineupSlot: 'character2',
         commanderMoraleTarget: 'character',
         commanderInstanceId: char2Card.instanceId,

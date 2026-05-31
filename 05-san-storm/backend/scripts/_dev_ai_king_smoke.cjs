@@ -35,6 +35,12 @@ const passiveApprovalService = require(path.join(
 const aiKingActiveDecisionService = require(path.join(
   '..', 'services', 'aiKingActiveDecisionService',
 ));
+const policyProposalAssessService = require(path.join(
+  '..', 'services', 'policyProposalAssessService',
+));
+const factionPolicyDefaults = require(path.join(
+  '..', 'services', 'factionPolicyDefaults',
+));
 
 let pass = 0;
 let fail = 0;
@@ -253,6 +259,38 @@ function expect(label, cond, extra) {
   // 过期窗口为负 → 必返回 null（验证 TTL 起作用；用 0 在同一 tick 内 delta=0 不会过期）
   const expired = aiKingActiveDecisionService.getRecentDecision('san_1_faction_1001', { withinMs: -1 });
   expect('TTL<0 → recent 视为过期返回 null', expired === null);
+
+  // ─────────── 7) 政策 · 无条件利好审批抬升 ───────────
+  const hanRecruitAssess = policyProposalAssessService.assessLongTermPolicyProposal(
+    'san_1_faction_6001',
+    factionPolicyDefaults.POLICY_CATEGORIES.RECRUIT,
+    { enabled: true },
+    null,
+  );
+  expect('汉室招贤 OFF→ON：零储备扣费', hanRecruitAssess.reserveCostSilver === 0);
+  expect('汉室招贤 OFF→ON：势力利好 positive', hanRecruitAssess.factionBenefit === 'positive');
+
+  const hanRecruitApv = passiveApprovalService.resolvePassiveApproval({
+    factionId: 'san_1_faction_6001',
+    proposalType: 'policy',
+    proposalId: 'smoke-han-recruit',
+    cityCount: 5,
+    proposalContext: {
+      assess: hanRecruitAssess,
+      category: factionPolicyDefaults.POLICY_CATEGORIES.RECRUIT,
+    },
+    rng: () => 0.5,
+  });
+  expect('汉室免费招贤 → base ≥ 0.9', hanRecruitApv.base >= 0.9, hanRecruitApv);
+  expect('汉室免费招贤 → boostedUnconditionalBenefit', hanRecruitApv.boostedUnconditionalBenefit === true);
+
+  const siegeAssess = policyProposalAssessService.assessLongTermPolicyProposal(
+    'san_1_faction_6001',
+    factionPolicyDefaults.POLICY_CATEGORIES.SIEGE_REWARD,
+    { personalSharePct: 70 },
+    null,
+  );
+  expect('城战个人份额 80→70：势力利好 positive', siegeAssess.factionBenefit === 'positive');
 
   // ─────────── 总结 ───────────
   console.log(`\n=== smoke summary: pass=${pass} fail=${fail} ===`);

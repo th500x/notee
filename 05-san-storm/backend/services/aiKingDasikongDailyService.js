@@ -141,9 +141,21 @@ async function runDailyTickForFaction(factionId, king) {
         };
       }
 
+      // 迁移/清表恢复：仅补 baseline，不在「零增量」上决选（避免 tie-break 误任命）
+      await connection.commit();
       console.log(
-        `[aiKing][dasikong] faction=${fid} recovery bootstrap (${todayYmd}) snapshots=${afterCount} — continuing to appointment`,
+        `[aiKing][dasikong] faction=${fid} recovery bootstrap (${todayYmd}) ` +
+          `snapshots=${afterCount} — skip appointment (no prior baseline)`,
       );
+      return {
+        ok: true,
+        factionId: fid,
+        recoveryBootstrap: true,
+        skippedAppointment: true,
+        baselineDate: todayYmd,
+        snapshotCount: afterCount,
+        eligibleReal: eligible,
+      };
     }
 
     const winner = await kingDasikongRankingService.pickDailyWinner(connection, fid, EVENT_ID);

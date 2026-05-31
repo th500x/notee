@@ -138,7 +138,7 @@ async function fetchAdjacentJunIdSet(factionId) {
 async function collectCandidateTargets(factionId, season = DEFAULT_SEASON) {
   const adjacentJunSet = await fetchAdjacentJunIdSet(factionId);
   if (!adjacentJunSet.size) {
-    return { pvpTargets: [], pveTargets: [] };
+    return { pvpTargets: [], pveTargets: [], pvpExcludedActiveWar: [] };
   }
   const seasonKey = String(season || DEFAULT_SEASON).trim() || DEFAULT_SEASON;
   const placeholders = Array.from(adjacentJunSet).map(() => '?').join(',');
@@ -165,11 +165,17 @@ async function collectCandidateTargets(factionId, season = DEFAULT_SEASON) {
     }
   }
 
-  // 同城唯一：剔除已有 active wars_pvp 的城（红色城）
+  // 同城唯一：已有 pending/active PVP 的城不可再谏言，单独列出供 UI 提示
   const pvpTargets = [];
+  const pvpExcludedActiveWar = [];
   for (const c of pvpRaw) {
     const existing = await WarPvp.getActiveByCity(c.city_id);
-    if (!existing) pvpTargets.push(c);
+    if (existing) {
+      c._activePvpWarId = existing.pvpWarId || existing.pvp_war_id || null;
+      pvpExcludedActiveWar.push(c);
+    } else {
+      pvpTargets.push(c);
+    }
   }
 
   const { hostileCityIds, neutralCityIds } =
@@ -182,8 +188,11 @@ async function collectCandidateTargets(factionId, season = DEFAULT_SEASON) {
   for (const c of pveTargets) {
     c._remonstranceMapRangeOk = neutralSet.has(String(c.city_id));
   }
+  for (const c of pvpExcludedActiveWar) {
+    c._remonstranceMapRangeOk = hostileSet.has(String(c.city_id));
+  }
 
-  return { pvpTargets, pveTargets };
+  return { pvpTargets, pveTargets, pvpExcludedActiveWar };
 }
 
 /**

@@ -33,33 +33,88 @@ router.get('/status/:playerId', async (req, res, next) => {
 /**
  * 抽取卡牌
  * POST /api/card-pool/draw
- * Body: { playerId, poolType: 'troop' | 'character' }
+ * Body: { playerId, poolType: 'troop' | 'character', poolSeason?: 'san_1' | 'san_0' }
  */
 router.post(
   '/draw',
   validateBody({
     playerId: v.required(v.nonEmptyString({ max: 64 })),
     poolType: v.required(v.enum(['troop', 'character'])),
+    poolSeason: v.optional(v.enum(['san_0', 'san_1'])),
   }),
   async (req, res, next) => {
   try {
-    const { playerId, poolType } = req.body;
+    const { playerId, poolType, poolSeason } = req.body;
     const devBypass = req.player._devBypass && req.player.sub == null;
     if (!devBypass && req.player.role !== 'admin' && String(playerId) !== String(req.player.sub)) {
       return res.status(403).json({ success: false, error: '无权代他人抽卡', code: 'FORBIDDEN' });
     }
 
-    const result = await cardPoolService.drawFromPool(playerId, poolType);
+    const result = await cardPoolService.drawFromPool(playerId, poolType, { poolSeason });
     res.json(result);
   } catch (error) {
     // 业务级 4xx："X 不足 / X 已用完"等 service 抛出的中文文案 → 直接 status=400 + 透出文案；
     // 其余视作系统级 5xx，走 errorHandler 收口（不泄露 error.message 原文）。
-    const isBusiness = typeof error?.message === 'string' && (error.message.includes('不足') || error.message.includes('已用完'));
+    const isBusiness =
+      typeof error?.message === 'string' &&
+      (error.message.includes('不足') ||
+        error.message.includes('已用完') ||
+        error.message.includes('无效') ||
+        error.message.includes('未开启') ||
+        error.message.includes('仅支持'));
     if (!isBusiness) {
       return next(wrap500(error, '抽卡失败'));
     }
     res.status(400).json({ success: false, error: error.message });
   }
 });
+
+/**
+ * 卡池重复三选一
+ * POST /api/card-pool/draw/duplicate-choice
+ * Body: { playerId, pendingDuplicateDrawId, choice: 'attack'|'defense'|'convert' }
+ */
+router.post(
+  '/draw/duplicate-choice',
+  validateBody({
+    playerId: v.required(v.nonEmptyString({ max: 64 })),
+    pendingDuplicateDrawId: v.required(v.integer({ min: 1 })),
+    choice: v.required(v.enum(['attack', 'defense', 'convert'])),
+  }),
+  async (req, res, next) => {
+    try {
+      const { playerId, pendingDuplicateDrawId, choice } = req.body;
+      const devBypass = req.player._devBypass && req.player.sub == null;
+      if (!devBypass && req.player.role !== 'admin' && String(playerId) !== String(req.player.sub)) {
+        return res.status(403).json({ success: false, error: '无权代他人处理重复选择', code: 'FORBIDDEN' });
+      }
+
+      const result = await cardPoolService.resolveDuplicateChoice(
+        playerId,
+        pendingDuplicateDrawId,
+        choice,
+      );
+      res.json(result);
+    } catch (error) {
+      if (error.statusCode === 403) {
+        return res.status(403).json({ success: false, error: error.message });
+      }
+      if (error.statusCode === 422) {
+        return res.status(422).json({ success: false, error: error.message, code: 'POOL_ENHANCE_FULL' });
+      }
+      const isBusiness =
+        typeof error?.message === 'string' &&
+        (error.message.includes('不存在') ||
+          error.message.includes('无效') ||
+          error.message.includes('已处理') ||
+          error.message.includes('无权') ||
+          error.message.includes('仅将领'));
+      if (!isBusiness) {
+        return next(wrap500(error, '重复选择处理失败'));
+      }
+      res.status(400).json({ success: false, error: error.message });
+    }
+  },
+);
 
 module.exports = router;

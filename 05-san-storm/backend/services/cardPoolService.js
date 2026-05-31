@@ -8,6 +8,14 @@
 const { pool } = require('../database/connection');
 const statisticsDeltaService = require('./statisticsDeltaService');
 const factionPolicyService = require('./factionPolicyService');
+const playerItemsService = require('./playerItemsService');
+const {
+  parseEnhanceSlots,
+  appendPoolEnhanceSlot,
+  buildDuplicateEnhanceState,
+  canAddPoolEnhance,
+  SEASON_BADGE_ITEM_ID,
+} = require('../../shared/utils/characterEnhanceCombat.cjs');
 
 // ── 概率配置（模拟满发展度3000）─────────────────────────────
 
@@ -38,12 +46,12 @@ const DAILY_RARITY_CAP = { legendary: 1, epic: 2 };
 // ── 补偿常量 ─────────────────────────────────────────────────
 
 const CHARACTER_DUPLICATE_COMPENSATION = { common: 20, rare: 40, epic: 60, legendary: 80 };
-/** 将领按稀有度总张数达上限时的银两补偿（与 21-1 §8.1 一致） */
+/** 将领按稀有度总张数达上限时的银两补偿（与重复相同，见 21-1 §8.1） */
 const CHARACTER_LIMIT_BY_RARITY = { legendary: 8, epic: 12, rare: 12, common: 8 };
-const CHARACTER_OVER_LIMIT_COMPENSATION = { legendary: 80, epic: 60, rare: 40, common: 20 };
 /** 无可抽候选时仍返回银两补偿（与返回体 compensation 一致，须实际入账） */
 const NO_CARD_AVAILABLE_SILVER = 20;
-const TROOP_OVER_LIMIT_COMPENSATION = { common: 100, rare: 200, epic: 300, legendary: 400 };
+/** 部队按稀有度实例数达上限时的粮草补偿（与 22-1 §6.1 一致） */
+const TROOP_RARITY_LIMIT_COMPENSATION = { common: 100, rare: 200, epic: 300, legendary: 400 };
 const TROOP_LIMIT_BY_RARITY = { common: 20, rare: 40, epic: 40, legendary: 20 };
 /** 与 22-1-TROOP_SYSTEM §1.3、rewardService.getMaxBattleCount 一致 */
 const MAX_BATTLE_COUNT = { common: 20, rare: 28, epic: 36, legendary: 44, core: 60 };
@@ -88,6 +96,81 @@ async function getOwnedCharacterCardIds(connection, playerId) {
   return rows.map((r) => r.card_id);
 }
 
+/**
+ * 将领稀有度上限计数范围（与 draw 的 poolSeason Tab + 势力映射一致）。
+ * - san_1：本势力段 + 通用 0 段
+ * - san_0：本势力 `san0Band` 段（汉室 2 / 黄巾 1 / 其余 0 …，见 factionPolicyDefaults）
+ */
+function buildCharacterRarityLimitScope(poolSeason, { factionNumber, san0Band } = {}) {
+  if (poolSeason === 'san_0') {
+    const band = String(san0Band ?? '').trim();
+    if (!band) {
+      return { whereExtra: " AND card_id LIKE 'san_0_char_%'", params: [] };
+    }
+    return { whereExtra: ' AND card_id LIKE ?', params: [`san_0_char_${band}%`] };
+  }
+  if (poolSeason === 'san_1') {
+    const fn = String(factionNumber ?? '0');
+    return {
+      whereExtra: ' AND (card_id LIKE ? OR card_id LIKE ?)',
+      params: [`san_1_char_${fn}%`, 'san_1_char_0%'],
+    };
+  }
+  return { whereExtra: '', params: [] };
+}
+
+function buildTroopRarityLimitScope(poolSeason, { factionNumber, san0Band } = {}) {
+  if (poolSeason === 'san_0') {
+    const band = String(san0Band ?? '').trim();
+    if (!band) {
+      return { whereExtra: " AND card_id LIKE 'san_0_troop_%'", params: [] };
+    }
+    return { whereExtra: ' AND card_id LIKE ?', params: [`san_0_troop_${band}%`] };
+  }
+  if (poolSeason === 'san_1') {
+    const fn = String(factionNumber ?? '0');
+    return {
+      whereExtra: ' AND (card_id LIKE ? OR card_id LIKE ?)',
+      params: [`san_1_troop_${fn}%`, 'san_1_troop_0%'],
+    };
+  }
+  return { whereExtra: '', params: [] };
+}
+
+function getCharacterCompensationSilver(rarity) {
+  const normRarity = String(rarity ?? 'common').toLowerCase();
+  return CHARACTER_DUPLICATE_COMPENSATION[normRarity] ?? 20;
+}
+
+function getTroopRarityLimitCompensation(rarity) {
+  const normRarity = String(rarity ?? 'common').toLowerCase();
+  return TROOP_RARITY_LIMIT_COMPENSATION[normRarity] ?? 100;
+}
+
+async function countCharacterCardsByRarityInPoolScope(
+  connection, playerId, rarity, poolSeason, scopeOpts,
+) {
+  const { whereExtra, params } = buildCharacterRarityLimitScope(poolSeason, scopeOpts);
+  const [cntRows] = await connection.query(
+    `SELECT COUNT(*) AS cnt FROM player_cards
+     WHERE player_id = ? AND card_type = 'character' AND rarity = ?${whereExtra}`,
+    [playerId, rarity, ...params]
+  );
+  return Number(cntRows[0]?.cnt || 0);
+}
+
+async function countTroopCardsByRarityInPoolScope(
+  connection, playerId, rarity, poolSeason, scopeOpts,
+) {
+  const { whereExtra, params } = buildTroopRarityLimitScope(poolSeason, scopeOpts);
+  const [cntRows] = await connection.query(
+    `SELECT COUNT(*) AS cnt FROM player_cards
+     WHERE player_id = ? AND card_type = 'troop' AND rarity = ?${whereExtra}`,
+    [playerId, rarity, ...params]
+  );
+  return Number(cntRows[0]?.cnt || 0);
+}
+
 // ── 核心：抽取卡牌 ───────────────────────────────────────────
 
 /**
@@ -95,9 +178,17 @@ async function getOwnedCharacterCardIds(connection, playerId) {
  * 
  * @param {string} playerId - 玩家ID
  * @param {'troop'|'character'} poolType - 卡池类型
+ * @param {{ poolSeason?: 'san_1'|'san_0'|null }} [options] - 将领池 Tab 对应赛季；未传时部队池/旧客户端仍合并招贤段
  * @returns {Promise<Object>} 抽取结果
  */
-async function drawFromPool(playerId, poolType) {
+async function drawFromPool(playerId, poolType, options = {}) {
+  const poolSeason = options.poolSeason ?? null;
+  if (poolSeason != null && poolSeason !== 'san_0' && poolSeason !== 'san_1') {
+    throw new Error('无效的卡池赛季');
+  }
+  if (poolSeason === 'san_0' && poolType !== 'character') {
+    throw new Error('楚汉争霸池仅支持将领抽取');
+  }
   const connection = await pool.getConnection();
   try {
     await connection.beginTransaction();
@@ -133,6 +224,11 @@ async function drawFromPool(playerId, poolType) {
     //   - `san_0_char_*` 与默认 `likeNeutral`（`san_1_char_0xxx` 本赛季通用 50 张）前缀不同，
     //     两个池子互不重叠：招贤 ON 后真的会多出对应势力的楚汉时代段（扶苏/项羽/刘邦…）
     const recruitEff = await factionPolicyService.getEffectiveRecruit(player.faction_id);
+    if (poolSeason === 'san_0') {
+      if (!recruitEff?.enabled || !recruitEff.san0Band) {
+        throw new Error('招贤纳士未开启，无法从楚汉争霸池抽取');
+      }
+    }
 
     // 6. 扣除银两
     await connection.query(
@@ -149,7 +245,8 @@ async function drawFromPool(playerId, poolType) {
       const result = await drawSingleCard(
         connection, playerId, poolType, player.faction_id,
         runningPity, todayRarityCounts, results,
-        recruitEff
+        recruitEff,
+        poolSeason,
       );
 
       // 计算本张卡后的 pity_count：①抽到传奇（含重复/上限补偿，仍为传奇稀有度）或 ②本轮触发了硬保底（即使被每日上限降级为史诗）均归零
@@ -162,12 +259,30 @@ async function drawFromPool(playerId, poolType) {
 
       // 写入记录
       const expiresAt = new Date(Date.now() + EXPIRES_DAYS * 24 * 60 * 60 * 1000);
-      await connection.query(
+      const dupStatus = result.duplicateChoiceRequired ? 'pending' : 'none';
+      const dupPayload = result.duplicateChoicePayload
+        ? JSON.stringify(result.duplicateChoicePayload)
+        : null;
+      const [insertResult] = await connection.query(
         `INSERT INTO temp_card_pool_draws 
-         (player_id, pool_type, rarity, card_id, compensated, pity_count, drawn_at, expires_at)
-         VALUES (?, ?, ?, ?, ?, ?, NOW(), ?)`,
-        [playerId, poolType, result.rarity, result.cardId, result.compensated ? 1 : 0, runningPity, expiresAt]
+         (player_id, pool_type, rarity, card_id, compensated, duplicate_choice_status, duplicate_choice_payload,
+          pity_count, drawn_at, expires_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?)`,
+        [
+          playerId,
+          poolType,
+          result.rarity,
+          result.cardId,
+          result.compensated ? 1 : 0,
+          dupStatus,
+          dupPayload,
+          runningPity,
+          expiresAt,
+        ],
       );
+      if (result.duplicateChoiceRequired) {
+        result.pendingDuplicateDrawId = insertResult.insertId;
+      }
 
       results.push(result);
 
@@ -202,16 +317,25 @@ async function drawFromPool(playerId, poolType) {
       'SELECT silver FROM players WHERE player_id = ?', [playerId]
     );
 
-    const cardsPublic = results.map(({ pityForced, pityCount: _pc, ...c }) => c);
+    const cardsPublic = results.map(({ pityForced, pityCount: _pc, duplicateChoicePayload: _dp, ...c }) => c);
+    const pendingCard = results.find((r) => r.duplicateChoiceRequired);
 
     return {
       success: true,
       poolType,
+      poolSeason: poolSeason || (poolType === 'character' ? 'san_1' : null),
       cost: DRAW_COST,
       remainingSilver: updatedPlayer[0].silver,
       remainingDraws: DAILY_DRAW_LIMIT - todayDrawCount - 1,
       cards: cardsPublic,
       pityCount: runningPity,
+      ...(pendingCard
+        ? {
+            duplicateChoiceRequired: true,
+            pendingDuplicateDrawId: pendingCard.pendingDuplicateDrawId,
+            duplicateEnhanceState: pendingCard.duplicateEnhanceState,
+          }
+        : {}),
     };
 
   } catch (error) {
@@ -223,10 +347,56 @@ async function drawFromPool(playerId, poolType) {
 }
 
 /**
+ * 构建抽卡候选 ID 的 LIKE 条件（主赛季 / 楚汉 Tab / 默认合并）。
+ *
+ * @returns {{ whereFragment: string, likeParams: string[] }}
+ */
+function buildDrawPoolLikeClause({
+  season, idPrefix, factionNumber, idField, recruitEff, poolSeason,
+}) {
+  const likeFaction = `${season}_${idPrefix}_${factionNumber}%`;
+  const likeNeutral = `${season}_${idPrefix}_0%`;
+  const recruitLike =
+    recruitEff && recruitEff.enabled && recruitEff.san0Band
+      ? `san_0_${idPrefix}_${recruitEff.san0Band}%`
+      : null;
+
+  if (poolSeason === 'san_0') {
+    if (!recruitLike) {
+      throw new Error('招贤纳士未开启，无法从楚汉争霸池抽取');
+    }
+    return {
+      whereFragment: `${idField} LIKE ?`,
+      likeParams: [recruitLike],
+    };
+  }
+
+  if (poolSeason === 'san_1') {
+    return {
+      whereFragment: `(${idField} LIKE ? OR ${idField} LIKE ?)`,
+      likeParams: [likeFaction, likeNeutral],
+    };
+  }
+
+  const extra = recruitLike ? ` OR ${idField} LIKE ?` : '';
+  return {
+    whereFragment: `(${idField} LIKE ? OR ${idField} LIKE ?${extra})`,
+    likeParams: recruitLike ? [likeFaction, likeNeutral, recruitLike] : [likeFaction, likeNeutral],
+  };
+}
+
+/**
  * 抽取单张卡牌（不写入记录，由调用方统一写入）
  */
-async function drawSingleCard(connection, playerId, poolType, factionId, currentPity, todayRarityCounts, previousResults, recruitEff = null) {
+async function drawSingleCard(
+  connection, playerId, poolType, factionId, currentPity, todayRarityCounts, previousResults,
+  recruitEff = null, poolSeason = null,
+) {
   const { season, factionNumber } = parseFactionId(factionId);
+  const limitScopeOpts = {
+    factionNumber,
+    san0Band: recruitEff?.san0Band ?? null,
+  };
 
   // 决定稀有度
   let rarity = rollRarity();
@@ -271,26 +441,21 @@ async function drawSingleCard(connection, playerId, poolType, factionId, current
     ? ` AND ${idField} NOT IN (${excludePoolIdsPrimary.map(() => '?').join(',')})`
     : '';
 
-  const likeFaction = `${season}_${idPrefix}_${factionNumber}%`;
-  const likeNeutral = `${season}_${idPrefix}_0%`;
-  // 招贤纳士政策（11-3 §3.3）：approved + enabled 时追加 `san_0_<kind>_<band>%`（楚汉时代池）。
-  // 注意前缀不同：`likeNeutral = san_1_<kind>_0xxx`（赛季通用）与 `san_0_<kind>_<band>xxx`（楚汉时代）
-  // 是两个互不重叠的池子；招贤 ON 时实际拓展池子（五势力 → 楚汉秦末段；黄巾 → 楚汉项楚段；汉室 → 楚汉西汉段）。
-  // 实装段 2.2：仅 character / troop 两类同处理；future 若新增其它 idPrefix 需补字段。
-  const recruitLike =
-    recruitEff && recruitEff.enabled && recruitEff.san0Band
-      ? `san_0_${idPrefix}_${recruitEff.san0Band}%`
-      : null;
-
-  const extraLikeClause = recruitLike ? ` OR ${idField} LIKE ?` : '';
-  const extraLikeParams = recruitLike ? [recruitLike] : [];
+  const { whereFragment, likeParams } = buildDrawPoolLikeClause({
+    season,
+    idPrefix,
+    factionNumber,
+    idField,
+    recruitEff,
+    poolSeason,
+  });
 
   // 仅在已确定的 rarity 下，在符合条件的行中均匀随机（多一张同稀有度卡不会改变上文的 rollRarity 概率）
   let query = `SELECT ${idField} AS card_id, ${nameField} AS card_name, rarity
     FROM ${table}
-    WHERE rarity = ? AND (${idField} LIKE ? OR ${idField} LIKE ?${extraLikeClause})${excludeClausePrimary}
+    WHERE rarity = ? AND ${whereFragment}${excludeClausePrimary}
     ORDER BY RAND() LIMIT 1`;
-  let params = [rarity, likeFaction, likeNeutral, ...extraLikeParams, ...excludePoolIdsPrimary];
+  let params = [rarity, ...likeParams, ...excludePoolIdsPrimary];
 
   let [rows] = await connection.query(query, params);
 
@@ -300,9 +465,9 @@ async function drawSingleCard(connection, playerId, poolType, factionId, current
       : '';
     const dupQuery = `SELECT ${idField} AS card_id, ${nameField} AS card_name, rarity
       FROM ${table}
-      WHERE rarity = ? AND (${idField} LIKE ? OR ${idField} LIKE ?${extraLikeClause})${excludeClauseDupOnly}
+      WHERE rarity = ? AND ${whereFragment}${excludeClauseDupOnly}
       ORDER BY RAND() LIMIT 1`;
-    const dupParams = [rarity, likeFaction, likeNeutral, ...extraLikeParams, ...excludeIds];
+    const dupParams = [rarity, ...likeParams, ...excludeIds];
     [rows] = await connection.query(dupQuery, dupParams);
   }
 
@@ -327,15 +492,25 @@ async function drawSingleCard(connection, playerId, poolType, factionId, current
 
   // ── 部队卡：检查持有上限 ──
   if (poolType === 'troop') {
-    const limit = TROOP_LIMIT_BY_RARITY[rarity] || 20;
-    const [countRows] = await connection.query(
-      "SELECT COUNT(*) AS cnt FROM player_cards WHERE player_id = ? AND card_type = 'troop' AND rarity = ?",
-      [playerId, rarity]
+    const normRarity = String(rarity ?? 'common').toLowerCase();
+    const limit = TROOP_LIMIT_BY_RARITY[normRarity] || 20;
+    const ownedInScope = await countTroopCardsByRarityInPoolScope(
+      connection, playerId, normRarity, poolSeason, limitScopeOpts,
     );
-    if (countRows[0].cnt >= limit) {
-      const comp = TROOP_OVER_LIMIT_COMPENSATION[rarity] || 100;
+    if (ownedInScope >= limit) {
+      const comp = getTroopRarityLimitCompensation(normRarity);
       await connection.query('UPDATE players SET food = food + ? WHERE player_id = ?', [comp, playerId]);
-      return { rarity, cardId: card.card_id, cardName: card.card_name, compensated: true, compensation: { type: 'food', amount: comp }, reason: 'troop_limit', pityForced, pityLegendarySuppressed };
+      return {
+        rarity,
+        cardId: card.card_id,
+        cardName: card.card_name,
+        compensated: true,
+        compensation: { type: 'food', amount: comp },
+        reason: 'troop_rarity_limit',
+        rarityLimit: { owned: ownedInScope, max: limit },
+        pityForced,
+        pityLegendarySuppressed,
+      };
     }
 
     // 插入部队卡实例
@@ -352,28 +527,45 @@ async function drawSingleCard(connection, playerId, poolType, factionId, current
     return { rarity, cardId: card.card_id, cardName: card.card_name, instanceId, compensated: false, pityForced };
   }
 
-  // ── 将领卡：检查唯一性 ──
+  // ── 将领卡：重复优先于稀有度上限 → 两阶段三选一（21-1 §8.3）──
   if (poolType === 'character') {
     const [existing] = await connection.query(
-      "SELECT instance_id FROM player_cards WHERE player_id = ? AND card_id = ? AND card_type = 'character'",
-      [playerId, card.card_id]
+      `SELECT instance_id, character_enhance_slots FROM player_cards
+       WHERE player_id = ? AND card_id = ? AND card_type = 'character'`,
+      [playerId, card.card_id],
     );
     if (existing.length > 0) {
       const normRarity = String(rarity ?? 'common').toLowerCase();
-      const comp = CHARACTER_DUPLICATE_COMPENSATION[normRarity] ?? 20;
-      await connection.query('UPDATE players SET silver = silver + ? WHERE player_id = ?', [comp, playerId]);
-      return { rarity, cardId: card.card_id, cardName: card.card_name, compensated: true, compensation: { type: 'silver', amount: comp }, reason: 'character_duplicate', pityForced, pityLegendarySuppressed };
+      const slots = parseEnhanceSlots(existing[0].character_enhance_slots);
+      const duplicateEnhanceState = buildDuplicateEnhanceState(slots);
+      return {
+        rarity,
+        cardId: card.card_id,
+        cardName: card.card_name,
+        compensated: false,
+        duplicateChoiceRequired: true,
+        duplicateChoicePayload: {
+          targetInstanceId: existing[0].instance_id,
+          cardId: card.card_id,
+          cardName: card.card_name,
+          rarity: normRarity,
+          poolSeason: poolSeason || 'san_1',
+          poolEnhanceSlotsUsed: duplicateEnhanceState.poolSlotsUsed,
+        },
+        duplicateEnhanceState,
+        pityForced,
+        pityLegendarySuppressed,
+      };
     }
 
     const normRarity = String(rarity ?? 'common').toLowerCase();
     const charLimit = CHARACTER_LIMIT_BY_RARITY[normRarity];
     if (charLimit != null) {
-      const [cntRows] = await connection.query(
-        "SELECT COUNT(*) AS cnt FROM player_cards WHERE player_id = ? AND card_type = 'character' AND rarity = ?",
-        [playerId, normRarity]
+      const ownedInScope = await countCharacterCardsByRarityInPoolScope(
+        connection, playerId, normRarity, poolSeason, limitScopeOpts,
       );
-      if (Number(cntRows[0]?.cnt || 0) >= charLimit) {
-        const comp = CHARACTER_OVER_LIMIT_COMPENSATION[normRarity] ?? 20;
+      if (ownedInScope >= charLimit) {
+        const comp = getCharacterCompensationSilver(normRarity);
         await connection.query('UPDATE players SET silver = silver + ? WHERE player_id = ?', [comp, playerId]);
         return {
           rarity,
@@ -382,6 +574,7 @@ async function drawSingleCard(connection, playerId, poolType, factionId, current
           compensated: true,
           compensation: { type: 'silver', amount: comp },
           reason: 'character_rarity_limit',
+          rarityLimit: { owned: ownedInScope, max: charLimit },
           pityForced,
           pityLegendarySuppressed,
         };
@@ -497,9 +690,26 @@ async function getPoolStatus(playerId) {
     [playerId]
   );
 
+  const factionId = playerRows[0].faction_id;
+  let recruit = { enabled: false, san0Band: null };
+  try {
+    const recruitEff = await factionPolicyService.getEffectiveRecruit(factionId);
+    if (recruitEff?.enabled && recruitEff.san0Band) {
+      recruit = { enabled: true, san0Band: String(recruitEff.san0Band) };
+    }
+  } catch {
+    /* 预览降级：无招贤 Tab */
+  }
+
   return {
     silver: playerRows[0].silver,
+    factionId,
     drawCost: DRAW_COST,
+    recruit,
+    poolSeasons: {
+      base: { season: 'san_1', label: '黄巾之乱' },
+      recruit: { season: 'san_0', label: '楚汉争霸' },
+    },
     troop: {
       remainingDraws: Math.max(0, DAILY_DRAW_LIMIT - troopCount[0].cnt),
       dailyLimit: DAILY_DRAW_LIMIT,
@@ -518,10 +728,139 @@ async function getPoolStatus(playerId) {
   };
 }
 
+/**
+ * 卡池重复三选一结算（21-1 §8.3.4）
+ * @param {string} playerId
+ * @param {number} pendingDuplicateDrawId temp_card_pool_draws.id
+ * @param {'attack'|'defense'|'convert'} choice
+ */
+async function resolveDuplicateChoice(playerId, pendingDuplicateDrawId, choice) {
+  const drawId = Math.floor(Number(pendingDuplicateDrawId));
+  if (!drawId) throw new Error('无效的 pendingDuplicateDrawId');
+  if (!['attack', 'defense', 'convert'].includes(choice)) {
+    throw new Error('无效的三选一选项');
+  }
+
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+
+    const [drawRows] = await connection.query(
+      `SELECT id, player_id, pool_type, rarity, card_id, duplicate_choice_status, duplicate_choice_payload
+       FROM temp_card_pool_draws WHERE id = ? FOR UPDATE`,
+      [drawId],
+    );
+    if (drawRows.length === 0) throw new Error('抽取记录不存在');
+    const draw = drawRows[0];
+    if (String(draw.player_id) !== String(playerId)) {
+      const err = new Error('无权处理该抽取记录');
+      err.statusCode = 403;
+      throw err;
+    }
+    if (draw.duplicate_choice_status !== 'pending') {
+      throw new Error('该重复选择已处理或无效');
+    }
+    if (draw.pool_type !== 'character') {
+      throw new Error('仅将领卡池支持重复增强');
+    }
+
+    let payload = draw.duplicate_choice_payload;
+    if (typeof payload === 'string') {
+      try {
+        payload = JSON.parse(payload);
+      } catch {
+        payload = null;
+      }
+    }
+    if (!payload?.targetInstanceId) throw new Error('重复选择数据损坏');
+
+    const normRarity = String(draw.rarity ?? payload.rarity ?? 'common').toLowerCase();
+    let compensation = null;
+    let enhanceApplied = null;
+
+    if (choice === 'attack' || choice === 'defense') {
+      const [targetRows] = await connection.query(
+        `SELECT instance_id, character_enhance_slots FROM player_cards
+         WHERE instance_id = ? AND player_id = ? AND card_type = 'character' FOR UPDATE`,
+        [payload.targetInstanceId, playerId],
+      );
+      if (targetRows.length === 0) throw new Error('目标将领不存在');
+      const slots = parseEnhanceSlots(targetRows[0].character_enhance_slots);
+      if (!canAddPoolEnhance(slots)) {
+        const err = new Error('卡池增强已满 2/2，仅可转化');
+        err.statusCode = 422;
+        throw err;
+      }
+      const nextSlots = appendPoolEnhanceSlot(slots, choice);
+      await connection.query(
+        'UPDATE player_cards SET character_enhance_slots = ? WHERE instance_id = ?',
+        [JSON.stringify(nextSlots), payload.targetInstanceId],
+      );
+      enhanceApplied = {
+        targetInstanceId: payload.targetInstanceId,
+        kind: choice,
+        characterEnhanceSlots: nextSlots,
+      };
+    } else {
+      if (normRarity === 'legendary') {
+        await playerItemsService.addItem(playerId, SEASON_BADGE_ITEM_ID, 1);
+        compensation = { type: 'item', itemId: SEASON_BADGE_ITEM_ID, amount: 1 };
+      } else {
+        const comp = getCharacterCompensationSilver(normRarity);
+        await connection.query(
+          'UPDATE players SET silver = silver + ? WHERE player_id = ?',
+          [comp, playerId],
+        );
+        compensation = { type: 'silver', amount: comp };
+        await statisticsDeltaService.recordEarned(playerId, { silver: comp });
+      }
+    }
+
+    await connection.query(
+      `UPDATE temp_card_pool_draws
+       SET duplicate_choice_status = 'resolved', duplicate_choice_payload = ?
+       WHERE id = ?`,
+      [
+        JSON.stringify({
+          ...payload,
+          resolvedChoice: choice,
+          resolvedAt: new Date().toISOString(),
+        }),
+        drawId,
+      ],
+    );
+
+    const [updatedPlayer] = await connection.query(
+      'SELECT silver FROM players WHERE player_id = ?',
+      [playerId],
+    );
+
+    await connection.commit();
+
+    return {
+      success: true,
+      choice,
+      pendingDuplicateDrawId: drawId,
+      cardId: draw.card_id,
+      cardName: payload.cardName || null,
+      rarity: normRarity,
+      compensation,
+      enhanceApplied,
+      remainingSilver: updatedPlayer[0]?.silver ?? null,
+    };
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
+}
+
 // ── 导出 ─────────────────────────────────────────────────────
 
 module.exports = {
   drawFromPool,
+  resolveDuplicateChoice,
   getPoolStatus,
   DRAW_PROBABILITIES,
   DAILY_DRAW_LIMIT,

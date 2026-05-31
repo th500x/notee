@@ -28,20 +28,45 @@ export const cardPoolAPI = {
    * 抽取卡牌
    * @param {string} playerId
    * @param {'troop'|'character'} poolType
+   * @param {'san_1'|'san_0'|null|undefined} [poolSeason] 将领池 Tab 对应赛季
    */
-  draw: async (playerId, poolType) => {
+  draw: async (playerId, poolType, poolSeason) => {
     try {
       const response = await fetchWithTimeout(
         `${API_CONFIG.BASE_URL}/card-pool/draw`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ playerId, poolType }),
+          body: JSON.stringify({
+            playerId,
+            poolType,
+            ...(poolSeason ? { poolSeason } : {}),
+          }),
         }
       );
       return await response.json();
     } catch (error) {
       console.error('[CardPoolAPI] 抽取失败', error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  /**
+   * 卡池重复三选一
+   */
+  resolveDuplicateChoice: async (playerId, pendingDuplicateDrawId, choice) => {
+    try {
+      const response = await fetchWithTimeout(
+        `${API_CONFIG.BASE_URL}/card-pool/draw/duplicate-choice`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ playerId, pendingDuplicateDrawId, choice }),
+        },
+      );
+      return await response.json();
+    } catch (error) {
+      console.error('[CardPoolAPI] 重复选择失败', error);
       return { success: false, error: error.message };
     }
   },

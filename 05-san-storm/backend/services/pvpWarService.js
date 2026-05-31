@@ -5,7 +5,7 @@
  *   1. 战事生命周期：草案（pending）→ 活跃（active）→ 结算（completed/failed/cancelled）
  *   2. 攻方城外大本营（1×2 / 2×1）选位 + NPC 守军初始化 + 持久化到 `wars_pvp.base_camp` JSON
  *   3. 大本营 NPC 战斗握手：分批输出守军 + 战后写回存活 + 触发胜负
- *   4. 胜负判定与结算（capture_city / eliminate_attacker_base_camp / hold_city / timeout）
+ *   4. 胜负判定与结算（capture_city / eliminate_attacker_base_camp / hold_city / war_morale_race / timeout）
  *   5. 24h 时钟（与 11-3 协同：阶段表以 11-3 为准；本服务只做整场到点判负）
  *
  * 与 PVE 隔离：本服务不读写 `wars`（PVE）；PVE 路径 `cityService` 也禁止 import 本服务。
@@ -359,8 +359,6 @@ async function createPvpWarDraft(input) {
         attackerFactionName,
         defenderFactionId: city.faction_id,
         defenderFactionName,
-        attackerMorale: 100,
-        defenderMorale: 100,
         status: WarPvp.WAR_PVP_STATUS.PENDING,
         winnerFactionId: null,
         victoryCondition: null,
@@ -608,6 +606,9 @@ async function placeAttackerBaseCampAndActivate(pvpWarId, opts = {}) {
         baselineFood: paid.baselineFood,
       },
     };
+    const warMoraleService = require('./warMoraleService');
+    const moraleInit = await warMoraleService.initWarMoraleOnActivate(conn, war);
+    mergedSide.warMoraleInit = moraleInit.warMoraleInit;
     await WarPvp.updatePvpWar(
       pvpWarId,
       {
@@ -616,6 +617,8 @@ async function placeAttackerBaseCampAndActivate(pvpWarId, opts = {}) {
         startTime: now,
         endTime,
         sideStats: mergedSide,
+        attackerWarMorale: moraleInit.attackerWarMorale,
+        defenderWarMorale: moraleInit.defenderWarMorale,
       },
       conn,
     );
@@ -924,7 +927,6 @@ async function recordBaseCampSiegeResult(pvpWarId, playerId, payload) {
   } = payload || {};
   const smallMapBattleLootService = require('./smallMapBattleLootService');
   const statisticsDeltaService = require('./statisticsDeltaService');
-  const { checkAndApplyVeteran } = require('./veteranService');
   const { KILL_SILVER_REWARD } = require('../../shared/utils/siegeKillEconomyByRarity.cjs');
   const shouldFallbackBattleScore = Number(battleScore) > 0 && battleReportSaved === false;
 
@@ -1071,14 +1073,8 @@ async function recordBaseCampSiegeResult(pvpWarId, playerId, payload) {
       });
     }
 
-    let veteranPromotions = [];
-    try {
-      veteranPromotions = await checkAndApplyVeteran(
-        (sql, params) => pool.query(sql, params), playerId,
-      );
-    } catch (vetErr) {
-      console.error('[pvpWar] 老兵检查(大本营守方)失败:', vetErr.message);
-    }
+    // 大本营守战无参战部队 instance 回传，跳过老兵（避免军营卡误晋升）
+    const veteranPromotions = [];
 
     return {
       pvpWarId,
@@ -1367,6 +1363,27 @@ async function applyPvpTargetCityOwnershipHandoff(conn, war) {
 }
 
 /**
+ * 战事士气竞态终局地图/handoff（17-3 §7.4）：攻方胜等同 captureCity 易主；守方胜迁离攻方。
+ * 战事行 status / base_camp 由调用方在同一事务内写回。
+ *
+ * @param {*} conn
+ * @param {object} war
+ * @param {{ winnerSide: 'attacker'|'defender' }} raceResult
+ * @returns {Promise<{ captured: boolean }>}
+ */
+async function applyWarMoraleRaceHandoff(conn, war, raceResult) {
+  const isAttackerWin = raceResult.winnerSide === 'attacker';
+  if (isAttackerWin) {
+    await applyPvpTargetCityOwnershipHandoff(conn, war);
+  } else if (war.baseCamp) {
+    const snap = JSON.parse(JSON.stringify(war.baseCamp));
+    const reloc = require('./pvpWarPlayerRelocationService');
+    await reloc.relocateAttackersOffPvpBaseCamp(conn, war, snap);
+  }
+  return { captured: isAttackerWin };
+}
+
+/**
  * 写回攻方对目标城战斗结果（PVP 专属，三类防守者通用）。
  *
  * 物理分流：仅写 `wars_pvp.side_stats.attacker`；城 NPC 减员、玩家防守者部队耐久 / 驻地 is_active 重置、
@@ -1454,10 +1471,11 @@ async function recordAttackerCitySiegeResult(pvpWarId, attackerPlayerId, payload
     /** NPC 守军：JSON 内累计阵亡支数（对齐 cityService.recordSiegeResult 的 npcKilled；本场用 killCount） */
     let npcEliminatedCumulative = null;
     let captured = false;
+    let defenderParticipantIds = [];
 
     // ──────── A) 玩家防守者分支：披挂上阵 / 普通驻守 ────────
     if (isPlayerDefender) {
-      const allTroopInstanceIds = (garrisonUnits || [])
+      defenderParticipantIds = (garrisonUnits || [])
         .filter((u) => u && u._troopInstanceId)
         .map((u) => u._troopInstanceId);
 
@@ -1495,8 +1513,8 @@ async function recordAttackerCitySiegeResult(pvpWarId, attackerPlayerId, payload
       }
 
       // 参战部队耐久度（与 cityService PVE NPC 分支同步策略）
-      if (allTroopInstanceIds.length > 0) {
-        const ph = allTroopInstanceIds.map(() => '?').join(',');
+      if (defenderParticipantIds.length > 0) {
+        const ph = defenderParticipantIds.map(() => '?').join(',');
         await conn.query(
           `UPDATE player_cards SET battle_count = LEAST(
              GREATEST(COALESCE(battle_count, 0), 0) + 1,
@@ -1504,7 +1522,7 @@ async function recordAttackerCitySiegeResult(pvpWarId, attackerPlayerId, payload
            ),
            lifetime_battle_count = COALESCE(lifetime_battle_count, 0) + 1
            WHERE instance_id IN (${ph})`,
-          allTroopInstanceIds,
+          defenderParticipantIds,
         );
       }
 
@@ -1645,35 +1663,72 @@ async function recordAttackerCitySiegeResult(pvpWarId, attackerPlayerId, payload
       netSilver,
     });
 
+    const warMoraleService = require('./warMoraleService');
+    let attackerWarMorale = war.attackerWarMorale;
+    let defenderWarMorale = war.defenderWarMorale;
+    let moraleRaceResult = null;
+
+    if (isPlayerDefender && warMoraleService.warHasActiveMorale(war)) {
+      const delta = warMoraleService.applySkirmishDeltaForWar(war, result === 'win');
+      if (delta) {
+        attackerWarMorale = delta.attackerWarMorale;
+        defenderWarMorale = delta.defenderWarMorale;
+        moraleRaceResult = warMoraleService.checkRaceTermination(
+          attackerWarMorale,
+          defenderWarMorale,
+          war,
+        );
+      }
+    }
+
     let nextStatus = war.status;
     let winnerFactionId = war.winnerFactionId || null;
     let victoryCondition = war.victoryCondition || null;
+    let moraleCaptured = false;
+
     if (captured) {
       nextStatus = WarPvp.WAR_PVP_STATUS.COMPLETED;
       winnerFactionId = war.attackerFactionId;
       victoryCondition = WarPvp.WAR_PVP_VICTORY_CONDITIONS.CAPTURE_CITY;
+    } else if (moraleRaceResult) {
+      nextStatus = WarPvp.WAR_PVP_STATUS.COMPLETED;
+      winnerFactionId = moraleRaceResult.winnerFactionId;
+      victoryCondition = moraleRaceResult.victoryCondition;
+      moraleCaptured = moraleRaceResult.winnerSide === 'attacker';
     }
 
     await conn.query(
       `UPDATE wars_pvp SET side_stats = ?, status = ?, winner_faction_id = ?, victory_condition = ?,
+         attacker_war_morale = ?, defender_war_morale = ?,
          end_time = CASE WHEN ? <> ? THEN NOW() ELSE end_time END,
          settled_at = CASE WHEN ? <> ? THEN NOW() ELSE settled_at END,
-         settlement_phase = CASE WHEN ? <> ? THEN 'placeholder' ELSE settlement_phase END
+         settlement_phase = CASE WHEN ? <> ? THEN 'placeholder' ELSE settlement_phase END,
+         base_camp = CASE WHEN ? <> ? AND ? = 'completed' THEN NULL ELSE base_camp END
        WHERE pvp_war_id = ?`,
       [
         JSON.stringify(sideStats),
         nextStatus,
         winnerFactionId,
         victoryCondition,
-        nextStatus, war.status,
-        nextStatus, war.status,
-        nextStatus, war.status,
+        attackerWarMorale,
+        defenderWarMorale,
+        nextStatus,
+        war.status,
+        nextStatus,
+        war.status,
+        nextStatus,
+        war.status,
+        nextStatus,
+        war.status,
+        nextStatus,
         war.pvpWarId,
       ],
     );
 
     if (captured) {
       await applyPvpTargetCityOwnershipHandoff(conn, war);
+    } else if (moraleRaceResult) {
+      await applyWarMoraleRaceHandoff(conn, war, moraleRaceResult);
     }
 
     if (shouldFallbackBattleScore) {
@@ -1696,15 +1751,24 @@ async function recordAttackerCitySiegeResult(pvpWarId, attackerPlayerId, payload
       ...(contributionReward > 0 ? { contribution: contributionReward } : {}),
     });
 
-    if (captured) {
+    if (captured || moraleCaptured) {
       try {
         await cityService.generateNpcGarrison(war.targetCityId);
       } catch (e) {
         console.error('[pvpWar] 攻破后刷新 NPC 失败:', e.message);
       }
+    }
+    if (captured) {
       console.log(
         `[pvpWar] capture_city: ${war.pvpWarId} winner=${winnerFactionId} city=${war.targetCityId}`,
       );
+    } else if (moraleRaceResult) {
+      console.log(
+        `[pvpWar] war_morale_race: ${war.pvpWarId} winner=${winnerFactionId} ` +
+          `morale=${attackerWarMorale}/${defenderWarMorale}`,
+      );
+    }
+    if (captured || moraleRaceResult) {
       factionBulletinService.logPvpWarEnded(war, {
         status: WarPvp.WAR_PVP_STATUS.COMPLETED,
         winnerFactionId,
@@ -1714,17 +1778,13 @@ async function recordAttackerCitySiegeResult(pvpWarId, attackerPlayerId, payload
 
     let attackerVeteranPromotions = [];
     let defenderVeteranPromotions = [];
-    try {
-      attackerVeteranPromotions = await checkAndApplyVeteran(
-        (sql, params) => pool.query(sql, params), attackerPlayerId,
-      );
-    } catch (vetErr) {
-      console.error('[pvpWar] 老兵检查(攻方)失败:', vetErr.message);
-    }
-    if (isPlayerDefender && defenderPlayerId) {
+    // 攻方参战计数由 POST /api/battles 写回；此处不重复扫描全卡池
+    if (isPlayerDefender && defenderPlayerId && defenderParticipantIds.length > 0) {
       try {
         defenderVeteranPromotions = await checkAndApplyVeteran(
-          (sql, params) => pool.query(sql, params), defenderPlayerId,
+          (sql, params) => pool.query(sql, params),
+          defenderPlayerId,
+          { instanceIds: defenderParticipantIds },
         );
       } catch (vetErr) {
         console.error('[pvpWar] 老兵检查(守方)失败:', vetErr.message);
@@ -1741,9 +1801,11 @@ async function recordAttackerCitySiegeResult(pvpWarId, attackerPlayerId, payload
       npcKilled: npcEliminatedCumulative != null ? npcEliminatedCumulative : actualKillCount,
       npcAlive: aliveAfter,
       npcTotal: unitArrLength,
-      siegeCompleted: captured,
+      siegeCompleted: captured || moraleCaptured,
       winnerFactionId,
       victoryCondition,
+      attackerWarMorale,
+      defenderWarMorale,
       silverReward,
       personalSilverEarned: siegeSplit.personalSilverEarned,
       factionSilverToPool: siegeSplit.factionSilverToPool,
@@ -1813,7 +1875,58 @@ async function tickActivePvpWars() {
         completed += 1;
         continue;
       }
-      // 2) 大本营 NPC 全灭 → 守方胜（攻方失败）
+      // 2) 战事士气竞态 → 先达 120 者胜（17-3 §7.4）
+      const warMoraleService = require('./warMoraleService');
+      if (warMoraleService.warHasActiveMorale(war)) {
+        const race = warMoraleService.checkRaceTermination(
+          war.attackerWarMorale,
+          war.defenderWarMorale,
+          war,
+        );
+        if (race) {
+          const conn = await pool.getConnection();
+          try {
+            await conn.beginTransaction();
+            await WarPvp.updatePvpWar(
+              war.pvpWarId,
+              {
+                status: WarPvp.WAR_PVP_STATUS.COMPLETED,
+                winnerFactionId: race.winnerFactionId,
+                victoryCondition: race.victoryCondition,
+                settledAt: new Date(),
+                settlementPhase: WarPvp.SETTLEMENT_PHASE.PLACEHOLDER,
+                baseCamp: null,
+              },
+              conn,
+            );
+            await applyWarMoraleRaceHandoff(conn, war, race);
+            await conn.commit();
+          } catch (e) {
+            await conn.rollback();
+            throw e;
+          } finally {
+            conn.release();
+          }
+          if (race.winnerSide === 'attacker') {
+            try {
+              await cityService.generateNpcGarrison(war.targetCityId);
+            } catch (e) {
+              console.error('[pvpWar] tick morale 攻胜后刷新 NPC 失败:', e.message);
+            }
+          }
+          console.log(
+            `[pvpWar] tick: ${war.pvpWarId} war_morale_race → winner=${race.winnerFactionId}`,
+          );
+          factionBulletinService.logPvpWarEnded(war, {
+            status: WarPvp.WAR_PVP_STATUS.COMPLETED,
+            winnerFactionId: race.winnerFactionId,
+            victoryCondition: race.victoryCondition,
+          });
+          completed += 1;
+          continue;
+        }
+      }
+      // 3) 大本营 NPC 全灭 → 守方胜（攻方失败）
       if (war.baseCamp?.npcAlive === 0) {
         const snap = war.baseCamp ? JSON.parse(JSON.stringify(war.baseCamp)) : null;
         const conn = await pool.getConnection();
@@ -1850,7 +1963,7 @@ async function tickActivePvpWars() {
         completed += 1;
         continue;
       }
-      // 3) 目标城 NPC 已空而战事仍 active（异常/竞态兜底）→ 与攻城战果路径一致：易主 + 终局
+      // 4) 目标城 NPC 已空而战事仍 active（异常/竞态兜底）→ 与攻城战果路径一致：易主 + 终局
       const city = await cityService.getCityInfo(war.targetCityId);
       if (city && Number(city.npc_garrison_alive) === 0) {
         let closedCaptureTick = false;

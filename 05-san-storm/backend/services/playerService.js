@@ -6,6 +6,8 @@
 
 const Player = require('../models/Player');
 const { pool, transaction } = require('../database/connection');
+const { clampCreationWizardSilver } = require('../../shared/utils/factionBalanceBonus.cjs');
+const { resolveBalanceBonusForFaction } = require('./factionBalanceBonusService');
 
 class PlayerService {
   /**
@@ -577,10 +579,14 @@ class PlayerService {
       attributes, // 整数版本（×10）
       skills, // 技能 {skill_1, skill_2}
       serverId,
-      initialSilver = 0, // 剩余银两（从角色创建带入游戏）
+      initialSilver = 0, // 创角向导剩余银两（不含人数平衡补偿）
       avatar = null, // 头像路径
       initialTroops = [],
     } = data;
+
+    const wizardSilver = clampCreationWizardSilver(initialSilver);
+    const balanceBonus = await resolveBalanceBonusForFaction(factionId, serverId);
+    const totalInitialSilver = wizardSilver + balanceBonus.amount;
 
     // 验证角色名
     const nameValidation = this.validateCharacterName(characterName);
@@ -679,8 +685,8 @@ class PlayerService {
       current_position_id: null,
       current_position_name: null,
       position_level: null,
-      // 初始银两：使用角色创建流程中剩余的银两
-      initial_silver: initialSilver,
+      // 初始银两：向导剩余 + 服务端结算的人数平衡补偿
+      initial_silver: totalInitialSilver,
       // 初始粮草：0（不额外赠送）
       initial_food: 0,
       road_jun_id: roadJunId,
@@ -707,6 +713,11 @@ class PlayerService {
       if (!player) {
         throw new Error('角色创建后读取失败');
       }
+      player.creation_grants = {
+        wizard_silver: wizardSilver,
+        balance_bonus_silver: balanceBonus.amount,
+        total_silver: totalInitialSilver,
+      };
       return player;
     });
   }

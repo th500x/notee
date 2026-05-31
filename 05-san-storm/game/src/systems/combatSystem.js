@@ -238,6 +238,11 @@ export function calcDamage(atk, def, terrain, options = {}) {
     totalDmg *= (1 + atk._formationBuffs.attackBonus);
   }
 
+  // 4.6 将领增强 · 攻（21-1 §8.3.6）
+  if (ac?.characterEnhanceAttackPct) {
+    totalDmg *= (1 + ac.characterEnhanceAttackPct / 100);
+  }
+
   // 5. 防御减免
   const troopDef = ((def.defense ?? 50) / 10) * (defWorn ? WORN_PENALTY : 1);
   const dCombat = dc ? (dc.combat || 5) : 5;
@@ -254,6 +259,11 @@ export function calcDamage(atk, def, terrain, options = {}) {
   // 5.5 阵型防御加成
   if (def._formationBuffs && def._formationBuffs.defenseBonus) {
     defMultiplier = Math.min(0.9, defMultiplier * (1 + def._formationBuffs.defenseBonus));
+  }
+
+  // 5.6 将领增强 · 防（21-1 §8.3.6）
+  if (dc?.characterEnhanceDefensePct) {
+    defMultiplier = Math.min(0.9, defMultiplier * (1 + dc.characterEnhanceDefensePct / 100));
   }
   totalDmg *= (1 - defMultiplier);
 
@@ -359,6 +369,7 @@ export function estimateDamage(atk, def, terrain, options = {}) {
   totalDmg *= atkMorale.attack;
   totalDmg *= getTraitOutgoingDamageMult(ac);
   if (atk._formationBuffs?.attackBonus) totalDmg *= (1 + atk._formationBuffs.attackBonus);
+  if (ac?.characterEnhanceAttackPct) totalDmg *= (1 + ac.characterEnhanceAttackPct / 100);
   const troopDef = ((def.defense ?? 50) / 10) * (defWorn ? WORN_PENALTY : 1);
   const dCombat = dc ? (dc.combat || 5) : 5;
   const dCommand = dc ? (dc.command || 5) : 5;
@@ -370,6 +381,9 @@ export function estimateDamage(atk, def, terrain, options = {}) {
   const defMorale = getMoraleEffects(def);
   let defMultiplier = defReduction * defMorale.defense;
   if (def._formationBuffs?.defenseBonus) defMultiplier = Math.min(0.9, defMultiplier * (1 + def._formationBuffs.defenseBonus));
+  if (dc?.characterEnhanceDefensePct) {
+    defMultiplier = Math.min(0.9, defMultiplier * (1 + dc.characterEnhanceDefensePct / 100));
+  }
   totalDmg *= (1 - defMultiplier);
   totalDmg *= getTerrainDefBonus(def.y, def.x, terrain);
   const atkEffective = atk.maxTroops * (atk.troopWeight || 1);

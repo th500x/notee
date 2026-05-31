@@ -19,6 +19,8 @@
  */
 
 const aiKingConfigService = require('./aiKingConfigService');
+const policyProposalAssessService = require('./policyProposalAssessService');
+const policyProposalAssessCore = require('../../shared/utils/policyProposalAssessCore.cjs');
 const {
   computeSaturatedPersonality,
   pickEffByProposalType,
@@ -78,15 +80,67 @@ function pickBaseFromKing(king, proposalType, cityCount = null) {
 }
 
 /**
+ * 性格基准 → 可选「无条件利好」保底抬升（仅 policy + assess）。
+ *
+ * @param {object} king
+ * @param {'war'|'policy'} proposalType
+ * @param {number|null} cityCount
+ * @param {{ assess?: object, category?: string }|null|undefined} proposalContext
+ * @returns {{ personalityBase: number, base: number, boostedUnconditionalBenefit: boolean }}
+ */
+function computeApprovalBase(king, proposalType, cityCount, proposalContext) {
+  const personalityBase = pickBaseFromKing(king, proposalType, cityCount);
+  if (
+    proposalType === PROPOSAL_TYPE_POLICY &&
+    proposalContext?.assess &&
+    policyProposalAssessService.qualifiesUnconditionalBenefit(proposalContext.assess)
+  ) {
+    const kingHonors = policyProposalAssessService.kingHonorsUnconditionalBenefit(king);
+    const { base, boostedUnconditionalBenefit } =
+      policyProposalAssessCore.applyUnconditionalBenefitApprovalBase(
+        personalityBase,
+        proposalContext.assess,
+        kingHonors,
+      );
+    return { personalityBase, base, boostedUnconditionalBenefit };
+  }
+  return {
+    personalityBase,
+    base: clamp01(personalityBase),
+    boostedUnconditionalBenefit: false,
+  };
+}
+
+/**
  * 给客户端「大致通过率」预览：[base, min(1, base × 1.2)]。
  * 文案需提示当次仍先掷骰再抽检（非保证）。
  *
- * @param {{ factionId: string, proposalType: 'war'|'policy', cityCount?: number|null }} input
- * @returns {{ factionId: string, proposalType: string, base: number, minRate: number, maxRate: number, saturated?: boolean }}
+ * @param {{
+ *   factionId: string,
+ *   proposalType: 'war'|'policy',
+ *   cityCount?: number|null,
+ *   proposalContext?: { assess?: object, category?: string }|null,
+ * }} input
+ * @returns {{
+ *   factionId: string,
+ *   proposalType: string,
+ *   base: number,
+ *   personalityBase?: number,
+ *   minRate: number,
+ *   maxRate: number,
+ *   saturated?: boolean,
+ *   boostedUnconditionalBenefit?: boolean,
+ *   benefitAssess?: object|null,
+ * }}
  */
-function previewApprovalRange({ factionId, proposalType, cityCount = null }) {
+function previewApprovalRange({ factionId, proposalType, cityCount = null, proposalContext = null }) {
   const king = aiKingConfigService.getKingByFactionId(factionId);
-  const base = pickBaseFromKing(king, proposalType, cityCount);
+  const { personalityBase, base, boostedUnconditionalBenefit } = computeApprovalBase(
+    king,
+    proposalType,
+    cityCount,
+    proposalContext,
+  );
   const baseClamped = clamp01(base);
   const saturated =
     cityCount != null
@@ -96,9 +150,12 @@ function previewApprovalRange({ factionId, proposalType, cityCount = null }) {
     factionId,
     proposalType,
     base: baseClamped,
+    ...(proposalType === PROPOSAL_TYPE_POLICY ? { personalityBase: clamp01(personalityBase) } : {}),
     minRate: baseClamped,
     maxRate: clamp01(base * 1.2),
     ...(saturated !== undefined ? { saturated } : {}),
+    ...(boostedUnconditionalBenefit ? { boostedUnconditionalBenefit: true } : {}),
+    ...(proposalContext?.assess ? { benefitAssess: proposalContext.assess } : {}),
     note: '实际当次仍先掷骰（×1.0/×1.1/×1.2）再抽检；本范围仅作大致预览，不保证当次必过。',
   };
 }
@@ -111,6 +168,7 @@ function previewApprovalRange({ factionId, proposalType, cityCount = null }) {
  * @param {'war'|'policy'} input.proposalType
  * @param {string} [input.proposalId] - 用于审计追踪
  * @param {number|null} [input.cityCount] - 当前势力占有城数；传入则启用饱和调制（*_eff）
+ * @param {{ assess?: object, category?: string }|null} [input.proposalContext] - 政策类提案效用评估
  * @param {() => number} [input.rng] - 注入随机源（测试可固定）；默认 Math.random
  * @returns {{
  *   approved: boolean,
@@ -118,12 +176,15 @@ function previewApprovalRange({ factionId, proposalType, cityCount = null }) {
  *   proposalType: string,
  *   proposalId: string | null,
  *   base: number,
+ *   personalityBase?: number,
+ *   boostedUnconditionalBenefit?: boolean,
  *   dice: number,
  *   mult: number,
  *   finalApproveChance: number,
  *   u: number,
  *   king: { characterId: string, characterName: string },
  *   saturated?: boolean,
+ *   benefitAssess?: object,
  *   timestamp: string,
  * }}
  */
@@ -132,10 +193,16 @@ function resolvePassiveApproval({
   proposalType,
   proposalId = null,
   cityCount = null,
+  proposalContext = null,
   rng = Math.random,
 }) {
   const king = aiKingConfigService.getKingByFactionId(factionId);
-  const base = pickBaseFromKing(king, proposalType, cityCount);
+  const { personalityBase, base, boostedUnconditionalBenefit } = computeApprovalBase(
+    king,
+    proposalType,
+    cityCount,
+    proposalContext,
+  );
   const { dice, mult } = rollDice6Multiplier(rng);
   const finalApproveChance = clamp01(base * mult);
   const u = rng();
@@ -149,12 +216,17 @@ function resolvePassiveApproval({
     proposalType,
     proposalId,
     base: clamp01(base),
+    ...(proposalType === PROPOSAL_TYPE_POLICY
+      ? { personalityBase: clamp01(personalityBase) }
+      : {}),
+    ...(boostedUnconditionalBenefit ? { boostedUnconditionalBenefit: true } : {}),
     dice,
     mult,
     finalApproveChance,
     u,
     king: { characterId: king.characterId, characterName: king.characterName },
     ...(saturated !== undefined ? { saturated } : {}),
+    ...(proposalContext?.assess ? { benefitAssess: proposalContext.assess } : {}),
     timestamp: new Date().toISOString(),
   };
 
@@ -167,12 +239,15 @@ function resolvePassiveApproval({
       proposalType,
       proposalId,
       base: audit.base,
+      ...(audit.personalityBase != null ? { personalityBase: audit.personalityBase } : {}),
+      ...(boostedUnconditionalBenefit ? { boostedUnconditionalBenefit: true } : {}),
       dice,
       mult,
       finalApproveChance: Number(finalApproveChance.toFixed(4)),
       u: Number(u.toFixed(4)),
       king: king.characterName,
       ...(saturated !== undefined ? { saturated } : {}),
+      ...(proposalContext?.assess ? { benefitAssess: proposalContext.assess } : {}),
     }),
   );
 
@@ -182,6 +257,7 @@ function resolvePassiveApproval({
 module.exports = {
   resolvePassiveApproval,
   previewApprovalRange,
+  computeApprovalBase,
   rollDice6Multiplier,
   clamp01,
   PROPOSAL_TYPE_WAR,

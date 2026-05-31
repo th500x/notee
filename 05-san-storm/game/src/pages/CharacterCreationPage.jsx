@@ -12,6 +12,11 @@ import { clearGameIntroCompletionForPlayer } from '@/utils/gameIntroFlags';
 import TroopCard from '@shared/components/card/TroopCard';
 import CharacterCard from '@shared/components/card/CharacterCard';
 import FactionCard from '@shared/components/card/FactionCard';
+import {
+  readFactionBalanceBonusSilver,
+  formatFactionBalanceBonusPreview,
+  FACTION_BALANCE_BONUS_MAX,
+} from '@shared/utils/factionBalanceBonus.js';
 
 const CharacterCreationPage = ({ user, onComplete }) => {
   const [currentStep, setCurrentStep] = useState(1); // 1=势力, 2=选择形象, 3=角色名, 4=属性, 5=部队
@@ -510,6 +515,27 @@ const CharacterCreationPage = ({ user, onComplete }) => {
             ))}
           </div>
 
+          {selectedFaction ? (
+            <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+              {readFactionBalanceBonusSilver(selectedFaction) > 0 ? (
+                <p className="font-medium">
+                  创角完成可额外获得{' '}
+                  <span className="text-amber-700">
+                    {formatFactionBalanceBonusPreview(readFactionBalanceBonusSilver(selectedFaction))}
+                  </span>
+                  （人数平衡补偿，上限 {FACTION_BALANCE_BONUS_MAX} 银两）
+                </p>
+              ) : (
+                <p className="font-medium text-amber-900/90">
+                  当前所选势力暂无额外人数平衡补偿。
+                </p>
+              )}
+              <p className="mt-1 text-xs text-amber-800/80">
+                预览仅供参考，补偿在创角最后一步由服务端结算入库，不会提前计入属性随机用的 50 银两。
+              </p>
+            </div>
+          ) : null}
+
           <div className="mt-8 flex justify-end">
             <button
               onClick={handleStep1Next}
@@ -835,6 +861,22 @@ const CharacterCreationPage = ({ user, onComplete }) => {
                 </span>
               )}
             </p>
+            {selectedFaction ? (
+              <p className="mt-2 text-sm text-blue-900/90">
+                入库银两：属性剩余 <span className="font-semibold">{remainingSilver}</span> 银两
+                {readFactionBalanceBonusSilver(selectedFaction) > 0 ? (
+                  <>
+                    {' '}+ 人数平衡补偿（创角提交时结算，当前预览约{' '}
+                    <span className="font-semibold text-amber-700">
+                      +{readFactionBalanceBonusSilver(selectedFaction)}
+                    </span>
+                    {' '}银两）
+                  </>
+                ) : (
+                  '（当前势力无额外平衡补偿）'
+                )}
+              </p>
+            ) : null}
           </div>
 
           <div className="flex justify-between">

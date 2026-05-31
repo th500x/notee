@@ -22,6 +22,7 @@ const {
   loadPositionCombatBonusesForPlayer,
 } = require('../../shared/utils/positionCombatBonuses.cjs');
 const { attachTroopAffinityToCharacter } = require('../../shared/utils/troopAffinityCombat.cjs');
+const { attachEnhancePctToCharacter } = require('../../shared/utils/characterEnhanceCombat.cjs');
 
 /** 单部队参战最低兵力（兵力为 0 不参战；总兵力验证在 saveGarrison / initiateSiege） */
 const MIN_TROOPS_TO_DEFEND = 1;
@@ -306,7 +307,7 @@ async function buildDefenseUnits(garrisonSlot) {
     if (!charInstanceId) continue;
 
     const [charRows] = await pool.query(
-      `SELECT pc.instance_id, pc.card_id, pc.rarity, pc.morale,
+      `SELECT pc.instance_id, pc.card_id, pc.rarity, pc.morale, pc.character_enhance_slots,
               cc.character_name, cc.luck, cc.courage, cc.combat, cc.command,
               cc.intelligence, cc.politics, cc.charm, cc.trait, cc.trait_modifier,
               cc.skill_1, cc.skill_2, cc.troop_affinity
@@ -331,11 +332,14 @@ async function buildDefenseUnits(garrisonSlot) {
       skill_2: charCfg.skill_2 || null,
     };
     const charKey = cs.cardField === 'char1_card' ? 'char1' : 'char2';
-    const charData = attachTroopAffinityToCharacter(
-      withPositionCombat(
-        applyCharBonusToCharData(charDataBase, garrisonAttrBonusByChar[charKey] || {}),
+    const charData = attachEnhancePctToCharacter(
+      attachTroopAffinityToCharacter(
+        withPositionCombat(
+          applyCharBonusToCharData(charDataBase, garrisonAttrBonusByChar[charKey] || {}),
+        ),
+        charCfg.troop_affinity,
       ),
-      charCfg.troop_affinity,
+      charCfg.character_enhance_slots,
     );
 
     const troopInstanceIds = [garrisonSlot[cs.troop1Field], garrisonSlot[cs.troop2Field]].filter(Boolean);
@@ -485,7 +489,7 @@ async function buildDefenseUnitsFromMainLineup(defenderPlayerId) {
     { by: 'character2', troopSlots: ['troop1', 'troop2'] },
   ]) {
     const [charRows] = await pool.query(
-      `SELECT pc.instance_id, pc.card_id, pc.rarity, pc.morale,
+      `SELECT pc.instance_id, pc.card_id, pc.rarity, pc.morale, pc.character_enhance_slots,
               cc.character_name, cc.luck, cc.courage, cc.combat, cc.command,
               cc.intelligence, cc.politics, cc.charm, cc.trait, cc.trait_modifier,
               cc.skill_1, cc.skill_2, cc.troop_affinity
@@ -505,11 +509,14 @@ async function buildDefenseUnitsFromMainLineup(defenderPlayerId) {
       skill_1: charCfg.skill_1 || null,
       skill_2: charCfg.skill_2 || null,
     };
-    const charData = attachTroopAffinityToCharacter(
-      withPositionCombat(
-        applyCharBonusToCharData(charDataBase, attrBonusBySlot[cs.by] || {}),
+    const charData = attachEnhancePctToCharacter(
+      attachTroopAffinityToCharacter(
+        withPositionCombat(
+          applyCharBonusToCharData(charDataBase, attrBonusBySlot[cs.by] || {}),
+        ),
+        charCfg.troop_affinity,
       ),
-      charCfg.troop_affinity,
+      charCfg.character_enhance_slots,
     );
 
     for (const slot of cs.troopSlots) {
@@ -545,19 +552,29 @@ async function buildDefenseUnitsFromMainLineup(defenderPlayerId) {
  */
 async function applyAuthoritativeSiegePvpAttackerLineupCasualties(playerId, attackerSiegeNpcs, attackerTroopsEnd) {
   if (!playerId || !Array.isArray(attackerSiegeNpcs) || !Array.isArray(attackerTroopsEnd)) return;
+  const participantIds = [
+    ...new Set(
+      attackerSiegeNpcs
+        .map((npc) => (npc?._troopInstanceId != null ? String(npc._troopInstanceId).trim() : ''))
+        .filter(Boolean),
+    ),
+  ];
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
-    await conn.query(
-      `UPDATE player_cards
-       SET battle_count = LEAST(
-         GREATEST(COALESCE(battle_count, 0), 0) + 1,
-         COALESCE(max_battle_count, 60)
-       ),
-       lifetime_battle_count = COALESCE(lifetime_battle_count, 0) + 1
-       WHERE player_id = ? AND card_type = 'troop' AND is_equipped = TRUE`,
-      [playerId],
-    );
+    if (participantIds.length > 0) {
+      const ph = participantIds.map(() => '?').join(',');
+      await conn.query(
+        `UPDATE player_cards
+         SET battle_count = LEAST(
+           GREATEST(COALESCE(battle_count, 0), 0) + 1,
+           COALESCE(max_battle_count, 60)
+         ),
+         lifetime_battle_count = COALESCE(lifetime_battle_count, 0) + 1
+         WHERE player_id = ? AND card_type = 'troop' AND instance_id IN (${ph})`,
+        [playerId, ...participantIds],
+      );
+    }
     for (let i = 0; i < attackerSiegeNpcs.length; i++) {
       const npc = attackerSiegeNpcs[i];
       const end = attackerTroopsEnd[i];

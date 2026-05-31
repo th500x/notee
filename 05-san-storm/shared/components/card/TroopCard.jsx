@@ -1,6 +1,34 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import PropTypes from 'prop-types';
 import { getTroopPortraitUrlAttempts } from '../../utils/troopIconUrls';
+import { getVeteranSlotDisplay } from '@shared/utils/troopVeteranDisplay';
+
+function VeteranSlotBadge({ display, activeTooltip, setActiveTooltip }) {
+  if (!display) return null;
+  const tooltipKey = 'veteran_slot';
+  const baseClass = display.locked
+    ? 'border-stone-400 bg-stone-200/70 text-stone-500'
+    : 'border-amber-500 bg-amber-50/95 text-amber-900 font-bold';
+
+  return (
+    <button
+      type="button"
+      className={`relative shrink-0 min-w-[1.75rem] h-7 px-0.5 rounded border text-sm leading-none flex items-center justify-center cursor-pointer ${baseClass}`}
+      onClick={(e) => {
+        e.stopPropagation();
+        setActiveTooltip(activeTooltip === tooltipKey ? null : tooltipKey);
+      }}
+      aria-label={display.tooltip}
+    >
+      {display.emoji}
+      {activeTooltip === tooltipKey && display.tooltip && (
+        <div className="pointer-events-none absolute bottom-full right-0 z-50 mb-1 min-w-[9rem] rounded bg-gray-900 px-2.5 py-1.5 text-[10px] leading-snug text-white shadow-lg whitespace-pre-line text-center">
+          {display.tooltip}
+        </div>
+      )}
+    </button>
+  );
+}
 
 /**
  * 部队卡牌组件（共享版本）
@@ -24,7 +52,7 @@ const TroopCard = ({
   suppressSkillTooltips = false,
 }) => {
   const [activeTooltip, setActiveTooltip] = useState(null);
-  const [veteranTooltipOpen, setVeteranTooltipOpen] = useState(false);
+  const veteranDisplay = useMemo(() => getVeteranSlotDisplay(troop), [troop]);
   /** 按序尝试的立绘 URL（含 troop/troops/_raw 与稀有度兜底） */
   const iconUrls = useMemo(
     () => getTroopPortraitUrlAttempts(troop, baseUrl),
@@ -177,22 +205,6 @@ const TroopCard = ({
             `}>
               {rarity.name}
             </div>
-            {troop.veteranTier > 0 && (
-              <div className="relative">
-                <div
-                  className="px-1.5 py-0.5 rounded bg-amber-700/60 text-[10px] font-bold text-amber-100 cursor-pointer border border-amber-500/40"
-                  onClick={(e) => { e.stopPropagation(); setVeteranTooltipOpen((v) => !v); }}
-                >
-                  老兵{troop.veteranTier === 3 ? '★' : ''}
-                </div>
-                {veteranTooltipOpen && (
-                  <div className="absolute z-50 top-full right-0 mt-1 px-2 py-1.5 rounded bg-gray-900 text-white text-[10px] min-w-[110px] shadow-lg pointer-events-auto whitespace-nowrap">
-                    <div>老兵 Lv.{troop.veteranTier}</div>
-                    <div className="text-amber-300">全属性 +{troop.veteranBonusPct}%</div>
-                  </div>
-                )}
-              </div>
-            )}
           </div>
         </div>
 
@@ -304,12 +316,20 @@ const TroopCard = ({
         </div>
 
         {/* 以下与 CharacterCard 正面一致：分区 flex-shrink-0 纵向堆叠，无内部滚动层（避免卡池 scale 缩略图在移动端错层/闪烁） */}
-        {(showDetails || compactMode) && troop.skills && troop.skills.length > 0 && (
+        {(showDetails || compactMode) && ((troop.skills && troop.skills.length > 0) || veteranDisplay) && (
           <div className="relative flex-shrink-0 px-4 py-1 border-t-2 border-gray-400/40">
-            <div className="flex items-center gap-1 mb-0.5">
-              <span className="text-purple-400 text-xs">⚔️</span>
-              <span className="text-gray-700 text-xs font-medium">技能</span>
+            <div className="flex items-center justify-between gap-1 mb-0.5">
+              <div className="flex items-center gap-1 min-w-0">
+                <span className="text-purple-400 text-xs">⚔️</span>
+                <span className="text-gray-700 text-xs font-medium">技能</span>
+              </div>
+              <VeteranSlotBadge
+                display={veteranDisplay}
+                activeTooltip={activeTooltip}
+                setActiveTooltip={setActiveTooltip}
+              />
             </div>
+            {troop.skills && troop.skills.length > 0 ? (
             <div className="grid grid-cols-3 gap-1.5">
               {troop.skills.slice(0, 3).map((skillId, index) => {
                 const skill = skillsMap[skillId];
@@ -345,7 +365,8 @@ const TroopCard = ({
                 );
               })}
             </div>
-            {troop.skills.length > 3 && (
+            ) : null}
+            {troop.skills && troop.skills.length > 3 && (
               <div className="text-center text-gray-600 text-[10px] mt-1">
                 +{troop.skills.length - 3} 更多技能
               </div>
@@ -464,6 +485,7 @@ TroopCard.propTypes = {
     maxBattleCount: PropTypes.number,
     veteranTier: PropTypes.number,
     veteranBonusPct: PropTypes.number,
+    lifetimeBattleCount: PropTypes.number,
   }).isRequired,
   skillsMap: PropTypes.object,
   showDetails: PropTypes.bool,

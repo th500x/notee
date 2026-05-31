@@ -19,7 +19,22 @@ async function fetchJSON(url, options = {}) {
     ...options,
     headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
   });
-  return res.json();
+  let body;
+  try {
+    body = await res.json();
+  } catch {
+    body = null;
+  }
+  if (!res.ok) {
+    const msg =
+      (body && (body.error || body.message)) ||
+      `请求失败 (${res.status})`;
+    const err = new Error(msg);
+    err.status = res.status;
+    err.body = body;
+    throw err;
+  }
+  return body;
 }
 
 export const factionPolicyAPI = {
@@ -49,6 +64,16 @@ export const factionPolicyAPI = {
         config,
         ...(proposalId ? { proposalId } : {}),
       }),
+    });
+  },
+
+  /**
+   * 按 draft config 预览 AI 君主审批区间（含无条件利好抬升；随表单变化刷新）。
+   */
+  async previewApproval({ factionId, category, config } = {}) {
+    return fetchJSON(`${BASE}/preview-approval`, {
+      method: 'POST',
+      body: JSON.stringify({ factionId, category, config }),
     });
   },
 };

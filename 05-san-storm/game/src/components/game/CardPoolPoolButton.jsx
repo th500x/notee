@@ -3,13 +3,29 @@
  *
  * 原位于大地图顶栏 `CardPoolEntry` 内；顶栏入口已迁至 **三公府 → 互动 → 封赏**，本组件为唯一按钮壳实现。
  * 外层若需不挡地图点击，由父级包 `pointer-events-none`，本按钮根节点须 `pointer-events-auto`（见 `SanGongFuFengShangPanel`）。
+ *
+ * Tooltip 经 portal + fixed 定位，避免在 overflow 容器内撑出滚动条导致 flex 换行突变（封赏 4+2→3+3）。
  */
 
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect, useLayoutEffect } from 'react';
+import { createPortal } from 'react-dom';
 
 const LONG_PRESS_MS = 400;
 const TOOLTIP_TEXT =
   '正式赛季根据势力城市发展度决定卡池质量/次数（概率），本次测试阶段固定卡池质量/次数（概率）';
+const TOOLTIP_W = 224;
+const TOOLTIP_GAP = 8;
+const VIEW_PAD = 8;
+
+function clampTooltipPos(btnRect, tipHeight) {
+  let left = btnRect.left + btnRect.width / 2 - TOOLTIP_W / 2;
+  left = Math.max(VIEW_PAD, Math.min(left, window.innerWidth - TOOLTIP_W - VIEW_PAD));
+  let top = btnRect.bottom + TOOLTIP_GAP;
+  if (tipHeight > 0 && top + tipHeight > window.innerHeight - VIEW_PAD) {
+    top = Math.max(VIEW_PAD, btnRect.top - tipHeight - TOOLTIP_GAP);
+  }
+  return { left, top };
+}
 
 export function CardPoolPoolButton({
   icon,
@@ -24,12 +40,42 @@ export function CardPoolPoolButton({
   disabled = false,
 }) {
   const [showTip, setShowTip] = useState(false);
+  const [tipPos, setTipPos] = useState(null);
+  const btnRef = useRef(null);
+  const tipRef = useRef(null);
   const longTimer = useRef(null);
   const isLong = useRef(false);
+
+  const tipText = tooltip || TOOLTIP_TEXT;
+
+  const repositionTip = useCallback(() => {
+    const btn = btnRef.current;
+    if (!btn) return;
+    const rect = btn.getBoundingClientRect();
+    const tipH = tipRef.current?.offsetHeight ?? 0;
+    setTipPos(clampTooltipPos(rect, tipH));
+  }, []);
 
   useEffect(() => {
     if (drawerOpen) setShowTip(false);
   }, [drawerOpen]);
+
+  useLayoutEffect(() => {
+    if (!showTip) {
+      setTipPos(null);
+      return undefined;
+    }
+    repositionTip();
+    const raf = requestAnimationFrame(repositionTip);
+    const onReflow = () => repositionTip();
+    window.addEventListener('scroll', onReflow, true);
+    window.addEventListener('resize', onReflow);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener('scroll', onReflow, true);
+      window.removeEventListener('resize', onReflow);
+    };
+  }, [showTip, tipText, repositionTip]);
 
   const onTouchStart = useCallback(() => {
     isLong.current = false;
@@ -49,11 +95,24 @@ export function CardPoolPoolButton({
     clearTimeout(longTimer.current);
   }, []);
 
-  const tipText = tooltip || TOOLTIP_TEXT;
+  const tipNode =
+    showTip && tipPos
+      ? createPortal(
+          <div
+            ref={tipRef}
+            role="tooltip"
+            style={{ position: 'fixed', left: tipPos.left, top: tipPos.top, width: TOOLTIP_W, zIndex: 9999 }}
+            className="pointer-events-none rounded-lg border border-amber-700/30 bg-black/85 px-3 py-2 text-[10px] leading-relaxed text-amber-100/90 shadow-lg backdrop-blur-sm"
+          >
+            {tipText}
+          </div>,
+          document.body,
+        )
+      : null;
 
   return (
     <div
-      className="relative pointer-events-auto"
+      className="relative shrink-0 pointer-events-auto"
       onMouseEnter={() => setShowTip(true)}
       onMouseLeave={() => setShowTip(false)}
       onTouchStart={onTouchStart}
@@ -61,10 +120,11 @@ export function CardPoolPoolButton({
       onTouchMove={onTouchMove}
     >
       <button
+        ref={btnRef}
         type="button"
         disabled={disabled}
         onClick={onClick}
-        className={`relative h-[72px] w-[100px] overflow-hidden rounded-xl border-2 border-amber-400/70 bg-gradient-to-br from-amber-900/90 via-yellow-800/80 to-amber-900/90 shadow-lg shadow-amber-500/30 transition-all hover:border-amber-300 hover:shadow-amber-400/50 active:scale-95 ${
+        className={`relative h-[72px] w-[100px] shrink-0 overflow-hidden rounded-xl border-2 border-amber-400/70 bg-gradient-to-br from-amber-900/90 via-yellow-800/80 to-amber-900/90 shadow-lg shadow-amber-500/30 transition-[border-color,box-shadow,transform] hover:border-amber-300 hover:shadow-amber-400/50 active:scale-95 ${
           disabled ? 'opacity-55 cursor-not-allowed' : ''
         }`}
       >
@@ -77,14 +137,7 @@ export function CardPoolPoolButton({
           </span>
         </div>
       </button>
-
-      {showTip && (
-        <div
-          className="pointer-events-none absolute left-1/2 top-full z-50 mt-2 w-56 -translate-x-1/2 rounded-lg border border-amber-700/30 bg-black/85 px-3 py-2 text-[10px] leading-relaxed text-amber-100/90 shadow-lg backdrop-blur-sm"
-        >
-          {tipText}
-        </div>
-      )}
+      {tipNode}
     </div>
   );
 }

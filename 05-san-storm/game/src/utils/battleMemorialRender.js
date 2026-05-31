@@ -152,12 +152,14 @@ async function renderBattleMemorialBlob({ playerName, playerId, battle, detail }
 
   const root = document.createElement('div');
   root.style.position = 'fixed';
-  root.style.left = '-99999px';
+  root.style.left = '0';
   root.style.top = '0';
   root.style.width = '768px';
   root.style.height = '1152px';
   root.style.boxSizing = 'border-box';
   root.style.overflow = 'hidden';
+  root.style.pointerEvents = 'none';
+  root.style.zIndex = '-9999';
   root.style.fontFamily = MEMORIAL_FONT_FAMILY;
   root.style.color = '#f8f7f4';
   const d = detail || {};
@@ -207,9 +209,9 @@ async function renderBattleMemorialBlob({ playerName, playerId, battle, detail }
     <div style="position:relative;width:768px;height:1152px;overflow:hidden;">
       <div style="position:absolute;inset:0;background:#2a231c;">${illusImg}</div>
       <div style="position:absolute;inset:0;background:rgba(0,0,0,0.06);pointer-events:none;"></div>
-      <div data-memorial-stage style="position:relative;z-index:1;box-sizing:border-box;min-height:1152px;height:100%;display:flex;flex-direction:column;padding:16px;gap:20px;">
+      <div data-memorial-stage style="position:relative;z-index:1;box-sizing:border-box;min-height:1152px;height:100%;display:flex;flex-direction:column;padding:16px;gap:20px;isolation: isolate;">
         <div data-memorial-blob-layer style="position:absolute;inset:0;z-index:0;pointer-events:none;"></div>
-        <div data-memorial-block="summary" style="position:relative;z-index:1;flex:0 0 auto;width:min(100%,420px);box-sizing:border-box;align-self:flex-end;padding:14px 16px;display:flex;flex-direction:column;gap:12px;">
+        <div data-memorial-block="summary" style="position:relative;z-index:2;flex:0 0 auto;width:min(100%,420px);box-sizing:border-box;align-self:flex-end;padding:14px 16px;display:flex;flex-direction:column;gap:12px;">
           <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
             <div>
               <div style="font-size:36px;font-weight:700;${MEMORIAL_TEXT_MAIN}">战斗纪念图</div>
@@ -225,7 +227,7 @@ async function renderBattleMemorialBlob({ playerName, playerId, battle, detail }
             <div>敌方阵容：${opponentLine}</div>
           </div>
         </div>
-        <div data-memorial-block="score" style="position:relative;z-index:1;flex:0 0 auto;width:min(100%,600px);box-sizing:border-box;align-self:flex-start;padding:14px 16px;display:flex;flex-direction:column;font-size:18px;line-height:1.5;">
+        <div data-memorial-block="score" style="position:relative;z-index:2;flex:0 0 auto;margin-top:auto;width:min(100%,600px);box-sizing:border-box;align-self:flex-start;padding:14px 16px;display:flex;flex-direction:column;font-size:18px;line-height:1.5;">
           <div style="font-weight:700;flex-shrink:0;font-size:22px;${MEMORIAL_TEXT_MAIN}">战斗评分 + 完整计分步骤</div>
           <div style="height:10px;flex-shrink:0;"></div>
           <div style="margin-bottom:12px;flex-shrink:0;">

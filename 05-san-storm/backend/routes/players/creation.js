@@ -62,7 +62,12 @@ router.post(
       initialTroops: initialTroops || [],
     });
 
-    res.json({ success: true, message: '角色创建成功', data: player });
+    res.json({
+      success: true,
+      message: '角色创建成功',
+      data: player,
+      creationGrants: player.creation_grants ?? null,
+    });
   }),
 );
 

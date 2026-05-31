@@ -281,6 +281,18 @@ async function checkCharacterDuplicate(connection, playerId, cardId, rarity, det
   // 核心将领卡同 ID 可持有 2 张，其余稀有度仍 1 张
   const maxSame = rar === 'core' ? 2 : 1;
   if (cnt < maxSame) return false;
+  if (rar === 'legendary') {
+    const playerItemsService = require('./playerItemsService');
+    await playerItemsService.addItem(playerId, 'item_season_badge', 1);
+    details.push({
+      type: 'character_duplicate',
+      cardId,
+      rarity: rar,
+      compensation: { type: 'item', itemId: 'item_season_badge', amount: 1 },
+    });
+    console.log(`[Rewards] 将领重复: ${cardId} → 黄巾徽章 ×1`);
+    return true;
+  }
   const compensation = CHARACTER_DUPLICATE_COMPENSATION[rar] || 20;
   await connection.query('UPDATE players SET silver = silver + ? WHERE player_id = ?', [compensation, playerId]);
   details.push({ type: 'character_duplicate', cardId, rarity: rar, compensation });

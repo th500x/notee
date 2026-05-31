@@ -94,6 +94,7 @@ async function getPlayerProfile(playerId) {
         pc.rarity,
         pc.current_troops,
         pc.morale,
+        pc.character_enhance_slots,
         pc.battle_count,
         pc.max_battle_count,
         pc.bonus_max_troops,

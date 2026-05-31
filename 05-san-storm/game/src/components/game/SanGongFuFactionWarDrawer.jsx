@@ -108,6 +108,18 @@ export default function SanGongFuFactionWarDrawer({ playerId, factionId, player,
         mapRangeBlocked: pvp.inMapWarRemonstranceRange === false,
       };
     }
+    const excluded = (remonstrancePanel.pvpExcludedActiveWar || []).find(
+      (t) => String(t.cityId) === sid,
+    );
+    if (excluded) {
+      return {
+        kind: 'pvp',
+        row: excluded,
+        blockedReason: 'active_pvp_war',
+        atCap: !!remonstrancePanel.warLimits?.atPvpCap,
+        mapRangeBlocked: excluded.inMapWarRemonstranceRange === false,
+      };
+    }
     const pve = (remonstrancePanel.pveTargets || []).find((t) => String(t.cityId) === sid);
     if (pve) {
       return {
@@ -119,6 +131,18 @@ export default function SanGongFuFactionWarDrawer({ playerId, factionId, player,
     }
     return { kind: null, invalid: true };
   }, [selectedCityId, remonstrancePanel]);
+
+  const remonstranceProximityHighlight = useMemo(() => {
+    if (!remonstrancePanel) return null;
+    return {
+      hostileCityIds: (remonstrancePanel.pvpTargets || [])
+        .filter((t) => t.inMapWarRemonstranceRange !== false)
+        .map((t) => String(t.cityId)),
+      neutralCityIds: (remonstrancePanel.pveTargets || [])
+        .filter((t) => t.inMapWarRemonstranceRange !== false)
+        .map((t) => String(t.cityId)),
+    };
+  }, [remonstrancePanel]);
 
   const onCancelWar = useCallback(
     async (pvpWarId) => {
@@ -179,9 +203,13 @@ export default function SanGongFuFactionWarDrawer({ playerId, factionId, player,
     setCapTip('');
   }, []);
 
-  const showRemonstranceButton = selectionMeta && !selectionMeta.invalid && selectionMeta.kind;
+  const showRemonstranceButton =
+    selectionMeta && !selectionMeta.invalid && selectionMeta.kind;
   const remonstranceDisabled =
-    showRemonstranceButton && (selectionMeta.atCap || selectionMeta.mapRangeBlocked);
+    showRemonstranceButton &&
+    (selectionMeta.atCap ||
+      selectionMeta.mapRangeBlocked ||
+      selectionMeta.blockedReason === 'active_pvp_war');
 
   const openRemonstranceModal = useCallback(() => {
     if (!showRemonstranceButton || remonstranceDisabled) return;
@@ -191,6 +219,10 @@ export default function SanGongFuFactionWarDrawer({ playerId, factionId, player,
   const onRemonstrancePointer = useCallback(() => {
     if (!showRemonstranceButton) return;
     if (!remonstranceDisabled) return;
+    if (selectionMeta?.blockedReason === 'active_pvp_war') {
+      setCapTip('该城已有进行中 PVP 战事');
+      return;
+    }
     if (selectionMeta?.mapRangeBlocked) {
       setCapTip('地图距离过远');
       return;
@@ -213,6 +245,7 @@ export default function SanGongFuFactionWarDrawer({ playerId, factionId, player,
     remonstranceDisabled,
     selectionMeta?.kind,
     selectionMeta?.mapRangeBlocked,
+    selectionMeta?.blockedReason,
     remonstrancePanel?.warLimits?.pveActiveWars,
   ]);
 
@@ -410,12 +443,18 @@ export default function SanGongFuFactionWarDrawer({ playerId, factionId, player,
                 onCitySelect={handleMiniCitySelect}
                 onMiniMapTooltipDismiss={clearMiniMapSelection}
                 deferParentClearWithinSelector="[data-san-gong-faction-war-minimap-block]"
+                proximityHighlightOverride={remonstranceProximityHighlight}
               />
               {selectedCityId ? (
                 <div className="mt-3 flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between">
                   <div className="min-w-0 text-[11px] text-stone-400">
                     {selectionMeta?.invalid ? (
                       <span>所选城格不在当前谏言邻接候选内。</span>
+                    ) : selectionMeta?.blockedReason === 'active_pvp_war' ? (
+                      <span>
+                        已选：<span className="text-amber-200/90">{selectedCityName}</span>（势力
+                        PVP · <span className="text-stone-500">该城已有进行中战事</span>）
+                      </span>
                     ) : selectionMeta?.kind ? (
                       <span>
                         已选：<span className="text-amber-200/90">{selectedCityName}</span>（
@@ -473,13 +512,16 @@ export default function SanGongFuFactionWarDrawer({ playerId, factionId, player,
             selectionMeta.kind === 'pvp' &&
             !selectionMeta.atCap &&
             !selectionMeta.mapRangeBlocked &&
+            selectionMeta.blockedReason !== 'active_pvp_war' &&
             selectedCityId
           )
         }
         submitDisabledReason={
           selectionMeta?.kind === 'pve'
             ? '中立城 PVE 请走城池面板发起，本窗暂不支持临时政策。'
-            : selectionMeta?.atCap
+            : selectionMeta?.blockedReason === 'active_pvp_war'
+              ? '该城已有进行中 PVP 战事，无法重复谏言。'
+              : selectionMeta?.atCap
               ? '势力 PVP 战事已达并行上限。'
               : selectionMeta?.mapRangeBlocked
                 ? '目标超出战略地图谏言距离。'

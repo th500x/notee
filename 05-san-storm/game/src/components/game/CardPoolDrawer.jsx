@@ -14,9 +14,13 @@ import TroopCard from '@shared/components/card/TroopCard';
 import CharacterCard from '@shared/components/card/CharacterCard';
 import {
   poolFactionDigitFromPlayerFactionId,
-  poolSeasonFromPlayerFactionId,
-  cardMatchesPlayerPoolFaction,
+  filterCardsForPoolPreview,
 } from '@/utils/poolCardFilters';
+import {
+  PLAYABLE_POOL_SEASON,
+  RECRUIT_POOL_SEASON,
+  poolDrawerTabLabel,
+} from '@/constants/seasonLabels';
 import {
   getNextCardPoolDrawRefreshAt,
   formatCardPoolDrawRefreshCountdown,
@@ -24,6 +28,12 @@ import {
 import { useCountdownTicker } from '@/hooks/useCountdownTicker';
 import PlayerTopResourceBadges from '@/components/game/PlayerTopResourceBadges';
 import PoolResultModalFrame from '@/components/game/PoolResultModalFrame';
+import {
+  getPoolDrawCompensationUi,
+  poolDrawHasRarityLimitCompensation,
+  poolDrawResultModalTitle,
+} from '@/utils/poolDrawCompensationUi';
+import DuplicateEnhanceChoiceModal from '@/components/game/DuplicateEnhanceChoiceModal';
 
 const poolDebug = import.meta.env.DEV;
 
@@ -37,13 +47,18 @@ function countByRarity(cards) {
 }
 
 const RARITY_ORDER = { core: 4, legendary: 3, epic: 2, rare: 1, common: 0 };
-const POOL_LABEL = { troop: '部队卡池', character: '将领卡池' };
 const PROB_DISPLAY = { legendary: '5%', epic: '10%', rare: '30%', common: '55%' };
 const rarityLabel = { common: '普通', rare: '稀有', epic: '史诗', legendary: '传奇' };
 
+/** 抽屉标题旁 · 卡池机制一句话（21-1 重复增强 / 22-1 老兵） */
+const POOL_MECHANIC_HINT = {
+  character: '重复已拥有将领可三选一：强攻/坚守增强或转化；卡池增强最多 2 槽',
+  troop: '传奇·核心部队战后累计达阈值可晋升老兵，roll 全属性永久加成',
+};
+
 export default function CardPoolDrawer({
-  poolType, status, loading, drawResult, error, skillsMap, factionId, playerSilver,
-  onDraw, onClearResult, onClose, onRefreshStatus,
+  poolType, status, loading, choiceLoading, drawResult, duplicateChoiceError, error, skillsMap, factionId, playerSilver,
+  onDraw, onClearResult, onClose, onRefreshStatus, onResolveDuplicateChoice, onAfterDuplicateChoice,
 }) {
   const baseUrl = import.meta.env.BASE_URL;
   const inventoryCards = useCards();
@@ -74,6 +89,7 @@ export default function CardPoolDrawer({
     [nextDrawRefreshAt, nowTick],
   );
   const autoRefreshBoundaryRef = useRef(0);
+  const loadGenerationRef = useRef(0);
 
   useEffect(() => {
     if (!poolType || typeof onRefreshStatus !== 'function') return;
@@ -87,55 +103,121 @@ export default function CardPoolDrawer({
     }
   }, [poolType, nextDrawRefreshAt, nowTick, onRefreshStatus]);
 
-  const [poolCards, setPoolCards] = useState([]);
+  const [basePoolCards, setBasePoolCards] = useState([]);
+  const [recruitPoolCards, setRecruitPoolCards] = useState([]);
+  const [characterPoolTab, setCharacterPoolTab] = useState('base');
   const [cardsLoading, setCardsLoading] = useState(true);
   const [showResult, setShowResult] = useState(false);
   const [previewCard, setPreviewCard] = useState(null);
 
-  // 打开时刷新状态
-  useEffect(() => { onRefreshStatus(); }, []);
+  const recruitEnabled =
+    poolType === 'character' &&
+    !!status?.recruit?.enabled &&
+    !!status?.recruit?.san0Band;
+
+  const displayPoolCards = useMemo(() => {
+    if (poolType !== 'character' || !recruitEnabled) return basePoolCards;
+    return characterPoolTab === 'recruit' ? recruitPoolCards : basePoolCards;
+  }, [poolType, recruitEnabled, characterPoolTab, basePoolCards, recruitPoolCards]);
+
+  const activeDrawSeason = useMemo(() => {
+    if (poolType !== 'character') return PLAYABLE_POOL_SEASON;
+    if (!recruitEnabled) return PLAYABLE_POOL_SEASON;
+    return characterPoolTab === 'recruit' ? RECRUIT_POOL_SEASON : PLAYABLE_POOL_SEASON;
+  }, [poolType, recruitEnabled, characterPoolTab]);
+
+  const drawerTitle = useMemo(() => {
+    if (poolType === 'troop') {
+      return `⚔️ ${poolDrawerTabLabel('troop', PLAYABLE_POOL_SEASON)}`;
+    }
+    if (recruitEnabled) {
+      const seasonKey = characterPoolTab === 'recruit' ? RECRUIT_POOL_SEASON : PLAYABLE_POOL_SEASON;
+      return `🎴 ${poolDrawerTabLabel('character', seasonKey)}`;
+    }
+    return `🎴 ${poolDrawerTabLabel('character', PLAYABLE_POOL_SEASON)}`;
+  }, [poolType, recruitEnabled, characterPoolTab]);
 
   const loadPoolCards = useCallback(async () => {
+    const gen = ++loadGenerationRef.current;
     setCardsLoading(true);
     try {
-      const endpoint = poolType === 'troop' ? 'troops' : 'characters';
-      const season = poolSeasonFromPlayerFactionId(factionId);
-      const res = await fetchWithTimeout(
-        `${API_CONFIG.BASE_URL}/config/${endpoint}?season=${encodeURIComponent(season)}`,
-      );
-      const data = await res.json();
-      if (data.success) {
-        const allCards = (data[endpoint] || []).filter((c) => c.rarity !== 'core');
-        const factionNum = poolFactionDigitFromPlayerFactionId(factionId);
-        const pType = poolType === 'troop' ? 'troop' : 'character';
-        const bySeason = allCards.filter(
-          (c) => !c.season || String(c.season) === season || String(c.id || '').startsWith(`${season}_`),
-        );
-        const filtered = factionNum
-          ? bySeason.filter((c) => cardMatchesPlayerPoolFaction(c?.id, pType, factionNum))
-          : bySeason;
+      let recruitInfo = status?.recruit ?? null;
+      if (typeof onRefreshStatus === 'function') {
+        const fresh = await onRefreshStatus();
+        if (gen !== loadGenerationRef.current) return;
+        if (fresh?.recruit != null) {
+          recruitInfo = fresh.recruit;
+        }
+      }
 
+      const endpoint = poolType === 'troop' ? 'troops' : 'characters';
+      const pType = poolType === 'troop' ? 'troop' : 'character';
+      const factionNum = poolFactionDigitFromPlayerFactionId(factionId);
+      const san0Band = recruitInfo?.san0Band || null;
+      const recruitOn =
+        poolType === 'character' && recruitInfo?.enabled && san0Band;
+
+      const fetchSeasonCards = async (season, opts) => {
+        const res = await fetchWithTimeout(
+          `${API_CONFIG.BASE_URL}/config/${endpoint}?season=${encodeURIComponent(season)}`,
+        );
+        const data = await res.json();
+        if (!data.success) return [];
+        const allCards = (data[endpoint] || []).filter((c) => c.rarity !== 'core');
+        return filterCardsForPoolPreview(allCards, pType, factionNum, opts);
+      };
+
+      const baseCards = await fetchSeasonCards(PLAYABLE_POOL_SEASON, {
+        season: PLAYABLE_POOL_SEASON,
+      });
+      if (gen !== loadGenerationRef.current) return;
+
+      let recruitCards = [];
+      if (recruitOn) {
+        recruitCards = await fetchSeasonCards(RECRUIT_POOL_SEASON, {
+          season: RECRUIT_POOL_SEASON,
+          san0Band,
+        });
+        if (gen !== loadGenerationRef.current) return;
         if (poolDebug) {
-          console.log('[CardPoolDrawer]', endpoint, {
-            season,
-            factionId,
-            factionDigit: factionNum,
-            raw: allCards.length,
-            filtered: filtered.length,
-            byRarity: countByRarity(filtered),
+          console.log('[CardPoolDrawer] recruit pool', {
+            san0Band,
+            count: recruitCards.length,
+            byRarity: countByRarity(recruitCards),
           });
         }
+      }
 
-        setPoolCards(filtered);
-      } else if (poolDebug) {
-        console.warn('[CardPoolDrawer] API success=false', data);
+      setBasePoolCards(baseCards);
+      setRecruitPoolCards(recruitCards);
+
+      if (poolDebug) {
+        console.log('[CardPoolDrawer]', endpoint, {
+          factionId,
+          factionDigit: factionNum,
+          base: baseCards.length,
+          recruit: recruitOn ? recruitCards.length : 'off',
+          byRarity: countByRarity(baseCards),
+        });
       }
     } catch (e) {
       console.error('[CardPoolDrawer] 加载卡池数据失败:', e);
     } finally {
-      setCardsLoading(false);
+      if (gen === loadGenerationRef.current) {
+        setCardsLoading(false);
+      }
     }
-  }, [poolType, factionId]);
+  }, [
+    poolType,
+    factionId,
+    status?.recruit?.enabled,
+    status?.recruit?.san0Band,
+    onRefreshStatus,
+  ]);
+
+  useEffect(() => {
+    if (poolType !== 'character') setCharacterPoolTab('base');
+  }, [poolType]);
 
   useEffect(() => {
     loadPoolCards();
@@ -148,9 +230,38 @@ export default function CardPoolDrawer({
     }
   }, [drawResult]);
 
+  const poolCardsMapForDup = useMemo(() => {
+    const m = {};
+    displayPoolCards.forEach((c) => { m[c.id] = c; });
+    return m;
+  }, [displayPoolCards]);
+
+  const pendingDuplicateCard = useMemo(() => {
+    if (!drawResult?.duplicateChoiceRequired || !Array.isArray(drawResult.cards)) return null;
+    const card = drawResult.cards.find((c) => c.duplicateChoiceRequired) || drawResult.cards[0];
+    if (!card?.cardId) return null;
+    return poolCardsMapForDup[card.cardId] || {
+      id: card.cardId,
+      name: card.cardName || card.cardId,
+      rarity: card.rarity || 'common',
+    };
+  }, [drawResult, poolCardsMapForDup]);
+
+  const handleDuplicateChoice = useCallback(async (choice) => {
+    if (typeof onResolveDuplicateChoice !== 'function') return;
+    const res = await onResolveDuplicateChoice(choice);
+    if (res?.success) {
+      if (typeof onAfterDuplicateChoice === 'function') {
+        await onAfterDuplicateChoice(res);
+      }
+      setShowResult(false);
+      onClearResult();
+    }
+  }, [onResolveDuplicateChoice, onAfterDuplicateChoice, onClearResult]);
+
   // 按稀有度分组
   const grouped = {};
-  poolCards.forEach((card) => {
+  displayPoolCards.forEach((card) => {
     const r = String(card.rarity || 'common').toLowerCase();
     if (!grouped[r]) grouped[r] = [];
     grouped[r].push(card);
@@ -178,12 +289,18 @@ export default function CardPoolDrawer({
 
         {/* 标题栏：与大地图顶栏同口径的四项资源靠右上（三公府封赏卡池） */}
         <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-stone-700 flex-shrink-0 min-w-0">
-          <div className="flex items-center gap-2 min-w-0 flex-1">
-            <span className="text-amber-400 text-sm font-bold truncate">
-              {poolType === 'troop' ? '⚔️' : '🎴'} {POOL_LABEL[poolType]}
+          <div className="flex items-center gap-2 min-w-0 flex-1 overflow-hidden">
+            <span className="text-amber-400 text-sm font-bold truncate shrink-0 max-w-[42%] sm:max-w-none">
+              {drawerTitle}
             </span>
             <span className="text-stone-500 text-xs shrink-0">
               （{poolType === 'troop' ? '每次2张' : '每次1张'}）
+            </span>
+            <span
+              className="hidden md:inline text-stone-500 text-[10px] leading-snug truncate min-w-0 flex-1"
+              title={POOL_MECHANIC_HINT[poolType]}
+            >
+              {POOL_MECHANIC_HINT[poolType]}
             </span>
           </div>
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 pointer-events-auto">
@@ -193,6 +310,35 @@ export default function CardPoolDrawer({
             </button>
           </div>
         </div>
+
+        <p className="md:hidden px-4 pb-2 -mt-1 text-stone-500 text-[10px] leading-snug border-b border-stone-700/50 flex-shrink-0">
+          {POOL_MECHANIC_HINT[poolType]}
+        </p>
+
+        {recruitEnabled ? (
+          <div className="flex gap-1 px-3 py-2 bg-stone-900/80 border-b border-stone-700/50 flex-shrink-0">
+            {[
+              { key: 'base', season: PLAYABLE_POOL_SEASON },
+              { key: 'recruit', season: RECRUIT_POOL_SEASON },
+            ].map((tab) => {
+              const active = characterPoolTab === tab.key;
+              return (
+                <button
+                  key={tab.key}
+                  type="button"
+                  onClick={() => setCharacterPoolTab(tab.key)}
+                  className={`flex-1 rounded-lg border px-2 py-1.5 text-[11px] font-semibold transition-colors ${
+                    active
+                      ? 'border-amber-600/70 bg-amber-950/50 text-amber-100'
+                      : 'border-stone-600/70 bg-stone-800/60 text-stone-400 hover:text-stone-200'
+                  }`}
+                >
+                  {poolDrawerTabLabel('character', tab.season)}
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
 
         {/* 概率展示条 */}
         <div className="flex items-center justify-center gap-3 px-4 py-2 bg-stone-800/60 border-b border-stone-700/50 flex-shrink-0">
@@ -209,8 +355,12 @@ export default function CardPoolDrawer({
         <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-3 bg-stone-900 relative z-0">
           {cardsLoading ? (
             <div className="text-center py-8 text-stone-500 text-sm">加载卡池数据中...</div>
-          ) : poolCards.length === 0 ? (
-            <div className="text-center py-8 text-stone-500 text-sm">暂无可用卡牌</div>
+          ) : displayPoolCards.length === 0 ? (
+            <div className="text-center py-8 text-stone-500 text-sm">
+              {recruitEnabled && characterPoolTab === 'recruit'
+                ? '招贤池暂无可用将领（请确认朝政·招贤纳士已开启）'
+                : '暂无可用卡牌'}
+            </div>
           ) : (
             sortedRarities.map(rarity => (
               <div key={rarity} className="mb-3">
@@ -301,8 +451,13 @@ export default function CardPoolDrawer({
             />
           </div>
           {error && <div className="text-red-400 text-xs text-center mb-2">{error}</div>}
+          {recruitEnabled ? (
+            <p className="text-[10px] text-stone-500 text-center mb-2 leading-snug">
+              当前从「{poolDrawerTabLabel('character', activeDrawSeason)}」抽取（费用 / 次数 / 传奇保底共用）
+            </p>
+          ) : null}
           <button
-            onClick={onDraw}
+            onClick={() => onDraw(activeDrawSeason)}
             disabled={!canDraw}
             className={`w-full py-3 rounded-xl text-sm font-bold transition-all
               ${canDraw
@@ -328,12 +483,27 @@ export default function CardPoolDrawer({
         </div>
       )}
 
+      {/* 重复将领三选一 */}
+      {showResult && drawResult?.success && drawResult.duplicateChoiceRequired && (
+        <DuplicateEnhanceChoiceModal
+          card={pendingDuplicateCard}
+          duplicateEnhanceState={drawResult.duplicateEnhanceState}
+          pendingDuplicateDrawId={drawResult.pendingDuplicateDrawId}
+          skillsMap={skillsMap}
+          baseUrl={baseUrl}
+          loading={choiceLoading}
+          error={duplicateChoiceError}
+          onChoose={handleDuplicateChoice}
+          onClose={() => { setShowResult(false); onClearResult(); }}
+        />
+      )}
+
       {/* 抽取结果弹窗 */}
-      {showResult && drawResult?.success && (
+      {showResult && drawResult?.success && !drawResult.duplicateChoiceRequired && (
         <DrawResultOverlay
           poolType={poolType}
           cards={drawResult.cards}
-          poolCards={poolCards}
+          poolCards={displayPoolCards}
           skillsMap={skillsMap}
           baseUrl={baseUrl}
           rarityLabel={rarityLabel}
@@ -351,12 +521,29 @@ function DrawResultOverlay({ poolType, cards, poolCards, skillsMap, baseUrl, rar
   poolCards.forEach(c => { poolCardsMap[c.id] = c; });
 
   const hasPitySuppressed = Array.isArray(cards) && cards.some((c) => c.pityLegendarySuppressed);
+  const hasRarityLimitComp = poolDrawHasRarityLimitCompensation(cards);
+  const primaryCompUi = Array.isArray(cards)
+    ? cards.map((c) => getPoolDrawCompensationUi(c, poolType)).find(Boolean)
+    : null;
+  const modalTitle = poolDrawResultModalTitle(cards, poolType);
 
   return (
     <PoolResultModalFrame
-      title={poolType === 'troop' ? '⚔️ 部队卡抽取结果' : '🎴 将领卡抽取结果'}
+      title={modalTitle}
       onClose={onClose}
     >
+      {hasRarityLimitComp && primaryCompUi && (
+        <div className="mb-3 px-3 py-2.5 rounded-lg bg-rose-950/90 border-2 border-rose-500/50 text-[12px] leading-relaxed text-rose-50">
+          <div className="text-rose-300 font-bold text-sm mb-1">{primaryCompUi.bannerTitle}</div>
+          <div>{primaryCompUi.bannerBody}</div>
+        </div>
+      )}
+      {!hasRarityLimitComp && primaryCompUi && (
+        <div className="mb-3 px-3 py-2.5 rounded-lg bg-amber-950/90 border-2 border-amber-500/40 text-[12px] leading-relaxed text-amber-50">
+          <div className="text-amber-300 font-bold text-sm mb-1">{primaryCompUi.bannerTitle}</div>
+          <div>{primaryCompUi.bannerBody}</div>
+        </div>
+      )}
       {hasPitySuppressed && (
         <div className="mb-3 px-3 py-2 rounded-lg bg-amber-950/80 border border-amber-600/40 text-[11px] leading-relaxed text-amber-100/95">
           <span className="text-amber-400 font-semibold">保底说明：</span>
@@ -366,9 +553,20 @@ function DrawResultOverlay({ poolType, cards, poolCards, skillsMap, baseUrl, rar
       <div className="flex justify-center gap-3 flex-wrap">
         {cards.map((card, i) => {
           const fullConfig = poolCardsMap[card.cardId];
+          const compUi = getPoolDrawCompensationUi(card, poolType);
           return (
             <div key={i} className="flex flex-col items-center">
-              <div style={{ width: 128, height: 192 }} className="overflow-hidden rounded-lg bg-stone-900">
+              <div
+                style={{ width: 128, height: 192 }}
+                className={`overflow-hidden rounded-lg bg-stone-900 relative ${card.compensated ? 'opacity-45 grayscale' : ''}`}
+              >
+                {card.compensated && (
+                  <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none">
+                    <span className="px-2 py-1 rounded bg-black/75 text-[10px] font-bold text-rose-200 border border-rose-500/60">
+                      未入背包
+                    </span>
+                  </div>
+                )}
                 <div
                   style={{
                     transform: 'scale(0.5)',
@@ -409,20 +607,9 @@ function DrawResultOverlay({ poolType, cards, poolCards, skillsMap, baseUrl, rar
                   </div>
                 )}
               </div>
-              {card.compensated && (
-                <div className="mt-0.5 text-[10px] text-amber-400/80 bg-amber-900/30 px-2 py-0.5 rounded">
-                  {card.compensation?.type === 'silver' ? `💰+${card.compensation.amount}` : `🌾+${card.compensation.amount}`}
-                  <span className="text-stone-500 ml-1">
-                    {card.reason === 'character_duplicate'
-                      ? '(已持有)'
-                      : card.reason === 'character_rarity_limit'
-                        ? '(稀有度已满)'
-                        : card.reason === 'troop_limit'
-                          ? '(超限)'
-                          : card.reason === 'no_card_available'
-                            ? '(无可抽候选)'
-                            : ''}
-                  </span>
+              {card.compensated && compUi && (
+                <div className="mt-1.5 text-[11px] font-semibold text-rose-200 bg-rose-950/80 border border-rose-500/50 px-2.5 py-1 rounded-md text-center max-w-[150px] leading-snug">
+                  {compUi.cardTag}
                 </div>
               )}
             </div>

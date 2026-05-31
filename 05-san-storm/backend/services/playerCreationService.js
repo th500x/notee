@@ -12,6 +12,7 @@ const { pool } = require('../database/connection');
 const PlayerService = require('./playerService');
 const { formatTroopData, CONFIG_TROOPS_SELECT_COLUMNS } = require('./configService');
 const { getFactionFromTroopId } = require('./troopIdHelpers');
+const { attachBalanceBonusPreviewToFactions } = require('./factionBalanceBonusService');
 
 // ── 势力 ──────────────────────────────────────────────────────────────────────
 
@@ -78,6 +79,8 @@ async function getAvailableFactions(playerId) {
     faction.is_full        = faction.current_players >= faction.max_players;
     faction.recommended    = faction.difficulty === '简单';
   }
+
+  attachBalanceBonusPreviewToFactions(factions);
 
   return { factions };
 }

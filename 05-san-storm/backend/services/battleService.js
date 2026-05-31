@@ -7,7 +7,7 @@
 const Battle = require('../models/Battle');
 const { pool } = require('../database/connection');
 const { applyTroopDurabilityExhaustion } = require('./troopDurabilityService');
-const { checkAndApplyVeteran } = require('./veteranService');
+const { checkAndApplyVeteran, normalizeInstanceIds } = require('./veteranService');
 
 /**
  * 保存战斗记录
@@ -234,23 +234,32 @@ async function saveChestRewards(playerId, chestRewards) {
  * @param {Array<{ target: 'player'|'card', instanceId?: string, morale: number }>} [options.moraleUpdates]
  */
 async function applyBattlePostEffects(playerId, { troopCasualties, moraleUpdates } = {}) {
-  // 上阵部队耐久消耗：battle_count +1（钳制在 [0, max_battle_count]），同步递增 lifetime_battle_count
-  try {
-    const [updated] = await pool.query(
-      `UPDATE player_cards
-       SET battle_count = LEAST(
-         GREATEST(COALESCE(battle_count, 0), 0) + 1,
-         COALESCE(max_battle_count, 60)
-       ),
-       lifetime_battle_count = COALESCE(lifetime_battle_count, 0) + 1
-       WHERE player_id = ? AND card_type = 'troop' AND is_equipped = TRUE`,
-      [playerId],
-    );
-    if (updated.affectedRows > 0) {
-      console.log(`[battleService] 部队耐久消耗: player=${playerId}, ${updated.affectedRows}张部队卡 battle_count+1`);
+  const participantIds = normalizeInstanceIds(
+    Array.isArray(troopCasualties) ? troopCasualties.map((tc) => tc?.instanceId) : [],
+  );
+
+  // 本场参战部队：battle_count +1（钳制在 [0, max_battle_count]），同步递增 lifetime_battle_count
+  if (participantIds.length > 0) {
+    try {
+      const ph = participantIds.map(() => '?').join(',');
+      const [updated] = await pool.query(
+        `UPDATE player_cards
+         SET battle_count = LEAST(
+           GREATEST(COALESCE(battle_count, 0), 0) + 1,
+           COALESCE(max_battle_count, 60)
+         ),
+         lifetime_battle_count = COALESCE(lifetime_battle_count, 0) + 1
+         WHERE player_id = ? AND card_type = 'troop' AND instance_id IN (${ph})`,
+        [playerId, ...participantIds],
+      );
+      if (updated.affectedRows > 0) {
+        console.log(
+          `[battleService] 部队耐久消耗: player=${playerId}, ${updated.affectedRows}张参战部队 battle_count+1`,
+        );
+      }
+    } catch (err) {
+      console.error('[battleService] 部队耐久消耗更新失败:', err);
     }
-  } catch (err) {
-    console.error('[battleService] 部队耐久消耗更新失败:', err);
   }
 
   // 战后兵力写入
@@ -298,15 +307,21 @@ async function applyBattlePostEffects(playerId, { troopCasualties, moraleUpdates
     console.error('[battleService] 耐久耗尽处理失败:', err);
   }
 
-  // 老兵系统：检查是否有部队达到晋升阈值
+  // 老兵系统：仅检查本场参战部队是否达到晋升阈值
   let veteranPromotions = [];
-  try {
-    veteranPromotions = await checkAndApplyVeteran((sql, params) => pool.query(sql, params), playerId);
-    if (veteranPromotions.length > 0) {
-      console.log(`[battleService] 老兵晋升: player=${playerId}, ${veteranPromotions.length}张卡晋升`);
+  if (participantIds.length > 0) {
+    try {
+      veteranPromotions = await checkAndApplyVeteran(
+        (sql, params) => pool.query(sql, params),
+        playerId,
+        { instanceIds: participantIds },
+      );
+      if (veteranPromotions.length > 0) {
+        console.log(`[battleService] 老兵晋升: player=${playerId}, ${veteranPromotions.length}张卡晋升`);
+      }
+    } catch (err) {
+      console.error('[battleService] 老兵检查失败:', err);
     }
-  } catch (err) {
-    console.error('[battleService] 老兵检查失败:', err);
   }
 
   return { veteranPromotions };

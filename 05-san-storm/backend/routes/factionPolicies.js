@@ -66,6 +66,42 @@ router.get('/panel', validateQuery(factionPolicySchemas.panelQuery), async (req,
 });
 
 router.post(
+  '/preview-approval',
+  validateBody(factionPolicySchemas.previewApprovalBody),
+  async (req, res, next) => {
+    try {
+      const { factionId, category, config } = req.body;
+      const accountId = req.player?.sub;
+      if (!accountId) {
+        return res.status(401).json({ success: false, error: '未登录' });
+      }
+      const playerRow = await Player.getById(String(accountId));
+      if (!playerRow || String(playerRow.faction_id || '').trim() !== factionId) {
+        return res.status(403).json({ success: false, error: '势力与当前角色不符' });
+      }
+      if (!aiKingConfigService.hasKingForFaction(factionId)) {
+        return res.status(404).json({
+          success: false,
+          error: '该势力暂未配置 AI 君主（M2 仅汉室/黄巾/刘备）',
+        });
+      }
+
+      const data = await factionPolicyService.previewLongTermPolicyApproval(
+        factionId,
+        category,
+        config,
+      );
+      res.json({ success: true, data });
+    } catch (error) {
+      if (error && error.status && error.status < 500) {
+        return next(error);
+      }
+      return next(wrap500(error, '获取政策审批预览失败'));
+    }
+  },
+);
+
+router.post(
   '/proposals/long-term',
   validateBody(factionPolicySchemas.longTermProposalBody),
   async (req, res, next) => {

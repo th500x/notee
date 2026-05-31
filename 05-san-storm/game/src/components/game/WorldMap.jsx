@@ -15,6 +15,7 @@ import { useCountdownTicker } from '@/hooks/useCountdownTicker';
 import { useRoadSelfPresencePoll } from '@/hooks/useRoadSelfPresencePoll';
 import { usePvpSiegeAdjudication } from '@/hooks/usePvpSiegeAdjudication';
 import { useWorldMapStrategicBattles } from '@/hooks/useWorldMapStrategicBattles';
+import CeremonyBounceOverlay from '@/components/game/CeremonyBounceOverlay';
 import { useWorldMapCityPanels } from '@/hooks/useWorldMapCityPanels';
 import { useWorldMapExploreSubsidiary } from '@/hooks/useWorldMapExploreSubsidiary';
 const ExplorePanel = lazy(() => import('@/components/event/ExplorePanel'));
@@ -480,23 +481,14 @@ export default function WorldMap({
         onBanditDefeatAbandon={handleBanditRaidAbandon}
       />
 
-      {/* 官职装配动画（教程链事件获得官职后） */}
-      {positionAnimation && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60">
-          <div className="text-center animate-bounce">
-            <div className="text-6xl mb-4">👑</div>
-            <div className="text-amber-400 text-2xl font-bold mb-2">
-              官职授予
-            </div>
-            <div className="text-white text-lg">
-              {positionAnimation.positionName}
-            </div>
-            <div className="text-amber-300/60 text-sm mt-2">
-              Lv.{positionAnimation.positionLevel}
-            </div>
-          </div>
-        </div>
-      )}
+      {positionAnimation ? (
+        <CeremonyBounceOverlay
+          icon="👑"
+          title="官职授予"
+          subtitle={positionAnimation.positionName}
+          caption={`Lv.${positionAnimation.positionLevel}`}
+        />
+      ) : null}
 
       {/* 编组引导（指引叁前需至少 1 支部队） */}
       {showLineupGuide && (

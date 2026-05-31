@@ -125,10 +125,11 @@ export function linesFromClaimDetails(details, names = {}) {
       out.push(`🔑 ${d.itemName || itemMap[d.itemId] || d.itemId} ×${d.quantity || 1}`);
     } else if (d.type === 'character_duplicate') {
       const nm = charById[d.cardId] || d.cardName || d.cardId;
-      out.push(`💰 将领「${nm}」已达持有上限，补偿 ${d.compensation} 银两`);
+      out.push(`💰 将领「${nm}」重复（已在背包），补偿 ${d.compensation} 银两`);
     } else if (d.type === 'character_rarity_limit') {
       const nm = charById[d.cardId] || d.cardName || d.cardId;
-      out.push(`💰 将领「${nm}」本稀有度持有已满，补偿 ${d.compensation} 银两`);
+      const lim = d.rarityLimit ? ` ${d.rarityLimit.owned}/${d.rarityLimit.max}` : '';
+      out.push(`💰 将领「${nm}」本稀有度栏位已满${lim}，补偿 ${d.compensation} 银两（同重复）`);
     } else if (d.type === 'card_duplicate') {
       const lab = d.cardType === 'title' ? '称号' : d.cardType === 'achievement' ? '成就' : d.cardType === 'troop' ? '部队' : d.cardType === 'character' ? '将领' : d.cardType === 'equipment' ? '装备' : '卡牌';
       let nm = d.cardName || d.cardId;
@@ -140,7 +141,8 @@ export function linesFromClaimDetails(details, names = {}) {
       if (d.scope === 'per_card' && d.cardName) {
         out.push(`🌾 「${d.cardName}」同卡已达上限（核心最多2张），补偿 ${d.compensation} 粮草`);
       } else {
-        out.push(`🌾 ${d.rarity || ''} 品部队栏位已满，补偿 ${d.compensation} 粮草`);
+        const lim = d.rarityLimit ? ` ${d.rarityLimit.owned}/${d.rarityLimit.max}` : '';
+        out.push(`🌾 ${d.rarity || ''} 品部队栏位已满${lim}，补偿 ${d.compensation} 粮草`);
       }
     }
   });

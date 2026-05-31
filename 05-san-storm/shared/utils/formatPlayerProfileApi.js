@@ -100,6 +100,18 @@ export function formatPlayerCardForProfileApi(card) {
     rarity: rest.rarity,
     currentTroops: rest.current_troops,
     morale: rest.morale,
+    characterEnhanceSlots: (() => {
+      const raw = rest.character_enhance_slots ?? rest.characterEnhanceSlots;
+      if (raw == null) return null;
+      if (typeof raw === 'string') {
+        try {
+          return JSON.parse(raw);
+        } catch {
+          return null;
+        }
+      }
+      return raw;
+    })(),
     battleCount: rest.battle_count,
     maxBattleCount: rest.max_battle_count,
     bonusMaxTroops: rest.bonus_max_troops,

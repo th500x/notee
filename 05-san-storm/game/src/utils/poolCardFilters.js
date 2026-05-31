@@ -54,4 +54,39 @@ export function cardMatchesPlayerPoolFaction(cardId, poolType, playerFactionDigi
   const d = poolFactionDigitFromCardId(cardId == null ? '' : cardId, poolType);
   return d === playerFactionDigit || d === '0';
 }
+
+/**
+ * 招贤扩池：`san_0_{char|troop}_{band}xxx`（与 cardPoolService.drawSingleCard recruitLike 一致）。
+ *
+ * @param {string} cardId
+ * @param {'troop'|'character'} poolType
+ * @param {string|null|undefined} san0Band 如 '2'（汉室西汉段）
+ */
+export function cardMatchesRecruitPool(cardId, poolType, san0Band) {
+  const band = String(san0Band ?? '').trim();
+  if (!band) return false;
+  const id = String(cardId || '');
+  if (!id.startsWith('san_0_')) return false;
+  const d = poolFactionDigitFromCardId(id, poolType);
+  return d === band;
+}
+
+/**
+ * @param {object[]} cards
+ * @param {'troop'|'character'} poolType
+ * @param {string|null} factionDigit
+ * @param {string|null|undefined} san0Band
+ */
+export function filterCardsForPoolPreview(cards, poolType, factionDigit, { season, san0Band } = {}) {
+  const list = Array.isArray(cards) ? cards : [];
+  const sk = String(season || '');
+  if (sk === 'san_0') {
+    return list.filter((c) => cardMatchesRecruitPool(c?.id, poolType, san0Band));
+  }
+  const bySeason = list.filter(
+    (c) => !c.season || String(c.season) === sk || String(c.id || '').startsWith(`${sk}_`),
+  );
+  if (!factionDigit) return bySeason;
+  return bySeason.filter((c) => cardMatchesPlayerPoolFaction(c?.id, poolType, factionDigit));
+}
 

@@ -20,6 +20,7 @@
 const { pool } = require('../database/connection');
 const { httpError } = require('../utils/httpError');
 const passiveApprovalService = require('./passiveApprovalService');
+const policyProposalAssessService = require('./policyProposalAssessService');
 const aiKingConfigService = require('./aiKingConfigService');
 const policyProposerAuth = require('./policyProposerAuth');
 const defaults = require('./factionPolicyDefaults');
@@ -251,7 +252,6 @@ async function submitLongTermProposal(input) {
     const nextEnabled = !!v.normalized.enabled;
     const prevEnabled = !!(
       existingRow &&
-      existingRow.last_outcome === 'approved' &&
       (() => {
         try {
           const cfg =
@@ -262,7 +262,8 @@ async function submitLongTermProposal(input) {
         } catch (_) {
           return false;
         }
-      })()
+      })() &&
+      (existingRow.last_outcome === 'approved' || existingRow.last_outcome === 'rejected')
     );
     const mapping = defaults.getRecruitMappingForFaction(factionId);
     const shouldChargeIfApproved = nextEnabled && !prevEnabled;
@@ -292,11 +293,18 @@ async function submitLongTermProposal(input) {
     `policy_${factionId}_${category}_${Date.now()}`;
 
   const cityCount = await fetchFactionCityCountForKing(factionId);
+  const assess = policyProposalAssessService.assessLongTermPolicyProposal(
+    factionId,
+    category,
+    v.normalized,
+    existingRow,
+  );
   const approval = passiveApprovalService.resolvePassiveApproval({
     factionId,
     proposalType: passiveApprovalService.PROPOSAL_TYPE_POLICY,
     proposalId,
     cityCount,
+    proposalContext: { assess, category },
   });
 
   const now = new Date();
@@ -645,6 +653,49 @@ async function getPanelForFaction(factionId) {
   };
 }
 
+/**
+ * 长效政策谏言 · 按 draft config 预览审批区间（含无条件利好抬升）。
+ *
+ * @param {string} factionId
+ * @param {string} category
+ * @param {object} config - 未规范化原始 config（经 validate 后参与 assess）
+ * @returns {Promise<object>} `passiveApprovalService.previewApprovalRange` 返回值
+ */
+async function previewLongTermPolicyApproval(factionId, category, config) {
+  if (!factionId) {
+    throw httpError(400, '缺少 factionId', 'POLICY_MISSING_FACTION');
+  }
+  if (!defaults.isValidCategory(category)) {
+    throw httpError(400, `未知 policy_category: ${category}`, 'POLICY_INVALID_CATEGORY');
+  }
+  const v = defaults.validateConfigForCategory(category, config || {});
+  if (!v.ok) {
+    throw httpError(400, v.error, 'POLICY_INVALID_CONFIG');
+  }
+  if (!aiKingConfigService.hasKingForFaction(factionId)) {
+    throw httpError(
+      400,
+      `该势力暂未配置 AI 君主（M2 仅汉室/黄巾/刘备）：${factionId}`,
+      'POLICY_NO_KING',
+    );
+  }
+
+  const existingRow = await findFactionPolicyRow(factionId, category);
+  const assess = policyProposalAssessService.assessLongTermPolicyProposal(
+    factionId,
+    category,
+    v.normalized,
+    existingRow,
+  );
+  const cityCount = await fetchFactionCityCountForKing(factionId);
+  return passiveApprovalService.previewApprovalRange({
+    factionId,
+    proposalType: passiveApprovalService.PROPOSAL_TYPE_POLICY,
+    cityCount,
+    proposalContext: { assess, category },
+  });
+}
+
 module.exports = {
   formatFactionPolicyRow,
   findFactionPolicyRow,
@@ -656,5 +707,6 @@ module.exports = {
   getEffectiveDomesticGoal,
   getPanelForFaction,
   submitLongTermProposal,
+  previewLongTermPolicyApproval,
   assertCategoryEligible,
 };

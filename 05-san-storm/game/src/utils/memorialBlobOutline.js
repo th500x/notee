@@ -162,6 +162,44 @@ export function buildMemorialBlobSvgHtml({ x, y, width, height, seed }) {
 const DEFAULT_PAD = 16;
 
 /**
+ * 元素相对 container 的位置与尺寸。
+ * 离屏（如 left:-99999px）时 getBoundingClientRect 可能失真，故优先走 offsetParent 链。
+ * @param {HTMLElement} container
+ * @param {HTMLElement} element
+ * @returns {{ x: number, y: number, width: number, height: number } | null}
+ */
+function measureElementRectWithin(container, element) {
+  if (!container || !element || !container.contains(element)) return null;
+
+  let x = 0;
+  let y = 0;
+  let node = element;
+  while (node && node !== container) {
+    x += node.offsetLeft;
+    y += node.offsetTop;
+    node = node.offsetParent;
+  }
+
+  const width = element.offsetWidth;
+  const height = element.offsetHeight;
+  if (width < 2 || height < 2) return null;
+
+  if (node !== container) {
+    const cr = container.getBoundingClientRect();
+    const er = element.getBoundingClientRect();
+    if (er.width < 2 || er.height < 2) return null;
+    return {
+      x: er.left - cr.left,
+      y: er.top - cr.top,
+      width: er.width,
+      height: er.height,
+    };
+  }
+
+  return { x, y, width, height };
+}
+
+/**
  * 在 container 内为各文字块插入手绘 blob（需已完成 layout）。
  * @param {HTMLElement} container
  * @param {Array<{ element: HTMLElement, seed: number, pad?: number }>} blocks
@@ -169,15 +207,14 @@ const DEFAULT_PAD = 16;
 export function attachMemorialBlobOutlines(container, blocks) {
   const layer = container.querySelector('[data-memorial-blob-layer]');
   if (!layer) return;
-  const rootRect = container.getBoundingClientRect();
   const html = blocks
     .map(({ element, seed, pad = DEFAULT_PAD }) => {
-      const r = element.getBoundingClientRect();
-      if (r.width < 2 || r.height < 2) return '';
-      const x = r.left - rootRect.left - pad;
-      const y = r.top - rootRect.top - pad;
-      const w = r.width + pad * 2;
-      const h = r.height + pad * 2;
+      const rect = measureElementRectWithin(container, element);
+      if (!rect) return '';
+      const x = rect.x - pad;
+      const y = rect.y - pad;
+      const w = rect.width + pad * 2;
+      const h = rect.height + pad * 2;
       return buildMemorialBlobSvgHtml({ x, y, width: w, height: h, seed });
     })
     .filter(Boolean)

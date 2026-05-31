@@ -9,51 +9,51 @@ import { memo } from 'react';
  * @typedef {{ cityId: string, x: number, y: number, w: number, h: number, fill: string, stroke?: string, cityType?: string|null }} StrategicMiniMapCityRect
  */
 
-const TIER_STAR_FILL = '#fde047';
-const TIER_STAR_STROKE = 'rgba(28,25,23,0.82)';
+const TIER_BADGE_TEXT_FILL = '#fde047';
+const TIER_BADGE_BOX_FILL = 'rgba(28,25,23,0.82)';
+const TIER_BADGE_BOX_STROKE = 'rgba(250,204,21,0.88)';
 
-function tierStarFontSize(r) {
-  return Math.max(0.5, Math.min(r.w, r.h) * 0.52);
+function tierBadgeBoxSize(r) {
+  return Math.max(0.72, Math.min(r.w, r.h) * 0.68);
 }
 
-function tierStarText(key, x, y, fs) {
-  const sw = Math.max(0.04, fs * 0.1);
-  return (
-    <text
-      key={key}
-      x={x}
-      y={y}
-      textAnchor="middle"
-      dominantBaseline="central"
-      fill={TIER_STAR_FILL}
-      stroke={TIER_STAR_STROKE}
-      strokeWidth={sw}
-      paintOrder="stroke fill"
-      fontSize={fs}
-      fontWeight="700"
-      fontFamily="ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif"
-      style={{ pointerEvents: 'none' }}
-    >
-      ★
-    </text>
-  );
-}
-
-/** 中城 1 星 · 大城 2 星（城块中心，便于区分级别） */
-function cityTierStars(r) {
+/** 中城「中」· 大城「大」（城块中心方框内，便于区分级别） */
+function cityTierBadge(r) {
   const ct = r.cityType;
   if (ct !== 'city_medium' && ct !== 'city_major') return null;
-  const fs = tierStarFontSize(r);
+  const label = ct === 'city_medium' ? '中' : '大';
   const cx = r.x + r.w / 2;
   const cy = r.y + r.h / 2;
-  if (ct === 'city_medium') {
-    return tierStarText(`tier-star-${r.cityId}`, cx, cy, fs);
-  }
-  const gap = fs * 0.5;
+  const box = tierBadgeBoxSize(r);
+  const bx = cx - box / 2;
+  const by = cy - box / 2;
+  const fs = box * 0.58;
+  const sw = Math.max(0.05, box * 0.08);
   return (
-    <g key={`tier-stars-${r.cityId}`} style={{ pointerEvents: 'none' }}>
-      {tierStarText(`tier-star-${r.cityId}-0`, cx - gap / 2, cy, fs)}
-      {tierStarText(`tier-star-${r.cityId}-1`, cx + gap / 2, cy, fs)}
+    <g key={`tier-badge-${r.cityId}`} style={{ pointerEvents: 'none' }}>
+      <rect
+        x={bx}
+        y={by}
+        width={box}
+        height={box}
+        rx={0.1}
+        ry={0.1}
+        fill={TIER_BADGE_BOX_FILL}
+        stroke={TIER_BADGE_BOX_STROKE}
+        strokeWidth={sw}
+      />
+      <text
+        x={cx}
+        y={cy}
+        textAnchor="middle"
+        dominantBaseline="central"
+        fill={TIER_BADGE_TEXT_FILL}
+        fontSize={fs}
+        fontWeight="700"
+        fontFamily="'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', ui-sans-serif, sans-serif"
+      >
+        {label}
+      </text>
     </g>
   );
 }
@@ -240,7 +240,7 @@ function StrategicMiniMapSvg({
       {neutralHighlightIds.map((cityId) =>
         proximityHighlightRing(cityRects, cityId, 'neutral', 'over'),
       )}
-      {cityRects.map((r) => cityTierStars(r))}
+      {cityRects.map((r) => cityTierBadge(r))}
       {selfMarker &&
       Number.isFinite(selfMarker.cx) &&
       Number.isFinite(selfMarker.cy) ? (

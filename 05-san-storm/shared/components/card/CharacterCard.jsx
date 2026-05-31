@@ -51,6 +51,7 @@
 
 import { useState } from 'react';
 import PropTypes from 'prop-types';
+import { parseEnhanceSlots, getEnhanceSlotDisplay } from '@shared/utils/characterEnhanceCombat';
 
 /**
  * 稀有度配置
@@ -108,6 +109,37 @@ function parseTroopAffinityString(affinityStr) {
     affinities[key] = Number.isFinite(n) ? n : 0;
   });
   return affinities;
+}
+
+function EnhanceSlotBadge({ slot, slotIndex, activeTooltip, setActiveTooltip }) {
+  const display = getEnhanceSlotDisplay(slot, slotIndex);
+  const tooltipKey = `enhance_slot_${slotIndex}`;
+  const baseClass = display.locked
+    ? 'border-stone-400 bg-stone-200/70 text-stone-500'
+    : display.empty
+      ? 'border-dashed border-gray-300 bg-gray-100/80 text-gray-400'
+      : slot?.kind === 'attack'
+        ? 'border-red-300 bg-red-50/90 text-red-700'
+        : 'border-blue-300 bg-blue-50/90 text-blue-700';
+
+  return (
+    <button
+      type="button"
+      className={`relative shrink-0 w-7 h-7 rounded border text-sm leading-none flex items-center justify-center cursor-pointer ${baseClass}`}
+      onClick={(e) => {
+        e.stopPropagation();
+        setActiveTooltip(activeTooltip === tooltipKey ? null : tooltipKey);
+      }}
+      aria-label={display.tooltip}
+    >
+      {display.emoji}
+      {activeTooltip === tooltipKey && display.tooltip && (
+        <div className="pointer-events-none absolute bottom-full right-0 z-50 mb-1 max-w-[220px] break-words rounded bg-gray-900 px-2 py-1 text-[10px] text-white shadow-lg">
+          {display.tooltip}
+        </div>
+      )}
+    </button>
+  );
 }
 
 function affinityChipTooltip(type, bonus) {
@@ -217,6 +249,7 @@ function CharacterCard({
   const [isFlipped, setIsFlipped] = useState(false);
   const [activeTooltip, setActiveTooltip] = useState(null);
   const rarityConfig = getRarityConfig(character.rarity);
+  const enhanceSlots = parseEnhanceSlots(character.characterEnhanceSlots);
 
   // 解析属性加成（×10存储，显示时除以10）
   const ab = character.attributeBonus || {};
@@ -561,9 +594,17 @@ function CharacterCard({
         {/* 特性区域 */}
         {showDetails && (
           <div className="relative px-4 py-1 border-t-2 border-gray-400/40">
-            <div className="flex items-center gap-1 mb-0.5">
-              <span className="text-cyan-400 text-xs">⚡</span>
-              <span className="text-gray-700 text-xs font-medium">特性</span>
+            <div className="flex items-center justify-between gap-1 mb-0.5">
+              <div className="flex items-center gap-1 min-w-0">
+                <span className="text-cyan-400 text-xs">⚡</span>
+                <span className="text-gray-700 text-xs font-medium">特性</span>
+              </div>
+              <EnhanceSlotBadge
+                slot={enhanceSlots[0]}
+                slotIndex={0}
+                activeTooltip={activeTooltip}
+                setActiveTooltip={setActiveTooltip}
+              />
             </div>
             <div className="grid grid-cols-3 gap-1.5 text-xs">
               {/* 如果没有特性数据，显示两个"暂无"框 */}
@@ -669,12 +710,21 @@ function CharacterCard({
         )}
 
         {/* 技能区域 */}
-        {showDetails && character.skills && character.skills.length > 0 && (
+        {showDetails && (character.skills?.length > 0 || enhanceSlots[1]) && (
           <div className="relative px-4 py-1 border-t-2 border-gray-400/40">
-            <div className="flex items-center gap-1 mb-0.5">
-              <span className="text-purple-400 text-xs">⚔️</span>
-              <span className="text-gray-700 text-xs font-medium">技能</span>
+            <div className="flex items-center justify-between gap-1 mb-0.5">
+              <div className="flex items-center gap-1 min-w-0">
+                <span className="text-purple-400 text-xs">⚔️</span>
+                <span className="text-gray-700 text-xs font-medium">技能</span>
+              </div>
+              <EnhanceSlotBadge
+                slot={enhanceSlots[1]}
+                slotIndex={1}
+                activeTooltip={activeTooltip}
+                setActiveTooltip={setActiveTooltip}
+              />
             </div>
+            {character.skills && character.skills.length > 0 ? (
             <div className="grid grid-cols-3 gap-1.5">
               {character.skills.slice(0, 3).map((skillId, index) => {
                 const skill = skillsMap[skillId];
@@ -714,15 +764,24 @@ function CharacterCard({
                 );
               })}
             </div>
+            ) : null}
           </div>
         )}
 
         {/* 羁绊区域 */}
         {showDetails && (
           <div className="relative px-4 py-1 border-t-2 border-gray-400/40">
-            <div className="flex items-center gap-1 mb-0.5">
-              <span className="text-amber-400 text-xs">🔗</span>
-              <span className="text-gray-700 text-xs font-medium">羁绊</span>
+            <div className="flex items-center justify-between gap-1 mb-0.5">
+              <div className="flex items-center gap-1 min-w-0">
+                <span className="text-amber-400 text-xs">🔗</span>
+                <span className="text-gray-700 text-xs font-medium">羁绊</span>
+              </div>
+              <EnhanceSlotBadge
+                slot={enhanceSlots[2]}
+                slotIndex={2}
+                activeTooltip={activeTooltip}
+                setActiveTooltip={setActiveTooltip}
+              />
             </div>
             {bonds.length > 0 ? (
               <div className="grid grid-cols-3 gap-1.5">

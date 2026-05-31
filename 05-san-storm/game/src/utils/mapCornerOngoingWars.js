@@ -80,11 +80,19 @@ export function buildMapCornerWarTooltip(entry) {
     return [`中立城攻城（PVE）`, `参与势力：${entry.attackerFactionName || '—'}`, timeLine].join('\n');
   }
 
+  const moraleLine =
+    entry.hasWarMoraleInit &&
+    entry.attackerWarMorale != null &&
+    entry.defenderWarMorale != null
+      ? `战事士气：${entry.attackerWarMorale}/${entry.defenderWarMorale}`
+      : null;
+
   if (entry.isOffensive) {
     return [
       '我方进攻（PVP）',
       `攻方：${entry.attackerFactionName || '—'}`,
       `守方：${entry.defenderFactionName || '—'}`,
+      ...(moraleLine ? [moraleLine] : []),
       timeLine,
     ].join('\n');
   }
@@ -93,8 +101,17 @@ export function buildMapCornerWarTooltip(entry) {
     '我方防守（PVP）',
     `攻方：${entry.attackerFactionName || '—'}`,
     `守方：${entry.defenderFactionName || '—'}`,
+    ...(moraleLine ? [moraleLine] : []),
     timeLine,
   ].join('\n');
+}
+
+/**
+ * @param {object|null|undefined} sideStats
+ */
+export function warEntryHasMoraleInit(sideStats) {
+  const init = sideStats && typeof sideStats === 'object' ? sideStats.warMoraleInit : null;
+  return !!(init && typeof init === 'object' && init.formulaVersion != null);
 }
 
 /**
@@ -119,6 +136,11 @@ export function buildMapCornerOngoingWarEntries({ pvpWars = [], pveWars = [], pl
       targetCityName: w.targetCityName || w.target_city_name || null,
       attackerFactionName: w.attackerFactionName || w.attacker_faction_name || null,
       defenderFactionName: w.defenderFactionName || w.defender_faction_name || null,
+      attackerWarMorale:
+        w.attackerWarMorale != null ? Number(w.attackerWarMorale) : null,
+      defenderWarMorale:
+        w.defenderWarMorale != null ? Number(w.defenderWarMorale) : null,
+      hasWarMoraleInit: warEntryHasMoraleInit(w.sideStats || w.side_stats),
       endTime: w.endTime || w.end_time || null,
       startTime: w.startTime || w.start_time || null,
       createdAt: w.createdAt || w.created_at || null,

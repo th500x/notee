@@ -443,10 +443,11 @@ function RewardDisplay({
         result.push({ text: `🔑 ${d.itemName || '道具'} ×${d.quantity || 1}` });
       } else if (d.type === 'character_duplicate') {
         const nm = idNames.char[d.cardId] || d.cardName || d.cardId;
-        result.push({ text: `💰 将领「${nm}」已达持有上限，补偿 ${d.compensation} 银两` });
+        result.push({ text: `💰 将领「${nm}」重复（已在背包），补偿 ${d.compensation} 银两` });
       } else if (d.type === 'character_rarity_limit') {
         const nm = idNames.char[d.cardId] || d.cardName || d.cardId;
-        result.push({ text: `💰 将领「${nm}」本稀有度持有已满，补偿 ${d.compensation} 银两` });
+        const lim = d.rarityLimit ? ` ${d.rarityLimit.owned}/${d.rarityLimit.max}` : '';
+        result.push({ text: `💰 将领「${nm}」本稀有度栏位已满${lim}，补偿 ${d.compensation} 银两（同重复）` });
       } else if (d.type === 'card_duplicate') {
         const label = d.cardType === 'title' ? '称号' : d.cardType === 'achievement' ? '成就' : d.cardType === 'troop' ? '部队' : d.cardType === 'character' ? '将领' : d.cardType === 'equipment' ? '装备' : '卡牌';
         let nm = d.cardName || d.cardId;
@@ -461,7 +462,8 @@ function RewardDisplay({
           });
         } else {
           const rar = d.rarity ? `${d.rarity} 品` : '';
-          result.push({ text: `🌾 ${rar}部队栏位已满，补偿 ${d.compensation} 粮草` });
+          const lim = d.rarityLimit ? ` ${d.rarityLimit.owned}/${d.rarityLimit.max}` : '';
+          result.push({ text: `🌾 ${rar}部队栏位已满${lim}，补偿 ${d.compensation} 粮草` });
         }
       }
       // 忽略 unknown 类型（如 troopgrade 等非奖励标记）

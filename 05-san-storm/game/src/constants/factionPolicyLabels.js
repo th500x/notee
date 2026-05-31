@@ -144,3 +144,18 @@ export function readPolicyConfigInitial(category, config) {
       return {};
   }
 }
+
+/**
+ * 谏言 Modal 打开时的 **提议 draft**（与 `readPolicyConfigInitial` 区分）。
+ * - toggle（招贤）：卡片点「谏言」= 提议变更 → 预填与当前展示状态 **相反**（关→开、开→关）
+ * - 其余类目：与 `readPolicyConfigInitial` 相同
+ */
+export function readPolicyProposalDraft(category, config) {
+  const meta = POLICY_CATEGORY_META[category];
+  if (!meta) return {};
+  if (meta.formKind === 'toggle') {
+    const cur = !!(config || {})[meta.valueKey];
+    return { [meta.valueKey]: !cur };
+  }
+  return readPolicyConfigInitial(category, config);
+}

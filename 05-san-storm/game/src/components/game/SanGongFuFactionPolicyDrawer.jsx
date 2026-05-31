@@ -292,6 +292,7 @@ export default function SanGongFuFactionPolicyDrawer({ factionId, open, onClose 
           factionId={factionId}
           category={openModalCategory}
           currentConfig={currentCategoryPolicy.config}
+          lastOutcome={currentCategoryPolicy.lastOutcome}
           cooldownActive={!!currentCategoryPolicy.cooldownActive}
           nextEligibleAt={currentCategoryPolicy.nextEligibleAt}
           approvalPreview={panel.approvalPreview || null}
