@@ -5,6 +5,7 @@ import { API_CONFIG } from '@/constants';
 import { fetchWithTimeout } from '@/services/httpClient';
 import { buildBattleScoreFormulaLines } from '@/systems/battleScoreSystem';
 import { attachMemorialBlobOutlines, hashMemorialSeed } from '@/utils/memorialBlobOutline';
+import { captureElementToCanvas } from '@/utils/html2canvasCapture';
 
 async function blobToDataUrl(blob) {
   return new Promise((resolve, reject) => {
@@ -267,8 +268,7 @@ async function renderBattleMemorialBlob({ playerName, playerId, battle, detail }
       ]);
       await new Promise((r) => setTimeout(r, 40));
     }
-    const { default: html2canvas } = await import('html2canvas');
-    const canvas = await html2canvas(root, {
+    const canvas = await captureElementToCanvas(root, {
       backgroundColor: '#1a1512',
       scale: 1,
       logging: false,

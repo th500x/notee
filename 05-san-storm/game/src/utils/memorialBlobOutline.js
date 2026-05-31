@@ -54,147 +54,64 @@ function catmullRomClosedBezierPath(points) {
 }
 
 /**
- * @param {number} left
- * @param {number} top
- * @param {number} right
- * @param {number} bottom
- * @param {number} cornerR
- */
-function roundedRectPerimeterMetrics(left, top, right, bottom, cornerR) {
-  const w = right - left;
-  const h = bottom - top;
-  const r = Math.min(cornerR, w / 2, h / 2);
-  const topLen = w - 2 * r;
-  const rightLen = h - 2 * r;
-  const bottomLen = w - 2 * r;
-  const leftLen = h - 2 * r;
-  const arcLen = (Math.PI / 2) * r;
-  const total = topLen + rightLen + bottomLen + leftLen + 4 * arcLen;
-  return { r, topLen, rightLen, bottomLen, leftLen, arcLen, total };
-}
-
-/**
- * 沿圆角矩形周长取点（顺时针），并返回该处外法线。
- * @param {number} left
- * @param {number} top
- * @param {number} right
- * @param {number} bottom
- * @param {number} cornerR
- * @param {number} dist
- * @returns {{ x: number, y: number, nx: number, ny: number }}
- */
-function pointOnRoundedRectPerimeter(left, top, right, bottom, cornerR, dist) {
-  const m = roundedRectPerimeterMetrics(left, top, right, bottom, cornerR);
-  let d = ((dist % m.total) + m.total) % m.total;
-  const { r, topLen, rightLen, bottomLen, leftLen, arcLen } = m;
-
-  if (d <= topLen) {
-    return { x: left + r + d, y: top, nx: 0, ny: -1 };
-  }
-  d -= topLen;
-  if (d <= arcLen) {
-    const a = -Math.PI / 2 + (d / arcLen) * (Math.PI / 2);
-    const cxArc = right - r;
-    const cyArc = top + r;
-    return {
-      x: cxArc + Math.cos(a) * r,
-      y: cyArc + Math.sin(a) * r,
-      nx: Math.cos(a),
-      ny: Math.sin(a),
-    };
-  }
-  d -= arcLen;
-  if (d <= rightLen) {
-    return { x: right, y: top + r + d, nx: 1, ny: 0 };
-  }
-  d -= rightLen;
-  if (d <= arcLen) {
-    const a = 0 + (d / arcLen) * (Math.PI / 2);
-    const cxArc = right - r;
-    const cyArc = bottom - r;
-    return {
-      x: cxArc + Math.cos(a) * r,
-      y: cyArc + Math.sin(a) * r,
-      nx: Math.cos(a),
-      ny: Math.sin(a),
-    };
-  }
-  d -= arcLen;
-  if (d <= bottomLen) {
-    return { x: right - r - d, y: bottom, nx: 0, ny: 1 };
-  }
-  d -= bottomLen;
-  if (d <= arcLen) {
-    const a = Math.PI / 2 + (d / arcLen) * (Math.PI / 2);
-    const cxArc = left + r;
-    const cyArc = bottom - r;
-    return {
-      x: cxArc + Math.cos(a) * r,
-      y: cyArc + Math.sin(a) * r,
-      nx: Math.cos(a),
-      ny: Math.sin(a),
-    };
-  }
-  d -= arcLen;
-  if (d <= leftLen) {
-    return { x: left, y: bottom - r - d, nx: -1, ny: 0 };
-  }
-  d -= leftLen;
-  const a = Math.PI + (d / arcLen) * (Math.PI / 2);
-  const cxArc = left + r;
-  const cyArc = top + r;
-  return {
-    x: cxArc + Math.cos(a) * r,
-    y: cyArc + Math.sin(a) * r,
-    nx: Math.cos(a),
-    ny: Math.sin(a),
-  };
-}
-
-/**
- * Catmull-Rom 闭合曲线在角点易内凹；沿外法线轻微外扩，保证包住矩形四角。
+ * 按极角排序，供 Catmull-Rom 闭合路径使用。
  * @param {Array<{ x: number, y: number }>} points
- * @param {number} width
- * @param {number} height
- * @param {number} [expand]
+ * @param {number} cx
+ * @param {number} cy
  */
-function guardBlobCornerCoverage(points, width, height, expand = 2.8) {
-  const minX = -expand;
-  const minY = -expand;
-  const maxX = width + expand;
-  const maxY = height + expand;
-  const xBand = width * 0.4;
-  const yBand = height * 0.38;
-  return points.map(({ x, y }) => {
-    let nx = x;
-    let ny = y;
-    if (nx < xBand) nx = Math.min(nx, minX);
-    if (nx > width - xBand) nx = Math.max(nx, maxX);
-    if (ny < yBand) ny = Math.min(ny, minY);
-    if (ny > height - yBand) ny = Math.max(ny, maxY);
-    return { x: nx, y: ny };
-  });
+function sortPointsByAngle(points, cx, cy) {
+  return [...points].sort(
+    (a, b) => Math.atan2(a.y - cy, a.x - cx) - Math.atan2(b.y - cy, b.x - cx),
+  );
 }
 
-/** 注入四角锚点并按极角排序，避免样条在左上/左下内凹漏包。 */
-function injectCornerAnchors(points, width, height, expand = 2.8) {
-  const cx = width / 2;
-  const cy = height / 2;
-  const corners = [
-    { x: -expand, y: -expand },
-    { x: width + expand, y: -expand },
-    { x: width + expand, y: height + expand },
-    { x: -expand, y: height + expand },
-  ];
-  return [...points, ...corners].sort((a, b) => {
-    const aa = Math.atan2(a.y - cy, a.x - cx);
-    const bb = Math.atan2(b.y - cy, b.x - cx);
-    return aa - bb;
+/**
+ * 整体径向外扩，保持有机轮廓，减轻样条段内凹。
+ * @param {Array<{ x: number, y: number }>} points
+ * @param {number} cx
+ * @param {number} cy
+ * @param {number} factor
+ */
+function expandPointsRadially(points, cx, cy, factor) {
+  return points.map(({ x, y }) => {
+    const dx = x - cx;
+    const dy = y - cy;
+    return { x: cx + dx * factor, y: cy + dy * factor };
   });
 }
 
 /**
- * 沿圆角矩形周长布点 + 仅向外扰动，避免左侧上下角被椭圆内凹漏包。
+ * 在左侧弧线（左上 / 正左 / 左下）补 3 个有机控制点，防止样条在左角内凹漏包。
+ * 不注入矩形角点，避免整框变方块。
+ * @param {Array<{ x: number, y: number }>} points
+ * @param {number} cx
+ * @param {number} cy
+ * @param {number} rxBase
+ * @param {number} ryBase
+ * @param {number} seed
+ */
+function insertLeftFlankBulges(points, cx, cy, rxBase, ryBase, seed) {
+  const rand = mulberry32(seed ^ 0x51f15e1d);
+  const extras = [];
+  const flankAngles = [
+    Math.PI * 0.58 + (rand() - 0.5) * 0.14,
+    Math.PI * 0.86 + (rand() - 0.5) * 0.1,
+    Math.PI * 1.14 + (rand() - 0.5) * 0.14,
+  ];
+  for (const a of flankAngles) {
+    const rScale = 0.98 + rand() * 0.07;
+    const rx = rxBase * rScale * (0.97 + rand() * 0.08);
+    const ry = ryBase * rScale * (0.95 + rand() * 0.1);
+    extras.push({
+      x: cx + Math.cos(a) * rx,
+      y: cy + Math.sin(a) * ry,
+    });
+  }
+  return sortPointsByAngle([...points, ...extras], cx, cy);
+}
+
+/**
+ * 椭圆周长布点 + 随机扰动（手绘流线主体）。
  * @param {number} width
  * @param {number} height
  * @param {number} seed
@@ -203,94 +120,69 @@ function injectCornerAnchors(points, width, height, expand = 2.8) {
  */
 function generateBlobControlPoints(width, height, seed, opts = {}) {
   const rand = mulberry32(seed);
-  const pointCount = opts.pointCount ?? 24;
-  const wobble = opts.wobble ?? 0.11;
-  const edgeInset = 1;
-  const left = edgeInset;
-  const top = edgeInset;
-  const right = width - edgeInset;
-  const bottom = height - edgeInset;
-  const cornerR = Math.min(width, height) * 0.07 + 6;
-  const { total } = roundedRectPerimeterMetrics(left, top, right, bottom, cornerR);
-  const wobbleAmp = Math.min(width, height) * wobble;
+  const pointCount = opts.pointCount ?? 18;
+  const wobble = opts.wobble ?? 0.14;
+  const cx = width / 2;
+  const cy = height / 2;
+  const rxBase = width / 2;
+  const ryBase = height / 2;
   const points = [];
 
   for (let i = 0; i < pointCount; i += 1) {
-    const base = pointOnRoundedRectPerimeter(
-      left,
-      top,
-      right,
-      bottom,
-      cornerR,
-      (i / pointCount) * total + (rand() - 0.5) * (total / pointCount) * 0.35,
-    );
-    const out = wobbleAmp * (0.25 + rand() * 0.85);
-    const tangentX = -base.ny;
-    const tangentY = base.nx;
-    const tang = (rand() - 0.5) * wobbleAmp * 0.45;
+    const angle = (i / pointCount) * Math.PI * 2 - Math.PI / 2;
+    const angleJitter = (rand() - 0.5) * wobble * 1.2;
+    const a = angle + angleJitter;
+    const rScale = 0.94 + rand() * 0.1;
+    const rx = rxBase * rScale * (0.96 + rand() * 0.08);
+    const ry = ryBase * rScale * (0.94 + rand() * 0.1);
     points.push({
-      x: base.x + base.nx * out + tangentX * tang,
-      y: base.y + base.ny * out + tangentY * tang,
+      x: cx + Math.cos(a) * rx,
+      y: cy + Math.sin(a) * ry,
     });
   }
 
-  return injectCornerAnchors(
-    guardBlobCornerCoverage(points, width, height, 2.8),
-    width,
-    height,
-    2.8,
-  );
+  const withFlank = insertLeftFlankBulges(points, cx, cy, rxBase, ryBase, seed);
+  return expandPointsRadially(withFlank, cx, cy, 1.035);
 }
 
 /**
  * @param {Array<{ x: number, y: number }>} points
  * @param {number} seed
  * @param {number} subdivisions
+ * @param {{ width: number, height: number } | null} [bounds]
  * @returns {string}
  */
 function roughSketchClosedPath(points, seed, subdivisions = 4, bounds = null) {
   const rand = mulberry32(seed ^ 0x9e3779b9);
   const n = points.length;
   if (n < 2) return '';
-  const roughAmp = 1.4 + rand() * 0.9;
+  const roughAmp = 1.8 + rand() * 1.2;
   const cx = bounds ? bounds.width / 2 : 0;
   const cy = bounds ? bounds.height / 2 : 0;
-  const minExpand = bounds ? -2.5 : null;
-  const maxExpand = bounds
-    ? { x: bounds.width + 2.5, y: bounds.height + 2.5 }
-    : null;
-  const nudgeOutward = (x, y) => {
-    if (!bounds) return { x, y };
-    let nx = x;
-    let ny = y;
-    const vx = nx - cx;
-    const vy = ny - cy;
-    const len = Math.hypot(vx, vy) || 1;
-    if (nx > minExpand && nx < maxExpand.x && ny > minExpand && ny < maxExpand.y) {
-      const push = 1.6;
-      nx += (vx / len) * push;
-      ny += (vy / len) * push;
-    }
-    return { x: nx, y: ny };
-  };
   const samples = [];
+
   for (let i = 0; i < n; i += 1) {
     const p0 = points[i];
     const p1 = points[(i + 1) % n];
     samples.push({ x: p0.x, y: p0.y });
     for (let s = 1; s < subdivisions; s += 1) {
       const t = s / subdivisions;
-      const bx = p0.x + (p1.x - p0.x) * t;
-      const by = p0.y + (p1.y - p0.y) * t;
-      const vx = bx - cx;
-      const vy = by - cy;
-      const vlen = Math.hypot(vx, vy) || 1;
-      const ox = (vx / vlen) * roughAmp * rand();
-      const oy = (vy / vlen) * roughAmp * rand();
-      const tx = (-vy / vlen) * (rand() - 0.5) * roughAmp * 0.6;
-      const ty = (vx / vlen) * (rand() - 0.5) * roughAmp * 0.6;
-      const nudged = nudgeOutward(bx + ox + tx, by + oy + ty);
-      samples.push({ x: nudged.x, y: nudged.y });
+      let x = p0.x + (p1.x - p0.x) * t + (rand() - 0.5) * roughAmp;
+      let y = p0.y + (p1.y - p0.y) * t + (rand() - 0.5) * roughAmp;
+      if (bounds) {
+        const vx = x - cx;
+        const vy = y - cy;
+        const len = Math.hypot(vx, vy) || 1;
+        const innerX0 = bounds.width * 0.08;
+        const innerY0 = bounds.height * 0.08;
+        const innerX1 = bounds.width * 0.92;
+        const innerY1 = bounds.height * 0.92;
+        if (x > innerX0 && x < innerX1 && y > innerY0 && y < innerY1) {
+          x += (vx / len) * 1.2;
+          y += (vy / len) * 1.2;
+        }
+      }
+      samples.push({ x, y });
     }
   }
   const parts = [`M ${samples[0].x.toFixed(2)} ${samples[0].y.toFixed(2)}`];
@@ -310,21 +202,15 @@ function roughSketchClosedPath(points, seed, subdivisions = 4, bounds = null) {
 export function generateMemorialBlobPaths(width, height, seed) {
   const w = Math.max(48, width);
   const h = Math.max(48, height);
-  const smoothPoints = generateBlobControlPoints(w, h, seed, { pointCount: 24, wobble: 0.12 });
+  const smoothPoints = generateBlobControlPoints(w, h, seed, { pointCount: 18, wobble: 0.15 });
   const fillPath = catmullRomClosedBezierPath(smoothPoints);
   const bounds = { width: w, height: h };
   const sketchPath = roughSketchClosedPath(smoothPoints, seed + 17, 5, bounds);
   const accentPoints = smoothPoints.map((p, i) => {
     const rand = mulberry32(seed + i * 101);
-    const cx = w / 2;
-    const cy = h / 2;
-    const vx = p.x - cx;
-    const vy = p.y - cy;
-    const len = Math.hypot(vx, vy) || 1;
-    const jitter = (rand() - 0.3) * 1.8;
     return {
-      x: p.x + (vx / len) * jitter + (rand() - 0.5) * 1.2,
-      y: p.y + (vy / len) * jitter + (rand() - 0.5) * 1.2,
+      x: p.x + (rand() - 0.5) * 2.2,
+      y: p.y + (rand() - 0.5) * 2.2,
     };
   });
   const accentPath = roughSketchClosedPath(accentPoints, seed + 33, 3, bounds);
@@ -352,7 +238,7 @@ export function buildMemorialBlobSvgMarkup({ width, height, seed }) {
     </svg>`;
 }
 
-const DEFAULT_PAD = { top: 16, right: 16, bottom: 16, left: 22 };
+const DEFAULT_PAD = { top: 16, right: 16, bottom: 16, left: 20 };
 
 /** @param {number | { top?: number, right?: number, bottom?: number, left?: number }} pad */
 function normalizeMemorialPad(pad) {
