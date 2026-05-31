@@ -6,10 +6,10 @@
 
 const VETERAN_ELIGIBLE_RARITIES = new Set(['legendary', 'core']);
 
-/** core 三档系数 × max_battle_count（M 通常 60 → 180 / 360 / 540 场） */
-const CORE_VETERAN_THRESHOLDS = [3, 6, 9];
+/** core（金）：固定 180 / 360 / 540 场 */
+const CORE_VETERAN_LIFETIME_THRESHOLDS = [180, 360, 540];
 
-/** legendary：固定 120 / 240 / 360 场 */
+/** legendary（橙）：固定 120 / 240 / 360 场 */
 const LEGENDARY_VETERAN_LIFETIME_THRESHOLDS = [120, 240, 360];
 
 const VETERAN_TIER_ROMAN = ['', 'Ⅰ', 'Ⅱ', 'Ⅲ'];
@@ -18,31 +18,29 @@ function isVeteranEligibleRarity(rarity) {
   return VETERAN_ELIGIBLE_RARITIES.has(String(rarity || '').toLowerCase());
 }
 
-function getCoreVeteranLifetimeThreshold(tier, maxBattleCount) {
+function getCoreVeteranLifetimeThreshold(tier) {
   const t = Math.max(0, Math.floor(Number(tier) || 0));
-  if (t >= CORE_VETERAN_THRESHOLDS.length) return null;
-  const m = Math.max(1, Math.floor(Number(maxBattleCount) || 60));
-  return CORE_VETERAN_THRESHOLDS[t] * m;
+  if (t >= CORE_VETERAN_LIFETIME_THRESHOLDS.length) return null;
+  return CORE_VETERAN_LIFETIME_THRESHOLDS[t];
 }
 
-function getNextVeteranThreshold(rarity, tier, maxBattleCount) {
+function getNextVeteranThreshold(rarity, tier) {
   const r = String(rarity || '').toLowerCase();
   const t = Math.max(0, Math.floor(Number(tier) || 0));
   if (t >= 3) return null;
   if (r === 'legendary') return LEGENDARY_VETERAN_LIFETIME_THRESHOLDS[t];
-  return getCoreVeteranLifetimeThreshold(t, maxBattleCount);
+  return getCoreVeteranLifetimeThreshold(t);
 }
 
 /** @returns {number[]} 三档晋升所需 lifetime_battle_count */
-function getVeteranPromotionThresholdList(rarity, maxBattleCount) {
+function getVeteranPromotionThresholdList(rarity) {
   const r = String(rarity || '').toLowerCase();
   if (r === 'legendary') return [...LEGENDARY_VETERAN_LIFETIME_THRESHOLDS];
-  const m = Math.max(1, Math.floor(Number(maxBattleCount) || 60));
-  return CORE_VETERAN_THRESHOLDS.map((coef) => coef * m);
+  return [...CORE_VETERAN_LIFETIME_THRESHOLDS];
 }
 
-function formatVeteranPromotionThresholdsLine(rarity, maxBattleCount) {
-  const thresholds = getVeteranPromotionThresholdList(rarity, maxBattleCount);
+function formatVeteranPromotionThresholdsLine(rarity) {
+  const thresholds = getVeteranPromotionThresholdList(rarity);
   return `（${thresholds.join(' / ')} 场晋升）`;
 }
 
@@ -51,7 +49,6 @@ function getVeteranStatMultiplier(veteranBonusPct) {
 }
 
 /**
- * 将老兵全属性加成叠到攻/防/速/移（与 battlePlayerBuilder · garrisonBuildService 同源）。
  * @param {{ attack?: number, defense?: number, speed?: number, movement?: number }} stats
  * @param {number} [veteranBonusPct]
  */
@@ -67,25 +64,18 @@ function applyVeteranBonusToTroopCombatStats(stats, veteranBonusPct) {
   };
 }
 
-/**
- * @param {number} lifetime
- * @param {number} pct
- * @param {{ showThresholds?: boolean, rarity?: string, maxBattleCount?: number }} [options]
- */
+/** @param {{ showThresholds?: boolean, rarity?: string }} [options] */
 function formatVeteranSlotTooltip(lifetime, pct, options = {}) {
   const battles = Math.max(0, Math.floor(Number(lifetime) || 0));
   const bonus = Math.max(0, Number(pct) || 0);
   const line1 = `已战斗 ${battles} 场 · 全属性 +${bonus}%`;
   if (options.showThresholds && options.rarity) {
-    return `${line1}\n${formatVeteranPromotionThresholdsLine(options.rarity, options.maxBattleCount)}`;
+    return `${line1}\n${formatVeteranPromotionThresholdsLine(options.rarity)}`;
   }
   return line1;
 }
 
-/**
- * @param {object} troop
- * @returns {null | { emoji: string, tooltip: string, locked?: boolean, active?: boolean }}
- */
+/** @param {object} troop */
 function getVeteranSlotDisplay(troop) {
   if (!troop || !isVeteranEligibleRarity(troop.rarity)) return null;
 
@@ -95,7 +85,6 @@ function getVeteranSlotDisplay(troop) {
   const tooltipOpts = {
     showThresholds: tier < 3,
     rarity: troop.rarity,
-    maxBattleCount: troop.maxBattleCount,
   };
 
   if (tier > 0) {
@@ -115,7 +104,7 @@ function getVeteranSlotDisplay(troop) {
 
 module.exports = {
   VETERAN_ELIGIBLE_RARITIES,
-  CORE_VETERAN_THRESHOLDS,
+  CORE_VETERAN_LIFETIME_THRESHOLDS,
   LEGENDARY_VETERAN_LIFETIME_THRESHOLDS,
   VETERAN_TIER_ROMAN,
   isVeteranEligibleRarity,

@@ -1,6 +1,7 @@
 /**
- * 战斗纪念图 · 按文字 bbox 包裹的闭合手绘流线框（两大块背景）。
+ * 战斗纪念图 · 闭合手绘流线框（两大块文案背景）。
  * 路径由 seed 决定，同 battleId 可复现。
+ * 框体插入各 `[data-memorial-block]` 内部（inset 负边距），避免离屏/跨层坐标失真。
  */
 
 /** @param {string|number|null|undefined} input */
@@ -84,7 +85,6 @@ function generateBlobControlPoints(width, height, seed, opts = {}) {
 }
 
 /**
- * 在平滑轮廓上叠加手绘毛边折线（略偏移的第二笔）。
  * @param {Array<{ x: number, y: number }>} points
  * @param {number} seed
  * @param {number} subdivisions
@@ -140,17 +140,18 @@ export function generateMemorialBlobPaths(width, height, seed) {
 }
 
 /**
- * @param {{ x: number, y: number, width: number, height: number, seed: number }} p
+ * @param {{ width: number, height: number, seed: number }} p
  * @returns {string}
  */
-export function buildMemorialBlobSvgHtml({ x, y, width, height, seed }) {
+export function buildMemorialBlobSvgMarkup({ width, height, seed }) {
   const { fillPath, sketchPath, accentPath } = generateMemorialBlobPaths(width, height, seed);
   return `
     <svg xmlns="http://www.w3.org/2000/svg"
       viewBox="0 0 ${width} ${height}"
-      width="${width}" height="${height}"
-      style="position:absolute;left:${x}px;top:${y}px;overflow:visible;pointer-events:none;"
-      aria-hidden="true">
+      width="100%" height="100%"
+      preserveAspectRatio="none"
+      aria-hidden="true"
+      style="display:block;overflow:visible;">
       <path d="${fillPath}" fill="rgba(72,68,64,0.42)" stroke="none"/>
       <path d="${sketchPath}" fill="none" stroke="rgba(212,175,55,0.38)" stroke-width="2.2"
         stroke-linejoin="round" stroke-linecap="round"/>
@@ -162,62 +163,43 @@ export function buildMemorialBlobSvgHtml({ x, y, width, height, seed }) {
 const DEFAULT_PAD = 16;
 
 /**
- * 元素相对 container 的位置与尺寸。
- * 离屏（如 left:-99999px）时 getBoundingClientRect 可能失真，故优先走 offsetParent 链。
- * @param {HTMLElement} container
- * @param {HTMLElement} element
- * @returns {{ x: number, y: number, width: number, height: number } | null}
+ * 在文字块内部插入手绘 blob 底（作为首子节点，z-index 低于正文）。
+ * @param {HTMLElement} blockEl `[data-memorial-block]`
+ * @param {number} seed
+ * @param {number} [pad]
  */
-function measureElementRectWithin(container, element) {
-  if (!container || !element || !container.contains(element)) return null;
+export function attachMemorialBlobOutlineToBlock(blockEl, seed, pad = DEFAULT_PAD) {
+  if (!blockEl || blockEl.querySelector('[data-memorial-blob-inset]')) return;
 
-  let x = 0;
-  let y = 0;
-  let node = element;
-  while (node && node !== container) {
-    x += node.offsetLeft;
-    y += node.offsetTop;
-    node = node.offsetParent;
-  }
+  const innerW = Math.max(48, blockEl.offsetWidth);
+  const innerH = Math.max(48, blockEl.offsetHeight);
+  const w = innerW + pad * 2;
+  const h = innerH + pad * 2;
 
-  const width = element.offsetWidth;
-  const height = element.offsetHeight;
-  if (width < 2 || height < 2) return null;
+  const wrap = document.createElement('div');
+  wrap.setAttribute('data-memorial-blob-inset', '');
+  wrap.style.cssText = [
+    'position:absolute',
+    `left:${-pad}px`,
+    `top:${-pad}px`,
+    `width:${w}px`,
+    `height:${h}px`,
+    'z-index:0',
+    'pointer-events:none',
+    'overflow:visible',
+  ].join(';');
 
-  if (node !== container) {
-    const cr = container.getBoundingClientRect();
-    const er = element.getBoundingClientRect();
-    if (er.width < 2 || er.height < 2) return null;
-    return {
-      x: er.left - cr.left,
-      y: er.top - cr.top,
-      width: er.width,
-      height: er.height,
-    };
-  }
-
-  return { x, y, width, height };
+  wrap.innerHTML = buildMemorialBlobSvgMarkup({ width: w, height: h, seed });
+  blockEl.insertBefore(wrap, blockEl.firstChild);
 }
 
 /**
- * 在 container 内为各文字块插入手绘 blob（需已完成 layout）。
- * @param {HTMLElement} container
+ * 为多个文字块插入 blob（需已完成 layout）。
+ * @param {HTMLElement} _container 保留参数以兼容调用方
  * @param {Array<{ element: HTMLElement, seed: number, pad?: number }>} blocks
  */
-export function attachMemorialBlobOutlines(container, blocks) {
-  const layer = container.querySelector('[data-memorial-blob-layer]');
-  if (!layer) return;
-  const html = blocks
-    .map(({ element, seed, pad = DEFAULT_PAD }) => {
-      const rect = measureElementRectWithin(container, element);
-      if (!rect) return '';
-      const x = rect.x - pad;
-      const y = rect.y - pad;
-      const w = rect.width + pad * 2;
-      const h = rect.height + pad * 2;
-      return buildMemorialBlobSvgHtml({ x, y, width: w, height: h, seed });
-    })
-    .filter(Boolean)
-    .join('');
-  layer.innerHTML = html;
+export function attachMemorialBlobOutlines(_container, blocks) {
+  for (const { element, seed, pad } of blocks) {
+    attachMemorialBlobOutlineToBlock(element, seed, pad);
+  }
 }
