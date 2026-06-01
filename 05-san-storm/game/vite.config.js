@@ -90,7 +90,7 @@ export default defineConfig({
       output: {
         manualChunks(id) {
           if (!id.includes('node_modules')) return;
-          if (/[/\\]node_modules[/\\]html-to-image/.test(id)) return 'vendor-html-to-image';
+          if (/[/\\]node_modules[/\\]html2canvas/.test(id)) return 'vendor-html2canvas';
           if (
             /[/\\]node_modules[/\\]react[/\\]/.test(id) ||
             /[/\\]node_modules[/\\]react-dom[/\\]/.test(id) ||

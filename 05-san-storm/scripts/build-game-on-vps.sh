@@ -43,7 +43,7 @@ trap cleanup EXIT
 
 export VPS_BUILD_PARALLEL="${VPS_BUILD_PARALLEL:-1}"
 export UV_THREADPOOL_SIZE="${UV_THREADPOOL_SIZE:-1}"
-echo "[build-game-on-vps] 同步 workspace 依赖（含 html-to-image 等新包）…"
+echo "[build-game-on-vps] 同步 workspace 依赖（含 html2canvas 等）…"
 npm install --no-audit --no-fund
 npm run build:vps
 

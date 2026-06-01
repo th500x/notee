@@ -16,10 +16,10 @@ import { printVpsBuildPreflight, resolveVpsHeapMb } from './vps-build-env.mjs';
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const workspaceRoot = path.join(root, '..');
 
-function findHtmlToImagePackage(startDir) {
+function findHtml2CanvasPackage(startDir) {
   let dir = startDir;
   for (let depth = 0; depth < 5; depth += 1) {
-    const pkgJson = path.join(dir, 'node_modules', 'html-to-image', 'package.json');
+    const pkgJson = path.join(dir, 'node_modules', 'html2canvas', 'package.json');
     if (existsSync(pkgJson)) return dir;
     const parent = path.dirname(dir);
     if (parent === dir) break;
@@ -29,8 +29,8 @@ function findHtmlToImagePackage(startDir) {
 }
 
 function ensureWorkspaceDepsForBuild() {
-  if (findHtmlToImagePackage(root)) return;
-  console.error('[build:vps] 未找到 html-to-image；在 workspace 根目录执行 npm install…');
+  if (findHtml2CanvasPackage(root)) return;
+  console.error('[build:vps] 未找到 html2canvas；在 workspace 根目录执行 npm install…');
   const install = spawnSync('npm', ['install', '--no-audit', '--no-fund'], {
     cwd: workspaceRoot,
     stdio: 'inherit',
@@ -39,8 +39,8 @@ function ensureWorkspaceDepsForBuild() {
   if (install.status !== 0) {
     throw new Error('[build:vps] npm install 失败；请手动在 05-san-storm 根目录执行 npm install 后重试');
   }
-  if (!findHtmlToImagePackage(root)) {
-    throw new Error('[build:vps] 仍缺少 html-to-image；请在 05-san-storm 根目录执行 npm install');
+  if (!findHtml2CanvasPackage(root)) {
+    throw new Error('[build:vps] 仍缺少 html2canvas；请在 05-san-storm 根目录执行 npm install');
   }
 }
 

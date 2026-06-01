@@ -82,7 +82,7 @@ function expandPointsRadially(points, cx, cy, factor) {
 
 /**
  * 在左侧弧线（左上 / 正左 / 左下）补 3 个有机控制点，防止样条在左角内凹漏包。
- * 仅对左上、左下两点略加大纵向半径，不动右侧与主体椭圆。
+ * 不注入矩形角点，避免整框变方块。
  * @param {Array<{ x: number, y: number }>} points
  * @param {number} cx
  * @param {number} cy
@@ -98,27 +98,15 @@ function insertLeftFlankBulges(points, cx, cy, rxBase, ryBase, seed) {
     Math.PI * 0.86 + (rand() - 0.5) * 0.1,
     Math.PI * 1.14 + (rand() - 0.5) * 0.14,
   ];
-  for (let i = 0; i < flankAngles.length; i += 1) {
-    const a = flankAngles[i];
+  for (const a of flankAngles) {
     const rScale = 0.98 + rand() * 0.07;
-    let rx = rxBase * rScale * (0.97 + rand() * 0.08);
-    let ry = ryBase * rScale * (0.95 + rand() * 0.1);
-    if (i === 0) {
-      ry *= 1.22 + rand() * 0.05;
-      rx *= 1.07 + rand() * 0.03;
-    } else if (i === 2) {
-      ry *= 1.12 + rand() * 0.04;
-    }
+    const rx = rxBase * rScale * (0.97 + rand() * 0.08);
+    const ry = ryBase * rScale * (0.95 + rand() * 0.1);
     extras.push({
       x: cx + Math.cos(a) * rx,
       y: cy + Math.sin(a) * ry,
     });
   }
-  const bottomLeftAngle = Math.PI * 0.7 + (rand() - 0.5) * 0.1;
-  extras.push({
-    x: cx + Math.cos(bottomLeftAngle) * rxBase * (1.01 + rand() * 0.05),
-    y: cy + Math.sin(bottomLeftAngle) * ryBase * (1.18 + rand() * 0.06),
-  });
   return sortPointsByAngle([...points, ...extras], cx, cy);
 }
 
@@ -250,7 +238,7 @@ export function buildMemorialBlobSvgMarkup({ width, height, seed }) {
     </svg>`;
 }
 
-const DEFAULT_PAD = { top: 16, right: 16, bottom: 16, left: 22 };
+const DEFAULT_PAD = { top: 16, right: 16, bottom: 16, left: 20 };
 
 /** @param {number | { top?: number, right?: number, bottom?: number, left?: number }} pad */
 function normalizeMemorialPad(pad) {
