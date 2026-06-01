@@ -9,6 +9,7 @@ echo "[safe-git-pull] repo: $ROOT"
 
 # 服务器上不应手改 lock；若曾运行过会改 lock 的 npm 命令，先还原再 pull
 for f in \
+  "05-san-storm/package-lock.json" \
   "05-san-storm/backend/package-lock.json" \
   "05-san-storm/game/package-lock.json"
 do
