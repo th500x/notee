@@ -239,6 +239,47 @@ async function getServerDateYmd(connection) {
   return String(d).slice(0, 10);
 }
 
+/** @param {import('mysql2/promise').PoolConnection} connection */
+async function hasBaselineDateColumn(connection) {
+  const [rows] = await connection.query(
+    `SELECT 1 FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'temp_event_ranking'
+       AND COLUMN_NAME = 'baseline_date'
+     LIMIT 1`,
+  );
+  return rows.length > 0;
+}
+
+/**
+ * baseline 是否落后于服务器自然日（漏跑 0:00 tick 或未迁移 baseline_date）
+ * @param {import('mysql2/promise').PoolConnection} connection
+ */
+async function isFactionBaselineStale(connection, factionId, eventId = EVENT_ID) {
+  const todayYmd = await getServerDateYmd(connection);
+  const snapCount = await countFactionSnapshots(connection, factionId, eventId);
+  if (snapCount === 0) {
+    return { stale: false, todayYmd, snapCount: 0, maxBaselineDate: null };
+  }
+  const [rows] = await connection.query(
+    `SELECT MAX(snap.baseline_date) AS maxBd
+     FROM temp_event_ranking snap
+     INNER JOIN players p ON p.player_id = snap.player_id
+     INNER JOIN accounts a ON a.id = p.player_id
+       AND a.account_type = 'real' AND a.status = 'active'
+     WHERE snap.event_id = ? AND p.faction_id = ?`,
+    [eventId, factionId],
+  );
+  const maxBd = rows[0]?.maxBd;
+  let maxBaselineDate = null;
+  if (maxBd instanceof Date) {
+    maxBaselineDate = `${maxBd.getFullYear()}-${String(maxBd.getMonth() + 1).padStart(2, '0')}-${String(maxBd.getDate()).padStart(2, '0')}`;
+  } else if (maxBd) {
+    maxBaselineDate = String(maxBd).slice(0, 10);
+  }
+  const stale = !maxBaselineDate || maxBaselineDate < todayYmd;
+  return { stale, todayYmd, snapCount, maxBaselineDate };
+}
+
 module.exports = {
   EVENT_ID,
   hasProcessedToday,
@@ -249,5 +290,7 @@ module.exports = {
   pickDailyWinner,
   listDailyActivityRanking,
   getServerDateYmd,
+  hasBaselineDateColumn,
+  isFactionBaselineStale,
   totalScoreSql,
 };

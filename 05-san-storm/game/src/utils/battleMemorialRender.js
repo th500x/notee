@@ -263,7 +263,12 @@ async function renderBattleMemorialBlob({ playerName, playerId, battle, detail }
     if (stage && summaryEl && scoreEl) {
       await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
       attachMemorialBlobOutlines(stage, [
-        { element: summaryEl, seed: battleSeed ^ 0x11111111 },
+        {
+          element: summaryEl,
+          seed: battleSeed ^ 0x11111111,
+          pad: { top: 18, right: 16, bottom: 20, left: 32 },
+          leftArc: true,
+        },
         {
           element: scoreEl,
           seed: battleSeed ^ 0x22222222,

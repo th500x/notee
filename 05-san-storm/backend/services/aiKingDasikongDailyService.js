@@ -217,8 +217,55 @@ async function runDailyTick(opts = {}) {
   return { ok: true, results };
 }
 
+/**
+ * 启动补跑：baseline_date 落后于 CURDATE() 时执行决选+重置（漏跑 0:00 tick 时自愈）
+ */
+async function runStaleCatchUpOnStartup() {
+  const kings = aiKingConfigService.listAllKings();
+  if (!kings.length) return { ok: true, results: [] };
+
+  const probe = await pool.getConnection();
+  let hasColumn;
+  try {
+    hasColumn = await kingDasikongRankingService.hasBaselineDateColumn(probe);
+  } finally {
+    probe.release();
+  }
+  if (!hasColumn) {
+    console.error(
+      '[aiKing][dasikong] 缺少 temp_event_ranking.baseline_date 列；请执行迁移 add-temp-ranking-snapshots-baseline-date.sql，否则 0:00 tick 会失败',
+    );
+    return { ok: false, error: 'missing_baseline_date_column' };
+  }
+
+  const results = [];
+  for (const king of kings) {
+    const conn = await pool.getConnection();
+    try {
+      if (await kingDasikongRankingService.hasProcessedToday(conn, king.factionId, EVENT_ID)) {
+        results.push({ factionId: king.factionId, skipped: true, reason: 'already_processed_today' });
+        continue;
+      }
+      const staleInfo = await kingDasikongRankingService.isFactionBaselineStale(conn, king.factionId, EVENT_ID);
+      if (!staleInfo.stale) {
+        results.push({ factionId: king.factionId, skipped: true, reason: 'baseline_current', ...staleInfo });
+        continue;
+      }
+      console.warn(
+        `[aiKing][dasikong] startup catch-up faction=${king.factionId} ` +
+          `baseline=${staleInfo.maxBaselineDate || 'none'} today=${staleInfo.todayYmd}`,
+      );
+      results.push(await runDailyTickForFaction(king.factionId, king));
+    } finally {
+      conn.release();
+    }
+  }
+  return { ok: true, results };
+}
+
 module.exports = {
   runDailyTick,
   runDailyTickForFaction,
+  runStaleCatchUpOnStartup,
   buildAppointmentMailContent,
 };

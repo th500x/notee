@@ -386,6 +386,20 @@ app.listen(PORT, async () => {
   scheduleFactionReserveRecoveryDailyTick();
   scheduleKingDasikongDailyTick();
 
+  if (dbConnected) {
+    setImmediate(async () => {
+      try {
+        const aiKingDasikongDailyService = require('./services/aiKingDasikongDailyService');
+        const catchUp = await aiKingDasikongDailyService.runStaleCatchUpOnStartup();
+        if (catchUp.ok && (catchUp.results || []).some((r) => r.winner || r.bootstrapped)) {
+          console.log('[aiKing][dasikong] startup catch-up finished');
+        }
+      } catch (err) {
+        console.error('[aiKing][dasikong] startup catch-up failed:', err.message);
+      }
+    });
+  }
+
   /**
    * 匪寨同步异步后置（CR P2，2026-04-29）：
    * 原实现把 `syncBanditsFromYingchuanMergedDisk()` 放在 `app.listen` 回调内 `await`，
