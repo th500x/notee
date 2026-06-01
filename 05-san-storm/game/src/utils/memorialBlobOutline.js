@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 战斗纪念图 · 闭合手绘流线框（两大块文案背景）。
  * 路径由 seed 决定，同 battleId 可复现。
  * 框体插入各 `[data-memorial-block]` 内部（inset 负边距），避免离屏/跨层坐标失真。
@@ -98,10 +98,12 @@ function insertLeftFlankBulges(points, cx, cy, rxBase, ryBase, seed) {
     Math.PI * 0.86 + (rand() - 0.5) * 0.1,
     Math.PI * 1.14 + (rand() - 0.5) * 0.14,
   ];
-  for (const a of flankAngles) {
+  for (let i = 0; i < flankAngles.length; i += 1) {
+    const a = flankAngles[i];
     const rScale = 0.98 + rand() * 0.07;
     const rx = rxBase * rScale * (0.97 + rand() * 0.08);
-    const ry = ryBase * rScale * (0.95 + rand() * 0.1);
+    let ry = ryBase * rScale * (0.95 + rand() * 0.1);
+    if (i === 0 || i === 2) ry *= 1.12 + rand() * 0.04;
     extras.push({
       x: cx + Math.cos(a) * rx,
       y: cy + Math.sin(a) * ry,
