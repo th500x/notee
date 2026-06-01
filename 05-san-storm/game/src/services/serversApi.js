@@ -9,10 +9,18 @@
 import { API_CONFIG } from '../constants';
 import { fetchWithTimeout } from './httpClient';
 
+const devLog = (...args) => {
+  if (import.meta.env.DEV) console.log(...args);
+};
+
+const devWarn = (...args) => {
+  if (import.meta.env.DEV) console.warn(...args);
+};
+
 export const serversAPI = {
   getServers: async () => {
     try {
-      console.log('[ServersAPI] 获取服务器列表');
+      devLog('[ServersAPI] 获取服务器列表');
 
       const response = await fetchWithTimeout(`${API_CONFIG.BASE_URL}/servers`, {
         method: 'GET',
@@ -24,10 +32,10 @@ export const serversAPI = {
       const data = await response.json();
 
       if (data.success) {
-        console.log('[ServersAPI] 获取服务器列表成功', data.total);
+        devLog('[ServersAPI] 获取服务器列表成功', data.total);
         return { success: true, data: data.data, total: data.total };
       } else {
-        console.warn('[ServersAPI] 获取服务器列表失败', data.error);
+        devWarn('[ServersAPI] 获取服务器列表失败', data.error);
         return {
           success: false,
           error: data.error || '获取服务器列表失败'
@@ -52,7 +60,7 @@ export const serversAPI = {
 
   getServerDetail: async (serverId) => {
     try {
-      console.log('[ServersAPI] 获取服务器详情', { serverId });
+      devLog('[ServersAPI] 获取服务器详情', { serverId });
 
       const response = await fetchWithTimeout(`${API_CONFIG.BASE_URL}/servers/${serverId}`, {
         method: 'GET',
@@ -64,10 +72,10 @@ export const serversAPI = {
       const data = await response.json();
 
       if (data.success) {
-        console.log('[ServersAPI] 获取服务器详情成功');
+        devLog('[ServersAPI] 获取服务器详情成功');
         return { success: true, data: data.data };
       } else {
-        console.warn('[ServersAPI] 获取服务器详情失败', data.error);
+        devWarn('[ServersAPI] 获取服务器详情失败', data.error);
         return {
           success: false,
           error: data.error || '获取服务器详情失败'

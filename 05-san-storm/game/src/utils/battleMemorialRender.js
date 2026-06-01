@@ -1,11 +1,11 @@
 /**
- * 战斗纪念图 DOM 渲染与 html2canvas 导出（原 CommPanel.jsx）。
+ * 战斗纪念图 DOM 渲染与离屏导出（原 CommPanel.jsx）。
  */
 import { API_CONFIG } from '@/constants';
 import { fetchWithTimeout } from '@/services/httpClient';
 import { buildBattleScoreFormulaLines } from '@/systems/battleScoreSystem';
 import { attachMemorialBlobOutlines, hashMemorialSeed } from '@/utils/memorialBlobOutline';
-import { captureElementToCanvas } from '@/utils/html2canvasCapture';
+import { captureElementToBlob, markMemorialExportRootInert } from '@/utils/memorialImageCapture';
 
 async function blobToDataUrl(blob) {
   return new Promise((resolve, reject) => {
@@ -134,7 +134,7 @@ function preloadMemorialIllusImage(url) {
 /** 文案块：由 attachMemorialBlobOutlines 按实测 bbox 插入手绘 SVG 底 */
 const MEMORIAL_TEXT_MAIN = 'color:#f8f7f4;';
 const MEMORIAL_TEXT_MUTE = 'color:rgba(255,255,255,0.82);';
-/** 纪念图字体：public/fonts/JYHPHS.woff2；html2canvas 前需 fonts.load */
+/** 纪念图字体：public/fonts/JYHPHS.woff2；导出前需 fonts.load */
 const MEMORIAL_FONT_FAMILY = '"JYHPHS","Microsoft YaHei",Arial,sans-serif';
 
 async function renderBattleMemorialBlob({ playerName, playerId, battle, detail }) {
@@ -162,6 +162,7 @@ async function renderBattleMemorialBlob({ playerName, playerId, battle, detail }
   root.style.pointerEvents = 'none';
   root.style.fontFamily = MEMORIAL_FONT_FAMILY;
   root.style.color = '#f8f7f4';
+  markMemorialExportRootInert(root);
   const d = detail || {};
   const memorialDate = memorialDisplayDate(battle, d);
   const score = Number(d?.rewards?.battleScore ?? battle?.rewards?.battleScore ?? 0);
@@ -264,17 +265,18 @@ async function renderBattleMemorialBlob({ playerName, playerId, battle, detail }
       await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
       attachMemorialBlobOutlines(stage, [
         { element: summaryEl, seed: battleSeed ^ 0x11111111 },
-        { element: scoreEl, seed: battleSeed ^ 0x22222222 },
+        {
+          element: scoreEl,
+          seed: battleSeed ^ 0x22222222,
+          pad: { top: 16, right: 16, bottom: 24, left: 26 },
+        },
       ]);
       await new Promise((r) => setTimeout(r, 40));
     }
-    const canvas = await captureElementToCanvas(root, {
+    const blob = await captureElementToBlob(root, {
       backgroundColor: '#1a1512',
       scale: 1,
-      logging: false,
-      useCORS: true,
     });
-    const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
     return blob;
   } finally {
     root.remove();

@@ -103,12 +103,22 @@ function insertLeftFlankBulges(points, cx, cy, rxBase, ryBase, seed) {
     const rScale = 0.98 + rand() * 0.07;
     const rx = rxBase * rScale * (0.97 + rand() * 0.08);
     let ry = ryBase * rScale * (0.95 + rand() * 0.1);
-    if (i === 0 || i === 2) ry *= 1.12 + rand() * 0.04;
+    if (i === 0) {
+      ry *= 1.22 + rand() * 0.05;
+      rx *= 1.07 + rand() * 0.03;
+    } else if (i === 2) {
+      ry *= 1.12 + rand() * 0.04;
+    }
     extras.push({
       x: cx + Math.cos(a) * rx,
       y: cy + Math.sin(a) * ry,
     });
   }
+  const bottomLeftAngle = Math.PI * 0.7 + (rand() - 0.5) * 0.1;
+  extras.push({
+    x: cx + Math.cos(bottomLeftAngle) * rxBase * (1.01 + rand() * 0.05),
+    y: cy + Math.sin(bottomLeftAngle) * ryBase * (1.18 + rand() * 0.06),
+  });
   return sortPointsByAngle([...points, ...extras], cx, cy);
 }
 
