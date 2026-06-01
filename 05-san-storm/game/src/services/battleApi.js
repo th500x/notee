@@ -153,17 +153,25 @@ export const battleAPI = {
    */
   createBattleMemorial: async ({ playerId, battleId, imageBase64 }) => {
     try {
-      const response = await fetchWithTimeout(`${API_CONFIG.BASE_URL}/memorial/battle`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ playerId, battleId, imageBase64 }),
-      });
+      const response = await fetchWithTimeout(
+        `${API_CONFIG.BASE_URL}/memorial/battle`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ playerId, battleId, imageBase64 }),
+        },
+        API_CONFIG.MEMORIAL_UPLOAD_TIMEOUT,
+      );
       const data = await response.json();
       if (data.success) return { success: true, data: data.data };
       return { success: false, error: data.error || '生成失败', code: data.code, data: data.data };
     } catch (error) {
       console.error('[BattleAPI] 生成战斗纪念图失败', error);
-      return { success: false, error: '网络错误' };
+      const msg = error?.message || '';
+      return {
+        success: false,
+        error: msg.includes('超时') ? msg : '网络错误，请稍后重试',
+      };
     }
   },
 };

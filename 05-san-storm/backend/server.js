@@ -389,6 +389,8 @@ app.listen(PORT, async () => {
   if (dbConnected) {
     setImmediate(async () => {
       try {
+        // 错开启动高峰，避免与玩家首屏 / 纪念图上传争 DB
+        await new Promise((r) => setTimeout(r, 15000));
         const aiKingDasikongDailyService = require('./services/aiKingDasikongDailyService');
         const catchUp = await aiKingDasikongDailyService.runStaleCatchUpOnStartup();
         if (catchUp.ok && (catchUp.results || []).some((r) => r.winner || r.bootstrapped)) {

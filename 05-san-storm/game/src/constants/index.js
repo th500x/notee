@@ -24,7 +24,9 @@ export const API_CONFIG = {
     (import.meta.env.PROD ? '/api/san-storm' : '/api'),
   // 管理员认证走主页后端（3001端口），和06项目共享同一套认证
   AUTH_BASE_URL: import.meta.env.VITE_AUTH_BASE_URL || (import.meta.env.PROD ? '' : 'http://localhost:3001'),
-  TIMEOUT: 30000  // 30秒超时
+  TIMEOUT: 30000, // 普通 API 30 秒
+  /** 纪念图 POST（~1.7MB PNG base64 + OSS）需更长 */
+  MEMORIAL_UPLOAD_TIMEOUT: 120000,
 };
 
 // ==================== 稀有度 ====================
