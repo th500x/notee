@@ -98,12 +98,10 @@ function insertLeftFlankBulges(points, cx, cy, rxBase, ryBase, seed) {
     Math.PI * 0.86 + (rand() - 0.5) * 0.1,
     Math.PI * 1.14 + (rand() - 0.5) * 0.14,
   ];
-  for (let i = 0; i < flankAngles.length; i += 1) {
-    const a = flankAngles[i];
+  for (const a of flankAngles) {
     const rScale = 0.98 + rand() * 0.07;
     const rx = rxBase * rScale * (0.97 + rand() * 0.08);
-    let ry = ryBase * rScale * (0.95 + rand() * 0.1);
-    if (i === 0 || i === 2) ry *= 1.12 + rand() * 0.04;
+    const ry = ryBase * rScale * (0.95 + rand() * 0.1);
     extras.push({
       x: cx + Math.cos(a) * rx,
       y: cy + Math.sin(a) * ry,
@@ -113,11 +111,52 @@ function insertLeftFlankBulges(points, cx, cy, rxBase, ryBase, seed) {
 }
 
 /**
+ * 按文案块上下边界，在左侧补一段外凸弧（只左推 x≤中线的点，右侧不动）。
+ * @param {Array<{ x: number, y: number }>} points
+ * @param {number} cx
+ * @param {number} rxBase
+ * @param {number} seed
+ * @param {{ top: number, bottom: number }} contentSpan wrap 坐标系内文案上下界
+ */
+function insertLeftContentArc(points, cx, rxBase, seed, contentSpan) {
+  const rand = mulberry32(seed ^ 0x8f4e2a1c);
+  const contentTop = contentSpan.top;
+  const contentBottom = contentSpan.bottom;
+  const span = Math.max(40, contentBottom - contentTop);
+  const reach = Math.max(32, Math.min(56, span * 0.12));
+
+  const pushed = points.map((p) => {
+    if (p.x > cx - rxBase * 0.12) return p;
+    if (p.y < contentTop - 18 || p.y > contentBottom + 18) return p;
+    const t = Math.max(0, Math.min(1, (p.y - contentTop) / span));
+    const arc = Math.sin(Math.PI * t);
+    const corner = t <= 0.14 || t >= 0.86 ? 1.42 : 1;
+    const pushX = reach * (0.62 + arc * 0.48) * corner;
+    return { x: Math.max(2, p.x - pushX), y: p.y };
+  });
+
+  const extras = [];
+  const ySteps = [0, 0.1, 0.22, 0.38, 0.5, 0.62, 0.78, 0.9, 1];
+  for (const t of ySteps) {
+    const y = contentTop + span * t + (rand() - 0.5) * 5;
+    const arc = Math.sin(Math.PI * t);
+    const corner = t <= 0.1 || t >= 0.9 ? 1.48 : 1;
+    const pushX = reach * (0.88 + arc * 0.52) * corner * (0.94 + rand() * 0.1);
+    extras.push({
+      x: Math.max(2, cx - rxBase - pushX),
+      y,
+    });
+  }
+
+  return sortPointsByAngle([...pushed, ...extras], cx, (contentTop + contentBottom) / 2);
+}
+
+/**
  * 椭圆周长布点 + 随机扰动（手绘流线主体）。
  * @param {number} width
  * @param {number} height
  * @param {number} seed
- * @param {{ pointCount?: number, wobble?: number }} [opts]
+ * @param {{ pointCount?: number, wobble?: number, contentSpan?: { top: number, bottom: number } }} [opts]
  * @returns {Array<{ x: number, y: number }>}
  */
 function generateBlobControlPoints(width, height, seed, opts = {}) {
@@ -143,8 +182,10 @@ function generateBlobControlPoints(width, height, seed, opts = {}) {
     });
   }
 
-  const withFlank = insertLeftFlankBulges(points, cx, cy, rxBase, ryBase, seed);
-  return expandPointsRadially(withFlank, cx, cy, 1.035);
+  const withFlank = opts.contentSpan
+    ? insertLeftContentArc(points, cx, rxBase, seed, opts.contentSpan)
+    : insertLeftFlankBulges(points, cx, cy, rxBase, ryBase, seed);
+  return expandPointsRadially(withFlank, cx, cy, opts.contentSpan ? 1.02 : 1.035);
 }
 
 /**
@@ -199,12 +240,17 @@ function roughSketchClosedPath(points, seed, subdivisions = 4, bounds = null) {
  * @param {number} width
  * @param {number} height
  * @param {number} seed
+ * @param {{ contentSpan?: { top: number, bottom: number } }} [opts]
  * @returns {{ fillPath: string, sketchPath: string, accentPath: string }}
  */
-export function generateMemorialBlobPaths(width, height, seed) {
+export function generateMemorialBlobPaths(width, height, seed, opts = {}) {
   const w = Math.max(48, width);
   const h = Math.max(48, height);
-  const smoothPoints = generateBlobControlPoints(w, h, seed, { pointCount: 18, wobble: 0.15 });
+  const smoothPoints = generateBlobControlPoints(w, h, seed, {
+    pointCount: 18,
+    wobble: 0.15,
+    contentSpan: opts.contentSpan,
+  });
   const fillPath = catmullRomClosedBezierPath(smoothPoints);
   const bounds = { width: w, height: h };
   const sketchPath = roughSketchClosedPath(smoothPoints, seed + 17, 5, bounds);
@@ -220,11 +266,13 @@ export function generateMemorialBlobPaths(width, height, seed) {
 }
 
 /**
- * @param {{ width: number, height: number, seed: number }} p
+ * @param {{ width: number, height: number, seed: number, contentSpan?: { top: number, bottom: number } }} p
  * @returns {string}
  */
-export function buildMemorialBlobSvgMarkup({ width, height, seed }) {
-  const { fillPath, sketchPath, accentPath } = generateMemorialBlobPaths(width, height, seed);
+export function buildMemorialBlobSvgMarkup({ width, height, seed, contentSpan }) {
+  const { fillPath, sketchPath, accentPath } = generateMemorialBlobPaths(width, height, seed, {
+    contentSpan,
+  });
   return `
     <svg xmlns="http://www.w3.org/2000/svg"
       viewBox="0 0 ${width} ${height}"
@@ -262,8 +310,9 @@ function normalizeMemorialPad(pad) {
  * @param {HTMLElement} blockEl `[data-memorial-block]`
  * @param {number} seed
  * @param {number | { top?: number, right?: number, bottom?: number, left?: number }} [pad]
+ * @param {{ leftArc?: boolean }} [opts]
  */
-export function attachMemorialBlobOutlineToBlock(blockEl, seed, pad = DEFAULT_PAD) {
+export function attachMemorialBlobOutlineToBlock(blockEl, seed, pad = DEFAULT_PAD, opts = {}) {
   if (!blockEl || blockEl.querySelector('[data-memorial-blob-inset]')) return;
 
   const { top, right, bottom, left } = normalizeMemorialPad(pad);
@@ -271,6 +320,9 @@ export function attachMemorialBlobOutlineToBlock(blockEl, seed, pad = DEFAULT_PA
   const innerH = Math.max(48, blockEl.offsetHeight);
   const w = innerW + left + right;
   const h = innerH + top + bottom;
+  const contentSpan = opts.leftArc
+    ? { top, bottom: top + innerH }
+    : undefined;
 
   const wrap = document.createElement('div');
   wrap.setAttribute('data-memorial-blob-inset', '');
@@ -285,17 +337,17 @@ export function attachMemorialBlobOutlineToBlock(blockEl, seed, pad = DEFAULT_PA
     'overflow:visible',
   ].join(';');
 
-  wrap.innerHTML = buildMemorialBlobSvgMarkup({ width: w, height: h, seed });
+  wrap.innerHTML = buildMemorialBlobSvgMarkup({ width: w, height: h, seed, contentSpan });
   blockEl.insertBefore(wrap, blockEl.firstChild);
 }
 
 /**
  * 为多个文字块插入 blob（需已完成 layout）。
  * @param {HTMLElement} _container 保留参数以兼容调用方
- * @param {Array<{ element: HTMLElement, seed: number, pad?: number }>} blocks
+ * @param {Array<{ element: HTMLElement, seed: number, pad?: number, leftArc?: boolean }>} blocks
  */
 export function attachMemorialBlobOutlines(_container, blocks) {
-  for (const { element, seed, pad } of blocks) {
-    attachMemorialBlobOutlineToBlock(element, seed, pad);
+  for (const { element, seed, pad, leftArc } of blocks) {
+    attachMemorialBlobOutlineToBlock(element, seed, pad, { leftArc });
   }
 }
