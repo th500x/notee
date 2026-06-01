@@ -1,11 +1,19 @@
 /**
  * html2canvas 导出包装。
- * 纪念图导出期间规避 Chrome Permissions-Policy 对 unload 的限制（html2canvas 克隆 iframe 触发）。
+ * html2canvas 通过 ownerDocument.createElement('iframe') 克隆 DOM；
+ * 需 patch Document.prototype.createElement 才能注入 allow="unload"。
  */
 
 let patchDepth = 0;
 /** @type {(() => void) | null} */
 let activeRestore = null;
+
+function tagIframeAllowUnload(el) {
+  const prev = el.getAttribute('allow') || '';
+  const parts = new Set(prev.split(';').map((s) => s.trim()).filter(Boolean));
+  parts.add('unload');
+  el.setAttribute('allow', [...parts].join('; '));
+}
 
 function installHtml2CanvasPolicyWorkaround() {
   if (patchDepth > 0) {
@@ -16,7 +24,7 @@ function installHtml2CanvasPolicyWorkaround() {
 
   const originalAdd = EventTarget.prototype.addEventListener;
   const originalRemove = EventTarget.prototype.removeEventListener;
-  const originalCreateElement = document.createElement.bind(document);
+  const originalDocCreate = Document.prototype.createElement;
 
   const patchedAdd = function patchedAdd(type, listener, options) {
     if (type === 'unload') return;
@@ -28,20 +36,14 @@ function installHtml2CanvasPolicyWorkaround() {
     return originalRemove.call(this, type, listener, options);
   };
 
-  const patchedCreateElement = function patchedCreateElement(tagName, options) {
-    const el = originalCreateElement(tagName, options);
-    if (String(tagName).toLowerCase() === 'iframe') {
-      const prev = el.getAttribute('allow') || '';
-      const parts = new Set(prev.split(';').map((s) => s.trim()).filter(Boolean));
-      parts.add('unload');
-      el.setAttribute('allow', [...parts].join('; '));
-    }
+  Document.prototype.createElement = function patchedDocCreate(tagName, options) {
+    const el = originalDocCreate.call(this, tagName, options);
+    if (String(tagName).toLowerCase() === 'iframe') tagIframeAllowUnload(el);
     return el;
   };
 
   EventTarget.prototype.addEventListener = patchedAdd;
   EventTarget.prototype.removeEventListener = patchedRemove;
-  document.createElement = patchedCreateElement;
 
   const winOnloadDesc = Object.getOwnPropertyDescriptor(Window.prototype, 'onload');
   const winOnunloadDesc = Object.getOwnPropertyDescriptor(Window.prototype, 'onunload');
@@ -72,9 +74,8 @@ function installHtml2CanvasPolicyWorkaround() {
       enumerable: winOnunloadDesc.enumerable,
       get: origOnunloadGet,
       set(handler) {
-        if (this === window) {
-          origOnunloadSet.call(this, handler);
-        }
+        if (this !== window) return;
+        origOnunloadSet.call(this, handler);
       },
     });
   }
@@ -82,7 +83,7 @@ function installHtml2CanvasPolicyWorkaround() {
   activeRestore = () => {
     EventTarget.prototype.addEventListener = originalAdd;
     EventTarget.prototype.removeEventListener = originalRemove;
-    document.createElement = originalCreateElement;
+    Document.prototype.createElement = originalDocCreate;
     if (winOnloadDesc) Object.defineProperty(Window.prototype, 'onload', winOnloadDesc);
     if (winOnunloadDesc) Object.defineProperty(Window.prototype, 'onunload', winOnunloadDesc);
     activeRestore = null;
@@ -104,8 +105,8 @@ function restoreHtml2CanvasPolicyWorkaround() {
 export async function captureElementToCanvas(element, options = {}) {
   installHtml2CanvasPolicyWorkaround();
   try {
-    const { default: html2canvas } = await import('html2canvas');
-    return await html2canvas(element, options);
+    const html2canvasModule = await import('html2canvas');
+    return await html2canvasModule.default(element, options);
   } finally {
     restoreHtml2CanvasPolicyWorkaround();
   }

@@ -81,33 +81,8 @@ function expandPointsRadially(points, cx, cy, factor) {
 }
 
 /**
- * 左半球控制点额外外扩（仅径向，保持流线随机感，不拉成矩形）。
- * @param {Array<{ x: number, y: number }>} points
- * @param {number} cx
- * @param {number} cy
- * @param {number} width
- * @param {number} seed
- */
-function boostLeftHemisphere(points, cx, cy, width, seed) {
-  const rand = mulberry32(seed ^ 0x7f4a7c15);
-  const leftTarget = -5 - rand() * 3;
-  return points.map(({ x, y }) => {
-    if (x >= width * 0.46) return { x, y };
-    const angle = Math.atan2(y - cy, x - cx);
-    const cosA = Math.cos(angle);
-    if (cosA >= -0.08) return { x, y };
-    const dist = Math.hypot(x - cx, y - cy) || 1;
-    let boost = 1.08 + rand() * 0.06;
-    if (Math.abs(angle) > 1.65 && Math.abs(angle) < 2.45) boost += 0.05 + rand() * 0.04;
-    let nx = cx + cosA * dist * boost;
-    let ny = cy + Math.sin(angle) * dist * boost;
-    if (nx > leftTarget) nx = nx * 0.55 + leftTarget * 0.45;
-    return { x: nx, y: ny };
-  });
-}
-
-/**
- * 在左侧弧线补有机控制点，防止 Catmull-Rom 在左上/左下内凹。
+ * 在左侧弧线（左上 / 正左 / 左下）补 3 个有机控制点，防止样条在左角内凹漏包。
+ * 仅对左上、左下两点略加大纵向半径，不动右侧与主体椭圆。
  * @param {Array<{ x: number, y: number }>} points
  * @param {number} cx
  * @param {number} cy
@@ -119,53 +94,22 @@ function insertLeftFlankBulges(points, cx, cy, rxBase, ryBase, seed) {
   const rand = mulberry32(seed ^ 0x51f15e1d);
   const extras = [];
   const flankAngles = [
-    Math.PI * 0.52 + (rand() - 0.5) * 0.12,
-    Math.PI * 0.64 + (rand() - 0.5) * 0.1,
-    Math.PI * 0.78 + (rand() - 0.5) * 0.08,
-    Math.PI * 0.92 + (rand() - 0.5) * 0.08,
-    Math.PI * 1.06 + (rand() - 0.5) * 0.1,
-    Math.PI * 1.2 + (rand() - 0.5) * 0.12,
-    Math.PI * 1.34 + (rand() - 0.5) * 0.1,
+    Math.PI * 0.58 + (rand() - 0.5) * 0.14,
+    Math.PI * 0.86 + (rand() - 0.5) * 0.1,
+    Math.PI * 1.14 + (rand() - 0.5) * 0.14,
   ];
-  for (const a of flankAngles) {
-    const rScale = 1.02 + rand() * 0.08;
-    const rx = rxBase * rScale * (0.99 + rand() * 0.06);
-    const ry = ryBase * rScale * (0.96 + rand() * 0.08);
+  for (let i = 0; i < flankAngles.length; i += 1) {
+    const a = flankAngles[i];
+    const rScale = 0.98 + rand() * 0.07;
+    const rx = rxBase * rScale * (0.97 + rand() * 0.08);
+    let ry = ryBase * rScale * (0.95 + rand() * 0.1);
+    if (i === 0 || i === 2) ry *= 1.12 + rand() * 0.04;
     extras.push({
       x: cx + Math.cos(a) * rx,
       y: cy + Math.sin(a) * ry,
     });
   }
   return sortPointsByAngle([...points, ...extras], cx, cy);
-}
-
-/**
- * 左弧段插中点并外推，减少样条段在左缘内凹。
- * @param {Array<{ x: number, y: number }>} points
- * @param {number} cx
- * @param {number} cy
- * @param {number} width
- * @param {number} seed
- */
-function densifyLeftArc(points, cx, cy, width, seed) {
-  const rand = mulberry32(seed ^ 0x2c9e31ab);
-  const out = [];
-  const n = points.length;
-  for (let i = 0; i < n; i += 1) {
-    const p1 = points[i];
-    const p2 = points[(i + 1) % n];
-    out.push(p1);
-    const midX = (p1.x + p2.x) / 2;
-    if (midX >= width * 0.5) continue;
-    const midY = (p1.y + p2.y) / 2;
-    const angle = Math.atan2(midY - cy, midX - cx);
-    const dist = Math.hypot(midX - cx, midY - cy) * (1.1 + rand() * 0.06);
-    out.push({
-      x: cx + Math.cos(angle) * dist,
-      y: cy + Math.sin(angle) * dist,
-    });
-  }
-  return sortPointsByAngle(out, cx, cy);
 }
 
 /**
@@ -178,31 +122,29 @@ function densifyLeftArc(points, cx, cy, width, seed) {
  */
 function generateBlobControlPoints(width, height, seed, opts = {}) {
   const rand = mulberry32(seed);
-  const pointCount = opts.pointCount ?? 20;
+  const pointCount = opts.pointCount ?? 18;
   const wobble = opts.wobble ?? 0.14;
-  const cx = width / 2 + width * 0.045;
+  const cx = width / 2;
   const cy = height / 2;
-  const rxBase = width / 2 + width * 0.07;
-  const ryBase = height / 2 + height * 0.02;
+  const rxBase = width / 2;
+  const ryBase = height / 2;
   const points = [];
 
   for (let i = 0; i < pointCount; i += 1) {
     const angle = (i / pointCount) * Math.PI * 2 - Math.PI / 2;
-    const angleJitter = (rand() - 0.5) * wobble * 1.15;
+    const angleJitter = (rand() - 0.5) * wobble * 1.2;
     const a = angle + angleJitter;
-    const rScale = 0.96 + rand() * 0.08;
-    const rx = rxBase * rScale * (0.97 + rand() * 0.07);
-    const ry = ryBase * rScale * (0.95 + rand() * 0.09);
+    const rScale = 0.94 + rand() * 0.1;
+    const rx = rxBase * rScale * (0.96 + rand() * 0.08);
+    const ry = ryBase * rScale * (0.94 + rand() * 0.1);
     points.push({
       x: cx + Math.cos(a) * rx,
       y: cy + Math.sin(a) * ry,
     });
   }
 
-  let shaped = insertLeftFlankBulges(points, cx, cy, rxBase, ryBase, seed);
-  shaped = densifyLeftArc(shaped, cx, cy, width, seed + 11);
-  shaped = boostLeftHemisphere(shaped, cx, cy, width, seed + 29);
-  return expandPointsRadially(shaped, cx, cy, 1.04);
+  const withFlank = insertLeftFlankBulges(points, cx, cy, rxBase, ryBase, seed);
+  return expandPointsRadially(withFlank, cx, cy, 1.035);
 }
 
 /**
@@ -233,18 +175,13 @@ function roughSketchClosedPath(points, seed, subdivisions = 4, bounds = null) {
         const vx = x - cx;
         const vy = y - cy;
         const len = Math.hypot(vx, vy) || 1;
-        if (x < bounds.width * 0.22) {
-          x += (vx / len) * 2.4;
-          y += (vy / len) * 0.5;
-        } else {
-          const innerX0 = bounds.width * 0.08;
-          const innerY0 = bounds.height * 0.08;
-          const innerX1 = bounds.width * 0.92;
-          const innerY1 = bounds.height * 0.92;
-          if (x > innerX0 && x < innerX1 && y > innerY0 && y < innerY1) {
-            x += (vx / len) * 1.2;
-            y += (vy / len) * 1.2;
-          }
+        const innerX0 = bounds.width * 0.08;
+        const innerY0 = bounds.height * 0.08;
+        const innerX1 = bounds.width * 0.92;
+        const innerY1 = bounds.height * 0.92;
+        if (x > innerX0 && x < innerX1 && y > innerY0 && y < innerY1) {
+          x += (vx / len) * 1.2;
+          y += (vy / len) * 1.2;
         }
       }
       samples.push({ x, y });
@@ -303,7 +240,7 @@ export function buildMemorialBlobSvgMarkup({ width, height, seed }) {
     </svg>`;
 }
 
-const DEFAULT_PAD = { top: 16, right: 16, bottom: 18, left: 28 };
+const DEFAULT_PAD = { top: 16, right: 16, bottom: 16, left: 22 };
 
 /** @param {number | { top?: number, right?: number, bottom?: number, left?: number }} pad */
 function normalizeMemorialPad(pad) {
