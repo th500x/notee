@@ -101,7 +101,7 @@ function insertLeftFlankBulges(points, cx, cy, rxBase, ryBase, seed) {
   for (let i = 0; i < flankAngles.length; i += 1) {
     const a = flankAngles[i];
     const rScale = 0.98 + rand() * 0.07;
-    const rx = rxBase * rScale * (0.97 + rand() * 0.08);
+    let rx = rxBase * rScale * (0.97 + rand() * 0.08);
     let ry = ryBase * rScale * (0.95 + rand() * 0.1);
     if (i === 0) {
       ry *= 1.22 + rand() * 0.05;
