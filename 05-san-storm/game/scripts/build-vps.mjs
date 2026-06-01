@@ -7,13 +7,42 @@
  *
  * 若仍 OOM：先 `pm2 stop` 后端 → 加 swap → 或本地 build 后 rsync dist/
  */
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { printVpsBuildPreflight, resolveVpsHeapMb } from './vps-build-env.mjs';
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
+const workspaceRoot = path.join(root, '..');
+
+function findHtmlToImagePackage(startDir) {
+  let dir = startDir;
+  for (let depth = 0; depth < 5; depth += 1) {
+    const pkgJson = path.join(dir, 'node_modules', 'html-to-image', 'package.json');
+    if (existsSync(pkgJson)) return dir;
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return null;
+}
+
+function ensureWorkspaceDepsForBuild() {
+  if (findHtmlToImagePackage(root)) return;
+  console.error('[build:vps] 未找到 html-to-image；在 workspace 根目录执行 npm install…');
+  const install = spawnSync('npm', ['install', '--no-audit', '--no-fund'], {
+    cwd: workspaceRoot,
+    stdio: 'inherit',
+    env: process.env,
+  });
+  if (install.status !== 0) {
+    throw new Error('[build:vps] npm install 失败；请手动在 05-san-storm 根目录执行 npm install 后重试');
+  }
+  if (!findHtmlToImagePackage(root)) {
+    throw new Error('[build:vps] 仍缺少 html-to-image；请在 05-san-storm 根目录执行 npm install');
+  }
+}
 
 function findViteBin(startDir) {
   let dir = startDir;
@@ -34,6 +63,7 @@ const parallelRaw = Number(process.env.VPS_BUILD_PARALLEL);
 const PARALLEL = Number.isFinite(parallelRaw) && parallelRaw >= 1 ? Math.min(4, Math.floor(parallelRaw)) : 1;
 
 printVpsBuildPreflight({ heapMb: HEAP_MB, parallel: PARALLEL });
+ensureWorkspaceDepsForBuild();
 
 const startedAt = Date.now();
 const heartbeatSec = Number(process.env.VPS_BUILD_HEARTBEAT_SEC) > 0

@@ -3,6 +3,7 @@
  * 使用 html-to-image（SVG foreignObject），不创建克隆 iframe，
  * 避免 html2canvas 触发扩展（如 Grammarly）注册 unload 时的 Permissions-Policy 警告。
  */
+import { toBlob } from 'html-to-image';
 
 /**
  * @param {HTMLElement} element
@@ -10,7 +11,6 @@
  * @returns {Promise<Blob | null>}
  */
 export async function captureElementToBlob(element, options = {}) {
-  const { toBlob } = await import('html-to-image');
   return toBlob(element, {
     backgroundColor: options.backgroundColor ?? '#1a1512',
     pixelRatio: options.scale ?? 1,
