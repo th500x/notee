@@ -52,39 +52,35 @@ async function appendOnConnection(db, factionId, textWithoutBracket, opts = {}) 
     opts.targetCityId != null && String(opts.targetCityId).trim()
       ? String(opts.targetCityId).trim().slice(0, 64)
       : null;
-  const authorPlayerId = opts.authorPlayerId || null;
-  const authorName = opts.authorName || null;
-
-  const attempts = [
-    {
-      sql: `INSERT INTO faction_bulletins (faction_id, category, body, target_city_id, author_player_id, author_name)
-            VALUES (?, ?, ?, ?, ?, ?)`,
-      params: [factionId, category, body, targetCityId, authorPlayerId, authorName],
-    },
-    {
-      sql: `INSERT INTO faction_bulletins (faction_id, category, body, author_player_id, author_name)
-            VALUES (?, ?, ?, ?, ?)`,
-      params: [factionId, category, body, authorPlayerId, authorName],
-    },
-    {
-      sql: `INSERT INTO faction_bulletins (faction_id, body) VALUES (?, ?)`,
-      params: [factionId, body],
-    },
-  ];
-
-  let lastErr;
-  for (const { sql, params } of attempts) {
-    try {
-      const [result] = await db.query(sql, params);
-      return Number(result.insertId) || 0;
-    } catch (e) {
-      lastErr = e;
-      const msg = e?.message || '';
-      if (/Unknown column/i.test(msg)) continue;
-      throw e;
-    }
+  try {
+    const [result] = await db.query(
+      `INSERT INTO faction_bulletins (faction_id, category, body, target_city_id, author_player_id, author_name)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [
+        factionId,
+        category,
+        body,
+        targetCityId,
+        opts.authorPlayerId || null,
+        opts.authorName || null,
+      ],
+    );
+    return Number(result.insertId) || 0;
+  } catch (e) {
+    if (!/Unknown column ['`]target_city_id/i.test(e?.message || '')) throw e;
+    const [result] = await db.query(
+      `INSERT INTO faction_bulletins (faction_id, category, body, author_player_id, author_name)
+       VALUES (?, ?, ?, ?, ?)`,
+      [
+        factionId,
+        category,
+        body,
+        opts.authorPlayerId || null,
+        opts.authorName || null,
+      ],
+    );
+    return Number(result.insertId) || 0;
   }
-  throw lastErr;
 }
 
 /**
