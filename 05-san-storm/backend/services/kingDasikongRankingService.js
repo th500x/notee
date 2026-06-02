@@ -60,19 +60,24 @@ function totalScoreSql() {
 }
 
 /**
+ * 势力今日是否已日切（以 MAX(baseline_date) 为准，避免个别脏行误判）
  * @param {import('mysql2/promise').PoolConnection} connection
  */
 async function hasProcessedToday(connection, factionId, eventId = EVENT_ID) {
   const [rows] = await connection.query(
-    `SELECT 1 FROM temp_event_ranking snap
+    `SELECT
+       DATE_FORMAT(MAX(snap.baseline_date), '%Y-%m-%d') AS maxBaseline,
+       DATE_FORMAT(CURDATE(), '%Y-%m-%d') AS todayYmd
+     FROM temp_event_ranking snap
      INNER JOIN players p ON p.player_id = snap.player_id
      INNER JOIN accounts a ON a.id = p.player_id
        AND a.account_type = 'real' AND a.status = 'active'
-     WHERE snap.event_id = ? AND p.faction_id = ? AND snap.baseline_date = CURDATE()
-     LIMIT 1`,
+     WHERE snap.event_id = ? AND p.faction_id = ?`,
     [eventId, factionId],
   );
-  return rows.length > 0;
+  const maxBaseline = rows[0]?.maxBaseline;
+  const todayYmd = rows[0]?.todayYmd;
+  return Boolean(maxBaseline && todayYmd && maxBaseline === todayYmd);
 }
 
 /**
@@ -255,13 +260,17 @@ async function hasBaselineDateColumn(connection) {
  * @param {import('mysql2/promise').PoolConnection} connection
  */
 async function isFactionBaselineStale(connection, factionId, eventId = EVENT_ID) {
-  const todayYmd = await getServerDateYmd(connection);
   const snapCount = await countFactionSnapshots(connection, factionId, eventId);
   if (snapCount === 0) {
+    const todayYmd = await getServerDateYmd(connection);
     return { stale: false, todayYmd, snapCount: 0, maxBaselineDate: null };
   }
   const [rows] = await connection.query(
-    `SELECT MAX(snap.baseline_date) AS maxBd
+    `SELECT
+       DATE_FORMAT(CURDATE(), '%Y-%m-%d') AS todayYmd,
+       DATE_FORMAT(MAX(snap.baseline_date), '%Y-%m-%d') AS maxBaselineDate,
+       DATE_FORMAT(MIN(snap.baseline_date), '%Y-%m-%d') AS minBaselineDate,
+       SUM(CASE WHEN snap.baseline_date IS NULL THEN 1 ELSE 0 END) AS nullBaselineRows
      FROM temp_event_ranking snap
      INNER JOIN players p ON p.player_id = snap.player_id
      INNER JOIN accounts a ON a.id = p.player_id
@@ -269,15 +278,100 @@ async function isFactionBaselineStale(connection, factionId, eventId = EVENT_ID)
      WHERE snap.event_id = ? AND p.faction_id = ?`,
     [eventId, factionId],
   );
-  const maxBd = rows[0]?.maxBd;
-  let maxBaselineDate = null;
-  if (maxBd instanceof Date) {
-    maxBaselineDate = `${maxBd.getFullYear()}-${String(maxBd.getMonth() + 1).padStart(2, '0')}-${String(maxBd.getDate()).padStart(2, '0')}`;
-  } else if (maxBd) {
-    maxBaselineDate = String(maxBd).slice(0, 10);
-  }
+  const todayYmd = rows[0]?.todayYmd || (await getServerDateYmd(connection));
+  const maxBaselineDate = rows[0]?.maxBaselineDate || null;
   const stale = !maxBaselineDate || maxBaselineDate < todayYmd;
-  return { stale, todayYmd, snapCount, maxBaselineDate };
+  return {
+    stale,
+    todayYmd,
+    snapCount,
+    maxBaselineDate,
+    minBaselineDate: rows[0]?.minBaselineDate || null,
+    nullBaselineRows: Number(rows[0]?.nullBaselineRows) || 0,
+  };
+}
+
+/** @param {import('mysql2/promise').PoolConnection} connection */
+async function getDasikongEnvironmentSnapshot(connection) {
+  const [rows] = await connection.query(
+    `SELECT
+       DATE_FORMAT(CURDATE(), '%Y-%m-%d') AS curdateYmd,
+       NOW() AS nowTs,
+       @@session.time_zone AS sessionTz,
+       @@global.time_zone AS globalTz`,
+  );
+  return {
+    curdateYmd: rows[0]?.curdateYmd,
+    nowTs: rows[0]?.nowTs,
+    mysqlSessionTz: rows[0]?.sessionTz,
+    mysqlGlobalTz: rows[0]?.globalTz,
+    cronTz: process.env.CRON_TZ || '(unset → node-cron 用进程本地时区)',
+    nodeTz: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    dbTimezoneEnv: process.env.DB_TIMEZONE || 'local',
+  };
+}
+
+/**
+ * 势力大司空日榜诊断（生产只读探针 / admin 调试）
+ * @param {import('mysql2/promise').PoolConnection} connection
+ * @param {string} factionId
+ */
+async function getFactionDasikongDiagnostic(connection, factionId, eventId = EVENT_ID) {
+  const env = await getDasikongEnvironmentSnapshot(connection);
+  const staleInfo = await isFactionBaselineStale(connection, factionId, eventId);
+  const processedToday = await hasProcessedToday(connection, factionId, eventId);
+  const eligibleReal = await countEligibleRealPlayers(connection, factionId);
+  const ranking = await listDailyActivityRanking(factionId, 5, connection);
+  const winner = await pickDailyWinner(connection, factionId, eventId);
+
+  const [missingSnapRows] = await connection.query(
+    `SELECT COUNT(*) AS c
+     ${REAL_PLAYERS_FROM}
+     LEFT JOIN temp_event_ranking snap
+       ON snap.player_id = p.player_id AND snap.event_id = ?
+     ${REAL_PLAYERS_FACTION_WHERE}
+       AND snap.player_id IS NULL`,
+    [eventId, factionId],
+  );
+
+  const [topLeader] = await connection.query(
+    `SELECT
+       p.player_id,
+       p.character_name,
+       DATE_FORMAT(snap.baseline_date, '%Y-%m-%d') AS baselineDate,
+       (${totalScoreSql()}) AS totalScore
+     ${REAL_PLAYERS_WITH_SNAP_JOIN}
+     ${REAL_PLAYERS_FACTION_WHERE}
+     ORDER BY totalScore DESC
+     LIMIT 1`,
+    [eventId, factionId],
+  );
+
+  const [recentEdict] = await connection.query(
+    `SELECT created_at, content FROM faction_bulletins
+     WHERE faction_id = ? AND category = 'edict' AND content LIKE '%大司空%'
+     ORDER BY created_at DESC LIMIT 1`,
+    [factionId],
+  );
+
+  return {
+    env,
+    factionId,
+    eventId,
+    processedToday,
+    eligibleReal,
+    playersMissingSnap: Number(missingSnapRows[0]?.c) || 0,
+    ranking,
+    pickWinner: winner,
+    topLeader: topLeader[0] || null,
+    recentEdict: recentEdict[0] || null,
+    ...staleInfo,
+    interpretation: staleInfo.stale
+      ? 'baseline 落后于 CURDATE()：0:00 tick 未成功或漏跑；日榜显示的是多日累计增量'
+      : processedToday
+        ? '今日已日切（MAX baseline_date = CURDATE()）；日榜为今日增量'
+        : 'baseline 已是今日但 processedToday=false，或 snap 数据异常，需看 min/max/nullBaselineRows',
+  };
 }
 
 module.exports = {
@@ -292,5 +386,7 @@ module.exports = {
   getServerDateYmd,
   hasBaselineDateColumn,
   isFactionBaselineStale,
+  getDasikongEnvironmentSnapshot,
+  getFactionDasikongDiagnostic,
   totalScoreSql,
 };

@@ -125,22 +125,44 @@ function scheduleFactionReserveRecoveryDailyTick() {
 function scheduleKingDasikongDailyTick() {
   const tz = process.env.CRON_TZ;
   const opts = tz ? { timezone: tz } : {};
+  console.log(`[aiKing][dasikong] cron registered 0 0 * * * CRON_TZ=${tz || '(unset)'}`);
   const aiKingDasikongDailyService = require('./services/aiKingDasikongDailyService');
   cron.schedule(
     '0 0 * * *',
     async () => {
       try {
+        logDasikongEnvOnCronFire();
         const result = await aiKingDasikongDailyService.runDailyTick();
         const summary = (result.results || [])
-          .map((r) => `${r.factionId}:${r.skipped ? 'skip' : r.bootstrapped ? 'bootstrap' : r.winner?.playerId || 'none'}`)
+          .map((r) => `${r.factionId}:${r.skipped ? 'skip' : r.bootstrapped ? 'bootstrap' : r.winner?.playerId || r.error || 'none'}`)
           .join('; ');
         console.log(`[aiKing][dasikong] daily tick done ${summary}`);
+        for (const r of result.results || []) {
+          if (!r.ok || r.error) {
+            console.error('[aiKing][dasikong] daily tick faction error', JSON.stringify(r));
+          }
+        }
       } catch (err) {
-        console.error('[aiKing][dasikong] daily tick 失败:', err.message);
+        console.error('[aiKing][dasikong] daily tick 失败:', err.message, err.stack || '');
       }
     },
     opts,
   );
+}
+
+async function logDasikongEnvOnCronFire() {
+  try {
+    const { pool } = require('./database/connection');
+    const conn = await pool.getConnection();
+    try {
+      const env = await require('./services/kingDasikongRankingService').getDasikongEnvironmentSnapshot(conn);
+      console.log('[aiKing][dasikong] cron fire env', JSON.stringify(env));
+    } finally {
+      conn.release();
+    }
+  } catch (e) {
+    console.warn('[aiKing][dasikong] cron fire env log failed:', e.message);
+  }
 }
 
 /** 与 00-base/01-database-split/00-overview.md 临时表清理示例一致：每天凌晨 3:00（默认进程本地时区；生产可设 CRON_TZ=Asia/Shanghai） */

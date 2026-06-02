@@ -6,8 +6,21 @@ const express = require('express');
 const router = express.Router();
 const aiKingDasikongDailyService = require('../services/aiKingDasikongDailyService');
 const { wrap500 } = require('../utils/httpError');
-const { validateBody } = require('../middleware/validation');
+const { validateBody, validateQuery } = require('../middleware/validation');
 const adminKingSchemas = require('../middleware/validationSchemas/adminKingDasikong');
+
+router.get('/diagnostic', validateQuery(adminKingSchemas.diagnosticQuery), async (req, res, next) => {
+  try {
+    const factionId = req.query?.factionId != null ? String(req.query.factionId).trim() : '';
+    if (!factionId) {
+      return res.status(400).json({ success: false, error: '缺少 factionId' });
+    }
+    const data = await aiKingDasikongDailyService.getFactionDasikongDiagnostic(factionId);
+    res.json({ success: true, data });
+  } catch (err) {
+    return next(wrap500(err, '大司空诊断失败'));
+  }
+});
 
 router.post('/daily-tick', validateBody(adminKingSchemas.dailyTickBody), async (req, res, next) => {
   try {

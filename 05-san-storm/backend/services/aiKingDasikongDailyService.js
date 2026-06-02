@@ -16,6 +16,14 @@ const {
   SYS_SENDER_ID,
 } = require('../config/kingDasikongDaily');
 
+function logDasikong(msg, extra) {
+  if (extra !== undefined) {
+    console.log(`[aiKing][dasikong] ${msg}`, typeof extra === 'string' ? extra : JSON.stringify(extra));
+  } else {
+    console.log(`[aiKing][dasikong] ${msg}`);
+  }
+}
+
 function buildAppointmentMailContent(king, winner, totalScore) {
   const kingName = king.characterName || '君主';
   const courtesy = king.courtesyName ? `（${king.courtesyName}）` : '';
@@ -85,10 +93,22 @@ async function runDailyTickForFaction(factionId, king) {
 
   const connection = await pool.getConnection();
   try {
+    const diag = await kingDasikongRankingService.getFactionDasikongDiagnostic(connection, fid, EVENT_ID);
+    logDasikong(`tick start faction=${fid}`, {
+      processedToday: diag.processedToday,
+      stale: diag.stale,
+      maxBaselineDate: diag.maxBaselineDate,
+      todayYmd: diag.todayYmd,
+      snapCount: diag.snapCount,
+      cronTz: diag.env?.cronTz,
+      mysqlSessionTz: diag.env?.mysqlSessionTz,
+    });
+
     await connection.beginTransaction();
 
     if (await kingDasikongRankingService.hasProcessedToday(connection, fid, EVENT_ID)) {
       await connection.rollback();
+      logDasikong(`tick skip faction=${fid} reason=already_processed_today maxBaseline=${diag.maxBaselineDate}`);
       return { ok: true, factionId: fid, skipped: true, reason: 'already_processed_today' };
     }
 
@@ -193,7 +213,7 @@ async function runDailyTickForFaction(factionId, king) {
     };
   } catch (e) {
     await connection.rollback();
-    console.error(`[aiKing][dasikong] faction=${fid} tick failed:`, e);
+    console.error(`[aiKing][dasikong] faction=${fid} tick failed:`, e?.message || e, e?.stack || '');
     return { ok: false, factionId: fid, error: e.message || String(e) };
   } finally {
     connection.release();
@@ -260,12 +280,24 @@ async function runStaleCatchUpOnStartup() {
       conn.release();
     }
   }
+  logDasikong('startup catch-up done', results);
   return { ok: true, results };
+}
+
+/** @param {string} factionId */
+async function getFactionDasikongDiagnostic(factionId) {
+  const conn = await pool.getConnection();
+  try {
+    return await kingDasikongRankingService.getFactionDasikongDiagnostic(conn, factionId, EVENT_ID);
+  } finally {
+    conn.release();
+  }
 }
 
 module.exports = {
   runDailyTick,
   runDailyTickForFaction,
   runStaleCatchUpOnStartup,
+  getFactionDasikongDiagnostic,
   buildAppointmentMailContent,
 };

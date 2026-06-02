@@ -11,6 +11,11 @@ const dailyTickBody = {
   factionId: v.optional(factionId),
 };
 
+const diagnosticQuery = {
+  factionId,
+};
+
 module.exports = {
   dailyTickBody,
+  diagnosticQuery,
 };
