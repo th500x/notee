@@ -76,7 +76,12 @@ export default function FactionPolicyRemonstranceModal({
     setVerdictPayload(null);
     setSubmitting(false);
     setDraftApprovalPreview(null);
-  }, [open, category, currentConfig]);
+  }, [open, category]);
+
+  useEffect(() => {
+    if (!open || phase !== 'form') return;
+    setDraftConfig(readPolicyProposalDraft(category, currentConfig));
+  }, [open, category, currentConfig, phase]);
 
   useEffect(() => {
     if (!open || !factionId) return undefined;

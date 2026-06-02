@@ -30,11 +30,13 @@ function saveCacheEntry(eventId, payload) {
 /** 与 RankingPanel 一致的四项加权分 */
 function weightedParts(item, ranking) {
   const w = ranking?.scoreWeights || {};
+  const repW = w.reputation ?? 60;
+  const contribW = w.contribution ?? repW;
   return {
     combat: (item.battleScore ?? 0) * (w.battleScore ?? 1),
-    events: (item.eventsCompleted ?? 0) * (w.events ?? 300),
-    rep: (item.repContrib ?? 0) * (w.repContrib ?? 30),
-    res: (item.silverFood ?? 0) * (w.silverFood ?? 3),
+    events: (item.eventsCompleted ?? 0) * (w.events ?? 120),
+    rep: (item.reputation ?? 0) * repW,
+    contrib: (item.contribution ?? 0) * contribW,
   };
 }
 
@@ -162,8 +164,8 @@ export default function ActivityManager() {
       '总分',
       '战斗(加权)',
       '事件(加权)',
-      '声望贡献(加权)',
-      '银粮(加权)',
+      '声望(加权)',
+      '贡献(加权)',
       '活动标题',
       '公告ID',
     ];
@@ -176,7 +178,7 @@ export default function ActivityManager() {
         Math.round(row.combat),
         Math.round(row.events),
         Math.round(row.rep),
-        Math.round(row.res),
+        Math.round(row.contrib),
         `"${(r?.title || '').replace(/"/g, '""')}"`,
         selected.id,
       ].join(',')
@@ -283,7 +285,7 @@ export default function ActivityManager() {
                   <th className="px-3 py-2 text-right font-medium text-gray-700">⚔️ 战斗</th>
                   <th className="px-3 py-2 text-right font-medium text-gray-700">📜 事件</th>
                   <th className="px-3 py-2 text-right font-medium text-gray-700">🎖️ 声望</th>
-                  <th className="px-3 py-2 text-right font-medium text-gray-700">💰 资源</th>
+                  <th className="px-3 py-2 text-right font-medium text-gray-700">🤝 贡献</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200 bg-white">
@@ -305,7 +307,7 @@ export default function ActivityManager() {
                       {Math.round(row.rep).toLocaleString()}
                     </td>
                     <td className="px-3 py-2 text-right tabular-nums">
-                      {Math.round(row.res).toLocaleString()}
+                      {Math.round(row.contrib).toLocaleString()}
                     </td>
                   </tr>
                 ))}

@@ -10,6 +10,7 @@
 
 const { pool } = require('../database/connection');
 const ACTIVITY_RANKING_EVENTS = require('../config/activityRankingEvents');
+const { getScoreWeightsForEvent } = require('../config/rankingScoreWeights');
 const campaignService = require('./campaignService');
 
 /** 常驻总体榜：最低战斗场次（与 18-4 一致） */
@@ -137,15 +138,16 @@ function campaignProgressJsonPath(campaignId, field) {
 const LEGACY_DELTA = {
   battle: `s.total_battle_score - snap.snapshot_battle_score`,
   events: `s.total_events_completed - snap.snapshot_events_completed`,
-  rep:    `(s.total_reputation_earned - snap.snapshot_reputation + s.total_contribution_earned - snap.snapshot_contribution)`,
-  sf:     `(s.total_gold_earned - snap.snapshot_silver + s.total_food_earned - snap.snapshot_food)`,
+  reputation: `s.total_reputation_earned - snap.snapshot_reputation`,
+  contribution: `s.total_contribution_earned - snap.snapshot_contribution`,
 };
 
-/** 积分权重（与 19-1 文档一致）*/
-const SCORE_WEIGHTS = { battle: 1, events: 300, rep: 30, sf: 3 };
-
 /** 模块内缓存：避免每次请求都查 information_schema */
-let _schemaCache = { checked: false, hasColumns: false };
+let _schemaCache = {
+  checked: false,
+  hasFrozenColumns: false,
+  hasContributionColumn: false,
+};
 
 /**
  * 检测 temp_event_ranking 是否含 frozen_delta_* 列（只查一次）。
@@ -155,42 +157,57 @@ async function getDeltaSqlFragments() {
   if (!_schemaCache.checked) {
     try {
       const [rows] = await pool.query(
-        `SELECT COUNT(*) AS c FROM information_schema.COLUMNS
+        `SELECT COLUMN_NAME FROM information_schema.COLUMNS
          WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'temp_event_ranking'
-         AND COLUMN_NAME = 'frozen_delta_battle'`,
+         AND COLUMN_NAME IN (
+           'frozen_delta_battle',
+           'frozen_delta_reputation',
+           'frozen_delta_contribution'
+         )`,
       );
-      _schemaCache.hasColumns = Number(rows[0]?.c) > 0;
+      const names = new Set((rows || []).map((r) => r.COLUMN_NAME));
+      _schemaCache.hasFrozenColumns = names.has('frozen_delta_battle');
+      _schemaCache.hasContributionColumn = names.has('frozen_delta_contribution');
     } catch (e) {
       console.warn('[rankingService] 无法检测 frozen 列，使用实时差值:', e.message);
-      _schemaCache.hasColumns = false;
+      _schemaCache.hasFrozenColumns = false;
+      _schemaCache.hasContributionColumn = false;
     }
     _schemaCache.checked = true;
   }
 
-  if (!_schemaCache.hasColumns) return LEGACY_DELTA;
+  if (!_schemaCache.hasFrozenColumns) return LEGACY_DELTA;
+
+  const reputationExpr = _schemaCache.hasContributionColumn
+    ? `COALESCE(snap.frozen_delta_reputation, ${LEGACY_DELTA.reputation})`
+    : `COALESCE(snap.frozen_delta_reputation, ${LEGACY_DELTA.reputation} + ${LEGACY_DELTA.contribution})`;
+  const contributionExpr = _schemaCache.hasContributionColumn
+    ? `COALESCE(snap.frozen_delta_contribution, ${LEGACY_DELTA.contribution})`
+    : '0';
 
   return {
     battle: `COALESCE(snap.frozen_delta_battle, ${LEGACY_DELTA.battle})`,
     events: `COALESCE(snap.frozen_delta_events, ${LEGACY_DELTA.events})`,
-    rep:    `COALESCE(snap.frozen_delta_rep_contrib, ${LEGACY_DELTA.rep})`,
-    sf:     `COALESCE(snap.frozen_delta_silver_food, ${LEGACY_DELTA.sf})`,
+    reputation: reputationExpr,
+    contribution: contributionExpr,
   };
 }
 
 /** 总分 SQL 表达式（由 delta 片段拼合） */
-function totalScoreSql(d) {
-  return `(${d.battle}) * ${SCORE_WEIGHTS.battle}
-        + (${d.events}) * ${SCORE_WEIGHTS.events}
-        + (${d.rep})    * ${SCORE_WEIGHTS.rep}
-        + (${d.sf})     * ${SCORE_WEIGHTS.sf}`;
+function totalScoreSql(d, weights) {
+  const w = weights;
+  return `(${d.battle}) * ${w.battle}
+        + (${d.events}) * ${w.events}
+        + (${d.reputation}) * ${w.reputation}
+        + (${d.contribution}) * ${w.contribution}`;
 }
 
 /**
  * 活动结束后将增量冻结到 frozen_delta_* 列（幂等；有冻结列才执行）。
  * 已写入 frozen_at 的行跳过，避免重复写。
  */
-async function ensureRankingFrozen(eventId, hasColumns) {
-  if (!hasColumns) return;
+async function ensureRankingFrozen(eventId, hasFrozenColumns) {
+  if (!hasFrozenColumns) return;
   const cfg = ACTIVITY_RANKING_EVENTS[eventId];
   if (!cfg?.endTime) return;
   const endMs = new Date(cfg.endTime).getTime();
@@ -203,21 +220,25 @@ async function ensureRankingFrozen(eventId, hasColumns) {
     );
     if (done.length > 0) return;
 
+    const contribSet = _schemaCache.hasContributionColumn
+      ? `snap.frozen_delta_contribution = ${LEGACY_DELTA.contribution},`
+      : '';
+
     await pool.query(
       `UPDATE temp_event_ranking snap
        JOIN player_statistics s ON s.player_id = snap.player_id
        SET
          snap.frozen_delta_battle       = ${LEGACY_DELTA.battle},
          snap.frozen_delta_events       = ${LEGACY_DELTA.events},
-         snap.frozen_delta_rep_contrib  = ${LEGACY_DELTA.rep},
-         snap.frozen_delta_silver_food  = ${LEGACY_DELTA.sf},
+         snap.frozen_delta_reputation   = ${LEGACY_DELTA.reputation},
+         ${contribSet}
          snap.frozen_at = NOW()
        WHERE snap.event_id = ? AND snap.frozen_at IS NULL`,
       [eventId],
     );
   } catch (e) {
     if (e.code === 'ER_BAD_FIELD_ERROR' || String(e.message).includes('Unknown column')) {
-      console.warn('[rankingService] 跳过积分冻结（请先执行 migrations/add-temp-ranking-snapshots-frozen-deltas.sql）:', eventId);
+      console.warn('[rankingService] 跳过积分冻结（请先执行 frozen 相关 migrations）:', eventId);
       return;
     }
     throw e;
@@ -272,8 +293,8 @@ function formatRankingRow(row, rank) {
     totalScore: Number(row.total_score) || 0,
     battleScore: Number(row.delta_battle) || 0,
     eventsCompleted: Number(row.delta_events) || 0,
-    repContrib: Number(row.delta_rep_contrib) || 0,
-    silverFood: Number(row.delta_silver_food) || 0,
+    reputation: Number(row.delta_reputation) || 0,
+    contribution: Number(row.delta_contribution) || 0,
   };
 }
 
@@ -289,9 +310,10 @@ function formatRankingRow(row, rank) {
 async function getRankings(eventId, { limit = 10, playerId = null } = {}) {
   const safeLimit = Math.min(Number(limit) || 10, 50);
   const d = await getDeltaSqlFragments();
-  await ensureRankingFrozen(eventId, _schemaCache.hasColumns);
+  await ensureRankingFrozen(eventId, _schemaCache.hasFrozenColumns);
+  const weights = getScoreWeightsForEvent(eventId);
 
-  const scoreSql = totalScoreSql(d);
+  const scoreSql = totalScoreSql(d, weights);
 
   // 前 N 名排行
   const [topRows] = await pool.query(
@@ -300,13 +322,13 @@ async function getRankings(eventId, { limit = 10, playerId = null } = {}) {
        p.character_name AS name,
        (${d.battle}) AS delta_battle,
        (${d.events}) AS delta_events,
-       (${d.rep})    AS delta_rep_contrib,
-       (${d.sf})     AS delta_silver_food,
+       (${d.reputation}) AS delta_reputation,
+       (${d.contribution}) AS delta_contribution,
        (${scoreSql}) AS total_score
      FROM player_statistics s
      JOIN temp_event_ranking snap ON s.player_id = snap.player_id AND snap.event_id = ?
      JOIN players p ON s.player_id = p.player_id
-     ORDER BY total_score DESC, delta_battle DESC, delta_events DESC, delta_rep_contrib DESC, delta_silver_food DESC
+     ORDER BY total_score DESC, delta_battle DESC, delta_events DESC, delta_reputation DESC, delta_contribution DESC
      LIMIT ?`,
     [eventId, safeLimit],
   );
@@ -321,8 +343,8 @@ async function getRankings(eventId, { limit = 10, playerId = null } = {}) {
         `SELECT
            (${d.battle}) AS delta_battle,
            (${d.events}) AS delta_events,
-           (${d.rep})    AS delta_rep_contrib,
-           (${d.sf})     AS delta_silver_food,
+           (${d.reputation}) AS delta_reputation,
+           (${d.contribution}) AS delta_contribution,
            (${scoreSql}) AS total_score
          FROM player_statistics s
          JOIN temp_event_ranking snap ON s.player_id = snap.player_id AND snap.event_id = ?
@@ -343,8 +365,8 @@ async function getRankings(eventId, { limit = 10, playerId = null } = {}) {
           totalScore: myTotal,
           battleScore: Number(myRows[0].delta_battle) || 0,
           eventsCompleted: Number(myRows[0].delta_events) || 0,
-          repContrib: Number(myRows[0].delta_rep_contrib) || 0,
-          silverFood: Number(myRows[0].delta_silver_food) || 0,
+          reputation: Number(myRows[0].delta_reputation) || 0,
+          contribution: Number(myRows[0].delta_contribution) || 0,
         };
       }
     }

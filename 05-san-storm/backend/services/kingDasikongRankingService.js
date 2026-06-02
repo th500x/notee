@@ -23,10 +23,8 @@ const STAT = {
 const DELTA = {
   battle: `${STAT.battle} - COALESCE(snap.snapshot_battle_score, 0)`,
   events: `${STAT.events} - COALESCE(snap.snapshot_events_completed, 0)`,
-  rep: `(${STAT.repEarned} - COALESCE(snap.snapshot_reputation, 0)
-        + ${STAT.contribEarned} - COALESCE(snap.snapshot_contribution, 0))`,
-  sf: `(${STAT.silver} - COALESCE(snap.snapshot_silver, 0)
-        + ${STAT.food} - COALESCE(snap.snapshot_food, 0))`,
+  reputation: `${STAT.repEarned} - COALESCE(snap.snapshot_reputation, 0)`,
+  contribution: `${STAT.contribEarned} - COALESCE(snap.snapshot_contribution, 0)`,
 };
 
 /** 势力内真实活跃玩家（以 players 为驱动，statistics 可缺行） */
@@ -55,8 +53,8 @@ function totalScoreSql() {
   const w = SCORE_WEIGHTS;
   return `(${DELTA.battle}) * ${w.battle}
         + (${DELTA.events}) * ${w.events}
-        + (${DELTA.rep}) * ${w.rep}
-        + (${DELTA.sf}) * ${w.sf}`;
+        + (${DELTA.reputation}) * ${w.reputation}
+        + (${DELTA.contribution}) * ${w.contribution}`;
 }
 
 /**
@@ -125,7 +123,8 @@ async function resetFactionBaselines(connection, factionId, baselineDateYmd, eve
        frozen_at = NULL,
        frozen_delta_battle = NULL,
        frozen_delta_events = NULL,
-       frozen_delta_rep_contrib = NULL,
+       frozen_delta_reputation = NULL,
+       frozen_delta_contribution = NULL,
        frozen_delta_silver_food = NULL,
        expires_at = VALUES(expires_at)`,
     [eventId, baselineDateYmd, factionId],
@@ -145,8 +144,8 @@ async function pickDailyWinner(connection, factionId, eventId = EVENT_ID) {
        p.character_name,
        (${DELTA.battle}) AS delta_battle,
        (${DELTA.events}) AS delta_events,
-       (${DELTA.rep}) AS delta_rep_contrib,
-       (${DELTA.sf}) AS delta_silver_food,
+       (${DELTA.reputation}) AS delta_reputation,
+       (${DELTA.contribution}) AS delta_contribution,
        (${scoreSql}) AS total_score
      ${REAL_PLAYERS_WITH_SNAP_JOIN}
      ${REAL_PLAYERS_FACTION_WHERE}
@@ -158,8 +157,8 @@ async function pickDailyWinner(connection, factionId, eventId = EVENT_ID) {
      ORDER BY total_score DESC,
        delta_battle DESC,
        delta_events DESC,
-       delta_rep_contrib DESC,
-       delta_silver_food DESC,
+       delta_reputation DESC,
+       delta_contribution DESC,
        p.player_id ASC
      LIMIT 1`,
     [eventId, factionId, DASIKONG_APPOINTMENT_EXCLUDE_MAX_LEVEL, DASIKONG_POSITION_ID],

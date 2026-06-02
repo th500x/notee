@@ -22,8 +22,9 @@ CREATE TABLE IF NOT EXISTS `temp_event_ranking` (
   `frozen_at` DATETIME NULL DEFAULT NULL,
   `frozen_delta_battle` INT NULL,
   `frozen_delta_events` INT NULL,
-  `frozen_delta_rep_contrib` INT NULL,
-  `frozen_delta_silver_food` INT NULL,
+  `frozen_delta_reputation` INT NULL COMMENT '冻结：声望 earned 增量',
+  `frozen_delta_contribution` INT NULL COMMENT '冻结：贡献 earned 增量',
+  `frozen_delta_silver_food` INT NULL COMMENT '已废弃，计分不再使用',
 
   UNIQUE KEY `uk_event_player` (`event_id`, `player_id`),
   KEY `idx_event` (`event_id`),

@@ -5,13 +5,18 @@
  * 装备件/卡支持封装（调起 EncapsulateEquipmentModal）
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import CharacterCard from '@shared/components/card/CharacterCard';
 import TroopCard from '@shared/components/card/TroopCard';
 import TitleAchievementCard from '@shared/components/card/TitleAchievementCard';
 import EquipmentCard from '@shared/components/card/EquipmentCard';
 import EncapsulateEquipmentModal from '@/components/game/EncapsulateEquipmentModal';
 import { toCharCardData, toTroopCardData, toEquipCardData, toTitleCardData } from '@/utils/cardDataTransforms';
+import {
+  formatRarityCountWithLimit,
+  isRecruitCrossSeasonLimitPool,
+} from '@shared/utils/cardPoolRarityLimits';
+import { cardPoolAPI } from '@/services/cardPoolApi';
 
 const RARITY_ORDER = { common: 0, rare: 1, epic: 2, legendary: 3, core: 4 };
 const RARITY_LABEL = { common: '普通', rare: '稀有', epic: '史诗', legendary: '传奇', core: '核心' };
@@ -101,7 +106,25 @@ export default function GarrisonBackpack({
   const [encapsulateOpen, setEncapsulateOpen] = useState(false);
   const [encapsulateMode, setEncapsulateMode] = useState('draft');
   const [encapsulateEditId, setEncapsulateEditId] = useState(null);
+  const [recruitCrossSeasonActive, setRecruitCrossSeasonActive] = useState(false);
   const baseUrl = import.meta.env.BASE_URL;
+
+  useEffect(() => {
+    if (!playerId) {
+      setRecruitCrossSeasonActive(false);
+      return undefined;
+    }
+    let cancelled = false;
+    cardPoolAPI.getStatus(playerId).then((res) => {
+      if (cancelled || !res?.success) return;
+      setRecruitCrossSeasonActive(isRecruitCrossSeasonLimitPool(res.recruit));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [playerId]);
+
+  const limitDisplayOpts = { recruitCrossSeasonActive };
 
   const encapsulateEquipmentCards =
     encapsulateEquipmentPool.length > 0
@@ -217,7 +240,9 @@ export default function GarrisonBackpack({
           {expandedType === 'character' ? (
             groupByRarity(byType['character']).map(({ rarity, cards: rCards }) => (
               <div key={rarity} className="mb-2 last:mb-0">
-                <div className="text-stone-500 text-[10px] mb-1 px-1">{RARITY_LABEL[rarity]}（{rCards.length}）</div>
+                <div className="text-stone-500 text-[10px] mb-1 px-1">
+                  {RARITY_LABEL[rarity]}（{formatRarityCountWithLimit(rCards.length, 'character', rarity, limitDisplayOpts)}）
+                </div>
                 <div className="flex flex-wrap gap-1.5">
                   {rCards.map(card => (
                     <div key={card.instanceId} style={{ width: 128, height: 192 }}
@@ -234,7 +259,9 @@ export default function GarrisonBackpack({
           ) : expandedType === 'troop' ? (
             groupByRarity(byType['troop']).map(({ rarity, cards: rCards }) => (
               <div key={rarity} className="mb-2 last:mb-0">
-                <div className="text-stone-500 text-[10px] mb-1 px-1">{RARITY_LABEL[rarity]}（{rCards.length}）</div>
+                <div className="text-stone-500 text-[10px] mb-1 px-1">
+                  {RARITY_LABEL[rarity]}（{formatRarityCountWithLimit(rCards.length, 'troop', rarity)}）
+                </div>
                 <div className="flex flex-wrap gap-1.5">
                   {rCards.map(card => (
                     <div key={card.instanceId} style={{ width: 128, height: 192 }}

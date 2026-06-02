@@ -46,13 +46,14 @@ const DAILY_RARITY_CAP = { legendary: 1, epic: 2 };
 // ── 补偿常量 ─────────────────────────────────────────────────
 
 const CHARACTER_DUPLICATE_COMPENSATION = { common: 20, rare: 40, epic: 60, legendary: 80 };
-/** 将领按稀有度总张数达上限时的银两补偿（与重复相同，见 21-1 §8.1） */
-const CHARACTER_LIMIT_BY_RARITY = { legendary: 8, epic: 12, rare: 12, common: 8 };
+const {
+  CHARACTER_LIMIT_BY_RARITY,
+  TROOP_LIMIT_BY_RARITY,
+} = require('../../shared/utils/cardPoolRarityLimits.cjs');
 /** 无可抽候选时仍返回银两补偿（与返回体 compensation 一致，须实际入账） */
 const NO_CARD_AVAILABLE_SILVER = 20;
 /** 部队按稀有度实例数达上限时的粮草补偿（与 22-1 §6.1 一致） */
 const TROOP_RARITY_LIMIT_COMPENSATION = { common: 100, rare: 200, epic: 300, legendary: 400 };
-const TROOP_LIMIT_BY_RARITY = { common: 20, rare: 40, epic: 40, legendary: 20 };
 /** 与 22-1-TROOP_SYSTEM §1.3、rewardService.getMaxBattleCount 一致 */
 const MAX_BATTLE_COUNT = { common: 20, rare: 28, epic: 36, legendary: 44, core: 60 };
 

@@ -199,8 +199,8 @@ export default function RankingPanel() {
             <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 mt-1.5 pt-1.5 border-t border-amber-700/20">
               <span className="text-[10px] text-amber-100/60">⚔️ 战斗：{((rankingData.myRanking.battleScore ?? 0) * (ranking.scoreWeights?.battleScore ?? 1)).toLocaleString()}</span>
               <span className="text-[10px] text-amber-100/60">📜 事件：{((rankingData.myRanking.eventsCompleted ?? 0) * (ranking.scoreWeights?.events ?? 300)).toLocaleString()}</span>
-              <span className="text-[10px] text-amber-100/60">🎖️ 声望：{((rankingData.myRanking.repContrib ?? 0) * (ranking.scoreWeights?.repContrib ?? 30)).toLocaleString()}</span>
-              <span className="text-[10px] text-amber-100/60">💰 资源：{((rankingData.myRanking.silverFood ?? 0) * (ranking.scoreWeights?.silverFood ?? 3)).toLocaleString()}</span>
+              <span className="text-[10px] text-amber-100/60">🎖️ 声望：{((rankingData.myRanking.reputation ?? 0) * (ranking.scoreWeights?.reputation ?? 60)).toLocaleString()}</span>
+              <span className="text-[10px] text-amber-100/60">🤝 贡献：{((rankingData.myRanking.contribution ?? 0) * (ranking.scoreWeights?.contribution ?? ranking.scoreWeights?.reputation ?? 60)).toLocaleString()}</span>
             </div>
           )}
         </div>

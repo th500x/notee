@@ -13,13 +13,10 @@ const {
   DASIKONG_REROLL_RARITY,
 } = require('../../shared/utils/positionRerollRarity.cjs');
 
+const { DASIKONG_DAILY_SQL_WEIGHTS } = require('./rankingScoreWeights');
+
 /** 与 announcements.js scoreWeights / 41-1 定稿一致 */
-const SCORE_WEIGHTS = {
-  battle: 1,
-  events: 120,
-  rep: 60,
-  sf: 3,
-};
+const SCORE_WEIGHTS = DASIKONG_DAILY_SQL_WEIGHTS;
 
 const MAIL_EXPIRE_HOURS = 24;
 

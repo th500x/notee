@@ -300,8 +300,9 @@ async function checkCharacterDuplicate(connection, playerId, cardId, rarity, det
   return true;
 }
 
-// ── 将领卡：按稀有度总张数上限（与 docs 21-CHARACTER_SYSTEM §2.2 一致）──
-const CHARACTER_LIMIT_BY_RARITY = { legendary: 8, epic: 12, rare: 12, common: 8 };
+const {
+  CHARACTER_LIMIT_BY_RARITY,
+} = require('../../shared/utils/cardPoolRarityLimits.cjs');
 const CHARACTER_OVER_LIMIT_COMPENSATION = { legendary: 80, epic: 60, rare: 40, common: 20 };
 
 /**
