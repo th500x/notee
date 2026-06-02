@@ -348,8 +348,8 @@ async function getFactionDasikongDiagnostic(connection, factionId, eventId = EVE
   );
 
   const [recentEdict] = await connection.query(
-    `SELECT created_at, content FROM faction_bulletins
-     WHERE faction_id = ? AND category = 'edict' AND content LIKE '%大司空%'
+    `SELECT created_at, body FROM faction_bulletins
+     WHERE faction_id = ? AND category = 'edict' AND body LIKE '%大司空%'
      ORDER BY created_at DESC LIMIT 1`,
     [factionId],
   );
