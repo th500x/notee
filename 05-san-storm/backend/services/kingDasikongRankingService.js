@@ -347,30 +347,51 @@ async function getFactionDasikongDiagnostic(connection, factionId, eventId = EVE
     [eventId, factionId],
   );
 
-  const [recentEdict] = await connection.query(
-    `SELECT created_at, body FROM faction_bulletins
-     WHERE faction_id = ? AND category = 'edict' AND body LIKE '%大司空%'
-     ORDER BY created_at DESC LIMIT 1`,
-    [factionId],
-  );
+  let recentEdict = null;
+  let factionBulletinsSchema = 'full';
+  try {
+    const [rows] = await connection.query(
+      `SELECT created_at, body FROM faction_bulletins
+       WHERE faction_id = ? AND category = 'edict' AND body LIKE '%大司空%'
+       ORDER BY created_at DESC LIMIT 1`,
+      [factionId],
+    );
+    recentEdict = rows[0] || null;
+  } catch (e) {
+    if (/Unknown column ['`]category/i.test(e?.message || '')) {
+      factionBulletinsSchema = 'legacy_no_category';
+      const [rows] = await connection.query(
+        `SELECT created_at, body FROM faction_bulletins
+         WHERE faction_id = ? AND body LIKE '%大司空%'
+         ORDER BY created_at DESC LIMIT 1`,
+        [factionId],
+      );
+      recentEdict = rows[0] || null;
+    } else {
+      throw e;
+    }
+  }
 
   return {
     env,
     factionId,
     eventId,
+    factionBulletinsSchema,
     processedToday,
     eligibleReal,
     playersMissingSnap: Number(missingSnapRows[0]?.c) || 0,
     ranking,
     pickWinner: winner,
     topLeader: topLeader[0] || null,
-    recentEdict: recentEdict[0] || null,
+    recentEdict,
     ...staleInfo,
-    interpretation: staleInfo.stale
-      ? 'baseline 落后于 CURDATE()：0:00 tick 未成功或漏跑；日榜显示的是多日累计增量'
-      : processedToday
-        ? '今日已日切（MAX baseline_date = CURDATE()）；日榜为今日增量'
-        : 'baseline 已是今日但 processedToday=false，或 snap 数据异常，需看 min/max/nullBaselineRows',
+    interpretation: factionBulletinsSchema === 'legacy_no_category'
+      ? '生产库 faction_bulletins 缺 category 列：旧版写谕旨会致 tick 整笔 rollback（已加兼容回退，仍建议跑 add-faction-bulletins-category.sql）'
+      : staleInfo.stale
+        ? 'baseline 落后于 CURDATE()：0:00 tick 未成功或漏跑；日榜显示的是多日累计增量'
+        : processedToday
+          ? '今日已日切（MAX baseline_date = CURDATE()）；日榜为今日增量'
+          : 'baseline 已是今日但 processedToday=false，或 snap 数据异常，需看 min/max/nullBaselineRows',
   };
 }
 
