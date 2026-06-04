@@ -5,6 +5,8 @@ const express = require('express');
 const Player = require('../../models/Player');
 const characterRankService = require('../../services/characterRankService');
 const playerStatisticsService = require('../../services/playerStatisticsService');
+const playerTitleCatalogService = require('../../services/playerTitleCatalogService');
+const playerAchievementCatalogService = require('../../services/playerAchievementCatalogService');
 const playerProfileService = require('../../services/playerProfileService');
 const playerMainCityService = require('../../services/playerMainCityService');
 const mainCityBarracksStorageService = require('../../services/mainCityBarracksStorageService');
@@ -26,6 +28,16 @@ router.get(
 router.get('/:playerId/statistics', withRoute('获取统计数据失败', async (req, res) => {
   const result = await playerStatisticsService.getPlayerStatistics(req.params.playerId);
   return replyServiceOut(res, result, { notFoundMessage: '统计数据不存在' });
+}));
+
+router.get('/:playerId/titles/catalog', withRoute('获取称号目录失败', async (req, res) => {
+  const result = await playerTitleCatalogService.getPlayerTitleCatalog(req.params.playerId);
+  return replyServiceOut(res, result, { notFoundMessage: '玩家不存在' });
+}));
+
+router.get('/:playerId/achievements/catalog', withRoute('获取成就目录失败', async (req, res) => {
+  const result = await playerAchievementCatalogService.getPlayerAchievementCatalog(req.params.playerId);
+  return replyServiceOut(res, result, { notFoundMessage: '玩家不存在' });
 }));
 
 router.get('/:playerId/profile', withRoute('获取玩家档案失败', async (req, res) => {

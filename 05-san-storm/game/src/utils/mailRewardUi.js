@@ -136,7 +136,11 @@ export function linesFromClaimDetails(details, names = {}) {
       if (d.cardType === 'troop') nm = troopById[d.cardId] || d.cardName || d.cardId;
       else if (d.cardType === 'character') nm = charById[d.cardId] || d.cardName || d.cardId;
       else if (d.cardType === 'equipment') nm = equipById[d.cardId] || d.cardName || d.cardId;
-      out.push(`💰 ${lab}「${nm}」已达持有上限，补偿 ${d.compensation} 银两`);
+      if (d.discarded || d.cardType === 'title' || d.cardType === 'achievement') {
+        out.push(`🎖️ ${lab}「${nm}」已拥有，重复奖励已丢弃`);
+      } else {
+        out.push(`💰 ${lab}「${nm}」已达持有上限，补偿 ${d.compensation} 银两`);
+      }
     } else if (d.type === 'troop_over_limit') {
       if (d.scope === 'per_card' && d.cardName) {
         out.push(`🌾 「${d.cardName}」同卡已达上限（核心最多2张），补偿 ${d.compensation} 粮草`);

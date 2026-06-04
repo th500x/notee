@@ -10,6 +10,7 @@ import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PlayerProvider, usePlayerContext } from '@/contexts/PlayerContext';
 import { StrategicMapNavigationProvider } from '@/contexts/StrategicMapNavigationContext';
+import { MapHudVisibilityProvider, useMapHudVisibility } from '@/contexts/MapHudVisibilityContext';
 import TopStatusBar from '@/components/game/TopStatusBar';
 import AnnouncementBar from '@/components/game/AnnouncementBar';
 import RankingPanel from '@/components/game/RankingPanel';
@@ -43,7 +44,9 @@ export default function GamePage({ user, onLogout }) {
   return (
     <PlayerProvider playerId={user?.id}>
       <StrategicMapNavigationProvider>
-        <GamePageInner onLogout={onLogout} accountId={user?.id} />
+        <MapHudVisibilityProvider>
+          <GamePageInner onLogout={onLogout} accountId={user?.id} />
+        </MapHudVisibilityProvider>
       </StrategicMapNavigationProvider>
     </PlayerProvider>
   );
@@ -51,6 +54,7 @@ export default function GamePage({ user, onLogout }) {
 
 function GamePageInner({ onLogout, accountId }) {
   const { player, refresh } = usePlayerContext();
+  const { mapHudButtonsVisible, toggleMapHudButtons } = useMapHudVisibility();
   const playerId = player?.playerId;
   const factionBulletinUnread = useFactionBulletinUnread(playerId);
   /** 与创角清 localStorage 的 id 一致；profile 加载前即可决定是否展示特色介绍 */
@@ -195,6 +199,8 @@ function GamePageInner({ onLogout, accountId }) {
           activeTab={activeTab}
           onOpenSidebar={() => setSidebarOpen(true)}
           onOpenCampaignCenter={() => setCampaignOpen(true)}
+          mapHudButtonsVisible={mapHudButtonsVisible}
+          onToggleMapHudButtons={toggleMapHudButtons}
         />
 
         <main
@@ -252,12 +258,15 @@ function GamePageInner({ onLogout, accountId }) {
         />
 
         <KingEdictPanel
-          visible={activeTab === null && !eventBusy}
+          visible={activeTab === null && !eventBusy && mapHudButtonsVisible}
           playerId={playerId}
           factionId={player?.factionId}
         />
-        <StandingRankingsPanel visible={activeTab === null && !eventBusy} playerId={playerId} />
-        <CommPanel visible={activeTab === null && !eventBusy} />
+        <StandingRankingsPanel
+          visible={activeTab === null && !eventBusy && mapHudButtonsVisible}
+          playerId={playerId}
+        />
+        <CommPanel visible={activeTab === null && !eventBusy && mapHudButtonsVisible} />
       </div>
 
       {/* 卡池抽屉（渲染在 pointer-events-none 容器外面） */}

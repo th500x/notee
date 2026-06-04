@@ -509,6 +509,36 @@ async function getCityInfo(cityId) {
 /** 同一势力在 `wars`（PVE 中立城攻城）进行中战事条数上限；与 `pvpWarService` 的 PVP 上限并列（每类各 1）。 */
 const MAX_CONCURRENT_PVE_WARS_PER_ATTACKER_FACTION = 1;
 
+/** 单场 PVE 攻城墙钟上限，与 PVP `PVP_WAR_DURATION_MS`、17-3 §5 对齐 */
+const PVE_WAR_DURATION_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * @param {{ end_time?: Date|string|null, start_time?: Date|string|null, created_at?: Date|string|null }} warRow
+ * @returns {number|null}
+ */
+function resolvePveWarEndTimeMs(warRow) {
+  if (!warRow) return null;
+  if (warRow.end_time) {
+    const te = new Date(warRow.end_time).getTime();
+    if (Number.isFinite(te)) return te;
+  }
+  const startRaw = warRow.start_time || warRow.created_at;
+  if (!startRaw) return null;
+  const t0 = new Date(startRaw).getTime();
+  if (!Number.isFinite(t0)) return null;
+  return t0 + PVE_WAR_DURATION_MS;
+}
+
+/**
+ * @param {{ end_time?: Date|string|null, start_time?: Date|string|null, created_at?: Date|string|null }} warRow
+ */
+function assertPveWarActiveNotExpired(warRow) {
+  const endMs = resolvePveWarEndTimeMs(warRow);
+  if (endMs != null && endMs <= Date.now()) {
+    throw new Error('该中立城攻城战事已逾 24 小时，系统将自动结案，请稍后再攻');
+  }
+}
+
 function parseFactionKillsColumn(raw) {
   if (!raw) return {};
   if (typeof raw === 'object' && !Array.isArray(raw)) return { ...raw };
@@ -698,6 +728,7 @@ async function initiateSiege(cityId, playerId) {
   let war;
   if (existingWar.length > 0) {
     war = existingWar[0];
+    assertPveWarActiveNotExpired(war);
     if (!(await factionParticipatesInPveWarRow(war, playerFaction, playerId))) {
       const siegeSeason = String(city.season || 'san_1').trim() || 'san_1';
       const other = await countActivePveSiegeWarsForFaction(playerFaction, {
@@ -722,8 +753,8 @@ async function initiateSiege(cityId, playerId) {
     const fkSeed = JSON.stringify({ [playerFaction]: 0 });
     await pool.query(
       `INSERT INTO wars (war_id, war_name, war_type, target_city_id, target_city_name,
-        faction_kills, status, npc_total, npc_killed)
-       VALUES (?, ?, 'siege', ?, ?, ?, 'active', ?, 0)`,
+        faction_kills, status, npc_total, npc_killed, start_time, end_time)
+       VALUES (?, ?, 'siege', ?, ?, ?, 'active', ?, 0, NOW(), DATE_ADD(NOW(), INTERVAL 24 HOUR))`,
       [warId, `${city.city_name}攻城战`, cityId, city.city_name, fkSeed, city.npc_garrison_alive],
     );
     war = { war_id: warId, faction_kills: JSON.parse(fkSeed) };
@@ -849,6 +880,7 @@ async function recordSiegeResult(warId, playerId, factionId, killedIndices, resu
     );
     if (!warRows.length) throw new Error('战事不存在或已结束');
     let war = warRows[0];
+    assertPveWarActiveNotExpired(war);
 
     // 1b. 与本城当前 NPC 编制对齐 wars.npc_total（旧逻辑用 npc_garrison_alive，已占领城常为 40、
     //     与 JSON 支数 400 不一致时，累计 npc_killed 会大于 npc_total，结算 UI 出现 52/40）
@@ -1106,8 +1138,8 @@ async function getOrCreateWar(cityId, city) {
   if (!npcTotalSlots) npcTotalSlots = Number(city.npc_garrison_alive) || 0;
   await pool.query(
     `INSERT INTO wars (war_id, war_name, war_type, target_city_id, target_city_name,
-      faction_kills, status, npc_total, npc_killed)
-     VALUES (?, ?, 'siege', ?, ?, '{}', 'active', ?, 0)`,
+      faction_kills, status, npc_total, npc_killed, start_time, end_time)
+     VALUES (?, ?, 'siege', ?, ?, '{}', 'active', ?, 0, NOW(), DATE_ADD(NOW(), INTERVAL 24 HOUR))`,
     [warId, `${city.city_name}攻城战`, cityId, city.city_name, npcTotalSlots]
   );
   return { war_id: warId, faction_kills: {} };
@@ -1245,8 +1277,8 @@ async function openPveWarOnNeutralCity(cityId, opts = {}) {
       );
       await conn.query(
         `INSERT INTO wars (war_id, war_name, war_type, target_city_id, target_city_name,
-           faction_kills, status, npc_total, npc_killed)
-         VALUES (?, ?, 'siege', ?, ?, ?, 'active', ?, 0)`,
+           faction_kills, status, npc_total, npc_killed, start_time, end_time)
+         VALUES (?, ?, 'siege', ?, ?, ?, 'active', ?, 0, NOW(), DATE_ADD(NOW(), INTERVAL 24 HOUR))`,
         [warId, `${cityRefreshed.city_name}攻城战`, cityId, cityRefreshed.city_name, fkInsert, npcAlive],
       );
       await conn.commit();
@@ -1263,8 +1295,8 @@ async function openPveWarOnNeutralCity(cityId, opts = {}) {
   } else {
     await pool.query(
       `INSERT INTO wars (war_id, war_name, war_type, target_city_id, target_city_name,
-         faction_kills, status, npc_total, npc_killed)
-       VALUES (?, ?, 'siege', ?, ?, ?, 'active', ?, 0)`,
+         faction_kills, status, npc_total, npc_killed, start_time, end_time)
+       VALUES (?, ?, 'siege', ?, ?, ?, 'active', ?, 0, NOW(), DATE_ADD(NOW(), INTERVAL 24 HOUR))`,
       [warId, `${cityRefreshed.city_name}攻城战`, cityId, cityRefreshed.city_name, fkInsert, npcAlive],
     );
   }
@@ -1297,6 +1329,8 @@ async function openPveWarOnNeutralCity(cityId, opts = {}) {
  * @returns {Promise<Array<{ warId: string, targetCityId: string, targetCityName: string|null, createdAt: string|null }>>}
  */
 async function listActivePveSiegeTargetsForMap({ playerId, factionId, season }) {
+  await tickActivePveWars();
+
   const sid = String(season || '').trim();
   const fid = String(factionId || '').trim();
   const pid = String(playerId || '').trim();
@@ -1450,6 +1484,78 @@ async function cancelActivePveSiegeWarViaSanGongChaoZheng(playerId, warId, body 
   return { warId: wid, status: 'completed', targetCityId: warRows[0].target_city_id, targetCityName: warRows[0].target_city_name };
 }
 
+/**
+ * 周期扫描 active PVE 攻城战事：24h 到点自动结案（与 `pvpWarService.tickActivePvpWars` 对齐）。
+ * 未成则 `completed` + `winner_faction_id` NULL，并释放 NPC 批锁。
+ */
+async function tickActivePveWars() {
+  const [rows] = await pool.query(
+    `SELECT war_id, target_city_id, target_city_name, faction_kills,
+            start_time, end_time, created_at
+     FROM wars WHERE status = 'active' AND war_type = 'siege'
+     LIMIT 200`,
+  );
+  const now = Date.now();
+  let completed = 0;
+  for (const row of rows) {
+    const deadline = resolvePveWarEndTimeMs(row);
+    if (deadline == null || deadline > now) continue;
+    const wid = row.war_id;
+    try {
+      const conn = await pool.getConnection();
+      let locked = null;
+      try {
+        await conn.beginTransaction();
+        const [warRows] = await conn.query(
+          `SELECT war_id, target_city_id, target_city_name, faction_kills
+           FROM wars WHERE war_id = ? AND status = 'active' FOR UPDATE`,
+          [wid],
+        );
+        if (!warRows.length) {
+          await conn.rollback();
+          continue;
+        }
+        locked = warRows[0];
+        await conn.query(
+          `UPDATE wars SET status = 'completed', winner_faction_id = NULL, end_time = NOW() WHERE war_id = ?`,
+          [wid],
+        );
+        await conn.commit();
+      } catch (e) {
+        try {
+          await conn.rollback();
+        } catch (_) {
+          /* ignore */
+        }
+        throw e;
+      } finally {
+        conn.release();
+      }
+
+      releaseAllSiegeMemoryLocksForPveWar(wid);
+
+      const cityLabel =
+        String(locked.target_city_name || '').trim() ||
+        String(locked.target_city_id || '').trim() ||
+        '中立城';
+      const fk = parseFactionKillsColumn(locked.faction_kills);
+      for (const fid of Object.keys(fk)) {
+        if (!fid) continue;
+        factionBulletinService.logPveWarTimedOut(fid, cityLabel, locked.target_city_id);
+      }
+
+      console.log(`[cityService] tick: ${wid} PVE 24h timeout → completed (no winner)`);
+      completed += 1;
+    } catch (e) {
+      console.error(`[cityService] tickActivePveWars ${wid}:`, e.message);
+    }
+  }
+  if (completed > 0) {
+    console.log(`[cityService] tickActivePveWars completed=${completed}`);
+  }
+  return { completed };
+}
+
 module.exports = {
   formatCityRowForApi,
   listCitiesForApi,
@@ -1469,6 +1575,9 @@ module.exports = {
   refundSiegeQuotaOnce,
   countActivePveSiegeWarsForFaction,
   MAX_CONCURRENT_PVE_WARS_PER_ATTACKER_FACTION,
+  PVE_WAR_DURATION_MS,
+  tickActivePveWars,
+  resolvePveWarEndTimeMs,
   /** 供 `pvpWarService` 等复用：据点 PVP 目标须与此口径一致 */
   isCityOccupiedForNpcGarrison,
   /** PVE/PVP 易主：势力 + NPC + 长官运行态 */

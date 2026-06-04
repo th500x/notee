@@ -338,6 +338,15 @@ function logPveWarSiegeCompleted(winnerFactionId, cityName, cityId) {
   });
 }
 
+function logPveWarTimedOut(factionId, cityName, cityId) {
+  if (!factionId) return;
+  const label = cityName || cityId || '中立城';
+  appendSafe(factionId, `PVE 战事结束：对「${label}」攻城已逾 24 小时未成，战事自动结案。`, {
+    category: CATEGORY.WAR,
+    targetCityId: cityId || null,
+  });
+}
+
 /**
  * 征发 AI 军团 · 前军 / 后军窗战果摘要（11-3 §5.5.2 · 不写 battles 表）。
  *
@@ -428,5 +437,6 @@ module.exports = {
   logPvpWarEnded,
   logPveWarStarted,
   logPveWarSiegeCompleted,
+  logPveWarTimedOut,
   logConscriptAssaultSummary,
 };

@@ -783,7 +783,7 @@
       "initialFactionId": "san_1_faction_7001",
       "junId": "san_1_jun_runan",
       "zhouId": "san_1_zhou_yu",
-      "initialLordCharacterId": null,
+      "initialLordCharacterId": "san_1_char_7001",
       "wildernessEnabled": true,
       "marketEnabled": true,
       "positionX": null,
@@ -1227,7 +1227,7 @@
     }
   ],
   "metadata": {
-    "generatedAt": "2026-04-24T07:06:02.393Z",
+    "generatedAt": "2026-06-04T05:36:57.039Z",
     "sources": {
       "zhou": "config_zhou_template.csv",
       "jun": "config_jun_template.csv",

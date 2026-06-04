@@ -463,6 +463,38 @@ export const playerAPI = {
   },
 
   /**
+   * 个人中心「称号」：config_titles 全量 + 是否持有（player_cards.card_type=title）
+   */
+  async getTitleCatalog(playerId) {
+    try {
+      const response = await fetchWithTimeout(
+        `${API_CONFIG.BASE_URL}/players/${playerId}/titles/catalog`,
+        { method: 'GET', headers: { 'Content-Type': 'application/json' } },
+      );
+      return response.json();
+    } catch (error) {
+      console.error('获取称号目录失败:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * 个人中心「成就」：config_achievements 全量 + 是否持有（player_cards.card_type=achievement）
+   */
+  async getAchievementCatalog(playerId) {
+    try {
+      const response = await fetchWithTimeout(
+        `${API_CONFIG.BASE_URL}/players/${playerId}/achievements/catalog`,
+        { method: 'GET', headers: { 'Content-Type': 'application/json' } },
+      );
+      return response.json();
+    } catch (error) {
+      console.error('获取成就目录失败:', error);
+      throw error;
+    }
+  },
+
+  /**
    * 将领排名（同服、同 bucket）
    * @param {string} bucket - main:player | main:character1 | main:character2 | garrison:槽位:char1|char2
    */

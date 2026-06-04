@@ -23,7 +23,16 @@ function getXunLabel(day) {
   return '下旬';
 }
 
-export default function TopStatusBar({ activeTab, onOpenSidebar, onOpenCampaignCenter }) {
+const MAP_HUD_TOGGLE_BTN_CLASS =
+  'shrink-0 flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-[10px] sm:text-xs font-bold text-amber-100 bg-stone-900/75 border border-amber-600/50 shadow-sm active:scale-[0.98] transition-transform';
+
+export default function TopStatusBar({
+  activeTab,
+  onOpenSidebar,
+  onOpenCampaignCenter,
+  mapHudButtonsVisible = true,
+  onToggleMapHudButtons,
+}) {
   // CR A7（2026-04-29）：本组件只读 gameTime，用细粒度 hook 显式声明；
   // 待未来切到 selector 引擎后，玩家粮草滴答等不会再触发顶栏重渲染。
   const gameTime = useGameTime();
@@ -83,11 +92,23 @@ export default function TopStatusBar({ activeTab, onOpenSidebar, onOpenCampaignC
                 <button
                   type="button"
                   onClick={() => onOpenCampaignCenter()}
-                  className="shrink-0 flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-[10px] sm:text-xs font-bold text-amber-100 bg-stone-900/75 border border-amber-600/50 shadow-sm active:scale-[0.98] transition-transform"
+                  className={MAP_HUD_TOGGLE_BTN_CLASS}
                   aria-label="打开战役中心"
                 >
                   <span aria-hidden>⚔️</span>
                   <span className="whitespace-nowrap">战役中心</span>
+                </button>
+              )}
+              {activeTab === null && typeof onToggleMapHudButtons === 'function' && (
+                <button
+                  type="button"
+                  onClick={() => onToggleMapHudButtons()}
+                  className={MAP_HUD_TOGGLE_BTN_CLASS}
+                  aria-label={mapHudButtonsVisible ? '隐藏地图角按钮' : '显示地图角按钮'}
+                >
+                  <span className="whitespace-nowrap">
+                    {mapHudButtonsVisible ? '隐藏按钮' : '显示按钮'}
+                  </span>
                 </button>
               )}
             </>

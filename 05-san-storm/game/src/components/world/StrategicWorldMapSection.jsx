@@ -26,6 +26,7 @@ import { useStrategicJunBanditRaidQuotas } from '@/hooks/useStrategicJunBanditRa
 import { API_CONFIG } from '@/constants';
 import { fetchWithTimeout } from '@/services/httpClient';
 import { useStrategicMapNavigation } from '@/contexts/StrategicMapNavigationContext';
+import { useMapHudVisibility } from '@/contexts/MapHudVisibilityContext';
 import { playerAPI } from '@/services/playerApi';
 import { createRoadClientRequestId } from '@/utils/roadClientRequestId';
 import { warAPI } from '@/services/warApi';
@@ -348,6 +349,7 @@ export default function StrategicWorldMapSection({
   }, []);
 
   const strategicNav = useStrategicMapNavigation();
+  const { mapHudButtonsVisible } = useMapHudVisibility();
 
   useEffect(() => {
     if (!playerId) {
@@ -1632,15 +1634,17 @@ export default function StrategicWorldMapSection({
     <div className={`flex h-full min-h-0 flex-col bg-stone-950 ${className}`}>
       {/* 州郡跳转：叠在战略格网上方 */}
       <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
-        <div className="pointer-events-none absolute left-2 top-2 z-30">
-          <div className="pointer-events-auto">
-            <ZhouJunMapJumpPanel
-              variant="mapOverlay"
-              locateSelfCell={locateSelfStrategicCell}
-              progressSidebar={mapJumpProgressSidebar}
-            />
+        {mapHudButtonsVisible ? (
+          <div className="pointer-events-none absolute left-2 top-2 z-30">
+            <div className="pointer-events-auto">
+              <ZhouJunMapJumpPanel
+                variant="mapOverlay"
+                locateSelfCell={locateSelfStrategicCell}
+                progressSidebar={mapJumpProgressSidebar}
+              />
+            </div>
           </div>
-        </div>
+        ) : null}
         <WorldStrategicMapGrid
           cells={cells}
           seed={seed}

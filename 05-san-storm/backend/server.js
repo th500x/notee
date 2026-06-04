@@ -48,8 +48,7 @@ function assertJwtSecret() {
 assertJwtSecret();
 
 /**
- * PVP 战事 tick：每 5 分钟扫描 active 战事的 24h 超时 / 大本营清零 / 城内 NPC 清零。
- * 与 17-2 §6 「胜负判定每 N 分钟」对齐；定时任务负担小（17-2 §13.1）。
+ * PVP / PVE 战事 tick：每 5 分钟扫描 active 战事的 24h 超时等终局条件（17-3 §5 · 17-4 §3）。
  */
 function schedulePvpWarTick() {
   const tz = process.env.CRON_TZ;
@@ -61,6 +60,12 @@ function schedulePvpWarTick() {
         await pvpWarService.tickActivePvpWars();
       } catch (err) {
         console.error('[pvpWar] tick 失败:', err.message);
+      }
+      try {
+        const cityService = require('./services/cityService');
+        await cityService.tickActivePveWars();
+      } catch (err) {
+        console.error('[cityService] PVE war tick 失败:', err.message);
       }
     },
     opts,

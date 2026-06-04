@@ -333,20 +333,21 @@ async function checkCharacterRarityLimit(connection, playerId, rarity, details, 
   return true;
 }
 
-// ── 唯一卡牌检查（称号/成就每个ID只能持有一张）──────────────
-const UNIQUE_CARD_COMPENSATION = { common: 20, rare: 40, epic: 60, legendary: 80, core: 100 }; // 银两
-
-async function checkUniqueCardDuplicate(connection, playerId, cardType, cardId, rarity, details) {
-  const rar = normalizeEnumRarity(rarity) || 'common';
+// ── 唯一卡牌检查（称号/成就每个 card_id 只能持有一张，重复直接丢弃）──
+async function checkUniqueCardDuplicate(connection, playerId, cardType, cardId, details, cardName = null) {
   const [existing] = await connection.query(
     'SELECT instance_id FROM player_cards WHERE player_id = ? AND card_id = ? AND card_type = ?',
     [playerId, cardId, cardType]
   );
   if (existing.length === 0) return false;
-  const compensation = UNIQUE_CARD_COMPENSATION[rar] || 20;
-  await connection.query('UPDATE players SET silver = silver + ? WHERE player_id = ?', [compensation, playerId]);
-  details.push({ type: 'card_duplicate', cardType, cardId, compensation });
-  console.log(`[Rewards] ${cardType}重复: ${cardId} → 补偿 ${compensation} 银两`);
+  details.push({
+    type: 'card_duplicate',
+    cardType,
+    cardId,
+    cardName: cardName || cardId,
+    discarded: true,
+  });
+  console.log(`[Rewards] ${cardType}重复: ${cardId} → 已丢弃（不重复入库）`);
   return true;
 }
 
@@ -660,7 +661,9 @@ async function executeRewards(playerId, rewardStr, multiplier, factionId) {
         }
         // 称号/成就唯一性检查：已持有则补偿银两
         if (cardType === 'title' || cardType === 'achievement') {
-          const isDuplicate = await checkUniqueCardDuplicate(connection, playerId, cardType, realCardId, rarity, details);
+          const isDuplicate = await checkUniqueCardDuplicate(
+            connection, playerId, cardType, realCardId, details, cardName,
+          );
           if (isDuplicate) continue;
         }
         // 部队卡持有上限检查：超限则补偿粮草
@@ -893,7 +896,9 @@ async function grantSpecificCardsOnConnection(connection, playerId, factionId, c
         if (isRarityFull) continue;
       }
       if (cardType === 'title' || cardType === 'achievement') {
-        const isDuplicate = await checkUniqueCardDuplicate(connection, playerId, cardType, realCardId, rarity, details);
+        const isDuplicate = await checkUniqueCardDuplicate(
+          connection, playerId, cardType, realCardId, details, cardName,
+        );
         if (isDuplicate) continue;
       }
       if (cardType === 'troop') {

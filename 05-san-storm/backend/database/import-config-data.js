@@ -441,8 +441,70 @@ async function importTitles(connection) {
 }
 
 /**
+ * 导入成就配置数据
+ */
+async function importAchievements(connection) {
+  console.log('开始导入成就配置数据...');
+
+  const filePath = path.join(DATA_DIR, 'achievements.json');
+  const fileContent = await fs.readFile(filePath, 'utf8');
+  const data = JSON.parse(fileContent);
+
+  let imported = 0;
+  let skipped = 0;
+
+  for (const ach of data.achievements) {
+    try {
+      await connection.query(
+        `
+        INSERT INTO config_achievements (
+          achievement_id, achievement_name, description,
+          chain_id, chain_level,
+          unlock_conditions, unlock_conditions_desc,
+          attribute_bonus, special_effect, special_effect_desc,
+          rewards, display_effect
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON DUPLICATE KEY UPDATE
+          achievement_name = VALUES(achievement_name),
+          description = VALUES(description),
+          chain_id = VALUES(chain_id),
+          chain_level = VALUES(chain_level),
+          unlock_conditions = VALUES(unlock_conditions),
+          unlock_conditions_desc = VALUES(unlock_conditions_desc),
+          attribute_bonus = VALUES(attribute_bonus),
+          special_effect = VALUES(special_effect),
+          special_effect_desc = VALUES(special_effect_desc),
+          rewards = VALUES(rewards),
+          display_effect = VALUES(display_effect)
+      `,
+        [
+          ach.id,
+          ach.name,
+          ach.description || null,
+          ach.chainId || null,
+          ach.chainLevel ?? null,
+          ach.unlockConditions ? JSON.stringify(ach.unlockConditions) : null,
+          ach.unlockConditionsDesc || null,
+          ach.attributeBonus ? JSON.stringify(ach.attributeBonus) : null,
+          ach.specialEffect || null,
+          ach.specialEffectDesc || null,
+          ach.rewards ? JSON.stringify(ach.rewards) : null,
+          ach.displayEffect || null,
+        ],
+      );
+      imported++;
+    } catch (error) {
+      console.error(`导入成就 ${ach.name} 失败:`, error.message);
+      skipped++;
+    }
+  }
+
+  console.log(`✅ 成就配置导入完成: ${imported} 成功, ${skipped} 跳过`);
+}
+
+/**
  * 主函数
- * 用法: node import-config-data.js [characters] [troops] [positions] [factions] [titles]
+ * 用法: node import-config-data.js [characters] [troops] [positions] [factions] [titles] [achievements]
  * 无参数时导入全部（与历史行为一致）
  */
 async function main() {
@@ -477,6 +539,10 @@ async function main() {
     }
     if (want('titles')) {
       await importTitles(connection);
+      console.log('');
+    }
+    if (want('achievements')) {
+      await importAchievements(connection);
       console.log('');
     }
 

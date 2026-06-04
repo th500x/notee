@@ -9,6 +9,9 @@ import { usePlayerContext } from '@/contexts/PlayerContext';
 import PersonalSidebarTeamPanel from '@/components/game/PersonalSidebarTeamPanel';
 import PersonalSidebarStatsPanel from '@/components/game/PersonalSidebarStatsPanel';
 import PersonalSidebarMechanicsPanel from '@/components/game/PersonalSidebarMechanicsPanel';
+import PersonalCatalogModal from '@/components/game/PersonalCatalogModal';
+import PersonalSidebarTitlesPanel from '@/components/game/PersonalSidebarTitlesPanel';
+import PersonalSidebarAchievementsPanel from '@/components/game/PersonalSidebarAchievementsPanel';
 import AncientModal from '@/components/common/AncientModal';
 
 const MENU_ITEMS = [
@@ -23,6 +26,7 @@ const MENU_ITEMS = [
 export default function PersonalSidebar({ open, onClose, onLogout }) {
   const { player } = usePlayerContext();
   const [subView, setSubView] = useState(null); // null | 'team' | 'stats' | 'mechanics'
+  const [catalogModal, setCatalogModal] = useState(null); // null | 'titles' | 'achievements'
   const teamPanelRef = useRef(null);
   const [stubNoticeOpen, setStubNoticeOpen] = useState(false);
 
@@ -31,6 +35,10 @@ export default function PersonalSidebar({ open, onClose, onLogout }) {
     if (!open) return;
     const handler = (e) => {
       if (e.key !== 'Escape') return;
+      if (catalogModal) {
+        setCatalogModal(null);
+        return;
+      }
       if (subView === 'team') {
         const handled = teamPanelRef.current?.handleEscape?.();
         if (handled) return;
@@ -45,11 +53,14 @@ export default function PersonalSidebar({ open, onClose, onLogout }) {
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [open, onClose, subView]);
+  }, [open, onClose, subView, catalogModal]);
 
-  // 关闭抽屉时重置子页
+  // 关闭抽屉时重置子页与弹窗
   useEffect(() => {
-    if (!open) setSubView(null);
+    if (!open) {
+      setSubView(null);
+      setCatalogModal(null);
+    }
   }, [open]);
 
   // 阻止背景滚动
@@ -75,6 +86,18 @@ export default function PersonalSidebar({ open, onClose, onLogout }) {
     }
     if (id === 'mechanics') {
       setSubView('mechanics');
+      return;
+    }
+    if (id === 'titles') {
+      setCatalogModal('titles');
+      return;
+    }
+    if (id === 'achievements') {
+      setCatalogModal('achievements');
+      return;
+    }
+    if (id === 'settings') {
+      setStubNoticeOpen(true);
       return;
     }
     setStubNoticeOpen(true);
@@ -168,6 +191,24 @@ export default function PersonalSidebar({ open, onClose, onLogout }) {
           </button>
         </div>
       </div>
+
+      <PersonalCatalogModal
+        open={catalogModal === 'titles'}
+        title="称号"
+        icon="🎖️"
+        onClose={() => setCatalogModal(null)}
+      >
+        <PersonalSidebarTitlesPanel playerId={player?.playerId} />
+      </PersonalCatalogModal>
+
+      <PersonalCatalogModal
+        open={catalogModal === 'achievements'}
+        title="成就"
+        icon="🏆"
+        onClose={() => setCatalogModal(null)}
+      >
+        <PersonalSidebarAchievementsPanel playerId={player?.playerId} />
+      </PersonalCatalogModal>
 
       <AncientModal
         isOpen={stubNoticeOpen}

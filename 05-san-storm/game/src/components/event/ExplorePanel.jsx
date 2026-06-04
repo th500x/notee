@@ -454,7 +454,12 @@ function RewardDisplay({
         if (d.cardType === 'troop') nm = idNames.troop[d.cardId] || nm;
         else if (d.cardType === 'character') nm = idNames.char[d.cardId] || nm;
         else if (d.cardType === 'equipment') nm = idNames.equip[d.cardId] || nm;
-        result.push({ text: `💰 ${label}「${nm}」已达持有上限，补偿 ${d.compensation} 银两` });
+        else if (d.cardType === 'title') nm = idNames.title?.[d.cardId] || nm;
+        if (d.discarded || d.cardType === 'title' || d.cardType === 'achievement') {
+          result.push({ text: `🎖️ ${label}「${nm}」已拥有，重复奖励已丢弃` });
+        } else {
+          result.push({ text: `💰 ${label}「${nm}」已达持有上限，补偿 ${d.compensation} 银两` });
+        }
       } else if (d.type === 'troop_over_limit') {
         if (d.scope === 'per_card' && d.cardName) {
           result.push({
