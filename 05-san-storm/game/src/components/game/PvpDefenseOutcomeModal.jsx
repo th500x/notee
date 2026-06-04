@@ -1,9 +1,11 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, lazy, Suspense } from 'react';
 import AncientModal from '@/components/common/AncientModal';
-import SiegeReplayMini from '@/components/game/SiegeReplayMini';
+import PvpAutoDuelReplay from '@/pvp/auto-duel/PvpAutoDuelReplay';
 import { buildBattleScoreFormulaLines, resolveKillLossTroopCounts } from '@/systems/battleScoreSystem';
+// 战术对决事件回放壳（重）：懒加载，仅当战报含 eventReplay.roomId 且点开时拉取（17-5-3 阶段 5）
+const PvpTacticalBattleShell = lazy(() => import('@/pvp/tactical/PvpTacticalBattleShell'));
 
-/** 披挂 PVP 裁定结束：评分摘要 + 可选简化回放（与战报列表 SiegeReplayMini 同源） */
+/** 披挂 PVP 裁定结束：评分摘要 + 可选简化回放（与战报列表 PvpAutoDuelReplay 同源） */
 export default function PvpDefenseOutcomeModal({
   outcome,
   onClose,
@@ -11,6 +13,10 @@ export default function PvpDefenseOutcomeModal({
   replayNoticeBlockingRef = null,
 }) {
   const [replayOpen, setReplayOpen] = useState(false);
+  const [tacticalReplayOpen, setTacticalReplayOpen] = useState(false);
+  // 真实链条（披挂/道路）裁定后：从 outcome.eventReplay.roomId 挂战术事件回放（17-5-3 阶段 5）
+  const tacticalReplayRoomId = outcome?.eventReplay?.roomId || null;
+  const tacticalReplayTitle = scoreMultiplierLineLabel === 'PVP积分倍率' ? '道路遭遇' : '城防对决';
 
   /** 须走 `AncientModal` 的 `handleClose`（约 200ms 后再调 `onClose`），禁止「确定」里同步 `onClose` 先卸掉壳再 `setState` — 会卡死全屏交互 */
   const handleMainShellClose = useCallback(() => {
@@ -65,7 +71,16 @@ export default function PvpDefenseOutcomeModal({
               <span className="text-green-700 font-bold">守军防守成功</span>
             )}
           </p>
-          {canReplay && (
+          {tacticalReplayRoomId && (
+            <button
+              type="button"
+              onClick={() => setTacticalReplayOpen(true)}
+              className="w-full py-2 rounded-lg bg-amber-800/50 border border-amber-600/50 text-amber-100 text-xs hover:bg-amber-700/50"
+            >
+              战术对决 · 回放
+            </button>
+          )}
+          {!tacticalReplayRoomId && canReplay && (
             <button
               type="button"
               onClick={() => setReplayOpen(true)}
@@ -114,6 +129,15 @@ export default function PvpDefenseOutcomeModal({
           )}
         </div>
       </AncientModal>
+      {tacticalReplayOpen && tacticalReplayRoomId && (
+        <Suspense fallback={null}>
+          <PvpTacticalBattleShell
+            roomId={tacticalReplayRoomId}
+            title={tacticalReplayTitle}
+            onClose={() => setTacticalReplayOpen(false)}
+          />
+        </Suspense>
+      )}
       {replayOpen && (
         <AncientModal
           isOpen
@@ -124,7 +148,7 @@ export default function PvpDefenseOutcomeModal({
           width="max-w-md"
         >
           <div className="-mx-2 -my-2 bg-[#1a1a2e] rounded p-2 text-left">
-            <SiegeReplayMini
+            <PvpAutoDuelReplay
               open
               onClose={() => setReplayOpen(false)}
               battleLog={logStr}

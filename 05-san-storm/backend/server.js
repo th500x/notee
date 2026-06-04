@@ -10,7 +10,7 @@ require('dotenv').config({ path: __dirname + '/.env' });
 const express = require('express');
 const cors = require('cors');
 const cron = require('node-cron');
-const { testConnection } = require('./database/connection');
+const { testConnection, closePool } = require('./database/connection');
 const characterRankService = require('./services/characterRankService');
 const banditInstanceService = require('./services/banditInstanceService');
 const pvpWarService = require('./services/pvpWarService');
@@ -324,6 +324,13 @@ const chatsRouter = require('./routes/chats');
 app.use('/api/chats', chatsRouter);
 
 /**
+ * PVP 战术对决房间 API（17-5 §12；二阶段）
+ * 须先于 `/api/pvp` 挂载，使更具体的 `/tactical-rooms` 前缀优先匹配。
+ */
+const pvpTacticalRoomsRouter = require('./routes/pvp/tacticalRooms');
+app.use('/api/pvp/tactical-rooms', pvpTacticalRoomsRouter);
+
+/**
  * PVP攻城挑战API
  */
 const pvpRouter = require('./routes/pvp');
@@ -365,8 +372,38 @@ app.get('/api/health', async (req, res) => {
 app.use(notFoundHandler);
 app.use(errorHandler);
 
+let httpServer = null;
+let shuttingDown = false;
+
+function gracefulShutdown(signal) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log(`\n[shutdown] 收到 ${signal}，正在关闭…`);
+  const finish = () => {
+    closePool().finally(() => process.exit(0));
+  };
+  if (!httpServer) {
+    finish();
+    return;
+  }
+  httpServer.close(() => {
+    console.log('[shutdown] HTTP 服务已停止');
+    finish();
+  });
+  setTimeout(() => {
+    console.warn('[shutdown] 关闭超时，强制退出');
+    finish();
+  }, 5000).unref();
+}
+
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+if (process.platform === 'win32') {
+  process.on('SIGBREAK', () => gracefulShutdown('SIGBREAK'));
+}
+
 // 启动服务器
-app.listen(PORT, async () => {
+httpServer = app.listen(PORT, async () => {
   console.log('========================================');
   console.log('⚔️  真三风云后端服务');
   console.log('========================================');

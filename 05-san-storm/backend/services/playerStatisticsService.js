@@ -12,9 +12,12 @@ function num(v, fallback = 0) {
   return Number.isFinite(n) ? n : fallback;
 }
 
-/** @param {Record<string, unknown>} row */
-function formatStatisticsRow(row) {
-  return {
+/**
+ * @param {Record<string, unknown>} row
+ * @param {Record<string, unknown>} [playerRow]
+ */
+function formatStatisticsRow(row, playerRow = null) {
+  const base = {
     playerId: row.player_id,
     totalBattles: num(row.total_battles),
     wins: num(row.wins),
@@ -26,10 +29,6 @@ function formatStatisticsRow(row) {
     totalKills: num(row.total_kills),
     totalBattleScore: num(row.total_battle_score),
     totalEventsCompleted: num(row.total_events_completed),
-    totalPlaytime: num(row.total_playtime),
-    todayPlaytime: num(row.today_playtime),
-    weekPlaytime: num(row.week_playtime),
-    monthPlaytime: num(row.month_playtime),
     totalGoldEarned: num(row.total_gold_earned),
     totalGoldSpent: num(row.total_gold_spent),
     totalFoodEarned: num(row.total_food_earned),
@@ -40,6 +39,13 @@ function formatStatisticsRow(row) {
     createdAt: row.created_at ? new Date(row.created_at).toISOString() : null,
     updatedAt: row.updated_at ? new Date(row.updated_at).toISOString() : null,
   };
+  if (playerRow) {
+    base.currentReputation = num(playerRow.reputation);
+    base.currentContribution = num(playerRow.contribution);
+    base.currentSilver = num(playerRow.silver);
+    base.currentFood = num(playerRow.food);
+  }
+  return base;
 }
 
 /**
@@ -47,20 +53,30 @@ function formatStatisticsRow(row) {
  */
 async function getPlayerStatistics(playerId) {
   const [rows] = await pool.query(
-    `SELECT player_id, total_battles, wins, losses, draws, win_rate,
-            total_damage_dealt, total_damage_taken, total_kills,
-            total_battle_score, total_events_completed,
-            total_playtime, today_playtime, week_playtime, month_playtime,
-            total_gold_earned, total_gold_spent, total_food_earned, total_food_spent,
-            total_contribution_earned, total_contribution_spent, total_reputation_earned,
-            created_at, updated_at
-     FROM player_statistics WHERE player_id = ?`,
+    `SELECT s.player_id, s.total_battles, s.wins, s.losses, s.draws, s.win_rate,
+            s.total_damage_dealt, s.total_damage_taken, s.total_kills,
+            s.total_battle_score, s.total_events_completed,
+            s.total_gold_earned, s.total_gold_spent, s.total_food_earned, s.total_food_spent,
+            s.total_contribution_earned, s.total_contribution_spent, s.total_reputation_earned,
+            s.created_at, s.updated_at,
+            p.reputation, p.contribution, p.silver, p.food
+     FROM player_statistics s
+     JOIN players p ON p.player_id = s.player_id
+     WHERE s.player_id = ?`,
     [playerId],
   );
   if (!rows.length) {
     return { notFound: true };
   }
-  return { data: formatStatisticsRow(rows[0]) };
+  const row = rows[0];
+  return {
+    data: formatStatisticsRow(row, {
+      reputation: row.reputation,
+      contribution: row.contribution,
+      silver: row.silver,
+      food: row.food,
+    }),
+  };
 }
 
 module.exports = {

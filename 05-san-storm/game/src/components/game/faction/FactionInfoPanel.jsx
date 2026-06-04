@@ -141,20 +141,37 @@ function OfficeDutyGrid({ officeHolders, dailyActivityButton }) {
   );
 }
 
-/** @param {{ label: string, hint: string, silver: number, food: number, key: string }} c */
-function LedgerCategoryCard({ c }) {
+const LEGENDARY_SCOPE_BY_KEY = {
+  daily_legendary_recovery: 'both',
+  tribute_legendary_troop: 'troop',
+  card_pool_legendary_troop: 'troop',
+  card_pool_legendary_character: 'character',
+};
+
+/** @param {{ label: string, hint: string, silver?: number, food?: number, troopLegendary?: number, characterLegendary?: number, legendaryScope?: string, key: string }} c */
+function formatLegendaryLedgerAmounts(c) {
+  const scope = c.legendaryScope || LEGENDARY_SCOPE_BY_KEY[c.key] || 'both';
+  if (scope === 'troop') return <>部队 {fmtNum(c.troopLegendary)}</>;
+  if (scope === 'character') return <>将领 {fmtNum(c.characterLegendary)}</>;
+  return <>部队 {fmtNum(c.troopLegendary)} · 将领 {fmtNum(c.characterLegendary)}</>;
+}
+
+/** @param {{ label: string, hint: string, silver?: number, food?: number, troopLegendary?: number, characterLegendary?: number, legendaryScope?: string, key: string }} c */
+function LedgerCategoryCard({ c, variant = 'silverFood' }) {
   return (
     <li className="rounded border border-stone-800/80 bg-stone-900/40 px-2 py-1.5">
       <div className="text-xs text-stone-200">{c.label}</div>
       <div className="text-[10px] leading-snug text-stone-500">{c.hint}</div>
       <div className="mt-0.5 text-[11px] tabular-nums text-stone-300">
-        银 {fmtNum(c.silver)} · 粮 {fmtNum(c.food)}
+        {variant === 'legendary'
+          ? formatLegendaryLedgerAmounts(c)
+          : <>银 {fmtNum(c.silver)} · 粮 {fmtNum(c.food)}</>}
       </div>
     </li>
   );
 }
 
-function ReserveLedgerPopover({ open, anchorRect, ledger, onClose }) {
+function ReserveLedgerPopover({ open, anchorRect, ledger, onClose, variant = 'silverFood', title = '储备收支详情（累计）' }) {
   if (!open || typeof document === 'undefined' || !anchorRect) return null;
 
   const pad = 8;
@@ -182,31 +199,43 @@ function ReserveLedgerPopover({ open, anchorRect, ledger, onClose }) {
         className="fixed z-[131] overflow-y-auto rounded-lg border border-amber-900/50 bg-stone-950/95 p-3 shadow-xl"
         style={{ left, top, width: panelW, maxHeight: maxH }}
         role="dialog"
-        aria-label="储备收支详情"
+        aria-label={variant === 'legendary' ? '传奇储备收支详情' : '储备收支详情'}
       >
-        <div className="mb-2 text-[11px] font-semibold text-amber-400/95">储备收支详情（累计）</div>
+        <div className="mb-2 text-[11px] font-semibold text-amber-400/95">{title}</div>
         {ledger?.schemaMissing ? (
           <p className="text-[10px] text-stone-500">统计表未就绪，新收支将在迁移后累计。</p>
         ) : null}
         <div className="mb-1 text-[10px] font-medium text-emerald-500/90">入账</div>
         <ul className="mb-2 list-none space-y-2 pl-0">
           {(credit?.categories || []).map((c) => (
-            <LedgerCategoryCard key={c.key} c={c} />
+            <LedgerCategoryCard key={c.key} c={c} variant={variant} />
           ))}
         </ul>
         <div className="mb-1 border-t border-stone-800/80 pt-2 text-[10px] tabular-nums text-emerald-200/80">
-          入账合计：银 {fmtNum(credit?.totalSilver)} · 粮 {fmtNum(credit?.totalFood)}
+          {variant === 'legendary' ? (
+            <>入账合计：部队 {fmtNum(credit?.totalTroopLegendary)} · 将领 {fmtNum(credit?.totalCharacterLegendary)}</>
+          ) : (
+            <>入账合计：银 {fmtNum(credit?.totalSilver)} · 粮 {fmtNum(credit?.totalFood)}</>
+          )}
         </div>
         <div className="mb-1 mt-2 text-[10px] font-medium text-rose-400/90">消耗</div>
         <ul className="list-none space-y-2 pl-0">
           {(expense?.categories || []).map((c) => (
-            <LedgerCategoryCard key={c.key} c={c} />
+            <LedgerCategoryCard key={c.key} c={c} variant={variant} />
           ))}
         </ul>
         <div className="mt-2 border-t border-stone-800 pt-2 text-[11px] tabular-nums text-amber-200/90">
-          消耗合计：银 {fmtNum(expense?.totalSilver)} · 粮 {fmtNum(expense?.totalFood)}
+          {variant === 'legendary' ? (
+            <>消耗合计：部队 {fmtNum(expense?.totalTroopLegendary)} · 将领 {fmtNum(expense?.totalCharacterLegendary)}</>
+          ) : (
+            <>消耗合计：银 {fmtNum(expense?.totalSilver)} · 粮 {fmtNum(expense?.totalFood)}</>
+          )}
         </div>
-        <p className="mt-2 text-[10px] leading-snug text-stone-600">自本功能上线后累计；不含朝贡等其它入账路径。</p>
+        {variant === 'silverFood' ? (
+          <p className="mt-2 text-[10px] leading-snug text-stone-600">自本功能上线后累计；卡池补偿可暂为负，日恢复回补。</p>
+        ) : (
+          <p className="mt-2 text-[10px] leading-snug text-stone-600">势力全员共享；传奇概率随储备张数变化（满 20 张恢复 5% 自然概率）。</p>
+        )}
       </div>
     </>,
     document.body,
@@ -400,6 +429,36 @@ export default function FactionInfoPanel({
   const reserveLedgerBtnRef = useRef(/** @type {HTMLButtonElement | null} */ (null));
   const [reserveLedgerAnchor, setReserveLedgerAnchor] = useState(/** @type {DOMRect | null} */ (null));
 
+  const [legendaryLedgerOpen, setLegendaryLedgerOpen] = useState(false);
+  const legendaryLedgerBtnRef = useRef(/** @type {HTMLButtonElement | null} */ (null));
+  const [legendaryLedgerAnchor, setLegendaryLedgerAnchor] = useState(/** @type {DOMRect | null} */ (null));
+
+  useEffect(() => {
+    if (!legendaryLedgerOpen) {
+      setLegendaryLedgerAnchor(null);
+      return undefined;
+    }
+    const sync = () => {
+      setLegendaryLedgerAnchor(legendaryLedgerBtnRef.current?.getBoundingClientRect?.() || null);
+    };
+    sync();
+    window.addEventListener('scroll', sync, true);
+    window.addEventListener('resize', sync);
+    return () => {
+      window.removeEventListener('scroll', sync, true);
+      window.removeEventListener('resize', sync);
+    };
+  }, [legendaryLedgerOpen]);
+
+  useEffect(() => {
+    if (!legendaryLedgerOpen) return undefined;
+    const onKey = (e) => {
+      if (e.key === 'Escape') setLegendaryLedgerOpen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [legendaryLedgerOpen]);
+
   const [dailyRankingOpen, setDailyRankingOpen] = useState(false);
   const dailyRankingBtnRef = useRef(/** @type {HTMLButtonElement | null} */ (null));
   const [dailyRankingAnchor, setDailyRankingAnchor] = useState(/** @type {DOMRect | null} */ (null));
@@ -489,6 +548,7 @@ export default function FactionInfoPanel({
   const fiveLine = `人口 ${fmtNum(t.population)} · 商业 ${fmtNum(t.trading)} · 农业 ${fmtNum(t.farming)} · 军事 ${fmtNum(t.military)} · 文化 ${fmtNum(t.culture)} → ${tierLabel}`;
 
   const reserveLedgerSummary = overview.reserveLedgerSummary;
+  const legendaryLedgerSummary = overview.legendaryLedgerSummary;
   const dailyActivityRanking = overview.dailyActivityRanking || [];
 
   const ledgerDetailBtnClass =
@@ -507,6 +567,14 @@ export default function FactionInfoPanel({
         anchorRect={reserveLedgerAnchor}
         ledger={reserveLedgerSummary}
         onClose={() => setReserveLedgerOpen(false)}
+      />
+      <ReserveLedgerPopover
+        open={legendaryLedgerOpen && showReserveBalanceRow}
+        anchorRect={legendaryLedgerAnchor}
+        ledger={legendaryLedgerSummary}
+        onClose={() => setLegendaryLedgerOpen(false)}
+        variant="legendary"
+        title="传奇储备收支详情（累计）"
       />
       <DailyActivityRankingPopover
         open={dailyRankingOpen && showDailyActivityRanking}
@@ -603,19 +671,34 @@ export default function FactionInfoPanel({
         <SectionTitle>国力与储备</SectionTitle>
         <Line>{fiveLine}</Line>
         {showReserveBalanceRow ? (
-          <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs leading-snug text-stone-300">
-            <span>
-              银两储备 {fmtNum(overview.reserveSilver)} · 粮草储备 {fmtNum(overview.reserveFood)}
-            </span>
-            <button
-              ref={reserveLedgerBtnRef}
-              type="button"
-              className={ledgerDetailBtnClass}
-              onClick={() => setReserveLedgerOpen((v) => !v)}
-            >
-              收支详情
-            </button>
-          </div>
+          <>
+            <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs leading-snug text-stone-300">
+              <span>
+                将领储备 {fmtNum(overview.reserveCharacterLegendary)} · 部队储备 {fmtNum(overview.reserveTroopLegendary)}
+              </span>
+              <button
+                ref={legendaryLedgerBtnRef}
+                type="button"
+                className={ledgerDetailBtnClass}
+                onClick={() => setLegendaryLedgerOpen((v) => !v)}
+              >
+                收支详情
+              </button>
+            </div>
+            <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs leading-snug text-stone-300">
+              <span>
+                银两储备 {fmtNum(overview.reserveSilver)} · 粮草储备 {fmtNum(overview.reserveFood)}
+              </span>
+              <button
+                ref={reserveLedgerBtnRef}
+                type="button"
+                className={ledgerDetailBtnClass}
+                onClick={() => setReserveLedgerOpen((v) => !v)}
+              >
+                收支详情
+              </button>
+            </div>
+          </>
         ) : null}
       </div>
     </div>

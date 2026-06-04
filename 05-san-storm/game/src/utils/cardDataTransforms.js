@@ -12,7 +12,7 @@ import {
   buildPhase1BundleFromSkillIds,
   collectCharacterSkillIdsFromConfig,
 } from '@shared/utils/skillPhase1Passive';
-import { parseEnhanceSlots } from '@shared/utils/characterEnhanceCombat';
+import { parseEchoSlots } from '@shared/utils/characterEchoCombat';
 import { applyVeteranBonusToTroopCombatStats } from '@shared/utils/troopVeteranDisplay';
 
 /**
@@ -44,7 +44,7 @@ export function toCharCardData(card, attributeBonus = {}, skillsMap = null) {
     description: cfg.description,
     avatar: cfg.avatar,
     morale: card.morale ?? null,
-    characterEnhanceSlots: parseEnhanceSlots(card.characterEnhanceSlots ?? card.character_enhance_slots),
+    characterEchoSlots: parseEchoSlots(card.characterEchoSlots ?? card.character_echo_slots),
     attributeBonus: attributeBonus || {},
   };
   if (skillsMap && typeof skillsMap === 'object') {

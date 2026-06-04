@@ -16,6 +16,7 @@ const {
   SILVER_COEFFICIENT_BY_TIER,
 } = require('./stipendTierCoefficients');
 const { computeSupplyTier } = require('./factionSupplyTierService');
+const { computeDailyLegendaryRecovery } = require('../../shared/utils/factionLegendaryReserve.cjs');
 
 /** 与 factionOverviewService 五维口径一致（关隘/据点不计） */
 const CITY_TYPES_FOR_SUPPLY_AGG = ['city_major', 'city_medium', 'city_small'];
@@ -157,13 +158,6 @@ async function applyDailyRecoveryForFactionOnConnection(conn, factionRow, todayS
   );
   if (applied && applied === todayStr) return null;
 
-  const cityCounts = await countOwnedCitiesForRecovery(factionId);
-  const weight = sumRecoveryWeight(cityCounts);
-  if (weight <= 0) {
-    await factionReserveService.setRecoveryAppliedDateOnConnection(conn, factionId, todayStr);
-    return { factionId, silver: 0, food: 0, rollPercent: 0, baseSilver: 0, weight: 0, skippedNoCities: true };
-  }
-
   const typePh = CITY_TYPES_FOR_SUPPLY_AGG.map(() => '?').join(',');
   const [aggRows] = await conn.query(
     `SELECT COUNT(*) AS n_supply_cities,
@@ -188,16 +182,65 @@ async function applyDailyRecoveryForFactionOnConnection(conn, factionRow, todayS
     },
     nSupply,
   );
+
+  const legendaryRecovery = computeDailyLegendaryRecovery(totals.military, totals.culture);
+  let troopLegendaryCredited = 0;
+  let characterLegendaryCredited = 0;
+  if (legendaryRecovery.troop > 0 || legendaryRecovery.character > 0) {
+    await factionReserveService.creditLegendaryQuotaOnConnection(conn, factionId, legendaryRecovery, {
+      ledgerCategory: factionReserveService.CATEGORY.DAILY_LEGENDARY_RECOVERY,
+    });
+    troopLegendaryCredited = legendaryRecovery.troop;
+    characterLegendaryCredited = legendaryRecovery.character;
+  }
+
+  const cityCounts = await countOwnedCitiesForRecovery(factionId);
+  const weight = sumRecoveryWeight(cityCounts);
+  if (weight <= 0) {
+    await factionReserveService.setRecoveryAppliedDateOnConnection(conn, factionId, todayStr);
+    return {
+      factionId,
+      silver: 0,
+      food: 0,
+      rollPercent: 0,
+      baseSilver: 0,
+      weight: 0,
+      skippedNoCities: true,
+      troopLegendary: troopLegendaryCredited,
+      characterLegendary: characterLegendaryCredited,
+    };
+  }
+
   const { tier: supplyTier } = computeSupplyTier(totals);
   if (supplyTier == null) {
     await factionReserveService.setRecoveryAppliedDateOnConnection(conn, factionId, todayStr);
-    return { factionId, silver: 0, food: 0, rollPercent: 0, baseSilver: 0, weight, skippedNoTier: true };
+    return {
+      factionId,
+      silver: 0,
+      food: 0,
+      rollPercent: 0,
+      baseSilver: 0,
+      weight,
+      skippedNoTier: true,
+      troopLegendary: troopLegendaryCredited,
+      characterLegendary: characterLegendaryCredited,
+    };
   }
 
   const rolled = rollStipendAmountsForTier(supplyTier);
   if (!rolled || rolled.silver < 1) {
     await factionReserveService.setRecoveryAppliedDateOnConnection(conn, factionId, todayStr);
-    return { factionId, silver: 0, food: 0, rollPercent: 0, baseSilver: 0, weight, skippedRollFailed: true };
+    return {
+      factionId,
+      silver: 0,
+      food: 0,
+      rollPercent: 0,
+      baseSilver: 0,
+      weight,
+      skippedRollFailed: true,
+      troopLegendary: troopLegendaryCredited,
+      characterLegendary: characterLegendaryCredited,
+    };
   }
 
   const { silver, food } = computeRecoveryTotalsFromBase(rolled.silver, cityCounts);
@@ -217,6 +260,8 @@ async function applyDailyRecoveryForFactionOnConnection(conn, factionRow, todayS
     baseFood: rolled.food,
     weight,
     cityCounts,
+    troopLegendary: troopLegendaryCredited,
+    characterLegendary: characterLegendaryCredited,
   };
 }
 
@@ -266,10 +311,14 @@ async function runDailyReserveRecoveryTick() {
         }
         const applied = await applyDailyRecoveryForFactionOnConnection(conn, locked[0], todayStr);
         await conn.commit();
-        if (applied && (applied.silver > 0 || applied.food > 0)) {
+        if (applied && (applied.silver > 0 || applied.food > 0 || applied.troopLegendary > 0 || applied.characterLegendary > 0)) {
           results.push(applied);
+          const legPart =
+            applied.troopLegendary > 0 || applied.characterLegendary > 0
+              ? ` +${applied.troopLegendary}部队传奇 +${applied.characterLegendary}将领传奇`
+              : '';
           console.log(
-            `[factionReserve] ${applied.factionId} +${applied.silver}银 +${applied.food}粮 ` +
+            `[factionReserve] ${applied.factionId} +${applied.silver}银 +${applied.food}粮${legPart} ` +
               `(随机${applied.rollPercent}% 基数银${applied.baseSilver} 权重${applied.weight})`,
           );
         }

@@ -17,6 +17,8 @@ export const TILE_INFO = {
   forest: { badge: '🌲', name: '树林', attrs: '移动消耗 +1\n防御加成 +5%' },
   hill:   { badge: '⛰️', name: '丘陵', attrs: '移动消耗 +1\n防御加成 +10%\n高地优势' },
   waste:  { badge: '🏜️', name: '荒地', attrs: '移动消耗 +0\n无特殊效果' },
+  river:  { badge: '🌊', name: '河道', attrs: '不可通行' },
+  lake:   { badge: '🌊', name: '水域', attrs: '不可通行' },
   rock:   { badge: '◼', name: '巨石', attrs: '不可通行\n不可破坏' },
   fence:  { badge: '🚧', name: '栅栏', attrs: '不可通行\n可破坏 HP 500' },
   trap:   { badge: '⚠️', name: '陷阱', attrs: '可通行 · 移动消耗 +0\n路过扣 50 兵力' },
@@ -363,6 +365,7 @@ export function getBg(terrain, variants, isChest) {
 export function getTerrain(terrain, variants) {
   if (terrain === 'forest') return `${ASSET_BASE}tile_2_terrain/forest_${variants.forest}.png`;
   if (terrain === 'hill') return `${ASSET_BASE}tile_2_terrain/hill_${variants.hill}.png`;
+  if (terrain === 'river' || terrain === 'lake') return `${ASSET_BASE}tile_2_terrain/river_01.png`;
   return null;
 }
 

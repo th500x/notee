@@ -22,7 +22,7 @@ const {
   loadPositionCombatBonusesForPlayer,
 } = require('../../shared/utils/positionCombatBonuses.cjs');
 const { attachTroopAffinityToCharacter } = require('../../shared/utils/troopAffinityCombat.cjs');
-const { attachEnhancePctToCharacter } = require('../../shared/utils/characterEnhanceCombat.cjs');
+const { attachEchoPctToCharacter } = require('../../shared/utils/characterEchoCombat.cjs');
 
 /** 单部队参战最低兵力（兵力为 0 不参战；总兵力验证在 saveGarrison / initiateSiege） */
 const MIN_TROOPS_TO_DEFEND = 1;
@@ -307,7 +307,7 @@ async function buildDefenseUnits(garrisonSlot) {
     if (!charInstanceId) continue;
 
     const [charRows] = await pool.query(
-      `SELECT pc.instance_id, pc.card_id, pc.rarity, pc.morale, pc.character_enhance_slots,
+      `SELECT pc.instance_id, pc.card_id, pc.rarity, pc.morale, pc.character_echo_slots,
               cc.character_name, cc.luck, cc.courage, cc.combat, cc.command,
               cc.intelligence, cc.politics, cc.charm, cc.trait, cc.trait_modifier,
               cc.skill_1, cc.skill_2, cc.troop_affinity
@@ -332,14 +332,14 @@ async function buildDefenseUnits(garrisonSlot) {
       skill_2: charCfg.skill_2 || null,
     };
     const charKey = cs.cardField === 'char1_card' ? 'char1' : 'char2';
-    const charData = attachEnhancePctToCharacter(
+    const charData = attachEchoPctToCharacter(
       attachTroopAffinityToCharacter(
         withPositionCombat(
           applyCharBonusToCharData(charDataBase, garrisonAttrBonusByChar[charKey] || {}),
         ),
         charCfg.troop_affinity,
       ),
-      charCfg.character_enhance_slots,
+      charCfg.character_echo_slots,
     );
 
     const troopInstanceIds = [garrisonSlot[cs.troop1Field], garrisonSlot[cs.troop2Field]].filter(Boolean);
@@ -489,7 +489,7 @@ async function buildDefenseUnitsFromMainLineup(defenderPlayerId) {
     { by: 'character2', troopSlots: ['troop1', 'troop2'] },
   ]) {
     const [charRows] = await pool.query(
-      `SELECT pc.instance_id, pc.card_id, pc.rarity, pc.morale, pc.character_enhance_slots,
+      `SELECT pc.instance_id, pc.card_id, pc.rarity, pc.morale, pc.character_echo_slots,
               cc.character_name, cc.luck, cc.courage, cc.combat, cc.command,
               cc.intelligence, cc.politics, cc.charm, cc.trait, cc.trait_modifier,
               cc.skill_1, cc.skill_2, cc.troop_affinity
@@ -509,14 +509,14 @@ async function buildDefenseUnitsFromMainLineup(defenderPlayerId) {
       skill_1: charCfg.skill_1 || null,
       skill_2: charCfg.skill_2 || null,
     };
-    const charData = attachEnhancePctToCharacter(
+    const charData = attachEchoPctToCharacter(
       attachTroopAffinityToCharacter(
         withPositionCombat(
           applyCharBonusToCharData(charDataBase, attrBonusBySlot[cs.by] || {}),
         ),
         charCfg.troop_affinity,
       ),
-      charCfg.character_enhance_slots,
+      charCfg.character_echo_slots,
     );
 
     for (const slot of cs.troopSlots) {
@@ -548,9 +548,9 @@ async function buildDefenseUnitsFromMainLineup(defenderPlayerId) {
  *
  * @param {string}   playerId
  * @param {object[]} attackerSiegeNpcs  mapBuiltUnitsToSiegeNpcFormat 结果
- * @param {object[]} attackerTroopsEnd  runSiegePvpSkirmish.attackerTroopsEnd
+ * @param {object[]} attackerTroopsEnd  runPvpAutoDuel.attackerTroopsEnd
  */
-async function applyAuthoritativeSiegePvpAttackerLineupCasualties(playerId, attackerSiegeNpcs, attackerTroopsEnd) {
+async function applyAuthoritativePvpAutoDuelAttackerLineupCasualties(playerId, attackerSiegeNpcs, attackerTroopsEnd) {
   if (!playerId || !Array.isArray(attackerSiegeNpcs) || !Array.isArray(attackerTroopsEnd)) return;
   const participantIds = [
     ...new Set(
@@ -652,6 +652,6 @@ module.exports = {
   getGarrisonSlotAttributeBonusByChar,
   buildDefenseUnits,
   buildDefenseUnitsFromMainLineup,
-  applyAuthoritativeSiegePvpAttackerLineupCasualties,
+  applyAuthoritativePvpAutoDuelAttackerLineupCasualties,
   mapBuiltUnitsToSiegeNpcFormat,
 };

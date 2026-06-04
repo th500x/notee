@@ -135,8 +135,8 @@ function calcDamageSeeded(atk, def, terrain, rng, options = {}) {
   if (atk._formationBuffs && atk._formationBuffs.attackBonus) {
     totalDmg *= 1 + atk._formationBuffs.attackBonus;
   }
-  if (ac?.characterEnhanceAttackPct) {
-    totalDmg *= 1 + ac.characterEnhanceAttackPct / 100;
+  if (ac?.characterEchoAttackPct) {
+    totalDmg *= 1 + ac.characterEchoAttackPct / 100;
   }
 
   const troopDef = ((def.defense || 50) / 10) * (defWorn ? WORN_PENALTY : 1);
@@ -153,8 +153,8 @@ function calcDamageSeeded(atk, def, terrain, rng, options = {}) {
   if (def._formationBuffs && def._formationBuffs.defenseBonus) {
     defMultiplier = Math.min(0.9, defMultiplier * (1 + def._formationBuffs.defenseBonus));
   }
-  if (dc?.characterEnhanceDefensePct) {
-    defMultiplier = Math.min(0.9, defMultiplier * (1 + dc.characterEnhanceDefensePct / 100));
+  if (dc?.characterEchoDefensePct) {
+    defMultiplier = Math.min(0.9, defMultiplier * (1 + dc.characterEchoDefensePct / 100));
   }
   totalDmg *= 1 - defMultiplier;
   totalDmg *= getTerrainDefBonus(def.y, def.x, terrain);

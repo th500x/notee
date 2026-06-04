@@ -52,21 +52,21 @@ export const cardPoolAPI = {
   },
 
   /**
-   * 卡池重复三选一
+   * 卡池重复残影三选一
    */
-  resolveDuplicateChoice: async (playerId, pendingDuplicateDrawId, choice) => {
+  resolveEchoChoice: async (playerId, pendingEchoDrawId, choice) => {
     try {
       const response = await fetchWithTimeout(
-        `${API_CONFIG.BASE_URL}/card-pool/draw/duplicate-choice`,
+        `${API_CONFIG.BASE_URL}/card-pool/draw/echo-choice`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ playerId, pendingDuplicateDrawId, choice }),
+          body: JSON.stringify({ playerId, pendingEchoDrawId, choice }),
         },
       );
       return await response.json();
     } catch (error) {
-      console.error('[CardPoolAPI] 重复选择失败', error);
+      console.error('[CardPoolAPI] 残影选择失败', error);
       return { success: false, error: error.message };
     }
   },

@@ -1336,6 +1336,7 @@ async function initiateAttackerCitySiege(pvpWarId, attackerPlayerId) {
  */
 async function applyPvpTargetCityOwnershipHandoff(conn, war) {
   const garrisonService = require('./garrisonService');
+  const cityService = require('./cityService');
   const reloc = require('./pvpWarPlayerRelocationService');
   await conn.query(
     'UPDATE players SET on_duty = FALSE, on_duty_city_id = NULL WHERE on_duty_city_id = ?',
@@ -1354,10 +1355,7 @@ async function applyPvpTargetCityOwnershipHandoff(conn, war) {
     );
   }
   await garrisonService.stripGarrisonOnCityConquest(conn, war.targetCityId, war.attackerFactionId);
-  await conn.query(
-    "UPDATE cities SET faction_id = ?, status = 'owned', npc_garrison = NULL, npc_garrison_alive = 0 WHERE city_id = ?",
-    [war.attackerFactionId, war.targetCityId],
-  );
+  await cityService.applyCityOwnershipHandoff(conn, war.targetCityId, war.attackerFactionId);
   await reloc.relocateDefendersOffPvpTargetCity(conn, war, war.targetCityId);
   await conn.query('UPDATE wars_pvp SET base_camp = NULL WHERE pvp_war_id = ?', [war.pvpWarId]);
 }
@@ -1669,7 +1667,7 @@ async function recordAttackerCitySiegeResult(pvpWarId, attackerPlayerId, payload
     let moraleRaceResult = null;
 
     if (isPlayerDefender && warMoraleService.warHasActiveMorale(war)) {
-      const delta = warMoraleService.applySkirmishDeltaForWar(war, result === 'win');
+      const delta = warMoraleService.applyPvpAutoDuelDeltaForWar(war, result === 'win');
       if (delta) {
         attackerWarMorale = delta.attackerWarMorale;
         defenderWarMorale = delta.defenderWarMorale;

@@ -46,9 +46,9 @@ function computeInitialPair(attackerCityCount, defenderCityCount) {
  * @param {boolean} attackerWon
  * @returns {{ attackerWarMorale: number, defenderWarMorale: number } | null}
  */
-function applySkirmishDeltaForWar(war, attackerWon) {
+function applyPvpAutoDuelDeltaForWar(war, attackerWon) {
   if (!warHasActiveMorale(war)) return null;
-  return warMoraleCore.applySkirmishWarMoraleDelta(
+  return warMoraleCore.applyPvpAutoDuelMoraleDelta(
     war.attackerWarMorale,
     war.defenderWarMorale,
     attackerWon,
@@ -92,7 +92,7 @@ module.exports = {
   warHasActiveMorale,
   fetchFactionOwnedCityCount,
   computeInitialPair,
-  applySkirmishDeltaForWar,
+  applyPvpAutoDuelDeltaForWar,
   checkRaceTermination,
   initWarMoraleOnActivate,
   ...warMoraleCore,

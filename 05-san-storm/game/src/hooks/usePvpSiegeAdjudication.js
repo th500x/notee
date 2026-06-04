@@ -61,6 +61,9 @@ export function usePvpSiegeAdjudication({
             setPvpAttackerAdjudicating(null);
             setAuthoritativeReplayOverlay({
               battleLogStr: logStr,
+              // 17-5-3 阶段 5：有事件房间则改挂 PvpTacticalBattleShell 事件回放（旧 PvpAutoDuelReplay 退场）
+              eventReplayRoomId: r.data.eventReplay?.roomId || null,
+              eventReplayTitle: '城防对决',
               initialAttackerTroops: r.data.initialAttackerTroops,
               initialDefenderTroops: r.data.initialDefenderTroops,
               leftLabel: '攻方',

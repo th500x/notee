@@ -226,7 +226,7 @@ function GamePageInner({ onLogout, accountId }) {
                       drawerOpen: !!openPool,
                       troopRemaining: cardPool.status?.troop?.remainingDraws ?? '?',
                       charRemaining: cardPool.status?.character?.remainingDraws ?? '?',
-                      dailyLimit: cardPool.status?.troop?.dailyLimit ?? 5,
+                      dailyLimit: cardPool.status?.troop?.dailyLimit ?? 10,
                     }}
                   />
                 </Suspense>
@@ -269,22 +269,23 @@ function GamePageInner({ onLogout, accountId }) {
             loading={cardPool.loading}
             choiceLoading={cardPool.choiceLoading}
             drawResult={cardPool.drawResult}
-            duplicateChoiceError={cardPool.duplicateChoiceError}
+            echoChoiceError={cardPool.echoChoiceError}
             error={cardPool.error}
             skillsMap={skillsMap}
             factionId={player?.factionId}
             playerSilver={player?.silver}
             onDraw={async (poolSeason) => {
               const res = await cardPool.draw(openPool, poolSeason);
-              if (!res?.duplicateChoiceRequired) {
+              if (!res?.echoChoiceRequired) {
                 await refresh({ silent: true });
               }
             }}
-            onResolveDuplicateChoice={cardPool.resolveDuplicateChoice}
-            onAfterDuplicateChoice={async () => {
+            onResolveEchoChoice={cardPool.resolveEchoChoice}
+            onAfterEchoChoice={async () => {
               await refresh({ silent: true });
             }}
             onClearResult={cardPool.clearResult}
+            onResumePendingEcho={cardPool.resumePendingEcho}
             onClose={() => { setOpenPool(null); cardPool.clearResult(); }}
             onRefreshStatus={cardPool.loadStatus}
           />

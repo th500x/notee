@@ -14,8 +14,8 @@ test('computeInitialWarMoralePair 1 vs 100 → 100/20', () => {
   assert.equal(p.defenderWarMorale, 20);
 });
 
-test('applySkirmishWarMoraleDelta zero-sum ±1', () => {
-  const d = core.applySkirmishWarMoraleDelta(60, 60, true);
+test('applyPvpAutoDuelMoraleDelta zero-sum ±1', () => {
+  const d = core.applyPvpAutoDuelMoraleDelta(60, 60, true);
   assert.equal(d.attackerWarMorale, 61);
   assert.equal(d.defenderWarMorale, 59);
   assert.equal(d.attackerWarMorale + d.defenderWarMorale, 120);

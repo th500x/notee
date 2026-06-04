@@ -66,6 +66,8 @@ function buildEmptyFactionOverview() {
     factionName: null,
     reserveSilver: 0,
     reserveFood: 0,
+    reserveTroopLegendary: 0,
+    reserveCharacterLegendary: 0,
     totals: { population: 0, trading: 0, farming: 0, military: 0, culture: 0 },
     supplyTier: null,
     playerCountReal: 0,
@@ -83,6 +85,7 @@ function buildEmptyFactionOverview() {
     legions: [],
     citiesList: [],
     reserveLedgerSummary: null,
+    legendaryLedgerSummary: null,
     dailyActivityRanking: [],
   };
 }
@@ -323,6 +326,9 @@ async function getFactionOverviewByFactionId(factionId) {
   const reserveLedgerSummary = await factionReserveService.getLedgerSummaryForFaction(fid, {
     reserveRecoveryEstimate,
   });
+  const legendaryLedgerSummary = await factionReserveService.getLegendaryLedgerSummaryForFaction(fid, {
+    factionTotals: totals,
+  });
   let dailyActivityRanking = [];
   try {
     dailyActivityRanking = await kingDasikongRankingService.listDailyActivityRanking(fid, 10);
@@ -336,6 +342,8 @@ async function getFactionOverviewByFactionId(factionId) {
       factionName,
       reserveSilver: poolBal?.silver ?? 0,
       reserveFood: poolBal?.food ?? 0,
+      reserveTroopLegendary: poolBal?.troopLegendary ?? 0,
+      reserveCharacterLegendary: poolBal?.characterLegendary ?? 0,
       totals,
       supplyTier,
       playerCountReal,
@@ -355,6 +363,7 @@ async function getFactionOverviewByFactionId(factionId) {
       cityRecoveryCounts,
       reserveRecoveryEstimate,
       reserveLedgerSummary,
+      legendaryLedgerSummary,
       dailyActivityRanking,
     },
   };

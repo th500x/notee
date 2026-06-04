@@ -19,16 +19,46 @@ function isDuplicateKeyError(err) {
 /** MySQL 唯一键冲突 → 用户可见文案（勿一律写成「ID 已被使用」） */
 function registerDuplicateKeyMessage(err) {
   const msg = String(err?.sqlMessage || err?.message || '');
-  if (/idx_machine_id|machineId/i.test(msg)) {
-    return '本浏览器已绑定游戏账号，请使用已有账号登录';
-  }
-  if (/idx_client_ip|clientIP/i.test(msg)) {
-    return '当前网络环境下已有账号注册记录，请使用已有账号登录';
-  }
   if (/PRIMARY|'id'|`id`/i.test(msg)) {
     return '该游戏ID已被注册，请返回重新选择ID';
   }
-  return '注册信息与他人账号冲突，请更换游戏ID或换浏览器后重试';
+  return '注册信息与他人账号冲突，请更换游戏ID或稍后再试';
+}
+
+/** 注册冷却小时数；0 = 关闭 machineId / clientIP 冷却检查 */
+function parseRegisterCooldownHours() {
+  const h = parseInt(process.env.REGISTER_MACHINE_COOLDOWN_HOURS ?? '720', 10);
+  return Number.isFinite(h) && h > 0 ? h : 0;
+}
+
+function isPlaceholderRegisterIp(ip) {
+  const s = String(ip || '').trim();
+  return !s || s === '0.0.0.0' || s === 'unknown' || s === '::1' || s === '127.0.0.1';
+}
+
+/** 优先 body，其次 Express req.ip（trust proxy 已开）；均无效则 0.0.0.0 */
+function resolveRegisterClientIP(bodyClientIP, requestIp) {
+  const fromBody = bodyClientIP != null ? String(bodyClientIP).trim() : '';
+  if (fromBody && !isPlaceholderRegisterIp(fromBody)) return fromBody;
+  const fromReq = requestIp != null ? String(requestIp).trim().replace(/^::ffff:/i, '') : '';
+  if (fromReq && !isPlaceholderRegisterIp(fromReq)) return fromReq;
+  return '0.0.0.0';
+}
+
+/**
+ * 冷却窗内是否已有同 machineId / clientIP 的注册（仅查仍存在的账号行；删号即释放）。
+ * @param {'machineId'|'clientIP'} field
+ */
+async function findAccountRegisteredWithinCooldown(field, value, cooldownHours) {
+  if (!value || cooldownHours <= 0) return null;
+  if (field === 'machineId' && value === 'unknown') return null;
+  if (field === 'clientIP' && isPlaceholderRegisterIp(value)) return null;
+  const col = field === 'machineId' ? 'machineId' : 'clientIP';
+  const [rows] = await pool.query(
+    `SELECT id FROM accounts WHERE ${col} = ? AND registeredAt > DATE_SUB(NOW(), INTERVAL ? HOUR) LIMIT 1`,
+    [value, cooldownHours],
+  );
+  return rows.length > 0 ? rows[0] : null;
 }
 
 /** 与前端 authUtils 一致：首位批次 0–9，后三位 A–Z / 0–9 */
@@ -104,9 +134,11 @@ async function pickRegisterIdCandidates(opts = {}) {
 
 /**
  * 注册账号
+ * @param {object} body
+ * @param {{ requestIp?: string }} [opts] Express req.ip（Nginx 反代 + trust proxy）
  * @returns {{ ok: true, accountData: object } | { ok: false, status: number, error: string, message?: string }}
  */
-async function register(body) {
+async function register(body, opts = {}) {
   const {
     id,
     password,
@@ -123,7 +155,8 @@ async function register(body) {
   }
 
   const resolvedMachineId = (machineId && String(machineId).trim()) || 'unknown';
-  const resolvedClientIP = (clientIP && String(clientIP).trim()) || '0.0.0.0';
+  const resolvedClientIP = resolveRegisterClientIP(clientIP, opts.requestIp);
+  const cooldownHours = parseRegisterCooldownHours();
 
   if (id === SYSTEM_ACCOUNT_ID) {
     return { ok: false, status: 400, error: '该ID不可注册' };
@@ -134,46 +167,20 @@ async function register(body) {
     return { ok: false, status: 400, error: '该游戏ID已被注册，请返回重新选择ID' };
   }
 
-  if (resolvedMachineId !== 'unknown') {
-    const [sameMachine] = await pool.query(
-      'SELECT id FROM accounts WHERE machineId = ? LIMIT 1',
-      [resolvedMachineId]
-    );
-    if (sameMachine.length > 0) {
-      return {
-        ok: false,
-        status: 409,
-        error: '本浏览器已绑定游戏账号，请使用已有账号登录',
-      };
-    }
+  if (await findAccountRegisteredWithinCooldown('machineId', resolvedMachineId, cooldownHours)) {
+    return {
+      ok: false,
+      status: 429,
+      error: '该设备在冷却期内已注册过账号，请使用已有账号登录或稍后再试',
+    };
   }
 
-  /** 同一浏览器指纹在冷却期内仅允许注册一次（见 .env REGISTER_MACHINE_COOLDOWN_HOURS；0=关闭）。不依赖外网 IP，减轻 NAT/校园网误伤。 */
-  const machineCooldownHours = parseInt(process.env.REGISTER_MACHINE_COOLDOWN_HOURS ?? '720', 10);
-  if (machineCooldownHours > 0 && resolvedMachineId && resolvedMachineId !== 'unknown') {
-    const [recentSame] = await pool.query(
-      `SELECT id FROM accounts WHERE machineId = ? AND registeredAt > DATE_SUB(NOW(), INTERVAL ? HOUR) LIMIT 1`,
-      [resolvedMachineId, machineCooldownHours]
-    );
-    if (recentSame.length > 0) {
-      return {
-        ok: false,
-        status: 429,
-        error: '该设备在冷却期内已注册过账号，请使用已有账号登录',
-      };
-    }
-  }
-
-  const [sameClientIp] = await pool.query(
-    'SELECT id FROM accounts WHERE clientIP = ? LIMIT 1',
-    [resolvedClientIP]
-  );
-  if (sameClientIp.length > 0) {
-    const ipMsg =
-      resolvedClientIP === '0.0.0.0'
-        ? '未上报网络地址且占位地址已被占用，无法重复注册；请使用已有账号登录'
-        : '当前网络环境下已有账号注册记录，请使用已有账号登录';
-    return { ok: false, status: 409, error: ipMsg };
+  if (await findAccountRegisteredWithinCooldown('clientIP', resolvedClientIP, cooldownHours)) {
+    return {
+      ok: false,
+      status: 429,
+      error: '当前网络在冷却期内已注册过账号，请使用已有账号登录或稍后再试',
+    };
   }
 
   const hashedPassword = await bcrypt.hash(password, BCRYPT_ROUNDS);

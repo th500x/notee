@@ -267,7 +267,7 @@ function peekChallenge(challengeId) {
 /**
  * 披挂攻城：服务端权威结算完成后挂载结果，供防守方轮询
  * @param {string} challengeId
- * @param {object} payload resolveAuthoritativeSiegePvp 产出
+ * @param {object} payload resolveAuthoritativeGarrisonAutoDuel 产出
  */
 function markSiegeResolved(challengeId, payload) {
   const c = challenges.get(challengeId);

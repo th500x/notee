@@ -51,7 +51,7 @@
 
 import { useState } from 'react';
 import PropTypes from 'prop-types';
-import { parseEnhanceSlots, getEnhanceSlotDisplay } from '@shared/utils/characterEnhanceCombat';
+import { parseEchoSlots, getEchoSlotDisplay } from '@shared/utils/characterEchoCombat';
 
 /**
  * 稀有度配置
@@ -111,8 +111,8 @@ function parseTroopAffinityString(affinityStr) {
   return affinities;
 }
 
-function EnhanceSlotBadge({ slot, slotIndex, activeTooltip, setActiveTooltip }) {
-  const display = getEnhanceSlotDisplay(slot, slotIndex);
+function EchoSlotBadge({ slot, slotIndex, activeTooltip, setActiveTooltip }) {
+  const display = getEchoSlotDisplay(slot, slotIndex);
   const tooltipKey = `enhance_slot_${slotIndex}`;
   const baseClass = display.locked
     ? 'border-stone-400 bg-stone-200/70 text-stone-500'
@@ -249,7 +249,7 @@ function CharacterCard({
   const [isFlipped, setIsFlipped] = useState(false);
   const [activeTooltip, setActiveTooltip] = useState(null);
   const rarityConfig = getRarityConfig(character.rarity);
-  const enhanceSlots = parseEnhanceSlots(character.characterEnhanceSlots);
+  const echoSlots = parseEchoSlots(character.characterEchoSlots);
 
   // 解析属性加成（×10存储，显示时除以10）
   const ab = character.attributeBonus || {};
@@ -599,8 +599,8 @@ function CharacterCard({
                 <span className="text-cyan-400 text-xs">⚡</span>
                 <span className="text-gray-700 text-xs font-medium">特性</span>
               </div>
-              <EnhanceSlotBadge
-                slot={enhanceSlots[0]}
+              <EchoSlotBadge
+                slot={echoSlots[0]}
                 slotIndex={0}
                 activeTooltip={activeTooltip}
                 setActiveTooltip={setActiveTooltip}
@@ -710,15 +710,15 @@ function CharacterCard({
         )}
 
         {/* 技能区域 */}
-        {showDetails && (character.skills?.length > 0 || enhanceSlots[1]) && (
+        {showDetails && (character.skills?.length > 0 || echoSlots[1]) && (
           <div className="relative px-4 py-1 border-t-2 border-gray-400/40">
             <div className="flex items-center justify-between gap-1 mb-0.5">
               <div className="flex items-center gap-1 min-w-0">
                 <span className="text-purple-400 text-xs">⚔️</span>
                 <span className="text-gray-700 text-xs font-medium">技能</span>
               </div>
-              <EnhanceSlotBadge
-                slot={enhanceSlots[1]}
+              <EchoSlotBadge
+                slot={echoSlots[1]}
                 slotIndex={1}
                 activeTooltip={activeTooltip}
                 setActiveTooltip={setActiveTooltip}
@@ -776,8 +776,8 @@ function CharacterCard({
                 <span className="text-amber-400 text-xs">🔗</span>
                 <span className="text-gray-700 text-xs font-medium">羁绊</span>
               </div>
-              <EnhanceSlotBadge
-                slot={enhanceSlots[2]}
+              <EchoSlotBadge
+                slot={echoSlots[2]}
                 slotIndex={2}
                 activeTooltip={activeTooltip}
                 setActiveTooltip={setActiveTooltip}

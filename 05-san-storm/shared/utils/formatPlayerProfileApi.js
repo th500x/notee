@@ -100,8 +100,8 @@ export function formatPlayerCardForProfileApi(card) {
     rarity: rest.rarity,
     currentTroops: rest.current_troops,
     morale: rest.morale,
-    characterEnhanceSlots: (() => {
-      const raw = rest.character_enhance_slots ?? rest.characterEnhanceSlots;
+    characterEchoSlots: (() => {
+      const raw = rest.character_echo_slots ?? rest.characterEchoSlots;
       if (raw == null) return null;
       if (typeof raw === 'string') {
         try {

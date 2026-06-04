@@ -11,6 +11,7 @@ const BATTLE_TYPES = [
   'pvp_field',
   'pvp_siege',
   'pvp_defense',
+  'pvp_tactical_duel',
   'pve_campaign',
   'pve_event',
   'pve_siege',

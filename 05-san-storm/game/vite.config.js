@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
+import { gameSpaFallbackPlugin } from './vite.spaFallback.js';
 
 /** `npm run build:vps` 时开启：压低 Rollup 并行，减轻 rendering chunks 内存峰值 */
 const lowMemBuild = process.env.VITE_LOW_MEM_BUILD === '1';
@@ -15,26 +16,7 @@ const rollupParallelOps = lowMemBuild
 export default defineConfig({
   publicDir: path.resolve(__dirname, '../public'),
   plugins: [
-    // SPA子路由回退：确保 /05-san-storm/game/san_1 等不带尾部斜杠的路径也能正确回退到 index.html
-    {
-      name: 'spa-fallback',
-      configureServer(server) {
-        const base = '/05-san-storm/game/';
-        server.middlewares.use((req, res, next) => {
-          // 只处理 base 路径下、非静态资源的 GET 请求
-          if (
-            req.method === 'GET' &&
-            req.url.startsWith(base) &&
-            !req.url.includes('.') &&
-            !req.url.startsWith(base + '@') &&
-            !req.url.startsWith(base + 'node_modules')
-          ) {
-            req.url = base;
-          }
-          next();
-        });
-      }
-    },
+    gameSpaFallbackPlugin(),
     react(),
   ],
   base: '/05-san-storm/game/',

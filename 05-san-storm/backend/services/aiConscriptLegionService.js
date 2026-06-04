@@ -2,7 +2,7 @@
  * 征发 AI 军团 · 前军 / 后军模拟战（11-3 §5.4 / §5.5.2 · 实装段3）
  *
  * **临时方案（M2）**：从攻方势力可抽卡池随机抽 5 张部队卡，对目标城 NPC/驻地守军
- * 4 张一批进行服务端 `runSiegePvpSkirmish` 快速结算；不写 `battles` 行，战果写入
+ * 4 张一批进行服务端 `runPvpAutoDuel` 快速结算；不写 `battles` 行，战果写入
  * `factionBulletinService`（category=war）。
  *
  * **未来（11-2 LEGION）**：改由 AI 君主专属军团（20 人编制）提供阵容，本模块仅切换数据源。
@@ -17,7 +17,7 @@ const cityService = require('./cityService');
 const factionPolicyService = require('./factionPolicyService');
 const warPhaseService = require('./warPhaseService');
 const WarPvp = require('../models/WarPvp');
-const { runSiegePvpSkirmish } = require('./siegePvpSkirmish');
+const { runPvpAutoDuel } = require('./pvp/auto-duel/pvpAutoDuelSim');
 
 const ASSAULT_ATTACKER_SLOTS = 5;
 const ASSAULT_DEFENDER_SLOTS = 4;
@@ -48,7 +48,7 @@ async function loadSmallMapEnemyRosterEsm() {
 }
 
 /**
- * 将 `config_troops` 行转为 `runSiegePvpSkirmish` 用 NPC 形状。
+ * 将 `config_troops` 行转为 `runPvpAutoDuel` 用 NPC 形状。
  *
  * @param {object} troop
  * @param {object|null} character
@@ -275,7 +275,7 @@ async function runConscriptAssaultWindow(war, assaultKind) {
       if (!defenders.length) break;
 
       const seed = `conscript|${war.pvpWarId}|${assaultKind}|${n}|${Date.now()}`;
-      const sim = runSiegePvpSkirmish(attackerRoster, defenders, seed, {
+      const sim = runPvpAutoDuel(attackerRoster, defenders, seed, {
         cityDefense: city?.defense ?? 100,
       });
       battlesRun += 1;

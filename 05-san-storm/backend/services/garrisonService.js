@@ -661,6 +661,6 @@ module.exports = {
   getGarrisonSlotAttributeBonusByChar:               garrisonBuildService.getGarrisonSlotAttributeBonusByChar,
   buildDefenseUnits:                                 garrisonBuildService.buildDefenseUnits,
   buildDefenseUnitsFromMainLineup:                   garrisonBuildService.buildDefenseUnitsFromMainLineup,
-  applyAuthoritativeSiegePvpAttackerLineupCasualties: garrisonBuildService.applyAuthoritativeSiegePvpAttackerLineupCasualties,
+  applyAuthoritativePvpAutoDuelAttackerLineupCasualties: garrisonBuildService.applyAuthoritativePvpAutoDuelAttackerLineupCasualties,
   mapBuiltUnitsToSiegeNpcFormat:                     garrisonBuildService.mapBuiltUnitsToSiegeNpcFormat,
 };

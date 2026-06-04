@@ -33,7 +33,8 @@ import {
   poolDrawHasRarityLimitCompensation,
   poolDrawResultModalTitle,
 } from '@/utils/poolDrawCompensationUi';
-import DuplicateEnhanceChoiceModal from '@/components/game/DuplicateEnhanceChoiceModal';
+import EchoChoiceModal from '@/components/game/EchoChoiceModal';
+import { formatLegendaryProbPercent } from '@/utils/factionLegendaryReserveDisplay';
 
 const poolDebug = import.meta.env.DEV;
 
@@ -47,18 +48,17 @@ function countByRarity(cards) {
 }
 
 const RARITY_ORDER = { core: 4, legendary: 3, epic: 2, rare: 1, common: 0 };
-const PROB_DISPLAY = { legendary: '5%', epic: '10%', rare: '30%', common: '55%' };
 const rarityLabel = { common: '普通', rare: '稀有', epic: '史诗', legendary: '传奇' };
 
-/** 抽屉标题旁 · 卡池机制一句话（21-1 重复增强 / 22-1 老兵） */
+/** 抽屉标题旁 · 卡池机制一句话（21-1 残影 / 22-1 老兵） */
 const POOL_MECHANIC_HINT = {
-  character: '重复已拥有将领可三选一：强攻/坚守增强或转化；卡池增强最多 2 槽',
+  character: '重复已拥有将领可三选一：强攻/坚守残影或转化；卡池残影最多 2 槽',
   troop: '传奇·核心部队战后累计达阈值可晋升老兵，roll 全属性永久加成',
 };
 
 export default function CardPoolDrawer({
-  poolType, status, loading, choiceLoading, drawResult, duplicateChoiceError, error, skillsMap, factionId, playerSilver,
-  onDraw, onClearResult, onClose, onRefreshStatus, onResolveDuplicateChoice, onAfterDuplicateChoice,
+  poolType, status, loading, choiceLoading, drawResult, echoChoiceError, error, skillsMap, factionId, playerSilver,
+  onDraw, onClearResult, onClose, onRefreshStatus, onResolveEchoChoice, onAfterEchoChoice, onResumePendingEcho,
 }) {
   const baseUrl = import.meta.env.BASE_URL;
   const inventoryCards = useCards();
@@ -79,6 +79,19 @@ export default function CardPoolDrawer({
   );
 
   const poolStatus = status?.[poolType];
+  const probDisplay = useMemo(() => {
+    const probs = poolStatus?.probabilities || status?.probabilities;
+    if (!probs) {
+      return { legendary: '5%', epic: '10%', rare: '30%', common: '55%' };
+    }
+    return {
+      legendary: formatLegendaryProbPercent(probs.legendary),
+      epic: formatLegendaryProbPercent(probs.epic),
+      rare: formatLegendaryProbPercent(probs.rare),
+      common: formatLegendaryProbPercent(probs.common),
+    };
+  }, [poolStatus?.probabilities, status?.probabilities]);
+  const legendaryQuota = poolStatus?.legendaryQuota ?? 0;
   const nowTick = useCountdownTicker(!!poolType, 60_000);
   const nextDrawRefreshAt = useMemo(
     () => getNextCardPoolDrawRefreshAt(new Date(nowTick)),
@@ -223,12 +236,19 @@ export default function CardPoolDrawer({
     loadPoolCards();
   }, [loadPoolCards]);
 
+  /** 仅打开将领卡池时恢复 pending 三选一（部队卡池不触发） */
+  useEffect(() => {
+    if (poolType !== 'character') return;
+    if (typeof onResumePendingEcho !== 'function') return;
+    onResumePendingEcho();
+  }, [poolType, onResumePendingEcho, status?.pendingEchoChoice?.pendingEchoDrawId]);
+
   useEffect(() => {
     if (drawResult?.success) {
       setShowResult(true);
-      onRefreshStatus();
+      onRefreshStatus?.();
     }
-  }, [drawResult]);
+  }, [drawResult, onRefreshStatus]);
 
   const poolCardsMapForDup = useMemo(() => {
     const m = {};
@@ -236,9 +256,9 @@ export default function CardPoolDrawer({
     return m;
   }, [displayPoolCards]);
 
-  const pendingDuplicateCard = useMemo(() => {
-    if (!drawResult?.duplicateChoiceRequired || !Array.isArray(drawResult.cards)) return null;
-    const card = drawResult.cards.find((c) => c.duplicateChoiceRequired) || drawResult.cards[0];
+  const pendingEchoCard = useMemo(() => {
+    if (!drawResult?.echoChoiceRequired || !Array.isArray(drawResult.cards)) return null;
+    const card = drawResult.cards.find((c) => c.echoChoiceRequired) || drawResult.cards[0];
     if (!card?.cardId) return null;
     return poolCardsMapForDup[card.cardId] || {
       id: card.cardId,
@@ -247,17 +267,27 @@ export default function CardPoolDrawer({
     };
   }, [drawResult, poolCardsMapForDup]);
 
-  const handleDuplicateChoice = useCallback(async (choice) => {
-    if (typeof onResolveDuplicateChoice !== 'function') return;
-    const res = await onResolveDuplicateChoice(choice);
-    if (res?.success) {
-      if (typeof onAfterDuplicateChoice === 'function') {
-        await onAfterDuplicateChoice(res);
-      }
-      setShowResult(false);
-      onClearResult();
+  const handleEchoConfirm = useCallback(async (choice) => {
+    if (!choice || typeof onResolveEchoChoice !== 'function') return;
+    const pendingId = drawResult?.pendingEchoDrawId ?? status?.pendingEchoChoice?.pendingEchoDrawId;
+    const res = await onResolveEchoChoice(choice, pendingId);
+    if (!res?.success) return;
+    if (typeof onAfterEchoChoice === 'function') {
+      await onAfterEchoChoice(res);
     }
-  }, [onResolveDuplicateChoice, onAfterDuplicateChoice, onClearResult]);
+    setShowResult(false);
+    onClearResult();
+    if (typeof onRefreshStatus === 'function') {
+      await onRefreshStatus();
+    }
+  }, [
+    onResolveEchoChoice,
+    onAfterEchoChoice,
+    onClearResult,
+    onRefreshStatus,
+    drawResult?.pendingEchoDrawId,
+    status?.pendingEchoChoice?.pendingEchoDrawId,
+  ]);
 
   // 按稀有度分组
   const grouped = {};
@@ -273,9 +303,14 @@ export default function CardPoolDrawer({
 
   // 用实时银两（来自PlayerContext）判断是否可抽取
   const currentSilver = playerSilver ?? status?.silver ?? 0;
-  const canDraw = !loading && (poolStatus?.remainingDraws ?? 0) > 0
-    && currentSilver >= (status?.drawCost ?? 40);
-  const costLabel = status?.drawCost ?? 40;
+  const nextDrawCost = poolStatus?.nextDrawCost ?? status?.drawCostTiers?.[0]?.cost ?? 30;
+  const pendingEchoBlocking = poolType === 'character' && (
+    !!status?.pendingEchoChoice?.pendingEchoDrawId
+    || !!drawResult?.echoChoiceRequired
+  );
+  const canDraw = !loading && !pendingEchoBlocking && (poolStatus?.remainingDraws ?? 0) > 0
+    && nextDrawCost != null && currentSilver >= nextDrawCost;
+  const costLabel = nextDrawCost ?? '—';
 
   return (
     <>
@@ -346,7 +381,7 @@ export default function CardPoolDrawer({
             <div key={r} className="flex items-center gap-1">
               <div className="w-2 h-2 rounded-full" style={{ backgroundColor: RARITY_COLORS[r] }} />
               <span className="text-stone-400 text-[10px]">{RARITY_LABELS[r]}</span>
-              <span className="text-stone-500 text-[10px]">{PROB_DISPLAY[r]}</span>
+              <span className="text-stone-500 text-[10px]">{probDisplay[r]}</span>
             </div>
           ))}
         </div>
@@ -424,6 +459,9 @@ export default function CardPoolDrawer({
 
         {/* 底部固定：保底进度 + 抽取按钮 */}
         <div className="flex-shrink-0 border-t border-stone-700 bg-stone-900 px-4 py-3">
+          <p className="mb-2 text-[10px] leading-snug text-stone-500 text-center">
+            势力{poolType === 'troop' ? '部队' : '将领'}传奇储备 {legendaryQuota} 张 · 概率随储备变化（0 张时自然传奇 0%）
+          </p>
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
               <span className="text-stone-400 text-xs">🎯 传奇保底</span>
@@ -434,7 +472,7 @@ export default function CardPoolDrawer({
             <div className="flex flex-wrap items-center justify-end gap-x-2 gap-y-0.5 max-w-[62%]">
               <span className="text-stone-400 text-xs shrink-0">今日剩余</span>
               <span className={`text-xs font-bold tabular-nums shrink-0 ${(poolStatus?.remainingDraws ?? 0) > 0 ? 'text-green-400' : 'text-red-400'}`}>
-                {poolStatus?.remainingDraws ?? 0}/{poolStatus?.dailyLimit ?? 5}
+                {poolStatus?.remainingDraws ?? 0}/{poolStatus?.dailyLimit ?? 10}
               </span>
               <span
                 className="text-[10px] tabular-nums text-stone-500 shrink-0"
@@ -451,6 +489,11 @@ export default function CardPoolDrawer({
             />
           </div>
           {error && <div className="text-red-400 text-xs text-center mb-2">{error}</div>}
+          {pendingEchoBlocking && (
+            <div className="text-amber-300 text-xs text-center mb-2 leading-relaxed">
+              有待处理的重复将领选择，请先完成上方弹窗中的三选一
+            </div>
+          )}
           {recruitEnabled ? (
             <p className="text-[10px] text-stone-500 text-center mb-2 leading-snug">
               当前从「{poolDrawerTabLabel('character', activeDrawSeason)}」抽取（费用 / 次数 / 传奇保底共用）
@@ -483,23 +526,22 @@ export default function CardPoolDrawer({
         </div>
       )}
 
-      {/* 重复将领三选一 */}
-      {showResult && drawResult?.success && drawResult.duplicateChoiceRequired && (
-        <DuplicateEnhanceChoiceModal
-          card={pendingDuplicateCard}
-          duplicateEnhanceState={drawResult.duplicateEnhanceState}
-          pendingDuplicateDrawId={drawResult.pendingDuplicateDrawId}
+      {/* 重复将领三选一（仅将领卡池） */}
+      {poolType === 'character' && showResult && drawResult?.success && drawResult.echoChoiceRequired && (
+        <EchoChoiceModal
+          card={pendingEchoCard}
+          echoState={drawResult.echoState}
+          pendingEchoDrawId={drawResult.pendingEchoDrawId}
           skillsMap={skillsMap}
           baseUrl={baseUrl}
           loading={choiceLoading}
-          error={duplicateChoiceError}
-          onChoose={handleDuplicateChoice}
-          onClose={() => { setShowResult(false); onClearResult(); }}
+          error={echoChoiceError}
+          onConfirm={handleEchoConfirm}
         />
       )}
 
       {/* 抽取结果弹窗 */}
-      {showResult && drawResult?.success && !drawResult.duplicateChoiceRequired && (
+      {showResult && drawResult?.success && !drawResult.echoChoiceRequired && (
         <DrawResultOverlay
           poolType={poolType}
           cards={drawResult.cards}

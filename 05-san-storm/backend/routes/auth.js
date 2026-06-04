@@ -64,7 +64,7 @@ router.get('/register-candidates', registerCandidatesLimiter, async (req, res, n
  */
 router.post('/register', loginLimiter, async (req, res, next) => {
   try {
-    const result = await accountService.register(req.body);
+    const result = await accountService.register(req.body, { requestIp: req.ip });
     if (!result.ok) {
       return res.status(result.status).json({
         success: false,

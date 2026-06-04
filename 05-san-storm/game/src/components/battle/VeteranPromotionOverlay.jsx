@@ -47,11 +47,15 @@ function VeteranPromotionOverlay({ promotions, onDismiss }) {
   }, [currentIdx, promotions.length, onDismiss]);
 
   const layer = (
-    <div style={{
-      position: 'fixed', inset: 0, zIndex: 260,
-      background: 'rgba(0,0,0,0.75)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-    }}>
+    <div
+      style={{
+        position: 'fixed', inset: 0, zIndex: 260,
+        background: 'rgba(0,0,0,0.75)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}
+      role="dialog"
+      aria-modal="true"
+    >
       <div style={{
         background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)',
         border: `2px solid ${rs.border}`,
@@ -145,7 +149,7 @@ function VeteranPromotionOverlay({ promotions, onDismiss }) {
           </div>
         </div>
 
-        {/* 确认按钮 */}
+        {/* 确认按钮：须先掷骰揭示，再点确认；点击幕布不关闭 */}
         {revealed && (
           <button
             onClick={handleNext}

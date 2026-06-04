@@ -14,7 +14,10 @@ const { checkAndApplyVeteran, normalizeInstanceIds } = require('./veteranService
  * @param {Object} battleData - 战斗数据（前端camelCase → 数据库snake_case）
  * @returns {Promise<Object>} 保存的战斗记录
  */
-async function saveBattle(battleData) {
+async function saveBattle(battleData, options = {}) {
+  // options.skipStatistics：服务端调用方显式跳过 player_statistics 累加（如 PVP「阵前切磋」模拟游玩，
+  // 不计入战绩/伤害/击杀等）。**仅** 服务端入参，HTTP 路由不透传，避免客户端注入。
+  const skipStatistics = options.skipStatistics === true;
   // 17-2 §1.5：war_id（PVE）/ pvp_war_id（PVP）互斥，至多一个非空；
   // 由调用方保证，但在写入处加防御性断言避免脏挂。
   if (battleData.warId && battleData.pvpWarId) {
@@ -44,13 +47,16 @@ async function saveBattle(battleData) {
   };
 
   const created = await Battle.create(data);
-  // 与 POST /api/battles 及服务端直接 saveBattle（如攻城推演）共用：插入成功后再累加 player_statistics
-  await applyBattleStatistics(battleData.playerId, {
-    result: battleData.result,
-    totalDamageDealt: battleData.totalDamageDealt,
-    totalDamageTaken: battleData.totalDamageTaken,
-    totalKills: battleData.totalKills,
-  });
+  // 与 POST /api/battles 及服务端直接 saveBattle（如攻城推演）共用：插入成功后再累加 player_statistics。
+  // skipStatistics 时跳过（模拟游玩战报仅落库供回看，不进战绩/伤害/击杀）。
+  if (!skipStatistics) {
+    await applyBattleStatistics(battleData.playerId, {
+      result: battleData.result,
+      totalDamageDealt: battleData.totalDamageDealt,
+      totalDamageTaken: battleData.totalDamageTaken,
+      totalKills: battleData.totalKills,
+    });
+  }
   return created;
 }
 

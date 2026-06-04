@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import AncientModal from '@/components/common/AncientModal';
-import SiegeReplayMini from '@/components/game/SiegeReplayMini';
+import PvpAutoDuelReplay from '@/pvp/auto-duel/PvpAutoDuelReplay';
 import { getRarityHex, getRarityLabelCn } from '@/constants';
 import { shortEquipmentDisplayName } from '@/utils/equipmentDisplayName';
 
@@ -37,7 +37,7 @@ function AuthoritativeSiegeReplayButton({
           width="max-w-md"
         >
           <div className="-mx-2 -my-2 bg-[#1a1a2e] rounded p-2 text-left">
-            <SiegeReplayMini
+            <PvpAutoDuelReplay
               open
               onClose={() => setOpen(false)}
               battleLog={logStr}

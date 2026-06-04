@@ -1,0 +1,22 @@
+{
+  "duel_map_id": "duel_map_dev_flat",
+  "rule_profile": "balanced",
+  "generator_version": "pvp-duel.v1",
+  "seed": 1,
+  "base": {
+    "bgTheme": "grassland",
+    "forceComplexity": "simple"
+  },
+  "rules": {
+    "forbidChest": true,
+    "forbidTrap": true,
+    "objectsPerSide": {},
+    "placementZones": ["deployA", "deployB"],
+    "forbidColumns": [0, 7]
+  },
+  "canonical": {
+    "attackerDeployZone": "deployA",
+    "defenderDeployZone": "deployB"
+  },
+  "notes": "开发占位：无额外障碍；二阶段联调至首批固化图入库前使用。"
+}

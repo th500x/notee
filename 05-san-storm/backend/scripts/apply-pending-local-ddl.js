@@ -31,6 +31,11 @@ const MIGRATION_FILES_SPLIT_STATEMENTS = new Set([
   'add-faction-bulletins-category.sql',
   'add-faction-bulletins-target-city-id.sql',
   'factions-drop-reserve-columns.sql',
+  'add-temp-ranking-snapshots-updated-at.sql',
+  'add-temp-ranking-snapshots-baseline-date.sql',
+  'migrate-faction-reserve-usage-into-unified.sql',
+  'rename-character-enhance-to-echo.sql',
+  'accounts-drop-register-unique-machine-ip.sql',
 ]);
 
 async function runMigrationSql(sql, file) {
@@ -73,6 +78,8 @@ const MIGRATION_FILES = [
   'add-cities-description.sql',
   'add-temp-ranking-snapshots-updated-at.sql',
   'add-temp-ranking-snapshots-frozen-deltas.sql',
+  'rename-temp-ranking-frozen-rep-contrib-to-reputation.sql',
+  'add-temp-ranking-frozen-delta-contribution.sql',
   'add-temp-ranking-snapshots-baseline-date.sql',
   'player-garrison-composite-city-primary-key.sql',
   'cities-rename-commerce-columns-to-trading.sql',
@@ -117,6 +124,12 @@ const MIGRATION_FILES = [
   'factions-drop-reserve-columns.sql',
   'add-player-cards-character-enhance-slots.sql',
   'alter-temp-card-pool-draws-duplicate-choice.sql',
+  'rename-character-enhance-to-echo.sql',
+  'accounts-drop-register-unique-machine-ip.sql',
+  'create-pvp-tactical-rooms.sql',
+  'create-pvp-tactical-room-events.sql',
+  'alter-battles-add-pvp-tactical-duel-type.sql',
+  'add-faction-reserve-legendary-quotas.sql',
 ];
 
 function stripSqlComments(sql) {

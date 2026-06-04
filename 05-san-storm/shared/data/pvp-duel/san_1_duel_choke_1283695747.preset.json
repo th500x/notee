@@ -1,0 +1,45 @@
+{
+  "duel_map_id": "san_1_duel_choke_1283695747",
+  "rule_profile": "choke",
+  "generator_version": "pvp-duel.v1",
+  "seed": 1283695747,
+  "base": {
+    "bgTheme": "grassland",
+    "forceComplexity": "complex"
+  },
+  "rules": {
+    "forbidChest": true,
+    "forbidTrap": true,
+    "placementZones": [
+      "deployA",
+      "deployB"
+    ],
+    "forbidColumns": [
+      0,
+      7
+    ],
+    "forbidBorderRows": false,
+    "centerBand": {
+      "rows": [
+        4,
+        5
+      ],
+      "terrainBias": "forest"
+    },
+    "objectsPerSide": {
+      "deployA": {
+        "rock": 2,
+        "fence": 0
+      },
+      "deployB": {
+        "rock": 2,
+        "fence": 1
+      }
+    }
+  },
+  "canonical": {
+    "attackerDeployZone": "deployA",
+    "defenderDeployZone": "deployB"
+  },
+  "notes": "管理员页 seed=1283695747 固化；非镜像随机。"
+}

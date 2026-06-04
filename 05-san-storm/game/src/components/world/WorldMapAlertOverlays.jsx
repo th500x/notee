@@ -1,7 +1,10 @@
+import { lazy, Suspense } from 'react';
 import { createPortal } from 'react-dom';
 import AncientModal from '@/components/common/AncientModal';
-import SiegeReplayMini from '@/components/game/SiegeReplayMini';
+import PvpAutoDuelReplay from '@/pvp/auto-duel/PvpAutoDuelReplay';
 import PvpDefenseOutcomeModal from '@/components/game/PvpDefenseOutcomeModal';
+// 战术对决事件回放壳（重）：懒加载，仅当权威结果含 eventReplay.roomId 时挂（17-5-3 阶段 5）
+const PvpTacticalBattleShell = lazy(() => import('@/pvp/tactical/PvpTacticalBattleShell'));
 
 /** 大地图：PVP / 道路 / 通用提示弹层（不含战斗 portal） */
 export default function WorldMapAlertOverlays({
@@ -77,13 +80,25 @@ export default function WorldMapAlertOverlays({
         <PvpDefenseOutcomeModal outcome={pvpDefenseOutcome} onClose={onPvpDefenseOutcomeClose} />
       )}
 
+      {/* 攻方权威回放：有事件房间 → 全屏事件回放壳；关闭后进结算（17-5-3 阶段 5）。否则退回旧简化回放。 */}
+      {authoritativeReplayOverlay && authoritativeReplayOverlay.eventReplayRoomId && (
+        <Suspense fallback={null}>
+          <PvpTacticalBattleShell
+            roomId={authoritativeReplayOverlay.eventReplayRoomId}
+            title={authoritativeReplayOverlay.eventReplayTitle || '战术对决'}
+            onClose={authoritativeReplayOverlay.onPlaybackComplete || onAuthoritativeReplayClose}
+          />
+        </Suspense>
+      )}
+
       {typeof document !== 'undefined' &&
         authoritativeReplayOverlay &&
+        !authoritativeReplayOverlay.eventReplayRoomId &&
         createPortal(
           <div className="pointer-events-auto fixed inset-0 z-[235] flex items-center justify-center bg-black/85 px-3 py-6">
             <div className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-xl border border-amber-600/40 bg-[#12121e] p-3 shadow-2xl">
               <div className="text-center text-amber-200/95 text-sm font-bold mb-2">战场演示</div>
-              <SiegeReplayMini
+              <PvpAutoDuelReplay
                 open
                 battleLog={authoritativeReplayOverlay.battleLogStr}
                 leftLabel={authoritativeReplayOverlay.leftLabel || '攻方'}

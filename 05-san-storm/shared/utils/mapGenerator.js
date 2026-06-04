@@ -33,6 +33,7 @@ const TERRAIN = {
   FOREST: 'forest',
   HILL:   'hill',
   WASTE:  'waste',   // 荒地作为交战区点缀（视觉变化，无特殊效果）
+  RIVER:  'river',   // 河道（战术/战略层不可通行；贴图 river_01）
 };
 
 // 地形权重（交战区）
@@ -269,7 +270,7 @@ function generateTerrain(rng, complexity) {
 /**
  * 生成 Objects 层
  */
-function generateObjects(rng, grid, occupiedCells, complexity, battleRarity) {
+function generateObjects(rng, grid, occupiedCells, complexity, battleRarity, skipChest = false) {
   const objects = [];
   const objectPositions = []; // 已放置对象的坐标
 
@@ -314,8 +315,8 @@ function generateObjects(rng, grid, occupiedCells, complexity, battleRarity) {
     }
   }
 
-  // 宝箱（20%概率，放在交战区中央）
-  if (rng.chance(0.20)) {
+  // 宝箱（20%概率，放在交战区中央；PvP 等场景可 skipChest）
+  if (!skipChest && rng.chance(0.20)) {
     const chestCandidates = [];
     for (const y of [4, 5]) {
       for (let x = 2; x <= 5; x++) {
@@ -352,12 +353,17 @@ function generateObjects(rng, grid, occupiedCells, complexity, battleRarity) {
  * @param {number|null} options.seed          - 随机种子（null = 随机，可用于复现地图）
  * @param {string}      options.battleRarity  - 战斗稀有度（影响宝箱奖励）
  * @param {string|null} options.bgTheme       - 底色主题 'grassland'|'wasteland'|null（null=随机）
+ * @param {'simple'|'standard'|'complex'|null} options.forceComplexity - 固定复杂度（null=按权重随机）
+ * @param {boolean} options.skipChest         - 不生成宝箱（PvP 对决等）
  * @returns {MapGenerationResult}
  */
 export function generateSmallMap({
-  seed         = null,
-  battleRarity = 'common',
-  bgTheme      = null,
+  seed             = null,
+  battleRarity     = 'common',
+  bgTheme          = null,
+  /** @type {'simple'|'standard'|'complex'|null} */
+  forceComplexity  = null,
+  skipChest        = false,
 } = {}) {
   const rng = new SeededRandom(seed);
 
@@ -375,13 +381,16 @@ export function generateSmallMap({
   };
 
   // ── 2. 地图复杂度 ────────────────────────────────────────────────────────
-  const complexity = pickComplexity(rng);
+  const complexity =
+    forceComplexity && ['simple', 'standard', 'complex'].includes(forceComplexity)
+      ? forceComplexity
+      : pickComplexity(rng);
 
   // ── 3. Terrain 层 ────────────────────────────────────────────────────────
   const { grid, occupiedCells } = generateTerrain(rng, complexity);
 
   // ── 4. Objects 层 ────────────────────────────────────────────────────────
-  const objects = generateObjects(rng, grid, occupiedCells, complexity, battleRarity);
+  const objects = generateObjects(rng, grid, occupiedCells, complexity, battleRarity, skipChest);
 
   // ── 5. 统计元数据 ────────────────────────────────────────────────────────
   let combatNonPlain = 0;
@@ -449,6 +458,8 @@ export function getTileLayers(terrainType, variants, isChestCell = false) {
     layers.push(`${TILE_BASE}tile_2_terrain/forest_${forest}.png`);
   } else if (terrainType === TERRAIN.HILL) {
     layers.push(`${TILE_BASE}tile_2_terrain/hill_${hill}.png`);
+  } else if (terrainType === TERRAIN.RIVER) {
+    layers.push(`${TILE_BASE}tile_2_terrain/river_01.png`);
   }
   // WASTE 和 PLAIN 只有底色层（荒地通过 bgTheme='wasteland' 体现，或作为交战区点缀时视觉上与底色相同）
 

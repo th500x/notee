@@ -87,6 +87,9 @@ export function useWorldMapStrategicBattles({
       };
       authoritativeReplayRef?.current?.setAuthoritativeReplayOverlay?.({
         battleLogStr: logStr,
+        // 17-5-3 阶段 5：有事件房间则改挂 PvpTacticalBattleShell 事件回放（旧 PvpAutoDuelReplay 退场）
+        eventReplayRoomId: d.eventReplay?.roomId || null,
+        eventReplayTitle: '道路遭遇',
         initialAttackerTroops: d.initialAttackerTroops,
         initialDefenderTroops: d.initialDefenderTroops,
         leftLabel: '攻方',

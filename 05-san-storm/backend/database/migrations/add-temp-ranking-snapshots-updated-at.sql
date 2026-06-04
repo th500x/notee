@@ -4,8 +4,10 @@
 ALTER TABLE temp_event_ranking
   ADD COLUMN updated_at DATETIME NULL DEFAULT NULL COMMENT 'row last modified' AFTER created_at;
 
+-- NOTE: 不引用 frozen_at——该列由后续 add-temp-ranking-snapshots-frozen-deltas.sql 才添加；
+--       updated_at 回填以 created_at 为基线即可（一次性补 audit 列）。
 UPDATE temp_event_ranking
-SET updated_at = COALESCE(frozen_at, created_at, CURRENT_TIMESTAMP)
+SET updated_at = COALESCE(created_at, CURRENT_TIMESTAMP)
 WHERE updated_at IS NULL;
 
 ALTER TABLE temp_event_ranking

@@ -21,8 +21,8 @@ const WAR_MORALE_CITY_MAX = 100;
 /** 初始公式版本（side_stats.warMoraleInit.formulaVersion） */
 const WAR_MORALE_FORMULA_VERSION = 1;
 
-/** 披挂 / 驻地 skirmish 零和增量 */
-const WAR_MORALE_SKIRMISH_DELTA = 1;
+/** 披挂 / 驻地 自动对决零和增量 */
+const WAR_MORALE_AUTO_DUEL_DELTA = 1;
 
 function clampCityCount(raw) {
   const n = Math.floor(Number(raw) || 0);
@@ -56,15 +56,15 @@ function computeInitialWarMoralePair(attackerCityCount, defenderCityCount) {
  * @param {boolean} attackerWon
  * @returns {{ attackerWarMorale: number, defenderWarMorale: number }}
  */
-function applySkirmishWarMoraleDelta(attackerWarMorale, defenderWarMorale, attackerWon) {
+function applyPvpAutoDuelMoraleDelta(attackerWarMorale, defenderWarMorale, attackerWon) {
   let att = Math.round(Number(attackerWarMorale) || 0);
   let def = Math.round(Number(defenderWarMorale) || 0);
   if (attackerWon) {
-    att += WAR_MORALE_SKIRMISH_DELTA;
-    def -= WAR_MORALE_SKIRMISH_DELTA;
+    att += WAR_MORALE_AUTO_DUEL_DELTA;
+    def -= WAR_MORALE_AUTO_DUEL_DELTA;
   } else {
-    att -= WAR_MORALE_SKIRMISH_DELTA;
-    def += WAR_MORALE_SKIRMISH_DELTA;
+    att -= WAR_MORALE_AUTO_DUEL_DELTA;
+    def += WAR_MORALE_AUTO_DUEL_DELTA;
   }
   att = Math.max(0, Math.min(WAR_MORALE_MAX, att));
   def = WAR_MORALE_POOL - att;
@@ -108,11 +108,11 @@ function buildWarMoraleInitSnapshot(attackerCityCount, defenderCityCount) {
 module.exports = {
   WAR_MORALE_MAX,
   WAR_MORALE_POOL,
-  WAR_MORALE_SKIRMISH_DELTA,
+  WAR_MORALE_AUTO_DUEL_DELTA,
   WAR_MORALE_FORMULA_VERSION,
   clampCityCount,
   computeInitialWarMoralePair,
-  applySkirmishWarMoraleDelta,
+  applyPvpAutoDuelMoraleDelta,
   resolveWarMoraleRaceWinner,
   hasWarMoraleInit,
   buildWarMoraleInitSnapshot,

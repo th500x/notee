@@ -2,6 +2,8 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { lazy, Suspense } from 'react';
 import ErrorBoundary from '@shared/components/common/ErrorBoundary';
 import { useAdmin } from '@/hooks/useAdmin';
+import { isAdminDevBypassAllowed } from '@/utils/adminDevBypass';
+import AdminEnvQueryToggle from '@/components/admin/AdminEnvQueryToggle';
 import { weeklyReportCard } from '@/data/texts/weeklyReport';
 
 const AuthFlowPage = lazy(() => import('@/pages/AuthFlowPage'));
@@ -10,8 +12,10 @@ const UserManagerPage = lazy(() => import('@/pages/admin/UserManagerPage'));
 const MailManagerPage = lazy(() => import('@/pages/admin/MailManagerPage'));
 const ActivityManagerPage = lazy(() => import('@/pages/admin/ActivityManagerPage'));
 const CampaignMapGeneratorManagerPage = lazy(() => import('@/pages/admin/CampaignMapGeneratorManagerPage'));
+const PvpDuelMapGeneratorManagerPage = lazy(() => import('@/pages/admin/PvpDuelMapGeneratorManagerPage'));
 const JunCountyMapGeneratorManagerPage = lazy(() => import('@/pages/admin/JunCountyMapGeneratorManagerPage'));
 const BattleAnimationDemoPage = lazy(() => import('@/pages/BattleAnimationDemoPage'));
+const AdminEnvTogglePage = lazy(() => import('@/pages/admin/AdminEnvTogglePage'));
 
 function RouteLoading() {
   return (
@@ -24,13 +28,13 @@ function RouteLoading() {
 
 function App() {
   const { isLoggedIn, devBypass, toggleDevBypass } = useAdmin();
-  const showDevToggle = !import.meta.env.PROD;
 
   return (
     <Router
       basename="/05-san-storm/game"
       future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
     >
+      <AdminEnvQueryToggle />
       <div className="min-h-screen bg-gray-50">
         <header className="bg-white shadow-sm border-b">
           <div className="max-w-7xl mx-auto px-4 py-6">
@@ -108,28 +112,39 @@ function App() {
                       <h3 className="text-lg font-semibold text-gray-900 mb-2 text-center">战役地图</h3>
                       <p className="text-sm text-gray-600 text-center">preset · 随机 seed · 固化 JSON</p>
                     </a>
+                    <a href={`${import.meta.env.BASE_URL}pvp-duel-map-manager`} className="block bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow cursor-pointer h-full flex flex-col border-2 border-rose-200">
+                      <div className="text-4xl mb-4 text-center">⚔️</div>
+                      <h3 className="text-lg font-semibold text-gray-900 mb-2 text-center">对决地图</h3>
+                      <p className="text-sm text-gray-600 text-center">8×10 · rule_profile · 固化 JSON</p>
+                    </a>
                     <a href={`${import.meta.env.BASE_URL}three-kingdoms-map`} className="block bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow cursor-pointer h-full flex flex-col border-2 border-sky-200">
                       <div className="text-4xl mb-4 text-center">🧭</div>
                       <h3 className="text-lg font-semibold text-gray-900 mb-2 text-center">三国地图</h3>
                       <p className="text-sm text-gray-600 text-center">郡象限 · 颍川 A · 底板与城点（测试）</p>
                     </a>
-                    {showDevToggle && (
                     <button
                       type="button"
-                      onClick={toggleDevBypass}
-                      className="block bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow cursor-pointer h-full flex flex-col border-2 border-violet-200 text-left w-full"
+                      disabled={!isAdminDevBypassAllowed}
+                      onClick={isAdminDevBypassAllowed ? toggleDevBypass : undefined}
+                      className="block bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow h-full flex flex-col border-2 border-violet-200 text-left w-full disabled:opacity-70 disabled:cursor-default"
+                      title={
+                        isAdminDevBypassAllowed
+                          ? undefined
+                          : '生产构建不可切换开发 bypass；本地请用 npm run dev'
+                      }
                     >
                       <div className="text-4xl mb-4 text-center">{devBypass ? '🛠️' : '🏭'}</div>
                       <h3 className="text-lg font-semibold text-gray-900 mb-2 text-center">
                         {devBypass ? '开发环境' : '生产环境'}
                       </h3>
                       <p className="text-sm text-gray-600 text-center">
-                        {devBypass
-                          ? '已跳过管理员登录；点击切换为生产环境'
-                          : '当前为生产模式；点击切换为开发环境'}
+                        {isAdminDevBypassAllowed
+                          ? devBypass
+                            ? '已跳过管理员登录；点击切换为生产环境'
+                            : '当前为生产模式；点击切换为开发环境'
+                          : '当前为生产构建；须主站管理员 JWT；本地 dev 服可切换 bypass'}
                       </p>
                     </button>
-                    )}
                     </>
                   )}
                 </div>
@@ -143,8 +158,10 @@ function App() {
             <Route path="/activity-manager" element={<ActivityManagerPage />} />
             <Route path="/campaign-map-demo" element={<Navigate to="/campaign-map-manager" replace />} />
             <Route path="/campaign-map-manager" element={<CampaignMapGeneratorManagerPage />} />
+            <Route path="/pvp-duel-map-manager" element={<PvpDuelMapGeneratorManagerPage />} />
             <Route path="/three-kingdoms-map" element={<JunCountyMapGeneratorManagerPage />} />
             <Route path="/battle-animation-demo" element={<BattleAnimationDemoPage />} />
+            <Route path="/admin-env-toggle" element={<AdminEnvTogglePage />} />
 
           </Routes>
           </Suspense>

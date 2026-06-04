@@ -13,6 +13,7 @@ const garrisonService = require('./garrisonService');
 const statisticsDeltaService = require('./statisticsDeltaService');
 const smallMapBattleLootService = require('./smallMapBattleLootService');
 const factionBulletinService = require('./factionBulletinService');
+const aiKingConfigService = require('./aiKingConfigService');
 const gameTimeService = require('./gameTimeService');
 const warInitiationCostService = require('./warInitiationCostService');
 const { KILL_SILVER_REWARD } = require('../../shared/utils/siegeKillEconomyByRarity.cjs');
@@ -361,7 +362,7 @@ function peelRegionJoinFromRow(raw) {
 
   const hasPlayerLord =
     raw.lord_player_id != null && String(raw.lord_player_id).trim() !== '';
-  /** 已任命玩家长官 → 用玩家角色名；缺名时回退种子默认。未任命 → 用 initial_lord_character_id 对应配置名 */
+  /** 玩家长官 → 角色名；否则种子默认长官（仅开服/import，易主后已清空）→ 无则 null，前端「暂无」 */
   const lordCharacterName = hasPlayerLord ? playerLordName || initialLordName : initialLordName;
 
   const {
@@ -372,6 +373,70 @@ function peelRegionJoinFromRow(raw) {
     ...base
   } = raw;
   return { base, zhouName, junName, lordCharacterName };
+}
+
+/**
+ * 解析势力君主将领 id（AI 君主优先 ai-kings.json，否则 config_factions.faction_leader）。
+ * @param {*} connection
+ * @param {string} factionId
+ * @param {string} season
+ * @returns {Promise<string|null>}
+ */
+async function resolveFactionMonarchCharacterId(connection, factionId, season) {
+  if (!factionId || String(factionId).trim() === '') return null;
+  if (aiKingConfigService.hasKingForFaction(factionId)) {
+    return aiKingConfigService.getKingByFactionId(factionId).characterId;
+  }
+  const [rows] = await connection.query(
+    `SELECT faction_leader FROM config_factions WHERE faction_id = ? AND season = ? LIMIT 1`,
+    [factionId, season],
+  );
+  const leader = rows[0]?.faction_leader;
+  return leader != null && String(leader).trim() !== '' ? String(leader).trim() : null;
+}
+
+/**
+ * 城池易主（PVE / PVP 共用）：写入新势力、清空 NPC 编制，并重置长官。
+ * 中城/大城：`initial_lord_character_id` 设为新势力君主将领 id（展示用；`lord_player_id` 仍空）。
+ * 小城/关隘/据点：长官清空（「暂无」），待玩家长官任命 API。
+ *
+ * @param {*} connection - pool 或事务 connection
+ * @param {string} cityId
+ * @param {string} newFactionId
+ */
+async function applyCityOwnershipHandoff(connection, cityId, newFactionId) {
+  const [cityRows] = await connection.query(
+    'SELECT city_type, season FROM cities WHERE city_id = ? LIMIT 1',
+    [cityId],
+  );
+  const cityRow = cityRows[0];
+  if (!cityRow) {
+    throw new Error(`[CityService] 易主失败：城市不存在 ${cityId}`);
+  }
+
+  const isMajorOrMedium =
+    cityRow.city_type === 'city_major' || cityRow.city_type === 'city_medium';
+  let nextInitialLord = null;
+  if (isMajorOrMedium) {
+    nextInitialLord = await resolveFactionMonarchCharacterId(
+      connection,
+      newFactionId,
+      cityRow.season,
+    );
+  }
+
+  await connection.query(
+    `UPDATE cities SET
+       faction_id = ?,
+       status = 'owned',
+       npc_garrison = NULL,
+       npc_garrison_alive = 0,
+       lord_player_id = NULL,
+       lord_appointed_at = CASE WHEN ? IS NOT NULL THEN NOW() ELSE NULL END,
+       initial_lord_character_id = ?
+     WHERE city_id = ?`,
+    [newFactionId, nextInitialLord, nextInitialLord, cityId],
+  );
 }
 
 /**
@@ -926,11 +991,7 @@ async function recordSiegeResult(warId, playerId, factionId, killedIndices, resu
 
       await garrisonService.stripGarrisonOnCityConquest(connection, war.target_city_id, winnerFaction);
 
-      // 更新城市归属
-      await connection.query(
-        "UPDATE cities SET faction_id = ?, status = 'owned', npc_garrison = NULL, npc_garrison_alive = 0 WHERE city_id = ?",
-        [winnerFaction, war.target_city_id]
-      );
+      await applyCityOwnershipHandoff(connection, war.target_city_id, winnerFaction);
 
       siegeCompleted = true;
     }
@@ -1410,4 +1471,7 @@ module.exports = {
   MAX_CONCURRENT_PVE_WARS_PER_ATTACKER_FACTION,
   /** 供 `pvpWarService` 等复用：据点 PVP 目标须与此口径一致 */
   isCityOccupiedForNpcGarrison,
+  /** PVE/PVP 易主：势力 + NPC + 长官运行态 */
+  applyCityOwnershipHandoff,
+  resolveFactionMonarchCharacterId,
 };

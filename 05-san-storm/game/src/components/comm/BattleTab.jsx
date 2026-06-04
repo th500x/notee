@@ -1,11 +1,13 @@
 /**
  * CommPanel · 战报 Tab（原 CommPanel.jsx）
  */
-import { useState, useMemo } from 'react';
+import { useState, useMemo, lazy, Suspense } from 'react';
 import { API_CONFIG } from '@/constants';
 import { fetchWithTimeout } from '@/services/httpClient';
 import AncientModal from '@/components/common/AncientModal';
-import SiegeReplayMini from '@/components/game/SiegeReplayMini';
+import PvpAutoDuelReplay from '@/pvp/auto-duel/PvpAutoDuelReplay';
+// 战术对决全屏回放壳（重，含 BattleMap/动画）：懒加载，仅点开「战术对决 · 回放」时拉取
+const PvpTacticalBattleShell = lazy(() => import('@/pvp/tactical/PvpTacticalBattleShell'));
 import { buildBattleScoreFormulaLines, resolveKillLossTroopCounts } from '@/systems/battleScoreSystem';
 import { memorialRecordBattleId, resolveMemorialFileUrl } from '@/utils/battleMemorialRender';
 import {
@@ -235,7 +237,17 @@ function BattleCard({
 /** 战报详情展开区 */
 function BattleDetail({ detail }) {
   const [replayOpen, setReplayOpen] = useState(false);
+  const [tacticalReplayOpen, setTacticalReplayOpen] = useState(false);
   const rewards = detail.rewards || {};
+  // 事件流回放（17-5 §12.6 + 17-5-3 阶段 5）：泛化——凡 rewards.eventReplay.roomId 存在即挂壳
+  // （切磋 pvp_tactical_duel + 真实链条 pvp_siege/pvp_defense/pvp_field 同一入口）。
+  const tacticalReplayRoomId = rewards.eventReplay?.roomId || null;
+  const tacticalReplayTitle =
+    detail.battleType === 'pvp_siege' || detail.battleType === 'pvp_defense'
+      ? '城防对决'
+      : detail.battleType === 'pvp_field' || rewards.roadEncounterId
+        ? '道路遭遇'
+        : '阵前切磋';
   const logRaw = detail.battleLog;
   const logStr = typeof logRaw === 'string' ? logRaw : Array.isArray(logRaw) ? logRaw.map((l) => (typeof l === 'object' && l?.text ? l.text : String(l))).join('\n') : '';
   /** 简化回放：左=攻方、右=守军（与棋盘「我方格」无关，只看战略攻守身份） */
@@ -247,7 +259,7 @@ function BattleDetail({ detail }) {
     ? '守军'
     : `守军${detail.opponentName ? ` · ${detail.opponentName}` : ''}`;
   const replayLogStr = isDefenseReport
-    ? (typeof rewards.skirmishBattleLog === 'string' ? rewards.skirmishBattleLog : '')
+    ? (typeof rewards.autoDuelBattleLog === 'string' ? rewards.autoDuelBattleLog : '')
     : logStr;
   const canSiegeReplay =
     replayLogStr.length > 12 &&
@@ -272,6 +284,26 @@ function BattleDetail({ detail }) {
 
   return (
     <div className="px-2 py-1.5 border-t border-amber-700/20 space-y-1.5">
+      {tacticalReplayRoomId && (
+        <>
+          <button
+            type="button"
+            onClick={() => setTacticalReplayOpen(true)}
+            className="w-full py-1.5 rounded bg-amber-800/40 border border-amber-600/40 text-amber-100 text-[10px] hover:bg-amber-700/40"
+          >
+            战术对决 · 回放
+          </button>
+          {tacticalReplayOpen && (
+            <Suspense fallback={null}>
+              <PvpTacticalBattleShell
+                roomId={tacticalReplayRoomId}
+                title={tacticalReplayTitle}
+                onClose={() => setTacticalReplayOpen(false)}
+              />
+            </Suspense>
+          )}
+        </>
+      )}
       {canSiegeReplay && (
         <>
           <button
@@ -291,7 +323,7 @@ function BattleDetail({ detail }) {
               width="max-w-md"
             >
               <div className="-mx-2 -my-2 bg-[#1a1a2e] rounded p-2 text-left">
-                <SiegeReplayMini
+                <PvpAutoDuelReplay
                   open
                   onClose={() => setReplayOpen(false)}
                   battleLog={replayLogStr}

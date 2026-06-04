@@ -8,7 +8,7 @@ const express = require('express');
 const router = express.Router();
 const pvpService = require('../services/pvpService');
 const garrisonService = require('../services/garrisonService');
-const siegePvpResolveService = require('../services/siegePvpResolveService');
+const pvpGarrisonAutoDuelResolveService = require('../services/pvp/auto-duel/pvpGarrisonAutoDuelResolveService');
 const Player = require('../models/Player');
 const { isPlayerRecentlyActive, DEFAULT_ONLINE_MS } = require('../utils/playerActivity');
 const { requireAuth, requireSelf } = require('../middleware/auth');
@@ -191,7 +191,7 @@ router.post('/siege-resolve', validateBody(pvpSchemas.siegeResolveBody), async (
   try {
     const { challengeId, attackerId } = req.body;
     if (!assertSelf(req, res, attackerId, 'attackerId')) return;
-    const data = await siegePvpResolveService.resolveAuthoritativeSiegePvp({ challengeId, attackerId });
+    const data = await pvpGarrisonAutoDuelResolveService.resolveAuthoritativeGarrisonAutoDuel({ challengeId, attackerId });
     res.json({ success: true, data });
   } catch (error) {
     const code = error.code;

@@ -12,7 +12,12 @@ import {
   buildMapCornerWarTooltip,
   formatMapCornerWarLabel,
 } from '@/utils/mapCornerOngoingWars';
-import WarMoraleRaceBar, { shouldShowWarMoraleBar } from '@/components/game/WarMoraleRaceBar';
+import {
+  WAR_MORALE_ATTACKER_COLOR,
+  WAR_MORALE_DEFENDER_COLOR,
+  WarMoraleSideEdgeBar,
+  shouldShowWarMoraleBar,
+} from '@/components/game/WarMoraleRaceBar';
 
 function prefersHoverUi() {
   if (typeof window === 'undefined') return true;
@@ -116,36 +121,51 @@ export default function MapCornerOngoingWarButton({ entry, onLocate }) {
     );
   }
 
+  const attMorale = Math.round(Number(entry.attackerWarMorale) || 0);
+  const defMorale = Math.round(Number(entry.defenderWarMorale) || 0);
+
   return (
     <>
       {panel}
-      <div className="flex w-full flex-col gap-0.5 self-start">
+      <button
+        ref={btnRef}
+        type="button"
+        style={mapCornerEntryRowBoxStyle}
+        className={`${MAP_CORNER_ENTRY_ROW_CLASS_ZHOU_JUN} flex-col justify-center p-0 text-left ${textClass}`}
+        aria-label={tooltipText.replace(/\n/g, ' ')}
+        onMouseEnter={() => {
+          if (!prefersHoverUi()) return;
+          syncAnchor();
+          setHoverOpen(true);
+        }}
+        onMouseLeave={() => {
+          if (!prefersHoverUi()) return;
+          setHoverOpen(false);
+        }}
+        onClick={handleClick}
+      >
         {showMoraleBar ? (
-          <WarMoraleRaceBar
-            attackerWarMorale={entry.attackerWarMorale}
-            defenderWarMorale={entry.defenderWarMorale}
-            isOffensive={entry.isOffensive}
+          <WarMoraleSideEdgeBar
+            value={attMorale}
+            colorClass={WAR_MORALE_ATTACKER_COLOR}
+            edge="top"
           />
         ) : null}
-        <button
-          ref={btnRef}
-          type="button"
-          style={mapCornerEntryRowBoxStyle}
-          className={`${MAP_CORNER_ENTRY_ROW_CLASS_ZHOU_JUN} justify-start text-left ${textClass}`}
-          onMouseEnter={() => {
-            if (!prefersHoverUi()) return;
-            syncAnchor();
-            setHoverOpen(true);
-          }}
-          onMouseLeave={() => {
-            if (!prefersHoverUi()) return;
-            setHoverOpen(false);
-          }}
-          onClick={handleClick}
+        <span
+          className={`block w-full min-w-0 truncate text-center ${
+            showMoraleBar ? 'flex flex-1 items-center justify-center px-0.5 text-[11px] leading-tight' : 'px-1 text-left'
+          }`}
         >
-          <span className="block w-full min-w-0 truncate text-left">{label}</span>
-        </button>
-      </div>
+          {label}
+        </span>
+        {showMoraleBar ? (
+          <WarMoraleSideEdgeBar
+            value={defMorale}
+            colorClass={WAR_MORALE_DEFENDER_COLOR}
+            edge="bottom"
+          />
+        ) : null}
+      </button>
     </>
   );
 }

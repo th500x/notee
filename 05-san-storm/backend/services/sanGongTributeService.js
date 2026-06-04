@@ -53,7 +53,7 @@ async function getTributeDailyStatus(playerId) {
  * @param {string} playerId
  * @param {string[]} instanceIds
  * @returns {Promise<
- *   | { ok: true; silver: number; contribution: number; factionSilver: number; factionFood: number; deleted: number }
+ *   | { ok: true; silver: number; contribution: number; factionSilver: number; factionFood: number; troopLegendaryGranted?: number; deleted: number }
  *   | { ok: false; status: number; error: string }
  * >}
  */
@@ -126,10 +126,14 @@ async function submitTroopTribute(playerId, instanceIds) {
 
     let totalSilver = 0;
     let totalContribution = 0;
+    let legendaryTributeCount = 0;
     for (const c of cardRows) {
       const { silver, contribution } = tributeCompensationPerTroopCard(c.rarity);
       totalSilver += silver;
       totalContribution += contribution;
+      if (String(c.rarity || '').toLowerCase() === 'legendary') {
+        legendaryTributeCount += 1;
+      }
     }
 
     const [delRes] = await conn.query(
@@ -163,6 +167,13 @@ async function submitTroopTribute(playerId, instanceIds) {
       silver: totalSilver,
       food: factionFood,
     });
+    if (legendaryTributeCount > 0) {
+      await factionReserveService.creditLegendaryQuotaOnConnection(conn, factionId, {
+        troop: legendaryTributeCount,
+      }, {
+        ledgerCategory: factionReserveService.CATEGORY.TRIBUTE_LEGENDARY_TROOP,
+      });
+    }
 
     await conn.commit();
 
@@ -177,6 +188,7 @@ async function submitTroopTribute(playerId, instanceIds) {
       contribution: totalContribution,
       factionSilver: totalSilver,
       factionFood,
+      troopLegendaryGranted: legendaryTributeCount,
       deleted: ids.length,
     };
   } catch (e) {

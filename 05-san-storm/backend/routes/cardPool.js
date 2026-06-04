@@ -53,8 +53,6 @@ router.post(
     const result = await cardPoolService.drawFromPool(playerId, poolType, { poolSeason });
     res.json(result);
   } catch (error) {
-    // 业务级 4xx："X 不足 / X 已用完"等 service 抛出的中文文案 → 直接 status=400 + 透出文案；
-    // 其余视作系统级 5xx，走 errorHandler 收口（不泄露 error.message 原文）。
     const isBusiness =
       typeof error?.message === 'string' &&
       (error.message.includes('不足') ||
@@ -70,28 +68,28 @@ router.post(
 });
 
 /**
- * 卡池重复三选一
- * POST /api/card-pool/draw/duplicate-choice
- * Body: { playerId, pendingDuplicateDrawId, choice: 'attack'|'defense'|'convert' }
+ * 卡池重复残影三选一
+ * POST /api/card-pool/draw/echo-choice
+ * Body: { playerId, pendingEchoDrawId, choice: 'attack'|'defense'|'convert' }
  */
 router.post(
-  '/draw/duplicate-choice',
+  '/draw/echo-choice',
   validateBody({
     playerId: v.required(v.nonEmptyString({ max: 64 })),
-    pendingDuplicateDrawId: v.required(v.integer({ min: 1 })),
+    pendingEchoDrawId: v.required(v.integer({ min: 1 })),
     choice: v.required(v.enum(['attack', 'defense', 'convert'])),
   }),
   async (req, res, next) => {
     try {
-      const { playerId, pendingDuplicateDrawId, choice } = req.body;
+      const { playerId, pendingEchoDrawId, choice } = req.body;
       const devBypass = req.player._devBypass && req.player.sub == null;
       if (!devBypass && req.player.role !== 'admin' && String(playerId) !== String(req.player.sub)) {
         return res.status(403).json({ success: false, error: '无权代他人处理重复选择', code: 'FORBIDDEN' });
       }
 
-      const result = await cardPoolService.resolveDuplicateChoice(
+      const result = await cardPoolService.resolveEchoChoice(
         playerId,
-        pendingDuplicateDrawId,
+        pendingEchoDrawId,
         choice,
       );
       res.json(result);
@@ -100,7 +98,7 @@ router.post(
         return res.status(403).json({ success: false, error: error.message });
       }
       if (error.statusCode === 422) {
-        return res.status(422).json({ success: false, error: error.message, code: 'POOL_ENHANCE_FULL' });
+        return res.status(422).json({ success: false, error: error.message, code: 'POOL_ECHO_FULL' });
       }
       const isBusiness =
         typeof error?.message === 'string' &&

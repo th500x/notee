@@ -18,7 +18,7 @@ const TOUCH_TAP_MAX_MS = 320;
 const TOUCH_MOVE_CANCEL_PX = 16;
 
 /** 与 `roadEncounterService.INTERCEPT_COST_SILVER` 一致：0→1 扣银 */
-const ROAD_INTERCEPT_SILVER_COST = 40;
+const ROAD_INTERCEPT_SILVER_COST = 50;
 
 function subscribePointerCoarse(cb) {
   if (typeof window === 'undefined') return () => {};

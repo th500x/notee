@@ -17,7 +17,7 @@
  */
 
 /** 开启 / 关闭道路拦截（守门）单次费用，扣银两 */
-const INTERCEPT_COST_SILVER = 40; // 31-6 §3
+const INTERCEPT_COST_SILVER = 50; // 31-6 §3
 
 /** 每日免费"自由步"上限（每位玩家） */
 const FREE_MOVES_PER_DAY = 300; // 31-6 §6；31-2（2026-05-19：50→300）

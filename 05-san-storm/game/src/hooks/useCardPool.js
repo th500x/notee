@@ -7,6 +7,24 @@
 import { useState, useCallback } from 'react';
 import { cardPoolAPI } from '../services/cardPoolApi';
 
+/** 将 status 中的 pendingEchoChoice 转为 drawResult 形态，便于恢复弹窗 */
+function drawResultFromPendingEcho(pending) {
+  if (!pending?.pendingEchoDrawId) return null;
+  return {
+    success: true,
+    echoChoiceRequired: true,
+    pendingEchoDrawId: pending.pendingEchoDrawId,
+    echoState: pending.echoState,
+    cards: [{
+      cardId: pending.cardId,
+      cardName: pending.cardName,
+      rarity: pending.rarity,
+      echoChoiceRequired: true,
+    }],
+    resumed: true,
+  };
+}
+
 /**
  * @param {string} playerId - 玩家ID
  */
@@ -15,7 +33,7 @@ export function useCardPool(playerId) {
   const [loading, setLoading] = useState(false);
   const [choiceLoading, setChoiceLoading] = useState(false);
   const [drawResult, setDrawResult] = useState(null);
-  const [duplicateChoiceError, setDuplicateChoiceError] = useState(null);
+  const [echoChoiceError, setEchoChoiceError] = useState(null);
   const [error, setError] = useState(null);
 
   /**
@@ -44,19 +62,19 @@ export function useCardPool(playerId) {
     if (!playerId) return;
     setLoading(true);
     setError(null);
-    setDuplicateChoiceError(null);
+    setEchoChoiceError(null);
     setDrawResult(null);
     try {
       const res = await cardPoolAPI.draw(playerId, poolType, poolSeason);
       if (res.success) {
         setDrawResult(res);
-        // 同步更新本地状态
         setStatus(prev => prev ? {
           ...prev,
           silver: res.remainingSilver,
           [poolType]: {
             ...prev[poolType],
             remainingDraws: res.remainingDraws,
+            nextDrawCost: res.nextDrawCost ?? null,
             pityCount: res.pityCount,
           },
         } : prev);
@@ -75,49 +93,70 @@ export function useCardPool(playerId) {
   /** 清除抽取结果（关闭结果弹窗时调用） */
   const clearResult = useCallback(() => {
     setDrawResult(null);
-    setDuplicateChoiceError(null);
+    setEchoChoiceError(null);
   }, []);
 
-  /** 卡池重复三选一 */
-  const resolveDuplicateChoice = useCallback(async (choice) => {
-    if (!playerId || !drawResult?.pendingDuplicateDrawId) {
+  /**
+   * 打开将领卡池时恢复未完成的重复三选一（仅 character 抽屉应调用）
+   * @param {object} [pending] - 可选；默认读 status.pendingEchoChoice
+   */
+  const resumePendingEcho = useCallback((pending) => {
+    const p = pending ?? status?.pendingEchoChoice;
+    if (!p?.pendingEchoDrawId) return;
+    setDrawResult((prev) => {
+      if (prev?.pendingEchoDrawId === p.pendingEchoDrawId) return prev;
+      if (prev?.echoChoiceRequired && !prev.resumed) return prev;
+      return drawResultFromPendingEcho(p);
+    });
+  }, [status?.pendingEchoChoice]);
+
+  /** 卡池重复残影三选一 */
+  const resolveEchoChoice = useCallback(async (choice, pendingEchoDrawId) => {
+    const drawId = pendingEchoDrawId ?? drawResult?.pendingEchoDrawId;
+    if (!playerId || !drawId) {
       return { success: false, error: '无待处理的重复选择' };
     }
     setChoiceLoading(true);
-    setDuplicateChoiceError(null);
+    setEchoChoiceError(null);
     try {
-      const res = await cardPoolAPI.resolveDuplicateChoice(
+      const res = await cardPoolAPI.resolveEchoChoice(
         playerId,
-        drawResult.pendingDuplicateDrawId,
+        drawId,
         choice,
       );
       if (res.success) {
-        setDrawResult((prev) => (prev ? { ...prev, duplicateChoiceResolved: res } : prev));
         if (res.remainingSilver != null) {
-          setStatus((prev) => (prev ? { ...prev, silver: res.remainingSilver } : prev));
+          setStatus((prev) => (prev ? {
+            ...prev,
+            silver: res.remainingSilver,
+            pendingEchoChoice: null,
+          } : prev));
+        } else {
+          setStatus((prev) => (prev ? { ...prev, pendingEchoChoice: null } : prev));
         }
       } else {
-        setDuplicateChoiceError(res.error || '处理失败');
+        setEchoChoiceError(res.error || '处理失败');
       }
       return res;
     } catch (e) {
-      setDuplicateChoiceError(e.message);
+      setEchoChoiceError(e.message);
       return { success: false, error: e.message };
     } finally {
       setChoiceLoading(false);
     }
-  }, [playerId, drawResult?.pendingDuplicateDrawId]);
+  }, [playerId, drawResult?.pendingEchoDrawId, status?.pendingEchoChoice]);
 
   return {
     status,
     loading,
     choiceLoading,
     drawResult,
-    duplicateChoiceError,
+    echoChoiceError,
     error,
     loadStatus,
     draw,
     clearResult,
-    resolveDuplicateChoice,
+    resumePendingEcho,
+    resolveEchoChoice,
   };
 }

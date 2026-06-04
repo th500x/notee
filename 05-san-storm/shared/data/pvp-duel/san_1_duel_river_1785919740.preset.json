@@ -1,0 +1,54 @@
+{
+  "duel_map_id": "san_1_duel_river_1785919740",
+  "rule_profile": "river",
+  "generator_version": "pvp-duel.v1",
+  "seed": 1785919740,
+  "base": {
+    "bgTheme": "grassland",
+    "forceComplexity": "simple"
+  },
+  "rules": {
+    "forbidChest": true,
+    "forbidTrap": true,
+    "placementZones": [
+      "deployA",
+      "deployB"
+    ],
+    "forbidColumns": [
+      0,
+      7
+    ],
+    "forbidBorderRows": false,
+    "objectsPerSide": {
+      "deployA": {
+        "rock": 0,
+        "fence": 0
+      },
+      "deployB": {
+        "rock": 0,
+        "fence": 0
+      }
+    },
+    "crossRiverBand": {
+      "rows": [
+        4,
+        5
+      ],
+      "leftRoadColumnPool": [
+        1,
+        2,
+        3
+      ],
+      "rightRoadColumnPool": [
+        4,
+        5,
+        6
+      ]
+    }
+  },
+  "canonical": {
+    "attackerDeployZone": "deployA",
+    "defenderDeployZone": "deployB"
+  },
+  "notes": "管理员页 seed=1785919740 固化；非镜像随机。"
+}

@@ -11,18 +11,6 @@ function formatInt(n) {
   return Math.round(v).toLocaleString('zh-CN');
 }
 
-/** player_statistics 表时长字段按秒计（见库设计） */
-function formatDurationSeconds(sec) {
-  const s = Math.max(0, Math.floor(Number(sec) || 0));
-  if (s < 60) return `${s} 秒`;
-  const m = Math.floor(s / 60);
-  if (m < 60) return `${m} 分`;
-  const h = Math.floor(m / 60);
-  const rm = m % 60;
-  if (rm === 0) return `${h} 小时`;
-  return `${h} 小时 ${rm} 分`;
-}
-
 function StatRow({ label, value }) {
   return (
     <div className="flex items-start justify-between gap-3 text-sm text-gray-800">
@@ -112,13 +100,6 @@ export default function PersonalSidebarStatsPanel({ playerId, onBack }) {
               <StatRow label="完成探索事件（累计）" value={formatInt(stats.totalEventsCompleted)} />
             </Section>
 
-            <Section title="游戏时长">
-              <StatRow label="总时长" value={formatDurationSeconds(stats.totalPlaytime)} />
-              <StatRow label="今日" value={formatDurationSeconds(stats.todayPlaytime)} />
-              <StatRow label="本周" value={formatDurationSeconds(stats.weekPlaytime)} />
-              <StatRow label="本月" value={formatDurationSeconds(stats.monthPlaytime)} />
-            </Section>
-
             <Section title="银两与粮草">
               <StatRow label="累计获得银两" value={formatInt(stats.totalGoldEarned)} />
               <StatRow label="累计消耗银两" value={formatInt(stats.totalGoldSpent)} />
@@ -131,10 +112,6 @@ export default function PersonalSidebarStatsPanel({ playerId, onBack }) {
               <StatRow label="累计消耗贡献" value={formatInt(stats.totalContributionSpent)} />
               <StatRow label="累计获得声望" value={formatInt(stats.totalReputationEarned)} />
             </Section>
-
-            <p className="text-[11px] text-gray-400 pt-1">
-              数据来自服务端 player_statistics 表。银两/粮草/贡献的累计获得与累计消耗由后端统一写入（与 players 资源变动一致）；游戏时长仍依赖会话统计接入。
-            </p>
           </div>
         )}
       </div>

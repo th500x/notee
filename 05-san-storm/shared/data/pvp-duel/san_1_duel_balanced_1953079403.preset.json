@@ -1,0 +1,38 @@
+{
+  "duel_map_id": "san_1_duel_balanced_1953079403",
+  "rule_profile": "balanced",
+  "generator_version": "pvp-duel.v1",
+  "seed": 1953079403,
+  "base": {
+    "bgTheme": "grassland",
+    "forceComplexity": "standard"
+  },
+  "rules": {
+    "forbidChest": true,
+    "forbidTrap": true,
+    "placementZones": [
+      "deployA",
+      "deployB"
+    ],
+    "forbidColumns": [
+      0,
+      7
+    ],
+    "forbidBorderRows": false,
+    "objectsPerSide": {
+      "deployA": {
+        "rock": 1,
+        "fence": 1
+      },
+      "deployB": {
+        "rock": 1,
+        "fence": 1
+      }
+    }
+  },
+  "canonical": {
+    "attackerDeployZone": "deployA",
+    "defenderDeployZone": "deployB"
+  },
+  "notes": "管理员页 seed=1953079403 固化；非镜像随机。"
+}

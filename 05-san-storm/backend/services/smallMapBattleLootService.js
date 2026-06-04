@@ -8,6 +8,7 @@
  */
 
 const { pool } = require('../database/connection');
+const statisticsDeltaService = require('./statisticsDeltaService');
 const { WIN_CONTRIBUTION_REWARD_SIEGE_NPC } = require('../../shared/utils/siegeKillEconomyByRarity.cjs');
 
 const EQUIPMENT_DROP_RATE = 0.05;
@@ -163,6 +164,13 @@ async function applyDeclaredSmallMapPveLoot(playerId, loot) {
       equipmentDrop = await tryRollEquipmentDrop(connection, playerId, bestEnemyRarity);
     }
     await connection.commit();
+
+    await statisticsDeltaService.recordEarned(playerId, {
+      ...(reputation > 0 ? { reputation } : {}),
+      ...(silver > 0 ? { silver } : {}),
+      ...(food > 0 ? { food } : {}),
+    });
+
     return { applied: true, equipmentDrop };
   } catch (e) {
     await connection.rollback();

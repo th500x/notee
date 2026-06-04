@@ -1,0 +1,43 @@
+{
+  "duel_map_id": "san_1_duel_obstacle_rich_1334821748",
+  "rule_profile": "obstacle_rich",
+  "generator_version": "pvp-duel.v1",
+  "seed": 1334821748,
+  "base": {
+    "bgTheme": "grassland",
+    "forceComplexity": "standard"
+  },
+  "rules": {
+    "forbidChest": true,
+    "forbidTrap": true,
+    "placementZones": [
+      "deployA",
+      "deployB",
+      "combat"
+    ],
+    "forbidColumns": [
+      0,
+      7
+    ],
+    "forbidBorderRows": false,
+    "objectsPerSide": {
+      "deployA": {
+        "rock": 2,
+        "fence": 2
+      },
+      "deployB": {
+        "rock": 2,
+        "fence": 2
+      },
+      "combat": {
+        "rock": 1,
+        "fence": 1
+      }
+    }
+  },
+  "canonical": {
+    "attackerDeployZone": "deployA",
+    "defenderDeployZone": "deployB"
+  },
+  "notes": "管理员页 seed=1334821748 固化；非镜像随机。"
+}

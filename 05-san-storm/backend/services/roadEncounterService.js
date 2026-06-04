@@ -39,7 +39,10 @@ const {
   buildRoadGateFailRetreatNotice,
   buildRoadBattleDefeatRetreatNotice,
 } = require('../utils/roadBattleRetreatPlacement');
-const { runSiegePvpSkirmish, hashSeed } = require('./siegePvpSkirmish');
+const { hashSeed } = require('./pvp/auto-duel/pvpAutoDuelSim');
+const { tacticalToAutoDuelResult } = require('./pvp/tactical/tacticalToAutoDuelResult');
+const tacticalRoomService = require('./pvp/tactical/pvpTacticalRoomService');
+const tacticalSimRunner = require('./pvp/tactical/pvpTacticalSimRunner');
 const battleService = require('./battleService');
 const { newShortBattleId } = require('../utils/battleId');
 const {
@@ -48,7 +51,7 @@ const {
   buildTroopsForDefenderScore,
   SIEGE_PVP_ONLINE_SCORE_MULT,
 } = require('../utils/battleScore.cjs');
-const { buildDefenderSiegePvpBattleLog } = require('../utils/siegeDefenseBattleLog');
+const { buildDefenderPvpAutoDuelBattleLog } = require('./pvp/auto-duel/pvpAutoDuelBattleLog');
 
 const {
   INTERCEPT_COST_SILVER,
@@ -636,7 +639,16 @@ async function resolveEncounter(playerId, body) {
   }
 }
 
-// ── 道路遭遇：服务端权威推演（与 `siegePvpResolveService` 同源 `runSiegePvpSkirmish`）────────────────
+// ── 道路遭遇：服务端权威推演（与 `pvpGarrisonAutoDuelResolveService` 同源 `runPvpAutoDuel`）────────────────
+
+/** ESM 战术内核动态加载（缓存；17-5-3 阶段 4 接入真实道路链条） */
+let _roadKernelPromise = null;
+function loadTacticalKernel() {
+  if (!_roadKernelPromise) {
+    _roadKernelPromise = import('../../shared/battle/tacticalSim/runPvpTacticalDuel.js');
+  }
+  return _roadKernelPromise;
+}
 
 const authoritativeRoadResolveLocks = new Map();
 async function doResolveAuthoritativeRoadEncounter(attackerId, encounterId) {
@@ -687,9 +699,58 @@ async function doResolveAuthoritativeRoadEncounter(attackerId, encounterId) {
   }
 
   const seed = hashSeed([encounterId, attackerId, defenderId]);
-  const sim = runSiegePvpSkirmish(attackerNpcs, defenderNpcs, seed);
+
+  // 17-5-3 阶段 4：战术内核 runPvpTacticalDuel 替换自动对决（道路无城防）；经适配器回到 sim.* 同形。
+  const duelMapId = await tacticalRoomService.pickDuelMapIdForSeed(seed);
+  const kernel = await loadTacticalKernel();
+  const tactical = kernel.runPvpTacticalDuel({
+    duelMapId,
+    lineupSnapshots: { a: attackerNpcs, b: defenderNpcs },
+    battleSeed: seed,
+    sideLabels: { a: '攻方', b: '守方' },
+  });
+  const adapted = tacticalToAutoDuelResult({
+    winnerSide: tactical.winnerSide,
+    finalState: tactical.finalState,
+    attackerSnapshot: attackerNpcs,
+    defenderSnapshot: defenderNpcs,
+  });
+  const sim = {
+    attackerWon: adapted.attackerWon,
+    killedIndices: adapted.killedIndices,
+    attackerTroopsEnd: adapted.attackerTroopsEnd,
+    defenderTroopsEnd: adapted.defenderTroopsEnd,
+    battleLog: tactical.battleLog,
+    rounds: tactical.rounds,
+    battleSeed: seed >>> 0,
+  };
   const result = sim.attackerWon ? 'win' : 'lose';
   const killedIndices = Array.from(new Set((sim.killedIndices || []).map((x) => Number(x)).filter((i) => Number.isFinite(i) && i >= 0 && i < defenderNpcs.length)));
+
+  // 战报 id 先行生成（供事件房间回填 battle_id_a/b 与 rewards.eventReplay）
+  const battleId = newShortBattleId('road_pvp_atk');
+  const defBattleId = newShortBattleId('road_pvp_def');
+
+  // 事件流回放房间（best-effort；落库失败不阻断权威结算）
+  let eventReplay = null;
+  try {
+    const { roomId, maxSeq } = await tacticalSimRunner.persistResolvedDuelRoom({
+      attackerId,
+      defenderId,
+      duelMapId,
+      battleSeed: seed,
+      lineupSnapshots: { a: attackerNpcs, b: defenderNpcs },
+      sim: { events: tactical.events, winnerSide: tactical.winnerSide, finalState: tactical.finalState },
+      battleIdA: battleId,
+      battleIdB: defBattleId,
+      season: row.season ?? null,
+    });
+    eventReplay = { source: 'pvp_tactical_room_events', roomId, maxSeq };
+  } catch (e) {
+    console.error('[roadEncounterService] persistResolvedDuelRoom', {
+      message: e.message, attackerId, encounterId,
+    });
+  }
 
   const defenderLineupTroopUpdates = defenderNpcs
     .map((npc, i) => ({
@@ -719,7 +780,6 @@ async function doResolveAuthoritativeRoadEncounter(attackerId, encounterId) {
     scoreMultOpts,
   );
 
-  const battleId = newShortBattleId('road_pvp_atk');
   const settleBody = {
     encounterId,
     factionId,
@@ -736,7 +796,7 @@ async function doResolveAuthoritativeRoadEncounter(attackerId, encounterId) {
   if (!settled.ok) return settled;
 
   try {
-    await garrisonService.applyAuthoritativeSiegePvpAttackerLineupCasualties(attackerId, attackerNpcs, sim.attackerTroopsEnd);
+    await garrisonService.applyAuthoritativePvpAutoDuelAttackerLineupCasualties(attackerId, attackerNpcs, sim.attackerTroopsEnd);
   } catch (e) {
     console.error('[roadEncounterService] authoritative road attacker casualties', {
       message: e.message,
@@ -754,14 +814,13 @@ async function doResolveAuthoritativeRoadEncounter(attackerId, encounterId) {
   const defenderName = nameMap[defenderId] || defenderId;
 
   const battleLogText = sim.battleLog.join('\n');
-  const defenderPerspectiveLog = buildDefenderSiegePvpBattleLog({
+  const defenderPerspectiveLog = buildDefenderPvpAutoDuelBattleLog({
     battleLogLines: sim.battleLog,
     attackerPlayerName: attackerName,
     defenderPlayerName: defenderName,
     cityName: '道路',
   });
 
-  const defBattleId = newShortBattleId('road_pvp_def');
   try {
     await battleService.saveBattle({
       battleId,
@@ -792,6 +851,7 @@ async function doResolveAuthoritativeRoadEncounter(attackerId, encounterId) {
         scoreDetails: atkBattleScore.details,
         initialAttackerTroops: sumSiegeNpcStartingTroopsRoad(attackerNpcs),
         initialDefenderTroops: sumSiegeNpcStartingTroopsRoad(defenderNpcs),
+        ...(eventReplay ? { eventReplay } : {}),
       },
     });
   } catch (e) {
@@ -825,8 +885,9 @@ async function doResolveAuthoritativeRoadEncounter(attackerId, encounterId) {
         scoreDetails: defBattleScore.details,
         initialAttackerTroops: sumSiegeNpcStartingTroopsRoad(attackerNpcs),
         initialDefenderTroops: sumSiegeNpcStartingTroopsRoad(defenderNpcs),
-        skirmishBattleLog: battleLogText,
+        autoDuelBattleLog: battleLogText,
         roadEncounterId: encounterId,
+        ...(eventReplay ? { eventReplay } : {}),
       },
       recordOnly: true,
     });
@@ -862,6 +923,7 @@ async function doResolveAuthoritativeRoadEncounter(attackerId, encounterId) {
     settlement: settled.data || {},
     siegeReplayAttackerNames: siegeNpcDisplayNamesRoad(attackerNpcs),
     siegeReplayDefenderNames: siegeNpcDisplayNamesRoad(defenderNpcs),
+    ...(eventReplay ? { eventReplay } : {}),
   };
 
   try {

@@ -1,0 +1,39 @@
+{
+  "duel_map_id": "san_1_duel_hill_focus_1359467968",
+  "rule_profile": "hill_focus",
+  "generator_version": "pvp-duel.v1",
+  "seed": 1359467968,
+  "base": {
+    "bgTheme": "grassland",
+    "forceComplexity": "standard"
+  },
+  "rules": {
+    "forbidChest": true,
+    "forbidTrap": true,
+    "placementZones": [
+      "deployA",
+      "deployB"
+    ],
+    "forbidColumns": [
+      0,
+      7
+    ],
+    "forbidBorderRows": false,
+    "combatTerrainBias": "hill",
+    "objectsPerSide": {
+      "deployA": {
+        "rock": 1,
+        "fence": 0
+      },
+      "deployB": {
+        "rock": 1,
+        "fence": 0
+      }
+    }
+  },
+  "canonical": {
+    "attackerDeployZone": "deployA",
+    "defenderDeployZone": "deployB"
+  },
+  "notes": "管理员页 seed=1359467968 固化；非镜像随机。"
+}

@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { usePlayerContext } from '@/contexts/PlayerContext';
 import { playerAPI } from '@/services/playerApi';
 import AncientModal from '@/components/common/AncientModal';
-import SiegeReplayMini from '@/components/game/SiegeReplayMini';
+import PvpAutoDuelReplay from '@/pvp/auto-duel/PvpAutoDuelReplay';
 import PvpDefenseOutcomeModal from '@/components/game/PvpDefenseOutcomeModal';
 import { RoadDefenseFrictionContext } from '@/contexts/RoadDefenseFrictionContext';
 import {
@@ -37,7 +37,7 @@ export default function RoadEncounterDefenseRoot({ children, onBusyChange }) {
   const [roadDefenseAlert, setRoadDefenseAlert] = useState(null);
   const [roadAwaitingAuthoritativeOutcome, setRoadAwaitingAuthoritativeOutcome] = useState(null);
   const [roadAuthoritativeOutcomeModal, setRoadAuthoritativeOutcomeModal] = useState(null);
-  /** 守方裁定后与攻方对称：先全屏 `SiegeReplayMini`，结束再开评分/胜负弹窗 */
+  /** 守方裁定后与攻方对称：先全屏 `PvpAutoDuelReplay`，结束再开评分/胜负弹窗 */
   const [defenderAuthoritativeReplayOverlay, setDefenderAuthoritativeReplayOverlay] = useState(null);
   const silencedRoadEncounterIdRef = useRef(null);
   const roadDefenseOutcomeReplayBlockingRef = useRef(false);
@@ -179,7 +179,7 @@ export default function RoadEncounterDefenseRoot({ children, onBusyChange }) {
     const pid = player?.playerId;
     if (!eid || !pid) return undefined;
     let cancelled = false;
-    /** 避免裁定已返回后 interval 再次 tick 重复 setState，打断 SiegeReplayMini 自动播放 */
+    /** 避免裁定已返回后 interval 再次 tick 重复 setState，打断 PvpAutoDuelReplay 自动播放 */
     let outcomeHandled = false;
     const tick = async () => {
       if (cancelled || outcomeHandled) return;
@@ -280,7 +280,7 @@ export default function RoadEncounterDefenseRoot({ children, onBusyChange }) {
           <div className="pointer-events-auto fixed inset-0 z-[235] flex items-center justify-center bg-black/85 px-3 py-6">
             <div className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-xl border border-amber-600/40 bg-[#12121e] p-3 shadow-2xl">
               <div className="text-center text-amber-200/95 text-sm font-bold mb-2">战场演示</div>
-              <SiegeReplayMini
+              <PvpAutoDuelReplay
                 open
                 battleLog={defenderAuthoritativeReplayOverlay.battleLogStr}
                 leftLabel={defenderAuthoritativeReplayOverlay.leftLabel || '攻方'}
