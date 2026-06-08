@@ -10,6 +10,7 @@ import { loadSharedData } from '@/services/dataService';
 import { formatHistoryMonthDayLabel, pickHistoryEntriesForToday } from '@/utils/historyOnThisDay';
 import { notifyDailyReportNotifyRefresh } from '@/utils/dailyReportNotifyRefresh';
 import DailyReportCheckinCalendar from '@/components/game/DailyReportCheckinCalendar';
+import { dailyReportM2ReleaseNotes } from '@/data/texts/dailyReportReleaseNotes';
 
 function fmtOfficialLine(entry) {
   if (!entry?.characterName) return null;
@@ -232,6 +233,21 @@ export default function DailyReportPanel({ open, onClose, playerId }) {
               ) : (
                 <p className="text-xs text-stone-500">介绍视频筹备中。</p>
               )}
+            </section>
+
+            <section className="rounded-lg border border-stone-200 bg-white p-3 shadow-sm">
+              <h3 className="text-sm font-bold text-amber-900 mb-2">更新说明</h3>
+              <p className="text-xs font-semibold text-stone-800 mb-2">{dailyReportM2ReleaseNotes.heading}</p>
+              <ul className="divide-y divide-stone-200/80">
+                {dailyReportM2ReleaseNotes.items.map((line) => (
+                  <li
+                    key={line}
+                    className="py-1.5 text-xs text-stone-700 leading-snug first:pt-0 last:pb-0"
+                  >
+                    {line}
+                  </li>
+                ))}
+              </ul>
             </section>
           </div>
         </div>

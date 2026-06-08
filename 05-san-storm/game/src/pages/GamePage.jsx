@@ -19,11 +19,8 @@ import PersonalSidebar from '@/components/game/PersonalSidebar';
 import GrantedTitleRevealFlow from '@/components/game/GrantedTitleRevealFlow';
 import ChunkLoadFallback from '@/components/game/ChunkLoadFallback';
 import RoadEncounterDefenseRoot from '@/components/game/RoadEncounterDefenseRoot';
-import UpdateNoticeFullScreenOverlay from '@/components/game/UpdateNoticeFullScreenOverlay';
 import { useCardPool } from '@/hooks/useCardPool';
 import { loadSharedData } from '@/services/dataService';
-import { getActiveUpdateNotice } from '@/data/texts/updateAnnouncements';
-import { shouldShowUpdateNotice, dismissUpdateNotice } from '@/utils/updateNoticeLogic';
 import { useFactionBulletinUnread } from '@/hooks/useFactionBulletinUnread';
 import { usePlayableCampaignNotify } from '@/hooks/usePlayableCampaignNotify';
 import { useClaimableAchievementNotify } from '@/hooks/useClaimableAchievementNotify';
@@ -119,39 +116,6 @@ function GamePageInner({ onLogout, accountId }) {
     markGameIntroCompletedForPlayer(gameIntroStorageId);
     setGameIntroOpen(false);
   }, [gameIntroStorageId]);
-
-  const activeUpdateNotice = getActiveUpdateNotice();
-  const [updateNoticeOpen, setUpdateNoticeOpen] = useState(() => {
-    const n = getActiveUpdateNotice();
-    return !!(n && shouldShowUpdateNotice(n));
-  });
-
-  const handleDismissUpdateNotice = useCallback(() => {
-    const n = getActiveUpdateNotice();
-    if (n) dismissUpdateNotice(n);
-    setUpdateNoticeOpen(false);
-  }, []);
-
-  const recheckUpdateNoticeOpen = useCallback(() => {
-    const n = getActiveUpdateNotice();
-    if (n && shouldShowUpdateNotice(n)) setUpdateNoticeOpen(true);
-  }, []);
-
-  // 从子 Tab 回到大地图、或浏览器页签回到前台且当前在大地图时，按存储规则再次尝试弹出（含「同 id 正文已变更」）
-  useEffect(() => {
-    if (activeTab !== null) return;
-    recheckUpdateNoticeOpen();
-  }, [activeTab, recheckUpdateNoticeOpen]);
-
-  useEffect(() => {
-    const onVis = () => {
-      if (document.visibilityState !== 'visible') return;
-      if (activeTab !== null) return;
-      recheckUpdateNoticeOpen();
-    };
-    document.addEventListener('visibilitychange', onVis);
-    return () => document.removeEventListener('visibilitychange', onVis);
-  }, [activeTab, recheckUpdateNoticeOpen]);
 
   // 加载技能映射表（卡牌显示需要）
   useEffect(() => {
@@ -253,9 +217,7 @@ function GamePageInner({ onLogout, accountId }) {
               <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
                 <Suspense fallback={<ChunkLoadFallback label="大地图加载中…" />}>
                   <WorldMap
-                    blockTutorialAutoplay={
-                      gameIntroOpen || (!!activeUpdateNotice && updateNoticeOpen)
-                    }
+                    blockTutorialAutoplay={gameIntroOpen}
                     onEventBusyChange={setWorldMapEventBusy}
                     sanGongFuCardPool={{
                       onOpenPool: setOpenPool,
@@ -395,16 +357,6 @@ function GamePageInner({ onLogout, accountId }) {
           <JunCountyQuadPreviewPanel onClose={() => setJunQuadPreviewOpen(false)} />
         </Suspense>
       ) : null}
-
-      {activeTab === null &&
-        activeUpdateNotice &&
-        updateNoticeOpen &&
-        !gameIntroOpen && (
-          <UpdateNoticeFullScreenOverlay
-            notice={activeUpdateNotice}
-            onDismiss={handleDismissUpdateNotice}
-          />
-        )}
 
       {gameIntroOpen && gameIntroStorageId ? (
         <Suspense fallback={null}>
