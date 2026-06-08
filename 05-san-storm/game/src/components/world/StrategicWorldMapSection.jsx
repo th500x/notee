@@ -1,6 +1,8 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import WorldStrategicMapGrid from './WorldStrategicMapGrid';
 import ZhouJunMapJumpPanel from '@/components/game/ZhouJunMapJumpPanel';
+import MapCornerPlayerEntryColumn from '@/components/game/MapCornerPlayerEntryColumn';
+import { useMapCornerCompactViewport } from '@/hooks/useMapCornerCompactViewport';
 import { usePlayerContext } from '@/contexts/PlayerContext';
 import { useMapHudVisibility } from '@/contexts/MapHudVisibilityContext';
 import { toCharCardData } from '@/utils/cardDataTransforms';
@@ -356,6 +358,7 @@ export default function StrategicWorldMapSection({
   const roadPresenceFetchRef = useRef(() => Promise.resolve());
   const { player: ctxPlayer, cards: ctxCards, attributeBonusBySlot, refresh, exploreQuota } = usePlayerContext();
   const { mapHudButtonsVisible } = useMapHudVisibility();
+  const mapCornerCompactViewport = useMapCornerCompactViewport();
   /** 行军模式：与 31-6 §8 一致 */
   const [strategicMarchMode, setStrategicMarchMode] = useState(false);
   /** @type {null | { path: Array<{x:number,y:number}>, onRoadAtStart: boolean, preview: object, encounterHint: string|null }} */
@@ -1783,12 +1786,13 @@ export default function StrategicWorldMapSection({
       <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
         {mapHudButtonsVisible ? (
           <div className="pointer-events-none absolute left-2 top-2 z-30">
-            <div className="pointer-events-auto">
+            <div className="pointer-events-auto flex items-start gap-1">
               <ZhouJunMapJumpPanel
                 variant="mapOverlay"
                 locateSelfCell={locateSelfStrategicCell}
                 progressSidebar={mapJumpProgressSidebar}
               />
+              {mapCornerCompactViewport ? <MapCornerPlayerEntryColumn /> : null}
             </div>
           </div>
         ) : null}

@@ -1,15 +1,18 @@
 /**
- * 活动排行榜 endTime（活动结束后冻结积分）
+ * 活动排行榜时间窗（startTime / endTime）
  * 由 shared/config/announcements.json 自动生成，勿手改。
  * @see game/src/data/texts/announcements.js
  */
 const { announcements } = require('../../shared/config/announcementsShared.cjs');
 
-/** @type {Record<string, { endTime: string }>} */
+/** @type {Record<string, { startTime: string|null, endTime: string }>} */
 const map = {};
 for (const a of announcements) {
   if (a?.id && a.ranking?.endTime) {
-    map[a.id] = { endTime: a.ranking.endTime };
+    map[a.id] = {
+      startTime: a.ranking.startTime || null,
+      endTime: a.ranking.endTime,
+    };
   }
 }
 

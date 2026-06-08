@@ -99,6 +99,13 @@ router.get(
       const camps = await pveWarBaseCampService.listActivePveBaseCampsForMap({ season });
       res.json({ success: true, camps, count: camps.length });
     } catch (error) {
+      if (error.statusCode === 503 || error.code === 'PVE_BASE_CAMP_SCHEMA') {
+        return res.status(503).json({
+          success: false,
+          error: error.message,
+          code: 'PVE_BASE_CAMP_SCHEMA',
+        });
+      }
       return next(wrap500(error, '获取 PVE 大本营列表失败'));
     }
   },

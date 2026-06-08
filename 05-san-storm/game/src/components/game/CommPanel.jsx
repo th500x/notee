@@ -9,13 +9,17 @@
  * @see docs/30-frontend/32-5-PLAYER_CORNER.md
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { usePlayerContext } from '@/contexts/PlayerContext';
 import AncientModal from '@/components/common/AncientModal';
 import {
+  useMapCornerPlayerEntryActions,
+  useRegisterMapCornerEntryHandler,
+} from '@/contexts/MapCornerPlayerEntryActionsContext';
+import { useMapCornerCompactViewport } from '@/hooks/useMapCornerCompactViewport';
+import {
   MAP_CORNER_ENTRY_ROW_CLASS,
   mapCornerEntryRowBoxStyle,
-  MAP_CORNER_PLAYER_ENTRY_COMM_CLASS,
 } from '@/components/game/mapCornerEntryUi';
 import { COMM_TABS } from '@/components/comm/commPanelLayout';
 import BattleTab from '@/components/comm/BattleTab';
@@ -75,6 +79,29 @@ export default function CommPanel({ visible, unreadChatCount: unreadChatProp = 0
     onShowModal: showModal,
   });
 
+  const compactViewport = useMapCornerCompactViewport();
+  const { setCommEntryCaption } = useMapCornerPlayerEntryActions() || {};
+  const openCommRef = useRef(() => {});
+
+  openCommRef.current = () => {
+    const tab = minimizedEntry?.tab || 'chat';
+    setActiveTab(tab);
+    setOpen(true);
+  };
+
+  const openComm = useCallback(() => {
+    openCommRef.current();
+  }, []);
+
+  useRegisterMapCornerEntryHandler('comm', visible ? openComm : null);
+
+  useEffect(() => {
+    if (!visible || !setCommEntryCaption) return;
+    const { icon, label, count } = minimizedEntry || {};
+    const suffix = count > 0 ? ` (${count})` : '';
+    setCommEntryCaption(`${icon || '💬'} ${label || '聊天'}${suffix}`);
+  }, [visible, minimizedEntry, setCommEntryCaption]);
+
   if (!visible) return null;
 
   const mailClaimModalEl = (
@@ -104,25 +131,27 @@ export default function CommPanel({ visible, unreadChatCount: unreadChatProp = 0
       : undefined;
     return (
       <>
-        <button
-          type="button"
-          onClick={() => {
-            setActiveTab(tab);
-            setOpen(true);
-          }}
-          style={mapCornerEntryRowBoxStyle}
-          className={`fixed bottom-20 left-2 z-40 justify-start text-amber-300 ${MAP_CORNER_ENTRY_ROW_CLASS} ${MAP_CORNER_PLAYER_ENTRY_COMM_CLASS}`}
-        >
-          <span className="flex w-full min-w-0 items-center gap-1 text-left">
-            <span style={emojiNotifyStyle} className="inline-flex shrink-0 select-none leading-none">
-              {icon}
+        {!compactViewport ? (
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab(tab);
+              setOpen(true);
+            }}
+            style={mapCornerEntryRowBoxStyle}
+            className={`fixed bottom-20 left-2 z-40 justify-start text-amber-300 ${MAP_CORNER_ENTRY_ROW_CLASS}`}
+          >
+            <span className="flex w-full min-w-0 items-center gap-1 text-left">
+              <span style={emojiNotifyStyle} className="inline-flex shrink-0 select-none leading-none">
+                {icon}
+              </span>
+              <span className="min-w-0 truncate">
+                {label}
+                {suffix}
+              </span>
             </span>
-            <span className="min-w-0 truncate">
-              {label}
-              {suffix}
-            </span>
-          </span>
-        </button>
+          </button>
+        ) : null}
         {mailClaimModalEl}
       </>
     );
@@ -142,51 +171,49 @@ export default function CommPanel({ visible, unreadChatCount: unreadChatProp = 0
                   ? 'bg-amber-600 text-white'
                   : 'text-amber-200/70 hover:text-amber-200'}`}
               >
-                {tab.icon}
                 {tab.label}
               </button>
             ))}
           </div>
           <button
+            type="button"
             onClick={() => setOpen(false)}
-            className="px-1.5 py-1 text-amber-200/50 hover:text-amber-200 text-xs shrink-0"
+            className="text-amber-200/80 hover:text-amber-100 text-xs px-1"
+            aria-label="关闭"
           >
             ✕
           </button>
         </div>
-
-        <div className="shrink-0 min-h-0 flex flex-col">
-          {activeTab === 'battle' && (
+        <div className="flex-1 min-h-0 overflow-hidden">
+          {activeTab === 'battles' && (
             <BattleTab
               battles={battles}
-              filter={battleFilter}
-              onFilterChange={setBattleFilter}
-              loading={battleLoading}
+              battleFilter={battleFilter}
+              setBattleFilter={setBattleFilter}
+              battleLoading={battleLoading}
               expandedBattle={expandedBattle}
               battleDetail={battleDetail}
-              onExpand={handleExpandBattle}
-              onToggleFavorite={handleToggleFavorite}
-              memorialQuota={battleMemorialQuota}
+              battleMemorialQuota={battleMemorialQuota}
               creatingMemorialBattleId={creatingMemorialBattleId}
-              onCreateMemorial={handleCreateBattleMemorial}
-              playerId={player?.playerId}
+              onExpandBattle={handleExpandBattle}
+              onToggleFavorite={handleToggleFavorite}
+              onCreateBattleMemorial={handleCreateBattleMemorial}
             />
           )}
           {activeTab === 'text' && (
             <TextMailTab
               playerId={player?.playerId}
-              onUnreadChange={refreshTextUnread}
-              onClaimed={refreshPlayer}
-              onShowClaimResult={(lines) =>
-                showModal({ open: true, lines, title: '领取结果', modalType: 'reward' })
-              }
-              onShowClaimError={(msg) =>
-                showModal({ open: true, lines: [msg], title: '领取失败', modalType: 'warning' })
-              }
+              refreshTextUnread={refreshTextUnread}
+              onShowModal={showModal}
+              onClaimed={() => refreshPlayer({ silent: true })}
             />
           )}
           {activeTab === 'chat' && (
-            <ChatTab player={player} onWorldReadSynced={syncWorldSeen} />
+            <ChatTab
+              playerId={player?.playerId}
+              playerName={player?.characterName}
+              syncWorldSeen={syncWorldSeen}
+            />
           )}
         </div>
       </div>

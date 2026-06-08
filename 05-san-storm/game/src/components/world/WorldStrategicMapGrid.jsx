@@ -1356,6 +1356,7 @@ export default function WorldStrategicMapGrid({
                   interceptPlayerId={strategicSelfPawn.pawnPlayerId || null}
                   interceptSilver={strategicSelfPawn.playerSilver}
                   onRoadSelfUpdated={onStrategicRoadSelfUpdated || undefined}
+                  onRoadCell={!!strategicSelfPawn.onRoad}
                   onSelfPawnOverlayOpenChange={setStrategicSelfPawnOverlayOpen}
                 />
               ) : null}

@@ -1,6 +1,6 @@
 /**
  * 战略大地图：玩家自身占位。圆形内为角色名末字；键鼠悬停圆形时显示全名与兵力 tooltip。
- * 触摸 / 粗指针：`pointerType==='touch'`（不依赖 `(pointer: coarse)`，避免竖屏误判）；短按同时显示与悬停同内容的 tooltip +「行军」「关闭」「来战」；长按约 1s 松手后直接进入行军模式（与点「行军」等价）。
+ * 触摸 / 粗指针：`pointerType==='touch'`（不依赖 `(pointer: coarse)`，避免竖屏误判）；道路格上 **行军/来战** 固定于头像上下（无弹出/关闭）；非道路格短按/单击仍弹出操作条（行军/来战，无「关闭」）。长按约 1s 松手后直接进入行军模式。
  * 键鼠：单击打开操作条（与悬停可同时看到 tooltip）。**一键进军**请使用道路格双击 / 触摸双触（见 `WorldStrategicMapTile` 与 **31-6 §8**），**不在**本人叠层上绑双击，避免竖屏单点被误判为双击。
  */
 
@@ -64,7 +64,8 @@ function resolvePortraitSrc(portraitUrl) {
  * @param {string|null} [props.interceptPlayerId] - 当前登录玩家 id（与 `onRoadSelfUpdated` 同时传入才显示来战/休战按钮与扣银确认）
  * @param {number|null} [props.interceptSilver] - 当前银两（展示确认文案）
  * @param {() => void|Promise<void>} [props.onRoadSelfUpdated] - 切换成功后刷新档案
- * @param {(open: boolean) => void} [props.onSelfPawnOverlayOpenChange] - 本人短按/单击打开或关闭「行军」操作条时通知（用于暂时隐藏大地图 event_hint 等，避免叠层）
+ * @param {boolean} [props.onRoadCell] - 当前立点在道路格：行军/来战固定显于头像上下（31-6 §8）
+ * @param {(open: boolean) => void} [props.onSelfPawnOverlayOpenChange] - 非道路格操作条或来战确认打开时通知（道路格固定钮不计入）
  */
 export default function StrategicMapSelfPawn({
   cx,
@@ -85,9 +86,11 @@ export default function StrategicMapSelfPawn({
   interceptPlayerId = null,
   interceptSilver = null,
   onRoadSelfUpdated = null,
+  onRoadCell = false,
   onSelfPawnOverlayOpenChange = null,
 }) {
   const selfMarchUi = typeof onEnterMarchMode === 'function';
+  const roadFixedActions = selfMarchUi && !!onRoadCell;
   const interceptControlsEnabled =
     selfMarchUi &&
     typeof onRoadSelfUpdated === 'function' &&
@@ -131,21 +134,14 @@ export default function StrategicMapSelfPawn({
   const showTroops = Number.isFinite(troopsCurrent) && Number.isFinite(troopsMax);
   const troopText = showTroops ? `${Math.max(0, Math.round(troopsCurrent))}/${Math.max(0, Math.round(troopsMax))}` : null;
   const showHoverTooltip = hover && !coarsePointer;
-  /** 短按打开操作条时与键鼠单击一致：tooltip 与按钮同显 */
-  const showAnyTooltip = showHoverTooltip || touchLongTooltip || showActionPopover;
+  /** 短按打开操作条时与键鼠单击一致：tooltip 与按钮同显（非道路格） */
+  const showAnyTooltip = showHoverTooltip || touchLongTooltip || (!roadFixedActions && showActionPopover);
   const stripPeers = Array.isArray(stackStripPeers) ? stackStripPeers : [];
   const showStackStripRow =
     showAnyTooltip && (stripPeers.length > 0 || stackStripEllipsis);
 
   const onEnter = useCallback(() => setHover(true), []);
   const onLeave = useCallback(() => setHover(false), []);
-
-  const closePopover = useCallback(() => {
-    setShowActionPopover(false);
-    setInterceptPanel(null);
-    setInterceptError('');
-    setInterceptBusy(false);
-  }, []);
 
   const armSuppressClick = useCallback(() => {
     suppressClickRef.current = true;
@@ -179,14 +175,16 @@ export default function StrategicMapSelfPawn({
 
     if (moved <= TOUCH_MOVE_CANCEL_PX && elapsed <= TOUCH_TAP_MAX_MS && !marchArmed) {
       armSuppressClick();
-      popoverOutsideGuardUntilRef.current = Date.now() + 480;
-      setShowActionPopover(true);
+      if (!roadFixedActions) {
+        popoverOutsideGuardUntilRef.current = Date.now() + 480;
+        setShowActionPopover(true);
+      }
     } else if (marchArmed && typeof onEnterMarchMode === 'function') {
       armSuppressClick();
       setShowActionPopover(false);
       onEnterMarchMode();
     }
-  }, [clearMarchTimer, onEnterMarchMode, armSuppressClick]);
+  }, [clearMarchTimer, onEnterMarchMode, armSuppressClick, roadFixedActions]);
 
   const onPointerDown = useCallback(
     (e) => {
@@ -291,14 +289,15 @@ export default function StrategicMapSelfPawn({
 
   useEffect(() => {
     if (typeof onSelfPawnOverlayOpenChange !== 'function') return undefined;
-    onSelfPawnOverlayOpenChange(showActionPopover);
+    const overlayOpen = (!roadFixedActions && showActionPopover) || !!interceptPanel;
+    onSelfPawnOverlayOpenChange(overlayOpen);
     return () => {
-      if (showActionPopover) onSelfPawnOverlayOpenChange(false);
+      if (overlayOpen) onSelfPawnOverlayOpenChange(false);
     };
-  }, [showActionPopover, onSelfPawnOverlayOpenChange]);
+  }, [showActionPopover, interceptPanel, roadFixedActions, onSelfPawnOverlayOpenChange]);
 
   useEffect(() => {
-    if (!selfMarchUi || !showActionPopover) return undefined;
+    if (!selfMarchUi || !showActionPopover || roadFixedActions) return undefined;
     let removeListener = null;
     const rafId = requestAnimationFrame(() => {
       const onDocPointerDown = (ev) => {
@@ -317,11 +316,11 @@ export default function StrategicMapSelfPawn({
       cancelAnimationFrame(rafId);
       removeListener?.();
     };
-  }, [selfMarchUi, showActionPopover]);
+  }, [selfMarchUi, showActionPopover, roadFixedActions]);
 
   const onHitClick = useCallback(
     (e) => {
-      if (!selfMarchUi) return;
+      if (!selfMarchUi || roadFixedActions) return;
       const ne = e.nativeEvent;
       // 触屏后浏览器补发的「兼容 click」走 pointer 分支即可，避免与格网/进军抢首帧
       if (ne && typeof ne === 'object' && ne.sourceCapabilities?.firesTouch) return;
@@ -331,7 +330,7 @@ export default function StrategicMapSelfPawn({
       popoverOutsideGuardUntilRef.current = Date.now() + 480;
       setShowActionPopover(true);
     },
-    [selfMarchUi],
+    [selfMarchUi, roadFixedActions],
   );
 
   const handleMarchButton = useCallback(() => {
@@ -379,6 +378,100 @@ export default function StrategicMapSelfPawn({
     Number.isFinite(interceptSilver) &&
     interceptSilver < ROAD_INTERCEPT_SILVER_COST;
 
+  const openInterceptPanel = useCallback(() => {
+    setInterceptError('');
+    setInterceptClientRequestId(createRoadClientRequestId('intercept'));
+    setInterceptPanel(roadIntercept === 1 ? 'disable' : 'enable');
+  }, [roadIntercept]);
+
+  const renderMarchButton = (className) => (
+    <button
+      type="button"
+      className={className}
+      onPointerDown={(e) => e.stopPropagation()}
+      onClick={(e) => {
+        e.stopPropagation();
+        handleMarchButton();
+      }}
+    >
+      {marchModeActive ? '退出行军' : '行军'}
+    </button>
+  );
+
+  const renderInterceptButton = (className) => {
+    if (!interceptControlsEnabled) return null;
+    return (
+      <button
+        type="button"
+        className={className}
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={(e) => {
+          e.stopPropagation();
+          openInterceptPanel();
+        }}
+      >
+        {roadIntercept === 1 ? '休战' : '来战'}
+      </button>
+    );
+  };
+
+  const renderInterceptConfirmPanel = () => (
+    <div className="ws-map-self-pawn__actions" role="dialog" aria-label="道路开战确认">
+      <div className="ws-map-self-pawn__intercept-msg">
+        {interceptPanel === 'enable' ? (
+          <>
+            开启<strong className="ws-map-self-pawn__intercept-strong">道路开战</strong>将扣除银两{' '}
+            <strong className="ws-map-self-pawn__intercept-strong">{ROAD_INTERCEPT_SILVER_COST}</strong>
+            {Number.isFinite(interceptSilver) ? (
+              <>
+                ，当前银两 <strong className="ws-map-self-pawn__intercept-strong">{interceptSilver}</strong>
+              </>
+            ) : null}
+            。确认后会和敌对玩家在遭遇时交战！
+          </>
+        ) : (
+          <>确认关闭道路开战模式？关闭后不再扣费，已扣银两不退回。</>
+        )}
+      </div>
+      {interceptError ? (
+        <div className="ws-map-self-pawn__intercept-err" role="alert">
+          {interceptError}
+        </div>
+      ) : null}
+      <div className="ws-map-self-pawn__intercept-actions">
+        <button
+          type="button"
+          className="ws-map-self-pawn__action-btn"
+          disabled={interceptBusy}
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation();
+            setInterceptPanel(null);
+            setInterceptError('');
+          }}
+        >
+          返回
+        </button>
+        <button
+          type="button"
+          className="ws-map-self-pawn__action-btn ws-map-self-pawn__action-btn--danger"
+          disabled={interceptBusy || silverShort}
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation();
+            void handleInterceptConfirm();
+          }}
+        >
+          {interceptBusy ? '提交中…' : '确认'}
+        </button>
+      </div>
+    </div>
+  );
+
+  const hitClassName = roadFixedActions
+    ? 'ws-map-self-pawn__hit ws-map-self-pawn__hit--road-fixed'
+    : 'ws-map-self-pawn__hit';
+
   const glowClass = mapDisplayEffectToAvatarClass(displayEffect);
   const avatarClassName = [
     'ws-map-self-pawn__avatar',
@@ -397,7 +490,7 @@ export default function StrategicMapSelfPawn({
       <div className="ws-map-self-pawn__anchor">
         <div
           ref={hitRef}
-          className="ws-map-self-pawn__hit"
+          className={hitClassName}
           onMouseEnter={onEnter}
           onMouseLeave={onLeave}
           onClick={selfMarchUi ? onHitClick : undefined}
@@ -406,6 +499,11 @@ export default function StrategicMapSelfPawn({
           onPointerUp={selfMarchUi ? onPointerUp : undefined}
           onPointerCancel={selfMarchUi ? onPointerCancel : undefined}
         >
+          {roadFixedActions && !interceptPanel
+            ? renderMarchButton(
+                'ws-map-self-pawn__road-fixed-btn ws-map-self-pawn__road-fixed-btn--primary',
+              )
+            : null}
           <div className="ws-map-self-pawn__avatar-row">
             <div className={avatarClassName}>
               {src ? (
@@ -450,94 +548,26 @@ export default function StrategicMapSelfPawn({
               {troopText ? <div className="ws-map-self-pawn__tooltip-troops">{troopText}</div> : null}
             </div>
           ) : null}
-          {showActionPopover ? (
-          <div className="ws-map-self-pawn__actions" role="dialog" aria-label="本人地图操作">
-            {interceptPanel ? (
-              <>
-                <div className="ws-map-self-pawn__intercept-msg">
-                  {interceptPanel === 'enable' ? (
-                    <>
-                      开启<strong className="ws-map-self-pawn__intercept-strong">道路开战</strong>将扣除银两{' '}
-                      <strong className="ws-map-self-pawn__intercept-strong">{ROAD_INTERCEPT_SILVER_COST}</strong>
-                      {Number.isFinite(interceptSilver) ? (
-                        <>
-                          ，当前银两 <strong className="ws-map-self-pawn__intercept-strong">{interceptSilver}</strong>
-                        </>
-                      ) : null}
-                      。确认后会和敌对玩家在遭遇时交战！
-                    </>
-                  ) : (
-                    <>确认关闭道路开战模式？关闭后不再扣费，已扣银两不退回。</>
-                  )}
-                </div>
-                {interceptError ? (
-                  <div className="ws-map-self-pawn__intercept-err" role="alert">
-                    {interceptError}
-                  </div>
-                ) : null}
-                <div className="ws-map-self-pawn__intercept-actions">
-                  <button
-                    type="button"
-                    className="ws-map-self-pawn__action-btn"
-                    disabled={interceptBusy}
-                    onPointerDown={(e) => e.stopPropagation()}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setInterceptPanel(null);
-                      setInterceptError('');
-                    }}
-                  >
-                    返回
-                  </button>
-                  <button
-                    type="button"
-                    className="ws-map-self-pawn__action-btn ws-map-self-pawn__action-btn--danger"
-                    disabled={interceptBusy || silverShort}
-                    onPointerDown={(e) => e.stopPropagation()}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      void handleInterceptConfirm();
-                    }}
-                  >
-                    {interceptBusy ? '提交中…' : '确认'}
-                  </button>
-                </div>
-              </>
+          {roadFixedActions && interceptPanel ? renderInterceptConfirmPanel() : null}
+          {roadFixedActions && !interceptPanel
+            ? renderInterceptButton(
+                'ws-map-self-pawn__road-fixed-btn ws-map-self-pawn__road-fixed-btn--danger',
+              )
+            : null}
+          {!roadFixedActions && showActionPopover ? (
+            interceptPanel ? (
+              renderInterceptConfirmPanel()
             ) : (
-              <>
-                <button type="button" className="ws-map-self-pawn__action-btn ws-map-self-pawn__action-btn--primary" onClick={handleMarchButton}>
-                  {marchModeActive ? '退出行军' : '行军'}
-                </button>
-                <button
-                  type="button"
-                  className="ws-map-self-pawn__action-btn"
-                  onPointerDown={(e) => e.stopPropagation()}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    closePopover();
-                  }}
-                >
-                  关闭
-                </button>
-                {interceptControlsEnabled ? (
-                  <button
-                    type="button"
-                    className="ws-map-self-pawn__action-btn ws-map-self-pawn__action-btn--danger"
-                    onPointerDown={(e) => e.stopPropagation()}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setInterceptError('');
-                      setInterceptClientRequestId(createRoadClientRequestId('intercept'));
-                      setInterceptPanel(roadIntercept === 1 ? 'disable' : 'enable');
-                    }}
-                  >
-                    {roadIntercept === 1 ? '休战' : '来战'}
-                  </button>
-                ) : null}
-              </>
-            )}
-          </div>
-        ) : null}
+              <div className="ws-map-self-pawn__actions" role="dialog" aria-label="本人地图操作">
+                {renderMarchButton(
+                  'ws-map-self-pawn__action-btn ws-map-self-pawn__action-btn--primary',
+                )}
+                {renderInterceptButton(
+                  'ws-map-self-pawn__action-btn ws-map-self-pawn__action-btn--danger',
+                )}
+              </div>
+            )
+          ) : null}
         </div>
       </div>
     </div>

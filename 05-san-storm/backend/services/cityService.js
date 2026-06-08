@@ -1527,7 +1527,9 @@ async function cancelActivePveSiegeWarViaSanGongChaoZheng(playerId, warId, body 
 async function tickActivePveWars() {
   try {
     const bf = await pveWarBaseCampService.backfillAllActivePveBaseCamps();
-    if (bf.placed > 0) {
+    if (bf.schemaError) {
+      console.error(`[pveWarBaseCamp] tick backfill schema: ${bf.schemaError}`);
+    } else if (bf.placed > 0) {
       console.log(`[pveWarBaseCamp] tick backfill placed=${bf.placed} warsScanned=${bf.wars}`);
     }
   } catch (e) {

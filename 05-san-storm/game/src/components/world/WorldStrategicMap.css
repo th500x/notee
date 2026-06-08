@@ -784,7 +784,44 @@
     0 1px 2px rgba(0, 0, 0, 0.85);
 }
 
-/* 本人叠层：短按弹出的「行军 / 关闭」（31-6 §8） */
+/* 本人叠层：非道路格短按弹出「行军 / 来战」；道路格固定于头像上下（31-6 §8） */
+.ws-map-self-pawn__hit--road-fixed {
+  gap: 5px;
+}
+
+.ws-map-self-pawn__road-fixed-btn {
+  font-size: clamp(9px, calc(var(--ws-tile) * 0.34), 12px);
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 5px;
+  border: 1px solid rgba(120, 113, 108, 0.65);
+  background: rgba(68, 64, 60, 0.95);
+  color: rgba(255, 250, 235, 0.95);
+  line-height: 1.2;
+  cursor: pointer;
+  touch-action: manipulation;
+  min-width: 3.25rem;
+  pointer-events: auto;
+  z-index: 7;
+}
+
+.ws-map-self-pawn__road-fixed-btn--primary {
+  border-color: rgba(251, 191, 36, 0.65);
+  background: rgba(146, 64, 14, 0.92);
+  color: #fffbeb;
+}
+
+.ws-map-self-pawn__road-fixed-btn--danger {
+  border-color: rgba(248, 113, 113, 0.55);
+  background: rgba(127, 29, 29, 0.88);
+  color: #fef2f2;
+}
+
+.ws-map-self-pawn__road-fixed-btn:active {
+  opacity: 0.92;
+}
+
+/* 本人叠层：非道路格短按弹出的「行军 / 来战」操作条 */
 .ws-map-self-pawn__actions {
   display: flex;
   flex-direction: column;

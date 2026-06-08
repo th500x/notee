@@ -86,6 +86,13 @@ export default function RankingPanel() {
   const fetchRankingData = useCallback(async () => {
     if (!ranking) return;
 
+    const status = getActivityStatus(ranking);
+    if (status === 'upcoming') {
+      setRankingData(null);
+      setLastRefresh(new Date());
+      return;
+    }
+
     // 获取当前登录玩家ID
     const gameUser = JSON.parse(localStorage.getItem('gameUser') || 'null');
     const playerId = gameUser?.playerId || gameUser?.id || null;
@@ -143,7 +150,7 @@ export default function RankingPanel() {
           <span className="flex items-center gap-1.5">
             <span>🏆</span>
             <span className="truncate">{ranking.title}</span>
-            {rankingData?.myRanking && (
+            {rankingData?.myRanking && status !== 'upcoming' && (
               <span className="text-amber-200/70">
                 📍第{rankingData.myRanking.rank}名 {rankingData.myRanking.totalScore.toLocaleString()}分
               </span>
@@ -175,7 +182,7 @@ export default function RankingPanel() {
 
         {/* 我的排名摘要 + 剩余时间 */}
         <div className="px-3 pb-1.5">
-          {rankingData?.myRanking ? (
+          {rankingData?.myRanking && status !== 'upcoming' ? (
             <p className="text-xs text-amber-100/80">
               {`📍第${rankingData.myRanking.rank}名 ${rankingData.myRanking.totalScore.toLocaleString()}分`}
             </p>
@@ -194,7 +201,7 @@ export default function RankingPanel() {
             <p className="text-[10px] text-red-400/80 mt-0.5">活动已结束（最终排名）</p>
           )}
           {/* 四项积分明细 */}
-          {rankingData?.myRanking && (
+          {rankingData?.myRanking && status !== 'upcoming' && (
             <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 mt-1.5 pt-1.5 border-t border-amber-700/20">
               <span className="text-[10px] text-amber-100/60">⚔️ 战斗：{((rankingData.myRanking.battleScore ?? 0) * (ranking.scoreWeights?.battleScore ?? 0.2)).toLocaleString()}</span>
               <span className="text-[10px] text-amber-100/60">📜 事件：{((rankingData.myRanking.eventsCompleted ?? 0) * (ranking.scoreWeights?.events ?? 300)).toLocaleString()}</span>

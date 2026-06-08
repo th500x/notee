@@ -59,12 +59,3 @@ export const mapCornerZhouJunStackWideOuterStyle = {
   maxWidth: MAP_CORNER_ZHOU_JUN_PAIR_ROW_W_PX,
   boxSizing: 'border-box',
 };
-
-/** 左下玩家角钮：矮视口时见 `styles/mapCornerPlayerEntries.css` 改到「我在哪」右侧 */
-export const MAP_CORNER_PLAYER_ENTRY_COMPACT_CLASS = 'map-corner-player-entry map-corner-player-entry--compact-relocate';
-
-export const MAP_CORNER_PLAYER_ENTRY_EDICT_CLASS = `${MAP_CORNER_PLAYER_ENTRY_COMPACT_CLASS} map-corner-player-entry--edict`;
-
-export const MAP_CORNER_PLAYER_ENTRY_RANK_CLASS = `${MAP_CORNER_PLAYER_ENTRY_COMPACT_CLASS} map-corner-player-entry--rank`;
-
-export const MAP_CORNER_PLAYER_ENTRY_COMM_CLASS = `${MAP_CORNER_PLAYER_ENTRY_COMPACT_CLASS} map-corner-player-entry--comm`;

@@ -32,7 +32,7 @@ import {
   initBgmService,
   syncBgmEnabledFromStorage,
 } from '@/services/bgmService';
-import '@/styles/mapCornerPlayerEntries.css';
+import { MapCornerPlayerEntryActionsProvider } from '@/contexts/MapCornerPlayerEntryActionsContext';
 
 const GameIntroOverlay = lazy(() => import('@/components/tutorial/GameIntroOverlay'));
 const WorldMap = lazy(() => import('@/components/game/WorldMap'));
@@ -186,6 +186,7 @@ function GamePageInner({ onLogout, accountId }) {
 
   return (
     <RoadEncounterDefenseRoot onBusyChange={setRoadDefenseLayerBusy}>
+      <MapCornerPlayerEntryActionsProvider>
       {/* 全屏覆盖，脱离父级布局 */}
       <div className="fixed inset-0 z-[100] bg-stone-950">
         <TopStatusBar
@@ -364,6 +365,7 @@ function GamePageInner({ onLogout, accountId }) {
           <GameIntroOverlay onComplete={handleGameIntroComplete} />
         </Suspense>
       ) : null}
+      </MapCornerPlayerEntryActionsProvider>
     </RoadEncounterDefenseRoot>
   );
 }

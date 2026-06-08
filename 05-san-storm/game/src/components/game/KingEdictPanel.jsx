@@ -29,10 +29,11 @@ import { buildKingActiveDecisionLine } from '@/data/texts/kingActiveDecisionLine
 import { warAPI } from '@/services/warApi';
 import { playerAPI } from '@/services/playerApi';
 import { usePlayerRefresh } from '@/contexts/PlayerContext';
+import { useRegisterMapCornerEntryHandler } from '@/contexts/MapCornerPlayerEntryActionsContext';
+import { useMapCornerCompactViewport } from '@/hooks/useMapCornerCompactViewport';
 import {
   MAP_CORNER_ENTRY_ROW_CLASS,
   mapCornerEntryRowBoxStyle,
-  MAP_CORNER_PLAYER_ENTRY_EDICT_CLASS,
 } from '@/components/game/mapCornerEntryUi';
 
 /** 每自然小时三槽：0–19 / 20–39 / 40–59 分 */
@@ -269,22 +270,28 @@ export default function KingEdictPanel({ visible, playerId, factionId }) {
     [playerId, feedback, submitting, lineIsActiveDecision, refresh, scheduleAutoClose],
   );
 
+  const compactViewport = useMapCornerCompactViewport();
+  const openPanel = useCallback(() => {
+    setOpen(true);
+  }, []);
+  useRegisterMapCornerEntryHandler('edict', visible && playerId ? openPanel : null);
+
   if (!visible || !playerId) return null;
 
   const backdropClosable = !rewardLine;
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => {
-          setOpen(true);
-        }}
-        style={mapCornerEntryRowBoxStyle}
-        className={`fixed bottom-44 left-2 z-40 justify-start text-amber-300 ${MAP_CORNER_ENTRY_ROW_CLASS} ${MAP_CORNER_PLAYER_ENTRY_EDICT_CLASS}`}
-      >
-        <span className="block w-full min-w-0 truncate text-left">📜 口谕</span>
-      </button>
+      {!compactViewport ? (
+        <button
+          type="button"
+          onClick={openPanel}
+          style={mapCornerEntryRowBoxStyle}
+          className={`fixed bottom-44 left-2 z-40 justify-start text-amber-300 ${MAP_CORNER_ENTRY_ROW_CLASS}`}
+        >
+          <span className="block w-full min-w-0 truncate text-left">📜 口谕</span>
+        </button>
+      ) : null}
 
       {open && (
         <div

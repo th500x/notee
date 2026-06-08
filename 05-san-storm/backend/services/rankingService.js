@@ -13,6 +13,64 @@ const ACTIVITY_RANKING_EVENTS = require('../config/activityRankingEvents');
 const { getScoreWeightsForEvent } = require('../config/rankingScoreWeights');
 const campaignService = require('./campaignService');
 
+/** 活动开始后一次性重置「开始前误建」快照基线（进程内幂等） */
+const _rebaselineDoneForEvent = new Set();
+
+/**
+ * @param {string} eventId
+ * @returns {'upcoming'|'active'|'ended'|'unknown'}
+ */
+function getActivityEventPhase(eventId) {
+  const cfg = ACTIVITY_RANKING_EVENTS[eventId];
+  if (!cfg?.endTime) return 'unknown';
+  const now = Date.now();
+  const endMs = new Date(cfg.endTime).getTime();
+  if (Number.isNaN(endMs)) return 'unknown';
+  if (cfg.startTime) {
+    const startMs = new Date(cfg.startTime).getTime();
+    if (!Number.isNaN(startMs) && now < startMs) return 'upcoming';
+  }
+  if (now > endMs) return 'ended';
+  return 'active';
+}
+
+/**
+ * 活动已开始后：将 startTime 之前建立的 snapshot 基线抬到当前累计值（本期从 0 重计）。
+ */
+async function rebaselinePreStartSnapshots(eventId) {
+  if (_rebaselineDoneForEvent.has(eventId)) return;
+  const cfg = ACTIVITY_RANKING_EVENTS[eventId];
+  if (!cfg?.startTime) {
+    _rebaselineDoneForEvent.add(eventId);
+    return;
+  }
+  const startMs = new Date(cfg.startTime).getTime();
+  if (Number.isNaN(startMs) || Date.now() < startMs) return;
+
+  try {
+    const [result] = await pool.query(
+      `UPDATE temp_event_ranking snap
+       INNER JOIN player_statistics s ON s.player_id = snap.player_id
+       SET snap.snapshot_battle_score = s.total_battle_score,
+           snap.snapshot_events_completed = s.total_events_completed,
+           snap.snapshot_reputation = s.total_reputation_earned,
+           snap.snapshot_contribution = s.total_contribution_earned,
+           snap.snapshot_silver = s.total_gold_earned,
+           snap.snapshot_food = s.total_food_earned
+       WHERE snap.event_id = ?
+         AND snap.created_at < ?`,
+      [eventId, cfg.startTime],
+    );
+    const n = Number(result?.affectedRows) || 0;
+    if (n > 0) {
+      console.log(`[rankingService] rebaselined ${n} pre-start snapshot(s) eventId=${eventId}`);
+    }
+  } catch (e) {
+    console.warn('[rankingService] rebaseline pre-start snapshots failed:', eventId, e.message);
+  }
+  _rebaselineDoneForEvent.add(eventId);
+}
+
 /** 常驻总体榜：最低战斗场次（与 18-4 一致） */
 const OVERALL_MIN_BATTLES = 10;
 const OVERALL_DEFAULT_LIMIT = 30;
@@ -246,15 +304,21 @@ async function ensureRankingFrozen(eventId, hasFrozenColumns) {
 }
 
 /**
- * 若玩家尚无快照（活动期间新增），自动补建（增量从当前值起，即 0 分起步）。
+ * 若玩家尚无快照（活动期间新增），自动补建（基线 = 当时累计值，本期从 0 分起算）。
+ * **活动 startTime 之前不建快照**；开始前误建的行在活动开始后由 rebaseline 重置。
  * @returns {boolean} 是否有可用快照
  */
 async function ensurePlayerSnapshot(eventId, playerId) {
+  const phase = getActivityEventPhase(eventId);
+  if (phase === 'upcoming') return false;
+
   const [snapCheck] = await pool.query(
     'SELECT 1 FROM temp_event_ranking WHERE event_id = ? AND player_id = ?',
     [eventId, playerId],
   );
   if (snapCheck.length > 0) return true;
+
+  if (phase !== 'active') return false;
 
   try {
     await pool.query(
@@ -308,6 +372,21 @@ function formatRankingRow(row, rank) {
  * @returns {Promise<{ rankings: object[], myRanking: object|null, totalParticipants: number, updatedAt: string }>}
  */
 async function getRankings(eventId, { limit = 10, playerId = null } = {}) {
+  const phase = getActivityEventPhase(eventId);
+  if (phase === 'upcoming') {
+    return {
+      rankings: [],
+      myRanking: null,
+      totalParticipants: 0,
+      phase: 'upcoming',
+      updatedAt: new Date().toISOString(),
+    };
+  }
+
+  if (phase === 'active') {
+    await rebaselinePreStartSnapshots(eventId);
+  }
+
   const safeLimit = Math.min(Number(limit) || 10, 50);
   const d = await getDeltaSqlFragments();
   await ensureRankingFrozen(eventId, _schemaCache.hasFrozenColumns);
@@ -382,6 +461,7 @@ async function getRankings(eventId, { limit = 10, playerId = null } = {}) {
     rankings,
     myRanking,
     totalParticipants: countRows[0]?.total || 0,
+    phase,
     updatedAt: new Date().toISOString(),
   };
 }

@@ -499,7 +499,9 @@ httpServer = app.listen(PORT, async () => {
         await new Promise((r) => setTimeout(r, 3000));
         const pveWarBaseCampService = require('./services/pveWarBaseCampService');
         const bf = await pveWarBaseCampService.backfillAllActivePveBaseCamps();
-        if (bf.placed > 0) {
+        if (bf.schemaError) {
+          console.error(`[pveWarBaseCamp] startup backfill schema: ${bf.schemaError}`);
+        } else if (bf.placed > 0) {
           console.log(
             `[pveWarBaseCamp] startup backfill placed=${bf.placed} warsScanned=${bf.wars}`,
           );

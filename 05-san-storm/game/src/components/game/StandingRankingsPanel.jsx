@@ -10,10 +10,11 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { rankingsAPI } from '@/services/rankingsApi';
 import { campaignAPI } from '@/services/campaignApi';
+import { useRegisterMapCornerEntryHandler } from '@/contexts/MapCornerPlayerEntryActionsContext';
+import { useMapCornerCompactViewport } from '@/hooks/useMapCornerCompactViewport';
 import {
   MAP_CORNER_ENTRY_ROW_CLASS,
   mapCornerEntryRowBoxStyle,
-  MAP_CORNER_PLAYER_ENTRY_RANK_CLASS,
 } from '@/components/game/mapCornerEntryUi';
 
 const SEASON = 'san_1';
@@ -167,18 +168,26 @@ export default function StandingRankingsPanel({ visible, playerId }) {
     if (!visible) setOpen(false);
   }, [visible]);
 
+  const compactViewport = useMapCornerCompactViewport();
+  const openPanel = useCallback(() => {
+    setOpen(true);
+  }, []);
+  useRegisterMapCornerEntryHandler('rank', visible && playerId ? openPanel : null);
+
   if (!visible || !playerId) return null;
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        style={mapCornerEntryRowBoxStyle}
-        className={`fixed bottom-32 left-2 z-40 justify-start text-amber-300 ${MAP_CORNER_ENTRY_ROW_CLASS} ${MAP_CORNER_PLAYER_ENTRY_RANK_CLASS}`}
-      >
-        <span className="block w-full min-w-0 truncate text-left">🏆 排行</span>
-      </button>
+      {!compactViewport ? (
+        <button
+          type="button"
+          onClick={openPanel}
+          style={mapCornerEntryRowBoxStyle}
+          className={`fixed bottom-32 left-2 z-40 justify-start text-amber-300 ${MAP_CORNER_ENTRY_ROW_CLASS}`}
+        >
+          <span className="block w-full min-w-0 truncate text-left">🏆 排行</span>
+        </button>
+      ) : null}
 
       {open && (
         <div
