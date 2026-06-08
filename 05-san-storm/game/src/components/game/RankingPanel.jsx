@@ -173,14 +173,13 @@ export default function RankingPanel() {
           </button>
         </div>
 
-        {/* 活动简介 + 剩余时间 */}
+        {/* 我的排名摘要 + 剩余时间 */}
         <div className="px-3 pb-1.5">
-          <p className="text-xs text-amber-100/80">
-            {rankingData?.myRanking
-              ? `📍第${rankingData.myRanking.rank}名 ${rankingData.myRanking.totalScore.toLocaleString()}分`
-              : ranking.description
-            }
-          </p>
+          {rankingData?.myRanking ? (
+            <p className="text-xs text-amber-100/80">
+              {`📍第${rankingData.myRanking.rank}名 ${rankingData.myRanking.totalScore.toLocaleString()}分`}
+            </p>
+          ) : null}
           {status === 'active' && (
             <p className="text-[10px] text-amber-400/60 mt-0.5">
               剩余时间：{formatTimeRemaining(ranking.endTime) || '即将结束'}
