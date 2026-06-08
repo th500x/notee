@@ -496,6 +496,23 @@ httpServer = app.listen(PORT, async () => {
   if (dbConnected) {
     setImmediate(async () => {
       try {
+        await new Promise((r) => setTimeout(r, 3000));
+        const pveWarBaseCampService = require('./services/pveWarBaseCampService');
+        const bf = await pveWarBaseCampService.backfillAllActivePveBaseCamps();
+        if (bf.placed > 0) {
+          console.log(
+            `[pveWarBaseCamp] startup backfill placed=${bf.placed} warsScanned=${bf.wars}`,
+          );
+        }
+      } catch (err) {
+        console.warn('[pveWarBaseCamp] startup backfill failed:', err.message);
+      }
+    });
+  }
+
+  if (dbConnected) {
+    setImmediate(async () => {
+      try {
         // 错开启动高峰，避免与玩家首屏 / 纪念图上传争 DB
         await new Promise((r) => setTimeout(r, 15000));
         const aiKingDasikongDailyService = require('./services/aiKingDasikongDailyService');

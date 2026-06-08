@@ -1,12 +1,12 @@
 /**
- * 探索惩罚战会话锁 · 前端辅助（解析见 shared/utils/explorePunishBattleSessionLock.cjs）
+ * 探索惩罚战会话锁 · 前端辅助（算法见 shared/utils/explorePunishBattleSessionLock.js）
  */
 import { FORTUNE_LEVELS } from '@/components/event/EventConstants';
 import {
   parseExplorePunishBattleLock,
   buildExplorePunishBattleLock,
   isPendingPunishRewardRequest,
-} from '@shared/utils/explorePunishBattleSessionLock.cjs';
+} from '@shared/utils/explorePunishBattleSessionLock.js';
 
 export {
   parseExplorePunishBattleLock,
@@ -14,7 +14,7 @@ export {
   isPendingPunishRewardRequest,
 };
 
-/** @param {import('@shared/utils/explorePunishBattleSessionLock.cjs').parseExplorePunishBattleLock extends (x: infer _) => infer R ? R : never} lock */
+/** @param {import('@shared/utils/explorePunishBattleSessionLock.js').parseExplorePunishBattleLock extends (x: infer _) => infer R ? R : never} lock */
 export function fortuneUiFromPunishBattleLock(lock) {
   const lf = lock?.lockedFortune;
   if (!lf) return null;

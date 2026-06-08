@@ -159,6 +159,7 @@ const MIGRATION_FILES = [
   'player-events-add-position-peer-switch-eligible-at.sql',
   'add-players-daily-report-checkin.sql',
   'create-daily-report-digests.sql',
+  'wars-add-attacker-base-camps.sql',
 ];
 
 /** RENAME：源列不存在时跳过（库已为 skill_type） */

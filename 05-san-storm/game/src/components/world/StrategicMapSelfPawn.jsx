@@ -112,6 +112,8 @@ export default function StrategicMapSelfPawn({
   /** @type {null | { pointerId: number, t0: number, x0: number, y0: number, lastX: number, lastY: number, marchTimerId: ReturnType<typeof setTimeout>|null, marchArmed: boolean }} */
   const pointerTrackRef = useRef(null);
   const suppressClickRef = useRef(false);
+  /** 打开操作条后短窗口内忽略 document 外点，避免触屏同一次 tap 的幽灵 pointerdown 立刻关条 */
+  const popoverOutsideGuardUntilRef = useRef(0);
 
   const clearMarchTimer = useCallback(() => {
     const tr = pointerTrackRef.current;
@@ -177,6 +179,7 @@ export default function StrategicMapSelfPawn({
 
     if (moved <= TOUCH_MOVE_CANCEL_PX && elapsed <= TOUCH_TAP_MAX_MS && !marchArmed) {
       armSuppressClick();
+      popoverOutsideGuardUntilRef.current = Date.now() + 480;
       setShowActionPopover(true);
     } else if (marchArmed && typeof onEnterMarchMode === 'function') {
       armSuppressClick();
@@ -253,9 +256,11 @@ export default function StrategicMapSelfPawn({
       if (!selfMarchUi) return;
       const tr = pointerTrackRef.current;
       if (!tr || e.pointerId !== tr.pointerId) return;
+      e.stopPropagation();
+      if (isTouchLikePointer(e)) e.preventDefault();
       endPointerGesture();
     },
-    [selfMarchUi, endPointerGesture],
+    [selfMarchUi, endPointerGesture, isTouchLikePointer],
   );
 
   const onPointerCancel = useCallback(
@@ -294,16 +299,24 @@ export default function StrategicMapSelfPawn({
 
   useEffect(() => {
     if (!selfMarchUi || !showActionPopover) return undefined;
-    const onDocPointerDown = (ev) => {
-      const el = hitRef.current;
-      if (el && ev.target instanceof Node && el.contains(ev.target)) return;
-      setShowActionPopover(false);
-      setInterceptPanel(null);
-      setInterceptError('');
-      setInterceptBusy(false);
+    let removeListener = null;
+    const rafId = requestAnimationFrame(() => {
+      const onDocPointerDown = (ev) => {
+        if (Date.now() < popoverOutsideGuardUntilRef.current) return;
+        const el = hitRef.current;
+        if (el && ev.target instanceof Node && el.contains(ev.target)) return;
+        setShowActionPopover(false);
+        setInterceptPanel(null);
+        setInterceptError('');
+        setInterceptBusy(false);
+      };
+      document.addEventListener('pointerdown', onDocPointerDown, true);
+      removeListener = () => document.removeEventListener('pointerdown', onDocPointerDown, true);
+    });
+    return () => {
+      cancelAnimationFrame(rafId);
+      removeListener?.();
     };
-    document.addEventListener('pointerdown', onDocPointerDown, true);
-    return () => document.removeEventListener('pointerdown', onDocPointerDown, true);
   }, [selfMarchUi, showActionPopover]);
 
   const onHitClick = useCallback(
@@ -315,6 +328,7 @@ export default function StrategicMapSelfPawn({
       if (suppressClickRef.current) return;
       e.stopPropagation();
       e.preventDefault();
+      popoverOutsideGuardUntilRef.current = Date.now() + 480;
       setShowActionPopover(true);
     },
     [selfMarchUi],

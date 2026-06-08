@@ -32,6 +32,7 @@ import { usePlayerRefresh } from '@/contexts/PlayerContext';
 import {
   MAP_CORNER_ENTRY_ROW_CLASS,
   mapCornerEntryRowBoxStyle,
+  MAP_CORNER_PLAYER_ENTRY_EDICT_CLASS,
 } from '@/components/game/mapCornerEntryUi';
 
 /** 每自然小时三槽：0–19 / 20–39 / 40–59 分 */
@@ -280,7 +281,7 @@ export default function KingEdictPanel({ visible, playerId, factionId }) {
           setOpen(true);
         }}
         style={mapCornerEntryRowBoxStyle}
-        className={`fixed bottom-44 left-2 z-40 justify-start text-amber-300 ${MAP_CORNER_ENTRY_ROW_CLASS}`}
+        className={`fixed bottom-44 left-2 z-40 justify-start text-amber-300 ${MAP_CORNER_ENTRY_ROW_CLASS} ${MAP_CORNER_PLAYER_ENTRY_EDICT_CLASS}`}
       >
         <span className="block w-full min-w-0 truncate text-left">📜 口谕</span>
       </button>

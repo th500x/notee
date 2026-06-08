@@ -33,11 +33,13 @@ import { isBanditMapObjectId } from './smallMapEnemyRoster.js';
 /** 与 `smallMapEnemyRoster.isBanditMapObjectId` 同义；供 CJS `require` 侧（如 `roadEncounterService`）判定匪寨终点，避免误查 `cities`。 */
 export { isBanditMapObjectId };
 
-/** `wars_pvp.pvp_war_id`（如 `san_1_war_0015`）。与 `cities.city_id`、匪寨 id 区分；缺 baseCamp 时不得回退城心寻路。 */
+/** `wars_pvp.pvp_war_id`（如 `san_1_war_0015`）或 PVE `wars.war_id`（如 `war_san_1_city_*`）。与 `cities.city_id`、匪寨 id 区分。 */
 export function isPvpWarMarchTargetId(id) {
   const t = String(id || '').trim();
   if (!t || isBanditMapObjectId(t)) return false;
-  return t.includes('_war_');
+  if (t.includes('_war_')) return true;
+  if (/^war_san_/i.test(t)) return true;
+  return false;
 }
 
 const DIRS4 = [

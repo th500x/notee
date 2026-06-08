@@ -38,6 +38,10 @@ const activePveSiegeWarsQuery = {
   faction_id: v.optional(factionId),
 };
 
+const activePveBaseCampsQuery = {
+  season: v.optional(sanSeason),
+};
+
 const cityIdParam = {
   cityId: v.required(poiId),
 };
@@ -94,6 +98,7 @@ module.exports = {
   roadPresenceQuery,
   validateRoadPresenceQuery,
   activePveSiegeWarsQuery,
+  activePveBaseCampsQuery,
   cityIdParam,
   warIdParam,
   siegeBody,

@@ -319,6 +319,42 @@ async function moveAlongRoad(playerId, body) {
           pvpWarId: String(row.pvpWarId || '').trim(),
         });
       }
+      const [pveWarCampRows] = await conn.query(
+        `SELECT w.war_id AS pveWarId, w.target_city_id AS targetCityId, w.attacker_base_camps AS attackerBaseCamps
+           FROM wars w
+           INNER JOIN cities c ON c.city_id = w.target_city_id
+          WHERE w.status = 'active' AND w.war_type = 'siege' AND c.season = ?
+            AND w.attacker_base_camps IS NOT NULL
+          LIMIT 80`,
+        [season],
+      );
+      const playerFactionKey = String(player.faction_id || '').trim();
+      for (const row of pveWarCampRows || []) {
+        let camps = row.attackerBaseCamps;
+        if (typeof camps === 'string') {
+          try {
+            camps = JSON.parse(camps);
+          } catch {
+            camps = null;
+          }
+        }
+        if (!camps || typeof camps !== 'object' || !playerFactionKey) continue;
+        const bc = camps[playerFactionKey];
+        if (!bc || !Array.isArray(bc.cells) || !bc.cells.length) continue;
+        const tid = row.targetCityId != null ? String(row.targetCityId).trim() : '';
+        let junPatch = String(bc.junId ?? bc.jun_id ?? '').trim();
+        if (!junPatch && tid && Array.isArray(countyCityRows)) {
+          const cr = countyCityRows.find((r) => String(r.city_id ?? r.cityId ?? '').trim() === tid);
+          const jfrom = cr?.jun_id ?? cr?.junId;
+          if (jfrom) junPatch = String(jfrom).trim();
+        }
+        pvpBaseCampsForMarch.push({
+          ...bc,
+          ...(junPatch ? { junId: junPatch } : {}),
+          pvpWarId: String(row.pveWarId || '').trim(),
+          kind: 'pve',
+        });
+      }
     }
 
     // 幂等：已处理过同一请求 id → 返回当前快照，不重复扣费 / 移格。
@@ -368,6 +404,30 @@ async function moveAlongRoad(playerId, body) {
             marchToPvpCampPoi = true;
             pvpCampBaseCampJson = bc;
             pvpCampAttackerFactionId = wRowsFirst[0].attackerFactionId;
+          }
+        }
+        if (!marchToPvpCampPoi && marchPoi.isPvpWarMarchTargetId(targetPoiIdRaw)) {
+          const [pveWarRows] = await conn.query(
+            `SELECT war_id AS warId, target_city_id AS targetCityId, attacker_base_camps AS attackerBaseCamps
+               FROM wars WHERE war_id = ? AND status = 'active' AND war_type = 'siege' LIMIT 1`,
+            [targetPoiIdRaw],
+          );
+          if (pveWarRows.length && player.faction_id) {
+            let camps = pveWarRows[0].attackerBaseCamps;
+            if (typeof camps === 'string') {
+              try {
+                camps = JSON.parse(camps);
+              } catch {
+                camps = null;
+              }
+            }
+            const fid = String(player.faction_id).trim();
+            const bc = camps && typeof camps === 'object' ? camps[fid] : null;
+            if (bc && Array.isArray(bc.cells) && bc.cells.length) {
+              marchToPvpCampPoi = true;
+              pvpCampBaseCampJson = bc;
+              pvpCampAttackerFactionId = fid;
+            }
           }
         }
         if (!marchToPvpCampPoi) {

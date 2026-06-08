@@ -32,6 +32,7 @@ import {
   initBgmService,
   syncBgmEnabledFromStorage,
 } from '@/services/bgmService';
+import '@/styles/mapCornerPlayerEntries.css';
 
 const GameIntroOverlay = lazy(() => import('@/components/tutorial/GameIntroOverlay'));
 const WorldMap = lazy(() => import('@/components/game/WorldMap'));

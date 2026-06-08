@@ -15,6 +15,7 @@ import AncientModal from '@/components/common/AncientModal';
 import {
   MAP_CORNER_ENTRY_ROW_CLASS,
   mapCornerEntryRowBoxStyle,
+  MAP_CORNER_PLAYER_ENTRY_COMM_CLASS,
 } from '@/components/game/mapCornerEntryUi';
 import { COMM_TABS } from '@/components/comm/commPanelLayout';
 import BattleTab from '@/components/comm/BattleTab';
@@ -110,7 +111,7 @@ export default function CommPanel({ visible, unreadChatCount: unreadChatProp = 0
             setOpen(true);
           }}
           style={mapCornerEntryRowBoxStyle}
-          className={`fixed bottom-20 left-2 z-40 justify-start text-amber-300 ${MAP_CORNER_ENTRY_ROW_CLASS}`}
+          className={`fixed bottom-20 left-2 z-40 justify-start text-amber-300 ${MAP_CORNER_ENTRY_ROW_CLASS} ${MAP_CORNER_PLAYER_ENTRY_COMM_CLASS}`}
         >
           <span className="flex w-full min-w-0 items-center gap-1 text-left">
             <span style={emojiNotifyStyle} className="inline-flex shrink-0 select-none leading-none">

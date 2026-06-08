@@ -48,9 +48,10 @@ const eventRewardsBody = {
   playerAttrs: v.optional(v.plainObject()),
   general1Attrs: v.optional(v.plainObject()),
   general2Attrs: v.optional(v.plainObject()),
-  minigameResult: v.optional(v.plainObject()),
+  minigameResult: v.optional(v.enum(['victory', 'defeat'])),
   minigameSilverDelta: v.optional(v.integer({ min: -1_000_000_000, max: 1_000_000_000 })),
-  battleResult: v.optional(v.plainObject()),
+  /** 与 `playerEventRewardsService` / `useEventSystem.endBattle` 一致：字符串，非对象 */
+  battleResult: v.optional(v.enum(['victory', 'defeat'])),
   battleSilverSpent: v.optional(v.integer({ min: 0, max: 1_000_000_000 })),
   battleScore: v.optional(v.integer({ min: -1_000_000_000, max: 1_000_000_000 })),
 };

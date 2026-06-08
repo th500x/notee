@@ -231,8 +231,24 @@ export const WORLD_MAP_TILE_MIN = 12;
 export const WORLD_MAP_TILE_ABSOLUTE_CAP = 128;
 /** 与战术图 BattleMap.css 窄屏分界一致：`w <= 520` */
 export const WORLD_MAP_NARROW_VIEWPORT_MAX = 520;
-/** 竖屏默认 `--ws-tile` 下限：地图可宽于视口，换更大格点与 pawn 可点区域 */
-export const WORLD_MAP_NARROW_DEFAULT_TILE_FLOOR = 16;
+/** 竖屏/窄屏默认 `--ws-tile` 下限：地图可宽于视口，换更大格点与 pawn 可点区域 */
+export const WORLD_MAP_NARROW_DEFAULT_TILE_FLOOR = 24;
+
+/** 窄屏或竖屏：优先战术图可读格，不因「32 列铺满视口宽」压到 12～16px */
+export function isWorldMapReadableNarrowViewport() {
+  if (typeof window === 'undefined') return false;
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+  return w <= WORLD_MAP_NARROW_VIEWPORT_MAX || h > w;
+}
+
+/** 与战术图 BattleMap.css 同口径的参考格边长 */
+function computeBattleMapReferenceTilePx(viewportWidth) {
+  const w = viewportWidth;
+  const availW = Math.max(280, w - 16);
+  if (w > WORLD_MAP_NARROW_VIEWPORT_MAX) return 48;
+  return Math.min(48, Math.max(26, Math.floor((availW - 61) / 8)));
+}
 
 /**
  * 视口宽度下铺满地图列数（含格间 1px gap）所需单格边长。
@@ -241,33 +257,39 @@ export const WORLD_MAP_NARROW_DEFAULT_TILE_FLOOR = 16;
 export function computeMaxTilePx(mapColumns) {
   if (typeof window === 'undefined') return 56;
   const cols = Math.max(1, Number(mapColumns) || 32);
-  const availW = Math.max(280, window.innerWidth - 16);
+  const w = window.innerWidth;
+  const availW = Math.max(280, w - 16);
   const byWidth = Math.floor((availW - (cols - 1)) / cols);
-  return Math.min(
+  const widthFit = Math.min(
     WORLD_MAP_TILE_ABSOLUTE_CAP,
     Math.max(WORLD_MAP_TILE_MIN + 1, byWidth),
   );
+  if (isWorldMapReadableNarrowViewport()) {
+    const battleRef = computeBattleMapReferenceTilePx(w);
+    return Math.min(
+      WORLD_MAP_TILE_ABSOLUTE_CAP,
+      Math.max(widthFit, WORLD_MAP_NARROW_DEFAULT_TILE_FLOOR, battleRef),
+    );
+  }
+  return widthFit;
 }
 
 /**
  * 默认单格边长：对齐战斗地图瓦片视觉（可读性优先，允许滚动查看全图）。
- * 窄屏（`w <= WORLD_MAP_NARROW_VIEWPORT_MAX`）默认不低于 `WORLD_MAP_NARROW_DEFAULT_TILE_FLOOR`，
- * 即使宽于视口也接受横向滚动，避免 12～14px 格导致 pawn/城格难点。
+ * 窄屏/竖屏：对齐战术图参考格，**不**再被 `computeMaxTilePx` 的「列铺满宽」压小。
  */
 function computeDefaultTilePx(mapColumns) {
   if (typeof window === 'undefined') return 48;
   const w = window.innerWidth;
-  const availW = Math.max(280, w - 16);
-  const battleRef =
-    w > WORLD_MAP_NARROW_VIEWPORT_MAX
-      ? 48
-      : Math.min(48, Math.max(26, Math.floor((availW - 61) / 8)));
-  const maxPx = computeMaxTilePx(mapColumns);
-  let px = Math.min(maxPx, Math.max(22, battleRef));
-  if (w <= WORLD_MAP_NARROW_VIEWPORT_MAX) {
-    px = Math.max(WORLD_MAP_NARROW_DEFAULT_TILE_FLOOR, px);
+  const battleRef = computeBattleMapReferenceTilePx(w);
+  if (isWorldMapReadableNarrowViewport()) {
+    return Math.min(
+      WORLD_MAP_TILE_ABSOLUTE_CAP,
+      Math.max(WORLD_MAP_NARROW_DEFAULT_TILE_FLOOR, battleRef),
+    );
   }
-  return px;
+  const maxPx = computeMaxTilePx(mapColumns);
+  return Math.min(maxPx, Math.max(22, battleRef));
 }
 
 /**
@@ -499,6 +521,8 @@ export default function StrategicWorldMapSection({
   const cells = merged?.cells;
   const seed = merged ? normalizeMergedMapSeed(merged) : 0;
 
+  const countySeason = merged?.season || 'san_1';
+
   const [pvpBaseCamps, setPvpBaseCamps] = useState([]);
   const [pvpBaseCampsLoadState, setPvpBaseCampsLoadState] = useState('loading');
   useEffect(() => {
@@ -512,12 +536,13 @@ export default function StrategicWorldMapSection({
           return;
         }
         const list = Array.isArray(r.wars) ? r.wars : Array.isArray(r.data) ? r.data : [];
-        const camps = list
+        const pvpCamps = list
           .map((w) => {
             if (!w?.baseCamp?.cells?.length) return null;
             const bc = { ...w.baseCamp };
             return {
               ...bc,
+              kind: 'pvp',
               pvpWarId: w.pvpWarId,
               status: w.status,
               attackerFactionId: w.attackerFactionId,
@@ -533,7 +558,22 @@ export default function StrategicWorldMapSection({
             };
           })
           .filter(Boolean);
-        setPvpBaseCamps(camps);
+        let pveCamps = [];
+        try {
+          const seasonQ = encodeURIComponent(countySeason || 'san_1');
+          const pveRes = await fetchWithTimeout(
+            `${API_CONFIG.BASE_URL}/cities/active-pve-base-camps?season=${seasonQ}`,
+            { cache: 'no-store' },
+          );
+          const pveJson = await pveRes.json();
+          if (pveJson?.success && Array.isArray(pveJson.camps)) {
+            pveCamps = pveJson.camps.filter((c) => c?.cells?.length);
+          }
+        } catch (pveErr) {
+          console.warn('[StrategicWorldMapSection] PVE 大本营列表拉取失败', pveErr);
+        }
+        if (cancelled) return;
+        setPvpBaseCamps([...pvpCamps, ...pveCamps]);
         setPvpBaseCampsLoadState('ok');
       } catch {
         if (!cancelled) {
@@ -553,9 +593,7 @@ export default function StrategicWorldMapSection({
       clearInterval(t);
       document.removeEventListener('visibilitychange', onVis);
     };
-  }, []);
-
-  const countySeason = merged?.season || 'san_1';
+  }, [countySeason]);
   const cityRuntimeJunIds = useMemo(() => [...SAN_1_STRATEGIC_VERTICAL_STACK_JUN_ORDER], []);
   const playerMarchJunId = useMemo(
     () =>

@@ -87,6 +87,24 @@ router.get(
 );
 
 /**
+ * GET /api/cities/active-pve-base-camps — 大地图渲染 PVE 攻方大本营 footprint
+ */
+router.get(
+  '/active-pve-base-camps',
+  validateQuery(citySchemas.activePveBaseCampsQuery),
+  async (req, res, next) => {
+    try {
+      const season = String(req.query.season || 'san_1').trim() || 'san_1';
+      const pveWarBaseCampService = require('../services/pveWarBaseCampService');
+      const camps = await pveWarBaseCampService.listActivePveBaseCampsForMap({ season });
+      res.json({ success: true, camps, count: camps.length });
+    } catch (error) {
+      return next(wrap500(error, '获取 PVE 大本营列表失败'));
+    }
+  },
+);
+
+/**
  * GET /api/cities/war/:warId
  */
 router.get('/war/:warId', validateParams(citySchemas.warIdParam), async (req, res, next) => {

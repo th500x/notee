@@ -52,6 +52,7 @@
 import { useState } from 'react';
 import PropTypes from 'prop-types';
 import { parseEchoSlots, getEchoSlotDisplay } from '@shared/utils/characterEchoCombat';
+import { roundCoreAttributeOneDecimal } from '@shared/utils/skillPhase1Passive';
 
 /**
  * 稀有度配置
@@ -254,11 +255,15 @@ function CharacterCard({
   // 解析属性加成（×10存储，显示时除以10）
   const ab = character.attributeBonus || {};
   const getBonus = (key) => ab[key] ? ab[key] / 10 : 0;
-  // 带加成的属性值显示辅助
+  const formatCoreAttr = (n) => {
+    const r = roundCoreAttributeOneDecimal(n);
+    return Number.isInteger(r) ? String(r) : r.toFixed(1);
+  };
+  // 带加成的属性值显示辅助（被动/装备叠值均走一位小数，避免浮点脏尾撑破布局）
   const attrDisplay = (base, bonusKey) => {
     const bonus = getBonus(bonusKey);
-    if (bonus <= 0) return { value: base, hasBonus: false };
-    return { value: (parseFloat(base) + bonus).toFixed(1), hasBonus: true };
+    if (bonus <= 0) return { value: formatCoreAttr(base), hasBonus: false };
+    return { value: formatCoreAttr(parseFloat(base) + bonus), hasBonus: true };
   };
   // 计算生涯阶段范围
   const calculateStageRanges = (seasons) => {

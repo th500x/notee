@@ -87,7 +87,7 @@ export default function SmallMapBattle({
   cards = null,
   onDeferredAwayBattleEnd = null,
 }) {
-  useBgmScene('battle_small');
+  useBgmScene(battleType === 'pve_bandit' ? null : 'battle_small');
 
   const [stage, setStage] = useState(STAGE.LOADING);
   const [layoutWidth, setLayoutWidth] = useState('auto');

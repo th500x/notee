@@ -1,7 +1,10 @@
 /**
  * 玩家档案拉取时：若 `road_position_*` 已落在「地图上不再存在的立足格」
- *（典型：下线前站在攻方大本营格，战事结束后 `base_camp` 已清空），
+ *（典型：下线前站在攻方大本营格，战事结束后营寨已清空），
  * 则写入本郡 **最近己方城锚格**（与 `roadBattleRetreatPlacement` / PVP 终局迁离同源）。
+ *
+ * PVP `wars_pvp.base_camp` 与 PVE `wars.attacker_base_camps` 在战事进行中均为合法立足点，
+ * 须在叠图郡 alternate 修正之前识别，避免颍川/汝南同坐标误判改郡。
  *
  * 与 `pvpWarPlayerRelocationService.relocateAttackersOffPvpBaseCamp` 互补：后者在终局事务内迁离在线/同进程玩家；
  * 本模块兜底 **已离线** 或 **迁离逻辑未命中**（例如占格键世界行 Y 与库不一致）的残留坐标。
@@ -77,10 +80,28 @@ function parseBaseCampJson(raw) {
   }
 }
 
+function localCellMatchesBaseCampJson(bc, roadJunId, selfLocal, selfWorld) {
+  if (!bc || typeof bc !== 'object') return false;
+  if (Array.isArray(bc.worldCellKeys)) {
+    for (const wk of bc.worldCellKeys) {
+      const s = String(wk || '').trim().replace(/\s/g, '');
+      if (s && s === selfWorld) return true;
+    }
+  }
+  const bj = String(bc.junId || '').trim();
+  if (bj === roadJunId && Array.isArray(bc.cells)) {
+    for (const ck of bc.cells) {
+      const s = String(ck || '').trim().replace(/\s/g, '');
+      if (s && s === selfLocal) return true;
+    }
+  }
+  return false;
+}
+
 /**
- * 当前格是否落在 **pending/active** 且仍带 `base_camp` 的 PVP 攻方本营占格上（与前端叠放世界行一致）。
+ * 当前格是否落在 **pending/active** PVP `base_camp` 或 active PVE `attacker_base_camps` 攻方本营占格上。
  */
-async function cellTouchesActivePvpBaseCamp(conn, roadJunId, lx, ly) {
+async function cellTouchesActiveAttackerBaseCamp(conn, roadJunId, lx, ly) {
   const j = String(roadJunId || '').trim();
   const tx = Math.trunc(Number(lx));
   const ty = Math.trunc(Number(ly));
@@ -89,24 +110,24 @@ async function cellTouchesActivePvpBaseCamp(conn, roadJunId, lx, ly) {
   const selfLocal = `${tx},${ty}`;
   const selfWorld = worldMapCellKeyFromPlayerRoadLocal(j, tx, ty);
 
-  const [rows] = await conn.query(
+  const [pvpRows] = await conn.query(
     `SELECT base_camp FROM wars_pvp WHERE status IN ('pending','active') AND base_camp IS NOT NULL`,
   );
-  for (const r of rows || []) {
-    const bc = parseBaseCampJson(r.base_camp);
-    if (!bc) continue;
-    if (Array.isArray(bc.worldCellKeys)) {
-      for (const wk of bc.worldCellKeys) {
-        const s = String(wk || '').trim().replace(/\s/g, '');
-        if (s && s === selfWorld) return true;
-      }
+  for (const r of pvpRows || []) {
+    if (localCellMatchesBaseCampJson(parseBaseCampJson(r.base_camp), j, selfLocal, selfWorld)) {
+      return true;
     }
-    const bj = String(bc.junId || '').trim();
-    if (bj === j && Array.isArray(bc.cells)) {
-      for (const ck of bc.cells) {
-        const s = String(ck || '').trim().replace(/\s/g, '');
-        if (s && s === selfLocal) return true;
-      }
+  }
+
+  const [pveRows] = await conn.query(
+    `SELECT attacker_base_camps FROM wars
+       WHERE status = 'active' AND war_type = 'siege' AND attacker_base_camps IS NOT NULL`,
+  );
+  for (const r of pveRows || []) {
+    const camps = parseBaseCampJson(r.attacker_base_camps);
+    if (!camps || typeof camps !== 'object' || Array.isArray(camps)) continue;
+    for (const bc of Object.values(camps)) {
+      if (localCellMatchesBaseCampJson(bc, j, selfLocal, selfWorld)) return true;
     }
   }
   return false;
@@ -169,6 +190,9 @@ async function evaluateAndRepairLockedPlayer(conn, pl) {
   if (!evalWorld) return null;
   if (isStandValidAtWorld(evalWorld)) return null;
 
+  // 须在叠图郡 alternate 修正之前：PVE/PVP 本营占格非道路/静态 POI，但仍是合法立足点。
+  if (await cellTouchesActiveAttackerBaseCamp(conn, junId, rx, ry)) return null;
+
   if (grid?.isSan1YuVerticalStack && Array.isArray(grid.stackJunIds) && grid.stackJunIds.length >= 2) {
     for (const tryJun of grid.stackJunIds) {
       const tj = String(tryJun || '').trim();
@@ -190,8 +214,6 @@ async function evaluateAndRepairLockedPlayer(conn, pl) {
       return { road_jun_id: tj, road_client_notice: notice };
     }
   }
-
-  if (await cellTouchesActivePvpBaseCamp(conn, junId, rx, ry)) return null;
 
   const r = await applyFactionPlayerRoadRetreat(conn, {
     junId,

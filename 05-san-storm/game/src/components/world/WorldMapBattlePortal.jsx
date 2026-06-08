@@ -3,6 +3,7 @@ import { Suspense, lazy } from 'react';
 import ChunkLoadFallback from '@/components/game/ChunkLoadFallback';
 import StrategicSettlementCard from '@/components/world/StrategicSettlementCard';
 import { isPvpDuelDefenderType } from '@/utils/roadEncounterSettlement';
+import { useBgmScene } from '@/hooks/useBgmScene';
 
 const BattleArena = lazy(() => import('@/components/battle/BattleArena'));
 
@@ -24,6 +25,9 @@ export default function WorldMapBattlePortal({
   onBanditContinue,
   onBanditDefeatAbandon,
 }) {
+  /** 匪寨：战斗 + 结算 + 点「继续」衔接下一层期间保持小型战 BGM，仅「退出/确定/放弃」后恢复大地图 */
+  useBgmScene(banditRaidData || banditRaidResult ? 'battle_small' : null);
+
   if (typeof document === 'undefined' || !open) return null;
 
   return createPortal(

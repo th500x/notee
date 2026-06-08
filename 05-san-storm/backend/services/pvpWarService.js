@@ -197,9 +197,9 @@ function pickBaseCampPlacement(candidates, pickerSeed = 0) {
 }
 
 /**
- * 收集本郡内所有 active / pending PVP 战事的大本营占格（用于避让）。
+ * 收集本郡内所有 active / pending PVP 战事 + active PVE `wars.attacker_base_camps` 的大本营占格（用于避让）。
  */
-async function collectOccupiedCampCellsInJun(junId, excludePvpWarId = null) {
+async function collectOccupiedCampCellsInJun(junId, excludePvpWarId = null, excludePveWarId = null) {
   const occupied = new Set();
   const wars = await WarPvp.listWars({ status: ['pending', 'active'], limit: 200 });
   for (const w of wars) {
@@ -208,7 +208,125 @@ async function collectOccupiedCampCellsInJun(junId, excludePvpWarId = null) {
     if (w.baseCamp.junId && junId && w.baseCamp.junId !== junId) continue;
     for (const k of w.baseCamp.cells) occupied.add(k);
   }
+  const [pveRows] = await pool.query(
+    `SELECT war_id, attacker_base_camps FROM wars
+     WHERE status = 'active' AND war_type = 'siege' AND attacker_base_camps IS NOT NULL
+     LIMIT 200`,
+  );
+  for (const row of pveRows || []) {
+    if (excludePveWarId && row.war_id === excludePveWarId) continue;
+    let camps = row.attacker_base_camps;
+    if (typeof camps === 'string') {
+      try {
+        camps = JSON.parse(camps);
+      } catch {
+        camps = null;
+      }
+    }
+    if (!camps || typeof camps !== 'object') continue;
+    for (const bc of Object.values(camps)) {
+      if (!bc || !Array.isArray(bc.cells)) continue;
+      if (bc.junId && junId && bc.junId !== junId) continue;
+      for (const k of bc.cells) occupied.add(k);
+    }
+  }
   return occupied;
+}
+
+/**
+ * 为目标城生成攻方大本营 JSON（不写库；PVP 落营与 PVE `wars.attacker_base_camps` 共用）。
+ *
+ * @param {object} targetCity - `cityService.getCityInfo` 行
+ * @param {string} pickerSeed - 选位确定性种子（如 pvpWarId 或 `warId:factionId`）
+ * @param {{ excludePvpWarId?: string, excludePveWarId?: string }} [opts]
+ * @returns {Promise<object>} baseCamp 形（与 `wars_pvp.base_camp` 一致）
+ */
+async function createBaseCampJsonForCity(targetCity, pickerSeed, opts = {}) {
+  if (!targetCity) throw new Error('[baseCamp] 目标城不存在');
+  const junId = targetCity.jun_id;
+  if (!junId) throw new Error('[baseCamp] 目标城缺 jun_id，无法定位战略格网');
+
+  const grid = await loadRoadGrid(targetCity.season || 'san_1', junId);
+  if (grid.source === 'none' || !grid.rawCells?.length) {
+    throw new Error(`[baseCamp] 目标郡 ${junId} 缺合并地图；请先生成 worldmap merged JSON`);
+  }
+  const roadKeys = new Set();
+  for (const k of grid.cells.keys()) roadKeys.add(k);
+
+  const cityFootprint = (() => {
+    const fp = new Set();
+    const px = Number(targetCity.position_x);
+    const py = Number(targetCity.position_y);
+    if (Number.isFinite(px) && Number.isFinite(py)) {
+      for (let dy = 0; dy < 2; dy++) {
+        for (let dx = 0; dx < 2; dx++) {
+          const x = px + dx;
+          const y = py + dy;
+          if (x >= 0 && y >= 0 && x < grid.mapColumns && y < grid.mapRows) {
+            fp.add(`${x},${y}`);
+          }
+        }
+      }
+    }
+    return fp;
+  })();
+  if (!cityFootprint.size) {
+    throw new Error(
+      `[baseCamp] 目标城 ${targetCity.city_id} 在地图无 footprint（position_x/y 越界或缺失）`,
+    );
+  }
+
+  const occupied = await collectOccupiedCampCellsInJun(
+    junId,
+    opts.excludePvpWarId || null,
+    opts.excludePveWarId || null,
+  );
+
+  const candidates = findBaseCampCandidatePlacements({
+    rawCells: grid.rawCells,
+    mapColumns: grid.mapColumns,
+    mapRows: grid.mapRows,
+    roadKeys,
+    blocked: grid.blocked,
+    cityFootprint,
+    occupiedCamps: occupied,
+  });
+  if (!candidates.length) {
+    throw new Error(
+      `[baseCamp] 目标城 ${targetCity.city_id} 周围无 1×2/2×1 合法空地放置大本营（须贴城且至少一格四邻接道路）`,
+    );
+  }
+  const pick = pickBaseCampPlacement(candidates, pickerSeed);
+
+  const gridCoords = require('../../shared/utils/strategicGridCoordinates.js');
+  const worldCellKeys = pick.cells
+    .map((cellKey) => {
+      const parts = String(cellKey)
+        .split(',')
+        .map((s) => Number(String(s).trim()));
+      const lx = parts[0];
+      const ly = parts[1];
+      return gridCoords.worldMapCellKeyFromPlayerRoadLocal(junId, lx, ly);
+    })
+    .filter(Boolean);
+
+  const npcCount = computeBaseCampNpcCount(targetCity);
+  const npcUnits = await generateBaseCampNpcUnits(targetCity, npcCount);
+
+  return {
+    junId,
+    anchorOx: pick.anchorOx,
+    anchorOy: pick.anchorOy,
+    orientation: pick.orientation,
+    cells: pick.cells,
+    worldCellKeys,
+    spriteKey:
+      pick.orientation === 'vertical' ? BASE_CAMP_SPRITE_VERTICAL : BASE_CAMP_SPRITE_HORIZONTAL,
+    npcTotal: npcCount,
+    npcAlive: npcCount,
+    npcUnits,
+    placedAt: new Date().toISOString(),
+  };
 }
 
 // ==================== NPC 守军生成（大本营） ====================
@@ -480,87 +598,10 @@ async function placeAttackerBaseCampAndActivate(pvpWarId, opts = {}) {
 
   const targetCity = await cityService.getCityInfo(war.targetCityId);
   if (!targetCity) throw new Error('[pvpWar] 目标城不存在');
-  const junId = targetCity.jun_id;
-  if (!junId) throw new Error('[pvpWar] 目标城缺 jun_id，无法定位战略格网');
 
-  const grid = await loadRoadGrid(targetCity.season || 'san_1', junId);
-  if (grid.source === 'none' || !grid.rawCells?.length) {
-    throw new Error(`[pvpWar] 目标郡 ${junId} 缺合并地图；请先生成 worldmap merged JSON`);
-  }
-  const roadKeys = new Set();
-  for (const k of grid.cells.keys()) roadKeys.add(k);
-
-  const cityFootprint = (() => {
-    const fp = new Set();
-    const px = Number(targetCity.position_x);
-    const py = Number(targetCity.position_y);
-    if (Number.isFinite(px) && Number.isFinite(py)) {
-      for (let dy = 0; dy < 2; dy++) {
-        for (let dx = 0; dx < 2; dx++) {
-          const x = px + dx;
-          const y = py + dy;
-          if (x >= 0 && y >= 0 && x < grid.mapColumns && y < grid.mapRows) {
-            fp.add(`${x},${y}`);
-          }
-        }
-      }
-    }
-    return fp;
-  })();
-  if (!cityFootprint.size) {
-    throw new Error(
-      `[pvpWar] 目标城 ${war.targetCityId} 在地图无 footprint（position_x/y 越界或缺失）`,
-    );
-  }
-
-  const occupied = await collectOccupiedCampCellsInJun(junId, pvpWarId);
-
-  const candidates = findBaseCampCandidatePlacements({
-    rawCells: grid.rawCells,
-    mapColumns: grid.mapColumns,
-    mapRows: grid.mapRows,
-    roadKeys,
-    blocked: grid.blocked,
-    cityFootprint,
-    occupiedCamps: occupied,
+  const baseCamp = await createBaseCampJsonForCity(targetCity, pvpWarId, {
+    excludePvpWarId: pvpWarId,
   });
-  if (!candidates.length) {
-    throw new Error(
-      `[pvpWar] 目标城 ${war.targetCityId} 周围无 1×2/2×1 合法空地放置大本营（须贴城且至少一格四邻接道路）`,
-    );
-  }
-  const pick = pickBaseCampPlacement(candidates, pvpWarId);
-
-  const gridCoords = require('../../shared/utils/strategicGridCoordinates.js');
-  const worldCellKeys = pick.cells
-    .map((cellKey) => {
-      const parts = String(cellKey)
-        .split(',')
-        .map((s) => Number(String(s).trim()));
-      const lx = parts[0];
-      const ly = parts[1];
-      return gridCoords.worldMapCellKeyFromPlayerRoadLocal(junId, lx, ly);
-    })
-    .filter(Boolean);
-
-  const npcCount = computeBaseCampNpcCount(targetCity);
-  const npcUnits = await generateBaseCampNpcUnits(targetCity, npcCount);
-
-  const baseCamp = {
-    junId,
-    anchorOx: pick.anchorOx,
-    anchorOy: pick.anchorOy,
-    orientation: pick.orientation,
-    cells: pick.cells,
-    /** 与合并战略格网 `cells[wy][gx]` 一致，客户端/服务端 footprint 优先用此，避免郡内↔叠放行换算漂移 */
-    worldCellKeys,
-    spriteKey:
-      pick.orientation === 'vertical' ? BASE_CAMP_SPRITE_VERTICAL : BASE_CAMP_SPRITE_HORIZONTAL,
-    npcTotal: npcCount,
-    npcAlive: npcCount,
-    npcUnits,
-    placedAt: new Date().toISOString(),
-  };
 
   const now = new Date();
   const endTime = new Date(now.getTime() + PVP_WAR_DURATION_MS);
@@ -2058,6 +2099,8 @@ module.exports = {
   findBaseCampCandidatePlacements,
   pickBaseCampPlacement,
   computeBaseCampNpcCount,
+  createBaseCampJsonForCity,
+  collectOccupiedCampCellsInJun,
   // 生命周期
   createPvpWarDraft,
   createPvpWarDraftAndActivate,

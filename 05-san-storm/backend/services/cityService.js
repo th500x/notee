@@ -16,6 +16,7 @@ const factionBulletinService = require('./factionBulletinService');
 const aiKingConfigService = require('./aiKingConfigService');
 const gameTimeService = require('./gameTimeService');
 const warInitiationCostService = require('./warInitiationCostService');
+const pveWarBaseCampService = require('./pveWarBaseCampService');
 const { KILL_SILVER_REWARD } = require('../../shared/utils/siegeKillEconomyByRarity.cjs');
 const { isAllowedPlayerCityPoiCityType } = require('../../shared/utils/strategicMarchPoi.js');
 const {
@@ -807,6 +808,13 @@ async function initiateSiege(cityId, playerId) {
     throw new Error('当前各战线均有友军交战中，请稍后再试');
   }
 
+  try {
+    await pveWarBaseCampService.ensurePveAttackerBaseCamp(war.war_id, playerFaction);
+  } catch (campErr) {
+    console.error('[cityService] PVE 大本营落位失败:', campErr.message);
+    throw new Error(campErr.message || '无法在目标城外放置攻方大本营，请稍后重试');
+  }
+
   const battleNpc = battleSlice.map(({ u, gi }) => ({
     ...u,
     index: gi,
@@ -997,7 +1005,7 @@ async function recordSiegeResult(warId, playerId, factionId, killedIndices, resu
 
       // 更新 war 为完成
       await connection.query(
-        "UPDATE wars SET status = 'completed', winner_faction_id = ?, end_time = NOW() WHERE war_id = ?",
+        "UPDATE wars SET status = 'completed', winner_faction_id = ?, end_time = NOW(), attacker_base_camps = NULL WHERE war_id = ?",
         [winnerFaction, warId]
       );
 
@@ -1203,10 +1211,20 @@ async function openPveWarOnNeutralCity(cityId, opts = {}) {
     [cityId],
   );
   if (existingWars.length > 0) {
+    const reused = existingWars[0];
+    const bfReuse = bulletinFactionId && String(bulletinFactionId).trim();
+    if (bfReuse) {
+      try {
+        await pveWarBaseCampService.ensurePveAttackerBaseCamp(reused.war_id, bfReuse);
+      } catch (campErr) {
+        console.error('[cityService] openPveWar reuse 大本营落位失败:', campErr.message);
+        throw campErr;
+      }
+    }
     return {
-      warId: existingWars[0].war_id,
+      warId: reused.war_id,
       created: false,
-      war: existingWars[0],
+      war: reused,
       npcAlive: Number(city.npc_garrison_alive || 0),
       openedByCharacterId,
     };
@@ -1260,6 +1278,13 @@ async function openPveWarOnNeutralCity(cityId, opts = {}) {
       );
       if (ex2.length > 0) {
         await conn.rollback();
+        const bfReuse = String(bulletinFactionId).trim();
+        try {
+          await pveWarBaseCampService.ensurePveAttackerBaseCamp(ex2[0].war_id, bfReuse);
+        } catch (campErr) {
+          console.error('[cityService] openPveWar race reuse 大本营落位失败:', campErr.message);
+          throw campErr;
+        }
         return {
           warId: ex2[0].war_id,
           created: false,
@@ -1309,6 +1334,16 @@ async function openPveWarOnNeutralCity(cityId, opts = {}) {
 
   if (bulletinFactionId) {
     factionBulletinService.logPveWarStarted(bulletinFactionId, cityRefreshed.city_name, cityId);
+  }
+
+  const bfCamp = bulletinFactionId && String(bulletinFactionId).trim();
+  if (bfCamp) {
+    try {
+      await pveWarBaseCampService.ensurePveAttackerBaseCamp(warId, bfCamp);
+    } catch (campErr) {
+      console.error('[cityService] openPveWar 大本营落位失败:', campErr.message);
+      throw campErr;
+    }
   }
 
   return {
@@ -1455,7 +1490,8 @@ async function cancelActivePveSiegeWarViaSanGongChaoZheng(playerId, warId, body 
       throw sanGongChaoZhengClientError('战事不存在或已结束');
     }
     await conn.query(
-      `UPDATE wars SET status = 'completed', winner_faction_id = NULL, end_time = NOW() WHERE war_id = ?`,
+      `UPDATE wars SET status = 'completed', winner_faction_id = NULL, end_time = NOW(),
+         attacker_base_camps = NULL WHERE war_id = ?`,
       [wid],
     );
     await conn.commit();
@@ -1489,6 +1525,15 @@ async function cancelActivePveSiegeWarViaSanGongChaoZheng(playerId, warId, body 
  * 未成则 `completed` + `winner_faction_id` NULL，并释放 NPC 批锁。
  */
 async function tickActivePveWars() {
+  try {
+    const bf = await pveWarBaseCampService.backfillAllActivePveBaseCamps();
+    if (bf.placed > 0) {
+      console.log(`[pveWarBaseCamp] tick backfill placed=${bf.placed} warsScanned=${bf.wars}`);
+    }
+  } catch (e) {
+    console.warn('[pveWarBaseCamp] tick backfill failed:', e.message);
+  }
+
   const [rows] = await pool.query(
     `SELECT war_id, target_city_id, target_city_name, faction_kills,
             start_time, end_time, created_at
@@ -1517,7 +1562,8 @@ async function tickActivePveWars() {
         }
         locked = warRows[0];
         await conn.query(
-          `UPDATE wars SET status = 'completed', winner_faction_id = NULL, end_time = NOW() WHERE war_id = ?`,
+          `UPDATE wars SET status = 'completed', winner_faction_id = NULL, end_time = NOW(),
+             attacker_base_camps = NULL WHERE war_id = ?`,
           [wid],
         );
         await conn.commit();

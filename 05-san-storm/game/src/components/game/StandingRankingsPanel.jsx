@@ -13,6 +13,7 @@ import { campaignAPI } from '@/services/campaignApi';
 import {
   MAP_CORNER_ENTRY_ROW_CLASS,
   mapCornerEntryRowBoxStyle,
+  MAP_CORNER_PLAYER_ENTRY_RANK_CLASS,
 } from '@/components/game/mapCornerEntryUi';
 
 const SEASON = 'san_1';
@@ -174,7 +175,7 @@ export default function StandingRankingsPanel({ visible, playerId }) {
         type="button"
         onClick={() => setOpen(true)}
         style={mapCornerEntryRowBoxStyle}
-        className={`fixed bottom-32 left-2 z-40 justify-start text-amber-300 ${MAP_CORNER_ENTRY_ROW_CLASS}`}
+        className={`fixed bottom-32 left-2 z-40 justify-start text-amber-300 ${MAP_CORNER_ENTRY_ROW_CLASS} ${MAP_CORNER_PLAYER_ENTRY_RANK_CLASS}`}
       >
         <span className="block w-full min-w-0 truncate text-left">🏆 排行</span>
       </button>

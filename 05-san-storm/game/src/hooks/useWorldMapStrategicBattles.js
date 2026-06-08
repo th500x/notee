@@ -512,7 +512,6 @@ export function useWorldMapStrategicBattles({
     if (!banditRaidResult || banditRaidResult.result !== 'victory') return;
     const banditPoiId = banditRaidResult.banditPoiId;
     if (!banditPoiId || !player?.playerId) return;
-    setBanditRaidResult(null);
     try {
       const res = await playerAPI.getBanditRaidQuota(player.playerId, banditPoiId);
       if (!res?.success || !res.data) {
@@ -554,6 +553,7 @@ export function useWorldMapStrategicBattles({
       }
       const enemySlotRarities = banditNpcSlotRaritiesFromLayer(attackedLayer);
       const lootBase = buildBanditLayerSmallMapPveLoot(attackedLayer);
+      setBanditRaidResult(null);
       setBanditRaidData({
         banditPoiId: String(banditPoiId).trim(),
         attackedLayer,

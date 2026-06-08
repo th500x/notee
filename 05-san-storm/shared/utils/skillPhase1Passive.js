@@ -184,6 +184,15 @@ export function collectCharacterSkillIdsFromConfig(cfg) {
 }
 
 /**
+ * 七维一位小数（配置 + 被动叠值后），规避 7.1+0.3 等浮点脏尾
+ */
+export function roundCoreAttributeOneDecimal(n) {
+  const x = Number(n);
+  if (!Number.isFinite(x)) return 0;
+  return Math.round(x * 10) / 10;
+}
+
+/**
  * 将阶段1七维增量合入「卡片显示用」将领属性（与 CharacterCard 入参同刻度，通常为 0–10 小数）
  */
 export function applyPhase1CoreDeltasToCharacterProps(characterLike, bundle) {
@@ -192,7 +201,7 @@ export function applyPhase1CoreDeltasToCharacterProps(characterLike, bundle) {
   for (const k of PHASE1_CORE_ATTR_KEYS) {
     const cur = next[k];
     const base = typeof cur === 'number' && !Number.isNaN(cur) ? cur : 0;
-    next[k] = base + (bundle[k] || 0);
+    next[k] = roundCoreAttributeOneDecimal(base + (bundle[k] || 0));
   }
   return next;
 }
@@ -206,7 +215,7 @@ export function attachPhase1CombatToCharacter(charObj, bundle) {
   for (const k of PHASE1_CORE_ATTR_KEYS) {
     const cur = next[k];
     const base = typeof cur === 'number' && !Number.isNaN(cur) ? cur : 0;
-    next[k] = base + (bundle[k] || 0);
+    next[k] = roundCoreAttributeOneDecimal(base + (bundle[k] || 0));
   }
   next._skillPhase1Combat = {
     damageBonus: bundle.damageBonus,
