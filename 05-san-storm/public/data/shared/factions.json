@@ -10,7 +10,7 @@
       "color": "#FF6B6B",
       "season": "san_1",
       "style": "机缘",
-      "max_players": 60,
+      "max_players": 10,
       "bonuses": [
         "势力内政值+5%",
         "势力魅力值+10%",
@@ -35,7 +35,8 @@
         }
       ],
       "description": "机缘玩家的选择，固守风格",
-      "difficulty": "简单"
+      "difficulty": "简单",
+      "initialCityId": "san_1_city_3_shangcai"
     },
     {
       "id": "san_1_faction_2001",
@@ -45,7 +46,7 @@
       "color": "#4ECDC4",
       "season": "san_1",
       "style": "霸业",
-      "max_players": 90,
+      "max_players": 0,
       "bonuses": [
         "势力内政值+10%",
         "势力魅力值+5%",
@@ -81,7 +82,7 @@
       "color": "#95E1D3",
       "season": "san_1",
       "style": "挑战",
-      "max_players": 60,
+      "max_players": 0,
       "bonuses": [
         "势力内政值+2%",
         "势力魅力值+5%",
@@ -116,7 +117,7 @@
       "color": "#F38181",
       "season": "san_1",
       "style": "挑战",
-      "max_players": 60,
+      "max_players": 0,
       "bonuses": [
         "势力内政值+5%",
         "势力魅力值+2%",
@@ -152,7 +153,7 @@
       "color": "#AA4A44",
       "season": "san_1",
       "style": "猛攻",
-      "max_players": 90,
+      "max_players": 0,
       "bonuses": [
         "势力内政值-10%",
         "势力魅力值-5%",
@@ -188,7 +189,7 @@
       "color": "#FFD93D",
       "season": "san_1",
       "style": "中庸",
-      "max_players": 120,
+      "max_players": 30,
       "bonuses": [
         "势力内政值+5%",
         "势力魅力值+5%",
@@ -225,7 +226,7 @@
       "color": "#FCB900",
       "season": "san_1",
       "style": "速攻",
-      "max_players": 180,
+      "max_players": 50,
       "bonuses": [
         "势力内政值-20%",
         "势力魅力值-5%",
@@ -257,8 +258,8 @@
   ],
   "metadata": {
     "totalFactions": 7,
-    "totalMaxPlayers": 660,
-    "generatedAt": "2026-04-19T11:58:06.108Z",
+    "totalMaxPlayers": 90,
+    "generatedAt": "2026-06-08T11:35:05.735Z",
     "idFormat": "san_{season}_faction_{4digits}"
   }
 }

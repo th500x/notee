@@ -1,6 +1,6 @@
 /**
  * 活动榜 / 大司空日榜 · 四项积分权重
- * 活动榜 scoreWeights 从 shared/config/announcements.cjs 读取；大司空用 DEFAULT。
+ * 活动榜 scoreWeights 从 shared/config/announcements.json 读取；大司空用 DEFAULT。
  * @see shared/utils/rankingScoreWeights.cjs
  */
 
@@ -8,7 +8,7 @@ const {
   DEFAULT_SCORE_WEIGHTS,
   normalizeSqlWeights,
 } = require('../../shared/utils/rankingScoreWeights.cjs');
-const { findAnnouncementById } = require('../../shared/config/announcements.cjs');
+const { findAnnouncementById } = require('../../shared/config/announcementsShared.cjs');
 
 /**
  * @param {string} [eventId]

@@ -25,7 +25,9 @@ const aiKingConfigService = require('./aiKingConfigService');
 const policyProposerAuth = require('./policyProposerAuth');
 const defaults = require('./factionPolicyDefaults');
 const factionReserveService = require('./factionReserveService');
-
+const {
+  policyRowConfigTrustworthy,
+} = require('../../shared/utils/factionPolicyEffectiveConfig.cjs');
 /**
  * 行 → 驼峰（API/前端口径）。
  * `config_json` MariaDB JSON 列：mysql2 默认会自动解析；若驱动配置不同导致为字符串，做一次 JSON.parse 兜底。
@@ -250,21 +252,8 @@ async function submitLongTermProposal(input) {
   let recruitFeeContext = null;
   if (category === defaults.POLICY_CATEGORIES.RECRUIT) {
     const nextEnabled = !!v.normalized.enabled;
-    const prevEnabled = !!(
-      existingRow &&
-      (() => {
-        try {
-          const cfg =
-            typeof existingRow.config_json === 'string'
-              ? JSON.parse(existingRow.config_json)
-              : existingRow.config_json;
-          return !!cfg?.enabled;
-        } catch (_) {
-          return false;
-        }
-      })() &&
-      (existingRow.last_outcome === 'approved' || existingRow.last_outcome === 'rejected')
-    );
+    const prevRecruit = await getEffectiveRecruit(factionId);
+    const prevEnabled = !!prevRecruit.enabled;
     const mapping = defaults.getRecruitMappingForFaction(factionId);
     const shouldChargeIfApproved = nextEnabled && !prevEnabled;
     recruitFeeContext = {
@@ -345,12 +334,18 @@ async function submitLongTermProposal(input) {
       });
       chargedSilver = recruitFeeContext.openCostSilver;
     }
+    // 驳回且无历史行：INSERT 时用类目默认 config，勿写入未获批的提案值（避免面板误显「已开启」等）
+    const configForUpsert =
+      approval.approved || existingRow
+        ? v.normalized
+        : defaults.getDefaultConfigForCategory(category);
+
     await upsertFactionPolicy(
       conn,
       {
         factionId,
         category,
-        config: v.normalized,
+        config: configForUpsert,
         outcome: approval.approved ? 'approved' : 'rejected',
         outcomeAt: now,
         nextEligibleAt,
@@ -416,18 +411,34 @@ async function submitLongTermProposal(input) {
  * }>}
  */
 async function getEffectiveSiegeReward(factionId) {
-  const { source, config, row } = await getEffectivePolicy(
+  const fallbackPct = defaults.SIEGE_REWARD.defaultPersonalSharePct;
+  const row = await findFactionPolicyRow(
     factionId,
     defaults.POLICY_CATEGORIES.SIEGE_REWARD,
   );
-  const rawPct = Number(config?.personalSharePct);
+  if (!row) {
+    return {
+      personalSharePct: fallbackPct,
+      source: 'category_default',
+      row: null,
+    };
+  }
+  const formatted = formatFactionPolicyRow(row);
+  if (!policyRowConfigTrustworthy(formatted)) {
+    return {
+      personalSharePct: fallbackPct,
+      source: 'category_default',
+      row: formatted,
+    };
+  }
+  const rawPct = Number(formatted.config?.personalSharePct);
   const personalSharePct = Number.isFinite(rawPct)
     ? Math.max(0, Math.min(100, Math.round(rawPct)))
-    : defaults.SIEGE_REWARD.defaultPersonalSharePct;
+    : fallbackPct;
   return {
     personalSharePct,
-    source: source === 'row' ? 'policy_row' : 'category_default',
-    row,
+    source: 'policy_row',
+    row: formatted,
   };
 }
 
@@ -458,7 +469,7 @@ async function getEffectiveDomesticGoal(factionId) {
   );
   if (!row) return fallback;
   const formatted = formatFactionPolicyRow(row);
-  if (formatted.lastOutcome !== 'approved') {
+  if (!policyRowConfigTrustworthy(formatted)) {
     return { ...fallback, row: formatted };
   }
   const g = String(formatted.config?.goal || '').trim();
@@ -498,7 +509,7 @@ async function getEffectiveRationBonus(factionId) {
   );
   if (!row) return fallback;
   const formatted = formatFactionPolicyRow(row);
-  if (formatted.lastOutcome !== 'approved') {
+  if (!policyRowConfigTrustworthy(formatted)) {
     return { ...fallback, row: formatted };
   }
   const pct = Number(formatted.config?.bonusPct);
@@ -542,7 +553,10 @@ async function getEffectiveRecruit(factionId) {
   const row = await findFactionPolicyRow(factionId, defaults.POLICY_CATEGORIES.RECRUIT);
   if (!row) return fallback;
   const formatted = formatFactionPolicyRow(row);
-  if (formatted.lastOutcome !== 'approved' || !formatted.config?.enabled) {
+  if (!policyRowConfigTrustworthy(formatted)) {
+    return { ...fallback, row: formatted };
+  }
+  if (!formatted.config?.enabled) {
     return { ...fallback, row: formatted };
   }
   const mapping = defaults.getRecruitMappingForFaction(factionId);
@@ -579,12 +593,75 @@ async function getEffectiveRecruit(factionId) {
  *   defaults: object,
  * }>}
  */
+/** 将 `getEffective*` 的 source 映射为面板 UI 用的 `default` | `row`（已批准） */
+function mapEffectiveSourceToPanelSource(effectiveSource) {
+  if (effectiveSource === 'approved_row' || effectiveSource === 'policy_row') {
+    return 'row';
+  }
+  return 'default';
+}
+
+/**
+ * 朝政面板展示用 config / source：与 `getEffective*` 一致，避免「最近一次驳回」仍显示未生效提案值。
+ *
+ * @param {string} category
+ * @param {object} effective - 各类目 `getEffective*` 返回值
+ * @returns {{ source: 'default'|'row', config: object }}
+ */
+function buildPanelPolicyDisplay(category, effective) {
+  switch (category) {
+    case defaults.POLICY_CATEGORIES.RATION_BONUS:
+      return {
+        source: mapEffectiveSourceToPanelSource(effective.source),
+        config: { bonusPct: effective.bonusPct },
+      };
+    case defaults.POLICY_CATEGORIES.SIEGE_REWARD:
+      return {
+        source: mapEffectiveSourceToPanelSource(effective.source),
+        config: { personalSharePct: effective.personalSharePct },
+      };
+    case defaults.POLICY_CATEGORIES.RECRUIT:
+      return {
+        source: mapEffectiveSourceToPanelSource(effective.source),
+        config: { enabled: !!effective.enabled },
+      };
+    case defaults.POLICY_CATEGORIES.DOMESTIC_GOAL:
+      return {
+        source: mapEffectiveSourceToPanelSource(effective.source),
+        config: { goal: effective.goal ?? null },
+      };
+    default:
+      return {
+        source: 'default',
+        config: defaults.getDefaultConfigForCategory(category),
+      };
+  }
+}
+
 async function getPanelForFaction(factionId) {
   if (!factionId) {
     throw httpError(400, '缺少 factionId', 'POLICY_MISSING_FACTION');
   }
   const hasKing = aiKingConfigService.hasKingForFaction(factionId);
   const rowsByCat = await findAllPoliciesByFaction(factionId);
+
+  const [
+    rationEffective,
+    siegeEffective,
+    recruitEffective,
+    domesticEffective,
+  ] = await Promise.all([
+    getEffectiveRationBonus(factionId),
+    getEffectiveSiegeReward(factionId),
+    getEffectiveRecruit(factionId),
+    getEffectiveDomesticGoal(factionId),
+  ]);
+  const effectiveByCat = {
+    [defaults.POLICY_CATEGORIES.RATION_BONUS]: rationEffective,
+    [defaults.POLICY_CATEGORIES.SIEGE_REWARD]: siegeEffective,
+    [defaults.POLICY_CATEGORIES.RECRUIT]: recruitEffective,
+    [defaults.POLICY_CATEGORIES.DOMESTIC_GOAL]: domesticEffective,
+  };
 
   const now = Date.now();
   const policies = {};
@@ -595,11 +672,12 @@ async function getPanelForFaction(factionId) {
     const eligibleAt = formatted?.nextEligibleAt
       ? new Date(formatted.nextEligibleAt).getTime()
       : null;
+    const display = buildPanelPolicyDisplay(cat, effectiveByCat[cat]);
     policies[cat] = {
       category: cat,
       label: defaults.POLICY_CATEGORY_LABELS[cat] || cat,
-      source: formatted ? 'row' : 'default',
-      config: formatted ? formatted.config : defaults.getDefaultConfigForCategory(cat),
+      source: display.source,
+      config: display.config,
       lastOutcome: formatted?.lastOutcome || null,
       lastOutcomeAt: formatted?.lastOutcomeAt || null,
       nextEligibleAt: formatted?.nextEligibleAt || null,

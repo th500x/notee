@@ -392,9 +392,22 @@ export default function CardPoolDrawer({
             <div className="text-center py-8 text-stone-500 text-sm">加载卡池数据中...</div>
           ) : displayPoolCards.length === 0 ? (
             <div className="text-center py-8 text-stone-500 text-sm">
-              {recruitEnabled && characterPoolTab === 'recruit'
-                ? '招贤池暂无可用将领（请确认朝政·招贤纳士已开启）'
-                : '暂无可用卡牌'}
+              {recruitEnabled && characterPoolTab === 'recruit' ? (
+                Number(status?.recruit?.catalogCount) === 0 ? (
+                  <>
+                    楚汉争霸卡池暂无将领：服务端尚未同步楚汉时代将领配置（与招贤是否批准无关）。
+                    {poolDebug ? (
+                      <span className="mt-2 block text-[10px] text-stone-600">
+                        开发提示：在 backend 目录执行 node database/import-config-data.js characters
+                      </span>
+                    ) : null}
+                  </>
+                ) : (
+                  '招贤池暂无可用将领（请确认朝政·招贤纳士已开启）'
+                )
+              ) : (
+                '暂无可用卡牌'
+              )}
             </div>
           ) : (
             sortedRarities.map(rarity => (

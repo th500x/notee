@@ -1326,7 +1326,7 @@ export default function WorldStrategicMapGrid({
                   />
                 </svg>
               ) : null}
-              {mapRows === 40 ? (
+              {import.meta.env.DEV && mapRows === 40 ? (
                 <div className="ws-quad-overlay" aria-hidden>
                   {['A', 'B', 'C', 'D'].map((q) => (
                     <div key={q} className={WS_QUAD_CLASS[q]} title={`大象限 ${q}`} />

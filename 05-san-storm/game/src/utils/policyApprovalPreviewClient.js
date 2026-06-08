@@ -18,17 +18,14 @@ function readPersonalityBase(panelApprovalPreview) {
 }
 
 /**
- * 与后端 `getEffectiveConfigForAssess` 对齐（panel 行 config + lastOutcome）。
+ * 与后端 `getEffectiveConfigForAssess` 对齐：panel 传入的 `currentConfig` 已是生效态，直接使用。
  *
  * @param {string} category
  * @param {object|null|undefined} currentConfig
- * @param {string|null|undefined} lastOutcome
  */
-function getEffectiveConfigForAssess(category, currentConfig, lastOutcome) {
+function getEffectiveConfigForAssess(category, currentConfig) {
   if (currentConfig && typeof currentConfig === 'object') {
-    if (lastOutcome === 'approved' || lastOutcome === 'rejected') {
-      return currentConfig;
-    }
+    return currentConfig;
   }
   switch (category) {
     case POLICY_CATEGORY.RATION_BONUS:
@@ -158,7 +155,7 @@ export function computeLocalPolicyApprovalPreview(input) {
   } = input || {};
 
   const personalityBase = readPersonalityBase(panelApprovalPreview);
-  const currentEffective = getEffectiveConfigForAssess(category, currentConfig, lastOutcome);
+  const currentEffective = getEffectiveConfigForAssess(category, currentConfig);
   const assess = assessLongTermPolicyProposal(
     category,
     draftConfig || {},

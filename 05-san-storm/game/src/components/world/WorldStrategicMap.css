@@ -549,6 +549,11 @@
   max-width: min(92vw, calc(var(--ws-tile) * 16 + 48px));
 }
 
+/* 浏览态：命中区穿透，点格优先落到城/道路瓦片（31-6 §8 · 道路双触进军仍有效） */
+.ws-map-self-pawn--browse-pass-through .ws-map-self-pawn__hit {
+  pointer-events: none;
+}
+
 .ws-map-self-pawn__avatar-row {
   display: flex;
   flex-direction: row;
@@ -571,8 +576,8 @@
 .ws-map-self-pawn__stack-face {
   position: relative;
   flex-shrink: 0;
-  width: clamp(16px, calc(var(--ws-tile) * 0.62), 32px);
-  height: clamp(16px, calc(var(--ws-tile) * 0.62), 32px);
+  width: clamp(10px, calc(var(--ws-tile) * 0.52), 28px);
+  height: clamp(10px, calc(var(--ws-tile) * 0.52), 28px);
 }
 
 .ws-map-self-pawn__stack-img {
@@ -624,8 +629,9 @@
 
 .ws-map-self-pawn__avatar {
   position: relative;
-  width: clamp(22px, calc(var(--ws-tile) * 0.95), 40px);
-  height: clamp(22px, calc(var(--ws-tile) * 0.95), 40px);
+  /* 随格宽缩放；勿设过高 px 下限，否则竖屏 tile≈12px 时头像大于 2×2 城块并挡点击 */
+  width: clamp(calc(var(--ws-tile) * 0.5), calc(var(--ws-tile) * 0.85), 40px);
+  height: clamp(calc(var(--ws-tile) * 0.5), calc(var(--ws-tile) * 0.85), 40px);
   flex-shrink: 0;
 }
 

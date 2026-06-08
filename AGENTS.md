@@ -33,3 +33,4 @@
 
 - **大地图城防入口**：攻城配额、势力战况、攻打与驻地编组等已挂在 **颍川战略格 tooltip**（`StrategicCityTooltipPanel` + `WorldMapCityInfoBlock`），按 **当前格点 `city_id`** 拉取，不再使用底栏或单城硬编码。实现备忘仍见 `05-san-storm/docs/10-core-system/13-1-CITY_SYSTEM.md` **§8.4.1**（若本地有该节）。
 - **颍川合并图 `public/data/worldmap/san_1_jun_yingchuan_merged.json`**：底板与道路层（`roadCells` / `roadConnectivity`）在同一文件。日常优先用管理端「生成地图」（`POST /api/admin/world-map/generate-merged-map`）。若在本机用 `node backend/scripts/worldmap-merge-yingchuan.mjs --out …` 直接写该路径，**大改或不确定时请先备份该 JSON**；脚本会从已存在文件中尽量保留非空道路层，但 **`--out` 指错路径、目标已不含道路、或覆盖到错误环境** 仍会造成丢失。
+- **双机 / 换电脑后配置库**：在 `05-san-storm/backend` 执行 `node database/import-all.js`（JSON→MySQL 全量 + 导入后抽检，含 **san_0 楚汉将领** 与招贤池）。勿只跑单模块 import 除非明确只需该模块。

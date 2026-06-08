@@ -1,9 +1,9 @@
 /**
  * 活动排行榜 endTime（活动结束后冻结积分）
- * 由 shared/config/announcements.cjs 自动生成，勿手改。
+ * 由 shared/config/announcements.json 自动生成，勿手改。
  * @see game/src/data/texts/announcements.js
  */
-const { announcements } = require('../../shared/config/announcements.cjs');
+const { announcements } = require('../../shared/config/announcementsShared.cjs');
 
 /** @type {Record<string, { endTime: string }>} */
 const map = {};

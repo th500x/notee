@@ -284,6 +284,24 @@ function expect(label, cond, extra) {
   expect('汉室免费招贤 → base ≥ 0.9', hanRecruitApv.base >= 0.9, hanRecruitApv);
   expect('汉室免费招贤 → boostedUnconditionalBenefit', hanRecruitApv.boostedUnconditionalBenefit === true);
 
+  const rejectedDirtyRow = {
+    config_json: { enabled: true },
+    last_outcome: 'rejected',
+    created_at: new Date('2026-06-07T12:55:30.000Z'),
+    updated_at: new Date('2026-06-07T12:55:30.000Z'),
+  };
+  const hanRecruitRetryAssess = policyProposalAssessService.assessLongTermPolicyProposal(
+    'san_1_faction_6001',
+    factionPolicyDefaults.POLICY_CATEGORIES.RECRUIT,
+    { enabled: true },
+    rejectedDirtyRow,
+  );
+  expect(
+    '首次驳回脏行后再谏言开启：仍判 OFF→ON 利好',
+    hanRecruitRetryAssess.factionBenefit === 'positive',
+    hanRecruitRetryAssess,
+  );
+
   const siegeAssess = policyProposalAssessService.assessLongTermPolicyProposal(
     'san_1_faction_6001',
     factionPolicyDefaults.POLICY_CATEGORIES.SIEGE_REWARD,

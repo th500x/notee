@@ -30,7 +30,10 @@
  *   - 道具含 itemType=season_badge（如 item_season_badge）时，须已应用 migrations/add-config-items-item-type-season-badge.sql
  *     扩展 config_items.item_type，否则该条导入会被 MySQL 拒绝、脚本计为「跳过」
  *
- * JSON 为权威源：各 import-*.js 在 UPSERT 后会删除 JSON 中已不存在的同 season / id 前缀族内配置行
+ * 双机协作：换电脑或 pull 后若 JSON 有更新，在 `05-san-storm/backend` 执行
+ *   node database/import-all.js
+ * 成功后会自动抽检 san_0 / san_1 将领等关键行数，避免只导势力/成就而漏楚汉将领。
+ *
  * （城市种子 additionally 仅删 lord_player_id IS NULL 且 is_buildable=0 的静态行）。
  * 执行前会校验 public/data/shared/*.json 是否存在、可解析、主键不重复。
  */
@@ -86,6 +89,14 @@ async function main() {
 
   console.log(`\n🏁 导入完成: ${success} 成功, ${failed} 失败`);
   if (failed > 0) process.exit(1);
+
+  try {
+    const { verifyConfigDbImport } = require('./verify-config-db-import.js');
+    await verifyConfigDbImport();
+  } catch (err) {
+    console.error(`❌ ${err.message}`);
+    process.exit(1);
+  }
 }
 
 main().catch((err) => {

@@ -8,6 +8,9 @@
  */
 
 const defaults = require('./factionPolicyDefaults');
+const {
+  getEffectiveConfigForAssess: getEffectiveConfigForAssessCore,
+} = require('../../shared/utils/factionPolicyEffectiveConfig.cjs');
 
 /** @typedef {'positive'|'negative'|'neutral'} FactionBenefitSign */
 
@@ -28,28 +31,24 @@ function kingHonorsUnconditionalBenefit(king) {
 }
 
 /**
- * 评估用「当前配置」：与 11-3「驳回保留 config_json」一致。
+ * 评估用「当前生效配置」：与 `factionPolicyService.getEffective*` / 朝政面板一致。
  *
  * @param {string} category
  * @param {object|null} existingRow
  * @returns {object}
  */
 function getEffectiveConfigForAssess(category, existingRow) {
-  if (!existingRow) return defaults.getDefaultConfigForCategory(category);
-  let cfg = existingRow.config_json;
-  if (typeof cfg === 'string') {
-    try {
-      cfg = JSON.parse(cfg);
-    } catch {
-      cfg = null;
-    }
-  }
-  if (cfg && typeof cfg === 'object') {
-    if (existingRow.last_outcome === 'approved' || existingRow.last_outcome === 'rejected') {
-      return cfg;
-    }
-  }
-  return defaults.getDefaultConfigForCategory(category);
+  return getEffectiveConfigForAssessCore(
+    category,
+    existingRow,
+    defaults.getDefaultConfigForCategory(category),
+    {
+      rationMinPct: defaults.RATION_BONUS.minPct,
+      rationMaxPct: defaults.RATION_BONUS.maxPct,
+      siegeDefaultPct: defaults.SIEGE_REWARD.defaultPersonalSharePct,
+      domesticGoalOptions: defaults.DOMESTIC_GOAL.options,
+    },
+  );
 }
 
 /**

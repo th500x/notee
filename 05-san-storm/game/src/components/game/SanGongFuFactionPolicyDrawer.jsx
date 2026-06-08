@@ -299,8 +299,10 @@ export default function SanGongFuFactionPolicyDrawer({ factionId, open, onClose 
           recruitMapping={panel.recruitMapping || null}
           factionReserves={panel.factionReserves || null}
           currentApproved={
-            currentCategoryPolicy.lastOutcome === 'approved' &&
-            !!currentCategoryPolicy.config?.enabled
+            openModalCategory === POLICY_CATEGORY.RECRUIT
+              ? currentCategoryPolicy.source === 'row' &&
+                !!currentCategoryPolicy.config?.enabled
+              : currentCategoryPolicy.lastOutcome === 'approved'
           }
           onSubmitted={onPolicySubmitted}
         />

@@ -841,11 +841,18 @@ async function getPoolStatus(playerId) {
   const troopQuota = poolBal.troopLegendary ?? 0;
   const charQuota = poolBal.characterLegendary ?? 0;
 
-  let recruit = { enabled: false, san0Band: null };
+  let recruit = { enabled: false, san0Band: null, catalogCount: 0 };
   try {
     const recruitEff = await factionPolicyService.getEffectiveRecruit(factionId);
     if (recruitEff?.enabled && recruitEff.san0Band) {
-      recruit = { enabled: true, san0Band: String(recruitEff.san0Band) };
+      const band = String(recruitEff.san0Band);
+      recruit = { enabled: true, san0Band: band, catalogCount: 0 };
+      const [catRows] = await pool.query(
+        `SELECT COUNT(*) AS cnt FROM config_characters
+          WHERE character_id LIKE ? AND rarity != 'core'`,
+        [`san_0_char_${band}%`],
+      );
+      recruit.catalogCount = Number(catRows[0]?.cnt || 0);
     }
   } catch {
     /* 预览降级：无招贤 Tab */

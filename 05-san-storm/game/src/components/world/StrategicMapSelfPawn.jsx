@@ -1,7 +1,10 @@
 /**
  * 战略大地图：玩家自身占位。圆形内为角色名末字；键鼠悬停圆形时显示全名与兵力 tooltip。
- * 触摸 / 粗指针：`pointerType==='touch'`（不依赖 `(pointer: coarse)`，避免竖屏误判）；短按同时显示与悬停同内容的 tooltip +「行军」「关闭」「来战」；长按约 1s 松手后直接进入行军模式（与点「行军」等价）。
- * 键鼠：单击打开操作条（与悬停可同时看到 tooltip）。**一键进军**请使用道路格双击 / 触摸双触（见 `WorldStrategicMapTile` 与 **31-6 §8**），**不在**本人叠层上绑双击，避免竖屏单点被误判为双击。
+ *
+ * **命中穿透**：未打开本人操作条、非触摸长按提示档时，命中区 `pointer-events: none`（含已进行军且操作条已关），短按/单击落到下层城格或道路格；
+ * 进入行军：**道路格双击 / 触摸双触**（`WorldStrategicMapTile` · 31-6 §8）。
+ *
+ * 触摸：`pointerType==='touch'`；操作条打开时长按进军等仍走命中区。键鼠：单击打开操作条（穿透关闭时）。
  */
 
 import { useState, useCallback, useSyncExternalStore, useRef, useEffect } from 'react';
@@ -135,6 +138,10 @@ export default function StrategicMapSelfPawn({
   const showStackStripRow =
     showAnyTooltip && (stripPeers.length > 0 || stackStripEllipsis);
 
+  /** 浏览态：命中区不挡格网点击；操作条 / 长按提示打开时恢复交互 */
+  const browsePassThrough = selfMarchUi && !showActionPopover && !touchLongTooltip;
+  const pawnHitInteractive = selfMarchUi && !browsePassThrough;
+
   const onEnter = useCallback(() => setHover(true), []);
   const onLeave = useCallback(() => setHover(false), []);
 
@@ -187,7 +194,7 @@ export default function StrategicMapSelfPawn({
 
   const onPointerDown = useCallback(
     (e) => {
-      if (!selfMarchUi || e.button !== 0) return;
+      if (!pawnHitInteractive || e.button !== 0) return;
       if (!isTouchLikePointer(e)) return;
       e.stopPropagation();
       // 抑制浏览器随后补发的「兼容 click」，避免与 pointer 短按分支打架导致首触误进军
@@ -221,12 +228,12 @@ export default function StrategicMapSelfPawn({
       }, TOUCH_LONG_MARCH_MS);
       pointerTrackRef.current.marchTimerId = marchTimer;
     },
-    [selfMarchUi, isTouchLikePointer, clearMarchTimer],
+    [pawnHitInteractive, isTouchLikePointer, clearMarchTimer],
   );
 
   const onPointerMove = useCallback(
     (e) => {
-      if (!selfMarchUi) return;
+      if (!pawnHitInteractive) return;
       const tr = pointerTrackRef.current;
       if (!tr || e.pointerId !== tr.pointerId) return;
       tr.lastX = e.clientX;
@@ -245,22 +252,22 @@ export default function StrategicMapSelfPawn({
         pointerTrackRef.current = null;
       }
     },
-    [selfMarchUi, clearMarchTimer],
+    [pawnHitInteractive, clearMarchTimer],
   );
 
   const onPointerUp = useCallback(
     (e) => {
-      if (!selfMarchUi) return;
+      if (!pawnHitInteractive) return;
       const tr = pointerTrackRef.current;
       if (!tr || e.pointerId !== tr.pointerId) return;
       endPointerGesture();
     },
-    [selfMarchUi, endPointerGesture],
+    [pawnHitInteractive, endPointerGesture],
   );
 
   const onPointerCancel = useCallback(
     (e) => {
-      if (!selfMarchUi) return;
+      if (!pawnHitInteractive) return;
       const tr = pointerTrackRef.current;
       if (!tr || e.pointerId !== tr.pointerId) return;
       clearMarchTimer();
@@ -273,7 +280,7 @@ export default function StrategicMapSelfPawn({
       pointerTrackRef.current = null;
       setTouchLongTooltip(false);
     },
-    [selfMarchUi, clearMarchTimer],
+    [pawnHitInteractive, clearMarchTimer],
   );
 
   useEffect(
@@ -308,7 +315,7 @@ export default function StrategicMapSelfPawn({
 
   const onHitClick = useCallback(
     (e) => {
-      if (!selfMarchUi) return;
+      if (!pawnHitInteractive) return;
       const ne = e.nativeEvent;
       // 触屏后浏览器补发的「兼容 click」走 pointer 分支即可，避免与格网/进军抢首帧
       if (ne && typeof ne === 'object' && ne.sourceCapabilities?.firesTouch) return;
@@ -317,7 +324,7 @@ export default function StrategicMapSelfPawn({
       e.preventDefault();
       setShowActionPopover(true);
     },
-    [selfMarchUi],
+    [pawnHitInteractive],
   );
 
   const handleMarchButton = useCallback(() => {
@@ -377,20 +384,20 @@ export default function StrategicMapSelfPawn({
   // 不在根节点设 aria-hidden：首触时部分 WebKit 会误把事件落到下层格网，表现为「一点头像就进军」；操作条打开时子树内已有可聚焦控件。
   return (
     <div
-      className="ws-map-self-pawn"
+      className={`ws-map-self-pawn${browsePassThrough ? ' ws-map-self-pawn--browse-pass-through' : ''}`}
       style={{ left: `${cx}px`, top: `${cy}px` }}
     >
       <div className="ws-map-self-pawn__anchor">
         <div
           ref={hitRef}
           className="ws-map-self-pawn__hit"
-          onMouseEnter={onEnter}
-          onMouseLeave={onLeave}
-          onClick={selfMarchUi ? onHitClick : undefined}
-          onPointerDown={selfMarchUi ? onPointerDown : undefined}
-          onPointerMove={selfMarchUi ? onPointerMove : undefined}
-          onPointerUp={selfMarchUi ? onPointerUp : undefined}
-          onPointerCancel={selfMarchUi ? onPointerCancel : undefined}
+          onMouseEnter={pawnHitInteractive ? onEnter : undefined}
+          onMouseLeave={pawnHitInteractive ? onLeave : undefined}
+          onClick={pawnHitInteractive ? onHitClick : undefined}
+          onPointerDown={pawnHitInteractive ? onPointerDown : undefined}
+          onPointerMove={pawnHitInteractive ? onPointerMove : undefined}
+          onPointerUp={pawnHitInteractive ? onPointerUp : undefined}
+          onPointerCancel={pawnHitInteractive ? onPointerCancel : undefined}
         >
           <div className="ws-map-self-pawn__avatar-row">
             <div className={avatarClassName}>

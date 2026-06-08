@@ -23,6 +23,7 @@ export default defineConfig({
       '@styles': path.resolve(__dirname, './src/styles'),
       '@types': path.resolve(__dirname, './src/types'),
       '@shared': path.resolve(__dirname, '../shared'),
+      '@game-texts': path.resolve(__dirname, '../game/src/data/texts'),
     },
     dedupe: ['react', 'react-dom'],
   },
