@@ -528,6 +528,8 @@ export default function StrategicWorldMapSection({
 
   const [pvpBaseCamps, setPvpBaseCamps] = useState([]);
   const [pvpBaseCampsLoadState, setPvpBaseCampsLoadState] = useState('loading');
+  /** 全郡 active 战事目标城 `city_id`（PVP + PVE；供格网着火特效） */
+  const [activeWarTargetCityIds, setActiveWarTargetCityIds] = useState([]);
   useEffect(() => {
     let cancelled = false;
     const tick = async () => {
@@ -536,6 +538,7 @@ export default function StrategicWorldMapSection({
         if (cancelled) return;
         if (!r?.success) {
           setPvpBaseCampsLoadState('error');
+          setActiveWarTargetCityIds([]);
           return;
         }
         const list = Array.isArray(r.wars) ? r.wars : Array.isArray(r.data) ? r.data : [];
@@ -576,11 +579,22 @@ export default function StrategicWorldMapSection({
           console.warn('[StrategicWorldMapSection] PVE 大本营列表拉取失败', pveErr);
         }
         if (cancelled) return;
+        const warCityIds = new Set();
+        for (const w of list) {
+          const tid = String(w.targetCityId ?? w.target_city_id ?? '').trim();
+          if (tid) warCityIds.add(tid);
+        }
+        for (const c of pveCamps) {
+          const tid = String(c.targetCityId ?? c.target_city_id ?? '').trim();
+          if (tid) warCityIds.add(tid);
+        }
+        setActiveWarTargetCityIds([...warCityIds]);
         setPvpBaseCamps([...pvpCamps, ...pveCamps]);
         setPvpBaseCampsLoadState('ok');
       } catch {
         if (!cancelled) {
           setPvpBaseCamps([]);
+          setActiveWarTargetCityIds([]);
           setPvpBaseCampsLoadState('error');
         }
       }
@@ -1851,6 +1865,7 @@ export default function StrategicWorldMapSection({
           playerStandingPoiAnchorId={playerStandingPoiAnchorId}
           playerStandingPvpWarId={playerStandingPvpWarId}
           pvpBaseCamps={pvpBaseCamps}
+          activeWarTargetCityIds={activeWarTargetCityIds}
           onStartPvpBaseCampSiege={onStartPvpBaseCampSiege}
         />
       </div>

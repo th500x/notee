@@ -45,6 +45,19 @@ function resolvePortraitSrc(portraitUrl) {
   return `${BASE}${u.replace(/^\//, '')}`;
 }
 
+/** 从 `[势力]角色名` 拆 tooltip 两行，避免 `word-break` 把角色名截成「游侠 / 儿」 */
+function splitMapPawnTooltipLabels(displayName) {
+  const raw = String(displayName || '').trim();
+  if (!raw) return { factionLine: null, characterLine: '…' };
+  const m = raw.match(/^\[([^\]]+)\](.+)$/);
+  if (m) {
+    const faction = String(m[1] || '').trim();
+    const character = String(m[2] || '').trim() || '…';
+    return { factionLine: faction || null, characterLine: character };
+  }
+  return { factionLine: null, characterLine: raw };
+}
+
 /**
  * @param {object} props
  * @param {number} props.cx
@@ -127,7 +140,7 @@ export default function StrategicMapSelfPawn({
   }, []);
 
   const src = resolvePortraitSrc(portraitUrl);
-  const label = (displayName && String(displayName).trim()) || '…';
+  const { factionLine, characterLine } = splitMapPawnTooltipLabels(displayName);
   const g = (centerGlyph && String(centerGlyph).trim()) || '';
   const seq = Array.from(g);
   const glyph = seq.length ? seq[seq.length - 1] : '…';
@@ -505,13 +518,26 @@ export default function StrategicMapSelfPawn({
               )
             : null}
           <div className="ws-map-self-pawn__avatar-row">
-            <div className={avatarClassName}>
-              {src ? (
-                <img className="ws-map-self-pawn__img" src={src} alt="" draggable={false} />
-              ) : (
-                <div className="ws-map-self-pawn__img ws-map-self-pawn__img--fallback" />
-              )}
-              <span className="ws-map-self-pawn__center-glyph">{glyph}</span>
+            <div className="ws-map-self-pawn__avatar-wrap">
+              <div className={avatarClassName}>
+                {src ? (
+                  <img className="ws-map-self-pawn__img" src={src} alt="" draggable={false} />
+                ) : (
+                  <div className="ws-map-self-pawn__img ws-map-self-pawn__img--fallback" />
+                )}
+                <span className="ws-map-self-pawn__center-glyph">{glyph}</span>
+              </div>
+              {showAnyTooltip ? (
+                <div className="ws-map-self-pawn__tooltip">
+                  {factionLine ? (
+                    <div className="ws-map-self-pawn__tooltip-faction">{factionLine}</div>
+                  ) : null}
+                  <div className="ws-map-self-pawn__tooltip-name">{characterLine}</div>
+                  {troopText ? (
+                    <div className="ws-map-self-pawn__tooltip-troops">{troopText}</div>
+                  ) : null}
+                </div>
+              ) : null}
             </div>
             {showStackStripRow ? (
               <div className="ws-map-self-pawn__stack-strip" aria-hidden>
@@ -542,12 +568,6 @@ export default function StrategicMapSelfPawn({
               </div>
             ) : null}
           </div>
-          {showAnyTooltip ? (
-            <div className="ws-map-self-pawn__tooltip">
-              <div className="ws-map-self-pawn__tooltip-name">{label}</div>
-              {troopText ? <div className="ws-map-self-pawn__tooltip-troops">{troopText}</div> : null}
-            </div>
-          ) : null}
           {roadFixedActions && interceptPanel ? renderInterceptConfirmPanel() : null}
           {roadFixedActions && !interceptPanel
             ? renderInterceptButton(

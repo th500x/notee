@@ -5,7 +5,6 @@ import { buildCampaignCellTooltipInfo } from '@/components/battle/battleConstant
 import {
   WORLD_MAP_DEFAULT_FACTION_LABELS,
   buildWorldMapCityPanelProps,
-  parentCityIdsWithSubsidiaryExplore,
   worldMapCityIsPlayerSameFaction,
   worldMapCityTypeAllowsMainCitySet,
   worldMapRegionLabelFromRow,
@@ -456,6 +455,8 @@ export default function WorldStrategicMapGrid({
   postBanditRaidRefreshKey = 0,
   /** 活跃 PVP 战事攻方大本营切片（由 `StrategicWorldMapSection` 轮询 `warAPI.listWars` 注入） */
   pvpBaseCamps = [],
+  /** 全郡 active 战事目标城 `city_id` 列表（PVP + PVE；格网着火特效） */
+  activeWarTargetCityIds = null,
   /** 本人路点落在大本营 footprint 内时的 `pvpWarId`（行军终点 / 格上网锚点等） */
   playerStandingPvpWarId = '',
   /** 守方在大本营面板发起攻打：`(pvpWarId, warSlice) => void`（须已立于战事目标城，见 `buildStrategicPvpBaseCampTooltip`） */
@@ -1179,11 +1180,6 @@ export default function WorldStrategicMapGrid({
 
   const county = mapColumns > 16 || mapRows > 20;
 
-  const subsidiaryParentIds = useMemo(
-    () => parentCityIdsWithSubsidiaryExplore(cityById),
-    [cityById],
-  );
-
   const roadOverlayPathD = useMemo(() => {
     if (!roadCells?.length) return '';
     const conn = roadConnectivity === '8' ? '8' : ROAD_CONNECTIVITY_4;
@@ -1230,6 +1226,11 @@ export default function WorldStrategicMapGrid({
     !strategicRoadMarchAnimating &&
     typeof onStrategicRoadDoubleMarchToCell === 'function';
 
+  const activeWarTargetCityIdSet = useMemo(() => {
+    if (!Array.isArray(activeWarTargetCityIds) || !activeWarTargetCityIds.length) return null;
+    return new Set(activeWarTargetCityIds.map((id) => String(id).trim()).filter(Boolean));
+  }, [activeWarTargetCityIds]);
+
   return (
     <div
       className={`ws-map-card ${county ? 'ws-map-card--county flex-1 min-h-0 flex flex-col h-full' : ''}`}
@@ -1263,6 +1264,14 @@ export default function WorldStrategicMapGrid({
                       resolveStrategicTilePvpCampCover(ri, ci, pvpBaseCamps, cells);
                     const anchorId = readStrategicCellAnchorId(cover?.anchorCell) || null;
                     let cityRow = anchorId && cityById ? cityById[anchorId] : null;
+                    const showWarCityFire =
+                      !!activeWarTargetCityIdSet &&
+                      !!cover &&
+                      cover.footprintKind === 'city_2x2' &&
+                      cover.anchorR === ri &&
+                      cover.anchorC === ci &&
+                      !!anchorId &&
+                      activeWarTargetCityIdSet.has(String(anchorId));
                     if (!cityRow && cover?.footprintKind?.startsWith?.('pvp_camp')) {
                       const af = cover.attackerFactionId ?? cover.attacker_faction_id;
                       if (af != null && String(af).trim() !== '') {
@@ -1270,16 +1279,6 @@ export default function WorldStrategicMapGrid({
                         cityRow = { faction_id: fid, factionId: fid };
                       }
                     }
-                    const subsidiaryHubGlow =
-                      !!anchorId && !!subsidiaryParentIds && subsidiaryParentIds.has(String(anchorId));
-                    const q = subsidiaryExploreEmbed?.quota;
-                    const exploreRemainBadge =
-                      subsidiaryHubGlow &&
-                      !!cover &&
-                      ri === cover.anchorR &&
-                      ci === cover.anchorC + 1 &&
-                      !!q?.loaded &&
-                      (Number(q.remaining) || 0) > 0;
                     return (
                       <WorldStrategicMapTile
                         key={`${ri}-${ci}`}
@@ -1289,8 +1288,6 @@ export default function WorldStrategicMapGrid({
                         gridX={ci}
                         strategicCover={cover}
                         cityRow={cityRow}
-                        subsidiaryHubGlow={subsidiaryHubGlow}
-                        exploreRemainBadge={exploreRemainBadge}
                         playerFactionId={playerFactionId}
                         strategicCityLabelAllyFactionIds={strategicCityLabelAllyFactionIds}
                         strategicCityLabelNonHostileFactionIds={strategicCityLabelNonHostileFactionIds}
@@ -1304,6 +1301,7 @@ export default function WorldStrategicMapGrid({
                         onStrategicRoadDoubleEnterMarch={onStrategicRoadDoubleMarchToCell}
                         roadMarchPassableKeySet={roadMarchPassableKeySet}
                         territoryStance={territoryStanceMap?.get(`${ci},${ri}`) ?? null}
+                        showWarCityFire={showWarCityFire}
                       />
                     );
                   }),

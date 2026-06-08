@@ -175,42 +175,74 @@
   box-sizing: border-box;
 }
 
-/* 主城含荒郊/集市入口：与 CardPoolPoolButton / 封赏卡池同系的琥珀底光 + 横向扫光（仅 2×2 锚点格） */
-.ws-subsidiary-hub-glow {
-  pointer-events: none;
-  overflow: hidden;
+/* 大城/中城：立绘金色外晕 + 锚点格脉动金环（叠在 PNG 之上，小城无） */
+.ws-strategic-city-gold-object {
+  animation: ws-strategic-city-gold-object-pulse 2.4s ease-in-out infinite;
 }
 
-.ws-subsidiary-hub-glow-base {
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(
-    ellipse 90% 75% at 50% 58%,
-    rgba(251, 191, 36, 0.14) 0%,
-    transparent 70%
-  );
-}
-
-.ws-subsidiary-hub-glow-shimmer {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    transparent 40%,
-    rgba(252, 211, 77, 0.22) 50%,
-    transparent 60%,
-    transparent 100%
-  );
-  animation: ws-subsidiary-hub-shimmer 2.5s ease-in-out infinite;
-}
-
-@keyframes ws-subsidiary-hub-shimmer {
-  0% {
-    transform: translateX(-100%);
-  }
+@keyframes ws-strategic-city-gold-object-pulse {
+  0%,
   100% {
-    transform: translateX(100%);
+    filter: drop-shadow(0 0 4px rgba(251, 191, 36, 0.55))
+      drop-shadow(0 0 10px rgba(252, 211, 77, 0.35));
+  }
+  50% {
+    filter: drop-shadow(0 0 9px rgba(251, 191, 36, 0.95))
+      drop-shadow(0 0 20px rgba(252, 211, 77, 0.72))
+      drop-shadow(0 0 32px rgba(245, 158, 11, 0.35));
+  }
+}
+
+.ws-strategic-city-gold-glow {
+  pointer-events: none;
+  overflow: visible;
+}
+
+.ws-strategic-city-gold-glow-ring {
+  position: absolute;
+  inset: -14%;
+  border-radius: 16%;
+  border: clamp(1px, calc(var(--ws-tile) * 0.06), 2.5px) solid rgba(252, 211, 77, 0.72);
+  box-shadow:
+    0 0 10px rgba(251, 191, 36, 0.75),
+    0 0 22px rgba(252, 211, 77, 0.45),
+    inset 0 0 16px rgba(251, 191, 36, 0.22);
+  animation: ws-strategic-city-gold-ring-pulse 2.6s ease-in-out infinite;
+}
+
+.ws-strategic-city-gold-glow-sheen {
+  position: absolute;
+  inset: 0;
+  border-radius: 10%;
+  background: radial-gradient(
+    ellipse 92% 86% at 50% 42%,
+    rgba(255, 251, 235, 0.28) 0%,
+    rgba(252, 211, 77, 0.12) 38%,
+    transparent 68%
+  );
+  mix-blend-mode: screen;
+  animation: ws-strategic-city-gold-sheen 3.2s ease-in-out infinite;
+}
+
+@keyframes ws-strategic-city-gold-ring-pulse {
+  0%,
+  100% {
+    opacity: 0.62;
+    transform: scale(0.96);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.04);
+  }
+}
+
+@keyframes ws-strategic-city-gold-sheen {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  45% {
+    opacity: 0.88;
   }
 }
 
@@ -325,24 +357,6 @@
   object-fit: contain;
   display: block;
   filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.55));
-}
-
-/* 荒郊/集市主城 2×2 右上角格：尚有探索次数时红叹号提醒 */
-.ws-strategic-explore-quota-badge {
-  position: absolute;
-  top: 0;
-  right: 0;
-  z-index: 8;
-  padding: 0 1px;
-  font-weight: 900;
-  font-size: clamp(18px, calc(var(--ws-tile) * 0.62), 30px);
-  line-height: 1;
-  color: #ef4444;
-  pointer-events: none;
-  text-shadow:
-    0 0 2px #fff,
-    0 0 4px #fff,
-    0 1px 3px rgba(0, 0, 0, 0.8);
 }
 
 /* 道路叠层：格心连线，viewBox 与格数一致（见 31-5 §11.1 / road-overlay-demo.html） */
@@ -499,6 +513,17 @@
   z-index: 4;
   pointer-events: none;
   overflow: hidden;
+}
+
+/* 战事目标城：2×2 锚点叠火焰（复用战术 fire 帧；略高于大中城金环） */
+.ws-map-tile .ws-strategic-city-war-fire {
+  mix-blend-mode: screen;
+  opacity: 0.92;
+}
+
+.ws-map-tile .ws-strategic-city-war-fire .tile-fire-frame {
+  object-fit: cover;
+  opacity: 0.88;
 }
 
 .ws-map-tile .tile-fire-frame {
@@ -748,8 +773,16 @@
     0 1px 2px rgba(0, 0, 0, 0.85);
 }
 
+.ws-map-self-pawn__avatar-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
 .ws-map-self-pawn__tooltip {
-  margin-top: 4px;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
   padding: 4px 7px 5px;
   border-radius: 6px;
   border: 1px solid rgba(251, 191, 36, 0.45);
@@ -757,31 +790,39 @@
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.55);
   pointer-events: none;
   text-align: center;
-  max-width: min(220px, calc(var(--ws-tile) * 8));
-  z-index: 6;
+  width: max-content;
+  max-width: min(240px, 92vw);
+  z-index: 8;
 }
 
-.ws-map-self-pawn__tooltip-name {
-  font-size: clamp(6px, calc(var(--ws-tile) * 0.32), 10px);
+.ws-map-self-pawn__tooltip-faction,
+.ws-map-self-pawn__tooltip-name,
+.ws-map-self-pawn__tooltip-troops {
+  font-size: clamp(5px, calc(var(--ws-tile) * 0.28), 9px);
   font-weight: 700;
-  color: rgba(255, 250, 235, 0.96);
   line-height: 1.2;
-  word-break: break-all;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: min(240px, 92vw);
   text-shadow:
     0 0 3px #000,
     0 1px 2px rgba(0, 0, 0, 0.85);
+}
+
+.ws-map-self-pawn__tooltip-faction {
+  color: rgba(251, 191, 36, 0.92);
+}
+
+.ws-map-self-pawn__tooltip-name {
+  color: rgba(255, 250, 235, 0.96);
 }
 
 .ws-map-self-pawn__tooltip-troops {
   margin-top: 2px;
-  font-size: clamp(6px, calc(var(--ws-tile) * 0.32), 10px);
-  font-weight: 700;
   font-variant-numeric: tabular-nums;
   color: rgba(255, 250, 235, 0.92);
   line-height: 1.15;
-  text-shadow:
-    0 0 3px #000,
-    0 1px 2px rgba(0, 0, 0, 0.85);
 }
 
 /* 本人叠层：非道路格短按弹出「行军 / 来战」；道路格固定于头像上下（31-6 §8） */

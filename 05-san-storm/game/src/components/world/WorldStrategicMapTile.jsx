@@ -46,10 +46,6 @@ function WorldStrategicMapTile({
   onTooltipClick,
   cityRow = null,
   strategicCover = null,
-  /** 主城在 cityById 中挂有荒郊/集市入口时，2×2 锚点格琥珀扫光（对齐卡池入口 shimmer） */
-  subsidiaryHubGlow = false,
-  /** 2×2 城块「右上角」那一格：尚有探索次数时在瓦片角标红叹号 */
-  exploreRemainBadge = false,
   /** 行军模式：在「非点击出 tooltip」的指针下仍要点格选路 */
   strategicMarchMode = false,
   /** 浏览模式：允许道路格双击 / 触摸双触请求进入行军（由格网根据 `strategicMarchMode` 等计算） */
@@ -67,6 +63,8 @@ function WorldStrategicMapTile({
   strategicCityLabelNonHostileFactionIds = null,
   /** 道路 BFS 领土立场：`own` | `hostile` | `ally`（仅视觉叠层） */
   territoryStance = null,
+  /** active 战事目标城：2×2 锚点格叠火焰（与战术格 `c.effect==='fire'` 同源帧） */
+  showWarCityFire = false,
 }) {
   const c = cell || {};
   const variants = useMemo(() => buildCampaignVisualVariants(seed), [seed]);
@@ -109,6 +107,13 @@ function WorldStrategicMapTile({
   }, [hasMultiCellFootprint, isAnchorTile, effectiveObject, cityRow]);
 
   const showSpanningStrategicObject = hasMultiCellFootprint && isAnchorTile && !!objSrc;
+  /** 大城/中城：优先库 `city_type`，回退锚点格 `object` */
+  const showCityGoldGlow = useMemo(() => {
+    if (!isCityFootprint2x2 || !isAnchorTile) return false;
+    const ct = String(cityRow?.city_type ?? cityRow?.cityType ?? '').trim();
+    if (ct === 'city_major' || ct === 'city_medium') return true;
+    return effectiveObject === 'city_major' || effectiveObject === 'city_medium';
+  }, [isCityFootprint2x2, isAnchorTile, cityRow, effectiveObject]);
   /** 与 `StrategicMapSelfPawn` 道路「来战」同源：`ws-map-self-pawn-intercept-pulse` */
   const banditInterceptGlow = isBanditDomino && showSpanningStrategicObject;
   const dominoLikeLabel = isBanditDomino || isPvpCampDomino;
@@ -283,16 +288,6 @@ function WorldStrategicMapTile({
             }}
           />
         ))}
-      {isCityFootprint2x2 && isAnchorTile && subsidiaryHubGlow ? (
-        <div
-          className="ws-layer ws-object-span-2 ws-subsidiary-hub-glow"
-          aria-hidden
-          style={{ zIndex: 2 }}
-        >
-          <div className="ws-subsidiary-hub-glow-base" />
-          <div className="ws-subsidiary-hub-glow-shimmer" />
-        </div>
-      ) : null}
       {objSrc &&
         (oOk ? (
           <img
@@ -300,7 +295,9 @@ function WorldStrategicMapTile({
               showSpanningStrategicObject && objectSpanClass
                 ? ` ${objectSpanClass} ws-strategic-footprint-visual`
                 : ''
-            }${banditInterceptGlow ? ' ws-strategic-bandit-intercept-glow' : ''}`}
+            }${banditInterceptGlow ? ' ws-strategic-bandit-intercept-glow' : ''}${
+              showCityGoldGlow ? ' ws-strategic-city-gold-object' : ''
+            }`}
             src={objSrc}
             alt=""
             draggable={false}
@@ -338,6 +335,34 @@ function WorldStrategicMapTile({
                         : '·'}
           </div>
         ))}
+      {showCityGoldGlow ? (
+        <div
+          className="ws-layer ws-object-span-2 ws-strategic-city-gold-glow"
+          aria-hidden
+          style={{ zIndex: 4 }}
+        >
+          <div className="ws-strategic-city-gold-glow-ring" />
+          <div className="ws-strategic-city-gold-glow-sheen" />
+        </div>
+      ) : null}
+      {showWarCityFire ? (
+        <div
+          className="ws-layer ws-object-span-2 tile-fire-fx ws-strategic-city-war-fire"
+          aria-hidden
+          style={{ zIndex: 5 }}
+        >
+          {Array.from({ length: 12 }, (_, i) => (
+            <img
+              key={i}
+              className="tile-fire-frame"
+              src={tacticalFireFrameUrl(i + 1)}
+              alt=""
+              draggable={false}
+              style={{ animationDelay: `${-(i * 1.2) / 12}s` }}
+            />
+          ))}
+        </div>
+      ) : null}
       {isCityFootprint2x2 &&
       isAnchorTile &&
       factionHex &&
@@ -406,11 +431,6 @@ function WorldStrategicMapTile({
           ))}
         </div>
       )}
-      {exploreRemainBadge ? (
-        <span className="ws-strategic-explore-quota-badge" title="尚有探索次数" aria-hidden>
-          !
-        </span>
-      ) : null}
       {import.meta.env.DEV && c.quad ? (
         <span className="ws-quad-marker">{c.quad}</span>
       ) : null}
