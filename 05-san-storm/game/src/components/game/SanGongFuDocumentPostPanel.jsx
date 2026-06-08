@@ -6,7 +6,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { playerAPI } from '@/services/playerApi';
 import { notifyFactionBulletinUnread } from '@/utils/factionBulletinReadState';
 
-const MAX_LEN = 400;
+/** 与 backend sanGongDocumentService.MAX_BODY_LEN、32-6 日报节选一致 */
+const MAX_LEN = 60;
 
 /**
  * @param {{ playerId?: string|null, onPosted?: () => void }} props

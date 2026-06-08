@@ -2,13 +2,17 @@ import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import WorldStrategicMapGrid from './WorldStrategicMapGrid';
 import ZhouJunMapJumpPanel from '@/components/game/ZhouJunMapJumpPanel';
 import { usePlayerContext } from '@/contexts/PlayerContext';
+import { useMapHudVisibility } from '@/contexts/MapHudVisibilityContext';
 import { toCharCardData } from '@/utils/cardDataTransforms';
 import {
   resolveStrategicRecordedStandpointPx,
   resolveStrategicRecordedStandpointCell,
   strategicRoadCellCenterPx,
   strategicStandpointErrorMessage,
+  STRATEGIC_STANDPOINT_ERROR,
+  isStrategicStandpointPoiDepsPending,
 } from '@/utils/strategicMapCityAnchor';
+import { resolveMapDisplayEffect } from '@/utils/mapDisplayEffect';
 import { resolveStrategicTileCityCover, resolveStrategicTilePvpCampCover } from '@/utils/strategicMapTileContext';
 import {
   cityDbPosToWorldStrategicCell,
@@ -202,6 +206,26 @@ function readSelfPlayerRoadGrid(player) {
   return { hasPlayer: true, rx, ry, junId };
 }
 
+/** `GET road/self` 与档案合并，供行军预览/提交与服务端 `players` 行一致 */
+function mergeMarchPlayerFromRoadSelf(ctxPlayer, roadSelfData) {
+  if (!ctxPlayer) return null;
+  if (!roadSelfData || typeof roadSelfData !== 'object') return ctxPlayer;
+  return {
+    ...ctxPlayer,
+    roadJunId: roadSelfData.roadJunId ?? ctxPlayer.roadJunId,
+    roadPositionX: roadSelfData.roadPositionX ?? ctxPlayer.roadPositionX,
+    roadPositionY: roadSelfData.roadPositionY ?? ctxPlayer.roadPositionY,
+  };
+}
+
+function roadStandSnapshotKey(player) {
+  const j = String(player?.roadJunId ?? '').trim();
+  const x = Number(player?.roadPositionX);
+  const y = Number(player?.roadPositionY);
+  if (!j || !Number.isFinite(x) || !Number.isFinite(y)) return '';
+  return `${j}|${x}|${y}`;
+}
+
 /** 与战术图 BattleMap.css：`--tile: 48px`；窄屏 `(100vw - 61px) / 8` */
 export const WORLD_MAP_TILE_MIN = 12;
 /** 滚轮/捏合放大硬顶（防异常视口算出过大格） */
@@ -298,6 +322,7 @@ export default function StrategicWorldMapSection({
   /** 供行军成功后立即拉取郡内他人路点（与轮询互补） */
   const roadPresenceFetchRef = useRef(() => Promise.resolve());
   const { player: ctxPlayer, cards: ctxCards, attributeBonusBySlot, refresh, exploreQuota } = usePlayerContext();
+  const { mapHudButtonsVisible } = useMapHudVisibility();
   /** 行军模式：与 31-6 §8 一致 */
   const [strategicMarchMode, setStrategicMarchMode] = useState(false);
   /** @type {null | { path: Array<{x:number,y:number}>, onRoadAtStart: boolean, preview: object, encounterHint: string|null }} */
@@ -465,6 +490,7 @@ export default function StrategicWorldMapSection({
   const seed = merged ? normalizeMergedMapSeed(merged) : 0;
 
   const [pvpBaseCamps, setPvpBaseCamps] = useState([]);
+  const [pvpBaseCampsLoadState, setPvpBaseCampsLoadState] = useState('loading');
   useEffect(() => {
     let cancelled = false;
     const tick = async () => {
@@ -472,6 +498,7 @@ export default function StrategicWorldMapSection({
         const r = await warAPI.listWars({ status: 'active', limit: 100 });
         if (cancelled) return;
         if (!r?.success) {
+          setPvpBaseCampsLoadState('error');
           return;
         }
         const list = Array.isArray(r.wars) ? r.wars : Array.isArray(r.data) ? r.data : [];
@@ -497,8 +524,12 @@ export default function StrategicWorldMapSection({
           })
           .filter(Boolean);
         setPvpBaseCamps(camps);
+        setPvpBaseCampsLoadState('ok');
       } catch {
-        if (!cancelled) setPvpBaseCamps([]);
+        if (!cancelled) {
+          setPvpBaseCamps([]);
+          setPvpBaseCampsLoadState('error');
+        }
       }
     };
     void tick();
@@ -522,11 +553,21 @@ export default function StrategicWorldMapSection({
       'san_1_jun_yingchuan',
     [ctxPlayer?.roadJunId],
   );
-  const { cityById, factionNameById } = useStrategicCountyCityRuntime({
+  const { cityById, factionNameById, loadState: cityLoadState } = useStrategicCountyCityRuntime({
     junIds: cityRuntimeJunIds,
     season: countySeason,
     refreshKey: garrisonStatsRefreshKey,
   });
+
+  const standpointPoiDepsPending = useMemo(
+    () =>
+      isStrategicStandpointPoiDepsPending({
+        cells,
+        cityLoadState,
+        pvpBaseCampsLoadState,
+      }),
+    [cells, cityLoadState, pvpBaseCampsLoadState],
+  );
 
   /** `baseCamp` 缺 `junId` 时坐标换算会错位；城表就绪后须补写 `junId`（见 `strategicGridCoordinates`）。 */
   useEffect(() => {
@@ -740,7 +781,16 @@ export default function StrategicWorldMapSection({
         pvpBaseCamps,
       });
       standpointError = stand.standpointError || null;
-      if (stand.cx == null || stand.cy == null) return { standpointError };
+      if (
+        standpointPoiDepsPending &&
+        standpointError === STRATEGIC_STANDPOINT_ERROR.UNRESOLVED_OFF_ROAD
+      ) {
+        return null;
+      }
+      if (stand.cx == null || stand.cy == null) {
+        if (standpointPoiDepsPending && standpointError) return null;
+        return { standpointError };
+      }
       cx = stand.cx;
       cy = stand.cy;
       useRoad = stand.onRoadCell;
@@ -753,6 +803,7 @@ export default function StrategicWorldMapSection({
     const nameSeq = Array.from(charName);
     const centerGlyph = nameSeq.length ? nameSeq[nameSeq.length - 1] : '…';
     const { current: troopsCurrent, max: troopsMax } = sumEquippedTroopStrength(ctxCards);
+    const displayEffect = resolveMapDisplayEffect(ctxCards);
     const focalRx = selfRoad.hasPlayer && Number.isFinite(selfRoad.rx) ? selfRoad.rx : NaN;
     const focalRy = selfRoad.hasPlayer && Number.isFinite(selfRoad.ry) ? selfRoad.ry : NaN;
     const strip = buildStrategicRoadStackStripForFocal({
@@ -784,6 +835,7 @@ export default function StrategicWorldMapSection({
       onRoad: useRoad,
       stackStripPeers: strip.stripPeers,
       stackStripEllipsis: strip.showEllipsis,
+      displayEffect,
       standpointError,
     };
   }, [
@@ -801,6 +853,7 @@ export default function StrategicWorldMapSection({
     roadPresence?.others,
     countyCityRows,
     pvpBaseCamps,
+    standpointPoiDepsPending,
   ]);
 
   /** 「我在哪」：与本人 pawn 同锚点（行军动画中跟当前回放格）。 */
@@ -934,6 +987,7 @@ export default function StrategicWorldMapSection({
   const didInitialViewportScrollRef = useRef(false);
   const lastStandpointErrorToastRef = useRef('');
   useEffect(() => {
+    if (standpointPoiDepsPending) return;
     const err = strategicSelfPawn?.standpointError;
     if (!err) {
       lastStandpointErrorToastRef.current = '';
@@ -943,7 +997,7 @@ export default function StrategicWorldMapSection({
     lastStandpointErrorToastRef.current = err;
     setMarchToast({ type: 'error', message: strategicStandpointErrorMessage(err) });
     window.setTimeout(() => setMarchToast(null), 12000);
-  }, [strategicSelfPawn?.standpointError]);
+  }, [strategicSelfPawn?.standpointError, standpointPoiDepsPending]);
 
   useEffect(() => {
     if (didInitialViewportScrollRef.current) return;
@@ -1229,6 +1283,7 @@ export default function StrategicWorldMapSection({
           factionId: other.factionId || null,
           stackStripPeers: strip.stripPeers,
           stackStripEllipsis: strip.showEllipsis,
+          displayEffect: other.mapDisplayEffect || null,
         };
       })
       .filter(Boolean);
@@ -1295,7 +1350,7 @@ export default function StrategicWorldMapSection({
 
   /** 打开沿路移动确认（道路双击与行军点选共用；不依赖是否已点过叠层「行军」） */
   const openMarchConfirmForStrategicCell = useCallback(
-    (gx, gy) => {
+    async (gx, gy) => {
       if (roadMarchAnimation) return;
       if (!playerId || !ctxPlayer) return;
       if (!merged?.roadCells?.length) {
@@ -1308,6 +1363,18 @@ export default function StrategicWorldMapSection({
         return;
       }
       setMarchSubmitError('');
+      let marchPlayer = ctxPlayer;
+      try {
+        const rs = await playerAPI.getRoadSelf(playerId);
+        if (rs?.success && rs.data) {
+          marchPlayer = mergeMarchPlayerFromRoadSelf(ctxPlayer, rs.data) || ctxPlayer;
+        }
+      } catch (_) {
+        /* 预览退化为档案路点 */
+      }
+      const marchJunId =
+        String(marchPlayer?.roadJunId ?? playerMarchJunId).trim() || playerMarchJunId;
+      const roadStandSnapshot = roadStandSnapshotKey(marchPlayer);
       const useWorldStackMarch = rows > STRATEGIC_COUNTY_MAP_ROWS;
 
       const cell = cells[gy]?.[gx];
@@ -1345,7 +1412,7 @@ export default function StrategicWorldMapSection({
         const gate = canPlayerMarchToPoiCity({
           cityRow: row,
           targetPoiId: marchTargetPoiId,
-          playerFactionId: ctxPlayer?.factionId,
+          playerFactionId: marchPlayer?.factionId,
           pvpCampAttackerFactionId:
             pvpCampSlice && String(pvpCampSlice.pvpWarId || '') === String(marchTargetPoiId)
               ? pvpCampSlice.attackerFactionId
@@ -1360,8 +1427,8 @@ export default function StrategicWorldMapSection({
           roadCells: merged.roadCells,
           mapColumns: cols,
           mapRows: rows,
-          countyJunId: playerMarchJunId,
-          player: ctxPlayer,
+          countyJunId: marchJunId,
+          player: marchPlayer,
           targetPoiId: marchTargetPoiId,
           targetCityDbRow: row ?? null,
           citiesInCountyRows: countyCityRows,
@@ -1384,8 +1451,8 @@ export default function StrategicWorldMapSection({
           roadCells: merged.roadCells,
           mapColumns: cols,
           mapRows: rows,
-          countyJunId: playerMarchJunId,
-          player: ctxPlayer,
+          countyJunId: marchJunId,
+          player: marchPlayer,
           targetGx: gx,
           targetGy: gy,
           citiesInCountyRows: countyCityRows,
@@ -1409,7 +1476,7 @@ export default function StrategicWorldMapSection({
       const preview = estimateMarchFoodCost({
         path: pathRes.path,
         onRoadAtStart: pathRes.onRoadAtStart,
-        player: ctxPlayer,
+        player: marchPlayer,
       });
       if (!preview.steps && !pathRes.targetPoiId) {
         setMarchToast({ type: 'info', message: '目标与当前立点相同，无需移动' });
@@ -1433,9 +1500,9 @@ export default function StrategicWorldMapSection({
       let encounterHint = null;
       if (occ) {
         const sameFaction =
-          ctxPlayer.factionId != null &&
+          marchPlayer.factionId != null &&
           occ.factionId != null &&
-          String(ctxPlayer.factionId) === String(occ.factionId);
+          String(marchPlayer.factionId) === String(occ.factionId);
         if (sameFaction) {
           setMarchToast({
             type: 'error',
@@ -1466,6 +1533,8 @@ export default function StrategicWorldMapSection({
         targetPoiId: tid,
         poiTargetName: poiTargetName || null,
         clientRequestId: createRoadClientRequestId('move'),
+        roadStandSnapshot,
+        marchJunId,
       });
     },
     [
@@ -1503,11 +1572,39 @@ export default function StrategicWorldMapSection({
     setMarchSubmitLoading(true);
     setMarchSubmitError('');
     try {
+      let submitJunId = String(marchConfirm.marchJunId ?? playerMarchJunId).trim() || playerMarchJunId;
+      const expectedStandSnap = String(marchConfirm.roadStandSnapshot || '').trim();
+      try {
+        const rs = await playerAPI.getRoadSelf(playerId);
+        if (!rs?.success || !rs.data) {
+          setMarchSubmitError('无法核实当前路点，请稍后重试');
+          setMarchSubmitLoading(false);
+          return;
+        }
+        const marchPlayer = mergeMarchPlayerFromRoadSelf(ctxPlayer, rs.data);
+        const serverSnap = roadStandSnapshotKey(marchPlayer);
+        if (expectedStandSnap && serverSnap && serverSnap !== expectedStandSnap) {
+          exitStrategicMarchMode();
+          await refresh({ silent: true });
+          setMarchToast({
+            type: 'error',
+            message: '路点档案已变更，请重新选择行军目标。',
+          });
+          window.setTimeout(() => setMarchToast(null), 8000);
+          return;
+        }
+        const j = String(marchPlayer?.roadJunId ?? '').trim();
+        if (j) submitJunId = j;
+      } catch (_) {
+        setMarchSubmitError('无法核实当前路点，请稍后重试');
+        setMarchSubmitLoading(false);
+        return;
+      }
       const clientRequestId =
         marchConfirm.clientRequestId || createRoadClientRequestId('move');
       const body = {
         season: countySeason,
-        junId: playerMarchJunId,
+        junId: submitJunId,
         path: marchConfirm.path,
         clientRequestId,
         confirmFoodCost: true,
@@ -1527,6 +1624,8 @@ export default function StrategicWorldMapSection({
 
       const onRoadAtStart = marchConfirm.onRoadAtStart;
       const reqPath = marchConfirm.path;
+      const confirmedTargetPoiId = marchConfirm.targetPoiId || null;
+      const confirmedMarchJunId = submitJunId;
       const encounter = res.data?.encounter || null;
       const defenderAutoRetreats = res.data?.defenderAutoRetreats;
 
@@ -1558,10 +1657,10 @@ export default function StrategicWorldMapSection({
       const destJun =
         res.data?.roadJunId != null
           ? String(res.data.roadJunId).trim()
-          : String(marchConfirm.targetPoiId ? playerMarchJunId : '').trim();
+          : String(confirmedTargetPoiId ? confirmedMarchJunId : '').trim();
       if (
         poiAnchor &&
-        marchConfirm.targetPoiId &&
+        confirmedTargetPoiId &&
         stepsApplied >= fullPath.length &&
         destJun
       ) {
@@ -1663,6 +1762,7 @@ export default function StrategicWorldMapSection({
           siegeLoading={siegeLoading}
           onStartSiegeForCity={onStartSiegeForCity}
           garrisonStatsByCityId={garrisonStatsByCityId}
+          garrisonStatsRefreshKey={garrisonStatsRefreshKey}
           playerOnDuty={playerOnDuty}
           playerOnDutyCityId={playerOnDutyCityId}
           onOpenGarrisonForCity={onOpenGarrisonForCity}

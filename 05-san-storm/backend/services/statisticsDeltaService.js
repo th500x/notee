@@ -6,6 +6,7 @@
  */
 
 const { pool } = require('../database/connection');
+const { runPlayerMilestoneCheckSafe } = require('./milestoneHookHelper');
 
 function normalizeSignedInt(raw) {
   if (raw == null || raw === '') return 0;
@@ -103,6 +104,9 @@ async function recordEarned(playerId, amounts = {}, connection = null) {
   }
   try {
     await applyResourceDelta(playerId, d);
+    if (d.silver > 0) {
+      runPlayerMilestoneCheckSafe(playerId, 'silver_earn').catch(() => {});
+    }
   } catch (e) {
     console.error('[statisticsDelta] recordEarned failed', e);
   }

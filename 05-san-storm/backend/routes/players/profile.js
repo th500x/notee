@@ -7,6 +7,8 @@ const characterRankService = require('../../services/characterRankService');
 const playerStatisticsService = require('../../services/playerStatisticsService');
 const playerTitleCatalogService = require('../../services/playerTitleCatalogService');
 const playerAchievementCatalogService = require('../../services/playerAchievementCatalogService');
+const { claimPlayerAchievement } = require('../../services/achievementClaimService');
+const seasonPremiumService = require('../../services/seasonPremiumService');
 const playerProfileService = require('../../services/playerProfileService');
 const playerMainCityService = require('../../services/playerMainCityService');
 const mainCityBarracksStorageService = require('../../services/mainCityBarracksStorageService');
@@ -39,6 +41,40 @@ router.get('/:playerId/achievements/catalog', withRoute('获取成就目录失�
   const result = await playerAchievementCatalogService.getPlayerAchievementCatalog(req.params.playerId);
   return replyServiceOut(res, result, { notFoundMessage: '玩家不存在' });
 }));
+
+router.post('/:playerId/achievements/:achievementId/claim', withRoute('领取成就失败', async (req, res) => {
+  const out = await claimPlayerAchievement(req.params.playerId, req.params.achievementId);
+  if (!out.ok) {
+    return res.status(out.status || 400).json({ success: false, error: out.error });
+  }
+  res.json({ success: true, data: out.data });
+}));
+
+router.post(
+  '/:playerId/season-premium/activate',
+  validateBody(profileSchemas.seasonPremiumActivateBody),
+  withRoute('战令开通失败', async (req, res) => {
+    const out = await seasonPremiumService.activateSeasonPremium(
+      req.params.playerId,
+      req.body.activationCode,
+    );
+    if (!out.ok) {
+      return res.status(out.status || 400).json({ success: false, error: out.error });
+    }
+    res.json({
+      success: true,
+      data: {
+        alreadyActive: out.alreadyActive,
+        milestoneUnlock: out.milestone
+          ? {
+              titles: out.milestone.titles?.newlyGranted || [],
+              achievements: out.milestone.achievements?.newlyGranted || [],
+            }
+          : null,
+      },
+    });
+  }),
+);
 
 router.get('/:playerId/profile', withRoute('获取玩家档案失败', async (req, res) => {
   const result = await playerProfileService.getPlayerProfile(req.params.playerId);

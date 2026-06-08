@@ -25,7 +25,7 @@ const tributeBody = {
 };
 
 const documentBody = {
-  body: v.required(v.nonEmptyString({ max: 400 })),
+  body: v.required(v.nonEmptyString({ max: 60 })),
 };
 
 const bulletinQuery = {
@@ -44,8 +44,13 @@ const cancelWarBody = {
   reason: v.optional(v.string({ max: 256 })),
 };
 
+const switchPeerBody = {
+  positionId: v.required(v.idLike({ max: 128 })),
+};
+
 module.exports = {
   promoteBody,
+  switchPeerBody,
   kingEdictBody,
   tributeBody,
   documentBody,

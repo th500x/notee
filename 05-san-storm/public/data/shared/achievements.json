@@ -1,12 +1,12 @@
 {
   "_meta": {
-    "generated": "2026-06-04T14:42:11.979Z",
+    "generated": "2026-06-08T08:39:45.521Z",
     "source": "achievement-template.csv",
-    "count": 16
+    "count": 20
   },
   "achievements": [
     {
-      "id": "san_1_achi_2_1001",
+      "id": "san_1_achi_3_1001",
       "name": "初战告捷·壹",
       "season": "san_1",
       "category": "combat",
@@ -29,20 +29,43 @@
       "displayEffect": "红色"
     },
     {
-      "id": "san_1_achi_2_1002",
+      "id": "san_1_achi_3_2001",
       "name": "初战告捷·贰",
       "season": "san_1",
       "category": "combat",
-      "rarity": "common",
-      "description": "累计战斗胜利2500场",
+      "rarity": "rare",
+      "description": "累计战斗胜利1500场",
       "chainId": "chain_combat_win",
       "chainLevel": 2,
+      "unlockConditions": {
+        "win_battles": 1500
+      },
+      "unlockConditionsDesc": "累计战斗胜利1500场",
+      "attributeBonus": {
+        "combat": 20
+      },
+      "specialEffect": null,
+      "specialEffectDesc": null,
+      "rewards": {
+        "silver": 1500
+      },
+      "displayEffect": "红色"
+    },
+    {
+      "id": "san_1_achi_3_3001",
+      "name": "初战告捷·叁",
+      "season": "san_1",
+      "category": "combat",
+      "rarity": "epic",
+      "description": "累计战斗胜利2500场",
+      "chainId": "chain_combat_win",
+      "chainLevel": 3,
       "unlockConditions": {
         "win_battles": 2500
       },
       "unlockConditionsDesc": "累计战斗胜利2500场",
       "attributeBonus": {
-        "combat": 20
+        "combat": 30
       },
       "specialEffect": null,
       "specialEffectDesc": null,
@@ -52,64 +75,41 @@
       "displayEffect": "红色"
     },
     {
-      "id": "san_1_achi_2_1003",
-      "name": "初战告捷·叁",
-      "season": "san_1",
-      "category": "combat",
-      "rarity": "common",
-      "description": "累计战斗胜利5000场",
-      "chainId": "chain_combat_win",
-      "chainLevel": 3,
-      "unlockConditions": {
-        "win_battles": 5000
-      },
-      "unlockConditionsDesc": "累计战斗胜利5000场",
-      "attributeBonus": {
-        "combat": 30
-      },
-      "specialEffect": null,
-      "specialEffectDesc": null,
-      "rewards": {
-        "silver": 5000
-      },
-      "displayEffect": "红色"
-    },
-    {
-      "id": "san_1_achi_2_1004",
+      "id": "san_1_achi_3_4001",
       "name": "初战告捷·肆",
       "season": "san_1",
       "category": "combat",
-      "rarity": "common",
-      "description": "累计战斗胜利7500场",
+      "rarity": "legendary",
+      "description": "累计战斗胜利3500场",
       "chainId": "chain_combat_win",
       "chainLevel": 4,
       "unlockConditions": {
-        "win_battles": 7500
+        "win_battles": 3500
       },
-      "unlockConditionsDesc": "累计战斗胜利7500场",
+      "unlockConditionsDesc": "累计战斗胜利3500场",
       "attributeBonus": {
         "combat": 40
       },
       "specialEffect": null,
       "specialEffectDesc": null,
       "rewards": {
-        "silver": 7500
+        "silver": 3500
       },
       "displayEffect": "红色"
     },
     {
-      "id": "san_1_achi_2_1005",
+      "id": "san_1_achi_3_5001",
       "name": "初战告捷·伍",
       "season": "san_1",
       "category": "combat",
-      "rarity": "common",
-      "description": "累计战斗胜利10000场",
+      "rarity": "core",
+      "description": "累计战斗胜利5000场",
       "chainId": "chain_combat_win",
       "chainLevel": 5,
       "unlockConditions": {
-        "win_battles": 10000
+        "win_battles": 5000
       },
-      "unlockConditionsDesc": "累计战斗胜利10000场",
+      "unlockConditionsDesc": "累计战斗胜利5000场",
       "attributeBonus": {
         "combat": 50,
         "command": 10
@@ -117,7 +117,7 @@
       "specialEffect": null,
       "specialEffectDesc": null,
       "rewards": {
-        "silver": 10000
+        "silver": 5000
       },
       "displayEffect": "红色"
     },
@@ -145,20 +145,43 @@
       "displayEffect": null
     },
     {
-      "id": "san_1_achi_1_1002",
+      "id": "san_1_achi_1_2001",
       "name": "富甲一方·贰",
       "season": "san_1",
       "category": "social",
-      "rarity": "common",
-      "description": "累计获得25000银两",
+      "rarity": "rare",
+      "description": "累计获得15000银两",
       "chainId": "chain_silver_earn",
       "chainLevel": 2,
+      "unlockConditions": {
+        "total_silver_earned": 15000
+      },
+      "unlockConditionsDesc": "累计获得15000银两",
+      "attributeBonus": {
+        "politics": 40
+      },
+      "specialEffect": null,
+      "specialEffectDesc": null,
+      "rewards": {
+        "silver": 1500
+      },
+      "displayEffect": null
+    },
+    {
+      "id": "san_1_achi_1_3001",
+      "name": "富甲一方·叁",
+      "season": "san_1",
+      "category": "social",
+      "rarity": "epic",
+      "description": "累计获得25000银两",
+      "chainId": "chain_silver_earn",
+      "chainLevel": 3,
       "unlockConditions": {
         "total_silver_earned": 25000
       },
       "unlockConditionsDesc": "累计获得25000银两",
       "attributeBonus": {
-        "politics": 40
+        "politics": 60
       },
       "specialEffect": null,
       "specialEffectDesc": null,
@@ -168,64 +191,41 @@
       "displayEffect": null
     },
     {
-      "id": "san_1_achi_1_1003",
-      "name": "富甲一方·叁",
-      "season": "san_1",
-      "category": "social",
-      "rarity": "common",
-      "description": "累计获得50000银两",
-      "chainId": "chain_silver_earn",
-      "chainLevel": 3,
-      "unlockConditions": {
-        "total_silver_earned": 50000
-      },
-      "unlockConditionsDesc": "累计获得50000银两",
-      "attributeBonus": {
-        "politics": 60
-      },
-      "specialEffect": null,
-      "specialEffectDesc": null,
-      "rewards": {
-        "silver": 5000
-      },
-      "displayEffect": null
-    },
-    {
-      "id": "san_1_achi_1_1004",
+      "id": "san_1_achi_1_4001",
       "name": "富甲一方·肆",
       "season": "san_1",
       "category": "social",
-      "rarity": "common",
-      "description": "累计获得75000银两",
+      "rarity": "legendary",
+      "description": "累计获得35000银两",
       "chainId": "chain_silver_earn",
       "chainLevel": 4,
       "unlockConditions": {
-        "total_silver_earned": 75000
+        "total_silver_earned": 35000
       },
-      "unlockConditionsDesc": "累计获得75000银两",
+      "unlockConditionsDesc": "累计获得35000银两",
       "attributeBonus": {
         "politics": 80
       },
       "specialEffect": null,
       "specialEffectDesc": null,
       "rewards": {
-        "silver": 7500
+        "silver": 3500
       },
       "displayEffect": null
     },
     {
-      "id": "san_1_achi_1_1005",
+      "id": "san_1_achi_1_5001",
       "name": "富甲一方·伍",
       "season": "san_1",
       "category": "social",
-      "rarity": "common",
-      "description": "累计获得100000银两",
+      "rarity": "core",
+      "description": "累计获得50000银两",
       "chainId": "chain_silver_earn",
       "chainLevel": 5,
       "unlockConditions": {
-        "total_silver_earned": 100000
+        "total_silver_earned": 50000
       },
-      "unlockConditionsDesc": "累计获得100000银两",
+      "unlockConditionsDesc": "累计获得50000银两",
       "attributeBonus": {
         "politics": 100,
         "charm": 20
@@ -233,12 +233,12 @@
       "specialEffect": "daily_silver_bonus:100",
       "specialEffectDesc": "每日额外银两+100",
       "rewards": {
-        "silver": 10000
+        "silver": 5000
       },
       "displayEffect": null
     },
     {
-      "id": "san_1_achi_1_1006",
+      "id": "san_1_achi_1_1002",
       "name": "将领图鉴·壹",
       "season": "san_1",
       "category": "social",
@@ -261,11 +261,11 @@
       "displayEffect": null
     },
     {
-      "id": "san_1_achi_1_1007",
+      "id": "san_1_achi_1_2002",
       "name": "将领图鉴·贰",
       "season": "san_1",
       "category": "social",
-      "rarity": "common",
+      "rarity": "rare",
       "description": "累计获得20个传奇将领",
       "chainId": "chain_character_catalog",
       "chainLevel": 2,
@@ -279,16 +279,16 @@
       "specialEffect": null,
       "specialEffectDesc": null,
       "rewards": {
-        "silver": 2500
+        "silver": 1500
       },
       "displayEffect": null
     },
     {
-      "id": "san_1_achi_1_1008",
+      "id": "san_1_achi_1_3002",
       "name": "将领图鉴·叁",
       "season": "san_1",
       "category": "social",
-      "rarity": "common",
+      "rarity": "epic",
       "description": "累计获得30个传奇将领",
       "chainId": "chain_character_catalog",
       "chainLevel": 3,
@@ -302,16 +302,16 @@
       "specialEffect": null,
       "specialEffectDesc": null,
       "rewards": {
-        "silver": 5000
+        "silver": 2500
       },
       "displayEffect": null
     },
     {
-      "id": "san_1_achi_1_1009",
+      "id": "san_1_achi_1_4002",
       "name": "将领图鉴·肆",
       "season": "san_1",
       "category": "social",
-      "rarity": "common",
+      "rarity": "legendary",
       "description": "累计获得40个传奇将领",
       "chainId": "chain_character_catalog",
       "chainLevel": 4,
@@ -325,16 +325,16 @@
       "specialEffect": null,
       "specialEffectDesc": null,
       "rewards": {
-        "silver": 7500
+        "silver": 3500
       },
       "displayEffect": null
     },
     {
-      "id": "san_1_achi_1_1010",
+      "id": "san_1_achi_1_5002",
       "name": "将领图鉴·伍",
       "season": "san_1",
       "category": "social",
-      "rarity": "common",
+      "rarity": "core",
       "description": "累计获得50个传奇将领",
       "chainId": "chain_character_catalog",
       "chainLevel": 5,
@@ -349,33 +349,125 @@
       "specialEffect": null,
       "specialEffectDesc": null,
       "rewards": {
-        "silver": 10000
+        "silver": 5000
       },
       "displayEffect": null
     },
     {
-      "id": "san_1_achi_3_1001",
-      "name": "荣耀战令·壹",
+      "id": "san_1_achi_2_1001",
+      "name": "事件达人·壹",
       "season": "san_1",
-      "category": "premium",
+      "category": "event",
       "rarity": "common",
-      "description": "开通当前赛季战令",
-      "chainId": null,
-      "chainLevel": null,
+      "description": "累计完成事件500个",
+      "chainId": "chain_event_complete",
+      "chainLevel": 1,
       "unlockConditions": {
-        "has_premium": true
+        "total_events_completed": 500
       },
-      "unlockConditionsDesc": "购买当前赛季战令",
+      "unlockConditionsDesc": "累计完成事件500个",
       "attributeBonus": {
-        "luck": 20
+        "command": 10
       },
-      "specialEffect": "daily_silver_bonus:100",
-      "specialEffectDesc": "每日额外银两+100",
+      "specialEffect": null,
+      "specialEffectDesc": null,
       "rewards": {
-        "silver": 500,
-        "food": 2500
+        "silver": 500
       },
-      "displayEffect": "金色"
+      "displayEffect": "绿色"
+    },
+    {
+      "id": "san_1_achi_2_2001",
+      "name": "事件达人·贰",
+      "season": "san_1",
+      "category": "event",
+      "rarity": "rare",
+      "description": "累计完成事件1500个",
+      "chainId": "chain_event_complete",
+      "chainLevel": 2,
+      "unlockConditions": {
+        "total_events_completed": 1500
+      },
+      "unlockConditionsDesc": "累计完成事件1500个",
+      "attributeBonus": {
+        "command": 20
+      },
+      "specialEffect": null,
+      "specialEffectDesc": null,
+      "rewards": {
+        "silver": 1500
+      },
+      "displayEffect": "绿色"
+    },
+    {
+      "id": "san_1_achi_2_3001",
+      "name": "事件达人·叁",
+      "season": "san_1",
+      "category": "event",
+      "rarity": "epic",
+      "description": "累计完成事件2500个",
+      "chainId": "chain_event_complete",
+      "chainLevel": 3,
+      "unlockConditions": {
+        "total_events_completed": 2500
+      },
+      "unlockConditionsDesc": "累计完成事件2500个",
+      "attributeBonus": {
+        "command": 30
+      },
+      "specialEffect": null,
+      "specialEffectDesc": null,
+      "rewards": {
+        "silver": 2500
+      },
+      "displayEffect": "绿色"
+    },
+    {
+      "id": "san_1_achi_2_4001",
+      "name": "事件达人·肆",
+      "season": "san_1",
+      "category": "event",
+      "rarity": "legendary",
+      "description": "累计完成事件3500个",
+      "chainId": "chain_event_complete",
+      "chainLevel": 4,
+      "unlockConditions": {
+        "total_events_completed": 3500
+      },
+      "unlockConditionsDesc": "累计完成事件3500个",
+      "attributeBonus": {
+        "command": 40
+      },
+      "specialEffect": null,
+      "specialEffectDesc": null,
+      "rewards": {
+        "silver": 3500
+      },
+      "displayEffect": "绿色"
+    },
+    {
+      "id": "san_1_achi_2_5001",
+      "name": "事件达人·伍",
+      "season": "san_1",
+      "category": "event",
+      "rarity": "core",
+      "description": "累计完成事件5000个",
+      "chainId": "chain_event_complete",
+      "chainLevel": 5,
+      "unlockConditions": {
+        "total_events_completed": 5000
+      },
+      "unlockConditionsDesc": "累计完成事件5000个",
+      "attributeBonus": {
+        "command": 50,
+        "combat": 10
+      },
+      "specialEffect": null,
+      "specialEffectDesc": null,
+      "rewards": {
+        "silver": 5000
+      },
+      "displayEffect": "绿色"
     }
   ]
 }

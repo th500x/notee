@@ -37,6 +37,7 @@ import '@/components/battle/BattleMap.css';
 import { validateMainLineupBattleGate } from '@/utils/mainLineupTroops';
 import { API_CONFIG } from '@/constants';
 import { writeInflightBattleTroopSnapshot } from '@/utils/inflightBattleTroopSnapshot';
+import { useBgmScene } from '@/hooks/useBgmScene';
 
 const STAGE = { LOADING: 'loading', READY: 'ready' };
 const BATTLE_TYPE = 'pve_campaign';
@@ -80,6 +81,8 @@ export default function LargeMapBattle({
   maxRounds = 30,
   skillsMap = null,
 }) {
+  useBgmScene('battle_campaign');
+
   const [stage, setStage] = useState(STAGE.LOADING);
   const [layoutWidth, setLayoutWidth] = useState('auto');
   const campaignShellRef = useRef(null);

@@ -34,6 +34,7 @@ import { BASE_CAMP_SIEGE_FOOD_COST_MULTIPLIER } from '@shared/utils/pvpBaseCampC
 import { writeInflightBattleTroopSnapshot } from '@/utils/inflightBattleTroopSnapshot';
 import { useSkillsMap } from '@/hooks/useSkillsMap';
 import { resolveSiegeCityDefenseMultFromOpts } from '@shared/utils/siegeCityDefenseMult';
+import { useBgmScene } from '@/hooks/useBgmScene';
 
 const STAGE = { LOADING: 'loading', READY: 'ready' };
 
@@ -85,6 +86,8 @@ export default function SmallMapBattle({
   eventPunishmentExtraSlot = false,
   cards = null,
 }) {
+  useBgmScene('battle_small');
+
   const [stage, setStage] = useState(STAGE.LOADING);
   const [layoutWidth, setLayoutWidth] = useState('auto');
   const mapCardRef = useRef(null);

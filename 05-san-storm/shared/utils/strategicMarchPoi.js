@@ -385,22 +385,32 @@ export function collectStrategicPvpCampFootprintFromBaseCamp(camp, mapColumns, m
  * @param {object[][]|null|undefined} [cellsFallback]
  * @returns {{ keys: Set<string>, anchorGx: number, anchorGy: number, width: number, height: number, kind: string, poiAnchorId?: string } | null}
  */
-export function buildStrategicPoiFootprintFromDbCityRow(cityRow, mapColumns, mapRows, cellsFallback = null) {
-  const id = cityRow?.city_id ?? cityRow?.cityId ?? cityRow?.id;
+/**
+ * 库内 `position_x/y`：仅当列**有值**时采用；`null` / 空串不得当作 `0`（否则 null 城心会误落在叠图左上角）。
+ * @returns {{ gx: number, gy: number } | null}
+ */
+function dbCityAnchorCoordsFromRow(cityRow) {
   const pxRaw = cityRow?.position_x ?? cityRow?.positionX;
   const pyRaw = cityRow?.position_y ?? cityRow?.positionY;
-  const ct = cityRow?.city_type ?? cityRow?.cityType;
+  if (pxRaw == null || pxRaw === '' || pyRaw == null || pyRaw === '') return null;
   const px = Number(pxRaw);
   const py = Number(pyRaw);
+  if (!Number.isFinite(px) || !Number.isFinite(py)) return null;
+  return { gx: Math.trunc(px), gy: Math.trunc(py) };
+}
 
-  if (!Number.isFinite(px) || !Number.isFinite(py)) {
+export function buildStrategicPoiFootprintFromDbCityRow(cityRow, mapColumns, mapRows, cellsFallback = null) {
+  const id = cityRow?.city_id ?? cityRow?.cityId ?? cityRow?.id;
+  const ct = cityRow?.city_type ?? cityRow?.cityType;
+  const anchor = dbCityAnchorCoordsFromRow(cityRow);
+
+  if (!anchor) {
     if (cellsFallback?.length && id) {
       return collectStrategicPoiFootprint(cellsFallback, String(id), mapColumns, mapRows);
     }
     return null;
   }
-  const gx = Math.trunc(px);
-  const gy = Math.trunc(py);
+  const { gx, gy } = anchor;
   const localRowCap =
     cellsFallback?.length > STRATEGIC_COUNTY_MAP_ROWS ? STRATEGIC_COUNTY_MAP_ROWS : mapRows;
   if (gx < 0 || gy < 0 || gx >= mapColumns || gy >= localRowCap) {

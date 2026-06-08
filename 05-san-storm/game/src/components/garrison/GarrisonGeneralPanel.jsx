@@ -24,7 +24,7 @@ const GENERAL_SLOTS = [
   { id: 'troop2',       label: '部队2',  icon: '⚔️', side: 'left',  implemented: true },
   { id: 'equipmentSet', label: '装备卡', icon: '🛡️', side: 'left',  implemented: true },
   { id: 'title',        label: '称号',   icon: '🎖️', side: 'right', implemented: true },
-  { id: 'achievement',  label: '成就',   icon: '🏆', side: 'right', implemented: false },
+  { id: 'achievement',  label: '成就',   icon: '🏆', side: 'right', implemented: true },
   { id: 'treasure',     label: '宝物',   icon: '💎', side: 'right', implemented: false },
 ];
 

@@ -33,6 +33,7 @@ import {
 } from 'react';
 import { playerAPI } from '@/services/playerApi';
 import { useExploreQuota } from '@/hooks/useExploreQuota';
+import { notifyAchievementNotifyRefresh } from '@/utils/achievementNotifyRefresh';
 
 const EMPTY_CARDS = Object.freeze([]);
 const EMPTY_BONUS_BY_SLOT = Object.freeze({
@@ -66,6 +67,8 @@ function buildContextView(state) {
     error: state.error,
     refresh: state.refresh,
     exploreQuota: state.exploreQuota,
+    milestoneUnlockPending: state.milestoneUnlockPending,
+    clearMilestoneUnlockPending: state.clearMilestoneUnlockPending,
   };
 }
 
@@ -83,6 +86,8 @@ function createPlayerStore() {
     error: null,
     refresh: () => {},
     exploreQuota: EMPTY_EXPLORE_QUOTA,
+    milestoneUnlockPending: null,
+    clearMilestoneUnlockPending: () => {},
   };
   let contextView = buildContextView(state);
   let loadStatusView = buildLoadStatusView(state);
@@ -156,13 +161,19 @@ export function PlayerProvider({ playerId, children }) {
         if (result.success) {
           const data = result.data;
           const rawCards = data?.cards;
+          const pending = data?.milestoneUnlockPending || null;
+          const hasPending =
+            pending &&
+            ((pending.titles?.length || 0) > 0 || (pending.achievements?.length || 0) > 0);
           store.setState({
             player: data?.player || null,
             cards: rawCards && rawCards.length > 0 ? rawCards : EMPTY_CARDS,
             attributeBonusBySlot: data?.attributeBonusBySlot || EMPTY_BONUS_BY_SLOT,
             gameTime: data?.gameTime ?? null,
+            milestoneUnlockPending: hasPending ? pending : null,
             ...(silent ? {} : { loading: false, error: null }),
           });
+          notifyAchievementNotifyRefresh();
         } else if (!silent) {
           store.setState({
             error: result.error || '加载失败',
@@ -181,6 +192,10 @@ export function PlayerProvider({ playerId, children }) {
 
   const refresh = useCallback((options) => loadProfile(options), [loadProfile]);
 
+  const clearMilestoneUnlockPending = useCallback(() => {
+    store.setState({ milestoneUnlockPending: null });
+  }, [store]);
+
   useEffect(() => {
     loadProfile();
   }, [loadProfile]);
@@ -188,8 +203,8 @@ export function PlayerProvider({ playerId, children }) {
   const exploreQuota = useExploreQuota(playerId);
 
   useLayoutEffect(() => {
-    store.setState({ refresh, exploreQuota });
-  }, [store, refresh, exploreQuota]);
+    store.setState({ refresh, exploreQuota, clearMilestoneUnlockPending });
+  }, [store, refresh, exploreQuota, clearMilestoneUnlockPending]);
 
   return (
     <PlayerStoreContext.Provider value={store}>

@@ -12,23 +12,29 @@ import PersonalSidebarMechanicsPanel from '@/components/game/PersonalSidebarMech
 import PersonalCatalogModal from '@/components/game/PersonalCatalogModal';
 import PersonalSidebarTitlesPanel from '@/components/game/PersonalSidebarTitlesPanel';
 import PersonalSidebarAchievementsPanel from '@/components/game/PersonalSidebarAchievementsPanel';
-import AncientModal from '@/components/common/AncientModal';
+import TabNotifyDot from '@/components/game/TabNotifyDot';
+import { setBgmEnabled } from '@/services/bgmService';
+import { readBgmEnabled } from '@/utils/bgmUserPref';
 
 const MENU_ITEMS = [
   { id: 'mechanics', icon: '📜', label: '机制' },
   { id: 'stats', icon: '📊', label: '统计' },
   { id: 'titles', icon: '🎖️', label: '称号' },
   { id: 'achievements', icon: '🏆', label: '成就' },
-  { id: 'settings', icon: '⚙️', label: '设置' },
   { id: 'team', icon: '👥', label: '团队' },
 ];
 
-export default function PersonalSidebar({ open, onClose, onLogout }) {
+export default function PersonalSidebar({
+  open,
+  onClose,
+  onLogout,
+  claimableAchievementNotify = false,
+}) {
   const { player } = usePlayerContext();
   const [subView, setSubView] = useState(null); // null | 'team' | 'stats' | 'mechanics'
   const [catalogModal, setCatalogModal] = useState(null); // null | 'titles' | 'achievements'
   const teamPanelRef = useRef(null);
-  const [stubNoticeOpen, setStubNoticeOpen] = useState(false);
+  const [bgmOn, setBgmOn] = useState(() => readBgmEnabled());
 
   // ESC：团队详情 → 团队列表 → 主菜单；统计/机制子页 → 主菜单 → 关侧边栏
   useEffect(() => {
@@ -60,6 +66,8 @@ export default function PersonalSidebar({ open, onClose, onLogout }) {
     if (!open) {
       setSubView(null);
       setCatalogModal(null);
+    } else {
+      setBgmOn(readBgmEnabled());
     }
   }, [open]);
 
@@ -94,13 +102,13 @@ export default function PersonalSidebar({ open, onClose, onLogout }) {
     }
     if (id === 'achievements') {
       setCatalogModal('achievements');
-      return;
     }
-    if (id === 'settings') {
-      setStubNoticeOpen(true);
-      return;
-    }
-    setStubNoticeOpen(true);
+  };
+
+  const handleBgmToggle = () => {
+    const next = !bgmOn;
+    setBgmOn(next);
+    setBgmEnabled(next);
   };
 
   return (
@@ -165,17 +173,51 @@ export default function PersonalSidebar({ open, onClose, onLogout }) {
 
             {/* 菜单列表 */}
             <div className="flex-1 min-h-0 overflow-y-auto py-2">
-              {MENU_ITEMS.map((item) => (
+              {MENU_ITEMS.map((item) => {
+                const showAchNotify =
+                  item.id === 'achievements' && claimableAchievementNotify;
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => handleMenuClick(item.id)}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-100 transition-colors"
+                    aria-label={
+                      showAchNotify ? `${item.label}，有可领取成就` : item.label
+                    }
+                  >
+                    <span className="text-xl">{item.icon}</span>
+                    <span
+                      className={`relative inline-flex text-gray-800 font-medium ${
+                        showAchNotify ? 'pt-1 pr-1' : ''
+                      }`}
+                    >
+                      {item.label}
+                      {showAchNotify ? <TabNotifyDot /> : null}
+                    </span>
+                  </button>
+                );
+              })}
+              <div className="flex items-center justify-between gap-3 px-4 py-3 border-t border-gray-100">
+                <div className="flex items-center gap-3 min-w-0">
+                  <span className="text-xl" aria-hidden>🎵</span>
+                  <span className="text-gray-800 font-medium">音乐</span>
+                </div>
                 <button
-                  key={item.id}
                   type="button"
-                  onClick={() => handleMenuClick(item.id)}
-                  className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-100 transition-colors"
+                  role="switch"
+                  aria-checked={bgmOn}
+                  aria-label={bgmOn ? '音乐已开启，点击关闭' : '音乐已关闭，点击开启'}
+                  onClick={handleBgmToggle}
+                  className={`shrink-0 min-w-[4.5rem] rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${
+                    bgmOn
+                      ? 'bg-amber-700 text-white hover:bg-amber-800'
+                      : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+                  }`}
                 >
-                  <span className="text-xl">{item.icon}</span>
-                  <span className="text-gray-800 font-medium">{item.label}</span>
+                  {bgmOn ? '开' : '关'}
                 </button>
-              ))}
+              </div>
             </div>
           </>
         )}
@@ -210,16 +252,6 @@ export default function PersonalSidebar({ open, onClose, onLogout }) {
         <PersonalSidebarAchievementsPanel playerId={player?.playerId} />
       </PersonalCatalogModal>
 
-      <AncientModal
-        isOpen={stubNoticeOpen}
-        type="info"
-        title="提示"
-        confirmText="确定"
-        onConfirm={() => setStubNoticeOpen(false)}
-        onClose={() => setStubNoticeOpen(false)}
-      >
-        <p className="text-center text-gray-800 text-sm">⚠️ 尚未实装</p>
-      </AncientModal>
     </>
   );
 }

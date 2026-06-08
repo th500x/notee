@@ -156,18 +156,20 @@ function CampaignFlipCard({
               {completionRewardBadge ? ` · ${completionRewardBadge}` : ''}
             </p>
           </div>
-          <div className="px-2.5 py-2 border-t border-stone-700 shrink-0">
-            <button
-              type="button"
-              className="w-full py-2 rounded-lg bg-amber-700 hover:bg-amber-600 text-white font-bold text-sm shadow-md transition-colors"
-              onClick={(e) => {
-                e.stopPropagation();
-                if (typeof onStartBattle === 'function') onStartBattle();
-              }}
-            >
-              开战
-            </button>
-          </div>
+          {typeof onStartBattle === 'function' ? (
+            <div className="px-2.5 py-2 border-t border-stone-700 shrink-0">
+              <button
+                type="button"
+                className="w-full py-2 rounded-lg bg-amber-700 hover:bg-amber-600 text-white font-bold text-sm shadow-md transition-colors"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onStartBattle();
+                }}
+              >
+                开战
+              </button>
+            </div>
+          ) : null}
         </div>
       </div>
     </div>

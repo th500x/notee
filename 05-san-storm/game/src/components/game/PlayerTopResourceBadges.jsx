@@ -35,7 +35,7 @@ export default function PlayerTopResourceBadges({ className = '', variant = 'map
 
   return (
     <div
-      className={`flex items-center justify-end gap-1 shrink-0 overflow-x-auto ${className}`}
+      className={`flex items-center justify-end gap-1 shrink-0 min-w-0 ${className}`}
       aria-label="玩家资源"
     >
       <ResourceBadge icon="🎖️" value={player?.reputation} compact />

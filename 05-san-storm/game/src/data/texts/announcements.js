@@ -36,7 +36,7 @@ const announcements = [
        endTime: '2026-04-02T13:59:59',
        displayCount: 10,
        refreshInterval: 300000,
-       scoreWeights: { battleScore: 1, events: 120, reputation: 60, contribution: 60 },
+       scoreWeights: { battleScore: 0.2, events: 120, reputation: 60, contribution: 60 },
        rewards: [
          { rankRange: [1, 4],  prizes: '35R或实物等价铜麻将牌' },
          { rankRange: [5, 10],  prizes: '10RMB' },

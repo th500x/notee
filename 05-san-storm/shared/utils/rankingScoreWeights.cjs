@@ -6,7 +6,7 @@
 
 /** @type {{ battleScore: number, events: number, reputation: number, contribution: number }} */
 const DEFAULT_SCORE_WEIGHTS = Object.freeze({
-  battleScore: 1,
+  battleScore: 0.2,
   events: 120,
   reputation: 60,
   contribution: 60,

@@ -13,7 +13,7 @@
  * @see docs/10-core-system/17-5-DUEL_SYSTEM.md §12.4 §12.6
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import BattleMap from '@/components/battle/BattleMap';
 import BattleLog from '@/components/battle/BattleLog';
 import '@/components/battle/BattleMap.css';
@@ -24,6 +24,7 @@ import { makeCanonicalView } from '@shared/battle/tacticalSim/pvpCanonicalView';
 import { buildInitialTroops } from '@shared/battle/tacticalSim/pvpReplayState';
 import { createPvpEventPlayer } from '@/pvp/tactical/pvpEventPlayer';
 import { pvpTacticalAPI } from '@/services/pvpTacticalApi';
+import { useBgmScene } from '@/hooks/useBgmScene';
 
 const POLL_INTERVAL_MS = 350;
 const SPEED_OPTIONS = [1, 2, 4];
@@ -35,6 +36,8 @@ function outcomeFor(winnerSide, selfSide) {
 }
 
 export default function PvpTacticalBattleShell({ roomId, onComplete, onClose, title = '阵前切磋' }) {
+  useBgmScene('battle_small');
+
   const mapCardRef = useRef(null);
   const battleSurfaceRef = useRef(null);
   if (!battleSurfaceRef.current) battleSurfaceRef.current = createTacticalMapCardSurface(mapCardRef);
@@ -47,6 +50,25 @@ export default function PvpTacticalBattleShell({ roomId, onComplete, onClose, ti
   const [errorMsg, setErrorMsg] = useState('');
   const [result, setResult] = useState(null); // { outcome, winnerSide, battleId }
   const [speed, setSpeed] = useState(1);
+  /** 与 `SmallMapBattle` 一致：战报/控件宽度对齐 `.map-card` 外缘 */
+  const [layoutWidth, setLayoutWidth] = useState('auto');
+
+  const syncLayoutWidth = useCallback(() => {
+    const el = mapCardRef.current;
+    if (el?.offsetWidth) setLayoutWidth(`${el.offsetWidth}px`);
+  }, []);
+
+  useLayoutEffect(() => {
+    syncLayoutWidth();
+  }, [mapResult, syncLayoutWidth]);
+
+  useEffect(() => {
+    const el = mapCardRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return undefined;
+    const ro = new ResizeObserver(() => syncLayoutWidth());
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [mapResult, syncLayoutWidth]);
 
   // 跨 effect 共享的可变态（坐标/兵力原地变更，避免每帧重渲染）
   const troopsRef = useRef([]);
@@ -248,35 +270,10 @@ export default function PvpTacticalBattleShell({ roomId, onComplete, onClose, ti
     <div className="fixed inset-0 z-[225] flex flex-col items-center overflow-auto bg-[#1a1a2e]">
       <div className="flex w-full items-center justify-between px-4 py-2 text-sm text-amber-100">
         <span className="font-semibold">{title} · 战术对决</span>
-        <div className="flex items-center gap-3">
-          <span className="text-amber-200/70">
-            回合 {roundNum}
-            {selfSide ? `　·　己方 ${selfSide === 'a' ? '甲' : '乙'}方` : ''}
-          </span>
-          <div className="flex items-center gap-1">
-            {SPEED_OPTIONS.map((s) => (
-              <button
-                key={s}
-                type="button"
-                onClick={() => setSpeedSafe(s)}
-                className={`rounded px-2 py-0.5 text-xs ${
-                  speed === s ? 'bg-amber-500 text-black' : 'bg-black/40 text-amber-200'
-                }`}
-              >
-                {s}x
-              </button>
-            ))}
-          </div>
-          {(phase === 'done' || phase === 'error' || phase === 'cancelled') && onClose && (
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded bg-amber-500 px-3 py-0.5 text-xs font-semibold text-black"
-            >
-              关闭
-            </button>
-          )}
-        </div>
+        <span className="text-amber-200/70">
+          回合 {roundNum}
+          {selfSide ? `　·　己方 ${selfSide === 'a' ? '甲' : '乙'}方` : ''}
+        </span>
       </div>
 
       {phase === 'error' && (
@@ -287,32 +284,60 @@ export default function PvpTacticalBattleShell({ roomId, onComplete, onClose, ti
       )}
 
       {mapResult && phase !== 'error' && phase !== 'cancelled' && (
-        <div className="relative flex flex-col items-center">
-          {banner && (
-            <div className="pointer-events-none absolute inset-x-0 top-6 z-10 text-center">
-              <span
-                className={`inline-block rounded-lg px-6 py-2 text-2xl font-bold ${
-                  result?.outcome === 'win'
-                    ? 'bg-amber-500/90 text-black'
-                    : result?.outcome === 'lose'
-                      ? 'bg-slate-700/90 text-slate-100'
-                      : 'bg-slate-600/90 text-slate-100'
-                }`}
-              >
-                {banner}
-              </span>
+        <div className="flex flex-col items-center px-2 pb-4">
+          <div
+            className="relative w-fit max-w-[100vw]"
+            style={layoutWidth !== 'auto' ? { width: layoutWidth } : undefined}
+          >
+            <div className="pointer-events-auto absolute right-3 top-3 z-20 flex items-center gap-1">
+              {SPEED_OPTIONS.map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => setSpeedSafe(s)}
+                  className={`rounded px-2 py-0.5 text-xs font-semibold shadow-md ${
+                    speed === s ? 'bg-amber-500 text-black' : 'bg-black/55 text-amber-200 hover:bg-black/70'
+                  }`}
+                >
+                  {s}x
+                </button>
+              ))}
+              {onClose && (
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="rounded bg-amber-500 px-2.5 py-0.5 text-xs font-semibold text-black shadow-md"
+                >
+                  关闭
+                </button>
+              )}
             </div>
-          )}
-          <BattleMap
-            mapResult={mapResult}
-            mapLabel={title}
-            battleTroops={troopsRef.current}
-            showTroops={false}
-            isBattle
-            roundNum={roundNum}
-            mapCardRef={mapCardRef}
-          />
-          <BattleLog logs={logs} visible maxWidth="min(640px, 92vw)" />
+            {banner && (
+              <div className="pointer-events-none absolute inset-x-0 top-14 z-10 text-center">
+                <span
+                  className={`inline-block rounded-lg px-6 py-2 text-2xl font-bold ${
+                    result?.outcome === 'win'
+                      ? 'bg-amber-500/90 text-black'
+                      : result?.outcome === 'lose'
+                        ? 'bg-slate-700/90 text-slate-100'
+                        : 'bg-slate-600/90 text-slate-100'
+                  }`}
+                >
+                  {banner}
+                </span>
+              </div>
+            )}
+            <BattleMap
+              mapResult={mapResult}
+              mapLabel={title}
+              battleTroops={troopsRef.current}
+              showTroops={false}
+              isBattle
+              roundNum={roundNum}
+              mapCardRef={mapCardRef}
+            />
+          </div>
+          <BattleLog logs={logs} visible maxWidth={layoutWidth} />
         </div>
       )}
 

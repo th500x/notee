@@ -229,6 +229,10 @@ function buildStrategicWorldMapCityTooltip(row, anchorKey, hd, onDutyCount) {
       canOwnCityPanel && typeof hd.onToggleDutyForCity === 'function'
         ? hd.onToggleDutyForCity
         : undefined,
+    onAfterOwnCityAction:
+      canOwnCityPanel && typeof hd.onAfterStrategicCityOwnAction === 'function'
+        ? hd.onAfterStrategicCityOwnAction
+        : undefined,
     onDutyError: typeof hd.onDutyError === 'function' ? hd.onDutyError : undefined,
     subsidiaryExploreEmbed: hd.subsidiaryExploreEmbed ?? null,
     closeStrategicCityTooltip:
@@ -386,6 +390,8 @@ export default function WorldStrategicMapGrid({
   siegeLoading = false,
   onStartSiegeForCity = null,
   garrisonStatsByCityId = null,
+  /** `bumpGarrisonStats` 递增；披挂/驻地变更后须重拉当前城池 tooltip 人数 */
+  garrisonStatsRefreshKey = 0,
   playerOnDuty = false,
   playerOnDutyCityId = null,
   onOpenGarrisonForCity = null,
@@ -531,6 +537,31 @@ export default function WorldStrategicMapGrid({
     dismissTooltip();
   }, [clearLeaveTooltipTimer, dismissTooltip]);
 
+  /** 当前粘滞城池 tooltip 打开时，重拉 `GET garrisons/on-duty-count` 并刷新「披挂上阵」行。 */
+  const refetchOpenCityTooltipOnDutyCount = useCallback(() => {
+    const m = strategicCityTooltipMetaRef.current;
+    const cityId = m?.cityId;
+    if (!cityId) return;
+    const tc = tooltipContentRef.current;
+    if (!tc || tc.type !== 'worldMapCity' || String(tc.cityId) !== String(cityId)) return;
+    strategicOnDutyCountFetchTokenRef.current += 1;
+    const onDutyCountToken = strategicOnDutyCountFetchTokenRef.current;
+    garrisonAPI.getOnDutyCount(cityId).then((res) => {
+      if (onDutyCountToken !== strategicOnDutyCountFetchTokenRef.current) return;
+      const duty = res.success ? Number(res.count) : null;
+      const d = Number.isFinite(duty) ? duty : null;
+      strategicCityTooltipMetaRef.current = {
+        ...strategicCityTooltipMetaRef.current,
+        cityId,
+        onDutyCount: d,
+      };
+      const hd = hoverDataRef.current;
+      const row = hd.cityById?.[cityId];
+      if (!row) return;
+      setTooltipContent(buildStrategicWorldMapCityTooltip(row, cityId, hd, d));
+    });
+  }, []);
+
   hoverDataRef.current = {
     cells,
     cityById,
@@ -545,6 +576,7 @@ export default function WorldStrategicMapGrid({
     onOpenGarrisonForCity,
     onToggleDutyForCity,
     onDutyError,
+    onAfterStrategicCityOwnAction: refetchOpenCityTooltipOnDutyCount,
     subsidiaryExploreEmbed,
     closeStrategicCityTooltip: closeTooltipNow,
     playerMainCityId,
@@ -619,6 +651,7 @@ export default function WorldStrategicMapGrid({
       const synth = syntheticBanditProgressRowFromAnchorCell(m.banditPoiId, hint);
       setTooltipContent(buildStrategicWorldMapCityTooltip(synth, m.banditPoiId, hd, duty));
     }
+    if (m.cityId) refetchOpenCityTooltipOnDutyCount();
   }, [
     cityById,
     playerMainCityId,
@@ -628,6 +661,7 @@ export default function WorldStrategicMapGrid({
     playerOnDutyCityId,
     subsidiaryExploreEmbed,
     garrisonStatsByCityId,
+    garrisonStatsRefreshKey,
     siegeLoading,
     onOpenBarracksPost,
     onOpenSanGongFu,
@@ -637,37 +671,18 @@ export default function WorldStrategicMapGrid({
     playerStandingPoiAnchorId,
     playerStandingPvpWarId,
     pvpBaseCamps,
+    refetchOpenCityTooltipOnDutyCount,
   ]);
 
-  /** `refreshPlayer` 后 meta 里 `onDutyCount` 仍可能是打开时的快照；重拉与本城一致的披挂人数。 */
+  /** 档案 `onDuty` / 驻地统计变更后，重拉当前粘滞 tooltip 的披挂人数（勿沿用 meta 打开时快照）。 */
   useEffect(() => {
-    const m = strategicCityTooltipMetaRef.current;
-    const cityId = m?.cityId;
-    if (!cityId) return;
-    const tc = tooltipContentRef.current;
-    if (!tc || tc.type !== 'worldMapCity' || String(tc.cityId) !== String(cityId)) return;
-    strategicOnDutyCountFetchTokenRef.current += 1;
-    const onDutyCountToken = strategicOnDutyCountFetchTokenRef.current;
-    let cancelled = false;
-    garrisonAPI.getOnDutyCount(cityId).then((res) => {
-      if (cancelled) return;
-      if (onDutyCountToken !== strategicOnDutyCountFetchTokenRef.current) return;
-      const duty = res.success ? Number(res.count) : null;
-      const d = Number.isFinite(duty) ? duty : null;
-      strategicCityTooltipMetaRef.current = {
-        ...strategicCityTooltipMetaRef.current,
-        cityId,
-        onDutyCount: d,
-      };
-      const hd = hoverDataRef.current;
-      const row = hd.cityById?.[cityId];
-      if (!row) return;
-      setTooltipContent(buildStrategicWorldMapCityTooltip(row, cityId, hd, d));
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [playerOnDuty, playerOnDutyCityId]);
+    refetchOpenCityTooltipOnDutyCount();
+  }, [
+    playerOnDuty,
+    playerOnDutyCityId,
+    garrisonStatsRefreshKey,
+    refetchOpenCityTooltipOnDutyCount,
+  ]);
 
   useEffect(() => {
     if (!strategicNav?.registerResolveStrategicAnchorForCityId) return undefined;
@@ -1325,6 +1340,7 @@ export default function WorldStrategicMapGrid({
                   cx={strategicSelfPawn.cx}
                   cy={strategicSelfPawn.cy}
                   portraitUrl={strategicSelfPawn.portraitUrl}
+                  displayEffect={strategicSelfPawn.displayEffect || null}
                   displayName={strategicSelfPawn.displayName}
                   centerGlyph={strategicSelfPawn.centerGlyph}
                   troopsCurrent={strategicSelfPawn.troopsCurrent}
@@ -1377,6 +1393,7 @@ export default function WorldStrategicMapGrid({
                         cx={p.cx}
                         cy={p.cy}
                         portraitUrl={p.portraitUrl}
+                        displayEffect={p.displayEffect || null}
                         displayName={p.displayName}
                         centerGlyph={p.centerGlyph}
                         stackStripPeers={p.stackStripPeers}

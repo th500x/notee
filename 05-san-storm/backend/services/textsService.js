@@ -280,14 +280,22 @@ async function claimReward(playerId, textId) {
 
     await connection.commit();
 
+    if (positionId) {
+      const { runPlayerMilestoneCheckSafe } = require('./milestoneHookHelper');
+      runPlayerMilestoneCheckSafe(playerId, 'position_grant').catch(() => {});
+    }
+    if (Array.isArray(att.cards) && att.cards.some((id) => String(id).includes('_char_'))) {
+      const { runPlayerMilestoneCheckSafe } = require('./milestoneHookHelper');
+      runPlayerMilestoneCheckSafe(playerId, 'character_card_granted').catch(() => {});
+    }
+
     if (att.grantKingStipend === true) {
       const stipendDetail = details.filter((d) => d.type === 'resource');
       const earned = {};
       for (const d of stipendDetail) {
         if (d.resource === 'silver') earned.silver = d.amount;
         if (d.resource === 'food') earned.food = d.amount;
-        if (d.resource === 'reputation') earned.reputation = d.amount;
-        if (d.resource === 'contribution') earned.contribution = d.amount;
+        // 俸禄声望/贡献不进活动榜 earned；与 sanGongStipendService.claimStipend 一致
       }
       if (Object.keys(earned).length) {
         try {

@@ -74,8 +74,8 @@ export default function GarrisonEquipSlot({ slot, content, isSelected, onClick, 
     );
   }
 
-  /* ── 已装备称号卡 ── */
-  if (!isLocked && !isEmpty && slot.id === 'title') {
+  /* ── 已装备称号 / 成就卡 ── */
+  if (!isLocked && !isEmpty && (slot.id === 'title' || slot.id === 'achievement')) {
     const cfg          = content.config || {};
     const name         = cfg.name || content.cardId;
     const rarity       = cfg.rarity || content.rarity || 'common';

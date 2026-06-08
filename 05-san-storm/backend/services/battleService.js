@@ -6,6 +6,7 @@
 
 const Battle = require('../models/Battle');
 const { pool } = require('../database/connection');
+const { runPlayerMilestoneCheckSafe } = require('./milestoneHookHelper');
 const { applyTroopDurabilityExhaustion } = require('./troopDurabilityService');
 const { checkAndApplyVeteran, normalizeInstanceIds } = require('./veteranService');
 
@@ -182,6 +183,9 @@ async function applyBattleStatistics(playerId, payload) {
       [pid],
     );
     console.log(`[battleService] player_statistics 累加: player=${pid} result=${result} dmg ${dd}/${dt} kills=${k}`);
+    if (result === 'win') {
+      runPlayerMilestoneCheckSafe(pid, 'battle_win').catch(() => {});
+    }
   } catch (err) {
     console.error('[battleService] player_statistics 累加失败:', err);
   }

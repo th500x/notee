@@ -34,27 +34,68 @@ const POSITION_REROLL_HINT_BOX = (
   </div>
 );
 
+const PEER_SWITCH_POLL_MS = 1000;
+
+function formatRemainingMs(ms) {
+  if (!Number.isFinite(ms) || ms <= 0) return null;
+  const total = Math.ceil(ms / 1000);
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  if (h > 0) return `${h}h ${m}m`;
+  if (m > 0) return `${m}m ${s}s`;
+  return `${s}s`;
+}
+
 function PromotionListBody({
   loading,
   error,
   notice,
   positions,
+  sameLevelPositions,
+  peerSwitchCooldown,
   playerReputation,
   promotingId,
   onPromote,
+  onSwitch,
   /** 与 SanGongFuPanel 一致：宽≥768 且宽>高时为横屏象限布局 */
   layoutLandscape,
 }) {
   const [detailRow, setDetailRow] = useState(null);
+  const [nowTick, setNowTick] = useState(() => Date.now());
+
+  const peerCdMs = useMemo(() => {
+    const at = peerSwitchCooldown?.nextEligibleAt
+      ? new Date(peerSwitchCooldown.nextEligibleAt).getTime()
+      : null;
+    if (!Number.isFinite(at) || at <= nowTick) return 0;
+    return at - nowTick;
+  }, [peerSwitchCooldown?.nextEligibleAt, nowTick]);
+
+  const peerCdActive = peerCdMs > 0;
+
+  useEffect(() => {
+    if (!peerCdActive) return undefined;
+    const id = window.setInterval(() => setNowTick(Date.now()), PEER_SWITCH_POLL_MS);
+    return () => window.clearInterval(id);
+  }, [peerCdActive]);
 
   const detailSubtitle = useMemo(() => {
     if (!detailRow) return null;
     const need = detailRow.requirementReputation;
     const holder = detailRow.occupiedByCharacterName;
-    const can = detailRow.canPromote && !promotingId;
+    const isSwitch = detailRow.actionKind === 'switch';
+    const can = isSwitch
+      ? detailRow.canSwitch && !promotingId
+      : detailRow.canPromote && !promotingId;
     if (can) return null;
     return (
       <>
+        {isSwitch && peerCdActive ? (
+          <div className="text-amber-500/90">
+            切换冷却中（{formatRemainingMs(peerCdMs)}）
+          </div>
+        ) : null}
         {need > 0 ? (
           <div>
             需声望 ≥ {need}（当前 {playerReputation}）
@@ -67,11 +108,11 @@ function PromotionListBody({
         ) : null}
         {detailRow.isSelfOccupant ? <div className="text-emerald-500/90">您已担任此官职</div> : null}
         {!detailRow.reputationOk && !holder && !detailRow.isSelfOccupant ? (
-          <div className="text-stone-500">声望不足，无法晋级</div>
+          <div className="text-stone-500">{isSwitch ? '声望不足，无法切换' : '声望不足，无法晋级'}</div>
         ) : null}
       </>
     );
-  }, [detailRow, playerReputation, promotingId]);
+  }, [detailRow, playerReputation, promotingId, peerCdActive, peerCdMs]);
 
   if (loading) {
     return <p className="py-6 text-center text-sm text-stone-500">加载中…</p>;
@@ -79,42 +120,52 @@ function PromotionListBody({
   if (error) {
     return <p className="py-6 text-center text-sm text-red-400/90">{error}</p>;
   }
-  if (notice) {
+  const hasPromoteRows = positions && positions.length > 0;
+  const hasPeerRows = sameLevelPositions && sameLevelPositions.length > 0;
+
+  if (notice && !hasPromoteRows && !hasPeerRows) {
     return <p className="py-6 text-center text-sm text-amber-400/90">{notice}</p>;
   }
-  const openDetail = (row) => setDetailRow(row);
+  const openDetail = (row, actionKind) => setDetailRow({ ...row, actionKind });
 
-  const tiles = (positions || []).map((row) => {
-    const pos = row.position;
-    return (
-      <div
-        key={row.positionId}
-        role="button"
-        tabIndex={0}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            openDetail(row);
-          }
-        }}
-        style={{ width: 128, height: 192 }}
-        className="cursor-pointer overflow-hidden rounded-lg border-2 border-stone-700/60 transition-colors hover:border-amber-700/50 active:scale-[0.98]"
-        onClick={() => openDetail(row)}
-      >
+  const renderTiles = (rows, actionKind) =>
+    (rows || []).map((row) => {
+      const pos = row.position;
+      return (
         <div
-          style={{
-            width: 256,
-            transform: 'scale(0.5)',
-            transformOrigin: 'top left',
+          key={`${actionKind}-${row.positionId}`}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              openDetail(row, actionKind);
+            }
           }}
+          style={{ width: 128, height: 192 }}
+          className="cursor-pointer overflow-hidden rounded-lg border-2 border-stone-700/60 transition-colors hover:border-amber-700/50 active:scale-[0.98]"
+          onClick={() => openDetail(row, actionKind)}
         >
-          <PositionCard position={pos} showDetails />
+          <div
+            style={{
+              width: 256,
+              transform: 'scale(0.5)',
+              transformOrigin: 'top left',
+            }}
+          >
+            <PositionCard position={pos} showDetails />
+          </div>
         </div>
-      </div>
-    );
-  });
+      );
+    });
 
-  const detailCanClick = detailRow?.canPromote && !promotingId;
+  const promoteTiles = renderTiles(positions, 'promote');
+  const peerTiles = renderTiles(sameLevelPositions, 'switch');
+
+  const detailIsSwitch = detailRow?.actionKind === 'switch';
+  const detailCanClick = detailIsSwitch
+    ? detailRow?.canSwitch && !promotingId
+    : detailRow?.canPromote && !promotingId;
   const detailOverlay =
     detailRow != null ? (
       <div
@@ -139,7 +190,8 @@ function PromotionListBody({
               type="button"
               disabled={!detailCanClick}
               onClick={async () => {
-                const ok = await onPromote(detailRow.positionId);
+                const handler = detailIsSwitch ? onSwitch : onPromote;
+                const ok = await handler(detailRow.positionId);
                 if (ok) setDetailRow(null);
               }}
               className={`w-full rounded-lg border py-2 text-sm font-bold transition-colors ${
@@ -148,7 +200,11 @@ function PromotionListBody({
                   : 'cursor-not-allowed border-stone-600 bg-stone-800/60 text-stone-500 opacity-50'
               }`}
             >
-              {promotingId === detailRow.positionId ? '处理中…' : '晋级'}
+              {promotingId === detailRow.positionId
+                ? '处理中…'
+                : detailIsSwitch
+                  ? '切换担任'
+                  : '晋级'}
             </button>
           }
         >
@@ -159,17 +215,41 @@ function PromotionListBody({
       </div>
     ) : null;
 
-  const tileGrid =
-    positions && positions.length > 0 ? <div className="flex flex-wrap gap-2">{tiles}</div> : null;
+  const hasPromote = hasPromoteRows;
+  const hasPeer = hasPeerRows;
 
   const listMain = (
     <>
       {POSITION_REROLL_HINT_BOX}
-      {!positions || positions.length === 0 ? (
-        <p className="py-6 text-center text-sm text-stone-500">暂无可展示官职</p>
-      ) : (
-        tileGrid
-      )}
+      {notice && hasPeer && !hasPromote ? (
+        <p className="mb-2 text-center text-xs text-amber-400/80">{notice}</p>
+      ) : null}
+      {!hasPromote && !hasPeer ? (
+        <p className="py-6 text-center text-sm text-stone-500">
+          {notice || '暂无可展示官职'}
+        </p>
+      ) : null}
+      {hasPromote ? (
+        <div className="mb-3">
+          <div className="mb-2 text-xs font-semibold text-amber-500/95">晋级（下一品阶）</div>
+          <div className="flex flex-wrap gap-2">{promoteTiles}</div>
+        </div>
+      ) : null}
+      {hasPeer ? (
+        <div>
+          <div className="mb-1 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+            <span className="text-xs font-semibold text-amber-500/95">同级切换</span>
+            {peerCdActive ? (
+              <span className="text-[10px] text-amber-500/90">
+                冷却中（{formatRemainingMs(peerCdMs)}）
+              </span>
+            ) : (
+              <span className="text-[10px] text-stone-500">空席可切换 · 每日限 1 次（24h CD）</span>
+            )}
+          </div>
+          <div className="flex flex-wrap gap-2">{peerTiles}</div>
+        </div>
+      ) : null}
     </>
   );
 
@@ -258,8 +338,35 @@ export default function SanGongFuPanel({
     [player?.playerId, refresh, load, onPromoted],
   );
 
+  const onSwitchPeer = useCallback(
+    async (positionId) => {
+      if (!player?.playerId || !positionId) return false;
+      setPromotingId(positionId);
+      setError(null);
+      try {
+        const res = await playerAPI.switchSanGongFuPeerPosition(player.playerId, positionId);
+        if (res.success && res.data) {
+          onPromoted?.(res.data);
+          await refresh({ silent: true });
+          await load();
+          return true;
+        }
+        setError(res.error || '切换失败');
+        return false;
+      } catch (e) {
+        setError(e?.message || '切换失败');
+        return false;
+      } finally {
+        setPromotingId(null);
+      }
+    },
+    [player?.playerId, refresh, load, onPromoted],
+  );
+
   const notice = payload?.notice;
   const positions = payload?.positions || [];
+  const sameLevelPositions = payload?.sameLevelPositions || [];
+  const peerSwitchCooldown = payload?.peerSwitchCooldown || null;
   const playerReputation = payload?.playerReputation ?? 0;
   /** 与晋升接口同源，避免档案字段滞后；口径同卡牌「品阶 Lv」（数字越小品阶越高） */
   const playerPositionLevel =
@@ -271,9 +378,12 @@ export default function SanGongFuPanel({
       error={error}
       notice={notice}
       positions={positions}
+      sameLevelPositions={sameLevelPositions}
+      peerSwitchCooldown={peerSwitchCooldown}
       playerReputation={playerReputation}
       promotingId={promotingId}
       onPromote={onPromote}
+      onSwitch={onSwitchPeer}
       layoutLandscape={isLandscape}
     />
   );

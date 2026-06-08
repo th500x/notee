@@ -1,8 +1,10 @@
 /**
  * 底部Tab导航
- * 
+ *
  * @description 64px固定底部，4个Tab切换
  */
+
+import TabNotifyDot from '@/components/game/TabNotifyDot';
 
 const TABS = [
   { id: 'lineup',  icon: '📋', label: '编组' },
@@ -10,6 +12,11 @@ const TABS = [
   { id: 'faction', icon: '⚔️', label: '势力' },
   { id: 'map',     icon: '🗺️', label: '地图' },
 ];
+
+const TAB_NOTIFY_HINT = {
+  faction: '有新公告',
+  map: '有可攻略战役',
+};
 
 /**
  * @param {{ activeTab: string|null, onTabChange: (id: string|null) => void, tabNotifyDots?: Record<string, boolean> }} props
@@ -26,18 +33,17 @@ export default function BottomTabNav({ activeTab, onTabChange, tabNotifyDots = {
             onClick={() => onTabChange(tab.id)}
             className={`flex-1 flex flex-col items-center justify-center transition-colors relative
               ${isActive ? 'text-yellow-300' : 'text-white/50 hover:text-white/70'}`}
-            aria-label={showNotifyDot ? `${tab.label}，有新公告` : tab.label}
+            aria-label={
+              showNotifyDot
+                ? `${tab.label}，${TAB_NOTIFY_HINT[tab.id] || '有新内容'}`
+                : tab.label
+            }
             aria-selected={isActive}
             role="tab"
           >
             <span className="relative inline-flex text-2xl leading-none">
               {tab.icon}
-              {showNotifyDot ? (
-                <span
-                  className="pointer-events-none absolute -right-1 -top-0.5 h-3 w-3 rounded-full bg-red-500 ring-2 ring-amber-950 shadow-[0_0_6px_rgba(239,68,68,0.85)]"
-                  aria-hidden
-                />
-              ) : null}
+              {showNotifyDot ? <TabNotifyDot /> : null}
             </span>
             <span className="text-xs mt-0.5 font-medium">{tab.label}</span>
             {isActive && (

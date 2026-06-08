@@ -34,7 +34,7 @@ import { playerAPI } from '@/services/playerApi';
 /** 与 `useSilentProfilePoll` 默认周期一致（编组 Tab 等静默档案刷新） */
 const CITY_POLL_MS = 60_000;
 
-export default function WorldMapTab({ onClose }) {
+export default function WorldMapTab({ onClose, onOpenCampaignCenter, campaignNotifyDot = false }) {
   const isLandscape = useGameTabLandscape();
   const close = typeof onClose === 'function' ? onClose : () => {};
   const { player } = usePlayerContext();
@@ -384,6 +384,8 @@ export default function WorldMapTab({ onClose }) {
               loading={factionWorldLoading}
               error={factionWorldError}
               isLandscape={isLandscape}
+              onOpenCampaignCenter={onOpenCampaignCenter}
+              campaignNotifyDot={campaignNotifyDot}
             />
           </div>
         </div>

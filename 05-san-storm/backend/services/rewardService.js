@@ -17,6 +17,8 @@ const statisticsDeltaService = require('./statisticsDeltaService');
 const { getOptionFactorFields } = require('../../shared/utils/eventOptionFactor.js');
 const { expandRewardPresetsForExecute } = require('../../shared/utils/eventRewardPresets.js');
 const { drawRandomPositionByLevel } = require('../../shared/utils/eventPositionRewardPools.cjs');
+const { checkUniqueCardDuplicate } = require('./uniqueCardGrantService');
+const { runPlayerMilestoneCheckSafe } = require('./milestoneHookHelper');
 
 /** MySQL ENUM / 大小写 / 空值 → 标准稀有度字符串 */
 function normalizeEnumRarity(raw) {
@@ -330,24 +332,6 @@ async function checkCharacterRarityLimit(connection, playerId, rarity, details, 
     compensation,
   });
   console.log(`[Rewards] 将领稀有度栏位已满: ${rar} (${countRows[0].cnt}/${limit}) → 补偿 ${compensation} 银两`);
-  return true;
-}
-
-// ── 唯一卡牌检查（称号/成就每个 card_id 只能持有一张，重复直接丢弃）──
-async function checkUniqueCardDuplicate(connection, playerId, cardType, cardId, details, cardName = null) {
-  const [existing] = await connection.query(
-    'SELECT instance_id FROM player_cards WHERE player_id = ? AND card_id = ? AND card_type = ?',
-    [playerId, cardId, cardType]
-  );
-  if (existing.length === 0) return false;
-  details.push({
-    type: 'card_duplicate',
-    cardType,
-    cardId,
-    cardName: cardName || cardId,
-    discarded: true,
-  });
-  console.log(`[Rewards] ${cardType}重复: ${cardId} → 已丢弃（不重复入库）`);
   return true;
 }
 
@@ -754,13 +738,8 @@ async function executeRewards(playerId, rewardStr, multiplier, factionId) {
       }
     }
 
-    // ── 5. 更新 player_statistics.total_events_completed ──
-    await connection.query(
-      'UPDATE player_statistics SET total_events_completed = total_events_completed + 1 WHERE player_id = ?',
-      [playerId]
-    );
-
     await connection.commit();
+    runPlayerMilestoneCheckSafe(playerId, 'reward_execute').catch(() => {});
     return { success: true, details };
 
   } catch (err) {
@@ -828,6 +807,7 @@ async function grantPositionById(playerId, positionId) {
     console.log(
       `[Rewards] grantPositionById: ${grant.detail.positionName} (Lv.${grant.detail.positionLevel}) → ${pid}`,
     );
+    await runPlayerMilestoneCheckSafe(pid, 'position_grant');
     return grant;
   } catch (e) {
     await connection.rollback();

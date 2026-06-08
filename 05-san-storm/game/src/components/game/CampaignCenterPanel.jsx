@@ -67,6 +67,17 @@ export default function CampaignCenterPanel({ playerId, open, onClose, season = 
     return payload.campaigns.find((c) => c.campaign_id === selectedId) || payload.campaigns[0];
   }, [payload, selectedId]);
 
+  /** 与后端 computeCampaignCenterDropdownParenInner「挑战结束」口径一致 */
+  const selectedChallengeEnded = useMemo(() => {
+    if (!selected?.progress) return false;
+    const { progress } = selected;
+    return (
+      !!progress.rewardClaimed ||
+      Number(progress.playCount) >= Number(progress.maxPlayCount) ||
+      !!progress.expired
+    );
+  }, [selected]);
+
   const showToast = (msg) => {
     setToast(msg);
     window.setTimeout(() => setToast(''), 2800);
@@ -197,30 +208,34 @@ export default function CampaignCenterPanel({ playerId, open, onClose, season = 
                         description1={selected.description_1}
                         description2={selected.description_2}
                         description3={selected.description_3 || ''}
-                        onStartBattle={() => {
-                          // playable 在 API payload 的战役根上（与 progress 同级），勿用 progress.playable
-                          if (!selected.playable) {
-                            if (selected.progress.expired) showToast('本战役挑战窗口已过期');
-                            else if (!selected.progress.unlocked) showToast('尚未到达解锁时间');
-                            else if (selected.progress.rewardClaimed) showToast('已领取奖励，无法再挑战');
-                            else showToast('挑战次数已用完');
-                            return;
-                          }
-                          const gate = validateMainLineupBattleGate({
-                            cards,
-                            playerFood: player?.food ?? 0,
-                          });
-                          if (!gate.ok) {
-                            setBattleEntryGateMessage(gate.message || '条件不足');
-                            return;
-                          }
-                          setBattleCtx({
-                            id: selected.campaign_id,
-                            name: selected.campaign_name,
-                            minRounds: selected.min_rounds ?? null,
-                            maxRounds: selected.max_rounds ?? 30,
-                          });
-                        }}
+                        onStartBattle={
+                          selectedChallengeEnded
+                            ? undefined
+                            : () => {
+                                // playable 在 API payload 的战役根上（与 progress 同级），勿用 progress.playable
+                                if (!selected.playable) {
+                                  if (selected.progress.expired) showToast('本战役挑战窗口已过期');
+                                  else if (!selected.progress.unlocked) showToast('尚未到达解锁时间');
+                                  else if (selected.progress.rewardClaimed) showToast('已领取奖励，无法再挑战');
+                                  else showToast('挑战次数已用完');
+                                  return;
+                                }
+                                const gate = validateMainLineupBattleGate({
+                                  cards,
+                                  playerFood: player?.food ?? 0,
+                                });
+                                if (!gate.ok) {
+                                  setBattleEntryGateMessage(gate.message || '条件不足');
+                                  return;
+                                }
+                                setBattleCtx({
+                                  id: selected.campaign_id,
+                                  name: selected.campaign_name,
+                                  minRounds: selected.min_rounds ?? null,
+                                  maxRounds: selected.max_rounds ?? 30,
+                                });
+                              }
+                        }
                       />
 
                       {selected.progress.playCount >= 1 &&

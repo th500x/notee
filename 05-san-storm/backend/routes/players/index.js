@@ -19,6 +19,7 @@ const sanGongFuRouter = require('./sanGongFu');
 const lineupRouter = require('./lineup');
 const exploreRouter = require('./explore');
 const profileRouter = require('./profile');
+const dailyReportRouter = require('./dailyReport');
 
 const router = express.Router();
 
@@ -44,6 +45,7 @@ router.use(roadRouter);
 router.use(sanGongFuRouter);
 router.use(lineupRouter);
 router.use(exploreRouter);
+router.use(dailyReportRouter);
 router.use(profileRouter);
 
 module.exports = router;

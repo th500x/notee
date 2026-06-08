@@ -7,6 +7,7 @@
 import { useState, useCallback, useSyncExternalStore, useRef, useEffect } from 'react';
 import { playerAPI } from '@/services/playerApi';
 import { createRoadClientRequestId } from '@/utils/roadClientRequestId';
+import { mapDisplayEffectToAvatarClass } from '@/utils/mapDisplayEffect';
 
 const BASE = typeof import.meta !== 'undefined' && import.meta.env?.BASE_URL ? import.meta.env.BASE_URL : '/';
 
@@ -49,6 +50,7 @@ function resolvePortraitSrc(portraitUrl) {
  * @param {number} props.cx
  * @param {number} props.cy
  * @param {string|null|undefined} props.portraitUrl
+ * @param {string|null|undefined} [props.displayEffect] - 成就光效枚举：金色/红色/绿色/黑色
  * @param {string} props.displayName - `[势力]角色名`，用于 tooltip
  * @param {string} props.centerGlyph - 角色名末字（图标正中）
  * @param {number} props.troopsCurrent
@@ -68,6 +70,7 @@ export default function StrategicMapSelfPawn({
   cx,
   cy,
   portraitUrl,
+  displayEffect = null,
   displayName,
   centerGlyph,
   troopsCurrent,
@@ -362,6 +365,15 @@ export default function StrategicMapSelfPawn({
     Number.isFinite(interceptSilver) &&
     interceptSilver < ROAD_INTERCEPT_SILVER_COST;
 
+  const glowClass = mapDisplayEffectToAvatarClass(displayEffect);
+  const avatarClassName = [
+    'ws-map-self-pawn__avatar',
+    roadIntercept === 1 ? 'ws-map-self-pawn__avatar--intercept' : '',
+    glowClass,
+  ]
+    .filter(Boolean)
+    .join(' ');
+
   // 不在根节点设 aria-hidden：首触时部分 WebKit 会误把事件落到下层格网，表现为「一点头像就进军」；操作条打开时子树内已有可聚焦控件。
   return (
     <div
@@ -381,9 +393,7 @@ export default function StrategicMapSelfPawn({
           onPointerCancel={selfMarchUi ? onPointerCancel : undefined}
         >
           <div className="ws-map-self-pawn__avatar-row">
-            <div
-              className={`ws-map-self-pawn__avatar${roadIntercept === 1 ? ' ws-map-self-pawn__avatar--intercept' : ''}`}
-            >
+            <div className={avatarClassName}>
               {src ? (
                 <img className="ws-map-self-pawn__img" src={src} alt="" draggable={false} />
               ) : (

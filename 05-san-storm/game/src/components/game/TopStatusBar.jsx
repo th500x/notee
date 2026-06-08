@@ -9,6 +9,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useGameTime } from '@/contexts/PlayerContext';
 import { computeDisplayGameDate } from '@/utils/gameTime';
 import PlayerTopResourceBadges from '@/components/game/PlayerTopResourceBadges';
+import TabNotifyDot from '@/components/game/TabNotifyDot';
 
 const TAB_TITLES = {
   lineup: '编组配置',
@@ -29,9 +30,11 @@ const MAP_HUD_TOGGLE_BTN_CLASS =
 export default function TopStatusBar({
   activeTab,
   onOpenSidebar,
-  onOpenCampaignCenter,
   mapHudButtonsVisible = true,
   onToggleMapHudButtons,
+  personalCenterNotifyDot = false,
+  onOpenDailyReport,
+  dailyReportNotifyDot = false,
 }) {
   // CR A7（2026-04-29）：本组件只读 gameTime，用细粒度 hook 显式声明；
   // 待未来切到 selector 引擎后，玩家粮草滴答等不会再触发顶栏重渲染。
@@ -60,14 +63,21 @@ export default function TopStatusBar({
       type="button"
       onClick={onOpenSidebar}
       className={`flex-shrink-0 text-xl text-white/80 hover:text-white active:scale-95 transition-all ${className}`}
-      aria-label="个人中心"
+      aria-label={personalCenterNotifyDot ? '个人中心，有可领取成就' : '个人中心'}
     >
-      ⚙️
+      <span
+        className={`relative inline-flex leading-none ${
+          personalCenterNotifyDot ? 'pt-1 pr-1' : ''
+        }`}
+      >
+        ⚙️
+        {personalCenterNotifyDot ? <TabNotifyDot /> : null}
+      </span>
     </button>
   );
 
   return (
-    <div className="fixed top-0 left-0 right-0 z-50 bg-gradient-to-r from-amber-900 to-amber-800 shadow-lg flex flex-col sm:flex-row sm:items-center sm:justify-between sm:h-14 min-h-[4.5rem] sm:min-h-0 px-3 py-1 sm:py-0 gap-1 sm:gap-3">
+    <div className="fixed top-0 left-0 right-0 z-50 overflow-hidden bg-gradient-to-r from-amber-900 to-amber-800 shadow-lg flex flex-col sm:flex-row sm:items-center sm:justify-between sm:h-14 min-h-[4.5rem] sm:min-h-0 px-3 py-1 sm:py-0 gap-1 sm:gap-3">
       {/* 上行（窄屏）：标题/日期 + ⚙️；宽屏：仅左组 */}
       <div className="flex items-center justify-between sm:justify-start gap-2 min-w-0 w-full sm:w-auto">
         <div className="flex items-center min-w-0 gap-2">
@@ -88,15 +98,21 @@ export default function TopStatusBar({
               >
                 公元{mapGameDate.year}年{mapGameDate.month}月{getXunLabel(mapGameDate.day)}
               </span>
-              {activeTab === null && typeof onOpenCampaignCenter === 'function' && (
+              {activeTab === null && typeof onOpenDailyReport === 'function' && (
                 <button
                   type="button"
-                  onClick={() => onOpenCampaignCenter()}
+                  onClick={() => onOpenDailyReport()}
                   className={MAP_HUD_TOGGLE_BTN_CLASS}
-                  aria-label="打开战役中心"
+                  aria-label={dailyReportNotifyDot ? '真三日报，今日尚未签到' : '真三日报'}
                 >
-                  <span aria-hidden>⚔️</span>
-                  <span className="whitespace-nowrap">战役中心</span>
+                  <span
+                    className={`relative inline-flex whitespace-nowrap ${
+                      dailyReportNotifyDot ? 'pt-1 pr-1' : ''
+                    }`}
+                  >
+                    真三日报
+                    {dailyReportNotifyDot ? <TabNotifyDot /> : null}
+                  </span>
                 </button>
               )}
               {activeTab === null && typeof onToggleMapHudButtons === 'function' && (
@@ -118,7 +134,7 @@ export default function TopStatusBar({
       </div>
 
       {/* 下行（窄屏）= 资源；宽屏 = 与左组同一行 */}
-      <div className="flex flex-1 items-center justify-between sm:justify-end gap-1 sm:gap-2 min-w-0 w-full sm:w-auto overflow-x-auto pb-0.5 sm:pb-0">
+      <div className="flex flex-1 items-center justify-between sm:justify-end gap-1 sm:gap-2 min-w-0 w-full sm:w-auto pb-0.5 sm:pb-0">
         <PlayerTopResourceBadges variant="map" />
         {settingsBtn('hidden sm:flex ml-1')}
       </div>

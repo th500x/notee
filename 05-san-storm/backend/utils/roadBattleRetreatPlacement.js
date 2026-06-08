@@ -68,7 +68,7 @@ function resolveFactionPlayerRoadRetreatStandCell(grid, countyCityRows, playerRo
       if (!cid) continue;
       const stand = resolveCityAnchorStandCell(grid, countyCityRows, cid);
       if (!stand) continue;
-      const rowJun = String(row.jun_id ?? row.junId ?? '').trim();
+      const rowJun = String(row.jun_id ?? row.junId ?? fromJun ?? '').trim();
       if (!rowJun) continue;
       const standLocal = { junId: rowJun, gx: stand.x, gy: stand.y };
       const d = playerRoadAnchorDistance(standLocal, fromLocal);

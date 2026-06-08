@@ -29,6 +29,17 @@ router.post(
 );
 
 router.post(
+  '/:playerId/san-gong-fu/switch-peer-position',
+  validateBody(sanGongSchemas.switchPeerBody),
+  withRoute('同级官职切换失败', async (req, res) => {
+    return replyServiceOut(
+      res,
+      await positionPromotionService.switchPeerPosition(req.params.playerId, req.body.positionId),
+    );
+  }),
+);
+
+router.post(
   '/:playerId/king-edict-feedback',
   validateBody(sanGongSchemas.kingEdictBody),
   withRoute('口谕嘉奖失败', async (req, res) => {

@@ -9,6 +9,8 @@ export const worldMapOverlayRefs = {
   pvpDefenseAlertActive: false,
   /** 当前 WorldMap 内道路遭遇 BattleArena 的 encounterId，与遇袭提示去重 */
   siegeRoadEncounterId: null,
+  /** 由 `WorldMap` 注册：道路战败退让提示（结算关闭后显式入队，不依赖轮询竞态） */
+  enqueueRoadGateNotice: null,
 };
 
 const gateListeners = new Set();

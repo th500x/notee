@@ -140,3 +140,56 @@ export function toTitleCardData(card) {
     specialEffectDesc: cfg.specialEffectDesc,
   };
 }
+
+const CONFIG_CARD_RARITY_MAP = {
+  1: 'common',
+  2: 'rare',
+  3: 'epic',
+  4: 'legendary',
+  5: 'core',
+};
+
+/** 从 config_* ID 序号首位解析稀有度（与后端 profile enrich 一致） */
+export function rarityFromConfigCardId(cardId) {
+  const parts = String(cardId || '').split('_');
+  const seqStr = parts[parts.length - 1] || '';
+  return CONFIG_CARD_RARITY_MAP[Number(seqStr.charAt(0))] || 'common';
+}
+
+/**
+ * 里程碑/领取 API 返回的 grant → TitleAchievementCard 展示数据
+ * @param {object} grant
+ * @param {'title'|'achievement'} cardType
+ */
+export function buildTitleAchievementRevealFromGrant(grant, cardType) {
+  const id = cardType === 'achievement' ? grant.achievementId : grant.titleId;
+  const name =
+    (cardType === 'achievement' ? grant.achievementName : grant.titleName) || id;
+  return {
+    id,
+    name,
+    rarity: rarityFromConfigCardId(id),
+    attributeBonus: {},
+    description: null,
+    specialEffectDesc: null,
+  };
+}
+
+/**
+ * @param {object|null|undefined} grant
+ * @param {object[]} cards - profile cards
+ * @param {'title'|'achievement'} cardType
+ */
+export function resolveTitleAchievementReveal(grant, cards, cardType) {
+  if (!grant) return null;
+  const typeKey = cardType === 'achievement' ? 'achievement' : 'title';
+  const cardId = cardType === 'achievement' ? grant.achievementId : grant.titleId;
+  const instanceId = grant.instanceId;
+  const matched =
+    (instanceId && (cards || []).find((c) => c.instanceId === instanceId)) ||
+    (cards || []).find((c) => c.cardId === cardId && c.cardType === typeKey);
+  if (matched) {
+    return { cardType: typeKey, item: toTitleCardData(matched) };
+  }
+  return { cardType: typeKey, item: buildTitleAchievementRevealFromGrant(grant, cardType) };
+}

@@ -316,6 +316,12 @@ async function login(id, password) {
 
   const { password: _, ...accountData } = account;
   const tokenInfo = signPlayerToken({ id: accountData.id, role: 'player' });
+  if (account.hasPremium) {
+    const { reconcilePremiumOnLogin } = require('./seasonPremiumService');
+    reconcilePremiumOnLogin(accountData.id).catch((err) => {
+      console.warn('[accountService] premium reconcile on login failed', accountData.id, err?.message || err);
+    });
+  }
   return {
     ok: true,
     accountData: { ...accountData, token: tokenInfo.token, tokenExpiresAt: tokenInfo.expiresAt },

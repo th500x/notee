@@ -22,6 +22,21 @@ export const STRATEGIC_STANDPOINT_ERROR = {
   UNRESOLVED_OFF_ROAD: 'STRATEGIC_STANDPOINT_UNRESOLVED_OFF_ROAD',
 };
 
+/**
+ * 合并格 `cells` 已就绪，但城表 / PVP 大本营列表仍在首屏拉取中：此时离路立点解析可能误报 `UNRESOLVED_OFF_ROAD`（如 Tab 切回大地图瞬间）。
+ * @param {{ cells?: object[][]|null, cityLoadState?: string, pvpBaseCampsLoadState?: string }} p
+ */
+export function isStrategicStandpointPoiDepsPending({
+  cells,
+  cityLoadState = 'idle',
+  pvpBaseCampsLoadState = 'loading',
+}) {
+  if (!cells?.length) return true;
+  if (cityLoadState === 'idle' || cityLoadState === 'loading') return true;
+  if (pvpBaseCampsLoadState === 'loading') return true;
+  return false;
+}
+
 export function strategicStandpointErrorMessage(code) {
   switch (code) {
     case STRATEGIC_STANDPOINT_ERROR.NO_GRID:

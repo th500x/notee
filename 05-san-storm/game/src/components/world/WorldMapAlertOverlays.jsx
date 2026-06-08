@@ -2,7 +2,6 @@ import { lazy, Suspense } from 'react';
 import { createPortal } from 'react-dom';
 import AncientModal from '@/components/common/AncientModal';
 import PvpAutoDuelReplay from '@/pvp/auto-duel/PvpAutoDuelReplay';
-import PvpDefenseOutcomeModal from '@/components/game/PvpDefenseOutcomeModal';
 // 战术对决事件回放壳（重）：懒加载，仅当权威结果含 eventReplay.roomId 时挂（17-5-3 阶段 5）
 const PvpTacticalBattleShell = lazy(() => import('@/pvp/tactical/PvpTacticalBattleShell'));
 
@@ -12,13 +11,11 @@ export default function WorldMapAlertOverlays({
   pvpCountdownDisplay,
   pvpAttackerAdjudicating,
   pvpDefenseWaiting,
-  pvpDefenseOutcome,
-  onPvpDefenseOutcomeClose,
   authoritativeReplayOverlay,
   onAuthoritativeReplayClose,
   roadAttackerAlert,
+  roadAttackerCountdown = 0,
   onRoadAttackerConfirm,
-  onRoadAttackerClose,
   roadGateRetreatNotice,
   onRoadGateNoticeClose,
   showRoadGateNotice,
@@ -72,12 +69,9 @@ export default function WorldMapAlertOverlays({
             <p className="text-gray-500 text-xs">
               攻城方：<span className="text-red-800 font-semibold">{pvpDefenseWaiting.attackerName || '未知'}</span>
             </p>
+            <p className="text-gray-500 text-xs">裁定完成后将播放战术对决回放并弹出战斗结算。</p>
           </div>
         </AncientModal>
-      )}
-
-      {pvpDefenseOutcome && (
-        <PvpDefenseOutcomeModal outcome={pvpDefenseOutcome} onClose={onPvpDefenseOutcomeClose} />
       )}
 
       {/* 攻方权威回放：有事件房间 → 全屏事件回放壳；关闭后进结算（17-5-3 阶段 5）。否则退回旧简化回放。 */}
@@ -118,16 +112,31 @@ export default function WorldMapAlertOverlays({
           isOpen
           type="warning"
           title="🛤️ 道路遭遇"
-          confirmText="确定"
+          confirmText="立即开战"
           showCancel={false}
+          preventClose
+          hideButtons={false}
           invokeOnCloseAfterConfirm={false}
           onConfirm={onRoadAttackerConfirm}
-          onClose={onRoadAttackerClose}
         >
-          <div className="text-center space-y-3">
+          <div className="text-center space-y-4">
             <p className="text-gray-800 text-base">您已与对方在道路上触发对战。</p>
-            <p className="text-gray-800">
-              点击 <span className="font-semibold text-amber-900">确定</span> 由服务端权威推演本场（与攻城披挂同源），先观看战场演示再进入结算。
+            <p className="text-gray-800 text-sm">
+              约{' '}
+              <span className="text-red-700 font-bold text-xl">{Math.max(0, Number(roadAttackerCountdown) || 0)}</span>{' '}
+              秒后由服务端自动裁定（与攻城披挂同源）；也可点{' '}
+              <span className="font-semibold text-amber-900">立即开战</span> 提前开始。
+            </p>
+            <div className="w-full bg-gray-300 rounded-full h-2 overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-amber-600 to-red-600 transition-all duration-300"
+                style={{
+                  width: `${Math.min(100, ((10 - Math.max(0, Number(roadAttackerCountdown) || 0)) / 10) * 100)}%`,
+                }}
+              />
+            </div>
+            <p className="text-gray-500 text-xs leading-relaxed">
+              本场由服务端演算；倒计时结束或点「立即开战」后将直接进入战术对决回放并结算。裁定完成前请勿离开交战格；守方将同步收到遇袭提示。
             </p>
           </div>
         </AncientModal>
@@ -161,12 +170,13 @@ export default function WorldMapAlertOverlays({
               <span className="font-bold text-red-700">{pvpDefenseAlert.attackerName}</span> 正在攻打城池
             </p>
             <p className="text-gray-800">
-              点击 <span className="font-semibold text-amber-900">确定</span> 可等待裁定结束后在战报中查看文字记录；也可稍后打开「聊天」面板「战报」页。
+              点击 <span className="font-semibold text-amber-900">确定</span> 后等待攻方裁定（攻方约 10 秒内自动开战）；裁定结束后将播放战术对决回放并弹出战斗结算。
             </p>
             <p className="text-gray-800">
-              约 <span className="text-red-700 font-bold text-xl">{pvpDefenseAlert.remainingSeconds}</span> 秒后本提示将自动关闭（战斗由服务端 AI 演算，与是否观战无关）。
+              约 <span className="text-red-700 font-bold text-xl">{pvpDefenseAlert.remainingSeconds}</span>{' '}
+              秒后本提示将自动关闭（战斗由服务端权威推演，与页签是否在前台无关；关闭后仍请勿离格直至裁定完成）。
             </p>
-            <p className="text-gray-500 text-xs">提示关闭后请勿反复操作，稍候即弹出裁定结果。</p>
+            <p className="text-gray-500 text-xs">道路遇袭提示优先显示；若同时存在请先处理道路战事。</p>
           </div>
         </AncientModal>
       )}

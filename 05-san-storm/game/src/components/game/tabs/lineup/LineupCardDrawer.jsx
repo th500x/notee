@@ -31,6 +31,7 @@ export default function LineupCardDrawer({ slot, cards, allCards = [], skillsMap
 
   const rarityGroups = groupCardsByRarity(cards);
   const isTitleSlot = slot?.id === 'title';
+  const isAchievementSlot = slot?.id === 'achievement';
   const isCharacterSlot = slot?.id === 'character';
   const isEquipmentSlot = slot?.id === 'equipmentSet';
 
@@ -67,14 +68,14 @@ export default function LineupCardDrawer({ slot, cards, allCards = [], skillsMap
                         width: 128,
                         ...(isCharacterSlot
                           ? { minHeight: 208 }
-                          : { height: isEquipmentSlot ? 192 : isTitleSlot ? 96 : 192 }),
+                          : { height: isEquipmentSlot ? 192 : (isTitleSlot || isAchievementSlot) ? 96 : 192 }),
                       }}
                     >
                       <div style={{ transform: 'scale(0.5)', transformOrigin: 'top left', width: 256 }}>
-                        {isTitleSlot ? (
+                        {isTitleSlot || isAchievementSlot ? (
                           <TitleAchievementCard
                             item={toTitleCardData(card)}
-                            type="title"
+                            type={isAchievementSlot ? 'achievement' : 'title'}
                             baseUrl={baseUrl}
                           />
                         ) : isCharacterSlot ? (

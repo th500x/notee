@@ -96,9 +96,10 @@ export default function LineupEquipSlot({ slot, content, isSelected, onClick, ba
     );
   }
 
-  /* ── 已装备称号卡摘要 ── */
+  /* ── 已装备称号 / 成就卡摘要（结构一致） ── */
   const isTitleSlot = slot.id === 'title';
-  if (!isLocked && !isEmpty && isTitleSlot) {
+  const isAchievementSlot = slot.id === 'achievement';
+  if (!isLocked && !isEmpty && (isTitleSlot || isAchievementSlot)) {
     const cfg = content.config || {};
     const name = cfg.name || content.cardId;
     const rarity = cfg.rarity || content.rarity || 'common';

@@ -16,6 +16,7 @@ import AnnouncementBar from '@/components/game/AnnouncementBar';
 import RankingPanel from '@/components/game/RankingPanel';
 import BottomTabNav from '@/components/game/BottomTabNav';
 import PersonalSidebar from '@/components/game/PersonalSidebar';
+import GrantedTitleRevealFlow from '@/components/game/GrantedTitleRevealFlow';
 import ChunkLoadFallback from '@/components/game/ChunkLoadFallback';
 import RoadEncounterDefenseRoot from '@/components/game/RoadEncounterDefenseRoot';
 import UpdateNoticeFullScreenOverlay from '@/components/game/UpdateNoticeFullScreenOverlay';
@@ -24,7 +25,16 @@ import { loadSharedData } from '@/services/dataService';
 import { getActiveUpdateNotice } from '@/data/texts/updateAnnouncements';
 import { shouldShowUpdateNotice, dismissUpdateNotice } from '@/utils/updateNoticeLogic';
 import { useFactionBulletinUnread } from '@/hooks/useFactionBulletinUnread';
+import { usePlayableCampaignNotify } from '@/hooks/usePlayableCampaignNotify';
+import { useClaimableAchievementNotify } from '@/hooks/useClaimableAchievementNotify';
+import { useDailyReportCheckinNotify } from '@/hooks/useDailyReportCheckinNotify';
 import { isGameIntroCompletedForPlayer, markGameIntroCompletedForPlayer } from '@/utils/gameIntroFlags';
+import {
+  destroyBgmService,
+  ensureDefaultBgmScene,
+  initBgmService,
+  syncBgmEnabledFromStorage,
+} from '@/services/bgmService';
 
 const GameIntroOverlay = lazy(() => import('@/components/tutorial/GameIntroOverlay'));
 const WorldMap = lazy(() => import('@/components/game/WorldMap'));
@@ -39,6 +49,7 @@ const CardPoolDrawer = lazy(() => import('@/components/game/CardPoolDrawer'));
 const CampaignCenterPanel = lazy(() => import('@/components/game/CampaignCenterPanel'));
 const AttrRerollDrawer = lazy(() => import('@/components/game/AttrRerollDrawer'));
 const JunCountyQuadPreviewPanel = lazy(() => import('@/components/game/JunCountyQuadPreviewPanel'));
+const DailyReportPanel = lazy(() => import('@/components/game/DailyReportPanel'));
 
 export default function GamePage({ user, onLogout }) {
   return (
@@ -53,14 +64,19 @@ export default function GamePage({ user, onLogout }) {
 }
 
 function GamePageInner({ onLogout, accountId }) {
-  const { player, refresh } = usePlayerContext();
+  const { player, refresh, milestoneUnlockPending, clearMilestoneUnlockPending } =
+    usePlayerContext();
   const { mapHudButtonsVisible, toggleMapHudButtons } = useMapHudVisibility();
   const playerId = player?.playerId;
   const factionBulletinUnread = useFactionBulletinUnread(playerId);
+  const { hasPlayable: campaignPlayableNotify, refresh: refreshCampaignNotify } =
+    usePlayableCampaignNotify(playerId);
+  const claimableAchievementNotify = useClaimableAchievementNotify(playerId);
   /** 与创角清 localStorage 的 id 一致；profile 加载前即可决定是否展示特色介绍 */
   const gameIntroStorageId = accountId || player?.playerId;
 
   const [activeTab, setActiveTab] = useState(null);
+  const dailyReportNotifyDot = useDailyReportCheckinNotify(playerId, activeTab === null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [worldMapEventBusy, setWorldMapEventBusy] = useState(false);
   const [roadDefenseLayerBusy, setRoadDefenseLayerBusy] = useState(false);
@@ -70,10 +86,18 @@ function GamePageInner({ onLogout, accountId }) {
   useEffect(() => {
     if (activeTab !== null) setWorldMapEventBusy(false);
   }, [activeTab]);
+
+  useEffect(() => {
+    initBgmService();
+    syncBgmEnabledFromStorage();
+    ensureDefaultBgmScene();
+    return () => destroyBgmService();
+  }, []);
   const [openPool, setOpenPool] = useState(null); // 'troop' | 'character' | null
   const [openReroll, setOpenReroll] = useState(false);
   const [campaignOpen, setCampaignOpen] = useState(false);
   const [junQuadPreviewOpen, setJunQuadPreviewOpen] = useState(false);
+  const [dailyReportOpen, setDailyReportOpen] = useState(false);
   const [skillsMap, setSkillsMap] = useState({});
   const navigate = useNavigate();
 
@@ -183,7 +207,11 @@ function GamePageInner({ onLogout, accountId }) {
       case 'map':
         return (
           <Suspense fallback={tabFallback}>
-            <WorldMapTab onClose={handleCloseToMap} />
+            <WorldMapTab
+              onClose={handleCloseToMap}
+              onOpenCampaignCenter={() => setCampaignOpen(true)}
+              campaignNotifyDot={campaignPlayableNotify}
+            />
           </Suspense>
         );
       default:
@@ -198,9 +226,11 @@ function GamePageInner({ onLogout, accountId }) {
         <TopStatusBar
           activeTab={activeTab}
           onOpenSidebar={() => setSidebarOpen(true)}
-          onOpenCampaignCenter={() => setCampaignOpen(true)}
           mapHudButtonsVisible={mapHudButtonsVisible}
           onToggleMapHudButtons={toggleMapHudButtons}
+          personalCenterNotifyDot={claimableAchievementNotify}
+          onOpenDailyReport={() => setDailyReportOpen(true)}
+          dailyReportNotifyDot={dailyReportNotifyDot}
         />
 
         <main
@@ -247,7 +277,10 @@ function GamePageInner({ onLogout, accountId }) {
           <BottomTabNav
             activeTab={activeTab}
             onTabChange={setActiveTab}
-            tabNotifyDots={{ faction: factionBulletinUnread }}
+            tabNotifyDots={{
+              faction: factionBulletinUnread,
+              map: campaignPlayableNotify,
+            }}
           />
         )}
 
@@ -255,6 +288,20 @@ function GamePageInner({ onLogout, accountId }) {
           open={sidebarOpen}
           onClose={() => setSidebarOpen(false)}
           onLogout={handleLogout}
+          claimableAchievementNotify={claimableAchievementNotify}
+        />
+
+        <Suspense fallback={null}>
+          <DailyReportPanel
+            open={dailyReportOpen}
+            onClose={() => setDailyReportOpen(false)}
+            playerId={playerId}
+          />
+        </Suspense>
+
+        <GrantedTitleRevealFlow
+          grants={milestoneUnlockPending?.titles}
+          onComplete={clearMilestoneUnlockPending}
         />
 
         <KingEdictPanel
@@ -321,8 +368,14 @@ function GamePageInner({ onLogout, accountId }) {
           <CampaignCenterPanel
             playerId={playerId}
             open={campaignOpen}
-            onClose={() => setCampaignOpen(false)}
-            onClaimed={refresh}
+            onClose={() => {
+              setCampaignOpen(false);
+              refreshCampaignNotify();
+            }}
+            onClaimed={() => {
+              refresh();
+              refreshCampaignNotify();
+            }}
           />
         </Suspense>
       ) : null}

@@ -155,7 +155,7 @@ router.get('/titles/:id', async (req, res, next) => {
       success: true,
       title: {
         id: t.title_id, name: t.title_name, rarity,
-        description: t.description, displayName: t.display_name,
+        description: t.description,
         attributeBonus, specialEffect: t.special_effect, specialEffectDesc: t.special_effect_desc,
       }
     });

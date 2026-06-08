@@ -7,6 +7,7 @@
 
 const { pool } = require('../database/connection');
 const statisticsDeltaService = require('./statisticsDeltaService');
+const { runPlayerMilestoneCheckSafe } = require('./milestoneHookHelper');
 const factionPolicyService = require('./factionPolicyService');
 const factionReserveService = require('./factionReserveService');
 const playerItemsService = require('./playerItemsService');
@@ -386,6 +387,10 @@ async function drawFromPool(playerId, poolType, options = {}) {
     }
 
     await statisticsDeltaService.incrementSpent(playerId, { silver: drawCost });
+
+    if (poolType === 'character' && results.some((r) => !r.compensated && r.cardId)) {
+      runPlayerMilestoneCheckSafe(playerId, 'character_card_granted').catch(() => {});
+    }
 
     // 查询更新后的银两
     const [updatedPlayer] = await connection.query(

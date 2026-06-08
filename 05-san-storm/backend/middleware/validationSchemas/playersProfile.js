@@ -23,8 +23,13 @@ const barracksTransferBody = {
   })),
 };
 
+const seasonPremiumActivateBody = {
+  activationCode: v.required(v.nonEmptyString({ max: 64 })),
+};
+
 module.exports = {
   characterRankQuery,
   mainCityBody,
   barracksTransferBody,
+  seasonPremiumActivateBody,
 };

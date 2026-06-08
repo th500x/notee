@@ -773,7 +773,7 @@ async function moveAlongRoad(playerId, body) {
       const wsy = toInt(steps[i].y);
       const locStep = useStackGrid ? gridCoords.worldMapCellToPlayerRoad(wsx, wsy) : null;
       const stepJun = locStep ? locStep.junId : junId;
-      const stepPy = locStep ? locStep.localGy : wsy;
+      const stepPy = locStep ? locStep.gy : wsy;
       const stepPx = wsx;
 
       // 与前一格的邻接：若 onRoad，则 lastX/Y 为当前；否则 first 是 lastX=null，首跳不要求与 lastX 相邻（已在主城邻接校验过）。
@@ -810,7 +810,7 @@ async function moveAlongRoad(playerId, body) {
             return {
               ok: false,
               status: 409,
-              error: `(${sx},${sy}) 道路交战进行中，不可将该格作为本次行军道路终点`,
+              error: `(${stepPx},${stepPy}) 道路交战进行中，不可将该格作为本次行军道路终点`,
             };
           }
           skipHostileBecauseEncounterTransit = true;

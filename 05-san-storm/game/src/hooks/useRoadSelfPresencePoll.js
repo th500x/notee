@@ -4,7 +4,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { playerAPI } from '@/services/playerApi';
 
-function isRoadGateNoticeBlocked(blockSnapshot, blockTutorialAutoplay, roadDefenseOutcomeReplayBlockingRef) {
+export function isRoadGateNoticeBlocked(blockSnapshot, blockTutorialAutoplay, roadDefenseOutcomeReplayBlockingRef) {
   if (blockTutorialAutoplay) return true;
   if (!blockSnapshot || typeof blockSnapshot !== 'object') return false;
   return (
@@ -15,7 +15,8 @@ function isRoadGateNoticeBlocked(blockSnapshot, blockTutorialAutoplay, roadDefen
     blockSnapshot.banditRaidResult ||
     blockSnapshot.roadAuthoritativeOutcomeModal ||
     blockSnapshot.pvpAttackerAdjudicating ||
-    blockSnapshot.pvpDefenseOutcome ||
+    blockSnapshot.pvpDefenseSettlement ||
+    blockSnapshot.roadAttackerAdjudicating ||
     blockSnapshot.roadAttackerAlert ||
     blockSnapshot.pvpChallenge ||
     blockSnapshot.roadDefenseAlert ||
@@ -32,6 +33,8 @@ export function useRoadSelfPresencePoll({
   roadDefenseOutcomeReplayBlockingRef,
   bumpStrategicRoadPresenceRef,
   strategicRoadMarchAnimatingRef,
+  /** 交战格上仍为 fighting 的攻方：恢复自动裁定入口（刷新/断线后） */
+  onAttackerFightingEncounterResume,
   intervalMs = 700,
   noticeUnblockDeps = [],
 }) {
@@ -57,6 +60,14 @@ export function useRoadSelfPresencePoll({
         if (strategicRoadMarchAnimatingRef?.current) {
           lastApiRoadSnapRef.current = snap;
           return;
+        }
+        const activeEnc = d.activeFightingEncounter;
+        if (
+          activeEnc?.encounterId &&
+          activeEnc.role === 'attacker' &&
+          typeof onAttackerFightingEncounterResume === 'function'
+        ) {
+          onAttackerFightingEncounterResume(activeEnc);
         }
         const notice = typeof d.pendingRoadNotice === 'string' ? d.pendingRoadNotice.trim() : '';
         if (notice) {
@@ -116,6 +127,7 @@ export function useRoadSelfPresencePoll({
     roadDefenseOutcomeReplayBlockingRef,
     bumpStrategicRoadPresenceRef,
     strategicRoadMarchAnimatingRef,
+    onAttackerFightingEncounterResume,
   ]);
 
   /** 阻塞 UI 关闭后立刻弹出已暂存的退让提示（由调用方传入与 roadNoticeUiBlockRef 同步的 deps） */
@@ -144,6 +156,25 @@ export function useRoadSelfPresencePoll({
     setRoadGateRetreatNotice,
     deferredRoadGateNoticeRef,
   };
+}
+
+/** 道路战败退让提示入队（结算关闭后调用；与轮询 `pendingRoadNotice` 互补） */
+export function enqueueRoadGateRetreatNotice(
+  text,
+  { setRoadGateRetreatNotice, deferredRoadGateNoticeRef, blockSnapshot, blockTutorialAutoplay, roadDefenseOutcomeReplayBlockingRef },
+) {
+  const trimmed = String(text || '').trim();
+  if (!trimmed) return;
+  const blocked = isRoadGateNoticeBlocked(
+    blockSnapshot,
+    blockTutorialAutoplay,
+    roadDefenseOutcomeReplayBlockingRef,
+  );
+  if (blocked) {
+    deferredRoadGateNoticeRef.current = trimmed;
+  } else {
+    setRoadGateRetreatNotice(trimmed);
+  }
 }
 
 export default useRoadSelfPresencePoll;

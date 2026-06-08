@@ -402,15 +402,13 @@ async function importTitles(connection) {
       await connection.query(`
         INSERT INTO config_titles (
           title_id, title_name, description,
-          display_name, display_position, is_unique,
+          is_unique,
           unlock_conditions, unlock_conditions_desc,
           attribute_bonus, special_effect, special_effect_desc
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON DUPLICATE KEY UPDATE
           title_name = VALUES(title_name),
           description = VALUES(description),
-          display_name = VALUES(display_name),
-          display_position = VALUES(display_position),
           is_unique = VALUES(is_unique),
           unlock_conditions = VALUES(unlock_conditions),
           unlock_conditions_desc = VALUES(unlock_conditions_desc),
@@ -421,8 +419,6 @@ async function importTitles(connection) {
         title.id,
         title.name,
         title.description || null,
-        title.displayName || null,
-        title.displayPosition || 'prefix',
         title.isUnique || false,
         title.unlockConditions ? JSON.stringify(title.unlockConditions) : null,
         title.unlockConditionsDesc || null,

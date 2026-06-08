@@ -458,7 +458,7 @@ async function recordEncounterBattleSettlement(attackerPlayerId, body) {
         const grid = await loadRoadGrid(encSeason, encJun);
         if (grid?.rawCells?.length) {
           const [cRows] = await conn.query(
-            `SELECT city_id, city_type, position_x, position_y, faction_id FROM cities WHERE jun_id = ? AND season = ?`,
+            `SELECT city_id, city_type, position_x, position_y, faction_id, jun_id FROM cities WHERE jun_id = ? AND season = ?`,
             [encJun, encSeason],
           );
           const ret = await applyFactionPlayerRoadRetreat(conn, {
@@ -471,7 +471,12 @@ async function recordEncounterBattleSettlement(attackerPlayerId, body) {
             noticeText: buildRoadBattleDefeatRetreatNotice(),
           });
           if (!ret.ok) {
-            console.warn('[roadEncounterService] recordEncounterBattleSettlement loser retreat skipped:', ret.error);
+            console.error('[roadEncounterService] recordEncounterBattleSettlement loser retreat failed:', ret.error, {
+              loserPlayerId,
+              encJun,
+              cellX,
+              cellY,
+            });
           }
         }
       } catch (lzErr) {
@@ -607,7 +612,7 @@ async function resolveEncounter(playerId, body) {
         const grid = await loadRoadGrid(encSeason, encJun);
         if (grid?.rawCells?.length) {
           const [cRows] = await conn.query(
-            `SELECT city_id, city_type, position_x, position_y, faction_id FROM cities WHERE jun_id = ? AND season = ?`,
+            `SELECT city_id, city_type, position_x, position_y, faction_id, jun_id FROM cities WHERE jun_id = ? AND season = ?`,
             [encJun, encSeason],
           );
           const ret = await applyFactionPlayerRoadRetreat(conn, {
@@ -620,7 +625,12 @@ async function resolveEncounter(playerId, body) {
             noticeText: buildRoadBattleDefeatRetreatNotice(),
           });
           if (!ret.ok) {
-            console.warn('[roadEncounterService] resolveEncounter loser retreat skipped:', ret.error);
+            console.error('[roadEncounterService] resolveEncounter loser retreat failed:', ret.error, {
+              loserPlayerId,
+              encJun,
+              cellX,
+              cellY,
+            });
           }
         }
       } catch (lzErr) {
@@ -937,12 +947,14 @@ async function doResolveAuthoritativeRoadEncounter(attackerId, encounterId) {
     }
   }
 
+  const attackerLost = !sim.attackerWon;
   return {
     ok: true,
     data: {
       ...resolutionPayload,
       battleId,
       defenderBattleId: defBattleId,
+      ...(attackerLost ? { defeatRetreatNotice: buildRoadBattleDefeatRetreatNotice() } : {}),
     },
   };
 }
@@ -982,7 +994,14 @@ async function getRoadEncounterAuthoritativeOutcome(viewerPlayerId, encounterIdR
     if (row.authoritative_resolution_json) {
       try {
         const snap = JSON.parse(String(row.authoritative_resolution_json));
-        return { ok: true, data: { pending: false, ...snap, viewerIsDefender: pid === def } };
+        const viewerIsDefender = pid === def;
+        const viewerLost =
+          (viewerIsDefender && !!snap.attackerWon) || (!viewerIsDefender && snap.attackerWon === false);
+        const data = { pending: false, ...snap, viewerIsDefender };
+        if (viewerLost) {
+          data.defeatRetreatNotice = buildRoadBattleDefeatRetreatNotice();
+        }
+        return { ok: true, data };
       } catch (_) {
         return { ok: true, data: { pending: false, noReplay: true } };
       }

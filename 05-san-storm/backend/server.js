@@ -127,6 +127,47 @@ function scheduleFactionReserveRecoveryDailyTick() {
   );
 }
 
+function scheduleTitlePositionTenureDailyTick() {
+  const tz = process.env.CRON_TZ;
+  const opts = tz ? { timezone: tz } : {};
+  const { runDailyPositionTenureTick } = require('./services/titlePositionTenureService');
+  cron.schedule(
+    '0 0 * * *',
+    async () => {
+      try {
+        const result = await runDailyPositionTenureTick();
+        console.log(
+          `[titleTenure] daily tick ${result.date} accrued=${result.accrued}/${result.playersWithPosition}`,
+        );
+      } catch (err) {
+        console.error('[titleTenure] daily tick 失败:', err.message);
+      }
+    },
+    opts,
+  );
+}
+
+function scheduleDailyReportDigestTick() {
+  const tz = process.env.CRON_TZ;
+  const opts = tz ? { timezone: tz } : {};
+  console.log(`[dailyReport] digest cron registered 0 0 * * * CRON_TZ=${tz || '(unset)'}`);
+  const { runDailyDigestTick } = require('./services/dailyReportDigestService');
+  cron.schedule(
+    '0 0 * * *',
+    async () => {
+      try {
+        const result = await runDailyDigestTick();
+        if (!result.ok) {
+          console.error('[dailyReport] digest tick:', result.error);
+        }
+      } catch (err) {
+        console.error('[dailyReport] digest tick 失败:', err.message);
+      }
+    },
+    opts,
+  );
+}
+
 function scheduleKingDasikongDailyTick() {
   const tz = process.env.CRON_TZ;
   const opts = tz ? { timezone: tz } : {};
@@ -447,7 +488,9 @@ httpServer = app.listen(PORT, async () => {
     console.error('[aiKing] 加载 ai-kings.json 失败:', err.message);
   }
   scheduleAiKingHourlyTick();
+  scheduleDailyReportDigestTick();
   scheduleFactionReserveRecoveryDailyTick();
+  scheduleTitlePositionTenureDailyTick();
   scheduleKingDasikongDailyTick();
 
   if (dbConnected) {
@@ -456,6 +499,11 @@ httpServer = app.listen(PORT, async () => {
         // 错开启动高峰，避免与玩家首屏 / 纪念图上传争 DB
         await new Promise((r) => setTimeout(r, 15000));
         const aiKingDasikongDailyService = require('./services/aiKingDasikongDailyService');
+        const dailyReportDigestService = require('./services/dailyReportDigestService');
+        const digestCatchUp = await dailyReportDigestService.runStaleCatchUpOnStartup();
+        if (digestCatchUp.ok && (digestCatchUp.results || []).some((r) => r.ok && !r.skipped)) {
+          console.log('[dailyReport] startup digest catch-up finished');
+        }
         const catchUp = await aiKingDasikongDailyService.runStaleCatchUpOnStartup();
         if (catchUp.ok && (catchUp.results || []).some((r) => r.winner || r.bootstrapped)) {
           console.log('[aiKing][dasikong] startup catch-up finished');

@@ -225,6 +225,13 @@ async function runDailyTickForFaction(factionId, king) {
  * @param {{ factionId?: string }} [opts] 可选仅跑单势力（调试）
  */
 async function runDailyTick(opts = {}) {
+  try {
+    const { runDailyDigestTick } = require('./dailyReportDigestService');
+    await runDailyDigestTick();
+  } catch (e) {
+    console.error('[aiKing][dasikong] daily digest hook failed:', e?.message || e);
+  }
+
   const onlyFaction = opts.factionId != null ? String(opts.factionId).trim() : '';
   const kings = aiKingConfigService.listAllKings().filter(
     (k) => !onlyFaction || k.factionId === onlyFaction,

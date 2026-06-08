@@ -272,13 +272,13 @@ export default function CardPoolDrawer({
     const pendingId = drawResult?.pendingEchoDrawId ?? status?.pendingEchoChoice?.pendingEchoDrawId;
     const res = await onResolveEchoChoice(choice, pendingId);
     if (!res?.success) return;
-    if (typeof onAfterEchoChoice === 'function') {
-      await onAfterEchoChoice(res);
-    }
     setShowResult(false);
     onClearResult();
+    if (typeof onAfterEchoChoice === 'function') {
+      void onAfterEchoChoice(res);
+    }
     if (typeof onRefreshStatus === 'function') {
-      await onRefreshStatus();
+      void onRefreshStatus();
     }
   }, [
     onResolveEchoChoice,

@@ -590,6 +590,27 @@ function RewardDisplay({
       )}
 
       {/* 事件触发的传奇部队耐久修满 */}
+      {rewardDetails?.milestoneUnlock &&
+        (rewardDetails.milestoneUnlock.titles?.length > 0 ||
+          rewardDetails.milestoneUnlock.achievements?.length > 0) && (
+        <>
+          <Divider />
+          <div className="text-xs text-amber-700 font-medium mb-2">🏆 里程碑解锁</div>
+          <div className="space-y-1 mb-1">
+            {(rewardDetails.milestoneUnlock.titles || []).map((t) => (
+              <div key={t.titleId || t.titleName} className="text-sm text-gray-800">
+                称号「{t.titleName || t.titleId}」已解锁
+              </div>
+            ))}
+            {(rewardDetails.milestoneUnlock.achievements || []).map((a) => (
+              <div key={a.achievementId || a.achievementName} className="text-sm text-gray-800">
+                成就「{a.achievementName || a.achievementId}」已完成
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
       {rewardDetails?.troopRepair?.length > 0 && (
         <>
           <Divider />

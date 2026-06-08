@@ -33,7 +33,7 @@ function weightedParts(item, ranking) {
   const repW = w.reputation ?? 60;
   const contribW = w.contribution ?? repW;
   return {
-    combat: (item.battleScore ?? 0) * (w.battleScore ?? 1),
+    combat: (item.battleScore ?? 0) * (w.battleScore ?? 0.2),
     events: (item.eventsCompleted ?? 0) * (w.events ?? 120),
     rep: (item.reputation ?? 0) * repW,
     contrib: (item.contribution ?? 0) * contribW,

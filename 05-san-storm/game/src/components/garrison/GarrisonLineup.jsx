@@ -246,6 +246,7 @@ export default function GarrisonLineup({
   const characterCards   = cards.filter(c => c.cardType === 'character');
   const troopCards       = cards.filter(c => c.cardType === 'troop');
   const titleCards       = cards.filter(c => c.cardType === 'title');
+  const achievementCards = cards.filter(c => c.cardType === 'achievement');
   const equipmentSetCards = cards.filter(
     c => c.cardType === 'equipmentSet' && c.config?.displayName && String(c.config.displayName).trim()
   );
@@ -264,6 +265,7 @@ export default function GarrisonLineup({
     const pool = type === 'character'    ? characterCards
       : type === 'troop'                 ? troopCards
       : type === 'title'                 ? titleCards
+      : type === 'achievement'           ? achievementCards
       : type === 'equipmentSet'          ? equipmentSetCards
       : [];
     return pool.filter(c => {
@@ -274,7 +276,7 @@ export default function GarrisonLineup({
       const count     = Math.max(0, c.battleCount ?? 0);
       return count < maxBattle || c.rarity === 'legendary';
     });
-  }, [characterCards, troopCards, titleCards, equipmentSetCards, occupiedIds]);
+  }, [characterCards, troopCards, titleCards, achievementCards, equipmentSetCards, occupiedIds]);
 
   const getSlotContent = useCallback((slot, charKey) => {
     switch (slot.id) {
@@ -282,6 +284,7 @@ export default function GarrisonLineup({
       case 'troop2':       return getCardFromGarrison(`${charKey}_troop2`);
       case 'equipmentSet': return getCardFromGarrison(`${charKey}_equipment_card`);
       case 'title':        return getCardFromGarrison(`${charKey}_title`);
+      case 'achievement':  return getCardFromGarrison(`${charKey}_achievement`);
       default:             return null;
     }
   }, [getCardFromGarrison]);
@@ -451,6 +454,8 @@ export default function GarrisonLineup({
                       showDetails={true} baseUrl={baseUrl} disableHoverScale />
                   ) : detailCard.card.cardType === 'title' ? (
                     <TitleAchievementCard item={toTitleCardData(detailCard.card)} type="title" baseUrl={baseUrl} />
+                  ) : detailCard.card.cardType === 'achievement' ? (
+                    <TitleAchievementCard item={toTitleCardData(detailCard.card)} type="achievement" baseUrl={baseUrl} />
                   ) : detailCard.card.cardType === 'equipment' ? (
                     <EquipmentCard equipment={toEquipCardData(detailCard.card)} baseUrl={baseUrl} />
                   ) : (
@@ -493,6 +498,7 @@ export default function GarrisonLineup({
           cards={getAvailableCards(
             selectedSlot.id === 'character'    ? 'character'
             : selectedSlot.id === 'title'      ? 'title'
+            : selectedSlot.id === 'achievement' ? 'achievement'
             : selectedSlot.id === 'equipmentSet' ? 'equipmentSet'
             : 'troop'
           )}
@@ -525,6 +531,7 @@ function GarrisonDrawer({ slot, cards, skillsMap, onSelect, onClose }) {
   const baseUrl        = import.meta.env.BASE_URL;
   const isCharSlot     = slot.id === 'character';
   const isTitleSlot    = slot.id === 'title';
+  const isAchievementSlot = slot.id === 'achievement';
   const isEquipSetSlot = slot.id === 'equipmentSet';
 
   const grouped = {};
@@ -561,7 +568,7 @@ function GarrisonDrawer({ slot, cards, skillsMap, onSelect, onClose }) {
                         width: 128,
                         ...(isCharSlot
                           ? { minHeight: 208 }
-                          : { height: isTitleSlot ? 96 : isEquipSetSlot ? 96 : 192 }),
+                          : { height: (isTitleSlot || isAchievementSlot) ? 96 : isEquipSetSlot ? 96 : 192 }),
                       }}>
                       <div style={{ transform: 'scale(0.5)', transformOrigin: 'top left', width: 256 }}>
                         {isCharSlot ? (
@@ -572,8 +579,12 @@ function GarrisonDrawer({ slot, cards, skillsMap, onSelect, onClose }) {
                             baseUrl={baseUrl}
                             disableHoverScale
                           />
-                        ) : isTitleSlot ? (
-                          <TitleAchievementCard item={toTitleCardData(card)} type="title" baseUrl={baseUrl} />
+                        ) : isTitleSlot || isAchievementSlot ? (
+                          <TitleAchievementCard
+                            item={toTitleCardData(card)}
+                            type={isAchievementSlot ? 'achievement' : 'title'}
+                            baseUrl={baseUrl}
+                          />
                         ) : isEquipSetSlot ? (
                           <div className="w-[256px] h-[192px] rounded-xl bg-stone-800 border-2 border-amber-700/40 p-3 flex flex-col justify-between">
                             <div className="text-amber-200 text-sm font-bold truncate">{card.config?.displayName || card.instanceId}</div>

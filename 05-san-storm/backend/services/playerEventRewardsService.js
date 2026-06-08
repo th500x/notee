@@ -13,6 +13,7 @@ const {
 } = require('./troopRepairService');
 const playerExploreEventService = require('./playerExploreEventService');
 const statisticsDeltaService = require('./statisticsDeltaService');
+const { runPlayerMilestoneCheckSafe } = require('./milestoneHookHelper');
 
 /**
  * @param {string} playerId
@@ -443,6 +444,16 @@ async function executeEventRewards(playerId, body) {
     );
   }
 
+  const shouldCountEventCompletion = !pendingPunishBattle;
+  if (shouldCountEventCompletion) {
+    await pool.query(
+      'UPDATE player_statistics SET total_events_completed = total_events_completed + 1 WHERE player_id = ?',
+      [playerId],
+    );
+  }
+
+  const milestoneUnlock = await runPlayerMilestoneCheckSafe(playerId, 'event_complete');
+
   return {
     ok: true,
     data: {
@@ -456,6 +467,14 @@ async function executeEventRewards(playerId, body) {
       },
       rewards: result.details,
       bonusRewards: bonusResult ? bonusResult.details : [],
+      ...(milestoneUnlock
+        ? {
+            milestoneUnlock: {
+              titles: milestoneUnlock.titles?.newlyGranted || [],
+              achievements: milestoneUnlock.achievements?.newlyGranted || [],
+            },
+          }
+        : {}),
       ...(troopRepairResults.length ? { troopRepair: troopRepairResults } : {}),
     },
   };

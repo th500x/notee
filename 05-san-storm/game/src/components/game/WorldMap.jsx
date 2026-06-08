@@ -3,6 +3,7 @@
  */
 
 import { useState, useRef, useCallback, useEffect, useMemo, lazy, Suspense } from 'react';
+import { createPortal } from 'react-dom';
 import { usePlayerContext } from '@/contexts/PlayerContext';
 import { useRoadDefenseFriction } from '@/contexts/RoadDefenseFrictionContext';
 import { useSkillsMap } from '@/hooks/useSkillsMap';
@@ -12,7 +13,7 @@ import ChunkLoadFallback from '@/components/game/ChunkLoadFallback';
 import { buildPlayerUnitsFromContext } from '@/utils/battlePlayerBuilder';
 import { usePvpDefenseAlertPoll } from '@/hooks/usePvpDefenseAlertPoll';
 import { useCountdownTicker } from '@/hooks/useCountdownTicker';
-import { useRoadSelfPresencePoll } from '@/hooks/useRoadSelfPresencePoll';
+import { useRoadSelfPresencePoll, enqueueRoadGateRetreatNotice } from '@/hooks/useRoadSelfPresencePoll';
 import { usePvpSiegeAdjudication } from '@/hooks/usePvpSiegeAdjudication';
 import { useWorldMapStrategicBattles } from '@/hooks/useWorldMapStrategicBattles';
 import CeremonyBounceOverlay from '@/components/game/CeremonyBounceOverlay';
@@ -26,6 +27,8 @@ import PositionCard from '@shared/components/card/PositionCard';
 import StrategicWorldMapSection from '@/components/world/StrategicWorldMapSection';
 import WorldMapAlertOverlays from '@/components/world/WorldMapAlertOverlays';
 import WorldMapBattlePortal from '@/components/world/WorldMapBattlePortal';
+import StrategicSettlementCard from '@/components/world/StrategicSettlementCard';
+import { mapRoadEncounterOutcomeToSettlementProps } from '@/utils/roadEncounterSettlement';
 import { worldMapOverlayRefs, notifyWorldMapOverlayGate } from '@/utils/worldMapOverlayRefs';
 import { imperialMarchNpcToAllyUnit } from '@/utils/imperialMarchSiegeAlly';
 
@@ -98,6 +101,8 @@ export default function WorldMap({
     postBanditRaidRefreshKey,
     banditRaidStartBlockedReason,
     confirmRoadAttackerEnterBattle,
+    roadAttackerAdjudicating,
+    roadAttackerCountdown,
     startSiegeForCity,
     startPvpBaseCampSiege,
     handleBanditRaidStart,
@@ -131,8 +136,8 @@ export default function WorldMap({
     pvpCountdown,
     setPvpCountdown,
     pvpDefenseWaiting,
-    pvpDefenseOutcome,
-    setPvpDefenseOutcome,
+    pvpDefenseSettlementRaw,
+    setPvpDefenseSettlementRaw,
     pvpAttackerAdjudicating,
     authoritativeReplayOverlay,
     setAuthoritativeReplayOverlay,
@@ -207,14 +212,33 @@ export default function WorldMap({
     banditRaidResult: false,
     roadAuthoritativeOutcomeModal: false,
     pvpAttackerAdjudicating: false,
-    pvpDefenseOutcome: false,
+    pvpDefenseSettlement: false,
     roadAttackerAlert: false,
+    roadAttackerAdjudicating: false,
     pvpChallenge: false,
     roadDefenseAlert: false,
     roadAwaitingAuthoritativeOutcome: false,
     roadDefenseOutcomeReplay: false,
   });
-  const { roadGateRetreatNotice, setRoadGateRetreatNotice } = useRoadSelfPresencePoll({
+  const resumeAttackerRoadEncounter = useCallback(
+    (activeEnc) => {
+      if (!activeEnc?.encounterId) return;
+      setRoadAttackerAlert((prev) => {
+        if (prev?.encounterId) return prev;
+        return {
+          encounterId: activeEnc.encounterId,
+          attackerPlayerId: activeEnc.attackerPlayerId,
+          defenderPlayerId: activeEnc.defenderPlayerId,
+          status: 'fighting',
+          resumed: true,
+        };
+      });
+    },
+    [],
+  );
+
+  const { roadGateRetreatNotice, setRoadGateRetreatNotice, deferredRoadGateNoticeRef } =
+    useRoadSelfPresencePoll({
     playerId: player?.playerId,
     refreshPlayer,
     blockTutorialAutoplay,
@@ -222,14 +246,16 @@ export default function WorldMap({
     roadDefenseOutcomeReplayBlockingRef: roadFriction.roadDefenseOutcomeReplayBlockingRef,
     bumpStrategicRoadPresenceRef,
     strategicRoadMarchAnimatingRef,
+    onAttackerFightingEncounterResume: resumeAttackerRoadEncounter,
     noticeUnblockDeps: [
       authoritativeReplayOverlay,
       siegeResult,
       siegeData,
       roadFriction.roadAuthoritativeOutcomeModal,
       pvpAttackerAdjudicating,
-      pvpDefenseOutcome,
+      pvpDefenseSettlementRaw,
       roadAttackerAlert,
+      roadAttackerAdjudicating,
       pvpChallenge,
       roadFriction.roadDefenseAlert,
       roadFriction.roadAwaitingAuthoritativeOutcome,
@@ -237,6 +263,21 @@ export default function WorldMap({
       banditRaidData,
       banditRaidResult,
     ],
+  });
+
+  useEffect(() => {
+    worldMapOverlayRefs.enqueueRoadGateNotice = (text) => {
+      enqueueRoadGateRetreatNotice(text, {
+        setRoadGateRetreatNotice,
+        deferredRoadGateNoticeRef,
+        blockSnapshot: roadNoticeUiBlockRef.current,
+        blockTutorialAutoplay,
+        roadDefenseOutcomeReplayBlockingRef: roadFriction.roadDefenseOutcomeReplayBlockingRef,
+      });
+    };
+    return () => {
+      worldMapOverlayRefs.enqueueRoadGateNotice = null;
+    };
   });
 
   useEffect(() => {
@@ -276,6 +317,7 @@ export default function WorldMap({
       || !!pvpDefenseWaiting
       || !!pvpAttackerAdjudicating
       || !!roadAttackerAlert
+      || !!roadAttackerAdjudicating
       || !!authoritativeReplayOverlay
       || roadFriction.roadDefenseAuthoritativeReplayOpen;
     onEventBusyChange?.(busy);
@@ -289,6 +331,7 @@ export default function WorldMap({
     pvpDefenseWaiting,
     pvpAttackerAdjudicating,
     roadAttackerAlert,
+    roadAttackerAdjudicating,
     authoritativeReplayOverlay,
     roadFriction.roadDefenseAuthoritativeReplayOpen,
   ]);
@@ -310,6 +353,7 @@ export default function WorldMap({
     !!pvpChallenge ||
     !!pvpDefenseWaiting ||
     !!roadAttackerAlert ||
+    !!roadAttackerAdjudicating ||
     !!authoritativeReplayOverlay ||
     roadFriction.roadDefenseAuthoritativeReplayOpen ||
     [
@@ -336,8 +380,9 @@ export default function WorldMap({
     banditRaidResult: !!banditRaidResult,
     roadAuthoritativeOutcomeModal: roadFriction.roadAuthoritativeOutcomeModal,
     pvpAttackerAdjudicating: !!pvpAttackerAdjudicating,
-    pvpDefenseOutcome: !!pvpDefenseOutcome,
+    pvpDefenseSettlement: !!pvpDefenseSettlementRaw,
     roadAttackerAlert: !!roadAttackerAlert,
+    roadAttackerAdjudicating: !!roadAttackerAdjudicating,
     pvpChallenge: !!pvpChallenge,
     roadDefenseAlert: roadFriction.roadDefenseAlert,
     roadAwaitingAuthoritativeOutcome: roadFriction.roadAwaitingAuthoritativeOutcome,
@@ -364,7 +409,7 @@ export default function WorldMap({
         }}
         garrisonStatsRefreshKey={garrisonStatsRefreshKey}
         playerOnDuty={!!player?.onDuty}
-        playerOnDutyCityId={player?.onDuty_city_id ?? null}
+        playerOnDutyCityId={player?.onDutyCityId ?? null}
         playerMainCityId={playerMainCityIdForUi}
         playerMainCityChangedAt={player?.mainCityChangedAt ?? null}
         playerSilver={player?.silver ?? null}
@@ -389,25 +434,26 @@ export default function WorldMap({
         pvpCountdownDisplay={pvpCountdownDisplay}
         pvpAttackerAdjudicating={pvpAttackerAdjudicating}
         pvpDefenseWaiting={pvpDefenseWaiting}
-        pvpDefenseOutcome={pvpDefenseOutcome}
-        onPvpDefenseOutcomeClose={() => {
-          resetPvpDefenseSilence();
-          setPvpDefenseOutcome(null);
-        }}
         authoritativeReplayOverlay={authoritativeReplayOverlay}
         onAuthoritativeReplayClose={() => setAuthoritativeReplayOverlay(null)}
         roadAttackerAlert={roadAttackerAlert}
+        roadAttackerCountdown={roadAttackerCountdown}
         onRoadAttackerConfirm={confirmRoadAttackerEnterBattle}
-        onRoadAttackerClose={() => setRoadAttackerAlert(null)}
         roadGateRetreatNotice={roadGateRetreatNotice}
         onRoadGateNoticeClose={() => setRoadGateRetreatNotice(null)}
         showRoadGateNotice={
           !siegeData &&
+          !siegeResult &&
           !banditRaidData &&
           !banditRaidResult &&
           !roadFriction.roadDefenseAlert &&
           !pvpDefenseAlert &&
-          !roadAttackerAlert
+          !roadAttackerAlert &&
+          !roadAttackerAdjudicating &&
+          !authoritativeReplayOverlay &&
+          !roadFriction.roadDefenseAuthoritativeReplayOpen &&
+          !roadFriction.roadAuthoritativeOutcomeModal &&
+          !roadFriction.roadAwaitingAuthoritativeOutcome
         }
         pvpDefenseAlert={pvpDefenseAlert}
         onPvpDefenseAlertConfirm={() => beginDefenseFollowUp(pvpDefenseAlert)}
@@ -460,6 +506,22 @@ export default function WorldMap({
           </div>
         </div>
       ) : null}
+
+      {typeof document !== 'undefined' &&
+        pvpDefenseSettlementRaw &&
+        !authoritativeReplayOverlay &&
+        createPortal(
+          <div className="pointer-events-auto fixed inset-0 z-[235] flex min-h-0 flex-col">
+            <StrategicSettlementCard
+              {...mapRoadEncounterOutcomeToSettlementProps(pvpDefenseSettlementRaw)}
+              onConfirm={() => {
+                resetPvpDefenseSilence();
+                setPvpDefenseSettlementRaw(null);
+              }}
+            />
+          </div>,
+          document.body,
+        )}
 
       <WorldMapBattlePortal
         open={

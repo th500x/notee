@@ -13,6 +13,7 @@
 
 const { pool } = require('../../database/connection');
 const { DEFAULT_ONLINE_MS } = require('../../utils/playerActivity');
+const { normalizeMapDisplayEffect } = require('../../../shared/utils/mapDisplayEffect.cjs');
 const {
   buildPlayerRoadSnapshot,
   ROAD_DEFENDER_ALERT_SEC,
@@ -46,6 +47,40 @@ async function getSelfRoadState(playerId) {
       await conn.query(`UPDATE players SET road_client_notice = NULL WHERE player_id = ?`, [pid]);
     }
     await conn.commit();
+
+    let activeFightingEncounter;
+    const jun = r.road_jun_id != null ? String(r.road_jun_id).trim() : '';
+    const px = r.road_position_x;
+    const py = r.road_position_y;
+    if (jun && px != null && py != null) {
+      const [encRows] = await pool.query(
+        `SELECT encounter_id AS encounterId,
+                attacker_player_id AS attackerPlayerId,
+                defender_player_id AS defenderPlayerId,
+                status
+           FROM road_encounters
+          WHERE status = 'fighting'
+            AND jun_id = ?
+            AND position_x = ?
+            AND position_y = ?
+            AND (attacker_player_id = ? OR defender_player_id = ?)
+          ORDER BY started_at DESC
+          LIMIT 1`,
+        [jun, px, py, pid, pid],
+      );
+      const enc = encRows[0];
+      if (enc?.encounterId) {
+        const att = String(enc.attackerPlayerId || '').trim();
+        activeFightingEncounter = {
+          encounterId: enc.encounterId,
+          attackerPlayerId: att,
+          defenderPlayerId: enc.defenderPlayerId,
+          status: enc.status,
+          role: att === pid ? 'attacker' : 'defender',
+        };
+      }
+    }
+
     return {
       ok: true,
       data: {
@@ -57,6 +92,7 @@ async function getSelfRoadState(playerId) {
         roadMoveFreeDate: r.road_move_free_date || null,
         roadMoveFreeUsed: Number(r.road_move_free_used) || 0,
         pendingRoadNotice: pendingRoadNotice || undefined,
+        activeFightingEncounter: activeFightingEncounter || undefined,
       },
     };
   } catch (e) {
@@ -98,9 +134,17 @@ async function getRoadPresence(season, junId, callerPlayerId) {
               p.road_position_x AS roadPositionX,
               p.road_position_y AS roadPositionY,
               p.road_intercept AS roadIntercept,
-              p.road_updated_at AS roadUpdatedAt
+              p.road_updated_at AS roadUpdatedAt,
+              ca.display_effect AS mapDisplayEffectRaw
          FROM players p
          INNER JOIN accounts a ON a.id = p.player_id
+         LEFT JOIN player_cards pc
+           ON pc.player_id = p.player_id
+          AND pc.card_type = 'achievement'
+          AND pc.is_equipped = TRUE
+          AND pc.equipped_by = 'player'
+          AND pc.equipped_slot = 'achievement'
+         LEFT JOIN config_achievements ca ON ca.achievement_id = pc.card_id
         WHERE p.road_jun_id = ?
           AND p.road_position_x IS NOT NULL
           AND p.road_position_y IS NOT NULL
@@ -140,6 +184,7 @@ async function getRoadPresence(season, junId, callerPlayerId) {
           roadPositionY: Number(r.roadPositionY),
           roadIntercept: r.roadIntercept ? 1 : 0,
           roadUpdatedAt: r.roadUpdatedAt || null,
+          mapDisplayEffect: normalizeMapDisplayEffect(r.mapDisplayEffectRaw),
         })),
         lockedCells: locks.map((r) => ({
           encounterId: r.encounterId,

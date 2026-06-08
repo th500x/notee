@@ -15,7 +15,11 @@ function BattleLog({ logs, visible, maxWidth }) {
   if (!visible) return null;
 
   return (
-    <div className="battle-log" ref={logRef} style={{ width: maxWidth || 'auto', maxWidth: '100%' }}>
+    <div
+      className="battle-log"
+      ref={logRef}
+      style={maxWidth && maxWidth !== 'auto' ? { width: maxWidth } : undefined}
+    >
       {logs.map(log => (
         <div key={log.id} className={`le ${log.cls}`}>{log.text}</div>
       ))}

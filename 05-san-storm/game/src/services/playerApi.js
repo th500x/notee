@@ -313,6 +313,19 @@ export const playerAPI = {
     return response.json();
   },
 
+  /** 三公府 · 同级官职切换（Lv1/Lv2；24h CD） */
+  async switchSanGongFuPeerPosition(playerId, positionId) {
+    const response = await fetchWithTimeout(
+      `${API_CONFIG.BASE_URL}/players/${playerId}/san-gong-fu/switch-peer-position`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ positionId }),
+      },
+    );
+    return response.json();
+  },
+
   /** 互动 · 朝贡：当日已上缴 / 剩余额度 */
   async getSanGongFuTributeStatus(playerId) {
     const response = await fetchWithTimeout(
@@ -490,6 +503,24 @@ export const playerAPI = {
       return response.json();
     } catch (error) {
       console.error('获取成就目录失败:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * 手动领取成就（条件已达成 + 链前置已领取）
+   * @param {string} playerId
+   * @param {string} achievementId
+   */
+  async claimAchievement(playerId, achievementId) {
+    try {
+      const response = await fetchWithTimeout(
+        `${API_CONFIG.BASE_URL}/players/${playerId}/achievements/${encodeURIComponent(achievementId)}/claim`,
+        { method: 'POST', headers: { 'Content-Type': 'application/json' } },
+      );
+      return response.json();
+    } catch (error) {
+      console.error('领取成就失败:', error);
       throw error;
     }
   },
@@ -917,5 +948,28 @@ export const playerAPI = {
     }).toString();
     const response = await fetchWithTimeout(`${API_CONFIG.BASE_URL}/cities/active-pve-siege-wars?${qs}`);
     return jsonFromApiResponse(response, '活跃 PVE 攻城');
+  },
+
+  /** 真三日报 · 面板数据（32-6） */
+  async getDailyReport(playerId) {
+    const response = await fetchWithTimeout(`${API_CONFIG.BASE_URL}/players/${playerId}/daily-report`);
+    return jsonFromApiResponse(response, '获取真三日报');
+  },
+
+  /** 真三日报 · 当日签到 */
+  async postDailyReportCheckIn(playerId) {
+    const response = await fetchWithTimeout(`${API_CONFIG.BASE_URL}/players/${playerId}/daily-report/check-in`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    return jsonFromApiResponse(response, '真三日报签到');
+  },
+
+  /** 真三日报 · 顶栏红点（轻量） */
+  async getDailyReportCheckinNotify(playerId) {
+    const response = await fetchWithTimeout(
+      `${API_CONFIG.BASE_URL}/players/${playerId}/daily-report/check-in-notify`,
+    );
+    return jsonFromApiResponse(response, '获取真三日报红点');
   },
 };

@@ -2,6 +2,7 @@ import { createPortal } from 'react-dom';
 import { Suspense, lazy } from 'react';
 import ChunkLoadFallback from '@/components/game/ChunkLoadFallback';
 import StrategicSettlementCard from '@/components/world/StrategicSettlementCard';
+import { isPvpDuelDefenderType } from '@/utils/roadEncounterSettlement';
 
 const BattleArena = lazy(() => import('@/components/battle/BattleArena'));
 
@@ -122,6 +123,10 @@ export default function WorldMapBattlePortal({
           showZeroKillNote={siegeResult.killCount === 0}
           siegeCompleted={!!siegeResult.siegeCompleted}
           battleReportFailed={!!siegeResult.battleReportFailed}
+          hideNpcGarrisonLine={isPvpDuelDefenderType(siegeResult.defenderType)}
+          playerVictory={
+            siegeResult.attackerWon != null ? !!siegeResult.attackerWon : null
+          }
         />
       ) : null}
       {banditRaidResult ? (

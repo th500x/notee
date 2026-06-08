@@ -1,31 +1,22 @@
-import { useState, useRef, useCallback, useEffect, useMemo, useSyncExternalStore } from 'react';
+import { useState, useRef, useCallback, useEffect, useMemo, useSyncExternalStore, lazy, Suspense } from 'react';
 import { createPortal } from 'react-dom';
 import { usePlayerContext } from '@/contexts/PlayerContext';
 import { playerAPI } from '@/services/playerApi';
 import AncientModal from '@/components/common/AncientModal';
 import PvpAutoDuelReplay from '@/pvp/auto-duel/PvpAutoDuelReplay';
-import PvpDefenseOutcomeModal from '@/components/game/PvpDefenseOutcomeModal';
+import StrategicSettlementCard from '@/components/world/StrategicSettlementCard';
+import {
+  isPvpAuthoritativeBattleLogReplayable,
+  mapRoadEncounterOutcomeToSettlementProps,
+} from '@/utils/roadEncounterSettlement';
+
+const PvpTacticalBattleShell = lazy(() => import('@/pvp/tactical/PvpTacticalBattleShell'));
 import { RoadDefenseFrictionContext } from '@/contexts/RoadDefenseFrictionContext';
 import {
   worldMapOverlayRefs,
   subscribeWorldMapOverlayGate,
   getWorldMapOverlayGateEpoch,
 } from '@/utils/worldMapOverlayRefs';
-
-/** 与 `WorldMap` 攻方权威推演、`PvpDefenseOutcomeModal` 内回放按钮同一套战报可播性启发式 */
-function isRoadAuthoritativeBattleLogReplayable(battleLog) {
-  const logStr = Array.isArray(battleLog)
-    ? battleLog.join('\n')
-    : typeof battleLog === 'string'
-      ? battleLog
-      : '';
-  return (
-    logStr.length > 12 &&
-    /═══\s*第\s*\d+\s*回合\s*═══/.test(logStr) &&
-    /次攻击/.test(logStr) &&
-    /\[攻方\]/.test(logStr)
-  );
-}
 
 /**
  * 道路守方遇袭 + 权威裁定 UI：挂在 GamePage 常驻，避免离开大地图 Tab 时 WorldMap 卸载导致守方收不到轮询。
@@ -122,10 +113,16 @@ export default function RoadEncounterDefenseRoot({ children, onBusyChange }) {
       if (roadDefenseNotifiedEncounterIdRef.current !== enc.encounterId) {
         roadDefenseNotifiedEncounterIdRef.current = enc.encounterId;
         if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-          new Notification('🛤️ 道路遇袭', {
-            body: `${enc.attackerName || '敌方'} 在道路上发起对战，可点确定进场观战`,
+          const n = new Notification('🛤️ 道路遇袭', {
+            body: `${enc.attackerName || '敌方'} 在道路上发起对战；请回到游戏窗口查看遇袭弹窗`,
             tag: 'road-pvp',
           });
+          n.onclick = () => {
+            try {
+              window.focus();
+            } catch (_) {}
+            n.close();
+          };
         } else if (typeof Notification !== 'undefined' && Notification.permission !== 'denied') {
           Notification.requestPermission();
         }
@@ -196,10 +193,23 @@ export default function RoadEncounterDefenseRoot({ children, onBusyChange }) {
         }
         const raw = { ...r.data };
         delete raw.pending;
-        if (isRoadAuthoritativeBattleLogReplayable(raw.battleLog)) {
+        const tacticalRoomId = raw.eventReplay?.roomId || null;
+        if (tacticalRoomId) {
+          setDefenderAuthoritativeReplayOverlay({
+            encounterId: eid,
+            eventReplayRoomId: tacticalRoomId,
+            battleLogStr: '',
+            initialAttackerTroops: raw.initialAttackerTroops,
+            initialDefenderTroops: raw.initialDefenderTroops,
+            leftLabel: '攻方',
+            rightLabel: '守军',
+            outcomeForModal: raw,
+          });
+        } else if (isPvpAuthoritativeBattleLogReplayable(raw.battleLog)) {
           const logStr = Array.isArray(raw.battleLog) ? raw.battleLog.join('\n') : String(raw.battleLog || '');
           setDefenderAuthoritativeReplayOverlay({
             encounterId: eid,
+            eventReplayRoomId: null,
             battleLogStr: logStr,
             initialAttackerTroops: raw.initialAttackerTroops,
             initialDefenderTroops: raw.initialDefenderTroops,
@@ -274,8 +284,24 @@ export default function RoadEncounterDefenseRoot({ children, onBusyChange }) {
     <RoadDefenseFrictionContext.Provider value={frictionValue}>
       {children}
 
+      {typeof document !== 'undefined' && defenderAuthoritativeReplayOverlay?.eventReplayRoomId && (
+        <Suspense fallback={null}>
+          <PvpTacticalBattleShell
+            roomId={defenderAuthoritativeReplayOverlay.eventReplayRoomId}
+            title="道路遭遇"
+            onClose={() => {
+              const payload = defenderReplayOutcomePayloadRef.current;
+              setDefenderAuthoritativeReplayOverlay(null);
+              if (payload) setRoadAuthoritativeOutcomeModal(payload);
+              refreshPlayerRef.current?.({ silent: true });
+            }}
+          />
+        </Suspense>
+      )}
+
       {typeof document !== 'undefined' &&
         defenderAuthoritativeReplayOverlay &&
+        !defenderAuthoritativeReplayOverlay.eventReplayRoomId &&
         createPortal(
           <div className="pointer-events-auto fixed inset-0 z-[235] flex items-center justify-center bg-black/85 px-3 py-6">
             <div className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-xl border border-amber-600/40 bg-[#12121e] p-3 shadow-2xl">
@@ -305,17 +331,26 @@ export default function RoadEncounterDefenseRoot({ children, onBusyChange }) {
           document.body,
         )}
 
-      {!defenderAuthoritativeReplayOverlay && roadAuthoritativeOutcomeModal && (
-        <PvpDefenseOutcomeModal
-          outcome={roadAuthoritativeOutcomeModal}
-          scoreMultiplierLineLabel="PVP积分倍率"
-          replayNoticeBlockingRef={roadDefenseOutcomeReplayBlockingRef}
-          onClose={() => {
-            setRoadAuthoritativeOutcomeModal(null);
-            bumpCachesAfterRoadOutcome();
-          }}
-        />
-      )}
+      {typeof document !== 'undefined' &&
+        !defenderAuthoritativeReplayOverlay &&
+        roadAuthoritativeOutcomeModal &&
+        createPortal(
+          <div className="pointer-events-auto fixed inset-0 z-[235] flex min-h-0 flex-col">
+            <StrategicSettlementCard
+              {...mapRoadEncounterOutcomeToSettlementProps(roadAuthoritativeOutcomeModal)}
+              onConfirm={() => {
+                const notice =
+                  typeof roadAuthoritativeOutcomeModal?.defeatRetreatNotice === 'string'
+                    ? roadAuthoritativeOutcomeModal.defeatRetreatNotice.trim()
+                    : '';
+                setRoadAuthoritativeOutcomeModal(null);
+                bumpCachesAfterRoadOutcome();
+                if (notice) worldMapOverlayRefs.enqueueRoadGateNotice?.(notice);
+              }}
+            />
+          </div>,
+          document.body,
+        )}
 
       {showRoadDefenseEncounterModal && (
         <AncientModal
@@ -333,7 +368,7 @@ export default function RoadEncounterDefenseRoot({ children, onBusyChange }) {
               <span className="font-bold text-red-700">{roadDefenseAlert.attackerName}</span> 在道路上对您发起对战
             </p>
             <p className="text-gray-800">
-              点击 <span className="font-semibold text-amber-900">确定</span> 后等待服务端裁定；裁定结束后将弹出与攻城披挂同源的战报演示与评分。
+              点击 <span className="font-semibold text-amber-900">确定</span> 后等待攻方裁定（攻方约 10 秒内自动开战）；裁定结束后将播放战术对决回放并弹出战斗结算。
             </p>
             <p className="text-gray-800">
               约 <span className="text-red-700 font-bold text-xl">{roadDefenseAlert.remainingSeconds}</span>{' '}

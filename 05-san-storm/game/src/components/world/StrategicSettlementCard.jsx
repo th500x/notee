@@ -25,14 +25,14 @@ function AuthoritativeSiegeReplayButton({
         onClick={() => setOpen(true)}
         className="w-full py-2 rounded-lg bg-stone-800 border border-amber-600/40 text-amber-200 text-xs hover:bg-stone-700"
       >
-        攻城战报 · 简化回放
+        战报 · 简化回放
       </button>
       {open && (
         <AncientModal
           isOpen
           onClose={() => setOpen(false)}
           type="confirm"
-          title="攻城战报 · 简化回放"
+          title="战报 · 简化回放"
           hideButtons
           width="max-w-md"
         >
@@ -89,6 +89,10 @@ export default function StrategicSettlementCard({
   extraFooterNote = null,
   banditBadgeGranted = null,
   banditBadgeError = null,
+  /** 道路 PVP / 在线城防：不展示 NPC 守军累计行 */
+  hideNpcGarrisonLine = false,
+  /** 显式胜负（覆盖银两/击杀启发式） */
+  playerVictory = null,
 }) {
   const sr = Math.max(0, Number(silverReward) || 0);
   const personalSilver =
@@ -112,9 +116,11 @@ export default function StrategicSettlementCard({
   const kc = killCount != null && Number.isFinite(Number(killCount)) ? Number(killCount) : null;
   const kcShown = kc != null ? kc : 0;
   const showVictoryEmoji =
-    settlementKind === 'bandit'
-      ? banditOutcome === 'victory'
-      : !!((kc != null ? kcShown : 0) || personalSilver || cr || fr);
+    playerVictory != null
+      ? !!playerVictory
+      : settlementKind === 'bandit'
+        ? banditOutcome === 'victory'
+        : !!((kc != null ? kcShown : 0) || personalSilver || cr || fr);
 
   const chestList = Array.isArray(chestRewards) ? chestRewards : [];
 
@@ -160,7 +166,7 @@ export default function StrategicSettlementCard({
             {factionPoolSilver > 0 && (
               <div className="text-stone-400 text-xs">
                 另有 {factionPoolSilver} 银两入势力池
-                {sharePct != null && sharePct < 100 ? `（城战奖赏 · 个人 ${sharePct}%）` : ''}
+                {sharePct != null && sharePct < 100 ? `（个人份额 ${sharePct}%）` : ''}
               </div>
             )}
             {sr > 0 && personalSilver !== sr && personalSilver <= 0 && (
@@ -174,7 +180,7 @@ export default function StrategicSettlementCard({
             className="text-sm font-medium"
             style={{ color: getRarityHex(equipmentDrop.rarity) }}
           >
-            🎁 攻城战后随机掉落（约 5%）：{equipmentDrop.name}（{getRarityLabelCn(equipmentDrop.rarity)}）
+            🎁 战后随机掉落（约 5%）：{equipmentDrop.name}（{getRarityLabelCn(equipmentDrop.rarity)}）
           </div>
         )}
         {chestList.length > 0 && (
@@ -205,7 +211,7 @@ export default function StrategicSettlementCard({
         {kc != null && settlementKind === 'siege' ? (
           <div className="text-sm text-gray-300">本场击杀：{kc}</div>
         ) : null}
-        {settlementKind === 'siege' ? (
+        {settlementKind === 'siege' && !hideNpcGarrisonLine ? (
           <div className="text-sm text-gray-400">
             NPC守军：本场消灭 {kcShown} 支
             {siegeNpcTotal != null && Number(siegeNpcTotal) > 0 && (

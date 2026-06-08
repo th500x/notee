@@ -23,6 +23,15 @@ const {
 const NOTICE_STALE_STAND =
   '此前战事已结束或地图目标已变更，原立足格已不可用，已为您移至本郡距此最近的己方城池。'.slice(0, 510);
 
+/** 路点郡/坐标与叠图不一致：须写回正确 `road_jun_id` 并弹窗说明（禁止无提示改郡） */
+const NOTICE_JUN_COORD_FIXED = (storedJun, altJun, rx, ry) =>
+  `路点档案郡已修正：坐标 (${rx},${ry}) 实际落在「${altJun}」叠图行（原误记为「${storedJun}」），已更新 road_jun_id。若仍异常请从主城重新出征。`
+    .slice(0, 510);
+
+const NOTICE_STAND_UNREPAIRABLE = (junId, rx, ry, detail) =>
+  `路点数据异常：在郡「${junId}」坐标 (${rx},${ry}) 无法立足且无法自动迁回己方城（${detail}）。请从主城重新出征或联系管理。`
+    .slice(0, 510);
+
 async function fetchCitiesInJun(conn, season, junId) {
   const j = String(junId || '').trim();
   const s = String(season || 'san_1').trim();
@@ -107,7 +116,7 @@ async function cellTouchesActivePvpBaseCamp(conn, roadJunId, lx, ly) {
  * 在 **已 FOR UPDATE 锁定** 的 `players` 行上评估；若需修复则在本连接内 UPDATE 并返回应合并回档案对象的字段。
  * @param {*} conn
  * @param {object} pl - `players` 行（至少含 player_id, road_jun_id, road_position_x/y, faction_id）
- * @returns {Promise<{ road_position_x: number|null, road_position_y: number|null, road_client_notice: string|null }|null>}
+ * @returns {Promise<{ road_jun_id?: string, road_position_x: number|null, road_position_y: number|null, road_client_notice: string|null }|null>}
  */
 async function evaluateAndRepairLockedPlayer(conn, pl) {
   const pid = String(pl.player_id || '').trim();
@@ -166,11 +175,19 @@ async function evaluateAndRepairLockedPlayer(conn, pl) {
       if (!tj || tj === junId) continue;
       const ewAlt = playerRoadToWorldMapCell(tj, rx, ry);
       if (!isStandValidAtWorld(ewAlt)) continue;
+      const notice = NOTICE_JUN_COORD_FIXED(junId, tj, rx, ry);
+      console.error('[staleStrategicRoadStandRepair] jun/coord mismatch — fixing road_jun_id with notice:', {
+        pid,
+        storedJun: junId,
+        altJun: tj,
+        rx,
+        ry,
+      });
       await conn.query(
-        `UPDATE players SET road_jun_id = ?, road_updated_at = NOW() WHERE player_id = ?`,
-        [tj, pid],
+        `UPDATE players SET road_jun_id = ?, road_client_notice = ?, road_updated_at = NOW() WHERE player_id = ?`,
+        [tj, notice, pid],
       );
-      return null;
+      return { road_jun_id: tj, road_client_notice: notice };
     }
   }
 
@@ -186,8 +203,13 @@ async function evaluateAndRepairLockedPlayer(conn, pl) {
     noticeText: NOTICE_STALE_STAND,
   });
   if (!r.ok) {
-    console.warn('[staleStrategicRoadStandRepair] retreat failed:', r.error, { pid, junId, rx, ry });
-    return null;
+    const notice = NOTICE_STAND_UNREPAIRABLE(junId, rx, ry, r.error || '未知');
+    console.error('[staleStrategicRoadStandRepair] retreat failed:', r.error, { pid, junId, rx, ry });
+    await conn.query(
+      `UPDATE players SET road_client_notice = ?, road_updated_at = NOW() WHERE player_id = ?`,
+      [notice, pid],
+    );
+    return { road_client_notice: notice };
   }
 
   const [nr] = await conn.query(

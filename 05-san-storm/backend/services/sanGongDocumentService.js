@@ -7,7 +7,8 @@ const factionBulletinService = require('./factionBulletinService');
 
 const MAX_PER_CALENDAR_DAY = 3;
 const TIER1_POSITION_LEVEL = 1;
-const MAX_BODY_LEN = 400;
+/** 与真三日报公告节选上限一致（32-6 §4.2-E） */
+const MAX_BODY_LEN = 60;
 
 function mysqlDateToYmd(val) {
   if (val == null) return null;

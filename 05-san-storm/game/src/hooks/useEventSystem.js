@@ -819,6 +819,7 @@ export default function useEventSystem(player, cards, options = {}) {
       rewards: data.data.rewards || [],
       bonusRewards: data.data.bonusRewards || [],
       troopRepair: data.data.troopRepair || null,
+      milestoneUnlock: data.data.milestoneUnlock || null,
     });
     if (player?.playerId) {
       void refetchExplorePlayerBundle();

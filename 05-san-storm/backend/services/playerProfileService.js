@@ -13,6 +13,9 @@ const playerCardLineupService = require('./playerCardLineupService');
 const statisticsDeltaService = require('./statisticsDeltaService');
 const staleStrategicRoadStandRepairService = require('./staleStrategicRoadStandRepairService');
 const { formatPlayerProfilePayloadForApi } = require('../../shared/utils/formatPlayerProfileApi.cjs');
+const { alignAchievementProgressSeason } = require('./achievementProgressStore');
+const { drainMilestonePendingToast } = require('./milestonePendingToastStore');
+const { grantDailySilverBonusIfDue } = require('./dailySilverBonusService');
 
 /**
  * @returns {Promise<{ notFound: true } | { data: object }>}
@@ -21,6 +24,20 @@ async function getPlayerProfile(playerId) {
   const player = await Player.getById(playerId);
   if (!player) {
     return { notFound: true };
+  }
+
+  try {
+    const [accRows] = await pool.query(
+      'SELECT current_season FROM accounts WHERE id = ? LIMIT 1',
+      [playerId],
+    );
+    const accountSeason = accRows[0]?.current_season || null;
+    await alignAchievementProgressSeason(pool, playerId, accountSeason);
+  } catch (seasonErr) {
+    console.warn(
+      '[playerProfileService] achievement season align skipped:',
+      seasonErr?.message || seasonErr,
+    );
   }
 
   const clearedStaleOnDuty = await garrisonService.clearInvalidOnDutySelection(playerId);
@@ -35,6 +52,7 @@ async function getPlayerProfile(playerId) {
       playerId,
     );
     if (standPatch) {
+      if (standPatch.road_jun_id != null) player.road_jun_id = standPatch.road_jun_id;
       if (standPatch.road_position_x != null) player.road_position_x = standPatch.road_position_x;
       if (standPatch.road_position_y != null) player.road_position_y = standPatch.road_position_y;
       if (standPatch.road_client_notice != null) player.road_client_notice = standPatch.road_client_notice;
@@ -225,6 +243,25 @@ async function getPlayerProfile(playerId) {
     boundPieceIdsBySet[setId].push(ec.instance_id);
   }
 
+  const achievementCards = cards.filter((c) => c.card_type === 'achievement');
+  let achievementConfigs = {};
+  if (achievementCards.length > 0) {
+    const achIds = achievementCards.map((c) => c.card_id);
+    const placeholdersAch = achIds.map(() => '?').join(',');
+    const [aConfigs] = await pool.query(
+      `
+        SELECT achievement_id, achievement_name, description,
+               attribute_bonus, special_effect, special_effect_desc, display_effect
+        FROM config_achievements
+        WHERE achievement_id IN (${placeholdersAch})
+      `,
+      achIds,
+    );
+    aConfigs.forEach((c) => {
+      achievementConfigs[c.achievement_id] = c;
+    });
+  }
+
   const titleCards = cards.filter((c) => c.card_type === 'title');
   let titleConfigs = {};
   if (titleCards.length > 0) {
@@ -232,7 +269,7 @@ async function getPlayerProfile(playerId) {
     const placeholders3 = titleIds.map(() => '?').join(',');
     const [tConfigs] = await pool.query(
       `
-        SELECT title_id, title_name, description, display_name,
+        SELECT title_id, title_name, description,
                attribute_bonus, special_effect, special_effect_desc
         FROM config_titles
         WHERE title_id IN (${placeholders3})
@@ -414,10 +451,36 @@ async function getPlayerProfile(playerId) {
           name: cfg.title_name,
           rarity,
           description: cfg.description || null,
-          displayName: cfg.display_name || null,
           attributeBonus,
           specialEffect: cfg.special_effect || null,
           specialEffectDesc: cfg.special_effect_desc || null,
+        },
+      };
+    }
+    if (card.card_type === 'achievement' && achievementConfigs[card.card_id]) {
+      const cfg = achievementConfigs[card.card_id];
+      const idRarityMap = { '1': 'common', '2': 'rare', '3': 'epic', '4': 'legendary', '5': 'core' };
+      const parts = card.card_id.split('_');
+      const seqStr = parts[parts.length - 1] || '';
+      const rarity = idRarityMap[seqStr.charAt(0)] || 'common';
+      let attributeBonus = {};
+      if (cfg.attribute_bonus) {
+        try {
+          attributeBonus =
+            typeof cfg.attribute_bonus === 'string' ? JSON.parse(cfg.attribute_bonus) : cfg.attribute_bonus;
+        } catch {}
+      }
+      return {
+        ...card,
+        config: {
+          id: cfg.achievement_id,
+          name: cfg.achievement_name,
+          rarity,
+          description: cfg.description || null,
+          attributeBonus,
+          specialEffect: cfg.special_effect || null,
+          specialEffectDesc: cfg.special_effect_desc || null,
+          displayEffect: cfg.display_effect || null,
         },
       };
     }
@@ -466,20 +529,42 @@ async function getPlayerProfile(playerId) {
 
   const gameTime = await gameTimeService.loadGameTimeForPlayer(playerId);
 
-  return {
-    data: formatPlayerProfilePayloadForApi({
-      player: {
-        ...player,
-        silver: latestResources.silver ?? player.silver,
-        food: latestResources.food ?? player.food,
-        position_config: positionConfig,
-        attribute_bonus: attributeBonusBySlot.player,
-      },
-      cards: enrichedCards,
-      attributeBonusBySlot,
-      gameTime,
-    }),
-  };
+  let milestoneUnlockPending = null;
+  try {
+    const dailyGrant = await grantDailySilverBonusIfDue(playerId);
+    if (dailyGrant.granted > 0) {
+      const [postBonusRows] = await pool.query(
+        'SELECT silver, food FROM players WHERE player_id = ?',
+        [playerId],
+      );
+      if (postBonusRows[0]) {
+        latestResources.silver = postBonusRows[0].silver;
+        latestResources.food = postBonusRows[0].food;
+      }
+    }
+    milestoneUnlockPending = await drainMilestonePendingToast(pool, playerId);
+  } catch (tailErr) {
+    console.warn('[playerProfileService] profile tail hooks skipped:', tailErr?.message || tailErr);
+  }
+
+  const formatted = formatPlayerProfilePayloadForApi({
+    player: {
+      ...player,
+      silver: latestResources.silver ?? player.silver,
+      food: latestResources.food ?? player.food,
+      position_config: positionConfig,
+      attribute_bonus: attributeBonusBySlot.player,
+    },
+    cards: enrichedCards,
+    attributeBonusBySlot,
+    gameTime,
+  });
+
+  if (milestoneUnlockPending) {
+    formatted.milestoneUnlockPending = milestoneUnlockPending;
+  }
+
+  return { data: formatted };
 }
 
 module.exports = {

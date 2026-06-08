@@ -5,6 +5,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import FactionInfoPanel from '@/components/game/faction/FactionInfoPanel';
+import WorldMapCampaignCenterThumb from '@/components/game/WorldMapCampaignCenterThumb';
 import {
   getFactionRepresentativeColor,
   getStrategicFactionLogoUrl,
@@ -84,9 +85,18 @@ function WorldMapFactionThumb({
  *   loading?: boolean,
  *   error?: string|null,
  *   isLandscape?: boolean,
+ *   onOpenCampaignCenter?: () => void,
+ *   campaignNotifyDot?: boolean,
  * }} props
  */
-export default function WorldMapFactionStrip({ factions, loading, error, isLandscape = false }) {
+export default function WorldMapFactionStrip({
+  factions,
+  loading,
+  error,
+  isLandscape = false,
+  onOpenCampaignCenter,
+  campaignNotifyDot = false,
+}) {
   const [hoverId, setHoverId] = useState(/** @type {string|null} */ (null));
   const [pinnedId, setPinnedId] = useState(/** @type {string|null} */ (null));
   const [anchor, setAnchor] = useState(/** @type {DOMRect | null} */ (null));
@@ -221,25 +231,42 @@ export default function WorldMapFactionStrip({ factions, loading, error, isLands
         ) : error ? (
           <p className="text-xs text-red-400/90">{error}</p>
         ) : (
-          <div className={`grid ${gridClass} auto-rows-fr gap-2`}>
-            {factions.map(({ factionId, overview }) => (
-              <WorldMapFactionThumb
-                key={factionId}
-                factionId={factionId}
-                overview={overview}
-                active={openId === factionId}
-                onHoverStart={() => {
-                  setHoverId(factionId);
-                  setPinnedId(null);
-                }}
-                onHoverEnd={() => setHoverId(null)}
-                onTogglePin={() => {
-                  setHoverId(null);
-                  setPinnedId((prev) => (prev === factionId ? null : factionId));
-                }}
-              />
-            ))}
-          </div>
+          <>
+            <div className={`grid ${gridClass} auto-rows-fr gap-2`}>
+              {factions.map(({ factionId, overview }) => (
+                <WorldMapFactionThumb
+                  key={factionId}
+                  factionId={factionId}
+                  overview={overview}
+                  active={openId === factionId}
+                  onHoverStart={() => {
+                    setHoverId(factionId);
+                    setPinnedId(null);
+                  }}
+                  onHoverEnd={() => setHoverId(null)}
+                  onTogglePin={() => {
+                    setHoverId(null);
+                    setPinnedId((prev) => (prev === factionId ? null : factionId));
+                  }}
+                />
+              ))}
+            </div>
+            {typeof onOpenCampaignCenter === 'function' ? (
+              <>
+                <div
+                  className="shrink-0 border-t-2 border-amber-800/55"
+                  role="separator"
+                  aria-hidden
+                />
+                <div className={`grid ${gridClass} gap-2 pt-0.5`}>
+                  <WorldMapCampaignCenterThumb
+                    onOpen={onOpenCampaignCenter}
+                    showNotifyDot={campaignNotifyDot}
+                  />
+                </div>
+              </>
+            ) : null}
+          </>
         )}
       </div>
     </>

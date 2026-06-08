@@ -34,6 +34,7 @@ export default function LineupCardDetailOverlay({
   const baseUrl = import.meta.env.BASE_URL;
   const isTroopSlot = slot.id === 'troop' || slot.id === 'troop1' || slot.id === 'troop2';
   const isTitleSlot = slot.id === 'title';
+  const isAchievementSlot = slot.id === 'achievement';
   const isEquipmentSetSlot = slot.id === 'equipmentSet' && card?.cardType === 'equipmentSet';
   const isPositionSlot = slot.id === 'position';
   const isCharacterSlot = slot.id === 'character';
@@ -114,8 +115,12 @@ export default function LineupCardDetailOverlay({
               baseUrl={baseUrl}
               disableHoverScale
             />
-          ) : isTitleSlot ? (
-            <TitleAchievementCard item={toTitleCardData(card)} type="title" baseUrl={baseUrl} />
+          ) : isTitleSlot || isAchievementSlot ? (
+            <TitleAchievementCard
+              item={toTitleCardData(card)}
+              type={isAchievementSlot ? 'achievement' : 'title'}
+              baseUrl={baseUrl}
+            />
           ) : isEquipmentSetSlot ? (
             <EquipmentSetSquares card={card} resolveEquipPiece={resolveEquipPiece} />
           ) : isPositionSlot ? (

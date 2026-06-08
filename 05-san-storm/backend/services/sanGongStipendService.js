@@ -306,14 +306,12 @@ async function claimStipend(playerId) {
     conn.release();
   }
 
-  // 统计：基础 + Bonus 合并入账（与 players.silver / food 实际增加一致）
+  // 统计：银粮入账 player_statistics；俸禄声望/贡献仅改 players，不计活动榜/大司空日榜 earned（32-3 §4 · 26-1 §7.2）
   const finalSilver = silver + (bonusSilver || 0);
   const finalFood = food + (bonusFood || 0);
   await statisticsDeltaService.recordEarned(pid, {
     ...(finalSilver > 0 ? { silver: finalSilver } : {}),
     ...(finalFood > 0 ? { food: finalFood } : {}),
-    ...(reputationGrant > 0 ? { reputation: reputationGrant } : {}),
-    ...(contributionGrant > 0 ? { contribution: contributionGrant } : {}),
   });
 
   return {

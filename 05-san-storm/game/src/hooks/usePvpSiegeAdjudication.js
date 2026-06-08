@@ -5,6 +5,10 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { API_CONFIG } from '@/constants';
 import { fetchWithTimeout } from '@/services/httpClient';
 import { scheduleAfterMinAdjudicationUi } from '@/utils/pvpSiegeTiming';
+import {
+  isPvpAuthoritativeBattleLogReplayable,
+  normalizePvpSiegeDefenseOutcomeForSettlement,
+} from '@/utils/roadEncounterSettlement';
 
 export function usePvpSiegeAdjudication({
   playerId,
@@ -16,13 +20,14 @@ export function usePvpSiegeAdjudication({
   const [pvpChallenge, setPvpChallenge] = useState(null);
   const [pvpCountdown, setPvpCountdown] = useState(0);
   const [pvpDefenseWaiting, setPvpDefenseWaiting] = useState(null);
-  const [pvpDefenseOutcome, setPvpDefenseOutcome] = useState(null);
+  const [pvpDefenseSettlementRaw, setPvpDefenseSettlementRaw] = useState(null);
   const [pvpAttackerAdjudicating, setPvpAttackerAdjudicating] = useState(null);
   const [authoritativeReplayOverlay, setAuthoritativeReplayOverlay] = useState(null);
 
   const pvpTimerRef = useRef(null);
   const pvpResolveOnceRef = useRef(false);
   const pvpDefenseOutcomeHandledRef = useRef(false);
+  const pvpDefenseReplayOutcomeRef = useRef(null);
 
   // 攻方：deadline 触发 siege-resolve → 最短裁定 UI → 简化回放 → 结算
   useEffect(() => {
@@ -125,12 +130,51 @@ export function usePvpSiegeAdjudication({
         if (r.success && r.outcome && !pvpDefenseOutcomeHandledRef.current) {
           pvpDefenseOutcomeHandledRef.current = true;
           const startedAt = pvpDefenseWaiting.startedAt ?? Date.now();
-          const outcome = r.outcome;
+          const raw = normalizePvpSiegeDefenseOutcomeForSettlement(r.outcome);
           scheduleAfterMinAdjudicationUi(startedAt, () => {
             setPvpDefenseWaiting(null);
-            setPvpDefenseOutcome(outcome);
-            onGarrisonStatsBump?.();
-            refreshPlayer({ silent: true });
+            const tacticalRoomId = raw.eventReplay?.roomId || null;
+            const logStr = Array.isArray(raw.battleLog) ? raw.battleLog.join('\n') : '';
+            const openSettlement = () => {
+              setPvpDefenseSettlementRaw(raw);
+              onGarrisonStatsBump?.();
+              refreshPlayer({ silent: true });
+            };
+            const finishReplay = () => {
+              setAuthoritativeReplayOverlay(null);
+              const payload = pvpDefenseReplayOutcomeRef.current;
+              pvpDefenseReplayOutcomeRef.current = null;
+              if (payload) setPvpDefenseSettlementRaw(payload);
+              onGarrisonStatsBump?.();
+              refreshPlayer({ silent: true });
+            };
+            if (tacticalRoomId) {
+              pvpDefenseReplayOutcomeRef.current = raw;
+              setAuthoritativeReplayOverlay({
+                battleLogStr: '',
+                eventReplayRoomId: tacticalRoomId,
+                eventReplayTitle: '城防对决',
+                initialAttackerTroops: raw.initialAttackerTroops,
+                initialDefenderTroops: raw.initialDefenderTroops,
+                leftLabel: '攻方',
+                rightLabel: '守军',
+                onPlaybackComplete: finishReplay,
+              });
+            } else if (isPvpAuthoritativeBattleLogReplayable(raw.battleLog)) {
+              pvpDefenseReplayOutcomeRef.current = raw;
+              setAuthoritativeReplayOverlay({
+                battleLogStr: logStr,
+                eventReplayRoomId: null,
+                eventReplayTitle: '城防对决',
+                initialAttackerTroops: raw.initialAttackerTroops,
+                initialDefenderTroops: raw.initialDefenderTroops,
+                leftLabel: '攻方',
+                rightLabel: '守军',
+                onPlaybackComplete: finishReplay,
+              });
+            } else {
+              openSettlement();
+            }
           });
         }
       } catch {
@@ -159,8 +203,8 @@ export function usePvpSiegeAdjudication({
     setPvpCountdown,
     pvpDefenseWaiting,
     setPvpDefenseWaiting,
-    pvpDefenseOutcome,
-    setPvpDefenseOutcome,
+    pvpDefenseSettlementRaw,
+    setPvpDefenseSettlementRaw,
     pvpAttackerAdjudicating,
     authoritativeReplayOverlay,
     setAuthoritativeReplayOverlay,

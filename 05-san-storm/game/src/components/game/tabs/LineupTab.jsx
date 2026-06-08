@@ -124,17 +124,27 @@ export default function LineupTab({ onClose, onOpenAttributeReroll }) {
   /* ── 卡牌分类（按上阵装备情况切片） ── */
   const troopCards = cards.filter((c) => c.cardType === 'troop');
   const titleCards = cards.filter((c) => c.cardType === 'title');
+  const achievementCards = cards.filter((c) => c.cardType === 'achievement');
   const characterCards = cards.filter((c) => c.cardType === 'character');
 
   const playerTroops = troopCards.filter((c) => c.equippedBy === 'player' && c.isEquipped && c.equippedSlot === 'troop');
   const playerTitles = titleCards.filter((c) => c.equippedBy === 'player' && c.isEquipped && c.equippedSlot === 'title');
+  const playerAchievements = achievementCards.filter(
+    (c) => c.equippedBy === 'player' && c.isEquipped && c.equippedSlot === 'achievement',
+  );
 
   const char1Troops = troopCards.filter((c) => c.equippedBy === 'character1' && c.isEquipped && (c.equippedSlot === 'troop1' || c.equippedSlot === 'troop2'));
   const char1Titles = titleCards.filter((c) => c.equippedBy === 'character1' && c.isEquipped && c.equippedSlot === 'title');
+  const char1Achievements = achievementCards.filter(
+    (c) => c.equippedBy === 'character1' && c.isEquipped && c.equippedSlot === 'achievement',
+  );
   const char1Character = characterCards.find((c) => c.equippedBy === 'character1' && c.isEquipped && c.equippedSlot === 'character');
 
   const char2Troops = troopCards.filter((c) => c.equippedBy === 'character2' && c.isEquipped && (c.equippedSlot === 'troop1' || c.equippedSlot === 'troop2'));
   const char2Titles = titleCards.filter((c) => c.equippedBy === 'character2' && c.isEquipped && c.equippedSlot === 'title');
+  const char2Achievements = achievementCards.filter(
+    (c) => c.equippedBy === 'character2' && c.isEquipped && c.equippedSlot === 'achievement',
+  );
   const char2Character = characterCards.find((c) => c.equippedBy === 'character2' && c.isEquipped && c.equippedSlot === 'character');
 
   /* ── 可装备池（已排除被驻地占用的实例 + 主城驻军所仓库内卡） ── */
@@ -144,6 +154,7 @@ export default function LineupTab({ onClose, onOpenAttributeReroll }) {
     return true;
   });
   const unequippedTitles = titleCards.filter((c) => !c.isEquipped && !garrisonIds.has(c.instanceId));
+  const unequippedAchievements = achievementCards.filter((c) => !c.isEquipped && !garrisonIds.has(c.instanceId));
   const unequippedCharacters = characterCards.filter((c) => !c.isEquipped && !garrisonIds.has(c.instanceId));
   const unequippedEquipmentSets = cards.filter(
     (c) =>
@@ -196,6 +207,8 @@ export default function LineupTab({ onClose, onOpenAttributeReroll }) {
           ) || null;
         case 'title':
           return playerTitles[0] || null;
+        case 'achievement':
+          return playerAchievements[0] || null;
         case 'position':
           return player?.positionConfig || (player?.currentPositionName
             ? { name: player.currentPositionName, level: player.positionLevel }
@@ -207,6 +220,7 @@ export default function LineupTab({ onClose, onOpenAttributeReroll }) {
     // 将领：精确匹配 equipped_slot
     const troops = subTab === 'char1' ? char1Troops : char2Troops;
     const titles = subTab === 'char1' ? char1Titles : char2Titles;
+    const achievements = subTab === 'char1' ? char1Achievements : char2Achievements;
     const equipmentSet = cards.find(
       (c) =>
         c.cardType === 'equipmentSet' &&
@@ -219,6 +233,7 @@ export default function LineupTab({ onClose, onOpenAttributeReroll }) {
       case 'troop2': return troops.find((c) => c.equippedSlot === 'troop2') || null;
       case 'equipmentSet': return equipmentSet || null;
       case 'title': return titles[0] || null;
+      case 'achievement': return achievements[0] || null;
       default: return null;
     }
   };
@@ -239,6 +254,7 @@ export default function LineupTab({ onClose, onOpenAttributeReroll }) {
       });
     }
     if (selectedSlot.id === 'title') return unequippedTitles;
+    if (selectedSlot.id === 'achievement') return unequippedAchievements;
     if (selectedSlot.id === 'equipmentSet') return unequippedEquipmentSets;
     return [];
   };

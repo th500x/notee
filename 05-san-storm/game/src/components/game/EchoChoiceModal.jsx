@@ -54,59 +54,69 @@ export default function EchoChoiceModal({
       title="重复将领 · 请选择"
       onClose={handleConfirm}
       confirmDisabled={!selectedChoice || loading}
-      confirmLabel={loading ? '提交中…' : '确认'}
+      confirmLabel="确认"
+      confirmBusy={loading}
     >
-      {poolFull && (
-        <div className="mb-3 px-3 py-2.5 rounded-lg bg-amber-950/90 border-2 border-amber-500/50 text-[12px] leading-relaxed text-amber-50">
-          卡池残影已满 2/2，仅可转化
+      <div className="relative">
+        {loading && (
+          <div
+            className="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-stone-900/75 pointer-events-none"
+            aria-hidden="true"
+          >
+            <span className="text-amber-200 text-xs font-medium">正在写入…</span>
+          </div>
+        )}
+
+        {poolFull && (
+          <div className="mb-3 px-3 py-2.5 rounded-lg bg-amber-950/90 border-2 border-amber-500/50 text-[12px] leading-relaxed text-amber-50">
+            卡池残影已满 2/2，仅可转化
+          </div>
+        )}
+
+        {card && (
+          <div className="flex justify-center mb-4">
+            <CharacterCard character={card} skillsMap={skillsMap} showDetails baseUrl={baseUrl} disableHoverScale />
+          </div>
+        )}
+
+        <p className="text-stone-300 text-xs text-center mb-3 leading-relaxed">
+          再次抽到已持有的将领。可先切换选项，点「确认」后生效。
+        </p>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-3">
+          {(['attack', 'defense', 'convert']).map((key) => {
+            const meta = CHOICE_META[key];
+            const optionDisabled = loading || (key !== 'convert' && !canEcho);
+            const selected = selectedChoice === key;
+            return (
+              <button
+                key={key}
+                type="button"
+                disabled={optionDisabled}
+                onClick={() => setSelectedChoice(key)}
+                className={`rounded-xl border-2 px-3 py-3 text-left transition-colors
+                  ${selected
+                    ? 'border-amber-400 bg-amber-950/40 text-amber-50 ring-2 ring-amber-500/50'
+                    : optionDisabled
+                      ? 'border-stone-700 bg-stone-800/60 text-stone-500 cursor-not-allowed opacity-60'
+                      : 'border-amber-600/60 bg-stone-800 hover:border-amber-400 hover:bg-stone-750 text-stone-100'}`}
+              >
+                <div className="text-lg mb-1">{meta.emoji} {meta.title}</div>
+                <div className="text-[11px] text-stone-400 leading-snug">{meta.body}</div>
+              </button>
+            );
+          })}
         </div>
-      )}
 
-      {card && (
-        <div className="flex justify-center mb-4">
-          <CharacterCard character={card} skillsMap={skillsMap} showDetails baseUrl={baseUrl} disableHoverScale />
+        {error ? (
+          <div className="text-red-400 text-xs text-center mb-2 min-h-[1.25rem]">{error}</div>
+        ) : (
+          <div className="mb-2 min-h-[1.25rem]" aria-hidden="true" />
+        )}
+
+        <div className="text-[10px] text-stone-500 text-center mt-2">
+          记录 #{pendingEchoDrawId}
         </div>
-      )}
-
-      <p className="text-stone-300 text-xs text-center mb-3 leading-relaxed">
-        再次抽到已持有的将领。可先切换选项，点「确认」后生效。
-      </p>
-
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-3">
-        {(['attack', 'defense', 'convert']).map((key) => {
-          const meta = CHOICE_META[key];
-          const optionDisabled = loading || (key !== 'convert' && !canEcho);
-          const selected = selectedChoice === key;
-          return (
-            <button
-              key={key}
-              type="button"
-              disabled={optionDisabled}
-              onClick={() => setSelectedChoice(key)}
-              className={`rounded-xl border-2 px-3 py-3 text-left transition-all
-                ${selected
-                  ? 'border-amber-400 bg-amber-950/40 text-amber-50 ring-2 ring-amber-500/50'
-                  : optionDisabled
-                    ? 'border-stone-700 bg-stone-800/60 text-stone-500 cursor-not-allowed opacity-60'
-                    : 'border-amber-600/60 bg-stone-800 hover:border-amber-400 hover:bg-stone-750 text-stone-100 active:scale-[0.98]'}`}
-            >
-              <div className="text-lg mb-1">{meta.emoji} {meta.title}</div>
-              <div className="text-[11px] text-stone-400 leading-snug">{meta.body}</div>
-            </button>
-          );
-        })}
-      </div>
-
-      {error && (
-        <div className="text-red-400 text-xs text-center mb-2">{error}</div>
-      )}
-
-      {loading && (
-        <div className="text-amber-300 text-xs text-center">正在写入…</div>
-      )}
-
-      <div className="text-[10px] text-stone-500 text-center mt-2">
-        记录 #{pendingEchoDrawId}
       </div>
     </PoolResultModalFrame>
   );
