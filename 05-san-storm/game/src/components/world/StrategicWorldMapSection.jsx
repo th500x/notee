@@ -30,7 +30,6 @@ import { useStrategicJunBanditRaidQuotas } from '@/hooks/useStrategicJunBanditRa
 import { API_CONFIG } from '@/constants';
 import { fetchWithTimeout } from '@/services/httpClient';
 import { useStrategicMapNavigation } from '@/contexts/StrategicMapNavigationContext';
-import { useMapHudVisibility } from '@/contexts/MapHudVisibilityContext';
 import { playerAPI } from '@/services/playerApi';
 import { createRoadClientRequestId } from '@/utils/roadClientRequestId';
 import { warAPI } from '@/services/warApi';
@@ -374,7 +373,6 @@ export default function StrategicWorldMapSection({
   }, []);
 
   const strategicNav = useStrategicMapNavigation();
-  const { mapHudButtonsVisible } = useMapHudVisibility();
 
   useEffect(() => {
     if (!playerId) {
