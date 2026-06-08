@@ -20,6 +20,21 @@ export function clearExploreResumeLocal(pendingKey) {
   }
 }
 
+/** 离屏 30s 自动结算后、用户确认前若杀进程：重进时续接 endBattle */
+export function exploreAwayBattleEndStorageKey(pendingKey) {
+  return pendingKey ? `${pendingKey}_away_battle_end` : null;
+}
+
+export function clearExploreAwayBattleEndLocal(pendingKey) {
+  const k = exploreAwayBattleEndStorageKey(pendingKey);
+  if (!k) return;
+  try {
+    localStorage.removeItem(k);
+  } catch {
+    /* ignore */
+  }
+}
+
 /** 与大地图探索、荒郊/集市内嵌条、匪寨格共用的配置池 trigger_context */
 export const EXPLORE_RELATED_TRIGGER_CONTEXTS = [
   'explore',

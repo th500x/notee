@@ -41,6 +41,7 @@ function resolveOpponentType(battleType) {
  * @param {object|null}  battleSettledRef   - 战役专用：结算触发后置 true（useRef）
  * @param {object}       pendingAwayNoticeRef - 来自 useAwayTimeout，是否弹离开提示
  * @param {object|null}  [smallMapPveLoot] - 写入战报 rewards.smallMapPveLoot；仅胜利时由后端 applyDeclaredSmallMapPveLoot（匪寨每层即时奖励等）
+ * @param {function}     [onDeferredAwayBattleEnd] - 离屏结算待确认时持久化 payload（事件惩罚战续接）
  * @param {function}     onBattleEnd        - (result, silverSpent, scoreResult, killedIndices, meta) => void
  */
 export function useBattleSettlement({
@@ -63,6 +64,7 @@ export function useBattleSettlement({
   battleSettledRef,
   pendingAwayNoticeRef,
   smallMapPveLoot = null,
+  onDeferredAwayBattleEnd = null,
   onBattleEnd,
 }) {
   const endedRef = useRef(false);
@@ -303,6 +305,9 @@ export function useBattleSettlement({
           killedIndices,
           meta: endMeta,
         };
+        if (typeof onDeferredAwayBattleEnd === 'function') {
+          onDeferredAwayBattleEnd(pendingAwayEndRef.current);
+        }
         if (mountedRef.current) setAwayNoticeOpen(true);
       } else {
         clearInflightBattleTroopSnapshot();

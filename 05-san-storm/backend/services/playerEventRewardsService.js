@@ -14,6 +14,13 @@ const {
 const playerExploreEventService = require('./playerExploreEventService');
 const statisticsDeltaService = require('./statisticsDeltaService');
 const { runPlayerMilestoneCheckSafe } = require('./milestoneHookHelper');
+const {
+  parseExplorePunishBattleLock,
+  buildExplorePunishBattleLock,
+  isPendingPunishRewardRequest,
+  lockedFortuneToInternal,
+  fortuneToApiPayload,
+} = require('../../shared/utils/explorePunishBattleSessionLock.cjs');
 
 /**
  * @param {string} playerId
@@ -73,6 +80,38 @@ async function executeEventRewards(playerId, body) {
       : eventItems;
   }
 
+  const { sessionLock: existingSessionLockRaw } = await playerExploreEventService.getExploreEvents(playerId);
+  const existingPunishLock = parseExplorePunishBattleLock(existingSessionLockRaw);
+
+  if (existingPunishLock && !battleResult) {
+    if (!isPendingPunishRewardRequest(existingPunishLock, eventId, optionKey, battleResult)) {
+      return {
+        ok: false,
+        status: 409,
+        json: {
+          success: false,
+          error: '探索惩罚战进行中，请先完成战斗',
+          code: 'EXPLORE_PUNISH_BATTLE_PENDING',
+        },
+      };
+    }
+  } else if (existingPunishLock && battleResult) {
+    if (
+      existingPunishLock.eventId !== String(eventId) ||
+      existingPunishLock.optionKey !== optionKey
+    ) {
+      return {
+        ok: false,
+        status: 409,
+        json: {
+          success: false,
+          error: '探索惩罚战进行中，请先完成当前战斗结算',
+          code: 'EXPLORE_PUNISH_BATTLE_PENDING',
+        },
+      };
+    }
+  }
+
   // 仅事件链防重复；普通探索可重复。链上一环已完成但未拿下一环信物时可重做（与 filterExploreEventsPool 一致）
   if (eventRows[0].chain_id) {
     const [eventProgress] = await pool.query('SELECT explore_events FROM player_events WHERE player_id = ?', [
@@ -103,8 +142,12 @@ async function executeEventRewards(playerId, body) {
     }
   }
 
+  let punishBattleReplay = false;
   let fortune;
-  if (option.mainFactor === 'minigame' && minigameResult) {
+  if (existingPunishLock && isPendingPunishRewardRequest(existingPunishLock, eventId, optionKey, battleResult)) {
+    fortune = lockedFortuneToInternal(existingPunishLock.lockedFortune);
+    punishBattleReplay = true;
+  } else if (option.mainFactor === 'minigame' && minigameResult) {
     const dice = minigameResult === 'victory' ? Math.floor(Math.random() * 6) + 1 : 2;
     fortune =
       minigameResult === 'victory'
@@ -122,6 +165,18 @@ async function executeEventRewards(playerId, body) {
       general1Attrs || { luck: 5, courage: 5, combat: 5, command: 5, intelligence: 5, politics: 5, charm: 5 },
       general2Attrs || { luck: 5, courage: 5, combat: 5, command: 5, intelligence: 5, politics: 5, charm: 5 }
     );
+  }
+
+  if (punishBattleReplay) {
+    return {
+      ok: true,
+      data: {
+        fortune: fortuneToApiPayload(fortune),
+        rewards: [],
+        bonusRewards: [],
+        punishBattlePending: true,
+      },
+    };
   }
 
   /** 事件级 `required_items` 中的链钥匙道具（如 item_troop_tag）；见 config_events.required_items */
@@ -454,17 +509,19 @@ async function executeEventRewards(playerId, body) {
 
   const milestoneUnlock = await runPlayerMilestoneCheckSafe(playerId, 'event_complete');
 
+  if (pendingPunishBattle) {
+    await playerExploreEventService.setExploreSessionLock(
+      playerId,
+      buildExplorePunishBattleLock({ eventId, optionKey, lockedFortune: fortune }),
+    );
+  } else if (battleResult) {
+    await playerExploreEventService.setExploreSessionLock(playerId, null);
+  }
+
   return {
     ok: true,
     data: {
-      fortune: {
-        name: fortune.fortuneName,
-        multiplier: fortune.multiplier,
-        dice: fortune.dice,
-        diceMultiplier: fortune.diceMultiplier,
-        baseScore: fortune.baseScore,
-        finalRate: fortune.finalRate,
-      },
+      fortune: fortuneToApiPayload(fortune),
       rewards: result.details,
       bonusRewards: bonusResult ? bonusResult.details : [],
       ...(milestoneUnlock

@@ -16,6 +16,7 @@ import { useSkillsMap } from '@/hooks/useSkillsMap';
 export default function EventBattle({
   onBattleEnd, playerId, playerName, playerSilver, currentEvent, chosenOption,
   enemySlotRarities = null,
+  onDeferredAwayBattleEnd = null,
 }) {
   const { player, cards, attributeBonusBySlot } = usePlayerContext();
   const skillsMap = useSkillsMap();
@@ -66,6 +67,7 @@ export default function EventBattle({
       battleType="pve_event"
       opponentName="事件战斗"
       onBattleEnd={handleEnd}
+      onDeferredAwayBattleEnd={onDeferredAwayBattleEnd}
       eventExtraEnemyCharacterIds={null}
       eventPunishmentExtraSlot={eventPunishmentExtraSlot}
     />

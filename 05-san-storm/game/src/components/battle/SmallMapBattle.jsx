@@ -85,6 +85,7 @@ export default function SmallMapBattle({
   eventExtraEnemyCharacterIds = null,
   eventPunishmentExtraSlot = false,
   cards = null,
+  onDeferredAwayBattleEnd = null,
 }) {
   useBgmScene('battle_small');
 
@@ -208,6 +209,7 @@ export default function SmallMapBattle({
     battleSettledRef: null,
     pendingAwayNoticeRef,
     smallMapPveLoot,
+    onDeferredAwayBattleEnd,
     onBattleEnd: wrappedOnBattleEnd,
   });
 

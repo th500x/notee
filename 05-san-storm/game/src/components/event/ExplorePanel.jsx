@@ -35,6 +35,7 @@ export default function ExplorePanel({ eventSystem }) {
     minigameInfo, isSuccess, team, replaceVars, eventLocationLabel, itemNameMap, playerSilver,
     playerResources, playerItemsList,
     closeEvent, chooseOption, confirmResult, endBattle, endMinigame, closeReward,
+    persistDeferredAwayBattleEnd,
     rewardDetails, battleScore, battleChestRewards = [], playerId, isTutorial,
     battleEntryBlockedMessage, dismissBattleEntryBlocked,
     exploreNoticeMessage, dismissExploreNotice,
@@ -164,6 +165,7 @@ export default function ExplorePanel({ eventSystem }) {
       {phase === PHASE.BATTLE && (
         <EventBattle
           onBattleEnd={endBattle}
+          onDeferredAwayBattleEnd={persistDeferredAwayBattleEnd}
           playerId={playerId}
           playerName={team.player?.name}
           playerSilver={playerSilver}

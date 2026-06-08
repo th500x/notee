@@ -13,6 +13,7 @@
 import { useState, useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { API_CONFIG } from '@/constants';
 import { fetchWithTimeout } from '@/services/httpClient';
+import { playerAPI } from '@/services/playerApi';
 import { usePlayerContext } from '@/contexts/PlayerContext';
 import { PHASE, FORTUNE_LEVELS } from '@/components/event/EventConstants';
 import {
@@ -41,7 +42,15 @@ import {
   pendingMapEventHintStorageKey,
   exploreResumeStorageKey,
   clearExploreResumeLocal,
+  exploreAwayBattleEndStorageKey,
+  clearExploreAwayBattleEndLocal,
 } from '@/utils/eventExplorePersistence';
+import {
+  parseExplorePunishBattleLock,
+  isPendingPunishRewardRequest,
+  fortuneUiFromPunishBattleLock,
+  chosenOptionFromPunishLock,
+} from '@/utils/explorePunishBattleLock';
 import {
   toDisplayAttrs,
   getEquippedGenerals,
@@ -110,6 +119,29 @@ export default function useEventSystem(player, cards, options = {}) {
     }
   }, [pendingKey]);
 
+  const clearRemoteExploreSessionLock = useCallback(async () => {
+    if (!player?.playerId) return;
+    try {
+      await playerAPI.patchExploreSessionLock(player.playerId, null);
+      setExploreSessionLock(null);
+      await refetchExploreProgress();
+    } catch {
+      /* ignore */
+    }
+  }, [player?.playerId, setExploreSessionLock, refetchExploreProgress]);
+
+  const restoreFromPunishLock = useCallback((event, lock, phaseOverride = PHASE.RESULT) => {
+    if (!event || !lock) return;
+    setCurrentEvent(event);
+    setPendingEventRaw(event);
+    setChosenOptionKey(lock.optionKey);
+    const opt = chosenOptionFromPunishLock(event, lock);
+    if (opt) setChosenOption(opt);
+    const f = fortuneUiFromPunishBattleLock(lock);
+    if (f) setFortune(f);
+    setPhase(phaseOverride);
+  }, []);
+
   const [rewardDetails, setRewardDetails] = useState(null);
   /** 教程链官职授予短期遮罩 */
   const [positionAnimation, setPositionAnimation] = useState(null);
@@ -171,9 +203,57 @@ export default function useEventSystem(player, cards, options = {}) {
       setPhase(resume.phase);
     } else if (pendingFromLs && !resume) {
       setCurrentEvent(pendingFromLs);
-      setPhase(PHASE.EVENT);
     }
   }, [pendingKey, persistMapEventHint]);
+
+  /** 无 local resume 时：依服务端 punish_battle 锁恢复 RESULT，避免回到 EVENT 重掷骰 */
+  useEffect(() => {
+    if (!pendingKey || !persistMapEventHint || !exploreProgressReady) return;
+
+    let pendingFromLs = null;
+    try {
+      const s = localStorage.getItem(pendingKey);
+      if (s) pendingFromLs = JSON.parse(s);
+    } catch {
+      /* ignore */
+    }
+    if (!pendingFromLs) return;
+
+    const rk = exploreResumeStorageKey(pendingKey);
+    try {
+      if (rk && localStorage.getItem(rk)) return;
+    } catch {
+      /* ignore */
+    }
+
+    const punishLock = parseExplorePunishBattleLock(exploreSessionLock);
+    if (punishLock && punishLock.eventId === pendingFromLs.event_id) {
+      restoreFromPunishLock(pendingFromLs, punishLock, PHASE.RESULT);
+      return;
+    }
+
+    if (phase === PHASE.IDLE) {
+      setCurrentEvent(pendingFromLs);
+      setPhase(PHASE.EVENT);
+    }
+  }, [
+    exploreProgressReady,
+    exploreSessionLock,
+    pendingKey,
+    persistMapEventHint,
+    restoreFromPunishLock,
+    phase,
+  ]);
+
+  /** 服务端已锁凶运但本地停在 ROLLING（杀进程丢失 setTimeout）→ 直接进 RESULT */
+  useEffect(() => {
+    if (phase !== PHASE.ROLLING || !currentEvent) return;
+    const punishLock = parseExplorePunishBattleLock(exploreSessionLock);
+    if (!punishLock || punishLock.eventId !== currentEvent.event_id) return;
+    const f = fortuneUiFromPunishBattleLock(punishLock);
+    if (f) setFortune(f);
+    setPhase(PHASE.RESULT);
+  }, [phase, exploreSessionLock, currentEvent]);
 
   useEffect(() => {
     if (!pendingKey || !persistMapEventHint) return;
@@ -465,6 +545,17 @@ export default function useEventSystem(player, cards, options = {}) {
   const startExplore = useCallback((locationOverride, exploreOpts, completedEventsOverride, playerItemCountsOverride) => {
     if (!playerAttrs) return false;
     setExploreNoticeMessage(null);
+
+    const punishLockEarly = parseExplorePunishBattleLock(exploreSessionLock);
+    if (punishLockEarly) {
+      if (pendingEvent?.event_id === punishLockEarly.eventId) {
+        restoreFromPunishLock(pendingEvent, punishLockEarly, PHASE.RESULT);
+        return true;
+      }
+      setExploreNoticeMessage('请先完成进行中的惩罚战');
+      return false;
+    }
+
     if (pendingKey) {
       clearExploreResumeLocal(pendingKey);
       try {
@@ -576,6 +667,8 @@ export default function useEventSystem(player, cards, options = {}) {
     setPendingEvent,
     exploreProgressReady,
     pendingKey,
+    exploreSessionLock,
+    restoreFromPunishLock,
   ]);
 
   /** 探索结算 RETURNING→IDLE：先拉库内 explore_events，再用快照抽下一环（避免教程 autoplay 抢在 setState 前重复链首） */
@@ -715,12 +808,14 @@ export default function useEventSystem(player, cards, options = {}) {
     tutorialExploreBlockedRef.current = false;
     if (pendingKey) {
       clearExploreResumeLocal(pendingKey);
+      clearExploreAwayBattleEndLocal(pendingKey);
       try {
         localStorage.removeItem(`${pendingKey}_inprogress`);
       } catch {
         /* ignore */
       }
     }
+    void clearRemoteExploreSessionLock();
     if (persistMapEventHint && player?.playerId) {
       try {
         const k = pendingMapEventHintStorageKey(player.playerId);
@@ -743,7 +838,7 @@ export default function useEventSystem(player, cards, options = {}) {
     setRewardDetails(null);
     setPhase(PHASE.IDLE);
     void refetchExploreProgress();
-  }, [pendingKey, setPendingEvent, persistMapEventHint, player?.playerId, refetchExploreProgress]);
+  }, [pendingKey, setPendingEvent, persistMapEventHint, player?.playerId, refetchExploreProgress, clearRemoteExploreSessionLock]);
 
   // 关闭事件对话框（未选选项）：已在本轮 `startExplore` 扣过次数则退还，并清空 pending，避免与「已扣费」状态不一致。
   const closeEvent = useCallback(() => {
@@ -751,11 +846,16 @@ export default function useEventSystem(player, cards, options = {}) {
     clearInflightBattleTroopSnapshot();
     if (pendingKey) {
       clearExploreResumeLocal(pendingKey);
+      clearExploreAwayBattleEndLocal(pendingKey);
       try {
         localStorage.removeItem(`${pendingKey}_inprogress`);
       } catch {
         /* ignore */
       }
+    }
+    const punishLock = parseExplorePunishBattleLock(exploreSessionLock);
+    if (punishLock && currentEvent?.event_id === punishLock.eventId) {
+      void clearRemoteExploreSessionLock();
     }
     tutorialExploreBlockedRef.current = false;
     strategicExploreReopenBridge.clear();
@@ -765,7 +865,7 @@ export default function useEventSystem(player, cards, options = {}) {
     setPhase(PHASE.IDLE);
     setCurrentEvent(null);
     setPendingEvent(null);
-  }, [currentEvent, quota, setPendingEvent, pendingKey]);
+  }, [currentEvent, quota, setPendingEvent, pendingKey, exploreSessionLock, clearRemoteExploreSessionLock]);
 
   // 请求后端发放奖励（统一入口）
   const requestRewards = useCallback((optKey, extraBody = {}) => {
@@ -793,7 +893,16 @@ export default function useEventSystem(player, cards, options = {}) {
       const err =
         (data && typeof data.error === 'string' && data.error.trim())
         || (data == null ? '网络异常，请稍后重试' : '奖励发放失败，请稍后重试');
+      const errCode = data && typeof data.code === 'string' ? data.code : '';
       console.error('[useEventSystem] 奖励发放失败:', err);
+      if (errCode === 'EXPLORE_PUNISH_BATTLE_PENDING' && currentEvent) {
+        const punishLock = parseExplorePunishBattleLock(exploreSessionLock);
+        if (punishLock) {
+          restoreFromPunishLock(currentEvent, punishLock, PHASE.RESULT);
+        }
+        setExploreNoticeMessage(err);
+        return false;
+      }
       const isDup = err.includes('已完成') || err.includes('重复');
       if (isDup) {
         console.log('[useEventSystem] 事件已完成或重复领取，跳过并退还探索次数');
@@ -825,10 +934,32 @@ export default function useEventSystem(player, cards, options = {}) {
       void refetchExplorePlayerBundle();
     }
     return true;
-  }, [quota, currentEvent, resetExploreSessionAfterAbort, player?.playerId, refetchExplorePlayerBundle]);
+  }, [
+    quota,
+    currentEvent,
+    resetExploreSessionAfterAbort,
+    player?.playerId,
+    refetchExplorePlayerBundle,
+    exploreSessionLock,
+    restoreFromPunishLock,
+  ]);
 
   // 选择选项（探索次数已在 `startExplore` 扣除，此处不再 consume）
   const chooseOption = useCallback((option, optionKey) => {
+    const punishLock = parseExplorePunishBattleLock(exploreSessionLock);
+    if (
+      punishLock &&
+      currentEvent?.event_id === punishLock.eventId &&
+      punishLock.optionKey === optionKey
+    ) {
+      setChosenOption(option);
+      setChosenOptionKey(optionKey);
+      const f = fortuneUiFromPunishBattleLock(punishLock);
+      if (f) setFortune(f);
+      setPhase(PHASE.RESULT);
+      return;
+    }
+
     setChosenOption(option);
     setChosenOptionKey(optionKey);
     pendingRewardResponse.current = null;
@@ -875,7 +1006,19 @@ export default function useEventSystem(player, cards, options = {}) {
         });
       }
     }, 1000);
-  }, [requestRewards, applyRewardResponse, pendingKey, currentEvent]);
+  }, [requestRewards, applyRewardResponse, pendingKey, currentEvent, exploreSessionLock]);
+
+  /** 离屏 30s 自动结算后写入 localStorage，重进游戏续接 endBattle */
+  const persistDeferredAwayBattleEnd = useCallback((payload) => {
+    if (!pendingKey || !payload?.result) return;
+    const k = exploreAwayBattleEndStorageKey(pendingKey);
+    if (!k) return;
+    try {
+      localStorage.setItem(k, JSON.stringify(payload));
+    } catch {
+      /* ignore */
+    }
+  }, [pendingKey]);
 
   /** 凶/大凶选战但门闸失败：关弹窗后必须回到 IDLE，否则 phase 仍停在 RESULT，`eventBusy` 会一直挡住底栏。不退还探索次数（已 startExplore 扣费）。 */
   const dismissBattleEntryBlocked = useCallback(() => {
@@ -931,6 +1074,34 @@ export default function useEventSystem(player, cards, options = {}) {
       if (applyRewardResponse(data)) setPhase(PHASE.REWARD);
     });
   }, [chosenOptionKey, requestRewards, applyRewardResponse]);
+
+  /** 重进游戏：续接离屏已结算但未点确定的惩罚战（仅执行一次） */
+  const awayEndBootstrappedRef = useRef(false);
+  useEffect(() => {
+    if (awayEndBootstrappedRef.current) return;
+    if (!pendingKey || !persistMapEventHint || !exploreProgressReady) return;
+    const k = exploreAwayBattleEndStorageKey(pendingKey);
+    if (!k) return;
+    let payload = null;
+    try {
+      const raw = localStorage.getItem(k);
+      if (raw) {
+        payload = JSON.parse(raw);
+        localStorage.removeItem(k);
+      }
+    } catch {
+      /* ignore */
+    }
+    if (!payload?.result) return;
+    awayEndBootstrappedRef.current = true;
+    endBattle(
+      payload.result,
+      payload.silverSpent || 0,
+      payload.scoreResult || null,
+      payload.killedIndices,
+      payload.meta || null,
+    );
+  }, [pendingKey, persistMapEventHint, exploreProgressReady, endBattle]);
 
   // 迷你游戏结果
   const endMinigame = useCallback((result, extra = {}) => {
@@ -1029,6 +1200,7 @@ export default function useEventSystem(player, cards, options = {}) {
     setBattleChestRewards([]);
     if (pendingKey) {
       clearExploreResumeLocal(pendingKey);
+      clearExploreAwayBattleEndLocal(pendingKey);
       try {
         localStorage.removeItem(`${pendingKey}_inprogress`);
       } catch {
@@ -1056,6 +1228,7 @@ export default function useEventSystem(player, cards, options = {}) {
     tutorialChainMaxLevel,
     quota,
     allExploreEvents,
+    clearRemoteExploreSessionLock,
   ]);
 
   const isSuccess = isFortuneSuccess(fortune);
@@ -1108,6 +1281,9 @@ export default function useEventSystem(player, cards, options = {}) {
     replaceVars,
     eventLocationLabel,
     eventBattleEnemySlotRarities,
+    /** 探索惩罚战离屏结算持久化（SmallMapBattle → useBattleSettlement） */
+    exploreAwayBattlePersistKey: pendingKey,
+    persistDeferredAwayBattleEnd,
     /** 战略荒郊 tooltip 等与 `filterExploreEventsPool` 共用，解析 `city_type` 展示 13-1 荒郊稀有度区间 */
     citiesList,
 

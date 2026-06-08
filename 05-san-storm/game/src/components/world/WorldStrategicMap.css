@@ -549,11 +549,6 @@
   max-width: min(92vw, calc(var(--ws-tile) * 16 + 48px));
 }
 
-/* 浏览态：命中区穿透，点格优先落到城/道路瓦片（31-6 §8 · 道路双触进军仍有效） */
-.ws-map-self-pawn--browse-pass-through .ws-map-self-pawn__hit {
-  pointer-events: none;
-}
-
 .ws-map-self-pawn__avatar-row {
   display: flex;
   flex-direction: row;

@@ -229,6 +229,10 @@ function roadStandSnapshotKey(player) {
 export const WORLD_MAP_TILE_MIN = 12;
 /** 滚轮/捏合放大硬顶（防异常视口算出过大格） */
 export const WORLD_MAP_TILE_ABSOLUTE_CAP = 128;
+/** 与战术图 BattleMap.css 窄屏分界一致：`w <= 520` */
+export const WORLD_MAP_NARROW_VIEWPORT_MAX = 520;
+/** 竖屏默认 `--ws-tile` 下限：地图可宽于视口，换更大格点与 pawn 可点区域 */
+export const WORLD_MAP_NARROW_DEFAULT_TILE_FLOOR = 16;
 
 /**
  * 视口宽度下铺满地图列数（含格间 1px gap）所需单格边长。
@@ -247,15 +251,23 @@ export function computeMaxTilePx(mapColumns) {
 
 /**
  * 默认单格边长：对齐战斗地图瓦片视觉（可读性优先，允许滚动查看全图）。
+ * 窄屏（`w <= WORLD_MAP_NARROW_VIEWPORT_MAX`）默认不低于 `WORLD_MAP_NARROW_DEFAULT_TILE_FLOOR`，
+ * 即使宽于视口也接受横向滚动，避免 12～14px 格导致 pawn/城格难点。
  */
 function computeDefaultTilePx(mapColumns) {
   if (typeof window === 'undefined') return 48;
   const w = window.innerWidth;
   const availW = Math.max(280, w - 16);
   const battleRef =
-    w >= 521 ? 48 : Math.min(48, Math.max(26, Math.floor((availW - 61) / 8)));
+    w > WORLD_MAP_NARROW_VIEWPORT_MAX
+      ? 48
+      : Math.min(48, Math.max(26, Math.floor((availW - 61) / 8)));
   const maxPx = computeMaxTilePx(mapColumns);
-  return Math.min(maxPx, Math.max(22, battleRef));
+  let px = Math.min(maxPx, Math.max(22, battleRef));
+  if (w <= WORLD_MAP_NARROW_VIEWPORT_MAX) {
+    px = Math.max(WORLD_MAP_NARROW_DEFAULT_TILE_FLOOR, px);
+  }
+  return px;
 }
 
 /**
