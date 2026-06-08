@@ -4,11 +4,14 @@
  *
  * 势力：config_factions.season 优先取 JSON 条目的 season（由 faction-csv-to-json 从 faction_id 解析），否则从 faction_id 前缀解析。
  * 将领：config_characters.season 优先取 JSON 条目的 season（由 character-csv-to-json 从 character_id 解析），否则从 character_id 前缀解析。
+ *
+ * JSON 为权威源：各 config_* 导入后会删除 JSON 已不存在的同 season / 同 id 前缀族内的库内行（见 import-config-purge.js）。
  */
 
 const mysql = require('mysql2/promise');
 const fs = require('fs').promises;
 const path = require('path');
+const { purgeAfterConfigImport } = require('./import-config-purge.js');
 
 // 加载环境变量
 require('dotenv').config({ path: path.join(__dirname, '../.env') });
@@ -139,6 +142,13 @@ async function importCharacters(connection) {
     }
   }
   
+  await purgeAfterConfigImport(connection, data.characters, 'id', {
+    table: 'config_characters',
+    idColumn: 'character_id',
+    scopeColumn: 'season',
+    label: '将领',
+  });
+
   console.log(`✅ 将领配置导入完成: ${imported} 成功, ${skipped} 跳过`);
 }
 
@@ -233,6 +243,13 @@ async function importTroops(connection) {
     }
   }
   
+  await purgeAfterConfigImport(connection, data.troops, 'id', {
+    table: 'config_troops',
+    idColumn: 'troop_id',
+    scopeColumn: 'season',
+    label: '部队',
+  });
+
   console.log(`✅ 部队配置导入完成: ${imported} 成功, ${skipped} 跳过`);
 }
 
@@ -314,6 +331,13 @@ async function importPositions(connection) {
     }
   }
   
+  await purgeAfterConfigImport(connection, data.positions, 'id', {
+    table: 'config_positions',
+    idColumn: 'position_id',
+    scopeColumn: 'season',
+    label: '官职',
+  });
+
   console.log(`✅ 官职配置导入完成: ${imported} 成功, ${skipped} 跳过`);
 }
 
@@ -381,6 +405,13 @@ async function importFactions(connection) {
     }
   }
   
+  await purgeAfterConfigImport(connection, data.factions, 'id', {
+    table: 'config_factions',
+    idColumn: 'faction_id',
+    scopeColumn: 'season',
+    label: '势力',
+  });
+
   console.log(`✅ 势力配置导入完成: ${imported} 成功, ${skipped} 跳过`);
 }
 
@@ -433,6 +464,13 @@ async function importTitles(connection) {
     }
   }
   
+  await purgeAfterConfigImport(connection, data.titles, 'id', {
+    table: 'config_titles',
+    idColumn: 'title_id',
+    scopeColumn: null,
+    label: '称号',
+  });
+
   console.log(`✅ 称号配置导入完成: ${imported} 成功, ${skipped} 跳过`);
 }
 
@@ -494,6 +532,13 @@ async function importAchievements(connection) {
       skipped++;
     }
   }
+
+  await purgeAfterConfigImport(connection, data.achievements, 'id', {
+    table: 'config_achievements',
+    idColumn: 'achievement_id',
+    scopeColumn: null,
+    label: '成就',
+  });
 
   console.log(`✅ 成就配置导入完成: ${imported} 成功, ${skipped} 跳过`);
 }

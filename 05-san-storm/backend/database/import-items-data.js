@@ -21,6 +21,7 @@
 const mysql = require('mysql2/promise');
 const fs    = require('fs').promises;
 const path  = require('path');
+const { purgeAfterConfigImport } = require('./import-config-purge.js');
 
 require('dotenv').config({ path: path.join(__dirname, '../.env') });
 
@@ -70,6 +71,13 @@ async function importItems(connection) {
       skipped++;
     }
   }
+
+  await purgeAfterConfigImport(connection, items, 'id', {
+    table: 'config_items',
+    idColumn: 'item_id',
+    scopeColumn: 'season',
+    label: '道具',
+  });
 
   console.log(`  ✅ 道具: 导入 ${imported} 条，跳过 ${skipped} 条`);
 }

@@ -7,7 +7,7 @@
  *   node 05-san-storm/backend/database/import-all.js
  *
  * 按依赖顺序执行：
- *   1. 配置数据（将领、部队、官职、势力；将领/势力 season 来自 *_id / JSON，非 CSV 列）
+ *   1. 配置数据（将领、部队、官职、势力、称号、成就）
  *   1b. 州 / 郡 / 城市种子（import-city-geo-data.js → config_zhou、config_jun、cities）
  *       前置：已执行 migrations/create-config-zhou-jun.sql；须先跑本清单第 1 步「配置数据」使 config_factions
  *       含 cities_seed 用到的势力。import-city-geo-data 会从 config_factions 自动补全运行时表 factions 缺行，
@@ -29,10 +29,15 @@
  *     add-config-events-season-column.sql）
  *   - 道具含 itemType=season_badge（如 item_season_badge）时，须已应用 migrations/add-config-items-item-type-season-badge.sql
  *     扩展 config_items.item_type，否则该条导入会被 MySQL 拒绝、脚本计为「跳过」
+ *
+ * JSON 为权威源：各 import-*.js 在 UPSERT 后会删除 JSON 中已不存在的同 season / id 前缀族内配置行
+ * （城市种子 additionally 仅删 lord_player_id IS NULL 且 is_buildable=0 的静态行）。
+ * 执行前会校验 public/data/shared/*.json 是否存在、可解析、主键不重复。
  */
 
 const { execFileSync } = require('child_process');
 const path = require('path');
+const { validateAllImportJsonSources } = require('./import-json-validate.js');
 
 const DB_DIR = __dirname;
 
@@ -48,23 +53,42 @@ const scripts = [
 
 console.log('🚀 开始一键导入所有配置数据...\n');
 
-let success = 0;
-let failed = 0;
-
-const backendDir = path.resolve(DB_DIR, '..');
-
-for (const s of scripts) {
-  const scriptPath = path.join(DB_DIR, s.file);
-  console.log(`── ${s.name} ──`);
-  try {
-    execFileSync(process.execPath, [scriptPath], { stdio: 'inherit', cwd: backendDir });
-    success++;
-    console.log('');
-  } catch (err) {
-    failed++;
-    console.error(`❌ ${s.name} 导入失败\n`);
+async function main() {
+  const skipValidate = process.argv.includes('--skip-validate');
+  if (!skipValidate) {
+    try {
+      await validateAllImportJsonSources();
+    } catch (err) {
+      console.error(`❌ JSON 校验失败: ${err.message}`);
+      process.exit(1);
+    }
+  } else {
+    console.log('⚠️ 已跳过 JSON 校验 (--skip-validate)\n');
   }
+
+  let success = 0;
+  let failed = 0;
+
+  const backendDir = path.resolve(DB_DIR, '..');
+
+  for (const s of scripts) {
+    const scriptPath = path.join(DB_DIR, s.file);
+    console.log(`── ${s.name} ──`);
+    try {
+      execFileSync(process.execPath, [scriptPath], { stdio: 'inherit', cwd: backendDir });
+      success++;
+      console.log('');
+    } catch (err) {
+      failed++;
+      console.error(`❌ ${s.name} 导入失败\n`);
+    }
+  }
+
+  console.log(`\n🏁 导入完成: ${success} 成功, ${failed} 失败`);
+  if (failed > 0) process.exit(1);
 }
 
-console.log(`\n🏁 导入完成: ${success} 成功, ${failed} 失败`);
-if (failed > 0) process.exit(1);
+main().catch((err) => {
+  console.error('❌ 导入流程异常:', err.message);
+  process.exit(1);
+});

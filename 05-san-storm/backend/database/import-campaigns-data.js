@@ -10,6 +10,7 @@
 const mysql = require('mysql2/promise');
 const fs = require('fs').promises;
 const path = require('path');
+const { purgeAfterConfigImport } = require('./import-config-purge.js');
 
 require('dotenv').config({ path: path.join(__dirname, '../.env') });
 
@@ -91,6 +92,13 @@ async function importCampaigns(connection) {
       skipped++;
     }
   }
+
+  await purgeAfterConfigImport(connection, list, 'campaign_id', {
+    table: 'config_campaigns',
+    idColumn: 'campaign_id',
+    scopeColumn: 'season',
+    label: '战役',
+  });
 
   console.log(`  ✅ 战役卡片: 导入 ${imported} 条，跳过 ${skipped} 条`);
 }

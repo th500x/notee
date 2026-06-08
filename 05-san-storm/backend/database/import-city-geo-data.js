@@ -30,6 +30,11 @@
 const mysql = require('mysql2/promise');
 const fs = require('fs').promises;
 const path = require('path');
+const {
+  purgeAfterConfigImport,
+  purgeStaleConfigRowsWithExtraWhere,
+  collectSeasonScopesFromItems,
+} = require('./import-config-purge.js');
 
 require('dotenv').config({ path: path.join(__dirname, '../.env') });
 
@@ -105,6 +110,13 @@ async function importZhou(conn, rows) {
     );
     n++;
   }
+  await purgeAfterConfigImport(conn, rows, 'zhouId', {
+    table: 'config_zhou',
+    idColumn: 'zhou_id',
+    scopeColumn: 'season',
+    label: '州',
+    idGetter: (z) => z.zhouId ?? z.id,
+  });
   console.log(`  config_zhou: ${n} 条`);
 }
 
@@ -126,6 +138,13 @@ async function importJun(conn, rows) {
     );
     n++;
   }
+  await purgeAfterConfigImport(conn, rows, 'junId', {
+    table: 'config_jun',
+    idColumn: 'jun_id',
+    scopeColumn: 'season',
+    label: '郡',
+    idGetter: (j) => j.junId ?? j.id,
+  });
   console.log(`  config_jun: ${n} 条`);
 }
 
@@ -310,6 +329,19 @@ async function importCities(conn, records) {
   for (const c of records) {
     await insertCityRow(conn, c);
   }
+  const jsonIds = records.map(cityPk).filter(Boolean);
+  await purgeStaleConfigRowsWithExtraWhere(conn, {
+    table: 'cities',
+    idColumn: 'city_id',
+    jsonIds,
+    label: '城市种子',
+    scopeColumn: 'season',
+    scopeValues: collectSeasonScopesFromItems(records, {
+      idGetter: cityPk,
+      seasonKey: 'season',
+    }),
+    extraWhere: 'lord_player_id IS NULL AND is_buildable = 0',
+  });
   console.log(`  cities: ${records.length} 条`);
 }
 

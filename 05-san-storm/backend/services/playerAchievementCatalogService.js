@@ -12,6 +12,7 @@ const {
   buildAchievementChainIndex,
   resolveAchievementClaimStatus,
 } = require('../utils/achievementEligibility');
+const { sortAchievementCatalogRows } = require('../utils/achievementCatalogSort');
 
 /**
  * @param {string} playerId
@@ -32,7 +33,8 @@ async function getPlayerAchievementCatalog(playerId) {
             unlock_conditions, unlock_conditions_desc, attribute_bonus,
             special_effect_desc, rewards, display_effect
      FROM config_achievements
-     ORDER BY achievement_id`,
+     WHERE achievement_id LIKE 'san_1_achi_%'
+     ORDER BY chain_id, chain_level, achievement_id`,
   );
 
   const [ownedRows] = await pool.query(
@@ -44,7 +46,8 @@ async function getPlayerAchievementCatalog(playerId) {
   const ownedSet = new Set(ownedRows.map((r) => r.achievement_id));
   const chainIndex = buildAchievementChainIndex(configRows);
 
-  const achievements = configRows.map((row) => {
+  const achievements = sortAchievementCatalogRows(
+    configRows.map((row) => {
     const claimStatus = resolveAchievementClaimStatus(row, snapshot, ownedSet, chainIndex);
     const owned = claimStatus === 'owned';
     const progress = buildAchievementCatalogProgress(row, snapshot, owned);
@@ -64,7 +67,8 @@ async function getPlayerAchievementCatalog(playerId) {
       progressTarget: progress.progressTarget,
       progressLabel: progress.progressLabel,
     };
-  });
+    }),
+  );
 
   return { data: { achievements } };
 }

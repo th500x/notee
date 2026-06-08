@@ -7,6 +7,7 @@
 const mysql = require('mysql2/promise');
 const fs = require('fs').promises;
 const path = require('path');
+const { purgeAfterConfigImport } = require('./import-config-purge.js');
 
 // 加载环境变量
 require('dotenv').config({ path: path.join(__dirname, '../.env') });
@@ -88,6 +89,13 @@ async function importSkills(connection) {
     }
   }
   
+  await purgeAfterConfigImport(connection, skills, 'id', {
+    table: 'config_skills',
+    idColumn: 'skill_id',
+    scopeColumn: 'season',
+    label: '技能',
+  });
+
   console.log(`✅ 技能配置导入完成: ${imported} 成功, ${skipped} 跳过`);
 }
 
@@ -137,6 +145,13 @@ async function importBonds(connection) {
     }
   }
   
+  await purgeAfterConfigImport(connection, bonds, 'id', {
+    table: 'config_bonds',
+    idColumn: 'bond_id',
+    scopeColumn: 'season',
+    label: '羁绊',
+  });
+
   console.log(`✅ 羁绊配置导入完成: ${imported} 成功, ${skipped} 跳过`);
 }
 
