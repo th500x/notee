@@ -10,6 +10,9 @@ import './bootstrap/canonicalGameBasePath.js';
 import './bootstrap/troopIconUrlsCatalog.js';
 import App from './App.jsx';
 import './styles/index.css';
+import { applyUiDisplayScale } from '@/utils/uiDisplayScale';
+
+applyUiDisplayScale();
 
 // 渲染应用
 ReactDOM.createRoot(document.getElementById('root')).render(

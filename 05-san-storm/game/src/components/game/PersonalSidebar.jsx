@@ -15,6 +15,12 @@ import PersonalSidebarAchievementsPanel from '@/components/game/PersonalSidebarA
 import TabNotifyDot from '@/components/game/TabNotifyDot';
 import { setBgmEnabled } from '@/services/bgmService';
 import { readBgmEnabled } from '@/utils/bgmUserPref';
+import {
+  UI_USER_SCALE_OPTIONS,
+  readUiUserScale,
+  writeUiUserScale,
+  isUiFontDprBumpActive,
+} from '@/utils/uiDisplayScale';
 
 const MENU_ITEMS = [
   { id: 'mechanics', icon: '📜', label: '机制' },
@@ -35,6 +41,8 @@ export default function PersonalSidebar({
   const [catalogModal, setCatalogModal] = useState(null); // null | 'titles' | 'achievements'
   const teamPanelRef = useRef(null);
   const [bgmOn, setBgmOn] = useState(() => readBgmEnabled());
+  const [uiUserScale, setUiUserScale] = useState(() => readUiUserScale());
+  const [uiDprBumpActive, setUiDprBumpActive] = useState(() => isUiFontDprBumpActive());
 
   // ESC：团队详情 → 团队列表 → 主菜单；统计/机制子页 → 主菜单 → 关侧边栏
   useEffect(() => {
@@ -68,6 +76,8 @@ export default function PersonalSidebar({
       setCatalogModal(null);
     } else {
       setBgmOn(readBgmEnabled());
+      setUiUserScale(readUiUserScale());
+      setUiDprBumpActive(isUiFontDprBumpActive());
     }
   }, [open]);
 
@@ -109,6 +119,11 @@ export default function PersonalSidebar({
     const next = !bgmOn;
     setBgmOn(next);
     setBgmEnabled(next);
+  };
+
+  const handleUiScalePick = (scale) => {
+    setUiUserScale(scale);
+    writeUiUserScale(scale);
   };
 
   return (
@@ -217,6 +232,43 @@ export default function PersonalSidebar({
                 >
                   {bgmOn ? '开' : '关'}
                 </button>
+              </div>
+              <div className="px-4 py-3 border-t border-gray-100">
+                <div className="flex items-center gap-3 min-w-0 mb-2">
+                  <span className="text-xl" aria-hidden>🔍</span>
+                  <div className="min-w-0">
+                    <div className="text-gray-800 font-medium">界面缩放</div>
+                    <div className="text-xs text-gray-500 leading-snug mt-0.5">
+                      整页同比放大，框与字一起变大
+                      {uiDprBumpActive ? '；当前屏幕已自动略增字号' : ''}
+                    </div>
+                  </div>
+                </div>
+                <div
+                  className="flex rounded-lg border border-gray-200 overflow-hidden"
+                  role="radiogroup"
+                  aria-label="界面缩放比例"
+                >
+                  {UI_USER_SCALE_OPTIONS.map((opt) => {
+                    const active = uiUserScale === opt.value;
+                    return (
+                      <button
+                        key={opt.label}
+                        type="button"
+                        role="radio"
+                        aria-checked={active}
+                        onClick={() => handleUiScalePick(opt.value)}
+                        className={`flex-1 py-2 text-sm font-medium transition-colors ${
+                          active
+                            ? 'bg-amber-700 text-white'
+                            : 'bg-white text-gray-700 hover:bg-gray-50'
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             </div>
           </>

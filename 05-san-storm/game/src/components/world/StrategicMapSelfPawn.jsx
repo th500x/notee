@@ -497,7 +497,7 @@ export default function StrategicMapSelfPawn({
   // 不在根节点设 aria-hidden：首触时部分 WebKit 会误把事件落到下层格网，表现为「一点头像就进军」；操作条打开时子树内已有可聚焦控件。
   return (
     <div
-      className="ws-map-self-pawn"
+      className={`ws-map-self-pawn${selfMarchUi ? ' ws-map-self-pawn--self' : ' ws-map-self-pawn--other'}`}
       style={{ left: `${cx}px`, top: `${cy}px` }}
     >
       <div className="ws-map-self-pawn__anchor">

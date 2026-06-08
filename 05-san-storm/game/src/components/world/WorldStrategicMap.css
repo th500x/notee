@@ -1,4 +1,5 @@
 /* 战略层郡大地图（WorldStrategicMap*）：与战役 CampaignMapGrid 样式分离，避免 16×20 与可变格网混用 */
+/* 地图标签 clamp 上限随 --ws-tile 同比缩放（参照 48px 格 ≈ 旧稿 9～14px）；+ var(--ui-font-dpr-bump) 见 uiDisplayScale.js */
 
 .ws-map-card {
   --ws-tile: 20px;
@@ -70,14 +71,13 @@
 }
 
 /*
- * 小于视口时居中；大于视口时可四向滚动。
- * 须让本层「至少铺满视口」又「随地图实际宽高扩展」，否则块级宽度会等于 .ws-map-wrap，
- * scrollWidth === clientWidth，放大后无法横向拖动（纵向因格网更高往往仍能滚）。
+ * 小于视口时仍可在轴向上居中；大于视口时须贴左上，与 `StrategicWorldMapSection` 角钮 `left-2` 对齐。
+ * （flex center 会在 map 宽于 wrap 时给 scrollport 左右留白，scrollLeft=0 时格网左缘内缩。）
  */
 .ws-map-scrollport-inner {
   display: flex;
-  justify-content: center;
-  align-items: center;
+  justify-content: flex-start;
+  align-items: flex-start;
   box-sizing: border-box;
   min-width: 100%;
   min-height: 100%;
@@ -267,7 +267,7 @@
 }
 
 .ws-strategic-label-type {
-  font-size: clamp(7px, calc(var(--ws-tile) * 0.38), 11px);
+  font-size: clamp(7px, calc(var(--ws-tile) * 0.38), calc(var(--ws-tile) * 11 / 48 + var(--ui-font-dpr-bump, 0px)));
   font-weight: 800;
   color: #fffbeb;
   text-shadow:
@@ -277,7 +277,7 @@
 
 .ws-strategic-label-name {
   margin-top: 1px;
-  font-size: clamp(6px, calc(var(--ws-tile) * 0.32), 10px);
+  font-size: clamp(6px, calc(var(--ws-tile) * 0.32), calc(var(--ws-tile) * 10 / 48 + var(--ui-font-dpr-bump, 0px)));
   font-weight: 700;
   color: rgba(255, 250, 235, 0.96);
   text-shadow:
@@ -294,14 +294,14 @@
 /* 匪寨：仅保留郡名行时，字号/字重与原先首行类型标签一致（色仍走行内 stance） */
 .ws-strategic-label-name.ws-strategic-label-name--bandit-primary {
   margin-top: 0;
-  font-size: clamp(7px, calc(var(--ws-tile) * 0.38), 11px);
+  font-size: clamp(7px, calc(var(--ws-tile) * 0.38), calc(var(--ws-tile) * 11 / 48 + var(--ui-font-dpr-bump, 0px)));
   font-weight: 800;
 }
 
 /* 长官名：字号与城名一致；与 `cityService` lord_character_name / 玩家长官角色名一致；无长官时不渲染 */
 .ws-strategic-label-lord {
   margin-top: 1px;
-  font-size: clamp(6px, calc(var(--ws-tile) * 0.32), 10px);
+  font-size: clamp(6px, calc(var(--ws-tile) * 0.32), calc(var(--ws-tile) * 10 / 48 + var(--ui-font-dpr-bump, 0px)));
   font-weight: 700;
   color: rgba(255, 250, 235, 0.96);
   text-shadow:
@@ -458,7 +458,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 9px;
+  font-size: calc(9px + var(--ui-font-dpr-bump, 0px));
   font-weight: 700;
   color: #fef3c7;
   z-index: 2;
@@ -500,7 +500,7 @@
   position: absolute;
   bottom: 1px;
   left: 2px;
-  font-size: 7px;
+  font-size: calc(7px + var(--ui-font-dpr-bump, 0px));
   color: rgba(255, 255, 255, 0.35);
   z-index: 6;
   pointer-events: none;
@@ -551,6 +551,16 @@
   position: absolute;
   z-index: 5;
   pointer-events: none;
+}
+
+/* 他人路点：低于本人，避免盖住道路格固定「行军 / 来战」 */
+.ws-map-self-pawn--other {
+  z-index: 4;
+}
+
+/* 本人叠层：高于他人 pawn 与格网对象（道路固定钮 z-index 7 在本 stacking context 内） */
+.ws-map-self-pawn--self {
+  z-index: 9;
 }
 
 /* 叠站小头像在右：平移锚点只作用在「主头像列」，避免整行居中把主头像挤偏 */
@@ -622,7 +632,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: clamp(5px, calc(var(--ws-tile) * 0.26), 9px);
+  font-size: clamp(5px, calc(var(--ws-tile) * 0.26), calc(var(--ws-tile) * 9 / 48 + var(--ui-font-dpr-bump, 0px)));
   font-weight: 800;
   color: #fffbeb;
   line-height: 1.1;
@@ -636,7 +646,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: clamp(9px, calc(var(--ws-tile) * 0.34), 14px);
+  font-size: clamp(9px, calc(var(--ws-tile) * 0.34), calc(var(--ws-tile) * 14 / 48 + var(--ui-font-dpr-bump, 0px)));
   font-weight: 800;
   color: rgba(255, 250, 235, 0.95);
   background: rgba(28, 25, 23, 0.94);
@@ -763,7 +773,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: clamp(7px, calc(var(--ws-tile) * 0.38), 11px);
+  font-size: clamp(7px, calc(var(--ws-tile) * 0.38), calc(var(--ws-tile) * 11 / 48 + var(--ui-font-dpr-bump, 0px)));
   font-weight: 800;
   color: #fffbeb;
   line-height: 1.15;
@@ -798,7 +808,7 @@
 .ws-map-self-pawn__tooltip-faction,
 .ws-map-self-pawn__tooltip-name,
 .ws-map-self-pawn__tooltip-troops {
-  font-size: clamp(5px, calc(var(--ws-tile) * 0.28), 9px);
+  font-size: clamp(5px, calc(var(--ws-tile) * 0.28), calc(var(--ws-tile) * 9 / 48 + var(--ui-font-dpr-bump, 0px)));
   font-weight: 700;
   line-height: 1.2;
   white-space: nowrap;
@@ -831,7 +841,7 @@
 }
 
 .ws-map-self-pawn__road-fixed-btn {
-  font-size: clamp(9px, calc(var(--ws-tile) * 0.34), 12px);
+  font-size: clamp(9px, calc(var(--ws-tile) * 0.34), calc(var(--ws-tile) * 12 / 48 + var(--ui-font-dpr-bump, 0px)));
   font-weight: 700;
   padding: 4px 10px;
   border-radius: 5px;
@@ -879,7 +889,7 @@
 }
 
 .ws-map-self-pawn__action-btn {
-  font-size: clamp(9px, calc(var(--ws-tile) * 0.34), 12px);
+  font-size: clamp(9px, calc(var(--ws-tile) * 0.34), calc(var(--ws-tile) * 12 / 48 + var(--ui-font-dpr-bump, 0px)));
   font-weight: 700;
   padding: 4px 8px;
   border-radius: 5px;
@@ -909,7 +919,7 @@
 }
 
 .ws-map-self-pawn__intercept-msg {
-  font-size: clamp(8px, calc(var(--ws-tile) * 0.3), 11px);
+  font-size: clamp(8px, calc(var(--ws-tile) * 0.3), calc(var(--ws-tile) * 11 / 48 + var(--ui-font-dpr-bump, 0px)));
   font-weight: 600;
   line-height: 1.35;
   color: rgba(255, 250, 235, 0.94);
@@ -923,7 +933,7 @@
 
 .ws-map-self-pawn__intercept-err {
   margin-top: 4px;
-  font-size: clamp(8px, calc(var(--ws-tile) * 0.29), 10px);
+  font-size: clamp(8px, calc(var(--ws-tile) * 0.29), calc(var(--ws-tile) * 10 / 48 + var(--ui-font-dpr-bump, 0px)));
   font-weight: 700;
   color: #fecaca;
   line-height: 1.25;

@@ -58,6 +58,10 @@
 
   /* 战役卡牌正面标题（CampaignFlipCard） */
   --campaign-card-title-font: 'ZCOOL KuaiLe', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+
+  /* 界面可读性（uiDisplayScale.js）：低 DPR +1px；个人中心可选 110%/125% → html zoom */
+  --ui-font-dpr-bump: 0px;
+  --ui-user-scale: 1;
 }
 
 /* 全局样式 */

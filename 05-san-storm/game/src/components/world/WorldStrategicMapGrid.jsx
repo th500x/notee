@@ -1331,6 +1331,24 @@ export default function WorldStrategicMapGrid({
                   ))}
                 </div>
               ) : null}
+              {Array.isArray(strategicOtherPawns)
+                ? strategicOtherPawns
+                    .filter((p) => p && Number.isFinite(p.cx) && Number.isFinite(p.cy))
+                    .map((p) => (
+                      <StrategicMapSelfPawn
+                        key={`other-${p.playerId}`}
+                        cx={p.cx}
+                        cy={p.cy}
+                        portraitUrl={p.portraitUrl}
+                        displayEffect={p.displayEffect || null}
+                        displayName={p.displayName}
+                        centerGlyph={p.centerGlyph}
+                        stackStripPeers={p.stackStripPeers}
+                        stackStripEllipsis={!!p.stackStripEllipsis}
+                        roadIntercept={p.roadIntercept ? 1 : 0}
+                      />
+                    ))
+                : null}
               {strategicSelfPawn &&
               Number.isFinite(strategicSelfPawn.cx) &&
               Number.isFinite(strategicSelfPawn.cy) ? (
@@ -1383,24 +1401,6 @@ export default function WorldStrategicMapGrid({
                   }
                 />
               ) : null}
-              {Array.isArray(strategicOtherPawns)
-                ? strategicOtherPawns
-                    .filter((p) => p && Number.isFinite(p.cx) && Number.isFinite(p.cy))
-                    .map((p) => (
-                      <StrategicMapSelfPawn
-                        key={`other-${p.playerId}`}
-                        cx={p.cx}
-                        cy={p.cy}
-                        portraitUrl={p.portraitUrl}
-                        displayEffect={p.displayEffect || null}
-                        displayName={p.displayName}
-                        centerGlyph={p.centerGlyph}
-                        stackStripPeers={p.stackStripPeers}
-                        stackStripEllipsis={!!p.stackStripEllipsis}
-                        roadIntercept={p.roadIntercept ? 1 : 0}
-                      />
-                    ))
-                : null}
             </div>
           </div>
           {tooltipContent && typeof document !== 'undefined' && createPortal(
