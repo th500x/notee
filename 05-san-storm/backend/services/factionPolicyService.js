@@ -25,6 +25,8 @@ const aiKingConfigService = require('./aiKingConfigService');
 const policyProposerAuth = require('./policyProposerAuth');
 const defaults = require('./factionPolicyDefaults');
 const factionReserveService = require('./factionReserveService');
+const remonstranceTributeService = require('./remonstranceTributeService');
+const { normalizeTributeSilver } = require('../../shared/utils/remonstranceTributeSilver.cjs');
 const {
   policyRowConfigTrustworthy,
 } = require('../../shared/utils/factionPolicyEffectiveConfig.cjs');
@@ -209,11 +211,13 @@ async function upsertFactionPolicy(conn, input, updateConfig = true) {
  * @param {object} input.config             - 提案 config（经 `validateConfigForCategory` 规范化）
  * @param {string} input.proposerPlayerId   - 提议玩家 id（审计）
  * @param {string} [input.proposalId]       - 调用方可传；默认 service 生成
+ * @param {number} [input.tributeSilver]    - 谏言上供银两（100 倍数；0 不上供）
  * @returns {Promise<{
  *   approval: object,
  *   policy: object,
  *   approved: boolean,
  *   proposalId: string,
+ *   tribute?: { tributeSilver: number, contributionGranted: number },
  * }>}
  */
 async function submitLongTermProposal(input) {
@@ -223,6 +227,7 @@ async function submitLongTermProposal(input) {
     config,
     proposerPlayerId = null,
     proposalId: passedProposalId,
+    tributeSilver: rawTributeSilver = 0,
   } = input || {};
 
   if (!factionId) {
@@ -241,6 +246,18 @@ async function submitLongTermProposal(input) {
       `该势力暂未配置 AI 君主（M2 仅汉室/黄巾/刘备）：${factionId}`,
       'POLICY_NO_KING',
     );
+  }
+
+  const tributeSilver = normalizeTributeSilver(rawTributeSilver);
+  if (tributeSilver == null) {
+    throw httpError(400, '上供银两须为 100 的整数倍（0 表示不上供）', 'TRIBUTE_SILVER_INVALID');
+  }
+  const proposerPid = String(proposerPlayerId || '').trim();
+  if (tributeSilver > 0) {
+    if (!proposerPid) {
+      throw httpError(400, '上供银两须由具体官员提交', 'TRIBUTE_MISSING_PROPOSER');
+    }
+    await remonstranceTributeService.assertPlayerCanAffordTribute(pool, proposerPid, tributeSilver);
   }
 
   const existingRow = await findFactionPolicyRow(factionId, category);
@@ -294,6 +311,7 @@ async function submitLongTermProposal(input) {
     proposalId,
     cityCount,
     proposalContext: { assess, category },
+    tributeSilver,
   });
 
   const now = new Date();
@@ -309,8 +327,16 @@ async function submitLongTermProposal(input) {
    */
   const conn = await pool.getConnection();
   let chargedSilver = 0;
+  let tributeResult = { tributeSilver: 0, contributionGranted: 0 };
   try {
     await conn.beginTransaction();
+    if (tributeSilver > 0 && proposerPid) {
+      tributeResult = await remonstranceTributeService.applyRemonstranceTributeOnConnection(conn, {
+        playerId: proposerPid,
+        factionId,
+        tributeSilver,
+      });
+    }
     if (
       approval.approved &&
       recruitFeeContext &&
@@ -380,6 +406,8 @@ async function submitLongTermProposal(input) {
       nextEligibleAt: nextEligibleAt.toISOString(),
       configApplied: approval.approved ? v.normalized : null,
       chargedSilver,
+      tributeSilver: tributeResult.tributeSilver,
+      tributeContribution: tributeResult.contributionGranted,
     }),
   );
 
@@ -389,6 +417,7 @@ async function submitLongTermProposal(input) {
     approved: !!approval.approved,
     proposalId,
     chargedSilver,
+    tribute: tributeResult,
   };
 }
 
@@ -737,9 +766,10 @@ async function getPanelForFaction(factionId) {
  * @param {string} factionId
  * @param {string} category
  * @param {object} config - 未规范化原始 config（经 validate 后参与 assess）
+ * @param {number} [tributeSilver=0]
  * @returns {Promise<object>} `passiveApprovalService.previewApprovalRange` 返回值
  */
-async function previewLongTermPolicyApproval(factionId, category, config) {
+async function previewLongTermPolicyApproval(factionId, category, config, tributeSilver = 0) {
   if (!factionId) {
     throw httpError(400, '缺少 factionId', 'POLICY_MISSING_FACTION');
   }
@@ -758,6 +788,11 @@ async function previewLongTermPolicyApproval(factionId, category, config) {
     );
   }
 
+  const normalizedTribute = normalizeTributeSilver(tributeSilver);
+  if (normalizedTribute == null) {
+    throw httpError(400, '上供银两须为 100 的整数倍（0 表示不上供）', 'TRIBUTE_SILVER_INVALID');
+  }
+
   const existingRow = await findFactionPolicyRow(factionId, category);
   const assess = policyProposalAssessService.assessLongTermPolicyProposal(
     factionId,
@@ -771,6 +806,7 @@ async function previewLongTermPolicyApproval(factionId, category, config) {
     proposalType: passiveApprovalService.PROPOSAL_TYPE_POLICY,
     cityCount,
     proposalContext: { assess, category },
+    tributeSilver: normalizedTribute,
   });
 }
 

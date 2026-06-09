@@ -37,6 +37,8 @@ const gameTimeService = require('../services/gameTimeService');
 const warInitiationCostService = require('../services/warInitiationCostService');
 const policyProposerAuth = require('../services/policyProposerAuth');
 const warPolicyTransientService = require('../services/warPolicyTransientService');
+const remonstranceTributeService = require('../services/remonstranceTributeService');
+const { normalizeTributeSilver } = require('../../shared/utils/remonstranceTributeSilver.cjs');
 const { validateBody, validateParams, validateQuery } = require('../middleware/validation');
 const pvpWarSchemas = require('../middleware/validationSchemas/pvpWars');
 
@@ -63,15 +65,20 @@ router.use(requireAuth);
  */
 router.get('/preview-approval', validateQuery(pvpWarSchemas.previewApprovalQuery), async (req, res, next) => {
   try {
-    const { factionId, proposalType } = req.query;
+    const { factionId, proposalType, tributeSilver: rawTributeSilver = 0 } = req.query;
     if (!aiKingConfigService.hasKingForFaction(String(factionId))) {
       return res.status(404).json({ success: false, error: '该势力暂未配置 AI 君主（M2 仅汉室/黄巾/刘备）' });
+    }
+    const tributeSilver = normalizeTributeSilver(rawTributeSilver);
+    if (tributeSilver == null) {
+      throw httpError(400, '上供银两须为 100 的整数倍（0 表示不上供）', 'TRIBUTE_SILVER_INVALID');
     }
     const cityCount = await fetchFactionCityCountForKing(String(factionId));
     const range = passiveApprovalService.previewApprovalRange({
       factionId: String(factionId),
       proposalType,
       cityCount,
+      tributeSilver,
     });
     res.json({ success: true, data: range });
   } catch (error) {
@@ -111,7 +118,12 @@ router.post('/proposals', validateBody(pvpWarSchemas.proposalsBody), async (req,
       proposalId,
       serverId,
       transientPolicies: rawTransientPolicies,
+      tributeSilver: rawTributeSilver = 0,
     } = req.body;
+    const tributeSilver = normalizeTributeSilver(rawTributeSilver);
+    if (tributeSilver == null) {
+      throw httpError(400, '上供银两须为 100 的整数倍（0 表示不上供）', 'TRIBUTE_SILVER_INVALID');
+    }
     if (!aiKingConfigService.hasKingForFaction(attackerFactionId)) {
       return res.status(400).json({
         success: false,
@@ -133,6 +145,10 @@ router.post('/proposals', validateBody(pvpWarSchemas.proposalsBody), async (req,
     }
     // 大将军 / 大司空 才可提交战事谏言（同步支配临时政策）
     policyProposerAuth.assertPolicyProposer(proposerPlayer, policyProposerAuth.POLICY_SCOPE.TRANSIENT);
+
+    if (tributeSilver > 0) {
+      await remonstranceTributeService.assertPlayerCanAffordTribute(pool, proposerPid, tributeSilver);
+    }
 
     // 规整临时政策 + 业务级合法性预检（后军禁开等 4xx）
     const normalizedPolicies = warPolicyTransientService.normalizeTransientPolicies(rawTransientPolicies);
@@ -181,11 +197,36 @@ router.post('/proposals', validateBody(pvpWarSchemas.proposalsBody), async (req,
     }
 
     const cityCount = await fetchFactionCityCountForKing(attackerFactionId);
+
+    let tributeResult = { tributeSilver: 0, contributionGranted: 0 };
+    if (tributeSilver > 0) {
+      const conn = await pool.getConnection();
+      try {
+        await conn.beginTransaction();
+        tributeResult = await remonstranceTributeService.applyRemonstranceTributeOnConnection(conn, {
+          playerId: proposerPid,
+          factionId: attackerFactionId,
+          tributeSilver,
+        });
+        await conn.commit();
+      } catch (tributeErr) {
+        try {
+          await conn.rollback();
+        } catch (_) {
+          /* ignore */
+        }
+        throw tributeErr;
+      } finally {
+        conn.release();
+      }
+    }
+
     const approval = passiveApprovalService.resolvePassiveApproval({
       factionId: attackerFactionId,
       proposalType: passiveApprovalService.PROPOSAL_TYPE_WAR,
       proposalId: proposalId || `prop_${attackerFactionId}_${targetCityId}_${Date.now()}`,
       cityCount,
+      tributeSilver,
     });
 
     if (!approval.approved) {
@@ -194,7 +235,8 @@ router.post('/proposals', validateBody(pvpWarSchemas.proposalsBody), async (req,
         data: {
           approval,
           draftCreated: false,
-          /** 驳回时回传客户端勾选，便于前端展示「提议未通过、未扣费」 */
+          tribute: tributeResult,
+          /** 驳回时回传客户端勾选，便于前端展示「提议未通过」；上供银两已划入势力储备 */
           transientPoliciesProposed: normalizedPolicies,
         },
       });
@@ -218,6 +260,7 @@ router.post('/proposals', validateBody(pvpWarSchemas.proposalsBody), async (req,
             pveWar: opened,
             warId: opened.warId,
             proposerPlayerId,
+            tribute: tributeResult,
           },
         });
       } catch (createErr) {
@@ -261,6 +304,7 @@ router.post('/proposals', validateBody(pvpWarSchemas.proposalsBody), async (req,
         war,
         proposerPlayerId,
         transientPoliciesApplied: normalizedPolicies,
+        tribute: tributeResult,
       },
     });
   } catch (error) {

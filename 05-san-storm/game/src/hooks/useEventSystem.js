@@ -362,11 +362,11 @@ export default function useEventSystem(player, cards, options = {}) {
       grid?.cells?.length
         ? resolveExploreAnchorCityIdFromStrategicGrid(player, citiesList, grid)
         : resolveExploreAnchorCityIdFromPlayerRoad(player, citiesList);
-    if (!anchor) return;
+    const anchorNorm = anchor != null && String(anchor).trim() !== '' ? String(anchor).trim() : '';
     setExploreLocationId((prev) => {
       const p = prev != null ? String(prev).trim() : '';
-      if (p === anchor) return prev;
-      return anchor;
+      if (p === anchorNorm) return prev;
+      return anchorNorm !== '' ? anchorNorm : null;
     });
   }, [
     phase,
@@ -732,7 +732,7 @@ export default function useEventSystem(player, cards, options = {}) {
       tutorialExploreBlockedRef.current = false;
       return;
     }
-    if (prevNorm !== '' && nowNorm !== '' && prevNorm !== nowNorm) {
+    if (prevNorm !== nowNorm) {
       tutorialExploreBlockedRef.current = false;
     }
   }, [exploreLocationId]);

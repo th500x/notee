@@ -488,6 +488,7 @@ export default function SanGongFuPanel({
       {player?.playerId ? (
         <SanGongFuFactionPolicyDrawer
           factionId={player.factionId ?? null}
+          player={player}
           open={factionPolicyDrawerOpen}
           onClose={() => setFactionPolicyDrawerOpen(false)}
         />

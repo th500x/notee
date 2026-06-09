@@ -55,25 +55,26 @@ export const factionPolicyAPI = {
    *   - recruit:       { enabled: boolean }
    *   - domestic_goal: { goal: 'population'|'commerce'|'agriculture'|'military'|'culture' }
    */
-  async submitLongTermProposal({ factionId, category, config, proposalId } = {}) {
+  async submitLongTermProposal({ factionId, category, config, proposalId, tributeSilver = 0 } = {}) {
     return fetchJSON(`${BASE}/proposals/long-term`, {
       method: 'POST',
       body: JSON.stringify({
         factionId,
         category,
         config,
+        tributeSilver,
         ...(proposalId ? { proposalId } : {}),
       }),
     });
   },
 
   /**
-   * 按 draft config 预览 AI 君主审批区间（含无条件利好抬升；随表单变化刷新）。
+   * 按 draft config 预览 AI 君主审批区间（含无条件利好抬升；可带上供加成）。
    */
-  async previewApproval({ factionId, category, config } = {}) {
+  async previewApproval({ factionId, category, config, tributeSilver = 0 } = {}) {
     return fetchJSON(`${BASE}/preview-approval`, {
       method: 'POST',
-      body: JSON.stringify({ factionId, category, config }),
+      body: JSON.stringify({ factionId, category, config, tributeSilver }),
     });
   },
 };

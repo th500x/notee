@@ -135,13 +135,14 @@ function PolicyCard({
 /**
  * @param {{
  *   factionId: string|null,
+ *   player?: object|null,
  *   open: boolean,
  *   onClose: () => void,
  * }} props
  *
  * 提议者 playerId 由后端从 `req.player.sub` 取，前端不再上报；本组件不需要 `playerId` 参数。
  */
-export default function SanGongFuFactionPolicyDrawer({ factionId, open, onClose }) {
+export default function SanGongFuFactionPolicyDrawer({ factionId, open, onClose, player = null }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [panel, setPanel] = useState(null);
@@ -298,6 +299,7 @@ export default function SanGongFuFactionPolicyDrawer({ factionId, open, onClose 
           approvalPreview={panel.approvalPreview || null}
           recruitMapping={panel.recruitMapping || null}
           factionReserves={panel.factionReserves || null}
+          playerSilver={Number(player?.silver) || 0}
           currentApproved={
             openModalCategory === POLICY_CATEGORY.RECRUIT
               ? currentCategoryPolicy.source === 'row' &&

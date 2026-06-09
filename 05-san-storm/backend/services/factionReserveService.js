@@ -18,6 +18,7 @@ const CATEGORY = Object.freeze({
   MARCH_FOOD: 'march_food',
   STIPEND_BONUS: 'stipend_bonus',
   CARD_POOL_DRAW: 'card_pool_draw',
+  REMONSTRANCE_TRIBUTE: 'remonstrance_tribute',
   CARD_POOL_COMPENSATION: 'card_pool_compensation',
   CARD_POOL_LEGENDARY_TROOP: 'card_pool_legendary_troop',
   CARD_POOL_LEGENDARY_CHARACTER: 'card_pool_legendary_character',
@@ -36,10 +37,19 @@ const CREDIT_CATEGORY_META = [
     label: '结算入账',
     hint: '攻城战斗净收益中按城战奖赏政策划入势力池的部分',
   },
+];
+
+/** 入账 · 玩家交互（卡池抽卡 + 官员谏言上供） */
+const PLAYER_INTERACTION_CHILDREN = [
   {
     key: CATEGORY.CARD_POOL_DRAW,
     label: '卡池抽卡',
     hint: '封赏卡池抽取费用划入势力银储备',
+  },
+  {
+    key: CATEGORY.REMONSTRANCE_TRIBUTE,
+    label: '官员谏言',
+    hint: '官员谏言上供银两（个人银两划入势力储备）',
   },
 ];
 
@@ -376,6 +386,33 @@ function buildCategoryRows(meta, byCat, hintOverrides = {}) {
   };
 }
 
+function buildCreditCategoryRows(byCat, hintOverrides = {}) {
+  const baseRows = buildCategoryRows(CREDIT_CATEGORY_META, byCat, hintOverrides);
+  const children = PLAYER_INTERACTION_CHILDREN.map((m) => ({
+    key: m.key,
+    label: m.label,
+    hint: hintOverrides[m.key] ?? m.hint,
+    silver: byCat[m.key]?.silver || 0,
+    food: byCat[m.key]?.food || 0,
+  }));
+  const playerInteraction = {
+    key: 'player_interaction',
+    label: '玩家交互',
+    hint:
+      hintOverrides.player_interaction ??
+      '封赏卡池抽取费用与官员谏言上供银两划入势力储备',
+    silver: children.reduce((s, c) => s + c.silver, 0),
+    food: children.reduce((s, c) => s + c.food, 0),
+    children,
+  };
+  const categories = [...baseRows.categories, playerInteraction];
+  return {
+    categories,
+    totalSilver: categories.reduce((s, c) => s + c.silver, 0),
+    totalFood: categories.reduce((s, c) => s + c.food, 0),
+  };
+}
+
 function buildLegendaryCategoryRows(meta, byCat, hintOverrides = {}) {
   const categories = meta.map((m) => {
     if (Array.isArray(m.aggregateCategories) && m.aggregateCategories.length > 0) {
@@ -442,7 +479,7 @@ async function getLedgerSummaryForFaction(factionId, opts = {}) {
   } catch (e) {
     if (/Unknown table ['`]faction_reserve/i.test(e?.message || '')) {
       return {
-        credit: buildCategoryRows(CREDIT_CATEGORY_META, {}, { [CATEGORY.DAILY_RECOVERY]: dailyRecoveryHint }),
+        credit: buildCreditCategoryRows({}, { [CATEGORY.DAILY_RECOVERY]: dailyRecoveryHint }),
         expense: buildCategoryRows(EXPENSE_CATEGORY_META, {}),
         schemaMissing: true,
       };
@@ -466,7 +503,7 @@ async function getLedgerSummaryForFaction(factionId, opts = {}) {
     };
   }
   return {
-    credit: buildCategoryRows(CREDIT_CATEGORY_META, byCat, {
+    credit: buildCreditCategoryRows(byCat, {
       [CATEGORY.DAILY_RECOVERY]: dailyRecoveryHint,
     }),
     expense: buildCategoryRows(EXPENSE_CATEGORY_META, byCat),

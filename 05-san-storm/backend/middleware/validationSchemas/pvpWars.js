@@ -12,11 +12,16 @@ const {
   poiId,
   warId,
   queryLimit,
+  queryNonNegativeInteger,
 } = require('./common');
+
+const tributeSilverField = v.optional(v.integer({ min: 0, max: 100000 }));
+const tributeSilverQuery = v.optional(queryNonNegativeInteger({ min: 0, max: 100000 }));
 
 const previewApprovalQuery = {
   factionId: v.required(factionId),
   proposalType: v.required(v.enum(['war', 'policy'])),
+  tributeSilver: tributeSilverQuery,
 };
 
 const proposalsBody = {
@@ -27,6 +32,7 @@ const proposalsBody = {
   proposalId: v.optional(v.idLike({ max: 128 })),
   serverId: v.optional(v.idLike({ max: 64 })),
   transientPolicies: v.optional(v.plainObject()),
+  tributeSilver: tributeSilverField,
 };
 
 const listWarsQuery = {

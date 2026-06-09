@@ -70,7 +70,7 @@ router.post(
   validateBody(factionPolicySchemas.previewApprovalBody),
   async (req, res, next) => {
     try {
-      const { factionId, category, config } = req.body;
+      const { factionId, category, config, tributeSilver = 0 } = req.body;
       const accountId = req.player?.sub;
       if (!accountId) {
         return res.status(401).json({ success: false, error: '未登录' });
@@ -90,6 +90,7 @@ router.post(
         factionId,
         category,
         config,
+        tributeSilver,
       );
       res.json({ success: true, data });
     } catch (error) {
@@ -106,7 +107,7 @@ router.post(
   validateBody(factionPolicySchemas.longTermProposalBody),
   async (req, res, next) => {
     try {
-      const { factionId, category, config, proposalId } = req.body;
+      const { factionId, category, config, proposalId, tributeSilver = 0 } = req.body;
       const accountId = req.player?.sub;
       if (!accountId) {
         return res.status(401).json({ success: false, error: '未登录' });
@@ -123,6 +124,7 @@ router.post(
         config,
         proposerPlayerId: playerRow.player_id,
         proposalId,
+        tributeSilver,
       });
 
       res.json({ success: true, data: result });

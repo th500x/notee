@@ -156,10 +156,14 @@ function formatLegendaryLedgerAmounts(c) {
   return <>将领 {fmtNum(c.characterLegendary)} · 部队 {fmtNum(c.troopLegendary)}</>;
 }
 
-/** @param {{ label: string, hint: string, silver?: number, food?: number, troopLegendary?: number, characterLegendary?: number, legendaryScope?: string, key: string }} c */
-function LedgerCategoryCard({ c, variant = 'silverFood' }) {
+/** @param {{ label: string, hint: string, silver?: number, food?: number, troopLegendary?: number, characterLegendary?: number, legendaryScope?: string, key: string, children?: Array<object> }} c */
+function LedgerCategoryCard({ c, variant = 'silverFood', nested = false }) {
   return (
-    <li className="rounded border border-stone-800/80 bg-stone-900/40 px-2 py-1.5">
+    <li
+      className={`rounded border border-stone-800/80 bg-stone-900/40 px-2 py-1.5 ${
+        nested ? 'ml-2 border-stone-800/50 bg-stone-900/25' : ''
+      }`}
+    >
       <div className="text-xs text-stone-200">{c.label}</div>
       <div className="text-[10px] leading-snug text-stone-500">{c.hint}</div>
       <div className="mt-0.5 text-[11px] tabular-nums text-stone-300">
@@ -167,6 +171,13 @@ function LedgerCategoryCard({ c, variant = 'silverFood' }) {
           ? formatLegendaryLedgerAmounts(c)
           : <>银 {fmtNum(c.silver)} · 粮 {fmtNum(c.food)}</>}
       </div>
+      {Array.isArray(c.children) && c.children.length > 0 ? (
+        <ul className="mt-2 list-none space-y-1.5 border-l border-stone-800/60 pl-0">
+          {c.children.map((child) => (
+            <LedgerCategoryCard key={child.key} c={child} variant={variant} nested />
+          ))}
+        </ul>
+      ) : null}
     </li>
   );
 }

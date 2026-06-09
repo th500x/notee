@@ -25,6 +25,7 @@ const {
   computeSaturatedPersonality,
   pickEffByProposalType,
 } = require('../utils/aiKingPersonalityEff');
+const { tributeApprovalBonus } = require('../../shared/utils/remonstranceTributeSilver.cjs');
 
 /** 战事类提案：消费 personality.aggression（性格 · 侵略） */
 const PROPOSAL_TYPE_WAR = 'war';
@@ -120,6 +121,7 @@ function computeApprovalBase(king, proposalType, cityCount, proposalContext) {
  *   proposalType: 'war'|'policy',
  *   cityCount?: number|null,
  *   proposalContext?: { assess?: object, category?: string }|null,
+ *   tributeSilver?: number,
  * }} input
  * @returns {{
  *   factionId: string,
@@ -133,7 +135,13 @@ function computeApprovalBase(king, proposalType, cityCount, proposalContext) {
  *   benefitAssess?: object|null,
  * }}
  */
-function previewApprovalRange({ factionId, proposalType, cityCount = null, proposalContext = null }) {
+function previewApprovalRange({
+  factionId,
+  proposalType,
+  cityCount = null,
+  proposalContext = null,
+  tributeSilver = 0,
+}) {
   const king = aiKingConfigService.getKingByFactionId(factionId);
   const { personalityBase, base, boostedUnconditionalBenefit } = computeApprovalBase(
     king,
@@ -142,6 +150,7 @@ function previewApprovalRange({ factionId, proposalType, cityCount = null, propo
     proposalContext,
   );
   const baseClamped = clamp01(base);
+  const tributeBonus = tributeApprovalBonus(tributeSilver);
   const saturated =
     cityCount != null
       ? computeSaturatedPersonality(king, cityCount).saturated
@@ -151,8 +160,10 @@ function previewApprovalRange({ factionId, proposalType, cityCount = null, propo
     proposalType,
     base: baseClamped,
     ...(proposalType === PROPOSAL_TYPE_POLICY ? { personalityBase: clamp01(personalityBase) } : {}),
-    minRate: baseClamped,
-    maxRate: clamp01(base * 1.2),
+    tributeSilver: Math.max(0, Math.floor(Number(tributeSilver) || 0)),
+    tributeBonus,
+    minRate: clamp01(baseClamped + tributeBonus),
+    maxRate: clamp01(base * 1.2 + tributeBonus),
     ...(saturated !== undefined ? { saturated } : {}),
     ...(boostedUnconditionalBenefit ? { boostedUnconditionalBenefit: true } : {}),
     ...(proposalContext?.assess ? { benefitAssess: proposalContext.assess } : {}),
@@ -169,6 +180,7 @@ function previewApprovalRange({ factionId, proposalType, cityCount = null, propo
  * @param {string} [input.proposalId] - 用于审计追踪
  * @param {number|null} [input.cityCount] - 当前势力占有城数；传入则启用饱和调制（*_eff）
  * @param {{ assess?: object, category?: string }|null} [input.proposalContext] - 政策类提案效用评估
+ * @param {number} [input.tributeSilver] - 上供银两（100 倍数）
  * @param {() => number} [input.rng] - 注入随机源（测试可固定）；默认 Math.random
  * @returns {{
  *   approved: boolean,
@@ -194,6 +206,7 @@ function resolvePassiveApproval({
   proposalId = null,
   cityCount = null,
   proposalContext = null,
+  tributeSilver = 0,
   rng = Math.random,
 }) {
   const king = aiKingConfigService.getKingByFactionId(factionId);
@@ -204,7 +217,8 @@ function resolvePassiveApproval({
     proposalContext,
   );
   const { dice, mult } = rollDice6Multiplier(rng);
-  const finalApproveChance = clamp01(base * mult);
+  const tributeBonus = tributeApprovalBonus(tributeSilver);
+  const finalApproveChance = clamp01(base * mult + tributeBonus);
   const u = rng();
   const approved = u < finalApproveChance;
   const saturated =
@@ -220,6 +234,8 @@ function resolvePassiveApproval({
       ? { personalityBase: clamp01(personalityBase) }
       : {}),
     ...(boostedUnconditionalBenefit ? { boostedUnconditionalBenefit: true } : {}),
+    tributeSilver: Math.max(0, Math.floor(Number(tributeSilver) || 0)),
+    tributeBonus,
     dice,
     mult,
     finalApproveChance,
@@ -241,6 +257,7 @@ function resolvePassiveApproval({
       base: audit.base,
       ...(audit.personalityBase != null ? { personalityBase: audit.personalityBase } : {}),
       ...(boostedUnconditionalBenefit ? { boostedUnconditionalBenefit: true } : {}),
+      ...(audit.tributeSilver > 0 ? { tributeSilver: audit.tributeSilver, tributeBonus: audit.tributeBonus } : {}),
       dice,
       mult,
       finalApproveChance: Number(finalApproveChance.toFixed(4)),

@@ -54,6 +54,23 @@ const chatChannelType = v.enum(['world', 'faction', 'legion']);
 /** query limit（字符串数字） */
 const queryLimit = v.pattern(/^\d+$/, '正整数');
 
+/**
+ * query / path 非负整数（Express query 为字符串；勿对 query 用 v.integer）。
+ * @param {{ min?: number, max?: number }} [opts]
+ */
+function queryNonNegativeInteger({ min = 0, max = Number.MAX_SAFE_INTEGER } = {}) {
+  return (val, name) => {
+    if (val === undefined || val === null || val === '') return null;
+    const s = String(val).trim();
+    if (!/^\d+$/.test(s)) return `${name} 须为非负整数`;
+    const n = parseInt(s, 10);
+    if (!Number.isInteger(n)) return `${name} 须为非负整数`;
+    if (n < min) return `${name} 不能小于 ${min}`;
+    if (n > max) return `${name} 不能大于 ${max}`;
+    return null;
+  };
+}
+
 /** 驻地槽 1–12（`:slot` path 段） */
 const garrisonSlotParam = (val, name) => {
   const n = parseInt(String(val), 10);
@@ -90,6 +107,7 @@ module.exports = {
   quotaAction,
   chatChannelType,
   queryLimit,
+  queryNonNegativeInteger,
   garrisonSlotParam,
   serverId,
   mapQuad,

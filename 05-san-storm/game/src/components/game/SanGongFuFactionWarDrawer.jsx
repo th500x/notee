@@ -250,7 +250,7 @@ export default function SanGongFuFactionWarDrawer({ playerId, factionId, player,
   ]);
 
   const handleRemonstranceSubmit = useCallback(
-    async (transientPolicies) => {
+    async ({ frontAssault, rearAssault, imperialMarch, tributeSilver = 0 }) => {
       const kind = selectionMeta?.kind;
       if (!playerId || !factionId || !selectedCityId || (kind !== 'pvp' && kind !== 'pve')) {
         return { ok: false, message: '当前目标不可提交战事谏言' };
@@ -264,7 +264,11 @@ export default function SanGongFuFactionWarDrawer({ playerId, factionId, player,
         season,
         proposerPlayerId: playerId,
         proposalId: `remonstrance-${Date.now()}`,
-        transientPolicies: kind === 'pvp' ? transientPolicies : undefined,
+        transientPolicies:
+          kind === 'pvp'
+            ? { frontAssault, rearAssault, imperialMarch }
+            : undefined,
+        tributeSilver,
       });
       const payload = res?.data && typeof res.data === 'object' ? res.data : res;
       if (res?.success && payload?.draftCreated) {
@@ -505,6 +509,8 @@ export default function SanGongFuFactionWarDrawer({ playerId, factionId, player,
         }
         proposalKind={selectionMeta?.kind === 'pve' ? 'pve' : 'pvp'}
         approvalPreview={remonstrancePanel?.approvalPreview || null}
+        factionId={factionId}
+        playerSilver={Number(player?.silver) || 0}
         proposalCost={remonstrancePanel?.proposalCost || null}
         transientPolicyFees={remonstrancePanel?.transientPolicyFees || null}
         canSubmit={

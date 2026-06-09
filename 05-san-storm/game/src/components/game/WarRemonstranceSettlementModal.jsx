@@ -2,12 +2,14 @@
  * 三公府 · 势力战事 —「谏言决算」：目标城、发动费、AI 审批预览、临时政策三开关与提交。
  */
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   TRANSIENT_POLICY_KEY,
   TRANSIENT_POLICY_META,
   TRANSIENT_POLICY_ORDER,
 } from '@/constants/factionPolicyLabels';
+import { applyTributeToApprovalPreview } from '@/utils/remonstranceTributeSilverDisplay';
+import RemonstranceTributeSilverSection from '@/components/game/RemonstranceTributeSilverSection';
 
 /**
  * @param {{
@@ -17,12 +19,14 @@ import {
  *   targetCityId?: string|null,
  *   proposalKind: 'pvp' | 'pve',
  *   approvalPreview: object|null,
+ *   factionId?: string|null,
+ *   playerSilver?: number,
  *   proposalCost: object|null,
  *   targetCityType?: string|null,
  *   transientPolicyFees?: Record<string, { silver: number, food: number }>|null,
  *   canSubmit?: boolean,
  *   submitDisabledReason?: string,
- *   onSubmit?: (transientPolicies: { frontAssault: boolean, rearAssault: boolean, imperialMarch: boolean }) => Promise<{ ok: boolean, message?: string }>,
+ *   onSubmit?: (payload: { frontAssault: boolean, rearAssault: boolean, imperialMarch: boolean, tributeSilver?: number }) => Promise<{ ok: boolean, message?: string }>,
  * }} props
  */
 export default function WarRemonstranceSettlementModal({
@@ -32,6 +36,8 @@ export default function WarRemonstranceSettlementModal({
   targetCityId,
   proposalKind,
   approvalPreview,
+  factionId,
+  playerSilver = 0,
   proposalCost,
   targetCityType,
   transientPolicyFees,
@@ -44,6 +50,22 @@ export default function WarRemonstranceSettlementModal({
   const [imperialMarch, setImperialMarch] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
+  const [tributeSilver, setTributeSilver] = useState(0);
+
+  useEffect(() => {
+    if (!open) {
+      setTributeSilver(0);
+      setFrontAssault(false);
+      setRearAssault(false);
+      setImperialMarch(false);
+      setSubmitError('');
+    }
+  }, [open]);
+
+  const effectiveApprovalPreview = useMemo(
+    () => applyTributeToApprovalPreview(approvalPreview, tributeSilver),
+    [approvalPreview, tributeSilver],
+  );
 
   const showTransient = proposalKind === 'pvp';
 
@@ -81,10 +103,17 @@ export default function WarRemonstranceSettlementModal({
     (Number(reserves.silver) || 0) >= totalSilver &&
     (Number(reserves.food) || 0) >= totalFood;
 
+  const tributeUnaffordable =
+    tributeSilver > 0 && Math.max(0, Math.floor(Number(playerSilver) || 0)) < tributeSilver;
+
   const handleSubmit = useCallback(async () => {
     if (!canSubmit || !onSubmit || submitting) return;
-    if (!warAffordable || (showTransient && !policyAffordable)) {
-      setSubmitError('势力储备不足以支付发动费与已选临时政策');
+    if (!warAffordable || (showTransient && !policyAffordable) || tributeUnaffordable) {
+      if (tributeUnaffordable) {
+        setSubmitError('个人银两不足以支付所选上供档位');
+      } else {
+        setSubmitError('势力储备不足以支付发动费与已选临时政策');
+      }
       return;
     }
     setSubmitting(true);
@@ -94,6 +123,7 @@ export default function WarRemonstranceSettlementModal({
         frontAssault: showTransient && frontAssault,
         rearAssault: showTransient && rearAssault,
         imperialMarch: showTransient && imperialMarch,
+        tributeSilver,
       });
       if (res?.ok) {
         onClose();
@@ -116,14 +146,16 @@ export default function WarRemonstranceSettlementModal({
     rearAssault,
     imperialMarch,
     onClose,
+    tributeSilver,
+    tributeUnaffordable,
   ]);
 
   if (!open) return null;
 
   const kindLabel = proposalKind === 'pvp' ? '势力 PVP 攻城' : '中立城 PVE 攻城';
-  const base = approvalPreview?.base;
-  const minR = approvalPreview?.minRate;
-  const maxR = approvalPreview?.maxRate;
+  const base = effectiveApprovalPreview?.base;
+  const minR = effectiveApprovalPreview?.minRate;
+  const maxR = effectiveApprovalPreview?.maxRate;
   const pct = (x) => (Number.isFinite(x) ? `${Math.round(Number(x) * 100)}%` : '—');
   const mult = proposalCost?.multiplierPercent;
   const mo = proposalCost?.monthOrdinal;
@@ -134,6 +166,7 @@ export default function WarRemonstranceSettlementModal({
     !canSubmit ||
     submitting ||
     !warAffordable ||
+    tributeUnaffordable ||
     (showTransient && policyFeeTotal.silver + policyFeeTotal.food > 0 && !policyAffordable);
 
   return (
@@ -265,6 +298,13 @@ export default function WarRemonstranceSettlementModal({
             </div>
           ) : null}
 
+          <RemonstranceTributeSilverSection
+            tributeSilver={tributeSilver}
+            onTributeSilverChange={setTributeSilver}
+            playerSilver={playerSilver}
+            disabled={submitting}
+          />
+
           <div className="rounded-lg border border-stone-600/70 bg-stone-950 px-2.5 py-2">
             <div className="text-[11px] font-semibold text-amber-500/95">AI 君主同意率（预览）</div>
             <p className="mt-1 text-[11px] text-stone-300">
@@ -278,7 +318,7 @@ export default function WarRemonstranceSettlementModal({
               ) : null}
               。
             </p>
-            {approvalPreview?.saturated ? (
+            {effectiveApprovalPreview?.saturated ? (
               <p className="mt-1 text-[10px] text-amber-400/90">占城较多时，战事谏言倾向略作收敛。</p>
             ) : null}
           </div>

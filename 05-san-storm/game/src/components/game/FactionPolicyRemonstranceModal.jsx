@@ -18,6 +18,7 @@ import { awaitWithMinDuration } from '@/utils/remonstranceDeliberation';
 import { buildPolicyRemonstranceVerdictLine } from '@/data/texts/kingPolicyRemonstranceLines';
 import CeremonyBounceOverlay from '@/components/game/CeremonyBounceOverlay';
 import KingEdictVerdictDialog from '@/components/game/KingEdictVerdictDialog';
+import RemonstranceTributeSilverSection from '@/components/game/RemonstranceTributeSilverSection';
 
 const pct = (x) => (Number.isFinite(x) ? `${Math.round(Number(x) * 100)}%` : '—');
 
@@ -34,6 +35,7 @@ const pct = (x) => (Number.isFinite(x) ? `${Math.round(Number(x) * 100)}%` : '�
  *   approvalPreview?: object|null,
  *   recruitMapping?: object|null,
  *   factionReserves?: object|null,
+ *   playerSilver?: number,
  *   currentApproved?: boolean,
  *   onSubmitted?: (result: object) => void,
  * }} props
@@ -50,6 +52,7 @@ export default function FactionPolicyRemonstranceModal({
   approvalPreview,
   recruitMapping,
   factionReserves,
+  playerSilver = 0,
   currentApproved,
   onSubmitted,
 }) {
@@ -66,6 +69,7 @@ export default function FactionPolicyRemonstranceModal({
   const [courtesyName, setCourtesyName] = useState('君主');
   const [draftApprovalPreview, setDraftApprovalPreview] = useState(null);
   const [previewLoading, setPreviewLoading] = useState(false);
+  const [tributeSilver, setTributeSilver] = useState(0);
   const previewSeqRef = useRef(0);
 
   useEffect(() => {
@@ -76,6 +80,7 @@ export default function FactionPolicyRemonstranceModal({
     setVerdictPayload(null);
     setSubmitting(false);
     setDraftApprovalPreview(null);
+    setTributeSilver(0);
   }, [open, category]);
 
   useEffect(() => {
@@ -136,6 +141,7 @@ export default function FactionPolicyRemonstranceModal({
           factionId,
           category,
           config: draftConfig,
+          tributeSilver,
         });
         if (seq !== previewSeqRef.current) return;
         if (res?.success && res.data) {
@@ -150,7 +156,7 @@ export default function FactionPolicyRemonstranceModal({
       }
     }, 280);
     return () => clearTimeout(timer);
-  }, [open, phase, factionId, category, draftConfig]);
+  }, [open, phase, factionId, category, draftConfig, tributeSilver]);
 
   const effectivePreview = draftApprovalPreview || localApprovalPreview;
   const base = effectivePreview?.base;
@@ -179,19 +185,34 @@ export default function FactionPolicyRemonstranceModal({
     };
   }, [category, recruitMapping, factionReserves, isRecruitOpening]);
 
-  const formatNextEligibleFootnote = useCallback((nextAt, approved) => {
+  const tributeUnaffordable =
+    tributeSilver > 0 && Math.max(0, Math.floor(Number(playerSilver) || 0)) < tributeSilver;
+
+  const formatNextEligibleFootnote = useCallback((nextAt, approved, tribute) => {
     const nextText = nextAt
       ? new Date(nextAt).toLocaleString('zh-CN', { hour12: false })
       : '—';
     if (approved) {
-      return `新政策已在势力中生效。下一次可谏言：${nextText}。`;
+      const tributeNote =
+        tribute?.tributeSilver > 0
+          ? `上供 ${tribute.tributeSilver} 银已划入势力储备${
+              tribute.contributionGranted > 0 ? `，贡献 +${tribute.contributionGranted}` : ''
+            }。`
+          : '';
+      return `${tributeNote}新政策已在势力中生效。下一次可谏言：${nextText}。`;
     }
-    return `本次提案未通过，当前政策维持原样。下一次可谏言：${nextText}。`;
+    const tributeNote =
+      tribute?.tributeSilver > 0
+        ? `上供 ${tribute.tributeSilver} 银已划入势力储备${
+            tribute.contributionGranted > 0 ? `，贡献 +${tribute.contributionGranted}` : ''
+          }。`
+        : '';
+    return `本次提案未通过，当前政策维持原样。${tributeNote}下一次可谏言：${nextText}。`;
   }, []);
 
   const onSubmit = async () => {
     if (!meta || submitting || cooldownActive || phase !== 'form') return;
-    if (recruitFeeInfo?.insufficient) return;
+    if (recruitFeeInfo?.insufficient || tributeUnaffordable) return;
     setSubmitting(true);
     setError(null);
     setPhase('deliberating');
@@ -201,6 +222,7 @@ export default function FactionPolicyRemonstranceModal({
           factionId,
           category,
           config: draftConfig,
+          tributeSilver,
         }),
       );
       if (res && res.success && res.data) {
@@ -215,7 +237,7 @@ export default function FactionPolicyRemonstranceModal({
         setVerdictPayload({
           approved,
           line,
-          footnote: formatNextEligibleFootnote(nextAt, approved),
+          footnote: formatNextEligibleFootnote(nextAt, approved, res.data.tribute),
           raw: res.data,
         });
         onSubmitted?.(res.data);
@@ -343,6 +365,13 @@ export default function FactionPolicyRemonstranceModal({
                 </p>
               )}
 
+              <RemonstranceTributeSilverSection
+                tributeSilver={tributeSilver}
+                onTributeSilverChange={setTributeSilver}
+                playerSilver={playerSilver}
+                disabled={submitting || cooldownActive}
+              />
+
               <div className="rounded-lg border border-stone-600/70 bg-stone-950 px-2.5 py-2">
                 <div className="text-[11px] font-semibold text-amber-500/95">AI 君主同意率（预览）</div>
                 <p className="mt-1 text-[11px] text-stone-300">
@@ -440,7 +469,7 @@ export default function FactionPolicyRemonstranceModal({
               </button>
               <button
                 type="button"
-                disabled={submitting || cooldownActive || !!recruitFeeInfo?.insufficient}
+                disabled={submitting || cooldownActive || !!recruitFeeInfo?.insufficient || tributeUnaffordable}
                 onClick={onSubmit}
                 className="rounded-lg border border-amber-700/60 bg-amber-950/35 px-3 py-1.5 text-xs font-semibold text-amber-100 hover:bg-amber-900/40 disabled:cursor-not-allowed disabled:opacity-50"
               >

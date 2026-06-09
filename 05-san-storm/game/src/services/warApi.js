@@ -27,9 +27,10 @@ export const warAPI = {
    * 预览君主审批通过率区间：返回 `{ approved, baseChance, finalChance, rangeLow, rangeHigh, ... }`。
    * 用于宣战提案 UI：客户端展示 `[base, min(1, base*1.2)]`，提示「当次仍掷骰」。
    */
-  async previewApproval({ factionId, proposalType = 'war' }) {
-    const qs = new URLSearchParams({ factionId, proposalType }).toString();
-    return fetchJSON(`${BASE}/preview-approval?${qs}`);
+  async previewApproval({ factionId, proposalType = 'war', tributeSilver = 0 } = {}) {
+    const params = new URLSearchParams({ factionId, proposalType });
+    if (tributeSilver > 0) params.set('tributeSilver', String(tributeSilver));
+    return fetchJSON(`${BASE}/preview-approval?${params.toString()}`);
   },
 
   /**
@@ -60,6 +61,7 @@ export const warAPI = {
     proposerPlayerId,
     proposalId,
     transientPolicies,
+    tributeSilver = 0,
   }) {
     const body = {
       attackerFactionId,
@@ -67,6 +69,7 @@ export const warAPI = {
       season,
       proposerPlayerId,
       proposalId,
+      tributeSilver,
     };
     if (transientPolicies && typeof transientPolicies === 'object') {
       body.transientPolicies = transientPolicies;

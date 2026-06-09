@@ -760,15 +760,17 @@ export default function StrategicWorldMapSection({
 
   useEffect(() => {
     if (typeof onExploreAnchorGridContext !== 'function') return;
-    if (!merged?.cells?.length || !countyCityRows.length) {
+    if (!merged?.cells?.length) {
       onExploreAnchorGridContext(null);
       return;
     }
+    // 探索锚点（尤其汝南 `{any_bandit}` / `banditPoiId`）须依赖 merged.cells + 叠放行换算；
+    // 勿因郡城 API 尚未返回就置 null，否则 IDLE 会退回仅匹配 cities.position_* 的旧路径，匪寨恒解析失败。
     onExploreAnchorGridContext({
       cells: merged.cells,
       mapColumns: cols,
       mapRows: rows,
-      countyCityRows,
+      countyCityRows: countyCityRows.length ? countyCityRows : null,
     });
   }, [merged, cols, rows, countyCityRows, onExploreAnchorGridContext]);
 
@@ -1572,7 +1574,8 @@ export default function StrategicWorldMapSection({
         return lastStackKey && k === lastStackKey;
       });
       let encounterHint = null;
-      if (occ) {
+      // 31-6 §4.1 / §7：targetPoiId 入城/入寨时落点为 POI 中心，末段道路格友方叠站不构成主动叠格拒止
+      if (!pathRes.targetPoiId && occ) {
         const sameFaction =
           marchPlayer.factionId != null &&
           occ.factionId != null &&
