@@ -5,6 +5,7 @@
 const { pool } = require('../database/connection');
 const PlayerService = require('./playerService');
 const statisticsDeltaService = require('./statisticsDeltaService');
+const factionReserveService = require('./factionReserveService');
 const { getRerollRarityForPlayer } = require('../../shared/utils/positionRerollRarity.cjs');
 
 const REROLL_COST = { common: 10, rare: 50, epic: 250, legendary: 500, core: 750 };
@@ -115,72 +116,100 @@ async function getRerollStatus(playerId) {
 }
 
 async function rerollAttributes(playerId) {
-  const [rows] = await pool.query(
-    `SELECT position_level, current_position_id, silver,
-            IF(attr_reroll_date = CURDATE(), attr_reroll_count, 0) AS today_used,
-            attr_reroll_batches
-     FROM players WHERE player_id = ?`,
-    [playerId]
-  );
-  if (!rows.length) return { notFound: true };
-  const p = rows[0];
-  const rarity = getRerollRarityForPlayer({
-    positionLevel: p.position_level,
-    currentPositionId: p.current_position_id,
-  });
-  const cost = REROLL_COST[rarity];
-  const remaining = REROLL_DAILY_LIMIT - (p.today_used || 0);
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    const [rows] = await conn.query(
+      `SELECT position_level, current_position_id, silver, faction_id,
+              IF(attr_reroll_date = CURDATE(), attr_reroll_count, 0) AS today_used,
+              attr_reroll_batches
+       FROM players WHERE player_id = ? FOR UPDATE`,
+      [playerId],
+    );
+    if (!rows.length) {
+      await conn.rollback();
+      return { notFound: true };
+    }
+    const p = rows[0];
+    const rarity = getRerollRarityForPlayer({
+      positionLevel: p.position_level,
+      currentPositionId: p.current_position_id,
+    });
+    const cost = REROLL_COST[rarity];
+    const remaining = REROLL_DAILY_LIMIT - (p.today_used || 0);
 
-  if (remaining <= 0) {
-    return { badRequest: '今日属性随机次数已用完（上限2次/天）' };
-  }
-  if (p.silver < cost) {
-    return { badRequest: `银两不足，需要${cost}银两` };
-  }
+    if (remaining <= 0) {
+      await conn.rollback();
+      return { badRequest: '今日属性随机次数已用完（上限2次/天）' };
+    }
+    if (p.silver < cost) {
+      await conn.rollback();
+      return { badRequest: `银两不足，需要${cost}银两` };
+    }
 
-  const options = await PlayerService.generateAttributeOptions(rarity);
+    const options = await PlayerService.generateAttributeOptions(rarity);
 
-  const batches = p.attr_reroll_batches
-    ? typeof p.attr_reroll_batches === 'string'
-      ? JSON.parse(p.attr_reroll_batches)
-      : p.attr_reroll_batches
-    : [];
-  const newBatch = {
-    batch: batches.length + 1,
-    timestamp: new Date().toISOString(),
-    cost,
-    rarity,
-    options,
-  };
-  batches.push(newBatch);
-
-  const newUsed = (p.today_used || 0) + 1;
-  const newRemaining = REROLL_DAILY_LIMIT - newUsed;
-  await pool.query(
-    `UPDATE players SET
-      silver = silver - ?,
-      attr_reroll_date = CURDATE(),
-      attr_reroll_count = ?,
-      attr_reroll_batches = ?,
-      attr_reroll_selected_batch = NULL,
-      attr_reroll_selected_index = NULL
-     WHERE player_id = ?`,
-    [cost, newUsed, JSON.stringify(batches), playerId]
-  );
-
-  await statisticsDeltaService.incrementSpent(playerId, { silver: cost });
-
-  return {
-    ok: true,
-    data: {
-      batch: newBatch.batch,
-      options,
+    const batches = p.attr_reroll_batches
+      ? typeof p.attr_reroll_batches === 'string'
+        ? JSON.parse(p.attr_reroll_batches)
+        : p.attr_reroll_batches
+      : [];
+    const newBatch = {
+      batch: batches.length + 1,
+      timestamp: new Date().toISOString(),
       cost,
-      remainingSilver: p.silver - cost,
-      remaining: newRemaining,
-      batches,
-    },
-  };
+      rarity,
+      options,
+    };
+    batches.push(newBatch);
+
+    const newUsed = (p.today_used || 0) + 1;
+    const newRemaining = REROLL_DAILY_LIMIT - newUsed;
+    await conn.query(
+      `UPDATE players SET
+        silver = silver - ?,
+        attr_reroll_date = CURDATE(),
+        attr_reroll_count = ?,
+        attr_reroll_batches = ?,
+        attr_reroll_selected_batch = NULL,
+        attr_reroll_selected_index = NULL
+       WHERE player_id = ?`,
+      [cost, newUsed, JSON.stringify(batches), playerId],
+    );
+
+    const factionId = String(p.faction_id || '').trim();
+    if (factionId) {
+      await factionReserveService.ensurePoolRow(conn, factionId);
+      await factionReserveService.creditPoolOnConnection(conn, factionId, { silver: cost }, {
+        ledgerCategory: factionReserveService.CATEGORY.ATTR_REROLL,
+      });
+    }
+
+    await conn.commit();
+
+    await statisticsDeltaService.incrementSpent(playerId, { silver: cost });
+
+    return {
+      ok: true,
+      data: {
+        batch: newBatch.batch,
+        options,
+        cost,
+        remainingSilver: p.silver - cost,
+        remaining: newRemaining,
+        batches,
+      },
+    };
+  } catch (err) {
+    try {
+      await conn.rollback();
+    } catch (_) {
+      /* ignore */
+    }
+    throw err;
+  } finally {
+    conn.release();
+  }
 }
 
 async function rerollConfirm(playerId, batch, index) {

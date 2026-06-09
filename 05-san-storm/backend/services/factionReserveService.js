@@ -18,6 +18,7 @@ const CATEGORY = Object.freeze({
   MARCH_FOOD: 'march_food',
   STIPEND_BONUS: 'stipend_bonus',
   CARD_POOL_DRAW: 'card_pool_draw',
+  ATTR_REROLL: 'attr_reroll',
   REMONSTRANCE_TRIBUTE: 'remonstrance_tribute',
   RESOURCE_EXCHANGE_DEPOSIT: 'resource_exchange_deposit',
   RESOURCE_EXCHANGE_PAYOUT: 'resource_exchange_payout',
@@ -41,12 +42,17 @@ const CREDIT_CATEGORY_META = [
   },
 ];
 
-/** 入账 · 玩家交互（卡池抽卡 + 官员谏言上供） */
+/** 入账 · 玩家交互（卡池抽卡 + 属性重随 + 官员谏言上供 + 银粮兑换） */
 const PLAYER_INTERACTION_CHILDREN = [
   {
     key: CATEGORY.CARD_POOL_DRAW,
     label: '卡池抽卡',
     hint: '封赏卡池抽取费用划入势力银储备',
+  },
+  {
+    key: CATEGORY.ATTR_REROLL,
+    label: '属性重随',
+    hint: '编组官职槽 · 按官职稀有度档位消耗的个人银两划入势力储备',
   },
   {
     key: CATEGORY.REMONSTRANCE_TRIBUTE,
@@ -412,7 +418,7 @@ function buildCreditCategoryRows(byCat, hintOverrides = {}) {
     label: '玩家交互',
     hint:
       hintOverrides.player_interaction ??
-      '封赏卡池、官员谏言上供与银粮兑换划入势力储备',
+      '封赏卡池、属性重随、官员谏言上供与银粮兑换划入势力储备',
     silver: children.reduce((s, c) => s + c.silver, 0),
     food: children.reduce((s, c) => s + c.food, 0),
     children,

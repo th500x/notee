@@ -1,6 +1,6 @@
 {
   "_meta": {
-    "generated": "2026-05-20T08:28:24.188Z",
+    "generated": "2026-06-09T06:44:21.920Z",
     "source": "event-template.csv",
     "count": 28,
     "csvRowCount": 28,
@@ -85,8 +85,8 @@
         "battleEnemyId": null,
         "successText": "你颇有贵人气象",
         "failureText": "你今日印堂发黑",
-        "rewards": "reward-a;reputation:5;san_1_position_junhou;random:troop:common:4;item_tutorial_2",
-        "bonusRewards": "reward-b"
+        "rewards": "reward-a:2;reputation:5;san_1_position_junhou;random:troop:common:4;item_tutorial_2",
+        "bonusRewards": "reputation:5;reward-b"
       },
       "optionB": {
         "id": "option_b",
@@ -101,8 +101,8 @@
         "battleEnemyId": null,
         "successText": "你客气的给了官差20银两赏钱",
         "failureText": null,
-        "rewards": "reward-c;reputation:5;san_1_position_junhou;random:troop:common:4;item_tutorial_2",
-        "bonusRewards": "random:troop:rare:2"
+        "rewards": "reward-c:2;reputation:5;san_1_position_junhou;random:troop:common:4;item_tutorial_2",
+        "bonusRewards": "reputation:5;random:troop:rare:2"
       },
       "minReputation": null,
       "eventHint": "请前往最近的【匪寨】"
