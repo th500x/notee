@@ -6,6 +6,7 @@ const positionPromotionService = require('../../services/positionPromotionServic
 const kingEdictFeedbackService = require('../../services/kingEdictFeedbackService');
 const sanGongTributeService = require('../../services/sanGongTributeService');
 const sanGongStipendService = require('../../services/sanGongStipendService');
+const sanGongResourceExchangeService = require('../../services/sanGongResourceExchangeService');
 const sanGongDocumentService = require('../../services/sanGongDocumentService');
 const factionBulletinService = require('../../services/factionBulletinService');
 const pvpWarService = require('../../services/pvpWarService');
@@ -78,6 +79,25 @@ router.post('/:playerId/san-gong-fu/stipend-claim', withRoute('领取俸禄失�
   if (!out.ok) return res.status(out.status).json({ success: false, error: out.error });
   res.json({ success: true, data: out });
 }));
+
+router.get('/:playerId/san-gong-fu/resource-exchange-preview', withRoute('兑换预览失败', async (req, res) => {
+  const out = await sanGongResourceExchangeService.getExchangePreview(req.params.playerId);
+  if (!out.ok) return res.status(out.status).json({ success: false, error: out.error });
+  res.json({ success: true, data: out.data });
+}));
+
+router.post(
+  '/:playerId/san-gong-fu/resource-exchange',
+  validateBody(sanGongSchemas.resourceExchangeBody),
+  withRoute('银粮兑换失败', async (req, res) => {
+    const out = await sanGongResourceExchangeService.submitExchange(
+      req.params.playerId,
+      req.body.packId,
+    );
+    if (!out.ok) return res.status(out.status).json({ success: false, error: out.error });
+    res.json({ success: true, data: out.data });
+  }),
+);
 
 router.get('/:playerId/san-gong-fu/pvp-attacking-wars', withRoute('查询势力战事失败', async (req, res) => {
   const data = await pvpWarService.listSanGongAttackingSiegeWarsForPlayer(req.params.playerId);

@@ -161,6 +161,7 @@ const MIGRATION_FILES = [
   'add-players-daily-report-checkin.sql',
   'create-daily-report-digests.sql',
   'wars-add-attacker-base-camps.sql',
+  'player-events-add-san-gong-resource-exchange-daily.sql',
 ];
 
 /** RENAME：源列不存在时跳过（库已为 skill_type） */

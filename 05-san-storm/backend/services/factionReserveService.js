@@ -19,6 +19,8 @@ const CATEGORY = Object.freeze({
   STIPEND_BONUS: 'stipend_bonus',
   CARD_POOL_DRAW: 'card_pool_draw',
   REMONSTRANCE_TRIBUTE: 'remonstrance_tribute',
+  RESOURCE_EXCHANGE_DEPOSIT: 'resource_exchange_deposit',
+  RESOURCE_EXCHANGE_PAYOUT: 'resource_exchange_payout',
   CARD_POOL_COMPENSATION: 'card_pool_compensation',
   CARD_POOL_LEGENDARY_TROOP: 'card_pool_legendary_troop',
   CARD_POOL_LEGENDARY_CHARACTER: 'card_pool_legendary_character',
@@ -51,6 +53,11 @@ const PLAYER_INTERACTION_CHILDREN = [
     label: '官员谏言',
     hint: '官员谏言上供银两（个人银两划入势力储备）',
   },
+  {
+    key: CATEGORY.RESOURCE_EXCHANGE_DEPOSIT,
+    label: '银粮兑换',
+    hint: '三公府封赏 · 玩家划入势力池的银两/粮草（兑换付出侧）',
+  },
 ];
 
 const LEGENDARY_CREDIT_CATEGORY_META = [
@@ -80,6 +87,11 @@ const EXPENSE_CATEGORY_META = [
     key: CATEGORY.CARD_POOL_COMPENSATION,
     label: '卡池补偿',
     hint: '重复/上限/无卡可用的银粮补偿自势力池垫付（可暂为负，日恢复回补）',
+  },
+  {
+    key: CATEGORY.RESOURCE_EXCHANGE_PAYOUT,
+    label: '银粮兑换',
+    hint: '三公府封赏 · 势力池兑付给玩家的银两/粮草（兑换领取侧）',
   },
 ];
 
@@ -400,7 +412,7 @@ function buildCreditCategoryRows(byCat, hintOverrides = {}) {
     label: '玩家交互',
     hint:
       hintOverrides.player_interaction ??
-      '封赏卡池抽取费用与官员谏言上供银两划入势力储备',
+      '封赏卡池、官员谏言上供与银粮兑换划入势力储备',
     silver: children.reduce((s, c) => s + c.silver, 0),
     food: children.reduce((s, c) => s + c.food, 0),
     children,

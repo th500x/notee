@@ -72,6 +72,35 @@ async function applyRemonstranceTributeOnConnection(conn, input) {
 }
 
 /**
+ * 独立事务扣上供（0 银则 no-op）。供战事/政策谏言路由复用。
+ *
+ * @param {import('mysql2/promise').Pool} dbPool
+ * @param {{ playerId: string, factionId: string, tributeSilver: number }} input
+ */
+async function applyRemonstranceTributeStandalone(dbPool, input) {
+  const amount = normalizeTributeSilver(input?.tributeSilver);
+  if (!amount) {
+    return { tributeSilver: 0, contributionGranted: 0 };
+  }
+  const conn = await dbPool.getConnection();
+  try {
+    await conn.beginTransaction();
+    const result = await applyRemonstranceTributeOnConnection(conn, input);
+    await conn.commit();
+    return result;
+  } catch (err) {
+    try {
+      await conn.rollback();
+    } catch (_) {
+      /* ignore */
+    }
+    throw err;
+  } finally {
+    conn.release();
+  }
+}
+
+/**
  * 审批前校验（不扣款）
  * @param {import('mysql2/promise').Pool|import('mysql2/promise').PoolConnection} db
  */
@@ -101,6 +130,7 @@ async function assertPlayerCanAffordTribute(db, playerId, tributeSilver) {
 
 module.exports = {
   applyRemonstranceTributeOnConnection,
+  applyRemonstranceTributeStandalone,
   assertPlayerCanAffordTribute,
   normalizeTributeSilver,
 };

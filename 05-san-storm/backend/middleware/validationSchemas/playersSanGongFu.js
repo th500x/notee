@@ -49,6 +49,12 @@ const switchPeerBody = {
   positionId: v.required(v.idLike({ max: 128 })),
 };
 
+const resourceExchangeBody = {
+  packId: v.required(
+    v.enum(['silver_food_a', 'silver_food_b', 'food_silver_a', 'food_silver_b']),
+  ),
+};
+
 module.exports = {
   promoteBody,
   switchPeerBody,
@@ -59,4 +65,5 @@ module.exports = {
   pvpWarIdParam,
   pveWarIdParam,
   cancelWarBody,
+  resourceExchangeBody,
 };

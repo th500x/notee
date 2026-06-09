@@ -369,6 +369,28 @@ export const playerAPI = {
     return response.json();
   },
 
+  /** 互动 · 封赏 · 银粮兑换：四包预览（含松紧系数与当日额度） */
+  async getSanGongFuResourceExchangePreview(playerId) {
+    const response = await fetchWithTimeout(
+      `${API_CONFIG.BASE_URL}/players/${playerId}/san-gong-fu/resource-exchange-preview`,
+      { method: 'GET', headers: { 'Content-Type': 'application/json' } },
+    );
+    return response.json();
+  },
+
+  /** 互动 · 封赏 · 银粮兑换：提交指定兑换包 */
+  async submitSanGongFuResourceExchange(playerId, packId) {
+    const response = await fetchWithTimeout(
+      `${API_CONFIG.BASE_URL}/players/${playerId}/san-gong-fu/resource-exchange`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ packId }),
+      },
+    );
+    return response.json();
+  },
+
   /** 三公府 · 朝政：本势力攻方进行中的攻城类 PVP 战事列表（品阶 Lv≤1） */
   async getSanGongFuPvpAttackingWars(playerId) {
     const response = await fetchWithTimeout(

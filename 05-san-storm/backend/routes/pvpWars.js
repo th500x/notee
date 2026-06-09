@@ -38,6 +38,7 @@ const warInitiationCostService = require('../services/warInitiationCostService')
 const policyProposerAuth = require('../services/policyProposerAuth');
 const warPolicyTransientService = require('../services/warPolicyTransientService');
 const remonstranceTributeService = require('../services/remonstranceTributeService');
+const warRemonstranceService = require('../services/warRemonstranceService');
 const { normalizeTributeSilver } = require('../../shared/utils/remonstranceTributeSilver.cjs');
 const { validateBody, validateParams, validateQuery } = require('../middleware/validation');
 const pvpWarSchemas = require('../middleware/validationSchemas/pvpWars');
@@ -198,29 +199,6 @@ router.post('/proposals', validateBody(pvpWarSchemas.proposalsBody), async (req,
 
     const cityCount = await fetchFactionCityCountForKing(attackerFactionId);
 
-    let tributeResult = { tributeSilver: 0, contributionGranted: 0 };
-    if (tributeSilver > 0) {
-      const conn = await pool.getConnection();
-      try {
-        await conn.beginTransaction();
-        tributeResult = await remonstranceTributeService.applyRemonstranceTributeOnConnection(conn, {
-          playerId: proposerPid,
-          factionId: attackerFactionId,
-          tributeSilver,
-        });
-        await conn.commit();
-      } catch (tributeErr) {
-        try {
-          await conn.rollback();
-        } catch (_) {
-          /* ignore */
-        }
-        throw tributeErr;
-      } finally {
-        conn.release();
-      }
-    }
-
     const approval = passiveApprovalService.resolvePassiveApproval({
       factionId: attackerFactionId,
       proposalType: passiveApprovalService.PROPOSAL_TYPE_WAR,
@@ -230,6 +208,11 @@ router.post('/proposals', validateBody(pvpWarSchemas.proposalsBody), async (req,
     });
 
     if (!approval.approved) {
+      const tributeResult = await remonstranceTributeService.applyRemonstranceTributeStandalone(pool, {
+        playerId: proposerPid,
+        factionId: attackerFactionId,
+        tributeSilver,
+      });
       return res.json({
         success: true,
         data: {
@@ -245,47 +228,27 @@ router.post('/proposals', validateBody(pvpWarSchemas.proposalsBody), async (req,
     const nm = String(proposerPlayer.character_name || '').trim();
     const proposer = { kind: 'player', playerId: proposerPid, displayName: nm || proposerPid };
 
-    if (proposalKind === 'pve') {
-      try {
-        const opened = await cityService.openPveWarOnNeutralCity(tid, {
-          openedByCharacterId: proposerPlayer.character_id || null,
-          bulletinFactionId: attackerFactionId,
-        });
-        return res.json({
-          success: true,
-          data: {
-            approval,
-            draftCreated: true,
-            proposalKind: 'pve',
-            pveWar: opened,
-            warId: opened.warId,
-            proposerPlayerId,
-            tribute: tributeResult,
-          },
-        });
-      } catch (createErr) {
-        const code = createErr.status || createErr.statusCode || 409;
-        return res.status(code).json({
-          success: false,
-          error: createErr.publicMessage || createErr.message,
-          code: createErr.code || undefined,
-          approval,
-        });
-      }
-    }
-
-    let war = null;
     try {
-      war = await pvpWarService.createPvpWarDraftAndActivate({
-        season: seasonKey,
-        attackerFactionId,
+      const executed = await warRemonstranceService.executeApprovedWarRemonstrance({
+        proposalKind,
         targetCityId: tid,
+        attackerFactionId,
+        seasonKey,
         serverId,
         proposer,
-        transientPolicies: normalizedPolicies,
+        proposerPlayer,
+        normalizedPolicies,
+        tributeSilver,
+        proposerPlayerId: proposerPid,
+      });
+      return res.json({
+        success: true,
+        data: {
+          approval,
+          ...executed,
+        },
       });
     } catch (createErr) {
-      // 储备不足 / 后军禁开 等业务级错误已经是 4xx — 透传 status；其它走 409 兜底
       const code = createErr.status || createErr.statusCode || 409;
       return res.status(code).json({
         success: false,
@@ -294,19 +257,6 @@ router.post('/proposals', validateBody(pvpWarSchemas.proposalsBody), async (req,
         approval,
       });
     }
-
-    return res.json({
-      success: true,
-      data: {
-        approval,
-        draftCreated: true,
-        proposalKind: 'pvp',
-        war,
-        proposerPlayerId,
-        transientPoliciesApplied: normalizedPolicies,
-        tribute: tributeResult,
-      },
-    });
   } catch (error) {
     return next(wrap500(error, '提交战事提案失败'));
   }

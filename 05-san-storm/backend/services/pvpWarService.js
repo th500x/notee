@@ -345,51 +345,22 @@ function computeBaseCampNpcCount(cityRow) {
 }
 
 /**
- * 复用 cityService 的 NPC 生成逻辑，但写回到 `wars_pvp.base_camp.npcUnits`，
- * 不污染 `cities.npc_garrison`（攻守对象不同，不可混入城市表）。
- *
- * 流程：用 cityService.generateNpcGarrison 临时为目标城生成 NPC 数组（troopCountOverride），
- *      读取后立即恢复城市原 NPC 状态，避免副作用。
+ * 复用 cityService 的 NPC 生成逻辑，写回到 `wars_pvp.base_camp.npcUnits`；
+ * **不**读写 `cities.npc_garrison`（大本营编制与城防编制分离）。
  */
 async function generateBaseCampNpcUnits(targetCity, npcCount) {
-  const conn = await pool.getConnection();
-  try {
-    await conn.beginTransaction();
-    const [snapRows] = await conn.query(
-      'SELECT npc_garrison, npc_garrison_alive FROM cities WHERE city_id = ? FOR UPDATE',
-      [targetCity.city_id],
-    );
-    if (!snapRows.length) throw new Error(`[pvpWar] 目标城不存在: ${targetCity.city_id}`);
-    const prevNpc = snapRows[0].npc_garrison;
-    const prevAlive = snapRows[0].npc_garrison_alive;
-    await conn.commit();
-    const { npcGarrison } = await cityService.generateNpcGarrison(targetCity.city_id, {
-      troopCountOverride: npcCount,
-    });
-    const conn2 = await pool.getConnection();
-    try {
-      await conn2.query(
-        'UPDATE cities SET npc_garrison = ?, npc_garrison_alive = ? WHERE city_id = ?',
-        [prevNpc, prevAlive, targetCity.city_id],
-      );
-    } finally {
-      conn2.release();
-    }
-    return npcGarrison.map((u, idx) => ({
-      ...u,
-      index: idx,
-      alive: true,
-    }));
-  } catch (err) {
-    try {
-      await conn.rollback();
-    } catch (_) {
-      /* ignore */
-    }
-    throw err;
-  } finally {
-    conn.release();
-  }
+  const cityId = String(targetCity?.city_id || '').trim();
+  if (!cityId) throw new Error('[pvpWar] 目标城不存在');
+  const [cityRows] = await pool.query('SELECT * FROM cities WHERE city_id = ? LIMIT 1', [cityId]);
+  if (!cityRows.length) throw new Error(`[pvpWar] 目标城不存在: ${cityId}`);
+  const { npcGarrison } = await cityService.buildNpcUnitsForCityRow(cityRows[0], {
+    troopCountOverride: npcCount,
+  });
+  return npcGarrison.map((u, idx) => ({
+    ...u,
+    index: idx,
+    alive: true,
+  }));
 }
 
 // ==================== 战事生命周期 ====================

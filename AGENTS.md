@@ -2,6 +2,12 @@
 
 本文件**在 Git 中跟踪**，供无法读取本地 `.cursor/` 的环境（CI、其他克隆、部分 Agent）同步关键约束。详细措辞以仓库内 **`.cursor/rules/*.mdc`** 为准。
 
+## P0：05-san-storm · Vite 前端禁止 import 共享 `.cjs`（防白屏）
+
+**游戏端**（Vite + React）**不得** `import { … } from '@shared/.../foo.cjs'`，也**不得**在 `game/src/utils/*Display.js` 里 `export { … } from '…cjs'` 转 re-export——运行时报 `does not provide an export named …`，整页白屏（三公府银粮兑换等已多次复发）。
+
+**正确做法**：后端用 `require('…/foo.cjs')`；前端用 `shared/utils/foo.js`（ESM 双文件），或在 `game/src/utils/` 写**纯 ESM 算法副本**（如 `sanGongResourceExchangeDisplay.js`）。交付前搜 `from '@shared/` 且含 `.cjs`，并刷新游戏页或 `vite build`。完整条款见 **`.cursor/rules/san-storm-shared-cjs-esm-boundary.mdc`**。
+
 ## P0：禁止语义替代式静默回退
 
 **不得**在「专用逻辑失败」时**悄悄**改用**另一业务语义**的路径（例如 PVP 大本营解析失败却改用目标城心寻路）；须**早失败**并暴露根因。完整条款见 **`.cursor/rules/notee-code-quality-and-debugging.mdc`**（**P0（T0）** 节与 **§1**）。

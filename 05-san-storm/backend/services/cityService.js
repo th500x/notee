@@ -183,6 +183,17 @@ function serializeNpcGarrisonStored(units, ledgerAt = new Date()) {
 }
 
 /**
+ * 将库中读出的 `npc_garrison`（对象 / JSON 字符串 / null）规范为可写入 JSON 列的参数。
+ * mysql2 读 JSON 列常返回对象，直接 bind 回 UPDATE 在 MariaDB 会报 Invalid JSON text。
+ */
+function npcGarrisonRawToDbWrite(raw) {
+  if (raw == null || raw === '') return null;
+  const { units, ledgerAt } = parseNpcGarrisonStored(raw);
+  if (!Array.isArray(units) || units.length === 0) return null;
+  return serializeNpcGarrisonStored(units, ledgerAt ?? new Date());
+}
+
+/**
  * 已占领城：在「次日 8:00」窗口内按 **编制上限**（`units.length`）的 `NPC_OWNED_DAILY_RECOVERY_RATIO` 计算**本日恢复支数**，
  * 将存活数提升至 `min(上限, 当前存活 + round(上限×系数))`（按索引顺序复活 dead 槽位），不整表重掷。
  * `city` 须为 `getCityInfo` 结果，`npc_garrison` 已为 units 数组。
@@ -239,19 +250,13 @@ function loadSmallMapEnemyRosterEsm() {
 }
 
 /**
- * 为城市生成 NPC 守军
- * 稀有度槽位与匪寨 `BANDIT_NPC_SLOTS_BY_TIER` 一致；部队/将领池见 `resolveSiegeNpcFactionIdForTroopPool`（中立→北疆，有主→该势力段）
- * 
- * @param {string} cityId
- * @param {{ troopCountOverride?: number }} [opts] 强制守军支数；中立城无库表默认时亦须此或已有 `npc_garrison` 编制
- * @returns {Object} { npcGarrison, npcCount }
+ * 按城市行生成 NPC 守军数组（不写库）。供 `generateNpcGarrison`、大本营临时编制共用。
+ *
+ * @param {object} city - `cities` 表行
+ * @param {{ troopCountOverride?: number }} [opts]
+ * @returns {Promise<{ npcGarrison: object[], npcCount: number }>}
  */
-async function generateNpcGarrison(cityId, opts = {}) {
-  // 1. 获取城市信息
-  const [cityRows] = await pool.query('SELECT * FROM cities WHERE city_id = ?', [cityId]);
-  if (!cityRows.length) throw new Error(`城市不存在: ${cityId}`);
-  const city = cityRows[0];
-
+async function buildNpcUnitsForCityRow(city, opts = {}) {
   const sm = await loadSmallMapEnemyRosterEsm();
   const banditTier = sm.resolveCityBanditTier(city.city_type, city.city_id);
   const poolFaction = sm.resolveSiegeNpcFactionIdForTroopPool(city);
@@ -273,20 +278,26 @@ async function generateNpcGarrison(cityId, opts = {}) {
     );
   }
 
-  // 2. 从配置表加载部队和将领池
   const [troops] = await pool.query('SELECT * FROM config_troops WHERE season = ?', [city.season]);
   const [chars] = await pool.query('SELECT * FROM config_characters WHERE season = ?', [city.season]);
 
   const troopPool = sm.filterTroopsByFactionId(troops, poolFaction);
   const charPool = sm.filterCharactersByFactionId(chars, poolFaction);
 
-  // 3. 生成 NPC 部队（每支槽位稀有度按匪寨四槽循环）
+  const dbNum = (v, fb = 0) => {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : fb;
+  };
+
   const npcUnits = [];
   for (let i = 0; i < troopCount; i++) {
     const rarity = sm.siegeNpcRarityAtTroopIndex(i, banditTier);
     let troop = sm.pickRandomTroopByRarity(troopPool, rarity);
     if (!troop) troop = sm.pickRandomTroopByRarity(troops, rarity);
     if (!troop && troops.length) troop = troops[Math.floor(Math.random() * troops.length)];
+    if (!troop) {
+      throw new Error(`无法为 ${city.city_id} 生成 NPC 守军：config_troops 无可用部队（season=${city.season}）`);
+    }
 
     let character = null;
     if (i % 2 === 0) {
@@ -303,42 +314,61 @@ async function generateNpcGarrison(cityId, opts = {}) {
       troopId: troop.troop_id,
       troopName: troop.troop_name,
       rarity: troop.rarity,
-      maxTroops: troop.max_troops,
-      attack: troop.attack,
-      defense: troop.defense,
-      speed: troop.speed,
-      movement: troop.movement,
-      attackRange: troop.attack_range,
+      maxTroops: dbNum(troop.max_troops),
+      attack: dbNum(troop.attack),
+      defense: dbNum(troop.defense),
+      speed: dbNum(troop.speed),
+      movement: dbNum(troop.movement),
+      attackRange: dbNum(troop.attack_range),
       troopType: troop.troop_type,
       weaponType: troop.weapon_type,
-      character: character ? {
-        characterId: character.character_id,
-        name: character.character_name || character.courtesy_name || '守军将领',
-        courtesyName: (character.courtesy_name || character.character_name || '守军将领'),
-        rarity: character.rarity,
-        luck: character.luck,
-        courage: character.courage,
-        combat: character.combat,
-        command: character.command,
-        intelligence: character.intelligence,
-        politics: character.politics,
-        charm: character.charm,
-        traitModifier: character.trait_modifier || 0,
-        troopAffinity: character.troop_affinity || null,
-        skill_1: character.skill_1 || null,
-        skill_2: character.skill_2 || null,
-      } : null,
+      character: character
+        ? {
+            characterId: character.character_id,
+            name: character.character_name || character.courtesy_name || '守军将领',
+            courtesyName: character.courtesy_name || character.character_name || '守军将领',
+            rarity: character.rarity,
+            luck: dbNum(character.luck),
+            courage: dbNum(character.courage),
+            combat: dbNum(character.combat),
+            command: dbNum(character.command),
+            intelligence: dbNum(character.intelligence),
+            politics: dbNum(character.politics),
+            charm: dbNum(character.charm),
+            traitModifier: dbNum(character.trait_modifier),
+            troopAffinity: character.troop_affinity || null,
+            skill_1: character.skill_1 || null,
+            skill_2: character.skill_2 || null,
+          }
+        : null,
       alive: true,
     });
   }
 
-  // 4. 更新城市 NPC 守军
+  return { npcGarrison: npcUnits, npcCount: troopCount };
+}
+
+/**
+ * 为城市生成 NPC 守军
+ * 稀有度槽位与匪寨 `BANDIT_NPC_SLOTS_BY_TIER` 一致；部队/将领池见 `resolveSiegeNpcFactionIdForTroopPool`（中立→北疆，有主→该势力段）
+ * 
+ * @param {string} cityId
+ * @param {{ troopCountOverride?: number }} [opts] 强制守军支数；中立城无库表默认时亦须此或已有 `npc_garrison` 编制
+ * @returns {Object} { npcGarrison, npcCount }
+ */
+async function generateNpcGarrison(cityId, opts = {}) {
+  const [cityRows] = await pool.query('SELECT * FROM cities WHERE city_id = ?', [cityId]);
+  if (!cityRows.length) throw new Error(`城市不存在: ${cityId}`);
+  const city = cityRows[0];
+
+  const { npcGarrison, npcCount } = await buildNpcUnitsForCityRow(city, opts);
+
   await pool.query(
     `UPDATE cities SET npc_garrison = ?, npc_garrison_alive = ? WHERE city_id = ?`,
-    [serializeNpcGarrisonStored(npcUnits, new Date()), troopCount, cityId]
+    [serializeNpcGarrisonStored(npcGarrison, new Date()), npcCount, cityId],
   );
 
-  return { npcGarrison: npcUnits, npcCount: troopCount };
+  return { npcGarrison, npcCount };
 }
 
 /** 城市 + 州/郡显示名 + 长官角色名（与 config_* 同 season 联表）— 供单城详情与列表接口共用 */
@@ -1651,6 +1681,7 @@ module.exports = {
   formatCityRowForApi,
   listCitiesForApi,
   generateNpcGarrison,
+  buildNpcUnitsForCityRow,
   getCityInfo,
   initiateSiege,
   openPveWarOnNeutralCity,
@@ -1658,6 +1689,7 @@ module.exports = {
   getWarStatus,
   parseNpcGarrisonStored,
   serializeNpcGarrisonStored,
+  npcGarrisonRawToDbWrite,
   NPC_TROOP_COUNT_OWNED,
   listActivePveSiegeTargetsForMap,
   getActivePveSiegeParticipationForFaction,
