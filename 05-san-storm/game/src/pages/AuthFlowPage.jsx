@@ -49,7 +49,7 @@ function AuthFlowPage() {
     handleBack,
   } = useAuthFlow();
 
-  const { player, loading: playerLoading, hasCharacter, refresh: refreshPlayer } = usePlayer(currentUser?.id);
+  const { player, loading: playerLoading, hasCharacter, maintenance, refresh: refreshPlayer } = usePlayer(currentUser?.id);
 
   // 角色创建完成 → 拉取角色档；特色九宫格在大地图 GamePage 内按账号首次展示
   const handleCharacterCreated = () => {
@@ -81,6 +81,24 @@ function AuthFlowPage() {
       <div className="text-center py-12">
         <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
         <p className="mt-4 text-gray-600">加载角色数据...</p>
+      </div>
+    );
+  }
+
+  // 服务器维护态（关服切换窗口）：阻止进游戏，显示维护屏
+  if (currentUser && maintenance) {
+    return (
+      <div className="max-w-md mx-auto text-center py-16 space-y-4">
+        <div className="text-5xl">🛠️</div>
+        <h2 className="text-xl font-semibold text-gray-800">服务器维护中</h2>
+        <p className="text-gray-600">赛季切换进行中，请稍后再进入。开服后即可登录、创建角色并领取赛季继承物品。</p>
+        <button
+          type="button"
+          onClick={refreshPlayer}
+          className="rounded-lg border border-blue-400 bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+        >
+          重试
+        </button>
       </div>
     );
   }

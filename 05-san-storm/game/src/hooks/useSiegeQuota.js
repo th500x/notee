@@ -1,6 +1,9 @@
 /**
  * useSiegeQuota - 攻城次数配额管理（服务端存储）
  * 机制与探索配额完全一致：每小时+6，上限18，00:00~08:00休息
+ *
+ * **扣次权威**：开战（中立城 / 战事攻城 / 攻大本营）由后端 `consumeSiegeQuotaForBattleStart` 在 initiate API 内扣减；
+ * 本模块 `postSiegeQuotaAction(…, 'consume')` 仅保留给 hook 内遗留 consume 或运维 refund/fillMax，**勿**在 `startSiegeForCity` 等开战路径再调。
  */
 import { useState, useEffect, useCallback } from 'react';
 import { API_CONFIG } from '@/constants';

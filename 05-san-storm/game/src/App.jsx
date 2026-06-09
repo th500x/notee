@@ -16,6 +16,7 @@ const PvpDuelMapGeneratorManagerPage = lazy(() => import('@/pages/admin/PvpDuelM
 const JunCountyMapGeneratorManagerPage = lazy(() => import('@/pages/admin/JunCountyMapGeneratorManagerPage'));
 const BattleAnimationDemoPage = lazy(() => import('@/pages/BattleAnimationDemoPage'));
 const AdminEnvTogglePage = lazy(() => import('@/pages/admin/AdminEnvTogglePage'));
+const SeasonRolloverManagerPage = lazy(() => import('@/pages/admin/SeasonRolloverManagerPage'));
 
 function RouteLoading() {
   return (
@@ -122,6 +123,11 @@ function App() {
                       <h3 className="text-lg font-semibold text-gray-900 mb-2 text-center">三国地图</h3>
                       <p className="text-sm text-gray-600 text-center">郡象限 · 颍川 A · 底板与城点（测试）</p>
                     </a>
+                    <a href={`${import.meta.env.BASE_URL}season-rollover-manager`} className="block bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow cursor-pointer h-full flex flex-col border-2 border-orange-300">
+                      <div className="text-4xl mb-4 text-center">🏛️</div>
+                      <h3 className="text-lg font-semibold text-gray-900 mb-2 text-center">赛季管理</h3>
+                      <p className="text-sm text-gray-600 text-center">结算窗口 · 维护态 · 关服切换 rollover</p>
+                    </a>
                     <button
                       type="button"
                       disabled={!isAdminDevBypassAllowed}
@@ -162,6 +168,7 @@ function App() {
             <Route path="/three-kingdoms-map" element={<JunCountyMapGeneratorManagerPage />} />
             <Route path="/battle-animation-demo" element={<BattleAnimationDemoPage />} />
             <Route path="/admin-env-toggle" element={<AdminEnvTogglePage />} />
+            <Route path="/season-rollover-manager" element={<SeasonRolloverManagerPage />} />
 
           </Routes>
           </Suspense>

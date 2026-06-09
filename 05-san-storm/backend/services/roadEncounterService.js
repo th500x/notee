@@ -60,6 +60,7 @@ const {
   RESERVE_FOOD_DAILY_LIMIT,
   ROAD_DEFENDER_ALERT_SEC,
   STALE_FIGHT_SQL_MIN,
+  STALE_FIGHTING_NO_SETTLEMENT_MINUTES,
   newEncounterId,
   toInt,
   buildPlayerRoadSnapshot,

@@ -5,7 +5,7 @@ import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { PHASE } from '@/components/event/EventConstants';
 import { playerAPI } from '@/services/playerApi';
 import { fetchWithTimeout } from '@/services/httpClient';
-import { fetchSiegeQuotaJson, postSiegeQuotaAction } from '@/hooks/useSiegeQuota';
+import { fetchSiegeQuotaJson } from '@/hooks/useSiegeQuota';
 import { warAPI } from '@/services/warApi';
 import { API_CONFIG } from '@/constants';
 import { validateMainLineupBattleGate } from '@/utils/mainLineupTroops';
@@ -18,6 +18,34 @@ import { worldMapOverlayRefs } from '@/utils/worldMapOverlayRefs';
 
 /** 与 backend `roadConfig.ROAD_DEFENDER_ALERT_SEC` 一致：攻方自动裁定等待窗 */
 const ROAD_ENCOUNTER_AUTO_RESOLVE_SEC = 10;
+
+/** 攻城 / 攻大本营（NPC 批次）· 结算双按钮与 BGM 适用范围（不含道路遭遇、玩家驻守/披挂） */
+export function isWorldMapNpcSiegeBgmContext(siegeData) {
+  if (!siegeData || siegeData.roadEncounterId) return false;
+  if (siegeData.pvpDefenderBaseCampSiege) return true;
+  const dt = siegeData.defenderType || 'npc';
+  return dt === 'npc';
+}
+
+/** 胜利且仍有 NPC 守军 / 大本营未破时，结算可「继续」 */
+export function canContinueWorldMapNpcSiege(siegeData, siegeResult) {
+  if (!isWorldMapNpcSiegeBgmContext(siegeData) || !siegeResult) return false;
+  if (siegeResult.siegeCompleted) return false;
+  if (siegeResult.battleOutcome === 'defeat' || siegeResult.attackerWon === false) return false;
+  const won =
+    siegeResult.battleOutcome === 'victory' ||
+    siegeResult.attackerWon === true ||
+    (siegeResult.battleOutcome == null &&
+      siegeResult.attackerWon == null &&
+      (Number(siegeResult.killCount) > 0 || Number(siegeResult.personalSilverEarned) > 0));
+  if (!won) return false;
+  const npcTotal = Number(siegeResult.npcTotal ?? 0);
+  const npcKilled = Number(siegeResult.npcKilled ?? siegeResult.killCount ?? 0);
+  if (npcTotal > 0 && npcKilled >= npcTotal) return false;
+  const npcAlive = siegeResult.npcAlive ?? siegeResult.baseCampAlive;
+  if (npcAlive != null && Number(npcAlive) <= 0) return false;
+  return true;
+}
 
 export function useWorldMapStrategicBattles({
   player,
@@ -253,7 +281,6 @@ export function useWorldMapStrategicBattles({
       }
 
       if (res.success) {
-        await postSiegeQuotaAction(player.playerId, cityId, 'consume');
         const enriched = pvpWarIdForResult
           ? { ...res.data, pvpWarId: pvpWarIdForResult }
           : res.data;
@@ -598,15 +625,16 @@ export function useWorldMapStrategicBattles({
         if (res.success) {
           setSiegeResult({
             ...res.data,
+            battleOutcome: result,
             chestRewards: Array.isArray(meta?.chestRewards) ? meta.chestRewards : [],
             battleReportFailed: meta?.battleReportSaved === false,
           });
         } else {
-          setSiegeResult({ npcKilled: 0, killCount: 0, npcTotal: 0, silverReward: 0, error: res.error });
+          setSiegeResult({ npcKilled: 0, killCount: 0, npcTotal: 0, silverReward: 0, battleOutcome: result, error: res.error });
         }
       } catch (err) {
         console.error('[RoadEncounter] 结算请求失败:', err);
-        setSiegeResult({ npcKilled: 0, killCount: 0, npcTotal: 0, silverReward: 0, error: '结算请求失败' });
+        setSiegeResult({ npcKilled: 0, killCount: 0, npcTotal: 0, silverReward: 0, battleOutcome: result, error: '结算请求失败' });
       }
       bumpGarrisonStats();
       refreshPlayer({ silent: true });
@@ -627,6 +655,7 @@ export function useWorldMapStrategicBattles({
           const d = res.data && typeof res.data === 'object' ? res.data : {};
           setSiegeResult({
             ...d,
+            battleOutcome: result,
             killCount: d.killCount ?? 0,
             npcKilled: d.npcKilled ?? d.killCount ?? 0,
             npcTotal: d.npcTotal ?? siegeData.npcTotal ?? null,
@@ -635,7 +664,7 @@ export function useWorldMapStrategicBattles({
             battleReportFailed: meta?.battleReportSaved === false,
           });
         } else {
-          setSiegeResult({ npcKilled: 0, killCount: 0, npcTotal: 0, silverReward: 0, error: res.error });
+          setSiegeResult({ npcKilled: 0, killCount: 0, npcTotal: 0, silverReward: 0, battleOutcome: result, error: res.error });
         }
         bumpGarrisonStats();
         refreshPlayer({ silent: true });
@@ -684,15 +713,16 @@ export function useWorldMapStrategicBattles({
       if (res.success) {
         setSiegeResult({
           ...res.data,
+          battleOutcome: result,
           chestRewards: Array.isArray(meta?.chestRewards) ? meta.chestRewards : [],
           battleReportFailed: meta?.battleReportSaved === false,
         });
       } else {
-        setSiegeResult({ npcKilled: 0, npcTotal: 0, silverReward: 0, error: res.error });
+        setSiegeResult({ npcKilled: 0, npcTotal: 0, silverReward: 0, battleOutcome: result, error: res.error });
       }
     } catch (err) {
       console.error('[Siege] 结算请求失败:', err);
-      setSiegeResult({ npcKilled: 0, npcTotal: 0, silverReward: 0, error: '结算请求失败' });
+      setSiegeResult({ npcKilled: 0, npcTotal: 0, silverReward: 0, battleOutcome: result, error: '结算请求失败' });
     }
     bumpGarrisonStats();
     refreshPlayer({ silent: true });
@@ -705,6 +735,156 @@ export function useWorldMapStrategicBattles({
     setSiegeResult(null);
     if (notice) worldMapOverlayRefs.enqueueRoadGateNotice?.(notice);
   }, [siegeResult]);
+
+  const applySiegeInitiatePayload = useCallback(
+    async (enriched, { cityId, pvpWarIdForResult = null, baseCampWarSlice = null } = {}) => {
+      if (!enriched || typeof enriched !== 'object') {
+        setSimpleAlertMessage('攻城请求失败，请稍后重试');
+        return false;
+      }
+      if (enriched.defenderType === 'pvp_online') {
+        try {
+          const pvpRes = await fetchWithTimeout(`${API_CONFIG.BASE_URL}/pvp/challenge`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              warId: enriched.warId || null,
+              pvpWarId: enriched.pvpWarId || pvpWarIdForResult || null,
+              cityId,
+              attackerId: player.playerId,
+              attackerFaction: enriched.playerFaction || enriched.attackerFactionId || player.factionId,
+              defenderId: enriched.defenderPlayerId,
+              defenderGarrisonSlot: enriched.defenderGarrisonSlot,
+            }),
+          }).then((r) => r.json());
+          if (pvpRes.success) {
+            const ws = Number(pvpRes.waitSeconds) || 10;
+            pvpActionsRef?.current?.setPvpChallenge?.({
+              ...pvpRes,
+              siegeData: enriched,
+              defenderName: enriched.defenderName,
+              countdownEndsAt: Date.now() + ws * 1000,
+              waitSeconds: ws,
+            });
+            pvpActionsRef?.current?.setPvpCountdown?.(ws);
+            setSiegeData(null);
+            setSiegeResult(null);
+            return true;
+          }
+        } catch (e) {
+          console.error('[PVP] 创建挑战失败:', e);
+        }
+      }
+      if (enriched.pvpDefenderBaseCampSiege || baseCampWarSlice || enriched.baseCampSlice) {
+        const warSlice = baseCampWarSlice || {};
+        const opp =
+          (warSlice.attackerFactionName && String(warSlice.attackerFactionName).trim()) || '攻方';
+        setSiegeData({
+          pvpDefenderBaseCampSiege: true,
+          pvpWarId: enriched.pvpWarId || pvpWarIdForResult,
+          targetCityId: enriched.targetCityId || cityId,
+          cityName: enriched.targetCityName || enriched.cityName || warSlice.targetCityName || '目标城',
+          defenderType: 'npc',
+          npcGarrison: Array.isArray(enriched.baseCampSlice)
+            ? enriched.baseCampSlice
+            : enriched.npcGarrison || [],
+          npcBatchIndex: enriched.batchIndex ?? enriched.npcBatchIndex ?? 0,
+          npcAlive: enriched.baseCampAlive ?? enriched.npcAlive,
+          npcTotal: enriched.baseCampTotal ?? enriched.npcTotal,
+          isPvp: false,
+          opponentName: warSlice.opponentName || `${opp}大本营守军`,
+        });
+      } else {
+        const payload = pvpWarIdForResult ? { ...enriched, pvpWarId: pvpWarIdForResult } : enriched;
+        setSiegeData(payload);
+      }
+      setSiegeResult(null);
+      return true;
+    },
+    [player, setSimpleAlertMessage, pvpActionsRef],
+  );
+
+  const handleSiegeContinue = useCallback(async () => {
+    if (!canContinueWorldMapNpcSiege(siegeData, siegeResult)) return;
+    const cityId = siegeData.targetCityId || siegeData.cityId;
+    if (!cityId || !player?.playerId) return;
+
+    const gate = validateMainLineupBattleGate({
+      cards,
+      playerUnits: null,
+      playerFood: player?.food ?? 0,
+      foodCostMultiplier: siegeData.pvpDefenderBaseCampSiege ? BASE_CAMP_SIEGE_FOOD_COST_MULTIPLIER : 1,
+    });
+    if (!gate.ok) {
+      setSimpleAlertMessage(gate.message || '无法继续攻城');
+      return;
+    }
+
+    const qRes = await fetchSiegeQuotaJson(player.playerId, cityId);
+    if (!qRes.success || !(Number(qRes.data?.remaining) > 0)) {
+      setSimpleAlertMessage('攻城次数不足');
+      return;
+    }
+
+    try {
+      if (siegeData.pvpDefenderBaseCampSiege && siegeData.pvpWarId) {
+        const sg = await warAPI.initiateBaseCampSiege(siegeData.pvpWarId, player.playerId);
+        if (!sg?.success || !sg.data) {
+          setSimpleAlertMessage(sg?.error || '继续攻打大本营失败，请稍后重试');
+          return;
+        }
+        const ok = await applySiegeInitiatePayload(sg.data, {
+          cityId,
+          pvpWarIdForResult: siegeData.pvpWarId,
+          baseCampWarSlice: {
+            targetCityName: siegeData.cityName,
+            opponentName: siegeData.opponentName,
+          },
+        });
+        if (!ok) return;
+      } else if (siegeData.pvpWarId) {
+        const sg = await warAPI.initiateAttackerCitySiege(siegeData.pvpWarId, player.playerId);
+        if (!sg?.success || !sg.data) {
+          setSimpleAlertMessage(sg?.error || '继续攻城失败，请稍后重试');
+          return;
+        }
+        const ok = await applySiegeInitiatePayload(sg.data, {
+          cityId,
+          pvpWarIdForResult: siegeData.pvpWarId,
+        });
+        if (!ok) return;
+      } else {
+        const res = await fetchWithTimeout(`${API_CONFIG.BASE_URL}/cities/${encodeURIComponent(cityId)}/siege`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ playerId: player.playerId }),
+        }).then((r) => r.json());
+        if (!res.success || !res.data) {
+          setSimpleAlertMessage(
+            typeof res.error === 'string' && res.error.trim() ? res.error : '继续攻城失败，请稍后重试',
+          );
+          return;
+        }
+        const ok = await applySiegeInitiatePayload(res.data, { cityId });
+        if (!ok) return;
+      }
+      bumpGarrisonStats();
+      refreshPlayer({ silent: true });
+      bumpStrategicRoadPresenceRef?.current?.();
+    } catch (e) {
+      setSimpleAlertMessage(e?.message || '网络异常，继续攻城失败');
+    }
+  }, [
+    siegeData,
+    siegeResult,
+    player,
+    cards,
+    setSimpleAlertMessage,
+    applySiegeInitiatePayload,
+    bumpGarrisonStats,
+    refreshPlayer,
+    bumpStrategicRoadPresenceRef,
+  ]);
 
   return {
     siegeData,
@@ -729,6 +909,7 @@ export function useWorldMapStrategicBattles({
     handleBanditRaidContinue,
     handleSiegeEnd,
     closeSiegeResult,
+    handleSiegeContinue,
   };
 }
 

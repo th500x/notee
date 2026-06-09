@@ -112,6 +112,7 @@ export default function WorldMap({
     handleBanditRaidContinue,
     handleSiegeEnd,
     closeSiegeResult,
+    handleSiegeContinue,
   } = useWorldMapStrategicBattles({
     player,
     cards,
@@ -541,6 +542,7 @@ export default function WorldMap({
         onCloseBanditResult={closeBanditRaidResult}
         onBanditContinue={handleBanditRaidContinue}
         onBanditDefeatAbandon={handleBanditRaidAbandon}
+        onSiegeContinue={handleSiegeContinue}
       />
 
       {positionAnimation ? (

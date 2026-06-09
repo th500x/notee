@@ -12,6 +12,7 @@ import { PlayerProvider, usePlayerContext } from '@/contexts/PlayerContext';
 import { StrategicMapNavigationProvider } from '@/contexts/StrategicMapNavigationContext';
 import { MapHudVisibilityProvider, useMapHudVisibility } from '@/contexts/MapHudVisibilityContext';
 import TopStatusBar from '@/components/game/TopStatusBar';
+import { useSeasonSettlement } from '@/hooks/useSeasonSettlement';
 import AnnouncementBar from '@/components/game/AnnouncementBar';
 import RankingPanel from '@/components/game/RankingPanel';
 import BottomTabNav from '@/components/game/BottomTabNav';
@@ -46,8 +47,8 @@ const KingEdictPanel = lazy(() => import('@/components/game/KingEdictPanel'));
 const CardPoolDrawer = lazy(() => import('@/components/game/CardPoolDrawer'));
 const CampaignCenterPanel = lazy(() => import('@/components/game/CampaignCenterPanel'));
 const AttrRerollDrawer = lazy(() => import('@/components/game/AttrRerollDrawer'));
-const JunCountyQuadPreviewPanel = lazy(() => import('@/components/game/JunCountyQuadPreviewPanel'));
 const DailyReportPanel = lazy(() => import('@/components/game/DailyReportPanel'));
+const SeasonSettlementPortal = lazy(() => import('@/components/game/SeasonSettlementPortal'));
 
 export default function GamePage({ user, onLogout }) {
   return (
@@ -94,8 +95,13 @@ function GamePageInner({ onLogout, accountId }) {
   const [openPool, setOpenPool] = useState(null); // 'troop' | 'character' | null
   const [openReroll, setOpenReroll] = useState(false);
   const [campaignOpen, setCampaignOpen] = useState(false);
-  const [junQuadPreviewOpen, setJunQuadPreviewOpen] = useState(false);
   const [dailyReportOpen, setDailyReportOpen] = useState(false);
+  const [seasonModalOpen, setSeasonModalOpen] = useState(false);
+  // 赛季结算状态（顶栏入口/封档横幅/发放弹窗共用，单源轮询）
+  const { status: seasonStatus, phase: seasonPhase, refresh: refreshSeason } = useSeasonSettlement(
+    playerId,
+    activeTab === null,
+  );
   const [skillsMap, setSkillsMap] = useState({});
   const navigate = useNavigate();
 
@@ -197,6 +203,8 @@ function GamePageInner({ onLogout, accountId }) {
           personalCenterNotifyDot={claimableAchievementNotify}
           onOpenDailyReport={() => setDailyReportOpen(true)}
           dailyReportNotifyDot={dailyReportNotifyDot}
+          seasonSettlementEntryVisible={seasonPhase === 'window_open'}
+          onOpenSeasonSettlement={() => setSeasonModalOpen(true)}
         />
 
         <main
@@ -345,25 +353,21 @@ function GamePageInner({ onLogout, accountId }) {
         </Suspense>
       ) : null}
 
-      {activeTab === null && !eventBusy && (
-        <button
-          type="button"
-          className="fixed bottom-20 right-3 z-[95] px-3 py-2 rounded-lg text-xs font-medium shadow-lg bg-amber-700/90 hover:bg-amber-600 text-white border border-amber-500/50"
-          onClick={() => setJunQuadPreviewOpen(true)}
-        >
-          郡象限测试
-        </button>
-      )}
-
-      {junQuadPreviewOpen ? (
-        <Suspense fallback={null}>
-          <JunCountyQuadPreviewPanel onClose={() => setJunQuadPreviewOpen(false)} />
-        </Suspense>
-      ) : null}
-
       {gameIntroOpen && gameIntroStorageId ? (
         <Suspense fallback={null}>
           <GameIntroOverlay onComplete={handleGameIntroComplete} />
+        </Suspense>
+      ) : null}
+
+      {playerId ? (
+        <Suspense fallback={null}>
+          <SeasonSettlementPortal
+            playerId={playerId}
+            status={seasonStatus}
+            modalOpen={seasonModalOpen}
+            onModalOpenChange={setSeasonModalOpen}
+            onRefresh={refreshSeason}
+          />
         </Suspense>
       ) : null}
       </MapCornerPlayerEntryActionsProvider>

@@ -646,6 +646,7 @@ function mapBuiltUnitsToSiegeNpcFormat(units) {
 
 module.exports = {
   MIN_TROOPS_TO_DEFEND,
+  getCardSpecialEffect,
   addAttrBonus,
   applyCharBonusToCharData,
   getMainLineupAttributeBonusBySlot,

@@ -23,6 +23,7 @@ const MIGRATION_FILES_NEED_MULTIPLE_STATEMENTS = new Set([
   'cities-drop-fk-parent-city.sql',
   'player-garrison-composite-city-primary-key.sql',
   'seed-system-player-sys1.sql',
+  'alter-season-records-fk-to-accounts.sql',
 ]);
 
 /** 多句 DDL/DML（无 PROCEDURE）；逐句 pool.query，避免 MariaDB 单包拒执行 */
@@ -46,6 +47,7 @@ const MIGRATION_FILES_SPLIT_STATEMENTS = new Set([
   'rename-config-skills-skill-effect-type-to-skill-type.sql',
   'drop-config-titles-display-columns.sql',
   'cities-delete-orphan-san-1-city-3-xuchang.sql',
+  'add-config-servers-settlement-window.sql',
 ]);
 
 async function runMigrationSql(sql, file) {
@@ -162,6 +164,9 @@ const MIGRATION_FILES = [
   'create-daily-report-digests.sql',
   'wars-add-attacker-base-camps.sql',
   'player-events-add-san-gong-resource-exchange-daily.sql',
+  'alter-season-records-fk-to-accounts.sql',
+  'create-season-settlements.sql',
+  'add-config-servers-settlement-window.sql',
 ];
 
 /** RENAME：源列不存在时跳过（库已为 skill_type） */

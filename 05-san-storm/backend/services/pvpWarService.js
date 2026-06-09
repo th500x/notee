@@ -662,8 +662,8 @@ async function placeAttackerBaseCampAndActivate(pvpWarId, opts = {}) {
   }
 
   console.log(
-    `[pvpWar] placeAttackerBaseCampAndActivate ok: ${pvpWarId} junId=${junId} ` +
-      `anchor=(${pick.anchorOx},${pick.anchorOy}) orient=${pick.orientation} npc=${npcCount}`,
+    `[pvpWar] placeAttackerBaseCampAndActivate ok: ${pvpWarId} junId=${baseCamp.junId} ` +
+      `anchor=(${baseCamp.anchorOx},${baseCamp.anchorOy}) orient=${baseCamp.orientation} npc=${baseCamp.npcTotal}`,
   );
   const activated = await WarPvp.getById(pvpWarId);
   await factionBulletinService.logPvpWarStarted(activated);
@@ -860,8 +860,7 @@ async function initiateBaseCampSiege(pvpWarId, playerId) {
     throw new Error('[pvpWar] 大本营守军已全灭');
   }
 
-  const consumed = await cityService.tryConsumeSiegeQuotaOnce(playerId);
-  if (!consumed) throw new Error('攻城次数不足');
+  await cityService.consumeSiegeQuotaForBattleStart(playerId);
   if (!tryAcquireBaseCampLock(pvpWarId, playerId)) {
     await cityService.refundSiegeQuotaOnce(playerId);
     throw new Error('[pvpWar] 大本营当前有友军在交战，请稍后再试');
@@ -1228,6 +1227,8 @@ async function initiateAttackerCitySiege(pvpWarId, attackerPlayerId) {
   const city = await cityService.getCityInfo(war.targetCityId);
   if (!city) throw new Error('[pvpWar] 目标城不存在');
 
+  await cityService.consumeSiegeQuotaForBattleStart(attackerPlayerId);
+
   // ── 1) 披挂上阵 + 普通驻守玩家：合并去重，按位置等级 / 槽位顺序匹配 ──
   const onDutyDefenders = await garrisonService.getCityOnDutyDefenders(
     war.targetCityId, war.defenderFactionId,
@@ -1250,32 +1251,38 @@ async function initiateAttackerCitySiege(pvpWarId, attackerPlayerId) {
     );
     if (!tryAcquirePvpCityLock(lockKey, attackerPlayerId)) continue;
 
-    const garrisonUnits = garrisonService.mapBuiltUnitsToSiegeNpcFormat(units);
-    const isOnDuty = def.defense_source === 'main_lineup' || !!def.on_duty;
-    const garrisonPayload = attachSiegeCityDefenseToPayload({
-      pvpWarId,
-      cityId: city.city_id,
-      cityName: city.city_name,
-      cityType: city.city_type,
-      npcGarrison: garrisonUnits,
-      npcAlive: garrisonUnits.length,
-      npcTotal: garrisonUnits.length,
-      attackerFactionId: war.attackerFactionId,
-      defenderFactionId: war.defenderFactionId,
-      defenderType: isOnDuty ? 'pvp_online' : 'player_garrison',
-      defenderName: def.character_name || null,
-      defenderPlayerId: def.player_id,
-      defenderGarrisonSlot: def.garrison_slot ?? 0,
-    }, city);
-    if (!isOnDuty && policiesRow) {
-      const imperialMarchService = require('./imperialMarchService');
-      return await imperialMarchService.attachImperialMarchToSiegePayload(
-        garrisonPayload,
-        war,
-        policiesRow,
-      );
+    try {
+      const garrisonUnits = garrisonService.mapBuiltUnitsToSiegeNpcFormat(units);
+      const isOnDuty = def.defense_source === 'main_lineup' || !!def.on_duty;
+      const garrisonPayload = attachSiegeCityDefenseToPayload({
+        pvpWarId,
+        cityId: city.city_id,
+        cityName: city.city_name,
+        cityType: city.city_type,
+        npcGarrison: garrisonUnits,
+        npcAlive: garrisonUnits.length,
+        npcTotal: garrisonUnits.length,
+        attackerFactionId: war.attackerFactionId,
+        defenderFactionId: war.defenderFactionId,
+        defenderType: isOnDuty ? 'pvp_online' : 'player_garrison',
+        defenderName: def.character_name || null,
+        defenderPlayerId: def.player_id,
+        defenderGarrisonSlot: def.garrison_slot ?? 0,
+      }, city);
+      if (!isOnDuty && policiesRow) {
+        const imperialMarchService = require('./imperialMarchService');
+        return await imperialMarchService.attachImperialMarchToSiegePayload(
+          garrisonPayload,
+          war,
+          policiesRow,
+        );
+      }
+      return garrisonPayload;
+    } catch (playerDefenderErr) {
+      releasePvpCityLock(lockKey, attackerPlayerId);
+      await cityService.refundSiegeQuotaOnce(attackerPlayerId);
+      throw playerDefenderErr;
     }
-    return garrisonPayload;
   }
 
   // ── 2) 玩家防御链全跳过 → NPC 守军（按 4 支一批顺位抢锁） ──
@@ -1314,29 +1321,38 @@ async function initiateAttackerCitySiege(pvpWarId, attackerPlayerId) {
     tryPickBatch();
   }
   if (battleSlice == null) {
+    await cityService.refundSiegeQuotaOnce(attackerPlayerId);
     throw new Error('[pvpWar] 当前各战线均有友军交战中，请稍后再试');
   }
 
-  const payload = attachSiegeCityDefenseToPayload({
-    pvpWarId,
-    cityId: city.city_id,
-    cityName: city.city_name,
-    cityType: city.city_type,
-    npcGarrison: battleSlice.map(({ u, gi }) => ({ ...u, index: gi })),
-    npcAlive: aliveEntries.length,
-    npcTotal: fullG.length,
-    attackerFactionId: war.attackerFactionId,
-    defenderFactionId: war.defenderFactionId,
-    defenderType: 'npc',
-    npcBatchIndex,
-  }, city);
+  try {
+    const payload = attachSiegeCityDefenseToPayload({
+      pvpWarId,
+      cityId: city.city_id,
+      cityName: city.city_name,
+      cityType: city.city_type,
+      npcGarrison: battleSlice.map(({ u, gi }) => ({ ...u, index: gi })),
+      npcAlive: aliveEntries.length,
+      npcTotal: fullG.length,
+      attackerFactionId: war.attackerFactionId,
+      defenderFactionId: war.defenderFactionId,
+      defenderType: 'npc',
+      npcBatchIndex,
+    }, city);
 
-  if (policiesRow) {
-    const imperialMarchService = require('./imperialMarchService');
-    return await imperialMarchService.attachImperialMarchToSiegePayload(payload, war, policiesRow);
+    if (policiesRow) {
+      const imperialMarchService = require('./imperialMarchService');
+      return await imperialMarchService.attachImperialMarchToSiegePayload(payload, war, policiesRow);
+    }
+
+    return payload;
+  } catch (npcSiegeErr) {
+    if (npcBatchIndex != null) {
+      releasePvpCityLock(buildPvpCityNpcLockKey(pvpWarId, npcBatchIndex), attackerPlayerId);
+    }
+    await cityService.refundSiegeQuotaOnce(attackerPlayerId);
+    throw npcSiegeErr;
   }
-
-  return payload;
 }
 
 /**

@@ -64,6 +64,21 @@ async function tryConsumeSiegeQuotaOnce(playerId, conn = null) {
 }
 
 /**
+ * 发起攻城 / 攻大本营开战前扣 1 次行动配额（与 `tryConsumeSiegeQuotaOnce` 同源；失败抛错供 API 早失败）。
+ * 中立城 `initiateSiege`、战事 `initiateAttackerCitySiege`、守方 `initiateBaseCampSiege` 均走此入口；
+ * 后续抢锁 / 粮草门闸失败须 `refundSiegeQuotaOnce`。
+ *
+ * @param {string} playerId
+ * @param {import('mysql2/promise').PoolConnection|null} [conn]
+ */
+async function consumeSiegeQuotaForBattleStart(playerId, conn = null) {
+  const consumed = await tryConsumeSiegeQuotaOnce(playerId, conn);
+  if (!consumed) {
+    throw new Error('攻城次数不足');
+  }
+}
+
+/**
  * 攻城次数 +1（上限封顶）；用于扣次后握手失败回滚。
  * @param {string} playerId
  * @param {import('mysql2/promise').PoolConnection|null} [conn]
@@ -813,6 +828,8 @@ async function initiateSiege(cityId, playerId) {
     throw new Error('该城暂无可攻打守军');
   }
 
+  await consumeSiegeQuotaForBattleStart(playerId);
+
   const maxBatches = Math.ceil(aliveEntries.length / 4);
   let npcBatchIndex = null;
   let battleSlice = null;
@@ -844,6 +861,7 @@ async function initiateSiege(cityId, playerId) {
   }
 
   if (battleSlice == null) {
+    await refundSiegeQuotaOnce(playerId);
     throw new Error('当前各战线均有友军交战中，请稍后再试');
   }
 
@@ -859,6 +877,7 @@ async function initiateSiege(cityId, playerId) {
     if (createdNewPveWar) {
       await pool.query('DELETE FROM wars WHERE war_id = ?', [war.war_id]);
     }
+    await refundSiegeQuotaOnce(playerId);
     console.error('[cityService] PVE 大本营落位失败:', campErr.message);
     throw new Error(campErr.message || '无法在目标城外放置攻方大本营，请稍后重试');
   }
@@ -1695,6 +1714,7 @@ module.exports = {
   getActivePveSiegeParticipationForFaction,
   cancelActivePveSiegeWarViaSanGongChaoZheng,
   tryConsumeSiegeQuotaOnce,
+  consumeSiegeQuotaForBattleStart,
   refundSiegeQuotaOnce,
   countActivePveSiegeWarsForFaction,
   MAX_CONCURRENT_PVE_WARS_PER_ATTACKER_FACTION,

@@ -358,6 +358,12 @@ const adminKingDasikongRouter = require('./routes/adminKingDasikong');
 app.use('/api/admin/king-dasikong', adminKingDasikongRouter);
 
 /**
+ * 管理员：赛季关服切换（设窗口/维护态/自动封档/rollover）；破坏性接口由 SEASON_ROLLOVER_KEY 密钥门禁
+ */
+const adminSeasonRolloverRouter = require('./routes/adminSeasonRollover');
+app.use('/api/admin/season-rollover', adminSeasonRolloverRouter);
+
+/**
  * 纪念图（MVP：Battle）
  */
 const memorialRouter = require('./routes/memorial');

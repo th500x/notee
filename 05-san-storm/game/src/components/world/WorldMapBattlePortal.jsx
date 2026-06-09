@@ -3,6 +3,10 @@ import { Suspense, lazy } from 'react';
 import ChunkLoadFallback from '@/components/game/ChunkLoadFallback';
 import StrategicSettlementCard from '@/components/world/StrategicSettlementCard';
 import { isPvpDuelDefenderType } from '@/utils/roadEncounterSettlement';
+import {
+  canContinueWorldMapNpcSiege,
+  isWorldMapNpcSiegeBgmContext,
+} from '@/hooks/useWorldMapStrategicBattles';
 import { useBgmScene } from '@/hooks/useBgmScene';
 
 const BattleArena = lazy(() => import('@/components/battle/BattleArena'));
@@ -24,9 +28,14 @@ export default function WorldMapBattlePortal({
   onCloseBanditResult,
   onBanditContinue,
   onBanditDefeatAbandon,
+  onSiegeContinue,
 }) {
-  /** 匪寨：战斗 + 结算 + 点「继续」衔接下一层期间保持小型战 BGM，仅「退出/确定/放弃」后恢复大地图 */
-  useBgmScene(banditRaidData || banditRaidResult ? 'battle_small' : null);
+  const siegeNpcBgm = isWorldMapNpcSiegeBgmContext(siegeData);
+  /** 匪寨 / 攻城·攻大本营：战斗 + 结算 + 点「继续」期间保持小型战 BGM，仅「退出/确定/放弃」后恢复大地图 */
+  useBgmScene(banditRaidData || banditRaidResult || siegeNpcBgm ? 'battle_small' : null);
+
+  const siegeContinueEligible =
+    typeof onSiegeContinue === 'function' && canContinueWorldMapNpcSiege(siegeData, siegeResult);
 
   if (typeof document === 'undefined' || !open) return null;
 
@@ -46,6 +55,7 @@ export default function WorldMapBattlePortal({
             opponentName={banditRaidData.opponentName || '匪寨'}
             smallMapPveLoot={banditRaidData.smallMapPveLoot}
             onBattleEnd={onBanditBattleEnd}
+            bgmSceneManagedByParent
           />
         </Suspense>
       ) : null}
@@ -62,6 +72,7 @@ export default function WorldMapBattlePortal({
             playerId={player?.playerId}
             battleType={siegeData.isPvp ? 'pvp_siege' : 'pve_siege'}
             siegeDefenderType={siegeData.defenderType || 'npc'}
+            bgmSceneManagedByParent={isWorldMapNpcSiegeBgmContext(siegeData)}
             opponentName={
               siegeData.pvpDefenderBaseCampSiege
                 ? siegeData.opponentName || '攻方大本营守军'
@@ -108,6 +119,7 @@ export default function WorldMapBattlePortal({
       {!banditRaidData && siegeResult ? (
         <StrategicSettlementCard
           onConfirm={onCloseSiegeResult}
+          onBanditContinue={siegeContinueEligible ? onSiegeContinue : null}
           settlementKind="siege"
           silverReward={siegeResult.silverReward}
           personalSilverEarned={siegeResult.personalSilverEarned}

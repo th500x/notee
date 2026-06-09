@@ -233,6 +233,72 @@ export function findPathForAi(troop, ty, tx, mapResult, battleTroops) {
   return findPath(troop, ty, tx, mapResult, battleTroops);
 }
 
+/** 落脚/路过格是否为危险格（陷阱或火焰）——踩中均按损兵处理，AI 一律视为应规避 */
+export function isHazardTile(y, x, mapResult) {
+  return hasTrapAt(y, x, mapResult) || hasFireAt(y, x, mapResult);
+}
+
+/**
+ * BFS 可达格（**不踩陷阱/火焰** 版）：进入危险格视为不可通行。
+ * 用于「陷阱规避优先」——只在这些格里选落脚点，确保本回合移动全程不踩陷阱。
+ */
+export function getReachableTilesSafe(troop, mapResult, battleTroops) {
+  const maxMove = troop.movement || 3;
+  const visited = new Map();
+  const queue = [{ y: troop.y, x: troop.x, rem: maxMove }];
+  visited.set(`${troop.y},${troop.x}`, maxMove);
+  const dirs = [[0, 1], [0, -1], [1, 0], [-1, 0]];
+  while (queue.length > 0) {
+    const { y, x, rem } = queue.shift();
+    for (const [dy, dx] of dirs) {
+      const ny = y + dy, nx = x + dx;
+      if (!inBounds(ny, nx, mapResult)) continue;
+      const cost = getMoveCost(ny, nx, mapResult);
+      if (cost === Infinity) continue;
+      if (isHazardTile(ny, nx, mapResult)) continue; // 不踩陷阱/火
+      if (isOccupied(ny, nx, troop, battleTroops)) continue;
+      const newRem = rem - cost;
+      if (newRem < 0) continue;
+      const key = `${ny},${nx}`;
+      if (visited.has(key) && visited.get(key) >= newRem) continue;
+      visited.set(key, newRem);
+      queue.push({ y: ny, x: nx, rem: newRem });
+    }
+  }
+  visited.delete(`${troop.y},${troop.x}`);
+  return visited;
+}
+
+/**
+ * 是否存在「**完全不踩陷阱**」即可抵达 `enemy` 攻击射程内的路线（忽略本回合移动力，跨回合可达即算）。
+ *
+ * 用作「陷阱规避优先」的**唯一例外**判定：返回 `false`（道路被陷阱/障碍/单位彻底卡死、无任何
+ * 无陷阱路线可接近敌人）时，才允许 AI 踩最少陷阱前进；否则一律绕路或原地等敌人靠近，绝不踩陷阱。
+ */
+export function existsTrapFreeApproach(troop, enemy, atkRange, mapResult, battleTroops) {
+  if (dist({ y: troop.y, x: troop.x }, enemy) <= atkRange) return true;
+  const { w: W, h: H } = getMapTerrainDimensions(mapResult);
+  const seen = Array.from({ length: H }, () => Array(W).fill(false));
+  const queue = [{ y: troop.y, x: troop.x }];
+  seen[troop.y][troop.x] = true;
+  const dirs = [[0, 1], [0, -1], [1, 0], [-1, 0]];
+  while (queue.length > 0) {
+    const { y, x } = queue.shift();
+    for (const [dy, dx] of dirs) {
+      const ny = y + dy, nx = x + dx;
+      if (!inBounds(ny, nx, mapResult)) continue;
+      if (seen[ny][nx]) continue;
+      if (getMoveCost(ny, nx, mapResult) === Infinity) continue; // 河湖/障碍
+      if (isHazardTile(ny, nx, mapResult)) continue; // 陷阱/火：不可踩
+      if (isOccupied(ny, nx, troop, battleTroops)) continue; // 其他部队占据
+      seen[ny][nx] = true;
+      if (dist({ y: ny, x: nx }, enemy) <= atkRange) return true;
+      queue.push({ y: ny, x: nx });
+    }
+  }
+  return false;
+}
+
 // ── AI决策 ────────────────────────────────────────────────────────────────────
 
 /**
@@ -269,7 +335,18 @@ export function findBestMoveTarget(troop, battleTroops, mapResult, opts = {}) {
   if (!closestEnemy) return null;
 
   const atkRange = troopAttackRange(troop);
-  const reachable = getReachableTiles(troop, mapResult, battleTroops);
+
+  // 陷阱规避优先（优先级高于攻击/接敌）：只要存在「不踩陷阱」抵达敌人射程的路线，本回合就
+  // 只在无陷阱可达格里选落脚点、并走无陷阱路径；唯有道路被陷阱彻底卡死时（`allowTrap`）才允许踩。
+  const allowTrap = !existsTrapFreeApproach(troop, closestEnemy, atkRange, mapResult, battleTroops);
+  const reachable = allowTrap
+    ? getReachableTiles(troop, mapResult, battleTroops)
+    : getReachableTilesSafe(troop, mapResult, battleTroops);
+  const planPath = (ty, tx) =>
+    allowTrap
+      ? findPathForAi(troop, ty, tx, mapResult, battleTroops)
+      : findPathWithTrapBudget(troop, ty, tx, mapResult, battleTroops, 0)
+        || findPathForAi(troop, ty, tx, mapResult, battleTroops);
 
   // ── 宝箱优先（仅 auto-battle player 部队） ──
   if (prioritizeChests && mapResult?.objects) {
@@ -300,13 +377,13 @@ export function findBestMoveTarget(troop, battleTroops, mapResult, opts = {}) {
       if (!bestChest) {
         bestChest = chestTiles.reduce((a, b) => dist(troop, a) < dist(troop, b) ? a : b);
       }
-      const path = findPathForAi(troop, bestChest.y, bestChest.x, mapResult, battleTroops);
+      const path = planPath(bestChest.y, bestChest.x);
       return { move: path, target: bestChestTarget };
     }
   }
 
   /** 落脚点是否有危险（陷阱或火焰） */
-  const _hazardAt = (ry, rx) => hasTrapAt(ry, rx, mapResult) || hasFireAt(ry, rx, mapResult);
+  const _hazardAt = (ry, rx) => isHazardTile(ry, rx, mapResult);
 
   /**
    * 在可达格中：若存在能攻击敌的格子，取与敌距离**最大**者（打满射程）；
@@ -380,7 +457,7 @@ export function findBestMoveTarget(troop, battleTroops, mapResult, opts = {}) {
   if (closestDist <= atkRange) {
     const repos = pickRepositionTile();
     if (repos) {
-      const path = findPathForAi(troop, repos.tile.y, repos.tile.x, mapResult, battleTroops);
+      const path = planPath(repos.tile.y, repos.tile.x);
       if (path && path.length > 0) {
         return { move: path, target: closestEnemy };
       }
@@ -390,11 +467,17 @@ export function findBestMoveTarget(troop, battleTroops, mapResult, opts = {}) {
   }
 
   const bestPos = pickApproachTile();
-  if (!bestPos) return { move: null, target: closestDist <= atkRange ? closestEnemy : null };
+  if (!bestPos) return { move: null, target: null };
 
-  const path = findPathForAi(troop, bestPos.y, bestPos.x, mapResult, battleTroops);
   const newDist = dist(bestPos, closestEnemy);
   const canAttack = newDist <= atkRange;
 
+  // 陷阱规避优先：存在无陷阱路线时，若无陷阱可达格里既打不到、也无法更接近，
+  // 宁可原地等敌人靠近（或后续回合绕路），也不踩陷阱。防御型本就偏拉开，不在此等待。
+  if (!allowTrap && !canAttack && aiStyle !== 'defense' && newDist >= closestDist) {
+    return { move: null, target: null };
+  }
+
+  const path = planPath(bestPos.y, bestPos.x);
   return { move: path, target: canAttack ? closestEnemy : null };
 }

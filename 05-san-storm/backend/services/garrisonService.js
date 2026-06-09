@@ -405,7 +405,7 @@ async function saveGarrison(playerId, slotNumber, config) {
       if (!cardRows.length) continue;
       const { card_type, card_id } = cardRows[0];
 
-      const bonus = await getCardSpecialEffect(card_type, card_id);
+      const bonus = await garrisonBuildService.getCardSpecialEffect(card_type, card_id);
       if (Object.keys(bonus).length === 0) continue;
 
       // 4. 绱姞鍒拌缁勯儴闃熷崱

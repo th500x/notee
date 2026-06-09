@@ -262,6 +262,7 @@ router.get(
 
 /**
  * POST /api/cities/:cityId/siege-quota
+ * `consume` / `refund` / `fillMax` 运维与遗留 hook；**开战扣次**见 `cityService.consumeSiegeQuotaForBattleStart`（17-4 §2.4）。
  */
 router.post(
   '/:cityId/siege-quota',

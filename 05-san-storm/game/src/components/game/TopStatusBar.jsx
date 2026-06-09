@@ -35,6 +35,8 @@ export default function TopStatusBar({
   personalCenterNotifyDot = false,
   onOpenDailyReport,
   dailyReportNotifyDot = false,
+  seasonSettlementEntryVisible = false,
+  onOpenSeasonSettlement,
 }) {
   // CR A7（2026-04-29）：本组件只读 gameTime，用细粒度 hook 显式声明；
   // 待未来切到 selector 引擎后，玩家粮草滴答等不会再触发顶栏重渲染。
@@ -125,6 +127,16 @@ export default function TopStatusBar({
                   <span className="whitespace-nowrap">
                     {mapHudButtonsVisible ? '隐藏按钮' : '显示按钮'}
                   </span>
+                </button>
+              )}
+              {activeTab === null && seasonSettlementEntryVisible && typeof onOpenSeasonSettlement === 'function' && (
+                <button
+                  type="button"
+                  onClick={() => onOpenSeasonSettlement()}
+                  className={MAP_HUD_TOGGLE_BTN_CLASS}
+                  aria-label="赛季结算"
+                >
+                  <span className="whitespace-nowrap">🏛️ 赛季结算</span>
                 </button>
               )}
             </>

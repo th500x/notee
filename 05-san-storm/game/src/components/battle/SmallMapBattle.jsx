@@ -86,8 +86,10 @@ export default function SmallMapBattle({
   eventPunishmentExtraSlot = false,
   cards = null,
   onDeferredAwayBattleEnd = null,
+  /** 由 WorldMapBattlePortal 统一管理 BGM（匪寨 / 攻城·攻大本营） */
+  bgmSceneManagedByParent = false,
 }) {
-  useBgmScene(battleType === 'pve_bandit' ? null : 'battle_small');
+  useBgmScene(bgmSceneManagedByParent || battleType === 'pve_bandit' ? null : 'battle_small');
 
   const [stage, setStage] = useState(STAGE.LOADING);
   const [layoutWidth, setLayoutWidth] = useState('auto');
