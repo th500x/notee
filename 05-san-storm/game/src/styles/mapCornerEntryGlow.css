@@ -1,0 +1,88 @@
+/**
+ * 大地图角钮未读传书：红环脉动（动画节奏与战略格大中城 §9.8.1 一致，色相较红）
+ */
+
+.map-corner-entry-gold-glow {
+  overflow: visible !important;
+  /* fixed 按钮勿再加 relative（Tailwind 同属性后者覆盖会导致入口脱离左下角）；列内按钮用 modifier */
+}
+
+.map-corner-entry-gold-glow--in-flow {
+  position: relative;
+}
+
+.map-corner-entry-gold-glow__ring {
+  position: absolute;
+  inset: -4px;
+  border-radius: 10px;
+  border: 1.5px solid rgba(248, 113, 113, 0.78);
+  box-shadow:
+    0 0 8px rgba(239, 68, 68, 0.78),
+    0 0 16px rgba(248, 113, 113, 0.48),
+    inset 0 0 10px rgba(220, 38, 38, 0.24);
+  animation: map-corner-entry-red-ring-pulse 2.6s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.map-corner-entry-gold-glow__sheen {
+  position: absolute;
+  inset: 0;
+  border-radius: 8px;
+  background: radial-gradient(
+    ellipse 92% 86% at 50% 42%,
+    rgba(254, 226, 226, 0.3) 0%,
+    rgba(248, 113, 113, 0.14) 38%,
+    transparent 68%
+  );
+  mix-blend-mode: screen;
+  animation: map-corner-entry-red-sheen 3.2s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.map-corner-entry-gold-glow__content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+  gap: 0.25rem;
+  text-align: left;
+  filter: drop-shadow(0 0 4px rgba(239, 68, 68, 0.48));
+  animation: map-corner-entry-red-content-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes map-corner-entry-red-content-pulse {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 3px rgba(239, 68, 68, 0.42));
+  }
+  50% {
+    filter: drop-shadow(0 0 8px rgba(239, 68, 68, 0.78))
+      drop-shadow(0 0 14px rgba(248, 113, 113, 0.45));
+  }
+}
+
+@keyframes map-corner-entry-red-ring-pulse {
+  0%,
+  100% {
+    opacity: 0.62;
+    transform: scale(0.96);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.04);
+  }
+}
+
+@keyframes map-corner-entry-red-sheen {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  45% {
+    opacity: 0.88;
+  }
+}

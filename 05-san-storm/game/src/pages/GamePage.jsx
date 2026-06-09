@@ -208,33 +208,34 @@ function GamePageInner({ onLogout, accountId }) {
               : 'bottom-[calc(4rem+env(safe-area-inset-bottom,0px))]'
           }`}
         >
-          {activeTab === null ? (
-            <div className="flex min-h-0 flex-1 flex-col">
-              {/* 与 eventBusy 勿用两套分支挂 WorldMap：否则 busy 切换会卸载/重挂大地图，merged 重拉 →「大地图加载中」与格网交替闪烁 */}
-              {/* 公告/排行条不因 eventBusy 隐藏：否则 busy 结束时顶栏突然出现，大地图 event_hint（portal 锚点）与路点错位 */}
-              <div className="pointer-events-none z-40 flex shrink-0 flex-col gap-1.5 px-3 pt-1 pb-1">
-                <AnnouncementBar />
-                <RankingPanel />
-              </div>
-              <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-                <Suspense fallback={<ChunkLoadFallback label="大地图加载中…" />}>
-                  <WorldMap
-                    blockTutorialAutoplay={gameIntroOpen}
-                    onEventBusyChange={setWorldMapEventBusy}
-                    sanGongFuCardPool={{
-                      onOpenPool: setOpenPool,
-                      drawerOpen: !!openPool,
-                      troopRemaining: cardPool.status?.troop?.remainingDraws ?? '?',
-                      charRemaining: cardPool.status?.character?.remainingDraws ?? '?',
-                      dailyLimit: cardPool.status?.troop?.dailyLimit ?? 10,
-                    }}
-                  />
-                </Suspense>
-              </div>
+          {/* 战略格网层：切底栏 Tab 时仅隐藏、不卸载，避免 tilePx/滚动/merged 重载导致比例跳变 */}
+          <div
+            className={`flex min-h-0 flex-1 flex-col ${activeTab !== null ? 'hidden' : ''}`}
+            aria-hidden={activeTab !== null ? true : undefined}
+          >
+            <div className="pointer-events-none z-40 flex shrink-0 flex-col gap-1.5 px-3 pt-1 pb-1">
+              <AnnouncementBar />
+              <RankingPanel />
             </div>
-          ) : (
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+              <Suspense fallback={<ChunkLoadFallback label="大地图加载中…" />}>
+                <WorldMap
+                  blockTutorialAutoplay={gameIntroOpen}
+                  onEventBusyChange={setWorldMapEventBusy}
+                  sanGongFuCardPool={{
+                    onOpenPool: setOpenPool,
+                    drawerOpen: !!openPool,
+                    troopRemaining: cardPool.status?.troop?.remainingDraws ?? '?',
+                    charRemaining: cardPool.status?.character?.remainingDraws ?? '?',
+                    dailyLimit: cardPool.status?.troop?.dailyLimit ?? 10,
+                  }}
+                />
+              </Suspense>
+            </div>
+          </div>
+          {activeTab !== null ? (
             <div className="min-h-0 flex-1 overflow-y-auto">{renderTabContent()}</div>
-          )}
+          ) : null}
         </main>
 
         {!eventBusy && (

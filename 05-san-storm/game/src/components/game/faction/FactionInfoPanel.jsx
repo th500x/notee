@@ -153,7 +153,7 @@ function formatLegendaryLedgerAmounts(c) {
   const scope = c.legendaryScope || LEGENDARY_SCOPE_BY_KEY[c.key] || 'both';
   if (scope === 'troop') return <>部队 {fmtNum(c.troopLegendary)}</>;
   if (scope === 'character') return <>将领 {fmtNum(c.characterLegendary)}</>;
-  return <>部队 {fmtNum(c.troopLegendary)} · 将领 {fmtNum(c.characterLegendary)}</>;
+  return <>将领 {fmtNum(c.characterLegendary)} · 部队 {fmtNum(c.troopLegendary)}</>;
 }
 
 /** @param {{ label: string, hint: string, silver?: number, food?: number, troopLegendary?: number, characterLegendary?: number, legendaryScope?: string, key: string }} c */
@@ -213,7 +213,7 @@ function ReserveLedgerPopover({ open, anchorRect, ledger, onClose, variant = 'si
         </ul>
         <div className="mb-1 border-t border-stone-800/80 pt-2 text-[10px] tabular-nums text-emerald-200/80">
           {variant === 'legendary' ? (
-            <>入账合计：部队 {fmtNum(credit?.totalTroopLegendary)} · 将领 {fmtNum(credit?.totalCharacterLegendary)}</>
+            <>入账合计：将领 {fmtNum(credit?.totalCharacterLegendary)} · 部队 {fmtNum(credit?.totalTroopLegendary)}</>
           ) : (
             <>入账合计：银 {fmtNum(credit?.totalSilver)} · 粮 {fmtNum(credit?.totalFood)}</>
           )}
@@ -226,7 +226,7 @@ function ReserveLedgerPopover({ open, anchorRect, ledger, onClose, variant = 'si
         </ul>
         <div className="mt-2 border-t border-stone-800 pt-2 text-[11px] tabular-nums text-amber-200/90">
           {variant === 'legendary' ? (
-            <>消耗合计：部队 {fmtNum(expense?.totalTroopLegendary)} · 将领 {fmtNum(expense?.totalCharacterLegendary)}</>
+            <>消耗合计：将领 {fmtNum(expense?.totalCharacterLegendary)} · 部队 {fmtNum(expense?.totalTroopLegendary)}</>
           ) : (
             <>消耗合计：银 {fmtNum(expense?.totalSilver)} · 粮 {fmtNum(expense?.totalFood)}</>
           )}

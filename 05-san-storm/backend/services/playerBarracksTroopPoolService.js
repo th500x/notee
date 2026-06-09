@@ -65,6 +65,37 @@ async function getEligibleBarracksTroopInstanceIds(playerId) {
   return out;
 }
 
+/**
+ * @param {string} playerId
+ * @returns {Promise<string[]>}
+ */
+async function getEligibleBarracksCharacterInstanceIds(playerId) {
+  const pid = String(playerId || '').trim();
+  if (!pid) return [];
+
+  const rows = await garrisonService.getPlayerGarrisons(pid);
+  const occupied = collectOccupiedInstanceIds(rows);
+
+  const [characters] = await pool.query(
+    `SELECT instance_id
+     FROM player_cards
+     WHERE player_id = ?
+       AND card_type = 'character'
+       AND IFNULL(is_equipped, 0) = 0
+       AND IFNULL(main_city_barracks_storage, 0) = 0`,
+    [pid],
+  );
+
+  const out = [];
+  for (const r of characters || []) {
+    const iid = r.instance_id != null ? String(r.instance_id) : '';
+    if (!iid || occupied.has(iid)) continue;
+    out.push(iid);
+  }
+  return out;
+}
+
 module.exports = {
   getEligibleBarracksTroopInstanceIds,
+  getEligibleBarracksCharacterInstanceIds,
 };

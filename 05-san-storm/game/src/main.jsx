@@ -10,6 +10,7 @@ import './bootstrap/canonicalGameBasePath.js';
 import './bootstrap/troopIconUrlsCatalog.js';
 import App from './App.jsx';
 import './styles/index.css';
+import './styles/mapCornerEntryGlow.css';
 import { applyUiDisplayScale } from '@/utils/uiDisplayScale';
 
 applyUiDisplayScale();

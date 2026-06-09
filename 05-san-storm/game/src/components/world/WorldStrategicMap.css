@@ -513,37 +513,39 @@
   z-index: 4;
   pointer-events: none;
   overflow: hidden;
+  --ws-fire-flicker-cycle: 1.2s;
 }
 
-/* 战事目标城：2×2 锚点叠火焰（复用战术 fire 帧；略高于大中城金环） */
+/* 战事目标城：2×2 锚点叠火焰（12 帧叠放 + 整体明暗闪烁） */
 .ws-map-tile .ws-strategic-city-war-fire {
   mix-blend-mode: screen;
-  opacity: 0.92;
-}
-
-.ws-map-tile .ws-strategic-city-war-fire .tile-fire-frame {
-  object-fit: cover;
-  opacity: 0.88;
-}
-
-.ws-map-tile .tile-fire-frame {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  opacity: 0.85;
-  animation: ws-fire-flicker 1.2s ease-in-out infinite;
+  opacity: 0.94;
 }
 
 @keyframes ws-fire-flicker {
   0%,
   100% {
-    opacity: 0.75;
+    opacity: 0.42;
   }
-  50% {
-    opacity: 0.95;
+  45% {
+    opacity: 0.92;
   }
+  70% {
+    opacity: 1;
+  }
+}
+
+.ws-map-tile .tile-fire-fx .tile-fire-frame {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  animation: ws-fire-flicker var(--ws-fire-flicker-cycle) ease-in-out infinite;
+}
+
+.ws-map-tile .ws-strategic-city-war-fire .tile-fire-frame {
+  object-fit: cover;
 }
 
 /* 玩家自身占位（主城块几何中心；与道路叠层 z-index 分层） */

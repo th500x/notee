@@ -17,6 +17,7 @@ const kingEdictBody = {
 };
 
 const tributeBody = {
+  cardType: v.optional(v.enum(['troop', 'character'])),
   instanceIds: v.required(v.array({
     minLength: 1,
     maxLength: 64,

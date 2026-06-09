@@ -574,6 +574,11 @@ export default function StrategicWorldMapSection({
           const pveJson = await pveRes.json();
           if (pveJson?.success && Array.isArray(pveJson.camps)) {
             pveCamps = pveJson.camps.filter((c) => c?.cells?.length);
+          } else if (pveJson?.code === 'PVE_BASE_CAMP_SCHEMA') {
+            console.error(
+              '[StrategicWorldMapSection] PVE 大本营：数据库未迁移 wars.attacker_base_camps',
+              pveJson?.error,
+            );
           }
         } catch (pveErr) {
           console.warn('[StrategicWorldMapSection] PVE 大本营列表拉取失败', pveErr);
@@ -786,9 +791,13 @@ export default function StrategicWorldMapSection({
     return () => window.removeEventListener('resize', syncTileBounds);
   }, [cols]);
 
+  /** 仅列数变化（换郡/换 merged）时重算默认格宽；行数变化或 merged 异步就绪勿重置用户缩放 */
+  const tilePxInitColsRef = useRef(cols);
   useEffect(() => {
-    if (cols && rows) setTilePx(computeDefaultTilePx(cols));
-  }, [cols, rows]);
+    if (tilePxInitColsRef.current === cols) return;
+    tilePxInitColsRef.current = cols;
+    setTilePx(computeDefaultTilePx(cols));
+  }, [cols]);
 
   const onWheelZoomSteps = useCallback((steps) => {
     if (steps === 0) return;

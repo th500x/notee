@@ -19,6 +19,13 @@ import {
 } from '@/utils/strategicMapCityLabelStance';
 import { strategicTerritoryOverlayRgba } from '@shared/utils/strategicTerritoryFlood.js';
 
+/** 叠帧明暗闪烁周期（须与 WorldStrategicMap.css `--ws-fire-flicker-cycle` 一致） */
+const STRATEGIC_FIRE_FLICKER_CYCLE_S = 1.2;
+
+function strategicFireFrameDelay(frameIndex0Based) {
+  return `${-((frameIndex0Based * STRATEGIC_FIRE_FLICKER_CYCLE_S) / 12)}s`;
+}
+
 function wsTerrainFallbackClass(terrain) {
   if (terrain === 'lake') return 'ws-terrain-fallback ws-terrain-lake';
   if (terrain === 'ford') return 'ws-terrain-fallback ws-terrain-ford';
@@ -358,7 +365,7 @@ function WorldStrategicMapTile({
               src={tacticalFireFrameUrl(i + 1)}
               alt=""
               draggable={false}
-              style={{ animationDelay: `${-(i * 1.2) / 12}s` }}
+              style={{ animationDelay: strategicFireFrameDelay(i) }}
             />
           ))}
         </div>
@@ -426,7 +433,7 @@ function WorldStrategicMapTile({
               src={tacticalFireFrameUrl(i + 1)}
               alt=""
               draggable={false}
-              style={{ animationDelay: `${-(i * 1.2) / 12}s` }}
+              style={{ animationDelay: strategicFireFrameDelay(i) }}
             />
           ))}
         </div>

@@ -1,6 +1,7 @@
 /**
  * 攻城 NPC 线：按被击杀单位稀有度的银两 / 贡献（与 cityService、smallMapBattleLootService 同源）。
- * 三公府「朝贡」按稀有度补偿 = 本表单卡基数 × TRIBUTE_REWARD_MULTIPLIER（当前 1.5）。
+ *
+ * 三公府「朝贡」：固定贡献表（无玩家银两；势力储备不随朝贡入账银粮）。
  *
  * 使用 .cjs 扩展名：shared 包为 "type":"module"，.js 会按 ESM 解析，后端 require 需 CommonJS。
  *
@@ -28,7 +29,14 @@ const WIN_CONTRIBUTION_REWARD_SIEGE_NPC = {
   common: 1,
 };
 
-const TRIBUTE_REWARD_MULTIPLIER = 1.5;
+/** 三公府朝贡：每张销毁部队卡固定贡献（13-1 §11.1） */
+const TRIBUTE_CONTRIBUTION_REWARD = {
+  common: 5,
+  rare: 15,
+  epic: 25,
+  legendary: 35,
+  core: 50,
+};
 
 function normalizeSiegeRarity(r) {
   const x = String(r || '').toLowerCase();
@@ -37,24 +45,22 @@ function normalizeSiegeRarity(r) {
 }
 
 /**
- * 朝贡销毁一张部队卡时，给玩家银两/贡献（= 攻城按该稀有度「单杀」基数 × 1.5 取整）
+ * 朝贡销毁一张部队卡时，给玩家贡献（无银两）
  * @param {string} rarity
  * @returns {{ silver: number, contribution: number }}
  */
 function tributeCompensationPerTroopCard(rarity) {
   const br = normalizeSiegeRarity(rarity);
-  const baseSilver = KILL_SILVER_REWARD[br] ?? 10;
-  const baseContrib = WIN_CONTRIBUTION_REWARD_SIEGE_NPC[br] ?? 1;
   return {
-    silver: Math.floor(TRIBUTE_REWARD_MULTIPLIER * baseSilver),
-    contribution: Math.floor(TRIBUTE_REWARD_MULTIPLIER * baseContrib),
+    silver: 0,
+    contribution: TRIBUTE_CONTRIBUTION_REWARD[br] ?? TRIBUTE_CONTRIBUTION_REWARD.common,
   };
 }
 
 module.exports = {
   KILL_SILVER_REWARD,
   WIN_CONTRIBUTION_REWARD_SIEGE_NPC,
+  TRIBUTE_CONTRIBUTION_REWARD,
   normalizeSiegeRarity,
   tributeCompensationPerTroopCard,
-  TRIBUTE_REWARD_MULTIPLIER,
 };

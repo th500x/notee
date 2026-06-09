@@ -85,6 +85,20 @@ export function getBarracksTroopCardsSorted(cards, occupiedIds) {
   return sortBarracksTroopsForDisplay(filterBarracksTroopCards(cards, occupiedIds));
 }
 
+export function filterBarracksCharacterCards(cards, occupiedIds) {
+  const occ = occupiedIds instanceof Set ? occupiedIds : new Set(occupiedIds || []);
+  return (cards || []).filter((c) => {
+    if (!c || c.cardType !== 'character') return false;
+    if (c.isEquipped || occ.has(c.instanceId)) return false;
+    if (isMainCityBarracksStored(c)) return false;
+    return true;
+  });
+}
+
+export function getBarracksCharacterCardsSorted(cards, occupiedIds) {
+  return sortBarracksTroopsForDisplay(filterBarracksCharacterCards(cards, occupiedIds));
+}
+
 export function getWarehouseTroopCardsSorted(cards, occupiedIds) {
   return sortBarracksTroopsForDisplay(filterWarehouseTroopCards(cards, occupiedIds));
 }

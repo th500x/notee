@@ -48,17 +48,9 @@ function addFactionId(set, factionId) {
  */
 async function getAttackerBaseCampsSchemaStatus() {
   if (schemaAttackerBaseCampsReady === true) return { ok: true };
-  if (schemaAttackerBaseCampsReady === false) {
-    return {
-      ok: false,
-      message:
-        '数据库缺 wars.attacker_base_camps 列，请执行迁移 wars-add-attacker-base-camps.sql',
-    };
-  }
   try {
     const [rows] = await pool.query("SHOW COLUMNS FROM wars LIKE 'attacker_base_camps'");
     if (!rows.length) {
-      schemaAttackerBaseCampsReady = false;
       console.error(
         '[pveWarBaseCamp] FATAL: wars.attacker_base_camps 列缺失；生产/本地请执行迁移 wars-add-attacker-base-camps.sql',
       );
@@ -101,6 +93,35 @@ async function registerPveWarAttackerFaction(warId, factionId) {
 }
 
 /**
+ * 生成 PVE 攻方大本营 JSON（不写库；与 PVP `createBaseCampJsonForCity` 同源）。
+ *
+ * @param {object} city - `cityService.getCityInfo` 行
+ * @param {string} warId
+ * @param {string} attackerFactionId
+ * @returns {Promise<object>}
+ */
+async function buildAttackerBaseCampEntry(city, warId, attackerFactionId) {
+  await assertAttackerBaseCampsSchemaReady();
+  const wid = String(warId || '').trim();
+  const fid = String(attackerFactionId || '').trim();
+  if (!wid || !fid) {
+    throw new Error('[pveWarBaseCamp] 缺 warId 或 attackerFactionId');
+  }
+  if (!city) throw new Error('[pveWarBaseCamp] 目标城不存在');
+
+  const pvpWarService = require('./pvpWarService');
+  const baseCamp = await pvpWarService.createBaseCampJsonForCity(city, `${wid}:${fid}`, {
+    excludePveWarId: wid,
+  });
+  return {
+    ...baseCamp,
+    attackerFactionId: fid,
+    pveWarId: wid,
+    targetCityId: city.city_id,
+  };
+}
+
+/**
  * 为 PVE 战事中某攻方势力确保大本营已落位（幂等）。
  *
  * @param {string} warId
@@ -138,18 +159,7 @@ async function ensurePveAttackerBaseCamp(warId, attackerFactionId) {
     }
 
     const city = await cityService.getCityInfo(rows[0].target_city_id);
-    if (!city) throw new Error('[pveWarBaseCamp] 目标城不存在');
-
-    const pvpWarService = require('./pvpWarService');
-    const baseCamp = await pvpWarService.createBaseCampJsonForCity(city, `${wid}:${fid}`, {
-      excludePveWarId: wid,
-    });
-    camps[fid] = {
-      ...baseCamp,
-      attackerFactionId: fid,
-      pveWarId: wid,
-      targetCityId: rows[0].target_city_id,
-    };
+    camps[fid] = await buildAttackerBaseCampEntry(city, wid, fid);
 
     await conn.query('UPDATE wars SET attacker_base_camps = ? WHERE war_id = ?', [
       JSON.stringify(camps),
@@ -157,7 +167,9 @@ async function ensurePveAttackerBaseCamp(warId, attackerFactionId) {
     ]);
     await registerPveWarAttackerFaction(wid, fid);
     await conn.commit();
-    console.log(`[pveWarBaseCamp] placed warId=${wid} faction=${fid} cells=${baseCamp.cells?.length || 0}`);
+    console.log(
+      `[pveWarBaseCamp] placed warId=${wid} faction=${fid} cells=${camps[fid].cells?.length || 0}`,
+    );
     return camps[fid];
   } catch (err) {
     try {
@@ -333,8 +345,9 @@ async function listActivePveBaseCampsForMap(opts = {}) {
     const camps = parseAttackerBaseCamps(row.attacker_base_camps);
     for (const [fid, bc] of Object.entries(camps)) {
       if (!bc || !Array.isArray(bc.cells) || !bc.cells.length) continue;
+      const { npcUnits: _npcUnits, ...bcMap } = bc;
       out.push({
-        ...bc,
+        ...bcMap,
         kind: 'pve',
         pvpWarId: row.war_id,
         pveWarId: row.war_id,
@@ -384,6 +397,7 @@ async function resolvePveBaseCampForMarch(warId, playerFactionId) {
 module.exports = {
   parseAttackerBaseCamps,
   getAttackerBaseCampsSchemaStatus,
+  buildAttackerBaseCampEntry,
   ensurePveAttackerBaseCamp,
   registerPveWarAttackerFaction,
   backfillPveCampsForWarRow,

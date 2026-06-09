@@ -727,6 +727,7 @@ async function initiateSiege(cityId, playerId) {
   }
 
   let war;
+  let createdNewPveWar = false;
   if (existingWar.length > 0) {
     war = existingWar[0];
     assertPveWarActiveNotExpired(war);
@@ -752,14 +753,22 @@ async function initiateSiege(cityId, playerId) {
     }
     const warId = `war_${cityId}_${Date.now()}`;
     const fkSeed = JSON.stringify({ [playerFaction]: 0 });
+    let attackerCampsJson = null;
+    try {
+      const bc = await pveWarBaseCampService.buildAttackerBaseCampEntry(city, warId, playerFaction);
+      attackerCampsJson = JSON.stringify({ [playerFaction]: bc });
+    } catch (campErr) {
+      console.error('[cityService] initiateSiege 大本营预落位失败:', campErr.message);
+      throw new Error(campErr.message || '无法在目标城外放置攻方大本营，请稍后重试');
+    }
     await pool.query(
       `INSERT INTO wars (war_id, war_name, war_type, target_city_id, target_city_name,
-        faction_kills, status, npc_total, npc_killed, start_time, end_time)
-       VALUES (?, ?, 'siege', ?, ?, ?, 'active', ?, 0, NOW(), DATE_ADD(NOW(), INTERVAL 24 HOUR))`,
-      [warId, `${city.city_name}攻城战`, cityId, city.city_name, fkSeed, city.npc_garrison_alive],
+        faction_kills, status, npc_total, npc_killed, start_time, end_time, attacker_base_camps)
+       VALUES (?, ?, 'siege', ?, ?, ?, 'active', ?, 0, NOW(), DATE_ADD(NOW(), INTERVAL 24 HOUR), ?)`,
+      [warId, `${city.city_name}攻城战`, cityId, city.city_name, fkSeed, city.npc_garrison_alive, attackerCampsJson],
     );
     war = { war_id: warId, faction_kills: JSON.parse(fkSeed) };
-    factionBulletinService.logPveWarStarted(playerFaction, city.city_name, cityId);
+    createdNewPveWar = true;
   }
 
   // NPC 守军：与驻守相同逻辑——按「顺位批次」分配，每批最多 4 支；def|warId|_npc|批次 被占用则自动试下一批
@@ -811,8 +820,21 @@ async function initiateSiege(cityId, playerId) {
   try {
     await pveWarBaseCampService.ensurePveAttackerBaseCamp(war.war_id, playerFaction);
   } catch (campErr) {
+    if (npcBatchIndex != null && !Number.isNaN(Number(npcBatchIndex))) {
+      releaseSiegeLock(
+        `def|${war.war_id}|${NPC_SIEGE_LOCK_DEFENDER_ID}|${Number(npcBatchIndex)}`,
+        playerId,
+      );
+    }
+    if (createdNewPveWar) {
+      await pool.query('DELETE FROM wars WHERE war_id = ?', [war.war_id]);
+    }
     console.error('[cityService] PVE 大本营落位失败:', campErr.message);
     throw new Error(campErr.message || '无法在目标城外放置攻方大本营，请稍后重试');
+  }
+
+  if (createdNewPveWar) {
+    factionBulletinService.logPveWarStarted(playerFaction, city.city_name, cityId);
   }
 
   const battleNpc = battleSlice.map(({ u, gi }) => ({
@@ -1266,6 +1288,21 @@ async function openPveWarOnNeutralCity(cityId, opts = {}) {
     bulletinFactionId && String(bulletinFactionId).trim()
       ? JSON.stringify({ [String(bulletinFactionId).trim()]: 0 })
       : '{}';
+  const bfCamp = bulletinFactionId && String(bulletinFactionId).trim();
+  let attackerCampsJson = null;
+  if (bfCamp) {
+    try {
+      const bc = await pveWarBaseCampService.buildAttackerBaseCampEntry(
+        cityRefreshed,
+        warId,
+        bfCamp,
+      );
+      attackerCampsJson = JSON.stringify({ [bfCamp]: bc });
+    } catch (campErr) {
+      console.error('[cityService] openPveWar 大本营预落位失败:', campErr.message);
+      throw campErr;
+    }
+  }
 
   if (bulletinFactionId && String(bulletinFactionId).trim()) {
     const bf = String(bulletinFactionId).trim();
@@ -1302,9 +1339,17 @@ async function openPveWarOnNeutralCity(cityId, opts = {}) {
       );
       await conn.query(
         `INSERT INTO wars (war_id, war_name, war_type, target_city_id, target_city_name,
-           faction_kills, status, npc_total, npc_killed, start_time, end_time)
-         VALUES (?, ?, 'siege', ?, ?, ?, 'active', ?, 0, NOW(), DATE_ADD(NOW(), INTERVAL 24 HOUR))`,
-        [warId, `${cityRefreshed.city_name}攻城战`, cityId, cityRefreshed.city_name, fkInsert, npcAlive],
+           faction_kills, status, npc_total, npc_killed, start_time, end_time, attacker_base_camps)
+         VALUES (?, ?, 'siege', ?, ?, ?, 'active', ?, 0, NOW(), DATE_ADD(NOW(), INTERVAL 24 HOUR), ?)`,
+        [
+          warId,
+          `${cityRefreshed.city_name}攻城战`,
+          cityId,
+          cityRefreshed.city_name,
+          fkInsert,
+          npcAlive,
+          attackerCampsJson,
+        ],
       );
       await conn.commit();
     } catch (e) {
@@ -1320,30 +1365,28 @@ async function openPveWarOnNeutralCity(cityId, opts = {}) {
   } else {
     await pool.query(
       `INSERT INTO wars (war_id, war_name, war_type, target_city_id, target_city_name,
-         faction_kills, status, npc_total, npc_killed, start_time, end_time)
-       VALUES (?, ?, 'siege', ?, ?, ?, 'active', ?, 0, NOW(), DATE_ADD(NOW(), INTERVAL 24 HOUR))`,
-      [warId, `${cityRefreshed.city_name}攻城战`, cityId, cityRefreshed.city_name, fkInsert, npcAlive],
+         faction_kills, status, npc_total, npc_killed, start_time, end_time, attacker_base_camps)
+       VALUES (?, ?, 'siege', ?, ?, ?, 'active', ?, 0, NOW(), DATE_ADD(NOW(), INTERVAL 24 HOUR), ?)`,
+      [
+        warId,
+        `${cityRefreshed.city_name}攻城战`,
+        cityId,
+        cityRefreshed.city_name,
+        fkInsert,
+        npcAlive,
+        attackerCampsJson,
+      ],
     );
   }
 
   console.log(
     `[cityService] openPveWarOnNeutralCity created warId=${warId} cityId=${cityId} ` +
       `cityName=${cityRefreshed.city_name} npcAlive=${npcAlive} ` +
-      `openedBy=${openedByCharacterId || 'system'}`,
+      `openedBy=${openedByCharacterId || 'system'} camp=${Boolean(attackerCampsJson)}`,
   );
 
   if (bulletinFactionId) {
     factionBulletinService.logPveWarStarted(bulletinFactionId, cityRefreshed.city_name, cityId);
-  }
-
-  const bfCamp = bulletinFactionId && String(bulletinFactionId).trim();
-  if (bfCamp) {
-    try {
-      await pveWarBaseCampService.ensurePveAttackerBaseCamp(warId, bfCamp);
-    } catch (campErr) {
-      console.error('[cityService] openPveWar 大本营落位失败:', campErr.message);
-      throw campErr;
-    }
   }
 
   return {

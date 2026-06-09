@@ -49,28 +49,18 @@ export default function StrategicMarchMoveConfirm({
         ) : null}
         <p className="mt-2 text-sm leading-relaxed text-stone-300">
           {adjRoadEnterPoi ? (
-            <>
-              您已在目标邻接道路上，确认后将<strong className="text-amber-200">直接进入城寨锚格</strong>
-              ，本段<strong className="text-amber-200">不消耗沿路步数与粮草</strong>。
-            </>
+            <>已在目标邻接道路，确认后直接进入，本段不消耗步数与粮草。</>
           ) : (
             <>
-              本段共 <strong className="text-amber-200">{billableRoadSteps}</strong> 步（道路邻接）。
-              {p.freeSteps != null ? (
-                <>
-                  {' '}
-                  其中免费格 <strong>{p.freeSteps}</strong>，需扣粮 <strong>{p.paidSteps || 0}</strong> 格 ×
-                  {MARCH_FOOD_PER_STEP} =
-                  <strong className="text-amber-200"> {p.totalFoodCost ?? 0}</strong> 粮草（先个人粮草{' '}
-                  <strong>{p.foodFromPlayer ?? 0}</strong>，不足部分势力池 <strong>{p.reserveFromFaction ?? 0}</strong>）。
-                </>
-              ) : null}
+              <strong className="text-amber-200">{billableRoadSteps}</strong> 步，
+              <strong className="text-amber-200">{p.paidSteps ?? 0}</strong> × {MARCH_FOOD_PER_STEP} ={' '}
+              <strong className="text-amber-200">{p.totalFoodCost ?? 0}</strong> 粮草
             </>
           )}
         </p>
         {p.freeQuotaPerDay != null && p.freeQuotaRemainingAfterMarch != null ? (
-          <p className="mt-1.5 text-sm leading-relaxed text-stone-400">
-            剩余免费格 / 总共免费格（本段完成后今日）：
+          <p className="mt-1.5 text-sm text-stone-400">
+            免费额度：
             <strong className="text-stone-200">{p.freeQuotaRemainingAfterMarch}</strong>
             <span className="text-stone-500"> / </span>
             <strong className="text-stone-200">{p.freeQuotaPerDay}</strong>
@@ -96,7 +86,7 @@ export default function StrategicMarchMoveConfirm({
             onClick={onConfirm}
             disabled={loading || p.reserveExceeded}
           >
-            {loading ? '提交中…' : '确认移动（扣粮）'}
+            {loading ? '提交中…' : (p.totalFoodCost ?? 0) > 0 ? '确认移动（扣粮）' : '确认移动'}
           </button>
         </div>
       </div>

@@ -3,7 +3,7 @@
  *
  * @description 三Tab布局：📜战报 | 📮传书 | 💬聊天（均已对接后端）
  *              收起态入口主标识：未读传书 > 聊天新消息角标 > 默认入口「聊天」；
- *              有未读传书或天下频道新消息时，左侧 emoji 加深红描边提示（不自动展开面板）
+ *              有未读传书时整框叠加红环脉动（不自动展开面板）
  *              大地图视图下显示，Tab页面内隐藏
  *
  * @see docs/30-frontend/32-5-PLAYER_CORNER.md
@@ -27,6 +27,7 @@ import TextMailTab from '@/components/comm/TextMailTab';
 import ChatTab from '@/components/comm/ChatTab';
 import { useCommPanelBattles } from '@/hooks/useCommPanelBattles';
 import { useCommPanelNotify } from '@/hooks/useCommPanelNotify';
+import MapCornerEntryGoldGlow from '@/components/game/MapCornerEntryGoldGlow';
 
 /**
  * @param {number} [unreadChatCount] - 预留；新消息角标主要由内部 meta 轮询驱动
@@ -44,6 +45,24 @@ export default function CommPanel({ visible, unreadChatCount: unreadChatProp = 0
     modalType: 'reward',
   });
 
+  const showMailClaimResult = useCallback((lines) => {
+    setMailClaimModal({
+      open: true,
+      lines: Array.isArray(lines) ? lines : [String(lines || '')],
+      title: '领取结果',
+      modalType: 'reward',
+    });
+  }, []);
+
+  const showMailClaimError = useCallback((error) => {
+    setMailClaimModal({
+      open: true,
+      lines: [error || '领取失败'],
+      title: '领取失败',
+      modalType: 'warning',
+    });
+  }, []);
+
   const showModal = useCallback((patch) => {
     setMailClaimModal((s) => ({ ...s, ...patch }));
   }, []);
@@ -52,7 +71,8 @@ export default function CommPanel({ visible, unreadChatCount: unreadChatProp = 0
     refreshTextUnread,
     syncWorldSeen,
     minimizedEntry,
-    showEmojiNotifyOutline,
+    showTextMailGoldGlow,
+    unreadTextCount,
   } = useCommPanelNotify({
     visible,
     playerId: player?.playerId,
@@ -80,7 +100,7 @@ export default function CommPanel({ visible, unreadChatCount: unreadChatProp = 0
   });
 
   const compactViewport = useMapCornerCompactViewport();
-  const { setCommEntryCaption } = useMapCornerPlayerEntryActions() || {};
+  const { setCommEntryCaption, setCommEntryGoldGlow } = useMapCornerPlayerEntryActions() || {};
   const openCommRef = useRef(() => {});
 
   openCommRef.current = () => {
@@ -96,11 +116,16 @@ export default function CommPanel({ visible, unreadChatCount: unreadChatProp = 0
   useRegisterMapCornerEntryHandler('comm', visible ? openComm : null);
 
   useEffect(() => {
-    if (!visible || !setCommEntryCaption) return;
+    if (!visible || !setCommEntryCaption) {
+      setCommEntryGoldGlow?.(false);
+      return;
+    }
     const { icon, label, count } = minimizedEntry || {};
     const suffix = count > 0 ? ` (${count})` : '';
     setCommEntryCaption(`${icon || '💬'} ${label || '聊天'}${suffix}`);
-  }, [visible, minimizedEntry, setCommEntryCaption]);
+    setCommEntryGoldGlow?.(unreadTextCount > 0);
+    return () => setCommEntryGoldGlow?.(false);
+  }, [visible, minimizedEntry, unreadTextCount, setCommEntryCaption, setCommEntryGoldGlow]);
 
   if (!visible) return null;
 
@@ -123,12 +148,6 @@ export default function CommPanel({ visible, unreadChatCount: unreadChatProp = 0
   if (!open) {
     const { icon, label, count, tab } = minimizedEntry;
     const suffix = count > 0 ? ` (${count})` : '';
-    const emojiNotifyStyle = showEmojiNotifyOutline
-      ? {
-          textShadow:
-            '-1px -1px 0 #7f1d1d, 1px -1px 0 #7f1d1d, -1px 1px 0 #7f1d1d, 1px 1px 0 #7f1d1d, 0 -1px 0 #450a0a, 0 1px 0 #450a0a, -1px 0 0 #450a0a, 1px 0 0 #450a0a',
-        }
-      : undefined;
     return (
       <>
         {!compactViewport ? (
@@ -139,12 +158,19 @@ export default function CommPanel({ visible, unreadChatCount: unreadChatProp = 0
               setOpen(true);
             }}
             style={mapCornerEntryRowBoxStyle}
-            className={`fixed bottom-20 left-2 z-40 justify-start text-amber-300 ${MAP_CORNER_ENTRY_ROW_CLASS}`}
+            className={`fixed bottom-20 left-2 z-40 justify-start text-amber-300 ${MAP_CORNER_ENTRY_ROW_CLASS}${
+              showTextMailGoldGlow ? ' map-corner-entry-gold-glow' : ''
+            }`}
           >
-            <span className="flex w-full min-w-0 items-center gap-1 text-left">
-              <span style={emojiNotifyStyle} className="inline-flex shrink-0 select-none leading-none">
-                {icon}
-              </span>
+            {showTextMailGoldGlow ? <MapCornerEntryGoldGlow /> : null}
+            <span
+              className={
+                showTextMailGoldGlow
+                  ? 'map-corner-entry-gold-glow__content'
+                  : 'flex w-full min-w-0 items-center gap-1 text-left'
+              }
+            >
+              <span className="inline-flex shrink-0 select-none leading-none">{icon}</span>
               <span className="min-w-0 truncate">
                 {label}
                 {suffix}
@@ -184,36 +210,34 @@ export default function CommPanel({ visible, unreadChatCount: unreadChatProp = 0
             ✕
           </button>
         </div>
-        <div className="flex-1 min-h-0 overflow-hidden">
-          {activeTab === 'battles' && (
+        <div className="shrink-0 min-h-0 flex flex-col">
+          {activeTab === 'battle' && (
             <BattleTab
               battles={battles}
-              battleFilter={battleFilter}
-              setBattleFilter={setBattleFilter}
-              battleLoading={battleLoading}
+              filter={battleFilter}
+              onFilterChange={setBattleFilter}
+              loading={battleLoading}
               expandedBattle={expandedBattle}
               battleDetail={battleDetail}
-              battleMemorialQuota={battleMemorialQuota}
-              creatingMemorialBattleId={creatingMemorialBattleId}
-              onExpandBattle={handleExpandBattle}
+              onExpand={handleExpandBattle}
               onToggleFavorite={handleToggleFavorite}
-              onCreateBattleMemorial={handleCreateBattleMemorial}
+              memorialQuota={battleMemorialQuota}
+              creatingMemorialBattleId={creatingMemorialBattleId}
+              onCreateMemorial={handleCreateBattleMemorial}
+              playerId={player?.playerId}
             />
           )}
           {activeTab === 'text' && (
             <TextMailTab
               playerId={player?.playerId}
-              refreshTextUnread={refreshTextUnread}
-              onShowModal={showModal}
+              onUnreadChange={refreshTextUnread}
+              onShowClaimResult={showMailClaimResult}
+              onShowClaimError={showMailClaimError}
               onClaimed={() => refreshPlayer({ silent: true })}
             />
           )}
           {activeTab === 'chat' && (
-            <ChatTab
-              playerId={player?.playerId}
-              playerName={player?.characterName}
-              syncWorldSeen={syncWorldSeen}
-            />
+            <ChatTab player={player} onWorldReadSynced={syncWorldSeen} />
           )}
         </div>
       </div>

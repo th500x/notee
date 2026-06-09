@@ -26,7 +26,7 @@
       "icon": "📜",
       "rank": 1,
       "rarity": "core",
-      "requirement": "6000",
+      "requirement": "5000",
       "position_bonuses": {
         "resourceBonus": 3,
         "reputationBonus": 50,
@@ -47,7 +47,7 @@
       "icon": "📜",
       "rank": 2,
       "rarity": "core",
-      "requirement": "6000",
+      "requirement": "5000",
       "position_bonuses": {
         "resourceBonus": 3,
         "reputationBonus": 50,
@@ -91,7 +91,7 @@
       "icon": "📜",
       "rank": 4,
       "rarity": "core",
-      "requirement": "3000",
+      "requirement": "3500",
       "position_bonuses": {
         "resourceBonus": 2.5,
         "reputationBonus": 40,
@@ -113,7 +113,7 @@
       "icon": "📜",
       "rank": 5,
       "rarity": "core",
-      "requirement": "3000",
+      "requirement": "3500",
       "position_bonuses": {
         "resourceBonus": 2.5,
         "reputationBonus": 40,
@@ -134,7 +134,7 @@
       "icon": "🏛️",
       "rank": 6,
       "rarity": "core",
-      "requirement": "1500",
+      "requirement": "2500",
       "position_bonuses": {
         "resourceBonus": 2,
         "reputationBonus": 30,
@@ -156,7 +156,7 @@
       "icon": "🏛️",
       "rank": 7,
       "rarity": "core",
-      "requirement": "1500",
+      "requirement": "2500",
       "position_bonuses": {
         "resourceBonus": 2,
         "reputationBonus": 30,
@@ -178,7 +178,7 @@
       "icon": "🏛️",
       "rank": 8,
       "rarity": "core",
-      "requirement": "1500",
+      "requirement": "2500",
       "position_bonuses": {
         "resourceBonus": 2,
         "reputationBonus": 30,
@@ -200,7 +200,7 @@
       "icon": "🏛️",
       "rank": 9,
       "rarity": "core",
-      "requirement": "1500",
+      "requirement": "2500",
       "position_bonuses": {
         "resourceBonus": 2,
         "reputationBonus": 30,
@@ -222,7 +222,7 @@
       "icon": "⚔️",
       "rank": 10,
       "rarity": "legendary",
-      "requirement": "750",
+      "requirement": "1500",
       "position_bonuses": {
         "reputationBonus": 15,
         "contributionBonus": 30,
@@ -242,7 +242,7 @@
       "icon": "⚔️",
       "rank": 11,
       "rarity": "legendary",
-      "requirement": "750",
+      "requirement": "1500",
       "position_bonuses": {
         "reputationBonus": 15,
         "contributionBonus": 30,
@@ -262,7 +262,7 @@
       "icon": "⚔️",
       "rank": 12,
       "rarity": "legendary",
-      "requirement": "750",
+      "requirement": "1500",
       "position_bonuses": {
         "reputationBonus": 15,
         "contributionBonus": 30,
@@ -282,7 +282,7 @@
       "icon": "⚔️",
       "rank": 13,
       "rarity": "legendary",
-      "requirement": "750",
+      "requirement": "1500",
       "position_bonuses": {
         "reputationBonus": 15,
         "contributionBonus": 30,
@@ -302,7 +302,7 @@
       "icon": "⚔️",
       "rank": 14,
       "rarity": "legendary",
-      "requirement": "750",
+      "requirement": "1500",
       "position_bonuses": {
         "reputationBonus": 15,
         "contributionBonus": 30,
@@ -322,7 +322,7 @@
       "icon": "⚔️",
       "rank": 15,
       "rarity": "legendary",
-      "requirement": "750",
+      "requirement": "1500",
       "position_bonuses": {
         "reputationBonus": 15,
         "contributionBonus": 30,
@@ -342,7 +342,7 @@
       "icon": "⚔️",
       "rank": 16,
       "rarity": "legendary",
-      "requirement": "750",
+      "requirement": "1500",
       "position_bonuses": {
         "resourceBonus": 1.5,
         "reputationBonus": 20,
@@ -363,7 +363,7 @@
       "icon": "⚔️",
       "rank": 17,
       "rarity": "legendary",
-      "requirement": "750",
+      "requirement": "1500",
       "position_bonuses": {
         "resourceBonus": 1.5,
         "reputationBonus": 20,
@@ -384,7 +384,7 @@
       "icon": "⚔️",
       "rank": 18,
       "rarity": "legendary",
-      "requirement": "750",
+      "requirement": "1500",
       "position_bonuses": {
         "resourceBonus": 1.5,
         "reputationBonus": 20,
@@ -405,7 +405,7 @@
       "icon": "⚔️",
       "rank": 19,
       "rarity": "legendary",
-      "requirement": "750",
+      "requirement": "1500",
       "position_bonuses": {
         "resourceBonus": 1.5,
         "reputationBonus": 20,
@@ -426,7 +426,7 @@
       "icon": "⚔️",
       "rank": 20,
       "rarity": "legendary",
-      "requirement": "750",
+      "requirement": "1500",
       "position_bonuses": {
         "resourceBonus": 1.5,
         "reputationBonus": 20,
@@ -447,7 +447,7 @@
       "icon": "⚔️",
       "rank": 21,
       "rarity": "legendary",
-      "requirement": "750",
+      "requirement": "1500",
       "position_bonuses": {
         "resourceBonus": 1.5,
         "reputationBonus": 20,
@@ -468,7 +468,7 @@
       "icon": "⚔️",
       "rank": 22,
       "rarity": "legendary",
-      "requirement": "750",
+      "requirement": "1500",
       "position_bonuses": {
         "resourceBonus": 1.5,
         "contributionBonus": 40,
@@ -489,7 +489,7 @@
       "icon": "⚔️",
       "rank": 23,
       "rarity": "legendary",
-      "requirement": "750",
+      "requirement": "1500",
       "position_bonuses": {
         "resourceBonus": 1.5,
         "contributionBonus": 40,
@@ -510,7 +510,7 @@
       "icon": "⚔️",
       "rank": 24,
       "rarity": "legendary",
-      "requirement": "750",
+      "requirement": "1500",
       "position_bonuses": {
         "resourceBonus": 1.5,
         "contributionBonus": 40,
@@ -531,7 +531,7 @@
       "icon": "⚔️",
       "rank": 25,
       "rarity": "legendary",
-      "requirement": "750",
+      "requirement": "1500",
       "position_bonuses": {
         "resourceBonus": 1.5,
         "contributionBonus": 40,
@@ -552,7 +552,7 @@
       "icon": "⚔️",
       "rank": 26,
       "rarity": "legendary",
-      "requirement": "750",
+      "requirement": "1500",
       "position_bonuses": {
         "resourceBonus": 1.5,
         "contributionBonus": 40,
@@ -573,7 +573,7 @@
       "icon": "⚔️",
       "rank": 27,
       "rarity": "legendary",
-      "requirement": "750",
+      "requirement": "1500",
       "position_bonuses": {
         "resourceBonus": 1.5,
         "contributionBonus": 40,
@@ -594,7 +594,7 @@
       "icon": "🎖️",
       "rank": 28,
       "rarity": "epic",
-      "requirement": "250",
+      "requirement": "500",
       "position_bonuses": {
         "resourceBonus": 1.2,
         "reputationBonus": 5,
@@ -615,7 +615,7 @@
       "icon": "🎖️",
       "rank": 29,
       "rarity": "epic",
-      "requirement": "250",
+      "requirement": "500",
       "position_bonuses": {
         "reputationBonus": 10,
         "contributionBonus": 20,
@@ -635,7 +635,7 @@
       "icon": "🎖️",
       "rank": 30,
       "rarity": "epic",
-      "requirement": "250",
+      "requirement": "500",
       "position_bonuses": {
         "reputationBonus": 10,
         "contributionBonus": 20,

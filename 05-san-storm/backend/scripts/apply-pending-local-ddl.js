@@ -104,6 +104,7 @@ const MIGRATION_FILES = [
   'player-cards-add-main-city-barracks-storage.sql',
   'player-cards-drop-barracks-sort.sql',
   'player-events-add-san-gong-tribute-daily.sql',
+  'player-events-add-san-gong-tribute-character-daily.sql',
   'player-events-add-san-gong-stipend-claim-date.sql',
   'create-road-encounters.sql',
   'add-players-road-state.sql',

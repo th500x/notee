@@ -3,16 +3,28 @@ import {
   mapCornerEntryRowBoxStyle,
 } from '@/components/game/mapCornerEntryUi';
 import { useMapCornerPlayerEntryActions } from '@/contexts/MapCornerPlayerEntryActionsContext';
+import MapCornerEntryGoldGlow from '@/components/game/MapCornerEntryGoldGlow';
 
-function MapCornerEntryButton({ label, onClick }) {
+function MapCornerEntryButton({ label, onClick, goldGlow = false }) {
   return (
     <button
       type="button"
       onClick={onClick}
       style={mapCornerEntryRowBoxStyle}
-      className={`flex shrink-0 justify-start text-amber-300 ${MAP_CORNER_ENTRY_ROW_CLASS}`}
+      className={`flex shrink-0 justify-start text-amber-300 ${MAP_CORNER_ENTRY_ROW_CLASS}${
+        goldGlow ? ' map-corner-entry-gold-glow map-corner-entry-gold-glow--in-flow' : ''
+      }`}
     >
-      <span className="block w-full min-w-0 truncate text-left">{label}</span>
+      {goldGlow ? <MapCornerEntryGoldGlow /> : null}
+      <span
+        className={
+          goldGlow
+            ? 'map-corner-entry-gold-glow__content block min-w-0 truncate text-left'
+            : 'block w-full min-w-0 truncate text-left'
+        }
+      >
+        {label}
+      </span>
     </button>
   );
 }
@@ -24,13 +36,14 @@ export default function MapCornerPlayerEntryColumn() {
   const ctx = useMapCornerPlayerEntryActions();
   const invoke = ctx?.invokeMapCornerEntryHandler;
   const commLabel = ctx?.commEntryCaption || '💬 聊天';
+  const commGoldGlow = !!ctx?.commEntryGoldGlow;
 
   return (
     <div className="flex shrink-0 flex-col gap-1.5 self-start">
       <MapCornerEntryButton label="📜 口谕" onClick={() => invoke?.('edict')} />
       <div className="flex flex-col gap-1">
         <MapCornerEntryButton label="🏆 排行" onClick={() => invoke?.('rank')} />
-        <MapCornerEntryButton label={commLabel} onClick={() => invoke?.('comm')} />
+        <MapCornerEntryButton label={commLabel} goldGlow={commGoldGlow} onClick={() => invoke?.('comm')} />
       </div>
     </div>
   );

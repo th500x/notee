@@ -22,6 +22,7 @@ const CATEGORY = Object.freeze({
   CARD_POOL_LEGENDARY_TROOP: 'card_pool_legendary_troop',
   CARD_POOL_LEGENDARY_CHARACTER: 'card_pool_legendary_character',
   TRIBUTE_LEGENDARY_TROOP: 'tribute_legendary_troop',
+  TRIBUTE_LEGENDARY_CHARACTER: 'tribute_legendary_character',
 });
 
 const CREDIT_CATEGORY_META = [
@@ -46,14 +47,15 @@ const LEGENDARY_CREDIT_CATEGORY_META = [
   {
     key: CATEGORY.DAILY_LEGENDARY_RECOVERY,
     label: '每日恢复',
-    hint: '每日 00:00 按军事/文化标量入账（军事÷5→部队，文化÷5→将领）',
+    hint: '每日 00:00 按军事/文化标量入账（文化÷5→将领，军事÷5→部队）',
     legendaryScope: 'both',
   },
   {
     key: CATEGORY.TRIBUTE_LEGENDARY_TROOP,
     label: '传奇朝贡',
-    hint: '三公府朝贡传奇部队卡额外 +1 部队传奇储备',
-    legendaryScope: 'troop',
+    hint: '三公府朝贡传奇将领卡 +1 将领储备、传奇部队卡 +1 部队储备',
+    legendaryScope: 'both',
+    aggregateCategories: [CATEGORY.TRIBUTE_LEGENDARY_TROOP, CATEGORY.TRIBUTE_LEGENDARY_CHARACTER],
   },
 ];
 
@@ -73,16 +75,16 @@ const EXPENSE_CATEGORY_META = [
 
 const LEGENDARY_EXPENSE_CATEGORY_META = [
   {
-    key: CATEGORY.CARD_POOL_LEGENDARY_TROOP,
-    label: '部队卡池',
-    hint: '封赏卡池成功发出部队传奇卡时扣减储备',
-    legendaryScope: 'troop',
-  },
-  {
     key: CATEGORY.CARD_POOL_LEGENDARY_CHARACTER,
     label: '将领卡池',
     hint: '封赏卡池成功发出将领传奇卡时扣减储备',
     legendaryScope: 'character',
+  },
+  {
+    key: CATEGORY.CARD_POOL_LEGENDARY_TROOP,
+    label: '部队卡池',
+    hint: '封赏卡池成功发出部队传奇卡时扣减储备',
+    legendaryScope: 'troop',
   },
 ];
 
@@ -375,14 +377,32 @@ function buildCategoryRows(meta, byCat, hintOverrides = {}) {
 }
 
 function buildLegendaryCategoryRows(meta, byCat, hintOverrides = {}) {
-  const categories = meta.map((m) => ({
-    key: m.key,
-    label: m.label,
-    hint: hintOverrides[m.key] ?? m.hint,
-    legendaryScope: m.legendaryScope || 'both',
-    troopLegendary: byCat[m.key]?.troopLegendary || 0,
-    characterLegendary: byCat[m.key]?.characterLegendary || 0,
-  }));
+  const categories = meta.map((m) => {
+    if (Array.isArray(m.aggregateCategories) && m.aggregateCategories.length > 0) {
+      let troopLegendary = 0;
+      let characterLegendary = 0;
+      for (const catKey of m.aggregateCategories) {
+        troopLegendary += byCat[catKey]?.troopLegendary || 0;
+        characterLegendary += byCat[catKey]?.characterLegendary || 0;
+      }
+      return {
+        key: m.key,
+        label: m.label,
+        hint: hintOverrides[m.key] ?? m.hint,
+        legendaryScope: m.legendaryScope || 'both',
+        troopLegendary,
+        characterLegendary,
+      };
+    }
+    return {
+      key: m.key,
+      label: m.label,
+      hint: hintOverrides[m.key] ?? m.hint,
+      legendaryScope: m.legendaryScope || 'both',
+      troopLegendary: byCat[m.key]?.troopLegendary || 0,
+      characterLegendary: byCat[m.key]?.characterLegendary || 0,
+    };
+  });
   return {
     categories,
     totalTroopLegendary: categories.reduce((s, c) => s + c.troopLegendary, 0),
@@ -471,7 +491,7 @@ function buildDailyLegendaryRecoveryHint(totals) {
   const { computeDailyLegendaryRecovery } = require('../../shared/utils/factionLegendaryReserve.cjs');
   const { troop, character } = computeDailyLegendaryRecovery(totals?.military, totals?.culture);
   const fmt = (n) => Math.max(0, Math.floor(Number(n) || 0)).toLocaleString('zh-CN');
-  return `部队 ${fmt(troop)} · 将领 ${fmt(character)} 张/日（0:00 入账，军事÷5、文化÷5）`;
+  return `将领 ${fmt(character)} · 部队 ${fmt(troop)} 张/日（0:00 入账，文化÷5、军事÷5）`;
 }
 
 /**

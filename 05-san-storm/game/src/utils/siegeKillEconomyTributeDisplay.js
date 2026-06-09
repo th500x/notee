@@ -3,23 +3,14 @@
  * 算法与数值须与 `shared/utils/siegeKillEconomyByRarity.cjs` 及后端 `sanGongTributeService` 一致；改经济时请同步两处。
  */
 
-const KILL_SILVER_REWARD = {
+/** 三公府朝贡：每张销毁部队卡固定贡献（13-1 §11.1） */
+export const TRIBUTE_CONTRIBUTION_REWARD = {
+  common: 5,
+  rare: 15,
+  epic: 25,
+  legendary: 35,
   core: 50,
-  legendary: 40,
-  epic: 30,
-  rare: 20,
-  common: 10,
 };
-
-const WIN_CONTRIBUTION_REWARD_SIEGE_NPC = {
-  core: 5,
-  legendary: 4,
-  epic: 3,
-  rare: 2,
-  common: 1,
-};
-
-const TRIBUTE_REWARD_MULTIPLIER = 1.5;
 
 function normalizeSiegeRarity(r) {
   const x = String(r || '').toLowerCase();
@@ -33,10 +24,8 @@ function normalizeSiegeRarity(r) {
  */
 export function tributeCompensationPerTroopCard(rarity) {
   const br = normalizeSiegeRarity(rarity);
-  const baseSilver = KILL_SILVER_REWARD[br] ?? 10;
-  const baseContrib = WIN_CONTRIBUTION_REWARD_SIEGE_NPC[br] ?? 1;
   return {
-    silver: Math.floor(TRIBUTE_REWARD_MULTIPLIER * baseSilver),
-    contribution: Math.floor(TRIBUTE_REWARD_MULTIPLIER * baseContrib),
+    silver: 0,
+    contribution: TRIBUTE_CONTRIBUTION_REWARD[br] ?? TRIBUTE_CONTRIBUTION_REWARD.common,
   };
 }

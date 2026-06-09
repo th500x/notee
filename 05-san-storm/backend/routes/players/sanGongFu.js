@@ -61,7 +61,8 @@ router.post(
   '/:playerId/san-gong-fu/tribute',
   validateBody(sanGongSchemas.tributeBody),
   withRoute('朝贡失败', async (req, res) => {
-    const out = await sanGongTributeService.submitTroopTribute(req.params.playerId, req.body.instanceIds);
+    const cardType = req.body.cardType === 'character' ? 'character' : 'troop';
+    const out = await sanGongTributeService.submitCardTribute(req.params.playerId, req.body.instanceIds, cardType);
     if (!out.ok) return res.status(out.status).json({ success: false, error: out.error });
     res.json({ success: true, data: out });
   }),

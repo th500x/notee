@@ -88,7 +88,7 @@ export function useCommPanelNotify({ visible, playerId, unreadChatProp = 0 }) {
   }, [unreadTextCount, unreadChatProp, chatNotifyCount]);
 
   const chatBadge = Math.max(chatNotifyCount, unreadChatProp || 0);
-  const showEmojiNotifyOutline = unreadTextCount > 0 || chatBadge > 0;
+  const showTextMailGoldGlow = unreadTextCount > 0;
 
   return {
     unreadTextCount,
@@ -97,7 +97,7 @@ export function useCommPanelNotify({ visible, playerId, unreadChatProp = 0 }) {
     syncWorldSeen,
     minimizedEntry,
     chatBadge,
-    showEmojiNotifyOutline,
+    showTextMailGoldGlow,
   };
 }
 

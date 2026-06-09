@@ -335,14 +335,17 @@ export const playerAPI = {
     return response.json();
   },
 
-  /** 互动 · 朝贡：销毁所选军营池部队卡并发奖 */
-  async submitSanGongFuTribute(playerId, instanceIds) {
+  /** 互动 · 朝贡：销毁所选军营池卡并发奖 */
+  async submitSanGongFuTribute(playerId, instanceIds, cardType = 'troop') {
     const response = await fetchWithTimeout(
       `${API_CONFIG.BASE_URL}/players/${playerId}/san-gong-fu/tribute`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ instanceIds }),
+        body: JSON.stringify({
+          instanceIds,
+          cardType: cardType === 'character' ? 'character' : 'troop',
+        }),
       },
     );
     return response.json();
