@@ -2,6 +2,7 @@
  * 事件奖励简写：reward-a～e（资源区间）、pack-a～e（装备+部队随机套），与 option_*_factor 的 type-a 类似由运行时展开。
  * 资源：区间内随机取整为基础值，再乘运势倍率（由 executeRewards / parseRewards 负责倍率）。
  * 卡包：与 random:equipment:* / random:troop:* 一致，部队从玩家势力卡池随机。
+ * pack-{档}:4 时装备按封装四槽各抽（1 武器 + 1 防具 + 2 辅助），部队仍为 ×4。
  */
 
 /** @type {Record<string, string>} */
@@ -101,6 +102,16 @@ function expandOneSegment(seg, resourceMode) {
     const sets = packMatch[2] ? Math.max(1, parseInt(packMatch[2], 10) || 1) : 1;
     const def = PACK_PRESET_DEFS[key];
     if (!def) return seg;
+    // 4 套装备件 = 封装四槽（1 武器 + 1 防具 + 2 辅助），避免纯随机凑不齐
+    if (sets === 4) {
+      const eq = def.equipment;
+      return [
+        `random:equipment:${eq}:weapon:1`,
+        `random:equipment:${eq}:armor:1`,
+        `random:equipment:${eq}:accessory:2`,
+        `random:troop:${def.troop}:4`,
+      ].join(';');
+    }
     return `random:equipment:${def.equipment}:${sets};random:troop:${def.troop}:${sets}`;
   }
 

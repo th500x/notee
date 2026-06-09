@@ -193,14 +193,24 @@ function parseRewardString(rewardStr) {
       return { type: 'unknown', raw: t };
     }
 
-    // 随机卡牌: random:type:rarity[:qty]
+    // 随机卡牌: random:type:rarity[:qty] 或 random:equipment:rarity:weapon|armor|accessory:qty
     if (t.startsWith('random:')) {
       const parts = t.split(':');
+      const equipmentSlots = new Set(['weapon', 'armor', 'accessory']);
+      if (parts[1] === 'equipment' && parts[3] && equipmentSlots.has(parts[3])) {
+        return {
+          type: 'random_card',
+          cardType: 'equipment',
+          rarity: parts[2],
+          equipmentSlot: parts[3],
+          quantity: parseInt(parts[4], 10) || 1,
+        };
+      }
       return {
         type: 'random_card',
         cardType: parts[1],   // troop/char/equipment
         rarity: parts[2],     // common/rare/epic/legendary
-        quantity: parseInt(parts[3]) || 1,
+        quantity: parseInt(parts[3], 10) || 1,
       };
     }
 
@@ -402,7 +412,7 @@ async function checkTroopLimit(connection, playerId, rarity, details, troopCardI
  * @param {number} quantity - 数量
  * @returns {Promise<Array<Object>>} 抽取到的卡牌配置
  */
-async function randomDrawCards(cardType, rarity, factionId, quantity, excludeIds = []) {
+async function randomDrawCards(cardType, rarity, factionId, quantity, excludeIds = [], equipmentSlot = null) {
   // 从 factionId 提取势力编号
   const factionParts = factionId.split('_');
   const factionNumber = factionParts[3] ? factionParts[3].charAt(0) : '0';
@@ -449,11 +459,18 @@ async function randomDrawCards(cardType, rarity, factionId, quantity, excludeIds
     params = [rarity, idPattern, `${season}_${cardType === 'troop' ? 'troop' : 'char'}_0%`, ...excludeParams, quantity];
   } else {
     const rarityDigit = rarityDigitMap[rarity] || '1';
+    const slotTypeDigit = equipmentSlot === 'weapon' ? '1'
+      : equipmentSlot === 'armor' ? '2'
+      : equipmentSlot === 'accessory' ? '3'
+      : null;
+    const idRegexp = slotTypeDigit
+      ? `^${season}_equip_${slotTypeDigit}_${rarityDigit}[0-9]{3}$`
+      : `_${rarityDigit}[0-9]{3}$`;
     query = `SELECT ${idField} as card_id, ${nameField} as card_name, ? as rarity 
              FROM ${table} 
              WHERE season = ? AND ${idField} REGEXP ?${excludeClause}
              ORDER BY RAND() LIMIT ?`;
-    params = [rarity, season, `_${rarityDigit}[0-9]{3}$`, ...excludeParams, quantity];
+    params = [rarity, season, idRegexp, ...excludeParams, quantity];
   }
 
   const [rows] = await pool.query(query, params);
@@ -686,9 +703,11 @@ async function executeRewards(playerId, rewardStr, multiplier, factionId) {
     // ── 4. 随机卡牌 → 从config表随机抽取后 INSERT player_cards ──
     const drawnCardIdsByType = {}; // 按类型跟踪已抽到的卡牌ID，避免同类型重复
     for (const r of rewards.filter(r => r.type === 'random_card')) {
-      const typeKey = r.cardType + '_' + r.rarity;
+      const typeKey = r.cardType + '_' + r.rarity + (r.equipmentSlot ? '_' + r.equipmentSlot : '');
       if (!drawnCardIdsByType[typeKey]) drawnCardIdsByType[typeKey] = [];
-      const drawn = await randomDrawCards(r.cardType, r.rarity, factionId, r.quantity, drawnCardIdsByType[typeKey]);
+      const drawn = await randomDrawCards(
+        r.cardType, r.rarity, factionId, r.quantity, drawnCardIdsByType[typeKey], r.equipmentSlot || null
+      );
       for (const card of drawn) {
         const cardType = r.cardType === 'troop' ? 'troop'
           : r.cardType === 'char' ? 'character'

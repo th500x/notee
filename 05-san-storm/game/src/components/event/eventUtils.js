@@ -178,6 +178,12 @@ export function parseRewards(str, itemNameMap, multiplier) {
     }
     if (t.startsWith('random:')) {
       const parts = t.split(':');
+      const SLOT_CN = { weapon: '武器', armor: '防具', accessory: '辅助' };
+      if (parts[1] === 'equipment' && SLOT_CN[parts[3]]) {
+        const rarity = (parts[2] && RARITY_CN[parts[2]]) || '';
+        const qty = parts[4] ? `×${parts[4]}` : '×1';
+        return { text: `🎲 随机${rarity}${SLOT_CN[parts[3]]}装备 ${qty}`, cardType: 'equipment' };
+      }
       const type = parts[1] === 'equipment' ? '装备件' : parts[1] === 'char' ? '将领' : '部队';
       const rarity = (parts[2] && RARITY_CN[parts[2]]) || '';
       const qty = parts[3] ? `×${parts[3]}` : '×1';
