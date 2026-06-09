@@ -214,6 +214,12 @@ export default function WarRemonstranceSettlementModal({
             )}
           </div>
 
+          {proposalKind === 'pve' ? (
+            <p className="text-[10px] leading-snug text-stone-500">
+              中立城 PVE 与势力 PVP 共用本谏言决算与 AI 君主审批；临时政策（前军 / 后军 / 御驾）仅 PVP 战事可选。
+            </p>
+          ) : null}
+
           {showTransient ? (
             <div className="rounded-lg border border-stone-600/70 bg-stone-950 px-2.5 py-2">
               <div className="text-[11px] font-semibold text-amber-500/95">临时政策（PVP · 合并审批）</div>

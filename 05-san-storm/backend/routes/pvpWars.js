@@ -137,6 +137,49 @@ router.post('/proposals', validateBody(pvpWarSchemas.proposalsBody), async (req,
     // 规整临时政策 + 业务级合法性预检（后军禁开等 4xx）
     const normalizedPolicies = warPolicyTransientService.normalizeTransientPolicies(rawTransientPolicies);
 
+    const seasonKey = String(season || 'san_1').trim() || 'san_1';
+    const tid = String(targetCityId || '').trim();
+    const { pvpTargets, pveTargets, pvpExcludedActiveWar } =
+      await aiKingActiveDecisionService.collectCandidateTargets(attackerFactionId, seasonKey);
+
+    let proposalKind = null;
+    let remonstranceRow = null;
+    const pveRow = (pveTargets || []).find((c) => String(c.city_id) === tid);
+    const pvpRow = (pvpTargets || []).find((c) => String(c.city_id) === tid);
+    const excludedRow = (pvpExcludedActiveWar || []).find((c) => String(c.city_id) === tid);
+    if (pveRow) {
+      proposalKind = 'pve';
+      remonstranceRow = pveRow;
+    } else if (pvpRow) {
+      proposalKind = 'pvp';
+      remonstranceRow = pvpRow;
+    } else if (excludedRow) {
+      throw httpError(409, '该城已有进行中 PVP 战事，无法重复谏言', 'ACTIVE_PVP_WAR_ON_CITY');
+    } else {
+      throw httpError(400, '目标城不在当前谏言邻接候选内', 'REMONSTRANCE_TARGET_INVALID');
+    }
+    if (remonstranceRow._remonstranceMapRangeOk !== true) {
+      throw httpError(400, '目标超出战略地图谏言距离', 'REMONSTRANCE_MAP_RANGE');
+    }
+
+    if (proposalKind === 'pve') {
+      if (warPolicyTransientService.computeTotalFees(normalizedPolicies).breakdown.length > 0) {
+        throw httpError(400, '中立城 PVE 战事不支持临时政策', 'PVE_TRANSIENT_POLICY_NOT_ALLOWED');
+      }
+      const pvePart = await cityService.getActivePveSiegeParticipationForFaction(attackerFactionId, {
+        season: seasonKey,
+      });
+      if (
+        Number(pvePart.count) >= cityService.MAX_CONCURRENT_PVE_WARS_PER_ATTACKER_FACTION
+      ) {
+        throw httpError(
+          409,
+          `贵方势力进行中的中立城 PVE 攻城已达上限（${cityService.MAX_CONCURRENT_PVE_WARS_PER_ATTACKER_FACTION}）`,
+          'PVE_WAR_CAP',
+        );
+      }
+    }
+
     const cityCount = await fetchFactionCityCountForKing(attackerFactionId);
     const approval = passiveApprovalService.resolvePassiveApproval({
       factionId: attackerFactionId,
@@ -160,12 +203,40 @@ router.post('/proposals', validateBody(pvpWarSchemas.proposalsBody), async (req,
     const nm = String(proposerPlayer.character_name || '').trim();
     const proposer = { kind: 'player', playerId: proposerPid, displayName: nm || proposerPid };
 
+    if (proposalKind === 'pve') {
+      try {
+        const opened = await cityService.openPveWarOnNeutralCity(tid, {
+          openedByCharacterId: proposerPlayer.character_id || null,
+          bulletinFactionId: attackerFactionId,
+        });
+        return res.json({
+          success: true,
+          data: {
+            approval,
+            draftCreated: true,
+            proposalKind: 'pve',
+            pveWar: opened,
+            warId: opened.warId,
+            proposerPlayerId,
+          },
+        });
+      } catch (createErr) {
+        const code = createErr.status || createErr.statusCode || 409;
+        return res.status(code).json({
+          success: false,
+          error: createErr.publicMessage || createErr.message,
+          code: createErr.code || undefined,
+          approval,
+        });
+      }
+    }
+
     let war = null;
     try {
       war = await pvpWarService.createPvpWarDraftAndActivate({
-        season,
+        season: seasonKey,
         attackerFactionId,
-        targetCityId,
+        targetCityId: tid,
         serverId,
         proposer,
         transientPolicies: normalizedPolicies,
@@ -186,6 +257,7 @@ router.post('/proposals', validateBody(pvpWarSchemas.proposalsBody), async (req,
       data: {
         approval,
         draftCreated: true,
+        proposalKind: 'pvp',
         war,
         proposerPlayerId,
         transientPoliciesApplied: normalizedPolicies,

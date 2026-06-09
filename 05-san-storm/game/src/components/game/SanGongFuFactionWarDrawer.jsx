@@ -251,8 +251,9 @@ export default function SanGongFuFactionWarDrawer({ playerId, factionId, player,
 
   const handleRemonstranceSubmit = useCallback(
     async (transientPolicies) => {
-      if (!playerId || !factionId || !selectedCityId || selectionMeta?.kind !== 'pvp') {
-        return { ok: false, message: '仅势力 PVP 目标可提交战事谏言' };
+      const kind = selectionMeta?.kind;
+      if (!playerId || !factionId || !selectedCityId || (kind !== 'pvp' && kind !== 'pve')) {
+        return { ok: false, message: '当前目标不可提交战事谏言' };
       }
       const row = selectionMeta?.row;
       const targetCityId = String(row?.cityId || selectedCityId).trim();
@@ -263,9 +264,10 @@ export default function SanGongFuFactionWarDrawer({ playerId, factionId, player,
         season,
         proposerPlayerId: playerId,
         proposalId: `remonstrance-${Date.now()}`,
-        transientPolicies,
+        transientPolicies: kind === 'pvp' ? transientPolicies : undefined,
       });
-      if (res?.success && res?.draftCreated) {
+      const payload = res?.data && typeof res.data === 'object' ? res.data : res;
+      if (res?.success && payload?.draftCreated) {
         await load();
         await loadRemonstrancePanel();
         onWarEnded?.();
@@ -273,9 +275,9 @@ export default function SanGongFuFactionWarDrawer({ playerId, factionId, player,
         return { ok: true };
       }
       const msg =
-        res?.approval?.rejectedReason ||
+        payload?.approval?.rejectedReason ||
         res?.error ||
-        (res?.approval && !res?.draftCreated ? '君主未准此谏' : '提交失败');
+        (payload?.approval && !payload?.draftCreated ? '君主未准此谏' : '提交失败');
       return { ok: false, message: typeof msg === 'string' ? msg : '提交失败' };
     },
     [
@@ -509,7 +511,7 @@ export default function SanGongFuFactionWarDrawer({ playerId, factionId, player,
           !!(
             selectionMeta &&
             !selectionMeta.invalid &&
-            selectionMeta.kind === 'pvp' &&
+            (selectionMeta.kind === 'pvp' || selectionMeta.kind === 'pve') &&
             !selectionMeta.atCap &&
             !selectionMeta.mapRangeBlocked &&
             selectionMeta.blockedReason !== 'active_pvp_war' &&
@@ -517,17 +519,21 @@ export default function SanGongFuFactionWarDrawer({ playerId, factionId, player,
           )
         }
         submitDisabledReason={
-          selectionMeta?.kind === 'pve'
-            ? '中立城 PVE 请走城池面板发起，本窗暂不支持临时政策。'
-            : selectionMeta?.blockedReason === 'active_pvp_war'
-              ? '该城已有进行中 PVP 战事，无法重复谏言。'
-              : selectionMeta?.atCap
-              ? '势力 PVP 战事已达并行上限。'
-              : selectionMeta?.mapRangeBlocked
-                ? '目标超出战略地图谏言距离。'
-                : ''
+          selectionMeta?.blockedReason === 'active_pvp_war'
+            ? '该城已有进行中 PVP 战事，无法重复谏言。'
+            : selectionMeta?.kind === 'pve' && selectionMeta?.atCap
+              ? '势力中立城 PVE 战事已达并行上限。'
+              : selectionMeta?.kind === 'pvp' && selectionMeta?.atCap
+                ? '势力 PVP 战事已达并行上限。'
+                : selectionMeta?.mapRangeBlocked
+                  ? '目标超出战略地图谏言距离。'
+                  : ''
         }
-        onSubmit={selectionMeta?.kind === 'pvp' ? handleRemonstranceSubmit : undefined}
+        onSubmit={
+          selectionMeta?.kind === 'pvp' || selectionMeta?.kind === 'pve'
+            ? handleRemonstranceSubmit
+            : undefined
+        }
       />
     </>
   );
