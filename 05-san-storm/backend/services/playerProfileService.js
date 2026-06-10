@@ -4,7 +4,7 @@
 
 const Player = require('../models/Player');
 const { pool } = require('../database/connection');
-const { formatTroopData } = require('./configService');
+const { formatTroopData, formatTreasureData } = require('./configService');
 const garrisonService = require('./garrisonService');
 const gameTimeService = require('./gameTimeService');
 const equipmentSetService = require('./equipmentSetService');
@@ -115,6 +115,7 @@ async function getPlayerProfile(playerId) {
         pc.character_echo_slots,
         pc.battle_count,
         pc.max_battle_count,
+        pc.uses_remaining,
         pc.bonus_max_troops,
         pc.bonus_attack,
         pc.bonus_defense,
@@ -278,6 +279,27 @@ async function getPlayerProfile(playerId) {
     );
     tConfigs.forEach((c) => {
       titleConfigs[c.title_id] = c;
+    });
+  }
+
+  const treasureCards = cards.filter((c) => c.card_type === 'treasure');
+  let treasureConfigs = {};
+  if (treasureCards.length > 0) {
+    const treasureIds = treasureCards.map((c) => c.card_id);
+    const placeholdersTreasure = treasureIds.map(() => '?').join(',');
+    const [trConfigs] = await pool.query(
+      `
+        SELECT treasure_id, treasure_name, season, series,
+               luck_bonus, courage_bonus, combat_bonus, command_bonus,
+               intelligence_bonus, politics_bonus, charm_bonus,
+               special_effect, special_effect_desc, description
+        FROM config_treasures
+        WHERE treasure_id IN (${placeholdersTreasure})
+      `,
+      treasureIds,
+    );
+    trConfigs.forEach((c) => {
+      treasureConfigs[c.treasure_id] = c;
     });
   }
 
@@ -482,6 +504,13 @@ async function getPlayerProfile(playerId) {
           specialEffectDesc: cfg.special_effect_desc || null,
           displayEffect: cfg.display_effect || null,
         },
+      };
+    }
+    if (card.card_type === 'treasure' && treasureConfigs[card.card_id]) {
+      const formatted = formatTreasureData(treasureConfigs[card.card_id]);
+      return {
+        ...card,
+        config: formatted,
       };
     }
     return card;

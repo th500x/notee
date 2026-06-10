@@ -5,7 +5,7 @@
  * - 基数 B_s = floor(档系数 × 官职 resourceBonus)，与俸禄日随机 roll 脱钩
  * - 包 A：池子发出侧 +20%；包 B：基础比例
  *
- * @see 12-1-POSITION_SYSTEM.md §4.4 · 26-1-RESOURCE_SYSTEM.md
+ * @see 12-1-POSITION_SYSTEM.md §4.4 · 27-1-RESOURCE_SYSTEM.md
  */
 
 'use strict';

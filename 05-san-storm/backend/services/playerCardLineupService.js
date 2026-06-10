@@ -5,43 +5,16 @@
 
 const { pool } = require('../database/connection');
 const characterRankService = require('./characterRankService');
+const {
+  CARD_TROOP_EFFECT_CARD_TYPES,
+  loadCardTroopSpecialEffectBonus,
+  parseCardTroopSpecialEffect,
+} = require('../../shared/utils/cardTroopSpecialEffect.cjs');
 
-/** special_effect 字段映射 → player_cards bonus 字段 */
-const EFFECT_FIELD_MAP = {
-  max_troops_bonus: 'bonus_max_troops',
-  attack_bonus: 'bonus_attack',
-  defense_bonus: 'bonus_defense',
-  speed_bonus: 'bonus_speed',
-  movement_bonus: 'bonus_movement',
-};
-
-function parseSpecialEffect(effectStr) {
-  if (!effectStr) return {};
-  const bonus = {};
-  effectStr.split(';').forEach((part) => {
-    const [key, val] = part.trim().split(':');
-    if (!key || !val) return;
-    const field = EFFECT_FIELD_MAP[key];
-    if (field) bonus[field] = parseInt(val, 10) || 0;
-  });
-  return bonus;
-}
-
-/** 需要触发特效的卡牌类型 */
-const EFFECT_CARD_TYPES = ['title', 'achievement', 'treasure'];
+const EFFECT_CARD_TYPES = CARD_TROOP_EFFECT_CARD_TYPES;
 
 async function getCardSpecialEffect(poolConn, cardType, cardId) {
-  const tableMap = {
-    title: { table: 'config_titles', idField: 'title_id' },
-    achievement: { table: 'config_achievements', idField: 'achievement_id' },
-  };
-  const cfg = tableMap[cardType];
-  if (!cfg) return {};
-  const [rows] = await poolConn.query(
-    `SELECT special_effect FROM ${cfg.table} WHERE ${cfg.idField} = ?`,
-    [cardId]
-  );
-  return parseSpecialEffect(rows[0]?.special_effect);
+  return loadCardTroopSpecialEffectBonus(poolConn, cardType, cardId);
 }
 
 /** 装备卡牌时：将特效加成写入同一 equippedBy 下的所有部队卡 */
@@ -322,7 +295,7 @@ module.exports = {
   repairLineupCharacterCards,
   applyCardBonusToTroops,
   getCardSpecialEffect,
-  parseSpecialEffect,
+  parseSpecialEffect: parseCardTroopSpecialEffect,
   equipCard,
   unequipCard,
 };

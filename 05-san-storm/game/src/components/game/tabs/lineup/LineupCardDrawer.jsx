@@ -16,7 +16,8 @@ import { useMemo } from 'react';
 import CharacterCard from '@shared/components/card/CharacterCard';
 import TroopCard from '@shared/components/card/TroopCard';
 import TitleAchievementCard from '@shared/components/card/TitleAchievementCard';
-import { toCharCardData, toTroopCardData, toTitleCardData } from '@/utils/cardDataTransforms';
+import EquipmentCard from '@shared/components/card/EquipmentCard';
+import { toCharCardData, toTroopCardData, toTitleCardData, toTreasureCardData } from '@/utils/cardDataTransforms';
 import { groupCardsByRarity, RARITY_LABEL } from './lineupSlots';
 import EquipmentSetSquares from './EquipmentSetSquares';
 
@@ -34,6 +35,7 @@ export default function LineupCardDrawer({ slot, cards, allCards = [], skillsMap
   const isAchievementSlot = slot?.id === 'achievement';
   const isCharacterSlot = slot?.id === 'character';
   const isEquipmentSlot = slot?.id === 'equipmentSet';
+  const isTreasureSlot = slot?.id === 'treasure';
 
   return (
     <>
@@ -68,7 +70,7 @@ export default function LineupCardDrawer({ slot, cards, allCards = [], skillsMap
                         width: 128,
                         ...(isCharacterSlot
                           ? { minHeight: 208 }
-                          : { height: isEquipmentSlot ? 192 : (isTitleSlot || isAchievementSlot) ? 96 : 192 }),
+                          : { height: isEquipmentSlot || isTreasureSlot ? 192 : (isTitleSlot || isAchievementSlot) ? 96 : 192 }),
                       }}
                     >
                       <div style={{ transform: 'scale(0.5)', transformOrigin: 'top left', width: 256 }}>
@@ -88,6 +90,8 @@ export default function LineupCardDrawer({ slot, cards, allCards = [], skillsMap
                           />
                         ) : isEquipmentSlot ? (
                           <EquipmentSetSquares card={card} resolveEquipPiece={resolveEquipPiece} />
+                        ) : isTreasureSlot ? (
+                          <EquipmentCard equipment={toTreasureCardData(card)} baseUrl={baseUrl} />
                         ) : (
                           <TroopCard
                             troop={toTroopCardData(card)}

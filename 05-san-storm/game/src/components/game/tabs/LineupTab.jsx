@@ -125,6 +125,7 @@ export default function LineupTab({ onClose, onOpenAttributeReroll }) {
   const troopCards = cards.filter((c) => c.cardType === 'troop');
   const titleCards = cards.filter((c) => c.cardType === 'title');
   const achievementCards = cards.filter((c) => c.cardType === 'achievement');
+  const treasureCards = cards.filter((c) => c.cardType === 'treasure');
   const characterCards = cards.filter((c) => c.cardType === 'character');
 
   const playerTroops = troopCards.filter((c) => c.equippedBy === 'player' && c.isEquipped && c.equippedSlot === 'troop');
@@ -132,11 +133,17 @@ export default function LineupTab({ onClose, onOpenAttributeReroll }) {
   const playerAchievements = achievementCards.filter(
     (c) => c.equippedBy === 'player' && c.isEquipped && c.equippedSlot === 'achievement',
   );
+  const playerTreasures = treasureCards.filter(
+    (c) => c.equippedBy === 'player' && c.isEquipped && c.equippedSlot === 'treasure',
+  );
 
   const char1Troops = troopCards.filter((c) => c.equippedBy === 'character1' && c.isEquipped && (c.equippedSlot === 'troop1' || c.equippedSlot === 'troop2'));
   const char1Titles = titleCards.filter((c) => c.equippedBy === 'character1' && c.isEquipped && c.equippedSlot === 'title');
   const char1Achievements = achievementCards.filter(
     (c) => c.equippedBy === 'character1' && c.isEquipped && c.equippedSlot === 'achievement',
+  );
+  const char1Treasures = treasureCards.filter(
+    (c) => c.equippedBy === 'character1' && c.isEquipped && c.equippedSlot === 'treasure',
   );
   const char1Character = characterCards.find((c) => c.equippedBy === 'character1' && c.isEquipped && c.equippedSlot === 'character');
 
@@ -144,6 +151,9 @@ export default function LineupTab({ onClose, onOpenAttributeReroll }) {
   const char2Titles = titleCards.filter((c) => c.equippedBy === 'character2' && c.isEquipped && c.equippedSlot === 'title');
   const char2Achievements = achievementCards.filter(
     (c) => c.equippedBy === 'character2' && c.isEquipped && c.equippedSlot === 'achievement',
+  );
+  const char2Treasures = treasureCards.filter(
+    (c) => c.equippedBy === 'character2' && c.isEquipped && c.equippedSlot === 'treasure',
   );
   const char2Character = characterCards.find((c) => c.equippedBy === 'character2' && c.isEquipped && c.equippedSlot === 'character');
 
@@ -155,6 +165,11 @@ export default function LineupTab({ onClose, onOpenAttributeReroll }) {
   });
   const unequippedTitles = titleCards.filter((c) => !c.isEquipped && !garrisonIds.has(c.instanceId));
   const unequippedAchievements = achievementCards.filter((c) => !c.isEquipped && !garrisonIds.has(c.instanceId));
+  const unequippedTreasures = treasureCards.filter((c) => {
+    if (c.isEquipped || garrisonIds.has(c.instanceId)) return false;
+    if (c.usesRemaining != null && Number(c.usesRemaining) <= 0) return false;
+    return true;
+  });
   const unequippedCharacters = characterCards.filter((c) => !c.isEquipped && !garrisonIds.has(c.instanceId));
   const unequippedEquipmentSets = cards.filter(
     (c) =>
@@ -209,6 +224,8 @@ export default function LineupTab({ onClose, onOpenAttributeReroll }) {
           return playerTitles[0] || null;
         case 'achievement':
           return playerAchievements[0] || null;
+        case 'treasure':
+          return playerTreasures[0] || null;
         case 'position':
           return player?.positionConfig || (player?.currentPositionName
             ? { name: player.currentPositionName, level: player.positionLevel }
@@ -221,6 +238,7 @@ export default function LineupTab({ onClose, onOpenAttributeReroll }) {
     const troops = subTab === 'char1' ? char1Troops : char2Troops;
     const titles = subTab === 'char1' ? char1Titles : char2Titles;
     const achievements = subTab === 'char1' ? char1Achievements : char2Achievements;
+    const treasures = subTab === 'char1' ? char1Treasures : char2Treasures;
     const equipmentSet = cards.find(
       (c) =>
         c.cardType === 'equipmentSet' &&
@@ -234,6 +252,7 @@ export default function LineupTab({ onClose, onOpenAttributeReroll }) {
       case 'equipmentSet': return equipmentSet || null;
       case 'title': return titles[0] || null;
       case 'achievement': return achievements[0] || null;
+      case 'treasure': return treasures[0] || null;
       default: return null;
     }
   };
@@ -255,6 +274,7 @@ export default function LineupTab({ onClose, onOpenAttributeReroll }) {
     }
     if (selectedSlot.id === 'title') return unequippedTitles;
     if (selectedSlot.id === 'achievement') return unequippedAchievements;
+    if (selectedSlot.id === 'treasure') return unequippedTreasures;
     if (selectedSlot.id === 'equipmentSet') return unequippedEquipmentSets;
     return [];
   };

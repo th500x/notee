@@ -167,6 +167,8 @@ const MIGRATION_FILES = [
   'alter-season-records-fk-to-accounts.sql',
   'create-season-settlements.sql',
   'add-config-servers-settlement-window.sql',
+  'create-config-treasures.sql',
+  'add-player-cards-uses-remaining.sql',
 ];
 
 /** RENAME：源列不存在时跳过（库已为 skill_type） */

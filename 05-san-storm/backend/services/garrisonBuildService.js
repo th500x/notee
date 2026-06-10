@@ -22,46 +22,15 @@ const {
   loadPositionCombatBonusesForPlayer,
 } = require('../../shared/utils/positionCombatBonuses.cjs');
 const { attachTroopAffinityToCharacter } = require('../../shared/utils/troopAffinityCombat.cjs');
-const { attachEchoPctToCharacter } = require('../../shared/utils/characterEchoCombat.cjs');
+const { loadCardTroopSpecialEffectBonus } = require('../../shared/utils/cardTroopSpecialEffect.cjs');
 
 /** 单部队参战最低兵力（兵力为 0 不参战；总兵力验证在 saveGarrison / initiateSiege） */
 const MIN_TROOPS_TO_DEFEND = 1;
 
 // ── 属性加成计算 ──────────────────────────────────────────────────────────────
 
-/** special_effect 字段映射 → player_cards bonus 字段 */
-const EFFECT_FIELD_MAP = {
-  'max_troops_bonus': 'bonus_max_troops',
-  'attack_bonus':     'bonus_attack',
-  'defense_bonus':    'bonus_defense',
-  'speed_bonus':      'bonus_speed',
-  'movement_bonus':   'bonus_movement',
-};
-
-function parseSpecialEffect(effectStr) {
-  if (!effectStr) return {};
-  const bonus = {};
-  effectStr.split(';').forEach((part) => {
-    const [key, val] = part.trim().split(':');
-    if (!key || !val) return;
-    const field = EFFECT_FIELD_MAP[key];
-    if (field) bonus[field] = parseInt(val) || 0;
-  });
-  return bonus;
-}
-
 async function getCardSpecialEffect(cardType, cardId) {
-  const tableMap = {
-    title:       { table: 'config_titles',       idField: 'title_id' },
-    achievement: { table: 'config_achievements',  idField: 'achievement_id' },
-  };
-  const cfg = tableMap[cardType];
-  if (!cfg) return {};
-  const [rows] = await pool.query(
-    `SELECT special_effect FROM ${cfg.table} WHERE ${cfg.idField} = ?`,
-    [cardId],
-  );
-  return parseSpecialEffect(rows[0]?.special_effect);
+  return loadCardTroopSpecialEffectBonus(pool, cardType, cardId);
 }
 
 /** target 对象上累加 bonus 所有字段（修改 target 本身，无返回值） */
@@ -70,6 +39,32 @@ function addAttrBonus(target, bonus = {}) {
   Object.entries(bonus).forEach(([k, v]) => {
     target[k] = (target[k] || 0) + (Number(v) || 0);
   });
+}
+
+async function loadConfigSevenDimBonusMap(conn, table, idField, ids) {
+  const uniq = [...new Set((ids || []).filter(Boolean))];
+  if (uniq.length === 0) return {};
+  const ph = uniq.map(() => '?').join(',');
+  const [rows] = await conn.query(
+    `SELECT ${idField} AS id,
+      luck_bonus, courage_bonus, combat_bonus, command_bonus,
+      intelligence_bonus, politics_bonus, charm_bonus
+     FROM ${table} WHERE ${idField} IN (${ph})`,
+    uniq,
+  );
+  const map = {};
+  for (const r of rows) {
+    map[r.id] = {
+      luck: Number(r.luck_bonus || 0),
+      courage: Number(r.courage_bonus || 0),
+      combat: Number(r.combat_bonus || 0),
+      command: Number(r.command_bonus || 0),
+      intelligence: Number(r.intelligence_bonus || 0),
+      politics: Number(r.politics_bonus || 0),
+      charm: Number(r.charm_bonus || 0),
+    };
+  }
+  return map;
 }
 
 /**
@@ -135,7 +130,7 @@ async function getMainLineupAttributeBonusBySlot(conn, playerId) {
   const [titleMap, achMap, treasureMap] = await Promise.all([
     loadConfigAttributeBonusMap(conn, 'config_titles',       'title_id',       titleIds),
     loadConfigAttributeBonusMap(conn, 'config_achievements', 'achievement_id', achIds),
-    loadConfigAttributeBonusMap(conn, 'config_treasures',    'treasure_id',    treasureIds),
+    loadConfigSevenDimBonusMap(conn, 'config_treasures',    'treasure_id',    treasureIds),
   ]);
 
   const [equipRows] = await conn.query(
@@ -221,7 +216,7 @@ async function getGarrisonSlotAttributeBonusByChar(conn, garrisonSlot) {
   const [titleMap, achMap, treasureMap] = await Promise.all([
     loadConfigAttributeBonusMap(conn, 'config_titles',       'title_id',       titleIds),
     loadConfigAttributeBonusMap(conn, 'config_achievements', 'achievement_id', achIds),
-    loadConfigAttributeBonusMap(conn, 'config_treasures',    'treasure_id',    treasureIds),
+    loadConfigSevenDimBonusMap(conn, 'config_treasures',    'treasure_id',    treasureIds),
   ]);
 
   const [equipRows] = await conn.query(
@@ -584,6 +579,14 @@ async function applyAuthoritativePvpAutoDuelAttackerLineupCasualties(playerId, a
       await conn.query(
         'UPDATE player_cards SET current_troops = ?, last_troops_lost_at = ? WHERE instance_id = ? AND player_id = ?',
         [cur, cur < maxT ? new Date() : null, npc._troopInstanceId, playerId],
+      );
+    }
+    if (participantIds.length > 0) {
+      const { consumeTreasuresAfterBattle } = require('./treasureUseService');
+      await consumeTreasuresAfterBattle(
+        (sql, params) => conn.query(sql, params),
+        playerId,
+        participantIds,
       );
     }
     await conn.commit();

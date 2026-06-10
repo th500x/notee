@@ -54,9 +54,17 @@ const favoriteBody = {
   battleId: v.required(v.idLike({ max: 128 })),
 };
 
+const treasureAlliesQuery = {
+  playerId: v.required(playerId),
+  equippedBy: v.required(v.nonEmptyString({ max: 128 })),
+  garrisonCityId: v.optional(v.idLike({ max: 128 })),
+  garrisonSlot: v.optional(v.integer({ min: 1, max: 99 })),
+};
+
 module.exports = {
   listQuery,
   battleIdParam,
   saveBattleBody,
   favoriteBody,
+  treasureAlliesQuery,
 };

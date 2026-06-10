@@ -67,15 +67,10 @@ export default function CampaignCenterPanel({ playerId, open, onClose, season = 
     return payload.campaigns.find((c) => c.campaign_id === selectedId) || payload.campaigns[0];
   }, [payload, selectedId]);
 
-  /** 与后端 computeCampaignCenterDropdownParenInner「挑战结束」口径一致 */
+  /** 与后端 isCampaignChallengeEnded / progress.challengeEnded 口径一致 */
   const selectedChallengeEnded = useMemo(() => {
     if (!selected?.progress) return false;
-    const { progress } = selected;
-    return (
-      !!progress.rewardClaimed ||
-      Number(progress.playCount) >= Number(progress.maxPlayCount) ||
-      !!progress.expired
-    );
+    return !!selected.progress.challengeEnded;
   }, [selected]);
 
   const showToast = (msg) => {
@@ -214,8 +209,14 @@ export default function CampaignCenterPanel({ playerId, open, onClose, season = 
                             : () => {
                                 // playable 在 API payload 的战役根上（与 progress 同级），勿用 progress.playable
                                 if (!selected.playable) {
-                                  if (selected.progress.expired) showToast('本战役挑战窗口已过期');
-                                  else if (!selected.progress.unlocked) showToast('尚未到达解锁时间');
+                                  if (
+                                    selected.progress.expired &&
+                                    Number(selected.progress.playCount) >= 1
+                                  ) {
+                                    showToast('挑战窗口已过期，请领取通关奖励');
+                                  } else if (selected.progress.expired) {
+                                    showToast('本战役挑战窗口已过期');
+                                  } else if (!selected.progress.unlocked) showToast('尚未到达解锁时间');
                                   else if (selected.progress.rewardClaimed) showToast('已领取奖励，无法再挑战');
                                   else showToast('挑战次数已用完');
                                   return;

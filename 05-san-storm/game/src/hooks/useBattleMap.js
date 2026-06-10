@@ -13,6 +13,7 @@ import {
   banditTierSlotRarities,
 } from '@shared/utils/smallMapEnemyRoster';
 import { getBattleFieldTroopPortraitUrlAttempts } from '@shared/utils/troopIconUrls';
+import { mapAllyUnitsToBattleTroops } from '@/battle/mapAllyUnitsToBattleTroops';
 import { API_CONFIG } from '@/constants';
 import { initialMoraleFromCharacter } from '@/utils/npcMorale';
 import { enrichBattleUnitWithSkillPhases } from '@shared/utils/battleSkillAssembly';
@@ -113,6 +114,7 @@ export function useBattleMap() {
    * @param {object} [opts]
    * @param {string[]} [opts.enemySlotRarities] - 长度 4 时每槽独立稀有度（匪寨等）；与 5 将领位惩罚战互斥
    * @param {boolean} [opts.eventPunishmentExtraSlot] - 探索事件惩罚战：选项因子为 type-b 时在默认 4 编制上多 1 支部队（将领/部队池同事件稀有度，无指定主将 ID）
+   * @param {Array} [opts.allyUnits] - 御驾 / 宝物等友军（最多 3 支）
    */
   const assignRealBattleTroops = useCallback((playerUnits, eventRarity = 'common', opts = {}) => {
     const t = filterTroopsForSmallMapPveEnemy(allTroops);
@@ -245,7 +247,9 @@ export function useBattleMap() {
       };
     });
 
-    const result = [...playerResult, ...enemyResult];
+    const allyTroops = mapAllyUnitsToBattleTroops(opts.allyUnits, base(), undefined, opts.skillsMap);
+
+    const result = [...playerResult, ...allyTroops, ...enemyResult];
     initBattlePhase2Runtime(result);
     const { w: tw, h: th } = getMapTerrainDimensions(mapResult);
     initBattlePhase3HealRuntime(result, th, tw);

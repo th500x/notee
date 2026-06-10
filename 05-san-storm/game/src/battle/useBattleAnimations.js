@@ -869,13 +869,14 @@ export function useBattleAnimations({
               await sleep(400, speedRef.current);
             }
           }
-          const lab = slot.debuffLabel != null ? String(slot.debuffLabel).trim() : '';
-          if (lab) {
+          const labRaw = slot.debuffLabel != null ? String(slot.debuffLabel).trim() : '';
+          if (labRaw) {
+            const lab = fmt.formatPhase5DebuffLabel(labRaw) || labRaw;
             showDmg(def, `⚠ ${lab.length > 18 ? `${lab.slice(0, 16)}…` : lab}`, 'skill-special');
             if (!trimSkipForCombatPair(trimAllyBattleLog, actor, def)) {
-              addLog(fmt.fmtPhase5DebuffNotify(def, lab), 'skill');
+              addLog(fmt.fmtPhase5DebuffNotify(def, labRaw), 'skill');
             }
-            await sleep(350, speedRef.current);
+            await sleep(550, speedRef.current);
           }
         }
       }

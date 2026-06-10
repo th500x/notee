@@ -6,7 +6,7 @@ import { useMapCornerCompactViewport } from '@/hooks/useMapCornerCompactViewport
 import { usePlayerContext } from '@/contexts/PlayerContext';
 import { useMapHudVisibility } from '@/contexts/MapHudVisibilityContext';
 import { toCharCardData } from '@/utils/cardDataTransforms';
-import { characterPortraitRelativePath } from '@shared/utils/characterPortraitUrl';
+import { resolveCharacterPortraitRelPath } from '@shared/utils/characterPortraitUrl';
 import {
   resolveStrategicRecordedStandpointPx,
   resolveStrategicRecordedStandpointCell,
@@ -159,24 +159,26 @@ function buildMarchAnimPath(onRoadAtStart, fullPath, stepsApplied) {
 }
 
 /** 已装备部队卡：当前兵力合计 / 上限合计（与披挂口径一致） */
-/** 大地图本人头像（与 `strategicSelfPawn` 一致：character1 装备立绘优先） */
-function resolveSelfMapPortraitUrl(ctxPlayer, ctxCards, attributeBonusBySlot) {
+/** 大地图本人头像（与 `strategicSelfPawn` 一致：character1 装备立绘优先，失败可回退创角头像） */
+function resolveSelfMapPortraitUrls(ctxPlayer, ctxCards, attributeBonusBySlot) {
+  const playerAvatar = ctxPlayer?.avatar || null;
   const characterCards = (ctxCards || []).filter((c) => c.cardType === 'character');
   const char1 = characterCards.find(
     (c) => c.equippedBy === 'character1' && c.isEquipped && c.equippedSlot === 'character',
   );
-  let portraitUrl = ctxPlayer?.avatar || null;
-  if (char1) {
-    const bonus = attributeBonusBySlot?.character1 || {};
-    const cd = toCharCardData(char1, bonus);
-    if (cd.avatar) {
-      portraitUrl = cd.avatar;
-    } else {
-      const rel = characterPortraitRelativePath(cd.id);
-      if (rel) portraitUrl = rel;
-    }
+  if (!char1) {
+    return { portraitUrl: playerAvatar, portraitFallbackUrl: null };
   }
-  return portraitUrl;
+  const bonus = attributeBonusBySlot?.character1 || {};
+  const cd = toCharCardData(char1, bonus);
+  const charPortrait = resolveCharacterPortraitRelPath({ characterId: cd.id, avatar: cd.avatar });
+  if (charPortrait && charPortrait !== playerAvatar) {
+    return { portraitUrl: charPortrait, portraitFallbackUrl: playerAvatar };
+  }
+  return {
+    portraitUrl: charPortrait || playerAvatar,
+    portraitFallbackUrl: null,
+  };
 }
 
 function sumEquippedTroopStrength(cards) {
@@ -878,7 +880,11 @@ export default function StrategicWorldMapSection({
       useRoad = stand.onRoadCell;
     }
 
-    const portraitUrl = resolveSelfMapPortraitUrl(ctxPlayer, ctxCards, attributeBonusBySlot);
+    const { portraitUrl, portraitFallbackUrl } = resolveSelfMapPortraitUrls(
+      ctxPlayer,
+      ctxCards,
+      attributeBonusBySlot,
+    );
     const factionName = String(ctxPlayer?.factionName || '').trim();
     const charName = String(ctxPlayer?.characterName || '').trim() || '…';
     const displayName = factionName ? `[${factionName}]${charName}` : charName;
@@ -907,6 +913,7 @@ export default function StrategicWorldMapSection({
       cx,
       cy,
       portraitUrl,
+      portraitFallbackUrl,
       displayName,
       centerGlyph,
       troopsCurrent,

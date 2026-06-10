@@ -8,7 +8,7 @@
  * false：isCampaignExpired 恒为未过期；syncUnlockFields 不写入 expiresAfterGameDay。
  * 正式版上线前应改为 true，并确认 syncUnlockFields 内恢复 expiresAfterGameDay 逻辑。
  */
-const CAMPAIGN_7DAY_CHALLENGE_WINDOW_ENABLED = false;
+const CAMPAIGN_7DAY_CHALLENGE_WINDOW_ENABLED = true;
 
 /**
  * 单战役挑战次数上限（与 playCount 比较）。

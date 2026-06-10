@@ -4,6 +4,7 @@
  */
 import { MAP_W, moraleInlineColorForTroopBar } from '@/components/battle/battleConstants';
 import { bindTroopPortraitImg } from '@/utils/troopBattlePortrait';
+import { resolveTroopGlowClass } from '@/battle/troopFactionDisplay';
 
 export function renderTroopsToBattleMapDom(mapCardRef, battleTroops, baseUrl = '') {
   const card = mapCardRef?.current;
@@ -19,7 +20,7 @@ export function renderTroopsToBattleMapDom(mapCardRef, battleTroops, baseUrl = '
     if (!tile) continue;
     tile.setAttribute('data-troop', troop.id);
     tile.removeAttribute('data-info');
-    const fc = troop.faction === 'player' ? 'player' : 'enemy';
+    const fc = resolveTroopGlowClass(troop);
     const cr = troop.commanderRole;
     const isPlayerLordBar = troop.faction === 'player' && troop.lineupSlot === 'player';
     const nameBarClass = [
@@ -48,7 +49,7 @@ export function renderTroopsToBattleMapDom(mapCardRef, battleTroops, baseUrl = '
     const mrHtml = goldMoraleBar
       ? `<span class="mr">${m}</span>`
       : `<span class="mr" style="color:${moraleColor}">${m}</span>`;
-    layer.innerHTML = `${hpHtml}<div class="troop-glow ${troop.faction}"></div><img class="troop-img" alt=""><div class="${nameBarClass}"><span class="cn">${troop.displayName || troop.name}</span>${mrHtml}</div>`;
+    layer.innerHTML = `${hpHtml}<div class="troop-glow ${fc}"></div><img class="troop-img" alt=""><div class="${nameBarClass}"><span class="cn">${troop.displayName || troop.name}</span>${mrHtml}</div>`;
     const img = layer.querySelector('.troop-img');
     bindTroopPortraitImg(img, troop, baseUrl);
     tile.appendChild(layer);

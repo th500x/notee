@@ -1,7 +1,7 @@
 /**
  * 战斗记录 API 服务
- * 
- * @description 提供战斗记录的保存、查询、收藏等API调用
+ *
+ * @description 提供战斗记录的保存、查询、收藏等 API 调用
  */
 
 import { API_CONFIG } from '../constants';
@@ -55,7 +55,7 @@ export const battleAPI = {
       const params = new URLSearchParams({ playerId, filter });
       const response = await fetchWithTimeout(
         `${API_CONFIG.BASE_URL}/battles?${params}`,
-        { method: 'GET' }
+        { method: 'GET' },
       );
       const data = await response.json();
       if (data.success) {
@@ -77,7 +77,7 @@ export const battleAPI = {
     try {
       const response = await fetchWithTimeout(
         `${API_CONFIG.BASE_URL}/battles/${battleId}`,
-        { method: 'GET' }
+        { method: 'GET' },
       );
       const data = await response.json();
       if (data.success) {
@@ -175,3 +175,27 @@ export const battleAPI = {
     }
   },
 };
+
+/**
+ * 宝物战斗助阵（开战前服务端随机友军）
+ * @param {string} playerId
+ * @param {{ equippedBy: string[], garrisonCityId?: string, garrisonSlot?: number }} opts
+ * @returns {Promise<object[]>}
+ */
+export async function fetchTreasureBattleAllies(playerId, opts) {
+  if (!playerId || !opts?.equippedBy?.length) return [];
+  const params = new URLSearchParams({
+    playerId,
+    equippedBy: opts.equippedBy.join(','),
+  });
+  if (opts.garrisonCityId) params.set('garrisonCityId', opts.garrisonCityId);
+  if (opts.garrisonSlot != null) params.set('garrisonSlot', String(opts.garrisonSlot));
+
+  const res = await fetchWithTimeout(`${API_CONFIG.BASE_URL}/battles/treasure-allies?${params}`);
+  if (!res.ok) {
+    console.warn('[BattleAPI] treasure-allies failed', res.status);
+    return [];
+  }
+  const data = await res.json();
+  return Array.isArray(data.allies) ? data.allies : [];
+}

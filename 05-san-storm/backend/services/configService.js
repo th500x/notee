@@ -323,6 +323,45 @@ async function getEquipmentById(equipmentId) {
 }
 
 /**
+ * 获取宝物配置
+ * @param {Object} filters - { season, series, rarity }
+ */
+async function getTreasures(filters = {}) {
+  const { season, series, rarity } = filters;
+
+  let query = 'SELECT * FROM config_treasures WHERE 1=1';
+  const params = [];
+
+  if (season) {
+    query += ' AND season = ?';
+    params.push(season);
+  }
+  if (series) {
+    query += ' AND series = ?';
+    params.push(series);
+  }
+
+  const rarityNumMap = { common: '1', rare: '2', epic: '3', legendary: '4', core: '5' };
+  if (rarity && rarityNumMap[rarity]) {
+    query += ' AND treasure_id REGEXP ?';
+    params.push(`_treasure_${rarityNumMap[rarity]}[0-9]{3}$`);
+  }
+
+  query += ' ORDER BY treasure_id';
+  const rows = await db.query(query, params);
+  return rows.map(formatTreasureData);
+}
+
+async function getTreasureById(treasureId) {
+  const rows = await db.query(
+    'SELECT * FROM config_treasures WHERE treasure_id = ?',
+    [treasureId],
+  );
+  if (rows.length === 0) return null;
+  return formatTreasureData(rows[0]);
+}
+
+/**
  * 获取事件配置
  * @param {Object} filters - { location, triggerContext }
  * @returns {Promise<Array>}
@@ -486,6 +525,57 @@ function formatEquipmentData(row) {
   };
 }
 
+/**
+ * 格式化宝物数据（数据库 → 前端）
+ */
+function formatTreasureData(row) {
+  const match = (row.treasure_id || '').match(/^(san_\d+)_treasure_(\d)\d{3}$/);
+  const rarityMap = { '1': 'common', '2': 'rare', '3': 'epic', '4': 'legendary', '5': 'core' };
+  const rarity = match ? (rarityMap[match[2]] || 'common') : 'common';
+
+  const bonusKeyMap = {
+    luck_bonus: 'luck',
+    courage_bonus: 'courage',
+    combat_bonus: 'combat',
+    command_bonus: 'command',
+    intelligence_bonus: 'intelligence',
+    politics_bonus: 'politics',
+    charm_bonus: 'charm',
+  };
+
+  const bonus = [];
+  for (const [field, key] of Object.entries(bonusKeyMap)) {
+    const val = row[field];
+    if (val && val !== 0) {
+      bonus.push({ key, value: val / 10 });
+    }
+  }
+
+  let specialEffect = null;
+  if (row.special_effect) {
+    try {
+      const parsed = typeof row.special_effect === 'string'
+        ? JSON.parse(row.special_effect)
+        : row.special_effect;
+      specialEffect = parsed.raw || JSON.stringify(parsed);
+    } catch (e) {
+      specialEffect = String(row.special_effect);
+    }
+  }
+
+  return {
+    id: row.treasure_id,
+    name: row.treasure_name,
+    season: row.season,
+    series: row.series || null,
+    rarity,
+    bonus,
+    specialEffect,
+    specialEffectDesc: row.special_effect_desc || null,
+    description: row.description || '',
+  };
+}
+
 module.exports = {
   CONFIG_TROOPS_SELECT_COLUMNS,
   getTroops,
@@ -495,6 +585,9 @@ module.exports = {
   getCharacterById,
   getEquipment,
   getEquipmentById,
+  getTreasures,
+  getTreasureById,
+  formatTreasureData,
   getEvents,
   getEventById,
 };

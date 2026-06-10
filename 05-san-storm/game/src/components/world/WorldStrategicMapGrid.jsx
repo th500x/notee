@@ -1356,6 +1356,7 @@ export default function WorldStrategicMapGrid({
                   cx={strategicSelfPawn.cx}
                   cy={strategicSelfPawn.cy}
                   portraitUrl={strategicSelfPawn.portraitUrl}
+                  portraitFallbackUrl={strategicSelfPawn.portraitFallbackUrl}
                   displayEffect={strategicSelfPawn.displayEffect || null}
                   displayName={strategicSelfPawn.displayName}
                   centerGlyph={strategicSelfPawn.centerGlyph}

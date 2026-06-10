@@ -77,6 +77,47 @@ function formatEraWithGongyuan(era) {
   return `公元${s}`;
 }
 
+function parseFactionIds(factionStr) {
+  if (factionStr == null || factionStr === '') return [];
+  return String(factionStr)
+    .split(';')
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+/** 配置 `faction` 列含玩家势力时才可见/可玩 */
+function isCampaignForPlayerFaction(def, playerFactionId) {
+  const ids = parseFactionIds(def.faction);
+  if (ids.length === 0) return true;
+  if (!playerFactionId) return false;
+  return ids.includes(String(playerFactionId));
+}
+
+function isCampaignExpired(prog, gt) {
+  if (!CAMPAIGN_7DAY_CHALLENGE_WINDOW_ENABLED) return false;
+  if (!gt || prog == null) return false;
+  const exp = prog.expiresAfterGameDay;
+  if (exp == null) return false;
+  return gt.elapsedGameDays > exp;
+}
+
+/** 7 日窗已过期且已挑战过 → 不可再打，仍可领奖 */
+function isCampaignChallengeEnded(prog, gt) {
+  const rewardClaimed = !!prog.rewardClaimed;
+  const playCount = Number(prog.playCount) || 0;
+  if (rewardClaimed || playCount >= CAMPAIGN_MAX_CHALLENGE_PLAYS) return true;
+  if (!isCampaignExpired(prog, gt)) return false;
+  return playCount >= 1;
+}
+
+function isCampaignPlayable(unlocked, prog, gt) {
+  if (!unlocked) return false;
+  const playCount = Number(prog.playCount) || 0;
+  if (prog.rewardClaimed || playCount >= CAMPAIGN_MAX_CHALLENGE_PLAYS) return false;
+  if (!isCampaignExpired(prog, gt)) return true;
+  return playCount === 0;
+}
+
 /** @param {object} def @param {object} prog @param {object | null} gt */
 function computeCampaignCenterDropdownParenInner(def, prog, gt) {
   const eraDate = parseEraToGameDate(def.era);
@@ -84,12 +125,13 @@ function computeCampaignCenterDropdownParenInner(def, prog, gt) {
   if (cur && eraDate && compareGameDate(cur, eraDate) < 0) {
     return formatEraWithGongyuan(def.era);
   }
-  const rewardClaimed = !!prog.rewardClaimed;
-  const playCount = Number(prog.playCount) || 0;
-  const expired = isCampaignExpired(prog, gt);
-  const challengeEnded = rewardClaimed || playCount >= CAMPAIGN_MAX_CHALLENGE_PLAYS || expired;
-  if (challengeEnded) {
+  if (isCampaignChallengeEnded(prog, gt)) {
     return '挑战结束';
+  }
+  const expired = isCampaignExpired(prog, gt);
+  const playCount = Number(prog.playCount) || 0;
+  if (expired && playCount === 0) {
+    return '可补打一次';
   }
   const exp = prog.expiresAfterGameDay;
   const elapsed = gt?.elapsedGameDays;
@@ -151,7 +193,13 @@ function syncUnlockFields(defs, gt, progress) {
     if (compareGameDate(cur, eraDate) < 0) continue;
 
     const p = next[cid] || {};
-    if (p.unlockGameDay != null) continue;
+    if (p.unlockGameDay != null) {
+      if (CAMPAIGN_7DAY_CHALLENGE_WINDOW_ENABLED && p.expiresAfterGameDay == null) {
+        next[cid] = { ...p, expiresAfterGameDay: p.unlockGameDay + 7 };
+        changed = true;
+      }
+      continue;
+    }
 
     next[cid] = {
       ...p,
@@ -167,15 +215,6 @@ function syncUnlockFields(defs, gt, progress) {
     changed = true;
   }
   return { next, changed };
-}
-
-function isCampaignExpired(prog, gt) {
-  // 测试关闭七日窗：不判过期（与 `expiresAfterGameDay` 是否残留无关）
-  if (!CAMPAIGN_7DAY_CHALLENGE_WINDOW_ENABLED) return false;
-  if (!gt || prog == null) return false;
-  const exp = prog.expiresAfterGameDay;
-  if (exp == null) return false;
-  return gt.elapsedGameDays > exp;
 }
 
 async function listDefinitions(season = 'san_1') {
@@ -207,10 +246,14 @@ async function getDefinition(campaignId) {
  */
 async function getCampaignCenterPayload(playerId, season = 'san_1') {
   const defs = await listDefinitions(season);
+  const player = await Player.getById(playerId);
+  const playerFactionId = player?.faction_id ?? null;
+  const defsForPlayer = defs.filter((def) => isCampaignForPlayerFaction(def, playerFactionId));
+
   let progress = await getCampaignProgressMap(playerId);
   const gt = await gameTimeService.loadGameTimeForPlayer(playerId);
 
-  const { next, changed } = syncUnlockFields(defs, gt, progress);
+  const { next, changed } = syncUnlockFields(defsForPlayer, gt, progress);
   if (changed) {
     progress = next;
     await saveCampaignProgressMap(playerId, progress);
@@ -218,7 +261,7 @@ async function getCampaignCenterPayload(playerId, season = 'san_1') {
 
   const cur = gt ? { year: gt.year, month: gt.month, day: gt.day } : null;
 
-  const campaigns = defs.map((def) => {
+  const campaigns = defsForPlayer.map((def) => {
     const cid = def.campaign_id;
     const prog = progress[cid] || {};
     const eraDate = parseEraToGameDate(def.era);
@@ -227,8 +270,8 @@ async function getCampaignCenterPayload(playerId, season = 'san_1') {
     const expired = isCampaignExpired(prog, gt);
     const playCount = Number(prog.playCount) || 0;
     const rewardClaimed = !!prog.rewardClaimed;
-    const playable =
-      unlocked && !expired && !rewardClaimed && playCount < CAMPAIGN_MAX_CHALLENGE_PLAYS;
+    const challengeEnded = isCampaignChallengeEnded(prog, gt);
+    const playable = isCampaignPlayable(unlocked, prog, gt);
 
     return {
       ...def,
@@ -238,6 +281,7 @@ async function getCampaignCenterPayload(playerId, season = 'san_1') {
       progress: {
         unlocked,
         expired,
+        challengeEnded,
         playCount,
         maxPlayCount: CAMPAIGN_MAX_CHALLENGE_PLAYS,
         rewardClaimed,
@@ -296,6 +340,11 @@ async function applyBattleSettlement({
   const def = await getDefinition(campaignId);
   if (!def) return { ok: false, reason: 'unknown campaign' };
 
+  const player = await Player.getById(playerId);
+  if (!isCampaignForPlayerFaction(def, player?.faction_id)) {
+    return { ok: false, reason: 'faction mismatch' };
+  }
+
   const gt = await gameTimeService.loadGameTimeForPlayer(playerId);
   let progress = await getCampaignProgressMap(playerId);
   const { next: synced } = syncUnlockFields([def], gt, progress);
@@ -311,14 +360,14 @@ async function applyBattleSettlement({
   }
 
   if (prog.rewardClaimed) return { ok: false, reason: 'already claimed' };
-  if (isCampaignExpired(prog, gt)) {
+
+  const playCount = Number(prog.playCount) || 0;
+  if (playCount >= CAMPAIGN_MAX_CHALLENGE_PLAYS) return { ok: false, reason: 'no plays left' };
+  if (isCampaignExpired(prog, gt) && playCount >= 1) {
     progress[campaignId] = { ...prog, expired: true };
     await saveCampaignProgressMap(playerId, progress);
     return { ok: false, reason: 'expired' };
   }
-
-  const playCount = Number(prog.playCount) || 0;
-  if (playCount >= CAMPAIGN_MAX_CHALLENGE_PLAYS) return { ok: false, reason: 'no plays left' };
 
   const scoreNum = Number(battleScore);
   const { grade } = Number.isFinite(scoreNum) ? gradeFromBattleScore(scoreNum) : { grade: 'D' };
@@ -388,6 +437,11 @@ async function grantSeasonBadgeToPlayer(playerId, quantity = 1) {
 async function claimCampaignReward(playerId, campaignId) {
   const def = await getDefinition(campaignId);
   if (!def) return { ok: false, error: 'unknown campaign' };
+
+  const player = await Player.getById(playerId);
+  if (!isCampaignForPlayerFaction(def, player?.faction_id)) {
+    return { ok: false, error: 'faction mismatch' };
+  }
 
   const progress = await getCampaignProgressMap(playerId);
   const prog = progress[campaignId] || {};

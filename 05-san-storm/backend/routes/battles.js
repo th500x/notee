@@ -46,6 +46,25 @@ router.get('/', validateQuery(battleSchemas.listQuery), async (req, res, next) =
 });
 
 /**
+ * 宝物战斗助阵友军（服务端随机，开战前拉取）
+ * GET /api/battles/treasure-allies?playerId=&equippedBy=player,character1
+ */
+router.get('/treasure-allies', validateQuery(battleSchemas.treasureAlliesQuery), async (req, res, next) => {
+  try {
+    const battleTreasureAllyService = require('../services/battleTreasureAllyService');
+    const { playerId, equippedBy, garrisonCityId, garrisonSlot } = req.query;
+    const allies = await battleTreasureAllyService.buildBattleTreasureAllies(playerId, {
+      equippedBy,
+      garrisonCityId: garrisonCityId || undefined,
+      garrisonSlot: garrisonSlot != null && garrisonSlot !== '' ? garrisonSlot : undefined,
+    });
+    res.json({ success: true, allies, count: allies.length });
+  } catch (error) {
+    return next(wrap500(error, '获取宝物助阵失败'));
+  }
+});
+
+/**
  * 收藏战斗
  * POST /api/battles/favorite
  * Body: { playerId, battleId }

@@ -23,7 +23,7 @@ import TitleAchievementCard from '@shared/components/card/TitleAchievementCard';
 import EquipmentCard from '@shared/components/card/EquipmentCard';
 import EncapsulateEquipmentModal from '@/components/game/EncapsulateEquipmentModal';
 import AncientModal from '@/components/common/AncientModal';
-import { toCharCardData, toTroopCardData, toEquipCardData, toTitleCardData } from '@/utils/cardDataTransforms';
+import { toCharCardData, toTroopCardData, toEquipCardData, toTitleCardData, toTreasureCardData } from '@/utils/cardDataTransforms';
 import { collectGarrisonOccupiedInstanceIds } from '@/utils/garrisonScopeUtils';
 import { isMainCityBarracksStored } from '@/utils/garrisonBarracksTroopPool';
 import GarrisonGeneralPanel from './GarrisonGeneralPanel';
@@ -247,6 +247,7 @@ export default function GarrisonLineup({
   const troopCards       = cards.filter(c => c.cardType === 'troop');
   const titleCards       = cards.filter(c => c.cardType === 'title');
   const achievementCards = cards.filter(c => c.cardType === 'achievement');
+  const treasureCards = cards.filter(c => c.cardType === 'treasure');
   const equipmentSetCards = cards.filter(
     c => c.cardType === 'equipmentSet' && c.config?.displayName && String(c.config.displayName).trim()
   );
@@ -266,17 +267,22 @@ export default function GarrisonLineup({
       : type === 'troop'                 ? troopCards
       : type === 'title'                 ? titleCards
       : type === 'achievement'           ? achievementCards
+      : type === 'treasure'              ? treasureCards
       : type === 'equipmentSet'          ? equipmentSetCards
       : [];
     return pool.filter(c => {
       if (c.isEquipped || occupiedIds.has(c.instanceId)) return false;
       if (isMainCityBarracksStored(c)) return false;
-      if (type !== 'troop') return true;
+      if (type !== 'troop' && type !== 'treasure') return true;
+      if (type === 'treasure') {
+        if (c.usesRemaining != null && Number(c.usesRemaining) <= 0) return false;
+        return true;
+      }
       const maxBattle = c.maxBattleCount ?? 10;
       const count     = Math.max(0, c.battleCount ?? 0);
       return count < maxBattle || c.rarity === 'legendary';
     });
-  }, [characterCards, troopCards, titleCards, achievementCards, equipmentSetCards, occupiedIds]);
+  }, [characterCards, troopCards, titleCards, achievementCards, treasureCards, equipmentSetCards, occupiedIds]);
 
   const getSlotContent = useCallback((slot, charKey) => {
     switch (slot.id) {
@@ -285,6 +291,7 @@ export default function GarrisonLineup({
       case 'equipmentSet': return getCardFromGarrison(`${charKey}_equipment_card`);
       case 'title':        return getCardFromGarrison(`${charKey}_title`);
       case 'achievement':  return getCardFromGarrison(`${charKey}_achievement`);
+      case 'treasure':     return getCardFromGarrison(`${charKey}_treasure`);
       default:             return null;
     }
   }, [getCardFromGarrison]);
@@ -456,6 +463,8 @@ export default function GarrisonLineup({
                     <TitleAchievementCard item={toTitleCardData(detailCard.card)} type="title" baseUrl={baseUrl} />
                   ) : detailCard.card.cardType === 'achievement' ? (
                     <TitleAchievementCard item={toTitleCardData(detailCard.card)} type="achievement" baseUrl={baseUrl} />
+                  ) : detailCard.card.cardType === 'treasure' ? (
+                    <EquipmentCard equipment={toTreasureCardData(detailCard.card)} baseUrl={baseUrl} />
                   ) : detailCard.card.cardType === 'equipment' ? (
                     <EquipmentCard equipment={toEquipCardData(detailCard.card)} baseUrl={baseUrl} />
                   ) : (
@@ -499,6 +508,7 @@ export default function GarrisonLineup({
             selectedSlot.id === 'character'    ? 'character'
             : selectedSlot.id === 'title'      ? 'title'
             : selectedSlot.id === 'achievement' ? 'achievement'
+            : selectedSlot.id === 'treasure'     ? 'treasure'
             : selectedSlot.id === 'equipmentSet' ? 'equipmentSet'
             : 'troop'
           )}
@@ -532,6 +542,7 @@ function GarrisonDrawer({ slot, cards, skillsMap, onSelect, onClose }) {
   const isCharSlot     = slot.id === 'character';
   const isTitleSlot    = slot.id === 'title';
   const isAchievementSlot = slot.id === 'achievement';
+  const isTreasureSlot = slot.id === 'treasure';
   const isEquipSetSlot = slot.id === 'equipmentSet';
 
   const grouped = {};
@@ -568,7 +579,7 @@ function GarrisonDrawer({ slot, cards, skillsMap, onSelect, onClose }) {
                         width: 128,
                         ...(isCharSlot
                           ? { minHeight: 208 }
-                          : { height: (isTitleSlot || isAchievementSlot) ? 96 : isEquipSetSlot ? 96 : 192 }),
+                          : { height: (isTitleSlot || isAchievementSlot || isTreasureSlot) ? 96 : isEquipSetSlot ? 96 : 192 }),
                       }}>
                       <div style={{ transform: 'scale(0.5)', transformOrigin: 'top left', width: 256 }}>
                         {isCharSlot ? (
@@ -585,6 +596,8 @@ function GarrisonDrawer({ slot, cards, skillsMap, onSelect, onClose }) {
                             type={isAchievementSlot ? 'achievement' : 'title'}
                             baseUrl={baseUrl}
                           />
+                        ) : isTreasureSlot ? (
+                          <EquipmentCard equipment={toTreasureCardData(card)} baseUrl={baseUrl} />
                         ) : isEquipSetSlot ? (
                           <div className="w-[256px] h-[192px] rounded-xl bg-stone-800 border-2 border-amber-700/40 p-3 flex flex-col justify-between">
                             <div className="text-amber-200 text-sm font-bold truncate">{card.config?.displayName || card.instanceId}</div>

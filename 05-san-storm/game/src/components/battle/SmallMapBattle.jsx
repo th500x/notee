@@ -9,7 +9,7 @@
  * 小型图专有：BattleMap 渲染、createTacticalMapCardSurface、
  *   renderTroopsToBattleMapDom、点格部署
  */
-import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
 import { useBattleMap } from '@/hooks/useBattleMap';
 import { useBattleEngine } from '@/battle/tacticalBattleEngine';
 import { useManualBattle } from '@/hooks/useManualBattle';
@@ -33,6 +33,7 @@ import { validateMainLineupBattleGate } from '@/utils/mainLineupTroops';
 import { BASE_CAMP_SIEGE_FOOD_COST_MULTIPLIER } from '@shared/utils/pvpBaseCampConstants';
 import { writeInflightBattleTroopSnapshot } from '@/utils/inflightBattleTroopSnapshot';
 import { useSkillsMap } from '@/hooks/useSkillsMap';
+import { useTreasureBattleAllies } from '@/hooks/useTreasureBattleAllies';
 import { resolveSiegeCityDefenseMultFromOpts } from '@shared/utils/siegeCityDefenseMult';
 import { useBgmScene } from '@/hooks/useBgmScene';
 
@@ -44,7 +45,7 @@ const STAGE = { LOADING: 'loading', READY: 'ready' };
  * @param {string[]} [enemySlotRarities]             可选：长度 4 时每槽稀有度（匪寨等，见 @shared/utils/smallMapEnemyRoster）
  * @param {object|null} [smallMapPveLoot]           可选：胜利时写入 rewards.smallMapPveLoot，后端 smallMapBattleLootService 即发奖
  * @param {Array}   [enemyUnits]                     攻城模式：直接传入敌方 NPC 阵容
- * @param {Array}   [allyUnits]                      御驾等友军（攻城，最多 1 支）
+ * @param {Array}   [allyUnits]                      御驾等友军（与宝物助阵合并，最多 3 支）
  * @param {number}  [silverAmount]
  * @param {number}  [playerFood]
  * @param {string}  [playerId]
@@ -61,6 +62,8 @@ const STAGE = { LOADING: 'loading', READY: 'ready' };
  * @param {Array}   [eventExtraEnemyCharacterIds]    事件惩罚战额外将领（指定将领 ID 时 5 编制；与 eventPunishmentExtraSlot 二选一，新配置已不用）
  * @param {boolean} [eventPunishmentExtraSlot]        事件因子 type-b：在默认编制上多 1 支敌方部队（池同事件稀有度）
  * @param {Array}   [cards]                          PlayerContext.cards，用于出征门槛校验
+ * @param {string}  [garrisonCityId]                 可选：驻地战宝物助阵
+ * @param {number}  [garrisonSlot]                   可选：驻地槽位
  */
 export default function SmallMapBattle({
   playerUnits,
@@ -85,6 +88,8 @@ export default function SmallMapBattle({
   eventExtraEnemyCharacterIds = null,
   eventPunishmentExtraSlot = false,
   cards = null,
+  garrisonCityId = null,
+  garrisonSlot = null,
   onDeferredAwayBattleEnd = null,
   /** 由 WorldMapBattlePortal 统一管理 BGM（匪寨 / 攻城·攻大本营） */
   bgmSceneManagedByParent = false,
@@ -105,6 +110,19 @@ export default function SmallMapBattle({
   const playBattleRoundRef = useRef(() => {});
   const bm = useBattleMap();
   const skillsMap = useSkillsMap();
+  const garrisonContext = useMemo(() => {
+    if (!garrisonCityId || garrisonSlot == null) return null;
+    return { garrisonCityId, garrisonSlot };
+  }, [garrisonCityId, garrisonSlot]);
+  const { treasureAllyUnits, treasureAlliesReady } = useTreasureBattleAllies(
+    playerId,
+    playerUnits,
+    garrisonContext,
+  );
+  const mergedAllyUnits = useMemo(() => {
+    const base = Array.isArray(allyUnits) ? allyUnits : [];
+    return [...base, ...treasureAllyUnits];
+  }, [allyUnits, treasureAllyUnits]);
   const bmRef = useRef(bm);
   bmRef.current = bm;
   const playerIdRef = useRef(playerId);
@@ -221,6 +239,7 @@ export default function SmallMapBattle({
     if (initRef.current || !playerUnits || playerUnits.length === 0) return;
     if (!enemyUnits && bm.allTroops.length < 3) return;
     if (Object.keys(skillsMap || {}).length === 0) return;
+    if (!treasureAlliesReady) return;
 
     initRef.current = true;
 
@@ -231,7 +250,7 @@ export default function SmallMapBattle({
       bm.setBattleTroops(buildSiegeUnits({
         playerUnits,
         enemyUnits,
-        allyUnits: Array.isArray(allyUnits) ? allyUnits : [],
+        allyUnits: mergedAllyUnits,
         skillsMap,
         baseUrl: import.meta.env.BASE_URL,
         catalogById,
@@ -242,6 +261,7 @@ export default function SmallMapBattle({
         extraEnemyCharacterIds: eventExtraEnemyCharacterIds,
         eventPunishmentExtraSlot,
         skillsMap,
+        allyUnits: mergedAllyUnits,
         ...(Array.isArray(enemySlotRarities) && enemySlotRarities.length === 4
           ? { enemySlotRarities }
           : {}),
@@ -259,7 +279,7 @@ export default function SmallMapBattle({
   }, [
     playerUnits,
     enemyUnits,
-    allyUnits,
+    mergedAllyUnits,
     enemyRarity,
     enemySlotRarities,
     eventExtraEnemyCharacterIds,
@@ -267,6 +287,7 @@ export default function SmallMapBattle({
     bm.allTroops.length,
     skillsMap,
     silverAmount,
+    treasureAlliesReady,
   ]);
 
   /** 须用 stage===READY 判断「仍在战术壳内」，勿用 battlePlaying：后者仅在 playBattleRound 动画循环内为 true，回合间隙为 false 导致快照从不写入。 */

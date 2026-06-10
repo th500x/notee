@@ -95,10 +95,8 @@ export default function DailyReportPanel({ open, onClose, playerId }) {
     try {
       const res = await playerAPI.postDailyReportCheckIn(playerId);
       if (res.success) {
-        const g = res.data?.granted;
-        setToast(
-          g?.silver > 0 ? `签到成功，获得 ${g.silver} 银两` : '签到成功',
-        );
+        const summary = res.data?.granted?.displaySummary;
+        setToast(summary || '签到成功');
         if (res.data?.checkIn) {
           setReport((prev) => (prev ? { ...prev, checkIn: res.data.checkIn } : prev));
         }

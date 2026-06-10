@@ -13,6 +13,7 @@
 const fs = require('fs');
 const path = require('path');
 const { pool } = require('../database/connection');
+const { getInitialUsesRemaining } = require('./treasureUseService');
 const statisticsDeltaService = require('./statisticsDeltaService');
 const { getOptionFactorFields } = require('../../shared/utils/eventOptionFactor.js');
 const { expandRewardPresetsForExecute } = require('../../shared/utils/eventRewardPresets.js');
@@ -225,7 +226,7 @@ function parseRewardString(rewardStr) {
     }
 
     // 具体卡牌: san_1_troop_x001[:qty] / san_1_char_x001[:qty] / san_1_equip_1_1001[:qty] / san_0_title_1_5001[:qty] / san_1_achi_2_3001[:qty]
-    if (t.includes('_troop_') || t.includes('_char_') || t.includes('_equip_') || t.includes('_title_') || t.includes('_achi_')) {
+    if (t.includes('_troop_') || t.includes('_char_') || t.includes('_equip_') || t.includes('_title_') || t.includes('_achi_') || t.includes('_treasure_')) {
       const parts = t.split(':');
       return {
         type: 'specific_card',
@@ -489,24 +490,30 @@ async function randomDrawCards(cardType, rarity, factionId, quantity, excludeIds
 // ── 核心：执行奖励发放 ──────────────────────────────────────
 
 /**
- * 执行奖励发放（所有类型一起处理）
- * 
- * @param {string} playerId - 玩家ID
- * @param {string} rewardStr - 奖励字符串
- * @param {number} multiplier - 运势倍率
- * @param {string} factionId - 玩家势力ID
- * @returns {Promise<Object>} 发放结果
+ * 在已有事务 connection 上执行奖励发放（与 executeRewards 同语义）
+ *
+ * @param {import('mysql2/promise').PoolConnection} connection
+ * @param {string} playerId
+ * @param {string} rewardStr
+ * @param {number} multiplier
+ * @param {string} factionId
+ * @param {{ expandPresets?: boolean }} [options] expandPresets=false 时跳过 reward-a/pack 展开（签到等固定奖励）
+ * @returns {Promise<{ success: boolean, details: object[] }>}
  */
-async function executeRewards(playerId, rewardStr, multiplier, factionId) {
-  const expanded = expandRewardPresetsForExecute(rewardStr);
+async function executeRewardsOnConnection(
+  connection,
+  playerId,
+  rewardStr,
+  multiplier,
+  factionId,
+  options = {},
+) {
+  const expandPresets = options.expandPresets !== false;
+  const expanded = expandPresets ? expandRewardPresetsForExecute(rewardStr) : rewardStr;
   const rewards = parseRewardString(expanded);
   if (rewards.length === 0) return { success: true, details: [] };
 
   const details = [];
-  const connection = await pool.getConnection();
-
-  try {
-    await connection.beginTransaction();
 
     // ── 1. 资源奖励 ──
     const resourceUpdates = {};
@@ -617,6 +624,7 @@ async function executeRewards(playerId, rewardStr, multiplier, factionId) {
         : realCardId.includes('_char_') ? 'character'
         : realCardId.includes('_title_') ? 'title'
         : realCardId.includes('_achi_') ? 'achievement'
+        : realCardId.includes('_treasure_') ? 'treasure'
         : 'equipment';
 
       // 查询配置表获取稀有度（部队用 resolveTroopRarity，避免 DB ENUM/缺行导致误判全局上限）
@@ -628,7 +636,7 @@ async function executeRewards(playerId, rewardStr, multiplier, factionId) {
           'SELECT rarity FROM config_characters WHERE character_id = ?', [realCardId]
         );
         if (cfg[0]) rarity = normalizeEnumRarity(cfg[0].rarity) || 'common';
-      } else if (cardType === 'title' || cardType === 'achievement' || cardType === 'equipment') {
+      } else if (cardType === 'title' || cardType === 'achievement' || cardType === 'equipment' || cardType === 'treasure') {
         // 从ID解析稀有度：san_1_title_1_4001 → 第5段首位=稀有度编号
         const rarityMap = { '1': 'common', '2': 'rare', '3': 'epic', '4': 'legendary', '5': 'core' };
         const parts = realCardId.split('_');
@@ -642,6 +650,7 @@ async function executeRewards(playerId, rewardStr, multiplier, factionId) {
         troop: { table: 'config_troops', idField: 'troop_id', nameField: 'troop_name' },
         character: { table: 'config_characters', idField: 'character_id', nameField: 'character_name' },
         title: { table: 'config_titles', idField: 'title_id', nameField: 'title_name' },
+        treasure: { table: 'config_treasures', idField: 'treasure_id', nameField: 'treasure_name' },
         equipment: { table: 'config_equipment', idField: 'equipment_id', nameField: 'equipment_name' },
       };
       const nameMap = nameTableMap[cardType];
@@ -694,6 +703,9 @@ async function executeRewards(playerId, rewardStr, multiplier, factionId) {
             'SELECT trait_modifier FROM config_characters WHERE character_id = ?', [realCardId]
           );
           insertData.morale = 70 + (charCfg[0]?.trait_modifier ?? 0) * 2;
+        }
+        if (cardType === 'treasure') {
+          insertData.uses_remaining = getInitialUsesRemaining(realCardId);
         }
         await connection.query('INSERT INTO player_cards SET ?', [insertData]);
         details.push({ type: 'card', cardType, cardId: realCardId, cardName, instanceId });
@@ -757,10 +769,32 @@ async function executeRewards(playerId, rewardStr, multiplier, factionId) {
       }
     }
 
+  return { success: true, details };
+}
+
+/**
+ * 执行奖励发放（所有类型一起处理）
+ *
+ * @param {string} playerId - 玩家ID
+ * @param {string} rewardStr - 奖励字符串
+ * @param {number} multiplier - 运势倍率
+ * @param {string} factionId - 玩家势力ID
+ * @returns {Promise<Object>} 发放结果
+ */
+async function executeRewards(playerId, rewardStr, multiplier, factionId) {
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+    const result = await executeRewardsOnConnection(
+      connection,
+      playerId,
+      rewardStr,
+      multiplier,
+      factionId,
+    );
     await connection.commit();
     runPlayerMilestoneCheckSafe(playerId, 'reward_execute').catch(() => {});
-    return { success: true, details };
-
+    return result;
   } catch (err) {
     await connection.rollback();
     throw err;
@@ -854,6 +888,7 @@ async function grantSpecificCardsOnConnection(connection, playerId, factionId, c
       : realCardId.includes('_char_') ? 'character'
       : realCardId.includes('_title_') ? 'title'
       : realCardId.includes('_achi_') ? 'achievement'
+      : realCardId.includes('_treasure_') ? 'treasure'
       : 'equipment';
 
     let rarity = 'common';
@@ -864,7 +899,7 @@ async function grantSpecificCardsOnConnection(connection, playerId, factionId, c
         'SELECT rarity FROM config_characters WHERE character_id = ?', [realCardId]
       );
       if (cfg[0]) rarity = normalizeEnumRarity(cfg[0].rarity) || 'common';
-    } else if (cardType === 'title' || cardType === 'achievement' || cardType === 'equipment') {
+    } else if (cardType === 'title' || cardType === 'achievement' || cardType === 'equipment' || cardType === 'treasure') {
       const rarityMap = { '1': 'common', '2': 'rare', '3': 'epic', '4': 'legendary', '5': 'core' };
       const parts = realCardId.split('_');
       const seqStr = parts[parts.length - 1] || '';
@@ -877,6 +912,7 @@ async function grantSpecificCardsOnConnection(connection, playerId, factionId, c
       character: { table: 'config_characters', idField: 'character_id', nameField: 'character_name' },
       title: { table: 'config_titles', idField: 'title_id', nameField: 'title_name' },
       achievement: { table: 'config_achievements', idField: 'achievement_id', nameField: 'achievement_name' },
+      treasure: { table: 'config_treasures', idField: 'treasure_id', nameField: 'treasure_name' },
       equipment: { table: 'config_equipment', idField: 'equipment_id', nameField: 'equipment_name' },
     };
     const nameMap = nameTableMap[cardType];
@@ -925,6 +961,9 @@ async function grantSpecificCardsOnConnection(connection, playerId, factionId, c
         );
         insertData.morale = 70 + (charCfg[0]?.trait_modifier ?? 0) * 2;
       }
+      if (cardType === 'treasure') {
+        insertData.uses_remaining = getInitialUsesRemaining(realCardId);
+      }
       await connection.query('INSERT INTO player_cards SET ?', [insertData]);
       details.push({ type: 'card', cardType, cardId: realCardId, cardName, instanceId });
     }
@@ -938,6 +977,7 @@ module.exports = {
   getMaxBattleCount,
   grantSpecificCardsOnConnection,
   executeRewards,
+  executeRewardsOnConnection,
   grantPositionById,
   grantPositionOnConnection,
   FORTUNE_MULTIPLIERS,

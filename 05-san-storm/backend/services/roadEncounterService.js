@@ -394,6 +394,15 @@ async function recordEncounterBattleSettlement(attackerPlayerId, body) {
 
     await applyTroopDurabilityExhaustion((sql, params) => conn.query(sql, params), defenderPlayerId);
 
+    if (allTroopInstanceIds.length > 0) {
+      const { consumeTreasuresAfterBattle } = require('./treasureUseService');
+      await consumeTreasuresAfterBattle(
+        (sql, params) => conn.query(sql, params),
+        defenderPlayerId,
+        allTroopInstanceIds,
+      );
+    }
+
     const netSilver = silverReward - silverSpent;
     if (netSilver !== 0) {
       await conn.query('UPDATE players SET silver = GREATEST(0, silver + ?) WHERE player_id = ?', [

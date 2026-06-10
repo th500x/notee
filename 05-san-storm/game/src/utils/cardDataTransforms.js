@@ -13,6 +13,7 @@ import {
   collectCharacterSkillIdsFromConfig,
 } from '@shared/utils/skillPhase1Passive';
 import { parseEchoSlots } from '@shared/utils/characterEchoCombat';
+import { getTreasureMaxUsesFromCardId } from '@shared/utils/treasureUses';
 import { applyVeteranBonusToTroopCombatStats } from '@shared/utils/troopVeteranDisplay';
 
 /**
@@ -121,6 +122,33 @@ export function toEquipCardData(card) {
     specialEffect: cfg.specialEffect,
     specialEffectDesc: cfg.specialEffectDesc,
     description: cfg.description,
+  };
+}
+
+/**
+ * 将宝物卡实例转为 EquipmentCard props（复用装备卡面）
+ */
+export function toTreasureCardData(card) {
+  const cfg = card.config || {};
+  const cardId = cfg.id || card.cardId;
+  const bonus = Array.isArray(cfg.bonus) && cfg.bonus.length > 0
+    ? cfg.bonus
+    : ['luck', 'courage', 'combat', 'command', 'intelligence', 'politics', 'charm']
+      .filter((k) => cfg[`${k}Bonus`])
+      .map((k) => ({ key: k, value: cfg[`${k}Bonus`] }));
+  const usesRemaining = card.usesRemaining ?? card.uses_remaining ?? null;
+  return {
+    id: cardId,
+    name: cfg.name || cardId,
+    rarity: cfg.rarity || card.rarity || 'common',
+    equipmentType: 'treasure',
+    series: cfg.series || null,
+    bonus,
+    specialEffect: cfg.specialEffect,
+    specialEffectDesc: cfg.specialEffectDesc,
+    description: cfg.description,
+    usesRemaining: usesRemaining == null ? null : Number(usesRemaining),
+    maxUses: getTreasureMaxUsesFromCardId(cardId),
   };
 }
 

@@ -47,10 +47,14 @@ export default function LineupEquipSlot({ slot, content, isSelected, onClick, ba
     const durability = `${remaining}/${maxBattle}`;
     const troops = `${content.currentTroops ?? cfg.maxTroops ?? '?'}`;
     const maxTroops = (cfg.maxTroops || 0) + (content.bonusMaxTroops || 0);
-    const atk = ((cfg.attack || 0) + (content.bonus_attack || 0) / 10).toFixed(0);
-    const def = ((cfg.defense || 0) + (content.bonus_defense || 0) / 10).toFixed(0);
-    const spd = (cfg.speed ?? 0) + (content.bonus_speed || 0);
-    const mov = (cfg.movement ?? 0) + (content.bonus_movement || 0);
+    const bonusAttack = Number(content.bonusAttack ?? content.bonus_attack) || 0;
+    const bonusDefense = Number(content.bonusDefense ?? content.bonus_defense) || 0;
+    const bonusSpeed = Number(content.bonusSpeed ?? content.bonus_speed) || 0;
+    const bonusMovement = Number(content.bonusMovement ?? content.bonus_movement) || 0;
+    const atk = ((cfg.attack || 0) + bonusAttack / 10).toFixed(0);
+    const def = ((cfg.defense || 0) + bonusDefense / 10).toFixed(0);
+    const spd = (cfg.speed ?? 0) + bonusSpeed;
+    const mov = (cfg.movement ?? 0) + bonusMovement;
     const range = cfg.range ?? 1;
 
     const rangeBlocks = Array.from({ length: range }, (_, i) => (
@@ -137,6 +141,53 @@ export default function LineupEquipSlot({ slot, content, isSelected, onClick, ba
             <span className="text-stone-500" style={{ fontSize: fs2 }}>无属性加成</span>
           </div>
         )}
+      </button>
+    );
+  }
+
+  /* ── 已装备宝物卡摘要（复用装备卡布局 + 次数） ── */
+  const isTreasureSlot = slot.id === 'treasure';
+  if (!isLocked && !isEmpty && isTreasureSlot) {
+    const cfg = content.config || {};
+    const name = cfg.name || content.cardId;
+    const rarity = cfg.rarity || content.rarity || 'common';
+    const bonus = (cfg.bonus && cfg.bonus.length)
+      ? Object.fromEntries(cfg.bonus.map((b) => [b.key, Number(b.value) * 10]))
+      : {};
+    const bonusLabels = { luck: '运', courage: '勇', combat: '武', command: '统', intelligence: '智', politics: '政', charm: '魅' };
+    const bonusEntries = Object.entries(bonus).filter(([, v]) => v > 0);
+    const usesRemaining = content.usesRemaining ?? content.uses_remaining;
+    const usesLabel = usesRemaining == null ? '永久' : `🚩${usesRemaining}`;
+
+    return (
+      <button
+        onClick={onClick}
+        className={`rounded-lg border-2 ${baseBorderClass} bg-stone-800/90
+                    overflow-hidden transition-all duration-200 relative text-left
+                    cursor-pointer active:scale-95 flex flex-col justify-between`}
+        style={{ width: `${slotW}px`, height: `${slotH}px`, padding: mini ? '4px' : '2px 3px' }}
+      >
+        <div className="flex items-center justify-between w-full leading-none">
+          <span className="text-white font-medium truncate" style={{ fontSize: fs1 }}>{name}</span>
+          <span className={`font-bold flex-shrink-0 ${RARITY_COLOR_MINI[rarity]}`} style={{ fontSize: fsR }}>{RARITY_LABEL[rarity]}</span>
+        </div>
+        <div className="w-full">
+          <span className={usesRemaining === 1 ? 'text-red-400' : 'text-cyan-400'} style={{ fontSize: fs2 }}>{usesLabel}</span>
+        </div>
+        {cfg.specialEffectDesc && (
+          <div className="w-full">
+            <span className="text-green-400 truncate block text-left" style={{ fontSize: fs2 }}>✨{cfg.specialEffectDesc}</span>
+          </div>
+        )}
+        {bonusEntries.length > 0 ? (
+          <div className="flex items-center gap-1 w-full flex-wrap">
+            {bonusEntries.slice(0, 2).map(([key, val]) => (
+              <span key={key} className="text-amber-400" style={{ fontSize: fs2 }}>
+                {bonusLabels[key] || key}+{(val / 10).toFixed(1)}
+              </span>
+            ))}
+          </div>
+        ) : null}
       </button>
     );
   }

@@ -8,6 +8,7 @@ const Battle = require('../models/Battle');
 const { pool } = require('../database/connection');
 const { runPlayerMilestoneCheckSafe } = require('./milestoneHookHelper');
 const { applyTroopDurabilityExhaustion } = require('./troopDurabilityService');
+const { consumeTreasuresAfterBattle } = require('./treasureUseService');
 const { checkAndApplyVeteran, normalizeInstanceIds } = require('./veteranService');
 
 /**
@@ -315,6 +316,19 @@ async function applyBattlePostEffects(playerId, { troopCasualties, moraleUpdates
     await applyTroopDurabilityExhaustion((sql, params) => pool.query(sql, params), playerId);
   } catch (err) {
     console.error('[battleService] 耐久耗尽处理失败:', err);
+  }
+
+  // 宝物次数：参战槽位各扣 1（败北亦扣）
+  if (participantIds.length > 0) {
+    try {
+      await consumeTreasuresAfterBattle(
+        (sql, params) => pool.query(sql, params),
+        playerId,
+        participantIds,
+      );
+    } catch (err) {
+      console.error('[battleService] 宝物扣次失败:', err);
+    }
   }
 
   // 老兵系统：仅检查本场参战部队是否达到晋升阈值

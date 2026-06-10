@@ -114,6 +114,7 @@ export function formatPlayerCardForProfileApi(card) {
     })(),
     battleCount: rest.battle_count,
     maxBattleCount: rest.max_battle_count,
+    usesRemaining: rest.uses_remaining,
     bonusMaxTroops: rest.bonus_max_troops,
     bonusAttack: rest.bonus_attack,
     bonusDefense: rest.bonus_defense,

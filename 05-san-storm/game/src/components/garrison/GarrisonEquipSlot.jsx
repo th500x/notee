@@ -35,10 +35,14 @@ export default function GarrisonEquipSlot({ slot, content, isSelected, onClick, 
     const remaining   = Math.max(0, maxBattle - used);
     const troops      = `${content.currentTroops ?? cfg.maxTroops ?? '?'}`;
     const maxTroops   = (cfg.maxTroops || 0) + (content.bonusMaxTroops || 0);
-    const atk         = ((cfg.attack || 0) + (content.bonus_attack || 0) / 10).toFixed(0);
-    const def         = ((cfg.defense || 0) + (content.bonus_defense || 0) / 10).toFixed(0);
-    const spd         = (cfg.speed ?? 0) + (content.bonus_speed || 0);
-    const mov         = (cfg.movement ?? 0) + (content.bonus_movement || 0);
+    const bonusAttack = Number(content.bonusAttack ?? content.bonus_attack) || 0;
+    const bonusDefense = Number(content.bonusDefense ?? content.bonus_defense) || 0;
+    const bonusSpeed = Number(content.bonusSpeed ?? content.bonus_speed) || 0;
+    const bonusMovement = Number(content.bonusMovement ?? content.bonus_movement) || 0;
+    const atk         = ((cfg.attack || 0) + bonusAttack / 10).toFixed(0);
+    const def         = ((cfg.defense || 0) + bonusDefense / 10).toFixed(0);
+    const spd         = (cfg.speed ?? 0) + bonusSpeed;
+    const mov         = (cfg.movement ?? 0) + bonusMovement;
     const range       = cfg.range ?? 1;
     const isLastUse   = remaining === 1;
     const rangeBlocks = Array.from({ length: range }, (_, i) => (
@@ -107,6 +111,34 @@ export default function GarrisonEquipSlot({ slot, content, isSelected, onClick, 
         ) : (
           <div className="w-full text-left">
             <span className="text-stone-500" style={{ fontSize: fs2 }}>无属性加成</span>
+          </div>
+        )}
+      </button>
+    );
+  }
+
+  /* ── 已装备宝物卡 ── */
+  if (!isLocked && !isEmpty && slot.id === 'treasure') {
+    const cfg = content.config || {};
+    const name = cfg.name || content.cardId;
+    const rarity = cfg.rarity || content.rarity || 'common';
+    const usesRemaining = content.usesRemaining ?? content.uses_remaining;
+    const usesLabel = usesRemaining == null ? '永久' : `🚩${usesRemaining}`;
+    return (
+      <button onClick={onClick}
+        className={`rounded-lg border-2 ${borderClass} bg-stone-800/90
+          overflow-hidden transition-all duration-200 text-left cursor-pointer active:scale-95 flex flex-col justify-between`}
+        style={{ width: `${slotW}px`, height: `${slotH}px`, padding: mini ? '4px' : '2px 3px' }}>
+        <div className="flex items-center justify-between w-full leading-none">
+          <span className="text-white font-medium truncate" style={{ fontSize: fs1 }}>{name}</span>
+          <span className={`font-bold flex-shrink-0 ${RARITY_COLOR[rarity]}`} style={{ fontSize: fsR }}>{RARITY_LABEL[rarity]}</span>
+        </div>
+        <div className="w-full">
+          <span className={usesRemaining === 1 ? 'text-red-400' : 'text-cyan-400'} style={{ fontSize: fs2 }}>{usesLabel}</span>
+        </div>
+        {cfg.specialEffectDesc && (
+          <div className="w-full">
+            <span className="text-green-400 truncate block text-left" style={{ fontSize: fs2 }}>✨{cfg.specialEffectDesc}</span>
           </div>
         )}
       </button>

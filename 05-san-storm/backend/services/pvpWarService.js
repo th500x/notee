@@ -1561,6 +1561,24 @@ async function recordAttackerCitySiegeResult(pvpWarId, attackerPlayerId, payload
         await applyTroopDurabilityExhaustion(runQ, defPid);
       }
 
+      if (defenderPlayerId && defenderParticipantIds.length > 0) {
+        const { consumeTreasuresAfterBattle } = require('./treasureUseService');
+        let garrisonRow = null;
+        if (defenderGarrisonSlot != null && war.targetCityId) {
+          const [gRows] = await conn.query(
+            'SELECT * FROM player_garrison WHERE player_id = ? AND city_id = ? AND garrison_slot = ? LIMIT 1',
+            [defenderPlayerId, war.targetCityId, defenderGarrisonSlot],
+          );
+          garrisonRow = gRows[0] || null;
+        }
+        await consumeTreasuresAfterBattle(
+          runQ,
+          defenderPlayerId,
+          defenderParticipantIds,
+          garrisonRow,
+        );
+      }
+
       // 驻守槽 is_active 重置（参战槽位若全部耗尽则置 FALSE）
       const garrisonKeys = new Map();
       for (const unit of garrisonUnits || []) {

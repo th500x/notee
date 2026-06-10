@@ -31,10 +31,10 @@ const ATTACHMENTS_JSON_SAMPLE = `{
   ]
 }`;
 
-/** 新建/重置时的默认表单：模板 ID 与 reward 附件为「已填入」的真实初值，只需改 xxxx / 改 JSON 即可 */
+/** 新建/重置时的默认表单：reward + 预填附件示例（发奖测试常用） */
 const emptyForm = () => ({
   template_id: 'san_1_texts_xxxx',
-  mail_type: 'system',
+  mail_type: 'reward',
   subject: '',
   body: '',
   attachments_json: ATTACHMENTS_JSON_SAMPLE,
@@ -42,6 +42,31 @@ const emptyForm = () => ({
   sort_order: 0,
   remark: ''
 });
+
+const handleMailTypeChange = (form, nextType) => {
+  const next = { ...form, mail_type: nextType };
+  if (nextType === 'reward' && !String(form.attachments_json || '').trim()) {
+    next.attachments_json = ATTACHMENTS_JSON_SAMPLE;
+  }
+  return next;
+};
+
+/** 保存前：textarea 字符串 → 后端要求的 plain object */
+function parseAttachmentsJsonForSave(raw, mailType) {
+  if (mailType === 'system') return null;
+  const text = String(raw ?? '').trim();
+  if (!text) return null;
+  let parsed;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    return { error: 'attachments_json 不是合法 JSON，请检查括号、引号与尾随逗号' };
+  }
+  if (parsed == null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    return { error: 'attachments_json 必须是 JSON 对象（最外层用 { }）' };
+  }
+  return { value: parsed };
+}
 
 const MailManager = () => {
   const { showToast, Toast } = useAdminToast();
@@ -109,10 +134,13 @@ const MailManager = () => {
     setLoading(true);
     setError('');
     try {
-      let attachments_json = form.attachments_json.trim() ? form.attachments_json : null;
-      if (attachments_json && form.mail_type === 'system') {
-        attachments_json = null;
+      const attResult = parseAttachmentsJsonForSave(form.attachments_json, form.mail_type);
+      if (attResult?.error) {
+        setError(attResult.error);
+        setLoading(false);
+        return;
       }
+      const attachments_json = attResult?.value ?? null;
       const payload = {
         template_id: form.template_id.trim(),
         mail_type: form.mail_type,
@@ -125,6 +153,11 @@ const MailManager = () => {
       };
       if (!payload.template_id || !payload.subject) {
         setError('请填写模板 ID 与标题');
+        setLoading(false);
+        return;
+      }
+      if (payload.mail_type === 'reward' && attachments_json == null) {
+        setError('reward 类型请填写 attachments_json，或点「填入附件示例」');
         setLoading(false);
         return;
       }
@@ -290,11 +323,16 @@ const MailManager = () => {
             <select
               className="mt-1 w-full border rounded px-3 py-2"
               value={form.mail_type}
-              onChange={(e) => setForm({ ...form, mail_type: e.target.value })}
+              onChange={(e) => setForm((prev) => handleMailTypeChange(prev, e.target.value))}
             >
-              <option value="system">system</option>
-              <option value="reward">reward</option>
+              <option value="system">system（纯文字，无附件）</option>
+              <option value="reward">reward（可领奖励）</option>
             </select>
+            {form.mail_type === 'system' && (
+              <span className="text-xs text-amber-700 mt-1 block">
+                当前为 system：下方附件 JSON 不可编辑，保存时也会忽略附件。发道具/银粮请改选 reward。
+              </span>
+            )}
           </label>
           <label className="block text-sm md:col-span-2">
             <span className="text-gray-600">标题</span>
@@ -325,14 +363,20 @@ const MailManager = () => {
               </button>
             </div>
             <textarea
-              className="w-full border rounded px-3 py-2 font-mono text-xs min-h-[140px]"
+              className={`w-full border rounded px-3 py-2 font-mono text-xs min-h-[140px] ${
+                form.mail_type === 'system'
+                  ? 'bg-gray-100 text-gray-500 cursor-not-allowed'
+                  : 'bg-white'
+              }`}
               value={form.attachments_json}
               onChange={(e) => setForm({ ...form, attachments_json: e.target.value })}
-              disabled={form.mail_type === 'system'}
+              readOnly={form.mail_type === 'system'}
+              aria-disabled={form.mail_type === 'system'}
+              placeholder={form.mail_type === 'reward' ? '{\n  "silver": 100,\n  "cards": ["san_1_treasure_4001"]\n}' : ''}
             />
             <p className="text-xs text-gray-500 leading-relaxed">
-              下方已预填完整 JSON，可直接改数值或增删字段。含义：银两 100、粮草 500；道具 <code className="bg-gray-100 px-0.5">item_yangdi_troop_legendary</code>（与主城探索点 slug 对齐）；
-              <code className="bg-gray-100 px-0.5">cards</code> 为将领/部队/装备各 1 张（势力通配符规则与事件奖励一致）。类型选 system 时保存会忽略附件。
+              reward 类型下可编辑。银两/粮草直接写字段；消耗道具放 <code className="bg-gray-100 px-0.5">items</code>（如 <code className="bg-gray-100 px-0.5">item_yangdi_troop_legendary</code>）；
+              将领/部队/装备/宝物放 <code className="bg-gray-100 px-0.5">cards</code>（如 <code className="bg-gray-100 px-0.5">san_1_treasure_4001</code>）。JSON 勿写尾随逗号。
             </p>
           </div>
           <label className="block text-sm flex flex-col gap-1 mt-1">

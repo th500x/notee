@@ -137,6 +137,32 @@ router.get('/equipment/:id', async (req, res, next) => {
 });
 
 /**
+ * GET /api/config/treasures
+ * 查询参数：season, series, rarity
+ */
+router.get('/treasures', async (req, res, next) => {
+  try {
+    const { season, series, rarity } = req.query;
+    const treasures = await configService.getTreasures({ season, series, rarity });
+    res.json({ success: true, treasures, count: treasures.length });
+  } catch (error) {
+    return next(wrap500(error, '获取宝物配置失败'));
+  }
+});
+
+router.get('/treasures/:id', async (req, res, next) => {
+  try {
+    const treasure = await configService.getTreasureById(req.params.id);
+    if (!treasure) {
+      return res.status(404).json({ success: false, message: '宝物不存在' });
+    }
+    res.json({ success: true, treasure });
+  } catch (error) {
+    return next(wrap500(error, '获取宝物配置失败'));
+  }
+});
+
+/**
  * 获取单个称号配置
  * GET /api/config/titles/:id
  */

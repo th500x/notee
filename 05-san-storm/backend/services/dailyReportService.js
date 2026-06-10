@@ -3,12 +3,24 @@
  */
 
 const { pool } = require('../database/connection');
-const statisticsDeltaService = require('./statisticsDeltaService');
 const {
   CHECKIN_CYCLE_MAX,
   INTRO_VIDEO_URL,
-  resolveCheckinReward,
 } = require('../config/dailyReportCheckin');
+const {
+  assertCheckinRewardsString,
+  assertCheckinParsedRewards,
+  summarizeCheckinGrantDetails,
+} = require('../../shared/utils/dailyReportCheckinRewards.cjs');
+const {
+  parseRewardString,
+  executeRewardsOnConnection,
+} = require('./rewardService');
+const {
+  getRewardsStringForCycleDay,
+  buildRewardsByDayPayload,
+  loadItemNamesForConfig,
+} = require('./dailyReportCheckinRewardsLoader');
 const {
   getYesterdayDigestPayload,
   mysqlDateToYmd,
@@ -33,6 +45,15 @@ function canCheckInToday(storedDateYmd, todayYmd) {
   if (!todayYmd) return false;
   if (!storedDateYmd) return true;
   return storedDateYmd < todayYmd;
+}
+
+function rewardPreviewForCycleDay(cycleDay, rewardsByDay) {
+  const row = rewardsByDay.find((r) => r.cycleDay === cycleDay);
+  return {
+    rewards: row?.rewards ?? getRewardsStringForCycleDay(cycleDay),
+    displayShort: row?.displayShort ?? '—',
+    label: row?.label ?? null,
+  };
 }
 
 async function loadPlayerCheckinRow(playerId, connection = null) {
@@ -61,16 +82,22 @@ async function getPlayerServerId(playerId, connection = null) {
 
 /**
  * @param {string} playerId
+ * @param {object[]} rewardsByDay
  */
-async function buildCheckinSection(playerId) {
+async function buildCheckinSection(playerId, rewardsByDay) {
   const pid = String(playerId || '').trim();
+  const base = {
+    cycleMax: CHECKIN_CYCLE_MAX,
+    rewardsByDay,
+  };
+
   if (!pid) {
     return {
+      ...base,
       cycleDay: 1,
-      cycleMax: CHECKIN_CYCLE_MAX,
       canCheckIn: false,
       checkedInToday: false,
-      rewardPreview: resolveCheckinReward(1),
+      rewardPreview: rewardPreviewForCycleDay(1, rewardsByDay),
       blockReason: '未登录',
     };
   }
@@ -81,11 +108,11 @@ async function buildCheckinSection(playerId) {
   } catch (e) {
     if (/Unknown column ['`]daily_report_checkin/i.test(e?.message || '')) {
       return {
+        ...base,
         cycleDay: 1,
-        cycleMax: CHECKIN_CYCLE_MAX,
         canCheckIn: false,
         checkedInToday: false,
-        rewardPreview: resolveCheckinReward(1),
+        rewardPreview: rewardPreviewForCycleDay(1, rewardsByDay),
         blockReason:
           '签到数据未就绪：请执行迁移 add-players-daily-report-checkin.sql（或 node scripts/apply-pending-local-ddl.js）',
       };
@@ -95,11 +122,11 @@ async function buildCheckinSection(playerId) {
 
   if (!row) {
     return {
+      ...base,
       cycleDay: 1,
-      cycleMax: CHECKIN_CYCLE_MAX,
       canCheckIn: false,
       checkedInToday: false,
-      rewardPreview: resolveCheckinReward(1),
+      rewardPreview: rewardPreviewForCycleDay(1, rewardsByDay),
       blockReason: '玩家不存在',
     };
   }
@@ -112,11 +139,11 @@ async function buildCheckinSection(playerId) {
   const canCheckIn = canCheckInToday(stored, todayStr);
 
   return {
+    ...base,
     cycleDay,
-    cycleMax: CHECKIN_CYCLE_MAX,
     canCheckIn,
     checkedInToday,
-    rewardPreview: resolveCheckinReward(cycleDay),
+    rewardPreview: rewardPreviewForCycleDay(cycleDay, rewardsByDay),
     blockReason: canCheckIn ? null : checkedInToday ? '今日已签到' : null,
   };
 }
@@ -130,7 +157,23 @@ async function getDailyReport(playerId) {
     return { ok: false, status: 400, error: '未登录' };
   }
 
-  const checkIn = await buildCheckinSection(pid);
+  let itemNameById = {};
+  try {
+    itemNameById = await loadItemNamesForConfig();
+  } catch (e) {
+    console.error('[dailyReport] loadItemNamesForConfig', e);
+    return { ok: false, status: 503, error: e.message || '签到奖励配置未就绪' };
+  }
+
+  let rewardsByDay;
+  try {
+    rewardsByDay = buildRewardsByDayPayload(itemNameById);
+  } catch (e) {
+    console.error('[dailyReport] buildRewardsByDayPayload', e);
+    return { ok: false, status: 503, error: e.message || '签到奖励配置无效' };
+  }
+
+  const checkIn = await buildCheckinSection(pid, rewardsByDay);
   const serverId = await getPlayerServerId(pid);
   const digest = await getYesterdayDigestPayload(serverId);
   const officials = await listSan1OfficialsSnapshot();
@@ -161,7 +204,7 @@ async function claimDailyCheckIn(playerId) {
     let row;
     try {
       const [rows] = await conn.query(
-        `SELECT daily_report_checkin_date, daily_report_checkin_cycle, silver
+        `SELECT daily_report_checkin_date, daily_report_checkin_cycle, silver, food, faction_id
          FROM players WHERE player_id = ? FOR UPDATE`,
         [pid],
       );
@@ -193,17 +236,28 @@ async function claimDailyCheckIn(playerId) {
     }
 
     const cycleDay = clampCycle(row.daily_report_checkin_cycle);
-    const reward = resolveCheckinReward(cycleDay);
-    const silverGrant = Math.max(0, Math.floor(Number(reward.silver) || 0));
-    const nextCycle = nextCycleAfterClaim(cycleDay);
-
-    if (silverGrant > 0) {
-      await conn.query('UPDATE players SET silver = silver + ? WHERE player_id = ?', [
-        silverGrant,
-        pid,
-      ]);
+    let rewardStr;
+    try {
+      rewardStr = getRewardsStringForCycleDay(cycleDay);
+      assertCheckinRewardsString(rewardStr);
+      assertCheckinParsedRewards(parseRewardString(rewardStr));
+    } catch (e) {
+      await conn.rollback();
+      console.error('[dailyReport] invalid checkin reward config', { cycleDay, error: e.message });
+      return { ok: false, status: 503, error: '签到奖励配置无效' };
     }
 
+    const factionId = row.faction_id ? String(row.faction_id) : '';
+    const grantResult = await executeRewardsOnConnection(
+      conn,
+      pid,
+      rewardStr,
+      1,
+      factionId,
+      { expandPresets: false },
+    );
+
+    const nextCycle = nextCycleAfterClaim(cycleDay);
     await conn.query(
       `UPDATE players SET daily_report_checkin_date = ?, daily_report_checkin_cycle = ?
        WHERE player_id = ?`,
@@ -212,27 +266,22 @@ async function claimDailyCheckIn(playerId) {
 
     await conn.commit();
 
-    if (silverGrant > 0) {
-      await statisticsDeltaService.recordEarned(pid, { silver: silverGrant });
-    }
+    const granted = summarizeCheckinGrantDetails(grantResult.details);
+    const itemNameById = await loadItemNamesForConfig();
+    const rewardsByDay = buildRewardsByDayPayload(itemNameById);
+    const checkIn = await buildCheckinSection(pid, rewardsByDay);
 
-    const [bal] = await pool.query('SELECT silver FROM players WHERE player_id = ?', [pid]);
+    const [bal] = await pool.query('SELECT silver, food FROM players WHERE player_id = ?', [pid]);
 
     return {
       ok: true,
       data: {
-        granted: { silver: silverGrant, food: 0 },
+        granted,
         cycleDayClaimed: cycleDay,
         nextCycleDay: nextCycle,
         silverBalance: Number(bal[0]?.silver) || 0,
-        checkIn: {
-          cycleDay: nextCycle,
-          cycleMax: CHECKIN_CYCLE_MAX,
-          canCheckIn: false,
-          checkedInToday: true,
-          rewardPreview: resolveCheckinReward(nextCycle),
-          blockReason: '今日已签到',
-        },
+        foodBalance: Number(bal[0]?.food) || 0,
+        checkIn,
       },
     };
   } catch (e) {
@@ -250,8 +299,14 @@ async function claimDailyCheckIn(playerId) {
  * @returns {Promise<boolean>}
  */
 async function hasCheckinNotifyDot(playerId) {
-  const section = await buildCheckinSection(playerId);
-  return !!section.canCheckIn;
+  try {
+    const itemNameById = await loadItemNamesForConfig();
+    const rewardsByDay = buildRewardsByDayPayload(itemNameById);
+    const section = await buildCheckinSection(playerId, rewardsByDay);
+    return !!section.canCheckIn;
+  } catch {
+    return false;
+  }
 }
 
 module.exports = {

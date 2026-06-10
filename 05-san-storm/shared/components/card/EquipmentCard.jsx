@@ -31,6 +31,7 @@ const EquipmentCard = ({
     weapon:    { icon: '⚔️', name: '武器' },
     armor:     { icon: '🛡️', name: '防具' },
     accessory: { icon: '📖', name: '辅助' },
+    treasure:  { icon: '💎', name: '宝物' },
   };
 
   // ── bonus key → 中文标签 ─────────────────────────────────────────
@@ -84,6 +85,18 @@ const EquipmentCard = ({
             </h3>
           </div>
           <div className="flex items-center gap-1">
+            {equipment.equipmentType === 'treasure' && equipment.usesRemaining != null && (
+              <div className={`px-1.5 py-0.5 rounded bg-black/25 backdrop-blur-sm text-[10px] font-medium ${
+                equipment.usesRemaining <= 1 ? 'text-red-300' : 'text-cyan-200'
+              }`}>
+                剩余{equipment.usesRemaining}{equipment.maxUses != null ? `/${equipment.maxUses}` : ''}
+              </div>
+            )}
+            {equipment.equipmentType === 'treasure' && equipment.usesRemaining == null && (
+              <div className="px-1.5 py-0.5 rounded bg-black/25 backdrop-blur-sm text-[10px] font-medium text-yellow-200">
+                永久
+              </div>
+            )}
             <div className="px-1.5 py-0.5 rounded bg-black/20 backdrop-blur-sm text-[10px] font-medium text-gray-800">
               {typeInfo.name}
             </div>
@@ -158,7 +171,10 @@ EquipmentCard.propTypes = {
     id:                PropTypes.string.isRequired,
     name:              PropTypes.string.isRequired,
     rarity:            PropTypes.oneOf(['core', 'legendary', 'epic', 'rare', 'common']).isRequired,
-    equipmentType:     PropTypes.oneOf(['weapon', 'armor', 'accessory']).isRequired,
+    equipmentType:     PropTypes.oneOf(['weapon', 'armor', 'accessory', 'treasure']).isRequired,
+    series:            PropTypes.string,
+    usesRemaining:     PropTypes.number,
+    maxUses:           PropTypes.number,
     bonus:             PropTypes.arrayOf(PropTypes.shape({ key: PropTypes.string, value: PropTypes.number })),
     specialEffect:     PropTypes.string,
     specialEffectDesc: PropTypes.string,

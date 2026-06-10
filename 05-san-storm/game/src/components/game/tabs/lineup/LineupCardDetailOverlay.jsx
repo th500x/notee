@@ -17,7 +17,8 @@ import TitleAchievementCard from '@shared/components/card/TitleAchievementCard';
 import PositionCard from '@shared/components/card/PositionCard';
 import LineupDetailCardScale from '@shared/components/card/LineupDetailCardScale.jsx';
 import LineupCardDetailPanel from '@shared/components/card/LineupCardDetailPanel.jsx';
-import { toCharCardData, toTroopCardData, toTitleCardData } from '@/utils/cardDataTransforms';
+import EquipmentCard from '@shared/components/card/EquipmentCard';
+import { toCharCardData, toTroopCardData, toTitleCardData, toTreasureCardData } from '@/utils/cardDataTransforms';
 import EquipmentSetSquares from './EquipmentSetSquares';
 
 export default function LineupCardDetailOverlay({
@@ -35,6 +36,7 @@ export default function LineupCardDetailOverlay({
   const isTroopSlot = slot.id === 'troop' || slot.id === 'troop1' || slot.id === 'troop2';
   const isTitleSlot = slot.id === 'title';
   const isAchievementSlot = slot.id === 'achievement';
+  const isTreasureSlot = slot.id === 'treasure';
   const isEquipmentSetSlot = slot.id === 'equipmentSet' && card?.cardType === 'equipmentSet';
   const isPositionSlot = slot.id === 'position';
   const isCharacterSlot = slot.id === 'character';
@@ -121,6 +123,8 @@ export default function LineupCardDetailOverlay({
               type={isAchievementSlot ? 'achievement' : 'title'}
               baseUrl={baseUrl}
             />
+          ) : isTreasureSlot ? (
+            <EquipmentCard equipment={toTreasureCardData(card)} baseUrl={baseUrl} />
           ) : isEquipmentSetSlot ? (
             <EquipmentSetSquares card={card} resolveEquipPiece={resolveEquipPiece} />
           ) : isPositionSlot ? (

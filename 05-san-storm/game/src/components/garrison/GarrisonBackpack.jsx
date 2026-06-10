@@ -11,7 +11,7 @@ import TroopCard from '@shared/components/card/TroopCard';
 import TitleAchievementCard from '@shared/components/card/TitleAchievementCard';
 import EquipmentCard from '@shared/components/card/EquipmentCard';
 import EncapsulateEquipmentModal from '@/components/game/EncapsulateEquipmentModal';
-import { toCharCardData, toTroopCardData, toEquipCardData, toTitleCardData } from '@/utils/cardDataTransforms';
+import { toCharCardData, toTroopCardData, toEquipCardData, toTitleCardData, toTreasureCardData } from '@/utils/cardDataTransforms';
 import {
   formatRarityCountWithLimit,
   isRecruitCrossSeasonLimitPool,
@@ -315,6 +315,23 @@ export default function GarrisonBackpack({
                 </div>
               </div>
             ))
+          ) : expandedType === 'treasure' ? (
+            groupByRarity(byType['treasure']).map(({ rarity, cards: rCards }) => (
+              <div key={rarity} className="mb-2 last:mb-0">
+                <div className="text-stone-500 text-[10px] mb-1 px-1">{RARITY_LABEL[rarity]}（{rCards.length}）</div>
+                <div className="flex flex-wrap gap-1.5">
+                  {rCards.map(card => (
+                    <div key={card.instanceId} style={{ width: 128, height: 96 }}
+                      className="cursor-pointer"
+                      onClick={() => setPreviewCard({ card, type: 'treasure' })}>
+                      <div style={{ transform: 'scale(0.5)', transformOrigin: 'top left', width: 256 }}>
+                        <EquipmentCard equipment={toTreasureCardData(card)} baseUrl={baseUrl} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))
           ) : (
             <div className="text-stone-500 text-xs text-center py-3">尚未实装</div>
           )}
@@ -352,6 +369,9 @@ export default function GarrisonBackpack({
             )}
             {previewCard.type === 'title' && (
               <TitleAchievementCard item={toTitleCardData(previewCard.card)} type="title" baseUrl={baseUrl} />
+            )}
+            {previewCard.type === 'treasure' && (
+              <EquipmentCard equipment={toTreasureCardData(previewCard.card)} baseUrl={baseUrl} />
             )}
           </div>
         </div>

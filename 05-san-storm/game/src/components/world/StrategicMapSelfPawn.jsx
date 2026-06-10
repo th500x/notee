@@ -4,7 +4,7 @@
  * 键鼠：单击打开操作条（与悬停可同时看到 tooltip）。**一键进军**请使用道路格双击 / 触摸双触（见 `WorldStrategicMapTile` 与 **31-6 §8**），**不在**本人叠层上绑双击，避免竖屏单点被误判为双击。
  */
 
-import { useState, useCallback, useSyncExternalStore, useRef, useEffect } from 'react';
+import { useState, useCallback, useSyncExternalStore, useRef, useEffect, useMemo } from 'react';
 import { playerAPI } from '@/services/playerApi';
 import { createRoadClientRequestId } from '@/utils/roadClientRequestId';
 import { mapDisplayEffectToAvatarClass } from '@/utils/mapDisplayEffect';
@@ -63,6 +63,7 @@ function splitMapPawnTooltipLabels(displayName) {
  * @param {number} props.cx
  * @param {number} props.cy
  * @param {string|null|undefined} props.portraitUrl
+ * @param {string|null|undefined} [props.portraitFallbackUrl] - 立绘 404 时回退（如创角头像）
  * @param {string|null|undefined} [props.displayEffect] - 成就光效枚举：金色/红色/绿色/黑色
  * @param {string} props.displayName - `[势力]角色名`，用于 tooltip
  * @param {string} props.centerGlyph - 角色名末字（图标正中）
@@ -84,6 +85,7 @@ export default function StrategicMapSelfPawn({
   cx,
   cy,
   portraitUrl,
+  portraitFallbackUrl = null,
   displayEffect = null,
   displayName,
   centerGlyph,
@@ -139,7 +141,31 @@ export default function StrategicMapSelfPawn({
     }
   }, []);
 
-  const src = resolvePortraitSrc(portraitUrl);
+  const portraitCandidates = useMemo(() => {
+    const out = [];
+    const push = (u) => {
+      const s = u != null ? String(u).trim() : '';
+      if (s && !out.includes(s)) out.push(s);
+    };
+    push(portraitUrl);
+    push(portraitFallbackUrl);
+    return out;
+  }, [portraitUrl, portraitFallbackUrl]);
+
+  const [portraitCandidateIdx, setPortraitCandidateIdx] = useState(0);
+
+  useEffect(() => {
+    setPortraitCandidateIdx(0);
+  }, [portraitCandidates]);
+
+  const src =
+    portraitCandidateIdx < portraitCandidates.length
+      ? resolvePortraitSrc(portraitCandidates[portraitCandidateIdx])
+      : null;
+
+  const onPortraitError = useCallback(() => {
+    setPortraitCandidateIdx((i) => i + 1);
+  }, []);
   const { factionLine, characterLine } = splitMapPawnTooltipLabels(displayName);
   const g = (centerGlyph && String(centerGlyph).trim()) || '';
   const seq = Array.from(g);
@@ -521,7 +547,13 @@ export default function StrategicMapSelfPawn({
             <div className="ws-map-self-pawn__avatar-wrap">
               <div className={avatarClassName}>
                 {src ? (
-                  <img className="ws-map-self-pawn__img" src={src} alt="" draggable={false} />
+                  <img
+                    className="ws-map-self-pawn__img"
+                    src={src}
+                    alt=""
+                    draggable={false}
+                    onError={onPortraitError}
+                  />
                 ) : (
                   <div className="ws-map-self-pawn__img ws-map-self-pawn__img--fallback" />
                 )}
@@ -552,7 +584,15 @@ export default function StrategicMapSelfPawn({
                       title={ptitle}
                     >
                       {psrc ? (
-                        <img className="ws-map-self-pawn__stack-img" src={psrc} alt="" draggable={false} />
+                        <img
+                          className="ws-map-self-pawn__stack-img"
+                          src={psrc}
+                          alt=""
+                          draggable={false}
+                          onError={(e) => {
+                            e.currentTarget.style.display = 'none';
+                          }}
+                        />
                       ) : (
                         <div className="ws-map-self-pawn__stack-img ws-map-self-pawn__stack-img--fallback" />
                       )}

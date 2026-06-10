@@ -141,6 +141,40 @@ export function fmtPhase5FlatDamage(def, loss) {
   return `  → ${label(def)} 追加固伤 ${loss}（余 ${def.currentTroops}/${def.maxTroops}）`;
 }
 
+/** 阶段5·减益段 specialEffect 单段键值 → 战报/飘字可读文案 */
+function formatSingleDebuffSegment(key, val) {
+  const k = String(key || '').trim().toLowerCase();
+  const v = String(val || '').trim();
+  if (k === 'movementbattle') {
+    if (v.startsWith('=')) {
+      const bits = v.slice(1).split(':');
+      const mv = bits[0] || '1';
+      const rounds = bits[1] || '1';
+      return `下${rounds}回合移动力固定为${mv}`;
+    }
+    if (v.startsWith('+') || v.startsWith('-')) {
+      return `移动力${v}`;
+    }
+  }
+  if (k === 'knockback') return `击退${v || '1'}格`;
+  if (k === 'pull') return `拉近${v || '1'}格`;
+  if (k === 'silence') return `沉默${v || '1'}回合`;
+  if (k === 'chaos') return `混乱${v || '1'}回合`;
+  if (k === 'chaosorsilence') return `混乱或沉默${v || '1'}回合`;
+  if (k === 'shield') return `护盾${v || '1'}层`;
+  if (k === 'shieldally') return `友军护盾${v || '1'}层`;
+  if (k === 'stealth') return `潜行${v || '1'}回合`;
+  if (k === 'nextturndamage') return `下回合伤害×${v || '1'}`;
+  if (k === 'physicalreduction') return v.endsWith('%') ? `物理减伤${v}` : `物理减伤${v}%`;
+  if (k === 'strategyreduction') return v.endsWith('%') ? `谋略减伤${v}` : `谋略减伤${v}%`;
+  if (k === 'strategyvulnerable') return v.endsWith('%') ? `谋略易伤${v}` : `谋略易伤${v}%`;
+  if (k === 'immunestrategy') return '免疫谋略';
+  if (k === 'reflect') return `反伤×${v || '1'}`;
+  if (k === 'stun') return `眩晕${v || '1'}回合`;
+  if (k === 'burn') return `灼烧${v}`;
+  return `${key}:${val}`;
+}
+
 /** 阶段5·减益段 specialEffect 原始键值 → 战报可读文案 */
 export function formatPhase5DebuffLabel(raw) {
   if (raw == null || String(raw).trim() === '') return '';
@@ -151,20 +185,9 @@ export function formatPhase5DebuffLabel(raw) {
       if (!s) return '';
       const colon = s.indexOf(':');
       if (colon <= 0) return s;
-      const key = s.slice(0, colon).trim().toLowerCase();
+      const key = s.slice(0, colon).trim();
       const val = s.slice(colon + 1).trim();
-      if (key === 'movementbattle') {
-        if (val.startsWith('=')) {
-          const bits = val.slice(1).split(':');
-          const mv = bits[0] || '1';
-          const rounds = bits[1] || '1';
-          return `下${rounds}回合移动力固定为${mv}`;
-        }
-        if (val.startsWith('+') || val.startsWith('-')) {
-          return `移动力${val}`;
-        }
-      }
-      return s;
+      return formatSingleDebuffSegment(key, val);
     })
     .filter(Boolean)
     .join('；');
@@ -212,7 +235,7 @@ export function fmtRoundStart(roundNum) {
 
 /** 部队行动 */
 export function fmtTurnStart(troop) {
-  const fIcon = troop.faction === 'player' ? '🔵' : '🔴';
+  const fIcon = troop.faction === 'player' ? '🔵' : troop.faction === 'enemy' ? '🔴' : '🟢';
   return `${fIcon} ${label(troop)} 行动（速度${troop.speed || 4}）`;
 }
 

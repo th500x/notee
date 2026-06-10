@@ -4,7 +4,7 @@
  *
  * 战力 / 粮草公式见：
  *   - `17-1-COMBAT_SYSTEM.md`：单兵攻击力 / 防御力 / 综合战力
- *   - `22-1-TROOP_SYSTEM.md` + `26-RESOURCE_SYSTEM.md`：出征 / 恢复消耗
+ *   - `22-1-TROOP_SYSTEM.md` + `27-1-RESOURCE_SYSTEM.md`：出征 / 恢复消耗
  *
  * 与驻地编组的 `GarrisonStatsPanel` **不复用** —— 那一份按驻地槽位字段拼装，统计粒度不同，
  * 按"相异不混用"原则各自维护。

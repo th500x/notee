@@ -11,6 +11,7 @@
 const { pool } = require('../database/connection');
 const aiKingConfigService = require('./aiKingConfigService');
 const factionPolicyService = require('./factionPolicyService');
+const { buildBattleAllyNpcUnit } = require('../../shared/utils/battleAllyNpcUnit.cjs');
 const { pathToFileURL } = require('url');
 const path = require('path');
 
@@ -85,38 +86,12 @@ async function buildImperialMarchSiegeAlly(factionId) {
   if (!troop) troop = sm.pickRandomTroopByRarity(troops, 'legendary');
   if (!troop) return null;
 
-  const displayName = king.characterName || king.character_name || kingChar.character_name;
-  return {
+  return buildBattleAllyNpcUnit({
+    characterRow: kingChar,
+    troopRow: troop,
     index: 9000,
-    troopId: troop.troop_id,
-    troopName: troop.troop_name,
-    rarity: troop.rarity,
-    maxTroops: troop.max_troops,
-    currentTroops: troop.max_troops,
-    attack: troop.attack,
-    defense: troop.defense,
-    speed: troop.speed,
-    movement: troop.movement,
-    attackRange: troop.attack_range,
-    troopType: troop.troop_type,
-    weaponType: troop.weapon_type,
-    alive: true,
-    imperialMarch: true,
-    character: {
-      characterId: kingChar.character_id,
-      name: displayName,
-      courtesyName: kingChar.courtesy_name || displayName,
-      rarity: kingChar.rarity,
-      luck: kingChar.luck,
-      courage: kingChar.courage,
-      combat: kingChar.combat,
-      command: kingChar.command,
-      intelligence: kingChar.intelligence,
-      politics: kingChar.politics,
-      charm: kingChar.charm,
-      traitModifier: kingChar.trait_modifier || 0,
-    },
-  };
+    sourceFlags: { imperialMarch: true },
+  });
 }
 
 /**

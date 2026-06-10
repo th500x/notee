@@ -49,6 +49,7 @@ const scripts = [
   { name: '州郡城市（zhou/jun/cities 种子 JSON）', file: 'import-city-geo-data.js' },
   { name: '技能和羁绊', file: 'import-skills-bonds.js' },
   { name: '装备', file: 'import-equipment-data.js' },
+  { name: '宝物', file: 'import-treasure-data.js' },
   { name: '事件', file: 'import-events-data.js' },
   { name: '战役卡片', file: 'import-campaigns-data.js' },
   { name: '道具', file: 'import-items-data.js' },
