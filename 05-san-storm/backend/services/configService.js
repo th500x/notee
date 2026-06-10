@@ -544,10 +544,12 @@ function formatTreasureData(row) {
   };
 
   const bonus = [];
+  const attributeBonus = {};
   for (const [field, key] of Object.entries(bonusKeyMap)) {
     const val = row[field];
     if (val && val !== 0) {
       bonus.push({ key, value: val / 10 });
+      attributeBonus[key] = val;
     }
   }
 
@@ -570,6 +572,7 @@ function formatTreasureData(row) {
     series: row.series || null,
     rarity,
     bonus,
+    attributeBonus,
     specialEffect,
     specialEffectDesc: row.special_effect_desc || null,
     description: row.description || '',

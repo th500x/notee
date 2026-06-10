@@ -128,7 +128,12 @@ export default function GarrisonLineup({
     if (!currentGarrison) return null;
     const instanceId = currentGarrison[fieldName];
     if (!instanceId) return null;
-    return cards.find(c => c.instanceId === instanceId) || null;
+    const card = cards.find(c => c.instanceId === instanceId) || null;
+    if (!card) return null;
+    if (card.cardType === 'treasure' && card.usesRemaining != null && Number(card.usesRemaining) <= 0) {
+      return null;
+    }
+    return card;
   }, [currentGarrison, cards]);
 
   /* ── 保存驻守配置 ── */
@@ -464,9 +469,9 @@ export default function GarrisonLineup({
                   ) : detailCard.card.cardType === 'achievement' ? (
                     <TitleAchievementCard item={toTitleCardData(detailCard.card)} type="achievement" baseUrl={baseUrl} />
                   ) : detailCard.card.cardType === 'treasure' ? (
-                    <EquipmentCard equipment={toTreasureCardData(detailCard.card)} baseUrl={baseUrl} />
+                    <EquipmentCard equipment={toTreasureCardData(detailCard.card)} baseUrl={baseUrl} disableHoverScale />
                   ) : detailCard.card.cardType === 'equipment' ? (
-                    <EquipmentCard equipment={toEquipCardData(detailCard.card)} baseUrl={baseUrl} />
+                    <EquipmentCard equipment={toEquipCardData(detailCard.card)} baseUrl={baseUrl} disableHoverScale />
                   ) : (
                     <div className="text-stone-400 text-sm text-center py-8">卡牌预览</div>
                   )}

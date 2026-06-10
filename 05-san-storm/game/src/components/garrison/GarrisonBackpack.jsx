@@ -365,13 +365,13 @@ export default function GarrisonBackpack({
               <TroopCard troop={toTroopCardData(previewCard.card)} skillsMap={skillsMap} showDetails={true} baseUrl={baseUrl} />
             )}
             {previewCard.type === 'equipment' && (
-              <EquipmentCard equipment={toEquipCardData(previewCard.card)} baseUrl={baseUrl} />
+              <EquipmentCard equipment={toEquipCardData(previewCard.card)} baseUrl={baseUrl} disableHoverScale />
             )}
             {previewCard.type === 'title' && (
               <TitleAchievementCard item={toTitleCardData(previewCard.card)} type="title" baseUrl={baseUrl} />
             )}
             {previewCard.type === 'treasure' && (
-              <EquipmentCard equipment={toTreasureCardData(previewCard.card)} baseUrl={baseUrl} />
+              <EquipmentCard equipment={toTreasureCardData(previewCard.card)} baseUrl={baseUrl} disableHoverScale />
             )}
           </div>
         </div>

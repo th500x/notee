@@ -102,6 +102,14 @@ async function getPlayerProfile(playerId) {
   }
 
   await playerCardLineupService.repairLineupCharacterCards(pool, playerId);
+  const {
+    purgeZeroUsesTreasureCards,
+    clearDepletedOrMissingTreasuresFromGarrison,
+  } = require('./treasureUseService');
+  const q = (sql, params) => pool.query(sql, params);
+  await purgeZeroUsesTreasureCards(q, playerId);
+  await clearDepletedOrMissingTreasuresFromGarrison(q, playerId);
+  await playerCardLineupService.syncTroopEffectBonusesForPlayer(pool, playerId);
 
   const [cards] = await pool.query(
     `
@@ -525,34 +533,15 @@ async function getPlayerProfile(playerId) {
   );
   const latestResources = resourceRows[0] || {};
 
-  const attributeBonusBySlot = { player: {}, character1: {}, character2: {} };
-  for (const card of enrichedCards) {
-    if (!card.is_equipped || !card.config) continue;
-    const ab = card.config.attributeBonus;
-    if (!ab || typeof ab !== 'object') continue;
-    const slot = card.equipped_by || 'player';
-    if (!attributeBonusBySlot[slot]) attributeBonusBySlot[slot] = {};
-    Object.entries(ab).forEach(([key, val]) => {
-      attributeBonusBySlot[slot][key] = (attributeBonusBySlot[slot][key] || 0) + (Number(val) || 0);
-    });
-  }
-
+  const garrisonBuildService = require('./garrisonBuildService');
+  const attributeBonusBySlot = await garrisonBuildService.getMainLineupAttributeBonusBySlot(pool, playerId);
   const garrisons = await garrisonService.getPlayerGarrisons(playerId);
   for (const g of garrisons) {
+    const byChar = await garrisonBuildService.getGarrisonSlotAttributeBonusByChar(pool, g);
     for (const charKey of ['char1', 'char2']) {
-      const effectFields = [`${charKey}_title`, `${charKey}_achievement`, `${charKey}_treasure`];
-      for (const field of effectFields) {
-        const instanceId = g[field];
-        if (!instanceId) continue;
-        const card = enrichedCards.find((c) => c.instance_id === instanceId);
-        if (!card?.config?.attributeBonus) continue;
-        const citySeg = String(g.city_id || '').replace(/[^a-zA-Z0-9_]/g, '_');
-        const slotKey = `garrison_${citySeg}_${g.garrison_slot}_${charKey}`;
-        if (!attributeBonusBySlot[slotKey]) attributeBonusBySlot[slotKey] = {};
-        Object.entries(card.config.attributeBonus).forEach(([key, val]) => {
-          attributeBonusBySlot[slotKey][key] = (attributeBonusBySlot[slotKey][key] || 0) + (Number(val) || 0);
-        });
-      }
+      const citySeg = String(g.city_id || '').replace(/[^a-zA-Z0-9_]/g, '_');
+      const slotKey = `garrison_${citySeg}_${g.garrison_slot}_${charKey}`;
+      attributeBonusBySlot[slotKey] = byChar[charKey] || {};
     }
   }
 

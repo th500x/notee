@@ -17,6 +17,7 @@ export const dailyReportM2ReleaseNotes = {
     '真三日报/扩充卡池✅',
 	'基础BGM/将领立绘✅',
     '赛季继承✅',
+	'宝物系统✅',
   ],
 };
 

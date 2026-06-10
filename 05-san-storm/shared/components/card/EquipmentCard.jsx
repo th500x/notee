@@ -16,6 +16,7 @@ const EquipmentCard = ({
   equipment,
   baseUrl = '',
   onSelect,
+  disableHoverScale = false,
 }) => {
   // ── 稀有度配色（与 TroopCard 完全一致）────────────────────────────
   const rarityColors = {
@@ -66,7 +67,7 @@ const EquipmentCard = ({
           border-2 ${rarity.border}
           shadow-xl ${rarity.glow}
           transition-all duration-300
-          hover:scale-105 hover:shadow-2xl
+          ${disableHoverScale ? '' : 'hover:scale-105 hover:shadow-2xl'}
         `}
         style={{
           backgroundImage: `url(${bgUrl})`,
@@ -180,8 +181,9 @@ EquipmentCard.propTypes = {
     specialEffectDesc: PropTypes.string,
     description:       PropTypes.string,
   }).isRequired,
-  baseUrl:  PropTypes.string,
-  onSelect: PropTypes.func,
+  baseUrl:             PropTypes.string,
+  onSelect:            PropTypes.func,
+  disableHoverScale:   PropTypes.bool,
 };
 
 export default EquipmentCard;

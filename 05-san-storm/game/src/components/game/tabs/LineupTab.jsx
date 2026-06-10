@@ -133,8 +133,11 @@ export default function LineupTab({ onClose, onOpenAttributeReroll }) {
   const playerAchievements = achievementCards.filter(
     (c) => c.equippedBy === 'player' && c.isEquipped && c.equippedSlot === 'achievement',
   );
+  const isActiveTreasure = (c) =>
+    c.usesRemaining == null || Number(c.usesRemaining) > 0;
+
   const playerTreasures = treasureCards.filter(
-    (c) => c.equippedBy === 'player' && c.isEquipped && c.equippedSlot === 'treasure',
+    (c) => c.equippedBy === 'player' && c.isEquipped && c.equippedSlot === 'treasure' && isActiveTreasure(c),
   );
 
   const char1Troops = troopCards.filter((c) => c.equippedBy === 'character1' && c.isEquipped && (c.equippedSlot === 'troop1' || c.equippedSlot === 'troop2'));
@@ -143,7 +146,7 @@ export default function LineupTab({ onClose, onOpenAttributeReroll }) {
     (c) => c.equippedBy === 'character1' && c.isEquipped && c.equippedSlot === 'achievement',
   );
   const char1Treasures = treasureCards.filter(
-    (c) => c.equippedBy === 'character1' && c.isEquipped && c.equippedSlot === 'treasure',
+    (c) => c.equippedBy === 'character1' && c.isEquipped && c.equippedSlot === 'treasure' && isActiveTreasure(c),
   );
   const char1Character = characterCards.find((c) => c.equippedBy === 'character1' && c.isEquipped && c.equippedSlot === 'character');
 
@@ -153,7 +156,7 @@ export default function LineupTab({ onClose, onOpenAttributeReroll }) {
     (c) => c.equippedBy === 'character2' && c.isEquipped && c.equippedSlot === 'achievement',
   );
   const char2Treasures = treasureCards.filter(
-    (c) => c.equippedBy === 'character2' && c.isEquipped && c.equippedSlot === 'treasure',
+    (c) => c.equippedBy === 'character2' && c.isEquipped && c.equippedSlot === 'treasure' && isActiveTreasure(c),
   );
   const char2Character = characterCards.find((c) => c.equippedBy === 'character2' && c.isEquipped && c.equippedSlot === 'character');
 

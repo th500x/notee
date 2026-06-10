@@ -124,7 +124,7 @@ export default function LineupCardDetailOverlay({
               baseUrl={baseUrl}
             />
           ) : isTreasureSlot ? (
-            <EquipmentCard equipment={toTreasureCardData(card)} baseUrl={baseUrl} />
+            <EquipmentCard equipment={toTreasureCardData(card)} baseUrl={baseUrl} disableHoverScale />
           ) : isEquipmentSetSlot ? (
             <EquipmentSetSquares card={card} resolveEquipPiece={resolveEquipPiece} />
           ) : isPositionSlot ? (

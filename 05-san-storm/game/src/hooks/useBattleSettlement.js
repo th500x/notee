@@ -14,6 +14,7 @@ import {
 import { battleAPI } from '@/services/battleApi';
 import { clearInflightBattleTroopSnapshot } from '@/utils/inflightBattleTroopSnapshot';
 import { buildMoralePersistUpdatesFromBattleTroops } from '@/battle/commanderMorale';
+import { usePlayerRefresh } from '@/contexts/PlayerContext';
 
 const STAGE_READY = 'ready';
 
@@ -67,6 +68,7 @@ export function useBattleSettlement({
   onDeferredAwayBattleEnd = null,
   onBattleEnd,
 }) {
+  const refreshPlayer = usePlayerRefresh();
   const endedRef = useRef(false);
   const onBattleEndRef = useRef(onBattleEnd);
   onBattleEndRef.current = onBattleEnd;
@@ -228,6 +230,9 @@ export function useBattleSettlement({
             veteranPromotions = saveRes.veteranPromotions || [];
             banditBadgeGranted = saveRes.banditBadgeGranted || null;
             banditBadgeError = saveRes.banditBadgeError || null;
+            if (!recordOnly && playerId && typeof refreshPlayer === 'function') {
+              void refreshPlayer({ silent: true });
+            }
             break;
           }
           if (attempt < 2) await new Promise((r) => setTimeout(r, 180));

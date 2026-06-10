@@ -127,6 +127,14 @@ async function equipCard(playerId, body) {
     }
   }
 
+  if (
+    cardToEquip.card_type === 'treasure' &&
+    cardToEquip.uses_remaining != null &&
+    Number(cardToEquip.uses_remaining) <= 0
+  ) {
+    return { ok: false, status: 400, error: '宝物使用次数已耗尽，无法装备' };
+  }
+
   if (cardToEquip.card_type === 'character') {
     if (!['character1', 'character2'].includes(equippedBy) || equippedSlot !== 'character') {
       return { ok: false, status: 400, error: '将领卡只能装备在将领1 / 将领2 的将领槽' };
@@ -290,6 +298,58 @@ async function unequipCard(playerId, body) {
   return { ok: true };
 }
 
+/** 按槽位重算部队 bonus_*（先清零再叠当前仍有效的称号/成就/宝物） */
+async function recalculateTroopBonusesForEquippedBy(poolConn, playerId, equippedBy) {
+  if (!playerId || !equippedBy) return;
+  await poolConn.query(
+    `UPDATE player_cards SET bonus_max_troops=0, bonus_attack=0, bonus_defense=0, bonus_speed=0, bonus_movement=0
+     WHERE player_id = ? AND equipped_by = ? AND card_type = 'troop' AND is_equipped = TRUE`,
+    [playerId, equippedBy],
+  );
+  const [remainingEffects] = await poolConn.query(
+    `SELECT card_type, card_id, uses_remaining FROM player_cards
+     WHERE player_id = ? AND equipped_by = ? AND is_equipped = TRUE
+       AND card_type IN (${EFFECT_CARD_TYPES.map(() => '?').join(',')})`,
+    [playerId, equippedBy, ...EFFECT_CARD_TYPES],
+  );
+  for (const ec of remainingEffects) {
+    if (ec.card_type === 'treasure' && ec.uses_remaining != null && Number(ec.uses_remaining) <= 0) {
+      continue;
+    }
+    await applyCardBonusToTroops(poolConn, playerId, equippedBy, ec.card_type, ec.card_id);
+  }
+  const [troops] = await poolConn.query(
+    `SELECT pc.instance_id, pc.current_troops, pc.bonus_max_troops, ct.max_troops AS cfg_max
+     FROM player_cards pc
+     JOIN config_troops ct ON pc.card_id = ct.troop_id
+     WHERE pc.player_id = ? AND pc.equipped_by = ? AND pc.card_type = 'troop' AND pc.is_equipped = TRUE`,
+    [playerId, equippedBy],
+  );
+  for (const t of troops) {
+    const maxTroops = (t.cfg_max || 0) + (t.bonus_max_troops || 0);
+    const cur = t.current_troops ?? maxTroops;
+    if (cur > maxTroops) {
+      await poolConn.query(
+        'UPDATE player_cards SET current_troops = ? WHERE instance_id = ? AND player_id = ?',
+        [maxTroops, t.instance_id, playerId],
+      );
+    }
+  }
+}
+
+/** 上阵编组三槽 + 全部驻地行：同步部队 special_effect → bonus_*（与 equip/unequip 同口径） */
+async function syncTroopEffectBonusesForPlayer(poolConn, playerId) {
+  if (!playerId) return;
+  for (const slot of ['player', 'character1', 'character2']) {
+    await recalculateTroopBonusesForEquippedBy(poolConn, playerId, slot);
+  }
+  const garrisonService = require('./garrisonService');
+  await garrisonService.refreshAllGarrisonTroopEffectBonuses(
+    (sql, params) => poolConn.query(sql, params),
+    playerId,
+  );
+}
+
 module.exports = {
   EFFECT_CARD_TYPES,
   repairLineupCharacterCards,
@@ -298,4 +358,6 @@ module.exports = {
   parseSpecialEffect: parseCardTroopSpecialEffect,
   equipCard,
   unequipCard,
+  recalculateTroopBonusesForEquippedBy,
+  syncTroopEffectBonusesForPlayer,
 };

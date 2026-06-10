@@ -116,7 +116,7 @@ function applyCharBonusToCharData(charData, bonus) {
 async function getMainLineupAttributeBonusBySlot(conn, playerId) {
   const out = { player: {}, character1: {}, character2: {} };
   const [equipped] = await conn.query(
-    `SELECT instance_id, card_type, card_id, equipped_by, equipment_set_data
+    `SELECT instance_id, card_type, card_id, equipped_by, equipment_set_data, uses_remaining
      FROM player_cards
      WHERE player_id = ? AND is_equipped = TRUE
        AND card_type IN ('title','achievement','treasure','equipmentSet')`,
@@ -164,7 +164,10 @@ async function getMainLineupAttributeBonusBySlot(conn, playerId) {
     if (!out[slot]) out[slot] = {};
     if (card.card_type === 'title')       addAttrBonus(out[slot], titleMap[card.card_id] || {});
     if (card.card_type === 'achievement') addAttrBonus(out[slot], achMap[card.card_id] || {});
-    if (card.card_type === 'treasure')    addAttrBonus(out[slot], treasureMap[card.card_id] || {});
+    if (card.card_type === 'treasure') {
+      if (card.uses_remaining != null && Number(card.uses_remaining) <= 0) continue;
+      addAttrBonus(out[slot], treasureMap[card.card_id] || {});
+    }
     if (card.card_type === 'equipmentSet') {
       const d = equipmentSetService.parseSetData(card.equipment_set_data);
       const slotPieceIds = [
@@ -201,7 +204,7 @@ async function getGarrisonSlotAttributeBonusByChar(conn, garrisonSlot) {
 
   const ph = effectIds.map(() => '?').join(',');
   const [cards] = await conn.query(
-    `SELECT instance_id, card_type, card_id, equipment_set_data
+    `SELECT instance_id, card_type, card_id, equipment_set_data, uses_remaining
      FROM player_cards
      WHERE player_id = ? AND instance_id IN (${ph})`,
     [garrisonSlot.player_id, ...effectIds],
@@ -249,6 +252,7 @@ async function getGarrisonSlotAttributeBonusByChar(conn, garrisonSlot) {
     if (!instanceId) return;
     const c = byInstance[instanceId];
     if (!c) return;
+    if (c.card_type === 'treasure' && c.uses_remaining != null && Number(c.uses_remaining) <= 0) return;
     if (c.card_type === 'title')       addAttrBonus(out[charKey], titleMap[c.card_id] || {});
     if (c.card_type === 'achievement') addAttrBonus(out[charKey], achMap[c.card_id] || {});
     if (c.card_type === 'treasure')    addAttrBonus(out[charKey], treasureMap[c.card_id] || {});

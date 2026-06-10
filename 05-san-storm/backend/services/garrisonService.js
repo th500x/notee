@@ -460,6 +460,80 @@ async function clearGarrison(playerId, cityId, slotNumber) {
 }
 
 /**
+ * 重算玩家全部驻地行的部队 bonus_*（宝物/称号卸下或耗尽后与上阵编组口径一致）
+ * @param {Function} queryFn - (sql, params) => pool.query / conn.query
+ * @param {string} playerId
+ */
+async function refreshAllGarrisonTroopEffectBonuses(queryFn, playerId) {
+  if (!playerId) return;
+  const [garrisonRows] = await queryFn(
+    'SELECT * FROM player_garrison WHERE player_id = ?',
+    [playerId],
+  );
+  if (!Array.isArray(garrisonRows)) return;
+  for (const g of garrisonRows) {
+    for (const charKey of ['char1', 'char2']) {
+      const troopIds = [g[`${charKey}_troop1`], g[`${charKey}_troop2`]].filter(Boolean);
+      if (troopIds.length === 0) continue;
+
+      const ph = troopIds.map(() => '?').join(',');
+      await queryFn(
+        `UPDATE player_cards SET bonus_max_troops=0, bonus_attack=0, bonus_defense=0, bonus_speed=0, bonus_movement=0
+         WHERE instance_id IN (${ph}) AND player_id = ?`,
+        [...troopIds, playerId],
+      );
+
+      const effectInstanceIds = [
+        g[`${charKey}_title`],
+        g[`${charKey}_achievement`],
+        g[`${charKey}_treasure`],
+      ].filter(Boolean);
+
+      for (const instanceId of effectInstanceIds) {
+        const [cardRows] = await queryFn(
+          'SELECT card_type, card_id, uses_remaining FROM player_cards WHERE instance_id = ? AND player_id = ?',
+          [instanceId, playerId],
+        );
+        const cardRow = Array.isArray(cardRows) ? cardRows[0] : cardRows;
+        if (!cardRow) continue;
+        if (
+          cardRow.card_type === 'treasure'
+          && cardRow.uses_remaining != null
+          && Number(cardRow.uses_remaining) <= 0
+        ) {
+          continue;
+        }
+        const bonus = await garrisonBuildService.getCardSpecialEffect(cardRow.card_type, cardRow.card_id);
+        if (Object.keys(bonus).length === 0) continue;
+        const sets = Object.entries(bonus).map(([field, val]) => `${field} = ${field} + ${val}`).join(', ');
+        await queryFn(
+          `UPDATE player_cards SET ${sets} WHERE instance_id IN (${ph}) AND player_id = ?`,
+          [...troopIds, playerId],
+        );
+      }
+
+      const [troopList] = await queryFn(
+        `SELECT pc.instance_id, pc.current_troops, pc.bonus_max_troops, ct.max_troops AS cfg_max
+         FROM player_cards pc
+         JOIN config_troops ct ON pc.card_id = ct.troop_id
+         WHERE pc.instance_id IN (${ph}) AND pc.player_id = ?`,
+        [...troopIds, playerId],
+      );
+      for (const t of troopList || []) {
+        const maxTroops = (t.cfg_max || 0) + (t.bonus_max_troops || 0);
+        const cur = t.current_troops ?? maxTroops;
+        if (cur > maxTroops) {
+          await queryFn(
+            'UPDATE player_cards SET current_troops = ? WHERE instance_id = ? AND player_id = ?',
+            [maxTroops, t.instance_id, playerId],
+          );
+        }
+      }
+    }
+  }
+}
+
+/**
  * 鍩庢睜鏄撲富锛氬嵏闄ら潪鑳滄柟鍦ㄦ湰鍩庣殑鏁寸粍椹诲畧锛堜笌 clearGarrison 涓€鑷达紝閬垮厤 city_id 宸叉竻浣嗗崱鐗屼粛鍗犱綅瀵艰嚧 UI/缁熻鑴忔暟鎹級
  * @param {import('mysql2').Pool|import('mysql2').PoolConnection} conn
  * @param {string} cityId
@@ -655,6 +729,7 @@ module.exports = {
   deductMainLineupBattleFoodDeployCostOnConn,
   MIN_GARRISON_TOTAL_TROOPS,
   MIN_MAIN_LINEUP_TROOPS_BATTLE,
+  refreshAllGarrisonTroopEffectBonuses,
   // ── 防守单位构建（再导出自 garrisonBuildService）──
   MIN_TROOPS_TO_DEFEND:                              garrisonBuildService.MIN_TROOPS_TO_DEFEND,
   getMainLineupAttributeBonusBySlot:                 garrisonBuildService.getMainLineupAttributeBonusBySlot,
