@@ -1,5 +1,9 @@
 /**
  * 玩家路由 · 角色创建与创角辅助（O3-B1 自 players.js 拆分）
+ *
+ * 导出两套路由：
+ *   - globalRouter：路径不含 :playerId（须在 index 里于 /:playerId 门禁之前挂载）
+ *   - playerRouter：/:playerId/... 创角接口
  */
 const express = require('express');
 const Player = require('../../models/Player');
@@ -13,9 +17,9 @@ const {
 const creationSchemas = require('../../middleware/validationSchemas/playersCreation');
 const { withRoute } = require('../../utils/routeAdapter');
 
-const router = express.Router();
+const globalRouter = express.Router();
 
-router.post(
+globalRouter.post(
   '/generate-attributes',
   validateBody(creationSchemas.generateAttributesBody),
   withRoute('生成属性方案失败', async (req, res) => {
@@ -25,7 +29,7 @@ router.post(
   }),
 );
 
-router.post(
+globalRouter.post(
   '/validate-name',
   validateBody(creationSchemas.validateNameBody),
   withRoute('验证角色名失败', async (req, res) => {
@@ -42,7 +46,7 @@ router.post(
   }),
 );
 
-router.post(
+globalRouter.post(
   '/create',
   validateBody(creationSchemas.createCharacterBody),
   withRoute('创建角色失败', async (req, res) => {
@@ -71,13 +75,15 @@ router.post(
   }),
 );
 
-router.get('/:playerId/factions/available', withRoute('获取可用势力失败', async (req, res) => {
+const playerRouter = express.Router();
+
+playerRouter.get('/:playerId/factions/available', withRoute('获取可用势力失败', async (req, res) => {
   const result = await playerCreationService.getAvailableFactions(req.params.playerId);
   if (result.notFound) return res.status(404).json({ success: false, error: '账号不存在' });
   res.json({ success: true, data: { factions: result.factions } });
 }));
 
-router.get(
+playerRouter.get(
   '/:playerId/troops/initial',
   validateQuery(creationSchemas.initialTroopsQuery),
   withRoute('获取初始部队选项失败', async (req, res) => {
@@ -87,12 +93,12 @@ router.get(
   }),
 );
 
-router.get('/:playerId/creation-progress', withRoute('获取角色创建进度失败', async (req, res) => {
+playerRouter.get('/:playerId/creation-progress', withRoute('获取角色创建进度失败', async (req, res) => {
   const progress = await playerCreationService.getCreationProgress(req.params.playerId);
   res.json({ success: true, data: progress });
 }));
 
-router.post(
+playerRouter.post(
   '/:playerId/creation-progress',
   validateBodyIsPlainObject(),
   withRoute('保存角色创建进度失败', async (req, res) => {
@@ -101,7 +107,7 @@ router.post(
   }),
 );
 
-router.post(
+playerRouter.post(
   '/:playerId/generate-attributes-batch',
   validateBody(creationSchemas.generateAttributesBody),
   withRoute('生成属性批次失败', async (req, res) => {
@@ -115,7 +121,7 @@ router.post(
   }),
 );
 
-router.post(
+playerRouter.post(
   '/:playerId/select-option',
   validateBody(creationSchemas.selectOptionBody),
   withRoute('选择属性方案失败', async (req, res) => {
@@ -125,9 +131,16 @@ router.post(
   }),
 );
 
-router.delete('/:playerId/creation-progress', withRoute('删除角色创建进度失败', async (req, res) => {
+playerRouter.delete('/:playerId/creation-progress', withRoute('删除角色创建进度失败', async (req, res) => {
   await playerCreationService.deleteCreationProgress(req.params.playerId);
   res.json({ success: true, message: '进度已删除' });
 }));
 
+/** @deprecated 兼容旧 require('./creation')；请改用 globalRouter + playerRouter */
+const router = express.Router();
+router.use(globalRouter);
+router.use(playerRouter);
+
 module.exports = router;
+module.exports.globalRouter = globalRouter;
+module.exports.playerRouter = playerRouter;

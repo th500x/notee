@@ -64,9 +64,11 @@ router.post('/set-window', requireSeasonAdminKey, async (req, res, next) => {
   try {
     const { serverId, settlementWindowStart, settlementWindowEnd, rolloverTargetSeason } = req.body || {};
     if (!serverId) return res.status(400).json({ success: false, error: '缺少 serverId' });
-    return reply(res, await seasonRolloverService.setSettlementWindow({
-      serverId, settlementWindowStart, settlementWindowEnd, rolloverTargetSeason,
-    }));
+    const payload = { serverId };
+    if ('settlementWindowStart' in (req.body || {})) payload.settlementWindowStart = settlementWindowStart;
+    if ('settlementWindowEnd' in (req.body || {})) payload.settlementWindowEnd = settlementWindowEnd;
+    if ('rolloverTargetSeason' in (req.body || {})) payload.rolloverTargetSeason = rolloverTargetSeason;
+    return reply(res, await seasonRolloverService.setSettlementWindow(payload));
   } catch (err) {
     return next(wrap500(err, '设置结算窗口失败'));
   }

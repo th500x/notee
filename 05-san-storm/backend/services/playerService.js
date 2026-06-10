@@ -7,6 +7,7 @@
 const Player = require('../models/Player');
 const { pool, transaction } = require('../database/connection');
 const { clampCreationWizardSilver } = require('../../shared/utils/factionBalanceBonus.cjs');
+const { resolveCampaignConfigSeason } = require('../../shared/utils/seasonSettlementCore.cjs');
 const { resolveBalanceBonusForFaction } = require('./factionBalanceBonusService');
 
 class PlayerService {
@@ -606,20 +607,19 @@ class PlayerService {
       throw new Error('该角色名已被使用，请重新输入');
     }
 
-    // 创建玩家角色（配置/城市表赛季与 `getAvailableFactions` 一致：测试赛季 san_0_m1 使用 san_1 数据）
-    const seasonParts = String(factionId || '').split('_');
-    let campaignSeason =
-      seasonParts.length >= 2 ? `${seasonParts[0]}_${seasonParts[1]}` : 'san_1';
+    // 创建玩家角色（配置/城市表赛季：san_0_m* 元赛季仍读 san_1 世界配置）
+    let campaignSeason = 'san_1';
     try {
       const [accRows] = await pool.query(
         'SELECT current_season FROM accounts WHERE id = ? LIMIT 1',
         [playerId],
       );
-      if (accRows[0]?.current_season === 'san_0_m1') {
-        campaignSeason = 'san_1';
-      }
+      campaignSeason = resolveCampaignConfigSeason(accRows[0]?.current_season);
     } catch (_) {
-      /* keep derived campaignSeason */
+      const seasonParts = String(factionId || '').split('_');
+      if (seasonParts.length >= 2) {
+        campaignSeason = resolveCampaignConfigSeason(`${seasonParts[0]}_${seasonParts[1]}`);
+      }
     }
 
     let initialCityId = null;

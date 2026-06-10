@@ -21,7 +21,12 @@ const READONLY_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
 function isWhitelistedPath(req) {
   const url = `${req.baseUrl || ''}${req.path || ''}`;
-  return url.includes('/season-settlement');
+  if (url.includes('/season-settlement')) return true;
+  // rollover 后新赛季创角向导（待领取继承也须先完成创角）
+  if (url.includes('/creation-progress')) return true;
+  if (url.includes('/generate-attributes-batch')) return true;
+  if (url.includes('/select-option')) return true;
+  return false;
 }
 
 /**

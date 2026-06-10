@@ -77,6 +77,14 @@ export function seasonOrdinal(seasonId) {
   return null;
 }
 
+/** 须与 seasonSettlementCore.cjs 同步 */
+export function resolveCampaignConfigSeason(accountSeason) {
+  const id = String(accountSeason || '').trim();
+  if (/^san_0_m\d+$/.test(id)) return 'san_1';
+  if (id) return id;
+  return 'san_1';
+}
+
 export function computeSelectionLimits(fromSeason) {
   const ord = seasonOrdinal(fromSeason);
   if (ord == null) {

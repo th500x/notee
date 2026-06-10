@@ -37,6 +37,8 @@ export default function WorldMap({
   sanGongFuCardPool,
   /** 特色介绍层展示中时勿触发教程链 IDLE 自动探索（避免叠层竞态） */
   blockTutorialAutoplay = false,
+  /** 待领取赛季继承时隐藏探索/事件 UI，须先于结算弹窗确认 */
+  suppressExploreUi = false,
 }) {
   const { player, cards, attributeBonusBySlot, refresh: refreshPlayer } = usePlayerContext();
   const skillsMap = useSkillsMap();
@@ -79,6 +81,7 @@ export default function WorldMap({
     tutorialExploreStep,
     positionAnimation,
     showLineupGuide,
+    closeEvent,
   } = eventSystem;
 
   const [simpleAlertMessage, setSimpleAlertMessage] = useState(null);
@@ -344,9 +347,16 @@ export default function WorldMap({
     [onEventBusyChange],
   );
 
+  /** 待领取赛季继承：关闭已弹出的教程/探索事件，避免 AncientModal 盖住结算窗 */
+  useEffect(() => {
+    if (!suppressExploreUi) return;
+    if (phase !== PHASE.IDLE) closeEvent();
+  }, [suppressExploreUi, phase, closeEvent]);
+
   /** 攻城/探索/道路等全屏或模态流程中不渲染大地图 event_hint portal，避免「指引」压在战斗或弹窗之上 */
   const strategicMapEventHintSuppressed =
     blockTutorialAutoplay ||
+    suppressExploreUi ||
     !!siegeData ||
     !!siegeResult ||
     !!banditRaidData ||
@@ -575,9 +585,11 @@ export default function WorldMap({
         </div>
       )}
 
-      <Suspense fallback={null}>
-        <ExplorePanel eventSystem={eventSystem} />
-      </Suspense>
+      {!suppressExploreUi ? (
+        <Suspense fallback={null}>
+          <ExplorePanel eventSystem={eventSystem} />
+        </Suspense>
+      ) : null}
     </div>
   );
 }

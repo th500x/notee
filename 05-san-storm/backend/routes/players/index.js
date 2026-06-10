@@ -14,7 +14,7 @@ const { getAvatarCategories } = require('../../services/avatarService');
 const { withRoute } = require('../../utils/routeAdapter');
 
 const textsRouter = require('../texts');
-const creationRouter = require('./creation');
+const { globalRouter: creationGlobalRouter, playerRouter: creationPlayerRouter } = require('./creation');
 const factionRouter = require('./faction');
 const roadRouter = require('./road');
 const sanGongFuRouter = require('./sanGongFu');
@@ -43,6 +43,9 @@ router.get('/check/:playerId', withRoute('检查玩家失败', async (req, res) 
   res.json({ success: true, data: { exists } });
 }));
 
+// 创角全局端点（无 :playerId）须在 /:playerId 门禁之前，否则 validate-name 等会被当成 playerId → 403
+router.use(creationGlobalRouter);
+
 // 维护态门禁：服务器 maintenance/closed 时该玩家所有请求 503（关服窗口拦进游戏）
 router.use('/:playerId', serverMaintenanceGate());
 
@@ -52,7 +55,7 @@ router.use('/:playerId', seasonSettlementGate());
 router.use('/:playerId/texts', requireSelf(), textsRouter);
 
 router.use(seasonSettlementRouter);
-router.use(creationRouter);
+router.use(creationPlayerRouter);
 router.use(factionRouter);
 router.use(roadRouter);
 router.use(sanGongFuRouter);

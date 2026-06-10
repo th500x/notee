@@ -45,6 +45,15 @@ function parseJson(value, fallback) {
   }
 }
 
+/** 运营面板展示用：按本机本地时区格式化为 MySQL DATETIME 样式（避免 JSON ISO UTC 误导运营） */
+function formatDatetimeForOps(val) {
+  if (val == null) return null;
+  const d = val instanceof Date ? val : new Date(val);
+  if (Number.isNaN(d.getTime())) return String(val);
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
 /** 读服务器赛季上下文（current_season + 窗口 + 目标赛季） */
 async function loadServer(serverId) {
   const [rows] = await pool.query(
@@ -306,7 +315,13 @@ async function executeRollover({ serverId, dryRun = true, runAutoSeal = false, c
     return { ok: false, code: 'ROLLOVER_FK_NOT_MIGRATED', error: 'season_records 外键未指向 accounts，禁止 rollover', report };
   }
   if (!windowEnded) {
-    return { ok: false, code: 'ROLLOVER_WINDOW_NOT_ENDED', error: '结算窗口尚未结束', report };
+    const endLabel = end ? formatDatetimeForOps(end) : '（未配置）';
+    return {
+      ok: false,
+      code: 'ROLLOVER_WINDOW_NOT_ENDED',
+      error: `结算窗口尚未结束（关服时刻 ${endLabel}，须等到该时刻之后才能实跑 rollover）`,
+      report,
+    };
   }
   if (unsealed.length > 0) {
     return { ok: false, code: 'ROLLOVER_PRECONDITION_FAILED', error: `仍有 ${unsealed.length} 个账号未封档`, report };
@@ -421,6 +436,17 @@ async function getOpsStatus(serverId) {
 
   const fkOk = await seasonRecordsFkPointsToAccounts();
 
+  let unsealed = 0;
+  if (toSeason && fromSeason) {
+    const accounts = await listRealAccountsWithSealState(serverId, fromSeason, toSeason);
+    unsealed = accounts.filter(
+      (a) => a.settlementStatus == null || a.settlementStatus === 'pending_selection'
+    ).length;
+  }
+
+  const allRealAccountsSealed = toSeason ? unsealed === 0 : false;
+  const rolloverReady = fkOk && windowEnded && allRealAccountsSealed && !!toSeason;
+
   return {
     ok: true,
     data: {
@@ -429,12 +455,18 @@ async function getOpsStatus(serverId) {
       status: s.status,
       currentSeason: fromSeason,
       rolloverTargetSeason: toSeason,
-      settlementWindowStart: s.settlement_window_start,
-      settlementWindowEnd: s.settlement_window_end,
+      settlementWindowStart: formatDatetimeForOps(s.settlement_window_start),
+      settlementWindowEnd: formatDatetimeForOps(s.settlement_window_end),
       windowOpen,
       windowEnded,
-      counts: { realAccounts: acc.c, players: ply.c, sealedConfirmed, applyPending },
-      preconditions: { seasonRecordsFkToAccounts: fkOk },
+      counts: { realAccounts: acc.c, players: ply.c, sealedConfirmed, applyPending, unsealed },
+      preconditions: {
+        seasonRecordsFkToAccounts: fkOk,
+        settlementWindowEnded: windowEnded,
+        rolloverTargetConfigured: !!toSeason,
+        allRealAccountsSealed,
+        rolloverReady,
+      },
     },
   };
 }
@@ -443,12 +475,26 @@ async function getOpsStatus(serverId) {
 async function setSettlementWindow({ serverId, settlementWindowStart, settlementWindowEnd, rolloverTargetSeason }) {
   const [srv] = await pool.query(`SELECT server_id FROM config_servers WHERE server_id = ?`, [serverId]);
   if (!srv.length) return { ok: false, code: 'SERVER_CONFIG_MISSING', error: '服务器配置缺失' };
-  await pool.query(
-    `UPDATE config_servers
-     SET settlement_window_start = ?, settlement_window_end = ?, rollover_target_season = ?
-     WHERE server_id = ?`,
-    [settlementWindowStart || null, settlementWindowEnd || null, rolloverTargetSeason || null, serverId]
-  );
+
+  const fields = [];
+  const params = [];
+  if (settlementWindowStart !== undefined) {
+    fields.push('settlement_window_start = ?');
+    params.push(settlementWindowStart || null);
+  }
+  if (settlementWindowEnd !== undefined) {
+    fields.push('settlement_window_end = ?');
+    params.push(settlementWindowEnd || null);
+  }
+  if (rolloverTargetSeason !== undefined) {
+    fields.push('rollover_target_season = ?');
+    params.push(rolloverTargetSeason || null);
+  }
+  if (!fields.length) {
+    return { ok: false, code: 'NO_WINDOW_FIELDS', error: '未提供任何窗口字段' };
+  }
+  params.push(serverId);
+  await pool.query(`UPDATE config_servers SET ${fields.join(', ')} WHERE server_id = ?`, params);
   return getOpsStatus(serverId);
 }
 

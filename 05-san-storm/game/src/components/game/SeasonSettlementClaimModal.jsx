@@ -32,7 +32,7 @@ export default function SeasonSettlementClaimModal({ playerId, claim, fromSeason
   }
 
   return (
-    <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/80 p-4">
+    <div className="fixed inset-0 z-[10100] flex items-center justify-center bg-black/80 p-4">
       <div className={`${PANEL} flex w-full max-w-md flex-col`}>
         <div className="border-b border-amber-800/50 px-5 py-3">
           <h2 className="text-base font-semibold text-amber-200">赛季结算 · 物品发放</h2>

@@ -102,6 +102,10 @@ function GamePageInner({ onLogout, accountId }) {
     playerId,
     activeTab === null,
   );
+  const seasonClaimPending = seasonPhase === 'apply_pending';
+  /** 首屏拉取结算状态完成前暂不自动开教程事件，避免盖住待领取弹窗 */
+  const seasonStatusPending = Boolean(playerId) && seasonStatus == null;
+  const suppressExploreForSeason = seasonClaimPending || seasonStatusPending;
   const [skillsMap, setSkillsMap] = useState({});
   const navigate = useNavigate();
 
@@ -228,7 +232,8 @@ function GamePageInner({ onLogout, accountId }) {
             <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
               <Suspense fallback={<ChunkLoadFallback label="大地图加载中…" />}>
                 <WorldMap
-                  blockTutorialAutoplay={gameIntroOpen}
+                  blockTutorialAutoplay={gameIntroOpen || suppressExploreForSeason}
+                  suppressExploreUi={seasonClaimPending}
                   onEventBusyChange={setWorldMapEventBusy}
                   sanGongFuCardPool={{
                     onOpenPool: setOpenPool,

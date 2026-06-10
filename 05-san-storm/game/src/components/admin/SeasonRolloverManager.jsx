@@ -23,6 +23,24 @@ const LABEL = 'block text-sm font-medium text-gray-700';
 const INPUT = 'mt-1 w-full rounded border border-gray-300 px-2 py-1 text-sm';
 const BTN = 'rounded px-3 py-1.5 text-sm font-medium';
 
+function mysqlToDatetimeLocal(mysql) {
+  if (!mysql) return '';
+  const s = String(mysql).trim().replace(' ', 'T').slice(0, 16);
+  return s;
+}
+
+function PreconditionRow({ ok, label, hint }) {
+  return (
+    <div className="flex items-start gap-2 text-sm">
+      <span className="shrink-0">{ok ? '✅' : '❌'}</span>
+      <span>
+        {label}
+        {hint ? <span className="block text-xs text-gray-500">{hint}</span> : null}
+      </span>
+    </div>
+  );
+}
+
 export default function SeasonRolloverManager() {
   const [serverId, setServerId] = useState('San_1_Chaos');
   // 运营口令暂时屏蔽（单运营）；保留占位以便将来启用时回填
@@ -30,6 +48,7 @@ export default function SeasonRolloverManager() {
   const [status, setStatusData] = useState(null);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState(null);
+  const [formSynced, setFormSynced] = useState(false);
 
   // 设窗口表单（datetime-local，提交时转 'YYYY-MM-DD HH:MM:SS'）
   const [winStart, setWinStart] = useState('');
@@ -41,12 +60,24 @@ export default function SeasonRolloverManager() {
   const [backupConfirmed, setBackupConfirmed] = useState(false);
   const [runAutoSeal, setRunAutoSeal] = useState(false);
 
+  const syncFormFromStatus = useCallback((data) => {
+    if (!data) return;
+    setWinStart(mysqlToDatetimeLocal(data.settlementWindowStart));
+    setWinEnd(mysqlToDatetimeLocal(data.settlementWindowEnd));
+    if (data.rolloverTargetSeason) setTargetSeason(data.rolloverTargetSeason);
+    setFormSynced(true);
+  }, []);
+
   const refresh = useCallback(async () => {
     if (!serverId) return;
     const res = await fetchOpsStatus(serverId);
-    if (res?.success) setStatusData(res.data);
-    else setResult(res);
-  }, [serverId]);
+    if (res?.success) {
+      setStatusData(res.data);
+      syncFormFromStatus(res.data);
+    } else {
+      setResult({ label: '刷新状态', res, error: res?.error || res?.code });
+    }
+  }, [serverId, syncFormFromStatus]);
 
   useEffect(() => { refresh(); }, [refresh]);
 
@@ -55,8 +86,12 @@ export default function SeasonRolloverManager() {
     setResult(null);
     try {
       const res = await fn();
-      setResult({ label, res });
-      if (res?.success && res.data) setStatusData(res.data);
+      const error = !res?.success ? (res?.error || res?.code || '操作失败') : null;
+      setResult({ label, res, error });
+      if (res?.success && res.data) {
+        setStatusData(res.data);
+        syncFormFromStatus(res.data);
+      }
       await refresh();
     } finally {
       setBusy(false);
@@ -68,6 +103,9 @@ export default function SeasonRolloverManager() {
     // 'YYYY-MM-DDTHH:MM' → 'YYYY-MM-DD HH:MM:00'
     return dtLocal.replace('T', ' ') + ':00';
   }
+
+  const pre = status?.preconditions;
+  const canRealRollover = pre?.rolloverReady && confirmDestructive && backupConfirmed;
 
   return (
     <div className="max-w-4xl mx-auto p-4 space-y-4">
@@ -91,18 +129,46 @@ export default function SeasonRolloverManager() {
             <div>目标赛季：<strong>{status.rolloverTargetSeason || '（未设）'}</strong></div>
             <div>结算窗口：{status.windowOpen ? <span className="text-green-600">开启中</span> : status.windowEnded ? <span className="text-amber-600">已结束</span> : '未开'}</div>
             <div>窗口开始：{status.settlementWindowStart || '—'}</div>
-            <div>窗口结束：{status.settlementWindowEnd || '—'}</div>
+            <div>窗口结束（关服时刻）：{status.settlementWindowEnd || '—'}</div>
             <div>真人账号：{status.counts?.realAccounts}</div>
             <div>players 行：{status.counts?.players}</div>
             <div>已封档(confirmed)：{status.counts?.sealedConfirmed}</div>
+            <div>未封档：{status.counts?.unsealed ?? '—'}</div>
             <div>待发放：{status.counts?.applyPending}</div>
-            <div>season_records FK→accounts：{status.preconditions?.seasonRecordsFkToAccounts ? '✅' : '❌（禁止 rollover）'}</div>
+          </div>
+
+          <div className="mt-3 rounded border border-gray-100 bg-gray-50 p-3 space-y-1">
+            <h3 className="text-xs font-semibold text-gray-600 uppercase tracking-wide">实跑 rollover 前置条件</h3>
+            <PreconditionRow
+              ok={pre?.rolloverTargetConfigured}
+              label="已配置目标赛季"
+            />
+            <PreconditionRow
+              ok={pre?.settlementWindowEnded}
+              label="结算窗口已结束（当前时间 ≥ 关服时刻 end）"
+              hint={!pre?.settlementWindowEnded && status.settlementWindowEnd
+                ? `关服时刻为 ${status.settlementWindowEnd}，须等到该时刻之后才能实跑`
+                : null}
+            />
+            <PreconditionRow
+              ok={pre?.allRealAccountsSealed}
+              label="全部真人账号已封档"
+              hint={status.counts?.unsealed > 0 ? `仍有 ${status.counts.unsealed} 个账号未封档，请先实跑自动封档` : null}
+            />
+            <PreconditionRow
+              ok={pre?.seasonRecordsFkToAccounts}
+              label="season_records 外键已指向 accounts"
+            />
+            <div className="pt-1 text-sm font-medium">
+              综合：{pre?.rolloverReady ? <span className="text-green-700">可实跑（另须双闸门勾选）</span> : <span className="text-red-700">尚不可实跑</span>}
+            </div>
           </div>
         </div>
       ) : null}
 
       <div className={SECTION}>
         <h2 className="text-sm font-semibold text-gray-800">1. 设结算窗口 + 目标赛季</h2>
+        <p className="text-xs text-gray-500">仅填写需要修改的项；留空的时间字段不会覆盖库内已有值。本地测试可将「关服时刻」设为当前时间之前。</p>
         <div className="grid grid-cols-3 gap-3">
           <div>
             <label className={LABEL}>按钮出现时间（start）</label>
@@ -120,13 +186,15 @@ export default function SeasonRolloverManager() {
         <button
           className={`${BTN} bg-blue-600 hover:bg-blue-700 text-white`}
           disabled={busy}
-          onClick={() => run('set-window', () => setWindow(adminKey, {
-            serverId,
-            settlementWindowStart: toMysql(winStart),
-            settlementWindowEnd: toMysql(winEnd),
-            rolloverTargetSeason: targetSeason || null,
-          }))}
+          onClick={() => {
+            const payload = { serverId };
+            if (winStart) payload.settlementWindowStart = toMysql(winStart);
+            if (winEnd) payload.settlementWindowEnd = toMysql(winEnd);
+            if (targetSeason) payload.rolloverTargetSeason = targetSeason;
+            run('set-window', () => setWindow(adminKey, payload));
+          }}
         >保存窗口配置</button>
+        {!formSynced ? <p className="text-xs text-gray-400">正在从服务器同步表单…</p> : null}
       </div>
 
       <div className={SECTION}>
@@ -154,9 +222,13 @@ export default function SeasonRolloverManager() {
         <div className="mt-2 space-y-1 border-t pt-2">
           <label className="flex items-center gap-2 text-sm text-red-700"><input type="checkbox" checked={confirmDestructive} onChange={(e) => setConfirmDestructive(e.target.checked)} /> 我确认执行不可逆破坏性切换（confirmDestructive）</label>
           <label className="flex items-center gap-2 text-sm text-red-700"><input type="checkbox" checked={backupConfirmed} onChange={(e) => setBackupConfirmed(e.target.checked)} /> 我已完成全库备份（backupConfirmed）</label>
+          {!pre?.rolloverReady ? (
+            <p className="text-xs text-amber-700">实跑按钮已禁用：前置条件未全部满足（见上方清单）。本地测试可将关服时刻改为当前时间之前并保存。</p>
+          ) : null}
           <button
             className={`${BTN} bg-red-600 hover:bg-red-700 text-white disabled:opacity-40`}
-            disabled={busy || !confirmDestructive || !backupConfirmed}
+            disabled={busy || !canRealRollover}
+            title={!pre?.rolloverReady ? '前置条件未满足' : !confirmDestructive || !backupConfirmed ? '须勾选双闸门' : ''}
             onClick={() => {
               if (!window.confirm('确认实跑 rollover？将重置世界态并删除该服全部真人 players，不可逆。')) return;
               run('rollover 实跑', () => rollover(adminKey, serverId, { dryRun: false, runAutoSeal, confirmDestructive, backupConfirmed }));
@@ -168,6 +240,12 @@ export default function SeasonRolloverManager() {
       {result ? (
         <div className={SECTION}>
           <h2 className="text-sm font-semibold text-gray-800">最近一次返回：{result.label}</h2>
+          {result.error ? (
+            <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+              {result.error}
+              {result.res?.code ? <span className="ml-2 text-xs text-red-600">({result.res.code})</span> : null}
+            </div>
+          ) : null}
           <pre className="max-h-80 overflow-auto rounded bg-gray-900 p-3 text-xs text-green-200">{JSON.stringify(result.res, null, 2)}</pre>
         </div>
       ) : null}

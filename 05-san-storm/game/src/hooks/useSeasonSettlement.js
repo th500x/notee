@@ -15,8 +15,13 @@ export function useSeasonSettlement(playerId, active) {
 
   const refresh = useCallback(async () => {
     if (!playerId) return;
-    const res = await seasonSettlementAPI.getStatus(playerId);
-    if (res?.success && res.data) setStatus(res.data);
+    try {
+      const res = await seasonSettlementAPI.getStatus(playerId);
+      if (res?.success && res.data) setStatus(res.data);
+      else setStatus({ phase: 'none' });
+    } catch {
+      setStatus({ phase: 'none' });
+    }
   }, [playerId]);
 
   useEffect(() => {

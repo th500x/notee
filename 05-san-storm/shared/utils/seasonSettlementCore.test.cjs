@@ -67,6 +67,16 @@ test('seasonOrdinal maps test and formal seasons', () => {
   assert.equal(seasonOrdinal(null), null);
 });
 
+test('resolveCampaignConfigSeason maps san_0_m* to san_1 world config', () => {
+  const { resolveCampaignConfigSeason } = require('./seasonSettlementCore.cjs');
+  assert.equal(resolveCampaignConfigSeason('san_0_m1'), 'san_1');
+  assert.equal(resolveCampaignConfigSeason('san_0_m2'), 'san_1');
+  assert.equal(resolveCampaignConfigSeason('san_0_m12'), 'san_1');
+  assert.equal(resolveCampaignConfigSeason('san_2'), 'san_2');
+  assert.equal(resolveCampaignConfigSeason(null), 'san_1');
+  assert.equal(resolveCampaignConfigSeason(''), 'san_1');
+});
+
 // ---- computeSelectionLimits ----
 test('computeSelectionLimits caps equipment sets at 10, legendary always 10', () => {
   assert.deepEqual(computeSelectionLimits('san_0_m1'), { maxEquipmentSets: 1, maxLegendaryTroops: 10 });

@@ -94,6 +94,19 @@ function seasonOrdinal(seasonId) {
 }
 
 /**
+ * 账号 current_season → 读 config_* / cities 等世界配置用的 season 键。
+ * san_0_m1..mN 为运营元赛季，世界内容仍走 san_1；正式赛季 san_1/san_2/... 直接用自身。
+ * @param {string|null|undefined} accountSeason
+ * @returns {string}
+ */
+function resolveCampaignConfigSeason(accountSeason) {
+  const id = String(accountSeason || '').trim();
+  if (/^san_0_m\d+$/.test(id)) return 'san_1';
+  if (id) return id;
+  return 'san_1';
+}
+
+/**
  * 选择上限：maxEquipmentSets = min(seasonOrdinal, 10)；maxLegendaryTroops = 10
  * @param {string} fromSeason
  * @returns {{ maxEquipmentSets: number, maxLegendaryTroops: number }}
@@ -447,6 +460,7 @@ module.exports = {
   resolveCardRarity,
   obtainedAtToTime,
   seasonOrdinal,
+  resolveCampaignConfigSeason,
   computeSelectionLimits,
   parseEquipmentSetData,
   isEquipmentSetDraft,

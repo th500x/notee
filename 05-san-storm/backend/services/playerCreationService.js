@@ -13,6 +13,7 @@ const PlayerService = require('./playerService');
 const { formatTroopData, CONFIG_TROOPS_SELECT_COLUMNS } = require('./configService');
 const { getFactionFromTroopId } = require('./troopIdHelpers');
 const { attachBalanceBonusPreviewToFactions } = require('./factionBalanceBonusService');
+const { resolveCampaignConfigSeason } = require('../../shared/utils/seasonSettlementCore.cjs');
 
 // ── 势力 ──────────────────────────────────────────────────────────────────────
 
@@ -43,8 +44,7 @@ async function getAvailableFactions(playerId) {
   if (accounts.length === 0) return { notFound: true };
 
   const { current_season, serverId } = accounts[0];
-  // 测试赛季 san_0_m1 使用 san_1 的势力数据
-  const targetSeason = current_season === 'san_0_m1' ? 'san_1' : current_season;
+  const targetSeason = resolveCampaignConfigSeason(current_season);
 
   const [factions] = await pool.query(
     `SELECT

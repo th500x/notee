@@ -16,7 +16,7 @@ export const dailyReportM2ReleaseNotes = {
     '事件重构/PVP重构✅',
     '真三日报/扩充卡池✅',
 	'基础BGM/将领立绘✅',
-    '更换势力/赛季继承📊',
+    '赛季继承✅',
   ],
 };
 

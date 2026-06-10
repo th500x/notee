@@ -148,7 +148,7 @@ export default function SeasonSettlementModal({ playerId, onClose, onConfirmed }
   const canConfirm = isLast && acknowledged && !submitting;
 
   return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/70 p-4">
+    <div className="fixed inset-0 z-[10100] flex items-center justify-center bg-black/70 p-4">
       <div className={`${PANEL} flex max-h-[88vh] w-full max-w-2xl flex-col`}>
         <div className="flex items-center justify-between border-b border-amber-800/50 px-5 py-3">
           <div>
