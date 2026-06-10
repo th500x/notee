@@ -25,9 +25,10 @@ import {
   getTutorialChainCompletedLevelForPool,
   getTutorialChainCompletedLevelForMapHint,
   TUTORIAL_EXPLORE_CHAIN_ID,
+  playerMeetsEventRequiredItems,
 } from '@/components/event/eventUtils';
 import { validateMainLineupBattleGate } from '@/utils/mainLineupTroops';
-import { resolveEventLocationForUi } from '@/utils/eventLocationPlaceholders';
+import { resolveEventLocationForUi, exploreLocationMatchesEvent } from '@/utils/eventLocationPlaceholders';
 import {
   EVENT_PUNISHMENT_COMBAT_BANDIT_LOCATION_SLOT_RARITIES,
   isBanditMapObjectId,
@@ -429,7 +430,34 @@ export default function useEventSystem(player, cards, options = {}) {
         Number(e.chain_level) === hintChainLevel
     );
     const hn = hintEvt?.event_hint ?? hintEvt?.eventHint;
-    return typeof hn === 'string' && hn.trim() ? hn.trim() : null;
+    const base = typeof hn === 'string' && hn.trim() ? hn.trim() : null;
+    if (!base) return null;
+
+    const nextLevel = tutorialChainCompletedForHint + 1;
+    const nextEvt = allExploreEvents.find(
+      (e) =>
+        String(e.chain_id || '').trim() === TUTORIAL_EXPLORE_CHAIN_ID &&
+        Number(e.chain_level) === nextLevel
+    );
+    if (!nextEvt) return base;
+
+    const extras = [];
+    const minRepRaw = nextEvt.min_reputation ?? nextEvt.minReputation;
+    if (minRepRaw != null && minRepRaw !== '') {
+      const need = Number(minRepRaw);
+      const pr = Number(player?.reputation ?? 0);
+      if (Number.isFinite(need) && need > 0 && (Number.isFinite(pr) ? pr : 0) < need) {
+        extras.push(`当前声望 ${Number.isFinite(pr) ? pr : 0}，触发本步需≥${need}`);
+      }
+    }
+    const reqItems = nextEvt.required_items ?? nextEvt.requiredItems;
+    const loc = exploreLocationId != null ? String(exploreLocationId).trim() : '';
+    if (reqItems && loc && exploreLocationMatchesEvent(String(nextEvt.location ?? '').trim(), loc, citiesList)) {
+      if (!playerMeetsEventRequiredItems(reqItems, playerItemCounts)) {
+        extras.push('教程道具同步中，请稍候或重进大地图');
+      }
+    }
+    return extras.length ? `${base}（${extras.join('；')}）` : base;
   }, [
     suppressMapEventHint,
     persistMapEventHint,
@@ -439,6 +467,10 @@ export default function useEventSystem(player, cards, options = {}) {
     tutorialChainCompletedForHint,
     tutorialChainMaxLevel,
     allExploreEvents,
+    player?.reputation,
+    exploreLocationId,
+    citiesList,
+    playerItemCounts,
   ]);
 
   /** 教程进行中：用推导文案覆盖 session 内旧的「下一环」匪寨等脏数据 */
@@ -782,9 +814,27 @@ export default function useEventSystem(player, cards, options = {}) {
       };
     }
 
-    if (tutorialExploreBlockedRef.current) return;
+    if (tutorialExploreBlockedRef.current) return undefined;
     const ok = startExplore();
-    if (ok === false) tutorialExploreBlockedRef.current = true;
+    if (ok !== false) return undefined;
+
+    tutorialExploreBlockedRef.current = true;
+    let cancelled = false;
+    void (async () => {
+      const bundle = await refetchExplorePlayerBundle();
+      if (cancelled || tutorialDeferExploreAutoplayRef.current) return;
+      tutorialExploreBlockedRef.current = false;
+      const ok2 = startExplore(
+        undefined,
+        undefined,
+        bundle.events,
+        bundle.itemCounts ?? undefined,
+      );
+      if (ok2 === false) tutorialExploreBlockedRef.current = true;
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [
     tutorialAutoplay,
     isTutorial,
@@ -797,8 +847,9 @@ export default function useEventSystem(player, cards, options = {}) {
     startExplore,
     exploreAnchorGridSeq,
     exploreProgressReady,
+    quota.canExplore,
     player?.reputation,
-    quota?.canExplore,
+    refetchExplorePlayerBundle,
   ]);
 
   /** 探索中断：关弹窗、清 pending、回 IDLE（开战门闸与奖励失败共用） */

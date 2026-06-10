@@ -38,7 +38,7 @@ router.get('/avatars', withRoute('获取头像列表失败', async (req, res) =>
   res.json({ success: true, data: { categories } });
 }));
 
-router.get('/check/:playerId', withRoute('检查玩家失败', async (req, res) => {
+router.get('/check/:playerId', serverMaintenanceGate(), withRoute('检查玩家失败', async (req, res) => {
   const exists = await Player.exists(req.params.playerId);
   res.json({ success: true, data: { exists } });
 }));

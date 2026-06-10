@@ -234,6 +234,7 @@ function GamePageInner({ onLogout, accountId }) {
                 <WorldMap
                   blockTutorialAutoplay={gameIntroOpen || suppressExploreForSeason}
                   suppressExploreUi={seasonClaimPending}
+                  mapLayerVisible={activeTab === null}
                   onEventBusyChange={setWorldMapEventBusy}
                   sanGongFuCardPool={{
                     onOpenPool: setOpenPool,

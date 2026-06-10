@@ -15,6 +15,7 @@ import {
   getMoveCost as _getMoveCost,
   findBestMoveTarget as _findBestMoveTarget,
 } from '@/battle/ai/battleTurnAi';
+import { isHazardTile } from '@/systems/battleFlowManager';
 import { resolveChestReward } from '@/battle/chestRewardResolver';
 import {
   getMapTerrainDimensions,
@@ -179,6 +180,7 @@ export function useBattleEngine({
     const allValid = newPositions.every((p) => {
       if (!isInMapGrid(p.ny, p.nx, mapResult)) return false;
       if (_getMoveCost(p.ny, p.nx, mapResult) === Infinity) return false;
+      if (isHazardTile(p.ny, p.nx, mapResult)) return false;
       const occupant = battleTroops.find(
         (bt) =>
           bt.currentTroops > 0 &&

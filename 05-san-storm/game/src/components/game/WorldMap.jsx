@@ -39,6 +39,8 @@ export default function WorldMap({
   blockTutorialAutoplay = false,
   /** 待领取赛季继承时隐藏探索/事件 UI，须先于结算弹窗确认 */
   suppressExploreUi = false,
+  /** 底栏在大地图 Tab（activeTab=null）时为 true；为 false 时不渲染 event_hint portal */
+  mapLayerVisible = true,
 }) {
   const { player, cards, attributeBonusBySlot, refresh: refreshPlayer } = usePlayerContext();
   const skillsMap = useSkillsMap();
@@ -355,6 +357,7 @@ export default function WorldMap({
 
   /** 攻城/探索/道路等全屏或模态流程中不渲染大地图 event_hint portal，避免「指引」压在战斗或弹窗之上 */
   const strategicMapEventHintSuppressed =
+    !mapLayerVisible ||
     blockTutorialAutoplay ||
     suppressExploreUi ||
     !!siegeData ||

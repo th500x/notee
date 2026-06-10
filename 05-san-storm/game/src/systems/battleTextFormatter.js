@@ -141,9 +141,39 @@ export function fmtPhase5FlatDamage(def, loss) {
   return `  → ${label(def)} 追加固伤 ${loss}（余 ${def.currentTroops}/${def.maxTroops}）`;
 }
 
+/** 阶段5·减益段 specialEffect 原始键值 → 战报可读文案 */
+export function formatPhase5DebuffLabel(raw) {
+  if (raw == null || String(raw).trim() === '') return '';
+  return String(raw)
+    .split(';')
+    .map((seg) => {
+      const s = seg.trim();
+      if (!s) return '';
+      const colon = s.indexOf(':');
+      if (colon <= 0) return s;
+      const key = s.slice(0, colon).trim().toLowerCase();
+      const val = s.slice(colon + 1).trim();
+      if (key === 'movementbattle') {
+        if (val.startsWith('=')) {
+          const bits = val.slice(1).split(':');
+          const mv = bits[0] || '1';
+          const rounds = bits[1] || '1';
+          return `下${rounds}回合移动力固定为${mv}`;
+        }
+        if (val.startsWith('+') || val.startsWith('-')) {
+          return `移动力${val}`;
+        }
+      }
+      return s;
+    })
+    .filter(Boolean)
+    .join('；');
+}
+
 /** 阶段5·减益提醒（无兵力时再扣时仍记） */
 export function fmtPhase5DebuffNotify(def, debuffLabel) {
-  return `⚠ ${label(def)} 受减益：${debuffLabel}`;
+  const readable = formatPhase5DebuffLabel(debuffLabel);
+  return `⚠ ${label(def)} 受减益：${readable || debuffLabel}`;
 }
 
 /** 阶段5·damage_heal：治疗段（主伤已记 fmtAttackResult） */

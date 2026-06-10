@@ -73,8 +73,7 @@ export const playerAPI = {
         method: 'GET',
         headers: { 'Content-Type': 'application/json' }
       });
-      const data = await response.json();
-      return data;
+      return jsonFromApiResponse(response, '检查玩家');
     } catch (error) {
       console.error('检查玩家失败:', error);
       throw error;
@@ -643,8 +642,7 @@ export const playerAPI = {
         method: 'GET',
         headers: { 'Content-Type': 'application/json' }
       });
-      const data = await response.json();
-      return data;
+      return jsonFromApiResponse(response, '获取可用势力');
     } catch (error) {
       console.error('获取可用势力失败:', error);
       throw error;
@@ -748,8 +746,7 @@ export const playerAPI = {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' }
       });
-      const data = await response.json();
-      return data;
+      return jsonFromApiResponse(response, '删除角色创建进度');
     } catch (error) {
       console.error('删除角色创建进度失败:', error);
       throw error;

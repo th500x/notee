@@ -65,6 +65,13 @@ function formatPrizes(prizes) {
   return parts.join(' ');
 }
 
+/** 排名积分展示：取整，不显示小数 */
+function fmtRankingScore(score) {
+  const n = Number(score);
+  if (!Number.isFinite(n)) return '0';
+  return Math.floor(n).toLocaleString();
+}
+
 export default function RankingPanel() {
   const [collapsed, setCollapsed] = useState(() => {
     try { return localStorage.getItem('ranking_collapsed') === '1'; } catch { return false; }
@@ -152,7 +159,7 @@ export default function RankingPanel() {
             <span className="truncate">{ranking.title}</span>
             {rankingData?.myRanking && status !== 'upcoming' && (
               <span className="text-amber-200/70">
-                📍第{rankingData.myRanking.rank}名 {rankingData.myRanking.totalScore.toLocaleString()}分
+                📍第{rankingData.myRanking.rank}名 {fmtRankingScore(rankingData.myRanking.totalScore)}分
               </span>
             )}
           </span>
@@ -184,7 +191,7 @@ export default function RankingPanel() {
         <div className="px-3 pb-1.5">
           {rankingData?.myRanking && status !== 'upcoming' ? (
             <p className="text-xs text-amber-100/80">
-              {`📍第${rankingData.myRanking.rank}名 ${rankingData.myRanking.totalScore.toLocaleString()}分`}
+              {`📍第${rankingData.myRanking.rank}名 ${fmtRankingScore(rankingData.myRanking.totalScore)}分`}
             </p>
           ) : null}
           {status === 'active' && (
@@ -220,7 +227,7 @@ export default function RankingPanel() {
                 <div key={item.rank} className="flex items-center justify-between text-xs">
                   <span className="text-amber-200 font-bold w-6 text-center">{item.rank}</span>
                   <span className="flex-1 text-amber-100/80 ml-2 truncate">{item.name}</span>
-                  <span className="text-amber-200/70 ml-2">{item.totalScore.toLocaleString()}分</span>
+                  <span className="text-amber-200/70 ml-2">{fmtRankingScore(item.totalScore)}分</span>
                 </div>
               ))}
             </div>
@@ -235,7 +242,7 @@ export default function RankingPanel() {
                       📍 我的排名：第{rankingData.myRanking.rank}名
                     </span>
                     <span className="text-amber-200 font-bold">
-                      {rankingData.myRanking.totalScore.toLocaleString()}分
+                      {fmtRankingScore(rankingData.myRanking.totalScore)}分
                     </span>
                   </div>
                 </div>

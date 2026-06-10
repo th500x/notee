@@ -50,7 +50,18 @@ const CharacterCreationPage = ({ user, onComplete }) => {
   const [availableTroops, setAvailableTroops] = useState([]);
   const [selectedTroops, setSelectedTroops] = useState([]);
 
-  // 技能数据
+  /** 服务器维护态弹窗（503 MAINTENANCE_MODE） */
+  const [maintenanceOpen, setMaintenanceOpen] = useState(false);
+  const [maintenanceMessage, setMaintenanceMessage] = useState('服务器维护中，请稍后再试。');
+
+  const showMaintenanceIfNeeded = (result) => {
+    if (result?.code === 'MAINTENANCE_MODE') {
+      setMaintenanceMessage(result.error || '服务器维护中，请稍后再试。');
+      setMaintenanceOpen(true);
+      return true;
+    }
+    return false;
+  };
   const [skillsMap, setSkillsMap] = useState({});
 
   // 加载技能数据
@@ -84,8 +95,8 @@ const CharacterCreationPage = ({ user, onComplete }) => {
   const loadCreationProgress = async () => {
     try {
       setLoading(true);
-      // 清除后端可能残留的旧进度
-      await playerAPI.deleteCreationProgress(user.id).catch(() => {});
+      const delResult = await playerAPI.deleteCreationProgress(user.id).catch(() => null);
+      if (showMaintenanceIfNeeded(delResult)) return;
       // 重置所有状态
       setCurrentStep(1);
       setSelectedFaction(null);
@@ -162,6 +173,7 @@ const CharacterCreationPage = ({ user, onComplete }) => {
       console.log('[CharacterCreation] 开始加载势力列表...');
       const result = await playerAPI.getAvailableFactions(user.id);
       console.log('[CharacterCreation] API返回结果:', result);
+      if (showMaintenanceIfNeeded(result)) return;
       if (result.success) {
         console.log('[CharacterCreation] 设置势力数据:', result.data.factions);
         // 调试：打印第一个势力的详细字段
@@ -896,6 +908,32 @@ const CharacterCreationPage = ({ user, onComplete }) => {
           </div>
         </div>
       )}
+      {maintenanceOpen ? (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/45 px-4">
+          <div
+            className="w-full max-w-sm rounded-xl border border-stone-300 bg-white p-6 text-center shadow-xl"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="creation-maintenance-title"
+          >
+            <div className="text-4xl mb-3">🛠️</div>
+            <h3 id="creation-maintenance-title" className="text-lg font-semibold text-gray-900 mb-2">
+              服务器维护中
+            </h3>
+            <p className="text-sm text-gray-600 mb-5">{maintenanceMessage}</p>
+            <button
+              type="button"
+              onClick={() => {
+                setMaintenanceOpen(false);
+                loadFactions();
+              }}
+              className="rounded-lg bg-blue-600 px-5 py-2 text-sm font-medium text-white hover:bg-blue-700"
+            >
+              知道了
+            </button>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 };

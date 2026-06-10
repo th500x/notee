@@ -4,7 +4,7 @@
  * 纯函数；执行层须沿 BFS 中心路径逐步 formationGroupMove，禁止「先整段纵移再横移」，
  * 否则合法终点可能因中间步撞巨石等被错误拒绝。
  */
-import { getMoveCost } from '@/systems/battleFlowManager';
+import { getMoveCost, isHazardTile } from '@/systems/battleFlowManager';
 import { getMapTerrainDimensions } from '@shared/utils/tacticalBattleGrid';
 
 function buildFormationFrame(alive) {
@@ -22,6 +22,7 @@ function formationCenterCanStand(cy, cx, offsets, fSet, mapResult, battleTroops,
     const nx = cx + dx;
     if (!inB(ny, nx)) return false;
     if (getMoveCost(ny, nx, mapResult) === Infinity) return false;
+    if (isHazardTile(ny, nx, mapResult)) return false;
     const occupant = battleTroops.find((bt) => bt.currentTroops > 0 && bt.y === ny && bt.x === nx);
     if (!occupant) return true;
     if (fSet.has(`${occupant.y},${occupant.x}`)) return true;
