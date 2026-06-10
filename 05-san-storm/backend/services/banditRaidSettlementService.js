@@ -6,6 +6,7 @@ const path = require('path');
 const { pathToFileURL } = require('url');
 const { pool } = require('../database/connection');
 const campaignService = require('./campaignService');
+const { resolveJunIdForBanditPoiId } = require('./playerBanditRaidQuotaService');
 
 const BUCKET = 'byBanditMapObjectId';
 const BANDIT_MAP_OBJECT_ID_RE = /^san_\d+_bandit_[1-9]_[a-z0-9_]+$/i;
@@ -55,6 +56,11 @@ async function applyBanditRaidVictory(playerId, payload) {
     return { ok: false, error: '层数越界' };
   }
 
+  const junId = await resolveJunIdForBanditPoiId(banditPoiId);
+  if (!junId) {
+    return { ok: false, error: '无法解析匪寨所属郡' };
+  }
+
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
@@ -90,18 +96,53 @@ async function applyBanditRaidVictory(playerId, payload) {
       ...postTowerTs,
     };
 
+    await conn.query(
+      `INSERT INTO bandits (bandit_id, jun_id, slot_index, tile_key, max_layers, cleared_layers, status)
+       VALUES (?, ?, 0, NULL, 200, 0, 'active')
+       ON DUPLICATE KEY UPDATE
+         jun_id = IF(COALESCE(jun_id, '') = '', VALUES(jun_id), jun_id),
+         max_layers = IF(COALESCE(max_layers, 0) <= 0, 200, max_layers),
+         cleared_layers = IF(cleared_layers IS NULL, 0, cleared_layers)`,
+      [banditPoiId, junId],
+    );
+
     const [uBand] = await conn.query(
       `UPDATE bandits SET cleared_layers = cleared_layers + 1
        WHERE bandit_id = ? AND status = 'active' AND cleared_layers < max_layers`,
       [banditPoiId],
     );
-    if (uBand.affectedRows > 0) {
-      await conn.query(
-        `UPDATE bandits SET status = 'closed', closed_at = NOW()
-         WHERE bandit_id = ? AND cleared_layers >= max_layers`,
+    if (uBand.affectedRows <= 0) {
+      const [checkRows] = await conn.query(
+        'SELECT status, cleared_layers, max_layers FROM bandits WHERE bandit_id = ? LIMIT 1',
         [banditPoiId],
       );
+      const row = checkRows[0];
+      await conn.rollback();
+      if (!row) {
+        return { ok: false, error: '匪寨世界实例不存在' };
+      }
+      if (String(row.status || '') !== 'active') {
+        return { ok: false, error: '匪寨全服耐久已关闭' };
+      }
+      if (Number(row.cleared_layers) >= Number(row.max_layers)) {
+        return { ok: false, error: '匪寨全服耐久已耗尽' };
+      }
+      console.error('[banditRaidSettlement] cleared_layers 未推进', {
+        playerId,
+        banditPoiId,
+        attackedLayer,
+        status: row.status,
+        clearedLayers: row.cleared_layers,
+        maxLayers: row.max_layers,
+      });
+      return { ok: false, error: '匪寨全服耐久推进失败' };
     }
+
+    await conn.query(
+      `UPDATE bandits SET status = 'closed', closed_at = NOW()
+       WHERE bandit_id = ? AND cleared_layers >= max_layers`,
+      [banditPoiId],
+    );
 
     await conn.query('UPDATE player_progress SET bandit_progress = ? WHERE player_id = ?', [
       JSON.stringify(bp),

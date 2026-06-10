@@ -6,6 +6,7 @@ import { useMapCornerCompactViewport } from '@/hooks/useMapCornerCompactViewport
 import { usePlayerContext } from '@/contexts/PlayerContext';
 import { useMapHudVisibility } from '@/contexts/MapHudVisibilityContext';
 import { toCharCardData } from '@/utils/cardDataTransforms';
+import { characterPortraitRelativePath } from '@shared/utils/characterPortraitUrl';
 import {
   resolveStrategicRecordedStandpointPx,
   resolveStrategicRecordedStandpointCell,
@@ -168,7 +169,12 @@ function resolveSelfMapPortraitUrl(ctxPlayer, ctxCards, attributeBonusBySlot) {
   if (char1) {
     const bonus = attributeBonusBySlot?.character1 || {};
     const cd = toCharCardData(char1, bonus);
-    if (cd.avatar) portraitUrl = cd.avatar;
+    if (cd.avatar) {
+      portraitUrl = cd.avatar;
+    } else {
+      const rel = characterPortraitRelativePath(cd.id);
+      if (rel) portraitUrl = rel;
+    }
   }
   return portraitUrl;
 }

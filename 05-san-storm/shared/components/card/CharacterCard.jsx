@@ -49,10 +49,11 @@
  * />
  */
 
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import PropTypes from 'prop-types';
 import { parseEchoSlots, getEchoSlotDisplay } from '@shared/utils/characterEchoCombat';
 import { roundCoreAttributeOneDecimal } from '@shared/utils/skillPhase1Passive';
+import { resolveCharacterCardPortraitSrc } from '@shared/utils/characterPortraitUrl';
 
 /**
  * 稀有度配置
@@ -249,8 +250,23 @@ function CharacterCard({
 }) {
   const [isFlipped, setIsFlipped] = useState(false);
   const [activeTooltip, setActiveTooltip] = useState(null);
+  const [portraitLoadFailed, setPortraitLoadFailed] = useState(false);
   const rarityConfig = getRarityConfig(character.rarity);
   const echoSlots = parseEchoSlots(character.characterEchoSlots);
+  const characterId = character.id || character.characterId || null;
+
+  useEffect(() => {
+    setPortraitLoadFailed(false);
+  }, [characterId, character.avatar]);
+
+  const portraitSrc = useMemo(() => {
+    if (portraitLoadFailed) return null;
+    return resolveCharacterCardPortraitSrc({
+      characterId,
+      avatar: character.avatar,
+      baseUrl,
+    });
+  }, [characterId, character.avatar, baseUrl, portraitLoadFailed]);
 
   // 解析属性加成（×10存储，显示时除以10）
   const ab = character.attributeBonus || {};
@@ -510,11 +526,12 @@ function CharacterCard({
                 flex items-center justify-center
                 overflow-hidden
               `}>
-                {character.avatar ? (
-                  <img 
-                    src={`${baseUrl}${character.avatar}`}
+                {portraitSrc ? (
+                  <img
+                    src={portraitSrc}
                     alt={character.name}
-                    className="w-full h-full object-cover"
+                    className="w-full h-full object-cover object-top"
+                    onError={() => setPortraitLoadFailed(true)}
                   />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center flex-col gap-1 text-gray-500">
