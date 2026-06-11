@@ -5,6 +5,10 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import CampaignFlipCard, { eraToFrontEraLine } from '@shared/components/card/CampaignFlipCard.jsx';
 import { formatCompletionRewardBadge } from '@shared/utils/campaignRewardBadge';
 import { formatCampaignChallengeCountLabel } from '@shared/utils/campaignCenterChallengeLabel';
+import {
+  formatCampaignCenterSelectOptionLabel,
+  formatCampaignDisplayName,
+} from '@shared/utils/campaignDisplayName';
 import CampaignBattle from '@/components/campaign/CampaignBattle.jsx';
 import AncientModal from '@/components/common/AncientModal';
 import { usePlayerContext } from '@/contexts/PlayerContext';
@@ -180,7 +184,7 @@ export default function CampaignCenterPanel({ playerId, open, onClose, season = 
                     {payload.campaigns.map((c) => (
                       <option key={c.campaign_id} value={c.campaign_id}>
                         {c.progress.unlocked ? '' : '🔒 '}
-                        {c.campaign_name}（{c.dropdown_paren_inner ?? c.campaign_id}）
+                        {formatCampaignCenterSelectOptionLabel(c)}
                       </option>
                     ))}
                   </select>
@@ -196,7 +200,7 @@ export default function CampaignCenterPanel({ playerId, open, onClose, season = 
                       <CampaignFlipCard
                         posterUrl={posterUrlFor(selected.posterFilename)}
                         frontLine1={eraToFrontEraLine(selected.era)}
-                        frontLine2={selected.campaign_name}
+                        frontLine2={formatCampaignDisplayName(selected)}
                         campaignType={selected.campaign_type}
                         completionRewardSilver={selected.completion_reward_silver}
                         completionRewardFood={selected.completion_reward_food}
@@ -232,7 +236,7 @@ export default function CampaignCenterPanel({ playerId, open, onClose, season = 
                                 }
                                 setBattleCtx({
                                   id: selected.campaign_id,
-                                  name: selected.campaign_name,
+                                  name: formatCampaignDisplayName(selected),
                                   minRounds: selected.min_rounds ?? null,
                                   maxRounds: selected.max_rounds ?? 30,
                                 });

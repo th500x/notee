@@ -16,6 +16,7 @@ import {
   MAP_CORNER_ENTRY_ROW_CLASS,
   mapCornerEntryRowBoxStyle,
 } from '@/components/game/mapCornerEntryUi';
+import { formatCampaignDisplayName } from '@shared/utils/campaignDisplayName';
 
 const SEASON = 'san_1';
 const REFRESH_MS = 5 * 60 * 1000;
@@ -267,7 +268,7 @@ export default function StandingRankingsPanel({ visible, playerId }) {
                       {definitions.length === 0 && <option value="">加载中…</option>}
                       {definitions.map((d) => (
                         <option key={d.campaign_id} value={d.campaign_id}>
-                          {d.campaign_name || d.campaign_id}
+                          {formatCampaignDisplayName(d)}
                         </option>
                       ))}
                     </select>

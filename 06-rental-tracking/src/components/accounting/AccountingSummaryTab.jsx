@@ -37,6 +37,12 @@ function sumExpenseMonth(sheet, monthKey) {
   return s;
 }
 
+function averageFinite(values) {
+  const nums = values.filter((v) => Number.isFinite(v));
+  if (nums.length === 0) return NaN;
+  return nums.reduce((sum, v) => sum + v, 0) / nums.length;
+}
+
 function SummaryDataRow({ row }) {
   const r = row;
   return (
@@ -118,6 +124,16 @@ export function AccountingSummaryTab({ sheet }) {
 
   const hasOlderRows = olderRows.length > 0;
 
+  const visibleRows = showOlderHistory ? [...olderRows, ...recentRows] : recentRows;
+
+  const averages = useMemo(() => {
+    return {
+      income: averageFinite(visibleRows.map((r) => r.income)),
+      expense: averageFinite(visibleRows.map((r) => r.expense)),
+      balance: averageFinite(visibleRows.map((r) => r.balance))
+    };
+  }, [visibleRows]);
+
   return (
     <div className="bg-white rounded-lg shadow-md min-w-0 max-w-full w-full">
       <div className="w-full min-w-0 bg-gradient-to-r from-blue-500 to-purple-600 px-4 sm:px-6 py-4 text-white box-border">
@@ -175,6 +191,30 @@ export function AccountingSummaryTab({ sheet }) {
             <tr>
               <td colSpan={4} className="p-4 text-center text-gray-500 text-sm">
                 暂无账目数据
+              </td>
+            </tr>
+          ) : null}
+          {visibleRows.length > 0 ? (
+            <tr className="border-t-2 border-gray-300 bg-gray-50">
+              <td className="p-1.5 sm:p-2 font-semibold text-gray-900 border border-gray-100 text-[11px] sm:text-sm align-top">
+                平均
+              </td>
+              <td className="p-1.5 sm:p-2 text-right font-semibold border border-gray-100 text-[11px] sm:text-sm tabular-nums">
+                {formatAccountingNumber(averages.income)}
+              </td>
+              <td className="p-1.5 sm:p-2 text-right font-semibold border border-gray-100 text-[11px] sm:text-sm tabular-nums">
+                {formatAccountingNumber(averages.expense)}
+              </td>
+              <td
+                className={`p-1.5 sm:p-2 text-right font-semibold border border-gray-100 text-[11px] sm:text-sm tabular-nums ${
+                  !Number.isFinite(averages.balance)
+                    ? 'text-gray-500'
+                    : averages.balance >= 0
+                      ? 'text-green-700'
+                      : 'text-red-700'
+                }`}
+              >
+                {formatAccountingNumber(averages.balance)}
               </td>
             </tr>
           ) : null}
