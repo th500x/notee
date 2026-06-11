@@ -389,50 +389,6 @@
   opacity: 0.9;
 }
 
-.ws-quad-overlay {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  z-index: 2;
-}
-
-.ws-quad-overlay .ws-quad-frame {
-  position: absolute;
-  box-sizing: border-box;
-}
-
-.ws-quad-a {
-  left: 0;
-  top: 0;
-  width: 50%;
-  height: 50%;
-  border: 2px dashed rgba(201, 168, 76, 0.45);
-}
-
-.ws-quad-b {
-  left: 50%;
-  top: 0;
-  width: 50%;
-  height: 50%;
-  border: 2px dashed rgba(201, 168, 76, 0.45);
-}
-
-.ws-quad-c {
-  left: 50%;
-  top: 50%;
-  width: 50%;
-  height: 50%;
-  border: 2px dashed rgba(201, 168, 76, 0.45);
-}
-
-.ws-quad-d {
-  left: 0;
-  top: 50%;
-  width: 50%;
-  height: 50%;
-  border: 2px dashed rgba(201, 168, 76, 0.45);
-}
-
 .ws-terrain-fallback {
   position: absolute;
   inset: 0;
@@ -494,17 +450,6 @@
   width: 100%;
   height: calc(2 * var(--ws-tile) + 1px);
   font-size: 13px;
-}
-
-.ws-quad-marker {
-  position: absolute;
-  bottom: 1px;
-  left: 2px;
-  font-size: calc(7px + var(--ui-font-dpr-bump, 0px));
-  color: rgba(255, 255, 255, 0.35);
-  z-index: 6;
-  pointer-events: none;
-  text-shadow: 0 0 2px #000;
 }
 
 .ws-map-tile .tile-fire-fx {
@@ -957,19 +902,4 @@
 
 .ws-map-self-pawn__action-btn:active {
   opacity: 0.92;
-}
-
-/* 大地图 event_hint：锚点随格网滚动，对白框用 portal 固定到视口（见 StrategicMapEventHintBubble） */
-.ws-map-event-hint__pointer {
-  position: absolute;
-  left: 50%;
-  top: -7px;
-  width: 12px;
-  height: 12px;
-  transform: translateX(-50%) rotate(45deg);
-  background: linear-gradient(135deg, rgba(253, 230, 138, 0.35), rgba(28, 25, 23, 0.98));
-  border-left: 2px solid rgba(253, 230, 138, 0.88);
-  border-top: 2px solid rgba(253, 230, 138, 0.88);
-  box-shadow: -1px -1px 0 rgba(0, 0, 0, 0.2);
-  pointer-events: none;
 }

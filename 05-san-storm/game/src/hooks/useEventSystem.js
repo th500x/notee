@@ -1343,7 +1343,7 @@ export default function useEventSystem(player, cards, options = {}) {
 
     /** 完成探索事件后在大地图展示的下一步提示（`event_hint`）；教程链取刚完成环模板文案 */
     pendingMapEventHint,
-    /** 大地图气泡用：`pendingMapEventHint` 或教程 IDLE 时由「当前步对应上一环」`event_hint` 推导 */
+    /** 左上探索/教程钮用：`pendingMapEventHint` 或教程 IDLE 时由「当前步对应上一环」`event_hint` 推导（32-4 §1.5） */
     mapEventHintDisplay,
 
     /** 教程链进行中时供大地图等展示「教程 current/max」（与 `isTutorial` 同条件） */

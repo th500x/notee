@@ -438,9 +438,6 @@ function WorldStrategicMapTile({
           ))}
         </div>
       )}
-      {import.meta.env.DEV && c.quad ? (
-        <span className="ws-quad-marker">{c.quad}</span>
-      ) : null}
     </div>
   );
 }

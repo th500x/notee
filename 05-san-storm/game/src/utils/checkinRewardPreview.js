@@ -4,7 +4,7 @@
 
 import { fetchWithTimeout } from '@/services/httpClient';
 import { API_CONFIG } from '@/constants';
-import { getTreasureMaxUsesFromCardId } from '@shared/utils/treasureUses';
+import { getTreasureMaxUsesFromCardId, getInitialUsesRemaining } from '@shared/utils/treasureUses';
 
 /** @param {string} cardId */
 export function resolveCheckinCardTypeFromId(cardId) {
@@ -49,6 +49,7 @@ export function extractCheckinCardReward(rewardsStr) {
 /** @param {object} treasure configService.formatTreasureData */
 export function treasureConfigToEquipmentCard(treasure) {
   if (!treasure) return null;
+  const maxUses = getTreasureMaxUsesFromCardId(treasure.id);
   return {
     id: treasure.id,
     name: treasure.name,
@@ -59,8 +60,8 @@ export function treasureConfigToEquipmentCard(treasure) {
     specialEffect: treasure.specialEffect,
     specialEffectDesc: treasure.specialEffectDesc,
     description: treasure.description,
-    usesRemaining: null,
-    maxUses: getTreasureMaxUsesFromCardId(treasure.id),
+    usesRemaining: getInitialUsesRemaining(treasure.id),
+    maxUses,
   };
 }
 

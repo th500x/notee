@@ -6,6 +6,7 @@
 const bcrypt = require('bcrypt');
 const { pool } = require('../database/connection');
 const { signPlayerToken } = require('../middleware/auth');
+const { validateNewAccountPassword } = require('../../shared/utils/accountPasswordRules.cjs');
 
 /** 系统占位账号（传书 sender_id 外键），禁止注册与登录 */
 const SYSTEM_ACCOUNT_ID = 'sys1';
@@ -204,8 +205,8 @@ async function register(body, opts = {}) {
         INSERT INTO accounts (
           id, password, birthMonth, serverId,
           current_season, machineId, clientIP,
-          province, city, status
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')
+          province, city, account_type, status
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'real', 'active')
       `,
         [
           id,
@@ -253,6 +254,19 @@ async function register(body, opts = {}) {
     connection.release();
     throw err;
   }
+}
+
+/**
+ * 启动幂等：历史注册未写 account_type 的真人号补为 real（不动 sys1 / 已是 ai 的行）
+ */
+async function backfillMissingAccountTypeReal() {
+  const [result] = await pool.query(
+    `UPDATE accounts SET account_type = 'real'
+     WHERE id <> ?
+       AND (account_type IS NULL OR TRIM(account_type) = '')`,
+    [SYSTEM_ACCOUNT_ID],
+  );
+  return Number(result.affectedRows) || 0;
 }
 
 /**
@@ -642,9 +656,42 @@ async function switchServer(userId, newServerId) {
   }
 }
 
+/**
+ * 已登录账号修改密码（不校验旧密码）
+ * @param {string} accountId
+ * @param {{ password: string, confirmPassword: string }} body
+ */
+async function changePassword(accountId, body) {
+  const id = String(accountId || '').trim();
+  if (!id) {
+    return { ok: false, status: 400, error: '缺少账号 ID' };
+  }
+  if (id === SYSTEM_ACCOUNT_ID) {
+    return { ok: false, status: 400, error: '该账号不可修改密码' };
+  }
+
+  const validation = validateNewAccountPassword(body?.password, body?.confirmPassword);
+  if (!validation.ok) {
+    return { ok: false, status: 400, error: validation.error };
+  }
+
+  const [rows] = await pool.query('SELECT id, status FROM accounts WHERE id = ?', [id]);
+  if (!rows.length) {
+    return { ok: false, status: 404, error: '账号不存在' };
+  }
+  if (rows[0].status !== 'active') {
+    return { ok: false, status: 403, error: '账号已封禁，无法修改密码' };
+  }
+
+  const hashedPassword = await bcrypt.hash(String(body.password), BCRYPT_ROUNDS);
+  await pool.query('UPDATE accounts SET password = ? WHERE id = ?', [hashedPassword, id]);
+  return { ok: true };
+}
+
 module.exports = {
   SYSTEM_ACCOUNT_ID,
   pickRegisterIdCandidates,
+  backfillMissingAccountTypeReal,
   register,
   verifyExists,
   login,
@@ -657,4 +704,5 @@ module.exports = {
   deleteAllBannedAccounts,
   purgeAllPlayerData,
   switchServer,
+  changePassword,
 };

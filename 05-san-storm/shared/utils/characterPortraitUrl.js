@@ -1,10 +1,14 @@
 /**
  * 将领卡立绘：`public/assets/characters/avatars/{character_id}.png`（99-5 AIDXL 产出）。
+ * 落地 PNG **128×128**（AI 768 直出后缩放；卡面 70px、地图 pawn ≤40px）；批量缩放见
+ * `docs/tools/character/resize-character-avatars-to-128.py`。
  * 无文件时由 UI `onError` 回退占位，不在此做存在性探测。
  */
 import { normalizeGamePublicBase } from './troopIconUrls.js';
 
 export const CHARACTER_PORTRAIT_AVATAR_DIR = 'assets/characters/avatars';
+/** 仓库内落地立绘边长（px）；与 99-5 §4 一致 */
+export const CHARACTER_PORTRAIT_TARGET_PX = 128;
 
 const CHARACTER_ID_RE = /^san_\d+_char_\d+$/;
 

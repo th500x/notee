@@ -131,7 +131,6 @@ function CampaignMapTile({
       {manualHl === 'skillPreview' && (
         <div className="manual-hl skill-preview campaign-manual-hl" aria-hidden />
       )}
-      <span className="camp-quad-marker">{cell.quad}</span>
     </div>
   );
 }

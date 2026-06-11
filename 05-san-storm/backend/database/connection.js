@@ -6,6 +6,10 @@
 
 require('dotenv').config({ path: __dirname + '/../.env' });
 const mysql = require('mysql2/promise');
+const {
+  GAME_CALENDAR_MYSQL_OFFSET,
+  INIT_SESSION_TIME_ZONE_SQL,
+} = require('../config/gameCalendar');
 
 /**
  * 数据库配置
@@ -21,13 +25,9 @@ const mysql = require('mysql2/promise');
  *   并非 +08（如 +07 曼谷），XAMPP 的 MySQL session 时区跟随 OS（默认 SYSTEM）也是 +07，
  *   被 mysql2 按 +08 解析后会偏 1 小时——前端表现为"刚做的战斗显示 1 小时前"。
  *
- *   **修订后默认值 'local'**：
- *     - mysql2 把 DB DATETIME 字符串按**运行进程本地时区**解析；
- *     - 本地：进程时区（OS）= XAMPP MySQL session 时区（SYSTEM=OS） → 自动对齐；
- *     - 生产：进程时区（容器 UTC）= 生产 MySQL session 时区（容器 UTC） → 自动对齐；
- *     - 跨时区一致性靠"进程与 DB session 在同一台机 / 同一容器栈中天然相同"实现，
- *       任何机器都不需要单独配置；
- *     - 极端场景（DB session 与进程时区刻意分离）才用 `DB_TIMEZONE` 环境变量手动覆盖。
+ *   **游戏默认（2026-06）**：全服自然日固定 **东八区（GMT+8）**；`timezone` 默认 `+08:00`，
+ *   每条连接 `SET time_zone = '+08:00'`，使 `CURDATE()` / 0:00 cron 与北京时间一致。
+ *   仅当 DB session 与进程刻意分离时才用 `DB_TIMEZONE` 覆盖。
  *
  *   前端拿到 `created_at.toISOString()` 永远是 UTC ISO，再用 `new Date(iso)` 转成
  *   浏览器本地时区显示——只要"DB session 时区 = 进程时区"成立，玩家看到的"X 分钟前"就是对的。
@@ -45,7 +45,7 @@ const dbConfig = {
   password: process.env.DB_PASSWORD || '',
   database: process.env.DB_NAME || '05_san_storm',
   charset: 'utf8mb4',
-  timezone: process.env.DB_TIMEZONE || 'local',
+  timezone: process.env.DB_TIMEZONE || GAME_CALENDAR_MYSQL_OFFSET,
   dateStrings: ['DATE'],
   waitForConnections: true,
   connectionLimit: parsePoolInt(process.env.DB_CONNECTION_LIMIT, 10, 1, 100),
@@ -102,6 +102,14 @@ function getPoolStats() {
  */
 const pool = mysql.createPool(dbConfig);
 
+pool.pool.on('connection', (connection) => {
+  connection.query(INIT_SESSION_TIME_ZONE_SQL, (err) => {
+    if (err) {
+      console.error('[Database] 初始化 session time_zone 失败:', err.message);
+    }
+  });
+});
+
 /**
  * 测试数据库连接
  */
@@ -112,7 +120,7 @@ async function testConnection() {
     console.log(`📍 数据库: ${dbConfig.database}`);
     console.log(`🔗 主机: ${dbConfig.host}:${dbConfig.port}`);
     console.log(`🔌 连接池: limit=${dbConfig.connectionLimit}, queueLimit=${dbConfig.queueLimit}`);
-    console.log(`🕐 时区: ${dbConfig.timezone}（mysql2 → DB DATETIME 解析方向；'local' 表示按进程本地时区，与 DB session 自然对齐） / DATE 列保留字符串原文`);
+    console.log(`🕐 时区: ${dbConfig.timezone}（游戏自然日固定东八区 GMT+8；DATE 列保留字符串原文）`);
     connection.release();
     return true;
   } catch (error) {

@@ -355,7 +355,7 @@ export default function WorldMap({
     if (phase !== PHASE.IDLE) closeEvent();
   }, [suppressExploreUi, phase, closeEvent]);
 
-  /** 攻城/探索/道路等全屏或模态流程中不渲染大地图 event_hint portal，避免「指引」压在战斗或弹窗之上 */
+  /** 攻城/探索/道路等全屏或模态流程中不在左上展示 event_hint（32-4 §1.5） */
   const strategicMapEventHintSuppressed =
     !mapLayerVisible ||
     blockTutorialAutoplay ||

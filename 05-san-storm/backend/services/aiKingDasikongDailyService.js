@@ -41,7 +41,8 @@ function buildAppointmentMailContent(king, winner, totalScore) {
 async function demoteOtherDasikongHolders(connection, factionId, winnerPlayerId) {
   const [holders] = await connection.query(
     `SELECT p.player_id FROM players p
-     INNER JOIN accounts a ON a.id = p.player_id AND a.account_type = 'real'
+     INNER JOIN accounts a ON a.id = p.player_id
+       AND COALESCE(NULLIF(TRIM(a.account_type), ''), 'real') = 'real'
      WHERE p.faction_id = ? AND p.current_position_id = ? AND p.player_id <> ?`,
     [factionId, DASIKONG_POSITION_ID, winnerPlayerId],
   );
@@ -116,36 +117,15 @@ async function runDailyTickForFaction(factionId, king) {
     const snapCount = await kingDasikongRankingService.countFactionSnapshots(connection, fid, EVENT_ID);
 
     if (snapCount === 0) {
-      await kingDasikongRankingService.resetFactionBaselines(connection, fid, todayYmd, EVENT_ID);
-      const afterCount = await kingDasikongRankingService.countFactionSnapshots(connection, fid, EVENT_ID);
       const eligible = await kingDasikongRankingService.countEligibleRealPlayers(connection, fid);
       const pastBootstrapDay = await kingDasikongRankingService.isFactionPastDasikongBootstrapDay(
         connection,
         fid,
       );
 
-      if (afterCount === 0) {
-        await connection.commit();
-        console.log(
-          `[aiKing][dasikong] faction=${fid} bootstrapped baselines (${todayYmd}) ` +
-            `snapshots=0 eligibleReal=${eligible}`,
-        );
-        if (eligible > 0) {
-          console.warn(
-            `[aiKing][dasikong] faction=${fid} bootstrap inserted 0 snapshots despite ${eligible} eligible players — check temp_event_ranking migration`,
-          );
-        }
-        return {
-          ok: true,
-          factionId: fid,
-          bootstrapped: true,
-          baselineDate: todayYmd,
-          snapshotCount: 0,
-          eligibleReal: eligible,
-        };
-      }
-
       if (!pastBootstrapDay) {
+        await kingDasikongRankingService.resetFactionBaselines(connection, fid, todayYmd, EVENT_ID);
+        const afterCount = await kingDasikongRankingService.countFactionSnapshots(connection, fid, EVENT_ID);
         await connection.commit();
         console.log(
           `[aiKing][dasikong] faction=${fid} bootstrapped baselines (${todayYmd}) ` +
@@ -161,19 +141,48 @@ async function runDailyTickForFaction(factionId, king) {
         };
       }
 
-      // 迁移/清表恢复：仅补 baseline，不在「零增量」上决选（避免 tie-break 误任命）
-      await connection.commit();
-      console.log(
-        `[aiKing][dasikong] faction=${fid} recovery bootstrap (${todayYmd}) ` +
-          `snapshots=${afterCount} — skip appointment (no prior baseline)`,
+      // 漏跑 / 清表：昨日零基准 → 决选 → 今日 baseline（不再「只写今日、跳过任命」）
+      const yesterdayYmd = await kingDasikongRankingService.getYesterdayYmd(connection);
+      await kingDasikongRankingService.seedFactionZeroBaselines(
+        connection,
+        fid,
+        yesterdayYmd,
+        EVENT_ID,
       );
+      const winner = await kingDasikongRankingService.pickDailyWinner(connection, fid, EVENT_ID);
+      let textId = null;
+      let demoted = [];
+
+      if (winner?.playerId) {
+        demoted = await demoteOtherDasikongHolders(connection, fid, winner.playerId);
+        textId = await sendAppointmentMail(connection, king, winner);
+        await factionBulletinService.appendOnConnection(
+          connection,
+          fid,
+          `【谕旨】${king.characterName || '君主'}：依昨日群臣功绩，册封 ${winner.characterName || winner.playerId} 为大司空（日榜 ${Math.max(0, Math.floor(winner.totalScore))} 分）。`,
+          { category: factionBulletinService.CATEGORY.EDICT },
+        );
+        console.log(
+          `[aiKing][dasikong] faction=${fid} recovery winner=${winner.playerId}(${winner.characterName}) ` +
+            `score=${winner.totalScore} textId=${textId} demoted=${demoted.length}`,
+        );
+      } else {
+        console.log(
+          `[aiKing][dasikong] faction=${fid} recovery no eligible winner (eligibleReal=${eligible})`,
+        );
+      }
+
+      await kingDasikongRankingService.resetFactionBaselines(connection, fid, todayYmd, EVENT_ID);
+      await connection.commit();
       return {
         ok: true,
         factionId: fid,
-        recoveryBootstrap: true,
-        skippedAppointment: true,
+        recoveryAppointment: true,
         baselineDate: todayYmd,
-        snapshotCount: afterCount,
+        yesterdayBaseline: yesterdayYmd,
+        winner: winner || null,
+        textId,
+        demoted,
         eligibleReal: eligible,
       };
     }
@@ -270,17 +279,49 @@ async function runStaleCatchUpOnStartup() {
     const conn = await pool.getConnection();
     try {
       if (await kingDasikongRankingService.hasProcessedToday(conn, king.factionId, EVENT_ID)) {
+        if (await kingDasikongRankingService.needsStuckZeroDeltaRecovery(conn, king.factionId, EVENT_ID)) {
+          const yesterdayYmd = await kingDasikongRankingService.getYesterdayYmd(conn);
+          console.warn(
+            `[aiKing][dasikong] startup stuck-zero-delta recovery faction=${king.factionId} ` +
+              `rewind baseline→${yesterdayYmd}`,
+          );
+          await kingDasikongRankingService.seedFactionZeroBaselines(
+            conn,
+            king.factionId,
+            yesterdayYmd,
+            EVENT_ID,
+          );
+          results.push(await runDailyTickForFaction(king.factionId, king));
+          continue;
+        }
         results.push({ factionId: king.factionId, skipped: true, reason: 'already_processed_today' });
         continue;
       }
-      const staleInfo = await kingDasikongRankingService.isFactionBaselineStale(conn, king.factionId, EVENT_ID);
-      if (!staleInfo.stale) {
-        results.push({ factionId: king.factionId, skipped: true, reason: 'baseline_current', ...staleInfo });
+      const staleInfo = await kingDasikongRankingService.isFactionBaselineStale(
+        conn,
+        king.factionId,
+        EVENT_ID,
+      );
+      const eligibleReal = await kingDasikongRankingService.countEligibleRealPlayers(
+        conn,
+        king.factionId,
+      );
+      const needsBootstrap = staleInfo.snapCount === 0 && eligibleReal > 0;
+      if (!staleInfo.stale && !needsBootstrap) {
+        results.push({
+          factionId: king.factionId,
+          skipped: true,
+          reason: 'baseline_current',
+          eligibleReal,
+          ...staleInfo,
+        });
         continue;
       }
       console.warn(
         `[aiKing][dasikong] startup catch-up faction=${king.factionId} ` +
-          `baseline=${staleInfo.maxBaselineDate || 'none'} today=${staleInfo.todayYmd}`,
+          `baseline=${staleInfo.maxBaselineDate || 'none'} today=${staleInfo.todayYmd} ` +
+          `snapCount=${staleInfo.snapCount} eligibleReal=${eligibleReal}` +
+          (needsBootstrap ? ' (bootstrap)' : ''),
       );
       results.push(await runDailyTickForFaction(king.factionId, king));
     } finally {

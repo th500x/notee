@@ -20,10 +20,11 @@ function affectedRows(header) {
 
 async function clearGarrisonTreasureRefs(queryFn, playerId, instanceId) {
   const sets = GARRISON_TREASURE_FIELDS.map((f) => `${f} = CASE WHEN ${f} = ? THEN NULL ELSE ${f} END`).join(', ');
+  const params = [...GARRISON_TREASURE_FIELDS.map(() => instanceId), playerId];
   await queryFnAdapter(
     queryFn,
     `UPDATE player_garrison SET ${sets} WHERE player_id = ?`,
-    [instanceId, playerId],
+    params,
   );
 }
 

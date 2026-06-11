@@ -339,7 +339,7 @@ export default function StrategicWorldMapSection({
   strategicFullScreenOverlayOpen = false,
   /** 攻城/探索战斗等：`WorldMap` 注入，为 true 时不渲染 event_hint portal（避免压住战场/弹窗） */
   strategicMapEventHintSuppressed = false,
-  /** 探索结算后指引文案（`event_hint`）；锚在本人路点漫画对白框 */
+  /** 探索结算后指引文案（`event_hint`）；展示于左上探索/教程钮（32-4 §1.5） */
   pendingMapEventHint = null,
   /** 向 `useEventSystem` 提交战略格网上下文，用于 `exploreLocationId` 与城 POI footprint 内落格对齐（`{city_*}` 等到城才匹配） */
   onExploreAnchorGridContext = null,
@@ -1236,6 +1236,10 @@ export default function StrategicWorldMapSection({
       : eq?.loaded
         ? `探索 ${eq.remaining}/${eq.max}`
         : '探索 …';
+    const eventHint =
+      !strategicMapEventHintSuppressed && pendingMapEventHint
+        ? String(pendingMapEventHint).trim() || null
+        : null;
     const siegeLabel = sq?.loaded ? `攻城 ${sq.remaining}/${sq.max}` : '攻城 …';
 
     const banditByJunId = {};
@@ -1252,8 +1256,9 @@ export default function StrategicWorldMapSection({
     return {
       explore: {
         label: exploreLabel,
-        title: tutorial ? '教程进行中' : '定位至己方最近中城或大城',
+        title: tutorial ? '点击查看教程指引' : '定位至己方最近中城或大城',
         disabled: !!tutorial,
+        eventHint,
         requestLocate: requestExploreProgressLocate,
       },
       siege: {
@@ -1275,6 +1280,8 @@ export default function StrategicWorldMapSection({
     };
   }, [
     cells,
+    pendingMapEventHint,
+    strategicMapEventHintSuppressed,
     strategicTutorialExploreStep,
     exploreQuota?.remaining,
     exploreQuota?.max,
@@ -1875,8 +1882,6 @@ export default function StrategicWorldMapSection({
           strategicCityLabelAllyFactionIds={strategicCityLabelAllyFactionIds}
           strategicCityLabelNonHostileFactionIds={strategicCityLabelNonHostileFactionIds}
           strategicFullScreenOverlayOpen={strategicFullScreenOverlayOpen}
-          strategicMapEventHintSuppressed={strategicMapEventHintSuppressed}
-          pendingMapEventHint={pendingMapEventHint}
           meta={null}
           strategicSelfPawn={strategicSelfPawn}
           strategicOtherPawns={strategicOtherPawns}

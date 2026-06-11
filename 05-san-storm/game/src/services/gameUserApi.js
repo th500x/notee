@@ -188,6 +188,33 @@ export const gameUserAPI = {
   },
 
   /**
+   * 已登录玩家修改密码（须 Bearer token；不校验旧密码）
+   */
+  changePassword: async ({ password, confirmPassword }) => {
+    try {
+      const response = await fetchWithTimeout(`${API_CONFIG.BASE_URL}/auth/change-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password, confirmPassword }),
+      });
+      const data = await response.json();
+      if (data.success) {
+        return { success: true, message: data.message || '密码已更新' };
+      }
+      return {
+        success: false,
+        error: data.error || '修改密码失败',
+      };
+    } catch (error) {
+      console.error('[GameUserAPI] 修改密码失败', error);
+      if (error.message?.includes('超时')) {
+        return { success: false, error: '请求超时，请稍后重试' };
+      }
+      return { success: false, error: '网络错误，请检查后端服务' };
+    }
+  },
+
+  /**
    * 获取所有用户列表（管理员功能）
    */
   getAllUsers: async () => {

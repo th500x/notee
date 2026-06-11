@@ -11,13 +11,6 @@ import TileTooltipContent from '@/components/battle/TileTooltipContent';
 import '@/components/battle/BattleMap.css';
 import './CampaignMapGrid.css';
 
-const QUAD_CLASS = {
-  A: 'campaign-quad-frame campaign-quad-a',
-  B: 'campaign-quad-frame campaign-quad-b',
-  C: 'campaign-quad-frame campaign-quad-c',
-  D: 'campaign-quad-frame campaign-quad-d',
-};
-
 /**
  * 象限框必须叠在格子上方用 absolute，不可作为 grid 子项（否则与 320 格争位，地图会挤到网格外）。
  *
@@ -181,11 +174,6 @@ const CampaignMapGrid = forwardRef(function CampaignMapGrid(
                 );
               })
             )}
-          </div>
-          <div className="campaign-quad-overlay" aria-hidden>
-            {(['A', 'B', 'C', 'D']).map((q) => (
-              <div key={q} className={QUAD_CLASS[q]} title={`象限 ${q}`} />
-            ))}
           </div>
           <CampaignMapUnitsOverlay
             cells={cells}

@@ -21,6 +21,11 @@ import {
   writeUiUserScale,
   isUiFontDprBumpActive,
 } from '@/utils/uiDisplayScale';
+import {
+  ACCOUNT_PASSWORD_MIN_LENGTH,
+  validateNewAccountPassword,
+} from '@shared/utils/accountPasswordRules';
+import { gameUserAPI } from '@/services/gameUserApi';
 
 const MENU_ITEMS = [
   { id: 'mechanics', icon: '📜', label: '机制' },
@@ -43,6 +48,11 @@ export default function PersonalSidebar({
   const [bgmOn, setBgmOn] = useState(() => readBgmEnabled());
   const [uiUserScale, setUiUserScale] = useState(() => readUiUserScale());
   const [uiDprBumpActive, setUiDprBumpActive] = useState(() => isUiFontDprBumpActive());
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordMsg, setPasswordMsg] = useState(null);
+  const [passwordSubmitting, setPasswordSubmitting] = useState(false);
+  const [passwordFormOpen, setPasswordFormOpen] = useState(false);
 
   // ESC：团队详情 → 团队列表 → 主菜单；统计/机制子页 → 主菜单 → 关侧边栏
   useEffect(() => {
@@ -74,6 +84,11 @@ export default function PersonalSidebar({
     if (!open) {
       setSubView(null);
       setCatalogModal(null);
+      setNewPassword('');
+      setConfirmPassword('');
+      setPasswordMsg(null);
+      setPasswordSubmitting(false);
+      setPasswordFormOpen(false);
     } else {
       setBgmOn(readBgmEnabled());
       setUiUserScale(readUiUserScale());
@@ -124,6 +139,34 @@ export default function PersonalSidebar({
   const handleUiScalePick = (scale) => {
     setUiUserScale(scale);
     writeUiUserScale(scale);
+  };
+
+  const handleChangePassword = async (e) => {
+    e.preventDefault();
+    setPasswordMsg(null);
+    const validation = validateNewAccountPassword(newPassword, confirmPassword);
+    if (!validation.ok) {
+      setPasswordMsg({ type: 'error', text: validation.error });
+      return;
+    }
+    setPasswordSubmitting(true);
+    try {
+      const result = await gameUserAPI.changePassword({
+        password: newPassword,
+        confirmPassword,
+      });
+      if (result.success) {
+        setNewPassword('');
+        setConfirmPassword('');
+        setPasswordMsg({ type: 'success', text: result.message || '密码已更新' });
+      } else {
+        setPasswordMsg({ type: 'error', text: result.error || '修改密码失败' });
+      }
+    } catch {
+      setPasswordMsg({ type: 'error', text: '修改密码失败，请稍后重试' });
+    } finally {
+      setPasswordSubmitting(false);
+    }
   };
 
   return (
@@ -274,15 +317,79 @@ export default function PersonalSidebar({
           </>
         )}
 
-        {/* 底部退出 */}
-        <div className="shrink-0 p-4 border-t border-gray-200 bg-white">
-          <button
-            type="button"
-            onClick={onLogout}
-            className="w-full py-2.5 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors font-medium"
-          >
-            🚪 退出登录
-          </button>
+        {/* 修改密码 + 退出 */}
+        <div className="shrink-0 border-t border-gray-200 bg-white">
+          <div className="px-4 py-3 border-b border-gray-100">
+            {!passwordFormOpen ? (
+              <button
+                type="button"
+                onClick={() => setPasswordFormOpen(true)}
+                className="w-full py-2 text-sm font-medium rounded-lg bg-amber-50 text-amber-900 hover:bg-amber-100 transition-colors"
+              >
+                修改密码
+              </button>
+            ) : (
+              <form onSubmit={handleChangePassword}>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-xl" aria-hidden>🔒</span>
+                  <span className="text-gray-800 font-medium">修改密码</span>
+                </div>
+                <p className="text-xs text-gray-500 mb-2">
+                  新密码至少 {ACCOUNT_PASSWORD_MIN_LENGTH} 位，无需验证旧密码
+                </p>
+                <div className="space-y-2">
+                  <input
+                    type="password"
+                    value={newPassword}
+                    onChange={(e) => {
+                      setNewPassword(e.target.value);
+                      if (passwordMsg) setPasswordMsg(null);
+                    }}
+                    autoComplete="new-password"
+                    placeholder="新密码"
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  />
+                  <input
+                    type="password"
+                    value={confirmPassword}
+                    onChange={(e) => {
+                      setConfirmPassword(e.target.value);
+                      if (passwordMsg) setPasswordMsg(null);
+                    }}
+                    autoComplete="new-password"
+                    placeholder="确认新密码"
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  />
+                </div>
+                {passwordMsg ? (
+                  <p
+                    className={`mt-2 text-xs ${
+                      passwordMsg.type === 'success' ? 'text-green-700' : 'text-red-600'
+                    }`}
+                    role="status"
+                  >
+                    {passwordMsg.text}
+                  </p>
+                ) : null}
+                <button
+                  type="submit"
+                  disabled={passwordSubmitting}
+                  className="mt-2 w-full py-2 text-sm font-medium rounded-lg bg-amber-50 text-amber-900 hover:bg-amber-100 disabled:opacity-60 transition-colors"
+                >
+                  {passwordSubmitting ? '提交中…' : '保存密码'}
+                </button>
+              </form>
+            )}
+          </div>
+          <div className="p-4">
+            <button
+              type="button"
+              onClick={onLogout}
+              className="w-full py-2.5 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors font-medium"
+            >
+              🚪 退出登录
+            </button>
+          </div>
         </div>
       </div>
 

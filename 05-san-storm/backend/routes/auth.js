@@ -7,6 +7,7 @@
 const express = require('express');
 const accountService = require('../services/accountService');
 const { loginLimiter, registerCandidatesLimiter } = require('../middleware/rateLimit');
+const { requireAuth } = require('../middleware/auth');
 const { wrap500 } = require('../utils/httpError');
 const { validateBody, v } = require('../middleware/validation');
 
@@ -135,6 +136,40 @@ router.post(
     return next(wrap500(error, '登录失败'));
   }
 });
+
+/**
+ * POST /api/auth/change-password
+ * 已登录玩家修改密码（须 JWT；不校验旧密码）
+ */
+router.post(
+  '/change-password',
+  requireAuth,
+  validateBody({
+    password: v.required(v.nonEmptyString({ max: 256 })),
+    confirmPassword: v.required(v.nonEmptyString({ max: 256 })),
+  }),
+  async (req, res, next) => {
+    try {
+      if (!req.player?.sub || req.player._devBypass) {
+        return res.status(401).json({
+          success: false,
+          error: '请使用正常登录会话后再修改密码',
+          code: 'NO_TOKEN',
+        });
+      }
+      const result = await accountService.changePassword(req.player.sub, req.body);
+      if (!result.ok) {
+        return res.status(result.status).json({
+          success: false,
+          error: result.error,
+        });
+      }
+      return res.json({ success: true, message: '密码已更新' });
+    } catch (error) {
+      return next(wrap500(error, '修改密码失败'));
+    }
+  },
+);
 
 /**
  * GET /api/auth/users

@@ -11,6 +11,7 @@
 
 const { pool } = require('../database/connection');
 const factionReserveService = require('./factionReserveService');
+const { queryGameCalendarDateYmd } = require('../config/gameCalendar');
 const {
   rollStipendAmountsForTier,
   SILVER_COEFFICIENT_BY_TIER,
@@ -109,11 +110,12 @@ function estimateDailyReserveRecovery(supplyTier, counts) {
 }
 
 /**
+ * @param {import('mysql2/promise').Pool | import('mysql2/promise').PoolConnection} db
  * @param {string} factionId
  * @returns {Promise<{ small: number, medium: number, major: number }>}
  */
-async function countOwnedCitiesForRecovery(factionId) {
-  const [rows] = await pool.query(
+async function countOwnedCitiesForRecovery(db, factionId) {
+  const [rows] = await db.query(
     `SELECT city_type, COUNT(*) AS c
      FROM cities
      WHERE faction_id = ? AND status = 'owned'
@@ -130,15 +132,21 @@ async function countOwnedCitiesForRecovery(factionId) {
   return out;
 }
 
+/** 与 MySQL CURDATE() 对齐（session 已固定东八区） */
+async function queryServerDateYmd(db) {
+  return queryGameCalendarDateYmd(db);
+}
+
 function mysqlDateToYmd(val) {
   if (val == null) return null;
+  const s = String(val);
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
   if (val instanceof Date) {
     const y = val.getFullYear();
     const m = String(val.getMonth() + 1).padStart(2, '0');
     const d = String(val.getDate()).padStart(2, '0');
     return `${y}-${m}-${d}`;
   }
-  const s = String(val);
   return s.length >= 10 ? s.slice(0, 10) : s;
 }
 
@@ -194,7 +202,7 @@ async function applyDailyRecoveryForFactionOnConnection(conn, factionRow, todayS
     characterLegendaryCredited = legendaryRecovery.character;
   }
 
-  const cityCounts = await countOwnedCitiesForRecovery(factionId);
+  const cityCounts = await countOwnedCitiesForRecovery(conn, factionId);
   const weight = sumRecoveryWeight(cityCounts);
   if (weight <= 0) {
     await factionReserveService.setRecoveryAppliedDateOnConnection(conn, factionId, todayStr);
@@ -272,8 +280,8 @@ async function runDailyReserveRecoveryTick() {
   const conn = await pool.getConnection();
   const results = [];
   try {
-    const [dr] = await conn.query('SELECT CURDATE() AS d');
-    const todayStr = mysqlDateToYmd(dr[0].d);
+    const todayStr = await queryServerDateYmd(conn);
+    if (!todayStr) return { ok: false, error: 'cannot resolve CURDATE()', results: [] };
 
     let factionRows;
     try {
@@ -300,7 +308,8 @@ async function runDailyReserveRecoveryTick() {
           throw e;
         }
         const [locked] = await conn.query(
-          `SELECT faction_id AS id, recovery_applied_date
+          `SELECT faction_id AS id,
+                  DATE_FORMAT(recovery_applied_date, '%Y-%m-%d') AS recovery_applied_date
            FROM faction_reserve
            WHERE faction_id = ? AND category = ? FOR UPDATE`,
           [f.id, factionReserveService.CATEGORY.POOL],
@@ -334,6 +343,82 @@ async function runDailyReserveRecoveryTick() {
   }
 }
 
+/**
+ * 启动补跑：recovery_applied_date 为空或早于 CURDATE() 时执行日恢复（漏跑 0:00 tick / 部署重启后自愈）。
+ */
+async function runStaleCatchUpOnStartup() {
+  const conn = await pool.getConnection();
+  const results = [];
+  try {
+    const todayStr = await queryServerDateYmd(conn);
+    if (!todayStr) return { ok: false, error: 'cannot resolve CURDATE()', results: [] };
+
+    const [factionRows] = await conn.query('SELECT id FROM factions');
+    for (const f of factionRows) {
+      try {
+        await conn.beginTransaction();
+        try {
+          await factionReserveService.ensurePoolRow(conn, f.id);
+        } catch (e) {
+          if (/Unknown table ['`]faction_reserve/i.test(e?.message || '')) {
+            await conn.rollback();
+            return {
+              ok: false,
+              error: '缺少 faction_reserve 表，请执行迁移 create-faction-reserve-unified.sql',
+              results: [],
+            };
+          }
+          throw e;
+        }
+        const [locked] = await conn.query(
+          `SELECT faction_id AS id,
+                  DATE_FORMAT(recovery_applied_date, '%Y-%m-%d') AS recovery_applied_date
+           FROM faction_reserve
+           WHERE faction_id = ? AND category = ?
+             AND (recovery_applied_date IS NULL OR recovery_applied_date < CURDATE())
+           FOR UPDATE`,
+          [f.id, factionReserveService.CATEGORY.POOL],
+        );
+        if (!locked.length) {
+          await conn.rollback();
+          continue;
+        }
+        const applied = await applyDailyRecoveryForFactionOnConnection(conn, locked[0], todayStr);
+        await conn.commit();
+        if (
+          applied
+          && (applied.silver > 0
+            || applied.food > 0
+            || applied.troopLegendary > 0
+            || applied.characterLegendary > 0)
+        ) {
+          results.push({ ...applied, catchUp: true });
+          const legPart =
+            applied.troopLegendary > 0 || applied.characterLegendary > 0
+              ? ` +${applied.troopLegendary}部队传奇 +${applied.characterLegendary}将领传奇`
+              : '';
+          console.log(
+            `[factionReserve] catch-up ${applied.factionId} +${applied.silver}银 +${applied.food}粮${legPart} ` +
+              `(随机${applied.rollPercent}% 基数银${applied.baseSilver} 权重${applied.weight})`,
+          );
+        } else if (applied) {
+          results.push({ ...applied, catchUp: true, skippedOnlyMarkDate: true });
+        }
+      } catch (err) {
+        await conn.rollback();
+        console.error(`[factionReserve] catch-up ${f.id} 失败:`, err.message);
+      }
+    }
+
+    if (results.length) {
+      console.log(`[factionReserve] startup catch-up ${todayStr} factions=${results.length}`);
+    }
+    return { ok: true, date: todayStr, results };
+  } finally {
+    conn.release();
+  }
+}
+
 module.exports = {
   RECOVERY_WEIGHT_BY_CITY_TYPE,
   sumRecoveryWeight,
@@ -342,4 +427,6 @@ module.exports = {
   countOwnedCitiesForRecovery,
   applyDailyRecoveryForFactionOnConnection,
   runDailyReserveRecoveryTick,
+  runStaleCatchUpOnStartup,
+  queryServerDateYmd,
 };

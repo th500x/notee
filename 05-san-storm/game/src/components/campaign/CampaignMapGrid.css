@@ -80,18 +80,6 @@
   line-height: 0;
 }
 
-.campaign-quad-overlay {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  z-index: 2;
-}
-
-.campaign-quad-overlay .campaign-quad-frame {
-  position: absolute;
-  box-sizing: border-box;
-}
-
 .campaign-map-grid {
   position: relative;
   z-index: 1;
@@ -199,17 +187,6 @@
   object-fit: cover;
 }
 
-.camp-quad-marker {
-  position: absolute;
-  bottom: 1px;
-  left: 2px;
-  font-size: 7px;
-  color: rgba(255, 255, 255, 0.35);
-  z-index: 6;
-  pointer-events: none;
-  text-shadow: 0 0 2px #000;
-}
-
 /* 引擎渲染的部队层：直接挂在 .campaign-tile 根节点下（与 BattleMap .tile 同构） */
 .campaign-tile > .troop-layer {
   z-index: 10;
@@ -262,38 +239,6 @@
   z-index: 2;
   text-shadow: 0 0 3px #000;
   pointer-events: none;
-}
-
-.campaign-quad-a {
-  left: 0;
-  top: 0;
-  width: 50%;
-  height: 50%;
-  border: 2px dashed rgba(201, 168, 76, 0.45);
-}
-
-.campaign-quad-b {
-  left: 50%;
-  top: 0;
-  width: 50%;
-  height: 50%;
-  border: 2px dashed rgba(201, 168, 76, 0.45);
-}
-
-.campaign-quad-c {
-  left: 50%;
-  top: 50%;
-  width: 50%;
-  height: 50%;
-  border: 2px dashed rgba(201, 168, 76, 0.45);
-}
-
-.campaign-quad-d {
-  left: 0;
-  top: 50%;
-  width: 50%;
-  height: 50%;
-  border: 2px dashed rgba(201, 168, 76, 0.45);
 }
 
 .campaign-unit-marker {

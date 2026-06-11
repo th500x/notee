@@ -20,6 +20,9 @@ const {
   AiKingHourlyScheduler,
 } = require('./services/aiKingHourlyScheduler');
 const { notFoundHandler, errorHandler } = require('./middleware/errorHandler');
+const { cronScheduleOptions, GAME_CALENDAR_TZ } = require('./config/gameCalendar');
+
+const CRON_OPTS = cronScheduleOptions();
 
 /**
  * 启动期硬性检查：JWT_SECRET 缺失 / 过短即拒绝启动。
@@ -51,8 +54,6 @@ assertJwtSecret();
  * PVP / PVE 战事 tick：每 5 分钟扫描 active 战事的 24h 超时等终局条件（17-3 §5 · 17-4 §3）。
  */
 function schedulePvpWarTick() {
-  const tz = process.env.CRON_TZ;
-  const opts = tz ? { timezone: tz } : {};
   cron.schedule(
     '*/5 * * * *',
     async () => {
@@ -68,19 +69,17 @@ function schedulePvpWarTick() {
         console.error('[cityService] PVE war tick 失败:', err.message);
       }
     },
-    opts,
+    CRON_OPTS,
   );
 }
 
 /**
- * AI 君主主动决策小时调度（41-1 §8）：
+ * AI 君主主动决策小时调度
  *   - 每分钟扫描所有配置君主的「本小时 slot」是否到点；到点则触发主动决策入口。
  *   - 重启恢复：方案 B（不入库，按剩余时段就地重掷；详见 41-1 §8.1）。
  *   - 与 PVP tick 完全独立；不与被动审批共享随机序列。
  */
 function scheduleAiKingHourlyTick() {
-  const tz = process.env.CRON_TZ;
-  const opts = tz ? { timezone: tz } : {};
   const scheduler = new AiKingHourlyScheduler({
     onFire: async ({ factionId }) => {
       try {
@@ -99,14 +98,12 @@ function scheduleAiKingHourlyTick() {
         console.error('[aiKing][hourly] tick 失败:', err.message);
       }
     },
-    opts,
+    CRON_OPTS,
   );
   return scheduler;
 }
 
 function scheduleFactionReserveRecoveryDailyTick() {
-  const tz = process.env.CRON_TZ;
-  const opts = tz ? { timezone: tz } : {};
   const { runDailyReserveRecoveryTick } = require('./services/factionReserveRecoveryService');
   cron.schedule(
     '0 0 * * *',
@@ -123,13 +120,11 @@ function scheduleFactionReserveRecoveryDailyTick() {
         console.error('[factionReserve] daily tick 失败:', err.message);
       }
     },
-    opts,
+    CRON_OPTS,
   );
 }
 
 function scheduleTitlePositionTenureDailyTick() {
-  const tz = process.env.CRON_TZ;
-  const opts = tz ? { timezone: tz } : {};
   const { runDailyPositionTenureTick } = require('./services/titlePositionTenureService');
   cron.schedule(
     '0 0 * * *',
@@ -143,14 +138,12 @@ function scheduleTitlePositionTenureDailyTick() {
         console.error('[titleTenure] daily tick 失败:', err.message);
       }
     },
-    opts,
+    CRON_OPTS,
   );
 }
 
 function scheduleDailyReportDigestTick() {
-  const tz = process.env.CRON_TZ;
-  const opts = tz ? { timezone: tz } : {};
-  console.log(`[dailyReport] digest cron registered 0 0 * * * CRON_TZ=${tz || '(unset)'}`);
+  console.log(`[dailyReport] digest cron registered 0 0 * * * tz=${GAME_CALENDAR_TZ}`);
   const { runDailyDigestTick } = require('./services/dailyReportDigestService');
   cron.schedule(
     '0 0 * * *',
@@ -164,14 +157,12 @@ function scheduleDailyReportDigestTick() {
         console.error('[dailyReport] digest tick 失败:', err.message);
       }
     },
-    opts,
+    CRON_OPTS,
   );
 }
 
 function scheduleKingDasikongDailyTick() {
-  const tz = process.env.CRON_TZ;
-  const opts = tz ? { timezone: tz } : {};
-  console.log(`[aiKing][dasikong] cron registered 0 0 * * * CRON_TZ=${tz || '(unset)'}`);
+  console.log(`[aiKing][dasikong] cron registered 0 0 * * * tz=${GAME_CALENDAR_TZ}`);
   const aiKingDasikongDailyService = require('./services/aiKingDasikongDailyService');
   cron.schedule(
     '0 0 * * *',
@@ -192,7 +183,7 @@ function scheduleKingDasikongDailyTick() {
         console.error('[aiKing][dasikong] daily tick 失败:', err.message, err.stack || '');
       }
     },
-    opts,
+    CRON_OPTS,
   );
 }
 
@@ -211,10 +202,8 @@ async function logDasikongEnvOnCronFire() {
   }
 }
 
-/** 与 00-base/01-database-split/00-overview.md 临时表清理示例一致：每天凌晨 3:00（默认进程本地时区；生产可设 CRON_TZ=Asia/Shanghai） */
+/** 将领排名快照清理：每天 03:00（东八区自然日） */
 function scheduleTempTableCleanup() {
-  const tz = process.env.CRON_TZ;
-  const opts = tz ? { timezone: tz } : {};
   cron.schedule(
     '0 3 * * *',
     async () => {
@@ -227,7 +216,7 @@ function scheduleTempTableCleanup() {
         console.error('[CharacterRank] 清理过期快照失败:', err.message);
       }
     },
-    opts
+    CRON_OPTS,
   );
 }
 
@@ -521,13 +510,32 @@ httpServer = app.listen(PORT, async () => {
   if (dbConnected) {
     setImmediate(async () => {
       try {
+        const { backfillMissingAccountTypeReal } = require('./services/accountService');
+        const backfillRows = await backfillMissingAccountTypeReal();
+        if (backfillRows > 0) {
+          console.log(`[accounts] backfill account_type=real rows=${backfillRows}`);
+        }
+      } catch (err) {
+        console.error('[accounts] backfill account_type failed:', err.message);
+      }
+    });
+  }
+
+  if (dbConnected) {
+    setImmediate(async () => {
+      try {
         // 错开启动高峰，避免与玩家首屏 / 纪念图上传争 DB
         await new Promise((r) => setTimeout(r, 15000));
         const aiKingDasikongDailyService = require('./services/aiKingDasikongDailyService');
         const dailyReportDigestService = require('./services/dailyReportDigestService');
+        const factionReserveRecoveryService = require('./services/factionReserveRecoveryService');
         const digestCatchUp = await dailyReportDigestService.runStaleCatchUpOnStartup();
         if (digestCatchUp.ok && (digestCatchUp.results || []).some((r) => r.ok && !r.skipped)) {
           console.log('[dailyReport] startup digest catch-up finished');
+        }
+        const reserveCatchUp = await factionReserveRecoveryService.runStaleCatchUpOnStartup();
+        if (reserveCatchUp.ok && (reserveCatchUp.results || []).length > 0) {
+          console.log('[factionReserve] startup catch-up finished');
         }
         const catchUp = await aiKingDasikongDailyService.runStaleCatchUpOnStartup();
         if (catchUp.ok && (catchUp.results || []).some((r) => r.winner || r.bootstrapped)) {
@@ -560,8 +568,7 @@ httpServer = app.listen(PORT, async () => {
       }
     });
   }
-  const tzHint = process.env.CRON_TZ ? `CRON_TZ=${process.env.CRON_TZ}` : '本地时区';
-  console.log(`⏰ 将领排名快照清理：每日 03:00（${tzHint}），与数据库设计文档临时表清理节奏一致`);
+  console.log(`⏰ 日切 / 定时任务：0:00 与 03:00 按 ${GAME_CALENDAR_TZ}（GMT+8，写死）`);
 });
 
 module.exports = app;

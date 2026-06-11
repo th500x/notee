@@ -5,6 +5,11 @@
 
 const { pool } = require('../database/connection');
 const {
+  GAME_CALENDAR_TZ,
+  queryGameCalendarDateYmd,
+  queryGameCalendarDateOffsetYmd,
+} = require('../config/gameCalendar');
+const {
   EVENT_ID,
   SCORE_WEIGHTS,
   DASIKONG_POSITION_ID,
@@ -27,12 +32,16 @@ const DELTA = {
   contribution: `${STAT.contribEarned} - COALESCE(snap.snapshot_contribution, 0)`,
 };
 
+/** 真人账号：注册写 account_type=real；历史 NULL/空串视同 real（排除 ai） */
+const REAL_ACCOUNT_ACTIVE_SQL = `
+  COALESCE(NULLIF(TRIM(a.account_type), ''), 'real') = 'real'
+  AND a.status = 'active'`;
+
 /** 势力内真实活跃玩家（以 players 为驱动，statistics 可缺行） */
 const REAL_PLAYERS_FROM = `
   FROM players p
   INNER JOIN accounts a ON a.id = p.player_id
-    AND a.account_type = 'real'
-    AND a.status = 'active'
+    AND ${REAL_ACCOUNT_ACTIVE_SQL}
   LEFT JOIN player_statistics s ON s.player_id = p.player_id`;
 
 const REAL_PLAYERS_FACTION_WHERE = `
@@ -69,7 +78,7 @@ async function hasProcessedToday(connection, factionId, eventId = EVENT_ID) {
      FROM temp_event_ranking snap
      INNER JOIN players p ON p.player_id = snap.player_id
      INNER JOIN accounts a ON a.id = p.player_id
-       AND a.account_type = 'real' AND a.status = 'active'
+       AND COALESCE(NULLIF(TRIM(a.account_type), ''), 'real') = 'real' AND a.status = 'active'
      WHERE snap.event_id = ? AND p.faction_id = ?`,
     [eventId, factionId],
   );
@@ -86,7 +95,7 @@ async function countFactionSnapshots(connection, factionId, eventId = EVENT_ID) 
     `SELECT COUNT(*) AS c FROM temp_event_ranking snap
      INNER JOIN players p ON p.player_id = snap.player_id
      INNER JOIN accounts a ON a.id = p.player_id
-       AND a.account_type = 'real' AND a.status = 'active'
+       AND COALESCE(NULLIF(TRIM(a.account_type), ''), 'real') = 'real' AND a.status = 'active'
      WHERE snap.event_id = ? AND p.faction_id = ?`,
     [eventId, factionId],
   );
@@ -209,7 +218,7 @@ async function isFactionPastDasikongBootstrapDay(connection, factionId) {
   const [rows] = await connection.query(
     `SELECT 1 FROM players p
      INNER JOIN accounts a ON a.id = p.player_id
-       AND a.account_type = 'real' AND a.status = 'active'
+       AND COALESCE(NULLIF(TRIM(a.account_type), ''), 'real') = 'real' AND a.status = 'active'
      WHERE p.faction_id = ? AND p.player_id <> 'sys1'
        AND p.created_at < CURDATE()
      LIMIT 1`,
@@ -232,15 +241,81 @@ async function countEligibleRealPlayers(connection, factionId) {
 
 /** @returns {Promise<string>} YYYY-MM-DD */
 async function getServerDateYmd(connection) {
-  const [dr] = await connection.query('SELECT CURDATE() AS d');
-  const d = dr[0]?.d;
-  if (d instanceof Date) {
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${y}-${m}-${day}`;
-  }
-  return String(d).slice(0, 10);
+  return queryGameCalendarDateYmd(connection);
+}
+
+/** @returns {Promise<string|null>} 昨日 YYYY-MM-DD（东八区） */
+async function getYesterdayYmd(connection) {
+  return queryGameCalendarDateOffsetYmd(connection, 1);
+}
+
+/**
+ * 漏跑 / 清表恢复：以 snapshot=0、baseline_date=指定日写入，供下一 step 用全量统计作「日增量」决选。
+ * @param {import('mysql2/promise').PoolConnection} connection
+ */
+async function seedFactionZeroBaselines(connection, factionId, baselineDateYmd, eventId = EVENT_ID) {
+  await connection.query(
+    `INSERT INTO temp_event_ranking (
+       event_id, player_id,
+       snapshot_battle_score, snapshot_events_completed,
+       snapshot_reputation, snapshot_contribution,
+       snapshot_silver, snapshot_food,
+       baseline_date, expires_at
+     )
+     SELECT ?, p.player_id,
+       0, 0, 0, 0, 0, 0,
+       ?, DATE_ADD(NOW(), INTERVAL 90 DAY)
+     ${REAL_PLAYERS_IN_FACTION}
+     ON DUPLICATE KEY UPDATE
+       snapshot_battle_score = 0,
+       snapshot_events_completed = 0,
+       snapshot_reputation = 0,
+       snapshot_contribution = 0,
+       snapshot_silver = 0,
+       snapshot_food = 0,
+       baseline_date = VALUES(baseline_date),
+       frozen_at = NULL,
+       frozen_delta_battle = NULL,
+       frozen_delta_events = NULL,
+       frozen_delta_reputation = NULL,
+       frozen_delta_contribution = NULL,
+       frozen_delta_silver_food = NULL,
+       expires_at = VALUES(expires_at)`,
+    [eventId, baselineDateYmd, factionId],
+  );
+}
+
+/**
+ * 今日 baseline 已写入但日增量全 0、势力内确有统计活动 → 误走 recovery bootstrap 后的卡死态。
+ * @param {import('mysql2/promise').PoolConnection} connection
+ */
+async function needsStuckZeroDeltaRecovery(connection, factionId, eventId = EVENT_ID) {
+  if (!(await hasProcessedToday(connection, factionId, eventId))) return false;
+  const winner = await pickDailyWinner(connection, factionId, eventId);
+  if (Number(winner?.totalScore) > 0) return false;
+
+  const [activeRows] = await connection.query(
+    `SELECT COUNT(*) AS c
+     ${REAL_PLAYERS_FROM}
+     ${REAL_PLAYERS_FACTION_WHERE}
+       AND (
+         COALESCE(s.total_battle_score, 0) > 0
+         OR COALESCE(s.total_events_completed, 0) > 0
+         OR COALESCE(s.total_reputation_earned, 0) > 0
+         OR COALESCE(s.total_contribution_earned, 0) > 0
+       )`,
+    [factionId],
+  );
+  if (Number(activeRows[0]?.c) === 0) return false;
+
+  const [edictRows] = await connection.query(
+    `SELECT 1 FROM faction_bulletins
+     WHERE faction_id = ? AND category = 'edict' AND body LIKE '%大司空%'
+       AND created_at >= DATE_SUB(NOW(), INTERVAL 2 DAY)
+     LIMIT 1`,
+    [factionId],
+  );
+  return edictRows.length === 0;
 }
 
 /** @param {import('mysql2/promise').PoolConnection} connection */
@@ -273,7 +348,7 @@ async function isFactionBaselineStale(connection, factionId, eventId = EVENT_ID)
      FROM temp_event_ranking snap
      INNER JOIN players p ON p.player_id = snap.player_id
      INNER JOIN accounts a ON a.id = p.player_id
-       AND a.account_type = 'real' AND a.status = 'active'
+       AND COALESCE(NULLIF(TRIM(a.account_type), ''), 'real') = 'real' AND a.status = 'active'
      WHERE snap.event_id = ? AND p.faction_id = ?`,
     [eventId, factionId],
   );
@@ -304,9 +379,9 @@ async function getDasikongEnvironmentSnapshot(connection) {
     nowTs: rows[0]?.nowTs,
     mysqlSessionTz: rows[0]?.sessionTz,
     mysqlGlobalTz: rows[0]?.globalTz,
-    cronTz: process.env.CRON_TZ || '(unset → node-cron 用进程本地时区)',
+    cronTz: GAME_CALENDAR_TZ,
     nodeTz: Intl.DateTimeFormat().resolvedOptions().timeZone,
-    dbTimezoneEnv: process.env.DB_TIMEZONE || 'local',
+    dbTimezoneEnv: process.env.DB_TIMEZONE || GAME_CALENDAR_TZ,
   };
 }
 
@@ -367,9 +442,13 @@ async function getFactionDasikongDiagnostic(connection, factionId, eventId = EVE
     ...staleInfo,
     interpretation: staleInfo.stale
       ? 'baseline 落后于 CURDATE()：0:00 tick 未成功或漏跑；日榜显示的是多日累计增量'
-      : processedToday
-        ? '今日已日切（MAX baseline_date = CURDATE()）；日榜为今日增量'
-        : 'baseline 已是今日但 processedToday=false，或 snap 数据异常，需看 min/max/nullBaselineRows',
+      : staleInfo.snapCount === 0 && eligibleReal > 0
+        ? '尚无日榜 snapshot（0:00 未跑或 startup catch-up 未 bootstrap）；重启 backend 后应补建 baseline'
+        : processedToday && (await needsStuckZeroDeltaRecovery(connection, factionId, eventId))
+          ? '今日 baseline 已写但日增量为 0 且无近期任命；startup 应回卷昨日零基准后补决选'
+          : processedToday
+          ? '今日已日切（MAX baseline_date = CURDATE()）；日榜为今日增量'
+          : 'baseline 已是今日但 processedToday=false，或 snap 数据异常，需看 min/max/nullBaselineRows',
   };
 }
 
@@ -383,6 +462,9 @@ module.exports = {
   pickDailyWinner,
   listDailyActivityRanking,
   getServerDateYmd,
+  getYesterdayYmd,
+  seedFactionZeroBaselines,
+  needsStuckZeroDeltaRecovery,
   hasBaselineDateColumn,
   isFactionBaselineStale,
   getDasikongEnvironmentSnapshot,

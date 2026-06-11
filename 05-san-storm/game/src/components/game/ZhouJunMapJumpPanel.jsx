@@ -13,6 +13,7 @@ import {
   mapCornerZhouJunStackWideOuterStyle,
 } from '@/components/game/mapCornerEntryUi';
 import MapCornerOngoingWarButton from '@/components/game/MapCornerOngoingWarButton';
+import MapCornerExploreProgressButton from '@/components/game/MapCornerExploreProgressButton';
 import { playerRoadToWorldMapCell } from '@shared/utils/strategicGridCoordinates.js';
 
 /**
@@ -117,7 +118,7 @@ function focusCityId(city) {
  *   variant?: 'toolbar' | 'mapOverlay';
  *   locateSelfCell?: () => { gx: number; gy: number } | null;
  *   progressSidebar?: null | {
- *     explore: { label: string; title?: string; disabled?: boolean; requestLocate: () => string | null };
+ *     explore: { label: string; title?: string; disabled?: boolean; eventHint?: string | null; requestLocate: () => string | null };
  *     siege: { label: string; title?: string; disabled?: boolean; requestLocate: () => string | null };
  *     banditByJunId: Record<string, { label: string; title?: string; requestLocate: () => string | null }>;
  *     ongoingWars?: Array<{ entry: object; requestLocate: () => string | null }>;
@@ -434,16 +435,15 @@ export default function ZhouJunMapJumpPanel({ variant = 'toolbar', locateSelfCel
 
           {progressSidebar ? (
             <>
-              <button
-                type="button"
-                disabled={jumpBusy || !!progressSidebar.explore?.disabled}
-                onClick={() => runProgressLocate(progressSidebar.explore?.requestLocate)}
-                title={progressSidebar.explore?.title || progressSidebar.explore?.label}
-                style={mapCornerEntryRowBoxStyle}
-                className={`${MAP_CORNER_ENTRY_ROW_CLASS_ZHOU_JUN} self-start justify-start text-left text-stone-100 disabled:opacity-60`}
+              <MapCornerExploreProgressButton
+                jumpBusy={jumpBusy}
+                disabledLocate={!!progressSidebar.explore?.disabled}
+                eventHint={progressSidebar.explore?.eventHint}
+                onLocate={() => runProgressLocate(progressSidebar.explore?.requestLocate)}
+                titleWhenNoHint={progressSidebar.explore?.title || progressSidebar.explore?.label}
               >
                 <ZhouJunStatCaption text={progressSidebar.explore?.label} />
-              </button>
+              </MapCornerExploreProgressButton>
               <button
                 type="button"
                 disabled={jumpBusy || !!progressSidebar.siege?.disabled}

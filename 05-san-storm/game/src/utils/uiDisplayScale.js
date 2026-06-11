@@ -13,13 +13,16 @@ export const UI_MAP_LABEL_REF_TILE_PX = 48;
 
 export const UI_USER_SCALE_OPTIONS = [
   { value: 1, label: '100%' },
-  { value: 1.1, label: '110%' },
-  { value: 1.25, label: '125%' },
+  { value: 1.2, label: '120%' },
+  { value: 1.4, label: '140%' },
 ];
 
 function normalizeUserScale(raw) {
   const n = Number(raw);
-  if (n === 1.1 || n === 1.25) return n;
+  if (n === 1.2 || n === 1.4) return n;
+  /* 旧档 110%/125% → 就近映射到新档 */
+  if (n === 1.1) return 1.2;
+  if (n === 1.25) return 1.4;
   return 1;
 }
 

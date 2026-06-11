@@ -39,14 +39,6 @@ import { PHASE } from '@/components/event/EventConstants';
 import { strategicExploreReopenBridge } from '@/utils/strategicExploreReopenBridge.js';
 import { primeStrategicCityWildernessMarketTab } from './WorldMapCityInfoBlock.jsx';
 import StrategicMapSelfPawn from './StrategicMapSelfPawn';
-import StrategicMapEventHintBubble from './StrategicMapEventHintBubble';
-
-const WS_QUAD_CLASS = {
-  A: 'ws-quad-frame ws-quad-a',
-  B: 'ws-quad-frame ws-quad-b',
-  C: 'ws-quad-frame ws-quad-c',
-  D: 'ws-quad-frame ws-quad-d',
-};
 
 /** PC 点击出 tooltip 时：按下先不抢 capture，平移需超过此距离再开始，避免「点格子」被当成拖拽 */
 const WS_PAN_MOUSE_DRAG_THRESHOLD_PX = 5;
@@ -417,8 +409,6 @@ export default function WorldStrategicMapGrid({
    * 避免 `tile-tooltip--interactive`（高 z、pointer-events:auto）在触屏上继续吃掉阳翟 2×2 的首笔触摸。
    */
   strategicFullScreenOverlayOpen = false,
-  /** 攻城/探索战斗等：`WorldMap` 为 true 时不显示 event_hint portal */
-  strategicMapEventHintSuppressed = false,
   /** 玩家自身标记（主城块中心；见 31-6 §9）：`cx, cy, portraitUrl, displayName, centerGlyph, troopsCurrent, troopsMax` */
   strategicSelfPawn = null,
   /** 郡内在线他人道路 pawn 列表（31-6 §9.2、02 §2.1.2（3））；`road-presence` 结果 */
@@ -446,8 +436,6 @@ export default function WorldStrategicMapGrid({
   onStrategicRoadDoubleMarchToCell = null,
   /** 道路开战模式切换成功后刷新档案（`road_intercept` / 银两） */
   onStrategicRoadSelfUpdated = null,
-  /** 探索结算后大地图指引文案（`event_hint`）；漫画对白框锚在本人路点 */
-  pendingMapEventHint = null,
   /** 匪寨爬塔：扣次成功后由上层打开 `BattleArena`（payload 含 smallMapPveLoot / enemySlotRarities） */
   onStartBanditRaid = null,
   /** 与攻城相同的战略门闸文案；有值时 tooltip 内攻打按钮旁展示 */
@@ -471,8 +459,6 @@ export default function WorldStrategicMapGrid({
   const lastTooltipAnchorKeyRef = useRef(null);
   const { tooltipRef, tooltipStyle } = useTileTooltipClamp(tooltipContent, tooltipPos);
   const wrapRef = useRef(null);
-  /** 本人路点「行军/关闭/来战」操作条打开时隐藏 event_hint portal，避免与 z-[10091] 叠层冲突 */
-  const [strategicSelfPawnOverlayOpen, setStrategicSelfPawnOverlayOpen] = useState(false);
   const zoomRef = useRef(onWheelZoomSteps);
   zoomRef.current = onWheelZoomSteps;
   const tilePxRef = useRef(tilePx);
@@ -1324,13 +1310,6 @@ export default function WorldStrategicMapGrid({
                   />
                 </svg>
               ) : null}
-              {import.meta.env.DEV && mapRows === 40 ? (
-                <div className="ws-quad-overlay" aria-hidden>
-                  {['A', 'B', 'C', 'D'].map((q) => (
-                    <div key={q} className={WS_QUAD_CLASS[q]} title={`大象限 ${q}`} />
-                  ))}
-                </div>
-              ) : null}
               {Array.isArray(strategicOtherPawns)
                 ? strategicOtherPawns
                     .filter((p) => p && Number.isFinite(p.cx) && Number.isFinite(p.cy))
@@ -1374,32 +1353,6 @@ export default function WorldStrategicMapGrid({
                   interceptSilver={strategicSelfPawn.playerSilver}
                   onRoadSelfUpdated={onStrategicRoadSelfUpdated || undefined}
                   onRoadCell={!!strategicSelfPawn.onRoad}
-                  onSelfPawnOverlayOpenChange={setStrategicSelfPawnOverlayOpen}
-                />
-              ) : null}
-              {pendingMapEventHint ? (
-                <StrategicMapEventHintBubble
-                  cx={
-                    strategicSelfPawn &&
-                    Number.isFinite(strategicSelfPawn.cx) &&
-                    Number.isFinite(strategicSelfPawn.cy)
-                      ? strategicSelfPawn.cx
-                      : null
-                  }
-                  cy={
-                    strategicSelfPawn &&
-                    Number.isFinite(strategicSelfPawn.cx) &&
-                    Number.isFinite(strategicSelfPawn.cy)
-                      ? strategicSelfPawn.cy
-                      : null
-                  }
-                  hintText={pendingMapEventHint}
-                  mapWrapRef={wrapRef}
-                  visible={
-                    !strategicSelfPawnOverlayOpen &&
-                    !strategicFullScreenOverlayOpen &&
-                    !strategicMapEventHintSuppressed
-                  }
                 />
               ) : null}
             </div>

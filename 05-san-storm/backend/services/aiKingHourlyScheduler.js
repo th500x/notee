@@ -18,32 +18,24 @@
  */
 
 const aiKingConfigService = require('./aiKingConfigService');
-
-const MINUTES_PER_HOUR = 60;
-const MS_PER_MIN = 60 * 1000;
-const MS_PER_HOUR = 60 * MS_PER_MIN;
+const {
+  MS_PER_HOUR,
+  gameCalendarHourKeyOfMs,
+  gameCalendarHourStartMs,
+} = require('../config/gameCalendar');
 
 /**
- * 给定 `Date` 计算所在小时的整点 ms（向下取整到该小时 00 分 00 秒）。
+ * 给定 `Date` 计算东八区所在小时的整点 ms。
  */
 function hourStartMs(now) {
-  const d = new Date(now);
-  d.setMinutes(0, 0, 0);
-  return d.getTime();
+  return gameCalendarHourStartMs(now instanceof Date ? now.getTime() : Number(now) || Date.now());
 }
 
 /**
- * 给定 ms 时间戳生成 `YYYY-MM-DDTHH` 字符串作为「小时 key」（本地时区，
- * 与 `server.js` cron 默认时区一致；生产可设 CRON_TZ，但本调度器不直接关心 tz，
- * 因为同一进程内使用相同 `Date` 解释，跨重启的 reroll 逻辑只需要数值比较）。
+ * 给定 ms 时间戳生成东八区 `YYYY-MM-DDTHH` 小时 key。
  */
 function hourKeyOfMs(ms) {
-  const d = new Date(ms);
-  const Y = d.getFullYear();
-  const M = String(d.getMonth() + 1).padStart(2, '0');
-  const D = String(d.getDate()).padStart(2, '0');
-  const H = String(d.getHours()).padStart(2, '0');
-  return `${Y}-${M}-${D}T${H}`;
+  return gameCalendarHourKeyOfMs(ms);
 }
 
 /**
@@ -187,7 +179,5 @@ module.exports = {
   pickTriggerInInterval,
   hourStartMs,
   hourKeyOfMs,
-  MINUTES_PER_HOUR,
-  MS_PER_MIN,
   MS_PER_HOUR,
 };

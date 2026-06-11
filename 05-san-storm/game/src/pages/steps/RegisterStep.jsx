@@ -5,6 +5,7 @@
 import { useState, useEffect } from 'react';
 import { gameUserAPI } from '@/services/gameUserApi';
 import { generateIdOptions, getMachineFingerprint } from '@/pages/steps/authUtils';
+import { validateNewAccountPassword } from '@shared/utils/accountPasswordRules';
 import UserAgreementModal from '@/components/auth/UserAgreementModal';
 
 export function RegisterStep({ selectedServer, onRegisterSuccess, onBack }) {
@@ -61,18 +62,9 @@ export function RegisterStep({ selectedServer, onRegisterSuccess, onBack }) {
   };
 
   const handleRegisterSubmit = async () => {
-    if (!password || !confirmPassword) {
-      setError('请输入密码');
-      return;
-    }
-
-    if (password.length < 6) {
-      setError('密码至少需要6位');
-      return;
-    }
-
-    if (password !== confirmPassword) {
-      setError('两次输入的密码不一致');
+    const validation = validateNewAccountPassword(password, confirmPassword);
+    if (!validation.ok) {
+      setError(validation.error);
       return;
     }
 
