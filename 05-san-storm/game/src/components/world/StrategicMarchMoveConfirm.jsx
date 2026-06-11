@@ -44,7 +44,7 @@ export default function StrategicMarchMoveConfirm({
         </h2>
         {poiTargetName ? (
           <p className="mt-2 text-sm text-amber-100/90">
-            目标：<strong>{poiTargetName}</strong>（沿路接近后进入城寨占格中心；粮草仍按道路步数计）。
+            目标：<strong>{poiTargetName}</strong>
           </p>
         ) : null}
         <p className="mt-2 text-sm leading-relaxed text-stone-300">

@@ -2,6 +2,7 @@ import {
   buildStrategicPoiFootprintFromDbCityRow,
   findPoiFootprintKeysContainingCell,
   isAllowedPlayerCityPoiCityType,
+  resolveMergedStandpointStrategicPoiAnchorId,
 } from '@shared/utils/strategicMarchPoi.js';
 import { readStrategicCellAnchorId } from '@shared/utils/strategicCellAnchorId.js';
 import {
@@ -106,7 +107,7 @@ export function resolveExploreAnchorCityIdFromPlayerRoad(player, citiesList) {
  *
  * @param {object|null|undefined} player
  * @param {Array<object>|null|undefined} citiesList - 全量或郡内城行，用于 `countyCityRows` 缺省时的回退
- * @param {{ cells: object[][], mapColumns: number, mapRows: number, countyCityRows?: object[]|null }} gridCtx
+ * @param {{ cells: object[][], mapColumns: number, mapRows: number, countyCityRows?: object[]|null, roadCells?: Array<{gx:number,gy:number}>|string[]|null }} gridCtx
  * @returns {string|null}
  */
 export function resolveExploreAnchorCityIdFromStrategicGrid(player, citiesList, gridCtx) {
@@ -118,6 +119,25 @@ export function resolveExploreAnchorCityIdFromStrategicGrid(player, citiesList, 
     if (Number.isFinite(mc) && Number.isFinite(mr) && mc > 0 && mr > 0) {
       const world = resolveWorldMapCellFromPlayerRoad(player, mr);
       if (world) {
+        const rows =
+          Array.isArray(gridCtx.countyCityRows) && gridCtx.countyCityRows.length > 0
+            ? gridCtx.countyCityRows
+            : citiesList;
+        const roadCells = gridCtx.roadCells ?? null;
+
+        /** 与 pawn / 城面板同源：`roadCells` 可通行格落在城 2×2 footprint 内仍算该城（典型：颍川阳翟） */
+        const poiAnchorId = resolveMergedStandpointStrategicPoiAnchorId(
+          gridCtx.cells,
+          roadCells,
+          mc,
+          mr,
+          world.gx,
+          world.worldGy,
+          rows,
+          null,
+        );
+        if (poiAnchorId) return poiAnchorId;
+
         const fromCells = exploreAnchorIdFromMergedGridCells(
           gridCtx.cells,
           world.gx,
@@ -127,10 +147,6 @@ export function resolveExploreAnchorCityIdFromStrategicGrid(player, citiesList, 
         );
         if (fromCells) return fromCells;
 
-        const rows =
-          Array.isArray(gridCtx.countyCityRows) && gridCtx.countyCityRows.length > 0
-            ? gridCtx.countyCityRows
-            : citiesList;
         const k0 = `${world.gx},${world.worldGy}`;
         for (const row of rows) {
           const ct = row.city_type ?? row.cityType;

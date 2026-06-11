@@ -58,6 +58,12 @@ export default function WorldMap({
   /** 与 `StrategicWorldMapSection` 同步：战略格网 + 郡内城行，供探索锚点在「路格≠库锚格」时用 footprint 反查 city_id */
   const exploreAnchorGridRef = useRef(null);
   const [exploreAnchorGridSeq, setExploreAnchorGridSeq] = useState(0);
+  const exploreAnchorRoadOverrideRef = useRef(null);
+  const [exploreAnchorRoadOverrideSeq, setExploreAnchorRoadOverrideSeq] = useState(0);
+  const setExploreAnchorRoadOverride = useCallback((override) => {
+    exploreAnchorRoadOverrideRef.current = override;
+    setExploreAnchorRoadOverrideSeq((n) => n + 1);
+  }, []);
   const onExploreAnchorGridContext = useCallback((ctx) => {
     exploreAnchorGridRef.current = ctx;
     setExploreAnchorGridSeq((n) => n + 1);
@@ -69,6 +75,8 @@ export default function WorldMap({
     persistMapEventHint: true,
     exploreAnchorGridRef,
     exploreAnchorGridSeq,
+    exploreAnchorRoadOverrideRef,
+    exploreAnchorRoadOverrideSeq,
   });
   const {
     phase,
@@ -84,6 +92,7 @@ export default function WorldMap({
     positionAnimation,
     showLineupGuide,
     closeEvent,
+    retryTutorialExploreAutoplay,
   } = eventSystem;
 
   const [simpleAlertMessage, setSimpleAlertMessage] = useState(null);
@@ -436,6 +445,8 @@ export default function WorldMap({
         onDutyError={setSimpleAlertMessage}
         subsidiaryExploreEmbed={subsidiaryExploreEmbed}
         onExploreAnchorGridContext={onExploreAnchorGridContext}
+        setExploreAnchorRoadOverride={setExploreAnchorRoadOverride}
+        onExploreAnchorSettled={retryTutorialExploreAutoplay}
         onStartBanditRaid={handleBanditRaidStart}
         banditRaidStartBlockedReason={banditRaidStartBlockedReason}
         postBanditRaidRefreshKey={postBanditRaidRefreshKey}

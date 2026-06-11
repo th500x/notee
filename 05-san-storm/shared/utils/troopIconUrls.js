@@ -8,7 +8,15 @@
  *
  * 部队元数据（稀有度 / 兵种 / 武器）由应用层注入，避免 shared 硬绑 `public/data` 路径：
  *   `configureTroopIconMetaCatalog(troopsCatalog)` — 见 `game/src/bootstrap/troopIconUrlsCatalog.js`。
+ * 专属 `{troop_id}.png` 无落地文件时不发起请求（见 `troop-dedicated-portrait-manifest.json`），直接走稀有度通用图。
  */
+
+import troopDedicatedManifest from '../../public/data/shared/troop-dedicated-portrait-manifest.json';
+
+/** @type {Set<string>} */
+const TROOP_DEDICATED_PORTRAIT_SHIPPED_IDS = new Set(
+  Array.isArray(troopDedicatedManifest?.troopIds) ? troopDedicatedManifest.troopIds : [],
+);
 
 /** @type {Map<string, object>} */
 let troopMetaById = new Map();
@@ -138,14 +146,25 @@ export function troopPrefersDedicatedPortraitFile(troop) {
   return troopIdIsDedicatedSegment8Or9(id);
 }
 
+/** 卡面 / 战斗目录下是否已有 `{san_1_troop_*.png}` 专属立绘（无则跳过 404，直接用稀有度通用图） */
+export function troopDedicatedPortraitFileShipped(troopOrId) {
+  const id = normalizeTroopAssetId(troopOrId);
+  if (!id) return false;
+  return TROOP_DEDICATED_PORTRAIT_SHIPPED_IDS.has(id);
+}
+
 /**
- * 最多 2 个 URL：① 专属图（core / 8xxx / 9xxx）② 稀有度通用图。
+ * 最多 2 个 URL：① 专属图（core / 8xxx / 9xxx，且 manifest 有登记）② 稀有度通用图。
  */
 export function getTroopPortraitUrlAttempts(troop, baseUrl = '') {
   const rarityUrl = getTroopUiFolderFallbackUrl(troop, baseUrl);
   const id = normalizeTroopAssetId(troop);
 
-  if (troopPrefersDedicatedPortraitFile(troop) && id) {
+  if (
+    troopPrefersDedicatedPortraitFile(troop) &&
+    id &&
+    troopDedicatedPortraitFileShipped(id)
+  ) {
     const idUrl = `${troopUiCardTroopDir(baseUrl)}${id}.png`; // san_1_ui_card/troop
     if (idUrl === rarityUrl) return [rarityUrl];
     return [idUrl, rarityUrl];
@@ -163,7 +182,11 @@ function troopPortraitAttemptsSan1BattleSubdir(troop, baseUrl, subdir) {
   const dir = battleTroopAssetDir(baseUrl, subdir);
   const rarityUrl = `${dir}${troopRarityFallbackFilename(troop)}`;
   const pid = normalizeTroopAssetId(troop);
-  if (troopPrefersDedicatedPortraitFile(troop) && pid) {
+  if (
+    troopPrefersDedicatedPortraitFile(troop) &&
+    pid &&
+    troopDedicatedPortraitFileShipped(pid)
+  ) {
     const idUrl = `${dir}${pid}.png`;
     if (idUrl === rarityUrl) return [rarityUrl];
     return [idUrl, rarityUrl];

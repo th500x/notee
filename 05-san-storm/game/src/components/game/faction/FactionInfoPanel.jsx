@@ -6,6 +6,10 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { loadSharedData } from '@/services/dataService';
+import { buildAiKingPersonalityRows } from '@/utils/aiKingPersonalityDisplay';
+
+const JUNZHU_POSITION_ID = 'san_1_position_junzhu';
 
 function fmtNum(n) {
   if (n == null || Number.isNaN(Number(n))) return '0';
@@ -108,13 +112,31 @@ function DailyActivityRankingPopover({ open, anchorRect, ranking, onClose }) {
   );
 }
 
-function OfficeDutyGrid({ officeHolders, dailyActivityButton }) {
+function OfficeDutyGrid({ officeHolders, dailyActivityButton, onMonarchNameClick }) {
   const byId = Object.fromEntries((officeHolders || []).map((o) => [o.positionId, o]));
 
-  const cell = (pid) => {
+  const renderCell = (pid) => {
     const o = byId[pid];
     if (!o) return '—';
-    return `${o.label}：${o.characterName || '空缺'}`;
+    const name = o.characterName || '空缺';
+    const isMonarch = pid === JUNZHU_POSITION_ID;
+    const monarchClickable = isMonarch && name !== '空缺' && typeof onMonarchNameClick === 'function';
+    if (monarchClickable) {
+      return (
+        <>
+          {o.label}：
+          <button
+            type="button"
+            className="rounded px-0.5 text-amber-200/95 underline-offset-2 transition-colors hover:text-amber-100 hover:underline focus:outline-none focus-visible:ring-1 focus-visible:ring-amber-400/70"
+            onClick={(e) => onMonarchNameClick(e.currentTarget, o)}
+            aria-label={`查看${name}的性格`}
+          >
+            {name}
+          </button>
+        </>
+      );
+    }
+    return `${o.label}：${name}`;
   };
 
   const DASIKONG_ID = 'san_1_position_dasikong';
@@ -123,21 +145,99 @@ function OfficeDutyGrid({ officeHolders, dailyActivityButton }) {
     <div className="flex flex-col gap-1 text-xs leading-snug text-stone-300">
       {OFFICE_GRID_ROWS.map((pair, rowIdx) => (
         <div key={rowIdx} className="flex flex-wrap items-baseline gap-x-1.5">
-          <span className="min-w-0 flex-1 text-left">{cell(pair[0])}</span>
+          <span className="min-w-0 flex-1 text-left">{renderCell(pair[0])}</span>
           <span className="shrink-0 text-stone-600 select-none" aria-hidden>
             /
           </span>
           {pair[1] === DASIKONG_ID && dailyActivityButton ? (
             <span className="inline-flex min-w-0 flex-1 flex-wrap items-baseline gap-x-1 text-left">
-              <span>{cell(pair[1])}</span>
+              <span>{renderCell(pair[1])}</span>
               {dailyActivityButton}
             </span>
           ) : (
-            <span className="min-w-0 flex-1 text-left">{cell(pair[1])}</span>
+            <span className="min-w-0 flex-1 text-left">{renderCell(pair[1])}</span>
           )}
         </div>
       ))}
     </div>
+  );
+}
+
+function KingPersonalityPopover({ open, anchorRect, king, loading, error, onClose }) {
+  useEffect(() => {
+    if (!open) return undefined;
+    const onKey = (e) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open, onClose]);
+
+  if (!open || typeof document === 'undefined' || !anchorRect) return null;
+
+  const pad = 8;
+  const panelW = Math.min(280, window.innerWidth - pad * 2);
+  let left = anchorRect.left;
+  left = Math.max(pad, Math.min(left, window.innerWidth - panelW - pad));
+  const maxH = Math.min(360, window.innerHeight * 0.55);
+  let top = anchorRect.bottom + 6;
+  if (top + maxH > window.innerHeight - pad) {
+    top = Math.max(pad, anchorRect.top - maxH - 6);
+  }
+
+  const rows = king?.personality ? buildAiKingPersonalityRows(king.personality) : [];
+  const titleName = king?.characterName || '君主';
+  const courtesy = king?.courtesyName ? ` · ${king.courtesyName}` : '';
+
+  return createPortal(
+    <>
+      <button
+        type="button"
+        className="fixed inset-0 z-[130] cursor-default bg-black/40"
+        aria-label="关闭君主性格"
+        onClick={onClose}
+      />
+      <div
+        className="fixed z-[131] overflow-y-auto rounded-lg border border-amber-900/50 bg-stone-950/95 p-3 shadow-xl"
+        style={{ left, top, width: panelW, maxHeight: maxH }}
+        role="dialog"
+        aria-label="君主性格"
+      >
+        <div className="mb-2 text-[11px] font-semibold text-amber-400/95">
+          君主性格
+          <span className="ml-1 font-normal text-stone-400">
+            {titleName}
+            {courtesy}
+          </span>
+        </div>
+        {loading ? (
+          <p className="text-[10px] text-stone-500">加载中…</p>
+        ) : error ? (
+          <p className="text-[10px] text-red-400/90">{error}</p>
+        ) : rows.length === 0 ? (
+          <p className="text-[10px] text-stone-500">暂无性格数据。</p>
+        ) : (
+          <ul className="list-none space-y-1.5 pl-0">
+            {rows.map((r) => (
+              <li
+                key={r.key}
+                className="rounded border border-stone-800/80 bg-stone-900/40 px-2 py-1.5"
+              >
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="text-xs text-stone-200">{r.label}</span>
+                  <span className="shrink-0 tabular-nums text-amber-200/95">{r.valueText}</span>
+                </div>
+                <div className="mt-0.5 text-[10px] leading-snug text-stone-500">{r.hint}</div>
+              </li>
+            ))}
+          </ul>
+        )}
+        <p className="mt-2 text-[10px] leading-snug text-stone-600">
+          数值 0～100% 对应 `ai-kings.json` 性格五维；战事 / 政策谏言预览与此同源（41-1）。
+        </p>
+      </div>
+    </>,
+    document.body,
   );
 }
 
@@ -526,6 +626,68 @@ export default function FactionInfoPanel({
     return () => window.removeEventListener('keydown', onKey);
   }, [dailyRankingOpen]);
 
+  const [kingPersonalityOpen, setKingPersonalityOpen] = useState(false);
+  const kingPersonalityAnchorRef = useRef(/** @type {HTMLElement | null} */ (null));
+  const [kingPersonalityAnchor, setKingPersonalityAnchor] = useState(/** @type {DOMRect | null} */ (null));
+  const [kingPersonalityKing, setKingPersonalityKing] = useState(/** @type {object | null} */ (null));
+  const [kingPersonalityLoading, setKingPersonalityLoading] = useState(false);
+  const [kingPersonalityError, setKingPersonalityError] = useState(null);
+
+  const closeKingPersonality = useCallback(() => {
+    setKingPersonalityOpen(false);
+    setKingPersonalityAnchor(null);
+    kingPersonalityAnchorRef.current = null;
+    setKingPersonalityError(null);
+  }, []);
+
+  const openKingPersonality = useCallback(
+    (el, _officeRow) => {
+      const fid = overview?.factionId;
+      if (!fid || !el) return;
+      kingPersonalityAnchorRef.current = el;
+      setKingPersonalityAnchor(el.getBoundingClientRect?.() || null);
+      setKingPersonalityOpen(true);
+      setKingPersonalityLoading(true);
+      setKingPersonalityError(null);
+      setKingPersonalityKing(null);
+      void loadSharedData('ai-kings')
+        .then((data) => {
+          const kings = Array.isArray(data?.kings) ? data.kings : [];
+          const king = kings.find((k) => String(k?.factionId || '').trim() === String(fid).trim());
+          if (!king?.personality) {
+            setKingPersonalityError('未找到该势力 AI 君主性格配置');
+            return;
+          }
+          setKingPersonalityKing(king);
+        })
+        .catch(() => {
+          setKingPersonalityError('加载君主配置失败');
+        })
+        .finally(() => {
+          setKingPersonalityLoading(false);
+        });
+    },
+    [overview?.factionId],
+  );
+
+  useEffect(() => {
+    if (!kingPersonalityOpen) {
+      setKingPersonalityAnchor(null);
+      return undefined;
+    }
+    const sync = () => {
+      const el = kingPersonalityAnchorRef.current;
+      setKingPersonalityAnchor(el?.getBoundingClientRect?.() || null);
+    };
+    sync();
+    window.addEventListener('scroll', sync, true);
+    window.addEventListener('resize', sync);
+    return () => {
+      window.removeEventListener('scroll', sync, true);
+      window.removeEventListener('resize', sync);
+    };
+  }, [kingPersonalityOpen]);
+
   if (loading) {
     return (
       <div className="flex min-h-[6rem] items-center justify-center text-stone-500">
@@ -593,10 +755,19 @@ export default function FactionInfoPanel({
         ranking={dailyActivityRanking}
         onClose={() => setDailyRankingOpen(false)}
       />
+      <KingPersonalityPopover
+        open={kingPersonalityOpen}
+        anchorRect={kingPersonalityAnchor}
+        king={kingPersonalityKing}
+        loading={kingPersonalityLoading}
+        error={kingPersonalityError}
+        onClose={closeKingPersonality}
+      />
       <div>
         <SectionTitle>要职</SectionTitle>
         <OfficeDutyGrid
           officeHolders={overview.officeHolders}
+          onMonarchNameClick={openKingPersonality}
           dailyActivityButton={
             showDailyActivityRanking ? (
               <button

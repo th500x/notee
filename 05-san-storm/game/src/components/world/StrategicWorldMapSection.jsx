@@ -6,7 +6,7 @@ import { useMapCornerCompactViewport } from '@/hooks/useMapCornerCompactViewport
 import { usePlayerContext } from '@/contexts/PlayerContext';
 import { useMapHudVisibility } from '@/contexts/MapHudVisibilityContext';
 import { toCharCardData } from '@/utils/cardDataTransforms';
-import { resolveCharacterPortraitRelPath } from '@shared/utils/characterPortraitUrl';
+import { resolveCharacterPortraitRelPathForNetwork } from '@shared/utils/characterPortraitUrl';
 import {
   resolveStrategicRecordedStandpointPx,
   resolveStrategicRecordedStandpointCell,
@@ -65,6 +65,7 @@ import {
   appendPoiSnapToMarchAnimPath,
   playerRoadToWorldMapCell,
   playerRoadJunSliceFromWorldGy,
+  worldMapCellToPlayerRoad,
 } from '@shared/utils/strategicGridCoordinates.js';
 import {
   loadSan1StrategicMergedStackFromPublic,
@@ -171,7 +172,7 @@ function resolveSelfMapPortraitUrls(ctxPlayer, ctxCards, attributeBonusBySlot) {
   }
   const bonus = attributeBonusBySlot?.character1 || {};
   const cd = toCharCardData(char1, bonus);
-  const charPortrait = resolveCharacterPortraitRelPath({ characterId: cd.id, avatar: cd.avatar });
+  const charPortrait = resolveCharacterPortraitRelPathForNetwork({ characterId: cd.id, avatar: cd.avatar });
   if (charPortrait && charPortrait !== playerAvatar) {
     return { portraitUrl: charPortrait, portraitFallbackUrl: playerAvatar };
   }
@@ -343,6 +344,10 @@ export default function StrategicWorldMapSection({
   pendingMapEventHint = null,
   /** 向 `useEventSystem` 提交战略格网上下文，用于 `exploreLocationId` 与城 POI footprint 内落格对齐（`{city_*}` 等到城才匹配） */
   onExploreAnchorGridContext = null,
+  /** 行军跳跳棋回放期间用动画格覆盖探索锚点（与 pawn 同步） */
+  setExploreAnchorRoadOverride = null,
+  /** `road/move` 动画结束且 `refresh` 完成后重试教程自动抽池 */
+  onExploreAnchorSettled = null,
   /** 匪寨：战略 tooltip 内扣次成功后由 `WorldMap` 打开小型图战斗 */
   onStartBanditRaid = null,
   /** 不可开战时的说明（与攻城 `phase` / `siegeData` 门闸一致） */
@@ -779,8 +784,38 @@ export default function StrategicWorldMapSection({
       mapColumns: cols,
       mapRows: rows,
       countyCityRows: countyCityRows.length ? countyCityRows : null,
+      roadCells: merged.roadCells ?? null,
     });
   }, [merged, cols, rows, countyCityRows, onExploreAnchorGridContext]);
+
+  /** 行军回放格 → 探索锚点预览（档案 refresh 完成前与 pawn 一致） */
+  useEffect(() => {
+    if (typeof setExploreAnchorRoadOverride !== 'function') return undefined;
+    const anim = roadMarchAnimation;
+    if (!anim?.path?.length) {
+      setExploreAnchorRoadOverride(null);
+      return undefined;
+    }
+    const i = Math.min(anim.stepIndex, anim.path.length - 1);
+    const cell = anim.path[i];
+    const gx = Number(cell?.x);
+    const gy = Number(cell?.y);
+    if (!Number.isFinite(gx) || !Number.isFinite(gy)) {
+      setExploreAnchorRoadOverride(null);
+      return undefined;
+    }
+    const pr = worldMapCellToPlayerRoad(gx, gy);
+    if (!pr?.junId) {
+      setExploreAnchorRoadOverride(null);
+      return undefined;
+    }
+    setExploreAnchorRoadOverride({
+      roadJunId: pr.junId,
+      roadPositionX: pr.gx,
+      roadPositionY: pr.gy,
+    });
+    return undefined;
+  }, [roadMarchAnimation, setExploreAnchorRoadOverride]);
 
   const mainCityRowFromApi = useMemo(
     () => (playerMainCityId ? cityById?.[playerMainCityId] : null),
@@ -1427,8 +1462,10 @@ export default function StrategicWorldMapSection({
           await refresh({ silent: true });
         } catch (_) {}
         void roadPresenceFetchRef.current?.();
+        setExploreAnchorRoadOverride?.(null);
         setRoadMarchAnimation(null);
         onRoadMarchAnimatingChange?.(false);
+        onExploreAnchorSettled?.();
         showRoadMarchMoveFinishToast({
           encounter: afterRefreshToast?.encounter,
           defenderAutoRetreats: afterRefreshToast?.defenderAutoRetreats,
@@ -1446,7 +1483,7 @@ export default function StrategicWorldMapSection({
       });
     }, MARCH_ANIM_MS_PER_STEP);
     return () => window.clearTimeout(t);
-  }, [roadMarchAnimation, refresh, onRoadEncounterBattle, onRoadMarchAnimatingChange]);
+  }, [roadMarchAnimation, refresh, onRoadEncounterBattle, onRoadMarchAnimatingChange, setExploreAnchorRoadOverride, onExploreAnchorSettled]);
 
   /** 打开沿路移动确认（道路双击与行军点选共用；不依赖是否已点过叠层「行军」） */
   const openMarchConfirmForStrategicCell = useCallback(
@@ -1738,6 +1775,8 @@ export default function StrategicWorldMapSection({
         onRoadMarchAnimatingChange?.(false);
         await refresh({ silent: true });
         void roadPresenceFetchRef.current?.();
+        setExploreAnchorRoadOverride?.(null);
+        onExploreAnchorSettled?.();
         showRoadMarchMoveFinishToast({
           encounter,
           defenderAutoRetreats,

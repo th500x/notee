@@ -28,7 +28,7 @@ import {
   playerMeetsEventRequiredItems,
 } from '@/components/event/eventUtils';
 import { validateMainLineupBattleGate } from '@/utils/mainLineupTroops';
-import { resolveEventLocationForUi, exploreLocationMatchesEvent } from '@/utils/eventLocationPlaceholders';
+import { resolveEventLocationForUi, exploreLocationMatchesEvent, isLocationPlaceholder } from '@/utils/eventLocationPlaceholders';
 import {
   EVENT_PUNISHMENT_COMBAT_BANDIT_LOCATION_SLOT_RARITIES,
   isBanditMapObjectId,
@@ -59,8 +59,36 @@ import {
 } from '@/utils/eventPlayerDisplayAdapters';
 import useExploreEventCatalog from '@/hooks/useExploreEventCatalog';
 
+/** 行军跳跳棋回放期间用动画格覆盖档案 `road_*`，使探索锚点与 pawn 同步 */
+function resolveExploreAnchorPlayerSnapshot(player, roadOverrideRef) {
+  if (!player) return player;
+  const ov = roadOverrideRef?.current;
+  if (
+    ov?.roadJunId &&
+    ov.roadPositionX != null &&
+    ov.roadPositionY != null
+  ) {
+    return {
+      ...player,
+      roadJunId: ov.roadJunId,
+      roadPositionX: ov.roadPositionX,
+      roadPositionY: ov.roadPositionY,
+    };
+  }
+  return player;
+}
+
+function playerRoadGateSnapshot(player, roadOverrideRef) {
+  const p = resolveExploreAnchorPlayerSnapshot(player, roadOverrideRef);
+  const j = p?.roadJunId != null ? String(p.roadJunId).trim() : '';
+  const x = Number(p?.roadPositionX);
+  const y = Number(p?.roadPositionY);
+  if (!j || !Number.isFinite(x) || !Number.isFinite(y)) return '';
+  return `${j}|${x}|${y}`;
+}
+
 /**
- * @param {{ tutorialAutoplay?: boolean, suppressMapEventHint?: boolean, persistMapEventHint?: boolean, exploreAnchorGridRef?: { current: null | { cells: unknown[][], mapColumns: number, mapRows: number, countyCityRows?: object[] } }, exploreAnchorGridSeq?: number }} [options] — 仅大地图挂载时应为 true，用于教程链 IDLE 自动开事件；探索 Tab 等第二实例勿开，避免双轨。
+ * @param {{ tutorialAutoplay?: boolean, suppressMapEventHint?: boolean, persistMapEventHint?: boolean, exploreAnchorGridRef?: { current: null | { cells: unknown[][], mapColumns: number, mapRows: number, countyCityRows?: object[], roadCells?: unknown } }, exploreAnchorGridSeq?: number, exploreAnchorRoadOverrideRef?: { current: null | { roadJunId: string, roadPositionX: number, roadPositionY: number } }, exploreAnchorRoadOverrideSeq?: number }} [options] — 仅大地图挂载时应为 true，用于教程链 IDLE 自动开事件；探索 Tab 等第二实例勿开，避免双轨。
  */
 export default function useEventSystem(player, cards, options = {}) {
   const tutorialAutoplay = options.tutorialAutoplay === true;
@@ -68,6 +96,8 @@ export default function useEventSystem(player, cards, options = {}) {
   const persistMapEventHint = options.persistMapEventHint === true;
   const exploreAnchorGridRef = options.exploreAnchorGridRef;
   const exploreAnchorGridSeq = options.exploreAnchorGridSeq ?? 0;
+  const exploreAnchorRoadOverrideRef = options.exploreAnchorRoadOverrideRef;
+  const exploreAnchorRoadOverrideSeq = options.exploreAnchorRoadOverrideSeq ?? 0;
   const { exploreQuota: quota } = usePlayerContext();
 
   const {
@@ -358,11 +388,12 @@ export default function useEventSystem(player, cards, options = {}) {
   /** IDLE 时把探索锚点绑到路网立足城；解决旧逻辑「只补一次空锚点」导致移动后仍按旧城抽事件/教程死循环。 */
   useEffect(() => {
     if (phase !== PHASE.IDLE) return;
+    const anchorPlayer = resolveExploreAnchorPlayerSnapshot(player, exploreAnchorRoadOverrideRef);
     const grid = exploreAnchorGridRef?.current;
     const anchor =
       grid?.cells?.length
-        ? resolveExploreAnchorCityIdFromStrategicGrid(player, citiesList, grid)
-        : resolveExploreAnchorCityIdFromPlayerRoad(player, citiesList);
+        ? resolveExploreAnchorCityIdFromStrategicGrid(anchorPlayer, citiesList, grid)
+        : resolveExploreAnchorCityIdFromPlayerRoad(anchorPlayer, citiesList);
     const anchorNorm = anchor != null && String(anchor).trim() !== '' ? String(anchor).trim() : '';
     setExploreLocationId((prev) => {
       const p = prev != null ? String(prev).trim() : '';
@@ -377,6 +408,8 @@ export default function useEventSystem(player, cards, options = {}) {
     citiesList,
     exploreAnchorGridRef,
     exploreAnchorGridSeq,
+    exploreAnchorRoadOverrideRef,
+    exploreAnchorRoadOverrideSeq,
   ]);
 
   const [pendingMapEventHint, setPendingMapEventHint] = useState(null);
@@ -451,9 +484,18 @@ export default function useEventSystem(player, cards, options = {}) {
       }
     }
     const reqItems = nextEvt.required_items ?? nextEvt.requiredItems;
+    const evLoc = String(nextEvt.location ?? '').trim();
     const loc = exploreLocationId != null ? String(exploreLocationId).trim() : '';
-    if (reqItems && loc && exploreLocationMatchesEvent(String(nextEvt.location ?? '').trim(), loc, citiesList)) {
+    if (reqItems && loc && exploreLocationMatchesEvent(evLoc, loc, citiesList)) {
       if (!playerMeetsEventRequiredItems(reqItems, playerItemCounts)) {
+        extras.push('教程道具同步中，请稍候或重进大地图');
+      }
+    } else if (isLocationPlaceholder(evLoc)) {
+      if (!loc) {
+        extras.push('当前未识别到目标立足点，请走入城/匪寨占地格内');
+      } else if (!exploreLocationMatchesEvent(evLoc, loc, citiesList)) {
+        extras.push(`当前立足点与目标地点不符（需 ${evLoc}）`);
+      } else if (reqItems && !playerMeetsEventRequiredItems(reqItems, playerItemCounts)) {
         extras.push('教程道具同步中，请稍候或重进大地图');
       }
     }
@@ -781,6 +823,7 @@ export default function useEventSystem(player, cards, options = {}) {
     chainDone: null,
     gridSeq: null,
     itemsJson: null,
+    roadSnap: null,
   });
   useEffect(() => {
     if (!tutorialAutoplay || !isTutorial || phase !== PHASE.IDLE || eventsLoading || needsLineupFirst) return;
@@ -793,6 +836,7 @@ export default function useEventSystem(player, cards, options = {}) {
     const chainDone = tutorialChainCompleted;
     const gridSeq = exploreAnchorGridSeq ?? 0;
     const itemsJson = JSON.stringify(playerItemCounts || {});
+    const roadSnap = playerRoadGateSnapshot(player, exploreAnchorRoadOverrideRef);
 
     const g = tutorialAutoplayGateRef.current;
     const gateChanged =
@@ -801,7 +845,8 @@ export default function useEventSystem(player, cards, options = {}) {
       g.loc !== locN ||
       g.chainDone !== chainDone ||
       g.gridSeq !== gridSeq ||
-      g.itemsJson !== itemsJson;
+      g.itemsJson !== itemsJson ||
+      g.roadSnap !== roadSnap;
     if (gateChanged) {
       tutorialExploreBlockedRef.current = false;
       tutorialAutoplayGateRef.current = {
@@ -811,6 +856,7 @@ export default function useEventSystem(player, cards, options = {}) {
         chainDone,
         gridSeq,
         itemsJson,
+        roadSnap,
       };
     }
 
@@ -849,7 +895,42 @@ export default function useEventSystem(player, cards, options = {}) {
     exploreProgressReady,
     quota.canExplore,
     player?.reputation,
+    player?.roadJunId,
+    player?.roadPositionX,
+    player?.roadPositionY,
+    exploreAnchorRoadOverrideRef,
+    exploreAnchorRoadOverrideSeq,
     refetchExplorePlayerBundle,
+  ]);
+
+  /**
+   * 行军 `refresh` 完成后由 `WorldMap` 调用：解除 block 并带最新背包/进度重试教程抽池。
+   */
+  const retryTutorialExploreAutoplay = useCallback(() => {
+    if (!tutorialAutoplay || !isTutorial || phase !== PHASE.IDLE) return;
+    if (eventsLoading || needsLineupFirst || !exploreProgressReady) return;
+    if (tutorialDeferExploreAutoplayRef.current) return;
+    tutorialExploreBlockedRef.current = false;
+    void (async () => {
+      const bundle = await refetchExplorePlayerBundle();
+      if (tutorialDeferExploreAutoplayRef.current) return;
+      const ok = startExplore(
+        undefined,
+        undefined,
+        bundle.events ?? undefined,
+        bundle.itemCounts ?? undefined,
+      );
+      if (ok === false) tutorialExploreBlockedRef.current = true;
+    })();
+  }, [
+    tutorialAutoplay,
+    isTutorial,
+    phase,
+    eventsLoading,
+    needsLineupFirst,
+    exploreProgressReady,
+    refetchExplorePlayerBundle,
+    startExplore,
   ]);
 
   /** 探索中断：关弹窗、清 pending、回 IDLE（开战门闸与奖励失败共用） */
@@ -1359,5 +1440,6 @@ export default function useEventSystem(player, cards, options = {}) {
     showLineupGuide,
     needsLineupFirst,
     positionAnimation,
+    retryTutorialExploreAutoplay,
   };
 }
