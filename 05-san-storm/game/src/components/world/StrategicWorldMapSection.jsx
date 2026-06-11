@@ -1301,7 +1301,11 @@ export default function StrategicWorldMapSection({
     const selfRoad = readSelfPlayerRoadGrid(ctxPlayer);
     const selfRx = selfRoad.hasPlayer ? selfRoad.rx : NaN;
     const selfRy = selfRoad.hasPlayer ? selfRoad.ry : NaN;
-    const selfPortraitUrl = resolveSelfMapPortraitUrl(ctxPlayer, ctxCards, attributeBonusBySlot);
+    const { portraitUrl: selfPortraitUrl } = resolveSelfMapPortraitUrls(
+      ctxPlayer,
+      ctxCards,
+      attributeBonusBySlot,
+    );
     const selfCharName = String(ctxPlayer?.characterName || '').trim() || '…';
     const selfFactionName = String(ctxPlayer?.factionName || '').trim();
     const selfDisplayName = selfFactionName ? `[${selfFactionName}]${selfCharName}` : selfCharName;

@@ -4,6 +4,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import CampaignFlipCard, { eraToFrontEraLine } from '@shared/components/card/CampaignFlipCard.jsx';
 import { formatCompletionRewardBadge } from '@shared/utils/campaignRewardBadge';
+import { formatCampaignChallengeCountLabel } from '@shared/utils/campaignCenterChallengeLabel';
 import CampaignBattle from '@/components/campaign/CampaignBattle.jsx';
 import AncientModal from '@/components/common/AncientModal';
 import { usePlayerContext } from '@/contexts/PlayerContext';
@@ -187,7 +188,7 @@ export default function CampaignCenterPanel({ playerId, open, onClose, season = 
                   {selected && (
                     <div className="flex w-full flex-col items-center gap-4">
                       <div className="w-full text-center text-xs text-stone-400">
-                        挑战 {selected.progress.playCount}/{selected.progress.maxPlayCount} ·
+                        {formatCampaignChallengeCountLabel(selected.progress)} ·
                         {selected.progress.rewardClaimed ? ' 已领奖' : ' 未领奖'}
                         {selected.progress.bestScore != null ? ` · 最高 ${selected.progress.bestScore}` : ''}
                       </div>
