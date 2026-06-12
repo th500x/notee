@@ -866,6 +866,9 @@ export function exploreRewardFailureSubhint(message) {
   if (t.includes('已完成') || t.includes('重复')) {
     return null;
   }
+  if (t.includes('惩罚战')) {
+    return '请完成判定结果或惩罚战后再继续探索。';
+  }
   return '探索次数已退还，请调整后重新探索。';
 }
 

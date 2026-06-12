@@ -51,6 +51,8 @@ import {
   isPendingPunishRewardRequest,
   fortuneUiFromPunishBattleLock,
   chosenOptionFromPunishLock,
+  resolveExploreEventForPunishLock,
+  isExplorePunishBattleNoticeMessage,
 } from '@/utils/explorePunishBattleLock';
 import {
   toDisplayAttrs,
@@ -164,14 +166,48 @@ export default function useEventSystem(player, cards, options = {}) {
   const restoreFromPunishLock = useCallback((event, lock, phaseOverride = PHASE.RESULT) => {
     if (!event || !lock) return;
     setCurrentEvent(event);
-    setPendingEventRaw(event);
+    setPendingEvent(event);
     setChosenOptionKey(lock.optionKey);
     const opt = chosenOptionFromPunishLock(event, lock);
     if (opt) setChosenOption(opt);
     const f = fortuneUiFromPunishBattleLock(lock);
     if (f) setFortune(f);
     setPhase(phaseOverride);
-  }, []);
+  }, [setPendingEvent]);
+
+  /** 服务端 punish_battle 锁存在时：尽量续接 RESULT/BATTLE，而非清锁或弹死胡同 */
+  const attemptRestorePunishBattleSession = useCallback((lock, phaseOverride) => {
+    if (!lock) return false;
+    const event = resolveExploreEventForPunishLock(
+      allExploreEvents,
+      lock,
+      pendingEvent,
+      pendingKey,
+    );
+    if (!event) return false;
+
+    let targetPhase = phaseOverride ?? PHASE.RESULT;
+    if (phaseOverride == null && pendingKey) {
+      const rk = exploreResumeStorageKey(pendingKey);
+      try {
+        if (rk) {
+          const raw = localStorage.getItem(rk);
+          if (raw) {
+            const resume = JSON.parse(raw);
+            if (resume?.phase === PHASE.BATTLE || resume?.phase === PHASE.RESULT) {
+              targetPhase = resume.phase;
+            }
+          }
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+
+    restoreFromPunishLock(event, lock, targetPhase);
+    setExploreNoticeMessage(null);
+    return true;
+  }, [allExploreEvents, pendingEvent, pendingKey, restoreFromPunishLock]);
 
   const [rewardDetails, setRewardDetails] = useState(null);
   /** 教程链官职授予短期遮罩 */
@@ -259,7 +295,7 @@ export default function useEventSystem(player, cards, options = {}) {
 
     const punishLock = parseExplorePunishBattleLock(exploreSessionLock);
     if (punishLock && punishLock.eventId === pendingFromLs.event_id) {
-      restoreFromPunishLock(pendingFromLs, punishLock, PHASE.RESULT);
+      attemptRestorePunishBattleSession(punishLock);
       return;
     }
 
@@ -272,8 +308,24 @@ export default function useEventSystem(player, cards, options = {}) {
     exploreSessionLock,
     pendingKey,
     persistMapEventHint,
-    restoreFromPunishLock,
+    attemptRestorePunishBattleSession,
     phase,
+  ]);
+
+  /** 刷新后仅有服务端 punish_battle 锁、本地 pending 丢失时自动续接 */
+  useEffect(() => {
+    if (!persistMapEventHint || !exploreProgressReady || !pendingKey || eventsLoading) return;
+    const lock = parseExplorePunishBattleLock(exploreSessionLock);
+    if (!lock || phase !== PHASE.IDLE) return;
+    attemptRestorePunishBattleSession(lock);
+  }, [
+    persistMapEventHint,
+    exploreProgressReady,
+    pendingKey,
+    eventsLoading,
+    exploreSessionLock,
+    phase,
+    attemptRestorePunishBattleSession,
   ]);
 
   /** 服务端已锁凶运但本地停在 ROLLING（杀进程丢失 setTimeout）→ 直接进 RESULT */
@@ -622,8 +674,7 @@ export default function useEventSystem(player, cards, options = {}) {
 
     const punishLockEarly = parseExplorePunishBattleLock(exploreSessionLock);
     if (punishLockEarly) {
-      if (pendingEvent?.event_id === punishLockEarly.eventId) {
-        restoreFromPunishLock(pendingEvent, punishLockEarly, PHASE.RESULT);
+      if (attemptRestorePunishBattleSession(punishLockEarly)) {
         return true;
       }
       setExploreNoticeMessage('请先完成进行中的惩罚战');
@@ -742,7 +793,7 @@ export default function useEventSystem(player, cards, options = {}) {
     exploreProgressReady,
     pendingKey,
     exploreSessionLock,
-    restoreFromPunishLock,
+    attemptRestorePunishBattleSession,
   ]);
 
   /** 探索结算 RETURNING→IDLE：先拉库内 explore_events，再用快照抽下一环（避免教程 autoplay 抢在 setState 前重复链首） */
@@ -934,7 +985,7 @@ export default function useEventSystem(player, cards, options = {}) {
   ]);
 
   /** 探索中断：关弹窗、清 pending、回 IDLE（开战门闸与奖励失败共用） */
-  const resetExploreSessionAfterAbort = useCallback(() => {
+  const resetExploreSessionAfterAbort = useCallback(async () => {
     clearInflightBattleTroopSnapshot();
     strategicExploreReopenBridge.clear();
     tutorialExploreBlockedRef.current = false;
@@ -947,7 +998,7 @@ export default function useEventSystem(player, cards, options = {}) {
         /* ignore */
       }
     }
-    void clearRemoteExploreSessionLock();
+    await clearRemoteExploreSessionLock();
     if (persistMapEventHint && player?.playerId) {
       try {
         const k = pendingMapEventHintStorageKey(player.playerId);
@@ -969,7 +1020,7 @@ export default function useEventSystem(player, cards, options = {}) {
     setBattleChestRewards([]);
     setRewardDetails(null);
     setPhase(PHASE.IDLE);
-    void refetchExploreProgress();
+    await refetchExploreProgress();
   }, [pendingKey, setPendingEvent, persistMapEventHint, player?.playerId, refetchExploreProgress, clearRemoteExploreSessionLock]);
 
   // 关闭事件对话框（未选选项）：已在本轮 `startExplore` 扣过次数则退还，并清空 pending，避免与「已扣费」状态不一致。
@@ -1029,8 +1080,8 @@ export default function useEventSystem(player, cards, options = {}) {
       console.error('[useEventSystem] 奖励发放失败:', err);
       if (errCode === 'EXPLORE_PUNISH_BATTLE_PENDING' && currentEvent) {
         const punishLock = parseExplorePunishBattleLock(exploreSessionLock);
-        if (punishLock) {
-          restoreFromPunishLock(currentEvent, punishLock, PHASE.RESULT);
+        if (punishLock && attemptRestorePunishBattleSession(punishLock, PHASE.RESULT)) {
+          return false;
         }
         setExploreNoticeMessage(err);
         return false;
@@ -1073,10 +1124,8 @@ export default function useEventSystem(player, cards, options = {}) {
     player?.playerId,
     refetchExplorePlayerBundle,
     exploreSessionLock,
-    restoreFromPunishLock,
+    attemptRestorePunishBattleSession,
   ]);
-
-  // 选择选项（探索次数已在 `startExplore` 扣除，此处不再 consume）
   const chooseOption = useCallback((option, optionKey) => {
     const punishLock = parseExplorePunishBattleLock(exploreSessionLock);
     if (
@@ -1159,9 +1208,14 @@ export default function useEventSystem(player, cards, options = {}) {
   }, [resetExploreSessionAfterAbort]);
 
   const dismissExploreNotice = useCallback(() => {
+    const msg = exploreNoticeMessage;
     setExploreNoticeMessage(null);
-    resetExploreSessionAfterAbort();
-  }, [resetExploreSessionAfterAbort]);
+    const punishLock = parseExplorePunishBattleLock(exploreSessionLock);
+    if (isExplorePunishBattleNoticeMessage(msg) && punishLock) {
+      if (attemptRestorePunishBattleSession(punishLock)) return;
+    }
+    void resetExploreSessionAfterAbort();
+  }, [exploreNoticeMessage, exploreSessionLock, attemptRestorePunishBattleSession, resetExploreSessionAfterAbort]);
 
   // 判定结果确认
   const confirmResult = useCallback(() => {
