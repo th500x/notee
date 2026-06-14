@@ -58,14 +58,14 @@ export function useCardPool(playerId) {
   }, [playerId]);
 
   /** 执行抽取 */
-  const draw = useCallback(async (poolType, poolSeason) => {
+  const draw = useCallback(async (poolType, poolSeason, drawMode = 'single') => {
     if (!playerId) return;
     setLoading(true);
     setError(null);
     setEchoChoiceError(null);
     setDrawResult(null);
     try {
-      const res = await cardPoolAPI.draw(playerId, poolType, poolSeason);
+      const res = await cardPoolAPI.draw(playerId, poolType, poolSeason, drawMode);
       if (res.success) {
         setDrawResult(res);
         setStatus(prev => prev ? {
@@ -75,6 +75,7 @@ export function useCardPool(playerId) {
             ...prev[poolType],
             remainingDraws: res.remainingDraws,
             nextDrawCost: res.nextDrawCost ?? null,
+            canBatchDraw: drawMode === 'batch' ? false : (res.remainingDraws >= (prev[poolType]?.dailyLimit ?? 10)),
             pityCount: res.pityCount,
           },
         } : prev);

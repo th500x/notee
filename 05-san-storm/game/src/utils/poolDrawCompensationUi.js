@@ -60,10 +60,10 @@ export function getPoolDrawCompensationUi(card, poolType) {
       };
     case 'no_card_available':
       return {
-        bannerTitle: '池内无候选 · 未入背包',
+        bannerTitle: '达上限 · 未入背包',
         bannerBody: `本次发放 ${compLabel}。`,
-        cardTag: `无候选 · ${compLabel}`,
-        isRarityLimit: false,
+        cardTag: `达上限 · ${compLabel}`,
+        isRarityLimit: true,
         isDuplicate: false,
       };
     default:
@@ -83,7 +83,12 @@ export function getPoolDrawCompensationUi(card, poolType) {
  */
 export function poolDrawHasRarityLimitCompensation(cards) {
   return Array.isArray(cards) && cards.some(
-    (c) => c.compensated && (c.reason === 'character_rarity_limit' || c.reason === 'troop_rarity_limit' || c.reason === 'troop_limit'),
+    (c) => c.compensated && (
+      c.reason === 'character_rarity_limit'
+      || c.reason === 'troop_rarity_limit'
+      || c.reason === 'troop_limit'
+      || c.reason === 'no_card_available'
+    ),
   );
 }
 
@@ -92,9 +97,12 @@ export function poolDrawHasRarityLimitCompensation(cards) {
  * @param {'troop'|'character'} poolType
  * @returns {string}
  */
-export function poolDrawResultModalTitle(cards, poolType) {
+export function poolDrawResultModalTitle(cards, poolType, drawMode = 'single') {
+  const batchPrefix = drawMode === 'batch' ? '十连 · ' : '';
   const base = poolType === 'troop' ? '⚔️ 部队卡抽取结果' : '🎴 将领卡抽取结果';
-  if (!Array.isArray(cards) || !cards.some((c) => c.compensated)) return base;
+  if (!Array.isArray(cards) || !cards.some((c) => c.compensated)) {
+    return drawMode === 'batch' ? `${batchPrefix}${base.replace(/^[^\s]+\s/, '')}` : base;
+  }
   if (poolDrawHasRarityLimitCompensation(cards)) {
     return poolType === 'troop' ? '⚠️ 部队抽取 · 栏位已满（补偿）' : '⚠️ 将领抽取 · 栏位已满（补偿）';
   }

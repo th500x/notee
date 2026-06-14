@@ -34,14 +34,46 @@ function getDrawCostForOperationIndex(opIndexOneBased) {
 
 /** @param {number} completedOpsInWindow 本窗已完成操作数（0～10） */
 function getNextDrawCost(completedOpsInWindow) {
-  const done = Math.max(0, Math.min(HALF_DAY_DRAW_LIMIT, Math.floor(Number(completedOpsInWindow) || 0)));
+  const done = clampCompletedOps(completedOpsInWindow);
   if (done >= HALF_DAY_DRAW_LIMIT) return null;
   return getDrawCostForOperationIndex(done + 1);
+}
+
+/** 十连抽消耗的本窗操作数（占满半天额度） */
+const BATCH_DRAW_QUOTA_OPS = HALF_DAY_DRAW_LIMIT;
+
+/** 十连额外赠送抽取次数（不计入半天额度） */
+const BATCH_DRAW_BONUS_OPS = 2;
+
+/** 十连实际执行的抽取操作次数（10+2） */
+const BATCH_DRAW_TOTAL_OPS = BATCH_DRAW_QUOTA_OPS + BATCH_DRAW_BONUS_OPS;
+
+function clampCompletedOps(completedOpsInWindow) {
+  return Math.max(0, Math.min(HALF_DAY_DRAW_LIMIT, Math.floor(Number(completedOpsInWindow) || 0)));
+}
+
+/** 本窗第 1～10 次单抽银两之和（= 十连总价） */
+function getBatchDrawTotalCost() {
+  let total = 0;
+  for (let i = 1; i <= BATCH_DRAW_QUOTA_OPS; i += 1) {
+    total += getDrawCostForOperationIndex(i);
+  }
+  return total;
+}
+
+/** 本窗尚未抽过才可十连（与单抽互斥） */
+function canBatchDraw(completedOpsInWindow) {
+  return clampCompletedOps(completedOpsInWindow) === 0;
 }
 
 module.exports = {
   HALF_DAY_DRAW_LIMIT,
   DRAW_COST_TIERS,
+  BATCH_DRAW_QUOTA_OPS,
+  BATCH_DRAW_BONUS_OPS,
+  BATCH_DRAW_TOTAL_OPS,
   getDrawCostForOperationIndex,
   getNextDrawCost,
+  getBatchDrawTotalCost,
+  canBatchDraw,
 };

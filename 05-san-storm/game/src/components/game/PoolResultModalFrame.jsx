@@ -15,6 +15,7 @@ export default function PoolResultModalFrame({
   confirmLabel = '确认',
   /** 提交中：禁用按钮但不改文案，避免弹窗高度/宽度抖动 */
   confirmBusy = false,
+  panelClassName = 'max-w-md',
 }) {
   const handleBackdropClick = closeOnBackdropClick ? onClose : undefined;
   const btnDisabled = confirmDisabled || confirmBusy;
@@ -28,7 +29,7 @@ export default function PoolResultModalFrame({
       />
       <div className="fixed inset-0 z-[211] flex items-center justify-center px-4 pointer-events-none overflow-y-auto py-8">
         <div
-          className="bg-stone-900 border-2 border-amber-600/50 rounded-2xl p-4 max-w-md w-full shadow-2xl pointer-events-auto my-auto"
+          className={`bg-stone-900 border-2 border-amber-600/50 rounded-2xl p-4 ${panelClassName} w-full shadow-2xl pointer-events-auto my-auto`}
           role="dialog"
           aria-modal="true"
           aria-busy={confirmBusy || undefined}

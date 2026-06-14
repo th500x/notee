@@ -148,6 +148,7 @@ const MIGRATION_FILES = [
   'factions-drop-reserve-columns.sql',
   'add-player-cards-character-enhance-slots.sql',
   'alter-temp-card-pool-draws-duplicate-choice.sql',
+  'add-temp-card-pool-draws-quota-weight.sql',
   'rename-character-enhance-to-echo.sql',
   'accounts-drop-register-unique-machine-ip.sql',
   'create-pvp-tactical-rooms.sql',

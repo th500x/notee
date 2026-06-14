@@ -309,9 +309,9 @@ function GamePageInner({ onLogout, accountId }) {
             skillsMap={skillsMap}
             factionId={player?.factionId}
             playerSilver={player?.silver}
-            onDraw={async (poolSeason) => {
-              const res = await cardPool.draw(openPool, poolSeason);
-              if (!res?.echoChoiceRequired) {
+            onDraw={async (poolSeason, drawMode = 'single') => {
+              const res = await cardPool.draw(openPool, poolSeason, drawMode);
+              if (res?.success && (drawMode === 'batch' || !res?.echoChoiceRequired)) {
                 await refresh({ silent: true });
               }
             }}

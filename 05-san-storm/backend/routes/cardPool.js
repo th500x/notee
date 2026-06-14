@@ -41,16 +41,17 @@ router.post(
     playerId: v.required(v.nonEmptyString({ max: 64 })),
     poolType: v.required(v.enum(['troop', 'character'])),
     poolSeason: v.optional(v.enum(['san_0', 'san_1'])),
+    drawMode: v.optional(v.enum(['single', 'batch'])),
   }),
   async (req, res, next) => {
   try {
-    const { playerId, poolType, poolSeason } = req.body;
+    const { playerId, poolType, poolSeason, drawMode } = req.body;
     const devBypass = req.player._devBypass && req.player.sub == null;
     if (!devBypass && req.player.role !== 'admin' && String(playerId) !== String(req.player.sub)) {
       return res.status(403).json({ success: false, error: '无权代他人抽卡', code: 'FORBIDDEN' });
     }
 
-    const result = await cardPoolService.drawFromPool(playerId, poolType, { poolSeason });
+    const result = await cardPoolService.drawFromPool(playerId, poolType, { poolSeason, drawMode });
     res.json(result);
   } catch (error) {
     const isBusiness =
@@ -59,6 +60,8 @@ router.post(
         error.message.includes('已用完') ||
         error.message.includes('无效') ||
         error.message.includes('未开启') ||
+        error.message.includes('十连') ||
+        error.message.includes('单抽') ||
         error.message.includes('仅支持'));
     if (!isBusiness) {
       return next(wrap500(error, '抽卡失败'));

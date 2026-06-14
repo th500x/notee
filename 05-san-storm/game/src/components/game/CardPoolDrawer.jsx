@@ -35,6 +35,7 @@ import {
 } from '@/utils/poolDrawCompensationUi';
 import EchoChoiceModal from '@/components/game/EchoChoiceModal';
 import { formatLegendaryProbPercent } from '@/utils/factionLegendaryReserveDisplay';
+import { getBatchDrawTotalCost } from '@shared/utils/cardPoolDrawEconomy.js';
 
 const poolDebug = import.meta.env.DEV;
 
@@ -121,6 +122,8 @@ export default function CardPoolDrawer({
   const [characterPoolTab, setCharacterPoolTab] = useState('base');
   const [cardsLoading, setCardsLoading] = useState(true);
   const [showResult, setShowResult] = useState(false);
+  const [showEchoFlow, setShowEchoFlow] = useState(false);
+  const [echoQueue, setEchoQueue] = useState([]);
   const [previewCard, setPreviewCard] = useState(null);
 
   const recruitEnabled =
@@ -245,7 +248,24 @@ export default function CardPoolDrawer({
 
   useEffect(() => {
     if (drawResult?.success) {
-      setShowResult(true);
+      const queue = Array.isArray(drawResult.echoQueue) && drawResult.echoQueue.length > 0
+        ? drawResult.echoQueue
+        : (drawResult.echoChoiceRequired && drawResult.pendingEchoDrawId
+          ? [{
+              pendingEchoDrawId: drawResult.pendingEchoDrawId,
+              cardId: drawResult.cards?.find((c) => c.echoChoiceRequired)?.cardId
+                ?? drawResult.cards?.[0]?.cardId,
+              cardName: drawResult.cards?.find((c) => c.echoChoiceRequired)?.cardName
+                ?? drawResult.cards?.[0]?.cardName,
+              rarity: drawResult.cards?.find((c) => c.echoChoiceRequired)?.rarity
+                ?? drawResult.cards?.[0]?.rarity,
+              echoState: drawResult.echoState,
+            }]
+          : []);
+      setEchoQueue(queue);
+      setShowEchoFlow(false);
+      const isBatch = drawResult.drawMode === 'batch';
+      setShowResult(isBatch || !drawResult.echoChoiceRequired);
       onRefreshStatus?.();
     }
   }, [drawResult, onRefreshStatus]);
@@ -256,24 +276,49 @@ export default function CardPoolDrawer({
     return m;
   }, [displayPoolCards]);
 
+  const activeEchoItem = showEchoFlow ? echoQueue[0] : null;
+
   const pendingEchoCard = useMemo(() => {
-    if (!drawResult?.echoChoiceRequired || !Array.isArray(drawResult.cards)) return null;
-    const card = drawResult.cards.find((c) => c.echoChoiceRequired) || drawResult.cards[0];
-    if (!card?.cardId) return null;
-    return poolCardsMapForDup[card.cardId] || {
-      id: card.cardId,
-      name: card.cardName || card.cardId,
-      rarity: card.rarity || 'common',
+    const cardRef = activeEchoItem ?? (drawResult?.echoChoiceRequired ? {
+      cardId: drawResult.cards?.find((c) => c.echoChoiceRequired)?.cardId ?? drawResult.cards?.[0]?.cardId,
+      cardName: drawResult.cards?.find((c) => c.echoChoiceRequired)?.cardName ?? drawResult.cards?.[0]?.cardName,
+      rarity: drawResult.cards?.find((c) => c.echoChoiceRequired)?.rarity ?? drawResult.cards?.[0]?.rarity,
+    } : null);
+    if (!cardRef?.cardId) return null;
+    return poolCardsMapForDup[cardRef.cardId] || {
+      id: cardRef.cardId,
+      name: cardRef.cardName || cardRef.cardId,
+      rarity: cardRef.rarity || 'common',
     };
-  }, [drawResult, poolCardsMapForDup]);
+  }, [activeEchoItem, drawResult, poolCardsMapForDup]);
+
+  const handleResultClose = useCallback(() => {
+    setShowResult(false);
+    if (drawResult?.drawMode === 'batch' && echoQueue.length > 0) {
+      setShowEchoFlow(true);
+      return;
+    }
+    setShowEchoFlow(false);
+    setEchoQueue([]);
+    onClearResult();
+  }, [drawResult?.drawMode, echoQueue.length, onClearResult]);
 
   const handleEchoConfirm = useCallback(async (choice) => {
     if (!choice || typeof onResolveEchoChoice !== 'function') return;
-    const pendingId = drawResult?.pendingEchoDrawId ?? status?.pendingEchoChoice?.pendingEchoDrawId;
+    const current = showEchoFlow ? echoQueue[0] : null;
+    const pendingId = current?.pendingEchoDrawId
+      ?? drawResult?.pendingEchoDrawId
+      ?? status?.pendingEchoChoice?.pendingEchoDrawId;
     const res = await onResolveEchoChoice(choice, pendingId);
     if (!res?.success) return;
-    setShowResult(false);
-    onClearResult();
+    if (showEchoFlow && echoQueue.length > 1) {
+      setEchoQueue((prev) => prev.slice(1));
+      setShowEchoFlow(true);
+    } else {
+      setShowEchoFlow(false);
+      setEchoQueue([]);
+      onClearResult();
+    }
     if (typeof onAfterEchoChoice === 'function') {
       void onAfterEchoChoice(res);
     }
@@ -285,6 +330,8 @@ export default function CardPoolDrawer({
     onAfterEchoChoice,
     onClearResult,
     onRefreshStatus,
+    showEchoFlow,
+    echoQueue,
     drawResult?.pendingEchoDrawId,
     status?.pendingEchoChoice?.pendingEchoDrawId,
   ]);
@@ -301,16 +348,31 @@ export default function CardPoolDrawer({
     (a, b) => (RARITY_ORDER[b] ?? -1) - (RARITY_ORDER[a] ?? -1),
   );
 
-  // 用实时银两（来自PlayerContext）判断是否可抽取
   const currentSilver = playerSilver ?? status?.silver ?? 0;
+  const dailyLimit = poolStatus?.dailyLimit ?? 10;
+  const remainingDraws = poolStatus?.remainingDraws ?? 0;
   const nextDrawCost = poolStatus?.nextDrawCost ?? status?.drawCostTiers?.[0]?.cost ?? 30;
+  const batchDrawCost = poolStatus?.batchDrawTotalCost ?? status?.batchDrawTotalCost ?? getBatchDrawTotalCost();
   const pendingEchoBlocking = poolType === 'character' && (
     !!status?.pendingEchoChoice?.pendingEchoDrawId
-    || !!drawResult?.echoChoiceRequired
+    || showEchoFlow
+    || (!!drawResult?.echoChoiceRequired && drawResult?.drawMode !== 'batch')
   );
-  const canDraw = !loading && !pendingEchoBlocking && (poolStatus?.remainingDraws ?? 0) > 0
-    && nextDrawCost != null && currentSilver >= nextDrawCost;
+  const canBatchDraw = !loading
+    && !pendingEchoBlocking
+    && (poolStatus?.canBatchDraw ?? (remainingDraws === dailyLimit))
+    && remainingDraws === dailyLimit
+    && currentSilver >= batchDrawCost;
+  const canSingleDraw = !loading
+    && !pendingEchoBlocking
+    && remainingDraws > 0
+    && nextDrawCost != null
+    && currentSilver >= nextDrawCost;
   const costLabel = nextDrawCost ?? '—';
+  const cardsPerDrawLabel = poolType === 'troop' ? '每次2张' : '每次1张';
+  const batchResultCountHint = poolType === 'troop'
+    ? `${12}次抽取 · 共${12 * 2}张`
+    : '共12张';
 
   return (
     <>
@@ -329,7 +391,7 @@ export default function CardPoolDrawer({
               {drawerTitle}
             </span>
             <span className="text-stone-500 text-xs shrink-0">
-              （{poolType === 'troop' ? '每次2张' : '每次1张'}）
+              （{cardsPerDrawLabel}）
             </span>
             <span
               className="hidden md:inline text-stone-500 text-[10px] leading-snug truncate min-w-0 flex-1"
@@ -484,8 +546,8 @@ export default function CardPoolDrawer({
             </div>
             <div className="flex flex-wrap items-center justify-end gap-x-2 gap-y-0.5 max-w-[62%]">
               <span className="text-stone-400 text-xs shrink-0">今日剩余</span>
-              <span className={`text-xs font-bold tabular-nums shrink-0 ${(poolStatus?.remainingDraws ?? 0) > 0 ? 'text-green-400' : 'text-red-400'}`}>
-                {poolStatus?.remainingDraws ?? 0}/{poolStatus?.dailyLimit ?? 10}
+              <span className={`text-xs font-bold tabular-nums shrink-0 ${remainingDraws > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                {remainingDraws}/{dailyLimit}
               </span>
               <span
                 className="text-[10px] tabular-nums text-stone-500 shrink-0"
@@ -512,16 +574,43 @@ export default function CardPoolDrawer({
               当前从「{poolDrawerTabLabel('character', activeDrawSeason)}」抽取（费用 / 次数 / 传奇保底共用）
             </p>
           ) : null}
-          <button
-            onClick={() => onDraw(activeDrawSeason)}
-            disabled={!canDraw}
-            className={`w-full py-3 rounded-xl text-sm font-bold transition-all
-              ${canDraw
-                ? 'bg-gradient-to-r from-amber-600 to-amber-500 text-white hover:from-amber-500 hover:to-amber-400 active:scale-[0.98] shadow-lg shadow-amber-600/30'
-                : 'bg-stone-700 text-stone-500 cursor-not-allowed'}`}
-          >
-            {loading ? '抽取中...' : `💰 抽取（${costLabel}银两）`}
-          </button>
+          {remainingDraws > 0 && remainingDraws < dailyLimit ? (
+            <p className="text-[10px] text-stone-500 text-center mb-2 leading-snug">
+              本窗已进行过单抽，十连不可用；剩余次数仅可继续单抽
+            </p>
+          ) : null}
+          {remainingDraws === dailyLimit ? (
+            <p className="text-[10px] text-stone-500 text-center mb-2 leading-snug">
+              单抽与十连互斥：须先选一种方式用完本窗 {dailyLimit} 次额度
+            </p>
+          ) : null}
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => onDraw(activeDrawSeason, 'single')}
+              disabled={!canSingleDraw}
+              className={`flex-1 py-3 rounded-xl text-sm font-bold transition-all
+                ${canSingleDraw
+                  ? 'bg-gradient-to-r from-amber-600 to-amber-500 text-white hover:from-amber-500 hover:to-amber-400 active:scale-[0.98] shadow-lg shadow-amber-600/30'
+                  : 'bg-stone-700 text-stone-500 cursor-not-allowed'}`}
+            >
+              {loading ? '抽取中...' : `💰 抽取（${costLabel}银两）`}
+            </button>
+            <button
+              type="button"
+              onClick={() => onDraw(activeDrawSeason, 'batch')}
+              disabled={!canBatchDraw}
+              className={`flex-1 py-3 rounded-xl text-sm font-bold transition-all
+                ${canBatchDraw
+                  ? 'bg-gradient-to-r from-orange-700 to-orange-600 text-white hover:from-orange-600 hover:to-orange-500 active:scale-[0.98] shadow-lg shadow-orange-700/30'
+                  : 'bg-stone-700 text-stone-500 cursor-not-allowed'}`}
+            >
+              {loading ? '抽取中...' : `💰 十连（${batchDrawCost}银两 · 赠2抽）`}
+            </button>
+          </div>
+          <p className="mt-2 text-[10px] text-stone-500 text-center leading-snug">
+            十连 = 本窗 10 次单抽总价 · 额外赠送 2 次抽取（{batchResultCountHint}）· 概率与单抽一致
+          </p>
         </div>
       </div>
 
@@ -539,12 +628,12 @@ export default function CardPoolDrawer({
         </div>
       )}
 
-      {/* 重复将领三选一（仅将领卡池） */}
-      {poolType === 'character' && showResult && drawResult?.success && drawResult.echoChoiceRequired && (
+      {/* 重复将领三选一：十连先预览再弹；单抽/续玩 pending 直接弹 */}
+      {poolType === 'character' && pendingEchoCard && (showEchoFlow || (drawResult?.echoChoiceRequired && !showResult)) && (
         <EchoChoiceModal
           card={pendingEchoCard}
-          echoState={drawResult.echoState}
-          pendingEchoDrawId={drawResult.pendingEchoDrawId}
+          echoState={activeEchoItem?.echoState ?? drawResult?.echoState}
+          pendingEchoDrawId={activeEchoItem?.pendingEchoDrawId ?? drawResult?.pendingEchoDrawId}
           skillsMap={skillsMap}
           baseUrl={baseUrl}
           loading={choiceLoading}
@@ -553,16 +642,17 @@ export default function CardPoolDrawer({
         />
       )}
 
-      {/* 抽取结果弹窗 */}
-      {showResult && drawResult?.success && !drawResult.echoChoiceRequired && (
+      {/* 抽取结果弹窗（十连含残影卡时也先展示全卡） */}
+      {showResult && drawResult?.success && (
         <DrawResultOverlay
           poolType={poolType}
+          drawMode={drawResult.drawMode || 'single'}
           cards={drawResult.cards}
           poolCards={displayPoolCards}
           skillsMap={skillsMap}
           baseUrl={baseUrl}
           rarityLabel={rarityLabel}
-          onClose={() => { setShowResult(false); onClearResult(); }}
+          onClose={handleResultClose}
         />
       )}
     </>
@@ -570,7 +660,8 @@ export default function CardPoolDrawer({
 }
 
 /** 抽取结果弹窗 */
-function DrawResultOverlay({ poolType, cards, poolCards, skillsMap, baseUrl, rarityLabel, onClose }) {
+function DrawResultOverlay({ poolType, drawMode = 'single', cards, poolCards, skillsMap, baseUrl, rarityLabel, onClose }) {
+  const compact = drawMode === 'batch';
   // 用 cardId 从 poolCards 查找完整配置数据
   const poolCardsMap = {};
   poolCards.forEach(c => { poolCardsMap[c.id] = c; });
@@ -580,12 +671,13 @@ function DrawResultOverlay({ poolType, cards, poolCards, skillsMap, baseUrl, rar
   const primaryCompUi = Array.isArray(cards)
     ? cards.map((c) => getPoolDrawCompensationUi(c, poolType)).find(Boolean)
     : null;
-  const modalTitle = poolDrawResultModalTitle(cards, poolType);
+  const modalTitle = poolDrawResultModalTitle(cards, poolType, drawMode);
 
   return (
     <PoolResultModalFrame
       title={modalTitle}
       onClose={onClose}
+      panelClassName={compact ? 'max-w-4xl' : 'max-w-md'}
     >
       {hasRarityLimitComp && primaryCompUi && (
         <div className="mb-3 px-3 py-2.5 rounded-lg bg-rose-950/90 border-2 border-rose-500/50 text-[12px] leading-relaxed text-rose-50">
@@ -605,14 +697,14 @@ function DrawResultOverlay({ poolType, cards, poolCards, skillsMap, baseUrl, rar
           本轮已触发<span className="text-orange-300">传奇保底</span>，但因<span className="text-orange-200">今日传奇卡已达获取上限</span>（每池每日最多 1 张），系统已按规则将档位降为史诗或稀有；<span className="text-stone-300">保底计数已重置</span>，并非界面错误。
         </div>
       )}
-      <div className="flex justify-center gap-3 flex-wrap">
+      <div className={`flex justify-center gap-3 flex-wrap ${compact ? 'max-h-[50vh] overflow-y-auto overscroll-contain py-1' : ''}`}>
         {cards.map((card, i) => {
           const fullConfig = poolCardsMap[card.cardId];
           const compUi = getPoolDrawCompensationUi(card, poolType);
           return (
             <div key={i} className="flex flex-col items-center">
               <div
-                style={{ width: 128, height: 192 }}
+                style={compact ? { width: 128, height: 192 } : { width: 256, height: 384 }}
                 className={`overflow-hidden rounded-lg bg-stone-900 relative ${card.compensated ? 'opacity-45 grayscale' : ''}`}
               >
                 {card.compensated && (
@@ -622,16 +714,37 @@ function DrawResultOverlay({ poolType, cards, poolCards, skillsMap, baseUrl, rar
                     </span>
                   </div>
                 )}
-                <div
-                  style={{
-                    transform: 'scale(0.5)',
-                    transformOrigin: 'top left',
-                    width: 256,
-                    height: 384,
-                    overflow: 'hidden',
-                  }}
-                >
-                  {poolType === 'troop' ? (
+                {compact ? (
+                  <div
+                    style={{
+                      transform: 'scale(0.5)',
+                      transformOrigin: 'top left',
+                      width: 256,
+                      height: 384,
+                      overflow: 'hidden',
+                    }}
+                  >
+                    {poolType === 'troop' ? (
+                      <TroopCard
+                        troop={fullConfig || { id: card.cardId, name: card.cardName, rarity: card.rarity }}
+                        skillsMap={skillsMap}
+                        showDetails
+                        baseUrl={baseUrl}
+                        disableHoverScale
+                        suppressSkillTooltips
+                      />
+                    ) : (
+                      <CharacterCard
+                        character={fullConfig || { id: card.cardId, name: card.cardName, rarity: card.rarity }}
+                        skillsMap={skillsMap}
+                        showDetails={true}
+                        baseUrl={baseUrl}
+                        disableHoverScale
+                      />
+                    )}
+                  </div>
+                ) : (
+                  poolType === 'troop' ? (
                     <TroopCard
                       troop={fullConfig || { id: card.cardId, name: card.cardName, rarity: card.rarity }}
                       skillsMap={skillsMap}
@@ -648,14 +761,19 @@ function DrawResultOverlay({ poolType, cards, poolCards, skillsMap, baseUrl, rar
                       baseUrl={baseUrl}
                       disableHoverScale
                     />
-                  )}
-                </div>
+                  )
+                )}
               </div>
               <div className="mt-1 text-center">
                 <div className="text-xs font-bold" style={{ color: RARITY_COLORS[card.rarity] }}>
                   {RARITY_LABELS[card.rarity]}
                 </div>
                 <div className="text-stone-300 text-[10px]">{card.cardName || '未知'}</div>
+                {card.echoChoiceRequired && (
+                  <div className="mt-1 text-[10px] text-amber-200/95 max-w-[140px] leading-snug text-center">
+                    重复 · 关闭预览后三选一
+                  </div>
+                )}
                 {card.pityLegendarySuppressed && (
                   <div className="mt-1 text-[10px] text-amber-200/90 max-w-[140px] leading-snug">
                     本张：保底传奇 → 因今日上限实为「{rarityLabel[card.rarity] || card.rarity}」
