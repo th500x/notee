@@ -390,6 +390,28 @@ export const playerAPI = {
     return response.json();
   },
 
+  /** 互动 · 封赏 · 礼盒：传奇宝物兑换预览 */
+  async getSanGongFuGiftBoxPreview(playerId) {
+    const response = await fetchWithTimeout(
+      `${API_CONFIG.BASE_URL}/players/${playerId}/san-gong-fu/gift-box-preview`,
+      { method: 'GET', headers: { 'Content-Type': 'application/json' } },
+    );
+    return response.json();
+  },
+
+  /** 互动 · 封赏 · 礼盒：消耗贡献兑换指定传奇宝物 */
+  async submitSanGongFuGiftBox(playerId, treasureId) {
+    const response = await fetchWithTimeout(
+      `${API_CONFIG.BASE_URL}/players/${playerId}/san-gong-fu/gift-box`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ treasureId }),
+      },
+    );
+    return response.json();
+  },
+
   /** 三公府 · 朝政：本势力攻方进行中的攻城类 PVP 战事列表（品阶 Lv≤1） */
   async getSanGongFuPvpAttackingWars(playerId) {
     const response = await fetchWithTimeout(

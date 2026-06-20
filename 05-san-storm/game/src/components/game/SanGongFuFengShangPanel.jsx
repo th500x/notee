@@ -7,6 +7,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { CardPoolPoolButton } from '@/components/game/CardPoolPoolButton';
 import PoolResultModalFrame from '@/components/game/PoolResultModalFrame';
 import SanGongResourceExchangeModal from '@/components/game/SanGongResourceExchangeModal';
+import SanGongGiftBoxModal from '@/components/game/SanGongGiftBoxModal';
 import { playerAPI } from '@/services/playerApi';
 import { RARITY, RARITY_COLORS } from '@/constants';
 
@@ -21,7 +22,7 @@ const SUPPLY_TIER_LINE_HEX = {
 const STIPEND_TOOLTIP = '按本势力国力档位（S～D）领取银两与粮草：档位越高基准越大。';
 
 const GIFT_BOX_TOOLTIP =
-  '规划：消耗银两开启礼盒，随机获得物品（道具/卡池等细则待定）。当前仅为入口占位。';
+  '消耗贡献兑换传奇宝物（4xxx 编号，每件 50 贡献）；每自然日 1 次（0:00 刷新，与银粮兑换一致）。';
 
 const EXCHANGE_TOOLTIP =
   '个人银两与粮草同势力储备互换：基数=俸禄 B（档系数×官职倍数）；名义 1:5，松紧随池子余量；优享包池侧 +20%。每包每日 1 次（0:00 刷新）。';
@@ -56,6 +57,8 @@ export default function SanGongFuFengShangPanel({
   const [stipendResult, setStipendResult] = useState(null);
   const [exchangeOpen, setExchangeOpen] = useState(false);
   const [exchangeRemaining, setExchangeRemaining] = useState(4);
+  const [giftBoxOpen, setGiftBoxOpen] = useState(false);
+  const [giftBoxRemaining, setGiftBoxRemaining] = useState(1);
 
   const loadStipend = useCallback(async () => {
     if (!playerId) {
@@ -100,6 +103,25 @@ export default function SanGongFuFengShangPanel({
   useEffect(() => {
     loadExchangeRemaining();
   }, [loadExchangeRemaining]);
+
+  const loadGiftBoxRemaining = useCallback(async () => {
+    if (!playerId) {
+      setGiftBoxRemaining(1);
+      return;
+    }
+    try {
+      const res = await playerAPI.getSanGongFuGiftBoxPreview(playerId);
+      if (res.success && res.data) {
+        setGiftBoxRemaining(res.data.claimedToday ? 0 : 1);
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [playerId]);
+
+  useEffect(() => {
+    loadGiftBoxRemaining();
+  }, [loadGiftBoxRemaining]);
 
   const stipendRemaining = stipendStatus?.remainingToday ?? 1;
   const stipendMax = stipendStatus?.maxPerDay ?? 1;
@@ -183,14 +205,12 @@ export default function SanGongFuFengShangPanel({
         <CardPoolPoolButton
           icon="🎁"
           label="礼盒"
-          subLabel="敬请期待"
-          remaining={0}
+          subLabel={giftBoxRemaining > 0 ? `${giftBoxRemaining}/1` : '今日已兑'}
+          remaining={giftBoxRemaining}
           dailyLimit={1}
           drawerOpen={drawerOpen}
           tooltip={GIFT_BOX_TOOLTIP}
-          onClick={() => {
-            setToast('礼盒功能筹备中，敬请期待');
-          }}
+          onClick={() => setGiftBoxOpen(true)}
         />
         <CardPoolPoolButton
           icon="🔄"
@@ -309,6 +329,16 @@ export default function SanGongFuFengShangPanel({
         playerId={playerId}
         onAfterExchange={async () => {
           await loadExchangeRemaining();
+          await onAfterStipendClaim?.();
+        }}
+      />
+
+      <SanGongGiftBoxModal
+        open={giftBoxOpen}
+        onClose={() => setGiftBoxOpen(false)}
+        playerId={playerId}
+        onAfterRedeem={async () => {
+          await loadGiftBoxRemaining();
           await onAfterStipendClaim?.();
         }}
       />

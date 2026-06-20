@@ -22,6 +22,7 @@ const {
   loadPositionCombatBonusesForPlayer,
 } = require('../../shared/utils/positionCombatBonuses.cjs');
 const { attachTroopAffinityToCharacter } = require('../../shared/utils/troopAffinityCombat.cjs');
+const { attachEchoPctToCharacter } = require('../../shared/utils/characterEchoCombat.cjs');
 const { loadCardTroopSpecialEffectBonus } = require('../../shared/utils/cardTroopSpecialEffect.cjs');
 
 /** 单部队参战最低兵力（兵力为 0 不参战；总兵力验证在 saveGarrison / initiateSiege） */

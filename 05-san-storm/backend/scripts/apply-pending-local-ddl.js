@@ -165,6 +165,7 @@ const MIGRATION_FILES = [
   'create-daily-report-digests.sql',
   'wars-add-attacker-base-camps.sql',
   'player-events-add-san-gong-resource-exchange-daily.sql',
+  'player-events-add-san-gong-gift-box-date.sql',
   'alter-season-records-fk-to-accounts.sql',
   'create-season-settlements.sql',
   'add-config-servers-settlement-window.sql',

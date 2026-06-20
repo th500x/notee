@@ -55,6 +55,10 @@ const resourceExchangeBody = {
   ),
 };
 
+const giftBoxBody = {
+  treasureId: v.required(v.idLike({ max: 128 })),
+};
+
 module.exports = {
   promoteBody,
   switchPeerBody,
@@ -66,4 +70,5 @@ module.exports = {
   pveWarIdParam,
   cancelWarBody,
   resourceExchangeBody,
+  giftBoxBody,
 };

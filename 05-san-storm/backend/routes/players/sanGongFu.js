@@ -7,6 +7,7 @@ const kingEdictFeedbackService = require('../../services/kingEdictFeedbackServic
 const sanGongTributeService = require('../../services/sanGongTributeService');
 const sanGongStipendService = require('../../services/sanGongStipendService');
 const sanGongResourceExchangeService = require('../../services/sanGongResourceExchangeService');
+const sanGongGiftBoxService = require('../../services/sanGongGiftBoxService');
 const sanGongDocumentService = require('../../services/sanGongDocumentService');
 const factionBulletinService = require('../../services/factionBulletinService');
 const pvpWarService = require('../../services/pvpWarService');
@@ -93,6 +94,25 @@ router.post(
     const out = await sanGongResourceExchangeService.submitExchange(
       req.params.playerId,
       req.body.packId,
+    );
+    if (!out.ok) return res.status(out.status).json({ success: false, error: out.error });
+    res.json({ success: true, data: out.data });
+  }),
+);
+
+router.get('/:playerId/san-gong-fu/gift-box-preview', withRoute('礼盒预览失败', async (req, res) => {
+  const out = await sanGongGiftBoxService.getGiftBoxPreview(req.params.playerId);
+  if (!out.ok) return res.status(out.status).json({ success: false, error: out.error });
+  res.json({ success: true, data: out.data });
+}));
+
+router.post(
+  '/:playerId/san-gong-fu/gift-box',
+  validateBody(sanGongSchemas.giftBoxBody),
+  withRoute('礼盒兑换失败', async (req, res) => {
+    const out = await sanGongGiftBoxService.submitGiftBoxRedemption(
+      req.params.playerId,
+      req.body.treasureId,
     );
     if (!out.ok) return res.status(out.status).json({ success: false, error: out.error });
     res.json({ success: true, data: out.data });

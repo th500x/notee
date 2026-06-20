@@ -58,7 +58,14 @@ async function loadPositionCombatBonusesForPlayer(poolConn, playerId) {
   );
   if (!rows.length || !rows[0].position_bonuses) return null;
   const raw = rows[0].position_bonuses;
-  const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+  let parsed = raw;
+  if (typeof raw === 'string') {
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      return null;
+    }
+  }
   return normalizePositionCombatBonuses(parsed);
 }
 

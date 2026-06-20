@@ -179,7 +179,18 @@ async function filterCityDefenseRowsByMinStationedTroop(rows, chunkSize = 16) {
   const out = [];
   for (let i = 0; i < rows.length; i += chunkSize) {
     const chunk = rows.slice(i, i + chunkSize);
-    const results = await Promise.all(chunk.map((r) => buildDefenderLineupForCityDefense(r)));
+    const results = await Promise.all(chunk.map(async (r) => {
+      try {
+        return await buildDefenderLineupForCityDefense(r);
+      } catch (err) {
+        console.warn(
+          '[Garrison] skip row in troop filter',
+          { playerId: r?.player_id, cityId: r?.city_id, garrisonSlot: r?.garrison_slot },
+          err?.message || err,
+        );
+        return { units: [], totalTroops: 0, meetsStationedTroopGate: false };
+      }
+    }));
     for (let j = 0; j < chunk.length; j++) {
       if (results[j].meetsStationedTroopGate) out.push(chunk[j]);
     }
@@ -213,6 +224,23 @@ async function getPlayerGarrisons(playerId) {
     [playerId]
   );
   return rows;
+}
+
+/**
+ * 玩家所有驻地槽位占用的卡牌实例 id 集合（与前端 `collectGarrisonOccupiedInstanceIds` 同口径：
+ * 取所有 garrison 行的 `CARD_FIELDS` 非空值）。供上阵编组排除被驻守占用的卡。
+ * @param {string} playerId
+ * @returns {Promise<Set<string>>}
+ */
+async function getGarrisonOccupiedInstanceIds(playerId) {
+  const rows = await getPlayerGarrisons(playerId);
+  const ids = new Set();
+  for (const g of rows) {
+    for (const f of CARD_FIELDS) {
+      if (g[f]) ids.add(g[f]);
+    }
+  }
+  return ids;
 }
 
 /**
@@ -642,15 +670,33 @@ async function getCityGarrisonDefenders(cityId, ownerFactionId) {
  * `slot_count` / `player_count` 仅计 **当前** 整编兵力达 `MIN_GARRISON_TOTAL_TROOPS` 的槽位（与 `initiateSiege` 一致）。
  */
 async function getCityGarrisonStats() {
-  const [allSlots] = await pool.query(
-    `SELECT g.*
-     FROM player_garrison g
-     JOIN players p ON g.player_id = p.player_id
-     JOIN cities c ON c.city_id = g.city_id
-     WHERE g.is_active = TRUE AND g.city_id IS NOT NULL
-       AND c.faction_id IS NOT NULL AND p.faction_id = c.faction_id`
-  );
-  const effective = await filterCityDefenseRowsByMinStationedTroop(allSlots);
+  let allSlots;
+  try {
+    [allSlots] = await pool.query(
+      `SELECT g.*
+       FROM player_garrison g
+       JOIN players p ON g.player_id = p.player_id
+       JOIN cities c ON c.city_id = g.city_id
+       WHERE g.is_active = TRUE AND g.city_id IS NOT NULL
+         AND c.faction_id IS NOT NULL AND p.faction_id = c.faction_id`,
+    );
+  } catch (err) {
+    if (err.code === 'ER_BAD_FIELD_ERROR' || /Unknown column/i.test(err.message || '')) {
+      console.error('[Garrison] getCityGarrisonStats schema mismatch:', err.message);
+      return [];
+    }
+    throw err;
+  }
+  let effective = [];
+  try {
+    effective = await filterCityDefenseRowsByMinStationedTroop(allSlots);
+  } catch (err) {
+    console.error('[Garrison] getCityGarrisonStats filter failed:', err);
+    if (err.code === 'ER_BAD_FIELD_ERROR' || /Unknown column/i.test(err.message || '')) {
+      return [];
+    }
+    throw err;
+  }
   const byCity = new Map();
   for (const row of effective) {
     const cid = row.city_id;
@@ -709,6 +755,7 @@ async function clearInvalidOnDutySelection(playerId) {
 module.exports = {
   // ── CRUD + 城市防守者查询（本文件实现）──
   getPlayerGarrisons,
+  getGarrisonOccupiedInstanceIds,
   getPlayerGarrisonsForCity,
   getGarrisonSlot,
   saveGarrison,
