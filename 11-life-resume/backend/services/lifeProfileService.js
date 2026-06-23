@@ -11,6 +11,12 @@ const {
   validateAccountIdFormat,
   USERNAME_CHANGE_COOLDOWN_DAYS,
 } = require('../../../05-san-storm/shared/utils/lifeResumeUsername.cjs');
+const {
+  formatProfileDisplayName,
+  shouldRefreshProfileRegion,
+  isPlaceholderClientIp,
+} = require('../../../05-san-storm/shared/utils/lifeResumeProfileRegion.cjs');
+const { resolveRegionFromIp } = require('./ipGeolocationService');
 
 const VISIBILITY_VALUES = new Set(['public', 'private', 'specific']);
 
@@ -36,9 +42,13 @@ function toIso(value) {
 }
 
 function formatProfileRow(row) {
+  const regionPublicLabel = row.region_public_label || null;
   return {
     accountId: row.account_id,
     username: row.username,
+    regionPublicLabel,
+    regionUpdatedAt: toIso(row.region_updated_at),
+    displayName: formatProfileDisplayName(row.username, regionPublicLabel, row.account_id),
     usernameChangedAt: toIso(row.username_changed_at),
     pageDefaultVisibility: row.page_default_visibility,
     defaultGranteeAccountId: row.default_grantee_account_id,
@@ -97,12 +107,41 @@ async function getOrCreateProfile(accountId) {
   return row;
 }
 
-async function getProfileForAccount(accountId) {
+async function ensureProfileRegionFromIp(accountId, requestIp) {
+  const id = String(accountId || '').trim().toUpperCase();
+  let row = await findProfileByAccountId(id);
+  if (!row) return null;
+  if (isPlaceholderClientIp(requestIp)) return row;
+  if (!shouldRefreshProfileRegion(row.region_updated_at)) return row;
+
+  const resolved = await resolveRegionFromIp(requestIp);
+  if (resolved.ok && resolved.regionPublicLabel) {
+    await query(
+      `UPDATE life_profiles
+       SET region_public_label = ?, region_updated_at = CURRENT_TIMESTAMP(3)
+       WHERE account_id = ?`,
+      [resolved.regionPublicLabel, id]
+    );
+  } else {
+    await query(
+      `UPDATE life_profiles SET region_updated_at = CURRENT_TIMESTAMP(3) WHERE account_id = ?`,
+      [id]
+    );
+  }
+
+  row = await findProfileByAccountId(id);
+  return row;
+}
+
+async function getProfileForAccount(accountId, opts = {}) {
   const id = String(accountId || '').trim().toUpperCase();
   if (!validateAccountIdFormat(id)) {
     throw new ProfileServiceError('INVALID_ACCOUNT_ID', '账号 ID 格式无效', 400);
   }
-  const row = await getOrCreateProfile(id);
+  let row = await getOrCreateProfile(id);
+  if (opts.requestIp) {
+    row = (await ensureProfileRegionFromIp(id, opts.requestIp)) || row;
+  }
   return enrichProfile(row);
 }
 
@@ -196,14 +235,7 @@ async function updateProfileForAccount(accountId, patch = {}) {
   }
 
   params.push(id);
-  try {
-    await query(`UPDATE life_profiles SET ${sets.join(', ')} WHERE account_id = ?`, params);
-  } catch (err) {
-    if (err && err.code === 'ER_DUP_ENTRY') {
-      throw new ProfileServiceError('USERNAME_TAKEN', '该用户名已被占用，请换一个');
-    }
-    throw err;
-  }
+  await query(`UPDATE life_profiles SET ${sets.join(', ')} WHERE account_id = ?`, params);
 
   const updated = await findProfileByAccountId(id);
   return enrichProfile(updated);
@@ -279,6 +311,7 @@ module.exports = {
   updateProfileForAccount,
   deactivateProfileForAccount,
   cancelDeactivationForAccount,
+  ensureProfileRegionFromIp,
   enrichProfile,
   findProfileByAccountId,
   DEACTIVATION_GRACE_DAYS,

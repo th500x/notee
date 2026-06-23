@@ -9,6 +9,7 @@ import {
   validateNewAccountPassword,
 } from '@shared/utils/accountPasswordRules';
 import { USERNAME_CHANGE_COOLDOWN_DAYS } from '@shared/utils/lifeResumeUsername.js';
+import { REGION_REFRESH_DAYS } from '@shared/utils/lifeResumeProfileRegion.js';
 import { normalizeAccountId, validateAccountIdFormat } from '@/utils/authUtils';
 import { changePassword } from '@/services/authApi';
 import {
@@ -209,6 +210,7 @@ export default function SettingsPage() {
           <h2 className="font-semibold text-slate-900">用户名</h2>
           <p className="text-sm text-slate-600">
             纯中文 1–4 字，或纯英文 1–16 字母（可在末尾加一个国旗 emoji，如 CHRIS🇹🇭）；禁止中英混排、数字与其它符号。
+            昵称可与他人重复；对外展示时会自动附上 IP 识别的地区（见下方）。
           </p>
           {profile?.isDefaultUsername && !isDeactivated && (
             <p className="text-sm text-amber-800 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
@@ -228,6 +230,27 @@ export default function SettingsPage() {
             <p className="text-sm text-slate-500">
               用户名每 {USERNAME_CHANGE_COOLDOWN_DAYS} 天可改一次，下次可改日期：
               {formatDate(profile.usernameChangeAvailableAt) || '—'}
+            </p>
+          )}
+        </section>
+
+        <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-3">
+          <h2 className="font-semibold text-slate-900">展示地区</h2>
+          <p className="text-sm text-slate-600">
+            根据当前网络 IP 自动识别，格式为「国家·省/府」，拼在昵称后面（如 chris · 美国·纽约）。
+            登录后约每 {REGION_REFRESH_DAYS} 天静默更新一次；解析失败时保留上次结果或仅显示昵称。
+          </p>
+          <p className="text-sm text-slate-800 bg-slate-50 border border-slate-100 rounded-lg px-3 py-2">
+            {profile?.regionPublicLabel ? profile.regionPublicLabel : '暂未识别到地区（本地开发或解析失败时常见）'}
+          </p>
+          {profile?.regionUpdatedAt && (
+            <p className="text-xs text-slate-500">
+              上次更新：{formatDate(profile.regionUpdatedAt)}
+            </p>
+          )}
+          {profile?.displayName && (
+            <p className="text-xs text-slate-500">
+              对外展示名预览：<span className="font-medium text-slate-700">{profile.displayName}</span>
             </p>
           )}
         </section>

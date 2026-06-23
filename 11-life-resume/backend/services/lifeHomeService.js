@@ -4,6 +4,7 @@
 
 const { query } = require('../database/connection');
 const { validateAccountIdFormat } = require('../../../05-san-storm/shared/utils/lifeResumeUsername.cjs');
+const { formatProfileDisplayName } = require('../../../05-san-storm/shared/utils/lifeResumeProfileRegion.cjs');
 const { getProfileForAccount, ProfileServiceError } = require('./lifeProfileService');
 
 class HomeServiceError extends Error {
@@ -16,16 +17,19 @@ class HomeServiceError extends Error {
 }
 
 function formatHomeCard(row) {
+  const regionPublicLabel = row.region_public_label || null;
   return {
     accountId: row.account_id,
     username: row.username,
+    regionPublicLabel,
+    displayName: formatProfileDisplayName(row.username, regionPublicLabel, row.account_id),
     accessibleEntryCount: Number(row.accessible_entry_count || row.entry_count || 0),
   };
 }
 
 async function listSharedOwnerCards(viewerAccountId) {
   const rows = await query(
-    `SELECT p.account_id, p.username, COUNT(e.id) AS accessible_entry_count
+    `SELECT p.account_id, p.username, p.region_public_label, COUNT(e.id) AS accessible_entry_count
      FROM life_entries e
      INNER JOIN life_profiles p ON p.account_id = e.account_id
      WHERE e.grantee_account_id = ?
@@ -33,7 +37,7 @@ async function listSharedOwnerCards(viewerAccountId) {
        AND e.status = 'published'
        AND p.profile_status = 'active'
        AND e.account_id <> ?
-     GROUP BY p.account_id, p.username
+     GROUP BY p.account_id, p.username, p.region_public_label
      ORDER BY p.username ASC, p.account_id ASC`,
     [viewerAccountId, viewerAccountId]
   );
@@ -42,35 +46,40 @@ async function listSharedOwnerCards(viewerAccountId) {
 
 async function listPublicProfileCards(limit = 30) {
   const rows = await query(
-    `SELECT p.account_id, p.username, COUNT(e.id) AS public_entry_count,
+    `SELECT p.account_id, p.username, p.region_public_label, COUNT(e.id) AS public_entry_count,
             MAX(e.published_at) AS latest_published_at
      FROM life_profiles p
      INNER JOIN life_entries e ON e.account_id = p.account_id
      WHERE p.profile_status = 'active'
        AND e.status = 'published'
        AND e.visibility = 'public'
-     GROUP BY p.account_id, p.username
+     GROUP BY p.account_id, p.username, p.region_public_label
      ORDER BY latest_published_at DESC, p.account_id ASC
      LIMIT ?`,
     [Math.min(Math.max(Number(limit) || 30, 1), 100)]
   );
-  return rows.map((row) => ({
-    accountId: row.account_id,
-    username: row.username,
-    publicEntryCount: Number(row.public_entry_count || 0),
-    latestPublishedAt: row.latest_published_at
-      ? new Date(row.latest_published_at).toISOString()
-      : null,
-  }));
+  return rows.map((row) => {
+    const regionPublicLabel = row.region_public_label || null;
+    return {
+      accountId: row.account_id,
+      username: row.username,
+      regionPublicLabel,
+      displayName: formatProfileDisplayName(row.username, regionPublicLabel, row.account_id),
+      publicEntryCount: Number(row.public_entry_count || 0),
+      latestPublishedAt: row.latest_published_at
+        ? new Date(row.latest_published_at).toISOString()
+        : null,
+    };
+  });
 }
 
-async function getHomeCards(accountId) {
+async function getHomeCards(accountId, opts = {}) {
   const viewerId = String(accountId || '').trim().toUpperCase();
   if (!validateAccountIdFormat(viewerId)) {
     throw new HomeServiceError('INVALID_ACCOUNT_ID', '账号 ID 格式无效', 400);
   }
 
-  const profile = await getProfileForAccount(viewerId);
+  const profile = await getProfileForAccount(viewerId, { requestIp: opts.requestIp });
   if (profile.profileStatus === 'deactivated') {
     throw new HomeServiceError('PROFILE_DEACTIVATED', '账号处于注销冷静期', 403);
   }
@@ -81,6 +90,8 @@ async function getHomeCards(accountId) {
     mine: {
       accountId: profile.accountId,
       username: profile.username,
+      regionPublicLabel: profile.regionPublicLabel,
+      displayName: profile.displayName,
       isDefaultUsername: profile.isDefaultUsername,
     },
     sharedWithMe,

@@ -45,6 +45,7 @@ export default function TimelinePage() {
       return { title: '人生片段', description: null, robots: 'noindex, nofollow' };
     }
     return buildPublicSeoFromEntries(timeline.entries, {
+      displayName: timeline.profile?.displayName,
       username: timeline.profile?.username,
       accountId: ownerId,
     });
@@ -83,7 +84,11 @@ export default function TimelinePage() {
     [timeline?.entries]
   );
 
-  const displayUsername = timeline?.profile?.username || (isOwner ? profile?.username : null);
+  const headerDisplayName =
+    timeline?.profile?.displayName ||
+    (isOwner ? profile?.displayName : null) ||
+    timeline?.profile?.username ||
+    (isOwner ? profile?.username : null);
 
   const openCreate = () => {
     setEditingEntry(null);
@@ -155,7 +160,8 @@ export default function TimelinePage() {
     <div className="max-w-3xl mx-auto px-4 py-8 space-y-8">
       <ProfileHeader
         accountId={ownerId}
-        username={displayUsername}
+        displayName={headerDisplayName}
+        username={timeline?.profile?.username || (isOwner ? profile?.username : null)}
         isOwner={viewerIsOwner}
         onCreateClick={openCreate}
       />

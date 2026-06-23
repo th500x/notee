@@ -5,7 +5,6 @@ const ERROR_MESSAGES = {
   TOKEN_EXPIRED: '会话已失效，请重新登录',
   BAD_TOKEN: '会话已失效，请重新登录',
   USERNAME_CHANGE_COOLDOWN: '用户名修改冷却中',
-  USERNAME_TAKEN: '该用户名已被占用',
   INVALID_USERNAME: '用户名格式不符合要求',
   INVALID_GRANTEE_ACCOUNT_ID: '特定可见对象 ID 格式错误',
   INVALID_GOOGLE_DRIVE_URL: '请粘贴有效的 Google 云盘链接',

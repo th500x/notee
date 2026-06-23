@@ -22,6 +22,7 @@ const MIGRATION_FILES = [
   '002-life-entries-location-place.sql',
   '003-life-entries-is-pinned.sql',
   '004-life-entries-life-stage-unknown.sql',
+  '005-life-profiles-region-duplicate-usernames.sql',
 ];
 
 const DEFAULT_DB_NAME = '11_life_resume';

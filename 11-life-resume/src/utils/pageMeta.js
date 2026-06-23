@@ -29,8 +29,8 @@ export function resetPageMeta() {
 /**
  * @param {Array<{ visibility?: string, status?: string, title?: string, body?: string }>} entries
  */
-export function buildPublicSeoFromEntries(entries, { username, accountId }) {
-  const displayName = username || accountId || '用户';
+export function buildPublicSeoFromEntries(entries, { displayName, username, accountId }) {
+  const name = displayName || username || accountId || '用户';
   const publicPublished = (entries || []).filter(
     (entry) =>
       entry.visibility === 'public' && (!entry.status || entry.status === 'published')
@@ -48,10 +48,10 @@ export function buildPublicSeoFromEntries(entries, { username, accountId }) {
   const raw = `${first.title ? `${first.title} — ` : ''}${first.body || ''}`;
   const description =
     raw.replace(/\s+/g, ' ').trim().slice(0, 120) ||
-    `${displayName} 的人生片段时间轴`;
+    `${name} 的人生片段时间轴`;
 
   return {
-    title: `${displayName} 的人生片段`,
+    title: `${name} 的人生片段`,
     description,
     robots: 'index, follow',
   };

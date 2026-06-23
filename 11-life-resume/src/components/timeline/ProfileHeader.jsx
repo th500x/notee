@@ -4,12 +4,13 @@ import { appConfig } from '@/config/appConfig';
 
 export default function ProfileHeader({
   accountId,
+  displayName,
   username,
   isOwner,
   onCreateClick,
 }) {
   const [copied, setCopied] = useState(false);
-  const displayName = username || accountId;
+  const label = displayName || username || accountId;
   const publicPath = `/u/${accountId}`;
 
   const handleCopyLink = async () => {
@@ -27,7 +28,7 @@ export default function ProfileHeader({
   return (
     <header className="flex flex-wrap items-start justify-between gap-4">
       <div className="space-y-1">
-        <h1 className="text-2xl font-bold text-slate-900">{displayName} 的人生片段</h1>
+        <h1 className="text-2xl font-bold text-slate-900">{label} 的人生片段</h1>
         <p className="text-sm text-slate-500 font-mono">{accountId}</p>
         <button
           type="button"

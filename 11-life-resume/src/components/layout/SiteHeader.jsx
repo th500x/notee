@@ -12,7 +12,7 @@ export default function SiteHeader() {
   const navigate = useNavigate();
   const { isLoggedIn, accountId, bootstrapping, logout } = useLifeAuth();
   const { profile } = useLifeProfile();
-  const displayName = profile?.username || accountId;
+  const displayName = profile?.displayName || profile?.username || accountId;
 
   const handleLogout = () => {
     logout();

@@ -4,7 +4,8 @@
 
 const { query } = require('../database/connection');
 const { validateAccountIdFormat } = require('../../../05-san-storm/shared/utils/lifeResumeUsername.cjs');
-const { findProfileByAccountId } = require('./lifeProfileService');
+const { formatProfileDisplayName } = require('../../../05-san-storm/shared/utils/lifeResumeProfileRegion.cjs');
+const { findProfileByAccountId, ensureProfileRegionFromIp } = require('./lifeProfileService');
 const { formatEntryForViewer } = require('./lifeEntryService');
 const { attachMediaMapToEntries } = require('./lifeEntryMediaService');
 
@@ -18,9 +19,12 @@ class TimelineServiceError extends Error {
 }
 
 function formatPublicProfile(row) {
+  const regionPublicLabel = row.region_public_label || null;
   return {
     accountId: row.account_id,
     username: row.username,
+    regionPublicLabel,
+    displayName: formatProfileDisplayName(row.username, regionPublicLabel, row.account_id),
   };
 }
 
@@ -59,8 +63,9 @@ async function listPublishedVisibleEntries(ownerAccountId, viewerAccountId) {
 /**
  * @param {string} ownerAccountId
  * @param {string|null|undefined} viewerAccountId — JWT sub if logged in
+ * @param {{ requestIp?: string }} [opts]
  */
-async function getPublicTimeline(ownerAccountId, viewerAccountId) {
+async function getPublicTimeline(ownerAccountId, viewerAccountId, opts = {}) {
   const ownerId = String(ownerAccountId || '').trim().toUpperCase();
   if (!validateAccountIdFormat(ownerId)) {
     throw new TimelineServiceError('PROFILE_NOT_AVAILABLE', '页面不存在或暂无内容');
@@ -74,12 +79,17 @@ async function getPublicTimeline(ownerAccountId, viewerAccountId) {
     throw new TimelineServiceError('PROFILE_NOT_AVAILABLE', '页面不存在或暂无内容');
   }
 
-  const profileRow = await findProfileByAccountId(ownerId);
-  if (!profileRow || profileRow.profile_status !== 'active') {
+  const profileRowBefore = await findProfileByAccountId(ownerId);
+  if (!profileRowBefore || profileRowBefore.profile_status !== 'active') {
     throw new TimelineServiceError('PROFILE_NOT_AVAILABLE', '页面不存在或暂无内容');
   }
 
   const isOwner = viewerId === ownerId;
+  let profileRow = profileRowBefore;
+  if (isOwner && opts.requestIp) {
+    profileRow = (await ensureProfileRegionFromIp(ownerId, opts.requestIp)) || profileRowBefore;
+  }
+
   const entryRows = isOwner
     ? await listOwnerEntries(ownerId)
     : await listPublishedVisibleEntries(ownerId, viewerId);

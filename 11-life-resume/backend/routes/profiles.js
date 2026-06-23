@@ -39,7 +39,7 @@ router.get('/:accountId/public', publicReadLimiter, optionalAuth, async (req, re
   try {
     const ownerAccountId = String(req.params.accountId || '').trim().toUpperCase();
     const viewerAccountId = req.player ? String(req.player.sub) : null;
-    const data = await getPublicTimeline(ownerAccountId, viewerAccountId);
+    const data = await getPublicTimeline(ownerAccountId, viewerAccountId, { requestIp: req.ip });
     return res.json({ success: true, data });
   } catch (err) {
     return handleProfileError(res, err);
@@ -49,7 +49,7 @@ router.get('/:accountId/public', publicReadLimiter, optionalAuth, async (req, re
 router.get('/me', requireAuth, async (req, res) => {
   try {
     const accountId = String(req.player.sub);
-    const data = await getProfileForAccount(accountId);
+    const data = await getProfileForAccount(accountId, { requestIp: req.ip });
     return res.json({ success: true, data });
   } catch (err) {
     return handleProfileError(res, err);

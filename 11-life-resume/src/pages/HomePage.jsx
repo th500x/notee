@@ -128,6 +128,7 @@ export default function HomePage() {
                 <PublicProfileCard
                   key={item.accountId}
                   accountId={item.accountId}
+                  displayName={item.displayName}
                   username={item.username}
                   publicEntryCount={item.publicEntryCount}
                 />
@@ -164,6 +165,7 @@ export default function HomePage() {
           {cards?.mine && (
             <MyProfileCard
               accountId={cards.mine.accountId}
+              displayName={cards.mine.displayName}
               username={cards.mine.username}
               isDefaultUsername={cards.mine.isDefaultUsername}
             />
@@ -177,6 +179,7 @@ export default function HomePage() {
                     <SharedAccessCard
                       key={item.accountId}
                       accountId={item.accountId}
+                      displayName={item.displayName}
                       username={item.username}
                       accessibleEntryCount={item.accessibleEntryCount}
                     />

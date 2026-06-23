@@ -34,7 +34,7 @@ router.get('/public-cards', publicReadLimiter, async (req, res) => {
 router.get('/cards', requireAuth, async (req, res) => {
   try {
     const accountId = String(req.player.sub);
-    const data = await getHomeCards(accountId);
+    const data = await getHomeCards(accountId, { requestIp: req.ip });
     return res.json({ success: true, data });
   } catch (err) {
     return handleHomeError(res, err);
