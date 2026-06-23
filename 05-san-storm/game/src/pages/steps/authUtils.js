@@ -71,20 +71,28 @@ export const getCurrentBatchInfo = () => {
 };
 
 // 生成可用ID列表
-export const generateIdOptions = () => {
+export const generateIdOptions = (excludeIds = []) => {
   const batchInfo = getCurrentBatchInfo();
-  
+
   if (batchInfo.availableIds.length === 0) {
     return { ids: [], batchInfo };
   }
-  
-  const shuffled = [...batchInfo.availableIds];
+
+  const exclude = new Set(
+    (excludeIds || []).map((id) => String(id || '').trim().toUpperCase()).filter(Boolean)
+  );
+  const pool = batchInfo.availableIds.filter((id) => !exclude.has(id));
+  if (pool.length === 0) {
+    return { ids: [], batchInfo };
+  }
+
+  const shuffled = [...pool];
   for (let i = shuffled.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
   }
-  
-  return { 
+
+  return {
     ids: shuffled.slice(0, 5),
     batchInfo
   };

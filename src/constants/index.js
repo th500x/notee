@@ -6,7 +6,8 @@ export const MODULES = {
   NEWS: '01-news-calendar',
   TALE: '02-tale-historical',
   COIN: '04-coin-index',
-  SAN: '05-san-storm'
+  SAN: '05-san-storm',
+  LIFE: '11-life-resume'
 }
 
 /**
@@ -17,7 +18,8 @@ export const MODULE_NAMES = {
   [MODULES.NEWS]: '新聞筆記',
   [MODULES.TALE]: '佚事雜錄',
   [MODULES.COIN]: '區塊指標',
-  [MODULES.SAN]: '真三風雲'
+  [MODULES.SAN]: '真三風雲',
+  [MODULES.LIFE]: '人生片段'
 }
 
 /**
@@ -29,7 +31,8 @@ export const MODULE_SHORT_NAMES = {
   [MODULES.NEWS]: '新聞',
   [MODULES.TALE]: '佚事',
   [MODULES.COIN]: '區塊',
-  [MODULES.SAN]: '真三'
+  [MODULES.SAN]: '真三',
+  [MODULES.LIFE]: '片段'
 }
 
 /**
@@ -61,13 +64,12 @@ export const PROJECTS = [
     path: '/02-tale-historical/'
   },
   {
-    id: 'page3',
-    name: '功能三',
-    icon: '⚡',
-    description: '敬请期待...\n更多精彩功能即将上线',
-    gradient: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
-    path: null,
-    comingSoon: true
+    id: '11-life-resume',
+    name: '人生片段',
+    icon: '📖',
+    description: '按年份记录人生片段\n支持隐私分级与 Google 云盘链接',
+    gradient: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+    path: '/11-life-resume/'
   },
   {
     id: '06-rental-tracking',

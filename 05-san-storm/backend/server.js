@@ -241,6 +241,10 @@ const DEFAULT_DEV_ORIGINS = [
   'http://127.0.0.1:3001',
   'http://127.0.0.1:3002',
   'http://127.0.0.1:3004',
+  'http://localhost:5176',
+  'http://localhost:5177',
+  'http://127.0.0.1:5176',
+  'http://127.0.0.1:5177',
   'https://notee.vip',
   'https://www.notee.vip',
 ];

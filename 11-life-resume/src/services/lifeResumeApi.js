@@ -1,0 +1,158 @@
+import { appConfig } from '@/config/appConfig';
+import { lifeResumeSession } from '@/utils/lifeResumeSession';
+
+async function parseJsonResponse(res) {
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const message = data.error || data.message || `HTTP ${res.status}`;
+    const err = new Error(message);
+    err.code = data.code;
+    err.status = res.status;
+    throw err;
+  }
+  return data;
+}
+
+function authHeaders(extra = {}) {
+  const headers = { ...extra };
+  const token = lifeResumeSession.getToken();
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+  return headers;
+}
+
+/** Authenticated fetch to 11 API */
+export async function lifeResumeFetch(path, options = {}) {
+  const url = `${appConfig.lifeResumeApiBase}${path.startsWith('/') ? path : `/${path}`}`;
+  const res = await fetch(url, {
+    ...options,
+    headers: authHeaders({
+      'Content-Type': 'application/json',
+      ...(options.headers || {}),
+    }),
+  });
+  return parseJsonResponse(res);
+}
+
+/** GET /api/life-resume/health */
+export async function fetchLifeResumeHealth() {
+  const url = `${appConfig.lifeResumeApiBase}/health`;
+  const res = await fetch(url);
+  return parseJsonResponse(res);
+}
+
+/** GET /api/life-resume/auth/me */
+export async function fetchAuthMe() {
+  return lifeResumeFetch('/auth/me');
+}
+
+/** GET /api/life-resume/profiles/me — lazy create profile */
+export async function fetchProfileMe() {
+  return lifeResumeFetch('/profiles/me');
+}
+
+/** PUT /api/life-resume/profiles/me */
+export async function updateProfileMe(body) {
+  return lifeResumeFetch('/profiles/me', {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  });
+}
+
+/** POST /api/life-resume/profiles/me/deactivate */
+export async function deactivateProfileMe() {
+  return lifeResumeFetch('/profiles/me/deactivate', {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+}
+
+/** POST /api/life-resume/profiles/me/cancel-deactivation */
+export async function cancelDeactivationProfileMe() {
+  return lifeResumeFetch('/profiles/me/cancel-deactivation', {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+}
+
+/** GET /api/life-resume/profiles/:accountId/public — optional auth */
+export async function fetchPublicTimeline(accountId) {
+  const id = String(accountId || '').trim().toUpperCase();
+  return lifeResumeFetch(`/profiles/${id}/public`);
+}
+
+/** GET /api/life-resume/entries — owner list */
+export async function fetchMyEntries() {
+  return lifeResumeFetch('/entries');
+}
+
+/** GET /api/life-resume/entries/:id */
+export async function fetchMyEntry(entryId) {
+  return lifeResumeFetch(`/entries/${entryId}`);
+}
+
+/** POST /api/life-resume/entries */
+export async function createEntry(body) {
+  return lifeResumeFetch('/entries', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+/** PUT /api/life-resume/entries/:id */
+export async function updateEntry(entryId, body) {
+  return lifeResumeFetch(`/entries/${entryId}`, {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  });
+}
+
+/** DELETE /api/life-resume/entries/:id */
+export async function deleteEntry(entryId) {
+  return lifeResumeFetch(`/entries/${entryId}`, {
+    method: 'DELETE',
+  });
+}
+
+/** GET /api/life-resume/home/public-cards — browse public profiles (no auth) */
+export async function fetchPublicHomeCards() {
+  const url = `${appConfig.lifeResumeApiBase}/home/public-cards`;
+  const res = await fetch(url);
+  return parseJsonResponse(res);
+}
+
+/** GET /api/life-resume/home/cards — logged-in hub */
+export async function fetchHomeCards() {
+  return lifeResumeFetch('/home/cards');
+}
+
+/** POST /api/life-resume/upload/sign */
+export async function requestUploadSign(body) {
+  return lifeResumeFetch('/upload/sign', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+/** POST /api/life-resume/location/reverse-geocode — editor preview */
+export async function fetchReverseGeocode(body) {
+  return lifeResumeFetch('/location/reverse-geocode', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+/** Browser PUT to OSS signed URL */
+export async function uploadFileToSignedUrl(signData, file) {
+  const res = await fetch(signData.uploadUrl, {
+    method: signData.method || 'PUT',
+    headers: signData.headers || { 'Content-Type': file.type },
+    body: file,
+  });
+  if (!res.ok) {
+    const err = new Error(`OSS 上传失败（HTTP ${res.status}）`);
+    err.status = res.status;
+    throw err;
+  }
+}
