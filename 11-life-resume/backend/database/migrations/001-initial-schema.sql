@@ -1,7 +1,7 @@
 -- 11-life-resume 初始 schema
 -- 数据库: 11_life_resume
 -- 字符集: utf8mb4
--- 依赖: MySQL 8.0.16+ / MariaDB 10.2.1+（CHECK 约束）
+-- 依赖: MySQL 5.7+ / MariaDB 10.2.1+（CHECK 在 5.7 仅解析不 enforce；JSON 列无 DEFAULT，由应用写入 []）
 
 CREATE DATABASE IF NOT EXISTS `11_life_resume`
   CHARACTER SET utf8mb4
@@ -57,7 +57,7 @@ CREATE TABLE IF NOT EXISTS life_entries (
   body_grapheme_count SMALLINT UNSIGNED NOT NULL COMMENT '字素簇计数1-500',
   visibility ENUM('public','private','specific') NOT NULL COMMENT '单条权限',
   grantee_account_id CHAR(4) NULL COMMENT 'specific时唯一授权viewer',
-  tags JSON NOT NULL DEFAULT ('[]') COMMENT '标签数组：学业/工作/旅行/家庭/人生',
+  tags JSON NOT NULL COMMENT '标签数组：学业/工作/旅行/家庭/人生；插入时须 JSON.stringify([])',
   latitude DECIMAL(10,7) NULL COMMENT '精确纬度，仅owner可读',
   longitude DECIMAL(10,7) NULL COMMENT '精确经度',
   location_public_label VARCHAR(128) NULL COMMENT '城/区县展示文案',
