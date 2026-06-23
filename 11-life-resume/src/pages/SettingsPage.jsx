@@ -208,7 +208,7 @@ export default function SettingsPage() {
         <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4">
           <h2 className="font-semibold text-slate-900">用户名</h2>
           <p className="text-sm text-slate-600">
-            纯中文 1–4 字，或纯英文 1–16 字母；禁止中英混排、数字与符号。
+            纯中文 1–4 字，或纯英文 1–16 字母（可在末尾加一个国旗 emoji，如 CHRIS🇹🇭）；禁止中英混排、数字与其它符号。
           </p>
           {profile?.isDefaultUsername && !isDeactivated && (
             <p className="text-sm text-amber-800 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">

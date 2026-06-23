@@ -3,29 +3,16 @@
  * 须与 lifeResumeEntryTime.cjs 同步
  */
 
-export const LIFE_STAGE_CODES = [
-  'early_childhood',
-  'boyhood',
-  'youth',
-  'middle_age',
-  'senior',
-];
+/** 无具体年份时唯一取值：时间未知 */
+export const LIFE_STAGE_UNKNOWN = 'unknown';
+
+export const LIFE_STAGE_CODES = [LIFE_STAGE_UNKNOWN];
 
 export const LIFE_STAGE_LABELS = {
-  early_childhood: '幼年',
-  boyhood: '少年',
-  youth: '青年',
-  middle_age: '中年',
-  senior: '老年',
+  unknown: '未知',
 };
 
-const LIFE_STAGE_SORT_KEYS = {
-  early_childhood: 100001,
-  boyhood: 200001,
-  youth: 300001,
-  middle_age: 400001,
-  senior: 500001,
-};
+const LIFE_STAGE_SORT_KEY_UNKNOWN = 900001;
 
 /**
  * @param {{ year?: number|null, lifeStage?: string|null, month?: number|null, day?: number|null }} fields
@@ -44,10 +31,10 @@ export function computeTimelineSortKey(fields) {
     }
     return y * 10000 + 101;
   }
-  if (lifeStage && LIFE_STAGE_SORT_KEYS[lifeStage] != null) {
-    return LIFE_STAGE_SORT_KEYS[lifeStage];
+  if (lifeStage === LIFE_STAGE_UNKNOWN) {
+    return LIFE_STAGE_SORT_KEY_UNKNOWN;
   }
-  throw new Error('missing year or lifeStage for sort key');
+  throw new Error('missing year or unknown lifeStage for sort key');
 }
 
 /**
@@ -61,13 +48,13 @@ export function validateEntryTimeFields(input) {
   const day = input.day != null && input.day !== '' ? Number(input.day) : null;
 
   const hasYear = year != null && !Number.isNaN(year);
-  const hasStage = !!lifeStage;
+  const hasUnknown = lifeStage === LIFE_STAGE_UNKNOWN;
 
-  if (hasYear && hasStage) {
-    return { ok: false, error: '具体年份与人生阶段只能二选一', code: 'INVALID_TIME' };
+  if (hasYear && hasUnknown) {
+    return { ok: false, error: '年份与未知只能二选一', code: 'INVALID_TIME' };
   }
-  if (!hasYear && !hasStage) {
-    return { ok: false, error: '请填写具体年份或选择人生阶段', code: 'INVALID_TIME' };
+  if (!hasYear && !hasUnknown) {
+    return { ok: false, error: '请填写年份或选择未知', code: 'INVALID_TIME' };
   }
 
   if (hasYear) {
@@ -97,20 +84,17 @@ export function validateEntryTimeFields(input) {
     };
   }
 
-  if (!LIFE_STAGE_CODES.includes(lifeStage)) {
-    return { ok: false, error: '人生阶段无效', code: 'INVALID_TIME' };
-  }
   if (month != null || day != null) {
-    return { ok: false, error: '人生阶段条目不能填写月日', code: 'INVALID_TIME' };
+    return { ok: false, error: '未知时间条目不能填写月日', code: 'INVALID_TIME' };
   }
 
   return {
     ok: true,
     year: null,
-    lifeStage,
+    lifeStage: LIFE_STAGE_UNKNOWN,
     month: null,
     day: null,
-    timelineSortKey: computeTimelineSortKey({ year: null, lifeStage, month: null, day: null }),
+    timelineSortKey: computeTimelineSortKey({ year: null, lifeStage: LIFE_STAGE_UNKNOWN }),
   };
 }
 
@@ -118,8 +102,8 @@ export function validateEntryTimeFields(input) {
  * @param {string|null|undefined} code
  */
 export function formatLifeStageLabel(code) {
-  if (!code) return '';
-  return LIFE_STAGE_LABELS[code] || code;
+  if (code === LIFE_STAGE_UNKNOWN) return LIFE_STAGE_LABELS.unknown;
+  return '';
 }
 
 /**
@@ -136,7 +120,10 @@ export function formatEntryTimeLabel(fields) {
     }
     return label;
   }
-  return formatLifeStageLabel(fields.lifeStage);
+  if (fields.lifeStage === LIFE_STAGE_UNKNOWN) {
+    return LIFE_STAGE_LABELS.unknown;
+  }
+  return '';
 }
 
 /**
@@ -156,9 +143,9 @@ export function groupTimelineSections(entries) {
       sectionId = `year:${entry.year}`;
       label = String(entry.year);
     } else {
-      type = 'stage';
-      sectionId = `stage:${entry.lifeStage}`;
-      label = formatLifeStageLabel(entry.lifeStage);
+      type = 'unknown';
+      sectionId = 'unknown';
+      label = LIFE_STAGE_LABELS.unknown;
     }
 
     if (!sections.has(sectionId)) {
@@ -191,7 +178,7 @@ function compareEntryTimelineOrder(a, b) {
 }
 
 /**
- * 置顶条目单独成块（时间轴最上方）；其余条目仍按年/阶段分组。
+ * 置顶条目单独成块（时间轴最上方）；其余条目按年或「未知」分组。
  * @returns {{ pinned: object[], sections: object[] }}
  */
 export function buildTimelineLayoutWithPinned(entries) {

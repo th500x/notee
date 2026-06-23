@@ -8,7 +8,8 @@ const USERNAME_CHANGE_COOLDOWN_DAYS = 30;
 const ACCOUNT_ID_RE = /^[0-9][A-Z0-9]{3}$/;
 const DIGIT_TO_LETTER = 'abcdefghij';
 const HAN_ONLY_RE = /^[\p{Script=Han}]+$/u;
-const LATIN_ONLY_RE = /^[A-Za-z]+$/;
+const ENGLISH_PLAIN_RE = /^[A-Za-z]{1,16}$/;
+const ENGLISH_WITH_FLAG_RE = /^[A-Za-z]{1,14}[\u{1F1E6}-\u{1F1FF}]{2}$/u;
 
 function encodeAccountIdChar(ch) {
   if (/^[0-9]$/.test(ch)) {
@@ -40,21 +41,8 @@ function validateUsername(raw) {
     return { ok: false, error: '请输入用户名', code: 'INVALID_USERNAME' };
   }
 
-  let hasHan = false;
-  let hasLatin = false;
-  for (const ch of value) {
-    if (/\p{Script=Han}/u.test(ch)) {
-      hasHan = true;
-    } else if (/[A-Za-z]/.test(ch)) {
-      hasLatin = true;
-    } else {
-      return {
-        ok: false,
-        error: '用户名只能为纯中文或纯英文，不能含数字、空格或符号',
-        code: 'INVALID_USERNAME',
-      };
-    }
-  }
+  const hasHan = /\p{Script=Han}/u.test(value);
+  const hasLatin = /[A-Za-z]/.test(value);
 
   if (hasHan && hasLatin) {
     return { ok: false, error: '用户名禁止中英混排', code: 'INVALID_USERNAME' };
@@ -71,21 +59,38 @@ function validateUsername(raw) {
   }
 
   if (hasLatin) {
-    if (value.length < 1 || value.length > 16) {
-      return { ok: false, error: '英文用户名须为 1–16 个字母', code: 'INVALID_USERNAME' };
+    if (ENGLISH_PLAIN_RE.test(value)) {
+      return {
+        ok: true,
+        username: value,
+        usernameNormalized: value.toLowerCase(),
+        kind: 'english',
+      };
     }
-    if (!LATIN_ONLY_RE.test(value)) {
-      return { ok: false, error: '英文用户名须为 1–16 个字母', code: 'INVALID_USERNAME' };
+
+    if (ENGLISH_WITH_FLAG_RE.test(value)) {
+      const flag = value.slice(-2);
+      const letters = value.slice(0, -2);
+      return {
+        ok: true,
+        username: value,
+        usernameNormalized: letters.toLowerCase() + flag,
+        kind: 'english',
+      };
     }
+
     return {
-      ok: true,
-      username: value,
-      usernameNormalized: value.toLowerCase(),
-      kind: 'english',
+      ok: false,
+      error: '英文用户名须为 1–16 个字母，或在 1–14 个字母后加一个国旗 emoji（如 CHRIS🇹🇭）',
+      code: 'INVALID_USERNAME',
     };
   }
 
-  return { ok: false, error: '请输入用户名', code: 'INVALID_USERNAME' };
+  return {
+    ok: false,
+    error: '用户名只能为纯中文或纯英文，不能含数字、空格或符号',
+    code: 'INVALID_USERNAME',
+  };
 }
 
 function assessUsernameChangeCooldown(usernameChangedAt, now = new Date()) {

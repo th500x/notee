@@ -5,10 +5,7 @@ import {
   LIFE_ENTRY_BODY_MAX,
   LIFE_ENTRY_TITLE_MAX,
 } from '@shared/utils/lifeResumeGraphemeCount.js';
-import {
-  LIFE_STAGE_CODES,
-  LIFE_STAGE_LABELS,
-} from '@shared/utils/lifeResumeEntryTime.js';
+import { LIFE_STAGE_UNKNOWN } from '@shared/utils/lifeResumeEntryTime.js';
 import { LIFE_ENTRY_TAGS } from '@shared/utils/lifeResumeEntryTags.js';
 import { validateMediaBundle } from '@shared/utils/lifeResumeMediaRules.js';
 import { createEntry, updateEntry } from '@/services/lifeResumeApi';
@@ -25,7 +22,6 @@ import { formatLifeResumeError, isAuthError } from '@/utils/lifeResumeErrors';
 const EMPTY_FORM = {
   timeMode: 'year',
   year: '',
-  lifeStage: 'youth',
   month: '',
   day: '',
   title: '',
@@ -49,14 +45,13 @@ const EMPTY_FORM = {
 function buildFormFromEntry(entry) {
   if (!entry) return { ...EMPTY_FORM };
   return {
-    timeMode: entry.year != null ? 'year' : 'stage',
+    timeMode: entry.year != null ? 'year' : 'unknown',
     year: entry.year != null ? String(entry.year) : '',
-    lifeStage: entry.lifeStage || 'youth',
     month: entry.month != null ? String(entry.month) : '',
     day: entry.day != null ? String(entry.day) : '',
     title: entry.title || '',
     body: entry.body || '',
-    tags: entry.tags || [],
+    tags: entry.tags?.length ? [entry.tags[0]] : [],
     visibility: entry.visibility || 'public',
     granteeId: entry.granteeAccountId || '',
     isPinned: !!entry.isPinned,
@@ -106,7 +101,7 @@ function buildPayload(form, status, mediaBundleType, mediaItems) {
     payload.day = form.day ? Number(form.day) : null;
   } else {
     payload.year = null;
-    payload.lifeStage = form.lifeStage;
+    payload.lifeStage = LIFE_STAGE_UNKNOWN;
     payload.month = null;
     payload.day = null;
   }
@@ -182,12 +177,12 @@ export default function EntryEditorModal({ open, entry, profileDefaults, onClose
     setForm((prev) => ({ ...prev, [key]: value }));
   };
 
-  const toggleTag = (tag) => {
+  const selectTag = (tag) => {
     setForm((prev) => {
-      const has = prev.tags.includes(tag);
+      const current = prev.tags[0];
       return {
         ...prev,
-        tags: has ? prev.tags.filter((t) => t !== tag) : [...prev.tags, tag],
+        tags: current === tag ? [] : [tag],
       };
     });
   };
@@ -265,7 +260,9 @@ export default function EntryEditorModal({ open, entry, profileDefaults, onClose
         ? await updateEntry(entry.id, payload)
         : await createEntry(payload);
       onSaved?.(result.data, status);
-      onClose?.();
+      if (status === 'published') {
+        onClose?.();
+      }
     } catch (err) {
       setError(formatLifeResumeError(err));
       if (isAuthError(err)) {
@@ -278,12 +275,7 @@ export default function EntryEditorModal({ open, entry, profileDefaults, onClose
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
-      <button
-        type="button"
-        className="absolute inset-0 bg-slate-900/40"
-        aria-label="关闭"
-        onClick={onClose}
-      />
+      <div className="absolute inset-0 bg-slate-900/40" aria-hidden="true" />
       <div className="relative w-full sm:max-w-2xl max-h-[92vh] overflow-y-auto bg-white rounded-t-2xl sm:rounded-2xl shadow-xl border border-slate-200">
         <div className="sticky top-0 bg-white border-b border-slate-100 px-5 py-4 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-slate-900">
@@ -304,18 +296,18 @@ export default function EntryEditorModal({ open, entry, profileDefaults, onClose
                   checked={form.timeMode === 'year'}
                   onChange={() => setField('timeMode', 'year')}
                 />
-                具体年份
+                年份
               </label>
               <label className="inline-flex items-center gap-2">
                 <input
                   type="radio"
-                  checked={form.timeMode === 'stage'}
-                  onChange={() => setField('timeMode', 'stage')}
+                  checked={form.timeMode === 'unknown'}
+                  onChange={() => setField('timeMode', 'unknown')}
                 />
-                人生阶段
+                未知
               </label>
             </div>
-            {form.timeMode === 'year' ? (
+            {form.timeMode === 'year' && (
               <div className="grid grid-cols-3 gap-3">
                 <input
                   className="rounded-lg border border-slate-300 px-3 py-2"
@@ -339,26 +331,14 @@ export default function EntryEditorModal({ open, entry, profileDefaults, onClose
                   onChange={(e) => setField('day', e.target.value.replace(/\D/g, '').slice(0, 2))}
                 />
               </div>
-            ) : (
-              <select
-                className="w-full rounded-lg border border-slate-300 px-3 py-2"
-                value={form.lifeStage}
-                onChange={(e) => setField('lifeStage', e.target.value)}
-              >
-                {LIFE_STAGE_CODES.map((code) => (
-                  <option key={code} value={code}>
-                    {LIFE_STAGE_LABELS[code]}
-                  </option>
-                ))}
-              </select>
             )}
           </section>
 
           <section className="space-y-2">
-            <p className="text-sm font-medium text-slate-800">标签（可选，可多选）</p>
+            <p className="text-sm font-medium text-slate-800">标签（可选，单选）</p>
             <div className="flex flex-wrap gap-2">
               {LIFE_ENTRY_TAGS.map((tag) => {
-                const active = form.tags.includes(tag);
+                const active = form.tags[0] === tag;
                 return (
                   <button
                     key={tag}
@@ -369,7 +349,7 @@ export default function EntryEditorModal({ open, entry, profileDefaults, onClose
                         ? 'bg-indigo-600 text-white border-indigo-600'
                         : 'bg-white text-slate-700 border-slate-300',
                     ].join(' ')}
-                    onClick={() => toggleTag(tag)}
+                    onClick={() => selectTag(tag)}
                   >
                     {tag}
                   </button>

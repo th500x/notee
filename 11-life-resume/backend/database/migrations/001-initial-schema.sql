@@ -47,8 +47,8 @@ CREATE TABLE IF NOT EXISTS life_profiles (
 CREATE TABLE IF NOT EXISTS life_entries (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   account_id CHAR(4) NOT NULL COMMENT '所属用户',
-  year SMALLINT UNSIGNED NULL COMMENT '公元年，与life_stage互斥',
-  life_stage ENUM('early_childhood','boyhood','youth','middle_age','senior') NULL COMMENT '幼年/少年/青年/中年/老年',
+  year SMALLINT UNSIGNED NULL COMMENT '公元年，与 life_stage 互斥',
+  life_stage ENUM('unknown') NULL COMMENT '时间未知；与 year 互斥',
   month TINYINT UNSIGNED NULL COMMENT '1-12',
   day TINYINT UNSIGNED NULL COMMENT '1-31',
   timeline_sort_key BIGINT NOT NULL COMMENT '时间轴排序键，升序',

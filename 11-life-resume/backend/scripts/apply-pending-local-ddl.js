@@ -21,6 +21,7 @@ const MIGRATION_FILES = [
   '001-initial-schema.sql',
   '002-life-entries-location-place.sql',
   '003-life-entries-is-pinned.sql',
+  '004-life-entries-life-stage-unknown.sql',
 ];
 
 const DEFAULT_DB_NAME = '11_life_resume';
