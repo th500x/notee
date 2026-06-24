@@ -5,8 +5,10 @@ import { useLifeAuth } from '@/contexts/LifeAuthContext';
 import { useLifeProfile } from '@/contexts/LifeProfileContext';
 import { useToast } from '@/contexts/ToastContext';
 import usePageMeta from '@/hooks/usePageMeta';
+import { useTimelineSectionCollapse } from '@/hooks/useTimelineSectionCollapse';
 import EntryEditorModal from '@/components/entry/EntryEditorModal';
 import ProfileHeader from '@/components/timeline/ProfileHeader';
+import ProfileTagStats from '@/components/timeline/ProfileTagStats';
 import TimelineSection from '@/components/timeline/TimelineSection';
 import TimelineEntryCard from '@/components/timeline/TimelineEntryCard';
 import { deleteEntry, fetchPublicTimeline } from '@/services/lifeResumeApi';
@@ -28,6 +30,7 @@ export default function TimelinePage() {
 
   const ownerId = (routeAccountId || '').toUpperCase();
   const isOwner = isLoggedIn && myAccountId && myAccountId.toUpperCase() === ownerId;
+  const { isSectionCollapsed, toggleSectionCollapsed } = useTimelineSectionCollapse(ownerId);
 
   const profileDefaults = useMemo(
     () =>
@@ -158,13 +161,16 @@ export default function TimelinePage() {
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-8 space-y-8">
-      <ProfileHeader
-        accountId={ownerId}
-        displayName={headerDisplayName}
-        username={timeline?.profile?.username || (isOwner ? profile?.username : null)}
-        isOwner={viewerIsOwner}
-        onCreateClick={openCreate}
-      />
+      <div className="space-y-3">
+        <ProfileHeader
+          accountId={ownerId}
+          displayName={headerDisplayName}
+          username={timeline?.profile?.username || (isOwner ? profile?.username : null)}
+          isOwner={viewerIsOwner}
+          onCreateClick={openCreate}
+        />
+        <ProfileTagStats entries={entries} />
+      </div>
 
       {entries.length === 0 && viewerIsOwner && (
         <div className="text-center py-12 bg-white rounded-2xl border border-dashed border-slate-300">
@@ -208,6 +214,8 @@ export default function TimelinePage() {
               key={section.id}
               section={section}
               isOwner={viewerIsOwner}
+              collapsed={isSectionCollapsed(section.id)}
+              onToggleCollapse={() => toggleSectionCollapsed(section.id)}
               onEdit={openEdit}
               onDelete={handleDelete}
             />

@@ -1,9 +1,13 @@
-import { useState } from 'react';
 import TimelineEntryCard from '@/components/timeline/TimelineEntryCard';
 
-export default function TimelineSection({ section, isOwner, onEdit, onDelete }) {
-  const [collapsed, setCollapsed] = useState(false);
-
+export default function TimelineSection({
+  section,
+  isOwner,
+  collapsed = false,
+  onToggleCollapse,
+  onEdit,
+  onDelete,
+}) {
   return (
     <section className="relative pl-6 border-l-2 border-indigo-100">
       <div className="absolute -left-[9px] top-0 h-4 w-4 rounded-full bg-indigo-500 ring-4 ring-white" />
@@ -13,7 +17,7 @@ export default function TimelineSection({ section, isOwner, onEdit, onDelete }) 
         </h2>
         <button
           type="button"
-          onClick={() => setCollapsed((prev) => !prev)}
+          onClick={onToggleCollapse}
           className="text-sm text-indigo-600 hover:text-indigo-800 hover:underline"
         >
           {collapsed ? '展开' : '收起'}

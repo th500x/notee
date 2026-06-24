@@ -5,6 +5,8 @@
 
 const LIFE_ENTRY_TAGS = ['学业', '工作', '游记', '家庭', '人生'];
 
+const LIFE_ENTRY_TAG_STATS_LABELS = [...LIFE_ENTRY_TAGS, '无'];
+
 const TAG_SET = new Set(LIFE_ENTRY_TAGS);
 
 function normalizeEntryTags(raw) {
@@ -29,7 +31,30 @@ function normalizeEntryTags(raw) {
   return { ok: true, tags };
 }
 
+function countEntryTagStats(entries) {
+  const counts = Object.fromEntries(LIFE_ENTRY_TAGS.map((tag) => [tag, 0]));
+  counts['无'] = 0;
+
+  for (const entry of entries || []) {
+    const tags = Array.isArray(entry?.tags) ? entry.tags : [];
+    const raw = tags[0] ? String(tags[0]).trim() : '';
+    const tag = raw === '旅行' ? '游记' : raw;
+    if (tag && Object.prototype.hasOwnProperty.call(counts, tag) && tag !== '无') {
+      counts[tag] += 1;
+    } else {
+      counts['无'] += 1;
+    }
+  }
+
+  return LIFE_ENTRY_TAG_STATS_LABELS.map((label) => ({
+    label,
+    count: counts[label] || 0,
+  }));
+}
+
 module.exports = {
   LIFE_ENTRY_TAGS,
+  LIFE_ENTRY_TAG_STATS_LABELS,
   normalizeEntryTags,
+  countEntryTagStats,
 };
