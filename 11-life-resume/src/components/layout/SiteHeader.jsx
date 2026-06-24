@@ -1,6 +1,5 @@
 import { Link, NavLink, useNavigate } from 'react-router-dom';
 import { useLifeAuth } from '@/contexts/LifeAuthContext';
-import { useLifeProfile } from '@/contexts/LifeProfileContext';
 
 const navLinkClass = ({ isActive }) =>
   [
@@ -11,8 +10,6 @@ const navLinkClass = ({ isActive }) =>
 export default function SiteHeader() {
   const navigate = useNavigate();
   const { isLoggedIn, accountId, bootstrapping, logout } = useLifeAuth();
-  const { profile } = useLifeProfile();
-  const displayName = profile?.displayName || profile?.username || accountId;
 
   const handleLogout = () => {
     logout();
@@ -39,10 +36,6 @@ export default function SiteHeader() {
             <span className="text-sm text-slate-400 px-2">…</span>
           ) : isLoggedIn && accountId ? (
             <>
-              <span className="hidden sm:inline text-sm text-slate-600 px-2 truncate max-w-[8rem]">
-                {displayName}
-                <span className="text-slate-400 font-mono text-xs ml-1">({accountId})</span>
-              </span>
               <NavLink to={`/u/${accountId}`} className={navLinkClass}>
                 我的
               </NavLink>

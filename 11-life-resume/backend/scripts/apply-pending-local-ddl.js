@@ -23,6 +23,7 @@ const MIGRATION_FILES = [
   '003-life-entries-is-pinned.sql',
   '004-life-entries-life-stage-unknown.sql',
   '005-life-profiles-region-duplicate-usernames.sql',
+  '006-life-entries-tag-travel-to-yuji.sql',
 ];
 
 const DEFAULT_DB_NAME = '11_life_resume';
@@ -47,9 +48,11 @@ function isAlreadyAppliedError(err) {
     (err.code === 'ER_DUP_FIELDNAME' ||
       err.code === 'ER_DUP_KEYNAME' ||
       err.code === 'ER_TABLE_EXISTS_ERROR' ||
+      err.code === 'ER_CANT_DROP_FIELD_OR_KEY' ||
       err.errno === 1060 ||
       err.errno === 1061 ||
-      err.errno === 1050)
+      err.errno === 1050 ||
+      err.errno === 1091)
   );
 }
 

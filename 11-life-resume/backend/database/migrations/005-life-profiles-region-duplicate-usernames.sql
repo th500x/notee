@@ -3,7 +3,7 @@
 USE `11_life_resume`;
 
 ALTER TABLE life_profiles
-  DROP INDEX uk_username_normalized;
+  DROP INDEX IF EXISTS uk_username_normalized;
 
 ALTER TABLE life_profiles
   MODIFY COLUMN username_normalized VARCHAR(16) NOT NULL COMMENT '比较用：英文小写，中文原样；可重名',

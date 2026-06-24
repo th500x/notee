@@ -3,7 +3,7 @@
  * 须与 lifeResumeEntryTags.js 同步
  */
 
-const LIFE_ENTRY_TAGS = ['学业', '工作', '旅行', '家庭', '人生'];
+const LIFE_ENTRY_TAGS = ['学业', '工作', '游记', '家庭', '人生'];
 
 const TAG_SET = new Set(LIFE_ENTRY_TAGS);
 
