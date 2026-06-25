@@ -149,11 +149,16 @@ async function generateValidatedDraft({ username, aiEntries, inputMode }) {
     inputMode,
   });
 
-  for (let attempt = 1; attempt <= 2; attempt += 1) {
-    const userPrompt =
-      attempt === 1
-        ? baseUserPrompt
-        : `${baseUserPrompt}\n\n【重试】上一轮 JSON 中 nodes[].text 过短或超长。每个 text 必须 ${LIFE_PATH_NODE_MIN}～${LIFE_PATH_NODE_MAX} 个可见字符，请重新输出完整 JSON。`;
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    let retrySuffix = '';
+    if (attempt === 2) {
+      retrySuffix = `\n\n【重试】上一轮 nodes[].text 过短或超长。每个 text 必须 ${LIFE_PATH_NODE_MIN}～${LIFE_PATH_NODE_MAX} 个可见字符（中文按字计数），请重新输出完整 JSON。`;
+    }
+    if (attempt === 3) {
+      retrySuffix =
+        `\n\n【最后一次重试】示例：{"sortOrder":1,"timeLabel":"2010年","category":"work","text":"2010年前后赴深圳工作，开启新的职业阶段与都市生活"}`;
+    }
+    const userPrompt = `${baseUserPrompt}${retrySuffix}`;
 
     let aiResult;
     try {
@@ -176,7 +181,7 @@ async function generateValidatedDraft({ username, aiEntries, inputMode }) {
     if (validated.ok) {
       return { ok: true, draft: validated.draft };
     }
-    if (attempt === 2) {
+    if (attempt === 3) {
       return validated;
     }
   }

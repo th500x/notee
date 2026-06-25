@@ -181,8 +181,62 @@ function renderPublishedLifePathText(draft) {
   return lines.join('\n').trim();
 }
 
-function validateLifePathDraft(draft) {
+function trimToMaxGraphemes(text, maxChars) {
+  const limit = Math.max(1, Number(maxChars) || LIFE_PATH_NODE_MAX);
+  const value = String(text ?? '').trim();
+  if (!value) return '';
+  if (countGraphemes(value) <= limit) return value;
+  let out = '';
+  let count = 0;
+  if (typeof Intl !== 'undefined' && typeof Intl.Segmenter === 'function') {
+    const segmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
+    for (const { segment } of segmenter.segment(value)) {
+      if (count >= limit) break;
+      out += segment;
+      count += 1;
+    }
+  } else {
+    out = [...value].slice(0, limit).join('');
+  }
+  return out;
+}
+
+function repairLifePathNodeText(node) {
+  let text = String(node.text || '').trim();
+  if (!text) return text;
+
+  const timeLabel = String(node.timeLabel || '').trim();
+  const categoryLabel = LIFE_PATH_CATEGORY_LABELS[node.category] || '人生';
+
+  if (countGraphemes(text) < LIFE_PATH_NODE_MIN) {
+    if (timeLabel && !text.startsWith(timeLabel)) {
+      text = `${timeLabel}，${text}`;
+    }
+  }
+  if (countGraphemes(text) < LIFE_PATH_NODE_MIN) {
+    text = `${text}（${categoryLabel}相关）`;
+  }
+  if (countGraphemes(text) < LIFE_PATH_NODE_MIN) {
+    text = `${text}，见于本人人生片段时间轴`;
+  }
+
+  return trimToMaxGraphemes(text, LIFE_PATH_NODE_MAX);
+}
+
+function repairLifePathDraft(draft) {
   const normalized = normalizeDraft(draft);
+  if (!normalized) return null;
+  return {
+    ...normalized,
+    nodes: normalized.nodes.map((node) => ({
+      ...node,
+      text: repairLifePathNodeText(node),
+    })),
+  };
+}
+
+function validateLifePathDraft(draft) {
+  const normalized = repairLifePathDraft(draft) || normalizeDraft(draft);
   if (!normalized || normalized.nodes.length === 0) {
     return { ok: false, code: 'LIFE_PATH_INVALID_DRAFT', error: '轨迹草稿格式无效' };
   }
@@ -263,6 +317,7 @@ module.exports = {
   sanitizeLifePathAiText,
   buildLifePathAiEntrySnapshot,
   filterEntriesForLifePathInputMode,
+  repairLifePathDraft,
   truncateTextForLifePathPrompt,
   renderPublishedLifePathText,
   validateLifePathDraft,
