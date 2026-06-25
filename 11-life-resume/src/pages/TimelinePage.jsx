@@ -8,10 +8,11 @@ import usePageMeta from '@/hooks/usePageMeta';
 import { useTimelineSectionCollapse } from '@/hooks/useTimelineSectionCollapse';
 import EntryEditorModal from '@/components/entry/EntryEditorModal';
 import ProfileHeader from '@/components/timeline/ProfileHeader';
+import LifePathPreviewModal from '@/components/timeline/LifePathPreviewModal';
 import ProfileTagStats from '@/components/timeline/ProfileTagStats';
 import TimelineSection from '@/components/timeline/TimelineSection';
 import TimelineEntryCard from '@/components/timeline/TimelineEntryCard';
-import { deleteEntry, fetchPublicTimeline } from '@/services/lifeResumeApi';
+import { deleteEntry, fetchPublicTimeline, generateMyLifePath, publishMyLifePath, discardMyLifePathDraft } from '@/services/lifeResumeApi';
 import { formatLifeResumeError, isAuthError } from '@/utils/lifeResumeErrors';
 import { buildPublicSeoFromEntries } from '@/utils/pageMeta';
 
@@ -20,13 +21,18 @@ export default function TimelinePage() {
   const navigate = useNavigate();
   const showToast = useToast();
   const { isLoggedIn, accountId: myAccountId, bootstrapping } = useLifeAuth();
-  const { profile } = useLifeProfile();
+  const { profile, refreshProfile } = useLifeProfile();
   const [timeline, setTimeline] = useState(null);
   const [loading, setLoading] = useState(true);
   const [notAvailable, setNotAvailable] = useState(false);
   const [loadError, setLoadError] = useState('');
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState(null);
+  const [lifePathModalOpen, setLifePathModalOpen] = useState(false);
+  const [lifePathDraft, setLifePathDraft] = useState(null);
+  const [generatingLifePath, setGeneratingLifePath] = useState(false);
+  const [publishingLifePath, setPublishingLifePath] = useState(false);
+  const [discardingLifePath, setDiscardingLifePath] = useState(false);
 
   const ownerId = (routeAccountId || '').toUpperCase();
   const isOwner = isLoggedIn && myAccountId && myAccountId.toUpperCase() === ownerId;
@@ -121,6 +127,69 @@ export default function TimelinePage() {
     }
   };
 
+  const openLifePathPreview = (draft) => {
+    if (!draft) return;
+    setLifePathDraft(draft);
+    setLifePathModalOpen(true);
+  };
+
+  const handleGenerateLifePath = async () => {
+    setGeneratingLifePath(true);
+    try {
+      const res = await generateMyLifePath();
+      openLifePathPreview(res.data?.lifePathDraft);
+      await refreshProfile();
+      showToast('轨迹草稿已生成', { type: 'success' });
+    } catch (err) {
+      showToast(formatLifeResumeError(err), { type: 'error' });
+      if (isAuthError(err)) {
+        navigate('/login');
+      }
+    } finally {
+      setGeneratingLifePath(false);
+    }
+  };
+
+  const handlePreviewExistingDraft = () => {
+    openLifePathPreview(profile?.lifePathDraft);
+  };
+
+  const handlePublishLifePath = async () => {
+    setPublishingLifePath(true);
+    try {
+      await publishMyLifePath();
+      await refreshProfile();
+      setLifePathModalOpen(false);
+      setLifePathDraft(null);
+      showToast('轨迹已发布', { type: 'success' });
+    } catch (err) {
+      showToast(formatLifeResumeError(err), { type: 'error' });
+      if (isAuthError(err)) {
+        navigate('/login');
+      }
+    } finally {
+      setPublishingLifePath(false);
+    }
+  };
+
+  const handleDiscardLifePathDraft = async () => {
+    setDiscardingLifePath(true);
+    try {
+      await discardMyLifePathDraft();
+      await refreshProfile();
+      setLifePathModalOpen(false);
+      setLifePathDraft(null);
+      showToast('草稿已丢弃', { type: 'success' });
+    } catch (err) {
+      showToast(formatLifeResumeError(err), { type: 'error' });
+      if (isAuthError(err)) {
+        navigate('/login');
+      }
+    } finally {
+      setDiscardingLifePath(false);
+    }
+  };
+
   if (bootstrapping || loading) {
     return (
       <div className="max-w-3xl mx-auto px-4 py-16 text-center text-slate-500">
@@ -168,6 +237,10 @@ export default function TimelinePage() {
           username={timeline?.profile?.username || (isOwner ? profile?.username : null)}
           isOwner={viewerIsOwner}
           onCreateClick={openCreate}
+          onGenerateLifePathClick={viewerIsOwner ? handleGenerateLifePath : undefined}
+          onPreviewLifePathClick={viewerIsOwner ? handlePreviewExistingDraft : undefined}
+          generatingLifePath={generatingLifePath}
+          lifePathStatus={isOwner ? profile?.lifePathStatus : 'none'}
         />
         <ProfileTagStats entries={entries} />
       </div>
@@ -229,6 +302,16 @@ export default function TimelinePage() {
         profileDefaults={profileDefaults}
         onClose={() => setEditorOpen(false)}
         onSaved={handleSaved}
+      />
+
+      <LifePathPreviewModal
+        open={lifePathModalOpen}
+        draft={lifePathDraft}
+        onClose={() => setLifePathModalOpen(false)}
+        onPublish={handlePublishLifePath}
+        onDiscardDraft={handleDiscardLifePathDraft}
+        publishing={publishingLifePath}
+        discarding={discardingLifePath}
       />
     </div>
   );

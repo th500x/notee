@@ -143,6 +143,34 @@ export async function fetchReverseGeocode(body) {
   });
 }
 
+/** GET /api/life-resume/profiles/me/life-path */
+export async function fetchMyLifePath() {
+  return lifeResumeFetch('/profiles/me/life-path');
+}
+
+/** POST /api/life-resume/profiles/me/life-path/generate */
+export async function generateMyLifePath() {
+  return lifeResumeFetch('/profiles/me/life-path/generate', {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+}
+
+/** POST /api/life-resume/profiles/me/life-path/publish */
+export async function publishMyLifePath() {
+  return lifeResumeFetch('/profiles/me/life-path/publish', {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+}
+
+/** DELETE /api/life-resume/profiles/me/life-path/draft */
+export async function discardMyLifePathDraft() {
+  return lifeResumeFetch('/profiles/me/life-path/draft', {
+    method: 'DELETE',
+  });
+}
+
 /** Browser PUT to OSS signed URL */
 export async function uploadFileToSignedUrl(signData, file) {
   const res = await fetch(signData.uploadUrl, {

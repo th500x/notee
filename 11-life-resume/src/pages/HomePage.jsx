@@ -131,6 +131,7 @@ export default function HomePage() {
                   displayName={item.displayName}
                   username={item.username}
                   publicEntryCount={item.publicEntryCount}
+                  publishedLifePath={item.publishedLifePath}
                 />
               ))}
             </div>

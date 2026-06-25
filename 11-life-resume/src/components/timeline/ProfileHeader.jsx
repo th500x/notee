@@ -8,6 +8,10 @@ export default function ProfileHeader({
   username,
   isOwner,
   onCreateClick,
+  onGenerateLifePathClick,
+  onPreviewLifePathClick,
+  generatingLifePath = false,
+  lifePathStatus = 'none',
 }) {
   const [copied, setCopied] = useState(false);
   const label = displayName || username || accountId;
@@ -37,9 +41,31 @@ export default function ProfileHeader({
         >
           {copied ? '已复制链接' : `复制链接 ${publicPath}`}
         </button>
+        {isOwner && lifePathStatus === 'published' && (
+          <p className="text-xs text-emerald-700">轨迹已发布</p>
+        )}
+        {isOwner && lifePathStatus === 'draft' && (
+          <button
+            type="button"
+            className="text-xs text-amber-700 hover:underline"
+            onClick={onPreviewLifePathClick}
+          >
+            有未发布轨迹草稿 · 点击预览
+          </button>
+        )}
       </div>
       {isOwner && (
         <div className="flex flex-wrap gap-2">
+          {onGenerateLifePathClick && (
+            <button
+              type="button"
+              className="inline-flex items-center px-4 py-2 rounded-lg border border-indigo-200 text-indigo-700 hover:bg-indigo-50 disabled:opacity-60"
+              onClick={onGenerateLifePathClick}
+              disabled={generatingLifePath}
+            >
+              {generatingLifePath ? '生成中…' : '生成轨迹'}
+            </button>
+          )}
           <button
             type="button"
             className="inline-flex items-center px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700"

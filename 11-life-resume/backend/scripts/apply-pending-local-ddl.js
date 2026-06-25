@@ -24,6 +24,7 @@ const MIGRATION_FILES = [
   '004-life-entries-life-stage-unknown.sql',
   '005-life-profiles-region-duplicate-usernames.sql',
   '006-life-entries-tag-travel-to-yuji.sql',
+  '007-life-profiles-life-path.sql',
 ];
 
 const DEFAULT_DB_NAME = '11_life_resume';

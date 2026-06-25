@@ -17,6 +17,7 @@ const {
   isPlaceholderClientIp,
 } = require('../../../05-san-storm/shared/utils/lifeResumeProfileRegion.cjs');
 const { resolveRegionFromIp } = require('./ipGeolocationService');
+const { parseLifePathDraftJson } = require('../../../05-san-storm/shared/utils/lifeResumeLifePath.cjs');
 
 const VISIBILITY_VALUES = new Set(['public', 'private', 'specific']);
 
@@ -56,6 +57,11 @@ function formatProfileRow(row) {
     deactivatedAt: toIso(row.deactivated_at),
     purgeScheduledAt: toIso(row.purge_scheduled_at),
     firstEntryAt: toIso(row.first_entry_at),
+    lifePathStatus: row.life_path_status || 'none',
+    lifePathDraft: parseLifePathDraftJson(row.life_path_draft_json),
+    publishedLifePath: row.life_path_published_text || null,
+    lifePathGeneratedAt: toIso(row.life_path_generated_at),
+    lifePathPublishedAt: toIso(row.life_path_published_at),
     createdAt: toIso(row.created_at),
     updatedAt: toIso(row.updated_at),
   };

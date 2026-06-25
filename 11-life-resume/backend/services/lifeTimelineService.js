@@ -5,6 +5,7 @@
 const { query } = require('../database/connection');
 const { validateAccountIdFormat } = require('../../../05-san-storm/shared/utils/lifeResumeUsername.cjs');
 const { formatProfileDisplayName } = require('../../../05-san-storm/shared/utils/lifeResumeProfileRegion.cjs');
+const { resolvePublishedLifePathForPublic } = require('../../../05-san-storm/shared/utils/lifeResumeLifePath.cjs');
 const { findProfileByAccountId, ensureProfileRegionFromIp } = require('./lifeProfileService');
 const { formatEntryForViewer } = require('./lifeEntryService');
 const { attachMediaMapToEntries } = require('./lifeEntryMediaService');
@@ -18,13 +19,14 @@ class TimelineServiceError extends Error {
   }
 }
 
-function formatPublicProfile(row) {
+function formatPublicProfile(row, publishedLifePath = null) {
   const regionPublicLabel = row.region_public_label || null;
   return {
     accountId: row.account_id,
     username: row.username,
     regionPublicLabel,
     displayName: formatProfileDisplayName(row.username, regionPublicLabel, row.account_id),
+    publishedLifePath: publishedLifePath || null,
   };
 }
 
@@ -94,8 +96,13 @@ async function getPublicTimeline(ownerAccountId, viewerAccountId, opts = {}) {
     ? await listOwnerEntries(ownerId)
     : await listPublishedVisibleEntries(ownerId, viewerId);
 
+  const publicEntryCount = isOwner
+    ? entryRows.filter((row) => row.status === 'published' && row.visibility === 'public').length
+    : entryRows.length;
+  const publishedLifePath = resolvePublishedLifePathForPublic(profileRow, publicEntryCount > 0);
+
   return {
-    profile: formatPublicProfile(profileRow),
+    profile: formatPublicProfile(profileRow, publishedLifePath),
     viewer: {
       accountId: viewerId,
       isOwner,

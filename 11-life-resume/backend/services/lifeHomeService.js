@@ -5,6 +5,7 @@
 const { query } = require('../database/connection');
 const { validateAccountIdFormat } = require('../../../05-san-storm/shared/utils/lifeResumeUsername.cjs');
 const { formatProfileDisplayName } = require('../../../05-san-storm/shared/utils/lifeResumeProfileRegion.cjs');
+const { resolvePublishedLifePathForPublic } = require('../../../05-san-storm/shared/utils/lifeResumeLifePath.cjs');
 const { getProfileForAccount, ProfileServiceError } = require('./lifeProfileService');
 
 class HomeServiceError extends Error {
@@ -46,26 +47,31 @@ async function listSharedOwnerCards(viewerAccountId) {
 
 async function listPublicProfileCards(limit = 30) {
   const rows = await query(
-    `SELECT p.account_id, p.username, p.region_public_label, COUNT(e.id) AS public_entry_count,
+    `SELECT p.account_id, p.username, p.region_public_label,
+            p.life_path_status, p.life_path_published_text,
+            COUNT(e.id) AS public_entry_count,
             MAX(e.published_at) AS latest_published_at
      FROM life_profiles p
      INNER JOIN life_entries e ON e.account_id = p.account_id
      WHERE p.profile_status = 'active'
        AND e.status = 'published'
        AND e.visibility = 'public'
-     GROUP BY p.account_id, p.username, p.region_public_label
+     GROUP BY p.account_id, p.username, p.region_public_label,
+              p.life_path_status, p.life_path_published_text
      ORDER BY latest_published_at DESC, p.account_id ASC
      LIMIT ?`,
     [Math.min(Math.max(Number(limit) || 30, 1), 100)]
   );
   return rows.map((row) => {
     const regionPublicLabel = row.region_public_label || null;
+    const publicEntryCount = Number(row.public_entry_count || 0);
     return {
       accountId: row.account_id,
       username: row.username,
       regionPublicLabel,
       displayName: formatProfileDisplayName(row.username, regionPublicLabel, row.account_id),
-      publicEntryCount: Number(row.public_entry_count || 0),
+      publicEntryCount,
+      publishedLifePath: resolvePublishedLifePathForPublic(row, publicEntryCount > 0),
       latestPublishedAt: row.latest_published_at
         ? new Date(row.latest_published_at).toISOString()
         : null,

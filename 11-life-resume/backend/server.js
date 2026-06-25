@@ -19,6 +19,7 @@ const entriesRouter = require('./routes/entries');
 const uploadRouter = require('./routes/upload');
 const locationRouter = require('./routes/location');
 const homeRouter = require('./routes/home');
+const lifePathRouter = require('./routes/lifePath');
 const { assertJwtSecret } = require('./utils/startupChecks');
 
 assertJwtSecret();
@@ -42,6 +43,7 @@ app.use(express.json({ limit: '10mb' }));
 
 app.use('/api/life-resume', lifeResumeRouter);
 app.use('/api/life-resume/auth', authRouter);
+app.use('/api/life-resume/profiles/me/life-path', lifePathRouter);
 app.use('/api/life-resume/profiles', profilesRouter);
 app.use('/api/life-resume/entries', entriesRouter);
 app.use('/api/life-resume/upload', uploadRouter);
@@ -54,7 +56,7 @@ app.get('/health', async (req, res) => {
     success: true,
     status: dbConnected ? 'ok' : 'degraded',
     service: 'life-resume',
-    phase: 'P11',
+    phase: 'P12',
     database: dbConnected ? 'connected' : 'disconnected',
     databaseName: dbConfig.database,
     timestamp: new Date().toISOString(),
