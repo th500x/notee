@@ -28,11 +28,14 @@ async function main() {
     process.exit(1);
   }
 
+  const bucket = process.env.OSS_BUCKET || '11-life-resume';
+  const region = process.env.OSS_REGION || 'oss-cn-heyuan';
+
   const client = new OSS({
-    region: process.env.OSS_REGION || 'oss-cn-heyuan',
+    region,
     accessKeyId,
     accessKeySecret,
-    bucket: process.env.OSS_BUCKET || '11-life-resume',
+    bucket,
     secure: true,
   });
 
@@ -47,12 +50,12 @@ async function main() {
     },
   ];
 
-  console.log('[configure-oss-cors] bucket:', process.env.OSS_BUCKET || '11-life-resume');
-  console.log('[configure-oss-cors] region:', process.env.OSS_REGION || 'oss-cn-heyuan');
+  console.log('[configure-oss-cors] bucket:', bucket);
+  console.log('[configure-oss-cors] region:', region);
   console.log('[configure-oss-cors] origins:', allowedOrigin.join(', '));
 
-  await client.putBucketCORS(rules);
-  const current = await client.getBucketCORS();
+  await client.putBucketCORS(bucket, rules);
+  const current = await client.getBucketCORS(bucket);
   console.log('[configure-oss-cors] OK — current rules:');
   console.log(JSON.stringify(current.rules || current, null, 2));
 }
