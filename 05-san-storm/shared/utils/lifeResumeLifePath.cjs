@@ -59,7 +59,7 @@ const AI_INPUT_REDACT_PATTERNS = [
   /裸体/g,
 ];
 
-export const LIFE_PATH_AI_INPUT_MODES = ['standard', 'public_only', 'metadata_only'];
+const LIFE_PATH_AI_INPUT_MODES = ['standard', 'public_only', 'metadata_only'];
 
 function normalizeDraft(raw) {
   if (!raw || typeof raw !== 'object') return null;
