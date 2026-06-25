@@ -11,6 +11,8 @@ const ERROR_MESSAGES = {
   INVALID_LOCATION: '位置信息无效',
   GEOCODE_FAILED: '无法解析位置',
   OSS_NOT_CONFIGURED: '媒体上传未配置，请联系管理员',
+  OSS_CORS_BLOCKED:
+    '照片直传被浏览器拦截：请在阿里云 OSS 为该 Bucket 配置 CORS，允许 https://notee.vip',
   ALREADY_DEACTIVATED: '已处于注销冷静期',
   NOT_DEACTIVATED: '当前未处于注销冷静期',
   PURGE_DEADLINE_PASSED: '冷静期已结束，无法撤销注销',

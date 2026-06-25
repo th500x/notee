@@ -173,11 +173,24 @@ export async function discardMyLifePathDraft() {
 
 /** Browser PUT to OSS signed URL */
 export async function uploadFileToSignedUrl(signData, file) {
-  const res = await fetch(signData.uploadUrl, {
-    method: signData.method || 'PUT',
-    headers: signData.headers || { 'Content-Type': file.type },
-    body: file,
-  });
+  let res;
+  try {
+    res = await fetch(signData.uploadUrl, {
+      method: signData.method || 'PUT',
+      headers: signData.headers || { 'Content-Type': file.type },
+      body: file,
+    });
+  } catch (err) {
+    const message = String(err?.message || '');
+    if (message === 'Failed to fetch' || err?.name === 'TypeError') {
+      const corsErr = new Error(
+        '照片直传 OSS 被浏览器拦截：请在阿里云 OSS 控制台为该 Bucket 配置 CORS，允许来源 https://notee.vip（或运行 backend/scripts/configure-oss-cors.js）'
+      );
+      corsErr.code = 'OSS_CORS_BLOCKED';
+      throw corsErr;
+    }
+    throw err;
+  }
   if (!res.ok) {
     const err = new Error(`OSS 上传失败（HTTP ${res.status}）`);
     err.status = res.status;
