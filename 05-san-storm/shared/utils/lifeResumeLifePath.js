@@ -20,6 +20,38 @@ export const LIFE_PATH_CATEGORIES = [
 
 const CATEGORY_SET = new Set(LIFE_PATH_CATEGORIES);
 
+/** 通义常返回中文或别名，归一化为英文枚举 */
+const LIFE_PATH_CATEGORY_ALIAS_TO_CANONICAL = {
+  location: ['location', 'loc', 'place', 'move', '所在地', '地点', '位置', '迁居', '搬迁', '城市'],
+  family: ['family', '家庭', '家人', '亲属'],
+  work: ['work', 'job', 'career', 'office', '工作', '职业', '职场', '事业'],
+  relationship: ['relationship', 'relation', 'love', '人际关系', '关系', '感情', '社交', '朋友'],
+  study: ['study', 'education', 'school', 'university', '学业', '学习', '教育', '读书'],
+  other: ['other', 'misc', 'general', 'life', 'travel', 'trip', 'milestone', '人生', '游记', '旅行', '其他'],
+};
+
+export function normalizeLifePathCategory(raw) {
+  const value = String(raw ?? '').trim();
+  if (!value) return 'other';
+  if (CATEGORY_SET.has(value)) return value;
+  const lower = value.toLowerCase();
+  if (CATEGORY_SET.has(lower)) return lower;
+
+  for (const [canonical, aliases] of Object.entries(LIFE_PATH_CATEGORY_ALIAS_TO_CANONICAL)) {
+    if (aliases.some((alias) => alias === value || alias.toLowerCase() === lower)) {
+      return canonical;
+    }
+  }
+
+  if (/学|读|校|院/.test(value)) return 'study';
+  if (/工|职|业|岗/.test(value)) return 'work';
+  if (/家|亲/.test(value)) return 'family';
+  if (/地|城|迁|居|旅|游/.test(value)) return value.includes('游') || value.includes('旅') ? 'other' : 'location';
+  if (/关系|友|恋|婚/.test(value)) return 'relationship';
+
+  return 'other';
+}
+
 export const LIFE_PATH_CATEGORY_LABELS = {
   location: '所在地',
   family: '家庭',
@@ -69,7 +101,7 @@ function normalizeDraft(raw) {
     nodes: nodes.map((node, index) => ({
       sortOrder: Number(node?.sortOrder ?? index + 1),
       timeLabel: String(node?.timeLabel ?? '').trim(),
-      category: String(node?.category ?? '').trim(),
+      category: normalizeLifePathCategory(node?.category),
       text: String(node?.text ?? '').trim(),
     })),
     summaryText: raw.summaryText != null ? String(raw.summaryText).trim() : '',

@@ -152,7 +152,7 @@ async function generateValidatedDraft({ username, aiEntries, inputMode }) {
   for (let attempt = 1; attempt <= 3; attempt += 1) {
     let retrySuffix = '';
     if (attempt === 2) {
-      retrySuffix = `\n\n【重试】上一轮 nodes[].text 过短或超长。每个 text 必须 ${LIFE_PATH_NODE_MIN}～${LIFE_PATH_NODE_MAX} 个可见字符（中文按字计数），请重新输出完整 JSON。`;
+      retrySuffix = `\n\n【重试】上一轮 nodes[].text 过短或超长，或 category 用了中文。每个 text 须 ${LIFE_PATH_NODE_MIN}～${LIFE_PATH_NODE_MAX} 字；category 只能是英文 location|family|work|relationship|study|other。请重新输出完整 JSON。`;
     }
     if (attempt === 3) {
       retrySuffix =

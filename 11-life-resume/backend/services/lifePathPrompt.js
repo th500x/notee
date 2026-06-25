@@ -19,9 +19,10 @@ const SYSTEM_PROMPT = `你是「人生片段」产品的编辑助手。用户会
 3. 不写犯罪、劣迹、违法、仇恨、露骨医疗隐私等内容。
 4. 无年份的片段用「早年 / 某阶段 / 时间未详」等谨慎表述，禁止硬编具体年份。
 5. 无依据时不写精确年龄（如「25岁」）；优先用年份或人生阶段。
-6. 每个节点 text **必须** ${LIFE_PATH_NODE_MIN}～${LIFE_PATH_NODE_MAX} 个可见字符（中文一字算一字；不足时写完整句，禁止过短）；category 须为 location|family|work|relationship|study|other。
-7. 所有节点 text 与 summaryText 合计不超过 ${LIFE_PATH_TOTAL_MAX} 个可见字符。
-8. 只输出 JSON，格式：{"nodes":[{"sortOrder":1,"timeLabel":"…","category":"…","text":"…"}],"summaryText":"…"}。summaryText 可空字符串。`;
+6. 每个节点 category **必须**为英文枚举之一：location|family|work|relationship|study|other（禁止写中文「工作」「学业」等；片段标签「游记/人生」对应 other）。
+7. 每个节点 text **必须** ${LIFE_PATH_NODE_MIN}～${LIFE_PATH_NODE_MAX} 个可见字符（中文一字算一字；不足时写完整句，禁止过短）。
+8. 所有节点 text 与 summaryText 合计不超过 ${LIFE_PATH_TOTAL_MAX} 个可见字符。
+9. 只输出 JSON，格式：{"nodes":[{"sortOrder":1,"timeLabel":"…","category":"work","text":"…"}],"summaryText":"…"}。summaryText 可空字符串。`;
 
 function buildUserPrompt({ username, entries, bodyMaxChars, inputMode = 'standard' }) {
   const scopedEntries = filterEntriesForLifePathInputMode(entries, inputMode);
