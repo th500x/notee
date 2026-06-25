@@ -1,9 +1,13 @@
 /**
  * DashScope（通义）OpenAI 兼容 Chat Completions
+ * 使用 Node 内置 https，避免生产 Node < 18 无 fetch 导致 502。
  */
 
+const https = require('https');
+const { URL } = require('url');
+
 const DEFAULT_BASE_URL = 'https://dashscope.aliyuncs.com/compatible-mode/v1';
-const DEFAULT_TIMEOUT_MS = 60000;
+const DEFAULT_TIMEOUT_MS = parseInt(process.env.LIFE_PATH_AI_TIMEOUT_MS || '90000', 10);
 
 function getDashScopeConfig() {
   const apiKey = process.env.DASHSCOPE_API_KEY && String(process.env.DASHSCOPE_API_KEY).trim();
@@ -16,6 +20,50 @@ function isDashScopeConfigured() {
   return !!getDashScopeConfig().apiKey;
 }
 
+function postJson(url, headers, body, timeoutMs) {
+  return new Promise((resolve, reject) => {
+    const target = new URL(url);
+    const payload = JSON.stringify(body);
+
+    const req = https.request(
+      {
+        hostname: target.hostname,
+        port: target.port || 443,
+        path: `${target.pathname}${target.search}`,
+        method: 'POST',
+        headers: {
+          ...headers,
+          'Content-Length': Buffer.byteLength(payload),
+        },
+        timeout: timeoutMs,
+      },
+      (res) => {
+        let raw = '';
+        res.on('data', (chunk) => {
+          raw += chunk;
+        });
+        res.on('end', () => {
+          resolve({ status: res.statusCode || 0, raw });
+        });
+      }
+    );
+
+    req.on('error', (err) => {
+      reject(err);
+    });
+
+    req.on('timeout', () => {
+      req.destroy();
+      const err = new Error('AI 请求超时');
+      err.name = 'AbortError';
+      reject(err);
+    });
+
+    req.write(payload);
+    req.end();
+  });
+}
+
 async function chatCompletionJson({ systemPrompt, userPrompt, temperature = 0.3 }) {
   const { apiKey, model, baseUrl } = getDashScopeConfig();
   if (!apiKey) {
@@ -24,17 +72,14 @@ async function chatCompletionJson({ systemPrompt, userPrompt, temperature = 0.3 
     throw err;
   }
 
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
-
   try {
-    const res = await fetch(`${baseUrl}/chat/completions`, {
-      method: 'POST',
-      headers: {
+    const { status, raw } = await postJson(
+      `${baseUrl}/chat/completions`,
+      {
         Authorization: `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
+      {
         model,
         temperature,
         response_format: { type: 'json_object' },
@@ -42,14 +87,21 @@ async function chatCompletionJson({ systemPrompt, userPrompt, temperature = 0.3 
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt },
         ],
-      }),
-      signal: controller.signal,
-    });
+      },
+      DEFAULT_TIMEOUT_MS
+    );
 
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
+    let data = {};
+    try {
+      data = raw ? JSON.parse(raw) : {};
+    } catch {
+      data = {};
+    }
+
+    if (status < 200 || status >= 300) {
       const message =
-        data?.error?.message || data?.message || `DashScope HTTP ${res.status}`;
+        data?.error?.message || data?.message || raw?.slice(0, 200) || `DashScope HTTP ${status}`;
+      console.error('[dashscope] API error', { status, message: String(message).slice(0, 300) });
       const err = new Error(message);
       err.code = 'LIFE_PATH_AI_FAILED';
       err.status = 502;
@@ -58,6 +110,7 @@ async function chatCompletionJson({ systemPrompt, userPrompt, temperature = 0.3 
 
     const content = data?.choices?.[0]?.message?.content;
     if (!content) {
+      console.error('[dashscope] empty content', { status, raw: raw?.slice(0, 300) });
       const err = new Error('模型未返回内容');
       err.code = 'LIFE_PATH_AI_FAILED';
       err.status = 502;
@@ -68,6 +121,7 @@ async function chatCompletionJson({ systemPrompt, userPrompt, temperature = 0.3 
     try {
       parsed = JSON.parse(content);
     } catch {
+      console.error('[dashscope] invalid JSON content', content.slice(0, 300));
       const err = new Error('模型返回的不是有效 JSON');
       err.code = 'LIFE_PATH_AI_FAILED';
       err.status = 502;
@@ -77,18 +131,18 @@ async function chatCompletionJson({ systemPrompt, userPrompt, temperature = 0.3 
     return { parsed, model };
   } catch (err) {
     if (err.name === 'AbortError') {
-      const timeoutErr = new Error('AI 请求超时');
+      console.error('[dashscope] timeout after ms', DEFAULT_TIMEOUT_MS);
+      const timeoutErr = new Error(`AI 请求超时（${Math.round(DEFAULT_TIMEOUT_MS / 1000)} 秒）`);
       timeoutErr.code = 'LIFE_PATH_AI_FAILED';
       timeoutErr.status = 502;
       throw timeoutErr;
     }
     if (err.code) throw err;
+    console.error('[dashscope] request failed', err.message);
     const wrapped = new Error(err.message || 'AI 请求失败');
     wrapped.code = 'LIFE_PATH_AI_FAILED';
     wrapped.status = 502;
     throw wrapped;
-  } finally {
-    clearTimeout(timeout);
   }
 }
 

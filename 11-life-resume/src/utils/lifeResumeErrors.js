@@ -15,12 +15,24 @@ const ERROR_MESSAGES = {
   NOT_DEACTIVATED: '当前未处于注销冷静期',
   PURGE_DEADLINE_PASSED: '冷静期已结束，无法撤销注销',
   RATE_LIMITED: '请求过于频繁，请稍后再试',
+  LIFE_PATH_COOLDOWN: '生成轨迹冷却中，请稍后再试',
+  LIFE_PATH_NO_ENTRIES: '还没有任何片段，无法生成轨迹',
+  LIFE_PATH_NOTHING_TO_PUBLISH: '没有可发布的轨迹草稿',
+  LIFE_PATH_NODE_LENGTH: '轨迹节点字数不符合要求，请重新生成',
+  LIFE_PATH_TOO_LONG: '轨迹全文过长，请重新生成',
+  LIFE_PATH_INVALID_DRAFT: '轨迹草稿无效，请重新生成',
 };
 
 export function formatLifeResumeError(err) {
   if (!err) return '请稍后重试';
   if (err.code && ERROR_MESSAGES[err.code]) {
     return ERROR_MESSAGES[err.code];
+  }
+  if (err.code === 'LIFE_PATH_AI_FAILED' && err.message) {
+    return err.message;
+  }
+  if (err.code === 'LIFE_PATH_NOT_CONFIGURED') {
+    return '轨迹生成功能未开通，请联系管理员';
   }
   if (err.status === 401) {
     return ERROR_MESSAGES.NO_TOKEN;

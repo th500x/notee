@@ -18,6 +18,10 @@ const { SYSTEM_PROMPT, buildUserPrompt } = require('./lifePathPrompt');
 const COOLDOWN_HOURS = parseInt(process.env.LIFE_PATH_COOLDOWN_HOURS || '24', 10);
 const MAX_ENTRIES = parseInt(process.env.LIFE_PATH_MAX_ENTRIES || '80', 10);
 const BODY_MAX_CHARS = parseInt(process.env.LIFE_PATH_BODY_MAX_CHARS || '400', 10);
+const {
+  LIFE_PATH_NODE_MIN,
+  LIFE_PATH_NODE_MAX,
+} = require('../../../05-san-storm/shared/utils/lifeResumeLifePath.cjs');
 
 class LifePathServiceError extends Error {
   constructor(code, message, status = 400) {
@@ -143,39 +147,48 @@ async function generateLifePathForOwner(accountId) {
   }
 
   const aiEntries = selectEntriesForAi(entries);
-  const userPrompt = buildUserPrompt({
+  const baseUserPrompt = buildUserPrompt({
     username: row.username,
     entries: aiEntries,
     bodyMaxChars: BODY_MAX_CHARS,
   });
 
   let aiResult;
-  try {
-    aiResult = await chatCompletionJson({
-      systemPrompt: SYSTEM_PROMPT,
-      userPrompt,
-    });
-  } catch (err) {
-    if (err.code === 'LIFE_PATH_NOT_CONFIGURED') {
-      throw new LifePathServiceError(err.code, err.message, 503);
+  let validated = null;
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    const userPrompt =
+      attempt === 1
+        ? baseUserPrompt
+        : `${baseUserPrompt}\n\n【重试】上一轮 JSON 中 nodes[].text 过短或超长。每个 text 必须 ${LIFE_PATH_NODE_MIN}～${LIFE_PATH_NODE_MAX} 个可见字符，请重新输出完整 JSON。`;
+
+    try {
+      aiResult = await chatCompletionJson({
+        systemPrompt: SYSTEM_PROMPT,
+        userPrompt,
+      });
+    } catch (err) {
+      if (err.code === 'LIFE_PATH_NOT_CONFIGURED') {
+        throw new LifePathServiceError(err.code, err.message, 503);
+      }
+      throw new LifePathServiceError(
+        err.code || 'LIFE_PATH_AI_FAILED',
+        err.message || 'AI 生成失败',
+        err.status || 502
+      );
     }
-    throw new LifePathServiceError(
-      err.code || 'LIFE_PATH_AI_FAILED',
-      err.message || 'AI 生成失败',
-      err.status || 502
-    );
-  }
 
-  const draftPayload = {
-    ...aiResult.parsed,
-    sourceEntryIds: aiEntries.map((entry) => String(entry.id)),
-    model: aiResult.model,
-    generatedAt: new Date().toISOString(),
-  };
+    const draftPayload = {
+      ...aiResult.parsed,
+      sourceEntryIds: aiEntries.map((entry) => String(entry.id)),
+      model: aiResult.model,
+      generatedAt: new Date().toISOString(),
+    };
 
-  const validated = validateLifePathDraft(draftPayload);
-  if (!validated.ok) {
-    throw new LifePathServiceError(validated.code, validated.error, 400);
+    validated = validateLifePathDraft(draftPayload);
+    if (validated.ok) break;
+    if (attempt === 2) {
+      throw new LifePathServiceError(validated.code, validated.error, 400);
+    }
   }
 
   await query(
