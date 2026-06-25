@@ -103,8 +103,18 @@ async function chatCompletionJson({ systemPrompt, userPrompt, temperature = 0.3 
         data?.error?.message || data?.message || raw?.slice(0, 200) || `DashScope HTTP ${status}`;
       console.error('[dashscope] API error', { status, message: String(message).slice(0, 300) });
       const err = new Error(message);
-      err.code = 'LIFE_PATH_AI_FAILED';
-      err.status = 502;
+      const lower = String(message).toLowerCase();
+      if (
+        lower.includes('inappropriate content') ||
+        lower.includes('datainspectionfailed') ||
+        lower.includes('content filter')
+      ) {
+        err.code = 'LIFE_PATH_INPUT_MODERATION';
+        err.status = 400;
+      } else {
+        err.code = 'LIFE_PATH_AI_FAILED';
+        err.status = 502;
+      }
       throw err;
     }
 

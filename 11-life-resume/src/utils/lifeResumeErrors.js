@@ -21,6 +21,7 @@ const ERROR_MESSAGES = {
   LIFE_PATH_NODE_LENGTH: '轨迹节点字数不符合要求，请重新生成',
   LIFE_PATH_TOO_LONG: '轨迹全文过长，请重新生成',
   LIFE_PATH_INVALID_DRAFT: '轨迹草稿无效，请重新生成',
+  LIFE_PATH_INPUT_MODERATION: '通义输入审核未通过，请检查公开片段表述后重试',
 };
 
 export function formatLifeResumeError(err) {
@@ -30,6 +31,9 @@ export function formatLifeResumeError(err) {
   }
   if (err.code === 'LIFE_PATH_AI_FAILED' && err.message) {
     return err.message;
+  }
+  if (err.code === 'LIFE_PATH_INPUT_MODERATION') {
+    return ERROR_MESSAGES.LIFE_PATH_INPUT_MODERATION;
   }
   if (err.code === 'LIFE_PATH_NOT_CONFIGURED') {
     return '轨迹生成功能未开通，请联系管理员';

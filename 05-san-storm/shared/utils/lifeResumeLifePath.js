@@ -40,6 +40,27 @@ const SENSITIVE_PATTERNS = [
   /贩毒/,
 ];
 
+/** 送入通义前替换易触发输入审核的词（不改变用户原文入库） */
+const AI_INPUT_REDACT_PATTERNS = [
+  /犯罪/g,
+  /被捕/g,
+  /坐牢/g,
+  /判刑/g,
+  /猥亵/g,
+  /强奸/g,
+  /吸毒/g,
+  /贩毒/g,
+  /血腥/g,
+  /暴力/g,
+  /自杀/g,
+  /自残/g,
+  /赌博/g,
+  /色情/g,
+  /裸体/g,
+];
+
+export const LIFE_PATH_AI_INPUT_MODES = ['standard', 'public_only', 'metadata_only'];
+
 function normalizeDraft(raw) {
   if (!raw || typeof raw !== 'object') return null;
   const nodes = Array.isArray(raw.nodes) ? raw.nodes : null;
@@ -77,6 +98,51 @@ function findSensitiveSnippet(text) {
     }
   }
   return null;
+}
+
+export function sanitizeLifePathAiText(text) {
+  let value = String(text ?? '');
+  for (const pattern of AI_INPUT_REDACT_PATTERNS) {
+    value = value.replace(pattern, '（略）');
+  }
+  return value.trim();
+}
+
+export function buildLifePathAiEntrySnapshot(entry, { bodyMaxChars, inputMode = 'standard' }) {
+  const base = {
+    entryId: entry.id,
+    publishStatus: entry.status,
+    visibility: entry.visibility,
+    year: entry.year,
+    month: entry.month,
+    day: entry.day,
+    lifeStage: entry.lifeStage,
+    tags: entry.tags || [],
+    locationPublicLabel: entry.locationPublicLabel || null,
+    title: entry.title ? sanitizeLifePathAiText(entry.title) : null,
+  };
+
+  if (inputMode === 'metadata_only') {
+    return { ...base, body: null, contentOmitted: 'metadata_only' };
+  }
+
+  const isPublicPublished = entry.status === 'published' && entry.visibility === 'public';
+  if (inputMode === 'standard' && !isPublicPublished) {
+    return { ...base, body: null, contentOmitted: 'non_public_entry' };
+  }
+
+  return {
+    ...base,
+    body: sanitizeLifePathAiText(truncateTextForLifePathPrompt(entry.body, bodyMaxChars)),
+  };
+}
+
+export function filterEntriesForLifePathInputMode(entries, inputMode) {
+  const list = Array.isArray(entries) ? entries : [];
+  if (inputMode === 'public_only') {
+    return list.filter((entry) => entry.status === 'published' && entry.visibility === 'public');
+  }
+  return list;
 }
 
 export function truncateTextForLifePathPrompt(text, maxChars) {
