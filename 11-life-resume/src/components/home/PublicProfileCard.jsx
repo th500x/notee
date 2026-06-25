@@ -67,15 +67,8 @@ export default function PublicProfileCard({
   };
 
   const handleLifePathWheel = (event) => {
+    // 仅阻止冒泡；勿 preventDefault（React 滚轮监听为 passive，会刷控制台报错）
     event.stopPropagation();
-    const element = event.currentTarget;
-    const { scrollTop, scrollHeight, clientHeight } = element;
-    const atTop = scrollTop <= 0;
-    const atBottom = scrollTop + clientHeight >= scrollHeight - 1;
-    if ((event.deltaY < 0 && atTop) || (event.deltaY > 0 && atBottom)) {
-      return;
-    }
-    event.preventDefault();
   };
 
   return (
