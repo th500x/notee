@@ -197,15 +197,57 @@ export function truncateTextForLifePathPrompt(text, maxChars) {
   return `${out}…`;
 }
 
+export function stripRedundantTimeLabelFromText(timeLabel, text) {
+  let value = String(text ?? '').trim();
+  const label = String(timeLabel ?? '').trim();
+  if (!value || !label) return value;
+
+  if (value.startsWith(label)) {
+    value = value.slice(label.length).replace(/^[，,、·\s]+/, '');
+  }
+
+  const yearMatch = label.match(/^(\d{4})/);
+  if (yearMatch) {
+    const year = yearMatch[1];
+    const yearPrefix = new RegExp(`^${year}年?[，,、·\\s]*`);
+    if (yearPrefix.test(value)) {
+      value = value.replace(yearPrefix, '');
+    }
+  }
+
+  return value.trim();
+}
+
+export function formatLifePathNodeLine(node) {
+  const timeLabel = String(node?.timeLabel ?? '').trim();
+  const text = stripRedundantTimeLabelFromText(timeLabel, String(node?.text ?? '').trim());
+  if (!timeLabel) return text;
+  if (!text) return timeLabel;
+  return `${timeLabel} · ${text}`;
+}
+
+export function formatPublishedLifePathDisplayText(text) {
+  return String(text ?? '')
+    .split('\n')
+    .map((line) => {
+      const value = String(line ?? '').trim();
+      if (!value) return '';
+      const parts = value.split(/\s*[·・]\s*/);
+      if (parts.length < 2) return value;
+      const timeLabel = parts[0].trim();
+      const body = parts.slice(1).join(' · ').trim();
+      return formatLifePathNodeLine({ timeLabel, text: body });
+    })
+    .filter(Boolean)
+    .join('\n');
+}
+
 export function renderPublishedLifePathText(draft) {
   const normalized = normalizeDraft(draft);
   if (!normalized) return '';
   const lines = [...normalized.nodes]
     .sort((a, b) => a.sortOrder - b.sortOrder)
-    .map((node) => {
-      const label = node.timeLabel ? `${node.timeLabel} · ` : '';
-      return `${label}${node.text}`.trim();
-    })
+    .map((node) => formatLifePathNodeLine(node))
     .filter(Boolean);
   if (normalized.summaryText) {
     lines.push(normalized.summaryText);
@@ -240,9 +282,16 @@ export function repairLifePathNodeText(node) {
   const timeLabel = String(node.timeLabel || '').trim();
   const categoryLabel = LIFE_PATH_CATEGORY_LABELS[node.category] || '人生';
 
-  if (countGraphemes(text) < LIFE_PATH_NODE_MIN) {
-    if (timeLabel && !text.startsWith(timeLabel)) {
-      text = `${timeLabel}，${text}`;
+  if (countGraphemes(text) < LIFE_PATH_NODE_MIN && timeLabel) {
+    const stripped = stripRedundantTimeLabelFromText(timeLabel, text);
+    if (stripped !== text) {
+      text = stripped;
+    }
+    if (countGraphemes(text) < LIFE_PATH_NODE_MIN) {
+      const again = stripRedundantTimeLabelFromText(timeLabel, text);
+      if (again === text) {
+        text = `${timeLabel}，${text}`;
+      }
     }
   }
   if (countGraphemes(text) < LIFE_PATH_NODE_MIN) {

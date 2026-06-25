@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { formatPublishedLifePathDisplayText } from '@shared/utils/lifeResumeLifePath.js';
 
 const LONG_PRESS_MS = 500;
 
@@ -14,11 +15,14 @@ export default function PublicProfileCard({
   const [showLifePath, setShowLifePath] = useState(false);
   const longPressTimerRef = useRef(null);
   const suppressNavRef = useRef(false);
+  const cardRef = useRef(null);
+  const panelRef = useRef(null);
 
   const label = displayName || username || accountId;
   const countLabel =
     publicEntryCount > 0 ? `${publicEntryCount} 条公开片段` : '公开片段';
   const hasLifePath = !!publishedLifePath;
+  const lifePathDisplayText = formatPublishedLifePathDisplayText(publishedLifePath);
 
   const clearLongPressTimer = useCallback(() => {
     if (longPressTimerRef.current) {
@@ -28,6 +32,19 @@ export default function PublicProfileCard({
   }, []);
 
   useEffect(() => () => clearLongPressTimer(), [clearLongPressTimer]);
+
+  useEffect(() => {
+    if (!showLifePath) return undefined;
+
+    const handlePointerDown = (event) => {
+      if (panelRef.current?.contains(event.target)) return;
+      if (cardRef.current?.contains(event.target)) return;
+      setShowLifePath(false);
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown);
+    return () => document.removeEventListener('pointerdown', handlePointerDown);
+  }, [showLifePath]);
 
   const handleTouchStart = () => {
     if (!hasLifePath) return;
@@ -49,8 +66,21 @@ export default function PublicProfileCard({
     }
   };
 
+  const handleLifePathWheel = (event) => {
+    event.stopPropagation();
+    const element = event.currentTarget;
+    const { scrollTop, scrollHeight, clientHeight } = element;
+    const atTop = scrollTop <= 0;
+    const atBottom = scrollTop + clientHeight >= scrollHeight - 1;
+    if ((event.deltaY < 0 && atTop) || (event.deltaY > 0 && atBottom)) {
+      return;
+    }
+    event.preventDefault();
+  };
+
   return (
     <div
+      ref={cardRef}
       className="relative"
       onMouseEnter={hasLifePath ? () => setShowLifePath(true) : undefined}
       onMouseLeave={hasLifePath ? () => setShowLifePath(false) : undefined}
@@ -79,21 +109,41 @@ export default function PublicProfileCard({
 
       {hasLifePath && showLifePath && (
         <div
-          role="dialog"
-          aria-label="人生轨迹"
-          className="absolute z-20 left-0 right-0 top-full mt-2 rounded-xl border border-slate-200 bg-white p-3 shadow-lg max-h-48 overflow-y-auto"
+          className="absolute z-20 left-0 right-0 top-full pt-2"
+          onMouseEnter={() => setShowLifePath(true)}
+          onMouseLeave={() => setShowLifePath(false)}
         >
-          <p className="text-xs font-semibold text-slate-500 mb-2">人生轨迹</p>
-          <p className="text-sm text-slate-800 leading-relaxed whitespace-pre-wrap">
-            {publishedLifePath}
-          </p>
-          <button
-            type="button"
-            className="mt-3 text-xs text-indigo-600 hover:underline"
-            onClick={() => navigate(`/u/${accountId}`)}
+          <div
+            ref={panelRef}
+            role="dialog"
+            aria-label="人生轨迹"
+            className="rounded-xl border border-slate-200 bg-white p-3 shadow-lg max-h-60 overflow-y-auto overscroll-y-contain touch-pan-y"
+            style={{ WebkitOverflowScrolling: 'touch' }}
+            onWheel={handleLifePathWheel}
+            onTouchStart={(event) => event.stopPropagation()}
+            onTouchMove={(event) => event.stopPropagation()}
           >
-            进入时间轴
-          </button>
+            <div className="flex items-start justify-between gap-2 mb-2">
+              <p className="text-xs font-semibold text-slate-500">人生轨迹</p>
+              <button
+                type="button"
+                className="text-xs text-slate-500 hover:text-slate-800 shrink-0 sm:hidden"
+                onClick={() => setShowLifePath(false)}
+              >
+                收起
+              </button>
+            </div>
+            <p className="text-sm text-slate-800 leading-relaxed whitespace-pre-wrap">
+              {lifePathDisplayText}
+            </p>
+            <button
+              type="button"
+              className="mt-3 text-xs text-indigo-600 hover:underline"
+              onClick={() => navigate(`/u/${accountId}`)}
+            >
+              进入时间轴
+            </button>
+          </div>
         </div>
       )}
     </div>

@@ -1,5 +1,6 @@
 import {
   LIFE_PATH_CATEGORY_LABELS,
+  formatPublishedLifePathDisplayText,
   renderPublishedLifePathText,
 } from '@shared/utils/lifeResumeLifePath.js';
 
@@ -14,7 +15,7 @@ export default function LifePathPreviewModal({
 }) {
   if (!open || !draft) return null;
 
-  const previewText = renderPublishedLifePathText(draft);
+  const previewText = formatPublishedLifePathDisplayText(renderPublishedLifePathText(draft));
   const nodes = [...(draft.nodes || [])].sort((a, b) => a.sortOrder - b.sortOrder);
   const busy = publishing || discarding;
 
