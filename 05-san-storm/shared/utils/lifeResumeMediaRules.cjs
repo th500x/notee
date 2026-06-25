@@ -26,7 +26,7 @@ function extensionForMime(mimeType) {
   return MIME_EXT[String(mimeType || '').toLowerCase()] || null;
 }
 
-function validateMediaUploadRequest({ mediaType, mimeType, sizeBytes }) {
+function validateMediaUploadRequest({ mediaType, mimeType, sizeBytes, skipSizeCheck = false }) {
   const type = String(mediaType || '').trim();
   const mime = String(mimeType || '').trim().toLowerCase();
   const size = Number(sizeBytes);
@@ -39,7 +39,7 @@ function validateMediaUploadRequest({ mediaType, mimeType, sizeBytes }) {
     if (!PHOTO_MIME_SET.has(mime)) {
       return { ok: false, error: '照片仅支持 JPG、PNG、WebP', code: 'INVALID_MEDIA' };
     }
-    if (size > LIFE_PHOTO_MAX_BYTES) {
+    if (!skipSizeCheck && size > LIFE_PHOTO_MAX_BYTES) {
       return { ok: false, error: '单张照片不能超过 10MB', code: 'MEDIA_TOO_LARGE' };
     }
     return { ok: true, mediaType: 'photo', mimeType: mime, sizeBytes: size };

@@ -8,6 +8,7 @@ import {
   shouldWarnPhotoUpscale,
 } from '@shared/utils/lifeResumePhotoCrop.js';
 import { renderCroppedPhotoBlob, buildProcessedPhotoFile } from '@/utils/processEntryPhoto';
+import { validateMediaUploadRequest } from '@shared/utils/lifeResumeMediaRules.js';
 
 const DEFAULT_PRESET_ID = 'square_1080';
 
@@ -98,6 +99,15 @@ export default function EntryPhotoCropModal({ open, file, onCancel, onConfirm })
         mimeType: file.type,
       });
       const processed = buildProcessedPhotoFile(file, blob);
+      const sizeCheck = validateMediaUploadRequest({
+        mediaType: 'photo',
+        mimeType: processed.type,
+        sizeBytes: processed.size,
+      });
+      if (!sizeCheck.ok) {
+        setError(sizeCheck.error);
+        return;
+      }
       onConfirm?.(processed);
     } catch (err) {
       setError(err.message || '处理图片失败');
