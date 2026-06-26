@@ -380,7 +380,7 @@ export const LIFE_PATH_DEFAULT_STYLE_VARIANT = 'factual';
 
 export const LIFE_PATH_STYLE_LABELS = {
   factual: '平实记述',
-  expressive: '生动表达',
+  expressive: '生动表述',
 };
 
 function parseStoredLifePathDraft(raw) {
