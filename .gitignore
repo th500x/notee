@@ -92,6 +92,7 @@ public
 !05-san-storm/public
 !05-san-storm/game/public
 !05-san-storm/wiki/public
+!11-life-resume/public
 
 # Storybook build outputs
 .out
