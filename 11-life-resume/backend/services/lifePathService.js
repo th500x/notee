@@ -9,6 +9,9 @@ const {
   parseLifePathDraftJson,
   renderPublishedLifePathText,
   resolvePublishedLifePathForPublic,
+  assessLifePathGenerateCooldown,
+  formatLifePathCooldownRemaining,
+  DEFAULT_LIFE_PATH_COOLDOWN_HOURS,
   LIFE_PATH_AI_INPUT_MODES,
   LIFE_PATH_NODE_MIN,
   LIFE_PATH_NODE_MAX,
@@ -18,7 +21,10 @@ const { listEntriesForOwner, EntryServiceError } = require('./lifeEntryService')
 const { chatCompletionJson, isDashScopeConfigured } = require('./dashscopeClient');
 const { SYSTEM_PROMPT, buildUserPrompt } = require('./lifePathPrompt');
 
-const COOLDOWN_HOURS = parseInt(process.env.LIFE_PATH_COOLDOWN_HOURS || '24', 10);
+const COOLDOWN_HOURS = parseInt(
+  process.env.LIFE_PATH_COOLDOWN_HOURS || String(DEFAULT_LIFE_PATH_COOLDOWN_HOURS),
+  10
+);
 const MAX_ENTRIES = parseInt(process.env.LIFE_PATH_MAX_ENTRIES || '80', 10);
 const BODY_MAX_CHARS = parseInt(process.env.LIFE_PATH_BODY_MAX_CHARS || '400', 10);
 
@@ -80,16 +86,13 @@ function selectEntriesForAi(entries) {
 }
 
 function assessGenerateCooldown(generatedAt) {
-  if (!generatedAt) return { ok: true };
-  const last = new Date(generatedAt);
-  if (Number.isNaN(last.getTime())) return { ok: true };
-  const elapsedMs = Date.now() - last.getTime();
-  const cooldownMs = COOLDOWN_HOURS * 60 * 60 * 1000;
-  if (elapsedMs >= cooldownMs) return { ok: true };
-  const remainHours = Math.ceil((cooldownMs - elapsedMs) / (60 * 60 * 1000));
+  const result = assessLifePathGenerateCooldown(generatedAt, COOLDOWN_HOURS);
+  if (result.ok) return { ok: true };
   return {
     ok: false,
-    message: `生成轨迹冷却中，请约 ${remainHours} 小时后再试`,
+    message: `生成轨迹冷却中，${formatLifePathCooldownRemaining(result.remainingMs)}`,
+    availableAt: result.availableAt,
+    remainingMs: result.remainingMs,
   };
 }
 

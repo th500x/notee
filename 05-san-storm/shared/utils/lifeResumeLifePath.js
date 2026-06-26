@@ -8,6 +8,7 @@ import { countGraphemes } from './lifeResumeGraphemeCount.js';
 export const LIFE_PATH_TOTAL_MAX = 500;
 export const LIFE_PATH_NODE_MIN = 20;
 export const LIFE_PATH_NODE_MAX = 50;
+export const DEFAULT_LIFE_PATH_COOLDOWN_HOURS = 24;
 
 export const LIFE_PATH_CATEGORIES = [
   'location',
@@ -386,4 +387,42 @@ export function resolvePublishedLifePathForPublic(profileRow, hasPublicEntries) 
   const text = profileRow.life_path_published_text;
   if (!text || !String(text).trim()) return null;
   return String(text).trim();
+}
+
+export function assessLifePathGenerateCooldown(
+  generatedAt,
+  cooldownHours = DEFAULT_LIFE_PATH_COOLDOWN_HOURS,
+  now = new Date()
+) {
+  if (!generatedAt) {
+    return { ok: true, availableAt: null, remainingMs: 0 };
+  }
+  const last = generatedAt instanceof Date ? generatedAt : new Date(generatedAt);
+  if (Number.isNaN(last.getTime())) {
+    return { ok: true, availableAt: null, remainingMs: 0 };
+  }
+  const cooldownMs = Math.max(1, Number(cooldownHours) || DEFAULT_LIFE_PATH_COOLDOWN_HOURS) * 60 * 60 * 1000;
+  const elapsedMs = now.getTime() - last.getTime();
+  if (elapsedMs >= cooldownMs) {
+    return { ok: true, availableAt: null, remainingMs: 0 };
+  }
+  const remainingMs = cooldownMs - elapsedMs;
+  return {
+    ok: false,
+    availableAt: new Date(last.getTime() + cooldownMs),
+    remainingMs,
+  };
+}
+
+export function formatLifePathCooldownRemaining(remainingMs) {
+  const ms = Math.max(0, Number(remainingMs) || 0);
+  if (ms <= 0) return '可以生成';
+  const totalMinutes = Math.ceil(ms / 60000);
+  if (totalMinutes >= 60) {
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+    if (minutes === 0) return `约 ${hours} 小时后可再生成`;
+    return `约 ${hours} 小时 ${minutes} 分钟后可再生成`;
+  }
+  return `约 ${totalMinutes} 分钟后可再生成`;
 }

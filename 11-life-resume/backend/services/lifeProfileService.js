@@ -17,9 +17,14 @@ const {
   isPlaceholderClientIp,
 } = require('../../../05-san-storm/shared/utils/lifeResumeProfileRegion.cjs');
 const { resolveRegionFromIp } = require('./ipGeolocationService');
-const { parseLifePathDraftJson } = require('../../../05-san-storm/shared/utils/lifeResumeLifePath.cjs');
+const { parseLifePathDraftJson, assessLifePathGenerateCooldown, DEFAULT_LIFE_PATH_COOLDOWN_HOURS } = require('../../../05-san-storm/shared/utils/lifeResumeLifePath.cjs');
 
 const VISIBILITY_VALUES = new Set(['public', 'private', 'specific']);
+
+const LIFE_PATH_COOLDOWN_HOURS = parseInt(
+  process.env.LIFE_PATH_COOLDOWN_HOURS || String(DEFAULT_LIFE_PATH_COOLDOWN_HOURS),
+  10
+);
 
 const DEACTIVATION_GRACE_DAYS = parseInt(
   process.env.LIFE_RESUME_DEACTIVATION_GRACE_DAYS || '30',
@@ -69,13 +74,24 @@ function formatProfileRow(row) {
 
 function enrichProfile(row) {
   const base = formatProfileRow(row);
-  const cooldown = assessUsernameChangeCooldown(row.username_changed_at);
+  const usernameCooldown = assessUsernameChangeCooldown(row.username_changed_at);
+  const lifePathCooldown = assessLifePathGenerateCooldown(
+    row.life_path_generated_at,
+    LIFE_PATH_COOLDOWN_HOURS
+  );
   return {
     ...base,
     isDefaultUsername: isDefaultUsernameForAccount(row.account_id, row.username_normalized),
-    usernameChangeAllowed: cooldown.ok,
-    usernameChangeAvailableAt: cooldown.availableAt ? cooldown.availableAt.toISOString() : null,
-    usernameChangeDaysRemaining: cooldown.ok ? 0 : cooldown.daysRemaining,
+    usernameChangeAllowed: usernameCooldown.ok,
+    usernameChangeAvailableAt: usernameCooldown.availableAt
+      ? usernameCooldown.availableAt.toISOString()
+      : null,
+    usernameChangeDaysRemaining: usernameCooldown.ok ? 0 : usernameCooldown.daysRemaining,
+    lifePathCooldownHours: LIFE_PATH_COOLDOWN_HOURS,
+    lifePathGenerateAllowed: lifePathCooldown.ok,
+    lifePathGenerateAvailableAt: lifePathCooldown.availableAt
+      ? lifePathCooldown.availableAt.toISOString()
+      : null,
   };
 }
 

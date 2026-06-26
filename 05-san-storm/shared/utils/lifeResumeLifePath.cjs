@@ -8,6 +8,7 @@ const { countGraphemes } = require('./lifeResumeGraphemeCount.cjs');
 const LIFE_PATH_TOTAL_MAX = 500;
 const LIFE_PATH_NODE_MIN = 20;
 const LIFE_PATH_NODE_MAX = 50;
+const DEFAULT_LIFE_PATH_COOLDOWN_HOURS = 24;
 
 const LIFE_PATH_CATEGORIES = [
   'location',
@@ -388,10 +389,49 @@ function resolvePublishedLifePathForPublic(profileRow, hasPublicEntries) {
   return String(text).trim();
 }
 
+function assessLifePathGenerateCooldown(
+  generatedAt,
+  cooldownHours = DEFAULT_LIFE_PATH_COOLDOWN_HOURS,
+  now = new Date()
+) {
+  if (!generatedAt) {
+    return { ok: true, availableAt: null, remainingMs: 0 };
+  }
+  const last = generatedAt instanceof Date ? generatedAt : new Date(generatedAt);
+  if (Number.isNaN(last.getTime())) {
+    return { ok: true, availableAt: null, remainingMs: 0 };
+  }
+  const cooldownMs = Math.max(1, Number(cooldownHours) || DEFAULT_LIFE_PATH_COOLDOWN_HOURS) * 60 * 60 * 1000;
+  const elapsedMs = now.getTime() - last.getTime();
+  if (elapsedMs >= cooldownMs) {
+    return { ok: true, availableAt: null, remainingMs: 0 };
+  }
+  const remainingMs = cooldownMs - elapsedMs;
+  return {
+    ok: false,
+    availableAt: new Date(last.getTime() + cooldownMs),
+    remainingMs,
+  };
+}
+
+function formatLifePathCooldownRemaining(remainingMs) {
+  const ms = Math.max(0, Number(remainingMs) || 0);
+  if (ms <= 0) return '可以生成';
+  const totalMinutes = Math.ceil(ms / 60000);
+  if (totalMinutes >= 60) {
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+    if (minutes === 0) return `约 ${hours} 小时后可再生成`;
+    return `约 ${hours} 小时 ${minutes} 分钟后可再生成`;
+  }
+  return `约 ${totalMinutes} 分钟后可再生成`;
+}
+
 module.exports = {
   LIFE_PATH_TOTAL_MAX,
   LIFE_PATH_NODE_MIN,
   LIFE_PATH_NODE_MAX,
+  DEFAULT_LIFE_PATH_COOLDOWN_HOURS,
   LIFE_PATH_CATEGORIES,
   LIFE_PATH_CATEGORY_LABELS,
   LIFE_PATH_AI_INPUT_MODES,
@@ -408,4 +448,6 @@ module.exports = {
   validateLifePathDraft,
   parseLifePathDraftJson,
   resolvePublishedLifePathForPublic,
+  assessLifePathGenerateCooldown,
+  formatLifePathCooldownRemaining,
 };

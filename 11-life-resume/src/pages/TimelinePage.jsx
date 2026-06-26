@@ -241,6 +241,10 @@ export default function TimelinePage() {
           onPreviewLifePathClick={viewerIsOwner ? handlePreviewExistingDraft : undefined}
           generatingLifePath={generatingLifePath}
           lifePathStatus={isOwner ? profile?.lifePathStatus : 'none'}
+          lifePathGeneratedAt={isOwner ? profile?.lifePathGeneratedAt : null}
+          lifePathGenerateAvailableAt={isOwner ? profile?.lifePathGenerateAvailableAt : null}
+          lifePathCooldownHours={isOwner ? profile?.lifePathCooldownHours : undefined}
+          lifePathGenerateAllowed={isOwner ? profile?.lifePathGenerateAllowed : true}
         />
         <ProfileTagStats entries={entries} />
       </div>
