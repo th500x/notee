@@ -28,7 +28,7 @@ export function useLifePathGenerateCooldown({
 
   useEffect(() => {
     if (!onCooldown) return undefined;
-    const timer = setInterval(() => setNowMs(Date.now()), 30000);
+    const timer = setInterval(() => setNowMs(Date.now()), 60000);
     return () => clearInterval(timer);
   }, [onCooldown]);
 

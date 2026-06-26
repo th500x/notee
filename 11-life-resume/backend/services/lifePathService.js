@@ -7,6 +7,10 @@ const { validateAccountIdFormat } = require('../../../05-san-storm/shared/utils/
 const {
   validateLifePathDraft,
   parseLifePathDraftJson,
+  getLifePathDraftVariant,
+  buildLifePathDraftEnvelope,
+  LIFE_PATH_STYLE_VARIANTS,
+  LIFE_PATH_DEFAULT_STYLE_VARIANT,
   renderPublishedLifePathText,
   resolvePublishedLifePathForPublic,
   assessLifePathGenerateCooldown,
@@ -19,7 +23,7 @@ const {
 const { findProfileByAccountId, getProfileForAccount, ProfileServiceError } = require('./lifeProfileService');
 const { listEntriesForOwner, EntryServiceError } = require('./lifeEntryService');
 const { chatCompletionJson, isDashScopeConfigured } = require('./dashscopeClient');
-const { SYSTEM_PROMPT, buildUserPrompt } = require('./lifePathPrompt');
+const { getSystemPromptForVariant, buildUserPrompt } = require('./lifePathPrompt');
 
 const COOLDOWN_HOURS = parseInt(
   process.env.LIFE_PATH_COOLDOWN_HOURS || String(DEFAULT_LIFE_PATH_COOLDOWN_HOURS),
@@ -135,7 +139,7 @@ function throwMappedAiError(err) {
   );
 }
 
-async function generateValidatedDraft({ username, aiEntries, inputMode }) {
+async function generateValidatedDraft({ username, aiEntries, inputMode, styleVariant = 'factual' }) {
   const scopedEntries =
     inputMode === 'public_only'
       ? aiEntries.filter((entry) => entry.status === 'published' && entry.visibility === 'public')
@@ -166,7 +170,7 @@ async function generateValidatedDraft({ username, aiEntries, inputMode }) {
     let aiResult;
     try {
       aiResult = await chatCompletionJson({
-        systemPrompt: SYSTEM_PROMPT,
+        systemPrompt: getSystemPromptForVariant(styleVariant),
         userPrompt,
       });
     } catch (err) {
@@ -190,6 +194,38 @@ async function generateValidatedDraft({ username, aiEntries, inputMode }) {
   }
 
   return { ok: false, code: 'LIFE_PATH_INVALID_DRAFT', error: '轨迹草稿格式无效' };
+}
+
+async function generateBothStyleVariants({ username, aiEntries, inputMode }) {
+  const variants = {};
+  let lastModel = null;
+  let sourceEntryIds = [];
+
+  for (const styleVariant of LIFE_PATH_STYLE_VARIANTS) {
+    const result = await generateValidatedDraft({
+      username,
+      aiEntries,
+      inputMode,
+      styleVariant,
+    });
+    if (!result.ok) {
+      return result;
+    }
+    variants[styleVariant] = result.draft;
+    lastModel = result.draft.model || lastModel;
+    sourceEntryIds = result.draft.sourceEntryIds || sourceEntryIds;
+  }
+
+  return {
+    ok: true,
+    envelope: buildLifePathDraftEnvelope({
+      variants,
+      sourceEntryIds,
+      model: lastModel,
+      generatedAt: new Date().toISOString(),
+      selectedVariant: LIFE_PATH_DEFAULT_STYLE_VARIANT,
+    }),
+  };
 }
 
 async function generateLifePathForOwner(accountId) {
@@ -225,18 +261,18 @@ async function generateLifePathForOwner(accountId) {
   }
 
   const aiEntries = selectEntriesForAi(entries);
-  let validated = null;
+  let validatedEnvelope = null;
   let lastModerationError = null;
 
   for (const inputMode of LIFE_PATH_AI_INPUT_MODES) {
     try {
-      const result = await generateValidatedDraft({
+      const result = await generateBothStyleVariants({
         username: row.username,
         aiEntries,
         inputMode,
       });
       if (result.ok) {
-        validated = result;
+        validatedEnvelope = result.envelope;
         break;
       }
       if (result.code === 'LIFE_PATH_NO_PUBLIC_ENTRIES') {
@@ -253,7 +289,7 @@ async function generateLifePathForOwner(accountId) {
     }
   }
 
-  if (!validated?.ok) {
+  if (!validatedEnvelope) {
     if (lastModerationError) {
       throwMappedAiError(lastModerationError);
     }
@@ -270,14 +306,14 @@ async function generateLifePathForOwner(accountId) {
       life_path_status = 'draft',
       life_path_generated_at = CURRENT_TIMESTAMP(3)
      WHERE account_id = ?`,
-    [JSON.stringify(validated.draft), id]
+    [JSON.stringify(validatedEnvelope), id]
   );
 
   const updated = await findProfileByAccountId(id);
   return formatLifePathState(updated);
 }
 
-async function publishLifePathForOwner(accountId) {
+async function publishLifePathForOwner(accountId, { variant } = {}) {
   const id = String(accountId || '').trim().toUpperCase();
   const row = await findProfileByAccountId(id);
   if (!row) {
@@ -285,7 +321,17 @@ async function publishLifePathForOwner(accountId) {
   }
   assertActiveProfile(row);
 
-  const draft = parseLifePathDraftJson(row.life_path_draft_json);
+  const envelope = parseLifePathDraftJson(row.life_path_draft_json);
+  if (!envelope) {
+    throw new LifePathServiceError('LIFE_PATH_NOTHING_TO_PUBLISH', '没有可发布的轨迹草稿', 400);
+  }
+
+  const variantKey = String(variant || envelope.selectedVariant || LIFE_PATH_DEFAULT_STYLE_VARIANT).trim();
+  if (!LIFE_PATH_STYLE_VARIANTS.includes(variantKey)) {
+    throw new LifePathServiceError('LIFE_PATH_INVALID_VARIANT', '轨迹风格无效', 400);
+  }
+
+  const draft = getLifePathDraftVariant(envelope, variantKey);
   if (!draft) {
     throw new LifePathServiceError('LIFE_PATH_NOTHING_TO_PUBLISH', '没有可发布的轨迹草稿', 400);
   }

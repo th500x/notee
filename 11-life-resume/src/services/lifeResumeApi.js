@@ -157,10 +157,10 @@ export async function generateMyLifePath() {
 }
 
 /** POST /api/life-resume/profiles/me/life-path/publish */
-export async function publishMyLifePath() {
+export async function publishMyLifePath({ variant } = {}) {
   return lifeResumeFetch('/profiles/me/life-path/publish', {
     method: 'POST',
-    body: JSON.stringify({}),
+    body: JSON.stringify(variant ? { variant } : {}),
   });
 }
 

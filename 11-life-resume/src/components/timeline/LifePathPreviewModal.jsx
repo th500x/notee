@@ -1,6 +1,11 @@
+import { useEffect, useMemo, useState } from 'react';
 import {
   LIFE_PATH_CATEGORY_LABELS,
+  LIFE_PATH_STYLE_LABELS,
+  LIFE_PATH_DEFAULT_STYLE_VARIANT,
   formatPublishedLifePathDisplayText,
+  getLifePathDraftVariant,
+  listAvailableLifePathVariants,
   renderPublishedLifePathText,
 } from '@shared/utils/lifeResumeLifePath.js';
 
@@ -13,11 +18,33 @@ export default function LifePathPreviewModal({
   publishing = false,
   discarding = false,
 }) {
+  const availableVariants = useMemo(
+    () => (draft ? listAvailableLifePathVariants(draft) : []),
+    [draft]
+  );
+
+  const [selectedVariant, setSelectedVariant] = useState(LIFE_PATH_DEFAULT_STYLE_VARIANT);
+
+  useEffect(() => {
+    if (!open || !draft) return;
+    const initial =
+      draft.selectedVariant && availableVariants.includes(draft.selectedVariant)
+        ? draft.selectedVariant
+        : availableVariants[0] || LIFE_PATH_DEFAULT_STYLE_VARIANT;
+    setSelectedVariant(initial);
+  }, [open, draft, availableVariants]);
+
   if (!open || !draft) return null;
 
-  const previewText = formatPublishedLifePathDisplayText(renderPublishedLifePathText(draft));
-  const nodes = [...(draft.nodes || [])].sort((a, b) => a.sortOrder - b.sortOrder);
+  const activeVariant =
+    availableVariants.includes(selectedVariant) ? selectedVariant : availableVariants[0];
+  const activeDraft = getLifePathDraftVariant(draft, activeVariant);
+  if (!activeDraft) return null;
+
+  const previewText = formatPublishedLifePathDisplayText(renderPublishedLifePathText(activeDraft));
+  const nodes = [...(activeDraft.nodes || [])].sort((a, b) => a.sortOrder - b.sortOrder);
   const busy = publishing || discarding;
+  const hasBothStyles = availableVariants.length > 1;
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
@@ -38,14 +65,42 @@ export default function LifePathPreviewModal({
         <div className="px-5 py-5 space-y-5">
           <p className="text-sm text-amber-800 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
             轨迹将出现在公开卡片（悬浮或长按可见）。请勿发布含隐私的表述；私密片段内容不会自动出现在下方，但仍请自行核对。
+            {hasBothStyles && ' 请先对比两种文风，再选择其一发布。'}
           </p>
 
+          {hasBothStyles && (
+            <div className="flex flex-wrap gap-2">
+              {availableVariants.map((variantKey) => (
+                <button
+                  key={variantKey}
+                  type="button"
+                  disabled={busy}
+                  className={
+                    activeVariant === variantKey
+                      ? 'rounded-full px-4 py-2 text-sm font-medium bg-indigo-600 text-white'
+                      : 'rounded-full px-4 py-2 text-sm font-medium border border-slate-300 text-slate-700 hover:bg-slate-50'
+                  }
+                  onClick={() => setSelectedVariant(variantKey)}
+                >
+                  {LIFE_PATH_STYLE_LABELS[variantKey] || variantKey}
+                </button>
+              ))}
+            </div>
+          )}
+
           <section className="space-y-3">
-            <h3 className="text-sm font-semibold text-slate-800">重要节点</h3>
+            <h3 className="text-sm font-semibold text-slate-800">
+              重要节点
+              {hasBothStyles && (
+                <span className="ml-2 text-xs font-normal text-slate-500">
+                  （{LIFE_PATH_STYLE_LABELS[activeVariant]}）
+                </span>
+              )}
+            </h3>
             <ul className="space-y-3">
               {nodes.map((node) => (
                 <li
-                  key={`${node.sortOrder}-${node.timeLabel}-${node.text.slice(0, 8)}`}
+                  key={`${activeVariant}-${node.sortOrder}-${node.timeLabel}-${node.text.slice(0, 8)}`}
                   className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2"
                 >
                   <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 mb-1">
@@ -60,11 +115,11 @@ export default function LifePathPreviewModal({
             </ul>
           </section>
 
-          {draft.summaryText && (
+          {activeDraft.summaryText && (
             <section className="space-y-2">
               <h3 className="text-sm font-semibold text-slate-800">总述</h3>
               <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">
-                {draft.summaryText}
+                {activeDraft.summaryText}
               </p>
             </section>
           )}
@@ -100,9 +155,13 @@ export default function LifePathPreviewModal({
             type="button"
             disabled={busy}
             className="flex-1 min-w-[120px] rounded-lg bg-indigo-600 text-white py-2.5 hover:bg-indigo-700 disabled:opacity-60"
-            onClick={onPublish}
+            onClick={() => onPublish?.(activeVariant)}
           >
-            {publishing ? '发布中…' : '发布轨迹'}
+            {publishing
+              ? '发布中…'
+              : hasBothStyles
+                ? `发布「${LIFE_PATH_STYLE_LABELS[activeVariant]}」`
+                : '发布轨迹'}
           </button>
         </div>
       </div>

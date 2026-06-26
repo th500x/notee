@@ -50,7 +50,8 @@ router.post('/generate', requireAuth, async (req, res) => {
 router.post('/publish', requireAuth, async (req, res) => {
   try {
     const accountId = String(req.player.sub);
-    const data = await publishLifePathForOwner(accountId);
+    const variant = req.body?.variant;
+    const data = await publishLifePathForOwner(accountId, { variant });
     return res.json({ success: true, data });
   } catch (err) {
     return handleLifePathError(res, err);

@@ -98,7 +98,7 @@ export default function ProfileHeader({
                 disabled={generateDisabled}
                 aria-disabled={generateDisabled || cooldownActive}
               >
-                {generatingLifePath ? '生成中…' : '生成轨迹'}
+                {generatingLifePath ? '生成两种风格中…' : '生成轨迹'}
               </button>
               {cooldownActive && showCooldownHint && (
                 <div

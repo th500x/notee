@@ -139,7 +139,7 @@ export default function TimelinePage() {
       const res = await generateMyLifePath();
       openLifePathPreview(res.data?.lifePathDraft);
       await refreshProfile();
-      showToast('轨迹草稿已生成', { type: 'success' });
+      showToast('两种风格的轨迹草稿已生成', { type: 'success' });
     } catch (err) {
       showToast(formatLifeResumeError(err), { type: 'error' });
       if (isAuthError(err)) {
@@ -154,10 +154,10 @@ export default function TimelinePage() {
     openLifePathPreview(profile?.lifePathDraft);
   };
 
-  const handlePublishLifePath = async () => {
+  const handlePublishLifePath = async (variant) => {
     setPublishingLifePath(true);
     try {
-      await publishMyLifePath();
+      await publishMyLifePath({ variant });
       await refreshProfile();
       setLifePathModalOpen(false);
       setLifePathDraft(null);

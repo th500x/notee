@@ -372,13 +372,90 @@ function validateLifePathDraft(draft) {
 }
 
 function parseLifePathDraftJson(raw) {
+  return normalizeLifePathDraftEnvelope(raw);
+}
+
+const LIFE_PATH_STYLE_VARIANTS = ['factual', 'expressive'];
+const LIFE_PATH_DEFAULT_STYLE_VARIANT = 'factual';
+
+const LIFE_PATH_STYLE_LABELS = {
+  factual: '平实记述',
+  expressive: '生动表达',
+};
+
+function parseStoredLifePathDraft(raw) {
   if (raw == null || raw === '') return null;
-  if (typeof raw === 'object') return normalizeDraft(raw);
+  if (typeof raw === 'object') return raw;
   try {
-    return normalizeDraft(JSON.parse(String(raw)));
+    return JSON.parse(String(raw));
   } catch {
     return null;
   }
+}
+
+function normalizeLifePathDraftEnvelope(raw) {
+  const parsed = parseStoredLifePathDraft(raw);
+  if (!parsed || typeof parsed !== 'object') return null;
+
+  if (parsed.variants && typeof parsed.variants === 'object') {
+    const variants = {};
+    for (const key of LIFE_PATH_STYLE_VARIANTS) {
+      const draft = parsed.variants[key] ? normalizeDraft(parsed.variants[key]) : null;
+      if (draft) variants[key] = draft;
+    }
+    if (!variants.factual && !variants.expressive) return null;
+    let selectedVariant = LIFE_PATH_STYLE_VARIANTS.includes(parsed.selectedVariant)
+      ? parsed.selectedVariant
+      : LIFE_PATH_DEFAULT_STYLE_VARIANT;
+    if (!variants[selectedVariant]) {
+      selectedVariant = variants.factual ? 'factual' : 'expressive';
+    }
+    return {
+      version: 2,
+      variants,
+      selectedVariant,
+      sourceEntryIds: Array.isArray(parsed.sourceEntryIds)
+        ? parsed.sourceEntryIds.map((id) => String(id))
+        : [],
+      model: parsed.model != null ? String(parsed.model) : null,
+      generatedAt: parsed.generatedAt != null ? String(parsed.generatedAt) : null,
+    };
+  }
+
+  const legacy = normalizeDraft(parsed);
+  if (!legacy) return null;
+  return {
+    version: 2,
+    variants: { factual: legacy },
+    selectedVariant: LIFE_PATH_DEFAULT_STYLE_VARIANT,
+    sourceEntryIds: legacy.sourceEntryIds || [],
+    model: legacy.model || null,
+    generatedAt: legacy.generatedAt || null,
+  };
+}
+
+function getLifePathDraftVariant(envelope, variantKey = LIFE_PATH_DEFAULT_STYLE_VARIANT) {
+  if (!envelope?.variants) return null;
+  const key = LIFE_PATH_STYLE_VARIANTS.includes(variantKey) ? variantKey : envelope.selectedVariant;
+  return envelope.variants[key] || null;
+}
+
+function listAvailableLifePathVariants(envelope) {
+  if (!envelope?.variants) return [];
+  return LIFE_PATH_STYLE_VARIANTS.filter((key) => envelope.variants[key]?.nodes?.length);
+}
+
+function buildLifePathDraftEnvelope({ variants, sourceEntryIds, model, generatedAt, selectedVariant }) {
+  return {
+    version: 2,
+    variants,
+    selectedVariant: LIFE_PATH_STYLE_VARIANTS.includes(selectedVariant)
+      ? selectedVariant
+      : LIFE_PATH_DEFAULT_STYLE_VARIANT,
+    sourceEntryIds: Array.isArray(sourceEntryIds) ? sourceEntryIds.map((id) => String(id)) : [],
+    model: model != null ? String(model) : null,
+    generatedAt: generatedAt || new Date().toISOString(),
+  };
 }
 
 function resolvePublishedLifePathForPublic(profileRow, hasPublicEntries) {
@@ -435,6 +512,9 @@ module.exports = {
   LIFE_PATH_CATEGORIES,
   LIFE_PATH_CATEGORY_LABELS,
   LIFE_PATH_AI_INPUT_MODES,
+  LIFE_PATH_STYLE_VARIANTS,
+  LIFE_PATH_DEFAULT_STYLE_VARIANT,
+  LIFE_PATH_STYLE_LABELS,
   sanitizeLifePathAiText,
   buildLifePathAiEntrySnapshot,
   filterEntriesForLifePathInputMode,
@@ -447,6 +527,10 @@ module.exports = {
   renderPublishedLifePathText,
   validateLifePathDraft,
   parseLifePathDraftJson,
+  normalizeLifePathDraftEnvelope,
+  getLifePathDraftVariant,
+  listAvailableLifePathVariants,
+  buildLifePathDraftEnvelope,
   resolvePublishedLifePathForPublic,
   assessLifePathGenerateCooldown,
   formatLifePathCooldownRemaining,
