@@ -66,10 +66,13 @@ export default function ProfileHeader({
         >
           {copied ? '已复制链接' : `复制链接 ${publicPath}`}
         </button>
-        {isOwner && lifePathStatus === 'published' && (
+        {isOwner && generatingLifePath && (
+          <p className="text-xs text-indigo-600">正在生成两种风格轨迹…</p>
+        )}
+        {isOwner && !generatingLifePath && lifePathStatus === 'published' && (
           <p className="text-xs text-emerald-700">轨迹已发布</p>
         )}
-        {isOwner && lifePathStatus === 'draft' && (
+        {isOwner && !generatingLifePath && lifePathStatus === 'draft' && (
           <button
             type="button"
             className="text-xs text-amber-700 hover:underline"
