@@ -8,12 +8,32 @@ export default function TimelineSection({
   onEdit,
   onDelete,
 }) {
+  const isPinned = section.type === 'pinned';
+
   return (
-    <section className="relative pl-6 border-l-2 border-indigo-100">
-      <div className="absolute -left-[9px] top-0 h-4 w-4 rounded-full bg-indigo-500 ring-4 ring-white" />
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mb-4 -mt-1">
-        <h2 className="text-lg font-semibold text-slate-900">
-          {section.type === 'year' ? `${section.label}` : section.label}
+    <section
+      className={
+        isPinned ? 'mb-6 space-y-4' : 'relative pl-6 border-l-2 border-indigo-100'
+      }
+    >
+      {!isPinned && (
+        <div className="absolute -left-[9px] top-0 h-4 w-4 rounded-full bg-indigo-500 ring-4 ring-white" />
+      )}
+      <div
+        className={
+          isPinned
+            ? 'flex flex-wrap items-center gap-x-3 gap-y-1'
+            : 'flex flex-wrap items-center gap-x-3 gap-y-1 mb-4 -mt-1'
+        }
+      >
+        <h2
+          className={
+            isPinned
+              ? 'text-sm font-semibold text-indigo-700 tracking-wide'
+              : 'text-lg font-semibold text-slate-900'
+          }
+        >
+          {section.label}
         </h2>
         <button
           type="button"
@@ -24,7 +44,7 @@ export default function TimelineSection({
         </button>
       </div>
       {!collapsed && (
-        <div className="space-y-4 pb-8">
+        <div className={isPinned ? 'space-y-4' : 'space-y-4 pb-8'}>
           {section.entries.map((entry) => (
             <TimelineEntryCard
               key={entry.id}

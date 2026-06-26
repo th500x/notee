@@ -5,7 +5,7 @@ import {
 } from '@/utils/timelineSectionCollapse';
 
 /**
- * 按公开页 ownerId 持久化各年份/未知块的收起状态（localStorage）。
+ * 按公开页 ownerId 持久化置顶 / 年份 / 未知各块的收起状态（localStorage）。
  */
 export function useTimelineSectionCollapse(ownerAccountId) {
   const ownerId = String(ownerAccountId || '').trim().toUpperCase();

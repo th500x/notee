@@ -31,6 +31,7 @@ router.post('/sign', requireAuth, async (req, res) => {
       mediaType: body.mediaType,
       mimeType: body.mimeType,
       sizeBytes: body.sizeBytes,
+      filename: body.originalFilename,
     });
     if (!mediaCheck.ok) {
       return res.status(400).json({

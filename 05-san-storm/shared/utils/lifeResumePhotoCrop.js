@@ -10,6 +10,7 @@ export const LIFE_PHOTO_CROP_PRESETS = [
   { id: 'square_2160', label: '1:1 · 2160', kind: 'square', size: 2160 },
   { id: 'ratio_4_3', label: '4:3 / 3:4', kind: 'ratio', ratioKey: '4:3' },
   { id: 'ratio_16_9', label: '16:9 / 9:16', kind: 'ratio', ratioKey: '16:9' },
+  { id: 'ratio_16_9_4k', label: '16:9 / 9:16 · 4K', kind: 'ratio', ratioKey: '16:9_4k' },
 ];
 
 const RATIO_OUTPUT = {
@@ -20,6 +21,10 @@ const RATIO_OUTPUT = {
   '16:9': {
     landscape: { width: 1920, height: 1080, aspect: 16 / 9 },
     portrait: { width: 1080, height: 1920, aspect: 9 / 16 },
+  },
+  '16:9_4k': {
+    landscape: { width: 3840, height: 2160, aspect: 16 / 9 },
+    portrait: { width: 2160, height: 3840, aspect: 9 / 16 },
   },
 };
 

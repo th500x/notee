@@ -271,20 +271,14 @@ export default function TimelinePage() {
       {entries.length > 0 && (
         <div className="space-y-2">
           {pinned.length > 0 && (
-            <section className="mb-6 space-y-4">
-              <h2 className="text-sm font-semibold text-indigo-700 tracking-wide">置顶</h2>
-              <div className="space-y-4">
-                {pinned.map((entry) => (
-                  <TimelineEntryCard
-                    key={entry.id}
-                    entry={entry}
-                    isOwner={viewerIsOwner}
-                    onEdit={openEdit}
-                    onDelete={handleDelete}
-                  />
-                ))}
-              </div>
-            </section>
+            <TimelineSection
+              section={{ id: 'pinned', type: 'pinned', label: '置顶', entries: pinned }}
+              isOwner={viewerIsOwner}
+              collapsed={isSectionCollapsed('pinned')}
+              onToggleCollapse={() => toggleSectionCollapsed('pinned')}
+              onEdit={openEdit}
+              onDelete={handleDelete}
+            />
           )}
           {sections.map((section) => (
             <TimelineSection

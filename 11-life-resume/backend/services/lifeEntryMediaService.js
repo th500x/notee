@@ -84,6 +84,7 @@ function parseMediaInput(input) {
       mediaType: item.mediaType,
       mimeType: item.mimeType,
       sizeBytes: item.sizeBytes,
+      filename: item.originalFilename,
     });
     if (!uploadCheck.ok) {
       throw new MediaServiceError(uploadCheck.code, uploadCheck.error);

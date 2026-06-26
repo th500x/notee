@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
 import {
+  LIFE_DOCUMENT_ACCEPT,
   LIFE_MEDIA_MAX_PHOTOS,
   LIFE_PHOTO_MIME_TYPES,
   LIFE_VIDEO_MIME_TYPES,
@@ -12,6 +13,7 @@ const BUNDLE_TABS = [
   { value: 'none', label: '无' },
   { value: 'photos', label: '照片' },
   { value: 'video', label: '视频' },
+  { value: 'document', label: '文档' },
 ];
 
 function createStagingToken() {
@@ -19,6 +21,13 @@ function createStagingToken() {
     return crypto.randomUUID().replace(/-/g, '').slice(0, 16);
   }
   return Math.random().toString(36).slice(2, 18);
+}
+
+function resolveActiveMediaType(bundleType) {
+  if (bundleType === 'video') return 'video';
+  if (bundleType === 'document') return 'document';
+  if (bundleType === 'photos') return 'photo';
+  return null;
 }
 
 export default function EntryMediaUpload({
@@ -39,9 +48,15 @@ export default function EntryMediaUpload({
     [mediaItems]
   );
 
+  const hasDocument = useMemo(
+    () => mediaItems.some((item) => item.mediaType === 'document'),
+    [mediaItems]
+  );
+
   const acceptTypes = useMemo(() => {
     if (mediaBundleType === 'photos') return LIFE_PHOTO_MIME_TYPES.join(',');
     if (mediaBundleType === 'video') return LIFE_VIDEO_MIME_TYPES.join(',');
+    if (mediaBundleType === 'document') return LIFE_DOCUMENT_ACCEPT;
     return '';
   }, [mediaBundleType]);
 
@@ -52,7 +67,9 @@ export default function EntryMediaUpload({
       onMediaItemsChange([]);
     } else if (value === 'video') {
       onMediaItemsChange(mediaItems.filter((item) => item.mediaType === 'video').slice(0, 1));
-    } else {
+    } else if (value === 'document') {
+      onMediaItemsChange(mediaItems.filter((item) => item.mediaType === 'document').slice(0, 1));
+    } else if (value === 'photos') {
       onMediaItemsChange(mediaItems.filter((item) => item.mediaType === 'photo').slice(0, LIFE_MEDIA_MAX_PHOTOS));
     }
   };
@@ -62,6 +79,7 @@ export default function EntryMediaUpload({
       mediaType,
       mimeType: file.type,
       sizeBytes: file.size,
+      filename: file.name,
     });
     if (!check.ok) {
       setUploadError(check.error);
@@ -80,26 +98,26 @@ export default function EntryMediaUpload({
       const sign = await requestUploadSign({
         entryId: entryId || null,
         stagingToken: entryId ? null : stagingTokenRef.current,
-        mediaType,
-        mimeType: file.type,
-        sizeBytes: file.size,
+        mediaType: check.mediaType,
+        mimeType: check.mimeType,
+        sizeBytes: check.sizeBytes,
+        originalFilename: file.name,
         sortOrder,
       });
 
       await uploadFileToSignedUrl(sign.data, file);
 
-      const previewUrl = URL.createObjectURL(file);
       const nextItem = {
         ossKey: sign.data.ossKey,
-        mediaType,
-        mimeType: file.type,
-        sizeBytes: file.size,
+        mediaType: check.mediaType,
+        mimeType: check.mimeType,
+        sizeBytes: check.sizeBytes,
         sortOrder,
         originalFilename: file.name,
-        previewUrl,
+        previewUrl: mediaType === 'photo' ? URL.createObjectURL(file) : undefined,
       };
 
-      if (mediaType === 'video') {
+      if (mediaType === 'video' || mediaType === 'document') {
         onMediaItemsChange([nextItem]);
       } else {
         onMediaItemsChange([...mediaItems, nextItem]);
@@ -117,7 +135,8 @@ export default function EntryMediaUpload({
     if (!file || disabled || uploading) return;
 
     setUploadError('');
-    const mediaType = mediaBundleType === 'video' ? 'video' : 'photo';
+    const mediaType = resolveActiveMediaType(mediaBundleType);
+    if (!mediaType) return;
 
     if (mediaType === 'photo') {
       const preCheck = validateMediaUploadRequest({
@@ -150,6 +169,24 @@ export default function EntryMediaUpload({
     onMediaItemsChange(mediaItems.filter((item) => item.ossKey !== ossKey));
   };
 
+  const pickLabel =
+    mediaBundleType === 'photos'
+      ? '选择照片'
+      : mediaBundleType === 'video'
+        ? '选择视频'
+        : mediaBundleType === 'document'
+          ? '选择文档'
+          : '';
+
+  const hintText =
+    mediaBundleType === 'photos'
+      ? 'JPG / PNG / WebP，最多 3 张；先裁剪，裁剪后单张 ≤10MB（1:1 / 4:3 / 16:9，横竖自动适配）'
+      : mediaBundleType === 'video'
+        ? 'MP4，≤50MB，最多 1 个'
+        : mediaBundleType === 'document'
+          ? 'PDF / Word / Excel / PPT / TXT，≤10MB，最多 1 个'
+          : '';
+
   return (
     <section className="space-y-3">
       <EntryPhotoCropModal
@@ -160,6 +197,7 @@ export default function EntryMediaUpload({
       />
 
       <p className="text-sm font-medium text-slate-800">媒体 · 本地上传</p>
+      <p className="text-xs text-slate-500 -mt-1">照片、视频、文档只能选其一</p>
       <div className="flex flex-wrap gap-2">
         {BUNDLE_TABS.map((tab) => (
           <button
@@ -177,6 +215,7 @@ export default function EntryMediaUpload({
             {tab.label}
             {tab.value === 'photos' ? ` (${photoCount}/${LIFE_MEDIA_MAX_PHOTOS})` : ''}
             {tab.value === 'video' ? ` (${mediaItems.some((m) => m.mediaType === 'video') ? 1 : 0}/1)` : ''}
+            {tab.value === 'document' ? ` (${hasDocument ? 1 : 0}/1)` : ''}
           </button>
         ))}
       </div>
@@ -191,13 +230,9 @@ export default function EntryMediaUpload({
               disabled={disabled || uploading || !!cropFile}
               onChange={handleFileChange}
             />
-            {uploading ? '上传中…' : mediaBundleType === 'photos' ? '选择照片' : '选择视频'}
+            {uploading ? '上传中…' : pickLabel}
           </label>
-          <p className="text-xs text-slate-500 mt-2">
-            {mediaBundleType === 'photos'
-              ? 'JPG / PNG / WebP，最多 3 张；先裁剪，裁剪后单张 ≤10MB（1:1 / 4:3 / 16:9，横竖自动适配）'
-              : 'MP4，≤50MB，最多 1 个'}
-          </p>
+          <p className="text-xs text-slate-500 mt-2">{hintText}</p>
         </div>
       )}
 
@@ -218,6 +253,11 @@ export default function EntryMediaUpload({
               {item.mediaType === 'video' && (
                 <span className="w-12 h-12 rounded bg-slate-200 flex items-center justify-center text-xs">
                   MP4
+                </span>
+              )}
+              {item.mediaType === 'document' && (
+                <span className="w-12 h-12 rounded bg-slate-200 flex items-center justify-center text-lg">
+                  📄
                 </span>
               )}
               <div className="flex-1 min-w-0">
@@ -242,4 +282,3 @@ export default function EntryMediaUpload({
     </section>
   );
 }
-

@@ -3,6 +3,7 @@ import { formatEntryTimeLabel } from '@shared/utils/lifeResumeEntryTime.js';
 import { buildGoogleMapsUrl } from '@shared/utils/lifeResumeLocation.js';
 import EntryMediaGallery from '@/components/timeline/EntryMediaGallery';
 import EntryVideoPlayer from '@/components/timeline/EntryVideoPlayer';
+import EntryDocumentBlock from '@/components/timeline/EntryDocumentBlock';
 import EntryDriveBlock from '@/components/timeline/EntryDriveBlock';
 import EntryLocationLine from '@/components/timeline/EntryLocationLine';
 
@@ -129,6 +130,7 @@ export default function TimelineEntryCard({ entry, isOwner, onEdit, onDelete }) 
 
       <EntryMediaGallery media={entry.media} />
       <EntryVideoPlayer media={entry.media} />
+      <EntryDocumentBlock media={entry.media} />
       <EntryDriveBlock entry={entry} />
       <EntryLocationLine entry={entry} isOwner={isOwner} />
 
