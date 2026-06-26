@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   countGraphemes,
@@ -140,6 +140,8 @@ export default function EntryEditorModal({ open, entry, profileDefaults, onClose
   const [form, setForm] = useState(EMPTY_FORM);
   const [mediaBundleType, setMediaBundleType] = useState('none');
   const [mediaItems, setMediaItems] = useState([]);
+  const [initialPersistedOssKeys, setInitialPersistedOssKeys] = useState(() => new Set());
+  const saveCommittedRef = useRef(false);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -168,6 +170,10 @@ export default function EntryEditorModal({ open, entry, profileDefaults, onClose
         thumbUrl: item.thumbUrl,
       }))
     );
+    setInitialPersistedOssKeys(
+      new Set((entry?.media || []).map((item) => item.ossKey).filter(Boolean))
+    );
+    saveCommittedRef.current = false;
     setError('');
   }, [open, entry, profileDefaults]);
 
@@ -259,8 +265,13 @@ export default function EntryEditorModal({ open, entry, profileDefaults, onClose
       const result = isEdit
         ? await updateEntry(entry.id, payload)
         : await createEntry(payload);
+      const savedMedia = result.data?.media || [];
+      setInitialPersistedOssKeys(
+        new Set(savedMedia.map((item) => item.ossKey).filter(Boolean))
+      );
       onSaved?.(result.data, status);
       if (status === 'published') {
+        saveCommittedRef.current = true;
         onClose?.();
       }
     } catch (err) {
@@ -400,6 +411,8 @@ export default function EntryEditorModal({ open, entry, profileDefaults, onClose
             mediaItems={mediaItems}
             onBundleTypeChange={setMediaBundleType}
             onMediaItemsChange={setMediaItems}
+            initialPersistedOssKeys={initialPersistedOssKeys}
+            saveCommittedRef={saveCommittedRef}
             disabled={saving}
           />
 

@@ -7,6 +7,7 @@ const { requireAuth } = require('../middleware/auth');
 const { validateAccountIdFormat } = require('../../../05-san-storm/shared/utils/lifeResumeUsername.cjs');
 const { validateMediaUploadRequest } = require('../../../05-san-storm/shared/utils/lifeResumeMediaRules.cjs');
 const { createUploadSign, isOssAvailable } = require('../services/ossService');
+const { abandonUploadObject, AbandonUploadError } = require('../services/abandonUploadService');
 const { getEntryForOwner, EntryServiceError } = require('../services/lifeEntryService');
 
 const router = express.Router();
@@ -69,6 +70,41 @@ router.post('/sign', requireAuth, async (req, res) => {
     }
     console.error('[life-resume/upload/sign]', err);
     return res.status(500).json({ success: false, error: err.message || '签名失败' });
+  }
+});
+
+router.post('/abandon', requireAuth, async (req, res) => {
+  try {
+    if (!isOssAvailable()) {
+      return res.status(503).json({
+        success: false,
+        error: '未配置阿里云 OSS',
+        code: 'OSS_NOT_CONFIGURED',
+      });
+    }
+
+    const accountId = String(req.player.sub).trim().toUpperCase();
+    if (!validateAccountIdFormat(accountId)) {
+      return res.status(400).json({ success: false, error: '账号无效', code: 'INVALID_ACCOUNT_ID' });
+    }
+
+    const body = req.body && typeof req.body === 'object' ? req.body : {};
+    const ossKey = body.ossKey ? String(body.ossKey).trim() : '';
+    if (!ossKey) {
+      return res.status(400).json({ success: false, error: 'ossKey 缺失', code: 'INVALID_OSS_KEY' });
+    }
+
+    const data = await abandonUploadObject(accountId, ossKey);
+    return res.json({ success: true, data });
+  } catch (err) {
+    if (err instanceof AbandonUploadError) {
+      return res.status(err.status).json({ success: false, error: err.message, code: err.code });
+    }
+    if (err.code === 'INVALID_OSS_KEY') {
+      return res.status(400).json({ success: false, error: err.message, code: err.code });
+    }
+    console.error('[life-resume/upload/abandon]', err);
+    return res.status(500).json({ success: false, error: err.message || '删除失败' });
   }
 });
 

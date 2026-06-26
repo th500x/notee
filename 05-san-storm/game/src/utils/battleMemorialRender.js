@@ -6,6 +6,7 @@ import { fetchWithTimeout } from '@/services/httpClient';
 import { buildBattleScoreFormulaLines } from '@/systems/battleScoreSystem';
 import { attachMemorialBlobOutlines, hashMemorialSeed } from '@/utils/memorialBlobOutline';
 import { captureMemorialElementToBlob } from '@/utils/memorialCanvasCapture';
+import jyhphsFontUrl from '@shared/assets/fonts/JYHPHS.woff2?url';
 
 async function blobToDataUrl(blob) {
   return new Promise((resolve, reject) => {
@@ -134,7 +135,7 @@ function preloadMemorialIllusImage(url) {
 /** 文案块：由 attachMemorialBlobOutlines 按实测 bbox 插入手绘 SVG 底 */
 const MEMORIAL_TEXT_MAIN = 'color:#f8f7f4;';
 const MEMORIAL_TEXT_MUTE = 'color:rgba(255,255,255,0.82);';
-/** 纪念图字体：public/fonts/JYHPHS.woff2；html2canvas 前需 fonts.load */
+/** 纪念图字体：与全局 JYHPHS 同源（shared/assets，?url 带内容哈希）；html2canvas 前需 fonts.load */
 const MEMORIAL_FONT_FAMILY = '"JYHPHS","Microsoft YaHei",Arial,sans-serif';
 
 async function renderBattleMemorialBlob({ playerName, playerId, battle, detail }) {
@@ -148,7 +149,7 @@ async function renderBattleMemorialBlob({ playerName, playerId, battle, detail }
   const illusUrl = await pickMemorialBattleIllusUrl();
   await preloadMemorialIllusImage(illusUrl);
 
-  const fontWoff2Href = publicAssetUrl('fonts/JYHPHS.woff2');
+  const fontWoff2Href = jyhphsFontUrl;
   const battleSeed = hashMemorialSeed(battle?.battleId ?? battle?.id ?? playerId);
 
   const root = document.createElement('div');

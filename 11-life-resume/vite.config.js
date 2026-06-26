@@ -17,6 +17,9 @@ export default defineConfig({
   server: {
     port: 5177,
     open: '/11-life-resume/',
+    headers: {
+      'Cache-Control': 'public, max-age=31536000, immutable',
+    },
     fs: {
       allow: ['..'],
     },
@@ -28,6 +31,20 @@ export default defineConfig({
       '/api/life-resume': {
         target: 'http://localhost:3011',
         changeOrigin: true,
+      },
+    },
+  },
+  build: {
+    assetsInlineLimit: 0,
+    rollupOptions: {
+      output: {
+        assetFileNames: (assetInfo) => {
+          const name = assetInfo.name || '';
+          if (/\.(woff2?|ttf|otf|eot)$/i.test(name)) {
+            return 'assets/fonts/[name]-[hash][extname]';
+          }
+          return 'assets/[name]-[hash][extname]';
+        },
       },
     },
   },

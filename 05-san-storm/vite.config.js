@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
+import { viteFontBuildOptions } from './shared/viteFontBuildConfig.js';
 
 // https://vitejs.dev/config/
 export default defineConfig({
@@ -18,11 +19,15 @@ export default defineConfig({
       '@config': path.resolve(__dirname, './src/config'),
       '@styles': path.resolve(__dirname, './src/styles'),
       '@types': path.resolve(__dirname, './src/types'),
+      '@shared': path.resolve(__dirname, './shared'),
     },
   },
   server: {
     port: 3000,
     open: true,
+    fs: {
+      allow: ['..'],
+    },
     // 配置静态资源缓存响应头（开发环境）
     headers: {
       // 字体文件缓存 1 年
@@ -33,5 +38,7 @@ export default defineConfig({
     outDir: 'dist',
     assetsDir: 'assets',
     sourcemap: false,
+    assetsInlineLimit: viteFontBuildOptions.assetsInlineLimit,
+    rollupOptions: viteFontBuildOptions.rollupOptions,
   },
 });

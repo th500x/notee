@@ -2,10 +2,10 @@
 @tailwind components;
 @tailwind utilities;
 
-/* 与 05-san-storm 一致：江湖豪派黑宋（11-life-resume/public/fonts/JYHPHS.woff2） */
+/* 与 05-san-storm 一致：江湖豪派黑宋；走 Vite assets 内容哈希，字体未改则 URL 跨版本不变，浏览器可长期缓存 */
 @font-face {
   font-family: 'JYHPHS';
-  src: url('/11-life-resume/fonts/JYHPHS.woff2') format('woff2');
+  src: url('./assets/fonts/JYHPHS.woff2') format('woff2');
   font-weight: normal;
   font-style: normal;
   font-display: swap;

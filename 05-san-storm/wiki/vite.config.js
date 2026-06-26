@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
+import { viteFontBuildOptions } from '../shared/viteFontBuildConfig.js';
 
 // https://vitejs.dev/config/
 // 与 game 一致：静态资源直接指向仓库 `05-san-storm/public`（勿依赖 wiki/public 下符号链接；
@@ -51,5 +52,7 @@ export default defineConfig({
     outDir: 'dist',
     assetsDir: 'assets',
     sourcemap: false,
+    assetsInlineLimit: viteFontBuildOptions.assetsInlineLimit,
+    rollupOptions: viteFontBuildOptions.rollupOptions,
   },
 });

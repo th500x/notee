@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   LIFE_DOCUMENT_ACCEPT,
   LIFE_MEDIA_MAX_PHOTOS,
@@ -7,6 +7,7 @@ import {
   validateMediaUploadRequest,
 } from '@shared/utils/lifeResumeMediaRules.js';
 import { requestUploadSign, uploadFileToSignedUrl } from '@/services/lifeResumeApi';
+import { abandonOrphanUploads } from '@/utils/abandonOrphanUpload';
 import EntryPhotoCropModal from '@/components/entry/EntryPhotoCropModal';
 
 const BUNDLE_TABS = [
@@ -36,12 +37,31 @@ export default function EntryMediaUpload({
   mediaItems,
   onBundleTypeChange,
   onMediaItemsChange,
+  initialPersistedOssKeys = null,
+  saveCommittedRef = null,
   disabled = false,
 }) {
   const stagingTokenRef = useRef(createStagingToken());
+  const mediaItemsRef = useRef(mediaItems);
+  const initialPersistedRef = useRef(initialPersistedOssKeys);
   const [uploadError, setUploadError] = useState('');
   const [uploading, setUploading] = useState(false);
   const [cropFile, setCropFile] = useState(null);
+
+  useEffect(() => {
+    mediaItemsRef.current = mediaItems;
+  }, [mediaItems]);
+
+  useEffect(() => {
+    initialPersistedRef.current = initialPersistedOssKeys;
+  }, [initialPersistedOssKeys]);
+
+  useEffect(() => {
+    return () => {
+      if (saveCommittedRef?.current) return;
+      abandonOrphanUploads(mediaItemsRef.current, initialPersistedRef.current);
+    };
+  }, [saveCommittedRef]);
 
   const photoCount = useMemo(
     () => mediaItems.filter((item) => item.mediaType === 'photo').length,
@@ -60,18 +80,27 @@ export default function EntryMediaUpload({
     return '';
   }, [mediaBundleType]);
 
-  const handleTabChange = (value) => {
+  const handleTabChange = async (value) => {
     setUploadError('');
-    onBundleTypeChange(value);
+
+    let nextItems = [];
     if (value === 'none') {
-      onMediaItemsChange([]);
+      nextItems = [];
     } else if (value === 'video') {
-      onMediaItemsChange(mediaItems.filter((item) => item.mediaType === 'video').slice(0, 1));
+      nextItems = mediaItems.filter((item) => item.mediaType === 'video').slice(0, 1);
     } else if (value === 'document') {
-      onMediaItemsChange(mediaItems.filter((item) => item.mediaType === 'document').slice(0, 1));
+      nextItems = mediaItems.filter((item) => item.mediaType === 'document').slice(0, 1);
     } else if (value === 'photos') {
-      onMediaItemsChange(mediaItems.filter((item) => item.mediaType === 'photo').slice(0, LIFE_MEDIA_MAX_PHOTOS));
+      nextItems = mediaItems.filter((item) => item.mediaType === 'photo').slice(0, LIFE_MEDIA_MAX_PHOTOS);
     }
+
+    const removed = mediaItems.filter(
+      (item) => !nextItems.some((next) => next.ossKey === item.ossKey)
+    );
+    await abandonOrphanUploads(removed, initialPersistedOssKeys);
+
+    onBundleTypeChange(value);
+    onMediaItemsChange(nextItems);
   };
 
   const uploadMediaFile = async (file, mediaType) => {
@@ -165,7 +194,11 @@ export default function EntryMediaUpload({
     await uploadMediaFile(processedFile, 'photo');
   };
 
-  const removeItem = (ossKey) => {
+  const removeItem = async (ossKey) => {
+    const item = mediaItems.find((m) => m.ossKey === ossKey);
+    if (item) {
+      await abandonOrphanUploads([item], initialPersistedOssKeys);
+    }
     onMediaItemsChange(mediaItems.filter((item) => item.ossKey !== ossKey));
   };
 

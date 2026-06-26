@@ -2,6 +2,7 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 import { gameSpaFallbackPlugin } from './vite.spaFallback.js';
+import { viteFontBuildOptions } from '../shared/viteFontBuildConfig.js';
 
 /** `npm run build:vps` 时开启：压低 Rollup 并行，减轻 rendering chunks 内存峰值 */
 const lowMemBuild = process.env.VITE_LOW_MEM_BUILD === '1';
@@ -58,6 +59,7 @@ export default defineConfig({
     sourcemap: false,
     minify: 'esbuild',
     cssMinify: 'esbuild',
+    assetsInlineLimit: viteFontBuildOptions.assetsInlineLimit,
     /** 关闭 gzip 体积统计，减轻低配 VPS 连续 build 时的内存峰值 */
     reportCompressedSize: false,
     chunkSizeWarningLimit: 480,
@@ -65,11 +67,11 @@ export default defineConfig({
       /** rendering chunks 阶段默认并行较高；低配机易 OOM 死机 */
       maxParallelFileOps: rollupParallelOps,
       onwarn(warning, warn) {
-        if (warning.message?.includes('JYHPHS.woff2')) return;
         if (warning.message?.includes('ZCOOLKuaiLe-Regular.woff2')) return;
         warn(warning);
       },
       output: {
+        ...viteFontBuildOptions.rollupOptions.output,
         manualChunks(id) {
           if (!id.includes('node_modules')) return;
           if (/[/\\]node_modules[/\\]html2canvas/.test(id)) return 'vendor-html2canvas';

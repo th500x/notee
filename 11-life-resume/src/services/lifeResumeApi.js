@@ -135,6 +135,14 @@ export async function requestUploadSign(body) {
   });
 }
 
+/** POST /api/life-resume/upload/abandon — 删除尚未绑定 entry 的 OSS 对象 */
+export async function abandonUploadObject(ossKey) {
+  return lifeResumeFetch('/upload/abandon', {
+    method: 'POST',
+    body: JSON.stringify({ ossKey }),
+  });
+}
+
 /** POST /api/life-resume/location/reverse-geocode — editor preview */
 export async function fetchReverseGeocode(body) {
   return lifeResumeFetch('/location/reverse-geocode', {
