@@ -2,9 +2,24 @@
 @tailwind components;
 @tailwind utilities;
 
+/* 与 05-san-storm 一致：江湖豪派黑宋（11-life-resume/public/fonts/JYHPHS.woff2） */
+@font-face {
+  font-family: 'JYHPHS';
+  src: url('/11-life-resume/fonts/JYHPHS.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+@layer base {
+  html {
+    @apply font-sans;
+  }
+}
+
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', sans-serif;
+  font-family: 'JYHPHS', 'Microsoft YaHei', 'PingFang SC', 'Helvetica Neue', Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   @apply bg-slate-50 text-slate-900;
