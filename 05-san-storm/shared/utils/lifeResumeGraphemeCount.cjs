@@ -4,7 +4,7 @@
  */
 
 const LIFE_ENTRY_BODY_MAX = 500;
-const LIFE_ENTRY_TITLE_MAX = 40;
+const LIFE_ENTRY_TITLE_MAX = 20;
 
 function countGraphemes(text) {
   const value = String(text ?? '');

@@ -4,7 +4,7 @@
  */
 
 export const LIFE_ENTRY_BODY_MAX = 500;
-export const LIFE_ENTRY_TITLE_MAX = 40;
+export const LIFE_ENTRY_TITLE_MAX = 20;
 
 /**
  * @param {string} text
