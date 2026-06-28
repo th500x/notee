@@ -8,6 +8,14 @@ import { captureSharePosterElementToBlob } from '@/utils/entrySharePosterCapture
 import jyhphsFontUrl from '@/assets/fonts/JYHPHS.woff2?url';
 
 const POSTER_WIDTH_PX = 750;
+const POSTER_PADDING_X = 36;
+const POSTER_PHOTO_GAP = 12;
+const POSTER_PHOTO_COLUMNS = 3;
+const POSTER_CONTENT_WIDTH = POSTER_WIDTH_PX - POSTER_PADDING_X * 2;
+/** 与时间轴三列网格单格同宽（750 版面内） */
+const POSTER_PHOTO_CELL_PX = Math.floor(
+  (POSTER_CONTENT_WIDTH - POSTER_PHOTO_GAP * (POSTER_PHOTO_COLUMNS - 1)) / POSTER_PHOTO_COLUMNS
+);
 const FONT_FAMILY = '"JYHPHS","Microsoft YaHei","PingFang SC",Arial,sans-serif';
 
 function escapeHtml(value) {
@@ -35,28 +43,57 @@ function getPhotoCandidateUrls(item) {
   return [...new Set([item.url, item.thumbUrl].filter(Boolean))];
 }
 
-function blobToDataUrl(blob) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result || ''));
-    reader.onerror = reject;
-    reader.readAsDataURL(blob);
-  });
+async function loadImageFromBlob(blob) {
+  const objectUrl = URL.createObjectURL(blob);
+  try {
+    const img = new Image();
+    await new Promise((resolve, reject) => {
+      img.onload = () => resolve();
+      img.onerror = () => reject(new Error('image decode failed'));
+      img.src = objectUrl;
+    });
+    return img;
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
+
+/** 与 EntryMediaGallery 一致：正方形容器 + object-fit: cover（html2canvas 不认 CSS，改 Canvas 预裁） */
+function squareCoverDataUrl(img, sizePx) {
+  const canvas = document.createElement('canvas');
+  canvas.width = sizePx;
+  canvas.height = sizePx;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+
+  const w = img.naturalWidth || img.width;
+  const h = img.naturalHeight || img.height;
+  if (!w || !h) return null;
+
+  const scale = Math.max(sizePx / w, sizePx / h);
+  const drawW = w * scale;
+  const drawH = h * scale;
+  const dx = (sizePx - drawW) / 2;
+  const dy = (sizePx - drawH) / 2;
+  ctx.drawImage(img, dx, dy, drawW, drawH);
+
+  return canvas.toDataURL('image/jpeg', 0.92);
 }
 
 /**
- * html2canvas 需无跨域污染的图片；优先原图 url，thumb 作备选。
- * 拉取成功后转 data URL，避免 OSS 处理参数导致 CORS/绘制失败。
+ * 拉取 OSS 图并预裁为正方形缩略 data URL（供 html2canvas 使用）。
  * @returns {Promise<string|null>}
  */
-async function loadPhotoDataUrlForPoster(photo) {
+async function loadPhotoSquareThumbForPoster(photo, sizePx = POSTER_PHOTO_CELL_PX) {
   for (const url of getPhotoCandidateUrls(photo)) {
     try {
       const response = await fetch(url, { mode: 'cors', credentials: 'omit', cache: 'no-store' });
       if (!response.ok) continue;
       const blob = await response.blob();
       if (!blob.type.startsWith('image/')) continue;
-      return await blobToDataUrl(blob);
+      const img = await loadImageFromBlob(blob);
+      const dataUrl = squareCoverDataUrl(img, sizePx);
+      if (dataUrl) return dataUrl;
     } catch {
       /* 尝试下一个 URL */
     }
@@ -66,16 +103,17 @@ async function loadPhotoDataUrlForPoster(photo) {
 
 function buildPhotoGridHtml(photos) {
   if (photos.length === 0) return '';
+  const cell = POSTER_PHOTO_CELL_PX;
   const cells = photos
     .map(
       (item) =>
-        `<div style="aspect-ratio:1/1;overflow:hidden;border-radius:12px;background:#f1f5f9;border:1px solid #e2e8f0;">
-          <img src="${escapeHtml(item.dataUrl)}" alt=""
-            style="display:block;width:100%;height:100%;object-fit:cover;" />
+        `<div style="width:${cell}px;height:${cell}px;overflow:hidden;border-radius:12px;background:#f1f5f9;border:1px solid #e2e8f0;">
+          <img src="${escapeHtml(item.dataUrl)}" alt="" width="${cell}" height="${cell}"
+            style="display:block;width:${cell}px;height:${cell}px;" />
         </div>`
     )
     .join('');
-  return `<div style="margin-top:24px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;">${cells}</div>`;
+  return `<div style="margin-top:24px;display:grid;grid-template-columns:repeat(${POSTER_PHOTO_COLUMNS},${cell}px);gap:${POSTER_PHOTO_GAP}px;">${cells}</div>`;
 }
 
 function buildTagsHtml(tags) {
@@ -110,7 +148,7 @@ export async function renderEntrySharePosterBlob({ entry, accountId, displayName
   const photos = listShareablePhotos(entry.media);
   const loadedPhotos = [];
   for (const photo of photos) {
-    const dataUrl = await loadPhotoDataUrlForPoster(photo);
+    const dataUrl = await loadPhotoSquareThumbForPoster(photo);
     if (dataUrl) {
       loadedPhotos.push({ ...photo, dataUrl });
     }
