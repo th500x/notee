@@ -27,8 +27,12 @@ export function buildProfileSharePageUrl(accountId) {
 
 function listShareablePhotos(media) {
   return (Array.isArray(media) ? media : [])
-    .filter((item) => item.mediaType === 'photo' && item.url)
+    .filter((item) => item.mediaType === 'photo' && (item.thumbUrl || item.url))
     .slice(0, 3);
+}
+
+function getPhotoDisplayUrl(item) {
+  return item.thumbUrl || item.url;
 }
 
 async function preloadCrossOriginImage(url) {
@@ -44,23 +48,16 @@ async function preloadCrossOriginImage(url) {
 
 function buildPhotoGridHtml(photos) {
   if (photos.length === 0) return '';
-  if (photos.length === 1) {
-    return `<div style="margin-top:24px;">
-      <img src="${escapeHtml(photos[0].url)}" alt="" crossorigin="anonymous"
-        style="display:block;width:100%;height:auto;border-radius:12px;border:1px solid #e2e8f0;" />
-    </div>`;
-  }
-  const columns = photos.length === 2 ? '1fr 1fr' : '1fr 1fr 1fr';
   const cells = photos
-    .map(
-      (item) =>
-        `<div style="aspect-ratio:1/1;overflow:hidden;border-radius:12px;background:#f1f5f9;border:1px solid #e2e8f0;">
-          <img src="${escapeHtml(item.url)}" alt="" crossorigin="anonymous"
+    .map((item) => {
+      const src = item.displayUrl || getPhotoDisplayUrl(item);
+      return `<div style="aspect-ratio:1/1;overflow:hidden;border-radius:12px;background:#f1f5f9;border:1px solid #e2e8f0;">
+          <img src="${escapeHtml(src)}" alt="" crossorigin="anonymous"
             style="display:block;width:100%;height:100%;object-fit:cover;" />
-        </div>`
-    )
+        </div>`;
+    })
     .join('');
-  return `<div style="margin-top:24px;display:grid;grid-template-columns:${columns};gap:12px;">${cells}</div>`;
+  return `<div style="margin-top:24px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;">${cells}</div>`;
 }
 
 function buildTagsHtml(tags) {
@@ -95,9 +92,10 @@ export async function renderEntrySharePosterBlob({ entry, accountId, displayName
   const photos = listShareablePhotos(entry.media);
   const loadedPhotos = [];
   for (const photo of photos) {
+    const displayUrl = getPhotoDisplayUrl(photo);
     try {
-      await preloadCrossOriginImage(photo.url);
-      loadedPhotos.push(photo);
+      await preloadCrossOriginImage(displayUrl);
+      loadedPhotos.push({ ...photo, displayUrl });
     } catch {
       /* OSS CORS 或签名失效时跳过该图，仍生成文字海报 */
     }
