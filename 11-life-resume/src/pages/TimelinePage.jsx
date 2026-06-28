@@ -274,6 +274,8 @@ export default function TimelinePage() {
             <TimelineSection
               section={{ id: 'pinned', type: 'pinned', label: '置顶', entries: pinned }}
               isOwner={viewerIsOwner}
+              accountId={ownerId}
+              profileDisplayName={headerDisplayName}
               collapsed={isSectionCollapsed('pinned')}
               onToggleCollapse={() => toggleSectionCollapsed('pinned')}
               onEdit={openEdit}
@@ -285,6 +287,8 @@ export default function TimelinePage() {
               key={section.id}
               section={section}
               isOwner={viewerIsOwner}
+              accountId={ownerId}
+              profileDisplayName={headerDisplayName}
               collapsed={isSectionCollapsed(section.id)}
               onToggleCollapse={() => toggleSectionCollapsed(section.id)}
               onEdit={openEdit}

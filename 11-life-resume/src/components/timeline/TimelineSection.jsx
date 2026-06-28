@@ -3,6 +3,8 @@ import TimelineEntryCard from '@/components/timeline/TimelineEntryCard';
 export default function TimelineSection({
   section,
   isOwner,
+  accountId,
+  profileDisplayName,
   collapsed = false,
   onToggleCollapse,
   onEdit,
@@ -50,6 +52,8 @@ export default function TimelineSection({
               key={entry.id}
               entry={entry}
               isOwner={isOwner}
+              accountId={accountId}
+              profileDisplayName={profileDisplayName}
               onEdit={onEdit}
               onDelete={onDelete}
             />

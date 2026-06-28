@@ -2,10 +2,13 @@ import { useState } from 'react';
 import { formatEntryTimeLabel } from '@shared/utils/lifeResumeEntryTime.js';
 import { buildGoogleMapsUrl } from '@shared/utils/lifeResumeLocation.js';
 import EntryMediaGallery from '@/components/timeline/EntryMediaGallery';
+import EntrySharePosterModal from '@/components/timeline/EntrySharePosterModal';
 import EntryVideoPlayer from '@/components/timeline/EntryVideoPlayer';
 import EntryDocumentBlock from '@/components/timeline/EntryDocumentBlock';
 import EntryDriveBlock from '@/components/timeline/EntryDriveBlock';
 import EntryLocationLine from '@/components/timeline/EntryLocationLine';
+import { renderEntrySharePosterBlob } from '@/utils/entrySharePosterRender.js';
+import { formatLifeResumeError } from '@/utils/lifeResumeErrors';
 
 const VISIBILITY_LABELS = {
   public: '公开',
@@ -21,9 +24,23 @@ const VISIBILITY_STYLES = {
 
 const BODY_PREVIEW_LIMIT = 200;
 
-export default function TimelineEntryCard({ entry, isOwner, onEdit, onDelete }) {
+export default function TimelineEntryCard({
+  entry,
+  isOwner,
+  accountId,
+  profileDisplayName,
+  onEdit,
+  onDelete,
+}) {
   const [expanded, setExpanded] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [shareGenerating, setShareGenerating] = useState(false);
+  const [shareBlob, setShareBlob] = useState(null);
+  const [shareError, setShareError] = useState('');
+
+  const canShare =
+    isOwner && entry.status === 'published' && entry.visibility === 'public';
 
   const timeLabel = formatEntryTimeLabel(entry);
   const body = entry.body || '';
@@ -38,6 +55,32 @@ export default function TimelineEntryCard({ entry, isOwner, onEdit, onDelete }) 
     } finally {
       setDeleting(false);
     }
+  };
+
+  const handleShare = async () => {
+    setShareOpen(true);
+    setShareGenerating(true);
+    setShareBlob(null);
+    setShareError('');
+    try {
+      const blob = await renderEntrySharePosterBlob({
+        entry,
+        accountId,
+        displayName: profileDisplayName,
+      });
+      setShareBlob(blob);
+    } catch (err) {
+      setShareError(formatLifeResumeError(err) || '生成分享图失败');
+    } finally {
+      setShareGenerating(false);
+    }
+  };
+
+  const handleCloseShare = () => {
+    if (shareGenerating) return;
+    setShareOpen(false);
+    setShareBlob(null);
+    setShareError('');
   };
 
   const ownerExactMapsUrl =
@@ -135,7 +178,17 @@ export default function TimelineEntryCard({ entry, isOwner, onEdit, onDelete }) 
       <EntryLocationLine entry={entry} isOwner={isOwner} />
 
       {isOwner && (
-        <div className="flex gap-2 mt-4 pt-3 border-t border-slate-100">
+        <div className="flex flex-wrap gap-2 mt-4 pt-3 border-t border-slate-100">
+          {canShare && (
+            <button
+              type="button"
+              className="text-sm px-3 py-1.5 rounded-lg border border-indigo-200 text-indigo-700 hover:bg-indigo-50 disabled:opacity-60"
+              onClick={handleShare}
+              disabled={shareGenerating}
+            >
+              {shareGenerating ? '生成中…' : '分享'}
+            </button>
+          )}
           <button
             type="button"
             className="text-sm px-3 py-1.5 rounded-lg border border-slate-300 hover:bg-slate-50"
@@ -153,6 +206,14 @@ export default function TimelineEntryCard({ entry, isOwner, onEdit, onDelete }) 
           </button>
         </div>
       )}
+
+      <EntrySharePosterModal
+        open={shareOpen}
+        blob={shareBlob}
+        generating={shareGenerating}
+        error={shareError}
+        onClose={handleCloseShare}
+      />
     </article>
   );
 }
