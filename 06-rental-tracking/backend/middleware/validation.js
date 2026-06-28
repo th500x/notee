@@ -84,6 +84,18 @@ const accountingRentMonthSchema = Joi.object({
   payRent: accountingIsoDate.default('')
 });
 
+const accountingGalleryPhotoSchema = Joi.object({
+  id: Joi.string().max(200).required(),
+  url: Joi.string().uri().required(),
+  name: Joi.string().max(255).allow('').default(''),
+  size: Joi.number().max(10 * 1024 * 1024).optional()
+    .messages({
+      'number.max': '照片大小不能超过10MB'
+    }),
+  uploadedAt: Joi.string().max(50).allow('').optional(),
+  capturedAt: Joi.string().max(50).allow('').optional()
+});
+
 const accountingRentRowSchema = Joi.object({
   id: Joi.string().max(100).required(),
   room: Joi.string().max(200).allow('').default(''),
@@ -93,7 +105,9 @@ const accountingRentRowSchema = Joi.object({
   remarks: accountingExprString.default(''),
   price: accountingExprString.default(''),
   deposit: accountingExprString.default(''),
-  months: Joi.object().pattern(/^\d{4}-\d{2}$/, accountingRentMonthSchema).default({})
+  months: Joi.object().pattern(/^\d{4}-\d{2}$/, accountingRentMonthSchema).default({}),
+  photos: Joi.array().items(accountingGalleryPhotoSchema).max(500).default([]),
+  galleryShareToken: Joi.string().max(80).allow('').default('')
 });
 
 const accountingExpenseRowSchema = Joi.object({
@@ -216,9 +230,9 @@ const propertySchema = Joi.object({
           url: Joi.string().uri().optional(),
           data: Joi.string().optional(),
           name: Joi.string().max(255).optional(),
-          size: Joi.number().max(5 * 1024 * 1024).optional()
+          size: Joi.number().max(10 * 1024 * 1024).optional()
             .messages({
-              'number.max': '照片大小不能超过5MB'
+              'number.max': '照片大小不能超过10MB'
             }),
           uploadedAt: Joi.string().optional()
         })

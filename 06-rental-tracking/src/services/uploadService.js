@@ -106,6 +106,19 @@ export const uploadService = {
       throw error
     }
   },
+
+  /**
+   * 账目图库：不限张数（逐张调用单文件上传）
+   * @param {File[]} files
+   */
+  uploadPhotosUnlimited: async (files) => {
+    if (!files?.length) return []
+    const results = []
+    for (const file of files) {
+      results.push(await uploadService.uploadPhoto(file))
+    }
+    return results
+  },
   
   /**
    * 批量删除照片

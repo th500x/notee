@@ -5,6 +5,7 @@ import UtilityBillPage from './pages/UtilityBillPage'
 import AccountingSheetPage from './pages/AccountingSheetPage'
 import TaxSheetPage from './pages/TaxSheetPage'
 import AdminSyncPage from './pages/AdminSyncPage'
+import AccountingGallerySharePage from './pages/AccountingGallerySharePage'
 import { ProjectFormModal } from './components/ProjectFormModal'
 import { UtilityBillFormModal } from './components/UtilityBillFormModal'
 import { TaxBillFormModal } from './components/TaxBillFormModal'
@@ -54,10 +55,19 @@ import { useAdmin } from './hooks/useAdmin'
 function App() {
   // 检查是否是同步页面路由
   const isAdminSyncPage = window.location.pathname.includes('/admin/sync')
+
+  const galleryPathMatch = window.location.pathname.match(
+    /\/06-rental-tracking\/gallery\/([^/]+)\/?$/
+  )
+  const galleryShareToken = galleryPathMatch ? decodeURIComponent(galleryPathMatch[1]) : null
   
   // 如果是同步页面，直接渲染同步页面
   if (isAdminSyncPage) {
     return <AdminSyncPage />
+  }
+
+  if (galleryShareToken) {
+    return <AccountingGallerySharePage token={galleryShareToken} />
   }
   
   // 使用统一的管理员验证

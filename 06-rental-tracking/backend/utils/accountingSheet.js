@@ -76,6 +76,38 @@ function computeSettleFromInOut(cell) {
   return inVal - outVal;
 }
 
+function normalizeGalleryPhoto(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const id = typeof raw.id === 'string' && raw.id.trim() ? raw.id.trim().slice(0, 200) : '';
+  const url = typeof raw.url === 'string' && raw.url.trim() ? raw.url.trim().slice(0, 2000) : '';
+  if (!id || !url) return null;
+  return {
+    id,
+    url,
+    name: typeof raw.name === 'string' ? raw.name.slice(0, 255) : '',
+    size: Number.isFinite(Number(raw.size)) ? Number(raw.size) : undefined,
+    uploadedAt: typeof raw.uploadedAt === 'string' ? raw.uploadedAt.slice(0, 50) : '',
+    capturedAt: typeof raw.capturedAt === 'string' ? raw.capturedAt.slice(0, 50) : ''
+  };
+}
+
+function normalizeGalleryPhotos(rawPhotos) {
+  if (!Array.isArray(rawPhotos)) return [];
+  const out = [];
+  for (const p of rawPhotos) {
+    if (out.length >= 500) break;
+    const n = normalizeGalleryPhoto(p);
+    if (n) out.push(n);
+  }
+  return out;
+}
+
+function normalizeGalleryShareToken(raw) {
+  if (typeof raw !== 'string') return '';
+  const t = raw.trim().slice(0, 80);
+  return /^[\w-]+$/.test(t) ? t : '';
+}
+
 function normalizeAccountingSheet(raw) {
   const base = defaultAccountingSheet();
   if (!raw || typeof raw !== 'object') {
@@ -118,7 +150,9 @@ function normalizeAccountingSheet(raw) {
           remarks: typeof row.remarks === 'string' ? row.remarks.slice(0, 500) : '',
           price: typeof row.price === 'string' ? row.price.slice(0, 500) : '',
           deposit: typeof row.deposit === 'string' ? row.deposit.slice(0, 500) : '',
-          months
+          months,
+          photos: normalizeGalleryPhotos(row.photos),
+          galleryShareToken: normalizeGalleryShareToken(row.galleryShareToken)
         };
       })
     : [];

@@ -150,6 +150,50 @@ router.get('/health', (req, res) => {
 });
 
 /**
+ * 公开图库（账目单租金行，无需登录）
+ * GET /api/rental-tracking/public/gallery/:token
+ */
+router.get('/public/gallery/:token', async (req, res) => {
+  const token = (req.params.token || '').trim();
+  if (!token || token.length > 80 || !/^[\w-]+$/.test(token)) {
+    return res.status(400).json({ success: false, error: '无效链接' });
+  }
+
+  try {
+    const [rows] = await pool.execute(
+      "SELECT accounting_sheet FROM projects WHERE project_kind = 'accounting'"
+    );
+
+    for (const dbRow of rows) {
+      const sheet = normalizeAccountingSheet(parseJSON(dbRow.accounting_sheet, null));
+      for (const rentRow of sheet.rentRows) {
+        if (rentRow.galleryShareToken !== token) continue;
+        const photos = (rentRow.photos || []).map((p) => ({
+          id: p.id,
+          url: p.url,
+          name: p.name || '',
+          capturedAt: p.capturedAt || '',
+          uploadedAt: p.uploadedAt || ''
+        }));
+        if (photos.length === 0) {
+          return res.status(404).json({ success: false, error: '图库暂无图片' });
+        }
+        return res.json({
+          success: true,
+          room: rentRow.room || '',
+          photos
+        });
+      }
+    }
+
+    return res.status(404).json({ success: false, error: '链接无效或已失效' });
+  } catch (error) {
+    console.error('[API] 公开图库查询失败:', error);
+    return res.status(500).json({ success: false, error: '加载图库失败' });
+  }
+});
+
+/**
  * 获取所有项目列表
  * GET /api/rental-tracking/
  */

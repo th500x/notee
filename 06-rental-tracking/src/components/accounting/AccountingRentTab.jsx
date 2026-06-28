@@ -24,6 +24,7 @@ import {
 } from '../../utils/accountingSheetModel';
 import { evaluateArithmeticExpression, formatAccountingNumber } from '../../utils/accountingExpression';
 import { isIsoDateString, sanitizeIsoDateField } from '../../utils/accountingDates';
+import { AccountingRowGalleryModal } from './AccountingRowGalleryModal';
 
 /** dnd-kit 在静止时也可能给出恒等 transform；写在 tr 上会给子格新建包含块，恒等时勿写 transform */
 function sortableTransformIsActive(t) {
@@ -95,7 +96,8 @@ function SortableRentRow({
   patchMonthCell,
   handleRentNavKeyDown,
   removeRow,
-  sortableDisabled
+  sortableDisabled,
+  onOpenGallery
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: row.id,
@@ -262,13 +264,23 @@ function SortableRentRow({
         </div>
       </td>
       <td className={`p-1 border border-gray-100 text-center align-middle ${COMPACT_COL_TD}`}>
-        <button
-          type="button"
-          onClick={() => removeRow(row.id)}
-          className="text-red-600 hover:text-red-800 text-xs px-1"
-        >
-          删
-        </button>
+        <div className="flex items-center justify-center gap-1 min-h-[2.25rem]">
+          <button
+            type="button"
+            onClick={() => onOpenGallery(row.id)}
+            className="text-blue-600 hover:text-blue-800 text-xs px-0.5"
+            title={row.photos?.length ? `图片库（${row.photos.length} 张）` : '上传图片'}
+          >
+            图{row.photos?.length ? `(${row.photos.length})` : ''}
+          </button>
+          <button
+            type="button"
+            onClick={() => removeRow(row.id)}
+            className="text-red-600 hover:text-red-800 text-xs px-0.5"
+          >
+            删
+          </button>
+        </div>
       </td>
     </tr>
   );
@@ -277,7 +289,13 @@ function SortableRentRow({
 export function AccountingRentTab({ sheet, setSheet }) {
   const [m0, m1] = sheet.monthKeys;
   const [filterPendingPayRent, setFilterPendingPayRent] = useState(false);
+  const [galleryRowId, setGalleryRowId] = useState(null);
   const rentTableRef = useRef(null);
+
+  const galleryRow = useMemo(
+    () => (galleryRowId ? sheet.rentRows.find((r) => r.id === galleryRowId) : null),
+    [galleryRowId, sheet.rentRows]
+  );
 
   const displayRows = useMemo(() => {
     if (!filterPendingPayRent) return sheet.rentRows;
@@ -410,6 +428,15 @@ export function AccountingRentTab({ sheet, setSheet }) {
     }));
   };
 
+  const handleGalleryRowUpdate = (rowId, patch) => {
+    setSheet((prev) =>
+      updateRentRow(prev, rowId, (r) => ({
+        ...r,
+        ...patch
+      }))
+    );
+  };
+
   return (
     <div className="w-full min-w-0">
       <div className="inline-block min-w-full max-w-none align-top bg-white rounded-lg shadow-md box-border">
@@ -524,6 +551,7 @@ export function AccountingRentTab({ sheet, setSheet }) {
                       handleRentNavKeyDown={handleRentNavKeyDown}
                       removeRow={removeRow}
                       sortableDisabled={filterPendingPayRent}
+                      onOpenGallery={setGalleryRowId}
                     />
                   ))}
                 </SortableContext>
@@ -568,6 +596,13 @@ export function AccountingRentTab({ sheet, setSheet }) {
           </table>
         </DndContext>
       </div>
+
+      <AccountingRowGalleryModal
+        isOpen={!!galleryRow}
+        row={galleryRow}
+        onClose={() => setGalleryRowId(null)}
+        onUpdateRow={handleGalleryRowUpdate}
+      />
     </div>
   );
 }
