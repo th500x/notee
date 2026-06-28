@@ -31,31 +31,49 @@ function listShareablePhotos(media) {
     .slice(0, 3);
 }
 
-function getPhotoDisplayUrl(item) {
-  return item.thumbUrl || item.url;
+function getPhotoCandidateUrls(item) {
+  return [...new Set([item.url, item.thumbUrl].filter(Boolean))];
 }
 
-async function preloadCrossOriginImage(url) {
-  await new Promise((resolve, reject) => {
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => resolve();
-    img.onerror = () => reject(new Error('photo preload failed'));
-    img.src = url;
+function blobToDataUrl(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ''));
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
   });
-  return url;
+}
+
+/**
+ * html2canvas 需无跨域污染的图片；优先原图 url，thumb 作备选。
+ * 拉取成功后转 data URL，避免 OSS 处理参数导致 CORS/绘制失败。
+ * @returns {Promise<string|null>}
+ */
+async function loadPhotoDataUrlForPoster(photo) {
+  for (const url of getPhotoCandidateUrls(photo)) {
+    try {
+      const response = await fetch(url, { mode: 'cors', credentials: 'omit', cache: 'no-store' });
+      if (!response.ok) continue;
+      const blob = await response.blob();
+      if (!blob.type.startsWith('image/')) continue;
+      return await blobToDataUrl(blob);
+    } catch {
+      /* 尝试下一个 URL */
+    }
+  }
+  return null;
 }
 
 function buildPhotoGridHtml(photos) {
   if (photos.length === 0) return '';
   const cells = photos
-    .map((item) => {
-      const src = item.displayUrl || getPhotoDisplayUrl(item);
-      return `<div style="aspect-ratio:1/1;overflow:hidden;border-radius:12px;background:#f1f5f9;border:1px solid #e2e8f0;">
-          <img src="${escapeHtml(src)}" alt="" crossorigin="anonymous"
+    .map(
+      (item) =>
+        `<div style="aspect-ratio:1/1;overflow:hidden;border-radius:12px;background:#f1f5f9;border:1px solid #e2e8f0;">
+          <img src="${escapeHtml(item.dataUrl)}" alt=""
             style="display:block;width:100%;height:100%;object-fit:cover;" />
-        </div>`;
-    })
+        </div>`
+    )
     .join('');
   return `<div style="margin-top:24px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;">${cells}</div>`;
 }
@@ -92,12 +110,9 @@ export async function renderEntrySharePosterBlob({ entry, accountId, displayName
   const photos = listShareablePhotos(entry.media);
   const loadedPhotos = [];
   for (const photo of photos) {
-    const displayUrl = getPhotoDisplayUrl(photo);
-    try {
-      await preloadCrossOriginImage(displayUrl);
-      loadedPhotos.push({ ...photo, displayUrl });
-    } catch {
-      /* OSS CORS 或签名失效时跳过该图，仍生成文字海报 */
+    const dataUrl = await loadPhotoDataUrlForPoster(photo);
+    if (dataUrl) {
+      loadedPhotos.push({ ...photo, dataUrl });
     }
   }
 
