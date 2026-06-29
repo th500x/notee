@@ -267,7 +267,7 @@ function SortableRentRow({
         <div className="flex items-center justify-center gap-1 min-h-[2.25rem]">
           <button
             type="button"
-            onClick={() => onOpenGallery(row.id)}
+            onClick={(e) => onOpenGallery(row.id, e.currentTarget)}
             className="text-blue-600 hover:text-blue-800 text-xs px-0.5"
             title={row.photos?.length ? `图片库（${row.photos.length} 张）` : '上传图片'}
           >
@@ -286,11 +286,25 @@ function SortableRentRow({
   );
 }
 
-export function AccountingRentTab({ sheet, setSheet }) {
+export function AccountingRentTab({ sheet, setSheet, isRentRowGalleryUnsaved, onSaveToServer, saving }) {
   const [m0, m1] = sheet.monthKeys;
   const [filterPendingPayRent, setFilterPendingPayRent] = useState(false);
   const [galleryRowId, setGalleryRowId] = useState(null);
+  const [galleryAnchorEl, setGalleryAnchorEl] = useState(null);
   const rentTableRef = useRef(null);
+
+  const handleOpenGallery = useCallback((rowId, anchorEl) => {
+    if (anchorEl?.scrollIntoView) {
+      anchorEl.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }
+    setGalleryRowId(rowId);
+    setGalleryAnchorEl(anchorEl || null);
+  }, []);
+
+  const handleCloseGallery = useCallback(() => {
+    setGalleryRowId(null);
+    setGalleryAnchorEl(null);
+  }, []);
 
   const galleryRow = useMemo(
     () => (galleryRowId ? sheet.rentRows.find((r) => r.id === galleryRowId) : null),
@@ -551,7 +565,7 @@ export function AccountingRentTab({ sheet, setSheet }) {
                       handleRentNavKeyDown={handleRentNavKeyDown}
                       removeRow={removeRow}
                       sortableDisabled={filterPendingPayRent}
-                      onOpenGallery={setGalleryRowId}
+                      onOpenGallery={handleOpenGallery}
                     />
                   ))}
                 </SortableContext>
@@ -600,7 +614,11 @@ export function AccountingRentTab({ sheet, setSheet }) {
       <AccountingRowGalleryModal
         isOpen={!!galleryRow}
         row={galleryRow}
-        onClose={() => setGalleryRowId(null)}
+        anchorEl={galleryAnchorEl}
+        galleryUnsaved={galleryRow ? isRentRowGalleryUnsaved?.(galleryRow.id) : false}
+        saving={saving}
+        onSaveToServer={onSaveToServer}
+        onClose={handleCloseGallery}
         onUpdateRow={handleGalleryRowUpdate}
       />
     </div>

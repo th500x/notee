@@ -139,9 +139,17 @@ export async function fetchPublicGallery(token) {
   const res = await fetch(
     `${base}/api/rental-tracking/public/gallery/${encodeURIComponent(token)}`
   );
-  const data = await res.json();
+  let data = {};
+  try {
+    data = await res.json();
+  } catch {
+    data = {};
+  }
   if (!res.ok || !data.success) {
-    throw new Error(data.error || '加载图库失败');
+    const err = new Error(data.error || '加载图库失败');
+    err.status = res.status;
+    err.code = data.error || '';
+    throw err;
   }
   return data;
 }

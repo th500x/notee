@@ -161,7 +161,7 @@ router.get('/public/gallery/:token', async (req, res) => {
 
   try {
     const [rows] = await pool.execute(
-      "SELECT accounting_sheet FROM projects WHERE project_kind = 'accounting'"
+      "SELECT accounting_sheet FROM projects WHERE COALESCE(project_kind, 'rental') = 'accounting'"
     );
 
     for (const dbRow of rows) {

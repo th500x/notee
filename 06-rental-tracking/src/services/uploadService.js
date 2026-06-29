@@ -111,10 +111,15 @@ export const uploadService = {
    * 账目图库：不限张数（逐张调用单文件上传）
    * @param {File[]} files
    */
-  uploadPhotosUnlimited: async (files) => {
+  uploadPhotosUnlimited: async (files, onProgress) => {
     if (!files?.length) return []
     const results = []
-    for (const file of files) {
+    const total = files.length
+    for (let i = 0; i < total; i += 1) {
+      const file = files[i]
+      if (onProgress) {
+        onProgress({ current: i + 1, total, fileName: file.name || `图片 ${i + 1}` })
+      }
       results.push(await uploadService.uploadPhoto(file))
     }
     return results

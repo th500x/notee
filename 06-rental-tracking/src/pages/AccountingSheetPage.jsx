@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import * as api from '../utils/apiClient';
 import {
   normalizeAccountingSheet,
@@ -22,6 +22,7 @@ const TABS = [
 export default function AccountingSheetPage({ project, onBack, onSaved, onProjectSynced }) {
   const [activeTab, setActiveTab] = useState('rent');
   const [sheet, setSheet] = useState(() => normalizeAccountingSheet(project?.accountingSheet));
+  const [savedSheet, setSavedSheet] = useState(() => normalizeAccountingSheet(project?.accountingSheet));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -35,6 +36,7 @@ export default function AccountingSheetPage({ project, onBack, onSaved, onProjec
         if (cancelled || !freshProject) return;
         const nextSheet = normalizeAccountingSheet(freshProject.accountingSheet);
         setSheet(nextSheet);
+        setSavedSheet(nextSheet);
         onProjectSynced(freshProject);
       };
       try {
@@ -69,10 +71,25 @@ export default function AccountingSheetPage({ project, onBack, onSaved, onProjec
 
   /** 仅切换项目时从 props 重置；勿在 version 变化时整表覆盖，否则异步列表刷新会用旧快照冲掉本地未保存编辑（表现为输入被清空）。 */
   useEffect(() => {
-    setSheet(normalizeAccountingSheet(project?.accountingSheet));
+    const next = normalizeAccountingSheet(project?.accountingSheet);
+    setSheet(next);
+    setSavedSheet(next);
   }, [project?.id]);
 
-  const handleSave = useCallback(async () => {
+  const isRentRowGalleryUnsaved = useCallback(
+    (rowId) => {
+      const cur = sheet.rentRows.find((r) => r.id === rowId);
+      const base = savedSheet.rentRows.find((r) => r.id === rowId);
+      if (!cur) return false;
+      return (
+        JSON.stringify(cur.photos || []) !== JSON.stringify(base?.photos || []) ||
+        (cur.galleryShareToken || '') !== (base?.galleryShareToken || '')
+      );
+    },
+    [sheet.rentRows, savedSheet.rentRows]
+  );
+
+  const handleSave = useCallback(async ({ quiet = false } = {}) => {
     setError('');
     setSaving(true);
     try {
@@ -81,16 +98,22 @@ export default function AccountingSheetPage({ project, onBack, onSaved, onProjec
       try {
         const fresh = await api.getProject(project.id);
         if (fresh?.success && fresh.project) {
-          setSheet(normalizeAccountingSheet(fresh.project.accountingSheet));
+          const next = normalizeAccountingSheet(fresh.project.accountingSheet);
+          setSheet(next);
+          setSavedSheet(next);
           if (onProjectSynced) onProjectSynced(fresh.project);
         }
       } catch (e) {
         console.warn('[AccountingSheetPage] 保存后刷新详情失败', e);
       }
       if (onSaved) await onSaved();
-      alert('已保存。');
+      if (!quiet) alert('已保存。');
+      return { success: true };
     } catch (e) {
-      setError(e.message || '保存失败');
+      const message = e.message || '保存失败';
+      setError(message);
+      if (!quiet) alert(message);
+      return { success: false, error: message };
     } finally {
       setSaving(false);
     }
@@ -150,7 +173,15 @@ export default function AccountingSheetPage({ project, onBack, onSaved, onProjec
         ))}
       </div>
 
-      {activeTab === 'rent' ? <AccountingRentTab sheet={sheet} setSheet={setSheet} /> : null}
+      {activeTab === 'rent' ? (
+        <AccountingRentTab
+          sheet={sheet}
+          setSheet={setSheet}
+          isRentRowGalleryUnsaved={isRentRowGalleryUnsaved}
+          onSaveToServer={handleSave}
+          saving={saving}
+        />
+      ) : null}
       {activeTab === 'expense' ? <AccountingExpenseTab sheet={sheet} setSheet={setSheet} /> : null}
       {activeTab === 'summary' ? <AccountingSummaryTab sheet={sheet} /> : null}
 

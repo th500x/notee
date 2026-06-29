@@ -27,7 +27,18 @@ export default function AccountingGallerySharePage({ token }) {
         setRoom(data.room || '');
         setPhotos(Array.isArray(data.photos) ? data.photos : []);
       } catch (err) {
-        if (!cancelled) setError(err.message || '加载失败');
+        if (!cancelled) {
+          const msg = err.message || '加载失败';
+          if (msg.includes('链接无效') || msg.includes('已失效')) {
+            setError(
+              '链接无效或尚未生效。常见原因：上传/分享后还没有点「保存到服务器」，或链接已被重新生成。请让分享方保存后再发链接。'
+            );
+          } else if (msg.includes('图库暂无图片')) {
+            setError('该图库目前没有图片，请让分享方重新上传并保存。');
+          } else {
+            setError(msg);
+          }
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
