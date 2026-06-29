@@ -129,6 +129,20 @@ function buildTagsHtml(tags) {
   </div>`;
 }
 
+/** 与时间轴一致：模糊地址 + 具体店名（若有） */
+function buildLocationHtml(entry) {
+  const publicLabel = String(entry?.locationPublicLabel || '').trim();
+  const placeName = String(entry?.locationPlaceName || '').trim();
+  if (!publicLabel && !placeName) return '';
+
+  let text = publicLabel ? escapeHtml(publicLabel) : '';
+  if (placeName) {
+    text = text ? `${text} · ${escapeHtml(placeName)}` : escapeHtml(placeName);
+  }
+
+  return `<div style="margin-top:14px;font-size:24px;line-height:1.45;color:#64748b;">📍 ${text}</div>`;
+}
+
 /**
  * @param {{
  *   entry: object,
@@ -183,6 +197,7 @@ export async function renderEntrySharePosterBlob({ entry, accountId, displayName
       <div style="font-size:22px;color:#6366f1;letter-spacing:0.08em;margin-bottom:20px;">人生片段</div>
       <div style="font-size:36px;font-weight:700;line-height:1.35;color:#0f172a;">${escapeHtml(authorLabel)}</div>
       <div style="margin-top:10px;font-size:24px;color:#64748b;">${escapeHtml(timeLabel)}</div>
+      ${buildLocationHtml(entry)}
       ${buildTagsHtml(entry.tags)}
       ${title ? `<div style="margin-top:20px;font-size:30px;font-weight:700;line-height:1.4;color:#0f172a;">${escapeHtml(title)}</div>` : ''}
       <div style="margin-top:${title ? 16 : 20}px;font-size:28px;line-height:1.65;color:#334155;white-space:pre-wrap;word-break:break-word;">${escapeHtml(body)}</div>
