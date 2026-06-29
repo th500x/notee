@@ -36,3 +36,25 @@ export function normalizeGalleryDriveFolderUrl(raw) {
 export function isGalleryDriveFolderUrl(raw) {
   return normalizeGalleryDriveFolderUrl(raw) !== '';
 }
+
+/**
+ * @param {string} raw 文件夹链接
+ * @returns {string} 文件夹 ID，无法解析则空串
+ */
+export function extractDriveFolderId(raw) {
+  const normalized = normalizeGalleryDriveFolderUrl(raw);
+  if (!normalized) return '';
+  const m = /\/folders\/([\w-]+)/i.exec(normalized);
+  return m ? m[1] : '';
+}
+
+/**
+ * Google 官方文件夹网格嵌入（须文件夹为「知道链接的人可查看」）
+ * @param {string} raw 文件夹链接
+ * @returns {string}
+ */
+export function buildDriveFolderEmbedUrl(raw) {
+  const id = extractDriveFolderId(raw);
+  if (!id) return '';
+  return `https://drive.google.com/embeddedfolderview?id=${encodeURIComponent(id)}#grid`;
+}
