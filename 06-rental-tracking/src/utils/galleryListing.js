@@ -3,6 +3,7 @@
  */
 
 import { sanitizeIsoDateField } from './accountingDates';
+import { getGalleryShareMessages } from './galleryShareI18n';
 
 export const GALLERY_LAYOUT_OPTIONS = [
   { value: '', label: '—' },
@@ -75,21 +76,24 @@ export function normalizeGalleryListing(raw) {
   };
 }
 
-function layoutLabel(layout) {
-  if (layout === 'studio') return 'studio';
-  if (layout === '1bedroom') return '1 bedroom';
+function layoutLabel(layout, locale = 'zh') {
+  const m = getGalleryShareMessages(locale);
+  if (layout === 'studio') return m.layoutStudio;
+  if (layout === '1bedroom') return m.layout1bedroom;
   return '';
 }
 
-function tvTypeLabel(tvType) {
-  if (tvType === 'smart') return 'smart TV';
-  if (tvType === 'cable') return 'cable TV';
+function tvTypeLabel(tvType, locale = 'zh') {
+  const m = getGalleryShareMessages(locale);
+  if (tvType === 'smart') return m.tvSmart;
+  if (tvType === 'cable') return m.tvCable;
   return '';
 }
 
-function internetLabel(internet) {
-  if (internet === 'yes') return 'Yes';
-  if (internet === 'no') return 'No';
+function internetLabel(internet, locale = 'zh') {
+  const m = getGalleryShareMessages(locale);
+  if (internet === 'yes') return m.internetYes;
+  if (internet === 'no') return m.internetNo;
   return '';
 }
 
@@ -102,29 +106,32 @@ function formatShootDateDisplay(iso) {
 }
 
 /**
+ * @param {object} listing
+ * @param {'zh'|'en'|'th'} [locale]
  * @returns {{ label: string, value: string }[]}
  */
-export function buildGalleryListingDisplayLines(listing) {
+export function buildGalleryListingDisplayLines(listing, locale = 'zh') {
   const L = normalizeGalleryListing(listing);
+  const m = getGalleryShareMessages(locale);
   const lines = [];
 
-  if (L.rentBaht) lines.push({ label: '租金', value: `${L.rentBaht} baht` });
-  if (L.depositBaht) lines.push({ label: '押金', value: `${L.depositBaht} baht` });
-  if (L.areaSqm) lines.push({ label: '面积', value: `${L.areaSqm} sqm` });
-  const layout = layoutLabel(L.layout);
-  if (layout) lines.push({ label: '户型', value: layout });
+  if (L.rentBaht) lines.push({ label: m.labelRent, value: `${L.rentBaht} ${m.unitBaht}` });
+  if (L.depositBaht) lines.push({ label: m.labelDeposit, value: `${L.depositBaht} ${m.unitBaht}` });
+  if (L.areaSqm) lines.push({ label: m.labelArea, value: `${L.areaSqm} ${m.unitSqm}` });
+  const layout = layoutLabel(L.layout, locale);
+  if (layout) lines.push({ label: m.labelLayout, value: layout });
 
   const tvParts = [];
-  if (L.tvInch) tvParts.push(`${L.tvInch} inch`);
-  const tvKind = tvTypeLabel(L.tvType);
+  if (L.tvInch) tvParts.push(`${L.tvInch} ${m.unitInch}`);
+  const tvKind = tvTypeLabel(L.tvType, locale);
   if (tvKind) tvParts.push(tvKind);
-  if (tvParts.length) lines.push({ label: '电视', value: tvParts.join(', ') });
+  if (tvParts.length) lines.push({ label: m.labelTv, value: tvParts.join(', ') });
 
-  const net = internetLabel(L.internet);
-  if (net) lines.push({ label: '网络', value: net });
+  const net = internetLabel(L.internet, locale);
+  if (net) lines.push({ label: m.labelInternet, value: net });
 
   const shoot = formatShootDateDisplay(L.shootDate);
-  if (shoot) lines.push({ label: '拍摄日期', value: shoot });
+  if (shoot) lines.push({ label: m.labelShootDate, value: shoot });
 
   return lines;
 }
