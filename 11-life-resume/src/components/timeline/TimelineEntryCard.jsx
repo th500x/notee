@@ -97,32 +97,9 @@ export default function TimelineEntryCard({
     <article className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
       <div className="flex flex-wrap items-start justify-between gap-2 mb-2">
         <div className="min-w-0 flex-1">
-          {(entry.title || entry.locationPlaceName) && (
-            <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 mb-1">
-              {entry.title ? (
-                <h3 className="font-semibold text-slate-900">{entry.title}</h3>
-              ) : (
-                <span />
-              )}
-              {entry.locationPlaceName &&
-                (ownerExactMapsUrl ? (
-                  <a
-                    href={ownerExactMapsUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-sm text-indigo-600 hover:text-indigo-800 hover:underline shrink-0 max-w-[55%] truncate"
-                    title="在 Google 地图中打开"
-                  >
-                    📍 {entry.locationPlaceName}
-                  </a>
-                ) : (
-                  <span
-                    className="text-sm text-slate-600 shrink-0 max-w-[55%] truncate"
-                    title={entry.locationPlaceName}
-                  >
-                    📍 {entry.locationPlaceName}
-                  </span>
-                ))}
+          {entry.title && (
+            <div className="mb-1">
+              <h3 className="font-semibold text-slate-900">{entry.title}</h3>
             </div>
           )}
           <p className="text-sm text-slate-500">{timeLabel}</p>
@@ -175,7 +152,11 @@ export default function TimelineEntryCard({
       <EntryVideoPlayer media={entry.media} />
       <EntryDocumentBlock media={entry.media} />
       <EntryDriveBlock entry={entry} />
-      <EntryLocationLine entry={entry} isOwner={isOwner} />
+      <EntryLocationLine
+        entry={entry}
+        isOwner={isOwner}
+        ownerExactMapsUrl={ownerExactMapsUrl}
+      />
 
       {isOwner && (
         <div className="flex flex-wrap gap-2 mt-4 pt-3 border-t border-slate-100">

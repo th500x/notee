@@ -126,3 +126,12 @@ temp/
 # OS generated files
 Thumbs.db
 ehthumbs.db
+
+# --- 子项目运行时目录（原各子目录 .gitignore 独有规则）---
+
+# 05：战斗纪念图运行时落盘（POST /api/memorial/battle）
+05-san-storm/backend/storage/memorial/battle/*
+!05-san-storm/backend/storage/memorial/battle/.gitkeep
+
+# 06：租赁追踪后端本地数据
+06-rental-tracking/backend/data/

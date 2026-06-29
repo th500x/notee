@@ -48,6 +48,14 @@ export const PROJECTS = [
     path: '/05-san-storm/'
   },
   {
+    id: '11-life-resume',
+    name: '人生片段',
+    icon: '📖',
+    description: '按年份记录人生片段\n支持隐私分级与 Google 云盘链接',
+    gradient: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+    path: '/11-life-resume/'
+  },
+  {
     id: '01-news-calendar',
     name: '新聞筆記',
     icon: '📰',
@@ -62,14 +70,6 @@ export const PROJECTS = [
     description: '游戏人生的点滴记录\n支持阅读进度记忆和PDF导出',
     gradient: 'linear-gradient(135deg, #8B4513 0%, #D2691E 100%)',
     path: '/02-tale-historical/'
-  },
-  {
-    id: '11-life-resume',
-    name: '人生片段',
-    icon: '📖',
-    description: '按年份记录人生片段\n支持隐私分级与 Google 云盘链接',
-    gradient: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-    path: '/11-life-resume/'
   },
   {
     id: '06-rental-tracking',
