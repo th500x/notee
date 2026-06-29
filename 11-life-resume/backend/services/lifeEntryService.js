@@ -31,10 +31,7 @@ const {
   normalizeLocationMapsUrl,
   parseGoogleMapsShareUrl,
 } = require('../../../05-san-storm/shared/utils/parseGoogleMapsShareUrl.cjs');
-const {
-  reverseGeocodeToPublicLabel,
-  forwardGeocodePlaceToPublicLabel,
-} = require('./reverseGeocodeService');
+const { resolveLocationPublicLabel } = require('./reverseGeocodeService');
 const { resolveGoogleMapsShareUrl, GoogleMapsResolveError } = require('./googleMapsUrlResolveService');
 
 const VISIBILITY_VALUES = new Set(['public', 'private', 'specific']);
@@ -266,13 +263,11 @@ async function resolveLocationFields(input) {
 
   let locationPublicLabel = null;
   try {
-    if (latitude != null && longitude != null) {
-      locationPublicLabel = await reverseGeocodeToPublicLabel(latitude, longitude);
-    } else if (placeName) {
-      locationPublicLabel = await forwardGeocodePlaceToPublicLabel(placeName);
-    } else {
-      throw new EntryServiceError('INVALID_LOCATION', '无法解析位置，请填写地点名称或地图链接');
-    }
+    locationPublicLabel = await resolveLocationPublicLabel({
+      placeName,
+      latitude,
+      longitude,
+    });
   } catch (err) {
     throw new EntryServiceError(
       err.code || 'GEOCODE_FAILED',

@@ -116,19 +116,27 @@ function buildPayload(form, status, mediaBundleType, mediaItems) {
   if (form.locationEnabled) {
     let placeName = form.locationPlaceName.trim();
     let mapsUrl = form.locationMapsUrl.trim();
+    let latitude = form.latitude;
+    let longitude = form.longitude;
 
     if (mapsUrl) {
       const parsed = parseGoogleMapsShareUrl(mapsUrl);
       if (parsed.ok && !parsed.empty) {
         mapsUrl = parsed.shareUrl;
         if (parsed.placeName && !placeName) placeName = parsed.placeName;
+        if (parsed.latitude != null && !String(latitude ?? '').trim()) {
+          latitude = String(parsed.latitude);
+        }
+        if (parsed.longitude != null && !String(longitude ?? '').trim()) {
+          longitude = String(parsed.longitude);
+        }
       }
     }
 
     payload.locationPlaceName = placeName;
     payload.locationMapsUrl = mapsUrl;
-    payload.latitude = form.latitude;
-    payload.longitude = form.longitude;
+    payload.latitude = latitude;
+    payload.longitude = longitude;
     payload.locationCaptureMethod = form.locationCaptureMethod || 'map_pick';
   }
 

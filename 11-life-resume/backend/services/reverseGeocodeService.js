@@ -4,10 +4,16 @@
  */
 
 const { validateCoordinates } = require('../../../05-san-storm/shared/utils/lifeResumeLocation.cjs');
+const {
+  extractGeocodeQueryCandidates,
+  buildFallbackPublicLabelFromPlaceName,
+} = require('../../../05-san-storm/shared/utils/locationPublicLabelFallback.cjs');
 
 const NOMINATIM_REVERSE = 'https://nominatim.openstreetmap.org/reverse';
+const NOMINATIM_SEARCH = 'https://nominatim.openstreetmap.org/search';
 const USER_AGENT =
   process.env.LIFE_RESUME_GEOCODE_UA || 'notee-life-resume/1.0 (contact: local-dev)';
+const GEOCODE_TIMEOUT_MS = 8000;
 
 function buildPublicLabelFromAddress(address, displayName) {
   const addr = address || {};
@@ -41,6 +47,16 @@ function buildPublicLabelFromAddress(address, displayName) {
   return null;
 }
 
+function geocodeFetch(url) {
+  return fetch(url.toString(), {
+    headers: {
+      'User-Agent': USER_AGENT,
+      Accept: 'application/json',
+    },
+    signal: AbortSignal.timeout(GEOCODE_TIMEOUT_MS),
+  });
+}
+
 async function reverseGeocodeToPublicLabel(latitude, longitude) {
   const check = validateCoordinates(latitude, longitude);
   if (!check.ok) {
@@ -56,12 +72,7 @@ async function reverseGeocodeToPublicLabel(latitude, longitude) {
   url.searchParams.set('accept-language', 'zh');
   url.searchParams.set('zoom', '10');
 
-  const res = await fetch(url.toString(), {
-    headers: {
-      'User-Agent': USER_AGENT,
-      Accept: 'application/json',
-    },
-  });
+  const res = await geocodeFetch(url);
 
   if (!res.ok) {
     const err = new Error('逆地理编码服务暂不可用');
@@ -88,18 +99,13 @@ async function forwardGeocodePlaceToPublicLabel(placeName) {
     throw err;
   }
 
-  const url = new URL('https://nominatim.openstreetmap.org/search');
+  const url = new URL(NOMINATIM_SEARCH);
   url.searchParams.set('format', 'json');
   url.searchParams.set('q', queryText);
   url.searchParams.set('accept-language', 'zh');
   url.searchParams.set('limit', '1');
 
-  const res = await fetch(url.toString(), {
-    headers: {
-      'User-Agent': USER_AGENT,
-      Accept: 'application/json',
-    },
-  });
+  const res = await geocodeFetch(url);
 
   if (!res.ok) {
     const err = new Error('地点解析服务暂不可用');
@@ -125,8 +131,55 @@ async function forwardGeocodePlaceToPublicLabel(placeName) {
   return label;
 }
 
+/**
+ * 解析访客可见的城/区县模糊文案；外部地理编码不可用时使用纯文本回退，避免阻断发布。
+ * @param {{ placeName?: string|null, latitude?: number|null, longitude?: number|null }} input
+ * @returns {Promise<string>}
+ */
+async function resolveLocationPublicLabel(input) {
+  const placeName = input?.placeName ? String(input.placeName).trim() : '';
+  const latitude = input?.latitude ?? null;
+  const longitude = input?.longitude ?? null;
+
+  if (latitude != null && longitude != null) {
+    try {
+      return await reverseGeocodeToPublicLabel(latitude, longitude);
+    } catch (err) {
+      console.warn('[life-resume] reverse geocode failed:', err.message);
+    }
+  }
+
+  if (placeName) {
+    const queries = [
+      placeName,
+      ...extractGeocodeQueryCandidates(placeName),
+    ].filter(Boolean);
+    const seen = new Set();
+    for (const query of queries) {
+      const key = query.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      try {
+        return await forwardGeocodePlaceToPublicLabel(query);
+      } catch (err) {
+        console.warn('[life-resume] forward geocode failed:', query.slice(0, 60), err.message);
+      }
+    }
+
+    const fallback = buildFallbackPublicLabelFromPlaceName(placeName);
+    if (fallback) {
+      return fallback;
+    }
+  }
+
+  const err = new Error('无法解析位置，请填写含城市信息的地点名称');
+  err.code = 'GEOCODE_FAILED';
+  throw err;
+}
+
 module.exports = {
   reverseGeocodeToPublicLabel,
   forwardGeocodePlaceToPublicLabel,
+  resolveLocationPublicLabel,
   buildPublicLabelFromAddress,
 };
