@@ -25,6 +25,7 @@ import {
 import { evaluateArithmeticExpression, formatAccountingNumber } from '../../utils/accountingExpression';
 import { isIsoDateString, sanitizeIsoDateField } from '../../utils/accountingDates';
 import { AccountingRowGalleryModal } from './AccountingRowGalleryModal';
+import { uploadService } from '../../services/uploadService';
 
 /** dnd-kit 在静止时也可能给出恒等 transform；写在 tr 上会给子格新建包含块，恒等时勿写 transform */
 function sortableTransformIsActive(t) {
@@ -286,7 +287,7 @@ function SortableRentRow({
   );
 }
 
-export function AccountingRentTab({ sheet, setSheet, isRentRowGalleryUnsaved, onSaveToServer, saving }) {
+export function AccountingRentTab({ sheet, savedSheet, setSheet, isRentRowGalleryUnsaved, onSaveToServer, saving }) {
   const [m0, m1] = sheet.monthKeys;
   const [filterPendingPayRent, setFilterPendingPayRent] = useState(false);
   const [galleryRowId, setGalleryRowId] = useState(null);
@@ -309,6 +310,11 @@ export function AccountingRentTab({ sheet, setSheet, isRentRowGalleryUnsaved, on
   const galleryRow = useMemo(
     () => (galleryRowId ? sheet.rentRows.find((r) => r.id === galleryRowId) : null),
     [galleryRowId, sheet.rentRows]
+  );
+
+  const gallerySavedRow = useMemo(
+    () => (galleryRowId ? savedSheet?.rentRows?.find((r) => r.id === galleryRowId) : null),
+    [galleryRowId, savedSheet?.rentRows]
   );
 
   const displayRows = useMemo(() => {
@@ -435,11 +441,25 @@ export function AccountingRentTab({ sheet, setSheet, isRentRowGalleryUnsaved, on
       }))
     );
 
-  const removeRow = (rowId) => {
+  const removeRow = async (rowId) => {
+    const row = sheet.rentRows.find((r) => r.id === rowId);
+    if (row?.photos?.length) {
+      try {
+        await uploadService.deletePhotos(row.photos.map((p) => p.id));
+      } catch (err) {
+        const stillRemove = window.confirm(
+          `该行有 ${row.photos.length} 张云端图片，删除失败（${err.message || '未知错误'}）。仍从表格移除该行？`
+        );
+        if (!stillRemove) return;
+      }
+    }
     setSheet((prev) => ({
       ...prev,
       rentRows: prev.rentRows.filter((r) => r.id !== rowId)
     }));
+    if (galleryRowId === rowId) {
+      handleCloseGallery();
+    }
   };
 
   const handleGalleryRowUpdate = (rowId, patch) => {
@@ -614,6 +634,7 @@ export function AccountingRentTab({ sheet, setSheet, isRentRowGalleryUnsaved, on
       <AccountingRowGalleryModal
         isOpen={!!galleryRow}
         row={galleryRow}
+        savedRow={gallerySavedRow}
         anchorEl={galleryAnchorEl}
         galleryUnsaved={galleryRow ? isRentRowGalleryUnsaved?.(galleryRow.id) : false}
         saving={saving}

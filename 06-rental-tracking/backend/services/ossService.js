@@ -142,10 +142,34 @@ async function checkConnection() {
   }
 }
 
+/**
+ * 从 OSS 读取对象（供公开图库经后端代理下载，避免浏览器 CORS）
+ */
+async function getPhotoObject(objectKey) {
+  const client = requireOssClient();
+  const key = typeof objectKey === 'string' ? objectKey.trim() : '';
+  if (!key || !key.startsWith('photos/')) {
+    throw new Error('无效的照片路径');
+  }
+  try {
+    const result = await client.get(key);
+    const contentType =
+      (result.res && result.res.headers && result.res.headers['content-type']) || 'image/jpeg';
+    return {
+      content: result.content,
+      contentType
+    };
+  } catch (error) {
+    console.error('OSS get failed:', error);
+    throw new Error('读取照片失败: ' + error.message);
+  }
+}
+
 module.exports = {
   uploadPhoto,
   deletePhoto,
   deletePhotos,
+  getPhotoObject,
   checkConnection,
   isOssAvailable
 };

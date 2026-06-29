@@ -53,7 +53,7 @@ export default function AccountingGallerySharePage({ token }) {
     setSaving(true);
     setSaveProgress('准备中…');
     try {
-      const mode = await saveAllGalleryPhotos(photos, room, (cur, total) => {
+      const mode = await saveAllGalleryPhotos(token, photos, room, (cur, total) => {
         setSaveProgress(`正在保存 ${cur}/${total}…`);
       });
       setSaveProgress(mode === 'share' ? '已通过系统分享面板保存' : '已全部触发下载');
@@ -64,7 +64,7 @@ export default function AccountingGallerySharePage({ token }) {
       setSaving(false);
       setTimeout(() => setSaveProgress(''), 4000);
     }
-  }, [photos, room, saving]);
+  }, [photos, room, saving, token]);
 
   const roomLabel = room?.trim() || '—';
 
@@ -132,7 +132,7 @@ export default function AccountingGallerySharePage({ token }) {
                     </span>
                     <button
                       type="button"
-                      onClick={() => downloadSinglePhoto(room, photo, index).catch(() => {
+                      onClick={() => downloadSinglePhoto(token, room, photo, index).catch(() => {
                         alert('下载失败，请长按图片保存');
                       })}
                       className="text-xs text-blue-600 hover:underline shrink-0"

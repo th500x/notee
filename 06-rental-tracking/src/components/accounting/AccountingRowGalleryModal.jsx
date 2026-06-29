@@ -2,7 +2,7 @@ import { useRef, useState, useCallback, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
 import PhotoViewer from '../PhotoViewer';
 import { uploadService } from '../../services/uploadService';
-import { enrichUploadedPhoto, formatCaptureTimeDisplay, getPhotoCaptureIso } from '../../utils/photoCaptureTime';
+import { enrichUploadedPhotoFromFile, formatCaptureTimeDisplay, getPhotoCaptureIso } from '../../utils/photoCaptureTime';
 import {
   newGalleryShareToken,
   copyGalleryShareUrl,
@@ -66,6 +66,7 @@ function useGalleryPanelStyle(anchorEl, isOpen) {
 export function AccountingRowGalleryModal({
   isOpen,
   row,
+  savedRow,
   anchorEl,
   galleryUnsaved,
   saving = false,
@@ -123,7 +124,10 @@ export function AccountingRowGalleryModal({
     setUploadProgress({ current: 0, total: files.length, fileName: files[0]?.name || '' });
     try {
       const results = await uploadService.uploadPhotosUnlimited(files, (p) => setUploadProgress(p));
-      const newPhotos = results.map((r, i) => enrichUploadedPhoto(r.photo, files[i]?.name));
+      const newPhotos = [];
+      for (let i = 0; i < results.length; i += 1) {
+        newPhotos.push(await enrichUploadedPhotoFromFile(results[i].photo, files[i]));
+      }
       const nextPhotos = [...photos, ...newPhotos];
       const patch = { photos: nextPhotos };
       if (!row.galleryShareToken && nextPhotos.length > 0) {
@@ -194,6 +198,35 @@ export function AccountingRowGalleryModal({
     }
   };
 
+  const handleRequestClose = async () => {
+    if (uploading) return;
+
+    const savedPhotos = savedRow?.photos || [];
+    const savedIds = new Set(savedPhotos.map((p) => p.id));
+    const orphanIds = photos.filter((p) => !savedIds.has(p.id)).map((p) => p.id);
+
+    if (orphanIds.length > 0) {
+      const ok = window.confirm(
+        `有 ${orphanIds.length} 张图片已上传到云端，但尚未保存到服务器。\n\n关闭后将删除这些图片；若想保留，请先点「保存到服务器」。\n\n确定关闭？`
+      );
+      if (!ok) return;
+      try {
+        await uploadService.deletePhotos(orphanIds);
+      } catch (err) {
+        const stillClose = window.confirm(
+          `云端删除失败（${err.message || '未知错误'}）。仍要关闭吗？未保存的图片可能残留在云端。`
+        );
+        if (!stillClose) return;
+      }
+      patchRow({
+        photos: savedPhotos,
+        galleryShareToken: savedRow?.galleryShareToken || ''
+      });
+    }
+
+    onClose();
+  };
+
   if (!isOpen || !row || !panelStyle) return null;
 
   const shareUrl = row.galleryShareToken ? buildGalleryShareUrl(row.galleryShareToken) : '';
@@ -204,7 +237,7 @@ export function AccountingRowGalleryModal({
 
   const panel = (
     <>
-      <div className="fixed inset-0 z-40 bg-black/40" onClick={onClose} aria-hidden="true" />
+      <div className="fixed inset-0 z-40 bg-black/40" onClick={handleRequestClose} aria-hidden="true" />
       <div
         className="fixed z-50 flex flex-col bg-white rounded-lg shadow-2xl border border-gray-200 overflow-hidden"
         style={panelStyle}
@@ -221,7 +254,7 @@ export function AccountingRowGalleryModal({
           </div>
           <button
             type="button"
-            onClick={onClose}
+            onClick={handleRequestClose}
             className="shrink-0 text-2xl leading-none hover:opacity-80"
             aria-label="关闭"
           >

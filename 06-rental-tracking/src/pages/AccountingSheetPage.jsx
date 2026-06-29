@@ -176,6 +176,7 @@ export default function AccountingSheetPage({ project, onBack, onSaved, onProjec
       {activeTab === 'rent' ? (
         <AccountingRentTab
           sheet={sheet}
+          savedSheet={savedSheet}
           setSheet={setSheet}
           isRentRowGalleryUnsaved={isRentRowGalleryUnsaved}
           onSaveToServer={handleSave}

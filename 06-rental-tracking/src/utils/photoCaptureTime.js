@@ -1,9 +1,16 @@
 /**
- * 从图片文件名解析拍摄时间（账目图库 / 公开页展示共用）
+ * 从图片文件名 / EXIF 解析拍摄时间（账目图库 / 公开页展示共用）
  */
+
+import exifr from 'exifr';
 
 function pad2(n) {
   return String(n).padStart(2, '0');
+}
+
+function formatLocalIsoFromDate(d) {
+  if (!(d instanceof Date) || Number.isNaN(d.getTime())) return null;
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
 }
 
 /**
@@ -14,8 +21,14 @@ export function parseCaptureTimeFromFilename(name) {
   if (!name || typeof name !== 'string') return null;
   const base = name.replace(/\.[^.]+$/, '');
 
+  // WhatsApp: IMG-20250628-WA0001
+  let m = /^IMG-(\d{4})(\d{2})(\d{2})-/i.exec(base);
+  if (m) {
+    return `${m[1]}-${m[2]}-${m[3]}T12:00:00`;
+  }
+
   // IMG_20260415_123456 或 20260415_123456
-  let m = /(?:^|[^0-9])(\d{4})(\d{2})(\d{2})[_-]?(\d{2})(\d{2})(\d{2})(?:[^0-9]|$)/i.exec(base);
+  m = /(?:^|[^0-9])(\d{4})(\d{2})(\d{2})[_-]?(\d{2})(\d{2})(\d{2})(?:[^0-9]|$)/i.exec(base);
   if (m) {
     return `${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}:${m[6]}`;
   }
@@ -29,7 +42,6 @@ export function parseCaptureTimeFromFilename(name) {
   // 仅日期 YYYYMMDD
   m = /(?:^|[^0-9])(\d{4})(\d{2})(\d{2})(?:[^0-9]|$)/.exec(base);
   if (m) {
-    const y = Number(m[1]);
     const mo = Number(m[2]);
     const d = Number(m[3]);
     if (mo >= 1 && mo <= 12 && d >= 1 && d <= 31) {
@@ -41,19 +53,41 @@ export function parseCaptureTimeFromFilename(name) {
 }
 
 /**
+ * 从图片 EXIF 读取拍摄时间（DateTimeOriginal 优先）
+ * @param {File|Blob} file
+ * @returns {Promise<string|null>}
+ */
+export async function parseCaptureTimeFromExif(file) {
+  if (!file) return null;
+  try {
+    const exif = await exifr.parse(file, {
+      pick: ['DateTimeOriginal', 'CreateDate', 'ModifyDate'],
+      reviveValues: true
+    });
+    const raw = exif?.DateTimeOriginal || exif?.CreateDate || exif?.ModifyDate;
+    if (!raw) return null;
+    const d = raw instanceof Date ? raw : new Date(raw);
+    return formatLocalIsoFromDate(d);
+  } catch {
+    return null;
+  }
+}
+
+/**
  * @param {{ name?: string, capturedAt?: string, uploadedAt?: string }} photo
  * @returns {string|null}
  */
 export function getPhotoCaptureIso(photo) {
   if (!photo || typeof photo !== 'object') return null;
-  if (typeof photo.capturedAt === 'string' && photo.capturedAt.trim()) {
-    return photo.capturedAt.trim();
-  }
+
   const fromName = parseCaptureTimeFromFilename(photo.name || '');
   if (fromName) return fromName;
-  if (typeof photo.uploadedAt === 'string' && photo.uploadedAt.trim()) {
-    return photo.uploadedAt.trim();
-  }
+
+  const captured = typeof photo.capturedAt === 'string' ? photo.capturedAt.trim() : '';
+  const uploaded = typeof photo.uploadedAt === 'string' ? photo.uploadedAt.trim() : '';
+  // 旧数据可能误把 uploadedAt 写入 capturedAt，展示时跳过
+  if (captured && captured !== uploaded) return captured;
+
   return null;
 }
 
@@ -66,16 +100,26 @@ export function formatCaptureTimeDisplay(iso) {
 }
 
 /**
- * 上传完成后补全 capturedAt
+ * 上传完成后补全 capturedAt：优先文件名，其次 EXIF；无则留空（不用上传时间）
  * @param {object} photo OSS 返回的照片对象
- * @param {string} [fileName] 本地文件名
+ * @param {File|Blob} [file] 本地原文件（读 EXIF）
  */
+export async function enrichUploadedPhotoFromFile(photo, file) {
+  const name = file?.name || photo.name || '';
+  const fromName = parseCaptureTimeFromFilename(name);
+  const fromExif = fromName ? null : await parseCaptureTimeFromExif(file);
+  const capturedAt = fromName || fromExif || '';
+  return {
+    ...photo,
+    name: name || photo.name || '',
+    capturedAt
+  };
+}
+
+/** @deprecated 请用 enrichUploadedPhotoFromFile */
 export function enrichUploadedPhoto(photo, fileName) {
   const name = fileName || photo.name || '';
-  const capturedAt =
-    parseCaptureTimeFromFilename(name) ||
-    (typeof photo.uploadedAt === 'string' ? photo.uploadedAt : '') ||
-    new Date().toISOString();
+  const capturedAt = parseCaptureTimeFromFilename(name) || '';
   return {
     ...photo,
     name: name || photo.name || '',

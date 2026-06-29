@@ -31,6 +31,12 @@ const { auditLog } = require('./middleware/auditLog');
 const { hashPassword, verifyPassword } = require('./utils/passwordUtils');
 const { verifyToken, decodeTokenOptional } = require('./middleware/auth');
 const { parseJSON } = require('./utils/jsonParser');
+const {
+  findPublicGalleryByToken,
+  normalizeGalleryToken,
+  isValidPhotoObjectKey
+} = require('./utils/publicGallery');
+const ossService = require('./services/ossService');
 
 function sanitizeUtilityIsoYmd(v) {
   if (typeof v !== 'string') return '';
@@ -154,42 +160,73 @@ router.get('/health', (req, res) => {
  * GET /api/rental-tracking/public/gallery/:token
  */
 router.get('/public/gallery/:token', async (req, res) => {
-  const token = (req.params.token || '').trim();
-  if (!token || token.length > 80 || !/^[\w-]+$/.test(token)) {
+  const token = normalizeGalleryToken(req.params.token);
+  if (!token) {
     return res.status(400).json({ success: false, error: '无效链接' });
   }
 
   try {
-    const [rows] = await pool.execute(
-      "SELECT accounting_sheet FROM projects WHERE COALESCE(project_kind, 'rental') = 'accounting'"
-    );
-
-    for (const dbRow of rows) {
-      const sheet = normalizeAccountingSheet(parseJSON(dbRow.accounting_sheet, null));
-      for (const rentRow of sheet.rentRows) {
-        if (rentRow.galleryShareToken !== token) continue;
-        const photos = (rentRow.photos || []).map((p) => ({
-          id: p.id,
-          url: p.url,
-          name: p.name || '',
-          capturedAt: p.capturedAt || '',
-          uploadedAt: p.uploadedAt || ''
-        }));
-        if (photos.length === 0) {
-          return res.status(404).json({ success: false, error: '图库暂无图片' });
-        }
-        return res.json({
-          success: true,
-          room: rentRow.room || '',
-          photos
-        });
-      }
+    const gallery = await findPublicGalleryByToken(token);
+    if (!gallery) {
+      return res.status(404).json({ success: false, error: '链接无效或已失效' });
     }
-
-    return res.status(404).json({ success: false, error: '链接无效或已失效' });
+    if (gallery.photos.length === 0) {
+      return res.status(404).json({ success: false, error: '图库暂无图片' });
+    }
+    return res.json({
+      success: true,
+      room: gallery.room,
+      photos: gallery.photos
+    });
   } catch (error) {
     console.error('[API] 公开图库查询失败:', error);
     return res.status(500).json({ success: false, error: '加载图库失败' });
+  }
+});
+
+/**
+ * 公开图库单张下载（后端代理 OSS，避免浏览器 CORS）
+ * GET /api/rental-tracking/public/gallery/:token/download?key=photos/...
+ */
+router.get('/public/gallery/:token/download', async (req, res) => {
+  const token = normalizeGalleryToken(req.params.token);
+  const key = typeof req.query.key === 'string' ? req.query.key.trim() : '';
+  if (!token) {
+    return res.status(400).json({ success: false, error: '无效链接' });
+  }
+  if (!isValidPhotoObjectKey(key)) {
+    return res.status(400).json({ success: false, error: '无效的图片参数' });
+  }
+
+  try {
+    const gallery = await findPublicGalleryByToken(token);
+    if (!gallery) {
+      return res.status(404).json({ success: false, error: '链接无效或已失效' });
+    }
+    const photo = gallery.photos.find((p) => p.id === key);
+    if (!photo) {
+      return res.status(404).json({ success: false, error: '图片不存在或无权访问' });
+    }
+
+    if (!ossService.isOssAvailable()) {
+      return res.status(503).json({ success: false, error: '照片服务暂不可用' });
+    }
+
+    const { content, contentType } = await ossService.getPhotoObject(key);
+    const ext = key.split('.').pop() || 'jpg';
+    const baseName = (photo.name || `photo-${key.split('/').pop()}`).replace(/[/\\?%*:|"<>]/g, '_');
+    const filename = baseName.includes('.') ? baseName : `${baseName}.${ext}`;
+
+    res.setHeader('Content-Type', contentType);
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="${filename}"; filename*=UTF-8''${encodeURIComponent(filename)}`
+    );
+    res.setHeader('Cache-Control', 'private, max-age=3600');
+    return res.send(content);
+  } catch (error) {
+    console.error('[API] 公开图库下载失败:', error);
+    return res.status(500).json({ success: false, error: '下载失败' });
   }
 });
 

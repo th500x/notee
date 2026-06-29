@@ -61,14 +61,35 @@ function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function fetchPhotoBlob(url) {
-  const res = await fetch(url, { mode: 'cors' });
-  if (!res.ok) throw new Error('下载失败');
+function apiBaseForBrowser() {
+  return typeof window !== 'undefined' && window.location.origin ? '' : 'http://localhost:3003';
+}
+
+/** 经后端代理下载，避免 OSS 直链 CORS */
+export function buildGalleryPhotoDownloadUrl(token, photoId) {
+  if (!token || !photoId) return '';
+  return `${apiBaseForBrowser()}/api/rental-tracking/public/gallery/${encodeURIComponent(token)}/download?key=${encodeURIComponent(photoId)}`;
+}
+
+async function fetchPhotoBlob(token, photo) {
+  const url = buildGalleryPhotoDownloadUrl(token, photo.id);
+  if (!url) throw new Error('无效的图片');
+  const res = await fetch(url);
+  if (!res.ok) {
+    let msg = '下载失败';
+    try {
+      const data = await res.json();
+      if (data?.error) msg = data.error;
+    } catch {
+      /* ignore */
+    }
+    throw new Error(msg);
+  }
   return res.blob();
 }
 
-export async function downloadSinglePhoto(room, photo, index) {
-  const blob = await fetchPhotoBlob(photo.url);
+export async function downloadSinglePhoto(token, room, photo, index) {
+  const blob = await fetchPhotoBlob(token, photo);
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = buildPhotoDownloadName(room, photo, index);
@@ -84,7 +105,7 @@ export async function downloadSinglePhoto(room, photo, index) {
  * @param {(current: number, total: number) => void} [onProgress]
  * @returns {'share'|'sequential'}
  */
-export async function saveAllGalleryPhotos(photos, room, onProgress) {
+export async function saveAllGalleryPhotos(token, photos, room, onProgress) {
   if (!photos?.length) return 'sequential';
 
   const total = photos.length;
@@ -92,7 +113,7 @@ export async function saveAllGalleryPhotos(photos, room, onProgress) {
 
   for (let i = 0; i < total; i += 1) {
     onProgress?.(i + 1, total);
-    const blob = await fetchPhotoBlob(photos[i].url);
+    const blob = await fetchPhotoBlob(token, photos[i]);
     const type = blob.type || 'image/jpeg';
     files.push(
       new File([blob], buildPhotoDownloadName(room, photos[i], i), { type })
