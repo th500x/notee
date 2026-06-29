@@ -20,7 +20,8 @@ import {
 
 } from '@shared/utils/parseGoogleMapsShareUrl.js';
 
-import { fetchReverseGeocode } from '@/services/lifeResumeApi';
+import { fetchResolveMapsUrl, fetchReverseGeocode } from '@/services/lifeResumeApi';
+import { formatLifeResumeError } from '@/utils/lifeResumeErrors';
 
 
 
@@ -70,58 +71,56 @@ export default function EntryLocationFields({
 
   const [mapPickHint, setMapPickHint] = useState(false);
 
+  const [resolvingMapsUrl, setResolvingMapsUrl] = useState(false);
+
 
 
   const clearAccuracy = () => setLocationAccuracyMeters(null);
 
 
 
-  const applyParsedMapsUrl = (rawUrl) => {
-
-    const parsed = parseGoogleMapsShareUrl(rawUrl);
-
-    if (!parsed.ok) {
-
-      setError(parsed.error);
-
-      return false;
-
-    }
-
+  const applyParsedResult = (parsed) => {
     if (parsed.empty) {
-
       setError('');
-
       return true;
-
     }
-
-
 
     setError('');
-
     onEnabledChange(true);
-
     onCaptureMethodChange('map_pick');
-
     onMapsUrlChange(parsed.shareUrl);
-
     if (parsed.placeName) {
-
       onPlaceNameChange(parsed.placeName);
-
     }
-
     if (parsed.latitude != null && parsed.longitude != null) {
-
       onLatitudeChange(String(parsed.latitude));
-
       onLongitudeChange(String(parsed.longitude));
+    }
+    return true;
+  };
 
+  const applyParsedMapsUrl = async (rawUrl) => {
+    let parsed = parseGoogleMapsShareUrl(rawUrl);
+    if (!parsed.ok && parsed.code === 'GOOGLE_MAPS_SHORT_URL') {
+      setResolvingMapsUrl(true);
+      setError('正在解析 Google 地图短链接…');
+      try {
+        const res = await fetchResolveMapsUrl(rawUrl);
+        parsed = res.data || { ok: false, error: '短链接解析失败' };
+      } catch (err) {
+        setError(formatLifeResumeError(err));
+        return false;
+      } finally {
+        setResolvingMapsUrl(false);
+      }
     }
 
-    return true;
+    if (!parsed.ok) {
+      setError(parsed.error);
+      return false;
+    }
 
+    return applyParsedResult(parsed);
   };
 
 
@@ -234,7 +233,9 @@ export default function EntryLocationFields({
   const handleMapsUrlPaste = (e) => {
     const pasted = e.clipboardData?.getData('text')?.trim();
     if (!pasted) return;
-    queueMicrotask(() => applyParsedMapsUrl(pasted));
+    queueMicrotask(() => {
+      void applyParsedMapsUrl(pasted);
+    });
   };
 
 
@@ -243,7 +244,7 @@ export default function EntryLocationFields({
 
     if (!mapsUrl.trim()) return;
 
-    applyParsedMapsUrl(mapsUrl);
+    void applyParsedMapsUrl(mapsUrl);
 
   };
 
@@ -541,11 +542,11 @@ export default function EntryLocationFields({
 
               className="w-full rounded-lg border border-indigo-300 ring-1 ring-indigo-100 px-3 py-2 text-sm"
 
-              placeholder="在 Google 地图中打开地点后，复制浏览器地址栏链接粘贴到这里"
+              placeholder="粘贴 Google 地图分享链接（支持 maps.app.goo.gl 短链接）"
 
               value={mapsUrl}
 
-              disabled={disabled}
+              disabled={disabled || resolvingMapsUrl}
 
               onChange={(e) => handleMapsUrlChange(e.target.value)}
               onPaste={handleMapsUrlPaste}
@@ -583,7 +584,7 @@ export default function EntryLocationFields({
 
             <p className="text-xs text-indigo-900 bg-indigo-50 border border-indigo-100 rounded-lg px-3 py-2">
 
-              已在 Google 地图打开新标签页。选中具体餐厅/地点后，复制浏览器地址栏的完整链接，粘贴到「Google 地图链接」；有名称的地点通常不显示经纬度，链接里已包含位置信息。
+              手机分享常得到 maps.app.goo.gl 短链接，粘贴后会自动解析。若用「用 Google 地图选点」，也可复制浏览器地址栏完整链接粘贴。
 
             </p>
 

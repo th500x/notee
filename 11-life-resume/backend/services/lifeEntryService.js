@@ -35,6 +35,7 @@ const {
   reverseGeocodeToPublicLabel,
   forwardGeocodePlaceToPublicLabel,
 } = require('./reverseGeocodeService');
+const { resolveGoogleMapsShareUrl } = require('./googleMapsUrlResolveService');
 
 const VISIBILITY_VALUES = new Set(['public', 'private', 'specific']);
 const STATUS_VALUES = new Set(['draft', 'published']);
@@ -189,7 +190,10 @@ async function resolveLocationFields(input) {
   let longitude = null;
 
   if (mapsUrl) {
-    const parsedMaps = parseGoogleMapsShareUrl(mapsUrl);
+    let parsedMaps = parseGoogleMapsShareUrl(mapsUrl);
+    if (!parsedMaps.ok && parsedMaps.code === 'GOOGLE_MAPS_SHORT_URL') {
+      parsedMaps = await resolveGoogleMapsShareUrl(mapsUrl);
+    }
     if (!parsedMaps.ok) {
       throw new EntryServiceError(parsedMaps.code || 'INVALID_GOOGLE_MAPS_URL', parsedMaps.error);
     }

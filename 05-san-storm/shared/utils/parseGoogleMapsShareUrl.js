@@ -38,6 +38,26 @@ export function normalizeLocationMapsUrl(raw) {
   return text.slice(0, 1024);
 }
 
+function isGoogleMapsShortUrlHost(host) {
+  return host === 'goo.gl' || host === 'maps.app.goo.gl';
+}
+
+/**
+ * @param {string} raw
+ * @returns {boolean}
+ */
+export function isGoogleMapsShortUrl(raw) {
+  const trimmed = String(raw ?? '').trim();
+  if (!trimmed) return false;
+  try {
+    const url = new URL(trimmed);
+    if (url.protocol !== 'https:') return false;
+    return isGoogleMapsShortUrlHost(normalizeHost(url.hostname));
+  } catch {
+    return false;
+  }
+}
+
 function decodePlaceSegment(segment) {
   try {
     return decodeURIComponent(String(segment || '').replace(/\+/g, ' ')).trim();
@@ -110,11 +130,12 @@ export function parseGoogleMapsShareUrl(raw) {
     };
   }
 
-  if (host === 'goo.gl' || host === 'maps.app.goo.gl') {
+  if (isGoogleMapsShortUrlHost(host)) {
     return {
       ok: false,
-      error: '短链接无法直接解析，请在 Google 地图中打开该地点后，复制浏览器地址栏的完整链接',
-      code: 'INVALID_GOOGLE_MAPS_URL',
+      code: 'GOOGLE_MAPS_SHORT_URL',
+      error: '正在解析 Google 地图短链接…',
+      shortUrl: trimmed,
     };
   }
 

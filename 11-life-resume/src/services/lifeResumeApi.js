@@ -151,6 +151,14 @@ export async function fetchReverseGeocode(body) {
   });
 }
 
+/** POST /api/life-resume/location/resolve-maps-url — 展开 maps.app.goo.gl 短链接 */
+export async function fetchResolveMapsUrl(mapsUrl) {
+  return lifeResumeFetch('/location/resolve-maps-url', {
+    method: 'POST',
+    body: JSON.stringify({ mapsUrl }),
+  });
+}
+
 /** GET /api/life-resume/profiles/me/life-path */
 export async function fetchMyLifePath() {
   return lifeResumeFetch('/profiles/me/life-path');

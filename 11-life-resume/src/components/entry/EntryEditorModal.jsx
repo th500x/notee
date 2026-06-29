@@ -227,6 +227,9 @@ export default function EntryEditorModal({ open, entry, profileDefaults, onClose
       const mapsRaw = form.locationMapsUrl.trim();
       const mapsParsed = mapsRaw ? parseGoogleMapsShareUrl(mapsRaw) : { ok: true, empty: true };
       if (mapsRaw && !mapsParsed.ok) {
+        if (mapsParsed.code === 'GOOGLE_MAPS_SHORT_URL') {
+          return '请等待 Google 地图短链接解析完成（粘贴后稍候或点击输入框外）';
+        }
         return mapsParsed.error;
       }
       if (!hasCoords && !hasPlace && !mapsRaw) {
