@@ -5,11 +5,14 @@
 const {
   parseGoogleMapsShareUrl,
   normalizeLocationMapsUrl,
+  canonicalizeGoogleMapsShareUrl,
   isGoogleMapsShortUrl,
 } = require('../../../05-san-storm/shared/utils/parseGoogleMapsShareUrl.cjs');
 
 const RESOLVE_TIMEOUT_MS = 12000;
-const USER_AGENT = 'Mozilla/5.0 (compatible; notee-life-resume/1.0)';
+const MAX_REDIRECTS = 10;
+const MOBILE_USER_AGENT =
+  'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36';
 
 class GoogleMapsResolveError extends Error {
   constructor(code, message, status = 400) {
@@ -20,17 +23,54 @@ class GoogleMapsResolveError extends Error {
   }
 }
 
-async function followRedirectsToFinalUrl(startUrl) {
-  const response = await fetch(startUrl, {
+function buildFetchOptions(redirect) {
+  return {
     method: 'GET',
-    redirect: 'follow',
+    redirect,
     headers: {
-      'User-Agent': USER_AGENT,
-      Accept: 'text/html,application/xhtml+xml,*/*',
+      'User-Agent': MOBILE_USER_AGENT,
+      Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      'Accept-Language': 'en-US,en;q=0.9',
     },
     signal: AbortSignal.timeout(RESOLVE_TIMEOUT_MS),
-  });
-  return response.url || startUrl;
+  };
+}
+
+async function followRedirectsToFinalUrl(startUrl) {
+  let current = startUrl;
+
+  for (let step = 0; step < MAX_REDIRECTS; step += 1) {
+    const response = await fetch(current, buildFetchOptions('manual'));
+
+    if (response.status >= 300 && response.status < 400) {
+      const location = response.headers.get('location');
+      if (!location) {
+        break;
+      }
+      current = new URL(location, current).href;
+      continue;
+    }
+
+    if (response.status === 404) {
+      throw new GoogleMapsResolveError(
+        'GOOGLE_MAPS_RESOLVE_FAILED',
+        'Google 未能识别此短链接（每次分享会生成新链接，部分新链接暂无法自动展开）。请填写地点名称后仍可发布，或在浏览器打开该链接后复制地址栏中以 google.com/maps 开头的完整链接',
+        400
+      );
+    }
+
+    if (!response.ok) {
+      throw new GoogleMapsResolveError(
+        'GOOGLE_MAPS_RESOLVE_FAILED',
+        `短链接解析失败（HTTP ${response.status}），请稍后重试或粘贴完整链接`,
+        502
+      );
+    }
+
+    return current;
+  }
+
+  return current;
 }
 
 /**
@@ -58,10 +98,21 @@ async function resolveGoogleMapsShareUrl(raw) {
   try {
     finalUrl = await followRedirectsToFinalUrl(trimmed);
   } catch (err) {
+    if (err instanceof GoogleMapsResolveError) {
+      throw err;
+    }
     throw new GoogleMapsResolveError(
       'GOOGLE_MAPS_RESOLVE_FAILED',
       '短链接解析失败，请检查网络或稍后重试',
       502
+    );
+  }
+
+  if (isGoogleMapsShortUrl(finalUrl)) {
+    throw new GoogleMapsResolveError(
+      'GOOGLE_MAPS_RESOLVE_FAILED',
+      '短链接未能展开为完整地图地址，请粘贴浏览器地址栏中的完整链接',
+      400
     );
   }
 
@@ -74,9 +125,13 @@ async function resolveGoogleMapsShareUrl(raw) {
     );
   }
 
+  const canonicalShareUrl = normalizeLocationMapsUrl(
+    canonicalizeGoogleMapsShareUrl(parsed.shareUrl || finalUrl) || parsed.shareUrl || finalUrl
+  );
+
   return {
     ...parsed,
-    shareUrl: parsed.shareUrl || finalUrl,
+    shareUrl: canonicalShareUrl,
   };
 }
 

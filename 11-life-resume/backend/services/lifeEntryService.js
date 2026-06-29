@@ -35,7 +35,7 @@ const {
   reverseGeocodeToPublicLabel,
   forwardGeocodePlaceToPublicLabel,
 } = require('./reverseGeocodeService');
-const { resolveGoogleMapsShareUrl } = require('./googleMapsUrlResolveService');
+const { resolveGoogleMapsShareUrl, GoogleMapsResolveError } = require('./googleMapsUrlResolveService');
 
 const VISIBILITY_VALUES = new Set(['public', 'private', 'specific']);
 const STATUS_VALUES = new Set(['draft', 'published']);
@@ -192,10 +192,36 @@ async function resolveLocationFields(input) {
   if (mapsUrl) {
     let parsedMaps = parseGoogleMapsShareUrl(mapsUrl);
     if (!parsedMaps.ok && parsedMaps.code === 'GOOGLE_MAPS_SHORT_URL') {
-      parsedMaps = await resolveGoogleMapsShareUrl(mapsUrl);
+      try {
+        parsedMaps = await resolveGoogleMapsShareUrl(mapsUrl);
+      } catch (err) {
+        if (placeName) {
+          parsedMaps = {
+            ok: true,
+            shareUrl: mapsUrl,
+            placeName: null,
+            latitude: null,
+            longitude: null,
+          };
+        } else if (err instanceof GoogleMapsResolveError) {
+          throw new EntryServiceError(err.code, err.message);
+        } else {
+          throw err;
+        }
+      }
     }
     if (!parsedMaps.ok) {
-      throw new EntryServiceError(parsedMaps.code || 'INVALID_GOOGLE_MAPS_URL', parsedMaps.error);
+      if (parsedMaps.code === 'GOOGLE_MAPS_SHORT_URL' && placeName) {
+        parsedMaps = {
+          ok: true,
+          shareUrl: mapsUrl,
+          placeName: null,
+          latitude: null,
+          longitude: null,
+        };
+      } else {
+        throw new EntryServiceError(parsedMaps.code || 'INVALID_GOOGLE_MAPS_URL', parsedMaps.error);
+      }
     }
     mapsUrl = parsedMaps.shareUrl;
     if (parsedMaps.placeName && !placeName) {

@@ -8,7 +8,7 @@ import {
 import { LIFE_STAGE_UNKNOWN } from '@shared/utils/lifeResumeEntryTime.js';
 import { LIFE_ENTRY_TAGS } from '@shared/utils/lifeResumeEntryTags.js';
 import { validateMediaBundle } from '@shared/utils/lifeResumeMediaRules.js';
-import { createEntry, updateEntry } from '@/services/lifeResumeApi';
+import { createEntry, updateEntry, fetchResolveMapsUrl } from '@/services/lifeResumeApi';
 import { normalizeAccountId, validateAccountIdFormat } from '@/utils/authUtils';
 import EntryPermissionFields from '@/components/entry/EntryPermissionFields';
 import EntryMediaUpload from '@/components/entry/EntryMediaUpload';
@@ -135,6 +135,74 @@ function buildPayload(form, status, mediaBundleType, mediaItems) {
   return payload;
 }
 
+async function ensureLocationMapsResolved(formState) {
+  if (!formState.locationEnabled) {
+    return { ok: true, form: formState };
+  }
+  const mapsRaw = formState.locationMapsUrl.trim();
+  if (!mapsRaw) {
+    return { ok: true, form: formState };
+  }
+
+  let parsed = parseGoogleMapsShareUrl(mapsRaw);
+  if (parsed.ok && !parsed.empty) {
+    return {
+      ok: true,
+      form: {
+        ...formState,
+        locationMapsUrl: parsed.shareUrl,
+        locationPlaceName:
+          parsed.placeName && !formState.locationPlaceName.trim()
+            ? parsed.placeName
+            : formState.locationPlaceName,
+        latitude:
+          parsed.latitude != null ? String(parsed.latitude) : formState.latitude,
+        longitude:
+          parsed.longitude != null ? String(parsed.longitude) : formState.longitude,
+      },
+    };
+  }
+  if (parsed.code !== 'GOOGLE_MAPS_SHORT_URL') {
+    return { ok: false, error: parsed.error };
+  }
+
+  try {
+    const res = await fetchResolveMapsUrl(mapsRaw);
+    parsed = res.data;
+  } catch (err) {
+    if (formState.locationPlaceName.trim()) {
+      return { ok: true, form: formState, mapsResolveWarning: formatLifeResumeError(err) };
+    }
+    return { ok: false, error: formatLifeResumeError(err) };
+  }
+  if (!parsed?.ok) {
+    if (formState.locationPlaceName.trim()) {
+      return {
+        ok: true,
+        form: formState,
+        mapsResolveWarning: parsed?.error || '短链接未能自动展开，将按地点名称保存',
+      };
+    }
+    return { ok: false, error: parsed?.error || '短链接解析失败' };
+  }
+
+  return {
+    ok: true,
+    form: {
+      ...formState,
+      locationMapsUrl: parsed.shareUrl || mapsRaw,
+      locationPlaceName:
+        parsed.placeName && !formState.locationPlaceName.trim()
+          ? parsed.placeName
+          : formState.locationPlaceName,
+      latitude:
+        parsed.latitude != null ? String(parsed.latitude) : formState.latitude,
+      longitude:
+        parsed.longitude != null ? String(parsed.longitude) : formState.longitude,
+    },
+  };
+}
+
 export default function EntryEditorModal({ open, entry, profileDefaults, onClose, onSaved }) {
   const navigate = useNavigate();
   const [form, setForm] = useState(EMPTY_FORM);
@@ -227,10 +295,13 @@ export default function EntryEditorModal({ open, entry, profileDefaults, onClose
       const mapsRaw = form.locationMapsUrl.trim();
       const mapsParsed = mapsRaw ? parseGoogleMapsShareUrl(mapsRaw) : { ok: true, empty: true };
       if (mapsRaw && !mapsParsed.ok) {
-        if (mapsParsed.code === 'GOOGLE_MAPS_SHORT_URL') {
-          return '请等待 Google 地图短链接解析完成（粘贴后稍候或点击输入框外）';
+        if (mapsParsed.code === 'GOOGLE_MAPS_SHORT_URL' && hasPlace) {
+          // 发布时会尝试展开；失败则按地点名称保存
+        } else if (mapsParsed.code === 'GOOGLE_MAPS_SHORT_URL') {
+          return '短链接尚未展开：请填写地点名称，或粘贴后稍候再发布';
+        } else {
+          return mapsParsed.error;
         }
-        return mapsParsed.error;
       }
       if (!hasCoords && !hasPlace && !mapsRaw) {
         return '开启位置后须填写地点名称、粘贴 Google 地图链接，或填写经纬度';
@@ -264,7 +335,25 @@ export default function EntryEditorModal({ open, entry, profileDefaults, onClose
 
     setSaving(true);
     try {
-      const payload = buildPayload(form, status, mediaBundleType, mediaItems);
+      let formForPayload = form;
+      if (form.locationEnabled && form.locationMapsUrl.trim()) {
+        const resolved = await ensureLocationMapsResolved(form);
+        if (!resolved.ok) {
+          setError(resolved.error);
+          return;
+        }
+        formForPayload = resolved.form;
+        if (
+          formForPayload.locationMapsUrl !== form.locationMapsUrl ||
+          formForPayload.locationPlaceName !== form.locationPlaceName ||
+          formForPayload.latitude !== form.latitude ||
+          formForPayload.longitude !== form.longitude
+        ) {
+          setForm(formForPayload);
+        }
+      }
+
+      const payload = buildPayload(formForPayload, status, mediaBundleType, mediaItems);
       const result = isEdit
         ? await updateEntry(entry.id, payload)
         : await createEntry(payload);

@@ -108,6 +108,15 @@ export default function EntryLocationFields({
         const res = await fetchResolveMapsUrl(rawUrl);
         parsed = res.data || { ok: false, error: '短链接解析失败' };
       } catch (err) {
+        if (placeName.trim()) {
+          setError(
+            `${formatLifeResumeError(err)}。已保留短链接，填写地点名称后仍可发布。`
+          );
+          onEnabledChange(true);
+          onCaptureMethodChange('map_pick');
+          onMapsUrlChange(rawUrl.trim());
+          return true;
+        }
         setError(formatLifeResumeError(err));
         return false;
       } finally {
@@ -116,6 +125,13 @@ export default function EntryLocationFields({
     }
 
     if (!parsed.ok) {
+      if (placeName.trim() && parsed.code === 'GOOGLE_MAPS_SHORT_URL') {
+        setError(`${parsed.error}。已保留短链接，将按地点名称保存位置。`);
+        onEnabledChange(true);
+        onCaptureMethodChange('map_pick');
+        onMapsUrlChange(rawUrl.trim());
+        return true;
+      }
       setError(parsed.error);
       return false;
     }
@@ -416,7 +432,7 @@ export default function EntryLocationFields({
 
           <p className="text-xs text-slate-500">
 
-            推荐：在 Google 地图找到餐厅等具体地点，复制分享链接粘贴到下方；也可直接填写地点名称。访客仅见城/区县模糊文案，具体店名与精确坐标仅本人可见。
+            推荐：在 Google 地图找到具体地点，复制分享链接并填写地点名称。每次分享会生成不同短链接，属正常现象；若自动解析失败，只要填了地点名称仍可发布。
 
           </p>
 
@@ -584,7 +600,7 @@ export default function EntryLocationFields({
 
             <p className="text-xs text-indigo-900 bg-indigo-50 border border-indigo-100 rounded-lg px-3 py-2">
 
-              手机分享常得到 maps.app.goo.gl 短链接，粘贴后会自动解析。若用「用 Google 地图选点」，也可复制浏览器地址栏完整链接粘贴。
+              粘贴 maps.app.goo.gl 短链接后会尝试自动解析。若提示解析失败，请确认已填写地点名称；也可在浏览器打开该链接，从地址栏复制 google.com/maps 开头的完整链接再粘贴。
 
             </p>
 

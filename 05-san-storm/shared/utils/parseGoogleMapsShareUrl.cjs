@@ -38,6 +38,64 @@ function normalizeLocationMapsUrl(raw) {
   return text.slice(0, 1024);
 }
 
+function canonicalizeGoogleMapsShareUrl(raw) {
+  const trimmed = String(raw ?? '').trim();
+  if (!trimmed) return null;
+  try {
+    const url = new URL(trimmed);
+    const host = normalizeHost(url.hostname);
+    if (isGoogleMapsShortUrlHost(host)) {
+      return trimmed;
+    }
+    if (!isGoogleMapsHost(host)) {
+      return trimmed.slice(0, 1024);
+    }
+
+    let path = url.pathname;
+    const dataIdx = path.indexOf('/data=');
+    if (dataIdx >= 0) {
+      path = path.slice(0, dataIdx);
+    }
+
+    if (path.includes('/maps/place/') || path.startsWith('/maps')) {
+      const q = url.searchParams.get('q');
+      let canonical = `https://www.google.com${path}`;
+      if (q && !path.includes('/place/')) {
+        canonical += `?q=${encodeURIComponent(q)}`;
+      }
+      return canonical.slice(0, 1024);
+    }
+
+    return `${url.origin}${path}`.slice(0, 1024);
+  } catch {
+    return trimmed.slice(0, 1024);
+  }
+}
+
+function getGoogleMapsShortLinkSlug(raw) {
+  try {
+    const url = new URL(String(raw ?? '').trim());
+    return String(url.pathname || '').replace(/^\/+/, '').split('/')[0] || '';
+  } catch {
+    return '';
+  }
+}
+
+function validateGoogleMapsShortUrlFormat(raw) {
+  if (!isGoogleMapsShortUrl(raw)) {
+    return { ok: true };
+  }
+  const slug = getGoogleMapsShortLinkSlug(raw);
+  if (slug.length >= 15) {
+    return { ok: true };
+  }
+  return {
+    ok: false,
+    code: 'GOOGLE_MAPS_SHORT_URL_INCOMPLETE',
+    error: '短链接似乎不完整，请点分享卡片右侧的「复制」，不要手动选预览里被截断的文字',
+  };
+}
+
 function isGoogleMapsShortUrlHost(host) {
   return host === 'goo.gl' || host === 'maps.app.goo.gl';
 }
@@ -145,7 +203,7 @@ function parseGoogleMapsShareUrl(raw) {
       if (check.ok) {
         return {
           ok: true,
-          shareUrl: trimmed,
+          shareUrl: normalizeLocationMapsUrl(canonicalizeGoogleMapsShareUrl(trimmed)),
           placeName,
           latitude: check.latitude,
           longitude: check.longitude,
@@ -173,7 +231,7 @@ function parseGoogleMapsShareUrl(raw) {
 
   return {
     ok: true,
-    shareUrl: trimmed,
+    shareUrl: normalizeLocationMapsUrl(canonicalizeGoogleMapsShareUrl(trimmed)),
     placeName,
     latitude,
     longitude,
@@ -184,6 +242,8 @@ module.exports = {
   GOOGLE_MAPS_ALLOWED_HOSTS,
   normalizeLocationPlaceName,
   normalizeLocationMapsUrl,
+  canonicalizeGoogleMapsShareUrl,
   isGoogleMapsShortUrl,
+  validateGoogleMapsShortUrlFormat,
   parseGoogleMapsShareUrl,
 };

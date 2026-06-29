@@ -25,7 +25,8 @@ const ERROR_MESSAGES = {
   LIFE_PATH_INVALID_DRAFT: '轨迹草稿无效，请重新生成',
   LIFE_PATH_INPUT_MODERATION: '通义输入审核未通过，请检查公开片段表述后重试',
   GOOGLE_MAPS_SHORT_URL: '请等待 Google 地图短链接解析完成',
-  GOOGLE_MAPS_RESOLVE_FAILED: 'Google 地图短链接解析失败，请稍后重试或粘贴完整链接',
+  GOOGLE_MAPS_RESOLVE_FAILED:
+    '短链接未能自动展开。请填写地点名称后发布，或在浏览器打开链接后复制地址栏中的 google.com/maps 完整链接',
 };
 
 export function formatLifeResumeError(err) {
