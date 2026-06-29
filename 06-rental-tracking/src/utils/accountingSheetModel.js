@@ -4,6 +4,7 @@
 
 import { evaluateArithmeticExpression } from './accountingExpression';
 import { normalizeGalleryDriveFolderUrl } from './galleryDriveLink';
+import { normalizeGalleryListing, emptyGalleryListing } from './galleryListing';
 import { sanitizeIsoDateField } from './accountingDates';
 
 function normalizeGalleryPhoto(raw) {
@@ -161,7 +162,8 @@ export function normalizeAccountingSheet(raw) {
           months,
           photos: normalizeGalleryPhotos(row.photos),
           galleryShareToken: normalizeGalleryShareToken(row.galleryShareToken),
-          galleryDriveFolderUrl: normalizeGalleryDriveFolderUrl(row.galleryDriveFolderUrl)
+          galleryDriveFolderUrl: normalizeGalleryDriveFolderUrl(row.galleryDriveFolderUrl),
+          galleryListing: normalizeGalleryListing(row.galleryListing)
         };
       })
     : [];
@@ -367,6 +369,7 @@ export function emptyRentRow(monthKeys) {
     },
     photos: [],
     galleryShareToken: '',
-    galleryDriveFolderUrl: ''
+    galleryDriveFolderUrl: '',
+    galleryListing: emptyGalleryListing()
   };
 }

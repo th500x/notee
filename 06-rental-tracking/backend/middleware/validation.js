@@ -96,6 +96,17 @@ const accountingGalleryPhotoSchema = Joi.object({
   capturedAt: Joi.string().max(50).allow('').optional()
 });
 
+const accountingGalleryListingSchema = Joi.object({
+  rentBaht: Joi.string().max(50).allow('').default(''),
+  depositBaht: Joi.string().max(50).allow('').default(''),
+  areaSqm: Joi.string().max(50).allow('').default(''),
+  layout: Joi.string().valid('', 'studio', '1bedroom').default(''),
+  tvInch: Joi.string().max(20).allow('').default(''),
+  tvType: Joi.string().valid('', 'smart', 'cable').default(''),
+  internet: Joi.string().valid('', 'yes', 'no').default(''),
+  shootDate: Joi.string().max(10).allow('').pattern(/^$|^\d{4}-\d{2}-\d{2}$/).default('')
+});
+
 const accountingRentRowSchema = Joi.object({
   id: Joi.string().max(100).required(),
   room: Joi.string().max(200).allow('').default(''),
@@ -108,7 +119,8 @@ const accountingRentRowSchema = Joi.object({
   months: Joi.object().pattern(/^\d{4}-\d{2}$/, accountingRentMonthSchema).default({}),
   photos: Joi.array().items(accountingGalleryPhotoSchema).max(500).default([]),
   galleryShareToken: Joi.string().max(80).allow('').default(''),
-  galleryDriveFolderUrl: Joi.string().max(2000).allow('').default('')
+  galleryDriveFolderUrl: Joi.string().max(2000).allow('').default(''),
+  galleryListing: accountingGalleryListingSchema.default({})
 });
 
 const accountingExpenseRowSchema = Joi.object({

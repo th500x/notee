@@ -170,14 +170,14 @@ router.get('/public/gallery/:token', async (req, res) => {
     if (!gallery) {
       return res.status(404).json({ success: false, error: '链接无效或已失效' });
     }
-    if (gallery.photos.length === 0 && !gallery.driveFolderUrl) {
-      return res.status(404).json({ success: false, error: '图库暂无图片' });
+    if (!gallery.driveFolderUrl) {
+      return res.status(404).json({ success: false, error: '未配置 Google 云端硬盘链接' });
     }
     return res.json({
       success: true,
       room: gallery.room,
-      photos: gallery.photos,
-      driveFolderUrl: gallery.driveFolderUrl || ''
+      driveFolderUrl: gallery.driveFolderUrl || '',
+      listing: gallery.listing || {}
     });
   } catch (error) {
     console.error('[API] 公开图库查询失败:', error);

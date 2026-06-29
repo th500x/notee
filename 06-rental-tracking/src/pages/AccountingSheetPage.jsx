@@ -6,6 +6,7 @@ import {
   rolloverAccountingWindowFromToday,
   emptyRentRow
 } from '../utils/accountingSheetModel';
+import { normalizeGalleryListing } from '../utils/galleryListing';
 import { AccountingRentTab } from '../components/accounting/AccountingRentTab';
 import { AccountingExpenseTab } from '../components/accounting/AccountingExpenseTab';
 import { AccountingSummaryTab } from '../components/accounting/AccountingSummaryTab';
@@ -82,7 +83,8 @@ export default function AccountingSheetPage({ project, onBack, onSaved, onProjec
       const base = savedSheet.rentRows.find((r) => r.id === rowId);
       if (!cur) return false;
       return (
-        JSON.stringify(cur.photos || []) !== JSON.stringify(base?.photos || []) ||
+        JSON.stringify(normalizeGalleryListing(cur.galleryListing)) !==
+          JSON.stringify(normalizeGalleryListing(base?.galleryListing)) ||
         (cur.galleryShareToken || '') !== (base?.galleryShareToken || '') ||
         (cur.galleryDriveFolderUrl || '') !== (base?.galleryDriveFolderUrl || '')
       );
@@ -177,7 +179,6 @@ export default function AccountingSheetPage({ project, onBack, onSaved, onProjec
       {activeTab === 'rent' ? (
         <AccountingRentTab
           sheet={sheet}
-          savedSheet={savedSheet}
           setSheet={setSheet}
           isRentRowGalleryUnsaved={isRentRowGalleryUnsaved}
           onSaveToServer={handleSave}

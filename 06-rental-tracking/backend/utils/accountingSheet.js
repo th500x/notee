@@ -4,6 +4,7 @@
 
 const crypto = require('crypto');
 const { normalizeGalleryDriveFolderUrl } = require('./galleryDriveLink');
+const { normalizeGalleryListing } = require('./galleryListing');
 const { evaluateArithmeticExpression } = require('./accountingExpression');
 const { sanitizeIsoDateField } = require('./accountingDates');
 
@@ -154,7 +155,8 @@ function normalizeAccountingSheet(raw) {
           months,
           photos: normalizeGalleryPhotos(row.photos),
           galleryShareToken: normalizeGalleryShareToken(row.galleryShareToken),
-          galleryDriveFolderUrl: normalizeGalleryDriveFolderUrl(row.galleryDriveFolderUrl)
+          galleryDriveFolderUrl: normalizeGalleryDriveFolderUrl(row.galleryDriveFolderUrl),
+          galleryListing: normalizeGalleryListing(row.galleryListing)
         };
       })
     : [];
