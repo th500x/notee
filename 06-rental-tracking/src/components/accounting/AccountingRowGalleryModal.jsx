@@ -5,9 +5,10 @@ import { uploadService } from '../../services/uploadService';
 import { enrichUploadedPhotoFromFile, formatCaptureTimeDisplay, getPhotoCaptureIso } from '../../utils/photoCaptureTime';
 import {
   newGalleryShareToken,
-  copyGalleryShareUrl,
+  copyGalleryShareBundle,
   buildGalleryShareUrl
 } from '../../utils/accountingGalleryShare';
+import { normalizeGalleryDriveFolderUrl } from '../../utils/galleryDriveLink';
 import { config } from '../../config';
 
 const PANEL_MAX_WIDTH = 672;
@@ -153,9 +154,28 @@ export function AccountingRowGalleryModal({
     }
   };
 
+  const handleDeleteAllPhotos = async () => {
+    if (!photos.length || uploading) return;
+    if (
+      !confirm(
+        `确定删除全部 ${photos.length} 张图片？\n\n云端会立即删除；删完后请点「保存到服务器」同步账目单。`
+      )
+    ) {
+      return;
+    }
+    try {
+      await uploadService.deletePhotos(photos.map((p) => p.id));
+      patchRow({ photos: [] });
+      setShareHint('已全部删除，请保存到服务器');
+      setTimeout(() => setShareHint(''), 4000);
+    } catch (err) {
+      alert(`删除失败：${err.message || '未知错误'}`);
+    }
+  };
+
   const handleShare = async () => {
-    if (!photos.length) {
-      alert('请先上传至少一张照片');
+    if (!photos.length && !row?.galleryDriveFolderUrl) {
+      alert('请先上传照片，或粘贴 Google 云端硬盘文件夹链接');
       return;
     }
     if (galleryUnsaved) {
@@ -166,9 +186,17 @@ export function AccountingRowGalleryModal({
     }
     try {
       const token = ensureShareToken();
-      await copyGalleryShareUrl(token);
-      setShareHint('链接已复制，可直接发给他人');
-      setTimeout(() => setShareHint(''), 3000);
+      await copyGalleryShareBundle({
+        token,
+        room: row?.room,
+        driveFolderUrl: row?.galleryDriveFolderUrl
+      });
+      setShareHint(
+        row?.galleryDriveFolderUrl
+          ? '已复制：含 Google 云端硬盘 + 在线预览链接'
+          : '链接已复制，可直接发给他人'
+      );
+      setTimeout(() => setShareHint(''), 4000);
     } catch (err) {
       alert(err.message || '复制失败');
     }
@@ -227,6 +255,9 @@ export function AccountingRowGalleryModal({
     onClose();
   };
 
+  const driveUrl = (row?.galleryDriveFolderUrl || '').trim();
+  const canShareGallery = photos.length > 0 || !!driveUrl;
+
   if (!isOpen || !row || !panelStyle) return null;
 
   const shareUrl = row.galleryShareToken ? buildGalleryShareUrl(row.galleryShareToken) : '';
@@ -278,21 +309,31 @@ export function AccountingRowGalleryModal({
             >
               {uploading ? '上传中…' : photos.length ? '继续上传' : '选择图片'}
             </button>
+            {canShareGallery ? (
+              <button
+                type="button"
+                onClick={handleShare}
+                className="px-3 py-2 text-sm rounded bg-emerald-600 text-white hover:bg-emerald-700"
+              >
+                分享
+              </button>
+            ) : null}
             {photos.length > 0 && (
               <>
-                <button
-                  type="button"
-                  onClick={handleShare}
-                  className="px-3 py-2 text-sm rounded bg-emerald-600 text-white hover:bg-emerald-700"
-                >
-                  分享
-                </button>
                 <button
                   type="button"
                   onClick={handleRegenerateLink}
                   className="px-3 py-2 text-sm rounded border border-gray-300 text-gray-700 hover:bg-gray-50"
                 >
                   重新生成链接
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDeleteAllPhotos}
+                  disabled={uploading}
+                  className="px-3 py-2 text-sm rounded bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
+                >
+                  全部删除
                 </button>
               </>
             )}
@@ -317,9 +358,30 @@ export function AccountingRowGalleryModal({
           {shareHint ? <p className="text-sm text-emerald-700">{shareHint}</p> : null}
           {shareUrl ? (
             <p className="text-[11px] text-gray-500 break-all" title={shareUrl}>
-              当前链接：{shareUrl}
+              在线预览：{shareUrl}
             </p>
           ) : null}
+
+          <div className="space-y-1.5 pt-1 border-t border-gray-100">
+            <label htmlFor="gallery-drive-url" className="block text-xs font-medium text-gray-700">
+              Google 云端硬盘文件夹（选填 · 人工维护）
+            </label>
+            <input
+              id="gallery-drive-url"
+              type="url"
+              value={row.galleryDriveFolderUrl || ''}
+              onChange={(e) => patchRow({ galleryDriveFolderUrl: e.target.value })}
+              onBlur={(e) =>
+                patchRow({ galleryDriveFolderUrl: normalizeGalleryDriveFolderUrl(e.target.value) })
+              }
+              placeholder="https://drive.google.com/drive/folders/…"
+              className="w-full text-xs px-2 py-1.5 border border-gray-300 rounded focus:outline-none focus:border-blue-500"
+            />
+            <p className="text-[10px] text-gray-500 leading-snug">
+              在 Drive 建好文件夹并上传图片后，粘贴「知道链接的人可查看」的文件夹链接。OSS 仍用于本页预览；手机批量下载建议走
+              Google。粘贴后请保存到服务器；分享时会一并复制 Drive 与在线预览链接。
+            </p>
+          </div>
 
           <input
             ref={fileInputRef}

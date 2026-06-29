@@ -83,7 +83,8 @@ export default function AccountingSheetPage({ project, onBack, onSaved, onProjec
       if (!cur) return false;
       return (
         JSON.stringify(cur.photos || []) !== JSON.stringify(base?.photos || []) ||
-        (cur.galleryShareToken || '') !== (base?.galleryShareToken || '')
+        (cur.galleryShareToken || '') !== (base?.galleryShareToken || '') ||
+        (cur.galleryDriveFolderUrl || '') !== (base?.galleryDriveFolderUrl || '')
       );
     },
     [sheet.rentRows, savedSheet.rentRows]

@@ -3,6 +3,7 @@
  */
 
 const crypto = require('crypto');
+const { normalizeGalleryDriveFolderUrl } = require('./galleryDriveLink');
 const { evaluateArithmeticExpression } = require('./accountingExpression');
 const { sanitizeIsoDateField } = require('./accountingDates');
 
@@ -152,7 +153,8 @@ function normalizeAccountingSheet(raw) {
           deposit: typeof row.deposit === 'string' ? row.deposit.slice(0, 500) : '',
           months,
           photos: normalizeGalleryPhotos(row.photos),
-          galleryShareToken: normalizeGalleryShareToken(row.galleryShareToken)
+          galleryShareToken: normalizeGalleryShareToken(row.galleryShareToken),
+          galleryDriveFolderUrl: normalizeGalleryDriveFolderUrl(row.galleryDriveFolderUrl)
         };
       })
     : [];

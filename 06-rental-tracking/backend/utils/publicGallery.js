@@ -40,7 +40,8 @@ async function findPublicGalleryByToken(token) {
       if (rentRow.galleryShareToken !== normalized) continue;
       return {
         room: rentRow.room || '',
-        photos: formatPublicPhotos(rentRow)
+        photos: formatPublicPhotos(rentRow),
+        driveFolderUrl: rentRow.galleryDriveFolderUrl || ''
       };
     }
   }

@@ -2,7 +2,7 @@
  * 账目单前端状态：双月窗口、租金行、固定支出类目、月度盈余（以 SETTLE 汇总为收入口径）。
  */
 
-import { evaluateArithmeticExpression } from './accountingExpression';
+import { normalizeGalleryDriveFolderUrl } from './galleryDriveLink';
 import { sanitizeIsoDateField } from './accountingDates';
 
 function normalizeGalleryPhoto(raw) {
@@ -159,7 +159,8 @@ export function normalizeAccountingSheet(raw) {
           deposit: typeof row.deposit === 'string' ? row.deposit.slice(0, 500) : '',
           months,
           photos: normalizeGalleryPhotos(row.photos),
-          galleryShareToken: normalizeGalleryShareToken(row.galleryShareToken)
+          galleryShareToken: normalizeGalleryShareToken(row.galleryShareToken),
+          galleryDriveFolderUrl: normalizeGalleryDriveFolderUrl(row.galleryDriveFolderUrl)
         };
       })
     : [];
@@ -364,6 +365,7 @@ export function emptyRentRow(monthKeys) {
       [m1]: emptyRentMonthCells()
     },
     photos: [],
-    galleryShareToken: ''
+    galleryShareToken: '',
+    galleryDriveFolderUrl: ''
   };
 }

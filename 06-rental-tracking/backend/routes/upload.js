@@ -9,6 +9,7 @@ const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const ossService = require('../services/ossService');
+const { isValidPhotoObjectKey } = require('../utils/publicGallery');
 
 // 配置 multer 使用内存存储
 const upload = multer({
@@ -82,13 +83,12 @@ router.post(
 );
 
 /**
- * 删除OSS上的照片
- * DELETE /api/upload/photos/:photoId
- * 
- * @param {string} photoId - 照片ID（OSS文件名）
- * @returns {Object} { success, message }
+ * 删除 OSS 上的照片
+ * DELETE /api/upload/photos?key=photos/YYYY/MM/filename.jpg
+ *
+ * photo.id 为完整 OSS 对象键（含 photos/ 前缀与斜杠），不可用路径参数拼接。
  */
-router.delete('/photos/:photoId', async (req, res) => {
+router.delete('/photos', async (req, res) => {
   try {
     if (!ossService.isOssAvailable()) {
       return res.status(503).json({
@@ -97,16 +97,15 @@ router.delete('/photos/:photoId', async (req, res) => {
       });
     }
 
-    const { photoId } = req.params;
-
-    if (!photoId) {
+    const key = typeof req.query.key === 'string' ? req.query.key.trim() : '';
+    if (!isValidPhotoObjectKey(key)) {
       return res.status(400).json({
         success: false,
-        error: '缺少照片ID'
+        error: '无效的照片路径'
       });
     }
 
-    await ossService.deletePhoto(photoId);
+    await ossService.deletePhoto(key);
 
     res.json({
       success: true,
@@ -119,6 +118,72 @@ router.delete('/photos/:photoId', async (req, res) => {
       error: error.message || '删除照片失败'
     });
   }
+});
+
+/**
+ * 批量删除 OSS 照片
+ * POST /api/upload/photos/batch-delete  Body: { keys: string[] }
+ */
+router.post('/photos/batch-delete', express.json(), async (req, res) => {
+  try {
+    if (!ossService.isOssAvailable()) {
+      return res.status(503).json({
+        success: false,
+        error: '未配置阿里云 OSS 密钥，无法删除远端照片'
+      });
+    }
+
+    const rawKeys = Array.isArray(req.body?.keys) ? req.body.keys : [];
+    const keys = [];
+    for (const item of rawKeys) {
+      if (typeof item !== 'string') continue;
+      const k = item.trim();
+      if (!isValidPhotoObjectKey(k) || keys.includes(k)) continue;
+      keys.push(k);
+    }
+
+    if (keys.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: '没有可删除的照片'
+      });
+    }
+
+    await ossService.deletePhotos(keys);
+
+    res.json({
+      success: true,
+      message: `已删除 ${keys.length} 张照片`,
+      deleted: keys.length
+    });
+  } catch (error) {
+    console.error('批量删除照片失败:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || '批量删除失败'
+    });
+  }
+});
+
+/** @deprecated 旧客户端可能仍拼 /photos/:id；单段 id 无法对应 OSS 全路径，保留仅作 400 提示 */
+router.delete('/photos/:photoId', async (req, res) => {
+  const legacy = typeof req.params.photoId === 'string' ? req.params.photoId.trim() : '';
+  if (legacy && isValidPhotoObjectKey(legacy)) {
+    try {
+      if (!ossService.isOssAvailable()) {
+        return res.status(503).json({ success: false, error: '未配置阿里云 OSS 密钥，无法删除远端照片' });
+      }
+      await ossService.deletePhoto(legacy);
+      return res.json({ success: true, message: '照片已删除' });
+    } catch (error) {
+      console.error('删除照片失败:', error);
+      return res.status(500).json({ success: false, error: error.message || '删除照片失败' });
+    }
+  }
+  return res.status(400).json({
+    success: false,
+    error: '无效的照片路径，请刷新页面后重试'
+  });
 });
 
 // 错误处理中间件

@@ -41,6 +41,41 @@ export async function copyGalleryShareUrl(token) {
   return url;
 }
 
+/**
+ * 分享文案：优先 Google Drive（手机下载），附 notee 在线预览链接
+ */
+export function buildGalleryShareClipboardText({ token, room, driveFolderUrl }) {
+  const lines = [];
+  if (room?.trim()) lines.push(`房号：${room.trim()}`);
+  const drive = (driveFolderUrl || '').trim();
+  if (drive) {
+    lines.push(`Google 云端硬盘（推荐手机下载）：${drive}`);
+  }
+  const noteeUrl = buildGalleryShareUrl(token);
+  if (noteeUrl) {
+    lines.push(`在线预览：${noteeUrl}`);
+  }
+  return lines.join('\n');
+}
+
+export async function copyGalleryShareBundle({ token, room, driveFolderUrl }) {
+  const text = buildGalleryShareClipboardText({ token, room, driveFolderUrl });
+  if (!text.trim()) throw new Error('尚未生成分享链接');
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return text;
+  }
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.left = '-9999px';
+  document.body.appendChild(ta);
+  ta.select();
+  document.execCommand('copy');
+  document.body.removeChild(ta);
+  return text;
+}
+
 function sanitizeFilenamePart(s) {
   return String(s || 'photo')
     .replace(/[/\\?%*:|"<>]/g, '_')

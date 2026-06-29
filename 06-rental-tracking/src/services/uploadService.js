@@ -60,16 +60,20 @@ export const uploadService = {
    * @returns {Promise<Object>} 删除结果 { success }
    */
   deletePhoto: async (photoId) => {
+    if (!photoId) throw new Error('缺少照片 ID')
     try {
-      const response = await fetch(
-        `${config.api.uploadBaseUrl}${config.api.uploadPrefix}/photos/${photoId}`,
-        {
-          method: 'DELETE'
-        }
-      )
+      const url = `${config.api.uploadBaseUrl}${config.api.uploadPrefix}/photos?key=${encodeURIComponent(photoId)}`
+      const response = await fetch(url, { method: 'DELETE' })
       
       if (!response.ok) {
-        throw new Error('删除失败')
+        let msg = '删除失败'
+        try {
+          const data = await response.json()
+          if (data?.error) msg = data.error
+        } catch {
+          /* ignore */
+        }
+        throw new Error(msg)
       }
       
       const data = await response.json()
@@ -131,11 +135,35 @@ export const uploadService = {
    * @returns {Promise<Object[]>} 删除结果数组
    */
   deletePhotos: async (photoIds) => {
-    const deletePromises = photoIds.map(id => uploadService.deletePhoto(id))
-    
+    const keys = (photoIds || []).filter((id) => typeof id === 'string' && id.trim())
+    if (keys.length === 0) return { success: true, deleted: 0 }
+    if (keys.length === 1) {
+      return uploadService.deletePhoto(keys[0])
+    }
     try {
-      const results = await Promise.all(deletePromises)
-      return results
+      const response = await fetch(
+        `${config.api.uploadBaseUrl}${config.api.uploadPrefix}/photos/batch-delete`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ keys })
+        }
+      )
+      if (!response.ok) {
+        let msg = '批量删除失败'
+        try {
+          const data = await response.json()
+          if (data?.error) msg = data.error
+        } catch {
+          /* ignore */
+        }
+        throw new Error(msg)
+      }
+      const data = await response.json()
+      if (!data.success) {
+        throw new Error(data.error || '批量删除失败')
+      }
+      return data
     } catch (error) {
       console.error('[UploadService] 批量删除失败:', error)
       throw error

@@ -226,6 +226,6 @@ export const API_ENDPOINTS = {
   
   // 上传相关
   UPLOAD_PHOTOS: '/photos',
-  DELETE_PHOTO: (id) => `/photos/${id}`,
+  DELETE_PHOTO: (id) => `/photos?key=${encodeURIComponent(id)}`,
 }
 
