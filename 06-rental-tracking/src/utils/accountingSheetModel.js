@@ -2,6 +2,7 @@
  * 账目单前端状态：双月窗口、租金行、固定支出类目、月度盈余（以 SETTLE 汇总为收入口径）。
  */
 
+import { evaluateArithmeticExpression } from './accountingExpression';
 import { normalizeGalleryDriveFolderUrl } from './galleryDriveLink';
 import { sanitizeIsoDateField } from './accountingDates';
 
