@@ -14,6 +14,7 @@ import EntryPermissionFields from '@/components/entry/EntryPermissionFields';
 import EntryMediaUpload from '@/components/entry/EntryMediaUpload';
 import EntryDriveFields from '@/components/entry/EntryDriveFields';
 import EntryLocationFields from '@/components/entry/EntryLocationFields';
+import EntryBodyEmojiBar from '@/components/entry/EntryBodyEmojiBar';
 import { parseGoogleDriveShareUrl } from '@shared/utils/parseGoogleDriveShareUrl.js';
 import { parseGoogleMapsShareUrl } from '@shared/utils/parseGoogleMapsShareUrl.js';
 import { validateCoordinates } from '@shared/utils/lifeResumeLocation.js';
@@ -218,6 +219,7 @@ export default function EntryEditorModal({ open, entry, profileDefaults, onClose
   const [mediaItems, setMediaItems] = useState([]);
   const [initialPersistedOssKeys, setInitialPersistedOssKeys] = useState(() => new Set());
   const saveCommittedRef = useRef(false);
+  const bodyTextareaRef = useRef(null);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -257,6 +259,24 @@ export default function EntryEditorModal({ open, entry, profileDefaults, onClose
 
   const setField = (key, value) => {
     setForm((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const insertBodyEmoji = (emoji) => {
+    const el = bodyTextareaRef.current;
+    const current = form.body;
+    const start = el?.selectionStart ?? current.length;
+    const end = el?.selectionEnd ?? current.length;
+    const next = `${current.slice(0, start)}${emoji}${current.slice(end)}`;
+    if (countGraphemes(next) > LIFE_ENTRY_BODY_MAX) {
+      return;
+    }
+    setField('body', next);
+    requestAnimationFrame(() => {
+      if (!el) return;
+      el.focus();
+      const pos = start + emoji.length;
+      el.setSelectionRange(pos, pos);
+    });
   };
 
   const selectTag = (tag) => {
@@ -490,6 +510,7 @@ export default function EntryEditorModal({ open, entry, profileDefaults, onClose
               正文
             </label>
             <textarea
+              ref={bodyTextareaRef}
               id="entry-body"
               className="w-full min-h-[140px] rounded-lg border border-slate-300 px-3 py-2"
               value={form.body}
@@ -503,6 +524,7 @@ export default function EntryEditorModal({ open, entry, profileDefaults, onClose
             >
               {bodyCount}/{LIFE_ENTRY_BODY_MAX}
             </p>
+            <EntryBodyEmojiBar disabled={saving} onPick={insertBodyEmoji} />
           </section>
 
           <EntryMediaUpload
