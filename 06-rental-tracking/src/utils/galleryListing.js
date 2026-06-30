@@ -13,8 +13,8 @@ export const GALLERY_LAYOUT_OPTIONS = [
 
 export const GALLERY_TV_TYPE_OPTIONS = [
   { value: '', label: '—' },
-  { value: 'smart', label: 'smart TV' },
-  { value: 'cable', label: 'cable TV' }
+  { value: 'smart', label: 'smart tv' },
+  { value: 'cable', label: 'cable tv' }
 ];
 
 export const GALLERY_INTERNET_OPTIONS = [
