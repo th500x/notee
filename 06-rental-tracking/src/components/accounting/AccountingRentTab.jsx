@@ -289,6 +289,8 @@ function SortableRentRow({
 export function AccountingRentTab({ sheet, setSheet, isRentRowGalleryUnsaved, onSaveToServer, saving }) {
   const [m0, m1] = sheet.monthKeys;
   const [filterPendingPayRent, setFilterPendingPayRent] = useState(false);
+  /** 开启筛选时固定的行 id：补录交租后仍保留在列表中，避免行瞬间消失像「输入无效」 */
+  const [filterPinnedRowIds, setFilterPinnedRowIds] = useState(null);
   const [galleryRowId, setGalleryRowId] = useState(null);
   const [galleryAnchorEl, setGalleryAnchorEl] = useState(null);
   const rentTableRef = useRef(null);
@@ -313,8 +315,30 @@ export function AccountingRentTab({ sheet, setSheet, isRentRowGalleryUnsaved, on
 
   const displayRows = useMemo(() => {
     if (!filterPendingPayRent) return sheet.rentRows;
-    return sheet.rentRows.filter((r) => rowHasPendingPayRentPlaceholder(r, m1));
-  }, [sheet.rentRows, filterPendingPayRent, m1]);
+    return sheet.rentRows.filter(
+      (r) =>
+        rowHasPendingPayRentPlaceholder(r, m1) ||
+        (filterPinnedRowIds != null && filterPinnedRowIds.has(r.id))
+    );
+  }, [sheet.rentRows, filterPendingPayRent, m1, filterPinnedRowIds]);
+
+  const toggleFilterPendingPayRent = useCallback(() => {
+    setFilterPendingPayRent((on) => {
+      const next = !on;
+      if (next) {
+        setFilterPinnedRowIds(
+          new Set(
+            sheet.rentRows
+              .filter((r) => rowHasPendingPayRentPlaceholder(r, m1))
+              .map((r) => r.id)
+          )
+        );
+      } else {
+        setFilterPinnedRowIds(null);
+      }
+      return next;
+    });
+  }, [sheet.rentRows, m1]);
 
   const sensors = useSensors(
     // 监听器仅在拖动手柄上：Pointer 即可覆盖触控，避免 TouchSensor 与横向滚动条抢 touchmove
@@ -527,7 +551,7 @@ export function AccountingRentTab({ sheet, setSheet, isRentRowGalleryUnsaved, on
               >
                 <button
                   type="button"
-                  onClick={() => setFilterPendingPayRent((v) => !v)}
+                  onClick={toggleFilterPendingPayRent}
                   className={`flex w-full min-h-[2.25rem] items-center justify-center rounded px-0.5 py-1 text-[10px] leading-tight font-semibold tracking-tight transition-colors ${
                     filterPendingPayRent
                       ? 'bg-amber-500 text-gray-900 shadow-sm'
