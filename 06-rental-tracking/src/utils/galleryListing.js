@@ -31,9 +31,12 @@ export function emptyGalleryListing() {
     depositBaht: '',
     areaSqm: '',
     layout: '',
+    electricFee: '',
+    waterFee: '',
     tvInch: '',
     tvType: '',
     internet: '',
+    doorAccess: '',
     shootDate: ''
   };
 }
@@ -78,9 +81,12 @@ export function normalizeGalleryListing(raw) {
     depositBaht: sliceField(raw.depositBaht, 50),
     areaSqm: sliceField(raw.areaSqm, 50),
     layout: normalizeLayout(raw.layout),
+    electricFee: sliceField(raw.electricFee, 100),
+    waterFee: sliceField(raw.waterFee, 100),
     tvInch: sliceField(raw.tvInch, 20),
     tvType: normalizeTvType(raw.tvType),
     internet: normalizeInternet(raw.internet),
+    doorAccess: sliceField(raw.doorAccess, 100),
     shootDate: sanitizeIsoDateField(typeof raw.shootDate === 'string' ? raw.shootDate : '')
   };
 }
@@ -137,6 +143,11 @@ export function buildGalleryListingDisplayLines(listing, locale = 'zh') {
   const layout = layoutLabel(L.layout, locale);
   if (layout) lines.push({ label: m.labelLayout, value: layout });
 
+  const electricFee = L.electricFee.trim();
+  if (electricFee) lines.push({ label: m.labelElectricFee, value: electricFee });
+  const waterFee = L.waterFee.trim();
+  if (waterFee) lines.push({ label: m.labelWaterFee, value: waterFee });
+
   const tvParts = [];
   if (L.tvInch) tvParts.push(`${L.tvInch} ${m.unitInch}`);
   const tvKind = tvTypeLabel(L.tvType, locale);
@@ -145,6 +156,9 @@ export function buildGalleryListingDisplayLines(listing, locale = 'zh') {
 
   const net = internetLabel(L.internet, locale);
   if (net) lines.push({ label: m.labelInternet, value: net });
+
+  const doorAccess = L.doorAccess.trim();
+  if (doorAccess) lines.push({ label: m.labelDoorAccess, value: doorAccess });
 
   const shoot = formatShootDateDisplay(L.shootDate);
   if (shoot) lines.push({ label: m.labelShootDate, value: shoot });

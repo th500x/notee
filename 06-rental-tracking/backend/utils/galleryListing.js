@@ -12,9 +12,12 @@ function emptyGalleryListing() {
     depositBaht: '',
     areaSqm: '',
     layout: '',
+    electricFee: '',
+    waterFee: '',
     tvInch: '',
     tvType: '',
     internet: '',
+    doorAccess: '',
     shootDate: ''
   };
 }
@@ -54,9 +57,12 @@ function normalizeGalleryListing(raw) {
     depositBaht: trimField(raw.depositBaht, 50),
     areaSqm: trimField(raw.areaSqm, 50),
     layout: normalizeLayout(raw.layout),
+    electricFee: trimField(raw.electricFee, 100),
+    waterFee: trimField(raw.waterFee, 100),
     tvInch: trimField(raw.tvInch, 20),
     tvType: normalizeTvType(raw.tvType),
     internet: normalizeInternet(raw.internet),
+    doorAccess: trimField(raw.doorAccess, 100),
     shootDate: sanitizeIsoDateField(typeof raw.shootDate === 'string' ? raw.shootDate : '')
   };
 }

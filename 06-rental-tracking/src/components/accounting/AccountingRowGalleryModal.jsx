@@ -321,6 +321,26 @@ export function AccountingRowGalleryModal({
                 </select>
               </label>
               <label className="block space-y-0.5">
+                <span className="text-[10px] text-gray-600">电费</span>
+                <input
+                  type="text"
+                  value={listing.electricFee}
+                  onChange={(e) => patchListing('electricFee', e.target.value)}
+                  className={fieldCls}
+                  placeholder="自行填写"
+                />
+              </label>
+              <label className="block space-y-0.5">
+                <span className="text-[10px] text-gray-600">水费</span>
+                <input
+                  type="text"
+                  value={listing.waterFee}
+                  onChange={(e) => patchListing('waterFee', e.target.value)}
+                  className={fieldCls}
+                  placeholder="自行填写"
+                />
+              </label>
+              <label className="block space-y-0.5">
                 <span className="text-[10px] text-gray-600">电视 · 尺寸（inch）</span>
                 <input
                   type="text"
@@ -358,6 +378,16 @@ export function AccountingRowGalleryModal({
                     </option>
                   ))}
                 </select>
+              </label>
+              <label className="block space-y-0.5">
+                <span className="text-[10px] text-gray-600">门禁</span>
+                <input
+                  type="text"
+                  value={listing.doorAccess}
+                  onChange={(e) => patchListing('doorAccess', e.target.value)}
+                  className={fieldCls}
+                  placeholder="自行填写"
+                />
               </label>
               <label className="block space-y-0.5">
                 <span className="text-[10px] text-gray-600">拍摄日期（选填）</span>

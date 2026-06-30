@@ -103,9 +103,12 @@ const accountingGalleryListingSchema = Joi.object({
   depositBaht: Joi.string().max(50).allow('').default(''),
   areaSqm: Joi.string().max(50).allow('').default(''),
   layout: Joi.string().valid('', 'studio', '1bedroom').default(''),
+  electricFee: Joi.string().max(100).allow('').default(''),
+  waterFee: Joi.string().max(100).allow('').default(''),
   tvInch: Joi.string().max(20).allow('').default(''),
   tvType: Joi.string().valid('', 'smart', 'cable').default(''),
   internet: Joi.string().valid('', 'yes', 'no').default(''),
+  doorAccess: Joi.string().max(100).allow('').default(''),
   shootDate: Joi.string().max(10).allow('').pattern(/^$|^\d{4}-\d{2}-\d{2}$/).default('')
 });
 
