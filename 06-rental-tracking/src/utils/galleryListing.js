@@ -42,6 +42,11 @@ function trimField(raw, maxLen) {
   return typeof raw === 'string' ? raw.trim().slice(0, maxLen) : '';
 }
 
+/** 编辑态保留空格；仅截断长度（trim 会在输入时吞掉未完成的空格） */
+function sliceField(raw, maxLen) {
+  return typeof raw === 'string' ? raw.slice(0, maxLen) : '';
+}
+
 function normalizeLayout(raw) {
   const v = trimField(raw, 20).toLowerCase();
   if (v === 'studio') return 'studio';
@@ -67,13 +72,13 @@ export function normalizeGalleryListing(raw) {
   const base = emptyGalleryListing();
   if (!raw || typeof raw !== 'object') return base;
   return {
-    condo: trimField(raw.condo, 100),
-    building: trimField(raw.building, 100),
-    rentBaht: trimField(raw.rentBaht, 50),
-    depositBaht: trimField(raw.depositBaht, 50),
-    areaSqm: trimField(raw.areaSqm, 50),
+    condo: sliceField(raw.condo, 100),
+    building: sliceField(raw.building, 100),
+    rentBaht: sliceField(raw.rentBaht, 50),
+    depositBaht: sliceField(raw.depositBaht, 50),
+    areaSqm: sliceField(raw.areaSqm, 50),
     layout: normalizeLayout(raw.layout),
-    tvInch: trimField(raw.tvInch, 20),
+    tvInch: sliceField(raw.tvInch, 20),
     tvType: normalizeTvType(raw.tvType),
     internet: normalizeInternet(raw.internet),
     shootDate: sanitizeIsoDateField(typeof raw.shootDate === 'string' ? raw.shootDate : '')
@@ -119,11 +124,16 @@ export function buildGalleryListingDisplayLines(listing, locale = 'zh') {
   const m = getGalleryShareMessages(locale);
   const lines = [];
 
-  if (L.condo) lines.push({ label: m.labelCondo, value: L.condo });
-  if (L.building) lines.push({ label: m.labelBuilding, value: L.building });
-  if (L.rentBaht) lines.push({ label: m.labelRent, value: `${L.rentBaht} ${m.unitBaht}` });
-  if (L.depositBaht) lines.push({ label: m.labelDeposit, value: `${L.depositBaht} ${m.unitBaht}` });
-  if (L.areaSqm) lines.push({ label: m.labelArea, value: `${L.areaSqm} ${m.unitSqm}` });
+  const condo = L.condo.trim();
+  if (condo) lines.push({ label: m.labelCondo, value: condo });
+  const building = L.building.trim();
+  if (building) lines.push({ label: m.labelBuilding, value: building });
+  const rentBaht = L.rentBaht.trim();
+  if (rentBaht) lines.push({ label: m.labelRent, value: `${rentBaht} ${m.unitBaht}` });
+  const depositBaht = L.depositBaht.trim();
+  if (depositBaht) lines.push({ label: m.labelDeposit, value: `${depositBaht} ${m.unitBaht}` });
+  const areaSqm = L.areaSqm.trim();
+  if (areaSqm) lines.push({ label: m.labelArea, value: `${areaSqm} ${m.unitSqm}` });
   const layout = layoutLabel(L.layout, locale);
   if (layout) lines.push({ label: m.labelLayout, value: layout });
 
