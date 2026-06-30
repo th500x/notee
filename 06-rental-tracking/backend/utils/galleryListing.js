@@ -6,6 +6,8 @@ const { sanitizeIsoDateField } = require('./accountingDates');
 
 function emptyGalleryListing() {
   return {
+    condo: '',
+    building: '',
     rentBaht: '',
     depositBaht: '',
     areaSqm: '',
@@ -46,6 +48,8 @@ function normalizeGalleryListing(raw) {
   const base = emptyGalleryListing();
   if (!raw || typeof raw !== 'object') return base;
   return {
+    condo: trimField(raw.condo, 100),
+    building: trimField(raw.building, 100),
     rentBaht: trimField(raw.rentBaht, 50),
     depositBaht: trimField(raw.depositBaht, 50),
     areaSqm: trimField(raw.areaSqm, 50),

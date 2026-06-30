@@ -97,6 +97,8 @@ const accountingGalleryPhotoSchema = Joi.object({
 });
 
 const accountingGalleryListingSchema = Joi.object({
+  condo: Joi.string().max(100).allow('').default(''),
+  building: Joi.string().max(100).allow('').default(''),
   rentBaht: Joi.string().max(50).allow('').default(''),
   depositBaht: Joi.string().max(50).allow('').default(''),
   areaSqm: Joi.string().max(50).allow('').default(''),

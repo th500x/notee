@@ -254,6 +254,26 @@ export function AccountingRowGalleryModal({
             <p className="text-xs font-medium text-gray-700">房源说明（分享页展示）</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <label className="block space-y-0.5">
+                <span className="text-[10px] text-gray-600">公寓</span>
+                <input
+                  type="text"
+                  value={listing.condo}
+                  onChange={(e) => patchListing('condo', e.target.value)}
+                  className={fieldCls}
+                  placeholder="自行填写"
+                />
+              </label>
+              <label className="block space-y-0.5">
+                <span className="text-[10px] text-gray-600">楼栋</span>
+                <input
+                  type="text"
+                  value={listing.building}
+                  onChange={(e) => patchListing('building', e.target.value)}
+                  className={fieldCls}
+                  placeholder="自行填写"
+                />
+              </label>
+              <label className="block space-y-0.5">
                 <span className="text-[10px] text-gray-600">租金（baht）</span>
                 <input
                   type="text"

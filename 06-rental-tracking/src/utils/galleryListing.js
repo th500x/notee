@@ -25,6 +25,8 @@ export const GALLERY_INTERNET_OPTIONS = [
 
 export function emptyGalleryListing() {
   return {
+    condo: '',
+    building: '',
     rentBaht: '',
     depositBaht: '',
     areaSqm: '',
@@ -65,6 +67,8 @@ export function normalizeGalleryListing(raw) {
   const base = emptyGalleryListing();
   if (!raw || typeof raw !== 'object') return base;
   return {
+    condo: trimField(raw.condo, 100),
+    building: trimField(raw.building, 100),
     rentBaht: trimField(raw.rentBaht, 50),
     depositBaht: trimField(raw.depositBaht, 50),
     areaSqm: trimField(raw.areaSqm, 50),
@@ -115,6 +119,8 @@ export function buildGalleryListingDisplayLines(listing, locale = 'zh') {
   const m = getGalleryShareMessages(locale);
   const lines = [];
 
+  if (L.condo) lines.push({ label: m.labelCondo, value: L.condo });
+  if (L.building) lines.push({ label: m.labelBuilding, value: L.building });
   if (L.rentBaht) lines.push({ label: m.labelRent, value: `${L.rentBaht} ${m.unitBaht}` });
   if (L.depositBaht) lines.push({ label: m.labelDeposit, value: `${L.depositBaht} ${m.unitBaht}` });
   if (L.areaSqm) lines.push({ label: m.labelArea, value: `${L.areaSqm} ${m.unitSqm}` });

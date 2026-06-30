@@ -23,6 +23,8 @@ const MESSAGES = {
       '链接无效或尚未生效。常见原因：填写后还没有点「保存到服务器」，或链接已被重新生成。请让分享方保存后再发链接。',
     errorNoDrive: '分享方尚未配置 Google 云端硬盘文件夹链接，请让对方在图库中粘贴链接并保存。',
     errorLoadFailed: '加载图库失败',
+    labelCondo: '公寓',
+    labelBuilding: '楼栋',
     labelRent: '租金',
     labelDeposit: '押金',
     labelArea: '面积',
@@ -58,6 +60,8 @@ const MESSAGES = {
     errorNoDrive:
       'The sender has not configured a Google Drive folder link. Ask them to paste the link in the gallery and save.',
     errorLoadFailed: 'Failed to load gallery',
+    labelCondo: 'Condo',
+    labelBuilding: 'Building',
     labelRent: 'Rent',
     labelDeposit: 'Deposit',
     labelArea: 'Area',
@@ -93,6 +97,8 @@ const MESSAGES = {
     errorNoDrive:
       'ผู้แชร์ยังไม่ได้ตั้งค่าลิงก์โฟลเดอร์ Google Drive กรุณาให้วางลิงก์ในคลังแล้วบันทึก',
     errorLoadFailed: 'โหลดคลังรูปไม่สำเร็จ',
+    labelCondo: 'คอนโด',
+    labelBuilding: 'อาคาร',
     labelRent: 'ค่าเช่า',
     labelDeposit: 'เงินประกัน',
     labelArea: 'พื้นที่',
