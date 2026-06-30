@@ -93,7 +93,17 @@ export default function AccountingGallerySharePage({ token }) {
                   {listingLines.map((line) => (
                     <div key={`${line.label}-${line.value}`} className="text-sm">
                       <dt className="text-gray-500 text-xs">{line.label}</dt>
-                      <dd className="text-gray-900 font-medium">{line.value}</dd>
+                      <dd
+                        className={`font-medium ${
+                          line.valueTone === 'rented'
+                            ? 'text-emerald-600'
+                            : line.valueTone === 'vacant'
+                              ? 'text-red-600'
+                              : 'text-gray-900'
+                        }`}
+                      >
+                        {line.value}
+                      </dd>
                     </div>
                   ))}
                 </dl>

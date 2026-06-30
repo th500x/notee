@@ -144,19 +144,25 @@ function formatShootDateDisplay(iso) {
 /**
  * @param {object} listing
  * @param {'zh'|'en'|'th'} [locale]
- * @returns {{ label: string, value: string }[]}
+ * @returns {{ label: string, value: string, valueTone?: 'rented'|'vacant' }[]}
  */
 export function buildGalleryListingDisplayLines(listing, locale = 'zh') {
   const L = normalizeGalleryListing(listing);
   const m = getGalleryShareMessages(locale);
   const lines = [];
 
+  const occupancy = occupancyLabel(L.occupancy, locale);
+  if (occupancy) {
+    lines.push({
+      label: m.labelOccupancy,
+      value: occupancy,
+      valueTone: L.occupancy === 'rented' || L.occupancy === 'vacant' ? L.occupancy : undefined
+    });
+  }
   const condo = L.condo.trim();
   if (condo) lines.push({ label: m.labelCondo, value: condo });
   const building = L.building.trim();
   if (building) lines.push({ label: m.labelBuilding, value: building });
-  const occupancy = occupancyLabel(L.occupancy, locale);
-  if (occupancy) lines.push({ label: m.labelOccupancy, value: occupancy });
   const rentBaht = L.rentBaht.trim();
   if (rentBaht) lines.push({ label: m.labelRent, value: `${rentBaht} ${m.unitBaht}` });
   const depositBaht = L.depositBaht.trim();
