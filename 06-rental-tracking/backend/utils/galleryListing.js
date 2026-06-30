@@ -8,6 +8,7 @@ function emptyGalleryListing() {
   return {
     condo: '',
     building: '',
+    occupancy: '',
     rentBaht: '',
     depositBaht: '',
     areaSqm: '',
@@ -47,12 +48,20 @@ function normalizeInternet(raw) {
   return '';
 }
 
+function normalizeOccupancy(raw) {
+  const v = trimField(raw, 20).toLowerCase();
+  if (v === 'rented' || v === '已出租') return 'rented';
+  if (v === 'vacant' || v === '未出租') return 'vacant';
+  return '';
+}
+
 function normalizeGalleryListing(raw) {
   const base = emptyGalleryListing();
   if (!raw || typeof raw !== 'object') return base;
   return {
     condo: trimField(raw.condo, 100),
     building: trimField(raw.building, 100),
+    occupancy: normalizeOccupancy(raw.occupancy),
     rentBaht: trimField(raw.rentBaht, 50),
     depositBaht: trimField(raw.depositBaht, 50),
     areaSqm: trimField(raw.areaSqm, 50),

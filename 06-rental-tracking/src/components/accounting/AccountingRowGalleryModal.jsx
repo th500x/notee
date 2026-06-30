@@ -10,7 +10,8 @@ import {
   normalizeGalleryListing,
   GALLERY_LAYOUT_OPTIONS,
   GALLERY_TV_TYPE_OPTIONS,
-  GALLERY_INTERNET_OPTIONS
+  GALLERY_INTERNET_OPTIONS,
+  GALLERY_OCCUPANCY_OPTIONS
 } from '../../utils/galleryListing';
 
 const PANEL_MAX_WIDTH = 672;
@@ -273,6 +274,35 @@ export function AccountingRowGalleryModal({
                   placeholder="自行填写"
                 />
               </label>
+              <div className="sm:col-span-2">
+                <span className="text-[10px] text-gray-600 block mb-1">出租状态</span>
+                <div
+                  className="flex rounded-lg border border-gray-300 overflow-hidden text-xs"
+                  role="group"
+                  aria-label="出租状态"
+                >
+                  {GALLERY_OCCUPANCY_OPTIONS.map((o) => {
+                    const active = listing.occupancy === o.value;
+                    return (
+                      <button
+                        key={o.value}
+                        type="button"
+                        aria-pressed={active}
+                        onClick={() => patchListing('occupancy', o.value)}
+                        className={`flex-1 py-1.5 px-2 transition-colors ${
+                          active
+                            ? o.value === 'rented'
+                              ? 'bg-emerald-600 text-white font-medium'
+                              : 'bg-slate-500 text-white font-medium'
+                            : 'bg-white text-gray-700 hover:bg-gray-50'
+                        }`}
+                      >
+                        {o.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
               <label className="block space-y-0.5">
                 <span className="text-[10px] text-gray-600">租金（baht）</span>
                 <input

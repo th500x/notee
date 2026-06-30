@@ -23,10 +23,16 @@ export const GALLERY_INTERNET_OPTIONS = [
   { value: 'no', label: 'No' }
 ];
 
+export const GALLERY_OCCUPANCY_OPTIONS = [
+  { value: 'vacant', label: '未出租' },
+  { value: 'rented', label: '已出租' }
+];
+
 export function emptyGalleryListing() {
   return {
     condo: '',
     building: '',
+    occupancy: '',
     rentBaht: '',
     depositBaht: '',
     areaSqm: '',
@@ -71,12 +77,20 @@ function normalizeInternet(raw) {
   return '';
 }
 
+function normalizeOccupancy(raw) {
+  const v = trimField(raw, 20).toLowerCase();
+  if (v === 'rented' || v === '已出租') return 'rented';
+  if (v === 'vacant' || v === '未出租') return 'vacant';
+  return '';
+}
+
 export function normalizeGalleryListing(raw) {
   const base = emptyGalleryListing();
   if (!raw || typeof raw !== 'object') return base;
   return {
     condo: sliceField(raw.condo, 100),
     building: sliceField(raw.building, 100),
+    occupancy: normalizeOccupancy(raw.occupancy),
     rentBaht: sliceField(raw.rentBaht, 50),
     depositBaht: sliceField(raw.depositBaht, 50),
     areaSqm: sliceField(raw.areaSqm, 50),
@@ -112,6 +126,13 @@ function internetLabel(internet, locale = 'zh') {
   return '';
 }
 
+function occupancyLabel(occupancy, locale = 'zh') {
+  const m = getGalleryShareMessages(locale);
+  if (occupancy === 'rented') return m.occupancyRented;
+  if (occupancy === 'vacant') return m.occupancyVacant;
+  return '';
+}
+
 function formatShootDateDisplay(iso) {
   const d = sanitizeIsoDateField(iso);
   if (!d) return '';
@@ -134,6 +155,8 @@ export function buildGalleryListingDisplayLines(listing, locale = 'zh') {
   if (condo) lines.push({ label: m.labelCondo, value: condo });
   const building = L.building.trim();
   if (building) lines.push({ label: m.labelBuilding, value: building });
+  const occupancy = occupancyLabel(L.occupancy, locale);
+  if (occupancy) lines.push({ label: m.labelOccupancy, value: occupancy });
   const rentBaht = L.rentBaht.trim();
   if (rentBaht) lines.push({ label: m.labelRent, value: `${rentBaht} ${m.unitBaht}` });
   const depositBaht = L.depositBaht.trim();
