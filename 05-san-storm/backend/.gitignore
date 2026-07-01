@@ -1,3 +1,0 @@
-# 战斗纪念图运行时落盘（由 POST /api/memorial/battle 生成）
-storage/memorial/battle/*
-!storage/memorial/battle/.gitkeep
