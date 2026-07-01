@@ -162,7 +162,7 @@ async function commitIdempotentMoveSnapshot(conn, pid, player, clientRequestId, 
  *   reserveFoodUse: number,
  * }}
  */
-function computeMoveFoodPlan(player, stepsCount) {
+function computeMoveFoodPlan(player, stepsCount, noFoodCost = false) {
   const today = new Date();
   const todayStr =
     `${today.getFullYear()}-` +
@@ -176,6 +176,24 @@ function computeMoveFoodPlan(player, stepsCount) {
     : null;
   const freeUsed = freeDateStr === todayStr ? Number(player.road_move_free_used) || 0 : 0;
   const reserveUsed = reserveDateStr === todayStr ? Number(player.road_reserve_used) || 0 : 0;
+
+  // AI 玩家行军不消耗粮草（也不占用免费格配额）：全部步数视为 0 成本，避免"个人粮/势力储备耗尽即卡死"。
+  // 仅由显式调用方（aiPlayerMovementPlanner，body.noFoodCost=true）触发，真人路径不受影响。
+  if (noFoodCost) {
+    return {
+      todayStr,
+      freeDateStr,
+      reserveDateStr,
+      freeUsed,
+      reserveUsed,
+      usedFreeThisMove: 0,
+      paidSteps: 0,
+      totalFoodCost: 0,
+      playerFoodUse: 0,
+      reserveFoodUse: 0,
+    };
+  }
+
   let freeRemaining = Math.max(0, FREE_MOVES_PER_DAY - freeUsed);
 
   let usedFreeThisMove = 0;
@@ -213,7 +231,7 @@ function computeMoveFoodPlan(player, stepsCount) {
  */
 async function assertFactionReserveFoodSufficient(conn, factionId, reserveFoodUse) {
   if (reserveFoodUse <= 0) return { ok: true };
-  const factionReserveService = require('./factionReserveService');
+  const factionReserveService = require('../factionReserveService');
   await factionReserveService.ensurePoolRow(conn, factionId);
   const bal = await factionReserveService.getPoolBalance(conn, factionId, { forUpdate: true });
   if (bal.food < reserveFoodUse) {
@@ -227,11 +245,13 @@ async function assertFactionReserveFoodSufficient(conn, factionId, reserveFoodUs
 }
 
 // ── 沿路移动 ──────────────────────────────────────────────────────────────────
-async function moveAlongRoad(playerId, body) {
+async function moveAlongRoadAttempt(playerId, body) {
   const inputCheck = validateMoveAlongRoadInput(playerId, body);
   if (!inputCheck.ok) return inputCheck;
   const { pid, season, junId, clientRequestId } = inputCheck;
   const scopedMoveReqId = scopedRoadRequestId(ROAD_REQ_SCOPE.MOVE, clientRequestId);
+  // AI 行军免粮草（由 aiPlayerMovementPlanner 显式传入；真人调用不带此标志）
+  const noFoodCost = body?.noFoodCost === true;
 
   const conn = await pool.getConnection();
   try {
@@ -787,7 +807,7 @@ async function moveAlongRoad(playerId, body) {
     }
 
     // 今日免费格重置（与 attr_reroll 同型）
-    const foodPlan = computeMoveFoodPlan(player, steps.length);
+    const foodPlan = computeMoveFoodPlan(player, steps.length, noFoodCost);
     const { todayStr, freeDateStr, reserveDateStr, freeUsed, reserveUsed, paidSteps, totalFoodCost } = foodPlan;
     let { usedFreeThisMove, playerFoodUse, reserveFoodUse } = foodPlan;
     const reserveRemaining = Math.max(0, RESERVE_FOOD_DAILY_LIMIT - reserveUsed);
@@ -1060,7 +1080,8 @@ async function moveAlongRoad(playerId, body) {
     const destPy = destPlayerRoad.gy;
 
     // 若中途遇敌停下，只对已走过的 steps 扣粮草 / 免费格；重新按 stepsApplied 结算
-    if (stepsApplied < steps.length) {
+    // （AI 免粮草时保持 foodPlan 的全 0，不重算）
+    if (!noFoodCost && stepsApplied < steps.length) {
       let free2 = 0;
       let paid2 = 0;
       let freeLeft = Math.max(0, FREE_MOVES_PER_DAY - (freeDateStr === todayStr ? (Number(player.road_move_free_used) || 0) : 0));
@@ -1103,7 +1124,7 @@ async function moveAlongRoad(playerId, body) {
     );
 
     if (reserveFoodUse > 0) {
-      const factionReserveService = require('./factionReserveService');
+      const factionReserveService = require('../factionReserveService');
       await factionReserveService.deductPoolOnConnection(conn, player.faction_id, {
         food: reserveFoodUse,
       });
@@ -1154,11 +1175,39 @@ async function moveAlongRoad(playerId, body) {
     if (/road_encounters/i.test(e.message || '') && /doesn't exist/i.test(e.message || '')) {
       return { ok: false, status: 503, error: '数据库缺少 road_encounters 表；请执行 create-road-encounters.sql' };
     }
+    // 死锁（InnoDB 会整事务回滚，提示"try restarting transaction"）：标记可重试，由外层 moveAlongRoad 重跑。
+    // 高发场景：同势力多个 AI 并发行军抢同一行 faction_reserve(pool) + 沿途玩家行的 FOR UPDATE。
+    if (e && (e.code === 'ER_LOCK_DEADLOCK' || e.errno === 1213)) {
+      return { ok: false, status: 409, error: 'DEADLOCK_RETRY', retryable: true };
+    }
     console.error('[roadEncounterService] moveAlongRoad', e);
     return { ok: false, status: 500, error: e.message || '沿路移动失败' };
   } finally {
     conn.release();
   }
+}
+
+/** 死锁重试上限（含首次），指数退避 + 抖动，避免同势力 AI 同拍再次相撞。 */
+const MOVE_DEADLOCK_MAX_ATTEMPTS = 3;
+
+/**
+ * 对外入口：沿路移动 + 死锁有界重试。
+ * 仅对「事务整体回滚的死锁」重跑（`moveAlongRoadAttempt` 每次都重新读锁全部状态，且靠
+ * `road_last_request_id` 幂等去重）；其它成功/正常失败路径行为与语义不变。
+ */
+async function moveAlongRoad(playerId, body) {
+  for (let attempt = 1; attempt <= MOVE_DEADLOCK_MAX_ATTEMPTS; attempt++) {
+    // eslint-disable-next-line no-await-in-loop
+    const r = await moveAlongRoadAttempt(playerId, body);
+    if (!r || !r.retryable) return r;
+    if (attempt >= MOVE_DEADLOCK_MAX_ATTEMPTS) {
+      return { ok: false, status: 503, error: '系统繁忙（道路锁竞争），请稍后重试' };
+    }
+    const backoffMs = 40 * attempt + Math.floor(Math.random() * 60);
+    // eslint-disable-next-line no-await-in-loop
+    await new Promise((resolve) => setTimeout(resolve, backoffMs));
+  }
+  return { ok: false, status: 503, error: '系统繁忙（道路锁竞争），请稍后重试' };
 }
 
 module.exports = {

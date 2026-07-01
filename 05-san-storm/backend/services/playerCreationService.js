@@ -68,11 +68,12 @@ async function getAvailableFactions(playerId) {
   }
 
   for (const faction of factions) {
+    // max_players 满员判定只统计真人；AI 账号不占名额（见 42-1 §3 身份与计数）
     const [counts] = await pool.query(
       `SELECT COUNT(*) AS player_count
        FROM players p
        JOIN accounts a ON p.player_id = a.id
-       WHERE p.faction_id = ? AND a.serverId = ?`,
+       WHERE p.faction_id = ? AND a.serverId = ? AND a.account_type = 'real'`,
       [faction.faction_id, serverId],
     );
     faction.current_players = counts[0].player_count;

@@ -64,38 +64,14 @@ async function findAccountRegisteredWithinCooldown(field, value, cooldownHours) 
 
 /** 与前端 authUtils 一致：首位批次 0–9，后三位 A–Z / 0–9 */
 const REGISTER_ID_CHARSET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-const REGISTER_BATCH_SIZE = 36 ** 3;
 
-function randomRegisterCandidateIdForBatch(batchPrefix) {
-  const prefix = Number(batchPrefix);
-  if (!Number.isInteger(prefix) || prefix < 0 || prefix > 9) {
-    throw new Error(`invalid register batch prefix: ${batchPrefix}`);
-  }
-  let s = String(prefix);
+function randomRegisterCandidateId() {
+  const batch = Math.floor(Math.random() * 10);
+  let s = String(batch);
   for (let i = 0; i < 3; i += 1) {
     s += REGISTER_ID_CHARSET[Math.floor(Math.random() * REGISTER_ID_CHARSET.length)];
   }
   return s;
-}
-
-/**
- * 当前开放批次：从 0 起找首个未满 36³ 的批次前缀（与前端 idBatches 顺序一致）。
- * @returns {Promise<number>} 0–9，或 -1 表示全部用尽
- */
-async function resolveActiveRegisterBatchPrefix() {
-  const [rows] = await pool.query(
-    `SELECT SUBSTRING(id, 1, 1) AS batch_prefix, COUNT(*) AS cnt
-     FROM accounts
-     WHERE CHAR_LENGTH(id) = 4
-       AND SUBSTRING(id, 1, 1) BETWEEN '0' AND '9'
-     GROUP BY batch_prefix`
-  );
-  const used = new Map(rows.map((row) => [String(row.batch_prefix), Number(row.cnt)]));
-  for (let batch = 0; batch <= 9; batch += 1) {
-    const key = String(batch);
-    if ((used.get(key) || 0) < REGISTER_BATCH_SIZE) return batch;
-  }
-  return -1;
 }
 
 /**
@@ -118,22 +94,13 @@ async function pickRegisterIdCandidates(opts = {}) {
   const picked = [];
   const seen = new Set();
 
-  const activeBatch = await resolveActiveRegisterBatchPrefix();
-  if (activeBatch < 0) {
-    return {
-      ok: false,
-      status: 503,
-      error: '暂无法分配可用ID，请稍后重试',
-    };
-  }
-
   for (let round = 0; round < 8 && picked.length < want; round += 1) {
     const batchSize = Math.max(want * 4, 20);
     const batch = [];
     let inMemAttempts = 0;
     while (batch.length < batchSize && inMemAttempts < batchSize * 20) {
       inMemAttempts += 1;
-      const id = randomRegisterCandidateIdForBatch(activeBatch);
+      const id = randomRegisterCandidateId();
       if (exclude.has(id) || seen.has(id)) continue;
       batch.push(id);
       seen.add(id);
@@ -184,12 +151,9 @@ async function register(body, opts = {}) {
     city,
   } = body;
 
-  if (!id || !password || birthMonth == null) {
+  if (!id || !password || birthMonth == null || !serverId) {
     return { ok: false, status: 400, error: '缺少必填字段' };
   }
-
-  const rawServerId =
-    serverId != null && String(serverId).trim() !== '' ? String(serverId).trim() : null;
 
   const resolvedMachineId = (machineId && String(machineId).trim()) || 'unknown';
   const resolvedClientIP = resolveRegisterClientIP(clientIP, opts.requestIp);
@@ -222,15 +186,12 @@ async function register(body, opts = {}) {
 
   const hashedPassword = await bcrypt.hash(password, BCRYPT_ROUNDS);
 
-  let currentSeason = null;
-  if (rawServerId) {
-    const [serverConfig] = await pool.query(
-      'SELECT current_season FROM config_servers WHERE server_id = ?',
-      [rawServerId]
-    );
-    currentSeason =
-      serverConfig.length > 0 ? serverConfig[0].current_season : 'san_0_m1/san_1';
-  }
+  const [serverConfig] = await pool.query(
+    'SELECT current_season FROM config_servers WHERE server_id = ?',
+    [serverId]
+  );
+  const currentSeason =
+    serverConfig.length > 0 ? serverConfig[0].current_season : 'san_0_m1/san_1';
 
   /**
    * 事务包裹 accounts INSERT（注册与创角分两步；players 初始化见 PlayerService.createCharacter）。
@@ -251,7 +212,7 @@ async function register(body, opts = {}) {
           id,
           hashedPassword,
           birthMonth,
-          rawServerId,
+          serverId,
           currentSeason,
           resolvedMachineId,
           resolvedClientIP,

@@ -395,6 +395,7 @@ module.exports = {
   ASSAULT_DEFENDER_SLOTS,
   QUOTA_PER_WINDOW,
   INTER_BATTLE_DELAY_MS,
+  configTroopToSiegeNpc,
   buildAttackerRoster,
   buildDefenderBatch,
   runConscriptAssaultWindow,

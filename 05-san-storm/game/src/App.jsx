@@ -17,6 +17,7 @@ const JunCountyMapGeneratorManagerPage = lazy(() => import('@/pages/admin/JunCou
 const BattleAnimationDemoPage = lazy(() => import('@/pages/BattleAnimationDemoPage'));
 const AdminEnvTogglePage = lazy(() => import('@/pages/admin/AdminEnvTogglePage'));
 const SeasonRolloverManagerPage = lazy(() => import('@/pages/admin/SeasonRolloverManagerPage'));
+const AiPlayerManagerPage = lazy(() => import('@/pages/admin/AiPlayerManagerPage'));
 
 function RouteLoading() {
   return (
@@ -128,6 +129,11 @@ function App() {
                       <h3 className="text-lg font-semibold text-gray-900 mb-2 text-center">赛季管理</h3>
                       <p className="text-sm text-gray-600 text-center">结算窗口 · 维护态 · 关服切换 rollover</p>
                     </a>
+                    <a href={`${import.meta.env.BASE_URL}ai-player-manager`} className="block bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow cursor-pointer h-full flex flex-col border-2 border-cyan-300">
+                      <div className="text-4xl mb-4 text-center">🤖</div>
+                      <h3 className="text-lg font-semibold text-gray-900 mb-2 text-center">AI 玩家管理</h3>
+                      <p className="text-sm text-gray-600 text-center">行为开关 · 各势力人数 · 休眠/唤起</p>
+                    </a>
                     <button
                       type="button"
                       disabled={!isAdminDevBypassAllowed}
@@ -169,6 +175,7 @@ function App() {
             <Route path="/battle-animation-demo" element={<BattleAnimationDemoPage />} />
             <Route path="/admin-env-toggle" element={<AdminEnvTogglePage />} />
             <Route path="/season-rollover-manager" element={<SeasonRolloverManagerPage />} />
+            <Route path="/ai-player-manager" element={<AiPlayerManagerPage />} />
 
           </Routes>
           </Suspense>

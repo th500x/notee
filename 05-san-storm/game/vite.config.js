@@ -67,7 +67,6 @@ export default defineConfig({
       /** rendering chunks 阶段默认并行较高；低配机易 OOM 死机 */
       maxParallelFileOps: rollupParallelOps,
       onwarn(warning, warn) {
-        if (warning.message?.includes('ZCOOLKuaiLe-Regular.woff2')) return;
         warn(warning);
       },
       output: {

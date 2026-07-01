@@ -64,6 +64,28 @@ async function tryConsumeSiegeQuotaOnce(playerId, conn = null) {
 }
 
 /**
+ * 只读查询当前攻城次数（含按休息窗的补充计算，不扣减）。供 AI 攻城循环避免 throw 控流。
+ * @param {string} playerId
+ * @param {import('mysql2/promise').PoolConnection|null} [conn]
+ * @returns {Promise<number>} 当前可用攻城次数
+ */
+async function getSiegeQuotaRemaining(playerId, conn = null) {
+  const runner = conn || pool;
+  const pid = String(playerId || '').trim();
+  if (!pid) return 0;
+  const [rows] = await runner.query(
+    'SELECT siege_quota_remaining, siege_quota_refill_ts FROM player_events WHERE player_id = ?',
+    [pid],
+  );
+  const row = rows[0] || {};
+  const current = calcSiegeQuotaForPlayer(
+    row.siege_quota_remaining,
+    row.siege_quota_refill_ts ? Number(row.siege_quota_refill_ts) : null,
+  );
+  return Math.max(0, Number(current.remaining) || 0);
+}
+
+/**
  * 发起攻城 / 攻大本营开战前扣 1 次行动配额（与 `tryConsumeSiegeQuotaOnce` 同源；失败抛错供 API 早失败）。
  * 中立城 `initiateSiege`、战事 `initiateAttackerCitySiege`、守方 `initiateBaseCampSiege` 均走此入口；
  * 后续抢锁 / 粮草门闸失败须 `refundSiegeQuotaOnce`。
@@ -1714,6 +1736,7 @@ module.exports = {
   getActivePveSiegeParticipationForFaction,
   cancelActivePveSiegeWarViaSanGongChaoZheng,
   tryConsumeSiegeQuotaOnce,
+  getSiegeQuotaRemaining,
   consumeSiegeQuotaForBattleStart,
   refundSiegeQuotaOnce,
   countActivePveSiegeWarsForFaction,

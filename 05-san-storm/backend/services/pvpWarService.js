@@ -1874,6 +1874,175 @@ async function recordAttackerCitySiegeResult(pvpWarId, attackerPlayerId, payload
   }
 }
 
+/** 战术内核动态加载（缓存；与 `pvpGarrisonAutoDuelResolveService` / 道路同源）。 */
+let _siegeKernelPromise = null;
+function loadSiegeTacticalKernel() {
+  if (!_siegeKernelPromise) {
+    _siegeKernelPromise = import('../../shared/battle/tacticalSim/runPvpTacticalDuel.js');
+  }
+  return _siegeKernelPromise;
+}
+
+/**
+ * 释放某场攻城 payload 对应的城战锁（与 `recordAttackerCitySiegeResult` 内 `releaseLock` 同语义）。
+ * 用于「`initiateAttackerCitySiege` 已抢锁，但 record 之前异常」的兜底；`releasePvpCityLock` 幂等。
+ */
+function releaseSiegePayloadLock(pvpWarId, attackerPlayerId, payload) {
+  const isPlayerDefender =
+    payload?.defenderType === 'pvp_online' || payload?.defenderType === 'player_garrison';
+  if (isPlayerDefender && payload?.defenderPlayerId) {
+    releasePvpCityLock(
+      buildPvpCityPlayerLockKey(pvpWarId, payload.defenderPlayerId, payload.defenderGarrisonSlot ?? 0),
+      attackerPlayerId,
+    );
+  } else if (payload?.npcBatchIndex != null && !Number.isNaN(Number(payload.npcBatchIndex))) {
+    releasePvpCityLock(buildPvpCityNpcLockKey(pvpWarId, Number(payload.npcBatchIndex)), attackerPlayerId);
+  } else {
+    for (let b = 0; b < PVP_CITY_LOCK_BATCH_SWEEP; b++) {
+      releasePvpCityLock(buildPvpCityNpcLockKey(pvpWarId, b), attackerPlayerId);
+    }
+  }
+}
+
+/**
+ * 服务端权威「一场攻城」：把真人攻城的「客户端中段战斗」搬到服务端，**完全复用**真人入口与结算：
+ *   `initiateAttackerCitySiege`（扣攻城次数 + 选防守者/抢锁，三类防守者同真人优先级）
+ *   → `runPvpTacticalDuel`（与披挂同一战术内核，守城方享城防加成）
+ *   → `recordAttackerCitySiegeResult`（写 side_stats / 守军减员 / 易主 handoff / 释放锁）
+ *   → `applyAuthoritativePvpAutoDuelAttackerLineupCasualties`（攻方兵力回写）。
+ *
+ * 锁/配额安全：`initiate` 自身失败已内部退配额/释放锁（本函数原样返回 `stop`，不重复释放）；
+ * `initiate` 成功后到 `record` 成功之间任何异常 → 兜底释放该场锁 + 退 1 次攻城配额（`record`
+ * 成功后 `recorded=true`，post-record（攻方兵力回写）异常仅记日志、**不**误退配额/释放锁）。
+ *
+ * 与真人无实质区别：唯一差异是「中段战斗」在服务端推演而非客户端 BattleArena。
+ *
+ * @param {string} pvpWarId
+ * @param {string} attackerPlayerId
+ * @returns {Promise<
+ *   | { ok:true, attackerWon:boolean, siegeCompleted:boolean, defenderType:string, killCount:number, record:object }
+ *   | { ok:false, stop?:boolean, reason?:string, error?:string }
+ * >}
+ */
+async function resolveAuthoritativeAttackerCitySiege(pvpWarId, attackerPlayerId) {
+  const garrisonService = require('./garrisonService');
+  const { hashSeed } = require('./pvp/auto-duel/pvpAutoDuelSim');
+  const { tacticalToAutoDuelResult } = require('./pvp/tactical/tacticalToAutoDuelResult');
+  const roomService = require('./pvp/tactical/pvpTacticalRoomService');
+
+  // 1) 发起攻城：扣配额 + 选防守者/抢锁。失败（次数不足/无守军/阶段门禁/上阵不足/各线交战中）= 正常停。
+  let payload;
+  try {
+    payload = await initiateAttackerCitySiege(pvpWarId, attackerPlayerId);
+  } catch (e) {
+    return { ok: false, stop: true, reason: e.message };
+  }
+
+  let recorded = false;
+  try {
+    const defenderNpcs = Array.isArray(payload.npcGarrison) ? payload.npcGarrison : [];
+    if (!defenderNpcs.length) throw new Error('[pvpWar] 攻城防守批次为空');
+
+    const rawAttacker = await garrisonService.buildDefenseUnitsFromMainLineup(attackerPlayerId);
+    const attackerNpcs = garrisonService.mapBuiltUnitsToSiegeNpcFormat(rawAttacker);
+    if (!attackerNpcs.length) throw new Error('[pvpWar] 攻方上阵编组无可战部队');
+
+    // 2) 战术内核推演（守城方 side b 享城防加成；与披挂 PVP 同源）。
+    const seedKey = payload.defenderPlayerId || `npc${payload.npcBatchIndex ?? 0}`;
+    const seed = hashSeed([pvpWarId, attackerPlayerId, seedKey, Date.now()]);
+    const duelMapId = await roomService.pickDuelMapIdForSeed(seed);
+    const kernel = await loadSiegeTacticalKernel();
+    const tactical = kernel.runPvpTacticalDuel({
+      duelMapId,
+      lineupSnapshots: { a: attackerNpcs, b: defenderNpcs },
+      battleSeed: seed,
+      sideLabels: { a: '攻方', b: '守军' },
+      defenseBonus: { b: payload.cityDefense ?? 100 },
+    });
+    const adapted = tacticalToAutoDuelResult({
+      winnerSide: tactical.winnerSide,
+      finalState: tactical.finalState,
+      attackerSnapshot: attackerNpcs,
+      defenderSnapshot: defenderNpcs,
+    });
+    const result = adapted.attackerWon ? 'win' : 'lose';
+    const localKilled = Array.from(
+      new Set(
+        (adapted.killedIndices || [])
+          .map((x) => Number(x))
+          .filter((i) => Number.isFinite(i) && i >= 0 && i < defenderNpcs.length),
+      ),
+    );
+
+    // 3) 组 record payload（三类防守者：玩家用本地 killedIndices；NPC 用全局守军下标 .index）。
+    const isPlayerDefender =
+      payload.defenderType === 'pvp_online' || payload.defenderType === 'player_garrison';
+    const recordPayload = {
+      defenderType: payload.defenderType,
+      result,
+      silverSpent: 0,
+      battleScore: 0,
+      battleReportSaved: true,
+    };
+    if (isPlayerDefender) {
+      recordPayload.defenderPlayerId = payload.defenderPlayerId;
+      recordPayload.defenderGarrisonSlot = payload.defenderGarrisonSlot;
+      recordPayload.garrisonUnits = defenderNpcs;
+      recordPayload.killedIndices = localKilled;
+      recordPayload.defenderLineupTroopUpdates = defenderNpcs
+        .map((npc, i) => ({
+          instanceId: npc._troopInstanceId,
+          maxTroops: npc.maxTroops,
+          currentTroops: Math.max(0, Math.round(Number(adapted.defenderTroopsEnd[i]?.currentTroops) || 0)),
+        }))
+        .filter((u) => u.instanceId);
+    } else {
+      recordPayload.npcBatchIndex = payload.npcBatchIndex;
+      recordPayload.killedIndices = localKilled
+        .map((li) => defenderNpcs[li]?.index)
+        .filter((gi) => gi != null);
+    }
+
+    // 4) 写回（释放锁在 record 内部完成）。
+    const record = await recordAttackerCitySiegeResult(pvpWarId, attackerPlayerId, recordPayload);
+    recorded = true;
+
+    // 5) 攻方兵力回写（post-record；失败仅记日志，不回退本场战果/配额）。
+    try {
+      await garrisonService.applyAuthoritativePvpAutoDuelAttackerLineupCasualties(
+        attackerPlayerId,
+        attackerNpcs,
+        adapted.attackerTroopsEnd,
+      );
+    } catch (e) {
+      console.error(
+        `[pvpWar] AI 攻城攻方兵力回写失败 war=${pvpWarId} player=${attackerPlayerId}: ${e.message}`,
+      );
+    }
+
+    return {
+      ok: true,
+      attackerWon: adapted.attackerWon,
+      siegeCompleted: !!record.siegeCompleted,
+      defenderType: payload.defenderType,
+      killCount: record.killCount ?? 0,
+      record,
+    };
+  } catch (e) {
+    if (!recorded) {
+      // initiate 已抢锁/扣配额，record 未成功 → 兜底释放锁 + 退配额（幂等）。
+      releaseSiegePayloadLock(pvpWarId, attackerPlayerId, payload);
+      try {
+        await cityService.refundSiegeQuotaOnce(attackerPlayerId);
+      } catch (_) {
+        /* ignore refund failure */
+      }
+    }
+    console.error(`[pvpWar] AI 攻城推演失败 war=${pvpWarId} player=${attackerPlayerId}: ${e.message}`);
+    return { ok: false, error: e.message };
+  }
+}
+
 // ==================== 胜负判定与 Tick ====================
 
 /**
@@ -2119,6 +2288,7 @@ module.exports = {
   recordBaseCampSiegeResult,
   initiateAttackerCitySiege,
   recordAttackerCitySiegeResult,
+  resolveAuthoritativeAttackerCitySiege,
   // Tick
   tickActivePvpWars,
 };

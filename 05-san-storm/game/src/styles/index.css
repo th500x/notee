@@ -12,10 +12,10 @@
   font-display: swap;
 }
 
-/* 战役卡牌正面艺术字 — 文件：public/fonts/ZCOOLKuaiLe-Regular.woff2 */
+/* 战役卡牌正面艺术字（shared/assets；Vite 构建带内容哈希） */
 @font-face {
   font-family: 'ZCOOL KuaiLe';
-  src: url('/05-san-storm/game/fonts/ZCOOLKuaiLe-Regular.woff2') format('woff2');
+  src: url('../../../shared/assets/fonts/ZCOOLKuaiLe-Regular.woff2') format('woff2');
   font-weight: normal;
   font-style: normal;
   font-display: swap;

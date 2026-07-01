@@ -10,11 +10,12 @@ const {
 } = require('../../shared/utils/factionBalanceBonus.cjs');
 
 async function queryFactionPlayerCountsByServer(serverId) {
+  // 人数平衡补偿只按真人口径计算；AI 账号不计入（见 42-1 §3 身份与计数）
   const [rows] = await pool.query(
     `SELECT p.faction_id, COUNT(*) AS player_count
      FROM players p
      JOIN accounts a ON p.player_id = a.id
-     WHERE a.serverId = ?
+     WHERE a.serverId = ? AND a.account_type = 'real'
      GROUP BY p.faction_id`,
     [serverId],
   );

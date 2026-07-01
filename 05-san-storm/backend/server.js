@@ -103,6 +103,40 @@ function scheduleAiKingHourlyTick() {
   return scheduler;
 }
 
+/**
+ * AI 玩家日常行为调度（42-2 Step 6）
+ *   - 20 分钟窗口内把全部 AI 随机铺到分钟槽；每分钟 tick 启动本槽 AI 的 routine。
+ *   - 并发上限 maxConcurrent（默认 5，`AI_PLAYER_MAX_CONCURRENT` 可配），超出 FIFO 排队；进程内防重。
+ *   - 总开关 `AI_PLAYER_BEHAVIOR_ENABLED=1` 才注册（本地默认关）。
+ *   - 与 AI 君主 tick / PVP tick 各自独立随机源。
+ */
+function scheduleAiPlayerBehaviorTick() {
+  const { AI_PLAYER_BEHAVIOR } = require('./config/aiPlayerBehavior');
+  if (!AI_PLAYER_BEHAVIOR.behaviorEnabled) {
+    console.log('[aiPlayer][scheduler] disabled（设 AI_PLAYER_BEHAVIOR_ENABLED=1 启用）');
+    return null;
+  }
+  const { AiPlayerBehaviorScheduler, setActiveScheduler } = require('./services/aiPlayerBehaviorScheduler');
+  const scheduler = new AiPlayerBehaviorScheduler();
+  setActiveScheduler(scheduler);
+  cron.schedule(
+    '* * * * *',
+    async () => {
+      try {
+        await scheduler.runMinuteTick();
+      } catch (err) {
+        console.error('[aiPlayer][scheduler] tick 失败:', err.message);
+      }
+    },
+    CRON_OPTS,
+  );
+  console.log(
+    `[aiPlayer][scheduler] cron registered * * * * * window=${scheduler.windowMinutes}min ` +
+      `maxConcurrent=${scheduler.maxConcurrent}`,
+  );
+  return scheduler;
+}
+
 function scheduleFactionReserveRecoveryDailyTick() {
   const { runDailyReserveRecoveryTick } = require('./services/factionReserveRecoveryService');
   cron.schedule(
@@ -356,6 +390,9 @@ app.use('/api/admin/king-dasikong', adminKingDasikongRouter);
 const adminSeasonRolloverRouter = require('./routes/adminSeasonRollover');
 app.use('/api/admin/season-rollover', adminSeasonRolloverRouter);
 
+const adminAiPlayersRouter = require('./routes/adminAiPlayers');
+app.use('/api/admin/ai-players', adminAiPlayersRouter);
+
 /**
  * 纪念图（MVP：Battle）
  */
@@ -487,6 +524,7 @@ httpServer = app.listen(PORT, async () => {
     console.error('[aiKing] 加载 ai-kings.json 失败:', err.message);
   }
   scheduleAiKingHourlyTick();
+  scheduleAiPlayerBehaviorTick();
   scheduleDailyReportDigestTick();
   scheduleFactionReserveRecoveryDailyTick();
   scheduleTitlePositionTenureDailyTick();
