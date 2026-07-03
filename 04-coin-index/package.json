@@ -7,8 +7,10 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "collect-data": "node scripts/collectWeeklyData.js",
-    "update-data": "node scripts/collectWeeklyData.js"
+    "collect-data": "node scripts/collectWeeklyDataV2.js",
+    "update-data": "node scripts/collectWeeklyDataV2.js",
+    "import-manual": "node scripts/importManualData.js",
+    "weekly-sync": "node scripts/collectWeeklyDataV2.js && node scripts/importManualData.js"
   },
   "dependencies": {
     "react": "^18.2.0",

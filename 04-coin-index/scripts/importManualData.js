@@ -1,7 +1,8 @@
-// 手动数据导入脚本 - 从CSV文件导入指标数据
+// 手动数据导入脚本 - 从 docs/tools/data-import.csv 导入指标数据
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
+import { MANUAL_CSV_PATH, PUBLIC_DATA_PATH, SRC_DATA_PATH } from './lib/weeklyDataStore.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -53,6 +54,10 @@ const parseCSV = (csvContent) => {
         row.ahr999 = value && !isNaN(value) ? parseFloat(parseFloat(value).toFixed(2)) : 1.0
       } else if (header === 'BTC四年指数') {
         row.btcFourYearIndex = value && !isNaN(value) ? parseFloat(parseFloat(value).toFixed(2)) : 0.8
+      } else if (header === '美联储利率') {
+        row.fedRate = value && !isNaN(value) ? parseFloat(parseFloat(value).toFixed(2)) : undefined
+      } else if (header === '日央行利率') {
+        row.bojRate = value && !isNaN(value) ? parseFloat(parseFloat(value).toFixed(2)) : undefined
       }
     })
     
@@ -240,6 +245,8 @@ const updateWeeklyData = (importedData, targetFile) => {
         existingData[weekId].mayerMultiple = row.mayerMultiple
         existingData[weekId].ahr999 = row.ahr999
         existingData[weekId].btcFourYearIndex = row.btcFourYearIndex
+        if (row.fedRate !== undefined) existingData[weekId].fedRate = row.fedRate
+        if (row.bojRate !== undefined) existingData[weekId].bojRate = row.bojRate
         
         // 重新计算BTC距ATH回撤 (使用固定ATH价格)
         if (existingData[weekId].btcWeeklyAvgPrice) {
@@ -276,14 +283,12 @@ const updateWeeklyData = (importedData, targetFile) => {
 const main = async () => {
   console.log('📋 开始导入手动数据...')
   
-  // CSV文件路径
-  const projectRoot = path.resolve(__dirname, '..')
-  const csvFilePath = path.join(projectRoot, 'data-import.csv')
+  // CSV 唯一路径：docs/tools/data-import.csv
+  const csvFilePath = MANUAL_CSV_PATH
   
-  // 检查CSV文件是否存在
   if (!fs.existsSync(csvFilePath)) {
     console.error(`❌ CSV文件不存在: ${csvFilePath}`)
-    console.log('💡 请先填写 data-import-template.csv 文件')
+    console.log('💡 请编辑 docs/tools/data-import.csv')
     return
   }
   
@@ -295,15 +300,15 @@ const main = async () => {
     const importedData = parseCSV(csvContent)
     console.log(`📊 解析到 ${importedData.length} 条数据`)
     
-    // 更新两个数据文件
-    console.log('\n🔄 更新 src/data/weeklyData.json...')
-    const srcUpdated = updateWeeklyData(importedData, 'src/data/weeklyData.json')
-    
     console.log('\n🔄 更新 public/weeklyData.json...')
     const publicUpdated = updateWeeklyData(importedData, 'public/weeklyData.json')
     
+    console.log('\n🔄 同步 src/data/weeklyData.json...')
+    if (fs.existsSync(PUBLIC_DATA_PATH)) {
+      fs.copyFileSync(PUBLIC_DATA_PATH, SRC_DATA_PATH)
+    }
+    
     console.log('\n🎉 数据导入完成!')
-    console.log(`📈 src数据: ${srcUpdated} 周已更新`)
     console.log(`📈 public数据: ${publicUpdated} 周已更新`)
     
   } catch (error) {
