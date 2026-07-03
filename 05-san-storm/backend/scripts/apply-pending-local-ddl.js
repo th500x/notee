@@ -48,6 +48,7 @@ const MIGRATION_FILES_SPLIT_STATEMENTS = new Set([
   'drop-config-titles-display-columns.sql',
   'cities-delete-orphan-san-1-city-3-xuchang.sql',
   'add-config-servers-settlement-window.sql',
+  'accounts-server-id-nullable-for-life-resume.sql',
 ]);
 
 async function runMigrationSql(sql, file) {
