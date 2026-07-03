@@ -10,7 +10,7 @@ export const DATE_CONSTANTS = {
   // 最早可访问的日期
   MIN_DATE: new Date(2026, 0, 1), // 2026-01-01
   // 最晚可访问的日期
-  MAX_DATE: new Date(2026, 0, 31), // 2026-01-31
+  MAX_DATE: new Date(2026, 1, 28), // 2026-02-28
 }
 
 /**

@@ -58,7 +58,7 @@ export const config = {
     validEmojis: ['🍺', '👍', '👎'], // 有效的emoji列表
     dateRange: {
       min: new Date(2026, 0, 1), // 2026-01-01
-      max: new Date(2026, 0, 31), // 2026-01-31
+      max: new Date(2026, 1, 28), // 2026-02-28
     }
   },
   

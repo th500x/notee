@@ -1,116 +1,76 @@
 #!/bin/bash
 
-# 自动化部署脚本 - 解决所有Git同步问题
+# 首次部署 / 强制同步 notee monorepo 中的 01-news-calendar
 # 使用方法: sudo ./auto-deploy.sh
 
-set -e  # 遇到错误立即退出
+set -e
 
-echo "=== 自动化部署脚本 ==="
-echo "GitHub仓库: https://github.com/th500x/website-news.git"
-echo "网站目录: /www/wwwroot/website-news"
+NOTEE_DIR="/www/wwwroot/notee"
+APP_DIR="/www/wwwroot/notee/01-news-calendar"
+GITHUB_REPO="https://github.com/th500x/notee.git"
+BACKUP_DIR="/www/wwwroot/notee-backup-$(date +%Y%m%d-%H%M%S)"
+
+echo "=== 01-news-calendar 自动化部署 ==="
+echo "Monorepo: $NOTEE_DIR"
+echo "GitHub: $GITHUB_REPO"
 echo ""
 
-# 检查是否以root权限运行
 if [ "$EUID" -ne 0 ]; then
-    echo "❌ 请使用sudo运行此脚本: sudo ./auto-deploy.sh"
+    echo "❌ 请使用 sudo 运行: sudo ./auto-deploy.sh"
     exit 1
 fi
 
-# 设置变量
-WEBSITE_DIR="/www/wwwroot/website-news"
-GITHUB_REPO="https://github.com/th500x/website-news.git"
-BACKUP_DIR="/www/wwwroot/website-news-backup-$(date +%Y%m%d-%H%M%S)"
-
-echo "📁 进入网站目录..."
-cd $WEBSITE_DIR
-
-echo "💾 备份当前文件..."
-cp -r . $BACKUP_DIR
-echo "✅ 备份完成: $BACKUP_DIR"
-
-echo "🔧 配置Git..."
-# 设置Git配置（避免权限问题）
-git config --global --add safe.directory $WEBSITE_DIR
-git config user.name "Server Deploy"
-git config user.email "deploy@server.local"
-
-# 检查是否已经是Git仓库
-if [ ! -d ".git" ]; then
-    echo "🆕 初始化Git仓库..."
-    git init
-    git remote add origin $GITHUB_REPO
-else
-    echo "📡 检查远程仓库配置..."
-    # 确保远程仓库配置正确
-    git remote set-url origin $GITHUB_REPO
+if [ -d "$NOTEE_DIR" ]; then
+    echo "💾 备份 $NOTEE_DIR → $BACKUP_DIR"
+    cp -a "$NOTEE_DIR" "$BACKUP_DIR"
 fi
 
-echo "🔄 强制同步GitHub代码..."
-# 获取最新代码
+mkdir -p "$NOTEE_DIR"
+cd "$NOTEE_DIR"
+
+git config --global --add safe.directory "$NOTEE_DIR" 2>/dev/null || true
+
+if [ ! -d ".git" ]; then
+    echo "🆕 克隆仓库..."
+    git clone "$GITHUB_REPO" .
+else
+    git remote set-url origin "$GITHUB_REPO"
+fi
+
+echo "🔄 同步 origin/main..."
 git fetch origin main
-
-# 强制重置到远程版本（解决冲突）
 git reset --hard origin/main
-
-# 确保在main分支
 git checkout -B main origin/main
 
-echo "🔐 设置文件权限..."
-# 设置正确的文件权限
-chown -R www:www $WEBSITE_DIR
-chmod -R 755 $WEBSITE_DIR
-# JSON文件设置为可读写
-chmod 644 $WEBSITE_DIR/*.json 2>/dev/null || true
+echo "📦 安装依赖..."
+cd "$APP_DIR"
+npm install
+cd "$APP_DIR/backend"
+npm install
 
-echo "📦 检查后端依赖..."
-if [ -f "backend/package.json" ]; then
-    cd backend
-    # 检查node_modules是否存在且完整
-    if [ ! -d "node_modules" ] || [ ! -f "node_modules/.package-lock.json" ]; then
-        echo "📥 安装后端依赖..."
-        npm install
-    fi
-    cd ..
-fi
+echo "🏗️  构建前端..."
+cd "$APP_DIR"
+npm run build
 
-echo "🔄 重启后端服务..."
-# 检查PM2进程是否存在
+chown -R www:www "$NOTEE_DIR"
+chmod -R 755 "$NOTEE_DIR"
+chmod 644 "$APP_DIR/public/"*.json 2>/dev/null || true
+
+echo "🔄 PM2..."
 if pm2 describe news-calendar-backend > /dev/null 2>&1; then
     pm2 restart news-calendar-backend
 else
-    echo "🆕 启动新的后端进程..."
-    cd backend
-    pm2 start server.js --name news-calendar-backend
-    cd ..
+    pm2 start "$APP_DIR/ecosystem.config.cjs"
 fi
-
-echo "💾 保存PM2配置..."
 pm2 save
 
-echo "🧪 测试服务..."
-sleep 3
-if curl -f http://localhost:3001/api/health > /dev/null 2>&1; then
-    echo "✅ 后端服务正常"
+sleep 2
+if curl -sf http://localhost:3002/api/health > /dev/null; then
+    echo "✅ 健康检查通过 (port 3002)"
 else
-    echo "⚠️  后端服务可能有问题，请检查日志: pm2 logs news-calendar-backend"
+    echo "⚠️  健康检查失败，请查看: pm2 logs news-calendar-backend"
 fi
 
-echo "📊 检查部署结果..."
-echo "Git状态:"
-git status --porcelain
-
-echo "PM2状态:"
-pm2 status
-
-echo "文件权限:"
-ls -la *.json 2>/dev/null || echo "没有找到JSON文件"
-
 echo ""
-echo "🎉 部署完成！"
-echo "🌐 网站地址: http://47.113.185.170"
-echo "📋 备份位置: $BACKUP_DIR"
-echo "📝 查看日志: pm2 logs news-calendar-backend"
-echo ""
-echo "如果遇到问题，可以恢复备份:"
-echo "sudo rm -rf $WEBSITE_DIR"
-echo "sudo mv $BACKUP_DIR $WEBSITE_DIR"
+echo "🎉 部署完成"
+echo "📋 备份: $BACKUP_DIR"

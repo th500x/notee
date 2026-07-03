@@ -2,7 +2,7 @@ import express from 'express'
 import { readFile } from 'fs/promises'
 import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
-import { existsSync } from 'fs'
+import { existsSync, readdirSync } from 'fs'
 
 const router = express.Router()
 const __filename = fileURLToPath(import.meta.url)
@@ -62,22 +62,12 @@ function validateDateFormat(req, res, next) {
     })
   }
   
-  // 验证日期范围（2026年）
-  if (year !== 2026) {
-    return res.status(400).json({
-      success: false,
-      error: '日期超出有效范围'
-    })
-  }
-  
   next()
 }
 
-// 根据日期获取对应的月份文件名
 function getMonthlyFileName(date) {
   if (!date) return null
   
-  // 防止路径遍历攻击
   if (date.includes('..') || date.includes('/') || date.includes('\\')) {
     console.warn('[Security] 检测到路径遍历攻击尝试:', date)
     return null
@@ -87,8 +77,6 @@ function getMonthlyFileName(date) {
   const month = date.substring(5, 7)
   return `news-calendar-${year}${month}.json`
 }
-
-// 读取指定月份的新闻数据
 async function readMonthlyNews(monthFileName) {
   try {
     // 验证文件名格式（防止路径遍历）
@@ -115,22 +103,21 @@ async function readMonthlyNews(monthFileName) {
   }
 }
 
-// 读取所有月份的新闻数据（只读取存在的文件）
+// 读取所有月份的新闻数据（扫描 public/news-calendar-YYYYMM.json）
 async function readAllNews() {
   const allNews = {}
-  const months = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12']
-  
-  for (const month of months) {
-    const fileName = `news-calendar-2026${month}.json`
-    const newsPath = join(__dirname, '../../public', fileName)
-    
-    // 只读取存在的文件
-    if (existsSync(newsPath)) {
-      const monthNews = await readMonthlyNews(fileName)
-      Object.assign(allNews, monthNews)
-    }
+  const publicDir = join(__dirname, '../../public')
+  let files = []
+  try {
+    files = readdirSync(publicDir).filter((f) => /^news-calendar-\d{6}\.json$/.test(f))
+  } catch {
+    return allNews
   }
-  
+  files.sort()
+  for (const fileName of files) {
+    const monthNews = await readMonthlyNews(fileName)
+    Object.assign(allNews, monthNews)
+  }
   return allNews
 }
 
