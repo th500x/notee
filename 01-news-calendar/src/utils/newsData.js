@@ -110,6 +110,15 @@ export async function getNewsForDate(date) {
     console.log(`${LOG_PREFIX.NEWS_DATA} 从缓存加载 ${dateKey}`)
     return cached
   }
+
+  // 已有全量数据时直接切片，避免重复请求 /news/:date
+  const allNews = cache.get(CACHE_CONSTANTS.KEY_PREFIX.ALL_NEWS)
+  if (allNews) {
+    const dayNews = allNews[dateKey] || {}
+    cache.set(cacheKey, dayNews)
+    console.log(`${LOG_PREFIX.NEWS_DATA} 从全量缓存加载 ${dateKey}`)
+    return dayNews
+  }
   
   try {
     console.log(`${LOG_PREFIX.NEWS_DATA} 从API加载 ${dateKey}`)
