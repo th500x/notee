@@ -12,7 +12,7 @@ import { validateMediaUploadRequest } from '@shared/utils/lifeResumeMediaRules.j
 
 const DEFAULT_PRESET_ID = 'square_1080';
 
-export default function EntryPhotoCropModal({ open, file, onCancel, onConfirm }) {
+export default function EntryPhotoCropModal({ open, file, displayFilename = null, onCancel, onConfirm }) {
   const [imageSrc, setImageSrc] = useState('');
   const [naturalSize, setNaturalSize] = useState({ width: 0, height: 0 });
   const [presetId, setPresetId] = useState(DEFAULT_PRESET_ID);
@@ -98,7 +98,7 @@ export default function EntryPhotoCropModal({ open, file, onCancel, onConfirm })
         outputHeight: cropTarget.outputHeight,
         mimeType: file.type,
       });
-      const processed = buildProcessedPhotoFile(file, blob);
+      const processed = buildProcessedPhotoFile(file, blob, displayFilename);
       const sizeCheck = validateMediaUploadRequest({
         mediaType: 'photo',
         mimeType: processed.type,

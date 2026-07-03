@@ -8,6 +8,7 @@ import {
 } from '@shared/utils/lifeResumeMediaRules.js';
 import { requestUploadSign, uploadFileToSignedUrl } from '@/services/lifeResumeApi';
 import { abandonOrphanUploads } from '@/utils/abandonOrphanUpload';
+import { resolvePhotoOriginalFilename } from '@/utils/resolvePhotoOriginalFilename';
 import EntryPhotoCropModal from '@/components/entry/EntryPhotoCropModal';
 
 const BUNDLE_TABS = [
@@ -46,7 +47,7 @@ export default function EntryMediaUpload({
   const initialPersistedRef = useRef(initialPersistedOssKeys);
   const [uploadError, setUploadError] = useState('');
   const [uploading, setUploading] = useState(false);
-  const [cropFile, setCropFile] = useState(null);
+  const [cropSession, setCropSession] = useState(null);
 
   useEffect(() => {
     mediaItemsRef.current = mediaItems;
@@ -103,12 +104,13 @@ export default function EntryMediaUpload({
     onMediaItemsChange(nextItems);
   };
 
-  const uploadMediaFile = async (file, mediaType) => {
+  const uploadMediaFile = async (file, mediaType, originalFilenameOverride = null) => {
+    const originalFilename = originalFilenameOverride || file.name;
     const check = validateMediaUploadRequest({
       mediaType,
       mimeType: file.type,
       sizeBytes: file.size,
-      filename: file.name,
+      filename: originalFilename,
     });
     if (!check.ok) {
       setUploadError(check.error);
@@ -130,7 +132,7 @@ export default function EntryMediaUpload({
         mediaType: check.mediaType,
         mimeType: check.mimeType,
         sizeBytes: check.sizeBytes,
-        originalFilename: file.name,
+        originalFilename,
         sortOrder,
       });
 
@@ -142,7 +144,7 @@ export default function EntryMediaUpload({
         mimeType: check.mimeType,
         sizeBytes: check.sizeBytes,
         sortOrder,
-        originalFilename: file.name,
+        originalFilename,
         previewUrl: mediaType === 'photo' ? URL.createObjectURL(file) : undefined,
       };
 
@@ -182,16 +184,20 @@ export default function EntryMediaUpload({
         setUploadError(`最多 ${LIFE_MEDIA_MAX_PHOTOS} 张照片`);
         return;
       }
-      setCropFile(file);
+      const displayFilename = await resolvePhotoOriginalFilename(file);
+      setCropSession({ file, displayFilename });
       return;
     }
 
-    await uploadMediaFile(file, mediaType);
+    const displayFilename =
+      mediaType === 'photo' ? await resolvePhotoOriginalFilename(file) : file.name;
+    await uploadMediaFile(file, mediaType, displayFilename);
   };
 
   const handleCropConfirm = async (processedFile) => {
-    setCropFile(null);
-    await uploadMediaFile(processedFile, 'photo');
+    const displayFilename = cropSession?.displayFilename || processedFile.name;
+    setCropSession(null);
+    await uploadMediaFile(processedFile, 'photo', displayFilename);
   };
 
   const removeItem = async (ossKey) => {
@@ -223,9 +229,10 @@ export default function EntryMediaUpload({
   return (
     <section className="space-y-3">
       <EntryPhotoCropModal
-        open={!!cropFile}
-        file={cropFile}
-        onCancel={() => setCropFile(null)}
+        open={!!cropSession?.file}
+        file={cropSession?.file}
+        displayFilename={cropSession?.displayFilename}
+        onCancel={() => setCropSession(null)}
         onConfirm={handleCropConfirm}
       />
 
@@ -236,7 +243,7 @@ export default function EntryMediaUpload({
           <button
             key={tab.value}
             type="button"
-            disabled={disabled || uploading || !!cropFile}
+            disabled={disabled || uploading || !!cropSession}
             className={[
               'px-3 py-1.5 rounded-full text-sm border',
               mediaBundleType === tab.value
@@ -260,7 +267,7 @@ export default function EntryMediaUpload({
               type="file"
               className="sr-only"
               accept={acceptTypes}
-              disabled={disabled || uploading || !!cropFile}
+              disabled={disabled || uploading || !!cropSession}
               onChange={handleFileChange}
             />
             {uploading ? '上传中…' : pickLabel}
