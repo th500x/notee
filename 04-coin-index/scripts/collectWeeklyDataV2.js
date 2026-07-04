@@ -24,7 +24,7 @@ const calculateBTCFromATH = (currentPrice) => {
 
 // CoinGecko API配置（限速见 ./lib/apiDelay.js）
 const COINGECKO_API_BASE = 'https://api.coingecko.com/api/v3'
-const MAX_RETRIES = 1
+const MAX_RETRIES = 4 // 批量采集时 CoinGecko 429 较频繁，多几次重试
 
 // 支持的币种
 const COINS = {
