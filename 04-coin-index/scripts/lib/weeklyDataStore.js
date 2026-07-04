@@ -10,6 +10,8 @@ const projectRoot = path.resolve(__dirname, '../..')
 
 export const PUBLIC_DATA_PATH = path.join(projectRoot, 'public/weeklyData.json')
 export const SRC_DATA_PATH = path.join(projectRoot, 'src/data/weeklyData.json')
+export const PUBLIC_META_PATH = path.join(projectRoot, 'public/weeklyData.meta.json')
+export const SRC_META_PATH = path.join(projectRoot, 'src/data/weeklyData.meta.json')
 export const MANUAL_CSV_PATH = path.join(projectRoot, 'docs/tools/data-import.csv')
 
 const MANUAL_FIELDS = [
@@ -76,6 +78,15 @@ export function mergeWeeklyData(existingData, newWeeksById) {
   return merged
 }
 
+/** 写入版本戳，供前端 ?v= 缓存失效（与 weeklyData.json 同步） */
+export function writeWeeklyDataMeta(updatedAt = new Date().toISOString()) {
+  const meta = { updatedAt }
+  const json = JSON.stringify(meta, null, 2)
+  fs.writeFileSync(PUBLIC_META_PATH, json, 'utf8')
+  fs.mkdirSync(path.dirname(SRC_META_PATH), { recursive: true })
+  fs.writeFileSync(SRC_META_PATH, json, 'utf8')
+}
+
 export function saveWeeklyData(data, { force = false } = {}) {
   const beforeCount = fs.existsSync(PUBLIC_DATA_PATH)
     ? Object.keys(JSON.parse(fs.readFileSync(PUBLIC_DATA_PATH, 'utf8'))).length
@@ -98,6 +109,7 @@ export function saveWeeklyData(data, { force = false } = {}) {
   fs.writeFileSync(PUBLIC_DATA_PATH, json, 'utf8')
   fs.mkdirSync(path.dirname(SRC_DATA_PATH), { recursive: true })
   fs.writeFileSync(SRC_DATA_PATH, json, 'utf8')
+  writeWeeklyDataMeta()
 
   console.log(`💾 已写入 public/ + src/data/（${afterCount} 周）`)
 }

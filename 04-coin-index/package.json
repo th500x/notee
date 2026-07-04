@@ -11,8 +11,11 @@
     "update-data": "node scripts/collectWeeklyDataV2.js",
     "import-manual": "node scripts/importManualData.js",
     "fetch-sentiment": "node scripts/fetchSentimentIndicators.js",
+    "fetch-macro-rates": "node scripts/fetchMacroRates.js",
     "recalc-ratings": "node scripts/recalculateRatings.js",
-    "weekly-sync": "node scripts/collectWeeklyDataV2.js && node scripts/fetchSentimentIndicators.js && node scripts/importManualData.js"
+    "collect-week": "node scripts/collectWeek.js",
+    "week-calendar": "node scripts/printWeekCalendar.js",
+    "weekly-sync": "node scripts/collectWeeklyDataV2.js && node scripts/fetchSentimentIndicators.js && node scripts/fetchMacroRates.js && node scripts/recalculateRatings.js"
   },
   "dependencies": {
     "react": "^18.2.0",

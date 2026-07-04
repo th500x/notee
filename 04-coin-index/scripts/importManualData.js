@@ -2,7 +2,7 @@
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
-import { MANUAL_CSV_PATH, PUBLIC_DATA_PATH, SRC_DATA_PATH } from './lib/weeklyDataStore.js'
+import { MANUAL_CSV_PATH, PUBLIC_DATA_PATH, SRC_DATA_PATH, writeWeeklyDataMeta } from './lib/weeklyDataStore.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -307,6 +307,7 @@ const main = async () => {
     if (fs.existsSync(PUBLIC_DATA_PATH)) {
       fs.copyFileSync(PUBLIC_DATA_PATH, SRC_DATA_PATH)
     }
+    writeWeeklyDataMeta()
     
     console.log('\n🎉 数据导入完成!')
     console.log(`📈 public数据: ${publicUpdated} 周已更新`)
