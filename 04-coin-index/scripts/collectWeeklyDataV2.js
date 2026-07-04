@@ -2,6 +2,7 @@
 import path from 'path'
 import { fileURLToPath } from 'url'
 import { getPreviousWeekId, resolveWeeksToCollect } from './lib/weekSchedule.js'
+import { REQUEST_DELAY, RETRY_DELAY, delay } from './lib/apiDelay.js'
 import {
   loadWeeklyData,
   mergeWeeklyData,
@@ -20,10 +21,9 @@ const calculateBTCFromATH = (currentPrice) => {
   return parseFloat(drawdown.toFixed(1))
 }
 
-// CoinGecko API配置
+
+// CoinGecko API配置（限速见 ./lib/apiDelay.js）
 const COINGECKO_API_BASE = 'https://api.coingecko.com/api/v3'
-const REQUEST_DELAY = 25000 // 25秒延迟
-const RETRY_DELAY = 30000   // 重试延迟30秒
 const MAX_RETRIES = 1
 
 // 支持的币种
@@ -39,9 +39,6 @@ const formatDateForAPI = (date) => {
   const year = date.getFullYear()
   return `${day}-${month}-${year}`
 }
-
-// 工具函数：延迟执行
-const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms))
 
 // 检查现有数据并识别缺失的日期（仅补缺，不整周重拉）
 const checkExistingData = (existingData, weekId, startDate, endDate) => {
@@ -70,8 +67,18 @@ const checkExistingData = (existingData, weekId, startDate, endDate) => {
   const missingBTCDates = allDates.filter((date) => !existingBTCDates.includes(date))
   const existingETHDates = weekData.rawData.eth?.dates || []
   const missingETHDates = allDates.filter((date) => !existingETHDates.includes(date))
-  const missingWeeklyChange =
-    !weekData.rawData.weeklyChangeData && weekData.btcWeeklyChange === 0
+  const missingWeeklyChange = (() => {
+    if (!weekData.rawData?.weeklyChangeData) return true
+    const avg = weekData.rawData?.btc?.average ?? weekData.btcWeeklyAvgPrice
+    if (avg != null && weekData.rawData.weeklyChangeData?.currentWeekAvg !== avg) return true
+    const prevId = getPreviousWeekId(weekId)
+    const prevAvg = existingData[prevId]?.btcWeeklyAvgPrice
+    if (prevAvg && avg != null) {
+      const expected = parseFloat((((avg - prevAvg) / prevAvg) * 100).toFixed(2))
+      if (weekData.btcWeeklyChange !== expected) return true
+    }
+    return false
+  })()
   const missingRatio = !weekData.rawData.ratioData || !weekData.ethBtcRatio
 
   const needsCollection =
@@ -248,15 +255,8 @@ const collectCoinWeekData = async (coinId, startDate, endDate) => {
 const calculateBTCWeeklyChange = async (currentWeekAvgPrice, previousWeekId) => {
   try {
     console.log('\n📈 计算BTC周涨跌幅...')
-    
-    const weeklyDataPath = path.join(__dirname, '../public/weeklyData.json')
-    let weeklyData = {}
-    
-    if (fs.existsSync(weeklyDataPath)) {
-      const fileContent = fs.readFileSync(weeklyDataPath, 'utf-8')
-      weeklyData = JSON.parse(fileContent)
-    }
-    
+
+    const weeklyData = loadWeeklyData()
     const previousWeekData = weeklyData[previousWeekId]
     
     if (!previousWeekData || !previousWeekData.btcWeeklyAvgPrice) {
@@ -403,6 +403,7 @@ const collectWeekData = async (weekId, startDate, endDate, allExistingData = {})
       updatedAt: new Date().toISOString(),
       dataSource: 'coingecko_api_v2_incremental',
       rawData: {
+        ...(prior.rawData || {}),
         btc: btcData,
         eth: ethData,
         weeklyChangeData,

@@ -10,7 +10,9 @@
     "collect-data": "node scripts/collectWeeklyDataV2.js",
     "update-data": "node scripts/collectWeeklyDataV2.js",
     "import-manual": "node scripts/importManualData.js",
-    "weekly-sync": "node scripts/collectWeeklyDataV2.js && node scripts/importManualData.js"
+    "fetch-sentiment": "node scripts/fetchSentimentIndicators.js",
+    "recalc-ratings": "node scripts/recalculateRatings.js",
+    "weekly-sync": "node scripts/collectWeeklyDataV2.js && node scripts/fetchSentimentIndicators.js && node scripts/importManualData.js"
   },
   "dependencies": {
     "react": "^18.2.0",
