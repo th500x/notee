@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { YEAR_RANGE } from '../constants'
+import { getRatingTextClass, getTradeDirectionTextClass } from '../utils/ratingColors'
 
 // 模拟演练表格组件
 function SimulationTable({ weeklyData, selectedYear = YEAR_RANGE.DEFAULT, onClose, onDataGenerated }) {
@@ -128,10 +129,8 @@ function SimulationTable({ weeklyData, selectedYear = YEAR_RANGE.DEFAULT, onClos
     return 'text-gray-600'
   }
 
-  // 获取方向颜色
-  const getDirectionColor = (direction) => {
-    return direction === 'BUY' ? 'text-green-600' : 'text-red-600'
-  }
+  // 获取方向颜色（与评分配色一致）
+  const getDirectionColor = (direction, rating) => getTradeDirectionTextClass(direction, rating)
 
   if (loading) {
     return (
@@ -202,10 +201,10 @@ function SimulationTable({ weeklyData, selectedYear = YEAR_RANGE.DEFAULT, onClos
                   <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                     {record.week}
                   </td>
-                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                  <td className={`px-4 py-4 whitespace-nowrap text-sm text-gray-900 ${getRatingTextClass(record.rating)}`}>
                     {record.rating}★
                   </td>
-                  <td className={`px-4 py-4 whitespace-nowrap text-sm font-medium ${getDirectionColor(record.direction)}`}>
+                  <td className={`px-4 py-4 whitespace-nowrap text-sm font-medium ${getDirectionColor(record.direction, record.rating)}`}>
                     {record.direction}
                   </td>
                   <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">

@@ -91,17 +91,29 @@ function WeeklyCalendar({
         })}
       </div>
 
-      {/* 说明 */}
+      {/* 说明 — 按个人评级分档 */}
       <div className="mt-4 text-xs text-gray-500 space-y-1">
         <div className="flex items-center gap-2">
-          <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-          <span>周涨幅为正</span>
+          <div className="w-3 h-3 rounded-full bg-green-800"></div>
+          <span>极度看多 (≥10★)</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-3 h-3 bg-red-500 rounded-full"></div>
-          <span>周涨幅为负</span>
+          <div className="w-3 h-3 rounded-full bg-green-400"></div>
+          <span>看多 (4–9★)</span>
         </div>
         <div className="flex items-center gap-2">
+          <div className="w-3 h-3 rounded-full bg-gray-700"></div>
+          <span>中性 (-3–3★)</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-3 h-3 rounded-full bg-red-400"></div>
+          <span>看空 (-9–-4★)</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-3 h-3 rounded-full bg-red-800"></div>
+          <span>极度看空 (≤-10★)</span>
+        </div>
+        <div className="flex items-center gap-2 pt-1">
           <div className="w-3 h-3 bg-yellow-400 rounded-full"></div>
           <span>当前周</span>
         </div>

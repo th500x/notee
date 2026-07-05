@@ -47,12 +47,24 @@
   border-radius: 50%;
 }
 
+.week-indicator--extreme-bullish {
+  background-color: #166534; /* green-800 深绿 · 极度看多 */
+}
+
 .week-indicator--bullish {
-  background-color: #10b981; /* 绿色 - 涨 */
+  background-color: #4ade80; /* green-400 淡绿 · 看多 */
+}
+
+.week-indicator--neutral {
+  background-color: #374151; /* gray-700 · 中性 */
 }
 
 .week-indicator--bearish {
-  background-color: #ef4444; /* 红色 - 跌 */
+  background-color: #f87171; /* red-400 淡红 · 看空 */
+}
+
+.week-indicator--extreme-bearish {
+  background-color: #991b1b; /* red-800 深红 · 极度看空 */
 }
 
 /* 年份导航样式 */
