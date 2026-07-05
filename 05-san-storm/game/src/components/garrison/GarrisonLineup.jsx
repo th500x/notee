@@ -26,6 +26,7 @@ import AncientModal from '@/components/common/AncientModal';
 import { toCharCardData, toTroopCardData, toEquipCardData, toTitleCardData, toTreasureCardData } from '@/utils/cardDataTransforms';
 import { collectGarrisonOccupiedInstanceIds } from '@/utils/garrisonScopeUtils';
 import { isMainCityBarracksStored } from '@/utils/garrisonBarracksTroopPool';
+import { isTroopEquippableForLineup } from '@/utils/troopLineupEligibility';
 import GarrisonGeneralPanel from './GarrisonGeneralPanel';
 import GarrisonStatsPanel from './GarrisonStatsPanel';
 import GarrisonBackpack from './GarrisonBackpack';
@@ -283,9 +284,7 @@ export default function GarrisonLineup({
         if (c.usesRemaining != null && Number(c.usesRemaining) <= 0) return false;
         return true;
       }
-      const maxBattle = c.maxBattleCount ?? 10;
-      const count     = Math.max(0, c.battleCount ?? 0);
-      return count < maxBattle || c.rarity === 'legendary';
+      return isTroopEquippableForLineup(c);
     });
   }, [characterCards, troopCards, titleCards, achievementCards, treasureCards, equipmentSetCards, occupiedIds]);
 

@@ -25,7 +25,7 @@ import { playerAPI } from '@/services/playerApi';
 import { useSkillsMap } from '@/hooks/useSkillsMap';
 import { useSilentProfilePoll } from '@/hooks/useSilentProfilePoll';
 import { useGarrisonOccupiedIds } from '@/hooks/useGarrisonOccupiedIds';
-import { isMainCityBarracksStored } from '@/utils/garrisonBarracksTroopPool';
+import { isTroopEquippableForLineup } from '@/utils/troopLineupEligibility';
 import GarrisonGeneralNotRecruited from '@/components/garrison/GarrisonGeneralNotRecruited';
 import GarrisonBackpack from '@/components/garrison/GarrisonBackpack';
 import { TabPageCloseButton, useGameTabLandscape } from '@/components/game/TabPageCloseAffordance';
@@ -267,13 +267,7 @@ export default function LineupTab({ onClose, onOpenAttributeReroll }) {
       return sortCardsByRarity(unequippedCharacters);
     }
     if (selectedSlot.id === 'troop' || selectedSlot.id === 'troop1' || selectedSlot.id === 'troop2') {
-      return unequippedTroops.filter((c) => {
-        const maxBattle = c.maxBattleCount ?? 10;
-        const count = Math.max(0, c.battleCount ?? 0);
-        const isExpired = count >= maxBattle;
-        if (!isExpired) return true;
-        return c.rarity === 'legendary';
-      });
+      return unequippedTroops.filter((c) => isTroopEquippableForLineup(c));
     }
     if (selectedSlot.id === 'title') return unequippedTitles;
     if (selectedSlot.id === 'achievement') return unequippedAchievements;

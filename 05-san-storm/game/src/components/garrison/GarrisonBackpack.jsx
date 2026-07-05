@@ -17,9 +17,10 @@ import {
   isRecruitCrossSeasonLimitPool,
 } from '@shared/utils/cardPoolRarityLimits';
 import { cardPoolAPI } from '@/services/cardPoolApi';
+import { groupTroopCardsByRarity, RARITY_LABEL } from '@/utils/garrisonBarracksTroopPool';
+import { isTroopEquippableForLineup } from '@/utils/troopLineupEligibility';
 
 const RARITY_ORDER = { common: 0, rare: 1, epic: 2, legendary: 3, core: 4 };
-const RARITY_LABEL = { common: '普通', rare: '稀有', epic: '史诗', legendary: '传奇', core: '核心' };
 
 const RARITY_DOTS = [
   { key: 'common',    color: 'bg-gray-400' },
@@ -59,8 +60,9 @@ function groupByRarity(typeCards) {
 }
 
 /** 通用卡格按钮（将领/部队/称号/成就/宝物） */
-function TypeCell({ type, label, icon, typeCards, isExpanded, onToggle }) {
-  const counts = countByRarity(typeCards);
+function TypeCell({ type, label, icon, typeCards, displayCards, isExpanded, onToggle }) {
+  const shown = displayCards ?? typeCards;
+  const counts = countByRarity(shown);
   const total  = typeCards.length;
   const cls = (active, hasItems) =>
     `rounded-lg p-2 text-center transition-colors min-h-[4.5rem] flex flex-col items-center justify-center
@@ -141,6 +143,10 @@ export default function GarrisonBackpack({
     byType[t].push(card);
   });
 
+  const allTroops = byType.troop || [];
+  const troopEquippable = allTroops.filter((c) => isTroopEquippableForLineup(c));
+  const troopExhausted = allTroops.filter((c) => !isTroopEquippableForLineup(c));
+
   const toggleType = (type, total) => {
     setExpandedType(prev => (prev === type ? null : (total > 0 ? type : null)));
   };
@@ -159,7 +165,9 @@ export default function GarrisonBackpack({
         {/* 将领 + 部队 */}
         {SINGLE_ROW_TYPES.slice(0, 2).map(({ type, label, icon }) => (
           <TypeCell key={type} type={type} label={label} icon={icon}
-            typeCards={byType[type] || []} isExpanded={expandedType === type}
+            typeCards={type === 'troop' ? allTroops : (byType[type] || [])}
+            displayCards={type === 'troop' ? troopEquippable : undefined}
+            isExpanded={expandedType === type}
             onToggle={toggleType} />
         ))}
 
@@ -235,7 +243,8 @@ export default function GarrisonBackpack({
       {/* ── 展开卡牌列表 ── */}
       {expandedType && (
         ((expandedType === 'equipmentSet' && equipmentSetCards.length > 0) ||
-          (expandedType !== 'equipmentSet' && (byType[expandedType]?.length > 0))) && (
+          (expandedType === 'troop' && allTroops.length > 0) ||
+          (expandedType !== 'equipmentSet' && expandedType !== 'troop' && (byType[expandedType]?.length > 0))) && (
         <div className="mt-2 p-2 bg-stone-800/40 rounded-lg border border-stone-700/30">
           {expandedType === 'character' ? (
             groupByRarity(byType['character']).map(({ rarity, cards: rCards }) => (
@@ -257,24 +266,45 @@ export default function GarrisonBackpack({
               </div>
             ))
           ) : expandedType === 'troop' ? (
-            groupByRarity(byType['troop']).map(({ rarity, cards: rCards }) => (
-              <div key={rarity} className="mb-2 last:mb-0">
-                <div className="text-stone-500 text-[10px] mb-1 px-1">
-                  {RARITY_LABEL[rarity]}（{formatRarityCountWithLimit(rCards.length, 'troop', rarity)}）
-                </div>
-                <div className="flex flex-wrap gap-1.5">
-                  {rCards.map(card => (
-                    <div key={card.instanceId} style={{ width: 128, height: 192 }}
-                      className="cursor-pointer overflow-hidden"
-                      onClick={() => setPreviewCard({ card, type: 'troop' })}>
-                      <div style={{ transform: 'scale(0.5)', transformOrigin: 'top left', width: 256 }}>
-                        <TroopCard troop={toTroopCardData(card)} skillsMap={skillsMap} showDetails={true} baseUrl={baseUrl} disableHoverScale />
+            <>
+              {groupTroopCardsByRarity(troopEquippable).map(({ rarity, cards: rCards }) => (
+                <div key={rarity} className="mb-2 last:mb-0">
+                  <div className="text-stone-500 text-[10px] mb-1 px-1">
+                    {RARITY_LABEL[rarity]}（{formatRarityCountWithLimit(rCards.length, 'troop', rarity)}）
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {rCards.map(card => (
+                      <div key={card.instanceId} style={{ width: 128, height: 192 }}
+                        className="cursor-pointer overflow-hidden"
+                        onClick={() => setPreviewCard({ card, type: 'troop' })}>
+                        <div style={{ transform: 'scale(0.5)', transformOrigin: 'top left', width: 256 }}>
+                          <TroopCard troop={toTroopCardData(card)} skillsMap={skillsMap} showDetails={true} baseUrl={baseUrl} disableHoverScale />
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
-              </div>
-            ))
+              ))}
+              {troopExhausted.length > 0 && (
+                <div className="mt-2 pt-2 border-t border-stone-700/40">
+                  <div className="text-stone-600 text-[10px] mb-1 px-1">
+                    耐久耗尽 · 不可再装（{troopExhausted.length}）
+                  </div>
+                  <div className="flex flex-wrap gap-1.5 opacity-60">
+                    {troopExhausted.map(card => (
+                      <div key={card.instanceId} style={{ width: 128, height: 192 }}
+                        className="cursor-pointer overflow-hidden"
+                        title="核心(金)部队耐久已耗尽，仅可收藏与下赛季继承"
+                        onClick={() => setPreviewCard({ card, type: 'troop' })}>
+                        <div style={{ transform: 'scale(0.5)', transformOrigin: 'top left', width: 256 }}>
+                          <TroopCard troop={toTroopCardData(card)} skillsMap={skillsMap} showDetails={true} baseUrl={baseUrl} disableHoverScale />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
           ) : expandedType === 'equipment' ? (
             groupByRarity(byType['equipment']).map(({ rarity, cards: rCards }) => (
               <div key={rarity} className="mb-2 last:mb-0">
