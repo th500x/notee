@@ -25,6 +25,7 @@ import {
 import { evaluateArithmeticExpression, formatAccountingNumber } from '../../utils/accountingExpression';
 import { isIsoDateString, sanitizeIsoDateField } from '../../utils/accountingDates';
 import { AccountingRowGalleryModal } from './AccountingRowGalleryModal';
+import { AccountingAutoTextareaCell } from './AccountingAutoTextareaCell';
 
 /** dnd-kit 在静止时也可能给出恒等 transform；写在 tr 上会给子格新建包含块，恒等时勿写 transform */
 function sortableTransformIsActive(t) {
@@ -182,13 +183,12 @@ function SortableRentRow({
         />
       </td>
       <td className={`p-1 border border-gray-100 ${COMPACT_COL_TD}`}>
-        <input
-          className={narrowTextCls}
+        <AccountingAutoTextareaCell
           value={row.remarks}
-          data-rent-nav={`${rowIndex}-4`}
+          rentNavSlot={`${rowIndex}-4`}
           title={row.remarks && row.remarks.trim() ? row.remarks : undefined}
           onChange={(e) => patchDetail(row.id, 'remarks', e.target.value)}
-          onKeyDown={(e) => handleRentNavKeyDown(e, rowIndex, 4)}
+          onGridArrowKeyDown={(e) => handleRentNavKeyDown(e, rowIndex, 4)}
         />
       </td>
       <td className="p-1 border border-gray-100 bg-gray-50">
