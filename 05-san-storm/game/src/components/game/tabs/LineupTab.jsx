@@ -25,6 +25,7 @@ import { playerAPI } from '@/services/playerApi';
 import { useSkillsMap } from '@/hooks/useSkillsMap';
 import { useSilentProfilePoll } from '@/hooks/useSilentProfilePoll';
 import { useGarrisonOccupiedIds } from '@/hooks/useGarrisonOccupiedIds';
+import { isMainCityBarracksStored } from '@/utils/garrisonBarracksTroopPool';
 import { isTroopEquippableForLineup } from '@/utils/troopLineupEligibility';
 import GarrisonGeneralNotRecruited from '@/components/garrison/GarrisonGeneralNotRecruited';
 import GarrisonBackpack from '@/components/garrison/GarrisonBackpack';
