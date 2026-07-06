@@ -9,6 +9,7 @@ import {
   CATEGORIES,
   GROUPS,
   SUMMARY_LEN,
+  SUMMARY_DATE_PREFIX_RE,
   publicMonthPath,
   loadJson,
   countGroupTotals,
@@ -77,6 +78,9 @@ for (const [day, dayData] of Object.entries(data)) {
       const len = (item?.summary || '').length
       if (len < SUMMARY_LEN.min) warnings.push(`${loc}: summary 仅 ${len} 字（建议 ≥${SUMMARY_LEN.min}）`)
       if (len > SUMMARY_LEN.max) warnings.push(`${loc}: summary ${len} 字（建议 ≤${SUMMARY_LEN.max}）`)
+      if (item?.summary && !SUMMARY_DATE_PREFIX_RE.test(item.summary)) {
+        warnings.push(`${loc}: summary 应以「M月D日，」开头（挂载日 ${day}）`)
+      }
     }
   }
 }

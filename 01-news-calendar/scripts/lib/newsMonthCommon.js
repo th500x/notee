@@ -22,6 +22,42 @@ export const GROUPS = {
 
 export const SUMMARY_LEN = { min: 50, max: 150, target: 100 }
 
+/** summary 须以此开头，如「3月12日，」 */
+export const SUMMARY_DATE_PREFIX_RE = /^\d{1,2}月\d{1,2}日[，,]/
+
+export function dayKeyToSummaryPrefix(dayKey) {
+  const m = dayKey.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (!m) throw new Error(`无效日期 key: ${dayKey}`)
+  return `${parseInt(m[2], 10)}月${parseInt(m[3], 10)}日，`
+}
+
+/** 为 summary 补上挂载日日期前缀（与 202603+ 格式一致） */
+export function normalizeSummaryDatePrefix(dayKey, summary) {
+  if (!summary?.trim()) return summary
+  if (SUMMARY_DATE_PREFIX_RE.test(summary)) return summary
+
+  let body = summary.trim()
+  const looseLead = body.match(/^(\d{1,2})月(\d{1,2})日[^，,\n]{0,12}[，,]?\s*/)
+  if (looseLead) body = body.slice(looseLead[0].length)
+
+  return dayKeyToSummaryPrefix(dayKey) + body
+}
+
+export function normalizeMonthSummaryDates(data) {
+  const out = { ...data }
+  for (const [day, dayData] of Object.entries(data)) {
+    if (day.startsWith('_') || typeof dayData !== 'object') continue
+    out[day] = { ...dayData }
+    for (const cat of CATEGORIES) {
+      out[day][cat] = (dayData[cat] || []).map((item) => ({
+        ...item,
+        summary: normalizeSummaryDatePrefix(day, item.summary),
+      }))
+    }
+  }
+  return out
+}
+
 export function monthFileName(yyyymm) {
   if (!/^\d{6}$/.test(yyyymm)) {
     throw new Error(`无效月份: ${yyyymm}，应为 YYYYMM`)
