@@ -7,6 +7,7 @@ const { validateCoordinates } = require('../../../05-san-storm/shared/utils/life
 const {
   extractGeocodeQueryCandidates,
   buildFallbackPublicLabelFromPlaceName,
+  extractKnownCityMentionFromPlaceName,
 } = require('../../../05-san-storm/shared/utils/locationPublicLabelFallback.cjs');
 
 const NOMINATIM_REVERSE = 'https://nominatim.openstreetmap.org/reverse';
@@ -58,7 +59,7 @@ function geocodeFetch(url) {
   });
 }
 
-async function reverseGeocodeToPublicLabel(latitude, longitude) {
+async function reverseGeocodeToPublicLabel(latitude, longitude, zoom = 10) {
   const check = validateCoordinates(latitude, longitude);
   if (!check.ok) {
     const err = new Error(check.error);
@@ -71,7 +72,7 @@ async function reverseGeocodeToPublicLabel(latitude, longitude) {
   url.searchParams.set('lat', String(check.latitude));
   url.searchParams.set('lon', String(check.longitude));
   url.searchParams.set('accept-language', 'zh,en');
-  url.searchParams.set('zoom', '10');
+  url.searchParams.set('zoom', String(zoom));
 
   const res = await geocodeFetch(url);
 
@@ -143,10 +144,12 @@ async function resolveLocationPublicLabel(input) {
   const longitude = input?.longitude ?? null;
 
   if (latitude != null && longitude != null) {
-    try {
-      return await reverseGeocodeToPublicLabel(latitude, longitude);
-    } catch (err) {
-      console.warn('[life-resume] reverse geocode failed:', err.message);
+    for (const zoom of [10, 8, 14]) {
+      try {
+        return await reverseGeocodeToPublicLabel(latitude, longitude, zoom);
+      } catch (err) {
+        console.warn('[life-resume] reverse geocode failed:', zoom, err.message);
+      }
     }
   }
 
@@ -171,6 +174,18 @@ async function resolveLocationPublicLabel(input) {
     if (fallback) {
       return fallback;
     }
+
+    const knownMention = extractKnownCityMentionFromPlaceName(placeName);
+    if (knownMention) {
+      return knownMention;
+    }
+
+    // 设计：有地点名称时不阻断发布；模糊文案可为空，仅展示具体店名
+    console.warn(
+      '[life-resume] geocode exhausted, saving without public label:',
+      placeName.slice(0, 80)
+    );
+    return null;
   }
 
   const err = new Error('无法解析位置，请填写含城市信息的地点名称');

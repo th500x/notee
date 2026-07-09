@@ -138,5 +138,36 @@ export function buildFallbackPublicLabelFromPlaceName(placeName) {
   if (knownCity) return knownCity[1].slice(0, 128);
   if (text.includes('พัทยา') || text.includes('芭提雅')) return 'Pattaya · 芭提雅';
 
+  return extractKnownCityMentionFromPlaceName(text);
+}
+
+/**
+ * 从地点名任意位置识别已知城市/地区（最后兜底，不用店名后缀）。
+ * @param {string} placeName
+ * @returns {string|null}
+ */
+export function extractKnownCityMentionFromPlaceName(placeName) {
+  const text = String(placeName || '').trim();
+  if (!text) return null;
+
+  if (/\bChai Badan\b/i.test(text) || text.includes('ชัยบาดาล')) {
+    return 'Chai Badan District';
+  }
+  if (/\bPattaya\b/i.test(text) || text.includes('พัทยา') || text.includes('芭提雅')) {
+    return 'Pattaya · 芭提雅';
+  }
+  if (/\bBangkok\b/i.test(text) || text.includes('曼谷')) {
+    return 'Bangkok';
+  }
+  if (/\bChiang Mai\b/i.test(text) || text.includes('清迈')) {
+    return 'Chiang Mai';
+  }
+  if (/\bPhuket\b/i.test(text) || text.includes('普吉')) {
+    return 'Phuket';
+  }
+  if (text.includes('春武里') || /\bChon Buri\b/i.test(text)) {
+    return 'Chon Buri';
+  }
+
   return null;
 }

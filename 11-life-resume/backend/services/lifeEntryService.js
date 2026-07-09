@@ -184,7 +184,14 @@ async function resolveLocationFields(input) {
 
   if (mapsUrl) {
     let parsedMaps = parseGoogleMapsShareUrl(mapsUrl);
-    if (!parsedMaps.ok && parsedMaps.code === 'GOOGLE_MAPS_SHORT_URL') {
+    const shouldResolve =
+      (!parsedMaps.ok && parsedMaps.code === 'GOOGLE_MAPS_SHORT_URL') ||
+      (parsedMaps.ok &&
+        !parsedMaps.empty &&
+        parsedMaps.latitude == null &&
+        parsedMaps.longitude == null);
+
+    if (shouldResolve) {
       try {
         parsedMaps = await resolveGoogleMapsShareUrl(mapsUrl);
       } catch (err) {
@@ -266,10 +273,18 @@ async function resolveLocationFields(input) {
       longitude,
     });
   } catch (err) {
-    throw new EntryServiceError(
-      err.code || 'GEOCODE_FAILED',
-      err.message || '无法解析位置'
-    );
+    if (placeName) {
+      console.warn(
+        '[life-resume] public label failed, saving without:',
+        err.message || err.code
+      );
+      locationPublicLabel = null;
+    } else {
+      throw new EntryServiceError(
+        err.code || 'GEOCODE_FAILED',
+        err.message || '无法解析位置'
+      );
+    }
   }
 
   return {

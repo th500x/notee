@@ -154,45 +154,40 @@ async function ensureLocationMapsResolved(formState) {
   }
 
   let parsed = parseGoogleMapsShareUrl(mapsRaw);
-  if (parsed.ok && !parsed.empty) {
-    return {
-      ok: true,
-      form: {
-        ...formState,
-        locationMapsUrl: parsed.shareUrl,
-        locationPlaceName:
-          parsed.placeName && !formState.locationPlaceName.trim()
-            ? parsed.placeName
-            : formState.locationPlaceName,
-        latitude:
-          parsed.latitude != null ? String(parsed.latitude) : formState.latitude,
-        longitude:
-          parsed.longitude != null ? String(parsed.longitude) : formState.longitude,
-      },
-    };
-  }
-  if (parsed.code !== 'GOOGLE_MAPS_SHORT_URL') {
-    return { ok: false, error: parsed.error };
+  const shouldServerResolve =
+    (!parsed.ok && parsed.code === 'GOOGLE_MAPS_SHORT_URL') ||
+    (parsed.ok && !parsed.empty && parsed.latitude == null && parsed.longitude == null);
+
+  if (shouldServerResolve) {
+    try {
+      const res = await fetchResolveMapsUrl(mapsRaw);
+      if (res.data?.ok) {
+        parsed = res.data;
+      }
+    } catch (err) {
+      if (formState.locationPlaceName.trim()) {
+        if (!parsed.ok) {
+          return {
+            ok: true,
+            form: formState,
+            mapsResolveWarning: formatLifeResumeError(err),
+          };
+        }
+      } else if (!parsed.ok) {
+        return { ok: false, error: formatLifeResumeError(err) };
+      }
+    }
   }
 
-  try {
-    const res = await fetchResolveMapsUrl(mapsRaw);
-    parsed = res.data;
-  } catch (err) {
-    if (formState.locationPlaceName.trim()) {
-      return { ok: true, form: formState, mapsResolveWarning: formatLifeResumeError(err) };
-    }
-    return { ok: false, error: formatLifeResumeError(err) };
-  }
-  if (!parsed?.ok) {
-    if (formState.locationPlaceName.trim()) {
+  if (!parsed.ok) {
+    if (formState.locationPlaceName.trim() && parsed.code === 'GOOGLE_MAPS_SHORT_URL') {
       return {
         ok: true,
         form: formState,
-        mapsResolveWarning: parsed?.error || '短链接未能自动展开，将按地点名称保存',
+        mapsResolveWarning: parsed.error || '短链接未能自动展开，将按地点名称保存',
       };
     }
-    return { ok: false, error: parsed?.error || '短链接解析失败' };
+    return { ok: false, error: parsed.error };
   }
 
   return {
