@@ -13,6 +13,7 @@ export function extractGeocodeQueryCandidates(placeName) {
 
   const candidates = [];
   const commaParts = text.split(',').map((s) => s.trim()).filter(Boolean);
+  const spaceParts = text.split(/\s+/).map((s) => s.trim()).filter(Boolean);
 
   if (commaParts.length >= 2) {
     const cityPart = commaParts.find((p) => /\bCity\b|市|府$/i.test(p));
@@ -25,11 +26,24 @@ export function extractGeocodeQueryCandidates(placeName) {
     }
   }
 
+  if (spaceParts.length >= 2) {
+    const tail = spaceParts[spaceParts.length - 1];
+    if (tail.length >= 2 && !/^\d+$/.test(tail)) {
+      candidates.push(tail);
+      if (/[\u0E00-\u0E7F]/.test(text)) {
+        candidates.push(`${tail}, Thailand`);
+      }
+    }
+  }
+
   if (/\bPattaya\b/i.test(text) || text.includes('พัทยา')) {
     candidates.push('Pattaya');
   }
   if (/\bBangkok\b/i.test(text) || text.includes('曼谷')) {
     candidates.push('Bangkok');
+  }
+  if (/\bChai Badan\b/i.test(text) || text.includes('ชัยบาดาล')) {
+    candidates.push('Chai Badan, Thailand');
   }
   if (text.includes('芭提雅')) {
     candidates.push('芭提雅');
@@ -61,6 +75,19 @@ export function buildFallbackPublicLabelFromPlaceName(placeName) {
     }
     const label = picks.filter(Boolean).join(' · ');
     if (label) return label.slice(0, 128);
+  }
+
+  const spaceParts = text.split(/\s+/).map((s) => s.trim()).filter(Boolean);
+  if (spaceParts.length >= 2) {
+    const district = spaceParts[spaceParts.length - 1];
+    if (district.length >= 2 && !/^\d+$/.test(district)) {
+      return district.slice(0, 128);
+    }
+  }
+
+  const thaiAdmin = text.match(/(?:อำเภอ|เขต|จังหวัด)\s*([^\s,]+)/);
+  if (thaiAdmin?.[1]) {
+    return thaiAdmin[1].slice(0, 128);
   }
 
   const knownCity = text.match(

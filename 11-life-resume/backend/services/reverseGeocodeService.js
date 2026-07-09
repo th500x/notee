@@ -69,7 +69,7 @@ async function reverseGeocodeToPublicLabel(latitude, longitude) {
   url.searchParams.set('format', 'json');
   url.searchParams.set('lat', String(check.latitude));
   url.searchParams.set('lon', String(check.longitude));
-  url.searchParams.set('accept-language', 'zh');
+  url.searchParams.set('accept-language', 'zh,en');
   url.searchParams.set('zoom', '10');
 
   const res = await geocodeFetch(url);
@@ -102,7 +102,7 @@ async function forwardGeocodePlaceToPublicLabel(placeName) {
   const url = new URL(NOMINATIM_SEARCH);
   url.searchParams.set('format', 'json');
   url.searchParams.set('q', queryText);
-  url.searchParams.set('accept-language', 'zh');
+  url.searchParams.set('accept-language', 'zh,en');
   url.searchParams.set('limit', '1');
 
   const res = await geocodeFetch(url);
