@@ -4,6 +4,34 @@
  */
 
 /**
+ * 判断空格/逗号分段是否像城/区县，而非店名后缀（如 "Byxxx"）。
+ * @param {string} segment
+ * @returns {boolean}
+ */
+export function isLikelyGeoLocalitySegment(segment) {
+  const s = String(segment || '').trim();
+  if (!s || s.length < 2 || /^\d+$/.test(s)) return false;
+  if (/^(by|at|from|near|in)\b/i.test(s)) return false;
+  if (/^[@#]/i.test(s)) return false;
+  // Latin prefix glued to Thai (e.g. Byครัว…)
+  if (/^[A-Za-z]{1,4}[\u0E00-\u0E7F]/.test(s)) return false;
+
+  if (/District|County|Province|อำเภอ|จังหวัด|เขต/i.test(s)) return true;
+  if (/[市县府区]$/u.test(s)) return true;
+
+  if (/^[\u0E00-\u0E7F][\u0E00-\u0E7F\s·]*$/.test(s)) {
+    if (/^(ร้าน|ครัว|บ้าน|คาเฟ่|โรงแรม|รีสอร์ท|สวน|ร้านอาหาร)/.test(s)) return false;
+    return true;
+  }
+
+  if (/^[A-Za-z][a-zA-Z\s'.-]+$/.test(s) && !/^(The|And|New|By|At)\b/i.test(s)) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
  * @param {string} placeName
  * @returns {string[]}
  */
@@ -14,6 +42,18 @@ export function extractGeocodeQueryCandidates(placeName) {
   const candidates = [];
   const commaParts = text.split(',').map((s) => s.trim()).filter(Boolean);
   const spaceParts = text.split(/\s+/).map((s) => s.trim()).filter(Boolean);
+
+  if (/[\u0E00-\u0E7F]/.test(text)) {
+    candidates.push(`${text}, Thailand`);
+  }
+
+  const byParts = text.split(/\s+By\b/i).map((s) => s.trim()).filter(Boolean);
+  if (byParts.length >= 2) {
+    const venue = byParts[0];
+    if (venue.length >= 3) {
+      candidates.push(/[\u0E00-\u0E7F]/.test(venue) ? `${venue}, Thailand` : venue);
+    }
+  }
 
   if (commaParts.length >= 2) {
     const cityPart = commaParts.find((p) => /\bCity\b|市|府$/i.test(p));
@@ -28,7 +68,7 @@ export function extractGeocodeQueryCandidates(placeName) {
 
   if (spaceParts.length >= 2) {
     const tail = spaceParts[spaceParts.length - 1];
-    if (tail.length >= 2 && !/^\d+$/.test(tail)) {
+    if (isLikelyGeoLocalitySegment(tail)) {
       candidates.push(tail);
       if (/[\u0E00-\u0E7F]/.test(text)) {
         candidates.push(`${tail}, Thailand`);
@@ -49,7 +89,7 @@ export function extractGeocodeQueryCandidates(placeName) {
     candidates.push('芭提雅');
   }
 
-  return [...new Set(candidates.map((s) => s.trim()).filter(Boolean))].slice(0, 8);
+  return [...new Set(candidates.map((s) => s.trim()).filter(Boolean))].slice(0, 10);
 }
 
 /**
@@ -71,7 +111,8 @@ export function buildFallbackPublicLabelFromPlaceName(placeName) {
     if (cityPart) picks.push(cityPart);
     if (districtPart && districtPart !== cityPart) picks.push(districtPart);
     if (picks.length === 0) {
-      picks.push(...commaParts.slice(1, 3));
+      const geoTail = commaParts.slice(1, 3).filter(isLikelyGeoLocalitySegment);
+      picks.push(...(geoTail.length > 0 ? geoTail : commaParts.slice(1, 3)));
     }
     const label = picks.filter(Boolean).join(' · ');
     if (label) return label.slice(0, 128);
@@ -80,7 +121,7 @@ export function buildFallbackPublicLabelFromPlaceName(placeName) {
   const spaceParts = text.split(/\s+/).map((s) => s.trim()).filter(Boolean);
   if (spaceParts.length >= 2) {
     const district = spaceParts[spaceParts.length - 1];
-    if (district.length >= 2 && !/^\d+$/.test(district)) {
+    if (isLikelyGeoLocalitySegment(district)) {
       return district.slice(0, 128);
     }
   }
