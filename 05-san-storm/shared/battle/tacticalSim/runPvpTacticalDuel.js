@@ -22,8 +22,8 @@
  * 后续增量（步骤 4 技能子项 / 4e，见 17-5-2 §4 步骤 4 备注）：
  *   阶段 3/4/5 技能 AI（需快照携带主动技能字段）、士气崩溃、与浏览器自动战的对照测试。
  *
- * @see docs/10-core-system/17-5-DUEL_SYSTEM.md §12.5 §12.6
- * @see docs/10-core-system/17-5-2-TACTICAL_AUTO_DUEL_IMPLEMENTATION.md 步骤 4
+ * @see docs/01-jun-exploration/10-core-system/17-5-DUEL_SYSTEM.md §12.5 §12.6
+ * @see docs/01-jun-exploration/10-core-system/17-5-2-TACTICAL_AUTO_DUEL_IMPLEMENTATION.md 步骤 4
  */
 
 import { createRequire } from 'module';
@@ -284,7 +284,7 @@ export function runPvpTacticalDuel(input) {
           ...(defCityDefense != null ? { cityDefense: defCityDefense } : {}),
         });
         if (roll === 'crit') dmg = Math.max(1, Math.round(dmg * 1.5));
-        const casualties = troopDamageToCasualties(def, dmg);
+        const casualties = troopDamageToCasualties(def, dmg, { attacker: atk, strike: 'normal' });
         def.currentTroops = Math.max(0, def.currentTroops - casualties);
         emit('ATTACK', { attacker: atk.instanceId, defender: def.instanceId, result: roll });
         emit('DAMAGE', { target: def.instanceId, casualties, remain: def.currentTroops, crit: roll === 'crit' });
@@ -311,7 +311,7 @@ export function runPvpTacticalDuel(input) {
             ...(atkCityDefense != null ? { cityDefense: atkCityDefense } : {}),
           });
           if (rollC === 'crit') dmgC = Math.max(1, Math.round(dmgC * 1.5));
-          const casualtiesC = troopDamageToCasualties(atk, dmgC);
+          const casualtiesC = troopDamageToCasualties(atk, dmgC, { attacker: def, strike: 'counter' });
           atk.currentTroops = Math.max(0, atk.currentTroops - casualtiesC);
           emit('COUNTER', { attacker: def.instanceId, defender: atk.instanceId, result: rollC });
           emit('DAMAGE', { target: atk.instanceId, casualties: casualtiesC, remain: atk.currentTroops, crit: rollC === 'crit' });
