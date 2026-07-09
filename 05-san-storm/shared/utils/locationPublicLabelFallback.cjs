@@ -1,6 +1,10 @@
 /**
  * 访客可见位置模糊文案 — 地理编码失败时的纯文本回退
  * 须与 locationPublicLabelFallback.js 同步
+ *
+ * 分层约定：
+ * - extractGeocodeQueryCandidates：尽量多给 Nominatim 查询变体，帮助「先解析成功」
+ * - buildFallbackPublicLabelFromPlaceName：仅当外部地理编码全部失败时，从地点名摘城/区县级文案（严格）
  */
 
 function isLikelyGeoLocalitySegment(segment) {
@@ -38,11 +42,9 @@ function extractGeocodeQueryCandidates(placeName) {
   }
 
   const byParts = text.split(/\s+By\b/i).map((s) => s.trim()).filter(Boolean);
-  if (byParts.length >= 2) {
+  if (byParts.length >= 2 && byParts[0].length >= 3) {
     const venue = byParts[0];
-    if (venue.length >= 3) {
-      candidates.push(/[\u0E00-\u0E7F]/.test(venue) ? `${venue}, Thailand` : venue);
-    }
+    candidates.push(/[\u0E00-\u0E7F]/.test(venue) ? `${venue}, Thailand` : venue);
   }
 
   if (commaParts.length >= 2) {
@@ -58,7 +60,7 @@ function extractGeocodeQueryCandidates(placeName) {
 
   if (spaceParts.length >= 2) {
     const tail = spaceParts[spaceParts.length - 1];
-    if (isLikelyGeoLocalitySegment(tail)) {
+    if (tail.length >= 2 && !/^\d+$/.test(tail)) {
       candidates.push(tail);
       if (/[\u0E00-\u0E7F]/.test(text)) {
         candidates.push(`${tail}, Thailand`);
@@ -96,8 +98,7 @@ function buildFallbackPublicLabelFromPlaceName(placeName) {
     if (cityPart) picks.push(cityPart);
     if (districtPart && districtPart !== cityPart) picks.push(districtPart);
     if (picks.length === 0) {
-      const geoTail = commaParts.slice(1, 3).filter(isLikelyGeoLocalitySegment);
-      picks.push(...(geoTail.length > 0 ? geoTail : commaParts.slice(1, 3)));
+      picks.push(...commaParts.slice(1, 3).filter(isLikelyGeoLocalitySegment));
     }
     const label = picks.filter(Boolean).join(' · ');
     if (label) return label.slice(0, 128);
