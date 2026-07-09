@@ -136,8 +136,8 @@ function buildPayload(form, status, mediaBundleType, mediaItems) {
 
     payload.locationPlaceName = placeName;
     payload.locationMapsUrl = mapsUrl;
-    payload.latitude = latitude;
-    payload.longitude = longitude;
+    if (String(latitude ?? '').trim()) payload.latitude = latitude;
+    if (String(longitude ?? '').trim()) payload.longitude = longitude;
     payload.locationCaptureMethod = form.locationCaptureMethod || 'map_pick';
   }
 

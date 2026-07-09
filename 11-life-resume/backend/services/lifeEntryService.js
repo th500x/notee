@@ -149,11 +149,6 @@ async function resolveLocationFields(input) {
   const lonFieldSent = Object.prototype.hasOwnProperty.call(input, 'longitude');
   const hasLat = latFieldSent && input.latitude !== null && String(input.latitude).trim() !== '';
   const hasLon = lonFieldSent && input.longitude !== null && String(input.longitude).trim() !== '';
-  const coordsExplicitlyCleared =
-    latFieldSent &&
-    lonFieldSent &&
-    String(input.latitude ?? '').trim() === '' &&
-    String(input.longitude ?? '').trim() === '';
   const hasPlaceInput =
     input.locationPlaceName !== undefined && String(input.locationPlaceName || '').trim() !== '';
   const hasMapsInput =
@@ -185,6 +180,7 @@ async function resolveLocationFields(input) {
   let mapsUrl = normalizeLocationMapsUrl(input.locationMapsUrl);
   let latitude = null;
   let longitude = null;
+  let parsedMapsCoords = null;
 
   if (mapsUrl) {
     let parsedMaps = parseGoogleMapsShareUrl(mapsUrl);
@@ -224,23 +220,24 @@ async function resolveLocationFields(input) {
     if (parsedMaps.placeName && !placeName) {
       placeName = parsedMaps.placeName;
     }
-    if (
-      !coordsExplicitlyCleared &&
-      parsedMaps.latitude != null &&
-      parsedMaps.longitude != null
-    ) {
-      latitude = parsedMaps.latitude;
-      longitude = parsedMaps.longitude;
+    if (parsedMaps.latitude != null && parsedMaps.longitude != null) {
+      parsedMapsCoords = {
+        latitude: parsedMaps.latitude,
+        longitude: parsedMaps.longitude,
+      };
     }
   }
 
-  if ((latitude == null || longitude == null) && hasLat && hasLon) {
+  if (hasLat && hasLon) {
     const coordCheck = validateCoordinates(input.latitude, input.longitude);
     if (!coordCheck.ok) {
       throw new EntryServiceError(coordCheck.code || 'INVALID_LOCATION', coordCheck.error);
     }
     latitude = coordCheck.latitude;
     longitude = coordCheck.longitude;
+  } else if (parsedMapsCoords) {
+    latitude = parsedMapsCoords.latitude;
+    longitude = parsedMapsCoords.longitude;
   }
 
   const hasResolvedLocation = latitude != null || !!placeName || !!mapsUrl;

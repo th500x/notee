@@ -23,7 +23,8 @@ function buildPublicLabelFromAddress(address, displayName) {
     addr.village ||
     addr.municipality ||
     addr.county ||
-    addr.state;
+    addr.state ||
+    addr.province;
   const district =
     addr.suburb || addr.district || addr.neighbourhood || addr.quarter || addr.borough;
 
