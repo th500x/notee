@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>瓦片缩放工具 - 真三风云</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: #1a1a2e; color: #eee;
+  font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
+  padding: 20px; min-height: 100vh;
+}
+h1 { font-size: 20px; color: #FFD700; text-align: center; margin-bottom: 8px; }
+.subtitle { font-size: 13px; color: #888; text-align: center; margin-bottom: 20px; }
+
+.controls {
+  display: flex; gap: 16px; align-items: center; justify-content: center;
+  flex-wrap: wrap; margin-bottom: 20px;
+}
+.control-group { display: flex; align-items: center; gap: 6px; }
+.control-group label { font-size: 13px; color: #aaa; }
+.control-group input[type="range"] { width: 160px; }
+.control-group input[type="number"] { width: 60px; padding: 4px; background: #2a2a4a; border: 1px solid #555; border-radius: 4px; color: #eee; text-align: center; }
+.control-group select { padding: 4px 8px; background: #2a2a4a; border: 1px solid #555; border-radius: 4px; color: #eee; }
+.val { font-size: 13px; color: #60a5fa; min-width: 36px; }
+
+button {
+  padding: 8px 18px; border: 1px solid #555; border-radius: 6px;
+  background: #2a2a4a; color: #eee; cursor: pointer; font-size: 13px;
+  transition: all 0.2s;
+}
+button:hover { background: #3a3a6a; border-color: #888; }
+button.primary { background: #2563eb; border-color: #3b82f6; }
+button.primary:hover { background: #1d4ed8; }
+button.success { background: #059669; border-color: #10b981; }
+button.success:hover { background: #047857; }
+
+.drop-zone {
+  border: 2px dashed #555; border-radius: 8px; padding: 40px;
+  text-align: center; color: #888; cursor: pointer;
+  transition: all 0.2s; margin-bottom: 20px;
+}
+.drop-zone:hover, .drop-zone.dragover { border-color: #3b82f6; background: rgba(59,130,246,0.1); color: #60a5fa; }
+.drop-zone input { display: none; }
+
+.workspace {
+  display: flex; gap: 20px; justify-content: center; flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+.preview-box {
+  text-align: center;
+}
+.preview-box .label { font-size: 12px; color: #888; margin-bottom: 6px; }
+.preview-box canvas {
+  border: 1px solid #444; border-radius: 4px;
+  background-image: repeating-conic-gradient(#333 0% 25%, #2a2a2a 0% 50%);
+  background-size: 16px 16px;
+}
+
+.file-list {
+  display: flex; gap: 8px; flex-wrap: wrap; justify-content: center;
+  margin-bottom: 16px;
+}
+.file-item {
+  position: relative; width: 80px; height: 80px; border-radius: 6px;
+  border: 2px solid #444; overflow: hidden; cursor: pointer;
+  transition: all 0.2s;
+}
+.file-item:hover { border-color: #888; }
+.file-item.active { border-color: #3b82f6; box-shadow: 0 0 8px rgba(59,130,246,0.4); }
+.file-item img { width: 100%; height: 100%; object-fit: cover; }
+.file-item .fname { position: absolute; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,0.7); font-size: 9px; padding: 2px; text-align: center; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.file-item .remove-btn { position: absolute; top: 2px; right: 2px; width: 16px; height: 16px; background: rgba(239,68,68,0.8); border-radius: 50%; font-size: 10px; line-height: 16px; text-align: center; cursor: pointer; display: none; }
+.file-item:hover .remove-btn { display: block; }
+
+.status { text-align: center; font-size: 13px; color: #888; margin-top: 12px; }
+.status.ok { color: #34d399; }
+</style>
+</head>
+<body>
+
+<h1>🔧 瓦片缩放居中工具</h1>
+<p class="subtitle">将丘陵/障碍物等瓦片缩小后居中放入 1024×1024 透明画布，用于叠加到平原底图</p>
+
+<div class="drop-zone" id="drop-zone" onclick="document.getElementById('file-input').click()">
+  📂 拖拽图片到这里，或点击选择文件（支持多选）
+  <input type="file" id="file-input" accept="image/*" multiple>
+</div>
+
+<div class="file-list" id="file-list"></div>
+
+<div class="controls">
+  <div class="control-group">
+    <label>缩放比例：</label>
+    <input type="range" id="scale" min="20" max="90" value="60" oninput="onScaleChange()">
+    <span class="val" id="scale-val">60%</span>
+  </div>
+  <div class="control-group">
+    <label>画布尺寸：</label>
+    <select id="canvas-size" onchange="onSettingChange()">
+      <option value="1024" selected>1024×1024</option>
+      <option value="512">512×512</option>
+      <option value="768">768×768</option>
+    </select>
+  </div>
+  <div class="control-group">
+    <label>背景：</label>
+    <select id="bg-mode" onchange="onSettingChange()">
+      <option value="transparent" selected>透明</option>
+      <option value="green">平原绿 #4a6741</option>
+    </select>
+  </div>
+</div>
+
+<div class="controls">
+  <button class="primary" onclick="processAll()">⚙️ 批量处理全部</button>
+  <button class="success" onclick="downloadAll()">💾 批量下载全部</button>
+</div>
+
+<div class="workspace">
+  <div class="preview-box">
+    <div class="label">原图</div>
+    <canvas id="cv-original" width="256" height="256"></canvas>
+  </div>
+  <div class="preview-box">
+    <div class="label">处理后</div>
+    <canvas id="cv-result" width="256" height="256"></canvas>
+  </div>
+</div>
+
+<div class="status" id="status">请先选择图片文件</div>
+
+<script>
+const files = []; // { name, img, resultBlob }
+let activeIdx = -1;
+
+// 拖拽
+const dropZone = document.getElementById('drop-zone');
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('dragover'); addFiles(e.dataTransfer.files); });
+document.getElementById('file-input').addEventListener('change', e => addFiles(e.target.files));
+
+function addFiles(fileList) {
+  Array.from(fileList).forEach(f => {
+    if (!f.type.startsWith('image/')) return;
+    const img = new Image();
+    img.onload = () => {
+      files.push({ name: f.name, img, resultBlob: null });
+      renderFileList();
+      if (files.length === 1) selectFile(0);
+      setStatus(`已加载 ${files.length} 个文件`);
+    };
+    img.src = URL.createObjectURL(f);
+  });
+}
+
+function renderFileList() {
+  const list = document.getElementById('file-list');
+  list.innerHTML = '';
+  files.forEach((f, i) => {
+    const div = document.createElement('div');
+    div.className = `file-item${i === activeIdx ? ' active' : ''}`;
+    div.onclick = () => selectFile(i);
+    div.innerHTML = `<img src="${f.img.src}"><div class="fname">${f.name}</div><div class="remove-btn" onclick="event.stopPropagation();removeFile(${i})">✕</div>`;
+    list.appendChild(div);
+  });
+}
+
+function removeFile(i) {
+  files.splice(i, 1);
+  if (activeIdx >= files.length) activeIdx = files.length - 1;
+  renderFileList();
+  if (activeIdx >= 0) selectFile(activeIdx);
+  else { clearPreviews(); setStatus(`已加载 ${files.length} 个文件`); }
+}
+
+function selectFile(i) {
+  activeIdx = i;
+  renderFileList();
+  drawOriginal(files[i].img);
+  processOne(i);
+}
+
+function clearPreviews() {
+  ['cv-original', 'cv-result'].forEach(id => {
+    const cv = document.getElementById(id);
+    cv.getContext('2d').clearRect(0, 0, cv.width, cv.height);
+  });
+}
+
+function drawOriginal(img) {
+  const cv = document.getElementById('cv-original');
+  const ctx = cv.getContext('2d');
+  cv.width = 256; cv.height = 256;
+  ctx.clearRect(0, 0, 256, 256);
+  const s = Math.min(256 / img.width, 256 / img.height);
+  const w = img.width * s, h = img.height * s;
+  ctx.drawImage(img, (256 - w) / 2, (256 - h) / 2, w, h);
+}
+
+function getSettings() {
+  return {
+    scale: parseInt(document.getElementById('scale').value) / 100,
+    canvasSize: parseInt(document.getElementById('canvas-size').value),
+    bgMode: document.getElementById('bg-mode').value,
+  };
+}
+
+function processOne(i) {
+  const { scale, canvasSize, bgMode } = getSettings();
+  const img = files[i].img;
+
+  // 创建全尺寸画布
+  const offCv = document.createElement('canvas');
+  offCv.width = canvasSize; offCv.height = canvasSize;
+  const ctx = offCv.getContext('2d');
+
+  // 背景
+  if (bgMode === 'green') {
+    ctx.fillStyle = '#4a6741';
+    ctx.fillRect(0, 0, canvasSize, canvasSize);
+  }
+
+  // 缩放后尺寸
+  const sw = img.width * scale;
+  const sh = img.height * scale;
+  const dx = (canvasSize - sw) / 2;
+  const dy = (canvasSize - sh) / 2;
+  ctx.drawImage(img, dx, dy, sw, sh);
+
+  // 预览
+  const pvCv = document.getElementById('cv-result');
+  pvCv.width = 256; pvCv.height = 256;
+  const pvCtx = pvCv.getContext('2d');
+  pvCtx.clearRect(0, 0, 256, 256);
+  pvCtx.drawImage(offCv, 0, 0, 256, 256);
+
+  // 保存blob
+  offCv.toBlob(blob => { files[i].resultBlob = blob; }, 'image/png');
+}
+
+function processAll() {
+  if (!files.length) { setStatus('请先选择图片'); return; }
+  files.forEach((_, i) => processOne(i));
+  setStatus(`已处理 ${files.length} 个文件`, true);
+}
+
+function downloadAll() {
+  if (!files.length) { setStatus('请先选择图片'); return; }
+  // 确保全部处理
+  files.forEach((_, i) => processOne(i));
+  setTimeout(() => {
+    files.forEach(f => {
+      if (!f.resultBlob) return;
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(f.resultBlob);
+      const base = f.name.replace(/\.[^.]+$/, '');
+      a.download = `${base}_resized.png`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    });
+    setStatus(`已下载 ${files.length} 个文件`, true);
+  }, 300);
+}
+
+function onScaleChange() {
+  document.getElementById('scale-val').textContent = document.getElementById('scale').value + '%';
+  if (activeIdx >= 0) processOne(activeIdx);
+}
+
+function onSettingChange() {
+  if (activeIdx >= 0) processOne(activeIdx);
+}
+
+function setStatus(text, ok = false) {
+  const el = document.getElementById('status');
+  el.textContent = text;
+  el.className = ok ? 'status ok' : 'status';
+}
+</script>
+</body>
+</html>

@@ -14,8 +14,8 @@
  * - **`fire` 特效**：非纯装饰（战斗上有伤害/减速等），与功能性对象一致，须落在从象限边缘**可达**的格上；且禁止 `river` / `lake`；优先级 ①`forest` ②无地形叠加 ③`hill`；不与对象同格。
  * - 全图地形合并后做接缝平滑；**再放对象与特效**，避免河岸修正把对象「泡进河里」。
  *
- * @see docs/90-assets/91-2-MAP_AUTO_GENERATION.md
- * @see docs/90-assets/91-3-CAMPAIGN_MAP_GENERATION.md
+ * @see docs/00/90-assets/91-2-MAP_AUTO_GENERATION.md
+ * @see docs/00/90-assets/91-3-CAMPAIGN_MAP_GENERATION.md
  * @see docs/tools/campaign/README.md
  */
 

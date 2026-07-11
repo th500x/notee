@@ -1,6 +1,6 @@
 /**
  * 宝物战斗助阵：装备 `battle_ally:*` 宝物时，开战前由服务端随机传奇将领 + 部队。
- * @see docs/20-data-layer/26-1-TREASURE_SYSTEM.md §6.4
+ * @see docs/00/20-data-layer/26-1-TREASURE_SYSTEM.md §6.4
  * @module services/battleTreasureAllyService
  */
 

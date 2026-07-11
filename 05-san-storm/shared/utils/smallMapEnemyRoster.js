@@ -1,6 +1,6 @@
 /**
  * 小型战术图（8×10）PVE 敌方编组：按槽位稀有度从 config 池抽样将领 + 部队。
- * **匪寨难度档 `BANDIT_NPC_SLOTS_BY_TIER` 为统一基准**；探索事件战、攻城 NPC（`cityService.generateNpcGarrison`）与此对齐 — 见 `docs/20-data-layer/22-1-TROOP_SYSTEM.md` §九。
+ * **匪寨难度档 `BANDIT_NPC_SLOTS_BY_TIER` 为统一基准**；探索事件战、攻城 NPC（`cityService.generateNpcGarrison`）与此对齐 — 见 `docs/00/20-data-layer/22-1-TROOP_SYSTEM.md` §九。
  *
  * 随机敌方部队池：使用 `*_troop_8xxx`（S1 对应势力 `san_1_faction_8001` 北疆 NPC），
  * 不使用黄巾常规 `*_troop_7xxx` 池（避免与小型图 PVE 需求混淆）。战役专用见 `*_troop_9xxx`（众生）。见 `filterTroopsForSmallMapPveEnemy`。
@@ -51,7 +51,7 @@ export const BANDIT_PERSONAL_TOTAL_LAYERS = 20;
 
 /**
  * 战略地图匪寨格 ID（独立地图对象，非 `san_*_city_{1-7}_*`）。格式：`san_{赛季}_bandit_{1-9}_{区域 slug}`。
- * @see `docs/00-base/04-1-ID_NAMING_GUIDE.md` §15
+ * @see `docs/00/00-base/04-1-ID_NAMING_GUIDE.md` §15
  */
 export const BANDIT_MAP_OBJECT_ID_RE = /^san_\d+_bandit_[1-9]_[a-z0-9_]+$/i;
 

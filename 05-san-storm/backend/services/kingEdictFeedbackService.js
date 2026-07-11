@@ -1,7 +1,7 @@
 /**
  * 大地图「口谕」👍👎 嘉奖：按 20 分钟槽 + `scope`（`casual` / `active_war`）进程内幂等，写 `players` 资源 + 统计累计。
  *
- * @see docs/40-ai/41-1-AI_KING_SYSTEM.md ·「口谕互动嘉奖」
+ * @see docs/01-jun-exploration/40-ai/41-1-AI_KING_SYSTEM.md ·「口谕互动嘉奖」
  */
 
 const Player = require('../models/Player');

@@ -12,8 +12,8 @@
  *   `require('./services/road/roadShared')` 取常量的代码路径不变；这样既得到"集中调整入口"，
  *   又避免历史调用点（已在 `roadEncounterService.js` / `roadInterceptService.js` 等多处）的批量改动。
  *
- * @see docs/30-frontend/31-6-STRATEGIC_ROAD_MARCH.md
- * @see docs/00-base/02-architecture-split/12-road-encounter-api.md
+ * @see docs/01-jun-exploration/30-frontend/31-6-STRATEGIC_ROAD_MARCH.md
+ * @see docs/00/00-base/02-architecture-split/12-road-encounter-api.md
  */
 
 /** 开启 / 关闭道路拦截（守门）单次费用，扣银两 */

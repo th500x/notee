@@ -1,0 +1,95 @@
+{
+  "season": "san_1",
+  "seasonName": "黄巾之乱",
+  "kings": [
+    {
+      "factionId": "san_1_faction_6001",
+      "characterId": "san_1_char_6001",
+      "characterName": "刘宏",
+      "courtesyName": "灵帝",
+      "avatar": "san_1_char_6001.png",
+      "personality": {
+        "aggression": 0.2,
+        "caution": 0.8,
+        "evolution": 0.2,
+        "excitation": 0.4,
+        "ambition": 0.2
+      },
+      "ambitionThreshold": {
+        "saturationModifiers": {
+          "aggressionFactor": 1.0,
+          "cautionFactor": 1.0,
+          "evolutionFactor": 1.0,
+          "excitationFactor": 1.0
+        }
+      },
+      "speechStyle": "decadent",
+      "hourlyDecisions": 1,
+      "charmBonus": 1.0,
+      "approvalTraits": {
+        "honorsUnconditionalBenefit": true
+      }
+    },
+    {
+      "factionId": "san_1_faction_7001",
+      "characterId": "san_1_char_7001",
+      "characterName": "张角",
+      "courtesyName": "天公",
+      "avatar": "san_1_char_7001.png",
+      "personality": {
+        "aggression": 1.0,
+        "caution": 0.2,
+        "evolution": 0.1,
+        "excitation": 0.2,
+        "ambition": 0.9
+      },
+      "ambitionThreshold": {
+        "saturationModifiers": {
+          "aggressionFactor": 0.7,
+          "cautionFactor": 1.5,
+          "evolutionFactor": 1.0,
+          "excitationFactor": 1.0
+        }
+      },
+      "speechStyle": "overlord",
+      "hourlyDecisions": 3,
+      "charmBonus": 1.0,
+      "approvalTraits": {
+        "honorsUnconditionalBenefit": true
+      }
+    },
+    {
+      "factionId": "san_1_faction_1001",
+      "characterId": "san_1_char_1001",
+      "characterName": "刘备",
+      "courtesyName": "玄德",
+      "avatar": "san_1_char_1001.png",
+      "personality": {
+        "aggression": 0.7,
+        "caution": 1.0,
+        "evolution": 0.7,
+        "excitation": 0.9,
+        "ambition": 0.8
+      },
+      "ambitionThreshold": {
+        "saturationModifiers": {
+          "aggressionFactor": 0.8,
+          "cautionFactor": 1.2,
+          "evolutionFactor": 1.0,
+          "excitationFactor": 1.0
+        }
+      },
+      "speechStyle": "benevolent",
+      "hourlyDecisions": 2,
+      "charmBonus": 1.0,
+      "approvalTraits": {
+        "honorsUnconditionalBenefit": true
+      }
+    }
+  ],
+  "metadata": {
+    "totalKings": 3,
+    "scope": "M2",
+    "notes": "M2 阶段不入库；M3+ 评估迁移到表。被动审批仅消费 personality.aggression（战事类提案 proposalType='war'）/ personality.evolution（势力政策类提案 proposalType='policy'）+ 骰子三档倍率（1~4 ×1.0 / 5 ×1.1 / 6 ×1.2），clamp 到 [0,1]。aggression / evolution / caution / excitation / ambition 是「君主性格」维度，与 proposalType 是两码事；caution/excitation 在 M2 公式不消费，ambition 通过饱和调制推导 *_eff（达到 ambition×100 城进入饱和态）。speechStyle 闭集五键见 41-AI_KING_SYSTEM.md。"
+  }
+}

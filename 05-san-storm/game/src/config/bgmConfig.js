@@ -2,7 +2,7 @@
  * BGM 曲目与缓存约定
  *
  * 定稿文件目录：public/assets/san_1_audio/bgm/
- * 提示词与 Suno 流程：docs/90-assets/99-7-PROMPT_MUSIC_SUNO.md
+ * 提示词与 Suno 流程：docs/00/90-assets/99-7-PROMPT_MUSIC_SUNO.md
  */
 
 /** 场景 ID → 文件名（与 public/assets/san_1_audio/bgm/ 一致） */

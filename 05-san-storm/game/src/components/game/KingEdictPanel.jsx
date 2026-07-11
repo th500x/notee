@@ -19,7 +19,7 @@
  * 👍 随机银两 20～60，👎 随机声望 0～2；闲聊与主动战事口谕分轨幂等。成功后在正文下展示文言一行，2 秒后自动关窗；
  * 本槽已领状态写入 localStorage，关窗后再开仍保持按钮锁定。
  *
- * @see docs/30-frontend/32-5-PLAYER_CORNER.md §4 · docs/40-ai/41-1-AI_KING_SYSTEM.md
+ * @see docs/01-jun-exploration/30-frontend/32-5-PLAYER_CORNER.md §4 · docs/01-jun-exploration/40-ai/41-1-AI_KING_SYSTEM.md
  */
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';

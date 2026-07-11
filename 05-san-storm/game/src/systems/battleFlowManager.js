@@ -4,7 +4,7 @@
  * 负责：移动系统（地形消耗、BFS寻路、可达格子）、AI决策、回合流程
  * 从 demo/map-generator-demo.html 提取，逻辑完全一致
  *
- * @see docs/10-core-system/17-1-COMBAT_SYSTEM.md
+ * @see docs/00/10-core-system/17-1-COMBAT_SYSTEM.md
  */
 
 import { getBattleAiStyle } from '@/systems/battleCampaignRules';

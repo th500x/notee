@@ -2,7 +2,7 @@
  * 战术图玩家单位兵力：上限来自 GET /config/troops（+ bonus_max_troops），
  * 展平到 battleTroops 时剥离 troop 上的 maxTroops，避免 `...tr` 覆盖正确值。
  *
- * @see docs/20-data-layer/22-1-TROOP_SYSTEM.md §4.1
+ * @see docs/00/20-data-layer/22-1-TROOP_SYSTEM.md §4.1
  */
 
 function normalizeConfigTroopId(raw) {
@@ -143,4 +143,4 @@ export function flattenPlayerUnitToBattleTroop(unit, index, ctx) {
     imgFallback: attempts[attempts.length - 1],
   };
 }
-
+

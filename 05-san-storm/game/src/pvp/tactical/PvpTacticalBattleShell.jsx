@@ -10,7 +10,7 @@
  * 复用既有棋盘渲染：`BattleMap` + `createTacticalMapCardSurface` + `useBattleAnimations`（与 SmallMapBattle 同源），
  * 不引入 `useBattleEngine`（服务端已推演）。
  *
- * @see docs/10-core-system/17-5-DUEL_SYSTEM.md §12.4 §12.6
+ * @see docs/01-jun-exploration/10-core-system/17-5-DUEL_SYSTEM.md §12.4 §12.6
  */
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';

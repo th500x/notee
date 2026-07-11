@@ -1,6 +1,6 @@
 /**
  * 将领主动 · 阶段3（纯治疗 `heal`）：解析 `special_effect`、装配 `_skillPhase3Heal`、战场 `_phase3HealRuntime`、治疗量结算。
- * 契约：`docs/20-data-layer/23-SKILL_SYSTEM.md` 阶段3；`skill-template.csv` 中 `implementation_phase === 3` 且 `skill_type === heal` 的 **主动** 技能。
+ * 契约：`docs/00/20-data-layer/23-SKILL_SYSTEM.md` 阶段3；`skill-template.csv` 中 `implementation_phase === 3` 且 `skill_type === heal` 的 **主动** 技能。
  */
 
 import {

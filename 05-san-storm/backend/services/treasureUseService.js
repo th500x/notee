@@ -1,6 +1,6 @@
 /**
  * 宝物战后扣次与耗尽清理
- * @see docs/20-data-layer/26-1-TREASURE_SYSTEM.md §6.3
+ * @see docs/00/20-data-layer/26-1-TREASURE_SYSTEM.md §6.3
  *
  * 与 troopDurabilityService 对齐：参战部队 instance_id → 解析应扣次的宝物 → 扣次/删除 → 清驻地槽引用。
  */

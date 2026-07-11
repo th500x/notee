@@ -1,6 +1,6 @@
 /**
  * 称号 / 成就 unlock_conditions 键名与称号 type 枚举（单源）
- * @see docs/00-base/04-2-DATA_TERM_DICTIONARY.md §7–7.1
+ * @see docs/00/00-base/04-2-DATA_TERM_DICTIONARY.md §7–7.1
  */
 
 /** 成就：扁平 JSON 键（数值 ≥ 阈值） */

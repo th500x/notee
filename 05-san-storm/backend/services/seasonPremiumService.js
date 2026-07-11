@@ -1,8 +1,8 @@
 /**
  * 赛季战令开通（accounts.hasPremium + title_progress 镜像）
  *
- * @see docs/00-base/01-database-split/10-tables-account.md §1.1
- * @see docs/20-data-layer/25-1-TITLE_SYSTEM.md · 荣耀战令
+ * @see docs/00/00-base/01-database-split/10-tables-account.md §1.1
+ * @see docs/00/20-data-layer/25-1-TITLE_SYSTEM.md · 荣耀战令
  */
 
 const { pool } = require('../database/connection');

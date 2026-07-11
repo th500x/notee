@@ -1,0 +1,147 @@
+{
+  "generatedAt": "2026-06-10T16:04:29.389Z",
+  "source": "docs/tools/daily-report/checkin-rewards-template.csv",
+  "season": "san_1",
+  "days": [
+    {
+      "cycleDay": 1,
+      "rewards": "food:500",
+      "label": null
+    },
+    {
+      "cycleDay": 2,
+      "rewards": "san_1_treasure_4001",
+      "label": null
+    },
+    {
+      "cycleDay": 3,
+      "rewards": "food:500",
+      "label": null
+    },
+    {
+      "cycleDay": 4,
+      "rewards": "food:500",
+      "label": null
+    },
+    {
+      "cycleDay": 5,
+      "rewards": "san_1_treasure_4002",
+      "label": null
+    },
+    {
+      "cycleDay": 6,
+      "rewards": "food:500",
+      "label": null
+    },
+    {
+      "cycleDay": 7,
+      "rewards": "silver:200",
+      "label": "第1周"
+    },
+    {
+      "cycleDay": 8,
+      "rewards": "food:500",
+      "label": null
+    },
+    {
+      "cycleDay": 9,
+      "rewards": "san_1_treasure_4001",
+      "label": null
+    },
+    {
+      "cycleDay": 10,
+      "rewards": "food:500",
+      "label": null
+    },
+    {
+      "cycleDay": 11,
+      "rewards": "food:500",
+      "label": null
+    },
+    {
+      "cycleDay": 12,
+      "rewards": "san_1_treasure_4002",
+      "label": null
+    },
+    {
+      "cycleDay": 13,
+      "rewards": "food:500",
+      "label": null
+    },
+    {
+      "cycleDay": 14,
+      "rewards": "silver:200",
+      "label": "第2周"
+    },
+    {
+      "cycleDay": 15,
+      "rewards": "food:500",
+      "label": null
+    },
+    {
+      "cycleDay": 16,
+      "rewards": "san_1_treasure_4001",
+      "label": null
+    },
+    {
+      "cycleDay": 17,
+      "rewards": "food:500",
+      "label": null
+    },
+    {
+      "cycleDay": 18,
+      "rewards": "food:500",
+      "label": null
+    },
+    {
+      "cycleDay": 19,
+      "rewards": "san_1_treasure_4002",
+      "label": null
+    },
+    {
+      "cycleDay": 20,
+      "rewards": "food:500",
+      "label": null
+    },
+    {
+      "cycleDay": 21,
+      "rewards": "silver:200",
+      "label": "第3周"
+    },
+    {
+      "cycleDay": 22,
+      "rewards": "food:500",
+      "label": null
+    },
+    {
+      "cycleDay": 23,
+      "rewards": "san_1_treasure_4001",
+      "label": null
+    },
+    {
+      "cycleDay": 24,
+      "rewards": "food:500",
+      "label": null
+    },
+    {
+      "cycleDay": 25,
+      "rewards": "food:500",
+      "label": null
+    },
+    {
+      "cycleDay": 26,
+      "rewards": "san_1_treasure_4002",
+      "label": null
+    },
+    {
+      "cycleDay": 27,
+      "rewards": "food:500",
+      "label": null
+    },
+    {
+      "cycleDay": 28,
+      "rewards": "silver:200;item_season_badge",
+      "label": "满月"
+    }
+  ]
+}

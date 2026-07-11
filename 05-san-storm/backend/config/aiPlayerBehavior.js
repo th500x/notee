@@ -1,7 +1,7 @@
 /**
  * AI 玩家系统 · MVP 配置单一来源。
  *
- * 设计文档：docs/40-ai/42-1-AI_PLAYER_SYSTEM.md、42-2-AI_PLAYER_IMPLEMENTATION.md。
+ * 设计文档：docs/01-jun-exploration/40-ai/42-1-AI_PLAYER_SYSTEM.md、42-2-AI_PLAYER_IMPLEMENTATION.md。
  * 行为编排（窗口/并发）与播种（人数/服务器/elite 基线）集中在此，避免散落到脚本与服务里。
  */
 

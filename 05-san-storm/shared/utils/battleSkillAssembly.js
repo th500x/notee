@@ -4,7 +4,7 @@
  * 与 `battlePlayerBuilder`、`useBattleMap.assignRealBattleTroops`、`buildCampaignBattleTroopsFromSim`、
  * `buildSiegeUnits` 共用；禁止在各入口复制 attachPhase* 链。
  *
- * @see docs/20-data-layer/23-1-SKILL_SYSTEM.md §6
+ * @see docs/00/20-data-layer/23-1-SKILL_SYSTEM.md §6
  */
 
 import {

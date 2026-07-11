@@ -19,7 +19,7 @@
  *   `wrap500(error, publicMessage, code)`。
  *
  * @see backend/utils/httpError.js
- * @see docs/00-base/02-architecture-split/40-conventions.md §错误响应
+ * @see docs/00/00-base/02-architecture-split/40-conventions.md §错误响应
  *
  * @module middleware/errorHandler
  */

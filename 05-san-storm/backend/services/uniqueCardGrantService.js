@@ -1,8 +1,8 @@
 /**
  * 唯一配置卡发放：称号 / 成就等同 ID 仅一张（与 rewardService 事件奖励同源规则）
  *
- * @see docs/20-data-layer/25-1-TITLE_SYSTEM.md §6.1
- * @see docs/20-data-layer/25-2-ACHIEVEMENT_SYSTEM.md §8
+ * @see docs/00/20-data-layer/25-1-TITLE_SYSTEM.md §6.1
+ * @see docs/00/20-data-layer/25-2-ACHIEVEMENT_SYSTEM.md §8
  */
 
 const {

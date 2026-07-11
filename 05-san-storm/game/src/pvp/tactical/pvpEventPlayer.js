@@ -7,7 +7,7 @@
  *
  * 与 `pvpReplayState.foldEvents`（纯终态）共享同一推进语义，确保动画终态 ≡ 折叠终态 ≡ 内核 finalState。
  *
- * @see docs/10-core-system/17-5-DUEL_SYSTEM.md §12.6
+ * @see docs/01-jun-exploration/10-core-system/17-5-DUEL_SYSTEM.md §12.6
  */
 
 /**

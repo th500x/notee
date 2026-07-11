@@ -1,5 +1,5 @@
 /**
- * 战略大地图底板：势力代表色（与 docs/10-core-system/11-1-FACTION_SYSTEM.md §势力总览 一致；
+ * 战略大地图底板：势力代表色（与 docs/01-jun-exploration/10-core-system/11-1-FACTION_SYSTEM.md §势力总览 一致；
  * `0001`～`7001` 与正式六芒星图标主色对齐）。
  */
 export const FACTION_REPRESENTATIVE_HEX = {
