@@ -18,6 +18,11 @@ const {
 } = require('../../../05-san-storm/shared/utils/lifeResumeProfileRegion.cjs');
 const { resolveRegionFromIp } = require('./ipGeolocationService');
 const { parseLifePathDraftJson, assessLifePathGenerateCooldown, DEFAULT_LIFE_PATH_COOLDOWN_HOURS } = require('../../../05-san-storm/shared/utils/lifeResumeLifePath.cjs');
+const {
+  listEntrySeriesForOwner,
+  findOwnedSeries,
+} = require('./lifeEntrySeriesService');
+const { normalizeEntrySeriesId } = require('../../../05-san-storm/shared/utils/lifeResumeEntrySeries.cjs');
 
 const VISIBILITY_VALUES = new Set(['public', 'private', 'specific']);
 
@@ -58,6 +63,8 @@ function formatProfileRow(row) {
     usernameChangedAt: toIso(row.username_changed_at),
     pageDefaultVisibility: row.page_default_visibility,
     defaultGranteeAccountId: row.default_grantee_account_id,
+    defaultEntrySeriesId:
+      row.default_entry_series_id != null ? Number(row.default_entry_series_id) : null,
     profileStatus: row.profile_status,
     deactivatedAt: toIso(row.deactivated_at),
     purgeScheduledAt: toIso(row.purge_scheduled_at),
@@ -164,7 +171,9 @@ async function getProfileForAccount(accountId, opts = {}) {
   if (opts.requestIp) {
     row = (await ensureProfileRegionFromIp(id, opts.requestIp)) || row;
   }
-  return enrichProfile(row);
+  const profile = enrichProfile(row);
+  const entrySeries = await listEntrySeriesForOwner(id);
+  return { ...profile, entrySeries };
 }
 
 function normalizeGranteeId(raw) {
@@ -252,15 +261,35 @@ async function updateProfileForAccount(accountId, patch = {}) {
     }
   }
 
+  if (patch.defaultEntrySeriesId !== undefined) {
+    const normalized = normalizeEntrySeriesId(patch.defaultEntrySeriesId);
+    if (Number.isNaN(normalized)) {
+      throw new ProfileServiceError('INVALID_ENTRY_SERIES', '默认系列无效', 400);
+    }
+    if (normalized != null) {
+      await findOwnedSeries(id, normalized);
+    }
+    const current =
+      row.default_entry_series_id != null ? Number(row.default_entry_series_id) : null;
+    if (normalized !== current) {
+      sets.push('default_entry_series_id = ?');
+      params.push(normalized);
+    }
+  }
+
   if (sets.length === 0) {
-    return enrichProfile(row);
+    const profile = enrichProfile(row);
+    const entrySeries = await listEntrySeriesForOwner(id);
+    return { ...profile, entrySeries };
   }
 
   params.push(id);
   await query(`UPDATE life_profiles SET ${sets.join(', ')} WHERE account_id = ?`, params);
 
   const updated = await findProfileByAccountId(id);
-  return enrichProfile(updated);
+  const profile = enrichProfile(updated);
+  const entrySeries = await listEntrySeriesForOwner(id);
+  return { ...profile, entrySeries };
 }
 
 async function deactivateProfileForAccount(accountId) {

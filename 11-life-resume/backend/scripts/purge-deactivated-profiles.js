@@ -65,6 +65,7 @@ async function purgeAccount(accountId, { dryRun }) {
   }
 
   await transaction(async (conn) => {
+    await conn.execute('DELETE FROM life_entry_series WHERE account_id = ?', [accountId]);
     const [result] = await conn.execute('DELETE FROM life_profiles WHERE account_id = ?', [
       accountId,
     ]);

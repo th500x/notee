@@ -80,6 +80,7 @@ export default function EntryPhotoCropModal({ open, file, displayFilename = null
     setPresetId(id);
     setCrop({ x: 0, y: 0 });
     setZoom(1);
+    setCroppedAreaPixels(null);
     setError('');
   };
 
@@ -175,6 +176,7 @@ export default function EntryPhotoCropModal({ open, file, displayFilename = null
         <div className="relative w-full aspect-[4/3] bg-slate-900 shrink-0">
           {imageSrc && cropTarget && (
             <Cropper
+              key={presetId}
               image={imageSrc}
               crop={crop}
               zoom={zoom}
@@ -208,11 +210,13 @@ export default function EntryPhotoCropModal({ open, file, displayFilename = null
         </div>
 
         <div className="px-4 py-3 space-y-2 shrink-0">
-          {upscaleWarning && (
-            <p className="text-xs text-amber-800 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
-              裁剪区域相对目标尺寸较小（约 {upscaleFactor.toFixed(1)} 倍放大），已用高质量算法处理，但可能略发糊。
-            </p>
-          )}
+          <div className="min-h-[2.75rem]">
+            {upscaleWarning && croppedAreaPixels && (
+              <p className="text-xs text-amber-800 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+                裁剪区域相对目标尺寸较小（约 {upscaleFactor.toFixed(1)} 倍放大），已用高质量算法处理，但可能略发糊。
+              </p>
+            )}
+          </div>
           {error && <p className="text-sm text-red-600">{error}</p>}
           <button
             type="button"

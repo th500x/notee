@@ -33,6 +33,10 @@ const {
 } = require('../../../05-san-storm/shared/utils/parseGoogleMapsShareUrl.cjs');
 const { resolveLocationPublicLabel } = require('./reverseGeocodeService');
 const { resolveGoogleMapsShareUrl, GoogleMapsResolveError } = require('./googleMapsUrlResolveService');
+const {
+  resolveEntrySeriesIdForSave,
+  EntrySeriesServiceError,
+} = require('./lifeEntrySeriesService');
 
 const VISIBILITY_VALUES = new Set(['public', 'private', 'specific']);
 const STATUS_VALUES = new Set(['draft', 'published']);
@@ -70,6 +74,7 @@ function formatEntryRow(row) {
   return {
     id: Number(row.id),
     accountId: row.account_id,
+    entrySeriesId: row.entry_series_id != null ? Number(row.entry_series_id) : null,
     year: row.year != null ? Number(row.year) : null,
     lifeStage: row.life_stage,
     month: row.month != null ? Number(row.month) : null,
@@ -476,18 +481,30 @@ async function createEntry(accountId, input) {
 
   const parsedMedia = resolveMediaInputOrThrow(input);
 
+  let entrySeriesId = null;
+  try {
+    const resolvedSeries = await resolveEntrySeriesIdForSave(id, input.entrySeriesId);
+    entrySeriesId = resolvedSeries === undefined ? null : resolvedSeries;
+  } catch (err) {
+    if (err instanceof EntrySeriesServiceError) {
+      throw new EntryServiceError(err.code, err.message, err.status);
+    }
+    throw err;
+  }
+
   const entryId = await transaction(async (conn) => {
     const [result] = await conn.execute(
       `INSERT INTO life_entries (
-        account_id, year, life_stage, month, day, timeline_sort_key, is_pinned,
+        account_id, entry_series_id, year, life_stage, month, day, timeline_sort_key, is_pinned,
         title, body, body_grapheme_count, visibility, grantee_account_id,
         tags, status, published_at, compliance_ack_at,
         google_drive_share_url, google_drive_resource_id, google_drive_resource_kind, google_drive_display_label,
         latitude, longitude, location_capture_method, location_public_label, location_place_name, location_maps_url,
         media_bundle_type
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id,
+        entrySeriesId,
         payload.year,
         payload.lifeStage,
         payload.month,
@@ -571,7 +588,18 @@ async function updateEntry(accountId, entryId, input) {
     resolveMediaInputOrThrow(input);
   }
 
+  let entrySeriesId;
+  try {
+    entrySeriesId = await resolveEntrySeriesIdForSave(id, input.entrySeriesId);
+  } catch (err) {
+    if (err instanceof EntrySeriesServiceError) {
+      throw new EntryServiceError(err.code, err.message, err.status);
+    }
+    throw err;
+  }
+
   const baseParams = [
+    entrySeriesId === undefined ? existing.entry_series_id : entrySeriesId,
     payload.year,
     payload.lifeStage,
     payload.month,
@@ -592,7 +620,7 @@ async function updateEntry(accountId, entryId, input) {
   if (driveFields !== undefined && locationFields !== undefined) {
     await query(
       `UPDATE life_entries SET
-        year = ?, life_stage = ?, month = ?, day = ?, timeline_sort_key = ?, is_pinned = ?,
+        entry_series_id = ?, year = ?, life_stage = ?, month = ?, day = ?, timeline_sort_key = ?, is_pinned = ?,
         title = ?, body = ?, body_grapheme_count = ?, visibility = ?, grantee_account_id = ?,
         tags = ?, status = ?, published_at = ?, compliance_ack_at = ?,
         google_drive_share_url = ?, google_drive_resource_id = ?, google_drive_resource_kind = ?, google_drive_display_label = ?,
@@ -618,7 +646,7 @@ async function updateEntry(accountId, entryId, input) {
   } else if (driveFields !== undefined) {
     await query(
       `UPDATE life_entries SET
-        year = ?, life_stage = ?, month = ?, day = ?, timeline_sort_key = ?, is_pinned = ?,
+        entry_series_id = ?, year = ?, life_stage = ?, month = ?, day = ?, timeline_sort_key = ?, is_pinned = ?,
         title = ?, body = ?, body_grapheme_count = ?, visibility = ?, grantee_account_id = ?,
         tags = ?, status = ?, published_at = ?, compliance_ack_at = ?,
         google_drive_share_url = ?, google_drive_resource_id = ?, google_drive_resource_kind = ?, google_drive_display_label = ?
@@ -636,7 +664,7 @@ async function updateEntry(accountId, entryId, input) {
   } else if (locationFields !== undefined) {
     await query(
       `UPDATE life_entries SET
-        year = ?, life_stage = ?, month = ?, day = ?, timeline_sort_key = ?, is_pinned = ?,
+        entry_series_id = ?, year = ?, life_stage = ?, month = ?, day = ?, timeline_sort_key = ?, is_pinned = ?,
         title = ?, body = ?, body_grapheme_count = ?, visibility = ?, grantee_account_id = ?,
         tags = ?, status = ?, published_at = ?, compliance_ack_at = ?,
         latitude = ?, longitude = ?, location_capture_method = ?, location_public_label = ?,
@@ -657,7 +685,7 @@ async function updateEntry(accountId, entryId, input) {
   } else {
     await query(
       `UPDATE life_entries SET
-        year = ?, life_stage = ?, month = ?, day = ?, timeline_sort_key = ?, is_pinned = ?,
+        entry_series_id = ?, year = ?, life_stage = ?, month = ?, day = ?, timeline_sort_key = ?, is_pinned = ?,
         title = ?, body = ?, body_grapheme_count = ?, visibility = ?, grantee_account_id = ?,
         tags = ?, status = ?, published_at = ?, compliance_ack_at = ?
        WHERE id = ? AND account_id = ?`,
