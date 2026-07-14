@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react';
 import { createPortal } from 'react-dom';
 import AncientModal from '@/components/common/AncientModal';
 import PvpAutoDuelReplay from '@/pvp/auto-duel/PvpAutoDuelReplay';
+import SiegeChargeCinematic from '@/components/world/SiegeChargeCinematic';
 // 战术对决事件回放壳（重）：懒加载，仅当权威结果含 eventReplay.roomId 时挂（17-5-3 阶段 5）
 const PvpTacticalBattleShell = lazy(() => import('@/pvp/tactical/PvpTacticalBattleShell'));
 
@@ -24,11 +25,70 @@ export default function WorldMapAlertOverlays({
   siegeData,
   banditRaidData,
   banditRaidResult,
+  pendingSiegeConfirm = null,
+  onPendingSiegeConfirm = null,
+  onPendingSiegeCancel = null,
+  siegeAdjudicating = false,
+  siegeChargeCinematic = null,
+  onSiegeChargeComplete = null,
 }) {
   return (
     <>
+      {pendingSiegeConfirm && (
+        <AncientModal
+          isOpen
+          type="confirm"
+          title="攻城"
+          confirmText="进入自动战斗"
+          cancelText="取消"
+          showCancel
+          onConfirm={onPendingSiegeConfirm}
+          onClose={onPendingSiegeCancel}
+        >
+          <div className="text-center space-y-3 text-gray-800 text-sm py-1">
+            <p>
+              {pendingSiegeConfirm.kind === 'baseCamp'
+                ? `是否对「${pendingSiegeConfirm.cityName || '目标城'}」攻方大本营进入自动战斗？`
+                : `是否对「${pendingSiegeConfirm.cityName || '城池'}」进入自动战斗？`}
+            </p>
+            <p className="text-gray-500 text-xs leading-relaxed">
+              开战后面板将自动演算并播放冲锋动画，无需进入棋盘操作。
+            </p>
+          </div>
+        </AncientModal>
+      )}
+
+      {(siegeAdjudicating || pvpAttackerAdjudicating) && (
+        <AncientModal isOpen type="confirm" title="战场裁定中" preventClose hideButtons>
+          <div className="text-center space-y-3 text-gray-800 text-sm py-2 px-1">
+            <p>本场由服务端演算，请稍候…</p>
+            {pvpAttackerAdjudicating?.defenderName ? (
+              <p className="text-gray-500 text-xs">
+                守军主公：
+                <span className="text-amber-800 font-semibold">{pvpAttackerAdjudicating.defenderName}</span>
+              </p>
+            ) : null}
+          </div>
+        </AncientModal>
+      )}
+
+      {siegeChargeCinematic ? (
+        <SiegeChargeCinematic
+          open
+          title={siegeChargeCinematic.title}
+          leftLabel={siegeChargeCinematic.leftLabel}
+          rightLabel={siegeChargeCinematic.rightLabel}
+          attackerWon={!!siegeChargeCinematic.attackerWon}
+          initialAttackerTroops={siegeChargeCinematic.initialAttackerTroops}
+          initialDefenderTroops={siegeChargeCinematic.initialDefenderTroops}
+          attackerTroopsEnd={siegeChargeCinematic.attackerTroopsEnd}
+          defenderTroopsEnd={siegeChargeCinematic.defenderTroopsEnd}
+          onComplete={onSiegeChargeComplete}
+        />
+      ) : null}
+
       {pvpChallenge && (
-        <AncientModal isOpen type="confirm" title="⚔️ 攻城对战" preventClose hideButtons>
+        <AncientModal isOpen type="confirm" title="攻城对战" preventClose hideButtons>
           <div className="text-center space-y-4">
             <p className="text-gray-800 text-base">
               约 <span className="text-red-700 font-bold text-xl">{pvpCountdownDisplay}</span> 秒后由服务端裁定本场（AI 代打）
@@ -49,19 +109,8 @@ export default function WorldMapAlertOverlays({
         </AncientModal>
       )}
 
-      {pvpAttackerAdjudicating && (
-        <AncientModal isOpen type="confirm" title="⚔️ 战场裁定中" preventClose hideButtons>
-          <div className="text-center space-y-3 text-gray-800 text-sm py-2 px-1">
-            <p>本场由服务端演算，请稍候…</p>
-            <p className="text-gray-500 text-xs">
-              守军主公：<span className="text-amber-800 font-semibold">{pvpAttackerAdjudicating.defenderName}</span>
-            </p>
-          </div>
-        </AncientModal>
-      )}
-
       {pvpDefenseWaiting && (
-        <AncientModal isOpen type="confirm" title="⚔️ 战场裁定中" preventClose hideButtons>
+        <AncientModal isOpen type="confirm" title="战场裁定中" preventClose hideButtons>
           <div className="text-center space-y-3 text-gray-700 text-sm py-2 px-1">
             <p>本场由服务端演算，请稍候…</p>
             <p className="text-gray-500 text-xs">
@@ -72,7 +121,6 @@ export default function WorldMapAlertOverlays({
         </AncientModal>
       )}
 
-      {/* 攻方权威回放：有事件房间 → 全屏事件回放壳；关闭后进结算（17-5-3 阶段 5）。否则退回旧简化回放。 */}
       {authoritativeReplayOverlay && authoritativeReplayOverlay.eventReplayRoomId && (
         <Suspense fallback={null}>
           <PvpTacticalBattleShell
@@ -109,7 +157,7 @@ export default function WorldMapAlertOverlays({
         <AncientModal
           isOpen
           type="warning"
-          title="🛤️ 道路遭遇"
+          title="道路遭遇"
           confirmText="立即开战"
           showCancel={false}
           preventClose

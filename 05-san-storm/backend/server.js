@@ -198,6 +198,7 @@ function scheduleDailyReportDigestTick() {
 function scheduleKingDasikongDailyTick() {
   console.log(`[aiKing][dasikong] cron registered 0 0 * * * tz=${GAME_CALENDAR_TZ}`);
   const aiKingDasikongDailyService = require('./services/aiKingDasikongDailyService');
+  const aiKingDailyLetterService = require('./services/aiKingDailyLetterService');
   cron.schedule(
     '0 0 * * *',
     async () => {
@@ -215,6 +216,29 @@ function scheduleKingDasikongDailyTick() {
         }
       } catch (err) {
         console.error('[aiKing][dasikong] daily tick 失败:', err.message, err.stack || '');
+      }
+      try {
+        const factionWarVoteService = require('./services/factionWarVoteService');
+        const voteResult = await factionWarVoteService.runDailyTick();
+        console.log(
+          `[warVote] daily tick resolve=${(voteResult.resolve?.results || []).length} open=${(voteResult.open?.results || []).length}`,
+        );
+      } catch (err) {
+        console.error('[warVote] daily tick 失败:', err.message, err.stack || '');
+      }
+      try {
+        const letterResult = await aiKingDailyLetterService.runDailyTick();
+        const letterSummary = (letterResult.results || [])
+          .map((r) => `${r.factionId}:${r.skipped ? 'skip' : r.error || `sent=${r.playerCount || 0}`}`)
+          .join('; ');
+        console.log(`[aiKing][dailyLetter] daily tick done ${letterSummary}`);
+        for (const r of letterResult.results || []) {
+          if (!r.ok || r.error) {
+            console.error('[aiKing][dailyLetter] daily tick faction error', JSON.stringify(r));
+          }
+        }
+      } catch (err) {
+        console.error('[aiKing][dailyLetter] daily tick 失败:', err.message, err.stack || '');
       }
     },
     CRON_OPTS,
@@ -386,6 +410,12 @@ app.use('/api/admin/world-map', adminWorldMapRouter);
 
 const adminKingDasikongRouter = require('./routes/adminKingDasikong');
 app.use('/api/admin/king-dasikong', adminKingDasikongRouter);
+
+const adminKingDailyLetterRouter = require('./routes/adminKingDailyLetter');
+app.use('/api/admin/king-daily-letter', adminKingDailyLetterRouter);
+
+const adminFactionWarVoteRouter = require('./routes/adminFactionWarVote');
+app.use('/api/admin/faction-war-vote', adminFactionWarVoteRouter);
 
 /**
  * 管理员：赛季关服切换（设窗口/维护态/自动封档/rollover）；破坏性接口由 SEASON_ROLLOVER_KEY 密钥门禁
@@ -585,6 +615,16 @@ httpServer = app.listen(PORT, async () => {
         const catchUp = await aiKingDasikongDailyService.runStaleCatchUpOnStartup();
         if (catchUp.ok && (catchUp.results || []).some((r) => r.winner || r.bootstrapped)) {
           console.log('[aiKing][dasikong] startup catch-up finished');
+        }
+        const aiKingDailyLetterService = require('./services/aiKingDailyLetterService');
+        const letterCatchUp = await aiKingDailyLetterService.runStaleCatchUpOnStartup();
+        if (letterCatchUp.ok && (letterCatchUp.results || []).some((r) => r.ok && !r.skipped)) {
+          console.log('[aiKing][dailyLetter] startup catch-up finished');
+        }
+        const factionWarVoteService = require('./services/factionWarVoteService');
+        const voteCatchUp = await factionWarVoteService.runStaleCatchUpOnStartup();
+        if (voteCatchUp.ok) {
+          console.log('[warVote] startup catch-up finished');
         }
       } catch (err) {
         console.error('[aiKing][dasikong] startup catch-up failed:', err.message);

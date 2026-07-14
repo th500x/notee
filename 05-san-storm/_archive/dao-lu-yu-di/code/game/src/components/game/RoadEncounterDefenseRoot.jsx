@@ -1,0 +1,383 @@
+import { useState, useRef, useCallback, useEffect, useMemo, useSyncExternalStore, lazy, Suspense } from 'react';
+import { createPortal } from 'react-dom';
+import { usePlayerContext } from '@/contexts/PlayerContext';
+import { playerAPI } from '@/services/playerApi';
+import AncientModal from '@/components/common/AncientModal';
+import PvpAutoDuelReplay from '@/pvp/auto-duel/PvpAutoDuelReplay';
+import StrategicSettlementCard from '@/components/world/StrategicSettlementCard';
+import {
+  isPvpAuthoritativeBattleLogReplayable,
+  mapRoadEncounterOutcomeToSettlementProps,
+} from '@/utils/roadEncounterSettlement';
+
+const PvpTacticalBattleShell = lazy(() => import('@/pvp/tactical/PvpTacticalBattleShell'));
+import { RoadDefenseFrictionContext } from '@/contexts/RoadDefenseFrictionContext';
+import {
+  worldMapOverlayRefs,
+  subscribeWorldMapOverlayGate,
+  getWorldMapOverlayGateEpoch,
+} from '@/utils/worldMapOverlayRefs';
+
+/**
+ * 道路守方遇袭 + 权威裁定 UI：挂在 GamePage 常驻，避免离开大地图 Tab 时 WorldMap 卸载导致守方收不到轮询。
+ * 与攻城遇袭、道路战场互斥：读 `worldMapOverlayRefs`（由 WorldMap 同步）。
+ */
+export default function RoadEncounterDefenseRoot({ children, onBusyChange }) {
+  const { player, refresh: refreshPlayer } = usePlayerContext();
+
+  const [roadDefenseAlert, setRoadDefenseAlert] = useState(null);
+  const [roadAwaitingAuthoritativeOutcome, setRoadAwaitingAuthoritativeOutcome] = useState(null);
+  const [roadAuthoritativeOutcomeModal, setRoadAuthoritativeOutcomeModal] = useState(null);
+  /** 守方裁定后与攻方对称：先全屏 `PvpAutoDuelReplay`，结束再开评分/胜负弹窗 */
+  const [defenderAuthoritativeReplayOverlay, setDefenderAuthoritativeReplayOverlay] = useState(null);
+  const silencedRoadEncounterIdRef = useRef(null);
+  const roadDefenseOutcomeReplayBlockingRef = useRef(false);
+  const roadDefPollRef = useRef(null);
+  const roadDefenseNotifiedEncounterIdRef = useRef(null);
+  const pollRoadPendingRef = useRef(null);
+  const refreshPlayerRef = useRef(refreshPlayer);
+  refreshPlayerRef.current = refreshPlayer;
+  const roadDefenseAlertRef = useRef(null);
+  roadDefenseAlertRef.current = roadDefenseAlert;
+  const roadAwaitingRef = useRef(null);
+  roadAwaitingRef.current = roadAwaitingAuthoritativeOutcome;
+  const roadOutcomeModalRef = useRef(null);
+  roadOutcomeModalRef.current = roadAuthoritativeOutcomeModal;
+  const defenderReplayRef = useRef(null);
+  defenderReplayRef.current = defenderAuthoritativeReplayOverlay;
+  /** 回放结束取结算载荷：勿依赖闭包里的 overlay，避免 refresh 重渲染后 payload 丢失 */
+  const defenderReplayOutcomePayloadRef = useRef(null);
+  defenderReplayOutcomePayloadRef.current = defenderAuthoritativeReplayOverlay?.outcomeForModal ?? null;
+
+  const beginRoadDefenseSilence = useCallback((alert) => {
+    if (!alert?.encounterId) return;
+    silencedRoadEncounterIdRef.current = alert.encounterId;
+    roadAwaitingRef.current = { encounterId: alert.encounterId };
+    setRoadDefenseAlert(null);
+    roadDefenseAlertRef.current = null;
+    setRoadAwaitingAuthoritativeOutcome({ encounterId: alert.encounterId });
+  }, []);
+
+  const bumpCachesAfterRoadOutcome = useCallback(() => {
+    silencedRoadEncounterIdRef.current = null;
+    refreshPlayerRef.current?.({ silent: true });
+  }, []);
+
+  /** 仅大地图挂载时：才用 WorldMap 写入的 ref 与道路遇袭去重（子页签下 WorldMap 已卸载，ref 不得挡弹窗） */
+  const isRoadDefenseSuppressedByWorldMap = useCallback((encounterId) => {
+    if (!worldMapOverlayRefs.worldMapMounted) return false;
+    if (worldMapOverlayRefs.pvpDefenseAlertActive) return true;
+    const sid = worldMapOverlayRefs.siegeRoadEncounterId;
+    return sid != null && String(sid) === String(encounterId);
+  }, []);
+
+  const pollRoadPending = useCallback(async () => {
+    const pid = player?.playerId;
+    if (!pid) return;
+    try {
+      const res = await playerAPI.getRoadPendingEncounter(pid);
+      const enc = res?.success && res.data?.encounter ? res.data.encounter : null;
+      if (!enc) {
+        const alertSnap = roadDefenseAlertRef.current;
+        const awaiting = !!roadAwaitingRef.current;
+        const replay = !!defenderReplayRef.current;
+        const modal = !!roadOutcomeModalRef.current;
+        const hasPostBattleFlow = awaiting || replay || modal;
+        // 战后仍停在遇袭弹窗：自动进入裁定查询，避免攻方先点确定后守方只剩空白
+        if (alertSnap?.encounterId && !hasPostBattleFlow) {
+          silencedRoadEncounterIdRef.current = alertSnap.encounterId;
+          roadAwaitingRef.current = { encounterId: alertSnap.encounterId };
+          setRoadAwaitingAuthoritativeOutcome({ encounterId: alertSnap.encounterId });
+        } else if (!hasPostBattleFlow) {
+          silencedRoadEncounterIdRef.current = null;
+          roadDefenseNotifiedEncounterIdRef.current = null;
+        }
+        setRoadDefenseAlert(null);
+        roadDefenseAlertRef.current = null;
+        return;
+      }
+      if (isRoadDefenseSuppressedByWorldMap(enc.encounterId)) {
+        setRoadDefenseAlert(null);
+        return;
+      }
+      if (silencedRoadEncounterIdRef.current === enc.encounterId) {
+        setRoadDefenseAlert(null);
+        return;
+      }
+      setRoadDefenseAlert((prev) => {
+        if (prev && String(prev.encounterId) === String(enc.encounterId)) {
+          return { ...prev, ...enc };
+        }
+        return enc;
+      });
+      if (roadDefenseNotifiedEncounterIdRef.current !== enc.encounterId) {
+        roadDefenseNotifiedEncounterIdRef.current = enc.encounterId;
+        if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+          const n = new Notification('🛤️ 道路遇袭', {
+            body: `${enc.attackerName || '敌方'} 在道路上发起对战；请回到游戏窗口查看遇袭弹窗`,
+            tag: 'road-pvp',
+          });
+          n.onclick = () => {
+            try {
+              window.focus();
+            } catch (_) {}
+            n.close();
+          };
+        } else if (typeof Notification !== 'undefined' && Notification.permission !== 'denied') {
+          Notification.requestPermission();
+        }
+      }
+    } catch {
+      /* 静默 */
+    }
+  }, [player?.playerId, isRoadDefenseSuppressedByWorldMap]);
+
+  pollRoadPendingRef.current = pollRoadPending;
+
+  /** 仅依赖 player_id：互斥状态在 poll 内读 refs，避免与 WorldMap 不同步 */
+  useEffect(() => {
+    if (!player?.playerId) return undefined;
+    const run = () => {
+      pollRoadPendingRef.current?.();
+    };
+    run();
+    roadDefPollRef.current = setInterval(run, 3000);
+    return () => {
+      if (roadDefPollRef.current) clearInterval(roadDefPollRef.current);
+    };
+  }, [player?.playerId]);
+
+  useEffect(() => {
+    const onVis = () => {
+      if (typeof document === 'undefined' || document.visibilityState !== 'visible') return;
+      pollRoadPendingRef.current?.();
+    };
+    document.addEventListener('visibilitychange', onVis);
+    return () => document.removeEventListener('visibilitychange', onVis);
+  }, []);
+
+  useEffect(() => {
+    const eid = roadDefenseAlert?.encounterId;
+    if (!eid || roadDefenseAlert?.waitSeconds == null) return undefined;
+    const rem = Math.min(120, Math.max(0, Number(roadDefenseAlert.remainingSeconds)));
+    const snap = { ...roadDefenseAlert };
+    const ms = rem <= 0 ? 0 : rem * 1000;
+    const t = setTimeout(() => beginRoadDefenseSilence(snap), ms);
+    return () => clearTimeout(t);
+  }, [
+    roadDefenseAlert?.encounterId,
+    roadDefenseAlert?.remainingSeconds,
+    roadDefenseAlert?.waitSeconds,
+    beginRoadDefenseSilence,
+  ]);
+
+  useEffect(() => {
+    const eid = roadAwaitingAuthoritativeOutcome?.encounterId;
+    const pid = player?.playerId;
+    if (!eid || !pid) return undefined;
+    let cancelled = false;
+    /** 避免裁定已返回后 interval 再次 tick 重复 setState，打断 PvpAutoDuelReplay 自动播放 */
+    let outcomeHandled = false;
+    const tick = async () => {
+      if (cancelled || outcomeHandled) return;
+      try {
+        const r = await playerAPI.getRoadEncounterAuthoritativeOutcome(pid, eid);
+        if (cancelled || outcomeHandled || !r?.success || !r.data) return;
+        if (r.data.pending) return;
+        outcomeHandled = true;
+        setRoadAwaitingAuthoritativeOutcome(null);
+        silencedRoadEncounterIdRef.current = null;
+        if (r.data.noReplay || r.data.legacyClientSettlement) {
+          await refreshPlayerRef.current?.({ silent: true });
+          return;
+        }
+        const raw = { ...r.data };
+        delete raw.pending;
+        const tacticalRoomId = raw.eventReplay?.roomId || null;
+        if (tacticalRoomId) {
+          setDefenderAuthoritativeReplayOverlay({
+            encounterId: eid,
+            eventReplayRoomId: tacticalRoomId,
+            battleLogStr: '',
+            initialAttackerTroops: raw.initialAttackerTroops,
+            initialDefenderTroops: raw.initialDefenderTroops,
+            leftLabel: '攻方',
+            rightLabel: '守军',
+            outcomeForModal: raw,
+          });
+        } else if (isPvpAuthoritativeBattleLogReplayable(raw.battleLog)) {
+          const logStr = Array.isArray(raw.battleLog) ? raw.battleLog.join('\n') : String(raw.battleLog || '');
+          setDefenderAuthoritativeReplayOverlay({
+            encounterId: eid,
+            eventReplayRoomId: null,
+            battleLogStr: logStr,
+            initialAttackerTroops: raw.initialAttackerTroops,
+            initialDefenderTroops: raw.initialDefenderTroops,
+            leftLabel: '攻方',
+            rightLabel: '守军',
+            outcomeForModal: raw,
+          });
+        } else {
+          setRoadAuthoritativeOutcomeModal(raw);
+        }
+        await refreshPlayerRef.current?.({ silent: true });
+      } catch {
+        setRoadAwaitingAuthoritativeOutcome(null);
+        silencedRoadEncounterIdRef.current = null;
+      }
+    };
+    tick();
+    const iv = setInterval(tick, 2000);
+    return () => {
+      cancelled = true;
+      clearInterval(iv);
+    };
+  }, [roadAwaitingAuthoritativeOutcome?.encounterId, player?.playerId]);
+
+  const overlayGateEpoch = useSyncExternalStore(
+    subscribeWorldMapOverlayGate,
+    getWorldMapOverlayGateEpoch,
+    () => 0,
+  );
+
+  /** WorldMap 挂载/卸载或互斥 ref 变化后立即拉一次遇袭，避免子页签下多等一个轮询周期 */
+  useEffect(() => {
+    pollRoadPendingRef.current?.();
+  }, [overlayGateEpoch]);
+
+  const showRoadDefenseEncounterModal =
+    !!roadDefenseAlert && !isRoadDefenseSuppressedByWorldMap(roadDefenseAlert.encounterId);
+
+  /** 仅在有可见阻塞层时占用 `eventBusy`：`roadAwaiting` 无 UI，不应藏底栏；遇袭被攻城互斥隐藏时同理 */
+  useEffect(() => {
+    onBusyChange?.(
+      !!(
+        showRoadDefenseEncounterModal ||
+        roadAuthoritativeOutcomeModal ||
+        defenderAuthoritativeReplayOverlay
+      ),
+    );
+  }, [
+    showRoadDefenseEncounterModal,
+    roadAuthoritativeOutcomeModal,
+    defenderAuthoritativeReplayOverlay,
+    onBusyChange,
+  ]);
+
+  const frictionValue = useMemo(
+    () => ({
+      roadDefenseAlert: !!roadDefenseAlert,
+      roadAwaitingAuthoritativeOutcome: !!roadAwaitingAuthoritativeOutcome,
+      roadAuthoritativeOutcomeModal: !!roadAuthoritativeOutcomeModal,
+      roadDefenseAuthoritativeReplayOpen: !!defenderAuthoritativeReplayOverlay,
+      roadDefenseOutcomeReplayBlockingRef,
+    }),
+    [
+      roadDefenseAlert,
+      roadAwaitingAuthoritativeOutcome,
+      roadAuthoritativeOutcomeModal,
+      defenderAuthoritativeReplayOverlay,
+    ],
+  );
+
+  return (
+    <RoadDefenseFrictionContext.Provider value={frictionValue}>
+      {children}
+
+      {typeof document !== 'undefined' && defenderAuthoritativeReplayOverlay?.eventReplayRoomId && (
+        <Suspense fallback={null}>
+          <PvpTacticalBattleShell
+            roomId={defenderAuthoritativeReplayOverlay.eventReplayRoomId}
+            title="道路遭遇"
+            onClose={() => {
+              const payload = defenderReplayOutcomePayloadRef.current;
+              setDefenderAuthoritativeReplayOverlay(null);
+              if (payload) setRoadAuthoritativeOutcomeModal(payload);
+              refreshPlayerRef.current?.({ silent: true });
+            }}
+          />
+        </Suspense>
+      )}
+
+      {typeof document !== 'undefined' &&
+        defenderAuthoritativeReplayOverlay &&
+        !defenderAuthoritativeReplayOverlay.eventReplayRoomId &&
+        createPortal(
+          <div className="pointer-events-auto fixed inset-0 z-[235] flex items-center justify-center bg-black/85 px-3 py-6">
+            <div className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-xl border border-amber-600/40 bg-[#12121e] p-3 shadow-2xl">
+              <div className="text-center text-amber-200/95 text-sm font-bold mb-2">战场演示</div>
+              <PvpAutoDuelReplay
+                open
+                battleLog={defenderAuthoritativeReplayOverlay.battleLogStr}
+                leftLabel={defenderAuthoritativeReplayOverlay.leftLabel || '攻方'}
+                rightLabel={defenderAuthoritativeReplayOverlay.rightLabel || '守军'}
+                initialAttackerTroops={defenderAuthoritativeReplayOverlay.initialAttackerTroops}
+                initialDefenderTroops={defenderAuthoritativeReplayOverlay.initialDefenderTroops}
+                onPlaybackComplete={() => {
+                  const payload = defenderReplayOutcomePayloadRef.current;
+                  setDefenderAuthoritativeReplayOverlay(null);
+                  if (payload) setRoadAuthoritativeOutcomeModal(payload);
+                  refreshPlayerRef.current?.({ silent: true });
+                }}
+                onClose={() => {
+                  const payload = defenderReplayOutcomePayloadRef.current;
+                  setDefenderAuthoritativeReplayOverlay(null);
+                  if (payload) setRoadAuthoritativeOutcomeModal(payload);
+                  refreshPlayerRef.current?.({ silent: true });
+                }}
+              />
+            </div>
+          </div>,
+          document.body,
+        )}
+
+      {typeof document !== 'undefined' &&
+        !defenderAuthoritativeReplayOverlay &&
+        roadAuthoritativeOutcomeModal &&
+        createPortal(
+          <div className="pointer-events-auto fixed inset-0 z-[235] flex min-h-0 flex-col">
+            <StrategicSettlementCard
+              {...mapRoadEncounterOutcomeToSettlementProps(roadAuthoritativeOutcomeModal)}
+              onConfirm={() => {
+                const notice =
+                  typeof roadAuthoritativeOutcomeModal?.defeatRetreatNotice === 'string'
+                    ? roadAuthoritativeOutcomeModal.defeatRetreatNotice.trim()
+                    : '';
+                setRoadAuthoritativeOutcomeModal(null);
+                bumpCachesAfterRoadOutcome();
+                if (notice) worldMapOverlayRefs.enqueueRoadGateNotice?.(notice);
+              }}
+            />
+          </div>,
+          document.body,
+        )}
+
+      {showRoadDefenseEncounterModal && (
+        <AncientModal
+          isOpen
+          type="warning"
+          title="🛤️ 道路遇袭"
+          confirmText="确定"
+          showCancel={false}
+          invokeOnCloseAfterConfirm={false}
+          onConfirm={() => roadDefenseAlert && beginRoadDefenseSilence(roadDefenseAlert)}
+          onClose={() => roadDefenseAlert && beginRoadDefenseSilence(roadDefenseAlert)}
+        >
+          <div className="text-center space-y-3">
+            <p className="text-gray-800 text-base">
+              <span className="font-bold text-red-700">{roadDefenseAlert.attackerName}</span> 在道路上对您发起对战
+            </p>
+            <p className="text-gray-800">
+              点击 <span className="font-semibold text-amber-900">确定</span> 后等待攻方裁定（攻方约 10 秒内自动开战）；裁定结束后将播放战术对决回放并弹出战斗结算。
+            </p>
+            <p className="text-gray-800">
+              约 <span className="text-red-700 font-bold text-xl">{roadDefenseAlert.remainingSeconds}</span>{' '}
+              秒后本提示将自动关闭（战斗由服务端权威推演，与页签是否在前台无关；关闭后仍请勿离格直至裁定完成）。
+            </p>
+            <p className="text-gray-500 text-xs">攻城遇袭提示优先显示；若同时存在请先处理城池战事。</p>
+          </div>
+        </AncientModal>
+      )}
+    </RoadDefenseFrictionContext.Provider>
+  );
+}

@@ -1,6 +1,7 @@
 /**
- * 三公府 · 互动 · 封赏 · 俸禄：按势力国力档位（supplyTier S～D）每日领取银两与粮草。
- * 官职 silverBonus / 兵种加成不在此发放（银两 → 真三日报签到；兵种 → 战斗计算）。
+ * 俸禄：按势力国力档位（supplyTier S～D）日领银两与粮草。
+ * 日俸入口：君主每日传书 `grantDailyStipend`（占 `san_gong_stipend_claim_date`）。
+ * 大司空传书：`grantKingStipend` 额外俸禄（不占日领额度）。
  */
 
 const { pool } = require('../database/connection');
@@ -92,7 +93,7 @@ async function getStipendStatus(playerId) {
 }
 
 /**
- * 君主大司空传书俸禄：与 claimStipend 同公式，但不占用 san_gong_stipend_claim_date
+ * 君主大司空传书俸禄：与日俸同公式，但不占用 san_gong_stipend_claim_date
  * @param {import('mysql2/promise').PoolConnection} connection
  * @param {string} playerId
  * @param {string} supplyTier
@@ -134,22 +135,26 @@ async function grantKingStipendBonusOnConnection(connection, playerId, supplyTie
 }
 
 /**
+ * 日俸：写 san_gong_stipend_claim_date；须在调用方事务内使用。
+ * 不调用 recordEarned（由 textsService / claimStipend 在 commit 后处理）。
+ *
+ * @param {import('mysql2/promise').PoolConnection} connection
  * @param {string} playerId
  */
-async function claimStipend(playerId) {
+async function grantDailyStipendOnConnection(connection, playerId) {
   const pid = String(playerId || '').trim();
-  if (!pid) return { ok: false, status: 400, error: '缺少 playerId' };
+  if (!pid) return { ok: false, error: '缺少 playerId' };
 
   const overview = await factionOverviewService.getFactionOverviewForPlayer(pid);
-  if (overview?.notFound) return { ok: false, status: 404, error: '玩家不存在' };
-  if (!overview?.data?.factionId) return { ok: false, status: 400, error: '无势力归属，无法领取俸禄' };
+  if (overview?.notFound) return { ok: false, error: '玩家不存在' };
+  if (!overview?.data?.factionId) return { ok: false, error: '无势力归属，无法领取俸禄' };
   const supplyTier = overview.data.supplyTier;
   if (supplyTier == null) {
-    return { ok: false, status: 400, error: '势力国力未达最低档位（D），暂不可领取俸禄' };
+    return { ok: false, error: '势力国力未达最低档位（D），暂不可领取俸禄' };
   }
 
   const rolled = rollStipendAmountsForTier(supplyTier);
-  if (!rolled || rolled.silver < 1) return { ok: false, status: 500, error: '俸禄结算异常' };
+  if (!rolled || rolled.silver < 1) return { ok: false, error: '俸禄结算异常' };
   const baseSilver = rolled.silver;
   const baseFood = rolled.food;
   let silver = baseSilver;
@@ -159,105 +164,77 @@ async function claimStipend(playerId) {
   let bonusFood = 0;
   let bonusPctApplied = 0;
 
-  const conn = await pool.getConnection();
-  try {
-    await conn.beginTransaction();
-    const [dr] = await conn.query('SELECT CURDATE() AS d');
-    const todayStr = mysqlDateToYmd(dr[0].d);
+  const [dr] = await connection.query('SELECT CURDATE() AS d');
+  const todayStr = mysqlDateToYmd(dr[0].d);
 
-    let [peRows] = await conn.query(
+  let [peRows] = await connection.query(
+    'SELECT san_gong_stipend_claim_date FROM player_events WHERE player_id = ? FOR UPDATE',
+    [pid],
+  );
+  if (!peRows.length) {
+    await connection.query('INSERT IGNORE INTO player_events (player_id) VALUES (?)', [pid]);
+    [peRows] = await connection.query(
       'SELECT san_gong_stipend_claim_date FROM player_events WHERE player_id = ? FOR UPDATE',
       [pid],
     );
-    if (!peRows.length) {
-      await conn.query('INSERT IGNORE INTO player_events (player_id) VALUES (?)', [pid]);
-      [peRows] = await conn.query(
-        'SELECT san_gong_stipend_claim_date FROM player_events WHERE player_id = ? FOR UPDATE',
-        [pid],
-      );
-    }
-    const stored = mysqlDateToYmd(peRows[0]?.san_gong_stipend_claim_date);
-    if (stored && stored === todayStr) {
-      await conn.rollback();
-      return { ok: false, status: 400, error: '今日俸禄已领取' };
-    }
-
-    try {
-      const eff = await factionPolicyService.getEffectiveRationBonus(overview.data.factionId);
-      bonusPctApplied = Number(eff.bonusPct) || 0;
-      if (bonusPctApplied > 0) {
-        const wantSilver = Math.floor((silver * bonusPctApplied) / 100);
-        const wantFood = Math.floor((food * bonusPctApplied) / 100);
-        if (wantSilver > 0 || wantFood > 0) {
-          const bal = await factionReserveService.getPoolBalance(conn, overview.data.factionId, {
-            forUpdate: true,
-          });
-          const rs = bal.silver;
-          const rf = bal.food;
-          if (rs >= wantSilver && rf >= wantFood) {
-            await factionReserveService.deductPoolOnConnection(conn, overview.data.factionId, {
-              silver: wantSilver,
-              food: wantFood,
-            });
-            await factionReserveService.addUsageOnConnection(
-              conn,
-              overview.data.factionId,
-              factionReserveService.CATEGORY.STIPEND_BONUS,
-              { silver: wantSilver, food: wantFood },
-            );
-            bonusSilver = wantSilver;
-            bonusFood = wantFood;
-          } else {
-            console.log(
-              `[stipendBonus] insufficient reserves faction=${overview.data.factionId} ` +
-                `want=${wantSilver}/${wantFood} have=${rs}/${rf} → bonus dropped`,
-            );
-          }
-        }
-      }
-    } catch (bonusErr) {
-      console.error('[stipendBonus] failed to apply ration_bonus (basic stipend unaffected):', bonusErr);
-    }
-
-    const totalSilver = silver + bonusSilver;
-    const totalFood = food + bonusFood;
-    await conn.query(
-      'UPDATE players SET silver = silver + ?, food = food + ? WHERE player_id = ?',
-      [totalSilver, totalFood, pid],
-    );
-    await conn.query(`UPDATE player_events SET san_gong_stipend_claim_date = ? WHERE player_id = ?`, [
-      todayStr,
-      pid,
-    ]);
-
-    await conn.commit();
-  } catch (e) {
-    await conn.rollback();
-    const msg = e?.message || String(e);
-    if (/Unknown column ['`]san_gong_stipend_claim_date/i.test(msg)) {
-      return {
-        ok: false,
-        status: 503,
-        error: '数据库缺少俸禄领取日列。请在 backend 目录执行 node scripts/apply-pending-local-ddl.js',
-      };
-    }
-    console.error('[sanGongStipendService] claimStipend', e);
-    return { ok: false, status: 500, error: '俸禄发放失败' };
-  } finally {
-    conn.release();
+  }
+  const stored = mysqlDateToYmd(peRows[0]?.san_gong_stipend_claim_date);
+  if (stored && stored === todayStr) {
+    return { ok: false, error: '今日俸禄已领取', alreadyClaimed: true };
   }
 
-  const finalSilver = silver + (bonusSilver || 0);
-  const finalFood = food + (bonusFood || 0);
-  await statisticsDeltaService.recordEarned(pid, {
-    ...(finalSilver > 0 ? { silver: finalSilver } : {}),
-    ...(finalFood > 0 ? { food: finalFood } : {}),
-  });
+  try {
+    const eff = await factionPolicyService.getEffectiveRationBonus(overview.data.factionId);
+    bonusPctApplied = Number(eff.bonusPct) || 0;
+    if (bonusPctApplied > 0) {
+      const wantSilver = Math.floor((silver * bonusPctApplied) / 100);
+      const wantFood = Math.floor((food * bonusPctApplied) / 100);
+      if (wantSilver > 0 || wantFood > 0) {
+        const bal = await factionReserveService.getPoolBalance(connection, overview.data.factionId, {
+          forUpdate: true,
+        });
+        const rs = bal.silver;
+        const rf = bal.food;
+        if (rs >= wantSilver && rf >= wantFood) {
+          await factionReserveService.deductPoolOnConnection(connection, overview.data.factionId, {
+            silver: wantSilver,
+            food: wantFood,
+          });
+          await factionReserveService.addUsageOnConnection(
+            connection,
+            overview.data.factionId,
+            factionReserveService.CATEGORY.STIPEND_BONUS,
+            { silver: wantSilver, food: wantFood },
+          );
+          bonusSilver = wantSilver;
+          bonusFood = wantFood;
+        } else {
+          console.log(
+            `[stipendBonus] insufficient reserves faction=${overview.data.factionId} ` +
+              `want=${wantSilver}/${wantFood} have=${rs}/${rf} → bonus dropped`,
+          );
+        }
+      }
+    }
+  } catch (bonusErr) {
+    console.error('[stipendBonus] failed to apply ration_bonus (basic stipend unaffected):', bonusErr);
+  }
+
+  const totalSilver = silver + bonusSilver;
+  const totalFood = food + bonusFood;
+  await connection.query(
+    'UPDATE players SET silver = silver + ?, food = food + ? WHERE player_id = ?',
+    [totalSilver, totalFood, pid],
+  );
+  await connection.query(`UPDATE player_events SET san_gong_stipend_claim_date = ? WHERE player_id = ?`, [
+    todayStr,
+    pid,
+  ]);
 
   return {
     ok: true,
-    silver: finalSilver,
-    food: finalFood,
+    silver: totalSilver,
+    food: totalFood,
     supplyTier,
     rollPercent: rolled.rollPercent,
     tierCoeff: rolled.tierCoeff,
@@ -277,9 +254,52 @@ async function claimStipend(playerId) {
   };
 }
 
+/**
+ * 独立事务领取日俸（调试/兼容；生产入口为传书 claim）。
+ * @param {string} playerId
+ */
+async function claimStipend(playerId) {
+  const pid = String(playerId || '').trim();
+  if (!pid) return { ok: false, status: 400, error: '缺少 playerId' };
+
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    const out = await grantDailyStipendOnConnection(conn, pid);
+    if (!out.ok) {
+      await conn.rollback();
+      const status = out.alreadyClaimed ? 400 : out.error === '玩家不存在' ? 404 : 400;
+      return { ok: false, status, error: out.error };
+    }
+    await conn.commit();
+
+    await statisticsDeltaService.recordEarned(pid, {
+      ...(out.silver > 0 ? { silver: out.silver } : {}),
+      ...(out.food > 0 ? { food: out.food } : {}),
+    });
+
+    return { ok: true, ...out };
+  } catch (e) {
+    await conn.rollback();
+    const msg = e?.message || String(e);
+    if (/Unknown column ['`]san_gong_stipend_claim_date/i.test(msg)) {
+      return {
+        ok: false,
+        status: 503,
+        error: '数据库缺少俸禄领取日列。请在 backend 目录执行 node scripts/apply-pending-local-ddl.js',
+      };
+    }
+    console.error('[sanGongStipendService] claimStipend', e);
+    return { ok: false, status: 500, error: '俸禄发放失败' };
+  } finally {
+    conn.release();
+  }
+}
+
 module.exports = {
   getStipendStatus,
   claimStipend,
+  grantDailyStipendOnConnection,
   grantKingStipendBonusOnConnection,
   rollStipendAmountsForTier,
   SILVER_COEFFICIENT_BY_TIER,

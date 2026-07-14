@@ -1,11 +1,9 @@
 /**
- * 玩家路由 · 三公府 / 口谕（O3-B1）
+ * 玩家路由 · 三公府（O3-B1）
  */
 const express = require('express');
 const positionPromotionService = require('../../services/positionPromotionService');
-const kingEdictFeedbackService = require('../../services/kingEdictFeedbackService');
 const sanGongTributeService = require('../../services/sanGongTributeService');
-const sanGongStipendService = require('../../services/sanGongStipendService');
 const sanGongResourceExchangeService = require('../../services/sanGongResourceExchangeService');
 const sanGongGiftBoxService = require('../../services/sanGongGiftBoxService');
 const sanGongDocumentService = require('../../services/sanGongDocumentService');
@@ -41,19 +39,6 @@ router.post(
   }),
 );
 
-router.post(
-  '/:playerId/king-edict-feedback',
-  validateBody(sanGongSchemas.kingEdictBody),
-  withRoute('口谕嘉奖失败', async (req, res) => {
-    const scope = req.body.scope === 'active_war' ? 'active_war' : 'casual';
-    return replyServiceOut(res, await kingEdictFeedbackService.submitKingEdictFeedback(
-      req.params.playerId,
-      req.body.reaction,
-      { scope },
-    ));
-  }),
-);
-
 router.get('/:playerId/san-gong-fu/tribute-status', withRoute('朝贡额度查询失败', async (req, res) => {
   const data = await sanGongTributeService.getTributeDailyStatus(req.params.playerId);
   res.json({ success: true, data });
@@ -69,17 +54,6 @@ router.post(
     res.json({ success: true, data: out });
   }),
 );
-
-router.get('/:playerId/san-gong-fu/stipend-status', withRoute('俸禄状态查询失败', async (req, res) => {
-  const data = await sanGongStipendService.getStipendStatus(req.params.playerId);
-  res.json({ success: true, data });
-}));
-
-router.post('/:playerId/san-gong-fu/stipend-claim', withRoute('领取俸禄失败', async (req, res) => {
-  const out = await sanGongStipendService.claimStipend(req.params.playerId);
-  if (!out.ok) return res.status(out.status).json({ success: false, error: out.error });
-  res.json({ success: true, data: out });
-}));
 
 router.get('/:playerId/san-gong-fu/resource-exchange-preview', withRoute('兑换预览失败', async (req, res) => {
   const out = await sanGongResourceExchangeService.getExchangePreview(req.params.playerId);

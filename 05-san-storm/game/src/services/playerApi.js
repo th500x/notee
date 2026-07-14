@@ -195,23 +195,6 @@ export const playerAPI = {
     return jsonFromApiResponse(response, '道路移动');
   },
 
-  /**
-   * 口谕 👍👎 嘉奖：`reaction` 为 `up`（银两）或 `down`（声望）；服务端按 20 分钟槽幂等。
-   * @param {string} playerId
-   * @param {{ reaction: 'up' | 'down', scope?: 'casual' | 'active_war' }} body
-   */
-  async submitKingEdictFeedback(playerId, body) {
-    const response = await fetchWithTimeout(
-      `${API_CONFIG.BASE_URL}/players/${playerId}/king-edict-feedback`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      },
-    );
-    return jsonFromApiResponse(response, '口谕嘉奖');
-  },
-
   /** 道路：战后解锁遭遇实例；`defenderWon` 由客户端战报结果传入 */
   async resolveRoadEncounter(playerId, body) {
     const response = await fetchWithTimeout(
@@ -346,24 +329,6 @@ export const playerAPI = {
           cardType: cardType === 'character' ? 'character' : 'troop',
         }),
       },
-    );
-    return response.json();
-  },
-
-  /** 互动 · 封赏 · 俸禄：当日是否已领、国力档位、是否可领 */
-  async getSanGongFuStipendStatus(playerId) {
-    const response = await fetchWithTimeout(
-      `${API_CONFIG.BASE_URL}/players/${playerId}/san-gong-fu/stipend-status`,
-      { method: 'GET', headers: { 'Content-Type': 'application/json' } },
-    );
-    return response.json();
-  },
-
-  /** 互动 · 封赏 · 俸禄：领取当日银两与粮草（服务器日历日每账号 1 次） */
-  async claimSanGongFuStipend(playerId) {
-    const response = await fetchWithTimeout(
-      `${API_CONFIG.BASE_URL}/players/${playerId}/san-gong-fu/stipend-claim`,
-      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) },
     );
     return response.json();
   },
@@ -1015,5 +980,26 @@ export const playerAPI = {
       `${API_CONFIG.BASE_URL}/players/${playerId}/daily-report/check-in-notify`,
     );
     return jsonFromApiResponse(response, '获取真三日报红点');
+  },
+
+  /** 真三日报 · 战事公议投票面板 */
+  async getDailyReportWarVote(playerId) {
+    const response = await fetchWithTimeout(
+      `${API_CONFIG.BASE_URL}/players/${playerId}/daily-report/war-vote`,
+    );
+    return jsonFromApiResponse(response, '获取战事公议');
+  },
+
+  /** 真三日报 · 战事公议投票（可改投） */
+  async castDailyReportWarVote(playerId, cityId) {
+    const response = await fetchWithTimeout(
+      `${API_CONFIG.BASE_URL}/players/${playerId}/daily-report/war-vote`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cityId }),
+      },
+    );
+    return jsonFromApiResponse(response, '战事公议投票');
   },
 };

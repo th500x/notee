@@ -1,0 +1,38 @@
+﻿# FILE_MANIFEST — paths relative to 05-san-storm/
+# Copied into _archive/dao-lu-yu-di/{code|docs|migrations}/ mirroring path
+
+OK	41543	backend\services\roadEncounterService.js
+OK	50089	backend\services\road\roadMoveAlongService.js
+OK	10816	backend\services\road\roadPresenceService.js
+OK	4108	backend\services\road\roadInterceptService.js
+OK	5853	backend\services\road\roadShared.js
+OK	4449	backend\services\road\roadStaleCleanup.js
+OK	3668	backend\routes\players\road.js
+OK	2376	backend\middleware\validationSchemas\playersRoad.js
+OK	2126	backend\config\roadConfig.js
+OK	6211	backend\utils\roadBattleRetreatPlacement.js
+OK	17013	game\src\components\game\RoadEncounterDefenseRoot.jsx
+OK	704	game\src\contexts\RoadDefenseFrictionContext.jsx
+OK	6256	game\src\hooks\useRoadSelfPresencePoll.js
+OK	3419	game\src\utils\roadEncounterSettlement.js
+OK	35293	game\src\hooks\useWorldMapStrategicBattles.js
+OK	2760	shared\utils\roadEncounterLockPassage.js
+OK	17771	docs\01-jun-exploration\30-frontend\31-6-STRATEGIC_ROAD_MARCH.md
+OK	40133	docs\01-jun-exploration\10-core-system\17-5-DUEL_SYSTEM.md
+OK	25600	docs\01-jun-exploration\10-core-system\17-5-3-DUEL_REAL_CHAIN_MIGRATION.md
+OK	4241	docs\00\00-base\02-architecture-split\12-road-encounter-api.md
+OK	2291	backend\database\migrations\create-road-encounters.sql
+OK	1996	backend\database\migrations\add-players-road-state.sql
+OK	284	backend\database\migrations\add-players-road-client-notice.sql
+OK	263	backend\database\migrations\road-encounters-add-authoritative-resolution-json.sql
+
+# Coupled (NOT full-copied; see COUPLED_INDEX.md):
+COUPLED	21297	game\src\components\game\WorldMap.jsx
+COUPLED	78370	game\src\components\world\StrategicWorldMapSection.jsx
+COUPLED	52646	game\src\components\world\WorldStrategicMapGrid.jsx
+COUPLED	26048	game\src\components\world\StrategicMapSelfPawn.jsx
+COUPLED	7689	game\src\components\world\WorldMapAlertOverlays.jsx
+COUPLED	15488	game\src\pages\GamePage.jsx
+COUPLED	36092	game\src\services\playerApi.js
+COUPLED	10721	backend\services\aiPlayerDailyOrchestrator.js
+COUPLED	18258	game\src\components\comm\BattleTab.jsx

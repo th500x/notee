@@ -121,6 +121,12 @@ export default function WorldMap({
     handleSiegeEnd,
     closeSiegeResult,
     handleSiegeContinue,
+    pendingSiegeConfirm,
+    siegeAdjudicating,
+    siegeChargeCinematic,
+    confirmPendingSiegeEnterBattle,
+    cancelPendingSiegeConfirm,
+    finishSiegeChargeCinematic,
   } = useWorldMapStrategicBattles({
     player,
     cards,
@@ -274,6 +280,10 @@ export default function WorldMap({
   useEffect(() => {
     const busy = [PHASE.EVENT, PHASE.ROLLING, PHASE.RESULT, PHASE.BATTLE, PHASE.REWARD, PHASE.MINIGAME, PHASE.RETURNING].includes(phase)
       || !!siegeData
+      || !!siegeResult
+      || !!pendingSiegeConfirm
+      || !!siegeAdjudicating
+      || !!siegeChargeCinematic
       || !!banditRaidData
       || !!banditRaidResult
       || !!pvpChallenge
@@ -286,6 +296,10 @@ export default function WorldMap({
     phase,
     onEventBusyChange,
     siegeData,
+    siegeResult,
+    pendingSiegeConfirm,
+    siegeAdjudicating,
+    siegeChargeCinematic,
     banditRaidData,
     banditRaidResult,
     pvpChallenge,
@@ -315,6 +329,9 @@ export default function WorldMap({
     suppressExploreUi ||
     !!siegeData ||
     !!siegeResult ||
+    !!pendingSiegeConfirm ||
+    !!siegeAdjudicating ||
+    !!siegeChargeCinematic ||
     !!banditRaidData ||
     !!banditRaidResult ||
     !!pvpChallenge ||
@@ -406,6 +423,9 @@ export default function WorldMap({
           !siegeResult &&
           !banditRaidData &&
           !banditRaidResult &&
+          !pendingSiegeConfirm &&
+          !siegeAdjudicating &&
+          !siegeChargeCinematic &&
           !roadFriction.roadDefenseAlert &&
           !roadFriction.roadDefenseAuthoritativeReplayOpen &&
           !roadFriction.roadAuthoritativeOutcomeModal &&
@@ -416,6 +436,12 @@ export default function WorldMap({
         siegeData={siegeData}
         banditRaidData={banditRaidData}
         banditRaidResult={banditRaidResult}
+        pendingSiegeConfirm={pendingSiegeConfirm}
+        onPendingSiegeConfirm={confirmPendingSiegeEnterBattle}
+        onPendingSiegeCancel={cancelPendingSiegeConfirm}
+        siegeAdjudicating={siegeAdjudicating}
+        siegeChargeCinematic={siegeChargeCinematic}
+        onSiegeChargeComplete={finishSiegeChargeCinematic}
       />
 
       {/* ── 主城驻军所（驻地编组 + 军营与仓库） ── */}
@@ -467,7 +493,10 @@ export default function WorldMap({
 
       <WorldMapBattlePortal
         open={
-          !!(siegeData && !siegeResult) || !!siegeResult || !!banditRaidData || !!banditRaidResult
+          !!(siegeData && !siegeResult && !siegeData.autoBattleResolved) ||
+          !!siegeResult ||
+          !!banditRaidData ||
+          !!banditRaidResult
         }
         banditRaidData={banditRaidData}
         siegeData={siegeData}

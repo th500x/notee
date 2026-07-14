@@ -1,0 +1,39 @@
+﻿# FILE_MANIFEST — paths relative to 05-san-storm/
+# Copied into _archive/pi-gua-shang-zhen/{code|docs|migrations}/ mirroring path
+
+OK	14798	backend\services\pvp\auto-duel\pvpGarrisonAutoDuelResolveService.js
+OK	9637	backend\services\pvp\auto-duel\pvpAutoDuelSim.js
+OK	3698	backend\services\pvp\auto-duel\pvpAutoDuelBattleLog.js
+OK	4649	backend\services\pvp\tactical\tacticalToAutoDuelResult.js
+OK	11690	backend\services\siegePvpResolveService.js
+OK	9352	backend\services\siegePvpSkirmish.js
+OK	8396	backend\lib\siegeCombatCore.cjs
+OK	6648	backend\routes\garrisons.js
+OK	880	backend\middleware\validationSchemas\garrisons.js
+OK	3630	backend\utils\siegeDefenseBattleLog.js
+OK	5494	backend\utils\battleScore.cjs
+OK	2030	game\src\services\garrisonApi.js
+OK	3468	game\src\hooks\usePvpDefenseAlertPoll.js
+OK	9026	game\src\hooks\usePvpSiegeAdjudication.js
+OK	6984	game\src\components\game\PvpDefenseOutcomeModal.jsx
+OK	13389	game\src\components\game\SiegeReplayMini.jsx
+OK	3419	game\src\utils\roadEncounterSettlement.js
+OK	10845	game\src\systems\battleScoreSystem.js
+OK	29431	game\src\components\world\WorldMapCityInfoBlock.jsx
+OK	2847	game\src\components\world\WorldMapCityCombatSummaryBlock.jsx
+OK	10630	game\src\utils\worldMapCityPanelCopy.js
+OK	13805	docs\01-jun-exploration\10-core-system\13-2-CITY_DEFENSE_SYSTEM.md
+OK	39961	docs\01-jun-exploration\10-core-system\17-5-DUEL_SYSTEM.md
+OK	13320	docs\01-jun-exploration\10-core-system\17-4-SIEGE_SYSTEM.md
+OK	20760	docs\00\10-core-system\17-1-COMBAT_SYSTEM.md
+OK	331	backend\database\migrations\add-players-on-duty-city-id.sql
+OK	533	backend\database\migrations\add-players-morale-on-duty.sql
+
+# Coupled (NOT full-copied; see COUPLED_INDEX.md):
+COUPLED	88096	backend\services\pvpWarService.js
+COUPLED	33155	backend\services\garrisonService.js
+COUPLED	69210	backend\services\cityService.js
+COUPLED	9693	backend\services\pvpService.js
+COUPLED	8559	backend\routes\pvp.js
+COUPLED	57819	game\src\components\world\WorldStrategicMapGrid.jsx
+COUPLED	23368	game\src\components\game\WorldMap.jsx

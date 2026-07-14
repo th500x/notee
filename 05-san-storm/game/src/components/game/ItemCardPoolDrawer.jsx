@@ -19,8 +19,8 @@ const SLOT_ORDER = [
   'badge_x1',
   'token_x1',
   'jade_x1',
-  'badge_x20',
   'food_150',
+  'badge_x20',
   'food_200',
 ];
 

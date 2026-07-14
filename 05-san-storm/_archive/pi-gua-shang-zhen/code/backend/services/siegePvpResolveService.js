@@ -1,0 +1,346 @@
+/**
+ * 披挂上阵 · 服务端权威结算（仅 defenderGarrisonSlot === 0）
+ *
+ * 17-2 §1.4 / §1.7：披挂上阵实时挑战只在「PVP 战事 active」状态下成立，
+ * 战果一律写 `wars_pvp` via `pvpWarService.recordAttackerCitySiegeResult`，
+ * 不再回写 `wars` (PVE) 表。
+ *
+ * 驻地 / NPC 异步分支：前端走客户端 BattleArena + /api/pvp-wars/:id/city-siege-result。
+ */
+
+const garrisonService = require('./garrisonService');
+const pvpService = require('./pvpService');
+const pvpWarService = require('./pvpWarService');
+const battleService = require('./battleService');
+const cityService = require('./cityService');
+const { runSiegePvpSkirmish, hashSeed } = require('./siegePvpSkirmish');
+const { pool } = require('../database/connection');
+const { buildDefenderSiegePvpBattleLog } = require('../utils/siegeDefenseBattleLog');
+const {
+  calculateBattleScore,
+  buildTroopsForAttackerScore,
+  buildTroopsForDefenderScore,
+  SIEGE_PVP_ONLINE_SCORE_MULT,
+} = require('../utils/battleScore.cjs');
+const { newShortBattleId } = require('../utils/battleId');
+
+function siegeNpcDisplayNames(npcs) {
+  const names = [];
+  for (const n of npcs || []) {
+    const c = n.character;
+    const label = (c && (c.courtesyName || c.name)) || n.troopName;
+    if (label) names.push(String(label).trim());
+  }
+  return names;
+}
+
+/** 推演开战时双方总兵力（与 runSiegePvpSkirmish 入参 npc 一致） */
+function sumSiegeNpcStartingTroops(npcs) {
+  if (!Array.isArray(npcs)) return 0;
+  return npcs.reduce((sum, n) => {
+    const cur = n?.currentTroops;
+    const mx = n?.maxTroops;
+    const v = cur != null && cur !== '' ? Number(cur) : Number(mx);
+    return sum + (Number.isFinite(v) ? Math.max(0, Math.round(v)) : 0);
+  }, 0);
+}
+
+/** 防止并发双次结算 */
+const resolvingPromises = new Map();
+
+function canResolveChallenge(c) {
+  if (!c) return false;
+  const now = Date.now();
+  if (c.status === 'accepted') return true;
+  if (c.status === 'timeout') return true;
+  if (c.status === 'pending' && now >= c.expiresAt) return true;
+  return false;
+}
+
+async function doResolveAuthoritativeSiegePvp(params) {
+  const { challengeId, attackerId } = params;
+  const c = pvpService.peekChallenge(challengeId);
+  if (!c) {
+    const err = new Error('挑战不存在或已过期');
+    err.code = 'CHALLENGE_NOT_FOUND';
+    throw err;
+  }
+  if (c.attackerId !== attackerId) {
+    const err = new Error('无权结算此挑战');
+    err.code = 'FORBIDDEN';
+    throw err;
+  }
+  if (Number(c.defenderGarrisonSlot) !== 0) {
+    const err = new Error('仅披挂上阵（槽位0）支持服务端权威结算');
+    err.code = 'NOT_PVP_ON_DUTY';
+    throw err;
+  }
+  if (!c.pvpWarId) {
+    const err = new Error('披挂上阵实时挑战需在 PVP 战事下成立（缺少 pvpWarId）');
+    err.code = 'NOT_PVP_WAR';
+    throw err;
+  }
+  if (!canResolveChallenge(c)) {
+    const err = new Error('挑战尚未进入可结算阶段');
+    err.code = 'NOT_READY';
+    throw err;
+  }
+
+  if (c.siegeOutcome) {
+    return { success: true, ...c.siegeOutcome };
+  }
+
+  const rawAttacker = await garrisonService.buildDefenseUnitsFromMainLineup(attackerId);
+  const rawDefender = await garrisonService.buildDefenseUnitsFromMainLineup(c.defenderId);
+  const attackerNpcs = garrisonService.mapBuiltUnitsToSiegeNpcFormat(rawAttacker);
+  const defenderNpcs = garrisonService.mapBuiltUnitsToSiegeNpcFormat(rawDefender);
+
+  const initialAttackerTroops = sumSiegeNpcStartingTroops(attackerNpcs);
+  const initialDefenderTroops = sumSiegeNpcStartingTroops(defenderNpcs);
+
+  const seed = hashSeed([c.pvpWarId || c.warId, challengeId, attackerId, c.defenderId]);
+  const city = c.cityId ? await cityService.getCityInfo(c.cityId) : null;
+  const sim = runSiegePvpSkirmish(attackerNpcs, defenderNpcs, seed, {
+    cityDefense: city?.defense ?? 100,
+  });
+  const result = sim.attackerWon ? 'win' : 'lose';
+  const killedIndices = sim.killedIndices;
+  const battleLogText = sim.battleLog.join('\n');
+
+  const atkTroops = buildTroopsForAttackerScore(sim.attackerTroopsEnd, sim.defenderTroopsEnd);
+  const defTroops = buildTroopsForDefenderScore(sim.attackerTroopsEnd, sim.defenderTroopsEnd);
+  const scoreMultOpts = { scoreMultiplier: SIEGE_PVP_ONLINE_SCORE_MULT };
+  const atkBattleScore = calculateBattleScore(
+    atkTroops,
+    sim.rounds,
+    sim.attackerWon ? 'victory' : 'defeat',
+    scoreMultOpts,
+  );
+  const defBattleScore = calculateBattleScore(
+    defTroops,
+    sim.rounds,
+    sim.attackerWon ? 'defeat' : 'victory',
+    scoreMultOpts,
+  );
+
+  const [attNameRow] = await pool.query('SELECT character_name, faction_id FROM players WHERE player_id = ?', [attackerId]);
+  const [defNameRow] = await pool.query('SELECT character_name FROM players WHERE player_id = ?', [c.defenderId]);
+  const [cityRow] = await pool.query('SELECT city_name FROM cities WHERE city_id = ?', [c.cityId]);
+  const cityName = cityRow[0]?.city_name || c.cityId;
+  const attackerFaction = attNameRow[0]?.faction_id;
+  const attackerName = attNameRow[0]?.character_name || attackerId;
+  const defenderName = defNameRow[0]?.character_name || c.defenderId;
+
+  const defenderPerspectiveLog = buildDefenderSiegePvpBattleLog({
+    battleLogLines: sim.battleLog,
+    attackerPlayerName: attackerName,
+    defenderPlayerName: defenderName,
+    cityName,
+  });
+
+  const defenderLineupTroopUpdates = defenderNpcs.map((npc, i) => ({
+    instanceId: npc._troopInstanceId,
+    maxTroops: npc.maxTroops,
+    currentTroops: Math.max(0, Math.round(Number(sim.defenderTroopsEnd[i]?.currentTroops) || 0)),
+  })).filter((u) => u.instanceId);
+
+  const recordPayload = await pvpWarService.recordAttackerCitySiegeResult(
+    c.pvpWarId,
+    attackerId,
+    {
+      defenderType: 'pvp_online',
+      defenderPlayerId: c.defenderId,
+      defenderGarrisonSlot: 0,
+      garrisonUnits: defenderNpcs,
+      defenderLineupTroopUpdates,
+      killedIndices,
+      result,
+      silverSpent: 0,
+    },
+  );
+
+  try {
+    await garrisonService.applyAuthoritativeSiegePvpAttackerLineupCasualties(
+      attackerId,
+      attackerNpcs,
+      sim.attackerTroopsEnd,
+    );
+  } catch (e) {
+    console.error('[siegePvpResolve] attacker lineup casualties', {
+      message: e.message,
+      attackerId,
+      pvpWarId: c.pvpWarId,
+    });
+  }
+
+  const siegeReplayAttackerNames = siegeNpcDisplayNames(attackerNpcs);
+  const siegeReplayDefenderNames = siegeNpcDisplayNames(defenderNpcs);
+
+  const battleId = newShortBattleId('pvp_siege_att');
+  try {
+    await battleService.saveBattle({
+      battleId,
+      playerId: attackerId,
+      pvpWarId: c.pvpWarId,
+      battleType: 'pvp_siege',
+      opponentType: 'player',
+      opponentId: c.defenderId,
+      opponentName: defenderName,
+      result: sim.attackerWon ? 'win' : 'lose',
+      playerTeam: attackerNpcs.map((n) => ({
+        name: n.character?.courtesyName || n.character?.name || n.troopName,
+        courtesyName: n.character?.courtesyName || n.character?.name || n.troopName,
+      })),
+      opponentTeam: defenderNpcs.map((n) => ({
+        name: n.character?.courtesyName || n.character?.name || n.troopName,
+        courtesyName: n.character?.courtesyName || n.character?.name || n.troopName,
+      })),
+      battleLog: battleLogText,
+      totalKills: killedIndices.length,
+      duration: sim.rounds,
+      rewards: {
+        battleSeed: sim.battleSeed,
+        authoritative: true,
+        battleScore: atkBattleScore.score,
+        battleGrade: atkBattleScore.grade,
+        scoreDetails: atkBattleScore.details,
+        initialAttackerTroops,
+        initialDefenderTroops,
+      },
+    });
+  } catch (e) {
+    console.error('[siegePvpResolve] saveBattle attacker', {
+      message: e.message,
+      code: e.code,
+      sqlMessage: e.sqlMessage,
+      battleId,
+      attackerId,
+      pvpWarId: c.pvpWarId,
+    });
+  }
+
+  const defBattleId = newShortBattleId('pvp_siege_def');
+  try {
+    await battleService.saveBattle({
+      battleId: defBattleId,
+      playerId: c.defenderId,
+      pvpWarId: c.pvpWarId,
+      battleType: 'pvp_defense',
+      opponentType: 'player',
+      opponentId: attackerId,
+      opponentName: attackerName,
+      result: sim.attackerWon ? 'lose' : 'win',
+      playerTeam: defenderNpcs.map((n) => ({
+        name: n.character?.courtesyName || n.character?.name || n.troopName,
+        courtesyName: n.character?.courtesyName || n.character?.name || n.troopName,
+      })),
+      opponentTeam: attackerNpcs.map((n) => ({
+        name: n.character?.courtesyName || n.character?.name || n.troopName,
+        courtesyName: n.character?.courtesyName || n.character?.name || n.troopName,
+      })),
+      battleLog: defenderPerspectiveLog,
+      totalKills: killedIndices.length,
+      duration: sim.rounds,
+      rewards: {
+        battleScore: defBattleScore.score,
+        battleGrade: defBattleScore.grade,
+        scoreDetails: defBattleScore.details,
+        initialAttackerTroops,
+        initialDefenderTroops,
+        /** 与攻城方同源推演原文，供简化回放解析（叙事体 battle_log 无法解析） */
+        skirmishBattleLog: battleLogText,
+      },
+      recordOnly: true,
+    });
+  } catch (e) {
+    console.error('[siegePvpResolve] saveBattle defender', {
+      message: e.message,
+      code: e.code,
+      sqlMessage: e.sqlMessage,
+      battleId: defBattleId,
+      defenderId: c.defenderId,
+      pvpWarId: c.pvpWarId,
+    });
+  }
+
+  // 与 POST /api/battles 一致：战报积分写入排行榜（服务端存战报不经由 HTTP）
+  try {
+    if (atkBattleScore.score > 0) {
+      await pool.query(
+        'UPDATE player_statistics SET total_battle_score = total_battle_score + ? WHERE player_id = ?',
+        [atkBattleScore.score, attackerId],
+      );
+    }
+    if (defBattleScore.score > 0) {
+      await pool.query(
+        'UPDATE player_statistics SET total_battle_score = total_battle_score + ? WHERE player_id = ?',
+        [defBattleScore.score, c.defenderId],
+      );
+    }
+  } catch (e) {
+    console.error('[siegePvpResolve] player_statistics battle score', e);
+  }
+
+  const outcome = {
+    attackerWon: sim.attackerWon,
+    battleSeed: sim.battleSeed,
+    battleLog: sim.battleLog,
+    siegeData: recordPayload,
+    warId: c.warId || null,
+    pvpWarId: c.pvpWarId,
+    cityId: c.cityId,
+    defenderId: c.defenderId,
+    attackerId,
+    result,
+    killedIndices,
+    siegeReplayAttackerNames,
+    siegeReplayDefenderNames,
+    initialAttackerTroops,
+    initialDefenderTroops,
+    /** 防守方弹窗：与战报列表一致的评分展示 */
+    defenderBattleScore: defBattleScore.score,
+    defenderBattleGrade: defBattleScore.grade,
+    defenderScoreDetails: defBattleScore.details,
+  };
+
+  pvpService.markSiegeResolved(challengeId, outcome);
+
+  return {
+    success: true,
+    attackerWon: sim.attackerWon,
+    battleSeed: sim.battleSeed,
+    battleLog: sim.battleLog,
+    killedIndices,
+    result,
+    siegeData: recordPayload,
+    warId: c.warId || null,
+    pvpWarId: c.pvpWarId,
+    cityId: c.cityId,
+    defenderId: c.defenderId,
+    attackerId,
+    siegeReplayAttackerNames,
+    siegeReplayDefenderNames,
+    initialAttackerTroops,
+    initialDefenderTroops,
+  };
+}
+
+/**
+ * @param {{ challengeId: string, attackerId: string }} params
+ */
+async function resolveAuthoritativeSiegePvp(params) {
+  const { challengeId } = params;
+  if (resolvingPromises.has(challengeId)) {
+    return resolvingPromises.get(challengeId);
+  }
+  const p = doResolveAuthoritativeSiegePvp(params).finally(() => {
+    resolvingPromises.delete(challengeId);
+  });
+  resolvingPromises.set(challengeId, p);
+  return p;
+}
+
+module.exports = {
+  resolveAuthoritativeSiegePvp,
+  canResolveChallenge,
+};

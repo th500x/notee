@@ -49,6 +49,7 @@ const MIGRATION_FILES_SPLIT_STATEMENTS = new Set([
   'cities-delete-orphan-san-1-city-3-xuchang.sql',
   'add-config-servers-settlement-window.sql',
   'accounts-server-id-nullable-for-life-resume.sql',
+  'create-faction-war-daily-votes.sql',
 ]);
 
 async function runMigrationSql(sql, file) {
@@ -174,6 +175,7 @@ const MIGRATION_FILES = [
   'add-config-servers-settlement-window.sql',
   'create-config-treasures.sql',
   'add-player-cards-uses-remaining.sql',
+  'create-faction-war-daily-votes.sql',
 ];
 
 /** RENAME：源列不存在时跳过（库已为 skill_type） */

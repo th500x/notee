@@ -5,13 +5,9 @@
 import { isBanditMapObjectId } from '@shared/utils/smallMapEnemyRoster';
 
 export const WORLD_MAP_DEFAULT_FACTION_LABELS = {
-  san_1_faction_1001: '刘备',
-  san_1_faction_2001: '曹操',
-  san_1_faction_3001: '孙坚',
-  san_1_faction_4001: '袁绍',
-  san_1_faction_5001: '董卓',
-  san_1_faction_6001: '汉室',
-  san_1_faction_7001: '黄巾',
+  san_1_faction_1001: '三王',
+  san_1_faction_2001: '汉室',
+  san_1_faction_3001: '黄巾',
 };
 
 export function worldMapCityTitleFromRow(cityRow) {

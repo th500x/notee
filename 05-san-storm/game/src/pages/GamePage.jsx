@@ -42,7 +42,6 @@ const FactionTab = lazy(() => import('@/components/game/tabs/FactionTab'));
 const WorldMapTab = lazy(() => import('@/components/game/tabs/WorldMapTab'));
 const CommPanel = lazy(() => import('@/components/game/CommPanel'));
 const StandingRankingsPanel = lazy(() => import('@/components/game/StandingRankingsPanel'));
-const KingEdictPanel = lazy(() => import('@/components/game/KingEdictPanel'));
 const CardPoolDrawer = lazy(() => import('@/components/game/CardPoolDrawer'));
 const ItemCardPoolDrawer = lazy(() => import('@/components/game/ItemCardPoolDrawer'));
 const CampaignCenterPanel = lazy(() => import('@/components/game/CampaignCenterPanel'));
@@ -282,11 +281,6 @@ function GamePageInner({ onLogout, accountId }) {
           onComplete={clearMilestoneUnlockPending}
         />
 
-        <KingEdictPanel
-          visible={activeTab === null && !eventBusy && mapHudButtonsVisible}
-          playerId={playerId}
-          factionId={player?.factionId}
-        />
         <StandingRankingsPanel
           visible={activeTab === null && !eventBusy && mapHudButtonsVisible}
           playerId={playerId}
