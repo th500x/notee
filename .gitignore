@@ -6,6 +6,10 @@ node_modules/
 docs/
 */docs/
 
+# Local feature archives (snapshots; keep on disk, never push)
+_archive/
+*/_archive/
+
 # Local editor / agent metadata — never commit (see .cursor/rules notee-monorepo-layout-and-backends.mdc)
 .cursor/
 .kiro/

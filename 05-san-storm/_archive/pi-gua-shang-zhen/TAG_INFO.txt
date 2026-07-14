@@ -1,5 +1,0 @@
-﻿tag: archive/pi-gua-shang-zhen-2026-07-13
-commit: 8c004a5a264c7ecdfb14c4fa5bff999956f13601
-repo: notee (parent of 05-san-storm)
-created: 2026-07-13
-note: Working tree had unrelated uncommitted changes at tag time; tag points at last commit which already contains pi-gua feature code.
