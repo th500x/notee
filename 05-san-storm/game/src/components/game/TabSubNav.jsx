@@ -1,7 +1,7 @@
 /**
  * 全屏子 Tab 横条（编组 LineupTab / 主城 / 势力 / 驻地编组卡池 A·B 等共用样式）
  *
- * @param {{ id: string, label: string }[]} tabs
+ * @param {{ id: string, label: string | import('react').ReactNode }[]} tabs
  * @param {string} activeTabId
  * @param {(id: string) => void} onTabChange
  * @param {() => void} [onClose] 与子 Tab 同行右侧 ✕；`hideClose` 为 true 时可省略

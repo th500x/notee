@@ -273,8 +273,8 @@ function replaceFactionWildcard(cardId, factionId) {
 // ── 从稀有度获取 max_battle_count ────────────────────────────
 
 function getMaxBattleCount(rarity) {
-  const map = { common: 20, rare: 28, epic: 36, legendary: 44, core: 60 };
-  return map[rarity] || 20;
+  const map = { common: 10, rare: 10, epic: 20, legendary: 20, core: 40 };
+  return map[rarity] || 10;
 }
 
 // ── 将领卡唯一性：重复补偿银两 ──────────────────────────────

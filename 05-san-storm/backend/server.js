@@ -372,6 +372,9 @@ app.use('/api/cities', citiesRouter);
 const garrisonsRouter = require('./routes/garrisons');
 app.use('/api/garrisons', garrisonsRouter);
 
+const lineupExtraRouter = require('./routes/lineupExtra');
+app.use('/api/lineup-extra', lineupExtraRouter);
+
 /**
  * 管理员：传书模板 config_texts（与前端邮件管理页对接）
  */

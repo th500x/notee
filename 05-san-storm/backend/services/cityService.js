@@ -1110,7 +1110,7 @@ async function recordSiegeResult(warId, playerId, factionId, killedIndices, resu
 
       // 兼容旧数据：曾在本城有驻守行、但 on_duty_city_id 未写入的玩家
       const [allCityGarrisonPlayers] = await connection.query(
-        `SELECT DISTINCT g.player_id FROM player_garrison g WHERE g.city_id = ?`,
+        `SELECT DISTINCT g.player_id FROM player_lineup_sets g WHERE g.lineup_scope = 'garrison' AND g.city_id = ?`,
         [war.target_city_id]
       );
       const allGarrisonPlayerIds = allCityGarrisonPlayers.map(r => r.player_id);

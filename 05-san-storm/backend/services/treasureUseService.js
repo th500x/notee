@@ -23,7 +23,7 @@ async function clearGarrisonTreasureRefs(queryFn, playerId, instanceId) {
   const params = [...GARRISON_TREASURE_FIELDS.map(() => instanceId), playerId];
   await queryFnAdapter(
     queryFn,
-    `UPDATE player_garrison SET ${sets} WHERE player_id = ?`,
+    `UPDATE player_lineup_sets SET ${sets} WHERE player_id = ?`,
     params,
   );
 }
@@ -34,7 +34,7 @@ async function clearGarrisonTreasureRefs(queryFn, playerId, instanceId) {
 async function clearDepletedOrMissingTreasuresFromGarrison(queryFn, playerId) {
   await queryFnAdapter(
     queryFn,
-    `UPDATE player_garrison g
+    `UPDATE player_lineup_sets g
      LEFT JOIN player_cards pc1 ON pc1.instance_id = g.char1_treasure AND pc1.player_id = g.player_id
      LEFT JOIN player_cards pc2 ON pc2.instance_id = g.char2_treasure AND pc2.player_id = g.player_id
      SET
@@ -171,7 +171,7 @@ async function resolveGarrisonTreasureInstanceIdsFromDb(queryFn, playerId, troop
   const [rows] = await queryFnAdapter(
     queryFn,
     `SELECT char1_treasure, char2_treasure, char1_troop1, char1_troop2, char2_troop1, char2_troop2
-     FROM player_garrison WHERE player_id = ?`,
+     FROM player_lineup_sets WHERE player_id = ?`,
     [playerId],
   );
   const troopSet = new Set(troopIds);

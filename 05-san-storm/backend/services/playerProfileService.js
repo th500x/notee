@@ -90,9 +90,7 @@ async function getPlayerProfile(playerId) {
         requirement: p.requirement,
         permissions: perms,
         position_bonuses: {
-          reputationBonus: bonuses.reputation || 0,
-          contributionBonus: bonuses.contribution || 0,
-          resourceBonus: bonuses.resource || 0,
+          silverBonus: bonuses.silver || bonuses.silverBonus || 0,
           infantryBonus: bonuses.infantry || 0,
           cavalryBonus: bonuses.cavalry || 0,
           archerBonus: bonuses.archer || 0,

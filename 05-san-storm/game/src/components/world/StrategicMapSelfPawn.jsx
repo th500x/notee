@@ -507,9 +507,16 @@ export default function StrategicMapSelfPawn({
     </div>
   );
 
-  const hitClassName = roadFixedActions
-    ? 'ws-map-self-pawn__hit ws-map-self-pawn__hit--road-fixed'
-    : 'ws-map-self-pawn__hit';
+  const citySingleMarchOpen =
+    !roadFixedActions &&
+    showActionPopover &&
+    !interceptPanel &&
+    !interceptControlsEnabled;
+
+  const hitClassName =
+    roadFixedActions || citySingleMarchOpen
+      ? 'ws-map-self-pawn__hit ws-map-self-pawn__hit--road-fixed'
+      : 'ws-map-self-pawn__hit';
 
   const glowClass = mapDisplayEffectToAvatarClass(displayEffect);
   const avatarClassName = [
@@ -538,7 +545,8 @@ export default function StrategicMapSelfPawn({
           onPointerUp={selfMarchUi ? onPointerUp : undefined}
           onPointerCancel={selfMarchUi ? onPointerCancel : undefined}
         >
-          {roadFixedActions && !interceptPanel
+          {/* 道路：行军在头像上；城内仅行军时同样置顶，避免信息框盖住下方按钮 */}
+          {(roadFixedActions && !interceptPanel) || citySingleMarchOpen
             ? renderMarchButton(
                 'ws-map-self-pawn__road-fixed-btn ws-map-self-pawn__road-fixed-btn--primary',
               )
@@ -609,12 +617,12 @@ export default function StrategicMapSelfPawn({
             ) : null}
           </div>
           {roadFixedActions && interceptPanel ? renderInterceptConfirmPanel() : null}
-          {roadFixedActions && !interceptPanel
+          {roadFixedActions && !interceptPanel && interceptControlsEnabled
             ? renderInterceptButton(
                 'ws-map-self-pawn__road-fixed-btn ws-map-self-pawn__road-fixed-btn--danger',
               )
             : null}
-          {!roadFixedActions && showActionPopover ? (
+          {!roadFixedActions && showActionPopover && interceptControlsEnabled ? (
             interceptPanel ? (
               renderInterceptConfirmPanel()
             ) : (

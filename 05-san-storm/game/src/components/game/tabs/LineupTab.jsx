@@ -12,7 +12,7 @@
  * @see 24-1-EQUIPMENT_SYSTEM.md
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import {
   usePlayer,
   useCards,
@@ -25,11 +25,12 @@ import { playerAPI } from '@/services/playerApi';
 import { useSkillsMap } from '@/hooks/useSkillsMap';
 import { useSilentProfilePoll } from '@/hooks/useSilentProfilePoll';
 import { useGarrisonOccupiedIds } from '@/hooks/useGarrisonOccupiedIds';
+import { useLineupExtraOccupiedIds } from '@/hooks/useLineupExtraOccupiedIds';
 import { isMainCityBarracksStored } from '@/utils/garrisonBarracksTroopPool';
 import { isTroopEquippableForLineup } from '@/utils/troopLineupEligibility';
 import GarrisonGeneralNotRecruited from '@/components/garrison/GarrisonGeneralNotRecruited';
 import GarrisonBackpack from '@/components/garrison/GarrisonBackpack';
-import { TabPageCloseButton, useGameTabLandscape } from '@/components/game/TabPageCloseAffordance';
+import { useGameTabLandscape } from '@/components/game/TabPageCloseAffordance';
 import TabSubNav from '@/components/game/TabSubNav';
 import QuadrantGrid from '@/components/game/QuadrantGrid';
 import { PLAYER_SLOTS, GENERAL_SLOTS, sortCardsByRarity } from './lineup/lineupSlots';
@@ -37,6 +38,20 @@ import { LandscapeQuadrant, EquipmentLayout } from './lineup/LineupEquipmentLayo
 import LineupStatsPanel from './lineup/LineupStatsPanel';
 import LineupCardDrawer from './lineup/LineupCardDrawer';
 import LineupCardDetailOverlay from './lineup/LineupCardDetailOverlay';
+import LineupExtraEditor from './lineup/LineupExtraEditor';
+
+const LINEUP_CHANNEL_TABS = [
+  { id: 'main', label: '上阵编组 Main' },
+  {
+    id: 'extra',
+    label: (
+      <span className="inline-flex items-baseline justify-center gap-1">
+        <span>上阵编组 Extra</span>
+        <span className="text-[10px] font-normal text-stone-500">玩法2</span>
+      </span>
+    ),
+  },
+];
 
 export default function LineupTab({ onClose, onOpenAttributeReroll }) {
   // CR A7（2026-04-29）：按字段订阅，每个 hook 显式声明本组件读了哪些 ctx 字段，方便未来切到 selector 引擎
@@ -46,6 +61,7 @@ export default function LineupTab({ onClose, onOpenAttributeReroll }) {
   const attributeBonusBySlot = useAttributeBonusBySlot();
   const { loading, error } = usePlayerLoadStatus();
   const { getCharacterLifeStage } = useLifeStages();
+  const [lineupChannel, setLineupChannel] = useState('main');
   const [activeSubTab, setActiveSubTab] = useState('player');
   const [selectedSlot, setSelectedSlot] = useState(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -55,12 +71,16 @@ export default function LineupTab({ onClose, onOpenAttributeReroll }) {
   useSilentProfilePoll(refresh);
   const skillsMap = useSkillsMap();
   /**
-   * 驻地占用实例集（14 字段口径，与 `garrisonAPI.save` 后端冲突检测一致）。
-   * 历史上这里只扫 8 字段，漏 `equipment_card / achievement / treasure`，
-   * 装备卡装到驻地后仍可能在上阵选卡列表里出现；CR C5（2026-04-29）一并修复。
-   * 第二参数传 `[cards]` 让"装备 / 卸下后 cards 变化"重新拉取，与原行为一致。
+   * 驻地 + Extra 占用实例集（14 字段口径）。
+   * Main 选卡排除 驻地∪Extra；与后端互斥一致。
    */
   const garrisonIds = useGarrisonOccupiedIds(player?.playerId, [cards]);
+  const extraIds = useLineupExtraOccupiedIds(player?.playerId, [cards]);
+  const blockedIds = useMemo(() => {
+    const ids = new Set(garrisonIds);
+    extraIds.forEach((id) => ids.add(id));
+    return ids;
+  }, [garrisonIds, extraIds]);
 
   const isLandscape = useGameTabLandscape();
 
@@ -161,37 +181,37 @@ export default function LineupTab({ onClose, onOpenAttributeReroll }) {
   );
   const char2Character = characterCards.find((c) => c.equippedBy === 'character2' && c.isEquipped && c.equippedSlot === 'character');
 
-  /* ── 可装备池（已排除被驻地占用的实例 + 主城驻军所仓库内卡） ── */
+  /* ── 可装备池（已排除驻地∪Extra 占用 + 主城驻军所仓库内卡） ── */
   const unequippedTroops = troopCards.filter((c) => {
-    if (c.isEquipped || garrisonIds.has(c.instanceId)) return false;
+    if (c.isEquipped || blockedIds.has(c.instanceId)) return false;
     if (isMainCityBarracksStored(c)) return false;
     return true;
   });
-  const unequippedTitles = titleCards.filter((c) => !c.isEquipped && !garrisonIds.has(c.instanceId));
-  const unequippedAchievements = achievementCards.filter((c) => !c.isEquipped && !garrisonIds.has(c.instanceId));
+  const unequippedTitles = titleCards.filter((c) => !c.isEquipped && !blockedIds.has(c.instanceId));
+  const unequippedAchievements = achievementCards.filter((c) => !c.isEquipped && !blockedIds.has(c.instanceId));
   const unequippedTreasures = treasureCards.filter((c) => {
-    if (c.isEquipped || garrisonIds.has(c.instanceId)) return false;
+    if (c.isEquipped || blockedIds.has(c.instanceId)) return false;
     if (c.usesRemaining != null && Number(c.usesRemaining) <= 0) return false;
     return true;
   });
-  const unequippedCharacters = characterCards.filter((c) => !c.isEquipped && !garrisonIds.has(c.instanceId));
+  const unequippedCharacters = characterCards.filter((c) => !c.isEquipped && !blockedIds.has(c.instanceId));
   const unequippedEquipmentSets = cards.filter(
     (c) =>
       c.cardType === 'equipmentSet' &&
       c.config?.displayName &&
       String(c.config.displayName).trim() &&
       !c.isEquipped &&
-      !garrisonIds.has(c.instanceId)
+      !blockedIds.has(c.instanceId)
   );
   const allUnequipped = cards.filter((c) => {
     if (c.cardType === 'equipmentSet') return false;
-    if (c.isEquipped || garrisonIds.has(c.instanceId)) return false;
+    if (c.isEquipped || blockedIds.has(c.instanceId)) return false;
     if (c.cardType === 'equipment' && c.boundEquipmentSetInstanceId) return false;
     if (isMainCityBarracksStored(c)) return false;
     return true;
   });
   const encapsulateEquipmentPool = cards.filter(
-    (c) => c.cardType === 'equipment' && !c.isEquipped && !garrisonIds.has(c.instanceId)
+    (c) => c.cardType === 'equipment' && !c.isEquipped && !blockedIds.has(c.instanceId)
   );
   const equipmentSetCards = cards.filter(
     (c) =>
@@ -300,6 +320,7 @@ export default function LineupTab({ onClose, onOpenAttributeReroll }) {
           skillsMap={skillsMap}
           statsPanel={playerTroops.length > 0 ? (
             <LineupStatsPanel player={player} troops={playerTroops} compact
+              attributeBonus={attributeBonusBySlot.player}
               playerId={player?.playerId} rankBucket="main:player" />
           ) : null}
           attributeBonus={attributeBonusBySlot.player}
@@ -321,6 +342,8 @@ export default function LineupTab({ onClose, onOpenAttributeReroll }) {
           statsPanel={char1Troops.length > 0 ? (
             <LineupStatsPanel player={player} troops={char1Troops} compact
               attrs={char1Character?.config ? { combat: char1Character.config.combat, command: char1Character.config.command, courage: char1Character.config.courage, luck: char1Character.config.luck } : null}
+              attributeBonus={attributeBonusBySlot.character1}
+              characterRarity={char1Character?.rarity || char1Character?.config?.rarity}
               playerId={player?.playerId} rankBucket="main:character1" />
           ) : null}
           attributeBonus={attributeBonusBySlot.character1}
@@ -364,6 +387,8 @@ export default function LineupTab({ onClose, onOpenAttributeReroll }) {
           statsPanel={char2Troops.length > 0 ? (
             <LineupStatsPanel player={player} troops={char2Troops} compact
               attrs={char2Character?.config ? { combat: char2Character.config.combat, command: char2Character.config.command, courage: char2Character.config.courage, luck: char2Character.config.luck } : null}
+              attributeBonus={attributeBonusBySlot.character2}
+              characterRarity={char2Character?.rarity || char2Character?.config?.rarity}
               playerId={player?.playerId} rankBucket="main:character2" />
           ) : null}
           attributeBonus={attributeBonusBySlot.character2}
@@ -380,19 +405,34 @@ export default function LineupTab({ onClose, onOpenAttributeReroll }) {
 
   return (
     <div className="h-full flex flex-col bg-gradient-to-b from-stone-900 via-stone-800 to-stone-900">
+      <TabSubNav
+        tabs={LINEUP_CHANNEL_TABS}
+        activeTabId={lineupChannel}
+        onTabChange={(id) => {
+          setLineupChannel(id);
+          closeDrawer();
+        }}
+        onClose={onClose}
+      />
+
+      {lineupChannel === 'extra' ? (
+        <div className="relative min-h-0 flex-1 overflow-hidden">
+          <LineupExtraEditor />
+        </div>
+      ) : (
+      <>
       {!isLandscape && (
         <TabSubNav
           tabs={lineupSubNavTabs}
           activeTabId={activeSubTab}
           onTabChange={(id) => { setActiveSubTab(id); closeDrawer(); }}
-          onClose={onClose}
+          hideClose
         />
       )}
 
       <div className="relative min-h-0 flex-1 overflow-y-auto">
         {isLandscape ? (
           <div className="flex h-full min-h-0 flex-col">
-            <TabPageCloseButton onClose={onClose} variant="corner" />
             <div className="min-h-0 flex-1 overflow-hidden">
               <QuadrantGrid cells={lineupLandscapeCells} />
             </div>
@@ -430,11 +470,20 @@ export default function LineupTab({ onClose, onOpenAttributeReroll }) {
                 combat: generalCard.config.combat, command: generalCard.config.command,
                 courage: generalCard.config.courage, luck: generalCard.config.luck,
               } : null;
+              const slotBonusKey = activeSubTab === 'player' ? 'player'
+                : activeSubTab === 'char1' ? 'character1' : 'character2';
               const rankBucket = activeSubTab === 'player' ? 'main:player'
                 : activeSubTab === 'char1' ? 'main:character1' : 'main:character2';
               return subTroops.length > 0 ? (
-                <LineupStatsPanel player={player} troops={subTroops} attrs={generalAttrs}
-                  playerId={player?.playerId} rankBucket={rankBucket} />
+                <LineupStatsPanel
+                  player={player}
+                  troops={subTroops}
+                  attrs={generalAttrs}
+                  attributeBonus={attributeBonusBySlot[slotBonusKey]}
+                  characterRarity={generalCard?.rarity || generalCard?.config?.rarity}
+                  playerId={player?.playerId}
+                  rankBucket={rankBucket}
+                />
               ) : null;
             })()}
 
@@ -516,6 +565,8 @@ export default function LineupTab({ onClose, onOpenAttributeReroll }) {
           }}
           onClose={closeDrawer}
         />
+      )}
+      </>
       )}
     </div>
   );

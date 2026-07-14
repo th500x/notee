@@ -28,9 +28,7 @@
       "rarity": "core",
       "requirement": "5000",
       "position_bonuses": {
-        "resourceBonus": 3,
-        "reputationBonus": 50,
-        "contributionBonus": 100,
+        "silverBonus": 100,
         "cavalryBonus": 0.2
       },
       "permissions": [
@@ -49,9 +47,7 @@
       "rarity": "core",
       "requirement": "5000",
       "position_bonuses": {
-        "resourceBonus": 3,
-        "reputationBonus": 50,
-        "contributionBonus": 100,
+        "silverBonus": 100,
         "infantryBonus": 0.15,
         "archerBonus": 0.15
       },
@@ -71,9 +67,7 @@
       "rarity": "core",
       "requirement": "KING_DAILY",
       "position_bonuses": {
-        "resourceBonus": 3,
-        "reputationBonus": 10,
-        "contributionBonus": 20,
+        "silverBonus": 100,
         "infantryBonus": 0.15,
         "archerBonus": 0.15
       },
@@ -93,9 +87,7 @@
       "rarity": "core",
       "requirement": "3500",
       "position_bonuses": {
-        "resourceBonus": 2.5,
-        "reputationBonus": 40,
-        "contributionBonus": 80,
+        "silverBonus": 80,
         "infantryBonus": 0.1,
         "archerBonus": 0.1
       },
@@ -115,9 +107,7 @@
       "rarity": "core",
       "requirement": "3500",
       "position_bonuses": {
-        "resourceBonus": 2.5,
-        "reputationBonus": 40,
-        "contributionBonus": 80,
+        "silverBonus": 80,
         "cavalryBonus": 0.15
       },
       "permissions": [
@@ -136,9 +126,7 @@
       "rarity": "core",
       "requirement": "2500",
       "position_bonuses": {
-        "resourceBonus": 2,
-        "reputationBonus": 30,
-        "contributionBonus": 60,
+        "silverBonus": 60,
         "infantryBonus": 0.08,
         "cavalryBonus": 0.08
       },
@@ -158,9 +146,7 @@
       "rarity": "core",
       "requirement": "2500",
       "position_bonuses": {
-        "resourceBonus": 2,
-        "reputationBonus": 30,
-        "contributionBonus": 60,
+        "silverBonus": 60,
         "infantryBonus": 0.08,
         "cavalryBonus": 0.08
       },
@@ -180,9 +166,7 @@
       "rarity": "core",
       "requirement": "2500",
       "position_bonuses": {
-        "resourceBonus": 2,
-        "reputationBonus": 30,
-        "contributionBonus": 60,
+        "silverBonus": 60,
         "infantryBonus": 0.08,
         "cavalryBonus": 0.08
       },
@@ -202,9 +186,7 @@
       "rarity": "core",
       "requirement": "2500",
       "position_bonuses": {
-        "resourceBonus": 2,
-        "reputationBonus": 30,
-        "contributionBonus": 60,
+        "silverBonus": 60,
         "infantryBonus": 0.08,
         "cavalryBonus": 0.08
       },
@@ -224,8 +206,7 @@
       "rarity": "legendary",
       "requirement": "1500",
       "position_bonuses": {
-        "reputationBonus": 15,
-        "contributionBonus": 30,
+        "silverBonus": 40,
         "cavalryBonus": 0.08
       },
       "permissions": [
@@ -244,8 +225,7 @@
       "rarity": "legendary",
       "requirement": "1500",
       "position_bonuses": {
-        "reputationBonus": 15,
-        "contributionBonus": 30,
+        "silverBonus": 40,
         "cavalryBonus": 0.08
       },
       "permissions": [
@@ -264,8 +244,7 @@
       "rarity": "legendary",
       "requirement": "1500",
       "position_bonuses": {
-        "reputationBonus": 15,
-        "contributionBonus": 30,
+        "silverBonus": 40,
         "cavalryBonus": 0.08
       },
       "permissions": [
@@ -284,8 +263,7 @@
       "rarity": "legendary",
       "requirement": "1500",
       "position_bonuses": {
-        "reputationBonus": 15,
-        "contributionBonus": 30,
+        "silverBonus": 40,
         "cavalryBonus": 0.08
       },
       "permissions": [
@@ -304,8 +282,7 @@
       "rarity": "legendary",
       "requirement": "1500",
       "position_bonuses": {
-        "reputationBonus": 15,
-        "contributionBonus": 30,
+        "silverBonus": 40,
         "cavalryBonus": 0.08
       },
       "permissions": [
@@ -324,8 +301,7 @@
       "rarity": "legendary",
       "requirement": "1500",
       "position_bonuses": {
-        "reputationBonus": 15,
-        "contributionBonus": 30,
+        "silverBonus": 40,
         "cavalryBonus": 0.08
       },
       "permissions": [
@@ -344,8 +320,7 @@
       "rarity": "legendary",
       "requirement": "1500",
       "position_bonuses": {
-        "resourceBonus": 1.5,
-        "reputationBonus": 20,
+        "silverBonus": 40,
         "infantryBonus": 0.05,
         "cavalryBonus": 0.05
       },
@@ -365,8 +340,7 @@
       "rarity": "legendary",
       "requirement": "1500",
       "position_bonuses": {
-        "resourceBonus": 1.5,
-        "reputationBonus": 20,
+        "silverBonus": 40,
         "infantryBonus": 0.05,
         "cavalryBonus": 0.05
       },
@@ -386,8 +360,7 @@
       "rarity": "legendary",
       "requirement": "1500",
       "position_bonuses": {
-        "resourceBonus": 1.5,
-        "reputationBonus": 20,
+        "silverBonus": 40,
         "infantryBonus": 0.05,
         "cavalryBonus": 0.05
       },
@@ -407,8 +380,7 @@
       "rarity": "legendary",
       "requirement": "1500",
       "position_bonuses": {
-        "resourceBonus": 1.5,
-        "reputationBonus": 20,
+        "silverBonus": 40,
         "infantryBonus": 0.05,
         "cavalryBonus": 0.05
       },
@@ -428,8 +400,7 @@
       "rarity": "legendary",
       "requirement": "1500",
       "position_bonuses": {
-        "resourceBonus": 1.5,
-        "reputationBonus": 20,
+        "silverBonus": 40,
         "infantryBonus": 0.05,
         "cavalryBonus": 0.05
       },
@@ -449,8 +420,7 @@
       "rarity": "legendary",
       "requirement": "1500",
       "position_bonuses": {
-        "resourceBonus": 1.5,
-        "reputationBonus": 20,
+        "silverBonus": 40,
         "infantryBonus": 0.05,
         "cavalryBonus": 0.05
       },
@@ -470,8 +440,7 @@
       "rarity": "legendary",
       "requirement": "1500",
       "position_bonuses": {
-        "resourceBonus": 1.5,
-        "contributionBonus": 40,
+        "silverBonus": 40,
         "infantryBonus": 0.05,
         "archerBonus": 0.05
       },
@@ -491,8 +460,7 @@
       "rarity": "legendary",
       "requirement": "1500",
       "position_bonuses": {
-        "resourceBonus": 1.5,
-        "contributionBonus": 40,
+        "silverBonus": 40,
         "infantryBonus": 0.05,
         "archerBonus": 0.05
       },
@@ -512,8 +480,7 @@
       "rarity": "legendary",
       "requirement": "1500",
       "position_bonuses": {
-        "resourceBonus": 1.5,
-        "contributionBonus": 40,
+        "silverBonus": 40,
         "infantryBonus": 0.05,
         "archerBonus": 0.05
       },
@@ -533,8 +500,7 @@
       "rarity": "legendary",
       "requirement": "1500",
       "position_bonuses": {
-        "resourceBonus": 1.5,
-        "contributionBonus": 40,
+        "silverBonus": 40,
         "infantryBonus": 0.05,
         "archerBonus": 0.05
       },
@@ -554,8 +520,7 @@
       "rarity": "legendary",
       "requirement": "1500",
       "position_bonuses": {
-        "resourceBonus": 1.5,
-        "contributionBonus": 40,
+        "silverBonus": 40,
         "infantryBonus": 0.05,
         "archerBonus": 0.05
       },
@@ -575,8 +540,7 @@
       "rarity": "legendary",
       "requirement": "1500",
       "position_bonuses": {
-        "resourceBonus": 1.5,
-        "contributionBonus": 40,
+        "silverBonus": 40,
         "infantryBonus": 0.05,
         "archerBonus": 0.05
       },
@@ -596,9 +560,7 @@
       "rarity": "epic",
       "requirement": "500",
       "position_bonuses": {
-        "resourceBonus": 1.2,
-        "reputationBonus": 5,
-        "contributionBonus": 10,
+        "silverBonus": 20,
         "infantryBonus": 0.05,
         "cavalryBonus": 0.05
       },
@@ -617,8 +579,7 @@
       "rarity": "epic",
       "requirement": "500",
       "position_bonuses": {
-        "reputationBonus": 10,
-        "contributionBonus": 20,
+        "silverBonus": 20,
         "infantryBonus": 0.05,
         "archerBonus": 0.05
       },
@@ -637,8 +598,7 @@
       "rarity": "epic",
       "requirement": "500",
       "position_bonuses": {
-        "reputationBonus": 10,
-        "contributionBonus": 20,
+        "silverBonus": 20,
         "cavalryBonus": 0.08
       },
       "permissions": [
@@ -656,7 +616,6 @@
       "rarity": "rare",
       "requirement": "50",
       "position_bonuses": {
-        "reputationBonus": 10,
         "infantryBonus": 0.03,
         "archerBonus": 0.03
       },
@@ -675,7 +634,6 @@
       "rarity": "rare",
       "requirement": "50",
       "position_bonuses": {
-        "reputationBonus": 10,
         "cavalryBonus": 0.05
       },
       "permissions": [

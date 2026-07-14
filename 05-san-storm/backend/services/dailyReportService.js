@@ -26,6 +26,9 @@ const {
   mysqlDateToYmd,
 } = require('./dailyReportDigestReadService');
 const { listSan1OfficialsSnapshot } = require('./dailyReportOfficialsService');
+const {
+  resolveDailyCheckinExtraBonuses,
+} = require('./factionGameplayBonusService');
 
 function clampCycle(n) {
   const v = Math.floor(Number(n)) || 1;
@@ -59,7 +62,7 @@ function rewardPreviewForCycleDay(cycleDay, rewardsByDay) {
 async function loadPlayerCheckinRow(playerId, connection = null) {
   const db = connection || pool;
   const [rows] = await db.query(
-    `SELECT daily_report_checkin_date, daily_report_checkin_cycle
+    `SELECT daily_report_checkin_date, daily_report_checkin_cycle, faction_id
      FROM players WHERE player_id = ? LIMIT 1`,
     [playerId],
   );
@@ -174,6 +177,34 @@ async function getDailyReport(playerId) {
   }
 
   const checkIn = await buildCheckinSection(pid, rewardsByDay);
+  const playerRow = await loadPlayerCheckinRow(pid);
+  const extraBonus = await resolveDailyCheckinExtraBonuses(
+    pool,
+    pid,
+    playerRow?.faction_id,
+    itemNameById,
+  );
+  if (extraBonus.displayShort || extraBonus.rewards) {
+    checkIn.factionBonus = {
+      rewards: extraBonus.factionRewards,
+      displayShort: extraBonus.displayShort,
+    };
+    checkIn.positionBonus = {
+      silver: extraBonus.positionSilver,
+    };
+    checkIn.extraBonus = {
+      rewards: extraBonus.rewards,
+      displayShort: extraBonus.displayShort,
+      factionRewards: extraBonus.factionRewards,
+      positionSilver: extraBonus.positionSilver,
+    };
+    checkIn.rewardsByDay = (checkIn.rewardsByDay || []).map((day) => ({
+      ...day,
+      factionBonusDisplayShort: extraBonus.displayShort,
+      factionBonusRewards: extraBonus.rewards,
+    }));
+  }
+
   const serverId = await getPlayerServerId(pid);
   const digest = await getYesterdayDigestPayload(serverId);
   const officials = await listSan1OfficialsSnapshot();
@@ -248,10 +279,29 @@ async function claimDailyCheckIn(playerId) {
     }
 
     const factionId = row.faction_id ? String(row.faction_id) : '';
+    const extraBonus = await resolveDailyCheckinExtraBonuses(conn, pid, factionId);
+    const rewardParts = [rewardStr];
+    if (extraBonus.rewards) rewardParts.push(extraBonus.rewards);
+    const grantRewardStr = rewardParts.join(';');
+    try {
+      if (extraBonus.rewards) {
+        assertCheckinRewardsString(extraBonus.rewards);
+        assertCheckinParsedRewards(parseRewardString(extraBonus.rewards));
+      }
+    } catch (e) {
+      await conn.rollback();
+      console.error('[dailyReport] invalid checkin extra bonus', {
+        factionId,
+        rewards: extraBonus.rewards,
+        error: e.message,
+      });
+      return { ok: false, status: 503, error: '签到额外加成配置无效' };
+    }
+
     const grantResult = await executeRewardsOnConnection(
       conn,
       pid,
-      rewardStr,
+      grantRewardStr,
       1,
       factionId,
       { expandPresets: false },
@@ -270,6 +320,32 @@ async function claimDailyCheckIn(playerId) {
     const itemNameById = await loadItemNamesForConfig();
     const rewardsByDay = buildRewardsByDayPayload(itemNameById);
     const checkIn = await buildCheckinSection(pid, rewardsByDay);
+    const extraBonusNamed = await resolveDailyCheckinExtraBonuses(
+      pool,
+      pid,
+      factionId,
+      itemNameById,
+    );
+    if (extraBonusNamed.displayShort || extraBonusNamed.rewards) {
+      checkIn.factionBonus = {
+        rewards: extraBonusNamed.factionRewards,
+        displayShort: extraBonusNamed.displayShort,
+      };
+      checkIn.positionBonus = {
+        silver: extraBonusNamed.positionSilver,
+      };
+      checkIn.extraBonus = {
+        rewards: extraBonusNamed.rewards,
+        displayShort: extraBonusNamed.displayShort,
+        factionRewards: extraBonusNamed.factionRewards,
+        positionSilver: extraBonusNamed.positionSilver,
+      };
+      checkIn.rewardsByDay = (checkIn.rewardsByDay || []).map((day) => ({
+        ...day,
+        factionBonusDisplayShort: extraBonusNamed.displayShort,
+        factionBonusRewards: extraBonusNamed.rewards,
+      }));
+    }
 
     const [bal] = await pool.query('SELECT silver, food FROM players WHERE player_id = ?', [pid]);
 
@@ -282,6 +358,16 @@ async function claimDailyCheckIn(playerId) {
         silverBalance: Number(bal[0]?.silver) || 0,
         foodBalance: Number(bal[0]?.food) || 0,
         checkIn,
+        factionBonusGranted: extraBonusNamed.factionRewards
+          ? {
+              rewards: extraBonusNamed.factionRewards,
+              displayShort: extraBonusNamed.displayShort,
+            }
+          : null,
+        positionBonusGranted:
+          extraBonusNamed.positionSilver > 0
+            ? { silver: extraBonusNamed.positionSilver }
+            : null,
       },
     };
   } catch (e) {

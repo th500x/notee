@@ -1,6 +1,8 @@
 /**
- * 官职 · 俸禄向加成（声望/贡献：每日固定整数；资源：俸禄银粮 ×倍数）。
- * 消费方：`backend/services/sanGongStipendService.js`。
+ * 官职 · 签到银两加成（position_bonuses.silver / silverBonus）。
+ * 真三日报签到发放；俸禄不再叠加官职声望/贡献/资源倍数。
+ *
+ * 银粮兑换基数仍可复用 applyStipendResourceMultiplier（倍数恒为 1 时等价于原样）。
  */
 
 'use strict';
@@ -23,19 +25,26 @@ function parsePositionBonusesRaw(raw) {
 
 /**
  * @param {object|string|null|undefined} raw DB JSON 或 API camelCase position_bonuses
- * @returns {{ reputationGrant: number, contributionGrant: number, resourceMultiplier: number }}
+ * @returns {number} 每日签到额外银两（整数，≥0）
+ */
+function getPositionSilverBonus(raw) {
+  const b = parsePositionBonusesRaw(raw);
+  const n = Math.floor(Number(b.silver ?? b.silverBonus ?? 0) || 0);
+  return n > 0 ? n : 0;
+}
+
+/**
+ * @deprecated 俸禄已不再读官职声望/贡献/资源倍数；保留空壳供旧调用方兼容（倍数恒 1）
+ * @param {object|string|null|undefined} raw
+ * @returns {{ reputationGrant: number, contributionGrant: number, resourceMultiplier: number, silverBonus: number }}
  */
 function normalizePositionStipendBonuses(raw) {
-  const b = parsePositionBonusesRaw(raw);
-  const rep = Number(b.reputation ?? b.reputationBonus ?? 0) || 0;
-  const contrib = Number(b.contribution ?? b.contributionBonus ?? 0) || 0;
-  const res = Number(b.resource ?? b.resourceBonus ?? 0) || 0;
-
-  const reputationGrant = rep >= 1 ? Math.floor(rep) : 0;
-  const contributionGrant = contrib >= 1 ? Math.floor(contrib) : 0;
-  const resourceMultiplier = res >= 1 ? res : 1;
-
-  return { reputationGrant, contributionGrant, resourceMultiplier };
+  return {
+    reputationGrant: 0,
+    contributionGrant: 0,
+    resourceMultiplier: 1,
+    silverBonus: getPositionSilverBonus(raw),
+  };
 }
 
 /**
@@ -58,12 +67,10 @@ function applyStipendResourceMultiplier(baseSilver, baseFood, resourceMultiplier
 /**
  * @param {import('mysql2/promise').Pool|import('mysql2/promise').PoolConnection} poolConn
  * @param {string} playerId
- * @returns {Promise<{ reputationGrant: number, contributionGrant: number, resourceMultiplier: number }>}
+ * @returns {Promise<number>}
  */
-async function loadPositionStipendBonusesForPlayer(poolConn, playerId) {
-  if (!playerId) {
-    return { reputationGrant: 0, contributionGrant: 0, resourceMultiplier: 1 };
-  }
+async function loadPositionSilverBonusForPlayer(poolConn, playerId) {
+  if (!playerId) return 0;
   const [rows] = await poolConn.query(
     `SELECT cp.position_bonuses
      FROM players p
@@ -72,14 +79,28 @@ async function loadPositionStipendBonusesForPlayer(poolConn, playerId) {
      LIMIT 1`,
     [playerId],
   );
-  if (!rows.length) {
-    return { reputationGrant: 0, contributionGrant: 0, resourceMultiplier: 1 };
-  }
-  return normalizePositionStipendBonuses(rows[0].position_bonuses);
+  if (!rows.length) return 0;
+  return getPositionSilverBonus(rows[0].position_bonuses);
+}
+
+/**
+ * @deprecated 见 normalizePositionStipendBonuses；兑换侧请改用 loadPositionSilverBonusForPlayer 或倍数 1
+ */
+async function loadPositionStipendBonusesForPlayer(poolConn, playerId) {
+  const silverBonus = await loadPositionSilverBonusForPlayer(poolConn, playerId);
+  return {
+    reputationGrant: 0,
+    contributionGrant: 0,
+    resourceMultiplier: 1,
+    silverBonus,
+  };
 }
 
 module.exports = {
+  parsePositionBonusesRaw,
+  getPositionSilverBonus,
   normalizePositionStipendBonuses,
   applyStipendResourceMultiplier,
+  loadPositionSilverBonusForPlayer,
   loadPositionStipendBonusesForPlayer,
 };

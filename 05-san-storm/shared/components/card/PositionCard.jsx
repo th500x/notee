@@ -9,9 +9,7 @@
 
 import PropTypes from 'prop-types';
 import {
-  formatStipendContributionLabel,
-  formatStipendReputationLabel,
-  formatStipendResourceLabel,
+  formatPositionSilverBonusLabel,
 } from '../../utils/formatPositionStipendBonuses.js';
 
 const LEVEL_CONFIG = {
@@ -193,43 +191,21 @@ function PositionCard({ position, showDetails = true }) {
             <span className="text-gray-400 text-xs font-medium">加成效果</span>
           </div>
           <div className="space-y-1">
-            <div className="flex flex-col gap-0.5 text-[10px] text-gray-500 px-0.5">每日俸禄（三公府 · 封赏）</div>
+            <div className="flex flex-col gap-0.5 text-[10px] text-gray-500 px-0.5">每日签到（真三日报）</div>
             <div className="flex items-center text-xs bg-gray-900/50 rounded px-2 py-1 min-h-[24px]">
               {position.position_bonuses &&
-              (formatStipendReputationLabel(position.position_bonuses.reputationBonus) ||
-                formatStipendContributionLabel(position.position_bonuses.contributionBonus) ||
-                formatStipendResourceLabel(position.position_bonuses.resourceBonus)) ? (
+              formatPositionSilverBonusLabel(position.position_bonuses.silverBonus) ? (
                 <div className="flex items-center gap-3 flex-wrap">
-                  {formatStipendReputationLabel(position.position_bonuses.reputationBonus) && (
-                    <div className="flex items-center gap-1">
-                      <span className="text-purple-400">⭐</span>
-                      <span className="text-gray-400">声望</span>
-                      <span className="text-purple-400 font-bold">
-                        {formatStipendReputationLabel(position.position_bonuses.reputationBonus)}
-                      </span>
-                    </div>
-                  )}
-                  {formatStipendContributionLabel(position.position_bonuses.contributionBonus) && (
-                    <div className="flex items-center gap-1">
-                      <span className="text-cyan-400">🎯</span>
-                      <span className="text-gray-400">贡献</span>
-                      <span className="text-cyan-400 font-bold">
-                        {formatStipendContributionLabel(position.position_bonuses.contributionBonus)}
-                      </span>
-                    </div>
-                  )}
-                  {formatStipendResourceLabel(position.position_bonuses.resourceBonus) && (
-                    <div className="flex items-center gap-1">
-                      <span className="text-yellow-400">💰</span>
-                      <span className="text-gray-400">资源</span>
-                      <span className="text-yellow-400 font-bold">
-                        {formatStipendResourceLabel(position.position_bonuses.resourceBonus)}
-                      </span>
-                    </div>
-                  )}
+                  <div className="flex items-center gap-1">
+                    <span className="text-yellow-400">💰</span>
+                    <span className="text-gray-400">银两</span>
+                    <span className="text-yellow-400 font-bold">
+                      {formatPositionSilverBonusLabel(position.position_bonuses.silverBonus)}
+                    </span>
+                  </div>
                 </div>
               ) : (
-                <span className="text-gray-600 text-[10px]">无俸禄加成</span>
+                <span className="text-gray-600 text-[10px]">无签到银两加成</span>
               )}
             </div>
 

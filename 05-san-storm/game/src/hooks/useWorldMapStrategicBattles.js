@@ -19,7 +19,7 @@ import { worldMapOverlayRefs } from '@/utils/worldMapOverlayRefs';
 /** 与 backend `roadConfig.ROAD_DEFENDER_ALERT_SEC` 一致：攻方自动裁定等待窗 */
 const ROAD_ENCOUNTER_AUTO_RESOLVE_SEC = 10;
 
-/** 攻城 / 攻大本营（NPC 批次）· 结算双按钮与 BGM 适用范围（不含道路遭遇、玩家驻守/披挂） */
+/** 攻城 / 攻大本营（NPC 批次）· 结算双按钮与 BGM 适用范围（不含道路遭遇、玩家驻守） */
 export function isWorldMapNpcSiegeBgmContext(siegeData) {
   if (!siegeData || siegeData.roadEncounterId) return false;
   if (siegeData.pvpDefenderBaseCampSiege) return true;
@@ -286,37 +286,7 @@ export function useWorldMapStrategicBattles({
           : res.data;
 
         if (enriched.defenderType === 'pvp_online') {
-          try {
-            const pvpRes = await fetchWithTimeout(`${API_CONFIG.BASE_URL}/pvp/challenge`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                warId: enriched.warId || null,
-                pvpWarId: enriched.pvpWarId || null,
-                cityId,
-                attackerId: player.playerId,
-                attackerFaction: enriched.playerFaction || player.factionId,
-                defenderId: enriched.defenderPlayerId,
-                defenderGarrisonSlot: enriched.defenderGarrisonSlot,
-              }),
-            }).then((r) => r.json());
-            if (pvpRes.success) {
-              const ws = Number(pvpRes.waitSeconds) || 10;
-              pvpActionsRef?.current?.setPvpChallenge?.({
-                ...pvpRes,
-                siegeData: enriched,
-                defenderName: enriched.defenderName,
-                countdownEndsAt: Date.now() + ws * 1000,
-                waitSeconds: ws,
-              });
-              pvpActionsRef?.current?.setPvpCountdown?.(ws);
-              setSiegeResult(null);
-            }
-          } catch (e) {
-            console.error('[PVP] 创建挑战失败:', e);
-            setSiegeData(enriched);
-            setSiegeResult(null);
-          }
+          setSimpleAlertMessage('披挂上阵已移除，无法发起该类型对战');
         } else {
           setSiegeData(enriched);
           setSiegeResult(null);
@@ -679,7 +649,7 @@ export function useWorldMapStrategicBattles({
           defenderType: siegeData.defenderType || 'npc',
           defenderPlayerId: siegeData.defenderPlayerId || null,
           defenderGarrisonSlot: siegeData.defenderGarrisonSlot ?? null,
-          garrisonUnits: (siegeData.defenderType === 'player_garrison' || siegeData.defenderType === 'pvp_online')
+          garrisonUnits: siegeData.defenderType === 'player_garrison'
             ? siegeData.npcGarrison
             : null,
           killedIndices: killedIndices || [],
@@ -743,37 +713,8 @@ export function useWorldMapStrategicBattles({
         return false;
       }
       if (enriched.defenderType === 'pvp_online') {
-        try {
-          const pvpRes = await fetchWithTimeout(`${API_CONFIG.BASE_URL}/pvp/challenge`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              warId: enriched.warId || null,
-              pvpWarId: enriched.pvpWarId || pvpWarIdForResult || null,
-              cityId,
-              attackerId: player.playerId,
-              attackerFaction: enriched.playerFaction || enriched.attackerFactionId || player.factionId,
-              defenderId: enriched.defenderPlayerId,
-              defenderGarrisonSlot: enriched.defenderGarrisonSlot,
-            }),
-          }).then((r) => r.json());
-          if (pvpRes.success) {
-            const ws = Number(pvpRes.waitSeconds) || 10;
-            pvpActionsRef?.current?.setPvpChallenge?.({
-              ...pvpRes,
-              siegeData: enriched,
-              defenderName: enriched.defenderName,
-              countdownEndsAt: Date.now() + ws * 1000,
-              waitSeconds: ws,
-            });
-            pvpActionsRef?.current?.setPvpCountdown?.(ws);
-            setSiegeData(null);
-            setSiegeResult(null);
-            return true;
-          }
-        } catch (e) {
-          console.error('[PVP] 创建挑战失败:', e);
-        }
+        setSimpleAlertMessage('披挂上阵已移除，无法发起该类型对战');
+        return false;
       }
       if (enriched.pvpDefenderBaseCampSiege || baseCampWarSlice || enriched.baseCampSlice) {
         const warSlice = baseCampWarSlice || {};

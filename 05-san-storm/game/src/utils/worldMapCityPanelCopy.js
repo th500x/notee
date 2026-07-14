@@ -110,7 +110,7 @@ export function worldMapCityOverviewFromRow(cityRow) {
 }
 
 /**
- * 玩家是否与城池同属一方（可驻守编组 / 披挂；不可对该城发起攻城）。
+ * 玩家是否与城池同属一方（可驻守编组；不可对该城发起攻城）。
  * 城无势力、玩家未选势力或未登录 → false。
  */
 export function worldMapCityIsPlayerSameFaction(cityRow, playerFactionId) {
@@ -196,7 +196,6 @@ export function parentCityIdsWithSubsidiaryExplore(cityById) {
  * @param {object|null} [opts.siegeQuota]
  * @param {boolean} [opts.siegeLoading]
  * @param {number|null} [opts.garrisonSlotCount] — null 时驻地已用显示 —
- * @param {number|null} [opts.onDutyCount] — null 时披挂显示 —
  * @param {Record<string, object>|null} [opts.cityById] — 传入时按主城行开关解析荒郊/集市入口
  */
 export function buildWorldMapCityPanelProps(cityRow, opts = {}) {
@@ -207,7 +206,6 @@ export function buildWorldMapCityPanelProps(cityRow, opts = {}) {
     siegeQuota = null,
     siegeLoading = false,
     garrisonSlotCount = null,
-    onDutyCount = null,
     cityById = null,
   } = opts;
 
@@ -220,7 +218,7 @@ export function buildWorldMapCityPanelProps(cityRow, opts = {}) {
   const siegeTargetLabel = worldMapCitySiegeTargetLabel(cityRow, playerFactionId);
 
   let subtitleText = null;
-  if (isOwnCity) subtitleText = '己方驻地 · 可编组 / 披挂';
+  if (isOwnCity) subtitleText = '己方驻地 · 可编组';
   else if (playerId && siegeQuota?.loaded && !siegeQuota.canSiege) {
     subtitleText = '攻城次数不足';
   }
@@ -267,7 +265,6 @@ export function buildWorldMapCityPanelProps(cityRow, opts = {}) {
     playerId,
     siegeQuota,
     siegeLoading,
-    onDutyCount,
     garrisonSlotCount,
     garrisonCap,
     npcAlive: cityRow?.npc_garrison_alive ?? cityRow?.npcGarrisonAlive,

@@ -19,8 +19,6 @@ export default function WorldMapAlertOverlays({
   roadGateRetreatNotice,
   onRoadGateNoticeClose,
   showRoadGateNotice,
-  pvpDefenseAlert,
-  onPvpDefenseAlertConfirm,
   simpleAlertMessage,
   onSimpleAlertClose,
   siegeData,
@@ -124,7 +122,7 @@ export default function WorldMapAlertOverlays({
             <p className="text-gray-800 text-sm">
               约{' '}
               <span className="text-red-700 font-bold text-xl">{Math.max(0, Number(roadAttackerCountdown) || 0)}</span>{' '}
-              秒后由服务端自动裁定（与攻城披挂同源）；也可点{' '}
+              秒后由服务端自动裁定；也可点{' '}
               <span className="font-semibold text-amber-900">立即开战</span> 提前开始。
             </p>
             <div className="w-full bg-gray-300 rounded-full h-2 overflow-hidden">
@@ -153,31 +151,6 @@ export default function WorldMapAlertOverlays({
           onClose={onRoadGateNoticeClose}
         >
           <p className="text-gray-800 text-sm text-left leading-relaxed px-1">{roadGateRetreatNotice}</p>
-        </AncientModal>
-      )}
-
-      {pvpDefenseAlert && !siegeData && !banditRaidData && !banditRaidResult && (
-        <AncientModal
-          isOpen
-          type="warning"
-          title="🏰 城池遭袭"
-          confirmText="确定"
-          showCancel={false}
-          onConfirm={onPvpDefenseAlertConfirm}
-        >
-          <div className="text-center space-y-3">
-            <p className="text-gray-800 text-base">
-              <span className="font-bold text-red-700">{pvpDefenseAlert.attackerName}</span> 正在攻打城池
-            </p>
-            <p className="text-gray-800">
-              点击 <span className="font-semibold text-amber-900">确定</span> 后等待攻方裁定（攻方约 10 秒内自动开战）；裁定结束后将播放战术对决回放并弹出战斗结算。
-            </p>
-            <p className="text-gray-800">
-              约 <span className="text-red-700 font-bold text-xl">{pvpDefenseAlert.remainingSeconds}</span>{' '}
-              秒后本提示将自动关闭（战斗由服务端权威推演，与页签是否在前台无关；关闭后仍请勿离格直至裁定完成）。
-            </p>
-            <p className="text-gray-500 text-xs">道路遇袭提示优先显示；若同时存在请先处理道路战事。</p>
-          </div>
         </AncientModal>
       )}
 

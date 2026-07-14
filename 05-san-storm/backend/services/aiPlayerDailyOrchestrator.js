@@ -127,7 +127,9 @@ async function moveStep(playerId, intent) {
       return r;
     }
     if (r.encounter) {
-      r.roadEncounter = await resolveRoadEncounterIfAny(playerId, r.encounter);
+      // 道路遭遇战已下线：moveAlong 不再登记 encounter；若旧数据残留则跳过权威结算
+      console.log(`${LOG} 道路遭遇已下线，跳过权威结算 player=${playerId} enc=${r.encounter.encounterId}`);
+      r.roadEncounter = { ok: false, skipped: 'road_encounter_removed', encounterId: r.encounter.encounterId };
     }
     return r;
   } catch (e) {

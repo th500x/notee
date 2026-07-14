@@ -1,6 +1,6 @@
 /**
- * 三公府 · 互动 · 封赏：俸禄（国力档位日领）+ 礼盒/兑换/军备（占位）+ 将领/部队卡池入口（与 `CardPoolPoolButton` 同源样式）。
- * 打开卡池后仍由 `GamePage` 的 `CardPoolDrawer` + `useCardPool` 承接（经 `onOpenPool`）。
+ * 三公府 · 互动 · 封赏：俸禄（国力档位日领）+ 礼盒/兑换/军备（占位）+ 道具/将领/部队卡池入口（与 `CardPoolPoolButton` 同源样式）。
+ * 打开卡池后仍由 `GamePage` 的 `CardPoolDrawer` / `ItemCardPoolDrawer` + `useCardPool` 承接（经 `onOpenPool`）。
  */
 
 import { useCallback, useEffect, useState } from 'react';
@@ -32,10 +32,11 @@ const ARMAMENT_TOOLTIP =
 
 /**
  * @param {{
- *   onOpenPool: (type: 'character' | 'troop') => void,
+ *   onOpenPool: (type: 'character' | 'troop' | 'item') => void,
  *   drawerOpen?: boolean,
  *   troopRemaining: string | number,
  *   charRemaining: string | number,
+ *   itemRemaining?: string | number,
  *   dailyLimit: string | number,
  *   playerId?: string | null,
  *   onAfterStipendClaim?: () => void | Promise<void>,
@@ -46,6 +47,7 @@ export default function SanGongFuFengShangPanel({
   drawerOpen = false,
   troopRemaining,
   charRemaining,
+  itemRemaining = '?',
   dailyLimit,
   playerId,
   onAfterStipendClaim,
@@ -235,6 +237,14 @@ export default function SanGongFuFengShangPanel({
           }}
         />
         <CardPoolPoolButton
+          icon="🎲"
+          label="道具卡池"
+          remaining={itemRemaining}
+          dailyLimit={dailyLimit}
+          drawerOpen={drawerOpen}
+          onClick={() => onOpenPool?.('item')}
+        />
+        <CardPoolPoolButton
           icon="🎴"
           label="将领卡池"
           remaining={charRemaining}
@@ -292,29 +302,11 @@ export default function SanGongFuFengShangPanel({
                   <span className="block text-stone-500">（银向下取整；粮 = 银 × 5）</span>
                 </div>
               ) : null}
-              {stipendResult.resourceMultiplier > 1 &&
-              stipendResult.appliedSilver != null &&
-              stipendResult.appliedFood != null ? (
-                <div className="text-stone-400 text-[10px]">
-                  官职资源 ×{stipendResult.resourceMultiplier} → 银 {stipendResult.appliedSilver} · 粮{' '}
-                  {stipendResult.appliedFood}
-                </div>
-              ) : null}
               {stipendResult.rationBonus &&
               (stipendResult.rationBonus.bonusSilver > 0 || stipendResult.rationBonus.bonusFood > 0) ? (
                 <div className="text-amber-200/80 text-[10px]">
                   粮饷政策 Bonus +{stipendResult.rationBonus.bonusSilver} 银 · +
                   {stipendResult.rationBonus.bonusFood} 粮（{stipendResult.rationBonus.bonusPctApplied}%）
-                </div>
-              ) : null}
-              {stipendResult.reputationGranted > 0 ? (
-                <div className="text-purple-300 text-[10px] tabular-nums">
-                  声望 +{stipendResult.reputationGranted}
-                </div>
-              ) : null}
-              {stipendResult.contributionGranted > 0 ? (
-                <div className="text-cyan-300 text-[10px] tabular-nums">
-                  贡献 +{stipendResult.contributionGranted}
                 </div>
               ) : null}
               <div className="mt-0.5 text-stone-300 text-[10px]">获得银两与粮草</div>

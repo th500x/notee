@@ -59,8 +59,8 @@ async function loadMainLineupTreasureCardIds(conn, playerId, slots) {
 async function loadGarrisonTreasureCardIds(conn, playerId, cityId, garrisonSlot, slots) {
   if (!cityId || garrisonSlot == null || !slots.length) return [];
   const [gRows] = await conn.query(
-    `SELECT char1_treasure, char2_treasure FROM player_garrison
-     WHERE player_id = ? AND city_id = ? AND garrison_slot = ? LIMIT 1`,
+    `SELECT char1_treasure, char2_treasure FROM player_lineup_sets
+     WHERE lineup_scope = 'garrison' AND player_id = ? AND city_id = ? AND lineup_slot = ? LIMIT 1`,
     [playerId, cityId, garrisonSlot],
   );
   const row = gRows[0];

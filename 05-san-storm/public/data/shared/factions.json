@@ -4,7 +4,7 @@
   "factions": [
     {
       "id": "san_1_faction_1001",
-      "name": "刘备",
+      "name": "三王",
       "leader": "san_1_char_1001",
       "icon": "🐉",
       "color": "#FF6B6B",
@@ -12,254 +12,67 @@
       "style": "机缘",
       "max_players": 10,
       "bonuses": [
-        "势力内政值+5%",
-        "势力魅力值+10%",
-        "部队卡兵力+15",
-        "仙人AI固定施展增益效果"
+        "部队卡兵力+5"
       ],
       "faction_bonuses": [
         {
-          "key": "faction_politics_bonus",
-          "value": 5
-        },
-        {
-          "key": "faction_charm_bonus",
-          "value": 10
-        },
-        {
           "key": "troop_max_troops_bonus",
-          "value": 15
-        },
-        {
-          "key": "npc_sage_guaranteed_buff"
+          "value": 5
         }
       ],
-      "description": "机缘玩家的选择，固守风格",
+      "description": "逐鹿之始，三王并起。刘备之仁、曹操之霸、孙坚之勇，三王汇聚，问鼎乱世。",
       "difficulty": "简单",
       "initialCityId": "san_1_city_3_shangcai"
     },
     {
       "id": "san_1_faction_2001",
-      "name": "曹操",
-      "leader": "san_1_char_2001",
-      "icon": "⚔️",
-      "color": "#4ECDC4",
-      "season": "san_1",
-      "style": "霸业",
-      "max_players": 0,
-      "bonuses": [
-        "势力内政值+10%",
-        "势力魅力值+5%",
-        "紫/橙部队卡攻击+1",
-        "每日探索事件数+4"
-      ],
-      "faction_bonuses": [
-        {
-          "key": "faction_politics_bonus",
-          "value": 10
-        },
-        {
-          "key": "faction_charm_bonus",
-          "value": 5
-        },
-        {
-          "key": "troop_epic_legendary_attack_bonus",
-          "value": 1
-        },
-        {
-          "key": "daily_event_count_bonus",
-          "value": 2
-        }
-      ],
-      "description": "扎实玩家的选择，霸业风格",
-      "difficulty": "简单"
-    },
-    {
-      "id": "san_1_faction_3001",
-      "name": "孙坚",
-      "leader": "san_1_char_3001",
-      "icon": "🦁",
-      "color": "#95E1D3",
-      "season": "san_1",
-      "style": "挑战",
-      "max_players": 0,
-      "bonuses": [
-        "势力内政值+2%",
-        "势力魅力值+5%",
-        "部队卡移速+1",
-        "君主随机参战"
-      ],
-      "faction_bonuses": [
-        {
-          "key": "faction_politics_bonus",
-          "value": 2
-        },
-        {
-          "key": "faction_charm_bonus",
-          "value": 5
-        },
-        {
-          "key": "troop_speed_bonus",
-          "value": 1
-        },
-        {
-          "key": "lord_random_battle"
-        }
-      ],
-      "description": "极限玩家的选择，挑战风格",
-      "difficulty": "困难"
-    },
-    {
-      "id": "san_1_faction_4001",
-      "name": "袁绍",
-      "leader": "san_1_char_4001",
-      "icon": "👑",
-      "color": "#F38181",
-      "season": "san_1",
-      "style": "挑战",
-      "max_players": 0,
-      "bonuses": [
-        "势力内政值+5%",
-        "势力魅力值+2%",
-        "紫/橙部队卡防御+1",
-        "贡献加成+10%"
-      ],
-      "faction_bonuses": [
-        {
-          "key": "faction_politics_bonus",
-          "value": 5
-        },
-        {
-          "key": "faction_charm_bonus",
-          "value": 2
-        },
-        {
-          "key": "troop_epic_legendary_defense_bonus",
-          "value": 1
-        },
-        {
-          "key": "contribution_bonus",
-          "value": 10
-        }
-      ],
-      "description": "极限玩家的选择，挑战风格",
-      "difficulty": "困难"
-    },
-    {
-      "id": "san_1_faction_5001",
-      "name": "董卓",
-      "leader": "san_1_char_5001",
-      "icon": "🔥",
-      "color": "#AA4A44",
-      "season": "san_1",
-      "style": "猛攻",
-      "max_players": 0,
-      "bonuses": [
-        "势力内政值-10%",
-        "势力魅力值-5%",
-        "攻城攻击力+5%",
-        "背包部队卡上限+4"
-      ],
-      "faction_bonuses": [
-        {
-          "key": "faction_politics_bonus",
-          "value": -10
-        },
-        {
-          "key": "faction_charm_bonus",
-          "value": -5
-        },
-        {
-          "key": "siege_attack_bonus",
-          "value": 5
-        },
-        {
-          "key": "backpack_capacity_bonus",
-          "value": 2
-        }
-      ],
-      "description": "暴虐玩家的选择，猛攻风格",
-      "difficulty": "中级"
-    },
-    {
-      "id": "san_1_faction_6001",
       "name": "汉室",
-      "leader": "san_1_char_6001",
+      "leader": "san_1_char_2001",
       "icon": "🏛️",
       "color": "#FFD93D",
       "season": "san_1",
       "style": "中庸",
       "max_players": 30,
       "bonuses": [
-        "势力内政值+5%",
-        "势力魅力值+5%",
-        "守城防御力+5%",
-        "势力俸禄(资源)+5%"
+        "每日银两+20"
       ],
       "faction_bonuses": [
         {
-          "key": "faction_politics_bonus",
-          "value": 5
-        },
-        {
-          "key": "faction_charm_bonus",
-          "value": 5
-        },
-        {
-          "key": "siege_defense_bonus",
-          "value": 5
-        },
-        {
-          "key": "faction_salary_resource_bonus",
-          "value": 5
+          "key": "daily_checkin_rewards",
+          "value": "silver:20"
         }
       ],
-      "description": "中庸玩家的选择，主流风格",
-      "difficulty": "简单",
+      "description": "朝廷纲纪未绝，诸侯各怀异心。灵帝昏、袁绍骄、董卓暴，汉祚将倾。",
+      "difficulty": "中级",
       "initialCityId": "san_1_city_3_yangcheng"
     },
     {
-      "id": "san_1_faction_7001",
+      "id": "san_1_faction_3001",
       "name": "黄巾",
-      "leader": "san_1_char_7001",
+      "leader": "san_1_char_3001",
       "icon": "⚡",
       "color": "#FCB900",
       "season": "san_1",
       "style": "速攻",
       "max_players": 50,
       "bonuses": [
-        "势力内政值-20%",
-        "势力魅力值-5%",
-        "白/蓝部队卡攻击+2",
-        "势力俸禄(部队卡)+1"
+        "每日兵符+1"
       ],
       "faction_bonuses": [
         {
-          "key": "faction_politics_bonus",
-          "value": -20
-        },
-        {
-          "key": "faction_charm_bonus",
-          "value": -5
-        },
-        {
-          "key": "troop_common_rare_attack_bonus",
-          "value": 2
-        },
-        {
-          "key": "faction_salary_troop_card_bonus",
-          "value": 1
+          "key": "daily_checkin_rewards",
+          "value": "item_token:1"
         }
       ],
-      "description": "速攻玩家的选择，蝗虫风格",
-      "difficulty": "中级",
+      "description": "苍天已死，黄天当立。太平道席卷天下，官军百姓皆入战局。",
+      "difficulty": "高级",
       "initialCityId": "san_1_city_3_yancheng"
     }
   ],
   "metadata": {
-    "totalFactions": 7,
+    "totalFactions": 3,
     "totalMaxPlayers": 90,
-    "generatedAt": "2026-06-08T11:35:05.735Z",
+    "generatedAt": "2026-07-13T15:46:13.933Z",
     "idFormat": "san_{season}_faction_{4digits}"
   }
 }

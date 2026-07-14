@@ -10,7 +10,6 @@ import {
   worldMapRegionLabelFromRow,
   worldMapCityDefenseDisplayFromRow,
 } from '@/utils/worldMapCityPanelCopy';
-import { garrisonAPI } from '@/services/garrisonApi';
 import {
   resolveStrategicTileCityCover,
   resolveStrategicTilePvpCampCover,
@@ -119,9 +118,8 @@ function canStrategicCityWarTheaterOwnActions(hd, anchorNorm) {
  * @param {object} row - cities 行或匪寨合成行
  * @param {string} anchorKey - 城池：`cityId`；匪寨：**`banditPoiId`**
  * @param {object} hd - hoverDataRef.current
- * @param {number|null} onDutyCount
  */
-function buildStrategicWorldMapCityTooltip(row, anchorKey, hd, onDutyCount) {
+function buildStrategicWorldMapCityTooltip(row, anchorKey, hd) {
   const fb = hd.factionNameById || {};
   const statsMap = hd.garrisonStatsByCityId || {};
   const slotRaw = statsMap[anchorKey]?.slot_count;
@@ -134,7 +132,6 @@ function buildStrategicWorldMapCityTooltip(row, anchorKey, hd, onDutyCount) {
     siegeQuota: null,
     siegeLoading: hd.siegeLoading === true,
     garrisonSlotCount: Number.isFinite(slotNum) ? slotNum : null,
-    onDutyCount,
     cityById: hd.cityById,
   });
 
@@ -204,27 +201,6 @@ function buildStrategicWorldMapCityTooltip(row, anchorKey, hd, onDutyCount) {
           }
         : undefined,
     showOwnCityActions: canOwnCityPanel,
-    playerOnDutyForThisCity: !!(
-      hd.playerOnDuty &&
-      !base.isBanditStronghold &&
-      hd.playerOnDutyCityId === anchorKey
-    ),
-    onOpenGarrison:
-      canOwnCityPanel && typeof hd.onOpenGarrisonForCity === 'function'
-        ? () => {
-            hd.onOpenGarrisonForCity(anchorKey, base.cityBaseName);
-            hd.closeStrategicCityTooltip?.();
-          }
-        : undefined,
-    onToggleDutyRequest:
-      canOwnCityPanel && typeof hd.onToggleDutyForCity === 'function'
-        ? hd.onToggleDutyForCity
-        : undefined,
-    onAfterOwnCityAction:
-      canOwnCityPanel && typeof hd.onAfterStrategicCityOwnAction === 'function'
-        ? hd.onAfterStrategicCityOwnAction
-        : undefined,
-    onDutyError: typeof hd.onDutyError === 'function' ? hd.onDutyError : undefined,
     subsidiaryExploreEmbed: hd.subsidiaryExploreEmbed ?? null,
     closeStrategicCityTooltip:
       typeof hd.closeStrategicCityTooltip === 'function' ? hd.closeStrategicCityTooltip : undefined,
@@ -272,7 +248,7 @@ function buildStrategicWorldMapCityTooltip(row, anchorKey, hd, onDutyCount) {
 }
 
 /**
- * PVP 攻方大本营：复用 `WorldMapCityInfoBlock` 城备布局；长官=战事发起人，披挂/驻地固定为无。
+ * PVP 攻方大本营：复用 `WorldMapCityInfoBlock` 城备布局；长官=战事发起人，驻地固定为无。
  * **守方攻打**：须本人路点锚在 **该战事目标城** `targetCityId`（战事城池）格网内；在毗邻道路或仅 hover 大本营格而未到目标城时不出击按钮。
  *
  * @param {object} warSlice - `listWars` 与 `base_camp` 合并切片（含 `pvpWarId`、`targetCityId`、`sideStats` 等）
@@ -336,12 +312,10 @@ function buildStrategicPvpBaseCampTooltip(warSlice, hd) {
     npcTotal: warSlice.npcTotal != null ? warSlice.npcTotal : '?',
     garrisonSlotCount: null,
     garrisonCap: null,
-    onDutyCount: null,
     syncErrorMessage: null,
     siegeLoading: hd.siegeLoading === true,
     playerId: hd.playerId,
     showOwnCityActions: false,
-    playerOnDutyForThisCity: false,
     cityBaseName: '攻方大本营',
     onStartSiege:
       canStrike && pvpId
@@ -359,7 +333,7 @@ function buildStrategicPvpBaseCampTooltip(warSlice, hd) {
 /**
  * 战略层郡大地图格网（单郡 32×40；多郡垂直叠放时可为 32×80 等）。
  * 与 `CampaignMapGrid` 分离：无战役部署、无部队层、无战斗引擎。
- * Tooltip：城池有 **`cityId`** 且在 `cityById` 有行时，与 `WorldMapCityInfoBlock` 同款（驻地编组 / 披挂 / 攻城等）。
+ * Tooltip：城池有 **`cityId`** 且在 `cityById` 有行时，与 `WorldMapCityInfoBlock` 同款（驻地编组 / 设为主城 / 攻城等）。
  * 匪寨用格上 **`banditPoiId`**（`readStrategicCellAnchorId`）；可无表行：合成最小行走匪寨专用面板。
  */
 export default function WorldStrategicMapGrid({
@@ -381,13 +355,8 @@ export default function WorldStrategicMapGrid({
   siegeLoading = false,
   onStartSiegeForCity = null,
   garrisonStatsByCityId = null,
-  /** `bumpGarrisonStats` 递增；披挂/驻地变更后须重拉当前城池 tooltip 人数 */
+  /** `bumpGarrisonStats` 递增；驻地变更后须重建当前城池 tooltip */
   garrisonStatsRefreshKey = 0,
-  playerOnDuty = false,
-  playerOnDutyCityId = null,
-  onOpenGarrisonForCity = null,
-  onToggleDutyForCity = null,
-  onDutyError = null,
   subsidiaryExploreEmbed = null,
   playerMainCityId = null,
   playerMainCityChangedAt = null,
@@ -477,9 +446,7 @@ export default function WorldStrategicMapGrid({
 
   const hoverDataRef = useRef({});
   /** 战略城池 tooltip 打开时记录锚点，便于 profile 刷新后重建内容（否则 mainCityId 等仍是快照） */
-  const strategicCityTooltipMetaRef = useRef({ cityId: null, banditPoiId: null, onDutyCount: null });
-  /** 使进行中的 `getOnDutyCount` 回调在关层 / 新开拉取 / 披挂档案变更后丢弃，避免旧响应写回人数。 */
-  const strategicOnDutyCountFetchTokenRef = useRef(0);
+  const strategicCityTooltipMetaRef = useRef({ cityId: null, banditPoiId: null });
 
   /**
    * 探索结算关弹窗后，浏览器常把同一指针的后续 click 落在底下的战略格上；在「点击模式」下会触发
@@ -498,9 +465,8 @@ export default function WorldStrategicMapGrid({
 
   const dismissTooltip = useCallback(() => {
     hoverGenRef.current += 1;
-    strategicOnDutyCountFetchTokenRef.current += 1;
     lastTooltipAnchorKeyRef.current = null;
-    strategicCityTooltipMetaRef.current = { cityId: null, banditPoiId: null, onDutyCount: null };
+    strategicCityTooltipMetaRef.current = { cityId: null, banditPoiId: null };
     setTooltipContent(null);
   }, []);
 
@@ -524,31 +490,6 @@ export default function WorldStrategicMapGrid({
     dismissTooltip();
   }, [clearLeaveTooltipTimer, dismissTooltip]);
 
-  /** 当前粘滞城池 tooltip 打开时，重拉 `GET garrisons/on-duty-count` 并刷新「披挂上阵」行。 */
-  const refetchOpenCityTooltipOnDutyCount = useCallback(() => {
-    const m = strategicCityTooltipMetaRef.current;
-    const cityId = m?.cityId;
-    if (!cityId) return;
-    const tc = tooltipContentRef.current;
-    if (!tc || tc.type !== 'worldMapCity' || String(tc.cityId) !== String(cityId)) return;
-    strategicOnDutyCountFetchTokenRef.current += 1;
-    const onDutyCountToken = strategicOnDutyCountFetchTokenRef.current;
-    garrisonAPI.getOnDutyCount(cityId).then((res) => {
-      if (onDutyCountToken !== strategicOnDutyCountFetchTokenRef.current) return;
-      const duty = res.success ? Number(res.count) : null;
-      const d = Number.isFinite(duty) ? duty : null;
-      strategicCityTooltipMetaRef.current = {
-        ...strategicCityTooltipMetaRef.current,
-        cityId,
-        onDutyCount: d,
-      };
-      const hd = hoverDataRef.current;
-      const row = hd.cityById?.[cityId];
-      if (!row) return;
-      setTooltipContent(buildStrategicWorldMapCityTooltip(row, cityId, hd, d));
-    });
-  }, []);
-
   hoverDataRef.current = {
     cells,
     cityById,
@@ -558,12 +499,6 @@ export default function WorldStrategicMapGrid({
     siegeLoading,
     onStartSiegeForCity,
     garrisonStatsByCityId,
-    playerOnDuty,
-    playerOnDutyCityId,
-    onOpenGarrisonForCity,
-    onToggleDutyForCity,
-    onDutyError,
-    onAfterStrategicCityOwnAction: refetchOpenCityTooltipOnDutyCount,
     subsidiaryExploreEmbed,
     closeStrategicCityTooltip: closeTooltipNow,
     playerMainCityId,
@@ -625,27 +560,23 @@ export default function WorldStrategicMapGrid({
     const tc = tooltipContentRef.current;
     if (!tc || tc.type !== 'worldMapCity') return;
     const hd = hoverDataRef.current;
-    const duty = Number.isFinite(m.onDutyCount) ? m.onDutyCount : null;
     if (m.cityId) {
       const row = hd.cityById?.[m.cityId];
       if (row) {
-        setTooltipContent(buildStrategicWorldMapCityTooltip(row, m.cityId, hd, duty));
+        setTooltipContent(buildStrategicWorldMapCityTooltip(row, m.cityId, hd));
       }
       return;
     }
     if (m.banditPoiId && isBanditMapObjectId(m.banditPoiId)) {
       const hint = { cityName: tc.cityTitle, city_name: tc.cityTitle };
       const synth = syntheticBanditProgressRowFromAnchorCell(m.banditPoiId, hint);
-      setTooltipContent(buildStrategicWorldMapCityTooltip(synth, m.banditPoiId, hd, duty));
+      setTooltipContent(buildStrategicWorldMapCityTooltip(synth, m.banditPoiId, hd));
     }
-    if (m.cityId) refetchOpenCityTooltipOnDutyCount();
   }, [
     cityById,
     playerMainCityId,
     playerMainCityChangedAt,
     playerSilver,
-    playerOnDuty,
-    playerOnDutyCityId,
     subsidiaryExploreEmbed,
     garrisonStatsByCityId,
     garrisonStatsRefreshKey,
@@ -658,17 +589,6 @@ export default function WorldStrategicMapGrid({
     playerStandingPoiAnchorId,
     playerStandingPvpWarId,
     pvpBaseCamps,
-    refetchOpenCityTooltipOnDutyCount,
-  ]);
-
-  /** 档案 `onDuty` / 驻地统计变更后，重拉当前粘滞 tooltip 的披挂人数（勿沿用 meta 打开时快照）。 */
-  useEffect(() => {
-    refetchOpenCityTooltipOnDutyCount();
-  }, [
-    playerOnDuty,
-    playerOnDutyCityId,
-    garrisonStatsRefreshKey,
-    refetchOpenCityTooltipOnDutyCount,
   ]);
 
   useEffect(() => {
@@ -945,7 +865,7 @@ export default function WorldStrategicMapGrid({
           return;
         }
         lastTooltipAnchorKeyRef.current = `pvpCamp:${pvpWarIdHit}`;
-        strategicCityTooltipMetaRef.current = { cityId: null, banditPoiId: null, onDutyCount: null };
+        strategicCityTooltipMetaRef.current = { cityId: null, banditPoiId: null };
         setTooltipContent(buildStrategicPvpBaseCampTooltip(warSlice, hd));
         setTooltipPos({ x: e.clientX, y: e.clientY });
         return;
@@ -988,46 +908,22 @@ export default function WorldStrategicMapGrid({
     lastTooltipAnchorKeyRef.current = anchorKey;
 
     if (tooltipCell && siegeCityId && row) {
-      const g = ++hoverGenRef.current;
-
-      strategicCityTooltipMetaRef.current = { cityId: siegeCityId, banditPoiId: null, onDutyCount: null };
-      setTooltipContent(buildStrategicWorldMapCityTooltip(row, siegeCityId, hd, null));
+      strategicCityTooltipMetaRef.current = { cityId: siegeCityId, banditPoiId: null };
+      setTooltipContent(buildStrategicWorldMapCityTooltip(row, siegeCityId, hd));
       setTooltipPos({ x: e.clientX, y: e.clientY });
-
-      strategicOnDutyCountFetchTokenRef.current += 1;
-      const onDutyCountToken = strategicOnDutyCountFetchTokenRef.current;
-      garrisonAPI.getOnDutyCount(siegeCityId).then((res) => {
-        if (g !== hoverGenRef.current) return;
-        if (onDutyCountToken !== strategicOnDutyCountFetchTokenRef.current) return;
-        const duty = res.success ? Number(res.count) : null;
-        const hd2 = hoverDataRef.current;
-        strategicCityTooltipMetaRef.current = {
-          cityId: siegeCityId,
-          banditPoiId: null,
-          onDutyCount: Number.isFinite(duty) ? duty : null,
-        };
-        setTooltipContent(
-          buildStrategicWorldMapCityTooltip(
-            row,
-            siegeCityId,
-            hd2,
-            Number.isFinite(duty) ? duty : null,
-          ),
-        );
-      });
       return;
     }
 
     if (tooltipCell && banditPoiId && !row) {
-      strategicCityTooltipMetaRef.current = { cityId: null, banditPoiId, onDutyCount: null };
+      strategicCityTooltipMetaRef.current = { cityId: null, banditPoiId };
       const synth = syntheticBanditProgressRowFromAnchorCell(banditPoiId, tooltipCell);
-      setTooltipContent(buildStrategicWorldMapCityTooltip(synth, banditPoiId, hd, null));
+      setTooltipContent(buildStrategicWorldMapCityTooltip(synth, banditPoiId, hd));
       setTooltipPos({ x: e.clientX, y: e.clientY });
       return;
     }
 
     if (tooltipCell && siegeCityId && !row) {
-      strategicCityTooltipMetaRef.current = { cityId: null, banditPoiId: null, onDutyCount: null };
+      strategicCityTooltipMetaRef.current = { cityId: null, banditPoiId: null };
       const nameBase = tooltipCell.cityName || siegeCityId;
       const titleStr =
         isBanditMapObjectId(siegeCityId) || isBanditMapObjectId(nameBase)
@@ -1048,11 +944,11 @@ export default function WorldStrategicMapGrid({
     const info = tooltipCell ? buildCampaignCellTooltipInfo(tooltipCell) : null;
     if (!info) {
       lastTooltipAnchorKeyRef.current = null;
-      strategicCityTooltipMetaRef.current = { cityId: null, banditPoiId: null, onDutyCount: null };
+      strategicCityTooltipMetaRef.current = { cityId: null, banditPoiId: null };
       setTooltipContent(null);
       return;
     }
-    strategicCityTooltipMetaRef.current = { cityId: null, banditPoiId: null, onDutyCount: null };
+    strategicCityTooltipMetaRef.current = { cityId: null, banditPoiId: null };
     setTooltipContent({ type: 'tile', info });
     setTooltipPos({ x: e.clientX, y: e.clientY });
   }, [
@@ -1097,35 +993,10 @@ export default function WorldStrategicMapGrid({
         py = wr.top + Math.min(160, wr.height * 0.35);
       }
     }
-    const g = ++hoverGenRef.current;
     lastTooltipAnchorKeyRef.current = `city:${anchorCityId}`;
-    strategicCityTooltipMetaRef.current = { cityId: anchorCityId, banditPoiId: null, onDutyCount: null };
-    setTooltipContent(buildStrategicWorldMapCityTooltip(row, anchorCityId, hd, null));
+    strategicCityTooltipMetaRef.current = { cityId: anchorCityId, banditPoiId: null };
+    setTooltipContent(buildStrategicWorldMapCityTooltip(row, anchorCityId, hd));
     setTooltipPos({ x: px, y: py });
-
-    strategicOnDutyCountFetchTokenRef.current += 1;
-    const onDutyCountToken = strategicOnDutyCountFetchTokenRef.current;
-    garrisonAPI.getOnDutyCount(anchorCityId).then((res) => {
-      if (g !== hoverGenRef.current) return;
-      if (onDutyCountToken !== strategicOnDutyCountFetchTokenRef.current) return;
-      const duty = res.success ? Number(res.count) : null;
-      const hd2 = hoverDataRef.current;
-      const row2 = hd2.cityById?.[anchorCityId];
-      if (!row2) return;
-      strategicCityTooltipMetaRef.current = {
-        cityId: anchorCityId,
-        banditPoiId: null,
-        onDutyCount: Number.isFinite(duty) ? duty : null,
-      };
-      setTooltipContent(
-        buildStrategicWorldMapCityTooltip(
-          row2,
-          anchorCityId,
-          hd2,
-          Number.isFinite(duty) ? duty : null,
-        ),
-      );
-    });
   }, [clearLeaveTooltipTimer, strategicNav]);
 
   useEffect(() => {
@@ -1324,7 +1195,7 @@ export default function WorldStrategicMapGrid({
                         centerGlyph={p.centerGlyph}
                         stackStripPeers={p.stackStripPeers}
                         stackStripEllipsis={!!p.stackStripEllipsis}
-                        roadIntercept={p.roadIntercept ? 1 : 0}
+                        roadIntercept={0}
                       />
                     ))
                 : null}
@@ -1348,10 +1219,10 @@ export default function WorldStrategicMapGrid({
                     strategicRoadMarchAnimating ? undefined : onStrategicSelfMarchModeRequest || undefined
                   }
                   onExitMarchMode={onStrategicSelfMarchModeExit || undefined}
-                  roadIntercept={strategicSelfPawn.roadIntercept ? 1 : 0}
-                  interceptPlayerId={strategicSelfPawn.pawnPlayerId || null}
-                  interceptSilver={strategicSelfPawn.playerSilver}
-                  onRoadSelfUpdated={onStrategicRoadSelfUpdated || undefined}
+                  roadIntercept={0}
+                  interceptPlayerId={null}
+                  interceptSilver={null}
+                  onRoadSelfUpdated={undefined}
                   onRoadCell={!!strategicSelfPawn.onRoad}
                 />
               ) : null}

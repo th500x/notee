@@ -1124,10 +1124,10 @@ async function recordBaseCampSiegeResult(pvpWarId, playerId, payload) {
 
 // ==================== 攻方对目标城出击（PVP 专属，独立于 PVE） ====================
 //
-// 语义对齐 17-3 §1.4 / §1.7 / §1.9 与 M1 占领城防御链：
-//   1) 披挂上阵（pvp_online，实时同步）
-//   2) 普通驻守玩家（player_garrison，异步 PVE）
-//   3) NPC 守军（npc，异步 PVE）
+// 语义对齐 17-3 / 17-4（玩法1重构后）：
+//   1) 普通驻守玩家（player_garrison）
+//   2) NPC 守军（npc）
+// 披挂上阵（pvp_online / on_duty）已移除。
 //
 // 物理分流：仅写 `wars_pvp.side_stats.attacker`，**不** 写 `wars` / 不走 PVE faction_kills 抢桶；
 // 锁键命名空间 `pvp-city|...` 与 cityService 的 PVE `def|warId|...` 完全独立。
@@ -1173,12 +1173,11 @@ function releaseAllPvpWarMemoryLocks(pvpWarId) {
 }
 
 /**
- * 发起一场对目标城的攻城战斗（PVP 战事内攻方主动出击，三类防守者通用入口）。
+ * 发起一场对目标城的攻城战斗（PVP 战事内攻方主动出击）。
  *
- * 防守者优先级（与 17-3 §1.4 / §1.7、M1 cityService 占领城分支语义一致）：
- *   ① 披挂上阵玩家（实时 PVP，pvp_online）
- *   ② 普通驻守玩家（异步 PVE，player_garrison）
- *   ③ NPC 守军（异步 PVE，npc）
+ * 防守者优先级（玩法1重构后）：
+ *   ① 普通驻守玩家（player_garrison）
+ *   ② NPC 守军（npc）
  *
  * 与 cityService.initiateSiege 物理分流：仅在 `wars_pvp.status='active'` 下成立，**不** 写 `wars` 表。
  *
@@ -1229,16 +1228,10 @@ async function initiateAttackerCitySiege(pvpWarId, attackerPlayerId) {
 
   await cityService.consumeSiegeQuotaForBattleStart(attackerPlayerId);
 
-  // ── 1) 披挂上阵 + 普通驻守玩家：合并去重，按位置等级 / 槽位顺序匹配 ──
-  const onDutyDefenders = await garrisonService.getCityOnDutyDefenders(
+  // ── 1) 普通驻守玩家：按位置等级 / 槽位顺序匹配（披挂 on_duty 已移除） ──
+  const playerDefenders = await garrisonService.getCityGarrisonDefenders(
     war.targetCityId, war.defenderFactionId,
   );
-  const garrisonDefenders = await garrisonService.getCityGarrisonDefenders(
-    war.targetCityId, war.defenderFactionId,
-  );
-  const onDutyPlayerIds = new Set(onDutyDefenders.map((d) => d.player_id));
-  const garrisonOnly = garrisonDefenders.filter((d) => !onDutyPlayerIds.has(d.player_id));
-  const playerDefenders = [...onDutyDefenders, ...garrisonOnly];
 
   for (const def of playerDefenders) {
     if (!def.player_id || def.player_id === attackerPlayerId) continue;
@@ -1247,13 +1240,12 @@ async function initiateAttackerCitySiege(pvpWarId, attackerPlayerId) {
     if (!meetsStationedTroopGate) continue;
 
     const lockKey = buildPvpCityPlayerLockKey(
-      pvpWarId, def.player_id, def.garrison_slot ?? 0,
+      pvpWarId, def.player_id, def.garrison_slot ?? 1,
     );
     if (!tryAcquirePvpCityLock(lockKey, attackerPlayerId)) continue;
 
     try {
       const garrisonUnits = garrisonService.mapBuiltUnitsToSiegeNpcFormat(units);
-      const isOnDuty = def.defense_source === 'main_lineup' || !!def.on_duty;
       const garrisonPayload = attachSiegeCityDefenseToPayload({
         pvpWarId,
         cityId: city.city_id,
@@ -1264,12 +1256,12 @@ async function initiateAttackerCitySiege(pvpWarId, attackerPlayerId) {
         npcTotal: garrisonUnits.length,
         attackerFactionId: war.attackerFactionId,
         defenderFactionId: war.defenderFactionId,
-        defenderType: isOnDuty ? 'pvp_online' : 'player_garrison',
+        defenderType: 'player_garrison',
         defenderName: def.character_name || null,
         defenderPlayerId: def.player_id,
-        defenderGarrisonSlot: def.garrison_slot ?? 0,
+        defenderGarrisonSlot: def.garrison_slot ?? 1,
       }, city);
-      if (!isOnDuty && policiesRow) {
+      if (policiesRow) {
         const imperialMarchService = require('./imperialMarchService');
         return await imperialMarchService.attachImperialMarchToSiegePayload(
           garrisonPayload,
@@ -1371,7 +1363,7 @@ async function applyPvpTargetCityOwnershipHandoff(conn, war) {
     [war.targetCityId],
   );
   const [cityGarrisonPlayers] = await conn.query(
-    'SELECT DISTINCT player_id FROM player_garrison WHERE city_id = ?',
+    "SELECT DISTINCT player_id FROM player_lineup_sets WHERE lineup_scope = 'garrison' AND city_id = ?",
     [war.targetCityId],
   );
   const ids = (cityGarrisonPlayers || []).map((r) => r.player_id);
@@ -1566,10 +1558,11 @@ async function recordAttackerCitySiegeResult(pvpWarId, attackerPlayerId, payload
         let garrisonRow = null;
         if (defenderGarrisonSlot != null && war.targetCityId) {
           const [gRows] = await conn.query(
-            'SELECT * FROM player_garrison WHERE player_id = ? AND city_id = ? AND garrison_slot = ? LIMIT 1',
+            "SELECT * FROM player_lineup_sets WHERE lineup_scope = 'garrison' AND player_id = ? AND city_id = ? AND lineup_slot = ? LIMIT 1",
             [defenderPlayerId, war.targetCityId, defenderGarrisonSlot],
           );
-          garrisonRow = gRows[0] || null;
+          const { mapGarrisonApiRow } = require('../constants/lineupSets');
+          garrisonRow = mapGarrisonApiRow(gRows[0] || null);
         }
         await consumeTreasuresAfterBattle(
           runQ,
@@ -1596,7 +1589,7 @@ async function recordAttackerCitySiegeResult(pvpWarId, attackerPlayerId, payload
       for (const { playerId: gPlayerId, slot, garrisonCityId } of garrisonKeys.values()) {
         const rowCityId = garrisonCityId || war.targetCityId;
         const [slotRows] = await conn.query(
-          'SELECT char1_troop1, char1_troop2, char2_troop1, char2_troop2 FROM player_garrison WHERE player_id = ? AND city_id = ? AND garrison_slot = ?',
+          "SELECT char1_troop1, char1_troop2, char2_troop1, char2_troop2 FROM player_lineup_sets WHERE lineup_scope = 'garrison' AND player_id = ? AND city_id = ? AND lineup_slot = ?",
           [gPlayerId, rowCityId, slot],
         );
         if (!slotRows.length) continue;
@@ -1606,7 +1599,7 @@ async function recordAttackerCitySiegeResult(pvpWarId, attackerPlayerId, payload
         ].filter(Boolean);
         if (troopIds.length === 0) {
           await conn.query(
-            'UPDATE player_garrison SET is_active = FALSE WHERE player_id = ? AND city_id = ? AND garrison_slot = ?',
+            "UPDATE player_lineup_sets SET is_active = FALSE WHERE lineup_scope = 'garrison' AND player_id = ? AND city_id = ? AND lineup_slot = ?",
             [gPlayerId, rowCityId, slot],
           );
           continue;
@@ -1616,7 +1609,7 @@ async function recordAttackerCitySiegeResult(pvpWarId, attackerPlayerId, payload
         );
         if (totalTroopsLeft < garrisonService.MIN_GARRISON_TOTAL_TROOPS) {
           await conn.query(
-            'UPDATE player_garrison SET is_active = FALSE WHERE player_id = ? AND city_id = ? AND garrison_slot = ?',
+            "UPDATE player_lineup_sets SET is_active = FALSE WHERE lineup_scope = 'garrison' AND player_id = ? AND city_id = ? AND lineup_slot = ?",
             [gPlayerId, rowCityId, slot],
           );
         }

@@ -17,6 +17,7 @@ const { normalizeMapDisplayEffect } = require('../../../shared/utils/mapDisplayE
 const {
   buildPlayerRoadSnapshot,
   ROAD_DEFENDER_ALERT_SEC,
+  ROAD_ENCOUNTERS_ENABLED,
   STALE_FIGHT_SQL_MIN,
 } = require('./roadShared');
 
@@ -49,6 +50,7 @@ async function getSelfRoadState(playerId) {
     await conn.commit();
 
     let activeFightingEncounter;
+    if (ROAD_ENCOUNTERS_ENABLED) {
     const jun = r.road_jun_id != null ? String(r.road_jun_id).trim() : '';
     const px = r.road_position_x;
     const py = r.road_position_y;
@@ -79,6 +81,7 @@ async function getSelfRoadState(playerId) {
           role: att === pid ? 'attacker' : 'defender',
         };
       }
+    }
     }
 
     return {
@@ -155,7 +158,8 @@ async function getRoadPresence(season, junId, callerPlayerId) {
       [j, caller || '', thresholdSec],
     );
 
-    const [locks] = await pool.query(
+    const [locks] = ROAD_ENCOUNTERS_ENABLED
+      ? await pool.query(
       `SELECT encounter_id AS encounterId,
               position_x AS positionX,
               position_y AS positionY,
@@ -166,7 +170,8 @@ async function getRoadPresence(season, junId, callerPlayerId) {
          FROM road_encounters
         WHERE season = ? AND jun_id = ? AND status IN ('pending','fighting')`,
       [s, j],
-    );
+    )
+      : [[]];
 
     return {
       ok: true,
@@ -186,7 +191,7 @@ async function getRoadPresence(season, junId, callerPlayerId) {
           roadUpdatedAt: r.roadUpdatedAt || null,
           mapDisplayEffect: normalizeMapDisplayEffect(r.mapDisplayEffectRaw),
         })),
-        lockedCells: locks.map((r) => ({
+        lockedCells: (locks || []).map((r) => ({
           encounterId: r.encounterId,
           positionX: Number(r.positionX),
           positionY: Number(r.positionY),

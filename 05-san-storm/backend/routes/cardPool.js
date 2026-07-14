@@ -33,13 +33,13 @@ router.get('/status/:playerId', async (req, res, next) => {
 /**
  * 抽取卡牌
  * POST /api/card-pool/draw
- * Body: { playerId, poolType: 'troop' | 'character', poolSeason?: 'san_1' | 'san_0' }
+ * Body: { playerId, poolType: 'troop' | 'character' | 'item', poolSeason?: 'san_1' | 'san_0' }
  */
 router.post(
   '/draw',
   validateBody({
     playerId: v.required(v.nonEmptyString({ max: 64 })),
-    poolType: v.required(v.enum(['troop', 'character'])),
+    poolType: v.required(v.enum(['troop', 'character', 'item'])),
     poolSeason: v.optional(v.enum(['san_0', 'san_1'])),
     drawMode: v.optional(v.enum(['single', 'batch'])),
   }),
@@ -62,7 +62,8 @@ router.post(
         error.message.includes('未开启') ||
         error.message.includes('十连') ||
         error.message.includes('单抽') ||
-        error.message.includes('仅支持'));
+        error.message.includes('仅支持') ||
+        error.message.includes('无可用'));
     if (!isBusiness) {
       return next(wrap500(error, '抽卡失败'));
     }
