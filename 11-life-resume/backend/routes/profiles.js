@@ -65,7 +65,6 @@ router.put('/me', requireAuth, async (req, res) => {
     if (body.username !== undefined) patch.username = body.username;
     if (body.pageDefaultVisibility !== undefined) patch.pageDefaultVisibility = body.pageDefaultVisibility;
     if (body.defaultGranteeAccountId !== undefined) patch.defaultGranteeAccountId = body.defaultGranteeAccountId;
-    if (body.defaultEntrySeriesId !== undefined) patch.defaultEntrySeriesId = body.defaultEntrySeriesId;
 
     const data = await updateProfileForAccount(accountId, patch);
     return res.json({ success: true, data });

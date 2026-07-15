@@ -1,6 +1,6 @@
 /**
  * 装备卡（套装）命名：分数档位、随机「形容词+的+名词」、显示名校验
- * @see docs/00/20-data-layer/24-2-EQUIPMENT_SET_NAMING.md
+ * @see docs/20-data-layer/24-2-EQUIPMENT_SET_NAMING.md
  */
 
 import nameParts from '@/data/texts/equipmentSetNameParts.json';

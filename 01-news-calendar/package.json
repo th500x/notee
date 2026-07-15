@@ -7,10 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0",
-    "preview": "vite preview",
-    "validate-news": "node scripts/validate-news-month.js",
-    "normalize-summary-dates": "node scripts/normalize-summary-dates.js",
-    "merge-draft-news": "node scripts/merge-draft-news.js"
+    "preview": "vite preview"
   },
   "dependencies": {
     "react": "^18.2.0",

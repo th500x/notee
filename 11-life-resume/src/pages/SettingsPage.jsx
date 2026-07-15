@@ -15,14 +15,7 @@ import { changePassword } from '@/services/authApi';
 import {
   cancelDeactivationProfileMe,
   deactivateProfileMe,
-  deleteEntrySeries,
-  updateEntrySeries,
 } from '@/services/lifeResumeApi';
-import {
-  CHRONOLOGICAL_ENTRY_SERIES_NAME,
-  validateEntrySeriesName,
-  ENTRY_SERIES_NAME_MAX_CJK,
-} from '@shared/utils/lifeResumeEntrySeries.js';
 import { formatLifeResumeError } from '@/utils/lifeResumeErrors';
 
 const VISIBILITY_OPTIONS = [
@@ -57,23 +50,14 @@ export default function SettingsPage() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [passwordMsg, setPasswordMsg] = useState(null);
   const [passwordSubmitting, setPasswordSubmitting] = useState(false);
-  const [defaultEntrySeriesId, setDefaultEntrySeriesId] = useState(null);
-  const [renamingSeries, setRenamingSeries] = useState(null);
-  const [renameValue, setRenameValue] = useState('');
-  const [deletingSeries, setDeletingSeries] = useState(null);
-  const [seriesActionError, setSeriesActionError] = useState('');
-  const [seriesActionLoading, setSeriesActionLoading] = useState(false);
 
   const isDeactivated = profile?.profileStatus === 'deactivated';
-  const entrySeriesOptions = profile?.entrySeries?.switcher || [];
-  const customSeries = profile?.entrySeries?.custom || [];
 
   useEffect(() => {
     if (!profile) return;
     setUsername(profile.username || '');
     setVisibility(profile.pageDefaultVisibility || 'public');
     setGranteeId(profile.defaultGranteeAccountId || '');
-    setDefaultEntrySeriesId(profile.defaultEntrySeriesId ?? null);
   }, [profile]);
 
   const handleSubmit = async (event) => {
@@ -95,7 +79,6 @@ export default function SettingsPage() {
         username: username.trim(),
         pageDefaultVisibility: visibility,
         defaultGranteeAccountId: visibility === 'specific' ? normalizeAccountId(granteeId) : null,
-        defaultEntrySeriesId,
       });
       showToast('已保存', { type: 'success' });
     } catch (err) {
@@ -161,44 +144,6 @@ export default function SettingsPage() {
       setDeactivateError(formatLifeResumeError(err));
     } finally {
       setCancelling(false);
-    }
-  };
-
-  const handleRenameSeries = async () => {
-    if (!renamingSeries) return;
-    const nameCheck = validateEntrySeriesName(renameValue);
-    if (!nameCheck.ok) {
-      setSeriesActionError(nameCheck.error);
-      return;
-    }
-    setSeriesActionError('');
-    setSeriesActionLoading(true);
-    try {
-      await updateEntrySeries(renamingSeries.id, nameCheck.name);
-      setRenamingSeries(null);
-      setRenameValue('');
-      await refreshProfile();
-      showToast('系列已改名', { type: 'success' });
-    } catch (err) {
-      setSeriesActionError(formatLifeResumeError(err));
-    } finally {
-      setSeriesActionLoading(false);
-    }
-  };
-
-  const handleDeleteSeries = async () => {
-    if (!deletingSeries) return;
-    setSeriesActionError('');
-    setSeriesActionLoading(true);
-    try {
-      await deleteEntrySeries(deletingSeries.id);
-      setDeletingSeries(null);
-      await refreshProfile();
-      showToast('系列已删除', { type: 'success' });
-    } catch (err) {
-      setSeriesActionError(formatLifeResumeError(err));
-    } finally {
-      setSeriesActionLoading(false);
     }
   };
 
@@ -309,79 +254,6 @@ export default function SettingsPage() {
             </p>
           )}
         </section>
-
-        <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4">
-          <h2 className="font-semibold text-slate-900">主页默认系列</h2>
-          <p className="text-sm text-slate-600">
-            访客打开你的公开页时，默认展示哪个系列；访客仍可自行切换。
-          </p>
-          <select
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 disabled:bg-slate-50"
-            value={defaultEntrySeriesId == null ? '' : String(defaultEntrySeriesId)}
-            disabled={isDeactivated}
-            onChange={(e) => {
-              const v = e.target.value;
-              setDefaultEntrySeriesId(v === '' ? null : Number(v));
-            }}
-          >
-            {entrySeriesOptions.map((series) => (
-              <option key={series.key} value={series.id == null ? '' : String(series.id)}>
-                {series.name}
-              </option>
-            ))}
-          </select>
-        </section>
-
-        {customSeries.length > 0 && (
-          <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4">
-            <h2 className="font-semibold text-slate-900">自定义系列管理</h2>
-            <p className="text-sm text-slate-600">
-              内置「{CHRONOLOGICAL_ENTRY_SERIES_NAME}」不可改名或删除。删除自定义系列将
-              <strong className="text-red-700"> 永久删除 </strong>
-              该系列下的全部片段与媒体。
-            </p>
-            <ul className="space-y-3">
-              {customSeries.map((series) => (
-                <li
-                  key={series.id}
-                  className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-100 px-3 py-2"
-                >
-                  <span className="font-medium text-slate-800">
-                    {series.name}
-                    <span className="ml-2 text-sm font-normal text-slate-500">
-                      {series.entryCount ?? 0} 条片段
-                    </span>
-                  </span>
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      disabled={isDeactivated}
-                      className="text-sm text-indigo-600 hover:underline disabled:opacity-50"
-                      onClick={() => {
-                        setSeriesActionError('');
-                        setRenamingSeries(series);
-                        setRenameValue(series.name);
-                      }}
-                    >
-                      改名
-                    </button>
-                    <button
-                      type="button"
-                      disabled={isDeactivated}
-                      className="text-sm text-red-600 hover:underline disabled:opacity-50"
-                      onClick={() => {
-                        setSeriesActionError('');
-                        setDeletingSeries(series);
-                      }}
-                    >
-                      删除
-                    </button>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
 
         <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4">
           <h2 className="font-semibold text-slate-900">新建条目默认权限</h2>
@@ -576,86 +448,6 @@ export default function SettingsPage() {
                 onClick={handleDeactivate}
               >
                 {deactivating ? '提交中…' : '确认注销'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {renamingSeries && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <button
-            type="button"
-            className="absolute inset-0 bg-slate-900/40"
-            aria-label="关闭"
-            onClick={() => !seriesActionLoading && setRenamingSeries(null)}
-          />
-          <div className="relative w-full max-w-md rounded-2xl bg-white border border-slate-200 shadow-xl p-6 space-y-4">
-            <h3 className="text-lg font-semibold text-slate-900">改名系列</h3>
-            <input
-              className="w-full rounded-lg border border-slate-300 px-3 py-2"
-              value={renameValue}
-              maxLength={ENTRY_SERIES_NAME_MAX_CJK}
-              onChange={(e) => setRenameValue(e.target.value)}
-            />
-            {seriesActionError && (
-              <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{seriesActionError}</p>
-            )}
-            <div className="flex gap-3">
-              <button
-                type="button"
-                disabled={seriesActionLoading}
-                className="flex-1 rounded-lg border border-slate-300 py-2.5 text-slate-700 hover:bg-slate-50 disabled:opacity-60"
-                onClick={() => setRenamingSeries(null)}
-              >
-                取消
-              </button>
-              <button
-                type="button"
-                disabled={seriesActionLoading || !renameValue.trim()}
-                className="flex-1 rounded-lg bg-indigo-600 text-white py-2.5 hover:bg-indigo-700 disabled:opacity-60"
-                onClick={handleRenameSeries}
-              >
-                {seriesActionLoading ? '保存中…' : '保存'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {deletingSeries && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <button
-            type="button"
-            className="absolute inset-0 bg-slate-900/40"
-            aria-label="关闭"
-            onClick={() => !seriesActionLoading && setDeletingSeries(null)}
-          />
-          <div className="relative w-full max-w-md rounded-2xl bg-white border border-slate-200 shadow-xl p-6 space-y-4">
-            <h3 className="text-lg font-semibold text-slate-900">删除系列「{deletingSeries.name}」？</h3>
-            <p className="text-sm text-red-700 bg-red-50 border border-red-100 rounded-lg px-3 py-3 leading-relaxed">
-              将<strong>永久删除</strong>该系列下的全部 {deletingSeries.entryCount ?? 0}{' '}
-              条片段及所有关联媒体，无法恢复。请确认后继续。
-            </p>
-            {seriesActionError && (
-              <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{seriesActionError}</p>
-            )}
-            <div className="flex gap-3">
-              <button
-                type="button"
-                disabled={seriesActionLoading}
-                className="flex-1 rounded-lg border border-slate-300 py-2.5 text-slate-700 hover:bg-slate-50 disabled:opacity-60"
-                onClick={() => setDeletingSeries(null)}
-              >
-                取消
-              </button>
-              <button
-                type="button"
-                disabled={seriesActionLoading}
-                className="flex-1 rounded-lg bg-red-600 text-white py-2.5 hover:bg-red-700 disabled:opacity-60"
-                onClick={handleDeleteSeries}
-              >
-                {seriesActionLoading ? '删除中…' : '确认删除'}
               </button>
             </div>
           </div>

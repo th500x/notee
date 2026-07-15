@@ -23,9 +23,8 @@ import {
   computeSettleFromInOut
 } from '../../utils/accountingSheetModel';
 import { evaluateArithmeticExpression, formatAccountingNumber } from '../../utils/accountingExpression';
-import { isIsoDateString, sanitizeIsoDateField, isMonthBeforeActualRent } from '../../utils/accountingDates';
+import { isIsoDateString, sanitizeIsoDateField } from '../../utils/accountingDates';
 import { AccountingRowGalleryModal } from './AccountingRowGalleryModal';
-import { AccountingAutoTextareaCell } from './AccountingAutoTextareaCell';
 
 /** dnd-kit 在静止时也可能给出恒等 transform；写在 tr 上会给子格新建包含块，恒等时勿写 transform */
 function sortableTransformIsActive(t) {
@@ -54,17 +53,11 @@ const ROOM_COL_TH = ROOM_COL_TD;
 /** 可录入格：ROOM(0)…备注(4)、PRICE(5)、DEPOSIT(6)、双月 IN/OUT/交租（右月交租为列 14），不含只读 SETTLE、镜像 ROOM 与删钮 */
 const RENT_GRID_COL_MAX = 14;
 
-/** 「实际」有日期、列月不早于入住月，且该月交租仍为空 — 交租格红横杠；筛选仅看右列 m1 */
-function shouldHighlightEmptyPayRent(row, monthKey, cell) {
-  const actual = sanitizeIsoDateField(row.actualRent);
-  if (!isIsoDateString(actual)) return false;
-  if (isMonthBeforeActualRent(monthKey, actual)) return false;
-  return !isIsoDateString(sanitizeIsoDateField(cell?.payRent || ''));
-}
-
+/** 「实际」有日期且当月（右列 / `currentMonthKey`）交租仍为空 — 与右列红横杠一致；筛选仅判断右列，不看左月 */
 function rowHasPendingPayRentPlaceholder(row, currentMonthKey) {
+  if (!isIsoDateString(sanitizeIsoDateField(row.actualRent))) return false;
   const cell = row.months?.[currentMonthKey] || emptyRentMonthCells();
-  return shouldHighlightEmptyPayRent(row, currentMonthKey, cell);
+  return !isIsoDateString(sanitizeIsoDateField(cell.payRent || ''));
 }
 
 function sumMonthSettleRows(rows, monthKey) {
@@ -189,12 +182,13 @@ function SortableRentRow({
         />
       </td>
       <td className={`p-1 border border-gray-100 ${COMPACT_COL_TD}`}>
-        <AccountingAutoTextareaCell
+        <input
+          className={narrowTextCls}
           value={row.remarks}
-          rentNavSlot={`${rowIndex}-4`}
+          data-rent-nav={`${rowIndex}-4`}
           title={row.remarks && row.remarks.trim() ? row.remarks : undefined}
           onChange={(e) => patchDetail(row.id, 'remarks', e.target.value)}
-          onGridArrowKeyDown={(e) => handleRentNavKeyDown(e, rowIndex, 4)}
+          onKeyDown={(e) => handleRentNavKeyDown(e, rowIndex, 4)}
         />
       </td>
       <td className="p-1 border border-gray-100 bg-gray-50">
@@ -250,7 +244,10 @@ function SortableRentRow({
                 onCommit={(v) => patchMonthCell(row.id, mk, 'payRent', v)}
                 variant="md"
                 anchorMonthKey={mk}
-                mdEmptyAsRed={shouldHighlightEmptyPayRent(row, mk, cell)}
+                mdEmptyAsRed={
+                  isIsoDateString(sanitizeIsoDateField(row.actualRent)) &&
+                  !isIsoDateString(sanitizeIsoDateField(cell.payRent || ''))
+                }
                 rentNavSlot={`${rowIndex}-${baseCol + 3}`}
                 onGridArrowKeyDown={(e) => handleRentNavKeyDown(e, rowIndex, baseCol + 3)}
               />

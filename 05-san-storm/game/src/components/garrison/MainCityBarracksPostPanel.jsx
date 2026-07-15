@@ -26,14 +26,7 @@ function toggleInSet(set, id) {
   return next;
 }
 
-export default function MainCityBarracksPostPanel({
-  cityId: _cityId,
-  cityName = '主城',
-  onClose,
-  onAfterSave,
-  /** 嵌在 `MainCityBarracksHub` 内时去掉全屏壳与独立关闭钮 */
-  embedded = false,
-}) {
+export default function MainCityBarracksPostPanel({ cityId: _cityId, cityName = '主城', onClose, onAfterSave }) {
   const { player, cards, refresh } = usePlayerContext();
   const [occupiedIds, setOccupiedIds] = useState(() => new Set());
   const [skillsMap, setSkillsMap] = useState({});
@@ -208,24 +201,12 @@ export default function MainCityBarracksPostPanel({
   };
 
   return (
-    <div
-      className={
-        embedded
-          ? 'relative flex h-full min-h-0 flex-col bg-gradient-to-b from-stone-900 via-stone-800 to-stone-900'
-          : 'fixed inset-0 z-[110] flex flex-col bg-gradient-to-b from-stone-900 via-stone-800 to-stone-900'
-      }
-    >
+    <div className="fixed inset-0 z-[110] flex flex-col bg-gradient-to-b from-stone-900 via-stone-800 to-stone-900">
       <div className="flex shrink-0 items-stretch border-b border-amber-900/50 bg-stone-900/90">
-        {!embedded ? (
-          <div className="min-w-0 flex-1 px-3 py-2 text-left">
-            <div className="text-sm font-bold text-amber-400/95">驻军所 · 军营与仓库</div>
-            <div className="truncate text-[10px] text-stone-500">🏯 {cityName}（与全图驻地军营池同步）</div>
-          </div>
-        ) : (
-          <div className="min-w-0 flex-1 px-3 py-2 text-left">
-            <div className="truncate text-[10px] text-stone-500">🏯 {cityName}（与军营池同步）</div>
-          </div>
-        )}
+        <div className="min-w-0 flex-1 px-3 py-2 text-left">
+          <div className="text-sm font-bold text-amber-400/95">驻军所 · 军营与仓库</div>
+          <div className="truncate text-[10px] text-stone-500">🏯 {cityName}（与全图驻地军营池同步）</div>
+        </div>
         <div className="flex items-center gap-2 pr-1">
           <button
             type="button"
@@ -244,7 +225,7 @@ export default function MainCityBarracksPostPanel({
             转出
           </button>
         </div>
-        {!embedded ? <TabPageCloseButton onClose={onClose} variant="bar" /> : null}
+        <TabPageCloseButton onClose={onClose} variant="bar" />
       </div>
 
       {toast ? (

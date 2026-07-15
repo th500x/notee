@@ -9,8 +9,8 @@
  * 是否计入活动排行 `player_statistics.total_battle_score`（友谊「阵前切磋」是否计分）为**产品决策**，
  * 由调用方显式决定，本模块不触库。
  *
- * @see docs/01-jun-exploration/10-core-system/18-1-BATTLE_REPORT_SYSTEM.md §5
- * @see docs/01-jun-exploration/10-core-system/17-5-2-TACTICAL_AUTO_DUEL_IMPLEMENTATION.md 步骤 9
+ * @see docs/10-core-system/18-1-BATTLE_REPORT_SYSTEM.md §5
+ * @see docs/10-core-system/17-5-2-TACTICAL_AUTO_DUEL_IMPLEMENTATION.md 步骤 9
  */
 
 const { calculateBattleScore } = require('../../../utils/battleScore.cjs');

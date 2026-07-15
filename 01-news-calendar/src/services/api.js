@@ -28,7 +28,7 @@ const activeRequests = new Map()
 const RETRY_CONFIG = {
   maxRetries: 3, // 最大重试次数
   retryDelay: 1000, // 初始重试延迟（毫秒）
-  retryableStatuses: [408, 500, 502, 503, 504], // 可重试的HTTP状态码（429 限流不重试，避免放大请求）
+  retryableStatuses: [408, 429, 500, 502, 503, 504], // 可重试的HTTP状态码
 }
 
 /**

@@ -49,7 +49,18 @@ function NewsDisplay({ selectedDate, newsData, onEmojiUpdate }) {
                     return (
                       <div key={index} className="bg-gray-50 rounded-lg p-4">
                         <h3 className="font-medium text-gray-900 mb-2">
-                          {item.title}
+                          {item.link ? (
+                            <a 
+                              href={item.link} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="text-blue-600 hover:text-blue-800 hover:underline"
+                            >
+                              {item.title}
+                            </a>
+                          ) : (
+                            item.title
+                          )}
                         </h3>
                         {item.summary && (
                           <p className="text-gray-600 text-sm leading-relaxed mb-3">

@@ -134,16 +134,16 @@ function extractCoordsFromHref(href) {
   let latitude = null;
   let longitude = null;
 
+  const atMatch = href.match(/@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/);
+  if (atMatch) {
+    latitude = Number(atMatch[1]);
+    longitude = Number(atMatch[2]);
+  }
+
   const dataMatch = href.match(/!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/);
   if (dataMatch) {
     latitude = Number(dataMatch[1]);
     longitude = Number(dataMatch[2]);
-  } else {
-    const atMatch = href.match(/@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/);
-    if (atMatch) {
-      latitude = Number(atMatch[1]);
-      longitude = Number(atMatch[2]);
-    }
   }
 
   if (latitude != null && longitude != null) {

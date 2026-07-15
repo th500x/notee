@@ -8,7 +8,7 @@
  *
  * 仅依赖 mapResult.terrain 的维度，**不** import 别名模块，便于 Node 单测。
  *
- * @see docs/01-jun-exploration/10-core-system/17-5-DUEL_SYSTEM.md §12.4
+ * @see docs/10-core-system/17-5-DUEL_SYSTEM.md §12.4
  */
 
 /**

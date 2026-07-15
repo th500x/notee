@@ -12,9 +12,13 @@ const GAP_PX = 8;
 const Z_FLOAT = 10051;
 
 const FACTION_COLORS = {
-  san_1_faction_1001: '#FF6B6B',
-  san_1_faction_2001: '#FFD93D',
-  san_1_faction_3001: '#FCB900',
+  san_1_faction_1001: '#ef4444',
+  san_1_faction_2001: '#3b82f6',
+  san_1_faction_3001: '#22c55e',
+  san_1_faction_4001: '#a855f7',
+  san_1_faction_5001: '#f97316',
+  san_1_faction_6001: '#eab308',
+  san_1_faction_7001: '#78716c',
 };
 
 function readTouchLikePointerMedia() {

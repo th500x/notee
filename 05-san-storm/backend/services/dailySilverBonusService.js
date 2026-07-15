@@ -1,7 +1,7 @@
 /**
  * 称号/成就 daily_silver_bonus：编组已装备卡日发银两（幂等按自然日）
  *
- * @see docs/00/00-base/04-2-DATA_TERM_DICTIONARY.md §7 · 25-1 / 25-2
+ * @see docs/00-base/04-2-DATA_TERM_DICTIONARY.md §7 · 25-1 / 25-2
  */
 
 const { pool } = require('../database/connection');

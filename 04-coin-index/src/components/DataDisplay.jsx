@@ -1,6 +1,4 @@
 // DataDisplay 组件 - 更新版本 v3.0
-import { getRatingTextClass, getRatingLabel } from '../utils/ratingColors'
-
 function DataDisplay({ selectedWeek, weeklyData }) {
   
   // 格式化周ID显示
@@ -393,13 +391,21 @@ function DataDisplay({ selectedWeek, weeklyData }) {
             <h3 className="text-sm font-medium text-gray-700">个人评级</h3>
             <span className="text-xs text-gray-500">★</span>
           </div>
-          <div className={`text-2xl font-bold mt-2 ${getRatingTextClass(calculateTotalRating())}`}>
+          <div className={`text-2xl font-bold mt-2 ${getChangeColorClass(calculateTotalRating())}`}>
             {calculateTotalRating() !== null 
               ? `${calculateTotalRating() > 0 ? '+' : ''}${calculateTotalRating()}★` 
               : '--'}
           </div>
-          <div className={`text-xs mt-1 font-medium ${getRatingTextClass(calculateTotalRating())}`}>
-            {getRatingLabel(calculateTotalRating())}
+          <div className="text-xs text-gray-500 mt-1">
+            {(() => {
+              const rating = calculateTotalRating()
+              if (rating === null) return '暂无评级'
+              if (rating >= 10) return '极度看多'
+              if (rating >= 4) return '看多'
+              if (rating >= -3) return '中性'
+              if (rating >= -9) return '看空'
+              return '极度看空'
+            })()}
           </div>
         </div>
 

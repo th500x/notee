@@ -4,7 +4,7 @@
  *   → `getBattleFieldTroopPortraitUrlAttempts`（敌我不同目录，同配置 ID 也区分立绘）。
  * - **战役大地图格**：`san_1_battle/{ally1|ally2|…}/` → `getCampaignMapTroopPortraitUrlAttempts`。
  *
- * 专属 `{配置ID}.png` 优先于 `troop_r{1-4}_{weapon}.png` 当且仅当：稀有度 **core**，或 **北疆 91xx / 众生 90xx**（`_troop_` 后数字段以 9 开头；兼容旧 8xxx）。无同名 PNG 时回退稀有度通用图（卡面 `san_1_ui_card/troop/`、战斗瓦片 `san_1_battle/{player|enemy|ally…}/` 共用本判定）。
+ * 专属 `{配置ID}.png` 优先于 `troop_r{1-4}_{weapon}.png` 当且仅当：稀有度 **core**，或 **北疆 8xxx / 众生 9xxx**（`_troop_` 后数字首位为 8 或 9）。无同名 PNG 时回退稀有度通用图（卡面 `san_1_ui_card/troop/`、战斗瓦片 `san_1_battle/{player|enemy|ally…}/` 共用本判定）。
  *
  * 部队元数据（稀有度 / 兵种 / 武器）由应用层注入，避免 shared 硬绑 `public/data` 路径：
  *   `configureTroopIconMetaCatalog(troopsCatalog)` — 见 `game/src/bootstrap/troopIconUrlsCatalog.js`。
@@ -128,8 +128,8 @@ export function getTroopIdIconUrl(troopId, baseUrl = '') {
 }
 
 /**
- * 北疆（91xx，兼容旧 8xxx）/ 众生（90xx）：`_troop_` 后数字段首位为 8 或 9 时，与 core 相同先尝试 `{troop_id}.png`。
- * @param {string} id 已规范化的配置 ID（如 `san_1_troop_9101`）
+ * 北疆（8xxx）/ 众生（9xxx）：`_troop_` 后数字段首位为 8 或 9 时，与 core 相同先尝试 `{troop_id}.png`。
+ * @param {string} id 已规范化的配置 ID（如 `san_1_troop_9001`）
  */
 export function troopIdIsDedicatedSegment8Or9(id) {
   if (!id) return false;
@@ -154,7 +154,7 @@ export function troopDedicatedPortraitFileShipped(troopOrId) {
 }
 
 /**
- * 最多 2 个 URL：① 专属图（core / 91xx / 90xx，且 manifest 有登记）② 稀有度通用图。
+ * 最多 2 个 URL：① 专属图（core / 8xxx / 9xxx，且 manifest 有登记）② 稀有度通用图。
  */
 export function getTroopPortraitUrlAttempts(troop, baseUrl = '') {
   const rarityUrl = getTroopUiFolderFallbackUrl(troop, baseUrl);

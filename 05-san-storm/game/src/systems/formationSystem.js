@@ -4,7 +4,7 @@
  * 负责：阵型定义、阵型检查、自动选择最优阵型
  * 从 demo/map-generator-demo.html 提取，逻辑完全一致
  *
- * @see docs/00/10-core-system/17-2-FORMATION_SYSTEM.md
+ * @see docs/10-core-system/17-2-FORMATION_SYSTEM.md
  */
 
 // ── 阵型定义 ──────────────────────────────────────────────────────────────────

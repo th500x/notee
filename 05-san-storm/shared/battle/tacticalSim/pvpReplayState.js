@@ -7,7 +7,7 @@
  *
  * 设计：与 `pvpEventPlayer`（DOM 动画层）共享同一套坐标 / 兵力推进语义，确保「逐帧动画终态」与「直接折叠终态」一致。
  *
- * @see docs/01-jun-exploration/10-core-system/17-5-DUEL_SYSTEM.md §12.6
+ * @see docs/10-core-system/17-5-DUEL_SYSTEM.md §12.6
  */
 
 /** 解析内核 instanceId `${side}_${index}`（side ∈ a|b） */

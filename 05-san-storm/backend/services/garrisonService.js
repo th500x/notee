@@ -12,7 +12,6 @@
  */
 
 const { pool } = require('../database/connection');
-const { mapGarrisonApiRow, mapGarrisonApiRows } = require('../constants/lineupSets');
 const garrisonBuildService = require('./garrisonBuildService');
 
 // 驻守槽位中所有卡牌字段
@@ -38,48 +37,11 @@ const MIN_GARRISON_TOTAL_TROOPS = 800;
 /** 开战 / 攻城等：上阵编组（is_equipped 部队）总兵力下限，全战斗通用 */
 const MIN_MAIN_LINEUP_TROOPS_BATTLE = 200;
 
+/** 玩家最多在几座城池出现「至少一张卡写入驻地槽」；与产品文档 13-2 一致 */
+const MAX_GARRISON_CONFIGURED_CITIES = 5;
+
 // 单部队参战最低兵力（兵力为0不参战；槽位总兵力见 MIN_GARRISON_TOTAL_TROOPS）
 const MIN_TROOPS_TO_DEFEND = 1;
-
-/**
- * @param {string} playerId
- * @returns {Promise<string|null>}
- */
-async function getPlayerMainCityId(playerId) {
-  const [rows] = await pool.query(
-    'SELECT main_city_id FROM players WHERE player_id = ? LIMIT 1',
-    [playerId],
-  );
-  const mid = rows[0]?.main_city_id;
-  return mid != null && String(mid).trim() !== '' ? String(mid).trim() : null;
-}
-
-/**
- * 换主城时：把旧主城驻地行迁到新城，并删除其它城池的驻地行。
- * @param {import('mysql2').PoolConnection} conn
- * @param {string} playerId
- * @param {string|null} fromCityId
- * @param {string} toCityId
- */
-async function relocateGarrisonToMainCity(conn, playerId, fromCityId, toCityId) {
-  const pid = String(playerId);
-  const toId = String(toCityId);
-  const fromId = fromCityId != null && String(fromCityId).trim() !== '' ? String(fromCityId).trim() : null;
-  if (fromId && fromId !== toId) {
-    await conn.query(
-      "DELETE FROM player_lineup_sets WHERE player_id = ? AND lineup_scope = 'garrison' AND city_id = ?",
-      [pid, toId],
-    );
-    await conn.query(
-      "UPDATE player_lineup_sets SET city_id = ? WHERE player_id = ? AND lineup_scope = 'garrison' AND city_id = ?",
-      [toId, pid, fromId],
-    );
-  }
-  await conn.query(
-    "DELETE FROM player_lineup_sets WHERE player_id = ? AND lineup_scope = 'garrison' AND city_id <> ?",
-    [pid, toId],
-  );
-}
 
 /**
  * 驻守槽内若干部队实例的当前总兵力（与战斗构建一致：current_troops 缺省则用满编上限）
@@ -258,10 +220,10 @@ function mergeGarrisonPayloadWithPrevRow(prevSlot, incoming) {
 
 async function getPlayerGarrisons(playerId) {
   const [rows] = await pool.query(
-    "SELECT * FROM player_lineup_sets WHERE player_id = ? AND lineup_scope = 'garrison' ORDER BY city_id, lineup_slot",
+    'SELECT * FROM player_garrison WHERE player_id = ? ORDER BY city_id, garrison_slot',
     [playerId]
   );
-  return mapGarrisonApiRows(rows);
+  return rows;
 }
 
 /**
@@ -289,10 +251,10 @@ async function getGarrisonOccupiedInstanceIds(playerId) {
 async function getPlayerGarrisonsForCity(playerId, cityId) {
   if (!cityId) return [];
   const [rows] = await pool.query(
-    "SELECT * FROM player_lineup_sets WHERE player_id = ? AND lineup_scope = 'garrison' AND city_id = ? ORDER BY lineup_slot",
+    'SELECT * FROM player_garrison WHERE player_id = ? AND city_id = ? ORDER BY garrison_slot',
     [playerId, cityId]
   );
-  return mapGarrisonApiRows(rows);
+  return rows;
 }
 
 /**
@@ -300,10 +262,26 @@ async function getPlayerGarrisonsForCity(playerId, cityId) {
 async function getGarrisonSlot(playerId, cityId, slotNumber) {
   if (!cityId) return null;
   const [rows] = await pool.query(
-    "SELECT * FROM player_lineup_sets WHERE player_id = ? AND lineup_scope = 'garrison' AND city_id = ? AND lineup_slot = ?",
+    'SELECT * FROM player_garrison WHERE player_id = ? AND city_id = ? AND garrison_slot = ?',
     [playerId, cityId, slotNumber]
   );
-  return mapGarrisonApiRow(rows[0] || null);
+  return rows[0] || null;
+}
+
+/**
+ * Distinct city_id where this player has at least one non-null garrison card field (any slot).
+ * @param {string} playerId
+ * @returns {Promise<Set<string>>}
+ */
+async function getPlayerGarrisonConfiguredCityIds(playerId) {
+  const conditions = CARD_FIELDS.map((f) => `g.${f} IS NOT NULL`).join(' OR ');
+  const [rows] = await pool.query(
+    `SELECT DISTINCT g.city_id AS city_id
+     FROM player_garrison g
+     WHERE g.player_id = ? AND (${conditions})`,
+    [playerId]
+  );
+  return new Set((rows || []).map((r) => r.city_id).filter(Boolean));
 }
 
 /**
@@ -313,22 +291,19 @@ async function saveGarrison(playerId, slotNumber, config) {
   if (!incomingCity || String(incomingCity).trim() === '') {
     return { success: false, error: '缺少 cityId，无法按城池保存驻地编组' };
   }
-  const mainCityId = await getPlayerMainCityId(playerId);
-  if (!mainCityId) {
-    return { success: false, error: '请先设置主城后再配置驻地编组' };
-  }
-  if (String(incomingCity).trim() !== mainCityId) {
-    return { success: false, error: '驻地编组仅可配置在主城' };
-  }
   const prevSlot = await getGarrisonSlot(playerId, incomingCity, slotNumber);
   const mergedWithPrev = mergeGarrisonPayloadWithPrevRow(prevSlot, config);
 
+  const configuredCityIds = await getPlayerGarrisonConfiguredCityIds(playerId);
   const targetCityId = String(mergedWithPrev.cityId || '').trim();
   if (!targetCityId) {
     return { success: false, error: '缺少 cityId，无法按城池保存驻地编组' };
   }
-  if (targetCityId !== mainCityId) {
-    return { success: false, error: '驻地编组仅可配置在主城' };
+  if (!configuredCityIds.has(targetCityId) && configuredCityIds.size >= MAX_GARRISON_CONFIGURED_CITIES) {
+    return {
+      success: false,
+      error: '已达驻地编组城池上限（5座）。请先在其它城池清空驻地编组，再在本城编组。',
+    };
   }
 
   const instanceIds = CARD_FIELDS.map(f => mergedWithPrev[f]).filter(Boolean);
@@ -337,18 +312,18 @@ async function saveGarrison(playerId, slotNumber, config) {
   if (instanceIds.length > 0) {
     const placeholders = instanceIds.map(() => '?').join(',');
     const [conflicts] = await pool.query(
-      `SELECT g.lineup_slot, g.city_id, pc.instance_id
-       FROM player_lineup_sets g
+      `SELECT g.garrison_slot, g.city_id, pc.instance_id
+       FROM player_garrison g
        JOIN player_cards pc ON pc.instance_id IN (${placeholders})
-       WHERE g.player_id = ? AND g.lineup_scope = 'garrison'
-         AND NOT (g.city_id <=> ? AND g.lineup_slot = ?)
+       WHERE g.player_id = ? AND g.is_active = TRUE
+         AND NOT (g.city_id <=> ? AND g.garrison_slot = ?)
          AND (${CARD_FIELDS.map(f => `g.${f} = pc.instance_id`).join(' OR ')})`,
       [...instanceIds, playerId, mergedWithPrev.cityId, slotNumber]
     );
     if (conflicts.length > 0) {
       return {
         success: false,
-        error: '卡牌已被其他驻地卡池占用',
+        error: '卡牌已被其他城池或卡池的驻地编组占用',
       };
     }
 
@@ -360,13 +335,6 @@ async function saveGarrison(playerId, slotNumber, config) {
     );
     if (equippedConflicts.length > 0) {
       return { success: false, error: '部分卡牌已在上阵编组中，请先卸下再配置驻守' };
-    }
-
-    const lineupExtraService = require('./lineupExtraService');
-    const extraOccupied = await lineupExtraService.getOccupiedInstanceIds(playerId);
-    const hitExtra = instanceIds.some((id) => extraOccupied.has(String(id)));
-    if (hitExtra) {
-      return { success: false, error: '部分卡牌已在上阵编组 Extra 中，请先卸下再配置驻守' };
     }
   }
 
@@ -408,14 +376,14 @@ async function saveGarrison(playerId, slotNumber, config) {
   const belowTroopThreshold = hasChar && hasTroop && totalTroopsConfigured < MIN_GARRISON_TOTAL_TROOPS;
 
   await pool.query(
-    `INSERT INTO player_lineup_sets (
-      player_id, lineup_scope, city_id, lineup_slot, city_name,
+    `INSERT INTO player_garrison (
+      player_id, garrison_slot, city_id, city_name,
       char1_card, char1_equipment_card, char1_title, char1_achievement, char1_treasure, char1_troop1, char1_troop2,
       char2_card, char2_equipment_card, char2_title, char2_achievement, char2_treasure, char2_troop1, char2_troop2,
       is_active
-    ) VALUES (?, 'garrison', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON DUPLICATE KEY UPDATE
-      city_name = VALUES(city_name),
+      city_id = VALUES(city_id), city_name = VALUES(city_name),
       char1_card = VALUES(char1_card), char1_equipment_card = VALUES(char1_equipment_card),
       char1_title = VALUES(char1_title), char1_achievement = VALUES(char1_achievement),
       char1_treasure = VALUES(char1_treasure), char1_troop1 = VALUES(char1_troop1), char1_troop2 = VALUES(char1_troop2),
@@ -424,7 +392,7 @@ async function saveGarrison(playerId, slotNumber, config) {
       char2_treasure = VALUES(char2_treasure), char2_troop1 = VALUES(char2_troop1), char2_troop2 = VALUES(char2_troop2),
       is_active = VALUES(is_active)`,
     [
-      playerId, mergedWithPrev.cityId || null, slotNumber, mergedWithPrev.cityName || null,
+      playerId, slotNumber, mergedWithPrev.cityId || null, mergedWithPrev.cityName || null,
       mergedWithPrev.char1_card || null, mergedWithPrev.char1_equipment_card || null,
       mergedWithPrev.char1_title || null, mergedWithPrev.char1_achievement || null, mergedWithPrev.char1_treasure || null,
       mergedWithPrev.char1_troop1 || null, mergedWithPrev.char1_troop2 || null,
@@ -493,15 +461,8 @@ async function clearGarrison(playerId, cityId, slotNumber) {
   if (!cityId || String(cityId).trim() === '') {
     return { success: false, error: '缺少 cityId' };
   }
-  const mainCityId = await getPlayerMainCityId(playerId);
-  if (!mainCityId) {
-    return { success: false, error: '请先设置主城后再操作驻地编组' };
-  }
-  if (String(cityId).trim() !== mainCityId) {
-    return { success: false, error: '驻地编组仅可配置在主城' };
-  }
   const [existing] = await pool.query(
-    "SELECT * FROM player_lineup_sets WHERE player_id = ? AND lineup_scope = 'garrison' AND city_id = ? AND lineup_slot = ?",
+    'SELECT * FROM player_garrison WHERE player_id = ? AND city_id = ? AND garrison_slot = ?',
     [playerId, cityId, slotNumber]
   );
   if (existing.length > 0) {
@@ -519,8 +480,8 @@ async function clearGarrison(playerId, cityId, slotNumber) {
 
   const nullSets = CARD_FIELDS.map(f => `${f} = NULL`).join(', ');
   await pool.query(
-    `UPDATE player_lineup_sets SET ${nullSets}, is_active = FALSE
-     WHERE player_id = ? AND lineup_scope = 'garrison' AND city_id = ? AND lineup_slot = ?`,
+    `UPDATE player_garrison SET ${nullSets}, is_active = FALSE
+     WHERE player_id = ? AND city_id = ? AND garrison_slot = ?`,
     [playerId, cityId, slotNumber]
   );
   return { success: true };
@@ -533,15 +494,8 @@ async function clearGarrison(playerId, cityId, slotNumber) {
  */
 async function refreshAllGarrisonTroopEffectBonuses(queryFn, playerId) {
   if (!playerId) return;
-  const {
-    getPlayerFactionTroopMaxTroopsBonus,
-  } = require('./factionGameplayBonusService');
-  const factionMaxBonus = await getPlayerFactionTroopMaxTroopsBonus(
-    { query: (sql, params) => queryFn(sql, params) },
-    playerId,
-  );
   const [garrisonRows] = await queryFn(
-    "SELECT * FROM player_lineup_sets WHERE player_id = ? AND lineup_scope = 'garrison'",
+    'SELECT * FROM player_garrison WHERE player_id = ?',
     [playerId],
   );
   if (!Array.isArray(garrisonRows)) return;
@@ -586,14 +540,6 @@ async function refreshAllGarrisonTroopEffectBonuses(queryFn, playerId) {
         );
       }
 
-      if (factionMaxBonus > 0) {
-        await queryFn(
-          `UPDATE player_cards SET bonus_max_troops = bonus_max_troops + ?
-           WHERE instance_id IN (${ph}) AND player_id = ?`,
-          [factionMaxBonus, ...troopIds, playerId],
-        );
-      }
-
       const [troopList] = await queryFn(
         `SELECT pc.instance_id, pc.current_troops, pc.bonus_max_troops, ct.max_troops AS cfg_max
          FROM player_cards pc
@@ -624,9 +570,9 @@ async function refreshAllGarrisonTroopEffectBonuses(queryFn, playerId) {
 async function stripGarrisonOnCityConquest(conn, cityId, winnerFactionId) {
   const [rows] = await conn.query(
     `SELECT g.char1_troop1, g.char1_troop2, g.char2_troop1, g.char2_troop2
-     FROM player_lineup_sets g
+     FROM player_garrison g
      JOIN players p ON g.player_id = p.player_id
-     WHERE g.lineup_scope = 'garrison' AND g.city_id = ? AND p.faction_id != ?`,
+     WHERE g.city_id = ? AND p.faction_id != ?`,
     [cityId, winnerFactionId]
   );
   const troopIds = [...new Set(
@@ -641,9 +587,9 @@ async function stripGarrisonOnCityConquest(conn, cityId, winnerFactionId) {
     );
   }
   await conn.query(
-    `DELETE g FROM player_lineup_sets g
+    `DELETE g FROM player_garrison g
      JOIN players p ON g.player_id = p.player_id
-     WHERE g.lineup_scope = 'garrison' AND g.city_id = ? AND p.faction_id != ?`,
+     WHERE g.city_id = ? AND p.faction_id != ?`,
     [cityId, winnerFactionId]
   );
 }
@@ -657,17 +603,17 @@ async function getCityDefenders(cityId, ownerFactionId) {
      SELECT g.*, p.character_name, p.faction_id, p.faction_name,
             p.current_position_id, p.current_position_name, p.position_level,
             p.on_duty
-     FROM player_lineup_sets g
+     FROM player_garrison g
      JOIN players p ON g.player_id = p.player_id
-     WHERE g.lineup_scope = 'garrison' AND g.city_id = ? AND g.is_active = TRUE`;
+     WHERE g.city_id = ? AND g.is_active = TRUE`;
   const params = [cityId];
   if (ownerFactionId != null && ownerFactionId !== '') {
     sql += ' AND p.faction_id = ?';
     params.push(ownerFactionId);
   }
-  sql += ' ORDER BY p.position_level ASC, g.lineup_slot ASC';
+  sql += ' ORDER BY p.position_level ASC, g.garrison_slot ASC';
   const [rows] = await pool.query(sql, params);
-  return filterCityDefenseRowsByMinStationedTroop(mapGarrisonApiRows(rows));
+  return filterCityDefenseRowsByMinStationedTroop(rows);
 }
 
 /**
@@ -698,24 +644,25 @@ async function getCityOnDutyDefenders(cityId, ownerFactionId) {
 }
 
 /**
- * 普通驻地槽防守者，供攻城队列等使用。
+ * 普通驻地槽防守者（排除披挂上阵者），供攻城队列等使用。
  * 在 `is_active` 候选之上再按 **当前** 整编兵力 ≥ `MIN_GARRISON_TOTAL_TROOPS` 过滤。
  */
 async function getCityGarrisonDefenders(cityId, ownerFactionId) {
   let sql = `
      SELECT g.*, p.character_name, p.faction_id, p.faction_name,
-            p.current_position_id, p.current_position_name, p.position_level
-     FROM player_lineup_sets g
+            p.current_position_id, p.current_position_name, p.position_level,
+            p.on_duty
+     FROM player_garrison g
      JOIN players p ON g.player_id = p.player_id
-     WHERE g.lineup_scope = 'garrison' AND g.city_id = ? AND g.is_active = TRUE`;
+     WHERE g.city_id = ? AND g.is_active = TRUE AND (p.on_duty = FALSE OR p.on_duty IS NULL)`;
   const params = [cityId];
   if (ownerFactionId != null && ownerFactionId !== '') {
     sql += ' AND p.faction_id = ?';
     params.push(ownerFactionId);
   }
-  sql += ' ORDER BY p.position_level ASC, g.lineup_slot ASC';
+  sql += ' ORDER BY p.position_level ASC, g.garrison_slot ASC';
   const [rows] = await pool.query(sql, params);
-  return filterCityDefenseRowsByMinStationedTroop(mapGarrisonApiRows(rows));
+  return filterCityDefenseRowsByMinStationedTroop(rows);
 }
 
 /**
@@ -727,10 +674,10 @@ async function getCityGarrisonStats() {
   try {
     [allSlots] = await pool.query(
       `SELECT g.*
-       FROM player_lineup_sets g
+       FROM player_garrison g
        JOIN players p ON g.player_id = p.player_id
        JOIN cities c ON c.city_id = g.city_id
-       WHERE g.lineup_scope = 'garrison' AND g.is_active = TRUE AND g.city_id IS NOT NULL AND g.city_id <> ''
+       WHERE g.is_active = TRUE AND g.city_id IS NOT NULL
          AND c.faction_id IS NOT NULL AND p.faction_id = c.faction_id`,
     );
   } catch (err) {
@@ -742,7 +689,7 @@ async function getCityGarrisonStats() {
   }
   let effective = [];
   try {
-    effective = await filterCityDefenseRowsByMinStationedTroop(mapGarrisonApiRows(allSlots));
+    effective = await filterCityDefenseRowsByMinStationedTroop(allSlots);
   } catch (err) {
     console.error('[Garrison] getCityGarrisonStats filter failed:', err);
     if (err.code === 'ER_BAD_FIELD_ERROR' || /Unknown column/i.test(err.message || '')) {
@@ -813,8 +760,6 @@ module.exports = {
   getGarrisonSlot,
   saveGarrison,
   clearGarrison,
-  relocateGarrisonToMainCity,
-  getPlayerMainCityId,
   stripGarrisonOnCityConquest,
   getCityDefenders,
   getCityOnDutyDefenders,

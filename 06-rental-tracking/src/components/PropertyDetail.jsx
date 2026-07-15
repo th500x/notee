@@ -1,6 +1,5 @@
 import { useState, useRef } from 'react'
 import { getPropertyStatus, getCurrentPropertyStatus, getStatusText, getStatusClassName } from '../utils/propertyStatus'
-import { isIsoDateString } from '../utils/accountingDates'
 import PhotoViewer from './PhotoViewer'
 import { config } from '../config'
 import { uploadService } from '../services'
@@ -28,8 +27,6 @@ function PropertyDetail({ property, project, selectedYear, selectedMonth, viewMo
   const [uploadingRecordIndex, setUploadingRecordIndex] = useState(null)
   const [showMoveDialog, setShowMoveDialog] = useState(false)  // 移动对话框
   const fileInputRef = useRef(null)
-  const tenantStartDateRef = useRef(null)
-  const tenantEndDateRef = useRef(null)
   const [recordForm, setRecordForm] = useState({
     date: '',
     income: 0,
@@ -103,21 +100,6 @@ function PropertyDetail({ property, project, selectedYear, selectedMonth, viewMo
     }
   }
 
-  /** 校验 type="date" 输入：手动填写的非法日期（如 6/31）会使 value 为空但 validity.badInput 为 true */
-  const getTenantDateFieldError = (input, label, { required = false } = {}) => {
-    if (input?.validity?.badInput) {
-      return `${label}无效，请检查月份和日期是否正确（例如 6 月只有 30 天）`
-    }
-    const val = (input?.value ?? '').trim()
-    if (required && !val) {
-      return `请填写${label}`
-    }
-    if (val && !isIsoDateString(val)) {
-      return `${label}无效，请检查月份和日期是否正确（例如 6 月只有 30 天）`
-    }
-    return null
-  }
-
   // 保存租客信息（管理员功能）
   const saveTenantInfo = () => {
     if (!isAdmin) {
@@ -125,35 +107,15 @@ function PropertyDetail({ property, project, selectedYear, selectedMonth, viewMo
       return
     }
 
-    if (!tenantForm.name) {
-      alert('请选择租住时长')
-      return
-    }
-
-    const startDateError = getTenantDateFieldError(tenantStartDateRef.current, '起租日期', {
-      required: true
-    })
-    if (startDateError) {
-      alert(startDateError)
-      tenantStartDateRef.current?.focus()
-      return
-    }
-
-    const endDateError = getTenantDateFieldError(tenantEndDateRef.current, '到期日期')
-    if (endDateError) {
-      alert(endDateError)
-      tenantEndDateRef.current?.focus()
+    if (!tenantForm.name || !tenantForm.startDate) {
+      alert('请选择租住时长和起租日期')
       return
     }
 
     // 保持原有状态，不自动改变
     onPropertyUpdate({
       ...property,
-      tenant: {
-        ...tenantForm,
-        startDate: tenantStartDateRef.current?.value ?? tenantForm.startDate,
-        endDate: tenantEndDateRef.current?.value ?? tenantForm.endDate
-      }
+      tenant: tenantForm
     })
     setIsEditingTenant(false)
   }
@@ -620,7 +582,6 @@ function PropertyDetail({ property, project, selectedYear, selectedMonth, viewMo
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">起租日期 *</label>
                   <input
-                    ref={tenantStartDateRef}
                     type="date"
                     value={tenantForm.startDate}
                     onChange={(e) => setTenantForm({ ...tenantForm, startDate: e.target.value })}
@@ -639,7 +600,6 @@ function PropertyDetail({ property, project, selectedYear, selectedMonth, viewMo
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">到期日期</label>
                   <input
-                    ref={tenantEndDateRef}
                     type="date"
                     value={tenantForm.endDate}
                     onChange={(e) => setTenantForm({ ...tenantForm, endDate: e.target.value })}

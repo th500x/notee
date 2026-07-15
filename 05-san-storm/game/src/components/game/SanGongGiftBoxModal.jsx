@@ -2,7 +2,7 @@
  * 三公府 · 封赏 · 礼盒：消耗贡献兑换传奇宝物
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import EquipmentCard from '@shared/components/card/EquipmentCard';
 import { playerAPI } from '@/services/playerApi';
 import PoolResultModalFrame from '@/components/game/PoolResultModalFrame';
@@ -29,7 +29,8 @@ export default function SanGongGiftBoxModal({
 }) {
   const [preview, setPreview] = useState(null);
   const [loadErr, setLoadErr] = useState(null);
-  const [busyId, setBusyId] = useState(null);
+  const [selectedId, setSelectedId] = useState(null);
+  const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState(null);
   const [result, setResult] = useState(null);
   const [resultCard, setResultCard] = useState(null);
@@ -59,36 +60,37 @@ export default function SanGongGiftBoxModal({
     setToast(null);
     setResult(null);
     setResultCard(null);
-    setBusyId(null);
+    setSelectedId(null);
     void loadPreview();
   }, [open, loadPreview]);
 
   const cost = preview?.contributionCost ?? 50;
+  const canRedeemSelected = useMemo(() => {
+    if (!preview?.canRedeem || !selectedId || busy) return false;
+    return preview.treasures?.some((t) => t.id === selectedId);
+  }, [preview, selectedId, busy]);
 
-  const onRedeem = useCallback(
-    async (treasureId) => {
-      setToast(null);
-      if (!playerId || !treasureId || busyId) return;
-      setBusyId(treasureId);
-      try {
-        const res = await playerAPI.submitSanGongFuGiftBox(playerId, treasureId);
-        if (res.success && res.data) {
-          const granted = preview?.treasures?.find((t) => t.id === treasureId);
-          setResultCard(granted ? treasureConfigToEquipmentCard(granted) : null);
-          setResult(res.data);
-          await loadPreview();
-          await onAfterRedeem?.();
-        } else {
-          setToast(res.error || '兑换失败');
-        }
-      } catch (e) {
-        setToast(e?.message || '兑换失败');
-      } finally {
-        setBusyId(null);
+  const onRedeem = useCallback(async () => {
+    setToast(null);
+    if (!playerId || !selectedId || busy) return;
+    setBusy(true);
+    try {
+      const res = await playerAPI.submitSanGongFuGiftBox(playerId, selectedId);
+      if (res.success && res.data) {
+        const granted = preview?.treasures?.find((t) => t.id === selectedId);
+        setResultCard(granted ? treasureConfigToEquipmentCard(granted) : null);
+        setResult(res.data);
+        await loadPreview();
+        await onAfterRedeem?.();
+      } else {
+        setToast(res.error || '兑换失败');
       }
-    },
-    [playerId, busyId, loadPreview, onAfterRedeem, preview?.treasures],
-  );
+    } catch (e) {
+      setToast(e?.message || '兑换失败');
+    } finally {
+      setBusy(false);
+    }
+  }, [playerId, selectedId, busy, loadPreview, onAfterRedeem, preview?.treasures]);
 
   if (!open) return null;
 
@@ -96,7 +98,7 @@ export default function SanGongGiftBoxModal({
 
   return (
     <>
-      <PoolResultModalFrame title="🎁 礼盒兑换" onClose={onClose} confirmLabel="关闭">
+      <PoolResultModalFrame title="🎁 礼盒兑换" onClose={onClose}>
         <div className="max-h-[min(70vh,520px)] overflow-y-auto text-left">
           {loadErr ? (
             <div className="mb-2 text-[11px] text-red-400/90">{loadErr}</div>
@@ -132,13 +134,21 @@ export default function SanGongGiftBoxModal({
                 <div className="mb-2 text-[10px] text-red-400/85">{preview.blockReason}</div>
               ) : null}
 
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 sm:items-stretch">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 {(preview.treasures || []).map((treasure) => {
-                  const disabled = !preview.canRedeem || !!busyId;
+                  const selected = selectedId === treasure.id;
+                  const disabled = !preview.canRedeem || busy;
                   return (
-                    <div
+                    <button
                       key={treasure.id}
-                      className="flex h-full flex-col rounded-lg border border-stone-700/55 bg-stone-900/50 px-2.5 py-2"
+                      type="button"
+                      disabled={disabled}
+                      onClick={() => setSelectedId(treasure.id)}
+                      className={`rounded-lg border px-2.5 py-2 text-left transition-colors ${
+                        selected
+                          ? 'border-amber-600/70 bg-amber-950/40'
+                          : 'border-stone-700/55 bg-stone-900/50 hover:border-stone-600/70'
+                      } ${disabled ? 'cursor-not-allowed opacity-60' : ''}`}
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div
@@ -162,22 +172,23 @@ export default function SanGongGiftBoxModal({
                       <div className="mt-1.5 text-[10px] tabular-nums text-cyan-300/80">
                         消耗 {cost} 贡献
                       </div>
-                      <button
-                        type="button"
-                        disabled={disabled}
-                        onClick={() => void onRedeem(treasure.id)}
-                        className={`mt-auto h-8 w-full shrink-0 rounded border px-2 text-[11px] font-medium leading-none ${
-                          disabled
-                            ? 'cursor-not-allowed border-stone-700/40 bg-stone-900/30 text-stone-600'
-                            : 'border-amber-700/50 bg-amber-950/40 text-amber-100 hover:bg-amber-900/50'
-                        }`}
-                      >
-                        {busyId === treasure.id ? '兑换中…' : '确认兑换'}
-                      </button>
-                    </div>
+                    </button>
                   );
                 })}
               </div>
+
+              <button
+                type="button"
+                disabled={!canRedeemSelected}
+                onClick={() => void onRedeem()}
+                className={`mt-3 w-full rounded border px-2 py-1.5 text-[11px] font-medium ${
+                  !canRedeemSelected
+                    ? 'cursor-not-allowed border-stone-700/40 bg-stone-900/30 text-stone-600'
+                    : 'border-amber-700/50 bg-amber-950/40 text-amber-100 hover:bg-amber-900/50'
+                }`}
+              >
+                {busy ? '兑换中…' : '确认兑换所选宝物'}
+              </button>
             </>
           ) : !loadErr ? (
             <div className="py-6 text-center text-[11px] text-stone-500">加载中…</div>
@@ -193,7 +204,6 @@ export default function SanGongGiftBoxModal({
             setResult(null);
             setResultCard(null);
           }}
-          confirmLabel="关闭"
         >
           <div className="flex flex-col items-center gap-3">
             {resultCard ? (

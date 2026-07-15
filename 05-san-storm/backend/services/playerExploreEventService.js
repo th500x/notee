@@ -217,7 +217,7 @@ async function maybeResetExploreEventChainsDaily(playerId) {
 
 /**
  * 部队耐久整编链终章（传奇/核心）：选项 B 为保底路径 — 仍扣事件级链钥匙道具并发奖，不校验/不执行耐久修复。
- * @see docs/01-jun-exploration/10-core-system/14-1-EVENT_SYSTEM.md §道具 special_effect
+ * @see docs/10-core-system/14-1-EVENT_SYSTEM.md §道具 special_effect
  */
 const TROOP_CHAIN_FINALE_INSURANCE_OPTION_B_EVENT_IDS = new Set([
   'san_1_event_2003',

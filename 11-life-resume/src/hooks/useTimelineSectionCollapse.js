@@ -5,18 +5,18 @@ import {
 } from '@/utils/timelineSectionCollapse';
 
 /**
- * 按公开页 ownerId + 当前系列持久化置顶 / 年份 / 未知各块的收起状态。
+ * 按公开页 ownerId 持久化置顶 / 年份 / 未知各块的收起状态（localStorage）。
  */
-export function useTimelineSectionCollapse(ownerAccountId, entrySeriesId = null) {
+export function useTimelineSectionCollapse(ownerAccountId) {
   const ownerId = String(ownerAccountId || '').trim().toUpperCase();
 
   const [collapsedBySectionId, setCollapsedBySectionId] = useState(() =>
-    readTimelineSectionCollapse(ownerId, entrySeriesId)
+    readTimelineSectionCollapse(ownerId)
   );
 
   useEffect(() => {
-    setCollapsedBySectionId(readTimelineSectionCollapse(ownerId, entrySeriesId));
-  }, [ownerId, entrySeriesId]);
+    setCollapsedBySectionId(readTimelineSectionCollapse(ownerId));
+  }, [ownerId]);
 
   const isSectionCollapsed = useCallback(
     (sectionId) => !!collapsedBySectionId[sectionId],
@@ -34,11 +34,11 @@ export function useTimelineSectionCollapse(ownerAccountId, entrySeriesId = null)
         } else {
           next[id] = true;
         }
-        writeTimelineSectionCollapse(ownerId, entrySeriesId, next);
+        writeTimelineSectionCollapse(ownerId, next);
         return next;
       });
     },
-    [ownerId, entrySeriesId]
+    [ownerId]
   );
 
   return { isSectionCollapsed, toggleSectionCollapsed };

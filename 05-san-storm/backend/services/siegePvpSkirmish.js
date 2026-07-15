@@ -179,7 +179,7 @@ function runSiegePvpSkirmish(attackerSiegeNpcs, defenderSiegeNpcs, seedInput, op
         ...(def.faction === 'enemy' ? { siegeCityDefenseMult } : {}),
       });
       if (roll === 'crit') dmg = Math.max(1, Math.round(dmg * 1.5));
-      const cas = troopDamageToCasualties(def, dmg, { attacker: atk, strike: 'normal' });
+      const cas = troopDamageToCasualties(def, dmg);
       def.currentTroops = Math.max(0, def.currentTroops - cas);
       logs.push(
         `第 ${attackInRound} 次攻击：[${atkLab}]${an} 对 [${defLab}]${dn} 造成 ${cas} 损失（${roll === 'crit' ? '暴击' : '命中'}）。`,
@@ -192,7 +192,7 @@ function runSiegePvpSkirmish(attackerSiegeNpcs, defenderSiegeNpcs, seedInput, op
         } else {
           let dmgC = calcDamageSeeded(def, atk, null, rng, { strike: 'counter' });
           if (rollC === 'crit') dmgC = Math.max(1, Math.round(dmgC * 1.5));
-          const casC = troopDamageToCasualties(atk, dmgC, { attacker: def, strike: 'counter' });
+          const casC = troopDamageToCasualties(atk, dmgC);
           atk.currentTroops = Math.max(0, atk.currentTroops - casC);
           logs.push(
             `　└ 反击：[${defLab}]${dn} 对 [${atkLab}]${an} 造成 ${casC} 损失（${rollC === 'crit' ? '暴击' : '命中'}）。`,

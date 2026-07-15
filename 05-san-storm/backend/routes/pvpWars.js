@@ -183,14 +183,18 @@ router.post('/proposals', validateBody(pvpWarSchemas.proposalsBody), async (req,
       if (warPolicyTransientService.computeTotalFees(normalizedPolicies).breakdown.length > 0) {
         throw httpError(400, '中立城 PVE 战事不支持临时政策', 'PVE_TRANSIENT_POLICY_NOT_ALLOWED');
       }
-    }
-
-    const warConcurrencyService = require('../services/warConcurrencyService');
-    const warLoad = await warConcurrencyService.getAttackerFactionWarLoad(attackerFactionId, {
-      season: seasonKey,
-    });
-    if (warLoad.atCap) {
-      throw httpError(409, warConcurrencyService.WAR_CAP_MESSAGE, 'WAR_CONCURRENCY_CAP');
+      const pvePart = await cityService.getActivePveSiegeParticipationForFaction(attackerFactionId, {
+        season: seasonKey,
+      });
+      if (
+        Number(pvePart.count) >= cityService.MAX_CONCURRENT_PVE_WARS_PER_ATTACKER_FACTION
+      ) {
+        throw httpError(
+          409,
+          `贵方势力进行中的中立城 PVE 攻城已达上限（${cityService.MAX_CONCURRENT_PVE_WARS_PER_ATTACKER_FACTION}）`,
+          'PVE_WAR_CAP',
+        );
+      }
     }
 
     const cityCount = await fetchFactionCityCountForKing(attackerFactionId);
@@ -290,6 +294,26 @@ router.get('/by-city/:cityId/active', validateParams(pvpWarSchemas.cityIdParam),
   }
 });
 
+/**
+ * GET /api/pvp-wars/king-recent-decision?factionId=...
+ *
+ * 必须注册在 `GET /:id` **之前**，否则 `king-recent-decision` 会被当成战事 id 查库 → 404。
+ * 给「君主口谕」前端拉势力君主最近一次主动决策动向（内存留痕，TTL 60 分钟）。
+ * 无任何最近动向时返回 `data: null`，前端 fallback 到闲聊池。
+ */
+router.get('/king-recent-decision', validateQuery(pvpWarSchemas.factionIdQuery), async (req, res, next) => {
+  try {
+    const { factionId } = req.query;
+    if (!aiKingConfigService.hasKingForFaction(String(factionId))) {
+      return res.json({ success: true, data: null });
+    }
+    const last = aiKingActiveDecisionService.getRecentDecision(String(factionId));
+    res.json({ success: true, data: last || null });
+  } catch (error) {
+    return next(wrap500(error, '获取君主最近动向失败'));
+  }
+});
+
 function formatRemonstranceCityRow(r) {
   if (!r) return null;
   return {
@@ -333,10 +357,11 @@ router.get('/remonstrance-panel', validateQuery(pvpWarSchemas.remonstrancePanelQ
       proposalType: passiveApprovalService.PROPOSAL_TYPE_WAR,
       cityCount,
     });
-    const warConcurrencyService = require('../services/warConcurrencyService');
-    const warLoad = await warConcurrencyService.getAttackerFactionWarLoad(factionId, { season });
-    const maxWar = warConcurrencyService.MAX_CONCURRENT_WARS_PER_ATTACKER_FACTION;
-    const atWarCap = !!warLoad.atCap;
+    const pvpCount = await WarPvp.countActiveOrPendingByAttackerFaction(factionId);
+    const pvePart = await cityService.getActivePveSiegeParticipationForFaction(factionId, { season });
+    const pveCount = Number(pvePart.count) || 0;
+    const maxPvp = pvpWarService.MAX_CONCURRENT_PVP_WARS_PER_ATTACKER_FACTION;
+    const maxPve = cityService.MAX_CONCURRENT_PVE_WARS_PER_ATTACKER_FACTION;
 
     const factionReserveService = require('../services/factionReserveService');
     const poolBal = await factionReserveService.getPoolBalance(pool, factionId);
@@ -360,16 +385,13 @@ router.get('/remonstrance-panel', validateQuery(pvpWarSchemas.remonstrancePanelQ
         pvpExcludedActiveWar: (pvpExcludedActiveWar || []).map(formatRemonstranceCityRow).filter(Boolean),
         transientPolicyFees,
         warLimits: {
-          pvpActiveOrPending: warLoad.pvpCount,
-          pvpMax: maxWar,
-          pveActiveParticipations: warLoad.pveCount,
-          pveMax: maxWar,
-          warMax: maxWar,
-          atWarCap,
-          /** 兼容旧前端：任一进行中即视为该类已满 */
-          atPvpCap: atWarCap,
-          atPveCap: atWarCap,
-          pveActiveWars: warLoad.pveWars || [],
+          pvpActiveOrPending: pvpCount,
+          pvpMax: maxPvp,
+          pveActiveParticipations: pveCount,
+          pveMax: maxPve,
+          atPvpCap: Number(pvpCount) >= maxPvp,
+          atPveCap: pveCount >= maxPve,
+          pveActiveWars: pvePart.wars || [],
         },
         approvalPreview,
         proposalCost,
@@ -509,32 +531,6 @@ router.post(
 );
 
 /**
- * POST /api/pvp-wars/:id/base-camp-siege-authoritative-resolve
- * Body: { playerId } — 服务端权威演算 + 写回；供冲锋动画
- */
-router.post(
-  '/:id/base-camp-siege-authoritative-resolve',
-  validateParams(pvpWarSchemas.warIdParam),
-  validateBody(pvpWarSchemas.playerIdBody),
-  async (req, res) => {
-    try {
-      const { playerId } = req.body;
-      const data = await pvpWarService.resolveAuthoritativeBaseCampSiege(req.params.id, playerId);
-      if (!data?.ok) {
-        return res.status(400).json({
-          success: false,
-          error: data?.reason || data?.error || '大本营自动战斗失败',
-          stop: !!data?.stop,
-        });
-      }
-      res.json({ success: true, data });
-    } catch (error) {
-      return res.status(400).json({ success: false, error: error.message });
-    }
-  },
-);
-
-/**
  * POST /api/pvp-wars/:id/base-camp-siege-result
  * Body: { playerId, killedIndices, result, silverSpent?, battleScore?, battleReportSaved? }
  */
@@ -580,32 +576,6 @@ router.post(
   } catch (error) {
     return res.status(400).json({ success: false, error: error.message });
   }
-  },
-);
-
-/**
- * POST /api/pvp-wars/:id/city-siege-authoritative-resolve
- * Body: { playerId } — 攻方对城权威一场（含结算）；供冲锋动画
- */
-router.post(
-  '/:id/city-siege-authoritative-resolve',
-  validateParams(pvpWarSchemas.warIdParam),
-  validateBody(pvpWarSchemas.playerIdBody),
-  async (req, res) => {
-    try {
-      const { playerId } = req.body;
-      const data = await pvpWarService.resolveAuthoritativeAttackerCitySiege(req.params.id, playerId);
-      if (!data?.ok) {
-        return res.status(400).json({
-          success: false,
-          error: data?.reason || data?.error || '攻城自动战斗失败',
-          stop: !!data?.stop,
-        });
-      }
-      res.json({ success: true, data });
-    } catch (error) {
-      return res.status(400).json({ success: false, error: error.message });
-    }
   },
 );
 

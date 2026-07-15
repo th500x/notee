@@ -6,7 +6,7 @@
  *   第二部分：适应性修正（兵种相性+地形适应+官职兵种加成+将领兵种适性）
  *   第三部分：特殊加成（势力/仙人，暂不实装）
  *
- * @see docs/00/10-core-system/17-1-COMBAT_SYSTEM.md
+ * @see docs/10-core-system/17-1-COMBAT_SYSTEM.md
  */
 
 import {
@@ -19,7 +19,6 @@ import {
 } from '@shared/utils/characterTraitBonuses';
 import { getTroopAffinityOutgoingDamageMult } from '@/utils/troopAffinityCombat';
 import { resolveSiegeCityDefenseMultFromOpts } from '@shared/utils/siegeCityDefenseMult';
-import { getCounterLowerTierDamageMult } from '@shared/utils/troopRarityCombat';
 
 // ── 精锐小队战损比例（troopWeight > 1）────────────────────────────────────────
 // 仅影响「当前兵力/最大兵力」在攻防上的线性缩放；满编时与 troopWeight=1 一致，残血时衰减慢于线性。
@@ -29,33 +28,32 @@ export const ELITE_TROOP_STRENGTH_EXPONENT = 0.8;
 /** 弓兵攻击曼哈顿距离 ≤1 目标时，总伤害乘子（与 `siegeCombatCore.cjs` 一致） */
 export const ARCHER_MELEE_DAMAGE_MULT = 0.8;
 
-/** 防御减免分母：def/(def+K)。**K 越大** → 穿透越高、伤害越高（K 越小越肉）。 */
-export const DEF_REDUCTION_DENOM = 220;
-
-/**
- * 同稀有度主动一击折算兵力条后，至少扣守方满编的该比例（保证同档满编约 ≤5 刀；反击不适用）。
- * 须在 `troopDamageToCasualties` 传入 `attacker` + `strike:'normal'` 才会生效。
- */
-export const MIN_CASUALTY_PCT_OF_DEFENDER_MAX = 0.20;
-
 /**
  * 等效兵力（max×troopWeight）**相等**时：主动一击略强于反击，打破「完全镜像则战损 1:1」。
- * 调用处须传入 `strike`（棋盘战 `useBattleAnimations`、攻城推演 `siegePvpSkirmish` 等与主动/反击语义一致）。
+ * 仅作用于本次 `calcDamage` / `estimateDamage`；调用处须传入 `strike`（棋盘战 `useBattleAnimations`、攻城推演 `siegePvpSkirmish` 等与主动/反击语义一致）。
  */
-export const MIRROR_STRIKE_DAMAGE_MULT = 1.10;
-/** 同稀有度镜像反击目标约为主动的 35%～50%（与 `COUNTER_STRIKE_DAMAGE_MULT` 联调）。 */
-export const MIRROR_COUNTER_DAMAGE_MULT = 0.50;
+export const MIRROR_STRIKE_DAMAGE_MULT = 1.18;
+export const MIRROR_COUNTER_DAMAGE_MULT = 0.68;
 
 /**
- * 兵力比系数：主动一击与反击共用 `clamp(r,0.33,3)`，低档反击不再软化抬高。
+ * 反击专用：在「以少打多」时弱化原公式 `clamp(r,0.33,3)` 对 r&lt;1 的过度压制，使反击威胁更接近策划梯度。
  * @param {number} rawTroopRatio 等效兵力比 (攻方/守方) = atkEff/defEff
  */
 export function troopRatioCoeffForStrike(rawTroopRatio, strikeMode) {
-  return Math.min(3.0, Math.max(0.33, rawTroopRatio));
+  const r = Math.min(3.0, Math.max(0.33, rawTroopRatio));
+  if (strikeMode !== 'counter') {
+    return r;
+  }
+  // r≥1：以多打少时与主动一击相同，避免在「等兵力反击」时误放大（与镜像倍率叠加会反压攻方）
+  if (r >= 1) {
+    return r;
+  }
+  const softened = Math.pow(r, 0.58) * 1.28;
+  return Math.min(2.75, Math.max(0.52, softened));
 }
 
-/** 反击在公式末段额外乘子（与镜像反击倍率联调，同档反击约为主动的 35%～50%） */
-export const COUNTER_STRIKE_DAMAGE_MULT = 0.95;
+/** 反击在公式末段额外乘子（与兵力系数独立，便于整体抬高反击线） */
+export const COUNTER_STRIKE_DAMAGE_MULT = 1.22;
 
 /**
  * 战损后的兵力比例系数（攻击/防御环节共用）
@@ -75,31 +73,13 @@ export function troopStrengthRatioFromCasualties(troop) {
 /**
  * 将公式层伤害折算为「兵力条」扣减。精锐（troopWeight>1）时 raw/weight 后四舍五入，
  * 与攻防公式里等效兵力（max×weight）对称；至少扣 1（当 raw≥1 且 weight>1 时）。
- * @param {Object} defender
- * @param {number} rawDamage
- * @param {{ attacker?: object, strike?: 'normal' | 'counter' }} [options]
  */
-export function troopDamageToCasualties(defender, rawDamage, options = {}) {
+export function troopDamageToCasualties(defender, rawDamage) {
   const raw = Math.max(0, Number(rawDamage) || 0);
   if (raw <= 0) return 0;
   const w = defender?.troopWeight != null ? Number(defender.troopWeight) : 1;
-  let cas = !(w > 1) ? Math.round(raw) : Math.max(1, Math.round(raw / w));
-  const max = Number(defender?.maxTroops) || 0;
-  const strike = options.strike === 'counter' ? 'counter' : 'normal';
-  const attacker = options.attacker;
-  const sameRarity =
-    attacker?.rarity &&
-    defender?.rarity &&
-    attacker.rarity === defender.rarity;
-  if (
-    max > 0 &&
-    MIN_CASUALTY_PCT_OF_DEFENDER_MAX > 0 &&
-    strike !== 'counter' &&
-    sameRarity
-  ) {
-    cas = Math.max(Math.ceil(max * MIN_CASUALTY_PCT_OF_DEFENDER_MAX), cas);
-  }
-  return Math.max(1, cas);
+  if (!(w > 1)) return Math.round(raw);
+  return Math.max(1, Math.round(raw / w));
 }
 
 // ── 士气攻防系数（战术整数点 0～120，与 UI/文档一致）──────────────────────────────
@@ -272,7 +252,7 @@ export function calcDamage(atk, def, terrain, options = {}) {
   const defRatio = troopStrengthRatioFromCasualties(def);
   const siegeDefMult = resolveSiegeCityDefenseMultFromOpts(options);
   const totalDef = singleDef * defRatio * siegeDefMult;
-  const defReduction = totalDef / (totalDef + DEF_REDUCTION_DENOM);
+  const defReduction = totalDef / (totalDef + 140);
   const defMorale = getMoraleEffects(def);
   let defMultiplier = defReduction * defMorale.defense;
 
@@ -298,7 +278,6 @@ export function calcDamage(atk, def, terrain, options = {}) {
   totalDmg *= troopRatioCoeffForStrike(rawTroopRatio, strikeMode);
   if (strikeMode === 'counter') {
     totalDmg *= COUNTER_STRIKE_DAMAGE_MULT;
-    totalDmg *= getCounterLowerTierDamageMult(atk, def);
   }
   const mirror = Math.abs(atkEffective - defEffective) < 1e-6;
   if (mirror) {
@@ -398,7 +377,7 @@ export function estimateDamage(atk, def, terrain, options = {}) {
   const singleDef = singleDefBase * getTraitDefenderDefenseStrengthMult(dc);
   const defRatio = troopStrengthRatioFromCasualties(def);
   const totalDef = singleDef * defRatio;
-  const defReduction = totalDef / (totalDef + DEF_REDUCTION_DENOM);
+  const defReduction = totalDef / (totalDef + 140);
   const defMorale = getMoraleEffects(def);
   let defMultiplier = defReduction * defMorale.defense;
   if (def._formationBuffs?.defenseBonus) defMultiplier = Math.min(0.9, defMultiplier * (1 + def._formationBuffs.defenseBonus));
@@ -414,7 +393,6 @@ export function estimateDamage(atk, def, terrain, options = {}) {
   totalDmg *= troopRatioCoeffForStrike(rawTroopRatio, strikeMode);
   if (strikeMode === 'counter') {
     totalDmg *= COUNTER_STRIKE_DAMAGE_MULT;
-    totalDmg *= getCounterLowerTierDamageMult(atk, def);
   }
   const mirror = Math.abs(atkEffective - defEffective) < 1e-6;
   if (mirror) {
@@ -445,18 +423,8 @@ export function estimateDamage(atk, def, terrain, options = {}) {
   if (Number.isFinite(skMult) && skMult > 0) totalDmg *= skMult;
 
   const rawDamage = Math.max(1, Math.round(totalDmg));
-  const casOpts = {
-    attacker: atk,
-    strike: options.strike === 'counter' ? 'counter' : 'normal',
-  };
-  const damage = previewCasualtiesAfterPhase2FirstHit(
-    def,
-    troopDamageToCasualties(def, rawDamage, casOpts),
-  );
-  const critDamage = previewCasualtiesAfterPhase2FirstHit(
-    def,
-    troopDamageToCasualties(def, Math.round(rawDamage * 1.5), casOpts),
-  );
+  const damage = previewCasualtiesAfterPhase2FirstHit(def, troopDamageToCasualties(def, rawDamage));
+  const critDamage = previewCasualtiesAfterPhase2FirstHit(def, troopDamageToCasualties(def, Math.round(rawDamage * 1.5)));
 
   const dodgeRate = getEffectiveDodgeRateFromCharacter(dc);
   const hitRate = getEffectiveHitRatePreview(ac, dc);

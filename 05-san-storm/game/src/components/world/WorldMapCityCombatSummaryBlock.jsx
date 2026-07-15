@@ -1,5 +1,5 @@
 /**
- * 大地图城池「城备」tooltip 最下方三行：驻地守军 / NPC守军 / 防守系数。
+ * 大地图城池「城备」tooltip 最下方四行：披挂上阵 / 驻地守军 / NPC守军 / 防守系数。
  * 与 `WorldMapCityInfoBlock` 内联块同源，供战略格 tooltip 与 **地图 Tab 缩略图** 复用。
  * `withTopRule={false}`：缩略图浮层标题下已分区，不画上分隔线。
  */
@@ -7,6 +7,7 @@
 /**
  * @param {{
  *   pvpAttackerBaseCampStrategic?: boolean,
+ *   onDutyCount?: number|null,
  *   garrisonSlotCount?: number|null,
  *   garrisonCap?: number|null|string,
  *   npcAlive?: number|null,
@@ -18,6 +19,7 @@
  */
 export default function WorldMapCityCombatSummaryBlock({
   pvpAttackerBaseCampStrategic = false,
+  onDutyCount = null,
   garrisonSlotCount = null,
   garrisonCap = null,
   npcAlive = null,
@@ -26,6 +28,10 @@ export default function WorldMapCityCombatSummaryBlock({
   className = '',
   withTopRule = true,
 }) {
+  const dutyNum = typeof onDutyCount === 'number' && Number.isFinite(onDutyCount) ? onDutyCount : null;
+  const dutyShown = dutyNum === null ? '—' : String(dutyNum);
+  const dutyGreen = dutyNum != null && dutyNum > 0;
+
   const slotNum =
     typeof garrisonSlotCount === 'number' && Number.isFinite(garrisonSlotCount)
       ? garrisonSlotCount
@@ -45,12 +51,18 @@ export default function WorldMapCityCombatSummaryBlock({
     >
       {pvpAttackerBaseCampStrategic ? (
         <>
+          披挂上阵：<span className="text-stone-400">无</span>
+          <span className="text-stone-500">（禁止配置）</span>
+          <br />
           驻地守军：<span className="text-stone-400">无</span>
           <span className="text-stone-500">（禁止配置）</span>
           <br />
         </>
       ) : (
         <>
+          披挂上阵：
+          <span className={dutyGreen ? 'text-green-400' : 'text-stone-500'}>{dutyShown}</span>
+          <br />
           驻地守军：
           <span className={slotNum === null ? 'text-stone-500' : 'text-cyan-400'}>{slotShown}</span>
           <span className="text-stone-500"> / </span>

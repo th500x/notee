@@ -1,4 +1,4 @@
--- Runtime / config tables aligned with docs/00/00-base/01-1-DATABASE_DESIGN.md
+-- Runtime / config tables aligned with docs/00-base/01-1-DATABASE_DESIGN.md
 -- Dependency order: factions -> legions -> legion_members -> texts; ai_players -> accounts;
 -- Safe to re-run: CREATE TABLE IF NOT EXISTS
 

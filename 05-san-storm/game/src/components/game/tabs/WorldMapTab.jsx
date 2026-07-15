@@ -25,6 +25,7 @@ import { buildStrategicMiniMapCityRects } from '@/utils/buildStrategicMiniMapCit
 import { computeStrategicMiniMapProximityHighlights } from '@/utils/computeStrategicMiniMapProximityHighlights';
 import { API_CONFIG } from '@/constants';
 import { fetchWithTimeout } from '@/services/httpClient';
+import { garrisonAPI } from '@/services/garrisonApi';
 import { buildWorldMapCityPanelProps, worldMapCityTitleFromRow } from '@/utils/worldMapCityPanelCopy';
 import WorldMapCityCombatSummaryBlock from '@/components/world/WorldMapCityCombatSummaryBlock';
 import WorldMapFactionStrip from '@/components/game/WorldMapFactionStrip';
@@ -48,6 +49,7 @@ export default function WorldMapTab({ onClose, onOpenCampaignCenter, campaignNot
   const [factionWorldError, setFactionWorldError] = useState(null);
   /** 缩略图选中城：含指针位置供浮层定位；再点同城关闭。 */
   const [miniPick, setMiniPick] = useState(null);
+  const [miniOnDutyCount, setMiniOnDutyCount] = useState(null);
   const miniTooltipRef = useRef(null);
 
   const bumpCityRefresh = useCallback(() => {
@@ -201,6 +203,33 @@ export default function WorldMapTab({ onClose, onOpenCampaignCenter, campaignNot
   }, []);
 
   useEffect(() => {
+    setMiniOnDutyCount(null);
+    const cid = miniPick?.cityId;
+    if (!cid) return undefined;
+    const row = cityById[cid];
+    const probe = buildWorldMapCityPanelProps(row, {
+      factionNameById,
+      playerFactionId,
+      playerId,
+      siegeQuota: null,
+      siegeLoading: false,
+      garrisonSlotCount: null,
+      onDutyCount: null,
+      cityById,
+    });
+    if (probe.isBanditStronghold || !probe.cityId) return undefined;
+    let cancelled = false;
+    garrisonAPI.getOnDutyCount(probe.cityId).then((res) => {
+      if (cancelled) return;
+      const duty = res?.success ? Number(res.count) : null;
+      setMiniOnDutyCount(Number.isFinite(duty) ? duty : null);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [miniPick?.cityId, cityById, factionNameById, playerFactionId, playerId]);
+
+  useEffect(() => {
     if (!miniPick) return undefined;
     const onDocMouseDown = (ev) => {
       const t = ev.target;
@@ -208,6 +237,7 @@ export default function WorldMapTab({ onClose, onOpenCampaignCenter, campaignNot
       if (miniTooltipRef.current?.contains(t)) return;
       if (t.closest('[data-strategic-mini-city]')) return;
       setMiniPick(null);
+      setMiniOnDutyCount(null);
     };
     document.addEventListener('mousedown', onDocMouseDown);
     return () => document.removeEventListener('mousedown', onDocMouseDown);
@@ -226,6 +256,7 @@ export default function WorldMapTab({ onClose, onOpenCampaignCenter, campaignNot
       siegeQuota: null,
       siegeLoading: false,
       garrisonSlotCount: Number.isFinite(slotNum) ? slotNum : null,
+      onDutyCount: miniOnDutyCount,
       cityById,
     });
   }, [
@@ -235,6 +266,7 @@ export default function WorldMapTab({ onClose, onOpenCampaignCenter, campaignNot
     playerFactionId,
     playerId,
     garrisonStatsByCityId,
+    miniOnDutyCount,
   ]);
 
   const statusLine =
@@ -334,6 +366,7 @@ export default function WorldMapTab({ onClose, onOpenCampaignCenter, campaignNot
                     withTopRule={false}
                     className="mt-0"
                     pvpAttackerBaseCampStrategic={false}
+                    onDutyCount={miniPanelProps.onDutyCount}
                     garrisonSlotCount={miniPanelProps.garrisonSlotCount}
                     garrisonCap={miniPanelProps.garrisonCap}
                     npcAlive={miniPanelProps.npcAlive}

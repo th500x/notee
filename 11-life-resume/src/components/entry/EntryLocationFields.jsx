@@ -101,36 +101,24 @@ export default function EntryLocationFields({
 
   const applyParsedMapsUrl = async (rawUrl) => {
     let parsed = parseGoogleMapsShareUrl(rawUrl);
-    const shouldServerResolve =
-      (!parsed.ok && parsed.code === 'GOOGLE_MAPS_SHORT_URL') ||
-      (parsed.ok && !parsed.empty && parsed.latitude == null && parsed.longitude == null);
-
-    if (shouldServerResolve) {
+    if (!parsed.ok && parsed.code === 'GOOGLE_MAPS_SHORT_URL') {
       setResolvingMapsUrl(true);
-      setError(
-        parsed.code === 'GOOGLE_MAPS_SHORT_URL'
-          ? '正在解析 Google 地图短链接…'
-          : '正在解析 Google 地图链接…'
-      );
+      setError('正在解析 Google 地图短链接…');
       try {
         const res = await fetchResolveMapsUrl(rawUrl);
-        if (res.data?.ok) {
-          parsed = res.data;
-        }
+        parsed = res.data || { ok: false, error: '短链接解析失败' };
       } catch (err) {
         if (placeName.trim()) {
           setError(
-            `${formatLifeResumeError(err)}。已保留链接，填写地点名称后仍可发布。`
+            `${formatLifeResumeError(err)}。已保留短链接，填写地点名称后仍可发布。`
           );
           onEnabledChange(true);
           onCaptureMethodChange('map_pick');
           onMapsUrlChange(rawUrl.trim());
           return true;
         }
-        if (!parsed.ok) {
-          setError(formatLifeResumeError(err));
-          return false;
-        }
+        setError(formatLifeResumeError(err));
+        return false;
       } finally {
         setResolvingMapsUrl(false);
       }

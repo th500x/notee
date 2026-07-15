@@ -1,6 +1,6 @@
 /**
  * 官职回退：按当前声望解析势力内可担任的最高官职（不记忆原职）
- * @see docs/01-jun-exploration/40-ai/41-1-AI_KING_SYSTEM.md §前任卸职
+ * @see docs/40-ai/41-1-AI_KING_SYSTEM.md §前任卸职
  */
 
 const fs = require('fs');

@@ -1,7 +1,7 @@
 /**
  * player_progress.achievement_progress JSON 读写（v1）
  *
- * @see docs/00/20-data-layer/25-2-ACHIEVEMENT_SYSTEM.md §1 方案 A
+ * @see docs/20-data-layer/25-2-ACHIEVEMENT_SYSTEM.md §1 方案 A
  */
 
 const ACHIEVEMENT_PROGRESS_VERSION = 1;

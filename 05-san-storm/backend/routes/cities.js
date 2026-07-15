@@ -202,33 +202,6 @@ router.post(
 );
 
 /**
- * POST /api/cities/:cityId/siege-authoritative-resolve
- * Body: { playerId } — PVE 中立城权威一场（含结算）；供冲锋动画
- */
-router.post(
-  '/:cityId/siege-authoritative-resolve',
-  validateParams(citySchemas.cityIdParam),
-  validateBody(citySchemas.siegeBody),
-  async (req, res) => {
-    try {
-      const { playerId } = req.body;
-      const data = await cityService.resolveAuthoritativePveSiege(req.params.cityId, playerId);
-      if (!data?.ok) {
-        return res.status(400).json({
-          success: false,
-          error: data?.reason || data?.error || '攻城自动战斗失败',
-          stop: !!data?.stop,
-        });
-      }
-      res.json({ success: true, data });
-    } catch (error) {
-      console.error('[Cities] 攻城权威结算失败:', error);
-      res.status(400).json({ success: false, error: error.message });
-    }
-  },
-);
-
-/**
  * GET /api/cities/:cityId/active-war
  */
 router.get('/:cityId/active-war', validateParams(citySchemas.cityIdParam), async (req, res, next) => {

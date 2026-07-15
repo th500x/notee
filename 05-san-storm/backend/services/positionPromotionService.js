@@ -64,7 +64,9 @@ function formatPositionCardRow(row) {
     permissions: Array.isArray(perms) ? perms : [],
     requirementReputation: repNeed,
     position_bonuses: {
-      silverBonus: Number(bonuses.silver ?? bonuses.silverBonus ?? 0) || 0,
+      reputationBonus: Number(bonuses.reputation ?? bonuses.reputationBonus ?? 0) || 0,
+      contributionBonus: Number(bonuses.contribution ?? bonuses.contributionBonus ?? 0) || 0,
+      resourceBonus: Number(bonuses.resource ?? bonuses.resourceBonus ?? 0) || 0,
       infantryBonus: Number(bonuses.infantry ?? bonuses.infantryBonus ?? 0) || 0,
       cavalryBonus: Number(bonuses.cavalry ?? bonuses.cavalryBonus ?? 0) || 0,
       archerBonus: Number(bonuses.archer ?? bonuses.archerBonus ?? 0) || 0,

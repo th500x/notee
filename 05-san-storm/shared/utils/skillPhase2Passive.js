@@ -1,6 +1,6 @@
 /**
  * 将领被动 · 阶段2（触发 / 条件减伤 / 首击免疫）——与 `skillPhase1Passive` 并列，供战斗装配与 `combatSystem` 消费。
- * 契约：`docs/00/20-data-layer/23-SKILL_SYSTEM.md` 阶段2；`skill-template.csv` 中 `implementation_phase === 2` 的 passive。
+ * 契约：`docs/20-data-layer/23-SKILL_SYSTEM.md` 阶段2；`skill-template.csv` 中 `implementation_phase === 2` 的 passive。
  */
 
 /** 仅含以下 key 的 passive `special_effect` 整段才纳入阶段2合并（与阶段1「全非白名单则跳过」一致） */

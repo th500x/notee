@@ -1,6 +1,6 @@
 /**
  * 大地图立绘光效：装备成就槽 display_effect → CSS 修饰类
- * @see docs/00/20-data-layer/25-2-ACHIEVEMENT_SYSTEM.md §5
+ * @see docs/20-data-layer/25-2-ACHIEVEMENT_SYSTEM.md §5
  */
 
 const KNOWN_DISPLAY_EFFECTS = new Set(['金色', '红色', '绿色', '黑色']);

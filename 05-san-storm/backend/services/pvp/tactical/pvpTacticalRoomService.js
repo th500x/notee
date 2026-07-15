@@ -11,8 +11,8 @@
  *
  * 错误：抛 Error 并附 `.code` 与 `.httpStatus`，由路由层映射 HTTP（13-pvp-tactical-api，步骤 6）。
  *
- * @see docs/01-jun-exploration/10-core-system/17-5-DUEL_SYSTEM.md §12.3 §12.7 §12.9
- * @see docs/01-jun-exploration/10-core-system/17-5-2-TACTICAL_AUTO_DUEL_IMPLEMENTATION.md 步骤 2
+ * @see docs/10-core-system/17-5-DUEL_SYSTEM.md §12.3 §12.7 §12.9
+ * @see docs/10-core-system/17-5-2-TACTICAL_AUTO_DUEL_IMPLEMENTATION.md 步骤 2
  */
 
 const { pool, transaction } = require('../../../database/connection');

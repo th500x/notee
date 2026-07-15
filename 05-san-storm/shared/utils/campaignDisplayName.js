@@ -5,9 +5,13 @@
 
 /** san_1 可选势力展示名（单势力战役用；多势力列视为「通用」） */
 const SAN_1_FACTION_DISPLAY_NAMES = Object.freeze({
-  san_1_faction_1001: '三王',
-  san_1_faction_2001: '汉室',
-  san_1_faction_3001: '黄巾',
+  san_1_faction_1001: '刘备',
+  san_1_faction_2001: '曹操',
+  san_1_faction_3001: '孙坚',
+  san_1_faction_4001: '袁绍',
+  san_1_faction_5001: '董卓',
+  san_1_faction_6001: '汉室',
+  san_1_faction_7001: '黄巾',
 });
 
 const GENERAL_CAMPAIGN_FACTION_LABEL = '通用';

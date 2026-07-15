@@ -1,7 +1,7 @@
 /**
  * 势力政策长效谏言 · 君主批复口谕（批准 / 驳回模板）。
  *
- * 按 `ai-kings.json` · `speechStyle` 分桶；与 `KingEdictVerdictDialog` 同形展示。
+ * 按 `ai-kings.json` · `speechStyle` 分桶；与 `KingEdictPanel` 口谕壳同形展示。
  *
  * @module data/texts/kingPolicyRemonstranceLines
  */

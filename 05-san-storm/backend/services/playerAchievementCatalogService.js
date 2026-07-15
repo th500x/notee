@@ -1,7 +1,7 @@
 /**
  * 个人中心「成就」页：全量配置 + 玩家是否持有 + 进度
  *
- * @see docs/00/20-data-layer/25-2-ACHIEVEMENT_SYSTEM.md
+ * @see docs/20-data-layer/25-2-ACHIEVEMENT_SYSTEM.md
  */
 
 const { pool } = require('../database/connection');

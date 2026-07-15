@@ -2,8 +2,8 @@
  * 匪寨「攻打」次数：按 **日历日 × 三个 8 小时整点档**（0–8 / 8–16 / 16–24）推进序列号，每跨越一档 **+perWindow**，上限 **max**。
  * 与探索 / 攻城「每小时 +6、0–8 点休息」**不同网格**，故 **独立** 于 `hourlyQuotaWithRestWindow.js`。
  *
- * @see docs/00/10-core-system/15-2-SERVER_REFRESH_AND_LIMITS.md
- * @see docs/04-challenge-mode/17-7-BANDIT_SYSTEM.md（个人塔次日 08:00 **整塔重置 `nextLayer`→1** 见 **`playerBanditRaidQuotaService.maybeResetPostTowerStallProgress`**）
+ * @see docs/10-core-system/15-2-SERVER_REFRESH_AND_LIMITS.md
+ * @see docs/10-core-system/17-7-BANDIT_SYSTEM.md（个人塔次日 08:00 **整塔重置 `nextLayer`→1** 见 **`playerBanditRaidQuotaService.maybeResetPostTowerStallProgress`**）
  */
 
 'use strict';

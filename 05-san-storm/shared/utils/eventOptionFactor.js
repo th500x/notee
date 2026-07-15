@@ -2,7 +2,7 @@
  * 事件选项 `factor` 串解析（CSV `option_*_factor` → luck / always / minigame 判定）。
  *
  * 格式：
- * - `type-a` / `type-b` — 策划简写，等价于 luck + balanced + 门槛（见 docs/01-jun-exploration/10-core-system/14-1-EVENT_SYSTEM.md §6）；运行时展开，不当作独立主因子
+ * - `type-a` / `type-b` — 策划简写，等价于 luck + balanced + 门槛（见 docs/10-core-system/14-1-EVENT_SYSTEM.md §6）；运行时展开，不当作独立主因子
  * - `always` — 无运势骰子
  * - `minigame:gobang:easy` — 第一段固定 `minigame`，其后为「游戏:难度」（可含多个 `:`）
  * - `luck:7:strategist:6` — luck + 队伍运气门槛 + 副因子类型 + 副因子门槛

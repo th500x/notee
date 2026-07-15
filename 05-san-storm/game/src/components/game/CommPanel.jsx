@@ -6,7 +6,7 @@
  *              有未读传书时整框叠加红环脉动（不自动展开面板）
  *              大地图视图下显示，Tab页面内隐藏
  *
- * @see docs/01-jun-exploration/30-frontend/32-5-PLAYER_CORNER.md
+ * @see docs/30-frontend/32-5-PLAYER_CORNER.md
  */
 
 import { useState, useCallback, useEffect, useRef } from 'react';

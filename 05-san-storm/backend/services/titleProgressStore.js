@@ -1,8 +1,8 @@
 /**
  * player_progress.title_progress JSON 读写（v1）
  *
- * @see docs/00/20-data-layer/25-1-TITLE_SYSTEM.md
- * @see docs/00/00-base/01-database-split/20-tables-player.md §4
+ * @see docs/20-data-layer/25-1-TITLE_SYSTEM.md
+ * @see docs/00-base/01-database-split/20-tables-player.md §4
  */
 
 const TITLE_PROGRESS_VERSION = 1;

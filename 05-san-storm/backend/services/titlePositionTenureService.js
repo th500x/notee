@@ -1,7 +1,7 @@
 /**
  * 官职任职天数累计（称号 position_tenure 条件）
  *
- * @see docs/00/00-base/04-2-DATA_TERM_DICTIONARY.md §7.1
+ * @see docs/00-base/04-2-DATA_TERM_DICTIONARY.md §7.1
  */
 
 const { pool } = require('../database/connection');

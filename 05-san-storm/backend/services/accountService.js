@@ -442,7 +442,7 @@ async function clearPlayerGameData(userId) {
   const playerTables = [
     'player_cards',
     'player_events',
-    'player_lineup_sets',
+    'player_garrison',
     'player_progress',
     'player_synthesis',
     'player_statistics',
@@ -569,7 +569,7 @@ async function purgeAllPlayerData() {
   const playerTables = [
     'player_cards',
     'player_events',
-    'player_lineup_sets',
+    'player_garrison',
     'player_progress',
     'player_synthesis',
     'player_statistics',

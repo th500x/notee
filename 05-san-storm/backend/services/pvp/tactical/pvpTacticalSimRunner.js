@@ -10,7 +10,7 @@
  *   - 幂等：已 `resolved` 的房间再 start → 返回既有结果；进程内 `runningPromises` 防并发重入。
  *   - 失败补偿：推演/落库失败 → 房间回 `cancelled`（cancel_reason='sim_failed'），不留半 `sim_running`。
  *
- * @see docs/01-jun-exploration/10-core-system/17-5-2-TACTICAL_AUTO_DUEL_IMPLEMENTATION.md 步骤 5
+ * @see docs/10-core-system/17-5-2-TACTICAL_AUTO_DUEL_IMPLEMENTATION.md 步骤 5
  */
 
 const { pool, transaction } = require('../../../database/connection');

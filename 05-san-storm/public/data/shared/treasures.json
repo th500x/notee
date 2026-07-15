@@ -1,8 +1,8 @@
 {
   "_meta": {
-    "generated": "2026-07-13T15:46:13.834Z",
+    "generated": "2026-06-20T13:14:48.720Z",
     "source": "treasure-template.csv",
-    "count": 4
+    "count": 2
   },
   "treasures": [
     {
@@ -17,8 +17,8 @@
           "value": 20
         }
       ],
-      "specialEffect": "max_troops_bonus:20",
-      "specialEffectDesc": "兵力上限+20",
+      "specialEffect": "max_troops_bonus:80",
+      "specialEffectDesc": "兵力上限+80",
       "description": "传闻春秋楚人和氏所献之璧，完璧归赵天下闻名；此仅为仿制品，盈泽含光，可聚士卒之心，增编伍上限。"
     },
     {
@@ -33,41 +33,9 @@
           "value": 20
         }
       ],
-      "specialEffect": "battle_ally:epic_char_random;epic_troop:2",
-      "specialEffectDesc": "战斗开始时随机召唤一名史诗将领，率2支史诗部队助阵（本局友军）",
+      "specialEffect": "battle_ally:legendary_char_random;legendary_troop:2",
+      "specialEffectDesc": "战斗开始时随机召唤一名传奇将领，率2支传奇部队助阵（本局友军）",
       "description": "秦以和氏璧刻传国玉玺，汉室承绪正朔；此玺为仿，然持之如在麾下，或召传奇名将率精锐来援。"
-    },
-    {
-      "id": "san_1_treasure_5001",
-      "name": "和氏璧",
-      "season": "san_1",
-      "rarity": "core",
-      "series": "starter",
-      "bonus": [
-        {
-          "key": "luck",
-          "value": 20
-        }
-      ],
-      "specialEffect": "max_troops_bonus:20",
-      "specialEffectDesc": "兵力上限+20",
-      "description": "真品"
-    },
-    {
-      "id": "san_1_treasure_5002",
-      "name": "汉玉玺",
-      "season": "san_1",
-      "rarity": "core",
-      "series": "starter",
-      "bonus": [
-        {
-          "key": "luck",
-          "value": 20
-        }
-      ],
-      "specialEffect": "battle_ally:epic_char_random;epic_troop:2",
-      "specialEffectDesc": "战斗开始时随机召唤一名史诗将领，率2支史诗部队助阵（本局友军）",
-      "description": "真品"
     }
   ]
 }

@@ -1,9 +1,8 @@
 /**
  * 军营区域 — 驻守编组的卡牌仓库
  *
- * 按类型折叠展示：将领、部队、装备件+合成、封装+装备卡、称号、成就、宝物、道具
+ * 按类型折叠展示：将领、部队、装备件+合成、封装+装备卡、称号、成就、宝物
  * 装备件/卡支持封装（调起 EncapsulateEquipmentModal）
- * 道具无专用卡面：暂用 emoji 列表（数据来自 GET /players/:id/items → config_items）
  */
 
 import { useState, useEffect } from 'react';
@@ -18,11 +17,9 @@ import {
   isRecruitCrossSeasonLimitPool,
 } from '@shared/utils/cardPoolRarityLimits';
 import { cardPoolAPI } from '@/services/cardPoolApi';
-import { playerAPI } from '@/services/playerApi';
-import { groupTroopCardsByRarity, RARITY_LABEL } from '@/utils/garrisonBarracksTroopPool';
-import { isTroopEquippableForLineup } from '@/utils/troopLineupEligibility';
 
 const RARITY_ORDER = { common: 0, rare: 1, epic: 2, legendary: 3, core: 4 };
+const RARITY_LABEL = { common: '普通', rare: '稀有', epic: '史诗', legendary: '传奇', core: '核心' };
 
 const RARITY_DOTS = [
   { key: 'common',    color: 'bg-gray-400' },
@@ -39,22 +36,6 @@ const SINGLE_ROW_TYPES = [
   { type: 'achievement', label: '成就', icon: '🏆' },
   { type: 'treasure',    label: '宝物', icon: '💎' },
 ];
-
-const ITEM_TYPE_EMOJI = {
-  event_key: '🔑',
-  season_badge: '🏅',
-  chapter_tactical: '🎖️',
-};
-
-const ITEM_TYPE_LABEL = {
-  event_key: '事件信物',
-  season_badge: '赛季徽章',
-  chapter_tactical: '篇章信物',
-};
-
-function itemEmoji(itemType) {
-  return ITEM_TYPE_EMOJI[itemType] || '📦';
-}
 
 function countByRarity(typeCards) {
   const counts = {};
@@ -78,9 +59,8 @@ function groupByRarity(typeCards) {
 }
 
 /** 通用卡格按钮（将领/部队/称号/成就/宝物） */
-function TypeCell({ type, label, icon, typeCards, displayCards, isExpanded, onToggle }) {
-  const shown = displayCards ?? typeCards;
-  const counts = countByRarity(shown);
+function TypeCell({ type, label, icon, typeCards, isExpanded, onToggle }) {
+  const counts = countByRarity(typeCards);
   const total  = typeCards.length;
   const cls = (active, hasItems) =>
     `rounded-lg p-2 text-center transition-colors min-h-[4.5rem] flex flex-col items-center justify-center
@@ -123,12 +103,10 @@ export default function GarrisonBackpack({
 }) {
   const [expandedType, setExpandedType]       = useState(null);
   const [previewCard, setPreviewCard]         = useState(null);
-  const [previewItem, setPreviewItem]         = useState(null);
   const [encapsulateOpen, setEncapsulateOpen] = useState(false);
   const [encapsulateMode, setEncapsulateMode] = useState('draft');
   const [encapsulateEditId, setEncapsulateEditId] = useState(null);
   const [recruitCrossSeasonActive, setRecruitCrossSeasonActive] = useState(false);
-  const [inventoryItems, setInventoryItems]   = useState([]);
   const baseUrl = import.meta.env.BASE_URL;
 
   useEffect(() => {
@@ -141,25 +119,6 @@ export default function GarrisonBackpack({
       if (cancelled || !res?.success) return;
       setRecruitCrossSeasonActive(isRecruitCrossSeasonLimitPool(res.recruit));
     });
-    return () => {
-      cancelled = true;
-    };
-  }, [playerId]);
-
-  useEffect(() => {
-    if (!playerId) {
-      setInventoryItems([]);
-      return undefined;
-    }
-    let cancelled = false;
-    playerAPI.getItems(playerId)
-      .then((res) => {
-        if (cancelled || !res?.success) return;
-        setInventoryItems(Array.isArray(res.data?.items) ? res.data.items : []);
-      })
-      .catch(() => {
-        if (!cancelled) setInventoryItems([]);
-      });
     return () => {
       cancelled = true;
     };
@@ -182,10 +141,6 @@ export default function GarrisonBackpack({
     byType[t].push(card);
   });
 
-  const allTroops = byType.troop || [];
-  const troopEquippable = allTroops.filter((c) => isTroopEquippableForLineup(c));
-  const troopExhausted = allTroops.filter((c) => !isTroopEquippableForLineup(c));
-
   const toggleType = (type, total) => {
     setExpandedType(prev => (prev === type ? null : (total > 0 ? type : null)));
   };
@@ -198,17 +153,13 @@ export default function GarrisonBackpack({
 
   return (
     <div className="mx-3 mt-4 mb-4">
-      <h4 className="text-stone-400 text-xs font-medium mb-2">
-        🏕️ 军营（{cards.length + inventoryItems.length}）
-      </h4>
+      <h4 className="text-stone-400 text-xs font-medium mb-2">🏕️ 军营（{cards.length}）</h4>
 
       <div className="grid grid-cols-3 gap-2">
         {/* 将领 + 部队 */}
         {SINGLE_ROW_TYPES.slice(0, 2).map(({ type, label, icon }) => (
           <TypeCell key={type} type={type} label={label} icon={icon}
-            typeCards={type === 'troop' ? allTroops : (byType[type] || [])}
-            displayCards={type === 'troop' ? troopEquippable : undefined}
-            isExpanded={expandedType === type}
+            typeCards={byType[type] || []} isExpanded={expandedType === type}
             onToggle={toggleType} />
         ))}
 
@@ -279,29 +230,12 @@ export default function GarrisonBackpack({
             typeCards={byType[type] || []} isExpanded={expandedType === type}
             onToggle={toggleType} />
         ))}
-
-        {/* 道具（无卡面 · emoji 展示） */}
-        <button
-          type="button"
-          onClick={() => toggleType('item', inventoryItems.length)}
-          className={cellCls(expandedType === 'item', inventoryItems.length > 0)}
-        >
-          <div className="text-lg">🎒</div>
-          <div className="text-stone-300 text-xs leading-tight">道具</div>
-          {inventoryItems.length > 0 ? (
-            <div className="text-stone-400 text-[10px] mt-0.5">{inventoryItems.length}</div>
-          ) : (
-            <div className="text-amber-400 text-sm font-bold mt-0.5">0</div>
-          )}
-        </button>
       </div>
 
-      {/* ── 展开卡牌 / 道具列表 ── */}
+      {/* ── 展开卡牌列表 ── */}
       {expandedType && (
         ((expandedType === 'equipmentSet' && equipmentSetCards.length > 0) ||
-          (expandedType === 'troop' && allTroops.length > 0) ||
-          (expandedType === 'item' && inventoryItems.length > 0) ||
-          (expandedType !== 'equipmentSet' && expandedType !== 'troop' && expandedType !== 'item' && (byType[expandedType]?.length > 0))) && (
+          (expandedType !== 'equipmentSet' && (byType[expandedType]?.length > 0))) && (
         <div className="mt-2 p-2 bg-stone-800/40 rounded-lg border border-stone-700/30">
           {expandedType === 'character' ? (
             groupByRarity(byType['character']).map(({ rarity, cards: rCards }) => (
@@ -323,45 +257,24 @@ export default function GarrisonBackpack({
               </div>
             ))
           ) : expandedType === 'troop' ? (
-            <>
-              {groupTroopCardsByRarity(troopEquippable).map(({ rarity, cards: rCards }) => (
-                <div key={rarity} className="mb-2 last:mb-0">
-                  <div className="text-stone-500 text-[10px] mb-1 px-1">
-                    {RARITY_LABEL[rarity]}（{formatRarityCountWithLimit(rCards.length, 'troop', rarity)}）
-                  </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {rCards.map(card => (
-                      <div key={card.instanceId} style={{ width: 128, height: 192 }}
-                        className="cursor-pointer overflow-hidden"
-                        onClick={() => setPreviewCard({ card, type: 'troop' })}>
-                        <div style={{ transform: 'scale(0.5)', transformOrigin: 'top left', width: 256 }}>
-                          <TroopCard troop={toTroopCardData(card)} skillsMap={skillsMap} showDetails={true} baseUrl={baseUrl} disableHoverScale />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+            groupByRarity(byType['troop']).map(({ rarity, cards: rCards }) => (
+              <div key={rarity} className="mb-2 last:mb-0">
+                <div className="text-stone-500 text-[10px] mb-1 px-1">
+                  {RARITY_LABEL[rarity]}（{formatRarityCountWithLimit(rCards.length, 'troop', rarity)}）
                 </div>
-              ))}
-              {troopExhausted.length > 0 && (
-                <div className="mt-2 pt-2 border-t border-stone-700/40">
-                  <div className="text-stone-600 text-[10px] mb-1 px-1">
-                    耐久耗尽 · 不可再装（{troopExhausted.length}）
-                  </div>
-                  <div className="flex flex-wrap gap-1.5 opacity-60">
-                    {troopExhausted.map(card => (
-                      <div key={card.instanceId} style={{ width: 128, height: 192 }}
-                        className="cursor-pointer overflow-hidden"
-                        title="核心(金)部队耐久已耗尽，仅可收藏与下赛季继承"
-                        onClick={() => setPreviewCard({ card, type: 'troop' })}>
-                        <div style={{ transform: 'scale(0.5)', transformOrigin: 'top left', width: 256 }}>
-                          <TroopCard troop={toTroopCardData(card)} skillsMap={skillsMap} showDetails={true} baseUrl={baseUrl} disableHoverScale />
-                        </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {rCards.map(card => (
+                    <div key={card.instanceId} style={{ width: 128, height: 192 }}
+                      className="cursor-pointer overflow-hidden"
+                      onClick={() => setPreviewCard({ card, type: 'troop' })}>
+                      <div style={{ transform: 'scale(0.5)', transformOrigin: 'top left', width: 256 }}>
+                        <TroopCard troop={toTroopCardData(card)} skillsMap={skillsMap} showDetails={true} baseUrl={baseUrl} disableHoverScale />
                       </div>
-                    ))}
-                  </div>
+                    </div>
+                  ))}
                 </div>
-              )}
-            </>
+              </div>
+            ))
           ) : expandedType === 'equipment' ? (
             groupByRarity(byType['equipment']).map(({ rarity, cards: rCards }) => (
               <div key={rarity} className="mb-2 last:mb-0">
@@ -419,23 +332,6 @@ export default function GarrisonBackpack({
                 </div>
               </div>
             ))
-          ) : expandedType === 'item' ? (
-            <div className="flex flex-wrap gap-1.5">
-              {inventoryItems.map((item) => (
-                <button
-                  key={item.itemId}
-                  type="button"
-                  className="w-[4.5rem] min-h-[4.5rem] rounded-lg border border-stone-600/50 bg-stone-900/70
-                    px-1.5 py-1.5 text-center hover:border-amber-600/50 cursor-pointer active:scale-[0.98]"
-                  onClick={() => setPreviewItem(item)}
-                  title={item.description || item.name}
-                >
-                  <div className="text-2xl leading-none">{itemEmoji(item.itemType)}</div>
-                  <div className="mt-1 text-stone-200 text-[10px] leading-tight line-clamp-2">{item.name}</div>
-                  <div className="mt-0.5 text-amber-300/90 text-[10px] font-bold">×{item.quantity}</div>
-                </button>
-              ))}
-            </div>
           ) : (
             <div className="text-stone-500 text-xs text-center py-3">尚未实装</div>
           )}
@@ -477,36 +373,6 @@ export default function GarrisonBackpack({
             {previewCard.type === 'treasure' && (
               <EquipmentCard equipment={toTreasureCardData(previewCard.card)} baseUrl={baseUrl} disableHoverScale />
             )}
-          </div>
-        </div>
-      )}
-
-      {/* 道具预览浮层（emoji，无专用卡面） */}
-      {previewItem && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60"
-          onClick={() => setPreviewItem(null)}>
-          <div
-            className="mx-4 w-full max-w-xs rounded-xl border border-stone-600/60 bg-stone-900/95 p-4 shadow-xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="text-center text-5xl leading-none">{itemEmoji(previewItem.itemType)}</div>
-            <div className="mt-3 text-center text-amber-100 font-bold text-base">{previewItem.name}</div>
-            <div className="mt-1 text-center text-stone-400 text-xs">
-              {ITEM_TYPE_LABEL[previewItem.itemType] || previewItem.itemType || '道具'}
-              {' · '}×{previewItem.quantity}
-            </div>
-            {previewItem.description ? (
-              <p className="mt-3 text-stone-300 text-sm leading-relaxed text-center">{previewItem.description}</p>
-            ) : (
-              <p className="mt-3 text-stone-500 text-xs text-center">暂无描述</p>
-            )}
-            <button
-              type="button"
-              className="mt-4 w-full rounded-lg border border-stone-600/50 bg-stone-800/80 py-2 text-stone-200 text-sm hover:border-amber-700/50"
-              onClick={() => setPreviewItem(null)}
-            >
-              关闭
-            </button>
           </div>
         </div>
       )}

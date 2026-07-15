@@ -10,9 +10,6 @@ const {
   loadCardTroopSpecialEffectBonus,
   parseCardTroopSpecialEffect,
 } = require('../../shared/utils/cardTroopSpecialEffect.cjs');
-const {
-  getPlayerFactionTroopMaxTroopsBonus,
-} = require('./factionGameplayBonusService');
 
 const EFFECT_CARD_TYPES = CARD_TROOP_EFFECT_CARD_TYPES;
 
@@ -112,15 +109,6 @@ async function equipCard(playerId, body) {
   );
   if (cards.length === 0) {
     return { ok: false, status: 404, error: '卡牌不存在' };
-  }
-
-  const lineupExtraService = require('./lineupExtraService');
-  if (await lineupExtraService.isInstanceInExtra(playerId, instanceId)) {
-    return {
-      ok: false,
-      status: 400,
-      error: '该卡牌已在上阵编组 Extra 中，请先卸下再装备 Main',
-    };
   }
 
   const cardToEquip = cards[0];
@@ -330,14 +318,6 @@ async function recalculateTroopBonusesForEquippedBy(poolConn, playerId, equipped
     }
     await applyCardBonusToTroops(poolConn, playerId, equippedBy, ec.card_type, ec.card_id);
   }
-  const factionMaxBonus = await getPlayerFactionTroopMaxTroopsBonus(poolConn, playerId);
-  if (factionMaxBonus > 0) {
-    await poolConn.query(
-      `UPDATE player_cards SET bonus_max_troops = bonus_max_troops + ?
-       WHERE player_id = ? AND equipped_by = ? AND card_type = 'troop' AND is_equipped = TRUE`,
-      [factionMaxBonus, playerId, equippedBy],
-    );
-  }
   const [troops] = await poolConn.query(
     `SELECT pc.instance_id, pc.current_troops, pc.bonus_max_troops, ct.max_troops AS cfg_max
      FROM player_cards pc
@@ -357,25 +337,12 @@ async function recalculateTroopBonusesForEquippedBy(poolConn, playerId, equipped
   }
 }
 
-/** 未上阵部队：仅叠势力默认兵力加成（称号/宝物仅作用于已装备槽） */
-async function applyFactionMaxTroopsToUnequippedTroops(poolConn, playerId) {
-  if (!playerId) return;
-  const factionMaxBonus = await getPlayerFactionTroopMaxTroopsBonus(poolConn, playerId);
-  await poolConn.query(
-    `UPDATE player_cards SET bonus_max_troops = ?
-     WHERE player_id = ? AND card_type = 'troop'
-       AND (is_equipped = FALSE OR is_equipped IS NULL OR equipped_by IS NULL)`,
-    [factionMaxBonus, playerId],
-  );
-}
-
 /** 上阵编组三槽 + 全部驻地行：同步部队 special_effect → bonus_*（与 equip/unequip 同口径） */
 async function syncTroopEffectBonusesForPlayer(poolConn, playerId) {
   if (!playerId) return;
   for (const slot of ['player', 'character1', 'character2']) {
     await recalculateTroopBonusesForEquippedBy(poolConn, playerId, slot);
   }
-  await applyFactionMaxTroopsToUnequippedTroops(poolConn, playerId);
   const garrisonService = require('./garrisonService');
   await garrisonService.refreshAllGarrisonTroopEffectBonuses(
     (sql, params) => poolConn.query(sql, params),

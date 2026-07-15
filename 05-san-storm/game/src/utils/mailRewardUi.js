@@ -71,9 +71,6 @@ export function describeMailAttachments(attachments, maps = {}) {
   if (attachments.grantKingStipend === true) {
     lines.push('💰 君主封赏俸禄（按势力国力档与官职加成结算）');
   }
-  if (attachments.grantDailyStipend === true) {
-    lines.push('💰 今日俸禄（按国力档结算，领取后计入当日日领）');
-  }
   if (Array.isArray(attachments.cards)) {
     for (const raw of attachments.cards) {
       const id = String(raw).trim();
@@ -124,8 +121,6 @@ export function linesFromClaimDetails(details, names = {}) {
       }
     } else if (d.type === 'position') {
       out.push(`👑 官职「${d.positionName}」`);
-    } else if (d.type === 'stipend_skip') {
-      out.push(`💰 日俸未发放：${d.reason || '不可领取'}`);
     } else if (d.type === 'item') {
       out.push(`🔑 ${d.itemName || itemMap[d.itemId] || d.itemId} ×${d.quantity || 1}`);
     } else if (d.type === 'character_duplicate') {

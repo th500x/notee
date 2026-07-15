@@ -1,6 +1,6 @@
 /**
  * AI 君主 · 每日 00:00 大司空任命
- * @see docs/01-jun-exploration/40-ai/41-1-AI_KING_SYSTEM.md §每日大司空任命
+ * @see docs/40-ai/41-1-AI_KING_SYSTEM.md §每日大司空任命
  */
 
 const { pool } = require('../database/connection');

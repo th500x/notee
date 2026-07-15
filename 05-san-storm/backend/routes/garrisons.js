@@ -44,17 +44,26 @@ router.get('/stats/cities', async (req, res, next) => {
   }
 });
 
-/** 披挂上阵已下线（玩法1重构）；保留路由以免旧客户端 404，统一 410 */
 router.get(
   '/city/:cityId/on-duty-count',
   validateParams(garrisonSchemas.cityIdParam),
-  (_req, res) => {
-    res.status(410).json({
-      success: false,
-      error: '披挂上阵已移除',
-      code: 'ON_DUTY_REMOVED',
-      count: 0,
-    });
+  async (req, res, next) => {
+    try {
+      const { pool } = require('../database/connection');
+      const [rows] = await pool.query(
+        `SELECT COUNT(*) AS count
+       FROM players p
+       INNER JOIN cities c ON c.city_id = ?
+       WHERE p.on_duty = TRUE
+         AND p.on_duty_city_id = ?
+         AND c.faction_id IS NOT NULL
+         AND p.faction_id = c.faction_id`,
+        [req.params.cityId, req.params.cityId],
+      );
+      res.json({ success: true, count: rows[0]?.count || 0 });
+    } catch (error) {
+      return next(wrap500(error, '获取披挂上阵人数失败'));
+    }
   },
 );
 
@@ -63,20 +72,47 @@ router.post(
   validateBody(garrisonSchemas.onDutyBody),
   async (req, res, next) => {
     try {
+      const { onDuty, cityId } = req.body;
       const { pool } = require('../database/connection');
-      // 强制清残留状态，避免旧客户端误开
-      await pool.query(
-        'UPDATE players SET on_duty = FALSE, on_duty_city_id = NULL WHERE player_id = ?',
-        [req.params.playerId],
-      );
-      res.status(410).json({
-        success: false,
-        error: '披挂上阵已移除；请使用主城「驻军所」配置驻地编组',
-        code: 'ON_DUTY_REMOVED',
-        onDuty: false,
-      });
+      const playerId = req.params.playerId;
+
+      if (onDuty) {
+        if (!cityId) {
+          return res.status(400).json({
+            success: false,
+            error: '开启披挂上阵需传入 cityId（待战目标城池）',
+          });
+        }
+        const [pRows] = await pool.query('SELECT faction_id FROM players WHERE player_id = ?', [playerId]);
+        const playerRow = pRows[0];
+        if (!playerRow) {
+          return res.status(404).json({ success: false, error: '玩家不存在' });
+        }
+        const [cRows] = await pool.query('SELECT faction_id FROM cities WHERE city_id = ?', [cityId]);
+        const cityRow = cRows[0];
+        if (!cityRow) {
+          return res.status(400).json({ success: false, error: '城池不存在' });
+        }
+        if (!cityRow.faction_id || playerRow.faction_id !== cityRow.faction_id) {
+          return res.status(400).json({
+            success: false,
+            error: '仅能为自己势力已占领的城池披挂上阵',
+          });
+        }
+        await pool.query(
+          'UPDATE players SET on_duty = TRUE, on_duty_city_id = ? WHERE player_id = ?',
+          [cityId, playerId],
+        );
+      } else {
+        await pool.query(
+          'UPDATE players SET on_duty = FALSE, on_duty_city_id = NULL WHERE player_id = ?',
+          [playerId],
+        );
+      }
+      await Player.updateLastActive(playerId);
+      res.json({ success: true, onDuty: !!onDuty });
     } catch (error) {
-      return next(wrap500(error, '披挂上阵已移除'));
+      return next(wrap500(error, '切换披挂上阵失败'));
     }
   },
 );

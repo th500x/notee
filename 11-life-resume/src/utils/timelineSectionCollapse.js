@@ -1,17 +1,13 @@
-import { entrySeriesStorageKey } from '@shared/utils/lifeResumeEntrySeries.js';
+const STORAGE_PREFIX = 'lifeResume.timelineSectionCollapse.v1';
 
-const STORAGE_PREFIX = 'lifeResume.timelineSectionCollapse.v2';
-
-function storageKey(ownerAccountId, entrySeriesId) {
-  const owner = String(ownerAccountId || '').trim().toUpperCase();
-  const series = entrySeriesStorageKey(entrySeriesId);
-  return `${STORAGE_PREFIX}:${owner}:${series}`;
+function storageKey(ownerAccountId) {
+  return `${STORAGE_PREFIX}:${String(ownerAccountId || '').trim().toUpperCase()}`;
 }
 
-export function readTimelineSectionCollapse(ownerAccountId, entrySeriesId = null) {
+export function readTimelineSectionCollapse(ownerAccountId) {
   if (typeof window === 'undefined') return {};
   try {
-    const raw = window.localStorage.getItem(storageKey(ownerAccountId, entrySeriesId));
+    const raw = window.localStorage.getItem(storageKey(ownerAccountId));
     if (!raw) return {};
     const parsed = JSON.parse(raw);
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
@@ -21,11 +17,11 @@ export function readTimelineSectionCollapse(ownerAccountId, entrySeriesId = null
   }
 }
 
-export function writeTimelineSectionCollapse(ownerAccountId, entrySeriesId, collapsedBySectionId) {
+export function writeTimelineSectionCollapse(ownerAccountId, collapsedBySectionId) {
   if (typeof window === 'undefined') return;
   try {
     window.localStorage.setItem(
-      storageKey(ownerAccountId, entrySeriesId),
+      storageKey(ownerAccountId),
       JSON.stringify(collapsedBySectionId || {})
     );
   } catch {

@@ -15,34 +15,28 @@ import {
 } from '../../utils/galleryListing';
 
 const PANEL_MAX_WIDTH = 672;
+const VIEWPORT_PAD = 12;
 
-function useGalleryPanelStyle(anchorEl, isOpen) {
+/**
+ * 图库弹窗定位：优先在视口内居中，保证完整可见。
+ * 宽表右缘「图」按钮旁锚定会在 4K 下把面板挤到右下角并裁切底部「保存」。
+ */
+function useGalleryPanelStyle(isOpen) {
   const [panelStyle, setPanelStyle] = useState(null);
 
   useLayoutEffect(() => {
-    if (!isOpen || !anchorEl) {
+    if (!isOpen) {
       setPanelStyle(null);
       return undefined;
     }
 
     const update = () => {
-      const rect = anchorEl.getBoundingClientRect();
       const vw = window.innerWidth;
       const vh = window.innerHeight;
-      const isMobile = vw < 640;
-      const panelWidth = Math.min(PANEL_MAX_WIDTH, vw - 16);
-      const maxPanelHeight = isMobile ? Math.min(vh * 0.85, 680) : Math.min(vh * 0.88, 720);
-
-      let left = rect.left + rect.width / 2 - panelWidth / 2;
-      left = Math.max(8, Math.min(left, vw - panelWidth - 8));
-
-      let top = rect.bottom + 8;
-      if (top + maxPanelHeight > vh - 8) {
-        top = rect.top - maxPanelHeight - 8;
-      }
-      if (top < 8) {
-        top = Math.max(8, rect.top);
-      }
+      const panelWidth = Math.min(PANEL_MAX_WIDTH, vw - VIEWPORT_PAD * 2);
+      const maxPanelHeight = Math.min(vh - VIEWPORT_PAD * 2, Math.round(vh * 0.92));
+      const left = Math.max(VIEWPORT_PAD, Math.round((vw - panelWidth) / 2));
+      const top = VIEWPORT_PAD;
 
       setPanelStyle({
         top: `${top}px`,
@@ -53,13 +47,11 @@ function useGalleryPanelStyle(anchorEl, isOpen) {
     };
 
     update();
-    window.addEventListener('scroll', update, true);
     window.addEventListener('resize', update);
     return () => {
-      window.removeEventListener('scroll', update, true);
       window.removeEventListener('resize', update);
     };
-  }, [anchorEl, isOpen]);
+  }, [isOpen]);
 
   return panelStyle;
 }
@@ -73,7 +65,8 @@ const fieldCls =
 export function AccountingRowGalleryModal({
   isOpen,
   row,
-  anchorEl,
+  // 仍由父组件传入（打开时滚入视区）；面板改为视口居中，不再用锚点定位
+  anchorEl: _anchorEl,
   galleryUnsaved,
   saving = false,
   onSaveToServer,
@@ -83,7 +76,7 @@ export function AccountingRowGalleryModal({
   const [shareHint, setShareHint] = useState('');
 
   const roomLabel = row?.room?.trim() || '（未填房号）';
-  const panelStyle = useGalleryPanelStyle(anchorEl, isOpen);
+  const panelStyle = useGalleryPanelStyle(isOpen);
   const listing = normalizeGalleryListing(row?.galleryListing);
   const driveUrl = (row?.galleryDriveFolderUrl || '').trim();
 

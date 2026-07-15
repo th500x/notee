@@ -1,7 +1,7 @@
 /**
  * 个人中心「称号」页：全量配置 + 玩家是否持有
  *
- * @see docs/00/20-data-layer/25-1-TITLE_SYSTEM.md
+ * @see docs/20-data-layer/25-1-TITLE_SYSTEM.md
  */
 
 const { pool } = require('../database/connection');

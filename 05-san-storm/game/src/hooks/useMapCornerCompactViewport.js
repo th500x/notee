@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 
-/** 矮视口（高度 ≤780px）时排行/聊天改到州郡条第三列，避免左下被底栏裁切 */
+/** 矮视口（高度 ≤780px）时口谕/排行/聊天改到州郡条第三列，避免左下被底栏裁切 */
 export const MAP_CORNER_COMPACT_MAX_HEIGHT_PX = 780;
 
 export function useMapCornerCompactViewport() {

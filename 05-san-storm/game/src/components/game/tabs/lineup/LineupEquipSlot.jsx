@@ -4,7 +4,7 @@
  * 4 种特化 + 1 种通用兜底：
  *   1. troop / troop1 / troop2  → 部队卡摘要（5 行：名+稀有度 / 耐久+兵力 / 攻击距离 / 攻防 / 速移）
  *   2. title                    → 称号卡摘要（3 行：名+稀有度 / 特效 / 属性加成）
- *   3. position                 → 官职卡摘要（4 行：名+稀有度 / 签到银两 / 兵种加成 / 特权）
+ *   3. position                 → 官职卡摘要（4 行：名+稀有度 / 声/贡/资 / 兵种加成 / 特权）
  *   4. equipmentSet             → 装备卡摘要（4 行：名+稀有度 / 6 项属性两列展示）
  *   5. 其它                      → 通用图标（icon + 槽位名）
  *
@@ -15,7 +15,9 @@
 
 import { RARITY_LABEL, RARITY_COLOR_MINI } from './lineupSlots';
 import {
-  formatPositionSilverBonusCompact,
+  formatStipendContributionCompact,
+  formatStipendReputationCompact,
+  formatStipendResourceCompact,
 } from '@shared/utils/formatPositionStipendBonuses.js';
 
 export default function LineupEquipSlot({ slot, content, isSelected, onClick, baseUrl, skillsMap, mini = false }) {
@@ -208,11 +210,25 @@ export default function LineupEquipSlot({ slot, content, isSelected, onClick, ba
           <span className="text-white font-medium truncate" style={{ fontSize: fs1 }}>{content.name}</span>
           <span className={`font-bold flex-shrink-0 ${RARITY_COLOR_MINI[rarity]}`} style={{ fontSize: fsR }}>{RARITY_LABEL[rarity]}</span>
         </div>
-        {formatPositionSilverBonusCompact(bonuses.silverBonus) && (
+        {(formatStipendReputationCompact(bonuses.reputationBonus) ||
+          formatStipendContributionCompact(bonuses.contributionBonus) ||
+          formatStipendResourceCompact(bonuses.resourceBonus)) && (
           <div className="flex items-center gap-1 w-full flex-wrap">
-            <span className="text-yellow-400" style={{ fontSize: fs2 }}>
-              {formatPositionSilverBonusCompact(bonuses.silverBonus)}
-            </span>
+            {formatStipendReputationCompact(bonuses.reputationBonus) && (
+              <span className="text-purple-400" style={{ fontSize: fs2 }}>
+                {formatStipendReputationCompact(bonuses.reputationBonus)}
+              </span>
+            )}
+            {formatStipendContributionCompact(bonuses.contributionBonus) && (
+              <span className="text-cyan-400" style={{ fontSize: fs2 }}>
+                {formatStipendContributionCompact(bonuses.contributionBonus)}
+              </span>
+            )}
+            {formatStipendResourceCompact(bonuses.resourceBonus) && (
+              <span className="text-yellow-400" style={{ fontSize: fs2 }}>
+                {formatStipendResourceCompact(bonuses.resourceBonus)}
+              </span>
+            )}
           </div>
         )}
         {(bonuses.infantryBonus > 0 || bonuses.cavalryBonus > 0 || bonuses.archerBonus > 0) && (

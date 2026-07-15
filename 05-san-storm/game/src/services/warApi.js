@@ -34,7 +34,16 @@ export const warAPI = {
   },
 
   /**
-   * 三公府 · 势力战事「谏言」面板：与 AI 君主主动战事相同的郡邻接候选、战事并发上限（PVE∪PVP 合计 1）、战事类审批预览。
+   * 取该势力 AI 君主最近一次主动决策动向（内存留痕，TTL 60 分钟）。
+   * 无任何最近动向则 `data: null`，前端口谕回退到闲聊池。
+   */
+  async getKingRecentDecision(factionId) {
+    const qs = new URLSearchParams({ factionId }).toString();
+    return fetchJSON(`${BASE}/king-recent-decision?${qs}`);
+  },
+
+  /**
+   * 三公府 · 势力战事「谏言」面板：与 AI 君主主动战事相同的郡邻接候选、当前 PVP/PVE 并行上限、战事类审批预览。
    * 须登录；`factionId` 须与当前角色势力一致。
    */
   async getRemonstrancePanel(factionId) {
@@ -168,32 +177,6 @@ export const warAPI = {
       method: 'POST',
       body: JSON.stringify({ playerId }),
     });
-  },
-
-  /**
-   * 攻方对城：服务端权威演算并结算（冲锋动画入口）。
-   */
-  async resolveAttackerCitySiegeAuthoritative(pvpWarId, playerId) {
-    return fetchJSON(
-      `${BASE}/${encodeURIComponent(pvpWarId)}/city-siege-authoritative-resolve`,
-      {
-        method: 'POST',
-        body: JSON.stringify({ playerId }),
-      },
-    );
-  },
-
-  /**
-   * 守方打大本营：服务端权威演算并结算。
-   */
-  async resolveBaseCampSiegeAuthoritative(pvpWarId, playerId) {
-    return fetchJSON(
-      `${BASE}/${encodeURIComponent(pvpWarId)}/base-camp-siege-authoritative-resolve`,
-      {
-        method: 'POST',
-        body: JSON.stringify({ playerId }),
-      },
-    );
   },
 
   /**

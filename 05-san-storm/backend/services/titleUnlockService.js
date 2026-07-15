@@ -1,7 +1,7 @@
 /**
  * 称号 unlock_conditions 自动解锁（达标发卡，无进度条）
  *
- * @see docs/00/20-data-layer/25-1-TITLE_SYSTEM.md §6、§10
+ * @see docs/20-data-layer/25-1-TITLE_SYSTEM.md §6、§10
  */
 
 const { evaluateUnlockCondition } = require('../../shared/utils/unlockConditionEvaluator.js');

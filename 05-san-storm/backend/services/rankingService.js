@@ -2,9 +2,9 @@
  * 活动排行榜服务
  * 排行榜数据查询、快照补建、积分冻结均在此处理；路由层只做 HTTP 映射。
  *
- * @see docs/01-jun-exploration/30-frontend/32-3-ANNOUNCEMENTS.md §4（活动榜）
- * @see docs/01-jun-exploration/10-core-system/18-4-RANKING_SYSTEM.md（常驻榜）
- * @see docs/00/00-base/01-database-split/60-tables-other.md §6 temp_event_ranking
+ * @see docs/30-frontend/32-3-ANNOUNCEMENTS.md §4（活动榜）
+ * @see docs/10-core-system/18-4-RANKING_SYSTEM.md（常驻榜）
+ * @see docs/00-base/01-database-split/60-tables-other.md §6 temp_event_ranking
  * @module backend/services/rankingService
  */
 

@@ -49,13 +49,16 @@ export const garrisonAPI = {
     });
   },
 
-  /** 披挂上阵已移除（保留方法签名以免旧调用崩溃；恒失败） */
-  async setOnDuty() {
-    return { success: false, error: '披挂上阵已移除', code: 'ON_DUTY_REMOVED', onDuty: false };
+  /** 切换披挂上阵状态；开启时必传 cityId（待战目标城池） */
+  async setOnDuty(playerId, onDuty, cityId = null) {
+    return fetchJSON(`${API_CONFIG.BASE_URL}/garrisons/${playerId}/on-duty`, {
+      method: 'POST',
+      body: JSON.stringify({ onDuty, cityId: onDuty ? cityId : undefined }),
+    });
   },
 
-  /** 披挂上阵已移除 */
-  async getOnDutyCount() {
-    return { success: false, error: '披挂上阵已移除', code: 'ON_DUTY_REMOVED', count: 0 };
+  /** 获取城市披挂上阵人数 */
+  async getOnDutyCount(cityId) {
+    return fetchJSON(`${API_CONFIG.BASE_URL}/garrisons/city/${cityId}/on-duty-count`);
   },
 };

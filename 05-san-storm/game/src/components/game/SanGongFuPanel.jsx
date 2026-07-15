@@ -400,7 +400,6 @@ export default function SanGongFuPanel({
           drawerOpen={!!sanGongFuCardPool.drawerOpen}
           troopRemaining={sanGongFuCardPool.troopRemaining ?? '?'}
           charRemaining={sanGongFuCardPool.charRemaining ?? '?'}
-          itemRemaining={sanGongFuCardPool.itemRemaining ?? '?'}
           dailyLimit={sanGongFuCardPool.dailyLimit ?? 10}
           playerId={player?.playerId}
           onAfterStipendClaim={() => refresh({ silent: true })}

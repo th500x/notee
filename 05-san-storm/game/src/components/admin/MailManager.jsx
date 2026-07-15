@@ -6,11 +6,15 @@ import { useState, useEffect } from 'react';
 import { adminConfigTextsAPI } from '@/services/adminConfigTextsApi';
 import { useAdminToast } from '@/components/admin/useAdminToast';
 
-/** S1 三大可玩势力（与 public/data/shared/factions.json / 11-1 §4.1 一致） */
+/** S1 七势力（与 public/data/shared/factions.json 一致） */
 const TRIAL_FACTIONS = [
-  { id: 'san_1_faction_1001', name: '三王' },
-  { id: 'san_1_faction_2001', name: '汉室' },
-  { id: 'san_1_faction_3001', name: '黄巾' },
+  { id: 'san_1_faction_1001', name: '刘备' },
+  { id: 'san_1_faction_2001', name: '曹操' },
+  { id: 'san_1_faction_3001', name: '孙坚' },
+  { id: 'san_1_faction_4001', name: '袁绍' },
+  { id: 'san_1_faction_5001', name: '董卓' },
+  { id: 'san_1_faction_6001', name: '汉室' },
+  { id: 'san_1_faction_7001', name: '黄巾' }
 ];
 
 /** 奖励附件 JSON 示例：银两/粮草/items 道具/cards 将领·部队·装备（与后端领取逻辑一致） */

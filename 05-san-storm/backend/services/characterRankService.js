@@ -1,6 +1,6 @@
 /**
  * 将领排名：按服务器 + 槽位 bucket 比较「面板七维 + 加权综合分」
- * @see docs/01-jun-exploration/30-frontend/32-1-BOTTOM_TABS.md §3.1（将领排名）
+ * @see docs/30-frontend/32-1-BOTTOM_TABS.md §3.1（将领排名）
  */
 
 const { pool } = require('../database/connection');

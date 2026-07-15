@@ -1,6 +1,6 @@
 /**
  * 三公府 · 势力战事抽屉内嵌：与底栏「地图」Tab 同源的战略缩略图（道路 + 郡界 + 城块色）。
- * 选城浮层与 `WorldMapTab` 同源（城况摘要 + 驻地人数）。点文档空白可关浮层；若传入 `deferParentClearWithinSelector`，在该宿主内的点击只关浮层、不把父级选中清空（供「战事谏言」等同区按钮）。
+ * 选城浮层与 `WorldMapTab` 同源（城况摘要 + 编组在岗数）。点文档空白可关浮层；若传入 `deferParentClearWithinSelector`，在该宿主内的点击只关浮层、不把父级选中清空（供「战事谏言」等同区按钮）。
  */
 
 import { useMemo, useState, useEffect, useCallback, useRef } from 'react';
@@ -22,6 +22,7 @@ import { buildStrategicMiniMapCityRects } from '@/utils/buildStrategicMiniMapCit
 import { computeStrategicMiniMapProximityHighlights } from '@/utils/computeStrategicMiniMapProximityHighlights';
 import { API_CONFIG } from '@/constants';
 import { fetchWithTimeout } from '@/services/httpClient';
+import { garrisonAPI } from '@/services/garrisonApi';
 import { buildWorldMapCityPanelProps, worldMapCityTitleFromRow } from '@/utils/worldMapCityPanelCopy';
 import WorldMapCityCombatSummaryBlock from '@/components/world/WorldMapCityCombatSummaryBlock';
 
@@ -54,6 +55,7 @@ export default function FactionWarStrategicMiniMapSection({
   const [cityRefreshKey, setCityRefreshKey] = useState(0);
   const [garrisonStatsByCityId, setGarrisonStatsByCityId] = useState({});
   const [miniPick, setMiniPick] = useState(null);
+  const [miniOnDutyCount, setMiniOnDutyCount] = useState(null);
   const miniTooltipRef = useRef(null);
 
   const bumpCityRefresh = useCallback(() => {
@@ -179,12 +181,40 @@ export default function FactionWarStrategicMiniMapSection({
       onCitySelect(cityId, e);
       if (willDeselect) {
         setMiniPick(null);
+        setMiniOnDutyCount(null);
       } else {
         setMiniPick(posOk ? { cityId: id, x: cx, y: cy } : { cityId: id, x: 0, y: 0 });
       }
     },
     [onCitySelect, selectedCityId],
   );
+
+  useEffect(() => {
+    setMiniOnDutyCount(null);
+    const cid = miniPick?.cityId;
+    if (!cid) return undefined;
+    const row = cityById[cid];
+    const probe = buildWorldMapCityPanelProps(row, {
+      factionNameById,
+      playerFactionId,
+      playerId,
+      siegeQuota: null,
+      siegeLoading: false,
+      garrisonSlotCount: null,
+      onDutyCount: null,
+      cityById,
+    });
+    if (probe.isBanditStronghold || !probe.cityId) return undefined;
+    let cancelled = false;
+    garrisonAPI.getOnDutyCount(probe.cityId).then((res) => {
+      if (cancelled) return;
+      const duty = res?.success ? Number(res.count) : null;
+      setMiniOnDutyCount(Number.isFinite(duty) ? duty : null);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [miniPick?.cityId, cityById, factionNameById, playerFactionId, playerId]);
 
   useEffect(() => {
     if (!miniPick) return undefined;
@@ -194,6 +224,7 @@ export default function FactionWarStrategicMiniMapSection({
       if (miniTooltipRef.current?.contains(t)) return;
       if (t.closest('[data-strategic-mini-city]')) return;
       setMiniPick(null);
+      setMiniOnDutyCount(null);
       const sel = typeof deferParentClearWithinSelector === 'string' ? deferParentClearWithinSelector.trim() : '';
       if (sel && t.closest(sel)) {
         return;
@@ -217,6 +248,7 @@ export default function FactionWarStrategicMiniMapSection({
       siegeQuota: null,
       siegeLoading: false,
       garrisonSlotCount: Number.isFinite(slotNum) ? slotNum : null,
+      onDutyCount: miniOnDutyCount,
       cityById,
     });
   }, [
@@ -226,6 +258,7 @@ export default function FactionWarStrategicMiniMapSection({
     playerFactionId,
     playerId,
     garrisonStatsByCityId,
+    miniOnDutyCount,
   ]);
 
   const statusLine =
@@ -289,6 +322,7 @@ export default function FactionWarStrategicMiniMapSection({
                     withTopRule={false}
                     className="mt-0"
                     pvpAttackerBaseCampStrategic={false}
+                    onDutyCount={miniPanelProps.onDutyCount}
                     garrisonSlotCount={miniPanelProps.garrisonSlotCount}
                     garrisonCap={miniPanelProps.garrisonCap}
                     npcAlive={miniPanelProps.npcAlive}

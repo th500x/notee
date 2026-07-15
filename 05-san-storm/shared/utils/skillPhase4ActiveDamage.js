@@ -1,6 +1,6 @@
 /**
  * 将领主动 · 阶段4（纯伤害 `damage`）：形状格、随机多目标、`costSelf`、`_skillPhase4Damage` 与 `_phase4DamageRuntime`。
- * 契约：`docs/00/20-data-layer/23-SKILL_SYSTEM.md` 阶段4；`skill-template.csv` 中 `implementation_phase === 4` 且 `skill_type === damage` 的主动技能。
+ * 契约：`docs/20-data-layer/23-SKILL_SYSTEM.md` 阶段4；`skill-template.csv` 中 `implementation_phase === 4` 且 `skill_type === damage` 的主动技能。
  */
 
 import {

@@ -56,8 +56,8 @@ function expect(label, cond, extra) {
 
 (async () => {
   // ─────────── 1) 性格饱和调制 ───────────
-  const lingdi = aiKingConfigService.getKingByFactionId('san_1_faction_2001');
-  const zhangjiao = aiKingConfigService.getKingByFactionId('san_1_faction_3001');
+  const lingdi = aiKingConfigService.getKingByFactionId('san_1_faction_6001');
+  const zhangjiao = aiKingConfigService.getKingByFactionId('san_1_faction_7001');
   const liubei = aiKingConfigService.getKingByFactionId('san_1_faction_1001');
 
   expect('ambition→saturationCity 0.2 → 20', cityCountSaturationFromAmbition(0.2) === 20);
@@ -151,8 +151,8 @@ function expect(label, cond, extra) {
   mockNow = baseMs + 55 * 60 * 1000;
   await sched.runMinuteTick();
 
-  const lingdiFires = fired.filter((f) => f.factionId === 'san_1_faction_2001').length;
-  const zhangjiaoFires = fired.filter((f) => f.factionId === 'san_1_faction_3001').length;
+  const lingdiFires = fired.filter((f) => f.factionId === 'san_1_faction_6001').length;
+  const zhangjiaoFires = fired.filter((f) => f.factionId === 'san_1_faction_7001').length;
   const liubeiFires = fired.filter((f) => f.factionId === 'san_1_faction_1001').length;
   expect(`lingdi N=1 总触发 1 次`, lingdiFires === 1, { lingdiFires, fired });
   expect(`zhangjiao N=3 总触发 3 次`, zhangjiaoFires === 3, { zhangjiaoFires });
@@ -170,7 +170,7 @@ function expect(label, cond, extra) {
   // 张角 ambition=0.9 → saturationCity=90；cityCount=95 进入饱和。
   // war=1, aggressionFactor=0.7 → aggressionEff=0.7
   const apvNoCC = passiveApprovalService.resolvePassiveApproval({
-    factionId: 'san_1_faction_3001',
+    factionId: 'san_1_faction_7001',
     proposalType: 'war',
     proposalId: 'smoke-no-cc',
     rng: () => 0.5, // dice=4(mult=1.0), u=0.5
@@ -178,7 +178,7 @@ function expect(label, cond, extra) {
   expect('zhangjiao 不传 cityCount → base = aggression 原值 1', apvNoCC.base === 1);
 
   const apvSat = passiveApprovalService.resolvePassiveApproval({
-    factionId: 'san_1_faction_3001',
+    factionId: 'san_1_faction_7001',
     proposalType: 'war',
     proposalId: 'smoke-cc-95',
     cityCount: 95,
@@ -201,25 +201,48 @@ function expect(label, cond, extra) {
     ) === 'b',
   );
 
-  // ─────────── 6) 每日传书文案 + 主动决策内存留痕 ───────────
-  const kingDailyLetterContentService = require('../services/kingDailyLetterContentService');
-  const casual = kingDailyLetterContentService.pickCasualLine(
-    'benevolent',
-    '2026-07-14|smoke|p1|benevolent',
-  );
-  expect('闲聊池可取句', typeof casual === 'string' && casual.length > 0, { casual });
+  // ─────────── 6) 「最近主动决策」内存留痕 + 文案模板 ───────────
+  // 直接复用前端的文言模板（工作区相对路径，无 React 依赖）
+  const { buildKingActiveDecisionLine } =
+    require('../../game/src/data/texts/kingActiveDecisionLines.js');
 
-  const tag = kingDailyLetterContentService.classifySituationTag({
-    warLoad: 1,
-    cityCount: 5,
-    supplyTier: 'B',
-    aggressionEff: 0.5,
-    evolutionEff: 0.5,
-    saturated: false,
+  expect('null/缺失 → null',
+    buildKingActiveDecisionLine(null) === null);
+
+  expect('政策意图 → null（口谕回退闲聊）',
+    buildKingActiveDecisionLine({ intentType: 'active_policy_intent', ok: true }) === null);
+
+  expect('零权重 → null',
+    buildKingActiveDecisionLine({ intentType: 'none', ok: false, reason: 'zero_weights' }) === null);
+
+  const okLine = buildKingActiveDecisionLine({
+    intentType: 'active_war_intent_pvp',
+    ok: true,
+    target: { cityName: '召陵' },
   });
-  expect('在战 → at_war', tag === 'at_war');
+  expect('PVP ok → 含「扩张疆土」+「剑指召陵」',
+    okLine.includes('扩张疆土') && okLine.includes('剑指召陵'),
+    { okLine });
 
-  // 跑一次真库 dry-run 后立即取 recent，验证 record→get 链路（内部审计，非口谕 UI）
+  const okPveNoTarget = buildKingActiveDecisionLine({
+    intentType: 'active_war_intent_pve',
+    ok: true,
+    target: null,
+  });
+  expect('PVE ok 无目标 → 仍含「扩张疆土」无「剑指」',
+    okPveNoTarget.includes('扩张疆土') && !okPveNoTarget.includes('剑指'),
+    { okPveNoTarget });
+
+  const failLine = buildKingActiveDecisionLine({
+    intentType: 'active_war_intent_pvp',
+    ok: false,
+    reason: 'no_war_candidate',
+  });
+  expect('战事 ok=false → 含「时机未到」',
+    failLine.includes('考虑发动一场战事') && failLine.includes('时机未到'),
+    { failLine });
+
+  // 跑一次真库 dry-run 后立即取 recent，验证 record→get 链路
   await aiKingActiveDecisionService.decide({
     factionId: 'san_1_faction_1001',
     dryRun: true,
@@ -239,7 +262,7 @@ function expect(label, cond, extra) {
 
   // ─────────── 7) 政策 · 无条件利好审批抬升 ───────────
   const hanRecruitAssess = policyProposalAssessService.assessLongTermPolicyProposal(
-    'san_1_faction_2001',
+    'san_1_faction_6001',
     factionPolicyDefaults.POLICY_CATEGORIES.RECRUIT,
     { enabled: true },
     null,
@@ -248,7 +271,7 @@ function expect(label, cond, extra) {
   expect('汉室招贤 OFF→ON：势力利好 positive', hanRecruitAssess.factionBenefit === 'positive');
 
   const hanRecruitApv = passiveApprovalService.resolvePassiveApproval({
-    factionId: 'san_1_faction_2001',
+    factionId: 'san_1_faction_6001',
     proposalType: 'policy',
     proposalId: 'smoke-han-recruit',
     cityCount: 5,
@@ -268,7 +291,7 @@ function expect(label, cond, extra) {
     updated_at: new Date('2026-06-07T12:55:30.000Z'),
   };
   const hanRecruitRetryAssess = policyProposalAssessService.assessLongTermPolicyProposal(
-    'san_1_faction_2001',
+    'san_1_faction_6001',
     factionPolicyDefaults.POLICY_CATEGORIES.RECRUIT,
     { enabled: true },
     rejectedDirtyRow,
@@ -280,7 +303,7 @@ function expect(label, cond, extra) {
   );
 
   const siegeAssess = policyProposalAssessService.assessLongTermPolicyProposal(
-    'san_1_faction_2001',
+    'san_1_faction_6001',
     factionPolicyDefaults.POLICY_CATEGORIES.SIEGE_REWARD,
     { personalSharePct: 70 },
     null,

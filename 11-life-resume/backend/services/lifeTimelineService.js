@@ -9,12 +9,6 @@ const { resolvePublishedLifePathForPublic } = require('../../../05-san-storm/sha
 const { findProfileByAccountId, ensureProfileRegionFromIp } = require('./lifeProfileService');
 const { formatEntryForViewer } = require('./lifeEntryService');
 const { attachMediaMapToEntries } = require('./lifeEntryMediaService');
-const {
-  listCustomSeriesForAccount,
-} = require('./lifeEntrySeriesService');
-const {
-  buildVisibleEntrySeriesList,
-} = require('../../../05-san-storm/shared/utils/lifeResumeEntrySeries.cjs');
 
 class TimelineServiceError extends Error {
   constructor(code, message, status = 404) {
@@ -33,8 +27,6 @@ function formatPublicProfile(row, publishedLifePath = null) {
     regionPublicLabel,
     displayName: formatProfileDisplayName(row.username, regionPublicLabel, row.account_id),
     publishedLifePath: publishedLifePath || null,
-    defaultEntrySeriesId:
-      row.default_entry_series_id != null ? Number(row.default_entry_series_id) : null,
   };
 }
 
@@ -104,19 +96,6 @@ async function getPublicTimeline(ownerAccountId, viewerAccountId, opts = {}) {
     ? await listOwnerEntries(ownerId)
     : await listPublishedVisibleEntries(ownerId, viewerId);
 
-  const customSeries = await listCustomSeriesForAccount(ownerId);
-  const formattedEntries = entryRows.map((row) => formatEntryForViewer(row, { isOwner }));
-  const entriesWithMedia = await attachMediaMapToEntries(formattedEntries, {
-    signUrls: true,
-    includeOssKey: isOwner,
-  });
-
-  const entrySeriesList = buildVisibleEntrySeriesList(
-    entriesWithMedia,
-    customSeries,
-    isOwner
-  );
-
   const publicEntryCount = isOwner
     ? entryRows.filter((row) => row.status === 'published' && row.visibility === 'public').length
     : entryRows.length;
@@ -129,8 +108,10 @@ async function getPublicTimeline(ownerAccountId, viewerAccountId, opts = {}) {
       isOwner,
       isLoggedIn: !!viewerId,
     },
-    entrySeriesList,
-    entries: entriesWithMedia,
+    entries: await attachMediaMapToEntries(
+      entryRows.map((row) => formatEntryForViewer(row, { isOwner })),
+      { signUrls: true, includeOssKey: isOwner }
+    ),
   };
 }
 

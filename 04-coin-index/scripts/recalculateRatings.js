@@ -1,5 +1,10 @@
 // 重新计算所有周的个人评级
-import { loadWeeklyData, saveWeeklyData } from './lib/weeklyDataStore.js'
+import fs from 'fs'
+import path from 'path'
+import { fileURLToPath } from 'url'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 
 // 按照COMPLETE_GUIDE.md定义计算个人评级
 const calculatePersonalRating = (weekData) => {
@@ -88,8 +93,17 @@ const calculatePersonalRating = (weekData) => {
 // 主函数
 const main = () => {
   console.log('🔄 开始重新计算所有周的个人评级...\n')
-
-  const data = loadWeeklyData()
+  
+  const projectRoot = path.resolve(__dirname, '..')
+  const dataFilePath = path.join(projectRoot, 'public', 'weeklyData.json')
+  
+  // 读取数据文件
+  if (!fs.existsSync(dataFilePath)) {
+    console.error(`❌ 数据文件不存在: ${dataFilePath}`)
+    return
+  }
+  
+  const data = JSON.parse(fs.readFileSync(dataFilePath, 'utf8'))
   const weekIds = Object.keys(data).sort()
   
   let updatedCount = 0
@@ -128,14 +142,16 @@ const main = () => {
     }
   })
   
-  saveWeeklyData(data)
-
+  // 保存更新后的数据
+  fs.writeFileSync(dataFilePath, JSON.stringify(data, null, 2), 'utf8')
+  
   console.log(`\n✅ 完成！`)
   console.log(`📊 总计处理: ${weekIds.length} 周`)
   console.log(`✓ 成功更新: ${updatedCount} 周`)
   if (errorCount > 0) {
     console.log(`❌ 失败: ${errorCount} 周`)
   }
+  console.log(`💾 数据已保存到: ${dataFilePath}`)
 }
 
 main()

@@ -3,10 +3,11 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 const MapCornerPlayerEntryActionsContext = createContext(null);
 
 /**
- * 矮视口第三列按钮与 `StandingRankingsPanel` / `CommPanel` 共用打开逻辑。
+ * 矮视口第三列按钮与 `KingEdictPanel` / `StandingRankingsPanel` / `CommPanel` 共用打开逻辑。
  */
 export function MapCornerPlayerEntryActionsProvider({ children }) {
   const handlersRef = useRef({
+    edict: null,
     rank: null,
     comm: null,
   });
@@ -59,7 +60,7 @@ export function useMapCornerPlayerEntryActions() {
   return useContext(MapCornerPlayerEntryActionsContext);
 }
 
-/** @param {'rank'|'comm'} slot */
+/** @param {'edict'|'rank'|'comm'} slot */
 export function useRegisterMapCornerEntryHandler(slot, handler) {
   const ctx = useMapCornerPlayerEntryActions();
   const register = ctx?.registerMapCornerEntryHandler;

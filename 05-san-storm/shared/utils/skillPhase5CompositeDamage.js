@@ -1,7 +1,7 @@
 /**
  * 将领主动 · 阶段5（复合伤害）：`damage_dot` / `damage_debuff` / `damage_heal` / `heal_damage`。
  * 与 `skillPhase4ActiveDamage` 共用形状/锚点/随机池逻辑；`_skillPhase5Composite` + `_phase5CompositeRuntime`。
- * 契约：`docs/00/20-data-layer/23-SKILL_SYSTEM.md` 阶段5。
+ * 契约：`docs/20-data-layer/23-SKILL_SYSTEM.md` 阶段5。
  */
 
 import {

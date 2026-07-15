@@ -1,6 +1,6 @@
 /**
  * 大司空日榜：temp_event_ranking + san_1_king_dasikong_daily
- * @see docs/01-jun-exploration/40-ai/41-1-AI_KING_SYSTEM.md §日榜存储
+ * @see docs/40-ai/41-1-AI_KING_SYSTEM.md §日榜存储
  */
 
 const { pool } = require('../database/connection');

@@ -4,54 +4,13 @@
  */
 
 import { config } from '../config'
+import { DATA_PATHS } from '../constants'
 import { validateWeekId, validateYear, isValidWeekId } from './validation'
 import { handleDataLoad, logDebug, logWarning, logError } from './errorHandler'
 
 // 数据缓存
 let realWeeklyData = {}
 let dataLoadPromise = null
-
-/** 仅保留 YYYY-WNN 周记录，过滤 meta 等杂项键 */
-const pickWeekRecords = (data) => {
-  const weeks = {}
-  for (const [key, value] of Object.entries(data || {})) {
-    if (isValidWeekId(key) && value && typeof value === 'object') {
-      weeks[key] = value
-    }
-  }
-  return weeks
-}
-
-const metaPathForDataPath = (dataPath) => dataPath.replace(/weeklyData\.json$/, 'weeklyData.meta.json')
-
-const fetchJsonNoCache = async (url) => {
-  const response = await fetch(url, { cache: 'no-cache' })
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}`)
-  }
-  return response.json()
-}
-
-/**
- * 先读 meta 版本戳，再带 ?v= 拉取 weeklyData.json，避免浏览器长期缓存旧数据
- */
-const fetchWeeklyDataFromPath = async (dataPath) => {
-  const metaPath = metaPathForDataPath(dataPath)
-  let versionedUrl = dataPath
-
-  try {
-    const meta = await fetchJsonNoCache(metaPath)
-    if (meta?.updatedAt) {
-      versionedUrl = `${dataPath}?v=${encodeURIComponent(meta.updatedAt)}`
-      logDebug('DataLoader', `数据版本: ${meta.updatedAt}`)
-    }
-  } catch {
-    logDebug('DataLoader', `无 meta，直接请求 ${dataPath}`)
-  }
-
-  logDebug('DataLoader', `请求周数据: ${versionedUrl}`)
-  return fetchJsonNoCache(versionedUrl)
-}
 
 /**
  * 异步加载真实数据
@@ -65,10 +24,12 @@ const loadRealData = async () => {
       try {
         logDebug('DataLoader', `尝试加载数据: ${path}`)
         
-        const raw = await fetchWeeklyDataFromPath(path)
-        realWeeklyData = pickWeekRecords(raw)
-        logDebug('DataLoader', `已加载真实周数据: ${Object.keys(realWeeklyData).length}周`, { source: path })
-        return true
+        const response = await fetch(path)
+        if (response.ok) {
+          realWeeklyData = await response.json()
+          logDebug('DataLoader', `已加载真实周数据: ${Object.keys(realWeeklyData).length}周`, { source: path })
+          return true
+        }
       } catch (error) {
         logDebug('DataLoader', `路径 ${path} 加载失败: ${error.message}`)
       }

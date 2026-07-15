@@ -69,7 +69,7 @@
       "defense": 5.7,
       "speed": 6,
       "movement": 4,
-      "maxTroops": 220,
+      "maxTroops": 280,
       "troopWeight": 1,
       "infantryCounter": 1.1,
       "cavalryCounter": 1,
@@ -98,7 +98,7 @@
       "defense": 8.6,
       "speed": 5,
       "movement": 4,
-      "maxTroops": 240,
+      "maxTroops": 360,
       "troopWeight": 1,
       "infantryCounter": 1,
       "cavalryCounter": 0.9,
@@ -127,7 +127,7 @@
       "defense": 7.2,
       "speed": 5,
       "movement": 4,
-      "maxTroops": 240,
+      "maxTroops": 360,
       "troopWeight": 1,
       "infantryCounter": 0.9,
       "cavalryCounter": 1.2,
@@ -156,7 +156,7 @@
       "defense": 9.8,
       "speed": 6,
       "movement": 4,
-      "maxTroops": 260,
+      "maxTroops": 440,
       "troopWeight": 1,
       "infantryCounter": 1,
       "cavalryCounter": 0.9,
@@ -186,7 +186,7 @@
       "speed": 6,
       "movement": 6,
       "maxTroops": 200,
-      "troopWeight": 1.4,
+      "troopWeight": 2.4,
       "infantryCounter": 1.2,
       "cavalryCounter": 1,
       "archerCounter": 1.2,
@@ -214,8 +214,8 @@
       "defense": 7.2,
       "speed": 5,
       "movement": 5,
-      "maxTroops": 200,
-      "troopWeight": 1.2,
+      "maxTroops": 280,
+      "troopWeight": 2,
       "infantryCounter": 1.1,
       "cavalryCounter": 1,
       "archerCounter": 1.2,
@@ -233,7 +233,7 @@
       "description": "关羽正室，胡氏卫队"
     },
     {
-      "id": "san_1_troop_1101",
+      "id": "san_1_troop_2001",
       "name": "兖州部曲",
       "rarity": "common",
       "troopType": "infantry",
@@ -262,7 +262,7 @@
       "description": "尚无记载"
     },
     {
-      "id": "san_1_troop_1102",
+      "id": "san_1_troop_2002",
       "name": "兖州轻弓",
       "rarity": "common",
       "troopType": "archer",
@@ -291,7 +291,7 @@
       "description": "尚无记载"
     },
     {
-      "id": "san_1_troop_1103",
+      "id": "san_1_troop_2003",
       "name": "兖州轻骑",
       "rarity": "rare",
       "troopType": "cavalry",
@@ -301,7 +301,7 @@
       "defense": 5.3,
       "speed": 6,
       "movement": 4,
-      "maxTroops": 220,
+      "maxTroops": 280,
       "troopWeight": 1,
       "infantryCounter": 1.1,
       "cavalryCounter": 1,
@@ -320,7 +320,7 @@
       "description": "尚无记载"
     },
     {
-      "id": "san_1_troop_1104",
+      "id": "san_1_troop_2004",
       "name": "宗族近卫",
       "rarity": "epic",
       "troopType": "infantry",
@@ -330,7 +330,7 @@
       "defense": 8.2,
       "speed": 5,
       "movement": 4,
-      "maxTroops": 240,
+      "maxTroops": 360,
       "troopWeight": 1,
       "infantryCounter": 1,
       "cavalryCounter": 0.9,
@@ -349,7 +349,7 @@
       "description": "尚无记载"
     },
     {
-      "id": "san_1_troop_1105",
+      "id": "san_1_troop_2005",
       "name": "宗族重骑",
       "rarity": "epic",
       "troopType": "cavalry",
@@ -359,7 +359,7 @@
       "defense": 6.8,
       "speed": 5,
       "movement": 4,
-      "maxTroops": 240,
+      "maxTroops": 360,
       "troopWeight": 1,
       "infantryCounter": 0.9,
       "cavalryCounter": 1.2,
@@ -378,7 +378,7 @@
       "description": "尚无记载"
     },
     {
-      "id": "san_1_troop_1106",
+      "id": "san_1_troop_2006",
       "name": "虎卫军",
       "rarity": "legendary",
       "troopType": "infantry",
@@ -388,7 +388,7 @@
       "defense": 9.4,
       "speed": 6,
       "movement": 4,
-      "maxTroops": 260,
+      "maxTroops": 440,
       "troopWeight": 1,
       "infantryCounter": 1,
       "cavalryCounter": 1,
@@ -407,7 +407,7 @@
       "description": "曹操近卫，精锐虎卫"
     },
     {
-      "id": "san_1_troop_1107",
+      "id": "san_1_troop_2007",
       "name": "虎豹骑",
       "rarity": "legendary",
       "troopType": "cavalry",
@@ -417,7 +417,7 @@
       "defense": 7.8,
       "speed": 6,
       "movement": 6,
-      "maxTroops": 260,
+      "maxTroops": 440,
       "troopWeight": 1,
       "infantryCounter": 1.1,
       "cavalryCounter": 1.1,
@@ -436,7 +436,7 @@
       "description": "曹氏宗亲，中央精锐"
     },
     {
-      "id": "san_1_troop_1108",
+      "id": "san_1_troop_2008",
       "name": "丁氏卫队",
       "rarity": "core",
       "troopType": "cavalry",
@@ -446,8 +446,8 @@
       "defense": 6.8,
       "speed": 5,
       "movement": 5,
-      "maxTroops": 200,
-      "troopWeight": 1.2,
+      "maxTroops": 280,
+      "troopWeight": 2,
       "infantryCounter": 1.1,
       "cavalryCounter": 1,
       "archerCounter": 1.2,
@@ -465,7 +465,7 @@
       "description": "曹操正室，丁氏卫队"
     },
     {
-      "id": "san_1_troop_1109",
+      "id": "san_1_troop_2009",
       "name": "卞氏卫队",
       "rarity": "core",
       "troopType": "cavalry",
@@ -475,8 +475,8 @@
       "defense": 6.8,
       "speed": 5,
       "movement": 5,
-      "maxTroops": 200,
-      "troopWeight": 1.2,
+      "maxTroops": 280,
+      "troopWeight": 2,
       "infantryCounter": 1.1,
       "cavalryCounter": 1,
       "archerCounter": 1.2,
@@ -494,7 +494,7 @@
       "description": "曹操侧室，卞氏卫队"
     },
     {
-      "id": "san_1_troop_1110",
+      "id": "san_1_troop_2010",
       "name": "曹氏兵丁",
       "rarity": "epic",
       "troopType": "infantry",
@@ -504,8 +504,8 @@
       "defense": 7.7,
       "speed": 4,
       "movement": 3,
-      "maxTroops": 240,
-      "troopWeight": 2,
+      "maxTroops": 280,
+      "troopWeight": 1,
       "infantryCounter": 1,
       "cavalryCounter": 0.9,
       "archerCounter": 1.1,
@@ -523,7 +523,7 @@
       "description": "曹氏兵丁，看家护院"
     },
     {
-      "id": "san_1_troop_1201",
+      "id": "san_1_troop_3001",
       "name": "徐州部曲",
       "rarity": "common",
       "troopType": "infantry",
@@ -552,7 +552,7 @@
       "description": "尚无记载"
     },
     {
-      "id": "san_1_troop_1202",
+      "id": "san_1_troop_3002",
       "name": "徐州轻弓",
       "rarity": "common",
       "troopType": "archer",
@@ -581,7 +581,7 @@
       "description": "尚无记载"
     },
     {
-      "id": "san_1_troop_1203",
+      "id": "san_1_troop_3003",
       "name": "徐州轻骑",
       "rarity": "rare",
       "troopType": "cavalry",
@@ -591,7 +591,7 @@
       "defense": 5.3,
       "speed": 7,
       "movement": 4,
-      "maxTroops": 220,
+      "maxTroops": 280,
       "troopWeight": 1,
       "infantryCounter": 1.1,
       "cavalryCounter": 1,
@@ -610,7 +610,7 @@
       "description": "尚无记载"
     },
     {
-      "id": "san_1_troop_1204",
+      "id": "san_1_troop_3004",
       "name": "持刀悍匪",
       "rarity": "epic",
       "troopType": "infantry",
@@ -620,7 +620,7 @@
       "defense": 8.2,
       "speed": 6,
       "movement": 4,
-      "maxTroops": 240,
+      "maxTroops": 360,
       "troopWeight": 1,
       "infantryCounter": 1,
       "cavalryCounter": 0.9,
@@ -639,7 +639,7 @@
       "description": "尚无记载"
     },
     {
-      "id": "san_1_troop_1205",
+      "id": "san_1_troop_3005",
       "name": "马刀突骑",
       "rarity": "epic",
       "troopType": "cavalry",
@@ -649,7 +649,7 @@
       "defense": 6.8,
       "speed": 6,
       "movement": 5,
-      "maxTroops": 240,
+      "maxTroops": 360,
       "troopWeight": 1,
       "infantryCounter": 1.1,
       "cavalryCounter": 1,
@@ -668,7 +668,7 @@
       "description": "尚无记载"
     },
     {
-      "id": "san_1_troop_1206",
+      "id": "san_1_troop_3006",
       "name": "解烦卫",
       "rarity": "legendary",
       "troopType": "infantry",
@@ -678,7 +678,7 @@
       "defense": 9.4,
       "speed": 6,
       "movement": 4,
-      "maxTroops": 260,
+      "maxTroops": 440,
       "troopWeight": 1,
       "infantryCounter": 1,
       "cavalryCounter": 0.9,
@@ -697,7 +697,7 @@
       "description": "权孙十万，解烦近卫"
     },
     {
-      "id": "san_1_troop_1207",
+      "id": "san_1_troop_3007",
       "name": "锦帆卫",
       "rarity": "legendary",
       "troopType": "archer",
@@ -707,7 +707,7 @@
       "defense": 4.6,
       "speed": 6,
       "movement": 5,
-      "maxTroops": 260,
+      "maxTroops": 440,
       "troopWeight": 1,
       "infantryCounter": 0.9,
       "cavalryCounter": 1.3,
@@ -726,7 +726,7 @@
       "description": "甘宁亲随，锦帆水军"
     },
     {
-      "id": "san_1_troop_1208",
+      "id": "san_1_troop_3008",
       "name": "吴氏卫队",
       "rarity": "core",
       "troopType": "archer",
@@ -736,8 +736,8 @@
       "defense": 4,
       "speed": 5,
       "movement": 3,
-      "maxTroops": 200,
-      "troopWeight": 1.2,
+      "maxTroops": 280,
+      "troopWeight": 2,
       "infantryCounter": 0.9,
       "cavalryCounter": 1.2,
       "archerCounter": 1,
@@ -755,7 +755,7 @@
       "description": "孙坚正室，吴氏卫队"
     },
     {
-      "id": "san_1_troop_2101",
+      "id": "san_1_troop_4001",
       "name": "冀州部曲",
       "rarity": "common",
       "troopType": "infantry",
@@ -784,7 +784,7 @@
       "description": "尚无记载"
     },
     {
-      "id": "san_1_troop_2102",
+      "id": "san_1_troop_4002",
       "name": "冀州轻弓",
       "rarity": "common",
       "troopType": "archer",
@@ -813,7 +813,7 @@
       "description": "尚无记载"
     },
     {
-      "id": "san_1_troop_2103",
+      "id": "san_1_troop_4003",
       "name": "冀州轻骑",
       "rarity": "rare",
       "troopType": "cavalry",
@@ -823,7 +823,7 @@
       "defense": 5.3,
       "speed": 6,
       "movement": 4,
-      "maxTroops": 220,
+      "maxTroops": 280,
       "troopWeight": 1,
       "infantryCounter": 1.1,
       "cavalryCounter": 1,
@@ -842,7 +842,7 @@
       "description": "尚无记载"
     },
     {
-      "id": "san_1_troop_2104",
+      "id": "san_1_troop_4004",
       "name": "大戟士",
       "rarity": "epic",
       "troopType": "infantry",
@@ -852,7 +852,7 @@
       "defense": 8.2,
       "speed": 5,
       "movement": 4,
-      "maxTroops": 240,
+      "maxTroops": 360,
       "troopWeight": 1,
       "infantryCounter": 1,
       "cavalryCounter": 1.2,
@@ -871,7 +871,7 @@
       "description": "张郃亲随，大戟长枪"
     },
     {
-      "id": "san_1_troop_2105",
+      "id": "san_1_troop_4005",
       "name": "袁氏骑",
       "rarity": "epic",
       "troopType": "cavalry",
@@ -881,7 +881,7 @@
       "defense": 6.8,
       "speed": 5,
       "movement": 4,
-      "maxTroops": 240,
+      "maxTroops": 360,
       "troopWeight": 1,
       "infantryCounter": 1.1,
       "cavalryCounter": 1,
@@ -900,7 +900,7 @@
       "description": "袁氏亲兵，镇守中枢"
     },
     {
-      "id": "san_1_troop_2106",
+      "id": "san_1_troop_4006",
       "name": "先登死士",
       "rarity": "legendary",
       "troopType": "infantry",
@@ -910,7 +910,7 @@
       "defense": 9.4,
       "speed": 6,
       "movement": 4,
-      "maxTroops": 260,
+      "maxTroops": 440,
       "troopWeight": 1,
       "infantryCounter": 1,
       "cavalryCounter": 1.3,
@@ -929,7 +929,7 @@
       "description": "袁氏先锋，骑兵克星"
     },
     {
-      "id": "san_1_troop_2107",
+      "id": "san_1_troop_4007",
       "name": "虎贲神射",
       "rarity": "legendary",
       "troopType": "archer",
@@ -939,7 +939,7 @@
       "defense": 4.6,
       "speed": 6,
       "movement": 5,
-      "maxTroops": 260,
+      "maxTroops": 440,
       "troopWeight": 1,
       "infantryCounter": 0.9,
       "cavalryCounter": 1.3,
@@ -958,7 +958,7 @@
       "description": "袁氏神射，箭在人在"
     },
     {
-      "id": "san_1_troop_2108",
+      "id": "san_1_troop_4008",
       "name": "刘氏卫队",
       "rarity": "core",
       "troopType": "cavalry",
@@ -968,8 +968,8 @@
       "defense": 6.8,
       "speed": 5,
       "movement": 5,
-      "maxTroops": 200,
-      "troopWeight": 1.2,
+      "maxTroops": 280,
+      "troopWeight": 2,
       "infantryCounter": 1.1,
       "cavalryCounter": 1,
       "archerCounter": 1.2,
@@ -987,7 +987,7 @@
       "description": "袁绍正室，刘氏卫队"
     },
     {
-      "id": "san_1_troop_2109",
+      "id": "san_1_troop_4009",
       "name": "冯氏卫队",
       "rarity": "core",
       "troopType": "cavalry",
@@ -997,8 +997,8 @@
       "defense": 6.8,
       "speed": 5,
       "movement": 5,
-      "maxTroops": 200,
-      "troopWeight": 1.2,
+      "maxTroops": 280,
+      "troopWeight": 2,
       "infantryCounter": 1.1,
       "cavalryCounter": 1,
       "archerCounter": 1.2,
@@ -1016,7 +1016,7 @@
       "description": "袁术侧室，冯氏卫队"
     },
     {
-      "id": "san_1_troop_2201",
+      "id": "san_1_troop_5001",
       "name": "并州部曲",
       "rarity": "common",
       "troopType": "infantry",
@@ -1045,7 +1045,7 @@
       "description": "尚无记载"
     },
     {
-      "id": "san_1_troop_2202",
+      "id": "san_1_troop_5002",
       "name": "并州轻弓",
       "rarity": "common",
       "troopType": "archer",
@@ -1074,7 +1074,7 @@
       "description": "尚无记载"
     },
     {
-      "id": "san_1_troop_2203",
+      "id": "san_1_troop_5003",
       "name": "飞熊兵",
       "rarity": "rare",
       "troopType": "cavalry",
@@ -1084,7 +1084,7 @@
       "defense": 5.2,
       "speed": 6,
       "movement": 5,
-      "maxTroops": 220,
+      "maxTroops": 280,
       "troopWeight": 1,
       "infantryCounter": 1.1,
       "cavalryCounter": 1,
@@ -1103,7 +1103,7 @@
       "description": "董家飞熊，中坚轻骑"
     },
     {
-      "id": "san_1_troop_2204",
+      "id": "san_1_troop_5004",
       "name": "泰山兵",
       "rarity": "epic",
       "troopType": "infantry",
@@ -1113,7 +1113,7 @@
       "defense": 8.1,
       "speed": 4,
       "movement": 4,
-      "maxTroops": 240,
+      "maxTroops": 360,
       "troopWeight": 1,
       "infantryCounter": 1,
       "cavalryCounter": 0.9,
@@ -1132,7 +1132,7 @@
       "description": "泰山豪杰，彪悍耐战"
     },
     {
-      "id": "san_1_troop_2205",
+      "id": "san_1_troop_5005",
       "name": "白波兵",
       "rarity": "epic",
       "troopType": "archer",
@@ -1142,7 +1142,7 @@
       "defense": 3.9,
       "speed": 5,
       "movement": 3,
-      "maxTroops": 240,
+      "maxTroops": 360,
       "troopWeight": 1,
       "infantryCounter": 0.9,
       "cavalryCounter": 1.2,
@@ -1161,7 +1161,7 @@
       "description": "黄巾残魂，精锐余部"
     },
     {
-      "id": "san_1_troop_2206",
+      "id": "san_1_troop_5006",
       "name": "陷阵营",
       "rarity": "legendary",
       "troopType": "infantry",
@@ -1171,7 +1171,7 @@
       "defense": 9.8,
       "speed": 6,
       "movement": 4,
-      "maxTroops": 260,
+      "maxTroops": 440,
       "troopWeight": 1,
       "infantryCounter": 1.2,
       "cavalryCounter": 1,
@@ -1190,7 +1190,7 @@
       "description": "高顺陷阵，以一当十"
     },
     {
-      "id": "san_1_troop_2207",
+      "id": "san_1_troop_5007",
       "name": "并州铁骑",
       "rarity": "legendary",
       "troopType": "cavalry",
@@ -1200,7 +1200,7 @@
       "defense": 7.7,
       "speed": 6,
       "movement": 5,
-      "maxTroops": 260,
+      "maxTroops": 440,
       "troopWeight": 1,
       "infantryCounter": 1.1,
       "cavalryCounter": 1,
@@ -1219,7 +1219,7 @@
       "description": "并州精骑，骁勇善战"
     },
     {
-      "id": "san_1_troop_2001",
+      "id": "san_1_troop_6001",
       "name": "司隶部曲",
       "rarity": "common",
       "troopType": "infantry",
@@ -1248,7 +1248,7 @@
       "description": "尚无记载"
     },
     {
-      "id": "san_1_troop_2002",
+      "id": "san_1_troop_6002",
       "name": "司隶轻弓",
       "rarity": "common",
       "troopType": "archer",
@@ -1277,7 +1277,7 @@
       "description": "尚无记载"
     },
     {
-      "id": "san_1_troop_2003",
+      "id": "san_1_troop_6003",
       "name": "司隶轻骑",
       "rarity": "rare",
       "troopType": "cavalry",
@@ -1287,7 +1287,7 @@
       "defense": 5.5,
       "speed": 6,
       "movement": 4,
-      "maxTroops": 220,
+      "maxTroops": 280,
       "troopWeight": 1,
       "infantryCounter": 1.1,
       "cavalryCounter": 1,
@@ -1306,7 +1306,7 @@
       "description": "尚无记载"
     },
     {
-      "id": "san_1_troop_2004",
+      "id": "san_1_troop_6004",
       "name": "三辅猎手",
       "rarity": "epic",
       "troopType": "archer",
@@ -1316,7 +1316,7 @@
       "defense": 4.2,
       "speed": 6,
       "movement": 3,
-      "maxTroops": 240,
+      "maxTroops": 360,
       "troopWeight": 1,
       "infantryCounter": 0.9,
       "cavalryCounter": 1.2,
@@ -1335,7 +1335,7 @@
       "description": "尚无记载"
     },
     {
-      "id": "san_1_troop_2005",
+      "id": "san_1_troop_6005",
       "name": "三辅义从",
       "rarity": "epic",
       "troopType": "cavalry",
@@ -1345,7 +1345,7 @@
       "defense": 6,
       "speed": 6,
       "movement": 4,
-      "maxTroops": 240,
+      "maxTroops": 360,
       "troopWeight": 1,
       "infantryCounter": 1.1,
       "cavalryCounter": 1,
@@ -1364,7 +1364,7 @@
       "description": "尚无记载"
     },
     {
-      "id": "san_1_troop_2006",
+      "id": "san_1_troop_6006",
       "name": "京畿铁卫",
       "rarity": "legendary",
       "troopType": "infantry",
@@ -1374,7 +1374,7 @@
       "defense": 9.6,
       "speed": 6,
       "movement": 3,
-      "maxTroops": 260,
+      "maxTroops": 440,
       "troopWeight": 1,
       "infantryCounter": 1.1,
       "cavalryCounter": 1,
@@ -1393,7 +1393,7 @@
       "description": "京畿重甲，皇室铁卫"
     },
     {
-      "id": "san_1_troop_2007",
+      "id": "san_1_troop_6007",
       "name": "京畿重弩",
       "rarity": "legendary",
       "troopType": "archer",
@@ -1403,7 +1403,7 @@
       "defense": 4.8,
       "speed": 6,
       "movement": 4,
-      "maxTroops": 260,
+      "maxTroops": 440,
       "troopWeight": 1,
       "infantryCounter": 1,
       "cavalryCounter": 1.4,
@@ -1422,7 +1422,7 @@
       "description": "京畿重弩，高价高质"
     },
     {
-      "id": "san_1_troop_2008",
+      "id": "san_1_troop_6008",
       "name": "文姬卫队",
       "rarity": "core",
       "troopType": "cavalry",
@@ -1432,8 +1432,8 @@
       "defense": 7,
       "speed": 5,
       "movement": 5,
-      "maxTroops": 200,
-      "troopWeight": 1.2,
+      "maxTroops": 280,
+      "troopWeight": 2,
       "infantryCounter": 1.1,
       "cavalryCounter": 1,
       "archerCounter": 1.2,
@@ -1451,7 +1451,7 @@
       "description": "尚无记载"
     },
     {
-      "id": "san_1_troop_3001",
+      "id": "san_1_troop_7001",
       "name": "青州天兵",
       "rarity": "common",
       "troopType": "infantry",
@@ -1480,7 +1480,7 @@
       "description": "青州轻甲，信仰无敌"
     },
     {
-      "id": "san_1_troop_3002",
+      "id": "san_1_troop_7002",
       "name": "青州神射",
       "rarity": "common",
       "troopType": "archer",
@@ -1509,7 +1509,7 @@
       "description": "青州随从，信仰无敌"
     },
     {
-      "id": "san_1_troop_3003",
+      "id": "san_1_troop_7003",
       "name": "豫州天兵",
       "rarity": "rare",
       "troopType": "infantry",
@@ -1519,7 +1519,7 @@
       "defense": 6.4,
       "speed": 4,
       "movement": 4,
-      "maxTroops": 220,
+      "maxTroops": 280,
       "troopWeight": 1,
       "infantryCounter": 1,
       "cavalryCounter": 0.9,
@@ -1538,7 +1538,7 @@
       "description": "豫州轻甲，信仰无敌"
     },
     {
-      "id": "san_1_troop_3004",
+      "id": "san_1_troop_7004",
       "name": "豫州神射",
       "rarity": "rare",
       "troopType": "archer",
@@ -1548,7 +1548,7 @@
       "defense": 3.1,
       "speed": 4,
       "movement": 3,
-      "maxTroops": 220,
+      "maxTroops": 280,
       "troopWeight": 1,
       "infantryCounter": 0.9,
       "cavalryCounter": 1.2,
@@ -1567,7 +1567,7 @@
       "description": "豫州随从，信仰无敌"
     },
     {
-      "id": "san_1_troop_3005",
+      "id": "san_1_troop_7005",
       "name": "黑山轻骑",
       "rarity": "rare",
       "troopType": "cavalry",
@@ -1577,7 +1577,7 @@
       "defense": 5.3,
       "speed": 6,
       "movement": 5,
-      "maxTroops": 220,
+      "maxTroops": 280,
       "troopWeight": 1,
       "infantryCounter": 1.1,
       "cavalryCounter": 1,
@@ -1596,7 +1596,7 @@
       "description": "尚无记载"
     },
     {
-      "id": "san_1_troop_3006",
+      "id": "san_1_troop_7006",
       "name": "黑山悍匪",
       "rarity": "epic",
       "troopType": "infantry",
@@ -1606,7 +1606,7 @@
       "defense": 8.2,
       "speed": 6,
       "movement": 5,
-      "maxTroops": 240,
+      "maxTroops": 360,
       "troopWeight": 1,
       "infantryCounter": 1,
       "cavalryCounter": 0.9,
@@ -1625,7 +1625,7 @@
       "description": "尚无记载"
     },
     {
-      "id": "san_1_troop_3007",
+      "id": "san_1_troop_7007",
       "name": "黑山猎手",
       "rarity": "epic",
       "troopType": "archer",
@@ -1635,7 +1635,7 @@
       "defense": 4,
       "speed": 5,
       "movement": 4,
-      "maxTroops": 240,
+      "maxTroops": 360,
       "troopWeight": 1,
       "infantryCounter": 0.9,
       "cavalryCounter": 1.2,
@@ -1654,7 +1654,7 @@
       "description": "尚无记载"
     },
     {
-      "id": "san_1_troop_3008",
+      "id": "san_1_troop_7008",
       "name": "南阳精锐",
       "rarity": "epic",
       "troopType": "infantry",
@@ -1664,7 +1664,7 @@
       "defense": 9.2,
       "speed": 6,
       "movement": 4,
-      "maxTroops": 240,
+      "maxTroops": 360,
       "troopWeight": 1,
       "infantryCounter": 1,
       "cavalryCounter": 0.9,
@@ -1683,7 +1683,7 @@
       "description": "尚无记载"
     },
     {
-      "id": "san_1_troop_3009",
+      "id": "san_1_troop_7009",
       "name": "南阳突骑",
       "rarity": "epic",
       "troopType": "cavalry",
@@ -1693,7 +1693,7 @@
       "defense": 6.8,
       "speed": 5,
       "movement": 5,
-      "maxTroops": 240,
+      "maxTroops": 360,
       "troopWeight": 1,
       "infantryCounter": 1.1,
       "cavalryCounter": 1,
@@ -1712,7 +1712,7 @@
       "description": "尚无记载"
     },
     {
-      "id": "san_1_troop_3010",
+      "id": "san_1_troop_7010",
       "name": "地公枪卫",
       "rarity": "legendary",
       "troopType": "infantry",
@@ -1722,7 +1722,7 @@
       "defense": 9.4,
       "speed": 6,
       "movement": 4,
-      "maxTroops": 260,
+      "maxTroops": 440,
       "troopWeight": 1,
       "infantryCounter": 1,
       "cavalryCounter": 1.1,
@@ -1741,7 +1741,7 @@
       "description": "地公将军，精锐枪卫"
     },
     {
-      "id": "san_1_troop_3011",
+      "id": "san_1_troop_7011",
       "name": "人公护卫",
       "rarity": "legendary",
       "troopType": "archer",
@@ -1751,7 +1751,7 @@
       "defense": 4.6,
       "speed": 7,
       "movement": 4,
-      "maxTroops": 260,
+      "maxTroops": 440,
       "troopWeight": 1,
       "infantryCounter": 0.9,
       "cavalryCounter": 1.3,
@@ -1770,7 +1770,7 @@
       "description": "人公将军，精锐护卫"
     },
     {
-      "id": "san_1_troop_3012",
+      "id": "san_1_troop_7012",
       "name": "天公近卫",
       "rarity": "legendary",
       "troopType": "cavalry",
@@ -1780,7 +1780,7 @@
       "defense": 7.8,
       "speed": 6,
       "movement": 5,
-      "maxTroops": 260,
+      "maxTroops": 440,
       "troopWeight": 1,
       "infantryCounter": 1.1,
       "cavalryCounter": 1,
@@ -1809,7 +1809,7 @@
       "defense": 6.6,
       "speed": 5,
       "movement": 4,
-      "maxTroops": 220,
+      "maxTroops": 280,
       "troopWeight": 1,
       "infantryCounter": 1,
       "cavalryCounter": 0.9,
@@ -1838,7 +1838,7 @@
       "defense": 2.8,
       "speed": 4,
       "movement": 3,
-      "maxTroops": 220,
+      "maxTroops": 280,
       "troopWeight": 1,
       "infantryCounter": 0.9,
       "cavalryCounter": 1.3,
@@ -1867,7 +1867,7 @@
       "defense": 8.4,
       "speed": 6,
       "movement": 4,
-      "maxTroops": 240,
+      "maxTroops": 360,
       "troopWeight": 1,
       "infantryCounter": 1,
       "cavalryCounter": 0.9,
@@ -1896,7 +1896,7 @@
       "defense": 4.2,
       "speed": 6,
       "movement": 3,
-      "maxTroops": 240,
+      "maxTroops": 360,
       "troopWeight": 1,
       "infantryCounter": 0.9,
       "cavalryCounter": 1.2,
@@ -1925,7 +1925,7 @@
       "defense": 6,
       "speed": 6,
       "movement": 4,
-      "maxTroops": 240,
+      "maxTroops": 360,
       "troopWeight": 1,
       "infantryCounter": 1.1,
       "cavalryCounter": 1,
@@ -1954,7 +1954,7 @@
       "defense": 8,
       "speed": 6,
       "movement": 5,
-      "maxTroops": 260,
+      "maxTroops": 440,
       "troopWeight": 1,
       "infantryCounter": 1.1,
       "cavalryCounter": 1,
@@ -1983,8 +1983,8 @@
       "defense": 4.2,
       "speed": 5,
       "movement": 3,
-      "maxTroops": 200,
-      "troopWeight": 1.2,
+      "maxTroops": 280,
+      "troopWeight": 2,
       "infantryCounter": 0.9,
       "cavalryCounter": 1.2,
       "archerCounter": 1,
@@ -2012,8 +2012,8 @@
       "defense": 4.2,
       "speed": 5,
       "movement": 3,
-      "maxTroops": 200,
-      "troopWeight": 1.2,
+      "maxTroops": 280,
+      "troopWeight": 2,
       "infantryCounter": 0.9,
       "cavalryCounter": 1.2,
       "archerCounter": 1,
@@ -2041,7 +2041,7 @@
       "defense": 12,
       "speed": 6,
       "movement": 4,
-      "maxTroops": 280,
+      "maxTroops": 600,
       "troopWeight": 1,
       "infantryCounter": 1,
       "cavalryCounter": 1.4,
@@ -2070,7 +2070,7 @@
       "defense": 10.5,
       "speed": 6,
       "movement": 6,
-      "maxTroops": 280,
+      "maxTroops": 600,
       "troopWeight": 1,
       "infantryCounter": 1.2,
       "cavalryCounter": 1.2,
@@ -2099,7 +2099,7 @@
       "defense": 12.5,
       "speed": 4,
       "movement": 4,
-      "maxTroops": 280,
+      "maxTroops": 600,
       "troopWeight": 1,
       "infantryCounter": 1.2,
       "cavalryCounter": 1,
@@ -2128,7 +2128,7 @@
       "defense": 9,
       "speed": 7,
       "movement": 7,
-      "maxTroops": 280,
+      "maxTroops": 600,
       "troopWeight": 1,
       "infantryCounter": 1.2,
       "cavalryCounter": 1,
@@ -2157,7 +2157,7 @@
       "defense": 6.5,
       "speed": 6,
       "movement": 3,
-      "maxTroops": 280,
+      "maxTroops": 520,
       "troopWeight": 1,
       "infantryCounter": 0.9,
       "cavalryCounter": 1.3,
@@ -2186,7 +2186,7 @@
       "defense": 5.5,
       "speed": 6,
       "movement": 3,
-      "maxTroops": 280,
+      "maxTroops": 520,
       "troopWeight": 1,
       "infantryCounter": 0.9,
       "cavalryCounter": 1.3,
@@ -2205,7 +2205,7 @@
       "description": "测试纪念"
     },
     {
-      "id": "san_1_troop_9101",
+      "id": "san_1_troop_8001",
       "name": "北疆蛮兵",
       "rarity": "common",
       "troopType": "infantry",
@@ -2234,7 +2234,7 @@
       "description": "尚无记载"
     },
     {
-      "id": "san_1_troop_9102",
+      "id": "san_1_troop_8002",
       "name": "北疆轻弓",
       "rarity": "common",
       "troopType": "archer",
@@ -2263,7 +2263,7 @@
       "description": "尚无记载"
     },
     {
-      "id": "san_1_troop_9103",
+      "id": "san_1_troop_8003",
       "name": "北疆轻骑",
       "rarity": "rare",
       "troopType": "cavalry",
@@ -2273,7 +2273,7 @@
       "defense": 5.3,
       "speed": 6,
       "movement": 5,
-      "maxTroops": 220,
+      "maxTroops": 280,
       "troopWeight": 1,
       "infantryCounter": 1.1,
       "cavalryCounter": 1,
@@ -2292,7 +2292,7 @@
       "description": "尚无记载"
     },
     {
-      "id": "san_1_troop_9104",
+      "id": "san_1_troop_8004",
       "name": "北疆悍匪",
       "rarity": "epic",
       "troopType": "infantry",
@@ -2302,7 +2302,7 @@
       "defense": 9.2,
       "speed": 6,
       "movement": 4,
-      "maxTroops": 240,
+      "maxTroops": 360,
       "troopWeight": 1,
       "infantryCounter": 1,
       "cavalryCounter": 0.9,
@@ -2321,7 +2321,7 @@
       "description": "尚无记载"
     },
     {
-      "id": "san_1_troop_9105",
+      "id": "san_1_troop_8005",
       "name": "北疆重骑",
       "rarity": "epic",
       "troopType": "cavalry",
@@ -2331,7 +2331,7 @@
       "defense": 6.8,
       "speed": 5,
       "movement": 5,
-      "maxTroops": 240,
+      "maxTroops": 360,
       "troopWeight": 1,
       "infantryCounter": 1.1,
       "cavalryCounter": 1,
@@ -2350,7 +2350,7 @@
       "description": "尚无记载"
     },
     {
-      "id": "san_1_troop_9106",
+      "id": "san_1_troop_8006",
       "name": "北疆亲兵",
       "rarity": "legendary",
       "troopType": "infantry",
@@ -2360,7 +2360,7 @@
       "defense": 9.4,
       "speed": 6,
       "movement": 4,
-      "maxTroops": 260,
+      "maxTroops": 440,
       "troopWeight": 1,
       "infantryCounter": 1,
       "cavalryCounter": 1.1,
@@ -2379,7 +2379,7 @@
       "description": "尚无记载"
     },
     {
-      "id": "san_1_troop_9107",
+      "id": "san_1_troop_8007",
       "name": "北疆神射",
       "rarity": "legendary",
       "troopType": "archer",
@@ -2389,7 +2389,7 @@
       "defense": 4.6,
       "speed": 7,
       "movement": 4,
-      "maxTroops": 260,
+      "maxTroops": 440,
       "troopWeight": 1,
       "infantryCounter": 0.9,
       "cavalryCounter": 1.3,
@@ -2408,7 +2408,7 @@
       "description": "尚无记载"
     },
     {
-      "id": "san_1_troop_9108",
+      "id": "san_1_troop_8008",
       "name": "北疆王骑",
       "rarity": "legendary",
       "troopType": "cavalry",
@@ -2418,7 +2418,7 @@
       "defense": 7.8,
       "speed": 6,
       "movement": 5,
-      "maxTroops": 260,
+      "maxTroops": 440,
       "troopWeight": 1,
       "infantryCounter": 1.1,
       "cavalryCounter": 1,
@@ -2447,7 +2447,7 @@
       "defense": 0.9,
       "speed": 3,
       "movement": 2,
-      "maxTroops": 200,
+      "maxTroops": 600,
       "troopWeight": 0.2,
       "infantryCounter": 0.9,
       "cavalryCounter": 0.9,
@@ -2476,7 +2476,7 @@
       "defense": 0.5,
       "speed": 3,
       "movement": 2,
-      "maxTroops": 200,
+      "maxTroops": 600,
       "troopWeight": 0.2,
       "infantryCounter": 0.9,
       "cavalryCounter": 1,
@@ -2505,7 +2505,7 @@
       "defense": 0.2,
       "speed": 2,
       "movement": 2,
-      "maxTroops": 200,
+      "maxTroops": 600,
       "troopWeight": 0.2,
       "infantryCounter": 0.8,
       "cavalryCounter": 0.8,
@@ -2534,7 +2534,7 @@
       "defense": 0.4,
       "speed": 2,
       "movement": 2,
-      "maxTroops": 200,
+      "maxTroops": 600,
       "troopWeight": 0.2,
       "infantryCounter": 0.8,
       "cavalryCounter": 0.8,

@@ -8,7 +8,7 @@
  */
 async function clearExhaustedOrMissingTroopsFromGarrison(query, playerId) {
   await query(
-    `UPDATE player_lineup_sets g
+    `UPDATE player_garrison g
      LEFT JOIN player_cards pc1 ON pc1.instance_id = g.char1_troop1 AND pc1.player_id = g.player_id
      LEFT JOIN player_cards pc2 ON pc2.instance_id = g.char1_troop2 AND pc2.player_id = g.player_id
      LEFT JOIN player_cards pc3 ON pc3.instance_id = g.char2_troop1 AND pc3.player_id = g.player_id
@@ -47,12 +47,12 @@ async function clearExhaustedOrMissingTroopsFromGarrison(query, playerId) {
   );
 
   await query(
-    `UPDATE player_lineup_sets
+    `UPDATE player_garrison
      SET is_active = (
        (char1_card IS NOT NULL OR char2_card IS NOT NULL)
        AND (char1_troop1 IS NOT NULL OR char1_troop2 IS NOT NULL OR char2_troop1 IS NOT NULL OR char2_troop2 IS NOT NULL)
      )
-     WHERE player_id = ? AND lineup_scope = 'garrison'`,
+     WHERE player_id = ?`,
     [playerId]
   );
 }

@@ -1,6 +1,6 @@
 /**
  * 三公府 · 朝政 / 军团 品阶门闸（`config_positions.position_level`：数字越小品阶越高）
- * @see docs/01-jun-exploration/10-core-system/13-1-CITY_SYSTEM.md §8.4.3
+ * @see docs/10-core-system/13-1-CITY_SYSTEM.md §8.4.3
  */
 
 'use strict';

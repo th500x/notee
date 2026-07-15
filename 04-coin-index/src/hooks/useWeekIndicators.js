@@ -4,9 +4,8 @@
  */
 
 import { useState, useEffect } from 'react'
-import { hasDataForWeek, getWeeklyData } from '../utils/weeklyData'
+import { hasDataForWeek, getWeeklyData, getWeekTrend } from '../utils/weeklyData'
 import { formatWeekId } from '../utils/weeklyData'
-import { getRatingTier } from '../utils/ratingColors'
 import { YEAR_RANGE, WEEK_LIMITS } from '../constants'
 import { logError } from '../utils/errorHandler'
 
@@ -49,7 +48,7 @@ export function useWeekIndicators(currentYear) {
         const statusPromises = weeksWithData.map(async (weekId) => {
           try {
             const weekData = await getWeeklyData(weekId)
-            const status = getRatingTier(weekData?.personalRating)
+            const status = getWeekTrend(weekData)
             return { weekId, status }
           } catch (error) {
             logError('useWeekIndicators', error, { weekId })

@@ -1,4 +1,4 @@
--- 战役卡片配置表（与 docs/00/00-base/01-1-DATABASE_DESIGN.md §3.3.15 一致）
+-- 战役卡片配置表（与 docs/00-base/01-1-DATABASE_DESIGN.md §3.3.15 一致）
 -- 地图 preset 仅存仓库 shared/data/campaign/{campaign_id}.preset.json，不入库
 -- 安全重复执行：CREATE TABLE IF NOT EXISTS
 

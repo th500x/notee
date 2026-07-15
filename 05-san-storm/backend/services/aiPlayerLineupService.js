@@ -10,7 +10,7 @@
  * 一致：玩家 1 个部队槽（`player/troop`），每名已上阵将领额外 2 个部队槽（`troop1`/`troop2`），
  * 将领须先上阵其部队槽才可用。
  *
- * 设计文档：docs/01-jun-exploration/40-ai/42-1-AI_PLAYER_SYSTEM.md §7.3，42-2-AI_PLAYER_IMPLEMENTATION.md Step 2。
+ * 设计文档：docs/40-ai/42-1-AI_PLAYER_SYSTEM.md §7.3，42-2-AI_PLAYER_IMPLEMENTATION.md Step 2。
  */
 
 const { pool } = require('../database/connection');

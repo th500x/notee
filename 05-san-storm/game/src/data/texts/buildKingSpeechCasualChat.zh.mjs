@@ -3,16 +3,15 @@
  * 每条：汉字数 10～30；语义为君主平常闲聊口吻。
  * 生成法：完整「前半句 + 后半句」组合（避免词槽乱拼）。
  *
- * 运行：在仓库根或 game 目录执行
- *   node game/src/data/texts/buildKingSpeechCasualChat.zh.mjs
- * 输出：public/data/shared/king-speech-casual-chat.zh.json
+ * 运行：在 game 目录执行
+ *   node src/data/texts/buildKingSpeechCasualChat.zh.mjs
  */
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const OUT = path.join(__dirname, '../../../../public/data/shared/king-speech-casual-chat.zh.json');
+const OUT = path.join(__dirname, 'kingSpeechCasualChat.zh.json');
 
 function mulberry32(seed) {
   return function () {

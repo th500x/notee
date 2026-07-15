@@ -1,6 +1,6 @@
 /**
  * 战役系统配置常量
- * @see docs/02-chapter-tactical/16-1-CAMPAIGN_SYSTEM.md
+ * @see docs/10-core-system/16-1-CAMPAIGN_SYSTEM.md
  */
 
 /**

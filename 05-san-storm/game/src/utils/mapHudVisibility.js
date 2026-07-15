@@ -1,5 +1,5 @@
 /**
- * 大地图四角 HUD（32-4 左上导航 · 32-5 左下通信/排行）显隐偏好。
+ * 大地图四角 HUD（32-4 左上导航 · 32-5 左下通信/排行/口谕）显隐偏好。
  */
 
 const STORAGE_KEY = 'san_storm_map_hud_buttons_visible';

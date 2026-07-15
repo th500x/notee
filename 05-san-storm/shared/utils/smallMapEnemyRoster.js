@@ -1,9 +1,9 @@
 /**
  * 小型战术图（8×10）PVE 敌方编组：按槽位稀有度从 config 池抽样将领 + 部队。
- * **匪寨难度档 `BANDIT_NPC_SLOTS_BY_TIER` 为统一基准**；探索事件战、攻城 NPC（`cityService.generateNpcGarrison`）与此对齐 — 见 `docs/00/20-data-layer/22-1-TROOP_SYSTEM.md` §九。
+ * **匪寨难度档 `BANDIT_NPC_SLOTS_BY_TIER` 为统一基准**；探索事件战、攻城 NPC（`cityService.generateNpcGarrison`）与此对齐 — 见 `docs/20-data-layer/22-1-TROOP_SYSTEM.md` §九。
  *
- * 随机敌方部队池：使用 `*_troop_91xx`（S1 对应势力 `san_1_faction_9101` 北疆 NPC），
- * 不使用黄巾常规 `*_troop_3xxx` 池（避免与小型图 PVE 需求混淆）。战役专用见 `*_troop_90xx`（众生）。见 `filterTroopsForSmallMapPveEnemy`。
+ * 随机敌方部队池：使用 `*_troop_8xxx`（S1 对应势力 `san_1_faction_8001` 北疆 NPC），
+ * 不使用黄巾常规 `*_troop_7xxx` 池（避免与小型图 PVE 需求混淆）。战役专用见 `*_troop_9xxx`（众生）。见 `filterTroopsForSmallMapPveEnemy`。
  *
  * @module @shared/utils/smallMapEnemyRoster
  */
@@ -51,7 +51,7 @@ export const BANDIT_PERSONAL_TOTAL_LAYERS = 20;
 
 /**
  * 战略地图匪寨格 ID（独立地图对象，非 `san_*_city_{1-7}_*`）。格式：`san_{赛季}_bandit_{1-9}_{区域 slug}`。
- * @see `docs/00/00-base/04-1-ID_NAMING_GUIDE.md` §15
+ * @see `docs/00-base/04-1-ID_NAMING_GUIDE.md` §15
  */
 export const BANDIT_MAP_OBJECT_ID_RE = /^san_\d+_bandit_[1-9]_[a-z0-9_]+$/i;
 
@@ -173,21 +173,20 @@ function shuffle(arr) {
 }
 
 /**
- * S1 北疆 NPC：`san_1_troop_9101`…（`san_1_faction_9101`；旧 8xxx 已迁）。
+ * S1 北疆 NPC 等：`san_1_troop_8001`…（`san_1_faction_8001` 部队段）。
  * @param {string|null|undefined} troopId
  */
 export function isSmallMapPveNpcTroopId(troopId) {
-  const s = String(troopId ?? '');
-  return /_troop_91\d{2}/.test(s) || /_troop_8\d{3}/.test(s);
+  return /_troop_8\d{3}/.test(String(troopId ?? ''));
 }
 
 /**
  * @param {Array<object>} allTroops - config 全量部队
- * @returns {Array<object>} 优先仅含 91xx（北疆）段；若无则回退全量（避免空池）
+ * @returns {Array<object>} 优先仅含 8xxx 段；若无则回退全量（避免空池）
  */
 export function filterTroopsForSmallMapPveEnemy(allTroops) {
   const list = Array.isArray(allTroops) ? allTroops : [];
-  const band = list.filter((tr) => isSmallMapPveNpcTroopId(tr?.id ?? tr?.troop_id));
+  const band = list.filter((tr) => isSmallMapPveNpcTroopId(tr?.id));
   return band.length > 0 ? band : list;
 }
 
@@ -257,8 +256,8 @@ export function buildSmallMapEnemyRosterPicks(allTroops, allCharacters, slotRari
 
 // ── PVE 统一：匪寨难度档为基准；攻城 NPC / 探索事件战共用槽位组合与势力池规则（见 22-1-TROOP_SYSTEM.md） ──
 
-/** 小型图 PVE 默认敌方势力（北疆 NPC，`san_1_troop_91xx`） */
-export const PVE_NPC_DEFAULT_FACTION_ID = 'san_1_faction_9101';
+/** 小型图 PVE 默认敌方势力（北疆 NPC，`san_1_troop_8xxx`） */
+export const PVE_NPC_DEFAULT_FACTION_ID = 'san_1_faction_8001';
 
 /**
  * `san_1_faction_XXXX` → 配置 ID 段首位（`troops`/`characters` 的 `san_1_troop_1xxx` / `san_1_char_1xxx`）
@@ -271,32 +270,15 @@ export function factionIdToConfigIdLeadingDigit(factionId) {
 }
 
 /**
- * 势力 → 部队 ID 匹配正则（北疆 91xx / 众生 90xx 与首位 `9` 解耦）。
- * @param {string|null|undefined} factionId
- * @returns {RegExp|null}
- */
-export function troopIdRegexForFactionId(factionId) {
-  const fid = String(factionId || '');
-  if (fid === 'san_1_faction_9101' || fid === 'san_1_faction_8001') {
-    return /^san_1_troop_(91\d{2}|8\d{3})$/;
-  }
-  if (fid === 'san_1_faction_9001') {
-    return /^san_1_troop_90\d{2}$/;
-  }
-  const d = factionIdToConfigIdLeadingDigit(factionId);
-  if (!d) return null;
-  return new RegExp(`^san_1_troop_${d}\\d{3}$`);
-}
-
-/**
  * 按势力过滤部队配置行（`id` 或 `troop_id`）；池为空则回退全量，避免生成失败。
  * @param {Array<object>} allTroops
  * @param {string|null|undefined} factionId
  */
 export function filterTroopsByFactionId(allTroops, factionId) {
   const list = Array.isArray(allTroops) ? allTroops : [];
-  const re = troopIdRegexForFactionId(factionId);
-  if (!re) return list;
+  const d = factionIdToConfigIdLeadingDigit(factionId);
+  if (!d) return list;
+  const re = new RegExp(`^san_1_troop_${d}\\d{3}$`);
   const hit = list.filter((t) => re.test(String(troopRowId(t))));
   return hit.length > 0 ? hit : list;
 }
@@ -308,17 +290,9 @@ export function filterTroopsByFactionId(allTroops, factionId) {
  */
 export function filterCharactersByFactionId(allCharacters, factionId) {
   const list = Array.isArray(allCharacters) ? allCharacters : [];
-  const fid = String(factionId || '');
-  let re;
-  if (fid === 'san_1_faction_9101' || fid === 'san_1_faction_8001') {
-    re = /^san_1_char_(91\d{2}|8\d{3})/;
-  } else if (fid === 'san_1_faction_9001') {
-    re = /^san_1_char_90\d{2}/;
-  } else {
-    const d = factionIdToConfigIdLeadingDigit(factionId);
-    if (!d) return list;
-    re = new RegExp(`^san_1_char_${d}\\d`);
-  }
+  const d = factionIdToConfigIdLeadingDigit(factionId);
+  if (!d) return list;
+  const re = new RegExp(`^san_1_char_${d}\\d`);
   const hit = list.filter((c) => re.test(String(charRowId(c))));
   return hit.length > 0 ? hit : list;
 }

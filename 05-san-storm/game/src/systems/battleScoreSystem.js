@@ -2,7 +2,7 @@
  * 战后评分系统
  * 
  * @description 根据战斗结果计算评分，用于排行榜积分
- * @see docs/00/10-core-system/17-1-COMBAT_SYSTEM.md §9
+ * @see docs/10-core-system/17-1-COMBAT_SYSTEM.md §9
  * 
  * 评分项：歼敌评分、战损评分、回合倍率（与战报 UI 一致）
  * 

@@ -4,7 +4,7 @@
  * @description 角色创建完成后，进入游戏大地图时自动显示
  * 围绕屏幕中心点，按四方位（左上→右上→右下→左下）轮转显示
  * 卡片尺寸固定 256×384，与将领卡/部队卡统一
- * @see docs/00/10-core-system/10-1-TUTORIAL_SYSTEM.md 步骤1.5
+ * @see docs/10-core-system/10-1-TUTORIAL_SYSTEM.md 步骤1.5
  */
 
 import { useState, useEffect, useCallback } from 'react';

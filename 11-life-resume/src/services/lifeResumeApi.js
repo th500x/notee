@@ -115,35 +115,6 @@ export async function deleteEntry(entryId) {
   });
 }
 
-/** GET /api/life-resume/entry-series */
-export async function fetchEntrySeries() {
-  return lifeResumeFetch('/entry-series');
-}
-
-/** POST /api/life-resume/entry-series */
-export async function createEntrySeries(name) {
-  return lifeResumeFetch('/entry-series', {
-    method: 'POST',
-    body: JSON.stringify({ name }),
-  });
-}
-
-/** PUT /api/life-resume/entry-series/:id */
-export async function updateEntrySeries(seriesId, name) {
-  return lifeResumeFetch(`/entry-series/${seriesId}`, {
-    method: 'PUT',
-    body: JSON.stringify({ name }),
-  });
-}
-
-/** DELETE /api/life-resume/entry-series/:id */
-export async function deleteEntrySeries(seriesId) {
-  return lifeResumeFetch(`/entry-series/${seriesId}`, {
-    method: 'DELETE',
-    body: JSON.stringify({ confirm: true }),
-  });
-}
-
 /** GET /api/life-resume/home/public-cards — browse public profiles (no auth) */
 export async function fetchPublicHomeCards() {
   const url = `${appConfig.lifeResumeApiBase}/home/public-cards`;

@@ -6,7 +6,6 @@
 
 const { pool } = require('../database/connection');
 const statisticsDeltaService = require('./statisticsDeltaService');
-const { relocateGarrisonToMainCity } = require('./garrisonService');
 
 const MAIN_CITY_CHANGE_COST_SILVER = 500;
 const MAIN_CITY_CHANGE_COOLDOWN_MS = 24 * 60 * 60 * 1000;
@@ -115,9 +114,6 @@ async function setPlayerMainCity(playerId, cityId) {
         [cid, pid],
       );
     }
-
-    // 驻地编组仅挂主城：迁旧主城行 → 新城，并删除其它城池残留
-    await relocateGarrisonToMainCity(conn, pid, currentMain, cid);
 
     const [after] = await conn.query(
       'SELECT silver, main_city_id, main_city_changed_at FROM players WHERE player_id = ?',

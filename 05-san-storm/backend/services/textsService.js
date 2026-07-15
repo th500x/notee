@@ -4,10 +4,7 @@
 
 const { pool } = require('../database/connection');
 const { grantSpecificCardsOnConnection, grantPositionOnConnection } = require('./rewardService');
-const {
-  grantKingStipendBonusOnConnection,
-  grantDailyStipendOnConnection,
-} = require('./sanGongStipendService');
+const { grantKingStipendBonusOnConnection } = require('./sanGongStipendService');
 const factionOverviewService = require('./factionOverviewService');
 const statisticsDeltaService = require('./statisticsDeltaService');
 
@@ -209,23 +206,6 @@ async function claimReward(playerId, textId) {
       }
     }
 
-    if (att.grantDailyStipend === true) {
-      const stipend = await grantDailyStipendOnConnection(connection, playerId);
-      if (!stipend.ok) {
-        details.push({
-          type: 'stipend_skip',
-          reason: stipend.error || '日俸未发放',
-        });
-      } else {
-        if (stipend.silver > 0) {
-          details.push({ type: 'resource', resource: 'silver', amount: stipend.silver });
-        }
-        if (stipend.food > 0) {
-          details.push({ type: 'resource', resource: 'food', amount: stipend.food });
-        }
-      }
-    }
-
     const updates = {};
     for (const key of RESOURCE_KEYS) {
       if (att[key] != null && Number.isFinite(Number(att[key]))) {
@@ -309,19 +289,19 @@ async function claimReward(playerId, textId) {
       runPlayerMilestoneCheckSafe(playerId, 'character_card_granted').catch(() => {});
     }
 
-    if (att.grantKingStipend === true || att.grantDailyStipend === true) {
+    if (att.grantKingStipend === true) {
       const stipendDetail = details.filter((d) => d.type === 'resource');
       const earned = {};
       for (const d of stipendDetail) {
-        if (d.resource === 'silver') earned.silver = (earned.silver || 0) + d.amount;
-        if (d.resource === 'food') earned.food = (earned.food || 0) + d.amount;
-        // 俸禄声望/贡献不进活动榜 earned；与 sanGongStipendService 一致
+        if (d.resource === 'silver') earned.silver = d.amount;
+        if (d.resource === 'food') earned.food = d.amount;
+        // 俸禄声望/贡献不进活动榜 earned；与 sanGongStipendService.claimStipend 一致
       }
       if (Object.keys(earned).length) {
         try {
           await statisticsDeltaService.recordEarned(playerId, earned);
         } catch (e) {
-          console.warn('[textsService] recordEarned after stipend attachment:', e.message);
+          console.warn('[textsService] recordEarned after king stipend:', e.message);
         }
       }
     }

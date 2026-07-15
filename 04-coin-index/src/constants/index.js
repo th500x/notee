@@ -64,11 +64,8 @@ export const INDICATOR_THRESHOLDS = {
 // 数据路径配置
 export const DATA_PATHS = {
   PRODUCTION: '/04-coin-index/weeklyData.json',
-  PRODUCTION_META: '/04-coin-index/weeklyData.meta.json',
   DEV_ROOT: '/weeklyData.json',
-  DEV_META: '/weeklyData.meta.json',
-  DEV_RELATIVE: './weeklyData.json',
-  DEV_RELATIVE_META: './weeklyData.meta.json'
+  DEV_RELATIVE: './weeklyData.json'
 }
 
 // 特殊周配置（跨年周）

@@ -1,9 +1,9 @@
 {
   "_meta": {
-    "generated": "2026-07-13T15:46:13.880Z",
+    "generated": "2026-04-19T13:20:47.965Z",
     "source": "docs/tools/event/item-template.csv",
-    "count": 23,
-    "csvRowCount": 23,
+    "count": 21,
+    "csvRowCount": 21,
     "note": "由 CSV 整表生成；入库：backend/database/import-items-data.js"
   },
   "items": [
@@ -154,20 +154,6 @@
       "name": "太守信物伍",
       "itemType": "event_key",
       "description": "",
-      "season": "san_1"
-    },
-    {
-      "id": "item_token",
-      "name": "兵符",
-      "itemType": "chapter_tactical",
-      "description": "掌兵信物",
-      "season": "san_1"
-    },
-    {
-      "id": "item_jade",
-      "name": "玉牌",
-      "itemType": "chapter_tactical",
-      "description": "免伤一回",
       "season": "san_1"
     }
   ]

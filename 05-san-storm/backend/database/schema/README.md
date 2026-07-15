@@ -1,7 +1,7 @@
 # database/schema — 基线 DDL 占位目录
 
 **状态**：占位（2026-05-29）· **尚无** in-repo 全量 `CREATE TABLE` 脚本  
-**权威 DDL 语义**：`docs/00/00-base/01-database-split/` 各分册  
+**权威 DDL 语义**：`docs/00-base/01-database-split/` 各分册  
 **增量变更**：`../migrations/*.sql` + `../../scripts/apply-pending-local-ddl.js`
 
 ---

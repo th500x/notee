@@ -1,14 +1,23 @@
 /**
  * AI 君主主动决策服务（M2）
  *
- * 与 41-1-AI_KING_SYSTEM.md §8 一致（**主动开战已关闭**）：
- *   1. 单次入口曾在「战事 / 政策」两类意图间按 *_eff 加权抽签；**现 `war` 权重恒为 0**，
- *      不再随机主动发动 PVP/PVE 战事（玩家谏言开战仍走 `warRemonstranceService`）。
- *   2. `collectCandidateTargets` 仍供谏言面板枚举可攻目标（与战略缩略图最近 3 敌对/中立求交）。
- *   3. 势力政策意图：AI **主动**写库仍仅日志 + `recordRecentDecision`（待产品授权）。
+ * 与 41-1-AI_KING_SYSTEM.md §8 一致：
+ *   1. 单次入口在「战事 / 政策」两类意图间按 *_eff 加权抽签
+ *      （战事 ← aggressionEff；政策 ← evolutionEff）。
+ *   2. 战事意图：
+ *      - 候选目标集合 = 「郡邻接 + 城阵营色」后，再与战略缩略图 **「最近 3 敌对 / 最近 3 中立」**（`computeStrategicMiniMapProximityHighlights` + `cities.position_x/y`）求交；仅余集参与 AI 抽样
+ *        · PVP 红色敌对城  → `pvpWarService.createPvpWarDraft`（去除已存在 active 战事的城）
+ *        · PVE 白色 NPC 城 → `cityService.openPveWarOnNeutralCity`（幂等：已有 active wars 行直接复用；
+ *          无 NPC 守军时按现有 `generateNpcGarrison` 自动生成）
+ *   3. 势力政策意图：11-3 `faction_policies` DDL **已落地**（实装段1）；玩家被动谏言走
+ *      `routes/factionPolicies.js` + `factionPolicyService.submitLongTermProposal`。AI 君主
+ *      **主动**写库（"君主自决修改政策"）属新玩法行为，需产品授权（哪些类目可主动改、频率、
+ *      是否允许覆盖玩家近期谏言通过的配置等）；M2 仍保留日志意图 + `recordRecentDecision` 内存
+ *      留痕，前端「君主口谕」可读取。见 41-1 §8 §阶段4「保留日志意图」。
  *
- * `proposerPlayerId` 口径：主动通道用 **AI 君主自身 `character_id`**（如 `san_1_char_3001`）；
- * 与玩家被动通道（真实 `player_id`）显式区分。
+ * `proposerPlayerId` 口径：主动通道用 **AI 君主自身 `character_id`**（如 `san_1_char_7001`）；
+ * 与玩家被动通道（真实 `player_id`）显式区分；当前 `wars_pvp` 表无 proposer 列，所以
+ * 仅以日志关键字 `[aiKing][active]` 留痕，不做兜底替换。
  *
  * 与被动审批的关系：本服务不调用 `passiveApprovalService`；两条通道独立运行
  * （41-1 §8 §3「主动 / 被动两条通道」）。
@@ -18,6 +27,7 @@
 
 const { pool } = require('../database/connection');
 const aiKingConfigService = require('./aiKingConfigService');
+const pvpWarService = require('./pvpWarService');
 const cityService = require('./cityService');
 const WarPvp = require('../models/WarPvp');
 const {
@@ -40,8 +50,8 @@ const DEFAULT_SEASON = 'san_1';
 /**
  * 「最近一次主动决策」内存留痕：
  *   - 每次 `decide` 末尾覆盖该势力的 latest entry；
- *   - 提供给内部审计 / 冒烟（内存留痕）；玩家侧已改每日传书，不再对外暴露 king-recent-decision；
- *   - 默认窗口 60 分钟内有效；
+ *   - 提供给「君主口谕」前端在切槽时显示当下君主动向（GET /api/pvp-wars/king-recent-decision）；
+ *   - 默认窗口 60 分钟内有效，过期回退闲聊池；
  *   - **不入库**：与「重启恢复方案 B」原则一致 —— 进程重启即丢失，无需 DDL。
  */
 const RECENT_DECISION_TTL_MS = 60 * 60 * 1000;
@@ -228,8 +238,7 @@ async function decide(input) {
   const king = input?.king || aiKingConfigService.getKingByFactionId(factionId);
   const cityCount = await fetchFactionCityCount(factionId);
   const eff = computeSaturatedPersonality(king, cityCount);
-  // 主动开战已关闭：权重恒为 0，仅保留政策意图（日志）与候选枚举（供谏言面板复用）
-  const weights = { war: 0, policy: eff.evolutionEff };
+  const weights = { war: eff.aggressionEff, policy: eff.evolutionEff };
 
   const auditPrefix =
     `[aiKing][active] factionId=${factionId} king=${king.characterName}` +
@@ -312,16 +321,140 @@ async function decide(input) {
     });
   }
 
-  // 战事意图：产品已关闭 AI 君主随机主动开战（玩家谏言开战仍走 warRemonstranceService）
-  console.log(`${auditPrefix} → intent=war gated off (active autonomous war disabled)`);
-  return finalize({
-    factionId,
-    intentType: INTENT_TYPE.NONE,
-    ok: false,
-    reason: 'active_war_disabled',
-    eff,
-    weights,
-  });
+  // 战事意图：先收候选集合，再按战略缩略图「最近 3 敌对 / 最近 3 中立」过滤后供 AI 抽样（与谏言 `inMapWarRemonstranceRange` 同源）
+  const warSeason = String(input?.season || '').trim() || DEFAULT_SEASON;
+  const { pvpTargets, pveTargets } = await collectCandidateTargets(factionId, warSeason);
+  const pvpForAi = pvpTargets.filter((c) => c._remonstranceMapRangeOk);
+  const pveForAi = pveTargets.filter((c) => c._remonstranceMapRangeOk);
+  if (!pvpForAi.length && !pveForAi.length) {
+    console.log(`${auditPrefix} → intent=war but no candidate target (skip)`);
+    // 战事意图被抽中但找不到目标（候选空集）：归为「考虑战事但时机未到」，
+    // 在 intentType 上保留 war 标记（PVP 子键，因为 collectCandidateTargets 同时枚举两种）以便前端口谕识别。
+    return finalize({
+      factionId,
+      intentType: INTENT_TYPE.WAR_PVP,
+      ok: false,
+      reason: 'no_war_candidate',
+      eff,
+      weights,
+    });
+  }
+  // PVP 与 PVE 子分支按候选数量加权（数量越多越易被抽到）；空集自动退化为另一边。
+  const subPick = weightedPick(
+    [
+      { key: 'pvp', weight: pvpForAi.length },
+      { key: 'pve', weight: pveForAi.length },
+    ],
+    rng,
+  );
+  const targetList = subPick === 'pvp' ? pvpForAi : pveForAi;
+  const target = targetList[Math.floor(rng() * targetList.length)];
+
+  if (subPick === 'pvp') {
+    if (dryRun) {
+      console.log(
+        `${auditPrefix} → intent=war/PVP target=${target.city_id}(${target.city_name}) faction=${target.faction_id} [DRY-RUN]`,
+      );
+      return finalize({
+        factionId,
+        intentType: INTENT_TYPE.WAR_PVP,
+        ok: true,
+        reason: 'dry_run',
+        target,
+        eff,
+        weights,
+      });
+    }
+    try {
+      const war = await pvpWarService.createPvpWarDraftAndActivate({
+        season: DEFAULT_SEASON,
+        attackerFactionId: factionId,
+        targetCityId: target.city_id,
+        warName: `${target.city_name}之战（${king.characterName}起意）`,
+        proposer: {
+          kind: 'ai_king',
+          displayName: String(king.characterName || '').trim() || '君主',
+          playerId: null,
+        },
+      });
+      console.log(
+        `${auditPrefix} → intent=war/PVP createPvpWarDraft ok ` +
+          `pvpWarId=${war.pvpWarId} target=${target.city_id}(${target.city_name})`,
+      );
+      return finalize({
+        factionId,
+        intentType: INTENT_TYPE.WAR_PVP,
+        ok: true,
+        target,
+        war,
+        eff,
+        weights,
+      });
+    } catch (err) {
+      console.error(
+        `${auditPrefix} → intent=war/PVP createPvpWarDraft failed target=${target.city_id}: ${err.message}`,
+      );
+      return finalize({
+        factionId,
+        intentType: INTENT_TYPE.WAR_PVP,
+        ok: false,
+        reason: err.message,
+        target,
+        eff,
+        weights,
+      });
+    }
+  }
+
+  // PVE 真调：cityService.openPveWarOnNeutralCity（与 initiateSiege 同口径，幂等）
+  if (dryRun) {
+    console.log(
+      `${auditPrefix} → intent=war/PVE target=${target.city_id}(${target.city_name}) [DRY-RUN]`,
+    );
+    return finalize({
+      factionId,
+      intentType: INTENT_TYPE.WAR_PVE,
+      ok: true,
+      reason: 'dry_run',
+      target,
+      eff,
+      weights,
+    });
+  }
+  try {
+    const opened = await cityService.openPveWarOnNeutralCity(target.city_id, {
+      openedByCharacterId: king.characterId,
+      bulletinFactionId: factionId,
+    });
+    console.log(
+      `${auditPrefix} → intent=war/PVE openPveWar ${opened.created ? 'created' : 'reuse'} ` +
+        `warId=${opened.warId} target=${target.city_id}(${target.city_name}) npcAlive=${opened.npcAlive}`,
+    );
+    return finalize({
+      factionId,
+      intentType: INTENT_TYPE.WAR_PVE,
+      ok: true,
+      target,
+      war: opened.war,
+      warId: opened.warId,
+      created: opened.created,
+      eff,
+      weights,
+    });
+  } catch (err) {
+    console.error(
+      `${auditPrefix} → intent=war/PVE openPveWar failed target=${target.city_id}: ${err.message}`,
+    );
+    return finalize({
+      factionId,
+      intentType: INTENT_TYPE.WAR_PVE,
+      ok: false,
+      reason: err.message,
+      target,
+      eff,
+      weights,
+    });
+  }
 }
 
 module.exports = {

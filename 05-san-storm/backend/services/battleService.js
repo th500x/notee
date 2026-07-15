@@ -197,7 +197,7 @@ async function applyBattleStatistics(playerId, payload) {
  * 每件独立 try，单件失败不影响其他件。失败时仅记录日志，不阻断主流程。
  *
  * equipmentId 必须与 config_equipment.equipment_id（及前端 equipment.json）一致。
- * @see docs/00/00-base/04-ID_NAMING_GUIDE.md §12
+ * @see docs/00-base/04-ID_NAMING_GUIDE.md §12
  *
  * @param {string} playerId
  * @param {Array<{ equipmentId?: string, card_id?: string, rarity?: string }>} chestRewards

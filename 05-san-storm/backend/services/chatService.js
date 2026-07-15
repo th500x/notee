@@ -1,6 +1,6 @@
 /**
  * 聊天（chats 表）— 天下 / 势力 / 军团
- * 权限与冷却见 docs/01-jun-exploration/10-core-system/18-3-CHAT_SYSTEM.md；position_level 越小官职越高
+ * 权限与冷却见 docs/10-core-system/18-3-CHAT_SYSTEM.md；position_level 越小官职越高
  */
 
 const { pool } = require('../database/connection');

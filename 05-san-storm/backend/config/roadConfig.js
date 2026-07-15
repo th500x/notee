@@ -12,8 +12,8 @@
  *   `require('./services/road/roadShared')` 取常量的代码路径不变；这样既得到"集中调整入口"，
  *   又避免历史调用点（已在 `roadEncounterService.js` / `roadInterceptService.js` 等多处）的批量改动。
  *
- * @see docs/01-jun-exploration/30-frontend/31-6-STRATEGIC_ROAD_MARCH.md
- * @see docs/00/00-base/02-architecture-split/12-road-encounter-api.md
+ * @see docs/30-frontend/31-6-STRATEGIC_ROAD_MARCH.md
+ * @see docs/00-base/02-architecture-split/12-road-encounter-api.md
  */
 
 /** 开启 / 关闭道路拦截（守门）单次费用，扣银两 */
@@ -32,13 +32,6 @@ const RESERVE_FOOD_DAILY_LIMIT = 500; // 31-6 §6
 const ROAD_DEFENDER_ALERT_SEC = 10;
 
 /**
- * 道路同格遭遇战总开关。
- * `false`：保留行军 / 坐标 / presence；不登记 `road_encounters`、不锁交战格、遇敌 API 返回 410。
- * 档案：`_archive/dao-lu-yu-di/` · tag `archive/dao-lu-yu-di-2026-07-13`
- */
-const ROAD_ENCOUNTERS_ENABLED = false;
-
-/**
  * `fighting` 且从未写入 `battle_id`、超过此分钟数仍无结算提交：
  * 视为客户端未进战 / 未打完等卡死，自动 `cancelled` 释放格锁。
  *
@@ -52,6 +45,5 @@ module.exports = {
   FOOD_PER_STEP,
   RESERVE_FOOD_DAILY_LIMIT,
   ROAD_DEFENDER_ALERT_SEC,
-  ROAD_ENCOUNTERS_ENABLED,
   STALE_FIGHTING_NO_SETTLEMENT_MINUTES,
 };

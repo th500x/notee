@@ -567,23 +567,23 @@ function YearSummary({ weeklyData, selectedYear = YEAR_RANGE.DEFAULT, simulation
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
                   <span>极度看多(≥10★):</span>
-                  <span className="text-green-800 font-medium">{summaryData.ratingCounts.extremeBullish}周</span>
+                  <span className="text-green-700 font-medium">{summaryData.ratingCounts.extremeBullish}周</span>
                 </div>
                 <div className="flex justify-between">
                   <span>看多(4-9★):</span>
-                  <span className="text-green-400 font-medium">{summaryData.ratingCounts.bullish}周</span>
+                  <span className="text-green-600 font-medium">{summaryData.ratingCounts.bullish}周</span>
                 </div>
                 <div className="flex justify-between">
                   <span>中性(-3~3★):</span>
-                  <span className="text-gray-900 font-medium">{summaryData.ratingCounts.neutral}周</span>
+                  <span className="text-gray-600 font-medium">{summaryData.ratingCounts.neutral}周</span>
                 </div>
                 <div className="flex justify-between">
                   <span>看空(-9~-4★):</span>
-                  <span className="text-red-400 font-medium">{summaryData.ratingCounts.bearish}周</span>
+                  <span className="text-red-600 font-medium">{summaryData.ratingCounts.bearish}周</span>
                 </div>
                 <div className="flex justify-between">
                   <span>极度看空(≤-10★):</span>
-                  <span className="text-red-800 font-medium">{summaryData.ratingCounts.extremeBearish}周</span>
+                  <span className="text-red-700 font-medium">{summaryData.ratingCounts.extremeBearish}周</span>
                 </div>
               </div>
             </div>

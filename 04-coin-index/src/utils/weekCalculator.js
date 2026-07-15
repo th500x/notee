@@ -112,31 +112,6 @@ export function getWeeksInYear(year) {
 }
 
 /**
- * 格式化为本地日历日（去掉时分秒，避免周末边界误判）
- */
-export function toCalendarDay(date) {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate())
-}
-
-/** 判断日期是否落在周的闭区间 [weekStart, weekEnd]（按日历日） */
-export function isDateInWeek(date, week) {
-  const day = toCalendarDay(date)
-  const start = toCalendarDay(week.startDate)
-  const end = toCalendarDay(week.endDate)
-  return day >= start && day <= end
-}
-
-/**
- * 在当前年周列表中查找包含指定日期的周
- * @returns {string|null} weekId
- */
-export function findWeekIdForDate(date, year) {
-  const weeks = getWeeksInYear(year)
-  const match = weeks.find((week) => isDateInWeek(date, week))
-  return match?.id ?? null
-}
-
-/**
  * 格式化日期范围显示
  * @param {Date} startDate - 开始日期
  * @param {Date} endDate - 结束日期

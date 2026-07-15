@@ -3,7 +3,7 @@
  *
  * 几何路径、占格、扣粮等业务约束仍在 service 层；此处只做 HTTP 形态校验。
  *
- * @see docs/00/00-base/02-architecture-split/12-road-encounter-api.md
+ * @see docs/00-base/02-architecture-split/12-road-encounter-api.md
  * @module middleware/validationSchemas/playersRoad
  */
 

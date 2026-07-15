@@ -19,6 +19,7 @@ import BottomTabNav from '@/components/game/BottomTabNav';
 import PersonalSidebar from '@/components/game/PersonalSidebar';
 import GrantedTitleRevealFlow from '@/components/game/GrantedTitleRevealFlow';
 import ChunkLoadFallback from '@/components/game/ChunkLoadFallback';
+import RoadEncounterDefenseRoot from '@/components/game/RoadEncounterDefenseRoot';
 import { useCardPool } from '@/hooks/useCardPool';
 import { loadSharedData } from '@/services/dataService';
 import { useFactionBulletinUnread } from '@/hooks/useFactionBulletinUnread';
@@ -42,8 +43,8 @@ const FactionTab = lazy(() => import('@/components/game/tabs/FactionTab'));
 const WorldMapTab = lazy(() => import('@/components/game/tabs/WorldMapTab'));
 const CommPanel = lazy(() => import('@/components/game/CommPanel'));
 const StandingRankingsPanel = lazy(() => import('@/components/game/StandingRankingsPanel'));
+const KingEdictPanel = lazy(() => import('@/components/game/KingEdictPanel'));
 const CardPoolDrawer = lazy(() => import('@/components/game/CardPoolDrawer'));
-const ItemCardPoolDrawer = lazy(() => import('@/components/game/ItemCardPoolDrawer'));
 const CampaignCenterPanel = lazy(() => import('@/components/game/CampaignCenterPanel'));
 const AttrRerollDrawer = lazy(() => import('@/components/game/AttrRerollDrawer'));
 const DailyReportPanel = lazy(() => import('@/components/game/DailyReportPanel'));
@@ -77,7 +78,8 @@ function GamePageInner({ onLogout, accountId }) {
   const dailyReportNotifyDot = useDailyReportCheckinNotify(playerId, activeTab === null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [worldMapEventBusy, setWorldMapEventBusy] = useState(false);
-  const eventBusy = worldMapEventBusy;
+  const [roadDefenseLayerBusy, setRoadDefenseLayerBusy] = useState(false);
+  const eventBusy = worldMapEventBusy || roadDefenseLayerBusy;
 
   /** `WorldMap` 卸载后不会再上报 busy；若此前为 true，会永远挡住底栏与部分浮层 */
   useEffect(() => {
@@ -90,7 +92,7 @@ function GamePageInner({ onLogout, accountId }) {
     ensureDefaultBgmScene();
     return () => destroyBgmService();
   }, []);
-  const [openPool, setOpenPool] = useState(null); // 'troop' | 'character' | 'item' | null
+  const [openPool, setOpenPool] = useState(null); // 'troop' | 'character' | null
   const [openReroll, setOpenReroll] = useState(false);
   const [campaignOpen, setCampaignOpen] = useState(false);
   const [dailyReportOpen, setDailyReportOpen] = useState(false);
@@ -193,7 +195,8 @@ function GamePageInner({ onLogout, accountId }) {
   };
 
   return (
-    <MapCornerPlayerEntryActionsProvider>
+    <RoadEncounterDefenseRoot onBusyChange={setRoadDefenseLayerBusy}>
+      <MapCornerPlayerEntryActionsProvider>
       {/* 全屏覆盖，脱离父级布局 */}
       <div className="fixed inset-0 z-[100] bg-stone-950">
         <TopStatusBar
@@ -238,7 +241,6 @@ function GamePageInner({ onLogout, accountId }) {
                     drawerOpen: !!openPool,
                     troopRemaining: cardPool.status?.troop?.remainingDraws ?? '?',
                     charRemaining: cardPool.status?.character?.remainingDraws ?? '?',
-                    itemRemaining: cardPool.status?.item?.remainingDraws ?? '?',
                     dailyLimit: cardPool.status?.troop?.dailyLimit ?? 10,
                   }}
                 />
@@ -281,6 +283,11 @@ function GamePageInner({ onLogout, accountId }) {
           onComplete={clearMilestoneUnlockPending}
         />
 
+        <KingEdictPanel
+          visible={activeTab === null && !eventBusy && mapHudButtonsVisible}
+          playerId={playerId}
+          factionId={player?.factionId}
+        />
         <StandingRankingsPanel
           visible={activeTab === null && !eventBusy && mapHudButtonsVisible}
           playerId={playerId}
@@ -289,29 +296,7 @@ function GamePageInner({ onLogout, accountId }) {
       </div>
 
       {/* 卡池抽屉（渲染在 pointer-events-none 容器外面） */}
-      {openPool === 'item' ? (
-        <Suspense fallback={null}>
-          <ItemCardPoolDrawer
-            status={cardPool.status}
-            loading={cardPool.loading}
-            drawResult={cardPool.drawResult}
-            error={cardPool.error}
-            playerSilver={player?.silver}
-            onDraw={async (_poolSeason, drawMode = 'single') => {
-              const res = await cardPool.draw('item', null, drawMode);
-              if (res?.success) {
-                await refresh({ silent: true });
-              }
-            }}
-            onClearResult={cardPool.clearResult}
-            onClose={() => {
-              setOpenPool(null);
-              cardPool.clearResult();
-            }}
-            onRefreshStatus={cardPool.loadStatus}
-          />
-        </Suspense>
-      ) : openPool ? (
+      {openPool ? (
         <Suspense fallback={null}>
           <CardPoolDrawer
             poolType={openPool}
@@ -392,5 +377,6 @@ function GamePageInner({ onLogout, accountId }) {
         </Suspense>
       ) : null}
       </MapCornerPlayerEntryActionsProvider>
+    </RoadEncounterDefenseRoot>
   );
 }

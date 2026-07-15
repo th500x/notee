@@ -3,8 +3,6 @@
  * 排除主城驻军所仓库（`main_city_barracks_storage`）内卡片。
  */
 
-import { isTroopEquippableForLineup } from '@/utils/troopLineupEligibility';
-
 export const RARITY_ORDER = { common: 0, rare: 1, epic: 2, legendary: 3, core: 4 };
 
 export const RARITY_LABEL = { common: '普通', rare: '稀有', epic: '史诗', legendary: '传奇', core: '核心' };
@@ -27,7 +25,9 @@ export function filterBarracksTroopCards(cards, occupiedIds) {
     if (isMainCityBarracksStored(c)) return false;
     if (c.cardType === 'equipment' && c.boundEquipmentSetInstanceId) return false;
     if (c.cardType !== 'troop') return false;
-    return isTroopEquippableForLineup(c);
+    const maxBattle = c.maxBattleCount ?? 10;
+    const count = Math.max(0, c.battleCount ?? 0);
+    return count < maxBattle || c.rarity === 'legendary';
   });
 }
 
