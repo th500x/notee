@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import Cropper from 'react-easy-crop';
 import {
   LIFE_PHOTO_CROP_PRESETS,
@@ -11,7 +11,24 @@ import { renderCroppedPhotoBlob, buildProcessedPhotoFile } from '@/utils/process
 import { validateMediaUploadRequest } from '@shared/utils/lifeResumeMediaRules.js';
 
 const DEFAULT_PRESET_ID = 'square_1080';
-const CROP_VIEWPORT_HEIGHT_CLASS = 'h-[min(52vw,260px)] sm:h-64';
+
+/** 取景框在容器内按目标比例能放下的最大整数像素尺寸 */
+function fitCropSize(containerWidth, containerHeight, aspect) {
+  if (!containerWidth || !containerHeight || !aspect) return null;
+  if (containerWidth / containerHeight > aspect) {
+    const height = Math.floor(containerHeight);
+    const width = Math.floor(height * aspect);
+    return width > 0 && height > 0 ? { width, height } : null;
+  }
+  const width = Math.floor(containerWidth);
+  const height = Math.floor(width / aspect);
+  return width > 0 && height > 0 ? { width, height } : null;
+}
+
+function nearlySameCrop(a, b) {
+  if (!a || !b) return a === b;
+  return Math.abs(a.x - b.x) < 0.05 && Math.abs(a.y - b.y) < 0.05;
+}
 
 function cropPixelsRoughlyEqual(a, b) {
   if (!a || !b) return a === b;
@@ -29,31 +46,16 @@ export default function EntryPhotoCropModal({ open, file, displayFilename = null
   const [presetId, setPresetId] = useState(DEFAULT_PRESET_ID);
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
-  const [cropperEpoch, setCropperEpoch] = useState(0);
-  const [cropperReady, setCropperReady] = useState(false);
   const [upscaleFactor, setUpscaleFactor] = useState(1);
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState('');
+  /** 打开弹窗后量一次并锁死，避免手机地址栏/滚动条抖动触发裁剪反馈环 */
+  const [lockedViewport, setLockedViewport] = useState(null);
 
   const croppedAreaPixelsRef = useRef(null);
   const objectUrlRef = useRef('');
-  const cropperReadyTimerRef = useRef(null);
-
-  const clearCropperReadyTimer = useCallback(() => {
-    if (cropperReadyTimerRef.current != null) {
-      window.clearTimeout(cropperReadyTimerRef.current);
-      cropperReadyTimerRef.current = null;
-    }
-  }, []);
-
-  const scheduleCropperReady = useCallback(() => {
-    clearCropperReadyTimer();
-    setCropperReady(false);
-    cropperReadyTimerRef.current = window.setTimeout(() => {
-      setCropperReady(true);
-      cropperReadyTimerRef.current = null;
-    }, 48);
-  }, [clearCropperReadyTimer]);
+  const viewportRef = useRef(null);
+  const interactingRef = useRef(false);
 
   useEffect(() => {
     if (!open || !file) {
@@ -68,10 +70,8 @@ export default function EntryPhotoCropModal({ open, file, displayFilename = null
       setZoom(1);
       croppedAreaPixelsRef.current = null;
       setUpscaleFactor(1);
-      setCropperEpoch(0);
-      setCropperReady(false);
+      setLockedViewport(null);
       setError('');
-      clearCropperReadyTimer();
       return undefined;
     }
 
@@ -87,9 +87,8 @@ export default function EntryPhotoCropModal({ open, file, displayFilename = null
     setZoom(1);
     croppedAreaPixelsRef.current = null;
     setUpscaleFactor(1);
-    setCropperEpoch((value) => value + 1);
+    setLockedViewport(null);
     setError('');
-    scheduleCropperReady();
 
     const img = new Image();
     img.onload = () => {
@@ -101,18 +100,53 @@ export default function EntryPhotoCropModal({ open, file, displayFilename = null
     img.src = url;
 
     return () => {
-      clearCropperReadyTimer();
       if (objectUrlRef.current) {
         URL.revokeObjectURL(objectUrlRef.current);
         objectUrlRef.current = '';
       }
     };
-  }, [open, file, clearCropperReadyTimer, scheduleCropperReady]);
+  }, [open, file]);
+
+  useLayoutEffect(() => {
+    if (!open) {
+      setLockedViewport(null);
+      return undefined;
+    }
+
+    let cancelled = false;
+    const measure = () => {
+      const el = viewportRef.current;
+      if (!el || cancelled) return;
+      const rect = el.getBoundingClientRect();
+      const width = Math.round(rect.width);
+      const height = Math.round(rect.height);
+      if (width < 8 || height < 8) return;
+      setLockedViewport((prev) => {
+        if (prev && prev.width === width && prev.height === height) return prev;
+        return { width, height };
+      });
+    };
+
+    // 等一帧，让 bottom-sheet 布局稳定后再锁像素尺寸
+    const raf = window.requestAnimationFrame(() => {
+      measure();
+      window.requestAnimationFrame(measure);
+    });
+    return () => {
+      cancelled = true;
+      window.cancelAnimationFrame(raf);
+    };
+  }, [open]);
 
   const cropTarget = useMemo(() => {
     if (!naturalSize.width || !naturalSize.height) return null;
     return resolvePhotoCropTarget(presetId, naturalSize.width, naturalSize.height);
   }, [presetId, naturalSize]);
+
+  const cropSize = useMemo(() => {
+    if (!lockedViewport || !cropTarget) return null;
+    return fitCropSize(lockedViewport.width, lockedViewport.height, cropTarget.aspect);
+  }, [lockedViewport, cropTarget]);
 
   const upscaleWarning = shouldWarnPhotoUpscale(upscaleFactor);
 
@@ -120,6 +154,20 @@ export default function EntryPhotoCropModal({ open, file, displayFilename = null
     if (!naturalSize.width) return '';
     return isLandscapeImage(naturalSize.width, naturalSize.height) ? '横图' : '竖图';
   }, [naturalSize]);
+
+  const handleCropChange = useCallback((next) => {
+    setCrop((prev) => {
+      if (!interactingRef.current && nearlySameCrop(prev, next)) return prev;
+      return next;
+    });
+  }, []);
+
+  const handleZoomChange = useCallback((next) => {
+    setZoom((prev) => {
+      if (!interactingRef.current && Math.abs(prev - next) < 0.001) return prev;
+      return next;
+    });
+  }, []);
 
   const updateUpscaleFactor = useCallback(
     (pixels) => {
@@ -132,9 +180,7 @@ export default function EntryPhotoCropModal({ open, file, displayFilename = null
         cropTarget.outputWidth,
         cropTarget.outputHeight
       );
-      setUpscaleFactor((prev) =>
-        Math.abs(prev - nextFactor) < 0.05 ? prev : nextFactor
-      );
+      setUpscaleFactor((prev) => (Math.abs(prev - nextFactor) < 0.05 ? prev : nextFactor));
     },
     [cropTarget]
   );
@@ -155,9 +201,7 @@ export default function EntryPhotoCropModal({ open, file, displayFilename = null
     setZoom(1);
     croppedAreaPixelsRef.current = null;
     setUpscaleFactor(1);
-    setCropperEpoch((value) => value + 1);
     setError('');
-    scheduleCropperReady();
   };
 
   const handleConfirm = async () => {
@@ -196,6 +240,15 @@ export default function EntryPhotoCropModal({ open, file, displayFilename = null
 
   if (!open || !file) return null;
 
+  const viewportStyle = lockedViewport
+    ? {
+        width: `${lockedViewport.width}px`,
+        height: `${lockedViewport.height}px`,
+        aspectRatio: 'unset',
+        maxWidth: '100%',
+      }
+    : undefined;
+
   return (
     <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4">
       <button
@@ -204,7 +257,10 @@ export default function EntryPhotoCropModal({ open, file, displayFilename = null
         aria-label="关闭"
         onClick={() => !processing && onCancel?.()}
       />
-      <div className="relative w-full sm:max-w-lg max-h-[92vh] flex flex-col bg-white rounded-t-2xl sm:rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
+      <div
+        className="relative w-full sm:max-w-lg max-h-[92vh] flex flex-col bg-white rounded-t-2xl sm:rounded-2xl shadow-xl border border-slate-200 overflow-hidden"
+        style={{ scrollbarGutter: 'stable' }}
+      >
         <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between shrink-0">
           <div>
             <h3 className="font-semibold text-slate-900">裁剪照片</h3>
@@ -251,28 +307,32 @@ export default function EntryPhotoCropModal({ open, file, displayFilename = null
         </div>
 
         <div
-          className={`relative w-full ${CROP_VIEWPORT_HEIGHT_CLASS} bg-slate-900 shrink-0 overflow-hidden`}
+          ref={viewportRef}
+          className="relative w-full aspect-[4/3] bg-slate-900 shrink-0 overflow-hidden"
+          style={viewportStyle}
         >
-          {imageSrc && cropTarget && cropperReady && (
+          {imageSrc && cropTarget && cropSize && (
             <Cropper
-              key={`${presetId}-${cropperEpoch}`}
+              key={presetId}
               image={imageSrc}
               crop={crop}
               zoom={zoom}
               aspect={cropTarget.aspect}
+              cropSize={cropSize}
               objectFit="contain"
               zoomWithScroll={false}
-              onCropChange={setCrop}
-              onZoomChange={setZoom}
+              onCropChange={handleCropChange}
+              onZoomChange={handleZoomChange}
               onCropComplete={handleCropComplete}
+              onInteractionStart={() => {
+                interactingRef.current = true;
+              }}
+              onInteractionEnd={() => {
+                interactingRef.current = false;
+              }}
             />
           )}
-          {imageSrc && cropTarget && !cropperReady && !error && (
-            <div className="absolute inset-0 flex items-center justify-center text-sm text-slate-300">
-              正在调整取景框…
-            </div>
-          )}
-          {imageSrc && !cropTarget && !error && (
+          {imageSrc && (!cropTarget || !cropSize) && !error && (
             <div className="absolute inset-0 flex items-center justify-center text-sm text-slate-300">
               正在加载图片…
             </div>
@@ -288,9 +348,21 @@ export default function EntryPhotoCropModal({ open, file, displayFilename = null
               max={3}
               step={0.01}
               value={zoom}
-              disabled={processing || !cropperReady}
+              disabled={processing || !cropSize}
               className="flex-1"
-              onChange={(e) => setZoom(Number(e.target.value))}
+              onChange={(e) => {
+                interactingRef.current = true;
+                setZoom(Number(e.target.value));
+              }}
+              onPointerUp={() => {
+                interactingRef.current = false;
+              }}
+              onMouseUp={() => {
+                interactingRef.current = false;
+              }}
+              onTouchEnd={() => {
+                interactingRef.current = false;
+              }}
             />
           </label>
         </div>
@@ -306,7 +378,7 @@ export default function EntryPhotoCropModal({ open, file, displayFilename = null
           {error && <p className="text-sm text-red-600">{error}</p>}
           <button
             type="button"
-            disabled={processing || !cropTarget || !cropperReady}
+            disabled={processing || !cropTarget || !cropSize}
             className="w-full rounded-lg bg-indigo-600 text-white py-2.5 hover:bg-indigo-700 disabled:opacity-60"
             onClick={handleConfirm}
           >
