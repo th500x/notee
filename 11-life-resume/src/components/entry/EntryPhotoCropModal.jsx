@@ -12,24 +12,6 @@ import { validateMediaUploadRequest } from '@shared/utils/lifeResumeMediaRules.j
 
 const DEFAULT_PRESET_ID = 'square_1080';
 
-/** 取景框在容器内按目标比例能放下的最大整数像素尺寸 */
-function fitCropSize(containerWidth, containerHeight, aspect) {
-  if (!containerWidth || !containerHeight || !aspect) return null;
-  if (containerWidth / containerHeight > aspect) {
-    const height = Math.floor(containerHeight);
-    const width = Math.floor(height * aspect);
-    return width > 0 && height > 0 ? { width, height } : null;
-  }
-  const width = Math.floor(containerWidth);
-  const height = Math.floor(width / aspect);
-  return width > 0 && height > 0 ? { width, height } : null;
-}
-
-function nearlySameCrop(a, b) {
-  if (!a || !b) return a === b;
-  return Math.abs(a.x - b.x) < 0.05 && Math.abs(a.y - b.y) < 0.05;
-}
-
 function cropPixelsRoughlyEqual(a, b) {
   if (!a || !b) return a === b;
   return (
@@ -40,6 +22,17 @@ function cropPixelsRoughlyEqual(a, b) {
   );
 }
 
+function nearlySamePoint(a, b, epsilon = 0.5) {
+  if (!a || !b) return a === b;
+  return Math.abs(a.x - b.x) < epsilon && Math.abs(a.y - b.y) < epsilon;
+}
+
+/**
+ * 裁剪逻辑必须与历史上可用版本一致：
+ * - 不传 cropSize（由 react-easy-crop 按「图片渲染尺寸」计算取景框，避免黑边进框）
+ * - 预览容器使用 aspect-[4/3]
+ * 闪烁另用「锁死视口像素 + 稳定 crop/zoom 状态」处理，不改取景算法。
+ */
 export default function EntryPhotoCropModal({ open, file, displayFilename = null, onCancel, onConfirm }) {
   const [imageSrc, setImageSrc] = useState('');
   const [naturalSize, setNaturalSize] = useState({ width: 0, height: 0 });
@@ -49,7 +42,6 @@ export default function EntryPhotoCropModal({ open, file, displayFilename = null
   const [upscaleFactor, setUpscaleFactor] = useState(1);
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState('');
-  /** 打开弹窗后量一次并锁死，避免手机地址栏/滚动条抖动触发裁剪反馈环 */
   const [lockedViewport, setLockedViewport] = useState(null);
 
   const croppedAreaPixelsRef = useRef(null);
@@ -107,12 +99,12 @@ export default function EntryPhotoCropModal({ open, file, displayFilename = null
     };
   }, [open, file]);
 
+  // 布局稳定后把预览区锁成整数像素，降低手机地址栏/滚动条触发的 ResizeObserver 抖动
   useLayoutEffect(() => {
     if (!open) {
       setLockedViewport(null);
       return undefined;
     }
-
     let cancelled = false;
     const measure = () => {
       const el = viewportRef.current;
@@ -126,8 +118,6 @@ export default function EntryPhotoCropModal({ open, file, displayFilename = null
         return { width, height };
       });
     };
-
-    // 等一帧，让 bottom-sheet 布局稳定后再锁像素尺寸
     const raf = window.requestAnimationFrame(() => {
       measure();
       window.requestAnimationFrame(measure);
@@ -143,11 +133,6 @@ export default function EntryPhotoCropModal({ open, file, displayFilename = null
     return resolvePhotoCropTarget(presetId, naturalSize.width, naturalSize.height);
   }, [presetId, naturalSize]);
 
-  const cropSize = useMemo(() => {
-    if (!lockedViewport || !cropTarget) return null;
-    return fitCropSize(lockedViewport.width, lockedViewport.height, cropTarget.aspect);
-  }, [lockedViewport, cropTarget]);
-
   const upscaleWarning = shouldWarnPhotoUpscale(upscaleFactor);
 
   const orientationHint = useMemo(() => {
@@ -155,9 +140,10 @@ export default function EntryPhotoCropModal({ open, file, displayFilename = null
     return isLandscapeImage(naturalSize.width, naturalSize.height) ? '横图' : '竖图';
   }, [naturalSize]);
 
+  // 非拖动时忽略亚像素抖动，打断 onCropChange ↔ 重渲染反馈环
   const handleCropChange = useCallback((next) => {
     setCrop((prev) => {
-      if (!interactingRef.current && nearlySameCrop(prev, next)) return prev;
+      if (!interactingRef.current && nearlySamePoint(prev, next)) return prev;
       return next;
     });
   }, []);
@@ -257,10 +243,7 @@ export default function EntryPhotoCropModal({ open, file, displayFilename = null
         aria-label="关闭"
         onClick={() => !processing && onCancel?.()}
       />
-      <div
-        className="relative w-full sm:max-w-lg max-h-[92vh] flex flex-col bg-white rounded-t-2xl sm:rounded-2xl shadow-xl border border-slate-200 overflow-hidden"
-        style={{ scrollbarGutter: 'stable' }}
-      >
+      <div className="relative w-full sm:max-w-lg max-h-[92vh] flex flex-col bg-white rounded-t-2xl sm:rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
         <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between shrink-0">
           <div>
             <h3 className="font-semibold text-slate-900">裁剪照片</h3>
@@ -311,16 +294,15 @@ export default function EntryPhotoCropModal({ open, file, displayFilename = null
           className="relative w-full aspect-[4/3] bg-slate-900 shrink-0 overflow-hidden"
           style={viewportStyle}
         >
-          {imageSrc && cropTarget && cropSize && (
+          {imageSrc && cropTarget && (
             <Cropper
               key={presetId}
               image={imageSrc}
               crop={crop}
               zoom={zoom}
               aspect={cropTarget.aspect}
-              cropSize={cropSize}
-              objectFit="contain"
               zoomWithScroll={false}
+              roundCropAreaPixels
               onCropChange={handleCropChange}
               onZoomChange={handleZoomChange}
               onCropComplete={handleCropComplete}
@@ -332,7 +314,7 @@ export default function EntryPhotoCropModal({ open, file, displayFilename = null
               }}
             />
           )}
-          {imageSrc && (!cropTarget || !cropSize) && !error && (
+          {imageSrc && !cropTarget && !error && (
             <div className="absolute inset-0 flex items-center justify-center text-sm text-slate-300">
               正在加载图片…
             </div>
@@ -348,7 +330,7 @@ export default function EntryPhotoCropModal({ open, file, displayFilename = null
               max={3}
               step={0.01}
               value={zoom}
-              disabled={processing || !cropSize}
+              disabled={processing}
               className="flex-1"
               onChange={(e) => {
                 interactingRef.current = true;
@@ -378,7 +360,7 @@ export default function EntryPhotoCropModal({ open, file, displayFilename = null
           {error && <p className="text-sm text-red-600">{error}</p>}
           <button
             type="button"
-            disabled={processing || !cropTarget || !cropSize}
+            disabled={processing || !cropTarget}
             className="w-full rounded-lg bg-indigo-600 text-white py-2.5 hover:bg-indigo-700 disabled:opacity-60"
             onClick={handleConfirm}
           >
