@@ -1,7 +1,7 @@
 /**
  * AI 玩家系统 · MVP 配置单一来源。
  *
- * 设计文档：docs/40-ai/42-1-AI_PLAYER_SYSTEM.md、42-2-AI_PLAYER_IMPLEMENTATION.md。
+ * 设计文档：docs/01-jun-exploration/40-ai/42-1-AI_PLAYER_SYSTEM.md、42-2-AI_PLAYER_IMPLEMENTATION.md。
  * 行为编排（窗口/并发）与播种（人数/服务器/elite 基线）集中在此，避免散落到脚本与服务里。
  */
 
@@ -48,14 +48,14 @@ const ELITE_AI_DEFAULTS = {
 /**
  * 当前测试阶段的可玩势力白名单：仅这些势力会被铺 AI。
  * 未来开放全势力时，把对应 faction_id 追加进来即可；置为空数组表示「该服全部势力」。
- * - san_1_faction_1001 = 刘备
- * - san_1_faction_6001 = 汉室
- * - san_1_faction_7001 = 黄巾
+ * - san_1_faction_1001 = 三王（刘备）
+ * - san_1_faction_2001 = 汉室（刘宏）
+ * - san_1_faction_3001 = 黄巾（张角）
  */
 const AI_PLAYER_SEED_FACTION_IDS = [
   'san_1_faction_1001',
-  'san_1_faction_6001',
-  'san_1_faction_7001',
+  'san_1_faction_2001',
+  'san_1_faction_3001',
 ];
 
 /**

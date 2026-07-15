@@ -11,11 +11,6 @@ const promoteBody = {
   positionId: v.required(v.idLike({ max: 128 })),
 };
 
-const kingEdictBody = {
-  reaction: v.required(v.enum(['up', 'down'])),
-  scope: v.optional(v.enum(['active_war', 'casual'])),
-};
-
 const tributeBody = {
   cardType: v.optional(v.enum(['troop', 'character'])),
   instanceIds: v.required(v.array({
@@ -62,7 +57,6 @@ const giftBoxBody = {
 module.exports = {
   promoteBody,
   switchPeerBody,
-  kingEdictBody,
   tributeBody,
   documentBody,
   bulletinQuery,

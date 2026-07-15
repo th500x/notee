@@ -30,7 +30,7 @@ function MapCornerEntryButton({ label, onClick, goldGlow = false }) {
 }
 
 /**
- * 州郡进度条右侧第三列：口谕 / 排行 / 聊天（矮视口专用，与「我在哪」列并排）。
+ * 州郡进度条右侧第三列：排行 / 聊天（矮视口专用，与「我在哪」列并排）。
  */
 export default function MapCornerPlayerEntryColumn() {
   const ctx = useMapCornerPlayerEntryActions();
@@ -40,11 +40,8 @@ export default function MapCornerPlayerEntryColumn() {
 
   return (
     <div className="flex shrink-0 flex-col gap-1.5 self-start">
-      <MapCornerEntryButton label="📜 口谕" onClick={() => invoke?.('edict')} />
-      <div className="flex flex-col gap-1">
-        <MapCornerEntryButton label="🏆 排行" onClick={() => invoke?.('rank')} />
-        <MapCornerEntryButton label={commLabel} goldGlow={commGoldGlow} onClick={() => invoke?.('comm')} />
-      </div>
+      <MapCornerEntryButton label="🏆 排行" onClick={() => invoke?.('rank')} />
+      <MapCornerEntryButton label={commLabel} goldGlow={commGoldGlow} onClick={() => invoke?.('comm')} />
     </div>
   );
 }

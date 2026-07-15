@@ -1,6 +1,6 @@
 /**
  * 称号/成就 special_effect 标记语言解析（子集）
- * @see docs/00-base/04-2-DATA_TERM_DICTIONARY.md §7
+ * @see docs/00/00-base/04-2-DATA_TERM_DICTIONARY.md §7
  */
 
 /**

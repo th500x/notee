@@ -17,6 +17,7 @@ import { useLifeStages } from '@/hooks/useLifeStages';
 import { useSkillsMap } from '@/hooks/useSkillsMap';
 import { useSilentProfilePoll } from '@/hooks/useSilentProfilePoll';
 import { garrisonAPI } from '@/services/garrisonApi';
+import { useLineupExtraOccupiedIds } from '@/hooks/useLineupExtraOccupiedIds';
 import CharacterCard from '@shared/components/card/CharacterCard';
 import TroopCard from '@shared/components/card/TroopCard';
 import TitleAchievementCard from '@shared/components/card/TitleAchievementCard';
@@ -26,6 +27,7 @@ import AncientModal from '@/components/common/AncientModal';
 import { toCharCardData, toTroopCardData, toEquipCardData, toTitleCardData, toTreasureCardData } from '@/utils/cardDataTransforms';
 import { collectGarrisonOccupiedInstanceIds } from '@/utils/garrisonScopeUtils';
 import { isMainCityBarracksStored } from '@/utils/garrisonBarracksTroopPool';
+import { isTroopEquippableForLineup } from '@/utils/troopLineupEligibility';
 import GarrisonGeneralPanel from './GarrisonGeneralPanel';
 import GarrisonStatsPanel from './GarrisonStatsPanel';
 import GarrisonBackpack from './GarrisonBackpack';
@@ -51,9 +53,11 @@ export default function GarrisonLineup({
   onClose,
   /** 保存驻守配置成功后回调（如大地图 bump 以重拉 tooltip 用槽位统计） */
   onAfterMutation,
-  /** 须由打开面板的父组件传入（如大地图格上「驻地编组」） */
+  /** 须由打开面板的父组件传入（主城驻军所 Tab） */
   cityId,
   cityName = '城池',
+  /** 嵌在 `MainCityBarracksHub` 内时隐藏自身全屏壳与顶栏 ✕ */
+  embedded = false,
 }) {
   // CR A7（2026-04-29）：按字段订阅，与 LineupTab 一致
   const player = usePlayer();
@@ -74,6 +78,7 @@ export default function GarrisonLineup({
   const [saveErrorMessage, setSaveErrorMessage] = useState(null);
   /** All instance_ids used in any city garrison pool (same source as LineupTab `garrisonAPI.getAll`). */
   const [garrisonOccupiedInstanceIds, setGarrisonOccupiedInstanceIds] = useState(() => new Set());
+  const extraOccupiedIds = useLineupExtraOccupiedIds(player?.playerId, [cards]);
   const isLandscape = useGameTabLandscape();
 
   /* ── 共享 hooks（与 LineupTab 共用，CR C5 抽出） ── */
@@ -245,8 +250,12 @@ export default function GarrisonLineup({
     return attributeBonusBySlot?.[slotKey] || {};
   }, [attributeBonusBySlot, currentSlotNum, cityId]);
 
-  /* ── 卡牌分类（占用 = 任意城池驻地槽，与后端 save 冲突检测一致） ── */
-  const occupiedIds = garrisonOccupiedInstanceIds;
+  /* ── 卡牌分类（占用 = 任意城池驻地槽 ∪ Extra，与后端 save 冲突检测一致） ── */
+  const occupiedIds = useMemo(() => {
+    const ids = new Set(garrisonOccupiedInstanceIds);
+    extraOccupiedIds.forEach((id) => ids.add(id));
+    return ids;
+  }, [garrisonOccupiedInstanceIds, extraOccupiedIds]);
 
   const characterCards   = cards.filter(c => c.cardType === 'character');
   const troopCards       = cards.filter(c => c.cardType === 'troop');
@@ -283,9 +292,7 @@ export default function GarrisonLineup({
         if (c.usesRemaining != null && Number(c.usesRemaining) <= 0) return false;
         return true;
       }
-      const maxBattle = c.maxBattleCount ?? 10;
-      const count     = Math.max(0, c.battleCount ?? 0);
-      return count < maxBattle || c.rarity === 'legendary';
+      return isTroopEquippableForLineup(c);
     });
   }, [characterCards, troopCards, titleCards, achievementCards, treasureCards, equipmentSetCards, occupiedIds]);
 
@@ -358,11 +365,17 @@ export default function GarrisonLineup({
   ];
 
   return (
-    <div className="fixed inset-0 z-[100] bg-gradient-to-b from-stone-900 via-stone-800 to-stone-900 flex flex-col">
+    <div
+      className={
+        embedded
+          ? 'relative flex h-full min-h-0 flex-col bg-gradient-to-b from-stone-900 via-stone-800 to-stone-900'
+          : 'fixed inset-0 z-[100] flex flex-col bg-gradient-to-b from-stone-900 via-stone-800 to-stone-900'
+      }
+    >
 
       {/* ── 顶部栏 ── */}
-      <div className="flex flex-col border-b border-amber-900/50 bg-stone-900/80 sticky top-0 z-10">
-        <div className="px-3 py-1.5 text-[10px] text-stone-500 leading-snug border-b border-stone-700/40 text-left space-y-1">
+      <div className="sticky top-0 z-10 flex flex-col border-b border-amber-900/50 bg-stone-900/80">
+        <div className="space-y-1 border-b border-stone-700/40 px-3 py-1.5 text-left text-[10px] leading-snug text-stone-500">
           <div className="flex flex-wrap items-center gap-x-1 gap-y-0.5">
             <span>🏯 {cityName}城</span>
             <span className="text-stone-600">|</span>
@@ -376,7 +389,7 @@ export default function GarrisonLineup({
             {saving && <span className="text-amber-400 animate-pulse">保存中…</span>}
           </div>
           {activationHint && (
-            <div className="text-amber-500/90 text-[11px] leading-snug">{activationHint}</div>
+            <div className="text-[11px] leading-snug text-amber-500/90">{activationHint}</div>
           )}
         </div>
         <TabSubNav
@@ -388,6 +401,7 @@ export default function GarrisonLineup({
             closeDrawer();
           }}
           onClose={onClose}
+          hideClose={embedded}
         />
       </div>
 

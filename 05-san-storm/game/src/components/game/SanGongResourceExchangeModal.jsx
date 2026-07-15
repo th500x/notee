@@ -93,7 +93,7 @@ export default function SanGongResourceExchangeModal({
 
   return (
     <>
-      <PoolResultModalFrame title="🔄 银粮兑换" onClose={onClose}>
+      <PoolResultModalFrame title="🔄 银粮兑换" onClose={onClose} confirmLabel="关闭">
         <div className="max-h-[min(70vh,520px)] overflow-y-auto text-left">
           {loadErr ? (
             <div className="mb-2 text-[11px] text-red-400/90">{loadErr}</div>
@@ -194,7 +194,7 @@ export default function SanGongResourceExchangeModal({
       </PoolResultModalFrame>
 
       {result ? (
-        <PoolResultModalFrame title="🔄 兑换完成" onClose={() => setResult(null)}>
+        <PoolResultModalFrame title="🔄 兑换完成" onClose={() => setResult(null)} confirmLabel="关闭">
           <div className="flex flex-col items-center gap-2 text-center text-[11px]">
             {result.paySilver > 0 ? (
               <div className="text-stone-300">

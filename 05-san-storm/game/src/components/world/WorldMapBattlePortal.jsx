@@ -59,7 +59,7 @@ export default function WorldMapBattlePortal({
           />
         </Suspense>
       ) : null}
-      {!banditRaidData && siegeData && !siegeResult ? (
+      {!banditRaidData && siegeData && !siegeResult && !siegeData.autoBattleResolved ? (
         <Suspense fallback={<ChunkLoadFallback label="进入战场…" />}>
           <BattleArena
             key={siegeData.roadEncounterId || siegeData.warId || siegeData.cityName || 'siege'}

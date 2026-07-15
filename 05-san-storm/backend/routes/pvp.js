@@ -8,7 +8,6 @@ const express = require('express');
 const router = express.Router();
 const pvpService = require('../services/pvpService');
 const garrisonService = require('../services/garrisonService');
-const pvpGarrisonAutoDuelResolveService = require('../services/pvp/auto-duel/pvpGarrisonAutoDuelResolveService');
 const Player = require('../models/Player');
 const { isPlayerRecentlyActive, DEFAULT_ONLINE_MS } = require('../utils/playerActivity');
 const { requireAuth, requireSelf } = require('../middleware/auth');
@@ -80,6 +79,15 @@ router.post('/challenge', pvpSchemas.validateChallengeBody, async (req, res, nex
         ? 1
         : Number(slotBody);
 
+    // 披挂上阵（槽位 0 / 上阵编组待战）已移除
+    if (defenderGarrisonSlot === 0) {
+      return res.status(410).json({
+        success: false,
+        error: '披挂上阵已移除，无法发起槽位0挑战',
+        code: 'ON_DUTY_REMOVED',
+      });
+    }
+
     const defenderIsInGame = await isPlayerRecentlyActive(defenderId, DEFAULT_ONLINE_MS);
 
     const result = pvpService.createChallenge({
@@ -89,13 +97,9 @@ router.post('/challenge', pvpSchemas.validateChallengeBody, async (req, res, nex
     });
 
     let defenseUnits = [];
-    if (defenderGarrisonSlot === 0) {
-      defenseUnits = await garrisonService.buildDefenseUnitsFromMainLineup(defenderId);
-    } else {
-      const garrison = await garrisonService.getGarrisonSlot(defenderId, cityId, defenderGarrisonSlot);
-      if (garrison) {
-        defenseUnits = await garrisonService.buildDefenseUnits(garrison);
-      }
+    const garrison = await garrisonService.getGarrisonSlot(defenderId, cityId, defenderGarrisonSlot);
+    if (garrison) {
+      defenseUnits = await garrisonService.buildDefenseUnits(garrison);
     }
 
     res.json({
@@ -186,19 +190,14 @@ router.post(
 
 /**
  * POST /api/pvp/siege-resolve
+ * 披挂上阵权威结算已下线（档案见 _archive/pi-gua-shang-zhen）。
  */
-router.post('/siege-resolve', validateBody(pvpSchemas.siegeResolveBody), async (req, res, next) => {
-  try {
-    const { challengeId, attackerId } = req.body;
-    if (!assertSelf(req, res, attackerId, 'attackerId')) return;
-    const data = await pvpGarrisonAutoDuelResolveService.resolveAuthoritativeGarrisonAutoDuel({ challengeId, attackerId });
-    res.json({ success: true, data });
-  } catch (error) {
-    const code = error.code;
-    const status = code === 'FORBIDDEN' ? 403 : code === 'NOT_READY' ? 409 : code === 'CHALLENGE_NOT_FOUND' ? 404 : 400;
-    console.error('[PVP] siege-resolve 失败:', error);
-    res.status(status).json({ success: false, error: error.message, code: code || undefined });
-  }
+router.post('/siege-resolve', validateBody(pvpSchemas.siegeResolveBody), async (req, res) => {
+  res.status(410).json({
+    success: false,
+    error: '披挂上阵权威结算已移除',
+    code: 'ON_DUTY_REMOVED',
+  });
 });
 
 /**

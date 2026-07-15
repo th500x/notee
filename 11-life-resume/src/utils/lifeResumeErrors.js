@@ -32,6 +32,13 @@ const ERROR_MESSAGES = {
 export function formatLifeResumeError(err) {
   if (!err) return '请稍后重试';
   if (err.code && ERROR_MESSAGES[err.code]) {
+    if (
+      err.code === 'GEOCODE_FAILED' &&
+      err.message &&
+      err.message !== ERROR_MESSAGES.GEOCODE_FAILED
+    ) {
+      return err.message;
+    }
     return ERROR_MESSAGES[err.code];
   }
   if (err.code === 'LIFE_PATH_AI_FAILED' && err.message) {

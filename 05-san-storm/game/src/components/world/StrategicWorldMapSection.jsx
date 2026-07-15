@@ -122,18 +122,8 @@ const MARCH_ANIM_MS_PER_STEP = 150;
  * @param {(enc: object) => void|Promise<void>} [p.onRoadEncounterBattle]
  * @param {(t: { type: string, message: string }) => void} p.setMarchToast
  */
-function showRoadMarchMoveFinishToast({ encounter, defenderAutoRetreats, onRoadEncounterBattle, setMarchToast }) {
-  if (encounter?.encounterId) {
-    if (typeof onRoadEncounterBattle === 'function') {
-      void onRoadEncounterBattle(encounter);
-    } else {
-      setMarchToast({
-        type: 'info',
-        message: `已触发道路遭遇：${encounter.encounterId}。请完成战斗后走战后解锁（resolve-encounter）。`,
-      });
-    }
-    return;
-  }
+function showRoadMarchMoveFinishToast({ encounter: _encounter, defenderAutoRetreats, onRoadEncounterBattle: _onEnc, setMarchToast }) {
+  // 道路遭遇战已下线：忽略 encounter，仅提示退让 / 完成
   if (Array.isArray(defenderAutoRetreats) && defenderAutoRetreats.length > 0) {
     setMarchToast({
       type: 'info',
@@ -319,11 +309,6 @@ export default function StrategicWorldMapSection({
   /** 道路遭遇触发后由 `WorldMap` 拉取开战数据并打开 BattleArena */
   onRoadEncounterBattle = null,
   garrisonStatsRefreshKey = 0,
-  playerOnDuty = false,
-  playerOnDutyCityId = null,
-  onOpenGarrisonForCity = null,
-  onToggleDutyForCity = null,
-  onDutyError = null,
   subsidiaryExploreEmbed = null,
   playerMainCityId = null,
   playerMainCityChangedAt = null,
@@ -1648,7 +1633,7 @@ export default function StrategicWorldMapSection({
           });
           return;
         }
-        encounterHint = '落点上有其他势力玩家；提交后可能触发道路遭遇战（以服务端判定为准）。';
+        // 道路遭遇战已下线：敌对同格可叠站，不再提示遭遇
       }
       const tid = pathRes.targetPoiId || null;
       let poiTargetName = '';
@@ -1904,11 +1889,6 @@ export default function StrategicWorldMapSection({
           onStartSiegeForCity={onStartSiegeForCity}
           garrisonStatsByCityId={garrisonStatsByCityId}
           garrisonStatsRefreshKey={garrisonStatsRefreshKey}
-          playerOnDuty={playerOnDuty}
-          playerOnDutyCityId={playerOnDutyCityId}
-          onOpenGarrisonForCity={onOpenGarrisonForCity}
-          onToggleDutyForCity={onToggleDutyForCity}
-          onDutyError={onDutyError}
           subsidiaryExploreEmbed={subsidiaryExploreEmbed}
           playerMainCityId={playerMainCityId}
           playerMainCityChangedAt={playerMainCityChangedAt}

@@ -26,6 +26,7 @@ const MIGRATION_FILES = [
   '006-life-entries-tag-travel-to-yuji.sql',
   '007-life-profiles-life-path.sql',
   '008-life-entry-media-document.sql',
+  '009-life-entry-series.sql',
 ];
 
 const DEFAULT_DB_NAME = '11_life_resume';

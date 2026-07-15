@@ -38,7 +38,7 @@ const WEEK_LABELS = ['一', '二', '三', '四'];
 
 const CELL_BASE =
 
-  'relative flex h-[40px] w-full min-w-0 flex-col items-center justify-center rounded border px-0.5 py-0.5 text-center transition-colors';
+  'relative flex h-[48px] w-full min-w-0 flex-col items-center justify-center rounded border px-0.5 py-0.5 text-center transition-colors';
 
 
 
@@ -256,9 +256,17 @@ export default function DailyReportCheckinCalendar({
 
                     const rewardLabel = formatCheckinRewardShort(cell.reward);
 
+                    const factionBonusLabel = cell.factionBonusDisplayShort;
+
+                    const fullRewardLabel = factionBonusLabel
+
+                      ? `${rewardLabel} · ${factionBonusLabel}`
+
+                      : rewardLabel;
+
                     const title = cell.isTodayClaimable
 
-                      ? `领取第 ${cell.day} 天：${rewardLabel}`
+                      ? `领取第 ${cell.day} 天：${fullRewardLabel}`
 
                       : previewable
 
@@ -360,6 +368,8 @@ function DayCellContent({ cell, submitting }) {
 
   const muted = cell.isChecked;
 
+  const factionBonus = cell.factionBonusDisplayShort;
+
 
 
   return (
@@ -397,6 +407,28 @@ function DayCellContent({ cell, submitting }) {
         {formatCheckinRewardShort(cell.reward)}
 
       </span>
+
+      {factionBonus ? (
+
+        <span
+
+          className={[
+
+            'mt-px max-w-full truncate text-[7px] leading-none',
+
+            muted ? 'text-stone-400/80' : 'text-emerald-800/90',
+
+          ].join(' ')}
+
+          title={factionBonus}
+
+        >
+
+          {factionBonus}
+
+        </span>
+
+      ) : null}
 
       {cell.isTodayClaimable && submitting ? (
 

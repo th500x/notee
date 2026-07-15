@@ -27,7 +27,7 @@ export const cardPoolAPI = {
   /**
    * 抽取卡牌
    * @param {string} playerId
-   * @param {'troop'|'character'} poolType
+   * @param {'troop'|'character'|'item'} poolType
    * @param {'san_1'|'san_0'|null|undefined} [poolSeason] 将领池 Tab 对应赛季
    */
   draw: async (playerId, poolType, poolSeason, drawMode = 'single') => {

@@ -1,6 +1,6 @@
 /**
  * 宝物战斗助阵：装备 `battle_ally:*` 宝物时，开战前由服务端随机传奇将领 + 部队。
- * @see docs/20-data-layer/26-1-TREASURE_SYSTEM.md §6.4
+ * @see docs/00/20-data-layer/26-1-TREASURE_SYSTEM.md §6.4
  * @module services/battleTreasureAllyService
  */
 
@@ -59,8 +59,8 @@ async function loadMainLineupTreasureCardIds(conn, playerId, slots) {
 async function loadGarrisonTreasureCardIds(conn, playerId, cityId, garrisonSlot, slots) {
   if (!cityId || garrisonSlot == null || !slots.length) return [];
   const [gRows] = await conn.query(
-    `SELECT char1_treasure, char2_treasure FROM player_garrison
-     WHERE player_id = ? AND city_id = ? AND garrison_slot = ? LIMIT 1`,
+    `SELECT char1_treasure, char2_treasure FROM player_lineup_sets
+     WHERE lineup_scope = 'garrison' AND player_id = ? AND city_id = ? AND lineup_slot = ? LIMIT 1`,
     [playerId, cityId, garrisonSlot],
   );
   const row = gRows[0];

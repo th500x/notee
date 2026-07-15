@@ -32,6 +32,11 @@ export function buildCheckinCalendarDays(checkIn) {
     else checked.add(nextDay - 1);
   }
 
+  const factionBonusDisplayShort =
+    checkIn?.factionBonus?.displayShort ||
+    byDay.find((r) => r?.factionBonusDisplayShort)?.factionBonusDisplayShort ||
+    null;
+
   return Array.from({ length: max }, (_, i) => {
     const day = i + 1;
     const row = byDay.find((r) => Number(r.cycleDay) === day);
@@ -41,6 +46,7 @@ export function buildCheckinCalendarDays(checkIn) {
         displayShort: row?.displayShort ?? '—',
         rewards: row?.rewards ?? null,
       },
+      factionBonusDisplayShort: row?.factionBonusDisplayShort || factionBonusDisplayShort,
       label: row?.label ?? null,
       isChecked: checked.has(day),
       isTodayClaimable: canCheckIn && day === nextDay,

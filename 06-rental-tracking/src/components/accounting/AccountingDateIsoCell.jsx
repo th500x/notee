@@ -15,7 +15,7 @@ const baseCls =
  * ISO 日期格：
  * - `ymd`：申报/实际，展示 YYYY/M/D；编辑用原生 date。
  * - `md`：交租，展示 M/D；编辑仅「月/日」文本，年份取自列锚 `anchorMonthKey`（`YYYY-MM`）。
- * - `mdEmptyAsRed`：仅 `md`（交租）时，由父级在「实际」有日期且交租仍为空时传 true，空值「—」用红色。
+ * - `mdEmptyAsRed`：仅 `md`（交租）时，由父级在「实际」有日期、列月不早于入住月且交租仍为空时传 true，空值「—」用红色。
  */
 export function AccountingDateIsoCell({
   valueIso,

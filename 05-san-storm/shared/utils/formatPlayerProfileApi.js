@@ -1,6 +1,6 @@
 /**
  * GET /api/players/:playerId/profile 对外 JSON（camelCase）
- * @see docs/00-base/02-architecture-split/40-conventions.md §1.2
+ * @see docs/00/00-base/02-architecture-split/40-conventions.md §1.2
  */
 
 /** @param {object|null|undefined} positionConfig */

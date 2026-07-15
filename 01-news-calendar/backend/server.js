@@ -30,7 +30,7 @@ app.use(helmet({
 // 限流配置
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15分钟
-  max: isProduction ? 100 : 1000, // 生产环境100次，开发环境1000次
+  max: isProduction ? 300 : 1000, // 生产环境300次/15分钟，开发环境1000次
   message: { 
     success: false, 
     error: '请求过于频繁，请稍后再试' 
@@ -41,8 +41,10 @@ const limiter = rateLimit({
   keyGenerator: (req) => {
     return req.clientIP || req.ip
   },
-  // 跳过健康检查
-  skip: (req) => req.path === '/api/health'
+  // 跳过健康检查；新闻 GET 为只读静态 JSON，不计入全局限流
+  skip: (req) =>
+    req.path === '/health' ||
+    (req.method === 'GET' && (req.path === '/news' || req.path.startsWith('/news/')))
 })
 
 // Emoji反应的限流（防止刷票，但不能太严格）
@@ -261,7 +263,7 @@ async function startServer() {
     app.listen(PORT, () => {
       console.log(`🚀 服务器运行在 http://localhost:${PORT}`)
       console.log(`🔒 安全模式: ${isProduction ? '生产环境' : '开发环境'}`)
-      console.log(`⚡ 全局限流: ${isProduction ? '100次/15分钟' : '1000次/15分钟'}`)
+      console.log(`⚡ 全局限流: ${isProduction ? '300次/15分钟' : '1000次/15分钟'}（新闻 GET 除外）`)
       console.log(`🛡️  Emoji GET限流: ${isProduction ? '60次/分钟' : '200次/分钟'}`)
       console.log(`🛡️  Emoji POST限流: ${isProduction ? '10次/分钟' : '100次/分钟'}`)
       console.log(`📊 健康检查: http://localhost:${PORT}/api/health`)

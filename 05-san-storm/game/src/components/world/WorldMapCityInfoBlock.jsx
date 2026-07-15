@@ -1,9 +1,9 @@
 /**
  * 大地图单城信息主体：与战略格网 tooltip 同结构。
- * 分段：**城备**（攻城/驻地/披挂等）、**城况**（五维/特色资源/简介）、**荒郊** / **集市**（内嵌 `ExploreLocationDockPanel`）。
+ * 分段：**城备**（攻城；底部「三公府」+「设为主城 / 驻军所」）、**城况**、**荒郊** / **集市**。
  *
- * 规则口径与后端一致：`garrisonService` 驻地槽激活≥800；攻城开战上阵编组≥200；
- * 披挂 PVP 接战条件见 `cityService`。
+ * 规则口径与后端一致：`garrisonService` 驻地槽激活≥800；攻城开战上阵编组≥200。
+ * 驻地编组仅主城，入口在「驻军所」Tab。
  */
 import { useState, useCallback, useEffect, useRef, useLayoutEffect } from 'react';
 import ExploreLocationDockPanel from '@/components/event/ExploreLocationDockPanel';
@@ -53,8 +53,6 @@ export default function WorldMapCityInfoBlock({
   playerId = null,
   siegeQuota = null,
   siegeLoading = false,
-  /** null：显示 —（披挂人数未拉到） */
-  onDutyCount = null,
   /** null：驻地已用槽显示 — */
   garrisonSlotCount = null,
   garrisonCap = null,
@@ -87,13 +85,6 @@ export default function WorldMapCityInfoBlock({
   cityId = null,
   /** 匪寨地图对象 ID（`san_*_bandit_*`）；与行军 `targetPoiId` 同族。匪寨面板勿用 `cityId`。 */
   banditPoiId = null,
-  onOpenGarrison,
-  playerOnDutyForThisCity = false,
-  /** async (cityId, nextOnDuty) => void */
-  onToggleDutyRequest,
-  onDutyError,
-  /** 可选：披挂等操作成功后的额外回调（战略格网已不再用于关 tooltip；见 `WorldStrategicMapGrid`） */
-  onAfterOwnCityAction,
   /** 荒郊/集市：`buildWorldMapCityPanelProps` + `cityById` 解析 */
   subsidiaryExplore = null,
   /**
@@ -118,11 +109,10 @@ export default function WorldMapCityInfoBlock({
   /** 为 true 时仅渲染匪寨攻打面板（依赖 **`banditPoiId`**，与行军 `targetPoiId` 同族） */
   isBanditStronghold = false,
   /**
-   * PVP 攻方大本营战略格：披挂/驻地固定为无；攻城次数仍按 **`siegeQuotaCityId`**（目标城）桶。
+   * PVP 攻方大本营战略格：驻地固定为无；攻城次数仍按 **`siegeQuotaCityId`**（目标城）桶。
    */
   pvpAttackerBaseCampStrategic = false,
 }) {
-  const [dutyBusy, setDutyBusy] = useState(false);
   const [mainCityBusy, setMainCityBusy] = useState(false);
   const [segment, setSegment] = useState('garrison');
   /** 供「写入 Map」effect 判断：仅当用户从非城备切到城备时才清记忆，避免挂载时初始 `garrison` 误删 `primeStrategicCityWildernessMarketTab` 写入的值 */
@@ -256,6 +246,13 @@ export default function WorldMapCityInfoBlock({
     (cityType === 'city_major' || cityType === 'city_medium') &&
     typeof onSetMainCityRequest === 'function';
 
+  /** 己方大/中城：城备底部主按钮「三公府」（原右上角小钮） */
+  const canShowSanGongFuBtn =
+    showOwnCityActions &&
+    cityId &&
+    (cityType === 'city_major' || cityType === 'city_medium') &&
+    typeof onOpenSanGongFu === 'function';
+
   const isCurrentMain =
     mainCityId != null && cityId != null && String(mainCityId) === String(cityId);
   const hadMainBefore = mainCityId != null && String(mainCityId).trim() !== '';
@@ -323,32 +320,12 @@ export default function WorldMapCityInfoBlock({
     onOpenSanGongFu(cityId, cityBaseName);
   }, [cityId, cityBaseName, onOpenSanGongFu, closeStrategicCityTooltip]);
 
-  const handleToggleDuty = useCallback(async () => {
-    if (!cityId || !onToggleDutyRequest || dutyBusy) return;
-    const next = !playerOnDutyForThisCity;
-    setDutyBusy(true);
-    try {
-      const ok = await onToggleDutyRequest(cityId, next);
-      if (ok) onAfterOwnCityAction?.();
-    } catch (e) {
-      onDutyError?.(e?.message || '操作失败');
-    } finally {
-      setDutyBusy(false);
-    }
-  }, [
-    cityId,
-    onToggleDutyRequest,
-    dutyBusy,
-    playerOnDutyForThisCity,
-    onDutyError,
-    onAfterOwnCityAction,
-  ]);
-
   const showActions =
     showOwnCityActions &&
     cityId &&
-    typeof onOpenGarrison === 'function' &&
-    typeof onToggleDutyRequest === 'function';
+    (canShowSanGongFuBtn ||
+      (isCurrentMain && typeof onOpenBarracksPost === 'function') ||
+      canShowSetMainCityBtn);
 
   const showEnemySiege =
     !showOwnCityActions &&
@@ -478,57 +455,17 @@ export default function WorldMapCityInfoBlock({
         <div className="text-stone-400 text-xs mt-0.5">{subtitle}</div>
       ) : null}
       <div className="text-stone-300 text-xs mt-2 border-t border-stone-600 pt-2">
-        <div className="flex gap-2 items-start">
-          <div className="flex-1 min-w-0 space-y-0.5">
-            <div>
-              长官：<span className="text-amber-200/90">{lordDisplayLabel}</span>
-            </div>
-            <div>
-              势力：
-              <span className={factionId ? 'text-amber-200' : 'text-stone-400'}>{factionLabel}</span>
-            </div>
-            <div>
-              州郡：<span className="text-stone-200">{regionLabel || '—'}</span>
-            </div>
+        <div className="space-y-0.5">
+          <div>
+            长官：<span className="text-amber-200/90">{lordDisplayLabel}</span>
           </div>
-          {canShowSetMainCityBtn ? (
-            <div className="shrink-0 self-start flex flex-row flex-wrap gap-1 justify-end max-w-[11rem]">
-              <button
-                type="button"
-                disabled={typeof onOpenSanGongFu !== 'function'}
-                title={typeof onOpenSanGongFu === 'function' ? '三公府：官职晋升等' : '敬请期待'}
-                onClick={handleOpenSanGongFu}
-                className="py-1.5 px-1.5 text-[10px] font-bold rounded-md border border-amber-800/50 bg-stone-800/90 text-amber-100/95 hover:bg-stone-800 hover:border-amber-600/60 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-stone-800/90"
-              >
-                三公府
-              </button>
-              {isCurrentMain ? (
-                <button
-                  type="button"
-                  disabled={typeof onOpenBarracksPost !== 'function'}
-                  title={
-                    typeof onOpenBarracksPost === 'function'
-                      ? '军营与主城驻军所仓库（转入/转出）'
-                      : '敬请期待'
-                  }
-                  onClick={handleOpenBarracksPost}
-                  className="py-1.5 px-1.5 text-[10px] font-bold rounded-md border border-stone-600 bg-stone-800/90 text-stone-200 hover:bg-stone-800 hover:text-stone-100 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-stone-800/90"
-                >
-                  驻军所
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  disabled={setMainCityButtonDisabled || mainCityBusy}
-                  title={mainCityTitle}
-                  onClick={handleSetMainCityClick}
-                  className="py-1.5 px-1.5 text-[10px] font-bold rounded-md border border-stone-600 bg-stone-800/90 text-stone-200 hover:bg-stone-800 hover:text-stone-100 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-stone-800/90"
-                >
-                  {mainCityBusy ? '…' : '设为主城'}
-                </button>
-              )}
-            </div>
-          ) : null}
+          <div>
+            势力：
+            <span className={factionId ? 'text-amber-200' : 'text-stone-400'}>{factionLabel}</span>
+          </div>
+          <div>
+            州郡：<span className="text-stone-200">{regionLabel || '—'}</span>
+          </div>
         </div>
       </div>
       <div className="text-stone-300 text-xs mt-2 border-t border-stone-600 pt-2">
@@ -560,7 +497,6 @@ export default function WorldMapCityInfoBlock({
       <WorldMapCityCombatSummaryBlock
         className="mt-2"
         pvpAttackerBaseCampStrategic={pvpAttackerBaseCampStrategic}
-        onDutyCount={onDutyCount}
         garrisonSlotCount={garrisonSlotCount}
         garrisonCap={garrisonCap}
         npcAlive={npcAlive}
@@ -569,35 +505,36 @@ export default function WorldMapCityInfoBlock({
       />
       {showActions ? (
         <div className="mt-3 space-y-1.5">
-          <button
-            type="button"
-            onClick={onOpenGarrison}
-            className="w-full py-2 rounded-lg text-xs font-bold bg-gradient-to-r from-amber-700 to-yellow-700 text-amber-100"
-          >
-            🏰 驻地编组
-          </button>
-          <button
-            type="button"
-            disabled={dutyBusy}
-            onClick={handleToggleDuty}
-            className={`w-full py-2 rounded-lg text-xs font-bold ${
-              playerOnDutyForThisCity
-                ? 'bg-gradient-to-r from-green-700 to-emerald-700 text-green-100 flex items-center justify-between gap-2 px-2.5'
-                : 'bg-gradient-to-r from-stone-700 to-stone-600 text-stone-300'}`}
-          >
-            {dutyBusy ? (
-              '…'
-            ) : playerOnDutyForThisCity ? (
-              <>
-                <span className="shrink-0">⚔️ 驻守待机中...</span>
-                <span className="max-w-[58%] text-right text-[9px] font-normal leading-tight text-green-100/75">
-                  （守方兵力≥800；攻方兵力≥200）
-                </span>
-              </>
-            ) : (
-              '🛡️ 披挂上阵'
-            )}
-          </button>
+          {canShowSanGongFuBtn ? (
+            <button
+              type="button"
+              onClick={handleOpenSanGongFu}
+              title="三公府：官职晋升、朝贡、封赏等"
+              className="w-full py-2 rounded-lg text-xs font-bold bg-gradient-to-r from-amber-700 to-yellow-700 text-amber-100"
+            >
+              🏛️ 三公府
+            </button>
+          ) : null}
+          {isCurrentMain && typeof onOpenBarracksPost === 'function' ? (
+            <button
+              type="button"
+              onClick={handleOpenBarracksPost}
+              title="驻地编组 · 军营与主城驻军所仓库"
+              className="w-full py-2 rounded-lg text-xs font-bold bg-gradient-to-r from-stone-700 to-stone-600 text-stone-200 hover:from-stone-600 hover:to-stone-500"
+            >
+              🏛️ 驻军所
+            </button>
+          ) : canShowSetMainCityBtn && !isCurrentMain ? (
+            <button
+              type="button"
+              disabled={setMainCityButtonDisabled || mainCityBusy}
+              title={mainCityTitle}
+              onClick={handleSetMainCityClick}
+              className="w-full py-2 rounded-lg text-xs font-bold bg-gradient-to-r from-stone-700 to-stone-600 text-stone-200 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {mainCityBusy ? '…' : '🏰 设为主城'}
+            </button>
+          ) : null}
         </div>
       ) : null}
       {showEnemySiege ? (

@@ -1,7 +1,7 @@
 /**
  * 成就进度同步（仅写 metrics；发卡改由 achievementClaimService 手动领取）
  *
- * @see docs/20-data-layer/25-2-ACHIEVEMENT_SYSTEM.md §1、§6、§9
+ * @see docs/00/20-data-layer/25-2-ACHIEVEMENT_SYSTEM.md §1、§6、§9
  */
 
 const {

@@ -2,7 +2,7 @@
  * PVP 势力战事数据模型（17-2 · wars_pvp）
  *
  * 表结构权威：`backend/database/migrations/create-wars-pvp-table.sql`
- * 文档：`docs/10-core-system/17-3-WAR_SYSTEM.md` §9.2
+ * 文档：`docs/01-jun-exploration/10-core-system/17-3-WAR_SYSTEM.md` §9.2
  *
  * 命名：DB snake_case，前端 camelCase；仅在本模型 / 服务层做转换，
  *      路由层一律消费 camelCase（与 17-2 实现计划 §6 阶段 1 D2 任务对齐）。

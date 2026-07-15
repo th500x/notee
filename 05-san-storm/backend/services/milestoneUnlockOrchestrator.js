@@ -1,8 +1,8 @@
 /**
  * 称号/成就里程碑统一触发入口（阶段 A 底座；业务钩子在阶段 B/C 挂载）
  *
- * @see docs/20-data-layer/25-1-TITLE_SYSTEM.md
- * @see docs/20-data-layer/25-2-ACHIEVEMENT_SYSTEM.md §9
+ * @see docs/00/20-data-layer/25-1-TITLE_SYSTEM.md
+ * @see docs/00/20-data-layer/25-2-ACHIEVEMENT_SYSTEM.md §9
  */
 
 const { pool } = require('../database/connection');

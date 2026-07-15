@@ -1,6 +1,6 @@
 /**
  * 官职 → 属性重随稀有度（编组官职槽 / playerRerollService 共用）
- * @see docs/10-core-system/12-1-POSITION_SYSTEM.md §属性提升机制
+ * @see docs/00/10-core-system/12-1-POSITION_SYSTEM.md §属性提升机制
  */
 
 'use strict';

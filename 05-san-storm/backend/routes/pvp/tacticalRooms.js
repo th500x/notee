@@ -15,7 +15,7 @@
  *   GET    /:id/result         结算摘要 + 本方战报 id
  *
  * 错误：service 抛 `Error{ code, httpStatus }`；本层透传为 `{ success:false, error, code }`。
- * 详见 docs/00-base/02-architecture-split/13-pvp-tactical-api.md。
+ * 详见 docs/00/00-base/02-architecture-split/13-pvp-tactical-api.md。
  *
  * @module backend/routes/pvp/tacticalRooms
  */

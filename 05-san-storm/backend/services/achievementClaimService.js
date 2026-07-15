@@ -1,7 +1,7 @@
 /**
  * 成就手动领取：条件已满足时由玩家在目录点击领取 → 发卡 + rewards
  *
- * @see docs/20-data-layer/25-2-ACHIEVEMENT_SYSTEM.md
+ * @see docs/00/20-data-layer/25-2-ACHIEVEMENT_SYSTEM.md
  */
 
 const { pool } = require('../database/connection');

@@ -8,7 +8,11 @@ import {
 import { LIFE_STAGE_UNKNOWN } from '@shared/utils/lifeResumeEntryTime.js';
 import { LIFE_ENTRY_TAGS } from '@shared/utils/lifeResumeEntryTags.js';
 import { validateMediaBundle } from '@shared/utils/lifeResumeMediaRules.js';
-import { createEntry, updateEntry, fetchResolveMapsUrl } from '@/services/lifeResumeApi';
+import { createEntry, updateEntry, fetchResolveMapsUrl, fetchEntrySeries, createEntrySeries } from '@/services/lifeResumeApi';
+import {
+  MAX_CUSTOM_ENTRY_SERIES_PER_USER,
+} from '@shared/utils/lifeResumeEntrySeries.js';
+import { NewEntrySeriesModal } from '@/components/timeline/EntrySeriesSwitcher';
 import { normalizeAccountId, validateAccountIdFormat } from '@/utils/authUtils';
 import EntryPermissionFields from '@/components/entry/EntryPermissionFields';
 import EntryMediaUpload from '@/components/entry/EntryMediaUpload';
@@ -21,6 +25,7 @@ import { validateCoordinates } from '@shared/utils/lifeResumeLocation.js';
 import { formatLifeResumeError, isAuthError } from '@/utils/lifeResumeErrors';
 
 const EMPTY_FORM = {
+  entrySeriesId: null,
   timeMode: 'year',
   year: '',
   month: '',
@@ -46,6 +51,7 @@ const EMPTY_FORM = {
 function buildFormFromEntry(entry) {
   if (!entry) return { ...EMPTY_FORM };
   return {
+    entrySeriesId: entry.entrySeriesId ?? null,
     timeMode: entry.year != null ? 'year' : 'unknown',
     year: entry.year != null ? String(entry.year) : '',
     month: entry.month != null ? String(entry.month) : '',
@@ -75,6 +81,7 @@ function buildFormFromEntry(entry) {
 
 function buildPayload(form, status, mediaBundleType, mediaItems) {
   const payload = {
+    entrySeriesId: form.entrySeriesId,
     title: form.title,
     body: form.body,
     tags: form.tags,
@@ -136,8 +143,8 @@ function buildPayload(form, status, mediaBundleType, mediaItems) {
 
     payload.locationPlaceName = placeName;
     payload.locationMapsUrl = mapsUrl;
-    payload.latitude = latitude;
-    payload.longitude = longitude;
+    if (String(latitude ?? '').trim()) payload.latitude = latitude;
+    if (String(longitude ?? '').trim()) payload.longitude = longitude;
     payload.locationCaptureMethod = form.locationCaptureMethod || 'map_pick';
   }
 
@@ -154,45 +161,40 @@ async function ensureLocationMapsResolved(formState) {
   }
 
   let parsed = parseGoogleMapsShareUrl(mapsRaw);
-  if (parsed.ok && !parsed.empty) {
-    return {
-      ok: true,
-      form: {
-        ...formState,
-        locationMapsUrl: parsed.shareUrl,
-        locationPlaceName:
-          parsed.placeName && !formState.locationPlaceName.trim()
-            ? parsed.placeName
-            : formState.locationPlaceName,
-        latitude:
-          parsed.latitude != null ? String(parsed.latitude) : formState.latitude,
-        longitude:
-          parsed.longitude != null ? String(parsed.longitude) : formState.longitude,
-      },
-    };
-  }
-  if (parsed.code !== 'GOOGLE_MAPS_SHORT_URL') {
-    return { ok: false, error: parsed.error };
+  const shouldServerResolve =
+    (!parsed.ok && parsed.code === 'GOOGLE_MAPS_SHORT_URL') ||
+    (parsed.ok && !parsed.empty && parsed.latitude == null && parsed.longitude == null);
+
+  if (shouldServerResolve) {
+    try {
+      const res = await fetchResolveMapsUrl(mapsRaw);
+      if (res.data?.ok) {
+        parsed = res.data;
+      }
+    } catch (err) {
+      if (formState.locationPlaceName.trim()) {
+        if (!parsed.ok) {
+          return {
+            ok: true,
+            form: formState,
+            mapsResolveWarning: formatLifeResumeError(err),
+          };
+        }
+      } else if (!parsed.ok) {
+        return { ok: false, error: formatLifeResumeError(err) };
+      }
+    }
   }
 
-  try {
-    const res = await fetchResolveMapsUrl(mapsRaw);
-    parsed = res.data;
-  } catch (err) {
-    if (formState.locationPlaceName.trim()) {
-      return { ok: true, form: formState, mapsResolveWarning: formatLifeResumeError(err) };
-    }
-    return { ok: false, error: formatLifeResumeError(err) };
-  }
-  if (!parsed?.ok) {
-    if (formState.locationPlaceName.trim()) {
+  if (!parsed.ok) {
+    if (formState.locationPlaceName.trim() && parsed.code === 'GOOGLE_MAPS_SHORT_URL') {
       return {
         ok: true,
         form: formState,
-        mapsResolveWarning: parsed?.error || '短链接未能自动展开，将按地点名称保存',
+        mapsResolveWarning: parsed.error || '短链接未能自动展开，将按地点名称保存',
       };
     }
-    return { ok: false, error: parsed?.error || '短链接解析失败' };
+    return { ok: false, error: parsed.error };
   }
 
   return {
@@ -212,9 +214,19 @@ async function ensureLocationMapsResolved(formState) {
   };
 }
 
-export default function EntryEditorModal({ open, entry, profileDefaults, onClose, onSaved }) {
+export default function EntryEditorModal({
+  open,
+  entry,
+  profileDefaults,
+  defaultEntrySeriesId = null,
+  onClose,
+  onSaved,
+  onEntrySeriesCreated,
+}) {
   const navigate = useNavigate();
   const [form, setForm] = useState(EMPTY_FORM);
+  const [entrySeriesList, setEntrySeriesList] = useState([]);
+  const [newSeriesOpen, setNewSeriesOpen] = useState(false);
   const [mediaBundleType, setMediaBundleType] = useState('none');
   const [mediaItems, setMediaItems] = useState([]);
   const [initialPersistedOssKeys, setInitialPersistedOssKeys] = useState(() => new Set());
@@ -233,6 +245,7 @@ export default function EntryEditorModal({ open, entry, profileDefaults, onClose
     if (!entry && profileDefaults) {
       base.visibility = profileDefaults.pageDefaultVisibility || 'public';
       base.granteeId = profileDefaults.defaultGranteeAccountId || '';
+      base.entrySeriesId = defaultEntrySeriesId ?? null;
     }
     setForm(base);
     setMediaBundleType(entry?.mediaBundleType || 'none');
@@ -253,7 +266,15 @@ export default function EntryEditorModal({ open, entry, profileDefaults, onClose
     );
     saveCommittedRef.current = false;
     setError('');
-  }, [open, entry, profileDefaults]);
+
+    fetchEntrySeries()
+      .then((res) => {
+        setEntrySeriesList(res.data?.switcher || []);
+      })
+      .catch(() => {
+        setEntrySeriesList([]);
+      });
+  }, [open, entry, profileDefaults, defaultEntrySeriesId]);
 
   if (!open) return null;
 
@@ -418,6 +439,46 @@ export default function EntryEditorModal({ open, entry, profileDefaults, onClose
         </div>
 
         <div className="px-5 py-5 space-y-6">
+          <section className="space-y-3">
+            <p className="text-sm font-medium text-slate-800">系列</p>
+            <div className="flex flex-wrap gap-2 items-center">
+              {entrySeriesList.map((series) => {
+                const active =
+                  (form.entrySeriesId == null && series.id == null) ||
+                  Number(form.entrySeriesId) === Number(series.id);
+                return (
+                  <label
+                    key={series.key}
+                    className={[
+                      'inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm border cursor-pointer',
+                      active
+                        ? 'bg-indigo-600 text-white border-indigo-600'
+                        : 'bg-white text-slate-700 border-slate-300',
+                    ].join(' ')}
+                  >
+                    <input
+                      type="radio"
+                      className="sr-only"
+                      checked={active}
+                      onChange={() => setField('entrySeriesId', series.id)}
+                    />
+                    {series.name}
+                  </label>
+                );
+              })}
+              {entrySeriesList.filter((s) => !s.isBuiltin).length <
+                MAX_CUSTOM_ENTRY_SERIES_PER_USER && (
+                <button
+                  type="button"
+                  className="px-3 py-1.5 rounded-full text-sm border border-dashed border-slate-300 text-slate-600 hover:border-indigo-400 hover:text-indigo-700"
+                  onClick={() => setNewSeriesOpen(true)}
+                >
+                  + 新建系列
+                </button>
+              )}
+            </div>
+          </section>
+
           <section className="space-y-3">
             <p className="text-sm font-medium text-slate-800">时间</p>
             <div className="flex gap-4 text-sm">
@@ -619,6 +680,23 @@ export default function EntryEditorModal({ open, entry, profileDefaults, onClose
           </button>
         </div>
       </div>
+
+      <NewEntrySeriesModal
+        open={newSeriesOpen}
+        onClose={() => setNewSeriesOpen(false)}
+        createSeries={createEntrySeries}
+        onCreated={(series) => {
+          fetchEntrySeries()
+            .then((res) => {
+              setEntrySeriesList(res.data?.switcher || []);
+            })
+            .catch(() => {});
+          if (series?.id) {
+            setField('entrySeriesId', series.id);
+          }
+          onEntrySeriesCreated?.();
+        }}
+      />
     </div>
   );
 }

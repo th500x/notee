@@ -2,7 +2,7 @@
  * 三公府 · 封赏 · 银粮兑换（玩家 personal ↔ 势力 pool）
  *
  * - 名义比例 1 银 : 5 粮；松紧系数 k ∈ [0.5, 1.5] 由 pool 余量相对 1:5 失衡决定
- * - 基数 B_s = floor(档系数 × 官职 resourceBonus)，与俸禄日随机 roll 脱钩
+ * - 基数 B_s = floor(档系数)（官职 resourceBonus 已废弃，倍数恒 1），与俸禄日随机 roll 脱钩
  * - 包 A：池子发出侧 +20%；包 B：基础比例
  *
  * @see 12-1-POSITION_SYSTEM.md §4.4 · 27-1-RESOURCE_SYSTEM.md
@@ -97,7 +97,7 @@ function kFoodToSilver(R) {
 
 /**
  * @param {number} tierCoeff - SILVER_COEFFICIENT_BY_TIER 档系数（无 roll）
- * @param {number} resourceMultiplier - 官职 resourceBonus
+ * @param {number} resourceMultiplier - 兼容参数；现网恒为 1（不再读官职 resourceBonus）
  * @returns {{ baseSilver: number, baseFood: number }|null}
  */
 function computeExchangeBase(tierCoeff, resourceMultiplier) {

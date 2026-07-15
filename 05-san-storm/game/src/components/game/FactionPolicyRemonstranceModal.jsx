@@ -3,7 +3,7 @@
  *
  * 提交后：1s 禀报动画（`CeremonyBounceOverlay`）→ 口谕式君主批复（`KingEdictVerdictDialog`）。
  *
- * @see docs/10-core-system/11-3-FACTION_POLICY_SYSTEM.md §7 · 32-5-PLAYER_CORNER.md §4
+ * @see docs/01-jun-exploration/10-core-system/11-3-FACTION_POLICY_SYSTEM.md §7 · 32-5-PLAYER_CORNER.md §4
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';

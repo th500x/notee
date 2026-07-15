@@ -14,7 +14,7 @@
  *   import { generateSmallMap } from '@shared/utils/mapGenerator';
  *   const result = generateSmallMap({ seed: 12345 });
  *
- * @see docs/30-frontend/31-1-MAP_GENERATION.md
+ * @see docs/01-jun-exploration/30-frontend/31-1-MAP_GENERATION.md
  *
  * 资源文件名与 public/assets/san_1_map 一致（§1.3）；不含战役 CSV 的 forces/siege 等（见 91-3）。
  */

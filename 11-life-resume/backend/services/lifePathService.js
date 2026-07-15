@@ -260,7 +260,16 @@ async function generateLifePathForOwner(accountId) {
     throw new LifePathServiceError('LIFE_PATH_NO_ENTRIES', '还没有任何片段，无法生成轨迹', 400);
   }
 
-  const aiEntries = selectEntriesForAi(entries);
+  const chronologicalEntries = entries.filter((entry) => entry.entrySeriesId == null);
+  if (!chronologicalEntries.length) {
+    throw new LifePathServiceError(
+      'LIFE_PATH_NO_ENTRIES',
+      '编年历系列中还没有任何片段，无法生成轨迹',
+      400
+    );
+  }
+
+  const aiEntries = selectEntriesForAi(chronologicalEntries);
   let validatedEnvelope = null;
   let lastModerationError = null;
 

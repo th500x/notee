@@ -4,7 +4,7 @@
  * 鉴权由 httpClient 自动附加 JWT；统一返回 `{ success, ... }` 或 `{ success:false, error }`。
  * 在线轮询 `getEvents(roomId, afterSeq)`（建议 300~500ms），离线/补看用 `getResult`。
  *
- * @see docs/00-base/02-architecture-split/13-pvp-tactical-api.md
+ * @see docs/00/00-base/02-architecture-split/13-pvp-tactical-api.md
  */
 
 import { API_CONFIG } from '../constants';

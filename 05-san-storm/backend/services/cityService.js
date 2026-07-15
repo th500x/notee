@@ -574,7 +574,7 @@ async function getCityInfo(cityId) {
   };
 }
 
-/** 同一势力在 `wars`（PVE 中立城攻城）进行中战事条数上限；与 `pvpWarService` 的 PVP 上限并列（每类各 1）。 */
+/** 同一势力在 `wars`（PVE 中立城攻城）进行中战事条数上限；与 PVP 合计见 `warConcurrencyService`（合计 1）。 */
 const MAX_CONCURRENT_PVE_WARS_PER_ATTACKER_FACTION = 1;
 
 /** 单场 PVE 攻城墙钟上限，与 PVP `PVP_WAR_DURATION_MS`、17-3 §5 对齐 */
@@ -800,24 +800,16 @@ async function initiateSiege(cityId, playerId) {
     assertPveWarActiveNotExpired(war);
     if (!(await factionParticipatesInPveWarRow(war, playerFaction, playerId))) {
       const siegeSeason = String(city.season || 'san_1').trim() || 'san_1';
-      const other = await countActivePveSiegeWarsForFaction(playerFaction, {
-        excludeWarId: war.war_id,
+      const warConcurrencyService = require('./warConcurrencyService');
+      await warConcurrencyService.assertCanOpenNewWar(playerFaction, {
         season: siegeSeason,
+        excludePveWarId: war.war_id,
       });
-      if (other >= MAX_CONCURRENT_PVE_WARS_PER_ATTACKER_FACTION) {
-        throw new Error(
-          `贵方势力已有一场进行中的中立城攻城战事（PVE，上限 ${MAX_CONCURRENT_PVE_WARS_PER_ATTACKER_FACTION}），请先告捷或结束他处战事后再攻此城`,
-        );
-      }
     }
   } else {
     const siegeSeason = String(city.season || 'san_1').trim() || 'san_1';
-    const existingOther = await countActivePveSiegeWarsForFaction(playerFaction, { season: siegeSeason });
-    if (existingOther >= MAX_CONCURRENT_PVE_WARS_PER_ATTACKER_FACTION) {
-      throw new Error(
-        `贵方势力已有一场进行中的中立城攻城战事（PVE，上限 ${MAX_CONCURRENT_PVE_WARS_PER_ATTACKER_FACTION}），请先告捷后再开新城`,
-      );
-    }
+    const warConcurrencyService = require('./warConcurrencyService');
+    await warConcurrencyService.assertCanOpenNewWar(playerFaction, { season: siegeSeason });
     const warId = `war_${cityId}_${Date.now()}`;
     const fkSeed = JSON.stringify({ [playerFaction]: 0 });
     let attackerCampsJson = null;
@@ -1110,7 +1102,7 @@ async function recordSiegeResult(warId, playerId, factionId, killedIndices, resu
 
       // 兼容旧数据：曾在本城有驻守行、但 on_duty_city_id 未写入的玩家
       const [allCityGarrisonPlayers] = await connection.query(
-        `SELECT DISTINCT g.player_id FROM player_garrison g WHERE g.city_id = ?`,
+        `SELECT DISTINCT g.player_id FROM player_lineup_sets g WHERE g.lineup_scope = 'garrison' AND g.city_id = ?`,
         [war.target_city_id]
       );
       const allGarrisonPlayerIds = allCityGarrisonPlayers.map(r => r.player_id);
@@ -1346,12 +1338,8 @@ async function openPveWarOnNeutralCity(cityId, opts = {}) {
   if (bulletinFactionId) {
     const bf = String(bulletinFactionId).trim();
     const siegeSeason = String(cityRefreshed.season || 'san_1').trim() || 'san_1';
-    const existingOther = await countActivePveSiegeWarsForFaction(bf, { season: siegeSeason });
-    if (existingOther >= MAX_CONCURRENT_PVE_WARS_PER_ATTACKER_FACTION) {
-      throw new Error(
-        `[cityService] 势力 ${bf} 进行中的 PVE 攻城战事已达上限（${MAX_CONCURRENT_PVE_WARS_PER_ATTACKER_FACTION}），无法新建`,
-      );
-    }
+    const warConcurrencyService = require('./warConcurrencyService');
+    await warConcurrencyService.assertCanOpenNewWar(bf, { season: siegeSeason });
   }
 
   const warId = `war_${cityId}_${Date.now()}`;
@@ -1718,6 +1706,187 @@ async function tickActivePveWars() {
   return { completed };
 }
 
+/**
+ * PVE 中立城攻城：权威一场（initiateSiege → 战术内核 → recordSiegeResult → 攻方伤亡回写）。
+ * 与 `pvpWarService.resolveAuthoritativeAttackerCitySiege` 同形，供玩家冲锋动画。
+ *
+ * @param {string} cityId
+ * @param {string} playerId
+ * @returns {Promise<object>}
+ */
+async function resolveAuthoritativePveSiege(cityId, playerId) {
+  const { hashSeed } = require('./pvp/auto-duel/pvpAutoDuelSim');
+  const { tacticalToAutoDuelResult } = require('./pvp/tactical/tacticalToAutoDuelResult');
+  const roomService = require('./pvp/tactical/pvpTacticalRoomService');
+  const {
+    snapshotSiegeUnitsForCinematic,
+    mapEndTroopsForCinematic,
+    alignCinematicEndByWinner,
+    collectSiegeKilledIndices,
+    saveAuthoritativeSiegeAttackerBattleReport,
+  } = require('./pvp/siegeCinematicTroops');
+
+  let payload;
+  try {
+    payload = await initiateSiege(cityId, playerId);
+  } catch (e) {
+    return { ok: false, stop: true, reason: e.message };
+  }
+
+  let recorded = false;
+  try {
+    const defenderNpcs = Array.isArray(payload.npcGarrison) ? payload.npcGarrison : [];
+    if (!defenderNpcs.length) throw new Error('[cityService] 攻城防守批次为空');
+
+    const rawAttacker = await garrisonService.buildDefenseUnitsFromMainLineup(playerId);
+    const attackerNpcs = garrisonService.mapBuiltUnitsToSiegeNpcFormat(rawAttacker);
+    if (!attackerNpcs.length) throw new Error('[cityService] 攻方上阵编组无可战部队');
+
+    const seed = hashSeed([
+      payload.warId,
+      playerId,
+      `npc${payload.npcBatchIndex ?? 0}`,
+      Date.now(),
+    ]);
+    const duelMapId = await roomService.pickDuelMapIdForSeed(seed);
+
+    let _pveSiegeKernelPromise = resolveAuthoritativePveSiege._kernelPromise;
+    if (!_pveSiegeKernelPromise) {
+      _pveSiegeKernelPromise = import('../../shared/battle/tacticalSim/runPvpTacticalDuel.js');
+      resolveAuthoritativePveSiege._kernelPromise = _pveSiegeKernelPromise;
+    }
+    const kernel = await _pveSiegeKernelPromise;
+
+    const tactical = kernel.runPvpTacticalDuel({
+      duelMapId,
+      lineupSnapshots: { a: attackerNpcs, b: defenderNpcs },
+      battleSeed: seed,
+      sideLabels: { a: '攻方', b: '守军' },
+      defenseBonus: { b: payload.cityDefense ?? 100 },
+    });
+    const adapted = tacticalToAutoDuelResult({
+      winnerSide: tactical.winnerSide,
+      finalState: tactical.finalState,
+      attackerSnapshot: attackerNpcs,
+      defenderSnapshot: defenderNpcs,
+    });
+    const result = adapted.attackerWon ? 'win' : 'lose';
+    // NPC 全局下标：按收尾兵力收集，勿把 adapted.killedIndices（已是全局）再当本批下标过滤
+    const killedIndices = collectSiegeKilledIndices(
+      defenderNpcs,
+      adapted.defenderTroopsEnd,
+      'npc_global',
+    );
+
+    const factionId = payload.playerFaction;
+    const record = await recordSiegeResult(
+      payload.warId,
+      playerId,
+      factionId,
+      killedIndices,
+      result,
+      0,
+      {
+        defenderType: 'npc',
+        npcBatchIndex: payload.npcBatchIndex,
+        battleScore: 0,
+        battleReportSaved: true,
+      },
+    );
+    recorded = true;
+
+    try {
+      await garrisonService.applyAuthoritativePvpAutoDuelAttackerLineupCasualties(
+        playerId,
+        attackerNpcs,
+        adapted.attackerTroopsEnd,
+      );
+    } catch (e) {
+      console.error(
+        `[cityService] PVE 攻城攻方兵力回写失败 war=${payload.warId} player=${playerId}: ${e.message}`,
+      );
+    }
+
+    const battleLog =
+      Array.isArray(tactical.battleLog) ? tactical.battleLog.join('\n') : String(tactical.battleLog || '');
+    await saveAuthoritativeSiegeAttackerBattleReport({
+      playerId,
+      battleType: 'pve_siege',
+      warId: payload.warId,
+      opponentType: 'npc',
+      opponentName: payload.cityName ? `${payload.cityName}守军` : '守军',
+      result,
+      attackerNpcs,
+      defenderNpcs,
+      attackerTroopsEnd: adapted.attackerTroopsEnd,
+      defenderTroopsEnd: adapted.defenderTroopsEnd,
+      defenderType: 'npc',
+      battleLog,
+      totalKills: killedIndices.length,
+      rounds: tactical.rounds || 0,
+    });
+
+    const initialAttackerTroops = snapshotSiegeUnitsForCinematic(attackerNpcs);
+    const initialDefenderTroops = snapshotSiegeUnitsForCinematic(defenderNpcs);
+    const aligned = alignCinematicEndByWinner(
+      adapted.attackerWon,
+      mapEndTroopsForCinematic(initialAttackerTroops, adapted.attackerTroopsEnd),
+      mapEndTroopsForCinematic(initialDefenderTroops, adapted.defenderTroopsEnd),
+    );
+
+    const npcTotal = Number(record.npcTotal ?? payload.npcTotal ?? 0);
+    const npcKilled = Number(record.npcKilled ?? record.killCount ?? 0);
+    const npcAlive =
+      Number.isFinite(npcTotal) && npcTotal > 0
+        ? Math.max(0, npcTotal - npcKilled)
+        : payload.npcAlive ?? null;
+
+    return {
+      ok: true,
+      attackerWon: adapted.attackerWon,
+      siegeCompleted: !!record.siegeCompleted,
+      defenderType: 'npc',
+      killCount: record.killCount ?? 0,
+      record,
+      initialAttackerTroops,
+      initialDefenderTroops,
+      attackerTroopsEnd: aligned.attackerTroopsEnd,
+      defenderTroopsEnd: aligned.defenderTroopsEnd,
+      battleLog,
+      cityName: payload.cityName || null,
+      cityId: payload.cityId || cityId,
+      warId: payload.warId,
+      npcBatchIndex: payload.npcBatchIndex ?? null,
+      npcAlive,
+      npcTotal: record.npcTotal ?? payload.npcTotal ?? null,
+      npcKilled,
+      playerFaction: factionId,
+    };
+  } catch (e) {
+    if (!recorded && payload) {
+      if (payload.npcBatchIndex != null && !Number.isNaN(Number(payload.npcBatchIndex))) {
+        releaseSiegeLock(
+          `def|${payload.warId}|${NPC_SIEGE_LOCK_DEFENDER_ID}|${Number(payload.npcBatchIndex)}`,
+          playerId,
+        );
+      } else if (payload.warId) {
+        for (let b = 0; b < NPC_LOCK_SWEEP; b++) {
+          releaseSiegeLock(`def|${payload.warId}|${NPC_SIEGE_LOCK_DEFENDER_ID}|${b}`, playerId);
+        }
+      }
+      try {
+        await refundSiegeQuotaOnce(playerId);
+      } catch (_) {
+        /* ignore */
+      }
+    }
+    console.error(
+      `[cityService] PVE 攻城权威推演失败 city=${cityId} player=${playerId}: ${e.message}`,
+    );
+    return { ok: false, error: e.message };
+  }
+}
+
 module.exports = {
   formatCityRowForApi,
   listCitiesForApi,
@@ -1727,6 +1896,7 @@ module.exports = {
   initiateSiege,
   openPveWarOnNeutralCity,
   recordSiegeResult,
+  resolveAuthoritativePveSiege,
   getWarStatus,
   parseNpcGarrisonStored,
   serializeNpcGarrisonStored,

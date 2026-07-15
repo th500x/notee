@@ -52,7 +52,7 @@ function formatBonus(bonus) {
 /**
  * 解析势力加成数据，从结构化JSON生成中文展示
  * 数据来源：faction_bonuses [{ key, value }]
- * 术语表：docs/00-base/04-2-DATA_TERM_DICTIONARY.md §1
+ * 术语表：docs/00/00-base/04-2-DATA_TERM_DICTIONARY.md §1
  */
 function parseBonuses(faction) {
   let raw = faction.faction_bonuses;

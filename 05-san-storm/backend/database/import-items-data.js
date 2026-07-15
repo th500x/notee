@@ -15,7 +15,8 @@
  * 注意:
  *   - 使用 ON DUPLICATE KEY UPDATE，可重复执行
  *   - 参考 import-events-data.js 的结构
- *   - itemType 含 season_badge 前，须已执行 migrations/add-config-items-item-type-season-badge.sql（见 import-all.js 说明）
+ *   - itemType 含 season_badge / chapter_tactical 前，须已执行对应 migrations
+ *     （add-config-items-item-type-season-badge.sql、add-item-pool-and-chapter-tactical.sql）
  */
 
 const mysql = require('mysql2/promise');

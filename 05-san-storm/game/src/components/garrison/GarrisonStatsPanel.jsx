@@ -1,9 +1,10 @@
 /**
  * 驻地编组数据面板 — 显示单将领的战力/暴击/闪避/粮草消耗与排名
- * 复用 LineupTab 的 LineupStatsPanel 计算公式
+ * 组合战力与 LineupStatsPanel 共用 `estimateLineupCombatPower`。
  */
 
 import { useCharacterRank } from '@/hooks/useCharacterRank';
+import { estimateLineupCombatPower } from '@shared/utils/lineupCombatPower.js';
 
 /** 与后端 characterRankService 一致（FNV-1a 32-bit），保证 bucket 长度适配 VARCHAR(48) */
 function garrisonBucketCitySeg(cityId) {
@@ -29,10 +30,13 @@ export default function GarrisonStatsPanel({
     garrison?.city_id != null && String(garrison.city_id).length > 0
       ? garrisonBucketCitySeg(garrison.city_id)
       : '';
+  // Extra 行带 lineup_slot（无 city_id）；驻地行带 garrison_slot + city_id
   const rankBucket =
-    garrison?.garrison_slot != null && charKey && citySeg
-      ? `garrison:${citySeg}:${garrison.garrison_slot}:${charKey}`
-      : null;
+    garrison?.lineup_slot != null && charKey
+      ? `extra:${garrison.lineup_slot}:${charKey}`
+      : garrison?.garrison_slot != null && charKey && citySeg
+        ? `garrison:${citySeg}:${garrison.garrison_slot}:${charKey}`
+        : null;
   const rankInfo = useCharacterRank(playerId, rankBucket);
 
   if (!garrison) return null;
@@ -42,10 +46,10 @@ export default function GarrisonStatsPanel({
 
   const cfg = charCard.config || {};
 
-  const combat  = (cfg.combat  ?? 0) + ((attributeBonus.combat  || 0) / 10);
-  const command = (cfg.command ?? 0) + ((attributeBonus.command  || 0) / 10);
-  const courage = (cfg.courage ?? 0) + ((attributeBonus.courage  || 0) / 10);
-  const luck    = (cfg.luck    ?? 0) + ((attributeBonus.luck     || 0) / 10);
+  const combat = cfg.combat ?? 0;
+  const command = cfg.command ?? 0;
+  const courage = cfg.courage ?? 0;
+  const luck = (cfg.luck ?? 0) + ((attributeBonus.luck || 0) / 10);
 
   const troop1 = getCardFromGarrison(`${charKey}_troop1`);
   const troop2 = getCardFromGarrison(`${charKey}_troop2`);
@@ -53,23 +57,25 @@ export default function GarrisonStatsPanel({
 
   if (troops.length === 0) return null;
 
-  let totalPower = 0;
+  const { power: totalPower } = estimateLineupCombatPower({
+    combat,
+    command,
+    courage,
+    attributeBonus,
+    characterRarity: charCard.rarity || cfg.rarity,
+    troops,
+  });
+
   let totalDeployCost = 0;
-
-  troops.forEach(card => {
-    const tc           = card.config || {};
-    const atk          = tc.attack || 0;
-    const def          = tc.defense || 0;
-    const maxTroops    = (tc.maxTroops || 0) + (card.bonusMaxTroops || 0);
+  troops.forEach((card) => {
+    const tc = card.config || {};
+    const maxTroops = (tc.maxTroops || 0) + (card.bonusMaxTroops || 0);
     const currentTroops = card.currentTroops ?? maxTroops;
-
-    const unitAtk   = (atk + combat * 6) * (1 + courage / 40);
-    const unitDef   = def + command * 5 + combat * 3;
-    totalPower      += Math.round((unitAtk + unitDef) * currentTroops / 1000);
     totalDeployCost += Math.ceil(currentTroops / 20);
   });
 
-  const critRate  = ((courage + luck) / 80 * 100).toFixed(1);
+  const critCourage = courage + ((attributeBonus.courage || 0) / 10);
+  const critRate = ((critCourage + luck) / 80 * 100).toFixed(1);
   const dodgeRate = luck.toFixed(1);
 
   return (
@@ -78,7 +84,7 @@ export default function GarrisonStatsPanel({
       <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
         <div className="flex items-center justify-between">
           <span className="text-stone-500">⚔️ 组合战力</span>
-          <span className="text-amber-400 font-bold">{totalPower || '—'}</span>
+          <span className="text-amber-400 font-bold">{totalPower ?? '—'}</span>
         </div>
         <div className="flex items-center justify-between">
           <span className="text-stone-500">💥 暴击率</span>

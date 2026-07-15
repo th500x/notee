@@ -95,9 +95,10 @@ export async function renderCroppedPhotoBlob({
  * @param {Blob} blob
  * @returns {File}
  */
-export function buildProcessedPhotoFile(originalFile, blob) {
+export function buildProcessedPhotoFile(originalFile, blob, displayFilename = null) {
   const mime = resolveExportMime(originalFile.type);
   const ext = mime === 'image/png' ? 'png' : mime === 'image/webp' ? 'webp' : 'jpg';
-  const base = String(originalFile.name || 'photo').replace(/\.[^.]+$/, '');
+  const sourceName = displayFilename || originalFile.name || 'photo';
+  const base = String(sourceName).replace(/\.[^.]+$/, '');
   return new File([blob], `${base}.${ext}`, { type: mime, lastModified: Date.now() });
 }

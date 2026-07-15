@@ -29,6 +29,7 @@ const {
   FREE_MOVES_PER_DAY,
   FOOD_PER_STEP,
   RESERVE_FOOD_DAILY_LIMIT,
+  ROAD_ENCOUNTERS_ENABLED,
   newEncounterId,
   toInt,
   buildPlayerRoadSnapshot,
@@ -671,8 +672,26 @@ async function moveAlongRoadAttempt(playerId, body) {
       await resolveAbandonedRoadFightOnCellIfOpponentOffline(conn, season, junId, startX, startY, pid);
     }
 
+    // 道路遭遇战已下线：取消本玩家残留 pending/fighting，避免旧锁卡死行军
+    if (!ROAD_ENCOUNTERS_ENABLED) {
+      await conn.query(
+        `UPDATE road_encounters
+            SET status = 'cancelled', ended_at = NOW()
+          WHERE status IN ('pending', 'fighting')
+            AND (attacker_player_id = ? OR defender_player_id = ?)`,
+        [pid, pid],
+      );
+    }
+
     // 遭遇进行中：**攻防任一方**均不可离开交战格，直至 `road_encounters` 为 `resolved`（守方遇袭 / 观战口径不变）。
-    if (steps.length && onRoad && startX != null && startY != null && String(player.road_jun_id || '').trim() === String(junId).trim()) {
+    if (
+      ROAD_ENCOUNTERS_ENABLED &&
+      steps.length &&
+      onRoad &&
+      startX != null &&
+      startY != null &&
+      String(player.road_jun_id || '').trim() === String(junId).trim()
+    ) {
       const [trapRows] = await conn.query(
         `SELECT encounter_id, position_x, position_y
            FROM road_encounters
@@ -731,13 +750,14 @@ async function moveAlongRoadAttempt(playerId, body) {
         toInt(resolvedPath[0].y) === startYWorld;
 
       if (canPoiSnapFromAdjRoad) {
+        if (ROAD_ENCOUNTERS_ENABLED) {
         const [trapRows0] = await conn.query(
           `SELECT encounter_id, position_x, position_y
              FROM road_encounters
             WHERE status = 'fighting' AND season = ? AND jun_id = ?
               AND position_x = ? AND position_y = ?
               AND (attacker_player_id = ? OR defender_player_id = ?)
-            LIMIT 1`,
+          LIMIT 1`,
           [season, junId, startX, startY, pid, pid],
         );
         if (trapRows0.length) {
@@ -748,6 +768,7 @@ async function moveAlongRoadAttempt(playerId, body) {
             error:
               '道路遭遇进行中，本场结束前不可离开交战格（若已收到遇袭提示，可点「确定」进场观战）',
           };
+        }
         }
         await resolveStaleRoadEncountersAtCell(conn, season, junId, startX, startY);
         await resolveAbandonedRoadFightOnCellIfOpponentOffline(conn, season, junId, startX, startY, pid);
@@ -868,6 +889,8 @@ async function moveAlongRoadAttempt(playerId, body) {
       await resolveAbandonedRoadFightOnCellIfOpponentOffline(conn, season, stepJun, stepPx, stepPy, pid);
 
       // 1) 交战登记格：非攻防双方 **不得以本格为本次道路段最后一步**；过境（同请求内后续仍有道路步）不拦。与 `road_intercept` 无关。
+      let skipHostileBecauseEncounterTransit = false;
+      if (ROAD_ENCOUNTERS_ENABLED) {
       const [lockRows] = await conn.query(
         `SELECT encounter_id, attacker_player_id, defender_player_id
            FROM road_encounters
@@ -876,7 +899,6 @@ async function moveAlongRoadAttempt(playerId, body) {
           FOR UPDATE`,
         [season, stepJun, stepPx, stepPy],
       );
-      let skipHostileBecauseEncounterTransit = false;
       if (lockRows.length) {
         const lr = lockRows[0];
         const lockMeta = {
@@ -895,6 +917,7 @@ async function moveAlongRoadAttempt(playerId, body) {
           }
           skipHostileBecauseEncounterTransit = true;
         }
+      }
       }
 
       // 2) 同格玩家（与 `getRoadPresence` 一致：仅「近期活跃」账号算占格；久未活跃敌对先自动退让，避免离线叠坐标假遭遇 / 409）
@@ -969,6 +992,13 @@ async function moveAlongRoadAttempt(playerId, body) {
         }
         if (!defender) {
           // 格上仅有非敌对玩家（M2：同势力等）：允许同格叠站，继续走后续路径。
+          lastX = wsx;
+          lastY = wsy;
+          stepsApplied = i + 1;
+          continue;
+        }
+        // 道路遭遇战已下线：敌对同格与友方一样允许叠站，不登记遭遇、不要求开战门闸。
+        if (!ROAD_ENCOUNTERS_ENABLED) {
           lastX = wsx;
           lastY = wsy;
           stepsApplied = i + 1;

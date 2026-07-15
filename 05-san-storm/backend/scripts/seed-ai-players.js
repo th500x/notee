@@ -9,7 +9,7 @@
  *
  * 复用 aiPlayerFillService（与未来后台/管理端入口同一逻辑），脚本只负责参数解析与汇报。
  * 可玩势力白名单见 config/aiPlayerBehavior.js（当前：刘备/汉室/黄巾）。
- * 设计文档：docs/40-ai/42-2-AI_PLAYER_IMPLEMENTATION.md Step 1。
+ * 设计文档：docs/01-jun-exploration/40-ai/42-2-AI_PLAYER_IMPLEMENTATION.md Step 1。
  */
 
 require('dotenv').config({ path: require('path').join(__dirname, '../.env') });

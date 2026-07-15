@@ -1,7 +1,13 @@
-// 周数据收集脚本V2 - 带失败重试机制
-import fs from 'fs'
+// 周数据收集脚本V2 - 带失败重试、增量收集、自动周次
 import path from 'path'
 import { fileURLToPath } from 'url'
+import { getPreviousWeekId, resolveWeeksToCollect } from './lib/weekSchedule.js'
+import { REQUEST_DELAY, RETRY_DELAY, delay } from './lib/apiDelay.js'
+import {
+  loadWeeklyData,
+  mergeWeeklyData,
+  saveWeeklyData,
+} from './lib/weeklyDataStore.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -15,11 +21,10 @@ const calculateBTCFromATH = (currentPrice) => {
   return parseFloat(drawdown.toFixed(1))
 }
 
-// CoinGecko API配置
+
+// CoinGecko API配置（限速见 ./lib/apiDelay.js）
 const COINGECKO_API_BASE = 'https://api.coingecko.com/api/v3'
-const REQUEST_DELAY = 25000 // 25秒延迟
-const RETRY_DELAY = 30000   // 重试延迟30秒
-const MAX_RETRIES = 1
+const MAX_RETRIES = 4 // 批量采集时 CoinGecko 429 较频繁，多几次重试
 
 // 支持的币种
 const COINS = {
@@ -35,22 +40,102 @@ const formatDateForAPI = (date) => {
   return `${day}-${month}-${year}`
 }
 
-// 工具函数：延迟执行
-const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms))
+// 检查现有数据并识别缺失的日期（仅补缺，不整周重拉）
+const checkExistingData = (existingData, weekId, startDate, endDate) => {
+  const weekData = existingData[weekId]
 
-// 工具函数：获取上一周的weekId
-const getPreviousWeekId = (weekId) => {
-  const [year, weekStr] = weekId.split('-W')
-  const weekNum = parseInt(weekStr)
-  
-  if (weekNum === 1) {
-    const prevYear = parseInt(year) - 1
-    const lastWeekOfPrevYear = prevYear === 2025 ? 53 : 52
-    return `${prevYear}-W${lastWeekOfPrevYear.toString().padStart(2, '0')}`
+  if (!weekData || !weekData.rawData) {
+    console.log(`📋 ${weekId}: 无现有数据，需要完整收集`)
+    return {
+      needsCollection: true,
+      missingBTCDates: [],
+      missingETHDates: [],
+      missingWeeklyChange: true,
+      missingRatio: true,
+      existingData: weekData,
+    }
+  }
+
+  const allDates = []
+  let currentDate = new Date(startDate)
+  while (currentDate <= endDate) {
+    allDates.push(currentDate.toISOString().split('T')[0])
+    currentDate.setDate(currentDate.getDate() + 1)
+  }
+
+  const existingBTCDates = weekData.rawData.btc?.dates || []
+  const missingBTCDates = allDates.filter((date) => !existingBTCDates.includes(date))
+  const existingETHDates = weekData.rawData.eth?.dates || []
+  const missingETHDates = allDates.filter((date) => !existingETHDates.includes(date))
+  const missingWeeklyChange = (() => {
+    if (!weekData.rawData?.weeklyChangeData) return true
+    const avg = weekData.rawData?.btc?.average ?? weekData.btcWeeklyAvgPrice
+    if (avg != null && weekData.rawData.weeklyChangeData?.currentWeekAvg !== avg) return true
+    const prevId = getPreviousWeekId(weekId)
+    const prevAvg = existingData[prevId]?.btcWeeklyAvgPrice
+    if (prevAvg && avg != null) {
+      const expected = parseFloat((((avg - prevAvg) / prevAvg) * 100).toFixed(2))
+      if (weekData.btcWeeklyChange !== expected) return true
+    }
+    return false
+  })()
+  const missingRatio = !weekData.rawData.ratioData || !weekData.ethBtcRatio
+
+  const needsCollection =
+    missingBTCDates.length > 0 ||
+    missingETHDates.length > 0 ||
+    missingWeeklyChange ||
+    missingRatio
+
+  if (needsCollection) {
+    console.log(`📋 ${weekId}: 发现缺失数据`)
+    console.log(`   缺失BTC日期: ${missingBTCDates.length || '无'}`)
+    console.log(`   缺失ETH日期: ${missingETHDates.length || '无'}`)
   } else {
-    return `${year}-W${(weekNum - 1).toString().padStart(2, '0')}`
+    console.log(`✅ ${weekId}: 数据完整，跳过 API`)
+  }
+
+  return {
+    needsCollection,
+    missingBTCDates,
+    missingETHDates,
+    missingWeeklyChange,
+    missingRatio,
+    existingData: weekData,
   }
 }
+
+const collectMissingPrices = async (coinId, missingDates, existingCoinRaw = null) => {
+  if (missingDates.length === 0 && existingCoinRaw) {
+    return existingCoinRaw
+  }
+
+  const prices = existingCoinRaw ? [...existingCoinRaw.prices] : []
+  const dates = existingCoinRaw ? [...existingCoinRaw.dates] : []
+
+  for (const dateStr of missingDates) {
+    const date = new Date(dateStr + 'T12:00:00')
+    const price = await getCoinPriceOnDate(coinId, date)
+    if (price !== null) {
+      prices.push(price)
+      dates.push(dateStr)
+    }
+    await delay(REQUEST_DELAY)
+  }
+
+  if (prices.length === 0) return null
+
+  const average = prices.reduce((sum, price) => sum + price, 0) / prices.length
+  return {
+    average: parseFloat(average.toFixed(2)),
+    prices,
+    dates,
+    dataPoints: prices.length,
+    isComplete: dates.length >= missingDates.length + (existingCoinRaw?.dates?.length || 0),
+  }
+}
+
+// 工具函数：获取上一周的weekId — 见 ./lib/weekSchedule.js
 
 // 获取指定日期的币种价格 - 带重试机制
 const getCoinPriceOnDate = async (coinId, date, retryCount = 0) => {
@@ -170,15 +255,8 @@ const collectCoinWeekData = async (coinId, startDate, endDate) => {
 const calculateBTCWeeklyChange = async (currentWeekAvgPrice, previousWeekId) => {
   try {
     console.log('\n📈 计算BTC周涨跌幅...')
-    
-    const weeklyDataPath = path.join(__dirname, '../public/weeklyData.json')
-    let weeklyData = {}
-    
-    if (fs.existsSync(weeklyDataPath)) {
-      const fileContent = fs.readFileSync(weeklyDataPath, 'utf-8')
-      weeklyData = JSON.parse(fileContent)
-    }
-    
+
+    const weeklyData = loadWeeklyData()
     const previousWeekData = weeklyData[previousWeekId]
     
     if (!previousWeekData || !previousWeekData.btcWeeklyAvgPrice) {
@@ -225,188 +303,168 @@ const calculateETHBTCRatio = async (weekEndDate) => {
   }
 }
 
-// 收集指定周的完整数据
-const collectWeekData = async (weekId, startDate, endDate) => {
+// 收集指定周的完整数据（增量优先）
+const collectWeekData = async (weekId, startDate, endDate, allExistingData = {}) => {
   console.log(`\n🔄 开始收集 ${weekId} 数据 (${formatDateForAPI(startDate)} 到 ${formatDateForAPI(endDate)})`)
-  
+
+  const dataCheck = checkExistingData(allExistingData, weekId, startDate, endDate)
+  if (!dataCheck.needsCollection) {
+    return dataCheck.existingData
+  }
+
   try {
-    // 收集BTC数据
-    const btcData = await collectCoinWeekData(COINS.bitcoin, startDate, endDate)
-    if (!btcData) {
-      throw new Error('未能获取BTC价格数据')
+    let btcData
+    if (dataCheck.missingBTCDates.length === 0 && dataCheck.existingData?.rawData?.btc) {
+      btcData = dataCheck.existingData.rawData.btc
+    } else if (dataCheck.existingData?.rawData?.btc && dataCheck.missingBTCDates.length > 0) {
+      btcData = await collectMissingPrices(
+        COINS.bitcoin,
+        dataCheck.missingBTCDates,
+        dataCheck.existingData.rawData.btc,
+      )
+    } else {
+      btcData = await collectCoinWeekData(COINS.bitcoin, startDate, endDate)
     }
-    
-    // 币种间延迟
-    console.log('\n⏳ 币种间延迟 30 秒...')
-    await delay(30000)
-    
-    // 收集ETH数据
-    const ethData = await collectCoinWeekData(COINS.ethereum, startDate, endDate)
-    if (!ethData) {
-      throw new Error('未能获取ETH价格数据')
+    if (!btcData) throw new Error('未能获取BTC价格数据')
+
+    if (dataCheck.missingETHDates.length > 0 || !dataCheck.existingData?.rawData?.eth) {
+      console.log('\n⏳ 币种间延迟 30 秒...')
+      await delay(30000)
     }
-    
-    // 检查数据完整性
-    if (!btcData.isComplete || !ethData.isComplete) {
-      console.log('\n⚠️  警告: 数据不完整，但继续处理...')
+
+    let ethData
+    if (dataCheck.missingETHDates.length === 0 && dataCheck.existingData?.rawData?.eth) {
+      ethData = dataCheck.existingData.rawData.eth
+    } else if (dataCheck.existingData?.rawData?.eth && dataCheck.missingETHDates.length > 0) {
+      ethData = await collectMissingPrices(
+        COINS.ethereum,
+        dataCheck.missingETHDates,
+        dataCheck.existingData.rawData.eth,
+      )
+    } else {
+      ethData = await collectCoinWeekData(COINS.ethereum, startDate, endDate)
     }
-    
-    // 只有数据完整时才计算周涨跌和比率
-    let btcWeeklyChange = 0
-    let ethBtcRatio = 0.035
-    
-    if (btcData.isComplete && ethData.isComplete) {
-      console.log('\n✅ 数据完整，开始计算周涨跌和比率...')
-      
-      // 计算周涨跌幅
+    if (!ethData) throw new Error('未能获取ETH价格数据')
+
+    const btcComplete = btcData.isComplete !== false
+    const ethComplete = ethData.isComplete !== false
+
+    let btcWeeklyChange = dataCheck.existingData?.btcWeeklyChange ?? 0
+    let weeklyChangeData = dataCheck.existingData?.rawData?.weeklyChangeData ?? null
+    let ethBtcRatio = dataCheck.existingData?.ethBtcRatio ?? 0.035
+    let ratioData = dataCheck.existingData?.rawData?.ratioData ?? null
+
+    if (dataCheck.missingWeeklyChange && btcComplete && ethComplete) {
       console.log('\n⏳ 准备计算周涨跌幅，延迟 30 秒...')
       await delay(30000)
-      
       const previousWeekId = getPreviousWeekId(weekId)
       if (weekId === '2025-W01') {
-        console.log('📈 BTC周涨跌幅: 2025-W01为第一周，无上周数据，设为0')
         btcWeeklyChange = 0
       } else {
         btcWeeklyChange = await calculateBTCWeeklyChange(btcData.average, previousWeekId)
       }
-      
-      // 计算ETH/BTC比率
+      weeklyChangeData = {
+        currentWeekAvg: btcData.average,
+        previousWeekId,
+        weeklyChange: btcWeeklyChange,
+      }
+    }
+
+    if (dataCheck.missingRatio && btcComplete && ethComplete) {
       console.log('\n⏳ 准备计算ETH/BTC比率，延迟 30 秒...')
       await delay(30000)
       ethBtcRatio = await calculateETHBTCRatio(endDate)
-    } else {
-      console.log('\n⚠️  数据不完整，跳过周涨跌和比率计算')
+      ratioData = {
+        calculationDate: endDate.toISOString().split('T')[0],
+        ethBtcRatio,
+      }
     }
-    
-    // 构建周数据对象
+
+    const prior = dataCheck.existingData || {}
     const weekData = {
-      weekId: weekId,
+      weekId,
       year: startDate.getFullYear(),
       weekNumber: parseInt(weekId.split('-W')[1]),
       weekStart: startDate.toISOString().split('T')[0],
       weekEnd: endDate.toISOString().split('T')[0],
-      btcWeeklyChange: btcWeeklyChange,
+      btcWeeklyChange,
       btcWeeklyAvgPrice: btcData.average,
       ethWeeklyAvgPrice: ethData.average,
-      fearGreedIndex: 50,
-      mayerMultiple: 1.5,
-      ahr999: 1.0,
-      ethBtcRatio: ethBtcRatio,
+      fearGreedIndex: prior.fearGreedIndex ?? 50,
+      mayerMultiple: prior.mayerMultiple ?? 1.5,
+      ahr999: prior.ahr999 ?? 1.0,
+      ethBtcRatio,
       btcFromATH: calculateBTCFromATH(btcData.average),
-      btcFourYearIndex: 0.8,
-      personalRating: 3,
+      btcFourYearIndex: prior.btcFourYearIndex ?? 0.8,
+      fedRate: prior.fedRate,
+      bojRate: prior.bojRate,
+      personalRating: prior.personalRating ?? 3,
       marketTrend: btcWeeklyChange >= 0 ? 'bullish' : 'bearish',
       updatedAt: new Date().toISOString(),
-      dataSource: 'coingecko_api_v2_with_retry',
+      dataSource: 'coingecko_api_v2_incremental',
       rawData: {
+        ...(prior.rawData || {}),
         btc: btcData,
         eth: ethData,
-        weeklyChangeData: btcWeeklyChange !== 0 ? {
-          currentWeekAvg: btcData.average,
-          previousWeekId: getPreviousWeekId(weekId),
-          weeklyChange: btcWeeklyChange
-        } : null,
-        ratioData: ethBtcRatio !== 0.035 ? {
-          calculationDate: endDate.toISOString().split('T')[0],
-          ethBtcRatio: ethBtcRatio
-        } : null
-      }
+        weeklyChangeData,
+        ratioData,
+      },
     }
-    
+
     console.log(`✅ ${weekId} 数据收集完成`)
-    console.log(`📊 汇总: BTC均价 ${btcData.average}, ETH均价 ${ethData.average}`)
-    console.log(`📈 BTC周涨跌幅: ${btcWeeklyChange}%, ETH/BTC比率: ${ethBtcRatio}`)
-    
     return weekData
-    
   } catch (error) {
     console.error(`❌ 收集 ${weekId} 数据失败:`, error.message)
     return null
   }
 }
 
-// 保存数据到文件
-const saveDataToFile = (newData, filename) => {
-  try {
-    const projectRoot = path.resolve(__dirname, '..')
-    const filePath = path.join(projectRoot, 'src', 'data', filename)
-    
-    const dir = path.dirname(filePath)
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true })
-    }
-    
-    let existingData = {}
-    if (fs.existsSync(filePath)) {
-      try {
-        const existingContent = fs.readFileSync(filePath, 'utf8')
-        existingData = JSON.parse(existingContent)
-      } catch (error) {
-        console.log('⚠️ 现有数据文件格式错误，将创建新文件')
-      }
-    }
-    
-    const mergedData = { ...existingData, ...newData }
-    
-    fs.writeFileSync(filePath, JSON.stringify(mergedData, null, 2), 'utf8')
-    console.log(`💾 数据已保存到: ${filePath}`)
-    console.log(`📊 总计数据: ${Object.keys(mergedData).length} 周`)
-    
-    // 同步到public目录
-    const publicPath = path.join(projectRoot, 'public', filename)
-    fs.writeFileSync(publicPath, JSON.stringify(mergedData, null, 2), 'utf8')
-    console.log(`💾 数据已同步到: ${publicPath}`)
-    
-  } catch (error) {
-    console.error('❌ 保存数据失败:', error.message)
-  }
-}
-
-// 定义要收集的周数据
-const WEEKS_TO_COLLECT = [
-  {
-    id: '2026-W05',
-    start: new Date(2026, 1, 1),  // 2026-02-01
-    end: new Date(2026, 1, 7)     // 2026-02-07
-  }
-]
-
 // 主函数
 const main = async () => {
-  console.log('🚀 开始收集周数据 (V2 - 带重试机制)...')
-  console.log(`📅 收集周期: ${WEEKS_TO_COLLECT.length} 周`)
-  
-  // 测试API连接
+  const dryRun = process.argv.includes('--dry-run')
+  const force = process.argv.includes('--force')
+
+  console.log('🚀 开始收集周数据 (V2 · 增量 · 自动周次)...')
+
+  const existingData = loadWeeklyData()
+  const weeks = resolveWeeksToCollect(existingData)
+
+  if (weeks.length === 0) {
+    console.log('\n✅ 无需 API 收集')
+    return
+  }
+
+  console.log(`📅 计划收集: ${weeks.map((w) => w.id).join(', ')}`)
+  if (dryRun) {
+    console.log('🏁 --dry-run：未写入文件')
+    return
+  }
+
   try {
-    console.log('🧪 测试API连接...')
     const testResponse = await fetch('https://api.coingecko.com/api/v3/ping')
-    const testData = await testResponse.json()
-    console.log('✅ API连接成功:', testData)
+    console.log('✅ API连接成功:', await testResponse.json())
   } catch (error) {
     console.error('❌ API连接失败:', error.message)
     return
   }
-  
+
   const collectedData = {}
-  
-  for (const week of WEEKS_TO_COLLECT) {
-    const weekData = await collectWeekData(week.id, week.start, week.end)
+  for (const week of weeks) {
+    const weekData = await collectWeekData(week.id, week.startDate, week.endDate, existingData)
     if (weekData) {
       collectedData[week.id] = weekData
     }
-    
-    // 周之间延迟
     await delay(REQUEST_DELAY * 2)
   }
-  
-  console.log(`\n📊 收集结果: ${Object.keys(collectedData).length}/${WEEKS_TO_COLLECT.length} 周`)
-  
-  if (Object.keys(collectedData).length > 0) {
-    saveDataToFile(collectedData, 'weeklyData.json')
-    console.log('\n🎉 数据收集完成!')
-  } else {
-    console.log('\n❌ 未收集到任何数据')
+
+  if (Object.keys(collectedData).length === 0) {
+    console.log('\n❌ 未收集到任何新数据')
+    return
   }
+
+  const merged = mergeWeeklyData(existingData, collectedData)
+  saveWeeklyData(merged, { force })
+  console.log('\n🎉 数据收集完成!')
 }
 
 // 执行
@@ -415,4 +473,4 @@ main().catch(error => {
   console.error('💥 脚本执行失败:', error)
 })
 
-export { collectWeekData, saveDataToFile }
+export { collectWeekData }

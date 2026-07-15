@@ -5,7 +5,7 @@
  * → 写 ai_players 行为基线。AI 与真人唯一差异为 accounts.account_type='ai'（禁止登录、不计 max_players）
  * 与「无人工向导、由本服务批量生成」。
  *
- * 设计文档：docs/40-ai/42-1-AI_PLAYER_SYSTEM.md §2/§3，42-2-AI_PLAYER_IMPLEMENTATION.md Step 1。
+ * 设计文档：docs/01-jun-exploration/40-ai/42-1-AI_PLAYER_SYSTEM.md §2/§3，42-2-AI_PLAYER_IMPLEMENTATION.md Step 1。
  */
 
 const bcrypt = require('bcrypt');

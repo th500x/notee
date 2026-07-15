@@ -4,7 +4,8 @@ import 'react-calendar/dist/Calendar.css'
 import './App.css'
 import NewsDisplay from './components/NewsDisplay'
 import HotNews from './components/HotNews'
-import { getNewsForDate, loadNewsData } from './utils/newsData'
+import { formatDateKey } from './utils/dateUtils'
+import { loadNewsData } from './utils/newsData'
 import { DATE_CONSTANTS, LOG_PREFIX } from './constants'
 
 function App() {
@@ -19,8 +20,6 @@ function App() {
   // 错误和加载状态
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
-  const [selectedDateLoading, setSelectedDateLoading] = useState(false)
-  const [selectedDateError, setSelectedDateError] = useState(null)
 
   // 使用配置常量设置日期范围
   const minDate = DATE_CONSTANTS.MIN_DATE
@@ -128,28 +127,13 @@ function App() {
     loadNews()
   }, [])
 
-  // 当选中日期改变时，加载对应的新闻数据
+  // 当选中日期改变时，从已加载的全量数据中切片（不再重复请求 API）
   useEffect(() => {
-    // 等待 selectedDate 被设置后再加载
-    if (!selectedDate) return
-    
-    const loadSelectedDateNews = async () => {
-      try {
-        setSelectedDateLoading(true)
-        setSelectedDateError(null)
-        const news = await getNewsForDate(selectedDate)
-        setSelectedDateNews(news)
-      } catch (error) {
-        console.error(`${LOG_PREFIX.APP} 加载选中日期新闻失败:`, error)
-        setSelectedDateError(error.message || '加载新闻失败')
-        setSelectedDateNews({})
-      } finally {
-        setSelectedDateLoading(false)
-      }
-    }
-    
-    loadSelectedDateNews()
-  }, [selectedDate])
+    if (!selectedDate || Object.keys(newsData).length === 0) return
+
+    const dateKey = formatDateKey(selectedDate)
+    setSelectedDateNews(newsData[dateKey] || {})
+  }, [selectedDate, newsData])
 
   const handleDateChange = (date) => {
     setSelectedDate(date)
@@ -281,31 +265,11 @@ function App() {
           <div className="lg:col-span-2">
             {/* 当天新闻内容 - 移动端优先显示 */}
             <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-              {selectedDateLoading ? (
-                <div className="text-center py-8">
-                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
-                  <p className="text-gray-600">加载新闻中...</p>
-                </div>
-              ) : selectedDateError ? (
-                <div className="text-center py-8">
-                  <svg className="w-12 h-12 text-red-500 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  <p className="text-red-600 mb-4">{selectedDateError}</p>
-                  <button 
-                    onClick={() => setSelectedDate(new Date(selectedDate))}
-                    className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
-                  >
-                    重试
-                  </button>
-                </div>
-              ) : (
-                <NewsDisplay 
-                  selectedDate={selectedDate}
-                  newsData={selectedDateNews}
-                  onEmojiUpdate={refreshHotNews}
-                />
-              )}
+              <NewsDisplay 
+                selectedDate={selectedDate}
+                newsData={selectedDateNews}
+                onEmojiUpdate={refreshHotNews}
+              />
             </div>
             
             {/* 手机端热门新闻 - 显示在新闻内容之后 */}

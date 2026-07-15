@@ -1,7 +1,7 @@
 /**
  * 探索配额：服务端恢复与消耗（与 routes/players explore-quota 行为一致）
  *
- * 恢复算法与攻城配额共用 `backend/utils/hourlyQuotaWithRestWindow.js`，见 docs/10-core-system/15-2。
+ * 恢复算法与攻城配额共用 `backend/utils/hourlyQuotaWithRestWindow.js`，见 docs/00/10-core-system/15-2。
  */
 
 const { pool } = require('../database/connection');

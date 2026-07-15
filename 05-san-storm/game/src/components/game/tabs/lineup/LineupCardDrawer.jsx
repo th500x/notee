@@ -53,6 +53,11 @@ export default function LineupCardDrawer({ slot, cards, allCards = [], skillsMap
           {cards.length === 0 ? (
             <div className="text-center py-8 text-stone-500 text-sm">
               暂无可装备的{slot.label}
+              {slot?.id === 'troop' || slot?.id === 'troop1' || slot?.id === 'troop2' ? (
+                <div className="text-stone-600 text-xs mt-2 px-4">
+                  若军营中仍可见该卡，可能是耐久已耗尽（核心金卡不可再装）或已被驻地编组占用
+                </div>
+              ) : null}
             </div>
           ) : (
             rarityGroups.map(({ rarity, cards: groupCards }) => (

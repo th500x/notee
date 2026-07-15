@@ -368,7 +368,10 @@ export function useBattleAnimations({
       }
       const rawDmg = calcDamage(actor, def, mapResult ? mapResult.terrain : null, strikeOpts);
       const dmgMult = roll === 'crit' ? 1.5 : 1;
-      const rawApplied = troopDamageToCasualties(def, Math.round(rawDmg * dmgMult));
+      const rawApplied = troopDamageToCasualties(def, Math.round(rawDmg * dmgMult), {
+        attacker: actor,
+        strike: strikeOpts.strike === 'counter' ? 'counter' : 'normal',
+      });
       const r = resolveIncomingCasualtiesWithPhase2FirstHit(def, rawApplied);
       if (r.immuneTriggered) {
         await battleFirstHitImmune(actor, def);
@@ -1012,7 +1015,7 @@ export function useBattleAnimations({
       const dmg = calcDamage(atk, def, mapResult ? mapResult.terrain : null, strikeOpts);
       if (roll === 'dodge') { await battleMiss(atk, def); return 0; }
       if (roll === 'crit') {
-        const cd = troopDamageToCasualties(def, Math.round(dmg * 1.5));
+        const cd = troopDamageToCasualties(def, Math.round(dmg * 1.5), { attacker: atk, strike: 'normal' });
         const r = resolveIncomingCasualtiesWithPhase2FirstHit(def, cd);
         if (r.immuneTriggered) {
           await battleFirstHitImmune(atk, def);
@@ -1021,7 +1024,7 @@ export function useBattleAnimations({
         await battleCrit(atk, def, r.casualties);
         return r.casualties;
       }
-      const applied = troopDamageToCasualties(def, dmg);
+      const applied = troopDamageToCasualties(def, dmg, { attacker: atk, strike: 'normal' });
       const r = resolveIncomingCasualtiesWithPhase2FirstHit(def, applied);
       if (r.immuneTriggered) {
         await battleFirstHitImmune(atk, def);
@@ -1050,12 +1053,12 @@ export function useBattleAnimations({
       const aggressor = def;
       if (roll === 'dodge') { await battleMiss(def, atk); }
       else if (roll === 'crit') {
-        const cd = troopDamageToCasualties(victim, Math.round(dmg * 1.5));
+        const cd = troopDamageToCasualties(victim, Math.round(dmg * 1.5), { attacker: def, strike: 'counter' });
         const r = resolveIncomingCasualtiesWithPhase2FirstHit(victim, cd);
         if (r.immuneTriggered) await battleFirstHitImmune(aggressor, victim);
         else await battleCrit(def, atk, r.casualties);
       } else {
-        const applied = troopDamageToCasualties(victim, dmg);
+        const applied = troopDamageToCasualties(victim, dmg, { attacker: def, strike: 'counter' });
         const r = resolveIncomingCasualtiesWithPhase2FirstHit(victim, applied);
         if (r.immuneTriggered) await battleFirstHitImmune(aggressor, victim);
         else {

@@ -136,13 +136,15 @@ const TroopCard = ({
   const getFactionIcon = () => {
     const factionToId = {
       '通用': 'san_1_faction_0001',
+      '三王': 'san_1_faction_1001',
       '刘备': 'san_1_faction_1001',
-      '曹操': 'san_1_faction_2001',
-      '孙坚': 'san_1_faction_3001',
-      '袁绍': 'san_1_faction_4001',
-      '董卓': 'san_1_faction_5001',
-      '汉室': 'san_1_faction_6001',
-      '黄巾': 'san_1_faction_7001',
+      '汉室': 'san_1_faction_2001',
+      '黄巾': 'san_1_faction_3001',
+      // 卡池历史标签：曹操/孙坚同属三王叙事段，图标落到 1001
+      '曹操': 'san_1_faction_1001',
+      '孙坚': 'san_1_faction_1001',
+      '袁绍': 'san_1_faction_1001',
+      '董卓': 'san_1_faction_1001',
     };
 
     const factionId = factionToId[troop.faction] || 'san_1_faction_0001';

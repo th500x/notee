@@ -10,6 +10,7 @@ import { loadSharedData } from '@/services/dataService';
 import { formatHistoryMonthDayLabel, pickHistoryEntriesForToday } from '@/utils/historyOnThisDay';
 import { notifyDailyReportNotifyRefresh } from '@/utils/dailyReportNotifyRefresh';
 import DailyReportCheckinCalendar from '@/components/game/DailyReportCheckinCalendar';
+import DailyReportWarVoteSection from '@/components/game/DailyReportWarVoteSection';
 import { dailyReportM2ReleaseNotes } from '@/data/texts/dailyReportReleaseNotes';
 
 function fmtOfficialLine(entry) {
@@ -176,6 +177,8 @@ export default function DailyReportPanel({ open, onClose, playerId }) {
           </div>
 
           <div className="flex min-w-0 flex-col gap-4">
+            <DailyReportWarVoteSection playerId={playerId} />
+
             <section className="rounded-lg border border-stone-200 bg-white p-3 shadow-sm">
               <h3 className="text-sm font-bold text-amber-900 mb-2">
                 历史上的今天

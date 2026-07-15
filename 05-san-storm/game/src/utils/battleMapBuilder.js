@@ -8,7 +8,7 @@
  *   const mapData = buildBattleMap({ seed: 42, battleRarity: 'epic' });
  *   const battleMap = new BattleMap(mapData);
  *
- * @see docs/90-assets/91-2-MAP_AUTO_GENERATION.md
+ * @see docs/00/90-assets/91-2-MAP_AUTO_GENERATION.md
  */
 
 import { generateSmallMap, TERRAIN, ZONE } from '@shared/utils/mapGenerator';

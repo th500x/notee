@@ -51,18 +51,19 @@ async function getOnlineDefenders(cityId, attackerId, attackerFaction) {
   const [rows] = await pool.query(
     `SELECT g.*, p.character_name, p.position_level,
             p.last_active_at AS playerActive, a.lastActiveAt AS accountActive
-     FROM player_garrison g
+     FROM player_lineup_sets g
      JOIN players p ON g.player_id = p.player_id
      JOIN accounts a ON g.player_id = a.id
      JOIN cities c ON c.city_id = g.city_id
-     WHERE g.city_id = ? AND g.is_active = TRUE
+     WHERE g.lineup_scope = 'garrison' AND g.city_id = ? AND g.is_active = TRUE
        AND g.player_id != ? AND p.faction_id != ?
        AND c.faction_id IS NOT NULL AND p.faction_id = c.faction_id
-     ORDER BY p.position_level ASC, g.garrison_slot ASC`,
+     ORDER BY p.position_level ASC, g.lineup_slot ASC`,
     [cityId, attackerId, attackerFaction]
   );
 
-  const troopOk = await garrisonService.filterCityDefenseRowsByMinStationedTroop(rows);
+  const { mapGarrisonApiRows } = require('../constants/lineupSets');
+  const troopOk = await garrisonService.filterCityDefenseRowsByMinStationedTroop(mapGarrisonApiRows(rows));
 
   const now = Date.now();
   return troopOk.filter((r) => {

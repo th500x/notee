@@ -1,6 +1,6 @@
 /**
  * 装备卡（equipmentSet）封装：草稿唯一、四槽引用、装备件 bound_equipment_set_instance_id
- * @see docs/20-data-layer/24-1-EQUIPMENT_SYSTEM.md
+ * @see docs/00/20-data-layer/24-1-EQUIPMENT_SYSTEM.md
  */
 
 const { pool } = require('../database/connection');

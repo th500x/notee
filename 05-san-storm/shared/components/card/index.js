@@ -3,7 +3,7 @@
  *
  * @module shared/components/card
  *
- * 维护提醒（与 `docs/00-base/03-1-SHARED_COMPONENTS.md §4.1` 卡片清单同步）：
+ * 维护提醒（与 `docs/00/00-base/03-1-SHARED_COMPONENTS.md §4.1` 卡片清单同步）：
  * 新增卡组件必须**同时**：
  *   1. 在本文件按字母序追加 `export { default as XxxCard }`
  *   2. 在 `03-1-SHARED_COMPONENTS.md` §4.1 表格里补一行

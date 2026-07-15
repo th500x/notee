@@ -83,10 +83,10 @@ const SIEGE_REWARD = Object.freeze({
  * 未来若 R3「招贤段细分」要把段映射做成可配置，再切换到 CSV 流水线（届时本模块降级为「兜底默认」）。
  * 11-3 §3.3 文档已同步更新此取舍，**禁止** 另立硬编码 `if (factionId === '...')` 的副本。
  *
- * - 「势力 → san_0 段（楚汉时代将领池）」对照（R1，11-3 §10.1 O2）：
- *   - 汉室 `san_1_faction_6001` → `san_0_*_2xxx`（楚汉西汉段：刘邦/张良/萧何/韩信…；开启免费）
- *   - 黄巾 `san_1_faction_7001` → `san_0_*_1xxx`（楚汉项楚段：项羽/龙且/季布…）
- *   - 五势力 `san_1_faction_1001/2001/3001/4001/5001` → `san_0_*_0xxx`（楚汉秦末段：扶苏/章邯/赵高/李斯…）
+ * - 「势力 → san_0 段（楚汉时代将领池）」对照（R1，11-3 §10.1 O2；ID 与 11-1 三大可玩势力对齐）：
+ *   - 汉室 `san_1_faction_2001` → `san_0_*_2xxx`（楚汉西汉段：刘邦/张良/萧何/韩信…；开启免费）
+ *   - 黄巾 `san_1_faction_3001` → `san_0_*_1xxx`（楚汉项楚段：项羽/龙且/季布…）
+ *   - 三王 `san_1_faction_1001` → `san_0_*_0xxx`（楚汉秦末段：扶苏/章邯/赵高/李斯…）
  *
  * - 「势力 → 一次性开启费」：汉室 0；其余势力 2000 银（关闭后再开仍需再扣 2000）。
  *   仅在「审批通过 + 由关闭切换为开启」时扣费；ON→ON 重复审批 / OFF 提案均不扣费。
@@ -110,13 +110,9 @@ const RECRUIT = Object.freeze({
  * **不在表内的势力**：视为「无映射」 — 招贤 ON 不追加任何段（前端 toggle 仍可提交，但 toggle 无效果）。
  */
 const RECRUIT_SAN0_BAND_BY_FACTION = Object.freeze({
-  san_1_faction_6001: '2', // 汉室
-  san_1_faction_7001: '1', // 黄巾
-  san_1_faction_1001: '0', // 刘备
-  san_1_faction_2001: '0', // 曹操
-  san_1_faction_3001: '0', // 孙坚
-  san_1_faction_4001: '0', // 袁绍
-  san_1_faction_5001: '0', // 董卓
+  san_1_faction_1001: '0', // 三王
+  san_1_faction_2001: '2', // 汉室
+  san_1_faction_3001: '1', // 黄巾
 });
 
 /**
@@ -124,13 +120,9 @@ const RECRUIT_SAN0_BAND_BY_FACTION = Object.freeze({
  * 仅在「审批通过 + 由关闭切换为开启」时扣费；关闭无费用，ON→ON 也不重复扣。
  */
 const RECRUIT_OPEN_COST_SILVER_BY_FACTION = Object.freeze({
-  san_1_faction_6001: 0,
-  san_1_faction_7001: 2000,
   san_1_faction_1001: 2000,
-  san_1_faction_2001: 2000,
+  san_1_faction_2001: 0,
   san_1_faction_3001: 2000,
-  san_1_faction_4001: 2000,
-  san_1_faction_5001: 2000,
 });
 
 /** 默认开启费（势力不在表里时的兜底）：与文档「黄巾与其余五势力 2000」一致，按 2000 取保守值。 */

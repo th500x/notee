@@ -8,27 +8,26 @@ import { loadSharedData } from '@/services/dataService';
  * @returns {string} 势力名称
  */
 const getFactionFromTroopId = (troopId) => {
-  // 提取ID中的势力编号来判断势力
-  // san_1_troop_1001 -> 1 -> 刘备
-  // san_1_troop_0001 -> 0 -> 通用
-  const match = troopId.match(/san_\d_troop_(\d)(\d{3})/);
+  // san_1_troop_1001 → 三王；9101 → 北疆；9001 → 众生
+  const match = troopId.match(/san_\d+_troop_(\d{4})/);
   if (!match) return '通用';
-  
-  const factionCode = match[1];
+
+  const code = match[1];
+  if (code.startsWith('91') || code.startsWith('8')) return '北疆';
+  if (code.startsWith('90')) return '众生';
+
   const factionMap = {
-    '0': '通用',  // 通用部队
-    '1': '刘备',  // 刘备势力
-    '2': '曹操',  // 曹操势力
-    '3': '孙坚',  // 孙坚势力
-    '4': '袁绍',  // 袁绍势力
-    '5': '董卓',  // 董卓势力
-    '6': '汉室',  // 汉室势力
-    '7': '黄巾',  // 黄巾势力
-    '8': '北疆',  // 北疆 NPC（8xxx）
-    '9': '众生',  // 战役专用（9xxx，非玩家可选势力）
+    '0': '通用',
+    '1': '三王',
+    '2': '汉室',
+    '3': '黄巾',
+    '4': '袁绍',
+    '5': '董卓',
+    '6': '汉室',
+    '7': '黄巾',
   };
-  
-  return factionMap[factionCode] || '通用';
+
+  return factionMap[code.charAt(0)] || '通用';
 };
 
 /**
@@ -173,11 +172,7 @@ function TroopsPage() {
           >
             <option value="all">全部势力</option>
             <option value="通用">通用</option>
-            <option value="刘备">刘备</option>
-            <option value="曹操">曹操</option>
-            <option value="孙坚">孙坚</option>
-            <option value="袁绍">袁绍</option>
-            <option value="董卓">董卓</option>
+            <option value="三王">三王</option>
             <option value="汉室">汉室</option>
             <option value="黄巾">黄巾</option>
             <option value="北疆">北疆</option>

@@ -221,18 +221,7 @@ function HotNews({ refreshTrigger }) {
             </div>
             
             <h4 className="font-medium text-gray-900 text-sm leading-tight mb-1">
-              {news.link ? (
-                <a 
-                  href={news.link} 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="text-blue-600 hover:text-blue-800 hover:underline"
-                >
-                  {news.title}
-                </a>
-              ) : (
-                news.title
-              )}
+              {news.title}
             </h4>
             
             {news.summary && (

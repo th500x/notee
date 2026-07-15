@@ -1,17 +1,13 @@
 /**
- * 战略大地图底板：势力代表色（与 docs/10-core-system/11-1-FACTION_SYSTEM.md §势力总览 一致；
- * `0001`～`7001` 与正式六芒星图标主色对齐）。
+ * 战略大地图底板：势力代表色（与 docs/01-jun-exploration/10-core-system/11-1-FACTION_SYSTEM.md §4.1 一致）。
  */
 export const FACTION_REPRESENTATIVE_HEX = {
   san_1_faction_0001: '#B58E61',
-  san_1_faction_1001: '#E91E63',
-  san_1_faction_2001: '#FF7043',
-  san_1_faction_3001: '#00ACC1',
-  san_1_faction_4001: '#8E24AA',
-  san_1_faction_5001: '#43A047',
-  san_1_faction_6001: '#FDD835',
-  san_1_faction_7001: '#D2B48C',
-  san_1_faction_8001: '#87CEEB',
+  san_1_faction_1001: '#FF6B6B',
+  san_1_faction_2001: '#FFD93D',
+  san_1_faction_3001: '#FCB900',
+  san_1_faction_9101: '#87CEEB',
+  san_1_faction_8001: '#87CEEB', // 兼容旧北疆 id
   san_1_faction_9001: '#E53935',
 };
 

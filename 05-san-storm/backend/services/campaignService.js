@@ -1,6 +1,6 @@
 /**
  * 战役：config_campaigns + player_progress.campaign_progress
- * @see docs/10-core-system/16-1-CAMPAIGN_SYSTEM.md §7–§8
+ * @see docs/02-chapter-tactical/16-1-CAMPAIGN_SYSTEM.md §7–§8
  */
 
 const { pool } = require('../database/connection');

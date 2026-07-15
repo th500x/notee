@@ -5,25 +5,20 @@
 
 const { getTroopAffinityOutgoingDamageMult } = require('../../shared/utils/troopAffinityCombat.cjs');
 const { resolveSiegeCityDefenseMultFromOpts } = require('../../shared/utils/siegeCityDefenseMult.cjs');
+const { getCounterLowerTierDamageMult } = require('../../shared/utils/troopRarityCombat.cjs');
 
 const ELITE_TROOP_STRENGTH_EXPONENT = 0.8;
 /** 与 `game/src/systems/combatSystem.js` 的 `ARCHER_MELEE_DAMAGE_MULT` 一致 */
 const ARCHER_MELEE_DAMAGE_MULT = 0.8;
 
-const MIRROR_STRIKE_DAMAGE_MULT = 1.18;
-const MIRROR_COUNTER_DAMAGE_MULT = 0.68;
-const COUNTER_STRIKE_DAMAGE_MULT = 1.22;
+const DEF_REDUCTION_DENOM = 220;
+const MIN_CASUALTY_PCT_OF_DEFENDER_MAX = 0.20;
+const MIRROR_STRIKE_DAMAGE_MULT = 1.10;
+const MIRROR_COUNTER_DAMAGE_MULT = 0.50;
+const COUNTER_STRIKE_DAMAGE_MULT = 0.95;
 
 function troopRatioCoeffForStrike(rawTroopRatio, strikeMode) {
-  const r = Math.min(3.0, Math.max(0.33, rawTroopRatio));
-  if (strikeMode !== 'counter') {
-    return r;
-  }
-  if (r >= 1) {
-    return r;
-  }
-  const softened = Math.pow(r, 0.58) * 1.28;
-  return Math.min(2.75, Math.max(0.52, softened));
+  return Math.min(3.0, Math.max(0.33, rawTroopRatio));
 }
 
 /** Mulberry32 */
@@ -52,12 +47,27 @@ function troopStrengthRatioFromCasualties(troop) {
   return Math.pow(r, ELITE_TROOP_STRENGTH_EXPONENT);
 }
 
-function troopDamageToCasualties(defender, rawDamage) {
+function troopDamageToCasualties(defender, rawDamage, options = {}) {
   const raw = Math.max(0, Number(rawDamage) || 0);
   if (raw <= 0) return 0;
   const w = defender?.troopWeight != null ? Number(defender.troopWeight) : 1;
-  if (!(w > 1)) return Math.round(raw);
-  return Math.max(1, Math.round(raw / w));
+  let cas = !(w > 1) ? Math.round(raw) : Math.max(1, Math.round(raw / w));
+  const max = Number(defender?.maxTroops) || 0;
+  const strike = options.strike === 'counter' ? 'counter' : 'normal';
+  const attacker = options.attacker;
+  const sameRarity =
+    attacker?.rarity &&
+    defender?.rarity &&
+    attacker.rarity === defender.rarity;
+  if (
+    max > 0 &&
+    MIN_CASUALTY_PCT_OF_DEFENDER_MAX > 0 &&
+    strike !== 'counter' &&
+    sameRarity
+  ) {
+    cas = Math.max(Math.ceil(max * MIN_CASUALTY_PCT_OF_DEFENDER_MAX), cas);
+  }
+  return Math.max(1, cas);
 }
 
 function getMoraleEffects(troop) {
@@ -147,7 +157,7 @@ function calcDamageSeeded(atk, def, terrain, rng, options = {}) {
   const defRatio = troopStrengthRatioFromCasualties(def);
   const siegeDefMult = resolveSiegeCityDefenseMultFromOpts(options);
   const totalDef = singleDef * defRatio * siegeDefMult;
-  const defReduction = totalDef / (totalDef + 140);
+  const defReduction = totalDef / (totalDef + DEF_REDUCTION_DENOM);
   const defMorale = getMoraleEffects(def);
   let defMultiplier = defReduction * defMorale.defense;
   if (def._formationBuffs && def._formationBuffs.defenseBonus) {
@@ -165,6 +175,7 @@ function calcDamageSeeded(atk, def, terrain, rng, options = {}) {
   totalDmg *= troopRatioCoeffForStrike(rawTroopRatio, strikeMode);
   if (strikeMode === 'counter') {
     totalDmg *= COUNTER_STRIKE_DAMAGE_MULT;
+    totalDmg *= getCounterLowerTierDamageMult(atk, def);
   }
   const mirror = Math.abs(atkEffective - defEffective) < 1e-6;
   if (mirror) {

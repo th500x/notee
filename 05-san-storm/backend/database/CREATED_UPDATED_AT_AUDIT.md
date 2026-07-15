@@ -52,7 +52,7 @@
 
 1. [ ] `SHOW CREATE TABLE \`表名\`` 确认列存在且无外键/触发器依赖。  
 2. [ ] 新增迁移：`ALTER TABLE ... DROP COLUMN created_at`, `DROP COLUMN updated_at`（若仅有 `created_at` 则只删一列）。  
-3. [ ] 同步更新 `05-san-storm/docs/00-base/01-database-split/` 对应分册表结构。  
+3. [ ] 同步更新 `05-san-storm/docs/00/00-base/01-database-split/` 对应分册表结构。  
 4. [ ] 若有 `SELECT *` 或 admin 全量返回，按第 3 节处理后再上线迁移。  
 5. [ ] 在测试库跑导入脚本 / 核心接口冒烟。
 

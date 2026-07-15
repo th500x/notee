@@ -99,12 +99,17 @@ export default function SanGongFuFactionWarDrawer({ playerId, factionId, player,
   const selectionMeta = useMemo(() => {
     if (!selectedCityId || !remonstrancePanel) return null;
     const sid = String(selectedCityId).trim();
+    const atWarCap = !!(
+      remonstrancePanel.warLimits?.atWarCap
+      || remonstrancePanel.warLimits?.atPvpCap
+      || remonstrancePanel.warLimits?.atPveCap
+    );
     const pvp = (remonstrancePanel.pvpTargets || []).find((t) => String(t.cityId) === sid);
     if (pvp) {
       return {
         kind: 'pvp',
         row: pvp,
-        atCap: !!remonstrancePanel.warLimits?.atPvpCap,
+        atCap: atWarCap,
         mapRangeBlocked: pvp.inMapWarRemonstranceRange === false,
       };
     }
@@ -116,7 +121,7 @@ export default function SanGongFuFactionWarDrawer({ playerId, factionId, player,
         kind: 'pvp',
         row: excluded,
         blockedReason: 'active_pvp_war',
-        atCap: !!remonstrancePanel.warLimits?.atPvpCap,
+        atCap: atWarCap,
         mapRangeBlocked: excluded.inMapWarRemonstranceRange === false,
       };
     }
@@ -125,7 +130,7 @@ export default function SanGongFuFactionWarDrawer({ playerId, factionId, player,
       return {
         kind: 'pve',
         row: pve,
-        atCap: !!remonstrancePanel.warLimits?.atPveCap,
+        atCap: atWarCap,
         mapRangeBlocked: pve.inMapWarRemonstranceRange === false,
       };
     }
@@ -227,19 +232,24 @@ export default function SanGongFuFactionWarDrawer({ playerId, factionId, player,
       setCapTip('地图距离过远');
       return;
     }
-    if (selectionMeta?.kind === 'pve') {
+    if (selectionMeta?.kind === 'pve' || selectionMeta?.kind === 'pvp') {
       const aw = remonstrancePanel?.warLimits?.pveActiveWars;
+      const pvpN = Number(remonstrancePanel?.warLimits?.pvpActiveOrPending) || 0;
       if (Array.isArray(aw) && aw.length) {
         const label = aw
           .map((w) => String(w.targetCityName || w.targetCityId || w.warId || '').trim())
           .filter(Boolean)
           .slice(0, 2)
           .join('、');
-        setCapTip(label ? `PVE 已达并行上限（进行中：${label}）` : 'PVE 已达并行上限');
+        setCapTip(label ? `战事并行上限（进行中 PVE：${label}）` : '战事并行上限（同时仅一场）');
+        return;
+      }
+      if (pvpN > 0) {
+        setCapTip('战事并行上限（已有进行中 PVP，同时仅一场）');
         return;
       }
     }
-    setCapTip('战事已达上限');
+    setCapTip('战事并行上限（同时仅一场）');
   }, [
     showRemonstranceButton,
     remonstranceDisabled,
@@ -247,6 +257,7 @@ export default function SanGongFuFactionWarDrawer({ playerId, factionId, player,
     selectionMeta?.mapRangeBlocked,
     selectionMeta?.blockedReason,
     remonstrancePanel?.warLimits?.pveActiveWars,
+    remonstrancePanel?.warLimits?.pvpActiveOrPending,
   ]);
 
   const handleRemonstranceSubmit = useCallback(
@@ -405,7 +416,7 @@ export default function SanGongFuFactionWarDrawer({ playerId, factionId, player,
                             <div className="mt-0.5 text-stone-500">
                               <span className="text-stone-400">战事</span> {wid || '—'}
                               <span className="text-stone-600"> · </span>
-                              <span className="text-stone-400">进行中</span>（告捷或朝政结束后本势力方可再开新城 PVE / 谏言）
+                              <span className="text-stone-400">进行中</span>（告捷或朝政结束后本势力方可再开其它战事 / 谏言）
                             </div>
                             <div className="mt-1 text-[10px] text-stone-600">
                               披挂攻城与进度请在大地图目标城「攻城」入口操作；此处与 PVP 相同，提供朝政「结束战事」。
@@ -527,13 +538,11 @@ export default function SanGongFuFactionWarDrawer({ playerId, factionId, player,
         submitDisabledReason={
           selectionMeta?.blockedReason === 'active_pvp_war'
             ? '该城已有进行中 PVP 战事，无法重复谏言。'
-            : selectionMeta?.kind === 'pve' && selectionMeta?.atCap
-              ? '势力中立城 PVE 战事已达并行上限。'
-              : selectionMeta?.kind === 'pvp' && selectionMeta?.atCap
-                ? '势力 PVP 战事已达并行上限。'
-                : selectionMeta?.mapRangeBlocked
-                  ? '目标超出战略地图谏言距离。'
-                  : ''
+            : selectionMeta?.atCap
+              ? '势力战事已达并行上限（PVE/PVP 同时仅一场）。'
+              : selectionMeta?.mapRangeBlocked
+                ? '目标超出战略地图谏言距离。'
+                : ''
         }
         onSubmit={
           selectionMeta?.kind === 'pvp' || selectionMeta?.kind === 'pve'

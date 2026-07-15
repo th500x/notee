@@ -84,49 +84,56 @@ async function resolveGoogleMapsShareUrl(raw) {
   }
 
   let parsed = parseGoogleMapsShareUrl(trimmed);
-  if (parsed.ok) {
-    return parsed;
-  }
-  if (parsed.code !== 'GOOGLE_MAPS_SHORT_URL') {
-    return parsed;
-  }
-  if (!isGoogleMapsShortUrl(trimmed)) {
-    return parsed;
-  }
+  const isShort = !parsed.ok && parsed.code === 'GOOGLE_MAPS_SHORT_URL';
+  const needsExpand =
+    isShort ||
+    (parsed.ok && !parsed.empty && parsed.latitude == null && parsed.longitude == null);
 
-  let finalUrl = trimmed;
-  try {
-    finalUrl = await followRedirectsToFinalUrl(trimmed);
-  } catch (err) {
-    if (err instanceof GoogleMapsResolveError) {
-      throw err;
+  if (needsExpand) {
+    let finalUrl = trimmed;
+    try {
+      finalUrl = await followRedirectsToFinalUrl(trimmed);
+    } catch (err) {
+      if (isShort) {
+        if (err instanceof GoogleMapsResolveError) throw err;
+        throw new GoogleMapsResolveError(
+          'GOOGLE_MAPS_RESOLVE_FAILED',
+          '短链接解析失败，请检查网络或稍后重试',
+          502
+        );
+      }
+      if (!parsed.ok) return parsed;
     }
-    throw new GoogleMapsResolveError(
-      'GOOGLE_MAPS_RESOLVE_FAILED',
-      '短链接解析失败，请检查网络或稍后重试',
-      502
-    );
+
+    if (isShort && isGoogleMapsShortUrl(finalUrl)) {
+      throw new GoogleMapsResolveError(
+        'GOOGLE_MAPS_RESOLVE_FAILED',
+        '短链接未能展开为完整地图地址，请粘贴浏览器地址栏中的完整链接',
+        400
+      );
+    }
+
+    const reparsed = parseGoogleMapsShareUrl(finalUrl);
+    if (reparsed.ok) {
+      parsed = reparsed;
+    } else if (!parsed.ok) {
+      if (isShort) {
+        throw new GoogleMapsResolveError(
+          'GOOGLE_MAPS_RESOLVE_FAILED',
+          '短链接已展开但无法识别地点，请填写地点名称或改粘贴完整链接',
+          400
+        );
+      }
+      return parsed;
+    }
   }
 
-  if (isGoogleMapsShortUrl(finalUrl)) {
-    throw new GoogleMapsResolveError(
-      'GOOGLE_MAPS_RESOLVE_FAILED',
-      '短链接未能展开为完整地图地址，请粘贴浏览器地址栏中的完整链接',
-      400
-    );
-  }
-
-  parsed = parseGoogleMapsShareUrl(finalUrl);
   if (!parsed.ok) {
-    throw new GoogleMapsResolveError(
-      'GOOGLE_MAPS_RESOLVE_FAILED',
-      '短链接已展开但无法识别地点，请填写地点名称或改粘贴完整链接',
-      400
-    );
+    return parsed;
   }
 
   const canonicalShareUrl = normalizeLocationMapsUrl(
-    canonicalizeGoogleMapsShareUrl(parsed.shareUrl || finalUrl) || parsed.shareUrl || finalUrl
+    canonicalizeGoogleMapsShareUrl(parsed.shareUrl || trimmed) || parsed.shareUrl || trimmed
   );
 
   return {

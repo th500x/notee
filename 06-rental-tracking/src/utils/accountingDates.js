@@ -16,7 +16,26 @@ export function isIsoDateString(s) {
 }
 
 /**
- * ISO 日期的公历「月份」与 refDate 所在月份相同则为 true（忽略年份）。
+ * @param {string} iso
+ * @returns {string} `YYYY-MM` 或 `''`
+ */
+export function isoToMonthKey(iso) {
+  const s = sanitizeIsoDateField(iso);
+  return s ? s.slice(0, 7) : '';
+}
+
+/**
+ * 列月是否早于「实际入住日」所在月（该月视为空置，交租空位不标红）。
+ * @param {string} monthKey `YYYY-MM`
+ * @param {string} actualRentIso
+ */
+export function isMonthBeforeActualRent(monthKey, actualRentIso) {
+  const actualMk = isoToMonthKey(actualRentIso);
+  if (!actualMk || !/^\d{4}-\d{2}$/.test(String(monthKey || '').trim())) return false;
+  return monthKey.trim() < actualMk;
+}
+
+/**
  * 用于申报/实际列：当月相关的日期一律红色提示。
  */
 export function isIsoInCurrentCalendarMonth(iso, refDate = new Date()) {

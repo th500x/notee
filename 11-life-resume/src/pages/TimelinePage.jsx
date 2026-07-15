@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { buildTimelineLayoutWithPinned } from '@shared/utils/lifeResumeEntryTime.js';
+import {
+  CHRONOLOGICAL_ENTRY_SERIES_KEY,
+  filterEntriesByEntrySeriesId,
+  normalizeEntrySeriesId,
+} from '@shared/utils/lifeResumeEntrySeries.js';
 import { useLifeAuth } from '@/contexts/LifeAuthContext';
 import { useLifeProfile } from '@/contexts/LifeProfileContext';
 import { useToast } from '@/contexts/ToastContext';
@@ -10,14 +15,15 @@ import EntryEditorModal from '@/components/entry/EntryEditorModal';
 import ProfileHeader from '@/components/timeline/ProfileHeader';
 import LifePathPreviewModal from '@/components/timeline/LifePathPreviewModal';
 import ProfileTagStats from '@/components/timeline/ProfileTagStats';
+import EntrySeriesSwitcher from '@/components/timeline/EntrySeriesSwitcher';
 import TimelineSection from '@/components/timeline/TimelineSection';
-import TimelineEntryCard from '@/components/timeline/TimelineEntryCard';
 import { deleteEntry, fetchPublicTimeline, generateMyLifePath, publishMyLifePath, discardMyLifePathDraft } from '@/services/lifeResumeApi';
 import { formatLifeResumeError, isAuthError } from '@/utils/lifeResumeErrors';
 import { buildPublicSeoFromEntries } from '@/utils/pageMeta';
 
 export default function TimelinePage() {
   const { accountId: routeAccountId } = useParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const showToast = useToast();
   const { isLoggedIn, accountId: myAccountId, bootstrapping } = useLifeAuth();
@@ -36,7 +42,33 @@ export default function TimelinePage() {
 
   const ownerId = (routeAccountId || '').toUpperCase();
   const isOwner = isLoggedIn && myAccountId && myAccountId.toUpperCase() === ownerId;
-  const { isSectionCollapsed, toggleSectionCollapsed } = useTimelineSectionCollapse(ownerId);
+
+  const activeEntrySeriesId = useMemo(() => {
+    const raw = searchParams.get('entrySeriesId');
+    let candidate;
+    if (raw == null || raw === '') {
+      candidate = timeline?.profile?.defaultEntrySeriesId ?? null;
+    } else {
+      const normalized = normalizeEntrySeriesId(raw);
+      candidate = Number.isNaN(normalized) ? null : normalized;
+    }
+
+    const list = timeline?.entrySeriesList || [];
+    if (!list.length) return candidate;
+
+    const allowedIds = list.map((series) =>
+      series.id == null ? null : Number(series.id)
+    );
+    if (allowedIds.some((id) => id === candidate || (id == null && candidate == null))) {
+      return candidate;
+    }
+    return list[0]?.id ?? null;
+  }, [searchParams, timeline?.profile?.defaultEntrySeriesId, timeline?.entrySeriesList]);
+
+  const { isSectionCollapsed, toggleSectionCollapsed } = useTimelineSectionCollapse(
+    ownerId,
+    activeEntrySeriesId
+  );
 
   const profileDefaults = useMemo(
     () =>
@@ -88,10 +120,30 @@ export default function TimelinePage() {
     loadTimeline();
   }, [bootstrapping, loadTimeline]);
 
-  const { pinned, sections } = useMemo(
-    () => buildTimelineLayoutWithPinned(timeline?.entries || []),
-    [timeline?.entries]
+  const seriesEntries = useMemo(
+    () => filterEntriesByEntrySeriesId(timeline?.entries || [], activeEntrySeriesId),
+    [timeline?.entries, activeEntrySeriesId]
   );
+
+  const { pinned, sections } = useMemo(
+    () => buildTimelineLayoutWithPinned(seriesEntries),
+    [seriesEntries]
+  );
+
+  const handleSeriesChange = (seriesId) => {
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        if (seriesId == null) {
+          next.set('entrySeriesId', CHRONOLOGICAL_ENTRY_SERIES_KEY);
+        } else {
+          next.set('entrySeriesId', String(seriesId));
+        }
+        return next;
+      },
+      { replace: true }
+    );
+  };
 
   const headerDisplayName =
     timeline?.profile?.displayName ||
@@ -225,8 +277,11 @@ export default function TimelinePage() {
     );
   }
 
-  const entries = timeline?.entries || [];
+  const allEntries = timeline?.entries || [];
+  const entries = seriesEntries;
   const viewerIsOwner = timeline?.viewer?.isOwner || isOwner;
+  const entrySeriesList = timeline?.entrySeriesList || [];
+  const hasAnyEntries = allEntries.length > 0;
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-8 space-y-8">
@@ -249,7 +304,15 @@ export default function TimelinePage() {
         <ProfileTagStats entries={entries} />
       </div>
 
-      {entries.length === 0 && viewerIsOwner && (
+      {entrySeriesList.length > 0 && (
+        <EntrySeriesSwitcher
+          seriesList={entrySeriesList}
+          activeEntrySeriesId={activeEntrySeriesId}
+          onChange={handleSeriesChange}
+        />
+      )}
+
+      {!hasAnyEntries && viewerIsOwner && (
         <div className="text-center py-12 bg-white rounded-2xl border border-dashed border-slate-300">
           <p className="text-slate-600 mb-4">还没有片段，点击新建第一条</p>
           <button
@@ -262,7 +325,26 @@ export default function TimelinePage() {
         </div>
       )}
 
-      {entries.length === 0 && !viewerIsOwner && (
+      {hasAnyEntries && entries.length === 0 && viewerIsOwner && (
+        <div className="text-center py-12 bg-white rounded-2xl border border-dashed border-slate-300">
+          <p className="text-slate-600 mb-4">当前系列还没有片段</p>
+          <button
+            type="button"
+            className="px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700"
+            onClick={openCreate}
+          >
+            在本系列新建
+          </button>
+        </div>
+      )}
+
+      {hasAnyEntries && entries.length === 0 && !viewerIsOwner && (
+        <div className="text-center py-12 bg-slate-50 rounded-2xl border border-slate-200">
+          <p className="text-slate-600">该系列暂无公开内容</p>
+        </div>
+      )}
+
+      {!hasAnyEntries && !viewerIsOwner && (
         <div className="text-center py-12 bg-slate-50 rounded-2xl border border-slate-200">
           <p className="text-slate-600">暂无公开内容</p>
         </div>
@@ -302,8 +384,10 @@ export default function TimelinePage() {
         open={editorOpen}
         entry={editingEntry}
         profileDefaults={profileDefaults}
+        defaultEntrySeriesId={activeEntrySeriesId}
         onClose={() => setEditorOpen(false)}
         onSaved={handleSaved}
+        onEntrySeriesCreated={loadTimeline}
       />
 
       <LifePathPreviewModal

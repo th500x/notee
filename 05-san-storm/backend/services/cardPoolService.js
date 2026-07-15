@@ -42,6 +42,11 @@ const {
   computeLegendaryDrawProbabilities,
   computePityAfterLegendaryDelivered,
 } = require('../../shared/utils/factionLegendaryReserve.cjs');
+const {
+  listItemPoolPrizesForStatus,
+  rollItemPrize,
+  grantItemPrize,
+} = require('./itemCardPoolPrizes');
 
 // ── 抽取限制 ─────────────────────────────────────────────────
 
@@ -68,7 +73,7 @@ const NO_CARD_AVAILABLE_SILVER = 20;
 /** 部队按稀有度实例数达上限时的粮草补偿（与 22-1 §6.1 一致） */
 const TROOP_RARITY_LIMIT_COMPENSATION = { common: 100, rare: 200, epic: 300, legendary: 400 };
 /** 与 22-1-TROOP_SYSTEM §1.3、rewardService.getMaxBattleCount 一致 */
-const MAX_BATTLE_COUNT = { common: 20, rare: 28, epic: 36, legendary: 44, core: 60 };
+const MAX_BATTLE_COUNT = { common: 10, rare: 10, epic: 20, legendary: 20, core: 40 };
 
 // ── 工具函数 ─────────────────────────────────────────────────
 
@@ -214,14 +219,149 @@ async function countTroopCardsByRarityInPoolScope(
 // ── 核心：抽取卡牌 ───────────────────────────────────────────
 
 /**
+ * 道具卡池抽取（独立半天配额；不走将领/部队保底与传奇储备）
+ * @param {string} playerId
+ * @param {{ drawMode?: 'single'|'batch' }} [options]
+ */
+async function drawFromItemPool(playerId, options = {}) {
+  const drawMode = options.drawMode === 'batch' ? 'batch' : 'single';
+  const poolType = 'item';
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+
+    const [playerRows] = await connection.query(
+      'SELECT player_id, silver, faction_id FROM players WHERE player_id = ? FOR UPDATE',
+      [playerId],
+    );
+    if (playerRows.length === 0) throw new Error('玩家不存在');
+    const player = playerRows[0];
+
+    const todayDrawCount = await getTodayDrawCount(connection, playerId, poolType);
+    const label = '道具';
+
+    let drawCost;
+    let totalDrawOperations;
+    if (drawMode === 'batch') {
+      if (!canBatchDraw(todayDrawCount)) {
+        throw new Error(`本半天窗已进行过单抽，无法十连（${label}卡池须满额${DAILY_DRAW_LIMIT}次额度）`);
+      }
+      drawCost = getBatchDrawTotalCost();
+      totalDrawOperations = BATCH_DRAW_TOTAL_OPS;
+    } else {
+      drawCost = getNextDrawCost(todayDrawCount);
+      if (drawCost == null || todayDrawCount >= DAILY_DRAW_LIMIT) {
+        throw new Error(`本半天窗${label}卡池抽取次数已用完（${DAILY_DRAW_LIMIT}/${DAILY_DRAW_LIMIT}）`);
+      }
+      totalDrawOperations = 1;
+    }
+
+    if (player.silver < drawCost) {
+      throw new Error(`银两不足，需要${drawCost}银两，当前${player.silver}银两`);
+    }
+
+    await connection.query(
+      'UPDATE players SET silver = silver - ? WHERE player_id = ?',
+      [drawCost, playerId],
+    );
+    if (player.faction_id) {
+      await factionReserveService.ensurePoolRow(connection, player.faction_id);
+      await factionReserveService.creditPoolOnConnection(connection, player.faction_id, { silver: drawCost }, {
+        ledgerCategory: factionReserveService.CATEGORY.CARD_POOL_DRAW,
+      });
+    }
+
+    const results = [];
+    const expiresAt = new Date(Date.now() + EXPIRES_DAYS * 24 * 60 * 60 * 1000);
+    let foodEarned = 0;
+
+    for (let opIdx = 0; opIdx < totalDrawOperations; opIdx += 1) {
+      const isBonusOp = drawMode === 'batch' && opIdx >= BATCH_DRAW_QUOTA_OPS;
+      const quotaWeight = drawMode === 'single' ? 1 : (isBonusOp ? 0 : 1);
+      const drawnAtExpr = drawMode === 'batch'
+        ? `DATE_ADD(NOW(), INTERVAL ${opIdx} SECOND)`
+        : 'NOW()';
+
+      const prize = rollItemPrize();
+      const granted = await grantItemPrize(connection, playerId, prize);
+      if (granted.kind === 'food') {
+        foodEarned += Math.max(0, Math.floor(Number(granted.amount) || 0));
+      }
+
+      await connection.query(
+        `INSERT INTO temp_card_pool_draws
+         (player_id, pool_type, rarity, card_id, compensated, echo_choice_status,
+          pity_count, drawn_at, expires_at, quota_weight)
+         VALUES (?, ?, ?, ?, 0, 'none', 0, ${drawnAtExpr}, ?, ?)`,
+        [
+          playerId,
+          poolType,
+          'common',
+          granted.prizeId || prize.id,
+          expiresAt,
+          quotaWeight,
+        ],
+      );
+
+      results.push({
+        ...granted,
+        pityCount: 0,
+      });
+    }
+
+    await connection.commit();
+
+    if (foodEarned > 0) {
+      await statisticsDeltaService.recordEarned(playerId, { food: foodEarned });
+    }
+    await statisticsDeltaService.incrementSpent(playerId, { silver: drawCost });
+
+    const [updatedPlayer] = await connection.query(
+      'SELECT silver FROM players WHERE player_id = ?',
+      [playerId],
+    );
+
+    const quotaOpsConsumed = drawMode === 'batch' ? BATCH_DRAW_QUOTA_OPS : 1;
+    const remainingDraws = Math.max(0, DAILY_DRAW_LIMIT - todayDrawCount - quotaOpsConsumed);
+
+    return {
+      success: true,
+      poolType,
+      drawMode,
+      poolSeason: null,
+      cost: drawCost,
+      remainingSilver: updatedPlayer[0].silver,
+      remainingDraws,
+      nextDrawCost: getNextDrawCost(todayDrawCount + quotaOpsConsumed),
+      cards: results,
+      pityCount: 0,
+      ...(drawMode === 'batch'
+        ? {
+            batchDrawOperations: totalDrawOperations,
+            batchBonusOperations: BATCH_DRAW_BONUS_OPS,
+          }
+        : {}),
+    };
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
+}
+
+/**
  * 执行卡池抽取
- * 
+ *
  * @param {string} playerId - 玩家ID
- * @param {'troop'|'character'} poolType - 卡池类型
+ * @param {'troop'|'character'|'item'} poolType - 卡池类型
  * @param {{ poolSeason?: 'san_1'|'san_0'|null, drawMode?: 'single'|'batch' }} [options]
  * @returns {Promise<Object>} 抽取结果
  */
 async function drawFromPool(playerId, poolType, options = {}) {
+  if (poolType === 'item') {
+    return drawFromItemPool(playerId, options);
+  }
   const poolSeason = options.poolSeason ?? null;
   const drawMode = options.drawMode === 'batch' ? 'batch' : 'single';
   if (poolSeason != null && poolSeason !== 'san_0' && poolSeason !== 'san_1') {
@@ -665,7 +805,7 @@ async function drawSingleCard(
     await connection.query(
       `INSERT INTO player_cards (instance_id, player_id, card_type, card_id, rarity, current_troops, battle_count, max_battle_count, obtained_at)
        VALUES (?, ?, 'troop', ?, ?, ?, 0, ?, NOW())`,
-      [instanceId, playerId, card.card_id, rarity, maxTroops, MAX_BATTLE_COUNT[rarity] || 20]
+      [instanceId, playerId, card.card_id, rarity, maxTroops, MAX_BATTLE_COUNT[rarity] || 10]
     );
 
     return { rarity, cardId: card.card_id, cardName: card.card_name, instanceId, compensated: false, pityForced, pityBlockedByQuota };
@@ -886,6 +1026,7 @@ async function getPoolStatus(playerId) {
   // 当前半天周期抽取次数
   const troopUsed = await getTodayDrawCount(pool, playerId, 'troop');
   const charUsed = await getTodayDrawCount(pool, playerId, 'character');
+  const itemUsed = await getTodayDrawCount(pool, playerId, 'item');
 
   // 保底计数
   const [troopPity] = await pool.query(
@@ -968,6 +1109,16 @@ async function getPoolStatus(playerId) {
       pityThreshold: PITY_THRESHOLD,
       legendaryQuota: charQuota,
       probabilities: computeLegendaryDrawProbabilities(charQuota),
+    },
+    item: {
+      remainingDraws: Math.max(0, DAILY_DRAW_LIMIT - itemUsed),
+      dailyLimit: DAILY_DRAW_LIMIT,
+      nextDrawCost: getNextDrawCost(itemUsed),
+      batchDrawTotalCost,
+      canBatchDraw: canBatchDraw(itemUsed),
+      drawCostTiers: DRAW_COST_TIERS,
+      cardsPerDraw: 1,
+      prizes: listItemPoolPrizesForStatus(),
     },
     probabilities: computeLegendaryDrawProbabilities(troopQuota),
   };

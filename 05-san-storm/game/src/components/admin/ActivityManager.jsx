@@ -1,6 +1,6 @@
 /**
  * 活动管理：已结束活动的 Top30 排名导出与检索
- * @see docs/30-frontend/30-1-ACTIVITY_RANKING_ADMIN.md
+ * @see docs/01-jun-exploration/30-frontend/30-1-ACTIVITY_RANKING_ADMIN.md
  */
 
 import { useState, useMemo, useEffect } from 'react';

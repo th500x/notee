@@ -6,6 +6,10 @@ node_modules/
 docs/
 */docs/
 
+# Local feature archives (snapshots; keep on disk, never push)
+_archive/
+*/_archive/
+
 # Local editor / agent metadata — never commit (see .cursor/rules notee-monorepo-layout-and-backends.mdc)
 .cursor/
 .kiro/
@@ -91,8 +95,10 @@ public
 !04-coin-index/public
 !05-san-storm/public
 !05-san-storm/game/public
-!05-san-storm/wiki/public
 !11-life-resume/public
+
+# 05 wiki：public 为本地 junction → 05-san-storm/public；vite 用 ../public，勿跟踪
+05-san-storm/wiki/public/
 
 # Storybook build outputs
 .out
