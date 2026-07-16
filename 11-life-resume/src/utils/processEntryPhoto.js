@@ -1,9 +1,9 @@
-/**
- * 浏览器端裁剪 + Pica(Lanczos) 缩放，导出格式与源文件一致。
- */
-
 import Pica from 'pica';
 import { LIFE_PHOTO_MIME_TYPES } from '@shared/utils/lifeResumeMediaRules.js';
+import {
+  computeCenterCropPixels,
+  resolvePhotoCropTarget,
+} from '@shared/utils/lifeResumePhotoCrop.js';
 
 const pica = Pica({ features: ['js', 'wasm', 'cib'] });
 
@@ -101,4 +101,37 @@ export function buildProcessedPhotoFile(originalFile, blob, displayFilename = nu
   const sourceName = displayFilename || originalFile.name || 'photo';
   const base = String(sourceName).replace(/\.[^.]+$/, '');
   return new File([blob], `${base}.${ext}`, { type: mime, lastModified: Date.now() });
+}
+
+/**
+ * 跳过裁剪弹窗：按预设居中取景并导出（与弹窗内同套 resolve + render）
+ * @param {File} file
+ * @param {string} presetId
+ * @param {string|null} displayFilename
+ * @returns {Promise<File>}
+ */
+export async function processPhotoFileWithPreset(file, presetId, displayFilename = null) {
+  const imageSrc = URL.createObjectURL(file);
+  try {
+    const image = await loadImageElement(imageSrc);
+    const target = resolvePhotoCropTarget(presetId, image.naturalWidth, image.naturalHeight);
+    if (!target) {
+      throw new Error('无法解析裁剪比例');
+    }
+    const cropPixels = computeCenterCropPixels(
+      image.naturalWidth,
+      image.naturalHeight,
+      target.aspect
+    );
+    const blob = await renderCroppedPhotoBlob({
+      imageSrc,
+      cropPixels,
+      outputWidth: target.outputWidth,
+      outputHeight: target.outputHeight,
+      mimeType: file.type,
+    });
+    return buildProcessedPhotoFile(file, blob, displayFilename);
+  } finally {
+    URL.revokeObjectURL(imageSrc);
+  }
 }

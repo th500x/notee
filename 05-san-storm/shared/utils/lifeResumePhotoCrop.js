@@ -71,3 +71,41 @@ export function computePhotoUpscaleFactor(cropPixels, outputWidth, outputHeight)
 export function shouldWarnPhotoUpscale(factor, threshold = 1.5) {
   return Number.isFinite(factor) && factor > threshold;
 }
+
+/** 跳过裁剪弹窗时默认使用的 4K 比例预设 */
+export const LIFE_PHOTO_AUTO_CROP_4K_PRESET_ID = 'ratio_16_9_4k';
+
+/**
+ * 按目标宽高比做居中最大取景（与裁剪弹窗默认 zoom=1 居中一致）
+ * @returns {{ x: number, y: number, width: number, height: number }}
+ */
+export function computeCenterCropPixels(naturalWidth, naturalHeight, aspect) {
+  const nw = Number(naturalWidth);
+  const nh = Number(naturalHeight);
+  const targetAspect = Number(aspect);
+  if (!(nw > 0) || !(nh > 0) || !(targetAspect > 0)) {
+    return { x: 0, y: 0, width: Math.max(1, nw || 1), height: Math.max(1, nh || 1) };
+  }
+  const imageAspect = nw / nh;
+  let width;
+  let height;
+  let x;
+  let y;
+  if (imageAspect > targetAspect) {
+    height = nh;
+    width = height * targetAspect;
+    x = (nw - width) / 2;
+    y = 0;
+  } else {
+    width = nw;
+    height = width / targetAspect;
+    x = 0;
+    y = (nh - height) / 2;
+  }
+  return {
+    x: Math.round(x),
+    y: Math.round(y),
+    width: Math.max(1, Math.round(width)),
+    height: Math.max(1, Math.round(height)),
+  };
+}

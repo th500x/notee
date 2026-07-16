@@ -62,10 +62,45 @@ function shouldWarnPhotoUpscale(factor, threshold = 1.5) {
   return Number.isFinite(factor) && factor > threshold;
 }
 
+const LIFE_PHOTO_AUTO_CROP_4K_PRESET_ID = 'ratio_16_9_4k';
+
+function computeCenterCropPixels(naturalWidth, naturalHeight, aspect) {
+  const nw = Number(naturalWidth);
+  const nh = Number(naturalHeight);
+  const targetAspect = Number(aspect);
+  if (!(nw > 0) || !(nh > 0) || !(targetAspect > 0)) {
+    return { x: 0, y: 0, width: Math.max(1, nw || 1), height: Math.max(1, nh || 1) };
+  }
+  const imageAspect = nw / nh;
+  let width;
+  let height;
+  let x;
+  let y;
+  if (imageAspect > targetAspect) {
+    height = nh;
+    width = height * targetAspect;
+    x = (nw - width) / 2;
+    y = 0;
+  } else {
+    width = nw;
+    height = width / targetAspect;
+    x = 0;
+    y = (nh - height) / 2;
+  }
+  return {
+    x: Math.round(x),
+    y: Math.round(y),
+    width: Math.max(1, Math.round(width)),
+    height: Math.max(1, Math.round(height)),
+  };
+}
+
 module.exports = {
   LIFE_PHOTO_CROP_PRESETS,
+  LIFE_PHOTO_AUTO_CROP_4K_PRESET_ID,
   isLandscapeImage,
   resolvePhotoCropTarget,
   computePhotoUpscaleFactor,
   shouldWarnPhotoUpscale,
+  computeCenterCropPixels,
 };

@@ -6,9 +6,14 @@ import {
   LIFE_VIDEO_MIME_TYPES,
   validateMediaUploadRequest,
 } from '@shared/utils/lifeResumeMediaRules.js';
+import {
+  LIFE_PHOTO_AUTO_CROP_4K_PRESET_ID,
+  LIFE_PHOTO_CROP_PRESETS,
+} from '@shared/utils/lifeResumePhotoCrop.js';
 import { requestUploadSign, uploadFileToSignedUrl } from '@/services/lifeResumeApi';
 import { abandonOrphanUploads } from '@/utils/abandonOrphanUpload';
 import { resolvePhotoOriginalFilename } from '@/utils/resolvePhotoOriginalFilename';
+import { processPhotoFileWithPreset } from '@/utils/processEntryPhoto';
 import EntryPhotoCropModal from '@/components/entry/EntryPhotoCropModal';
 
 const BUNDLE_TABS = [
@@ -17,6 +22,10 @@ const BUNDLE_TABS = [
   { value: 'video', label: '视频' },
   { value: 'document', label: '文档' },
 ];
+
+const AUTO_4K_PRESET_LABEL =
+  LIFE_PHOTO_CROP_PRESETS.find((p) => p.id === LIFE_PHOTO_AUTO_CROP_4K_PRESET_ID)?.label ||
+  '16:9 / 9:16 · 4K';
 
 function createStagingToken() {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
@@ -48,6 +57,7 @@ export default function EntryMediaUpload({
   const [uploadError, setUploadError] = useState('');
   const [uploading, setUploading] = useState(false);
   const [cropSession, setCropSession] = useState(null);
+  const [autoCrop4k, setAutoCrop4k] = useState(false);
 
   useEffect(() => {
     mediaItemsRef.current = mediaItems;
@@ -185,13 +195,39 @@ export default function EntryMediaUpload({
         return;
       }
       const displayFilename = await resolvePhotoOriginalFilename(file);
+
+      if (autoCrop4k) {
+        setUploadError('');
+        try {
+          setUploading(true);
+          const processed = await processPhotoFileWithPreset(
+            file,
+            LIFE_PHOTO_AUTO_CROP_4K_PRESET_ID,
+            displayFilename
+          );
+          const sizeCheck = validateMediaUploadRequest({
+            mediaType: 'photo',
+            mimeType: processed.type,
+            sizeBytes: processed.size,
+          });
+          setUploading(false);
+          if (!sizeCheck.ok) {
+            setUploadError(sizeCheck.error);
+            return;
+          }
+          await uploadMediaFile(processed, 'photo', displayFilename);
+        } catch (err) {
+          setUploadError(err.message || '按 4K 比例处理失败');
+          setUploading(false);
+        }
+        return;
+      }
+
       setCropSession({ file, displayFilename });
       return;
     }
 
-    const displayFilename =
-      mediaType === 'photo' ? await resolvePhotoOriginalFilename(file) : file.name;
-    await uploadMediaFile(file, mediaType, displayFilename);
+    await uploadMediaFile(file, mediaType, file.name);
   };
 
   const handleCropConfirm = async (processedFile) => {
@@ -219,7 +255,9 @@ export default function EntryMediaUpload({
 
   const hintText =
     mediaBundleType === 'photos'
-      ? 'JPG / PNG / WebP，最多 3 张；先裁剪，裁剪后单张 ≤10MB（1:1 / 4:3 / 16:9，横竖自动适配）'
+      ? autoCrop4k
+        ? `JPG / PNG / WebP，最多 3 张；已勾选「${AUTO_4K_PRESET_LABEL}」，选图后居中裁切直接上传（横竖自动适配）`
+        : 'JPG / PNG / WebP，最多 3 张；先裁剪，裁剪后单张 ≤10MB（1:1 / 4:3 / 16:9，横竖自动适配）'
       : mediaBundleType === 'video'
         ? 'MP4，≤50MB，最多 1 个'
         : mediaBundleType === 'document'
@@ -262,16 +300,30 @@ export default function EntryMediaUpload({
 
       {mediaBundleType !== 'none' && (
         <div>
-          <label className="inline-flex items-center px-3 py-2 rounded-lg border border-dashed border-slate-300 text-sm text-slate-700 cursor-pointer hover:bg-slate-50">
-            <input
-              type="file"
-              className="sr-only"
-              accept={acceptTypes}
-              disabled={disabled || uploading || !!cropSession}
-              onChange={handleFileChange}
-            />
-            {uploading ? '上传中…' : pickLabel}
-          </label>
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="inline-flex items-center px-3 py-2 rounded-lg border border-dashed border-slate-300 text-sm text-slate-700 cursor-pointer hover:bg-slate-50">
+              <input
+                type="file"
+                className="sr-only"
+                accept={acceptTypes}
+                disabled={disabled || uploading || !!cropSession}
+                onChange={handleFileChange}
+              />
+              {uploading ? '上传中…' : pickLabel}
+            </label>
+            {mediaBundleType === 'photos' && (
+              <label className="inline-flex items-center gap-2 text-sm text-slate-700 select-none">
+                <input
+                  type="checkbox"
+                  className="rounded border-slate-300"
+                  checked={autoCrop4k}
+                  disabled={disabled || uploading || !!cropSession}
+                  onChange={(e) => setAutoCrop4k(e.target.checked)}
+                />
+                <span>{AUTO_4K_PRESET_LABEL}</span>
+              </label>
+            )}
+          </div>
           <p className="text-xs text-slate-500 mt-2">{hintText}</p>
         </div>
       )}
