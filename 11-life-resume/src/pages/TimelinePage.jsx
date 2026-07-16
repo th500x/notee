@@ -364,19 +364,28 @@ export default function TimelinePage() {
               onDelete={handleDelete}
             />
           )}
-          {sections.map((section) => (
-            <TimelineSection
-              key={section.id}
-              section={section}
-              isOwner={viewerIsOwner}
-              accountId={ownerId}
-              profileDisplayName={headerDisplayName}
-              collapsed={isSectionCollapsed(section.id)}
-              onToggleCollapse={() => toggleSectionCollapsed(section.id)}
-              onEdit={openEdit}
-              onDelete={handleDelete}
-            />
-          ))}
+          <div className="grid grid-cols-2 gap-x-4 gap-y-2 items-start">
+            {sections.map((section) => {
+              const collapsed = isSectionCollapsed(section.id);
+              return (
+                <div
+                  key={section.id}
+                  className={collapsed ? 'min-w-0' : 'col-span-2 min-w-0'}
+                >
+                  <TimelineSection
+                    section={section}
+                    isOwner={viewerIsOwner}
+                    accountId={ownerId}
+                    profileDisplayName={headerDisplayName}
+                    collapsed={collapsed}
+                    onToggleCollapse={() => toggleSectionCollapsed(section.id)}
+                    onEdit={openEdit}
+                    onDelete={handleDelete}
+                  />
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
 
