@@ -11,10 +11,14 @@ import { renderCroppedPhotoBlob, buildProcessedPhotoFile } from '@/utils/process
 import { validateMediaUploadRequest } from '@shared/utils/lifeResumeMediaRules.js';
 
 const DEFAULT_PRESET_ID = 'square_1080';
-/** 整窗「照片加载中」遮罩：裁剪器就绪后再盖满此时长，挡住打开瞬间闪烁 */
-const INIT_FLICKER_COVER_MS = 5000;
-/** 兜底：打开后最迟此时长必须揭开，避免再卡死 */
-const INIT_FLICKER_COVER_MAX_MS = 8000;
+/** 全屏遮罩：裁剪器就绪后再实心盖住此时长 */
+const INIT_FLICKER_COVER_MS = 7000;
+/** 兜底：打开后最迟开始淡出 */
+const INIT_FLICKER_COVER_MAX_MS = 12000;
+/** 揭开淡出时长（ms） */
+const INIT_FLICKER_FADE_MS = 450;
+/** 淡出后再留一层透明遮罩，等揭开重绘落稳再卸掉 */
+const INIT_FLICKER_SETTLE_MS = 400;
 
 function cropPixelsRoughlyEqual(a, b) {
   if (!a || !b) return a === b;
@@ -56,7 +60,7 @@ function readVisualViewportBox() {
  *
  * 闪烁根因（手机）：地址栏伸缩改 vh → 整窗重排 → 库 ResizeObserver 反复重算。
  * 对策：visualViewport 像素锁壳 + 禁 body 滚动 + 库侧初始化后冻结 RO。
- * 打开瞬间仍可能闪几下：全屏白屏「照片加载中」遮罩约 5 秒盖住（含背后编辑窗，有超时兜底）。
+ * 打开瞬间仍可能闪几下：全屏「照片加载中」先实心盖住，再淡出并多留一拍再卸掉，避免揭开瞬间闪。
  */
 export default function EntryPhotoCropModal({ open, file, displayFilename = null, onCancel, onConfirm }) {
   const [imageSrc, setImageSrc] = useState('');
@@ -68,12 +72,14 @@ export default function EntryPhotoCropModal({ open, file, displayFilename = null
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState('');
   const [lockedShell, setLockedShell] = useState(null);
-  const [initCoverVisible, setInitCoverVisible] = useState(false);
+  const [coverMounted, setCoverMounted] = useState(false);
+  const [coverOpaque, setCoverOpaque] = useState(false);
 
   const croppedAreaPixelsRef = useRef(null);
   const objectUrlRef = useRef('');
   const interactingRef = useRef(false);
   const coverHideArmedRef = useRef(false);
+  const uncoverStartedRef = useRef(false);
 
   useEffect(() => {
     if (!open || !file) {
@@ -89,8 +95,10 @@ export default function EntryPhotoCropModal({ open, file, displayFilename = null
       croppedAreaPixelsRef.current = null;
       setUpscaleFactor(1);
       setLockedShell(null);
-      setInitCoverVisible(false);
+      setCoverMounted(false);
+      setCoverOpaque(false);
       coverHideArmedRef.current = false;
+      uncoverStartedRef.current = false;
       setError('');
       return undefined;
     }
@@ -108,8 +116,10 @@ export default function EntryPhotoCropModal({ open, file, displayFilename = null
     croppedAreaPixelsRef.current = null;
     setUpscaleFactor(1);
     // 不要在这里清空 lockedShell：本 effect 晚于 layout 锁壳，会把壳清掉导致一直「正在加载图片」
-    setInitCoverVisible(true);
+    setCoverMounted(true);
+    setCoverOpaque(true);
     coverHideArmedRef.current = false;
+    uncoverStartedRef.current = false;
     setError('');
 
     const img = new Image();
@@ -172,24 +182,37 @@ export default function EntryPhotoCropModal({ open, file, displayFilename = null
   const cropperReady = Boolean(imageSrc && cropTarget && lockedShell);
   const upscaleWarning = shouldWarnPhotoUpscale(upscaleFactor);
 
-  // 全屏遮罩：裁剪器就绪后再盖 5 秒；另有打开后 8 秒兜底揭开，避免再卡死
+  // 全屏遮罩：就绪后实心盖住 → 淡出 → 再留一拍卸掉（避免硬切瞬间闪 + 控件 disabled 突变）
   useEffect(() => {
-    if (!open || !file || !initCoverVisible) return undefined;
-
-    const hide = () => setInitCoverVisible(false);
-    const safetyTimer = window.setTimeout(hide, INIT_FLICKER_COVER_MAX_MS);
+    if (!open || !file || !coverMounted) return undefined;
 
     let readyTimer = 0;
+    let fadeTimer = 0;
+    let removeTimer = 0;
+
+    const beginUncover = () => {
+      if (uncoverStartedRef.current) return;
+      uncoverStartedRef.current = true;
+      setCoverOpaque(false);
+      removeTimer = window.setTimeout(() => {
+        setCoverMounted(false);
+      }, INIT_FLICKER_FADE_MS + INIT_FLICKER_SETTLE_MS);
+    };
+
+    const safetyTimer = window.setTimeout(beginUncover, INIT_FLICKER_COVER_MAX_MS);
+
     if (cropperReady && !coverHideArmedRef.current) {
       coverHideArmedRef.current = true;
-      readyTimer = window.setTimeout(hide, INIT_FLICKER_COVER_MS);
+      readyTimer = window.setTimeout(beginUncover, INIT_FLICKER_COVER_MS);
     }
 
     return () => {
       window.clearTimeout(safetyTimer);
       if (readyTimer) window.clearTimeout(readyTimer);
+      if (fadeTimer) window.clearTimeout(fadeTimer);
+      if (removeTimer) window.clearTimeout(removeTimer);
     };
-  }, [open, file, cropperReady, initCoverVisible]);
+  }, [open, file, cropperReady, coverMounted]);
 
   const orientationHint = useMemo(() => {
     if (!naturalSize.width) return '';
@@ -318,7 +341,7 @@ export default function EntryPhotoCropModal({ open, file, displayFilename = null
         type="button"
         className="absolute inset-0 bg-slate-900/50"
         aria-label="关闭"
-        onClick={() => !processing && !initCoverVisible && onCancel?.()}
+        onClick={() => !processing && !coverMounted && onCancel?.()}
       />
       <div
         className="relative flex flex-col bg-white rounded-t-2xl sm:rounded-2xl shadow-xl border border-slate-200 overflow-hidden"
@@ -349,7 +372,7 @@ export default function EntryPhotoCropModal({ open, file, displayFilename = null
               <button
                 key={preset.id}
                 type="button"
-                disabled={processing || initCoverVisible}
+                disabled={processing}
                 className={[
                   'px-2.5 py-1 rounded-full text-xs border',
                   presetId === preset.id
@@ -410,7 +433,7 @@ export default function EntryPhotoCropModal({ open, file, displayFilename = null
               max={3}
               step={0.01}
               value={zoom}
-              disabled={processing || initCoverVisible}
+              disabled={processing}
               className="flex-1"
               onChange={(e) => {
                 interactingRef.current = true;
@@ -440,17 +463,33 @@ export default function EntryPhotoCropModal({ open, file, displayFilename = null
           {error && <p className="text-sm text-red-600">{error}</p>}
           <button
             type="button"
-            disabled={processing || !cropperReady || initCoverVisible}
+            disabled={processing || !cropperReady}
             className="w-full rounded-lg bg-indigo-600 text-white py-2.5 hover:bg-indigo-700 disabled:opacity-60"
             onClick={handleConfirm}
           >
-            {processing ? '处理中…' : initCoverVisible ? '照片加载中…' : '确认并上传'}
+            {processing ? '处理中…' : '确认并上传'}
           </button>
         </div>
       </div>
-      {initCoverVisible && !error && (
-        <div className="absolute inset-0 z-40 flex items-center justify-center bg-white">
-          <p className="text-sm text-slate-600">照片加载中…</p>
+      {coverMounted && !error && (
+        <div
+          className="absolute inset-0 z-40 flex items-center justify-center bg-white"
+          style={{
+            opacity: coverOpaque ? 1 : 0,
+            transition: `opacity ${INIT_FLICKER_FADE_MS}ms ease-out`,
+            pointerEvents: coverMounted ? 'auto' : 'none',
+          }}
+          aria-hidden={!coverOpaque}
+        >
+          <p
+            className="text-sm text-slate-600"
+            style={{
+              opacity: coverOpaque ? 1 : 0,
+              transition: `opacity ${INIT_FLICKER_FADE_MS}ms ease-out`,
+            }}
+          >
+            照片加载中…
+          </p>
         </div>
       )}
     </div>
