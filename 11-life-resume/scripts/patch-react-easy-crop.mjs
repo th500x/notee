@@ -1,16 +1,14 @@
 /**
- * Patch react-easy-crop for mobile flicker:
- * 1) Skip ResizeObserver / setState when size unchanged
- * 2) After media init, disconnect ResizeObserver so browser chrome
- *    (address bar) resizes cannot keep recomputing the crop frame
+ * Apply mobile-flicker fixes to react-easy-crop@6.2.2 after npm install.
+ * Prefer this over patch-package on servers (handles dirty node_modules / CRLF).
  */
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const root = path.dirname(fileURLToPath(import.meta.url));
-const pkgRoot = path.join(root, '..', 'node_modules', 'react-easy-crop');
-
+const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
+const pkgRoot = path.join(root, 'node_modules', 'react-easy-crop');
 const MARKER = '__sanCropFreezeResize';
 
 const RO_STOCK = `this.initResizeObserver = () => {
@@ -21,6 +19,27 @@ const RO_STOCK = `this.initResizeObserver = () => {
 					isFirstResize = false;
 					return;
 				}
+				this.computeSizes({ isResizeTriggered: true });
+			});
+			this.resizeObserver.observe(this.containerRef);
+		};`;
+
+const RO_PARTIAL = `this.initResizeObserver = () => {
+			if (typeof window.ResizeObserver === "undefined" || !this.containerRef) return;
+			let isFirstResize = true;
+			this.__lastRoSize = null;
+			this.resizeObserver = new window.ResizeObserver((entries) => {
+				if (isFirstResize) {
+					isFirstResize = false;
+					return;
+				}
+				const entry = entries && entries[0];
+				const box = entry && (entry.contentRect || (entry.contentBoxSize && entry.contentBoxSize[0]));
+				const nextW = box ? (box.width != null ? box.width : box.inlineSize) : this.containerRef.clientWidth;
+				const nextH = box ? (box.height != null ? box.height : box.blockSize) : this.containerRef.clientHeight;
+				const prev = this.__lastRoSize;
+				if (prev && Math.abs(prev.w - nextW) < 0.5 && Math.abs(prev.h - nextH) < 0.5) return;
+				this.__lastRoSize = { w: nextW, h: nextH };
 				this.computeSizes({ isResizeTriggered: true });
 			});
 			this.resizeObserver.observe(this.containerRef);
@@ -101,52 +120,70 @@ const MEDIA_PATCHED = `this.onMediaLoad = () => {
 			if (this.props.onMediaLoaded) this.props.onMediaLoaded(this.mediaSize);
 		};`;
 
+function restoreCleanPackage() {
+  console.log('[patch-react-easy-crop] restoring clean react-easy-crop@6.2.2 …');
+  execFileSync(
+    process.platform === 'win32' ? 'npm.cmd' : 'npm',
+    ['install', 'react-easy-crop@6.2.2', '--ignore-scripts', '--no-save'],
+    { cwd: root, stdio: 'inherit' }
+  );
+}
+
 function patchFile(rel) {
   const filePath = path.join(pkgRoot, rel);
-  let src = fs.readFileSync(filePath, 'utf8');
-  if (src.includes(MARKER)) {
-    console.log(`SKIP already fully patched: ${rel}`);
+  let src = fs.readFileSync(filePath, 'utf8').replace(/\r\n/g, '\n');
+
+  if (src.includes(MARKER) && src.includes('_cropUnchanged')) {
+    console.log(`[patch-react-easy-crop] SKIP already patched: ${rel}`);
     return;
   }
 
-  // Allow re-patching files that only have the older debounce patch
-  if (src.includes('__lastRoSize') && src.includes('_cropUnchanged')) {
-    const roOldPartial = `this.initResizeObserver = () => {
-			if (typeof window.ResizeObserver === "undefined" || !this.containerRef) return;
-			let isFirstResize = true;
-			this.__lastRoSize = null;
-			this.resizeObserver = new window.ResizeObserver((entries) => {
-				if (isFirstResize) {
-					isFirstResize = false;
-					return;
-				}
-				const entry = entries && entries[0];
-				const box = entry && (entry.contentRect || (entry.contentBoxSize && entry.contentBoxSize[0]));
-				const nextW = box ? (box.width != null ? box.width : box.inlineSize) : this.containerRef.clientWidth;
-				const nextH = box ? (box.height != null ? box.height : box.blockSize) : this.containerRef.clientHeight;
-				const prev = this.__lastRoSize;
-				if (prev && Math.abs(prev.w - nextW) < 0.5 && Math.abs(prev.h - nextH) < 0.5) return;
-				this.__lastRoSize = { w: nextW, h: nextH };
-				this.computeSizes({ isResizeTriggered: true });
-			});
-			this.resizeObserver.observe(this.containerRef);
-		};`;
-    if (!src.includes(roOldPartial)) {
-      throw new Error(`Partial RO block not found in ${rel}`);
-    }
-    src = src.replace(roOldPartial, RO_PATCHED);
+  if (src.includes(RO_PARTIAL)) {
+    src = src.replace(RO_PARTIAL, RO_PATCHED);
+  } else if (src.includes(RO_STOCK)) {
+    src = src.replace(RO_STOCK, RO_PATCHED);
   } else {
-    if (!src.includes(RO_STOCK)) throw new Error(`ResizeObserver block not found in ${rel}`);
-    if (!src.includes(SETSTATE_STOCK)) throw new Error(`setState cropSize block not found in ${rel}`);
-    src = src.replace(RO_STOCK, RO_PATCHED).replace(SETSTATE_STOCK, SETSTATE_PATCHED);
+    throw new Error(`ResizeObserver block not found in ${rel}`);
   }
 
-  if (!src.includes(MEDIA_STOCK)) throw new Error(`onMediaLoad block not found in ${rel}`);
-  src = src.replace(MEDIA_STOCK, MEDIA_PATCHED);
+  if (!src.includes('_cropUnchanged')) {
+    if (!src.includes(SETSTATE_STOCK)) {
+      throw new Error(`setState cropSize block not found in ${rel}`);
+    }
+    src = src.replace(SETSTATE_STOCK, SETSTATE_PATCHED);
+  }
+
+  if (!src.includes(MARKER) || !src.includes('requestAnimationFrame(freeze)')) {
+    if (!src.includes(MEDIA_STOCK)) {
+      throw new Error(`onMediaLoad block not found in ${rel}`);
+    }
+    src = src.replace(MEDIA_STOCK, MEDIA_PATCHED);
+  }
 
   fs.writeFileSync(filePath, src, 'utf8');
-  console.log(`OK patched: ${rel}`);
+  console.log(`[patch-react-easy-crop] OK patched: ${rel}`);
 }
 
-patchFile('index.module.mjs');
-patchFile('index.js');
+function main() {
+  if (!fs.existsSync(pkgRoot)) {
+    console.warn('[patch-react-easy-crop] react-easy-crop not installed; skip');
+    return;
+  }
+
+  const version = JSON.parse(fs.readFileSync(path.join(pkgRoot, 'package.json'), 'utf8')).version;
+  if (version !== '6.2.2') {
+    throw new Error(`[patch-react-easy-crop] expected react-easy-crop@6.2.2, found ${version}`);
+  }
+
+  try {
+    patchFile('index.module.mjs');
+    patchFile('index.js');
+  } catch (err) {
+    console.warn(`[patch-react-easy-crop] ${err.message}`);
+    restoreCleanPackage();
+    patchFile('index.module.mjs');
+    patchFile('index.js');
+  }
+}
+
+main();

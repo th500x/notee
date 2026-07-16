@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "postinstall": "patch-package"
+    "postinstall": "node scripts/patch-react-easy-crop.mjs"
   },
   "dependencies": {
     "html2canvas": "^1.4.1",
