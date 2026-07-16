@@ -11,6 +11,8 @@ import { renderCroppedPhotoBlob, buildProcessedPhotoFile } from '@/utils/process
 import { validateMediaUploadRequest } from '@shared/utils/lifeResumeMediaRules.js';
 
 const DEFAULT_PRESET_ID = 'square_1080';
+/** 打开裁剪后白屏遮罩时长，盖住库初始化那几下闪烁 */
+const INIT_FLICKER_COVER_MS = 5000;
 
 function cropPixelsRoughlyEqual(a, b) {
   if (!a || !b) return a === b;
@@ -31,7 +33,7 @@ function nearlySamePoint(a, b, epsilon = 0.5) {
  * 裁剪逻辑必须与历史上可用版本一致：
  * - 不传 cropSize（由 react-easy-crop 按「图片渲染尺寸」计算取景框，避免黑边进框）
  * - 预览容器使用 aspect-[4/3]
- * 闪烁：库侧 patch（尺寸未变不 setState）+ 视口锁死后再挂载 Cropper。
+ * 闪烁：库侧 patch + 视口锁后再挂载；打开后白屏「照片加载中」遮罩盖住前几秒初始化闪烁。
  */
 export default function EntryPhotoCropModal({ open, file, displayFilename = null, onCancel, onConfirm }) {
   const [imageSrc, setImageSrc] = useState('');
@@ -43,6 +45,7 @@ export default function EntryPhotoCropModal({ open, file, displayFilename = null
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState('');
   const [lockedViewport, setLockedViewport] = useState(null);
+  const [initCoverVisible, setInitCoverVisible] = useState(false);
 
   const croppedAreaPixelsRef = useRef(null);
   const objectUrlRef = useRef('');
@@ -63,6 +66,7 @@ export default function EntryPhotoCropModal({ open, file, displayFilename = null
       croppedAreaPixelsRef.current = null;
       setUpscaleFactor(1);
       setLockedViewport(null);
+      setInitCoverVisible(false);
       setError('');
       return undefined;
     }
@@ -80,6 +84,7 @@ export default function EntryPhotoCropModal({ open, file, displayFilename = null
     croppedAreaPixelsRef.current = null;
     setUpscaleFactor(1);
     setLockedViewport(null);
+    setInitCoverVisible(true);
     setError('');
 
     const img = new Image();
@@ -135,6 +140,15 @@ export default function EntryPhotoCropModal({ open, file, displayFilename = null
 
   const cropperReady = Boolean(imageSrc && cropTarget && lockedViewport);
   const upscaleWarning = shouldWarnPhotoUpscale(upscaleFactor);
+
+  // 裁剪器挂上后再遮 5 秒，盖住初始化闪烁；切换比例不重开遮罩
+  useEffect(() => {
+    if (!open || !file || !cropperReady || !initCoverVisible) return undefined;
+    const timer = window.setTimeout(() => {
+      setInitCoverVisible(false);
+    }, INIT_FLICKER_COVER_MS);
+    return () => window.clearTimeout(timer);
+  }, [open, file, cropperReady, initCoverVisible]);
 
   const orientationHint = useMemo(() => {
     if (!naturalSize.width) return '';
@@ -320,6 +334,11 @@ export default function EntryPhotoCropModal({ open, file, displayFilename = null
               </div>
             )
           )}
+          {initCoverVisible && !error && (
+            <div className="absolute inset-0 z-20 flex items-center justify-center bg-white">
+              <p className="text-sm text-slate-600">照片加载中…</p>
+            </div>
+          )}
         </div>
 
         <div className="px-4 py-2 border-t border-slate-100 shrink-0">
@@ -361,11 +380,11 @@ export default function EntryPhotoCropModal({ open, file, displayFilename = null
           {error && <p className="text-sm text-red-600">{error}</p>}
           <button
             type="button"
-            disabled={processing || !cropperReady}
+            disabled={processing || !cropperReady || initCoverVisible}
             className="w-full rounded-lg bg-indigo-600 text-white py-2.5 hover:bg-indigo-700 disabled:opacity-60"
             onClick={handleConfirm}
           >
-            {processing ? '处理中…' : '确认并上传'}
+            {processing ? '处理中…' : initCoverVisible ? '照片加载中…' : '确认并上传'}
           </button>
         </div>
       </div>
