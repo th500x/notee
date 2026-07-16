@@ -99,7 +99,7 @@ export default function EntryPhotoCropModal({ open, file, displayFilename = null
     setZoom(1);
     croppedAreaPixelsRef.current = null;
     setUpscaleFactor(1);
-    setLockedShell(null);
+    // 不要在这里清空 lockedShell：本 effect 晚于 layout 锁壳，会把壳清掉导致一直「正在加载图片」
     setError('');
 
     const img = new Image();
