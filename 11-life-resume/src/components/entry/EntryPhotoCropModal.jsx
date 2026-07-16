@@ -11,7 +11,7 @@ import { renderCroppedPhotoBlob, buildProcessedPhotoFile } from '@/utils/process
 import { validateMediaUploadRequest } from '@shared/utils/lifeResumeMediaRules.js';
 
 const DEFAULT_PRESET_ID = 'square_1080';
-/** 打开裁剪后白屏遮罩时长，盖住库初始化那几下闪烁 */
+/** 打开裁剪后整窗白屏遮罩时长，盖住初始化闪烁 */
 const INIT_FLICKER_COVER_MS = 5000;
 
 function cropPixelsRoughlyEqual(a, b) {
@@ -29,11 +29,31 @@ function nearlySamePoint(a, b, epsilon = 0.5) {
   return Math.abs(a.x - b.x) < epsilon && Math.abs(a.y - b.y) < epsilon;
 }
 
+function readVisualViewportBox() {
+  const vv = window.visualViewport;
+  if (vv) {
+    return {
+      top: Math.round(vv.offsetTop),
+      left: Math.round(vv.offsetLeft),
+      width: Math.round(vv.width),
+      height: Math.round(vv.height),
+    };
+  }
+  return {
+    top: 0,
+    left: 0,
+    width: Math.round(window.innerWidth),
+    height: Math.round(window.innerHeight),
+  };
+}
+
 /**
  * 裁剪逻辑必须与历史上可用版本一致：
- * - 不传 cropSize（由 react-easy-crop 按「图片渲染尺寸」计算取景框，避免黑边进框）
+ * - 不传 cropSize（由 react-easy-crop 按「图片渲染尺寸」计算取景框）
  * - 预览容器使用 aspect-[4/3]
- * 闪烁：库侧 patch + 视口锁后再挂载；打开后白屏「照片加载中」遮罩盖住前几秒初始化闪烁。
+ *
+ * 闪烁根因（手机）：地址栏收起/展开改 vh / 视口 → 整窗重排 → 库 ResizeObserver 反复重算。
+ * 对策：visualViewport 像素锁壳 + 禁 body 滚动 + 库侧初始化后冻结 RO + 整窗加载遮罩。
  */
 export default function EntryPhotoCropModal({ open, file, displayFilename = null, onCancel, onConfirm }) {
   const [imageSrc, setImageSrc] = useState('');
@@ -45,6 +65,7 @@ export default function EntryPhotoCropModal({ open, file, displayFilename = null
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState('');
   const [lockedViewport, setLockedViewport] = useState(null);
+  const [lockedShell, setLockedShell] = useState(null);
   const [initCoverVisible, setInitCoverVisible] = useState(false);
 
   const croppedAreaPixelsRef = useRef(null);
@@ -66,6 +87,7 @@ export default function EntryPhotoCropModal({ open, file, displayFilename = null
       croppedAreaPixelsRef.current = null;
       setUpscaleFactor(1);
       setLockedViewport(null);
+      setLockedShell(null);
       setInitCoverVisible(false);
       setError('');
       return undefined;
@@ -84,6 +106,7 @@ export default function EntryPhotoCropModal({ open, file, displayFilename = null
     croppedAreaPixelsRef.current = null;
     setUpscaleFactor(1);
     setLockedViewport(null);
+    setLockedShell(null);
     setInitCoverVisible(true);
     setError('');
 
@@ -104,13 +127,43 @@ export default function EntryPhotoCropModal({ open, file, displayFilename = null
     };
   }, [open, file]);
 
-  // 等图片尺寸进布局后只锁一次视口，再挂载 Cropper（避免先渲染再改尺寸）
+  // 打开时锁 body 滚动，减少地址栏因页面滚动而反复伸缩
+  useEffect(() => {
+    if (!open) return undefined;
+    const prevOverflow = document.body.style.overflow;
+    const prevOverscroll = document.body.style.overscrollBehavior;
+    document.body.style.overflow = 'hidden';
+    document.body.style.overscrollBehavior = 'none';
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      document.body.style.overscrollBehavior = prevOverscroll;
+    };
+  }, [open]);
+
+  // 用 visualViewport 像素锁住全屏层与弹窗 maxHeight，禁止再用 vh（会随地址栏变）
+  useLayoutEffect(() => {
+    if (!open) {
+      setLockedShell(null);
+      return undefined;
+    }
+    const box = readVisualViewportBox();
+    setLockedShell({
+      top: box.top,
+      left: box.left,
+      width: box.width,
+      height: box.height,
+      panelMaxHeight: Math.max(240, Math.round(box.height * 0.92)),
+      panelWidth: Math.min(box.width, 512),
+    });
+  }, [open, file]);
+
+  // 等图片尺寸进布局后只锁一次预览区像素，再挂载 Cropper
   useLayoutEffect(() => {
     if (!open) {
       setLockedViewport(null);
       return undefined;
     }
-    if (!naturalSize.width || !naturalSize.height) return undefined;
+    if (!naturalSize.width || !naturalSize.height || !lockedShell) return undefined;
     let cancelled = false;
     let outerRaf = 0;
     let innerRaf = 0;
@@ -131,17 +184,16 @@ export default function EntryPhotoCropModal({ open, file, displayFilename = null
       window.cancelAnimationFrame(outerRaf);
       window.cancelAnimationFrame(innerRaf);
     };
-  }, [open, file, naturalSize.width, naturalSize.height]);
+  }, [open, file, naturalSize.width, naturalSize.height, lockedShell]);
 
   const cropTarget = useMemo(() => {
     if (!naturalSize.width || !naturalSize.height) return null;
     return resolvePhotoCropTarget(presetId, naturalSize.width, naturalSize.height);
   }, [presetId, naturalSize]);
 
-  const cropperReady = Boolean(imageSrc && cropTarget && lockedViewport);
+  const cropperReady = Boolean(imageSrc && cropTarget && lockedViewport && lockedShell);
   const upscaleWarning = shouldWarnPhotoUpscale(upscaleFactor);
 
-  // 裁剪器挂上后再遮 5 秒，盖住初始化闪烁；切换比例不重开遮罩
   useEffect(() => {
     if (!open || !file || !cropperReady || !initCoverVisible) return undefined;
     const timer = window.setTimeout(() => {
@@ -240,6 +292,25 @@ export default function EntryPhotoCropModal({ open, file, displayFilename = null
 
   if (!open || !file) return null;
 
+  const overlayStyle = lockedShell
+    ? {
+        top: `${lockedShell.top}px`,
+        left: `${lockedShell.left}px`,
+        width: `${lockedShell.width}px`,
+        height: `${lockedShell.height}px`,
+        right: 'auto',
+        bottom: 'auto',
+      }
+    : undefined;
+
+  const panelStyle = lockedShell
+    ? {
+        width: `${lockedShell.panelWidth}px`,
+        maxWidth: '100%',
+        maxHeight: `${lockedShell.panelMaxHeight}px`,
+      }
+    : undefined;
+
   const viewportStyle = lockedViewport
     ? {
         width: `${lockedViewport.width}px`,
@@ -250,14 +321,26 @@ export default function EntryPhotoCropModal({ open, file, displayFilename = null
     : undefined;
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4">
+    <div
+      className="fixed z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4"
+      style={overlayStyle || { inset: 0 }}
+    >
       <button
         type="button"
         className="absolute inset-0 bg-slate-900/50"
         aria-label="关闭"
         onClick={() => !processing && onCancel?.()}
       />
-      <div className="relative w-full sm:max-w-lg max-h-[92vh] flex flex-col bg-white rounded-t-2xl sm:rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
+      <div
+        className="relative flex flex-col bg-white rounded-t-2xl sm:rounded-2xl shadow-xl border border-slate-200 overflow-hidden"
+        style={panelStyle}
+      >
+        {initCoverVisible && !error && (
+          <div className="absolute inset-0 z-30 flex items-center justify-center bg-white rounded-t-2xl sm:rounded-2xl">
+            <p className="text-sm text-slate-600">照片加载中…</p>
+          </div>
+        )}
+
         <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between shrink-0">
           <div>
             <h3 className="font-semibold text-slate-900">裁剪照片</h3>
@@ -283,7 +366,7 @@ export default function EntryPhotoCropModal({ open, file, displayFilename = null
               <button
                 key={preset.id}
                 type="button"
-                disabled={processing}
+                disabled={processing || initCoverVisible}
                 className={[
                   'px-2.5 py-1 rounded-full text-xs border',
                   presetId === preset.id
@@ -334,11 +417,6 @@ export default function EntryPhotoCropModal({ open, file, displayFilename = null
               </div>
             )
           )}
-          {initCoverVisible && !error && (
-            <div className="absolute inset-0 z-20 flex items-center justify-center bg-white">
-              <p className="text-sm text-slate-600">照片加载中…</p>
-            </div>
-          )}
         </div>
 
         <div className="px-4 py-2 border-t border-slate-100 shrink-0">
@@ -350,7 +428,7 @@ export default function EntryPhotoCropModal({ open, file, displayFilename = null
               max={3}
               step={0.01}
               value={zoom}
-              disabled={processing}
+              disabled={processing || initCoverVisible}
               className="flex-1"
               onChange={(e) => {
                 interactingRef.current = true;

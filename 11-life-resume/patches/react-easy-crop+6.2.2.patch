@@ -1,8 +1,8 @@
 diff --git a/node_modules/react-easy-crop/index.js b/node_modules/react-easy-crop/index.js
-index 9167aa9..f14c6c1 100644
+index 9167aa9..463815a 100644
 --- a/node_modules/react-easy-crop/index.js
 +++ b/node_modules/react-easy-crop/index.js
-@@ -306,11 +306,19 @@ var Cropper = class Cropper extends react.Component {
+@@ -306,15 +306,31 @@ var Cropper = class Cropper extends react.Component {
  		this.initResizeObserver = () => {
  			if (typeof window.ResizeObserver === "undefined" || !this.containerRef) return;
  			let isFirstResize = true;
@@ -12,6 +12,7 @@ index 9167aa9..f14c6c1 100644
  					isFirstResize = false;
  					return;
  				}
++				if (this.__resizeFrozen) return;
 +				const entry = entries && entries[0];
 +				const box = entry && (entry.contentRect || (entry.contentBoxSize && entry.contentBoxSize[0]));
 +				const nextW = box ? (box.width != null ? box.width : box.inlineSize) : this.containerRef.clientWidth;
@@ -22,7 +23,33 @@ index 9167aa9..f14c6c1 100644
  				this.computeSizes({ isResizeTriggered: true });
  			});
  			this.resizeObserver.observe(this.containerRef);
-@@ -400,6 +408,12 @@ var Cropper = class Cropper extends react.Component {
+ 		};
++		this.__sanCropFreezeResize = () => {
++			this.__resizeFrozen = true;
++			if (this.resizeObserver) {
++				this.resizeObserver.disconnect();
++				this.resizeObserver = null;
++			}
++		};
+ 		this.onWindowResize = () => {
+ 			this.computeSizes({ isResizeTriggered: true });
+ 		};
+@@ -340,6 +356,14 @@ var Cropper = class Cropper extends react.Component {
+ 				this.emitCropData();
+ 				this.setInitialCrop(cropSize);
+ 				this.isInitialized = true;
++				const freeze = () => {
++					if (typeof this.__sanCropFreezeResize === "function") this.__sanCropFreezeResize();
++				};
++				if (this.currentWindow && this.currentWindow.requestAnimationFrame) {
++					this.currentWindow.requestAnimationFrame(() => {
++						this.currentWindow.requestAnimationFrame(freeze);
++					});
++				} else freeze();
+ 			}
+ 			if (this.props.onMediaLoaded) this.props.onMediaLoaded(this.mediaSize);
+ 		};
+@@ -400,6 +424,12 @@ var Cropper = class Cropper extends react.Component {
  				});
  				if (this.props.setMediaSize) this.props.setMediaSize(this.mediaSize);
  				const cropSize = this.props.cropSize ? this.props.cropSize : getCropSize(this.mediaSize.width, this.mediaSize.height, this.containerRect.width, this.containerRect.height, this.props.aspect, this.props.rotation);
@@ -36,10 +63,10 @@ index 9167aa9..f14c6c1 100644
  				this.setState({ cropSize }, () => this.recomputeCropPosition({ isResizeTriggered }));
  				if (this.props.setCropSize) this.props.setCropSize(cropSize);
 diff --git a/node_modules/react-easy-crop/index.module.mjs b/node_modules/react-easy-crop/index.module.mjs
-index 720fcb0..dfc33c0 100644
+index 720fcb0..743c5be 100644
 --- a/node_modules/react-easy-crop/index.module.mjs
 +++ b/node_modules/react-easy-crop/index.module.mjs
-@@ -278,11 +278,19 @@ var Cropper = class Cropper extends React.Component {
+@@ -278,15 +278,31 @@ var Cropper = class Cropper extends React.Component {
  		this.initResizeObserver = () => {
  			if (typeof window.ResizeObserver === "undefined" || !this.containerRef) return;
  			let isFirstResize = true;
@@ -49,6 +76,7 @@ index 720fcb0..dfc33c0 100644
  					isFirstResize = false;
  					return;
  				}
++				if (this.__resizeFrozen) return;
 +				const entry = entries && entries[0];
 +				const box = entry && (entry.contentRect || (entry.contentBoxSize && entry.contentBoxSize[0]));
 +				const nextW = box ? (box.width != null ? box.width : box.inlineSize) : this.containerRef.clientWidth;
@@ -59,7 +87,33 @@ index 720fcb0..dfc33c0 100644
  				this.computeSizes({ isResizeTriggered: true });
  			});
  			this.resizeObserver.observe(this.containerRef);
-@@ -372,6 +380,12 @@ var Cropper = class Cropper extends React.Component {
+ 		};
++		this.__sanCropFreezeResize = () => {
++			this.__resizeFrozen = true;
++			if (this.resizeObserver) {
++				this.resizeObserver.disconnect();
++				this.resizeObserver = null;
++			}
++		};
+ 		this.onWindowResize = () => {
+ 			this.computeSizes({ isResizeTriggered: true });
+ 		};
+@@ -312,6 +328,14 @@ var Cropper = class Cropper extends React.Component {
+ 				this.emitCropData();
+ 				this.setInitialCrop(cropSize);
+ 				this.isInitialized = true;
++				const freeze = () => {
++					if (typeof this.__sanCropFreezeResize === "function") this.__sanCropFreezeResize();
++				};
++				if (this.currentWindow && this.currentWindow.requestAnimationFrame) {
++					this.currentWindow.requestAnimationFrame(() => {
++						this.currentWindow.requestAnimationFrame(freeze);
++					});
++				} else freeze();
+ 			}
+ 			if (this.props.onMediaLoaded) this.props.onMediaLoaded(this.mediaSize);
+ 		};
+@@ -372,6 +396,12 @@ var Cropper = class Cropper extends React.Component {
  				});
  				if (this.props.setMediaSize) this.props.setMediaSize(this.mediaSize);
  				const cropSize = this.props.cropSize ? this.props.cropSize : getCropSize(this.mediaSize.width, this.mediaSize.height, this.containerRect.width, this.containerRect.height, this.props.aspect, this.props.rotation);
