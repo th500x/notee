@@ -56,7 +56,7 @@ function readVisualViewportBox() {
  *
  * 闪烁根因（手机）：地址栏伸缩改 vh → 整窗重排 → 库 ResizeObserver 反复重算。
  * 对策：visualViewport 像素锁壳 + 禁 body 滚动 + 库侧初始化后冻结 RO。
- * 打开瞬间仍可能闪几下：整窗白屏「照片加载中」遮罩约 5 秒盖住（有超时兜底，不会卡死）。
+ * 打开瞬间仍可能闪几下：全屏白屏「照片加载中」遮罩约 5 秒盖住（含背后编辑窗，有超时兜底）。
  */
 export default function EntryPhotoCropModal({ open, file, displayFilename = null, onCancel, onConfirm }) {
   const [imageSrc, setImageSrc] = useState('');
@@ -172,7 +172,7 @@ export default function EntryPhotoCropModal({ open, file, displayFilename = null
   const cropperReady = Boolean(imageSrc && cropTarget && lockedShell);
   const upscaleWarning = shouldWarnPhotoUpscale(upscaleFactor);
 
-  // 整窗遮罩：裁剪器就绪后再盖 5 秒；另有打开后 8 秒兜底揭开，避免再卡死
+  // 全屏遮罩：裁剪器就绪后再盖 5 秒；另有打开后 8 秒兜底揭开，避免再卡死
   useEffect(() => {
     if (!open || !file || !initCoverVisible) return undefined;
 
@@ -318,18 +318,12 @@ export default function EntryPhotoCropModal({ open, file, displayFilename = null
         type="button"
         className="absolute inset-0 bg-slate-900/50"
         aria-label="关闭"
-        onClick={() => !processing && onCancel?.()}
+        onClick={() => !processing && !initCoverVisible && onCancel?.()}
       />
       <div
         className="relative flex flex-col bg-white rounded-t-2xl sm:rounded-2xl shadow-xl border border-slate-200 overflow-hidden"
         style={panelStyle}
       >
-        {initCoverVisible && !error && (
-          <div className="absolute inset-0 z-30 flex items-center justify-center bg-white rounded-t-2xl sm:rounded-2xl">
-            <p className="text-sm text-slate-600">照片加载中…</p>
-          </div>
-        )}
-
         <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between shrink-0">
           <div>
             <h3 className="font-semibold text-slate-900">裁剪照片</h3>
@@ -454,6 +448,11 @@ export default function EntryPhotoCropModal({ open, file, displayFilename = null
           </button>
         </div>
       </div>
+      {initCoverVisible && !error && (
+        <div className="absolute inset-0 z-40 flex items-center justify-center bg-white">
+          <p className="text-sm text-slate-600">照片加载中…</p>
+        </div>
+      )}
     </div>
   );
 }
