@@ -11,6 +11,10 @@ import { renderCroppedPhotoBlob, buildProcessedPhotoFile } from '@/utils/process
 import { validateMediaUploadRequest } from '@shared/utils/lifeResumeMediaRules.js';
 
 const DEFAULT_PRESET_ID = 'square_1080';
+/** 整窗「照片加载中」遮罩：裁剪器就绪后再盖满此时长，挡住打开瞬间闪烁 */
+const INIT_FLICKER_COVER_MS = 5000;
+/** 兜底：打开后最迟此时长必须揭开，避免再卡死 */
+const INIT_FLICKER_COVER_MAX_MS = 8000;
 
 function cropPixelsRoughlyEqual(a, b) {
   if (!a || !b) return a === b;
@@ -52,7 +56,7 @@ function readVisualViewportBox() {
  *
  * 闪烁根因（手机）：地址栏伸缩改 vh → 整窗重排 → 库 ResizeObserver 反复重算。
  * 对策：visualViewport 像素锁壳 + 禁 body 滚动 + 库侧初始化后冻结 RO。
- * 「照片加载中」整窗遮罩已关掉，便于验证根因是否修好。
+ * 打开瞬间仍可能闪几下：整窗白屏「照片加载中」遮罩约 5 秒盖住（有超时兜底，不会卡死）。
  */
 export default function EntryPhotoCropModal({ open, file, displayFilename = null, onCancel, onConfirm }) {
   const [imageSrc, setImageSrc] = useState('');
@@ -64,10 +68,12 @@ export default function EntryPhotoCropModal({ open, file, displayFilename = null
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState('');
   const [lockedShell, setLockedShell] = useState(null);
+  const [initCoverVisible, setInitCoverVisible] = useState(false);
 
   const croppedAreaPixelsRef = useRef(null);
   const objectUrlRef = useRef('');
   const interactingRef = useRef(false);
+  const coverHideArmedRef = useRef(false);
 
   useEffect(() => {
     if (!open || !file) {
@@ -83,6 +89,8 @@ export default function EntryPhotoCropModal({ open, file, displayFilename = null
       croppedAreaPixelsRef.current = null;
       setUpscaleFactor(1);
       setLockedShell(null);
+      setInitCoverVisible(false);
+      coverHideArmedRef.current = false;
       setError('');
       return undefined;
     }
@@ -100,6 +108,8 @@ export default function EntryPhotoCropModal({ open, file, displayFilename = null
     croppedAreaPixelsRef.current = null;
     setUpscaleFactor(1);
     // 不要在这里清空 lockedShell：本 effect 晚于 layout 锁壳，会把壳清掉导致一直「正在加载图片」
+    setInitCoverVisible(true);
+    coverHideArmedRef.current = false;
     setError('');
 
     const img = new Image();
@@ -161,6 +171,25 @@ export default function EntryPhotoCropModal({ open, file, displayFilename = null
 
   const cropperReady = Boolean(imageSrc && cropTarget && lockedShell);
   const upscaleWarning = shouldWarnPhotoUpscale(upscaleFactor);
+
+  // 整窗遮罩：裁剪器就绪后再盖 5 秒；另有打开后 8 秒兜底揭开，避免再卡死
+  useEffect(() => {
+    if (!open || !file || !initCoverVisible) return undefined;
+
+    const hide = () => setInitCoverVisible(false);
+    const safetyTimer = window.setTimeout(hide, INIT_FLICKER_COVER_MAX_MS);
+
+    let readyTimer = 0;
+    if (cropperReady && !coverHideArmedRef.current) {
+      coverHideArmedRef.current = true;
+      readyTimer = window.setTimeout(hide, INIT_FLICKER_COVER_MS);
+    }
+
+    return () => {
+      window.clearTimeout(safetyTimer);
+      if (readyTimer) window.clearTimeout(readyTimer);
+    };
+  }, [open, file, cropperReady, initCoverVisible]);
 
   const orientationHint = useMemo(() => {
     if (!naturalSize.width) return '';
@@ -295,6 +324,12 @@ export default function EntryPhotoCropModal({ open, file, displayFilename = null
         className="relative flex flex-col bg-white rounded-t-2xl sm:rounded-2xl shadow-xl border border-slate-200 overflow-hidden"
         style={panelStyle}
       >
+        {initCoverVisible && !error && (
+          <div className="absolute inset-0 z-30 flex items-center justify-center bg-white rounded-t-2xl sm:rounded-2xl">
+            <p className="text-sm text-slate-600">照片加载中…</p>
+          </div>
+        )}
+
         <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between shrink-0">
           <div>
             <h3 className="font-semibold text-slate-900">裁剪照片</h3>
@@ -320,7 +355,7 @@ export default function EntryPhotoCropModal({ open, file, displayFilename = null
               <button
                 key={preset.id}
                 type="button"
-                disabled={processing}
+                disabled={processing || initCoverVisible}
                 className={[
                   'px-2.5 py-1 rounded-full text-xs border',
                   presetId === preset.id
@@ -381,7 +416,7 @@ export default function EntryPhotoCropModal({ open, file, displayFilename = null
               max={3}
               step={0.01}
               value={zoom}
-              disabled={processing}
+              disabled={processing || initCoverVisible}
               className="flex-1"
               onChange={(e) => {
                 interactingRef.current = true;
@@ -411,11 +446,11 @@ export default function EntryPhotoCropModal({ open, file, displayFilename = null
           {error && <p className="text-sm text-red-600">{error}</p>}
           <button
             type="button"
-            disabled={processing || !cropperReady}
+            disabled={processing || !cropperReady || initCoverVisible}
             className="w-full rounded-lg bg-indigo-600 text-white py-2.5 hover:bg-indigo-700 disabled:opacity-60"
             onClick={handleConfirm}
           >
-            {processing ? '处理中…' : '确认并上传'}
+            {processing ? '处理中…' : initCoverVisible ? '照片加载中…' : '确认并上传'}
           </button>
         </div>
       </div>
