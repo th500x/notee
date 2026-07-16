@@ -11,8 +11,6 @@ import { renderCroppedPhotoBlob, buildProcessedPhotoFile } from '@/utils/process
 import { validateMediaUploadRequest } from '@shared/utils/lifeResumeMediaRules.js';
 
 const DEFAULT_PRESET_ID = 'square_1080';
-/** 打开裁剪后整窗白屏遮罩时长，盖住初始化闪烁 */
-const INIT_FLICKER_COVER_MS = 5000;
 
 function cropPixelsRoughlyEqual(a, b) {
   if (!a || !b) return a === b;
@@ -52,8 +50,9 @@ function readVisualViewportBox() {
  * - 不传 cropSize（由 react-easy-crop 按「图片渲染尺寸」计算取景框）
  * - 预览容器使用 aspect-[4/3]
  *
- * 闪烁根因（手机）：地址栏收起/展开改 vh / 视口 → 整窗重排 → 库 ResizeObserver 反复重算。
- * 对策：visualViewport 像素锁壳 + 禁 body 滚动 + 库侧初始化后冻结 RO + 整窗加载遮罩。
+ * 闪烁根因（手机）：地址栏伸缩改 vh → 整窗重排 → 库 ResizeObserver 反复重算。
+ * 对策：visualViewport 像素锁壳 + 禁 body 滚动 + 库侧初始化后冻结 RO。
+ * 「照片加载中」整窗遮罩已关掉，便于验证根因是否修好。
  */
 export default function EntryPhotoCropModal({ open, file, displayFilename = null, onCancel, onConfirm }) {
   const [imageSrc, setImageSrc] = useState('');
@@ -64,13 +63,10 @@ export default function EntryPhotoCropModal({ open, file, displayFilename = null
   const [upscaleFactor, setUpscaleFactor] = useState(1);
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState('');
-  const [lockedViewport, setLockedViewport] = useState(null);
   const [lockedShell, setLockedShell] = useState(null);
-  const [initCoverVisible, setInitCoverVisible] = useState(false);
 
   const croppedAreaPixelsRef = useRef(null);
   const objectUrlRef = useRef('');
-  const viewportRef = useRef(null);
   const interactingRef = useRef(false);
 
   useEffect(() => {
@@ -86,9 +82,7 @@ export default function EntryPhotoCropModal({ open, file, displayFilename = null
       setZoom(1);
       croppedAreaPixelsRef.current = null;
       setUpscaleFactor(1);
-      setLockedViewport(null);
       setLockedShell(null);
-      setInitCoverVisible(false);
       setError('');
       return undefined;
     }
@@ -105,9 +99,7 @@ export default function EntryPhotoCropModal({ open, file, displayFilename = null
     setZoom(1);
     croppedAreaPixelsRef.current = null;
     setUpscaleFactor(1);
-    setLockedViewport(null);
     setLockedShell(null);
-    setInitCoverVisible(true);
     setError('');
 
     const img = new Image();
@@ -140,67 +132,35 @@ export default function EntryPhotoCropModal({ open, file, displayFilename = null
     };
   }, [open]);
 
-  // 用 visualViewport 像素锁住全屏层与弹窗 maxHeight，禁止再用 vh（会随地址栏变）
+  // 用 visualViewport 像素锁住全屏层与弹窗/预览尺寸（不再依赖 DOM 量测，避免量到 0 一直卡住）
   useLayoutEffect(() => {
     if (!open) {
       setLockedShell(null);
       return undefined;
     }
     const box = readVisualViewportBox();
+    const panelWidth = Math.max(8, Math.min(box.width, 512));
+    const previewWidth = panelWidth;
+    const previewHeight = Math.round((previewWidth * 3) / 4);
     setLockedShell({
       top: box.top,
       left: box.left,
       width: box.width,
       height: box.height,
       panelMaxHeight: Math.max(240, Math.round(box.height * 0.92)),
-      panelWidth: Math.min(box.width, 512),
+      panelWidth,
+      previewWidth,
+      previewHeight,
     });
   }, [open, file]);
-
-  // 等图片尺寸进布局后只锁一次预览区像素，再挂载 Cropper
-  useLayoutEffect(() => {
-    if (!open) {
-      setLockedViewport(null);
-      return undefined;
-    }
-    if (!naturalSize.width || !naturalSize.height || !lockedShell) return undefined;
-    let cancelled = false;
-    let outerRaf = 0;
-    let innerRaf = 0;
-    outerRaf = window.requestAnimationFrame(() => {
-      innerRaf = window.requestAnimationFrame(() => {
-        if (cancelled) return;
-        const el = viewportRef.current;
-        if (!el) return;
-        const rect = el.getBoundingClientRect();
-        const width = Math.round(rect.width);
-        const height = Math.round(rect.height);
-        if (width < 8 || height < 8) return;
-        setLockedViewport({ width, height });
-      });
-    });
-    return () => {
-      cancelled = true;
-      window.cancelAnimationFrame(outerRaf);
-      window.cancelAnimationFrame(innerRaf);
-    };
-  }, [open, file, naturalSize.width, naturalSize.height, lockedShell]);
 
   const cropTarget = useMemo(() => {
     if (!naturalSize.width || !naturalSize.height) return null;
     return resolvePhotoCropTarget(presetId, naturalSize.width, naturalSize.height);
   }, [presetId, naturalSize]);
 
-  const cropperReady = Boolean(imageSrc && cropTarget && lockedViewport && lockedShell);
+  const cropperReady = Boolean(imageSrc && cropTarget && lockedShell);
   const upscaleWarning = shouldWarnPhotoUpscale(upscaleFactor);
-
-  useEffect(() => {
-    if (!open || !file || !cropperReady || !initCoverVisible) return undefined;
-    const timer = window.setTimeout(() => {
-      setInitCoverVisible(false);
-    }, INIT_FLICKER_COVER_MS);
-    return () => window.clearTimeout(timer);
-  }, [open, file, cropperReady, initCoverVisible]);
 
   const orientationHint = useMemo(() => {
     if (!naturalSize.width) return '';
@@ -311,10 +271,10 @@ export default function EntryPhotoCropModal({ open, file, displayFilename = null
       }
     : undefined;
 
-  const viewportStyle = lockedViewport
+  const viewportStyle = lockedShell
     ? {
-        width: `${lockedViewport.width}px`,
-        height: `${lockedViewport.height}px`,
+        width: `${lockedShell.previewWidth}px`,
+        height: `${lockedShell.previewHeight}px`,
         aspectRatio: 'unset',
         maxWidth: '100%',
       }
@@ -335,12 +295,6 @@ export default function EntryPhotoCropModal({ open, file, displayFilename = null
         className="relative flex flex-col bg-white rounded-t-2xl sm:rounded-2xl shadow-xl border border-slate-200 overflow-hidden"
         style={panelStyle}
       >
-        {initCoverVisible && !error && (
-          <div className="absolute inset-0 z-30 flex items-center justify-center bg-white rounded-t-2xl sm:rounded-2xl">
-            <p className="text-sm text-slate-600">照片加载中…</p>
-          </div>
-        )}
-
         <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between shrink-0">
           <div>
             <h3 className="font-semibold text-slate-900">裁剪照片</h3>
@@ -366,7 +320,7 @@ export default function EntryPhotoCropModal({ open, file, displayFilename = null
               <button
                 key={preset.id}
                 type="button"
-                disabled={processing || initCoverVisible}
+                disabled={processing}
                 className={[
                   'px-2.5 py-1 rounded-full text-xs border',
                   presetId === preset.id
@@ -387,7 +341,6 @@ export default function EntryPhotoCropModal({ open, file, displayFilename = null
         </div>
 
         <div
-          ref={viewportRef}
           className="relative w-full aspect-[4/3] bg-slate-900 shrink-0 overflow-hidden"
           style={viewportStyle}
         >
@@ -428,7 +381,7 @@ export default function EntryPhotoCropModal({ open, file, displayFilename = null
               max={3}
               step={0.01}
               value={zoom}
-              disabled={processing || initCoverVisible}
+              disabled={processing}
               className="flex-1"
               onChange={(e) => {
                 interactingRef.current = true;
@@ -458,11 +411,11 @@ export default function EntryPhotoCropModal({ open, file, displayFilename = null
           {error && <p className="text-sm text-red-600">{error}</p>}
           <button
             type="button"
-            disabled={processing || !cropperReady || initCoverVisible}
+            disabled={processing || !cropperReady}
             className="w-full rounded-lg bg-indigo-600 text-white py-2.5 hover:bg-indigo-700 disabled:opacity-60"
             onClick={handleConfirm}
           >
-            {processing ? '处理中…' : initCoverVisible ? '照片加载中…' : '确认并上传'}
+            {processing ? '处理中…' : '确认并上传'}
           </button>
         </div>
       </div>
