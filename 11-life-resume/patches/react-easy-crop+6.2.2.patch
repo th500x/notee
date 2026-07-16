@@ -1,0 +1,74 @@
+diff --git a/node_modules/react-easy-crop/index.js b/node_modules/react-easy-crop/index.js
+index 9167aa9..f14c6c1 100644
+--- a/node_modules/react-easy-crop/index.js
++++ b/node_modules/react-easy-crop/index.js
+@@ -306,11 +306,19 @@ var Cropper = class Cropper extends react.Component {
+ 		this.initResizeObserver = () => {
+ 			if (typeof window.ResizeObserver === "undefined" || !this.containerRef) return;
+ 			let isFirstResize = true;
++			this.__lastRoSize = null;
+ 			this.resizeObserver = new window.ResizeObserver((entries) => {
+ 				if (isFirstResize) {
+ 					isFirstResize = false;
+ 					return;
+ 				}
++				const entry = entries && entries[0];
++				const box = entry && (entry.contentRect || (entry.contentBoxSize && entry.contentBoxSize[0]));
++				const nextW = box ? (box.width != null ? box.width : box.inlineSize) : this.containerRef.clientWidth;
++				const nextH = box ? (box.height != null ? box.height : box.blockSize) : this.containerRef.clientHeight;
++				const prev = this.__lastRoSize;
++				if (prev && Math.abs(prev.w - nextW) < 0.5 && Math.abs(prev.h - nextH) < 0.5) return;
++				this.__lastRoSize = { w: nextW, h: nextH };
+ 				this.computeSizes({ isResizeTriggered: true });
+ 			});
+ 			this.resizeObserver.observe(this.containerRef);
+@@ -400,6 +408,12 @@ var Cropper = class Cropper extends react.Component {
+ 				});
+ 				if (this.props.setMediaSize) this.props.setMediaSize(this.mediaSize);
+ 				const cropSize = this.props.cropSize ? this.props.cropSize : getCropSize(this.mediaSize.width, this.mediaSize.height, this.containerRect.width, this.containerRect.height, this.props.aspect, this.props.rotation);
++				var _prevCrop = this.state.cropSize;
++				var _cropUnchanged = _prevCrop && Math.abs(_prevCrop.width - cropSize.width) < 0.5 && Math.abs(_prevCrop.height - cropSize.height) < 0.5;
++				if (_cropUnchanged) {
++					if (this.props.setCropSize) this.props.setCropSize(cropSize);
++					return cropSize;
++				}
+ 				if (((_this$state$cropSize = this.state.cropSize) === null || _this$state$cropSize === void 0 ? void 0 : _this$state$cropSize.height) !== cropSize.height || ((_this$state$cropSize2 = this.state.cropSize) === null || _this$state$cropSize2 === void 0 ? void 0 : _this$state$cropSize2.width) !== cropSize.width) this.props.onCropSizeChange && this.props.onCropSizeChange(cropSize);
+ 				this.setState({ cropSize }, () => this.recomputeCropPosition({ isResizeTriggered }));
+ 				if (this.props.setCropSize) this.props.setCropSize(cropSize);
+diff --git a/node_modules/react-easy-crop/index.module.mjs b/node_modules/react-easy-crop/index.module.mjs
+index 720fcb0..dfc33c0 100644
+--- a/node_modules/react-easy-crop/index.module.mjs
++++ b/node_modules/react-easy-crop/index.module.mjs
+@@ -278,11 +278,19 @@ var Cropper = class Cropper extends React.Component {
+ 		this.initResizeObserver = () => {
+ 			if (typeof window.ResizeObserver === "undefined" || !this.containerRef) return;
+ 			let isFirstResize = true;
++			this.__lastRoSize = null;
+ 			this.resizeObserver = new window.ResizeObserver((entries) => {
+ 				if (isFirstResize) {
+ 					isFirstResize = false;
+ 					return;
+ 				}
++				const entry = entries && entries[0];
++				const box = entry && (entry.contentRect || (entry.contentBoxSize && entry.contentBoxSize[0]));
++				const nextW = box ? (box.width != null ? box.width : box.inlineSize) : this.containerRef.clientWidth;
++				const nextH = box ? (box.height != null ? box.height : box.blockSize) : this.containerRef.clientHeight;
++				const prev = this.__lastRoSize;
++				if (prev && Math.abs(prev.w - nextW) < 0.5 && Math.abs(prev.h - nextH) < 0.5) return;
++				this.__lastRoSize = { w: nextW, h: nextH };
+ 				this.computeSizes({ isResizeTriggered: true });
+ 			});
+ 			this.resizeObserver.observe(this.containerRef);
+@@ -372,6 +380,12 @@ var Cropper = class Cropper extends React.Component {
+ 				});
+ 				if (this.props.setMediaSize) this.props.setMediaSize(this.mediaSize);
+ 				const cropSize = this.props.cropSize ? this.props.cropSize : getCropSize(this.mediaSize.width, this.mediaSize.height, this.containerRect.width, this.containerRect.height, this.props.aspect, this.props.rotation);
++				var _prevCrop = this.state.cropSize;
++				var _cropUnchanged = _prevCrop && Math.abs(_prevCrop.width - cropSize.width) < 0.5 && Math.abs(_prevCrop.height - cropSize.height) < 0.5;
++				if (_cropUnchanged) {
++					if (this.props.setCropSize) this.props.setCropSize(cropSize);
++					return cropSize;
++				}
+ 				if (((_this$state$cropSize = this.state.cropSize) === null || _this$state$cropSize === void 0 ? void 0 : _this$state$cropSize.height) !== cropSize.height || ((_this$state$cropSize2 = this.state.cropSize) === null || _this$state$cropSize2 === void 0 ? void 0 : _this$state$cropSize2.width) !== cropSize.width) this.props.onCropSizeChange && this.props.onCropSizeChange(cropSize);
+ 				this.setState({ cropSize }, () => this.recomputeCropPosition({ isResizeTriggered }));
+ 				if (this.props.setCropSize) this.props.setCropSize(cropSize);

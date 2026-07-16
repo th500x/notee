@@ -31,7 +31,7 @@ function nearlySamePoint(a, b, epsilon = 0.5) {
  * 裁剪逻辑必须与历史上可用版本一致：
  * - 不传 cropSize（由 react-easy-crop 按「图片渲染尺寸」计算取景框，避免黑边进框）
  * - 预览容器使用 aspect-[4/3]
- * 闪烁另用「锁死视口像素 + 稳定 crop/zoom 状态」处理，不改取景算法。
+ * 闪烁：库侧 patch（尺寸未变不 setState）+ 锁死视口像素 + 稳定 crop/zoom。
  */
 export default function EntryPhotoCropModal({ open, file, displayFilename = null, onCancel, onConfirm }) {
   const [imageSrc, setImageSrc] = useState('');
