@@ -8,6 +8,7 @@ const {
   extractGeocodeQueryCandidates,
   buildFallbackPublicLabelFromPlaceName,
   extractKnownCityMentionFromPlaceName,
+  isDegeneratePublicLabel,
 } = require('../../../05-san-storm/shared/utils/locationPublicLabelFallback.cjs');
 
 const NOMINATIM_REVERSE = 'https://nominatim.openstreetmap.org/reverse';
@@ -36,16 +37,8 @@ function buildPublicLabelFromAddress(address, displayName) {
     return parts.join(' · ').slice(0, 128);
   }
 
-  if (displayName) {
-    return String(displayName)
-      .split(',')
-      .slice(0, 2)
-      .map((s) => s.trim())
-      .filter(Boolean)
-      .join(' · ')
-      .slice(0, 128);
-  }
-
+  // 不再用 display_name 前两段（常为 POI + 路名，会被当成「模糊地址」）
+  void displayName;
   return null;
 }
 
@@ -106,6 +99,7 @@ async function forwardGeocodePlaceToPublicLabel(placeName) {
   url.searchParams.set('q', queryText);
   url.searchParams.set('accept-language', 'zh,en');
   url.searchParams.set('limit', '1');
+  url.searchParams.set('addressdetails', '1');
 
   const res = await geocodeFetch(url);
 
@@ -123,6 +117,17 @@ async function forwardGeocodePlaceToPublicLabel(placeName) {
     throw err;
   }
 
+  // 有坐标时优先逆地理，拿城/区（模糊地址）更稳
+  const lat = hit.lat != null ? Number(hit.lat) : NaN;
+  const lon = hit.lon != null ? Number(hit.lon) : NaN;
+  if (Number.isFinite(lat) && Number.isFinite(lon)) {
+    try {
+      return await reverseGeocodeToPublicLabel(lat, lon, 10);
+    } catch (err) {
+      console.warn('[life-resume] forward→reverse geocode failed:', err.message);
+    }
+  }
+
   const label = buildPublicLabelFromAddress(hit.address, hit.display_name);
   if (!label) {
     const err = new Error('无法根据地点名称解析城/区县');
@@ -136,17 +141,24 @@ async function forwardGeocodePlaceToPublicLabel(placeName) {
 /**
  * 解析访客可见的城/区县模糊文案；外部地理编码不可用时使用纯文本回退，避免阻断发布。
  * @param {{ placeName?: string|null, latitude?: number|null, longitude?: number|null }} input
- * @returns {Promise<string>}
+ * @returns {Promise<string|null>}
  */
 async function resolveLocationPublicLabel(input) {
   const placeName = input?.placeName ? String(input.placeName).trim() : '';
   const latitude = input?.latitude ?? null;
   const longitude = input?.longitude ?? null;
 
+  const acceptLabel = (label) => {
+    if (!label) return null;
+    if (isDegeneratePublicLabel(label, placeName)) return null;
+    return label;
+  };
+
   if (latitude != null && longitude != null) {
     for (const zoom of [10, 8, 14]) {
       try {
-        return await reverseGeocodeToPublicLabel(latitude, longitude, zoom);
+        const label = acceptLabel(await reverseGeocodeToPublicLabel(latitude, longitude, zoom));
+        if (label) return label;
       } catch (err) {
         console.warn('[life-resume] reverse geocode failed:', zoom, err.message);
       }
@@ -164,23 +176,23 @@ async function resolveLocationPublicLabel(input) {
       if (seen.has(key)) continue;
       seen.add(key);
       try {
-        return await forwardGeocodePlaceToPublicLabel(query);
+        const label = acceptLabel(await forwardGeocodePlaceToPublicLabel(query));
+        if (label) return label;
       } catch (err) {
         console.warn('[life-resume] forward geocode failed:', query.slice(0, 60), err.message);
       }
     }
 
-    const fallback = buildFallbackPublicLabelFromPlaceName(placeName);
+    const fallback = acceptLabel(buildFallbackPublicLabelFromPlaceName(placeName));
     if (fallback) {
       return fallback;
     }
 
-    const knownMention = extractKnownCityMentionFromPlaceName(placeName);
+    const knownMention = acceptLabel(extractKnownCityMentionFromPlaceName(placeName));
     if (knownMention) {
       return knownMention;
     }
 
-    // 设计：有地点名称时不阻断发布；模糊文案可为空，仅展示具体店名
     console.warn(
       '[life-resume] geocode exhausted, saving without public label:',
       placeName.slice(0, 80)

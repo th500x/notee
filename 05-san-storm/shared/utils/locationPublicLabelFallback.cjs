@@ -3,8 +3,8 @@
  * 须与 locationPublicLabelFallback.js 同步
  *
  * 分层约定：
- * - extractGeocodeQueryCandidates：尽量多给 Nominatim 查询变体，帮助「先解析成功」
- * - buildFallbackPublicLabelFromPlaceName：仅当外部地理编码全部失败时，从地点名摘城/区县级文案（严格）
+ * - extractGeocodeQueryCandidates：给 Nominatim 的查询变体（可含店名，但勿把店名末词单独当地名）
+ * - buildFallbackPublicLabelFromPlaceName：仅当外部地理编码全部失败时，摘城/区县级文案（严格）
  */
 
 function isLikelyGeoLocalitySegment(segment) {
@@ -14,15 +14,15 @@ function isLikelyGeoLocalitySegment(segment) {
   if (/^[@#]/i.test(s)) return false;
   if (/^[A-Za-z]{1,4}[\u0E00-\u0E7F]/.test(s)) return false;
 
-  if (/District|County|Province|อำเภอ|จังหวัด|เขต/i.test(s)) return true;
+  if (/District|County|Province|อำเภอ|จังหวัด|เขต|Municipality|City\b/i.test(s)) return true;
   if (/[市县府区]$/u.test(s)) return true;
 
   if (/^[\u0E00-\u0E7F][\u0E00-\u0E7F\s·]*$/.test(s)) {
-    if (/^(ร้าน|ครัว|บ้าน|คาเฟ่|โรงแรม|รีสอร์ท|สวน|ร้านอาหาร)/.test(s)) return false;
-    return true;
-  }
-
-  if (/^[A-Za-z][a-zA-Z\s'.-]+$/.test(s) && !/^(The|And|New|By|At)\b/i.test(s)) {
+    if (s.length < 4) return false;
+    if (/^(ร้าน|ครัว|บ้าน|คาเฟ่|โรงแรม|รีสอร์ท|สวน|ร้านอาหาร|ปาร์ค|พาร์ค)/.test(s)) {
+      return false;
+    }
+    if (/ปาร์ค$|พาร์ค$/.test(s) && s.length <= 6) return false;
     return true;
   }
 
@@ -35,7 +35,6 @@ function extractGeocodeQueryCandidates(placeName) {
 
   const candidates = [];
   const commaParts = text.split(',').map((s) => s.trim()).filter(Boolean);
-  const spaceParts = text.split(/\s+/).map((s) => s.trim()).filter(Boolean);
 
   if (/[\u0E00-\u0E7F]/.test(text)) {
     candidates.push(`${text}, Thailand`);
@@ -58,9 +57,10 @@ function extractGeocodeQueryCandidates(placeName) {
     }
   }
 
+  const spaceParts = text.split(/\s+/).map((s) => s.trim()).filter(Boolean);
   if (spaceParts.length >= 2) {
     const tail = spaceParts[spaceParts.length - 1];
-    if (tail.length >= 2 && !/^\d+$/.test(tail)) {
+    if (isLikelyGeoLocalitySegment(tail) || /District|Province|อำเภอ|จังหวัด|市|县|府/i.test(tail)) {
       candidates.push(tail);
       if (/[\u0E00-\u0E7F]/.test(text)) {
         candidates.push(`${tail}, Thailand`);
@@ -93,7 +93,7 @@ function buildFallbackPublicLabelFromPlaceName(placeName) {
     const picks = [];
     const cityPart = commaParts.find((p) => /\bCity\b|市|府$/i.test(p));
     const districtPart = commaParts.find((p) =>
-      /District|County|Province|อำเภอ|县|府$/i.test(p)
+      /District|County|Province|อำเภอ|จังหวัด|县|府$/i.test(p)
     );
     if (cityPart) picks.push(cityPart);
     if (districtPart && districtPart !== cityPart) picks.push(districtPart);
@@ -102,14 +102,6 @@ function buildFallbackPublicLabelFromPlaceName(placeName) {
     }
     const label = picks.filter(Boolean).join(' · ');
     if (label) return label.slice(0, 128);
-  }
-
-  const spaceParts = text.split(/\s+/).map((s) => s.trim()).filter(Boolean);
-  if (spaceParts.length >= 2) {
-    const district = spaceParts[spaceParts.length - 1];
-    if (isLikelyGeoLocalitySegment(district)) {
-      return district.slice(0, 128);
-    }
   }
 
   const thaiAdmin = text.match(/(?:อำเภอ|เขต|จังหวัด)\s*([^\s,]+)/);
@@ -148,8 +140,26 @@ function extractKnownCityMentionFromPlaceName(placeName) {
   if (text.includes('春武里') || /\bChon Buri\b/i.test(text)) {
     return 'Chon Buri';
   }
+  if (/\bAyutthaya\b|\bAyuthaya\b/i.test(text) || text.includes('อยุธยา')) {
+    return 'Ayutthaya';
+  }
 
   return null;
+}
+
+function isDegeneratePublicLabel(label, placeName) {
+  const l = String(label || '').trim();
+  const p = String(placeName || '').trim();
+  if (!l || !p) return false;
+  if (l.toLowerCase() === p.toLowerCase()) return true;
+  const words = p.split(/\s+/).filter(Boolean);
+  if (words.length >= 2 && words[words.length - 1].toLowerCase() === l.toLowerCase()) {
+    return true;
+  }
+  if (/^[\u0E00-\u0E7F]+$/.test(l) && l.length <= 6 && p.includes(l)) {
+    return true;
+  }
+  return false;
 }
 
 module.exports = {
@@ -157,4 +167,5 @@ module.exports = {
   extractGeocodeQueryCandidates,
   extractKnownCityMentionFromPlaceName,
   buildFallbackPublicLabelFromPlaceName,
+  isDegeneratePublicLabel,
 };

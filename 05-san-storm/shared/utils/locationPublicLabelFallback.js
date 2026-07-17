@@ -3,12 +3,13 @@
  * 须与 locationPublicLabelFallback.cjs 同步
  *
  * 分层约定：
- * - extractGeocodeQueryCandidates：尽量多给 Nominatim 查询变体，帮助「先解析成功」
- * - buildFallbackPublicLabelFromPlaceName：仅当外部地理编码全部失败时，从地点名摘城/区县级文案（严格）
+ * - extractGeocodeQueryCandidates：给 Nominatim 的查询变体（可含店名，但勿把店名末词单独当地名）
+ * - buildFallbackPublicLabelFromPlaceName：仅当外部地理编码全部失败时，摘城/区县级文案（严格）
  */
 
 /**
- * 判断片段是否像城/区县（用于最终模糊文案回退，不用于限制地理编码查询）。
+ * 判断片段是否像城/区县（用于最终模糊文案回退）。
+ * 禁止把普通英文词 / 短泰文词（Hostel、ปาร์ค）当成行政区。
  * @param {string} segment
  * @returns {boolean}
  */
@@ -19,23 +20,26 @@ export function isLikelyGeoLocalitySegment(segment) {
   if (/^[@#]/i.test(s)) return false;
   if (/^[A-Za-z]{1,4}[\u0E00-\u0E7F]/.test(s)) return false;
 
-  if (/District|County|Province|อำเภอ|จังหวัด|เขต/i.test(s)) return true;
+  // 明确行政区关键词
+  if (/District|County|Province|อำเภอ|จังหวัด|เขต|Municipality|City\b/i.test(s)) return true;
   if (/[市县府区]$/u.test(s)) return true;
 
+  // 纯泰文：须足够长，且排除常见店铺前缀/后缀词
   if (/^[\u0E00-\u0E7F][\u0E00-\u0E7F\s·]*$/.test(s)) {
-    if (/^(ร้าน|ครัว|บ้าน|คาเฟ่|โรงแรม|รีสอร์ท|สวน|ร้านอาหาร)/.test(s)) return false;
+    if (s.length < 4) return false;
+    if (/^(ร้าน|ครัว|บ้าน|คาเฟ่|โรงแรม|รีสอร์ท|สวน|ร้านอาหาร|ปาร์ค|พาร์ค)/.test(s)) {
+      return false;
+    }
+    if (/ปาร์ค$|พาร์ค$/.test(s) && s.length <= 6) return false;
     return true;
   }
 
-  if (/^[A-Za-z][a-zA-Z\s'.-]+$/.test(s) && !/^(The|And|New|By|At)\b/i.test(s)) {
-    return true;
-  }
-
+  // 普通英文单词（Hostel、Park）一律不当作城/区
   return false;
 }
 
 /**
- * 生成正向地理编码查询候选（宽松，不因像店名而剔除）。
+ * 生成正向地理编码查询候选。
  * @param {string} placeName
  * @returns {string[]}
  */
@@ -45,7 +49,6 @@ export function extractGeocodeQueryCandidates(placeName) {
 
   const candidates = [];
   const commaParts = text.split(',').map((s) => s.trim()).filter(Boolean);
-  const spaceParts = text.split(/\s+/).map((s) => s.trim()).filter(Boolean);
 
   if (/[\u0E00-\u0E7F]/.test(text)) {
     candidates.push(`${text}, Thailand`);
@@ -68,9 +71,11 @@ export function extractGeocodeQueryCandidates(placeName) {
     }
   }
 
+  // 仅当末词本身像行政区时才单独查询（禁止 Hostel / ปาร์ค）
+  const spaceParts = text.split(/\s+/).map((s) => s.trim()).filter(Boolean);
   if (spaceParts.length >= 2) {
     const tail = spaceParts[spaceParts.length - 1];
-    if (tail.length >= 2 && !/^\d+$/.test(tail)) {
+    if (isLikelyGeoLocalitySegment(tail) || /District|Province|อำเภอ|จังหวัด|市|县|府/i.test(tail)) {
       candidates.push(tail);
       if (/[\u0E00-\u0E7F]/.test(text)) {
         candidates.push(`${tail}, Thailand`);
@@ -95,7 +100,7 @@ export function extractGeocodeQueryCandidates(placeName) {
 }
 
 /**
- * 从地点名提取城/区县级模糊文案（仅地理编码全部失败时使用；严格，不用店名后缀）。
+ * 从地点名提取城/区县级模糊文案（仅地理编码全部失败时使用）。
  * @param {string} placeName
  * @returns {string|null}
  */
@@ -108,7 +113,7 @@ export function buildFallbackPublicLabelFromPlaceName(placeName) {
     const picks = [];
     const cityPart = commaParts.find((p) => /\bCity\b|市|府$/i.test(p));
     const districtPart = commaParts.find((p) =>
-      /District|County|Province|อำเภอ|县|府$/i.test(p)
+      /District|County|Province|อำเภอ|จังหวัด|县|府$/i.test(p)
     );
     if (cityPart) picks.push(cityPart);
     if (districtPart && districtPart !== cityPart) picks.push(districtPart);
@@ -119,13 +124,7 @@ export function buildFallbackPublicLabelFromPlaceName(placeName) {
     if (label) return label.slice(0, 128);
   }
 
-  const spaceParts = text.split(/\s+/).map((s) => s.trim()).filter(Boolean);
-  if (spaceParts.length >= 2) {
-    const district = spaceParts[spaceParts.length - 1];
-    if (isLikelyGeoLocalitySegment(district)) {
-      return district.slice(0, 128);
-    }
-  }
+  // 禁止：空格分段取最后一词（Hawaii Hostel → Hostel；… ปาร์ค → ปาร์ค）
 
   const thaiAdmin = text.match(/(?:อำเภอ|เขต|จังหวัด)\s*([^\s,]+)/);
   if (thaiAdmin?.[1]) {
@@ -142,7 +141,7 @@ export function buildFallbackPublicLabelFromPlaceName(placeName) {
 }
 
 /**
- * 从地点名任意位置识别已知城市/地区（最后兜底，不用店名后缀）。
+ * 从地点名任意位置识别已知城市/地区（最后兜底）。
  * @param {string} placeName
  * @returns {string|null}
  */
@@ -168,6 +167,31 @@ export function extractKnownCityMentionFromPlaceName(placeName) {
   if (text.includes('春武里') || /\bChon Buri\b/i.test(text)) {
     return 'Chon Buri';
   }
+  if (/\bAyutthaya\b|\bAyuthaya\b/i.test(text) || text.includes('อยุธยา')) {
+    return 'Ayutthaya';
+  }
 
   return null;
+}
+
+/**
+ * 模糊文案是否退化成店名碎片（与完整店名重复或仅为末词）。
+ * @param {string|null|undefined} label
+ * @param {string|null|undefined} placeName
+ * @returns {boolean}
+ */
+export function isDegeneratePublicLabel(label, placeName) {
+  const l = String(label || '').trim();
+  const p = String(placeName || '').trim();
+  if (!l || !p) return false;
+  if (l.toLowerCase() === p.toLowerCase()) return true;
+  const words = p.split(/\s+/).filter(Boolean);
+  if (words.length >= 2 && words[words.length - 1].toLowerCase() === l.toLowerCase()) {
+    return true;
+  }
+  // 双语店名里单独拎出的短泰文词（如 ปาร์ค）
+  if (/^[\u0E00-\u0E7F]+$/.test(l) && l.length <= 6 && p.includes(l)) {
+    return true;
+  }
+  return false;
 }
