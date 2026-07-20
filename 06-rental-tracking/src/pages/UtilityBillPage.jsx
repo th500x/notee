@@ -3,7 +3,8 @@ import * as api from '../utils/apiClient'
 import {
   addCalendarDaysIsoYmd,
   isUtilityReadingPeriodOrderValid,
-  sanitizeOptionalIsoYmd
+  sanitizeOptionalIsoYmd,
+  todayLocalIsoYmd
 } from '../utils/utilityBillingPeriod'
 
 function emptySheet() {
@@ -269,15 +270,18 @@ export default function UtilityBillPage({ project, onBack, onSaved }) {
     }
   }
 
-  /** For a new billing month: last month ← current, then clear current (per row). */
+  /** For a new billing month: last month ← current, clear current; also roll Billing period. */
   const handleCarryCurrentToLastMonth = () => {
     if (sheet.rows.length === 0) return
     const ok = window.confirm(
-      'For every row, copy Current electric / Current water into Last month electric / Last month water, then clear the current fields so you can enter the new readings. Continue?'
+      'For every row, copy Current electric / Current water into Last month electric / Last month water, then clear the current fields. Also move Billing period Current reading → Previous reading, and set Current reading to today. Continue?'
     )
     if (!ok) return
+    const todayIso = todayLocalIsoYmd()
     setSheet((prev) => ({
       ...prev,
+      readingPeriodStartIso: sanitizeOptionalIsoYmd(prev.readingPeriodEndIso),
+      readingPeriodEndIso: todayIso,
       rows: prev.rows.map((r) => {
         const ce = Number(r.currentMonthElectric) || 0
         const cw = Number(r.currentMonthWater) || 0
@@ -556,7 +560,7 @@ export default function UtilityBillPage({ project, onBack, onSaved }) {
           type="button"
           onClick={handleCarryCurrentToLastMonth}
           disabled={sheet.rows.length === 0}
-          title="Copies current meter readings into last month and clears current for each row."
+          title="Copies current meter readings into last month and clears current for each row; also rolls Billing period (Current → Previous, Current = today)."
           className="px-6 py-3 bg-amber-500 text-white rounded-lg hover:bg-amber-600 font-medium disabled:opacity-50"
         >
           Copy current → last

@@ -157,7 +157,8 @@ export function getAllPropertiesForExport(project) {
 
 /** PNG export: low water usage → shade only Last water / Curr. water / Water u. columns. */
 const UTILITY_EXPORT_LOW_WATER_UNITS_MAX = 20
-const UTILITY_EXPORT_LOW_WATER_BAND_FILL = '#cbd5e1'
+/** Neutral grey (not slate/blue-grey) — “low water, can ignore these columns”. */
+const UTILITY_EXPORT_LOW_WATER_BAND_FILL = '#d4d4d4'
 /** Column indices in `columnWidths` matching Last water, Curr. water, Water u. */
 const UTILITY_EXPORT_WATER_COL_FIRST = 4
 const UTILITY_EXPORT_WATER_COL_LAST = 6

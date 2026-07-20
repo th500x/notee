@@ -25,6 +25,18 @@ export function addCalendarDaysIsoYmd(isoYmd, deltaDays) {
 }
 
 /**
+ * Today's date in the browser's local calendar as YYYY-MM-DD.
+ * @returns {string}
+ */
+export function todayLocalIsoYmd() {
+  const d = new Date()
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
+/**
  * Valid when: not both set, or end is strictly after start.
  * @param {unknown} startIso
  * @param {unknown} endIso
