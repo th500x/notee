@@ -297,6 +297,16 @@ async function startNode(playerId, chapterId, nodeId) {
         if (tokenCharged) await refundTacticTokenOnce(playerId, null, tokenCharged);
         return { ok: false, error: '关卡配置缺失' };
       }
+      // Extra 多部署区属 60-3 P5，前端只会按 Main 出战；配了却静默按 Main 打会掩盖配置错误
+      const lineupSlots = node.lineup_slots_override || stage.lineup_slots || 'main';
+      if (lineupSlots !== 'main') {
+        if (tokenCharged) await refundTacticTokenOnce(playerId, null, tokenCharged);
+        return {
+          ok: false,
+          error: `关卡 ${stage.stage_id} 配了 lineup_slots=${lineupSlots}，但 Extra 多部署区尚未实装（60-3 P5）`,
+          code: 'CHAPTER_LINEUP_SLOTS_UNSUPPORTED',
+        };
+      }
       return {
         ok: true,
         nodeType: 'battle',
@@ -304,7 +314,7 @@ async function startNode(playerId, chapterId, nodeId) {
         tokenCharged,
         tacticTokens: await getTacticTokenCount(playerId),
         stage: formatStageForClient(stage),
-        lineupSlots: node.lineup_slots_override || stage.lineup_slots || 'main',
+        lineupSlots,
       };
     }
 

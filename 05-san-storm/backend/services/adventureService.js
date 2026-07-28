@@ -386,12 +386,6 @@ async function ensureSettledOpenAll(playerId) {
   return out.filter(Boolean);
 }
 
-/** @deprecated 请用 ensureSettledOpenAll */
-async function ensureSettledOpen(playerId) {
-  const list = await ensureSettledOpenAll(playerId);
-  return list[0] || null;
-}
-
 async function getStatus(playerId) {
   const pid = String(playerId || '').trim();
   const themes = await listActiveThemes('san_1');
@@ -573,7 +567,6 @@ module.exports = {
   dispatch,
   claim,
   settleAdventureIfDue,
-  ensureSettledOpen,
   ensureSettledOpenAll,
   buildAttackerFromExtraSlot,
   formatAdventureRow,
