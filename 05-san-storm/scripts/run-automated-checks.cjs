@@ -127,9 +127,11 @@ function phaseGameBuild(quick) {
     stdio: 'inherit',
     env: { ...process.env, CI: '1' },
     windowsHide: true,
+    /** Node ≥18.20 起 Windows 不允许直接 spawn `.cmd`（否则 status=null / EINVAL） */
+    shell: process.platform === 'win32',
   });
   if (r.status !== 0) {
-    console.error('[fail] game npm run build 退出码', r.status);
+    console.error('[fail] game npm run build 退出码', r.status, r.error?.message || '');
     return { ok: false };
   }
   console.log('[ok] game npm run build');
