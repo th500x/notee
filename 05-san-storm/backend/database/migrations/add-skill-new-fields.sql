@@ -28,7 +28,3 @@ ALTER TABLE config_skills
 -- 4. 删除废弃字段 target_effect
 ALTER TABLE config_skills
   DROP COLUMN target_effect;
-
--- 验证
-SELECT skill_id, skill_name, skill_type, special_effect, damage_multiplier, target_range, target_count
-FROM config_skills LIMIT 3;
