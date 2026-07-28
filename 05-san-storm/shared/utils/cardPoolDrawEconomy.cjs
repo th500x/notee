@@ -1,12 +1,25 @@
 /**
- * 封赏卡池 · 半天窗抽取次数与银两梯度（13-3 §5.1）
+ * 封赏卡池 · 半天窗双通道（银两十连 / 真三徽章抽）与银两总价（13-3 §5.1）
  * @module shared/utils/cardPoolDrawEconomy
  */
 
-/** 每半天窗（08:00 / 12:00 锚点）每池最多操作次数 */
+/** 银两十连 / 真三徽章抽：各占本半天窗 1 次机会（两路独立） */
+const HALF_DAY_CHANNEL_SLOT_LIMIT = 1;
+
+/** 兼容旧字段名：单通道内「额度权重」仍按 10 记（十连前 10 次） */
 const HALF_DAY_DRAW_LIMIT = 10;
 
-/** 银两梯度：前 3 次 30 → 中 3 次 50 → 后 4 次 70（将领/部队共用） */
+const DRAW_CHANNEL_SILVER = 'silver';
+const DRAW_CHANNEL_BADGE = 'badge';
+
+/** 真三徽章抽消耗 */
+const BADGE_BATCH_ITEM_ID = 'item_badge_storm';
+const BADGE_BATCH_COST = 1;
+
+/** 本窗两路合计机会数（徽章抽 + 银两十连） */
+const HALF_DAY_TOTAL_SLOTS = 2;
+
+/** @deprecated 旧单抽银两梯度；银两十连总价仍按此表求和 */
 const DRAW_COST_TIERS = Object.freeze([
   { count: 3, cost: 30 },
   { count: 3, cost: 50 },
@@ -32,27 +45,27 @@ function getDrawCostForOperationIndex(opIndexOneBased) {
   return DRAW_COST_TIERS[DRAW_COST_TIERS.length - 1].cost;
 }
 
-/** @param {number} completedOpsInWindow 本窗已完成操作数（0～10） */
+/** @deprecated 单抽已废止；保留供旧调用方 */
 function getNextDrawCost(completedOpsInWindow) {
   const done = clampCompletedOps(completedOpsInWindow);
   if (done >= HALF_DAY_DRAW_LIMIT) return null;
   return getDrawCostForOperationIndex(done + 1);
 }
 
-/** 十连抽消耗的本窗操作数（占满半天额度） */
+/** 十连抽消耗的通道额度权重（占满银两通道） */
 const BATCH_DRAW_QUOTA_OPS = HALF_DAY_DRAW_LIMIT;
 
-/** 十连额外赠送抽取次数（不计入半天额度） */
+/** 十连额外赠送抽取次数（不计入额度权重） */
 const BATCH_DRAW_BONUS_OPS = 2;
 
-/** 十连实际执行的抽取操作次数（10+2） */
+/** 十连 / 徽章抽实际执行的抽取操作次数（10+2） */
 const BATCH_DRAW_TOTAL_OPS = BATCH_DRAW_QUOTA_OPS + BATCH_DRAW_BONUS_OPS;
 
 function clampCompletedOps(completedOpsInWindow) {
   return Math.max(0, Math.min(HALF_DAY_DRAW_LIMIT, Math.floor(Number(completedOpsInWindow) || 0)));
 }
 
-/** 本窗第 1～10 次单抽银两之和（= 十连总价） */
+/** 银两十连总价（= 旧 1～10 次单抽银两之和） */
 function getBatchDrawTotalCost() {
   let total = 0;
   for (let i = 1; i <= BATCH_DRAW_QUOTA_OPS; i += 1) {
@@ -61,13 +74,30 @@ function getBatchDrawTotalCost() {
   return total;
 }
 
-/** 本窗尚未抽过才可十连（与单抽互斥） */
+/** 某通道本窗是否仍可抽（权重合计为 0） */
+function canChannelBatch(channelQuotaUsed) {
+  return clampCompletedOps(channelQuotaUsed) === 0;
+}
+
+/** @deprecated 旧「未抽过才可十连」；现仅表示银两通道未用 */
 function canBatchDraw(completedOpsInWindow) {
-  return clampCompletedOps(completedOpsInWindow) === 0;
+  return canChannelBatch(completedOpsInWindow);
+}
+
+function normalizeDrawChannel(raw) {
+  const s = String(raw || '').trim().toLowerCase();
+  if (s === DRAW_CHANNEL_BADGE) return DRAW_CHANNEL_BADGE;
+  return DRAW_CHANNEL_SILVER;
 }
 
 module.exports = {
+  HALF_DAY_CHANNEL_SLOT_LIMIT,
   HALF_DAY_DRAW_LIMIT,
+  HALF_DAY_TOTAL_SLOTS,
+  DRAW_CHANNEL_SILVER,
+  DRAW_CHANNEL_BADGE,
+  BADGE_BATCH_ITEM_ID,
+  BADGE_BATCH_COST,
   DRAW_COST_TIERS,
   BATCH_DRAW_QUOTA_OPS,
   BATCH_DRAW_BONUS_OPS,
@@ -75,5 +105,7 @@ module.exports = {
   getDrawCostForOperationIndex,
   getNextDrawCost,
   getBatchDrawTotalCost,
+  canChannelBatch,
   canBatchDraw,
+  normalizeDrawChannel,
 };

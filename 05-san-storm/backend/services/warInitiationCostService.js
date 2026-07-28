@@ -7,14 +7,13 @@ const factionReserveService = require('./factionReserveService');
 
 /**
  * 基准消耗（银两 / 粮草，整数）；与 `cities.city_type` 对齐。
- * 小城 | 中城+据点 | 大城+关隘
+ * 小城 | 中城 | 大城+关隘
  */
 const BASELINE_BY_CITY_TYPE = Object.freeze({
   city_small: { silver: 600, food: 3000 },
   city_medium: { silver: 1800, food: 9000 },
-  fort: { silver: 1800, food: 9000 },
   city_major: { silver: 3000, food: 15000 },
-  gate: { silver: 3000, food: 15000 },
+  city_gate: { silver: 3000, food: 15000 },
 });
 
 /**

@@ -6,9 +6,9 @@
  * | 名称 | 字段 | 用途 |
  * |------|------|------|
  * | **PlayerRoadCell**（玩家道路立足 · 持久化） | `junId` + `gx` + `gy`（`gy` 为**郡内**行 0…39） | `players.road_jun_id`、`road_position_x/y`；`GET road/self`；郡内 presence |
- * | **WorldMapCell**（叠放画布 · 演算） | `gx` + `worldGy`（世界行；颍川 0…39、汝南 40…79） | merged `cells`/`roadCells`、BFS、可通行键、`POST road/move` 响应 `path`、前端跳跳棋（`mapRows > 40`） |
+ * | **WorldMapCell**（叠放画布 · 演算） | `gx` + `worldGy`（L 形：颍川 0…39 / 汝南 40…59；右上 VOID 不可写库） | merged `cells`/`roadCells`、BFS、可通行键、`POST road/move` 响应 `path`、前端跳跳棋（`mapRows > 40`） |
  *
- * **单郡 40 行**且未叠放时：WorldMapCell 与 PlayerRoadCell 数值相同，但仍须带 `junId` 写库。
+ * **单郡**且未叠放时：WorldMapCell 与 PlayerRoadCell 数值相同，但仍须带 `junId` 写库。
  *
  * ## 规则摘要
  * - 读库 → 演算：{@link playerRoadToWorldMapCell}
@@ -21,19 +21,27 @@
 import {
   STRATEGIC_COUNTY_MAP_ROWS,
   SAN_1_STRATEGIC_VERTICAL_STACK_JUN_ORDER,
+  SAN1_YU_L_WORLD_COLS,
+  SAN1_YU_L_WORLD_ROWS,
+  SAN1_YU_RUNAN_WORLD_ROW_OFFSET,
   stackWorldRowOffsetForJunId,
   stackWorldGyFromLocalJunRow,
   stackLocalJunRowFromWorldGy,
   san1YuStrategicAdminJunIdAtWorldCell,
+  isSan1YuLStackVoidCell,
 } from './strategicWorldMapStack.js';
 
 export {
   STRATEGIC_COUNTY_MAP_ROWS,
   SAN_1_STRATEGIC_VERTICAL_STACK_JUN_ORDER,
+  SAN1_YU_L_WORLD_COLS,
+  SAN1_YU_L_WORLD_ROWS,
+  SAN1_YU_RUNAN_WORLD_ROW_OFFSET,
   stackWorldRowOffsetForJunId,
   stackWorldGyFromLocalJunRow,
   stackLocalJunRowFromWorldGy,
   san1YuStrategicAdminJunIdAtWorldCell,
+  isSan1YuLStackVoidCell,
 };
 
 /**
@@ -42,7 +50,7 @@ export {
  */
 
 /**
- * @param {number} mapRows - 合并格网总行数（叠放颍川+汝南为 80）
+ * @param {number} mapRows - 合并格网总行数（L 形 60 / 旧垂直 80）
  * @returns {boolean}
  */
 export function isStackedWorldMap(mapRows) {
@@ -111,7 +119,8 @@ export function playerRoadToWorldMapCell(junOrCell, gx, localGy) {
 export function worldMapCellToPlayerRoad(gx, worldGy) {
   const w = worldMapCell(gx, worldGy);
   if (!w) return null;
-  const loc = stackLocalJunRowFromWorldGy(w.worldGy);
+  if (isSan1YuLStackVoidCell(w.gx, w.worldGy)) return null;
+  const loc = stackLocalJunRowFromWorldGy(w.worldGy, w.gx);
   if (!loc?.junId) return null;
   return { junId: loc.junId, gx: w.gx, gy: loc.localGy };
 }
@@ -253,10 +262,11 @@ export function worldGyFromPlayerRoadLocal(junId, localGy) {
 /**
  * 世界行 → `{ junId, localGy }`（勿直接调 `stackLocalJunRowFromWorldGy`）。
  * @param {number} worldGy
+ * @param {number} [worldGx] 传入时可识别 L 形 VOID
  * @returns {{ junId: string, localGy: number }|null}
  */
-export function playerRoadJunSliceFromWorldGy(worldGy) {
-  return stackLocalJunRowFromWorldGy(worldGy);
+export function playerRoadJunSliceFromWorldGy(worldGy, worldGx) {
+  return stackLocalJunRowFromWorldGy(worldGy, worldGx);
 }
 
 /** 同 {@link worldMapCellToPlayerRoad}，命名强调「世界格 → 写库 PlayerRoadCell」。 */

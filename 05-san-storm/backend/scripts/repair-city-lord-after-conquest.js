@@ -1,12 +1,13 @@
 /**
- * 修复易主后长官与势力不一致；中城/大城补设君主长官（与 applyCityOwnershipHandoff 对齐）。
+ * 修复易主后长官与势力不一致；中城/大城补设 core 将领长官（与 applyCityOwnershipHandoff 对齐）。
  * node scripts/repair-city-lord-after-conquest.js
  */
 require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
 const { pool } = require('../database/connection');
-const { resolveFactionMonarchCharacterId } = require('../services/cityService');
+const { resolveFactionCoreCharacterId } = require('../services/cityService');
+const { cityTypeUsesAutoInitialLord } = require('../../shared/utils/pickFactionCoreCharacter.cjs');
 
 async function setLordForCity(row, curFaction) {
   const [meta] = await pool.query(
@@ -15,17 +16,16 @@ async function setLordForCity(row, curFaction) {
   );
   const cityType = meta[0]?.city_type;
   const season = meta[0]?.season;
-  const isMajorOrMedium = cityType === 'city_major' || cityType === 'city_medium';
-  let monarch = null;
-  if (isMajorOrMedium && curFaction) {
-    monarch = await resolveFactionMonarchCharacterId(pool, curFaction, season);
+  let lord = null;
+  if (cityTypeUsesAutoInitialLord(cityType) && curFaction) {
+    lord = await resolveFactionCoreCharacterId(pool, curFaction, season);
   }
   await pool.query(
     `UPDATE cities SET lord_player_id = NULL,
        lord_appointed_at = CASE WHEN ? IS NOT NULL THEN NOW() ELSE NULL END,
        initial_lord_character_id = ?
      WHERE city_id = ?`,
-    [monarch, monarch, row.city_id],
+    [lord, lord, row.city_id],
   );
 }
 
@@ -63,7 +63,7 @@ async function setLordForCity(row, curFaction) {
     fixed += 1;
   }
 
-  const [needMonarch] = await pool.query(
+  const [needLord] = await pool.query(
     `SELECT c.city_id, c.city_name, c.faction_id
      FROM cities c
      WHERE c.city_type IN ('city_major', 'city_medium')
@@ -71,18 +71,18 @@ async function setLordForCity(row, curFaction) {
        AND c.lord_player_id IS NULL
        AND c.initial_lord_character_id IS NULL`,
   );
-  for (const row of needMonarch) {
+  for (const row of needLord) {
     const seedRow = seedById.get(row.city_id);
     const seedFaction = seedRow?.initialFactionId?.trim() || null;
     const curFaction = row.faction_id?.trim() || null;
     if (!seedFaction || !curFaction || seedFaction === curFaction) continue;
     await setLordForCity(row, curFaction);
-    console.log(`monarch: ${row.city_id} (${row.city_name})`);
+    console.log(`core-lord: ${row.city_id} (${row.city_name})`);
     fixed += 1;
   }
 
-  console.log(`done, fixed ${fixed} cities`);
-  process.exit(0);
+  console.log(`done, fixed=${fixed}`);
+  await pool.end();
 })().catch((e) => {
   console.error(e);
   process.exit(1);

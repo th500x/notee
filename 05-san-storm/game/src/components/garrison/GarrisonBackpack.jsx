@@ -20,7 +20,17 @@ import {
 import { cardPoolAPI } from '@/services/cardPoolApi';
 import { playerAPI } from '@/services/playerApi';
 import { groupTroopCardsByRarity, RARITY_LABEL } from '@/utils/garrisonBarracksTroopPool';
-import { isTroopEquippableForLineup } from '@/utils/troopLineupEligibility';
+import { isTroopEquippableForLineup, getTroopRarity } from '@/utils/troopLineupEligibility';
+import {
+  TROOP_BADGE_ITEM_ID,
+  troopBadgeRepairCostForRarity,
+  isUsableInventoryItem,
+} from '@/utils/troopBadgeDurabilityRepairDisplay.js';
+import {
+  troopCardDisplayName,
+  isWornLegendaryOrCoreTroop,
+} from '@/utils/troopBadgeRepairCandidates';
+import './garrisonUsableItem.css';
 
 const RARITY_ORDER = { common: 0, rare: 1, epic: 2, legendary: 3, core: 4 };
 
@@ -119,17 +129,35 @@ export default function GarrisonBackpack({
   onAfterEncapsulateChange,
   encapsulateEquipmentPool = [],
   equipmentSetCards = [],
+  /** @type {{ card: any, location: string }[] | null} 为空则仅用军营 cards 中耐久未满传奇/核心 */
+  badgeRepairCandidates = null,
   footerNote = '驻地编组与上阵编组互斥，请合理分配',
 }) {
   const [expandedType, setExpandedType]       = useState(null);
   const [previewCard, setPreviewCard]         = useState(null);
   const [previewItem, setPreviewItem]         = useState(null);
+  const [badgePickOpen, setBadgePickOpen]     = useState(false);
+  const [badgeBusy, setBadgeBusy]             = useState(false);
+  const [badgeMsg, setBadgeMsg]               = useState('');
   const [encapsulateOpen, setEncapsulateOpen] = useState(false);
   const [encapsulateMode, setEncapsulateMode] = useState('draft');
   const [encapsulateEditId, setEncapsulateEditId] = useState(null);
   const [recruitCrossSeasonActive, setRecruitCrossSeasonActive] = useState(false);
   const [inventoryItems, setInventoryItems]   = useState([]);
   const baseUrl = import.meta.env.BASE_URL;
+
+  const refreshInventoryItems = () => {
+    if (!playerId) {
+      setInventoryItems([]);
+      return;
+    }
+    playerAPI.getItems(playerId)
+      .then((res) => {
+        if (!res?.success) return;
+        setInventoryItems(Array.isArray(res.data?.items) ? res.data.items : []);
+      })
+      .catch(() => setInventoryItems([]));
+  };
 
   useEffect(() => {
     if (!playerId) {
@@ -166,6 +194,57 @@ export default function GarrisonBackpack({
   }, [playerId]);
 
   const limitDisplayOpts = { recruitCrossSeasonActive };
+
+  const wornBadgeTargets = Array.isArray(badgeRepairCandidates)
+    ? badgeRepairCandidates.filter((row) => isWornLegendaryOrCoreTroop(row?.card))
+    : (cards || [])
+        .filter((c) => isWornLegendaryOrCoreTroop(c))
+        .map((card) => ({ card, location: '军营' }));
+
+  const openBadgeTroopPicker = () => {
+    setBadgeMsg('');
+    setPreviewItem(null);
+    setBadgePickOpen(true);
+  };
+
+  const handleUseBadgeOnTroop = async (troopCard) => {
+    if (!playerId || !troopCard?.instanceId || badgeBusy) return;
+    const cost = troopBadgeRepairCostForRarity(getTroopRarity(troopCard));
+    if (cost == null) {
+      setBadgeMsg('仅传奇/核心部队可用部队徽章恢复');
+      return;
+    }
+    setBadgeBusy(true);
+    setBadgeMsg('');
+    try {
+      const res = await playerAPI.useItem(playerId, {
+        itemId: TROOP_BADGE_ITEM_ID,
+        instanceId: troopCard.instanceId,
+      });
+      if (!res?.success) {
+        setBadgeMsg(res?.error || '恢复失败');
+        return;
+      }
+      const name =
+        res.data?.repair?.troopName ||
+        troopCardDisplayName(troopCard);
+      setBadgeMsg(`「${name}」耐久已恢复（消耗 ${res.data?.repair?.cost ?? cost} 枚徽章）`);
+      refreshInventoryItems();
+      if (typeof onAfterEncapsulateChange === 'function') {
+        await onAfterEncapsulateChange();
+      }
+      const remaining = Number(res.data?.repair?.remainingBadges) || 0;
+      if (remaining <= 0) {
+        setTimeout(() => setBadgePickOpen(false), 600);
+      }
+    } catch (e) {
+      setBadgeMsg(e?.message || '恢复失败');
+    } finally {
+      setBadgeBusy(false);
+    }
+  };
+
+  const canUsePreviewItem = previewItem && isUsableInventoryItem(previewItem);
 
   const encapsulateEquipmentCards =
     encapsulateEquipmentPool.length > 0
@@ -421,20 +500,33 @@ export default function GarrisonBackpack({
             ))
           ) : expandedType === 'item' ? (
             <div className="flex flex-wrap gap-1.5">
-              {inventoryItems.map((item) => (
-                <button
-                  key={item.itemId}
-                  type="button"
-                  className="w-[4.5rem] min-h-[4.5rem] rounded-lg border border-stone-600/50 bg-stone-900/70
-                    px-1.5 py-1.5 text-center hover:border-amber-600/50 cursor-pointer active:scale-[0.98]"
-                  onClick={() => setPreviewItem(item)}
-                  title={item.description || item.name}
-                >
-                  <div className="text-2xl leading-none">{itemEmoji(item.itemType)}</div>
-                  <div className="mt-1 text-stone-200 text-[10px] leading-tight line-clamp-2">{item.name}</div>
-                  <div className="mt-0.5 text-amber-300/90 text-[10px] font-bold">×{item.quantity}</div>
-                </button>
-              ))}
+              {inventoryItems.map((item) => {
+                const usable = isUsableInventoryItem(item);
+                return (
+                  <button
+                    key={item.itemId}
+                    type="button"
+                    className={`relative w-[4.5rem] min-h-[4.5rem] rounded-lg border border-stone-600/50 bg-stone-900/70
+                      px-1.5 py-1.5 text-center hover:border-amber-600/50 cursor-pointer active:scale-[0.98]
+                      ${usable ? 'garrison-item-usable' : ''}`}
+                    onClick={() => setPreviewItem(item)}
+                    title={
+                      usable
+                        ? `${item.name} · 可使用（点击后选择目标）`
+                        : (item.description || item.name)
+                    }
+                  >
+                    {usable ? <span className="garrison-item-usable-badge">可使用</span> : null}
+                    <div className="relative z-[1] text-2xl leading-none">{itemEmoji(item.itemType)}</div>
+                    <div className="relative z-[1] mt-1 text-stone-200 text-[10px] leading-tight line-clamp-2">
+                      {item.name}
+                    </div>
+                    <div className="relative z-[1] mt-0.5 text-amber-300/90 text-[10px] font-bold">
+                      ×{item.quantity}
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           ) : (
             <div className="text-stone-500 text-xs text-center py-3">尚未实装</div>
@@ -500,10 +592,80 @@ export default function GarrisonBackpack({
             ) : (
               <p className="mt-3 text-stone-500 text-xs text-center">暂无描述</p>
             )}
+            {canUsePreviewItem ? (
+              <button
+                type="button"
+                className="mt-4 w-full rounded-lg border border-amber-700/50 bg-amber-900/40 py-2 text-amber-100 text-sm hover:border-amber-500/60"
+                onClick={openBadgeTroopPicker}
+              >
+                使用 · 选择部队恢复耐久
+              </button>
+            ) : null}
             <button
               type="button"
-              className="mt-4 w-full rounded-lg border border-stone-600/50 bg-stone-800/80 py-2 text-stone-200 text-sm hover:border-amber-700/50"
+              className="mt-2 w-full rounded-lg border border-stone-600/50 bg-stone-800/80 py-2 text-stone-200 text-sm hover:border-amber-700/50"
               onClick={() => setPreviewItem(null)}
+            >
+              关闭
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 部队徽章：选择耐久未满的传奇/核心部队 */}
+      {badgePickOpen && (
+        <div className="fixed inset-0 z-[210] flex items-center justify-center bg-black/60"
+          onClick={() => !badgeBusy && setBadgePickOpen(false)}>
+          <div
+            className="mx-4 w-full max-w-md max-h-[80vh] overflow-y-auto rounded-xl border border-stone-600/60 bg-stone-900/95 p-4 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="text-center text-amber-100 font-bold text-base">选择要恢复的部队</div>
+            <p className="mt-1 text-center text-stone-400 text-xs">
+              传奇消耗 1 枚徽章 · 核心消耗 2 枚 · 仅耐久未满的传奇/核心
+            </p>
+            {badgeMsg ? (
+              <p className="mt-2 text-center text-amber-200/90 text-xs">{badgeMsg}</p>
+            ) : null}
+            {wornBadgeTargets.length === 0 ? (
+              <p className="mt-4 text-center text-stone-500 text-sm">当前没有可恢复的部队</p>
+            ) : (
+              <div className="mt-3 flex flex-wrap gap-1.5 justify-center">
+                {wornBadgeTargets.map(({ card, location }) => {
+                  const rarity = getTroopRarity(card);
+                  const cost = troopBadgeRepairCostForRarity(rarity);
+                  const maxB = card.maxBattleCount ?? 10;
+                  const used = Math.max(0, Number(card.battleCount) || 0);
+                  const title = troopCardDisplayName(card);
+                  return (
+                    <button
+                      key={card.instanceId}
+                      type="button"
+                      disabled={badgeBusy}
+                      className="w-[5.5rem] rounded-lg border border-stone-600/50 bg-stone-800/80 px-1 py-1.5 text-center
+                        hover:border-amber-600/50 disabled:opacity-50"
+                      onClick={() => handleUseBadgeOnTroop(card)}
+                      title={`${title} · ${location} · 消耗 ${cost} 枚`}
+                    >
+                      <div className="text-stone-100 text-[10px] leading-tight line-clamp-2">{title}</div>
+                      <div className="mt-0.5 text-sky-300/90 text-[10px]">{location || '军营'}</div>
+                      <div className="mt-0.5 text-stone-400 text-[10px]">
+                        {RARITY_LABEL[rarity] || rarity}
+                      </div>
+                      <div className="mt-0.5 text-amber-300/90 text-[10px]">
+                        耐久 {Math.max(0, maxB - used)}/{maxB}
+                      </div>
+                      <div className="mt-0.5 text-emerald-300/90 text-[10px]">−{cost} 徽章</div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            <button
+              type="button"
+              disabled={badgeBusy}
+              className="mt-4 w-full rounded-lg border border-stone-600/50 bg-stone-800/80 py-2 text-stone-200 text-sm"
+              onClick={() => setBadgePickOpen(false)}
             >
               关闭
             </button>

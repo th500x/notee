@@ -1,13 +1,12 @@
 /**
- * 战略大地图多格 POI 锚点格：类型、城名、可选长官名（与 tooltip / `cityService` 长官字段一致）。
+ * 战略大地图多格 POI 锚点格：匪寨 / 攻方大本营叠字（城池已改右上势力旗，类型改走 tooltip）。
  */
 
 const OBJECT_TO_TYPE = {
   city_major: '大城',
   city_medium: '中城',
   city_small: '小城',
-  gate: '关隘',
-  fort: '据点',
+  city_gate: '关隘',
 };
 
 function isBanditStrategicObject(effectiveObject) {
@@ -18,9 +17,19 @@ const CITY_TYPE_TO_LABEL = {
   city_major: '大城',
   city_medium: '中城',
   city_small: '小城',
-  gate: '关隘',
-  fort: '据点',
+  city_gate: '关隘',
 };
+
+/**
+ * `cities.city_type` / 地图 object → 中文类型（大城/中城/小城/关隘）。
+ * @param {string|null|undefined} cityTypeOrObject
+ * @returns {string|null}
+ */
+export function getStrategicCityTypeLabel(cityTypeOrObject) {
+  const k = String(cityTypeOrObject || '').trim();
+  if (!k) return null;
+  return CITY_TYPE_TO_LABEL[k] || OBJECT_TO_TYPE[k] || null;
+}
 
 /**
  * @param {object|null|undefined} cityRow - `/api/cities` 行 snake_case / camelCase
@@ -30,8 +39,12 @@ const CITY_TYPE_TO_LABEL = {
  */
 export function getStrategicMapCityLabelLines(cityRow, anchorCell, effectiveObject) {
   if (!effectiveObject) return null;
-  if (effectiveObject === 'pvp_camp_horiz' || effectiveObject === 'pvp_camp_vert') {
-    return { line1: '', line2: '攻方大本营' };
+  if (
+    effectiveObject === 'pvp_camp_single' ||
+    effectiveObject === 'pvp_camp_horiz' ||
+    effectiveObject === 'pvp_camp_vert'
+  ) {
+    return { line1: '', line2: '营' };
   }
   const banditTile = isBanditStrategicObject(effectiveObject);
   if (!banditTile && !OBJECT_TO_TYPE[effectiveObject]) return null;
@@ -44,34 +57,16 @@ export function getStrategicMapCityLabelLines(cityRow, anchorCell, effectiveObje
   let line2 = '';
   let line3 = null;
   if (cityRow) {
-    const rowType = cityRow.city_type || cityRow.cityType;
-    if (rowType === 'fort' || effectiveObject === 'fort') {
-      const st = cityRow.build_status || cityRow.buildStatus || 'empty';
-      if (st === 'built') {
-        line2 =
-          (cityRow.custom_name || cityRow.customName || '').trim() ||
-          (cityRow.city_name || cityRow.cityName || '').trim() ||
-          (anchorCell?.cityName || '').trim() ||
-          '据点';
-      } else {
-        line2 = '可建造';
-      }
-    } else {
-      line2 =
-        (cityRow.city_name || cityRow.cityName || '').trim() ||
-        (anchorCell?.cityName || '').trim() ||
-        '—';
-      const lord = (cityRow.lordCharacterName ?? cityRow.lord_character_name ?? '').trim();
-      if (lord) line3 = lord;
-    }
+    line2 =
+      (cityRow.city_name || cityRow.cityName || '').trim() ||
+      (anchorCell?.cityName || '').trim() ||
+      '—';
+    const lord = (cityRow.lordCharacterName ?? cityRow.lord_character_name ?? '').trim();
+    if (lord) line3 = lord;
+  } else if (banditTile) {
+    line2 = (anchorCell?.cityName || '').trim() || '—';
   } else {
-    if (effectiveObject === 'fort') {
-      line2 = (anchorCell?.cityName || '').trim() || '可建造';
-    } else if (banditTile) {
-      line2 = (anchorCell?.cityName || '').trim() || '—';
-    } else {
-      line2 = (anchorCell?.cityName || '').trim() || '—';
-    }
+    line2 = (anchorCell?.cityName || '').trim() || '—';
   }
 
   const out = { line1, line2 };

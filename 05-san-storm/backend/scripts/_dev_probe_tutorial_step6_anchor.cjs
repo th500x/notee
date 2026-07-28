@@ -91,5 +91,5 @@ console.log('cell cityId:', readStrategicCellAnchorId(cells[w.worldGy][w.gx]));
 const fpKeys = findPoiFootprintKeysContainingCell(cells, w.gx, w.worldGy, cols, rows);
 console.log('footprint keys count:', fpKeys?.size);
 
-const yangdi = cities.find((c) => c.city_id === 'san_1_city_2_yangdi');
+const yangdi = cities.find((c) => c.city_id === 'san_1_city_yangdi');
 console.log('yangdi DB pos:', yangdi.position_x, yangdi.position_y, yangdi.city_type);

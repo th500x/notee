@@ -12,11 +12,11 @@ const { getInitialUsesRemaining, parseTreasureIdParts } = require('../../shared/
 const ITEM_POOL_PRIZES = [
   { id: 'treasure_4xxx', label: '随机传奇宝物×1', weight: 100, kind: 'treasure_band', band: 4 },
   { id: 'treasure_5xxx', label: '随机核心宝物×1', weight: 10, kind: 'treasure_band', band: 5 },
-  { id: 'badge_x1', label: '黄巾徽章×1', weight: 100, kind: 'item', itemId: 'item_season_badge', amount: 1 },
-  { id: 'token_x1', label: '兵符×1', weight: 500, kind: 'item', itemId: 'item_token', amount: 1 },
-  { id: 'jade_x1', label: '玉牌×1', weight: 500, kind: 'item', itemId: 'item_jade', amount: 1 },
+  { id: 'badge_x1', label: '黄巾徽章×1', weight: 100, kind: 'item', itemId: 'item_badge_season', amount: 1 },
+  { id: 'token_x1', label: '兵符×1', weight: 500, kind: 'item', itemId: 'item_tactic_token', amount: 1 },
+  { id: 'jade_x1', label: '玉牌×1', weight: 500, kind: 'item', itemId: 'item_tactic_jade', amount: 1 },
   { id: 'food_150', label: '粮草×150', weight: 4390, kind: 'food', amount: 150 },
-  { id: 'badge_x20', label: '黄巾徽章×20', weight: 10, kind: 'item', itemId: 'item_season_badge', amount: 20 },
+  { id: 'badge_x20', label: '黄巾徽章×20', weight: 10, kind: 'item', itemId: 'item_badge_season', amount: 20 },
   { id: 'food_200', label: '粮草×200', weight: 4390, kind: 'food', amount: 200 },
 ];
 

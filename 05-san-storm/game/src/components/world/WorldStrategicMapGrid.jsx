@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import { useState, useCallback, useRef, useEffect, useLayoutEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import WorldStrategicMapTile from './WorldStrategicMapTile';
 import { buildCampaignCellTooltipInfo } from '@/components/battle/battleConstants';
@@ -27,17 +27,26 @@ import {
 } from '@shared/utils/strategicRoadOverlay.js';
 import { isBanditMapObjectId } from '@shared/utils/smallMapEnemyRoster';
 import { readStrategicCellAnchorId } from '@shared/utils/strategicCellAnchorId.js';
+import { buildBattlefieldInfoHudAnchorMap } from '@/utils/junBattlefieldInfoHud';
 import {
   buildRoadPassableKeySetForMarch,
   isPvpWarMarchTargetId,
 } from '@shared/utils/strategicMarchPoi.js';
+import {
+  isBanditBattlefieldBoundPoi,
+  junIdFromBanditPoiId,
+  resolveBattlefieldExploreInfo,
+} from '@/utils/battlefieldEntranceDual';
+import { isJunBattlefieldEntryCell, isJunBattlefieldInfoCell } from '@shared/utils/junBattlefieldCell.js';
 import { buildStrategicTerritoryStanceMap } from '@shared/utils/strategicTerritoryFlood.js';
 import '@/components/battle/BattleMap.css';
 import './WorldStrategicMap.css';
 import { PHASE } from '@/components/event/EventConstants';
 import { strategicExploreReopenBridge } from '@/utils/strategicExploreReopenBridge.js';
-import { primeStrategicCityWildernessMarketTab } from './WorldMapCityInfoBlock.jsx';
 import StrategicMapSelfPawn from './StrategicMapSelfPawn';
+import AdventurePanel from '@/components/game/tabs/lineup/AdventurePanel';
+import ChapterStageMapPanel from '@/components/chapter/ChapterStageMapPanel';
+import { usePlayerRefresh } from '@/contexts/PlayerContext';
 
 /** PC 点击出 tooltip 时：按下先不抢 capture，平移需超过此距离再开始，避免「点格子」被当成拖拽 */
 const WS_PAN_MOUSE_DRAG_THRESHOLD_PX = 5;
@@ -51,7 +60,13 @@ const WS_PAN_MOUSE_DRAG_THRESHOLD_SQ = WS_PAN_MOUSE_DRAG_THRESHOLD_PX * WS_PAN_M
 function syntheticBanditProgressRowFromAnchorCell(banditPoiId, hintCell) {
   const tid = String(banditPoiId || '').trim();
   const nameRaw =
-    (hintCell && (hintCell.cityName || hintCell.city_name || hintCell.name)) || tid;
+    (hintCell &&
+      (hintCell.battlefieldDisplayName ||
+        hintCell.battlefield_display_name ||
+        hintCell.cityName ||
+        hintCell.city_name ||
+        hintCell.name)) ||
+    tid;
   const name = String(nameRaw).trim() || tid;
   return {
     banditPoiId: tid,
@@ -61,6 +76,89 @@ function syntheticBanditProgressRowFromAnchorCell(banditPoiId, hintCell) {
     city_type: 'bandit_camp',
     cityType: 'bandit_camp',
   };
+}
+
+/**
+ * 郡战场入口四宫格：编组探险 · 事件探索 · 匪寨挑战。
+ * @param {string} banditPoiId
+ * @param {object|null|undefined} hintCell
+ * @param {object} hd - hoverDataRef.current
+ * @param {number} mapColumns
+ * @param {number} mapRows
+ * @param {unknown[][]} cells
+ */
+function buildBattlefieldEntranceDualTooltip(banditPoiId, hintCell, hd, mapColumns, mapRows, cells) {
+  const anchorNorm = String(banditPoiId || '').trim();
+  const standingId = String(hd.playerStandingPoiAnchorId || '').trim();
+  const atThisPoi = !!anchorNorm && standingId !== '' && standingId === anchorNorm;
+  const junId =
+    junIdFromBanditPoiId(anchorNorm) ||
+    (hintCell && (hintCell.junId || hintCell.jun_id)) ||
+    null;
+  const battlefieldExploreInfo = resolveBattlefieldExploreInfo(hintCell);
+  /** 四宫格左下匪寨格标题（勿用战场地名「颍川战场」） */
+  const banditTitle = '匪寨挑战';
+  void mapColumns;
+  void mapRows;
+  void cells;
+  void junId;
+
+  return {
+    type: 'battlefieldEntranceDual',
+    interactive: true,
+    uniformStrategicPanel: true,
+    poiInteractionsLocked: !atThisPoi,
+    banditPoiId: anchorNorm,
+    banditTitle,
+    playerId: hd.playerId ?? null,
+    exploreInfo: battlefieldExploreInfo,
+    subsidiaryExploreEmbed: hd.subsidiaryExploreEmbed ?? null,
+    closeStrategicCityTooltip:
+      typeof hd.closeStrategicCityTooltip === 'function' ? hd.closeStrategicCityTooltip : undefined,
+    /** 探险弹层挂在地图根，勿放在 tooltip 内（关浮层会卸掉 DualPanel） */
+    onOpenLineupAdventure:
+      typeof hd.onOpenLineupAdventure === 'function'
+        ? () => {
+            hd.closeStrategicCityTooltip?.();
+            hd.onOpenLineupAdventure();
+          }
+        : undefined,
+    onOpenChapterTactical:
+      typeof hd.onOpenChapterTactical === 'function'
+        ? () => {
+            hd.closeStrategicCityTooltip?.();
+            hd.onOpenChapterTactical();
+          }
+        : undefined,
+    onStartBanditRaid:
+      atThisPoi && typeof hd.onStartBanditRaid === 'function'
+        ? (payload) => {
+            hd.onStartBanditRaid(payload);
+            hd.closeStrategicCityTooltip?.();
+          }
+        : undefined,
+    banditRaidStartBlockedReason:
+      typeof hd.banditRaidStartBlockedReason === 'string' ? hd.banditRaidStartBlockedReason : null,
+    postBanditRaidRefreshKey: Number.isFinite(Number(hd.postBanditRaidRefreshKey))
+      ? Number(hd.postBanditRaidRefreshKey)
+      : 0,
+  };
+}
+
+/** 在合并格网上找任一绑定该匪寨的战场格（作标题 hint） */
+function findBanditBattlefieldHintCell(cells, banditPoiId) {
+  const id = String(banditPoiId || '').trim();
+  if (!id || !cells?.length) return null;
+  for (let gy = 0; gy < cells.length; gy++) {
+    const row = cells[gy];
+    if (!row) continue;
+    for (let gx = 0; gx < row.length; gx++) {
+      const cell = row[gx];
+      if (!cell) continue;
+      if (readStrategicCellAnchorId(cell) === id) return cell;
+    }
+  }
+  return null;
 }
 
 /**
@@ -143,22 +241,16 @@ function buildStrategicWorldMapCityTooltip(row, anchorKey, hd) {
   const standWarFromCell = String(hd.playerStandingPvpWarId || '').trim();
   const anchorNorm = String(anchorKey || '').trim();
   const atThisPoiStrict = !!anchorNorm && standingId !== '' && standingId === anchorNorm;
-  /** 立于攻方大本营格、tooltip 为「该战事目标城」：与城 id 不同仍视为同城语境（城备按钮），不要求先 isOwn（势力 id 类型不一致时 isOwn 会误判）。 */
+  /** 立于攻方大本营格、tooltip 为「该战事目标城」：与城 id 不同仍视为同城语境（城备/攻打），不要求先 isOwn。 */
   const atThisPoiWarTheaterToThisCity =
     !!anchorNorm &&
-    !!standingId &&
-    isPvpWarMarchTargetId(standingId) &&
-    isStandingOwnCityLinkedPvpCampTheater(hd, anchorNorm);
-  const atThisPoi =
-    atThisPoiStrict ||
-    atThisPoiWarTheaterToThisCity ||
-    !!(
-      isOwn &&
-      anchorNorm &&
-      standWarFromCell &&
-      isPvpWarMarchTargetId(standWarFromCell) &&
-      isStandingPvpWarIdLinkedToCityTooltip(hd, anchorNorm)
-    );
+    ((!!standingId &&
+      isPvpWarMarchTargetId(standingId) &&
+      isStandingOwnCityLinkedPvpCampTheater(hd, anchorNorm)) ||
+      (!!standWarFromCell &&
+        isPvpWarMarchTargetId(standWarFromCell) &&
+        isStandingPvpWarIdLinkedToCityTooltip(hd, anchorNorm)));
+  const atThisPoi = atThisPoiStrict || atThisPoiWarTheaterToThisCity;
   const canSetMainCity =
     canAct &&
     atThisPoi &&
@@ -258,10 +350,11 @@ function buildStrategicPvpBaseCampTooltip(warSlice, hd) {
   const fb = hd.factionNameById || {};
   const row = hd.cityById?.[warSlice.targetCityId] || null;
   const regionLabel = row ? worldMapRegionLabelFromRow(row) : '';
-  const defFid = warSlice.defenderFactionId;
-  const attFid = warSlice.attackerFactionId;
-  const playerFid = hd.playerFactionId;
-  const isDef = !!(playerFid && String(playerFid) === String(defFid));
+  const defFid = String(warSlice.defenderFactionId ?? warSlice.defender_faction_id ?? '').trim();
+  const attFid = String(warSlice.attackerFactionId ?? warSlice.attacker_faction_id ?? '').trim();
+  const playerFid = String(hd.playerFactionId || '').trim();
+  const isDef = !!(playerFid && playerFid === defFid);
+  const isAtt = !!(playerFid && playerFid === attFid);
   const pvpId = String(warSlice.pvpWarId || '').trim();
   /** 守方须立于该战事 **目标城**（`targetCityId`）格网内方可攻打攻方大本营；毗邻道路或非战事城均不可。 */
   const targetCityId = String(warSlice.targetCityId ?? warSlice.target_city_id ?? '').trim();
@@ -282,6 +375,14 @@ function buildStrategicPvpBaseCampTooltip(warSlice, hd) {
     WORLD_MAP_DEFAULT_FACTION_LABELS[attFid] ||
     '—';
 
+  /** 标题后缀：守方看出击指引；攻方看己方营；其余势力看敌方营 */
+  let siegeTargetLabel = '敌方营地';
+  if (isDef) {
+    siegeTargetLabel = atWarTheaterCity ? '可出击' : '请抵达目标城（战事城池）';
+  } else if (isAtt) {
+    siegeTargetLabel = '我方营地';
+  }
+
   return {
     type: 'worldMapCity',
     interactive: true,
@@ -293,17 +394,10 @@ function buildStrategicPvpBaseCampTooltip(warSlice, hd) {
     cityId: null,
     banditPoiId: null,
     cityTitle: warSlice.warName || '攻方营寨',
-    subtitleText:
-      warSlice.targetCityName != null && String(warSlice.targetCityName).trim()
-        ? `目标城池：${warSlice.targetCityName}`
-        : null,
-    siegeTargetLabel: isDef
-      ? atWarTheaterCity
-        ? '可出击'
-        : '请抵达目标城（战事城池）'
-      : '敌方营地',
+    subtitleText: null,
+    siegeTargetLabel,
     lordDisplayLabel: lord,
-    factionId: attFid,
+    factionId: attFid || null,
     factionLabel:
       warSlice.attackerFactionName || fb[attFid] || WORLD_MAP_DEFAULT_FACTION_LABELS[attFid] || '—',
     regionLabel,
@@ -316,7 +410,7 @@ function buildStrategicPvpBaseCampTooltip(warSlice, hd) {
     siegeLoading: hd.siegeLoading === true,
     playerId: hd.playerId,
     showOwnCityActions: false,
-    cityBaseName: '攻方大本营',
+    cityBaseName: '营',
     onStartSiege:
       canStrike && pvpId
         ? () => {
@@ -331,7 +425,7 @@ function buildStrategicPvpBaseCampTooltip(warSlice, hd) {
 }
 
 /**
- * 战略层郡大地图格网（单郡 32×40；多郡垂直叠放时可为 32×80 等）。
+ * 战略层郡大地图格网（颍川 16×40；豫州 L 形叠图 32×60 等）。
  * 与 `CampaignMapGrid` 分离：无战役部署、无部队层、无战斗引擎。
  * Tooltip：城池有 **`cityId`** 且在 `cityById` 有行时，与 `WorldMapCityInfoBlock` 同款（驻地编组 / 设为主城 / 攻城等）。
  * 匪寨用格上 **`banditPoiId`**（`readStrategicCellAnchorId`）；可无表行：合成最小行走匪寨专用面板。
@@ -389,10 +483,16 @@ export default function WorldStrategicMapGrid({
   /** `road/move` 成功后跳跳棋逐格回放中：禁行军格点选与再次进入行军 */
   strategicRoadMarchAnimating = false,
   /**
-   * 合并格网下玩家当前是否立于 **POI 占地块内**（非道路格）：城池 `city_id` 或匪寨 **`banditPoiId`**；在路上则为 `''`。
+   * 合并格网下玩家当前是否立于 **POI 占地块内**：城池 `city_id` 或匪寨 **`banditPoiId`**；
+   * 纯道路格为 `''`（城 2×2 / 郡战场入口等「可通行但仍属 POI」例外由立足解析处理）。
    * 由 `StrategicWorldMapSection` 用 `resolveMergedStandpointStrategicPoiAnchorId` 计算（行军动画步与 profile 路点优先一致）。
    */
   playerStandingPoiAnchorId = '',
+  /**
+   * 本人当前立足格 `{ gx, gy }`（与 `playerStandingPoiAnchorId` 同源）；
+   * 郡战场双面板仅允许点击**本格入口**打开。
+   */
+  playerStandingGridCell = null,
   onStrategicSelfMarchModeRequest = null,
   onStrategicSelfMarchModeExit = null,
   /** 行军模式下点击道路格 `(gridX, gridY)`（与 `data-strategic-x/y` 一致） */
@@ -418,10 +518,45 @@ export default function WorldStrategicMapGrid({
   playerStandingPvpWarId = '',
   /** 守方在大本营面板发起攻打：`(pvpWarId, warSlice) => void`（须已立于战事目标城，见 `buildStrategicPvpBaseCampTooltip`） */
   onStartPvpBaseCampSiege = null,
+  /**
+   * Meowa 郡预览底板（相对格网左上角）：`{ junId, url, col0, row0, cols, rows }[]`
+   * 有值时该矩形内格跳过战役草皮/地形，显示 preview.png。
+   */
+  meowaUnderlays = null,
 }) {
+  const meowaUnderlayList = useMemo(
+    () => (Array.isArray(meowaUnderlays) ? meowaUnderlays.filter((u) => u?.url) : []),
+    [meowaUnderlays],
+  );
+  const useMeowaUnderlay = meowaUnderlayList.length > 0;
+
+  const cellHasMeowaUnderlay = useCallback(
+    (gx, gy) => {
+      if (!useMeowaUnderlay) return false;
+      for (const u of meowaUnderlayList) {
+        const c0 = Number(u.col0) || 0;
+        const r0 = Number(u.row0) || 0;
+        const cols = Number(u.cols) || 0;
+        const rows = Number(u.rows) || 0;
+        if (gx >= c0 && gx < c0 + cols && gy >= r0 && gy < r0 + rows) return true;
+      }
+      return false;
+    },
+    [useMeowaUnderlay, meowaUnderlayList],
+  );
   const strategicNav = useStrategicMapNavigation();
   const tooltipClickMode = useStrategicMapTooltipClickMode();
   const [tooltipContent, setTooltipContent] = useState(null);
+  /** 编组探险 / 章节弹层：须挂在 tooltip 外，关入口浮层后仍可打开 */
+  const [lineupAdventureOpen, setLineupAdventureOpen] = useState(false);
+  const [chapterTacticalOpen, setChapterTacticalOpen] = useState(false);
+  const refreshPlayer = usePlayerRefresh();
+  const onOpenLineupAdventure = useCallback(() => {
+    setLineupAdventureOpen(true);
+  }, []);
+  const onOpenChapterTactical = useCallback(() => {
+    setChapterTacticalOpen(true);
+  }, []);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
   const tooltipContentRef = useRef(null);
   tooltipContentRef.current = tooltipContent;
@@ -436,8 +571,24 @@ export default function WorldStrategicMapGrid({
   minTileRef.current = minTilePx;
   const maxTileRef = useRef(maxTilePx);
   maxTileRef.current = maxTilePx;
+  /** 缩放前：视口中心对应格网内归一化坐标，layout 后滚回该点到屏幕中央 */
+  const zoomAnchorRef = useRef(null);
   const [draggingPan, setDraggingPan] = useState(false);
   const panRef = useRef(null);
+
+  const captureZoomAnchorAtViewportCenter = useCallback(() => {
+    const w = wrapRef.current;
+    const grid = w?.querySelector?.('.ws-map-grid');
+    if (!w || !grid) return;
+    const wr = w.getBoundingClientRect();
+    const gr = grid.getBoundingClientRect();
+    const gw = Math.max(1, gr.width);
+    const gh = Math.max(1, gr.height);
+    zoomAnchorRef.current = {
+      fx: Math.min(1, Math.max(0, (wr.left + wr.width / 2 - gr.left) / gw)),
+      fy: Math.min(1, Math.max(0, (wr.top + wr.height / 2 - gr.top) / gh)),
+    };
+  }, []);
 
   const hoverGenRef = useRef(0);
   const leaveTooltipTimerRef = useRef(null);
@@ -501,6 +652,8 @@ export default function WorldStrategicMapGrid({
     garrisonStatsByCityId,
     subsidiaryExploreEmbed,
     closeStrategicCityTooltip: closeTooltipNow,
+    onOpenLineupAdventure,
+    onOpenChapterTactical,
     playerMainCityId,
     playerMainCityChangedAt,
     playerSilver,
@@ -523,19 +676,21 @@ export default function WorldStrategicMapGrid({
   }, [scheduleTooltipHide]);
 
   /**
-   * 战略格「城池」浮层（荒郊/集市连点探索）：禁止仅靠「指针离开瓦片 / 离开 portal / 离开地图滚动区」
+   * 战略格城池 / 战场双面板浮层：禁止仅靠「指针离开瓦片 / 离开 portal / 离开地图滚动区」
    * 触发延时关层。否则探索结束底栏重现、Clamp 重算位置、瓦片与 portal 间移动等都会产生 mouseleave，
    * 约 80～260ms 后误关浮层，玩家误以为被踢回「纯大地图」。
    */
   const scheduleLeaveFromTileIfAllowed = useCallback(() => {
     const tc = tooltipContentRef.current;
     if (tc?.type === 'worldMapCity' && tc?.uniformStrategicPanel && tc?.interactive) return;
+    if (tc?.type === 'battlefieldEntranceDual' && tc?.interactive) return;
     scheduleLeaveFromTile();
   }, [scheduleLeaveFromTile]);
 
   const scheduleLeaveFromWrap = useCallback(() => {
     const tc = tooltipContentRef.current;
     if (tc?.type === 'worldMapCity' && tc?.uniformStrategicPanel && tc?.interactive) return;
+    if (tc?.type === 'battlefieldEntranceDual' && tc?.interactive) return;
     const ms = tooltipInteractiveRef.current ? 260 : 0;
     scheduleTooltipHide(ms);
   }, [scheduleTooltipHide]);
@@ -558,9 +713,10 @@ export default function WorldStrategicMapGrid({
     const m = strategicCityTooltipMetaRef.current;
     if (!m.cityId && !m.banditPoiId) return;
     const tc = tooltipContentRef.current;
-    if (!tc || tc.type !== 'worldMapCity') return;
+    if (!tc) return;
     const hd = hoverDataRef.current;
     if (m.cityId) {
+      if (tc.type !== 'worldMapCity') return;
       const row = hd.cityById?.[m.cityId];
       if (row) {
         setTooltipContent(buildStrategicWorldMapCityTooltip(row, m.cityId, hd));
@@ -568,11 +724,29 @@ export default function WorldStrategicMapGrid({
       return;
     }
     if (m.banditPoiId && isBanditMapObjectId(m.banditPoiId)) {
+      const bf =
+        tc.type === 'battlefieldEntranceDual' ||
+        isBanditBattlefieldBoundPoi(cells, m.banditPoiId, mapColumns, mapRows);
+      if (bf) {
+        const hint =
+          findBanditBattlefieldHintCell(cells, m.banditPoiId) || {
+            cityName: tc.banditTitle || tc.cityTitle,
+            city_name: tc.banditTitle || tc.cityTitle,
+          };
+        setTooltipContent(
+          buildBattlefieldEntranceDualTooltip(m.banditPoiId, hint, hd, mapColumns, mapRows, cells),
+        );
+        return;
+      }
+      if (tc.type !== 'worldMapCity') return;
       const hint = { cityName: tc.cityTitle, city_name: tc.cityTitle };
       const synth = syntheticBanditProgressRowFromAnchorCell(m.banditPoiId, hint);
       setTooltipContent(buildStrategicWorldMapCityTooltip(synth, m.banditPoiId, hd));
     }
   }, [
+    cells,
+    mapColumns,
+    mapRows,
     cityById,
     playerMainCityId,
     playerMainCityChangedAt,
@@ -589,6 +763,66 @@ export default function WorldStrategicMapGrid({
     playerStandingPoiAnchorId,
     playerStandingPvpWarId,
     pvpBaseCamps,
+  ]);
+
+  /** 立足战场**入口格**：自动打开匪寨+战场探索并排面板（信息区不弹；行军动画中不弹，落定后开） */
+  const prevBattlefieldStandRef = useRef('');
+  useEffect(() => {
+    if (strategicRoadMarchAnimating) return;
+    if (!cells?.length) return;
+
+    const stand = String(playerStandingPoiAnchorId || '').trim();
+    const sgx = Number(playerStandingGridCell?.gx);
+    const sgy = Number(playerStandingGridCell?.gy);
+    const standCell =
+      Number.isFinite(sgx) && Number.isFinite(sgy) ? cells[sgy]?.[sgx] : null;
+    const onEntry =
+      !!stand &&
+      isBanditMapObjectId(stand) &&
+      isBanditBattlefieldBoundPoi(cells, stand, mapColumns, mapRows) &&
+      isJunBattlefieldEntryCell(standCell);
+    const standKey = onEntry ? `${stand}@${sgx},${sgy}` : '';
+
+    const hd = hoverDataRef.current;
+    const prev = prevBattlefieldStandRef.current;
+
+    if (!onEntry) {
+      if (prev && tooltipContentRef.current?.type === 'battlefieldEntranceDual') {
+        closeTooltipNow();
+      }
+      prevBattlefieldStandRef.current = '';
+      return;
+    }
+
+    // 仅在「新抵达该入口格」时自动打开
+    if (prev === standKey) return;
+    prevBattlefieldStandRef.current = standKey;
+
+    const hint = standCell || findBanditBattlefieldHintCell(cells, stand);
+    clearLeaveTooltipTimer();
+    lastTooltipAnchorKeyRef.current = `banditEntry:${sgx},${sgy}`;
+    strategicCityTooltipMetaRef.current = { cityId: null, banditPoiId: stand };
+    const w = wrapRef.current;
+    let px = typeof window !== 'undefined' ? window.innerWidth / 2 : 0;
+    let py = typeof window !== 'undefined' ? window.innerHeight * 0.38 : 0;
+    if (w) {
+      const wr = w.getBoundingClientRect();
+      px = wr.left + wr.width / 2;
+      py = wr.top + Math.min(180, wr.height * 0.35);
+    }
+    setTooltipPos({ x: px, y: py });
+    setTooltipContent(
+      buildBattlefieldEntranceDualTooltip(stand, hint, hd, mapColumns, mapRows, cells),
+    );
+  }, [
+    playerStandingPoiAnchorId,
+    playerStandingGridCell,
+    strategicRoadMarchAnimating,
+    cells,
+    mapColumns,
+    mapRows,
+    closeTooltipNow,
+    clearLeaveTooltipTimer,
   ]);
 
   useEffect(() => {
@@ -650,7 +884,7 @@ export default function WorldStrategicMapGrid({
         }
 
         const t = tilePxRef.current;
-        const gap = 1;
+        const gap = useMeowaUnderlay ? 0 : 1;
         const cellStride = t + gap;
         const centerX = cx * cellStride + (2 * t + gap) / 2;
         const centerY = cy * cellStride + (2 * t + gap) / 2;
@@ -667,7 +901,80 @@ export default function WorldStrategicMapGrid({
       });
     };
     return strategicNav.registerScrollToStrategicCell(scrollToStrategicCell);
-  }, [strategicNav, mapColumns, mapRows]);
+  }, [strategicNav, mapColumns, mapRows, useMeowaUnderlay]);
+
+  /** 缩略图视口框：读/写当前可见格范围（与 `.ws-map-wrap` 滚动联动） */
+  useEffect(() => {
+    if (!strategicNav?.registerStrategicViewportApi) return undefined;
+    const CELL_GAP = useMeowaUnderlay ? 0 : 1;
+
+    const getViewport = () => {
+      const w = wrapRef.current;
+      const gridEl = w?.querySelector?.('.ws-map-grid');
+      if (!w || !(gridEl instanceof HTMLElement)) return null;
+      const stride = Math.max(1, (tilePxRef.current || 20) + CELL_GAP);
+      const wRect = w.getBoundingClientRect();
+      const gRect = gridEl.getBoundingClientRect();
+      let gx = (wRect.left - gRect.left) / stride;
+      let gy = (wRect.top - gRect.top) / stride;
+      let gw = wRect.width / stride;
+      let gh = wRect.height / stride;
+      if (!Number.isFinite(gx) || !Number.isFinite(gy) || !Number.isFinite(gw) || !Number.isFinite(gh)) {
+        return null;
+      }
+      gw = Math.max(0.5, Math.min(gw, mapColumns));
+      gh = Math.max(0.5, Math.min(gh, mapRows));
+      gx = Math.max(0, Math.min(gx, Math.max(0, mapColumns - gw)));
+      gy = Math.max(0, Math.min(gy, Math.max(0, mapRows - gh)));
+      return { gx, gy, gw, gh };
+    };
+
+    const setViewportTopLeft = (gxIn, gyIn) => {
+      const w = wrapRef.current;
+      const gridEl = w?.querySelector?.('.ws-map-grid');
+      if (!w || !(gridEl instanceof HTMLElement)) return;
+      const stride = Math.max(1, (tilePxRef.current || 20) + CELL_GAP);
+      const cur = getViewport();
+      if (!cur) return;
+      let gx = Number(gxIn);
+      let gy = Number(gyIn);
+      if (!Number.isFinite(gx) || !Number.isFinite(gy)) return;
+      gx = Math.max(0, Math.min(gx, Math.max(0, mapColumns - cur.gw)));
+      gy = Math.max(0, Math.min(gy, Math.max(0, mapRows - cur.gh)));
+      const maxSl = Math.max(0, w.scrollWidth - w.clientWidth);
+      const maxSt = Math.max(0, w.scrollHeight - w.clientHeight);
+      w.scrollLeft = Math.max(0, Math.min(w.scrollLeft + (gx - cur.gx) * stride, maxSl));
+      w.scrollTop = Math.max(0, Math.min(w.scrollTop + (gy - cur.gy) * stride, maxSt));
+    };
+
+    const api = {
+      getViewport,
+      setViewportTopLeft,
+      getMapSize: () => ({ mapColumns, mapRows }),
+    };
+    const unregister = strategicNav.registerStrategicViewportApi(api);
+
+    const w = wrapRef.current;
+    const onScrollOrResize = () => {
+      strategicNav.notifyStrategicViewportChanged?.();
+    };
+    w?.addEventListener('scroll', onScrollOrResize, { passive: true });
+    window.addEventListener('resize', onScrollOrResize);
+    const ro =
+      typeof ResizeObserver !== 'undefined' && w
+        ? new ResizeObserver(onScrollOrResize)
+        : null;
+    if (ro && w) ro.observe(w);
+
+    onScrollOrResize();
+
+    return () => {
+      unregister?.();
+      w?.removeEventListener('scroll', onScrollOrResize);
+      window.removeEventListener('resize', onScrollOrResize);
+      ro?.disconnect();
+    };
+  }, [strategicNav, mapColumns, mapRows, tilePx, useMeowaUnderlay]);
 
   useEffect(() => {
     const el = wrapRef.current;
@@ -678,11 +985,12 @@ export default function WorldStrategicMapGrid({
       e.preventDefault();
       e.stopPropagation();
       const steps = e.deltaY > 0 ? -1 : 1;
+      captureZoomAnchorAtViewportCenter();
       zoomFn(steps);
     };
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => el.removeEventListener('wheel', onWheel);
-  }, []);
+  }, [captureZoomAnchorAtViewportCenter]);
 
   useEffect(() => {
     const el = wrapRef.current;
@@ -696,6 +1004,7 @@ export default function WorldStrategicMapGrid({
         const dx = e.touches[0].clientX - e.touches[1].clientX;
         const dy = e.touches[0].clientY - e.touches[1].clientY;
         pinch0 = { d0: Math.max(1, Math.hypot(dx, dy)), tile0: tilePxRef.current };
+        captureZoomAnchorAtViewportCenter();
       }
     };
     const onTouchMove = (e) => {
@@ -705,6 +1014,7 @@ export default function WorldStrategicMapGrid({
       const dy = e.touches[0].clientY - e.touches[1].clientY;
       const d = Math.hypot(dx, dy);
       const next = pinch0.tile0 * (d / pinch0.d0);
+      captureZoomAnchorAtViewportCenter();
       setTilePx(clamp(next));
     };
     const endPinch = (e) => {
@@ -720,7 +1030,27 @@ export default function WorldStrategicMapGrid({
       el.removeEventListener('touchend', endPinch);
       el.removeEventListener('touchcancel', endPinch);
     };
-  }, [setTilePx]);
+  }, [setTilePx, captureZoomAnchorAtViewportCenter]);
+
+  /** 缩放后把「缩放前视口中心」对应的格网点滚回屏幕中央 */
+  useLayoutEffect(() => {
+    const a = zoomAnchorRef.current;
+    if (!a) return;
+    zoomAnchorRef.current = null;
+    const w = wrapRef.current;
+    const grid = w?.querySelector?.('.ws-map-grid');
+    if (!w || !grid) return;
+    const wr = w.getBoundingClientRect();
+    const gr = grid.getBoundingClientRect();
+    const gridLeftInContent = w.scrollLeft + (gr.left - wr.left);
+    const gridTopInContent = w.scrollTop + (gr.top - wr.top);
+    const pointX = a.fx * grid.offsetWidth;
+    const pointY = a.fy * grid.offsetHeight;
+    const maxSl = Math.max(0, w.scrollWidth - w.clientWidth);
+    const maxSt = Math.max(0, w.scrollHeight - w.clientHeight);
+    w.scrollLeft = Math.max(0, Math.min(gridLeftInContent + pointX - w.clientWidth / 2, maxSl));
+    w.scrollTop = Math.max(0, Math.min(gridTopInContent + pointY - w.clientHeight / 2, maxSt));
+  }, [tilePx]);
 
   const endPan = useCallback((e) => {
     const p = panRef.current;
@@ -879,29 +1209,59 @@ export default function WorldStrategicMapGrid({
     const row = siegeCityId && cb ? cb[siegeCityId] : null;
     const anchorY = cover?.anchorR ?? y;
     const anchorX = cover?.anchorC ?? x;
-    const anchorKey = banditPoiId
-      ? `bandit:${banditPoiId}`
-      : siegeCityId
-        ? `city:${siegeCityId}`
-        : `cell:${anchorY},${anchorX}`;
+    const isBfEntry = isJunBattlefieldEntryCell(tooltipCell);
+    const isBfInfo = isJunBattlefieldInfoCell(cell) || isJunBattlefieldInfoCell(tooltipCell);
+    const standGx = Number(playerStandingGridCell?.gx);
+    const standGy = Number(playerStandingGridCell?.gy);
+    const clickIsStandingEntry =
+      isBfEntry &&
+      Number.isFinite(standGx) &&
+      Number.isFinite(standGy) &&
+      standGx === x &&
+      standGy === y;
+    const anchorKey =
+      banditPoiId && isBfEntry
+        ? `banditEntry:${x},${y}`
+        : banditPoiId
+          ? `bandit:${banditPoiId}`
+          : siegeCityId
+            ? `city:${siegeCityId}`
+            : `cell:${anchorY},${anchorX}`;
 
     const tc = tooltipContentRef.current;
     const sameCityTooltip =
       !!siegeCityId && tc?.cityId != null && String(tc.cityId) === String(siegeCityId);
-    const sameBanditTooltip =
-      !!banditPoiId && tc?.banditPoiId != null && String(tc.banditPoiId) === String(banditPoiId);
-    // 用当前浮层上的城池 `cityId` 或匪寨 **`banditPoiId`** 判断同锚点再点关闭。
+    const sameBanditDominoTooltip =
+      !!banditPoiId &&
+      !isBfEntry &&
+      !isBfInfo &&
+      tc?.type === 'worldMapCity' &&
+      tc?.banditPoiId != null &&
+      String(tc.banditPoiId) === String(banditPoiId);
+    const sameBattlefieldEntryTooltip =
+      tc?.type === 'battlefieldEntranceDual' &&
+      clickIsStandingEntry &&
+      tc?.banditPoiId != null &&
+      String(tc.banditPoiId) === String(banditPoiId);
+    const sameInteractiveStrategic =
+      tc &&
+      (tc.type === 'worldMapCity' || tc.type === 'battlefieldEntranceDual') &&
+      tc.interactive;
+    // 用当前浮层上的城池 `cityId`、匪寨骨牌或**本格**战场入口判断同锚点再点关闭。
     if (
       tooltipClickMode &&
-      tc &&
-      tc.type === 'worldMapCity' &&
-      tc.interactive &&
-      (sameCityTooltip || sameBanditTooltip)
+      sameInteractiveStrategic &&
+      (sameCityTooltip || sameBanditDominoTooltip || sameBattlefieldEntryTooltip)
     ) {
       if (Date.now() < suppressStrategicCityClickDismissUntilRef.current) {
         return;
       }
       closeTooltipNow();
+      return;
+    }
+
+    // 中心信息区：仅展示叠层，不打开匪寨/探索双面板
+    if (isBfInfo) {
       return;
     }
 
@@ -915,6 +1275,25 @@ export default function WorldStrategicMapGrid({
     }
 
     if (tooltipCell && banditPoiId && !row) {
+      if (isBanditBattlefieldBoundPoi(hoverDataRef.current.cells, banditPoiId, mapColumns, mapRows)) {
+        // 四角入口：仅点击**本人当前立足**的那一格才开双面板
+        if (!clickIsStandingEntry) {
+          return;
+        }
+        strategicCityTooltipMetaRef.current = { cityId: null, banditPoiId };
+        setTooltipContent(
+          buildBattlefieldEntranceDualTooltip(
+            banditPoiId,
+            tooltipCell,
+            hd,
+            mapColumns,
+            mapRows,
+            hoverDataRef.current.cells,
+          ),
+        );
+        setTooltipPos({ x: e.clientX, y: e.clientY });
+        return;
+      }
       strategicCityTooltipMetaRef.current = { cityId: null, banditPoiId };
       const synth = syntheticBanditProgressRowFromAnchorCell(banditPoiId, tooltipCell);
       setTooltipContent(buildStrategicWorldMapCityTooltip(synth, banditPoiId, hd));
@@ -959,50 +1338,63 @@ export default function WorldStrategicMapGrid({
     tooltipClickMode,
     closeTooltipNow,
     pvpBaseCamps,
+    mapColumns,
+    mapRows,
+    playerStandingGridCell,
   ]);
 
-  /** 荒郊/集市结算后：不依赖「抑制误点」，主动重建同城战略城池 portal（与瓦片点击路径一致） */
-  const reopenStrategicCityTooltipAfterSubsidiaryExplore = useCallback((anchorCityId, subKind) => {
-    primeStrategicCityWildernessMarketTab(anchorCityId, subKind);
+  /** 战场探索结算后：主动重建入口双面板 portal（须仍立于入口格） */
+  const reopenStrategicBattlefieldTooltipAfterExplore = useCallback(() => {
     clearLeaveTooltipTimer();
     const hd = hoverDataRef.current;
-    const row = hd.cityById?.[anchorCityId];
-    if (!row) return;
-    const pos = strategicNav?.resolveStrategicAnchorForCityId?.(anchorCityId);
+    const stand = String(hd.playerStandingPoiAnchorId || '').trim();
+    const sgx = Number(playerStandingGridCell?.gx);
+    const sgy = Number(playerStandingGridCell?.gy);
+    const standCell =
+      Number.isFinite(sgx) && Number.isFinite(sgy) ? cells[sgy]?.[sgx] : null;
+    if (
+      !stand ||
+      !isBanditMapObjectId(stand) ||
+      !isBanditBattlefieldBoundPoi(cells, stand, mapColumns, mapRows) ||
+      !isJunBattlefieldEntryCell(standCell)
+    ) {
+      return;
+    }
+    const hint = standCell || findBanditBattlefieldHintCell(cells, stand);
+    lastTooltipAnchorKeyRef.current = `banditEntry:${sgx},${sgy}`;
+    strategicCityTooltipMetaRef.current = { cityId: null, banditPoiId: stand };
     const w = wrapRef.current;
-    let px = 0;
-    let py = 0;
-    if (pos && w) {
-      const tile = w.querySelector(
-        `.ws-map-grid .ws-map-tile[data-strategic-x="${pos.gx}"][data-strategic-y="${pos.gy}"]`,
-      );
-      if (tile instanceof HTMLElement) {
-        const spanEl =
-          tile.querySelector(STRATEGIC_MAP_FOOTPRINT_VISUAL_SELECTOR) ||
-          tile.querySelector('.ws-object-span-2, .ws-object-span-2x1, .ws-object-span-1x2');
-        const tr =
-          spanEl instanceof HTMLElement ? spanEl.getBoundingClientRect() : tile.getBoundingClientRect();
-        px = tr.left + tr.width / 2;
-        py = tr.top + tr.height / 2;
-      }
+    let px = typeof window !== 'undefined' ? window.innerWidth / 2 : 0;
+    let py = typeof window !== 'undefined' ? window.innerHeight * 0.38 : 0;
+    if (w) {
+      const wr = w.getBoundingClientRect();
+      px = wr.left + wr.width / 2;
+      py = wr.top + Math.min(180, wr.height * 0.35);
     }
-    if ((!px && !py) || (px === 0 && py === 0)) {
-      if (w) {
-        const wr = w.getBoundingClientRect();
-        px = wr.left + wr.width / 2;
-        py = wr.top + Math.min(160, wr.height * 0.35);
-      }
-    }
-    lastTooltipAnchorKeyRef.current = `city:${anchorCityId}`;
-    strategicCityTooltipMetaRef.current = { cityId: anchorCityId, banditPoiId: null };
-    setTooltipContent(buildStrategicWorldMapCityTooltip(row, anchorCityId, hd));
     setTooltipPos({ x: px, y: py });
-  }, [clearLeaveTooltipTimer, strategicNav]);
+    setTooltipContent(
+      buildBattlefieldEntranceDualTooltip(stand, hint, hd, mapColumns, mapRows, cells),
+    );
+  }, [clearLeaveTooltipTimer, cells, mapColumns, mapRows, playerStandingGridCell]);
 
   useEffect(() => {
     const p = subsidiaryExploreEmbed?.phase;
     const prev = explorePhaseSyncRef.current;
     explorePhaseSyncRef.current = p;
+
+    /** 探索开局/进行中：关掉战略 tooltip，避免压在事件/小游戏/惩罚战 UI 上 */
+    const exploreBusy = new Set([
+      PHASE.EVENT,
+      PHASE.ROLLING,
+      PHASE.RESULT,
+      PHASE.BATTLE,
+      PHASE.REWARD,
+      PHASE.MINIGAME,
+    ]);
+    if (exploreBusy.has(p) && !exploreBusy.has(prev)) {
+      closeTooltipNow();
+    }
+
     if (prev === PHASE.REWARD && p === PHASE.RETURNING) {
       suppressStrategicCityClickDismissUntilRef.current = Math.max(
         suppressStrategicCityClickDismissUntilRef.current,
@@ -1016,16 +1408,16 @@ export default function WorldStrategicMapGrid({
       const cid = strategicExploreReopenBridge.lastAnchorCityId;
       const kind = strategicExploreReopenBridge.lastSubsidiaryKind;
       strategicExploreReopenBridge.clear();
-      if (cid && (kind === 'wilderness' || kind === 'market')) {
+      if (cid && kind === 'battlefield') {
         let raf = 0;
         raf = requestAnimationFrame(() => {
-          reopenStrategicCityTooltipAfterSubsidiaryExplore(cid, kind);
+          reopenStrategicBattlefieldTooltipAfterExplore();
         });
         return () => cancelAnimationFrame(raf);
       }
     }
     return undefined;
-  }, [subsidiaryExploreEmbed?.phase, reopenStrategicCityTooltipAfterSubsidiaryExplore]);
+  }, [subsidiaryExploreEmbed?.phase, reopenStrategicBattlefieldTooltipAfterExplore, closeTooltipNow]);
 
   const handleWrapperMove = useCallback((e) => {
     if (tooltipClickMode) return;
@@ -1036,6 +1428,20 @@ export default function WorldStrategicMapGrid({
   }, [tooltipClickMode]);
 
   const county = mapColumns > 16 || mapRows > 20;
+
+  /** 战场入口 / 攻方大本营立足：屏蔽本人势力·兵力 tooltip，头像穿透以免挡格点击 */
+  const suppressSelfPawnHoverTooltip = useMemo(() => {
+    if (String(playerStandingPvpWarId || '').trim()) return true;
+    const stand = String(playerStandingPoiAnchorId || '').trim();
+    if (
+      stand &&
+      isBanditMapObjectId(stand) &&
+      isBanditBattlefieldBoundPoi(cells, stand, mapColumns, mapRows)
+    ) {
+      return true;
+    }
+    return false;
+  }, [playerStandingPvpWarId, playerStandingPoiAnchorId, cells, mapColumns, mapRows]);
 
   const roadOverlayPathD = useMemo(() => {
     if (!roadCells?.length) return '';
@@ -1079,6 +1485,8 @@ export default function WorldStrategicMapGrid({
     strategicCityLabelNonHostileFactionIds,
   ]);
 
+  const battlefieldInfoHudByKey = useMemo(() => buildBattlefieldInfoHudAnchorMap(cells), [cells]);
+
   const canRoadDoubleEnterMarch =
     !strategicRoadMarchAnimating &&
     typeof onStrategicRoadDoubleMarchToCell === 'function';
@@ -1113,7 +1521,30 @@ export default function WorldStrategicMapGrid({
         >
           <div className="ws-map-scrollport-inner">
             <div className="ws-map-shell" style={{ position: 'relative' }}>
-              <div className="ws-map-grid">
+              {useMeowaUnderlay
+                ? meowaUnderlayList.map((u) => {
+                    const c0 = Number(u.col0) || 0;
+                    const r0 = Number(u.row0) || 0;
+                    const cols = Number(u.cols) || 0;
+                    const rows = Number(u.rows) || 0;
+                    return (
+                      <img
+                        key={`meowa-${u.junId || u.url}`}
+                        className="ws-map-meowa-underlay"
+                        src={u.url}
+                        alt=""
+                        draggable={false}
+                        style={{
+                          left: `calc(${c0} * var(--ws-tile))`,
+                          top: `calc(${r0} * var(--ws-tile))`,
+                          width: `calc(${cols} * var(--ws-tile))`,
+                          height: `calc(${rows} * var(--ws-tile))`,
+                        }}
+                      />
+                    );
+                  })
+                : null}
+              <div className={`ws-map-grid${useMeowaUnderlay ? ' ws-map-grid--meowa-underlay' : ''}`}>
                 {cells.map((row, ri) =>
                   row.map((cell, ci) => {
                     const cover =
@@ -1145,6 +1576,7 @@ export default function WorldStrategicMapGrid({
                         gridX={ci}
                         strategicCover={cover}
                         cityRow={cityRow}
+                        factionNameById={factionNameById}
                         playerFactionId={playerFactionId}
                         strategicCityLabelAllyFactionIds={strategicCityLabelAllyFactionIds}
                         strategicCityLabelNonHostileFactionIds={strategicCityLabelNonHostileFactionIds}
@@ -1159,6 +1591,8 @@ export default function WorldStrategicMapGrid({
                         roadMarchPassableKeySet={roadMarchPassableKeySet}
                         territoryStance={territoryStanceMap?.get(`${ci},${ri}`) ?? null}
                         showWarCityFire={showWarCityFire}
+                        suppressCampaignTerrain={cellHasMeowaUnderlay(ci, ri)}
+                        battlefieldInfoHud={battlefieldInfoHudByKey.get(`${ci},${ri}`) || null}
                       />
                     );
                   }),
@@ -1224,6 +1658,7 @@ export default function WorldStrategicMapGrid({
                   interceptSilver={null}
                   onRoadSelfUpdated={undefined}
                   onRoadCell={!!strategicSelfPawn.onRoad}
+                  suppressHoverTooltip={suppressSelfPawnHoverTooltip}
                 />
               ) : null}
             </div>
@@ -1232,6 +1667,10 @@ export default function WorldStrategicMapGrid({
             <div
               className={`tile-tooltip tile-tooltip--portal${
                 tooltipContent?.type === 'worldMapCity' ? ' tile-tooltip--world-map-city' : ''
+              }${
+                tooltipContent?.type === 'battlefieldEntranceDual'
+                  ? ' tile-tooltip--battlefield-dual'
+                  : ''
               }${tooltipContent?.interactive ? ' tile-tooltip--interactive' : ''}`}
               ref={tooltipRef}
               style={tooltipStyle}
@@ -1239,7 +1678,8 @@ export default function WorldStrategicMapGrid({
               onMouseLeave={
                 tooltipClickMode
                   ? undefined
-                  : tooltipContent?.uniformStrategicPanel
+                  : tooltipContent?.uniformStrategicPanel ||
+                      tooltipContent?.type === 'battlefieldEntranceDual'
                     ? undefined
                     : closeTooltipNow
               }
@@ -1281,6 +1721,27 @@ export default function WorldStrategicMapGrid({
             )}
         </div>
       </div>
+      {playerId ? (
+        <AdventurePanel
+          playerId={playerId}
+          open={lineupAdventureOpen}
+          onClose={() => setLineupAdventureOpen(false)}
+          defaultExtraSlot={1}
+          onChanged={async () => {
+            await refreshPlayer?.({ silent: true });
+          }}
+        />
+      ) : null}
+      {playerId ? (
+        <ChapterStageMapPanel
+          open={chapterTacticalOpen}
+          playerId={playerId}
+          onClose={() => setChapterTacticalOpen(false)}
+          onChanged={async () => {
+            await refreshPlayer?.({ silent: true });
+          }}
+        />
+      ) : null}
     </div>
   );
 }

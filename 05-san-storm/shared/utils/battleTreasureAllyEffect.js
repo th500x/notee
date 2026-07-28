@@ -1,9 +1,23 @@
 /**
  * 宝物 `special_effect` · 战斗助阵（battle_ally）解析
  * 须与 battleTreasureAllyEffect.cjs 同步
+ *
+ * CSV 示例：
+ * - `battle_ally:epic_char_random;epic_troop:2`
+ * - `battle_ally:legendary_char_random;legendary_troop:2`
  */
 
 import { unwrapConfigSpecialEffectRaw } from './configSpecialEffectRaw.js';
+
+/** @type {Record<string, { charRarity: string, troopRarity: string, troopKey: string }>} */
+const BATTLE_ALLY_MODES = {
+  epic_char_random: { charRarity: 'epic', troopRarity: 'epic', troopKey: 'epic_troop' },
+  legendary_char_random: {
+    charRarity: 'legendary',
+    troopRarity: 'legendary',
+    troopKey: 'legendary_troop',
+  },
+};
 
 /** @param {unknown} rawValue */
 export function parseBattleTreasureAllySpec(rawValue) {
@@ -19,11 +33,12 @@ export function parseBattleTreasureAllySpec(rawValue) {
     const val = trimmed.slice(colon + 1).trim();
     if (key) entries[key] = val;
   }
-  if (entries.battle_ally !== 'legendary_char_random') return null;
-  const troopCount = parseInt(entries.legendary_troop, 10);
+  const mode = BATTLE_ALLY_MODES[entries.battle_ally];
+  if (!mode) return null;
+  const troopCount = parseInt(entries[mode.troopKey], 10);
   return {
-    charRarity: 'legendary',
-    troopRarity: 'legendary',
+    charRarity: mode.charRarity,
+    troopRarity: mode.troopRarity,
     troopCount: Number.isFinite(troopCount) && troopCount > 0 ? troopCount : 2,
   };
 }

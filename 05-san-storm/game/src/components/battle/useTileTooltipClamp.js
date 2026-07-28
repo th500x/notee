@@ -7,6 +7,9 @@ const PAD = 10;
 const WORLD_MAP_CITY_TOOLTIP_MAX_W = 295;
 const WORLD_MAP_CITY_TOOLTIP_VW_FRAC = 1;
 const EST_WORLD_MAP_CITY_TOOLTIP_H = 395;
+/** 与 `.tile-tooltip--battlefield-dual` 一致 */
+const BATTLEFIELD_DUAL_TOOLTIP_MAX_W = 440;
+const EST_BATTLEFIELD_DUAL_TOOLTIP_H = 360;
 /**
  * 战场 tile/部队 tooltip：贴近视口边缘时改为整屏居中展示，避免侧向空间不足时 max-width
  * 把块压成窄条、文字严重折行难以阅读。
@@ -29,14 +32,19 @@ export function useTileTooltipClamp(tooltipContent, tooltipPos) {
     const vh = window.innerHeight;
 
     const worldMapCityWouldOverflowProactive = () => {
-      if (tooltipContent?.type !== 'worldMapCity') return false;
-      const maxW = Math.min(WORLD_MAP_CITY_TOOLTIP_MAX_W, vw * WORLD_MAP_CITY_TOOLTIP_VW_FRAC);
+      const t = tooltipContent?.type;
+      if (t !== 'worldMapCity' && t !== 'battlefieldEntranceDual') return false;
+      const maxW =
+        t === 'battlefieldEntranceDual'
+          ? Math.min(BATTLEFIELD_DUAL_TOOLTIP_MAX_W, vw * WORLD_MAP_CITY_TOOLTIP_VW_FRAC)
+          : Math.min(WORLD_MAP_CITY_TOOLTIP_MAX_W, vw * WORLD_MAP_CITY_TOOLTIP_VW_FRAC);
+      const estH = t === 'battlefieldEntranceDual' ? EST_BATTLEFIELD_DUAL_TOOLTIP_H : EST_WORLD_MAP_CITY_TOOLTIP_H;
       const half = maxW / 2;
       const x = tooltipPos.x;
       const y = tooltipPos.y;
       const overflowX = x + half > vw - PAD || x - half < PAD;
       // 浮层在指针上方展开，贴顶时整框易超出视口上沿
-      const overflowY = y - EST_WORLD_MAP_CITY_TOOLTIP_H < PAD;
+      const overflowY = y - estH < PAD;
       return overflowX || overflowY;
     };
 

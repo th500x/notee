@@ -1,4 +1,4 @@
-/* 战役地图 Demo：与 BattleMap 同款叠层逻辑，网格为 16×20 */
+/* 战役 / 章节战术格网：默认 16×20；可变尺寸由 --camp-cols / --camp-rows 覆盖 */
 .campaign-map-card {
   background: transparent;
   border: none;
@@ -7,6 +7,8 @@
   max-width: 100%;
   /* 与 BattleMap.css 的 --tile 一致（BattleArena 已引入 BattleMap.css） */
   --camp-tile: var(--tile, 48px);
+  --camp-cols: 16;
+  --camp-rows: 20;
 }
 
 /* 标题/副标题与格网同宽并左对齐（避免外层居中后标题与地图错位） */
@@ -54,6 +56,8 @@
   line-height: 1.6;
 }
 
+/* 复用 BattleMap.css 的 .map-meta-troops / .mt-* 阵营色 */
+
 .campaign-map-wrap {
   overflow: auto;
   max-width: 100%;
@@ -84,8 +88,8 @@
   position: relative;
   z-index: 1;
   display: grid;
-  grid-template-columns: repeat(16, var(--camp-tile));
-  grid-template-rows: repeat(20, var(--camp-tile));
+  grid-template-columns: repeat(var(--camp-cols), var(--camp-tile));
+  grid-template-rows: repeat(var(--camp-rows), var(--camp-tile));
   gap: 1px;
   background: #0a0a14;
   border: 1px solid #222;
@@ -98,8 +102,8 @@
   width: 100%;
   height: 100%;
   display: grid;
-  grid-template-columns: repeat(16, var(--camp-tile));
-  grid-template-rows: repeat(20, var(--camp-tile));
+  grid-template-columns: repeat(var(--camp-cols), var(--camp-tile));
+  grid-template-rows: repeat(var(--camp-rows), var(--camp-tile));
   gap: 1px;
   z-index: 3;
   pointer-events: none;

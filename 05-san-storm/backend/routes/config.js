@@ -195,7 +195,7 @@ router.get('/titles/:id', async (req, res, next) => {
  * GET /api/config/events
  *
  * 查询参数：
- * - location: 触发地点（可选，如占位符或主城 id：`san_1_city_2_yangdi`）
+ * - location: 触发地点（可选，如占位符或主城 id：`san_1_city_yangdi`）
  * - triggerContext: 触发场景（可选，如：explore、tutorial）
  */
 router.get('/events', async (req, res, next) => {

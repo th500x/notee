@@ -38,6 +38,10 @@ export function useSan1StrategicMergedStack() {
             season: res.season,
             roadCells: res.roadCells,
             roadConnectivity: res.roadConnectivity,
+            playableJunIds: res.playableJunIds,
+            meowaUnderlays: res.meowaUnderlays,
+            mode: res.mode,
+            includedJunIds: res.includedJunIds,
           },
           error: null,
         });

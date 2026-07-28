@@ -12,7 +12,10 @@ import {
   mirrorTroopsForDefenderBattleScore,
 } from '@/systems/battleScoreSystem';
 import { battleAPI } from '@/services/battleApi';
-import { clearInflightBattleTroopSnapshot } from '@/utils/inflightBattleTroopSnapshot';
+import {
+  clearInflightBattleTroopSnapshot,
+  writeInflightBattleTroopSnapshot,
+} from '@/utils/inflightBattleTroopSnapshot';
 import { buildMoralePersistUpdatesFromBattleTroops } from '@/battle/commanderMorale';
 import { usePlayerRefresh } from '@/contexts/PlayerContext';
 
@@ -20,7 +23,7 @@ const STAGE_READY = 'ready';
 
 function resolveOpponentType(battleType) {
   if (battleType === 'pvp_siege') return 'player';
-  if (battleType === 'pve_campaign') return 'campaign_enemy';
+  if (battleType === 'pve_campaign' || battleType === 'pve_chapter') return 'campaign_enemy';
   return 'event_enemy';
 }
 
@@ -58,6 +61,8 @@ export function useBattleSettlement({
   silverAmount,
   deploymentFoodCost = 0,
   campaignId,
+  chapterId = null,
+  nodeId = null,
   defenseReportMeta,
   recordOnly,
   siegeDefenderType,
@@ -110,8 +115,23 @@ export function useBattleSettlement({
       clearInterval(check);
       if (!mountedRef.current) return;
 
-      // 战报文本必须以「已写入的全部日志」为准：logs 状态可能尚未随 addLog 提交完毕，
-      // battleLogsSyncRef 在 addLog 内与 setState 同步追加，避免击败 boss 等收尾日志未入库。
+      // 入库优先回合摘要；侧栏逐条流水仍在 battleLogsSyncRef（旧战报不受影响）。
+      const digest = b.battleReportDigestRef?.current;
+      if (digest && typeof digest.flushRound === 'function') {
+        try {
+          digest.flushRound({
+            aliveA: b.battleTroops.filter((t) => (t.faction === 'player' || t.faction === 'ally') && t.currentTroops > 0).length,
+            aliveB: b.battleTroops.filter((t) => t.faction === 'enemy' && t.currentTroops > 0).length,
+            roundNum: b.roundNum,
+          });
+        } catch (_) {
+          /* ignore */
+        }
+      }
+      const digestText =
+        digest && typeof digest.buildText === 'function' && digest.hasContent?.()
+          ? digest.buildText()
+          : '';
       const logLines = Array.isArray(b.battleLogsSyncRef?.current)
         ? b.battleLogsSyncRef.current
         : b.logs;
@@ -134,7 +154,9 @@ export function useBattleSettlement({
           ? Math.max(0, initialEnemyStacks - aliveEnemyStacks)
           : Math.max(0, enemyTroops.length - aliveEnemyStacks);
       const killedIndices = deadEnemyStacks.map((t) => t._npcIndex).filter((i) => i != null);
-      const logText = logLines.map((l) => l?.text || '').filter(Boolean).join('\n');
+      const logText =
+        digestText ||
+        logLines.map((l) => l?.text || '').filter(Boolean).join('\n');
       const troopCasualties = playerTroops
         .filter((t) => t.instanceId)
         .map((t) => ({ instanceId: t.instanceId, currentTroops: Math.max(0, t.currentTroops) }));
@@ -179,6 +201,9 @@ export function useBattleSettlement({
           battleGrade: scoreResult.grade,
           scoreDetails: scoreResult.details,
           ...(battleType === 'pve_campaign' && campaignId ? { campaignId } : {}),
+          ...(battleType === 'pve_chapter' && chapterId && nodeId
+            ? { chapterId, nodeId }
+            : {}),
         };
         if (result === 'victory' && smallMapPveLoot && typeof smallMapPveLoot === 'object') {
           const { banditRaidSettlement: _br, ...lootForService } = smallMapPveLoot;
@@ -214,11 +239,14 @@ export function useBattleSettlement({
           moraleUpdates,
           chestRewards: chestRewardsSnapshot,
           recordOnly,
-          ...(battleType === 'pve_campaign'
+          ...(battleType === 'pve_campaign' || battleType === 'pve_chapter'
             ? {
                 battleSilverSpent: silverSpentNum,
                 deploymentFoodSpent: deployFoodNum,
               }
+            : {}),
+          ...(battleType === 'pve_chapter' && chapterId && nodeId
+            ? { chapterId, nodeId }
             : {}),
         };
 
@@ -299,6 +327,25 @@ export function useBattleSettlement({
         ...(defenderLineupTroopUpdates?.length
           ? { defenderLineupTroopUpdates }
           : {}),
+        /** 匪寨连战补兵：终场兵力（含 0 兵），避免仅靠卡面/过期 snap 导致合计 0 粮 */
+        banditHealTroopRows: playerTroops
+          .map((t) => {
+            const instanceId =
+              t?.instanceId != null && String(t.instanceId).trim() !== ''
+                ? String(t.instanceId).trim()
+                : t?.troop?.instanceId != null
+                  ? String(t.troop.instanceId).trim()
+                  : '';
+            if (!instanceId) return null;
+            const maxTroops = Math.max(0, Math.round(Number(t.maxTroops) || 0));
+            if (maxTroops <= 0) return null;
+            return {
+              instanceId,
+              currentTroops: Math.max(0, Math.round(Number(t.currentTroops) || 0)),
+              maxTroops,
+            };
+          })
+          .filter(Boolean),
       };
       if (pendingAwayNoticeRef.current) {
         pendingAwayNoticeRef.current = false;
@@ -315,7 +362,19 @@ export function useBattleSettlement({
         }
         if (mountedRef.current) setAwayNoticeOpen(true);
       } else {
-        clearInflightBattleTroopSnapshot();
+        // 匪寨/攻城胜利后可能「继续」连战：须保留 inflight 战损供补兵与下一场进场；
+        // 退出结算时再 clear（closeBanditRaidResult / closeSiegeResult）。
+        const keepInflightForContinue =
+          result === 'victory' &&
+          (battleType === 'pve_bandit' ||
+            battleType === 'pve_siege' ||
+            battleType === 'pvp_siege');
+        if (keepInflightForContinue) {
+          // 终场再写一次：卸载 BattleArena 前保证结算/补兵读到损血，而非卡面满编
+          writeInflightBattleTroopSnapshot(playerId, playerTroops);
+        } else {
+          clearInflightBattleTroopSnapshot();
+        }
         onBattleEndRef.current?.(
           result,
           silverSpent > 0 ? silverSpent : 0,
@@ -329,16 +388,36 @@ export function useBattleSettlement({
     return () => clearInterval(check);
     // 仅依赖 battlePlaying/stage：避免 battleTroops 引用每帧变化导致 cleanup 清掉 interval
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [battlePlaying, stage, silverAmount, deploymentFoodCost, battleType, opponentName, playerId, campaignId, defenseReportMeta, recordOnly, siegeDefenderType, smallMapPveLoot]);
+  }, [battlePlaying, stage, silverAmount, deploymentFoodCost, battleType, opponentName, playerId, campaignId, chapterId, nodeId, defenseReportMeta, recordOnly, siegeDefenderType, smallMapPveLoot]);
 
   const flushAwayEndNotice = useCallback(() => {
     const p = pendingAwayEndRef.current;
     if (!p) return;
     pendingAwayEndRef.current = null;
     setAwayNoticeOpen(false);
-    clearInflightBattleTroopSnapshot();
+    const keepInflightForContinue =
+      p.result === 'victory' &&
+      (battleType === 'pve_bandit' ||
+        battleType === 'pve_siege' ||
+        battleType === 'pvp_siege');
+    if (keepInflightForContinue) {
+      const rows = Array.isArray(p.meta?.banditHealTroopRows) ? p.meta.banditHealTroopRows : null;
+      if (rows?.length && playerId) {
+        writeInflightBattleTroopSnapshot(
+          playerId,
+          rows.map((r) => ({
+            faction: 'player',
+            instanceId: r.instanceId,
+            currentTroops: r.currentTroops,
+            maxTroops: r.maxTroops,
+          })),
+        );
+      }
+    } else {
+      clearInflightBattleTroopSnapshot();
+    }
     onBattleEndRef.current?.(p.result, p.silverSpent, p.scoreResult, p.killedIndices, p.meta);
-  }, []);
+  }, [battleType, playerId]);
 
   return { awayNoticeOpen, flushAwayEndNotice };
 }

@@ -9,7 +9,7 @@
  *     会报 `cities_ibfk_1`。本脚本在写入 cities 前会按种子用到的势力 id，从 `config_factions` **补全 `factions` 缺行**
  *     （与是否「曾跑过势力导入」无关：配置表有而运行时表无，仍属常见情况）。
  *
- * 输入 JSON（由 docs/tools/city/city-csv-to-json.cjs 生成）:
+ * 输入 JSON（由 docs/tools/map/city/city-csv-to-json.cjs 生成）:
  *   public/data/shared/config_zhou.json
  *   public/data/shared/config_jun.json
  *   public/data/shared/cities_seed.json
@@ -20,8 +20,12 @@
  *   - 种子 JSON 里 `initialFactionId` 若为 `""` 会规范为 SQL NULL，避免误写入空串触发外键失败。
  *   - **status**：`faction_id` 非空时写入 `owned`（叙事/开局归属与大地图「势力」展示、攻城同势力判定一致）；
  *     无势力则为 `neutral`。与 `cityService.isCityOccupiedForNpcGarrison` 及管理页「归属势力方」批量逻辑对齐。
- *   - **position_x / position_y**：种子缺省（JSON 无字段或为 null）时，**重复导入不覆盖**库内已有坐标（避免冲掉管理端「坐标入库」）；种子显式给出数值（含 0）时仍按种子更新。
- *   - 写入 `wilderness_enabled` / `market_enabled` / `initial_lord_character_id`（来自 JSON 布尔与 `initialLordCharacterId`）；**不使用** `parent_city_id`。
+ *   - **position_x / position_y**：**不由种子 JSON 写入**（CSV 已删列）；重复导入 **不覆盖** 库内坐标（工坊真源）。
+ *   - **population / 商农军文 / defense**：新插入城按 13-1 §5.5 贴下限 100%～105% 随机（关隘四维=0）；**重复导入不覆盖**已有数值。整图重随仅在换季 `seasonRolloverService.resetWorldState`。
+ *   - **wilderness_enabled / market_enabled**：列已废止（探索入口改战场），本脚本不再写入。
+ *   - **player_garrison_capacity**：列已废止，本脚本不再写入。
+ *   - `initial_lord_character_id`：**不读种子 JSON**；中城/大城按归属势力从 `config_characters` 的 `rarity=core` 随机写入（`pickFactionCoreCharacter`）；小城/关隘为 NULL。
+ *   - **不使用** `parent_city_id`。
  *
  * 用法:
  *   node backend/database/import-city-geo-data.js
@@ -35,6 +39,11 @@ const {
   purgeStaleConfigRowsWithExtraWhere,
   collectSeasonScopesFromItems,
 } = require('./import-config-purge.js');
+const {
+  cityTypeUsesAutoInitialLord,
+  pickFactionCoreCharacterId,
+} = require('../../shared/utils/pickFactionCoreCharacter.cjs');
+const { buildInitialCityAttributes } = require('../../shared/utils/cityInitialAttributes.cjs');
 
 require('dotenv').config({ path: path.join(__dirname, '../.env') });
 
@@ -58,17 +67,49 @@ function cityPk(r) {
   return r.cityId ?? r.id;
 }
 
-/** JSON 布尔 / 1/0 → MySQL TINYINT(1) */
-function bool01FromSeed(v) {
-  if (v === true || v === 1 || v === '1') return 1;
-  return 0;
+/**
+ * 预载 core 将领 + faction_id→faction_name，供导入时自动配长官。
+ * @returns {Promise<{ cores: object[], nameByFactionId: Map<string, string> }>}
+ */
+async function loadCoreLordLookup(conn) {
+  const [cores] = await conn.query(
+    `SELECT character_id, faction, season, rarity
+     FROM config_characters
+     WHERE rarity = 'core'`,
+  );
+  const [factions] = await conn.query(
+    `SELECT faction_id, faction_name, season FROM config_factions`,
+  );
+  const nameByFactionId = new Map();
+  for (const f of factions) {
+    const id = String(f.faction_id || '').trim();
+    const name = String(f.faction_name || '').trim();
+    if (id && name) nameByFactionId.set(id, name);
+  }
+  return { cores, nameByFactionId };
 }
 
-function initialLordCharacterIdForDb(c) {
-  const v = c.initialLordCharacterId;
-  if (v == null) return null;
-  const s = String(v).trim();
-  return s === '' ? null : s;
+function resolveInitialLordForCitySeed(c, lookup) {
+  if (!cityTypeUsesAutoInitialLord(c.cityType)) return null;
+  const fid = normalizedFactionIdFromCity(c);
+  if (!fid) return null;
+  const factionName = lookup.nameByFactionId.get(fid);
+  if (!factionName) {
+    console.warn(
+      `  ⚠ ${cityPk(c)}: 势力 ${fid} 在 config_factions 无名称，跳过自动长官（请先导入 factions）`,
+    );
+    return null;
+  }
+  const picked = pickFactionCoreCharacterId(lookup.cores, {
+    factionKey: factionName,
+    season: c.season,
+  });
+  if (!picked) {
+    console.warn(
+      `  ⚠ ${cityPk(c)}: 势力「${factionName}」无 rarity=core 将领，initial_lord 置空`,
+    );
+  }
+  return picked;
 }
 
 function zhouRow(z) {
@@ -148,12 +189,6 @@ async function importJun(conn, rows) {
   console.log(`  config_jun: ${n} 条`);
 }
 
-function finalsForCity(c) {
-  const fc = (c.trading ?? 0) + (c.specialResourceTrading ?? 0);
-  const ff = (c.farming ?? 0) + (c.specialResourceFarming ?? 0);
-  return { finalTrading: fc, finalFarming: ff };
-}
-
 /** 写入 DB 的 faction_id：null / 空串 → NULL，否则为 trim 后的字符串 */
 function normalizedFactionIdFromCity(c) {
   const v = c.initialFactionId;
@@ -162,31 +197,31 @@ function normalizedFactionIdFromCity(c) {
   return s === '' ? null : s;
 }
 
-async function insertCityRow(conn, c) {
-  const { finalTrading, finalFarming } = finalsForCity(c);
+async function insertCityRow(conn, c, lordLookup) {
   const isBuildable = 0;
   const buildStatus = 'empty';
 
   const cid = cityPk(c);
-  const gcap = c.playerGarrisonCapacity ?? c.garrisonCapacity ?? 0;
-
-  const wEn = bool01FromSeed(c.wildernessEnabled);
-  const mEn = bool01FromSeed(c.marketEnabled);
-  const lordChar = initialLordCharacterIdForDb(c);
+  const lordChar = resolveInitialLordForCitySeed(c, lordLookup);
   const fidForRow = normalizedFactionIdFromCity(c);
   const initialStatus = fidForRow ? 'owned' : 'neutral';
+
+  const attrs = buildInitialCityAttributes(c.cityType, {
+    specialResourceTrading: c.specialResourceTrading,
+    specialResourceFarming: c.specialResourceFarming,
+  });
 
   await conn.query(
     `INSERT INTO cities (
       city_id, season, city_name, city_type, faction_id,
       jun_id, zhou_id,
-      wilderness_enabled, market_enabled, initial_lord_character_id,
+      initial_lord_character_id,
       position_x, position_y,
       population, trading, farming, military, culture, description,
       special_resource_name, special_resource_trading, special_resource_farming,
       final_trading, final_farming,
       lord_player_id, lord_appointed_at,
-      defense, player_garrison_capacity,
+      defense, attr_growth_applied_date,
       npc_garrison, npc_garrison_alive,
       status, is_capital,
       is_buildable, build_status, built_by_player_id, built_at, build_complete_at, custom_name,
@@ -194,13 +229,13 @@ async function insertCityRow(conn, c) {
     ) VALUES (
       ?, ?, ?, ?, ?,
       ?, ?,
-      ?, ?, ?,
-      ?, ?,
+      ?,
+      NULL, NULL,
       ?, ?, ?, ?, ?, ?,
       ?, ?, ?,
       ?, ?,
       NULL, NULL,
-      ?, ?,
+      ?, CURDATE(),
       NULL, 0,
       ?, 0,
       ?, ?, NULL, NULL, NULL, NULL,
@@ -213,24 +248,13 @@ async function insertCityRow(conn, c) {
       faction_id = VALUES(faction_id),
       jun_id = VALUES(jun_id),
       zhou_id = VALUES(zhou_id),
-      wilderness_enabled = VALUES(wilderness_enabled),
-      market_enabled = VALUES(market_enabled),
       initial_lord_character_id = VALUES(initial_lord_character_id),
-      position_x = IF(VALUES(position_x) IS NOT NULL, VALUES(position_x), cities.position_x),
-      position_y = IF(VALUES(position_y) IS NOT NULL, VALUES(position_y), cities.position_y),
-      population = VALUES(population),
-      trading = VALUES(trading),
-      farming = VALUES(farming),
-      military = VALUES(military),
-      culture = VALUES(culture),
       description = VALUES(description),
       special_resource_name = VALUES(special_resource_name),
       special_resource_trading = VALUES(special_resource_trading),
       special_resource_farming = VALUES(special_resource_farming),
-      final_trading = VALUES(final_trading),
-      final_farming = VALUES(final_farming),
-      defense = VALUES(defense),
-      player_garrison_capacity = VALUES(player_garrison_capacity),
+      final_trading = cities.trading + VALUES(special_resource_trading),
+      final_farming = cities.farming + VALUES(special_resource_farming),
       status = CASE
         WHEN VALUES(faction_id) IS NOT NULL AND TRIM(VALUES(faction_id)) <> '' THEN 'owned'
         ELSE cities.status
@@ -245,24 +269,19 @@ async function insertCityRow(conn, c) {
       fidForRow,
       c.junId,
       c.zhouId,
-      wEn,
-      mEn,
       lordChar,
-      c.positionX,
-      c.positionY,
-      c.population,
-      c.trading,
-      c.farming,
-      c.military,
-      c.culture,
+      attrs.population,
+      attrs.trading,
+      attrs.farming,
+      attrs.military,
+      attrs.culture,
       c.description ?? null,
       c.specialResourceName,
-      c.specialResourceTrading,
-      c.specialResourceFarming,
-      finalTrading,
-      finalFarming,
-      c.defense,
-      gcap,
+      c.specialResourceTrading ?? 0,
+      c.specialResourceFarming ?? 0,
+      attrs.finalTrading,
+      attrs.finalFarming,
+      attrs.defense,
       initialStatus,
       isBuildable,
       buildStatus,
@@ -326,8 +345,10 @@ async function importCities(conn, records) {
     return;
   }
   await ensureRuntimeFactionsForCitySeed(conn, records);
+  const lordLookup = await loadCoreLordLookup(conn);
+  console.log(`  initial_lord: 已载入 core 将领 ${lordLookup.cores.length} 名，按中城/大城自动配置`);
   for (const c of records) {
-    await insertCityRow(conn, c);
+    await insertCityRow(conn, c, lordLookup);
   }
   const jsonIds = records.map(cityPk).filter(Boolean);
   await purgeStaleConfigRowsWithExtraWhere(conn, {

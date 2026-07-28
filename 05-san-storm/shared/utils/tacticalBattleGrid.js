@@ -1,6 +1,6 @@
 /**
  * 回合制战斗格网常量（小型随机战术图默认 8×10）。
- * 地图生成器（generateSmallMap）、事件/攻城战斗壳层沿用此尺寸。
+ * 地图生成器（generateSmallMapV2）、事件/攻城战斗壳层沿用此尺寸。
  *
  * 寻路、AI、回合引擎以 `mapResult.terrain` 的实际宽高为准（见 `getMapTerrainDimensions`），
  * 战役整图 16×20 与事件 8×10 共用同一套逻辑，不再在战役路径做局部贴片坐标。

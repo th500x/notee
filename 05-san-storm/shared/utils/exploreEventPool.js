@@ -11,49 +11,24 @@
  * @module @shared/utils/exploreEventPool
  */
 
-import { LOCATION_PLACEHOLDERS, exploreLocationMatchesEvent } from './eventLocationPlaceholders.js';
+import { exploreLocationMatchesEvent } from './eventLocationPlaceholders.js';
 import { getOptionFactorFields } from './eventOptionFactor.js';
 
-/** 教程探索链 `chain_id`；未完成时探索池只认本链，避免与无链/其它链/集市事件混抽 */
+/** 教程探索链 `chain_id`；未完成时探索池只认本链，避免与无链/其它链混抽 */
 export const TUTORIAL_EXPLORE_CHAIN_ID = 'chain_tutorial_v1';
 
-const WILDERNESS_EVENT_LOCS = new Set([
-  LOCATION_PLACEHOLDERS.ANY_WILDERNESS,
-  LOCATION_PLACEHOLDERS.CITY_MAJOR_WILDERNESS,
-  LOCATION_PLACEHOLDERS.CITY_MEDIUM_WILDERNESS,
-]);
-const MARKET_EVENT_LOCS = new Set([
-  LOCATION_PLACEHOLDERS.ANY_MARKET,
-  LOCATION_PLACEHOLDERS.CITY_MAJOR_MARKET,
-  LOCATION_PLACEHOLDERS.CITY_MEDIUM_MARKET,
-]);
-
 /**
- * 战略城 tooltip 荒郊/集市分池：按 location 占位符与 trigger_context 归类（与合并拉取的全量池配合）
- * @param {string|null|undefined} evLoc
- * @param {'wilderness'|'market'|null|undefined} subsidiaryKind
+ * 战略探索分池：按 `trigger_context`（`wild` / `mini`）归类；`null` 不分池。
+ * @param {string|null|undefined} _evLoc
+ * @param {'wild'|'mini'|null|undefined} subsidiaryKind
  * @param {string|null|undefined} triggerContext
  */
-export function eventMatchesExploreSubsidiaryKind(evLoc, subsidiaryKind, triggerContext) {
+export function eventMatchesExploreSubsidiaryKind(_evLoc, subsidiaryKind, triggerContext) {
   if (!subsidiaryKind) return true;
-  const ev = String(evLoc ?? '').trim();
-  const ctx = triggerContext != null ? String(triggerContext) : '';
-
-  if (ev === LOCATION_PLACEHOLDERS.ALL) {
-    if (subsidiaryKind === 'wilderness') return ctx === 'wilderness';
-    if (subsidiaryKind === 'market') return ctx === 'market';
-    return false;
-  }
-  if (subsidiaryKind === 'wilderness') {
-    if (WILDERNESS_EVENT_LOCS.has(ev)) return true;
-    if (MARKET_EVENT_LOCS.has(ev)) return false;
-    return ctx === 'wilderness';
-  }
-  if (subsidiaryKind === 'market') {
-    if (MARKET_EVENT_LOCS.has(ev)) return true;
-    if (WILDERNESS_EVENT_LOCS.has(ev)) return false;
-    return ctx === 'market';
-  }
+  const ctx = triggerContext != null ? String(triggerContext).trim() : '';
+  const kind = String(subsidiaryKind).trim();
+  if (kind === 'wild') return ctx === 'wild';
+  if (kind === 'mini') return ctx === 'mini';
   return true;
 }
 
@@ -211,7 +186,12 @@ export function getEffectiveExploreChainMaxCompleted(allEvents, chainId, complet
       effective = L;
       break;
     }
-    if (next.required_items && !playerMeetsEventRequiredItems(next.required_items, playerItemCounts)) {
+    /** wild/mini 连打：不靠事件级钥匙卡进度；仅教程链仍验 required_items */
+    if (
+      chainId === TUTORIAL_EXPLORE_CHAIN_ID &&
+      next.required_items &&
+      !playerMeetsEventRequiredItems(next.required_items, playerItemCounts)
+    ) {
       const nextRec = completedEvents[next.event_id];
       if (nextRec?.status !== 'completed') {
         break;
@@ -276,6 +256,8 @@ export function getTutorialChainCompletedLevelForPool(allEvents, completedEvents
  */
 export function isExploreChainStrandedRedoFromState(evt, allEvents, completedEvents, playerItemCounts = {}) {
   if (!evt?.chain_id || !evt?.event_id) return false;
+  /** 非教程链不再用钥匙卡住重做 */
+  if (String(evt.chain_id).trim() !== TUTORIAL_EXPLORE_CHAIN_ID) return false;
   if (completedEvents[evt.event_id]?.status !== 'completed') return false;
   const chainLevelNum = (lv) => {
     const n = Number(lv);
@@ -294,12 +276,12 @@ export function isExploreChainStrandedRedoFromState(evt, allEvents, completedEve
 
 /**
  * 按探索地点 + 事件链进度过滤可抽到的事件池（与 useEventSystem 逻辑一致）
- * @param {Array} allEvents - 探索用合并池（含 explore / wilderness / market / mystery 等，由 useEventSystem 合并拉取）
+ * @param {Array} allEvents - 探索用合并池（tutorial / wild / mini，由 useEventSystem 合并拉取）
  * @param {Object} completedEvents - 玩家已完成事件 { eventId: { status } }
- * @param {string} locationId - 探索点 city_id；`{all}` 任意；`{city_medium_wilderness}` 等与 `city_type` + 荒郊/集市开关匹配（见 exploreLocationMatchesEvent）
+ * @param {string} locationId - 探索锚点（战场 `san_*_bf_*` / 城 / 匪寨）；`{battlefield}` 等见 exploreLocationMatchesEvent
  * @param {Record<string, number>} [playerItemCounts] - 背包道具数量，用于校验链式 required_items
- * @param {Array<{ city_id?: string, cityId?: string, city_type?: string, cityType?: string }>|null} [citiesList] - GET /api/cities 列表；缺省则占位符无法按类型匹配（仅 `{all}` / 全字面相等）
- * @param {'wilderness'|'market'|null} [subsidiaryKind] - 仅战略城荒郊/集市内嵌条传入，用于分池与链锁范围
+ * @param {Array<{ city_id?: string, cityId?: string, city_type?: string, cityType?: string }>|null} [citiesList] - GET /api/cities 列表；缺省则城类型占位符无法匹配
+ * @param {'wild'|'mini'|null} [subsidiaryKind] - 战场分池；`null` 表示不分（可同时抽 wild+mini）
  * @param {number|null|undefined} [playerReputation] - 玩家当前声望；低于事件 `min_reputation` 则不入池
  */
 export function filterExploreEventsPool(
@@ -354,18 +336,18 @@ export function filterExploreEventsPool(
 
   const tutorialMaxLevel = chainMaxLevel[TUTORIAL_EXPLORE_CHAIN_ID] || 0;
   const tutorialEff = chainMaxCompleted[TUTORIAL_EXPLORE_CHAIN_ID] || 0;
-  /** 教程链未通：池内只放行 `chain_tutorial_v1`，不混入无链/其它链/集市等（上层产品规则） */
+  /** 教程链未通：池内只放行 `chain_tutorial_v1`，不混入无链/其它链（上层产品规则） */
   const tutorialChainIncomplete = tutorialMaxLevel > 0 && tutorialEff < tutorialMaxLevel;
   if (tutorialChainIncomplete) {
     activeChainId = TUTORIAL_EXPLORE_CHAIN_ID;
   }
 
   /**
-   * 非教程链：一条链未完成时，若「下一环」在当前城此荒郊/集市子条无可匹配 location，临时解除链锁，
-   * 以便无链荒郊等仍可出现（子条 UI 不致恒为 0 件）。
+   * 非教程链：一条链未完成时，若「下一环」在当前锚点/分池无可匹配 location，临时解除链锁，
+   * 以便无链事件仍可出现（分池 UI 不致恒为 0 件）。
    *
-   * **教程链未完成**：**不**在此解除链锁——荒郊/集市子条与默认探索池均**只**放行 `chain_tutorial_v1`，
-   * 不混入其它 `trigger_context` 事件；避免未完成教程时在各城「正常探索」。
+   * **教程链未完成**：**不**在此解除链锁——探索池**只**放行 `chain_tutorial_v1`，
+   * 不混入其它 `trigger_context` 事件。
    */
   if (!tutorialChainIncomplete && subsidiaryKind && activeChainId && locationId) {
     const hasNextAtLocation = allEvents.some((evt) => {
@@ -374,7 +356,11 @@ export function filterExploreEventsPool(
       const maxLevel = chainMaxLevel[evt.chain_id] || 0;
       if (completed >= maxLevel) return false;
       if (chainLevelNum(evt.chain_level) !== completed + 1) return false;
-      if (evt.required_items && !playerMeetsEventRequiredItems(evt.required_items, playerItemCounts)) {
+      if (
+        evt.chain_id === TUTORIAL_EXPLORE_CHAIN_ID &&
+        evt.required_items &&
+        !playerMeetsEventRequiredItems(evt.required_items, playerItemCounts)
+      ) {
         return false;
       }
       const evLoc = String(evt.location ?? '').trim();
@@ -418,7 +404,11 @@ export function filterExploreEventsPool(
     if (completed >= maxLevel) return false;
     if (chainLevelNum(evt.chain_level) !== completed + 1) return false;
 
-    if (evt.required_items && !playerMeetsEventRequiredItems(evt.required_items, playerItemCounts)) {
+    if (
+      evt.chain_id === TUTORIAL_EXPLORE_CHAIN_ID &&
+      evt.required_items &&
+      !playerMeetsEventRequiredItems(evt.required_items, playerItemCounts)
+    ) {
       return false;
     }
     return true;

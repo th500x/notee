@@ -54,19 +54,10 @@ export default function ExploreTab({ onClose }) {
   const quotaBlock = (
     <>
       <div className="text-white/80 text-xs mt-1 border-t border-white/20 pt-1">
-        🔍 探索：<span className={quota.remaining > 0 ? 'text-green-400' : 'text-red-400'}>
-          {quota.remaining}/{quota.max}
-        </span>
-        {quota.remaining < quota.max && !quota.inRestPeriod && (
-          <span className="text-white/40 ml-1">（{quota.minutesUntilRefill}分后补充）</span>
-        )}
-        {quota.inRestPeriod && (
-          <span className="text-white/40 ml-1">（💤{quota.minutesUntilRefill}分后恢复）</span>
-        )}
+        🎖️ 兵符：
+        <span className={quota.remaining > 0 ? 'text-green-400' : 'text-red-400'}>{quota.remaining}</span>
       </div>
-      <div className="text-white/30 text-[10px] mt-1">
-        每小时+{quota.refillPerHour}次 · 上限{quota.max}次 · 0:00~8:00💤
-      </div>
+      <div className="text-white/30 text-[10px] mt-1">开链 ×1 · 同链连打不扣</div>
     </>
   );
 
@@ -87,13 +78,10 @@ export default function ExploreTab({ onClose }) {
         <div className="flex items-start gap-2">
           <div className="px-4 py-2 bg-black/60 rounded-lg backdrop-blur-sm text-right">
             <div className="text-white text-sm font-medium">
-              🔍 探索次数：<span className={quota.remaining > 0 ? 'text-green-400' : 'text-red-400'}>
-                {quota.remaining}/{quota.max}
-              </span>
+              🎖️ 兵符：
+              <span className={quota.remaining > 0 ? 'text-green-400' : 'text-red-400'}>{quota.remaining}</span>
             </div>
-            <div className="text-white/50 text-xs mt-1">
-              {quota.remaining < quota.max ? `${quota.minutesUntilRefill}分钟后补充` : '已满'}
-            </div>
+            <div className="text-white/50 text-xs mt-1">开一条事件链消耗 ×1</div>
           </div>
           {onClose && (
             <button onClick={onClose}

@@ -1,8 +1,8 @@
 /**
- * 匪寨大地图阶段一（17-7 §1.2）：S1 豫州 **颍川 / 汝南** 郡各 **2** 枚占位（**1×2** 或 **2×1** 骨牌），
- * 两格共用 **`banditPoiId`**（`san_{赛季}_bandit_{1|2}_{郡 slug}`，与 04-1 §15 / `targetPoiId` 同族）。与 `strategicRoadOverlay` 禁区一致。
+ * 匪寨大地图阶段一（17-7）：S1 **汝南** 仍可每郡 **2** 枚骨牌占位。
+ * **颍川** 已迁郡战场入口（13-8）：`ensure*` 仅 strip 旧骨牌，**不再**随机写入。
  *
- * 依赖 `cells[row][col]` 的 terrain / object / `banditPoiId`（读旧快照时仍可能带 `cityId`，由 `readStrategicCellAnchorId` 统一识别）；可选 `roadCells`：**不占道路格**，且优先 **四邻贴路**。
+ * 依赖 `cells[row][col]` 的 terrain / object / `banditPoiId`；可选 `roadCells`：**不占道路格**，且优先 **四邻贴路**。
  */
 
 import { normalizeRoadCellList, buildStrategicObjectFootprintBlockedSet } from './strategicRoadOverlay.js';
@@ -12,26 +12,47 @@ import { readStrategicCellAnchorId } from './strategicCellAnchorId.js';
 export const STRATEGIC_BANDIT_DOMINO_OBJECT_H = 'bandit_horiz';
 export const STRATEGIC_BANDIT_DOMINO_OBJECT_V = 'bandit_vert';
 
-/** 与 13-1 / 17-7 文档示例一致（颍川郡阶段一固定 2 个匪寨地图对象 ID） */
+/** 颍川战场绑定的唯一匪寨 POI（13-8） */
+export const YINGCHUAN_BATTLEFIELD_BANDIT_POI_ID = 'san_1_bandit_1_yingchuan';
+
+/** @deprecated 颍川不再随机两寨；保留常量供 strip / 进度迁移识别旧 `_2_` */
 export const YINGCHUAN_PHASE1_BANDIT_POI_IDS = [
   'san_1_bandit_1_yingchuan',
   'san_1_bandit_2_yingchuan',
 ];
 
-/** 汝南郡阶段一：须与 `jun_id === san_1_jun_runan` 及合并图 `junId` 一致，勿复用颍川 `*_yingchuan` ID（行军 `collectStrategicPoiFootprint` 以锚点 id 匹配）。 */
+/** 汝南郡阶段一：须与 `jun_id === san_1_jun_runan` 及合并图 `junId` 一致 */
 export const RUNAN_PHASE1_BANDIT_POI_IDS = ['san_1_bandit_1_runan', 'san_1_bandit_2_runan'];
 
 /** strip 时用：清除误写入邻郡 slug 的旧占位 */
 export const ALL_SAN1_YU_PHASE1_BANDIT_POI_IDS = [...YINGCHUAN_PHASE1_BANDIT_POI_IDS, ...RUNAN_PHASE1_BANDIT_POI_IDS];
 
 /**
- * @param {string|null|undefined} junId - `san_1_jun_yingchuan` / `san_1_jun_runan`
+ * 需在合并图上 **随机骨牌落位** 的郡 POI 列表（颍川返回空 = 不落位）。
+ * @param {string|null|undefined} junId
  * @returns {readonly string[]}
  */
 export function getPhase1BanditPoiIdsForJun(junId) {
   const j = String(junId || '').trim();
-  if (j === 'san_1_jun_runan') return RUNAN_PHASE1_BANDIT_POI_IDS;
-  if (j === 'san_1_jun_yingchuan') return YINGCHUAN_PHASE1_BANDIT_POI_IDS;
+  // TEMP 2026-07：汝南暂不启用 —— 不随机骨牌（恢复时解开下行）
+  // if (j === 'san_1_jun_runan') return RUNAN_PHASE1_BANDIT_POI_IDS;
+  if (j === 'san_1_jun_runan') return [];
+  // 颍川：战场一寨，不随机骨牌
+  if (j === 'san_1_jun_yingchuan') return [];
+  return [];
+}
+
+/**
+ * 库表 / 配额 ensure 用：颍川仅 `_1_`；汝南仍两 ID。
+ * @param {string|null|undefined} junId
+ * @returns {readonly string[]}
+ */
+export function getActiveBanditPoiIdsForJun(junId) {
+  const j = String(junId || '').trim();
+  // TEMP 2026-07：汝南暂不启用 —— ensure/配额不挂两寨（恢复时解开下行）
+  // if (j === 'san_1_jun_runan') return RUNAN_PHASE1_BANDIT_POI_IDS;
+  if (j === 'san_1_jun_runan') return [];
+  if (j === 'san_1_jun_yingchuan') return [YINGCHUAN_BATTLEFIELD_BANDIT_POI_ID];
   return [];
 }
 
@@ -192,7 +213,10 @@ function paintDomino(cells, gx, gy, orientation, banditPoiId, displayName, occup
   }
 }
 
-/** 去掉 S1 豫州两郡阶段一匪寨占位（含历史上误写入汝南底板上的 `*_yingchuan` id）。 */
+/**
+ * 去掉 S1 豫州两郡阶段一匪寨**骨牌**占位（含历史上误写入汝南底板上的 `*_yingchuan` id）。
+ * **不得**清掉郡战场（13-8）入口/信息区上绑定的同一 `banditPoiId`，否则加载后点击无反应。
+ */
 export function stripPhase1BanditCells(cells) {
   if (!cells?.length) return;
   const idSet = new Set(ALL_SAN1_YU_PHASE1_BANDIT_POI_IDS);
@@ -204,6 +228,15 @@ export function stripPhase1BanditCells(cells) {
       if (!cell) continue;
       const cid = String(readStrategicCellAnchorId(cell)).trim();
       if (!idSet.has(cid)) continue;
+      const zone = cell.battlefieldZone ?? cell.battlefield_zone;
+      const bfId = cell.battlefieldId ?? cell.battlefield_id;
+      if (
+        cell.object === 'jun_battlefield' ||
+        (zone != null && String(zone).trim() !== '') ||
+        (bfId != null && String(bfId).trim() !== '')
+      ) {
+        continue;
+      }
       delete cell.banditPoiId;
       delete cell.bandit_poi_id;
       delete cell.cityId;
@@ -305,8 +338,8 @@ export function applyYingchuanPhase1BanditPlaceholders(cells, seed = 0, placemen
 }
 
 /**
- * 浅拷贝格网后：先 strip 两郡阶段一匪寨占位，再按 **junId** 写入该郡两枚占位（仅颍川 / 汝南）。
- * 其它 `junId`：原样浅拷贝返回（不 strip），避免误伤未约定匪寨占位之郡。
+ * 浅拷贝格网后：先 strip 两郡阶段一匪寨骨牌占位；仅 **汝南** 再随机写入两枚。
+ * **颍川**：只 strip，不落位（入口在战场，见 13-8）。
  *
  * @param {object[][]} cells
  * @param {number} [seed]
@@ -320,6 +353,14 @@ export function ensureJunMergedMapCells(cells, seed = 0, junId, options = null) 
     (row || []).map((cell) => (cell && typeof cell === 'object' ? { ...cell } : cell)),
   );
   const jid = String(junId || '').trim();
+  const isYingchuan = jid === 'san_1_jun_yingchuan';
+  const isRunan = jid === 'san_1_jun_runan';
+  if (!isYingchuan && !isRunan) {
+    return cloned;
+  }
+
+  stripPhase1BanditCells(cloned);
+
   const poiIds = getPhase1BanditPoiIdsForJun(jid);
   if (!poiIds.length) {
     return cloned;
@@ -330,7 +371,6 @@ export function ensureJunMergedMapCells(cells, seed = 0, junId, options = null) 
   const mapRows = options?.mapRows;
   const hasRoads = Array.isArray(roadCells) && roadCells.length > 0;
 
-  stripPhase1BanditCells(cloned);
   if (hasRoads) {
     applyJunPhase1BanditPlaceholders(cloned, seed, jid, { roadCells, mapColumns, mapRows });
   } else {
@@ -340,12 +380,12 @@ export function ensureJunMergedMapCells(cells, seed = 0, junId, options = null) 
 }
 
 /**
- * 浅拷贝格网后幂等写入 **颍川** 阶段一匪寨占位（= `ensureJunMergedMapCells(..., san_1_jun_yingchuan, …)`）。
+ * 浅拷贝格网后：**仅 strip** 颍川旧骨牌（不再随机落位）。
  *
  * @param {object[][]} cells
- * @param {number} [seed] 与合并图 `seed` 一致（缺省 0）
+ * @param {number} [seed]
  * @param {{ roadCells?: unknown, mapColumns?: number, mapRows?: number }|null} [options]
- * @returns {object[][]} 新二维数组（不修改入参）
+ * @returns {object[][]}
  */
 export function ensureYingchuanMergedMapCells(cells, seed = 0, options = null) {
   return ensureJunMergedMapCells(cells, seed, 'san_1_jun_yingchuan', options);

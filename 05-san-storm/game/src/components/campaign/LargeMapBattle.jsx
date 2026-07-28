@@ -1,5 +1,5 @@
 /**
- * 大型战役地图战斗壳层（16×20 格，pve_campaign 专用）
+ * 大型战役 / 章节战术地图战斗壳层（格网尺寸由 `campaignMapSim.cells` 决定；默认战役 16×20）
  *
  * @see SmallMapBattle  小型战术地图（8×10，事件/攻城/PVP）
  *
@@ -8,6 +8,7 @@
  * 战役专有：CampaignMapGrid 渲染、createCampaignBattleSurface、
  *   战略格网部署+确认、commitBattleTroopsThenPlayRound、
  *   beforeunload sendBeacon（中断计为一次失败）
+ * 章节：可传 `playerDeployRect`（覆盖象限丙）+ stub `campaignPreset`；生图见 chapterStageMapGenerator
  */
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
 import { useBattleMap } from '@/hooks/useBattleMap';
@@ -54,12 +55,16 @@ function isHumanPlayerTroop(t) {
  * @param {string}  [playerId]
  * @param {string}  [opponentName]
  * @param {string}  [campaignId]
+ * @param {string}  [chapterId]         章节战棋
+ * @param {string}  [nodeId]
+ * @param {string}  [battleType]        默认 pve_campaign；章节用 pve_chapter
  * @param {function} onBattleEnd        (result, silverSpent, scoreResult, killedIndices, meta)
  * @param {boolean} [recordOnly]
  * @param {Array}   [cards]             PlayerContext.cards，出征门槛校验
- * @param {object}  [campaignMapSim]    generateCampaignMapSimulated 结果
- * @param {object}  [campaignPreset]    战役 preset（含 quad_C deploy 矩形）
- * @param {object}  [campaignPreset]    战役 preset（含 quad_C deploy 矩形）
+ * @param {object}  [campaignMapSim]    generateCampaignMapSimulated / generateChapterStageMap 结果
+ * @param {object}  [campaignPreset]    战役 preset（含 quad_C deploy 矩形）；章节可传 stub
+ * @param {{ colMin:number,colMax:number,rowMin:number,rowMax:number,cols?:number,rows?:number }|null} [playerDeployRect]
+ *        可选：覆盖玩家部署区（章节可变尺寸生图）；有则优先于 preset 象限丙矩形
  * @param {string}  [campaignBattleTitle]
  * @param {Record<string, object>} [skillsMap] skills.json 字典；战役 NPC 阶段2被动
  */
@@ -71,11 +76,15 @@ export default function LargeMapBattle({
   playerId,
   opponentName = '战役敌军',
   campaignId = null,
+  chapterId = null,
+  nodeId = null,
+  battleType = BATTLE_TYPE,
   onBattleEnd,
   recordOnly = false,
   cards = null,
   campaignMapSim = null,
   campaignPreset = null,
+  playerDeployRect = null,
   campaignBattleTitle = '',
   minRounds = null,
   maxRounds = 30,
@@ -120,12 +129,16 @@ export default function LargeMapBattle({
     maxRounds,
     setBattleEndReason: bm.setBattleEndReason,
     trimAllyBattleLog: true,
+    battleReportDigestRef: bm.battleReportDigestRef,
+    setMapResult: bm.setMapResult,
   });
 
   playBattleRoundRef.current = engine.playBattleRound;
 
   const manual = useManualBattle({
     battleTroops: bm.battleTroops, mapResult: bm.mapResult,
+    setBattleTroops: bm.setBattleTroops,
+    setMapResult: bm.setMapResult,
     performAttack: engine.performAttack, performCounterAttack: engine.performCounterAttack,
     performPhase3Heal: engine.performPhase3Heal,
     performPhase4Damage: engine.performPhase4Damage,
@@ -175,7 +188,8 @@ export default function LargeMapBattle({
   const { awayNoticeOpen: _awayNoticeOpen, flushAwayEndNotice: _flush } = useBattleSettlement({
     stage, bmRef, manualBattleRef, engineRef, mountedRef,
     battlePlaying: bm.battlePlaying,
-    battleType: BATTLE_TYPE, playerId, silverAmount, deploymentFoodCost, campaignId,
+    battleType, playerId, silverAmount, deploymentFoodCost, campaignId,
+    chapterId, nodeId,
     defenseReportMeta: null, recordOnly,
     siegeDefenderType: null, opponentName,
     battleSettledRef,
@@ -239,10 +253,10 @@ export default function LargeMapBattle({
 
   useEffect(() => { campaignDeploySlotsRef.current = campaignDeploySlots; }, [campaignDeploySlots]);
 
-  const deployRect = useMemo(
-    () => (campaignPreset ? getPlayerDeployRectGlobal(campaignPreset) : null),
-    [campaignPreset],
-  );
+  const deployRect = useMemo(() => {
+    if (playerDeployRect && typeof playerDeployRect === 'object') return playerDeployRect;
+    return campaignPreset ? getPlayerDeployRectGlobal(campaignPreset) : null;
+  }, [playerDeployRect, campaignPreset]);
 
   // 我方部队在战略格网上的位置映射（部署阶段用）
   const campaignPlayerByCell = useMemo(() => {
@@ -268,7 +282,7 @@ export default function LargeMapBattle({
 
   // 初始部署位置：将我方部队均匀摆入可通行部署格
   useEffect(() => {
-    if (!campaignPreset || !campaignMapSim?.cells || !deployRect) return;
+    if ((!campaignPreset && !playerDeployRect) || !campaignMapSim?.cells || !deployRect) return;
     if (stage !== STAGE.READY || campaignDeployInitRef.current) return;
     const players = bm.battleTroops.filter(isHumanPlayerTroop);
     if (players.length === 0) return;
@@ -280,11 +294,11 @@ export default function LargeMapBattle({
       campaignDeploySlotsRef.current = next;
       campaignDeployInitRef.current = true;
     }
-  }, [campaignPreset, campaignMapSim, deployRect, stage, bm.battleTroops]);
+  }, [campaignPreset, playerDeployRect, campaignMapSim, deployRect, stage, bm.battleTroops]);
 
   // 换位：将选中部队移至目标格（或与目标格上的我军互换）
   const applyCampaignDeploySwap = useCallback((col, row) => {
-    if (campaignDeployTroopId == null || !campaignPreset || !deployRect || !campaignMapSim?.cells) return;
+    if (campaignDeployTroopId == null || (!campaignPreset && !playerDeployRect) || !deployRect || !campaignMapSim?.cells) return;
     if (!isCellInDeployRect(col, row, deployRect)) return;
     const cell = campaignMapSim.cells[row]?.[col];
     if (!isCampaignCellDeployableForPlayer(cell)) return;
@@ -306,7 +320,7 @@ export default function LargeMapBattle({
       campaignDeploySlotsRef.current = next;
       return next;
     });
-  }, [campaignDeployTroopId, campaignPreset, deployRect, campaignMapSim]);
+  }, [campaignDeployTroopId, campaignPreset, playerDeployRect, deployRect, campaignMapSim]);
 
   const onCampaignPlayerUnitMarkerClick = useCallback((troop) => {
     if (!troop || !isHumanPlayerTroop(troop)) return;
@@ -378,17 +392,21 @@ export default function LargeMapBattle({
   // 须等 skills.json 就绪后再写入战场部队，否则 NPC/我方将领阶段1 被动未叠入 `character._skillPhase1Combat`
   useEffect(() => {
     if (initRef.current || !playerUnits || playerUnits.length === 0) return;
-    if (!campaignMapSim || !campaignPreset || bm.allTroops.length < 1) return;
+    if (!campaignMapSim || bm.allTroops.length < 1) return;
+    if (!campaignPreset && !playerDeployRect) return;
     if (Object.keys(skillsMap || {}).length === 0) return;
 
     initRef.current = true;
 
+    const resolvedDeploy =
+      playerDeployRect || getPlayerDeployRectGlobal(campaignPreset);
+
     bm.setMapResult(buildCampaignBattleMapResult(campaignMapSim));
-    bm.setMapLabel('战役战场');
+    bm.setMapLabel(campaignBattleTitle || '战役战场');
     bm.setBattleTroops(
       buildCampaignBattleTroopsFromSim({
         playerUnits, campaignMapSim,
-        deployRect: getPlayerDeployRectGlobal(campaignPreset),
+        deployRect: resolvedDeploy,
         allTroops: bm.allTroops,
         allCharacters: bm.allCharacters,
         skillsMap: skillsMap || undefined,
@@ -400,26 +418,27 @@ export default function LargeMapBattle({
     // 保持 isBattle=false：战前 CampaignMapGrid 显示蓝色部署区
     setStage(STAGE.READY);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playerUnits, campaignMapSim, campaignPreset, bm.allTroops.length, skillsMap, silverAmount]);
+  }, [playerUnits, campaignMapSim, campaignPreset, playerDeployRect, bm.allTroops.length, skillsMap, silverAmount, campaignBattleTitle]);
 
   // ── 开战（含门槛校验 + 战略→战术坐标写入） ──
   const [battleGateModalOpen, setBattleGateModalOpen] = useState(false);
   const [battleGateMessage, setBattleGateMessage] = useState('');
 
   const startBattleWithLineupGate = useCallback(() => {
-    if (recordOnly) { playBattleRoundRef.current(); return; }
     if (!campaignDeployReady) {
       setBattleGateMessage('请先在蓝色可部署区内完成部署：点击地图上的我方部队选中，再点蓝色格调整位置；完成后点「确认部署」。');
       setBattleGateModalOpen(true);
       return;
     }
-    const v = validateMainLineupBattleGate({ recordOnly, cards, playerUnits, playerFood });
-    if (!v.ok) {
-      setBattleGateMessage(v.message || '条件不足');
-      setBattleGateModalOpen(true);
-      return;
+    // recordOnly：跳过编组/粮草门槛，但仍须确认部署并把战略坐标写入战术 x,y
+    if (!recordOnly) {
+      const v = validateMainLineupBattleGate({ recordOnly, cards, playerUnits, playerFood });
+      if (!v.ok) {
+        setBattleGateMessage(v.message || '条件不足');
+        setBattleGateModalOpen(true);
+        return;
+      }
     }
-    // 将战略部署坐标写入战术 x,y，再用 flushSync + queueMicrotask 开战
     const slots = campaignDeploySlotsRef.current;
     const nextTroops = bmRef.current.battleTroops.map((t) => {
       if (t.faction !== 'player') return t;
@@ -541,7 +560,7 @@ export default function LargeMapBattle({
 
   if (!campaignMapSim) {
     return (
-      <div className="fixed inset-0 z-[60] flex flex-col items-center justify-center gap-4 bg-[#1a1a2e] px-6 text-center">
+      <div className="fixed inset-0 z-[240] flex flex-col items-center justify-center gap-4 bg-[#1a1a2e] px-6 text-center">
         <p className="text-red-300 text-sm">战役地图数据缺失，无法开战。</p>
         <button
           type="button"
@@ -554,8 +573,13 @@ export default function LargeMapBattle({
     );
   }
 
+  const shellZ =
+    battleType === 'pve_chapter' || chapterId
+      ? 'z-[240]'
+      : 'z-[60]';
+
   return (
-    <div className="fixed inset-0 z-[60] overflow-auto bg-[#1a1a2e]">
+    <div className={`fixed inset-0 ${shellZ} overflow-auto bg-[#1a1a2e]`}>
       <div className="battle-page">
         {stage === STAGE.LOADING && (
           <div className="maps-row">
@@ -563,8 +587,8 @@ export default function LargeMapBattle({
           </div>
         )}
 
-        {/* 战役 16×20 战略格网：部署阶段 + 战斗阶段共用同一地图 */}
-        {stage === STAGE.READY && campaignPreset && campaignMapSim && bm.mapResult && (
+        {/* 战役/章节战略格网：部署阶段 + 战斗阶段共用同一地图（尺寸随 cells） */}
+        {stage === STAGE.READY && (campaignPreset || playerDeployRect) && campaignMapSim && bm.mapResult && (
           <div className="w-full max-w-[min(98vw,900px)] mx-auto px-1 pb-2">
             <CampaignMapGrid
               ref={campaignShellRef}

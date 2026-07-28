@@ -3,7 +3,7 @@
  * 仅 props 驱动，不依赖 PlayerContext（可测 / 可文档化）。
  */
 
-import { memo } from 'react';
+import { memo, useCallback, useRef } from 'react';
 
 /**
  * @typedef {{ cityId: string, x: number, y: number, w: number, h: number, fill: string, stroke?: string, cityType?: string|null }} StrategicMiniMapCityRect
@@ -142,6 +142,8 @@ function proximityHighlightRing(cityRects, cityId, kind, layer) {
  *   selectedCityId?: string | null,
  *   onCitySelect?: (cityId: string, event: { nativeEvent: unknown }) => void,
  *   proximityHighlight?: { hostileCityIds?: string[], neutralCityIds?: string[] } | null,
+ *   viewportRect?: { x: number, y: number, w: number, h: number } | null,
+ *   onViewportTopLeftChange?: ((gx: number, gy: number) => void) | null,
  *   className?: string,
  *   'aria-label'?: string,
  * }} props
@@ -156,6 +158,8 @@ function StrategicMiniMapSvg({
   selectedCityId = null,
   onCitySelect = null,
   proximityHighlight = null,
+  viewportRect = null,
+  onViewportTopLeftChange = null,
   className = '',
   'aria-label': ariaLabel = '战略缩略图',
 }) {
@@ -163,6 +167,8 @@ function StrategicMiniMapSvg({
   const H = Math.max(1, Number(mapRows) || 1);
   const d = typeof roadPathD === 'string' ? roadPathD : '';
   const dAdmin = typeof roadAdminBoundaryPathD === 'string' ? roadAdminBoundaryPathD : '';
+  const svgRef = useRef(null);
+  const dragRef = useRef(null);
 
   const hostileHighlightIds = Array.isArray(proximityHighlight?.hostileCityIds)
     ? proximityHighlight.hostileCityIds.filter((id) => id != null && String(id).trim() !== '')
@@ -171,8 +177,84 @@ function StrategicMiniMapSvg({
     ? proximityHighlight.neutralCityIds.filter((id) => id != null && String(id).trim() !== '')
     : [];
 
+  const clientToSvg = useCallback((clientX, clientY) => {
+    const svg = svgRef.current;
+    if (!svg) return null;
+    const pt = svg.createSVGPoint();
+    pt.x = clientX;
+    pt.y = clientY;
+    const ctm = svg.getScreenCTM();
+    if (!ctm) return null;
+    const sp = pt.matrixTransform(ctm.inverse());
+    if (!Number.isFinite(sp.x) || !Number.isFinite(sp.y)) return null;
+    return { x: sp.x, y: sp.y };
+  }, []);
+
+  const onViewportPointerDown = useCallback(
+    (e) => {
+      if (typeof onViewportTopLeftChange !== 'function' || !viewportRect) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const p = clientToSvg(e.clientX, e.clientY);
+      if (!p) return;
+      dragRef.current = {
+        pointerId: e.pointerId,
+        grabDx: p.x - viewportRect.x,
+        grabDy: p.y - viewportRect.y,
+        vw: viewportRect.w,
+        vh: viewportRect.h,
+      };
+      try {
+        e.currentTarget.setPointerCapture(e.pointerId);
+      } catch {
+        /* ignore */
+      }
+    },
+    [clientToSvg, onViewportTopLeftChange, viewportRect],
+  );
+
+  const onViewportPointerMove = useCallback(
+    (e) => {
+      const drag = dragRef.current;
+      if (!drag || drag.pointerId !== e.pointerId) return;
+      if (typeof onViewportTopLeftChange !== 'function') return;
+      const p = clientToSvg(e.clientX, e.clientY);
+      if (!p) return;
+      let nx = p.x - drag.grabDx;
+      let ny = p.y - drag.grabDy;
+      nx = Math.max(0, Math.min(nx, Math.max(0, W - drag.vw)));
+      ny = Math.max(0, Math.min(ny, Math.max(0, H - drag.vh)));
+      onViewportTopLeftChange(nx, ny);
+    },
+    [H, W, clientToSvg, onViewportTopLeftChange],
+  );
+
+  const onViewportPointerUp = useCallback((e) => {
+    const drag = dragRef.current;
+    if (!drag || drag.pointerId !== e.pointerId) return;
+    dragRef.current = null;
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const vx = Number(viewportRect?.x);
+  const vy = Number(viewportRect?.y);
+  const vw = Number(viewportRect?.w);
+  const vh = Number(viewportRect?.h);
+  const showViewport =
+    Number.isFinite(vx) &&
+    Number.isFinite(vy) &&
+    Number.isFinite(vw) &&
+    Number.isFinite(vh) &&
+    vw > 0 &&
+    vh > 0;
+
   return (
     <svg
+      ref={svgRef}
       className={className}
       viewBox={`0 0 ${W} ${H}`}
       preserveAspectRatio="xMidYMid meet"
@@ -247,10 +329,32 @@ function StrategicMiniMapSvg({
         <circle
           cx={selfMarker.cx}
           cy={selfMarker.cy}
-          r={0.42}
+          r={0.78}
           fill={selfMarker.fill ?? '#fde047'}
           stroke={selfMarker.stroke ?? '#0c0a09'}
-          strokeWidth={0.1}
+          strokeWidth={0.16}
+        />
+      ) : null}
+      {showViewport ? (
+        <rect
+          x={vx}
+          y={vy}
+          width={vw}
+          height={vh}
+          fill="rgba(250, 204, 21, 0.12)"
+          stroke="rgba(250, 204, 21, 0.95)"
+          strokeWidth={0.35}
+          rx={0.15}
+          ry={0.15}
+          style={{
+            pointerEvents: onViewportTopLeftChange ? 'auto' : 'none',
+            cursor: onViewportTopLeftChange ? 'grab' : 'default',
+            touchAction: 'none',
+          }}
+          onPointerDown={onViewportTopLeftChange ? onViewportPointerDown : undefined}
+          onPointerMove={onViewportTopLeftChange ? onViewportPointerMove : undefined}
+          onPointerUp={onViewportTopLeftChange ? onViewportPointerUp : undefined}
+          onPointerCancel={onViewportTopLeftChange ? onViewportPointerUp : undefined}
         />
       ) : null}
     </svg>

@@ -14,6 +14,7 @@ import { useLifeStages } from '@/hooks/useLifeStages';
 import { useSkillsMap } from '@/hooks/useSkillsMap';
 import { useSilentProfilePoll } from '@/hooks/useSilentProfilePoll';
 import { lineupExtraAPI } from '@/services/lineupExtraApi';
+import { adventureAPI } from '@/services/adventureApi';
 import { useGarrisonOccupiedIds } from '@/hooks/useGarrisonOccupiedIds';
 import CharacterCard from '@shared/components/card/CharacterCard';
 import TroopCard from '@shared/components/card/TroopCard';
@@ -30,8 +31,9 @@ import GarrisonBackpack from '@/components/garrison/GarrisonBackpack';
 import TabSubNav from '@/components/game/TabSubNav';
 import QuadrantGrid from '@/components/game/QuadrantGrid';
 import { useGameTabLandscape } from '@/components/game/TabPageCloseAffordance';
+import { buildBadgeRepairCandidates } from '@/utils/troopBadgeRepairCandidates';
 
-const EXTRA_POOL_TABS = [
+const EXTRA_POOL_TABS_BASE = [
   { id: 'A', label: '上阵 A' },
   { id: 'B', label: '上阵 B' },
   { id: 'C', label: '上阵 C' },
@@ -62,11 +64,24 @@ export default function LineupExtraEditor() {
   const [detailCard, setDetailCard] = useState(null);
   const [saving, setSaving] = useState(false);
   const [saveErrorMessage, setSaveErrorMessage] = useState(null);
+  const [lockedExtraSlots, setLockedExtraSlots] = useState([]);
   const isLandscape = useGameTabLandscape();
 
   const skillsMap = useSkillsMap();
   useSilentProfilePoll(refresh);
   const garrisonIds = useGarrisonOccupiedIds(player?.playerId, [cards]);
+
+  const loadAdventureLocks = useCallback(async () => {
+    if (!player?.playerId) return;
+    try {
+      const res = await adventureAPI.getStatus(player.playerId);
+      if (res.success) {
+        setLockedExtraSlots(res.lockedExtraSlots || []);
+      }
+    } catch (e) {
+      console.error('[LineupExtraEditor] 探险状态加载失败:', e);
+    }
+  }, [player?.playerId]);
 
   const loadExtraData = useCallback(async () => {
     if (!player?.playerId) return;
@@ -82,15 +97,30 @@ export default function LineupExtraEditor() {
         setLineupsBySlot(next);
         setExtraOccupiedIds(collectLineupExtraOccupiedInstanceIds(rows));
       }
+      await loadAdventureLocks();
     } catch (e) {
       console.error('[LineupExtraEditor] 加载失败:', e);
     }
-  }, [player?.playerId]);
+  }, [player?.playerId, loadAdventureLocks]);
 
   useEffect(() => { loadExtraData(); }, [loadExtraData]);
 
   const currentSlotNum = POOL_TO_SLOT[activePool];
   const currentLineup = lineupsBySlot[currentSlotNum] || null;
+  const currentSlotLocked = lockedExtraSlots.includes(currentSlotNum);
+
+  const EXTRA_POOL_TABS = useMemo(
+    () =>
+      EXTRA_POOL_TABS_BASE.map((tab) => {
+        const slot = POOL_TO_SLOT[tab.id];
+        const locked = lockedExtraSlots.includes(slot);
+        return {
+          ...tab,
+          label: locked ? `${tab.label}·探` : tab.label,
+        };
+      }),
+    [lockedExtraSlots],
+  );
 
   const getCardFromExtra = useCallback((fieldName) => {
     if (!currentLineup) return null;
@@ -106,6 +136,10 @@ export default function LineupExtraEditor() {
 
   const saveExtra = useCallback(async (fieldName, instanceId) => {
     if (!player?.playerId) return;
+    if (lockedExtraSlots.includes(currentSlotNum)) {
+      setSaveErrorMessage('该 Extra 编组正在探险中，归来并领取报告前不可修改');
+      return;
+    }
     setSaving(true);
     try {
       let base = {};
@@ -145,7 +179,7 @@ export default function LineupExtraEditor() {
       setSaveErrorMessage(e?.message || '保存失败');
     }
     setSaving(false);
-  }, [player?.playerId, currentSlotNum, currentLineup, loadExtraData, refresh]);
+  }, [player?.playerId, currentSlotNum, currentLineup, loadExtraData, refresh, lockedExtraSlots]);
 
   const closeDrawer = useCallback(() => {
     setDrawerOpen(false);
@@ -155,13 +189,17 @@ export default function LineupExtraEditor() {
 
   const handleSlotClick = useCallback((slot, content, charKey) => {
     if (!slot.implemented) return;
+    if (currentSlotLocked) {
+      setSaveErrorMessage('该 Extra 编组正在探险中，归来并领取报告前不可修改');
+      return;
+    }
     if (content) {
       setDetailCard({ card: content, slot, charKey });
     } else {
       setSelectedSlot({ ...slot, charKey, pool: activePool });
       setDrawerOpen(true);
     }
-  }, [activePool]);
+  }, [activePool, currentSlotLocked]);
 
   const handleEquip = useCallback(async (card) => {
     if (!selectedSlot) return;
@@ -232,6 +270,13 @@ export default function LineupExtraEditor() {
   const encapsulateEquipmentPool = cards.filter(
     (c) => c.cardType === 'equipment' && !c.isEquipped && !occupiedIds.has(c.instanceId),
   );
+
+  const badgeRepairCandidates = useMemo(() => {
+    const barracksTroops = availableCards.filter((c) => c.cardType === 'troop');
+    const mainTroops = troopCards.filter((c) => c.isEquipped);
+    const extraTroops = troopCards.filter((c) => extraOccupiedIds.has(c.instanceId));
+    return buildBadgeRepairCandidates({ barracksTroops, mainTroops, extraTroops });
+  }, [availableCards, troopCards, extraOccupiedIds]);
 
   const getAvailableCards = useCallback((type) => {
     const pool = type === 'character' ? characterCards
@@ -310,6 +355,7 @@ export default function LineupExtraEditor() {
           onAfterEncapsulateChange={refresh}
           encapsulateEquipmentPool={encapsulateEquipmentPool}
           equipmentSetCards={equipmentSetCards}
+          badgeRepairCandidates={badgeRepairCandidates}
         />
       ),
     },
@@ -322,17 +368,7 @@ export default function LineupExtraEditor() {
 
   return (
     <div className="relative flex h-full min-h-0 flex-col">
-      <div className="sticky top-0 z-10 flex flex-col border-b border-amber-900/50 bg-stone-900/80">
-        <div className="space-y-1 border-b border-stone-700/40 px-3 py-1.5 text-left text-[10px] leading-snug text-stone-500">
-          <div className="flex flex-wrap items-center gap-x-1 gap-y-0.5">
-            <span>上阵 Extra A–D · 仅将领配置</span>
-            <span className="text-stone-600">|</span>
-            <span className="text-stone-400">当前编辑：上阵 {activePool}</span>
-            <span className="text-stone-600">|</span>
-            <span className="text-amber-500/80">玩法2（暂不接开战）</span>
-            {saving && <span className="text-amber-400 animate-pulse">保存中…</span>}
-          </div>
-        </div>
+      <div className="sticky top-0 z-10 shrink-0 border-b border-amber-900/50 bg-stone-900/80">
         <TabSubNav
           tabs={EXTRA_POOL_TABS}
           activeTabId={activePool}
@@ -342,6 +378,8 @@ export default function LineupExtraEditor() {
             closeDrawer();
           }}
           hideClose
+          compact
+          embedded
         />
       </div>
 
@@ -383,6 +421,7 @@ export default function LineupExtraEditor() {
               onAfterEncapsulateChange={refresh}
               encapsulateEquipmentPool={encapsulateEquipmentPool}
               equipmentSetCards={equipmentSetCards}
+              badgeRepairCandidates={badgeRepairCandidates}
             />
           </>
         )}

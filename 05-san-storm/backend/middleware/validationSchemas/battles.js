@@ -16,6 +16,7 @@ const BATTLE_TYPES = [
   'pve_event',
   'pve_siege',
   'pve_bandit',
+  'pve_chapter',
 ];
 
 const OPPONENT_TYPES = ['player', 'campaign_enemy', 'event_enemy'];
@@ -43,6 +44,8 @@ const saveBattleBody = {
   opponentId: v.optional(v.nonEmptyString({ max: 128 })),
   opponentName: v.optional(v.string({ max: 128 })),
   campaignId: v.optional(v.idLike({ max: 128 })),
+  chapterId: v.optional(v.nonEmptyString({ max: 64 })),
+  nodeId: v.optional(v.nonEmptyString({ max: 32 })),
   battleScore: v.optional(v.integer({ min: -1_000_000_000, max: 1_000_000_000 })),
   battleSilverSpent: v.optional(v.integer({ min: 0, max: 1_000_000_000 })),
   deploymentFoodSpent: v.optional(v.integer({ min: 0, max: 1_000_000_000 })),

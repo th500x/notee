@@ -1,0 +1,102 @@
+{
+  "version": 1,
+  "status": "active",
+  "updated": "2026-07-18",
+  "description": "战斗序列帧默认表：rarity × troop_type → unitKey（E0 已接线）。特写覆盖见部队 CSV battle_unit_key（legendary/core，可后补）。",
+  "notes": [
+    "unitKey 与 import-unit-sprites.py 命名一致；多数格对应 docs/tiles/units/骷髅系001 尚未全量导入，接线前需 --series 导入。",
+    "骑兵无马模：cavalry 列暂用矛手/中级/高级代理，有骑兵包后再换。",
+    "解析顺序：部队 battleUnitKey → 本表 → 旧势力静态立绘。",
+    "同 unitKey 可被多部队共用；阵营靠光晕区分，不按势力复制素材。"
+  ],
+  "sourceSeries": "骷髅系001",
+  "defaults": {
+    "common": {
+      "infantry": {
+        "unitKey": "skeleton_warrior_001",
+        "sourceFolder": "骷髅战士001"
+      },
+      "archer": {
+        "unitKey": "skeleton_archer_001",
+        "sourceFolder": "骷髅弓箭手001"
+      },
+      "cavalry": {
+        "unitKey": "skeleton_lancer_001",
+        "sourceFolder": "骷髅矛手001",
+        "proxyNote": "骑兵代理（矛手）"
+      }
+    },
+    "rare": {
+      "infantry": {
+        "unitKey": "skeleton_warrior_002",
+        "sourceFolder": "骷髅战士002"
+      },
+      "archer": {
+        "unitKey": "skeleton_archer_002",
+        "sourceFolder": "骷髅弓箭手002"
+      },
+      "cavalry": {
+        "unitKey": "skeleton_elite_001",
+        "sourceFolder": "骷髅中级兵种001",
+        "proxyNote": "骑兵代理（中级）"
+      }
+    },
+    "epic": {
+      "infantry": {
+        "unitKey": "skeleton_elite_002",
+        "sourceFolder": "骷髅中级兵种002"
+      },
+      "archer": {
+        "unitKey": "skeleton_elite_003",
+        "sourceFolder": "骷髅中级兵种003"
+      },
+      "cavalry": {
+        "unitKey": "skeleton_advanced_001",
+        "sourceFolder": "骷髅高级兵种001",
+        "proxyNote": "骑兵代理（高级）"
+      }
+    },
+    "legendary": {
+      "infantry": {
+        "unitKey": "skeleton_advanced_002",
+        "sourceFolder": "骷髅高级兵种002"
+      },
+      "archer": {
+        "unitKey": "skeleton_mage_001",
+        "sourceFolder": "骷髅魔法师001"
+      },
+      "cavalry": {
+        "unitKey": "skeleton_advanced_003",
+        "sourceFolder": "骷髅高级兵种003",
+        "proxyNote": "骑兵代理（高级）；CSV 特写可覆盖"
+      }
+    },
+    "core": {
+      "infantry": {
+        "unitKey": "skeleton_boss_001",
+        "sourceFolder": "骷髅BOSS_001"
+      },
+      "archer": {
+        "unitKey": "skeleton_mage_002",
+        "sourceFolder": "骷髅魔法师002"
+      },
+      "cavalry": {
+        "unitKey": "skeleton_advanced_004",
+        "sourceFolder": "骷髅高级兵种004",
+        "proxyNote": "骑兵代理（高级）；CSV 特写可覆盖"
+      }
+    }
+  },
+  "unusedInDefaults": [
+    {
+      "unitKey": "skeleton_warrior_003",
+      "sourceFolder": "骷髅战士003",
+      "hint": "可留给 legendary/core 特写或扩稀有度差分"
+    },
+    {
+      "unitKey": "skeleton_spider_001",
+      "sourceFolder": "骷髅蜘蛛001",
+      "hint": "异形/探索怪等，未进默认 15 格"
+    }
+  ]
+}

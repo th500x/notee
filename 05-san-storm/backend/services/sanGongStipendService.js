@@ -2,6 +2,7 @@
  * 俸禄：按势力国力档位（supplyTier S～D）日领银两与粮草。
  * 日俸入口：君主每日传书 `grantDailyStipend`（占 `san_gong_stipend_claim_date`）。
  * 大司空传书：`grantKingStipend` 额外俸禄（不占日领额度）。
+ * 日俸另附：`item_tactic_token` × floor(silverBonus/10)（与真三日报投票权同源）。
  */
 
 const { pool } = require('../database/connection');
@@ -13,8 +14,13 @@ const {
   rollStipendAmountsForTier,
 } = require('./stipendTierCoefficients');
 const factionReserveService = require('./factionReserveService');
+const {
+  loadPositionSilverBonusForPlayer,
+  silverBonusQuotaUnits,
+} = require('../../shared/utils/positionStipendBonuses.cjs');
 
 const MAX_CLAIMS_PER_CALENDAR_DAY = 1;
+const STIPEND_TACTIC_TOKEN_ITEM_ID = 'item_tactic_token';
 
 function mysqlDateToYmd(val) {
   if (val == null) return null;
@@ -26,6 +32,34 @@ function mysqlDateToYmd(val) {
   }
   const s = String(val);
   return s.length >= 10 ? s.slice(0, 10) : s;
+}
+
+/**
+ * @param {import('mysql2/promise').PoolConnection} connection
+ * @param {string} playerId
+ * @param {number} quantity
+ */
+async function addTacticTokensOnConnection(connection, playerId, quantity) {
+  const qty = Math.max(0, Math.floor(Number(quantity) || 0));
+  if (!qty) return 0;
+  const [rows] = await connection.query(
+    'SELECT items FROM players WHERE player_id = ? FOR UPDATE',
+    [playerId],
+  );
+  if (!rows.length) return 0;
+  let items = {};
+  if (rows[0].items) {
+    items =
+      typeof rows[0].items === 'string' ? JSON.parse(rows[0].items) : rows[0].items;
+  }
+  if (!items || typeof items !== 'object') items = {};
+  items[STIPEND_TACTIC_TOKEN_ITEM_ID] =
+    (Number(items[STIPEND_TACTIC_TOKEN_ITEM_ID]) || 0) + qty;
+  await connection.query('UPDATE players SET items = ? WHERE player_id = ?', [
+    JSON.stringify(items),
+    playerId,
+  ]);
+  return qty;
 }
 
 /**
@@ -231,6 +265,10 @@ async function grantDailyStipendOnConnection(connection, playerId) {
     pid,
   ]);
 
+  const silverBonus = await loadPositionSilverBonusForPlayer(connection, pid);
+  const tacticTokensWanted = silverBonusQuotaUnits(silverBonus);
+  const tacticTokens = await addTacticTokensOnConnection(connection, pid, tacticTokensWanted);
+
   return {
     ok: true,
     silver: totalSilver,
@@ -251,6 +289,9 @@ async function grantDailyStipendOnConnection(connection, playerId) {
     resourceMultiplier: 1,
     reputationGranted: 0,
     contributionGranted: 0,
+    silverBonus,
+    tacticTokens,
+    tacticTokenItemId: STIPEND_TACTIC_TOKEN_ITEM_ID,
   };
 }
 
@@ -304,4 +345,5 @@ module.exports = {
   rollStipendAmountsForTier,
   SILVER_COEFFICIENT_BY_TIER,
   MAX_CLAIMS_PER_CALENDAR_DAY,
+  STIPEND_TACTIC_TOKEN_ITEM_ID,
 };

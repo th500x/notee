@@ -41,7 +41,7 @@ router.post(
     playerId: v.required(v.nonEmptyString({ max: 64 })),
     poolType: v.required(v.enum(['troop', 'character', 'item'])),
     poolSeason: v.optional(v.enum(['san_0', 'san_1'])),
-    drawMode: v.optional(v.enum(['single', 'batch'])),
+    drawMode: v.optional(v.enum(['batch', 'badge_batch'])),
   }),
   async (req, res, next) => {
   try {
@@ -62,6 +62,7 @@ router.post(
         error.message.includes('未开启') ||
         error.message.includes('十连') ||
         error.message.includes('单抽') ||
+        error.message.includes('徽章') ||
         error.message.includes('仅支持') ||
         error.message.includes('无可用'));
     if (!isBusiness) {

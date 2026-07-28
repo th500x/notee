@@ -11,6 +11,7 @@ import useEventSystem from '@/hooks/useEventSystem';
 import { PHASE } from '@/components/event/EventConstants';
 import ChunkLoadFallback from '@/components/game/ChunkLoadFallback';
 import { buildPlayerUnitsFromContext } from '@/utils/battlePlayerBuilder';
+import { readInflightBattleTroopSnapshot } from '@/utils/inflightBattleTroopSnapshot';
 import { useCountdownTicker } from '@/hooks/useCountdownTicker';
 import { useRoadSelfPresencePoll, enqueueRoadGateRetreatNotice } from '@/hooks/useRoadSelfPresencePoll';
 import { usePvpSiegeAdjudication } from '@/hooks/usePvpSiegeAdjudication';
@@ -42,9 +43,12 @@ export default function WorldMap({
 }) {
   const { player, cards, attributeBonusBySlot, refresh: refreshPlayer } = usePlayerContext();
   const skillsMap = useSkillsMap();
+  /** 补兵/战损写入 sessionStorage 后须重算；否则 useMemo 仍持有旧 currentTroops（含 0 兵） */
+  const inflightTroopSnapAt =
+    readInflightBattleTroopSnapshot(player?.playerId)?.updatedAt ?? 0;
   const battlePlayerUnits = useMemo(
     () => buildPlayerUnitsFromContext(player, cards, attributeBonusBySlot, skillsMap),
-    [player, cards, attributeBonusBySlot, skillsMap],
+    [player, cards, attributeBonusBySlot, skillsMap, inflightTroopSnapAt],
   );
 
   /** 大地图挂载后预取战术图分包，减少首次攻城/匪寨/探索战的等待 */
@@ -91,6 +95,9 @@ export default function WorldMap({
     showLineupGuide,
     closeEvent,
     retryTutorialExploreAutoplay,
+    allExploreEvents,
+    completedEvents,
+    playerItemCounts,
   } = eventSystem;
 
   const [simpleAlertMessage, setSimpleAlertMessage] = useState(null);
@@ -201,6 +208,9 @@ export default function WorldMap({
     itemNameMap,
     isTutorial,
     refreshPlayer,
+    allExploreEvents,
+    completedEvents,
+    playerItemCounts,
   });
 
   const pvpSiegeNowTick = useCountdownTicker(!!pvpChallenge?.countdownEndsAt);
@@ -222,8 +232,13 @@ export default function WorldMap({
     roadDefenseOutcomeReplay: false,
   });
 
-  const { roadGateRetreatNotice, setRoadGateRetreatNotice, deferredRoadGateNoticeRef } =
-    useRoadSelfPresencePoll({
+  const {
+    roadGateRetreatNotice,
+    setRoadGateRetreatNotice,
+    applyRoadGateNotice,
+    deferredRoadGateNoticeRef,
+    shownRoadGateNoticeRef,
+  } = useRoadSelfPresencePoll({
     playerId: player?.playerId,
     refreshPlayer,
     blockTutorialAutoplay,
@@ -252,7 +267,9 @@ export default function WorldMap({
     worldMapOverlayRefs.enqueueRoadGateNotice = (text) => {
       enqueueRoadGateRetreatNotice(text, {
         setRoadGateRetreatNotice,
+        applyRoadGateNotice,
         deferredRoadGateNoticeRef,
+        shownRoadGateNoticeRef,
         blockSnapshot: roadNoticeUiBlockRef.current,
         blockTutorialAutoplay,
         roadDefenseOutcomeReplayBlockingRef: roadFriction.roadDefenseOutcomeReplayBlockingRef,

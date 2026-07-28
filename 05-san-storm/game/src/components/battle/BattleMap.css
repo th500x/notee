@@ -26,8 +26,52 @@
 .map-card { background:#12121e; border:1px solid #333; border-radius:8px; padding:12px; }
 .map-title { font-size:13px; color:#c9a84c; margin-bottom:6px; letter-spacing:1px; }
 .map-title .round-badge { margin-left:10px; font-size:11px; color:#fbbf24; background:rgba(120,53,15,0.55); padding:1px 8px; border-radius:6px; letter-spacing:0.5px; font-weight:normal; }
+.map-title-label-btn {
+  display: inline;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  cursor: pointer;
+  text-decoration: underline dotted rgba(201, 168, 76, 0.55);
+  text-underline-offset: 3px;
+}
+.map-title-label-btn:hover,
+.map-title-label-btn[aria-expanded="true"] {
+  color: #e8c56a;
+  text-decoration-color: rgba(232, 197, 106, 0.85);
+}
+.map-label-info-pop {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 6px);
+  z-index: 40;
+  max-width: min(92vw, 360px);
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(201, 168, 76, 0.35);
+  background: rgba(28, 25, 23, 0.96);
+  color: #a8a29e;
+  font-size: 11px;
+  line-height: 1.65;
+  letter-spacing: 0;
+  text-align: left;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+.map-label-info-pop span { color: #d6d3d1; }
 .map-meta  { font-size:11px; color:#666; margin-bottom:10px; line-height:1.6; }
 .map-meta span { color:#999; }
+.map-meta-troops {
+  color: #a8a29e;
+  letter-spacing: 0.02em;
+}
+.map-meta-troops .mt-player { color: #93c5fd; }
+.map-meta-troops .mt-enemy { color: #fca5a5; }
+.map-meta-troops .mt-ally { color: #86efac; }
+.map-meta-troops .mt-sep { color: #57534e; margin: 0 0.35em; }
 
 /* ── 地图网格 ── */
 .map-wrapper { display:flex; align-items:flex-start; }
@@ -134,7 +178,7 @@
   .row-label-skill-arm-caption .skill-arm-charges { font-size: 6px; }
 }
 
-.map-grid { display:grid; grid-template-columns:repeat(8,var(--tile)); grid-template-rows:repeat(10,var(--tile)); gap:1px; background:#0a0a14; border:1px solid #222; }
+.map-grid { position:relative; display:grid; grid-template-columns:repeat(8,var(--tile)); grid-template-rows:repeat(10,var(--tile)); gap:1px; background:#0a0a14; border:1px solid #222; }
 
 /* ── 单格 ── */
 .tile { position:relative; width:var(--tile); height:var(--tile); overflow:hidden; cursor:pointer; }
@@ -178,7 +222,44 @@
     inset 0 0 0 2px rgba(251, 191, 36, 0.95),
     0 0 10px rgba(251, 191, 36, 0.45);
 }
-.tile img.tile-bg { position:absolute; top:0; left:0; width:100%; height:100%; object-fit:cover; }
+.tile img.tile-bg { position:absolute; top:0; left:0; width:100%; height:100%; object-fit:fill; image-rendering:pixelated; }
+/* 对象/地形戳：画在部队之下 */
+.tile-obj-stamp,
+.tile-bridge-stamp,
+.tile-hill-stamp {
+  pointer-events: none;
+  image-rendering: pixelated;
+  z-index: 1;
+}
+.tile-bridge-stamp {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center center;
+}
+/* v2：山丘 32×32 叠章 */
+.tile-hill-stamp {
+  position: absolute;
+  width: 50%;
+  height: 50%;
+  object-fit: contain;
+}
+/* 树林跨格：格网叠层，高于部队格 z-index，避免裁切 */
+.map-terrain-overlays {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 5;
+}
+.map-forest-stamp {
+  position: absolute;
+  object-fit: contain;
+  object-position: center bottom;
+  image-rendering: pixelated;
+  pointer-events: none;
+}
 /* 着火：12 帧叠放 + 负 animation-delay 错相，循环约 1.2s */
 .tile-fire-fx { position:absolute; inset:0; z-index:2; pointer-events:none; overflow:hidden; }
 @keyframes tile-fire-slot { 0%, 8.32% { opacity: 1; } 8.33%, 100% { opacity: 0; } }
@@ -195,18 +276,55 @@
 /* ── 部队层 ── */
 .troop-layer { position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index:3; }
 .troop-img { position:absolute; top:50%; left:50%; transform:translate(-50%,-54%); width:75%; height:75%; object-fit:contain; }
-.troop-hp-top { position:absolute; top:1px; left:12.5%; display:flex; gap:1px; z-index:4; }
-.troop-hp-right { position:absolute; top:6px; right:8%; display:flex; flex-direction:column; gap:1px; z-index:4; align-items:flex-end; }
-.troop-hp-block { width:5px; height:5px; border-radius:1px; flex-shrink:0; }
-.troop-hp-block.full-player { background:#3b82f6; box-shadow:0 0 2px #3b82f688; }
-.troop-hp-block.half-player { background:#3b82f655; }
-.troop-hp-block.full-enemy  { background:#ef4444; box-shadow:0 0 2px #ef444488; }
-.troop-hp-block.half-enemy  { background:#ef444455; }
-.troop-hp-block.full-ally1  { background:#10b981; box-shadow:0 0 2px #10b98188; }
-.troop-hp-block.half-ally1  { background:#10b98155; }
-.troop-hp-block.full-ally2  { background:#f59e0b; box-shadow:0 0 2px #f59e0b88; }
-.troop-hp-block.half-ally2  { background:#f59e0b55; }
-@media (max-width:520px) { .troop-hp-block { width:4px; height:4px; } }
+/*
+ * 侧视序列帧：宽高/位移/scale 由 battleUnitSpriteDom.layoutBattleUnitSpriteImg 行内设置
+ *（先按一格 contain + 脚底 object-position，再 scale；勿再用 width:200%+ 拉整张留白画布）。
+ */
+.troop-img.troop-img--unit-sprite {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+.tile:has(> .troop-layer .troop-img--unit-sprite) {
+  overflow: visible;
+  z-index: 4;
+}
+/* 血槽：最多 4 格铺满瓦片可用宽度；每格固定为 1/4 宽，不足 4 格不拉长 */
+.troop-hp-top {
+  position: absolute;
+  top: 1px;
+  left: 6%;
+  right: 6%;
+  display: flex;
+  gap: 2px;
+  z-index: 4;
+  box-sizing: border-box;
+  pointer-events: none;
+}
+.troop-hp-block {
+  flex: 0 0 calc((100% - 6px) / 4); /* 3 个 gap×2px */
+  width: calc((100% - 6px) / 4);
+  height: 5px;
+  border-radius: 1px;
+  box-sizing: border-box;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+}
+.troop-hp-block.full-player { background:#3b82f6; box-shadow:0 0 2px #3b82f688; border-color: transparent; }
+.troop-hp-block.full-enemy  { background:#ef4444; box-shadow:0 0 2px #ef444488; border-color: transparent; }
+.troop-hp-block.full-ally1  { background:#10b981; box-shadow:0 0 2px #10b98188; border-color: transparent; }
+.troop-hp-block.full-ally2  { background:#f59e0b; box-shadow:0 0 2px #f59e0b88; border-color: transparent; }
+/* 该 100 格消耗过半（剩余 1～49）：淡红 */
+.troop-hp-block.low {
+  background: rgba(248, 113, 113, 0.55);
+  box-shadow: none;
+  border-color: rgba(252, 165, 165, 0.65);
+}
+/* 该 100 格耗尽：保留空槽 */
+.troop-hp-block.empty {
+  background: rgba(0, 0, 0, 0.22);
+  box-shadow: none;
+  border-color: rgba(255, 255, 255, 0.28);
+}
+@media (max-width:520px) { .troop-hp-block { height: 4px; } }
 
 /* ── 阵营呼吸动画 ── */
 @keyframes pulsePlayer { 0%,100%{background:rgba(59,130,246,0.10);box-shadow:inset 0 0 8px rgba(59,130,246,0.15)} 50%{background:rgba(59,130,246,0.25);box-shadow:inset 0 0 16px rgba(59,130,246,0.35)} }
@@ -219,21 +337,80 @@
 .troop-glow.ally1  { animation:pulseAlly1  2.4s ease-in-out infinite; }
 .troop-glow.ally2  { animation:pulseAlly2  2.4s ease-in-out infinite; }
 
-/* ── 字号标签 ── */
+/* ── 字号标签（将领名 + 稀有度星） ── */
 .troop-name { position:absolute; bottom:0; left:9%; display:flex; gap:2px; align-items:center; font-size:6px; font-weight:bold; white-space:nowrap; z-index:5; line-height:1.3; pointer-events:none; background:rgba(0,0,0,0.6); padding:0 3px; border-radius:2px; }
 .troop-name .cn { color:#fff; }
-.troop-name .mr { font-size:6px; font-weight:bold; }
-/* 战役 NPC 主将 hero/boss + 玩家主公槽：底部名字与士气 — 18K 金（#d4af37） */
+/* 战役 NPC 主将 hero/boss + 玩家主公槽：名字 18K 金；星标仍用稀有度色 */
 .troop-name.is-commander-boss .cn,
-.troop-name.is-commander-boss .mr,
 .troop-name.is-commander-hero .cn,
-.troop-name.is-commander-hero .mr,
-.troop-name.is-player-lord .cn,
-.troop-name.is-player-lord .mr {
+.troop-name.is-player-lord .cn {
   color:#d4af37;
   text-shadow:0 0 3px rgba(212,175,55,0.55), 0 1px 2px rgba(0,0,0,0.9);
 }
-@media (max-width:520px) { .troop-name { font-size:5px; } .troop-name .mr { font-size:5px; } }
+/* 稀有度星：1 / 2横 / 3三角 / 4方阵 / 5五边形 */
+.troop-rarity-stars {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  font-size: 5px;
+  filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.85));
+}
+.troop-rarity-stars i {
+  font-style: normal;
+  font-size: inherit;
+  line-height: 1;
+  display: block;
+}
+.troop-rarity-stars.layout-common { display: inline-flex; }
+.troop-rarity-stars.layout-rare {
+  display: inline-flex;
+  flex-direction: row;
+  gap: 0;
+}
+.troop-rarity-stars.layout-epic {
+  display: inline-grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: auto auto;
+  column-gap: 0;
+  row-gap: 0;
+  width: 8px;
+}
+.troop-rarity-stars.layout-epic i:nth-child(1) {
+  grid-column: 1 / -1;
+  justify-self: center;
+}
+.troop-rarity-stars.layout-legendary {
+  display: inline-grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: auto auto;
+  gap: 0;
+  width: 8px;
+}
+.troop-rarity-stars.layout-core {
+  position: relative;
+  display: inline-block;
+  width: 10px;
+  height: 9px;
+}
+.troop-rarity-stars.layout-core i {
+  position: absolute;
+  transform: translate(-50%, -50%);
+}
+/* 正五边形顶点（尖朝上） */
+.troop-rarity-stars.layout-core i:nth-child(1) { left: 50%; top: 8%; }
+.troop-rarity-stars.layout-core i:nth-child(2) { left: 95%; top: 40%; }
+.troop-rarity-stars.layout-core i:nth-child(3) { left: 78%; top: 92%; }
+.troop-rarity-stars.layout-core i:nth-child(4) { left: 22%; top: 92%; }
+.troop-rarity-stars.layout-core i:nth-child(5) { left: 5%; top: 40%; }
+@media (max-width:520px) {
+  .troop-name { font-size:5px; }
+  .troop-rarity-stars { font-size: 4px; }
+  .troop-rarity-stars.layout-epic,
+  .troop-rarity-stars.layout-legendary { width: 7px; }
+  .troop-rarity-stars.layout-core { width: 9px; height: 8px; }
+}
 
 /* ===== 战斗动画系统 ===== */
 @keyframes atk-right { 0%{transform:translateX(0)} 30%{transform:translateX(20px)} 100%{transform:translateX(0)} }
@@ -260,6 +437,15 @@
 @keyframes screen-shake { 0%,100%{transform:translate(0)} 10%{transform:translate(-3px,-2px)} 20%{transform:translate(3px,1px)} 30%{transform:translate(-2px,2px)} 40%{transform:translate(2px,-1px)} }
 .anim-screen-shake { animation:screen-shake .3s ease-out; }
 
+/* 随机箱「天罚」全场闪光 */
+@keyframes heaven-punish-flash {
+  0% { box-shadow: inset 0 0 0 0 rgba(250, 250, 210, 0); filter: brightness(1); }
+  15% { box-shadow: inset 0 0 80px 20px rgba(255, 255, 180, 0.55); filter: brightness(1.45); }
+  40% { box-shadow: inset 0 0 40px 8px rgba(180, 210, 255, 0.35); filter: brightness(1.2); }
+  100% { box-shadow: inset 0 0 0 0 rgba(250, 250, 210, 0); filter: brightness(1); }
+}
+.heaven-punish-flash { animation: heaven-punish-flash 0.85s ease-out; }
+
 @keyframes dmg-float { 0%{transform:translateY(0) scale(.5);opacity:0} 15%{transform:translateY(-10px) scale(1.1);opacity:1} 30%{transform:translateY(-20px) scale(1)} 100%{transform:translateY(-50px) scale(.8);opacity:0} }
 .dmg-num { position:absolute; z-index:200; pointer-events:none; font-weight:bold; font-size:14px; text-shadow:0 1px 3px rgba(0,0,0,.8); animation:dmg-float 1s ease-out forwards; white-space:nowrap; }
 .dmg-num.normal { color:#fff; }
@@ -280,6 +466,11 @@
 .dmg-num.skill-special { color:#fbbf24; text-shadow:0 0 8px rgba(251,191,36,.4); font-size:13px; }
 
 .projectile { position:absolute; z-index:150; pointer-events:none; font-size:24px; filter:drop-shadow(0 0 6px rgba(255,200,50,.6)); }
+.projectile--sprite {
+  object-fit: contain;
+  font-size: 0;
+  filter: drop-shadow(0 0 4px rgba(0, 0, 0, 0.45));
+}
 
 .skill-flash { position:fixed; inset:0; z-index:500; pointer-events:none; animation:skill-flash-anim .5s ease-out forwards; }
 @keyframes skill-flash-anim { 0%{opacity:0} 20%{opacity:.7} 100%{opacity:0} }
@@ -312,6 +503,11 @@
 .tile-tooltip.tile-tooltip--world-map-city { box-sizing:border-box; width:295px; min-width:295px; max-width:295px; height:395px; padding:10px 12px; font-size:13px; color:#e7e5e4; display:flex; flex-direction:column; overflow:hidden; }
 .tile-tooltip.tile-tooltip--world-map-city .wm-city-info-block { width:100%; box-sizing:border-box; flex:1; min-height:0; display:flex; flex-direction:column; }
 .tile-tooltip.tile-tooltip--world-map-city .wm-city-panel-tab-pane { flex:1; min-height:0; overflow:auto; }
+/* 郡战场入口：四宫格（编组探险 | 事件探索 / 匪寨 | 空）；高度随内容收缩 */
+.tile-tooltip.tile-tooltip--battlefield-dual { box-sizing:border-box; width:min(92vw,440px); min-width:min(92vw,360px); max-width:min(92vw,440px); height:auto; max-height:min(78vh,520px); padding:6px 8px; font-size:12px; color:#e7e5e4; display:flex; flex-direction:column; overflow:hidden; }
+.tile-tooltip.tile-tooltip--battlefield-dual .bf-entrance-dual { flex:0 0 auto; min-height:0; width:100%; }
+.tile-tooltip.tile-tooltip--battlefield-dual .bf-entrance-dual__cell { box-sizing:border-box; border:1px solid rgba(201,168,76,0.35); border-radius:6px; background:rgba(8,8,16,0.55); padding:4px 2px 6px; }
+.tile-tooltip.tile-tooltip--battlefield-dual .bf-entrance-dual__cell--empty { border-style:dashed; opacity:0.55; }
 /* WorldMapCityInfoBlock：分段内容区宽高由 JS 按「城备」实测写入；overflow 由行内 style 控制（隐藏溢出、无滚动条） */
 .wm-city-info-block .wm-city-panel-tab-pane { box-sizing:border-box; }
 .tile-tooltip.tile-tooltip--interactive { pointer-events:auto; }

@@ -11,6 +11,8 @@
  * @module shared/utils/seasonSettlementCore
  */
 
+const { getMaxBattleCount } = require('./troopMaxBattleCount.cjs');
+
 const MAX_LEGENDARY_TROOPS = 10;
 const MAX_SELECTION_LIMIT_CAP = 10;
 
@@ -369,9 +371,25 @@ function normalizeUnequippedRow(row) {
 }
 
 /**
+ * 跨季继承部队卡：按当前稀有度表重写 max_battle_count，battle_count 清零。
+ * 老兵 lifetime_* / veteran_* 原样保留。非部队行不改动。
+ */
+function normalizeInheritedTroopDurability(row) {
+  if (!row || cCardType(row) !== 'troop') return row;
+  const clone = { ...row };
+  const max = getMaxBattleCount(resolveCardRarity(clone));
+  clone.max_battle_count = max;
+  clone.battle_count = 0;
+  if ('maxBattleCount' in clone) clone.maxBattleCount = max;
+  if ('battleCount' in clone) clone.battleCount = 0;
+  return clone;
+}
+
+/**
  * 组装封档卡牌行快照（完整行，供关服后 re-INSERT）。
  * 收集：auto 全部 instance + 所选套装 + 套装绑定的 equipment 件 + 所选 legendary 部队。
  * 季徽章不在卡表（在 players.items），不进此快照。
+ * 部队行会写入新赛季耐久：max 按稀有度表、battle_count=0。
  * @returns {object[]} 规整后的完整行数组（去重，按 instance_id 稳定排序）
  */
 function buildPlayerCardsSnapshot({
@@ -408,7 +426,7 @@ function buildPlayerCardsSnapshot({
   const out = [];
   for (const id of wanted) {
     const row = byInstance.get(id);
-    if (row) out.push(normalizeUnequippedRow(row));
+    if (row) out.push(normalizeInheritedTroopDurability(normalizeUnequippedRow(row)));
   }
   return out.sort((a, b) => {
     const ai = String(cInstanceId(a) || '');
@@ -472,6 +490,7 @@ module.exports = {
   listSelectableLegendaryTroops,
   validatePlayerSelection,
   normalizeUnequippedRow,
+  normalizeInheritedTroopDurability,
   buildPlayerCardsSnapshot,
   assertSnapshotApplyable,
 };

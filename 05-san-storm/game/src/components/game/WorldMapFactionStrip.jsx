@@ -1,5 +1,6 @@
 /**
- * 地图 Tab 右侧：san_1 七势力缩略块 + 势力信息 tooltip（32-1 §3.4）
+ * san_1 三势力缩略块（三王 / 汉室 / 黄巾）+ 势力信息 tooltip（大地图右侧坞；32-1）
+ * 战役中心入口已迁至顶栏，本组件不再默认挂战役卡（仍可选 `onOpenCampaignCenter`）。
  */
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
@@ -33,6 +34,7 @@ function WorldMapFactionThumb({
   onHoverStart,
   onHoverEnd,
   onTogglePin,
+  compact = false,
 }) {
   const btnRef = useRef(null);
   const color = getFactionRepresentativeColor(factionId) || '#78716c';
@@ -46,9 +48,11 @@ function WorldMapFactionThumb({
       ref={btnRef}
       type="button"
       data-world-map-faction-thumb={factionId}
-      className={`flex min-h-[4.25rem] flex-col items-center justify-center gap-1 rounded-lg border-2 px-2 py-2 text-center transition-colors ${
-        active ? 'ring-1 ring-amber-400/50' : 'hover:bg-stone-900/40'
-      }`}
+      className={`flex flex-col items-center justify-center rounded-lg border-2 text-center transition-colors ${
+        compact
+          ? 'min-h-[3.5rem] gap-0.5 px-1 py-1'
+          : 'min-h-[4.25rem] gap-1 px-2 py-2'
+      } ${active ? 'ring-1 ring-amber-400/50' : 'hover:bg-stone-900/40'}`}
       style={{
         borderColor: color,
         backgroundColor: bgTint,
@@ -69,12 +73,20 @@ function WorldMapFactionThumb({
         <img
           src={logoUrl}
           alt=""
-          className="h-7 w-7 shrink-0 object-contain opacity-95"
+          className={`${compact ? 'h-5 w-5' : 'h-7 w-7'} shrink-0 object-contain opacity-95`}
           draggable={false}
         />
       ) : null}
-      <span className="w-full truncate text-xs font-semibold leading-tight text-stone-100">{monarch}</span>
-      <span className="text-[10px] tabular-nums text-stone-400">{cityCount} 城</span>
+      <span
+        className={`w-full truncate font-semibold leading-tight text-stone-100 ${
+          compact ? 'text-[10px]' : 'text-xs'
+        }`}
+      >
+        {monarch}
+      </span>
+      <span className={`${compact ? 'text-[9px]' : 'text-[10px]'} tabular-nums text-stone-400`}>
+        {cityCount} 城
+      </span>
     </button>
   );
 }
@@ -87,6 +99,7 @@ function WorldMapFactionThumb({
  *   isLandscape?: boolean,
  *   onOpenCampaignCenter?: () => void,
  *   campaignNotifyDot?: boolean,
+ *   compact?: boolean,
  * }} props
  */
 export default function WorldMapFactionStrip({
@@ -96,6 +109,7 @@ export default function WorldMapFactionStrip({
   isLandscape = false,
   onOpenCampaignCenter,
   campaignNotifyDot = false,
+  compact = false,
 }) {
   const [hoverId, setHoverId] = useState(/** @type {string|null} */ (null));
   const [pinnedId, setPinnedId] = useState(/** @type {string|null} */ (null));
@@ -239,6 +253,7 @@ export default function WorldMapFactionStrip({
                   factionId={factionId}
                   overview={overview}
                   active={openId === factionId}
+                  compact={compact}
                   onHoverStart={() => {
                     setHoverId(factionId);
                     setPinnedId(null);

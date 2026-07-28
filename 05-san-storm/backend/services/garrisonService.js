@@ -370,34 +370,6 @@ async function saveGarrison(playerId, slotNumber, config) {
     }
   }
 
-  const garrisonTroopFields = GARRISON_TROOP_FIELDS;
-  const newlyAssignedTroopIds = [...new Set(
-    garrisonTroopFields
-      .map((f) => {
-        const nextId = mergedWithPrev[f] || null;
-        const prevId = prevSlot?.[f] || null;
-        return nextId && nextId !== prevId ? nextId : null;
-      })
-      .filter(Boolean)
-  )];
-  if (newlyAssignedTroopIds.length > 0) {
-    const ph = newlyAssignedTroopIds.map(() => '?').join(',');
-    const [exhaustedCore] = await pool.query(
-      `SELECT instance_id FROM player_cards
-       WHERE player_id = ? AND instance_id IN (${ph})
-         AND card_type = 'troop' AND rarity = 'core'
-         AND max_battle_count IS NOT NULL
-         AND battle_count >= max_battle_count`,
-      [playerId, ...newlyAssignedTroopIds]
-    );
-    if (exhaustedCore.length > 0) {
-      return {
-        success: false,
-        error: '核心(稀)部队耐久已耗尽，无法用于驻守，仅作纪念与下赛继承',
-      };
-    }
-  }
-
   const hasChar = !!(mergedWithPrev.char1_card || mergedWithPrev.char2_card);
   const hasTroop = !!(mergedWithPrev.char1_troop1 || mergedWithPrev.char1_troop2 || mergedWithPrev.char2_troop1 || mergedWithPrev.char2_troop2);
   const troopInstanceIds = GARRISON_TROOP_FIELDS.map((f) => mergedWithPrev[f]).filter(Boolean);

@@ -1,6 +1,5 @@
 /**
- * 战略格「城池」tooltip：仅渲染 WorldMapCityInfoBlock（攻城配额等）。
- * 「势力战况」由 WorldStrategicMapGrid 内独立浮层 StrategicSiegeWarFloatingPanel 负责，不介入本组件 DOM。
+ * 战略格「城池」tooltip：WorldMapCityInfoBlock；攻城消耗兵符（与匪寨同源）。
  */
 import { useMemo, memo } from 'react';
 import WorldMapCityInfoBlock from '@/components/world/WorldMapCityInfoBlock';
@@ -18,10 +17,10 @@ function StrategicCityTooltipPanel({ content }) {
     !!(content?.banditPoiId && isBanditMapObjectId(content.banditPoiId));
   const siegeQuotaHook = useSiegeQuota(
     skipSiegeQuota ? null : playerId,
-    skipSiegeQuota ? null : quotaCityId,
+    skipSiegeQuota ? null : quotaCityId || 'siege-token',
   );
   const siegeQuota =
-    quotaCityId && playerId && !skipSiegeQuota ? siegeQuotaHook : content?.siegeQuota ?? null;
+    playerId && !skipSiegeQuota ? siegeQuotaHook : content?.siegeQuota ?? null;
 
   const {
     type: _t,
@@ -40,7 +39,7 @@ function StrategicCityTooltipPanel({ content }) {
       !siegeQuota.canSiege &&
       !blockProps.showOwnCityActions
     ) {
-      return '攻城次数不足';
+      return '兵符不足';
     }
     return null;
   }, [playerId, siegeQuota, blockProps.subtitleText, blockProps.showOwnCityActions]);

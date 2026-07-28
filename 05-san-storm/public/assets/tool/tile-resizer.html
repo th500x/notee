@@ -81,7 +81,7 @@ button.success:hover { background: #047857; }
 <body>
 
 <h1>🔧 瓦片缩放居中工具</h1>
-<p class="subtitle">将丘陵/障碍物等瓦片缩小后居中放入 1024×1024 透明画布，用于叠加到平原底图</p>
+<p class="subtitle">将丘陵/障碍物等瓦片缩小后居中放入透明画布（常用 64×64 / 1024×1024），用于叠加到底图</p>
 
 <div class="drop-zone" id="drop-zone" onclick="document.getElementById('file-input').click()">
   📂 拖拽图片到这里，或点击选择文件（支持多选）
@@ -99,9 +99,11 @@ button.success:hover { background: #047857; }
   <div class="control-group">
     <label>画布尺寸：</label>
     <select id="canvas-size" onchange="onSettingChange()">
-      <option value="1024" selected>1024×1024</option>
+      <option value="64">64×64（战术瓦）</option>
+      <option value="128">128×128</option>
       <option value="512">512×512</option>
       <option value="768">768×768</option>
+      <option value="1024" selected>1024×1024</option>
     </select>
   </div>
   <div class="control-group">

@@ -118,8 +118,7 @@ async function fetchAdjacentJunIdSet(factionId) {
  * 候选目标集合（M2 §3 表）：PVP / PVE 一并查询；剔除：
  *   - 己方城；
  *   - PVP 路径：已存在 active `wars_pvp` 的城（同城唯一）；
- *   - **PVE（中立白）**：仅 `city_major` / `city_medium` / `city_small`（与 `isAllowedPlayerCityPoiCityType`、谏言面板一致；**不含 fort / gate 等**）。
- *   - **据点 `fort`**：仅当 `cityService.isCityOccupiedForNpcGarrison` 为真才进 PVP（与 `createPvpWarDraft` 一致）。
+ *   - **PVE（中立白）**：仅 `city_major` / `city_medium` / `city_small`（与 `isAllowedPlayerCityPoiCityType`、谏言面板一致；**不含 city_gate**）。
  *
  * @param {string} factionId
  * @param {string} [season] - 与 `cities.season` 一致，默认 `san_1`
@@ -147,10 +146,6 @@ async function collectCandidateTargets(factionId, season = DEFAULT_SEASON) {
       if (!isAllowedPlayerCityPoiCityType(c.city_type)) continue;
       pveTargets.push(c);
     } else if (c.faction_id !== factionId) {
-      const ct = String(c.city_type || '').trim().toLowerCase();
-      if (ct === 'fort' && !cityService.isCityOccupiedForNpcGarrison(c)) {
-        continue;
-      }
       pvpRaw.push(c);
     }
   }

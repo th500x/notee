@@ -1,17 +1,26 @@
 /**
- * PvP 对决地图生成：generateSmallMap + applyPvpDuelRules
- * @see docs/tools/map/PVP_DUEL_MAP_RULES.md
+ * PvP 对决地图生成：generateSmallMapV2 + applyPvpDuelRules + Wang/叠层同步
+ * @see docs/01-strategic-world/map-design/PVP_DUEL_MAP_RULES.md
  */
 
 import {
-  generateSmallMap,
-  OBJECT_TYPES,
-  TERRAIN,
+  generateSmallMapV2,
+  syncMapResultVisualsFromTerrain,
+} from './mapGenerator_v2.js';
+import { GAMEPLAY_OBJECT_DEFS } from './terrainGameplayObjects.js';
+import {
   ZONE,
-  MAP_WIDTH,
-  MAP_HEIGHT,
-} from './mapGenerator.js';
+  TACTICAL_GRID_WIDTH as MAP_WIDTH,
+  TACTICAL_GRID_HEIGHT as MAP_HEIGHT,
+} from './tacticalBattleGrid.js';
 import { PVP_DUEL_GENERATOR_VERSION } from './pvpDuelMapRuleTemplates.js';
+
+const TERRAIN = Object.freeze({
+  PLAIN: 'plain',
+  FOREST: 'forest',
+  HILL: 'hill',
+  RIVER: 'river',
+});
 
 class SeededRandom {
   constructor(seed) {
@@ -40,6 +49,8 @@ class SeededRandom {
 const DEFAULT_RULES = {
   forbidChest: true,
   forbidTrap: true,
+  forbidRandom: true,
+  forbidFarm: true,
   placementZones: ['deployA', 'deployB'],
   forbidColumns: [0, 7],
   forbidBorderRows: false,
@@ -164,6 +175,8 @@ export function applyPvpDuelRules(mapResult, preset, rng) {
   const filtered = objects.filter((o) => {
     if (rules.forbidChest !== false && o.type === 'chest') return false;
     if (rules.forbidTrap !== false && o.type === 'trap') return false;
+    if (rules.forbidRandom !== false && o.type === 'random') return false;
+    if (rules.forbidFarm !== false && o.type === 'farm') return false;
     const inStripZone = [...stripZones].some((zk) => rowInZone(o.y, zk));
     if (inStripZone && (o.type === 'rock' || o.type === 'fence' || o.type === 'trap')) {
       return false;
@@ -187,6 +200,9 @@ export function applyPvpDuelRules(mapResult, preset, rng) {
         if (isForbiddenCell(y, x, rules)) continue;
         const key = `${y},${x}`;
         if (occupied.has(key)) continue;
+        if (terrain[y]?.[x] === TERRAIN.RIVER || terrain[y]?.[x] === 'lake' || terrain[y]?.[x] === 'lava') {
+          continue;
+        }
         candidates.push([y, x]);
       }
     }
@@ -195,13 +211,15 @@ export function applyPvpDuelRules(mapResult, preset, rng) {
     const typesToPlace = ['rock', 'fence'];
     for (const type of typesToPlace) {
       const n = countForType(counts, type);
+      const def = GAMEPLAY_OBJECT_DEFS[type];
+      if (!def) continue;
       for (let i = 0; i < n && candidates.length > 0; i++) {
         const idx = rng.int(0, candidates.length - 1);
         const [y, x] = candidates.splice(idx, 1)[0];
-        const obj = { type, x, y, ...OBJECT_TYPES[type] };
+        const obj = { type, x, y, ...def };
         objects.push(obj);
         occupied.add(`${y},${x}`);
-        if (!OBJECT_TYPES[type].isPassable) {
+        if (!def.isPassable) {
           for (let ci = candidates.length - 1; ci >= 0; ci--) {
             const [cy, cx] = candidates[ci];
             if (Math.abs(cy - y) <= 1 && Math.abs(cx - x) <= 1) {
@@ -243,7 +261,10 @@ export function applyPvpDuelRules(mapResult, preset, rng) {
   mapResult.meta = {
     ...mapResult.meta,
     hasChest: objects.some((o) => o.type === 'chest'),
-    obstacleCount: objects.filter((o) => o.type !== 'chest').length,
+    hasRandom: objects.some((o) => o.type === 'random'),
+    hasFarm: objects.some((o) => o.type === 'farm'),
+    obstacleCount: objects.filter((o) => o.type !== 'chest' && o.type !== 'random' && o.type !== 'farm')
+      .length,
     pvpDuelRulesApplied: true,
     ...(crossRiverMeta ? { crossRiverBand: crossRiverMeta } : {}),
   };
@@ -256,19 +277,22 @@ export function applyPvpDuelRules(mapResult, preset, rng) {
 export function generatePvpDuelMap(preset, { seed } = {}) {
   const normalized = normalizePreset(preset);
   const resolvedSeed = seed ?? normalized.seed ?? null;
-  const base = normalized.base || {};
   const rules = normalized.rules || {};
 
-  const raw = generateSmallMap({
+  // v2 底板：关掉 Shape 河 / 宝箱 / 随机箱 / 农场；横贯河与障碍由规则层写入。
+  // preset.base.bgTheme / forceComplexity 为旧字段，v2 忽略（保留在 preset 供文档兼容）。
+  const raw = generateSmallMapV2({
     seed: resolvedSeed,
     battleRarity: 'common',
-    bgTheme: base.bgTheme ?? null,
-    forceComplexity: base.forceComplexity ?? null,
+    skipRiver: true,
     skipChest: rules.forbidChest !== false,
+    skipRandom: rules.forbidRandom !== false,
+    skipFarm: rules.forbidFarm !== false,
   });
 
   const applySeed = ((Number(resolvedSeed) || raw.meta?.seed || 0) ^ 0x505650) >>> 0;
   applyPvpDuelRules(raw, normalized, new SeededRandom(applySeed));
+  syncMapResultVisualsFromTerrain(raw, { seed: applySeed });
 
   raw.meta = {
     ...raw.meta,
@@ -277,6 +301,7 @@ export function generatePvpDuelMap(preset, { seed } = {}) {
     rule_profile: normalized.rule_profile,
     duel_map_id: normalized.duel_map_id,
     pvpDuel: true,
+    baseGenerator: 'v2',
   };
 
   return raw;

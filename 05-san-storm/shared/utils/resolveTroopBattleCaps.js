@@ -5,6 +5,8 @@
  * @see docs/00/20-data-layer/22-1-TROOP_SYSTEM.md §4.1
  */
 
+import { resolveBattleUnitKey } from './battleUnitKeyResolve.js';
+
 function normalizeConfigTroopId(raw) {
   if (raw == null || raw === '') return '';
   let s = String(raw).replace(/_(?:p|e)\d+$/i, '');
@@ -141,6 +143,16 @@ export function flattenPlayerUnitToBattleTroop(unit, index, ctx) {
     imgSrc: attempts[0],
     imgPortraitAttempts: attempts,
     imgFallback: attempts[attempts.length - 1],
+    ...(() => {
+      const battleUnitKey = resolveBattleUnitKey({
+        ...pickTroopSpreadFields(tr),
+        id: configTroopId || tr.id,
+        rarity: tr.rarity,
+        troopType: tr.troopType || tr.troop_type,
+        battleUnitKey: tr.battleUnitKey ?? tr.battle_unit_key,
+      });
+      return battleUnitKey ? { battleUnitKey } : {};
+    })(),
   };
 }
 

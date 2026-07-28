@@ -2,6 +2,9 @@
  * 官职 · 签到银两加成（position_bonuses.silver / silverBonus）。
  * 真三日报签到发放；俸禄不再叠加官职声望/贡献/资源倍数。
  *
+ * `silverBonusQuotaUnits`（floor(silverBonus/10)）供：真三日报战事公议投票权、
+ * 君主日俸附赠 `item_tactic_token` 等共用。
+ *
  * 银粮兑换基数仍可复用 applyStipendResourceMultiplier（倍数恒为 1 时等价于原样）。
  */
 
@@ -31,6 +34,16 @@ function getPositionSilverBonus(raw) {
   const b = parsePositionBonusesRaw(raw);
   const n = Math.floor(Number(b.silver ?? b.silverBonus ?? 0) || 0);
   return n > 0 ? n : 0;
+}
+
+/**
+ * 官职银两加成折算配额单位：`floor(silverBonus / 10)`（≥0）。
+ * 与真三日报投票权重、日俸兵符数量同源。
+ * @param {number|null|undefined} silverBonus
+ * @returns {number}
+ */
+function silverBonusQuotaUnits(silverBonus) {
+  return Math.max(0, Math.floor((Number(silverBonus) || 0) / 10));
 }
 
 /**
@@ -99,6 +112,7 @@ async function loadPositionStipendBonusesForPlayer(poolConn, playerId) {
 module.exports = {
   parsePositionBonusesRaw,
   getPositionSilverBonus,
+  silverBonusQuotaUnits,
   normalizePositionStipendBonuses,
   applyStipendResourceMultiplier,
   loadPositionSilverBonusForPlayer,

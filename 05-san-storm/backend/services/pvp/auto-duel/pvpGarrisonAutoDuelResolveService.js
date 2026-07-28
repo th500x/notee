@@ -307,8 +307,8 @@ async function doResolveAuthoritativeGarrisonAutoDuel(params) {
         scoreDetails: defBattleScore.details,
         initialAttackerTroops,
         initialDefenderTroops,
-        /** 与攻城方同源推演原文，供简化回放解析（叙事体 battle_log 无法解析） */
-        autoDuelBattleLog: battleLogText,
+        /** 仅旧「次攻击」协议可供简化回放；回合摘要战报改走 eventReplay */
+        ...( /次攻击/.test(battleLogText) ? { autoDuelBattleLog: battleLogText } : {}),
         ...(eventReplay ? { eventReplay } : {}),
       },
       recordOnly: true,

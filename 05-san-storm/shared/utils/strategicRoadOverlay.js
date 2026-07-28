@@ -19,8 +19,7 @@ export function strategicMapObjectIs2x2(objectType) {
     objectType === 'city_small' ||
     objectType === 'city_medium' ||
     objectType === 'city_major' ||
-    objectType === 'gate' ||
-    objectType === 'fort'
+    objectType === 'city_gate'
   );
 }
 
@@ -74,6 +73,28 @@ function addBanditDominoFootprintsToBlocked(cells, mapColumns, mapRows, blocked)
  * 道路涂抹禁区：城关据点 2×2 与匪寨骨牌 2 格（并集用于判「能否画路」）。
  * @returns {{ strategic: Set<string>, bandit: Set<string>, combined: Set<string> }} 键均为 `"gx,gy"`
  */
+/**
+ * 城/关 2×2 仅左上角为锚点（工坊/Meowa 常在四格都写 cityId/object，不可每格再当锚点）。
+ * @param {object[][]|null|undefined} cells
+ * @param {number} gx
+ * @param {number} gy
+ * @returns {boolean}
+ */
+export function isStrategic2x2FootprintAnchor(cells, gx, gy) {
+  const cell = cells[gy]?.[gx];
+  const id = readStrategicCellAnchorId(cell);
+  if (!id || !strategicMapObjectIs2x2(cell.object)) return false;
+  if (gx > 0) {
+    const left = cells[gy]?.[gx - 1];
+    if (readStrategicCellAnchorId(left) === id) return false;
+  }
+  if (gy > 0) {
+    const up = cells[gy - 1]?.[gx];
+    if (readStrategicCellAnchorId(up) === id) return false;
+  }
+  return true;
+}
+
 export function buildStrategicRoadPaintBlockedLayers(cells, mapColumns, mapRows) {
   const strategic = new Set();
   const bandit = new Set();
@@ -81,8 +102,7 @@ export function buildStrategicRoadPaintBlockedLayers(cells, mapColumns, mapRows)
   if (!cells?.length) return empty;
   for (let gy = 0; gy < mapRows; gy++) {
     for (let gx = 0; gx < mapColumns; gx++) {
-      const cell = cells[gy]?.[gx];
-      if (!readStrategicCellAnchorId(cell) || !strategicMapObjectIs2x2(cell.object)) continue;
+      if (!isStrategic2x2FootprintAnchor(cells, gx, gy)) continue;
       for (let dy = 0; dy < 2; dy++) {
         for (let dx = 0; dx < 2; dx++) {
           const x = gx + dx;

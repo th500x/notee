@@ -3,7 +3,7 @@
  * 坐标与战略格一致：x=列 col，y=行 row，与 `battleTroops[].x` / `.y` 一致。
  */
 
-import { OBJECT_TYPES } from '@shared/utils/mapGenerator';
+import { GAMEPLAY_OBJECT_DEFS } from '@shared/utils/terrainGameplayObjects.js';
 
 /** @param {string} campaignTerrain @param {string} [base] */
 function toEngineTerrain(campaignTerrain, base) {
@@ -21,7 +21,7 @@ function toEngineTerrain(campaignTerrain, base) {
 
 /**
  * @param {string} objectId
- * @returns {keyof typeof OBJECT_TYPES | null}
+ * @returns {keyof typeof GAMEPLAY_OBJECT_DEFS | null}
  */
 function campaignObjectToEngineType(objectId) {
   if (!objectId) return null;
@@ -62,12 +62,12 @@ export function buildCampaignBattleMapResult(campaignMapSim) {
       terrain[row][col] = toEngineTerrain(cell.terrain, cell.base);
       if (cell.effect === 'fire') cellFire[row][col] = true;
       const oid = campaignObjectToEngineType(cell.object);
-      if (oid && OBJECT_TYPES[oid]) {
+      if (oid && GAMEPLAY_OBJECT_DEFS[oid]) {
         objects.push({
           type: oid,
           x: col,
           y: row,
-          ...OBJECT_TYPES[oid],
+          ...GAMEPLAY_OBJECT_DEFS[oid],
           ...(oid === 'chest' ? { isOpen: false, rewardRarity: 'common' } : {}),
         });
       }

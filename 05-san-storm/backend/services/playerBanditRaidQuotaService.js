@@ -1,8 +1,7 @@
 /**
- * 匪寨「攻打」次数：与探索配额分立；存 `player_progress.bandit_progress.byJunRaidQuota[<jun_id>]`。
- * 同一郡内多座匪寨（阶段一各 2 枚）**共用**剩余次数；**个人爬塔进度**仍为 `byBanditMapObjectId[<匪寨地图对象 ID>].nextLayer`。
- * **个人塔已通 20 层**且全服耐久未耗尽时：自通关时刻起跨过 **下一日历日 08:00**（Node 墙钟）后，惰性将 **`nextLayer` 置回 1**（**从头再打** 1…20 层，见 17-7 / 15-2）。
- * 档序列与补点算法见 `backend/utils/banditRaidQuotaAccrual.js`（单源）。
+ * 匪寨「攻打」门闸：每次开战消耗 `item_tactic_token`×1（与旧「郡共用次数 / 8h 档」脱钩）。
+ * 个人爬塔进度仍为 `byBanditMapObjectId[<匪寨地图对象 ID>].nextLayer`；通关第 20 层后回到第 1 层可循环。
+ * 全服耐久扣尽时由结算侧重生满血（见 17-7）；本门闸对历史「已关」行惰性回满。
  */
 
 const path = require('path');
@@ -10,74 +9,36 @@ const { pathToFileURL } = require('url');
 const { pool } = require('../database/connection');
 const { getPhase1BanditPoiIdsForJun } = require('../../shared/utils/strategicBanditPlaceholderPhase1.js');
 const {
-  BANDIT_RAID_QUOTA_DEFAULTS,
-  banditWindowSerialAt,
-  msUntilNextBanditQuotaBoundary,
-  accrueBanditRaidQuota,
-} = require('../utils/banditRaidQuotaAccrual');
+  computeBanditBetweenLayerHeal,
+  normalizeBanditBetweenLayerHealTier,
+} = require('../../shared/utils/banditBetweenLayerHeal.cjs');
+const statisticsDeltaService = require('./statisticsDeltaService');
 
-const RAID_INITIAL = BANDIT_RAID_QUOTA_DEFAULTS.initial;
-const RAID_MAX = BANDIT_RAID_QUOTA_DEFAULTS.max;
-const RAID_PER_WINDOW = BANDIT_RAID_QUOTA_DEFAULTS.perWindow;
+/** 攻打消耗道具（与日俸附赠同源） */
+const BANDIT_RAID_COST_ITEM_ID = 'item_tactic_token';
+const BANDIT_RAID_COST_PER_BATTLE = 1;
 
 const BANDIT_MAP_OBJECT_ID_RE = /^san_\d+_bandit_[1-9]_[a-z0-9_]+$/i;
 
 /** `bandit_progress` JSON：个人层进度仍按匪寨地图对象 ID */
 const BUCKET = 'byBanditMapObjectId';
-/** 攻打次数按郡共享（`config_jun.jun_id`） */
-const JUN_RAID_BUCKET = 'byJunRaidQuota';
 
-/** @returns {number} 距下一 8 小时档边界的整分钟数（≥0） */
-function minutesUntilNextBanditBoundary() {
-  return Math.ceil(msUntilNextBanditQuotaBoundary() / 60000);
+function parseItemsJson(raw) {
+  if (raw == null) return {};
+  if (typeof raw === 'string') {
+    try {
+      const o = JSON.parse(raw);
+      return o && typeof o === 'object' && !Array.isArray(o) ? o : {};
+    } catch {
+      return {};
+    }
+  }
+  if (typeof raw === 'object' && !Array.isArray(raw)) return { ...raw };
+  return {};
 }
 
-/**
- * 个人塔「卡关」日切：自 **`completedAtMs`** 起算 **下一个** 日历日 **08:00**（本地墙钟，与攻城 NPC 次日 8 点口径一致）。
- * @param {number} completedAtMs
- * @returns {number} 时间戳；`completedAt` 非法时返回 `Infinity`（不触发日切重置）
- */
-function nextDaily8amAfterMs(completedAtMs) {
-  const anchor = new Date(Number(completedAtMs));
-  const t = anchor.getTime();
-  if (!Number.isFinite(t)) return Infinity;
-  const next8am = new Date(anchor);
-  next8am.setHours(8, 0, 0, 0);
-  if (next8am.getTime() <= t) {
-    next8am.setDate(next8am.getDate() + 1);
-  }
-  return next8am.getTime();
-}
-
-/**
- * 已通个人 20 层且全服耐久仍在：跨 **次日 08:00** 将 **`nextLayer` 置为 1**（个人塔**从头**重打，仍可通过每层胜利推进 **`bandits.cleared_layers`**，见 17-7 / 15-2）。
- * @returns {boolean} 是否改写了 `bp`（需落库）
- */
-async function maybeResetPostTowerStallProgress(bp, banditPoiId, maxPersonalLayers) {
-  const id = String(banditPoiId || '').trim();
-  if (!bp[BUCKET] || typeof bp[BUCKET] !== 'object') return false;
-  const entry = bp[BUCKET][id];
-  if (!entry || typeof entry !== 'object') return false;
-
-  const maxP = Math.max(1, Math.floor(Number(maxPersonalLayers)) || 20);
-  const stored = normalizeStoredNextLayer(entry.nextLayer, maxP);
-  if (stored <= maxP) return false;
-
-  const world = await readBanditWorldDurability(id);
-  if (world == null) return false;
-  const layersRem = Number(world.layersRemaining);
-  const worldDepleted = Number.isFinite(layersRem) && layersRem <= 0;
-  if (worldDepleted) return false;
-
-  const completedAt = Number(entry.postTowerStallCompletedAtMs);
-  const now = Date.now();
-  if (Number.isFinite(completedAt) && completedAt > 0) {
-    if (now < nextDaily8amAfterMs(completedAt)) return false;
-  }
-
-  const { postTowerStallCompletedAtMs: _ts, ...rest } = entry;
-  bp[BUCKET][id] = { ...rest, nextLayer: 1 };
-  return true;
+function countTacticTokens(items) {
+  return Math.max(0, Math.floor(Number(items?.[BANDIT_RAID_COST_ITEM_ID]) || 0));
 }
 
 let rosterEsmPromise = null;
@@ -90,6 +51,39 @@ function loadSmallMapEnemyRoster() {
 }
 
 /**
+ * 历史 `status=closed` / 已耗尽行：惰性重生为满血可攻（无尾刀徽章；尾刀仅结算路径发放）。
+ * @param {string} banditPoiId
+ * @param {string|null} junId
+ */
+async function ensureBanditWorldReady(banditPoiId, junId) {
+  const id = String(banditPoiId || '').trim();
+  if (!BANDIT_MAP_OBJECT_ID_RE.test(id)) return;
+  const j = junId != null ? String(junId).trim() : '';
+  try {
+    if (j) {
+      await pool.query(
+        `INSERT INTO bandits (bandit_id, jun_id, slot_index, tile_key, max_layers, cleared_layers, status)
+         VALUES (?, ?, 0, NULL, 200, 0, 'active')
+         ON DUPLICATE KEY UPDATE
+           jun_id = IF(COALESCE(jun_id, '') = '', VALUES(jun_id), jun_id),
+           max_layers = IF(COALESCE(max_layers, 0) <= 0, 200, max_layers),
+           cleared_layers = IF(cleared_layers IS NULL, 0, cleared_layers)`,
+        [id, j],
+      );
+    }
+    await pool.query(
+      `UPDATE bandits
+       SET cleared_layers = 0, status = 'active', closed_at = NULL
+       WHERE bandit_id = ?
+         AND (status <> 'active' OR cleared_layers >= max_layers)`,
+      [id],
+    );
+  } catch (e) {
+    console.error('[playerBanditRaidQuotaService] ensureBanditWorldReady', { id, error: e.message });
+  }
+}
+
+/**
  * 读 `bandits` 全服累计耗层（见 17-7 §4）；对外 **camelCase** 与列语义对齐：`maxLayers`、`clearedLayers`、`layersRemaining`。
  * 表或行缺失时返回 null，不打断配额接口。
  * @param {string} banditPoiId
@@ -99,7 +93,7 @@ async function readBanditWorldDurability(banditPoiId) {
   try {
     const [rows] = await pool.query(
       'SELECT max_layers, cleared_layers FROM bandits WHERE bandit_id = ? LIMIT 1',
-      [banditPoiId]
+      [banditPoiId],
     );
     const r = rows[0];
     if (!r) return null;
@@ -136,16 +130,15 @@ async function ensurePlayerProgressRow(playerId) {
 function combatLayerFromStoredNext(storedNext, maxPersonalLayers) {
   const maxP = Math.max(1, Math.floor(Number(maxPersonalLayers)) || 20);
   const s = Math.floor(Number(storedNext));
-  if (!Number.isFinite(s) || s < 1) return 1;
-  if (s > maxP) return null;
+  if (!Number.isFinite(s) || s < 1 || s > maxP) return 1;
   return s;
 }
 
 function normalizeStoredNextLayer(raw, maxPersonalLayers) {
   const maxP = Math.max(1, Math.floor(Number(maxPersonalLayers)) || 20);
   const s0 = Math.floor(Number(raw));
-  if (!Number.isFinite(s0) || s0 < 1) return 1;
-  return Math.min(maxP + 1, s0);
+  if (!Number.isFinite(s0) || s0 < 1 || s0 > maxP) return 1;
+  return s0;
 }
 
 /**
@@ -167,42 +160,52 @@ async function resolveJunIdForBanditPoiId(banditPoiId) {
 }
 
 /**
- * 从旧版「每匪寨 `raid`」合并为 **`byJunRaidQuota[junId]`** 一次；并去掉各匪寨条目上的 `raid`。
- * @returns {boolean} 是否改写了 `bp`（需要落库）
+ * @param {string} playerId
+ * @returns {Promise<number>}
  */
-function migrateJunRaidFromLegacyIfNeeded(bp, junId, currentSerial) {
-  if (!bp[JUN_RAID_BUCKET] || typeof bp[JUN_RAID_BUCKET] !== 'object') bp[JUN_RAID_BUCKET] = {};
-  const cur = bp[JUN_RAID_BUCKET][junId];
-  if (cur && typeof cur === 'object' && Number.isFinite(Number(cur.remaining))) {
-    return false;
-  }
-  const pidList = getPhase1BanditPoiIdsForJun(junId);
-  if (!pidList.length) return false;
-  if (!bp[BUCKET] || typeof bp[BUCKET] !== 'object') bp[BUCKET] = {};
-  const collected = [];
-  for (const pid of pidList) {
-    const prevEntry = bp[BUCKET][pid] && typeof bp[BUCKET][pid] === 'object' ? { ...bp[BUCKET][pid] } : {};
-    const prevRaid = prevEntry.raid && typeof prevEntry.raid === 'object' ? { ...prevEntry.raid } : {};
-    collected.push(accrueBanditRaidQuota(prevRaid, currentSerial));
-  }
-  let remaining;
-  let lastAccruedSerial;
-  if (!collected.length) {
-    const a = accrueBanditRaidQuota({}, currentSerial);
-    remaining = a.remaining;
-    lastAccruedSerial = a.lastAccruedSerial;
-  } else {
-    remaining = Math.min(...collected.map((c) => c.remaining));
-    lastAccruedSerial = Math.max(...collected.map((c) => c.lastAccruedSerial));
-  }
-  bp[JUN_RAID_BUCKET][junId] = { remaining, lastAccruedSerial };
-  for (const pid of pidList) {
-    if (!bp[BUCKET][pid] || typeof bp[BUCKET][pid] !== 'object') continue;
-    const { raid: _r, ...rest } = bp[BUCKET][pid];
-    if (Object.keys(rest).length) bp[BUCKET][pid] = rest;
-    else delete bp[BUCKET][pid];
-  }
-  return true;
+async function readPlayerTacticTokenCount(playerId) {
+  const [rows] = await pool.query('SELECT items FROM players WHERE player_id = ? LIMIT 1', [playerId]);
+  if (!rows[0]) return 0;
+  return countTacticTokens(parseItemsJson(rows[0].items));
+}
+
+/**
+ * @param {object} bp
+ * @param {string} id
+ * @param {number} maxPersonalLayers
+ * @param {{ maxLayers: number, clearedLayers: number, layersRemaining: number } | null} worldDurability
+ */
+function buildRaidGatePayload({
+  id,
+  junId,
+  tacticTokens,
+  maxPersonalLayers,
+  storedNext,
+  worldDurability,
+  difficultyHint,
+}) {
+  const combatLayer = combatLayerFromStoredNext(storedNext, maxPersonalLayers);
+  const tokens = Math.max(0, Math.floor(Number(tacticTokens) || 0));
+  return {
+    banditPoiId: id,
+    junId,
+    /** 持有兵符数（面板「战斗」资源） */
+    remaining: tokens,
+    tacticTokens: tokens,
+    costItemId: BANDIT_RAID_COST_ITEM_ID,
+    costPerBattle: BANDIT_RAID_COST_PER_BATTLE,
+    /** 旧次数上限字段：兵符无硬顶，回 0 供前端隐藏 x/max */
+    max: 0,
+    refillPerWindow: 0,
+    minutesUntilRefill: 0,
+    nextLayer: combatLayer,
+    personalTotalLayers: maxPersonalLayers,
+    worldDurability,
+    difficultyHint,
+    /** 已废止「通关卡关」；保留字段恒 false 以免旧前端误判 */
+    towerCompleted: false,
+    canBattle: tokens >= BANDIT_RAID_COST_PER_BATTLE,
+  };
 }
 
 /**
@@ -221,6 +224,8 @@ async function getRaidQuotaState(playerId, banditPoiId) {
     return { ok: false, status: 400, error: '无法解析匪寨所属郡' };
   }
 
+  await ensureBanditWorldReady(id, junId);
+
   const roster = await loadSmallMapEnemyRoster();
   const maxPersonalLayers = Number(roster.BANDIT_PERSONAL_TOTAL_LAYERS) || 20;
 
@@ -230,73 +235,48 @@ async function getRaidQuotaState(playerId, banditPoiId) {
   const row = rows[0] || {};
   const bp = parseBanditProgress(row.bandit_progress);
   if (!bp[BUCKET] || typeof bp[BUCKET] !== 'object') bp[BUCKET] = {};
-  if (!bp[JUN_RAID_BUCKET] || typeof bp[JUN_RAID_BUCKET] !== 'object') bp[JUN_RAID_BUCKET] = {};
-
-  const currentSerial = banditWindowSerialAt();
-  const migrated = migrateJunRaidFromLegacyIfNeeded(bp, junId, currentSerial);
-
-  const junRaidPrev =
-    bp[JUN_RAID_BUCKET][junId] && typeof bp[JUN_RAID_BUCKET][junId] === 'object'
-      ? { ...bp[JUN_RAID_BUCKET][junId] }
-      : {};
-  const acc = accrueBanditRaidQuota(junRaidPrev, currentSerial);
-  bp[JUN_RAID_BUCKET][junId] = {
-    remaining: acc.remaining,
-    lastAccruedSerial: acc.lastAccruedSerial,
-  };
-
-  const stalledDayReset = await maybeResetPostTowerStallProgress(bp, id, maxPersonalLayers);
 
   const prevEntry = bp[BUCKET][id] && typeof bp[BUCKET][id] === 'object' ? { ...bp[BUCKET][id] } : {};
   const storedNext = normalizeStoredNextLayer(prevEntry.nextLayer, maxPersonalLayers);
-  const combatLayer = combatLayerFromStoredNext(storedNext, maxPersonalLayers);
-  const towerCompleted = combatLayer == null;
-  const nextLayer = towerCompleted ? maxPersonalLayers : combatLayer;
 
   const cleanEntry = { ...prevEntry, nextLayer: storedNext };
   delete cleanEntry.raid;
+  delete cleanEntry.postTowerStallCompletedAtMs;
+  const needsWrite =
+    Number(prevEntry.nextLayer) !== storedNext ||
+    prevEntry.raid != null ||
+    prevEntry.postTowerStallCompletedAtMs != null;
   if (Object.keys(cleanEntry).length) bp[BUCKET][id] = cleanEntry;
   else delete bp[BUCKET][id];
 
-  const dirty = migrated || acc.changed || stalledDayReset;
-
-  if (dirty) {
+  if (needsWrite) {
     await pool.query('UPDATE player_progress SET bandit_progress = ? WHERE player_id = ?', [
       JSON.stringify(bp),
       playerId,
     ]);
   }
 
-  const difficultyHint = towerCompleted
-    ? '已全部通关'
-    : roster.banditNpcTroopDifficultyHintFromLayer(nextLayer);
+  const combatLayer = combatLayerFromStoredNext(storedNext, maxPersonalLayers);
+  const difficultyHint = roster.banditNpcTroopDifficultyHintFromLayer(combatLayer);
   const worldDurability = await readBanditWorldDurability(id);
-  const worldDepleted =
-    worldDurability != null &&
-    Number.isFinite(Number(worldDurability.layersRemaining)) &&
-    Number(worldDurability.layersRemaining) <= 0;
+  const tacticTokens = await readPlayerTacticTokenCount(playerId);
 
   return {
     ok: true,
-    data: {
-      banditPoiId: id,
+    data: buildRaidGatePayload({
+      id,
       junId,
-      remaining: acc.remaining,
-      max: RAID_MAX,
-      refillPerWindow: RAID_PER_WINDOW,
-      minutesUntilRefill: minutesUntilNextBanditBoundary(),
-      nextLayer,
-      personalTotalLayers: maxPersonalLayers,
+      tacticTokens,
+      maxPersonalLayers,
+      storedNext,
       worldDurability,
       difficultyHint,
-      towerCompleted,
-      canBattle: acc.remaining > 0 && !towerCompleted && !worldDepleted,
-    },
+    }),
   };
 }
 
 /**
- * 战败结算「放弃」：本匪寨 **`nextLayer` → 1**（从第 1 层重打），**不**返还已消耗的攻打次数（郡池不变）。
+ * 战败结算「放弃」：本匪寨 **`nextLayer` → 1**（从第 1 层重打），**不**退还已消耗兵符。
  * @param {string} playerId
  * @param {string} banditPoiId
  */
@@ -312,26 +292,10 @@ async function resetBanditRaidTowerProgress(playerId, banditPoiId) {
     return { ok: false, status: 400, error: '无法解析匪寨所属郡' };
   }
 
-  const roster = await loadSmallMapEnemyRoster();
-  const maxPersonalLayers = Number(roster.BANDIT_PERSONAL_TOTAL_LAYERS) || 20;
-
   const [rows] = await pool.query('SELECT bandit_progress FROM player_progress WHERE player_id = ?', [playerId]);
   const row = rows[0] || {};
   const bp = parseBanditProgress(row.bandit_progress);
   if (!bp[BUCKET] || typeof bp[BUCKET] !== 'object') bp[BUCKET] = {};
-  if (!bp[JUN_RAID_BUCKET] || typeof bp[JUN_RAID_BUCKET] !== 'object') bp[JUN_RAID_BUCKET] = {};
-
-  const currentSerial = banditWindowSerialAt();
-  migrateJunRaidFromLegacyIfNeeded(bp, junId, currentSerial);
-  const junRaidPrev =
-    bp[JUN_RAID_BUCKET][junId] && typeof bp[JUN_RAID_BUCKET][junId] === 'object'
-      ? { ...bp[JUN_RAID_BUCKET][junId] }
-      : {};
-  const acc = accrueBanditRaidQuota(junRaidPrev, currentSerial);
-  bp[JUN_RAID_BUCKET][junId] = {
-    remaining: acc.remaining,
-    lastAccruedSerial: acc.lastAccruedSerial,
-  };
 
   const prevEntry = bp[BUCKET][id] && typeof bp[BUCKET][id] === 'object' ? { ...bp[BUCKET][id] } : {};
   delete prevEntry.raid;
@@ -369,110 +333,167 @@ async function applyRaidQuotaAction(playerId, banditPoiId, action) {
     return { ok: false, status: 400, error: '无法解析匪寨所属郡' };
   }
 
+  await ensureBanditWorldReady(id, junId);
+
   const roster = await loadSmallMapEnemyRoster();
   const maxPersonalLayers = Number(roster.BANDIT_PERSONAL_TOTAL_LAYERS) || 20;
 
-  const [rows] = await pool.query('SELECT bandit_progress FROM player_progress WHERE player_id = ?', [
-    playerId,
-  ]);
-  const row = rows[0] || {};
-  const bp = parseBanditProgress(row.bandit_progress);
-  if (!bp[BUCKET] || typeof bp[BUCKET] !== 'object') bp[BUCKET] = {};
-  if (!bp[JUN_RAID_BUCKET] || typeof bp[JUN_RAID_BUCKET] !== 'object') bp[JUN_RAID_BUCKET] = {};
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
 
-  const currentSerial = banditWindowSerialAt();
-  const migrated = migrateJunRaidFromLegacyIfNeeded(bp, junId, currentSerial);
+    const [rows] = await conn.query(
+      'SELECT bandit_progress FROM player_progress WHERE player_id = ? FOR UPDATE',
+      [playerId],
+    );
+    const row = rows[0] || {};
+    const bp = parseBanditProgress(row.bandit_progress);
+    if (!bp[BUCKET] || typeof bp[BUCKET] !== 'object') bp[BUCKET] = {};
 
-  const junRaidPrev =
-    bp[JUN_RAID_BUCKET][junId] && typeof bp[JUN_RAID_BUCKET][junId] === 'object'
-      ? { ...bp[JUN_RAID_BUCKET][junId] }
-      : {};
-  const acc = accrueBanditRaidQuota(junRaidPrev, currentSerial);
-  bp[JUN_RAID_BUCKET][junId] = {
-    remaining: acc.remaining,
-    lastAccruedSerial: acc.lastAccruedSerial,
-  };
+    const prevEntry = bp[BUCKET][id] && typeof bp[BUCKET][id] === 'object' ? { ...bp[BUCKET][id] } : {};
+    const storedNext = normalizeStoredNextLayer(prevEntry.nextLayer, maxPersonalLayers);
+    const combatLayer = combatLayerFromStoredNext(storedNext, maxPersonalLayers);
 
-  const stalledDayReset = await maybeResetPostTowerStallProgress(bp, id, maxPersonalLayers);
+    const [pRows] = await conn.query('SELECT items FROM players WHERE player_id = ? FOR UPDATE', [
+      playerId,
+    ]);
+    if (!pRows[0]) {
+      await conn.rollback();
+      return { ok: false, status: 404, error: '玩家不存在' };
+    }
+    const items = parseItemsJson(pRows[0].items);
+    const have = countTacticTokens(items);
+    if (have < BANDIT_RAID_COST_PER_BATTLE) {
+      await conn.rollback();
+      return { ok: false, status: 400, error: '兵符不足，无法攻打匪寨' };
+    }
 
-  async function persistPartialBanditProgress() {
-    if (migrated || acc.changed || stalledDayReset) {
-      await pool.query('UPDATE player_progress SET bandit_progress = ? WHERE player_id = ?', [
-        JSON.stringify(bp),
-        playerId,
+    items[BANDIT_RAID_COST_ITEM_ID] = have - BANDIT_RAID_COST_PER_BATTLE;
+    if (items[BANDIT_RAID_COST_ITEM_ID] <= 0) delete items[BANDIT_RAID_COST_ITEM_ID];
+    await conn.query('UPDATE players SET items = ? WHERE player_id = ?', [
+      JSON.stringify(items),
+      playerId,
+    ]);
+
+    const nextEntry = { ...prevEntry, nextLayer: storedNext };
+    delete nextEntry.raid;
+    delete nextEntry.postTowerStallCompletedAtMs;
+    bp[BUCKET][id] = nextEntry;
+    await conn.query('UPDATE player_progress SET bandit_progress = ? WHERE player_id = ?', [
+      JSON.stringify(bp),
+      playerId,
+    ]);
+
+    await conn.commit();
+
+    const difficultyHint = roster.banditNpcTroopDifficultyHintFromLayer(combatLayer);
+    const worldDurability = await readBanditWorldDurability(id);
+    const tacticTokens = countTacticTokens(items);
+
+    return {
+      ok: true,
+      data: buildRaidGatePayload({
+        id,
+        junId,
+        tacticTokens,
+        maxPersonalLayers,
+        storedNext,
+        worldDurability,
+        difficultyHint,
+      }),
+    };
+  } catch (e) {
+    await conn.rollback();
+    console.error('[playerBanditRaidQuotaService] consume', e);
+    return { ok: false, status: 500, error: '攻打消耗失败' };
+  } finally {
+    conn.release();
+  }
+}
+
+/**
+ * 匪寨胜利结算「继续」前：按档扣粮草快补连战兵力（权威在客户端 inflight；本接口只扣粮并回传 updates）。
+ * @param {string} playerId
+ * @param {{ tier: 'light'|'heavy', troops: Array<{ instanceId: string, currentTroops: number, maxTroops: number }> }} body
+ */
+async function applyBetweenLayerHeal(playerId, body = {}) {
+  const pid = playerId != null ? String(playerId).trim() : '';
+  if (!pid) {
+    return { ok: false, status: 400, error: '缺少玩家 ID' };
+  }
+  const tier = normalizeBanditBetweenLayerHealTier(body.tier);
+  if (!tier) {
+    return { ok: false, status: 400, error: '无效的补兵档位' };
+  }
+  const computed = computeBanditBetweenLayerHeal({
+    troops: Array.isArray(body.troops) ? body.troops : [],
+    tier,
+  });
+  if (!computed.ok) {
+    return { ok: false, status: 400, error: computed.error || '无法计算补兵' };
+  }
+
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    const [rows] = await conn.query(
+      'SELECT food FROM players WHERE player_id = ? FOR UPDATE',
+      [pid],
+    );
+    if (!rows?.length) {
+      await conn.rollback();
+      return { ok: false, status: 404, notFound: true, error: '玩家不存在' };
+    }
+    const food = Math.max(0, Math.floor(Number(rows[0].food) || 0));
+    const cost = Math.max(0, Math.floor(Number(computed.foodCost) || 0));
+    if (food < cost) {
+      await conn.rollback();
+      return {
+        ok: false,
+        status: 400,
+        error: `粮草不足，需要 ${cost}（当前 ${food}）`,
+        code: 'INSUFFICIENT_FOOD',
+      };
+    }
+    if (cost > 0) {
+      await conn.query('UPDATE players SET food = GREATEST(0, food - ?) WHERE player_id = ?', [
+        cost,
+        pid,
       ]);
     }
+    await conn.commit();
+    if (cost > 0) {
+      await statisticsDeltaService.incrementSpent(pid, { food: cost });
+    }
+    return {
+      ok: true,
+      data: {
+        tier,
+        foodCost: cost,
+        foodRemaining: food - cost,
+        healAmount: computed.healAmount,
+        foodPerBenefitingTroop: computed.foodPerBenefitingTroop,
+        updates: computed.updates,
+      },
+    };
+  } catch (e) {
+    await conn.rollback();
+    console.error('[playerBanditRaidQuotaService] between-layer-heal', e);
+    return { ok: false, status: 500, error: '粮草补兵失败' };
+  } finally {
+    conn.release();
   }
-
-  if (acc.remaining <= 0) {
-    await persistPartialBanditProgress();
-    return { ok: false, status: 400, error: '攻打次数不足' };
-  }
-
-  const prevEntry = bp[BUCKET][id] && typeof bp[BUCKET][id] === 'object' ? { ...bp[BUCKET][id] } : {};
-  const storedNext = normalizeStoredNextLayer(prevEntry.nextLayer, maxPersonalLayers);
-  const combatLayer = combatLayerFromStoredNext(storedNext, maxPersonalLayers);
-  if (combatLayer == null) {
-    await persistPartialBanditProgress();
-    return { ok: false, status: 400, error: '匪寨个人进度已通关' };
-  }
-  const worldDurabilityPre = await readBanditWorldDurability(id);
-  if (
-    worldDurabilityPre != null &&
-    Number.isFinite(Number(worldDurabilityPre.layersRemaining)) &&
-    Number(worldDurabilityPre.layersRemaining) <= 0
-  ) {
-    await persistPartialBanditProgress();
-    return { ok: false, status: 400, error: '匪寨耐久已耗尽' };
-  }
-
-  const nextLayer = combatLayer;
-  const newRemaining = acc.remaining - 1;
-  bp[JUN_RAID_BUCKET][junId] = {
-    remaining: newRemaining,
-    lastAccruedSerial: acc.lastAccruedSerial,
-  };
-
-  bp[BUCKET][id] = { ...prevEntry, nextLayer: storedNext };
-  delete bp[BUCKET][id].raid;
-
-  await pool.query('UPDATE player_progress SET bandit_progress = ? WHERE player_id = ?', [
-    JSON.stringify(bp),
-    playerId,
-  ]);
-
-  const difficultyHint = roster.banditNpcTroopDifficultyHintFromLayer(nextLayer);
-  const worldDurability = await readBanditWorldDurability(id);
-  const towerCompleted = storedNext > maxPersonalLayers;
-  const worldDepleted =
-    worldDurability != null &&
-    Number.isFinite(Number(worldDurability.layersRemaining)) &&
-    Number(worldDurability.layersRemaining) <= 0;
-
-  return {
-    ok: true,
-    data: {
-      banditPoiId: id,
-      junId,
-      remaining: newRemaining,
-      max: RAID_MAX,
-      refillPerWindow: RAID_PER_WINDOW,
-      minutesUntilRefill: minutesUntilNextBanditBoundary(),
-      nextLayer,
-      personalTotalLayers: maxPersonalLayers,
-      worldDurability,
-      difficultyHint,
-      towerCompleted,
-      canBattle: newRemaining > 0 && !towerCompleted && !worldDepleted,
-    },
-  };
 }
 
 module.exports = {
   getRaidQuotaState,
   applyRaidQuotaAction,
+  applyBetweenLayerHeal,
   resolveJunIdForBanditPoiId,
-  RAID_INITIAL,
-  RAID_MAX,
-  RAID_PER_WINDOW,
+  BANDIT_RAID_COST_ITEM_ID,
+  BANDIT_RAID_COST_PER_BATTLE,
+  /** @deprecated 旧次数制常量；保留避免外部 require 崩 */
+  RAID_INITIAL: 0,
+  RAID_MAX: 0,
+  RAID_PER_WINDOW: 0,
 };

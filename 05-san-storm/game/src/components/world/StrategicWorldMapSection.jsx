@@ -13,6 +13,7 @@ import {
   strategicRoadCellCenterPx,
   strategicStandpointErrorMessage,
   STRATEGIC_STANDPOINT_ERROR,
+  STRATEGIC_MAP_GRID_GAP_PX,
   isStrategicStandpointPoiDepsPending,
 } from '@/utils/strategicMapCityAnchor';
 import { resolveMapDisplayEffect } from '@/utils/mapDisplayEffect';
@@ -20,20 +21,18 @@ import { resolveStrategicTileCityCover, resolveStrategicTilePvpCampCover } from 
 import {
   cityDbPosToWorldStrategicCell,
   collectBanditAnchorCellsByJunFromWorldGrid,
-  findNearestFactionMajorMediumCityStrategicCell,
   pickBanditProgressLocateTarget,
   scrollToCityById,
 } from '@/utils/strategicMapProgressLocate';
 import './WorldStrategicMap.css';
-import { YINGCHUAN_COUNTY_MAP_COLS, YINGCHUAN_COUNTY_MAP_ROWS } from '@shared/utils/junCountyMapGenerator';
 import { getPhase1BanditPoiIdsForJun } from '@shared/utils/strategicBanditPlaceholderPhase1.js';
 import { useStrategicCountyCityRuntime } from '@/hooks/useStrategicCountyCityRuntime';
-import { useSiegeQuota } from '@/hooks/useSiegeQuota';
 import { useStrategicJunBanditRaidQuotas } from '@/hooks/useStrategicJunBanditRaidQuotas';
 import { API_CONFIG } from '@/constants';
 import { fetchWithTimeout } from '@/services/httpClient';
 import { useStrategicMapNavigation } from '@/contexts/StrategicMapNavigationContext';
 import { playerAPI } from '@/services/playerApi';
+import { worldMapOverlayRefs } from '@/utils/worldMapOverlayRefs';
 import { createRoadClientRequestId } from '@/utils/roadClientRequestId';
 import { warAPI } from '@/services/warApi';
 import { buildMapCornerOngoingWarEntries } from '@/utils/mapCornerOngoingWars';
@@ -44,8 +43,10 @@ import {
 } from '@/utils/strategicRoadMarchPath';
 import {
   canPlayerMarchToPoiCity,
+  canPlayerStopOnAttackerBaseCampCell,
   collectStrategicPoiFootprint,
   buildStrategicPoiFootprintFromDbCityRow,
+  findBaseCampSliceAtMergedCell,
   resolveMergedStandpointStrategicPoiAnchorId,
   resolvePvpBaseCampWarIdAtMergedCell,
 } from '@shared/utils/strategicMarchPoi.js';
@@ -58,7 +59,10 @@ import StrategicMarchMoveConfirm from './StrategicMarchMoveConfirm';
 import { buildStrategicRoadStackStripForFocal, roadCellStackKey } from '@/utils/strategicRoadStackStrip';
 import {
   SAN_1_STRATEGIC_VERTICAL_STACK_JUN_ORDER,
+  SAN1_YU_YINGCHUAN_COLS,
+  SAN1_YU_YINGCHUAN_ROWS,
   STRATEGIC_COUNTY_MAP_ROWS,
+  isSan1YuLStackVoidCell,
 } from '@shared/utils/strategicWorldMapStack.js';
 import {
   roadMovePathForMarchAnimation,
@@ -354,7 +358,7 @@ export default function StrategicWorldMapSection({
   const [roadPresence, setRoadPresence] = useState(null);
   /** 供行军成功后立即拉取郡内他人路点（与轮询互补） */
   const roadPresenceFetchRef = useRef(() => Promise.resolve());
-  const { player: ctxPlayer, cards: ctxCards, attributeBonusBySlot, refresh, exploreQuota } = usePlayerContext();
+  const { player: ctxPlayer, cards: ctxCards, attributeBonusBySlot, refresh } = usePlayerContext();
   const { mapHudButtonsVisible } = useMapHudVisibility();
   const mapCornerCompactViewport = useMapCornerCompactViewport();
   /** 行军模式：与 31-6 §8 一致 */
@@ -397,6 +401,10 @@ export default function StrategicWorldMapSection({
           season: stack.season,
           roadCells: stack.roadCells,
           roadConnectivity: stack.roadConnectivity,
+          mode: stack.mode,
+          includedJunIds: stack.includedJunIds,
+          playableJunIds: Array.isArray(stack.playableJunIds) ? stack.playableJunIds : [],
+          meowaUnderlays: Array.isArray(stack.meowaUnderlays) ? stack.meowaUnderlays : [],
         });
       })
       .catch((e) => {
@@ -439,6 +447,12 @@ export default function StrategicWorldMapSection({
     let cancelled = false;
     const season = merged.season;
     const runanWorldGyOffset = STRATEGIC_COUNTY_MAP_ROWS;
+    const presenceJunIds =
+      Array.isArray(merged.playableJunIds) && merged.playableJunIds.length
+        ? merged.playableJunIds
+        : Array.isArray(merged.includedJunIds) && merged.includedJunIds.length
+          ? merged.includedJunIds
+          : [SAN_1_STRATEGIC_VERTICAL_STACK_JUN_ORDER[0]];
     const fetchPresence = async () => {
       try {
         const fetchOne = async (jid) => {
@@ -448,33 +462,28 @@ export default function StrategicWorldMapSection({
           const json = await res.json();
           return json?.success ? json.data : null;
         };
-        const [p0, p1] = await Promise.all([
-          fetchOne(SAN_1_STRATEGIC_VERTICAL_STACK_JUN_ORDER[0]),
-          fetchOne(SAN_1_STRATEGIC_VERTICAL_STACK_JUN_ORDER[1]),
-        ]);
+        const parts = await Promise.all(presenceJunIds.map((jid) => fetchOne(jid)));
         if (cancelled) return;
-        const j0 = SAN_1_STRATEGIC_VERTICAL_STACK_JUN_ORDER[0];
-        const j1 = SAN_1_STRATEGIC_VERTICAL_STACK_JUN_ORDER[1];
         const others = [];
-        if (Array.isArray(p0?.others)) {
-          for (const o of p0.others) others.push({ ...o, roadJunId: j0 });
-        }
-        if (Array.isArray(p1?.others)) {
-          for (const o of p1.others) others.push({ ...o, roadJunId: j1 });
-        }
         const lockedCells = [];
-        if (Array.isArray(p0?.lockedCells)) {
-          for (const l of p0.lockedCells) lockedCells.push({ ...l });
-        }
-        if (Array.isArray(p1?.lockedCells)) {
-          for (const l of p1.lockedCells) {
-            const py = Number(l.positionY ?? l.position_y);
-            lockedCells.push({
-              ...l,
-              ...(Number.isFinite(py)
-                ? { positionY: py + runanWorldGyOffset, position_y: py + runanWorldGyOffset }
-                : {}),
-            });
+        for (let i = 0; i < presenceJunIds.length; i += 1) {
+          const jid = presenceJunIds[i];
+          const part = parts[i];
+          const worldGyOff =
+            jid === SAN_1_STRATEGIC_VERTICAL_STACK_JUN_ORDER[1] ? runanWorldGyOffset : 0;
+          if (Array.isArray(part?.others)) {
+            for (const o of part.others) others.push({ ...o, roadJunId: jid });
+          }
+          if (Array.isArray(part?.lockedCells)) {
+            for (const l of part.lockedCells) {
+              const py = Number(l.positionY ?? l.position_y);
+              lockedCells.push({
+                ...l,
+                ...(worldGyOff && Number.isFinite(py)
+                  ? { positionY: py + worldGyOff, position_y: py + worldGyOff }
+                  : {}),
+              });
+            }
           }
         }
         setRoadPresence({
@@ -517,8 +526,12 @@ export default function StrategicWorldMapSection({
     };
   }, [bumpStrategicRoadPresenceRef]);
 
-  const cols = merged?.mapColumns ?? YINGCHUAN_COUNTY_MAP_COLS;
-  const rows = merged?.mapRows ?? YINGCHUAN_COUNTY_MAP_ROWS;
+  const cols = merged?.mapColumns ?? SAN1_YU_YINGCHUAN_COLS;
+  const rows = merged?.mapRows ?? SAN1_YU_YINGCHUAN_ROWS;
+  /** Meowa 底板格网 CSS gap:0；须与立点/滚动像素公式一致，否则行号越大 pawn 越往下偏 */
+  const gridGapPx = Array.isArray(merged?.meowaUnderlays) && merged.meowaUnderlays.some((u) => u?.url)
+    ? 0
+    : STRATEGIC_MAP_GRID_GAP_PX;
   const cells = merged?.cells;
   const seed = merged ? normalizeMergedMapSeed(merged) : 0;
 
@@ -614,7 +627,14 @@ export default function StrategicWorldMapSection({
       document.removeEventListener('visibilitychange', onVis);
     };
   }, [countySeason]);
-  const cityRuntimeJunIds = useMemo(() => [...SAN_1_STRATEGIC_VERTICAL_STACK_JUN_ORDER], []);
+  /** 仅「正式生成」的郡参与城表 / 匪寨进度；临时裁图郡不进列表 */
+  const cityRuntimeJunIds = useMemo(() => {
+    const fromStack = Array.isArray(merged?.playableJunIds)
+      ? merged.playableJunIds.map((id) => String(id).trim()).filter(Boolean)
+      : [];
+    if (fromStack.length) return fromStack;
+    return [SAN_1_STRATEGIC_VERTICAL_STACK_JUN_ORDER[0]];
+  }, [merged?.playableJunIds]);
   const playerMarchJunId = useMemo(
     () =>
       String(ctxPlayer?.roadJunId ?? 'san_1_jun_yingchuan').trim() ||
@@ -860,7 +880,7 @@ export default function StrategicWorldMapSection({
       const gx = Number(cell?.x);
       const gy = Number(cell?.y);
       if (Number.isFinite(gx) && Number.isFinite(gy)) {
-        ({ cx, cy } = strategicRoadCellCenterPx(gx, gy, tilePx));
+        ({ cx, cy } = strategicRoadCellCenterPx(gx, gy, tilePx, gridGapPx));
         useRoad = true;
         fromMarchAnim = true;
       }
@@ -878,6 +898,7 @@ export default function StrategicWorldMapSection({
         mapRows: rows,
         countyJunId: playerMarchJunId,
         tilePx,
+        gridGapPx,
         playerRoadJunId: selfJun,
         roadX: prx,
         roadY: worldRy,
@@ -954,6 +975,7 @@ export default function StrategicWorldMapSection({
     cols,
     rows,
     tilePx,
+    gridGapPx,
     ctxCards,
     ctxPlayer,
     attributeBonusBySlot,
@@ -965,7 +987,7 @@ export default function StrategicWorldMapSection({
     standpointPoiDepsPending,
   ]);
 
-  /** 「我在哪」：与本人 pawn 同锚点（行军动画中跟当前回放格）。 */
+  /** 「本人定位」：与本人 pawn 同锚点（行军动画中跟当前回放格）；角钮文案为角色名。 */
   const locateSelfStrategicCell = useCallback(() => {
     if (!cells?.length) return null;
     const anim = roadMarchAnimation;
@@ -1060,6 +1082,26 @@ export default function StrategicWorldMapSection({
     ctxPlayer,
   ]);
 
+  /** 本人当前立足格网坐标（与 `playerStandingPoiAnchorId` 同源；战场入口 tooltip 须点本格） */
+  const playerStandingGridCell = useMemo(() => {
+    const anim = roadMarchAnimation;
+    if (anim?.path?.length) {
+      const i = Math.min(anim.stepIndex, anim.path.length - 1);
+      const cell = anim.path[i];
+      const gx = Number(cell?.x);
+      const gy = Number(cell?.y);
+      if (Number.isFinite(gx) && Number.isFinite(gy)) return { gx, gy };
+      return null;
+    }
+    const selfRoad = readSelfPlayerRoadGrid(ctxPlayer);
+    if (!selfRoad.hasPlayer) return null;
+    const { rx: prx, ry: pry, junId: selfJun } = selfRoad;
+    const worldCell = selfJun ? playerRoadToWorldMapCell(selfJun, prx, pry) : null;
+    const worldRy = worldCell ? worldCell.worldGy : pry;
+    if (!Number.isFinite(prx) || !Number.isFinite(worldRy)) return null;
+    return { gx: prx, gy: worldRy };
+  }, [roadMarchAnimation, ctxPlayer]);
+
   const playerStandingPvpWarId = useMemo(() => {
     if (!cells?.length || !pvpBaseCamps.length) return '';
     const anim = roadMarchAnimation;
@@ -1095,6 +1137,9 @@ export default function StrategicWorldMapSection({
   /** 首次进入大地图：视口滚至本人锚点（道路格或离路 POI）；无静默主城回退 */
   const didInitialViewportScrollRef = useRef(false);
   const lastStandpointErrorToastRef = useRef('');
+  /** 无效格立足：每会话最多自动修复一次，避免死循环打 API */
+  const standpointRepairAttemptedRef = useRef(false);
+  const standpointRepairInFlightRef = useRef(false);
   useEffect(() => {
     if (standpointPoiDepsPending) return;
     const err = strategicSelfPawn?.standpointError;
@@ -1102,11 +1147,61 @@ export default function StrategicWorldMapSection({
       lastStandpointErrorToastRef.current = '';
       return;
     }
+    if (
+      err === STRATEGIC_STANDPOINT_ERROR.UNRESOLVED_OFF_ROAD &&
+      playerId &&
+      typeof refresh === 'function' &&
+      !standpointRepairAttemptedRef.current &&
+      !standpointRepairInFlightRef.current
+    ) {
+      standpointRepairInFlightRef.current = true;
+      /** 成功文案由 repair-stand 响应入队一次；勿再叠底栏 Toast */
+      (async () => {
+        try {
+          const res = await playerAPI.repairRoadStand(playerId);
+          if (!res?.success) {
+            throw new Error(res?.error || '修复道路立足失败');
+          }
+          standpointRepairAttemptedRef.current = true;
+          const notice =
+            (typeof res?.pendingRoadNotice === 'string' && res.pendingRoadNotice.trim()) ||
+            (typeof res?.data?.roadClientNotice === 'string' && res.data.roadClientNotice.trim()) ||
+            '';
+          if (notice) worldMapOverlayRefs.enqueueRoadGateNotice?.(notice);
+          await refresh({ silent: true });
+        } catch (e) {
+          console.error('[StrategicWorldMapSection] repairRoadStand failed', e);
+          /** 失败允许本会话再试一次（例如后端尚未热加载到新逻辑） */
+          standpointRepairAttemptedRef.current = false;
+          setMarchToast({
+            type: 'error',
+            message: e?.message || '自动移至战场入口失败，请从主城重新出征',
+          });
+          window.setTimeout(() => setMarchToast(null), 12000);
+        } finally {
+          standpointRepairInFlightRef.current = false;
+        }
+      })();
+      return;
+    }
+    if (
+      err === STRATEGIC_STANDPOINT_ERROR.UNRESOLVED_OFF_ROAD &&
+      standpointRepairAttemptedRef.current
+    ) {
+      if (lastStandpointErrorToastRef.current === err) return;
+      lastStandpointErrorToastRef.current = err;
+      setMarchToast({
+        type: 'error',
+        message: '路点仍无法立足，请从主城重新出征或刷新后再试',
+      });
+      window.setTimeout(() => setMarchToast(null), 12000);
+      return;
+    }
     if (lastStandpointErrorToastRef.current === err) return;
     lastStandpointErrorToastRef.current = err;
     setMarchToast({ type: 'error', message: strategicStandpointErrorMessage(err) });
     window.setTimeout(() => setMarchToast(null), 12000);
-  }, [strategicSelfPawn?.standpointError, standpointPoiDepsPending]);
+  }, [strategicSelfPawn?.standpointError, standpointPoiDepsPending, playerId, refresh]);
 
   useEffect(() => {
     if (didInitialViewportScrollRef.current) return;
@@ -1121,7 +1216,6 @@ export default function StrategicWorldMapSection({
     });
   }, [strategicNav, locateSelfStrategicCell]);
 
-  const siegeQuotaProgress = useSiegeQuota(playerId, playerMainCityId);
   const banditJunRaidQuotas = useStrategicJunBanditRaidQuotas(playerId, cityRuntimeJunIds, postBanditRaidRefreshKey);
 
   const banditAnchorCellsByJun = useMemo(
@@ -1161,18 +1255,6 @@ export default function StrategicWorldMapSection({
     scrollStrategicCellNow(gx, gy);
   }, [roadMarchAnimation, scrollStrategicCellNow]);
 
-  const requestExploreProgressLocate = useCallback(() => {
-    if (!strategicNav?.scrollToStrategicCell) return '地图未就绪';
-    const ref = locateSelfStrategicCell();
-    if (!ref || !Number.isFinite(ref.gx) || !Number.isFinite(ref.gy)) {
-      return '暂无位置（请确认已设主城或在当前郡道路上）';
-    }
-    const cell = findNearestFactionMajorMediumCityStrategicCell(countyCityRows, playerFactionId, ref);
-    if (!cell) return '暂无己方中/大城可定位';
-    scrollStrategicCellNow(cell.gx, cell.gy);
-    return null;
-  }, [strategicNav, locateSelfStrategicCell, countyCityRows, playerFactionId, scrollStrategicCellNow]);
-
   const requestBanditProgressLocate = useCallback(
     (junId) => {
       if (!strategicNav?.scrollToStrategicCell) return '地图未就绪';
@@ -1190,25 +1272,6 @@ export default function StrategicWorldMapSection({
     },
     [strategicNav, locateSelfStrategicCell, banditAnchorCellsByJun, scrollStrategicCellNow],
   );
-
-  const requestSiegeProgressLocate = useCallback(() => {
-    if (!strategicNav?.scrollToStrategicCell) return '地图未就绪';
-    const wars = ongoingSiegeLocateTargets;
-    if (!wars.length) return '暂无进行中的攻城目标（PVE wars 或本势力 PVP wars_pvp）';
-    const n = wars.length;
-    const idx = siegeWarCycleIndexRef.current % n;
-    const war = wars[idx];
-    siegeWarCycleIndexRef.current = idx + 1;
-    const cityId = war?.targetCityId != null ? String(war.targetCityId).trim() : '';
-    if (!cityId) return '战事缺少目标城';
-    const row =
-      countyCityRows.find((c) => String(c.city_id ?? c.cityId ?? c.id ?? '').trim() === cityId) || null;
-    if (!row) return `目标城未在本地城表（${cityId}）`;
-    const cell = cityDbPosToWorldStrategicCell(row);
-    if (!cell) return `${war.targetCityName || '目标城'} 缺少战略坐标`;
-    const ok = scrollStrategicCellNow(cell.gx, cell.gy);
-    return ok ? null : '地图未就绪';
-  }, [strategicNav, ongoingSiegeLocateTargets, countyCityRows, scrollStrategicCellNow]);
 
   const ongoingWarEntries = useMemo(() => {
     const pveWithFaction = (ongoingPveWarsList || []).map((w) => ({
@@ -1248,47 +1311,19 @@ export default function StrategicWorldMapSection({
 
   const mapJumpProgressSidebar = useMemo(() => {
     if (!cells?.length) return null;
-    const tutorial = strategicTutorialExploreStep;
-    const eq = exploreQuota;
-    const sq = siegeQuotaProgress;
-    const exploreLabel = tutorial
-      ? `教程 ${tutorial.current}/${tutorial.max}`
-      : eq?.loaded
-        ? `探索 ${eq.remaining}/${eq.max}`
-        : '探索 …';
-    const eventHint =
-      !strategicMapEventHintSuppressed && pendingMapEventHint
-        ? String(pendingMapEventHint).trim() || null
-        : null;
-    const siegeLabel = sq?.loaded ? `攻城 ${sq.remaining}/${sq.max}` : '攻城 …';
 
     const banditByJunId = {};
     for (const jid of cityRuntimeJunIds) {
       if (!getPhase1BanditPoiIdsForJun(jid).length) continue;
       const q = banditJunRaidQuotas[jid];
       banditByJunId[jid] = {
-        label: q?.loaded ? `匪寨 ${q.remaining}/${q.max}` : '匪寨 …',
+        label: q?.loaded ? `匪寨 兵符${q.remaining}` : '匪寨 …',
         title: '定位本郡匪寨：首次为距本人最近；再次点击在本郡各寨间循环切换',
         requestLocate: () => requestBanditProgressLocate(jid),
       };
     }
 
     return {
-      explore: {
-        label: exploreLabel,
-        title: tutorial ? '点击查看教程指引' : '定位至己方最近中城或大城',
-        disabled: !!tutorial,
-        eventHint,
-        requestLocate: requestExploreProgressLocate,
-      },
-      siege: {
-        label: siegeLabel,
-        title: ongoingSiegeLocateTargets.length
-          ? `定位攻城目标城（${ongoingSiegeLocateTargets.length} 处，同城 PVP 优先）：按创建时间从早到晚循环点击`
-          : '暂无进行中的攻城目标（PVE wars 或本势力 PVP wars_pvp）',
-        disabled: ongoingSiegeLocateTargets.length === 0,
-        requestLocate: requestSiegeProgressLocate,
-      },
       banditByJunId,
       ongoingWars: ongoingWarEntries.map((entry) => ({
         entry,
@@ -1300,25 +1335,17 @@ export default function StrategicWorldMapSection({
     };
   }, [
     cells,
-    pendingMapEventHint,
-    strategicMapEventHintSuppressed,
-    strategicTutorialExploreStep,
-    exploreQuota?.remaining,
-    exploreQuota?.max,
-    exploreQuota?.loaded,
-    siegeQuotaProgress?.remaining,
-    siegeQuotaProgress?.max,
-    siegeQuotaProgress?.loaded,
     banditJunRaidQuotas,
     cityRuntimeJunIds,
-    requestExploreProgressLocate,
     requestBanditProgressLocate,
-    requestSiegeProgressLocate,
-    ongoingSiegeLocateTargets.length,
     ongoingWarEntries,
     scrollToWarTargetCity,
   ]);
 
+  const locateSelfButtonLabel = useMemo(() => {
+    const name = String(ctxPlayer?.characterName || '').trim();
+    return name || '我';
+  }, [ctxPlayer?.characterName]);
   /**
    * 郡内「他人」道路 pawn（仅在线；服务端已按 `playerActivity` 5 分钟窗过滤并隐去敏感资源）。
    * 在未接入他人兵力与将领头像前，只展示：势力名 + 角色名 + 圆心末字；与自身 pawn 共用同一组件。
@@ -1363,6 +1390,7 @@ export default function StrategicWorldMapSection({
           mapRows: rows,
           countyJunId: otherJun,
           tilePx,
+          gridGapPx,
           playerRoadJunId: otherJun,
           roadX: rx,
           roadY: worldRyOther,
@@ -1372,7 +1400,7 @@ export default function StrategicWorldMapSection({
         const { cx, cy } =
           pos.cx != null && pos.cy != null
             ? pos
-            : strategicRoadCellCenterPx(rx, worldRyOther, tilePx);
+            : strategicRoadCellCenterPx(rx, worldRyOther, tilePx, gridGapPx);
         const charName = String(other.characterName || '').trim() || '…';
         const factionName = String(other.factionName || '').trim();
         const displayName = factionName ? `[${factionName}]${charName}` : charName;
@@ -1410,6 +1438,7 @@ export default function StrategicWorldMapSection({
   }, [
     roadPresence,
     tilePx,
+    gridGapPx,
     cells,
     merged?.roadCells,
     cols,
@@ -1420,6 +1449,7 @@ export default function StrategicWorldMapSection({
     attributeBonusBySlot,
     playerId,
     pvpBaseCamps,
+    countyCityRows,
   ]);
 
   const strategicRoadLockedCells = useMemo(
@@ -1435,6 +1465,7 @@ export default function StrategicWorldMapSection({
     setRoadMarchAnimation(null);
   }, []);
 
+  /** 行军结束：立足战场入口/信息区时由格网自动打开匪寨+荒郊双面板（13-8） */
   useEffect(() => {
     const anim = roadMarchAnimation;
     if (!anim?.path?.length) return undefined;
@@ -1468,7 +1499,14 @@ export default function StrategicWorldMapSection({
       });
     }, MARCH_ANIM_MS_PER_STEP);
     return () => window.clearTimeout(t);
-  }, [roadMarchAnimation, refresh, onRoadEncounterBattle, onRoadMarchAnimatingChange, setExploreAnchorRoadOverride, onExploreAnchorSettled]);
+  }, [
+    roadMarchAnimation,
+    refresh,
+    onRoadEncounterBattle,
+    onRoadMarchAnimatingChange,
+    setExploreAnchorRoadOverride,
+    onExploreAnchorSettled,
+  ]);
 
   /** 打开沿路移动确认（道路双击与行军点选共用；不依赖是否已点过叠层「行军」） */
   const openMarchConfirmForStrategicCell = useCallback(
@@ -1479,7 +1517,11 @@ export default function StrategicWorldMapSection({
         setMarchToast({ type: 'error', message: '当前地图暂无道路数据' });
         return;
       }
-      const clickSlice = playerRoadJunSliceFromWorldGy(gy);
+      if (isSan1YuLStackVoidCell(gx, gy)) {
+        setMarchToast({ type: 'error', message: '该区域为远景装饰带，不可行军' });
+        return;
+      }
+      const clickSlice = playerRoadJunSliceFromWorldGy(gy, gx);
       if (!clickSlice) {
         setMarchToast({ type: 'error', message: '目标格坐标无效' });
         return;
@@ -1541,6 +1583,8 @@ export default function StrategicWorldMapSection({
               : null,
         });
         if (!gate.ok) {
+          // 他势力点大本营：点击无效（不弹 Toast）；其它 POI 门禁仍提示
+          if (pvpCampSlice) return;
           setMarchToast({ type: 'error', message: gate.error });
           return;
         }
@@ -1555,6 +1599,7 @@ export default function StrategicWorldMapSection({
           targetCityDbRow: row ?? null,
           citiesInCountyRows: countyCityRows,
           useWorldStackRoadCoords: useWorldStackMarch,
+          preferredPoiCell: { gx, gy },
           pvpCampBaseCamp:
             pvpCampSlice && String(pvpCampSlice.pvpWarId || '') === String(marchTargetPoiId)
               ? {
@@ -1563,11 +1608,18 @@ export default function StrategicWorldMapSection({
                   anchorOx: pvpCampSlice.anchorOx,
                   anchorOy: pvpCampSlice.anchorOy,
                   orientation: pvpCampSlice.orientation,
+                  worldCellKeys: pvpCampSlice.worldCellKeys,
                 }
               : null,
           pvpBaseCamps,
         });
       } else {
+        const campAtCell = findBaseCampSliceAtMergedCell(gy, gx, pvpBaseCamps, cols, rows);
+        const campStop = canPlayerStopOnAttackerBaseCampCell({
+          playerFactionId: marchPlayer?.factionId,
+          campAttackerFactionId: campAtCell?.attackerFactionId ?? campAtCell?.attacker_faction_id,
+        });
+        if (!campStop.ok) return;
         pathRes = buildMarchPath({
           cells,
           roadCells: merged.roadCells,
@@ -1606,7 +1658,7 @@ export default function StrategicWorldMapSection({
       }
       const others = Array.isArray(roadPresence?.others) ? roadPresence.others : [];
       const last = pathRes.path[pathRes.path.length - 1];
-      const lastLoc = playerRoadJunSliceFromWorldGy(last.y);
+      const lastLoc = playerRoadJunSliceFromWorldGy(last.y, last.x);
       const lastStackKey =
         lastLoc && Number.isFinite(last.x)
           ? roadCellStackKey(lastLoc.junId, last.x, lastLoc.localGy)
@@ -1645,7 +1697,7 @@ export default function StrategicWorldMapSection({
           poiTargetName =
             (wc.targetCityName != null && String(wc.targetCityName).trim()) ||
             (wc.warName != null && String(wc.warName).trim()) ||
-            '攻方大本营';
+            '营';
         }
       }
       setMarchConfirm({
@@ -1654,6 +1706,8 @@ export default function StrategicWorldMapSection({
         preview,
         encounterHint,
         targetPoiId: tid,
+        /** 郡战场等多入口：点选入口世界格，供服务端落点对齐 */
+        targetPoiStand: tid ? { x: gx, y: gy } : null,
         poiTargetName: poiTargetName || null,
         clientRequestId: createRoadClientRequestId('move'),
         roadStandSnapshot,
@@ -1733,6 +1787,16 @@ export default function StrategicWorldMapSection({
         confirmFoodCost: true,
       };
       if (marchConfirm.targetPoiId) body.targetPoiId = marchConfirm.targetPoiId;
+      if (
+        marchConfirm.targetPoiStand &&
+        Number.isFinite(Number(marchConfirm.targetPoiStand.x)) &&
+        Number.isFinite(Number(marchConfirm.targetPoiStand.y))
+      ) {
+        body.targetPoiStand = {
+          x: Math.trunc(Number(marchConfirm.targetPoiStand.x)),
+          y: Math.trunc(Number(marchConfirm.targetPoiStand.y)),
+        };
+      }
       const res = await playerAPI.roadMove(playerId, body);
       if (!res?.success) {
         const msg = res?.error || res?.message || '移动失败';
@@ -1864,7 +1928,9 @@ export default function StrategicWorldMapSection({
               <ZhouJunMapJumpPanel
                 variant="mapOverlay"
                 locateSelfCell={locateSelfStrategicCell}
+                locateSelfLabel={locateSelfButtonLabel}
                 progressSidebar={mapJumpProgressSidebar}
+                playableJunIds={cityRuntimeJunIds}
               />
               {mapCornerCompactViewport ? <MapCornerPlayerEntryColumn /> : null}
             </div>
@@ -1916,10 +1982,12 @@ export default function StrategicWorldMapSection({
           banditRaidStartBlockedReason={banditRaidStartBlockedReason}
           postBanditRaidRefreshKey={postBanditRaidRefreshKey}
           playerStandingPoiAnchorId={playerStandingPoiAnchorId}
+          playerStandingGridCell={playerStandingGridCell}
           playerStandingPvpWarId={playerStandingPvpWarId}
           pvpBaseCamps={pvpBaseCamps}
           activeWarTargetCityIds={activeWarTargetCityIds}
           onStartPvpBaseCampSiege={onStartPvpBaseCampSiege}
+          meowaUnderlays={merged?.meowaUnderlays || null}
         />
       </div>
       <StrategicMarchMoveConfirm

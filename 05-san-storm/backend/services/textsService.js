@@ -161,6 +161,7 @@ async function claimReward(playerId, textId) {
     }
 
     const details = [];
+    let stipendTacticTokenMerge = null;
 
     const [pRows] = await connection.query(
       'SELECT silver, food, reputation, contribution, morale, items, faction_id FROM players WHERE player_id = ? FOR UPDATE',
@@ -223,6 +224,17 @@ async function claimReward(playerId, textId) {
         if (stipend.food > 0) {
           details.push({ type: 'resource', resource: 'food', amount: stipend.food });
         }
+        if (stipend.tacticTokens > 0) {
+          const tokId = stipend.tacticTokenItemId || 'item_tactic_token';
+          details.push({
+            type: 'item',
+            itemId: tokId,
+            quantity: stipend.tacticTokens,
+            itemName: '兵符',
+          });
+          // 日俸已写入 items；下方会用开事务时快照再写 items，须合并以免冲掉兵符
+          stipendTacticTokenMerge = { itemId: tokId, quantity: stipend.tacticTokens };
+        }
       }
     }
 
@@ -246,6 +258,11 @@ async function claimReward(playerId, textId) {
       }
     }
     if (!items || typeof items !== 'object') items = {};
+
+    if (stipendTacticTokenMerge) {
+      const { itemId, quantity } = stipendTacticTokenMerge;
+      items[itemId] = (Number(items[itemId]) || 0) + quantity;
+    }
 
     if (att.items && typeof att.items === 'object' && !Array.isArray(att.items)) {
       for (const [itemId, qty] of Object.entries(att.items)) {

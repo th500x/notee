@@ -1,10 +1,10 @@
-import { forwardRef, useState, useCallback, useRef } from 'react';
+import { forwardRef, useState, useCallback, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import CampaignMapTile from './CampaignMapTile';
 import CampaignMapUnitsOverlay from './CampaignMapUnitsOverlay';
 import { manualHighlightForTacticalCell } from '@/battle/manualHighlightModel';
 import {
-  buildTroopTooltipContent, buildCampaignCellTooltipInfo,
+  buildTroopTooltipContent, buildCampaignCellTooltipInfo, sumBattleFactionTroopTotals,
 } from '@/components/battle/battleConstants';
 import { useTileTooltipClamp } from '@/components/battle/useTileTooltipClamp';
 import TileTooltipContent from '@/components/battle/TileTooltipContent';
@@ -52,6 +52,33 @@ const CampaignMapGrid = forwardRef(function CampaignMapGrid(
   const [tooltipContent, setTooltipContent] = useState(null);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
   const { tooltipRef, tooltipStyle } = useTileTooltipClamp(tooltipContent, tooltipPos);
+  const [mapInfoOpen, setMapInfoOpen] = useState(false);
+  const mapTitleBlockRef = useRef(null);
+  /** 同 BattleMap：兵力原地变更时数组引用不变，不可对 battleTroops 引用做 useMemo 缓存 */
+  const factionTroopTotals = sumBattleFactionTroopTotals(battleTroops);
+  const gridRows = Array.isArray(cells) ? cells.length : 0;
+  const gridCols = gridRows > 0 && Array.isArray(cells[0]) ? cells[0].length : 0;
+  const gridStyle =
+    gridCols > 0 && gridRows > 0
+      ? { '--camp-cols': gridCols, '--camp-rows': gridRows }
+      : undefined;
+
+  useEffect(() => {
+    if (!mapInfoOpen) return undefined;
+    const onPointerDown = (e) => {
+      if (mapTitleBlockRef.current?.contains(e.target)) return;
+      setMapInfoOpen(false);
+    };
+    const onKey = (e) => {
+      if (e.key === 'Escape') setMapInfoOpen(false);
+    };
+    document.addEventListener('pointerdown', onPointerDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [mapInfoOpen]);
 
   const suppressEnemyTroopTooltipRef = useRef(false);
   suppressEnemyTroopTooltipRef.current = suppressEnemyTroopTooltip;
@@ -125,21 +152,45 @@ const CampaignMapGrid = forwardRef(function CampaignMapGrid(
     <div className="campaign-map-card">
       <div className="campaign-map-aligned-stack">
         {title && (
-          <div className="campaign-map-title">
-            {title}
+          <div className="campaign-map-title" style={{ position: 'relative' }} ref={mapTitleBlockRef}>
+            <button
+              type="button"
+              className="map-title-label-btn"
+              aria-expanded={mapInfoOpen}
+              aria-controls="campaign-map-gen-info"
+              title="点按查看地图信息"
+              onClick={() => setMapInfoOpen((v) => !v)}
+            >
+              {title}
+            </button>
             {roundNum > 0 && <span className="round-badge">第{roundNum}回合</span>}
             {manualActionHintText ? (
               <span className="campaign-map-action-hint">{manualActionHintText}</span>
             ) : null}
+            {mapInfoOpen && meta ? (
+              <div id="campaign-map-gen-info" className="map-label-info-pop" role="dialog" aria-label="地图信息">
+                {meta}
+              </div>
+            ) : null}
           </div>
         )}
-        {meta && <div className="campaign-map-meta">{meta}</div>}
+        <div className="campaign-map-meta map-meta-troops" aria-live="polite">
+          <span className="mt-player">我军：{factionTroopTotals.player}</span>
+          <span className="mt-sep">/</span>
+          <span className="mt-enemy">敌军：{factionTroopTotals.enemy}</span>
+          <span className="mt-sep">/</span>
+          <span className="mt-ally">友军：{factionTroopTotals.ally}</span>
+        </div>
         <div
           className="campaign-map-wrap"
           onMouseMove={showTileTooltips ? handleWrapperMove : undefined}
           onMouseLeave={showTileTooltips ? handleLeave : undefined}
         >
-        <div className="campaign-map-shell" ref={shellRef} style={{ position: 'relative' }}>
+        <div
+          className="campaign-map-shell"
+          ref={shellRef}
+          style={{ position: 'relative', ...(gridStyle || {}) }}
+        >
           <div className="campaign-map-grid">
             {cells.map((row, ri) =>
               row.map((cell, ci) => {

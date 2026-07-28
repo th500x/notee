@@ -17,6 +17,7 @@ import { expandRewardPresetsForPreview } from '@shared/utils/eventRewardPresets.
 import {
   isBanditMapObjectId,
   EVENT_PUNISHMENT_COMBAT_BANDIT_LOCATION_SLOT_RARITIES,
+  eventChainLevelToBattleRarity,
   eventCardRarityToBanditTier,
   banditTierSlotRarities,
   cityTypeToBanditTier,
@@ -55,7 +56,7 @@ export {
 };
 
 /**
- * `trigger_context = tutorial`：不占用玩家探索配额（客户端不 consume，失败路径不 refund）。
+ * `trigger_context = tutorial`：不扣探索开链兵符（亦不走旧探索次数）。
  * 与 `useEventSystem`、配置表 `config_events.trigger_context` 对齐。
  */
 export function eventSkipsExploreQuota(ev) {
@@ -316,16 +317,6 @@ export function isFortuneSuccess(fortune) {
   return fortune && (fortune.name === '吉' || fortune.name === '大吉' || fortune.name === '鸿运');
 }
 
-/** @param {string|null|undefined} eventId */
-function eventCardRarityFromEventId(eventId) {
-  if (!eventId) return 'common';
-  const parts = String(eventId).split('_');
-  const lastPart = parts[parts.length - 1];
-  const ch = lastPart && lastPart.length > 0 ? lastPart.charAt(0) : '';
-  const map = { 1: 'common', 2: 'rare', 3: 'epic', 4: 'legendary', 5: 'core' };
-  return map[ch] || 'common';
-}
-
 /** 选项 A 因子为 type-b 时惩罚战为 5 编制（与 EventBattle / useBattleMap 一致） */
 function exploreOptionAIsTypeB(option) {
   if (!option || typeof option !== 'object') return false;
@@ -347,13 +338,14 @@ export function eventHasExplorePunitiveBattleOptionA(event) {
 
 /**
  * 单事件惩罚战敌方部队槽稀有度列表（长度 4 或 5），与小型图 PVE 抽池一致。
+ * 难度来自 `chain_level`（见 `eventChainLevelToBattleRarity`）；匪寨格探索仍固定传奇四槽。
  * @param {Record<string, unknown>} event
  * @param {string|null|undefined} exploreLocationId
  * @returns {string[]|null}
  */
 export function getExplorePunitiveBattleTroopSlotRarities(event, exploreLocationId) {
   if (!event || !exploreLocationId || !eventHasExplorePunitiveBattleOptionA(event)) return null;
-  const eventRarity = eventCardRarityFromEventId(event.event_id);
+  const eventRarity = eventChainLevelToBattleRarity(event.chain_level ?? event.chainLevel);
   const typeB = exploreOptionAIsTypeB(event.option_a);
   const bandit = isBanditMapObjectId(exploreLocationId);
 
@@ -414,7 +406,7 @@ export function summarizeExplorePoolEnemyTroopRarityRange(poolEvents, exploreLoc
 export function wildernessEnemyTroopRarityDocRangeFromMainCityType(cityType) {
   const ct = String(cityType ?? '').trim();
   if (!ct) return null;
-  const supported = new Set(['city_small', 'city_medium', 'city_major', 'gate', 'fort']);
+  const supported = new Set(['city_small', 'city_medium', 'city_major', 'city_gate']);
   if (!supported.has(ct)) return null;
   const tier = cityTypeToBanditTier(ct);
   const slots = banditTierSlotRarities(tier);

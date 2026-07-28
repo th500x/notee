@@ -8,25 +8,24 @@ async function fetchJunQuotasSnapshot(playerId, junIdList) {
       const poiList = getPhase1BanditPoiIdsForJun(jid);
       const rep = poiList[0] || null;
       if (!rep) {
-        return [jid, { remaining: 0, max: 18, loaded: true, representativeBanditPoiId: null }];
+        return [jid, { remaining: 0, loaded: true, representativeBanditPoiId: null }];
       }
       try {
         const res = await playerAPI.getBanditRaidQuota(playerId, rep);
         if (!res?.success || !res.data) {
-          return [jid, { remaining: 0, max: 18, loaded: true, representativeBanditPoiId: rep }];
+          return [jid, { remaining: 0, loaded: true, representativeBanditPoiId: rep }];
         }
         const d = res.data;
         return [
           jid,
           {
-            remaining: Number(d.remaining) || 0,
-            max: Number(d.max) || 18,
+            remaining: Number(d.tacticTokens ?? d.remaining) || 0,
             loaded: true,
             representativeBanditPoiId: rep,
           },
         ];
       } catch {
-        return [jid, { remaining: 0, max: 18, loaded: true, representativeBanditPoiId: rep }];
+        return [jid, { remaining: 0, loaded: true, representativeBanditPoiId: rep }];
       }
     }),
   );
@@ -34,11 +33,11 @@ async function fetchJunQuotasSnapshot(playerId, junIdList) {
 }
 
 /**
- * 按郡拉取匪寨攻打次数快照（同郡多寨共用 `byJunRaidQuota`，任取该郡一枚 `banditPoiId` 调 GET 即可）。
+ * 按郡拉取匪寨攻打资源快照（`remaining` = 兵符持有量；任取该郡一枚 `banditPoiId` 调 GET）。
  * @param {string|null|undefined} playerId
  * @param {readonly string[]|string[]} junIds
  * @param {number} [refreshKey]
- * @returns {Record<string, { remaining: number, max: number, loaded: boolean, representativeBanditPoiId: string|null }>}
+ * @returns {Record<string, { remaining: number, loaded: boolean, representativeBanditPoiId: string|null }>}
  */
 export function useStrategicJunBanditRaidQuotas(playerId, junIds, refreshKey = 0) {
   const junKey = useMemo(() => [...(junIds || [])].filter(Boolean).join(','), [junIds]);

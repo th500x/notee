@@ -2,6 +2,7 @@
  * 战略大地图：玩家自身占位。圆形内为角色名末字；键鼠悬停圆形时显示全名与兵力 tooltip。
  * 触摸 / 粗指针：`pointerType==='touch'`（不依赖 `(pointer: coarse)`，避免竖屏误判）；道路格上 **行军/来战** 固定于头像上下（无弹出/关闭）；非道路格短按/单击仍弹出操作条（行军/来战，无「关闭」）。长按约 1s 松手后直接进入行军模式。
  * 键鼠：单击打开操作条（与悬停可同时看到 tooltip）。**一键进军**请使用道路格双击 / 触摸双触（见 `WorldStrategicMapTile` 与 **31-6 §8**），**不在**本人叠层上绑双击，避免竖屏单点被误判为双击。
+ * 命中：列容器穿透。头像默认可悬停出 tooltip；战场入口 / 攻方大本营立足时屏蔽 tooltip 且头像穿透，便于点开格面板。「行军/来战」按钮始终可点。
  */
 
 import { useState, useCallback, useSyncExternalStore, useRef, useEffect, useMemo } from 'react';
@@ -79,6 +80,7 @@ function splitMapPawnTooltipLabels(displayName) {
  * @param {number|null} [props.interceptSilver] - 当前银两（展示确认文案）
  * @param {() => void|Promise<void>} [props.onRoadSelfUpdated] - 切换成功后刷新档案
  * @param {boolean} [props.onRoadCell] - 当前立点在道路格：行军/来战固定显于头像上下（31-6 §8）
+ * @param {boolean} [props.suppressHoverTooltip] - 战场入口 / 攻方大本营立足时屏蔽势力·兵力 tooltip（避免挡格点击）
  * @param {(open: boolean) => void} [props.onSelfPawnOverlayOpenChange] - 非道路格操作条或来战确认打开时通知（道路格固定钮不计入）
  */
 export default function StrategicMapSelfPawn({
@@ -102,6 +104,7 @@ export default function StrategicMapSelfPawn({
   interceptSilver = null,
   onRoadSelfUpdated = null,
   onRoadCell = false,
+  suppressHoverTooltip = false,
   onSelfPawnOverlayOpenChange = null,
 }) {
   const selfMarchUi = typeof onEnterMarchMode === 'function';
@@ -173,8 +176,12 @@ export default function StrategicMapSelfPawn({
   const showTroops = Number.isFinite(troopsCurrent) && Number.isFinite(troopsMax);
   const troopText = showTroops ? `${Math.max(0, Math.round(troopsCurrent))}/${Math.max(0, Math.round(troopsMax))}` : null;
   const showHoverTooltip = hover && !coarsePointer;
-  /** 短按打开操作条时与键鼠单击一致：tooltip 与按钮同显（非道路格） */
-  const showAnyTooltip = showHoverTooltip || touchLongTooltip || (!roadFixedActions && showActionPopover);
+  /** 短按打开操作条时与键鼠单击一致：tooltip 与按钮同显（非道路格）；战场入口/大本营立足时屏蔽 */
+  const showAnyTooltip =
+    !suppressHoverTooltip &&
+    (showHoverTooltip || touchLongTooltip || (!roadFixedActions && showActionPopover));
+  /** 屏蔽时头像穿透；否则恢复悬停/点按（与改战场门闩前一致） */
+  const avatarInteractive = !suppressHoverTooltip;
   const stripPeers = Array.isArray(stackStripPeers) ? stackStripPeers : [];
   const showStackStripRow =
     showAnyTooltip && (stripPeers.length > 0 || stackStripEllipsis);
@@ -325,6 +332,13 @@ export default function StrategicMapSelfPawn({
     },
     [clearMarchTimer],
   );
+
+  useEffect(() => {
+    if (suppressHoverTooltip) {
+      setHover(false);
+      setTouchLongTooltip(false);
+    }
+  }, [suppressHoverTooltip]);
 
   useEffect(() => {
     if (typeof onSelfPawnOverlayOpenChange !== 'function') return undefined;
@@ -534,17 +548,7 @@ export default function StrategicMapSelfPawn({
       style={{ left: `${cx}px`, top: `${cy}px` }}
     >
       <div className="ws-map-self-pawn__anchor">
-        <div
-          ref={hitRef}
-          className={hitClassName}
-          onMouseEnter={onEnter}
-          onMouseLeave={onLeave}
-          onClick={selfMarchUi ? onHitClick : undefined}
-          onPointerDown={selfMarchUi ? onPointerDown : undefined}
-          onPointerMove={selfMarchUi ? onPointerMove : undefined}
-          onPointerUp={selfMarchUi ? onPointerUp : undefined}
-          onPointerCancel={selfMarchUi ? onPointerCancel : undefined}
-        >
+        <div className={hitClassName}>
           {/* 道路：行军在头像上；城内仅行军时同样置顶，避免信息框盖住下方按钮 */}
           {(roadFixedActions && !interceptPanel) || citySingleMarchOpen
             ? renderMarchButton(
@@ -552,7 +556,23 @@ export default function StrategicMapSelfPawn({
               )
             : null}
           <div className="ws-map-self-pawn__avatar-row">
-            <div className="ws-map-self-pawn__avatar-wrap">
+            <div
+              ref={hitRef}
+              className={
+                avatarInteractive
+                  ? 'ws-map-self-pawn__avatar-wrap ws-map-self-pawn__avatar-wrap--interactive'
+                  : 'ws-map-self-pawn__avatar-wrap'
+              }
+              onMouseEnter={avatarInteractive ? onEnter : undefined}
+              onMouseLeave={avatarInteractive ? onLeave : undefined}
+              onClick={selfMarchUi && avatarInteractive && !roadFixedActions ? onHitClick : undefined}
+              onPointerDown={selfMarchUi && avatarInteractive && !roadFixedActions ? onPointerDown : undefined}
+              onPointerMove={selfMarchUi && avatarInteractive && !roadFixedActions ? onPointerMove : undefined}
+              onPointerUp={selfMarchUi && avatarInteractive && !roadFixedActions ? onPointerUp : undefined}
+              onPointerCancel={
+                selfMarchUi && avatarInteractive && !roadFixedActions ? onPointerCancel : undefined
+              }
+            >
               <div className={avatarClassName}>
                 {src ? (
                   <img

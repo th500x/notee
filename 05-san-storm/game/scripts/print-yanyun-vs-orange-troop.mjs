@@ -92,7 +92,7 @@ for (const [name, r] of ratios) {
 }
 
 console.log('说明：');
-console.log('- troopWeight>1 时兵力系数用 (当前/最大)^0.8，满编与线性一致，残编比线性略“耐打”（系数更高）。');
+console.log('- 攻防兵力系数：0.60+(1-0.60)×(当前/最大)；满编=1，残编仍保留至少约六成战力。');
 console.log('- 伤害另乘「等效兵力比」min/max(0.33~3)：燕云 max×3.5=630，丹阳=600，略偏燕云。');
 console.log('- 燕云打步兵有 infantryCounter 1.2；丹阳打骑兵 cavalryCounter 0.9。');
 console.log('- 燕云 troopWeight=3.5：公式伤害÷3.5 四舍五入为兵力条扣减（至少 1），与等效兵力放大对称。');

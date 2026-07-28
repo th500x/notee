@@ -1,5 +1,5 @@
 import { createPortal } from 'react-dom';
-import { Suspense, lazy } from 'react';
+import { Suspense, lazy, useMemo } from 'react';
 import ChunkLoadFallback from '@/components/game/ChunkLoadFallback';
 import StrategicSettlementCard from '@/components/world/StrategicSettlementCard';
 import { isPvpDuelDefenderType } from '@/utils/roadEncounterSettlement';
@@ -8,6 +8,7 @@ import {
   isWorldMapNpcSiegeBgmContext,
 } from '@/hooks/useWorldMapStrategicBattles';
 import { useBgmScene } from '@/hooks/useBgmScene';
+import { buildBanditBetweenLayerHealTroopRows } from '@/utils/inflightBattleTroopSnapshot';
 
 const BattleArena = lazy(() => import('@/components/battle/BattleArena'));
 
@@ -36,6 +37,17 @@ export default function WorldMapBattlePortal({
 
   const siegeContinueEligible =
     typeof onSiegeContinue === 'function' && canContinueWorldMapNpcSiege(siegeData, siegeResult);
+
+  const banditHealTroops = useMemo(() => {
+    if (banditRaidResult?.result !== 'victory') return null;
+    if (
+      Array.isArray(banditRaidResult.banditHealTroops) &&
+      banditRaidResult.banditHealTroops.length > 0
+    ) {
+      return banditRaidResult.banditHealTroops;
+    }
+    return buildBanditBetweenLayerHealTroopRows(player?.playerId, cards);
+  }, [banditRaidResult, player?.playerId, cards]);
 
   if (typeof document === 'undefined' || !open) return null;
 
@@ -84,8 +96,8 @@ export default function WorldMapBattlePortal({
             }
             onBattleEnd={onSiegeBattleEnd}
             recordOnly={!!siegeData.skipSiegeResult}
-            cityDefense={siegeData.pvpDefenderBaseCampSiege ? undefined : siegeData.cityDefense}
-            siegeCityDefenseMult={siegeData.pvpDefenderBaseCampSiege ? undefined : siegeData.siegeCityDefenseMult}
+            cityDefense={siegeData.cityDefense}
+            siegeCityDefenseMult={siegeData.siegeCityDefenseMult}
             pvpSiegeRole={siegeData.pvpSiegeRole}
             pvpDefenderBaseCampSiege={!!siegeData.pvpDefenderBaseCampSiege}
             defenseReportMeta={
@@ -177,6 +189,8 @@ export default function WorldMapBattlePortal({
           extraFooterNote={banditRaidResult.defeatHint}
           banditBadgeGranted={banditRaidResult.meta?.banditBadgeGranted}
           banditBadgeError={banditRaidResult.meta?.banditBadgeError}
+          banditHealTroops={banditHealTroops}
+          playerFood={player?.food ?? 0}
         />
       ) : null}
     </div>,

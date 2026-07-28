@@ -178,8 +178,8 @@ function computeMoveFoodPlan(player, stepsCount, noFoodCost = false) {
   const freeUsed = freeDateStr === todayStr ? Number(player.road_move_free_used) || 0 : 0;
   const reserveUsed = reserveDateStr === todayStr ? Number(player.road_reserve_used) || 0 : 0;
 
-  // AI 玩家行军不消耗粮草（也不占用免费格配额）：全部步数视为 0 成本，避免"个人粮/势力储备耗尽即卡死"。
-  // 仅由显式调用方（aiPlayerMovementPlanner，body.noFoodCost=true）触发，真人路径不受影响。
+  // 可选免粮草行军（也不占用免费格配额）：全部步数视为 0 成本。
+  // 仅 body.noFoodCost=true 时生效；真人默认路径不传此标志。历史调用方为已归档的 AI 玩家移动规划。
   if (noFoodCost) {
     return {
       todayStr,
@@ -251,7 +251,7 @@ async function moveAlongRoadAttempt(playerId, body) {
   if (!inputCheck.ok) return inputCheck;
   const { pid, season, junId, clientRequestId } = inputCheck;
   const scopedMoveReqId = scopedRoadRequestId(ROAD_REQ_SCOPE.MOVE, clientRequestId);
-  // AI 行军免粮草（由 aiPlayerMovementPlanner 显式传入；真人调用不带此标志）
+  // 可选免粮草（显式 noFoodCost；真人默认不传）
   const noFoodCost = body?.noFoodCost === true;
 
   const conn = await pool.getConnection();
@@ -307,15 +307,16 @@ async function moveAlongRoadAttempt(playerId, body) {
       countyCityRows = ccRows;
     }
 
-    /** 与客户端 `StrategicWorldMapSection` 同源：离路出发须识别攻方大本营 footprint（无主城回退）。 */
+    /** 全图活跃攻方大本营（含他势力）：离路出发识别本营 + 终点停营门闸。 */
     let pvpBaseCampsForMarch = [];
-    if (useStackGrid && player.faction_id != null && String(player.faction_id).trim() !== '') {
+    {
       const [pvpWarCampRows] = await conn.query(
-        `SELECT pvp_war_id AS pvpWarId, target_city_id AS targetCityId, base_camp AS baseCamp
+        `SELECT pvp_war_id AS pvpWarId, attacker_faction_id AS attackerFactionId,
+                target_city_id AS targetCityId, base_camp AS baseCamp
            FROM wars_pvp
-          WHERE status = 'active' AND season = ? AND attacker_faction_id = ?
-          LIMIT 80`,
-        [season, player.faction_id],
+          WHERE status = 'active' AND season = ?
+          LIMIT 120`,
+        [season],
       );
       for (const row of pvpWarCampRows || []) {
         let bc = row.baseCamp;
@@ -338,6 +339,8 @@ async function moveAlongRoadAttempt(playerId, body) {
           ...bc,
           ...(junPatch ? { junId: junPatch } : {}),
           pvpWarId: String(row.pvpWarId || '').trim(),
+          attackerFactionId: row.attackerFactionId != null ? String(row.attackerFactionId).trim() : '',
+          kind: 'pvp',
         });
       }
       const [pveWarCampRows] = await conn.query(
@@ -349,7 +352,6 @@ async function moveAlongRoadAttempt(playerId, body) {
           LIMIT 80`,
         [season],
       );
-      const playerFactionKey = String(player.faction_id || '').trim();
       for (const row of pveWarCampRows || []) {
         let camps = row.attackerBaseCamps;
         if (typeof camps === 'string') {
@@ -359,22 +361,24 @@ async function moveAlongRoadAttempt(playerId, body) {
             camps = null;
           }
         }
-        if (!camps || typeof camps !== 'object' || !playerFactionKey) continue;
-        const bc = camps[playerFactionKey];
-        if (!bc || !Array.isArray(bc.cells) || !bc.cells.length) continue;
+        if (!camps || typeof camps !== 'object') continue;
         const tid = row.targetCityId != null ? String(row.targetCityId).trim() : '';
-        let junPatch = String(bc.junId ?? bc.jun_id ?? '').trim();
-        if (!junPatch && tid && Array.isArray(countyCityRows)) {
-          const cr = countyCityRows.find((r) => String(r.city_id ?? r.cityId ?? '').trim() === tid);
-          const jfrom = cr?.jun_id ?? cr?.junId;
-          if (jfrom) junPatch = String(jfrom).trim();
+        for (const [factionKey, bc] of Object.entries(camps)) {
+          if (!bc || !Array.isArray(bc.cells) || !bc.cells.length) continue;
+          let junPatch = String(bc.junId ?? bc.jun_id ?? '').trim();
+          if (!junPatch && tid && Array.isArray(countyCityRows)) {
+            const cr = countyCityRows.find((r) => String(r.city_id ?? r.cityId ?? '').trim() === tid);
+            const jfrom = cr?.jun_id ?? cr?.junId;
+            if (jfrom) junPatch = String(jfrom).trim();
+          }
+          pvpBaseCampsForMarch.push({
+            ...bc,
+            ...(junPatch ? { junId: junPatch } : {}),
+            pvpWarId: String(row.pveWarId || '').trim(),
+            attackerFactionId: String(factionKey || '').trim(),
+            kind: 'pve',
+          });
         }
-        pvpBaseCampsForMarch.push({
-          ...bc,
-          ...(junPatch ? { junId: junPatch } : {}),
-          pvpWarId: String(row.pveWarId || '').trim(),
-          kind: 'pve',
-        });
       }
     }
 
@@ -477,6 +481,12 @@ async function moveAlongRoadAttempt(playerId, body) {
         await conn.rollback();
         return { ok: false, status: 403, error: acc.error };
       }
+      const preferredStand =
+        body.targetPoiStand &&
+        Number.isFinite(Number(body.targetPoiStand.x)) &&
+        Number.isFinite(Number(body.targetPoiStand.y))
+          ? { gx: toInt(body.targetPoiStand.x), gy: toInt(body.targetPoiStand.y) }
+          : null;
       // POI 最短路按全道路网；途经敌对占格在逐步落脚时触发遭遇（与客户端预览一致）。
       const built = marchPoi.buildMarchPathToStrategicPoi({
         cells: grid.rawCells,
@@ -491,6 +501,7 @@ async function moveAlongRoadAttempt(playerId, body) {
         useWorldStackRoadCoords: useStackGrid,
         pvpCampBaseCamp: marchToPvpCampPoi ? pvpCampBaseCampJson : null,
         pvpBaseCamps: pvpBaseCampsForMarch.length ? pvpBaseCampsForMarch : null,
+        preferredPoiCell: preferredStand,
       });
       if (!built.ok) {
         await conn.rollback();
@@ -581,6 +592,30 @@ async function moveAlongRoadAttempt(playerId, body) {
     if (pathShapeErr) {
       await conn.rollback();
       return { ok: false, status: 400, error: pathShapeErr };
+    }
+
+    /** 终点若为大本营格：仅所属势力可停；途经不拦。 */
+    {
+      const endPt = resolvedPath[resolvedPath.length - 1];
+      const endGx = toInt(endPt.x);
+      const endGy = toInt(endPt.y);
+      if (endGx != null && endGy != null && pvpBaseCampsForMarch.length) {
+        const campSlice = marchPoi.findBaseCampSliceAtMergedCell(
+          endGy,
+          endGx,
+          pvpBaseCampsForMarch,
+          grid.mapColumns,
+          grid.mapRows,
+        );
+        const stopGate = marchPoi.canPlayerStopOnAttackerBaseCampCell({
+          playerFactionId: player.faction_id,
+          campAttackerFactionId: campSlice?.attackerFactionId ?? campSlice?.attacker_faction_id,
+        });
+        if (!stopGate.ok) {
+          await conn.rollback();
+          return { ok: false, status: 403, error: stopGate.error };
+        }
+      }
     }
 
     // 解算起点：path[0] 必须等于当前 road_position（若已在可通行道路格上），

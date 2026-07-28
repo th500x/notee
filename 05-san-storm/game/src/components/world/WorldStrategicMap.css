@@ -3,8 +3,9 @@
 
 .ws-map-card {
   --ws-tile: 20px;
+  /* 运行时由 inline style 覆盖；默认对齐 S1 L 形 32×60（31-1 P4） */
   --ws-cols: 32;
-  --ws-rows: 40;
+  --ws-rows: 60;
   background: transparent;
   border: none;
   padding: 0;
@@ -71,13 +72,13 @@
 }
 
 /*
- * 小于视口时仍可在轴向上居中；大于视口时须贴左上，与 `StrategicWorldMapSection` 角钮 `left-2` 对齐。
- * （flex center 会在 map 宽于 wrap 时给 scrollport 左右留白，scrollLeft=0 时格网左缘内缩。）
+ * 地图小于视口：轴上居中（颍川单郡窄图不再贴左）。
+ * 地图大于视口：inner 随 max-content 长成格网尺寸，子项与父同大，无额外左右留白，scrollLeft=0 对齐左缘。
  */
 .ws-map-scrollport-inner {
   display: flex;
-  justify-content: flex-start;
-  align-items: flex-start;
+  justify-content: center;
+  align-items: center;
   box-sizing: border-box;
   min-width: 100%;
   min-height: 100%;
@@ -94,14 +95,37 @@
 }
 
 .ws-map-grid {
+  /* 勿设 z-index：否则会自成 stacking context，子格的 footprint 抬层无法盖过同级道路 SVG */
   position: relative;
-  z-index: 1;
   display: grid;
   grid-template-columns: repeat(var(--ws-cols), var(--ws-tile));
   grid-template-rows: repeat(var(--ws-rows), var(--ws-tile));
   gap: 1px;
   background: #0a0a14;
   border: 1px solid #222;
+}
+
+/* Meowa 整幅底板：去 gap，使格网与 preview.png 像素对齐 */
+.ws-map-grid.ws-map-grid--meowa-underlay {
+  gap: 0;
+  background: transparent;
+  border-color: #3f3a32;
+}
+
+/* Meowa：浅色格线（右/下边，避免 gap:0 时双边叠加过粗；对齐玩法一格网可读性） */
+.ws-map-grid.ws-map-grid--meowa-underlay .ws-map-tile {
+  box-shadow:
+    inset -1px 0 0 rgba(255, 255, 255, 0.22),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.22);
+}
+
+.ws-map-meowa-underlay {
+  position: absolute;
+  z-index: 0;
+  pointer-events: none;
+  user-select: none;
+  object-fit: fill;
+  image-rendering: auto;
 }
 
 /* PC 点击展开 tooltip 时提示可点 */
@@ -116,7 +140,96 @@
   height: var(--ws-tile);
 }
 
-/* 战略多格对象：锚点格左上，PNG 跨格 + 中间 1px gap（与 .ws-map-grid gap 一致） */
+/* 31-1 P3：郡战场入口格轻量高亮（无专用 PNG 时） */
+.ws-map-tile.ws-tile-jun-battlefield::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  box-shadow: inset 0 0 0 2px rgba(217, 70, 239, 0.85);
+  background: rgba(217, 70, 239, 0.18);
+}
+
+/* 13-8：中心信息区淡底（叠层文字在 HUD） */
+.ws-map-tile.ws-tile-jun-battlefield-info {
+  overflow: visible;
+  z-index: 5;
+}
+.ws-map-tile.ws-tile-jun-battlefield-info::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  background: rgba(20, 16, 12, 0.22);
+}
+
+.ws-battlefield-info-hud {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 8;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 2px;
+  padding: 4px 3px 2px;
+  /* 可点：事件冒泡到所属信息锚点格，打开匪寨面板（13-8） */
+  pointer-events: auto;
+  cursor: pointer;
+  text-align: center;
+  background: linear-gradient(180deg, rgba(12, 10, 8, 0.55) 0%, rgba(12, 10, 8, 0.2) 70%, transparent 100%);
+}
+
+.ws-battlefield-info-hud-title {
+  font-size: clamp(8px, calc(var(--ws-tile) * 0.42), 14px);
+  font-weight: 800;
+  color: #fecaca;
+  text-shadow:
+    0 0 3px #000,
+    0 1px 2px rgba(0, 0, 0, 0.9);
+  line-height: 1.15;
+}
+
+.ws-battlefield-info-hud-shares {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 2px 6px;
+  max-width: 100%;
+}
+
+.ws-battlefield-info-hud-share {
+  font-size: clamp(6px, calc(var(--ws-tile) * 0.28), 11px);
+  font-weight: 700;
+  color: #fde68a;
+  text-shadow: 0 0 2px #000;
+  white-space: nowrap;
+}
+
+/* 31-1 P4：L 形右上 VOID 装饰带 */
+.ws-map-tile.ws-tile-void-band {
+  filter: saturate(0.35) brightness(0.72);
+}
+.ws-map-tile.ws-tile-void-band::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    -45deg,
+    transparent,
+    transparent 3px,
+    rgba(30, 20, 10, 0.22) 3px,
+    rgba(30, 20, 10, 0.22) 5px
+  );
+}
+
+/* 战略多格/单格对象锚点：抬到道路 SVG（z=3）之上，使营/城立绘不被路网盖住 */
 .ws-map-tile.ws-tile-strategic-footprint {
   z-index: 4;
   overflow: visible;
@@ -246,7 +359,7 @@
   }
 }
 
-/* 仅锚点格：类型 + 名称（2×2 与对象层同宽） */
+/* 匪寨 / 大本营叠字：类型 + 名称（城池已改势力旗） */
 .ws-strategic-label {
   position: absolute;
   left: 0;
@@ -298,7 +411,7 @@
   font-weight: 800;
 }
 
-/* 长官名：字号与城名一致；与 `cityService` lord_character_name / 玩家长官角色名一致；无长官时不渲染 */
+/* 长官名：匪寨等叠字残留；城池不再叠长官 */
 .ws-strategic-label-lord {
   margin-top: 1px;
   font-size: clamp(6px, calc(var(--ws-tile) * 0.32), calc(var(--ws-tile) * 10 / 48 + var(--ui-font-dpr-bump, 0px)));
@@ -325,8 +438,8 @@
   justify-content: center;
 }
 
-/* 2×2 锚点格：势力六芒星落在整块区域右下角（单格边长约 30%），压在建筑立绘之上 */
-.ws-strategic-faction-logo-wrap {
+/* 2×2 城锚点：势力旗落在右上角瓦片（尺寸/位置与原旗一致；旗心「单字势力·城名」） */
+.ws-strategic-faction-flag-wrap {
   position: absolute;
   left: 0;
   top: 0;
@@ -335,28 +448,103 @@
   height: calc(2 * var(--ws-tile) + 1px);
   max-width: none;
   display: flex;
-  align-items: flex-end;
+  align-items: flex-start;
   justify-content: flex-end;
   box-sizing: border-box;
-  padding: 0 1px 1px 0;
+  padding: calc(var(--ws-tile) * 0.06) calc(var(--ws-tile) * 0.06) 0 0;
   pointer-events: none;
 }
 
-/* 中城 / 大城 2 枚竖排；小城等 1 枚 */
-.ws-strategic-faction-logo-stack {
+.ws-strategic-faction-flag {
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  justify-content: flex-end;
-  gap: calc(var(--ws-tile) * 0.035);
+  flex-direction: row;
+  align-items: stretch;
+  width: calc(var(--ws-tile) * 0.88);
+  height: calc(var(--ws-tile) * 0.62);
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.55));
 }
 
-.ws-strategic-faction-logo {
-  width: calc(var(--ws-tile) * 0.3);
-  height: calc(var(--ws-tile) * 0.3);
-  object-fit: contain;
-  display: block;
-  filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.55));
+.ws-strategic-faction-flag-pole {
+  flex: 0 0 calc(var(--ws-tile) * 0.07);
+  width: calc(var(--ws-tile) * 0.07);
+  background: linear-gradient(180deg, #d6d3d1 0%, #78716c 45%, #44403c 100%);
+  border-radius: 1px;
+  box-shadow: inset -1px 0 0 rgba(0, 0, 0, 0.35);
+}
+
+.ws-strategic-faction-flag-cloth {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--ws-flag-fill, #6b7280);
+  clip-path: polygon(0 0, 100% 0, 88% 50%, 100% 100%, 0 100%);
+  border: 1px solid rgba(0, 0, 0, 0.28);
+  border-left: none;
+  box-sizing: border-box;
+  padding: 0 calc(var(--ws-tile) * 0.12) 0 calc(var(--ws-tile) * 0.04);
+}
+
+.ws-strategic-faction-flag-text {
+  display: inline-flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 0;
+  max-width: 100%;
+  min-width: 0;
+  white-space: nowrap;
+  line-height: 1;
+  font-weight: 800;
+  text-shadow:
+    0 0 2px rgba(0, 0, 0, 0.45),
+    0 1px 1px rgba(0, 0, 0, 0.35);
+}
+
+.ws-strategic-faction-flag-faction {
+  flex: 0 0 auto;
+  font-size: clamp(5px, calc(var(--ws-tile) * 0.2), calc(var(--ws-tile) * 7 / 48 + var(--ui-font-dpr-bump, 0px)));
+  font-weight: 700;
+  opacity: 0.92;
+}
+
+.ws-strategic-faction-flag-sep {
+  flex: 0 0 auto;
+  font-size: clamp(5px, calc(var(--ws-tile) * 0.2), calc(var(--ws-tile) * 7 / 48 + var(--ui-font-dpr-bump, 0px)));
+  font-weight: 700;
+  opacity: 0.85;
+}
+
+.ws-strategic-faction-flag-city {
+  flex: 0 0 auto;
+  font-size: clamp(6px, calc(var(--ws-tile) * 0.26), calc(var(--ws-tile) * 9 / 48 + var(--ui-font-dpr-bump, 0px)));
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+/* 三字城名：缩小字号完整显示，不用省略号 */
+.ws-strategic-faction-flag--city3 .ws-strategic-faction-flag-cloth,
+.ws-strategic-faction-flag--city4 .ws-strategic-faction-flag-cloth {
+  padding-right: calc(var(--ws-tile) * 0.08);
+}
+
+.ws-strategic-faction-flag--city3 .ws-strategic-faction-flag-faction,
+.ws-strategic-faction-flag--city3 .ws-strategic-faction-flag-sep {
+  font-size: clamp(4px, calc(var(--ws-tile) * 0.16), calc(var(--ws-tile) * 6 / 48 + var(--ui-font-dpr-bump, 0px)));
+}
+
+.ws-strategic-faction-flag--city3 .ws-strategic-faction-flag-city {
+  font-size: clamp(5px, calc(var(--ws-tile) * 0.2), calc(var(--ws-tile) * 7 / 48 + var(--ui-font-dpr-bump, 0px)));
+}
+
+/* 四字及以上：再略缩 */
+.ws-strategic-faction-flag--city4 .ws-strategic-faction-flag-faction,
+.ws-strategic-faction-flag--city4 .ws-strategic-faction-flag-sep {
+  font-size: clamp(4px, calc(var(--ws-tile) * 0.14), calc(var(--ws-tile) * 5 / 48 + var(--ui-font-dpr-bump, 0px)));
+}
+
+.ws-strategic-faction-flag--city4 .ws-strategic-faction-flag-city {
+  font-size: clamp(4px, calc(var(--ws-tile) * 0.17), calc(var(--ws-tile) * 6 / 48 + var(--ui-font-dpr-bump, 0px)));
 }
 
 /* 道路叠层：格心连线，viewBox 与格数一致（见 31-5 §11.1 / road-overlay-demo.html） */
@@ -461,12 +649,6 @@
   --ws-fire-flicker-cycle: 1.2s;
 }
 
-/* 战事目标城：2×2 锚点叠火焰（12 帧叠放 + 整体明暗闪烁） */
-.ws-map-tile .ws-strategic-city-war-fire {
-  mix-blend-mode: screen;
-  opacity: 0.94;
-}
-
 @keyframes ws-fire-flicker {
   0%,
   100% {
@@ -489,8 +671,20 @@
   animation: ws-fire-flicker var(--ws-fire-flicker-cycle) ease-in-out infinite;
 }
 
-.ws-map-tile .ws-strategic-city-war-fire .tile-fire-frame {
-  object-fit: cover;
+/* 战事目标城：2×2 锚点叠「战」字贴图 */
+.ws-map-tile .ws-strategic-city-war-mark {
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ws-map-tile .ws-strategic-city-war-mark-img {
+  width: 88%;
+  height: 88%;
+  object-fit: contain;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.55));
 }
 
 /* 玩家自身占位（主城块几何中心；与道路叠层 z-index 分层） */
@@ -520,12 +714,12 @@
   align-items: center;
 }
 
-/* 悬停命中：仅圆形区域接 pointer 事件，便于键鼠 tooltip；事件仍可向父级冒泡用于地图平移 */
+/* 悬停列：穿透；道路格头像亦不接点击（整格可点战场入口）；仅按钮 / 非道路交互头像接 pointer */
 .ws-map-self-pawn__hit {
   display: flex;
   flex-direction: column;
   align-items: center;
-  pointer-events: auto;
+  pointer-events: none;
   touch-action: manipulation;
   width: max-content;
   max-width: min(92vw, calc(var(--ws-tile) * 16 + 48px));
@@ -730,9 +924,16 @@
     0 1px 2px rgba(0, 0, 0, 0.85);
 }
 
+/* 默认穿透；非屏蔽时用 --interactive 接悬停 tooltip / 非道路操作条 */
 .ws-map-self-pawn__avatar-wrap {
   position: relative;
   flex-shrink: 0;
+  pointer-events: none;
+}
+
+.ws-map-self-pawn__avatar-wrap--interactive {
+  pointer-events: auto;
+  touch-action: manipulation;
 }
 
 .ws-map-self-pawn__tooltip {

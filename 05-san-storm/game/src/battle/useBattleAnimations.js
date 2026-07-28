@@ -25,12 +25,20 @@ import {
   phase5HealSlotStub,
 } from '@shared/utils/skillPhase5CompositeDamage';
 import { getTacticalActiveSkillCastRange } from '@shared/utils/tacticalSkillCastRange';
-import { bindTroopPortraitImg } from '@/utils/troopBattlePortrait';
+import {
+  attachBattleUnitSprite,
+  destroyBattleSpriteOnLayer,
+  flipXFromAtkDir,
+  flyBattleUnitProjectile,
+  getBattleSpriteFromLayer,
+  resolveBattleUnitKey,
+} from '@/utils/battleUnitSpriteDom';
+import { troopHpTopHtml } from '@/utils/troopHpBlocks';
+import { troopRarityStarsHtml } from '@/utils/troopRarityStars';
 import { dist, troopAttackRange } from '@/battle/ai/battleTurnAi';
 import { mapTileIndex, tacticalTileIndex } from '@shared/utils/tacticalBattleGrid';
 import { outcomeIfCommanderEliminated } from '@/systems/battleCampaignRules';
 import * as fmt from '@/systems/battleTextFormatter';
-import { moraleInlineColorForTroopBar } from '@/components/battle/battleConstants';
 import { applyMoraleOnStackEliminated } from '@/battle/commanderMorale';
 import { trimSkipForCombatPair, trimSkipForTroop } from '@/battle/battleLogPolicy';
 
@@ -95,6 +103,7 @@ export function resolveSurfaceRoot(battleSurfaceRef, mapCardRef) {
  * @param {Array}                  params.battleTroops     - 当前战场所有部队（可变数组）
  * @param {number}                 [params.siegeCityDefenseMult=1] - 攻城守方城防倍率（仅 def._siegeCityDefender 且主动一击）
  * @param {boolean}                [params.trimAllyBattleLog] - 战役：省略友军相关战报行（入库体积）
+ * @param {React.MutableRefObject} [params.battleReportDigestRef] - 入库回合摘要
  */
 export function useBattleAnimations({
   battleSurfaceRef,
@@ -105,7 +114,36 @@ export function useBattleAnimations({
   battleTroops,
   siegeCityDefenseMult = 1,
   trimAllyBattleLog = false,
+  battleReportDigestRef = null,
+  /** 对象瓦消耗后浅拷贝 objects，驱动 BattleMap 重绘 */
+  setMapResult = null,
 }) {
+  const digestHit = (attacker, defender, casualties, crit) => {
+    battleReportDigestRef?.current?.recordDamage?.({
+      attacker,
+      defender,
+      casualties,
+      crit: !!crit,
+    });
+  };
+  const digestDodge = (attacker, defender) => {
+    battleReportDigestRef?.current?.recordDodge?.({ attacker, defender });
+  };
+  const digestEnv = (defender, casualties) => {
+    battleReportDigestRef?.current?.recordEnvironmentalLoss?.({ defender, casualties });
+  };
+  const digestSkill = (actor, skillName) => {
+    battleReportDigestRef?.current?.recordSkill?.({ actor, skillName });
+  };
+
+  const bumpMapObjects = useCallback(() => {
+    if (!mapResult || typeof setMapResult !== 'function') return;
+    setMapResult({
+      ...mapResult,
+      objects: [...(mapResult.objects || [])],
+    });
+  }, [mapResult, setMapResult]);
+
   // ── DOM helpers ───────────────────────────────────────────────────────────
 
   const getTileEl = useCallback(
@@ -127,6 +165,24 @@ export function useBattleAnimations({
       if (!el) return;
       el.classList.add(cls);
       if (cls !== 'anim-death') setTimeout(() => el.classList.remove(cls), dur);
+    },
+    [getTroopLayer],
+  );
+
+  /** 等待 tile 上序列帧控制器就绪（无 battleUnitKey 或加载失败则为 null） */
+  const waitTroopSprite = useCallback(
+    async (troop) => {
+      const layer = getTroopLayer(troop);
+      if (!layer) return null;
+      if (layer._battleSprite) return layer._battleSprite;
+      if (layer._spriteReady) {
+        try {
+          return await layer._spriteReady;
+        } catch {
+          return null;
+        }
+      }
+      return getBattleSpriteFromLayer(layer);
     },
     [getTroopLayer],
   );
@@ -189,31 +245,13 @@ export function useBattleAnimations({
       if (!tile) return;
       const old = tile.querySelector('.troop-layer');
       if (!old) return;
-      const totalBlocks = Math.ceil(troop.maxTroops / 100);
-      const fullBlocks = Math.floor(troop.currentTroops / 100);
-      const remainder = troop.currentTroops % 100;
-      const hasHalf = remainder >= 50;
       const fc =
         troop.faction === 'player' ? 'player' :
         troop.faction === 'enemy'  ? 'enemy'  :
         (troop.campaignNpcForce ?? 'ally1');
-      const allBlks = [];
-      for (let b = 0; b < totalBlocks; b++) {
-        if (b < fullBlocks) allBlks.push(`<div class="troop-hp-block full-${fc}"></div>`);
-        else if (b === fullBlocks && hasHalf) allBlks.push(`<div class="troop-hp-block half-${fc}"></div>`);
-      }
-      const topBlks = allBlks.slice(0, 6).join('');
-      const rightBlks = allBlks.slice(6).join('');
       const topEl = old.querySelector('.troop-hp-top');
-      if (topEl) topEl.outerHTML = `<div class="troop-hp-top">${topBlks}</div>`;
-      const oldRight = old.querySelector('.troop-hp-right');
-      if (oldRight) oldRight.remove();
-      if (rightBlks) {
-        const tmp = document.createElement('div');
-        tmp.innerHTML = `<div class="troop-hp-right">${rightBlks}</div>`;
-        const glow = old.querySelector('.troop-glow');
-        if (glow) old.insertBefore(tmp.firstChild, glow);
-      }
+      if (topEl) topEl.outerHTML = troopHpTopHtml(troop.currentTroops, troop.maxTroops, fc);
+      old.querySelector('.troop-hp-right')?.remove();
     },
     [getTileEl],
   );
@@ -226,22 +264,11 @@ export function useBattleAnimations({
       if (!tile) return;
       tile.setAttribute('data-troop', troop.id);
       tile.removeAttribute('data-info');
-      const totalBlocks = Math.ceil(troop.maxTroops / 100);
-      const fullBlocks = Math.floor(troop.currentTroops / 100);
-      const remainder = troop.currentTroops % 100;
-      const hasHalf = remainder >= 50;
       const fc =
         troop.faction === 'player' ? 'player' :
         troop.faction === 'enemy'  ? 'enemy'  :
         (troop.campaignNpcForce ?? 'ally1');
-      const allBlks = [];
-      for (let b = 0; b < totalBlocks; b++) {
-        if (b < fullBlocks) allBlks.push(`<div class="troop-hp-block full-${fc}"></div>`);
-        else if (b === fullBlocks && hasHalf) allBlks.push(`<div class="troop-hp-block half-${fc}"></div>`);
-      }
-      const topBlks = allBlks.slice(0, 6).join('');
-      const rightBlks = allBlks.slice(6).join('');
-      const hpHtml = `<div class="troop-hp-top">${topBlks}</div>${rightBlks ? `<div class="troop-hp-right">${rightBlks}</div>` : ''}`;
+      const hpHtml = troopHpTopHtml(troop.currentTroops, troop.maxTroops, fc);
       const cr = troop.commanderRole;
       const isPlayerLordBar = troop.faction === 'player' && troop.lineupSlot === 'player';
       const nameBarClass = [
@@ -250,17 +277,15 @@ export function useBattleAnimations({
         cr === 'hero' ? 'is-commander-hero' : '',
         isPlayerLordBar ? 'is-player-lord' : '',
       ].filter(Boolean).join(' ');
-      const m = Number(troop.morale ?? 0);
-      const moraleColor = moraleInlineColorForTroopBar(m);
-      const goldMoraleBar = cr === 'boss' || cr === 'hero' || isPlayerLordBar;
-      const mrHtml = goldMoraleBar
-        ? `<span class="mr">${m}</span>`
-        : `<span class="mr" style="color:${moraleColor}">${m}</span>`;
+      const starsHtml = troopRarityStarsHtml(troop.rarity);
       const layer = document.createElement('div');
       layer.className = 'troop-layer';
-      layer.innerHTML = `${hpHtml}<div class="troop-glow ${fc}"></div><img class="troop-img" alt=""><div class="${nameBarClass}"><span class="cn">${troop.displayName || troop.name}</span>${mrHtml}</div>`;
+      layer.innerHTML = `${hpHtml}<div class="troop-glow ${fc}"></div><img class="troop-img" alt=""><div class="${nameBarClass}"><span class="cn">${troop.displayName || troop.name}</span>${starsHtml}</div>`;
       const img = layer.querySelector('.troop-img');
-      bindTroopPortraitImg(img, troop, GAME_BASE_URL);
+      layer._spriteReady = attachBattleUnitSprite(img, troop, GAME_BASE_URL).then((ctrl) => {
+        if (ctrl) layer._battleSprite = ctrl;
+        return ctrl;
+      });
       tile.appendChild(layer);
     },
     [battleSurfaceRef, mapCardRef, mapResult],
@@ -273,7 +298,10 @@ export function useBattleAnimations({
       const tile = getTileEl(troop);
       if (!tile) return;
       const layer = tile.querySelector('.troop-layer');
-      if (layer) layer.remove();
+      if (layer) {
+        destroyBattleSpriteOnLayer(layer);
+        layer.remove();
+      }
       tile.removeAttribute('data-troop');
       tile.removeAttribute('data-info');
     },
@@ -294,58 +322,116 @@ export function useBattleAnimations({
     async (atk, def, dmg) => {
       const dir = getAtkDir(atk, def);
       if (!trimSkipForCombatPair(trimAllyBattleLog, atk, def)) addLog(fmt.fmtAttack(atk, def), 'attack');
-      addBattleAnim(atk, `anim-atk-${dir}`, 400);
-      await sleep(200, speedRef.current);
-      addBattleAnim(def, 'anim-hit', 500);
-      def.currentTroops = Math.max(0, def.currentTroops - dmg);
-      updateTroopHp(def);
-      showDmg(def, `-${dmg}`, 'normal');
-      if (!trimSkipForCombatPair(trimAllyBattleLog, atk, def)) addLog(fmt.fmtAttackResult(def, dmg), 'attack');
-      await sleep(600, speedRef.current);
+      const atkCtrl = await waitTroopSprite(atk);
+      const defCtrl = await waitTroopSprite(def);
+      const flip = flipXFromAtkDir(dir);
+      if (atkCtrl) {
+        if (flip != null) atkCtrl.setFlipX(flip);
+        const atkP = atkCtrl.play('attack');
+        await sleep(200, speedRef.current);
+        const nextHp = Math.max(0, def.currentTroops - dmg);
+        if (defCtrl) void defCtrl.play('hit', { hold: nextHp <= 0 });
+        addBattleAnim(def, 'anim-hit', 500);
+        def.currentTroops = nextHp;
+        updateTroopHp(def);
+        showDmg(def, `-${dmg}`, 'normal');
+        digestHit(atk, def, dmg, false);
+        if (!trimSkipForCombatPair(trimAllyBattleLog, atk, def)) addLog(fmt.fmtAttackResult(def, dmg), 'attack');
+        await atkP;
+        await sleep(100, speedRef.current);
+      } else {
+        addBattleAnim(atk, `anim-atk-${dir}`, 400);
+        await sleep(200, speedRef.current);
+        addBattleAnim(def, 'anim-hit', 500);
+        def.currentTroops = Math.max(0, def.currentTroops - dmg);
+        updateTroopHp(def);
+        showDmg(def, `-${dmg}`, 'normal');
+        digestHit(atk, def, dmg, false);
+        if (!trimSkipForCombatPair(trimAllyBattleLog, atk, def)) addLog(fmt.fmtAttackResult(def, dmg), 'attack');
+        await sleep(600, speedRef.current);
+      }
     },
-    [addLog, addBattleAnim, updateTroopHp, showDmg, trimAllyBattleLog],
+    [addLog, addBattleAnim, updateTroopHp, showDmg, trimAllyBattleLog, waitTroopSprite, speedRef, battleReportDigestRef],
   );
 
   const battleCrit = useCallback(
     async (atk, def, dmg) => {
       const dir = getAtkDir(atk, def);
       if (!trimSkipForCombatPair(trimAllyBattleLog, atk, def)) addLog(fmt.fmtCrit(atk, def), 'crit');
-      addBattleAnim(atk, `anim-atk-${dir}`, 400);
-      await sleep(200, speedRef.current);
-      addBattleAnim(def, 'anim-crit-hit', 600);
-      shakeMap();
-      def.currentTroops = Math.max(0, def.currentTroops - dmg);
-      updateTroopHp(def);
-      showDmg(def, `-${dmg}`, 'crit');
-      if (!trimSkipForCombatPair(trimAllyBattleLog, atk, def)) addLog(fmt.fmtCritResult(def, dmg), 'crit');
-      await sleep(700, speedRef.current);
+      const atkCtrl = await waitTroopSprite(atk);
+      const defCtrl = await waitTroopSprite(def);
+      const flip = flipXFromAtkDir(dir);
+      if (atkCtrl) {
+        if (flip != null) atkCtrl.setFlipX(flip);
+        const atkP = atkCtrl.play('attack');
+        await sleep(200, speedRef.current);
+        const nextHp = Math.max(0, def.currentTroops - dmg);
+        if (defCtrl) void defCtrl.play('hit', { hold: nextHp <= 0 });
+        addBattleAnim(def, 'anim-crit-hit', 600);
+        shakeMap();
+        def.currentTroops = nextHp;
+        updateTroopHp(def);
+        showDmg(def, `-${dmg}`, 'crit');
+        digestHit(atk, def, dmg, true);
+        if (!trimSkipForCombatPair(trimAllyBattleLog, atk, def)) addLog(fmt.fmtCritResult(def, dmg), 'crit');
+        await atkP;
+        await sleep(100, speedRef.current);
+      } else {
+        addBattleAnim(atk, `anim-atk-${dir}`, 400);
+        await sleep(200, speedRef.current);
+        addBattleAnim(def, 'anim-crit-hit', 600);
+        shakeMap();
+        def.currentTroops = Math.max(0, def.currentTroops - dmg);
+        updateTroopHp(def);
+        showDmg(def, `-${dmg}`, 'crit');
+        digestHit(atk, def, dmg, true);
+        if (!trimSkipForCombatPair(trimAllyBattleLog, atk, def)) addLog(fmt.fmtCritResult(def, dmg), 'crit');
+        await sleep(700, speedRef.current);
+      }
     },
-    [addLog, addBattleAnim, updateTroopHp, showDmg, shakeMap, trimAllyBattleLog],
+    [addLog, addBattleAnim, updateTroopHp, showDmg, shakeMap, trimAllyBattleLog, waitTroopSprite, speedRef, battleReportDigestRef],
   );
 
   const battleMiss = useCallback(
     async (atk, def) => {
       const dir = getAtkDir(atk, def);
       if (!trimSkipForCombatPair(trimAllyBattleLog, atk, def)) addLog(fmt.fmtMiss(atk, def), 'attack');
-      addBattleAnim(atk, `anim-atk-${dir}`, 400);
-      await sleep(200, speedRef.current);
-      addBattleAnim(def, 'anim-dodge', 600);
-      showDmg(def, 'MISS', 'miss');
-      if (!trimSkipForCombatPair(trimAllyBattleLog, atk, def)) addLog(fmt.fmtMissResult(def), 'miss');
-      await sleep(700, speedRef.current);
+      const atkCtrl = await waitTroopSprite(atk);
+      const flip = flipXFromAtkDir(dir);
+      if (atkCtrl) {
+        if (flip != null) atkCtrl.setFlipX(flip);
+        const atkP = atkCtrl.play('attack');
+        await sleep(200, speedRef.current);
+        addBattleAnim(def, 'anim-dodge', 600);
+        showDmg(def, 'MISS', 'miss');
+        digestDodge(atk, def);
+        if (!trimSkipForCombatPair(trimAllyBattleLog, atk, def)) addLog(fmt.fmtMissResult(def), 'miss');
+        await atkP;
+        await sleep(100, speedRef.current);
+      } else {
+        addBattleAnim(atk, `anim-atk-${dir}`, 400);
+        await sleep(200, speedRef.current);
+        addBattleAnim(def, 'anim-dodge', 600);
+        showDmg(def, 'MISS', 'miss');
+        digestDodge(atk, def);
+        if (!trimSkipForCombatPair(trimAllyBattleLog, atk, def)) addLog(fmt.fmtMissResult(def), 'miss');
+        await sleep(700, speedRef.current);
+      }
     },
-    [addLog, addBattleAnim, showDmg, trimAllyBattleLog],
+    [addLog, addBattleAnim, showDmg, trimAllyBattleLog, waitTroopSprite, speedRef, battleReportDigestRef],
   );
 
   /** 将领被动·首击免疫：不扣兵力，消耗一次次数 */
   const battleFirstHitImmune = useCallback(
     async (atk, def) => {
       if (!trimSkipForCombatPair(trimAllyBattleLog, atk, def)) addLog(fmt.fmtFirstHitImmune(def, atk), 'skill');
+      const defCtrl = await waitTroopSprite(def);
+      if (defCtrl) void defCtrl.play('hit');
       addBattleAnim(def, 'anim-hit', 450);
       showDmg(def, '0 免疫', 'skill-phase2-immune');
       await sleep(550, speedRef.current);
     },
-    [addLog, addBattleAnim, showDmg, trimAllyBattleLog],
+    [addLog, addBattleAnim, showDmg, trimAllyBattleLog, waitTroopSprite, speedRef],
   );
 
   /**
@@ -378,6 +464,8 @@ export function useBattleAnimations({
         await sleep(280, speedRef.current);
         return;
       }
+      const defCtrl = await waitTroopSprite(def);
+      if (defCtrl) void defCtrl.play('hit');
       addBattleAnim(def, roll === 'crit' ? 'anim-crit-hit' : 'anim-hit', roll === 'crit' ? 560 : 480);
       if (!shakeGate.shook) {
         shakeMap(220);
@@ -389,6 +477,7 @@ export function useBattleAnimations({
       const cls =
         roll === 'crit' ? (dk === 'strategy' ? 'skill-strategy-crit' : 'skill-physical-crit') : dmgTypeCls;
       showDmg(def, label, cls);
+      digestHit(actor, def, r.casualties, roll === 'crit');
       if (!trimSkipForCombatPair(trimAllyBattleLog, actor, def)) {
         addLog(fmt.fmtAttackResult(def, r.casualties), 'skill');
       }
@@ -405,6 +494,8 @@ export function useBattleAnimations({
       mapResult,
       speedRef,
       addLog,
+      waitTroopSprite,
+      battleReportDigestRef,
     ],
   );
 
@@ -465,9 +556,18 @@ export function useBattleAnimations({
       troop.currentTroops = 0;
       const layer = getTroopLayer(troop);
       if (layer) {
-        layer.classList.add('anim-death');
-        await sleep(800, speedRef.current);
-        layer.remove();
+        const ctrl = getBattleSpriteFromLayer(layer);
+        if (ctrl) {
+          // 播死亡帧并停在最后一帧片刻，避免仍显示站立 idle
+          await ctrl.play('die');
+          await sleep(350, speedRef.current);
+          destroyBattleSpriteOnLayer(layer);
+          layer.remove();
+        } else {
+          layer.classList.add('anim-death');
+          await sleep(800, speedRef.current);
+          layer.remove();
+        }
       } else {
         await sleep(800, speedRef.current);
       }
@@ -477,7 +577,7 @@ export function useBattleAnimations({
         tile.removeAttribute('data-info');
       }
     },
-    [addLog, getTroopLayer, getTileEl, battleTroops, trimAllyBattleLog],
+    [addLog, getTroopLayer, getTileEl, battleTroops, trimAllyBattleLog, speedRef],
   );
 
   /** 歼灭后若为主将 hero/boss，返回战役即时胜负 */
@@ -517,6 +617,7 @@ export function useBattleAnimations({
         troop.currentTroops = cur - r.casualties;
         updateTroopHp(troop);
         showDmg(troop, `-${r.casualties}🔥`, 'normal');
+        digestEnv(troop, r.casualties);
         if (!trimSkipForTroop(trimAllyBattleLog, troop)) addLog(fmt.fmtFireTerrain(troop, r.casualties), 'attack');
         await sleep(180, speedRef.current);
         if (troop.currentTroops <= 0) {
@@ -532,6 +633,14 @@ export function useBattleAnimations({
   const battleRanged = useCallback(
     async (atk, def, dmg, emoji = '➤') => {
       if (!trimSkipForCombatPair(trimAllyBattleLog, atk, def)) addLog(fmt.fmtRanged(atk, def), 'attack');
+      const dir = getAtkDir(atk, def);
+      const atkCtrl = await waitTroopSprite(atk);
+      const flip = flipXFromAtkDir(dir);
+      let atkP = Promise.resolve();
+      if (atkCtrl) {
+        if (flip != null) atkCtrl.setFlipX(flip);
+        atkP = atkCtrl.play('attack');
+      }
       const atkTile = getTileEl(atk);
       const defTile = getTileEl(def);
       const card = resolveSurfaceRoot(battleSurfaceRef, mapCardRef);
@@ -545,25 +654,51 @@ export function useBattleAnimations({
         const ty = dr.top  - cr.top  + dr.height / 2;
         const d = Math.sqrt((tx - fx) ** 2 + (ty - fy) ** 2);
         const dur = Math.max(300, Math.min(700, d * 1.5));
-        const angle = Math.atan2(ty - fy, tx - fx) * 180 / Math.PI;
-        const proj = document.createElement('div');
-        proj.className = 'projectile';
-        proj.textContent = emoji;
-        proj.style.cssText = `left:${fx - 12}px;top:${fy - 12}px;transform:rotate(${angle}deg);transition:left ${dur}ms ease-in,top ${dur}ms ease-in;`;
-        card.style.position = 'relative';
-        card.appendChild(proj);
-        requestAnimationFrame(() => { proj.style.left = `${tx - 12}px`; proj.style.top = `${ty - 12}px`; });
-        await sleep(dur, speedRef.current);
-        proj.remove();
+        const speed = speedRef.current || 1;
+        const flyMs = Math.max(1, dur / speed);
+        const unitKey = resolveBattleUnitKey(atk);
+        let usedSprite = false;
+        if (unitKey && !battleAnimationSkipDelays) {
+          usedSprite = await flyBattleUnitProjectile({
+            cardEl: card,
+            fromX: fx,
+            fromY: fy,
+            toX: tx,
+            toY: ty,
+            unitKey,
+            baseUrl: GAME_BASE_URL,
+            durationMs: flyMs,
+          });
+        }
+        if (!usedSprite) {
+          const angle = (Math.atan2(ty - fy, tx - fx) * 180) / Math.PI;
+          const proj = document.createElement('div');
+          proj.className = 'projectile';
+          proj.textContent = emoji;
+          proj.style.cssText = `left:${fx - 12}px;top:${fy - 12}px;transform:rotate(${angle}deg);transition:left ${flyMs}ms ease-in,top ${flyMs}ms ease-in;`;
+          card.style.position = 'relative';
+          card.appendChild(proj);
+          requestAnimationFrame(() => {
+            proj.style.left = `${tx - 12}px`;
+            proj.style.top = `${ty - 12}px`;
+          });
+          await sleep(dur, speed);
+          proj.remove();
+        }
       }
+      const defCtrl = await waitTroopSprite(def);
+      const nextHp = Math.max(0, def.currentTroops - dmg);
+      if (defCtrl) void defCtrl.play('hit', { hold: nextHp <= 0 });
       addBattleAnim(def, 'anim-hit', 500);
-      def.currentTroops = Math.max(0, def.currentTroops - dmg);
+      def.currentTroops = nextHp;
       updateTroopHp(def);
       showDmg(def, `-${dmg}`, 'normal');
+      digestHit(atk, def, dmg, false);
       if (!trimSkipForCombatPair(trimAllyBattleLog, atk, def)) addLog(fmt.fmtAttackResult(def, dmg), 'attack');
-      await sleep(600, speedRef.current);
+      await atkP;
+      await sleep(200, speedRef.current);
     },
-    [addLog, getTileEl, battleSurfaceRef, mapCardRef, addBattleAnim, updateTroopHp, showDmg, trimAllyBattleLog],
+    [addLog, getTileEl, battleSurfaceRef, mapCardRef, addBattleAnim, updateTroopHp, showDmg, trimAllyBattleLog, waitTroopSprite, speedRef, battleReportDigestRef],
   );
 
   /** 阶段3·主动纯治疗（明镜 / 祈愿）：与 `skillPhase3ActiveHeal` 结算一致 */
@@ -613,6 +748,7 @@ export function useBattleAnimations({
       if (!trimSkipForTroop(trimAllyBattleLog, actor)) {
         addLog(fmt.fmtPhase3HealActive(actor, slot.name, selfGain, targetTroop, allyGain), 'skill');
       }
+      digestSkill(actor, slot.name || '治疗');
       await sleep(520, speedRef.current);
     },
     [
@@ -625,6 +761,7 @@ export function useBattleAnimations({
       trimAllyBattleLog,
       speedRef,
       positionSkillNamePopAtActor,
+      battleReportDigestRef,
     ],
   );
 
@@ -670,6 +807,7 @@ export function useBattleAnimations({
       if (!trimSkipForTroop(trimAllyBattleLog, actor)) {
         addLog(fmt.fmtPhase4DamageOpening(actor, slot.name, alive.length), 'skill');
       }
+      digestSkill(actor, slot.name || '技能');
 
       const shakeGate = { shook: false };
       let si = 0;
@@ -814,6 +952,7 @@ export function useBattleAnimations({
       if (!trimSkipForTroop(trimAllyBattleLog, actor)) {
         addLog(fmt.fmtPhase5CompositeOpening(actor, slot.name, eff), 'skill');
       }
+      digestSkill(actor, slot.name || '技能');
 
       const shakeGate = { shook: false };
       let si = 0;
@@ -942,11 +1081,44 @@ export function useBattleAnimations({
         troop.currentTroops = Math.max(0, troop.currentTroops - r.casualties);
         updateTroopHp(troop);
         showDmg(troop, `-${r.casualties} ⚠️`, 'normal');
+        digestEnv(troop, r.casualties);
         if (!trimSkipForTroop(trimAllyBattleLog, troop)) addLog(fmt.fmtTrap(troop, r.casualties), 'attack');
         await sleep(400, speedRef.current);
       }
     },
-    [mapResult, updateTroopHp, showDmg, addLog, trimAllyBattleLog, fmt, speedRef],
+    [mapResult, updateTroopHp, showDmg, addLog, trimAllyBattleLog, fmt, speedRef, battleReportDigestRef],
+  );
+
+  /** 踏入农场：恢复兵力（敌我皆可）；消耗后瓦片消失 */
+  const checkFarm = useCallback(
+    async (troop, y, x) => {
+      if (!mapResult || !troop || troop.currentTroops <= 0) return;
+      const obj = mapResult.objects?.find(
+        (o) => o.y === y && o.x === x && o.type === 'farm' && !o.isOpen,
+      );
+      if (!obj) return;
+      const heal = Number(obj.healOnEnter) || 200;
+      const max = troop.maxTroops ?? troop.initialTroops ?? troop.currentTroops;
+      const before = troop.currentTroops;
+      troop.currentTroops = Math.min(max, before + heal);
+      const gained = troop.currentTroops - before;
+      obj.isOpen = true;
+      bumpMapObjects();
+      if (gained > 0) {
+        updateTroopHp(troop);
+        showDmg(troop, `+${gained} 🌾`, 'skill-heal');
+      }
+      if (!trimSkipForTroop(trimAllyBattleLog, troop)) {
+        const who = troop.character?.courtesyName || troop.name;
+        if (gained > 0) {
+          addLog(`  🌾 ${who} 进入农场，恢复 ${gained} 兵力`, 'skill');
+        } else {
+          addLog(`  🌾 ${who} 进入农场（兵力已满，农场荒废）`, 'skill');
+        }
+      }
+      await sleep(350, speedRef.current);
+    },
+    [mapResult, updateTroopHp, showDmg, addLog, trimAllyBattleLog, speedRef, bumpMapObjects],
   );
 
   const battleMove = useCallback(
@@ -971,10 +1143,18 @@ export function useBattleAnimations({
 
       for (let si = 0; si < path.length; si++) {
         const step = path[si];
+        const prevX = troop.x;
         clearTroopFromTile(troop);
         troop.y = step.y;
         troop.x = step.x;
         renderTroopOnTile(troop);
+        const ctrl = await waitTroopSprite(troop);
+        if (ctrl) {
+          const dx = step.x - prevX;
+          if (dx < 0) ctrl.setFlipX(true);
+          else if (dx > 0) ctrl.setFlipX(false);
+          void ctrl.play('walk');
+        }
         if (pathHls[si]) pathHls[si].remove();
         await sleep(180, speedRef.current);
         await checkTrap(troop, step.y, step.x);
@@ -983,11 +1163,14 @@ export function useBattleAnimations({
           for (let ri = si + 1; ri < pathHls.length; ri++) { if (pathHls[ri]) pathHls[ri].remove(); }
           return camp || undefined;
         }
+        await checkFarm(troop, step.y, step.x);
       }
+      const idleCtrl = await waitTroopSprite(troop);
+      if (idleCtrl) void idleCtrl.play('idle');
       for (const hl of pathHls) { if (hl && hl.parentNode) hl.remove(); }
       return undefined;
     },
-    [addLog, battleSurfaceRef, mapCardRef, mapResult, clearTroopFromTile, renderTroopOnTile, checkTrap, runBattleKill, trimAllyBattleLog],
+    [addLog, battleSurfaceRef, mapCardRef, mapResult, clearTroopFromTile, renderTroopOnTile, checkTrap, checkFarm, runBattleKill, trimAllyBattleLog, waitTroopSprite, speedRef],
   );
 
   // ── 执行攻击 / 反击 ──────────────────────────────────────────────────────
@@ -1081,10 +1264,11 @@ export function useBattleAnimations({
     applyEndOfRoundFire,
     battleRanged,
     performSkillDemoStrike,
-    checkTrap, battleMove,
+    checkTrap, checkFarm, battleMove,
     performAttack, performCounterAttack,
     performPhase3Heal,
     performPhase4Damage,
     performPhase5Composite,
+    bumpMapObjects,
   };
 }

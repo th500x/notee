@@ -5,17 +5,30 @@
 
 const { getTroopAffinityOutgoingDamageMult } = require('../../shared/utils/troopAffinityCombat.cjs');
 const { resolveSiegeCityDefenseMultFromOpts } = require('../../shared/utils/siegeCityDefenseMult.cjs');
-const { getCounterLowerTierDamageMult } = require('../../shared/utils/troopRarityCombat.cjs');
+const {
+  getCounterLowerTierDamageMult,
+  troopRarityTier,
+} = require('../../shared/utils/troopRarityCombat.cjs');
 
-const ELITE_TROOP_STRENGTH_EXPONENT = 0.8;
+/** 与 `game/src/systems/combatSystem.js` 的 `TROOP_STRENGTH_FLOOR` 一致 */
+const TROOP_STRENGTH_FLOOR = 0.6;
 /** 与 `game/src/systems/combatSystem.js` 的 `ARCHER_MELEE_DAMAGE_MULT` 一致 */
 const ARCHER_MELEE_DAMAGE_MULT = 0.8;
 
 const DEF_REDUCTION_DENOM = 220;
 const MIN_CASUALTY_PCT_OF_DEFENDER_MAX = 0.20;
+/** 与 `combatSystem.js` 的 `MAX_CASUALTY_PCT_*` 一致 */
+const MAX_CASUALTY_PCT_BASE = 0.40;
+const MAX_CASUALTY_PCT_PER_TIER_ABOVE = 0.05;
 const MIRROR_STRIKE_DAMAGE_MULT = 1.10;
 const MIRROR_COUNTER_DAMAGE_MULT = 0.50;
 const COUNTER_STRIKE_DAMAGE_MULT = 0.95;
+
+function maxCasualtyCapFromDefenderMax(attacker, defender, maxTroops) {
+  const gap = Math.max(0, troopRarityTier(attacker?.rarity) - troopRarityTier(defender?.rarity));
+  const pctPoints = Math.round(MAX_CASUALTY_PCT_BASE * 100) + Math.round(MAX_CASUALTY_PCT_PER_TIER_ABOVE * 100) * gap;
+  return Math.ceil((maxTroops * pctPoints) / 100);
+}
 
 function troopRatioCoeffForStrike(rawTroopRatio, strikeMode) {
   return Math.min(3.0, Math.max(0.33, rawTroopRatio));
@@ -42,9 +55,8 @@ function troopStrengthRatioFromCasualties(troop) {
   const cur = troop.currentTroops != null ? troop.currentTroops : max;
   if (max == null || max <= 0) return 0;
   const r = Math.max(0, Math.min(1, Number(cur) / max));
-  const w = troop.troopWeight != null ? Number(troop.troopWeight) : 1;
-  if (!(w > 1)) return r;
-  return Math.pow(r, ELITE_TROOP_STRENGTH_EXPONENT);
+  if (r <= 0) return 0;
+  return TROOP_STRENGTH_FLOOR + (1 - TROOP_STRENGTH_FLOOR) * r;
 }
 
 function troopDamageToCasualties(defender, rawDamage, options = {}) {
@@ -66,6 +78,10 @@ function troopDamageToCasualties(defender, rawDamage, options = {}) {
     sameRarity
   ) {
     cas = Math.max(Math.ceil(max * MIN_CASUALTY_PCT_OF_DEFENDER_MAX), cas);
+  }
+  if (max > 0 && attacker) {
+    const cap = maxCasualtyCapFromDefenderMax(attacker, defender, max);
+    if (cap > 0) cas = Math.min(cas, cap);
   }
   return Math.max(1, cas);
 }

@@ -11,8 +11,15 @@
  * 但组合战力公式共用 `estimateLineupCombatPower`。
  */
 
+import { useMemo, useRef, useState } from 'react';
 import { useCharacterRank } from '@/hooks/useCharacterRank';
 import { estimateLineupCombatPower } from '@shared/utils/lineupCombatPower.js';
+import { buildLineupCombatBonusOverview } from '@/utils/lineupCombatBonusOverview';
+import LineupBonusOverviewPopover from './LineupBonusOverviewPopover';
+
+/** 与势力 Tab「日活跃榜」按钮同款 */
+const ledgerDetailBtnClass =
+  'shrink-0 rounded border border-amber-800/60 bg-amber-950/40 px-1.5 py-0 text-[10px] text-amber-300/95 underline-offset-2 hover:bg-amber-900/30 hover:underline focus:outline-none focus-visible:ring-1 focus-visible:ring-amber-500/60';
 
 export default function LineupStatsPanel({
   player,
@@ -23,8 +30,28 @@ export default function LineupStatsPanel({
   characterRarity = null,
   playerId = null,
   rankBucket = null,
+  effectCards = null,
+  includePositionBonuses = false,
+  troopAffinity = null,
 }) {
   const rankInfo = useCharacterRank(playerId, rankBucket);
+  const bonusBtnRef = useRef(null);
+  const [bonusOpen, setBonusOpen] = useState(false);
+  const [bonusAnchor, setBonusAnchor] = useState(null);
+
+  const overview = useMemo(
+    () =>
+      buildLineupCombatBonusOverview({
+        troops: troops || [],
+        effectCards: effectCards || {},
+        positionConfig: player?.positionConfig || null,
+        includePositionBonuses,
+        troopAffinity,
+        attributeBonus,
+      }),
+    [troops, effectCards, player?.positionConfig, includePositionBonuses, troopAffinity, attributeBonus],
+  );
+
   if (!player && !attrs) return null;
 
   const combat = attrs?.combat ?? (player ? player.combat / 10 : 0);
@@ -73,9 +100,33 @@ export default function LineupStatsPanel({
   const critRate = ((critCourage + luck) / 80 * 100).toFixed(1);
   const dodgeRate = luck.toFixed(1);
 
+  const openBonusOverview = () => {
+    const el = bonusBtnRef.current;
+    if (!el) return;
+    setBonusAnchor(el.getBoundingClientRect());
+    setBonusOpen((v) => !v);
+  };
+
   return (
     <div className={`${compact ? 'mx-0 mt-1 mb-1 p-2' : 'mx-3 mt-2 mb-2 p-3'} bg-stone-800/50 rounded-lg border border-stone-700/30`}>
-      <h4 className="text-stone-400 text-xs font-medium mb-2">📊 编组数据</h4>
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <h4 className="text-stone-400 text-xs font-medium">📊 编组数据</h4>
+        <button
+          ref={bonusBtnRef}
+          type="button"
+          className={ledgerDetailBtnClass}
+          onClick={openBonusOverview}
+        >
+          加成一览
+        </button>
+      </div>
+
+      <LineupBonusOverviewPopover
+        open={bonusOpen}
+        anchorRect={bonusAnchor}
+        overview={overview}
+        onClose={() => setBonusOpen(false)}
+      />
 
       <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
         <div className="flex items-center justify-between">

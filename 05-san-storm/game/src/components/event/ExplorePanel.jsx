@@ -15,6 +15,7 @@ import EventBlackjack from './EventBlackjack';
 import { PHASE, FACTOR_CN } from './EventConstants';
 import { parseRewards, parseRequiredItems, isFactorOption, exploreRewardFailureSubhint } from './eventUtils';
 import { getOptionFactorFields } from '@shared/utils/eventOptionFactor.js';
+import { resolveEventOptionRewardStrings } from '@shared/utils/eventOptionRewards.js';
 import { API_CONFIG, getRarityHex, getRarityLabelCn } from '@/constants';
 import { fetchWithTimeout } from '@/services/httpClient';
 import { loadSharedData } from '@/services/dataService';
@@ -294,7 +295,7 @@ function OptionBlock({ label, option, colorScheme, team, hoveredOption, optionKe
         <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded-lg text-xs">
           <div className="text-green-700 font-medium mb-1">🎁 奖励预览</div>
           <div className="text-green-800">
-            {parseRewards(option.rewards || '', itemNameMap).map((r, i) => (
+            {parseRewards(resolveEventOptionRewardStrings(option).rewards || '', itemNameMap).map((r, i) => (
               <div key={i}>{r.text}</div>
             ))}
           </div>
@@ -478,8 +479,11 @@ function RewardDisplay({
     return sortRewardLines(result);
   }, [itemNameMap, idNames, battleResult]);
 
-  const rawRewards = parseRewards(chosenOption.rewards || '', itemNameMap, fortune?.multiplier);
-  const rawBonusRewards = chosenOption.bonusRewards ? parseRewards(chosenOption.bonusRewards, itemNameMap) : [];
+  const resolvedOptionRewards = resolveEventOptionRewardStrings(chosenOption);
+  const rawRewards = parseRewards(resolvedOptionRewards.rewards || '', itemNameMap, fortune?.multiplier);
+  const rawBonusRewards = resolvedOptionRewards.bonusRewards
+    ? parseRewards(resolvedOptionRewards.bonusRewards, itemNameMap)
+    : [];
 
   // 用后端实际结果构建显示
   const rewards = buildRewardsFromDetails(rawRewards, rewardDetails?.rewards);
@@ -556,6 +560,10 @@ function RewardDisplay({
         {rewards.map((r, i) => (
           <RewardItem key={i} reward={r} onCardClick={handleCardClick} />
         ))}
+        {rewards.length === 0 &&
+          !(fortune?.name === '鸿运' && bonusRewards.length > 0) && (
+            <div className="text-sm text-stone-500">本次无基础资源奖励</div>
+          )}
       </div>
 
       {battleResult && Array.isArray(battleChestRewards) && battleChestRewards.length > 0 && (
@@ -591,7 +599,6 @@ function RewardDisplay({
         </>
       )}
 
-      {/* 事件触发的传奇部队耐久修满 */}
       {rewardDetails?.milestoneUnlock &&
         (rewardDetails.milestoneUnlock.titles?.length > 0 ||
           rewardDetails.milestoneUnlock.achievements?.length > 0) && (
@@ -607,21 +614,6 @@ function RewardDisplay({
             {(rewardDetails.milestoneUnlock.achievements || []).map((a) => (
               <div key={a.achievementId || a.achievementName} className="text-sm text-gray-800">
                 成就「{a.achievementName || a.achievementId}」已完成
-              </div>
-            ))}
-          </div>
-        </>
-      )}
-
-      {rewardDetails?.troopRepair?.length > 0 && (
-        <>
-          <Divider />
-          <div className="text-xs text-emerald-700 font-medium mb-2">⚔️ 部队整编</div>
-          <div className="space-y-1 mb-1">
-            {rewardDetails.troopRepair.map((tr, i) => (
-              <div key={i} className="text-sm text-gray-800">
-                「{tr.troopName}」耐久已恢复满
-                {tr.previousBattleCount > 0 ? `（此前已出战 ${tr.previousBattleCount} 场）` : ''}
               </div>
             ))}
           </div>

@@ -1,8 +1,15 @@
 /**
- * 事件道具触发的部队耐久修复（读 config_items.special_effect）
+ * 部队耐久修复（部队徽章 · 编组手动选用）
+ * 旧「事件结算自动修最残传奇/核心」已废止。
  */
 
 const { pool } = require('../database/connection');
+const {
+  TROOP_BADGE_ITEM_ID,
+  TROOP_BADGE_SPECIAL_EFFECT,
+  troopBadgeRepairCostForRarity,
+  isTroopBadgeManualRepairEffect,
+} = require('../../shared/utils/troopBadgeDurabilityRepair.cjs');
 
 /**
  * @param {string} itemId
@@ -19,123 +26,128 @@ async function getItemSpecialEffect(itemId) {
 }
 
 /**
- * 选出 battle_count 最高的传奇部队实例（最残）；同分取 instance_id 最小。
- * @returns {Promise<{ instance_id: string, card_id: string, battle_count: number, max_battle_count: number, troop_name: string }|null>}
+ * 指定实例：须为本玩家传奇/核心部队，且 battle_count > 0（未满耐久）。
+ * @returns {Promise<{ instanceId: string, cardId: string, troopName: string, rarity: string, previousBattleCount: number, maxBattleCount: number, cost: number }>}
  */
-async function findMostWornLegendaryTroop(query, playerId) {
-  const [rows] = await query(
-    `SELECT pc.instance_id, pc.card_id, COALESCE(pc.battle_count, 0) AS battle_count,
+async function repairSelectedTroopWithBadge(playerId, instanceId) {
+  const iid = String(instanceId || '').trim();
+  if (!iid) {
+    const err = new Error('MISSING_INSTANCE_ID');
+    err.code = 'MISSING_INSTANCE_ID';
+    throw err;
+  }
+
+  const [rows] = await pool.query(
+    `SELECT pc.instance_id, pc.card_id, pc.rarity,
+            COALESCE(pc.battle_count, 0) AS battle_count,
             COALESCE(pc.max_battle_count, 0) AS max_battle_count,
             COALESCE(ct.troop_name, pc.card_id) AS troop_name
      FROM player_cards pc
      LEFT JOIN config_troops ct ON ct.troop_id = pc.card_id
-     WHERE pc.player_id = ? AND pc.card_type = 'troop' AND pc.rarity = 'legendary'
-     ORDER BY battle_count DESC, pc.instance_id ASC
+     WHERE pc.player_id = ? AND pc.instance_id = ? AND pc.card_type = 'troop'
      LIMIT 1`,
-    [playerId]
+    [playerId, iid]
   );
-  return rows[0] || null;
-}
-
-/** 选出 battle_count 最高的核心部队实例（最残）；同分取 instance_id 最小。 */
-async function findMostWornCoreTroop(query, playerId) {
-  const [rows] = await query(
-    `SELECT pc.instance_id, pc.card_id, COALESCE(pc.battle_count, 0) AS battle_count,
-            COALESCE(pc.max_battle_count, 0) AS max_battle_count,
-            COALESCE(ct.troop_name, pc.card_id) AS troop_name
-     FROM player_cards pc
-     LEFT JOIN config_troops ct ON ct.troop_id = pc.card_id
-     WHERE pc.player_id = ? AND pc.card_type = 'troop' AND pc.rarity = 'core'
-     ORDER BY battle_count DESC, pc.instance_id ASC
-     LIMIT 1`,
-    [playerId]
-  );
-  return rows[0] || null;
-}
-
-/** config_items.special_effect：传奇耐久修满 */
-function isLegendaryTroopRepairEffect(effect) {
-  return effect === 'repair_min_durability_full_legendary';
-}
-
-/** config_items.special_effect：核心耐久修满 */
-function isCoreTroopRepairEffect(effect) {
-  return effect === 'repair_min_durability_full_core';
-}
-
-/**
- * repair_min_durability_full_legendary：将上述实例 battle_count 置 0（满耐久）
- * @returns {Promise<{ instanceId: string, cardId: string, troopName: string, previousBattleCount: number }>}
- */
-async function applyRepairLegendaryMinDurabilityFull(query, playerId) {
-  const target = await findMostWornLegendaryTroop(query, playerId);
-  if (!target) {
-    const err = new Error('NO_LEGENDARY_TROOP');
-    err.code = 'NO_LEGENDARY_TROOP';
+  const row = rows[0];
+  if (!row) {
+    const err = new Error('TROOP_NOT_FOUND');
+    err.code = 'TROOP_NOT_FOUND';
     throw err;
   }
-  const prev = Number(target.battle_count) || 0;
-  await query(
-    `UPDATE player_cards SET battle_count = 0 WHERE instance_id = ? AND player_id = ? AND card_type = 'troop'`,
-    [target.instance_id, playerId]
-  );
-  return {
-    instanceId: target.instance_id,
-    cardId: target.card_id,
-    troopName: target.troop_name,
-    previousBattleCount: prev,
-  };
-}
-
-/**
- * repair_min_durability_full_core：将 battle_count 最高的核心部队实例 battle_count 置 0
- */
-async function applyRepairCoreMinDurabilityFull(query, playerId) {
-  const target = await findMostWornCoreTroop(query, playerId);
-  if (!target) {
-    const err = new Error('NO_CORE_TROOP');
-    err.code = 'NO_CORE_TROOP';
+  const rarity = String(row.rarity || '').toLowerCase();
+  const cost = troopBadgeRepairCostForRarity(rarity);
+  if (cost == null) {
+    const err = new Error('TROOP_RARITY_NOT_REPAIRABLE');
+    err.code = 'TROOP_RARITY_NOT_REPAIRABLE';
     throw err;
   }
-  const prev = Number(target.battle_count) || 0;
-  await query(
-    `UPDATE player_cards SET battle_count = 0 WHERE instance_id = ? AND player_id = ? AND card_type = 'troop'`,
-    [target.instance_id, playerId]
-  );
+  const prev = Number(row.battle_count) || 0;
+  if (prev <= 0) {
+    const err = new Error('TROOP_ALREADY_FULL_DURABILITY');
+    err.code = 'TROOP_ALREADY_FULL_DURABILITY';
+    throw err;
+  }
+
+  const [itemRows] = await pool.query('SELECT items FROM players WHERE player_id = ?', [playerId]);
+  if (!itemRows[0]) {
+    const err = new Error('PLAYER_NOT_FOUND');
+    err.code = 'PLAYER_NOT_FOUND';
+    throw err;
+  }
+  let items = {};
+  if (itemRows[0].items) {
+    items =
+      typeof itemRows[0].items === 'string' ? JSON.parse(itemRows[0].items) : itemRows[0].items;
+  }
+  const have = Number(items[TROOP_BADGE_ITEM_ID]) || 0;
+  if (have < cost) {
+    const err = new Error('BADGE_INSUFFICIENT');
+    err.code = 'BADGE_INSUFFICIENT';
+    err.have = have;
+    err.need = cost;
+    throw err;
+  }
+
+  items[TROOP_BADGE_ITEM_ID] = have - cost;
+  if (items[TROOP_BADGE_ITEM_ID] <= 0) delete items[TROOP_BADGE_ITEM_ID];
+
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    await conn.query('UPDATE players SET items = ? WHERE player_id = ?', [
+      JSON.stringify(items),
+      playerId,
+    ]);
+    const [upd] = await conn.query(
+      `UPDATE player_cards SET battle_count = 0
+       WHERE instance_id = ? AND player_id = ? AND card_type = 'troop'
+         AND COALESCE(battle_count, 0) > 0`,
+      [iid, playerId]
+    );
+    if (!upd.affectedRows) {
+      await conn.rollback();
+      const err = new Error('TROOP_ALREADY_FULL_DURABILITY');
+      err.code = 'TROOP_ALREADY_FULL_DURABILITY';
+      throw err;
+    }
+    await conn.commit();
+  } catch (e) {
+    try {
+      await conn.rollback();
+    } catch {
+      /* ignore */
+    }
+    throw e;
+  } finally {
+    conn.release();
+  }
+
   return {
-    instanceId: target.instance_id,
-    cardId: target.card_id,
-    troopName: target.troop_name,
+    instanceId: row.instance_id,
+    cardId: row.card_id,
+    troopName: row.troop_name,
+    rarity,
     previousBattleCount: prev,
+    maxBattleCount: Number(row.max_battle_count) || 0,
+    cost,
+    badgeItemId: TROOP_BADGE_ITEM_ID,
+    remainingBadges: Number(items[TROOP_BADGE_ITEM_ID]) || 0,
   };
-}
-
-/**
- * @param {string} effect special_effect 值
- */
-async function applyTroopRepairEffect(query, playerId, effect) {
-  if (isLegendaryTroopRepairEffect(effect)) {
-    return applyRepairLegendaryMinDurabilityFull(query, playerId);
-  }
-  if (isCoreTroopRepairEffect(effect)) {
-    return applyRepairCoreMinDurabilityFull(query, playerId);
-  }
-  const err = new Error('UNKNOWN_TROOP_REPAIR_EFFECT');
-  err.code = 'UNKNOWN_TROOP_REPAIR_EFFECT';
-  throw err;
-}
-
-/** 仅这些 special_effect 会走部队耐久修复（其它效果留给别模块） */
-function isTroopDurabilityRepairEffect(effect) {
-  return isLegendaryTroopRepairEffect(effect) || isCoreTroopRepairEffect(effect);
 }
 
 module.exports = {
   getItemSpecialEffect,
-  findMostWornLegendaryTroop,
-  findMostWornCoreTroop,
-  applyTroopRepairEffect,
-  isTroopDurabilityRepairEffect,
-  isLegendaryTroopRepairEffect,
-  isCoreTroopRepairEffect,
+  repairSelectedTroopWithBadge,
+  isTroopBadgeManualRepairEffect,
+  TROOP_BADGE_ITEM_ID,
+  TROOP_BADGE_SPECIAL_EFFECT,
+  // 兼容旧 import 名：一律视为非「事件结算自动整编」
+  isTroopDurabilityRepairEffect: () => false,
+  isLegendaryTroopRepairEffect: () => false,
+  isCoreTroopRepairEffect: () => false,
+  applyTroopRepairEffect: async () => {
+    const err = new Error('AUTO_TROOP_REPAIR_REMOVED');
+    err.code = 'AUTO_TROOP_REPAIR_REMOVED';
+    throw err;
+  },
 };

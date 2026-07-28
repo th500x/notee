@@ -173,12 +173,12 @@ export const warAPI = {
   /**
    * 攻方对城：服务端权威演算并结算（冲锋动画入口）。
    */
-  async resolveAttackerCitySiegeAuthoritative(pvpWarId, playerId) {
+  async resolveAttackerCitySiegeAuthoritative(pvpWarId, playerId, { continueChain = false } = {}) {
     return fetchJSON(
       `${BASE}/${encodeURIComponent(pvpWarId)}/city-siege-authoritative-resolve`,
       {
         method: 'POST',
-        body: JSON.stringify({ playerId }),
+        body: JSON.stringify({ playerId, continueChain: !!continueChain }),
       },
     );
   },
@@ -186,12 +186,12 @@ export const warAPI = {
   /**
    * 守方打大本营：服务端权威演算并结算。
    */
-  async resolveBaseCampSiegeAuthoritative(pvpWarId, playerId) {
+  async resolveBaseCampSiegeAuthoritative(pvpWarId, playerId, { continueChain = false } = {}) {
     return fetchJSON(
       `${BASE}/${encodeURIComponent(pvpWarId)}/base-camp-siege-authoritative-resolve`,
       {
         method: 'POST',
-        body: JSON.stringify({ playerId }),
+        body: JSON.stringify({ playerId, continueChain: !!continueChain }),
       },
     );
   },

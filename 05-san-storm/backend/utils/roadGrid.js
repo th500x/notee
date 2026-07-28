@@ -4,7 +4,7 @@
  * 优先级：
  *   1. MySQL 中已为该 season+junId 入库的道路数据（若迁移 / 管理端已写入专用表，
  *      以实装表名为准；目前仓内尚未建立独立表，本函数在无数据时回退 merged.json）。
- *   2. public/data/worldmap/{jun}_merged.json（与 worldMapAdminService、31-5 一致）。
+ *   2. public/data/worldmap/{jun}_merged.json（与工坊写出、31-2 一致）。
  *
  * 同一业务请求只采用一种来源完成全部校验，禁止半套混用。
  *
@@ -25,6 +25,7 @@ const {
   buildStrategicObjectFootprintBlockedSet,
 } = require('../../shared/utils/strategicRoadOverlay.js');
 const { ensureYingchuanMergedMapCells } = require('../../shared/utils/strategicBanditPlaceholderPhase1.js');
+const { isJunStrategicMapPlayReady } = require('../../shared/utils/junStrategicMapReadiness.cjs');
 
 /** S1 豫州大地图垂直叠放郡（与 `shared/utils/strategicWorldMapStack.js` 一致） */
 const SAN_1_YU_STACK_JUN_IDS = ['san_1_jun_yingchuan', 'san_1_jun_runan'];
@@ -86,7 +87,8 @@ async function loadRoadGridSan1YuVerticalStack(_season) {
   }
   const top = readMergedJson('san_1_jun_yingchuan');
   if (!top?.cells?.length || !Array.isArray(top.cells[0])) return null;
-  const mapColumns = Number(top.columns || top.mapColumns || 32);
+  const mapColumns = Number(top.columns || top.mapColumns);
+  if (!Number.isFinite(mapColumns) || mapColumns <= 0) return null;
   const mapRowsSlice = Math.min(40, Number(top.mapRows) || 40, top.cells.length);
   const mergedSeed = Number(top.seed);
   const topJunBare = String(top.junId || 'san_1_jun_yingchuan').replace(/^san_1_jun_/, '');
@@ -99,16 +101,33 @@ async function loadRoadGridSan1YuVerticalStack(_season) {
         })
       : top.cells;
   const topAdj = { ...top, cells: terrainCellsTop, mapColumns, mapRows: mapRowsSlice };
-  const bottom = readMergedJson('san_1_jun_runan');
+  // TEMP 2026-07：系统暂不启用汝南郡 —— 道路栅格仅颍川（与 san1StrategicMergedPublicLoader 成对；勿删）
+  // const bottomRaw = readMergedJson('san_1_jun_runan');
+  // const bottom =
+  //   bottomRaw && bottomRaw.cells?.length && isJunStrategicMapPlayReady(bottomRaw)
+  //     ? bottomRaw
+  //     : null;
+  // if (bottomRaw && !bottom) {
+  //   console.info(
+  //     '[roadGrid] 汝南 merged 未就绪（非 Meowa/工坊），道路栅格仅颍川',
+  //     { source: bottomRaw.source?.kind || null },
+  //   );
+  // }
+  const bottom = null;
   const built = stackMod.buildSan1YuVerticalStackFromMergedPayloads({
     yingchuan: topAdj,
-    runan: bottom && bottom.cells?.length ? bottom : null,
+    runan: bottom,
   });
   if (!built?.ok || !built.cells?.length) return null;
   const road = normalizeRoadCellList(built.roadCells);
   const cells = new Map();
   for (const { gx, gy } of road) cells.set(cellKey(gx, gy), true);
   const blocked = buildStrategicObjectFootprintBlockedSet(built.cells, built.mapColumns, built.mapRows);
+  const stacked = built.mode === 'vertical_stack' || built.mode === 'l_stack';
+  const included =
+    Array.isArray(built.includedJunIds) && built.includedJunIds.length
+      ? built.includedJunIds
+      : ['san_1_jun_yingchuan'];
   return {
     source: 'json',
     cells,
@@ -117,8 +136,11 @@ async function loadRoadGridSan1YuVerticalStack(_season) {
     mapRows: built.mapRows,
     rawCells: built.cells,
     roadCellsRaw: built.roadCells || [],
-    isSan1YuVerticalStack: true,
-    stackJunIds: SAN_1_YU_STACK_JUN_IDS,
+    /** L 形 / 旧垂直叠图：世界行坐标；单郡 false */
+    isSan1YuVerticalStack: stacked,
+    stackJunIds: included,
+    stackMode: built.mode || 'single_county',
+    widthMismatch: !!built.widthMismatch,
   };
 }
 
@@ -165,7 +187,7 @@ async function loadRoadGrid(season, junId) {
  * 以 `cells` 二维表找到 main_city_id 所在的战略城块锚点（2×2 优先），
  * 返回该块占据的全部格集合。用于判断「无 road_position 时首跳必须邻接主城块」。
  */
-const OBJECT_2X2 = new Set(['city_small', 'city_medium', 'city_major', 'gate', 'fort']);
+const OBJECT_2X2 = new Set(['city_small', 'city_medium', 'city_major', 'city_gate']);
 
 function cellIs2x2CityObject(objectType) {
   return objectType && OBJECT_2X2.has(String(objectType));

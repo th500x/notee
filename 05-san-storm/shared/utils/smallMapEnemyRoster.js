@@ -335,7 +335,7 @@ export function resolveSiegeNpcFactionIdForTroopPool(city) {
 
 /**
  * 城市类型 → 匪寨难度档（槽位组合见 `BANDIT_NPC_SLOTS_BY_TIER`）
- * 小城→normal；中城/据点→rare；大城/关隘→epic。
+ * 小城→normal；中城→rare；大城/关隘→epic。
  * @param {string|null|undefined} cityType
  * @returns {'normal'|'rare'|'epic'|'legendary'}
  */
@@ -344,10 +344,9 @@ export function cityTypeToBanditTier(cityType) {
     case 'city_small':
       return 'normal';
     case 'city_medium':
-    case 'fort':
       return 'rare';
     case 'city_major':
-    case 'gate':
+    case 'city_gate':
       return 'epic';
     default:
       return 'normal';
@@ -366,7 +365,63 @@ export function resolveCityBanditTier(cityType, poiRowOrGridId) {
 }
 
 /**
- * 事件卡稀有度 / 事件模板 ID 末段 → 匪寨档（探索战与匪寨一致；`core` 与传奇档相同组合）
+ * 探索惩罚战：事件 `chain_level` → 战斗用稀有度（再经 {@link eventCardRarityToBanditTier} 进匪寨档四槽）。
+ * 1→普通 / 2→稀有 / 3→史诗 / 4→传奇 / ≥5→核心；缺省或 ≤0 按 1（普通）。
+ * **勿**再从 `event_id` 千位推断（千位已表示 tutorial/wild/mini 玩法档）。
+ * @param {number|string|null|undefined} chainLevel
+ * @returns {'common'|'rare'|'epic'|'legendary'|'core'}
+ */
+export function eventChainLevelToBattleRarity(chainLevel) {
+  const n = Math.floor(Number(chainLevel));
+  if (!Number.isFinite(n) || n <= 1) return 'common';
+  if (n === 2) return 'rare';
+  if (n === 3) return 'epic';
+  if (n === 4) return 'legendary';
+  return 'core';
+}
+
+/** 战斗稀有度 → 「xx档」文案（探索 tooltip 难度区间） */
+const BATTLE_RARITY_TIER_ZH = {
+  common: '普通档',
+  rare: '稀有档',
+  epic: '史诗档',
+  legendary: '传奇档',
+  core: '核心档',
+};
+
+/**
+ * @param {number|string|null|undefined} chainLevel
+ * @returns {string} 例：`普通档`
+ */
+export function eventChainLevelToDifficultyTierZh(chainLevel) {
+  const r = eventChainLevelToBattleRarity(chainLevel);
+  return BATTLE_RARITY_TIER_ZH[r] || '普通档';
+}
+
+/**
+ * 当前探索事件池的 `chain_level` 跨度 → 右上角难度文案。
+ * @param {Array<{ chain_level?: number|string, chainLevel?: number|string }>|null|undefined} poolEvents
+ * @returns {string|null} 例：`难度：普通档-史诗档`；池空则 null
+ */
+export function explorePoolChainLevelDifficultyHint(poolEvents) {
+  if (!Array.isArray(poolEvents) || poolEvents.length === 0) return null;
+  let minL = Infinity;
+  let maxL = -Infinity;
+  for (const e of poolEvents) {
+    const n = Math.floor(Number(e?.chain_level ?? e?.chainLevel));
+    const level = Number.isFinite(n) && n > 0 ? n : 1;
+    if (level < minL) minL = level;
+    if (level > maxL) maxL = level;
+  }
+  if (!Number.isFinite(minL) || maxL < 0) return null;
+  const a = eventChainLevelToDifficultyTierZh(minL);
+  const b = eventChainLevelToDifficultyTierZh(maxL);
+  return `难度：${a}-${b}`;
+}
+
+/**
+ * 事件战斗稀有度 → 匪寨档（探索战与匪寨一致；`core` 与传奇档相同组合）
+ * 稀有度来源见 {@link eventChainLevelToBattleRarity}（按 `chain_level`）。
  * @param {string|null|undefined} cardRarity
  */
 export function eventCardRarityToBanditTier(cardRarity) {

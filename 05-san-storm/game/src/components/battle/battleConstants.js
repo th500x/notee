@@ -13,21 +13,44 @@ export {
   ZONE,
 } from '@shared/utils/tacticalBattleGrid';
 
+/**
+ * 战场各方残余总兵力（仅 `currentTroops > 0` 计入；友军含 ally / ally1 / ally2）。
+ * @param {Array<{ faction?: string, currentTroops?: number }>|null|undefined} battleTroops
+ * @returns {{ player: number, enemy: number, ally: number }}
+ */
+export function sumBattleFactionTroopTotals(battleTroops) {
+  let player = 0;
+  let enemy = 0;
+  let ally = 0;
+  for (const t of battleTroops || []) {
+    const n = Math.max(0, Math.round(Number(t?.currentTroops) || 0));
+    if (n <= 0) continue;
+    const f = t?.faction;
+    if (f === 'player') player += n;
+    else if (f === 'enemy') enemy += n;
+    else if (f === 'ally' || f === 'ally1' || f === 'ally2') ally += n;
+  }
+  return { player, enemy, ally };
+}
+
 export const TILE_INFO = {
   forest: { badge: '🌲', name: '树林', attrs: '移动消耗 +1\n防御加成 +5%' },
   hill:   { badge: '⛰️', name: '丘陵', attrs: '移动消耗 +1\n防御加成 +10%\n高地优势' },
   waste:  { badge: '🏜️', name: '荒地', attrs: '移动消耗 +0\n无特殊效果' },
   river:  { badge: '🌊', name: '河道', attrs: '不可通行' },
   lake:   { badge: '🌊', name: '水域', attrs: '不可通行' },
+  lava:   { badge: '🌋', name: '熔岩', attrs: '不可通行' },
+  bridge: { badge: '🌉', name: '桥梁', attrs: '可通行\n跨越河道' },
   rock:   { badge: '◼', name: '巨石', attrs: '不可通行\n不可破坏' },
   fence:  { badge: '🚧', name: '栅栏', attrs: '不可通行\n可破坏 HP 500' },
   trap:   { badge: '⚠️', name: '陷阱', attrs: '可通行 · 移动消耗 +0\n路过扣 50 兵力' },
   chest:  { badge: '📦', name: '宝箱', attrs: '可通行\n可互动获取奖励' },
+  random: { badge: '❓', name: '随机箱', attrs: '可通行\n仅我军可互动 · 随机效果' },
+  farm:   { badge: '🌾', name: '农场', attrs: '可通行\n踏入回复兵力 200' },
   city_major: { badge: '🏛️', name: '大城', attrs: '战略层城点（测试）\n可通行' },
   city_medium: { badge: '🏯', name: '中城', attrs: '战略层城点（测试）\n可通行' },
   city_small: { badge: '🏘️', name: '小城', attrs: '战略层城点（测试）\n可通行' },
-  gate: { badge: '🚩', name: '关隘', attrs: '战略层城点（测试）\n可通行' },
-  fort: { badge: '🏰', name: '预设据点（空地）', attrs: '可建造 fort 槽位（战略层）\n可通行' },
+  city_gate: { badge: '🚩', name: '关隘', attrs: '战略层城点（测试）\n可通行' },
   bandit_camp: { badge: '⚔', name: '匪寨', attrs: '战略 POI（阶段一占位）\n可通行至寨心' },
 };
 
@@ -73,6 +96,18 @@ export function buildTacticalTileTooltipInfo({ terrain, obj, cellOnFire }) {
       attrs: `移动消耗 +3（与平原相同 +1，着火 +2）\n无地形防御加成\n${FIRE_ATTRS_END_TURN}`,
     };
   }
+  if (t === 'bridge') {
+    base = TILE_INFO.bridge;
+    if (!onFire) return base;
+    return {
+      badge: '🔥',
+      name: `${base.name}（着火）`,
+      attrs: `${base.attrs}\n${FIRE_ATTRS_EXTRA_MOVE}\n${FIRE_ATTRS_END_TURN}`,
+    };
+  }
+  if (t === 'river' || t === 'lake' || t === 'lava') {
+    return TILE_INFO[t] || null;
+  }
   if (onFire) {
     return {
       badge: '🔥',
@@ -90,11 +125,12 @@ export function campaignObjectToTileInfoKey(objectId) {
   if (id === 'fence') return 'fence';
   if (id === 'trap') return 'trap';
   if (id === 'chest') return 'chest';
+  if (id === 'random') return 'random';
+  if (id === 'farm') return 'farm';
   if (id === 'city_major') return 'city_major';
   if (id === 'city_medium') return 'city_medium';
   if (id === 'city_small') return 'city_small';
-  if (id === 'gate') return 'gate';
-  if (id === 'fort') return 'fort';
+  if (id === 'city_gate') return 'city_gate';
   if (id === 'bandit_horiz' || id === 'bandit_vert') return 'bandit_camp';
   if (id === 'rock' || id === 'military_tower' || id === 'military_camp') return 'rock';
   return null;
@@ -134,6 +170,12 @@ export function buildCampaignCellTooltipInfo(cell) {
   }
   if (ter === 'river' || ter === 'lake') {
     return { badge: '🌊', name: '水域', attrs: '不可通行' };
+  }
+  if (ter === 'lava') {
+    return { badge: '🌋', name: '熔岩', attrs: '不可通行' };
+  }
+  if (ter === 'bridge') {
+    return TILE_INFO.bridge;
   }
   /** 战略大地图：preset 中 object 类型未列入 TILE_INFO 时仍可能有 cityId，避免无 tooltip、无法合并运行时 */
   if (cell?.cityId || cell?.cityName) {
@@ -349,28 +391,64 @@ export function tooltipTransformForContent(content) {
 /** 图片路径基础 */
 export const ASSET_BASE = `${import.meta.env.BASE_URL}assets/san_1_map/`;
 
+/** 战略大地图 · 进行中战事目标城「战」字贴图（替代旧火焰叠层） */
+export const STRATEGIC_WAR_ZHAN_MARK_URL = `${ASSET_BASE}tile_3_object/${encodeURIComponent('war_zhan!.png')}`;
+
 /** 着火特效帧 1~12（tile_3_effect/fire_frame_XX.png） */
 export function tacticalFireFrameUrl(frameIndex1Based) {
   const n = Math.max(1, Math.min(12, frameIndex1Based));
   return `${ASSET_BASE}tile_3_effect/fire_frame_${String(n).padStart(2, '0')}.png`;
 }
 
-/** 获取底色图片路径 */
-export function getBg(terrain, variants, isChest) {
-  const p = variants.bgTheme === 'wasteland' ? 'plain_wasteland' : 'plain_grassland';
-  return `${ASSET_BASE}tile_1_bg/${isChest ? p + '_chest.png' : p + '_' + variants.bgVariant + '.png'}`;
+/**
+ * 获取底色图片路径。
+ * v2：优先用格上的 Wang `baseTileRel`（相对 assets/san_1_map/）。
+ * 旧 plain_* 已移除；无 baseTileRel 时回退 void_fill，避免 404。
+ */
+export function getBg(terrain, variants, isChest, baseTileRel = null) {
+  if (baseTileRel) return `${ASSET_BASE}${baseTileRel}`;
+  if (variants?.generator === 'v2' || variants?.bgVariant === 'wang') {
+    return `${ASSET_BASE}tile_1_bg/void_fill.png`;
+  }
+  // 遗留路径（资源已删，仅防调用方未传 baseTileRel 时的显式灰底）
+  void terrain;
+  void isChest;
+  return `${ASSET_BASE}tile_1_bg/void_fill.png`;
 }
 
-/** 获取地形叠加图片路径 */
+/**
+ * 旧版「单格整铺」地形叠加（forest_XX / hill_XX 铺满格）。
+ * v2 树林/山丘改由 terrainOverlays 渲染，此处仅保留河湖等兼容。
+ */
 export function getTerrain(terrain, variants) {
+  if (variants?.generator === 'v2') {
+    if (terrain === 'river' || terrain === 'lake') return null; // 水已在 Wang 底
+    return null;
+  }
   if (terrain === 'forest') return `${ASSET_BASE}tile_2_terrain/forest_${variants.forest}.png`;
   if (terrain === 'hill') return `${ASSET_BASE}tile_2_terrain/hill_${variants.hill}.png`;
   if (terrain === 'river' || terrain === 'lake') return `${ASSET_BASE}tile_2_terrain/river_01.png`;
   return null;
 }
 
-/** 获取对象图片路径 */
-export function getObj(type, isOpen) {
-  const m = { rock: 'rock_01.png', fence: 'fence_01.png', trap: 'trap_01.png', chest: isOpen ? 'chest_01_op.png' : 'chest_01_cl.png' };
-  return `${ASSET_BASE}tile_3_object/${m[type]}`;
+/** 对象瓦绝对 URL（相对 assets/san_1_map/ 的 tileRel） */
+export function terrainOverlayUrl(tileRel) {
+  if (!tileRel) return null;
+  return `${ASSET_BASE}${tileRel}`;
+}
+
+/** 获取对象图片路径（优先用对象上的 tileRel） */
+export function getObj(type, isOpen, tileRel) {
+  if (tileRel) return terrainOverlayUrl(tileRel);
+  const m = {
+    rock: 'rock_01.png',
+    fence: 'fence_01.png',
+    trap: 'trap_01.png',
+    farm: 'farm_01.png',
+    random: 'random_01.png',
+    chest: isOpen ? 'chest_01(1-2).png' : 'chest_01(1-2).png',
+  };
+  const file = m[type];
+  if (!file) return null;
+  return `${ASSET_BASE}tile_3_object/${file}`;
 }

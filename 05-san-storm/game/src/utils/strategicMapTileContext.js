@@ -3,10 +3,7 @@
  * 非锚点格需解析「被哪一格的 POI 覆盖」以统一 tooltip / 底板色 / 标签。
  */
 
-import {
-  strategicMapObjectIs2x2,
-  strategicMapBanditDominoFootprintKind,
-} from '@/utils/campaignMapVisualAssets';
+import { strategicMapBanditDominoFootprintKind } from '@/utils/campaignMapVisualAssets';
 import { readStrategicCellAnchorId } from '@shared/utils/strategicCellAnchorId.js';
 import { isBanditMapObjectId } from '@shared/utils/smallMapEnemyRoster';
 import {
@@ -16,12 +13,13 @@ import {
 import { playerRoadToWorldMapCell } from '@shared/utils/strategicGridCoordinates.js';
 import { SAN_1_STRATEGIC_VERTICAL_STACK_JUN_ORDER } from '@shared/utils/strategicWorldMapStack.js';
 import { collectStrategicPvpCampFootprintFromBaseCamp } from '@shared/utils/strategicMarchPoi.js';
+import { isStrategic2x2FootprintAnchor } from '@shared/utils/strategicRoadOverlay.js';
 
 /** 与瓦片内跨格对象图同挂，供滚动居中 / tooltip 锚点取几何中心 */
 export const STRATEGIC_MAP_FOOTPRINT_VISUAL_SELECTOR = '.ws-strategic-footprint-visual';
 
 /**
- * @typedef {'city_2x2'|'bandit_2x1'|'bandit_1x2'|'pvp_camp_2x1'|'pvp_camp_1x2'} StrategicFootprintKind
+ * @typedef {'city_2x2'|'bandit_2x1'|'bandit_1x2'|'pvp_camp_1x1'|'pvp_camp_2x1'|'pvp_camp_1x2'} StrategicFootprintKind
  */
 
 /**
@@ -44,8 +42,9 @@ export function resolveStrategicTileCityCover(cells, ri, ci) {
   ];
   for (const [r, c] of candidates2x2) {
     if (r < 0 || c < 0 || r >= rows || c >= cols) continue;
+    /** 仅 NW 锚点：与道路禁区 `isStrategic2x2FootprintAnchor` 同源（工坊四格都写 object） */
+    if (!isStrategic2x2FootprintAnchor(cells, c, r)) continue;
     const ac = cells[r][c];
-    if (!readStrategicCellAnchorId(ac) || !strategicMapObjectIs2x2(ac.object)) continue;
     if (ri >= r && ri <= r + 1 && ci >= c && ci <= c + 1) {
       return { anchorR: r, anchorC: c, anchorCell: ac, footprintKind: 'city_2x2' };
     }
@@ -101,14 +100,39 @@ export function resolveStrategicTileCityCover(cells, ri, ci) {
 }
 
 /**
- * PVP 攻方大本营：与匪寨相同 **2×1 / 1×2** 跨格语义；`base_camp.cells` 为 **郡内** `gx,gy`，此处换为叠放 **世界格** 再匹配 `(ci,ri)`。
+ * PVP 攻方大本营 footprint → 瓦片 cover。
+ * 现行：**道路 1×1**（`pvp_camp_1x1` / `pvp_camp_single`）；旧档 2×1 / 1×2 仍可解析。
+ * `base_camp.cells` 为 **郡内** `gx,gy`，换为叠放 **世界格** 再匹配 `(ci,ri)`。
  *
  * @param {number} ri - 世界行（与 `cells` 下标一致）
  * @param {number} ci - 世界列
  * @param {Array<{ junId?: string, anchorOx?: number, anchorOy?: number, orientation?: string, cells?: string[], npcAlive?: number, npcTotal?: number }>|null|undefined} pvpBaseCamps
  * @param {object[][]|null|undefined} [cellsForDims] - 传入时与 `collectStrategicPvpCampFootprintFromBaseCamp` 共用 footprint（锚点优先于 `cells` 列表），避免 cells 与锚点漂移导致漏判
- * @returns {{ anchorR: number, anchorC: number, anchorCell: object, footprintKind: 'pvp_camp_2x1'|'pvp_camp_1x2', pvpWarId: string, attackerFactionId?: string|null } | null}
+ * @returns {{ anchorR: number, anchorC: number, anchorCell: object, footprintKind: 'pvp_camp_1x1'|'pvp_camp_2x1'|'pvp_camp_1x2', pvpWarId: string, attackerFactionId?: string|null } | null}
  */
+function pvpCampVisualFromFootprintSize(width, height) {
+  if (width === 1 && height === 1) {
+    return { footprintKind: 'pvp_camp_1x1', object: 'pvp_camp_single' };
+  }
+  const vertical = width === 1 && height === 2;
+  return {
+    footprintKind: vertical ? 'pvp_camp_1x2' : 'pvp_camp_2x1',
+    object: vertical ? 'pvp_camp_vert' : 'pvp_camp_horiz',
+  };
+}
+
+function pvpCampVisualFromOrientation(orientRaw) {
+  const orient = String(orientRaw || 'single').toLowerCase();
+  if (orient === 'single' || orient === '1x1') {
+    return { footprintKind: 'pvp_camp_1x1', object: 'pvp_camp_single' };
+  }
+  const vertical = orient === 'vertical';
+  return {
+    footprintKind: vertical ? 'pvp_camp_1x2' : 'pvp_camp_2x1',
+    object: vertical ? 'pvp_camp_vert' : 'pvp_camp_horiz',
+  };
+}
+
 export function resolveStrategicTilePvpCampCover(ri, ci, pvpBaseCamps, cellsForDims = null) {
   if (!pvpBaseCamps?.length) return null;
   const here = `${ci},${ri}`;
@@ -121,9 +145,7 @@ export function resolveStrategicTilePvpCampCover(ri, ci, pvpBaseCamps, cellsForD
     if (rows > 0 && cols > 0) {
       const fp = collectStrategicPvpCampFootprintFromBaseCamp(c, cols, rows);
       if (fp?.keys?.has(here)) {
-        const vertical = fp.width === 1 && fp.height === 2;
-        const footprintKind = vertical ? 'pvp_camp_1x2' : 'pvp_camp_2x1';
-        const object = vertical ? 'pvp_camp_vert' : 'pvp_camp_horiz';
+        const { footprintKind, object } = pvpCampVisualFromFootprintSize(fp.width, fp.height);
         const pvpWarId = String(c.pvpWarId || '').trim();
         const anchorCell = {
           object,
@@ -170,10 +192,7 @@ export function resolveStrategicTilePvpCampCover(ri, ci, pvpBaseCamps, cellsForD
     const anchorLy = Number(c.anchorOy) || 0;
     const anchorWorld = playerRoadToWorldMapCell(anchorJun, anchorLx, anchorLy);
     const anchorWy = anchorWorld?.worldGy ?? anchorLy;
-    const orient = String(c.orientation || 'horizontal').toLowerCase();
-    const vertical = orient === 'vertical';
-    const footprintKind = vertical ? 'pvp_camp_1x2' : 'pvp_camp_2x1';
-    const object = vertical ? 'pvp_camp_vert' : 'pvp_camp_horiz';
+    const { footprintKind, object } = pvpCampVisualFromOrientation(c.orientation);
     const pvpWarId = String(c.pvpWarId || '').trim();
     const anchorCell = {
       object,

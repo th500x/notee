@@ -4,14 +4,17 @@ const StrategicMapNavigationContext = createContext(null);
 
 /**
  * 战略大地图：由 `WorldStrategicMapGrid` 注册
- * - `scrollToStrategicCell(gx,gy)` 视口滚动
- * - `resolveStrategicAnchorForCityId(cityId)` 从当前格网解析锚点（库中 position 为空时州郡跳转用）
- * - `queueScrollToCityId(cityId)` / `peekPendingScrollToCityId` / `clearPendingScrollToCityId`：Tab 外发起「定位某城」时暂存，地图挂载后消费
+ * - `scrollToStrategicCell(gx,gy)` 视口滚动（格居中）
+ * - `resolveStrategicAnchorForCityId(cityId)` 从当前格网解析锚点
+ * - `queueScrollToCityId` / peek / clear：Tab 外发起「定位某城」
+ * - 视口框：`getStrategicViewport` / `setStrategicViewportTopLeft` / `subscribeStrategicViewport`
  */
 export function StrategicMapNavigationProvider({ children }) {
   const handlerRef = useRef(null);
   const resolveAnchorRef = useRef(null);
   const pendingCityScrollRef = useRef(null);
+  const viewportApiRef = useRef(null);
+  const viewportListenersRef = useRef(new Set());
 
   const registerScrollToStrategicCell = useCallback((fn) => {
     handlerRef.current = fn;
@@ -53,6 +56,58 @@ export function StrategicMapNavigationProvider({ children }) {
     pendingCityScrollRef.current = null;
   }, []);
 
+  const notifyStrategicViewportChanged = useCallback(() => {
+    for (const listener of viewportListenersRef.current) {
+      try {
+        listener();
+      } catch {
+        /* ignore */
+      }
+    }
+  }, []);
+
+  const registerStrategicViewportApi = useCallback(
+    (api) => {
+      viewportApiRef.current = api;
+      notifyStrategicViewportChanged();
+      return () => {
+        if (viewportApiRef.current === api) viewportApiRef.current = null;
+        notifyStrategicViewportChanged();
+      };
+    },
+    [notifyStrategicViewportChanged],
+  );
+
+  const getStrategicViewport = useCallback(() => {
+    const api = viewportApiRef.current;
+    if (!api || typeof api.getViewport !== 'function') return null;
+    return api.getViewport();
+  }, []);
+
+  const setStrategicViewportTopLeft = useCallback(
+    (gx, gy) => {
+      const api = viewportApiRef.current;
+      if (!api || typeof api.setViewportTopLeft !== 'function') return;
+      api.setViewportTopLeft(gx, gy);
+      notifyStrategicViewportChanged();
+    },
+    [notifyStrategicViewportChanged],
+  );
+
+  const getStrategicMapSize = useCallback(() => {
+    const api = viewportApiRef.current;
+    if (!api || typeof api.getMapSize !== 'function') return null;
+    return api.getMapSize();
+  }, []);
+
+  const subscribeStrategicViewport = useCallback((listener) => {
+    if (typeof listener !== 'function') return () => {};
+    viewportListenersRef.current.add(listener);
+    return () => {
+      viewportListenersRef.current.delete(listener);
+    };
+  }, []);
+
   const value = useMemo(
     () => ({
       registerScrollToStrategicCell,
@@ -62,6 +117,12 @@ export function StrategicMapNavigationProvider({ children }) {
       queueScrollToCityId,
       peekPendingScrollToCityId,
       clearPendingScrollToCityId,
+      registerStrategicViewportApi,
+      getStrategicViewport,
+      setStrategicViewportTopLeft,
+      getStrategicMapSize,
+      subscribeStrategicViewport,
+      notifyStrategicViewportChanged,
     }),
     [
       registerScrollToStrategicCell,
@@ -71,6 +132,12 @@ export function StrategicMapNavigationProvider({ children }) {
       queueScrollToCityId,
       peekPendingScrollToCityId,
       clearPendingScrollToCityId,
+      registerStrategicViewportApi,
+      getStrategicViewport,
+      setStrategicViewportTopLeft,
+      getStrategicMapSize,
+      subscribeStrategicViewport,
+      notifyStrategicViewportChanged,
     ],
   );
 

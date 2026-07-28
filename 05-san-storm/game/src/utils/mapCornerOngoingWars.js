@@ -3,7 +3,8 @@
  * 排序：PVP 攻 > PVP 守 > PVE；同类按 createdAt 升序。
  */
 
-const PVP_WAR_DURATION_MS = 24 * 60 * 60 * 1000;
+/** 与后端 PVE/PVP 战事时长一致（17-3：7 天） */
+const PVP_WAR_DURATION_MS = 7 * 24 * 60 * 60 * 1000;
 
 /**
  * @param {string|null|undefined} targetCityName

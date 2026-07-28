@@ -1,10 +1,9 @@
 /**
- * - **卡面 / 编组 / wiki**：`public/assets/san_1_ui_card/troop/` → `getTroopPortraitUrlAttempts`（无阵营子目录）。
- * - **8×10 战斗地图 / TroopLayer / bindTroopPortraitImg**：`public/assets/san_1_battle/{player|enemy}/`
- *   → `getBattleFieldTroopPortraitUrlAttempts`（敌我不同目录，同配置 ID 也区分立绘）。
- * - **战役大地图格**：`san_1_battle/{ally1|ally2|…}/` → `getCampaignMapTroopPortraitUrlAttempts`。
+ * - **卡面 / 编组 / wiki / 战斗静态回退**：`public/assets/san_1_ui_card/troop/` → `getTroopPortraitUrlAttempts`（无阵营子目录）。
+ * - **战斗格序列帧**（主路径）：`san_1_battle/units/{unitKey}/`（见 `battleUnitKeyResolve`）；阵营靠光晕，不按势力复制立绘。
+ * - **战役大地图格缩略图**：与卡面同源（阶段 E 已删除 `san_1_battle/{player|enemy|ally*}` 静态立绘目录；保留 `faction/`、`units/`、`effect/`）。
  *
- * 专属 `{配置ID}.png` 优先于 `troop_r{1-4}_{weapon}.png` 当且仅当：稀有度 **core**，或 **北疆 91xx / 众生 90xx**（`_troop_` 后数字段以 9 开头；兼容旧 8xxx）。无同名 PNG 时回退稀有度通用图（卡面 `san_1_ui_card/troop/`、战斗瓦片 `san_1_battle/{player|enemy|ally…}/` 共用本判定）。
+ * 专属 `{配置ID}.png` 优先于 `troop_r{1-4}_{weapon}.png` 当且仅当：稀有度 **core**，或 **北疆 91xx / 众生 90xx**（`_troop_` 后数字段以 9 开头；兼容旧 8xxx）。无同名 PNG 时回退稀有度通用图。
  *
  * 部队元数据（稀有度 / 兵种 / 武器）由应用层注入，避免 shared 硬绑 `public/data` 路径：
  *   `configureTroopIconMetaCatalog(troopsCatalog)` — 见 `game/src/bootstrap/troopIconUrlsCatalog.js`。
@@ -67,21 +66,18 @@ function troopUiCardTroopDir(baseUrl) {
   return `${normalizeGamePublicBase(baseUrl)}assets/san_1_ui_card/troop/`;
 }
 
-/** 与 preset `quad_*_forces` / `san_1_battle` 子目录名一致 */
+/** @deprecated 阶段 E 后战斗立绘不再按势力子目录；保留供旧调用兼容 */
 const BATTLE_FACTION_SUBDIRS = new Set(['player', 'ally1', 'ally2', 'team', 'enemy']);
 
 /**
  * @param {string} [faction] preset 部队行的 faction（如 enemy、ally1）
  * @returns {'player'|'ally1'|'ally2'|'team'|'enemy'}
+ * @deprecated 仅兼容旧调用；缩略图已改卡面路径
  */
 export function battleTroopSubdirForFaction(faction) {
   const f = String(faction ?? 'enemy').trim().toLowerCase();
   if (BATTLE_FACTION_SUBDIRS.has(f)) return /** @type {any} */ (f);
   return 'enemy';
-}
-
-function battleTroopAssetDir(baseUrl, faction) {
-  return `${normalizeGamePublicBase(baseUrl)}assets/san_1_battle/${battleTroopSubdirForFaction(faction)}/`;
 }
 
 function troopRarityFallbackFilename(troop) {
@@ -174,53 +170,23 @@ export function getTroopPortraitUrlAttempts(troop, baseUrl = '') {
 }
 
 /**
- * `san_1_battle/{subdir}/` 下立绘链（subdir 已由 `battleTroopSubdirForFaction` 规范为五档之一）。
- * @param {object} troop 含 id/rarity/weaponType 等
- * @param {string} subdir player|enemy|ally1|…
- */
-function troopPortraitAttemptsSan1BattleSubdir(troop, baseUrl, subdir) {
-  const dir = battleTroopAssetDir(baseUrl, subdir);
-  const rarityUrl = `${dir}${troopRarityFallbackFilename(troop)}`;
-  const pid = normalizeTroopAssetId(troop);
-  if (
-    troopPrefersDedicatedPortraitFile(troop) &&
-    pid &&
-    troopDedicatedPortraitFileShipped(pid)
-  ) {
-    const idUrl = `${dir}${pid}.png`;
-    if (idUrl === rarityUrl) return [rarityUrl];
-    return [idUrl, rarityUrl];
-  }
-  return [rarityUrl];
-}
-
-/**
- * 小型战斗地图等：`troop.faction === 'player'` → `san_1_battle/player/`，否则 → `enemy/`。
- * 我方：在战斗目录专属图缺失时，**先接卡面目录** `san_1_ui_card/troop/` 再回退战斗稀有度通用图，避免与编组卡面立绘不一致。
+ * 小型战斗地图等静态回退：与卡面同目录（序列帧优先走 battleUnitKey，无 key 时用此链）。
+ * @param {object} troop
+ * @param {string} [baseUrl]
  */
 export function getBattleFieldTroopPortraitUrlAttempts(troop, baseUrl = '') {
-  const subdir = troop && troop.faction === 'player' ? 'player' : 'enemy';
-  const battleAttempts = troopPortraitAttemptsSan1BattleSubdir(troop, baseUrl, subdir);
-  if (subdir !== 'player') return battleAttempts;
-  const cardAttempts = getTroopPortraitUrlAttempts(troop, baseUrl);
-  const seen = new Set();
-  const merged = [];
-  for (const url of [...cardAttempts, ...battleAttempts]) {
-    if (!url || seen.has(url)) continue;
-    seen.add(url);
-    merged.push(url);
-  }
-  return merged.length > 0 ? merged : battleAttempts;
+  return getTroopPortraitUrlAttempts(troop, baseUrl);
 }
 
 /**
- * 战役地图格上部队缩略图：`san_1_battle/{faction}/`（与 `quad_*_forces` 五档子目录一致）。
+ * 战役地图格上部队缩略图：与卡面同源（不再按势力子目录取战斗立绘）。
  * @param {string} troopId
  * @param {string} [baseUrl]
- * @param {string} [faction] 来自 units_spec 行首 faction（如 enemy、ally1）
+ * @param {string} [faction] 保留参数以兼容调用方；不影响路径
  * @returns {string[]}
  */
 export function getCampaignMapTroopPortraitUrlAttempts(troopId, baseUrl = '', faction = 'enemy') {
+  void faction;
   const id = normalizeTroopAssetId(troopId);
   const meta = getTroopIconMetaById(id);
   const stub = meta
@@ -237,21 +203,7 @@ export function getCampaignMapTroopPortraitUrlAttempts(troopId, baseUrl = '', fa
         rarity: 'common',
         weaponType: 'infantry_saber',
       };
-  const sub = battleTroopSubdirForFaction(faction);
-  const primary = troopPortraitAttemptsSan1BattleSubdir(stub, baseUrl, sub);
-  // 仓库当前仅保证 `san_1_battle/ally1/` 有素材；ally2 格若无对应目录则 404，
-  // 追加 ally1 同名链，浏览器仍会尝试加载但最终能落到稀有度兜底图。
-  if (sub === 'ally2') {
-    const fb = troopPortraitAttemptsSan1BattleSubdir(stub, baseUrl, 'ally1');
-    const seen = new Set(primary);
-    for (const u of fb) {
-      if (!seen.has(u)) {
-        primary.push(u);
-        seen.add(u);
-      }
-    }
-  }
-  return primary;
+  return getTroopPortraitUrlAttempts(stub, baseUrl);
 }
 
 export function getTroopCardPrimaryUrl(troop, baseUrl = '') {

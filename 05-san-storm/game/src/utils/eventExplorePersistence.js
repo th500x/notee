@@ -35,11 +35,5 @@ export function clearExploreAwayBattleEndLocal(pendingKey) {
   }
 }
 
-/** 与大地图探索、荒郊/集市内嵌条、匪寨格共用的配置池 trigger_context */
-export const EXPLORE_RELATED_TRIGGER_CONTEXTS = [
-  'explore',
-  'wilderness',
-  'market',
-  'mystery',
-  'tutorial',
-];
+/** 与大地图探索、战场入口、教程链共用的配置池 trigger_context（14-1：tutorial / wild / mini） */
+export const EXPLORE_RELATED_TRIGGER_CONTEXTS = ['tutorial', 'wild', 'mini'];

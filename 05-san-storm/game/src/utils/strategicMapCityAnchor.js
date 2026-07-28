@@ -12,8 +12,15 @@ import {
   resolvePoiFootprintAtCellFromDb,
   resolvePvpBaseCampWarIdAtMergedCell,
 } from '@shared/utils/strategicMarchPoi.js';
+import { readJunBattlefieldAtGrid } from '@shared/utils/junBattlefieldCell.js';
 
-const GAP_PX = 1;
+/** 非 Meowa 格网 CSS `gap`（`.ws-map-grid`）；Meowa 底板模式为 0（`.ws-map-grid--meowa-underlay`） */
+export const STRATEGIC_MAP_GRID_GAP_PX = 1;
+
+function normalizeGridGapPx(gapPx) {
+  const g = Number(gapPx);
+  return Number.isFinite(g) && g >= 0 ? g : STRATEGIC_MAP_GRID_GAP_PX;
+}
 
 /** 路点与合并格网/POI 数据无法对齐（非静默；勿再回退主城） */
 export const STRATEGIC_STANDPOINT_ERROR = {
@@ -44,7 +51,7 @@ export function strategicStandpointErrorMessage(code) {
     case STRATEGIC_STANDPOINT_ERROR.INVALID_COORDS:
       return '路点坐标无效，请刷新或重新登录';
     case STRATEGIC_STANDPOINT_ERROR.UNRESOLVED_OFF_ROAD:
-      return '路点与地图 POI 不同步（非道路且未命中城/寨/大本营），请刷新或联系管理';
+      return '路点落在无效格（非道路/城/寨/大本营/战场入口），正在尝试自动移至郡战场…';
     default:
       return code ? String(code) : '路点解析失败';
   }
@@ -113,15 +120,17 @@ export function findStrategicCityAnchorForMainCity(cells, mainCityId) {
 }
 
 /**
- * 城市块中心在 `.ws-map-shell` 内的像素坐标（与 `.ws-map-grid` gap:1px、2×2 占地 `2*tile+1` 一致）。
+ * 城市块中心在 `.ws-map-shell` 内的像素坐标（须与当前格网 CSS `gap` 一致）。
  * @param {{ anchorR: number, anchorC: number, footprint: '2x2' | '1x1' }} anchor
  * @param {number} tilePx
+ * @param {number} [gapPx=STRATEGIC_MAP_GRID_GAP_PX]
  * @returns {{ cx: number, cy: number }}
  */
-export function strategicCityBlockCenterPx(anchor, tilePx) {
+export function strategicCityBlockCenterPx(anchor, tilePx, gapPx = STRATEGIC_MAP_GRID_GAP_PX) {
   const t = Number(tilePx) || 0;
-  const stride = t + GAP_PX;
-  const span = anchor.footprint === '2x2' ? 2 * t + GAP_PX : t;
+  const gap = normalizeGridGapPx(gapPx);
+  const stride = t + gap;
+  const span = anchor.footprint === '2x2' ? 2 * t + gap : t;
   const { anchorC, anchorR } = anchor;
   return {
     cx: anchorC * stride + span / 2,
@@ -130,15 +139,17 @@ export function strategicCityBlockCenterPx(anchor, tilePx) {
 }
 
 /**
- * 道路格（1×1）格心在 `.ws-map-shell` 内的像素坐标；用于玩家沿路 pawn 的立点。
+ * 道路格 / 郡战场入口等（1×1）格心在 `.ws-map-shell` 内的像素坐标。
  * @param {number} gx
  * @param {number} gy
  * @param {number} tilePx
+ * @param {number} [gapPx=STRATEGIC_MAP_GRID_GAP_PX] Meowa 底板须传 `0`
  * @returns {{ cx: number, cy: number }}
  */
-export function strategicRoadCellCenterPx(gx, gy, tilePx) {
+export function strategicRoadCellCenterPx(gx, gy, tilePx, gapPx = STRATEGIC_MAP_GRID_GAP_PX) {
   const t = Number(tilePx) || 0;
-  const stride = t + GAP_PX;
+  const gap = normalizeGridGapPx(gapPx);
+  const stride = t + gap;
   return {
     cx: gx * stride + t / 2,
     cy: gy * stride + t / 2,
@@ -148,12 +159,15 @@ export function strategicRoadCellCenterPx(gx, gy, tilePx) {
 /**
  * 城心 / 匪寨（1×2 或 2×1 或 2×2）块几何中心像素；`anchorR/anchorC` 为占位 **左上** 格（gy / gx）。
  * @param {{ anchorR: number, anchorC: number, width: number, height: number }} geo
+ * @param {number} tilePx
+ * @param {number} [gapPx=STRATEGIC_MAP_GRID_GAP_PX]
  */
-export function strategicPoiBlockCenterPx(geo, tilePx) {
+export function strategicPoiBlockCenterPx(geo, tilePx, gapPx = STRATEGIC_MAP_GRID_GAP_PX) {
   const t = Number(tilePx) || 0;
-  const stride = t + GAP_PX;
-  const spanW = geo.width === 2 ? 2 * t + GAP_PX : t;
-  const spanH = geo.height === 2 ? 2 * t + GAP_PX : t;
+  const gap = normalizeGridGapPx(gapPx);
+  const stride = t + gap;
+  const spanW = geo.width === 2 ? 2 * t + gap : t;
+  const spanH = geo.height === 2 ? 2 * t + gap : t;
   return {
     cx: geo.anchorC * stride + spanW / 2,
     cy: geo.anchorR * stride + spanH / 2,
@@ -172,6 +186,8 @@ export function resolveStrategicRecordedStandpointPx({
   mapRows,
   countyJunId: _countyJunId,
   tilePx,
+  /** 与 `.ws-map-grid` CSS gap 对齐；Meowa 底板为 0 */
+  gridGapPx = STRATEGIC_MAP_GRID_GAP_PX,
   playerRoadJunId: _playerRoadJunId,
   roadX,
   roadY,
@@ -181,6 +197,7 @@ export function resolveStrategicRecordedStandpointPx({
   if (!cells?.length) {
     return { cx: null, cy: null, onRoadCell: false, standpointError: STRATEGIC_STANDPOINT_ERROR.NO_GRID };
   }
+  const gap = normalizeGridGapPx(gridGapPx);
   const pass = buildRoadPassableKeySetForMarch(roadCells, cells, mapColumns, mapRows);
   const rx = Number(roadX);
   const ry = Number(roadY);
@@ -198,8 +215,16 @@ export function resolveStrategicRecordedStandpointPx({
   const onRoadCell = pass.has(startKey);
   if (onRoadCell) {
     return {
-      ...strategicRoadCellCenterPx(rx, ry, tilePx),
+      ...strategicRoadCellCenterPx(rx, ry, tilePx, gap),
       onRoadCell: true,
+      standpointError: null,
+    };
+  }
+  /** 郡战场入口：可立足（与档案修复 / 31-1 一致；可不在 roadCells 上）；1×1 格心 */
+  if (readJunBattlefieldAtGrid(cells, Math.trunc(rx), Math.trunc(ry))) {
+    return {
+      ...strategicRoadCellCenterPx(rx, ry, tilePx, gap),
+      onRoadCell: false,
       standpointError: null,
     };
   }
@@ -238,6 +263,7 @@ export function resolveStrategicRecordedStandpointPx({
       ...strategicPoiBlockCenterPx(
         { anchorR: tl.gy, anchorC: tl.gx, width: fp.width, height: fp.height },
         tilePx,
+        gap,
       ),
       onRoadCell: false,
       standpointError: null,
@@ -261,6 +287,7 @@ export function resolveStrategicRecordedStandpointPx({
             ...strategicPoiBlockCenterPx(
               { anchorR: tl.gy, anchorC: tl.gx, width: fpCamp.width, height: fpCamp.height },
               tilePx,
+              gap,
             ),
             onRoadCell: false,
             standpointError: null,
@@ -306,6 +333,9 @@ export function resolveStrategicRecordedStandpointCell({
   }
   const onRoadCell = pass.has(startKey);
   if (onRoadCell) {
+    return { gx: Math.trunc(rx), gy: Math.trunc(ry), error: null };
+  }
+  if (readJunBattlefieldAtGrid(cells, Math.trunc(rx), Math.trunc(ry))) {
     return { gx: Math.trunc(rx), gy: Math.trunc(ry), error: null };
   }
   let fp = null;

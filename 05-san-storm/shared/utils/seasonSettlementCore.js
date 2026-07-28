@@ -7,6 +7,8 @@
  * @module shared/utils/seasonSettlementCore
  */
 
+import { getMaxBattleCount } from './troopMaxBattleCount.js';
+
 export const MAX_LEGENDARY_TROOPS = 10;
 export const MAX_SELECTION_LIMIT_CAP = 10;
 
@@ -303,6 +305,23 @@ export function normalizeUnequippedRow(row) {
   return clone;
 }
 
+/**
+ * 跨季继承部队卡：按当前稀有度表重写 max_battle_count，battle_count 清零。
+ * 老兵 lifetime_* / veteran_* 原样保留。非部队行不改动。
+ * @param {object} row
+ * @returns {object}
+ */
+export function normalizeInheritedTroopDurability(row) {
+  if (!row || cCardType(row) !== 'troop') return row;
+  const clone = { ...row };
+  const max = getMaxBattleCount(resolveCardRarity(clone));
+  clone.max_battle_count = max;
+  clone.battle_count = 0;
+  if ('maxBattleCount' in clone) clone.maxBattleCount = max;
+  if ('battleCount' in clone) clone.battleCount = 0;
+  return clone;
+}
+
 export function buildPlayerCardsSnapshot({
   cards,
   auto,
@@ -337,7 +356,7 @@ export function buildPlayerCardsSnapshot({
   const out = [];
   for (const id of wanted) {
     const row = byInstance.get(id);
-    if (row) out.push(normalizeUnequippedRow(row));
+    if (row) out.push(normalizeInheritedTroopDurability(normalizeUnequippedRow(row)));
   }
   return out.sort((a, b) => {
     const ai = String(cInstanceId(a) || '');

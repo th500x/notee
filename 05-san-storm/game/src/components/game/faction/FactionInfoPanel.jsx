@@ -28,8 +28,7 @@ const CITY_TYPE_ZH = {
   city_major: '大城',
   city_medium: '中城',
   city_small: '小城',
-  gate: '关隘',
-  fort: '据点',
+  city_gate: '关隘',
 };
 
 /** @param {{ positionName?: string|null, characterName?: string }} p */
@@ -714,7 +713,6 @@ export default function FactionInfoPanel({
     arr?.length > 0 ? arr.map((x) => `${x.zhouName}-${x.count}`).join('；') : '—';
   const smallBlock = formatZhouCounts(overview.citiesSmallByZhou);
   const gateBlock = formatZhouCounts(overview.citiesGateByZhou);
-  const fortBlock = formatZhouCounts(overview.citiesFortByZhou);
 
   const t = overview.totals || {};
   const tierLabel = overview.supplyTier ? `${overview.supplyTier}档` : '无档';
@@ -843,10 +841,6 @@ export default function FactionInfoPanel({
         <Line>
           <span className="text-stone-500">关隘：</span>
           {gateBlock}
-        </Line>
-        <Line>
-          <span className="text-stone-500">据点：</span>
-          {fortBlock}
         </Line>
       </div>
       <div>

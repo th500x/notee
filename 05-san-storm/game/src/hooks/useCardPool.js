@@ -57,8 +57,8 @@ export function useCardPool(playerId) {
     }
   }, [playerId]);
 
-  /** 执行抽取 */
-  const draw = useCallback(async (poolType, poolSeason, drawMode = 'single') => {
+  /** 执行抽取：`batch` 银两十连 · `badge_batch` 真三徽章抽（各 12 次，半天窗独立） */
+  const draw = useCallback(async (poolType, poolSeason, drawMode = 'batch') => {
     if (!playerId) return;
     setLoading(true);
     setError(null);
@@ -68,17 +68,26 @@ export function useCardPool(playerId) {
       const res = await cardPoolAPI.draw(playerId, poolType, poolSeason, drawMode);
       if (res.success) {
         setDrawResult(res);
-        setStatus(prev => prev ? {
-          ...prev,
-          silver: res.remainingSilver,
-          [poolType]: {
-            ...prev[poolType],
-            remainingDraws: res.remainingDraws,
-            nextDrawCost: res.nextDrawCost ?? null,
-            canBatchDraw: drawMode === 'batch' ? false : (res.remainingDraws >= (prev[poolType]?.dailyLimit ?? 10)),
-            pityCount: res.pityCount,
-          },
-        } : prev);
+        setStatus((prev) =>
+          prev
+            ? {
+                ...prev,
+                silver: res.remainingSilver ?? prev.silver,
+                stormBadgeCount:
+                  res.stormBadgeRemaining != null ? res.stormBadgeRemaining : prev.stormBadgeCount,
+                [poolType]: {
+                  ...prev[poolType],
+                  remainingDraws: res.remainingDraws ?? res.remainingSlots,
+                  remainingSlots: res.remainingSlots ?? res.remainingDraws,
+                  nextDrawCost: null,
+                  canBatchDraw: res.canSilverBatch ?? false,
+                  canSilverBatch: res.canSilverBatch ?? false,
+                  canBadgeBatch: res.canBadgeBatch ?? false,
+                  pityCount: res.pityCount ?? prev[poolType]?.pityCount,
+                },
+              }
+            : prev,
+        );
       } else {
         setError(res.error);
       }

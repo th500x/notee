@@ -1,8 +1,15 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import AncientModal from '@/components/common/AncientModal';
 import PvpAutoDuelReplay from '@/pvp/auto-duel/PvpAutoDuelReplay';
 import { getRarityHex, getRarityLabelCn } from '@/constants';
 import { shortEquipmentDisplayName } from '@/utils/equipmentDisplayName';
+import {
+  BANDIT_BETWEEN_LAYER_HEAL_FOOD_HEAVY,
+  BANDIT_BETWEEN_LAYER_HEAL_FOOD_LIGHT,
+  BANDIT_BETWEEN_LAYER_HEAL_HEAVY,
+  BANDIT_BETWEEN_LAYER_HEAL_LIGHT,
+  computeBanditBetweenLayerHeal,
+} from '@shared/utils/banditBetweenLayerHeal.js';
 
 /** 攻城结算里服务端权威战报的简化回放入口 */
 function AuthoritativeSiegeReplayButton({
@@ -93,7 +100,13 @@ export default function StrategicSettlementCard({
   hideNpcGarrisonLine = false,
   /** 显式胜负（覆盖银两/击杀启发式） */
   playerVictory = null,
+  /** 匪寨连战补兵：编组当前/上限（含 inflight） */
+  banditHealTroops = null,
+  /** 当前粮草（用于禁用不足档） */
+  playerFood = 0,
 }) {
+  /** @type {['none'|'light'|'heavy', Function]} */
+  const [banditHealTier, setBanditHealTier] = useState('none');
   const sr = Math.max(0, Number(silverReward) || 0);
   const personalSilver =
     personalSilverEarned != null && Number.isFinite(Number(personalSilverEarned))
@@ -123,6 +136,38 @@ export default function StrategicSettlementCard({
         : !!((kc != null ? kcShown : 0) || personalSilver || cr || fr);
 
   const chestList = Array.isArray(chestRewards) ? chestRewards : [];
+  const showBanditBetweenLayerHeal =
+    settlementKind === 'bandit' &&
+    banditOutcome === 'victory' &&
+    typeof onBanditContinue === 'function';
+  const healTroops = Array.isArray(banditHealTroops) ? banditHealTroops : [];
+  const foodHave = Math.max(0, Math.floor(Number(playerFood) || 0));
+  const lightQuote = useMemo(
+    () => computeBanditBetweenLayerHeal({ troops: healTroops, tier: 'light' }),
+    [healTroops],
+  );
+  const heavyQuote = useMemo(
+    () => computeBanditBetweenLayerHeal({ troops: healTroops, tier: 'heavy' }),
+    [healTroops],
+  );
+  const lightCost = lightQuote.ok ? lightQuote.foodCost : 0;
+  const heavyCost = heavyQuote.ok ? heavyQuote.foodCost : 0;
+  const lightAffordable = lightQuote.ok && foodHave >= lightCost;
+  const heavyAffordable = heavyQuote.ok && foodHave >= heavyCost;
+  const healTroopsMissing = showBanditBetweenLayerHeal && healTroops.length === 0;
+  const healAllFull =
+    showBanditBetweenLayerHeal &&
+    healTroops.length > 0 &&
+    lightQuote.ok &&
+    lightCost === 0 &&
+    heavyQuote.ok &&
+    heavyCost === 0;
+  const selectedHealCost =
+    banditHealTier === 'light' ? lightCost : banditHealTier === 'heavy' ? heavyCost : 0;
+  const continueBlockedByHeal =
+    showBanditBetweenLayerHeal &&
+    banditHealTier !== 'none' &&
+    (banditHealTier === 'light' ? !lightAffordable : !heavyAffordable);
 
   return (
     <div className="flex min-h-0 flex-1 items-center justify-center bg-black/80 backdrop-blur-sm">
@@ -251,18 +296,95 @@ export default function StrategicSettlementCard({
             <div className="font-bold text-amber-400">🏰 城池攻破！</div>
           </div>
         )}
+        {showBanditBetweenLayerHeal ? (
+          <div className="space-y-2 border-t border-amber-500/20 pt-2 text-left">
+            <div className="text-[11px] text-stone-400">
+              连战补兵（可选，点继续时扣粮；退出不扣）· 粮草 {foodHave}
+            </div>
+            <label className="flex cursor-pointer items-start gap-2 text-xs text-stone-200">
+              <input
+                type="radio"
+                name="bandit-between-layer-heal"
+                className="mt-0.5"
+                checked={banditHealTier === 'none'}
+                onChange={() => setBanditHealTier('none')}
+              />
+              <span>不补兵</span>
+            </label>
+            <label
+              className={`flex items-start gap-2 text-xs ${
+                lightAffordable ? 'cursor-pointer text-stone-200' : 'cursor-not-allowed text-stone-500'
+              }`}
+            >
+              <input
+                type="radio"
+                name="bandit-between-layer-heal"
+                className="mt-0.5"
+                checked={banditHealTier === 'light'}
+                disabled={!lightAffordable}
+                onChange={() => setBanditHealTier('light')}
+              />
+              <span>
+                轻补 +{BANDIT_BETWEEN_LAYER_HEAL_LIGHT}/支（{BANDIT_BETWEEN_LAYER_HEAL_FOOD_LIGHT}{' '}
+                粮/受益支）· 合计 {lightCost} 粮
+                {!lightAffordable && lightQuote.ok ? ' · 粮不足' : ''}
+              </span>
+            </label>
+            <label
+              className={`flex items-start gap-2 text-xs ${
+                heavyAffordable ? 'cursor-pointer text-stone-200' : 'cursor-not-allowed text-stone-500'
+              }`}
+            >
+              <input
+                type="radio"
+                name="bandit-between-layer-heal"
+                className="mt-0.5"
+                checked={banditHealTier === 'heavy'}
+                disabled={!heavyAffordable}
+                onChange={() => setBanditHealTier('heavy')}
+              />
+              <span>
+                重补 +{BANDIT_BETWEEN_LAYER_HEAL_HEAVY}/支（{BANDIT_BETWEEN_LAYER_HEAL_FOOD_HEAVY}{' '}
+                粮/受益支）· 合计 {heavyCost} 粮
+                {!heavyAffordable && heavyQuote.ok ? ' · 粮不足' : ''}
+              </span>
+            </label>
+            {healTroopsMissing ? (
+              <div className="text-[11px] text-amber-200/80">
+                未读到终场兵力，合计暂为 0；请退出后重开一局再试连战补兵。
+              </div>
+            ) : null}
+            {healAllFull ? (
+              <div className="text-[11px] text-stone-500">当前编组已满编，补兵无需扣粮。</div>
+            ) : null}
+            {banditHealTier !== 'none' && selectedHealCost > 0 ? (
+              <div className="text-[11px] text-lime-200/80">继续将消耗 {selectedHealCost} 粮草</div>
+            ) : null}
+          </div>
+        ) : null}
         {typeof onBanditContinue === 'function' ? (
           <div className="flex gap-2">
             <button
               type="button"
-              onClick={onBanditContinue}
-              className="flex-1 min-w-0 rounded-lg bg-gradient-to-r from-amber-700 to-yellow-700 py-2.5 text-sm font-bold text-amber-100"
+              disabled={continueBlockedByHeal}
+              onClick={() => {
+                if (continueBlockedByHeal) return;
+                const tier =
+                  showBanditBetweenLayerHeal && banditHealTier !== 'none' ? banditHealTier : null;
+                onBanditContinue(tier);
+              }}
+              className={`flex-1 min-w-0 rounded-lg bg-gradient-to-r from-amber-700 to-yellow-700 py-2.5 text-sm font-bold text-amber-100 ${
+                continueBlockedByHeal ? 'opacity-40 cursor-not-allowed' : ''
+              }`}
             >
               继续
             </button>
             <button
               type="button"
-              onClick={onConfirm}
+              onClick={() => {
+                setBanditHealTier('none');
+                onConfirm();
+              }}
               className="flex-1 min-w-0 rounded-lg bg-gradient-to-r from-amber-700 to-yellow-700 py-2.5 text-sm font-bold text-amber-100"
             >
               退出

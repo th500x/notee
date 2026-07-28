@@ -377,7 +377,9 @@ const SNAPSHOT_INSERT_EXCLUDE = new Set(['created_at', 'updated_at']);
  * 重复 instance_id 视为异常（不静默忽略）。
  */
 async function insertSnapshotRows(conn, rows, playerId) {
-  for (const row of rows) {
+  for (const raw of rows) {
+    // 旧封档快照也可能带过期 max；发放时再按现行表归一化一次
+    const row = core.normalizeInheritedTroopDurability(raw);
     const cols = Object.keys(row).filter((k) => !SNAPSHOT_INSERT_EXCLUDE.has(k));
     if (!cols.includes('player_id')) cols.push('player_id');
     const values = cols.map((c) => (c === 'player_id' ? playerId : normalizeCellForInsert(row[c])));

@@ -1,0 +1,55 @@
+{
+  "_meta": {
+    "generated": "2026-07-25T14:46:22.501Z",
+    "note": "入库：backend/database/import-chapter-data.js",
+    "source": "docs/tools/chapter/chapter-story-template.csv",
+    "count": 3
+  },
+  "stories": [
+    {
+      "id": "story_yc_01",
+      "chapterId": "san_1_chapter_yingchuan_01",
+      "title": "黄巾起兵·奉命驰援",
+      "lines": [
+        {
+          "speaker": "旁白",
+          "text": "颍川告急，黄巾围长社。"
+        },
+        {
+          "speaker": "曹操",
+          "portrait": "san_1_char_xxxx",
+          "text": "整军出发，先与皇甫将军合兵。"
+        }
+      ],
+      "notes": "文案待扩写；portrait键后补"
+    },
+    {
+      "id": "story_yc_03",
+      "chapterId": "san_1_chapter_yingchuan_01",
+      "title": "退入长社·火攻之计",
+      "lines": [
+        {
+          "speaker": "皇甫嵩",
+          "text": "贼恃草结营，可因风纵火。"
+        },
+        {
+          "speaker": "曹操",
+          "text": "善。待夜深，某部为奇兵。"
+        }
+      ],
+      "notes": "文案待扩写"
+    },
+    {
+      "id": "story_yc_05",
+      "chapterId": "san_1_chapter_yingchuan_01",
+      "title": "颍川平定",
+      "lines": [
+        {
+          "speaker": "旁白",
+          "text": "草营火起，贼众大溃。颍川之围暂解。"
+        }
+      ],
+      "notes": "章末；奖励由chapter行completion_rewards发"
+    }
+  ]
+}

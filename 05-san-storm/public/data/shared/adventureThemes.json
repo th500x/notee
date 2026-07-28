@@ -1,0 +1,74 @@
+{
+  "_meta": {
+    "generated": "2026-07-20T14:16:35.679Z",
+    "source": "docs/tools/adventure/adventure-theme-template.csv",
+    "count": 4,
+    "note": "入库：backend/database/import-adventure-themes-data.js"
+  },
+  "themes": [
+    {
+      "id": "san_1_adv_patrol",
+      "season": "san_1",
+      "name": "斥候巡弋",
+      "tone": "patrol",
+      "description": "派出斥候巡视周边道路与村落，情报与薄赏兼得",
+      "durationHours": 0.0167,
+      "encounterRate": 0.35,
+      "enemyTier": "normal",
+      "rewardSilverMin": 40,
+      "rewardSilverMax": 90,
+      "rewardFoodMin": 20,
+      "rewardFoodMax": 60,
+      "sortOrder": 10,
+      "isActive": true
+    },
+    {
+      "id": "san_1_adv_escort",
+      "season": "san_1",
+      "name": "护送商队",
+      "tone": "escort",
+      "description": "护送商旅穿越险地，遇敌则力战，功成厚赏",
+      "durationHours": 0.0167,
+      "encounterRate": 0.55,
+      "enemyTier": "rare",
+      "rewardSilverMin": 70,
+      "rewardSilverMax": 140,
+      "rewardFoodMin": 40,
+      "rewardFoodMax": 100,
+      "sortOrder": 20,
+      "isActive": true
+    },
+    {
+      "id": "san_1_adv_forage",
+      "season": "san_1",
+      "name": "征募粮草",
+      "tone": "forage",
+      "description": "于乡野征粮筹饷，少有大战，粮草收获为重",
+      "durationHours": 0.0167,
+      "encounterRate": 0.2,
+      "enemyTier": "normal",
+      "rewardSilverMin": 20,
+      "rewardSilverMax": 50,
+      "rewardFoodMin": 90,
+      "rewardFoodMax": 180,
+      "sortOrder": 30,
+      "isActive": true
+    },
+    {
+      "id": "san_1_adv_raid",
+      "season": "san_1",
+      "name": "奔袭敌营",
+      "tone": "raid",
+      "description": "夜袭流寇营寨，凶险而利厚",
+      "durationHours": 0.0167,
+      "encounterRate": 0.75,
+      "enemyTier": "epic",
+      "rewardSilverMin": 110,
+      "rewardSilverMax": 220,
+      "rewardFoodMin": 0,
+      "rewardFoodMax": 40,
+      "sortOrder": 40,
+      "isActive": true
+    }
+  ]
+}

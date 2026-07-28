@@ -1,29 +1,35 @@
 /**
  * 宝箱奖励解析（手动战斗 / 自动战斗共用）
  *
- * 从 equipment.json 按赛季 + 稀有度抽取装备件，
- * 与 backend/routes/battles.js insertChestEquipmentFromReward 的入库逻辑一致。
+ * chest_01 → 普通/稀有装备；chest_02 → 史诗/传奇装备；不含核心。
+ * 仅玩家部队可开启。
  */
 import { loadSharedData } from '@/services/dataService';
 
 const CHEST_EQUIPMENT_SEASON = 'san_1';
 const RARITY_LABEL_CN = { common: '普通', rare: '稀有', epic: '史诗', legendary: '传奇', core: '核心' };
 
+function lootRaritiesForChest(obj) {
+  if (Array.isArray(obj?.lootRarities) && obj.lootRarities.length) {
+    return obj.lootRarities.filter((r) => r && r !== 'core');
+  }
+  if (obj?.chestVariant === '02') return ['epic', 'legendary'];
+  return ['common', 'rare'];
+}
+
 /**
- * 检查部队脚下是否有未开启宝箱，若有则抽取装备奖励并标记 isOpen。
- * @returns {Promise<object|null>} reward 对象，null 表示无宝箱或无匹配装备
+ * @returns {Promise<object|null>}
  */
 export async function resolveChestReward(troop, mapResult, battleTroops) {
   if (!troop || troop.currentTroops <= 0 || !mapResult) return null;
+  if (troop.faction !== 'player') return null;
+
   const obj = mapResult.objects.find(
     (o) => o.type === 'chest' && !o.isOpen && o.y === troop.y && o.x === troop.x,
   );
   if (!obj) return null;
 
-  const enemyRarities = battleTroops.filter((t) => t.faction === 'enemy' && t.rarity).map((t) => t.rarity);
-  const rarityPriority = ['core', 'legendary', 'epic', 'rare', 'common'];
-  const bestRarity = rarityPriority.find((r) => enemyRarities.includes(r)) || 'common';
-
+  const lootRarities = lootRaritiesForChest(obj);
   const equipTypes = ['weapon', 'armor', 'accessory'];
   let data;
   try {
@@ -36,16 +42,13 @@ export async function resolveChestReward(troop, mapResult, battleTroops) {
   const list = data?.equipment || [];
   const season = CHEST_EQUIPMENT_SEASON;
 
-  const typesWithPool = equipTypes.filter((type) =>
-    list.some(
-      (e) => e.id && e.name && (e.season || season) === season && e.equipmentType === type && e.rarity === bestRarity,
-    ),
-  );
-  if (typesWithPool.length === 0) return null;
-
-  const randomType = typesWithPool[Math.floor(Math.random() * typesWithPool.length)];
   const pool = list.filter(
-    (e) => e.id && e.name && (e.season || season) === season && e.equipmentType === randomType && e.rarity === bestRarity,
+    (e) =>
+      e.id &&
+      e.name &&
+      (e.season || season) === season &&
+      equipTypes.includes(e.equipmentType) &&
+      lootRarities.includes(e.rarity),
   );
   if (pool.length === 0) return null;
 
@@ -58,6 +61,7 @@ export async function resolveChestReward(troop, mapResult, battleTroops) {
   obj.isOpen = true;
 
   return {
+    kind: 'chest',
     equipmentId: picked.id,
     name: picked.name,
     rarity: picked.rarity,

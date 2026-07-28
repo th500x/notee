@@ -205,9 +205,17 @@ async function applyBattleStatistics(playerId, payload) {
 async function saveChestRewards(playerId, chestRewards) {
   if (!Array.isArray(chestRewards) || chestRewards.length === 0) return;
   const season = 'san_1';
-  let saved = 0;
+  let savedEquip = 0;
+  let savedItems = 0;
+  const playerItemsService = require('./playerItemsService');
   for (const reward of chestRewards) {
     try {
+      if (reward?.itemId && typeof reward.itemId === 'string') {
+        const amt = Math.max(1, Number(reward.itemAmount) || 1);
+        await playerItemsService.addItem(playerId, reward.itemId, amt);
+        savedItems += 1;
+        continue;
+      }
       const equipmentId = reward.equipmentId || reward.card_id;
       if (!equipmentId || typeof equipmentId !== 'string') {
         console.error('[battleService] 宝箱入库缺少 equipmentId', { playerId, reward });
@@ -227,12 +235,14 @@ async function saveChestRewards(playerId, chestRewards) {
          VALUES (?, ?, ?, 'equipment', ?, FALSE)`,
         [instanceId, playerId, equipmentId, reward.rarity || 'common'],
       );
-      saved += 1;
+      savedEquip += 1;
     } catch (err) {
-      console.error('[battleService] 单件宝箱装备保存失败:', err);
+      console.error('[battleService] 单件宝箱/随机箱奖励保存失败:', err);
     }
   }
-  console.log(`[battleService] 宝箱装备保存: ${saved}/${chestRewards.length} 件 player=${playerId}`);
+  console.log(
+    `[battleService] 战场奖励保存: equip=${savedEquip} items=${savedItems} / ${chestRewards.length} player=${playerId}`,
+  );
 }
 
 /**

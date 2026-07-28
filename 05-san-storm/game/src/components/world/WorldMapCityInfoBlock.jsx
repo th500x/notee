@@ -1,16 +1,13 @@
 /**
  * 大地图单城信息主体：与战略格网 tooltip 同结构。
- * 分段：**城备**（攻城；底部「三公府」+「设为主城 / 驻军所」）、**城况**、**荒郊** / **集市**。
+ * 展示城备（攻城、五维与简介；右上「三公府」+「设为主城 / 驻军所」）及匪寨面板。
  *
  * 规则口径与后端一致：`garrisonService` 驻地槽激活≥800；攻城开战上阵编组≥200。
- * 驻地编组仅主城，入口在「驻军所」Tab。
+ * 驻地编组仅主城，入口在「驻军所」。
  */
-import { useState, useCallback, useEffect, useRef, useLayoutEffect } from 'react';
-import ExploreLocationDockPanel from '@/components/event/ExploreLocationDockPanel';
+import { useState, useCallback, useEffect } from 'react';
 import BanditStrongholdDockPanel from '@/components/event/BanditStrongholdDockPanel';
-import { filterPlayerItemsForExploreLocation } from '@/components/event/eventUtils';
 import WorldMapCityCombatSummaryBlock from '@/components/world/WorldMapCityCombatSummaryBlock';
-import { PHASE } from '@/components/event/EventConstants';
 import { useBanditRaidQuota } from '@/hooks/useBanditRaidQuota';
 import { usePlayerContext } from '@/contexts/PlayerContext';
 import { validateMainLineupBattleGate } from '@/utils/mainLineupTroops';
@@ -25,21 +22,9 @@ function fmtStat(n) {
 const MAIN_CITY_CHANGE_COST_SILVER = 500;
 const MAIN_CITY_CHANGE_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 
-/** 战略格 tooltip：按主城 `city_id` 记住上次停留的荒郊/集市分段，探索返回后重开同城可直达，便于连点探索 */
-const lastStrategicSubsidiarySegmentByCityId = new Map();
-const PERSIST_STRATEGIC_SUBSIDIARY_SEGMENTS = new Set(['wilderness', 'market']);
-
-/** 由 `WorldStrategicMapGrid` 在探索结束后主动重建城池 portal 前调用，使面板默认落在荒郊/集市 */
-export function primeStrategicCityWildernessMarketTab(cityId, segment) {
-  if (!cityId || String(cityId).trim() === '') return;
-  if (segment === 'wilderness' || segment === 'market') {
-    lastStrategicSubsidiarySegmentByCityId.set(String(cityId), segment);
-  }
-}
-
 export default function WorldMapCityInfoBlock({
   cityTitle,
-  /** 副标题一行；无则不占行（仅「城备」分段显示） */
+  /** 副标题一行；无则不占行 */
   subtitleText = null,
   factionId = null,
   factionLabel = '中立',
@@ -48,7 +33,7 @@ export default function WorldMapCityInfoBlock({
   lordDisplayLabel = '暂无',
   /** `cities.defense`，null 时防守系数显示 — */
   cityDefenseCoefficient = null,
-  /** 「城况」分段数据，来自 `worldMapCityOverviewFromRow` */
+  /** 五维 / 特色 / 简介，展示于城备底部 */
   cityOverview = null,
   playerId = null,
   siegeQuota = null,
@@ -63,7 +48,7 @@ export default function WorldMapCityInfoBlock({
   /** 非空时仅渲染标题 + 错误说明（城况未同步等） */
   syncErrorMessage = null,
   /**
-   * 战略格：`true` 时保留完整城况/匪寨信息展示，但隐藏驻军、攻城、荒郊集市探索、匪寨攻打等 **可操作** 入口（角色未立于该 POI）。
+   * 战略格：`true` 时保留完整城备/匪寨信息展示，但隐藏驻军、攻城、匪寨攻打等 **可操作** 入口（角色未立于该 POI）。
    */
   poiInteractionsLocked = false,
   /** 攻打按钮用短城名（`worldMapCityBaseNameFromRow`） */
@@ -85,17 +70,10 @@ export default function WorldMapCityInfoBlock({
   cityId = null,
   /** 匪寨地图对象 ID（`san_*_bandit_*`）；与行军 `targetPoiId` 同族。匪寨面板勿用 `cityId`。 */
   banditPoiId = null,
-  /** 荒郊/集市：`buildWorldMapCityPanelProps` + `cityById` 解析 */
-  subsidiaryExplore = null,
-  /**
-   * 荒郊/集市分段内嵌探索条（`ExploreLocationDockPanel`）。
-   * `WorldMap` 注入：`{ quota, eventsLoading, explorePoolAt, startExplore, playerItems, isTutorial, phase, citiesList, itemNameMap }`
-   */
-  subsidiaryExploreEmbed = null,
-  /** 战略 tooltip：开始探索后关闭浮层（可选） */
+  /** 战略 tooltip：开始操作后关闭浮层（可选） */
   closeStrategicCityTooltip = null,
   /**
-   * 仅战略格网 tooltip：为 true 时城备内容区固定宽高基准（与阳翟满配一致），不按城逐测 ResizeObserver。
+   * 仅战略格网 tooltip：为 true 时外框固定宽高基准（与阳翟满配一致）。
    */
   uniformStrategicPanel = false,
   /** 非己方且可攻打时，由上层注入（战略 tooltip 内发起攻城） */
@@ -109,21 +87,11 @@ export default function WorldMapCityInfoBlock({
   /** 为 true 时仅渲染匪寨攻打面板（依赖 **`banditPoiId`**，与行军 `targetPoiId` 同族） */
   isBanditStronghold = false,
   /**
-   * PVP 攻方大本营战略格：驻地固定为无；攻城次数仍按 **`siegeQuotaCityId`**（目标城）桶。
+   * PVP 攻方大本营战略格：驻地固定为无；开战消耗仍按兵符（与目标城攻打同源）。
    */
   pvpAttackerBaseCampStrategic = false,
 }) {
   const [mainCityBusy, setMainCityBusy] = useState(false);
-  const [segment, setSegment] = useState('garrison');
-  /** 供「写入 Map」effect 判断：仅当用户从非城备切到城备时才清记忆，避免挂载时初始 `garrison` 误删 `primeStrategicCityWildernessMarketTab` 写入的值 */
-  const prevSegmentForPersistRef = useRef(null);
-  /** 以「城备」实测宽高为各分段内容区尺寸，切换标签外框不跳；不设区内滚动（overflow 隐藏溢出） */
-  const [tabPaneSizePx, setTabPaneSizePx] = useState(null);
-  const garrisonMeasureRef = useRef(null);
-
-  const wild = subsidiaryExplore?.wilderness ?? null;
-  const mkt = subsidiaryExplore?.market ?? null;
-
   const ov = cityOverview ?? {};
 
   const banditQuota = useBanditRaidQuota(
@@ -139,106 +107,9 @@ export default function WorldMapCityInfoBlock({
     void refreshBanditQuota();
   }, [postBanditRaidRefreshKey, isBanditStronghold, banditPoiId, refreshBanditQuota]);
 
-  const renderSubsidiaryExplorePanel = (kind, info) => {
-    if (poiInteractionsLocked && uniformStrategicPanel) {
-      return (
-        <div className="text-stone-500 text-xs py-6 px-2 text-center leading-snug">
-          抵达该城后方可进行荒郊/集市探索。
-        </div>
-      );
-    }
-    if (!subsidiaryExploreEmbed || !info?.cityId) return null;
-    const loc = info.cityId;
-    const subsidiaryKind = kind === 'market' ? 'market' : 'wilderness';
-    const poolEvents = subsidiaryExploreEmbed.explorePoolAt(loc, subsidiaryKind);
-    const poolLen = poolEvents.length;
-    /** 教程链未完成时池内仅 `chain_tutorial_v1`（见 `filterExploreEventsPool`）；按真实 `poolLen` 判空，勿用 `!isTutorial` 伪造可点。 */
-    const poolEmpty =
-      subsidiaryExploreEmbed.phase === PHASE.IDLE &&
-      !subsidiaryExploreEmbed.eventsLoading &&
-      poolLen <= 0;
-    const canStart =
-      subsidiaryExploreEmbed.phase === PHASE.IDLE &&
-      !subsidiaryExploreEmbed.eventsLoading &&
-      poolLen > 0 &&
-      subsidiaryExploreEmbed.quota.canExplore;
-    const exploreItems = filterPlayerItemsForExploreLocation(
-      subsidiaryExploreEmbed.playerItems,
-      loc,
-    );
-    return (
-      <ExploreLocationDockPanel
-        title={info.displayName}
-        eventsLoading={subsidiaryExploreEmbed.eventsLoading}
-        quota={subsidiaryExploreEmbed.quota}
-        poolLen={poolLen}
-        poolEmpty={poolEmpty}
-        exploreItems={exploreItems}
-        canStart={canStart}
-        onStartExplore={() => {
-          if (typeof closeStrategicCityTooltip === 'function') closeStrategicCityTooltip();
-          subsidiaryExploreEmbed.startExplore(loc, { subsidiaryKind });
-        }}
-        colorTheme={kind === 'market' ? 'emerald' : 'amber'}
-        startEmoji={kind === 'market' ? '🏪' : '📜'}
-        rootClassName="max-h-56 border-0 px-2 py-2"
-        showEnemyTroopRarityHint={kind === 'wilderness'}
-        exploreLocationId={loc}
-        poolEvents={poolEvents}
-        wildernessCityType={kind === 'wilderness' ? cityType : null}
-        citiesList={subsidiaryExploreEmbed.citiesList ?? null}
-        itemNameMap={subsidiaryExploreEmbed.itemNameMap ?? {}}
-      />
-    );
-  };
-
-  useLayoutEffect(() => {
-    if (isBanditStronghold || !cityId) {
-      prevSegmentForPersistRef.current = null;
-      setSegment('garrison');
-      return;
-    }
-    prevSegmentForPersistRef.current = null;
-    const saved = lastStrategicSubsidiarySegmentByCityId.get(String(cityId));
-    if (PERSIST_STRATEGIC_SUBSIDIARY_SEGMENTS.has(saved)) setSegment(saved);
-    else setSegment('garrison');
-  }, [cityId, isBanditStronghold]);
-
-  useEffect(() => {
-    if (isBanditStronghold || !cityId) return;
-    const prev = prevSegmentForPersistRef.current;
-    prevSegmentForPersistRef.current = segment;
-    if (PERSIST_STRATEGIC_SUBSIDIARY_SEGMENTS.has(segment)) {
-      lastStrategicSubsidiarySegmentByCityId.set(String(cityId), segment);
-    } else if (segment === 'garrison' && prev != null && prev !== 'garrison') {
-      lastStrategicSubsidiarySegmentByCityId.delete(String(cityId));
-    }
-  }, [cityId, segment, isBanditStronghold]);
-
-  useEffect(() => {
-    if (!uniformStrategicPanel) setTabPaneSizePx(null);
-  }, [cityId, banditPoiId, uniformStrategicPanel]);
-
   useEffect(() => {
     setBanditAttackNote('');
   }, [banditPoiId]);
-
-  useLayoutEffect(() => {
-    if (uniformStrategicPanel) return undefined;
-    if (segment !== 'garrison') return undefined;
-    const el = garrisonMeasureRef.current;
-    if (!el) return undefined;
-    const apply = () => {
-      const r = el.getBoundingClientRect();
-      const w = Math.ceil(r.width);
-      const h = Math.ceil(r.height);
-      if (w > 0 && h > 0) setTabPaneSizePx({ width: w, height: h });
-    };
-    apply();
-    const ro = new ResizeObserver(apply);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [segment, cityId, banditPoiId, uniformStrategicPanel]);
 
   const canShowSetMainCityBtn =
     showOwnCityActions &&
@@ -246,7 +117,7 @@ export default function WorldMapCityInfoBlock({
     (cityType === 'city_major' || cityType === 'city_medium') &&
     typeof onSetMainCityRequest === 'function';
 
-  /** 己方大/中城：城备底部主按钮「三公府」（原右上角小钮） */
+  /** 己方大/中城：右上「三公府」（原城备底栏主按钮） */
   const canShowSanGongFuBtn =
     showOwnCityActions &&
     cityId &&
@@ -334,27 +205,12 @@ export default function WorldMapCityInfoBlock({
     (siegeTargetLabel === '可攻打' ||
       (pvpAttackerBaseCampStrategic && siegeTargetLabel === '可出击'));
 
-  const segBtn = (key, label) => (
-    <button
-      key={key}
-      type="button"
-      onClick={() => setSegment(key)}
-      className={`flex-1 min-w-0 py-1.5 px-1 text-[10px] font-bold transition-colors border-r border-stone-600 last:border-r-0 ${
-        segment === key
-          ? 'bg-amber-900/70 text-amber-100'
-          : 'bg-stone-800/90 text-stone-400 hover:bg-stone-800 hover:text-stone-200'
-      }`}
-    >
-      {label}
-    </button>
-  );
-
   if (syncErrorMessage) {
     return (
       <div className="text-sm text-stone-200">
-        <div className="font-medium text-red-200/95">
+        <div className="font-medium text-xs leading-tight text-red-200/95">
           {cityTitle}
-          <span className="text-stone-400 font-normal text-xs ml-1">· {siegeTargetLabel}</span>
+          <span className="text-stone-400 font-normal text-[10px] ml-1">· {siegeTargetLabel}</span>
         </div>
         <div className="text-stone-400 text-xs mt-0.5">{syncErrorMessage}</div>
       </div>
@@ -381,9 +237,7 @@ export default function WorldMapCityInfoBlock({
           worldDurability={banditQuota.worldDurability}
           loading={!banditQuota.loaded}
           remaining={banditQuota.remaining}
-          max={banditQuota.max}
-          minutesUntilRefill={banditQuota.minutesUntilRefill}
-          refillPerWindow={banditQuota.refillPerWindow}
+          costPerBattle={banditQuota.costPerBattle}
           interactionsLocked={!!poiInteractionsLocked}
           canAttack={!!banditQuota.loaded && banditQuota.canBattle}
           onAttack={async () => {
@@ -397,11 +251,7 @@ export default function WorldMapCityInfoBlock({
               return;
             }
             if (!banditQuota.loaded || !banditQuota.canBattle) {
-              setBanditAttackNote('当前不可攻打（次数、个人塔进度或全服耐久已达上限）');
-              return;
-            }
-            if (banditQuota.towerCompleted) {
-              setBanditAttackNote('本寨个人塔已通关。');
+              setBanditAttackNote('当前不可攻打（兵符不足）');
               return;
             }
             const attackedLayer = Number(banditQuota.nextLayer);
@@ -423,7 +273,7 @@ export default function WorldMapCityInfoBlock({
               const err =
                 typeof cr.error === 'string' && cr.error.trim()
                   ? cr.error.trim()
-                  : '攻打次数不足或条件不满足';
+                  : '兵符不足或条件不满足';
               setBanditAttackNote(err);
               return;
             }
@@ -449,23 +299,65 @@ export default function WorldMapCityInfoBlock({
 
   const subtitle = siegeLoading ? '准备中...' : subtitleText;
 
+  const showSideActionBtns =
+    showActions &&
+    (canShowSanGongFuBtn ||
+      (isCurrentMain && typeof onOpenBarracksPost === 'function') ||
+      (canShowSetMainCityBtn && !isCurrentMain));
+
   const garrisonBody = (
     <>
       {subtitle != null && subtitle !== '' ? (
         <div className="text-stone-400 text-xs mt-0.5">{subtitle}</div>
       ) : null}
       <div className="text-stone-300 text-xs mt-2 border-t border-stone-600 pt-2">
-        <div className="space-y-0.5">
-          <div>
-            长官：<span className="text-amber-200/90">{lordDisplayLabel}</span>
+        <div className="flex gap-2 items-stretch">
+          <div className="min-w-0 flex-1 space-y-0.5">
+            <div>
+              长官：<span className="text-amber-200/90">{lordDisplayLabel}</span>
+            </div>
+            <div>
+              势力：
+              <span className={factionId ? 'text-amber-200' : 'text-stone-400'}>{factionLabel}</span>
+            </div>
+            <div>
+              州郡：<span className="text-stone-200">{regionLabel || '—'}</span>
+            </div>
           </div>
-          <div>
-            势力：
-            <span className={factionId ? 'text-amber-200' : 'text-stone-400'}>{factionLabel}</span>
-          </div>
-          <div>
-            州郡：<span className="text-stone-200">{regionLabel || '—'}</span>
-          </div>
+          {showSideActionBtns ? (
+            <div className="shrink-0 flex flex-col gap-1 justify-center w-[5.75rem]">
+              {canShowSanGongFuBtn ? (
+                <button
+                  type="button"
+                  onClick={handleOpenSanGongFu}
+                  title="三公府：官职晋升、朝贡、封赏等"
+                  className="w-full py-1 px-1 rounded-md text-[10px] font-bold leading-tight bg-gradient-to-r from-amber-700 to-yellow-700 text-amber-100"
+                >
+                  🏛️ 三公府
+                </button>
+              ) : null}
+              {isCurrentMain && typeof onOpenBarracksPost === 'function' ? (
+                <button
+                  type="button"
+                  onClick={handleOpenBarracksPost}
+                  title="驻地编组 · 军营与主城驻军所仓库"
+                  className="w-full py-1 px-1 rounded-md text-[10px] font-bold leading-tight bg-gradient-to-r from-stone-700 to-stone-600 text-stone-200 hover:from-stone-600 hover:to-stone-500"
+                >
+                  🏛️ 驻军所
+                </button>
+              ) : canShowSetMainCityBtn && !isCurrentMain ? (
+                <button
+                  type="button"
+                  disabled={setMainCityButtonDisabled || mainCityBusy}
+                  title={mainCityTitle}
+                  onClick={handleSetMainCityClick}
+                  className="w-full py-1 px-1 rounded-md text-[10px] font-bold leading-tight bg-gradient-to-r from-stone-700 to-stone-600 text-stone-200 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {mainCityBusy ? '…' : '🏰 设为主城'}
+                </button>
+              ) : null}
+            </div>
+          ) : null}
         </div>
       </div>
       <div className="text-stone-300 text-xs mt-2 border-t border-stone-600 pt-2">
@@ -479,19 +371,19 @@ export default function WorldMapCityInfoBlock({
           </>
         ) : (
           <>
-            ⚔️ 战斗：
+            ⚔️ 兵符：
             <span className={siegeQuota.remaining > 0 ? 'text-green-400' : 'text-red-400'}>
-              {siegeQuota.remaining}/{siegeQuota.max}
+              {siegeQuota.remaining}
             </span>
-            {siegeQuota.remaining < siegeQuota.max && !siegeQuota.inRestPeriod ? (
-              <span className="text-stone-500 ml-1">（{siegeQuota.minutesUntilRefill}分后补充）</span>
-            ) : null}
+            <span className="text-stone-500 ml-1">
+              （每次攻打消耗 {siegeQuota.costPerBattle ?? 1}）
+            </span>
           </>
         )}
       </div>
       {playerId ? (
         <div className="text-stone-500 text-[10px] mt-1">
-          每小时+{siegeQuota?.refillPerHour ?? 6}次 · 上限{siegeQuota?.max ?? 18}次 · 0:00~8:00💤
+          与匪寨攻打同源：消耗兵符道具，无小时恢复次数
         </div>
       ) : null}
       <WorldMapCityCombatSummaryBlock
@@ -501,56 +393,21 @@ export default function WorldMapCityInfoBlock({
         garrisonCap={garrisonCap}
         npcAlive={npcAlive}
         npcTotal={npcTotal}
-        cityDefenseCoefficient={cityDefenseCoefficient}
       />
-      {showActions ? (
-        <div className="mt-3 space-y-1.5">
-          {canShowSanGongFuBtn ? (
-            <button
-              type="button"
-              onClick={handleOpenSanGongFu}
-              title="三公府：官职晋升、朝贡、封赏等"
-              className="w-full py-2 rounded-lg text-xs font-bold bg-gradient-to-r from-amber-700 to-yellow-700 text-amber-100"
-            >
-              🏛️ 三公府
-            </button>
-          ) : null}
-          {isCurrentMain && typeof onOpenBarracksPost === 'function' ? (
-            <button
-              type="button"
-              onClick={handleOpenBarracksPost}
-              title="驻地编组 · 军营与主城驻军所仓库"
-              className="w-full py-2 rounded-lg text-xs font-bold bg-gradient-to-r from-stone-700 to-stone-600 text-stone-200 hover:from-stone-600 hover:to-stone-500"
-            >
-              🏛️ 驻军所
-            </button>
-          ) : canShowSetMainCityBtn && !isCurrentMain ? (
-            <button
-              type="button"
-              disabled={setMainCityButtonDisabled || mainCityBusy}
-              title={mainCityTitle}
-              onClick={handleSetMainCityClick}
-              className="w-full py-2 rounded-lg text-xs font-bold bg-gradient-to-r from-stone-700 to-stone-600 text-stone-200 disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              {mainCityBusy ? '…' : '🏰 设为主城'}
-            </button>
-          ) : null}
-        </div>
-      ) : null}
       {showEnemySiege ? (
-        <div className="mt-3">
+        <div className="mt-2">
           <button
             type="button"
             onClick={() => onStartSiege()}
             disabled={siegeLoading || !siegeQuota?.loaded || !siegeQuota.canSiege}
-            className="w-full py-2 rounded-lg text-xs font-bold bg-gradient-to-r from-red-700 to-orange-700 text-white disabled:from-stone-700 disabled:text-stone-500"
+            className="w-full py-1 rounded-md text-xs font-bold leading-tight bg-gradient-to-r from-red-700 to-orange-700 text-white disabled:from-stone-700 disabled:text-stone-500"
           >
             {siegeLoading
               ? '准备中...'
               : !siegeQuota?.loaded
-                ? '攻城次数加载中…'
+                ? '兵符加载中…'
                 : !siegeQuota.canSiege
-                  ? '次数不足'
+                  ? '兵符不足'
                   : pvpAttackerBaseCampStrategic
                     ? '⚔️ 攻打大本营'
                     : `⚔️ 攻打${cityBaseName}`}
@@ -562,91 +419,55 @@ export default function WorldMapCityInfoBlock({
           ) : null}
         </div>
       ) : null}
-    </>
-  );
-
-  const overviewBody = (
-    <div className="text-stone-300 text-xs mt-2 space-y-1 border-t border-stone-600 pt-2">
-      <div>人口：<span className="text-stone-200">{fmtStat(ov.population)}</span></div>
-      <div>商业：<span className="text-stone-200">{fmtStat(ov.trading)}</span></div>
-      <div>农业：<span className="text-stone-200">{fmtStat(ov.farming)}</span></div>
-      <div>军事：<span className="text-stone-200">{fmtStat(ov.military)}</span></div>
-      <div>文化：<span className="text-stone-200">{fmtStat(ov.culture)}</span></div>
-      {ov.specialResourceName ? (
-        <div>
-          特色资源：<span className="text-amber-200/90">{ov.specialResourceName}</span>
+      <div className="text-stone-300 text-xs mt-2 border-t border-stone-600 pt-2">
+        <div className="grid grid-cols-2 gap-x-3 gap-y-0.5">
+          <div>
+            防守系数：
+            <span className="text-stone-200">
+              {cityDefenseCoefficient != null && Number.isFinite(Number(cityDefenseCoefficient))
+                ? String(cityDefenseCoefficient)
+                : '—'}
+            </span>
+          </div>
+          <div>
+            人口：<span className="text-stone-200">{fmtStat(ov.population)}</span>
+          </div>
+          <div>
+            商业：<span className="text-stone-200">{fmtStat(ov.trading)}</span>
+          </div>
+          <div>
+            农业：<span className="text-stone-200">{fmtStat(ov.farming)}</span>
+          </div>
+          <div>
+            军事：<span className="text-stone-200">{fmtStat(ov.military)}</span>
+          </div>
+          <div>
+            文化：<span className="text-stone-200">{fmtStat(ov.culture)}</span>
+          </div>
         </div>
-      ) : null}
-      {ov.description ? (
-        <div className="pt-1 text-stone-400 leading-snug whitespace-pre-wrap">{ov.description}</div>
-      ) : null}
-    </div>
-  );
-
-  const tabStrip = (
-    <div
-      className="flex mt-2 rounded-lg overflow-hidden border border-stone-600"
-      role="tablist"
-      aria-label="城池信息"
-    >
-      {segBtn('garrison', '城备')}
-      {segBtn('overview', '城况')}
-      {wild ? segBtn('wilderness', '🌿 荒郊') : null}
-      {mkt ? segBtn('market', '🏪 集市') : null}
-    </div>
-  );
-
-  const tabPaneStyle = uniformStrategicPanel
-    ? undefined
-    : tabPaneSizePx != null
-      ? {
-          width: tabPaneSizePx.width,
-          height: tabPaneSizePx.height,
-          overflow: 'hidden',
-        }
-      : undefined;
-
-  /** 战略浮层荒郊/集市内嵌探索条：允许纵向滚动，避免固定外框裁切 */
-  const tabPaneStyleEffective =
-    uniformStrategicPanel &&
-    tabPaneSizePx != null &&
-    (segment === 'wilderness' || segment === 'market')
-      ? {
-          width: tabPaneSizePx.width,
-          height: tabPaneSizePx.height,
-          overflow: 'auto',
-        }
-      : tabPaneStyle;
-
-  const mainColumn = (
-    <div className={`min-w-0 flex flex-col${uniformStrategicPanel ? ' w-full flex-1' : ''}`}>
-      <div className={`font-medium text-red-200/95${uniformStrategicPanel ? ' shrink-0' : ''}`}>
-        {cityTitle}
-        <span className="text-stone-400 font-normal text-xs ml-1">· {siegeTargetLabel}</span>
-      </div>
-
-      {uniformStrategicPanel ? (
-        <div className="shrink-0">{tabStrip}</div>
-      ) : (
-        tabStrip
-      )}
-      <div className="wm-city-panel-tab-pane" style={tabPaneStyleEffective}>
-        {segment === 'garrison' ? (
-          <div ref={garrisonMeasureRef}>{garrisonBody}</div>
+        {ov.specialResourceName ? (
+          <div className="mt-1">
+            特色资源：<span className="text-amber-200/90">{ov.specialResourceName}</span>
+          </div>
         ) : null}
-        {segment === 'overview' ? overviewBody : null}
-        {segment === 'wilderness' && wild ? renderSubsidiaryExplorePanel('wilderness', wild) : null}
-        {segment === 'market' && mkt ? renderSubsidiaryExplorePanel('market', mkt) : null}
+        {ov.description ? (
+          <div className="mt-1 text-stone-400 leading-snug whitespace-pre-wrap">{ov.description}</div>
+        ) : null}
       </div>
-    </div>
+    </>
   );
 
   return (
     <div
       className={`text-sm text-stone-200 wm-city-info-block min-w-0${uniformStrategicPanel ? ' w-full' : ''}`}
     >
-      {mainColumn}
+      <div className={`min-w-0 flex flex-col${uniformStrategicPanel ? ' w-full flex-1' : ''}`}>
+        <div className={`font-medium text-xs leading-tight text-red-200/95${uniformStrategicPanel ? ' shrink-0' : ''}`}>
+          {cityTitle}
+          <span className="text-stone-400 font-normal text-[10px] ml-1">· {siegeTargetLabel}</span>
+        </div>
+        <div className="wm-city-panel-tab-pane">{garrisonBody}</div>
+      </div>
     </div>
   );
 }
-

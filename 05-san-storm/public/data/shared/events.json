@@ -1,10 +1,10 @@
 {
   "_meta": {
-    "generated": "2026-06-09T06:44:21.920Z",
+    "generated": "2026-07-26T13:48:12.333Z",
     "source": "event-template.csv",
-    "count": 28,
-    "csvRowCount": 28,
-    "note": "由 CSV 整表生成；入库：在 05-san-storm/backend 执行 node database/import-events-data.js"
+    "count": 32,
+    "csvRowCount": 32,
+    "note": "由 CSV 整表生成；入库：在 05-san-storm/backend 执行 node database/import-events-data.js；口径见 14-1（tutorial/wild/mini · {battlefield}）"
   },
   "events": [
     {
@@ -281,7 +281,7 @@
         "battleEnemyId": null,
         "successText": "你与太守结为了忘年交好",
         "failureText": "太守将你送出城去",
-        "rewards": "reward-b;item_season_badge",
+        "rewards": "reward-b;item_badge_season",
         "bonusRewards": "reward-c"
       },
       "optionB": {
@@ -304,14 +304,14 @@
       "eventHint": null
     },
     {
-      "id": "san_1_event_5001",
+      "id": "san_1_event_3001",
       "season": "san_1",
       "name": "村童的棋局",
-      "location": "{city_medium_market}",
+      "location": "{battlefield}",
       "triggerProbability": null,
-      "triggerContext": "market",
-      "chainId": null,
-      "chainLevel": null,
+      "triggerContext": "mini",
+      "chainId": "chain_mini_gobang",
+      "chainLevel": 1,
       "requiredItems": null,
       "descriptions": [
         "路边一个村童拿着简陋的棋盘拦住了去路",
@@ -353,14 +353,14 @@
       "eventHint": null
     },
     {
-      "id": "san_1_event_5002",
+      "id": "san_1_event_3002",
       "season": "san_1",
       "name": "隐士的棋局",
-      "location": "{city_medium_market}",
+      "location": "{battlefield}",
       "triggerProbability": null,
-      "triggerContext": "market",
-      "chainId": null,
-      "chainLevel": null,
+      "triggerContext": "mini",
+      "chainId": "chain_mini_gobang",
+      "chainLevel": 2,
       "requiredItems": null,
       "descriptions": [
         "你在荒郊遇到一位白发隐士，他正在树下独自对弈",
@@ -403,14 +403,14 @@
       "eventHint": null
     },
     {
-      "id": "san_1_event_5003",
+      "id": "san_1_event_3003",
       "season": "san_1",
       "name": "棋圣的考验",
-      "location": "{city_medium_market}",
+      "location": "{battlefield}",
       "triggerProbability": null,
-      "triggerContext": "market",
-      "chainId": null,
-      "chainLevel": null,
+      "triggerContext": "mini",
+      "chainId": "chain_mini_gobang",
+      "chainLevel": 3,
       "requiredItems": null,
       "descriptions": [
         "一位气度不凡的老者挡在路中央，身后棋盘已摆好",
@@ -453,14 +453,14 @@
       "eventHint": null
     },
     {
-      "id": "san_1_event_5004",
+      "id": "san_1_event_3004",
       "season": "san_1",
       "name": "小厮的邀约",
-      "location": "{city_medium_market}",
+      "location": "{battlefield}",
       "triggerProbability": null,
-      "triggerContext": "market",
-      "chainId": null,
-      "chainLevel": null,
+      "triggerContext": "mini",
+      "chainId": "chain_mini_blackjack",
+      "chainLevel": 1,
       "requiredItems": null,
       "descriptions": [
         "你路过一间简陋的赌坊，门口一个小厮热情地招呼你",
@@ -503,14 +503,14 @@
       "eventHint": null
     },
     {
-      "id": "san_1_event_5005",
+      "id": "san_1_event_3005",
       "season": "san_1",
       "name": "掌柜的牌局",
-      "location": "{city_medium_market}",
+      "location": "{battlefield}",
       "triggerProbability": null,
-      "triggerContext": "market",
-      "chainId": null,
-      "chainLevel": null,
+      "triggerContext": "mini",
+      "chainId": "chain_mini_blackjack",
+      "chainLevel": 2,
       "requiredItems": null,
       "descriptions": [
         "你走进赌坊深处一位精明的掌柜正在擦拭牌桌",
@@ -553,14 +553,14 @@
       "eventHint": null
     },
     {
-      "id": "san_1_event_5006",
+      "id": "san_1_event_3006",
       "season": "san_1",
       "name": "黑手的挑战",
-      "location": "{city_medium_market}",
+      "location": "{battlefield}",
       "triggerProbability": null,
-      "triggerContext": "market",
-      "chainId": null,
-      "chainLevel": null,
+      "triggerContext": "mini",
+      "chainId": "chain_mini_blackjack",
+      "chainLevel": 3,
       "requiredItems": null,
       "descriptions": [
         "赌坊最深处一个面色阴沉的男子独坐牌桌前",
@@ -603,13 +603,13 @@
       "eventHint": null
     },
     {
-      "id": "san_1_event_4001",
+      "id": "san_1_event_2001",
       "season": "san_1",
       "name": "村妇壹-路边哭声",
-      "location": "{city_medium_wilderness}",
+      "location": "{battlefield}",
       "triggerProbability": null,
-      "triggerContext": "wilderness",
-      "chainId": "chain_cunfu_v1",
+      "triggerContext": "wild",
+      "chainId": "chain_wild_cunfu_v1",
       "chainLevel": 1,
       "requiredItems": null,
       "descriptions": [
@@ -630,7 +630,7 @@
         "battleEnemyId": null,
         "successText": "老妇人感激涕零递上一封求救信：这是我儿媳藏在灶台里的信",
         "failureText": "你安慰了老妇人但她太过悲伤一时说不清山贼的去向",
-        "rewards": "item_cunfu_1;reward-b",
+        "rewards": "reward-b",
         "bonusRewards": "reward-a"
       },
       "optionB": {
@@ -653,15 +653,15 @@
       "eventHint": null
     },
     {
-      "id": "san_1_event_4002",
+      "id": "san_1_event_2002",
       "season": "san_1",
       "name": "村妇贰-村民线索",
-      "location": "{city_medium_wilderness}",
+      "location": "{battlefield}",
       "triggerProbability": null,
-      "triggerContext": "wilderness",
-      "chainId": "chain_cunfu_v1",
+      "triggerContext": "wild",
+      "chainId": "chain_wild_cunfu_v1",
       "chainLevel": 2,
-      "requiredItems": "item_cunfu_1",
+      "requiredItems": null,
       "descriptions": [
         "{player_name}拿着村妇的求救信在附近村庄四处打听",
         "一位曾逃出山贼营地的村民认出了信上的笔迹",
@@ -680,7 +680,7 @@
         "battleEnemyId": null,
         "successText": "村民仔细回忆后画出了详细的山贼营地地图",
         "failureText": "村民太过紧张只画出了大致方向细节模糊不清",
-        "rewards": "item_cunfu_2;reward-b",
+        "rewards": "reward-b",
         "bonusRewards": "reward-a"
       },
       "optionB": {
@@ -703,15 +703,15 @@
       "eventHint": null
     },
     {
-      "id": "san_1_event_4003",
+      "id": "san_1_event_2003",
       "season": "san_1",
       "name": "村妇叁-山贼营地",
-      "location": "{city_medium_wilderness}",
+      "location": "{battlefield}",
       "triggerProbability": null,
-      "triggerContext": "wilderness",
-      "chainId": "chain_cunfu_v1",
+      "triggerContext": "wild",
+      "chainId": "chain_wild_cunfu_v1",
       "chainLevel": 3,
-      "requiredItems": "item_cunfu_2",
+      "requiredItems": null,
       "descriptions": [
         "{player_name}按照地图找到了山贼营地隐藏在一片密林深处",
         "营地四周设有简易栅栏约有二三十名山贼在巡逻",
@@ -730,7 +730,7 @@
         "battleEnemyId": null,
         "successText": "你趁山贼换防之际发起突袭打了他们一个措手不及",
         "failureText": "山贼防备森严强攻恐怕要付出不小的代价",
-        "rewards": "item_cunfu_3;reward-b",
+        "rewards": "reward-b",
         "bonusRewards": "pack-a"
       },
       "optionB": {
@@ -753,15 +753,15 @@
       "eventHint": null
     },
     {
-      "id": "san_1_event_4004",
+      "id": "san_1_event_2004",
       "season": "san_1",
       "name": "村妇肆-营救计划",
-      "location": "{city_medium_wilderness}",
+      "location": "{battlefield}",
       "triggerProbability": null,
-      "triggerContext": "wilderness",
-      "chainId": "chain_cunfu_v1",
-      "chainLevel": 4,
-      "requiredItems": "item_cunfu_3",
+      "triggerContext": "wild",
+      "chainId": "chain_wild_cunfu_v2",
+      "chainLevel": 1,
+      "requiredItems": null,
       "descriptions": [
         "{player_name}凭借山贼头目的令牌混入了山贼的内寨",
         "在一间破旧的柴房里找到了被关押的村妇",
@@ -780,7 +780,7 @@
         "battleEnemyId": null,
         "successText": "你顺利带着村妇逃出了山贼内寨村妇感激地递上一块祖传玉佩",
         "failureText": "逃跑时被巡逻的山贼发现了一番混战后才脱身",
-        "rewards": "item_cunfu_4;reward-c",
+        "rewards": "reward-c",
         "bonusRewards": "reward-a"
       },
       "optionB": {
@@ -803,15 +803,15 @@
       "eventHint": null
     },
     {
-      "id": "san_1_event_4005",
+      "id": "san_1_event_2005",
       "season": "san_1",
       "name": "村妇伍-长途奔波",
-      "location": "{city_medium_wilderness}",
+      "location": "{battlefield}",
       "triggerProbability": null,
-      "triggerContext": "wilderness",
-      "chainId": "chain_cunfu_v1",
-      "chainLevel": 5,
-      "requiredItems": "item_cunfu_4",
+      "triggerContext": "wild",
+      "chainId": "chain_wild_cunfu_v2",
+      "chainLevel": 2,
+      "requiredItems": null,
       "descriptions": [
         "{player_name}一路护送村妇返乡",
         "话说这村妇颇有姿色，不免让人一丝心动"
@@ -829,7 +829,7 @@
         "battleEnemyId": null,
         "successText": "村妇知你心意并万分感恩",
         "failureText": "军中突然冒出了{player_name}有龙阳之好的传言？",
-        "rewards": "item_cunfu_5;reward-c",
+        "rewards": "reward-c",
         "bonusRewards": "reward-a"
       },
       "optionB": {
@@ -852,15 +852,15 @@
       "eventHint": null
     },
     {
-      "id": "san_1_event_4006",
+      "id": "san_1_event_2006",
       "season": "san_1",
       "name": "村妇陆-村妇报恩",
-      "location": "{city_medium_wilderness}",
+      "location": "{battlefield}",
       "triggerProbability": null,
-      "triggerContext": "wilderness",
-      "chainId": "chain_cunfu_v1",
-      "chainLevel": 6,
-      "requiredItems": "item_cunfu_5",
+      "triggerContext": "wild",
+      "chainId": "chain_wild_cunfu_v2",
+      "chainLevel": 3,
+      "requiredItems": null,
       "descriptions": [
         "村妇回到家中与家人团聚后专程带着全家人来感谢{player_name}",
         "村妇说道：将军的大恩大德我们一家没齿难忘"
@@ -878,7 +878,7 @@
         "battleEnemyId": null,
         "successText": "村妇一家安顿了下来，村中好汉感念{player_name}恩情，愿随军出征",
         "failureText": null,
-        "rewards": "item_cunfu_6;reward-c",
+        "rewards": "reward-c",
         "bonusRewards": "pack-b"
       },
       "optionB": {
@@ -901,15 +901,15 @@
       "eventHint": null
     },
     {
-      "id": "san_1_event_4007",
+      "id": "san_1_event_2007",
       "season": "san_1",
       "name": "村妇柒-再起风波",
-      "location": "{city_medium_wilderness}",
+      "location": "{battlefield}",
       "triggerProbability": null,
-      "triggerContext": "wilderness",
-      "chainId": "chain_cunfu_v1",
-      "chainLevel": 7,
-      "requiredItems": "item_cunfu_6",
+      "triggerContext": "wild",
+      "chainId": "chain_wild_cunfu_v3",
+      "chainLevel": 1,
+      "requiredItems": null,
       "descriptions": [
         "{player_name}偶然路过与村妇离别的村庄",
         "一股难闻的焦臭扑面而来，你感觉定是发生了不好的事情"
@@ -927,7 +927,7 @@
         "battleEnemyId": null,
         "successText": "一整片断壁残垣的火灾现场映入了你的眼前，大批出村的脚印清晰可见",
         "failureText": "你对烟尘过敏，不适感让你睁不开眼",
-        "rewards": "item_cunfu_7;reward-d",
+        "rewards": "reward-d",
         "bonusRewards": "reward-a"
       },
       "optionB": {
@@ -950,15 +950,15 @@
       "eventHint": null
     },
     {
-      "id": "san_1_event_4008",
+      "id": "san_1_event_2008",
       "season": "san_1",
       "name": "村妇捌-快马加鞭",
-      "location": "{city_medium_wilderness}",
+      "location": "{battlefield}",
       "triggerProbability": null,
-      "triggerContext": "wilderness",
-      "chainId": "chain_cunfu_v1",
-      "chainLevel": 8,
-      "requiredItems": "item_cunfu_7",
+      "triggerContext": "wild",
+      "chainId": "chain_wild_cunfu_v3",
+      "chainLevel": 2,
+      "requiredItems": null,
       "descriptions": [
         "{player_name}一路追踪出村的队伍痕迹",
         "半日时间终于看到一股山贼的落脚营地"
@@ -976,7 +976,7 @@
         "battleEnemyId": null,
         "successText": "山贼们颇为机警，营地周边布满暗哨，你命军队暂时藏身休整",
         "failureText": "暂且能静待时机",
-        "rewards": "item_cunfu_8;reward-d",
+        "rewards": "reward-d",
         "bonusRewards": "reward-a"
       },
       "optionB": {
@@ -999,15 +999,15 @@
       "eventHint": null
     },
     {
-      "id": "san_1_event_4009",
+      "id": "san_1_event_2009",
       "season": "san_1",
       "name": "村妇玖-血溅夕阳",
-      "location": "{city_medium_wilderness}",
+      "location": "{battlefield}",
       "triggerProbability": null,
-      "triggerContext": "wilderness",
-      "chainId": "chain_cunfu_v1",
-      "chainLevel": 9,
-      "requiredItems": "item_cunfu_8",
+      "triggerContext": "wild",
+      "chainId": "chain_wild_cunfu_v3",
+      "chainLevel": 3,
+      "requiredItems": null,
       "descriptions": [
         "入夜，暗哨开始放松",
         "满天繁星让人生出丝丝倦意"
@@ -1025,7 +1025,7 @@
         "battleEnemyId": null,
         "successText": "山贼们惊慌失措，踩踏和哭喊之声不绝于耳，你不战而胜",
         "failureText": "山贼们惊慌失措，但还是展开了反击",
-        "rewards": "item_cunfu_9;reward-d",
+        "rewards": "reward-d",
         "bonusRewards": "pack-c"
       },
       "optionB": {
@@ -1048,15 +1048,15 @@
       "eventHint": null
     },
     {
-      "id": "san_1_event_4010",
+      "id": "san_1_event_2010",
       "season": "san_1",
       "name": "村妇终章",
-      "location": "{city_medium_wilderness}",
+      "location": "{battlefield}",
       "triggerProbability": null,
-      "triggerContext": "wilderness",
-      "chainId": "chain_cunfu_v1",
-      "chainLevel": 10,
-      "requiredItems": "item_cunfu_9",
+      "triggerContext": "wild",
+      "chainId": "chain_wild_cunfu_v3",
+      "chainLevel": 4,
+      "requiredItems": null,
       "descriptions": [
         "一夜厮杀，这股山贼终于被彻底消灭",
         "你在营地中发现了曾经的故人……尸体，还有一枚随身携带的徽章"
@@ -1074,7 +1074,7 @@
         "battleEnemyId": null,
         "successText": "你留下了徽章作为纪念，乱世杀人，非人之罪",
         "failureText": null,
-        "rewards": "item_cunfu_badge;reward-c",
+        "rewards": "item_badge_storm;reward-c",
         "bonusRewards": null
       },
       "optionB": {
@@ -1097,13 +1097,160 @@
       "eventHint": null
     },
     {
-      "id": "san_1_event_2001",
+      "id": "san_1_event_2011",
+      "season": "san_1",
+      "name": "传奇壹-断旗残甲",
+      "location": "{battlefield}",
+      "triggerProbability": null,
+      "triggerContext": "wild",
+      "chainId": "chain_wild_troop_v1",
+      "chainLevel": 1,
+      "requiredItems": null,
+      "descriptions": [
+        "{player_name}于荒郊沟壑间发现半截绣旗与散落残甲",
+        "旗角番号依稀可辨似是传闻中某支传奇部曲的旧物"
+      ],
+      "optionA": {
+        "id": "option_a",
+        "text": "捡起检视",
+        "requiredItems": null,
+        "factor": "type-a",
+        "mainFactor": "luck",
+        "mainRequirement": 7,
+        "subFactors": "balanced",
+        "subRequirement": 7,
+        "triggerBattle": false,
+        "battleEnemyId": null,
+        "successText": "你命人小心拭去泥污番号与纹饰渐渐清晰",
+        "failureText": "部众争抢踩乱现场只拼出零碎线索",
+        "rewards": null,
+        "bonusRewards": "reward-a"
+      },
+      "optionB": {
+        "id": "option_b",
+        "text": "弃之不顾",
+        "requiredItems": null,
+        "factor": "always",
+        "mainFactor": "always",
+        "mainRequirement": null,
+        "subFactors": null,
+        "subRequirement": null,
+        "triggerBattle": false,
+        "battleEnemyId": null,
+        "successText": "你不愿招惹旧怨路过时却拾到几件可用辎重",
+        "failureText": null,
+        "rewards": "reward-d",
+        "bonusRewards": null
+      },
+      "minReputation": null,
+      "eventHint": null
+    },
+    {
+      "id": "san_1_event_2012",
+      "season": "san_1",
+      "name": "传奇贰-废营夜访",
+      "location": "{battlefield}",
+      "triggerProbability": null,
+      "triggerContext": "wild",
+      "chainId": "chain_wild_troop_v1",
+      "chainLevel": 2,
+      "requiredItems": null,
+      "descriptions": [
+        "{player_name}循旗号在驿站与废营间打听终于寻到几名隐居老卒",
+        "他们盯着残旗半晌才低声说这番号早该埋进黄土"
+      ],
+      "optionA": {
+        "id": "option_a",
+        "text": "求授旧阵",
+        "requiredItems": null,
+        "factor": "type-b",
+        "mainFactor": "luck",
+        "mainRequirement": 10,
+        "subFactors": "balanced",
+        "subRequirement": 10,
+        "triggerBattle": true,
+        "battleEnemyId": null,
+        "successText": "老卒点头愿将操典与余部托付主公",
+        "failureText": "营外骤起喊杀声原来早已被人盯梢",
+        "rewards": null,
+        "bonusRewards": "pack-b"
+      },
+      "optionB": {
+        "id": "option_b",
+        "text": "暂且退去",
+        "requiredItems": null,
+        "factor": "always",
+        "mainFactor": "always",
+        "mainRequirement": null,
+        "subFactors": null,
+        "subRequirement": null,
+        "triggerBattle": false,
+        "battleEnemyId": null,
+        "successText": "你示意戒备撤出废营虽未得要领却避过一场不明杀局",
+        "failureText": null,
+        "rewards": "reward-d",
+        "bonusRewards": null
+      },
+      "minReputation": null,
+      "eventHint": null
+    },
+    {
+      "id": "san_1_event_2013",
+      "season": "san_1",
+      "name": "传奇终章",
+      "location": "{battlefield}",
+      "triggerProbability": null,
+      "triggerContext": "wild",
+      "chainId": "chain_wild_troop_v1",
+      "chainLevel": 3,
+      "requiredItems": null,
+      "descriptions": [
+        "{player_name}与老卒们在断旗立处重新整顿部伍",
+        "号角再起时那支散佚已久的传奇部曲仿佛从尘土中站起"
+      ],
+      "optionA": {
+        "id": "option_a",
+        "text": "纳入麾下",
+        "requiredItems": null,
+        "factor": "always",
+        "mainFactor": "always",
+        "mainRequirement": null,
+        "subFactors": null,
+        "subRequirement": null,
+        "triggerBattle": false,
+        "battleEnemyId": null,
+        "successText": "老卒们郑重将番号交到你手中一支传奇部队就此归心",
+        "failureText": null,
+        "rewards": "item_badge_storm;random:troop:legendary:1;reward-c",
+        "bonusRewards": null
+      },
+      "optionB": {
+        "id": "option_b",
+        "text": "先结军饷",
+        "requiredItems": null,
+        "factor": "always",
+        "mainFactor": "always",
+        "mainRequirement": null,
+        "subFactors": null,
+        "subRequirement": null,
+        "triggerBattle": false,
+        "battleEnemyId": null,
+        "successText": "老卒们明白你府库尚紧主动奉上私蓄以助成军",
+        "failureText": null,
+        "rewards": "reward-e",
+        "bonusRewards": null
+      },
+      "minReputation": null,
+      "eventHint": null
+    },
+    {
+      "id": "san_1_event_2014",
       "season": "san_1",
       "name": "传奇壹-散兵踪迹",
-      "location": "{city_medium_wilderness}",
+      "location": "{battlefield}",
       "triggerProbability": null,
-      "triggerContext": "wilderness",
-      "chainId": "chain_troop_legendary_v1",
+      "triggerContext": "wild",
+      "chainId": "chain_wild_troop_v2",
       "chainLevel": 1,
       "requiredItems": null,
       "descriptions": [
@@ -1123,7 +1270,7 @@
         "battleEnemyId": null,
         "successText": "你阵列整齐，迅速往前搜寻",
         "failureText": "大家心生慌乱，急匆匆的开始搜寻",
-        "rewards": "item_troop_tag",
+        "rewards": null,
         "bonusRewards": "reward-a"
       },
       "optionB": {
@@ -1146,15 +1293,15 @@
       "eventHint": null
     },
     {
-      "id": "san_1_event_2002",
+      "id": "san_1_event_2015",
       "season": "san_1",
       "name": "传奇贰-整编旧部",
-      "location": "{city_medium_wilderness}",
+      "location": "{battlefield}",
       "triggerProbability": null,
-      "triggerContext": "wilderness",
-      "chainId": "chain_troop_legendary_v1",
+      "triggerContext": "wild",
+      "chainId": "chain_wild_troop_v2",
       "chainLevel": 2,
-      "requiredItems": "item_troop_tag",
+      "requiredItems": null,
       "descriptions": [
         "{player_name}持铜牌在驿站与流民营中多方打听终于有几名老兵应声而来",
         "他们摩挲着番号含泪道这支兄弟兵当年随将军出生入死如今只剩这些散卒"
@@ -1172,7 +1319,7 @@
         "battleEnemyId": null,
         "successText": "老兵们表示愿意追随主公",
         "failureText": "寒鸦惊起突然你已经被敌人包围了",
-        "rewards": "item_troop_legendary",
+        "rewards": null,
         "bonusRewards": "pack-b"
       },
       "optionB": {
@@ -1195,15 +1342,15 @@
       "eventHint": null
     },
     {
-      "id": "san_1_event_2003",
+      "id": "san_1_event_2016",
       "season": "san_1",
       "name": "传奇终章",
-      "location": "{city_medium_wilderness}",
+      "location": "{battlefield}",
       "triggerProbability": null,
-      "triggerContext": "wilderness",
-      "chainId": "chain_troop_legendary_v1",
+      "triggerContext": "wild",
+      "chainId": "chain_wild_troop_v2",
       "chainLevel": 3,
-      "requiredItems": "item_troop_legendary",
+      "requiredItems": null,
       "descriptions": [
         "{player_name}你和老兵们旧地重游",
         "感慨时过境迁，在这乱世中弱肉强食，强大是唯一的活路"
@@ -1221,7 +1368,7 @@
         "battleEnemyId": null,
         "successText": "你和老兵们的羁绊更深了",
         "failureText": null,
-        "rewards": "item_troop_badge;reward-c",
+        "rewards": "item_badge_storm;item_badge_troop:1;reward-c",
         "bonusRewards": null
       },
       "optionB": {
@@ -1244,13 +1391,13 @@
       "eventHint": null
     },
     {
-      "id": "san_1_event_2004",
+      "id": "san_1_event_2017",
       "season": "san_1",
       "name": "核心壹-蛮踪密信",
-      "location": "{city_medium_wilderness}",
+      "location": "{battlefield}",
       "triggerProbability": null,
-      "triggerContext": "wilderness",
-      "chainId": "chain_troop_core_v1",
+      "triggerContext": "wild",
+      "chainId": "chain_wild_troop_v3",
       "chainLevel": 1,
       "requiredItems": null,
       "descriptions": [
@@ -1271,7 +1418,7 @@
         "battleEnemyId": null,
         "successText": "你在草丛中找到了完整的通联书信约定下次劫掠的路线与暗号",
         "failureText": "林鸟惊起一无所获只得将蹄印方向记入账册",
-        "rewards": "item_troop_tag",
+        "rewards": null,
         "bonusRewards": "reward-a"
       },
       "optionB": {
@@ -1294,18 +1441,18 @@
       "eventHint": null
     },
     {
-      "id": "san_1_event_2005",
+      "id": "san_1_event_2018",
       "season": "san_1",
       "name": "核心贰-峡口重围",
-      "location": "{city_medium_wilderness}",
+      "location": "{battlefield}",
       "triggerProbability": null,
-      "triggerContext": "wilderness",
-      "chainId": "chain_troop_core_v1",
+      "triggerContext": "wild",
+      "chainId": "chain_wild_troop_v3",
       "chainLevel": 2,
-      "requiredItems": "item_troop_tag",
+      "requiredItems": null,
       "descriptions": [
-        "{player_name}率部沿信中标记追至一道，依稀看到少数残存精锐友军",
-        "突然间，一批蛮族劫匪涌出，弓弩上弦将去路封死",
+        "{player_name}率部沿信中标记追至峡口，前方少数残存精锐友军正被蛮骑缠斗",
+        "突然间更多劫匪涌出弓弩上弦将去路封死",
         "为首悍卒狞笑：汉人将领也敢蹚这趟浑水？留下买路财或留下人头！"
       ],
       "optionA": {
@@ -1319,9 +1466,9 @@
         "subRequirement": 10,
         "triggerBattle": true,
         "battleEnemyId": null,
-        "successText": "贼势未合你先夺坡口占得地利，敌人不战而逃",
+        "successText": "贼势未合你先夺坡口占得地利敌人溃散残部友军得以喘息",
         "failureText": "峡口渐被合围箭如雨下你被迫迎敌",
-        "rewards": "item_troop_core",
+        "rewards": null,
         "bonusRewards": "pack-b"
       },
       "optionB": {
@@ -1335,7 +1482,7 @@
         "subRequirement": null,
         "triggerBattle": false,
         "battleEnemyId": null,
-        "successText": "你抢先占住地利，敌人不战而退还留下了部分财物",
+        "successText": "你抢先占住地利敌人不战而退还留下了部分财物",
         "failureText": null,
         "rewards": "reward-d",
         "bonusRewards": null
@@ -1344,18 +1491,68 @@
       "eventHint": null
     },
     {
-      "id": "san_1_event_2006",
+      "id": "san_1_event_2019",
+      "season": "san_1",
+      "name": "核心叁-残阵收拢",
+      "location": "{battlefield}",
+      "triggerProbability": null,
+      "triggerContext": "wild",
+      "chainId": "chain_wild_troop_v3",
+      "chainLevel": 3,
+      "requiredItems": null,
+      "descriptions": [
+        "{player_name}冲出峡口后沿山道搜寻失散的精锐友军",
+        "火光中陆续有伤卒应声而来番号残破却仍列半队之形",
+        "为首伍长单膝跪地：愿随将军重整旗鼓只求有朝一日重光旧部"
+      ],
+      "optionA": {
+        "id": "option_a",
+        "text": "收拢入伍",
+        "requiredItems": null,
+        "factor": "type-a",
+        "mainFactor": "luck",
+        "mainRequirement": 7,
+        "subFactors": "balanced",
+        "subRequirement": 7,
+        "triggerBattle": false,
+        "battleEnemyId": null,
+        "successText": "你按名册点验伤势分拨粮药残阵渐成一营",
+        "failureText": "夜雾迷途只收拢零星数人余部仍散落山野",
+        "rewards": null,
+        "bonusRewards": "pack-b;reward-a"
+      },
+      "optionB": {
+        "id": "option_b",
+        "text": "先稳伤势",
+        "requiredItems": null,
+        "factor": "always",
+        "mainFactor": "always",
+        "mainRequirement": null,
+        "subFactors": null,
+        "subRequirement": null,
+        "triggerBattle": false,
+        "battleEnemyId": null,
+        "successText": "你命医曹就地扎营疗伤虽未急行军却保全了更多性命",
+        "failureText": null,
+        "rewards": "reward-e",
+        "bonusRewards": null
+      },
+      "minReputation": null,
+      "eventHint": null
+    },
+    {
+      "id": "san_1_event_2020",
       "season": "san_1",
       "name": "核心终章",
-      "location": "{city_medium_wilderness}",
+      "location": "{battlefield}",
       "triggerProbability": null,
-      "triggerContext": "wilderness",
-      "chainId": "chain_troop_core_v1",
-      "chainLevel": 3,
-      "requiredItems": "item_troop_core",
+      "triggerContext": "wild",
+      "chainId": "chain_wild_troop_v3",
+      "chainLevel": 4,
+      "requiredItems": null,
       "descriptions": [
-        "{player_name}你和曾经的精锐友军，现在亲信护卫们旧地重游",
-        "感慨何时才能成就霸业，占地为王"
+        "{player_name}与峡口一役后收拢的亲信护卫们旧地重游",
+        "感慨乱世里一支核心营如何才能站稳脚跟"
       ],
       "optionA": {
         "id": "option_a",
@@ -1370,7 +1567,7 @@
         "battleEnemyId": null,
         "successText": "你和亲信们的羁绊更深了",
         "failureText": null,
-        "rewards": "item_troop_badge;reward-c",
+        "rewards": "item_badge_storm;item_badge_troop:2;reward-c",
         "bonusRewards": null
       },
       "optionB": {

@@ -37,6 +37,8 @@ const moveBody = {
   clientRequestId: v.required(clientRequestId),
   path: v.required(v.array({ maxLength: 512, itemValidator: roadPathStep })),
   targetPoiId: v.optional(poiId),
+  /** 郡战场等多入口 POI：点选入口世界格（与 path 同 x/y 口径） */
+  targetPoiStand: v.optional(roadPathStep),
 };
 
 const resolveEncounterBody = {

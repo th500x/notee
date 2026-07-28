@@ -80,24 +80,33 @@ function phaseSyntaxBackend() {
 }
 
 function phaseMapGenerator() {
-  const script = path.join(ROOT, 'shared', 'utils', 'mapGenerator.test.cjs');
-  if (!fs.existsSync(script)) {
-    console.warn('[skip] shared/utils/mapGenerator.test.cjs 不存在');
-    return { ok: true, skipped: true };
+  const scripts = [
+    path.join(ROOT, 'shared', 'utils', 'mapGenerator_v2.test.cjs'),
+    path.join(ROOT, 'shared', 'utils', 'pvpDuelMapGenerator.test.cjs'),
+    path.join(ROOT, 'shared', 'utils', 'tacticalDeploySnap.test.cjs'),
+    path.join(ROOT, 'backend', 'services', 'playerExploreEventService.dailyReset.test.cjs'),
+    path.join(ROOT, 'shared', 'utils', 'eventOptionRewards.test.cjs'),
+  ];
+  for (const script of scripts) {
+    const label = path.relative(ROOT, script);
+    if (!fs.existsSync(script)) {
+      console.warn(`[skip] ${label} 不存在`);
+      continue;
+    }
+    const r = spawnSync(process.execPath, [script], {
+      cwd: ROOT,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+      windowsHide: true,
+    });
+    if (r.stdout) process.stdout.write(r.stdout);
+    if (r.stderr) process.stderr.write(r.stderr);
+    if (r.status !== 0) {
+      console.error(`[fail] ${label} 退出码`, r.status);
+      return { ok: false };
+    }
+    console.log(`[ok] ${label}`);
   }
-  const r = spawnSync(process.execPath, [script], {
-    cwd: ROOT,
-    encoding: 'utf8',
-    stdio: ['ignore', 'pipe', 'pipe'],
-    windowsHide: true,
-  });
-  if (r.stdout) process.stdout.write(r.stdout);
-  if (r.stderr) process.stderr.write(r.stderr);
-  if (r.status !== 0) {
-    console.error('[fail] mapGenerator.test.cjs 退出码', r.status);
-    return { ok: false };
-  }
-  console.log('[ok] mapGenerator.test.cjs');
   return { ok: true };
 }
 

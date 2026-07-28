@@ -1,36 +1,40 @@
 /**
  * battleMapBuilder.js
  *
- * 将 mapGenerator.js 的输出转换为 BattleMap 类所需的格式。
+ * 将 mapGenerator_v2 的输出转换为 BattleMap 类所需的格式。
  *
  * 用法：
  *   import { buildBattleMap } from '@/utils/battleMapBuilder';
  *   const mapData = buildBattleMap({ seed: 42, battleRarity: 'epic' });
  *   const battleMap = new BattleMap(mapData);
  *
- * @see docs/00/90-assets/91-2-MAP_AUTO_GENERATION.md
+ * @see docs/01-strategic-world/30-frontend/31-7-MAP_GENERATOR_V2_IMPLEMENTATION.md
  */
 
-import { generateSmallMap, TERRAIN, ZONE } from '@shared/utils/mapGenerator';
+import { generateSmallMapV2 } from '@shared/utils/mapGenerator_v2.js';
+import { ZONE } from '@shared/utils/tacticalBattleGrid.js';
 
 // ── 地形属性表 ────────────────────────────────────────────────────────────────
 
 const TERRAIN_PROPS = {
-  [TERRAIN.PLAIN]:  { moveCost: 1, defensiveBonus: 0, elevation: 0 },
-  [TERRAIN.FOREST]: { moveCost: 2, defensiveBonus: 15, elevation: 0 },
-  [TERRAIN.HILL]:   { moveCost: 2, defensiveBonus: 20, elevation: 1 },
-  [TERRAIN.WASTE]:  { moveCost: 1, defensiveBonus: 0,  elevation: 0 },
+  plain:  { moveCost: 1, defensiveBonus: 0, elevation: 0 },
+  forest: { moveCost: 2, defensiveBonus: 15, elevation: 0 },
+  hill:   { moveCost: 2, defensiveBonus: 20, elevation: 1 },
+  waste:  { moveCost: 1, defensiveBonus: 0,  elevation: 0 },
+  bridge: { moveCost: 1, defensiveBonus: 0, elevation: 0 },
+  river:  { moveCost: Infinity, defensiveBonus: 0, elevation: 0 },
+  lava:   { moveCost: Infinity, defensiveBonus: 0, elevation: 0 },
 };
 
 // ── 主函数 ────────────────────────────────────────────────────────────────────
 
 /**
- * 生成战斗地图数据
+ * 生成战斗地图数据（v2 Wang 底）
  *
  * @param {object} options
  * @param {number|null} options.seed          - 随机种子（null = 随机）
  * @param {string}      options.battleRarity  - 战斗稀有度 'common'|'rare'|'epic'|'legendary'
- * @param {string|null} options.bgTheme       - 底色主题 'grassland'|'wasteland'|null（null=随机）
+ * @param {string|null} options.bgTheme       - 已忽略（v2 固定草地 Wang）
  * @param {string|null} options.mapId         - 地图ID（null = 自动生成）
  * @param {string|null} options.bossId        - 主将ID（有值时增加"消灭主将"胜利条件）
  * @returns {object} BattleMap 构造函数所需的 mapData 对象
@@ -42,24 +46,25 @@ export function buildBattleMap({
   mapId        = null,
   bossId       = null,
 } = {}) {
-  const result = generateSmallMap({ seed, battleRarity, bgTheme });
-  const { terrain, variants, objects, meta } = result;
+  void bgTheme;
+  const result = generateSmallMapV2({ seed, battleRarity });
+  const { terrain, variants, objects, meta, baseTileRel } = result;
 
   // ── Terrain 层 ──────────────────────────────────────────────────────────
   const terrainLayer = terrain.map((row, y) =>
     row.map((type, x) => {
-      const props = TERRAIN_PROPS[type] || TERRAIN_PROPS[TERRAIN.PLAIN];
-      // 宝箱格子使用专用底板
+      const props = TERRAIN_PROPS[type] || TERRAIN_PROPS.plain;
       const hasChest = objects.some(o => o.type === 'chest' && o.x === x && o.y === y);
       return {
         type,
-        variant:        variants,          // 整张地图共用同一套变体
+        variant:        variants,
+        baseTileRel:    baseTileRel?.[y]?.[x] ?? null,
         elevation:      props.elevation,
         moveCost:       props.moveCost,
         defensiveBonus: props.defensiveBonus,
-        isPassable:     true,              // 小型地图所有地形均可通行
+        isPassable:     props.moveCost !== Infinity,
         isDeployable:   ZONE.deployA.includes(y) || ZONE.deployB.includes(y),
-        isChestCell:    hasChest,          // 底板切换为 *_chest.png
+        isChestCell:    hasChest,
       };
     })
   );
@@ -88,10 +93,15 @@ export function buildBattleMap({
   return {
     mapId:      mapId || `auto_${meta.seed}`,
     name:       '随机战斗地图',
-    width:      8,
-    height:     10,
+    width:      result.width ?? 8,
+    height:     result.height ?? 10,
     terrain:    terrainLayer,
     objects:    objectsLayer,
+    baseTileRel,
+    terrainOverlays: result.terrainOverlays,
+    occupancy:  result.occupancy,
+    variants,
+    cellFire:   result.cellFire,
     deployment: {
       zoneA: { rows: ZONE.deployA, faction: 'player' },
       zoneB: { rows: ZONE.deployB, faction: 'enemy'  },

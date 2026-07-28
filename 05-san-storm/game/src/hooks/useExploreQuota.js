@@ -1,143 +1,114 @@
 /**
- * useExploreQuota - 探索次数配额管理（服务端存储）
- * 
- * 规则：
- * - 每小时补充6次探索机会
- * - 上限18次（可叠加3小时）
- * - 晚间 00:00~08:00 不补充次数（💤休息时间）
- * - 数据存储在后端 player_events 表，防止跨浏览器重复恢复
+ * 探索开链消耗：兵符 `item_tactic_token`（与匪寨/攻城同源）。
+ * 对外仍挂在 PlayerContext 的 `exploreQuota` 上，便于既有面板少改调用点。
+ *
+ * - remaining = 持有兵符数
+ * - canExplore = remaining >= 1（续链由 useEventSystem continueChain 跳过扣费）
+ * - consume/refund 走 `/explore-chain-token`（权威扣减）
+ * - fillMax：教程通关后的旧钩子，现为 no-op（兵符不由此补满）
  */
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { playerAPI } from '@/services/playerApi';
 
-const REFILL_PER_HOUR = 6;
-const MAX_QUOTA = 18;
-const REST_START = 0;
-const REST_END = 8;
-
-function isRestHour(hour) {
-  return hour >= REST_START && hour < REST_END;
-}
-
 export function useExploreQuota(playerId) {
-  const [quota, setQuota] = useState({ remaining: 0, lastRefillTs: 0 });
+  const [remaining, setRemaining] = useState(0);
   const [loaded, setLoaded] = useState(false);
   const syncingRef = useRef(false);
 
-  // 从后端加载配额
-  useEffect(() => {
+  const applyRemaining = useCallback((n) => {
+    setRemaining(Math.max(0, Math.floor(Number(n) || 0)));
+  }, []);
+
+  const refresh = useCallback(async () => {
     if (!playerId) return;
-    let cancelled = false;
-    playerAPI.getExploreQuota(playerId)
-      .then(res => {
-        if (!cancelled && res.success) {
-          setQuota({ remaining: res.data.remaining, lastRefillTs: res.data.lastRefillTs });
-          setLoaded(true);
-        }
-      })
-      .catch(err => console.error('[useExploreQuota] 加载失败:', err));
-    return () => { cancelled = true; };
-  }, [playerId]);
-
-  // 每分钟从后端刷新一次（处理恢复）
-  useEffect(() => {
-    if (!playerId) return;
-    const timer = setInterval(() => {
-      playerAPI.getExploreQuota(playerId)
-        .then(res => {
-          if (res.success) {
-            setQuota({ remaining: res.data.remaining, lastRefillTs: res.data.lastRefillTs });
-          }
-        })
-        .catch(() => {});
-    }, 60_000);
-    return () => clearInterval(timer);
-  }, [playerId]);
-
-  // 消耗（先乐观更新UI，再同步后端）
-  const consume = useCallback(() => {
-    if (!playerId || syncingRef.current) return;
-    setQuota(prev => {
-      if (prev.remaining <= 0) return prev;
-      return { ...prev, remaining: prev.remaining - 1 };
-    });
-    syncingRef.current = true;
-    playerAPI.updateExploreQuota(playerId, 'consume')
-      .then(res => {
-        if (res.success) setQuota(prev => ({ ...prev, remaining: res.data.remaining }));
-      })
-      .catch(() => {})
-      .finally(() => { syncingRef.current = false; });
-  }, [playerId]);
-
-  // 退还
-  const refund = useCallback(() => {
-    if (!playerId) return;
-    setQuota(prev => ({ ...prev, remaining: Math.min(prev.remaining + 1, MAX_QUOTA) }));
-    playerAPI.updateExploreQuota(playerId, 'refund')
-      .then(res => {
-        if (res.success) setQuota(prev => ({ ...prev, remaining: res.data.remaining }));
-      })
-      .catch(() => {});
-  }, [playerId]);
-
-  // 填满（新手指引完成时）
-  const fillMax = useCallback(() => {
-    if (!playerId) return;
-    setQuota({ remaining: MAX_QUOTA, lastRefillTs: Date.now() });
-    playerAPI.updateExploreQuota(playerId, 'fillMax').catch(() => {});
-  }, [playerId]);
-
-  /** 与 `refreshPlayer` 等并列：事件结算/RETURNING→IDLE 后拉服务端真实剩余次数，避免 UI 长期停在乐观值或被误触的 fillMax 覆盖 */
-  const reloadFromServer = useCallback(() => {
-    if (!playerId) return Promise.resolve();
-    return playerAPI.getExploreQuota(playerId).then((res) => {
-      if (res.success) {
-        setQuota({ remaining: res.data.remaining, lastRefillTs: res.data.lastRefillTs });
-        setLoaded(true);
+    try {
+      const res = await playerAPI.getExploreChainToken(playerId);
+      if (res?.success && res.data) applyRemaining(res.data.remaining);
+      else {
+        const legacy = await playerAPI.getExploreQuota(playerId);
+        if (legacy?.success && legacy.data) applyRemaining(legacy.data.remaining);
       }
-    });
-  }, [playerId]);
+    } catch (err) {
+      console.error('[useExploreQuota] 加载兵符失败:', err);
+    } finally {
+      setLoaded(true);
+    }
+  }, [playerId, applyRemaining]);
 
-  // 倒计时计算
-  const now = Date.now();
-  const currentHour = new Date().getHours();
-  let minutesUntilRefill;
-  if (isRestHour(currentHour)) {
-    const today8am = new Date();
-    today8am.setHours(REST_END, 0, 0, 0);
-    if (today8am.getTime() <= now) today8am.setDate(today8am.getDate() + 1);
-    minutesUntilRefill = Math.max(0, Math.ceil((today8am.getTime() - now) / 60_000));
-  } else {
-    const nextRefillTs = quota.lastRefillTs + 3600 * 1000;
-    minutesUntilRefill = Math.max(0, Math.ceil((nextRefillTs - now) / 60_000));
-  }
+  useEffect(() => {
+    if (!playerId) return undefined;
+    let cancelled = false;
+    (async () => {
+      await refresh();
+      if (cancelled) return;
+    })();
+    const timer = setInterval(() => {
+      void refresh();
+    }, 60_000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [playerId, refresh]);
+
+  /**
+   * @param {{ continueChain?: boolean, triggerContext?: string }} [opts]
+   * @returns {Promise<{ ok: boolean, skipped?: boolean, error?: string }>}
+   */
+  const consume = useCallback(
+    async (opts = {}) => {
+      if (!playerId || syncingRef.current) return { ok: false, error: 'busy' };
+      syncingRef.current = true;
+      try {
+        const res = await playerAPI.updateExploreChainToken(playerId, {
+          action: 'consume',
+          continueChain: !!opts.continueChain,
+          triggerContext: opts.triggerContext || undefined,
+        });
+        if (!res?.success) {
+          return { ok: false, error: res?.error || '兵符不足' };
+        }
+        if (res.data?.remaining != null) applyRemaining(res.data.remaining);
+        return { ok: true, skipped: !!res.data?.skipped };
+      } catch (e) {
+        return { ok: false, error: e?.message || '网络错误' };
+      } finally {
+        syncingRef.current = false;
+      }
+    },
+    [playerId, applyRemaining]
+  );
+
+  const refund = useCallback(async () => {
+    if (!playerId) return { ok: false };
+    try {
+      const res = await playerAPI.updateExploreChainToken(playerId, { action: 'refund' });
+      if (res?.success && res.data?.remaining != null) applyRemaining(res.data.remaining);
+      return { ok: !!res?.success };
+    } catch {
+      return { ok: false };
+    }
+  }, [playerId, applyRemaining]);
+
+  /** 教程通关旧钩子：兵符体系下不再补满次数 */
+  const fillMax = useCallback(() => {}, []);
 
   return useMemo(
     () => ({
-      remaining: quota.remaining,
-      max: MAX_QUOTA,
-      canExplore: loaded && quota.remaining > 0,
+      remaining,
+      max: remaining,
+      canExplore: remaining >= 1,
+      refillPerHour: 0,
+      minutesUntilRefill: 0,
+      inRestPeriod: false,
+      loaded,
+      costKind: 'tactic_token',
+      costPerChain: 1,
       consume,
       refund,
       fillMax,
-      minutesUntilRefill,
-      inRestPeriod: isRestHour(currentHour),
-      refillPerHour: REFILL_PER_HOUR,
-      loaded,
-      reloadFromServer,
+      refresh,
     }),
-    [
-      quota.remaining,
-      quota.lastRefillTs,
-      loaded,
-      playerId,
-      consume,
-      refund,
-      fillMax,
-      reloadFromServer,
-      minutesUntilRefill,
-      currentHour,
-    ],
+    [remaining, loaded, consume, refund, fillMax, refresh]
   );
 }

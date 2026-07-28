@@ -300,7 +300,7 @@ async function login(id, password) {
   }
 
   const account = accounts[0];
-  // AI 账号仅供后端编排驱动，禁止任何人工登录（与 sys1 占位号同级处理）
+  // account_type=ai：历史 AI 玩家填服残留号；功能已归档，仍禁止人工登录（与 sys1 同级）
   if (account.account_type === 'ai') {
     return { ok: false, status: 403, error: '该账号无法登录' };
   }

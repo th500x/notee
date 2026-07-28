@@ -17,6 +17,7 @@ import {
 } from '@/battle/ai/battleTurnAi';
 import { isHazardTile } from '@/systems/battleFlowManager';
 import { resolveChestReward } from '@/battle/chestRewardResolver';
+import { resolveRandomBoxEffect } from '@/battle/randomBoxResolver';
 import {
   getMapTerrainDimensions,
   getSouthDeployRowRange,
@@ -100,6 +101,10 @@ export function useBattleEngine({
   trimAllyBattleLog = false,
   /** 攻城：守方城防倍率（cityDefense/100）；仅 def._siegeCityDefender 主动一击 */
   siegeCityDefenseMult = 1,
+  /** 入库回合摘要累加器（useBattleMap.battleReportDigestRef） */
+  battleReportDigestRef = null,
+  /** 玩法对象消耗后刷新地图瓦片 */
+  setMapResult = null,
 }) {
   const speedRef = useRef(1);
   const roundNumRef = useRef(roundNum);
@@ -130,14 +135,17 @@ export function useBattleEngine({
     battleKill, runBattleKill,
     applyEndOfRoundFire,
     battleRanged, performSkillDemoStrike,
-    checkTrap, battleMove,
+    checkTrap, checkFarm, battleMove,
     performAttack, performCounterAttack,
     performPhase3Heal,
     performPhase4Damage,
     performPhase5Composite,
+    bumpMapObjects,
   } = useBattleAnimations({
     battleSurfaceRef, mapCardRef, mapResult, addLog, speedRef, battleTroops, trimAllyBattleLog,
     siegeCityDefenseMult,
+    battleReportDigestRef,
+    setMapResult,
   });
 
   /** 战役主将（boss/hero）即时胜负：写入 battleEndReason，供 useBattleSettlement 在「敌军未全灭」等情况下仍能结算 */
@@ -158,18 +166,47 @@ export function useBattleEngine({
     [setBattleEndReason, addLog, battleTroops],
   );
 
-  // ── 自动战斗宝箱开启 ──────────────────────────────────────────────────────
+  // ── 自动战斗宝箱 / 随机箱开启（仅玩家） ──────────────────────────────────
   const checkChestAuto = useCallback(async (troop) => {
     if (!troop || troop.currentTroops <= 0) return;
-    const reward = await resolveChestReward(troop, mapResult, battleTroops);
-    if (!reward) return;
-    addLog(`  📦 ${reward.troopName} 开启宝箱，获得 ${reward.name}（${reward.rarityLabel}）`, 'skill');
-    autoChestRewardsRef.current.push(reward);
-    setAutoChestReward(reward);
-    await sleep(2000, speedRef.current);
-    setAutoChestReward(null);
-    await sleep(200, speedRef.current);
-  }, [mapResult, battleTroops, addLog]);
+    if (troop.faction !== 'player') return;
+
+    const chestReward = await resolveChestReward(troop, mapResult, battleTroops);
+    if (chestReward) {
+      bumpMapObjects();
+      addLog(`  📦 ${chestReward.troopName} 开启宝箱，获得 ${chestReward.name}（${chestReward.rarityLabel}）`, 'skill');
+      autoChestRewardsRef.current.push(chestReward);
+      setAutoChestReward(chestReward);
+      await sleep(2000, speedRef.current);
+      setAutoChestReward(null);
+      await sleep(200, speedRef.current);
+      return;
+    }
+
+    const rand = await resolveRandomBoxEffect(troop, mapResult, battleTroops, {
+      baseUrl: import.meta.env.BASE_URL,
+    });
+    if (!rand) return;
+    bumpMapObjects();
+    addLog(`  🎲 ${rand.troopName} 开启随机箱：${rand.label}`, 'skill');
+    if (rand.itemId) {
+      autoChestRewardsRef.current.push(rand);
+    }
+    if (rand.effect === 'heaven_punish') {
+      const root = mapCardRef?.current || document.querySelector('.battle-map-card');
+      if (root) {
+        root.classList.add('heaven-punish-flash');
+        setTimeout(() => root.classList.remove('heaven-punish-flash'), 900);
+      }
+      setBattleTroops((prev) => [...prev]);
+      await sleep(900, speedRef.current);
+    } else if (rand.effect === 'heal_100' || rand.effect === 'spawn_enemy') {
+      setBattleTroops((prev) => [...prev]);
+      await sleep(600, speedRef.current);
+    } else {
+      await sleep(800, speedRef.current);
+    }
+  }, [mapResult, battleTroops, addLog, setBattleTroops, mapCardRef, bumpMapObjects]);
 
   // ── 阵型整体移动 ──────────────────────────────────────────────────────────
 
@@ -239,9 +276,10 @@ export function useBattleEngine({
         const c = await runBattleKill(t);
         if (c) return c;
       }
+      await checkFarm(t, t.y, t.x);
     }
     return true;
-  }, [battleSurfaceRef, mapCardRef, mapResult, battleTroops, clearTroopFromTile, renderTroopOnTile, checkTrap, runBattleKill]);
+  }, [battleSurfaceRef, mapCardRef, mapResult, battleTroops, clearTroopFromTile, renderTroopOnTile, checkTrap, checkFarm, runBattleKill]);
 
   // ── 应用阵型 ──────────────────────────────────────────────────────────────
 
@@ -536,6 +574,7 @@ export function useBattleEngine({
     }
 
     addLog(fmt.fmtRoundStart(newRound), 'round');
+    battleReportDigestRef?.current?.beginRound?.(newRound);
     await sleep(400, speedRef.current);
 
     // 首回合阵型
@@ -698,16 +737,34 @@ export function useBattleEngine({
       return notifyCampaignCommanderEnd(fireRet.outcome);
     }
 
-    const pAlive = battleTroops.filter(t => t.faction === 'player' && t.currentTroops > 0);
+    const pAlive = battleTroops.filter(t => (t.faction === 'player' || t.faction === 'ally') && t.currentTroops > 0);
     const eAlive = battleTroops.filter(t => t.faction === 'enemy'  && t.currentTroops > 0);
-    if (pAlive.length === 0) { addLog(fmt.fmtBattleEnd('enemy_win'),  'death'); return 'enemy_win'; }
-    if (eAlive.length === 0) { addLog(fmt.fmtBattleEnd('player_win'), 'round'); return 'player_win'; }
+    const flushDigestRound = () => {
+      battleReportDigestRef?.current?.flushRound?.({
+        aliveA: pAlive.length,
+        aliveB: eAlive.length,
+        roundNum: newRound,
+      });
+    };
+    if (pAlive.length === 0) {
+      flushDigestRound();
+      addLog(fmt.fmtBattleEnd('enemy_win'), 'death');
+      battleReportDigestRef?.current?.pushEnding?.(fmt.fmtBattleEnd('enemy_win'));
+      return 'enemy_win';
+    }
+    if (eAlive.length === 0) {
+      flushDigestRound();
+      addLog(fmt.fmtBattleEnd('player_win'), 'round');
+      battleReportDigestRef?.current?.pushEnding?.(fmt.fmtBattleEnd('player_win'));
+      return 'player_win';
+    }
+    flushDigestRound();
     addLog(fmt.fmtRoundEnd(pAlive.length, eAlive.length), 'round');
     return 'continue';
   }, [battleTroops, setBattleTroops, setRoundNum, autoFormation, mapResult, addLog, trimAllyBattleLog,
       applyFormationBuffs, formationGroupAction, battleMove, performAttack, runBattleKill, performCounterAttack,
       applyEndOfRoundFire, notifyCampaignCommanderEnd, checkChestAuto, performPhase3Heal, performPhase4Damage,
-      performPhase5Composite,
+      performPhase5Composite, battleReportDigestRef,
     ]);
 
   // ── 播放回合 ──────────────────────────────────────────────────────────────
@@ -761,6 +818,9 @@ export function useBattleEngine({
       addLog(fmt.fmtSilverCost(cost, silverAmount - cost), 'round');
     }
 
+    // 每场开战重置入库摘要（侧栏流水仍由 addLog 累积）
+    battleReportDigestRef?.current?.reset?.();
+
     let result = 'continue';
     try {
       while (result === 'continue') {
@@ -792,19 +852,31 @@ export function useBattleEngine({
 
   // ── Demo 按钮 ─────────────────────────────────────────────────────────────
 
+  /** Demo：扣血后若兵力归零，走阵亡（播 die 帧），避免空血条仍站立 idle */
+  const finishDemoIfDead = useCallback(
+    async (troop) => {
+      if (troop && troop.currentTroops <= 0) await runBattleKill(troop);
+    },
+    [runBattleKill],
+  );
+
   const playAtkDemo = useCallback(async () => {
     if (battlePlaying || battleTroops.length < 6) return;
     setBattlePlaying(true);
-    await battleAttack(battleTroops[0], battleTroops[3], Math.floor(80 + Math.random() * 60));
+    const def = battleTroops[3];
+    await battleAttack(battleTroops[0], def, Math.floor(80 + Math.random() * 60));
+    await finishDemoIfDead(def);
     setBattlePlaying(false);
-  }, [battlePlaying, battleTroops, setBattlePlaying, battleAttack]);
+  }, [battlePlaying, battleTroops, setBattlePlaying, battleAttack, finishDemoIfDead]);
 
   const playCritDemo = useCallback(async () => {
     if (battlePlaying || battleTroops.length < 6) return;
     setBattlePlaying(true);
-    await battleCrit(battleTroops[1], battleTroops[4], Math.floor(150 + Math.random() * 80));
+    const def = battleTroops[4];
+    await battleCrit(battleTroops[1], def, Math.floor(150 + Math.random() * 80));
+    await finishDemoIfDead(def);
     setBattlePlaying(false);
-  }, [battlePlaying, battleTroops, setBattlePlaying, battleCrit]);
+  }, [battlePlaying, battleTroops, setBattlePlaying, battleCrit, finishDemoIfDead]);
 
   const playMissDemo = useCallback(async () => {
     if (battlePlaying || battleTroops.length < 6) return;
@@ -823,20 +895,24 @@ export function useBattleEngine({
       { name: '连弩齐射', damageType: 'physical' },
     ];
     const pick = demos[Math.floor(Math.random() * demos.length)];
-    await performSkillDemoStrike(battleTroops[4], battleTroops[1], {
+    const def = battleTroops[1];
+    await performSkillDemoStrike(battleTroops[4], def, {
       skillName: pick.name,
       damageType: pick.damageType,
       skillDamageMultiplier: 1.1 + Math.random() * 0.25,
     });
+    await finishDemoIfDead(def);
     setBattlePlaying(false);
-  }, [battlePlaying, battleTroops, setBattlePlaying, performSkillDemoStrike]);
+  }, [battlePlaying, battleTroops, setBattlePlaying, performSkillDemoStrike, finishDemoIfDead]);
 
   const playRangedDemo = useCallback(async () => {
     if (battlePlaying || battleTroops.length < 6) return;
     setBattlePlaying(true);
-    await battleRanged(battleTroops[2], battleTroops[5], Math.floor(60 + Math.random() * 50), '➤');
+    const def = battleTroops[5];
+    await battleRanged(battleTroops[2], def, Math.floor(60 + Math.random() * 50), '➤');
+    await finishDemoIfDead(def);
     setBattlePlaying(false);
-  }, [battlePlaying, battleTroops, setBattlePlaying, battleRanged]);
+  }, [battlePlaying, battleTroops, setBattlePlaying, battleRanged, finishDemoIfDead]);
 
   return {
     playBattleRound,

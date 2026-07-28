@@ -67,6 +67,8 @@ const cancelWarBody = {
 
 const playerIdBody = {
   playerId: v.required(playerId),
+  /** 结算「继续」连打：不扣兵符（与匪寨同口径） */
+  continueChain: v.optional(v.boolean()),
 };
 
 const baseCampSiegeResultBody = {

@@ -7,7 +7,7 @@ require('dotenv').config({ path: __dirname + '/../.env' });
 const cityService = require('../services/cityService');
 const { pool } = require('../database/connection');
 
-const TARGET_CITY_ID = process.argv[2] || 'san_1_city_4_pingjingguan';
+const TARGET_CITY_ID = process.argv[2] || 'san_1_city_pingjingguan';
 const FAKE_KING_CHARACTER_ID = 'san_1_char_1001';
 
 (async () => {

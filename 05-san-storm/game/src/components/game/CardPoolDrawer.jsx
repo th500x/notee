@@ -30,12 +30,17 @@ import PlayerTopResourceBadges from '@/components/game/PlayerTopResourceBadges';
 import PoolResultModalFrame from '@/components/game/PoolResultModalFrame';
 import {
   getPoolDrawCompensationUi,
+  getPoolDrawCompensationBanner,
   poolDrawHasRarityLimitCompensation,
   poolDrawResultModalTitle,
 } from '@/utils/poolDrawCompensationUi';
 import EchoChoiceModal from '@/components/game/EchoChoiceModal';
 import { formatLegendaryProbPercent } from '@/utils/factionLegendaryReserveDisplay';
-import { getBatchDrawTotalCost } from '@shared/utils/cardPoolDrawEconomy.js';
+import {
+  getBatchDrawTotalCost,
+  BATCH_DRAW_TOTAL_OPS,
+  BATCH_DRAW_BONUS_OPS,
+} from '@shared/utils/cardPoolDrawEconomy.js';
 
 const poolDebug = import.meta.env.DEV;
 
@@ -264,7 +269,7 @@ export default function CardPoolDrawer({
           : []);
       setEchoQueue(queue);
       setShowEchoFlow(false);
-      const isBatch = drawResult.drawMode === 'batch';
+      const isBatch = drawResult.drawMode === 'batch' || drawResult.drawMode === 'badge_batch';
       setShowResult(isBatch || !drawResult.echoChoiceRequired);
       onRefreshStatus?.();
     }
@@ -294,7 +299,7 @@ export default function CardPoolDrawer({
 
   const handleResultClose = useCallback(() => {
     setShowResult(false);
-    if (drawResult?.drawMode === 'batch' && echoQueue.length > 0) {
+    if ((drawResult?.drawMode === 'batch' || drawResult?.drawMode === 'badge_batch') && echoQueue.length > 0) {
       setShowEchoFlow(true);
       return;
     }
@@ -349,30 +354,30 @@ export default function CardPoolDrawer({
   );
 
   const currentSilver = playerSilver ?? status?.silver ?? 0;
-  const dailyLimit = poolStatus?.dailyLimit ?? 10;
-  const remainingDraws = poolStatus?.remainingDraws ?? 0;
-  const nextDrawCost = poolStatus?.nextDrawCost ?? status?.drawCostTiers?.[0]?.cost ?? 30;
+  const dailyLimit = poolStatus?.dailyLimit ?? poolStatus?.slotLimit ?? 2;
+  const remainingDraws = poolStatus?.remainingDraws ?? poolStatus?.remainingSlots ?? 0;
   const batchDrawCost = poolStatus?.batchDrawTotalCost ?? status?.batchDrawTotalCost ?? getBatchDrawTotalCost();
+  const badgeCost = poolStatus?.badgeBatchCost ?? status?.badgeBatchCost ?? 1;
+  const stormBadgeCount = status?.stormBadgeCount ?? 0;
   const pendingEchoBlocking = poolType === 'character' && (
     !!status?.pendingEchoChoice?.pendingEchoDrawId
     || showEchoFlow
-    || (!!drawResult?.echoChoiceRequired && drawResult?.drawMode !== 'batch')
+    || (!!drawResult?.echoChoiceRequired && drawResult?.drawMode !== 'batch' && drawResult?.drawMode !== 'badge_batch')
   );
-  const canBatchDraw = !loading
+  const canSilverBatch = !loading
     && !pendingEchoBlocking
-    && (poolStatus?.canBatchDraw ?? (remainingDraws === dailyLimit))
-    && remainingDraws === dailyLimit
+    && (poolStatus?.canSilverBatch ?? poolStatus?.canBatchDraw ?? false)
     && currentSilver >= batchDrawCost;
-  const canSingleDraw = !loading
+  const canBadgeBatch = !loading
     && !pendingEchoBlocking
-    && remainingDraws > 0
-    && nextDrawCost != null
-    && currentSilver >= nextDrawCost;
-  const costLabel = nextDrawCost ?? '—';
+    && (poolStatus?.canBadgeBatch ?? false)
+    && stormBadgeCount >= badgeCost;
   const cardsPerDrawLabel = poolType === 'troop' ? '每次2张' : '每次1张';
+  const cardsPerOp = poolType === 'troop' ? 2 : 1;
+  const batchCardTotal = BATCH_DRAW_TOTAL_OPS * cardsPerOp;
   const batchResultCountHint = poolType === 'troop'
-    ? `${12}次抽取 · 共${12 * 2}张`
-    : '共12张';
+    ? `${BATCH_DRAW_TOTAL_OPS}次操作×每次2张=共${batchCardTotal}张卡`
+    : `共${BATCH_DRAW_TOTAL_OPS}张卡`;
 
   return (
     <>
@@ -545,7 +550,7 @@ export default function CardPoolDrawer({
               </span>
             </div>
             <div className="flex flex-wrap items-center justify-end gap-x-2 gap-y-0.5 max-w-[62%]">
-              <span className="text-stone-400 text-xs shrink-0">今日剩余</span>
+              <span className="text-stone-400 text-xs shrink-0">本窗剩余</span>
               <span className={`text-xs font-bold tabular-nums shrink-0 ${remainingDraws > 0 ? 'text-green-400' : 'text-red-400'}`}>
                 {remainingDraws}/{dailyLimit}
               </span>
@@ -574,34 +579,27 @@ export default function CardPoolDrawer({
               当前从「{poolDrawerTabLabel('character', activeDrawSeason)}」抽取（费用 / 次数 / 传奇保底共用）
             </p>
           ) : null}
-          {remainingDraws > 0 && remainingDraws < dailyLimit ? (
-            <p className="text-[10px] text-stone-500 text-center mb-2 leading-snug">
-              本窗已进行过单抽，十连不可用；剩余次数仅可继续单抽
-            </p>
-          ) : null}
-          {remainingDraws === dailyLimit ? (
-            <p className="text-[10px] text-stone-500 text-center mb-2 leading-snug">
-              单抽与十连互斥：须先选一种方式用完本窗 {dailyLimit} 次额度
-            </p>
-          ) : null}
+          <p className="text-[10px] text-stone-500 text-center mb-2 leading-snug">
+            真三徽章抽与银两十连本窗各 1 次、互不占用；两路都用完后等半天窗刷新
+          </p>
           <div className="flex gap-2">
             <button
               type="button"
-              onClick={() => onDraw(activeDrawSeason, 'single')}
-              disabled={!canSingleDraw}
+              onClick={() => onDraw(activeDrawSeason, 'badge_batch')}
+              disabled={!canBadgeBatch}
               className={`flex-1 py-3 rounded-xl text-sm font-bold transition-all
-                ${canSingleDraw
+                ${canBadgeBatch
                   ? 'bg-gradient-to-r from-amber-600 to-amber-500 text-white hover:from-amber-500 hover:to-amber-400 active:scale-[0.98] shadow-lg shadow-amber-600/30'
                   : 'bg-stone-700 text-stone-500 cursor-not-allowed'}`}
             >
-              {loading ? '抽取中...' : `💰 抽取（${costLabel}银两）`}
+              {loading ? '抽取中...' : `🏅 徽章抽（×${badgeCost} · 持有${stormBadgeCount}）`}
             </button>
             <button
               type="button"
               onClick={() => onDraw(activeDrawSeason, 'batch')}
-              disabled={!canBatchDraw}
+              disabled={!canSilverBatch}
               className={`flex-1 py-3 rounded-xl text-sm font-bold transition-all
-                ${canBatchDraw
+                ${canSilverBatch
                   ? 'bg-gradient-to-r from-orange-700 to-orange-600 text-white hover:from-orange-600 hover:to-orange-500 active:scale-[0.98] shadow-lg shadow-orange-700/30'
                   : 'bg-stone-700 text-stone-500 cursor-not-allowed'}`}
             >
@@ -609,7 +607,7 @@ export default function CardPoolDrawer({
             </button>
           </div>
           <p className="mt-2 text-[10px] text-stone-500 text-center leading-snug">
-            十连 = 本窗 10 次单抽总价 · 额外赠送 2 次抽取（{batchResultCountHint}）· 概率与单抽一致
+            两种抽取均为 {BATCH_DRAW_TOTAL_OPS} 次操作（含赠 {BATCH_DRAW_BONUS_OPS}）（{batchResultCountHint}）· 概率一致
           </p>
         </div>
       </div>
@@ -661,16 +659,14 @@ export default function CardPoolDrawer({
 
 /** 抽取结果弹窗 */
 function DrawResultOverlay({ poolType, drawMode = 'single', cards, poolCards, skillsMap, baseUrl, rarityLabel, onClose }) {
-  const compact = drawMode === 'batch';
+  const compact = drawMode === 'batch' || drawMode === 'badge_batch';
   // 用 cardId 从 poolCards 查找完整配置数据
   const poolCardsMap = {};
   poolCards.forEach(c => { poolCardsMap[c.id] = c; });
 
   const hasPitySuppressed = Array.isArray(cards) && cards.some((c) => c.pityLegendarySuppressed);
   const hasRarityLimitComp = poolDrawHasRarityLimitCompensation(cards);
-  const primaryCompUi = Array.isArray(cards)
-    ? cards.map((c) => getPoolDrawCompensationUi(c, poolType)).find(Boolean)
-    : null;
+  const bannerUi = getPoolDrawCompensationBanner(cards, poolType);
   const modalTitle = poolDrawResultModalTitle(cards, poolType, drawMode);
 
   return (
@@ -679,16 +675,16 @@ function DrawResultOverlay({ poolType, drawMode = 'single', cards, poolCards, sk
       onClose={onClose}
       panelClassName={compact ? 'max-w-4xl' : 'max-w-md'}
     >
-      {hasRarityLimitComp && primaryCompUi && (
+      {hasRarityLimitComp && bannerUi && (
         <div className="mb-3 px-3 py-2.5 rounded-lg bg-rose-950/90 border-2 border-rose-500/50 text-[12px] leading-relaxed text-rose-50">
-          <div className="text-rose-300 font-bold text-sm mb-1">{primaryCompUi.bannerTitle}</div>
-          <div>{primaryCompUi.bannerBody}</div>
+          <div className="text-rose-300 font-bold text-sm mb-1">{bannerUi.bannerTitle}</div>
+          <div>{bannerUi.bannerBody}</div>
         </div>
       )}
-      {!hasRarityLimitComp && primaryCompUi && (
+      {!hasRarityLimitComp && bannerUi && (
         <div className="mb-3 px-3 py-2.5 rounded-lg bg-amber-950/90 border-2 border-amber-500/40 text-[12px] leading-relaxed text-amber-50">
-          <div className="text-amber-300 font-bold text-sm mb-1">{primaryCompUi.bannerTitle}</div>
-          <div>{primaryCompUi.bannerBody}</div>
+          <div className="text-amber-300 font-bold text-sm mb-1">{bannerUi.bannerTitle}</div>
+          <div>{bannerUi.bannerBody}</div>
         </div>
       )}
       {hasPitySuppressed && (

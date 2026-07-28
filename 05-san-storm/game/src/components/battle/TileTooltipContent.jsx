@@ -11,6 +11,7 @@
 import { memo } from 'react';
 import WorldMapCityInfoBlock from '@/components/world/WorldMapCityInfoBlock';
 import StrategicCityTooltipPanel from '@/components/world/StrategicCityTooltipPanel';
+import BattlefieldEntranceDualPanel from '@/components/world/BattlefieldEntranceDualPanel';
 
 const FACTION_ICON = { player: '🔵', ally: '🟢', enemy: '🔴' };
 
@@ -70,13 +71,39 @@ function TileTooltipContent({ content }) {
   }
 
   if (content.type === 'worldMapCity') {
-    if (content.uniformStrategicPanel && (content.cityId || content.pvpAttackerBaseCampStrategic)) {
+    if (
+      content.uniformStrategicPanel &&
+      (content.cityId ||
+        content.pvpAttackerBaseCampStrategic ||
+        content.isBanditStronghold ||
+        content.banditPoiId)
+    ) {
       return <StrategicCityTooltipPanel content={content} />;
     }
     const blockProps = { ...content };
     delete blockProps.type;
     delete blockProps.interactive;
     return <WorldMapCityInfoBlock {...blockProps} />;
+  }
+
+  if (content.type === 'battlefieldEntranceDual') {
+    return (
+      <BattlefieldEntranceDualPanel
+        banditTitle={content.banditTitle}
+        banditPoiId={content.banditPoiId}
+        playerId={content.playerId ?? null}
+        interactionsLocked={!!content.poiInteractionsLocked}
+        onStartBanditRaid={content.onStartBanditRaid}
+        banditRaidStartBlockedReason={content.banditRaidStartBlockedReason}
+        postBanditRaidRefreshKey={content.postBanditRaidRefreshKey ?? 0}
+        wildernessInfo={content.wildernessInfo ?? null}
+        exploreInfo={content.exploreInfo ?? null}
+        subsidiaryExploreEmbed={content.subsidiaryExploreEmbed ?? null}
+        closeStrategicCityTooltip={content.closeStrategicCityTooltip ?? null}
+        onOpenLineupAdventure={content.onOpenLineupAdventure ?? null}
+        onOpenChapterTactical={content.onOpenChapterTactical ?? null}
+      />
+    );
   }
 
   return null;

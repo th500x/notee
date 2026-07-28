@@ -12,7 +12,7 @@ const db = require('../database/connection');
  * `range` 为 MySQL 保留字，显式 `` `range` AS troop_range ``，避免 SELECT * / 部分驱动下属性映射异常。
  */
 const CONFIG_TROOPS_SELECT_COLUMNS = `
-  troop_id, season, troop_name, rarity, troop_type, weapon_type,
+  troop_id, season, troop_name, rarity, troop_type, weapon_type, battle_unit_key,
   attack, defense, max_troops, troop_weight, speed, movement,
   \`range\` AS troop_range,
   special_ability, description
@@ -105,12 +105,19 @@ function formatTroopData(troop) {
   const adaptation = specialAbility.adaptation || {};
   const effects = specialAbility.effects || {};
   
+  const battleUnitKeyRaw = troop.battle_unit_key;
+  const battleUnitKey =
+    battleUnitKeyRaw != null && String(battleUnitKeyRaw).trim()
+      ? String(battleUnitKeyRaw).trim()
+      : undefined;
+
   return {
     id: troop.troop_id,
     name: troop.troop_name,
     rarity: troop.rarity,
     troopType: troop.troop_type,
     season: troop.season,
+    ...(battleUnitKey ? { battleUnitKey } : {}),
     
     // 基础属性
     maxTroops: troop.max_troops,

@@ -15,6 +15,7 @@ import TopStatusBar from '@/components/game/TopStatusBar';
 import { useSeasonSettlement } from '@/hooks/useSeasonSettlement';
 import AnnouncementBar from '@/components/game/AnnouncementBar';
 import RankingPanel from '@/components/game/RankingPanel';
+import WorldMapStrategicMiniMapDock from '@/components/game/WorldMapStrategicMiniMapDock';
 import BottomTabNav from '@/components/game/BottomTabNav';
 import PersonalSidebar from '@/components/game/PersonalSidebar';
 import GrantedTitleRevealFlow from '@/components/game/GrantedTitleRevealFlow';
@@ -39,7 +40,6 @@ const WorldMap = lazy(() => import('@/components/game/WorldMap'));
 const LineupTab = lazy(() => import('@/components/game/tabs/LineupTab'));
 const MainCityTab = lazy(() => import('@/components/game/tabs/MainCityTab'));
 const FactionTab = lazy(() => import('@/components/game/tabs/FactionTab'));
-const WorldMapTab = lazy(() => import('@/components/game/tabs/WorldMapTab'));
 const CommPanel = lazy(() => import('@/components/game/CommPanel'));
 const StandingRankingsPanel = lazy(() => import('@/components/game/StandingRankingsPanel'));
 const CardPoolDrawer = lazy(() => import('@/components/game/CardPoolDrawer'));
@@ -177,16 +177,6 @@ function GamePageInner({ onLogout, accountId }) {
             <FactionTab onClose={handleCloseToMap} />
           </Suspense>
         );
-      case 'map':
-        return (
-          <Suspense fallback={tabFallback}>
-            <WorldMapTab
-              onClose={handleCloseToMap}
-              onOpenCampaignCenter={() => setCampaignOpen(true)}
-              campaignNotifyDot={campaignPlayableNotify}
-            />
-          </Suspense>
-        );
       default:
         return null;
     }
@@ -206,6 +196,8 @@ function GamePageInner({ onLogout, accountId }) {
           dailyReportNotifyDot={dailyReportNotifyDot}
           seasonSettlementEntryVisible={seasonPhase === 'window_open'}
           onOpenSeasonSettlement={() => setSeasonModalOpen(true)}
+          onOpenCampaignCenter={() => setCampaignOpen(true)}
+          campaignNotifyDot={campaignPlayableNotify}
         />
 
         <main
@@ -226,23 +218,27 @@ function GamePageInner({ onLogout, accountId }) {
               <AnnouncementBar />
               <RankingPanel />
             </div>
-            <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-              <Suspense fallback={<ChunkLoadFallback label="大地图加载中…" />}>
-                <WorldMap
-                  blockTutorialAutoplay={gameIntroOpen || suppressExploreForSeason}
-                  suppressExploreUi={seasonClaimPending}
-                  mapLayerVisible={activeTab === null}
-                  onEventBusyChange={setWorldMapEventBusy}
-                  sanGongFuCardPool={{
-                    onOpenPool: setOpenPool,
-                    drawerOpen: !!openPool,
-                    troopRemaining: cardPool.status?.troop?.remainingDraws ?? '?',
-                    charRemaining: cardPool.status?.character?.remainingDraws ?? '?',
-                    itemRemaining: cardPool.status?.item?.remainingDraws ?? '?',
-                    dailyLimit: cardPool.status?.troop?.dailyLimit ?? 10,
-                  }}
-                />
-              </Suspense>
+            {/* pr-3：与上方公告/排行栏容器 px-3 右缘对齐，避免缩略图坞贴出屏边 */}
+            <div className="flex min-h-0 flex-1 flex-row overflow-hidden pr-3">
+              <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+                <Suspense fallback={<ChunkLoadFallback label="大地图加载中…" />}>
+                  <WorldMap
+                    blockTutorialAutoplay={gameIntroOpen || suppressExploreForSeason}
+                    suppressExploreUi={seasonClaimPending}
+                    mapLayerVisible={activeTab === null}
+                    onEventBusyChange={setWorldMapEventBusy}
+                    sanGongFuCardPool={{
+                      onOpenPool: setOpenPool,
+                      drawerOpen: !!openPool,
+                      troopRemaining: cardPool.status?.troop?.remainingDraws ?? '?',
+                      charRemaining: cardPool.status?.character?.remainingDraws ?? '?',
+                      itemRemaining: cardPool.status?.item?.remainingDraws ?? '?',
+                      dailyLimit: cardPool.status?.troop?.dailyLimit ?? 2,
+                    }}
+                  />
+                </Suspense>
+              </div>
+              <WorldMapStrategicMiniMapDock />
             </div>
           </div>
           {activeTab !== null ? (
@@ -256,7 +252,6 @@ function GamePageInner({ onLogout, accountId }) {
             onTabChange={setActiveTab}
             tabNotifyDots={{
               faction: factionBulletinUnread,
-              map: campaignPlayableNotify,
             }}
           />
         )}
@@ -297,7 +292,7 @@ function GamePageInner({ onLogout, accountId }) {
             drawResult={cardPool.drawResult}
             error={cardPool.error}
             playerSilver={player?.silver}
-            onDraw={async (_poolSeason, drawMode = 'single') => {
+            onDraw={async (_poolSeason, drawMode = 'batch') => {
               const res = await cardPool.draw('item', null, drawMode);
               if (res?.success) {
                 await refresh({ silent: true });
@@ -324,9 +319,12 @@ function GamePageInner({ onLogout, accountId }) {
             skillsMap={skillsMap}
             factionId={player?.factionId}
             playerSilver={player?.silver}
-            onDraw={async (poolSeason, drawMode = 'single') => {
+            onDraw={async (poolSeason, drawMode = 'batch') => {
               const res = await cardPool.draw(openPool, poolSeason, drawMode);
-              if (res?.success && (drawMode === 'batch' || !res?.echoChoiceRequired)) {
+              if (
+                res?.success &&
+                (drawMode === 'batch' || drawMode === 'badge_batch' || !res?.echoChoiceRequired)
+              ) {
                 await refresh({ silent: true });
               }
             }}

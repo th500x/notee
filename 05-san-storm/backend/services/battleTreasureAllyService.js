@@ -1,5 +1,5 @@
 /**
- * 宝物战斗助阵：装备 `battle_ally:*` 宝物时，开战前由服务端随机传奇将领 + 部队。
+ * 宝物战斗助阵：装备 `battle_ally:*` 宝物时，开战前由服务端按配置稀有度随机将领 + 部队。
  * @see docs/00/20-data-layer/26-1-TREASURE_SYSTEM.md §6.4
  * @module services/battleTreasureAllyService
  */
@@ -106,15 +106,13 @@ function filterBattleAllyTreasureIds(cardIds, configRows) {
  * @param {number} startIndex
  */
 function rollTreasureAllyGroup(spec, allChars, allTroops, sm, startIndex) {
-  let commander = sm.pickRandomCharacterByRarity(allChars, spec.charRarity);
-  if (!commander) commander = sm.pickRandomCharacterByRarity(allChars, 'legendary');
+  const commander = sm.pickRandomCharacterByRarity(allChars, spec.charRarity);
   if (!commander) return [];
 
   const units = [];
   let idx = startIndex;
   for (let i = 0; i < spec.troopCount; i += 1) {
-    let troop = sm.pickRandomTroopByRarity(allTroops, spec.troopRarity);
-    if (!troop) troop = sm.pickRandomTroopByRarity(allTroops, 'legendary');
+    const troop = sm.pickRandomTroopByRarity(allTroops, spec.troopRarity);
     if (!troop) break;
     const unit = buildBattleAllyNpcUnit({
       characterRow: commander,

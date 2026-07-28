@@ -41,8 +41,8 @@ export function troopAttackRange(troop) {
 export function getMoveCost(y, x, mapResult) {
   if (!mapResult) return 1;
   const t = mapResult.terrain[y]?.[x];
-  // 战役大地图切片：河/湖不可通行（与战略格一致）
-  if (t === 'river' || t === 'lake') return Infinity;
+  // 战役大地图切片：河/湖不可通行（与战略格一致）；v2 熔岩同不可走；桥可通行
+  if (t === 'river' || t === 'lake' || t === 'lava') return Infinity;
   // 检查障碍物
   const obj = mapResult.objects.find(o => o.y === y && o.x === x);
   if (obj && !obj.isPassable) return Infinity; // rock/fence不可通行
@@ -84,6 +84,37 @@ export function hasUnopenedChestAt(y, x, mapResult) {
   return mapResult.objects.some(o => o.y === y && o.x === x && o.type === 'chest' && !o.isOpen);
 }
 
+/** 格子是否有未开启的随机箱 */
+export function hasUnopenedRandomAt(y, x, mapResult) {
+  if (!mapResult?.objects?.length) return false;
+  return mapResult.objects.some(o => o.y === y && o.x === x && o.type === 'random' && !o.isOpen);
+}
+
+/** 格子是否为未消耗农场 */
+export function hasFarmAt(y, x, mapResult) {
+  if (!mapResult?.objects?.length) return false;
+  return mapResult.objects.some(o => o.y === y && o.x === x && o.type === 'farm' && !o.isOpen);
+}
+
+export function mapHasWaterTerrain(mapResult) {
+  const terrain = mapResult?.terrain;
+  if (!Array.isArray(terrain)) return false;
+  for (const row of terrain) {
+    for (const c of row || []) {
+      if (c === 'river' || c === 'bridge' || c === 'lake') return true;
+    }
+  }
+  return false;
+}
+
+function cellNearWater(y, x, mapResult) {
+  for (const [dy, dx] of [[0, 0], [0, 1], [0, -1], [1, 0], [-1, 0]]) {
+    const t = mapResult?.terrain?.[y + dy]?.[x + dx];
+    if (t === 'river' || t === 'bridge' || t === 'lake') return true;
+  }
+  return false;
+}
+
 // ── BFS可达格子 ──────────────────────────────────────────────────────────────
 
 /**
@@ -93,8 +124,8 @@ export function hasUnopenedChestAt(y, x, mapResult) {
  * @param {Object[]} battleTroops - 全部战场部队
  * @returns {Map<string, number>} key "y,x" → 剩余移动力
  */
-export function getReachableTiles(troop, mapResult, battleTroops) {
-  const maxMove = troop.movement || 3;
+export function getReachableTiles(troop, mapResult, battleTroops, maxMoveOverride = null) {
+  const maxMove = maxMoveOverride != null ? maxMoveOverride : (troop.movement || 3);
   const visited = new Map(); // key "y,x" → remaining movement
   const queue = [{ y: troop.y, x: troop.x, rem: maxMove }];
   visited.set(`${troop.y},${troop.x}`, maxMove);
@@ -242,8 +273,8 @@ export function isHazardTile(y, x, mapResult) {
  * BFS 可达格（**不踩陷阱/火焰** 版）：进入危险格视为不可通行。
  * 用于「陷阱规避优先」——只在这些格里选落脚点，确保本回合移动全程不踩陷阱。
  */
-export function getReachableTilesSafe(troop, mapResult, battleTroops) {
-  const maxMove = troop.movement || 3;
+export function getReachableTilesSafe(troop, mapResult, battleTroops, maxMoveOverride = null) {
+  const maxMove = maxMoveOverride != null ? maxMoveOverride : (troop.movement || 3);
   const visited = new Map();
   const queue = [{ y: troop.y, x: troop.x, rem: maxMove }];
   visited.set(`${troop.y},${troop.x}`, maxMove);
@@ -335,6 +366,13 @@ export function findBestMoveTarget(troop, battleTroops, mapResult, opts = {}) {
   if (!closestEnemy) return null;
 
   const atkRange = troopAttackRange(troop);
+  const hp = troop.currentTroops || 0;
+  const isRanged = atkRange > 1;
+  const hasWater = mapHasWaterTerrain(mapResult);
+  const avoidFarmWaste = hp > 200;
+  const seekFarm =
+    (troop.faction === 'player' && hp > 0 && hp < 100) ||
+    (troop.faction === 'enemy' && hp > 0 && hp < 50);
 
   // 陷阱规避优先（优先级高于攻击/接敌）：只要存在「不踩陷阱」抵达敌人射程的路线，本回合就
   // 只在无陷阱可达格里选落脚点、并走无陷阱路径；唯有道路被陷阱彻底卡死时（`allowTrap`）才允许踩。
@@ -348,23 +386,66 @@ export function findBestMoveTarget(troop, battleTroops, mapResult, opts = {}) {
       : findPathWithTrapBudget(troop, ty, tx, mapResult, battleTroops, 0)
         || findPathForAi(troop, ty, tx, mapResult, battleTroops);
 
-  // ── 宝箱优先（仅 auto-battle player 部队） ──
+  // ── 农场：低兵力且 1～2 回合可达 → 优先前往 ──
+  if (seekFarm && mapResult?.objects) {
+    const move = troop.movement || 3;
+    const reach2 = allowTrap
+      ? getReachableTiles(troop, mapResult, battleTroops, move * 2)
+      : getReachableTilesSafe(troop, mapResult, battleTroops, move * 2);
+    const farmTiles = [];
+    for (const o of mapResult.objects) {
+      if (o.type !== 'farm') continue;
+      if (isOccupied(o.y, o.x, troop, battleTroops)) continue;
+      if (o.y === troop.y && o.x === troop.x) {
+        // 已在农场：就地治疗由踏入逻辑处理；本回合可攻击则打
+        if (closestDist <= atkRange) return { move: null, target: closestEnemy };
+        return { move: null, target: null };
+      }
+      if (reach2.has(`${o.y},${o.x}`)) farmTiles.push({ y: o.y, x: o.x });
+    }
+    if (farmTiles.length > 0) {
+      const bestFarm = farmTiles.reduce((a, b) => dist(troop, a) < dist(troop, b) ? a : b);
+      // 本回合可达则走过去；否则朝农场方向走近
+      if (reachable.has(`${bestFarm.y},${bestFarm.x}`)) {
+        const path = planPath(bestFarm.y, bestFarm.x);
+        return { move: path, target: null };
+      }
+      let step = null;
+      let bestD = Infinity;
+      for (const [key] of reachable) {
+        const [ry, rx] = key.split(',').map(Number);
+        if (isOccupied(ry, rx, troop, battleTroops)) continue;
+        if (avoidFarmWaste && hasFarmAt(ry, rx, mapResult)) continue;
+        const d = dist({ y: ry, x: rx }, bestFarm);
+        if (d < bestD) {
+          bestD = d;
+          step = { y: ry, x: rx };
+        }
+      }
+      if (step) {
+        const path = planPath(step.y, step.x);
+        return { move: path, target: null };
+      }
+    }
+  }
+
+  // ── 宝箱 / 随机箱优先（仅 auto-battle player 部队） ──
   if (prioritizeChests && mapResult?.objects) {
-    // 当前已站在未开启宝箱上 → 就地攻击或待机（行动后自动开箱）
-    if (hasUnopenedChestAt(troop.y, troop.x, mapResult)) {
+    if (hasUnopenedChestAt(troop.y, troop.x, mapResult) || hasUnopenedRandomAt(troop.y, troop.x, mapResult)) {
       if (closestDist <= atkRange) return { move: null, target: closestEnemy };
       return { move: null, target: null };
     }
-    // 可达范围内的宝箱格
-    const chestTiles = [];
+    const interactTiles = [];
     for (const [key] of reachable) {
       const [ry, rx] = key.split(',').map(Number);
       if (isOccupied(ry, rx, troop, battleTroops)) continue;
-      if (hasUnopenedChestAt(ry, rx, mapResult)) chestTiles.push({ y: ry, x: rx });
+      if (hasUnopenedChestAt(ry, rx, mapResult) || hasUnopenedRandomAt(ry, rx, mapResult)) {
+        interactTiles.push({ y: ry, x: rx });
+      }
     }
-    if (chestTiles.length > 0) {
+    if (interactTiles.length > 0) {
       let bestChest = null, bestChestTarget = null;
-      for (const ct of chestTiles) {
+      for (const ct of interactTiles) {
         for (const e of enemies) {
           if (e.currentTroops > 0 && dist(ct, e) <= atkRange) {
             bestChest = ct;
@@ -375,7 +456,7 @@ export function findBestMoveTarget(troop, battleTroops, mapResult, opts = {}) {
         if (bestChestTarget) break;
       }
       if (!bestChest) {
-        bestChest = chestTiles.reduce((a, b) => dist(troop, a) < dist(troop, b) ? a : b);
+        bestChest = interactTiles.reduce((a, b) => dist(troop, a) < dist(troop, b) ? a : b);
       }
       const path = planPath(bestChest.y, bestChest.x);
       return { move: path, target: bestChestTarget };
@@ -388,14 +469,17 @@ export function findBestMoveTarget(troop, battleTroops, mapResult, opts = {}) {
   /**
    * 在可达格中：若存在能攻击敌的格子，取与敌距离**最大**者（打满射程）；
    * 否则取与敌距离**最小**者（继续接近）。
-   * 距离相同时优先**不站在危险格**（陷阱 / 火焰）。
+   * 距离相同时优先**不站在危险格**（陷阱 / 火焰）；有水域时远程优先靠岸。
+   * 兵力 >200 时回避农场格（避免浪费补给）。
    */
   function pickApproachTile() {
     let bestInRange = null, bestInRangeD = -1;
     let bestInRangeHaz = true;
+    let bestInRangeWater = false;
     let bestClosing = null;
     let bestClosingD = aiStyle === 'defense' ? -1 : Infinity;
     let bestClosingHaz = true;
+    let bestClosingWater = false;
     const preferClosing = (d, prevD) => {
       if (aiStyle === 'defense') return d > prevD;
       return d < prevD;
@@ -404,27 +488,44 @@ export function findBestMoveTarget(troop, battleTroops, mapResult, opts = {}) {
       if (aiStyle === 'defense') return d === prevD;
       return d === prevD;
     };
+    const betterWaterTie = (isNewNear, wasNear) => isRanged && hasWater && isNewNear && !wasNear;
     for (const [key] of reachable) {
       const [ry, rx] = key.split(',').map(Number);
       if (isOccupied(ry, rx, troop, battleTroops)) continue;
+      if (avoidFarmWaste && hasFarmAt(ry, rx, mapResult)) continue;
       const d = dist({ y: ry, x: rx }, closestEnemy);
       const haz = _hazardAt(ry, rx);
+      const nearW = cellNearWater(ry, rx, mapResult);
       if (d <= atkRange) {
         if (d > bestInRangeD) {
           bestInRangeD = d;
           bestInRange = { y: ry, x: rx };
           bestInRangeHaz = haz;
-        } else if (d === bestInRangeD && bestInRangeHaz && !haz) {
-          bestInRange = { y: ry, x: rx };
-          bestInRangeHaz = false;
+          bestInRangeWater = nearW;
+        } else if (d === bestInRangeD) {
+          if (bestInRangeHaz && !haz) {
+            bestInRange = { y: ry, x: rx };
+            bestInRangeHaz = false;
+            bestInRangeWater = nearW;
+          } else if (haz === bestInRangeHaz && betterWaterTie(nearW, bestInRangeWater)) {
+            bestInRange = { y: ry, x: rx };
+            bestInRangeWater = nearW;
+          }
         }
       } else if (preferClosing(d, bestClosingD)) {
         bestClosingD = d;
         bestClosing = { y: ry, x: rx };
         bestClosingHaz = haz;
-      } else if (tieClosing(d, bestClosingD) && bestClosingHaz && !haz) {
-        bestClosing = { y: ry, x: rx };
-        bestClosingHaz = false;
+        bestClosingWater = nearW;
+      } else if (tieClosing(d, bestClosingD)) {
+        if (bestClosingHaz && !haz) {
+          bestClosing = { y: ry, x: rx };
+          bestClosingHaz = false;
+          bestClosingWater = nearW;
+        } else if (haz === bestClosingHaz && betterWaterTie(nearW, bestClosingWater)) {
+          bestClosing = { y: ry, x: rx };
+          bestClosingWater = nearW;
+        }
       }
     }
     return bestInRange || bestClosing;
@@ -432,23 +533,32 @@ export function findBestMoveTarget(troop, battleTroops, mapResult, opts = {}) {
 
   /**
    * 已能攻击时仍可能通过一步移动「拉远」：在射程内取与敌距离更大的格（长柄打满、弓兵后撤）
-   * 距离并列时优先落在非危险格（陷阱 / 火焰）。
+   * 距离并列时优先落在非危险格（陷阱 / 火焰）；有水域时远程优先靠岸。
    */
   function pickRepositionTile() {
-    let best = null, bestD = -1, bestHaz = true;
+    let best = null, bestD = -1, bestHaz = true, bestWater = false;
     for (const [key] of reachable) {
       const [ry, rx] = key.split(',').map(Number);
       if (isOccupied(ry, rx, troop, battleTroops)) continue;
+      if (avoidFarmWaste && hasFarmAt(ry, rx, mapResult)) continue;
       const d = dist({ y: ry, x: rx }, closestEnemy);
       if (d > atkRange) continue;
       const haz = _hazardAt(ry, rx);
+      const nearW = cellNearWater(ry, rx, mapResult);
       if (d > bestD) {
         bestD = d;
         best = { y: ry, x: rx };
         bestHaz = haz;
-      } else if (d === bestD && bestHaz && !haz) {
-        best = { y: ry, x: rx };
-        bestHaz = false;
+        bestWater = nearW;
+      } else if (d === bestD) {
+        if (bestHaz && !haz) {
+          best = { y: ry, x: rx };
+          bestHaz = false;
+          bestWater = nearW;
+        } else if (haz === bestHaz && isRanged && hasWater && nearW && !bestWater) {
+          best = { y: ry, x: rx };
+          bestWater = nearW;
+        }
       }
     }
     return best && bestD > closestDist ? { tile: best, dist: bestD } : null;

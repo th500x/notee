@@ -8,6 +8,7 @@
 import { useMemo } from 'react';
 import { FORTUNE_LEVELS } from './EventConstants';
 import { calcFortuneDistribution, parseRewards, exploreOptionTriggerBattle } from './eventUtils';
+import { resolveEventOptionRewardStrings } from '@shared/utils/eventOptionRewards.js';
 
 const BAR_COLORS = {
   '鸿运': 'bg-yellow-500',
@@ -22,6 +23,7 @@ export default function FortunePreview({ option, team }) {
     () => calcFortuneDistribution(option, team.player, team.general1, team.general2),
     [option, team]
   );
+  const resolved = useMemo(() => resolveEventOptionRewardStrings(option), [option]);
 
   return (
     <div className="mt-2 rounded-lg border border-amber-600/50 overflow-hidden"
@@ -55,13 +57,16 @@ export default function FortunePreview({ option, team }) {
         {/* 右侧：基准奖励 */}
         <div className="w-1/2 px-3 py-2">
           <div className="text-xs text-gray-500 mb-1">基准奖励：</div>
-          {parseRewards(option.rewards).map((r, i) => (
+          {parseRewards(resolved.rewards).map((r, i) => (
             <div key={i} className="text-xs text-gray-700 leading-relaxed">{r.text}</div>
           ))}
-          {option.bonusRewards && (
+          {resolved.rewards === '' && (
+            <div className="text-xs text-stone-500">（无基础资源奖励）</div>
+          )}
+          {resolved.bonusRewards && (
             <>
               <div className="text-xs text-yellow-600 mt-1.5 mb-0.5">鸿运额外：</div>
-              {parseRewards(option.bonusRewards).map((r, i) => (
+              {parseRewards(resolved.bonusRewards).map((r, i) => (
                 <div key={i} className="text-xs text-yellow-700 leading-relaxed">{r.text}</div>
               ))}
             </>

@@ -4,7 +4,7 @@
  * @see docs/tools/map/PVP_DUEL_MAP_RULES.md
  */
 
-export const PVP_DUEL_GENERATOR_VERSION = 'pvp-duel.v1';
+export const PVP_DUEL_GENERATOR_VERSION = 'pvp-duel.v2';
 
 const CANONICAL_DEFAULT = {
   attackerDeployZone: 'deployA',

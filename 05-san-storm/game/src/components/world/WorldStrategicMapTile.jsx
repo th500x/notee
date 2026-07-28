@@ -1,26 +1,41 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useMemo, useRef, useState } from 'react';
 import {
   campaignBgUrl,
   campaignTerrainUrl,
   campaignObjectUrl,
   buildCampaignVisualVariants,
 } from '@/utils/campaignMapVisualAssets';
-import { tacticalFireFrameUrl } from '@/components/battle/battleConstants';
+import { STRATEGIC_WAR_ZHAN_MARK_URL, tacticalFireFrameUrl } from '@/components/battle/battleConstants';
 import {
   getFactionRepresentativeColor,
   hexToRgba,
-  getStrategicFactionLogoUrl,
-  getStrategicFactionMarkerCount,
+  contrastTextOnFactionHex,
 } from '@/utils/strategicMapFactionColors';
 import { getStrategicMapCityLabelLines } from '@/utils/strategicMapCityLabels';
 import {
   getStrategicCityLabelStance,
   strategicCityLabelInlineColorStyle,
 } from '@/utils/strategicMapCityLabelStance';
+import { worldMapFactionFlagPartsFromRow } from '@/utils/worldMapCityPanelCopy';
 import { strategicTerritoryOverlayRgba } from '@shared/utils/strategicTerritoryFlood.js';
+import { isJunBattlefieldEntryCell, isJunBattlefieldInfoCell } from '@shared/utils/junBattlefieldCell.js';
+import { isSan1YuLStackVoidCell } from '@shared/utils/strategicWorldMapStack.js';
+import { JUN_BATTLEFIELD_FACTION_SHARE_PLACEHOLDER } from '@/utils/junBattlefieldInfoHud';
 
 /** 叠帧明暗闪烁周期（须与 WorldStrategicMap.css `--ws-fire-flicker-cycle` 一致） */
 const STRATEGIC_FIRE_FLICKER_CYCLE_S = 1.2;
+
+/** Meowa preview 已含城/关等；运行时勿再叠 `public/assets` 战役立绘 */
+function isMeowaBakedStrategicObject(objectType) {
+  const o = String(objectType || '');
+  return (
+    o === 'city_small' ||
+    o === 'city_medium' ||
+    o === 'city_major' ||
+    o === 'city_gate' ||
+    o === 'jun_battlefield'
+  );
+}
 
 function strategicFireFrameDelay(frameIndex0Based) {
   return `${-((frameIndex0Based * STRATEGIC_FIRE_FLICKER_CYCLE_S) / 12)}s`;
@@ -38,8 +53,8 @@ function wsTerrainFallbackClass(terrain) {
  * 与 `CampaignMapTile` 职责分离（无战役部署、无战斗引擎宿主）。
  * 浏览模式且格点属于 **`buildRoadPassableKeySetForMarch`** 可通行道路时：键鼠 **`click` `detail===2`**、触摸 **短间隔两次 `touchend`** 可请求进入行军模式（与本人叠层点「行军」等价；非道路格无效）。
  * 瓦片素材路径复用 `campaignMapVisualAssets`（与 BattleTile 同源 PNG）。
- * @param {object|null} [cityRow] - 锚点格 `cityId` 对应 `cities` 行（ fort 用 `build_status` 选空置/建成图）
- * @param {{ anchorR: number, anchorC: number, anchorCell: object, footprintKind?: 'city_2x2'|'bandit_2x1'|'bandit_1x2'|'pvp_camp_2x1'|'pvp_camp_1x2' }|null} [strategicCover] - 本格是否属于某多格战略 POI 的锚点或延伸格
+ * @param {object|null} [cityRow] - 锚点格 `cityId` 对应 `cities` 行
+ * @param {{ anchorR: number, anchorC: number, anchorCell: object, footprintKind?: 'city_2x2'|'bandit_2x1'|'bandit_1x2'|'pvp_camp_1x1'|'pvp_camp_2x1'|'pvp_camp_1x2' }|null} [strategicCover] - 本格是否属于某多格战略 POI 的锚点或延伸格
  */
 function WorldStrategicMapTile({
   cell,
@@ -53,6 +68,8 @@ function WorldStrategicMapTile({
   onTooltipClick,
   cityRow = null,
   strategicCover = null,
+  /** 势力 id → 中文名（城右上旗心文案） */
+  factionNameById = null,
   /** 行军模式：在「非点击出 tooltip」的指针下仍要点格选路 */
   strategicMarchMode = false,
   /** 浏览模式：允许道路格双击 / 触摸双触请求进入行军（由格网根据 `strategicMarchMode` 等计算） */
@@ -70,18 +87,33 @@ function WorldStrategicMapTile({
   strategicCityLabelNonHostileFactionIds = null,
   /** 道路 BFS 领土立场：`own` | `hostile` | `ally`（仅视觉叠层） */
   territoryStance = null,
-  /** active 战事目标城：2×2 锚点格叠火焰（与战术格 `c.effect==='fire'` 同源帧） */
+  /** active 战事目标城：2×2 锚点格叠「战」字贴图 */
   showWarCityFire = false,
+  /**
+   * 郡战场中心信息叠层（仅左上角格传入）：`{ width, height, displayName }`
+   */
+  battlefieldInfoHud = null,
+  /**
+   * Meowa 管线：格网下已是郡 preview（yingchuan_v0.1）。
+   * 跳过战役草皮/地形，以及已画进预览的城/关/据点/战场入口 PNG（`public/assets` 旧瓦片）。
+   * 城势力旗、战事「战」字、领土色、匪寨/大本营叠字仍叠；语义仍来自工坊 merged。
+   */
+  suppressCampaignTerrain = false,
 }) {
   const c = cell || {};
   const variants = useMemo(() => buildCampaignVisualVariants(seed), [seed]);
   const bgV = c.base === 'plain_wasteland' ? variants.bgWaste : variants.bgGrass;
   const bgSrc = campaignBgUrl(c.base || 'plain_grassland', bgV);
+  const meowaPipelineVisual = !!suppressCampaignTerrain;
+  const showCampaignTerrainLayers = !meowaPipelineVisual;
 
   const footprintKind = strategicCover?.footprintKind ?? null;
   const isCityFootprint2x2 = footprintKind === 'city_2x2';
   const isBanditDomino = footprintKind === 'bandit_2x1' || footprintKind === 'bandit_1x2';
-  const isPvpCampDomino = footprintKind === 'pvp_camp_2x1' || footprintKind === 'pvp_camp_1x2';
+  const isPvpCampDomino =
+    footprintKind === 'pvp_camp_1x1' ||
+    footprintKind === 'pvp_camp_2x1' ||
+    footprintKind === 'pvp_camp_1x2';
   const hasMultiCellFootprint = !!(strategicCover && footprintKind);
 
   const anchor = strategicCover?.anchorCell;
@@ -105,13 +137,9 @@ function WorldStrategicMapTile({
   const objSrc = useMemo(() => {
     if (hasMultiCellFootprint && !isAnchorTile) return null;
     if (!effectiveObject) return null;
-    if (effectiveObject === 'fort' && cityRow) {
-      return campaignObjectUrl('fort', {
-        buildStatus: cityRow.buildStatus ?? cityRow.build_status,
-      });
-    }
+    if (meowaPipelineVisual && isMeowaBakedStrategicObject(effectiveObject)) return null;
     return campaignObjectUrl(effectiveObject);
-  }, [hasMultiCellFootprint, isAnchorTile, effectiveObject, cityRow]);
+  }, [hasMultiCellFootprint, isAnchorTile, effectiveObject, cityRow, meowaPipelineVisual]);
 
   const showSpanningStrategicObject = hasMultiCellFootprint && isAnchorTile && !!objSrc;
   /** 大城/中城：优先库 `city_type`，回退锚点格 `object` */
@@ -134,10 +162,12 @@ function WorldStrategicMapTile({
   );
   const showLegacyFactionCityTint = isCityFootprint2x2 && factionTintRgba && !territoryOverlayRgba;
 
+  /** 城 2×2 用右上势力旗；匪寨 / 大本营仍叠字 */
   const labelLines = useMemo(() => {
     if (!hasMultiCellFootprint || !isAnchorTile || !effectiveObject) return null;
+    if (isCityFootprint2x2) return null;
     return getStrategicMapCityLabelLines(cityRow, anchor, effectiveObject);
-  }, [hasMultiCellFootprint, isAnchorTile, effectiveObject, cityRow, anchor]);
+  }, [hasMultiCellFootprint, isAnchorTile, effectiveObject, cityRow, anchor, isCityFootprint2x2]);
 
   const cityLabelColorStyle = useMemo(() => {
     if (!labelLines) return undefined;
@@ -157,20 +187,25 @@ function WorldStrategicMapTile({
     strategicCityLabelNonHostileFactionIds,
   ]);
 
-  const factionLogoUrl = useMemo(() => getStrategicFactionLogoUrl(fid), [fid]);
-  const factionMarkerCount = useMemo(
-    () => getStrategicFactionMarkerCount(cityRow, effectiveObject),
-    [cityRow, effectiveObject],
-  );
+  const factionFlag = useMemo(() => {
+    if (!isCityFootprint2x2 || !isAnchorTile) return null;
+    if (!fid || fid === 'san_1_faction_0001') return null;
+    const fill = factionHex || '#6b7280';
+    const parts = worldMapFactionFlagPartsFromRow(cityRow, factionNameById || {});
+    if (!parts) return null;
+    const cityLen = Array.from(String(parts.cityName || '')).length;
+    return {
+      fill,
+      shortChar: parts.shortChar,
+      cityName: parts.cityName,
+      cityLen,
+      textColor: contrastTextOnFactionHex(fill),
+    };
+  }, [isCityFootprint2x2, isAnchorTile, fid, factionHex, cityRow, factionNameById]);
 
   const [bgOk, setBgOk] = useState(true);
   const [tOk, setTOk] = useState(true);
   const [oOk, setOOk] = useState(true);
-  const [factionLogoOk, setFactionLogoOk] = useState(true);
-
-  useEffect(() => {
-    setFactionLogoOk(true);
-  }, [factionLogoUrl]);
 
   const isClickTooltip = tooltipPointerMode === 'click';
   const marchPick = !!strategicMarchMode && typeof onStrategicMarchCellPick === 'function';
@@ -237,14 +272,22 @@ function WorldStrategicMapTile({
   /** 仅锚点格抬 z-index / overflow：延伸格若同权会盖住邻格溢出的 2×2 立绘（与旧 `ws-tile-object-2x2` 一致） */
   const anchorStrategicFootprintRaised = hasMultiCellFootprint && isAnchorTile;
 
+  const isBattlefieldEntry = isJunBattlefieldEntryCell(c);
+  const isBattlefieldInfo = isJunBattlefieldInfoCell(c);
+  const isVoidBand = !!(c.isVoid || c.voidBand) || isSan1YuLStackVoidCell(gridX, gridY);
+
   return (
     <div
       className={`ws-map-tile${anchorStrategicFootprintRaised ? ' ws-tile-strategic-footprint' : ''}${
         isClickTooltip || marchPick ? ' ws-map-tile--tooltip-click' : ''
-      }`}
+      }${isBattlefieldEntry ? ' ws-tile-jun-battlefield' : ''}${
+        isBattlefieldInfo ? ' ws-tile-jun-battlefield-info' : ''
+      }${isVoidBand ? ' ws-tile-void-band' : ''}`}
       data-strategic-y={gridY}
       data-strategic-x={gridX}
       data-strategic-footprint-kind={isAnchorTile && footprintKind ? footprintKind : undefined}
+      data-jun-battlefield={isBattlefieldEntry || isBattlefieldInfo ? '1' : undefined}
+      data-void-band={isVoidBand ? '1' : undefined}
       onMouseEnter={isClickTooltip || marchPick ? undefined : onHover}
       onMouseLeave={isClickTooltip || marchPick ? undefined : onLeave}
       onClick={
@@ -254,16 +297,18 @@ function WorldStrategicMapTile({
       }
       onTouchEnd={needsRoadDblMarch ? handleRoadTouchEndMarchDbl : undefined}
     >
-      {bgOk ? (
-        <img className="ws-layer" src={bgSrc} alt="" draggable={false} onError={() => setBgOk(false)} />
-      ) : (
-        <div
-          className="ws-layer"
-          style={{
-            background: c.base === 'plain_wasteland' ? '#d4c4a8' : '#7cb87c',
-          }}
-        />
-      )}
+      {showCampaignTerrainLayers ? (
+        bgOk ? (
+          <img className="ws-layer" src={bgSrc} alt="" draggable={false} onError={() => setBgOk(false)} />
+        ) : (
+          <div
+            className="ws-layer"
+            style={{
+              background: c.base === 'plain_wasteland' ? '#d4c4a8' : '#7cb87c',
+            }}
+          />
+        )
+      ) : null}
       {territoryOverlayRgba ? (
         <div
           className="ws-layer ws-territory-stance-tint"
@@ -278,8 +323,9 @@ function WorldStrategicMapTile({
           aria-hidden
         />
       ) : null}
-      {fallbackCls && <div className={fallbackCls} />}
-      {terrainSrc &&
+      {showCampaignTerrainLayers && fallbackCls ? <div className={fallbackCls} /> : null}
+      {showCampaignTerrainLayers &&
+        terrainSrc &&
         (tOk ? (
           <img className="ws-layer" src={terrainSrc} alt="" draggable={false} onError={() => setTOk(false)} />
         ) : (
@@ -333,9 +379,7 @@ function WorldStrategicMapTile({
                     effectiveObject === 'city_small' ||
                     effectiveObject === 'city_major'
                   ? '城'
-                  : effectiveObject === 'fort'
-                    ? '据'
-                    : isBanditDomino
+                  : isBanditDomino
                       ? '寨'
                       : isPvpCampDomino
                         ? '营'
@@ -354,20 +398,16 @@ function WorldStrategicMapTile({
       ) : null}
       {showWarCityFire ? (
         <div
-          className="ws-layer ws-object-span-2 tile-fire-fx ws-strategic-city-war-fire"
+          className="ws-layer ws-object-span-2 ws-strategic-city-war-mark"
           aria-hidden
           style={{ zIndex: 5 }}
         >
-          {Array.from({ length: 12 }, (_, i) => (
-            <img
-              key={i}
-              className="tile-fire-frame"
-              src={tacticalFireFrameUrl(i + 1)}
-              alt=""
-              draggable={false}
-              style={{ animationDelay: strategicFireFrameDelay(i) }}
-            />
-          ))}
+          <img
+            className="ws-strategic-city-war-mark-img"
+            src={STRATEGIC_WAR_ZHAN_MARK_URL}
+            alt=""
+            draggable={false}
+          />
         </div>
       ) : null}
       {isCityFootprint2x2 &&
@@ -387,7 +427,11 @@ function WorldStrategicMapTile({
       ) : null}
       {labelLines && (
         <div
-          className={`ws-strategic-label${showSpanningStrategicObject && objectSpanClass ? ` ${objectSpanClass}` : ''}`}
+          className={`ws-strategic-label${
+            objectSpanClass && (showSpanningStrategicObject || meowaPipelineVisual)
+              ? ` ${objectSpanClass}`
+              : ''
+          }`}
           aria-hidden
         >
           {labelLines.line1 ? (
@@ -408,18 +452,47 @@ function WorldStrategicMapTile({
           ) : null}
         </div>
       )}
-      {isCityFootprint2x2 && isAnchorTile && factionLogoUrl && factionLogoOk ? (
-        <div className="ws-strategic-faction-logo-wrap ws-object-span-2" aria-hidden>
-          <div className="ws-strategic-faction-logo-stack">
-            {Array.from({ length: factionMarkerCount }, (_, i) => (
-              <img
-                key={i}
-                className="ws-strategic-faction-logo"
-                src={factionLogoUrl}
-                alt=""
-                draggable={false}
-                onError={() => setFactionLogoOk(false)}
-              />
+      {factionFlag ? (
+        <div className="ws-strategic-faction-flag-wrap ws-object-span-2" aria-hidden>
+          <div
+            className={`ws-strategic-faction-flag${
+              factionFlag.cityLen >= 4
+                ? ' ws-strategic-faction-flag--city4'
+                : factionFlag.cityLen >= 3
+                  ? ' ws-strategic-faction-flag--city3'
+                  : ''
+            }`}
+            style={{
+              '--ws-flag-fill': factionFlag.fill,
+              color: factionFlag.textColor,
+            }}
+          >
+            <span className="ws-strategic-faction-flag-pole" />
+            <span className="ws-strategic-faction-flag-cloth">
+              <span className="ws-strategic-faction-flag-text">
+                <span className="ws-strategic-faction-flag-faction">{factionFlag.shortChar}</span>
+                <span className="ws-strategic-faction-flag-sep">·</span>
+                <span className="ws-strategic-faction-flag-city">{factionFlag.cityName}</span>
+              </span>
+            </span>
+          </div>
+        </div>
+      ) : null}
+      {battlefieldInfoHud ? (
+        <div
+          className="ws-battlefield-info-hud"
+          style={{
+            width: `calc(${battlefieldInfoHud.width} * var(--ws-tile) + 1px)`,
+            height: `calc(${battlefieldInfoHud.height} * var(--ws-tile) + 1px)`,
+          }}
+          aria-hidden
+        >
+          <div className="ws-battlefield-info-hud-title">{battlefieldInfoHud.displayName}</div>
+          <div className="ws-battlefield-info-hud-shares">
+            {JUN_BATTLEFIELD_FACTION_SHARE_PLACEHOLDER.map((s) => (
+              <span key={s.key} className="ws-battlefield-info-hud-share">
+                {s.label} {s.pct}%
+              </span>
             ))}
           </div>
         </div>

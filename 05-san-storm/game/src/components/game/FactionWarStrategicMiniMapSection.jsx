@@ -1,6 +1,6 @@
 /**
- * 三公府 · 势力战事抽屉内嵌：与底栏「地图」Tab 同源的战略缩略图（道路 + 郡界 + 城块色）。
- * 选城浮层与 `WorldMapTab` 同源（城况摘要 + 驻地人数）。点文档空白可关浮层；若传入 `deferParentClearWithinSelector`，在该宿主内的点击只关浮层、不把父级选中清空（供「战事谏言」等同区按钮）。
+ * 三公府 · 势力战事抽屉内嵌：与大地图右侧坞同源的战略缩略图（道路 + 郡界 + 城块色）。
+ * 选城浮层：城况摘要 + 驻地人数。点文档空白可关浮层；若传入 `deferParentClearWithinSelector`，在该宿主内的点击只关浮层、不把父级选中清空（供「战事谏言」等同区按钮）。
  */
 
 import { useMemo, useState, useEffect, useCallback, useRef } from 'react';
@@ -37,8 +37,14 @@ const CITY_POLL_MS = 60_000;
  *   deferParentClearWithinSelector?: string|null,
  *   proximityHighlightOverride?: { hostileCityIds?: string[], neutralCityIds?: string[] }|null,
  *   className?: string,
+ *   frameClassName?: string,
+ *   viewportRect?: { x: number, y: number, w: number, h: number }|null,
+ *   onViewportTopLeftChange?: ((gx: number, gy: number) => void)|null,
  * }} props
  */
+const DEFAULT_FRAME_CLASS =
+  'relative mx-auto w-full max-h-[min(72vh,640px)] aspect-[32/60] overflow-hidden rounded-lg border border-amber-900/35 bg-stone-950/80 p-1';
+
 export default function FactionWarStrategicMiniMapSection({
   playerFactionId,
   player,
@@ -48,6 +54,9 @@ export default function FactionWarStrategicMiniMapSection({
   deferParentClearWithinSelector = null,
   proximityHighlightOverride = null,
   className = '',
+  frameClassName = DEFAULT_FRAME_CLASS,
+  viewportRect = null,
+  onViewportTopLeftChange = null,
 }) {
   const playerId = player?.playerId ?? null;
   const { status: stackStatus, merged, error: stackError } = useSan1StrategicMergedStack();
@@ -99,7 +108,7 @@ export default function FactionWarStrategicMiniMapSection({
   });
 
   const mapColumns = merged?.mapColumns ?? 32;
-  const mapRows = merged?.mapRows ?? 40;
+  const mapRows = merged?.mapRows ?? 60;
 
   const roadPathD = useMemo(() => {
     if (!merged?.cells?.length) return '';
@@ -246,7 +255,7 @@ export default function FactionWarStrategicMiniMapSection({
           {statusLine}
         </div>
       ) : null}
-      <div className="relative mx-auto w-full max-h-[min(72vh,640px)] aspect-[32/40] overflow-hidden rounded-lg border border-amber-900/35 bg-stone-950/80 p-1">
+      <div className={frameClassName}>
         {stackStatus === 'ready' && merged?.cells?.length ? (
           <>
             <StrategicMiniMapSvg
@@ -260,6 +269,8 @@ export default function FactionWarStrategicMiniMapSection({
               selectedCityId={selectedCityId}
               onCitySelect={handleMiniCityClick}
               proximityHighlight={proximityHighlight}
+              viewportRect={viewportRect}
+              onViewportTopLeftChange={onViewportTopLeftChange}
               aria-label="豫州战略缩略图"
             />
             {miniPick && miniPanelProps ? (
@@ -293,7 +304,6 @@ export default function FactionWarStrategicMiniMapSection({
                     garrisonCap={miniPanelProps.garrisonCap}
                     npcAlive={miniPanelProps.npcAlive}
                     npcTotal={miniPanelProps.npcTotal}
-                    cityDefenseCoefficient={miniPanelProps.cityDefenseCoefficient}
                   />
                 )}
               </div>

@@ -34,6 +34,7 @@ import GarrisonBackpack from './GarrisonBackpack';
 import TabSubNav from '@/components/game/TabSubNav';
 import QuadrantGrid from '@/components/game/QuadrantGrid';
 import { useGameTabLandscape } from '@/components/game/TabPageCloseAffordance';
+import { buildBadgeRepairCandidates } from '@/utils/troopBadgeRepairCandidates';
 
 const GARRISON_POOL_SUB_TABS = [
   { id: 'A', label: '🏰 驻地A' },
@@ -276,6 +277,13 @@ export default function GarrisonLineup({
     c => c.cardType === 'equipment' && !c.isEquipped && !occupiedIds.has(c.instanceId)
   );
 
+  const badgeRepairCandidates = useMemo(() => {
+    const barracksTroops = availableCards.filter((c) => c.cardType === 'troop');
+    const mainTroops = troopCards.filter((c) => c.isEquipped);
+    const extraTroops = troopCards.filter((c) => extraOccupiedIds.has(c.instanceId));
+    return buildBadgeRepairCandidates({ barracksTroops, mainTroops, extraTroops });
+  }, [availableCards, troopCards, extraOccupiedIds]);
+
   const getAvailableCards = useCallback((type) => {
     const pool = type === 'character'    ? characterCards
       : type === 'troop'                 ? troopCards
@@ -354,6 +362,7 @@ export default function GarrisonLineup({
           onAfterEncapsulateChange={refresh}
           encapsulateEquipmentPool={encapsulateEquipmentPool}
           equipmentSetCards={equipmentSetCards}
+          badgeRepairCandidates={badgeRepairCandidates}
         />
       ),
     },
@@ -445,6 +454,7 @@ export default function GarrisonLineup({
               onAfterEncapsulateChange={refresh}
               encapsulateEquipmentPool={encapsulateEquipmentPool}
               equipmentSetCards={equipmentSetCards}
+              badgeRepairCandidates={badgeRepairCandidates}
             />
           </>
         )}

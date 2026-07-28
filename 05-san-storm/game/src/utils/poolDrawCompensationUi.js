@@ -18,6 +18,36 @@ function compensationAmountLabel(compensation) {
 }
 
 /**
+ * 汇总本批补偿资源（十连等多卡时横幅须用合计，不可只取首张）。
+ * @param {object[]} cards
+ * @returns {{ count: number, silver: number, food: number, label: string }}
+ */
+export function sumPoolDrawCompensation(cards) {
+  let count = 0;
+  let silver = 0;
+  let food = 0;
+  if (Array.isArray(cards)) {
+    for (const c of cards) {
+      if (!c?.compensated || !c.compensation) continue;
+      const amt = Math.max(0, Math.floor(Number(c.compensation.amount) || 0));
+      if (amt <= 0) continue;
+      count += 1;
+      if (c.compensation.type === 'food') food += amt;
+      else silver += amt;
+    }
+  }
+  const parts = [];
+  if (silver > 0) parts.push(`💰+${silver} 银两`);
+  if (food > 0) parts.push(`🌾+${food} 粮草`);
+  return {
+    count,
+    silver,
+    food,
+    label: parts.join(' · '),
+  };
+}
+
+/**
  * @param {object} card draw 响应 cards[] 单项
  * @param {'troop'|'character'} poolType
  * @returns {{ bannerTitle: string, bannerBody: string, cardTag: string, isRarityLimit: boolean, isDuplicate: boolean } | null}
@@ -78,6 +108,36 @@ export function getPoolDrawCompensationUi(card, poolType) {
 }
 
 /**
+ * 结果弹窗顶部横幅：多卡补偿时标题取首张口径，正文用**合计**资源。
+ * @param {object[]} cards
+ * @param {'troop'|'character'} poolType
+ * @returns {{ bannerTitle: string, bannerBody: string } | null}
+ */
+export function getPoolDrawCompensationBanner(cards, poolType) {
+  if (!Array.isArray(cards) || cards.length === 0) return null;
+  const firstUi = cards.map((c) => getPoolDrawCompensationUi(c, poolType)).find(Boolean);
+  if (!firstUi) return null;
+  const sum = sumPoolDrawCompensation(cards);
+  if (sum.count <= 1) {
+    return { bannerTitle: firstUi.bannerTitle, bannerBody: firstUi.bannerBody };
+  }
+  const totalLabel = sum.label || '补偿';
+  let bannerTitle = firstUi.bannerTitle;
+  if (poolDrawHasRarityLimitCompensation(cards)) {
+    bannerTitle = poolType === 'troop' ? '达上限 · 未入背包' : '栏位已满 · 未入背包';
+    if (cards.every((c) => c.compensated && c.reason === 'character_duplicate')) {
+      bannerTitle = '重复将领 · 未入背包';
+    }
+  } else if (cards.every((c) => c.compensated && c.reason === 'character_duplicate')) {
+    bannerTitle = '重复将领 · 未入背包';
+  }
+  return {
+    bannerTitle,
+    bannerBody: `共 ${sum.count} 张未入背包，本次发放 ${totalLabel}。`,
+  };
+}
+
+/**
  * @param {object[]} cards
  * @returns {boolean}
  */
@@ -97,11 +157,12 @@ export function poolDrawHasRarityLimitCompensation(cards) {
  * @param {'troop'|'character'} poolType
  * @returns {string}
  */
-export function poolDrawResultModalTitle(cards, poolType, drawMode = 'single') {
-  const batchPrefix = drawMode === 'batch' ? '十连 · ' : '';
+export function poolDrawResultModalTitle(cards, poolType, drawMode = 'batch') {
+  const isBatch = drawMode === 'batch' || drawMode === 'badge_batch';
+  const batchPrefix = drawMode === 'badge_batch' ? '徽章抽 · ' : drawMode === 'batch' ? '十连 · ' : '';
   const base = poolType === 'troop' ? '⚔️ 部队卡抽取结果' : '🎴 将领卡抽取结果';
   if (!Array.isArray(cards) || !cards.some((c) => c.compensated)) {
-    return drawMode === 'batch' ? `${batchPrefix}${base.replace(/^[^\s]+\s/, '')}` : base;
+    return isBatch ? `${batchPrefix}${base.replace(/^[^\s]+\s/, '')}` : base;
   }
   if (poolDrawHasRarityLimitCompensation(cards)) {
     return poolType === 'troop' ? '⚠️ 部队抽取 · 栏位已满（补偿）' : '⚠️ 将领抽取 · 栏位已满（补偿）';

@@ -53,15 +53,9 @@ export function terrainFallbackClass(terrain) {
 
 /**
  * @param {string|null|undefined} objectType
- * @param {{ buildStatus?: string, build_status?: string }} [opts] - 仅 **fort**：`built` 用建成图，否则空置图
  */
-export function campaignObjectUrl(objectType, opts = {}) {
+export function campaignObjectUrl(objectType) {
   if (!objectType) return null;
-  if (objectType === 'fort') {
-    const st = opts.buildStatus ?? opts.build_status;
-    const file = st === 'built' ? 'city_fort_01_built.png' : 'city_fort_01_empty.png';
-    return `${ASSET_BASE}tile_3_object/${file}`;
-  }
   const m = {
     fence: 'fence_01.png',
     rock: 'rock_01.png',
@@ -70,28 +64,28 @@ export function campaignObjectUrl(objectType, opts = {}) {
     military_camp: 'military_camp_01.png',
     bandit_horiz: 'bandit_01.png',
     bandit_vert: 'bandit_02.png',
-    // PVP 攻方大本营：须与 PNG 像素长宽比一致（`camp_01` 128×64=横骨牌，`camp_02` 64×128=竖骨牌），同匪寨 bandit_01/02
+    // PVP 攻方大本营：现行 1×1 `camp_01`；旧档横/竖骨牌仍映射
+    pvp_camp_single: 'camp_01.png',
     pvp_camp_horiz: 'camp_01.png',
-    pvp_camp_vert: 'camp_02.png',
+    pvp_camp_vert: 'camp_01.png',
     city_major: 'city_major_01.png',
     city_medium: 'city_medium_01.png',
     city_small: 'city_small_01.png',
-    gate: 'city_gate_01.png',
+    city_gate: 'city_gate_01.png',
   };
   const file = m[objectType];
   if (!file) return null;
   return `${ASSET_BASE}tile_3_object/${file}`;
 }
 
-/** 战略大地图（31-5）：城 / 关隘 / 据点 PNG 为 2×2 格锚点左上，非单格 */
+/** 战略大地图（31-5）：城 / 关隘 PNG 为 2×2 格锚点左上，非单格 */
 export function strategicMapObjectIs2x2(objectType) {
   if (!objectType) return false;
   return (
     objectType === 'city_small' ||
     objectType === 'city_medium' ||
     objectType === 'city_major' ||
-    objectType === 'gate' ||
-    objectType === 'fort'
+    objectType === 'city_gate'
   );
 }
 

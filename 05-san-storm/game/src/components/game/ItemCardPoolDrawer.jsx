@@ -10,7 +10,7 @@ import {
   formatCardPoolDrawRefreshCountdown,
 } from '@/utils/cardPoolHalfDayRefresh';
 import { useCountdownTicker } from '@/hooks/useCountdownTicker';
-import { getBatchDrawTotalCost } from '@shared/utils/cardPoolDrawEconomy.js';
+import { getBatchDrawTotalCost, BATCH_DRAW_TOTAL_OPS, BATCH_DRAW_BONUS_OPS } from '@shared/utils/cardPoolDrawEconomy.js';
 
 /** 轮盘外圈顺序：左上 → 右上 → …（中心为抽次） */
 const SLOT_ORDER = [
@@ -42,7 +42,7 @@ const FALLBACK_LABELS = {
  *   drawResult?: object|null,
  *   error?: string|null,
  *   playerSilver?: number|null,
- *   onDraw: (poolSeason: null, drawMode?: 'single'|'batch') => void | Promise<void>,
+ *   onDraw: (poolSeason: null, drawMode?: 'batch'|'badge_batch') => void | Promise<void>,
  *   onClearResult: () => void,
  *   onClose: () => void,
  *   onRefreshStatus?: () => void | Promise<void>,
@@ -98,18 +98,18 @@ export default function ItemCardPoolDrawer({
   );
 
   const currentSilver = playerSilver ?? status?.silver ?? 0;
-  const dailyLimit = poolStatus?.dailyLimit ?? 10;
-  const remainingDraws = poolStatus?.remainingDraws ?? 0;
-  const nextDrawCost = poolStatus?.nextDrawCost ?? status?.drawCostTiers?.[0]?.cost ?? 30;
+  const dailyLimit = poolStatus?.dailyLimit ?? poolStatus?.slotLimit ?? 2;
+  const remainingDraws = poolStatus?.remainingDraws ?? poolStatus?.remainingSlots ?? 0;
   const batchDrawCost =
     poolStatus?.batchDrawTotalCost ?? status?.batchDrawTotalCost ?? getBatchDrawTotalCost();
-  const canBatchDraw =
+  const badgeCost = poolStatus?.badgeBatchCost ?? status?.badgeBatchCost ?? 1;
+  const stormBadgeCount = status?.stormBadgeCount ?? 0;
+  const canSilverBatch =
     !loading &&
-    (poolStatus?.canBatchDraw ?? remainingDraws === dailyLimit) &&
-    remainingDraws === dailyLimit &&
+    (poolStatus?.canSilverBatch ?? poolStatus?.canBatchDraw ?? false) &&
     currentSilver >= batchDrawCost;
-  const canSingleDraw =
-    !loading && remainingDraws > 0 && nextDrawCost != null && currentSilver >= nextDrawCost;
+  const canBadgeBatch =
+    !loading && (poolStatus?.canBadgeBatch ?? false) && stormBadgeCount >= badgeCost;
 
   const drawRefreshAt = useMemo(() => getNextCardPoolDrawRefreshAt(new Date(nowMs)), [nowMs]);
   const drawRefreshCountdownLabel = formatCardPoolDrawRefreshCountdown(drawRefreshAt, nowMs);
@@ -163,19 +163,12 @@ export default function ItemCardPoolDrawer({
             {Array.from({ length: 9 }, (_, idx) => {
               if (idx === 4) {
                 return (
-                  <button
+                  <div
                     key="center"
-                    type="button"
-                    onClick={() => {
-                      if (canSingleDraw) void onDraw(null, 'single');
-                    }}
-                    disabled={!canSingleDraw}
-                    className={`aspect-square rounded-xl border-2 flex flex-col items-center justify-center gap-0.5 px-1
-                      ${canSingleDraw
-                        ? 'border-amber-500/70 bg-gradient-to-b from-amber-900/80 to-stone-900 text-amber-100'
-                        : 'border-stone-600 bg-stone-800/80 text-stone-500 cursor-not-allowed'}`}
+                    className="aspect-square rounded-xl border-2 border-stone-600 bg-stone-800/80 text-stone-300 flex flex-col items-center justify-center gap-0.5 px-1"
+                    aria-label={`本窗剩余 ${remainingDraws}/${dailyLimit}`}
                   >
-                    <span className="text-[10px] text-stone-400">剩余</span>
+                    <span className="text-[10px] text-stone-400">本窗剩余</span>
                     <span
                       className={`text-lg font-bold tabular-nums ${
                         remainingDraws > 0 ? 'text-amber-300' : 'text-red-400'
@@ -187,7 +180,7 @@ export default function ItemCardPoolDrawer({
                     <span className="text-[9px] text-stone-500 tabular-nums">
                       {drawRefreshCountdownLabel}
                     </span>
-                  </button>
+                  </div>
                 );
               }
               const slotIndex = idx < 4 ? idx : idx - 1;
@@ -217,43 +210,39 @@ export default function ItemCardPoolDrawer({
 
           {error ? <div className="text-red-400 text-xs text-center">{error}</div> : null}
 
-          {remainingDraws > 0 && remainingDraws < dailyLimit ? (
-            <p className="text-[10px] text-stone-500 text-center leading-snug max-w-sm">
-              本窗已进行过单抽，十连不可用；剩余次数仅可继续单抽
-            </p>
-          ) : null}
-          {remainingDraws === dailyLimit ? (
-            <p className="text-[10px] text-stone-500 text-center leading-snug max-w-sm">
-              单抽与十连互斥：须先选一种方式用完本窗 {dailyLimit} 次额度
-            </p>
-          ) : null}
+          <p className="text-[10px] text-stone-500 text-center leading-snug max-w-sm">
+            真三徽章抽与银两十连本窗各 1 次、互不占用；两路都用完后等半天窗刷新
+          </p>
         </div>
 
         <div className="flex-shrink-0 border-t border-stone-700 bg-stone-900/95 px-3 py-3 safe-area-pb">
           <div className="flex gap-2">
             <button
               type="button"
-              onClick={() => void onDraw(null, 'single')}
-              disabled={!canSingleDraw}
+              onClick={() => void onDraw(null, 'badge_batch')}
+              disabled={!canBadgeBatch}
               className={`flex-1 py-3 rounded-xl text-sm font-bold transition-all
-                ${canSingleDraw
+                ${canBadgeBatch
                   ? 'bg-gradient-to-r from-amber-600 to-amber-500 text-white hover:from-amber-500 hover:to-amber-400 active:scale-[0.98] shadow-lg shadow-amber-600/30'
                   : 'bg-stone-700 text-stone-500 cursor-not-allowed'}`}
             >
-              {loading ? '抽取中...' : `💰 抽取（${nextDrawCost ?? '—'}银两）`}
+              {loading ? '抽取中...' : `🏅 徽章抽（×${badgeCost} · 持有${stormBadgeCount}）`}
             </button>
             <button
               type="button"
               onClick={() => void onDraw(null, 'batch')}
-              disabled={!canBatchDraw}
+              disabled={!canSilverBatch}
               className={`flex-1 py-3 rounded-xl text-sm font-bold transition-all
-                ${canBatchDraw
+                ${canSilverBatch
                   ? 'bg-gradient-to-r from-orange-700 to-orange-600 text-white hover:from-orange-600 hover:to-orange-500 active:scale-[0.98] shadow-lg shadow-orange-700/30'
                   : 'bg-stone-700 text-stone-500 cursor-not-allowed'}`}
             >
               {loading ? '抽取中...' : `💰 十连（${batchDrawCost}银两 · 赠2抽）`}
             </button>
           </div>
+          <p className="mt-2 text-[10px] text-stone-500 text-center leading-snug">
+            两种抽取均为 {BATCH_DRAW_TOTAL_OPS} 次（含赠 {BATCH_DRAW_BONUS_OPS}）· 概率一致
+          </p>
         </div>
       </div>
 
@@ -269,11 +258,13 @@ export default function ItemCardPoolDrawer({
               </li>
             ))}
           </ul>
-          {drawResult.cost != null ? (
-            <p className="mt-3 text-center text-[11px] text-stone-500">
-              消耗 {drawResult.cost} 银两 · 剩余 {drawResult.remainingDraws ?? '—'} 次
-            </p>
-          ) : null}
+          <p className="mt-3 text-center text-[11px] text-stone-500">
+            {drawResult.drawMode === 'badge_batch'
+              ? `消耗真三徽章 ×${drawResult.costItemQuantity ?? 1}`
+              : `消耗 ${drawResult.cost ?? '—'} 银两`}
+            {' · 本窗剩余 '}
+            {drawResult.remainingDraws ?? drawResult.remainingSlots ?? '—'} 次
+          </p>
         </PoolResultModalFrame>
       ) : null}
     </>

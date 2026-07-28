@@ -518,8 +518,10 @@ router.post(
   validateBody(pvpWarSchemas.playerIdBody),
   async (req, res) => {
     try {
-      const { playerId } = req.body;
-      const data = await pvpWarService.resolveAuthoritativeBaseCampSiege(req.params.id, playerId);
+      const { playerId, continueChain } = req.body;
+      const data = await pvpWarService.resolveAuthoritativeBaseCampSiege(req.params.id, playerId, {
+        continueChain: continueChain === true,
+      });
       if (!data?.ok) {
         return res.status(400).json({
           success: false,
@@ -593,8 +595,10 @@ router.post(
   validateBody(pvpWarSchemas.playerIdBody),
   async (req, res) => {
     try {
-      const { playerId } = req.body;
-      const data = await pvpWarService.resolveAuthoritativeAttackerCitySiege(req.params.id, playerId);
+      const { playerId, continueChain } = req.body;
+      const data = await pvpWarService.resolveAuthoritativeAttackerCitySiege(req.params.id, playerId, {
+        continueChain: continueChain === true,
+      });
       if (!data?.ok) {
         return res.status(400).json({
           success: false,

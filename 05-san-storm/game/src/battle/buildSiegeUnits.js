@@ -18,13 +18,17 @@ import {
   flattenPlayerUnitToBattleTroop,
 } from '@shared/utils/resolveTroopBattleCaps';
 import { mapAllyUnitsToBattleTroops } from '@/battle/mapAllyUnitsToBattleTroops';
+import {
+  snapDeployPositions,
+  assertTroopsNotOnUndeployableTerrain,
+} from '@shared/utils/tacticalDeploySnap.js';
 
-const PLAYER_POSITIONS = [
+const PLAYER_PREFERRED = [
   { y: 9, x: 1 }, { y: 9, x: 4 }, { y: 9, x: 7 },
   { y: 8, x: 2 }, { y: 8, x: 5 },
 ];
 
-const ENEMY_POSITIONS = [
+const ENEMY_PREFERRED = [
   { y: 0, x: 1 }, { y: 0, x: 5 },
   { y: 1, x: 3 }, { y: 1, x: 7 },
 ];
@@ -36,6 +40,7 @@ const ENEMY_POSITIONS = [
  * @param {Record<string, object>} [skillsMap] skills.json 字典；有则守军叠阶段1～5（与玩家同源）
  * @param {string} baseUrl     - import.meta.env.BASE_URL
  * @param {'player'|'enemy'} [siegeCityDefenderFaction='enemy'] 攻城守城方阵营（玩家守城时为 `player`）
+ * @param {object} [mapResult] - 刚 generate 的地图（避河吸附；缺则无法保证不站河）
  * @returns {Array} battleTroops
  */
 export function buildSiegeUnits({
@@ -46,6 +51,7 @@ export function buildSiegeUnits({
   baseUrl,
   catalogById = null,
   siegeCityDefenderFaction = 'enemy',
+  mapResult = null,
 }) {
   const catalog = catalogById || buildTroopCatalogById();
   const tagSiegeCityDefender = (troop) => {
@@ -55,10 +61,24 @@ export function buildSiegeUnits({
     return troop;
   };
 
+  if (!mapResult?.terrain?.length) {
+    throw new Error('[buildSiegeUnits] 缺少 mapResult：攻城落子必须避河，请传入 generate() 返回值');
+  }
+  const playerPositions = snapDeployPositions(
+    PLAYER_PREFERRED.slice(0, Math.min(5, playerUnits.length)),
+    mapResult,
+    { label: 'siege-player' },
+  );
+  const enemyPositions = snapDeployPositions(
+    ENEMY_PREFERRED.slice(0, Math.min(4, enemyUnits.length)),
+    mapResult,
+    { label: 'siege-enemy' },
+  );
+
   const playerTroops = playerUnits.slice(0, 5).map((unit, i) =>
     tagSiegeCityDefender(
       flattenPlayerUnitToBattleTroop(unit, i, {
-        pos: PLAYER_POSITIONS[i],
+        pos: playerPositions[i],
         catalogById: catalog,
         baseUrl,
         getPortraitAttempts: (trMeta, bUrl) =>
@@ -128,8 +148,8 @@ export function buildSiegeUnits({
       currentTroops: npc.currentTroops ?? npc.maxTroops,
       initialTroops: npc.currentTroops ?? npc.maxTroops,
       faction: 'enemy',
-      y: ENEMY_POSITIONS[i].y,
-      x: ENEMY_POSITIONS[i].x,
+      y: enemyPositions[i].y,
+      x: enemyPositions[i].x,
       character: battleChar,
       displayName: charName || npc.troopName,
       morale,
@@ -141,9 +161,17 @@ export function buildSiegeUnits({
     });
   });
 
-  const allyTroops = mapAllyUnitsToBattleTroops(allyUnits, baseUrl, undefined, skillsMap);
+  const occupiedForAllies = new Set([
+    ...playerPositions.map((p) => `${p.y},${p.x}`),
+    ...enemyPositions.map((p) => `${p.y},${p.x}`),
+  ]);
+  const allyTroops = mapAllyUnitsToBattleTroops(allyUnits, baseUrl, undefined, skillsMap, {
+    mapResult,
+    occupied: occupiedForAllies,
+  });
 
   const out = [...playerTroops, ...allyTroops, ...enemyTroops];
+  assertTroopsNotOnUndeployableTerrain(out, mapResult);
   initBattlePhase2Runtime(out);
   initBattlePhase3HealRuntime(out, 10, 8);
   initBattlePhase4DamageRuntime(out, 10, 8);

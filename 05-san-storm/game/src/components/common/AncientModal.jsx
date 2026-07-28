@@ -8,6 +8,8 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 
+/** 挂到独立 DOM 节点并在 effect cleanup 里移除，避免 StrictMode/重挂时 body 上残留第二层 portal */
+
 // ========== 古风装饰 SVG ==========
 
 // 角落装饰（铜钉风格）
@@ -77,20 +79,38 @@ const AncientModal = ({
   invokeOnCloseAfterConfirm = true,
   // 样式
   width = 'max-w-md',
+  /** 同 key 同时只保留一个 overlay（道路退让提示防叠窗） */
+  portalDedupeKey = '',
 }) => {
   const [visible, setVisible] = useState(false);
+  const [portalEl, setPortalEl] = useState(null);
   const config = TYPE_CONFIG[type] || TYPE_CONFIG.info;
 
   useEffect(() => {
-    if (isOpen) {
-      // 延迟一帧触发动画
-      requestAnimationFrame(() => setVisible(true));
-    } else {
+    if (!isOpen || typeof document === 'undefined') {
       setVisible(false);
+      setPortalEl(null);
+      return undefined;
     }
-  }, [isOpen]);
+    const dedupe = String(portalDedupeKey || '').trim();
+    if (dedupe) {
+      document.querySelectorAll(`[data-ancient-modal-key="${dedupe}"]`).forEach((n) => n.remove());
+    }
+    const el = document.createElement('div');
+    if (dedupe) el.setAttribute('data-ancient-modal-key', dedupe);
+    el.setAttribute('data-ancient-modal-root', '');
+    document.body.appendChild(el);
+    setPortalEl(el);
+    const raf = requestAnimationFrame(() => setVisible(true));
+    return () => {
+      cancelAnimationFrame(raf);
+      el.remove();
+      setPortalEl(null);
+      setVisible(false);
+    };
+  }, [isOpen, portalDedupeKey]);
 
-  if (!isOpen) return null;
+  if (!isOpen || !portalEl) return null;
 
   const handleClose = () => {
     setVisible(false);
@@ -115,7 +135,7 @@ const AncientModal = ({
     handleClose();
   };
 
-  /** 挂到 body，且高于战略大地图 `tile-tooltip--portal`（z-index:10050），避免提示/浮层压住弹窗 */
+  /** 高于战略大地图 `tile-tooltip--portal`（z-index:10050），避免提示/浮层压住弹窗 */
   const overlay = (
     <div
       className={`fixed inset-0 z-[10080] flex items-center justify-center p-4 transition-all duration-200 ${
@@ -210,7 +230,7 @@ const AncientModal = ({
     </div>
   );
 
-  return typeof document !== 'undefined' ? createPortal(overlay, document.body) : null;
+  return createPortal(overlay, portalEl);
 };
 
 export default AncientModal;

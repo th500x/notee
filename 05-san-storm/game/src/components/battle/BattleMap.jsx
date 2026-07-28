@@ -4,7 +4,8 @@
 import { memo, useCallback, useState, useMemo, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  MAP_W, MAP_H, ZONE, buildTroopTooltipContent, buildTacticalTileTooltipInfo,
+  MAP_W, MAP_H, ZONE, ASSET_BASE, buildTroopTooltipContent, buildTacticalTileTooltipInfo,
+  sumBattleFactionTroopTotals,
 } from './battleConstants';
 import { useTileTooltipClamp } from './useTileTooltipClamp';
 import { MANUAL_PHASE } from '@/hooks/useManualBattle';
@@ -34,10 +35,50 @@ function BattleMap({
   const [tooltipContent, setTooltipContent] = useState(null);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
   const { tooltipRef, tooltipStyle } = useTileTooltipClamp(tooltipContent, tooltipPos);
+  const [mapInfoOpen, setMapInfoOpen] = useState(false);
+  const mapTitleBlockRef = useRef(null);
 
-  const { terrain, variants, objects, meta, cellFire } = mapResult;
+  const { terrain, variants, objects, meta, cellFire, baseTileRel, terrainOverlays } = mapResult;
+  /**
+   * 引擎多原地改 `currentTroops`，`battleTroops` 数组引用常不变；
+   * 勿用 `useMemo([battleTroops])` 缓存，否则顶栏兵力会卡在开局值（回合推进 / 战报刷新时才会随渲染重算）。
+   */
+  const factionTroopTotals = sumBattleFactionTroopTotals(battleTroops);
+
+  useEffect(() => {
+    if (!mapInfoOpen) return undefined;
+    const onPointerDown = (e) => {
+      if (mapTitleBlockRef.current?.contains(e.target)) return;
+      setMapInfoOpen(false);
+    };
+    const onKey = (e) => {
+      if (e.key === 'Escape') setMapInfoOpen(false);
+    };
+    document.addEventListener('pointerdown', onPointerDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [mapInfoOpen]);
+
   const objMap = {};
   for (const o of objects) objMap[`${o.y},${o.x}`] = o;
+  const hillMap = {};
+  for (const h of terrainOverlays?.hills || []) hillMap[`${h.y},${h.x}`] = h;
+  const bridgeMap = {};
+  const bridgeList =
+    terrainOverlays?.bridges?.length
+      ? terrainOverlays.bridges
+      : terrainOverlays?.bridge
+        ? [terrainOverlays.bridge]
+        : [];
+  for (const br of bridgeList) {
+    if (!br?.tileRel) continue;
+    for (const c of br.cells || [{ x: br.x, y: br.y }]) {
+      bridgeMap[`${c.y},${c.x}`] = { tileRel: br.tileRel };
+    }
+  }
   const troopMap = {};
   if (showTroops) for (const t of battleTroops) if (t.currentTroops > 0) troopMap[`${t.y},${t.x}`] = t;
 
@@ -267,8 +308,17 @@ function BattleMap({
   return (
     <div className="maps-row">
       <div className="map-card" ref={mapCardRef}>
-        <div className="map-title" style={{ position: 'relative' }}>
-          {mapLabel}
+        <div className="map-title" style={{ position: 'relative' }} ref={mapTitleBlockRef}>
+          <button
+            type="button"
+            className="map-title-label-btn"
+            aria-expanded={mapInfoOpen}
+            aria-controls="battle-map-gen-info"
+            title="点按查看地图生成信息"
+            onClick={() => setMapInfoOpen((v) => !v)}
+          >
+            {mapLabel}
+          </button>
           {roundNum > 0 && <span className="round-badge">第{roundNum}回合</span>}
           {/* 自动战斗中：右上角接管按钮 */}
           {autoBattle && isBattle && (
@@ -296,16 +346,41 @@ function BattleMap({
               🖐 接管
             </button>
           )}
+          {mapInfoOpen && meta ? (
+            <div id="battle-map-gen-info" className="map-label-info-pop" role="dialog" aria-label="地图生成信息">
+              {meta.generator === 'v2' ? (
+                <>
+                  生成器: <span>v2 Wang</span> &nbsp;
+                  树林戳: <span>{meta.forestStampCount ?? 0}</span> &nbsp;
+                  山丘格: <span>{meta.hillCellCount ?? 0}</span> &nbsp;
+                  桥: <span>{meta.hasBridge ? `${meta.bridgeCount || 1}座${meta.bridgeOrient ? `·${meta.bridgeOrient}` : ''}` : '无'}</span>
+                  <br />
+                  种子: <span>{meta.seed}</span> &nbsp;
+                  非平原: <span>{(Number(meta.combatNonPlainRatio) * 100).toFixed(0)}%</span> &nbsp;
+                  河: <span>{meta.riverEnabled ? `${meta.riverStyle || '是'}·宽${meta.riverThickness ?? '?'}` : '无'}</span>
+                </>
+              ) : (
+                <>
+                  主题: <span>{meta.bgTheme === 'grassland' ? '🌿 绿地' : '🏜️ 荒地'}</span> &nbsp;
+                  底色: <span>{variants.bgVariant}</span> &nbsp;
+                  树林: <span>forest_{variants.forest}</span> &nbsp;
+                  丘陵: <span>hill_{variants.hill}</span>
+                  <br />
+                  种子: <span>{meta.seed}</span> &nbsp;
+                  非平原: <span>{(Number(meta.combatNonPlainRatio) * 100).toFixed(0)}%</span> &nbsp;
+                  障碍: <span>{meta.obstacleCount}</span> &nbsp;
+                  宝箱: <span>{meta.hasChest ? '✅' : '❌'}</span>
+                </>
+              )}
+            </div>
+          ) : null}
         </div>
-        <div className="map-meta">
-          主题: <span>{meta.bgTheme === 'grassland' ? '🌿 绿地' : '🏜️ 荒地'}</span> &nbsp;
-          底色: <span>{variants.bgVariant}</span> &nbsp;
-          树林: <span>forest_{variants.forest}</span> &nbsp;
-          丘陵: <span>hill_{variants.hill}</span><br />
-          种子: <span>{meta.seed}</span> &nbsp;
-          非平原: <span>{(meta.combatNonPlainRatio * 100).toFixed(0)}%</span> &nbsp;
-          障碍: <span>{meta.obstacleCount}</span> &nbsp;
-          宝箱: <span>{meta.hasChest ? '✅' : '❌'}</span>
+        <div className="map-meta map-meta-troops" aria-live="polite">
+          <span className="mt-player">我军：{factionTroopTotals.player}</span>
+          <span className="mt-sep">/</span>
+          <span className="mt-enemy">敌军：{factionTroopTotals.enemy}</span>
+          <span className="mt-sep">/</span>
+          <span className="mt-ally">友军：{factionTroopTotals.ally}</span>
         </div>
         <div className="map-wrapper" onMouseMove={handleMove} style={{ position: 'relative' }}>
           <div className="map-row-labels">{rowLabels}</div>
@@ -333,11 +408,16 @@ function BattleMap({
                   !!preBattleDeployTroopId &&
                   tileTroop?.faction === 'player' &&
                   tileTroop?.id === preBattleDeployTroopId;
+                const hillOverlay = hillMap[key] || null;
+                const bridgeOverlay = bridgeMap[key] || null;
                 return (
                   <BattleTile
                     key={key}
                     terrain={terrain[y][x]}
                     variants={variants}
+                    baseTileRel={baseTileRel?.[y]?.[x] ?? null}
+                    hillOverlay={hillOverlay}
+                    bridgeOverlay={bridgeOverlay}
                     obj={objMap[key]}
                     cellOnFire={cellOnFire}
                     troop={troopMap[key]}
@@ -355,6 +435,27 @@ function BattleMap({
                   />
                 );
               })
+            )}
+            {/* 树林跨格：挂在格网层，避免单格裁切 / 被邻格底板盖住 */}
+            {Array.isArray(terrainOverlays?.forests) && terrainOverlays.forests.length > 0 && (
+              <div className="map-terrain-overlays" aria-hidden>
+                {terrainOverlays.forests.map((f, i) => {
+                  const gap = 1;
+                  const left = `calc(${f.x} * (var(--tile) + ${gap}px))`;
+                  const top = `calc(${f.y} * (var(--tile) + ${gap}px))`;
+                  const width = `calc(${f.spanW} * var(--tile) + ${(f.spanW - 1) * gap}px)`;
+                  const height = `calc(${f.spanH} * var(--tile) + ${(f.spanH - 1) * gap}px)`;
+                  return (
+                    <img
+                      key={`forest-${i}-${f.x}-${f.y}`}
+                      className="map-forest-stamp"
+                      src={`${ASSET_BASE}${f.tileRel}`}
+                      alt=""
+                      style={{ left, top, width, height }}
+                    />
+                  );
+                })}
+              </div>
             )}
           </div>
           {/* 攻击 / 治疗预览浮层 */}

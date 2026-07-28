@@ -41,6 +41,16 @@ export function useRoadSelfPresencePoll({
   const [roadGateRetreatNotice, setRoadGateRetreatNotice] = useState(null);
   const deferredRoadGateNoticeRef = useRef(null);
   const lastApiRoadSnapRef = useRef('');
+  /** 已展示/入队的文案：轮询与 repair-stand 响应交叉时禁止叠第二次 */
+  const shownRoadGateNoticeRef = useRef('');
+
+  const applyRoadGateNotice = (text) => {
+    const trimmed = String(text || '').trim();
+    if (!trimmed) return;
+    if (shownRoadGateNoticeRef.current === trimmed) return;
+    shownRoadGateNoticeRef.current = trimmed;
+    setRoadGateRetreatNotice(trimmed);
+  };
 
   useEffect(() => {
     if (!playerId) {
@@ -79,7 +89,7 @@ export function useRoadSelfPresencePoll({
           if (blocked) {
             deferredRoadGateNoticeRef.current = notice;
           } else {
-            setRoadGateRetreatNotice(notice);
+            applyRoadGateNotice(notice);
           }
         }
         if (lastApiRoadSnapRef.current === '') {
@@ -104,7 +114,7 @@ export function useRoadSelfPresencePoll({
           );
           if (!stillBlocked) {
             deferredRoadGateNoticeRef.current = null;
-            setRoadGateRetreatNotice(queued);
+            applyRoadGateNotice(queued);
           }
         }
       } catch {
@@ -141,7 +151,7 @@ export function useRoadSelfPresencePoll({
     );
     if (!stillBlocked) {
       deferredRoadGateNoticeRef.current = null;
-      setRoadGateRetreatNotice(queued);
+      applyRoadGateNotice(queued);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- noticeUnblockDeps 由 WorldMap 显式传入
   }, [
@@ -151,20 +161,36 @@ export function useRoadSelfPresencePoll({
     ...(Array.isArray(noticeUnblockDeps) ? noticeUnblockDeps : []),
   ]);
 
+  const clearRoadGateRetreatNotice = () => {
+    shownRoadGateNoticeRef.current = '';
+    setRoadGateRetreatNotice(null);
+  };
+
   return {
     roadGateRetreatNotice,
-    setRoadGateRetreatNotice,
+    setRoadGateRetreatNotice: clearRoadGateRetreatNotice,
+    applyRoadGateNotice,
     deferredRoadGateNoticeRef,
+    shownRoadGateNoticeRef,
   };
 }
 
 /** 道路战败退让提示入队（结算关闭后调用；与轮询 `pendingRoadNotice` 互补） */
 export function enqueueRoadGateRetreatNotice(
   text,
-  { setRoadGateRetreatNotice, deferredRoadGateNoticeRef, blockSnapshot, blockTutorialAutoplay, roadDefenseOutcomeReplayBlockingRef },
+  {
+    setRoadGateRetreatNotice,
+    applyRoadGateNotice,
+    deferredRoadGateNoticeRef,
+    shownRoadGateNoticeRef,
+    blockSnapshot,
+    blockTutorialAutoplay,
+    roadDefenseOutcomeReplayBlockingRef,
+  },
 ) {
   const trimmed = String(text || '').trim();
   if (!trimmed) return;
+  if (shownRoadGateNoticeRef?.current === trimmed) return;
   const blocked = isRoadGateNoticeBlocked(
     blockSnapshot,
     blockTutorialAutoplay,
@@ -172,9 +198,14 @@ export function enqueueRoadGateRetreatNotice(
   );
   if (blocked) {
     deferredRoadGateNoticeRef.current = trimmed;
-  } else {
-    setRoadGateRetreatNotice(trimmed);
+    return;
   }
+  if (typeof applyRoadGateNotice === 'function') {
+    applyRoadGateNotice(trimmed);
+    return;
+  }
+  if (shownRoadGateNoticeRef) shownRoadGateNoticeRef.current = trimmed;
+  setRoadGateRetreatNotice(trimmed);
 }
 
 export default useRoadSelfPresencePoll;

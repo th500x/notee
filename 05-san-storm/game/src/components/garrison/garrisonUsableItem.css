@@ -1,0 +1,82 @@
+/**
+ * 军营道具：可使用道具的轻提示动效（琥珀描边呼吸 + 角标）
+ */
+
+@keyframes garrison-usable-item-breathe {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 1px rgba(245, 158, 11, 0.45),
+      0 0 10px rgba(245, 158, 11, 0.18);
+    border-color: rgba(245, 158, 11, 0.55);
+  }
+  50% {
+    box-shadow:
+      0 0 0 1px rgba(251, 191, 36, 0.85),
+      0 0 16px rgba(251, 191, 36, 0.35);
+    border-color: rgba(251, 191, 36, 0.95);
+  }
+}
+
+@keyframes garrison-usable-item-sheen {
+  0% {
+    transform: translateX(-120%) skewX(-18deg);
+    opacity: 0;
+  }
+  30% {
+    opacity: 0.35;
+  }
+  55% {
+    opacity: 0.15;
+  }
+  100% {
+    transform: translateX(160%) skewX(-18deg);
+    opacity: 0;
+  }
+}
+
+.garrison-item-usable {
+  position: relative;
+  overflow: hidden;
+  border-color: rgba(245, 158, 11, 0.55) !important;
+  background: linear-gradient(
+    165deg,
+    rgba(120, 53, 15, 0.35) 0%,
+    rgba(28, 25, 23, 0.85) 55%,
+    rgba(28, 25, 23, 0.9) 100%
+  ) !important;
+  animation: garrison-usable-item-breathe 2.4s ease-in-out infinite;
+}
+
+.garrison-item-usable::before {
+  content: '';
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    105deg,
+    transparent 0%,
+    rgba(255, 237, 180, 0.22) 45%,
+    transparent 70%
+  );
+  animation: garrison-usable-item-sheen 3.2s ease-in-out infinite;
+}
+
+.garrison-item-usable-badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  z-index: 1;
+  padding: 2px 1px;
+  border-radius: 3px;
+  font-size: 8px;
+  line-height: 1.15;
+  font-weight: 700;
+  letter-spacing: 0;
+  writing-mode: vertical-rl;
+  text-orientation: upright;
+  color: rgb(254, 243, 199);
+  background: rgba(180, 83, 9, 0.92);
+  border: 1px solid rgba(251, 191, 36, 0.55);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+}

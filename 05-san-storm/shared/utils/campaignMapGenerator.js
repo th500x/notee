@@ -1,7 +1,7 @@
 /**
  * 战役地图模拟生成（16×20，四象限各 8×10）
  *
- * 与 `mapGenerator.js`（8×10 事件战）分离；输入为战役 CSV / preset 行（象限 DSL）。
+ * 与小型战术图 `mapGenerator_v2`（8×10 事件战）分离；输入为战役 CSV / preset 行（象限 DSL）。
  * 算法为**可复现占位**：按 seed 在象限内投放地形簇、对象点、特效标记，供预览与管线联调。
  * 多种底板时：双种子 **Voronoi**（距两随机锚点曼哈顿距离 + 微抖动），边界呈曲线状；象限缝另做 `smoothQuadBaseBoundaries`。
  *

@@ -24,10 +24,13 @@ const MIGRATION_FILES_NEED_MULTIPLE_STATEMENTS = new Set([
   'player-garrison-composite-city-primary-key.sql',
   'seed-system-player-sys1.sql',
   'alter-season-records-fk-to-accounts.sql',
+  // COMMENT 内含分号，不可按 ; 拆句
+  'add-item-pool-and-chapter-tactical.sql',
 ]);
 
 /** 多句 DDL/DML（无 PROCEDURE）；逐句 pool.query，避免 MariaDB 单包拒执行 */
 const MIGRATION_FILES_SPLIT_STATEMENTS = new Set([
+  'create-config-adventure-themes-and-player-adventures.sql',
   'add-city-siege-tables.sql',
   'create-runtime-tables-from-design-doc-01-1.sql',
   'config-positions-drop-legacy-bonus-columns-json-type.sql',
@@ -50,6 +53,13 @@ const MIGRATION_FILES_SPLIT_STATEMENTS = new Set([
   'add-config-servers-settlement-window.sql',
   'accounts-server-id-nullable-for-life-resume.sql',
   'create-faction-war-daily-votes.sql',
+  'delete-player-garrison-non-main-city.sql',
+  'migrate-players-items-item-id-rename-2026-07.sql',
+  'cities-rename-id-strip-digit-and-city-gate.sql',
+  'cities-drop-fort-and-gate-from-city-type.sql',
+  'cities-add-attr-growth-applied-date.sql',
+  'cities-add-npc-recovery-applied-date.sql',
+  'create-config-chapter-tables.sql',
 ]);
 
 async function runMigrationSql(sql, file) {
@@ -169,6 +179,8 @@ const MIGRATION_FILES = [
   'wars-add-attacker-base-camps.sql',
   'player-events-add-san-gong-resource-exchange-daily.sql',
   'player-events-add-san-gong-gift-box-date.sql',
+  'player-events-add-san-gong-armament-daily.sql',
+  'add-temp-card-pool-draws-draw-channel.sql',
   'accounts-server-id-nullable-for-life-resume.sql',
   'alter-season-records-fk-to-accounts.sql',
   'create-season-settlements.sql',
@@ -176,6 +188,29 @@ const MIGRATION_FILES = [
   'create-config-treasures.sql',
   'add-player-cards-uses-remaining.sql',
   'create-faction-war-daily-votes.sql',
+  'add-config-troops-battle-unit-key.sql',
+  // 2026-07：编组 Extra / 道具池·篇章战术 / 战役配置（曾漏进批跑清单）
+  'create-config-campaigns.sql',
+  'add-config-campaigns-completion-reward-badge.sql',
+  'create-player-lineup-sets.sql',
+  'create-player-lineup-extra.sql',
+  'add-config-items-item-type-season-token.sql',
+  'add-item-pool-and-chapter-tactical.sql',
+  'delete-player-garrison-non-main-city.sql',
+  'migrate-players-items-item-id-rename-2026-07.sql',
+  'create-config-adventure-themes-and-player-adventures.sql',
+  // 2026-07：关隘 city_type gate→city_gate（city_id 去数字段见 migrate-city-id-and-city-gate-db.js）
+  'cities-rename-id-strip-digit-and-city-gate.sql',
+  'cities-drop-fort-and-gate-from-city-type.sql',
+  'yingchuan-bandit-one-instance-2026-07.sql',
+  'cities-add-attr-growth-applied-date.sql',
+  'cities-drop-player-garrison-capacity.sql',
+  'cities-add-npc-recovery-applied-date.sql',
+  'cities-drop-wilderness-market-enabled.sql',
+  // 2026-07：玩法二章节壳 P2
+  'add-player-progress-chapter-progress.sql',
+  'alter-battles-add-pve-chapter-type.sql',
+  'create-config-chapter-tables.sql',
 ];
 
 /** RENAME：源列不存在时跳过（库已为 skill_type） */

@@ -16,8 +16,12 @@ const b = generatePvpDuelMap(preset, { seed: 8844221 });
 assert.strictEqual(JSON.stringify(a.terrain), JSON.stringify(b.terrain));
 assert.strictEqual(JSON.stringify(a.objects), JSON.stringify(b.objects));
 
-const forbidden = a.objects.filter((o) => o.type === 'chest' || o.type === 'trap');
-assert.strictEqual(forbidden.length, 0, 'PvP duel map must not contain chest or trap');
+const forbidden = a.objects.filter(
+  (o) => o.type === 'chest' || o.type === 'trap' || o.type === 'farm' || o.type === 'random',
+);
+assert.strictEqual(forbidden.length, 0, 'PvP duel map must not contain chest/trap/farm/random');
+assert.ok(a.baseTileRel?.[0]?.[0], 'v2 wang base');
+assert.strictEqual(a.meta?.baseGenerator, 'v2');
 
 const riverPreset = { ...buildTemplatePreset('river'), seed: 10001 };
 const riverMap = generatePvpDuelMap(riverPreset, { seed: 10001 });

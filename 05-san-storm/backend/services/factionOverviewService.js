@@ -3,11 +3,11 @@
  *
  * 五维势力标量（与 `01-database-split/30-tables-world` §3.2.10、`13-3-CARD_POOL_SYSTEM` §2.4.1 一致）：
  * - 参与集合 `C`：**仅** `city_major` / `city_medium` / `city_small` 且 `status = 'owned'`；
- *   **`gate` / `fort` 不计入** 五维与 `n`。
+ *   **`city_gate` 不计入** 五维与 `n`。
  * - `n = |C|`；`n = 0` → 五维全 0。
  * - 各维：`avg = (Σ 各城该维) / n`，**势力标量** `total = avg * (1 + 0.05 * n)`（非简单 SUM）。
  * 聚合 SQL 只用 `cities` 单表，避免对 config 表 JOIN 后重复计城。
- * **「规模」城市数**：`status='owned'` 的 **全部 `city_type` 行数**（含关隘/据点），与公式 **`n` 分开**。
+ * **「规模」城市数**：`status='owned'` 的 **全部 `city_type` 行数**（含关隘），与公式 **`n` 分开**。
  * **列表字段**（供势力信息 UI 弹层）：`playersReal` / `playersNpc`（`[官职]名`，按 **品阶 `position_level` 升序** 即高→低，同阶按 **`config_positions.position_rank`**、角色名）；`legions` / `citiesList`（与四项计数同源）。
  */
 
@@ -18,7 +18,7 @@ const factionReserveService = require('./factionReserveService');
 const kingDasikongRankingService = require('./kingDasikongRankingService');
 const { SAN_1_PLAYABLE_FACTION_IDS } = require('../../shared/utils/san1PlayableFactions.cjs');
 
-/** 参与势力五维标量计算的 `cities.city_type`（关隘、据点排除） */
+/** 参与势力五维标量计算的 `cities.city_type`（关隘排除） */
 const CITY_TYPES_FOR_FACTION_FIVE_STATS = ['city_major', 'city_medium', 'city_small'];
 
 /**
@@ -79,7 +79,6 @@ function buildEmptyFactionOverview() {
     citiesMediumLines: [],
     citiesSmallByZhou: [],
     citiesGateByZhou: [],
-    citiesFortByZhou: [],
     playersReal: [],
     playersNpc: [],
     legions: [],
@@ -263,7 +262,6 @@ async function getFactionOverviewByFactionId(factionId) {
   const citiesMediumLines = [];
   const smallByZhou = {};
   const gateByZhou = {};
-  const fortByZhou = {};
   let cityRecoveryCounts = { small: 0, medium: 0, major: 0 };
   /** JOIN 可能重复同一 city_id；列表与州计数只认一城一行 */
   const cityRowById = new Map();
@@ -283,10 +281,8 @@ async function getFactionOverviewByFactionId(factionId) {
       citiesMediumLines.push(`${jun}-${name}`);
     } else if (c.city_type === 'city_small') {
       smallByZhou[zhou] = (smallByZhou[zhou] || 0) + 1;
-    } else if (c.city_type === 'gate') {
+    } else if (c.city_type === 'city_gate') {
       gateByZhou[zhou] = (gateByZhou[zhou] || 0) + 1;
-    } else if (c.city_type === 'fort') {
-      fortByZhou[zhou] = (fortByZhou[zhou] || 0) + 1;
     }
   }
   const sortZhouCounts = (m) =>
@@ -295,7 +291,6 @@ async function getFactionOverviewByFactionId(factionId) {
       .sort((a, b) => a.zhouName.localeCompare(b.zhouName, 'zh-Hans-CN'));
   const citiesSmallByZhou = sortZhouCounts(smallByZhou);
   const citiesGateByZhou = sortZhouCounts(gateByZhou);
-  const citiesFortByZhou = sortZhouCounts(fortByZhou);
 
   const citiesList = Array.from(cityRowById.values())
     .map((c) => ({
@@ -355,7 +350,6 @@ async function getFactionOverviewByFactionId(factionId) {
       citiesMediumLines,
       citiesSmallByZhou,
       citiesGateByZhou,
-      citiesFortByZhou,
       playersReal,
       playersNpc,
       legions,

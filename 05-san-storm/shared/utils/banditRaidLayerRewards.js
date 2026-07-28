@@ -33,21 +33,21 @@ const TIER_LABEL_CN = {
 };
 
 /**
- * `player_progress.bandit_progress` 中 per-匪寨 **`nextLayer`**：1…N 为待挑战层，**N+1** 表示已通 N 层（如 21=20 层全通）。
+ * `player_progress.bandit_progress` 中 per-匪寨 **`nextLayer`**：1…N 为待挑战层。
+ * 通关第 N 层后回到 **1**（可循环重打）；历史残留 **N+1**（如 21）亦按第 1 层处理。
  * @param {number|string|null|undefined} storedNext
  * @param {number} [maxLayers]
- * @returns {number|null} 当前应打的层 1…maxLayers；已全通返回 **null**
+ * @returns {number} 当前应打的层 1…maxLayers
  */
 export function banditCombatLayerFromStoredNext(storedNext, maxLayers = BANDIT_PERSONAL_TOTAL_LAYERS) {
   const maxP = Math.max(1, Math.floor(Number(maxLayers)) || BANDIT_PERSONAL_TOTAL_LAYERS);
   const s = Math.floor(Number(storedNext));
-  if (!Number.isFinite(s) || s < 1) return 1;
-  if (s > maxP) return null;
+  if (!Number.isFinite(s) || s < 1 || s > maxP) return 1;
   return s;
 }
 
 /**
- * 单层胜利后写入 JSON 的 **`nextLayer`**。
+ * 单层胜利后写入 JSON 的 **`nextLayer`**（第 N 层胜 → 回到 1）。
  * @param {number} attackedLayer 本场胜利的层（1…maxLayers）
  * @param {number} [maxLayers]
  * @returns {number}
@@ -56,7 +56,7 @@ export function banditStoredNextLayerAfterVictory(attackedLayer, maxLayers = BAN
   const maxP = Math.max(1, Math.floor(Number(maxLayers)) || BANDIT_PERSONAL_TOTAL_LAYERS);
   const L = Math.floor(Number(attackedLayer));
   if (!Number.isFinite(L) || L < 1 || L > maxP) return 1;
-  return L >= maxP ? maxP + 1 : L + 1;
+  return L >= maxP ? 1 : L + 1;
 }
 
 /**

@@ -1,0 +1,130 @@
+{
+  "unitKey": "skeleton_elite_006",
+  "source": "docs/tiles/units/骷髅系001/骷髅中级兵种006",
+  "canvas": {
+    "w": 256,
+    "h": 256
+  },
+  "anchor": {
+    "x": 0.5,
+    "y": 1.0
+  },
+  "facing": "right",
+  "fps": {
+    "attack": 14,
+    "die": 8,
+    "hit": 10,
+    "idle": 12,
+    "walk": 12
+  },
+  "actions": {
+    "attack": {
+      "loop": false,
+      "frames": [
+        "attack/00.png",
+        "attack/01.png",
+        "attack/02.png",
+        "attack/03.png",
+        "attack/04.png",
+        "attack/05.png",
+        "attack/06.png",
+        "attack/07.png",
+        "attack/08.png",
+        "attack/09.png",
+        "attack/10.png",
+        "attack/11.png",
+        "attack/12.png",
+        "attack/13.png",
+        "attack/14.png",
+        "attack/15.png",
+        "attack/16.png",
+        "attack/17.png",
+        "attack/18.png",
+        "attack/19.png",
+        "attack/20.png",
+        "attack/21.png",
+        "attack/22.png"
+      ]
+    },
+    "die": {
+      "loop": false,
+      "frames": [
+        "die/00.png",
+        "die/01.png"
+      ]
+    },
+    "hit": {
+      "loop": false,
+      "frames": [
+        "hit/00.png",
+        "hit/01.png"
+      ]
+    },
+    "idle": {
+      "loop": true,
+      "frames": [
+        "idle/00.png",
+        "idle/01.png",
+        "idle/02.png",
+        "idle/03.png",
+        "idle/04.png",
+        "idle/05.png",
+        "idle/06.png",
+        "idle/07.png",
+        "idle/08.png",
+        "idle/09.png",
+        "idle/10.png",
+        "idle/11.png",
+        "idle/12.png",
+        "idle/13.png",
+        "idle/14.png",
+        "idle/15.png",
+        "idle/16.png",
+        "idle/17.png",
+        "idle/18.png",
+        "idle/19.png",
+        "idle/20.png",
+        "idle/21.png",
+        "idle/22.png",
+        "idle/23.png",
+        "idle/24.png"
+      ]
+    },
+    "walk": {
+      "loop": true,
+      "frames": [
+        "walk/00.png",
+        "walk/01.png",
+        "walk/02.png",
+        "walk/03.png",
+        "walk/04.png",
+        "walk/05.png",
+        "walk/06.png",
+        "walk/07.png",
+        "walk/08.png",
+        "walk/09.png",
+        "walk/10.png",
+        "walk/11.png",
+        "walk/12.png",
+        "walk/13.png",
+        "walk/14.png",
+        "walk/15.png",
+        "walk/16.png",
+        "walk/17.png",
+        "walk/18.png",
+        "walk/19.png",
+        "walk/20.png",
+        "walk/21.png",
+        "walk/22.png",
+        "walk/23.png",
+        "walk/24.png"
+      ]
+    }
+  },
+  "sourceMaxFrame": {
+    "w": 196,
+    "h": 145
+  },
+  "importer": "docs/tools/battle-unit/import-unit-sprites.py",
+  "contentHeightRatio": 0.3984
+}

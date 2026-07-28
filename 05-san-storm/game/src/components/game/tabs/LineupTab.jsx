@@ -39,6 +39,7 @@ import LineupStatsPanel from './lineup/LineupStatsPanel';
 import LineupCardDrawer from './lineup/LineupCardDrawer';
 import LineupCardDetailOverlay from './lineup/LineupCardDetailOverlay';
 import LineupExtraEditor from './lineup/LineupExtraEditor';
+import { buildBadgeRepairCandidates } from '@/utils/troopBadgeRepairCandidates';
 
 const LINEUP_CHANNEL_TABS = [
   { id: 'main', label: '上阵编组 Main' },
@@ -220,6 +221,13 @@ export default function LineupTab({ onClose, onOpenAttributeReroll }) {
       String(c.config.displayName).trim()
   );
 
+  const badgeRepairCandidates = (() => {
+    const barracksTroops = allUnequipped.filter((c) => c.cardType === 'troop');
+    const mainTroops = [...playerTroops, ...char1Troops, ...char2Troops];
+    const extraTroops = troopCards.filter((c) => extraIds.has(c.instanceId));
+    return buildBadgeRepairCandidates({ barracksTroops, mainTroops, extraTroops });
+  })();
+
   const isGeneralRecruited = (subTab) => {
     if (subTab === 'char1') return !!char1Character;
     if (subTab === 'char2') return !!char2Character;
@@ -321,7 +329,15 @@ export default function LineupTab({ onClose, onOpenAttributeReroll }) {
           statsPanel={playerTroops.length > 0 ? (
             <LineupStatsPanel player={player} troops={playerTroops} compact
               attributeBonus={attributeBonusBySlot.player}
-              playerId={player?.playerId} rankBucket="main:player" />
+              playerId={player?.playerId} rankBucket="main:player"
+              includePositionBonuses
+              troopAffinity={player?.troopAffinity || null}
+              effectCards={{
+                title: playerTitles[0] || null,
+                achievement: playerAchievements[0] || null,
+                treasure: playerTreasures[0] || null,
+              }}
+            />
           ) : null}
           attributeBonus={attributeBonusBySlot.player}
         />
@@ -344,7 +360,14 @@ export default function LineupTab({ onClose, onOpenAttributeReroll }) {
               attrs={char1Character?.config ? { combat: char1Character.config.combat, command: char1Character.config.command, courage: char1Character.config.courage, luck: char1Character.config.luck } : null}
               attributeBonus={attributeBonusBySlot.character1}
               characterRarity={char1Character?.rarity || char1Character?.config?.rarity}
-              playerId={player?.playerId} rankBucket="main:character1" />
+              playerId={player?.playerId} rankBucket="main:character1"
+              troopAffinity={char1Character?.config?.troopAffinity || null}
+              effectCards={{
+                title: char1Titles[0] || null,
+                achievement: char1Achievements[0] || null,
+                treasure: char1Treasures[0] || null,
+              }}
+            />
           ) : null}
           attributeBonus={attributeBonusBySlot.character1}
           generalCard={char1Character}
@@ -368,6 +391,7 @@ export default function LineupTab({ onClose, onOpenAttributeReroll }) {
           onAfterEncapsulateChange={refresh}
           encapsulateEquipmentPool={encapsulateEquipmentPool}
           equipmentSetCards={equipmentSetCards}
+          badgeRepairCandidates={badgeRepairCandidates}
           footerNote={null}
         />
       ),
@@ -389,7 +413,14 @@ export default function LineupTab({ onClose, onOpenAttributeReroll }) {
               attrs={char2Character?.config ? { combat: char2Character.config.combat, command: char2Character.config.command, courage: char2Character.config.courage, luck: char2Character.config.luck } : null}
               attributeBonus={attributeBonusBySlot.character2}
               characterRarity={char2Character?.rarity || char2Character?.config?.rarity}
-              playerId={player?.playerId} rankBucket="main:character2" />
+              playerId={player?.playerId} rankBucket="main:character2"
+              troopAffinity={char2Character?.config?.troopAffinity || null}
+              effectCards={{
+                title: char2Titles[0] || null,
+                achievement: char2Achievements[0] || null,
+                treasure: char2Treasures[0] || null,
+              }}
+            />
           ) : null}
           attributeBonus={attributeBonusBySlot.character2}
           generalCard={char2Character}
@@ -474,6 +505,26 @@ export default function LineupTab({ onClose, onOpenAttributeReroll }) {
                 : activeSubTab === 'char1' ? 'character1' : 'character2';
               const rankBucket = activeSubTab === 'player' ? 'main:player'
                 : activeSubTab === 'char1' ? 'main:character1' : 'main:character2';
+              const effectCards = activeSubTab === 'player'
+                ? {
+                    title: playerTitles[0] || null,
+                    achievement: playerAchievements[0] || null,
+                    treasure: playerTreasures[0] || null,
+                  }
+                : activeSubTab === 'char1'
+                  ? {
+                      title: char1Titles[0] || null,
+                      achievement: char1Achievements[0] || null,
+                      treasure: char1Treasures[0] || null,
+                    }
+                  : {
+                      title: char2Titles[0] || null,
+                      achievement: char2Achievements[0] || null,
+                      treasure: char2Treasures[0] || null,
+                    };
+              const troopAffinity = activeSubTab === 'player'
+                ? (player?.troopAffinity || null)
+                : (generalCard?.config?.troopAffinity || null);
               return subTroops.length > 0 ? (
                 <LineupStatsPanel
                   player={player}
@@ -483,6 +534,9 @@ export default function LineupTab({ onClose, onOpenAttributeReroll }) {
                   characterRarity={generalCard?.rarity || generalCard?.config?.rarity}
                   playerId={player?.playerId}
                   rankBucket={rankBucket}
+                  includePositionBonuses={activeSubTab === 'player'}
+                  troopAffinity={troopAffinity}
+                  effectCards={effectCards}
                 />
               ) : null;
             })()}
@@ -495,6 +549,7 @@ export default function LineupTab({ onClose, onOpenAttributeReroll }) {
               onAfterEncapsulateChange={refresh}
               encapsulateEquipmentPool={encapsulateEquipmentPool}
               equipmentSetCards={equipmentSetCards}
+              badgeRepairCandidates={badgeRepairCandidates}
               footerNote={null}
             />
           </>

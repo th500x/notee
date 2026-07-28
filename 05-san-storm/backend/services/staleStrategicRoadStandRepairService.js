@@ -16,12 +16,16 @@ const {
   isSan1YuStackRoadJunId,
 } = require('../utils/roadGrid');
 const marchPoi = require('../../shared/utils/strategicMarchPoi.js');
-const { applyFactionPlayerRoadRetreat } = require('../utils/roadBattleRetreatPlacement');
+const {
+  applyFactionPlayerRoadRetreat,
+  applyRandomJunBattlefieldStand,
+} = require('../utils/roadBattleRetreatPlacement');
 const {
   playerRoadToWorldMapCell,
   worldMapCellKey,
   worldMapCellKeyFromPlayerRoadLocal,
 } = require('../../shared/utils/strategicGridCoordinates.js');
+const { readJunBattlefieldAtGrid } = require('../../shared/utils/junBattlefieldCell.cjs');
 
 const NOTICE_STALE_STAND =
   '此前战事已结束或地图目标已变更，原立足格已不可用，已为您移至本郡距此最近的己方城池。'.slice(0, 510);
@@ -32,7 +36,7 @@ const NOTICE_JUN_COORD_FIXED = (storedJun, altJun, rx, ry) =>
     .slice(0, 510);
 
 const NOTICE_STAND_UNREPAIRABLE = (junId, rx, ry, detail) =>
-  `路点数据异常：在郡「${junId}」坐标 (${rx},${ry}) 无法立足且无法自动迁回己方城（${detail}）。请从主城重新出征或联系管理。`
+  `路点数据异常：在郡「${junId}」坐标 (${rx},${ry}) 无法立足，且无法迁回己方城或郡战场入口（${detail}）。请从主城重新出征或联系管理。`
     .slice(0, 510);
 
 async function fetchCitiesInJun(conn, season, junId) {
@@ -164,6 +168,7 @@ async function evaluateAndRepairLockedPlayer(conn, pl) {
     if (!ew) return false;
     const kk = worldMapCellKey(ew.gx, ew.worldGy);
     if (pass.has(kk)) return true;
+    if (readJunBattlefieldAtGrid(grid.rawCells, ew.gx, ew.worldGy)) return true;
     if (
       marchPoi.resolvePoiFootprintAtCellFromDb(
         countyRows,
@@ -224,9 +229,38 @@ async function evaluateAndRepairLockedPlayer(conn, pl) {
     fromY: ry,
     noticeText: NOTICE_STALE_STAND,
   });
-  if (!r.ok) {
-    const notice = NOTICE_STAND_UNREPAIRABLE(junId, rx, ry, r.error || '未知');
-    console.error('[staleStrategicRoadStandRepair] retreat failed:', r.error, { pid, junId, rx, ry });
+  if (r.ok) {
+    const [nrOk] = await conn.query(
+      'SELECT road_jun_id, road_position_x, road_position_y, road_client_notice FROM players WHERE player_id = ? LIMIT 1',
+      [pid],
+    );
+    const rowOk = nrOk[0];
+    if (!rowOk) return null;
+    return {
+      road_jun_id: rowOk.road_jun_id != null ? String(rowOk.road_jun_id) : undefined,
+      road_position_x: rowOk.road_position_x != null ? Number(rowOk.road_position_x) : null,
+      road_position_y: rowOk.road_position_y != null ? Number(rowOk.road_position_y) : null,
+      road_client_notice: rowOk.road_client_notice != null ? String(rowOk.road_client_notice) : null,
+    };
+  }
+
+  /** 无己方城可退：改落本郡（或可玩邻郡）随机战场入口 — 改版/设计失误兜底（31-6） */
+  const bf = await applyRandomJunBattlefieldStand(conn, {
+    season,
+    junId,
+    grid,
+    playerId: pid,
+    loadRoadGrid,
+  });
+  if (!bf.ok) {
+    const detail = `${r.error || '无己方城'}; ${bf.error || '无战场'}`;
+    const notice = NOTICE_STAND_UNREPAIRABLE(junId, rx, ry, detail);
+    console.error('[staleStrategicRoadStandRepair] retreat+battlefield failed:', detail, {
+      pid,
+      junId,
+      rx,
+      ry,
+    });
     await conn.query(
       `UPDATE players SET road_client_notice = ?, road_updated_at = NOW() WHERE player_id = ?`,
       [notice, pid],
@@ -234,16 +268,19 @@ async function evaluateAndRepairLockedPlayer(conn, pl) {
     return { road_client_notice: notice };
   }
 
-  const [nr] = await conn.query(
-    'SELECT road_position_x, road_position_y, road_client_notice FROM players WHERE player_id = ? LIMIT 1',
-    [pid],
-  );
-  const row = nr[0];
-  if (!row) return null;
+  console.error('[staleStrategicRoadStandRepair] relocated to jun battlefield:', {
+    pid,
+    fromJun: junId,
+    from: { rx, ry },
+    toJun: bf.junId,
+    to: { x: bf.x, y: bf.y },
+  });
+
   return {
-    road_position_x: row.road_position_x != null ? Number(row.road_position_x) : null,
-    road_position_y: row.road_position_y != null ? Number(row.road_position_y) : null,
-    road_client_notice: row.road_client_notice != null ? String(row.road_client_notice) : null,
+    road_jun_id: bf.junId,
+    road_position_x: bf.x,
+    road_position_y: bf.y,
+    road_client_notice: bf.notice,
   };
 }
 
@@ -281,6 +318,113 @@ async function repairStaleStandIfNeededAfterProfileLoad(pool, playerId) {
   }
 }
 
+/** 软修复是否已改郡/坐标（仅写 notice 不算，须继续 force） */
+function softPatchChangedStand(soft) {
+  if (!soft || typeof soft !== 'object') return false;
+  return soft.road_position_x != null || soft.road_position_y != null || soft.road_jun_id != null;
+}
+
+/**
+ * 锁内：当前路点是否已落在郡战场入口（前后端均认的立足格）。
+ * `repair-stand` 仅在此情况下跳过 force，避免「已在战场又随机迁一次」写第二条 notice。
+ * 勿用「服务端自认道路/POI 合法」代替——前端报 UNRESOLVED 时可能与服务端口径不一致。
+ */
+async function isLockedPlayerOnJunBattlefield(_conn, pl) {
+  const junId = String(pl?.road_jun_id || '').trim();
+  const rx = Number(pl?.road_position_x);
+  const ry = Number(pl?.road_position_y);
+  if (!junId || !Number.isFinite(rx) || !Number.isFinite(ry)) return false;
+
+  const grid = await loadRoadGridForJun('san_1', junId);
+  if (grid.source === 'none' || !grid.rawCells?.length) return false;
+  const ew = playerRoadToWorldMapCell(junId, rx, ry);
+  if (!ew) return false;
+  return !!readJunBattlefieldAtGrid(grid.rawCells, ew.gx, ew.worldGy);
+}
+
+/**
+ * 前端已判定「离路且未命中城/寨/大本营/战场」时调用：先走常规修复；
+ * 若未改坐标，则强制随机战场入口（本接口以「前端仍无法立足」为准，禁止用服务端宽口径 alreadyValid 顶掉迁格）。
+ * 仅当**已在战场入口**时跳过 force，避免二次 notice。
+ * @param {*} pool
+ * @param {string} playerId
+ */
+async function repairOrForceBattlefieldForUnresolvedStand(pool, playerId) {
+  const pid = String(playerId || '').trim();
+  if (!pid) return { ok: false, error: '缺少 playerId' };
+
+  const soft = await repairStaleStandIfNeededAfterProfileLoad(pool, pid);
+  if (softPatchChangedStand(soft)) {
+    return { ok: true, forced: false, patch: soft };
+  }
+
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    const [rows] = await conn.query('SELECT * FROM players WHERE player_id = ? FOR UPDATE', [pid]);
+    const pl = rows[0];
+    if (!pl) {
+      await conn.rollback();
+      return { ok: false, error: '玩家不存在' };
+    }
+
+    const soft2 = await evaluateAndRepairLockedPlayer(conn, pl);
+    if (softPatchChangedStand(soft2)) {
+      await conn.commit();
+      return { ok: true, forced: false, patch: soft2 };
+    }
+
+    /** 已在战场：不改坐标、不重写 notice（防叠窗）；否则前端既调本接口就必须迁走 */
+    if (await isLockedPlayerOnJunBattlefield(conn, pl)) {
+      await conn.commit();
+      return { ok: true, forced: false, patch: null, alreadyValid: true };
+    }
+
+    const junId = String(pl.road_jun_id || '').trim() || 'san_1_jun_yingchuan';
+    const season = 'san_1';
+    const grid = await loadRoadGridForJun(season, junId);
+    const bf = await applyRandomJunBattlefieldStand(conn, {
+      season,
+      junId,
+      grid: grid?.source === 'none' ? null : grid,
+      playerId: pid,
+      loadRoadGrid,
+    });
+    if (!bf.ok) {
+      await conn.rollback();
+      console.error('[staleStrategicRoadStandRepair] force battlefield failed:', bf.error, { pid, junId });
+      return { ok: false, error: bf.error || '无可用郡战场入口格' };
+    }
+    await conn.commit();
+    console.error('[staleStrategicRoadStandRepair] force relocated to jun battlefield:', {
+      pid,
+      toJun: bf.junId,
+      to: { x: bf.x, y: bf.y },
+    });
+    return {
+      ok: true,
+      forced: true,
+      patch: {
+        road_jun_id: bf.junId,
+        road_position_x: bf.x,
+        road_position_y: bf.y,
+        road_client_notice: bf.notice,
+      },
+    };
+  } catch (err) {
+    try {
+      await conn.rollback();
+    } catch (_) {
+      /* ignore */
+    }
+    console.error('[staleStrategicRoadStandRepair] force transaction failed:', err?.message || err);
+    throw err;
+  } finally {
+    conn.release();
+  }
+}
+
 module.exports = {
   repairStaleStandIfNeededAfterProfileLoad,
+  repairOrForceBattlefieldForUnresolvedStand,
 };

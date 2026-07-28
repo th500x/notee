@@ -3,10 +3,10 @@
  *
  * 职责：
  *   1. 战事生命周期：草案（pending）→ 活跃（active）→ 结算（completed/failed/cancelled）
- *   2. 攻方城外大本营（1×2 / 2×1）选位 + NPC 守军初始化 + 持久化到 `wars_pvp.base_camp` JSON
+ *   2. 攻方城外大本营（道路上 1×1 · `camp_01`）选位 + NPC 守军初始化 + 持久化到 `wars_pvp.base_camp` JSON
  *   3. 大本营 NPC 战斗握手：分批输出守军 + 战后写回存活 + 触发胜负
  *   4. 胜负判定与结算（capture_city / eliminate_attacker_base_camp / hold_city / war_morale_race / timeout）
- *   5. 24h 时钟（与 11-3 协同：阶段表以 11-3 为准；本服务只做整场到点判负）
+ *   5. 7 日墙钟（与 11-3 协同：阶段表以 11-3 为准；本服务只做整场到点判负）
  *
  * 与 PVE 隔离：本服务不读写 `wars`（PVE）；PVE 路径 `cityService` 也禁止 import 本服务。
  * 共享：复用 `cityService` 的 NPC 生成池逻辑（部队池、稀有度循环），不另写一套数值。
@@ -34,16 +34,17 @@ const {
 } = require('../../shared/utils/pvpBaseCampConstants.cjs');
 
 /** 单场 PVP 战事最长时长（自然 24h，17-3 §0 / §6.2）。 */
-const PVP_WAR_DURATION_MS = 24 * 60 * 60 * 1000;
+/** 单场 PVP 战事墙钟上限（17-3：7 天） */
+const PVP_WAR_DURATION_MS = 7 * 24 * 60 * 60 * 1000;
 
 /**
  * 同一攻方势力在 `wars_pvp` 上 pending+active 条数上限（与 PVE 合计见 warConcurrencyService，合计至多 1）。
  */
 const MAX_CONCURRENT_PVP_WARS_PER_ATTACKER_FACTION = 1;
 
-/** 大本营贴图键（与 `public/.../tile_3_object` 像素比一致：`camp_02` 64×128 竖、`camp_01` 128×64 横）。 */
-const BASE_CAMP_SPRITE_VERTICAL = 'camp_02';
-const BASE_CAMP_SPRITE_HORIZONTAL = 'camp_01';
+/** 大本营贴图：单格 1×1，固定 `camp_01`（道路贴城）。 */
+const BASE_CAMP_SPRITE_SINGLE = 'camp_01';
+const BASE_CAMP_ORIENTATION_SINGLE = 'single';
 
 /** 内存锁键空间，避免同一场战事 / 大本营被并发结算 */
 const baseCampLocks = new Map();
@@ -66,7 +67,7 @@ function releaseBaseCampLock(pvpWarId, attackerId) {
 
 // ==================== 大本营选位（geometry） ====================
 
-const BASE_CAMP_ROAD_NEIGHBOR_OFFSETS = [
+const BASE_CAMP_CITY_NEIGHBOR_OFFSETS = [
   [1, 0],
   [-1, 0],
   [0, 1],
@@ -74,124 +75,66 @@ const BASE_CAMP_ROAD_NEIGHBOR_OFFSETS = [
 ];
 
 /**
- * 骨牌两格是否至少有一格与道路格 **4-邻接**（本营须在路旁，与离路出发「首跳须邻接道路」一致）。
- * @param {string[]} cellKeys - `["gx,gy", ...]`
- * @param {Set<string>} roadKeys
- */
-function dominoTouchesRoadFourWay(cellKeys, roadKeys) {
-  if (!roadKeys?.size || !cellKeys?.length) return false;
-  for (const k of cellKeys) {
-    const parts = String(k)
-      .split(',')
-      .map((s) => Number(String(s).trim()));
-    const x = parts[0];
-    const y = parts[1];
-    if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
-    for (const [dx, dy] of BASE_CAMP_ROAD_NEIGHBOR_OFFSETS) {
-      if (roadKeys.has(`${x + dx},${y + dy}`)) return true;
-    }
-  }
-  return false;
-}
-
-/**
- * 在目标城 footprint 边相邻的范围内寻找可放下 1×2 / 2×1 大本营的合法槽位。
+ * 在目标城 footprint **四邻接的道路格**上寻找可放下 **1×1** 大本营的合法槽位。
  *
- * 规则（与 17-3 §1.6 / 实现计划一致，并叠 **邻路** 约束）：
- *   - 两格均在地图内、不在 `blocked`（其它城/关/匪寨 footprint）、不在道路集合
- *   - 不与本郡内已有 active PVP 战事的大本营 footprint 重叠
- *   - 至少一格与目标城 footprint 4 邻接（"贴城"），且不落在 footprint 内
- *   - **至少一格与某道路格 4 邻接**（本营必须紧靠路网，禁止「贴城但隔城/隔格才到路」）
+ * 规则（17-3 §6）：
+ *   - 单格须在地图内、为道路格（`roadKeys`）
+ *   - 不落在城 footprint / 其它战略禁区（`blocked`）内
+ *   - 不与本郡已有大本营占格重叠
+ *   - 与目标城 footprint **至少一格 4 邻接**（贴城路边）
+ *   - **不**拦路：本营叠在道路上，行军仍可正常使用该路格（本营仅为 POI 落点）
  *
- * @param {object} ctx - { rawCells, mapColumns, mapRows, roadKeys, blocked, cityFootprint, occupiedCamps }
- * @returns {Array<{ anchorOx: number, anchorOy: number, orientation: 'vertical'|'horizontal', cells: string[] }>}
+ * @param {object} ctx - { mapColumns, mapRows, roadKeys, blocked, cityFootprint, occupiedCamps }
+ * @returns {Array<{ anchorOx: number, anchorOy: number, orientation: 'single', cells: string[] }>}
  */
 function findBaseCampCandidatePlacements(ctx) {
   const { mapColumns, mapRows, roadKeys, blocked, cityFootprint, occupiedCamps } = ctx;
-  if (!cityFootprint?.size) return [];
+  if (!cityFootprint?.size || !roadKeys?.size) return [];
 
   const occupiedKeys = new Set();
   for (const k of occupiedCamps) occupiedKeys.add(k);
 
-  const cityKeys = cityFootprint;
-
   const candidates = [];
-  for (let gy = 0; gy < mapRows; gy++) {
-    for (let gx = 0; gx < mapColumns; gx++) {
-      for (const orientation of ['vertical', 'horizontal']) {
-        const cells =
-          orientation === 'vertical'
-            ? [
-                { x: gx, y: gy },
-                { x: gx, y: gy + 1 },
-              ]
-            : [
-                { x: gx, y: gy },
-                { x: gx + 1, y: gy },
-              ];
-        let inBounds = true;
-        let touchesCity = false;
-        const keys = [];
-        for (const { x, y } of cells) {
-          if (x < 0 || y < 0 || x >= mapColumns || y >= mapRows) {
-            inBounds = false;
-            break;
-          }
-          const k = `${x},${y}`;
-          keys.push(k);
-          if (cityKeys.has(k)) {
-            inBounds = false;
-            break;
-          }
-          if (blocked.has(k)) {
-            inBounds = false;
-            break;
-          }
-          if (roadKeys.has(k)) {
-            inBounds = false;
-            break;
-          }
-          if (occupiedKeys.has(k)) {
-            inBounds = false;
-            break;
-          }
-          for (const ck of cityKeys) {
-            const [cx, cy] = ck.split(',').map(Number);
-            if (Math.abs(cx - x) + Math.abs(cy - y) === 1) {
-              touchesCity = true;
-              break;
-            }
-          }
-        }
-        if (!inBounds || !touchesCity) continue;
-        if (!dominoTouchesRoadFourWay(keys, roadKeys)) continue;
-        candidates.push({
-          anchorOx: gx,
-          anchorOy: gy,
-          orientation,
-          cells: keys,
-        });
-      }
+  const seen = new Set();
+
+  for (const ck of cityFootprint) {
+    const parts = String(ck)
+      .split(',')
+      .map((s) => Number(String(s).trim()));
+    const cx = parts[0];
+    const cy = parts[1];
+    if (!Number.isFinite(cx) || !Number.isFinite(cy)) continue;
+    for (const [dx, dy] of BASE_CAMP_CITY_NEIGHBOR_OFFSETS) {
+      const x = cx + dx;
+      const y = cy + dy;
+      if (x < 0 || y < 0 || x >= mapColumns || y >= mapRows) continue;
+      const k = `${x},${y}`;
+      if (seen.has(k)) continue;
+      seen.add(k);
+      if (!roadKeys.has(k)) continue;
+      if (cityFootprint.has(k)) continue;
+      if (blocked.has(k)) continue;
+      if (occupiedKeys.has(k)) continue;
+      candidates.push({
+        anchorOx: x,
+        anchorOy: y,
+        orientation: BASE_CAMP_ORIENTATION_SINGLE,
+        cells: [k],
+      });
     }
   }
   return candidates;
 }
 
 /**
- * 候选锚点择一（实现计划 §12-D）：
- *   M2 用确定性序：按 (anchorOy, anchorOx, orientation) 字典升序取首个；同坐标下竖 1×2 优先于横 2×1。
- *   未来可改为基于 pvpWarId hash 的固定随机；签名保留 `pickerSeed` 参数。
+ * 候选锚点择一：按 (anchorOy, anchorOx) 字典升序取首个（确定性）。
+ * 签名保留 `pickerSeed` 供日后固定随机。
  */
 function pickBaseCampPlacement(candidates, pickerSeed = 0) {
   if (!candidates?.length) return null;
   void pickerSeed;
-  const ord = (s) => (s === 'vertical' ? 0 : 1);
   const sorted = [...candidates].sort((a, b) =>
-    a.anchorOy !== b.anchorOy
-      ? a.anchorOy - b.anchorOy
-      : a.anchorOx !== b.anchorOx
-        ? a.anchorOx - b.anchorOx
-        : ord(a.orientation) - ord(b.orientation),
+    a.anchorOy !== b.anchorOy ? a.anchorOy - b.anchorOy : a.anchorOx - b.anchorOx,
   );
   return sorted[0];
 }
@@ -293,7 +236,7 @@ async function createBaseCampJsonForCity(targetCity, pickerSeed, opts = {}) {
   });
   if (!candidates.length) {
     throw new Error(
-      `[baseCamp] 目标城 ${targetCity.city_id} 周围无 1×2/2×1 合法空地放置大本营（须贴城且至少一格四邻接道路）`,
+      `[baseCamp] 目标城 ${targetCity.city_id} 贴城路边无可用道路格放置 1×1 大本营`,
     );
   }
   const pick = pickBaseCampPlacement(candidates, pickerSeed);
@@ -317,11 +260,10 @@ async function createBaseCampJsonForCity(targetCity, pickerSeed, opts = {}) {
     junId,
     anchorOx: pick.anchorOx,
     anchorOy: pick.anchorOy,
-    orientation: pick.orientation,
+    orientation: BASE_CAMP_ORIENTATION_SINGLE,
     cells: pick.cells,
     worldCellKeys,
-    spriteKey:
-      pick.orientation === 'vertical' ? BASE_CAMP_SPRITE_VERTICAL : BASE_CAMP_SPRITE_HORIZONTAL,
+    spriteKey: BASE_CAMP_SPRITE_SINGLE,
     npcTotal: npcCount,
     npcAlive: npcCount,
     npcUnits,
@@ -332,16 +274,15 @@ async function createBaseCampJsonForCity(targetCity, pickerSeed, opts = {}) {
 // ==================== NPC 守军生成（大本营） ====================
 
 /**
- * 大本营 NPC 守军支数：与目标城同档但只取 80%（17-3 §1.6）。
- * 不读取 city 的当前 `npc_garrison_alive`（残余），改用 cityType 满编档；这也避免战时残余传染。
+ * 大本营 NPC 守军支数：目标城「人口×1%」满编 × `BASE_CAMP_NPC_RATIO_TO_FULL_GARRISON`（17-3）。
+ * 不读取 city 的当前 `npc_garrison_alive`（残余），改用人口推导满编；这也避免战时残余传染。
  */
 function computeBaseCampNpcCount(cityRow) {
-  const t = cityRow?.city_type;
-  const fullCount = cityService.NPC_TROOP_COUNT_OWNED[t];
-  if (!fullCount) {
-    throw new Error(`[pvpWar] 不支持的目标城类型用于大本营生成: ${t}`);
+  const fullCount = cityService.resolveNpcGarrisonCapFromPopulation(cityRow?.population);
+  if (!fullCount || fullCount < 1) {
+    throw new Error(`[pvpWar] 无法由目标城人口推导大本营 NPC 支数: population=${cityRow?.population}`);
   }
-  return Math.round(fullCount * BASE_CAMP_NPC_RATIO_TO_FULL_GARRISON);
+  return Math.max(1, Math.round(fullCount * BASE_CAMP_NPC_RATIO_TO_FULL_GARRISON));
 }
 
 /**
@@ -387,18 +328,8 @@ async function createPvpWarDraft(input) {
   const city = await cityService.getCityInfo(targetCityId);
   if (!city) throw new Error(`[pvpWar] 目标城不存在: ${targetCityId}`);
 
-  const cityType = String(city.city_type ?? city.cityType ?? '').trim();
-  const isFortTarget = cityType === 'fort';
-
-  // 据点（fort）：仅允许「敌对势力已占」（与 `cityService.isCityOccupiedForNpcGarrison` 同口径）。
-  // 中立/无归属白点据点禁止 `wars_pvp`；城级中立仍走既有 PVE，此处不收紧非 fort 目标。
-  if (isFortTarget) {
-    if (!cityService.isCityOccupiedForNpcGarrison(city)) {
-      throw new Error(
-        '[pvpWar] 据点为中立或未占领时不可创建势力 PVP 战事，仅可向敌对势力已占据点宣战',
-      );
-    }
-  } else if (!city.faction_id) {
+  // 中立城走 PVE；已占城可建 PVP
+  if (!city.faction_id) {
     throw new Error('[pvpWar] 目标城为中立城，应走 PVE wars 流程，不可创建 PVP 战事');
   }
   if (city.faction_id === attackerFactionId) {
@@ -826,7 +757,8 @@ async function cancelAttackingSiegeWarViaSanGongChaoZheng(playerId, pvpWarId, bo
  * @param {string} playerId - 守方玩家
  * @returns {Promise<{ pvpWarId: string, baseCampSlice: object[], baseCampAlive: number, baseCampTotal: number, batchIndex: number }>}
  */
-async function initiateBaseCampSiege(pvpWarId, playerId) {
+async function initiateBaseCampSiege(pvpWarId, playerId, options = {}) {
+  const continueChain = options.continueChain === true;
   const cityService = require('./cityService');
   const garrisonService = require('./garrisonService');
 
@@ -865,9 +797,11 @@ async function initiateBaseCampSiege(pvpWarId, playerId) {
     throw new Error('[pvpWar] 大本营守军已全灭');
   }
 
-  await cityService.consumeSiegeQuotaForBattleStart(playerId);
+  const didConsumeToken = await cityService.consumeSiegeQuotaForBattleStart(playerId, null, {
+    continueChain,
+  });
   if (!tryAcquireBaseCampLock(pvpWarId, playerId)) {
-    await cityService.refundSiegeQuotaOnce(playerId);
+    if (didConsumeToken) await cityService.refundSiegeQuotaOnce(playerId);
     throw new Error('[pvpWar] 大本营当前有友军在交战，请稍后再试');
   }
 
@@ -880,7 +814,7 @@ async function initiateBaseCampSiege(pvpWarId, playerId) {
     if (!gate.ok) {
       await conn.rollback();
       releaseBaseCampLock(pvpWarId, playerId);
-      await cityService.refundSiegeQuotaOnce(playerId);
+      if (didConsumeToken) await cityService.refundSiegeQuotaOnce(playerId);
       throw new Error(gate.error);
     }
     await garrisonService.deductMainLineupBattleFoodDeployCostOnConn(conn, playerId, {
@@ -893,28 +827,40 @@ async function initiateBaseCampSiege(pvpWarId, playerId) {
       await conn.rollback();
     } catch (_) {}
     releaseBaseCampLock(pvpWarId, playerId);
-    await cityService.refundSiegeQuotaOnce(playerId);
+    if (didConsumeToken) await cityService.refundSiegeQuotaOnce(playerId);
     throw e;
   } finally {
     conn.release();
   }
+
+  const [cityRows] = await pool.query('SELECT * FROM cities WHERE city_id = ? LIMIT 1', [
+    war.targetCityId,
+  ]);
+  const targetCity = cityRows[0] || null;
 
   const maxBatch = Math.ceil(aliveEntries.length / 4);
   const batchIndex = 0;
   const slice = aliveEntries.slice(batchIndex * 4, batchIndex * 4 + 4);
   void maxBatch;
 
-  return {
-    pvpWarId,
-    targetCityId: war.targetCityId,
-    targetCityName: war.targetCityName,
-    attackerFactionId: war.attackerFactionId,
-    defenderFactionId: war.defenderFactionId,
-    baseCampSlice: slice.map(({ u, idx }) => ({ ...u, index: idx })),
-    baseCampAlive: aliveEntries.length,
-    baseCampTotal: camp.npcUnits.length,
-    batchIndex,
-  };
+  // 大本营守军为被攻击方：叠目标城 `cities.defense` 城防倍率（与攻城同口径）
+  return attachSiegeCityDefenseToPayload(
+    {
+      pvpWarId,
+      targetCityId: war.targetCityId,
+      targetCityName: war.targetCityName,
+      attackerFactionId: war.attackerFactionId,
+      defenderFactionId: war.defenderFactionId,
+      baseCampSlice: slice.map(({ u, idx }) => ({ ...u, index: idx })),
+      baseCampAlive: aliveEntries.length,
+      baseCampTotal: camp.npcUnits.length,
+      batchIndex,
+      siegeTokenConsumed: didConsumeToken,
+      pvpDefenderBaseCampSiege: true,
+      defenderType: 'npc',
+    },
+    targetCity,
+  );
 }
 
 /**
@@ -1190,7 +1136,8 @@ function releaseAllPvpWarMemoryLocks(pvpWarId) {
  * @param {string} attackerPlayerId
  * @returns {Promise<object>}
  */
-async function initiateAttackerCitySiege(pvpWarId, attackerPlayerId) {
+async function initiateAttackerCitySiege(pvpWarId, attackerPlayerId, options = {}) {
+  const continueChain = options.continueChain === true;
   const garrisonService = require('./garrisonService');
   const cityService = require('./cityService');
 
@@ -1231,7 +1178,10 @@ async function initiateAttackerCitySiege(pvpWarId, attackerPlayerId) {
   const city = await cityService.getCityInfo(war.targetCityId);
   if (!city) throw new Error('[pvpWar] 目标城不存在');
 
-  await cityService.consumeSiegeQuotaForBattleStart(attackerPlayerId);
+  // 结算「继续」连打不扣兵符（与匪寨同口径）；大地图再次发起仍扣
+  const didConsumeToken = await cityService.consumeSiegeQuotaForBattleStart(attackerPlayerId, null, {
+    continueChain,
+  });
 
   // ── 1) 普通驻守玩家：按位置等级 / 槽位顺序匹配（披挂 on_duty 已移除） ──
   const playerDefenders = await garrisonService.getCityGarrisonDefenders(
@@ -1265,6 +1215,7 @@ async function initiateAttackerCitySiege(pvpWarId, attackerPlayerId) {
         defenderName: def.character_name || null,
         defenderPlayerId: def.player_id,
         defenderGarrisonSlot: def.garrison_slot ?? 1,
+        siegeTokenConsumed: didConsumeToken,
       }, city);
       if (policiesRow) {
         const imperialMarchService = require('./imperialMarchService');
@@ -1277,7 +1228,7 @@ async function initiateAttackerCitySiege(pvpWarId, attackerPlayerId) {
       return garrisonPayload;
     } catch (playerDefenderErr) {
       releasePvpCityLock(lockKey, attackerPlayerId);
-      await cityService.refundSiegeQuotaOnce(attackerPlayerId);
+      if (didConsumeToken) await cityService.refundSiegeQuotaOnce(attackerPlayerId);
       throw playerDefenderErr;
     }
   }
@@ -1290,6 +1241,7 @@ async function initiateAttackerCitySiege(pvpWarId, attackerPlayerId) {
     if (u && u.alive) aliveEntries.push({ u, gi });
   }
   if (aliveEntries.length === 0) {
+    if (didConsumeToken) await cityService.refundSiegeQuotaOnce(attackerPlayerId);
     throw new Error('[pvpWar] 目标城暂无可攻打守军');
   }
 
@@ -1318,7 +1270,7 @@ async function initiateAttackerCitySiege(pvpWarId, attackerPlayerId) {
     tryPickBatch();
   }
   if (battleSlice == null) {
-    await cityService.refundSiegeQuotaOnce(attackerPlayerId);
+    if (didConsumeToken) await cityService.refundSiegeQuotaOnce(attackerPlayerId);
     throw new Error('[pvpWar] 当前各战线均有友军交战中，请稍后再试');
   }
 
@@ -1335,6 +1287,7 @@ async function initiateAttackerCitySiege(pvpWarId, attackerPlayerId) {
       defenderFactionId: war.defenderFactionId,
       defenderType: 'npc',
       npcBatchIndex,
+      siegeTokenConsumed: didConsumeToken,
     }, city);
 
     if (policiesRow) {
@@ -1347,7 +1300,7 @@ async function initiateAttackerCitySiege(pvpWarId, attackerPlayerId) {
     if (npcBatchIndex != null) {
       releasePvpCityLock(buildPvpCityNpcLockKey(pvpWarId, npcBatchIndex), attackerPlayerId);
     }
-    await cityService.refundSiegeQuotaOnce(attackerPlayerId);
+    if (didConsumeToken) await cityService.refundSiegeQuotaOnce(attackerPlayerId);
     throw npcSiegeErr;
   }
 }
@@ -1922,7 +1875,7 @@ function releaseSiegePayloadLock(pvpWarId, attackerPlayerId, payload) {
  *   | { ok:false, stop?:boolean, reason?:string, error?:string }
  * >}
  */
-async function resolveAuthoritativeAttackerCitySiege(pvpWarId, attackerPlayerId) {
+async function resolveAuthoritativeAttackerCitySiege(pvpWarId, attackerPlayerId, options = {}) {
   const garrisonService = require('./garrisonService');
   const { hashSeed } = require('./pvp/auto-duel/pvpAutoDuelSim');
   const { tacticalToAutoDuelResult } = require('./pvp/tactical/tacticalToAutoDuelResult');
@@ -1931,7 +1884,7 @@ async function resolveAuthoritativeAttackerCitySiege(pvpWarId, attackerPlayerId)
   // 1) 发起攻城：扣配额 + 选防守者/抢锁。失败（次数不足/无守军/阶段门禁/上阵不足/各线交战中）= 正常停。
   let payload;
   try {
-    payload = await initiateAttackerCitySiege(pvpWarId, attackerPlayerId);
+    payload = await initiateAttackerCitySiege(pvpWarId, attackerPlayerId, options);
   } catch (e) {
     return { ok: false, stop: true, reason: e.message };
   }
@@ -2079,7 +2032,9 @@ async function resolveAuthoritativeAttackerCitySiege(pvpWarId, attackerPlayerId)
       // initiate 已抢锁/扣配额，record 未成功 → 兜底释放锁 + 退配额（幂等）。
       releaseSiegePayloadLock(pvpWarId, attackerPlayerId, payload);
       try {
-        await cityService.refundSiegeQuotaOnce(attackerPlayerId);
+        if (payload?.siegeTokenConsumed) {
+          await cityService.refundSiegeQuotaOnce(attackerPlayerId);
+        }
       } catch (_) {
         /* ignore refund failure */
       }
@@ -2096,7 +2051,7 @@ async function resolveAuthoritativeAttackerCitySiege(pvpWarId, attackerPlayerId)
  * @param {string} pvpWarId
  * @param {string} defenderPlayerId - 守方玩家（攻打大本营者）
  */
-async function resolveAuthoritativeBaseCampSiege(pvpWarId, defenderPlayerId) {
+async function resolveAuthoritativeBaseCampSiege(pvpWarId, defenderPlayerId, options = {}) {
   const garrisonService = require('./garrisonService');
   const { hashSeed } = require('./pvp/auto-duel/pvpAutoDuelSim');
   const { tacticalToAutoDuelResult } = require('./pvp/tactical/tacticalToAutoDuelResult');
@@ -2104,7 +2059,7 @@ async function resolveAuthoritativeBaseCampSiege(pvpWarId, defenderPlayerId) {
 
   let payload;
   try {
-    payload = await initiateBaseCampSiege(pvpWarId, defenderPlayerId);
+    payload = await initiateBaseCampSiege(pvpWarId, defenderPlayerId, options);
   } catch (e) {
     return { ok: false, stop: true, reason: e.message };
   }
@@ -2126,6 +2081,8 @@ async function resolveAuthoritativeBaseCampSiege(pvpWarId, defenderPlayerId) {
       lineupSnapshots: { a: attackerNpcs, b: defenderNpcs },
       battleSeed: seed,
       sideLabels: { a: '守方', b: '大本营' },
+      // 大本营 NPC（side b）被攻击时叠目标城防守系数
+      defenseBonus: { b: payload.cityDefense ?? 100 },
     });
     const adapted = tacticalToAutoDuelResult({
       winnerSide: tactical.winnerSide,
@@ -2224,7 +2181,9 @@ async function resolveAuthoritativeBaseCampSiege(pvpWarId, defenderPlayerId) {
     if (!recorded) {
       releaseBaseCampLock(pvpWarId, defenderPlayerId);
       try {
-        await cityService.refundSiegeQuotaOnce(defenderPlayerId);
+        if (payload?.siegeTokenConsumed) {
+          await cityService.refundSiegeQuotaOnce(defenderPlayerId);
+        }
       } catch (_) {
         /* ignore */
       }
@@ -2460,8 +2419,8 @@ module.exports = {
   BASE_CAMP_NPC_RATIO_TO_FULL_GARRISON,
   BASE_CAMP_SIEGE_FOOD_COST_MULTIPLIER,
   MAX_CONCURRENT_PVP_WARS_PER_ATTACKER_FACTION,
-  BASE_CAMP_SPRITE_VERTICAL,
-  BASE_CAMP_SPRITE_HORIZONTAL,
+  BASE_CAMP_SPRITE_SINGLE,
+  BASE_CAMP_ORIENTATION_SINGLE,
   // 选位（暴露用于测试）
   findBaseCampCandidatePlacements,
   pickBaseCampPlacement,

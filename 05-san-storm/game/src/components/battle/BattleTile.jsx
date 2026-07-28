@@ -1,13 +1,22 @@
 /**
  * BattleTile - 单个地图格子
- * 渲染：底色 → 地形叠加 → 对象层 → 角标 → 部队层
+ * 渲染：Wang 底色 → 桥/山丘/对象（部队之下）→ 角标 → 部队
+ * 树林跨格由 BattleMap 格网叠层绘制，避免单格 overflow 裁切水平 2×1。
  */
 import { memo, useRef, useCallback } from 'react';
-import { getBg, getTerrain, getObj, buildTacticalTileTooltipInfo, tacticalFireFrameUrl } from './battleConstants';
+import {
+  getBg, getTerrain, getObj, buildTacticalTileTooltipInfo, tacticalFireFrameUrl, terrainOverlayUrl,
+} from './battleConstants';
 import TroopLayer from './TroopLayer';
 
 function BattleTile({
   terrain, variants, obj, cellOnFire = false, troop, showTroops, deployHighlight,
+  /** v2：本格 Wang 底瓦相对路径 */
+  baseTileRel = null,
+  /** v2：本格山丘叠章（可多枚 32×32） */
+  hillOverlay = null,
+  /** v2：本格桥梁（河宽每一格一张） */
+  bridgeOverlay = null,
   /** 事件战战前：与战役一致，当前选中的我军部署单位 */
   preBattleDeploySelected = false,
   /** @type {'active'|'move'|'skillPreview'|'atk'|'heal'|null} */
@@ -15,17 +24,23 @@ function BattleTile({
   manualMoveCost = null,
   onHover, onLeave, onClick,
 }) {
-  const isChest = obj && obj.type === 'chest';
+  const isChest = obj && obj.type === 'chest' && !obj.isOpen;
+  const hideConsumedObj =
+    obj &&
+    (obj.type === 'chest' || obj.type === 'random' || obj.type === 'farm') &&
+    !!obj.isOpen;
   const terrainSrc = getTerrain(terrain, variants);
-  const tileTip = buildTacticalTileTooltipInfo({ terrain, obj, cellOnFire });
+  const tileTip = buildTacticalTileTooltipInfo({
+    terrain,
+    obj: hideConsumedObj ? null : obj,
+    cellOnFire,
+  });
   const info = tileTip;
 
-  // 长按触摸显示详情
   const touchTimer = useRef(null);
   const tileRef = useRef(null);
   const handleTouchStart = useCallback((e) => {
     touchTimer.current = setTimeout(() => {
-      // 构造一个类似 mouse event 的对象，带 currentTarget 和坐标
       const touch = e.touches[0];
       const fakeEvent = { currentTarget: tileRef.current, clientX: touch.clientX, clientY: touch.clientY };
       onHover?.(fakeEvent);
@@ -48,9 +63,27 @@ function BattleTile({
       onTouchEnd={handleTouchEnd}
       onTouchCancel={handleTouchEnd}
     >
-      <img className="tile-bg" src={getBg(terrain, variants, isChest)} alt="" />
+      <img className="tile-bg" src={getBg(terrain, variants, isChest, baseTileRel)} alt="" />
       {terrainSrc && <img className="tile-bg" src={terrainSrc} alt="" />}
-      {obj && <img className="tile-bg" src={getObj(obj.type, obj.isOpen)} alt="" />}
+      {bridgeOverlay?.tileRel && (
+        <img
+          className="tile-bridge-stamp"
+          src={terrainOverlayUrl(bridgeOverlay.tileRel)}
+          alt=""
+        />
+      )}
+      {hillOverlay?.stamps?.map((s, i) => (
+        <img
+          key={`hill-${i}`}
+          className="tile-hill-stamp"
+          src={terrainOverlayUrl(s.tileRel)}
+          alt=""
+          style={{ left: `${(s.ox ?? 0) * 100}%`, top: `${(s.oy ?? 0) * 100}%` }}
+        />
+      ))}
+      {obj && !hideConsumedObj && (
+        <img className="tile-bg tile-obj-stamp" src={getObj(obj.type, obj.isOpen, obj.tileRel)} alt="" />
+      )}
       {cellOnFire && (
         <div className="tile-fire-fx" aria-hidden>
           {Array.from({ length: 12 }, (_, i) => (

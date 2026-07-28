@@ -58,7 +58,7 @@ const STAGE = { LOADING: 'loading', READY: 'ready' };
  * @param {number}  [cityDefense]                    攻城目标城 `cities.defense`（API cityDefense）
  * @param {number}  [siegeCityDefenseMult]           预计算城防倍率（与 cityDefense 二选一）
  * @param {string}  [pvpSiegeRole]                     `attacker`|`defender`（道路观战守方为 defender）
- * @param {boolean} [pvpDefenderBaseCampSiege]         攻方大本营战，不传城防倍率
+ * @param {boolean} [pvpDefenderBaseCampSiege]         攻方大本营战（粮草×2）；城防倍率与攻城同口径
  * @param {Array}   [eventExtraEnemyCharacterIds]    事件惩罚战额外将领（指定将领 ID 时 5 编制；与 eventPunishmentExtraSlot 二选一，新配置已不用）
  * @param {boolean} [eventPunishmentExtraSlot]        事件因子 type-b：在默认编制上多 1 支敌方部队（池同事件稀有度）
  * @param {Array}   [cards]                          PlayerContext.cards，用于出征门槛校验
@@ -135,12 +135,10 @@ export default function SmallMapBattle({
   const siegeFoodCostMultiplier = pvpDefenderBaseCampSiege ? BASE_CAMP_SIEGE_FOOD_COST_MULTIPLIER : 1;
   const resolvedSiegeCityDefenseMult =
     battleType === 'pve_siege' || battleType === 'pvp_siege'
-      ? (pvpDefenderBaseCampSiege
-        ? 1
-        : resolveSiegeCityDefenseMultFromOpts({
+      ? resolveSiegeCityDefenseMultFromOpts({
           cityDefense,
           siegeCityDefenseMult: siegeCityDefenseMultProp,
-        }))
+        })
       : 1;
   const siegeCityDefenderFaction =
     pvpSiegeRole === 'defender' ? 'player' : 'enemy';
@@ -156,6 +154,8 @@ export default function SmallMapBattle({
     mapCardRef, battleSurfaceRef, manualBattleRef,
     setBattleEndReason: bm.setBattleEndReason,
     siegeCityDefenseMult: resolvedSiegeCityDefenseMult,
+    battleReportDigestRef: bm.battleReportDigestRef,
+    setMapResult: bm.setMapResult,
   });
 
   playBattleRoundRef.current = engine.playBattleRound;
@@ -167,6 +167,8 @@ export default function SmallMapBattle({
 
   const manual = useManualBattle({
     battleTroops: bm.battleTroops, mapResult: bm.mapResult,
+    setBattleTroops: bm.setBattleTroops,
+    setMapResult: bm.setMapResult,
     performAttack: engine.performAttack, performCounterAttack: engine.performCounterAttack,
     performPhase3Heal: engine.performPhase3Heal,
     performPhase4Damage: engine.performPhase4Damage,
@@ -243,7 +245,8 @@ export default function SmallMapBattle({
 
     initRef.current = true;
 
-    bm.generate('standard');
+    // generate 返回当帧地图；setMapResult 异步，落子必须用返回值，否则吸附读到 null 会站河
+    const freshMap = bm.generate('standard');
 
     if (enemyUnits) {
       const catalogById = buildTroopCatalogById(bm.allTroops);
@@ -255,9 +258,11 @@ export default function SmallMapBattle({
         baseUrl: import.meta.env.BASE_URL,
         catalogById,
         siegeCityDefenderFaction,
+        mapResult: freshMap,
       }));
     } else {
       bm.assignRealBattleTroops(playerUnits, enemyRarity || 'common', {
+        mapResult: freshMap,
         extraEnemyCharacterIds: eventExtraEnemyCharacterIds,
         eventPunishmentExtraSlot,
         skillsMap,
@@ -308,6 +313,8 @@ export default function SmallMapBattle({
     window.addEventListener('pagehide', flushInflightSnap);
     return () => {
       window.removeEventListener('pagehide', flushInflightSnap);
+      // 卸载时再刷一次终场兵力，避免结算先拆壳导致 snap 停在开战满编
+      flushInflightSnap();
     };
   }, [playerId, stage, bm.battleTroops]);
 

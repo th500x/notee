@@ -1,8 +1,8 @@
 /**
  * 战事发动「地图距离」规则：与战略缩略图 `computeStrategicMiniMapProximityHighlights` 同源
- *（己方城 footprint 中心曼哈顿距 → 全图取最近 3 敌对城 + 最近 3 中立城）。
+ *（己方城 footprint 中心曼哈顿距 → 全图取最近 3 敌对城 + 最近 3 中立城；含大/中城郡内清剿门闸）。
  *
- * 数据源：`cities.position_x/y` 为 **郡内** 锚格（与 `worldMapAdminService` 写入一致）；
+ * 数据源：`cities.position_x/y` 为 **郡内** 锚格（与工坊 / `junStrategicWorkshopService` 写入一致）；
  * 豫州多郡垂直叠放时须用 `strategicGridCoordinates.worldMapCellFromCityDbRow` 转成 **合并画布世界行**，
  * 与 `collectStrategicCityFootprintsForMiniMap(merged.cells)` 一致。列 `gx` 与单郡宽一致，仍为 `position_x`。
  */
@@ -12,6 +12,7 @@ const { loadRoadGridSan1YuVerticalStack } = require('../utils/roadGrid');
 const {
   computeStrategicMiniMapProximityHighlights,
 } = require('../../shared/utils/computeStrategicMiniMapProximityHighlights.js');
+const { evaluateWarJunClearance } = require('../../shared/utils/warJunClearanceGate.cjs');
 const { worldMapCellFromCityDbRow } = require('../../shared/utils/strategicGridCoordinates.js');
 
 /**
@@ -59,12 +60,11 @@ function buildDbFootprint(r) {
  */
 async function loadFootprintsAndCityByIdForSeason(season) {
   const s = String(season || 'san_1').trim() || 'san_1';
+  // 清剿门闸需要同郡全部城（含无坐标）；缩略距离仅用有坐标者建 footprint
   const [rows] = await pool.query(
     `SELECT city_id, city_name, city_type, faction_id, jun_id, position_x, position_y
      FROM cities
-     WHERE COALESCE(NULLIF(TRIM(season), ''), 'san_1') = ?
-       AND position_x IS NOT NULL
-       AND position_y IS NOT NULL`,
+     WHERE COALESCE(NULLIF(TRIM(season), ''), 'san_1') = ?`,
     [s],
   );
   const cityById = {};
@@ -76,6 +76,8 @@ async function loadFootprintsAndCityByIdForSeason(season) {
       factionId: r.faction_id,
       city_type: r.city_type,
       cityType: r.city_type,
+      jun_id: r.jun_id,
+      junId: r.jun_id,
     };
   }
 
@@ -86,6 +88,7 @@ async function loadFootprintsAndCityByIdForSeason(season) {
   }
   if (!footprints.length) {
     for (const r of rows) {
+      if (r.position_x == null || r.position_y == null) continue;
       const fp = buildDbFootprint(r);
       if (fp?.cityId) footprints.push(fp);
     }
@@ -118,7 +121,22 @@ async function getProximityHighlightCityIds(
   );
 }
 
+/**
+ * 大/中城郡内清剿门闸（与缩略图 / 谏言候选同源）。
+ * @param {string} factionId
+ * @param {string} targetCityId
+ * @param {string} [season]
+ */
+async function assertWarTargetJunClearance(factionId, targetCityId, season) {
+  const { cityById } = await loadFootprintsAndCityByIdForSeason(season);
+  const ev = evaluateWarJunClearance(targetCityId, cityById, factionId);
+  if (!ev.ok) {
+    throw new Error(ev.reason || '郡内清剿条件未满足');
+  }
+}
+
 async function assertHostilePvpTargetInMapRange(factionId, targetCityId, season) {
+  await assertWarTargetJunClearance(factionId, targetCityId, season);
   const { hostileCityIds } = await getProximityHighlightCityIds(factionId, season);
   const tid = String(targetCityId || '').trim();
   if (!tid || !new Set(hostileCityIds).has(tid)) {
@@ -127,6 +145,7 @@ async function assertHostilePvpTargetInMapRange(factionId, targetCityId, season)
 }
 
 async function assertNeutralPveTargetInMapRange(factionId, targetCityId, season) {
+  await assertWarTargetJunClearance(factionId, targetCityId, season);
   const { neutralCityIds } = await getProximityHighlightCityIds(factionId, season);
   const tid = String(targetCityId || '').trim();
   if (!tid || !new Set(neutralCityIds).has(tid)) {
@@ -138,5 +157,6 @@ module.exports = {
   getProximityHighlightCityIds,
   assertHostilePvpTargetInMapRange,
   assertNeutralPveTargetInMapRange,
+  assertWarTargetJunClearance,
   loadFootprintsAndCityByIdForSeason,
 };

@@ -124,20 +124,7 @@ async function equipCard(playerId, body) {
   }
 
   const cardToEquip = cards[0];
-  if (
-    cardToEquip.card_type === 'troop' &&
-    cardToEquip.rarity === 'core' &&
-    cardToEquip.max_battle_count != null
-  ) {
-    const used = Math.max(0, cardToEquip.battle_count ?? 0);
-    if (used >= cardToEquip.max_battle_count) {
-      return {
-        ok: false,
-        status: 400,
-        error: '核心(金)部队耐久已耗尽，无法再次装备上阵，仅作纪念与下赛季继承',
-      };
-    }
-  }
+  // 金/橙耐久耗尽仍可装备（战斗内磨耗）；白/蓝/紫耗尽已删卡，不会走到这里
 
   if (
     cardToEquip.card_type === 'treasure' &&

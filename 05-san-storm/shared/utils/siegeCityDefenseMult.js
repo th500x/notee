@@ -1,6 +1,7 @@
 /**
- * 攻城城防倍率（13-1 §7 · 13-2 §6.4）
- * siegeCityDefenseMult = cityDefense / 100；仅守城方作为 calcDamage 的 def 时传入。
+ * 攻城 / 攻大本营 · 城防倍率（13-1 §7 · 13-2 §6.4 · 17-1）
+ * siegeCityDefenseMult = cityDefense / 100；
+ * 仅当被攻击方为守城方（城防 NPC/驻地，或大本营 NPC）作为 calcDamage 的 def 时传入。
  */
 
 export function resolveSiegeCityDefenseMult(cityDefense) {

@@ -7,7 +7,7 @@ const path = require('path');
 const { pool } = require('../database/connection');
 const { readStrategicCellAnchorId } = require('../../shared/utils/strategicCellAnchorId.js');
 const {
-  getPhase1BanditPoiIdsForJun,
+  getActiveBanditPoiIdsForJun,
 } = require('../../shared/utils/strategicBanditPlaceholderPhase1.js');
 
 const MERGED_REL_PUBLIC = 'data/worldmap/san_1_jun_yingchuan_merged.json';
@@ -70,12 +70,12 @@ async function ensureBanditRowsForPoiIds(banditIds, junId) {
 }
 
 /**
- * 无合并图时也可调用：按郡阶段一约定补 **`bandits`** 两行（颍川 / 汝南）。
+ * 无合并图时也可调用：按郡现行约定补 **`bandits`**（颍川 1 行；汝南 2 行）。
  * @param {string} junId
  * @returns {Promise<{ ensured: number, repaired: number, banditIds: string[] }>}
  */
 async function ensurePhase1BanditsForJunDb(junId) {
-  const ids = getPhase1BanditPoiIdsForJun(junId);
+  const ids = getActiveBanditPoiIdsForJun(junId);
   if (!ids.length) return { ensured: 0, repaired: 0, banditIds: [] };
   return ensureBanditRowsForPoiIds([...ids], junId);
 }
@@ -100,19 +100,19 @@ async function syncBanditsFromMergedDisk(options = null) {
   const junId = String(data.junId || '').trim() || 'san_1_jun_yingchuan';
   let banditIds = collectBanditPoiIdsFromCells(cells);
   let source = 'cells';
-  /** 格网未带锚点字段的旧快照：仍按阶段一约定补两行（颍川 / 汝南各一组 id） */
+  /** 格网未带锚点时：按郡现行活跃 ID 兜底（颍川仅 `_1_`） */
   if (banditIds.length === 0 && Array.isArray(cells) && cells.length > 0) {
-    const fallback = getPhase1BanditPoiIdsForJun(junId);
+    const fallback = getActiveBanditPoiIdsForJun(junId);
     if (fallback.length) {
       banditIds = [...fallback];
-      source = 'phase1_fallback';
+      source = 'active_fallback';
     }
   }
   if (banditIds.length === 0) {
     return { ok: true, junId, ensured: 0, banditIds: [], reason: 'NO_BANDIT_CELLS' };
   }
-  const phase1Extra = getPhase1BanditPoiIdsForJun(junId);
-  const mergedIds = [...new Set([...banditIds, ...phase1Extra])].sort();
+  const activeExtra = getActiveBanditPoiIdsForJun(junId);
+  const mergedIds = [...new Set([...banditIds, ...activeExtra])].sort();
   const { ensured, repaired, banditIds: ensuredIds } = await ensureBanditRowsForPoiIds(mergedIds, junId);
   return { ok: true, junId, ensured, repaired, banditIds: ensuredIds, source };
 }

@@ -6,6 +6,7 @@ const positionPromotionService = require('../../services/positionPromotionServic
 const sanGongTributeService = require('../../services/sanGongTributeService');
 const sanGongResourceExchangeService = require('../../services/sanGongResourceExchangeService');
 const sanGongGiftBoxService = require('../../services/sanGongGiftBoxService');
+const sanGongArmamentService = require('../../services/sanGongArmamentService');
 const sanGongDocumentService = require('../../services/sanGongDocumentService');
 const factionBulletinService = require('../../services/factionBulletinService');
 const pvpWarService = require('../../services/pvpWarService');
@@ -87,6 +88,25 @@ router.post(
     const out = await sanGongGiftBoxService.submitGiftBoxRedemption(
       req.params.playerId,
       req.body.treasureId,
+    );
+    if (!out.ok) return res.status(out.status).json({ success: false, error: out.error });
+    res.json({ success: true, data: out.data });
+  }),
+);
+
+router.get('/:playerId/san-gong-fu/armament-preview', withRoute('军备预览失败', async (req, res) => {
+  const out = await sanGongArmamentService.getArmamentPreview(req.params.playerId);
+  if (!out.ok) return res.status(out.status).json({ success: false, error: out.error });
+  res.json({ success: true, data: out.data });
+}));
+
+router.post(
+  '/:playerId/san-gong-fu/armament',
+  validateBody(sanGongSchemas.armamentBody),
+  withRoute('军备兑换失败', async (req, res) => {
+    const out = await sanGongArmamentService.submitArmamentRedemption(
+      req.params.playerId,
+      req.body.offerId,
     );
     if (!out.ok) return res.status(out.status).json({ success: false, error: out.error });
     res.json({ success: true, data: out.data });

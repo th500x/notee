@@ -3,7 +3,7 @@
  */
 const express = require('express');
 const playerExploreEventService = require('../../services/playerExploreEventService');
-const playerExploreQuotaService = require('../../services/playerExploreQuotaService');
+const playerExploreChainTokenService = require('../../services/playerExploreChainTokenService');
 const playerBanditRaidQuotaService = require('../../services/playerBanditRaidQuotaService');
 const playerItemsService = require('../../services/playerItemsService');
 const playerEventRewardsService = require('../../services/playerEventRewardsService');
@@ -82,6 +82,23 @@ router.delete(
   }),
 );
 
+router.post(
+  '/:playerId/items/use',
+  validateBody(exploreSchemas.itemUseBody),
+  withRoute('使用道具失败', async (req, res) => {
+    const result = await playerItemsService.useItem(req.params.playerId, req.body);
+    if (!result.ok) {
+      return res.status(result.status).json({
+        success: false,
+        error: result.error,
+        code: result.code,
+        detail: result.detail,
+      });
+    }
+    res.json({ success: true, data: { repair: result.repair } });
+  }),
+);
+
 router.get(
   '/:playerId/bandit-raid-quota',
   validateQuery(exploreSchemas.banditRaidQuotaQuery),
@@ -104,15 +121,31 @@ router.post(
   }),
 );
 
+router.post(
+  '/:playerId/bandit-raid-between-layer-heal',
+  validateBody(exploreSchemas.banditBetweenLayerHealBody),
+  withRoute('匪寨层间补兵失败', async (req, res) => {
+    const { tier, troops } = req.body;
+    return replyServiceOut(
+      res,
+      await playerBanditRaidQuotaService.applyBetweenLayerHeal(req.params.playerId, { tier, troops }),
+    );
+  }),
+);
+
 router.get('/:playerId/explore-quota', withRoute('获取探索配额失败', async (req, res) => {
-  const data = await playerExploreQuotaService.getExploreQuotaState(req.params.playerId);
+  /** @deprecated 探索已改兵符；保留路由避免旧客户端报错，数据改为兵符持有数 */
+  const data = await playerExploreChainTokenService.getExploreChainTokenState(req.params.playerId);
   res.json({
     success: true,
     data: {
       remaining: data.remaining,
-      lastRefillTs: data.lastRefillTs,
-      max: data.max,
-      refillPerHour: data.refillPerHour,
+      lastRefillTs: 0,
+      max: data.remaining,
+      refillPerHour: 0,
+      costPerChain: data.costPerChain,
+      costItemId: data.costItemId,
+      costKind: 'tactic_token',
     },
   });
 }));
@@ -122,9 +155,55 @@ router.post(
   validateBody(exploreSchemas.exploreQuotaBody),
   withRoute('更新探索配额失败', async (req, res) => {
     const { action } = req.body;
-    const result = await playerExploreQuotaService.applyExploreQuotaAction(req.params.playerId, action);
-    if (!result.ok) return res.status(400).json({ success: false, error: result.error });
-    res.json({ success: true, data: result.data });
+    if (action === 'fillMax') {
+      const data = await playerExploreChainTokenService.getExploreChainTokenState(req.params.playerId);
+      return res.json({
+        success: true,
+        data: { remaining: data.remaining, lastRefillTs: 0, max: data.remaining, refillPerHour: 0 },
+      });
+    }
+    if (action === 'consume') {
+      const out = await playerExploreChainTokenService.consumeExploreChainStart(req.params.playerId, {});
+      if (!out.ok) return res.status(out.status).json({ success: false, error: out.error });
+      return res.json({
+        success: true,
+        data: { remaining: out.remaining, lastRefillTs: 0, max: out.remaining, refillPerHour: 0 },
+      });
+    }
+    if (action === 'refund') {
+      const out = await playerExploreChainTokenService.refundExploreChainStart(req.params.playerId);
+      return res.json({
+        success: true,
+        data: { remaining: out.remaining, lastRefillTs: 0, max: out.remaining, refillPerHour: 0 },
+      });
+    }
+    return res.status(400).json({ success: false, error: '无效操作' });
+  }),
+);
+
+router.get('/:playerId/explore-chain-token', withRoute('获取探索兵符失败', async (req, res) => {
+  const data = await playerExploreChainTokenService.getExploreChainTokenState(req.params.playerId);
+  res.json({ success: true, data });
+}));
+
+router.post(
+  '/:playerId/explore-chain-token',
+  validateBody(exploreSchemas.exploreChainTokenBody),
+  withRoute('探索兵符操作失败', async (req, res) => {
+    const { action, continueChain, triggerContext } = req.body;
+    if (action === 'consume') {
+      const out = await playerExploreChainTokenService.consumeExploreChainStart(req.params.playerId, {
+        continueChain: !!continueChain,
+        triggerContext,
+      });
+      if (!out.ok) return res.status(out.status).json({ success: false, error: out.error });
+      return res.json({ success: true, data: { remaining: out.remaining, skipped: !!out.skipped } });
+    }
+    if (action === 'refund') {
+      const out = await playerExploreChainTokenService.refundExploreChainStart(req.params.playerId);
+      return res.json({ success: true, data: { remaining: out.remaining } });
+    }
+    return res.status(400).json({ success: false, error: '无效操作' });
   }),
 );
 

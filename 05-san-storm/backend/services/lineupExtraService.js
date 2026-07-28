@@ -2,7 +2,7 @@
  * 上阵编组 Extra（玩法2）· A–D 四套配置持久化
  * 存储于 player_lineup_sets（lineup_scope='extra', city_id=''）。
  * 无玩家行；与 Main（is_equipped）/ 驻地（scope=garrison）全局 instance 互斥。
- * 本阶段不接战斗构建。
+ * 探险派遣期间对应 Extra 槽锁定（不可改编/清空）；战斗构建由 adventureService 复用驻地口径。
  *
  * @module backend/services/lineupExtraService
  */
@@ -14,6 +14,14 @@ const {
   SCOPE_GARRISON,
   EXTRA_CITY_ID,
 } = require('../constants/lineupSets');
+
+async function assertExtraSlotEditable(playerId, slot) {
+  const adventureService = require('./adventureService');
+  if (await adventureService.isExtraSlotLocked(playerId, slot)) {
+    return { success: false, error: '该 Extra 编组正在探险中，归来并领取报告前不可修改' };
+  }
+  return null;
+}
 
 const EXTRA_TROOP_FIELDS = ['char1_troop1', 'char1_troop2', 'char2_troop1', 'char2_troop2'];
 
@@ -101,6 +109,9 @@ async function saveSlot(playerId, slotNumber, config) {
     return { success: false, error: '无效的上阵 Extra 槽位（须 1–4）' };
   }
 
+  const locked = await assertExtraSlotEditable(playerId, slot);
+  if (locked) return locked;
+
   const prevSlot = await getSlot(playerId, slot);
   const merged = mergePayloadWithPrevRow(prevSlot, config || {});
   const instanceIds = CARD_FIELDS.map((f) => merged[f]).filter(Boolean);
@@ -159,33 +170,6 @@ async function saveSlot(playerId, slotNumber, config) {
     }
   }
 
-  const newlyAssignedTroopIds = [
-    ...new Set(
-      EXTRA_TROOP_FIELDS.map((f) => {
-        const nextId = merged[f] || null;
-        const prevId = prevSlot?.[f] || null;
-        return nextId && nextId !== prevId ? nextId : null;
-      }).filter(Boolean),
-    ),
-  ];
-  if (newlyAssignedTroopIds.length > 0) {
-    const ph = newlyAssignedTroopIds.map(() => '?').join(',');
-    const [exhaustedCore] = await pool.query(
-      `SELECT instance_id FROM player_cards
-       WHERE player_id = ? AND instance_id IN (${ph})
-         AND card_type = 'troop' AND rarity = 'core'
-         AND max_battle_count IS NOT NULL
-         AND battle_count >= max_battle_count`,
-      [playerId, ...newlyAssignedTroopIds],
-    );
-    if (exhaustedCore.length > 0) {
-      return {
-        success: false,
-        error: '核心(金)部队耐久已耗尽，无法用于上阵 Extra',
-      };
-    }
-  }
-
   await pool.query(
     `INSERT INTO player_lineup_sets (
       player_id, lineup_scope, city_id, lineup_slot, city_name,
@@ -230,6 +214,10 @@ async function clearSlot(playerId, slotNumber) {
   if (!slot) {
     return { success: false, error: '无效的上阵 Extra 槽位（须 1–4）' };
   }
+
+  const locked = await assertExtraSlotEditable(playerId, slot);
+  if (locked) return locked;
+
   const nullSets = CARD_FIELDS.map((f) => `${f} = NULL`).join(', ');
   await pool.query(
     `UPDATE player_lineup_sets SET ${nullSets}

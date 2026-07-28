@@ -114,7 +114,7 @@ export const playerAPI = {
     }
   },
 
-  /** 地图 Tab：san_1 七势力概览（与势力信息同源） */
+  /** 大地图坞：san_1 三势力概览（三王/汉室/黄巾；与势力信息同源） */
   async getFactionWorldOverviews(playerId) {
     try {
       const response = await fetchWithTimeout(
@@ -162,6 +162,18 @@ export const playerAPI = {
       { method: 'GET', headers: { 'Content-Type': 'application/json' } },
     );
     return response.json();
+  },
+
+  /**
+   * 大地图立足无效（非道路/城/寨/大本营/战场）：服务端修复或强制随机战场入口。
+   * @param {string} playerId
+   */
+  async repairRoadStand(playerId) {
+    const response = await fetchWithTimeout(
+      `${API_CONFIG.BASE_URL}/players/${playerId}/road/repair-stand`,
+      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' },
+    );
+    return jsonFromApiResponse(response, '修复道路立足');
   },
 
   /** 道路：开启/关闭开战模式（守门）；`enable` + 可选 `clientRequestId` */
@@ -372,6 +384,28 @@ export const playerAPI = {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ treasureId }),
+      },
+    );
+    return response.json();
+  },
+
+  /** 互动 · 封赏 · 军备：贡献兑兵符/玉牌预览 */
+  async getSanGongFuArmamentPreview(playerId) {
+    const response = await fetchWithTimeout(
+      `${API_CONFIG.BASE_URL}/players/${playerId}/san-gong-fu/armament-preview`,
+      { method: 'GET', headers: { 'Content-Type': 'application/json' } },
+    );
+    return response.json();
+  },
+
+  /** 互动 · 封赏 · 军备：消耗贡献兑换兵符或玉牌 */
+  async submitSanGongFuArmament(playerId, offerId) {
+    const response = await fetchWithTimeout(
+      `${API_CONFIG.BASE_URL}/players/${playerId}/san-gong-fu/armament`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ offerId }),
       },
     );
     return response.json();
@@ -850,6 +884,20 @@ export const playerAPI = {
     }
   },
 
+  /**
+   * 编组-道具使用：部队徽章 → 指定传奇/核心部队恢复满耐久
+   * @param {string} playerId
+   * @param {{ itemId: string, instanceId: string }} payload
+   */
+  async useItem(playerId, payload) {
+    const response = await fetchWithTimeout(`${API_CONFIG.BASE_URL}/players/${playerId}/items/use`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload || {}),
+    });
+    return jsonFromApiResponse(response, '使用道具');
+  },
+
   // ── 属性随机系统 ──
 
   /**
@@ -884,18 +932,18 @@ export const playerAPI = {
   },
 
   /**
-   * 匪寨攻打次数（与探索分立）。`banditPoiId`：**匪寨地图对象 ID** `san_*_bandit_*`（04-1 §15），与行军 `targetPoiId` 同族。
+   * 匪寨攻打门闸（兵符）。`banditPoiId`：**匪寨地图对象 ID** `san_*_bandit_*`（04-1 §15），与行军 `targetPoiId` 同族。
    */
   async getBanditRaidQuota(playerId, banditPoiId) {
     const q = encodeURIComponent(String(banditPoiId || '').trim());
     const response = await fetchWithTimeout(
       `${API_CONFIG.BASE_URL}/players/${playerId}/bandit-raid-quota?banditPoiId=${q}`,
     );
-    return jsonFromApiResponse(response, '获取匪寨攻打配额');
+    return jsonFromApiResponse(response, '获取匪寨攻打门闸');
   },
 
   /**
-   * 匪寨攻打配额变更：`consume` 开战扣次；`reset_tower` 战败放弃，层进度回到第 1 层（不返还次数）。
+   * 匪寨攻打：`consume` 开战扣 1 兵符；`reset_tower` 战败放弃，层进度回到第 1 层（不退兵符）。
    * @param {'consume'|'reset_tower'} action
    */
   async updateBanditRaidQuota(playerId, banditPoiId, action) {
@@ -908,7 +956,45 @@ export const playerAPI = {
   },
 
   /**
-   * 获取探索配额（服务端存储）
+   * 匪寨层间连战：粮草快补兵力（胜利结算点「继续」且选了补兵档时调用；不改 player_cards）。
+   * @param {'light'|'heavy'} tier
+   * @param {Array<{ instanceId: string, currentTroops: number, maxTroops: number }>} troops
+   */
+  async applyBanditRaidBetweenLayerHeal(playerId, tier, troops) {
+    const response = await fetchWithTimeout(
+      `${API_CONFIG.BASE_URL}/players/${playerId}/bandit-raid-between-layer-heal`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tier, troops }),
+      },
+    );
+    return jsonFromApiResponse(response, '匪寨层间补兵');
+  },
+
+  /**
+   * 获取探索开链兵符状态
+   */
+  async getExploreChainToken(playerId) {
+    const response = await fetchWithTimeout(`${API_CONFIG.BASE_URL}/players/${playerId}/explore-chain-token`);
+    return response.json();
+  },
+
+  /**
+   * 探索开链兵符 consume / refund
+   * @param {{ action: 'consume'|'refund', continueChain?: boolean, triggerContext?: string }} body
+   */
+  async updateExploreChainToken(playerId, body) {
+    const response = await fetchWithTimeout(`${API_CONFIG.BASE_URL}/players/${playerId}/explore-chain-token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body || {}),
+    });
+    return response.json();
+  },
+
+  /**
+   * 获取探索配额（服务端存储）— **已改为返回兵符持有数**（兼容旧路径）
    */
   async getExploreQuota(playerId) {
     const response = await fetchWithTimeout(`${API_CONFIG.BASE_URL}/players/${playerId}/explore-quota`);
@@ -916,7 +1002,7 @@ export const playerAPI = {
   },
 
   /**
-   * 更新探索配额
+   * 更新探索配额 — **已改为兵符扣/退**（fillMax 为 no-op 数据）
    * @param {string} action - 'consume' | 'refund' | 'fillMax'
    */
   async updateExploreQuota(playerId, action) {

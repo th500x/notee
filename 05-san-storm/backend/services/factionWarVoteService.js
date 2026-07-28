@@ -20,6 +20,7 @@ const cityService = require('./cityService');
 const kingDasikongRankingService = require('./kingDasikongRankingService');
 const {
   getPositionSilverBonus,
+  silverBonusQuotaUnits,
 } = require('../../shared/utils/positionStipendBonuses.cjs');
 
 const SEASON = 'san_1';
@@ -40,7 +41,7 @@ function mysqlDateToYmd(val) {
 }
 
 function voteWeightFromSilverBonus(silverBonus) {
-  return Math.max(0, Math.floor((Number(silverBonus) || 0) / 10));
+  return silverBonusQuotaUnits(silverBonus);
 }
 
 function footprintCenter(fp) {

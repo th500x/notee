@@ -33,9 +33,9 @@ export function hexToRgba(hex, alpha) {
 }
 
 /**
- * 战略大地图城点 2×2 区域右下角：六芒星势力图标
- * `public/assets/san_1_battle/faction/{factionId}.png`
- * 通用/中立占位 `san_1_faction_0001` 不显示。
+ * 势力列表等仍用六芒星 PNG：`public/assets/san_1_battle/faction/{factionId}.png`
+ * 战略城点叠层已改为右上势力旗（见 `WorldStrategicMapTile`），不再用本 URL。
+ * 通用/中立占位 `san_1_faction_0001` 返回 null。
  *
  * @param {string|null|undefined} factionId
  * @returns {string|null}
@@ -47,24 +47,18 @@ export function getStrategicFactionLogoUrl(factionId) {
 }
 
 /**
- * 战略格 2×2 锚点右下角势力六芒星个数：小城 / 关隘 / 据点等 **1**；**中城 / 大城均为 2**（与中城立绘角标一致；大城另叠前层径向 tint 见 `WorldStrategicMapTile`）。
- * 优先 `cityRow.city_type`（与库/API），否则回退锚点格 `object`（`city_*`）。
- *
- * @param {object|null|undefined} cityRow
- * @param {string|null|undefined} effectiveObject - 锚点格 object 键
- * @returns {number} 1 | 2
+ * 旗面文字对比色：浅底深字、深底浅字。
+ * @param {string|null|undefined} hex - `#rrggbb`
+ * @returns {string}
  */
-export function getStrategicFactionMarkerCount(cityRow, effectiveObject) {
-  const ct = cityRow?.city_type ?? cityRow?.cityType;
-  const resolved =
-    ct ||
-    (effectiveObject === 'city_major'
-      ? 'city_major'
-      : effectiveObject === 'city_medium'
-        ? 'city_medium'
-        : effectiveObject === 'city_small'
-          ? 'city_small'
-          : null);
-  if (resolved === 'city_major' || resolved === 'city_medium') return 2;
-  return 1;
+export function contrastTextOnFactionHex(hex) {
+  if (!hex || typeof hex !== 'string' || !hex.startsWith('#') || hex.length < 7) {
+    return '#fffbeb';
+  }
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  if (Number.isNaN(r) || Number.isNaN(g) || Number.isNaN(b)) return '#fffbeb';
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return luminance > 0.55 ? '#1c1917' : '#fffbeb';
 }

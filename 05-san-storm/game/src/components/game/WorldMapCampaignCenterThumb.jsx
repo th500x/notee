@@ -1,5 +1,5 @@
 /**
- * 地图 Tab 右侧：战役中心入口卡片（尺寸与 WorldMapFactionThumb 一致）
+ * 战役中心入口卡片（尺寸与 WorldMapFactionThumb 一致；主入口已迁至顶栏，本组件可选复用）
  */
 
 import TabNotifyDot from '@/components/game/TabNotifyDot';

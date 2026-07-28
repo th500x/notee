@@ -43,6 +43,7 @@ import {
 } from '@/battle/manualActiveSkillArms';
 import * as fmt from '@/systems/battleTextFormatter';
 import { resolveChestReward } from '@/battle/chestRewardResolver';
+import { resolveRandomBoxEffect } from '@/battle/randomBoxResolver';
 import { buildSkillDamagePreviewMetaLines } from '@/components/battle/battleConstants';
 
 /** 手动战斗阶段 */
@@ -60,6 +61,10 @@ export function useManualBattle({
   performAttack, performCounterAttack, performPhase3Heal, performPhase4Damage, performPhase5Composite, battleKill, battleMove,
   formationGroupMove, removeFormationBuffs,
   addLog,
+  /** 可选：随机箱增援/天罚后强制刷新战场列表 */
+  setBattleTroops = null,
+  /** 宝箱/随机箱/农场消耗后刷新对象瓦 */
+  setMapResult = null,
   /** 小型图左栏：为 true 时须先点「技能」才进入主动技选格；战役大地图等传 false，保持始终可施放主动技 */
   requireSkillModeToggle = true,
   /** `useSkillsMap()`：左栏技能名旁 tooltip 用主数据 `description` */
@@ -312,17 +317,46 @@ export function useManualBattle({
   // ── 宝箱检查：行动结束后检查当前格子是否有未开启的宝箱 ──
 
   const checkChestAtTroop = useCallback(async (troop) => {
+    if (!troop || troop.faction !== 'player') return;
+
+    const bumpObjects = () => {
+      if (!mapResult || typeof setMapResult !== 'function') return;
+      setMapResult({
+        ...mapResult,
+        objects: [...(mapResult.objects || [])],
+      });
+    };
+
     const reward = await resolveChestReward(troop, mapResult, battleTroops);
-    if (!reward) return;
+    if (reward) {
+      bumpObjects();
+      addLog(`  📦 ${reward.troopName} 开启宝箱，获得 ${reward.name}（${reward.rarityLabel}）`, 'skill');
+      collectedChestRewards.current.push(reward);
+      return new Promise((resolve) => {
+        chestResolveRef.current = resolve;
+        setChestReward(reward);
+      });
+    }
 
-    addLog(`  📦 ${reward.troopName} 开启宝箱，获得 ${reward.name}（${reward.rarityLabel}）`, 'skill');
-    collectedChestRewards.current.push(reward);
-
-    return new Promise((resolve) => {
-      chestResolveRef.current = resolve;
-      setChestReward(reward);
+    const rand = await resolveRandomBoxEffect(troop, mapResult, battleTroops, {
+      baseUrl: import.meta.env.BASE_URL,
     });
-  }, [mapResult, battleTroops, addLog]);
+    if (!rand) return;
+    bumpObjects();
+    addLog(`  🎲 ${rand.troopName} 开启随机箱：${rand.label}`, 'skill');
+    if (rand.itemId) collectedChestRewards.current.push(rand);
+    if (rand.effect === 'heaven_punish') {
+      const root = document.querySelector('.battle-map-card');
+      if (root) {
+        root.classList.add('heaven-punish-flash');
+        setTimeout(() => root.classList.remove('heaven-punish-flash'), 900);
+      }
+      if (typeof setBattleTroops === 'function') setBattleTroops((prev) => [...prev]);
+      await new Promise((r) => setTimeout(r, 900));
+    } else if (rand.effect === 'heal_100' || rand.effect === 'spawn_enemy') {
+      if (typeof setBattleTroops === 'function') setBattleTroops((prev) => [...prev]);
+    }
+  }, [mapResult, battleTroops, addLog, setBattleTroops, setMapResult]);
 
   /** 玩家确认收下宝箱奖励 */
   const confirmChestReward = useCallback(() => {
@@ -773,6 +807,9 @@ export function useManualBattle({
       setFormationRemMove(remMove);
       const stillAlive = formationTroops.filter(t => t.currentTroops > 0);
       if (stillAlive.length === 0) { endTurn(); return; }
+      for (const t of stillAlive) {
+        await checkChestAtTroop(t);
+      }
       if (remMove > 0) {
         setPhase(MANUAL_PHASE.FORMATION_MOVE);
         showFormationMoveHighlights(formationTroops, remMove);
@@ -809,6 +846,8 @@ export function useManualBattle({
 
         await battleMove(activeTroop, path);
         if (activeTroop.currentTroops <= 0) { endTurn(); return; }
+
+        await checkChestAtTroop(activeTroop);
 
         let totalCost = 0;
         for (const step of path) totalCost += getMoveCost(step.y, step.x, mapResult);

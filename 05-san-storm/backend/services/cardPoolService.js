@@ -30,13 +30,18 @@ const DRAW_PROBABILITIES = {
 
 const {
   HALF_DAY_DRAW_LIMIT,
+  HALF_DAY_TOTAL_SLOTS,
+  DRAW_CHANNEL_SILVER,
+  DRAW_CHANNEL_BADGE,
+  BADGE_BATCH_ITEM_ID,
+  BADGE_BATCH_COST,
   DRAW_COST_TIERS,
   BATCH_DRAW_QUOTA_OPS,
   BATCH_DRAW_BONUS_OPS,
   BATCH_DRAW_TOTAL_OPS,
-  getNextDrawCost,
   getBatchDrawTotalCost,
-  canBatchDraw,
+  canChannelBatch,
+  normalizeDrawChannel,
 } = require('../../shared/utils/cardPoolDrawEconomy.cjs');
 const {
   computeLegendaryDrawProbabilities,
@@ -68,12 +73,12 @@ const {
   CHARACTER_LIMIT_BY_RARITY,
   TROOP_LIMIT_BY_RARITY,
 } = require('../../shared/utils/cardPoolRarityLimits.cjs');
+const { getMaxBattleCount } = require('../../shared/utils/troopMaxBattleCount.cjs');
 /** 无可抽候选时仍返回银两补偿（与返回体 compensation 一致，须实际入账） */
 const NO_CARD_AVAILABLE_SILVER = 20;
 /** 部队按稀有度实例数达上限时的粮草补偿（与 22-1 §6.1 一致） */
 const TROOP_RARITY_LIMIT_COMPENSATION = { common: 100, rare: 200, epic: 300, legendary: 400 };
-/** 与 22-1-TROOP_SYSTEM §1.3、rewardService.getMaxBattleCount 一致 */
-const MAX_BATTLE_COUNT = { common: 10, rare: 10, epic: 20, legendary: 20, core: 40 };
+/** 与 22-1-TROOP_SYSTEM §4.2、troopMaxBattleCount 一致（发卡时盖章） */
 
 // ── 工具函数 ─────────────────────────────────────────────────
 
@@ -219,56 +224,125 @@ async function countTroopCardsByRarityInPoolScope(
 // ── 核心：抽取卡牌 ───────────────────────────────────────────
 
 /**
+ * 校验并归一化抽取方式：仅接受两条独立半天通道（银两十连 / 真三徽章抽），
+ * 不再支持单抽（含旧 'single'）。
+ * @param {string} drawMode
+ * @returns {'batch'|'badge_batch'}
+ */
+function normalizeDrawModeStrict(drawMode) {
+  const dm = String(drawMode || '').trim().toLowerCase();
+  if (dm === 'batch') return 'batch';
+  if (dm === 'badge_batch') return 'badge_batch';
+  throw new Error('无效的抽取方式：仅支持银两十连（batch）或真三徽章抽（badge_batch），单抽已下线');
+}
+
+/** 抽取方式 → 半天窗通道 */
+function channelForDrawMode(drawMode) {
+  return drawMode === 'badge_batch' ? DRAW_CHANNEL_BADGE : DRAW_CHANNEL_SILVER;
+}
+
+/** 半天窗通道中文标签（报错用） */
+function channelLabel(channel) {
+  return channel === DRAW_CHANNEL_BADGE ? '真三徽章抽' : '银两十连';
+}
+
+/**
+ * 读取玩家 `players.items`（JSON 列）为对象；兼容字符串/对象两种驱动返回形态。
+ */
+function parsePlayerItemsColumn(rawItems) {
+  if (!rawItems) return {};
+  return typeof rawItems === 'string' ? JSON.parse(rawItems) : rawItems;
+}
+
+/**
+ * 校验并扣减真三徽章（`item_badge_storm` ×`BADGE_BATCH_COST`），返回扣减后的 items 对象与剩余数量。
+ * 调用方需在同一事务内已对 players 行 `FOR UPDATE`。
+ */
+function deductBadgeBatchCost(rawItems) {
+  const items = parsePlayerItemsColumn(rawItems);
+  const current = Math.max(0, Math.floor(Number(items[BADGE_BATCH_ITEM_ID]) || 0));
+  if (current < BADGE_BATCH_COST) {
+    throw new Error(`真三徽章不足，需要${BADGE_BATCH_COST}个，当前${current}个`);
+  }
+  const remaining = current - BADGE_BATCH_COST;
+  if (remaining <= 0) {
+    delete items[BADGE_BATCH_ITEM_ID];
+  } else {
+    items[BADGE_BATCH_ITEM_ID] = remaining;
+  }
+  return { items, remaining: Math.max(0, remaining) };
+}
+
+/** 抽取后本半天窗双通道剩余情况（供响应体与 getPoolStatus 共用口径） */
+async function computeHalfDaySlotsInfo(connection, playerId, poolType) {
+  const silverUsed = await getHalfDayChannelQuota(connection, playerId, poolType, DRAW_CHANNEL_SILVER);
+  const badgeUsed = await getHalfDayChannelQuota(connection, playerId, poolType, DRAW_CHANNEL_BADGE);
+  const canSilverBatch = canChannelBatch(silverUsed);
+  const canBadgeBatch = canChannelBatch(badgeUsed);
+  return {
+    canSilverBatch,
+    canBadgeBatch,
+    remainingSlots: (canSilverBatch ? 1 : 0) + (canBadgeBatch ? 1 : 0),
+  };
+}
+
+/**
  * 道具卡池抽取（独立半天配额；不走将领/部队保底与传奇储备）
  * @param {string} playerId
- * @param {{ drawMode?: 'single'|'batch' }} [options]
+ * @param {{ drawMode?: 'batch'|'badge_batch' }} [options]
  */
 async function drawFromItemPool(playerId, options = {}) {
-  const drawMode = options.drawMode === 'batch' ? 'batch' : 'single';
+  const drawMode = normalizeDrawModeStrict(options.drawMode);
+  const channel = channelForDrawMode(drawMode);
   const poolType = 'item';
+  const label = '道具';
   const connection = await pool.getConnection();
   try {
     await connection.beginTransaction();
 
     const [playerRows] = await connection.query(
-      'SELECT player_id, silver, faction_id FROM players WHERE player_id = ? FOR UPDATE',
+      'SELECT player_id, silver, faction_id, items FROM players WHERE player_id = ? FOR UPDATE',
       [playerId],
     );
     if (playerRows.length === 0) throw new Error('玩家不存在');
     const player = playerRows[0];
 
-    const todayDrawCount = await getTodayDrawCount(connection, playerId, poolType);
-    const label = '道具';
+    const channelUsed = await getHalfDayChannelQuota(connection, playerId, poolType, channel);
+    if (!canChannelBatch(channelUsed)) {
+      throw new Error(`本半天窗${label}卡池${channelLabel(channel)}额度已用完（每半天窗仅 1 次）`);
+    }
 
-    let drawCost;
-    let totalDrawOperations;
-    if (drawMode === 'batch') {
-      if (!canBatchDraw(todayDrawCount)) {
-        throw new Error(`本半天窗已进行过单抽，无法十连（${label}卡池须满额${DAILY_DRAW_LIMIT}次额度）`);
-      }
-      drawCost = getBatchDrawTotalCost();
-      totalDrawOperations = BATCH_DRAW_TOTAL_OPS;
+    const totalDrawOperations = BATCH_DRAW_TOTAL_OPS;
+    let drawCost = 0;
+    let pendingItemsUpdate = null;
+    let badgeRemaining = null;
+    if (channel === DRAW_CHANNEL_BADGE) {
+      const { items, remaining } = deductBadgeBatchCost(player.items);
+      pendingItemsUpdate = items;
+      badgeRemaining = remaining;
     } else {
-      drawCost = getNextDrawCost(todayDrawCount);
-      if (drawCost == null || todayDrawCount >= DAILY_DRAW_LIMIT) {
-        throw new Error(`本半天窗${label}卡池抽取次数已用完（${DAILY_DRAW_LIMIT}/${DAILY_DRAW_LIMIT}）`);
+      drawCost = getBatchDrawTotalCost();
+      if (player.silver < drawCost) {
+        throw new Error(`银两不足，需要${drawCost}银两，当前${player.silver}银两`);
       }
-      totalDrawOperations = 1;
     }
 
-    if (player.silver < drawCost) {
-      throw new Error(`银两不足，需要${drawCost}银两，当前${player.silver}银两`);
-    }
-
-    await connection.query(
-      'UPDATE players SET silver = silver - ? WHERE player_id = ?',
-      [drawCost, playerId],
-    );
-    if (player.faction_id) {
-      await factionReserveService.ensurePoolRow(connection, player.faction_id);
-      await factionReserveService.creditPoolOnConnection(connection, player.faction_id, { silver: drawCost }, {
-        ledgerCategory: factionReserveService.CATEGORY.CARD_POOL_DRAW,
-      });
+    if (channel === DRAW_CHANNEL_BADGE) {
+      await connection.query(
+        'UPDATE players SET items = ? WHERE player_id = ?',
+        [JSON.stringify(pendingItemsUpdate), playerId],
+      );
+    } else {
+      await connection.query(
+        'UPDATE players SET silver = silver - ? WHERE player_id = ?',
+        [drawCost, playerId],
+      );
+      if (player.faction_id) {
+        await factionReserveService.ensurePoolRow(connection, player.faction_id);
+        await factionReserveService.creditPoolOnConnection(connection, player.faction_id, { silver: drawCost }, {
+          ledgerCategory: factionReserveService.CATEGORY.CARD_POOL_DRAW,
+        });
+      }
     }
 
     const results = [];
@@ -276,11 +350,9 @@ async function drawFromItemPool(playerId, options = {}) {
     let foodEarned = 0;
 
     for (let opIdx = 0; opIdx < totalDrawOperations; opIdx += 1) {
-      const isBonusOp = drawMode === 'batch' && opIdx >= BATCH_DRAW_QUOTA_OPS;
-      const quotaWeight = drawMode === 'single' ? 1 : (isBonusOp ? 0 : 1);
-      const drawnAtExpr = drawMode === 'batch'
-        ? `DATE_ADD(NOW(), INTERVAL ${opIdx} SECOND)`
-        : 'NOW()';
+      const isBonusOp = opIdx >= BATCH_DRAW_QUOTA_OPS;
+      const quotaWeight = isBonusOp ? 0 : 1;
+      const drawnAtExpr = `DATE_ADD(NOW(), INTERVAL ${opIdx} SECOND)`;
 
       const prize = rollItemPrize();
       const granted = await grantItemPrize(connection, playerId, prize);
@@ -291,8 +363,8 @@ async function drawFromItemPool(playerId, options = {}) {
       await connection.query(
         `INSERT INTO temp_card_pool_draws
          (player_id, pool_type, rarity, card_id, compensated, echo_choice_status,
-          pity_count, drawn_at, expires_at, quota_weight)
-         VALUES (?, ?, ?, ?, 0, 'none', 0, ${drawnAtExpr}, ?, ?)`,
+          pity_count, drawn_at, expires_at, quota_weight, draw_channel)
+         VALUES (?, ?, ?, ?, 0, 'none', 0, ${drawnAtExpr}, ?, ?, ?)`,
         [
           playerId,
           poolType,
@@ -300,6 +372,7 @@ async function drawFromItemPool(playerId, options = {}) {
           granted.prizeId || prize.id,
           expiresAt,
           quotaWeight,
+          channel,
         ],
       );
 
@@ -309,20 +382,21 @@ async function drawFromItemPool(playerId, options = {}) {
       });
     }
 
+    const slotsInfo = await computeHalfDaySlotsInfo(connection, playerId, poolType);
+
     await connection.commit();
 
     if (foodEarned > 0) {
       await statisticsDeltaService.recordEarned(playerId, { food: foodEarned });
     }
-    await statisticsDeltaService.incrementSpent(playerId, { silver: drawCost });
+    if (drawCost > 0) {
+      await statisticsDeltaService.incrementSpent(playerId, { silver: drawCost });
+    }
 
     const [updatedPlayer] = await connection.query(
       'SELECT silver FROM players WHERE player_id = ?',
       [playerId],
     );
-
-    const quotaOpsConsumed = drawMode === 'batch' ? BATCH_DRAW_QUOTA_OPS : 1;
-    const remainingDraws = Math.max(0, DAILY_DRAW_LIMIT - todayDrawCount - quotaOpsConsumed);
 
     return {
       success: true,
@@ -330,17 +404,24 @@ async function drawFromItemPool(playerId, options = {}) {
       drawMode,
       poolSeason: null,
       cost: drawCost,
-      remainingSilver: updatedPlayer[0].silver,
-      remainingDraws,
-      nextDrawCost: getNextDrawCost(todayDrawCount + quotaOpsConsumed),
-      cards: results,
-      pityCount: 0,
-      ...(drawMode === 'batch'
+      ...(channel === DRAW_CHANNEL_BADGE
         ? {
-            batchDrawOperations: totalDrawOperations,
-            batchBonusOperations: BATCH_DRAW_BONUS_OPS,
+            costItemId: BADGE_BATCH_ITEM_ID,
+            costItemQuantity: BADGE_BATCH_COST,
+            stormBadgeRemaining: badgeRemaining,
           }
         : {}),
+      remainingSilver: updatedPlayer[0].silver,
+      remainingDraws: slotsInfo.remainingSlots,
+      remainingSlots: slotsInfo.remainingSlots,
+      slotLimit: HALF_DAY_TOTAL_SLOTS,
+      canSilverBatch: slotsInfo.canSilverBatch,
+      canBadgeBatch: slotsInfo.canBadgeBatch,
+      nextDrawCost: null,
+      cards: results,
+      pityCount: 0,
+      batchDrawOperations: totalDrawOperations,
+      batchBonusOperations: BATCH_DRAW_BONUS_OPS,
     };
   } catch (error) {
     await connection.rollback();
@@ -355,7 +436,7 @@ async function drawFromItemPool(playerId, options = {}) {
  *
  * @param {string} playerId - 玩家ID
  * @param {'troop'|'character'|'item'} poolType - 卡池类型
- * @param {{ poolSeason?: 'san_1'|'san_0'|null, drawMode?: 'single'|'batch' }} [options]
+ * @param {{ poolSeason?: 'san_1'|'san_0'|null, drawMode?: 'batch'|'badge_batch' }} [options]
  * @returns {Promise<Object>} 抽取结果
  */
 async function drawFromPool(playerId, poolType, options = {}) {
@@ -363,7 +444,8 @@ async function drawFromPool(playerId, poolType, options = {}) {
     return drawFromItemPool(playerId, options);
   }
   const poolSeason = options.poolSeason ?? null;
-  const drawMode = options.drawMode === 'batch' ? 'batch' : 'single';
+  const drawMode = normalizeDrawModeStrict(options.drawMode);
+  const channel = channelForDrawMode(drawMode);
   if (poolSeason != null && poolSeason !== 'san_0' && poolSeason !== 'san_1') {
     throw new Error('无效的卡池赛季');
   }
@@ -376,7 +458,7 @@ async function drawFromPool(playerId, poolType, options = {}) {
 
     // 1. 获取玩家信息
     const [playerRows] = await connection.query(
-      'SELECT player_id, silver, faction_id FROM players WHERE player_id = ?',
+      'SELECT player_id, silver, faction_id, items FROM players WHERE player_id = ? FOR UPDATE',
       [playerId]
     );
     if (playerRows.length === 0) throw new Error('玩家不存在');
@@ -389,27 +471,26 @@ async function drawFromPool(playerId, poolType, options = {}) {
       }
     }
 
-    const todayDrawCount = await getTodayDrawCount(connection, playerId, poolType);
     const label = poolType === 'troop' ? '部队' : '将领';
 
-    let drawCost;
-    let totalDrawOperations;
-    if (drawMode === 'batch') {
-      if (!canBatchDraw(todayDrawCount)) {
-        throw new Error(`本半天窗已进行过单抽，无法十连（${label}卡池须满额${DAILY_DRAW_LIMIT}次额度）`);
-      }
-      drawCost = getBatchDrawTotalCost();
-      totalDrawOperations = BATCH_DRAW_TOTAL_OPS;
-    } else {
-      drawCost = getNextDrawCost(todayDrawCount);
-      if (drawCost == null || todayDrawCount >= DAILY_DRAW_LIMIT) {
-        throw new Error(`本半天窗${label}卡池抽取次数已用完（${DAILY_DRAW_LIMIT}/${DAILY_DRAW_LIMIT}）`);
-      }
-      totalDrawOperations = 1;
+    const channelUsed = await getHalfDayChannelQuota(connection, playerId, poolType, channel);
+    if (!canChannelBatch(channelUsed)) {
+      throw new Error(`本半天窗${label}卡池${channelLabel(channel)}额度已用完（每半天窗仅 1 次）`);
     }
 
-    if (player.silver < drawCost) {
-      throw new Error(`银两不足，需要${drawCost}银两，当前${player.silver}银两`);
+    const totalDrawOperations = BATCH_DRAW_TOTAL_OPS;
+    let drawCost = 0;
+    let pendingItemsUpdate = null;
+    let badgeRemaining = null;
+    if (channel === DRAW_CHANNEL_BADGE) {
+      const { items, remaining } = deductBadgeBatchCost(player.items);
+      pendingItemsUpdate = items;
+      badgeRemaining = remaining;
+    } else {
+      drawCost = getBatchDrawTotalCost();
+      if (player.silver < drawCost) {
+        throw new Error(`银两不足，需要${drawCost}银两，当前${player.silver}银两`);
+      }
     }
 
     // 4. 获取今日已获得的稀有度统计
@@ -429,16 +510,23 @@ async function drawFromPool(playerId, poolType, options = {}) {
       }
     }
 
-    // 6. 扣除银两，划入势力储备
-    await connection.query(
-      'UPDATE players SET silver = silver - ? WHERE player_id = ?',
-      [drawCost, playerId]
-    );
-    if (player.faction_id) {
-      await factionReserveService.ensurePoolRow(connection, player.faction_id);
-      await factionReserveService.creditPoolOnConnection(connection, player.faction_id, { silver: drawCost }, {
-        ledgerCategory: factionReserveService.CATEGORY.CARD_POOL_DRAW,
-      });
+    // 6. 扣除代价：银两通道扣银两并划入势力储备；徽章通道扣 item_badge_storm（不入账银两、不划势力储备）
+    if (channel === DRAW_CHANNEL_BADGE) {
+      await connection.query(
+        'UPDATE players SET items = ? WHERE player_id = ?',
+        [JSON.stringify(pendingItemsUpdate), playerId],
+      );
+    } else {
+      await connection.query(
+        'UPDATE players SET silver = silver - ? WHERE player_id = ?',
+        [drawCost, playerId]
+      );
+      if (player.faction_id) {
+        await factionReserveService.ensurePoolRow(connection, player.faction_id);
+        await factionReserveService.creditPoolOnConnection(connection, player.faction_id, { silver: drawCost }, {
+          ledgerCategory: factionReserveService.CATEGORY.CARD_POOL_DRAW,
+        });
+      }
     }
 
     // 7. 锁定势力储备并读取传奇额度
@@ -450,22 +538,17 @@ async function drawFromPool(playerId, poolType, options = {}) {
         : (poolBal?.characterLegendary ?? 0);
     }
 
-    // 8. 执行抽取（单抽 1 次操作；十连 12 次操作，其中后 2 次为赠送）
+    // 8. 执行抽取（12 次操作，其中后 2 次为赠送；银两十连与徽章抽等价对待）
     const cardsPerDraw = poolType === 'troop' ? 2 : 1;
     const results = [];
     let runningPity = pityCount;
     const expiresAt = new Date(Date.now() + EXPIRES_DAYS * 24 * 60 * 60 * 1000);
     let operationsCompleted = 0;
-    let stoppedForEcho = false;
 
     for (let opIdx = 0; opIdx < totalDrawOperations; opIdx += 1) {
-      const isBonusOp = drawMode === 'batch' && opIdx >= BATCH_DRAW_QUOTA_OPS;
-      const quotaWeightFirstCard = drawMode === 'single'
-        ? 1
-        : (isBonusOp ? 0 : 1);
-      const drawnAtExpr = drawMode === 'batch'
-        ? `DATE_ADD(NOW(), INTERVAL ${opIdx} SECOND)`
-        : 'NOW()';
+      const isBonusOp = opIdx >= BATCH_DRAW_QUOTA_OPS;
+      const quotaWeightFirstCard = isBonusOp ? 0 : 1;
+      const drawnAtExpr = `DATE_ADD(NOW(), INTERVAL ${opIdx} SECOND)`;
 
       for (let cardIdx = 0; cardIdx < cardsPerDraw; cardIdx += 1) {
         const quotaWeight = cardIdx === 0 ? quotaWeightFirstCard : 0;
@@ -504,8 +587,8 @@ async function drawFromPool(playerId, poolType, options = {}) {
         const [insertResult] = await connection.query(
           `INSERT INTO temp_card_pool_draws
            (player_id, pool_type, rarity, card_id, compensated, echo_choice_status, echo_choice_payload,
-            pity_count, drawn_at, expires_at, quota_weight)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ${drawnAtExpr}, ?, ?)`,
+            pity_count, drawn_at, expires_at, quota_weight, draw_channel)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ${drawnAtExpr}, ?, ?, ?)`,
           [
             playerId,
             poolType,
@@ -517,6 +600,7 @@ async function drawFromPool(playerId, poolType, options = {}) {
             runningPity,
             expiresAt,
             quotaWeight,
+            channel,
           ],
         );
         if (result.echoChoiceRequired) {
@@ -528,24 +612,19 @@ async function drawFromPool(playerId, poolType, options = {}) {
         if (!result.compensated) {
           todayRarityCounts[result.rarity] = (todayRarityCounts[result.rarity] || 0) + 1;
         }
-
-        if (result.echoChoiceRequired && drawMode !== 'batch') {
-          stoppedForEcho = true;
-          break;
-        }
+        // 残影三选一不中断批量：银两十连 / 徽章抽均跑满 12 次操作，与旧十连行为一致
       }
 
       operationsCompleted += 1;
-      if (stoppedForEcho) break;
     }
 
-    if (drawMode === 'batch') {
-      const quotaUsed = Math.min(operationsCompleted, BATCH_DRAW_QUOTA_OPS);
-      const paddingNeeded = BATCH_DRAW_QUOTA_OPS - quotaUsed;
-      await insertBatchQuotaPadding(
-        connection, playerId, poolType, paddingNeeded, runningPity, expiresAt,
-      );
-    }
+    const quotaUsed = Math.min(operationsCompleted, BATCH_DRAW_QUOTA_OPS);
+    const paddingNeeded = BATCH_DRAW_QUOTA_OPS - quotaUsed;
+    await insertBatchQuotaPadding(
+      connection, playerId, poolType, paddingNeeded, runningPity, expiresAt, channel,
+    );
+
+    const slotsInfo = await computeHalfDaySlotsInfo(connection, playerId, poolType);
 
     await connection.commit();
 
@@ -565,7 +644,9 @@ async function drawFromPool(playerId, poolType, options = {}) {
       });
     }
 
-    await statisticsDeltaService.incrementSpent(playerId, { silver: drawCost });
+    if (drawCost > 0) {
+      await statisticsDeltaService.incrementSpent(playerId, { silver: drawCost });
+    }
 
     if (poolType === 'character' && results.some((r) => !r.compensated && r.cardId)) {
       runPlayerMilestoneCheckSafe(playerId, 'character_card_granted').catch(() => {});
@@ -587,8 +668,6 @@ async function drawFromPool(playerId, poolType, options = {}) {
         echoState: r.echoState,
       }));
     const pendingCard = echoQueue[0] ?? null;
-    const quotaOpsConsumed = drawMode === 'batch' ? BATCH_DRAW_QUOTA_OPS : 1;
-    const remainingDraws = Math.max(0, DAILY_DRAW_LIMIT - todayDrawCount - quotaOpsConsumed);
 
     return {
       success: true,
@@ -596,18 +675,25 @@ async function drawFromPool(playerId, poolType, options = {}) {
       drawMode,
       poolSeason: poolSeason || (poolType === 'character' ? 'san_1' : null),
       cost: drawCost,
+      ...(channel === DRAW_CHANNEL_BADGE
+        ? {
+            costItemId: BADGE_BATCH_ITEM_ID,
+            costItemQuantity: BADGE_BATCH_COST,
+            stormBadgeRemaining: badgeRemaining,
+          }
+        : {}),
       remainingSilver: updatedPlayer[0].silver,
-      remainingDraws,
-      nextDrawCost: getNextDrawCost(todayDrawCount + quotaOpsConsumed),
+      remainingDraws: slotsInfo.remainingSlots,
+      remainingSlots: slotsInfo.remainingSlots,
+      slotLimit: HALF_DAY_TOTAL_SLOTS,
+      canSilverBatch: slotsInfo.canSilverBatch,
+      canBadgeBatch: slotsInfo.canBadgeBatch,
+      nextDrawCost: null,
       cards: cardsPublic,
       pityCount: runningPity,
       ...(echoQueue.length > 0 ? { echoQueue } : {}),
-      ...(drawMode === 'batch'
-        ? {
-            batchDrawOperations: operationsCompleted,
-            batchBonusOperations: BATCH_DRAW_BONUS_OPS,
-          }
-        : {}),
+      batchDrawOperations: operationsCompleted,
+      batchBonusOperations: BATCH_DRAW_BONUS_OPS,
       ...(pendingCard
         ? {
             echoChoiceRequired: true,
@@ -805,7 +891,7 @@ async function drawSingleCard(
     await connection.query(
       `INSERT INTO player_cards (instance_id, player_id, card_type, card_id, rarity, current_troops, battle_count, max_battle_count, obtained_at)
        VALUES (?, ?, 'troop', ?, ?, ?, 0, ?, NOW())`,
-      [instanceId, playerId, card.card_id, rarity, maxTroops, MAX_BATTLE_COUNT[rarity] || 10]
+      [instanceId, playerId, card.card_id, rarity, maxTroops, getMaxBattleCount(rarity)]
     );
 
     return { rarity, cardId: card.card_id, cardName: card.card_name, instanceId, compensated: false, pityForced, pityBlockedByQuota };
@@ -909,31 +995,38 @@ const HALF_DAY_START_SQL =
 // ── 辅助查询函数 ─────────────────────────────────────────────
 
 /**
- * 获取当前半天周期的抽取操作次数（quota_weight 累加 + 旧数据秒级去重）
+ * 获取当前半天周期内指定通道（银两 / 真三徽章）已用的通道额度
+ * （quota_weight 累加 + 旧数据秒级去重，均仅在该通道筛选范围内计）：
+ * - 银两通道：draw_channel IS NULL（旧数据视为银两）或 draw_channel='silver'
+ * - 徽章通道：draw_channel='badge'
  */
-async function getTodayDrawCount(connection, playerId, poolType) {
+async function getHalfDayChannelQuota(connection, playerId, poolType, channel) {
+  const ch = normalizeDrawChannel(channel);
+  const channelFilter = ch === DRAW_CHANNEL_BADGE
+    ? "draw_channel = 'badge'"
+    : "(draw_channel IS NULL OR draw_channel = 'silver')";
   const [rows] = await connection.query(
     `SELECT
        COALESCE(SUM(CASE WHEN quota_weight IS NOT NULL THEN quota_weight ELSE 0 END), 0) AS weighted,
        COUNT(DISTINCT CASE WHEN quota_weight IS NULL THEN DATE_FORMAT(drawn_at, '%Y-%m-%d %H:%i:%s') END) AS legacy
      FROM temp_card_pool_draws
-     WHERE player_id = ? AND pool_type = ? AND drawn_at >= ${HALF_DAY_START_SQL}`,
+     WHERE player_id = ? AND pool_type = ? AND ${channelFilter} AND drawn_at >= ${HALF_DAY_START_SQL}`,
     [playerId, poolType]
   );
   return Number(rows[0]?.weighted || 0) + Number(rows[0]?.legacy || 0);
 }
 
 /**
- * 十连因重复三选一提前结束时，补齐本窗剩余额度计数（compensated 占位行）
+ * 十连（或徽章抽）因重复三选一提前结束时，补齐本窗剩余额度计数（compensated 占位行）
  */
-async function insertBatchQuotaPadding(connection, playerId, poolType, padCount, pityCount, expiresAt) {
+async function insertBatchQuotaPadding(connection, playerId, poolType, padCount, pityCount, expiresAt, drawChannel) {
   if (padCount <= 0) return;
   for (let i = 0; i < padCount; i += 1) {
     await connection.query(
       `INSERT INTO temp_card_pool_draws
-       (player_id, pool_type, rarity, card_id, compensated, echo_choice_status, pity_count, drawn_at, expires_at, quota_weight)
-       VALUES (?, ?, 'common', NULL, 1, 'none', ?, DATE_ADD(NOW(), INTERVAL ? SECOND), ?, 1)`,
-      [playerId, poolType, pityCount, 200 + i, expiresAt],
+       (player_id, pool_type, rarity, card_id, compensated, echo_choice_status, pity_count, drawn_at, expires_at, quota_weight, draw_channel)
+       VALUES (?, ?, 'common', NULL, 1, 'none', ?, DATE_ADD(NOW(), INTERVAL ? SECOND), ?, 1, ?)`,
+      [playerId, poolType, pityCount, 200 + i, expiresAt, drawChannel],
     );
   }
 }
@@ -1019,14 +1112,20 @@ async function getPendingEchoChoiceOnConnection(connection, playerId) {
  */
 async function getPoolStatus(playerId) {
   const [playerRows] = await pool.query(
-    'SELECT silver, faction_id FROM players WHERE player_id = ?', [playerId]
+    'SELECT silver, faction_id, items FROM players WHERE player_id = ?', [playerId]
   );
   if (playerRows.length === 0) throw new Error('玩家不存在');
 
-  // 当前半天周期抽取次数
-  const troopUsed = await getTodayDrawCount(pool, playerId, 'troop');
-  const charUsed = await getTodayDrawCount(pool, playerId, 'character');
-  const itemUsed = await getTodayDrawCount(pool, playerId, 'item');
+  const playerItems = parsePlayerItemsColumn(playerRows[0].items);
+  const stormBadgeCount = Math.max(0, Math.floor(Number(playerItems[BADGE_BATCH_ITEM_ID]) || 0));
+
+  // 当前半天周期内各卡池两条通道（银两十连 / 真三徽章抽）各自的额度用量
+  const troopSilverUsed = await getHalfDayChannelQuota(pool, playerId, 'troop', DRAW_CHANNEL_SILVER);
+  const troopBadgeUsed = await getHalfDayChannelQuota(pool, playerId, 'troop', DRAW_CHANNEL_BADGE);
+  const charSilverUsed = await getHalfDayChannelQuota(pool, playerId, 'character', DRAW_CHANNEL_SILVER);
+  const charBadgeUsed = await getHalfDayChannelQuota(pool, playerId, 'character', DRAW_CHANNEL_BADGE);
+  const itemSilverUsed = await getHalfDayChannelQuota(pool, playerId, 'item', DRAW_CHANNEL_SILVER);
+  const itemBadgeUsed = await getHalfDayChannelQuota(pool, playerId, 'item', DRAW_CHANNEL_BADGE);
 
   // 保底计数
   const [troopPity] = await pool.query(
@@ -1070,13 +1169,36 @@ async function getPoolStatus(playerId) {
   const pendingEchoChoice = await getPendingEchoChoice(playerId);
   const batchDrawTotalCost = getBatchDrawTotalCost();
 
+  /** 单个卡池的双通道状态（银两十连 / 真三徽章抽），供 troop/character/item 共用口径 */
+  function buildChannelStatus(silverUsed, badgeUsed) {
+    const canSilverBatch = canChannelBatch(silverUsed);
+    const canBadgeBatch = canChannelBatch(badgeUsed);
+    return {
+      canSilverBatch,
+      canBadgeBatch,
+      canBatchDraw: canSilverBatch, // 兼容旧字段：仅代表银两通道
+      remainingDraws: (canSilverBatch ? 1 : 0) + (canBadgeBatch ? 1 : 0),
+      remainingSlots: (canSilverBatch ? 1 : 0) + (canBadgeBatch ? 1 : 0),
+      dailyLimit: HALF_DAY_TOTAL_SLOTS,
+      slotLimit: HALF_DAY_TOTAL_SLOTS,
+      nextDrawCost: null,
+      batchDrawTotalCost,
+      badgeBatchCost: BADGE_BATCH_COST,
+      badgeBatchItemId: BADGE_BATCH_ITEM_ID,
+    };
+  }
+
   return {
     silver: playerRows[0].silver,
     factionId,
+    stormBadgeCount,
+    badgeBatchCost: BADGE_BATCH_COST,
+    badgeBatchItemId: BADGE_BATCH_ITEM_ID,
     drawCostTiers: DRAW_COST_TIERS,
     batchDrawTotalCost,
     batchDrawBonusOps: BATCH_DRAW_BONUS_OPS,
     batchDrawTotalOps: BATCH_DRAW_TOTAL_OPS,
+    slotLimit: HALF_DAY_TOTAL_SLOTS,
     factionLegendaryQuota: { troop: troopQuota, character: charQuota },
     recruit,
     pendingEchoChoice,
@@ -1085,11 +1207,7 @@ async function getPoolStatus(playerId) {
       recruit: { season: 'san_0', label: '楚汉争霸' },
     },
     troop: {
-      remainingDraws: Math.max(0, DAILY_DRAW_LIMIT - troopUsed),
-      dailyLimit: DAILY_DRAW_LIMIT,
-      nextDrawCost: getNextDrawCost(troopUsed),
-      batchDrawTotalCost,
-      canBatchDraw: canBatchDraw(troopUsed),
+      ...buildChannelStatus(troopSilverUsed, troopBadgeUsed),
       drawCostTiers: DRAW_COST_TIERS,
       cardsPerDraw: 2,
       pityCount: troopPity.length > 0 ? normalizePityCount(troopPity[0].pity_count) : 0,
@@ -1098,11 +1216,7 @@ async function getPoolStatus(playerId) {
       probabilities: computeLegendaryDrawProbabilities(troopQuota),
     },
     character: {
-      remainingDraws: Math.max(0, DAILY_DRAW_LIMIT - charUsed),
-      dailyLimit: DAILY_DRAW_LIMIT,
-      nextDrawCost: getNextDrawCost(charUsed),
-      batchDrawTotalCost,
-      canBatchDraw: canBatchDraw(charUsed),
+      ...buildChannelStatus(charSilverUsed, charBadgeUsed),
       drawCostTiers: DRAW_COST_TIERS,
       cardsPerDraw: 1,
       pityCount: charPity.length > 0 ? normalizePityCount(charPity[0].pity_count) : 0,
@@ -1111,11 +1225,7 @@ async function getPoolStatus(playerId) {
       probabilities: computeLegendaryDrawProbabilities(charQuota),
     },
     item: {
-      remainingDraws: Math.max(0, DAILY_DRAW_LIMIT - itemUsed),
-      dailyLimit: DAILY_DRAW_LIMIT,
-      nextDrawCost: getNextDrawCost(itemUsed),
-      batchDrawTotalCost,
-      canBatchDraw: canBatchDraw(itemUsed),
+      ...buildChannelStatus(itemSilverUsed, itemBadgeUsed),
       drawCostTiers: DRAW_COST_TIERS,
       cardsPerDraw: 1,
       prizes: listItemPoolPrizesForStatus(),

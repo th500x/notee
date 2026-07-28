@@ -10,12 +10,12 @@
     }
   ],
   "metadata": {
-    "generatedAt": "2026-06-06T12:43:45.179Z",
+    "generatedAt": "2026-07-24T11:11:08.737Z",
     "sources": {
       "zhou": "config_zhou_template.csv",
       "jun": "config_jun_template.csv",
       "cities": "config_city_template.csv"
     },
-    "note": "config_jun_node 与 is_buildable 预设不由本目录 CSV 生成，见 docs/tools/city/README.md、13-1 §一·六。"
+    "note": "城市种子仅身份/州郡/特色资源；坐标工坊入库；五维与城防见 13-1 §5.5；荒郊/集市由导入按中城/大城写死。"
   }
 }

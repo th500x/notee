@@ -12,89 +12,35 @@ async function parseJson(res) {
   }
 }
 
-export async function fetchGeoOptions() {
-  const res = await fetchWithTimeout(`${base}/geo-options`);
-  const data = await parseJson(res);
-  if (!res.ok) {
-    if (data && typeof data === 'object' && data.success === false) return data;
-    return {
-      success: false,
-      error: (data && typeof data === 'object' && data.error) || `HTTP ${res.status}`,
-    };
-  }
-  return data;
-}
-
-export async function fetchJunPresetStatus(junId) {
-  const res = await fetchWithTimeout(`${base}/jun/${encodeURIComponent(junId)}/preset-status`);
+/** 31-1 郡战略图工坊（旧「三国地图」API 已归档） */
+export async function fetchJunWorkshopCatalog() {
+  const res = await fetchWithTimeout(`${base}/jun-workshop/catalog`);
   return parseJson(res);
 }
 
-/** @param {string} junId @param {'A'|'B'|'C'|'D'|string} quad */
-export async function fetchJunQuadPreset(junId, quad) {
-  const q = String(quad || '').trim().toUpperCase();
-  const res = await fetchWithTimeout(
-    `${base}/jun/${encodeURIComponent(junId)}/quad-preset/${encodeURIComponent(q)}`,
-  );
-  const data = await parseJson(res);
-  if (!res.ok) {
-    if (data && typeof data === 'object' && data.success === false) return data;
-    return {
-      success: false,
-      error: (data && typeof data === 'object' && data.error) || `HTTP ${res.status}`,
-    };
-  }
-  return data;
-}
-
-export async function postCoordinatesToDb(junId) {
-  const res = await fetchWithTimeout(`${base}/coordinates-to-db`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ junId }),
-  });
+export async function fetchJunWorkshop(junId) {
+  const res = await fetchWithTimeout(`${base}/jun-workshop/${encodeURIComponent(junId)}`);
   return parseJson(res);
 }
 
-export async function postBoundariesToDb(season, edges) {
-  const res = await fetchWithTimeout(`${base}/boundaries-to-db`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ season, edges }),
-  });
-  return parseJson(res);
-}
-
-export async function postGenerateMergedMap(junId, seed) {
-  const res = await fetchWithTimeout(`${base}/generate-merged-map`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ junId, seed: seed != null ? Number(seed) : undefined }),
-  });
-  return parseJson(res);
-}
-
-/** @param {string} junId @param {{ gx: number, gy: number }[]} roadCells @param {'4'|'8'} [roadConnectivity] */
-export async function postSaveMergedRoadCells(junId, roadCells, roadConnectivity) {
-  const res = await fetchWithTimeout(`${base}/save-merged-road-cells`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ junId, roadCells, roadConnectivity }),
-  });
-  return parseJson(res);
+export function junWorkshopPreviewUrl(junId) {
+  return `${base}/jun-workshop/${encodeURIComponent(junId)}/preview?t=${Date.now()}`;
 }
 
 /**
- * @param {string} junId
- * @param {'player_owned' | 'npc_side'} ownershipMode
- * @param {Record<string, string|number|undefined>} counts city_small / city_medium / city_major / gate / fort（可部分填写）
- * @param {string} [season] 与 config_jun 同季，缺省则不限 season（多季同 jun_id 时会都命中）
+ * @param {{
+ *   junId: string,
+ *   cities: Array<{ cityId: string, anchorGx: number|null, anchorGy: number|null }>,
+ *   battlefield?: { entryCells?: Array<{ gx: number, gy: number }> },
+ *   roadCells?: Array<{ gx: number, gy: number }>,
+ *   roadConnectivity?: '4'|'8',
+ * }} body
  */
-export async function postBatchNpcGarrison(junId, ownershipMode, counts, season) {
-  const res = await fetchWithTimeout(`${base}/batch-npc-garrison`, {
+export async function postSaveJunWorkshop(body) {
+  const res = await fetchWithTimeout(`${base}/jun-workshop/save`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ junId, ownershipMode, counts, season }),
+    body: JSON.stringify(body),
   });
   return parseJson(res);
 }

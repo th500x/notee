@@ -22,7 +22,7 @@
       ],
       "description": "逐鹿之始，三王并起。刘备之仁、曹操之霸、孙坚之勇，三王汇聚，问鼎乱世。",
       "difficulty": "简单",
-      "initialCityId": "san_1_city_3_shangcai"
+      "initialCityId": "san_1_city_shangcai"
     },
     {
       "id": "san_1_faction_2001",
@@ -44,7 +44,7 @@
       ],
       "description": "朝廷纲纪未绝，诸侯各怀异心。灵帝昏、袁绍骄、董卓暴，汉祚将倾。",
       "difficulty": "中级",
-      "initialCityId": "san_1_city_3_yangcheng"
+      "initialCityId": "san_1_city_yangdi"
     },
     {
       "id": "san_1_faction_3001",
@@ -61,18 +61,18 @@
       "faction_bonuses": [
         {
           "key": "daily_checkin_rewards",
-          "value": "item_token:1"
+          "value": "item_tactic_token:1"
         }
       ],
       "description": "苍天已死，黄天当立。太平道席卷天下，官军百姓皆入战局。",
       "difficulty": "高级",
-      "initialCityId": "san_1_city_3_yancheng"
+      "initialCityId": "san_1_city_xuchang"
     }
   ],
   "metadata": {
     "totalFactions": 3,
     "totalMaxPlayers": 90,
-    "generatedAt": "2026-07-13T15:46:13.933Z",
+    "generatedAt": "2026-07-20T13:19:54.232Z",
     "idFormat": "san_{season}_faction_{4digits}"
   }
 }

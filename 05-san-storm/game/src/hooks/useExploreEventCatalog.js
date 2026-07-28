@@ -44,7 +44,8 @@ export function useExploreEventCatalog(playerId) {
   const refetchExploreProgress = useCallback(async () => {
     const progress = await fetchPlayerExploreProgress(playerId);
     if (progress) {
-      setCompletedEvents((prev) => ({ ...prev, ...progress.events }));
+      // 服务端日清会删键：必须整表替换，禁止 merge 把已清除的完成记录回灌
+      setCompletedEvents(progress.events && typeof progress.events === 'object' ? progress.events : {});
       setExploreSessionLock(progress.sessionLock);
       return progress.events;
     }
@@ -61,7 +62,7 @@ export function useExploreEventCatalog(playerId) {
   const refetchExplorePlayerBundle = useCallback(async () => {
     const bundle = await fetchPlayerExplorePlayerBundle(playerId);
     if (bundle.events) {
-      setCompletedEvents((prev) => ({ ...prev, ...bundle.events }));
+      setCompletedEvents(bundle.events && typeof bundle.events === 'object' ? bundle.events : {});
       setExploreSessionLock(bundle.sessionLock);
     }
     if (bundle.itemCounts) setPlayerItemCounts(bundle.itemCounts);
@@ -82,7 +83,7 @@ export function useExploreEventCatalog(playerId) {
       .then((bundle) => {
         if (cancelled) return;
         if (bundle.events) {
-          setCompletedEvents((prev) => ({ ...prev, ...bundle.events }));
+          setCompletedEvents(bundle.events && typeof bundle.events === 'object' ? bundle.events : {});
           setExploreSessionLock(bundle.sessionLock);
         }
         if (bundle.itemCounts) setPlayerItemCounts(bundle.itemCounts);

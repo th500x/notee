@@ -228,7 +228,14 @@ async function resetWorldState() {
        custom_name = NULL,
        buildings_state = NULL`
   );
-  // npc_garrison（地图工具编制）保留，但战斗损耗账本 npc_garrison_alive 新赛季重置回满编
+  // 人口/四维/城防：按 13-1 §5.5 整图重随（贴下限 100%～105%；关隘四维强制 0）
+  const cityAttributeGrowthService = require('./cityAttributeGrowthService');
+  const reseed = await cityAttributeGrowthService.reseedAllCityAttributes();
+  if (!reseed.ok) {
+    throw new Error(`[seasonRollover] city attr reseed failed: ${reseed.error || 'unknown'}`);
+  }
+  console.log(`[seasonRollover] city attr reseed updated=${reseed.updated} npcSynced=${reseed.npcSynced} date=${reseed.date}`);
+  // reseed 已按人口×1%整表重掷 NPC；此处再把存活数钉回满编（幂等）
   await resetNpcGarrisonsToFull();
 }
 

@@ -27,7 +27,7 @@
  *   - 事件：docs/tools/event/event-csv-to-json.cjs → public/data/shared/events.json（CSV 有 event_id 则整段描述/链/选项与奖励等均从 CSV 覆盖）
  *   - config_bonds / config_events 须有 season 列（见 migrations/add-config-bonds-season-column.sql、
  *     add-config-events-season-column.sql）
- *   - 道具含 itemType=season_badge（如 item_season_badge）时，须已应用 migrations/add-config-items-item-type-season-badge.sql
+ *   - 道具含 itemType=season_badge（如 item_badge_season）时，须已应用 migrations/add-config-items-item-type-season-badge.sql
  *     扩展 config_items.item_type，否则该条导入会被 MySQL 拒绝、脚本计为「跳过」
  *
  * 双机协作：换电脑或 pull 后若 JSON 有更新，在 `05-san-storm/backend` 执行
@@ -53,6 +53,8 @@ const scripts = [
   { name: '事件', file: 'import-events-data.js' },
   { name: '战役卡片', file: 'import-campaigns-data.js' },
   { name: '道具', file: 'import-items-data.js' },
+  { name: '探险主题', file: 'import-adventure-themes-data.js' },
+  { name: '章节战棋', file: 'import-chapter-data.js' },
 ];
 
 console.log('🚀 开始一键导入所有配置数据...\n');

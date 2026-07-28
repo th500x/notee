@@ -54,6 +54,10 @@ const giftBoxBody = {
   treasureId: v.required(v.idLike({ max: 128 })),
 };
 
+const armamentBody = {
+  offerId: v.required(v.enum(['tactic_token', 'tactic_jade'])),
+};
+
 module.exports = {
   promoteBody,
   switchPeerBody,
@@ -65,4 +69,5 @@ module.exports = {
   cancelWarBody,
   resourceExchangeBody,
   giftBoxBody,
+  armamentBody,
 };

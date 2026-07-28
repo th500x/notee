@@ -1,7 +1,7 @@
 /**
  * 底部Tab导航
  *
- * @description 64px固定底部，4个Tab切换
+ * @description 64px固定底部，3个Tab切换（编组 / 主城 / 势力）；大地图为 `activeTab === null`
  */
 
 import TabNotifyDot from '@/components/game/TabNotifyDot';
@@ -10,12 +10,10 @@ const TABS = [
   { id: 'lineup',  icon: '📋', label: '编组' },
   { id: 'city',    icon: '🏰', label: '主城' },
   { id: 'faction', icon: '⚔️', label: '势力' },
-  { id: 'map',     icon: '🗺️', label: '地图' },
 ];
 
 const TAB_NOTIFY_HINT = {
   faction: '有新公告',
-  map: '有可攻略战役',
 };
 
 /**

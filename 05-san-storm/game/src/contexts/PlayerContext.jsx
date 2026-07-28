@@ -45,16 +45,18 @@ const EMPTY_BONUS_BY_SLOT = Object.freeze({
 /** 首帧占位：与 useExploreQuota 未加载时的语义一致，避免子组件读到 null */
 const EMPTY_EXPLORE_QUOTA = Object.freeze({
   remaining: 0,
-  max: 18,
+  max: 0,
   canExplore: false,
-  consume: () => {},
-  refund: () => {},
+  consume: async () => ({ ok: false }),
+  refund: async () => ({ ok: false }),
   fillMax: () => {},
+  refresh: async () => {},
   minutesUntilRefill: 0,
   inRestPeriod: false,
-  refillPerHour: 6,
+  refillPerHour: 0,
+  costKind: 'tactic_token',
+  costPerChain: 1,
   loaded: false,
-  reloadFromServer: () => Promise.resolve(),
 });
 
 function buildContextView(state) {

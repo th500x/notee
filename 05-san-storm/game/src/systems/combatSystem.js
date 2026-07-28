@@ -19,12 +19,14 @@ import {
 } from '@shared/utils/characterTraitBonuses';
 import { getTroopAffinityOutgoingDamageMult } from '@/utils/troopAffinityCombat';
 import { resolveSiegeCityDefenseMultFromOpts } from '@shared/utils/siegeCityDefenseMult';
-import { getCounterLowerTierDamageMult } from '@shared/utils/troopRarityCombat';
+import { getCounterLowerTierDamageMult, troopRarityTier } from '@shared/utils/troopRarityCombat';
 
-// ── 精锐小队战损比例（troopWeight > 1）────────────────────────────────────────
-// 仅影响「当前兵力/最大兵力」在攻防上的线性缩放；满编时与 troopWeight=1 一致，残血时衰减慢于线性。
-// 现阶段仅燕云十八等配置了 troop_weight>1 的部队会走此分支，其余部队仍为 current/max。
-export const ELITE_TROOP_STRENGTH_EXPONENT = 0.8;
+/**
+ * 攻防共用的残血战力地板：`floor + (1-floor)×(当前/最大)`。
+ * 满编仍为 1.0（满编约 5 刀目标不变）；半残约 0.80，近灭约 0.60，避免输出随兵力线性崩到个位数。
+ * 与 `siegeCombatCore.cjs` 必须同值。
+ */
+export const TROOP_STRENGTH_FLOOR = 0.6;
 
 /** 弓兵攻击曼哈顿距离 ≤1 目标时，总伤害乘子（与 `siegeCombatCore.cjs` 一致） */
 export const ARCHER_MELEE_DAMAGE_MULT = 0.8;
@@ -37,6 +39,31 @@ export const DEF_REDUCTION_DENOM = 220;
  * 须在 `troopDamageToCasualties` 传入 `attacker` + `strike:'normal'` 才会生效。
  */
 export const MIN_CASUALTY_PCT_OF_DEFENDER_MAX = 0.20;
+
+/**
+ * 单次扣兵上限（主动与反击）：相对守方满编比例。
+ * `40% + 5% × max(0, 攻方档−守方档)`；须传入 `attacker`。暴击后仍封顶。
+ */
+export const MAX_CASUALTY_PCT_BASE = 0.40;
+/** 攻方每高于守方 1 档，上限比例额外 + 该值 */
+export const MAX_CASUALTY_PCT_PER_TIER_ABOVE = 0.05;
+
+/**
+ * @param {object|null|undefined} attacker
+ * @param {object|null|undefined} defender
+ * @returns {number} 0..1+
+ */
+export function maxCasualtyPctOfDefenderMax(attacker, defender) {
+  const gap = troopRarityTier(attacker?.rarity) - troopRarityTier(defender?.rarity);
+  return MAX_CASUALTY_PCT_BASE + MAX_CASUALTY_PCT_PER_TIER_ABOVE * Math.max(0, gap);
+}
+
+/** 守方满编 × 上限%（整数百分点，避免 200×0.6 浮点把 ceil 抬成 121） */
+function maxCasualtyCapFromDefenderMax(attacker, defender, maxTroops) {
+  const gap = Math.max(0, troopRarityTier(attacker?.rarity) - troopRarityTier(defender?.rarity));
+  const pctPoints = Math.round(MAX_CASUALTY_PCT_BASE * 100) + Math.round(MAX_CASUALTY_PCT_PER_TIER_ABOVE * 100) * gap;
+  return Math.ceil((maxTroops * pctPoints) / 100);
+}
 
 /**
  * 等效兵力（max×troopWeight）**相等**时：主动一击略强于反击，打破「完全镜像则战损 1:1」。
@@ -59,17 +86,16 @@ export const COUNTER_STRIKE_DAMAGE_MULT = 0.95;
 
 /**
  * 战损后的兵力比例系数（攻击/防御环节共用）
- * @param {Object} troop - 需含 currentTroops、maxTroops；可选 troopWeight
- * @returns {number} 0..1
+ * @param {Object} troop - 需含 currentTroops、maxTroops
+ * @returns {number} TROOP_STRENGTH_FLOOR..1（兵力归零时为 0）
  */
 export function troopStrengthRatioFromCasualties(troop) {
   const max = troop.maxTroops;
   const cur = troop.currentTroops != null ? troop.currentTroops : max;
   if (max == null || max <= 0) return 0;
   const r = Math.max(0, Math.min(1, Number(cur) / max));
-  const w = troop.troopWeight != null ? Number(troop.troopWeight) : 1;
-  if (!(w > 1)) return r;
-  return Math.pow(r, ELITE_TROOP_STRENGTH_EXPONENT);
+  if (r <= 0) return 0;
+  return TROOP_STRENGTH_FLOOR + (1 - TROOP_STRENGTH_FLOOR) * r;
 }
 
 /**
@@ -98,6 +124,11 @@ export function troopDamageToCasualties(defender, rawDamage, options = {}) {
     sameRarity
   ) {
     cas = Math.max(Math.ceil(max * MIN_CASUALTY_PCT_OF_DEFENDER_MAX), cas);
+  }
+  // 上限压制：主动/反击均适用；在保底之后、暴击已计入 raw 之后
+  if (max > 0 && attacker) {
+    const cap = maxCasualtyCapFromDefenderMax(attacker, defender, max);
+    if (cap > 0) cas = Math.min(cas, cap);
   }
   return Math.max(1, cas);
 }
@@ -227,9 +258,9 @@ function applyPhase1And2IncomingReduction(defTroop, dc, totalDmg, options = {}) 
 export function calcDamage(atk, def, terrain, options = {}) {
   const ac = atk.character, dc = def.character;
 
-  // 0. 磨损衰减：legendary（橙）部队耐久耗尽后攻防-20%（仅PVE可用）
-  const atkWorn = (atk.rarity === 'legendary' && atk.battleCount != null && atk.maxBattleCount != null && atk.battleCount >= atk.maxBattleCount);
-  const defWorn = (def.rarity === 'legendary' && def.battleCount != null && def.maxBattleCount != null && def.battleCount >= def.maxBattleCount);
+  // 0. 磨损衰减：legendary/core 部队耐久耗尽后攻防-20%（仍可战）
+  const atkWorn = ((atk.rarity === 'legendary' || atk.rarity === 'core') && atk.battleCount != null && atk.maxBattleCount != null && atk.battleCount >= atk.maxBattleCount);
+  const defWorn = ((def.rarity === 'legendary' || def.rarity === 'core') && def.battleCount != null && def.maxBattleCount != null && def.battleCount >= def.maxBattleCount);
   const WORN_PENALTY = 0.80; // 攻防×0.8 = -20%
 
   // 1. 单兵基础攻击力 = 部队攻击力 + 将领主属性×6（物理：武力；谋略：智力；防御侧暂与普攻线一致）
@@ -244,7 +275,7 @@ export function calcDamage(atk, def, terrain, options = {}) {
   const courageBonus = 1 + (courage / 40);
   const singleFinal = singleAtk * courageBonus;
 
-  // 3. 兵力比例（troopWeight>1 时用凹曲线，残血衰减缓于线性）
+  // 3. 兵力比例（战力地板：残血仍保留 TROOP_STRENGTH_FLOOR 起的输出/防御）
   const atkRatio = troopStrengthRatioFromCasualties(atk);
   let totalDmg = singleFinal * atkRatio;
 
@@ -373,9 +404,9 @@ export function calcDamage(atk, def, terrain, options = {}) {
 export function estimateDamage(atk, def, terrain, options = {}) {
   const ac = atk.character, dc = def.character;
 
-  // 复用 calcDamage 的全部逻辑，但不加随机浮动（legendary = 橙档磨损）
-  const atkWorn = (atk.rarity === 'legendary' && atk.battleCount != null && atk.maxBattleCount != null && atk.battleCount >= atk.maxBattleCount);
-  const defWorn = (def.rarity === 'legendary' && def.battleCount != null && def.maxBattleCount != null && def.battleCount >= def.maxBattleCount);
+  // 复用 calcDamage 的全部逻辑，但不加随机浮动（legendary/core = 橙金磨损）
+  const atkWorn = ((atk.rarity === 'legendary' || atk.rarity === 'core') && atk.battleCount != null && atk.maxBattleCount != null && atk.battleCount >= atk.maxBattleCount);
+  const defWorn = ((def.rarity === 'legendary' || def.rarity === 'core') && def.battleCount != null && def.maxBattleCount != null && def.battleCount >= def.maxBattleCount);
   const WORN_PENALTY = 0.80;
   const troopAtk = ((atk.attack ?? 100) / 10) * (atkWorn ? WORN_PENALTY : 1);
   const dk = options.damageKind === 'strategy' ? 'strategy' : 'physical';

@@ -272,10 +272,7 @@ function replaceFactionWildcard(cardId, factionId) {
 
 // ── 从稀有度获取 max_battle_count ────────────────────────────
 
-function getMaxBattleCount(rarity) {
-  const map = { common: 10, rare: 10, epic: 20, legendary: 20, core: 40 };
-  return map[rarity] || 10;
-}
+const { getMaxBattleCount } = require('../../shared/utils/troopMaxBattleCount.cjs');
 
 // ── 将领卡唯一性：重复补偿银两 ──────────────────────────────
 const CHARACTER_DUPLICATE_COMPENSATION = { common: 20, rare: 40, epic: 60, legendary: 80, core: 100 };
@@ -296,12 +293,12 @@ async function checkCharacterDuplicate(connection, playerId, cardId, rarity, det
   if (cnt < maxSame) return false;
   if (rar === 'legendary') {
     const playerItemsService = require('./playerItemsService');
-    await playerItemsService.addItem(playerId, 'item_season_badge', 1);
+    await playerItemsService.addItem(playerId, 'item_badge_season', 1);
     details.push({
       type: 'character_duplicate',
       cardId,
       rarity: rar,
-      compensation: { type: 'item', itemId: 'item_season_badge', amount: 1 },
+      compensation: { type: 'item', itemId: 'item_badge_season', amount: 1 },
     });
     console.log(`[Rewards] 将领重复: ${cardId} → 黄巾徽章 ×1`);
     return true;

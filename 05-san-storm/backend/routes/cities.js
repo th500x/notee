@@ -16,18 +16,14 @@ const { wrap500 } = require('../utils/httpError');
 const { validateBody, validateParams, validateQuery } = require('../middleware/validation');
 const citySchemas = require('../middleware/validationSchemas/cities');
 const {
-  calcHourlyQuotaWithRestWindow,
-  EXPLORATION_AND_SIEGE_QUOTA_DEFAULTS,
-} = require('../utils/hourlyQuotaWithRestWindow');
+  getTacticTokenCount,
+  tryConsumeTacticTokenOnce,
+  refundTacticTokenOnce,
+  TACTIC_TOKEN_COST_PER_SIEGE_BATTLE,
+  TACTIC_TOKEN_ITEM_ID,
+} = require('../services/tacticTokenService');
 
 router.use(requireAuth);
-
-const SIEGE_REFILL_PER_HOUR = EXPLORATION_AND_SIEGE_QUOTA_DEFAULTS.refillPerHour;
-const SIEGE_MAX_QUOTA = EXPLORATION_AND_SIEGE_QUOTA_DEFAULTS.maxQuota;
-
-function calcSiegeQuota(remaining, lastRefillTs) {
-  return calcHourlyQuotaWithRestWindow(remaining, lastRefillTs, new Date(), EXPLORATION_AND_SIEGE_QUOTA_DEFAULTS);
-}
 
 /**
  * GET /api/cities
@@ -211,8 +207,10 @@ router.post(
   validateBody(citySchemas.siegeBody),
   async (req, res) => {
     try {
-      const { playerId } = req.body;
-      const data = await cityService.resolveAuthoritativePveSiege(req.params.cityId, playerId);
+      const { playerId, continueChain } = req.body;
+      const data = await cityService.resolveAuthoritativePveSiege(req.params.cityId, playerId, {
+        continueChain: continueChain === true,
+      });
       if (!data?.ok) {
         return res.status(400).json({
           success: false,
@@ -251,6 +249,7 @@ router.get('/:cityId/active-war', validateParams(citySchemas.cityIdParam), async
 
 /**
  * GET /api/cities/:cityId/siege-quota
+ * 现返回持有兵符数（`item_tactic_token`）；路径保留兼容。开战扣减见 `cityService.consumeSiegeQuotaForBattleStart`。
  */
 router.get(
   '/:cityId/siege-quota',
@@ -259,37 +258,24 @@ router.get(
   async (req, res, next) => {
     try {
       const { playerId } = req.query;
-      await pool.query('INSERT IGNORE INTO player_events (player_id) VALUES (?)', [playerId]);
-      const [rows] = await pool.query(
-        'SELECT siege_quota_remaining, siege_quota_refill_ts FROM player_events WHERE player_id = ?',
-        [playerId],
-      );
-      const row = rows[0] || {};
-      const saved = calcSiegeQuota(row.siege_quota_remaining, row.siege_quota_refill_ts ? Number(row.siege_quota_refill_ts) : null);
-      if (saved.lastRefillTs !== (row.siege_quota_refill_ts ? Number(row.siege_quota_refill_ts) : null) || saved.remaining !== row.siege_quota_remaining) {
-        await pool.query(
-          'UPDATE player_events SET siege_quota_remaining = ?, siege_quota_refill_ts = ? WHERE player_id = ?',
-          [saved.remaining, String(saved.lastRefillTs), playerId],
-        );
-      }
+      const remaining = await getTacticTokenCount(playerId);
       res.json({
         success: true,
         data: {
-          remaining: saved.remaining,
-          lastRefillTs: saved.lastRefillTs,
-          max: SIEGE_MAX_QUOTA,
-          refillPerHour: SIEGE_REFILL_PER_HOUR,
+          remaining,
+          costPerBattle: TACTIC_TOKEN_COST_PER_SIEGE_BATTLE,
+          costItemId: TACTIC_TOKEN_ITEM_ID,
         },
       });
     } catch (error) {
-      return next(wrap500(error, '获取攻城配额失败'));
+      return next(wrap500(error, '获取攻城兵符失败'));
     }
   },
 );
 
 /**
  * POST /api/cities/:cityId/siege-quota
- * `consume` / `refund` / `fillMax` 运维与遗留 hook；**开战扣次**见 `cityService.consumeSiegeQuotaForBattleStart`（17-4 §2.4）。
+ * 运维：`consume` / `refund` 兵符；**开战扣费**仍以 initiate 内 `consumeSiegeQuotaForBattleStart` 为准。
  */
 router.post(
   '/:cityId/siege-quota',
@@ -298,32 +284,27 @@ router.post(
   async (req, res, next) => {
     try {
       const { playerId, action } = req.body;
-      await pool.query('INSERT IGNORE INTO player_events (player_id) VALUES (?)', [playerId]);
-      const [rows] = await pool.query(
-        'SELECT siege_quota_remaining, siege_quota_refill_ts FROM player_events WHERE player_id = ?',
-        [playerId],
-      );
-      const row = rows[0] || {};
-      const current = calcSiegeQuota(row.siege_quota_remaining, row.siege_quota_refill_ts ? Number(row.siege_quota_refill_ts) : null);
-      let newRemaining = current.remaining;
       if (action === 'consume') {
-        if (newRemaining <= 0) return res.status(400).json({ success: false, error: '攻城次数不足' });
-        newRemaining -= 1;
+        const ok = await tryConsumeTacticTokenOnce(playerId);
+        if (!ok) return res.status(400).json({ success: false, error: '兵符不足' });
       } else if (action === 'refund') {
-        newRemaining = Math.min(newRemaining + 1, SIEGE_MAX_QUOTA);
+        await refundTacticTokenOnce(playerId);
       } else if (action === 'fillMax') {
-        newRemaining = SIEGE_MAX_QUOTA;
+        return res.status(400).json({ success: false, error: '攻城已改为兵符消耗，不再支持 fillMax 次数' });
+      } else {
+        return res.status(400).json({ success: false, error: '未知 action' });
       }
-      await pool.query(
-        'UPDATE player_events SET siege_quota_remaining = ?, siege_quota_refill_ts = ? WHERE player_id = ?',
-        [newRemaining, String(current.lastRefillTs), playerId],
-      );
+      const remaining = await getTacticTokenCount(playerId);
       res.json({
         success: true,
-        data: { remaining: newRemaining, lastRefillTs: current.lastRefillTs, max: SIEGE_MAX_QUOTA },
+        data: {
+          remaining,
+          costPerBattle: TACTIC_TOKEN_COST_PER_SIEGE_BATTLE,
+          costItemId: TACTIC_TOKEN_ITEM_ID,
+        },
       });
     } catch (error) {
-      return next(wrap500(error, '更新攻城配额失败'));
+      return next(wrap500(error, '更新攻城兵符失败'));
     }
   },
 );

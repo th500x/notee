@@ -3,6 +3,7 @@
  */
 
 import { isBanditMapObjectId } from '@shared/utils/smallMapEnemyRoster';
+import { getStrategicCityTypeLabel } from '@/utils/strategicMapCityLabels';
 
 export const WORLD_MAP_DEFAULT_FACTION_LABELS = {
   san_1_faction_1001: '三王',
@@ -10,6 +11,17 @@ export const WORLD_MAP_DEFAULT_FACTION_LABELS = {
   san_1_faction_3001: '黄巾',
 };
 
+/** 大地图势力旗：单字缩写（汉室→汉）；按 faction_id，避免运行时旧名（如「刘备」）干扰 */
+export const WORLD_MAP_FACTION_SHORT_CHARS = {
+  san_1_faction_1001: '三',
+  san_1_faction_2001: '汉',
+  san_1_faction_3001: '黄',
+};
+
+/**
+ * 战略城池 tooltip 标题：`中城 · 许昌城`（类型 · 城名）；匪寨不加类型前缀。
+ * 面板另附 `· 可攻打` 等后缀，勿把城类型再写进后缀。
+ */
 export function worldMapCityTitleFromRow(cityRow) {
   if (!cityRow) return '城池';
   const bpid = cityRow.banditPoiId ?? cityRow.bandit_poi_id;
@@ -19,7 +31,9 @@ export function worldMapCityTitleFromRow(cityRow) {
   if (ct === 'bandit_camp' || isBanditMapObjectId(bpid)) return s;
   const cid = cityRow.city_id ?? cityRow.cityId;
   if (isBanditMapObjectId(cid)) return s;
-  return s.endsWith('城') ? s : `${s}城`;
+  const cityName = s.endsWith('城') ? s : `${s}城`;
+  const typeLabel = getStrategicCityTypeLabel(ct);
+  return typeLabel ? `${typeLabel} · ${cityName}` : cityName;
 }
 
 /** 底栏按钮「攻打某某」用短名（不带强制「城」后缀） */
@@ -42,11 +56,35 @@ export function worldMapFactionLabelFromRow(cityRow, factionNameById = {}) {
   return map[fid] || '已占领';
 }
 
-export function worldMapGarrisonCapFromRow(cityRow) {
-  if (!cityRow) return null;
-  const v =
-    cityRow.player_garrison_capacity ?? cityRow.garrison_capacity ?? cityRow.playerGarrisonCapacity;
-  return v != null ? v : null;
+/**
+ * 势力旗单字：优先 `WORLD_MAP_FACTION_SHORT_CHARS`，否则取全称首字。
+ * @returns {string|null}
+ */
+export function worldMapFactionShortCharFromRow(cityRow, factionNameById = {}) {
+  const fid = cityRow?.faction_id ?? cityRow?.factionId;
+  if (!fid || fid === 'san_1_faction_0001') return null;
+  if (WORLD_MAP_FACTION_SHORT_CHARS[fid]) return WORLD_MAP_FACTION_SHORT_CHARS[fid];
+  const full = worldMapFactionLabelFromRow(cityRow, factionNameById);
+  if (!full || full === '中立' || full === '已占领') return null;
+  const ch = Array.from(String(full))[0];
+  return ch || null;
+}
+
+/**
+ * 势力旗文案部件：`汉` + `东岭关` → 展示为「汉·东岭关」。
+ * @returns {{ shortChar: string, cityName: string } | null}
+ */
+export function worldMapFactionFlagPartsFromRow(cityRow, factionNameById = {}) {
+  const shortChar = worldMapFactionShortCharFromRow(cityRow, factionNameById);
+  if (!shortChar) return null;
+  const cityName = worldMapCityBaseNameFromRow(cityRow);
+  if (!cityName || cityName === '城池') return null;
+  return { shortChar, cityName };
+}
+
+export function worldMapGarrisonCapFromRow(_cityRow) {
+  // 城级驻军所容量上限已废止（无 CSV / 无库列）
+  return null;
 }
 
 function pickInt(row, camel, snake) {
@@ -79,7 +117,7 @@ export function worldMapCityDefenseDisplayFromRow(cityRow) {
 }
 
 /**
- * 「城况」分段：CSV/库五维 + 特色资源 + 简介
+ * 城备底部：五维 + 特色资源 + 简介（原独立「城况」分段）
  * @returns {{ population: number|null, trading: number|null, farming: number|null, military: number|null, culture: number|null, specialResourceName: string|null, description: string|null }}
  */
 export function worldMapCityOverviewFromRow(cityRow) {
@@ -130,58 +168,6 @@ export function worldMapCitySiegeTargetLabel(cityRow, playerFactionId) {
   return worldMapCityIsPlayerSameFaction(cityRow, playerFactionId) ? '不可攻打' : '可攻打';
 }
 
-function pickBool01(row, camel, snake) {
-  const v = row?.[camel] ?? row?.[snake];
-  if (v === true || v === 1 || v === '1') return true;
-  return false;
-}
-
-/** 荒郊 / 集市旧版独立行不参与「主城」解析（迁移后库中应无此类行） */
-function isStrategicMainCityRow(row) {
-  if (!row) return false;
-  const t = row.city_type ?? row.cityType;
-  if (t === 'wilderness' || t === 'market') return false;
-  return true;
-}
-
-/**
- * 从主城行上的 `wilderness_enabled` / `market_enabled`（API 亦可能为 camelCase）解析荒郊/集市入口。
- * 展示名：`{城名}荒郊` / `{城名}集市`；`cityId` 与主城相同（探索占位符与事件池见 `eventLocationPlaceholders`）。
- */
-export function subsidiaryWildernessAndMarketFromCityMap(cityById, parentCityId) {
-  const empty = { wilderness: null, market: null };
-  if (!parentCityId || !cityById || typeof cityById !== 'object') return empty;
-  const row = cityById[parentCityId];
-  if (!row) return empty;
-  const base = String(row.city_name ?? row.cityName ?? '').trim() || '城池';
-  const we = pickBool01(row, 'wildernessEnabled', 'wilderness_enabled');
-  const me = pickBool01(row, 'marketEnabled', 'market_enabled');
-  return {
-    wilderness: we ? { cityId: parentCityId, displayName: `${base}荒郊` } : null,
-    market: me ? { cityId: parentCityId, displayName: `${base}集市` } : null,
-  };
-}
-
-/**
- * 至少开启荒郊或集市的城 `city_id` 集合（战略格网光效等用）。
- */
-export function parentCityIdsWithSubsidiaryExplore(cityById) {
-  if (!cityById || typeof cityById !== 'object') return null;
-  const parents = new Set();
-  for (const c of Object.values(cityById)) {
-    const id = c.city_id ?? c.cityId;
-    if (!id) continue;
-    if (pickBool01(c, 'wildernessEnabled', 'wilderness_enabled') || pickBool01(c, 'marketEnabled', 'market_enabled')) {
-      parents.add(String(id));
-      continue;
-    }
-    const pid = c.parent_city_id ?? c.parentCityId;
-    const t = c.city_type ?? c.cityType;
-    if (pid && (t === 'wilderness' || t === 'market')) parents.add(String(pid));
-  }
-  return parents.size ? parents : null;
-}
-
 /**
  * 构造 `WorldMapCityInfoBlock` 的 props（战略 tooltip 等共用）。
  * @param {object|null|undefined} cityRow
@@ -192,7 +178,6 @@ export function parentCityIdsWithSubsidiaryExplore(cityById) {
  * @param {object|null} [opts.siegeQuota]
  * @param {boolean} [opts.siegeLoading]
  * @param {number|null} [opts.garrisonSlotCount] — null 时驻地已用显示 —
- * @param {Record<string, object>|null} [opts.cityById] — 传入时按主城行开关解析荒郊/集市入口
  */
 export function buildWorldMapCityPanelProps(cityRow, opts = {}) {
   const {
@@ -202,7 +187,6 @@ export function buildWorldMapCityPanelProps(cityRow, opts = {}) {
     siegeQuota = null,
     siegeLoading = false,
     garrisonSlotCount = null,
-    cityById = null,
   } = opts;
 
   const cityTitle = worldMapCityTitleFromRow(cityRow);
@@ -216,7 +200,7 @@ export function buildWorldMapCityPanelProps(cityRow, opts = {}) {
   let subtitleText = null;
   if (isOwnCity) subtitleText = '己方驻地 · 可编组';
   else if (playerId && siegeQuota?.loaded && !siegeQuota.canSiege) {
-    subtitleText = '攻城次数不足';
+    subtitleText = '兵符不足';
   }
 
   const npcArr = cityRow?.npc_garrison ?? cityRow?.npcGarrison;
@@ -225,6 +209,9 @@ export function buildWorldMapCityPanelProps(cityRow, opts = {}) {
   const cityIdVal = cityRow?.city_id ?? cityRow?.cityId ?? null;
   const banditPoiIdVal = cityRow?.banditPoiId ?? cityRow?.bandit_poi_id ?? null;
   const cityType = cityRow?.city_type ?? cityRow?.cityType ?? null;
+  const junId = cityRow?.jun_id ?? cityRow?.junId ?? null;
+  /** 旧版独立荒郊/集市行不参与城备面板（迁移后库中应无此类行） */
+  const isLegacySubsidiaryType = cityType === 'wilderness' || cityType === 'market';
   const isBanditStronghold = !!(
     (banditPoiIdVal && isBanditMapObjectId(banditPoiIdVal)) ||
     (cityType === 'bandit_camp' && (banditPoiIdVal || cityIdVal)) ||
@@ -233,15 +220,10 @@ export function buildWorldMapCityPanelProps(cityRow, opts = {}) {
   const banditPoiId = isBanditStronghold
     ? String(banditPoiIdVal || (isBanditMapObjectId(cityIdVal) ? cityIdVal : '') || '').trim() || null
     : null;
-  const cityId = isBanditStronghold ? null : cityIdVal;
+  const cityId = isBanditStronghold || isLegacySubsidiaryType ? null : cityIdVal;
 
   const cityBaseName = worldMapCityBaseNameFromRow(cityRow);
   const showOwnCityActions = isOwnCity && !!playerId && !!cityId;
-
-  const subsidiaryExplore =
-    cityId && cityById && isStrategicMainCityRow(cityRow) && !isBanditStronghold
-      ? subsidiaryWildernessAndMarketFromCityMap(cityById, cityId)
-      : { wilderness: null, market: null };
 
   const lordDisplayLabel = worldMapLordDisplayFromRow(cityRow);
   const cityDefenseCoefficient = worldMapCityDefenseDisplayFromRow(cityRow);
@@ -270,7 +252,7 @@ export function buildWorldMapCityPanelProps(cityRow, opts = {}) {
     banditPoiId,
     cityBaseName,
     showOwnCityActions,
-    subsidiaryExplore,
     cityType,
+    junId,
   };
 }

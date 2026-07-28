@@ -1,6 +1,6 @@
 /**
  * 战略大地图：点击匪寨锚点后的信息区（与 `ExploreLocationDockPanel` 同构的 Tailwind 分段）。
- * 次数规则：每 8 小时整点档 +6、上限 18、初始 6；与探索配额 API 分立。
+ * 攻打消耗：每次 `item_tactic_token`（兵符）×1；无兵符不可攻打。
  */
 
 import { useState } from 'react';
@@ -14,12 +14,11 @@ import { useState } from 'react';
  *   worldDurability: { maxLayers: number, clearedLayers: number, layersRemaining: number } | null,
  *   loading: boolean,
  *   remaining: number,
- *   max: number,
- *   minutesUntilRefill: number,
- *   refillPerWindow: number,
+ *   costPerBattle?: number,
  *   canAttack: boolean,
  *   onAttack: () => void | Promise<void>,
  *   interactionsLocked?: boolean,
+ *   rootClassName?: string,
  * }} props
  */
 export default function BanditStrongholdDockPanel({
@@ -30,14 +29,15 @@ export default function BanditStrongholdDockPanel({
   worldDurability,
   loading,
   remaining,
-  max,
-  minutesUntilRefill,
-  refillPerWindow,
+  costPerBattle = 1,
   interactionsLocked = false,
   canAttack,
   onAttack,
+  rootClassName = '',
 }) {
   const [busy, setBusy] = useState(false);
+  const tokens = Math.max(0, Math.floor(Number(remaining) || 0));
+  const cost = Math.max(1, Math.floor(Number(costPerBattle) || 1));
 
   const handleAttack = async () => {
     if (!canAttack || busy) return;
@@ -49,18 +49,20 @@ export default function BanditStrongholdDockPanel({
     }
   };
 
+  const rootCls =
+    (rootClassName && String(rootClassName).trim()) ||
+    'max-h-[42vh] overflow-y-auto px-3 py-2 border-b border-stone-700 text-sm text-stone-200';
+
   return (
-    <div className="max-h-[42vh] overflow-y-auto px-3 py-2 border-b border-stone-700 text-sm text-stone-200">
-      <div className="flex items-baseline justify-between gap-2">
+    <div className={rootCls}>
+      <div className="flex items-baseline justify-between gap-2 min-h-[1.25rem]">
         <div className="font-medium min-w-0 text-amber-200/95 leading-tight">{title}</div>
-        {difficultyHint ? (
-          <div className="shrink-0 text-[10px] text-stone-400 text-right leading-tight max-w-[11rem]">
-            {difficultyHint}
-          </div>
-        ) : null}
+        <div className="shrink-0 text-[10px] text-stone-400 text-right leading-tight max-w-[11rem]">
+          {difficultyHint || (loading ? '难度：…' : '难度：—')}
+        </div>
       </div>
 
-      <div className="text-stone-500 text-[10px] mt-1.5 leading-snug space-y-0.5">
+      <div className="text-stone-500 text-[10px] mt-1.5 leading-snug space-y-0.5 min-h-[3.25rem]">
         <div>
           当前层数{' '}
           <span className="text-stone-300 tabular-nums">{loading ? '…' : nextLayer}</span>
@@ -69,42 +71,33 @@ export default function BanditStrongholdDockPanel({
           <span className="text-stone-300 tabular-nums">{loading ? '…' : personalTotalLayers}</span> 层
         </div>
         <div>
-          匪寨生命值（层数累计）
+          匪寨生命值(层数累计):
           {worldDurability ? (
             <>
-              ：
               <span className="text-stone-300 tabular-nums">{worldDurability.layersRemaining}</span>
-              <span className="text-stone-600"> / </span>
+              <span className="text-stone-600">/</span>
               <span className="text-stone-300 tabular-nums">{worldDurability.maxLayers}</span>
-              <span className="text-stone-600">（已耗 {worldDurability.clearedLayers}）</span>
             </>
           ) : (
-            <span className="text-stone-600">：—</span>
+            <span className="text-stone-600">—</span>
           )}
+        </div>
+        <div className="text-stone-600">
+          尾刀额外获得黄巾徽章
         </div>
       </div>
 
       <div className="text-stone-300 text-xs mt-2 border-t border-stone-600 pt-2">
-        ⚔️ 战斗：
+        ⚔️ 兵符：
         {loading ? (
           <span className="text-stone-400">加载中…</span>
         ) : (
-          <span className={remaining > 0 ? 'text-green-400' : 'text-red-400'}>
-            {remaining}/{max}
-          </span>
+          <span className={tokens >= cost ? 'text-green-400' : 'text-red-400'}>{tokens}</span>
         )}
-        {!loading && remaining < max ? (
-          <span className="text-stone-500 ml-1">（{minutesUntilRefill} 分后下一档整点）</span>
-        ) : null}
       </div>
 
-      <div className="text-stone-500 text-[10px] mt-1 leading-snug space-y-0.5">
-        <div>
-          每8小时+{refillPerWindow}次 · 上限{max}次
-        </div>
-        <div>0:00~8:00</div>
-        <div>8:00~16:00</div>
-        <div>16:00~24:00</div>
+      <div className="text-stone-500 text-[10px] mt-1 leading-snug min-h-[2.5em]">
+        每次从大地图攻打消耗兵符 ×{cost}；胜利后「继续」不消耗
       </div>
 
       {!interactionsLocked ? (
@@ -112,11 +105,18 @@ export default function BanditStrongholdDockPanel({
           type="button"
           disabled={!canAttack || busy || loading}
           onClick={() => void handleAttack()}
-          className="mt-3 w-full py-2 rounded-lg text-xs font-bold bg-gradient-to-r from-orange-700 to-red-700 text-amber-50 disabled:from-stone-700 disabled:to-stone-700 disabled:text-stone-500"
+          className="mt-2 w-full py-1.5 rounded-lg text-[11px] font-bold bg-gradient-to-r from-orange-700 to-red-700 text-amber-50 disabled:from-stone-700 disabled:to-stone-700 disabled:text-stone-500"
         >
           {busy ? '…' : '⚔️ 攻打匪寨'}
         </button>
-      ) : null}
+      ) : (
+        <div
+          className="mt-2 w-full py-1.5 rounded-lg text-[11px] font-bold text-center text-stone-500 bg-stone-800/50 border border-stone-700/60"
+          aria-hidden
+        >
+          —
+        </div>
+      )}
     </div>
   );
 }

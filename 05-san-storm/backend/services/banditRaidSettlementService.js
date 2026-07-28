@@ -1,6 +1,7 @@
 /**
  * 匪寨爬塔：战报 `pve_bandit` 胜利后事务内推进 **`bandits`** 与 **`player_progress.bandit_progress`**。
  * 与 `playerBanditRaidQuotaService` 共用 JSON 桶名 **`byBanditMapObjectId`**。
+ * 全服耐久扣到上限时：**重置满血**（不关实例）；尾刀者额外黄巾徽章。
  */
 const path = require('path');
 const { pathToFileURL } = require('url');
@@ -37,7 +38,7 @@ function parseBanditProgress(raw) {
 /**
  * @param {string} playerId
  * @param {{ banditPoiId: string, attackedLayer: number }} payload
- * @returns {Promise<{ ok: boolean, error?: string, nextStored?: number, banditBadgeGranted?: { itemId: string, quantity: number, displayName: string|null }, banditBadgeError?: string }>}
+ * @returns {Promise<{ ok: boolean, error?: string, nextStored?: number, worldRegenerated?: boolean, banditBadgeGranted?: { itemId: string, quantity: number, displayName: string|null }, banditBadgeError?: string }>}
  */
 async function applyBanditRaidVictory(playerId, payload) {
   const banditPoiId = String(payload?.banditPoiId || '').trim();
@@ -71,29 +72,28 @@ async function applyBanditRaidVictory(playerId, payload) {
     const row = rows[0] || {};
     const bp = parseBanditProgress(row.bandit_progress);
     if (!bp[BUCKET] || typeof bp[BUCKET] !== 'object') bp[BUCKET] = {};
-    const prevEntry = bp[BUCKET][banditPoiId] && typeof bp[BUCKET][banditPoiId] === 'object' ? { ...bp[BUCKET][banditPoiId] } : {};
+    const prevEntry =
+      bp[BUCKET][banditPoiId] && typeof bp[BUCKET][banditPoiId] === 'object'
+        ? { ...bp[BUCKET][banditPoiId] }
+        : {};
     const rawStored = prevEntry.nextLayer;
     const s0 = Math.floor(Number(rawStored));
-    const storedNext =
-      !Number.isFinite(s0) || s0 < 1 ? 1 : Math.min(maxP + 1, Math.max(1, s0));
+    const storedNext = !Number.isFinite(s0) || s0 < 1 || s0 > maxP ? 1 : s0;
     const expectedCombat = banditCombatLayerFromStoredNext(storedNext, maxP);
-    if (expectedCombat == null) {
-      await conn.rollback();
-      return { ok: false, error: '匪寨个人进度已通关' };
-    }
     if (expectedCombat !== attackedLayer) {
       await conn.rollback();
       return { ok: false, error: '层数与服务器进度不一致' };
     }
 
     const newStored = banditStoredNextLayerAfterVictory(attackedLayer, maxP);
-    const { raid: _legacyRaid, ...prevWithoutRaid } = prevEntry;
-    const postTowerTs =
-      attackedLayer === maxP && newStored > maxP ? { postTowerStallCompletedAtMs: Date.now() } : {};
+    const {
+      raid: _legacyRaid,
+      postTowerStallCompletedAtMs: _stall,
+      ...prevClean
+    } = prevEntry;
     bp[BUCKET][banditPoiId] = {
-      ...prevWithoutRaid,
+      ...prevClean,
       nextLayer: newStored,
-      ...postTowerTs,
     };
 
     await conn.query(
@@ -116,33 +116,42 @@ async function applyBanditRaidVictory(playerId, payload) {
         'SELECT status, cleared_layers, max_layers FROM bandits WHERE bandit_id = ? LIMIT 1',
         [banditPoiId],
       );
-      const row = checkRows[0];
+      const b = checkRows[0];
       await conn.rollback();
-      if (!row) {
+      if (!b) {
         return { ok: false, error: '匪寨世界实例不存在' };
       }
-      if (String(row.status || '') !== 'active') {
-        return { ok: false, error: '匪寨全服耐久已关闭' };
-      }
-      if (Number(row.cleared_layers) >= Number(row.max_layers)) {
-        return { ok: false, error: '匪寨全服耐久已耗尽' };
+      if (String(b.status || '') !== 'active' || Number(b.cleared_layers) >= Number(b.max_layers)) {
+        return { ok: false, error: '匪寨正在重生，请稍后重试' };
       }
       console.error('[banditRaidSettlement] cleared_layers 未推进', {
         playerId,
         banditPoiId,
         attackedLayer,
-        status: row.status,
-        clearedLayers: row.cleared_layers,
-        maxLayers: row.max_layers,
+        status: b.status,
+        clearedLayers: b.cleared_layers,
+        maxLayers: b.max_layers,
       });
       return { ok: false, error: '匪寨全服耐久推进失败' };
     }
 
-    await conn.query(
-      `UPDATE bandits SET status = 'closed', closed_at = NOW()
-       WHERE bandit_id = ? AND cleared_layers >= max_layers`,
+    const [afterRows] = await conn.query(
+      'SELECT cleared_layers, max_layers FROM bandits WHERE bandit_id = ? LIMIT 1',
       [banditPoiId],
     );
+    const after = afterRows[0];
+    const clearedAfter = Number(after?.cleared_layers);
+    const maxLayers = Number(after?.max_layers);
+    let worldRegenerated = false;
+    if (Number.isFinite(clearedAfter) && Number.isFinite(maxLayers) && clearedAfter >= maxLayers) {
+      await conn.query(
+        `UPDATE bandits
+         SET cleared_layers = 0, status = 'active', closed_at = NULL
+         WHERE bandit_id = ?`,
+        [banditPoiId],
+      );
+      worldRegenerated = true;
+    }
 
     await conn.query('UPDATE player_progress SET bandit_progress = ? WHERE player_id = ?', [
       JSON.stringify(bp),
@@ -151,11 +160,15 @@ async function applyBanditRaidVictory(playerId, payload) {
 
     await conn.commit();
 
+    let badgeQty = 0;
+    if (attackedLayer === maxP) badgeQty += 1;
+    if (worldRegenerated) badgeQty += 1;
+
     let banditBadgeGranted = null;
     let banditBadgeError = null;
-    if (attackedLayer === maxP) {
+    if (badgeQty > 0) {
       try {
-        const bg = await campaignService.grantSeasonBadgeToPlayer(playerId, 1);
+        const bg = await campaignService.grantSeasonBadgeToPlayer(playerId, badgeQty);
         if (bg.ok) banditBadgeGranted = bg.badge;
         else banditBadgeError = bg.error || 'badge grant failed';
       } catch (be) {
@@ -164,7 +177,13 @@ async function applyBanditRaidVictory(playerId, payload) {
       }
     }
 
-    return { ok: true, nextStored: newStored, banditBadgeGranted, banditBadgeError };
+    return {
+      ok: true,
+      nextStored: newStored,
+      worldRegenerated,
+      banditBadgeGranted,
+      banditBadgeError,
+    };
   } catch (e) {
     await conn.rollback();
     return { ok: false, error: e.message || '匪寨结算失败' };

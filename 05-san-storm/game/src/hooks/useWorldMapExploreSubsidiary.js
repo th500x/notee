@@ -16,6 +16,9 @@ export function useWorldMapExploreSubsidiary({
   itemNameMap,
   isTutorial,
   refreshPlayer,
+  allExploreEvents = null,
+  completedEvents = null,
+  playerItemCounts = null,
 }) {
   const [playerItems, setPlayerItems] = useState([]);
 
@@ -44,6 +47,9 @@ export function useWorldMapExploreSubsidiary({
       phase,
       citiesList,
       itemNameMap,
+      allExploreEvents,
+      completedEvents,
+      playerItemCounts,
     }),
     [
       quota,
@@ -55,6 +61,9 @@ export function useWorldMapExploreSubsidiary({
       phase,
       citiesList,
       itemNameMap,
+      allExploreEvents,
+      completedEvents,
+      playerItemCounts,
     ],
   );
 
@@ -65,8 +74,8 @@ export function useWorldMapExploreSubsidiary({
     if (prev !== PHASE.RETURNING || phase !== PHASE.IDLE) return;
     fetchItems();
     refreshPlayer({ silent: true });
-    if (typeof quota.reloadFromServer === 'function') {
-      void quota.reloadFromServer();
+    if (typeof quota.refresh === 'function') {
+      void quota.refresh();
     }
   }, [phase, fetchItems, refreshPlayer, quota]);
 

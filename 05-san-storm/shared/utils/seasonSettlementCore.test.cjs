@@ -314,6 +314,36 @@ test('buildPlayerCardsSnapshot gathers auto + selected set + bound equip + legen
   assert.equal(w.equipped_slot, null);
   assert.equal(w.bound_equipment_set_instance_id, 'eset_1'); // closure preserved
   assert.ok(!ids.includes('ignored'));
+  const coreRow = snap.find((r) => r.instance_id === 'core1');
+  assert.equal(coreRow.max_battle_count, 40);
+  assert.equal(coreRow.battle_count, 0);
+  const legRow = snap.find((r) => r.instance_id === 'leg1');
+  assert.equal(legRow.max_battle_count, 20);
+  assert.equal(legRow.battle_count, 0);
+});
+
+test('normalizeInheritedTroopDurability rewrites max and zeros battle_count', () => {
+  const { normalizeInheritedTroopDurability } = require('./seasonSettlementCore.cjs');
+  const worn = normalizeInheritedTroopDurability({
+    instance_id: 'x',
+    card_id: 'san_1_troop_4001',
+    card_type: 'troop',
+    rarity: 'legendary',
+    battle_count: 18,
+    max_battle_count: 44,
+    lifetime_battle_count: 200,
+    veteran_tier: 1,
+  });
+  assert.equal(worn.max_battle_count, 20);
+  assert.equal(worn.battle_count, 0);
+  assert.equal(worn.lifetime_battle_count, 200);
+  assert.equal(worn.veteran_tier, 1);
+  const title = normalizeInheritedTroopDurability({
+    instance_id: 't1',
+    card_type: 'title',
+    battle_count: 9,
+  });
+  assert.equal(title.battle_count, 9);
 });
 
 test('assertSnapshotApplyable passes for a valid snapshot', () => {

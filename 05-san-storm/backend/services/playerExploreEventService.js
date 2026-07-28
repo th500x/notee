@@ -54,13 +54,19 @@ async function isExploreChainStrandedRedo(playerId, chainId, chainLevel) {
 }
 
 /**
- * 探索事件链：参与「按日历日统一重置」的 `chain_id` 列表（与 `public/data/shared/events.json` 等配置一致）。
- * 新链纳入每日重置时在此追加；勿再用地理占位链名。
+ * 探索事件链：参与「按日历日统一重置」的 `chain_id` 列表（须与 `config_events` / events.json 一致）。
+ * 含全部 wild / mini；**不含** `chain_tutorial_v1`。
+ * 新链纳入每日重置时在此追加；勿再写已废弃的旧 id（如 `chain_cunfu_v1`）。
  */
 const EXPLORE_EVENT_CHAIN_IDS_DAILY_RESET = [
-  'chain_cunfu_v1',
-  'chain_troop_legendary_v1',
-  'chain_troop_core_v1',
+  'chain_wild_cunfu_v1',
+  'chain_wild_cunfu_v2',
+  'chain_wild_cunfu_v3',
+  'chain_wild_troop_v1',
+  'chain_wild_troop_v2',
+  'chain_wild_troop_v3',
+  'chain_mini_gobang',
+  'chain_mini_blackjack',
 ];
 
 function mysqlDateToYmd(val) {
@@ -73,6 +79,15 @@ function mysqlDateToYmd(val) {
   }
   const s = String(val);
   return s.length >= 10 ? s.slice(0, 10) : s;
+}
+
+/** 完成记录是否早于今日（无 updated_at 视为陈旧，便于修复旧白名单空跑日清） */
+function isExploreCompletionStaleVsToday(rec, todayStr) {
+  const u = rec?.updated_at;
+  if (u == null || u === '') return true;
+  const ymd = mysqlDateToYmd(u);
+  if (!ymd) return true;
+  return ymd < todayStr;
 }
 
 function chainLevelNum(lv) {
@@ -159,6 +174,9 @@ async function anyExploreEventChainIncompleteMidProgress(playerId, exploreEvents
 /**
  * 探索事件链按日历日重置：新日且 `explore_chain_reset_date` 早于今日时，清空 `EXPLORE_EVENT_CHAIN_IDS_DAILY_RESET` 所列链在 `explore_events` 中的完成记录并写入今日。
  * 若玩家在任一条配置链上为「中途」（有效已完成环数 ∈ (0, 该链最大环)），则**不**清空、**不**更新日期，链可跨日继续；通全链或未开链的仍按日清空。
+ *
+ * 额外修复：若今日已写过 `explore_chain_reset_date`，但白名单事件仍留有 **早于今日** 的完成记录
+ * （典型：旧白名单空跑日清），则清除这些陈旧记录，不抹掉今日新完成的环。
  */
 async function maybeResetExploreEventChainsDaily(playerId) {
   try {
@@ -172,10 +190,7 @@ async function maybeResetExploreEventChainsDaily(playerId) {
 
     const [dr] = await pool.query('SELECT CURDATE() AS d');
     const todayStr = mysqlDateToYmd(dr[0].d);
-
     const storedStr = mysqlDateToYmd(row.explore_chain_reset_date);
-
-    if (storedStr && storedStr >= todayStr) return;
 
     let events = {};
     if (row.explore_events) {
@@ -187,16 +202,47 @@ async function maybeResetExploreEventChainsDaily(playerId) {
       }
     }
 
-    if (await anyExploreEventChainIncompleteMidProgress(playerId, events)) {
-      return;
-    }
-
     const ph = EXPLORE_EVENT_CHAIN_IDS_DAILY_RESET.map(() => '?').join(',');
     const [chainRows] = await pool.query(
       `SELECT event_id FROM config_events WHERE chain_id IN (${ph})`,
       EXPLORE_EVENT_CHAIN_IDS_DAILY_RESET
     );
     const ids = new Set(chainRows.map((r) => r.event_id));
+    if (ids.size === 0) {
+      console.error(
+        '[Players] EXPLORE_EVENT_CHAIN_IDS_DAILY_RESET 在 config_events 中 0 条命中，日清跳过（请核对链 id）',
+        EXPLORE_EVENT_CHAIN_IDS_DAILY_RESET
+      );
+      return;
+    }
+
+    const alreadyResetToday = !!(storedStr && storedStr >= todayStr);
+
+    if (alreadyResetToday) {
+      // 修复旧白名单空跑：删掉「今日之前」仍挂在白名单链上的完成记录
+      let removed = 0;
+      for (const k of Object.keys(events)) {
+        if (!ids.has(k)) continue;
+        if (!isExploreCompletionStaleVsToday(events[k], todayStr)) continue;
+        delete events[k];
+        removed += 1;
+      }
+      if (removed > 0) {
+        await pool.query('UPDATE player_events SET explore_events = ? WHERE player_id = ?', [
+          JSON.stringify(events),
+          playerId,
+        ]);
+        console.warn(
+          `[Players] 探索日清补清陈旧完成 ${removed} 条 player_id=${playerId}（reset_date 已是今日）`
+        );
+      }
+      return;
+    }
+
+    if (await anyExploreEventChainIncompleteMidProgress(playerId, events)) {
+      return;
+    }
+
     for (const k of Object.keys(events)) {
       if (ids.has(k)) delete events[k];
     }

@@ -43,7 +43,7 @@ function getFactionTroopMaxTroopsBonus(factionBonuses) {
 }
 
 /**
- * 汉室/黄巾等：真三日报签到额外奖励串（与 rewardService 语法一致，如 silver:20 / item_token:1）
+ * 汉室/黄巾等：真三日报签到额外奖励串（与 rewardService 语法一致，如 silver:20 / item_tactic_token:1）
  * @param {unknown} factionBonuses
  * @returns {string|null}
  */
@@ -91,7 +91,7 @@ function formatFactionCheckinBonusDisplayShort(rewardsStr, itemNameById) {
 
 /**
  * 日历格第二行：势力 bonus + 官职 silverBonus
- * 银+银 → "20+40"；道具+银 → "🎖️+40"；单侧则各自短文案
+ * 银+银 → "20+40银"；仅势力银 → "100银"；道具+官职银 → "🎖️+40银"
  *
  * @param {{
  *   factionRewards?: string|null,
@@ -116,7 +116,7 @@ function formatCheckinExtraBonusesDisplayShort(opts = {}) {
       }
       if (part.startsWith('food:')) {
         const n = Math.floor(Number(part.slice('food:'.length)) || 0);
-        if (n > 0) factionNonSilverLabel = `🌾${n}`;
+        if (n > 0) factionNonSilverLabel = `🌾${n}粮`;
         continue;
       }
       if (part.startsWith('item_') || part.includes('_item_')) {
@@ -131,19 +131,19 @@ function formatCheckinExtraBonusesDisplayShort(opts = {}) {
   }
 
   if (factionSilver > 0 && positionSilver > 0 && !factionNonSilverLabel) {
-    return `${factionSilver}+${positionSilver}`;
+    return `${factionSilver}+${positionSilver}银`;
   }
   if (factionNonSilverLabel && positionSilver > 0) {
-    return `${factionNonSilverLabel}+${positionSilver}`;
+    return `${factionNonSilverLabel}+${positionSilver}银`;
   }
   if (factionSilver > 0 && positionSilver <= 0 && !factionNonSilverLabel) {
-    return String(factionSilver);
+    return `${factionSilver}银`;
   }
   if (factionNonSilverLabel && positionSilver <= 0) {
     return factionNonSilverLabel;
   }
   if (positionSilver > 0) {
-    return String(positionSilver);
+    return `${positionSilver}银`;
   }
   return formatFactionCheckinBonusDisplayShort(factionRewards, itemNameById);
 }

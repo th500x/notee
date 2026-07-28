@@ -37,6 +37,7 @@ import {
 } from './tacticalGridModel.js';
 import { findBestMoveTarget } from './tacticalAi.js';
 import { selectFormationForTroops, applyFormation } from './formationModel.js';
+import { createBattleRoundDigest } from '../../utils/battleRoundDigest.js';
 
 const require = createRequire(import.meta.url);
 const {
@@ -171,11 +172,14 @@ export function runPvpTacticalDuel(input) {
   deployUnits(unitsB, ZONE.deployB, mapResult, objMap, occupied);
 
   const events = [];
-  const battleLog = [];
   let seq = 0;
   const emit = (type, payload) => events.push({ seq: seq++, type, payload });
   const label = (side) => sideLabels[side] ?? side;
-  const unitName = (u) => u.character?.courtesyName || u.name;
+  /** 文字战报：回合摘要（与棋盘客户端同源；动画仍走 events） */
+  const digest = createBattleRoundDigest({
+    labels: { a: label('a'), b: label('b') },
+    pick: (arr) => arr[Math.floor(rng() * arr.length)],
+  });
   /** 受击单元所在侧的城防 cityDefense（无则 null）；用作 calcDamageSeeded 的 def 防御增益 */
   const cityDefenseForSide = (side) => {
     const v = defenseBonus && defenseBonus[side];
@@ -219,7 +223,7 @@ export function runPvpTacticalDuel(input) {
       effects: res.formation.effects,
       units: sideUnits.map((u) => ({ instanceId: u.instanceId, y: u.y, x: u.x })),
     });
-    battleLog.push(`[${label(side)}] 布阵「${res.formation.name}」（${res.formation.desc}）。`);
+    digest.pushOpening(`[${label(side)}] 布阵「${res.formation.name}」（${res.formation.desc}）。`);
   };
   applySideFormation('a', ZONE.deployA, 1);
   applySideFormation('b', ZONE.deployB, -1);
@@ -230,10 +234,11 @@ export function runPvpTacticalDuel(input) {
   while (round < MAX_TACTICAL_ROUNDS) {
     round += 1;
     emit('ROUND_START', { round });
-    battleLog.push(`═══ 第 ${round} 回合 ═══`);
 
     if (aliveBySide('a').length === 0) { winnerSide = 'b'; break; }
     if (aliveBySide('b').length === 0) { winnerSide = 'a'; break; }
+
+    digest.beginRound(round);
 
     // 行动顺序：速度降序 + rng 打破并列（确定性，与 pvpAutoDuelSim 同策略）
     const actors = allUnits
@@ -275,7 +280,7 @@ export function runPvpTacticalDuel(input) {
       const dodged = roll === 'dodge';
       if (dodged) {
         emit('ATTACK', { attacker: atk.instanceId, defender: def.instanceId, result: 'dodge' });
-        battleLog.push(`[${label(atk.side)}]${unitName(atk)} 攻击被 [${label(def.side)}]${unitName(def)} 闪避。`);
+        digest.recordDodge({ attacker: atk, defender: def, roundNum: round });
       } else {
         // 透传真实地图地形（地形防御 + 攻方地形适应）与受击侧城防（cityDefense），与 siegeCombatCore 口径一致。
         const defCityDefense = cityDefenseForSide(def.side);
@@ -288,12 +293,15 @@ export function runPvpTacticalDuel(input) {
         def.currentTroops = Math.max(0, def.currentTroops - casualties);
         emit('ATTACK', { attacker: atk.instanceId, defender: def.instanceId, result: roll });
         emit('DAMAGE', { target: def.instanceId, casualties, remain: def.currentTroops, crit: roll === 'crit' });
-        battleLog.push(
-          `[${label(atk.side)}]${unitName(atk)} 对 [${label(def.side)}]${unitName(def)} 造成 ${casualties} 损失（${roll === 'crit' ? '暴击' : '命中'}）。`,
-        );
+        digest.recordDamage({
+          attacker: atk,
+          defender: def,
+          casualties,
+          crit: roll === 'crit',
+          roundNum: round,
+        });
         if (def.currentTroops <= 0) {
           emit('UNIT_ELIMINATED', { instanceId: def.instanceId });
-          battleLog.push(`　└ [${label(def.side)}]${unitName(def)} 部队被歼灭。`);
         }
       }
 
@@ -302,7 +310,7 @@ export function runPvpTacticalDuel(input) {
         const rollC = rollCritDodgeSeeded(def, atk, rng);
         if (rollC === 'dodge') {
           emit('COUNTER', { attacker: def.instanceId, defender: atk.instanceId, result: 'dodge' });
-          battleLog.push(`　└ 反击：[${label(def.side)}]${unitName(def)} 攻击被 [${label(atk.side)}]${unitName(atk)} 闪避。`);
+          digest.recordDodge({ attacker: def, defender: atk, roundNum: round });
         } else {
           // 反击：此处受击者为原攻方 atk → 城防取 atk.side
           const atkCityDefense = cityDefenseForSide(atk.side);
@@ -315,12 +323,15 @@ export function runPvpTacticalDuel(input) {
           atk.currentTroops = Math.max(0, atk.currentTroops - casualtiesC);
           emit('COUNTER', { attacker: def.instanceId, defender: atk.instanceId, result: rollC });
           emit('DAMAGE', { target: atk.instanceId, casualties: casualtiesC, remain: atk.currentTroops, crit: rollC === 'crit' });
-          battleLog.push(
-            `　└ 反击：[${label(def.side)}]${unitName(def)} 对 [${label(atk.side)}]${unitName(atk)} 造成 ${casualtiesC} 损失（${rollC === 'crit' ? '暴击' : '命中'}）。`,
-          );
+          digest.recordDamage({
+            attacker: def,
+            defender: atk,
+            casualties: casualtiesC,
+            crit: rollC === 'crit',
+            roundNum: round,
+          });
           if (atk.currentTroops <= 0) {
             emit('UNIT_ELIMINATED', { instanceId: atk.instanceId });
-            battleLog.push(`　└ [${label(atk.side)}]${unitName(atk)} 部队被歼灭。`);
           }
         }
       }
@@ -328,6 +339,12 @@ export function runPvpTacticalDuel(input) {
       if (aliveBySide('a').length === 0) { winnerSide = 'b'; break; }
       if (aliveBySide('b').length === 0) { winnerSide = 'a'; break; }
     }
+
+    digest.flushRound({
+      aliveA: aliveBySide('a').length,
+      aliveB: aliveBySide('b').length,
+      roundNum: round,
+    });
 
     if (winnerSide) break;
   }
@@ -337,7 +354,7 @@ export function runPvpTacticalDuel(input) {
     const sumA = aliveBySide('a').reduce((s, u) => s + u.currentTroops, 0);
     const sumB = aliveBySide('b').reduce((s, u) => s + u.currentTroops, 0);
     winnerSide = sumA === sumB ? null : sumA > sumB ? 'a' : 'b';
-    battleLog.push(`达到战术回合上限（第 ${MAX_TACTICAL_ROUNDS} 回合），按存活兵力判定。`);
+    digest.pushEnding(`达到战术回合上限（第 ${MAX_TACTICAL_ROUNDS} 回合），按存活兵力判定。`);
   }
 
   const finalState = {
@@ -360,9 +377,11 @@ export function runPvpTacticalDuel(input) {
   };
 
   const winnerLabel = winnerSide ? label(winnerSide) : '平局';
-  battleLog.push(`战斗结束：${winnerLabel}${winnerSide ? '获胜' : ''}（共 ${round} 回合）。`);
+  digest.pushEnding(`战斗结束：${winnerLabel}${winnerSide ? '获胜' : ''}（共 ${round} 回合）。`);
 
   emit('BATTLE_END', { winnerSide, rounds: round, finalState });
+
+  const battleLog = digest.buildText().split('\n').filter((l) => l.length > 0);
 
   return { events, winnerSide, rounds: round, finalState, battleLog };
 }

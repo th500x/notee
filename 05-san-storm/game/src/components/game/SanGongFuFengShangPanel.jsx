@@ -1,5 +1,5 @@
 /**
- * 三公府 · 互动 · 封赏：礼盒/兑换/军备（占位）+ 道具/将领/部队卡池入口（与 `CardPoolPoolButton` 同源样式）。
+ * 三公府 · 互动 · 封赏：礼盒/兑换/军备 + 道具/将领/部队卡池入口（与 `CardPoolPoolButton` 同源样式）。
  * 日俸已迁至君主每日传书领取，本面板不再提供俸禄按钮。
  * 打开卡池后仍由 `GamePage` 的 `CardPoolDrawer` / `ItemCardPoolDrawer` + `useCardPool` 承接（经 `onOpenPool`）。
  */
@@ -8,6 +8,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { CardPoolPoolButton } from '@/components/game/CardPoolPoolButton';
 import SanGongResourceExchangeModal from '@/components/game/SanGongResourceExchangeModal';
 import SanGongGiftBoxModal from '@/components/game/SanGongGiftBoxModal';
+import SanGongArmamentModal from '@/components/game/SanGongArmamentModal';
 import { playerAPI } from '@/services/playerApi';
 
 const GIFT_BOX_TOOLTIP =
@@ -17,7 +18,7 @@ const EXCHANGE_TOOLTIP =
   '个人银两与粮草同势力储备互换：基数=俸禄 B（档系数×官职倍数）；名义 1:5，松紧随池子余量；优享包池侧 +20%。每包每日 1 次（0:00 刷新）。';
 
 const ARMAMENT_TOOLTIP =
-  '规划：消耗贡献值兑换额外探索/战斗/匪寨次数（每日 0:00 重置兑换机会，细则见 12-1 §4.3）。当前仅为入口占位。';
+  '消耗贡献兑换兵符或玉牌：10 贡献兑 1 件；每日最多 5 兵符 + 5 玉牌（0:00 刷新，与礼盒一致）。';
 
 /**
  * @param {{
@@ -49,6 +50,8 @@ export default function SanGongFuFengShangPanel({
   const [exchangeRemaining, setExchangeRemaining] = useState(4);
   const [giftBoxOpen, setGiftBoxOpen] = useState(false);
   const [giftBoxRemaining, setGiftBoxRemaining] = useState(1);
+  const [armamentOpen, setArmamentOpen] = useState(false);
+  const [armamentRemaining, setArmamentRemaining] = useState(10);
 
   const loadExchangeRemaining = useCallback(async () => {
     if (!playerId) {
@@ -89,6 +92,25 @@ export default function SanGongFuFengShangPanel({
     loadGiftBoxRemaining();
   }, [loadGiftBoxRemaining]);
 
+  const loadArmamentRemaining = useCallback(async () => {
+    if (!playerId) {
+      setArmamentRemaining(10);
+      return;
+    }
+    try {
+      const res = await playerAPI.getSanGongFuArmamentPreview(playerId);
+      if (res.success && res.data) {
+        setArmamentRemaining(Math.max(0, Math.floor(Number(res.data.remainingTotal) || 0)));
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [playerId]);
+
+  useEffect(() => {
+    loadArmamentRemaining();
+  }, [loadArmamentRemaining]);
+
   return (
     <div className="shrink-0 rounded-lg border border-stone-700/40 bg-stone-900/30 px-2 py-2 text-left">
       <div className="mb-2 text-left text-[10px] font-semibold text-amber-500/90">封赏</div>
@@ -121,13 +143,14 @@ export default function SanGongFuFengShangPanel({
         <CardPoolPoolButton
           icon="🛡️"
           label="军备"
-          subLabel="敬请期待"
-          remaining={0}
-          dailyLimit={1}
+          subLabel={armamentRemaining > 0 ? `${armamentRemaining}/10` : '今日已兑'}
+          remaining={armamentRemaining}
+          dailyLimit={10}
           drawerOpen={drawerOpen}
           tooltip={ARMAMENT_TOOLTIP}
           onClick={() => {
-            setToast('军备功能筹备中，敬请期待');
+            setToast(null);
+            setArmamentOpen(true);
           }}
         />
         <CardPoolPoolButton
@@ -172,6 +195,16 @@ export default function SanGongFuFengShangPanel({
         playerId={playerId}
         onAfterRedeem={async () => {
           await loadGiftBoxRemaining();
+          await afterChange?.();
+        }}
+      />
+
+      <SanGongArmamentModal
+        open={armamentOpen}
+        onClose={() => setArmamentOpen(false)}
+        playerId={playerId}
+        onAfterRedeem={async () => {
+          await loadArmamentRemaining();
           await afterChange?.();
         }}
       />

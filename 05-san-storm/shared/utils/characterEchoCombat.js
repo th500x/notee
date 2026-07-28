@@ -15,7 +15,7 @@ export const POOL_SLOT_PCT = [10, 5];
 /** 第三槽规划加成（M1 仅 UI 锁定展示） */
 export const THIRD_SLOT_PCT = 15;
 
-export const SEASON_BADGE_ITEM_ID = 'item_season_badge';
+export const SEASON_BADGE_ITEM_ID = 'item_badge_season';
 
 export function parseEchoSlots(raw) {
   if (raw == null) return normalizeEchoSlots(null);

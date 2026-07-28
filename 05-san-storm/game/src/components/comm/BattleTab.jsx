@@ -258,9 +258,13 @@ function BattleDetail({ detail }) {
   const siegeRightLabel = isDefenseReport
     ? '守军'
     : `守军${detail.opponentName ? ` · ${detail.opponentName}` : ''}`;
-  const replayLogStr = isDefenseReport
-    ? (typeof rewards.autoDuelBattleLog === 'string' ? rewards.autoDuelBattleLog : '')
-    : logStr;
+  /** 简化回放须解析「次攻击」协议文；新战报 battle_log 为回合摘要，优先 rewards.autoDuelBattleLog */
+  const replayLogStr =
+    typeof rewards.autoDuelBattleLog === 'string' && rewards.autoDuelBattleLog.length > 12
+      ? rewards.autoDuelBattleLog
+      : isDefenseReport
+        ? ''
+        : logStr;
   const canSiegeReplay =
     replayLogStr.length > 12 &&
     /═══\s*第\s*\d+\s*回合\s*═══/.test(replayLogStr) &&

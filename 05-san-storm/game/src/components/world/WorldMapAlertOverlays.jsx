@@ -188,19 +188,18 @@ export default function WorldMapAlertOverlays({
         </AncientModal>
       )}
 
-      {showRoadGateNotice && roadGateRetreatNotice && (
-        <AncientModal
-          isOpen
-          type="info"
-          title="道路位置已调整"
-          confirmText="知道了"
-          showCancel={false}
-          onConfirm={onRoadGateNoticeClose}
-          onClose={onRoadGateNoticeClose}
-        >
-          <p className="text-gray-800 text-sm text-left leading-relaxed px-1">{roadGateRetreatNotice}</p>
-        </AncientModal>
-      )}
+      <AncientModal
+        isOpen={Boolean(showRoadGateNotice && roadGateRetreatNotice)}
+        type="info"
+        title="道路位置已调整"
+        confirmText="知道了"
+        showCancel={false}
+        portalDedupeKey="road-gate-notice"
+        onConfirm={onRoadGateNoticeClose}
+        onClose={onRoadGateNoticeClose}
+      >
+        <p className="text-gray-800 text-sm text-left leading-relaxed px-1">{roadGateRetreatNotice}</p>
+      </AncientModal>
 
       {simpleAlertMessage != null && (
         <AncientModal

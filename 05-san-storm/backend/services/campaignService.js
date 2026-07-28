@@ -400,12 +400,12 @@ async function applyBattleSettlement({
 
 /**
  * completion_reward_badge 非空 → 发放赛季徽章道具（config_items / players.items JSON，与事件奖励道具同列）
- * 数字槽位仅用于卡牌展示与策划对照，当前赛季对应 item_season_badge。
+ * 数字槽位仅用于卡牌展示与策划对照，当前赛季对应 item_badge_season（黄巾徽章）。
  */
 function resolveCampaignBadgeItemId(completionRewardBadge) {
   const raw = completionRewardBadge == null ? '' : String(completionRewardBadge).trim();
   if (!raw) return null;
-  return 'item_season_badge';
+  return 'item_badge_season';
 }
 
 async function getItemDisplayName(itemId) {
@@ -418,7 +418,7 @@ async function getItemDisplayName(itemId) {
  * 按各次挑战中的最高分（bestScore）发奖并标记 rewardClaimed
  */
 /**
- * 与 `claimCampaignReward` 中徽章发放同源：`resolveCampaignBadgeItemId` → **`item_season_badge`** + `playerItemsService.addItem`。
+ * 与 `claimCampaignReward` 中徽章发放同源：`resolveCampaignBadgeItemId` → **`item_badge_season`** + `playerItemsService.addItem`。
  * 匪寨通关第 20 层等场景复用（不经 `campaign_progress` 领奖状态机）。
  * @param {string} playerId
  * @param {number} [quantity]

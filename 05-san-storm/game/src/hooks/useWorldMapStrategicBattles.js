@@ -10,7 +10,8 @@ import { warAPI } from '@/services/warApi';
 import { API_CONFIG } from '@/constants';
 import { validateMainLineupBattleGate } from '@/utils/mainLineupTroops';
 import { BASE_CAMP_SIEGE_FOOD_COST_MULTIPLIER } from '@shared/utils/pvpBaseCampConstants';
-import { clearInflightBattleTroopSnapshot } from '@/utils/inflightBattleTroopSnapshot';
+import { clearInflightBattleTroopSnapshot, buildBanditBetweenLayerHealTroopRows, writeInflightBattleTroopSnapshot } from '@/utils/inflightBattleTroopSnapshot';
+import { normalizeBanditBetweenLayerHealTier } from '@shared/utils/banditBetweenLayerHeal.js';
 import { buildBanditLayerSmallMapPveLoot } from '@shared/utils/banditRaidLayerRewards';
 import { banditNpcSlotRaritiesFromLayer } from '@shared/utils/smallMapEnemyRoster';
 import { worldMapCityIsPlayerSameFaction } from '@/utils/worldMapCityPanelCopy';
@@ -282,11 +283,13 @@ export function useWorldMapStrategicBattles({
           res = await warAPI.resolveAttackerCitySiegeAuthoritative(
             pending.pvpWarId,
             player.playerId,
+            { continueChain: !!pending.continueChain },
           );
         } else if (pending.kind === 'baseCamp') {
           res = await warAPI.resolveBaseCampSiegeAuthoritative(
             pending.pvpWarId,
             player.playerId,
+            { continueChain: !!pending.continueChain },
           );
         } else {
           res = await fetchWithTimeout(
@@ -294,7 +297,10 @@ export function useWorldMapStrategicBattles({
             {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ playerId: player.playerId }),
+              body: JSON.stringify({
+                playerId: player.playerId,
+                continueChain: !!pending.continueChain,
+              }),
             },
           ).then((r) => r.json());
         }
@@ -390,7 +396,7 @@ export function useWorldMapStrategicBattles({
 
     const qRes = await fetchSiegeQuotaJson(player.playerId, cityId);
     if (!qRes.success || !(Number(qRes.data?.remaining) > 0)) {
-      setSimpleAlertMessage('攻城次数不足');
+      setSimpleAlertMessage('兵符不足');
       return;
     }
 
@@ -481,7 +487,7 @@ export function useWorldMapStrategicBattles({
       }
       const qRes = await fetchSiegeQuotaJson(player.playerId, targetCityId);
       if (!qRes.success || !(Number(qRes.data?.remaining) > 0)) {
-        setSimpleAlertMessage('攻城次数不足');
+        setSimpleAlertMessage('兵符不足');
         return;
       }
       const gate = validateMainLineupBattleGate({
@@ -587,6 +593,10 @@ export function useWorldMapStrategicBattles({
         banditMilestone,
         killCount,
         tacticalScoreText,
+        /** 终场兵力（补兵合计 / 继续进场） */
+        banditHealTroops: Array.isArray(meta?.banditHealTroopRows)
+          ? meta.banditHealTroopRows
+          : null,
         defeatHint:
           result !== 'victory'
             ? '本场已扣攻打次数，个人层与全服耐久不因失败前进。左侧「放弃」将本寨层进度重置为第 1 层（已扣次数不返还）；「确定」仅关闭。'
@@ -601,6 +611,7 @@ export function useWorldMapStrategicBattles({
   );
 
   const closeBanditRaidResult = useCallback(() => {
+    clearInflightBattleTroopSnapshot();
     setBanditRaidResult(null);
     setPostBanditRaidRefreshKey((k) => k + 1);
   }, []);
@@ -640,35 +651,60 @@ export function useWorldMapStrategicBattles({
     bumpStrategicRoadPresenceRef,
   ]);
 
-  const handleBanditRaidContinue = useCallback(async () => {
+  const handleBanditRaidContinue = useCallback(async (healTierArg) => {
     if (!banditRaidResult || banditRaidResult.result !== 'victory') return;
     const banditPoiId = banditRaidResult.banditPoiId;
     if (!banditPoiId || !player?.playerId) return;
+    const healTier = normalizeBanditBetweenLayerHealTier(healTierArg);
+    let foodForGate = Number(player?.food) || 0;
     try {
+      if (healTier) {
+        const fromResult =
+          Array.isArray(banditRaidResult.banditHealTroops) &&
+          banditRaidResult.banditHealTroops.length > 0
+            ? banditRaidResult.banditHealTroops
+            : null;
+        const troops =
+          fromResult || buildBanditBetweenLayerHealTroopRows(player.playerId, cards);
+        const healRes = await playerAPI.applyBanditRaidBetweenLayerHeal(
+          player.playerId,
+          healTier,
+          troops,
+        );
+        if (!healRes?.success || !healRes.data) {
+          setSimpleAlertMessage(
+            typeof healRes?.error === 'string' && healRes.error.trim()
+              ? healRes.error
+              : '粮草补兵失败',
+          );
+          return;
+        }
+        const updates = Array.isArray(healRes.data.updates) ? healRes.data.updates : [];
+        writeInflightBattleTroopSnapshot(
+          player.playerId,
+          updates.map((u) => ({
+            faction: 'player',
+            instanceId: u.instanceId,
+            currentTroops: u.currentTroops,
+            maxTroops: u.maxTroops,
+          })),
+        );
+        if (Number.isFinite(Number(healRes.data.foodRemaining))) {
+          foodForGate = Math.max(0, Math.floor(Number(healRes.data.foodRemaining)));
+        } else {
+          const spent = Math.max(0, Math.floor(Number(healRes.data.foodCost) || 0));
+          foodForGate = Math.max(0, foodForGate - spent);
+        }
+        await refreshPlayer?.({ silent: true });
+      }
+
       const res = await playerAPI.getBanditRaidQuota(player.playerId, banditPoiId);
       if (!res?.success || !res.data) {
         setSimpleAlertMessage(typeof res?.error === 'string' && res.error.trim() ? res.error : '无法读取匪寨攻打进度');
         return;
       }
       const d = res.data;
-      const wd = d.worldDurability;
-      const worldDepleted =
-        wd &&
-        typeof wd === 'object' &&
-        Number.isFinite(Number(wd.layersRemaining)) &&
-        Number(wd.layersRemaining) <= 0;
-      if (d.towerCompleted) {
-        setSimpleAlertMessage('本寨个人塔已通关。');
-        return;
-      }
-      if (worldDepleted) {
-        setSimpleAlertMessage('本寨全服耐久已耗尽，无法继续攻打。');
-        return;
-      }
-      if (!d.canBattle) {
-        setSimpleAlertMessage('当前不可继续攻打（攻打次数或条件不足）。');
-        return;
-      }
+      // 连打不扣兵符；个人通 20 层后回到第 1 层，全服耐久扣尽后重生满血
       const attackedLayer = Number(d.nextLayer);
       if (!Number.isFinite(attackedLayer) || attackedLayer < 1) {
         setSimpleAlertMessage('层进度异常，请返回大地图重试。');
@@ -677,7 +713,7 @@ export function useWorldMapStrategicBattles({
       const gate = validateMainLineupBattleGate({
         cards,
         playerUnits: null,
-        playerFood: player?.food ?? 0,
+        playerFood: foodForGate,
       });
       if (!gate.ok) {
         setSimpleAlertMessage(gate.message || '无法进入下一层');
@@ -700,7 +736,7 @@ export function useWorldMapStrategicBattles({
     } catch (e) {
       setSimpleAlertMessage(e?.message || '网络异常');
     }
-  }, [banditRaidResult, player?.playerId, player?.food, cards, setSimpleAlertMessage]);
+  }, [banditRaidResult, player?.playerId, player?.food, cards, setSimpleAlertMessage, refreshPlayer]);
 
   const handleSiegeEnd = useCallback(async (result, silverSpent, scoreResult, killedIndices, meta) => {
     if (!siegeData) return;
@@ -836,6 +872,7 @@ export function useWorldMapStrategicBattles({
   const closeSiegeResult = useCallback(() => {
     const notice =
       typeof siegeResult?.defeatRetreatNotice === 'string' ? siegeResult.defeatRetreatNotice.trim() : '';
+    clearInflightBattleTroopSnapshot();
     setSiegeData(null);
     setSiegeResult(null);
     if (notice) worldMapOverlayRefs.enqueueRoadGateNotice?.(notice);
@@ -867,6 +904,8 @@ export function useWorldMapStrategicBattles({
           npcBatchIndex: enriched.batchIndex ?? enriched.npcBatchIndex ?? 0,
           npcAlive: enriched.baseCampAlive ?? enriched.npcAlive,
           npcTotal: enriched.baseCampTotal ?? enriched.npcTotal,
+          cityDefense: enriched.cityDefense,
+          siegeCityDefenseMult: enriched.siegeCityDefenseMult,
           isPvp: false,
           opponentName: warSlice.opponentName || `${opp}大本营守军`,
         });
@@ -896,13 +935,7 @@ export function useWorldMapStrategicBattles({
       return;
     }
 
-    const qRes = await fetchSiegeQuotaJson(player.playerId, cityId);
-    if (!qRes.success || !(Number(qRes.data?.remaining) > 0)) {
-      setSimpleAlertMessage('攻城次数不足');
-      return;
-    }
-
-    // 继续下一场：再确认一次 → 权威演算（不进棋盘）
+    // 连打不扣兵符（与匪寨同口径）；大地图再次「攻打」仍扣。城战无层间补给选项。
     setSiegeResult(null);
     setSiegeData(null);
     if (siegeData.pvpDefenderBaseCampSiege && siegeData.pvpWarId) {
@@ -913,6 +946,7 @@ export function useWorldMapStrategicBattles({
         cityName: siegeData.cityName || '目标城',
         opponentName: siegeData.opponentName || '攻方大本营守军',
         playerFaction: player.factionId,
+        continueChain: true,
       });
       return;
     }
@@ -923,6 +957,7 @@ export function useWorldMapStrategicBattles({
         pvpWarId: siegeData.pvpWarId,
         cityName: siegeData.cityName || '城池',
         playerFaction: player.factionId || siegeData.playerFaction,
+        continueChain: true,
       });
       return;
     }
@@ -931,6 +966,7 @@ export function useWorldMapStrategicBattles({
       cityId,
       cityName: siegeData.cityName || '城池',
       playerFaction: player.factionId || siegeData.playerFaction,
+      continueChain: true,
     });
   }, [
     siegeData,

@@ -5,7 +5,7 @@
  */
 
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { generateSmallMap } from '@shared/utils/mapGenerator';
+import { generateSmallMapV2 } from '@shared/utils/mapGenerator_v2.js';
 import {
   buildSmallMapEnemyRosterPicks,
   filterTroopsForSmallMapPveEnemy,
@@ -26,10 +26,13 @@ import {
   buildTroopCatalogById,
   flattenPlayerUnitToBattleTroop,
 } from '@shared/utils/resolveTroopBattleCaps';
+import { resolveBattleUnitKey } from '@shared/utils/battleUnitKeyResolve.js';
 import { fetchWithTimeout } from '@/services/httpClient';
+import { snapDeployPositions, assertTroopsNotOnUndeployableTerrain } from '@shared/utils/tacticalDeploySnap.js';
+import { createBattleRoundDigest } from '@shared/utils/battleRoundDigest.js';
 const base = () => import.meta.env.BASE_URL;
 
-/** 战斗地图部队图标：`san_1_battle/player|enemy/`（与 TroopLayer 一致） */
+/** 战斗地图静态回退图标：卡面 `san_1_ui_card/troop/`（序列帧优先 battleUnitKey） */
 function getTroopImg(troop) {
   const attempts = getBattleFieldTroopPortraitUrlAttempts(troop, base());
   return attempts[0] || '';
@@ -61,6 +64,8 @@ export function useBattleMap() {
   const [logs, setLogs] = useState([]);
   /** 与 logs 同步追加，供战后结算写库时读取（避免仅依赖 setState 时序导致战报截断） */
   const battleLogsSyncRef = useRef([]);
+  /** 入库用回合摘要（侧栏仍可逐条流水；仅新战报写库走摘要） */
+  const battleReportDigestRef = useRef(createBattleRoundDigest({ labels: { a: '我方', b: '敌方' } }));
   /** 开战瞬间敌方编制数；战报击杀 = 此值 − 仍有兵力的敌方编制数 */
   const initialEnemyStackCountRef = useRef(null);
   const prevBattlePlayingRef = useRef(false);
@@ -110,11 +115,12 @@ export function useBattleMap() {
   // ── 分配战场部队（真实编组 + 事件稀有度敌方） ──
   /**
    * @param {Array} playerUnits - 我方单位（1~5个）
-   * @param {string} eventRarity - 事件稀有度（common/rare/epic/legendary/core）；无 enemySlotRarities 时映射为匪寨档四槽（core→legendary 档）
+   * @param {string} eventRarity - 事件战斗稀有度（由 `chain_level` 映射；common/rare/epic/legendary/core）；无 enemySlotRarities 时映射为匪寨档四槽（core→legendary 档）
    * @param {object} [opts]
    * @param {string[]} [opts.enemySlotRarities] - 长度 4 时每槽独立稀有度（匪寨等）；与 5 将领位惩罚战互斥
    * @param {boolean} [opts.eventPunishmentExtraSlot] - 探索事件惩罚战：选项因子为 type-b 时在默认 4 编制上多 1 支部队（将领/部队池同事件稀有度，无指定主将 ID）
    * @param {Array} [opts.allyUnits] - 御驾 / 宝物等友军（最多 3 支）
+   * @param {object} [opts.mapResult] - **必传刚 generate 的返回值**（React setState 异步，不可依赖 hook 内旧 mapResult）
    */
   const assignRealBattleTroops = useCallback((playerUnits, eventRarity = 'common', opts = {}) => {
     const t = filterTroopsForSmallMapPveEnemy(allTroops);
@@ -123,13 +129,21 @@ export function useBattleMap() {
     const extraIds = (Array.isArray(rawExtra) ? rawExtra : rawExtra ? [rawExtra] : []).filter(Boolean);
     const useFiveEnemy = extraIds.length > 0 || opts.eventPunishmentExtraSlot === true;
 
-    // 我方位置（最多5个，前排优先部署）
-    const playerPositions = [
+    // 必须用本次传入的地图：generate() 的 setMapResult 尚未提交时 hook 内 mapResult 仍是 null/旧图
+    const activeMap = opts.mapResult || mapResult;
+    if (!activeMap?.terrain?.length) {
+      throw new Error(
+        '[assignRealBattleTroops] 缺少 mapResult：请传入 generate() 的返回值，禁止在无地图时落子',
+      );
+    }
+
+    // 我方位置（最多5个，前排优先部署）；再按地图避河/熔岩吸附
+    const playerPreferred = [
       { y: 8, x: 1 }, { y: 8, x: 4 }, { y: 8, x: 7 },
       { y: 9, x: 2 }, { y: 9, x: 5 },
     ];
     // 敌方位置：默认 4 支；指定额外将领（事件 punishment 5v5）时为 5 支
-    const enemyPositions = useFiveEnemy
+    const enemyPreferred = useFiveEnemy
       ? [
           { y: 0, x: 1 }, { y: 0, x: 4 }, { y: 0, x: 7 },
           { y: 1, x: 2 }, { y: 1, x: 5 },
@@ -139,6 +153,8 @@ export function useBattleMap() {
           { y: 1, x: 3 }, { y: 1, x: 7 },
         ];
     const enemyCount = useFiveEnemy ? 5 : 4;
+    const playerPositions = snapDeployPositions(playerPreferred, activeMap, { label: 'player' });
+    const enemyPositions = snapDeployPositions(enemyPreferred, activeMap, { label: 'enemy' });
 
     const catalogById = buildTroopCatalogById(allTroops);
     const playerResult = playerUnits.slice(0, 5).map((unit, i) =>
@@ -230,6 +246,7 @@ export function useBattleMap() {
       });
       const morale = initialMoraleFromCharacter(char);
       const attempts = getBattleFieldTroopPortraitUrlAttempts({ ...tr, faction: 'enemy' }, base());
+      const battleUnitKey = resolveBattleUnitKey(enrichedTroop);
       return {
         ...enrichedTroop,
         id: tr.id + '_e' + i,
@@ -244,20 +261,29 @@ export function useBattleMap() {
         imgSrc: attempts[0],
         imgPortraitAttempts: attempts,
         imgFallback: attempts[attempts.length - 1],
+        ...(battleUnitKey ? { battleUnitKey } : {}),
       };
     });
 
-    const allyTroops = mapAllyUnitsToBattleTroops(opts.allyUnits, base(), undefined, opts.skillsMap);
+    const occupiedForAllies = new Set([
+      ...playerPositions.map((p) => `${p.y},${p.x}`),
+      ...enemyPositions.map((p) => `${p.y},${p.x}`),
+    ]);
+    const allyTroops = mapAllyUnitsToBattleTroops(opts.allyUnits, base(), undefined, opts.skillsMap, {
+      mapResult: activeMap,
+      occupied: occupiedForAllies,
+    });
 
     const result = [...playerResult, ...allyTroops, ...enemyResult];
+    assertTroopsNotOnUndeployableTerrain(result, activeMap);
     initBattlePhase2Runtime(result);
-    const { w: tw, h: th } = getMapTerrainDimensions(mapResult);
+    const { w: tw, h: th } = getMapTerrainDimensions(activeMap);
     initBattlePhase3HealRuntime(result, th, tw);
     initBattlePhase4DamageRuntime(result, th, tw);
     initBattlePhase5CompositeRuntime(result, th, tw);
     setBattleTroops(result);
     return result;
-  }, [allTroops, allCharacters]);
+  }, [allTroops, allCharacters, mapResult]);
 
   // API数据加载后不再自动分配部队（由 EventBattle 调用 assignRealBattleTroops）
 
@@ -265,7 +291,8 @@ export function useBattleMap() {
   const generate = useCallback((forceComplexity) => {
     const CL = { simple: '简洁', standard: '标准', complex: '复杂' };
     const RL = { common: '普通', rare: '稀有', epic: '史诗', legendary: '传奇', core: '核心' };
-    const r = generateSmallMap({ battleRarity: currentRarity, forceComplexity });
+    // v2：Wang 底 + 树林/山丘对象瓦；forceComplexity 暂忽略（复杂度由 Shape 种子体现）
+    const r = generateSmallMapV2({ battleRarity: currentRarity });
     r.meta.battleRarity = currentRarity;
     const label = forceComplexity
       ? `${CL[forceComplexity]}地图 · ${RL[currentRarity] || currentRarity}`
@@ -279,7 +306,7 @@ export function useBattleMap() {
   const generateWithSeed = useCallback(() => {
     const RL = { common: '普通', rare: '稀有', epic: '史诗', legendary: '传奇', core: '核心' };
     const seed = seedInput.trim() ? parseInt(seedInput) : null;
-    const r = generateSmallMap({ seed, battleRarity: currentRarity });
+    const r = generateSmallMapV2({ seed, battleRarity: currentRarity });
     r.meta.battleRarity = currentRarity;
     setMapResult(r);
     setMapLabel(`种子复现 #${r.meta.seed} · ${RL[currentRarity] || currentRarity}`);
@@ -291,6 +318,7 @@ export function useBattleMap() {
     setIsBattle(prev => {
       if (prev) {
         battleLogsSyncRef.current = [];
+        battleReportDigestRef.current = createBattleRoundDigest({ labels: { a: '我方', b: '敌方' } });
         setLogs([]); setRoundNum(0); setActiveFormation(null); setBattleEndReason(null);
       }
       return !prev;
@@ -310,7 +338,7 @@ export function useBattleMap() {
   }, []);
 
   return {
-    // 地图（战役模式可 setMapResult 写入切片，不必 generateSmallMap）
+    // 地图（战役模式可 setMapResult 写入切片，不必 generateSmallMapV2）
     mapResult, setMapResult, mapLabel, setMapLabel, currentRarity, setCurrentRarity, seedInput, setSeedInput,
     generate, generateWithSeed,
     // 部队
@@ -319,7 +347,7 @@ export function useBattleMap() {
     isBattle, toggleBattle, showTroops, toggleTroops,
     battleEndReason, setBattleEndReason,
     battlePlaying, setBattlePlaying, roundNum, setRoundNum,
-    logs, addLog, setLogs, battleLogsSyncRef, initialEnemyStackCountRef,
+    logs, addLog, setLogs, battleLogsSyncRef, battleReportDigestRef, initialEnemyStackCountRef,
     silverAmount, setSilverAmount,
     activeFormation, setActiveFormation,
     autoBattle, toggleAutoBattle, autoFormation, toggleAutoFormation,

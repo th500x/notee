@@ -15,7 +15,6 @@ const TAB_TITLES = {
   lineup: '编组配置',
   faction: '势力',
   city: '主城',
-  map: '世界地图',
 };
 
 function getXunLabel(day) {
@@ -37,6 +36,8 @@ export default function TopStatusBar({
   dailyReportNotifyDot = false,
   seasonSettlementEntryVisible = false,
   onOpenSeasonSettlement,
+  onOpenCampaignCenter,
+  campaignNotifyDot = false,
 }) {
   // CR A7（2026-04-29）：本组件只读 gameTime，用细粒度 hook 显式声明；
   // 待未来切到 selector 引擎后，玩家粮草滴答等不会再触发顶栏重渲染。
@@ -126,6 +127,23 @@ export default function TopStatusBar({
                 >
                   <span className="whitespace-nowrap">
                     {mapHudButtonsVisible ? '隐藏按钮' : '显示按钮'}
+                  </span>
+                </button>
+              )}
+              {activeTab === null && typeof onOpenCampaignCenter === 'function' && (
+                <button
+                  type="button"
+                  onClick={() => onOpenCampaignCenter()}
+                  className={MAP_HUD_TOGGLE_BTN_CLASS}
+                  aria-label={campaignNotifyDot ? '战役中心，有可攻略战役' : '战役中心'}
+                >
+                  <span
+                    className={`relative inline-flex whitespace-nowrap ${
+                      campaignNotifyDot ? 'pt-1 pr-1' : ''
+                    }`}
+                  >
+                    ⚔️ 战役中心
+                    {campaignNotifyDot ? <TabNotifyDot /> : null}
                   </span>
                 </button>
               )}

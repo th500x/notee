@@ -13,11 +13,10 @@ const MailManagerPage = lazy(() => import('@/pages/admin/MailManagerPage'));
 const ActivityManagerPage = lazy(() => import('@/pages/admin/ActivityManagerPage'));
 const CampaignMapGeneratorManagerPage = lazy(() => import('@/pages/admin/CampaignMapGeneratorManagerPage'));
 const PvpDuelMapGeneratorManagerPage = lazy(() => import('@/pages/admin/PvpDuelMapGeneratorManagerPage'));
-const JunCountyMapGeneratorManagerPage = lazy(() => import('@/pages/admin/JunCountyMapGeneratorManagerPage'));
-const BattleAnimationDemoPage = lazy(() => import('@/pages/BattleAnimationDemoPage'));
+const JunStrategicMapWorkshopPage = lazy(() => import('@/pages/admin/JunStrategicMapWorkshopPage'));
 const AdminEnvTogglePage = lazy(() => import('@/pages/admin/AdminEnvTogglePage'));
 const SeasonRolloverManagerPage = lazy(() => import('@/pages/admin/SeasonRolloverManagerPage'));
-const AiPlayerManagerPage = lazy(() => import('@/pages/admin/AiPlayerManagerPage'));
+const ChapterStageDebugPage = lazy(() => import('@/pages/admin/ChapterStageDebugPage'));
 
 function RouteLoading() {
   return (
@@ -86,12 +85,6 @@ function App() {
                     <p className="text-sm text-gray-600 text-center">{weeklyReportCard.description}</p>
                   </a>
 
-                  <a href={`${import.meta.env.BASE_URL}battle-animation-demo`} className="block bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow cursor-pointer h-full flex flex-col border border-amber-100">
-                    <div className="text-4xl mb-4 text-center">🎬</div>
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2 text-center">战斗动画 Demo</h3>
-                    <p className="text-sm text-gray-600 text-center">引擎 play*Demo · 占位地图与兵力（开发调试用）</p>
-                  </a>
-
                   {isLoggedIn && (
                     <>
                     <a href={`${import.meta.env.BASE_URL}user-manager`} className="block bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow cursor-pointer h-full flex flex-col border-2 border-red-300">
@@ -114,25 +107,25 @@ function App() {
                       <h3 className="text-lg font-semibold text-gray-900 mb-2 text-center">战役地图</h3>
                       <p className="text-sm text-gray-600 text-center">preset · 随机 seed · 固化 JSON</p>
                     </a>
+                    <a href={`${import.meta.env.BASE_URL}chapter-stage-debug`} className="block bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow cursor-pointer h-full flex flex-col border-2 border-lime-200">
+                      <div className="text-4xl mb-4 text-center">♟️</div>
+                      <h3 className="text-lg font-semibold text-gray-900 mb-2 text-center">章节生图调试</h3>
+                      <p className="text-sm text-gray-600 text-center">可变尺寸 · 草稿关卡 · LargeMapBattle</p>
+                    </a>
                     <a href={`${import.meta.env.BASE_URL}pvp-duel-map-manager`} className="block bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow cursor-pointer h-full flex flex-col border-2 border-rose-200">
                       <div className="text-4xl mb-4 text-center">⚔️</div>
                       <h3 className="text-lg font-semibold text-gray-900 mb-2 text-center">对决地图</h3>
                       <p className="text-sm text-gray-600 text-center">8×10 · rule_profile · 固化 JSON</p>
                     </a>
-                    <a href={`${import.meta.env.BASE_URL}three-kingdoms-map`} className="block bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow cursor-pointer h-full flex flex-col border-2 border-sky-200">
-                      <div className="text-4xl mb-4 text-center">🧭</div>
-                      <h3 className="text-lg font-semibold text-gray-900 mb-2 text-center">三国地图</h3>
-                      <p className="text-sm text-gray-600 text-center">郡象限 · 颍川 A · 底板与城点（测试）</p>
+                    <a href={`${import.meta.env.BASE_URL}jun-strategic-map-workshop`} className="block bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow cursor-pointer h-full flex flex-col border-2 border-teal-200">
+                      <div className="text-4xl mb-4 text-center">🛠️</div>
+                      <h3 className="text-lg font-semibold text-gray-900 mb-2 text-center">郡战略图工坊</h3>
+                      <p className="text-sm text-gray-600 text-center">Meowa · 城/战场点选 · 道路 · 保存 merged</p>
                     </a>
                     <a href={`${import.meta.env.BASE_URL}season-rollover-manager`} className="block bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow cursor-pointer h-full flex flex-col border-2 border-orange-300">
                       <div className="text-4xl mb-4 text-center">🏛️</div>
                       <h3 className="text-lg font-semibold text-gray-900 mb-2 text-center">赛季管理</h3>
                       <p className="text-sm text-gray-600 text-center">结算窗口 · 维护态 · 关服切换 rollover</p>
-                    </a>
-                    <a href={`${import.meta.env.BASE_URL}ai-player-manager`} className="block bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow cursor-pointer h-full flex flex-col border-2 border-cyan-300">
-                      <div className="text-4xl mb-4 text-center">🤖</div>
-                      <h3 className="text-lg font-semibold text-gray-900 mb-2 text-center">AI 玩家管理</h3>
-                      <p className="text-sm text-gray-600 text-center">行为开关 · 各势力人数 · 休眠/唤起</p>
                     </a>
                     <button
                       type="button"
@@ -170,12 +163,11 @@ function App() {
             <Route path="/activity-manager" element={<ActivityManagerPage />} />
             <Route path="/campaign-map-demo" element={<Navigate to="/campaign-map-manager" replace />} />
             <Route path="/campaign-map-manager" element={<CampaignMapGeneratorManagerPage />} />
+            <Route path="/chapter-stage-debug" element={<ChapterStageDebugPage />} />
             <Route path="/pvp-duel-map-manager" element={<PvpDuelMapGeneratorManagerPage />} />
-            <Route path="/three-kingdoms-map" element={<JunCountyMapGeneratorManagerPage />} />
-            <Route path="/battle-animation-demo" element={<BattleAnimationDemoPage />} />
+            <Route path="/jun-strategic-map-workshop" element={<JunStrategicMapWorkshopPage />} />
             <Route path="/admin-env-toggle" element={<AdminEnvTogglePage />} />
             <Route path="/season-rollover-manager" element={<SeasonRolloverManagerPage />} />
-            <Route path="/ai-player-manager" element={<AiPlayerManagerPage />} />
 
           </Routes>
           </Suspense>
