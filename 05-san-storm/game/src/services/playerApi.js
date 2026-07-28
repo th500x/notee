@@ -155,7 +155,7 @@ export const playerAPI = {
     return response.json();
   },
 
-  /** 道路：本人 `road_jun_id` / `road_position_*` / `road_intercept` 与粮草日累计（02 §2.1.2） */
+  /** 道路：本人 `road_jun_id` / `road_position_*` 与粮草日累计（02 §2.1.2） */
   async getRoadSelf(playerId) {
     const response = await fetchWithTimeout(
       `${API_CONFIG.BASE_URL}/players/${playerId}/road/self`,
@@ -176,19 +176,6 @@ export const playerAPI = {
     return jsonFromApiResponse(response, '修复道路立足');
   },
 
-  /** 道路：开启/关闭开战模式（守门）；`enable` + 可选 `clientRequestId` */
-  async setRoadIntercept(playerId, enable, clientRequestId) {
-    const response = await fetchWithTimeout(
-      `${API_CONFIG.BASE_URL}/players/${playerId}/road/intercept`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ enable, clientRequestId }),
-      },
-    );
-    return response.json();
-  },
-
   /**
    * 道路：沿路移动（权威写格位 + 粮草）；须 `confirmFoodCost: true` 与唯一 `clientRequestId`。
    * @param {string} playerId
@@ -205,84 +192,6 @@ export const playerAPI = {
       },
     );
     return jsonFromApiResponse(response, '道路移动');
-  },
-
-  /** 道路：战后解锁遭遇实例；`defenderWon` 由客户端战报结果传入 */
-  async resolveRoadEncounter(playerId, body) {
-    const response = await fetchWithTimeout(
-      `${API_CONFIG.BASE_URL}/players/${playerId}/road/resolve-encounter`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      },
-    );
-    return jsonFromApiResponse(response, '道路遭遇解锁');
-  },
-
-  /** 道路守方：遇袭轮询（fighting 且立点在交战格时返回 encounter，否则 null） */
-  async getRoadPendingEncounter(playerId) {
-    const response = await fetchWithTimeout(
-      `${API_CONFIG.BASE_URL}/players/${playerId}/road/pending-encounter`,
-      { method: 'GET', headers: { 'Content-Type': 'application/json' } },
-    );
-    return jsonFromApiResponse(response, '道路遇袭轮询');
-  },
-
-  /**
-   * 道路遭遇：拉取 BattleArena 数据（与攻城 siegeData 对齐）。
-   * @param {{ spectator?: boolean }} [opts] `spectator:true` 为守方观战（query `spectator=1`）。
-   */
-  async getRoadEncounterBattle(playerId, encounterId, opts = {}) {
-    const q = new URLSearchParams();
-    if (encounterId != null && String(encounterId).trim() !== '') {
-      q.set('encounterId', String(encounterId).trim());
-    }
-    if (opts?.spectator) q.set('spectator', '1');
-    const qs = q.toString();
-    const response = await fetchWithTimeout(
-      `${API_CONFIG.BASE_URL}/players/${playerId}/road/encounter-battle${qs ? `?${qs}` : ''}`,
-      { method: 'GET', headers: { 'Content-Type': 'application/json' } },
-    );
-    return jsonFromApiResponse(response, '道路遭遇开战数据');
-  },
-
-  /** 道路遭遇：服务端权威单场推演并结算（与披挂攻城 `siegePvpSkirmish` 同源） */
-  async resolveRoadEncounterAuthoritative(playerId, encounterId) {
-    const response = await fetchWithTimeout(
-      `${API_CONFIG.BASE_URL}/players/${playerId}/road/encounter-authoritative-resolve`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ encounterId: encounterId != null ? String(encounterId).trim() : '' }),
-      },
-    );
-    return jsonFromApiResponse(response, '道路遭遇权威结算');
-  },
-
-  /** 道路遭遇：裁定结果轮询（攻守均可；fighting 时 pending） */
-  async getRoadEncounterAuthoritativeOutcome(playerId, encounterId) {
-    const q = new URLSearchParams();
-    if (encounterId != null && String(encounterId).trim() !== '') q.set('encounterId', String(encounterId).trim());
-    const qs = q.toString();
-    const response = await fetchWithTimeout(
-      `${API_CONFIG.BASE_URL}/players/${playerId}/road/encounter-authoritative-outcome${qs ? `?${qs}` : ''}`,
-      { method: 'GET', headers: { 'Content-Type': 'application/json' } },
-    );
-    return jsonFromApiResponse(response, '道路遭遇裁定查询');
-  },
-
-  /** 道路遭遇：战后结算（防守兵力/银两声望/解锁遭遇） */
-  async submitRoadEncounterBattleResult(playerId, body) {
-    const response = await fetchWithTimeout(
-      `${API_CONFIG.BASE_URL}/players/${playerId}/road/encounter-battle-result`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body || {}),
-      },
-    );
-    return jsonFromApiResponse(response, '道路遭遇结算');
   },
 
   /** 三公府 · 官职：下一品阶可晋升列表 */

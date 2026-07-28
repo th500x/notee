@@ -9,7 +9,7 @@
 const express = require('express');
 const router = express.Router();
 const cityService = require('../services/cityService');
-const roadEncounterService = require('../services/roadEncounterService');
+const { getRoadPresence } = require('../services/road/roadPresenceService');
 const { pool } = require('../database/connection');
 const { requireAuth } = require('../middleware/auth');
 const { wrap500 } = require('../utils/httpError');
@@ -52,7 +52,7 @@ router.get('/road-presence', citySchemas.validateRoadPresenceQuery, async (req, 
     const jid = String(junId || jun_id || '').trim();
     const s = String(season || '').trim();
     const caller = String(req.query.playerId || req.query.player_id || '').trim();
-    const out = await roadEncounterService.getRoadPresence(s, jid, caller);
+    const out = await getRoadPresence(s, jid, caller);
     if (!out.ok) return res.status(out.status).json({ success: false, error: out.error });
     res.json({ success: true, data: out.data });
   } catch (error) {

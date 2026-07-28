@@ -1,14 +1,16 @@
 /**
- * 玩家路由 · 道路行军 / 遭遇（O3-B1 · 02 §2.1.2）
- * 道路遭遇战已下线（保留 move / self / presence）；档案 `_archive/dao-lu-yu-di/`。
+ * 玩家路由 · 战略道路行军（O3-B1 · 02 §2.1.2）
+ *
+ * 道路同格遭遇战（含来战/守门）已归档移除：档案 `_archive/dao-lu-yu-di/`。
+ * 旧客户端仍可能请求遇敌接口，故保留**显式 410**（不静默 200、不改走别的语义）。
  */
 const express = require('express');
 const { roadMoveLimiter } = require('../../middleware/rateLimit');
-const roadEncounterService = require('../../services/roadEncounterService');
-const { validateBody, validateQuery } = require('../../middleware/validation');
+const { getSelfRoadState } = require('../../services/road/roadPresenceService');
+const { moveAlongRoad } = require('../../services/road/roadMoveAlongService');
+const { validateBody } = require('../../middleware/validation');
 const roadSchemas = require('../../middleware/validationSchemas/playersRoad');
 const { replyServiceOut, withRoute } = require('../../utils/routeAdapter');
-const { ROAD_ENCOUNTERS_ENABLED } = require('../../config/roadConfig');
 
 const router = express.Router();
 
@@ -18,32 +20,8 @@ const ROAD_ENCOUNTER_GONE = {
   code: 'ROAD_ENCOUNTER_REMOVED',
 };
 
-router.post(
-  '/:playerId/road/intercept',
-  validateBody(roadSchemas.interceptBody),
-  withRoute('切换道路开战模式失败', async (req, res) => {
-    if (!ROAD_ENCOUNTERS_ENABLED) {
-      // 强制清残留来战标记，避免旧客户端误开
-      try {
-        const { pool } = require('../../database/connection');
-        await pool.query(
-          'UPDATE players SET road_intercept = 0 WHERE player_id = ?',
-          [req.params.playerId],
-        );
-      } catch (_) {}
-      return res.status(410).json({
-        ...ROAD_ENCOUNTER_GONE,
-        error: '道路遭遇战已移除；来战开关已停用',
-      });
-    }
-    const { enable, clientRequestId } = req.body;
-    const out = await roadEncounterService.setIntercept(req.params.playerId, enable, clientRequestId);
-    return replyServiceOut(res, out);
-  }),
-);
-
 router.get('/:playerId/road/self', withRoute('读取道路状态失败', async (req, res) => {
-  const out = await roadEncounterService.getSelfRoadState(req.params.playerId);
+  const out = await getSelfRoadState(req.params.playerId);
   return replyServiceOut(res, out);
 }));
 
@@ -100,53 +78,23 @@ router.post(
   roadMoveLimiter,
   validateBody(roadSchemas.moveBody),
   withRoute('沿路移动失败', async (req, res) => {
-    const out = await roadEncounterService.moveAlongRoad(req.params.playerId, req.body);
+    const out = await moveAlongRoad(req.params.playerId, req.body);
     return replyServiceOut(res, out);
   }),
 );
 
-router.post(
-  '/:playerId/road/resolve-encounter',
-  validateBody(roadSchemas.resolveEncounterBody),
-  (_req, res) => {
-    res.status(410).json(ROAD_ENCOUNTER_GONE);
-  },
-);
-
-router.get('/:playerId/road/pending-encounter', (_req, res) => {
-  res.status(410).json({ ...ROAD_ENCOUNTER_GONE, encounter: null });
-});
-
-router.get(
-  '/:playerId/road/encounter-battle',
-  validateQuery(roadSchemas.encounterBattleQuery),
-  (_req, res) => {
-    res.status(410).json(ROAD_ENCOUNTER_GONE);
-  },
-);
-
-router.post(
-  '/:playerId/road/encounter-authoritative-resolve',
-  validateBody(roadSchemas.encounterAuthoritativeResolveBody),
-  (_req, res) => {
-    res.status(410).json(ROAD_ENCOUNTER_GONE);
-  },
-);
-
-router.get(
-  '/:playerId/road/encounter-authoritative-outcome',
-  validateQuery(roadSchemas.encounterIdQuery),
-  (_req, res) => {
-    res.status(410).json(ROAD_ENCOUNTER_GONE);
-  },
-);
-
-router.post(
-  '/:playerId/road/encounter-battle-result',
-  validateBody(roadSchemas.encounterBattleResultBody),
-  (_req, res) => {
-    res.status(410).json(ROAD_ENCOUNTER_GONE);
-  },
-);
+// ── 已移除：道路遭遇 / 来战（守门）。旧客户端一律 410 ────────────────────────────
+const GONE_ROUTES = [
+  ['post', '/:playerId/road/intercept'],
+  ['post', '/:playerId/road/resolve-encounter'],
+  ['get', '/:playerId/road/pending-encounter'],
+  ['get', '/:playerId/road/encounter-battle'],
+  ['post', '/:playerId/road/encounter-authoritative-resolve'],
+  ['get', '/:playerId/road/encounter-authoritative-outcome'],
+  ['post', '/:playerId/road/encounter-battle-result'],
+];
+for (const [method, path] of GONE_ROUTES) {
+  router[method](path, (_req, res) => res.status(410).json(ROAD_ENCOUNTER_GONE));
+}
 
 module.exports = router;

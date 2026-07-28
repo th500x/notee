@@ -1,13 +1,11 @@
 /**
  * 战略大地图：玩家自身占位。圆形内为角色名末字；键鼠悬停圆形时显示全名与兵力 tooltip。
- * 触摸 / 粗指针：`pointerType==='touch'`（不依赖 `(pointer: coarse)`，避免竖屏误判）；道路格上 **行军/来战** 固定于头像上下（无弹出/关闭）；非道路格短按/单击仍弹出操作条（行军/来战，无「关闭」）。长按约 1s 松手后直接进入行军模式。
+ * 触摸 / 粗指针：`pointerType==='touch'`（不依赖 `(pointer: coarse)`，避免竖屏误判）；道路格上 **行军** 固定于头像上方（无弹出/关闭）；非道路格短按/单击仍弹出操作条。长按约 1s 松手后直接进入行军模式。
  * 键鼠：单击打开操作条（与悬停可同时看到 tooltip）。**一键进军**请使用道路格双击 / 触摸双触（见 `WorldStrategicMapTile` 与 **31-6 §8**），**不在**本人叠层上绑双击，避免竖屏单点被误判为双击。
- * 命中：列容器穿透。头像默认可悬停出 tooltip；战场入口 / 攻方大本营立足时屏蔽 tooltip 且头像穿透，便于点开格面板。「行军/来战」按钮始终可点。
+ * 命中：列容器穿透。头像默认可悬停出 tooltip；战场入口 / 攻方大本营立足时屏蔽 tooltip 且头像穿透，便于点开格面板。「行军」按钮始终可点。
  */
 
 import { useState, useCallback, useSyncExternalStore, useRef, useEffect, useMemo } from 'react';
-import { playerAPI } from '@/services/playerApi';
-import { createRoadClientRequestId } from '@/utils/roadClientRequestId';
 import { mapDisplayEffectToAvatarClass } from '@/utils/mapDisplayEffect';
 
 const BASE = typeof import.meta !== 'undefined' && import.meta.env?.BASE_URL ? import.meta.env.BASE_URL : '/';
@@ -18,9 +16,6 @@ const TOUCH_LONG_MARCH_MS = 980;
 const TOUCH_TAP_MAX_MS = 320;
 /** 触摸：移动超过此像素则取消长按识别（避免与地图平移抢手势） */
 const TOUCH_MOVE_CANCEL_PX = 16;
-
-/** 与 `roadEncounterService.INTERCEPT_COST_SILVER` 一致：0→1 扣银 */
-const ROAD_INTERCEPT_SILVER_COST = 50;
 
 function subscribePointerCoarse(cb) {
   if (typeof window === 'undefined') return () => {};
@@ -75,13 +70,9 @@ function splitMapPawnTooltipLabels(displayName) {
  * @param {boolean} [props.marchModeActive] - 是否已处于行军模式（操作条展示「退出行军」）
  * @param {() => void} [props.onEnterMarchMode] - 进入行军模式（与点操作条「行军」一致）
  * @param {() => void} [props.onExitMarchMode] - 退出行军模式
- * @param {0|1} [props.roadIntercept] - 道路「来战」：`1` 时头像赤红光晕；**本人与路人棋子**均可传（由 `road-presence` 的 `roadIntercept`）；**点钮改状态**仍仅本人叠层（须同时传 `interceptPlayerId` + `onRoadSelfUpdated`）
- * @param {string|null} [props.interceptPlayerId] - 当前登录玩家 id（与 `onRoadSelfUpdated` 同时传入才显示来战/休战按钮与扣银确认）
- * @param {number|null} [props.interceptSilver] - 当前银两（展示确认文案）
- * @param {() => void|Promise<void>} [props.onRoadSelfUpdated] - 切换成功后刷新档案
- * @param {boolean} [props.onRoadCell] - 当前立点在道路格：行军/来战固定显于头像上下（31-6 §8）
+ * @param {boolean} [props.onRoadCell] - 当前立点在道路格：行军按钮固定显于头像上方（31-6 §8）
  * @param {boolean} [props.suppressHoverTooltip] - 战场入口 / 攻方大本营立足时屏蔽势力·兵力 tooltip（避免挡格点击）
- * @param {(open: boolean) => void} [props.onSelfPawnOverlayOpenChange] - 非道路格操作条或来战确认打开时通知（道路格固定钮不计入）
+ * @param {(open: boolean) => void} [props.onSelfPawnOverlayOpenChange] - 非道路格操作条打开时通知（道路格固定钮不计入）
  */
 export default function StrategicMapSelfPawn({
   cx,
@@ -99,21 +90,12 @@ export default function StrategicMapSelfPawn({
   /** 仅本人叠层传入：他人 pawn 不传，禁用行军操作条与触摸长按进军 */
   onEnterMarchMode,
   onExitMarchMode,
-  roadIntercept = 0,
-  interceptPlayerId = null,
-  interceptSilver = null,
-  onRoadSelfUpdated = null,
   onRoadCell = false,
   suppressHoverTooltip = false,
   onSelfPawnOverlayOpenChange = null,
 }) {
   const selfMarchUi = typeof onEnterMarchMode === 'function';
   const roadFixedActions = selfMarchUi && !!onRoadCell;
-  const interceptControlsEnabled =
-    selfMarchUi &&
-    typeof onRoadSelfUpdated === 'function' &&
-    interceptPlayerId != null &&
-    String(interceptPlayerId).length > 0;
   const coarsePointer = useSyncExternalStore(
     subscribePointerCoarse,
     getPointerCoarseSnapshot,
@@ -121,11 +103,6 @@ export default function StrategicMapSelfPawn({
   );
   const [hover, setHover] = useState(false);
   const [showActionPopover, setShowActionPopover] = useState(false);
-  /** `null` | `'enable'` | `'disable'`：道路开战扣银确认 / 休战确认 */
-  const [interceptPanel, setInterceptPanel] = useState(null);
-  const [interceptClientRequestId, setInterceptClientRequestId] = useState(null);
-  const [interceptBusy, setInterceptBusy] = useState(false);
-  const [interceptError, setInterceptError] = useState('');
   /** 触摸长按「一键进军」档：与悬停同文案的 tooltip 仅在该档为 true（短按与操作条同显时不单独依赖此项） */
   const [touchLongTooltip, setTouchLongTooltip] = useState(false);
 
@@ -342,12 +319,12 @@ export default function StrategicMapSelfPawn({
 
   useEffect(() => {
     if (typeof onSelfPawnOverlayOpenChange !== 'function') return undefined;
-    const overlayOpen = (!roadFixedActions && showActionPopover) || !!interceptPanel;
+    const overlayOpen = !roadFixedActions && showActionPopover;
     onSelfPawnOverlayOpenChange(overlayOpen);
     return () => {
       if (overlayOpen) onSelfPawnOverlayOpenChange(false);
     };
-  }, [showActionPopover, interceptPanel, roadFixedActions, onSelfPawnOverlayOpenChange]);
+  }, [showActionPopover, roadFixedActions, onSelfPawnOverlayOpenChange]);
 
   useEffect(() => {
     if (!selfMarchUi || !showActionPopover || roadFixedActions) return undefined;
@@ -358,9 +335,6 @@ export default function StrategicMapSelfPawn({
         const el = hitRef.current;
         if (el && ev.target instanceof Node && el.contains(ev.target)) return;
         setShowActionPopover(false);
-        setInterceptPanel(null);
-        setInterceptError('');
-        setInterceptBusy(false);
       };
       document.addEventListener('pointerdown', onDocPointerDown, true);
       removeListener = () => document.removeEventListener('pointerdown', onDocPointerDown, true);
@@ -387,8 +361,6 @@ export default function StrategicMapSelfPawn({
   );
 
   const handleMarchButton = useCallback(() => {
-    setInterceptPanel(null);
-    setInterceptError('');
     setShowActionPopover(false);
     if (marchModeActive) {
       if (typeof onExitMarchMode === 'function') onExitMarchMode();
@@ -396,46 +368,6 @@ export default function StrategicMapSelfPawn({
       onEnterMarchMode();
     }
   }, [marchModeActive, onEnterMarchMode, onExitMarchMode]);
-
-  const handleInterceptConfirm = useCallback(async () => {
-    if (!interceptControlsEnabled || !interceptPanel) return;
-    const enable = interceptPanel === 'enable';
-    if (enable) {
-      const s = interceptSilver;
-      if (Number.isFinite(s) && s < ROAD_INTERCEPT_SILVER_COST) {
-        setInterceptError(`银两不足：开启需 ${ROAD_INTERCEPT_SILVER_COST} 银`);
-        return;
-      }
-    }
-    setInterceptBusy(true);
-    setInterceptError('');
-    const rid = interceptClientRequestId || createRoadClientRequestId('intercept');
-    try {
-      const res = await playerAPI.setRoadIntercept(interceptPlayerId, enable, rid);
-      if (!res?.success) {
-        setInterceptError(typeof res?.error === 'string' ? res.error : '操作失败');
-        return;
-      }
-      await onRoadSelfUpdated();
-      setInterceptPanel(null);
-      setShowActionPopover(false);
-    } catch (e) {
-      setInterceptError(e?.message || '网络错误');
-    } finally {
-      setInterceptBusy(false);
-    }
-  }, [interceptControlsEnabled, interceptPanel, interceptPlayerId, interceptSilver, interceptClientRequestId, onRoadSelfUpdated]);
-
-  const silverShort =
-    interceptPanel === 'enable' &&
-    Number.isFinite(interceptSilver) &&
-    interceptSilver < ROAD_INTERCEPT_SILVER_COST;
-
-  const openInterceptPanel = useCallback(() => {
-    setInterceptError('');
-    setInterceptClientRequestId(createRoadClientRequestId('intercept'));
-    setInterceptPanel(roadIntercept === 1 ? 'disable' : 'enable');
-  }, [roadIntercept]);
 
   const renderMarchButton = (className) => (
     <button
@@ -451,81 +383,7 @@ export default function StrategicMapSelfPawn({
     </button>
   );
 
-  const renderInterceptButton = (className) => {
-    if (!interceptControlsEnabled) return null;
-    return (
-      <button
-        type="button"
-        className={className}
-        onPointerDown={(e) => e.stopPropagation()}
-        onClick={(e) => {
-          e.stopPropagation();
-          openInterceptPanel();
-        }}
-      >
-        {roadIntercept === 1 ? '休战' : '来战'}
-      </button>
-    );
-  };
-
-  const renderInterceptConfirmPanel = () => (
-    <div className="ws-map-self-pawn__actions" role="dialog" aria-label="道路开战确认">
-      <div className="ws-map-self-pawn__intercept-msg">
-        {interceptPanel === 'enable' ? (
-          <>
-            开启<strong className="ws-map-self-pawn__intercept-strong">道路开战</strong>将扣除银两{' '}
-            <strong className="ws-map-self-pawn__intercept-strong">{ROAD_INTERCEPT_SILVER_COST}</strong>
-            {Number.isFinite(interceptSilver) ? (
-              <>
-                ，当前银两 <strong className="ws-map-self-pawn__intercept-strong">{interceptSilver}</strong>
-              </>
-            ) : null}
-            。确认后会和敌对玩家在遭遇时交战！
-          </>
-        ) : (
-          <>确认关闭道路开战模式？关闭后不再扣费，已扣银两不退回。</>
-        )}
-      </div>
-      {interceptError ? (
-        <div className="ws-map-self-pawn__intercept-err" role="alert">
-          {interceptError}
-        </div>
-      ) : null}
-      <div className="ws-map-self-pawn__intercept-actions">
-        <button
-          type="button"
-          className="ws-map-self-pawn__action-btn"
-          disabled={interceptBusy}
-          onPointerDown={(e) => e.stopPropagation()}
-          onClick={(e) => {
-            e.stopPropagation();
-            setInterceptPanel(null);
-            setInterceptError('');
-          }}
-        >
-          返回
-        </button>
-        <button
-          type="button"
-          className="ws-map-self-pawn__action-btn ws-map-self-pawn__action-btn--danger"
-          disabled={interceptBusy || silverShort}
-          onPointerDown={(e) => e.stopPropagation()}
-          onClick={(e) => {
-            e.stopPropagation();
-            void handleInterceptConfirm();
-          }}
-        >
-          {interceptBusy ? '提交中…' : '确认'}
-        </button>
-      </div>
-    </div>
-  );
-
-  const citySingleMarchOpen =
-    !roadFixedActions &&
-    showActionPopover &&
-    !interceptPanel &&
-    !interceptControlsEnabled;
+  const citySingleMarchOpen = !roadFixedActions && showActionPopover;
 
   const hitClassName =
     roadFixedActions || citySingleMarchOpen
@@ -535,7 +393,6 @@ export default function StrategicMapSelfPawn({
   const glowClass = mapDisplayEffectToAvatarClass(displayEffect);
   const avatarClassName = [
     'ws-map-self-pawn__avatar',
-    roadIntercept === 1 ? 'ws-map-self-pawn__avatar--intercept' : '',
     glowClass,
   ]
     .filter(Boolean)
@@ -550,7 +407,7 @@ export default function StrategicMapSelfPawn({
       <div className="ws-map-self-pawn__anchor">
         <div className={hitClassName}>
           {/* 道路：行军在头像上；城内仅行军时同样置顶，避免信息框盖住下方按钮 */}
-          {(roadFixedActions && !interceptPanel) || citySingleMarchOpen
+          {roadFixedActions || citySingleMarchOpen
             ? renderMarchButton(
                 'ws-map-self-pawn__road-fixed-btn ws-map-self-pawn__road-fixed-btn--primary',
               )
@@ -636,26 +493,6 @@ export default function StrategicMapSelfPawn({
               </div>
             ) : null}
           </div>
-          {roadFixedActions && interceptPanel ? renderInterceptConfirmPanel() : null}
-          {roadFixedActions && !interceptPanel && interceptControlsEnabled
-            ? renderInterceptButton(
-                'ws-map-self-pawn__road-fixed-btn ws-map-self-pawn__road-fixed-btn--danger',
-              )
-            : null}
-          {!roadFixedActions && showActionPopover && interceptControlsEnabled ? (
-            interceptPanel ? (
-              renderInterceptConfirmPanel()
-            ) : (
-              <div className="ws-map-self-pawn__actions" role="dialog" aria-label="本人地图操作">
-                {renderMarchButton(
-                  'ws-map-self-pawn__action-btn ws-map-self-pawn__action-btn--primary',
-                )}
-                {renderInterceptButton(
-                  'ws-map-self-pawn__action-btn ws-map-self-pawn__action-btn--danger',
-                )}
-              </div>
-            )
-          ) : null}
         </div>
       </div>
     </div>

@@ -5,7 +5,6 @@
 import { useState, useRef, useCallback, useEffect, useMemo, lazy, Suspense } from 'react';
 import { createPortal } from 'react-dom';
 import { usePlayerContext } from '@/contexts/PlayerContext';
-import { useRoadDefenseFriction } from '@/contexts/RoadDefenseFrictionContext';
 import { useSkillsMap } from '@/hooks/useSkillsMap';
 import useEventSystem from '@/hooks/useEventSystem';
 import { PHASE } from '@/components/event/EventConstants';
@@ -28,7 +27,7 @@ import WorldMapAlertOverlays from '@/components/world/WorldMapAlertOverlays';
 import WorldMapBattlePortal from '@/components/world/WorldMapBattlePortal';
 import StrategicSettlementCard from '@/components/world/StrategicSettlementCard';
 import { mapRoadEncounterOutcomeToSettlementProps } from '@/utils/roadEncounterSettlement';
-import { worldMapOverlayRefs, notifyWorldMapOverlayGate } from '@/utils/worldMapOverlayRefs';
+import { worldMapOverlayRefs } from '@/utils/worldMapOverlayRefs';
 import { imperialMarchNpcToAllyUnit } from '@/utils/imperialMarchSiegeAlly';
 
 export default function WorldMap({
@@ -56,7 +55,6 @@ export default function WorldMap({
     void import('@/components/battle/BattleArena');
   }, []);
 
-  const roadFriction = useRoadDefenseFriction();
   /** 与 `StrategicWorldMapSection` 同步：战略格网 + 郡内城行，供探索锚点在「路格≠库锚格」时用 footprint 反查 city_id */
   const exploreAnchorGridRef = useRef(null);
   const [exploreAnchorGridSeq, setExploreAnchorGridSeq] = useState(0);
@@ -142,8 +140,6 @@ export default function WorldMap({
     setSimpleAlertMessage,
     pvpActionsRef,
     authoritativeReplayRef,
-    roadAttackerAlert: null,
-    setRoadAttackerAlert: () => {},
     bumpStrategicRoadPresenceRef,
   });
 
@@ -221,15 +217,9 @@ export default function WorldMap({
     siegeData: false,
     banditRaidData: false,
     banditRaidResult: false,
-    roadAuthoritativeOutcomeModal: false,
     pvpAttackerAdjudicating: false,
     pvpDefenseSettlement: false,
-    roadAttackerAlert: false,
-    roadAttackerAdjudicating: false,
     pvpChallenge: false,
-    roadDefenseAlert: false,
-    roadAwaitingAuthoritativeOutcome: false,
-    roadDefenseOutcomeReplay: false,
   });
 
   const {
@@ -243,21 +233,15 @@ export default function WorldMap({
     refreshPlayer,
     blockTutorialAutoplay,
     roadNoticeUiBlockRef,
-    roadDefenseOutcomeReplayBlockingRef: roadFriction.roadDefenseOutcomeReplayBlockingRef,
     bumpStrategicRoadPresenceRef,
     strategicRoadMarchAnimatingRef,
-    onAttackerFightingEncounterResume: undefined,
     noticeUnblockDeps: [
       authoritativeReplayOverlay,
       siegeResult,
       siegeData,
-      roadFriction.roadAuthoritativeOutcomeModal,
       pvpAttackerAdjudicating,
       pvpDefenseSettlementRaw,
       pvpChallenge,
-      roadFriction.roadDefenseAlert,
-      roadFriction.roadAwaitingAuthoritativeOutcome,
-      roadFriction.roadDefenseAuthoritativeReplayOpen,
       banditRaidData,
       banditRaidResult,
     ],
@@ -272,26 +256,12 @@ export default function WorldMap({
         shownRoadGateNoticeRef,
         blockSnapshot: roadNoticeUiBlockRef.current,
         blockTutorialAutoplay,
-        roadDefenseOutcomeReplayBlockingRef: roadFriction.roadDefenseOutcomeReplayBlockingRef,
       });
     };
     return () => {
       worldMapOverlayRefs.enqueueRoadGateNotice = null;
     };
   });
-
-  useEffect(() => {
-    worldMapOverlayRefs.worldMapMounted = true;
-    worldMapOverlayRefs.pvpDefenseAlertActive = false;
-    worldMapOverlayRefs.siegeRoadEncounterId = siegeData?.roadEncounterId ?? null;
-    notifyWorldMapOverlayGate();
-    return () => {
-      worldMapOverlayRefs.worldMapMounted = false;
-      worldMapOverlayRefs.pvpDefenseAlertActive = false;
-      worldMapOverlayRefs.siegeRoadEncounterId = null;
-      notifyWorldMapOverlayGate();
-    };
-  }, [siegeData?.roadEncounterId]);
 
   // 通知父组件事件是否进行中（隐藏底部Tab）
   useEffect(() => {
@@ -306,8 +276,7 @@ export default function WorldMap({
       || !!pvpChallenge
       || !!pvpDefenseWaiting
       || !!pvpAttackerAdjudicating
-      || !!authoritativeReplayOverlay
-      || roadFriction.roadDefenseAuthoritativeReplayOpen;
+      || !!authoritativeReplayOverlay;
     onEventBusyChange?.(busy);
   }, [
     phase,
@@ -323,7 +292,6 @@ export default function WorldMap({
     pvpDefenseWaiting,
     pvpAttackerAdjudicating,
     authoritativeReplayOverlay,
-    roadFriction.roadDefenseAuthoritativeReplayOpen,
   ]);
 
   useEffect(
@@ -354,7 +322,6 @@ export default function WorldMap({
     !!pvpChallenge ||
     !!pvpDefenseWaiting ||
     !!authoritativeReplayOverlay ||
-    roadFriction.roadDefenseAuthoritativeReplayOpen ||
     [
       PHASE.EVENT,
       PHASE.ROLLING,
@@ -371,21 +338,14 @@ export default function WorldMap({
   }, [pvpChallenge, pvpCountdown, pvpSiegeNowTick]);
 
   roadNoticeUiBlockRef.current = {
-    authoritativeReplayOverlay:
-      !!authoritativeReplayOverlay || roadFriction.roadDefenseAuthoritativeReplayOpen,
+    authoritativeReplayOverlay: !!authoritativeReplayOverlay,
     siegeResult: !!siegeResult,
     siegeData: !!siegeData,
     banditRaidData: !!banditRaidData,
     banditRaidResult: !!banditRaidResult,
-    roadAuthoritativeOutcomeModal: roadFriction.roadAuthoritativeOutcomeModal,
     pvpAttackerAdjudicating: !!pvpAttackerAdjudicating,
     pvpDefenseSettlement: !!pvpDefenseSettlementRaw,
-    roadAttackerAlert: false,
-    roadAttackerAdjudicating: false,
     pvpChallenge: !!pvpChallenge,
-    roadDefenseAlert: roadFriction.roadDefenseAlert,
-    roadAwaitingAuthoritativeOutcome: roadFriction.roadAwaitingAuthoritativeOutcome,
-    roadDefenseOutcomeReplay: !!roadFriction.roadDefenseOutcomeReplayBlockingRef.current,
   };
 
   return (
@@ -403,7 +363,6 @@ export default function WorldMap({
         playerFactionId={player?.factionId}
         siegeLoading={siegeLoading}
         onStartSiegeForCity={startSiegeForCity}
-        onRoadEncounterBattle={undefined}
         garrisonStatsRefreshKey={garrisonStatsRefreshKey}
         playerMainCityId={playerMainCityIdForUi}
         playerMainCityChangedAt={player?.mainCityChangedAt ?? null}
@@ -430,9 +389,6 @@ export default function WorldMap({
         pvpDefenseWaiting={pvpDefenseWaiting}
         authoritativeReplayOverlay={authoritativeReplayOverlay}
         onAuthoritativeReplayClose={() => setAuthoritativeReplayOverlay(null)}
-        roadAttackerAlert={null}
-        roadAttackerCountdown={0}
-        onRoadAttackerConfirm={undefined}
         roadGateRetreatNotice={roadGateRetreatNotice}
         onRoadGateNoticeClose={() => setRoadGateRetreatNotice(null)}
         showRoadGateNotice={
@@ -442,11 +398,7 @@ export default function WorldMap({
           !banditRaidResult &&
           !pendingSiegeConfirm &&
           !siegeAdjudicating &&
-          !siegeChargeCinematic &&
-          !roadFriction.roadDefenseAlert &&
-          !roadFriction.roadDefenseAuthoritativeReplayOpen &&
-          !roadFriction.roadAuthoritativeOutcomeModal &&
-          !roadFriction.roadAwaitingAuthoritativeOutcome
+          !siegeChargeCinematic
         }
         simpleAlertMessage={simpleAlertMessage}
         onSimpleAlertClose={() => setSimpleAlertMessage(null)}

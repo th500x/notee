@@ -476,8 +476,6 @@ export default function WorldStrategicMapGrid({
   strategicSelfPawn = null,
   /** 郡内在线他人道路 pawn 列表（31-6 §9.2、02 §2.1.2（3））；`road-presence` 结果 */
   strategicOtherPawns = null,
-  /** 郡内 road_encounters 锁格列表（status IN ('pending','fighting')）；用于高亮与落点禁区提示 */
-  strategicRoadLockedCells = null,
   /** 战略行军模式（本人叠层「行军」入口；道路选点 / road/move 接续开发） */
   strategicMarchMode = false,
   /** `road/move` 成功后跳跳棋逐格回放中：禁行军格点选与再次进入行军 */
@@ -503,8 +501,6 @@ export default function WorldStrategicMapGrid({
    * @param {number} gy
    */
   onStrategicRoadDoubleMarchToCell = null,
-  /** 道路开战模式切换成功后刷新档案（`road_intercept` / 银两） */
-  onStrategicRoadSelfUpdated = null,
   /** 匪寨爬塔：扣次成功后由上层打开 `BattleArena`（payload 含 smallMapPveLoot / enemySlotRarities） */
   onStartBanditRaid = null,
   /** 与攻城相同的战略门闸文案；有值时 tooltip 内攻打按钮旁展示 */
@@ -1653,10 +1649,6 @@ export default function WorldStrategicMapGrid({
                     strategicRoadMarchAnimating ? undefined : onStrategicSelfMarchModeRequest || undefined
                   }
                   onExitMarchMode={onStrategicSelfMarchModeExit || undefined}
-                  roadIntercept={0}
-                  interceptPlayerId={null}
-                  interceptSilver={null}
-                  onRoadSelfUpdated={undefined}
                   onRoadCell={!!strategicSelfPawn.onRoad}
                   suppressHoverTooltip={suppressSelfPawnHoverTooltip}
                 />

@@ -5,15 +5,15 @@
 
 ALTER TABLE players
   ADD COLUMN road_jun_id VARCHAR(64) NULL
-    COMMENT '当前所在郡；与 road_encounters.jun_id 一致（31-6 §2）',
+    COMMENT '当前所在郡；与 config_jun.jun_id / cities.jun_id 口径一致（31-6 §2）',
   ADD COLUMN road_position_x INT NULL
-    COMMENT '当前道路格 X（郡内 gx，与 road_encounters.position_x 同语义）',
+    COMMENT '当前道路格 X（郡内 gx，与 merged.json 道路层一致）',
   ADD COLUMN road_position_y INT NULL
-    COMMENT '当前道路格 Y（郡内 gy，与 road_encounters.position_y 同语义）',
+    COMMENT '当前道路格 Y（郡内 gy）',
   ADD COLUMN road_intercept TINYINT(1) NOT NULL DEFAULT 0
-    COMMENT '道路拦截/开战（守门）：0 关闭、1 开启；31-6 §3',
+    COMMENT '（已废弃：道路来战/守门随遇敌归档移除，见 road-encounters-drop-archived-feature.sql）',
   ADD COLUMN road_updated_at DATETIME NULL
-    COMMENT '最近一次道路格位或 road_intercept 服务端写库时间（节流与对账）',
+    COMMENT '最近一次道路格位服务端写库时间（节流与对账）',
   ADD COLUMN road_reserve_date DATE NULL
     COMMENT '势力池垫粮日界（31-6 §6）：与 attr_reroll_date 同型；用于跨日重置 road_reserve_used',
   ADD COLUMN road_reserve_used INT NOT NULL DEFAULT 0

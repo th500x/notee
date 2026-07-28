@@ -1,5 +1,5 @@
 /**
- * 战略道路行军：客户端最短路径与粮草预览（与 `roadEncounterService` 常量对齐，供 UI 确认前展示）。
+ * 战略道路行军：客户端最短路径与粮草预览（与 `backend/config/roadConfig.js` 常量对齐，供 UI 确认前展示）。
  */
 
 import { strategicMapObjectIs2x2 } from '@/utils/campaignMapVisualAssets';
@@ -14,7 +14,7 @@ import {
 } from '@shared/utils/strategicMarchPoi.js';
 import { playerRoadToWorldMapCell } from '@shared/utils/strategicGridCoordinates.js';
 
-/** 与 backend/services/roadEncounterService.js 一致 */
+/** 与 backend/config/roadConfig.js 一致 */
 /** 须与 `backend/config/roadConfig.js` · `FREE_MOVES_PER_DAY` 一致 */
 export const MARCH_FREE_MOVES_PER_DAY = 300;
 export const MARCH_FOOD_PER_STEP = 2;

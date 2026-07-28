@@ -27,7 +27,6 @@ const WORLD_RESET_CLEAR_ORDER = [
   'wars_pvp_policies', 'wars_pvp',
   'pvp_tactical_room_events', 'pvp_tactical_rooms',
   'legion_members', 'legions',
-  'road_encounters',
   'wars', 'battles',
   'texts', 'chats',
   'bandits', 'raids',

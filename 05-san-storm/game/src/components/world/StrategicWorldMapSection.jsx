@@ -51,10 +51,6 @@ import {
   resolvePvpBaseCampWarIdAtMergedCell,
 } from '@shared/utils/strategicMarchPoi.js';
 import { readStrategicCellAnchorId } from '@shared/utils/strategicCellAnchorId.js';
-import {
-  findActiveRoadEncounterLockOnCell,
-  isPlayerRoadEncounterParticipant,
-} from '@shared/utils/roadEncounterLockPassage.js';
 import StrategicMarchMoveConfirm from './StrategicMarchMoveConfirm';
 import { buildStrategicRoadStackStripForFocal, roadCellStackKey } from '@/utils/strategicRoadStackStrip';
 import {
@@ -119,15 +115,12 @@ function buildOngoingSiegeLocateTargets(pvpWars, pveWars) {
 const MARCH_ANIM_MS_PER_STEP = 150;
 
 /**
- * `road/move` 成功后的提示：遭遇战优先；否则守方被门闸击退时给说明；默认成功。
+ * `road/move` 成功后的提示：守方被门闸击退时给说明；默认成功。
  * @param {object} p
- * @param {object|null|undefined} p.encounter
  * @param {unknown} p.defenderAutoRetreats
- * @param {(enc: object) => void|Promise<void>} [p.onRoadEncounterBattle]
  * @param {(t: { type: string, message: string }) => void} p.setMarchToast
  */
-function showRoadMarchMoveFinishToast({ encounter: _encounter, defenderAutoRetreats, onRoadEncounterBattle: _onEnc, setMarchToast }) {
-  // 道路遭遇战已下线：忽略 encounter，仅提示退让 / 完成
+function showRoadMarchMoveFinishToast({ defenderAutoRetreats, setMarchToast }) {
   if (Array.isArray(defenderAutoRetreats) && defenderAutoRetreats.length > 0) {
     setMarchToast({
       type: 'info',
@@ -363,7 +356,7 @@ export default function StrategicWorldMapSection({
   const mapCornerCompactViewport = useMapCornerCompactViewport();
   /** 行军模式：与 31-6 §8 一致 */
   const [strategicMarchMode, setStrategicMarchMode] = useState(false);
-  /** @type {null | { path: Array<{x:number,y:number}>, onRoadAtStart: boolean, preview: object, encounterHint: string|null }} */
+  /** @type {null | { path: Array<{x:number,y:number}>, onRoadAtStart: boolean, preview: object }} */
   const [marchConfirm, setMarchConfirm] = useState(null);
   const [marchSubmitLoading, setMarchSubmitLoading] = useState(false);
   const [marchSubmitError, setMarchSubmitError] = useState('');
@@ -371,7 +364,7 @@ export default function StrategicWorldMapSection({
   const [marchToast, setMarchToast] = useState(null);
   /**
    * `road/move` 成功后跳跳棋回放：仅客户端改叠层锚点，播完再 `refresh`。
-   * @type {null | { path: Array<{x:number,y:number}>, stepIndex: number, afterRefreshToast: { encounter: object|null, defenderAutoRetreats?: unknown } }}
+   * @type {null | { path: Array<{x:number,y:number}>, stepIndex: number, afterRefreshToast: { defenderAutoRetreats?: unknown } }}
    */
   const [roadMarchAnimation, setRoadMarchAnimation] = useState(null);
 
@@ -465,7 +458,6 @@ export default function StrategicWorldMapSection({
         const parts = await Promise.all(presenceJunIds.map((jid) => fetchOne(jid)));
         if (cancelled) return;
         const others = [];
-        const lockedCells = [];
         for (let i = 0; i < presenceJunIds.length; i += 1) {
           const jid = presenceJunIds[i];
           const part = parts[i];
@@ -474,23 +466,11 @@ export default function StrategicWorldMapSection({
           if (Array.isArray(part?.others)) {
             for (const o of part.others) others.push({ ...o, roadJunId: jid });
           }
-          if (Array.isArray(part?.lockedCells)) {
-            for (const l of part.lockedCells) {
-              const py = Number(l.positionY ?? l.position_y);
-              lockedCells.push({
-                ...l,
-                ...(worldGyOff && Number.isFinite(py)
-                  ? { positionY: py + worldGyOff, position_y: py + worldGyOff }
-                  : {}),
-              });
-            }
-          }
         }
         setRoadPresence({
           season,
           junId: merged.junId,
           others,
-          lockedCells,
         });
       } catch {
         /* 读接口失败静默重试（下一轮 tick） */
@@ -959,7 +939,6 @@ export default function StrategicWorldMapSection({
       centerGlyph,
       troopsCurrent,
       troopsMax,
-      roadIntercept: ctxPlayer?.roadIntercept ? 1 : 0,
       pawnPlayerId: playerId || null,
       playerSilver: Number.isFinite(Number(ctxPlayer?.silver)) ? Number(ctxPlayer.silver) : null,
       onRoad: useRoad,
@@ -1427,7 +1406,6 @@ export default function StrategicWorldMapSection({
           portraitUrl: other.avatar || null,
           displayName,
           centerGlyph: nameSeq.length ? nameSeq[nameSeq.length - 1] : '…',
-          roadIntercept: other.roadIntercept ? 1 : 0,
           factionId: other.factionId || null,
           stackStripPeers: strip.stripPeers,
           stackStripEllipsis: strip.showEllipsis,
@@ -1451,11 +1429,6 @@ export default function StrategicWorldMapSection({
     pvpBaseCamps,
     countyCityRows,
   ]);
-
-  const strategicRoadLockedCells = useMemo(
-    () => (Array.isArray(roadPresence?.lockedCells) ? roadPresence.lockedCells : []),
-    [roadPresence],
-  );
 
   const exitStrategicMarchMode = useCallback(() => {
     setStrategicMarchMode(false);
@@ -1483,9 +1456,7 @@ export default function StrategicWorldMapSection({
         onRoadMarchAnimatingChange?.(false);
         onExploreAnchorSettled?.();
         showRoadMarchMoveFinishToast({
-          encounter: afterRefreshToast?.encounter,
           defenderAutoRetreats: afterRefreshToast?.defenderAutoRetreats,
-          onRoadEncounterBattle,
           setMarchToast,
         });
         window.setTimeout(() => setMarchToast(null), 6000);
@@ -1502,7 +1473,6 @@ export default function StrategicWorldMapSection({
   }, [
     roadMarchAnimation,
     refresh,
-    onRoadEncounterBattle,
     onRoadMarchAnimatingChange,
     setExploreAnchorRoadOverride,
     onExploreAnchorSettled,
@@ -1638,15 +1608,6 @@ export default function StrategicWorldMapSection({
         setMarchToast({ type: 'error', message: pathRes.error });
         return;
       }
-      const lastRoad = pathRes.path[pathRes.path.length - 1];
-      const lockOnDest = findActiveRoadEncounterLockOnCell(strategicRoadLockedCells, lastRoad.x, lastRoad.y);
-      if (lockOnDest && !isPlayerRoadEncounterParticipant(lockOnDest, playerId)) {
-        setMarchToast({
-          type: 'error',
-          message: '目标格道路交战进行中，不可作为落脚点；请改选交战格后方或其它道路格（途经交战格可正常寻路）。',
-        });
-        return;
-      }
       const preview = estimateMarchFoodCost({
         path: pathRes.path,
         onRoadAtStart: pathRes.onRoadAtStart,
@@ -1671,7 +1632,6 @@ export default function StrategicWorldMapSection({
         const k = roadCellStackKey(j, rx, ry);
         return lastStackKey && k === lastStackKey;
       });
-      let encounterHint = null;
       // 31-6 §4.1 / §7：targetPoiId 入城/入寨时落点为 POI 中心，末段道路格友方叠站不构成主动叠格拒止
       if (!pathRes.targetPoiId && occ) {
         const sameFaction =
@@ -1685,7 +1645,6 @@ export default function StrategicWorldMapSection({
           });
           return;
         }
-        // 道路遭遇战已下线：敌对同格可叠站，不再提示遭遇
       }
       const tid = pathRes.targetPoiId || null;
       let poiTargetName = '';
@@ -1704,7 +1663,6 @@ export default function StrategicWorldMapSection({
         path: pathRes.path,
         onRoadAtStart: pathRes.onRoadAtStart,
         preview,
-        encounterHint,
         targetPoiId: tid,
         /** 郡战场等多入口：点选入口世界格，供服务端落点对齐 */
         targetPoiStand: tid ? { x: gx, y: gy } : null,
@@ -1724,7 +1682,6 @@ export default function StrategicWorldMapSection({
       rows,
       playerMarchJunId,
       roadPresence,
-      strategicRoadLockedCells,
       cityById,
       countyCityRows,
       pvpBaseCamps,
@@ -1813,7 +1770,6 @@ export default function StrategicWorldMapSection({
       const reqPath = marchConfirm.path;
       const confirmedTargetPoiId = marchConfirm.targetPoiId || null;
       const confirmedMarchJunId = submitJunId;
-      const encounter = res.data?.encounter || null;
       const defenderAutoRetreats = res.data?.defenderAutoRetreats;
 
       setMarchConfirm(null);
@@ -1827,9 +1783,7 @@ export default function StrategicWorldMapSection({
         setExploreAnchorRoadOverride?.(null);
         onExploreAnchorSettled?.();
         showRoadMarchMoveFinishToast({
-          encounter,
           defenderAutoRetreats,
-          onRoadEncounterBattle,
           setMarchToast,
         });
         window.setTimeout(() => setMarchToast(null), 6000);
@@ -1861,9 +1815,7 @@ export default function StrategicWorldMapSection({
         await refresh({ silent: true });
         void roadPresenceFetchRef.current?.();
         showRoadMarchMoveFinishToast({
-          encounter,
           defenderAutoRetreats,
-          onRoadEncounterBattle,
           setMarchToast,
         });
         window.setTimeout(() => setMarchToast(null), 6000);
@@ -1873,7 +1825,7 @@ export default function StrategicWorldMapSection({
       setRoadMarchAnimation({
         path: animPath,
         stepIndex: 0,
-        afterRefreshToast: { encounter, defenderAutoRetreats },
+        afterRefreshToast: { defenderAutoRetreats },
       });
     } catch (err) {
       onRoadMarchAnimatingChange?.(false);
@@ -1889,7 +1841,6 @@ export default function StrategicWorldMapSection({
     playerMarchJunId,
     rows,
     refresh,
-    onRoadEncounterBattle,
     exitStrategicMarchMode,
   ]);
 
@@ -1970,7 +1921,6 @@ export default function StrategicWorldMapSection({
           meta={null}
           strategicSelfPawn={strategicSelfPawn}
           strategicOtherPawns={strategicOtherPawns}
-          strategicRoadLockedCells={strategicRoadLockedCells}
           strategicMarchMode={strategicMarchMode}
           strategicRoadMarchAnimating={!!roadMarchAnimation}
           onStrategicSelfMarchModeRequest={() => setStrategicMarchMode(true)}
@@ -1999,7 +1949,6 @@ export default function StrategicWorldMapSection({
         pathLength={marchConfirm?.path?.length ?? 0}
         billableRoadSteps={marchConfirm?.preview?.steps ?? 0}
         preview={marchConfirm?.preview}
-        encounterHint={marchConfirm?.encounterHint}
         poiTargetName={marchConfirm?.poiTargetName || null}
       />
       {marchToast ? (

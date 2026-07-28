@@ -15,8 +15,6 @@ export default function StrategicMarchMoveConfirm({
   /** 与粮草预览一致：沿路边数（路上出发时为 path 边数 = pathLength−1） */
   billableRoadSteps,
   preview,
-  /** 落点有其他玩家时提示（遭遇以服务端为准） */
-  encounterHint,
   /** 城心/匪寨行军时展示地名 */
   poiTargetName = null,
 }) {
@@ -65,9 +63,6 @@ export default function StrategicMarchMoveConfirm({
             <span className="text-stone-500"> / </span>
             <strong className="text-stone-200">{p.freeQuotaPerDay}</strong>
           </p>
-        ) : null}
-        {encounterHint ? (
-          <p className="mt-2 rounded border border-amber-900/60 bg-amber-950/40 px-2 py-1.5 text-xs text-amber-100/95">{encounterHint}</p>
         ) : null}
         {reserveWarn ? <p className="mt-2 text-sm text-red-300">{reserveWarn}</p> : null}
         {errorMessage ? <p className="mt-2 text-sm text-red-300">{errorMessage}</p> : null}

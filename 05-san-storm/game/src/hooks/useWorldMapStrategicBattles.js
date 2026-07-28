@@ -17,12 +17,9 @@ import { banditNpcSlotRaritiesFromLayer } from '@shared/utils/smallMapEnemyRoste
 import { worldMapCityIsPlayerSameFaction } from '@/utils/worldMapCityPanelCopy';
 import { worldMapOverlayRefs } from '@/utils/worldMapOverlayRefs';
 
-/** 与 backend `roadConfig.ROAD_DEFENDER_ALERT_SEC` 一致：攻方自动裁定等待窗 */
-const ROAD_ENCOUNTER_AUTO_RESOLVE_SEC = 10;
-
-/** 攻城 / 攻大本营（NPC 批次）· 结算双按钮与 BGM 适用范围（不含道路遭遇、玩家驻守） */
+/** 攻城 / 攻大本营（NPC 批次）· 结算双按钮与 BGM 适用范围（不含玩家驻守） */
 export function isWorldMapNpcSiegeBgmContext(siegeData) {
-  if (!siegeData || siegeData.roadEncounterId) return false;
+  if (!siegeData) return false;
   if (siegeData.pvpDefenderBaseCampSiege) return true;
   const dt = siegeData.defenderType || 'npc';
   return dt === 'npc';
@@ -96,8 +93,6 @@ export function useWorldMapStrategicBattles({
   pvpActionsRef,
   /** ref：{ setAuthoritativeReplayOverlay }，同上 */
   authoritativeReplayRef,
-  roadAttackerAlert,
-  setRoadAttackerAlert,
   bumpStrategicRoadPresenceRef,
 }) {
   const [siegeData, setSiegeData] = useState(null);
@@ -107,17 +102,12 @@ export function useWorldMapStrategicBattles({
   const [banditRaidData, setBanditRaidData] = useState(null);
   const [banditRaidResult, setBanditRaidResult] = useState(null);
   const [postBanditRaidRefreshKey, setPostBanditRaidRefreshKey] = useState(0);
-  const [roadAttackerAdjudicating, setRoadAttackerAdjudicating] = useState(null);
-  const [roadAttackerCountdown, setRoadAttackerCountdown] = useState(0);
   /** @type {[{ kind:'pve'|'pvp'|'baseCamp', cityId?:string, pvpWarId?:string, cityName?:string, cityRow?:object, opponentName?:string, playerFaction?:string }|null, Function]} */
   const [pendingSiegeConfirm, setPendingSiegeConfirm] = useState(null);
   const [siegeAdjudicating, setSiegeAdjudicating] = useState(false);
   const [siegeChargeCinematic, setSiegeChargeCinematic] = useState(null);
 
   const banditRaidDataRef = useRef(null);
-  const roadResolveOnceRef = useRef(false);
-  const roadAutoTimerRef = useRef(null);
-  const roadCountdownTimerRef = useRef(null);
   useEffect(() => {
     banditRaidDataRef.current = banditRaidData;
   }, [banditRaidData]);
@@ -145,127 +135,6 @@ export function useWorldMapStrategicBattles({
     banditRaidData,
     banditRaidResult,
   ]);
-
-  const runRoadEncounterAuthoritativeResolve = useCallback(
-    async (encounterIdRaw) => {
-      const eid = encounterIdRaw != null ? String(encounterIdRaw).trim() : '';
-      if (!eid || !player?.playerId || roadResolveOnceRef.current) return;
-      roadResolveOnceRef.current = true;
-      if (roadAutoTimerRef.current) {
-        clearTimeout(roadAutoTimerRef.current);
-        roadAutoTimerRef.current = null;
-      }
-      if (roadCountdownTimerRef.current) {
-        clearInterval(roadCountdownTimerRef.current);
-        roadCountdownTimerRef.current = null;
-      }
-      setRoadAttackerCountdown(0);
-      setRoadAttackerAlert(null);
-
-      const gate = validateMainLineupBattleGate({
-        cards,
-        playerUnits: null,
-        playerFood: player?.food ?? 0,
-      });
-      if (!gate.ok) {
-        roadResolveOnceRef.current = false;
-        setSimpleAlertMessage(gate.message);
-        return;
-      }
-
-      setRoadAttackerAdjudicating({ encounterId: eid, startedAt: Date.now() });
-      try {
-        const res = await playerAPI.resolveRoadEncounterAuthoritative(player.playerId, eid);
-        if (!res?.success || !res.data) {
-          setRoadAttackerAdjudicating(null);
-          setSimpleAlertMessage(res?.error || '道路权威结算失败');
-          roadResolveOnceRef.current = false;
-          return;
-        }
-        const d = res.data;
-        const logStr = Array.isArray(d.battleLog) ? d.battleLog.join('\n') : '';
-        const siegeResultSnapshot = {
-          ...(d.settlement && typeof d.settlement === 'object' ? d.settlement : {}),
-          attackerWon: d.attackerWon,
-          authoritativeBattleLog: d.battleLog,
-          battleSeed: d.battleSeed,
-          siegeReplayAttackerNames: d.siegeReplayAttackerNames,
-          siegeReplayDefenderNames: d.siegeReplayDefenderNames,
-          initialAttackerTroops: d.initialAttackerTroops,
-          initialDefenderTroops: d.initialDefenderTroops,
-          ...(d.defeatRetreatNotice ? { defeatRetreatNotice: d.defeatRetreatNotice } : {}),
-        };
-        setRoadAttackerAdjudicating(null);
-        authoritativeReplayRef?.current?.setAuthoritativeReplayOverlay?.({
-          battleLogStr: logStr,
-          eventReplayRoomId: d.eventReplay?.roomId || null,
-          eventReplayTitle: '道路遭遇',
-          initialAttackerTroops: d.initialAttackerTroops,
-          initialDefenderTroops: d.initialDefenderTroops,
-          leftLabel: '攻方',
-          rightLabel: '守军',
-          onPlaybackComplete: () => {
-            authoritativeReplayRef?.current?.setAuthoritativeReplayOverlay?.(null);
-            setSiegeResult(siegeResultSnapshot);
-            bumpGarrisonStats();
-            refreshPlayer({ silent: true });
-            bumpStrategicRoadPresenceRef?.current?.();
-          },
-        });
-      } catch (e) {
-        setRoadAttackerAdjudicating(null);
-        setSimpleAlertMessage(e?.message || '网络异常');
-        roadResolveOnceRef.current = false;
-      }
-    },
-    [
-      player,
-      cards,
-      refreshPlayer,
-      setSimpleAlertMessage,
-      setRoadAttackerAlert,
-      authoritativeReplayRef,
-      bumpGarrisonStats,
-      bumpStrategicRoadPresenceRef,
-    ],
-  );
-
-  /** 攻方：遇袭弹窗倒计时结束后自动权威裁定（与攻城 PVP 对齐，避免未点确定而永久 fighting） */
-  useEffect(() => {
-    const eid = roadAttackerAlert?.encounterId;
-    if (!eid || !player?.playerId) {
-      roadResolveOnceRef.current = false;
-      setRoadAttackerCountdown(0);
-      return undefined;
-    }
-    roadResolveOnceRef.current = false;
-    const endsAt = Date.now() + ROAD_ENCOUNTER_AUTO_RESOLVE_SEC * 1000;
-    setRoadAttackerCountdown(ROAD_ENCOUNTER_AUTO_RESOLVE_SEC);
-    roadCountdownTimerRef.current = setInterval(() => {
-      setRoadAttackerCountdown(Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)));
-    }, 250);
-    roadAutoTimerRef.current = setTimeout(
-      () => runRoadEncounterAuthoritativeResolve(eid),
-      ROAD_ENCOUNTER_AUTO_RESOLVE_SEC * 1000,
-    );
-    const onVis = () => {
-      if (typeof document === 'undefined' || document.visibilityState !== 'visible') return;
-      if (Date.now() < endsAt) return;
-      if (roadAutoTimerRef.current) clearTimeout(roadAutoTimerRef.current);
-      runRoadEncounterAuthoritativeResolve(eid);
-    };
-    if (typeof document !== 'undefined') document.addEventListener('visibilitychange', onVis);
-    return () => {
-      if (roadAutoTimerRef.current) clearTimeout(roadAutoTimerRef.current);
-      if (roadCountdownTimerRef.current) clearInterval(roadCountdownTimerRef.current);
-      if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', onVis);
-    };
-  }, [roadAttackerAlert?.encounterId, player?.playerId, runRoadEncounterAuthoritativeResolve]);
-
-  const confirmRoadAttackerEnterBattle = useCallback(() => {
-    if (!roadAttackerAlert?.encounterId) return;
-    runRoadEncounterAuthoritativeResolve(roadAttackerAlert.encounterId);
-  }, [roadAttackerAlert?.encounterId, runRoadEncounterAuthoritativeResolve]);
 
   const cancelPendingSiegeConfirm = useCallback(() => {
     setPendingSiegeConfirm(null);
@@ -748,40 +617,6 @@ export function useWorldMapStrategicBattles({
       return;
     }
 
-    if (siegeData.roadEncounterId) {
-      try {
-        const res = await playerAPI.submitRoadEncounterBattleResult(player.playerId, {
-          encounterId: siegeData.roadEncounterId,
-          factionId: siegeData.playerFaction,
-          killedIndices: killedIndices || [],
-          result: result === 'victory' ? 'win' : 'lose',
-          silverSpent: silverSpent || 0,
-          battleScore: Number(scoreResult?.score) || 0,
-          battleReportSaved: meta?.battleReportSaved !== false,
-          battleId: meta?.battleId || null,
-          ...(Array.isArray(meta?.defenderLineupTroopUpdates) && meta.defenderLineupTroopUpdates.length
-            ? { defenderLineupTroopUpdates: meta.defenderLineupTroopUpdates }
-            : {}),
-        });
-        if (res.success) {
-          setSiegeResult({
-            ...res.data,
-            battleOutcome: result,
-            chestRewards: Array.isArray(meta?.chestRewards) ? meta.chestRewards : [],
-            battleReportFailed: meta?.battleReportSaved === false,
-          });
-        } else {
-          setSiegeResult({ npcKilled: 0, killCount: 0, npcTotal: 0, silverReward: 0, battleOutcome: result, error: res.error });
-        }
-      } catch (err) {
-        console.error('[RoadEncounter] 结算请求失败:', err);
-        setSiegeResult({ npcKilled: 0, killCount: 0, npcTotal: 0, silverReward: 0, battleOutcome: result, error: '结算请求失败' });
-      }
-      bumpGarrisonStats();
-      refreshPlayer({ silent: true });
-      return;
-    }
-
     try {
       if (siegeData.pvpDefenderBaseCampSiege && siegeData.pvpWarId) {
         const res = await warAPI.recordBaseCampSiegeResult(siegeData.pvpWarId, {
@@ -987,9 +822,6 @@ export function useWorldMapStrategicBattles({
     banditRaidResult,
     postBanditRaidRefreshKey,
     banditRaidStartBlockedReason,
-    confirmRoadAttackerEnterBattle,
-    roadAttackerAdjudicating,
-    roadAttackerCountdown,
     pendingSiegeConfirm,
     siegeAdjudicating,
     siegeChargeCinematic,

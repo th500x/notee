@@ -70,7 +70,6 @@ function formatPlayerForProfileApi(player, extras = {}) {
     roadJunId: player.road_jun_id || null,
     roadPositionX: player.road_position_x != null ? Number(player.road_position_x) : null,
     roadPositionY: player.road_position_y != null ? Number(player.road_position_y) : null,
-    roadIntercept: player.road_intercept ? 1 : 0,
     roadUpdatedAt: player.road_updated_at || null,
     roadReserveDate: player.road_reserve_date || null,
     roadReserveUsed: Number(player.road_reserve_used) || 0,

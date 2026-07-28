@@ -1,6 +1,6 @@
 /**
  * 战略行军：城心 / 匪寨 POI 终点（31-6 §7）。
- * 与 `game/src/utils/strategicRoadMarchPath.js`、`roadEncounterService.moveAlongRoad` 共用寻路语义。
+ * 与 `game/src/utils/strategicRoadMarchPath.js`、`road/roadMoveAlongService.moveAlongRoad` 共用寻路语义。
  *
  * 道路最短路：边界格（四邻存在非道路）默认可作 **仅起点/终点**；BFS 禁作途经，无内道宽时回退全道路网。
  * 等长路回溯：用 **走廊向内深度** 打破平局（勿用离地图矩形边的距离）。
@@ -31,7 +31,7 @@ import { readStrategicCellAnchorId } from './strategicCellAnchorId.js';
 import { isJunBattlefieldCell, isJunBattlefieldEntryCell } from './junBattlefieldCell.js';
 import { isBanditMapObjectId } from './smallMapEnemyRoster.js';
 
-/** 与 `smallMapEnemyRoster.isBanditMapObjectId` 同义；供 CJS `require` 侧（如 `roadEncounterService`）判定匪寨终点，避免误查 `cities`。 */
+/** 与 `smallMapEnemyRoster.isBanditMapObjectId` 同义；供 CJS `require` 侧（如 `roadMoveAlongService`）判定匪寨终点，避免误查 `cities`。 */
 export { isBanditMapObjectId };
 
 /** `wars_pvp.pvp_war_id`（如 `san_1_war_0015`）或 PVE `wars.war_id`（如 `war_san_1_city_*`）。与 `cities.city_id`、匪寨 id 区分。 */

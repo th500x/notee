@@ -1,12 +1,11 @@
 /**
- * 道路遭遇 · 状态查询（自身 / 郡内他人 / 守方遇袭轮询）
+ * 战略道路 · 状态查询（自身 / 郡内他人）
  *
  * @description
- *   把原 `roadEncounterService.js` 中三个"无写库 / 仅查库 + 一次性提示读即清"接口抽出，
- *   行为零变动：
  *     - `getSelfRoadState`：自身道路位置 + `pendingRoadNotice`（事务内 SELECT FOR UPDATE → UPDATE 清空）
- *     - `getRoadPresence`：郡内在线他人 + 当前 pending/fighting 锁格清单
- *     - `getPendingDefenderEncounter`：守方轮询自身是否处于 fighting 道路战；附带摘 stale fighting
+ *     - `getRoadPresence`：郡内在线他人位置（供大地图展示他人棋子）
+ *
+ *   道路同格遭遇战已归档（`_archive/dao-lu-yu-di/`）：不再有交战格锁与守方遇袭轮询。
  *
  * @module services/road/roadPresenceService
  */
@@ -14,12 +13,7 @@
 const { pool } = require('../../database/connection');
 const { DEFAULT_ONLINE_MS } = require('../../utils/playerActivity');
 const { normalizeMapDisplayEffect } = require('../../../shared/utils/mapDisplayEffect.cjs');
-const {
-  buildPlayerRoadSnapshot,
-  ROAD_DEFENDER_ALERT_SEC,
-  ROAD_ENCOUNTERS_ENABLED,
-  STALE_FIGHT_SQL_MIN,
-} = require('./roadShared');
+const { buildPlayerRoadSnapshot } = require('./roadShared');
 
 async function getSelfRoadState(playerId) {
   const pid = String(playerId || '').trim();
@@ -28,7 +22,7 @@ async function getSelfRoadState(playerId) {
   try {
     await conn.beginTransaction();
     const [rows] = await conn.query(
-      `SELECT road_jun_id, road_position_x, road_position_y, road_intercept, road_updated_at,
+      `SELECT road_jun_id, road_position_x, road_position_y, road_updated_at,
               food, silver,
               road_reserve_date, road_reserve_used,
               road_move_free_date, road_move_free_used,
@@ -49,41 +43,6 @@ async function getSelfRoadState(playerId) {
     }
     await conn.commit();
 
-    let activeFightingEncounter;
-    if (ROAD_ENCOUNTERS_ENABLED) {
-    const jun = r.road_jun_id != null ? String(r.road_jun_id).trim() : '';
-    const px = r.road_position_x;
-    const py = r.road_position_y;
-    if (jun && px != null && py != null) {
-      const [encRows] = await pool.query(
-        `SELECT encounter_id AS encounterId,
-                attacker_player_id AS attackerPlayerId,
-                defender_player_id AS defenderPlayerId,
-                status
-           FROM road_encounters
-          WHERE status = 'fighting'
-            AND jun_id = ?
-            AND position_x = ?
-            AND position_y = ?
-            AND (attacker_player_id = ? OR defender_player_id = ?)
-          ORDER BY started_at DESC
-          LIMIT 1`,
-        [jun, px, py, pid, pid],
-      );
-      const enc = encRows[0];
-      if (enc?.encounterId) {
-        const att = String(enc.attackerPlayerId || '').trim();
-        activeFightingEncounter = {
-          encounterId: enc.encounterId,
-          attackerPlayerId: att,
-          defenderPlayerId: enc.defenderPlayerId,
-          status: enc.status,
-          role: att === pid ? 'attacker' : 'defender',
-        };
-      }
-    }
-    }
-
     return {
       ok: true,
       data: {
@@ -95,7 +54,6 @@ async function getSelfRoadState(playerId) {
         roadMoveFreeDate: r.road_move_free_date || null,
         roadMoveFreeUsed: Number(r.road_move_free_used) || 0,
         pendingRoadNotice: pendingRoadNotice || undefined,
-        activeFightingEncounter: activeFightingEncounter || undefined,
       },
     };
   } catch (e) {
@@ -112,7 +70,7 @@ async function getSelfRoadState(playerId) {
 }
 
 /**
- * 郡内在线他人位置 + 当前道路占格清单。
+ * 郡内在线他人位置。
  *
  * @param {string} season
  * @param {string} junId
@@ -136,7 +94,6 @@ async function getRoadPresence(season, junId, callerPlayerId) {
               p.road_jun_id AS roadJunId,
               p.road_position_x AS roadPositionX,
               p.road_position_y AS roadPositionY,
-              p.road_intercept AS roadIntercept,
               p.road_updated_at AS roadUpdatedAt,
               ca.display_effect AS mapDisplayEffectRaw
          FROM players p
@@ -158,21 +115,6 @@ async function getRoadPresence(season, junId, callerPlayerId) {
       [j, caller || '', thresholdSec],
     );
 
-    const [locks] = ROAD_ENCOUNTERS_ENABLED
-      ? await pool.query(
-      `SELECT encounter_id AS encounterId,
-              position_x AS positionX,
-              position_y AS positionY,
-              status,
-              attacker_player_id AS attackerPlayerId,
-              defender_player_id AS defenderPlayerId,
-              started_at AS startedAt
-         FROM road_encounters
-        WHERE season = ? AND jun_id = ? AND status IN ('pending','fighting')`,
-      [s, j],
-    )
-      : [[]];
-
     return {
       ok: true,
       data: {
@@ -187,25 +129,12 @@ async function getRoadPresence(season, junId, callerPlayerId) {
           avatar: r.avatar || null,
           roadPositionX: Number(r.roadPositionX),
           roadPositionY: Number(r.roadPositionY),
-          roadIntercept: r.roadIntercept ? 1 : 0,
           roadUpdatedAt: r.roadUpdatedAt || null,
           mapDisplayEffect: normalizeMapDisplayEffect(r.mapDisplayEffectRaw),
-        })),
-        lockedCells: (locks || []).map((r) => ({
-          encounterId: r.encounterId,
-          positionX: Number(r.positionX),
-          positionY: Number(r.positionY),
-          status: r.status,
-          attackerPlayerId: r.attackerPlayerId,
-          defenderPlayerId: r.defenderPlayerId,
-          startedAt: r.startedAt || null,
         })),
       },
     };
   } catch (e) {
-    if (/road_encounters/i.test(e.message || '') && /doesn't exist/i.test(e.message || '')) {
-      return { ok: false, status: 503, error: '数据库缺少 road_encounters 表；请执行 create-road-encounters.sql' };
-    }
     if (/Unknown column/i.test(e.message || '')) {
       return { ok: false, status: 503, error: '数据库缺少道路状态列；请执行 add-players-road-state.sql' };
     }
@@ -213,73 +142,7 @@ async function getRoadPresence(season, junId, callerPlayerId) {
   }
 }
 
-/**
- * 若当前用户为某条 fighting 遭遇的防守方且立点与交战格一致，返回遇袭摘要（否则 encounter=null）。
- *
- * @param {string} defenderPlayerId
- */
-async function getPendingDefenderEncounter(defenderPlayerId) {
-  const pid = String(defenderPlayerId || '').trim();
-  if (!pid) return { ok: false, status: 400, error: '缺少 playerId' };
-  try {
-    // 与 `resolveStaleRoadEncountersAtCell` 同阈值：守方轮询也能摘掉「永不结束」的 fighting，避免 UI 永久遇袭
-    await pool.query(
-      `UPDATE road_encounters e
-          SET e.status = 'cancelled', e.ended_at = NOW()
-        WHERE e.status = 'fighting'
-          AND e.battle_id IS NULL
-          AND e.started_at IS NOT NULL
-          AND e.started_at < DATE_SUB(NOW(), INTERVAL ${STALE_FIGHT_SQL_MIN} MINUTE)
-          AND (e.attacker_player_id = ? OR e.defender_player_id = ?)`,
-      [pid, pid],
-    );
-    const [rows] = await pool.query(
-      `SELECT e.encounter_id AS encounterId,
-              e.attacker_player_id AS attackerPlayerId,
-              e.started_at AS startedAt,
-              pa.character_name AS attackerName
-         FROM road_encounters e
-         INNER JOIN players pd ON pd.player_id = e.defender_player_id
-         LEFT JOIN players pa ON pa.player_id = e.attacker_player_id
-        WHERE e.defender_player_id = ?
-          AND e.status = 'fighting'
-          AND pd.road_jun_id = e.jun_id
-          AND pd.road_position_x = e.position_x
-          AND pd.road_position_y = e.position_y
-        ORDER BY e.started_at DESC
-        LIMIT 1`,
-      [pid],
-    );
-    if (!rows.length) {
-      return { ok: true, data: { encounter: null } };
-    }
-    const r = rows[0];
-    const startedMs = r.startedAt ? new Date(r.startedAt).getTime() : Date.now();
-    const elapsedSec = Math.max(0, (Date.now() - startedMs) / 1000);
-    const remainingSeconds = Math.max(0, Math.ceil(ROAD_DEFENDER_ALERT_SEC - elapsedSec));
-    return {
-      ok: true,
-      data: {
-        encounter: {
-          encounterId: r.encounterId,
-          attackerPlayerId: r.attackerPlayerId,
-          attackerName: r.attackerName || '敌方',
-          waitSeconds: ROAD_DEFENDER_ALERT_SEC,
-          remainingSeconds,
-        },
-      },
-    };
-  } catch (e) {
-    if (/road_encounters/i.test(e.message || '') && /doesn't exist/i.test(e.message || '')) {
-      return { ok: false, status: 503, error: '数据库缺少 road_encounters 表；请执行 create-road-encounters.sql' };
-    }
-    console.error('[roadEncounterService] getPendingDefenderEncounter', e);
-    return { ok: false, status: 500, error: e.message || '查询道路遇袭失败' };
-  }
-}
-
 module.exports = {
   getSelfRoadState,
   getRoadPresence,
-  getPendingDefenderEncounter,
 };

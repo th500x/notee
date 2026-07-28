@@ -1,6 +1,6 @@
 /**
  * 道路开战门闸退让 / 战后败退：将玩家 `road_position_*` 落到本郡「最近己方城」锚格（31-6 §7 离路立点）。
- * 供 `roadEncounterService.moveAlongRoad`、`resolveEncounter` 共用。
+ * 供 `road/roadMoveAlongService`（门闸退让 / 久未活跃退让）与路点修复共用。
  * 档案路点无法立足时的郡战场随机落点见 `applyRandomJunBattlefieldStand`（31-6）。
  */
 
@@ -101,11 +101,6 @@ function buildRoadGateFailRetreatNotice(gateError) {
     .slice(0, 220);
   const body = `您未达到道路开战要求（${detail}），已被自动移回本郡最近的己方城池。请补强编队或粮草后再进入道路。`;
   return body.slice(0, 510);
-}
-
-/** 道路对战战败后：一次性客户端提示 */
-function buildRoadBattleDefeatRetreatNotice() {
-  return '道路对战失利，已为您移回本郡距离交战格最近的己方城池。请重整兵力与粮草后再来。'.slice(0, 510);
 }
 
 /** 改版/数据不一致：迁至本郡战场入口 */
@@ -299,7 +294,6 @@ module.exports = {
   resolveCityAnchorStandCell,
   resolveFactionPlayerRoadRetreatStandCell,
   buildRoadGateFailRetreatNotice,
-  buildRoadBattleDefeatRetreatNotice,
   buildStaleStandBattlefieldNotice,
   buildStaleStandBattlefieldCrossJunNotice,
   collectJunBattlefieldStandCandidates,

@@ -44,6 +44,7 @@ const MIGRATION_FILES_SPLIT_STATEMENTS = new Set([
   'accounts-drop-register-unique-machine-ip.sql',
   'add-config-characters-gender.sql',
   'add-skill-new-fields.sql',
+  'road-encounters-drop-archived-feature.sql',
   'add-config-bonds-season-column.sql',
   'add-config-events-season-column.sql',
   'add-achievement-display-effect.sql',
@@ -55,8 +56,6 @@ const MIGRATION_FILES_SPLIT_STATEMENTS = new Set([
   'create-faction-war-daily-votes.sql',
   'delete-player-garrison-non-main-city.sql',
   'migrate-players-items-item-id-rename-2026-07.sql',
-  'cities-rename-id-strip-digit-and-city-gate.sql',
-  'cities-drop-fort-and-gate-from-city-type.sql',
   'cities-add-attr-growth-applied-date.sql',
   'cities-add-npc-recovery-applied-date.sql',
   'create-config-chapter-tables.sql',
@@ -120,10 +119,8 @@ const MIGRATION_FILES = [
   'player-events-add-san-gong-tribute-daily.sql',
   'player-events-add-san-gong-tribute-character-daily.sql',
   'player-events-add-san-gong-stipend-claim-date.sql',
-  'create-road-encounters.sql',
   'add-players-road-state.sql',
   'add-players-road-client-notice.sql',
-  'road-encounters-add-authoritative-resolution-json.sql',
   'player-events-explore-session-lock.sql',
   'config-events-add-min-reputation-event-hint.sql',
   'config-events-drop-min-position-level.sql',
@@ -199,8 +196,7 @@ const MIGRATION_FILES = [
   'delete-player-garrison-non-main-city.sql',
   'migrate-players-items-item-id-rename-2026-07.sql',
   'create-config-adventure-themes-and-player-adventures.sql',
-  // 2026-07：关隘 city_type gate→city_gate（city_id 去数字段见 migrate-city-id-and-city-gate-db.js）
-  'cities-rename-id-strip-digit-and-city-gate.sql',
+  // 2026-07：cities.city_type 收窄为四型（city_id 去数字段见 scripts/migrate-city-id-and-city-gate-db.js，仅本地存量库）
   'cities-drop-fort-and-gate-from-city-type.sql',
   'yingchuan-bandit-one-instance-2026-07.sql',
   'cities-add-attr-growth-applied-date.sql',
@@ -211,6 +207,8 @@ const MIGRATION_FILES = [
   'add-player-progress-chapter-progress.sql',
   'alter-battles-add-pve-chapter-type.sql',
   'create-config-chapter-tables.sql',
+  // 2026-07：道路同格遭遇战归档移除（_archive/dao-lu-yu-di/）
+  'road-encounters-drop-archived-feature.sql',
 ];
 
 /** RENAME：源列不存在时跳过（库已为 skill_type） */

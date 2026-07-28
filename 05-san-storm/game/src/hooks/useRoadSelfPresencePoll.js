@@ -1,10 +1,13 @@
 /**
  * 道路本人 `road_*` 短轮询 + 退让提示暂存/弹出（原 WorldMap.jsx 700ms tick）。
+ *
+ * 道路同格遭遇战已归档（`_archive/dao-lu-yu-di/`）：本 hook 只负责坐标同步与
+ * `road_client_notice`（门闸退让 / 路点修复 / 攻城战败退让）的排队展示。
  */
 import { useState, useRef, useEffect } from 'react';
 import { playerAPI } from '@/services/playerApi';
 
-export function isRoadGateNoticeBlocked(blockSnapshot, blockTutorialAutoplay, roadDefenseOutcomeReplayBlockingRef) {
+export function isRoadGateNoticeBlocked(blockSnapshot, blockTutorialAutoplay) {
   if (blockTutorialAutoplay) return true;
   if (!blockSnapshot || typeof blockSnapshot !== 'object') return false;
   return (
@@ -13,15 +16,9 @@ export function isRoadGateNoticeBlocked(blockSnapshot, blockTutorialAutoplay, ro
     blockSnapshot.siegeData ||
     blockSnapshot.banditRaidData ||
     blockSnapshot.banditRaidResult ||
-    blockSnapshot.roadAuthoritativeOutcomeModal ||
     blockSnapshot.pvpAttackerAdjudicating ||
     blockSnapshot.pvpDefenseSettlement ||
-    blockSnapshot.roadAttackerAdjudicating ||
-    blockSnapshot.roadAttackerAlert ||
-    blockSnapshot.pvpChallenge ||
-    blockSnapshot.roadDefenseAlert ||
-    blockSnapshot.roadAwaitingAuthoritativeOutcome ||
-    !!roadDefenseOutcomeReplayBlockingRef?.current
+    blockSnapshot.pvpChallenge
   );
 }
 
@@ -30,11 +27,8 @@ export function useRoadSelfPresencePoll({
   refreshPlayer,
   blockTutorialAutoplay = false,
   roadNoticeUiBlockRef,
-  roadDefenseOutcomeReplayBlockingRef,
   bumpStrategicRoadPresenceRef,
   strategicRoadMarchAnimatingRef,
-  /** 交战格上仍为 fighting 的攻方：恢复自动裁定入口（刷新/断线后） */
-  onAttackerFightingEncounterResume,
   intervalMs = 700,
   noticeUnblockDeps = [],
 }) {
@@ -71,20 +65,11 @@ export function useRoadSelfPresencePoll({
           lastApiRoadSnapRef.current = snap;
           return;
         }
-        const activeEnc = d.activeFightingEncounter;
-        if (
-          activeEnc?.encounterId &&
-          activeEnc.role === 'attacker' &&
-          typeof onAttackerFightingEncounterResume === 'function'
-        ) {
-          onAttackerFightingEncounterResume(activeEnc);
-        }
         const notice = typeof d.pendingRoadNotice === 'string' ? d.pendingRoadNotice.trim() : '';
         if (notice) {
           const blocked = isRoadGateNoticeBlocked(
             roadNoticeUiBlockRef?.current,
             blockTutorialAutoplay,
-            roadDefenseOutcomeReplayBlockingRef,
           );
           if (blocked) {
             deferredRoadGateNoticeRef.current = notice;
@@ -110,7 +95,6 @@ export function useRoadSelfPresencePoll({
           const stillBlocked = isRoadGateNoticeBlocked(
             roadNoticeUiBlockRef?.current,
             blockTutorialAutoplay,
-            roadDefenseOutcomeReplayBlockingRef,
           );
           if (!stillBlocked) {
             deferredRoadGateNoticeRef.current = null;
@@ -134,10 +118,8 @@ export function useRoadSelfPresencePoll({
     blockTutorialAutoplay,
     intervalMs,
     roadNoticeUiBlockRef,
-    roadDefenseOutcomeReplayBlockingRef,
     bumpStrategicRoadPresenceRef,
     strategicRoadMarchAnimatingRef,
-    onAttackerFightingEncounterResume,
   ]);
 
   /** 阻塞 UI 关闭后立刻弹出已暂存的退让提示（由调用方传入与 roadNoticeUiBlockRef 同步的 deps） */
@@ -147,7 +129,6 @@ export function useRoadSelfPresencePoll({
     const stillBlocked = isRoadGateNoticeBlocked(
       roadNoticeUiBlockRef?.current,
       blockTutorialAutoplay,
-      roadDefenseOutcomeReplayBlockingRef,
     );
     if (!stillBlocked) {
       deferredRoadGateNoticeRef.current = null;
@@ -157,7 +138,6 @@ export function useRoadSelfPresencePoll({
   }, [
     blockTutorialAutoplay,
     roadNoticeUiBlockRef,
-    roadDefenseOutcomeReplayBlockingRef,
     ...(Array.isArray(noticeUnblockDeps) ? noticeUnblockDeps : []),
   ]);
 
@@ -175,7 +155,7 @@ export function useRoadSelfPresencePoll({
   };
 }
 
-/** 道路战败退让提示入队（结算关闭后调用；与轮询 `pendingRoadNotice` 互补） */
+/** 战败/退让提示入队（结算关闭后调用；与轮询 `pendingRoadNotice` 互补） */
 export function enqueueRoadGateRetreatNotice(
   text,
   {
@@ -185,18 +165,12 @@ export function enqueueRoadGateRetreatNotice(
     shownRoadGateNoticeRef,
     blockSnapshot,
     blockTutorialAutoplay,
-    roadDefenseOutcomeReplayBlockingRef,
   },
 ) {
   const trimmed = String(text || '').trim();
   if (!trimmed) return;
   if (shownRoadGateNoticeRef?.current === trimmed) return;
-  const blocked = isRoadGateNoticeBlocked(
-    blockSnapshot,
-    blockTutorialAutoplay,
-    roadDefenseOutcomeReplayBlockingRef,
-  );
-  if (blocked) {
+  if (isRoadGateNoticeBlocked(blockSnapshot, blockTutorialAutoplay)) {
     deferredRoadGateNoticeRef.current = trimmed;
     return;
   }

@@ -14,9 +14,6 @@ export default function WorldMapAlertOverlays({
   pvpDefenseWaiting,
   authoritativeReplayOverlay,
   onAuthoritativeReplayClose,
-  roadAttackerAlert,
-  roadAttackerCountdown = 0,
-  onRoadAttackerConfirm,
   roadGateRetreatNotice,
   onRoadGateNoticeClose,
   showRoadGateNotice,
@@ -152,41 +149,6 @@ export default function WorldMapAlertOverlays({
           </div>,
           document.body,
         )}
-
-      {roadAttackerAlert && !siegeData && !banditRaidData && !banditRaidResult && (
-        <AncientModal
-          isOpen
-          type="warning"
-          title="道路遭遇"
-          confirmText="立即开战"
-          showCancel={false}
-          preventClose
-          hideButtons={false}
-          invokeOnCloseAfterConfirm={false}
-          onConfirm={onRoadAttackerConfirm}
-        >
-          <div className="text-center space-y-4">
-            <p className="text-gray-800 text-base">您已与对方在道路上触发对战。</p>
-            <p className="text-gray-800 text-sm">
-              约{' '}
-              <span className="text-red-700 font-bold text-xl">{Math.max(0, Number(roadAttackerCountdown) || 0)}</span>{' '}
-              秒后由服务端自动裁定；也可点{' '}
-              <span className="font-semibold text-amber-900">立即开战</span> 提前开始。
-            </p>
-            <div className="w-full bg-gray-300 rounded-full h-2 overflow-hidden">
-              <div
-                className="h-full bg-gradient-to-r from-amber-600 to-red-600 transition-all duration-300"
-                style={{
-                  width: `${Math.min(100, ((10 - Math.max(0, Number(roadAttackerCountdown) || 0)) / 10) * 100)}%`,
-                }}
-              />
-            </div>
-            <p className="text-gray-500 text-xs leading-relaxed">
-              本场由服务端演算；倒计时结束或点「立即开战」后将直接进入战术对决回放并结算。裁定完成前请勿离开交战格；守方将同步收到遇袭提示。
-            </p>
-          </div>
-        </AncientModal>
-      )}
 
       <AncientModal
         isOpen={Boolean(showRoadGateNotice && roadGateRetreatNotice)}
