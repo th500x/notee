@@ -8,7 +8,7 @@ import { scheduleAfterMinAdjudicationUi } from '@/utils/pvpSiegeTiming';
 import {
   isPvpAuthoritativeBattleLogReplayable,
   normalizePvpSiegeDefenseOutcomeForSettlement,
-} from '@/utils/roadEncounterSettlement';
+} from '@/utils/pvpDefenseSettlement';
 
 export function usePvpSiegeAdjudication({
   playerId,

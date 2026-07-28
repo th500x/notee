@@ -2,12 +2,12 @@ import { resolveKillLossTroopCounts } from '@/systems/battleScoreSystem';
 
 const PVP_DUEL_DEFENDER_TYPES = new Set(['road_encounter', 'pvp_online']);
 
-/** 玩家对玩家（道路遭遇 / 在线城防），非 NPC 守军 */
+/** 玩家对玩家（历史道路遭遇类型 / 在线城防），非 NPC 守军 */
 export function isPvpDuelDefenderType(defenderType) {
   return PVP_DUEL_DEFENDER_TYPES.has(String(defenderType || '').trim());
 }
 
-/** 权威自动对决战报是否可挂 `PvpAutoDuelReplay`（道路守方 / 披挂守方 / 攻方回放共用） */
+/** 权威自动对决战报是否可挂 `PvpAutoDuelReplay`（守方 / 攻方回放共用） */
 export function isPvpAuthoritativeBattleLogReplayable(battleLog) {
   const logStr = Array.isArray(battleLog)
     ? battleLog.join('\n')
@@ -22,7 +22,7 @@ export function isPvpAuthoritativeBattleLogReplayable(battleLog) {
   );
 }
 
-/** 披挂 `siege-outcome` 载荷 → 与道路守方相同的 `mapRoadEncounterOutcomeToSettlementProps` 入参 */
+/** 攻城守方 `siege-outcome` 载荷 → `mapPvpDefenseOutcomeToSettlementProps` 入参 */
 export function normalizePvpSiegeDefenseOutcomeForSettlement(outcome) {
   if (!outcome || typeof outcome !== 'object') return { viewerIsDefender: true };
   return {
@@ -38,10 +38,11 @@ function countScoreDetailKillUnits(details) {
 }
 
 /**
- * 道路遭遇权威裁定结果 → `StrategicSettlementCard` 展示字段（攻/守方视角）
- * @param {object} raw `getRoadEncounterAuthoritativeOutcome` 或攻方裁定 API 载荷
+ * PVP 权威裁定结果 → `StrategicSettlementCard` 展示字段（攻/守方视角）
+ * （道路遇敌已归档；本函数仍服务攻城/在线对决结算卡）
+ * @param {object} raw 攻方裁定或守方 outcome 载荷
  */
-export function mapRoadEncounterOutcomeToSettlementProps(raw) {
+export function mapPvpDefenseOutcomeToSettlementProps(raw) {
   const settlement = raw?.settlement && typeof raw.settlement === 'object' ? raw.settlement : {};
   const viewerIsDefender = !!raw?.viewerIsDefender;
   const attackerWon = !!raw?.attackerWon;

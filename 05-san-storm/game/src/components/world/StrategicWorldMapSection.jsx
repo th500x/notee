@@ -303,8 +303,6 @@ export default function StrategicWorldMapSection({
   playerFactionId = null,
   siegeLoading = false,
   onStartSiegeForCity = null,
-  /** 道路遭遇触发后由 `WorldMap` 拉取开战数据并打开 BattleArena */
-  onRoadEncounterBattle = null,
   garrisonStatsRefreshKey = 0,
   subsidiaryExploreEmbed = null,
   playerMainCityId = null,

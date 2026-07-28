@@ -1825,7 +1825,7 @@ async function recordAttackerCitySiegeResult(pvpWarId, attackerPlayerId, payload
   }
 }
 
-/** 战术内核动态加载（缓存；与 `pvpGarrisonAutoDuelResolveService` / 道路同源）。 */
+/** 战术内核动态加载（缓存；与 `pvpAutoDuelSim` 同源）。 */
 let _siegeKernelPromise = null;
 function loadSiegeTacticalKernel() {
   if (!_siegeKernelPromise) {

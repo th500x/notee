@@ -190,8 +190,8 @@ async function deductMainLineupBattleFoodDeployCostOnConn(conn, playerId, opts =
 /**
  * 整编防守方当前可出战部队并计算总兵力：**唯一**与 `cityService.initiateSiege` 对齐的「是否算有效守军」入口。
  *
- * @param {object} defRow `player_garrison` 联结 `players` 的完整行，或 `getCityOnDutyDefenders` 返回的合成行
- *   （须含 `player_id`；若 `defense_source === 'main_lineup'` 则走上阵编组，否则走驻地槽 `buildDefenseUnits`）。
+ * @param {object} defRow `player_garrison` 联结 `players` 的完整行
+ *   （须含 `player_id`；驻地槽走 `buildDefenseUnits`。披挂 `main_lineup` 路径已归档。）
  * @returns {{ units: Array, totalTroops: number, meetsStationedTroopGate: boolean }}
  */
 async function buildDefenderLineupForCityDefense(defRow) {
@@ -643,33 +643,6 @@ async function getCityDefenders(cityId, ownerFactionId) {
 }
 
 /**
- * 披挂上阵待战本城的玩家（与 `player_garrison` 无直接关系；战力来自上阵编组）。
- * 返回前同样必须满足 **当前** 整编兵力 ≥ `MIN_GARRISON_TOTAL_TROOPS`，与 `initiateSiege` 一致。
- */
-async function getCityOnDutyDefenders(cityId, ownerFactionId) {
-  let sql = `
-     SELECT p.player_id, p.character_name, p.faction_id, p.faction_name,
-            p.current_position_id, p.current_position_name, p.position_level,
-            p.on_duty, p.on_duty_city_id,
-            0 AS garrison_slot,
-            'main_lineup' AS defense_source
-     FROM players p
-     INNER JOIN cities c ON c.city_id = ?
-     WHERE p.on_duty = TRUE
-       AND p.on_duty_city_id = ?
-       AND c.faction_id IS NOT NULL
-       AND p.faction_id = c.faction_id`;
-  const params = [cityId, cityId];
-  if (ownerFactionId != null && ownerFactionId !== '') {
-    sql += ' AND p.faction_id = ?';
-    params.push(ownerFactionId);
-  }
-  sql += ' ORDER BY p.position_level ASC, p.player_id ASC';
-  const [rows] = await pool.query(sql, params);
-  return filterCityDefenseRowsByMinStationedTroop(rows);
-}
-
-/**
  * 普通驻地槽防守者，供攻城队列等使用。
  * 在 `is_active` 候选之上再按 **当前** 整编兵力 ≥ `MIN_GARRISON_TOTAL_TROOPS` 过滤。
  */
@@ -789,7 +762,6 @@ module.exports = {
   getPlayerMainCityId,
   stripGarrisonOnCityConquest,
   getCityDefenders,
-  getCityOnDutyDefenders,
   getCityGarrisonDefenders,
   getCityGarrisonStats,
   buildDefenderLineupForCityDefense,

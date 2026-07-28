@@ -4,7 +4,7 @@
  * 则写入本郡 **最近己方城锚格**（与 `roadBattleRetreatPlacement` / PVP 终局迁离同源）。
  *
  * PVP `wars_pvp.base_camp` 与 PVE `wars.attacker_base_camps` 在战事进行中均为合法立足点，
- * 须在叠图郡 alternate 修正之前识别，避免颍川/汝南同坐标误判改郡。
+ * 须在叠图郡 alternate **早失败**之前识别，避免颍川/汝南同坐标误判改郡。
  *
  * 与 `pvpWarPlayerRelocationService.relocateAttackersOffPvpBaseCamp` 互补：后者在终局事务内迁离在线/同进程玩家；
  * 本模块兜底 **已离线** 或 **迁离逻辑未命中**（例如占格键世界行 Y 与库不一致）的残留坐标。
@@ -30,9 +30,12 @@ const { readJunBattlefieldAtGrid } = require('../../shared/utils/junBattlefieldC
 const NOTICE_STALE_STAND =
   '此前战事已结束或地图目标已变更，原立足格已不可用，已为您移至本郡距此最近的己方城池。'.slice(0, 510);
 
-/** 路点郡/坐标与叠图不一致：须写回正确 `road_jun_id` 并弹窗说明（禁止无提示改郡） */
-const NOTICE_JUN_COORD_FIXED = (storedJun, altJun, rx, ry) =>
-  `路点档案郡已修正：坐标 (${rx},${ry}) 实际落在「${altJun}」叠图行（原误记为「${storedJun}」），已更新 road_jun_id。若仍异常请从主城重新出征。`
+/**
+ * 路点郡/坐标与叠图不一致：只弹窗 + 日志，**禁止**只改 `road_jun_id` 不改 x/y
+ *（`san-storm-road-stand-no-silent-repair` / 31-6）。
+ */
+const NOTICE_JUN_COORD_MISMATCH = (storedJun, altJun, rx, ry) =>
+  `路点数据异常：档案郡为「${storedJun}」，但坐标 (${rx},${ry}) 仅在叠图「${altJun}」合法。服务端未改郡/坐标，请从主城重新出征。`
     .slice(0, 510);
 
 const NOTICE_STAND_UNREPAIRABLE = (junId, rx, ry, detail) =>
@@ -195,17 +198,18 @@ async function evaluateAndRepairLockedPlayer(conn, pl) {
   if (!evalWorld) return null;
   if (isStandValidAtWorld(evalWorld)) return null;
 
-  // 须在叠图郡 alternate 修正之前：PVE/PVP 本营占格非道路/静态 POI，但仍是合法立足点。
+  // 须在叠图郡 alternate 早失败之前：PVE/PVP 本营占格非道路/静态 POI，但仍是合法立足点。
   if (await cellTouchesActiveAttackerBaseCamp(conn, junId, rx, ry)) return null;
 
+  // 同 x/y 在叠图另一郡合法 ≠ 可静默改郡：早失败 + 可见 notice，不 UPDATE road_jun_id。
   if (grid?.isSan1YuVerticalStack && Array.isArray(grid.stackJunIds) && grid.stackJunIds.length >= 2) {
     for (const tryJun of grid.stackJunIds) {
       const tj = String(tryJun || '').trim();
       if (!tj || tj === junId) continue;
       const ewAlt = playerRoadToWorldMapCell(tj, rx, ry);
       if (!isStandValidAtWorld(ewAlt)) continue;
-      const notice = NOTICE_JUN_COORD_FIXED(junId, tj, rx, ry);
-      console.error('[staleStrategicRoadStandRepair] jun/coord mismatch — fixing road_jun_id with notice:', {
+      const notice = NOTICE_JUN_COORD_MISMATCH(junId, tj, rx, ry);
+      console.error('[staleStrategicRoadStandRepair] jun/coord mismatch — refuse silent jun flip:', {
         pid,
         storedJun: junId,
         altJun: tj,
@@ -213,10 +217,10 @@ async function evaluateAndRepairLockedPlayer(conn, pl) {
         ry,
       });
       await conn.query(
-        `UPDATE players SET road_jun_id = ?, road_client_notice = ?, road_updated_at = NOW() WHERE player_id = ?`,
-        [tj, notice, pid],
+        `UPDATE players SET road_client_notice = ?, road_updated_at = NOW() WHERE player_id = ?`,
+        [notice, pid],
       );
-      return { road_jun_id: tj, road_client_notice: notice };
+      return { road_client_notice: notice };
     }
   }
 

@@ -3,8 +3,8 @@
  * - 00:00：结昨日票并开战 → 开今日新票（无战事且储备够）
  * - 候选：邻郡 ∩ 地图最近敌对/中立，按距己方城曼哈顿距取最近 3 座（可负担开战费）
  * - 投票：position_level ≤ 5；权重 floor(silverBonus/10)
- * @see docs/01-jun-exploration/30-frontend/32-6-DAILY_REPORT.md
- * @see docs/01-jun-exploration/10-core-system/17-3-WAR_SYSTEM.md
+ * @see docs/01-strategic-world/30-frontend/32-6-DAILY_REPORT.md
+ * @see docs/01-strategic-world/10-core-system/17-3-WAR_SYSTEM.md
  */
 
 const { pool } = require('../database/connection');

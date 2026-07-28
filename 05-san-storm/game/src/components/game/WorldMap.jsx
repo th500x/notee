@@ -26,7 +26,7 @@ import StrategicWorldMapSection from '@/components/world/StrategicWorldMapSectio
 import WorldMapAlertOverlays from '@/components/world/WorldMapAlertOverlays';
 import WorldMapBattlePortal from '@/components/world/WorldMapBattlePortal';
 import StrategicSettlementCard from '@/components/world/StrategicSettlementCard';
-import { mapRoadEncounterOutcomeToSettlementProps } from '@/utils/roadEncounterSettlement';
+import { mapPvpDefenseOutcomeToSettlementProps } from '@/utils/pvpDefenseSettlement';
 import { worldMapOverlayRefs } from '@/utils/worldMapOverlayRefs';
 import { imperialMarchNpcToAllyUnit } from '@/utils/imperialMarchSiegeAlly';
 
@@ -451,7 +451,7 @@ export default function WorldMap({
         createPortal(
           <div className="pointer-events-auto fixed inset-0 z-[235] flex min-h-0 flex-col">
             <StrategicSettlementCard
-              {...mapRoadEncounterOutcomeToSettlementProps(pvpDefenseSettlementRaw)}
+              {...mapPvpDefenseOutcomeToSettlementProps(pvpDefenseSettlementRaw)}
               onConfirm={() => {
                 setPvpDefenseSettlementRaw(null);
               }}

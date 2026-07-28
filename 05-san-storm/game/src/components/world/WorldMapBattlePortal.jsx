@@ -2,7 +2,7 @@ import { createPortal } from 'react-dom';
 import { Suspense, lazy, useMemo } from 'react';
 import ChunkLoadFallback from '@/components/game/ChunkLoadFallback';
 import StrategicSettlementCard from '@/components/world/StrategicSettlementCard';
-import { isPvpDuelDefenderType } from '@/utils/roadEncounterSettlement';
+import { isPvpDuelDefenderType } from '@/utils/pvpDefenseSettlement';
 import {
   canContinueWorldMapNpcSiege,
   isWorldMapNpcSiegeBgmContext,

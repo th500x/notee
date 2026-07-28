@@ -95,7 +95,7 @@ class Battle {
     if (filter === 'pvp') {
       whereClause += " AND battle_type LIKE 'pvp_%'";
     } else if (filter === 'campaign') {
-      whereClause += " AND battle_type = 'pve_campaign'";
+      whereClause += " AND battle_type IN ('pve_campaign','pve_chapter')";
     } else if (filter === 'event') {
       whereClause += " AND battle_type IN ('pve_event','pve_siege')";
     } else if (filter === 'favorited') {
