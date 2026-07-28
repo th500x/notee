@@ -1,5 +1,7 @@
 /**
  * 章节关卡 roster 解析（须与 chapterStageRoster.js 同步）
+ *
+ * `troop_id:N` 与战役 `expandCampaignUnitsSpec` 同义：展开为 N 个独立部队。
  */
 
 function parseChapterStageRoster(raw) {
@@ -42,15 +44,18 @@ function parseChapterStageRoster(raw) {
         battleAiStyle = am[1].trim();
       }
     }
-    out.push({
-      faction,
-      charId,
-      troopId,
-      stack,
-      morale,
-      ...(commanderRole ? { commanderRole } : {}),
-      ...(battleAiStyle ? { battleAiStyle } : {}),
-    });
+    for (let s = 0; s < stack; s++) {
+      out.push({
+        faction,
+        charId,
+        troopId,
+        morale,
+        stackIndex: s,
+        stackTotal: stack,
+        ...(commanderRole ? { commanderRole } : {}),
+        ...(battleAiStyle ? { battleAiStyle } : {}),
+      });
+    }
   }
   return out;
 }

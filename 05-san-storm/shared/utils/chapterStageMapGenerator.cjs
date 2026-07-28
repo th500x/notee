@@ -270,9 +270,14 @@ function placeRosterUnits(cells, units, rect, rng, used) {
   const slots = shuffle(rng, rectPassableCells(cells, rect)).filter(
     (p) => !used.has(keyOf(p.col, p.row)),
   );
+  if (slots.length < units.length) {
+    throw new Error(
+      `[chapterStageMapGenerator] 部署区可用格 ${slots.length} 少于 roster 部队数 ${units.length}：` +
+        '请增大 map_w/map_h 或减少 roster（不静默少放部队）',
+    );
+  }
   let si = 0;
   for (const u of units) {
-    if (si >= slots.length) break;
     const pos = slots[si++];
     used.add(keyOf(pos.col, pos.row));
     cells[pos.row][pos.col].campaignUnit = {

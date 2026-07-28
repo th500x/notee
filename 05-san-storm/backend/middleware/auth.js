@@ -109,15 +109,22 @@ function requireAuth(req, res, next) {
 }
 
 /**
- * 要求 token 中的 `sub` 与路径参数 `:paramKey` 一致；默认 paramKey='playerId'。
- * 用于所有 `/:playerId/*` 玩家自助接口；admin 角色仍可越权访问（保留管理员能力路径）。
+ * 要求 token 中的 `sub` 与请求里的 `paramKey` 一致；默认取路径参数 `:playerId`。
+ * 用于所有玩家自助接口；admin 角色仍可越权访问（保留管理员能力路径）。
+ *
+ * `from` 指定取值位置，供 playerId 走 body / query 的接口（如 `/api/chapter/*`）复用同一套判定，
+ * 不要在路由里另写 `if (...) 403` 分支。
+ *
+ * @param {string} [paramKey='playerId']
+ * @param {{ from?: 'params'|'body'|'query' }} [options]
  */
-function requireSelf(paramKey = 'playerId') {
+function requireSelf(paramKey = 'playerId', options = {}) {
+  const from = options.from || 'params';
   return function (req, res, next) {
     if (!req.player) {
       return res.status(401).json({ success: false, error: '未登录或会话已失效', code: 'NO_TOKEN' });
     }
-    const target = req.params[paramKey];
+    const target = (req[from] || {})[paramKey];
     if (req.player._devBypass && req.player.sub == null) {
       if (!target || String(target).trim() === '') {
         return res.status(401).json({ success: false, error: '未登录或会话已失效', code: 'NO_TOKEN' });

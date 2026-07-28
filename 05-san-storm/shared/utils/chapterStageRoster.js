@@ -3,6 +3,9 @@
  *
  * 语法对齐战役 units_spec 精神：
  *   side|char_id|troop_id:stack|morale:N|role:boss|ai:attack||…
+ *
+ * `troop_id:N` 与战役 `expandCampaignUnitsSpec` 同义：展开为 **N 个独立部队**，
+ * 而非一个部队带 N 倍兵力。
  */
 
 /**
@@ -10,8 +13,9 @@
  *   faction: 'enemy'|'ally1'|'ally2',
  *   charId: string,
  *   troopId: string,
- *   stack: number,
  *   morale: number,
+ *   stackIndex: number,
+ *   stackTotal: number,
  *   commanderRole?: string,
  *   battleAiStyle?: string,
  * }} ChapterRosterUnit
@@ -19,7 +23,7 @@
 
 /**
  * @param {string|null|undefined} raw
- * @returns {ChapterRosterUnit[]}
+ * @returns {ChapterRosterUnit[]} 已按 stack 展开的逐个部队
  */
 export function parseChapterStageRoster(raw) {
   const text = String(raw || '').trim();
@@ -61,15 +65,18 @@ export function parseChapterStageRoster(raw) {
         battleAiStyle = am[1].trim();
       }
     }
-    out.push({
-      faction,
-      charId,
-      troopId,
-      stack,
-      morale,
-      ...(commanderRole ? { commanderRole } : {}),
-      ...(battleAiStyle ? { battleAiStyle } : {}),
-    });
+    for (let s = 0; s < stack; s++) {
+      out.push({
+        faction,
+        charId,
+        troopId,
+        morale,
+        stackIndex: s,
+        stackTotal: stack,
+        ...(commanderRole ? { commanderRole } : {}),
+        ...(battleAiStyle ? { battleAiStyle } : {}),
+      });
+    }
   }
   return out;
 }

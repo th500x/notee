@@ -83,6 +83,7 @@ function phaseMapGenerator() {
   const scripts = [
     path.join(ROOT, 'shared', 'utils', 'mapGenerator_v2.test.cjs'),
     path.join(ROOT, 'shared', 'utils', 'pvpDuelMapGenerator.test.cjs'),
+    path.join(ROOT, 'shared', 'utils', 'chapterStageMapGenerator.test.cjs'),
     path.join(ROOT, 'shared', 'utils', 'tacticalDeploySnap.test.cjs'),
     path.join(ROOT, 'backend', 'services', 'playerExploreEventService.dailyReset.test.cjs'),
     path.join(ROOT, 'shared', 'utils', 'eventOptionRewards.test.cjs'),
