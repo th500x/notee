@@ -1,9 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react'
-import { book_02_01_san_nanyang } from '../data/books/book-02-01-san-nanyang'
-import { book_02_02_diary_chao } from '../data/books/book-02-02-diary-chao'
-import { book_02_03_review_map } from '../data/books/book-02-03-review-map'
-import { book_02_04_review_game } from '../data/books/book-02-04-review-game'
-import { book_02_11_story_thailand } from '../data/books/book-02-11-story-thailand'
+import { loadBooks } from '../data/loadBooks'
 import { LOG_PREFIX } from '../constants'
 import * as storageService from '../services/storageService'
 
@@ -22,24 +18,12 @@ export const BookProvider = ({ children }) => {
   const [readingProgress, setReadingProgress] = useState({})
   const [bookmarks, setBookmarks] = useState({})
 
-  // 初始化书籍数据
+  // 初始化书籍数据（由 src/data/books/<id>/ 自动扫描）
   useEffect(() => {
     console.log(`${LOG_PREFIX.BOOK_CONTEXT} 初始化书籍数据`)
-    
-    const initialBooks = [
-      book_02_01_san_nanyang,
-      book_02_02_diary_chao,
-      book_02_03_review_map,
-      book_02_04_review_game,
-      book_02_11_story_thailand,
-      // 未来的书籍在这里添加
-    ]
-    
+    const initialBooks = loadBooks()
     setBooks(initialBooks)
-    
-    // 使用storageService加载数据
-    // 注意：这里不需要加载所有进度，因为getReadingProgress会按需读取
-    console.log(`${LOG_PREFIX.BOOK_CONTEXT} 初始化完成`)
+    console.log(`${LOG_PREFIX.BOOK_CONTEXT} 初始化完成，共 ${initialBooks.length} 本`)
   }, [])
 
   // 保存阅读进度
