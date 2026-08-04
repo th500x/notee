@@ -8,6 +8,8 @@ const { validateAccountIdFormat } = require('../../../05-san-storm/shared/utils/
 const {
   validateEntryBody,
   validateEntryTitle,
+  countGraphemes,
+  LIFE_ENTRY_BODY_MAX,
 } = require('../../../05-san-storm/shared/utils/lifeResumeGraphemeCount.cjs');
 const { validateEntryTimeFields } = require('../../../05-san-storm/shared/utils/lifeResumeEntryTime.cjs');
 const { normalizeEntryTags } = require('../../../05-san-storm/shared/utils/lifeResumeEntryTags.cjs');
@@ -37,6 +39,13 @@ const {
   resolveEntrySeriesIdForSave,
   EntrySeriesServiceError,
 } = require('./lifeEntrySeriesService');
+const {
+  normalizeEntrySeriesId,
+} = require('../../../05-san-storm/shared/utils/lifeResumeEntrySeries.cjs');
+const {
+  analyzeFindQuery,
+  applyBodyReplace,
+} = require('../utils/entryBodyFindReplace.cjs');
 
 const VISIBILITY_VALUES = new Set(['public', 'private', 'specific']);
 const STATUS_VALUES = new Set(['draft', 'published']);
@@ -715,6 +724,85 @@ async function updateEntry(accountId, entryId, input) {
   return entry;
 }
 
+/**
+ * 正文批量搜索替换：仅改 body 与 body_grapheme_count，不触碰位置/媒体/权限等字段。
+ * 范围为该用户在指定系列（null = 编年历）下的全部片段，含草稿。
+ */
+async function findReplaceEntryBodies(accountId, input = {}) {
+  const id = String(accountId || '').trim().toUpperCase();
+
+  const profile = await getProfileForAccount(id);
+  if (profile.profileStatus === 'deactivated') {
+    throw new EntryServiceError('PROFILE_DEACTIVATED', '账号处于注销冷静期，无法编辑条目', 403);
+  }
+
+  const findResult = analyzeFindQuery(input.find);
+  if (!findResult.ok) {
+    throw new EntryServiceError(findResult.code, findResult.error);
+  }
+
+  const replaceText = input.replace == null ? '' : String(input.replace);
+  if (!replaceText) {
+    throw new EntryServiceError('INVALID_REPLACE_TEXT', '请输入替换后的文字');
+  }
+  if (countGraphemes(replaceText) > LIFE_ENTRY_BODY_MAX) {
+    throw new EntryServiceError(
+      'INVALID_REPLACE_TEXT',
+      `替换文字不能超过 ${LIFE_ENTRY_BODY_MAX} 字`
+    );
+  }
+
+  const entrySeriesId = normalizeEntrySeriesId(input.entrySeriesId);
+  if (Number.isNaN(entrySeriesId)) {
+    throw new EntryServiceError('INVALID_ENTRY_SERIES_ID', '片段系列无效');
+  }
+
+  const rows =
+    entrySeriesId == null
+      ? await query(
+          'SELECT id, body FROM life_entries WHERE account_id = ? AND entry_series_id IS NULL',
+          [id]
+        )
+      : await query(
+          'SELECT id, body FROM life_entries WHERE account_id = ? AND entry_series_id = ?',
+          [id, entrySeriesId]
+        );
+
+  const updates = [];
+  const skippedOverLimitEntryIds = [];
+  let occurrenceCount = 0;
+
+  for (const row of rows) {
+    const { nextBody, count } = applyBodyReplace(row.body, findResult.value, replaceText);
+    if (count === 0) continue;
+    const graphemeCount = countGraphemes(nextBody);
+    if (graphemeCount > LIFE_ENTRY_BODY_MAX) {
+      skippedOverLimitEntryIds.push(Number(row.id));
+      continue;
+    }
+    occurrenceCount += count;
+    updates.push({ id: Number(row.id), body: nextBody, graphemeCount });
+  }
+
+  if (updates.length > 0) {
+    await transaction(async (connection) => {
+      for (const item of updates) {
+        await connection.execute(
+          'UPDATE life_entries SET body = ?, body_grapheme_count = ? WHERE id = ? AND account_id = ?',
+          [item.body, item.graphemeCount, item.id, id]
+        );
+      }
+    });
+  }
+
+  return {
+    occurrenceCount,
+    updatedEntryCount: updates.length,
+    skippedOverLimitCount: skippedOverLimitEntryIds.length,
+    skippedOverLimitEntryIds,
+  };
+}
+
 async function deleteEntry(accountId, entryId) {
   const id = String(accountId || '').trim().toUpperCase();
   await findOwnedEntry(id, entryId);
@@ -756,6 +844,7 @@ module.exports = {
   getEntryForOwner,
   createEntry,
   updateEntry,
+  findReplaceEntryBodies,
   deleteEntry,
   formatEntryRow,
   formatEntryForViewer,

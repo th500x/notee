@@ -108,6 +108,14 @@ export async function updateEntry(entryId, body) {
   });
 }
 
+/** POST /api/life-resume/entries/body-find-replace — 当前系列正文批量替换 */
+export async function findReplaceEntryBodies({ entrySeriesId, find, replace }) {
+  return lifeResumeFetch('/entries/body-find-replace', {
+    method: 'POST',
+    body: JSON.stringify({ entrySeriesId, find, replace }),
+  });
+}
+
 /** DELETE /api/life-resume/entries/:id */
 export async function deleteEntry(entryId) {
   return lifeResumeFetch(`/entries/${entryId}`, {

@@ -9,6 +9,7 @@ const {
   getEntryForOwner,
   createEntry,
   updateEntry,
+  findReplaceEntryBodies,
   deleteEntry,
   EntryServiceError,
 } = require('../services/lifeEntryService');
@@ -44,6 +45,17 @@ router.post('/', requireAuth, async (req, res) => {
     const body = req.body && typeof req.body === 'object' ? req.body : {};
     const data = await createEntry(accountId, body);
     return res.status(201).json({ success: true, data });
+  } catch (err) {
+    return handleEntryError(res, err);
+  }
+});
+
+router.post('/body-find-replace', requireAuth, async (req, res) => {
+  try {
+    const accountId = String(req.player.sub);
+    const body = req.body && typeof req.body === 'object' ? req.body : {};
+    const data = await findReplaceEntryBodies(accountId, body);
+    return res.json({ success: true, data });
   } catch (err) {
     return handleEntryError(res, err);
   }

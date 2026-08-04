@@ -3,9 +3,11 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { buildTimelineLayoutWithPinned } from '@shared/utils/lifeResumeEntryTime.js';
 import {
   CHRONOLOGICAL_ENTRY_SERIES_KEY,
+  CHRONOLOGICAL_ENTRY_SERIES_NAME,
   filterEntriesByEntrySeriesId,
   normalizeEntrySeriesId,
 } from '@shared/utils/lifeResumeEntrySeries.js';
+import { matchesFindQuery } from '@/utils/entryBodyFindReplace';
 import { useLifeAuth } from '@/contexts/LifeAuthContext';
 import { useLifeProfile } from '@/contexts/LifeProfileContext';
 import { useToast } from '@/contexts/ToastContext';
@@ -16,8 +18,16 @@ import ProfileHeader from '@/components/timeline/ProfileHeader';
 import LifePathPreviewModal from '@/components/timeline/LifePathPreviewModal';
 import ProfileTagStats from '@/components/timeline/ProfileTagStats';
 import EntrySeriesSwitcher from '@/components/timeline/EntrySeriesSwitcher';
+import EntryBodyFindReplaceModal from '@/components/timeline/EntryBodyFindReplaceModal';
 import TimelineSection from '@/components/timeline/TimelineSection';
-import { deleteEntry, fetchPublicTimeline, generateMyLifePath, publishMyLifePath, discardMyLifePathDraft } from '@/services/lifeResumeApi';
+import {
+  deleteEntry,
+  fetchPublicTimeline,
+  findReplaceEntryBodies,
+  generateMyLifePath,
+  publishMyLifePath,
+  discardMyLifePathDraft,
+} from '@/services/lifeResumeApi';
 import { formatLifeResumeError, isAuthError } from '@/utils/lifeResumeErrors';
 import { buildPublicSeoFromEntries } from '@/utils/pageMeta';
 
@@ -39,6 +49,9 @@ export default function TimelinePage() {
   const [generatingLifePath, setGeneratingLifePath] = useState(false);
   const [publishingLifePath, setPublishingLifePath] = useState(false);
   const [discardingLifePath, setDiscardingLifePath] = useState(false);
+  const [findReplaceOpen, setFindReplaceOpen] = useState(false);
+  const [bodySearchFind, setBodySearchFind] = useState('');
+  const [replacingBodies, setReplacingBodies] = useState(false);
 
   const ownerId = (routeAccountId || '').toUpperCase();
   const isOwner = isLoggedIn && myAccountId && myAccountId.toUpperCase() === ownerId;
@@ -125,10 +138,29 @@ export default function TimelinePage() {
     [timeline?.entries, activeEntrySeriesId]
   );
 
+  const displayEntries = useMemo(() => {
+    if (!bodySearchFind) return seriesEntries;
+    return seriesEntries.filter((entry) => matchesFindQuery(entry.body, bodySearchFind));
+  }, [seriesEntries, bodySearchFind]);
+
   const { pinned, sections } = useMemo(
-    () => buildTimelineLayoutWithPinned(seriesEntries),
-    [seriesEntries]
+    () => buildTimelineLayoutWithPinned(displayEntries),
+    [displayEntries]
   );
+
+  const activeSeriesName = useMemo(() => {
+    const list = timeline?.entrySeriesList || [];
+    const found = list.find(
+      (series) =>
+        (activeEntrySeriesId == null && series.id == null) ||
+        Number(series.id) === Number(activeEntrySeriesId)
+    );
+    return found?.name || CHRONOLOGICAL_ENTRY_SERIES_NAME;
+  }, [timeline?.entrySeriesList, activeEntrySeriesId]);
+
+  useEffect(() => {
+    setBodySearchFind('');
+  }, [activeEntrySeriesId]);
 
   const handleSeriesChange = (seriesId) => {
     setSearchParams(
@@ -176,6 +208,47 @@ export default function TimelinePage() {
       if (isAuthError(err)) {
         navigate('/login');
       }
+    }
+  };
+
+  const handleSearchBodies = (find) => {
+    setBodySearchFind(find);
+    setFindReplaceOpen(false);
+  };
+
+  const handleReplaceBodies = async (find, replace) => {
+    setReplacingBodies(true);
+    try {
+      const res = await findReplaceEntryBodies({
+        entrySeriesId: activeEntrySeriesId,
+        find,
+        replace,
+      });
+      const result = res.data || {};
+      const occurrenceCount = Number(result.occurrenceCount) || 0;
+      const skippedOverLimitCount = Number(result.skippedOverLimitCount) || 0;
+
+      setFindReplaceOpen(false);
+      setBodySearchFind('');
+
+      if (occurrenceCount > 0) {
+        showToast(`有 ${occurrenceCount} 处被替换`, { type: 'success' });
+      } else {
+        showToast('没有匹配的正文，未做改动', { type: 'info' });
+      }
+      if (skippedOverLimitCount > 0) {
+        showToast(`${skippedOverLimitCount} 条片段替换后会超出正文字数上限，已跳过`, {
+          type: 'error',
+        });
+      }
+      await loadTimeline();
+    } catch (err) {
+      showToast(formatLifeResumeError(err), { type: 'error' });
+      if (isAuthError(err)) {
+        navigate('/login');
+      }
+    } finally {
+      setReplacingBodies(false);
     }
   };
 
@@ -279,6 +352,8 @@ export default function TimelinePage() {
 
   const allEntries = timeline?.entries || [];
   const entries = seriesEntries;
+  const shownEntries = displayEntries;
+  const searchActive = Boolean(bodySearchFind);
   const viewerIsOwner = timeline?.viewer?.isOwner || isOwner;
   const entrySeriesList = timeline?.entrySeriesList || [];
   const hasAnyEntries = allEntries.length > 0;
@@ -292,6 +367,9 @@ export default function TimelinePage() {
           username={timeline?.profile?.username || (isOwner ? profile?.username : null)}
           isOwner={viewerIsOwner}
           onCreateClick={openCreate}
+          onFindReplaceClick={
+            viewerIsOwner && entries.length > 0 ? () => setFindReplaceOpen(true) : undefined
+          }
           onGenerateLifePathClick={viewerIsOwner ? handleGenerateLifePath : undefined}
           onPreviewLifePathClick={viewerIsOwner ? handlePreviewExistingDraft : undefined}
           generatingLifePath={generatingLifePath}
@@ -325,6 +403,27 @@ export default function TimelinePage() {
         </div>
       )}
 
+      {searchActive && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-indigo-100 bg-indigo-50 px-4 py-3">
+          <p className="text-sm text-indigo-900">
+            正文包含「{bodySearchFind}」：找到 {shownEntries.length} 条
+          </p>
+          <button
+            type="button"
+            className="text-sm text-indigo-700 hover:underline"
+            onClick={() => setBodySearchFind('')}
+          >
+            清除搜索
+          </button>
+        </div>
+      )}
+
+      {searchActive && entries.length > 0 && shownEntries.length === 0 && (
+        <div className="text-center py-12 bg-white rounded-2xl border border-dashed border-slate-300">
+          <p className="text-slate-600">当前系列没有正文包含「{bodySearchFind}」的片段</p>
+        </div>
+      )}
+
       {hasAnyEntries && entries.length === 0 && viewerIsOwner && (
         <div className="text-center py-12 bg-white rounded-2xl border border-dashed border-slate-300">
           <p className="text-slate-600 mb-4">当前系列还没有片段</p>
@@ -350,7 +449,7 @@ export default function TimelinePage() {
         </div>
       )}
 
-      {entries.length > 0 && (
+      {shownEntries.length > 0 && (
         <div className="space-y-2">
           {pinned.length > 0 && (
             <TimelineSection
@@ -398,6 +497,18 @@ export default function TimelinePage() {
         onSaved={handleSaved}
         onEntrySeriesCreated={loadTimeline}
       />
+
+      {viewerIsOwner && (
+        <EntryBodyFindReplaceModal
+          open={findReplaceOpen}
+          seriesName={activeSeriesName}
+          entries={entries}
+          onClose={() => setFindReplaceOpen(false)}
+          onSearch={handleSearchBodies}
+          onReplace={handleReplaceBodies}
+          replacing={replacingBodies}
+        />
+      )}
 
       <LifePathPreviewModal
         open={lifePathModalOpen}

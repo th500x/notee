@@ -9,6 +9,7 @@ export default function ProfileHeader({
   username,
   isOwner,
   onCreateClick,
+  onFindReplaceClick,
   onGenerateLifePathClick,
   onPreviewLifePathClick,
   generatingLifePath = false,
@@ -112,6 +113,15 @@ export default function ProfileHeader({
                 </div>
               )}
             </div>
+          )}
+          {onFindReplaceClick && (
+            <button
+              type="button"
+              className="inline-flex items-center px-4 py-2 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50"
+              onClick={onFindReplaceClick}
+            >
+              搜索替换
+            </button>
           )}
           <button
             type="button"
