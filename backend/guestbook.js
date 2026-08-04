@@ -25,7 +25,7 @@ const BLOCKED_WORDS = [
 const MODULES = [
   { id: '01-news-calendar', name: '新聞筆記' },
   { id: '02-tale-historical', name: '佚事雜錄' },
-  { id: '04-coin-index', name: '幣圈指數' },
+  { id: '07-coin-index', name: '幣圈指數' },
   { id: '05-san-storm', name: '真三風雲' },
   { id: 'general', name: '綜合留言' }
 ];

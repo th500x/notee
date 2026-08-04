@@ -97,8 +97,8 @@ function App() {
       <main className="max-w-7xl mx-auto px-4 py-16">
         {/* Feature Cards Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {/* 项目卡片 */}
-          {PROJECTS.map(project => (
+          {/* 项目卡片（adminOnly 项仅管理员登录后可见，与 06 全功能同属管理员权限） */}
+          {PROJECTS.filter((project) => !project.adminOnly || isLoggedIn).map((project) => (
             <ProjectCard
               key={project.id}
               project={project}

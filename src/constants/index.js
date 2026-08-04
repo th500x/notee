@@ -5,7 +5,7 @@ export const MODULES = {
   GENERAL: 'general',
   NEWS: '01-news-calendar',
   TALE: '02-tale-historical',
-  COIN: '04-coin-index',
+  COIN: '07-coin-index',
   SAN: '05-san-storm',
   LIFE: '11-life-resume'
 }
@@ -78,6 +78,16 @@ export const PROJECTS = [
     description: '房源租赁管理与收支追踪\n支持多项目和详细统计',
     gradient: 'linear-gradient(135deg, #30cfd0 0%, #330867 100%)',
     path: '/06-rental-tracking/'
+  },
+  {
+    id: '07-coin-index',
+    name: '區塊指標',
+    icon: '📈',
+    description: '加密货币与宏观情绪周度指标\n仅管理员可见入口',
+    gradient: 'linear-gradient(135deg, #f7971e 0%, #ffd200 100%)',
+    path: '/07-coin-index/',
+    /** 主页卡片：须主站管理员登录（页脚登录）后才显示 */
+    adminOnly: true
   },
   {
     id: '10-game-guides',

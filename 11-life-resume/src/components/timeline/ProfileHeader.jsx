@@ -1,4 +1,3 @@
-import { Link } from 'react-router-dom';
 import { useState } from 'react';
 import { appConfig } from '@/config/appConfig';
 import { useLifePathGenerateCooldown } from '@/hooks/useLifePathGenerateCooldown';
@@ -130,12 +129,6 @@ export default function ProfileHeader({
           >
             + 新建片段
           </button>
-          <Link
-            to="/settings"
-            className="inline-flex items-center px-4 py-2 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50"
-          >
-            设置
-          </Link>
         </div>
       )}
     </header>
