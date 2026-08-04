@@ -23,3 +23,32 @@ export function getAllProperties(project) {
   
   return allProperties
 }
+
+/** 房源列表「大额/佣金/物业」提示：当月支出阈值（泰铢） */
+export const MONTHLY_EXPENSE_TIP_THRESHOLD = 2000
+
+/**
+ * 根据当月收支记录生成房源编号下方的红色提示文案。
+ * - 当月支出合计不足 2000：无提示
+ * - ≥2000 且备注含「佣金」→「佣金支出」
+ * - ≥2000 且备注含「物业费」→「物业支出」
+ * - 否则 ≥2000 →「大额支出」
+ * 佣金优先于物业费；二者都不命中时才显示「大额支出」。
+ *
+ * @param {Object} property
+ * @param {string} monthKey - YYYY-MM
+ * @returns {string|null}
+ */
+export function getMonthlyExpenseTipLabel(property, monthKey) {
+  if (!property || !monthKey) return null
+  const records = (property.records || []).filter((r) => r.date === monthKey)
+  if (records.length === 0) return null
+
+  const totalExpenses = records.reduce((sum, r) => sum + (Number(r.expenses) || 0), 0)
+  if (totalExpenses < MONTHLY_EXPENSE_TIP_THRESHOLD) return null
+
+  const notesJoined = records.map((r) => String(r.note || '')).join('\n')
+  if (notesJoined.includes('佣金')) return '佣金支出'
+  if (notesJoined.includes('物业费')) return '物业支出'
+  return '大额支出'
+}

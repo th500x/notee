@@ -7,6 +7,7 @@ import TimeSelector from '../components/TimeSelector'
 import { AddPropertyModal } from '../components/AddPropertyModal'
 import { AddExpenseModal } from '../components/AddExpenseModal'
 import { getCurrentPropertyStatus, getStatusText, getStatusClassName, getCurrentPropertyBackgroundColor, getPropertyBackgroundColor, getPropertyStatus } from '../utils/propertyStatus'
+import { getMonthlyExpenseTipLabel } from '../utils/propertyUtils'
 import { updateProjectRecords } from '../utils/dataManagerAPI'
 
 /**
@@ -649,6 +650,9 @@ function PropertyListPanel({ project, selectedProperty, onPropertySelect, onAddP
       : `${selectedYear}-01`
     const bgColor = getPropertyBackgroundColor(property, viewMonth)
     const hasPaid = property.records?.some(r => r.date === viewMonth && r.isPaid === true)
+    // 仅月视图提示当月大额/佣金/物业支出（年视图不汇总）
+    const expenseTip =
+      viewMode === 'month' ? getMonthlyExpenseTipLabel(property, viewMonth) : null
     
     return (
       <div
@@ -662,9 +666,14 @@ function PropertyListPanel({ project, selectedProperty, onPropertySelect, onAddP
       >
         {/* 4列布局：房源编号 | 租金 | 押金 | 状态 */}
         <div className="grid grid-cols-4 gap-2 items-center">
-          {/* 左列：房源编号 */}
-          <div className="text-sm font-medium truncate">
-            {property.name}
+          {/* 左列：房源编号 + 可选支出提示 */}
+          <div className="min-w-0">
+            <div className="text-sm font-medium truncate">{property.name}</div>
+            {expenseTip ? (
+              <div className="text-[10px] text-red-600 font-medium leading-tight mt-0.5">
+                {expenseTip}
+              </div>
+            ) : null}
           </div>
           
           {/* 第二列：租金 */}
