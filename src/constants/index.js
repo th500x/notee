@@ -78,6 +78,14 @@ export const PROJECTS = [
     description: '房源租赁管理与收支追踪\n支持多项目和详细统计',
     gradient: 'linear-gradient(135deg, #30cfd0 0%, #330867 100%)',
     path: '/06-rental-tracking/'
+  },
+  {
+    id: '10-game-guides',
+    name: '游戏攻略',
+    icon: '📘',
+    description: '复杂游戏的攻略与资讯汇总\n纯阅读、无广告',
+    gradient: 'linear-gradient(135deg, #0f1419 0%, #6cb6ff 100%)',
+    path: '/10-game-guides/'
   }
 ]
 

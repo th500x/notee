@@ -1,0 +1,208 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #0f1419;
+  --surface: #161b22;
+  --surface-2: #1c2430;
+  --border: #2a3340;
+  --text: #e7ecf1;
+  --muted: #8b9cb3;
+  --accent: #6cb6ff;
+  --accent-dim: #4a90d9;
+  --code-bg: #121820;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+code {
+  font-family: ui-monospace, "Cascadia Code", "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.9em;
+}
+
+/* —— 正文排版（资讯阅读） —— */
+.guide-prose {
+  font-size: 1rem;
+  line-height: 1.75;
+  color: var(--text);
+}
+
+.guide-prose > :first-child {
+  margin-top: 0;
+}
+
+.guide-prose h1,
+.guide-prose h2,
+.guide-prose h3,
+.guide-prose h4 {
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--text);
+  margin: 2rem 0 0.75rem;
+  line-height: 1.35;
+}
+
+.guide-prose h1 {
+  font-size: 1.5rem;
+}
+
+.guide-prose h2 {
+  font-size: 1.25rem;
+  padding-bottom: 0.35rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.guide-prose h3 {
+  font-size: 1.1rem;
+}
+
+.guide-prose p,
+.guide-prose ul,
+.guide-prose ol,
+.guide-prose blockquote {
+  margin: 0.9rem 0;
+}
+
+.guide-prose ul,
+.guide-prose ol {
+  padding-left: 1.35rem;
+}
+
+.guide-prose li {
+  margin: 0.35rem 0;
+}
+
+.guide-prose li > ul,
+.guide-prose li > ol {
+  margin: 0.25rem 0;
+}
+
+.guide-prose a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-color: color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+.guide-prose a:hover {
+  text-decoration-color: var(--accent);
+}
+
+.guide-prose strong {
+  font-weight: 600;
+  color: #f0f4f8;
+}
+
+.guide-prose hr {
+  border: 0;
+  border-top: 1px solid var(--border);
+  margin: 2rem 0;
+}
+
+.guide-prose blockquote {
+  border-left: 3px solid var(--accent-dim);
+  padding: 0.15rem 0 0.15rem 1rem;
+  color: var(--muted);
+}
+
+.guide-prose code {
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 0.3rem;
+  padding: 0.1em 0.35em;
+}
+
+.guide-prose pre {
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 0.65rem;
+  padding: 1rem 1.1rem;
+  overflow-x: auto;
+  margin: 1.25rem 0;
+}
+
+.guide-prose pre code {
+  border: 0;
+  background: transparent;
+  padding: 0;
+}
+
+.guide-table-wrap {
+  overflow-x: auto;
+  margin: 1.25rem 0;
+  border: 1px solid var(--border);
+  border-radius: 0.65rem;
+}
+
+.guide-prose table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.guide-prose th,
+.guide-prose td {
+  border-bottom: 1px solid var(--border);
+  padding: 0.65rem 0.85rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+.guide-prose th {
+  background: var(--surface-2);
+  font-weight: 600;
+  color: var(--text);
+}
+
+.guide-prose tr:last-child td {
+  border-bottom: 0;
+}
+
+.guide-prose tbody tr:nth-child(even) td {
+  background: color-mix(in srgb, var(--surface) 65%, transparent);
+}
+
+.guide-figure {
+  margin: 1.5rem 0;
+}
+
+.guide-figure img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border-radius: 0.65rem;
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.guide-figure figcaption {
+  margin-top: 0.5rem;
+  font-size: 0.8rem;
+  color: var(--muted);
+  text-align: center;
+}
+
+/* HTML 注释在 md 里会被忽略；确保列表在窄屏可读 */
+@media (max-width: 640px) {
+  .guide-prose {
+    font-size: 0.95rem;
+  }
+
+  .guide-prose th,
+  .guide-prose td {
+    padding: 0.5rem 0.6rem;
+  }
+}
