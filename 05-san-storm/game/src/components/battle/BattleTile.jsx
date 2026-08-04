@@ -17,7 +17,7 @@ function BattleTile({
   hillOverlay = null,
   /** v2：本格桥梁（河宽每一格一张） */
   bridgeOverlay = null,
-  /** 事件战战前：与战役一致，当前选中的我军部署单位 */
+  /** 事件战战前：与大型图一致，当前选中的我军部署单位 */
   preBattleDeploySelected = false,
   /** @type {'active'|'move'|'skillPreview'|'atk'|'heal'|null} */
   manualHl = null,

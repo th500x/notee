@@ -29,7 +29,7 @@ function inBounds(y, x, mapResult) {
 }
 
 /**
- * 归一化 AI 风格（内联自 `battleCampaignRules.getBattleAiStyle`）。
+ * 归一化 AI 风格（内联自 `battleCommanderRules.getBattleAiStyle`）。
  * @returns {'attack'|'defense'|'balanced'}
  */
 export function getBattleAiStyle(troop) {

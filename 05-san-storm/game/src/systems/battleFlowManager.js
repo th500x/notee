@@ -7,7 +7,7 @@
  * @see docs/00/10-core-system/17-1-COMBAT_SYSTEM.md
  */
 
-import { getBattleAiStyle } from '@/systems/battleCampaignRules';
+import { getBattleAiStyle } from '@/systems/battleCommanderRules';
 import { getMapTerrainDimensions } from '@shared/utils/tacticalBattleGrid';
 
 // ── 工具函数 ──────────────────────────────────────────────────────────────────
@@ -41,7 +41,7 @@ export function troopAttackRange(troop) {
 export function getMoveCost(y, x, mapResult) {
   if (!mapResult) return 1;
   const t = mapResult.terrain[y]?.[x];
-  // 战役大地图切片：河/湖不可通行（与战略格一致）；v2 熔岩同不可走；桥可通行
+  // 大型图切片：河/湖不可通行（与战略格一致）；v2 熔岩同不可走；桥可通行
   if (t === 'river' || t === 'lake' || t === 'lava') return Infinity;
   // 检查障碍物
   const obj = mapResult.objects.find(o => o.y === y && o.x === x);

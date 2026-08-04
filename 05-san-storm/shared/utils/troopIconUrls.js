@@ -1,7 +1,7 @@
 /**
  * - **卡面 / 编组 / wiki / 战斗静态回退**：`public/assets/san_1_ui_card/troop/` → `getTroopPortraitUrlAttempts`（无阵营子目录）。
  * - **战斗格序列帧**（主路径）：`san_1_battle/units/{unitKey}/`（见 `battleUnitKeyResolve`）；阵营靠光晕，不按势力复制立绘。
- * - **战役大地图格缩略图**：与卡面同源（阶段 E 已删除 `san_1_battle/{player|enemy|ally*}` 静态立绘目录；保留 `faction/`、`units/`、`effect/`）。
+ * - **大型图格缩略图**：与卡面同源（阶段 E 已删除 `san_1_battle/{player|enemy|ally*}` 静态立绘目录；保留 `faction/`、`units/`、`effect/`）。
  *
  * 专属 `{配置ID}.png` 优先于 `troop_r{1-4}_{weapon}.png` 当且仅当：稀有度 **core**，或 **北疆 91xx / 众生 90xx**（`_troop_` 后数字段以 9 开头；兼容旧 8xxx）。无同名 PNG 时回退稀有度通用图。
  *
@@ -46,9 +46,9 @@ const RARITY_UI_PREFIX = {
 };
 
 /**
- * 与 `battleConstants` 中地图素材一致：保证以「应用根」为基准，避免 SPA 子路由（如 `/campaign-map-demo`）下
+ * 与 `battleConstants` 中地图素材一致：保证以「应用根」为基准，避免 SPA 子路由下
  * 相对路径 `assets/...` 被解析到错误目录导致专属 PNG 404、仅显示稀有度兜底图。
- * `baseUrl` 为空时使用当前包构建内联的 `import.meta.env.BASE_URL`（game / wiki 各自打包；如 `/campaign-map-manager` 子路由）。
+ * `baseUrl` 为空时使用当前包构建内联的 `import.meta.env.BASE_URL`（game / wiki 各自打包）。
  * @param {string} [baseUrl]
  * @returns {string} 始终以 `/` 结尾
  */
@@ -179,13 +179,13 @@ export function getBattleFieldTroopPortraitUrlAttempts(troop, baseUrl = '') {
 }
 
 /**
- * 战役地图格上部队缩略图：与卡面同源（不再按势力子目录取战斗立绘）。
+ * 大型图格上部队缩略图：与卡面同源（不再按势力子目录取战斗立绘）。
  * @param {string} troopId
  * @param {string} [baseUrl]
  * @param {string} [faction] 保留参数以兼容调用方；不影响路径
  * @returns {string[]}
  */
-export function getCampaignMapTroopPortraitUrlAttempts(troopId, baseUrl = '', faction = 'enemy') {
+export function getMapTroopPortraitUrlAttempts(troopId, baseUrl = '', faction = 'enemy') {
   void faction;
   const id = normalizeTroopAssetId(troopId);
   const meta = getTroopIconMetaById(id);

@@ -17,7 +17,7 @@ const { VOID, GRASS, WATER, LAVA } = TERRAIN_OCC;
 /** @typedef {'south'|'north'|'east'|'west'|'auto'} LavaRegion */
 
 /**
- * 与 mapGenerator / campaign 同构的简单 LCG
+ * 与 mapGenerator 同构的简单 LCG
  * @param {number} [seed]
  */
 export function createTerrainShapeRng(seed) {

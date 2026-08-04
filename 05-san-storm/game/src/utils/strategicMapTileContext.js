@@ -3,7 +3,7 @@
  * 非锚点格需解析「被哪一格的 POI 覆盖」以统一 tooltip / 底板色 / 标签。
  */
 
-import { strategicMapBanditDominoFootprintKind } from '@/utils/campaignMapVisualAssets';
+import { strategicMapBanditDominoFootprintKind } from '@/utils/mapTileVisualAssets';
 import { readStrategicCellAnchorId } from '@shared/utils/strategicCellAnchorId.js';
 import { isBanditMapObjectId } from '@shared/utils/smallMapEnemyRoster';
 import {

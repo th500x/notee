@@ -1,22 +1,22 @@
 import { memo, useMemo, useState } from 'react';
 import {
-  campaignBgUrl,
-  campaignTerrainUrl,
+  mapTileBgUrl,
+  mapTileTerrainUrl,
   terrainFallbackClass,
-  campaignObjectUrl,
-  buildCampaignVisualVariants,
-} from '@/utils/campaignMapVisualAssets';
+  mapTileObjectUrl,
+  buildMapTileVisualVariants,
+} from '@/utils/mapTileVisualAssets';
 import { tacticalFireFrameUrl } from '@/components/battle/battleConstants';
 
 /**
- * 战役地图单格。
+ * 大型图单格。
  *
  * 与小型地图 BattleTile 统一：格子根节点同时承担
  *   1. 地形/特效渲染
  *   2. 战斗引擎 DOM 宿主（data-battle-y/x、data-troop 由引擎写入）
  *   3. 鼠标悬停事件源（onMouseEnter → 父层读 dataset.troop 决定 tooltip）
  */
-function CampaignMapTile({
+function LargeMapTile({
   cell,
   seed,
   tacticalY,
@@ -31,13 +31,13 @@ function CampaignMapTile({
   onHover,
   onLeave,
 }) {
-  const variants = useMemo(() => buildCampaignVisualVariants(seed), [seed]);
+  const variants = useMemo(() => buildMapTileVisualVariants(seed), [seed]);
   const bgV = cell.base === 'plain_wasteland' ? variants.bgWaste : variants.bgGrass;
-  const bgSrc = campaignBgUrl(cell.base || 'plain_grassland', bgV);
+  const bgSrc = mapTileBgUrl(cell.base || 'plain_grassland', bgV);
 
-  const terrainSrc = campaignTerrainUrl(cell.terrain, variants);
+  const terrainSrc = mapTileTerrainUrl(cell.terrain, variants);
   const fallbackCls = terrainFallbackClass(cell.terrain);
-  const objSrc = campaignObjectUrl(cell.object);
+  const objSrc = mapTileObjectUrl(cell.object);
 
   const [bgOk, setBgOk] = useState(true);
   const [tOk, setTOk] = useState(true);
@@ -46,9 +46,9 @@ function CampaignMapTile({
     <div
       role={interactive && onTileClick ? 'button' : undefined}
       className={
-        'campaign-tile' +
-        (deployHighlight ? ' campaign-tile-deploy-hl' : '') +
-        (interactive ? ' campaign-tile-interactive' : '')
+        'largemap-tile' +
+        (deployHighlight ? ' largemap-tile-deploy-hl' : '') +
+        (interactive ? ' largemap-tile-interactive' : '')
       }
       data-tactical-y={tacticalY}
       data-tactical-x={tacticalX}
@@ -60,10 +60,10 @@ function CampaignMapTile({
       onMouseLeave={onLeave}
     >
       {bgOk ? (
-        <img className="camp-layer" src={bgSrc} alt="" onError={() => setBgOk(false)} />
+        <img className="largemap-layer" src={bgSrc} alt="" onError={() => setBgOk(false)} />
       ) : (
         <div
-          className="camp-layer"
+          className="largemap-layer"
           style={{
             background: cell.base === 'plain_wasteland' ? '#d4c4a8' : '#7cb87c',
           }}
@@ -72,10 +72,10 @@ function CampaignMapTile({
       {fallbackCls && <div className={fallbackCls} />}
       {terrainSrc &&
         (tOk ? (
-          <img className="camp-layer" src={terrainSrc} alt="" onError={() => setTOk(false)} />
+          <img className="largemap-layer" src={terrainSrc} alt="" onError={() => setTOk(false)} />
         ) : (
           <div
-            className="camp-layer"
+            className="largemap-layer"
             style={{
               background:
                 cell.terrain === 'river'
@@ -88,9 +88,9 @@ function CampaignMapTile({
         ))}
       {objSrc &&
         (oOk ? (
-          <img className="camp-layer" src={objSrc} alt="" onError={() => setOOk(false)} style={{ zIndex: 2 }} />
+          <img className="largemap-layer" src={objSrc} alt="" onError={() => setOOk(false)} style={{ zIndex: 2 }} />
         ) : (
-          <div className="camp-obj-fallback">
+          <div className="largemap-obj-fallback">
             {cell.object === 'military_camp'
               ? '营'
               : cell.object === 'military_tower'
@@ -115,22 +115,22 @@ function CampaignMapTile({
           ))}
         </div>
       )}
-      {deployHighlight && <div className="campaign-deploy-zone-overlay" aria-hidden />}
-      {manualHl === 'active' && <div className="manual-hl active-troop campaign-manual-hl" aria-hidden />}
+      {deployHighlight && <div className="largemap-deploy-zone-overlay" aria-hidden />}
+      {manualHl === 'active' && <div className="manual-hl active-troop largemap-manual-hl" aria-hidden />}
       {manualHl === 'move' && (
-        <div className="manual-hl move-range campaign-manual-hl" aria-hidden>
+        <div className="manual-hl move-range largemap-manual-hl" aria-hidden>
           {manualMoveCost != null && manualMoveCost > 1 && (
             <span className="move-cost-label">{manualMoveCost}</span>
           )}
         </div>
       )}
-      {manualHl === 'atk' && <div className="manual-hl atk-target campaign-manual-hl" aria-hidden />}
-      {manualHl === 'heal' && <div className="manual-hl heal-target campaign-manual-hl" aria-hidden />}
+      {manualHl === 'atk' && <div className="manual-hl atk-target largemap-manual-hl" aria-hidden />}
+      {manualHl === 'heal' && <div className="manual-hl heal-target largemap-manual-hl" aria-hidden />}
       {manualHl === 'skillPreview' && (
-        <div className="manual-hl skill-preview campaign-manual-hl" aria-hidden />
+        <div className="manual-hl skill-preview largemap-manual-hl" aria-hidden />
       )}
     </div>
   );
 }
 
-export default memo(CampaignMapTile);
+export default memo(LargeMapTile);

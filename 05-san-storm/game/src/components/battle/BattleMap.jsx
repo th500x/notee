@@ -21,7 +21,7 @@ function BattleMap({
   battleTroops,
   showTroops,
   isBattle,
-  /** 战役战前：底部我方部署行格内浅蓝提示（与左侧部署区行标同色带） */
+  /** 大型图战前：底部我方部署行格内浅蓝提示（与左侧部署区行标同色带） */
   highlightPlayerDeployZone = false,
   /** 事件战战前：当前选中的我军 `battleTroops[].id`（瓦片描边） */
   preBattleDeployTroopId = null,

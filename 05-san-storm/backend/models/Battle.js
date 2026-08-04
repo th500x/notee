@@ -16,7 +16,7 @@ class Battle {
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 14); // 14天后过期
 
-    /** TEXT 上限 65535；战役长日志略超出会致 INSERT 失败（生产曾出现战报落库 500） */
+    /** TEXT 上限 65535；大型图长日志略超出会致 INSERT 失败（生产曾出现战报落库 500） */
     const BATTLE_LOG_MAX = 65000;
     let log = data.battle_log || null;
     if (typeof log === 'string' && log.length > BATTLE_LOG_MAX) {
@@ -82,7 +82,7 @@ class Battle {
    * 获取玩家的战斗记录列表
    * @param {string} playerId - 玩家ID
    * @param {Object} filters - 筛选条件
-   * @param {string} filters.filter - all/pvp/campaign/event/favorited
+   * @param {string} filters.filter - all/pvp/chapter/event/favorited
    * @param {number} filters.limit - 返回数量限制
    * @returns {Promise<Array>}
    */
@@ -94,8 +94,8 @@ class Battle {
 
     if (filter === 'pvp') {
       whereClause += " AND battle_type LIKE 'pvp_%'";
-    } else if (filter === 'campaign') {
-      whereClause += " AND battle_type IN ('pve_campaign','pve_chapter')";
+    } else if (filter === 'chapter') {
+      whereClause += " AND battle_type = 'pve_chapter'";
     } else if (filter === 'event') {
       whereClause += " AND battle_type IN ('pve_event','pve_siege')";
     } else if (filter === 'favorited') {

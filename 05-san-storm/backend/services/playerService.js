@@ -7,7 +7,7 @@
 const Player = require('../models/Player');
 const { pool, transaction } = require('../database/connection');
 const { clampCreationWizardSilver } = require('../../shared/utils/factionBalanceBonus.cjs');
-const { resolveCampaignConfigSeason } = require('../../shared/utils/seasonSettlementCore.cjs');
+const { resolveWorldConfigSeason } = require('../../shared/utils/seasonSettlementCore.cjs');
 const { resolveBalanceBonusForFaction } = require('./factionBalanceBonusService');
 
 class PlayerService {
@@ -608,17 +608,17 @@ class PlayerService {
     }
 
     // 创建玩家角色（配置/城市表赛季：san_0_m* 元赛季仍读 san_1 世界配置）
-    let campaignSeason = 'san_1';
+    let worldConfigSeason = 'san_1';
     try {
       const [accRows] = await pool.query(
         'SELECT current_season FROM accounts WHERE id = ? LIMIT 1',
         [playerId],
       );
-      campaignSeason = resolveCampaignConfigSeason(accRows[0]?.current_season);
+      worldConfigSeason = resolveWorldConfigSeason(accRows[0]?.current_season);
     } catch (_) {
       const seasonParts = String(factionId || '').split('_');
       if (seasonParts.length >= 2) {
-        campaignSeason = resolveCampaignConfigSeason(`${seasonParts[0]}_${seasonParts[1]}`);
+        worldConfigSeason = resolveWorldConfigSeason(`${seasonParts[0]}_${seasonParts[1]}`);
       }
     }
 
@@ -626,7 +626,7 @@ class PlayerService {
     try {
       const [frows] = await pool.query(
         'SELECT initial_city_id FROM config_factions WHERE faction_id = ? AND season = ? LIMIT 1',
-        [factionId, campaignSeason],
+        [factionId, worldConfigSeason],
       );
       const raw = frows[0]?.initial_city_id;
       if (raw != null && String(raw).trim() !== '') {
@@ -646,7 +646,7 @@ class PlayerService {
            FROM cities
            WHERE city_id = ? AND season = ?
            LIMIT 1`,
-          [initialCityId, campaignSeason],
+          [initialCityId, worldConfigSeason],
         );
         const crow = crows[0];
         if (crow?.jun_id != null && String(crow.jun_id).trim() !== '') {

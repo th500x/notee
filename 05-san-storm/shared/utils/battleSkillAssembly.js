@@ -1,7 +1,7 @@
 /**
- * 战术战斗 · 将领技能阶段 1～5 统一装配（玩家 / PVE 敌 / 战役 NPC / 攻城守军同源）。
+ * 战术战斗 · 将领技能阶段 1～5 统一装配（玩家 / PVE 敌 / 关卡 NPC / 攻城守军同源）。
  *
- * 与 `battlePlayerBuilder`、`useBattleMap.assignRealBattleTroops`、`buildCampaignBattleTroopsFromSim`、
+ * 与 `battlePlayerBuilder`、`useBattleMap.assignRealBattleTroops`、`buildLargeMapBattleTroopsFromSim`、
  * `buildSiegeUnits` 共用；禁止在各入口复制 attachPhase* 链。
  *
  * @see docs/00/20-data-layer/23-1-SKILL_SYSTEM.md §6

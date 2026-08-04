@@ -79,7 +79,7 @@ async function applyResourceDelta(playerId, deltas = {}, connection = null) {
 }
 
 /**
- * 仅统计「获得」侧（正数），用于攻城领奖、战役领奖、卡池补偿等与 players 加资源一致的路径。
+ * 仅统计「获得」侧（正数），用于攻城领奖、章末领奖、卡池补偿等与 players 加资源一致的路径。
  * 无 connection 时吞错并打日志（与历史 incrementSpent 行为一致，避免已提交业务因统计失败抛错）。
  *
  * @param {string} playerId

@@ -1,10 +1,10 @@
 import { memo, useCallback, useMemo, useRef, useState } from 'react';
 import {
-  campaignBgUrl,
-  campaignTerrainUrl,
-  campaignObjectUrl,
-  buildCampaignVisualVariants,
-} from '@/utils/campaignMapVisualAssets';
+  mapTileBgUrl,
+  mapTileTerrainUrl,
+  mapTileObjectUrl,
+  buildMapTileVisualVariants,
+} from '@/utils/mapTileVisualAssets';
 import { STRATEGIC_WAR_ZHAN_MARK_URL, tacticalFireFrameUrl } from '@/components/battle/battleConstants';
 import {
   getFactionRepresentativeColor,
@@ -25,7 +25,7 @@ import { JUN_BATTLEFIELD_FACTION_SHARE_PLACEHOLDER } from '@/utils/junBattlefiel
 /** 叠帧明暗闪烁周期（须与 WorldStrategicMap.css `--ws-fire-flicker-cycle` 一致） */
 const STRATEGIC_FIRE_FLICKER_CYCLE_S = 1.2;
 
-/** Meowa preview 已含城/关等；运行时勿再叠 `public/assets` 战役立绘 */
+/** Meowa preview 已含城/关等；运行时勿再叠 `public/assets` 旧瓦片立绘 */
 function isMeowaBakedStrategicObject(objectType) {
   const o = String(objectType || '');
   return (
@@ -50,9 +50,9 @@ function wsTerrainFallbackClass(terrain) {
 
 /**
  * 战略层郡大地图单格：仅地形 / 对象 / 特效展示。
- * 与 `CampaignMapTile` 职责分离（无战役部署、无战斗引擎宿主）。
+ * 与 `LargeMapTile` 职责分离（无部署、无战斗引擎宿主）。
  * 浏览模式且格点属于 **`buildRoadPassableKeySetForMarch`** 可通行道路时：键鼠 **`click` `detail===2`**、触摸 **短间隔两次 `touchend`** 可请求进入行军模式（与本人叠层点「行军」等价；非道路格无效）。
- * 瓦片素材路径复用 `campaignMapVisualAssets`（与 BattleTile 同源 PNG）。
+ * 瓦片素材路径复用 `mapTileVisualAssets`（与 BattleTile 同源 PNG）。
  * @param {object|null} [cityRow] - 锚点格 `cityId` 对应 `cities` 行
  * @param {{ anchorR: number, anchorC: number, anchorCell: object, footprintKind?: 'city_2x2'|'bandit_2x1'|'bandit_1x2'|'pvp_camp_1x1'|'pvp_camp_2x1'|'pvp_camp_1x2' }|null} [strategicCover] - 本格是否属于某多格战略 POI 的锚点或延伸格
  */
@@ -81,7 +81,7 @@ function WorldStrategicMapTile({
   /** @param {number} gx @param {number} gy */
   onStrategicMarchCellPick = null,
   playerFactionId = null,
-  /** 显式盟友 `faction_id`（结盟等接入后由战役/外交注入） */
+  /** 显式盟友 `faction_id`（结盟等接入后由外交注入） */
   strategicCityLabelAllyFactionIds = null,
   /** 显式非敌对 `faction_id`（停战、任务保护势力等） */
   strategicCityLabelNonHostileFactionIds = null,
@@ -95,17 +95,17 @@ function WorldStrategicMapTile({
   battlefieldInfoHud = null,
   /**
    * Meowa 管线：格网下已是郡 preview（yingchuan_v0.1）。
-   * 跳过战役草皮/地形，以及已画进预览的城/关/据点/战场入口 PNG（`public/assets` 旧瓦片）。
+   * 跳过底板草皮/地形，以及已画进预览的城/关/据点/战场入口 PNG（`public/assets` 旧瓦片）。
    * 城势力旗、战事「战」字、领土色、匪寨/大本营叠字仍叠；语义仍来自工坊 merged。
    */
-  suppressCampaignTerrain = false,
+  suppressGeneratedTerrain = false,
 }) {
   const c = cell || {};
-  const variants = useMemo(() => buildCampaignVisualVariants(seed), [seed]);
+  const variants = useMemo(() => buildMapTileVisualVariants(seed), [seed]);
   const bgV = c.base === 'plain_wasteland' ? variants.bgWaste : variants.bgGrass;
-  const bgSrc = campaignBgUrl(c.base || 'plain_grassland', bgV);
-  const meowaPipelineVisual = !!suppressCampaignTerrain;
-  const showCampaignTerrainLayers = !meowaPipelineVisual;
+  const bgSrc = mapTileBgUrl(c.base || 'plain_grassland', bgV);
+  const meowaPipelineVisual = !!suppressGeneratedTerrain;
+  const showGeneratedTerrainLayers = !meowaPipelineVisual;
 
   const footprintKind = strategicCover?.footprintKind ?? null;
   const isCityFootprint2x2 = footprintKind === 'city_2x2';
@@ -131,14 +131,14 @@ function WorldStrategicMapTile({
     return '';
   }, [hasMultiCellFootprint, isAnchorTile, footprintKind]);
 
-  const terrainSrc = campaignTerrainUrl(c.terrain, variants);
+  const terrainSrc = mapTileTerrainUrl(c.terrain, variants);
   const fallbackCls = wsTerrainFallbackClass(c.terrain);
 
   const objSrc = useMemo(() => {
     if (hasMultiCellFootprint && !isAnchorTile) return null;
     if (!effectiveObject) return null;
     if (meowaPipelineVisual && isMeowaBakedStrategicObject(effectiveObject)) return null;
-    return campaignObjectUrl(effectiveObject);
+    return mapTileObjectUrl(effectiveObject);
   }, [hasMultiCellFootprint, isAnchorTile, effectiveObject, cityRow, meowaPipelineVisual]);
 
   const showSpanningStrategicObject = hasMultiCellFootprint && isAnchorTile && !!objSrc;
@@ -297,7 +297,7 @@ function WorldStrategicMapTile({
       }
       onTouchEnd={needsRoadDblMarch ? handleRoadTouchEndMarchDbl : undefined}
     >
-      {showCampaignTerrainLayers ? (
+      {showGeneratedTerrainLayers ? (
         bgOk ? (
           <img className="ws-layer" src={bgSrc} alt="" draggable={false} onError={() => setBgOk(false)} />
         ) : (
@@ -323,8 +323,8 @@ function WorldStrategicMapTile({
           aria-hidden
         />
       ) : null}
-      {showCampaignTerrainLayers && fallbackCls ? <div className={fallbackCls} /> : null}
-      {showCampaignTerrainLayers &&
+      {showGeneratedTerrainLayers && fallbackCls ? <div className={fallbackCls} /> : null}
+      {showGeneratedTerrainLayers &&
         terrainSrc &&
         (tOk ? (
           <img className="ws-layer" src={terrainSrc} alt="" draggable={false} onError={() => setTOk(false)} />

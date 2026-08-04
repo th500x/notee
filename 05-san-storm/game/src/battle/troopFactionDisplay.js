@@ -4,5 +4,5 @@
 export function resolveTroopGlowClass(troop) {
   if (troop.faction === 'player') return 'player';
   if (troop.faction === 'enemy') return 'enemy';
-  return troop.campaignNpcForce ?? 'ally1';
+  return troop.npcForce ?? 'ally1';
 }

@@ -210,7 +210,7 @@
   );
   pointer-events: none;
 }
-/* 事件战战前：当前选中的我军（与战役「点部队再点格」一致） */
+/* 事件战战前：当前选中的我军（与大型图「点部队再点格」一致） */
 .tile-prebattle-deploy-selected { z-index: 2; }
 .tile-prebattle-deploy-ring {
   position: absolute;
@@ -268,7 +268,7 @@
   opacity:0;
   animation: tile-fire-slot 1.2s linear infinite;
 }
-.campaign-tile .tile-fire-fx { z-index: 3; }
+.largemap-tile .tile-fire-fx { z-index: 3; }
 
 .tile-badge { position:absolute; bottom:2px; right:2px; font-size:10px; line-height:1; pointer-events:none; filter:drop-shadow(0 0 2px rgba(0,0,0,0.9)); z-index:4; }
 @media (max-width:520px) { .tile-badge { font-size:8px; } }
@@ -340,7 +340,7 @@
 /* ── 字号标签（将领名 + 稀有度星） ── */
 .troop-name { position:absolute; bottom:0; left:9%; display:flex; gap:2px; align-items:center; font-size:6px; font-weight:bold; white-space:nowrap; z-index:5; line-height:1.3; pointer-events:none; background:rgba(0,0,0,0.6); padding:0 3px; border-radius:2px; }
 .troop-name .cn { color:#fff; }
-/* 战役 NPC 主将 hero/boss + 玩家主公槽：名字 18K 金；星标仍用稀有度色 */
+/* 关卡 NPC 主将 hero/boss + 玩家主公槽：名字 18K 金；星标仍用稀有度色 */
 .troop-name.is-commander-boss .cn,
 .troop-name.is-commander-hero .cn,
 .troop-name.is-player-lord .cn {

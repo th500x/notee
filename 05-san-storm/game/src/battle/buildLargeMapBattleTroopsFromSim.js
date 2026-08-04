@@ -1,5 +1,5 @@
 /**
- * 战役战斗：
+ * 大型图战斗：
  *   - 玩家部队来自编组（`playerUnits`），初始落位在部署矩形内。
  *   - `enemy` 格子 NPC → `faction: 'enemy'`，由 AI 控制，作为对手。
  *   - `ally1`/`ally2` 格子 NPC → `faction: 'ally'`，由 AI 控制，以 enemy 为目标；
@@ -7,9 +7,9 @@
  * 全部使用全局格坐标：x = col，y = row（与 `cells[row][col]` 一致）。
  */
 
-import { getBattleFieldTroopPortraitUrlAttempts, getCampaignMapTroopPortraitUrlAttempts } from '@shared/utils/troopIconUrls';
+import { getBattleFieldTroopPortraitUrlAttempts, getMapTroopPortraitUrlAttempts } from '@shared/utils/troopIconUrls';
 import { initialMoraleFromCharacter } from '@/utils/npcMorale';
-import { listPassableDeployCellsInRect } from '@/utils/campaignDeployRect';
+import { listPassableDeployCellsInRect } from '@/utils/largeMapDeployRect';
 import { enrichBattleUnitWithSkillPhases } from '@shared/utils/battleSkillAssembly';
 import {
   buildTroopCatalogById,
@@ -24,15 +24,15 @@ const base = () => import.meta.env.BASE_URL;
 /**
  * @param {object} opts
  * @param {Array} opts.playerUnits
- * @param {{ cells: object[][] }} opts.campaignMapSim
+ * @param {{ cells: object[][] }} opts.mapSim
  * @param {object|null} opts.deployRect — `getPlayerDeployRectGlobal` 结果；用于我方初始落位
  * @param {Array} opts.allTroops
  * @param {Array} opts.allCharacters
  * @param {Record<string, object>} [opts.skillsMap] skills.json 字典；有则 NPC 将领叠阶段1～5（与玩家同源）
  */
-export function buildCampaignBattleTroopsFromSim({
+export function buildLargeMapBattleTroopsFromSim({
   playerUnits,
-  campaignMapSim,
+  mapSim,
   deployRect,
   allTroops,
   allCharacters,
@@ -40,8 +40,8 @@ export function buildCampaignBattleTroopsFromSim({
 }) {
   const catalogById = buildTroopCatalogById(allTroops);
   const passable =
-    deployRect && campaignMapSim?.cells
-      ? listPassableDeployCellsInRect(campaignMapSim.cells, deployRect)
+    deployRect && mapSim?.cells
+      ? listPassableDeployCellsInRect(mapSim.cells, deployRect)
       : [];
 
   const playerResult = playerUnits.slice(0, 5).map((unit, i) => {
@@ -60,13 +60,13 @@ export function buildCampaignBattleTroopsFromSim({
   let npcSeq = 0;
   const npcResult = [];
 
-  const cells = campaignMapSim.cells;
+  const cells = mapSim.cells;
   for (let rowG = 0; rowG < cells.length; rowG++) {
     const rowCells = cells[rowG];
     if (!rowCells) continue;
     for (let col = 0; col < rowCells.length; col++) {
       const cell = rowCells[col];
-      const cu = cell?.campaignUnit;
+      const cu = cell?.mapUnit;
       if (!cu) continue;
       const fac = cu.faction;
       // 仅处理 enemy、ally1、ally2；player 格子由 playerUnits 参数处理
@@ -76,7 +76,7 @@ export function buildCampaignBattleTroopsFromSim({
       if (!tr) {
         if (import.meta.env.DEV) {
           console.warn(
-            '[buildCampaignBattleTroopsFromSim] 跳过格子 NPC：部队库中无 troopId',
+            '[buildLargeMapBattleTroopsFromSim] 跳过格子 NPC：部队库中无 troopId',
             cu.troopId,
             'faction:', fac,
           );
@@ -96,10 +96,10 @@ export function buildCampaignBattleTroopsFromSim({
       // ally1/ally2 → faction:'ally'，AI 控制以 enemy 为目标；enemy → 保持 enemy 阵营
       const battleFaction = fac === 'enemy' ? 'enemy' : 'ally';
 
-      // 立绘：enemy 用事件战斗函数（enemy/子目录），ally1/ally2 用战役函数保留原始 ally1(ally2)/子目录
+      // 立绘：enemy 用事件战斗函数（enemy/子目录），ally1/ally2 用大型图函数保留原始 ally1(ally2)/子目录
       const attempts = fac === 'enemy'
         ? getBattleFieldTroopPortraitUrlAttempts({ ...tr, faction: 'enemy' }, base())
-        : getCampaignMapTroopPortraitUrlAttempts(cu.troopId, base(), fac);
+        : getMapTroopPortraitUrlAttempts(cu.troopId, base(), fac);
 
       // characters.json / DB 中将领属性已是 0–10 量纲（如 combat:8.3）；
       // 战斗公式直接使用该量纲，不再 /10。fallback 与公式默认值对齐（= 5）。
@@ -132,9 +132,9 @@ export function buildCampaignBattleTroopsFromSim({
         ...enrichedTroop,
         id: `${cu.troopId}_cnpc_${npcSeq}`,
         faction: battleFaction,
-        campaignNpcForce: fac,
-        /** 战役格将领 id；友军 hero 多 stack 时用于「该将领全部 hero stack 灭尽才败」 */
-        campaignCharId: cu.charId,
+        npcForce: fac,
+        /** 关卡将领 id；友军 hero 多 stack 时用于「该将领全部 hero stack 灭尽才败」 */
+        commanderCharId: cu.charId,
         y: rowG,
         x: col,
         currentTroops: tr.maxTroops,

@@ -9,7 +9,7 @@
 export const BGM_TRACK_FILES = {
   theme_main: 'theme_main_Dawn Realm Fade.mp3',
   battle_small: 'battle_small_Roadside Erhu Ambush.mp3',
-  battle_campaign: 'battle_large_Bianzhong Thunder.mp3',
+  battle_large: 'battle_large_Bianzhong Thunder.mp3',
 };
 
 /** 默认播放音量 0～1 */

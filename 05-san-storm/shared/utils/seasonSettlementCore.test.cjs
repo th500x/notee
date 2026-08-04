@@ -67,14 +67,14 @@ test('seasonOrdinal maps test and formal seasons', () => {
   assert.equal(seasonOrdinal(null), null);
 });
 
-test('resolveCampaignConfigSeason maps san_0_m* to san_1 world config', () => {
-  const { resolveCampaignConfigSeason } = require('./seasonSettlementCore.cjs');
-  assert.equal(resolveCampaignConfigSeason('san_0_m1'), 'san_1');
-  assert.equal(resolveCampaignConfigSeason('san_0_m2'), 'san_1');
-  assert.equal(resolveCampaignConfigSeason('san_0_m12'), 'san_1');
-  assert.equal(resolveCampaignConfigSeason('san_2'), 'san_2');
-  assert.equal(resolveCampaignConfigSeason(null), 'san_1');
-  assert.equal(resolveCampaignConfigSeason(''), 'san_1');
+test('resolveWorldConfigSeason maps san_0_m* to san_1 world config', () => {
+  const { resolveWorldConfigSeason } = require('./seasonSettlementCore.cjs');
+  assert.equal(resolveWorldConfigSeason('san_0_m1'), 'san_1');
+  assert.equal(resolveWorldConfigSeason('san_0_m2'), 'san_1');
+  assert.equal(resolveWorldConfigSeason('san_0_m12'), 'san_1');
+  assert.equal(resolveWorldConfigSeason('san_2'), 'san_2');
+  assert.equal(resolveWorldConfigSeason(null), 'san_1');
+  assert.equal(resolveWorldConfigSeason(''), 'san_1');
 });
 
 // ---- computeSelectionLimits ----

@@ -1,6 +1,6 @@
 /**
- * 战役地图 Demo 视觉：与 Event 战斗 BattleTile 同源路径（assets/san_1_map）。
- * @see docs/tools/campaign/README.md
+ * 地图瓦片视觉：与 Event 战斗 BattleTile 同源路径（assets/san_1_map）。
+ * @see docs/tools/chapter/README.md
  */
 
 import { ASSET_BASE } from '@/components/battle/battleConstants';
@@ -10,7 +10,7 @@ import {
 } from '@shared/utils/strategicBanditPlaceholderPhase1.js';
 
 /** 与生成器 seed 对齐，为各层选 01~05 变体（确定性） */
-export function buildCampaignVisualVariants(seed) {
+export function buildMapTileVisualVariants(seed) {
   const s = Number(seed) || 0;
   const v = (k) => {
     let h = Math.imul(s ^ (k * 0x9e3779b9), 0x85ebca6b);
@@ -27,14 +27,14 @@ export function buildCampaignVisualVariants(seed) {
   };
 }
 
-export function campaignBgUrl(base, bgVariant) {
+export function mapTileBgUrl(base, bgVariant) {
   const isWaste = base === 'plain_wasteland';
   const prefix = isWaste ? 'plain_wasteland' : 'plain_grassland';
   return `${ASSET_BASE}tile_1_bg/${prefix}_${bgVariant}.png`;
 }
 
 /** @param {string|null|undefined} terrain - forest|hill|siege|river|lake|ford|road */
-export function campaignTerrainUrl(terrain, variants) {
+export function mapTileTerrainUrl(terrain, variants) {
   if (!terrain) return null;
   if (terrain === 'forest') return `${ASSET_BASE}tile_2_terrain/forest_${variants.forest}.png`;
   if (terrain === 'hill') return `${ASSET_BASE}tile_2_terrain/hill_${variants.hill}.png`;
@@ -45,16 +45,16 @@ export function campaignTerrainUrl(terrain, variants) {
 
 /** 无 PNG 的地形用 CSS 类名（由格子 div 表现） */
 export function terrainFallbackClass(terrain) {
-  if (terrain === 'lake') return 'camp-terrain-fallback camp-terrain-lake';
-  if (terrain === 'ford') return 'camp-terrain-fallback camp-terrain-ford';
-  if (terrain === 'road') return 'camp-terrain-fallback camp-terrain-road';
+  if (terrain === 'lake') return 'largemap-terrain-fallback largemap-terrain-lake';
+  if (terrain === 'ford') return 'largemap-terrain-fallback largemap-terrain-ford';
+  if (terrain === 'road') return 'largemap-terrain-fallback largemap-terrain-road';
   return null;
 }
 
 /**
  * @param {string|null|undefined} objectType
  */
-export function campaignObjectUrl(objectType) {
+export function mapTileObjectUrl(objectType) {
   if (!objectType) return null;
   const m = {
     fence: 'fence_01.png',
@@ -100,5 +100,3 @@ export function strategicMapBanditDominoFootprintKind(objectType) {
   return null;
 }
 
-export const CAMPAIGN_MAP_W = 16;
-export const CAMPAIGN_MAP_H = 20;

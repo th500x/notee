@@ -101,7 +101,7 @@ function seasonOrdinal(seasonId) {
  * @param {string|null|undefined} accountSeason
  * @returns {string}
  */
-function resolveCampaignConfigSeason(accountSeason) {
+function resolveWorldConfigSeason(accountSeason) {
   const id = String(accountSeason || '').trim();
   if (/^san_0_m\d+$/.test(id)) return 'san_1';
   if (id) return id;
@@ -478,7 +478,7 @@ module.exports = {
   resolveCardRarity,
   obtainedAtToTime,
   seasonOrdinal,
-  resolveCampaignConfigSeason,
+  resolveWorldConfigSeason,
   computeSelectionLimits,
   parseEquipmentSetData,
   isEquipmentSetDraft,

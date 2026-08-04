@@ -23,7 +23,6 @@ import ChunkLoadFallback from '@/components/game/ChunkLoadFallback';
 import { useCardPool } from '@/hooks/useCardPool';
 import { loadSharedData } from '@/services/dataService';
 import { useFactionBulletinUnread } from '@/hooks/useFactionBulletinUnread';
-import { usePlayableCampaignNotify } from '@/hooks/usePlayableCampaignNotify';
 import { useClaimableAchievementNotify } from '@/hooks/useClaimableAchievementNotify';
 import { useDailyReportCheckinNotify } from '@/hooks/useDailyReportCheckinNotify';
 import { isGameIntroCompletedForPlayer, markGameIntroCompletedForPlayer } from '@/utils/gameIntroFlags';
@@ -44,7 +43,6 @@ const CommPanel = lazy(() => import('@/components/game/CommPanel'));
 const StandingRankingsPanel = lazy(() => import('@/components/game/StandingRankingsPanel'));
 const CardPoolDrawer = lazy(() => import('@/components/game/CardPoolDrawer'));
 const ItemCardPoolDrawer = lazy(() => import('@/components/game/ItemCardPoolDrawer'));
-const CampaignCenterPanel = lazy(() => import('@/components/game/CampaignCenterPanel'));
 const AttrRerollDrawer = lazy(() => import('@/components/game/AttrRerollDrawer'));
 const DailyReportPanel = lazy(() => import('@/components/game/DailyReportPanel'));
 const SeasonSettlementPortal = lazy(() => import('@/components/game/SeasonSettlementPortal'));
@@ -67,8 +65,6 @@ function GamePageInner({ onLogout, accountId }) {
   const { mapHudButtonsVisible, toggleMapHudButtons } = useMapHudVisibility();
   const playerId = player?.playerId;
   const factionBulletinUnread = useFactionBulletinUnread(playerId);
-  const { hasPlayable: campaignPlayableNotify, refresh: refreshCampaignNotify } =
-    usePlayableCampaignNotify(playerId);
   const claimableAchievementNotify = useClaimableAchievementNotify(playerId);
   /** 与创角清 localStorage 的 id 一致；profile 加载前即可决定是否展示特色介绍 */
   const gameIntroStorageId = accountId || player?.playerId;
@@ -92,7 +88,6 @@ function GamePageInner({ onLogout, accountId }) {
   }, []);
   const [openPool, setOpenPool] = useState(null); // 'troop' | 'character' | 'item' | null
   const [openReroll, setOpenReroll] = useState(false);
-  const [campaignOpen, setCampaignOpen] = useState(false);
   const [dailyReportOpen, setDailyReportOpen] = useState(false);
   const [seasonModalOpen, setSeasonModalOpen] = useState(false);
   // 赛季结算状态（顶栏入口/封档横幅/发放弹窗共用，单源轮询）
@@ -196,8 +191,6 @@ function GamePageInner({ onLogout, accountId }) {
           dailyReportNotifyDot={dailyReportNotifyDot}
           seasonSettlementEntryVisible={seasonPhase === 'window_open'}
           onOpenSeasonSettlement={() => setSeasonModalOpen(true)}
-          onOpenCampaignCenter={() => setCampaignOpen(true)}
-          campaignNotifyDot={campaignPlayableNotify}
         />
 
         <main
@@ -351,23 +344,6 @@ function GamePageInner({ onLogout, accountId }) {
               refresh();
             }}
             onConfirm={() => refresh()}
-          />
-        </Suspense>
-      ) : null}
-
-      {playerId ? (
-        <Suspense fallback={null}>
-          <CampaignCenterPanel
-            playerId={playerId}
-            open={campaignOpen}
-            onClose={() => {
-              setCampaignOpen(false);
-              refreshCampaignNotify();
-            }}
-            onClaimed={() => {
-              refresh();
-              refreshCampaignNotify();
-            }}
           />
         </Suspense>
       ) : null}

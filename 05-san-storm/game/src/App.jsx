@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { lazy, Suspense } from 'react';
 import ErrorBoundary from '@shared/components/common/ErrorBoundary';
 import { useAdmin } from '@/hooks/useAdmin';
@@ -11,7 +11,6 @@ const WeeklyReportPage = lazy(() => import('@/pages/WeeklyReportPage'));
 const UserManagerPage = lazy(() => import('@/pages/admin/UserManagerPage'));
 const MailManagerPage = lazy(() => import('@/pages/admin/MailManagerPage'));
 const ActivityManagerPage = lazy(() => import('@/pages/admin/ActivityManagerPage'));
-const CampaignMapGeneratorManagerPage = lazy(() => import('@/pages/admin/CampaignMapGeneratorManagerPage'));
 const PvpDuelMapGeneratorManagerPage = lazy(() => import('@/pages/admin/PvpDuelMapGeneratorManagerPage'));
 const JunStrategicMapWorkshopPage = lazy(() => import('@/pages/admin/JunStrategicMapWorkshopPage'));
 const AdminEnvTogglePage = lazy(() => import('@/pages/admin/AdminEnvTogglePage'));
@@ -102,11 +101,6 @@ function App() {
                       <h3 className="text-lg font-semibold text-gray-900 mb-2 text-center">活动管理</h3>
                       <p className="text-sm text-gray-600 text-center">排行榜归档 · Top30</p>
                     </a>
-                    <a href={`${import.meta.env.BASE_URL}campaign-map-manager`} className="block bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow cursor-pointer h-full flex flex-col border-2 border-amber-200">
-                      <div className="text-4xl mb-4 text-center">🗺️</div>
-                      <h3 className="text-lg font-semibold text-gray-900 mb-2 text-center">战役地图</h3>
-                      <p className="text-sm text-gray-600 text-center">preset · 随机 seed · 固化 JSON</p>
-                    </a>
                     <a href={`${import.meta.env.BASE_URL}chapter-stage-debug`} className="block bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow cursor-pointer h-full flex flex-col border-2 border-lime-200">
                       <div className="text-4xl mb-4 text-center">♟️</div>
                       <h3 className="text-lg font-semibold text-gray-900 mb-2 text-center">章节生图调试</h3>
@@ -161,8 +155,6 @@ function App() {
             <Route path="/user-manager" element={<UserManagerPage />} />
             <Route path="/mail-manager" element={<MailManagerPage />} />
             <Route path="/activity-manager" element={<ActivityManagerPage />} />
-            <Route path="/campaign-map-demo" element={<Navigate to="/campaign-map-manager" replace />} />
-            <Route path="/campaign-map-manager" element={<CampaignMapGeneratorManagerPage />} />
             <Route path="/chapter-stage-debug" element={<ChapterStageDebugPage />} />
             <Route path="/pvp-duel-map-manager" element={<PvpDuelMapGeneratorManagerPage />} />
             <Route path="/jun-strategic-map-workshop" element={<JunStrategicMapWorkshopPage />} />

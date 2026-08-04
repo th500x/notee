@@ -1,6 +1,6 @@
 /**
  * 解析「逻辑 id : 正整数」 token（ASCII 冒号）。
- * 用于战役 CSV：`quad_*_terrain_tiles` / `quad_*_object_tiles` 分号项、
+ * 用于关卡 CSV：`quad_*_terrain_tiles` / `quad_*_object_tiles` 分号项、
  * `quad_*_units_spec` 部队列表逗号项；与事件奖励 `parseRewardString`、
  * `rewardService` 中 `san_1_troop_x001:2` 同形。
  *

@@ -1,12 +1,10 @@
 /**
  * san_1 三势力缩略块（三王 / 汉室 / 黄巾）+ 势力信息 tooltip（大地图右侧坞；32-1）
- * 战役中心入口已迁至顶栏，本组件不再默认挂战役卡（仍可选 `onOpenCampaignCenter`）。
  */
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import FactionInfoPanel from '@/components/game/faction/FactionInfoPanel';
-import WorldMapCampaignCenterThumb from '@/components/game/WorldMapCampaignCenterThumb';
 import {
   getFactionRepresentativeColor,
   getStrategicFactionLogoUrl,
@@ -97,8 +95,6 @@ function WorldMapFactionThumb({
  *   loading?: boolean,
  *   error?: string|null,
  *   isLandscape?: boolean,
- *   onOpenCampaignCenter?: () => void,
- *   campaignNotifyDot?: boolean,
  *   compact?: boolean,
  * }} props
  */
@@ -107,8 +103,6 @@ export default function WorldMapFactionStrip({
   loading,
   error,
   isLandscape = false,
-  onOpenCampaignCenter,
-  campaignNotifyDot = false,
   compact = false,
 }) {
   const [hoverId, setHoverId] = useState(/** @type {string|null} */ (null));
@@ -266,21 +260,6 @@ export default function WorldMapFactionStrip({
                 />
               ))}
             </div>
-            {typeof onOpenCampaignCenter === 'function' ? (
-              <>
-                <div
-                  className="shrink-0 border-t-2 border-amber-800/55"
-                  role="separator"
-                  aria-hidden
-                />
-                <div className={`grid ${gridClass} gap-2 pt-0.5`}>
-                  <WorldMapCampaignCenterThumb
-                    onOpen={onOpenCampaignCenter}
-                    showNotifyDot={campaignNotifyDot}
-                  />
-                </div>
-              </>
-            ) : null}
           </>
         )}
       </div>

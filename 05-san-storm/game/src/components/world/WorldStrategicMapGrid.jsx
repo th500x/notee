@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useEffect, useLayoutEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import WorldStrategicMapTile from './WorldStrategicMapTile';
-import { buildCampaignCellTooltipInfo } from '@/components/battle/battleConstants';
+import { buildMapCellTooltipInfo } from '@/components/battle/battleConstants';
 import {
   WORLD_MAP_DEFAULT_FACTION_LABELS,
   buildWorldMapCityPanelProps,
@@ -426,7 +426,7 @@ function buildStrategicPvpBaseCampTooltip(warSlice, hd) {
 
 /**
  * 战略层郡大地图格网（颍川 16×40；豫州 L 形叠图 32×60 等）。
- * 与 `CampaignMapGrid` 分离：无战役部署、无部队层、无战斗引擎。
+ * 与 `LargeMapGrid` 分离：无部署、无部队层、无战斗引擎。
  * Tooltip：城池有 **`cityId`** 且在 `cityById` 有行时，与 `WorldMapCityInfoBlock` 同款（驻地编组 / 设为主城 / 攻城等）。
  * 匪寨用格上 **`banditPoiId`**（`readStrategicCellAnchorId`）；可无表行：合成最小行走匪寨专用面板。
  */
@@ -516,7 +516,7 @@ export default function WorldStrategicMapGrid({
   onStartPvpBaseCampSiege = null,
   /**
    * Meowa 郡预览底板（相对格网左上角）：`{ junId, url, col0, row0, cols, rows }[]`
-   * 有值时该矩形内格跳过战役草皮/地形，显示 preview.png。
+   * 有值时该矩形内格跳过底板草皮/地形，显示 preview.png。
    */
   meowaUnderlays = null,
 }) {
@@ -1316,7 +1316,7 @@ export default function WorldStrategicMapGrid({
       return;
     }
 
-    const info = tooltipCell ? buildCampaignCellTooltipInfo(tooltipCell) : null;
+    const info = tooltipCell ? buildMapCellTooltipInfo(tooltipCell) : null;
     if (!info) {
       lastTooltipAnchorKeyRef.current = null;
       strategicCityTooltipMetaRef.current = { cityId: null, banditPoiId: null };
@@ -1587,7 +1587,7 @@ export default function WorldStrategicMapGrid({
                         roadMarchPassableKeySet={roadMarchPassableKeySet}
                         territoryStance={territoryStanceMap?.get(`${ci},${ri}`) ?? null}
                         showWarCityFire={showWarCityFire}
-                        suppressCampaignTerrain={cellHasMeowaUnderlay(ci, ri)}
+                        suppressGeneratedTerrain={cellHasMeowaUnderlay(ci, ri)}
                         battlefieldInfoHud={battlefieldInfoHudByKey.get(`${ci},${ri}`) || null}
                       />
                     );

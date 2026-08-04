@@ -1,6 +1,6 @@
 /**
  * 项目周报页：标题、卡片入口文案、测试奖励与里程碑概览
- * 逐周历史已归档至 docs/00/00-base/05-1-MILESTONES.md §7
+ * 逐周历史已归档至 docs/00-shared-core/00-base/04-milestones/04-1-MILESTONES.md §7
  */
 
 /** 首页「功能导航」中的周报卡片（位于 [黄巾之乱] 之后） */
@@ -14,7 +14,7 @@ export const weeklyReportPageTitle = '项目周报';
 
 export const weeklyReportPageSubtitle = '真三风云 - 开发进度追踪';
 
-/** @deprecated 逐周条目已迁入 05-1-MILESTONES.md；保留空数组供页面兼容 */
+/** @deprecated 逐周条目已迁入 04-1-MILESTONES.md；保留空数组供页面兼容 */
 export const weeklyReports = [];
 
 /** 底部：[测试奖励] */

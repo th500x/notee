@@ -1,4 +1,4 @@
-/* 战略层郡大地图（WorldStrategicMap*）：与战役 CampaignMapGrid 样式分离，避免 16×20 与可变格网混用 */
+/* 战略层郡大地图（WorldStrategicMap*）：与大型图 LargeMapGrid 样式分离，避免 16×20 与可变格网混用 */
 /* 地图标签 clamp 上限随 --ws-tile 同比缩放（参照 48px 格 ≈ 旧稿 9～14px）；+ var(--ui-font-dpr-bump) 见 uiDisplayScale.js */
 
 .ws-map-card {

@@ -47,7 +47,7 @@ export const battleAPI = {
   /**
    * 获取玩家战斗记录列表
    * @param {string} playerId - 玩家ID
-   * @param {string} filter - all/pvp/campaign/event/favorited
+   * @param {string} filter - all/pvp/chapter/event/favorited
    * @returns {Promise<Object>} { success, battles, count }
    */
   getBattles: async (playerId, filter = 'all') => {

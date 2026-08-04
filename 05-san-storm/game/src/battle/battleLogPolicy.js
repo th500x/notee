@@ -1,5 +1,5 @@
 /**
- * 战役战报入库优化：可省略友军 NPC（faction === 'ally'）相关流水，
+ * 大型图战报入库优化：可省略友军 NPC（faction === 'ally'）相关流水，
  * 仅保留玩家部队（player）与敌军（enemy）之间的词条，缩小 battle_log 体积。
  */
 

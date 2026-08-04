@@ -15,8 +15,7 @@
  *   2. 技能和羁绊（skills.json + bonds.json；羁绊含 season，写入 config_bonds.season）
  *   3. 装备
  *   4. 事件（events.json 含 season，写入 config_events.season）
- *   5. 战役卡片
- *   6. 道具（import-items-data.js → config_items）
+ *   5. 道具（import-items-data.js → config_items）
  *
  * 注意：
  *   - 不包含服务器初始化（init-servers.js），需单独执行
@@ -51,7 +50,6 @@ const scripts = [
   { name: '装备', file: 'import-equipment-data.js' },
   { name: '宝物', file: 'import-treasure-data.js' },
   { name: '事件', file: 'import-events-data.js' },
-  { name: '战役卡片', file: 'import-campaigns-data.js' },
   { name: '道具', file: 'import-items-data.js' },
   { name: '探险主题', file: 'import-adventure-themes-data.js' },
   { name: '章节战棋', file: 'import-chapter-data.js' },

@@ -1,17 +1,17 @@
 /**
- * 战役战斗：将整图 16×20 `cells` 转为回合引擎用的 `mapResult`（terrain / objects）。
+ * 大型图战斗：将整图 `cells` 转为回合引擎用的 `mapResult`（terrain / objects）。
  * 坐标与战略格一致：x=列 col，y=行 row，与 `battleTroops[].x` / `.y` 一致。
  */
 
 import { GAMEPLAY_OBJECT_DEFS } from '@shared/utils/terrainGameplayObjects.js';
 
-/** @param {string} campaignTerrain @param {string} [base] */
-function toEngineTerrain(campaignTerrain, base) {
-  if (!campaignTerrain) {
+/** @param {string} cellTerrain @param {string} [base] */
+function toEngineTerrain(cellTerrain, base) {
+  if (!cellTerrain) {
     if (base && String(base).includes('wasteland')) return 'waste';
     return 'plain';
   }
-  const t = String(campaignTerrain);
+  const t = String(cellTerrain);
   if (t === 'river' || t === 'lake') return 'river';
   if (t === 'forest') return 'forest';
   if (t === 'hill') return 'hill';
@@ -23,7 +23,7 @@ function toEngineTerrain(campaignTerrain, base) {
  * @param {string} objectId
  * @returns {keyof typeof GAMEPLAY_OBJECT_DEFS | null}
  */
-function campaignObjectToEngineType(objectId) {
+function mapObjectToEngineType(objectId) {
   if (!objectId) return null;
   const id = String(objectId);
   if (id === 'fence') return 'fence';
@@ -35,17 +35,17 @@ function campaignObjectToEngineType(objectId) {
 }
 
 /**
- * @param {{ cells: object[][], seed?: number }} campaignMapSim
+ * @param {{ cells: object[][], seed?: number }} mapSim
  */
-export function buildCampaignBattleMapResult(campaignMapSim) {
-  const cells = campaignMapSim?.cells;
+export function buildLargeMapBattleMapResult(mapSim) {
+  const cells = mapSim?.cells;
   if (!cells?.length || !cells[0]?.length) {
     return {
       terrain: [],
       cellFire: [],
       variants: { bgTheme: 'grassland', bgVariant: '01', forest: '01', hill: '01' },
       objects: [],
-      meta: { seed: campaignMapSim?.seed ?? 0, campaignFullBattleGrid: true },
+      meta: { seed: mapSim?.seed ?? 0, fullBattleGrid: true },
     };
   }
 
@@ -61,7 +61,7 @@ export function buildCampaignBattleMapResult(campaignMapSim) {
       if (!cell) continue;
       terrain[row][col] = toEngineTerrain(cell.terrain, cell.base);
       if (cell.effect === 'fire') cellFire[row][col] = true;
-      const oid = campaignObjectToEngineType(cell.object);
+      const oid = mapObjectToEngineType(cell.object);
       if (oid && GAMEPLAY_OBJECT_DEFS[oid]) {
         objects.push({
           type: oid,
@@ -85,8 +85,8 @@ export function buildCampaignBattleMapResult(campaignMapSim) {
     },
     objects,
     meta: {
-      seed: campaignMapSim.seed ?? 0,
-      campaignFullBattleGrid: true,
+      seed: mapSim.seed ?? 0,
+      fullBattleGrid: true,
       grid: { w, h },
     },
   };

@@ -80,7 +80,7 @@ export function seasonOrdinal(seasonId) {
 }
 
 /** 须与 seasonSettlementCore.cjs 同步 */
-export function resolveCampaignConfigSeason(accountSeason) {
+export function resolveWorldConfigSeason(accountSeason) {
   const id = String(accountSeason || '').trim();
   if (/^san_0_m\d+$/.test(id)) return 'san_1';
   if (id) return id;

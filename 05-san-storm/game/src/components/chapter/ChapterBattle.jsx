@@ -3,7 +3,7 @@
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { usePlayerContext } from '@/contexts/PlayerContext';
-import LargeMapBattle from '@/components/campaign/LargeMapBattle';
+import LargeMapBattle from '@/components/largemap/LargeMapBattle';
 import { buildPlayerUnitsFromContext } from '@/utils/battlePlayerBuilder';
 import { useSkillsMap } from '@/hooks/useSkillsMap';
 import { generateChapterStageMap } from '@shared/utils/chapterStageMapGenerator.js';
@@ -129,15 +129,14 @@ export default function ChapterBattle({ playerId, chapterId, nodeId, stage, onCl
         playerId={playerId}
         minRounds={stage.minRounds}
         maxRounds={stage.maxRounds || 30}
-        campaignId={null}
         chapterId={chapterId}
         nodeId={nodeId}
         battleType="pve_chapter"
         opponentName={stage.stageName || '章节敌军'}
-        campaignMapSim={sim}
+        mapSim={sim}
         playerDeployRect={sim.deployRects?.player || null}
-        campaignPreset={{ campaign_id: stage.stageId }}
-        campaignBattleTitle={stage.stageName || '章节战'}
+        stageKey={stage.stageId}
+        battleTitle={stage.stageName || '章节战'}
         skillsMap={skillsMap}
         onBattleEnd={handleEnd}
       />

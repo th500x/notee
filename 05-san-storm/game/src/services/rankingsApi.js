@@ -1,10 +1,9 @@
 /**
  * 排行榜 API（san-storm 后端 3005，公开数据）
  *
- * 三类查询：
+ * 两类查询：
  *   1. 活动排行榜（公告 ranking · temp_event_ranking，见 32-3 §4）
  *   2. 常驻 · 总体排名（27-2）
- *   3. 常驻 · 战役最高分（27-2）
  *
  * @module services/rankingsApi
  */
@@ -64,30 +63,6 @@ export const rankingsAPI = {
     }
   },
 
-  /**
-   * 常驻 · 战役最高分（27-2）
-   * @param {{ campaignId: string, limit?: number, playerId?: string, serverId?: string }} options
-   */
-  getCampaign: async ({ campaignId, limit = 30, playerId = null, serverId = null }) => {
-    try {
-      const params = new URLSearchParams({
-        campaignId: String(campaignId),
-        limit: String(limit),
-      });
-      if (playerId) params.set('playerId', playerId);
-      if (serverId) params.set('serverId', serverId);
-      const response = await fetchWithTimeout(
-        `${API_CONFIG.BASE_URL}/rankings/campaign?${params}`,
-        { method: 'GET' }
-      );
-      const data = await response.json();
-      if (data.success) return { success: true, data: data.data };
-      return { success: false, error: data.error || '获取战役排行失败' };
-    } catch (error) {
-      console.error('[RankingsAPI] campaign', error);
-      return { success: false, error: '网络错误' };
-    }
-  },
 };
 
 export default rankingsAPI;

@@ -1,7 +1,7 @@
 /**
  * 章节战棋 · 可变尺寸程序生图（须与 chapterStageMapGenerator.js 同步）
  *
- * 入参 map_w×map_h；产出与战役战斗兼容的 cells（供 buildCampaignBattleMapResult）。
+ * 入参 map_w×map_h；产出与大型图战斗兼容的 cells（供 buildLargeMapBattleMapResult）。
  * 连通失败挖廊道 / 换 seed；超限抛错（禁止静默坏图）。
  *
  * @see docs/02-chapter-tactical/60-1-CHAPTER_TACTICAL_SYSTEM.md §14
@@ -280,7 +280,7 @@ function placeRosterUnits(cells, units, rect, rng, used) {
   for (const u of units) {
     const pos = slots[si++];
     used.add(keyOf(pos.col, pos.row));
-    cells[pos.row][pos.col].campaignUnit = {
+    cells[pos.row][pos.col].mapUnit = {
       faction: u.faction,
       charId: u.charId,
       troopId: u.troopId,

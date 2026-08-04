@@ -1,6 +1,6 @@
 /**
  * 回合制战斗引擎：在 `mapResult.terrain` 定义的矩形格网上执行回合、动画与阵型。
- * 事件/攻城为默认 8×10；战役为整图 16×20，坐标与战略格 `(col,row)` 一致（x=列，y=行）。
+ * 事件/攻城为默认 8×10；大型图整图（尺寸随关卡），坐标与战略格 `(col,row)` 一致（x=列，y=行）。
  *
  * 层次职责：
  *   useBattleAnimations  → DOM 渲染、动画序列、单次攻击/反击执行
@@ -88,16 +88,16 @@ export function useBattleEngine({
   activeFormation, setActiveFormation,
   autoBattle, autoFormation,
   mapCardRef,
-  /** 可选：战役地图等自定义瓦片宿主；缺省时仅用 mapCardRef 战术格网 */
+  /** 可选：大型图等自定义瓦片宿主；缺省时仅用 mapCardRef 战术格网 */
   battleSurfaceRef = null,
   manualBattleRef,
-  /** 战役：坚守 X 回合即胜（玩家视角）；null 表示不适用 */
+  /** 坚守 X 回合即胜（玩家视角）；null 表示不适用 */
   minRounds = null,
-  /** 超过此回合数判败；默认 30 回合（事件/战役通用） */
+  /** 超过此回合数判败；默认 30 回合（小型图/大型图通用） */
   maxRounds = 30,
-  /** 可选：战斗结束时由引擎通知壳层结束原因（含战役主将：'campaign_boss_win' | 'campaign_hero_loss'） */
+  /** 可选：战斗结束时由引擎通知壳层结束原因（含主将判定：'commander_boss_win' | 'commander_hero_loss'） */
   setBattleEndReason = null,
-  /** 战役：战报省略友军 ally 流水，减小 battle_log（仅 LargeMapBattle 开启） */
+  /** 大型图：战报省略友军 ally 流水，减小 battle_log（仅 LargeMapBattle 开启） */
   trimAllyBattleLog = false,
   /** 攻城：守方城防倍率（cityDefense/100）；仅 def._siegeCityDefender 主动一击 */
   siegeCityDefenseMult = 1,
@@ -148,16 +148,16 @@ export function useBattleEngine({
     setMapResult,
   });
 
-  /** 战役主将（boss/hero）即时胜负：写入 battleEndReason，供 useBattleSettlement 在「敌军未全灭」等情况下仍能结算 */
-  const notifyCampaignCommanderEnd = useCallback(
+  /** 主将（boss/hero）即时胜负：写入 battleEndReason，供 useBattleSettlement 在「敌军未全灭」等情况下仍能结算 */
+  const notifyCommanderEliminated = useCallback(
     (outcome) => {
-      if (outcome === 'player_win') setBattleEndReason?.('campaign_boss_win');
-      else if (outcome === 'enemy_win') setBattleEndReason?.('campaign_hero_loss');
-      addLog(fmt.fmtCampaignCommanderEnd(outcome), 'death');
+      if (outcome === 'player_win') setBattleEndReason?.('commander_boss_win');
+      else if (outcome === 'enemy_win') setBattleEndReason?.('commander_hero_loss');
+      addLog(fmt.fmtCommanderEliminatedEnd(outcome), 'death');
       if (outcome === 'player_win') {
         const remainingEnemy = battleTroops.filter((t) => t.faction === 'enemy' && t.currentTroops > 0).length;
         if (remainingEnemy > 0) {
-          addLog(`📜 本回合尚未行动的单位不再出手；场上 ${remainingEnemy} 支敌军残部按战役规则结束战斗。`, 'round');
+          addLog(`📜 本回合尚未行动的单位不再出手；场上 ${remainingEnemy} 支敌军残部按主将规则结束战斗。`, 'round');
         }
       }
       addLog('── 本场战斗记录结束 ──', 'round');
@@ -303,7 +303,7 @@ export function useBattleEngine({
       for (let x = 1; x <= mapW - 2; x++) candidateCenters.push({ y, x });
     }
     const nPlayer = playerTroops.length;
-    // 优先在「靠近当前部署位置」处成阵，避免战役图里从部署区远端瞬移到最靠北格（小型图部署区窄，不明显）
+    // 优先在「靠近当前部署位置」处成阵，避免大型图里从部署区远端瞬移到最靠北格（小型图部署区窄，不明显）
     const pcY = nPlayer > 0 ? playerTroops.reduce((s, t) => s + t.y, 0) / nPlayer : 0;
     const pcX = nPlayer > 0 ? playerTroops.reduce((s, t) => s + t.x, 0) / nPlayer : 0;
     candidateCenters.sort((a, b) => {
@@ -592,7 +592,7 @@ export function useBattleEngine({
       if (autoBattleRef.current) {
         const fgEnd = await formationGroupAction();
         if (fgEnd === 'player_win' || fgEnd === 'enemy_win') {
-          return notifyCampaignCommanderEnd(fgEnd);
+          return notifyCommanderEliminated(fgEnd);
         }
         await sleep(300, speedRef.current);
       } else {
@@ -650,7 +650,7 @@ export function useBattleEngine({
       if (decision.move && decision.move.length > 0) {
         const campMove = await battleMove(troop, decision.move);
         if (campMove === 'player_win' || campMove === 'enemy_win') {
-          return notifyCampaignCommanderEnd(campMove);
+          return notifyCommanderEliminated(campMove);
         }
         if (troop.currentTroops <= 0) continue;
       }
@@ -672,7 +672,7 @@ export function useBattleEngine({
           if (v && v.currentTroops <= 0) {
             const c = await runBattleKill(v);
             if (c === 'player_win' || c === 'enemy_win') {
-              return notifyCampaignCommanderEnd(c);
+              return notifyCommanderEliminated(c);
             }
           }
         }
@@ -690,7 +690,7 @@ export function useBattleEngine({
           if (v && v.currentTroops <= 0) {
             const c = await runBattleKill(v);
             if (c === 'player_win' || c === 'enemy_win') {
-              return notifyCampaignCommanderEnd(c);
+              return notifyCommanderEliminated(c);
             }
           }
         }
@@ -708,12 +708,12 @@ export function useBattleEngine({
           if (decision.target.currentTroops <= 0) {
             const c = await runBattleKill(decision.target);
             if (c === 'player_win' || c === 'enemy_win') {
-              return notifyCampaignCommanderEnd(c);
+              return notifyCommanderEliminated(c);
             }
           } else {
             const ca = await performCounterAttack(troop, decision.target);
             if (ca === 'player_win' || ca === 'enemy_win') {
-              return notifyCampaignCommanderEnd(ca);
+              return notifyCommanderEliminated(ca);
             }
           }
         } else if (!trimSkipForTroop(trimAllyBattleLog, troop)) {
@@ -734,7 +734,7 @@ export function useBattleEngine({
 
     const fireRet = await applyEndOfRoundFire(battleTroops);
     if (fireRet.outcome === 'player_win' || fireRet.outcome === 'enemy_win') {
-      return notifyCampaignCommanderEnd(fireRet.outcome);
+      return notifyCommanderEliminated(fireRet.outcome);
     }
 
     const pAlive = battleTroops.filter(t => (t.faction === 'player' || t.faction === 'ally') && t.currentTroops > 0);
@@ -763,7 +763,7 @@ export function useBattleEngine({
     return 'continue';
   }, [battleTroops, setBattleTroops, setRoundNum, autoFormation, mapResult, addLog, trimAllyBattleLog,
       applyFormationBuffs, formationGroupAction, battleMove, performAttack, runBattleKill, performCounterAttack,
-      applyEndOfRoundFire, notifyCampaignCommanderEnd, checkChestAuto, performPhase3Heal, performPhase4Damage,
+      applyEndOfRoundFire, notifyCommanderEliminated, checkChestAuto, performPhase3Heal, performPhase4Damage,
       performPhase5Composite, battleReportDigestRef,
     ]);
 
@@ -778,7 +778,7 @@ export function useBattleEngine({
     const startedWithAuto = autoBattleRef.current;
     setBattlePlaying(true);
 
-    // 战役大地图：`data-battle-y/x` 宿主与 `setBattlePlaying(true)` 同批提交后，下一帧才挂载齐全。
+    // 大型图：`data-battle-y/x` 宿主与 `setBattlePlaying(true)` 同批提交后，下一帧才挂载齐全。
     // 事件小地图已由 renderTroopsToBattleMapDom 画过 `.troop-layer`，此处有层则跳过。
     if (battleSurfaceRef?.current?.getTileEl) {
       await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
@@ -795,7 +795,7 @@ export function useBattleEngine({
     if (aliveEnemy.length === 0 || alivePlayerFac.length === 0) {
       addLog(
         aliveEnemy.length === 0
-          ? '无法开战：场上无敌方部队。战役格子的 campaignUnit.troopId 须在部队配置中存在，否则大地图仍显示头像但战术阵中无敌军。'
+          ? '无法开战：场上无敌方部队。关卡格子的 mapUnit.troopId 须在部队配置中存在，否则大地图仍显示头像但战术阵中无敌军。'
           : '无法开战：我方无可战部队。',
         'death',
       );

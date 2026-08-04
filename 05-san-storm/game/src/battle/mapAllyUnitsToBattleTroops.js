@@ -78,7 +78,7 @@ export function mapAllyUnitsToBattleTroops(
       ...enrichedTroop,
       id: `${unit.troop.id}_a${i}`,
       faction: 'ally',
-      campaignNpcForce: 'ally1',
+      npcForce: 'ally1',
       y: pos.y,
       x: pos.x,
       currentTroops: unit.currentTroops ?? unit.troop.maxTroops,

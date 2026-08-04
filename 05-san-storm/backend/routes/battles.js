@@ -7,7 +7,6 @@
 const express = require('express');
 const router = express.Router();
 const battleService = require('../services/battleService');
-const campaignService = require('../services/campaignService');
 const chapterService = require('../services/chapterService');
 const statisticsDeltaService = require('../services/statisticsDeltaService');
 const smallMapBattleLootService = require('../services/smallMapBattleLootService');
@@ -142,31 +141,12 @@ router.post('/', validateBody(battleSchemas.saveBattleBody), async (req, res, ne
     const { rewards, chestRewards, troopCasualties, moraleUpdates } = req.body;
 
     // player_statistics 场次/胜负/杀伤 在 battleService.saveBattle 内累加（与攻城等服务端写战报共用）
-    // 战役：客户端上报自动战斗银两 + 出征粮草（避免与事件奖励/攻城结算重复计数）
-    if (battleType === 'pve_campaign' || battleType === 'pve_chapter') {
+    // 章节：客户端上报自动战斗银两 + 出征粮草（避免与事件奖励/攻城结算重复计数）
+    if (battleType === 'pve_chapter') {
       await statisticsDeltaService.incrementSpent(playerId, {
         silver: Math.max(0, Math.floor(Number(req.body.battleSilverSpent) || 0)),
         food: Math.max(0, Math.floor(Number(req.body.deploymentFoodSpent) || 0)),
       });
-    }
-
-    // 战役 PVE：写入 player_progress.campaign_progress
-    if (!req.body.recordOnly && battleType === 'pve_campaign') {
-      const campaignId = rewards?.campaignId || req.body.campaignId;
-      if (campaignId) {
-        try {
-          const battleScore = rewards?.battleScore ?? req.body.battleScore;
-          await campaignService.applyBattleSettlement({
-            playerId,
-            campaignId,
-            battleId,
-            result,
-            battleScore,
-          });
-        } catch (ce) {
-          console.error('[battles] campaign settlement:', ce);
-        }
-      }
     }
 
     // 章节战棋：胜利推进 node；失败不退兵符

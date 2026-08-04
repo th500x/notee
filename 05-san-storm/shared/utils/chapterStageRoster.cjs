@@ -1,7 +1,7 @@
 /**
  * 章节关卡 roster 解析（须与 chapterStageRoster.js 同步）
  *
- * `troop_id:N` 与战役 `expandCampaignUnitsSpec` 同义：展开为 N 个独立部队。
+ * `troop_id:N` 沿用已归档战役 units_spec 语义：展开为 N 个独立部队。
  */
 
 function parseChapterStageRoster(raw) {

@@ -118,8 +118,8 @@ export function buildTacticalTileTooltipInfo({ terrain, obj, cellOnFire }) {
   return null;
 }
 
-/** 战役战略格 object → TILE_INFO 键（与 buildCampaignBattleMapResult 一致） */
-export function campaignObjectToTileInfoKey(objectId) {
+/** 大型图格 object → TILE_INFO 键（与 buildLargeMapBattleMapResult 一致） */
+export function mapObjectToTileInfoKey(objectId) {
   if (!objectId) return null;
   const id = String(objectId);
   if (id === 'fence') return 'fence';
@@ -137,12 +137,12 @@ export function campaignObjectToTileInfoKey(objectId) {
 }
 
 /**
- * 战役大地图格子 tooltip（terrain/object/effect）
+ * 大型图格子 tooltip（terrain/object/effect）
  * @param {{ terrain?: string, object?: string, effect?: string }} cell
  */
-export function buildCampaignCellTooltipInfo(cell) {
+export function buildMapCellTooltipInfo(cell) {
   const onFire = cell?.effect === 'fire';
-  const objKey = campaignObjectToTileInfoKey(cell?.object);
+  const objKey = mapObjectToTileInfoKey(cell?.object);
   if (objKey && TILE_INFO[objKey]) {
     let base = TILE_INFO[objKey];
     if (cell?.cityId || cell?.cityName) {
@@ -245,7 +245,7 @@ export function moraleInlineColorForTroopBar(morale) {
 }
 
 /**
- * 根据部队对象构建 tooltip 内容，供 BattleMap 与 CampaignMapGrid 共用。
+ * 根据部队对象构建 tooltip 内容，供 BattleMap 与 LargeMapGrid 共用。
  * 纯函数，无副作用。
  *
  * @param {object} troop - 战斗部队对象（含 faction/rarity/troopType/character 等字段）

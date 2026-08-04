@@ -1,5 +1,5 @@
 /**
- * 小型图 / 大型战役战术：在**同一会话**内把己方战场兵力写入 sessionStorage，
+ * 小型图 / 大型图战术：在**同一会话**内把己方战场兵力写入 sessionStorage，
  * 供 **`buildPlayerUnitsFromContext`**（经 **`applyInflightTroopSnapshotToBuiltUnits`**）在整页刷新后仍按战中损血组装进场单位，避免仅从 `getProfile` 卡面看起来像「满血复原」。
  *
  * **刻意不做**：按小时/分钟 TTL 丢弃快照；**不**把快照合并进 **`PlayerContext.cards`**（大地图/编组须与档案 `getProfile` 一致，含随时间缓慢恢复等后端口径）。

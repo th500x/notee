@@ -27,8 +27,8 @@ export function commanderMoraleKey(troop) {
   if (troop.lineupSlot) {
     return `${fac}|ls:${troop.lineupSlot}`;
   }
-  if (troop.campaignCharId) {
-    return `${fac}|cc:${troop.campaignCharId}`;
+  if (troop.commanderCharId) {
+    return `${fac}|cc:${troop.commanderCharId}`;
   }
   const ch = troop.character;
   const cid = ch?.id ?? ch?.character_id ?? ch?.characterId ?? troop.characterId;

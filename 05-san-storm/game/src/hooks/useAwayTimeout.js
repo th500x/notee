@@ -1,6 +1,6 @@
 /**
  * 离开页面超时自动结算逻辑（visibilitychange + 定时器）。
- * 适用于 pve_event / pve_siege；战役关闭此功能（enabled=false）。
+ * 适用于 pve_event / pve_siege；大型图关闭此功能（enabled=false）。
  *
  * 返回的 pendingAwayNoticeRef 由结算 hook（useBattleSettlement）读取，
  * 以决定是否弹出「已自动结算」提示。
@@ -11,7 +11,7 @@ import { setBattleAnimationSkipDelays } from '@/battle/tacticalBattleEngine';
 const PVE_AWAY_TIMEOUT_MS = 30000;
 
 /**
- * @param {boolean}  enabled         - 是否启用（pve_event/pve_siege 为 true，campaign 为 false）
+ * @param {boolean}  enabled         - 是否启用（pve_event/pve_siege 为 true，大型图为 false）
  * @param {boolean}  battlePlaying   - 当前 bm.battlePlaying
  * @param {object}   autoBattleRef   - useRef(bm.autoBattle)，由外层持续同步
  */

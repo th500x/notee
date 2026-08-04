@@ -2,7 +2,7 @@
  * S1「黄巾之乱」剧本介绍文案（Wiki San1Page + 可复用于 Game 入口说明）
  *
  * @see wiki/src/pages/San1Page.jsx
- * @see docs/00/00-base/06-1-FRONTEND_SITES_OVERVIEW.md §3.1
+ * @see docs/00-shared-core/00-base/05-1-FRONTEND_SITES_OVERVIEW.md §3.1
  */
 
 /** @type {{ pageTitle: string, pageSubtitle: string, footerTagline: string }} */

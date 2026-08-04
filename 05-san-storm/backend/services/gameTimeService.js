@@ -71,7 +71,7 @@ function computeGameTimeFromServerRow(row) {
 
 /**
  * 查询玩家所在服务器，计算当前游戏历法。
- * 多处服务（campaignService、playerProfileService 等）共用此函数，
+ * 多处服务（chapterService、playerProfileService 等）共用此函数，
  * 不再各自重复实现。失败时返回 null，不阻断调用方主流程。
  *
  * @param {string} playerId - 玩家 ID（对应 accounts.id）

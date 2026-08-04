@@ -1,9 +1,8 @@
 /**
  * 战斗结束检测 + 战报保存 + 结算回调。
- * 事件战 / 攻城 / 战役均使用相同的结算逻辑，差异通过参数注入：
+ * 事件战 / 攻城 / 章节均使用相同的结算逻辑，差异通过参数注入：
  *   - opponentType  由 battleType 推导
- *   - campaignId    战役时附带进 rewards
- *   - battleSettledRef  战役专用，结算触发后置 true，防止中断信标重复计次
+ *   - chapterId / nodeId  章节时附带进 rewards
  */
 import { useState, useEffect, useRef, useCallback } from 'react';
 import {
@@ -23,7 +22,7 @@ const STAGE_READY = 'ready';
 
 function resolveOpponentType(battleType) {
   if (battleType === 'pvp_siege') return 'player';
-  if (battleType === 'pve_campaign' || battleType === 'pve_chapter') return 'campaign_enemy';
+  if (battleType === 'pve_chapter') return 'chapter_enemy';
   return 'event_enemy';
 }
 
@@ -33,16 +32,15 @@ function resolveOpponentType(battleType) {
  * @param {object}       manualBattleRef    - useRef(manual)，用于获取宝箱奖励快照
  * @param {object}       mountedRef         - useRef(true)，组件卸载后置 false
  * @param {boolean}      battlePlaying      - bm.battlePlaying（用于 dep array 触发）
- * @param {string}       battleType         - 'pve_event'|'pve_siege'|'pvp_siege'|'pve_campaign'
+ * @param {string}       battleType         - 'pve_event'|'pve_siege'|'pvp_siege'|'pve_chapter'
  * @param {string|null}  playerId
  * @param {number}       silverAmount       - 战前银两（用于计算消耗）
- * @param {number}       [deploymentFoodCost] - 出征粮草（仅 pve_campaign；与 LineupTab 公式一致）
- * @param {string|null}  campaignId         - 战役 ID，非战役传 null
+ * @param {number}       [deploymentFoodCost] - 出征粮草（仅 pve_chapter；与 LineupTab 公式一致）
  * @param {object|null}  defenseReportMeta  - 驻守防守信息，非攻城传 null
  * @param {boolean}      recordOnly         - 仅记录战报不改兵力
  * @param {string|null}  siegeDefenderType  - 攻城积分倍率类型
  * @param {string}       opponentName
- * @param {object|null}  battleSettledRef   - 战役专用：结算触发后置 true（useRef）
+ * @param {object|null}  battleSettledRef   - 大型图专用：结算触发后置 true（useRef）
  * @param {object}       pendingAwayNoticeRef - 来自 useAwayTimeout，是否弹离开提示
  * @param {object|null}  [smallMapPveLoot] - 写入战报 rewards.smallMapPveLoot；仅胜利时由后端 applyDeclaredSmallMapPveLoot（匪寨每层即时奖励等）
  * @param {function}     [onDeferredAwayBattleEnd] - 离屏结算待确认时持久化 payload（事件惩罚战续接）
@@ -60,7 +58,6 @@ export function useBattleSettlement({
   playerId,
   silverAmount,
   deploymentFoodCost = 0,
-  campaignId,
   chapterId = null,
   nodeId = null,
   defenseReportMeta,
@@ -101,9 +98,9 @@ export function useBattleSettlement({
     else if (pAlive.length === 0) result = 'defeat';
     else if (m.battleEndReason === 'max_rounds') result = 'defeat';
     else if (m.battleEndReason === 'min_rounds') result = 'victory';
-    // 战役：击败敌方 boss 主将时场上可能仍有杂兵，须凭引擎写入的结束原因走结算
-    else if (m.battleEndReason === 'campaign_boss_win') result = 'victory';
-    else if (m.battleEndReason === 'campaign_hero_loss') result = 'defeat';
+    // 大型图：击败敌方 boss 主将时场上可能仍有杂兵，须凭引擎写入的结束原因走结算
+    else if (m.battleEndReason === 'commander_boss_win') result = 'victory';
+    else if (m.battleEndReason === 'commander_hero_loss') result = 'defeat';
     else return;
 
     endedRef.current = true;
@@ -200,7 +197,6 @@ export function useBattleSettlement({
           battleScore: scoreResult.score,
           battleGrade: scoreResult.grade,
           scoreDetails: scoreResult.details,
-          ...(battleType === 'pve_campaign' && campaignId ? { campaignId } : {}),
           ...(battleType === 'pve_chapter' && chapterId && nodeId
             ? { chapterId, nodeId }
             : {}),
@@ -239,7 +235,7 @@ export function useBattleSettlement({
           moraleUpdates,
           chestRewards: chestRewardsSnapshot,
           recordOnly,
-          ...(battleType === 'pve_campaign' || battleType === 'pve_chapter'
+          ...(battleType === 'pve_chapter'
             ? {
                 battleSilverSpent: silverSpentNum,
                 deploymentFoodSpent: deployFoodNum,
@@ -388,7 +384,7 @@ export function useBattleSettlement({
     return () => clearInterval(check);
     // 仅依赖 battlePlaying/stage：避免 battleTroops 引用每帧变化导致 cleanup 清掉 interval
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [battlePlaying, stage, silverAmount, deploymentFoodCost, battleType, opponentName, playerId, campaignId, chapterId, nodeId, defenseReportMeta, recordOnly, siegeDefenderType, smallMapPveLoot]);
+  }, [battlePlaying, stage, silverAmount, deploymentFoodCost, battleType, opponentName, playerId, chapterId, nodeId, defenseReportMeta, recordOnly, siegeDefenderType, smallMapPveLoot]);
 
   const flushAwayEndNotice = useCallback(() => {
     const p = pendingAwayEndRef.current;

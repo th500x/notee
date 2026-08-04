@@ -1,6 +1,6 @@
 /**
  * 小型战术格网（8×10）DOM 上绘制部队预览层。
- * 仅用于 SmallMapBattle 战前展示；战役大型图由引擎贴片直接渲染，不调用此函数。
+ * 仅用于 SmallMapBattle 战前展示；大型图由引擎贴片直接渲染，不调用此函数。
  */
 import { MAP_W } from '@/components/battle/battleConstants';
 import { attachBattleUnitSprite, destroyBattleSpriteOnLayer } from '@/utils/battleUnitSpriteDom';

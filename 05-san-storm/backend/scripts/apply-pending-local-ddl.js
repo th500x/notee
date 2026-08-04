@@ -59,6 +59,7 @@ const MIGRATION_FILES_SPLIT_STATEMENTS = new Set([
   'cities-add-attr-growth-applied-date.sql',
   'cities-add-npc-recovery-applied-date.sql',
   'create-config-chapter-tables.sql',
+  'alter-battles-drop-pve-campaign-rename-chapter-enemy.sql',
 ]);
 
 async function runMigrationSql(sql, file) {
@@ -186,9 +187,7 @@ const MIGRATION_FILES = [
   'add-player-cards-uses-remaining.sql',
   'create-faction-war-daily-votes.sql',
   'add-config-troops-battle-unit-key.sql',
-  // 2026-07：编组 Extra / 道具池·篇章战术 / 战役配置（曾漏进批跑清单）
-  'create-config-campaigns.sql',
-  'add-config-campaigns-completion-reward-badge.sql',
+  // 2026-07：编组 Extra / 道具池·篇章战术（战役配置已随战役系统归档 · 2026-08-04）
   'create-player-lineup-sets.sql',
   'create-player-lineup-extra.sql',
   'add-config-items-item-type-season-token.sql',
@@ -209,6 +208,8 @@ const MIGRATION_FILES = [
   'create-config-chapter-tables.sql',
   // 2026-07：道路同格遭遇战归档移除（_archive/dao-lu-yu-di/）
   'road-encounters-drop-archived-feature.sql',
+  // 2026-08：battles ENUM 去 pve_campaign；campaign_enemy → chapter_enemy
+  'alter-battles-drop-pve-campaign-rename-chapter-enemy.sql',
 ];
 
 /** RENAME：源列不存在时跳过（库已为 skill_type） */

@@ -53,10 +53,10 @@ function TroopLayer({ troop }) {
     };
   }, [troop.id, troop.displayName, troop.name, unitKey]);
 
-  // ally 阵营用 campaignNpcForce（'ally1'/'ally2'）精确对齐部署时的颜色；无则回退 ally1
+  // ally 阵营用 npcForce（'ally1'/'ally2'）精确对齐部署时的颜色；无则回退 ally1
   const fc = troop.faction === 'player' ? 'player'
     : troop.faction === 'enemy' ? 'enemy'
-    : (troop.campaignNpcForce ?? 'ally1');
+    : (troop.npcForce ?? 'ally1');
   const hpStates = buildTroopHpBlockStates(troop.currentTroops, troop.maxTroops);
   const topBlks = hpStates.map((st, b) => {
     const cls =
@@ -66,7 +66,7 @@ function TroopLayer({ troop }) {
 
   const isCommanderBoss = troop.commanderRole === 'boss';
   const isCommanderHero = troop.commanderRole === 'hero';
-  /** 仅主公槽（lineupSlot === 'player'）与战役 boss/hero 同套 18K 金名；稀有度星用部队 rarity 色 */
+  /** 仅主公槽（lineupSlot === 'player'）与关卡 boss/hero 同套 18K 金名；稀有度星用部队 rarity 色 */
   const isPlayerLordBar = troop.faction === 'player' && troop.lineupSlot === 'player';
   const nameBarClass = [
     'troop-name',

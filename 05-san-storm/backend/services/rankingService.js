@@ -11,7 +11,6 @@
 const { pool } = require('../database/connection');
 const ACTIVITY_RANKING_EVENTS = require('../config/activityRankingEvents');
 const { getScoreWeightsForEvent } = require('../config/rankingScoreWeights');
-const campaignService = require('./campaignService');
 
 /** 活动开始后一次性重置「开始前误建」快照基线（进程内幂等） */
 const _rebaselineDoneForEvent = new Set();
@@ -75,8 +74,6 @@ async function rebaselinePreStartSnapshots(eventId) {
 const OVERALL_MIN_BATTLES = 10;
 const OVERALL_DEFAULT_LIMIT = 30;
 const OVERALL_MAX_LIMIT = 50;
-const CAMPAIGN_DEFAULT_LIMIT = 30;
-const CAMPAIGN_MAX_LIMIT = 50;
 
 /** SQL 表达式：场均战后分（与 18-4、getOverallRankings 列表一致） */
 const OVERALL_AVG_EXPR = 'ROUND(s.total_battle_score / s.total_battles)';
@@ -172,23 +169,6 @@ async function resolveServerIdForStanding({ serverId, playerId }) {
   if (!pid) return null;
   const [rows] = await pool.query('SELECT serverId FROM accounts WHERE id = ? LIMIT 1', [pid]);
   return rows[0]?.serverId ? String(rows[0].serverId) : null;
-}
-
-/**
- * @param {string} campaignId
- * @returns {boolean}
- */
-function isSafeCampaignIdForJsonPath(campaignId) {
-  return typeof campaignId === 'string' && /^[a-zA-Z0-9_]+$/.test(campaignId);
-}
-
-/**
- * MySQL JSON path: `$."campaign_id".field`（campaign_id 已白名单校验）
- * @param {string} campaignId
- * @param {'bestScore'|'bestGrade'} field
- */
-function campaignProgressJsonPath(campaignId, field) {
-  return `$."${campaignId}".${field}`;
 }
 
 // ── Delta SQL 片段（实时增量 vs 冻结增量）──────────────────────────────────
@@ -466,7 +446,7 @@ async function getRankings(eventId, { limit = 10, playerId = null } = {}) {
   };
 }
 
-// ── 常驻排行榜（18-4）：总体 / 战役，与活动榜 getRankings 分离 ─────────────────
+// ── 常驻排行榜（18-4）：总体榜，与活动榜 getRankings 分离 ─────────────────
 
 /**
  * @param {object} opts
@@ -622,184 +602,4 @@ async function getOverallRankings(opts = {}) {
   };
 }
 
-/**
- * @param {object} opts
- * @param {string} opts.campaignId
- * @param {number} [opts.limit]
- * @param {string} [opts.playerId]
- * @param {string} [opts.serverId]
- */
-async function getCampaignRankings(opts = {}) {
-  const campaignId = opts.campaignId != null ? String(opts.campaignId).trim() : '';
-  if (!campaignId || !isSafeCampaignIdForJsonPath(campaignId)) {
-    const err = new Error('无效 campaignId');
-    err.statusCode = 400;
-    throw err;
-  }
-
-  const def = await campaignService.getDefinition(campaignId);
-  if (!def) {
-    const err = new Error('战役不存在或未启用');
-    err.statusCode = 404;
-    throw err;
-  }
-
-  const rawLimit = Number(opts.limit) || CAMPAIGN_DEFAULT_LIMIT;
-  const limit = Math.min(Math.max(1, rawLimit), CAMPAIGN_MAX_LIMIT);
-  const playerId = opts.playerId != null ? String(opts.playerId).trim() : '';
-  const serverId = await resolveServerIdForStanding({
-    serverId: opts.serverId,
-    playerId: playerId || undefined,
-  });
-  if (!serverId) {
-    const err = new Error('缺少 serverId，且无法从 playerId 解析服务器');
-    err.statusCode = 400;
-    throw err;
-  }
-
-  const pathScore = campaignProgressJsonPath(campaignId, 'bestScore');
-  const pathGrade = campaignProgressJsonPath(campaignId, 'bestGrade');
-
-  const [topRows] = await pool.query(
-    `SELECT
-       p.player_id,
-       p.character_name,
-       p.faction_name,
-       CAST(JSON_UNQUOTE(JSON_EXTRACT(pp.campaign_progress, ?)) AS UNSIGNED) AS best_score,
-       JSON_UNQUOTE(JSON_EXTRACT(pp.campaign_progress, ?)) AS best_grade_raw
-     FROM player_progress pp
-     INNER JOIN players p ON p.player_id = pp.player_id
-     INNER JOIN accounts a ON a.id = p.player_id
-       AND a.serverId = ?
-       AND a.account_type = 'real'
-       AND a.status = 'active'
-     WHERE JSON_EXTRACT(pp.campaign_progress, ?) IS NOT NULL
-       AND CAST(JSON_UNQUOTE(JSON_EXTRACT(pp.campaign_progress, ?)) AS UNSIGNED) > 0
-     ORDER BY best_score DESC, p.player_id ASC
-     LIMIT ?`,
-    [pathScore, pathGrade, serverId, pathScore, pathScore, limit],
-  );
-
-  const rankings = topRows.map((row, i) => {
-    const bestScore = Number(row.best_score) || 0;
-    const storedGrade = row.best_grade_raw && String(row.best_grade_raw).trim() !== ''
-      ? String(row.best_grade_raw).trim().charAt(0).toUpperCase()
-      : '';
-    const grade =
-      ['S', 'A', 'B', 'C', 'D'].includes(storedGrade)
-        ? storedGrade
-        : campaignService.gradeFromBattleScore(bestScore).grade;
-    return {
-      rank: i + 1,
-      playerId: row.player_id,
-      name: row.character_name || row.player_id,
-      factionName: row.faction_name || '',
-      bestScore,
-      grade,
-    };
-  });
-
-  const [countRows] = await pool.query(
-    `SELECT COUNT(*) AS total
-     FROM player_progress pp
-     INNER JOIN players p ON p.player_id = pp.player_id
-     INNER JOIN accounts a ON a.id = p.player_id
-       AND a.serverId = ?
-       AND a.account_type = 'real'
-       AND a.status = 'active'
-     WHERE JSON_EXTRACT(pp.campaign_progress, ?) IS NOT NULL
-       AND CAST(JSON_UNQUOTE(JSON_EXTRACT(pp.campaign_progress, ?)) AS UNSIGNED) > 0`,
-    [serverId, pathScore, pathScore],
-  );
-  const totalRankedPlayers = Number(countRows[0]?.total) || 0;
-
-  let myRanking = null;
-  if (playerId) {
-    const [meRows] = await pool.query(
-      `SELECT
-         p.player_id,
-         p.character_name,
-         p.faction_name,
-         CAST(JSON_UNQUOTE(JSON_EXTRACT(pp.campaign_progress, ?)) AS UNSIGNED) AS best_score,
-         JSON_UNQUOTE(JSON_EXTRACT(pp.campaign_progress, ?)) AS best_grade_raw
-       FROM player_progress pp
-       INNER JOIN players p ON p.player_id = pp.player_id
-       INNER JOIN accounts a ON a.id = p.player_id AND a.serverId = ?
-       WHERE p.player_id = ?
-       LIMIT 1`,
-      [pathScore, pathGrade, serverId, playerId],
-    );
-    const me = meRows[0];
-    if (me) {
-      const bestScore = Number(me.best_score) || 0;
-      if (bestScore <= 0) {
-        myRanking = {
-          playerId: me.player_id,
-          name: me.character_name || me.player_id,
-          factionName: me.faction_name || '',
-          challenged: false,
-          rank: null,
-          bestScore: null,
-          grade: null,
-        };
-      } else {
-        const storedGrade = me.best_grade_raw && String(me.best_grade_raw).trim() !== ''
-          ? String(me.best_grade_raw).trim().charAt(0).toUpperCase()
-          : '';
-        const grade =
-          ['S', 'A', 'B', 'C', 'D'].includes(storedGrade)
-            ? storedGrade
-            : campaignService.gradeFromBattleScore(bestScore).grade;
-
-        const [rankAbove] = await pool.query(
-          `SELECT COUNT(*) AS c
-           FROM player_progress pp
-           INNER JOIN players p ON p.player_id = pp.player_id
-           INNER JOIN accounts a ON a.id = p.player_id
-             AND a.serverId = ?
-             AND a.account_type = 'real'
-             AND a.status = 'active'
-           WHERE JSON_EXTRACT(pp.campaign_progress, ?) IS NOT NULL
-             AND CAST(JSON_UNQUOTE(JSON_EXTRACT(pp.campaign_progress, ?)) AS UNSIGNED) > ?`,
-          [serverId, pathScore, pathScore, bestScore],
-        );
-        const [rankTie] = await pool.query(
-          `SELECT COUNT(*) AS c
-           FROM player_progress pp
-           INNER JOIN players p ON p.player_id = pp.player_id
-           INNER JOIN accounts a ON a.id = p.player_id
-             AND a.serverId = ?
-             AND a.account_type = 'real'
-             AND a.status = 'active'
-           WHERE JSON_EXTRACT(pp.campaign_progress, ?) IS NOT NULL
-             AND CAST(JSON_UNQUOTE(JSON_EXTRACT(pp.campaign_progress, ?)) AS UNSIGNED) = ?
-             AND p.player_id < ?`,
-          [serverId, pathScore, pathScore, bestScore, playerId],
-        );
-        const rank = (Number(rankAbove[0]?.c) || 0) + (Number(rankTie[0]?.c) || 0) + 1;
-
-        myRanking = {
-          playerId: me.player_id,
-          name: me.character_name || me.player_id,
-          factionName: me.faction_name || '',
-          challenged: true,
-          rank,
-          bestScore,
-          grade,
-        };
-      }
-    }
-  }
-
-  return {
-    serverId,
-    campaignId,
-    campaignName: def.campaign_name || campaignId,
-    rankings,
-    myRanking,
-    totalRankedPlayers,
-    updatedAt: new Date().toISOString(),
-  };
-}
-
-module.exports = { getRankings, getOverallRankings, getCampaignRankings };
+module.exports = { getRankings, getOverallRankings };

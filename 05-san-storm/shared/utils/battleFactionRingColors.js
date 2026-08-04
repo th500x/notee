@@ -1,10 +1,10 @@
 /**
- * 战役 / 战场部队阵营描边（与战斗 UI 一致）
+ * 战场部队阵营描边（与战斗 UI 一致）
  *
  * @see docs/00/90-assets/91-1-MAP_SYSTEM.md §「阵营色系（战场标识）」主色列
  *
  * 说明：`99-3-PROMPT_TROOP_ICON_TASTYRICE.md` 中为 SD 立绘「浅蓝/绿/黄盔甲」等自然语言；
- * 游戏内边框、战役 Demo 等工程色值以本表为准。
+ * 游戏内边框等工程色值以本表为准。
  */
 
 /** 主色 #RRGGBB → rgba 描边（略透明以便叠在格子上） */
@@ -28,7 +28,7 @@ export const FACTION_RING_PRIMARY_HEX = {
   ally2: '#F59E0B',
 };
 
-export function getCampaignFactionRingRgba(faction) {
+export function getBattleFactionRingRgba(faction) {
   const hex = FACTION_RING_PRIMARY_HEX[faction] || FACTION_RING_PRIMARY_HEX.enemy;
   return hexToRgba(hex);
 }

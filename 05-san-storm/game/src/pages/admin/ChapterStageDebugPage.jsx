@@ -2,7 +2,7 @@
  * 章节关卡 · 可变尺寸生图调试页（P1）
  * 路由：/chapter-stage-debug
  *
- * 复用：generateChapterStageMap → CampaignMapGrid 预览 → LargeMapBattle（recordOnly）
+ * 复用：generateChapterStageMap → LargeMapGrid 预览 → LargeMapBattle（recordOnly）
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -13,8 +13,8 @@ import {
 } from '@shared/data/chapter/yingchuanStageDrafts.js';
 import { loadSharedData } from '@/services/dataService';
 import AdminPageGate from '@/components/admin/AdminPageGate';
-import LargeMapBattle from '@/components/campaign/LargeMapBattle';
-import CampaignMapGrid from '@/components/campaign/CampaignMapGrid';
+import LargeMapBattle from '@/components/largemap/LargeMapBattle';
+import LargeMapGrid from '@/components/largemap/LargeMapGrid';
 
 /** 调试编组：从部队库取前若干条，形状对齐 buildPlayerUnitsFromContext / flattenPlayerUnitToBattleTroop */
 function buildDebugPlayerUnits(troopsList, count = 2) {
@@ -144,7 +144,7 @@ function ChapterStageDebugInner() {
     <div className="p-4 max-w-6xl mx-auto text-stone-800 space-y-3">
       <h1 className="text-lg font-semibold text-amber-900">章节关卡 · 生图调试（P1）</h1>
       <p className="text-sm text-stone-600">
-        可变尺寸程序生图 + CampaignMapGrid / LargeMapBattle。正式入口与兵符见设计文档 60-1；本页仅开发验收。
+        可变尺寸程序生图 + LargeMapGrid / LargeMapBattle。正式入口与兵符见设计文档 60-1；本页仅开发验收。
       </p>
 
       <div className="flex flex-wrap gap-2 items-end text-sm">
@@ -200,7 +200,7 @@ function ChapterStageDebugInner() {
               ? `${sim.deployRects.player.cols}×${sim.deployRects.player.rows}`
               : '-'}
           </div>
-          <CampaignMapGrid
+          <LargeMapGrid
             cells={sim.cells}
             seed={sim.seed}
             title={`${stage.stage_name}（预览）`}
@@ -216,11 +216,10 @@ function ChapterStageDebugInner() {
           key={battleKey}
           playerUnits={playerUnits}
           skillsMap={skillsMap}
-          campaignMapSim={sim}
+          mapSim={sim}
           playerDeployRect={sim.deployRects.player}
-          campaignPreset={{ campaign_id: stage.stage_id }}
-          campaignId={stage.stage_id}
-          campaignBattleTitle={stage.stage_name}
+          stageKey={stage.stage_id}
+          battleTitle={stage.stage_name}
           opponentName="章节敌军"
           maxRounds={stage.max_rounds || 30}
           recordOnly

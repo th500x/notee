@@ -2,7 +2,7 @@
  * 战略大地图：在合并格网中解析城/匪寨 POI 锚点与「自身标记」立点像素（城 `cityId`、匪寨 `banditPoiId`，见 `readStrategicCellAnchorId`）。
  */
 
-import { strategicMapObjectIs2x2 } from '@/utils/campaignMapVisualAssets';
+import { strategicMapObjectIs2x2 } from '@/utils/mapTileVisualAssets';
 import { readStrategicCellAnchorId } from '@shared/utils/strategicCellAnchorId.js';
 import {
   buildRoadPassableKeySetForMarch,

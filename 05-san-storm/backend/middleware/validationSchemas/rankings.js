@@ -16,13 +16,6 @@ const overallQuery = {
   sort: v.optional(v.enum(OVERALL_SORTS)),
 };
 
-const campaignQuery = {
-  campaignId: v.required(v.nonEmptyString({ max: 128 })),
-  limit: v.optional(queryLimit),
-  playerId: v.optional(playerId),
-  serverId: v.optional(v.nonEmptyString({ max: 32 })),
-};
-
 const eventRankingsQuery = {
   limit: v.optional(queryLimit),
   playerId: v.optional(playerId),
@@ -34,7 +27,6 @@ const eventIdParam = {
 
 module.exports = {
   overallQuery,
-  campaignQuery,
   eventRankingsQuery,
   eventIdParam,
 };

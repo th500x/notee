@@ -2,7 +2,7 @@
  * 战略道路行军：客户端最短路径与粮草预览（与 `backend/config/roadConfig.js` 常量对齐，供 UI 确认前展示）。
  */
 
-import { strategicMapObjectIs2x2 } from '@/utils/campaignMapVisualAssets';
+import { strategicMapObjectIs2x2 } from '@/utils/mapTileVisualAssets';
 import {
   buildRoadPassableKeySetForMarch,
   buildMarchPathToStrategicPoi as buildMarchPathToStrategicPoiShared,

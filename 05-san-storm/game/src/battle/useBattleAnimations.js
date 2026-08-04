@@ -37,7 +37,7 @@ import { troopHpTopHtml } from '@/utils/troopHpBlocks';
 import { troopRarityStarsHtml } from '@/utils/troopRarityStars';
 import { dist, troopAttackRange } from '@/battle/ai/battleTurnAi';
 import { mapTileIndex, tacticalTileIndex } from '@shared/utils/tacticalBattleGrid';
-import { outcomeIfCommanderEliminated } from '@/systems/battleCampaignRules';
+import { outcomeIfCommanderEliminated } from '@/systems/battleCommanderRules';
 import * as fmt from '@/systems/battleTextFormatter';
 import { applyMoraleOnStackEliminated } from '@/battle/commanderMorale';
 import { trimSkipForCombatPair, trimSkipForTroop } from '@/battle/battleLogPolicy';
@@ -68,7 +68,7 @@ export function sleep(ms, speed = 1) {
 /**
  * 战斗表现层：`battleSurfaceRef` 与 `mapCardRef` 二选一，由壳层注入；
  * 不在二者之间静默切换。
- * - 战役：`createCampaignBattleSurface`（`data-battle-y/x`）
+ * - 大型图：`createLargeMapBattleSurface`（`data-battle-y/x`）
  * - 事件/攻城：`createTacticalMapCardSurface`（委托 `.map-grid .tile`）
  */
 export function resolveTileElement(battleSurfaceRef, mapCardRef, y, x, mapResult = null) {
@@ -95,14 +95,14 @@ export function resolveSurfaceRoot(battleSurfaceRef, mapCardRef) {
  * 封装全部 DOM 渲染与战斗动画 `useCallback`，供 `useBattleEngine` 使用。
  *
  * @param {object}                 params
- * @param {React.MutableRefObject} params.battleSurfaceRef - 战役地图表面（可选）
+ * @param {React.MutableRefObject} params.battleSurfaceRef - 大型图格网表面（可选）
  * @param {React.MutableRefObject} params.mapCardRef       - 战术格网根节点
  * @param {object|null}            params.mapResult        - 当前战场地图数据
  * @param {function}               params.addLog           - 战斗日志追加函数
  * @param {React.MutableRefObject} params.speedRef         - 动画速度倍率（ref，不触发重渲染）
  * @param {Array}                  params.battleTroops     - 当前战场所有部队（可变数组）
  * @param {number}                 [params.siegeCityDefenseMult=1] - 攻城守方城防倍率（仅 def._siegeCityDefender 且主动一击）
- * @param {boolean}                [params.trimAllyBattleLog] - 战役：省略友军相关战报行（入库体积）
+ * @param {boolean}                [params.trimAllyBattleLog] - 大型图：省略友军相关战报行（入库体积）
  * @param {React.MutableRefObject} [params.battleReportDigestRef] - 入库回合摘要
  */
 export function useBattleAnimations({
@@ -248,7 +248,7 @@ export function useBattleAnimations({
       const fc =
         troop.faction === 'player' ? 'player' :
         troop.faction === 'enemy'  ? 'enemy'  :
-        (troop.campaignNpcForce ?? 'ally1');
+        (troop.npcForce ?? 'ally1');
       const topEl = old.querySelector('.troop-hp-top');
       if (topEl) topEl.outerHTML = troopHpTopHtml(troop.currentTroops, troop.maxTroops, fc);
       old.querySelector('.troop-hp-right')?.remove();
@@ -267,7 +267,7 @@ export function useBattleAnimations({
       const fc =
         troop.faction === 'player' ? 'player' :
         troop.faction === 'enemy'  ? 'enemy'  :
-        (troop.campaignNpcForce ?? 'ally1');
+        (troop.npcForce ?? 'ally1');
       const hpHtml = troopHpTopHtml(troop.currentTroops, troop.maxTroops, fc);
       const cr = troop.commanderRole;
       const isPlayerLordBar = troop.faction === 'player' && troop.lineupSlot === 'player';
@@ -580,7 +580,7 @@ export function useBattleAnimations({
     [addLog, getTroopLayer, getTileEl, battleTroops, trimAllyBattleLog, speedRef],
   );
 
-  /** 歼灭后若为主将 hero/boss，返回战役即时胜负 */
+  /** 歼灭后若为主将 hero/boss，返回即时胜负 */
   const runBattleKill = useCallback(
     async (troop) => {
       await battleKill(troop);

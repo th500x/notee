@@ -20,7 +20,6 @@ const IMPORT_JSON_SOURCES = [
   { file: 'equipment.json', label: '装备', arrayKey: 'equipment', idKey: 'id' },
   { file: 'treasures.json', label: '宝物', arrayKey: 'treasures', idKey: 'id' },
   { file: 'events.json', label: '事件', arrayKey: 'events', idKey: 'id' },
-  { file: 'campaigns.json', label: '战役', arrayKey: 'campaigns', idKey: 'campaign_id' },
   { file: 'items.json', label: '道具', arrayKey: 'items', idKey: 'id' },
   { file: 'adventureThemes.json', label: '探险主题', arrayKey: 'themes', idKey: 'id' },
   { file: 'chapters.json', label: '章节', arrayKey: 'chapters', idKey: 'id' },

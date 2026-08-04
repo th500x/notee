@@ -25,27 +25,6 @@ router.get('/overall', validateQuery(rankingSchemas.overallQuery), async (req, r
   }
 });
 
-router.get('/campaign', validateQuery(rankingSchemas.campaignQuery), async (req, res, next) => {
-  try {
-    const { campaignId, limit, playerId, serverId } = req.query;
-    const data = await rankingService.getCampaignRankings({
-      campaignId,
-      limit,
-      playerId,
-      serverId,
-    });
-    res.json({ success: true, data });
-  } catch (error) {
-    const code = error.statusCode || 500;
-    if (code >= 500) console.error('[rankings] campaign:', error);
-    const msg =
-      code === 400 ? error.message
-        : code === 404 ? error.message
-          : '获取战役排行失败';
-    res.status(code).json({ success: false, error: msg });
-  }
-});
-
 router.get(
   '/:eventId',
   validateParams(rankingSchemas.eventIdParam),

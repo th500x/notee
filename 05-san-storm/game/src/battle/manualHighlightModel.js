@@ -1,5 +1,5 @@
 /**
- * 手动战斗高亮：纯数据，由战术页 / 战役页各自渲染（不操作 DOM）。
+ * 手动战斗高亮：纯数据，由小型图 / 大型图各自渲染（不操作 DOM）。
  *
  * @typedef {{ y: number, x: number }} TacticalCell
  * @typedef {{ y: number, x: number, cost?: number }} MoveCell

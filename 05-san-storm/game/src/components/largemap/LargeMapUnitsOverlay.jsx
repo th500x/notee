@@ -1,6 +1,6 @@
-import CampaignUnitMarker from './CampaignUnitMarker';
+import LargeMapUnitMarker from './LargeMapUnitMarker';
 
-function battleTroopToCampaignUnit(t) {
+function battleTroopToMapUnit(t) {
   const rawId = String(t.id || '');
   const troopId =
     rawId.replace(/_p\d+$/, '').replace(/_e\d+$/, '') || t.troopId || rawId;
@@ -15,10 +15,10 @@ function battleTroopToCampaignUnit(t) {
 
 /**
  * 叠在象限虚线之上，避免与格内 z-index 与 shell 兄弟层冲突。
- * @param {boolean} showStaticNpcUnits 是否渲染 cell.campaignUnit 静态标记；战斗进行中应传 false，
+ * @param {boolean} showStaticNpcUnits 是否渲染 cell.mapUnit 静态标记；战斗进行中应传 false，
  *   避免与战斗引擎渲染的 .troop-layer 重叠（出现"幽灵部队"）。
  */
-export default function CampaignMapUnitsOverlay({
+export default function LargeMapUnitsOverlay({
   cells,
   playerByCell,
   deployTroopSelectMode = false,
@@ -27,7 +27,7 @@ export default function CampaignMapUnitsOverlay({
   showStaticNpcUnits = true,
 }) {
   return (
-    <div className="campaign-unit-layer" aria-hidden>
+    <div className="largemap-unit-layer" aria-hidden>
       {cells.map((row, ri) =>
         row.map((cell, ci) => {
           const key = `${ci},${ri}`;
@@ -37,7 +37,7 @@ export default function CampaignMapUnitsOverlay({
           return (
             <div
               key={`u-${ri}-${ci}`}
-              className="campaign-unit-cell"
+              className="largemap-unit-cell"
               data-tactical-y={ri}
               data-tactical-x={ci}
             >
@@ -46,8 +46,8 @@ export default function CampaignMapUnitsOverlay({
                   <button
                     type="button"
                     className={
-                      'campaign-unit-hit campaign-unit-hit--selectable p-0 m-0 border-0 bg-transparent' +
-                      (isSelected ? ' campaign-unit-hit--selected' : '')
+                      'largemap-unit-hit largemap-unit-hit--selectable p-0 m-0 border-0 bg-transparent' +
+                      (isSelected ? ' largemap-unit-hit--selected' : '')
                     }
                     title="点击选择/取消该部队，再在蓝色可部署格上点击落位"
                     onClick={(e) => {
@@ -55,14 +55,14 @@ export default function CampaignMapUnitsOverlay({
                       onPlayerUnitMarkerClick?.(pt);
                     }}
                   >
-                    <CampaignUnitMarker unit={battleTroopToCampaignUnit(pt)} />
+                    <LargeMapUnitMarker unit={battleTroopToMapUnit(pt)} />
                   </button>
                 ) : (
-                  <CampaignUnitMarker unit={battleTroopToCampaignUnit(pt)} />
+                  <LargeMapUnitMarker unit={battleTroopToMapUnit(pt)} />
                 )
               ) : null}
-              {!pt && showStaticNpcUnits && cell.campaignUnit ? (
-                <CampaignUnitMarker unit={cell.campaignUnit} />
+              {!pt && showStaticNpcUnits && cell.mapUnit ? (
+                <LargeMapUnitMarker unit={cell.mapUnit} />
               ) : null}
             </div>
           );

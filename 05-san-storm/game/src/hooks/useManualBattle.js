@@ -65,7 +65,7 @@ export function useManualBattle({
   setBattleTroops = null,
   /** 宝箱/随机箱/农场消耗后刷新对象瓦 */
   setMapResult = null,
-  /** 小型图左栏：为 true 时须先点「技能」才进入主动技选格；战役大地图等传 false，保持始终可施放主动技 */
+  /** 小型图左栏：为 true 时须先点「技能」才进入主动技选格；大型图等传 false，保持始终可施放主动技 */
   requireSkillModeToggle = true,
   /** `useSkillsMap()`：左栏技能名旁 tooltip 用主数据 `description` */
   skillsMap = {},

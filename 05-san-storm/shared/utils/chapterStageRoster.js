@@ -1,10 +1,10 @@
 /**
  * 章节关卡 roster 解析（须与 chapterStageRoster.cjs 同步）
  *
- * 语法对齐战役 units_spec 精神：
+ * 语法沿用已归档战役 units_spec 精神：
  *   side|char_id|troop_id:stack|morale:N|role:boss|ai:attack||…
  *
- * `troop_id:N` 与战役 `expandCampaignUnitsSpec` 同义：展开为 **N 个独立部队**，
+ * `troop_id:N` 沿用已归档战役 units_spec 语义：展开为 **N 个独立部队**，
  * 而非一个部队带 N 倍兵力。
  */
 

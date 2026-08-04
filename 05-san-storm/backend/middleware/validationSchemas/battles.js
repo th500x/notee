@@ -12,16 +12,15 @@ const BATTLE_TYPES = [
   'pvp_siege',
   'pvp_defense',
   'pvp_tactical_duel',
-  'pve_campaign',
   'pve_event',
   'pve_siege',
   'pve_bandit',
   'pve_chapter',
 ];
 
-const OPPONENT_TYPES = ['player', 'campaign_enemy', 'event_enemy'];
+const OPPONENT_TYPES = ['player', 'chapter_enemy', 'event_enemy'];
 const BATTLE_RESULTS = ['win', 'lose', 'draw'];
-const LIST_FILTERS = ['all', 'pvp', 'campaign', 'event', 'favorited'];
+const LIST_FILTERS = ['all', 'pvp', 'chapter', 'event', 'favorited'];
 
 const listQuery = {
   playerId: v.required(playerId),
@@ -43,7 +42,6 @@ const saveBattleBody = {
   pvpWarId: v.optional(v.idLike({ max: 128 })),
   opponentId: v.optional(v.nonEmptyString({ max: 128 })),
   opponentName: v.optional(v.string({ max: 128 })),
-  campaignId: v.optional(v.idLike({ max: 128 })),
   chapterId: v.optional(v.nonEmptyString({ max: 64 })),
   nodeId: v.optional(v.nonEmptyString({ max: 32 })),
   battleScore: v.optional(v.integer({ min: -1_000_000_000, max: 1_000_000_000 })),

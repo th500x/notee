@@ -1,7 +1,7 @@
 /**
  * TileTooltipContent - tile-tooltip 浮层内容渲染
  *
- * 供 BattleMap（小型地图）与 CampaignMapGrid（大型地图）共用。
+ * 供 BattleMap（小型地图）与 LargeMapGrid（大型地图）共用。
  * 父组件负责定位（fixed + x/y）和显示隐藏；本组件只渲染内层 DOM。
  *
  * @param {{ type: 'troop'|'tile'|'manualSkill'|'worldMapCity', troop?, fc?, hpPct?, rarityName?, typeName?,

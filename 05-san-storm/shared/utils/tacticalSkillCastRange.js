@@ -1,7 +1,7 @@
 /**
  * 战术地图：主动技施法曼哈顿射程（格），由技能 ID 中 **稀有度千位** 决定。
  * 格式：`san_{赛季}_skill_{类型}_{稀有度}{三位序号}`，如 `san_1_skill_1_3006` → 千位 `3`。
- * 与 `docs/00/00-base/04-1-ID_NAMING_GUIDE.md` §4 一致。
+ * 与 `docs/00-shared-core/00-base/03-shared-rules/03-2-ID_NAMING_GUIDE.md` §4 一致。
  */
 
 /**

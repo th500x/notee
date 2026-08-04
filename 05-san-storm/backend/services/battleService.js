@@ -65,7 +65,7 @@ async function saveBattle(battleData, options = {}) {
 /**
  * 获取玩家战斗记录列表
  * @param {string} playerId - 玩家ID
- * @param {string} filter - 筛选类型：all/pvp/campaign/event/favorited
+ * @param {string} filter - 筛选类型：all/pvp/chapter/event/favorited
  * @returns {Promise<Array>}
  */
 async function getBattles(playerId, filter = 'all') {

@@ -6,7 +6,7 @@
 const path = require('path');
 const { pathToFileURL } = require('url');
 const { pool } = require('../database/connection');
-const campaignService = require('./campaignService');
+const seasonBadgeService = require('./seasonBadgeService');
 const { resolveJunIdForBanditPoiId } = require('./playerBanditRaidQuotaService');
 
 const BUCKET = 'byBanditMapObjectId';
@@ -168,7 +168,7 @@ async function applyBanditRaidVictory(playerId, payload) {
     let banditBadgeError = null;
     if (badgeQty > 0) {
       try {
-        const bg = await campaignService.grantSeasonBadgeToPlayer(playerId, badgeQty);
+        const bg = await seasonBadgeService.grantSeasonBadgeToPlayer(playerId, badgeQty);
         if (bg.ok) banditBadgeGranted = bg.badge;
         else banditBadgeError = bg.error || 'badge grant failed';
       } catch (be) {

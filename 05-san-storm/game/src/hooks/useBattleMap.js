@@ -72,7 +72,7 @@ export function useBattleMap() {
   const [silverAmount, setSilverAmount] = useState(100);
   const [activeFormation, setActiveFormation] = useState(null);
 
-  /** 战斗结束原因：'max_rounds' | 'min_rounds' | 'campaign_boss_win' | 'campaign_hero_loss' | null */
+  /** 战斗结束原因：'max_rounds' | 'min_rounds' | 'commander_boss_win' | 'commander_hero_loss' | null */
   const [battleEndReason, setBattleEndReason] = useState(null);
 
   // ── 自动战斗/阵型 ──
@@ -338,7 +338,7 @@ export function useBattleMap() {
   }, []);
 
   return {
-    // 地图（战役模式可 setMapResult 写入切片，不必 generateSmallMapV2）
+    // 地图（大型图可 setMapResult 写入切片，不必 generateSmallMapV2）
     mapResult, setMapResult, mapLabel, setMapLabel, currentRarity, setCurrentRarity, seedInput, setSeedInput,
     generate, generateWithSeed,
     // 部队

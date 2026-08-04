@@ -266,11 +266,11 @@ export function fmtBattleEnd(result) {
   return '';
 }
 
-/** 战役主将阵亡导致的即时胜负（与全军覆没文案区分） */
-export function fmtCampaignCommanderEnd(result) {
-  if (result === 'enemy_win') return '💀 我方友军主将（hero）编制被歼灭，战役失败！';
+/** 主将阵亡导致的即时胜负（与全军覆没文案区分） */
+export function fmtCommanderEliminatedEnd(result) {
+  if (result === 'enemy_win') return '💀 我方友军主将（hero）编制被歼灭，战斗失败！';
   if (result === 'player_win') {
-    return '🏆 敌方全部主将（boss）编制已被击破，战役胜利！（若场上仍有敌军，按规则视同溃散，不再逐格交兵。）';
+    return '🏆 敌方全部主将（boss）编制已被击破，战斗胜利！（若场上仍有敌军，按规则视同溃散，不再逐格交兵。）';
   }
   return '';
 }

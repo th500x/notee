@@ -162,7 +162,7 @@ function applyBattlefieldEntries(cells, battlefield) {
 }
 
 /**
- * 战场中心信息区（不叠战役立绘 object；写 battlefieldZone=info）
+ * 战场中心信息区（不叠旧瓦片立绘 object；写 battlefieldZone=info）
  * @param {object[][]} cells
  * @param {{ battlefieldId: string, banditPoiId?: string, infoRect?: { anchorGx:number, anchorGy:number, width:number, height:number } }} battlefield
  */
@@ -285,8 +285,7 @@ function buildJunMergedFromMeowa(opts) {
       seed: opts.seed ?? null,
       mapColumns: size.mapColumns,
       mapRows: size.mapRows,
-      layout_profile: slots.layoutProfile,
-      campaignId: null,
+      layout_profile: slots.layoutProfile,
       cells: built.cells,
       roadCells: road.roadCells,
       roadConnectivity: road.roadConnectivity,

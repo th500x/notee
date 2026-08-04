@@ -2,9 +2,9 @@
  * 小型战术地图战斗壳层（8×10 格）
  * 适用：pve_event（事件战）、pve_bandit（匪寨）、pve_siege（攻城战）、pvp_siege（PVP 攻城）
  *
- * @see LargeMapBattle  大型战役地图（16×20，pve_campaign）
+ * @see LargeMapBattle  大型战术地图（章节战棋 pve_chapter）
  *
- * 与战役壳层共用：useBattleMap、useBattleEngine、useManualBattle、
+ * 与大型图壳层共用：useBattleMap、useBattleEngine、useManualBattle、
  *   useBattleSettlement、useAwayTimeout、BattleLog、BattleAuxPanel、MapLegend
  * 小型图专有：BattleMap 渲染、createTacticalMapCardSurface、
  *   renderTroopsToBattleMapDom、点格部署
@@ -226,7 +226,7 @@ export default function SmallMapBattle({
   const { awayNoticeOpen, flushAwayEndNotice } = useBattleSettlement({
     stage, bmRef, manualBattleRef, engineRef, mountedRef,
     battlePlaying: bm.battlePlaying,
-    battleType, playerId, silverAmount, campaignId: null,
+    battleType, playerId, silverAmount,
     defenseReportMeta, recordOnly, siegeDefenderType, opponentName,
     battleSettledRef: null,
     pendingAwayNoticeRef,

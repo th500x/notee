@@ -29,14 +29,14 @@ function countUnits(result, faction) {
   let n = 0;
   for (const row of result.cells) {
     for (const cell of row) {
-      const cu = cell?.campaignUnit;
+      const cu = cell?.mapUnit;
       if (cu && (faction ? cu.faction === faction : true)) n += 1;
     }
   }
   return n;
 }
 
-// 1. `troop_id:N` 展开为 N 个部队（与战役 expandCampaignUnitsSpec 同义）
+// 1. `troop_id:N` 展开为 N 个部队（沿用已归档战役 units_spec 的语义）
 {
   const units = parseChapterStageRoster('enemy|c1|t1:3|morale:40||enemy|c2|t2');
   assert.strictEqual(units.length, 4, 'stack 未按份数展开');

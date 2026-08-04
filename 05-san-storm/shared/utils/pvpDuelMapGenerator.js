@@ -307,7 +307,7 @@ export function generatePvpDuelMap(preset, { seed } = {}) {
   return raw;
 }
 
-/** 与 campaign 管理页一致：\[1, 2147483646\] */
+/** 与旧战役管理页一致（已归档）：\[1, 2147483646\] */
 export function randomDuelMapSeed() {
   if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
     const buf = new Uint32Array(1);

@@ -12,12 +12,12 @@ import { useTileTooltipClamp } from './useTileTooltipClamp';
 import TileTooltipContent from './TileTooltipContent';
 import { ManualAttackPreviewPanel } from './ManualAttackPreviewPanel';
 
-function anchorPositionForCell(target, campaignGridOverlay) {
+function anchorPositionForCell(target, largeMapGridOverlay) {
   if (!target) return null;
-  return campaignGridOverlay
+  return largeMapGridOverlay
     ? {
-        top: `calc(${target.y} * (var(--camp-tile, var(--tile)) + 1px))`,
-        left: `calc(${target.x} * (var(--camp-tile, var(--tile)) + 1px))`,
+        top: `calc(${target.y} * (var(--lm-tile, var(--tile)) + 1px))`,
+        left: `calc(${target.x} * (var(--lm-tile, var(--tile)) + 1px))`,
       }
     : {
         top: `calc(${target.y} * (var(--tile) + 1px))`,
@@ -29,7 +29,7 @@ function AttackPreview({
   attackPreview = null,
   healPreview = null,
   phase4ShapeOverlay = null,
-  campaignGridOverlay = false,
+  largeMapGridOverlay = false,
 }) {
   const healAnchorRef = useRef(null);
   const [tipPos, setTipPos] = useState({ x: 0, y: 0 });
@@ -86,7 +86,7 @@ function AttackPreview({
     if (!healClampMarker || !healAnchorRef.current) return;
     const r = healAnchorRef.current.getBoundingClientRect();
     setTipPos({ x: r.left + r.width / 2, y: r.top });
-  }, [healClampMarker, healPreview, campaignGridOverlay]);
+  }, [healClampMarker, healPreview, largeMapGridOverlay]);
 
   const { tooltipRef, tooltipStyle } = useTileTooltipClamp(healClampMarker, tipPos);
 
@@ -95,9 +95,9 @@ function AttackPreview({
     healPortalContent && healAnchorTarget
       ? {
           position: 'absolute',
-          ...anchorPositionForCell(healAnchorTarget, campaignGridOverlay),
-          width: campaignGridOverlay ? 'var(--camp-tile, var(--tile))' : 'var(--tile)',
-          height: campaignGridOverlay ? 'var(--camp-tile, var(--tile))' : 'var(--tile)',
+          ...anchorPositionForCell(healAnchorTarget, largeMapGridOverlay),
+          width: largeMapGridOverlay ? 'var(--lm-tile, var(--tile))' : 'var(--tile)',
+          height: largeMapGridOverlay ? 'var(--lm-tile, var(--tile))' : 'var(--tile)',
           zIndex: 55,
           pointerEvents: 'none',
         }
@@ -117,8 +117,8 @@ function AttackPreview({
     damageInlinePayload && damageAnchorTarget
       ? {
           position: 'absolute',
-          ...anchorPositionForCell(damageAnchorTarget, campaignGridOverlay),
-          width: campaignGridOverlay ? 'var(--camp-tile, var(--tile))' : 'var(--tile)',
+          ...anchorPositionForCell(damageAnchorTarget, largeMapGridOverlay),
+          width: largeMapGridOverlay ? 'var(--lm-tile, var(--tile))' : 'var(--tile)',
           zIndex: 56,
           pointerEvents: 'none',
           display: 'flex',
@@ -159,10 +159,10 @@ function AttackPreview({
   if (!attackPreview || attackPreview.phase4Random) return null;
   const { target } = attackPreview;
 
-  const pos = campaignGridOverlay
+  const pos = largeMapGridOverlay
     ? {
-        top: `calc(${target.y} * (var(--camp-tile, var(--tile)) + 1px))`,
-        left: `calc(${target.x} * (var(--camp-tile, var(--tile)) + 1px))`,
+        top: `calc(${target.y} * (var(--lm-tile, var(--tile)) + 1px))`,
+        left: `calc(${target.x} * (var(--lm-tile, var(--tile)) + 1px))`,
       }
     : {
         top: `calc(${target.y} * (var(--tile) + 1px))`,
@@ -177,7 +177,7 @@ function AttackPreview({
       style={{
         position: 'absolute',
         ...pos,
-        width: campaignGridOverlay ? 'var(--camp-tile, var(--tile))' : 'var(--tile)',
+        width: largeMapGridOverlay ? 'var(--lm-tile, var(--tile))' : 'var(--tile)',
         zIndex: 55,
         pointerEvents: 'none',
         display: 'flex',
