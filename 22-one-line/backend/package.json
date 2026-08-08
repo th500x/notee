@@ -1,0 +1,26 @@
+{
+  "name": "one-line-backend",
+  "version": "0.1.0",
+  "description": "22-one-line API — Notee Go One Line / 今日一句 (port 3022)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js",
+    "db:migrate": "node scripts/apply-pending-local-ddl.js",
+    "jobs:daily": "node scripts/run-daily-maintenance.js"
+  },
+  "license": "UNLICENSED",
+  "private": true,
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "express-rate-limit": "^8.5.2",
+    "jsonwebtoken": "^9.0.2",
+    "mysql2": "^3.18.2",
+    "node-cron": "^3.0.3"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  }
+}
