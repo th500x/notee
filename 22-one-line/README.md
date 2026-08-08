@@ -14,10 +14,39 @@ Notee Go「今日一句」后端。产品设计见 sibling `KIRO/notee-go` → `
 | PM2 | `one-line-backend` |
 | 阶段 | **P5** — + TTL + 月榜 |
 
+## 常用命令（与 05 同形式）
+
+在仓库根目录 `notee/` 下：
+
+```bash
+# 安装后端依赖
+cd 22-one-line/backend && npm install
+
+# 首次启动 PM2（仅一次；在 22-one-line 目录）
+cd /www/wwwroot/notee/22-one-line
+pm2 start ecosystem.config.cjs
+
+# 重启 PM2 进程（日常发版）
+pm2 restart one-line-backend
+```
+
+发版常见组合：
+
+```bash
+cd 22-one-line/backend && npm install
+pm2 restart one-line-backend
+```
+
+建表 / 迁移（配好 `backend/.env` 后）：
+
+```bash
+cd 22-one-line/backend && npm run db:migrate
+```
+
 ## 本地启动
 
 ```bash
-cd backend
+cd 22-one-line/backend
 cp .env.example .env   # 必填 JWT_SECRET（>=16）
 npm install
 npm run db:migrate
@@ -42,4 +71,13 @@ npm run jobs:daily
 
 完整步骤（DB / JWT / Nginx / PM2 / 冒烟 / App）：见 **[`docs/DEPLOY.md`](./docs/DEPLOY.md)**。
 
-简版：建库 → `.env`（含独立 `JWT_SECRET`、`MIGRATION_ASSUME_DB_EXISTS=1`）→ `db:migrate` → Nginx `/api/oneline` → `3022` → `pm2 start ecosystem.config.cjs`。
+简版：建库 → `backend/.env`（独立 `JWT_SECRET`、`MIGRATION_ASSUME_DB_EXISTS=1`）→ `npm run db:migrate` → Nginx `/api/oneline` → `3022` → 上方 PM2 命令。
+
+若以前用旧 `ecosystem`（cwd 在项目根）起过进程，改布局后请：
+
+```bash
+pm2 delete one-line-backend
+cd /www/wwwroot/notee/22-one-line
+pm2 start ecosystem.config.cjs
+pm2 save
+```
