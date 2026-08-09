@@ -213,8 +213,30 @@ function decodeCursor(raw) {
  * @param {object} queryIn
  * @param {{ viewerUserId?: string|null }} [opts]
  */
+const STAMP_COUNTRY_IDS = new Set(['th', 'my', 'vn', 'id', 'cn', 'kr', 'jp']);
+/** Product series ids — keep in sync with app StampSeries. */
+const STAMP_SERIES_IDS = new Set(['all', 'region', 'scenery', 'treasure']);
+const REGION_COUNTRY_PREFIXES = [...STAMP_COUNTRY_IDS].map((c) => `${c}_`);
+
+function assertStampCountry(raw) {
+  if (typeof raw !== 'string' || !STAMP_COUNTRY_IDS.has(raw)) {
+    throw httpError(400, 'stampCountry 无效', 'BAD_STAMP_COUNTRY');
+  }
+  return raw;
+}
+
+function assertStampSeries(raw) {
+  if (raw == null || raw === '') return 'region';
+  if (typeof raw !== 'string' || !STAMP_SERIES_IDS.has(raw)) {
+    throw httpError(400, 'stampSeries 无效', 'BAD_STAMP_SERIES');
+  }
+  return raw;
+}
+
 async function getFeed(queryIn = {}, opts = {}) {
-  const scope = queryIn.scope === 'flag' ? 'flag' : 'all';
+  const scopeRaw = typeof queryIn.scope === 'string' ? queryIn.scope : 'all';
+  const scope =
+    scopeRaw === 'flag' || scopeRaw === 'stamp' ? scopeRaw : 'all';
   let limit = parseInt(queryIn.limit, 10);
   if (!Number.isFinite(limit) || limit <= 0) limit = FEED_DEFAULT_LIMIT;
   limit = Math.min(limit, FEED_MAX_LIMIT);
@@ -267,6 +289,47 @@ async function getFeed(queryIn = {}, opts = {}) {
     }
     sql += ` AND p.flag_id = ?`;
     params.push(flagId);
+  }
+
+  if (scope === 'stamp') {
+    const stampSeries = assertStampSeries(queryIn.stampSeries);
+    sql += ` AND p.stamp_id IS NOT NULL`;
+
+    if (stampSeries === 'all') {
+      // Any series — no further stamp filters.
+    } else if (stampSeries === 'region') {
+      if (queryIn.stampCountry != null && queryIn.stampCountry !== '') {
+        const country = assertStampCountry(queryIn.stampCountry);
+        if (queryIn.stampId != null && queryIn.stampId !== '') {
+          const stampId = assertStampId(queryIn.stampId);
+          if (!stampId.startsWith(`${country}_`)) {
+            throw httpError(400, 'stampId 与 stampCountry 不匹配', 'BAD_STAMP');
+          }
+          sql += ` AND p.stamp_id = ?`;
+          params.push(stampId);
+        } else {
+          sql += ` AND p.stamp_id LIKE ?`;
+          params.push(`${country}_%`);
+        }
+      } else {
+        // Whole Region series (all countries).
+        sql += ` AND (${REGION_COUNTRY_PREFIXES.map(() => 'p.stamp_id LIKE ?').join(' OR ')})`;
+        REGION_COUNTRY_PREFIXES.forEach((p) => params.push(`${p}%`));
+      }
+    } else {
+      // Reserved non-region series: id prefix = series id (e.g. scenery_fuji).
+      if (queryIn.stampId != null && queryIn.stampId !== '') {
+        const stampId = assertStampId(queryIn.stampId);
+        if (!stampId.startsWith(`${stampSeries}_`)) {
+          throw httpError(400, 'stampId 与 stampSeries 不匹配', 'BAD_STAMP');
+        }
+        sql += ` AND p.stamp_id = ?`;
+        params.push(stampId);
+      } else {
+        sql += ` AND p.stamp_id LIKE ?`;
+        params.push(`${stampSeries}_%`);
+      }
+    }
   }
 
   if (cursor) {
