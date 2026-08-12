@@ -170,19 +170,18 @@ router.get('/public/gallery/:token', async (req, res) => {
     if (!gallery) {
       return res.status(404).json({ success: false, error: '链接无效或已失效' });
     }
-    // Drive-only 校验已停用；公开页以 OSS photos 为主
-    // if (!gallery.driveFolderUrl) {
-    //   return res.status(404).json({ success: false, error: '未配置 Google 云端硬盘链接' });
-    // }
-    if (!gallery.photos?.length) {
-      return res.status(404).json({ success: false, error: '图库暂无图片' });
+    const photos = gallery.photos || [];
+    const driveFolderUrl = gallery.driveFolderUrl || '';
+    // 双轨兼容：历史 Drive 链接 或 新 OSS photos 任一即可
+    if (!photos.length && !driveFolderUrl) {
+      return res.status(404).json({ success: false, error: '图库暂无内容' });
     }
     return res.json({
       success: true,
       room: gallery.room,
-      photos: gallery.photos || [],
+      photos,
+      driveFolderUrl,
       listing: gallery.listing || {}
-      // driveFolderUrl: gallery.driveFolderUrl || '',
     });
   } catch (error) {
     console.error('[API] 公开图库查询失败:', error);

@@ -24,10 +24,11 @@ const MESSAGES = {
     downloadFailed: '下载失败，请长按图片保存',
     capturedLabel: '拍摄',
     photoAlt: '图片',
-    // Drive 文案保留（方案停用，暂不展示）
     drivePreviewTitle: 'Google 云端硬盘预览',
     drivePreviewHint:
       '点击下方网格可放大；批量下载请用下方按钮在 Google App 中打开（尤其安卓）。若预览空白，请确认文件夹已设为「知道链接的人可查看」。',
+    driveLegacyWithOssHint:
+      '本房源仍保留历史 Google 云端硬盘链接；下方另有本站图片时可直接「下载全部」。',
     iframeTitle: 'Google 云端硬盘图片预览',
     embedFallback: '无法嵌入预览，请使用下方按钮打开文件夹。',
     openInDrive: '在 Google 云端硬盘中打开',
@@ -84,6 +85,8 @@ const MESSAGES = {
     drivePreviewTitle: 'Google Drive preview',
     drivePreviewHint:
       'Tap the grid below to enlarge. For bulk download, use the button below to open in the Google app (especially on Android). If the preview is blank, make sure the folder is shared as “Anyone with the link can view”.',
+    driveLegacyWithOssHint:
+      'This listing still has a legacy Google Drive folder. Photos below can be downloaded all at once from this site.',
     iframeTitle: 'Google Drive photo preview',
     embedFallback: 'Preview cannot be embedded. Please use the button below to open the folder.',
     openInDrive: 'Open in Google Drive',
@@ -141,6 +144,8 @@ const MESSAGES = {
     drivePreviewTitle: 'ตัวอย่าง Google Drive',
     drivePreviewHint:
       'แตะตารางด้านล่างเพื่อขยาย สำหรับดาวน์โหลดหลายไฟล์ ให้ใช้ปุ่มด้านล่างเปิดในแอป Google (โดยเฉพาะ Android) หากตัวอย่างว่าง ให้ตรวจสอบว่าโฟลเดอร์ตั้งค่าเป็น “ทุกคนที่มีลิงก์ดูได้”',
+    driveLegacyWithOssHint:
+      'รายการนี้ยังมีโฟลเดอร์ Google Drive เดิม รูปด้านล่างจากเว็บไซต์นี้สามารถดาวน์โหลดทั้งหมดได้',
     iframeTitle: 'ตัวอย่างรูปภาพ Google Drive',
     embedFallback: 'ไม่สามารถฝังตัวอย่างได้ กรุณาใช้ปุ่มด้านล่างเปิดโฟลเดอร์',
     openInDrive: 'เปิดใน Google Drive',
@@ -225,7 +230,7 @@ export function translateGalleryShareError(locale, msg) {
   if (text.includes('未配置 Google') || text.includes('云端硬盘')) {
     return galleryShareT(locale, 'errorNoDrive');
   }
-  if (text.includes('图库暂无图片') || text.includes('没有图片')) {
+  if (text.includes('图库暂无图片') || text.includes('图库暂无内容') || text.includes('没有图片')) {
     return galleryShareT(locale, 'errorNoPhotos');
   }
   if (text === '加载图库失败') {

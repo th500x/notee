@@ -12,8 +12,7 @@ import {
   copyGalleryShareUrl,
   buildGalleryShareUrl
 } from '../../utils/accountingGalleryShare';
-// Drive 方案暂时停用（保留字段与工具，便于日后恢复）
-// import { normalizeGalleryDriveFolderUrl } from '../../utils/galleryDriveLink';
+import { normalizeGalleryDriveFolderUrl } from '../../utils/galleryDriveLink';
 import {
   normalizeGalleryListing,
   GALLERY_LAYOUT_OPTIONS,
@@ -68,8 +67,7 @@ const fieldCls =
   'w-full text-xs px-2 py-1.5 border border-gray-300 rounded focus:outline-none focus:border-blue-500';
 
 /**
- * 账目单租金行 — 图库（OSS 上传 + 房源说明 + 分享）
- * Google Drive 方案已注释停用。
+ * 账目单租金行 — 图库（OSS 上传为主 + 兼容历史 Google Drive 链接 + 房源说明 + 分享）
  */
 export function AccountingRowGalleryModal({
   isOpen,
@@ -90,6 +88,8 @@ export function AccountingRowGalleryModal({
   const [shareHint, setShareHint] = useState('');
 
   const photos = row?.photos || [];
+  const driveUrl = (row?.galleryDriveFolderUrl || '').trim();
+  const canShareGallery = photos.length > 0 || !!driveUrl;
   const roomLabel = row?.room?.trim() || '（未填房号）';
   const panelStyle = useGalleryPanelStyle(isOpen);
   const listing = normalizeGalleryListing(row?.galleryListing);
@@ -194,8 +194,6 @@ export function AccountingRowGalleryModal({
     }
   };
 
-  /*
-  // —— Google Drive 链接处理（暂时停用）——
   const handleDriveUrlBlur = (raw) => {
     const normalized = normalizeGalleryDriveFolderUrl(raw);
     const patch = { galleryDriveFolderUrl: normalized };
@@ -204,11 +202,10 @@ export function AccountingRowGalleryModal({
     }
     patchRow(patch);
   };
-  */
 
   const handleShare = async () => {
-    if (!photos.length) {
-      alert('请先上传照片，再分享');
+    if (!canShareGallery) {
+      alert('请先上传照片，或保留/填写 Google 云端硬盘文件夹链接');
       return;
     }
     if (galleryUnsaved) {
@@ -228,7 +225,7 @@ export function AccountingRowGalleryModal({
   };
 
   const handleRegenerateLink = () => {
-    if (!photos.length) return;
+    if (!canShareGallery) return;
     if (
       !confirm(
         '重新生成链接后，旧链接将立即失效。确定继续？\n\n生成后请保存到服务器，再点「分享」复制新链接。'
@@ -274,6 +271,7 @@ export function AccountingRowGalleryModal({
       patchRow({
         photos: savedPhotos,
         galleryShareToken: savedRow?.galleryShareToken || '',
+        galleryDriveFolderUrl: savedRow?.galleryDriveFolderUrl || '',
         galleryListing: savedRow?.galleryListing || row?.galleryListing
       });
     }
@@ -305,7 +303,7 @@ export function AccountingRowGalleryModal({
               图片库 · {roomLabel}
             </h3>
             <p className="text-[11px] text-white/85 mt-0.5">
-              OSS · 单张 ≤{config.oss.maxFileSize / 1024 / 1024}MB · 上传后请保存
+              OSS 上传（推荐）· 兼容原 Drive 链接 · 单张 ≤{config.oss.maxFileSize / 1024 / 1024}MB
             </p>
           </div>
           <button
@@ -334,31 +332,33 @@ export function AccountingRowGalleryModal({
             >
               {uploading ? '上传中…' : photos.length ? '继续上传' : '选择图片'}
             </button>
+            {canShareGallery ? (
+              <button
+                type="button"
+                onClick={handleShare}
+                className="px-3 py-2 text-sm rounded bg-emerald-600 text-white hover:bg-emerald-700"
+              >
+                分享
+              </button>
+            ) : null}
+            {canShareGallery ? (
+              <button
+                type="button"
+                onClick={handleRegenerateLink}
+                className="px-3 py-2 text-sm rounded border border-gray-300 text-gray-700 hover:bg-gray-50"
+              >
+                重新生成链接
+              </button>
+            ) : null}
             {photos.length > 0 ? (
-              <>
-                <button
-                  type="button"
-                  onClick={handleShare}
-                  className="px-3 py-2 text-sm rounded bg-emerald-600 text-white hover:bg-emerald-700"
-                >
-                  分享
-                </button>
-                <button
-                  type="button"
-                  onClick={handleRegenerateLink}
-                  className="px-3 py-2 text-sm rounded border border-gray-300 text-gray-700 hover:bg-gray-50"
-                >
-                  重新生成链接
-                </button>
-                <button
-                  type="button"
-                  onClick={handleDeleteAllPhotos}
-                  disabled={uploading}
-                  className="px-3 py-2 text-sm rounded bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
-                >
-                  全部删除
-                </button>
-              </>
+              <button
+                type="button"
+                onClick={handleDeleteAllPhotos}
+                disabled={uploading}
+                className="px-3 py-2 text-sm rounded bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
+              >
+                全部删除 OSS
+              </button>
             ) : null}
           </div>
 
@@ -385,11 +385,9 @@ export function AccountingRowGalleryModal({
             </p>
           ) : null}
 
-          {/*
-          // —— Google 云端硬盘文件夹（暂时停用）——
           <div className="space-y-1.5 pt-1 border-t border-gray-100">
             <label htmlFor="gallery-drive-url" className="block text-xs font-medium text-gray-700">
-              Google 云端硬盘文件夹
+              Google 云端硬盘文件夹（历史兼容 · 可保留）
             </label>
             <input
               id="gallery-drive-url"
@@ -400,8 +398,10 @@ export function AccountingRowGalleryModal({
               placeholder="https://drive.google.com/drive/folders/…"
               className={fieldCls}
             />
+            <p className="text-[10px] text-gray-500 leading-snug">
+              生产端已有 Drive 链接请勿清空；新图建议用上方「选择图片」上传到 OSS，手机端即可「下载全部」。
+            </p>
           </div>
-          */}
 
           <input
             ref={fileInputRef}
@@ -413,8 +413,10 @@ export function AccountingRowGalleryModal({
           />
 
           {photos.length === 0 ? (
-            <div className="py-8 text-center text-gray-500 border border-dashed border-gray-300 rounded-lg text-sm">
-              暂无图片，点击「选择图片」上传到 OSS
+            <div className="py-6 text-center text-gray-500 border border-dashed border-gray-300 rounded-lg text-sm px-3">
+              {driveUrl
+                ? '暂无 OSS 图片（公开页仍显示下方 Drive 预览）。可继续上传到 OSS 以支持手机一键下载。'
+                : '暂无图片，点击「选择图片」上传到 OSS'}
             </div>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">

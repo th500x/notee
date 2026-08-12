@@ -86,9 +86,8 @@ export default function AccountingSheetPage({ project, onBack, onSaved, onProjec
         JSON.stringify(cur.photos || []) !== JSON.stringify(base?.photos || []) ||
         JSON.stringify(normalizeGalleryListing(cur.galleryListing)) !==
           JSON.stringify(normalizeGalleryListing(base?.galleryListing)) ||
-        (cur.galleryShareToken || '') !== (base?.galleryShareToken || '')
-        // Drive 字段暂不参与未保存判断
-        // || (cur.galleryDriveFolderUrl || '') !== (base?.galleryDriveFolderUrl || '')
+        (cur.galleryShareToken || '') !== (base?.galleryShareToken || '') ||
+        (cur.galleryDriveFolderUrl || '') !== (base?.galleryDriveFolderUrl || '')
       );
     },
     [sheet.rentRows, savedSheet.rentRows]
