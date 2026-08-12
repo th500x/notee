@@ -1,9 +1,12 @@
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import PhotoViewer from '../components/PhotoViewer';
 import {
   fetchPublicGallery,
-  saveAllGalleryPhotos,
-  downloadSinglePhoto
+  prepareGalleryPhotoFiles,
+  shareGalleryPhotoFiles,
+  downloadGalleryFilesSequential,
+  downloadSinglePhoto,
+  probeCanShareFiles
 } from '../utils/accountingGalleryShare';
 import { formatCaptureTimeDisplay, getPhotoCaptureIso } from '../utils/photoCaptureTime';
 import { buildGalleryListingDisplayLines } from '../utils/galleryListing';
@@ -32,11 +35,18 @@ export default function AccountingGallerySharePage({ token }) {
   const [listing, setListing] = useState({});
   const [viewerIndex, setViewerIndex] = useState(null);
   const [saveProgress, setSaveProgress] = useState('');
-  const [saving, setSaving] = useState(false);
+  const [preparing, setPreparing] = useState(false);
+  const [preparedFiles, setPreparedFiles] = useState(null);
+  const [sharing, setSharing] = useState(false);
+  const supportsShareRef = useRef(false);
 
   useEffect(() => {
     document.documentElement.lang = galleryShareHtmlLang(locale);
   }, [locale]);
+
+  useEffect(() => {
+    supportsShareRef.current = probeCanShareFiles();
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -63,23 +73,77 @@ export default function AccountingGallerySharePage({ token }) {
     };
   }, [token, locale, t.errorLoadFailed]);
 
-  const handleSaveAll = useCallback(async () => {
-    if (!photos.length || saving) return;
-    setSaving(true);
+  /** 第一步：并行准备文件（完成后需再点一次以保留手势，才能进相册） */
+  const handlePrepareAll = useCallback(async () => {
+    if (!photos.length || preparing) return;
+    supportsShareRef.current = probeCanShareFiles();
+    setPreparing(true);
+    setPreparedFiles(null);
     setSaveProgress(t.savePreparing);
     try {
-      const mode = await saveAllGalleryPhotos(token, photos, room, (cur, total) => {
-        setSaveProgress(t.saveProgress.replace('{cur}', String(cur)).replace('{total}', String(total)));
+      const files = await prepareGalleryPhotoFiles(token, photos, room, (cur, total) => {
+        setSaveProgress(t.prepareProgress.replace('{cur}', String(cur)).replace('{total}', String(total)));
       });
-      setSaveProgress(mode === 'share' ? t.saveDoneShare : t.saveDoneSequential);
+      setPreparedFiles(files);
+      if (supportsShareRef.current) {
+        setSaveProgress(t.prepareReadyShare);
+      } else {
+        setSaveProgress(t.prepareReadyDownload);
+      }
+    } catch (err) {
+      setPreparedFiles(null);
+      setSaveProgress('');
+      alert(err.message || t.saveFailed);
+    } finally {
+      setPreparing(false);
+    }
+  }, [photos, preparing, room, token, t]);
+
+  /** 第二步（推荐）：系统分享 → 用户选「存储到相册」 */
+  const handleShareToAlbum = useCallback(async () => {
+    if (!preparedFiles?.length || sharing) return;
+    setSharing(true);
+    setSaveProgress(t.sharingHint);
+    try {
+      const mode = await shareGalleryPhotoFiles(preparedFiles, room, (cur, total) => {
+        if (total > 1) {
+          setSaveProgress(
+            t.shareBatchProgress.replace('{cur}', String(cur)).replace('{total}', String(total))
+          );
+        }
+      });
+      if (mode === 'share') {
+        setSaveProgress(t.saveDoneShare);
+        setTimeout(() => setSaveProgress(''), 5000);
+      } else {
+        setSaveProgress(t.shareUnsupported);
+      }
     } catch (err) {
       setSaveProgress('');
       alert(err.message || t.saveFailed);
     } finally {
-      setSaving(false);
-      setTimeout(() => setSaveProgress(''), 4000);
+      setSharing(false);
     }
-  }, [photos, room, saving, token, t]);
+  }, [preparedFiles, room, sharing, t]);
+
+  /** 备选：逐张进浏览器「下载」目录（无法直写相册） */
+  const handleDownloadToFiles = useCallback(async () => {
+    if (!preparedFiles?.length || sharing) return;
+    setSharing(true);
+    setSaveProgress(t.downloadToFilesHint);
+    try {
+      await downloadGalleryFilesSequential(preparedFiles, (cur, total) => {
+        setSaveProgress(t.saveProgress.replace('{cur}', String(cur)).replace('{total}', String(total)));
+      });
+      setSaveProgress(t.saveDoneSequential);
+      setTimeout(() => setSaveProgress(''), 5000);
+    } catch (err) {
+      setSaveProgress('');
+      alert(err.message || t.saveFailed);
+    } finally {
+      setSharing(false);
+    }
+  }, [preparedFiles, sharing, t]);
 
   const roomLabel = room?.trim() || '—';
   const hasPhotos = photos.length > 0;
@@ -93,6 +157,7 @@ export default function AccountingGallerySharePage({ token }) {
     () => (hasDrive ? buildDriveFolderEmbedUrl(driveFolderUrl) : ''),
     [hasDrive, driveFolderUrl]
   );
+  const readyCount = preparedFiles?.length || 0;
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -142,7 +207,6 @@ export default function AccountingGallerySharePage({ token }) {
               </section>
             ) : null}
 
-            {/* 历史数据：仅有 Google Drive 时仍可预览 / 打开 */}
             {hasDrive ? (
               <section className="mb-5 bg-white rounded-lg border border-emerald-200 shadow-sm overflow-hidden">
                 <div className="px-4 py-3 border-b border-emerald-100 bg-emerald-50/80">
@@ -177,42 +241,72 @@ export default function AccountingGallerySharePage({ token }) {
               </section>
             ) : null}
 
-            {/* 新流程：OSS 图片 + 下载全部 */}
             {hasPhotos ? (
               <>
-                <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-4">
-                  <button
-                    type="button"
-                    onClick={handleSaveAll}
-                    disabled={saving}
-                    className="px-4 py-2.5 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 disabled:opacity-50"
-                  >
-                    {saving ? t.savingAll : t.saveAll}
-                  </button>
-                  {saveProgress ? <span className="text-sm text-gray-600">{saveProgress}</span> : null}
-                </div>
-                <p className="text-xs text-gray-500 mb-4">{t.saveAllHint}</p>
+                <div className="mb-4 p-4 bg-white rounded-lg border border-blue-200 shadow-sm space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={handlePrepareAll}
+                      disabled={preparing || sharing}
+                      className="px-4 py-2.5 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 disabled:opacity-50"
+                    >
+                      {preparing ? t.savingAll : t.saveAll}
+                    </button>
+                    {saveProgress ? (
+                      <span className="text-sm text-gray-600">{saveProgress}</span>
+                    ) : null}
+                  </div>
+                  <p className="text-xs text-gray-500">{t.saveAllHint}</p>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {readyCount > 0 ? (
+                    <div className="pt-2 border-t border-gray-100 space-y-2">
+                      <p className="text-sm text-gray-800 font-medium">
+                        {t.readyCountLabel.replace('{n}', String(readyCount))}
+                      </p>
+                      <div className="flex flex-col sm:flex-row gap-2">
+                        <button
+                          type="button"
+                          onClick={handleShareToAlbum}
+                          disabled={sharing || preparing}
+                          className="px-4 py-2.5 rounded-lg bg-emerald-600 text-white font-medium hover:bg-emerald-700 disabled:opacity-50"
+                        >
+                          {sharing ? t.sharingBusy : t.saveToAlbum}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleDownloadToFiles}
+                          disabled={sharing || preparing}
+                          className="px-4 py-2.5 rounded-lg border border-gray-300 text-gray-700 font-medium hover:bg-gray-50 disabled:opacity-50"
+                        >
+                          {t.downloadToFiles}
+                        </button>
+                      </div>
+                      <p className="text-xs text-gray-500">{t.albumVsDownloadHint}</p>
+                    </div>
+                  ) : null}
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 sm:gap-3">
                   {photos.map((photo, index) => (
                     <div
                       key={photo.id}
-                      className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden"
+                      className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden min-w-0"
                     >
                       <button
                         type="button"
-                        className="block w-full aspect-[4/3] bg-gray-100"
+                        className="block w-full aspect-square bg-gray-100"
                         onClick={() => setViewerIndex(index)}
                       >
                         <img
                           src={photo.url}
                           alt={photo.name || `${t.photoAlt} ${index + 1}`}
-                          className="w-full h-full object-contain"
+                          className="w-full h-full object-cover"
                         />
                       </button>
-                      <div className="px-3 py-2 flex items-center justify-between gap-2 border-t border-gray-100">
-                        <span className="text-xs text-gray-600">
-                          {t.capturedLabel} {formatCaptureTimeDisplay(getPhotoCaptureIso(photo))}
+                      <div className="px-1.5 py-1.5 sm:px-2 flex items-center justify-between gap-1 border-t border-gray-100">
+                        <span className="text-[10px] sm:text-xs text-gray-600 truncate min-w-0">
+                          {formatCaptureTimeDisplay(getPhotoCaptureIso(photo))}
                         </span>
                         <button
                           type="button"
@@ -221,7 +315,7 @@ export default function AccountingGallerySharePage({ token }) {
                               alert(t.downloadFailed);
                             })
                           }
-                          className="text-xs text-blue-600 hover:underline shrink-0"
+                          className="text-[10px] sm:text-xs text-blue-600 hover:underline shrink-0"
                         >
                           {t.downloadOne}
                         </button>
