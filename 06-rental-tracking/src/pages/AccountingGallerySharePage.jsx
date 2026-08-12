@@ -39,10 +39,12 @@ export default function AccountingGallerySharePage({ token }) {
   const [listing, setListing] = useState({});
   const [viewerIndex, setViewerIndex] = useState(null);
   const [saveProgress, setSaveProgress] = useState('');
+  const [downloading, setDownloading] = useState(false);
   const [preparing, setPreparing] = useState(false);
   const [preparedFiles, setPreparedFiles] = useState(null);
   const [sharing, setSharing] = useState(false);
   const [copyHint, setCopyHint] = useState('');
+  const [canShareFiles, setCanShareFiles] = useState(false);
   const supportsShareRef = useRef(false);
 
   useEffect(() => {
@@ -50,7 +52,9 @@ export default function AccountingGallerySharePage({ token }) {
   }, [locale]);
 
   useEffect(() => {
-    supportsShareRef.current = probeCanShareFiles();
+    const ok = probeCanShareFiles();
+    supportsShareRef.current = ok;
+    setCanShareFiles(ok);
   }, []);
 
   useEffect(() => {
@@ -81,7 +85,6 @@ export default function AccountingGallerySharePage({ token }) {
     setSaveProgress(t.openInBrowserBusy);
     const jumped = tryOpenInSystemBrowser();
     if (!jumped) {
-      // iOS / 被拦截：提示手动菜单；进度条短提示后清掉
       setSaveProgress(t.inAppSaveBlocked);
       setTimeout(() => setSaveProgress(''), 5000);
     } else {
@@ -100,49 +103,67 @@ export default function AccountingGallerySharePage({ token }) {
     }
   }, [t]);
 
-  /** 手机：并行准备后二次点击走系统分享；PC 无分享时走代理逐张下载 */
-  const handlePrepareAll = useCallback(async () => {
-    if (!photos.length || preparing) return;
-
-    // 微信 / LINE 等内置浏览器：不要空跑准备流程，改为引导外开
+  /** 一次性下载全部（与单张「下载」相同代理方式） */
+  const handleDownloadAll = useCallback(async () => {
+    if (!photos.length || downloading || preparing || sharing) return;
     if (inApp.restricted) {
       handleOpenInBrowser();
       return;
     }
-
-    supportsShareRef.current = probeCanShareFiles();
-    setPreparing(true);
-    setPreparedFiles(null);
-    setSaveProgress(t.savePreparing);
+    setDownloading(true);
+    setSaveProgress(t.saveProgress.replace('{cur}', '0').replace('{total}', String(photos.length)));
     try {
-      if (!supportsShareRef.current) {
-        await downloadAllViaProxyUrls(token, photos, room, (cur, total) => {
-          setSaveProgress(t.saveProgress.replace('{cur}', String(cur)).replace('{total}', String(total)));
-        });
-        setSaveProgress(t.saveDoneSequential);
-        setTimeout(() => setSaveProgress(''), 4000);
-        return;
-      }
-      const files = await prepareGalleryPhotoFiles(token, photos, room, (cur, total) => {
-        setSaveProgress(t.prepareProgress.replace('{cur}', String(cur)).replace('{total}', String(total)));
+      await downloadAllViaProxyUrls(token, photos, room, (cur, total) => {
+        setSaveProgress(t.saveProgress.replace('{cur}', String(cur)).replace('{total}', String(total)));
       });
-      setPreparedFiles(files);
-      setSaveProgress(t.prepareReadyShare);
+      setSaveProgress(t.saveDoneSequential);
+      setTimeout(() => setSaveProgress(''), 4000);
     } catch (err) {
-      setPreparedFiles(null);
       setSaveProgress('');
       alert(err.message || t.saveFailed);
     } finally {
-      setPreparing(false);
+      setDownloading(false);
     }
-  }, [photos, preparing, room, token, t, inApp.restricted, handleOpenInBrowser]);
+  }, [photos, downloading, preparing, sharing, room, token, t, inApp.restricted, handleOpenInBrowser]);
 
-  const handleShareToAlbum = useCallback(async () => {
-    if (!preparedFiles?.length || sharing) return;
+  /**
+   * 「分享到应用」：未准备时先拉取文件；准备完成后再次点击打开系统分享
+   * （二次点击保留用户手势，系统分享才能弹出）
+   */
+  const handleShareToApp = useCallback(async () => {
+    if (!photos.length || preparing || downloading || sharing) return;
     if (inApp.restricted) {
       handleOpenInBrowser();
       return;
     }
+    supportsShareRef.current = probeCanShareFiles();
+    setCanShareFiles(supportsShareRef.current);
+    if (!supportsShareRef.current) {
+      setSaveProgress(t.shareUnsupported);
+      setTimeout(() => setSaveProgress(''), 5000);
+      return;
+    }
+
+    if (!preparedFiles?.length) {
+      setPreparing(true);
+      setPreparedFiles(null);
+      setSaveProgress(t.savePreparing);
+      try {
+        const files = await prepareGalleryPhotoFiles(token, photos, room, (cur, total) => {
+          setSaveProgress(t.prepareProgress.replace('{cur}', String(cur)).replace('{total}', String(total)));
+        });
+        setPreparedFiles(files);
+        setSaveProgress(t.prepareReadyShare);
+      } catch (err) {
+        setPreparedFiles(null);
+        setSaveProgress('');
+        alert(err.message || t.saveFailed);
+      } finally {
+        setPreparing(false);
+      }
+      return;
+    }
+
     setSharing(true);
     setSaveProgress(t.sharingHint);
     try {
@@ -165,7 +186,18 @@ export default function AccountingGallerySharePage({ token }) {
     } finally {
       setSharing(false);
     }
-  }, [preparedFiles, room, sharing, t, inApp.restricted, handleOpenInBrowser]);
+  }, [
+    photos,
+    preparing,
+    downloading,
+    sharing,
+    preparedFiles,
+    room,
+    token,
+    t,
+    inApp.restricted,
+    handleOpenInBrowser
+  ]);
 
   const roomLabel = room?.trim() || '—';
   const hasPhotos = photos.length > 0;
@@ -175,6 +207,7 @@ export default function AccountingGallerySharePage({ token }) {
   );
   const readyCount = preparedFiles?.length || 0;
   const appLabel = inApp.label || 'App';
+  const busy = downloading || preparing || sharing;
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -254,42 +287,49 @@ export default function AccountingGallerySharePage({ token }) {
             ) : null}
 
             <div className="mb-4 p-4 bg-white rounded-lg border border-blue-200 shadow-sm space-y-3">
-              <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+              <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-3">
                 <button
                   type="button"
-                  onClick={inApp.restricted ? handleOpenInBrowser : handlePrepareAll}
-                  disabled={preparing || sharing}
+                  onClick={inApp.restricted ? handleOpenInBrowser : handleDownloadAll}
+                  disabled={busy && !inApp.restricted}
                   className="px-4 py-2.5 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 disabled:opacity-50"
                 >
                   {inApp.restricted
                     ? t.openInBrowser
-                    : preparing
-                      ? t.savingAll
-                      : t.saveAll}
+                    : downloading
+                      ? t.downloadingAll
+                      : t.downloadToPhone}
                 </button>
+                {!inApp.restricted && canShareFiles ? (
+                  <button
+                    type="button"
+                    onClick={handleShareToApp}
+                    disabled={busy}
+                    className={`px-4 py-2.5 rounded-lg font-medium disabled:opacity-50 ${
+                      readyCount > 0
+                        ? 'bg-emerald-600 text-white hover:bg-emerald-700'
+                        : 'bg-white border border-emerald-500 text-emerald-800 hover:bg-emerald-50'
+                    }`}
+                  >
+                    {preparing
+                      ? t.preparingShare
+                      : sharing
+                        ? t.sharingBusy
+                        : t.shareToApp}
+                  </button>
+                ) : null}
                 {saveProgress ? (
                   <span className="text-sm text-gray-600">{saveProgress}</span>
                 ) : null}
               </div>
               <p className="text-xs text-gray-500">
-                {inApp.restricted ? t.inAppSaveBlocked : t.saveAllHint}
+                {inApp.restricted ? t.inAppSaveBlocked : t.actionsHint}
               </p>
-
               {!inApp.restricted && readyCount > 0 ? (
-                <div className="pt-2 border-t border-gray-100 space-y-2">
-                  <p className="text-sm text-gray-800 font-medium">
-                    {t.readyCountLabel.replace('{n}', String(readyCount))}
-                  </p>
-                  <button
-                    type="button"
-                    onClick={handleShareToAlbum}
-                    disabled={sharing || preparing}
-                    className="w-full sm:w-auto px-4 py-2.5 rounded-lg bg-emerald-600 text-white font-medium hover:bg-emerald-700 disabled:opacity-50"
-                  >
-                    {sharing ? t.sharingBusy : t.saveToAlbum}
-                  </button>
-                  <p className="text-xs text-gray-500">{t.albumVsDownloadHint}</p>
-                </div>
+                <p className="text-sm text-gray-800 font-medium">
+                  {t.readyCountLabel.replace('{n}', String(readyCount))}
+                  <span className="ml-2 text-xs font-normal text-gray-500">{t.shareToAppHint}</span>
+                </p>
               ) : null}
             </div>
 
