@@ -4,7 +4,7 @@ import {
   fetchPublicGallery,
   prepareGalleryPhotoFiles,
   shareGalleryPhotoFiles,
-  downloadGalleryFilesSequential,
+  downloadAllViaProxyUrls,
   downloadSinglePhoto,
   probeCanShareFiles
 } from '../utils/accountingGalleryShare';
@@ -73,7 +73,7 @@ export default function AccountingGallerySharePage({ token }) {
     };
   }, [token, locale, t.errorLoadFailed]);
 
-  /** 第一步：并行准备文件（完成后需再点一次以保留手势，才能进相册） */
+  /** 手机：并行准备后二次点击走系统分享；PC 无分享时走代理逐张下载 */
   const handlePrepareAll = useCallback(async () => {
     if (!photos.length || preparing) return;
     supportsShareRef.current = probeCanShareFiles();
@@ -81,15 +81,19 @@ export default function AccountingGallerySharePage({ token }) {
     setPreparedFiles(null);
     setSaveProgress(t.savePreparing);
     try {
+      if (!supportsShareRef.current) {
+        await downloadAllViaProxyUrls(token, photos, room, (cur, total) => {
+          setSaveProgress(t.saveProgress.replace('{cur}', String(cur)).replace('{total}', String(total)));
+        });
+        setSaveProgress(t.saveDoneSequential);
+        setTimeout(() => setSaveProgress(''), 4000);
+        return;
+      }
       const files = await prepareGalleryPhotoFiles(token, photos, room, (cur, total) => {
         setSaveProgress(t.prepareProgress.replace('{cur}', String(cur)).replace('{total}', String(total)));
       });
       setPreparedFiles(files);
-      if (supportsShareRef.current) {
-        setSaveProgress(t.prepareReadyShare);
-      } else {
-        setSaveProgress(t.prepareReadyDownload);
-      }
+      setSaveProgress(t.prepareReadyShare);
     } catch (err) {
       setPreparedFiles(null);
       setSaveProgress('');
@@ -99,7 +103,6 @@ export default function AccountingGallerySharePage({ token }) {
     }
   }, [photos, preparing, room, token, t]);
 
-  /** 第二步（推荐）：系统分享 → 用户选「存储到相册」 */
   const handleShareToAlbum = useCallback(async () => {
     if (!preparedFiles?.length || sharing) return;
     setSharing(true);
@@ -125,25 +128,6 @@ export default function AccountingGallerySharePage({ token }) {
       setSharing(false);
     }
   }, [preparedFiles, room, sharing, t]);
-
-  /** 备选：逐张进浏览器「下载」目录（无法直写相册） */
-  const handleDownloadToFiles = useCallback(async () => {
-    if (!preparedFiles?.length || sharing) return;
-    setSharing(true);
-    setSaveProgress(t.downloadToFilesHint);
-    try {
-      await downloadGalleryFilesSequential(preparedFiles, (cur, total) => {
-        setSaveProgress(t.saveProgress.replace('{cur}', String(cur)).replace('{total}', String(total)));
-      });
-      setSaveProgress(t.saveDoneSequential);
-      setTimeout(() => setSaveProgress(''), 5000);
-    } catch (err) {
-      setSaveProgress('');
-      alert(err.message || t.saveFailed);
-    } finally {
-      setSharing(false);
-    }
-  }, [preparedFiles, sharing, t]);
 
   const roomLabel = room?.trim() || '—';
   const hasPhotos = photos.length > 0;
@@ -264,24 +248,14 @@ export default function AccountingGallerySharePage({ token }) {
                       <p className="text-sm text-gray-800 font-medium">
                         {t.readyCountLabel.replace('{n}', String(readyCount))}
                       </p>
-                      <div className="flex flex-col sm:flex-row gap-2">
-                        <button
-                          type="button"
-                          onClick={handleShareToAlbum}
-                          disabled={sharing || preparing}
-                          className="px-4 py-2.5 rounded-lg bg-emerald-600 text-white font-medium hover:bg-emerald-700 disabled:opacity-50"
-                        >
-                          {sharing ? t.sharingBusy : t.saveToAlbum}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={handleDownloadToFiles}
-                          disabled={sharing || preparing}
-                          className="px-4 py-2.5 rounded-lg border border-gray-300 text-gray-700 font-medium hover:bg-gray-50 disabled:opacity-50"
-                        >
-                          {t.downloadToFiles}
-                        </button>
-                      </div>
+                      <button
+                        type="button"
+                        onClick={handleShareToAlbum}
+                        disabled={sharing || preparing}
+                        className="w-full sm:w-auto px-4 py-2.5 rounded-lg bg-emerald-600 text-white font-medium hover:bg-emerald-700 disabled:opacity-50"
+                      >
+                        {sharing ? t.sharingBusy : t.saveToAlbum}
+                      </button>
                       <p className="text-xs text-gray-500">{t.albumVsDownloadHint}</p>
                     </div>
                   ) : null}

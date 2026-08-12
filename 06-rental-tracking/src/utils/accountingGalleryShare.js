@@ -52,11 +52,17 @@ function sanitizeFilenamePart(s) {
     .slice(0, 40);
 }
 
+/** 优先保留上传时的原始文件名；无原名时再回退 room+拍摄时间 */
 export function buildPhotoDownloadName(room, photo, index) {
+  const original = String(photo?.name || '').trim();
+  if (original) {
+    const safe = original.replace(/[/\\?%*:|"<>]/g, '_').slice(0, 120);
+    if (safe) return safe;
+  }
   const iso = getPhotoCaptureIso(photo);
   const label = formatCaptureTimeDisplay(iso).replace(/[/:\s]/g, '-');
   const roomPart = sanitizeFilenamePart(room || 'ROOM');
-  const extMatch = (photo.name || photo.url || '').match(/\.(jpe?g|png|webp|gif)$/i);
+  const extMatch = (photo.url || '').match(/\.(jpe?g|png|webp|gif)$/i);
   const ext = extMatch ? extMatch[0].toLowerCase() : '.jpg';
   return `${roomPart}_${label || `img-${index + 1}`}${ext}`;
 }
@@ -203,6 +209,30 @@ export async function downloadGalleryFilesSequential(files, onProgress) {
     URL.revokeObjectURL(a.href);
     if (i < total - 1) {
       await delay(350);
+    }
+  }
+  return 'sequential';
+}
+
+/**
+ * PC 备选：每次经代理 URL 触发下载（不缓存 blob，减轻二次点击被拦）
+ */
+export async function downloadAllViaProxyUrls(token, photos, room, onProgress) {
+  if (!photos?.length) return 'sequential';
+  const total = photos.length;
+  for (let i = 0; i < total; i += 1) {
+    onProgress?.(i + 1, total);
+    const url = buildGalleryPhotoDownloadUrl(token, photos[i].id);
+    if (!url) continue;
+    const a = document.createElement('a');
+    a.href = `${url}${url.includes('?') ? '&' : '?'}_=${Date.now()}_${i}`;
+    a.download = buildPhotoDownloadName(room, photos[i], i);
+    a.rel = 'noopener';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    if (i < total - 1) {
+      await delay(450);
     }
   }
   return 'sequential';

@@ -49,8 +49,19 @@ async function findPublicGalleryByToken(token) {
   return null;
 }
 
+/**
+ * 允许：
+ * - 历史凭证：`photos/YYYY/M(M)/file`
+ * - 账目图库：`photos/gallery/{ROOM}/file`
+ */
 function isValidPhotoObjectKey(key) {
-  return typeof key === 'string' && /^photos\/\d{4}\/\d{1,2}\/[^/]+$/.test(key.trim());
+  if (typeof key !== 'string') return false;
+  const k = key.trim();
+  if (!k || k.includes('..') || k.length > 512) return false;
+  return (
+    /^photos\/\d{4}\/\d{1,2}\/[^/]+$/.test(k) ||
+    /^photos\/gallery\/[^/]+\/[^/]+$/.test(k)
+  );
 }
 
 module.exports = {

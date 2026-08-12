@@ -1,5 +1,9 @@
 /**
  * 阿里云 OSS（无密钥时不在启动期初始化，便于本地开发）
+ *
+ * 路径约定：
+ * - 租赁凭证等：`photos/YYYY/MM/{timestamp}-{rand}.ext`（历史）
+ * - 账目图库：`photos/gallery/{ROOM}/{原文件名}`（按房号目录，尽量保留原名）
  */
 
 const path = require('path');
@@ -51,17 +55,87 @@ function isOssAvailable() {
   return hasOssCredentials();
 }
 
-/**
- * 上传照片到OSS
- */
-async function uploadPhoto(fileBuffer, fileName) {
+/** ROOM → OSS 目录名（如 TG A109 → TG_A109） */
+function sanitizeRoomFolderName(room) {
+  let s = String(room || '').trim();
+  s = s.replace(/[/\\?%*:|"<>#&=+\0]/g, '_').replace(/\s+/g, '_');
+  s = s.replace(/_+/g, '_').replace(/^_+|_+$/g, '');
+  if (!s || s === '.' || s === '..') s = '_unassigned';
+  return s.slice(0, 100);
+}
+
+/** 保留可读原名，去掉路径与危险字符 */
+function sanitizeOriginalBaseName(fileName) {
+  const raw = path.basename(String(fileName || 'photo'));
+  const extMatch = raw.match(/(\.[a-zA-Z0-9]{1,8})$/);
+  const ext = extMatch ? extMatch[1].toLowerCase() : '';
+  let base = extMatch ? raw.slice(0, -extMatch[1].length) : raw;
+  base = base.replace(/[/\\?%*:|"<>#&=+\0]/g, '_').replace(/\s+/g, '_').replace(/_+/g, '_');
+  base = base.replace(/^_+|_+$/g, '').slice(0, 80);
+  if (!base) base = 'photo';
+  return { base, ext: ext || '.jpg' };
+}
+
+function publicObjectUrl(objectKey) {
+  const client = requireOssClient();
+  const region = process.env.OSS_REGION || 'oss-cn-heyuan';
+  const bucket = process.env.OSS_BUCKET || '06-rental-tracking';
+  try {
+    const u = client.generateObjectUrl(objectKey);
+    return String(u).replace(/^http:/, 'https:');
+  } catch {
+    return `https://${bucket}.${region}.aliyuncs.com/${objectKey.split('/').map(encodeURIComponent).join('/')}`;
+  }
+}
+
+async function objectExists(objectKey) {
   const client = requireOssClient();
   try {
-    const timestamp = Date.now();
-    const randomStr = Math.random().toString(36).substring(2, 9);
-    const ext = fileName.split('.').pop();
-    const photoId = `${timestamp}-${randomStr}`;
-    const uniqueFileName = `photos/${new Date().getFullYear()}/${(new Date().getMonth() + 1).toString().padStart(2, '0')}/${photoId}.${ext}`;
+    await client.head(objectKey);
+    return true;
+  } catch (err) {
+    if (err && (err.status === 404 || err.code === 'NoSuchKey')) return false;
+    throw err;
+  }
+}
+
+async function allocateUniqueObjectKey(folderPrefix, originalFileName) {
+  const { base, ext } = sanitizeOriginalBaseName(originalFileName);
+  const prefix = folderPrefix.endsWith('/') ? folderPrefix : `${folderPrefix}/`;
+  let candidate = `${prefix}${base}${ext}`;
+  if (!(await objectExists(candidate))) return candidate;
+  for (let i = 2; i <= 999; i += 1) {
+    candidate = `${prefix}${base}_${i}${ext}`;
+    if (!(await objectExists(candidate))) return candidate;
+  }
+  const stamp = `${Date.now().toString(36)}`;
+  return `${prefix}${base}_${stamp}${ext}`;
+}
+
+/**
+ * 上传照片到 OSS
+ * @param {Buffer} fileBuffer
+ * @param {string} fileName 原始文件名
+ * @param {{ purpose?: 'gallery'|'receipt', room?: string }} [options]
+ */
+async function uploadPhoto(fileBuffer, fileName, options = {}) {
+  const client = requireOssClient();
+  try {
+    const purpose = options.purpose === 'gallery' ? 'gallery' : 'receipt';
+    let uniqueFileName;
+
+    if (purpose === 'gallery') {
+      const roomFolder = sanitizeRoomFolderName(options.room);
+      uniqueFileName = await allocateUniqueObjectKey(`photos/gallery/${roomFolder}`, fileName);
+    } else {
+      const timestamp = Date.now();
+      const randomStr = Math.random().toString(36).substring(2, 9);
+      const { ext } = sanitizeOriginalBaseName(fileName);
+      const photoId = `${timestamp}-${randomStr}`;
+      const y = new Date().getFullYear();
+      const m = (new Date().getMonth() + 1).toString().padStart(2, '0');
+      uniqueFileName = `photos/${y}/${m}/${photoId}${ext.startsWith('.') ? ext : `.${ext}`}`;
+    }
 
     const result = await client.put(uniqueFileName, fileBuffer);
     const httpsUrl = result.url.replace(/^http:/, 'https:');
@@ -69,7 +143,7 @@ async function uploadPhoto(fileBuffer, fileName) {
     return {
       id: uniqueFileName,
       url: httpsUrl,
-      name: fileName,
+      name: path.basename(String(fileName || 'photo')),
       size: fileBuffer.length,
       uploadedAt: new Date().toISOString()
     };
@@ -165,11 +239,64 @@ async function getPhotoObject(objectKey) {
   }
 }
 
+/**
+ * 将图库照片迁到新 ROOM 目录（copy + delete），返回更新后的 photos 元数据
+ * @param {Array<{ id: string, url?: string, name?: string }>} photos
+ * @param {string} newRoom
+ */
+async function relocateGalleryPhotosToRoom(photos, newRoom) {
+  const client = requireOssClient();
+  const roomFolder = sanitizeRoomFolderName(newRoom);
+  const targetPrefix = `photos/gallery/${roomFolder}/`;
+  const list = Array.isArray(photos) ? photos : [];
+  const next = [];
+
+  for (const photo of list) {
+    const oldKey = typeof photo?.id === 'string' ? photo.id.trim() : '';
+    if (!oldKey || !oldKey.startsWith('photos/')) {
+      next.push(photo);
+      continue;
+    }
+    if (oldKey.startsWith(targetPrefix)) {
+      next.push(photo);
+      continue;
+    }
+
+    const preferredName = photo.name || path.basename(oldKey);
+    const newKey = await allocateUniqueObjectKey(`photos/gallery/${roomFolder}`, preferredName);
+
+    try {
+      await client.copy(newKey, oldKey);
+      await client.delete(oldKey);
+      next.push({
+        ...photo,
+        id: newKey,
+        url: publicObjectUrl(newKey),
+        name: photo.name || path.basename(preferredName)
+      });
+    } catch (error) {
+      console.error('OSS relocate failed:', oldKey, '->', newKey, error);
+      throw new Error(`迁移图片失败（${path.basename(oldKey)}）: ${error.message}`);
+    }
+  }
+
+  return next;
+}
+
+function galleryFolderPrefixForRoom(room) {
+  return `photos/gallery/${sanitizeRoomFolderName(room)}/`;
+}
+
 module.exports = {
   uploadPhoto,
   deletePhoto,
   deletePhotos,
   getPhotoObject,
   checkConnection,
-  isOssAvailable
+  isOssAvailable,
+  sanitizeRoomFolderName,
+  sanitizeOriginalBaseName,
+  relocateGalleryPhotosToRoom,
+  galleryFolderPrefixForRoom,
+  publicObjectUrl
 };

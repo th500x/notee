@@ -1,4 +1,4 @@
-import { useRef, useState, useCallback, useLayoutEffect } from 'react';
+import { useRef, useState, useCallback, useLayoutEffect, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import PhotoViewer from '../PhotoViewer';
 import { uploadService } from '../../services/uploadService';
@@ -21,6 +21,25 @@ import {
   GALLERY_OCCUPANCY_OPTIONS
 } from '../../utils/galleryListing';
 import { config } from '../../config';
+
+/** 与后端 sanitizeRoomFolderName 口径一致（用于判断是否需迁移） */
+function roomFolderSlug(room) {
+  let s = String(room || '').trim();
+  s = s.replace(/[/\\?%*:|"<>#&=+\0]/g, '_').replace(/\s+/g, '_');
+  s = s.replace(/_+/g, '_').replace(/^_+|_+$/g, '');
+  if (!s || s === '.' || s === '..') s = '_unassigned';
+  return s.slice(0, 100);
+}
+
+function photosNeedRoomRelocate(photos, room) {
+  const folder = roomFolderSlug(room);
+  const prefix = `photos/gallery/${folder}/`;
+  return (photos || []).some((p) => {
+    const id = typeof p?.id === 'string' ? p.id : '';
+    if (!id.startsWith('photos/')) return false;
+    return !id.startsWith(prefix);
+  });
+}
 
 const PANEL_MAX_WIDTH = 672;
 const VIEWPORT_PAD = 12;
@@ -86,11 +105,15 @@ export function AccountingRowGalleryModal({
   const [uploadProgress, setUploadProgress] = useState(null);
   const [viewerIndex, setViewerIndex] = useState(null);
   const [shareHint, setShareHint] = useState('');
+  const [relocating, setRelocating] = useState(false);
+  const relocateInFlight = useRef(false);
 
   const photos = row?.photos || [];
+  const photoIdsKey = photos.map((p) => p?.id || '').join('|');
   const driveUrl = (row?.galleryDriveFolderUrl || '').trim();
   const canShareGallery = photos.length > 0 || !!driveUrl;
   const roomLabel = row?.room?.trim() || '（未填房号）';
+  const roomValue = row?.room?.trim() || '';
   const panelStyle = useGalleryPanelStyle(isOpen);
   const listing = normalizeGalleryListing(row?.galleryListing);
 
@@ -101,6 +124,39 @@ export function AccountingRowGalleryModal({
     },
     [row?.id, onUpdateRow]
   );
+
+  /** ROOM 变更或历史月份目录 → 同步迁到 photos/gallery/{ROOM}/ */
+  useEffect(() => {
+    if (!isOpen || !row?.id || !roomValue || relocateInFlight.current) return;
+    if (!photosNeedRoomRelocate(photos, roomValue)) return;
+
+    let cancelled = false;
+    (async () => {
+      relocateInFlight.current = true;
+      setRelocating(true);
+      setShareHint('正在按房号同步 OSS 目录…');
+      try {
+        const nextPhotos = await uploadService.relocateGalleryPhotos(roomValue, photos);
+        if (cancelled) return;
+        patchRow({ photos: nextPhotos });
+        setShareHint('已按房号同步 OSS 目录，请保存到服务器');
+        setTimeout(() => setShareHint(''), 4000);
+      } catch (err) {
+        if (!cancelled) {
+          console.error(err);
+          alert(`同步 OSS 目录失败：${err.message || '未知错误'}`);
+          setShareHint('');
+        }
+      } finally {
+        relocateInFlight.current = false;
+        if (!cancelled) setRelocating(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, row?.id, roomValue, photoIdsKey, photos, patchRow]);
 
   const patchListing = useCallback(
     (field, value) => {
@@ -122,6 +178,14 @@ export function AccountingRowGalleryModal({
   }, [row?.galleryShareToken, patchRow]);
 
   const handlePickFiles = () => {
+    if (!roomValue) {
+      alert('请先在租金表填写房号（ROOM），图库将按房号存入 OSS 目录');
+      return;
+    }
+    if (relocating) {
+      alert('正在同步 OSS 目录，请稍候再上传');
+      return;
+    }
     fileInputRef.current?.click();
   };
 
@@ -129,6 +193,10 @@ export function AccountingRowGalleryModal({
     const files = Array.from(e.target.files || []);
     e.target.value = '';
     if (!files.length) return;
+    if (!roomValue) {
+      alert('请先填写房号（ROOM）再上传');
+      return;
+    }
 
     const maxBytes = config.oss.maxFileSize;
     for (const f of files) {
@@ -145,7 +213,11 @@ export function AccountingRowGalleryModal({
     setUploading(true);
     setUploadProgress({ current: 0, total: files.length, fileName: files[0]?.name || '' });
     try {
-      const results = await uploadService.uploadPhotosUnlimited(files, (p) => setUploadProgress(p));
+      const results = await uploadService.uploadPhotosUnlimited(
+        files,
+        (p) => setUploadProgress(p),
+        { room: roomValue }
+      );
       const newPhotos = [];
       for (let i = 0; i < results.length; i += 1) {
         newPhotos.push(await enrichUploadedPhotoFromFile(results[i].photo, files[i]));
@@ -303,7 +375,7 @@ export function AccountingRowGalleryModal({
               图片库 · {roomLabel}
             </h3>
             <p className="text-[11px] text-white/85 mt-0.5">
-              OSS 上传（推荐）· 兼容原 Drive 链接 · 单张 ≤{config.oss.maxFileSize / 1024 / 1024}MB
+              OSS · 按 ROOM 目录 · 尽量保留原文件名 · 单张 ≤{config.oss.maxFileSize / 1024 / 1024}MB
             </p>
           </div>
           <button
@@ -327,10 +399,11 @@ export function AccountingRowGalleryModal({
             <button
               type="button"
               onClick={handlePickFiles}
-              disabled={uploading}
+              disabled={uploading || relocating || !roomValue}
               className="px-3 py-2 text-sm rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+              title={!roomValue ? '请先填写 ROOM' : undefined}
             >
-              {uploading ? '上传中…' : photos.length ? '继续上传' : '选择图片'}
+              {uploading ? '上传中…' : relocating ? '同步目录中…' : photos.length ? '继续上传' : '选择图片'}
             </button>
             {canShareGallery ? (
               <button

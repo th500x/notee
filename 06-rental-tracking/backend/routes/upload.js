@@ -31,8 +31,10 @@ const upload = multer({
 /**
  * 上传照片到OSS
  * POST /api/upload/photos
- * 
+ *
  * @body {files} photo - 照片文件（单张，≤10MB）
+ * @body {string} [purpose] - `gallery` 时按 ROOM 目录存放并尽量保留原文件名；默认凭证月份目录
+ * @body {string} [room] - purpose=gallery 时的房号（ROOM）
  * @returns {Object} { success, photo: { id, url, name, size } }
  */
 router.post(
@@ -56,10 +58,20 @@ router.post(
       });
     }
 
-    // 上传照片到OSS
-    const result = await ossService.uploadPhoto(req.file.buffer, req.file.originalname);
+    const purpose = String(req.body?.purpose || '').trim() === 'gallery' ? 'gallery' : 'receipt';
+    const room = typeof req.body?.room === 'string' ? req.body.room : '';
+    if (purpose === 'gallery' && !String(room).trim()) {
+      return res.status(400).json({
+        success: false,
+        error: '图库上传需要填写房号（ROOM）'
+      });
+    }
 
-    // 返回照片信息
+    const result = await ossService.uploadPhoto(req.file.buffer, req.file.originalname, {
+      purpose,
+      room
+    });
+
     const photo = {
       id: result.id,
       url: result.url,
@@ -81,6 +93,40 @@ router.post(
   }
   }
 );
+
+/**
+ * 图库照片随 ROOM 更名迁移目录
+ * POST /api/upload/photos/relocate-gallery
+ * Body: { room: string, photos: [{ id, url, name, ... }] }
+ */
+router.post('/photos/relocate-gallery', express.json(), async (req, res) => {
+  try {
+    if (!ossService.isOssAvailable()) {
+      return res.status(503).json({
+        success: false,
+        error: '未配置阿里云 OSS 密钥，无法迁移照片'
+      });
+    }
+    const room = typeof req.body?.room === 'string' ? req.body.room.trim() : '';
+    const photos = Array.isArray(req.body?.photos) ? req.body.photos : [];
+    if (!room) {
+      return res.status(400).json({ success: false, error: '缺少房号（ROOM）' });
+    }
+    for (const p of photos) {
+      if (p?.id && !isValidPhotoObjectKey(String(p.id))) {
+        return res.status(400).json({ success: false, error: `无效的照片路径: ${p.id}` });
+      }
+    }
+    const nextPhotos = await ossService.relocateGalleryPhotosToRoom(photos, room);
+    return res.json({ success: true, photos: nextPhotos });
+  } catch (error) {
+    console.error('图库照片迁移失败:', error);
+    return res.status(500).json({
+      success: false,
+      error: error.message || '迁移失败'
+    });
+  }
+});
 
 /**
  * 删除 OSS 上的照片
