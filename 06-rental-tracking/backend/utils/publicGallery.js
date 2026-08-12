@@ -41,7 +41,6 @@ async function findPublicGalleryByToken(token) {
       return {
         room: rentRow.room || '',
         photos: formatPublicPhotos(rentRow),
-        driveFolderUrl: rentRow.galleryDriveFolderUrl || '',
         listing: rentRow.galleryListing || {}
       };
     }

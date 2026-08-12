@@ -273,20 +273,9 @@ function SortableRentRow({
             type="button"
             onClick={(e) => onOpenGallery(row.id, e.currentTarget)}
             className="text-blue-600 hover:text-blue-800 text-xs px-0.5"
-            title={
-              row.photos?.length
-                ? `图片库（${row.photos.length} 张 OSS）`
-                : row.galleryDriveFolderUrl?.trim()
-                  ? '图片库（已配置 Google Drive）'
-                  : '上传图片 / 配置图库'
-            }
+            title={row.photos?.length ? `图片库（${row.photos.length} 张）` : '上传图片'}
           >
-            图
-            {row.photos?.length
-              ? `(${row.photos.length})`
-              : row.galleryDriveFolderUrl?.trim()
-                ? '●'
-                : ''}
+            图{row.photos?.length ? `(${row.photos.length})` : ''}
           </button>
           <button
             type="button"

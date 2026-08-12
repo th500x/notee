@@ -125,7 +125,6 @@ const accountingRentRowSchema = Joi.object({
   months: Joi.object().pattern(/^\d{4}-\d{2}$/, accountingRentMonthSchema).default({}),
   photos: Joi.array().items(accountingGalleryPhotoSchema).max(500).default([]),
   galleryShareToken: Joi.string().max(80).allow('').default(''),
-  galleryDriveFolderUrl: Joi.string().max(2000).allow('').default(''),
   galleryListing: accountingGalleryListingSchema.default({})
 });
 

@@ -171,16 +171,13 @@ router.get('/public/gallery/:token', async (req, res) => {
       return res.status(404).json({ success: false, error: '链接无效或已失效' });
     }
     const photos = gallery.photos || [];
-    const driveFolderUrl = gallery.driveFolderUrl || '';
-    // 双轨兼容：历史 Drive 链接 或 新 OSS photos 任一即可
-    if (!photos.length && !driveFolderUrl) {
+    if (!photos.length) {
       return res.status(404).json({ success: false, error: '图库暂无内容' });
     }
     return res.json({
       success: true,
       room: gallery.room,
       photos,
-      driveFolderUrl,
       listing: gallery.listing || {}
     });
   } catch (error) {
