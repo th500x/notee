@@ -8,6 +8,11 @@ import {
   downloadSinglePhoto,
   probeCanShareFiles
 } from '../utils/accountingGalleryShare';
+import {
+  detectRestrictedInAppBrowser,
+  tryOpenInSystemBrowser,
+  copyCurrentPageUrl
+} from '../utils/inAppBrowser';
 import { formatCaptureTimeDisplay, getPhotoCaptureIso } from '../utils/photoCaptureTime';
 import { buildGalleryListingDisplayLines } from '../utils/galleryListing';
 import {
@@ -24,6 +29,7 @@ import {
 export default function AccountingGallerySharePage({ token }) {
   const locale = useMemo(() => resolveGalleryShareLocale(), []);
   const t = useMemo(() => getGalleryShareMessages(locale), [locale]);
+  const inApp = useMemo(() => detectRestrictedInAppBrowser(), []);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -35,6 +41,7 @@ export default function AccountingGallerySharePage({ token }) {
   const [preparing, setPreparing] = useState(false);
   const [preparedFiles, setPreparedFiles] = useState(null);
   const [sharing, setSharing] = useState(false);
+  const [copyHint, setCopyHint] = useState('');
   const supportsShareRef = useRef(false);
 
   useEffect(() => {
@@ -69,9 +76,39 @@ export default function AccountingGallerySharePage({ token }) {
     };
   }, [token, locale, t.errorLoadFailed]);
 
+  const handleOpenInBrowser = useCallback(() => {
+    setSaveProgress(t.openInBrowserBusy);
+    const jumped = tryOpenInSystemBrowser();
+    if (!jumped) {
+      // iOS / 被拦截：提示手动菜单；进度条短提示后清掉
+      setSaveProgress(t.inAppSaveBlocked);
+      setTimeout(() => setSaveProgress(''), 5000);
+    } else {
+      setTimeout(() => setSaveProgress(''), 3000);
+    }
+  }, [t]);
+
+  const handleCopyLink = useCallback(async () => {
+    try {
+      await copyCurrentPageUrl();
+      setCopyHint(t.copyPageLinkDone);
+      setTimeout(() => setCopyHint(''), 4000);
+    } catch {
+      setCopyHint(t.copyPageLinkFailed);
+      setTimeout(() => setCopyHint(''), 4000);
+    }
+  }, [t]);
+
   /** 手机：并行准备后二次点击走系统分享；PC 无分享时走代理逐张下载 */
   const handlePrepareAll = useCallback(async () => {
     if (!photos.length || preparing) return;
+
+    // 微信 / LINE 等内置浏览器：不要空跑准备流程，改为引导外开
+    if (inApp.restricted) {
+      handleOpenInBrowser();
+      return;
+    }
+
     supportsShareRef.current = probeCanShareFiles();
     setPreparing(true);
     setPreparedFiles(null);
@@ -97,10 +134,14 @@ export default function AccountingGallerySharePage({ token }) {
     } finally {
       setPreparing(false);
     }
-  }, [photos, preparing, room, token, t]);
+  }, [photos, preparing, room, token, t, inApp.restricted, handleOpenInBrowser]);
 
   const handleShareToAlbum = useCallback(async () => {
     if (!preparedFiles?.length || sharing) return;
+    if (inApp.restricted) {
+      handleOpenInBrowser();
+      return;
+    }
     setSharing(true);
     setSaveProgress(t.sharingHint);
     try {
@@ -123,7 +164,7 @@ export default function AccountingGallerySharePage({ token }) {
     } finally {
       setSharing(false);
     }
-  }, [preparedFiles, room, sharing, t]);
+  }, [preparedFiles, room, sharing, t, inApp.restricted, handleOpenInBrowser]);
 
   const roomLabel = room?.trim() || '—';
   const hasPhotos = photos.length > 0;
@@ -132,6 +173,7 @@ export default function AccountingGallerySharePage({ token }) {
     [listing, locale]
   );
   const readyCount = preparedFiles?.length || 0;
+  const appLabel = inApp.label || 'App';
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -155,6 +197,35 @@ export default function AccountingGallerySharePage({ token }) {
 
         {!loading && !error && hasPhotos && (
           <>
+            {inApp.restricted ? (
+              <section className="mb-4 p-4 rounded-lg border border-amber-300 bg-amber-50 shadow-sm space-y-3">
+                <h2 className="text-sm font-semibold text-amber-950">
+                  {t.inAppBannerTitle.replace('{app}', appLabel)}
+                </h2>
+                <p className="text-sm text-amber-900 leading-relaxed">{t.inAppBannerBody}</p>
+                <p className="text-xs text-amber-800 leading-relaxed">
+                  {inApp.os === 'ios' ? t.inAppHowToIos : t.inAppHowToAndroid}
+                </p>
+                <div className="flex flex-col sm:flex-row gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={handleOpenInBrowser}
+                    className="px-4 py-2.5 rounded-lg bg-amber-700 text-white font-medium hover:bg-amber-800"
+                  >
+                    {t.openInBrowser}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleCopyLink}
+                    className="px-4 py-2.5 rounded-lg bg-white border border-amber-400 text-amber-950 font-medium hover:bg-amber-100"
+                  >
+                    {t.copyPageLink}
+                  </button>
+                </div>
+                {copyHint ? <p className="text-xs text-amber-900">{copyHint}</p> : null}
+              </section>
+            ) : null}
+
             {listingLines.length > 0 ? (
               <section className="mb-5 bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
                 <div className="px-4 py-3 border-b border-gray-100 bg-gray-50">
@@ -185,19 +256,25 @@ export default function AccountingGallerySharePage({ token }) {
               <div className="flex flex-col sm:flex-row sm:items-center gap-3">
                 <button
                   type="button"
-                  onClick={handlePrepareAll}
+                  onClick={inApp.restricted ? handleOpenInBrowser : handlePrepareAll}
                   disabled={preparing || sharing}
                   className="px-4 py-2.5 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 disabled:opacity-50"
                 >
-                  {preparing ? t.savingAll : t.saveAll}
+                  {inApp.restricted
+                    ? t.openInBrowser
+                    : preparing
+                      ? t.savingAll
+                      : t.saveAll}
                 </button>
                 {saveProgress ? (
                   <span className="text-sm text-gray-600">{saveProgress}</span>
                 ) : null}
               </div>
-              <p className="text-xs text-gray-500">{t.saveAllHint}</p>
+              <p className="text-xs text-gray-500">
+                {inApp.restricted ? t.inAppSaveBlocked : t.saveAllHint}
+              </p>
 
-              {readyCount > 0 ? (
+              {!inApp.restricted && readyCount > 0 ? (
                 <div className="pt-2 border-t border-gray-100 space-y-2">
                   <p className="text-sm text-gray-800 font-medium">
                     {t.readyCountLabel.replace('{n}', String(readyCount))}
@@ -238,11 +315,15 @@ export default function AccountingGallerySharePage({ token }) {
                     </span>
                     <button
                       type="button"
-                      onClick={() =>
+                      onClick={() => {
+                        if (inApp.restricted) {
+                          handleOpenInBrowser();
+                          return;
+                        }
                         downloadSinglePhoto(token, room, photo, index).catch(() => {
                           alert(t.downloadFailed);
-                        })
-                      }
+                        });
+                      }}
                       className="text-[10px] sm:text-xs text-blue-600 hover:underline shrink-0"
                     >
                       {t.downloadOne}

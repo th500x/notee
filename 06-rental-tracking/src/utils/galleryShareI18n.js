@@ -13,8 +13,20 @@ const MESSAGES = {
     listingTitle: '房源说明',
     saveAll: '保存全部图片',
     savingAll: '准备中…',
+    openInBrowser: '用系统浏览器打开',
+    openInBrowserBusy: '正在尝试打开…',
+    copyPageLink: '复制本页链接',
+    copyPageLinkDone: '链接已复制，请粘贴到 Safari / Chrome 打开',
+    copyPageLinkFailed: '复制失败，请手动长按地址栏复制链接',
+    inAppBannerTitle: '当前在 {app} 内打开',
+    inAppBannerBody:
+      '微信 / LINE 等内置浏览器通常无法保存全部图片。请用手机自带浏览器（Safari / Chrome）打开本页后再点「保存全部图片」。',
+    inAppHowToIos: 'iPhone：点右上角「⋯」→ 选择「在 Safari 中打开」或「在浏览器中打开」。',
+    inAppHowToAndroid: 'Android：可点下方按钮尝试用 Chrome 打开；若无反应，点右上角「⋯」→「在浏览器中打开」。',
+    inAppSaveBlocked:
+      '当前 App 内置浏览器无法完成保存。请先用系统浏览器打开本页，再点「保存全部图片」。',
     saveAllHint:
-      '手机：准备完成后点「保存到相册」，在系统分享里选存储到相册或分享到其它 App。部分 App（如微信）可能再压缩图片，这是系统行为。电脑无分享时会逐张下载到浏览器下载目录。',
+      '手机：准备完成后点「保存到相册」，在系统分享里选存储到相册或分享到其它 App。若在微信 / LINE 内打开，请先用系统浏览器打开本页。电脑无分享时会逐张下载到浏览器下载目录。',
     savePreparing: '准备中…',
     prepareProgress: '正在准备 {cur}/{total}…',
     prepareReadyShare: '准备完成，请点「保存到相册」',
@@ -73,8 +85,21 @@ const MESSAGES = {
     listingTitle: 'Listing details',
     saveAll: 'Save all photos',
     savingAll: 'Preparing…',
+    openInBrowser: 'Open in system browser',
+    openInBrowserBusy: 'Trying to open…',
+    copyPageLink: 'Copy page link',
+    copyPageLinkDone: 'Link copied — paste into Safari / Chrome',
+    copyPageLinkFailed: 'Could not copy. Long-press the address bar to copy the link.',
+    inAppBannerTitle: 'Opened inside {app}',
+    inAppBannerBody:
+      'In-app browsers (WeChat, LINE, etc.) usually cannot save all photos. Open this page in Safari or Chrome, then tap “Save all photos”.',
+    inAppHowToIos: 'iPhone: tap ⋯ at the top right → “Open in Safari” / “Open in Browser”.',
+    inAppHowToAndroid:
+      'Android: try the button below to open Chrome. If nothing happens, tap ⋯ → “Open in browser”.',
+    inAppSaveBlocked:
+      'This in-app browser cannot finish saving. Open this page in your system browser first, then tap “Save all photos”.',
     saveAllHint:
-      'On phone: after preparing, tap “Save to Photos / Share” and choose the album or another app. Some apps (e.g. WeChat) may recompress — that is the OS. On desktop without share, photos download one by one.',
+      'On phone: after preparing, tap “Save to Photos / Share” and choose the album or another app. If you opened this in WeChat / LINE, switch to Safari or Chrome first. On desktop without share, photos download one by one.',
     savePreparing: 'Preparing…',
     prepareProgress: 'Preparing {cur}/{total}…',
     prepareReadyShare: 'Ready — tap “Save to Photos / Share”',
@@ -133,8 +158,21 @@ const MESSAGES = {
     listingTitle: 'รายละเอียดที่พัก',
     saveAll: 'บันทึกรูปทั้งหมด',
     savingAll: 'กำลังเตรียม…',
+    openInBrowser: 'เปิดในเบราว์เซอร์ของเครื่อง',
+    openInBrowserBusy: 'กำลังพยายามเปิด…',
+    copyPageLink: 'คัดลอกลิงก์หน้านี้',
+    copyPageLinkDone: 'คัดลอกลิงก์แล้ว — วางใน Safari / Chrome',
+    copyPageLinkFailed: 'คัดลอกไม่สำเร็จ กดค้างที่แถบที่อยู่เพื่อคัดลอกลิงก์',
+    inAppBannerTitle: 'เปิดอยู่ใน {app}',
+    inAppBannerBody:
+      'เบราว์เซอร์ในแอป (WeChat / LINE ฯลฯ) มักบันทึกรูปทั้งหมดไม่ได้ กรุณาเปิดหน้านี้ใน Safari หรือ Chrome แล้วกด「บันทึกรูปทั้งหมด」',
+    inAppHowToIos: 'iPhone: กด ⋯ มุมขวาบน →「เปิดใน Safari」/「เปิดในเบราว์เซอร์」',
+    inAppHowToAndroid:
+      'Android: ลองปุ่มด้านล่างเพื่อเปิด Chrome หากไม่ตอบสนอง กด ⋯ →「เปิดในเบราว์เซอร์」',
+    inAppSaveBlocked:
+      'เบราว์เซอร์ในแอปนี้บันทึกไม่ได้ กรุณาเปิดหน้านี้ในเบราว์เซอร์ของเครื่องก่อน แล้วกด「บันทึกรูปทั้งหมด」',
     saveAllHint:
-      'มือถือ: หลังเตรียมแล้ว กด「บันทึก/แชร์」แล้วเลือกอัลบั้มหรือแอปอื่น บางแอป (เช่น WeChat) อาจบีบอัดอีก — เป็นพฤติกรรมของระบบ คอมพิวเตอร์ที่แชร์ไม่ได้จะดาวน์โหลดทีละรูป',
+      'มือถือ: หลังเตรียมแล้ว กด「บันทึก/แชร์」แล้วเลือกอัลบั้มหรือแอปอื่น หากเปิดใน WeChat / LINE ให้เปิดด้วย Safari หรือ Chrome ก่อน คอมพิวเตอร์ที่แชร์ไม่ได้จะดาวน์โหลดทีละรูป',
     savePreparing: 'กำลังเตรียม…',
     prepareProgress: 'กำลังเตรียม {cur}/{total}…',
     prepareReadyShare: 'พร้อมแล้ว — กด「บันทึก/แชร์」',
