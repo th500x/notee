@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { buildOssImageUrl } from '../utils/ossImageUrl'
 
 /**
  * 照片查看器组件
@@ -85,7 +86,7 @@ function PhotoViewer({ photos, initialIndex = 0, onClose }) {
         onClick={(e) => e.stopPropagation()}
       >
         <img
-          src={currentPhoto.url}
+          src={buildOssImageUrl(currentPhoto.url, 'view')}
           alt={currentPhoto.name || '照片'}
           className="max-w-full max-h-[90vh] object-contain rounded-lg"
         />
@@ -119,7 +120,7 @@ function PhotoViewer({ photos, initialIndex = 0, onClose }) {
               }`}
             >
               <img
-                src={photo.url}
+                src={buildOssImageUrl(photo.url, 'thumb')}
                 alt={`缩略图 ${index + 1}`}
                 className="w-full h-full object-cover"
               />

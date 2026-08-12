@@ -20,6 +20,7 @@ import {
   GALLERY_OCCUPANCY_OPTIONS
 } from '../../utils/galleryListing';
 import { config } from '../../config';
+import { buildOssImageUrl } from '../../utils/ossImageUrl';
 
 /** 与后端 sanitizeRoomFolderName 口径一致（用于判断是否需迁移） */
 function roomFolderSlug(room) {
@@ -472,9 +473,10 @@ export function AccountingRowGalleryModal({
                     onClick={() => setViewerIndex(index)}
                   >
                     <img
-                      src={photo.url}
+                      src={buildOssImageUrl(photo.url, 'thumb')}
                       alt={photo.name || `图片 ${index + 1}`}
                       className="w-full h-full object-cover"
+                      loading="lazy"
                     />
                   </button>
                   <div className="px-2 py-1 text-[10px] text-gray-600 bg-white border-t border-gray-100">

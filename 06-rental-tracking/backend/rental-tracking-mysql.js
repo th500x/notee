@@ -214,12 +214,29 @@ router.get('/public/gallery/:token/download', async (req, res) => {
       return res.status(503).json({ success: false, error: '照片服务暂不可用' });
     }
 
-    const { content, contentType } = await ossService.getPhotoObject(key);
-    const ext = key.split('.').pop() || 'jpg';
-    const baseName = (photo.name || `photo-${key.split('/').pop()}`).replace(/[/\\?%*:|"<>]/g, '_');
-    const filename = baseName.includes('.') ? baseName : `${baseName}.${ext}`;
+    // 公开分享下载默认 1080p；图片处理失败则回退原图（上传始终存原图）
+    let content;
+    let contentType;
+    let usedProcess = true;
+    try {
+      ({ content, contentType } = await ossService.getPhotoObject(key, {
+        process: ossService.GALLERY_DOWNLOAD_PROCESS
+      }));
+    } catch (processErr) {
+      console.warn('[API] 公开图库 1080 处理失败，回退原图:', processErr.message);
+      usedProcess = false;
+      ({ content, contentType } = await ossService.getPhotoObject(key));
+    }
 
-    res.setHeader('Content-Type', contentType);
+    const baseRaw = (photo.name || `photo-${key.split('/').pop()}`).replace(/[/\\?%*:|"<>]/g, '_');
+    const baseNoExt = baseRaw.replace(/\.[a-zA-Z0-9]{1,8}$/, '');
+    const filename = usedProcess
+      ? `${baseNoExt || 'photo'}.jpg`
+      : baseRaw.includes('.')
+        ? baseRaw
+        : `${baseNoExt || 'photo'}.${key.split('.').pop() || 'jpg'}`;
+
+    res.setHeader('Content-Type', contentType || (usedProcess ? 'image/jpeg' : 'application/octet-stream'));
     res.setHeader(
       'Content-Disposition',
       `attachment; filename="${filename}"; filename*=UTF-8''${encodeURIComponent(filename)}`

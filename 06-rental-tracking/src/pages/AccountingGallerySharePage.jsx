@@ -21,6 +21,7 @@ import {
   translateGalleryShareError,
   galleryShareHtmlLang
 } from '../utils/galleryShareI18n';
+import { buildOssImageUrl } from '../utils/ossImageUrl';
 
 /**
  * 账目单租金行 — 公开图库页（OSS 图片 + 系统分享 / 下载）
@@ -304,9 +305,10 @@ export default function AccountingGallerySharePage({ token }) {
                     onClick={() => setViewerIndex(index)}
                   >
                     <img
-                      src={photo.url}
+                      src={buildOssImageUrl(photo.url, 'thumb')}
                       alt={photo.name || `${t.photoAlt} ${index + 1}`}
                       className="w-full h-full object-cover"
+                      loading="lazy"
                     />
                   </button>
                   <div className="px-1.5 py-1.5 sm:px-2 flex items-center justify-between gap-1 border-t border-gray-100">
