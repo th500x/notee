@@ -7,8 +7,19 @@ import { formatCaptureTimeDisplay, getPhotoCaptureIso } from './photoCaptureTime
 const GALLERY_PATH_PREFIX = '/06-rental-tracking/gallery/';
 /** 并行拉取 OSS 代理，缩短「下载全部」准备时间 */
 const FETCH_CONCURRENCY = 4;
-/** 部分手机一次分享文件数有上限，分批打开系统分享 */
-const SHARE_BATCH_SIZE = 9;
+/** 微信等 App 单次分享约 9 张；网页无法突破，按此分批多次分享 */
+export const SHARE_BATCH_SIZE = 9;
+
+/** @param {File[]} files @param {number} [size] */
+export function splitGalleryShareBatches(files, size = SHARE_BATCH_SIZE) {
+  const list = Array.isArray(files) ? files : [];
+  const batchSize = Math.max(1, size || SHARE_BATCH_SIZE);
+  const batches = [];
+  for (let i = 0; i < list.length; i += batchSize) {
+    batches.push(list.slice(i, i + batchSize));
+  }
+  return batches;
+}
 
 export function newGalleryShareToken() {
   try {
@@ -156,39 +167,68 @@ export async function prepareGalleryPhotoFiles(token, photos, room, onProgress) 
 }
 
 /**
- * 系统分享面板保存（用户可选手动「存储到相册」）
- * 支持分批；须在用户点击手势内调用
+ * 分享单批文件（须在用户点击手势内调用）
+ * AbortError：多数 App 发送成功或用户关闭面板都会抛出，视为本批已结束
+ * @returns {'shared'|'unsupported'}
+ */
+export async function shareGalleryPhotoBatch(batch, room) {
+  if (!batch?.length) return 'unsupported';
+  if (typeof navigator === 'undefined' || typeof navigator.share !== 'function') {
+    return 'unsupported';
+  }
+  if (typeof navigator.canShare === 'function' && !navigator.canShare({ files: batch })) {
+    return 'unsupported';
+  }
+  const title = room ? `${room} 图片` : '图片';
+  try {
+    await navigator.share({ files: batch, title });
+    return 'shared';
+  } catch (err) {
+    if (err?.name === 'AbortError') {
+      return 'shared';
+    }
+    return 'unsupported';
+  }
+}
+
+/**
+ * 连续分批分享（第二批起常需新的用户手势；自动分享失败时由 onNeedContinue 等待再点）
+ * @param {File[]} files
+ * @param {string} room
+ * @param {(cur: number, total: number) => void} [onBatchProgress]
+ * @param {{ onNeedContinue?: (next: number, total: number) => Promise<void> }} [options]
  * @returns {'share'|'unsupported'}
  */
-export async function shareGalleryPhotoFiles(files, room, onBatchProgress) {
+export async function shareGalleryPhotoFiles(files, room, onBatchProgress, options = {}) {
   if (!files?.length) return 'unsupported';
   if (typeof navigator === 'undefined' || typeof navigator.share !== 'function') {
     return 'unsupported';
   }
 
-  const title = room ? `${room} 图片` : '图片';
-  const batches = [];
-  for (let i = 0; i < files.length; i += SHARE_BATCH_SIZE) {
-    batches.push(files.slice(i, i + SHARE_BATCH_SIZE));
-  }
+  const batches = splitGalleryShareBatches(files);
+  const onNeedContinue = options?.onNeedContinue;
 
   for (let b = 0; b < batches.length; b += 1) {
-    const batch = batches[b];
     onBatchProgress?.(b + 1, batches.length);
-    if (typeof navigator.canShare === 'function' && !navigator.canShare({ files: batch })) {
+    let result = await shareGalleryPhotoBatch(batches[b], room);
+
+    // 非首批可能因缺少用户手势失败：等用户再点后重试本批
+    if (result === 'unsupported' && b > 0 && typeof onNeedContinue === 'function') {
+      await onNeedContinue(b + 1, batches.length);
+      result = await shareGalleryPhotoBatch(batches[b], room);
+    }
+
+    if (result !== 'shared') {
       return 'unsupported';
     }
-    try {
-      await navigator.share({ files: batch, title });
-    } catch (err) {
-      if (err?.name === 'AbortError') {
-        return 'share';
-      }
-      return 'unsupported';
-    }
-    // 多批时稍候，方便用户处理完上一批再弹下一批
+
     if (b < batches.length - 1) {
-      await delay(300);
+      if (typeof onNeedContinue === 'function') {
+        // 下一批必须再点一次（系统限制 + 保留手势）
+        await onNeedContinue(b + 2, batches.length);
+      } else {
+        await delay(400);
+      }
     }
   }
   return 'share';

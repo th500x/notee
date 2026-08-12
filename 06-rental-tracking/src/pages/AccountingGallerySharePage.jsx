@@ -45,7 +45,10 @@ export default function AccountingGallerySharePage({ token }) {
   const [sharing, setSharing] = useState(false);
   const [copyHint, setCopyHint] = useState('');
   const [canShareFiles, setCanShareFiles] = useState(false);
+  /** 多批分享：等待用户再点「继续分享第 N 批」 */
+  const [shareContinue, setShareContinue] = useState(null);
   const supportsShareRef = useRef(false);
+  const continueShareResolverRef = useRef(null);
 
   useEffect(() => {
     document.documentElement.lang = galleryShareHtmlLang(locale);
@@ -126,11 +129,33 @@ export default function AccountingGallerySharePage({ token }) {
     }
   }, [photos, downloading, preparing, sharing, room, token, t, inApp.restricted, handleOpenInBrowser]);
 
+  const waitForShareContinue = useCallback(
+    (next, total) =>
+      new Promise((resolve) => {
+        continueShareResolverRef.current = resolve;
+        setShareContinue({ cur: next, total });
+        setSaveProgress(
+          t.shareBatchContinueHint
+            .replace('{cur}', String(next))
+            .replace('{total}', String(total))
+        );
+      }),
+    [t]
+  );
+
   /**
-   * 「分享到应用」：未准备时先拉取文件；准备完成后再次点击打开系统分享
-   * （二次点击保留用户手势，系统分享才能弹出）
+   * 「分享到应用」：未准备时先拉取；准备后分享（>9 张按批，每批后再点继续）
    */
   const handleShareToApp = useCallback(async () => {
+    // 多批：用户点「继续分享」解除等待
+    if (continueShareResolverRef.current) {
+      const resolve = continueShareResolverRef.current;
+      continueShareResolverRef.current = null;
+      setShareContinue(null);
+      resolve();
+      return;
+    }
+
     if (!photos.length || preparing || downloading || sharing) return;
     if (inApp.restricted) {
       handleOpenInBrowser();
@@ -167,15 +192,20 @@ export default function AccountingGallerySharePage({ token }) {
     setSharing(true);
     setSaveProgress(t.sharingHint);
     try {
-      const mode = await shareGalleryPhotoFiles(preparedFiles, room, (cur, total) => {
-        if (total > 1) {
-          setSaveProgress(
-            t.shareBatchProgress.replace('{cur}', String(cur)).replace('{total}', String(total))
-          );
-        }
-      });
+      const mode = await shareGalleryPhotoFiles(
+        preparedFiles,
+        room,
+        (cur, total) => {
+          if (total > 1) {
+            setSaveProgress(
+              t.shareBatchProgress.replace('{cur}', String(cur)).replace('{total}', String(total))
+            );
+          }
+        },
+        { onNeedContinue: waitForShareContinue }
+      );
       if (mode === 'share') {
-        setSaveProgress(t.saveDoneShare);
+        setSaveProgress(t.shareAllBatchesDone);
         setTimeout(() => setSaveProgress(''), 5000);
       } else {
         setSaveProgress(t.shareUnsupported);
@@ -184,6 +214,8 @@ export default function AccountingGallerySharePage({ token }) {
       setSaveProgress('');
       alert(err.message || t.saveFailed);
     } finally {
+      continueShareResolverRef.current = null;
+      setShareContinue(null);
       setSharing(false);
     }
   }, [
@@ -196,7 +228,8 @@ export default function AccountingGallerySharePage({ token }) {
     token,
     t,
     inApp.restricted,
-    handleOpenInBrowser
+    handleOpenInBrowser,
+    waitForShareContinue
   ]);
 
   const roomLabel = room?.trim() || '—';
@@ -207,7 +240,7 @@ export default function AccountingGallerySharePage({ token }) {
   );
   const readyCount = preparedFiles?.length || 0;
   const appLabel = inApp.label || 'App';
-  const busy = downloading || preparing || sharing;
+  const busy = downloading || preparing || (sharing && !shareContinue);
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -306,16 +339,20 @@ export default function AccountingGallerySharePage({ token }) {
                     onClick={handleShareToApp}
                     disabled={busy}
                     className={`px-4 py-2.5 rounded-lg font-medium disabled:opacity-50 ${
-                      readyCount > 0
+                      readyCount > 0 || shareContinue
                         ? 'bg-emerald-600 text-white hover:bg-emerald-700'
                         : 'bg-white border border-emerald-500 text-emerald-800 hover:bg-emerald-50'
                     }`}
                   >
                     {preparing
                       ? t.preparingShare
-                      : sharing
-                        ? t.sharingBusy
-                        : t.shareToApp}
+                      : shareContinue
+                        ? t.continueShareBatch
+                            .replace('{cur}', String(shareContinue.cur))
+                            .replace('{total}', String(shareContinue.total))
+                        : sharing
+                          ? t.sharingBusy
+                          : t.shareToApp}
                   </button>
                 ) : null}
                 {saveProgress ? (
