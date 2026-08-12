@@ -186,24 +186,67 @@ async function getTodayMine(userId) {
   };
 }
 
-function encodeCursor(createdAt, id) {
-  const iso = toIso(createdAt);
-  return Buffer.from(`${iso}|${id}`, 'utf8').toString('base64url');
+/** Feed sort: new (default) · hot_day · hot_week */
+const FEED_SORTS = new Set(['new', 'hot_day', 'hot_week']);
+
+function assertFeedSort(raw) {
+  if (raw == null || raw === '') return 'new';
+  if (typeof raw !== 'string' || !FEED_SORTS.has(raw)) {
+    throw httpError(400, 'sort 无效', 'BAD_SORT');
+  }
+  return raw;
 }
 
-function decodeCursor(raw) {
+function isHotSort(sort) {
+  return sort === 'hot_day' || sort === 'hot_week';
+}
+
+function encodeCursor({ sort, resonanceCount, createdAt, id }) {
+  const iso = toIso(createdAt);
+  if (isHotSort(sort)) {
+    return Buffer.from(`h|${Number(resonanceCount) || 0}|${iso}|${id}`, 'utf8').toString(
+      'base64url'
+    );
+  }
+  return Buffer.from(`n|${iso}|${id}`, 'utf8').toString('base64url');
+}
+
+/**
+ * Cursor shapes:
+ * - `n|{iso}|{id}` — time feed (also accepts legacy `{iso}|{id}`)
+ * - `h|{resonanceCount}|{iso}|{id}` — hot feed
+ */
+function decodeCursor(raw, sort) {
   if (raw == null || raw === '') return null;
   if (typeof raw !== 'string') {
     throw httpError(400, 'cursor 无效', 'BAD_CURSOR');
   }
   try {
     const text = Buffer.from(raw, 'base64url').toString('utf8');
+    const parts = text.split('|');
+    if (parts[0] === 'h') {
+      if (!isHotSort(sort)) throw new Error('sort mismatch');
+      const resonanceCount = Number(parts[1]);
+      const createdAt = parts[2];
+      const id = parts[3];
+      if (!Number.isFinite(resonanceCount) || !createdAt || !id) throw new Error('bad');
+      return { kind: 'hot', resonanceCount, createdAt, id };
+    }
+    if (parts[0] === 'n') {
+      if (isHotSort(sort)) throw new Error('sort mismatch');
+      const createdAt = parts[1];
+      const id = parts[2];
+      if (!createdAt || !id) throw new Error('bad');
+      return { kind: 'new', createdAt, id };
+    }
+    // Legacy time cursor: `{iso}|{id}`
+    if (isHotSort(sort)) throw new Error('sort mismatch');
     const idx = text.lastIndexOf('|');
     if (idx <= 0) throw new Error('bad');
     const createdAt = text.slice(0, idx);
     const id = text.slice(idx + 1);
     if (!createdAt || !id) throw new Error('bad');
-    return { createdAt, id };
+    return { kind: 'new', createdAt, id };
   } catch {
     throw httpError(400, 'cursor 无效', 'BAD_CURSOR');
   }
@@ -237,11 +280,12 @@ async function getFeed(queryIn = {}, opts = {}) {
   const scopeRaw = typeof queryIn.scope === 'string' ? queryIn.scope : 'all';
   const scope =
     scopeRaw === 'flag' || scopeRaw === 'stamp' ? scopeRaw : 'all';
+  const sort = assertFeedSort(queryIn.sort);
   let limit = parseInt(queryIn.limit, 10);
   if (!Number.isFinite(limit) || limit <= 0) limit = FEED_DEFAULT_LIMIT;
   limit = Math.min(limit, FEED_MAX_LIMIT);
 
-  const cursor = decodeCursor(queryIn.cursor);
+  const cursor = decodeCursor(queryIn.cursor, sort);
   const viewerUserId = opts.viewerUserId || null;
 
   const params = [];
@@ -277,6 +321,15 @@ async function getFeed(queryIn = {}, opts = {}) {
            OR (b.blocker_id = p.user_id AND b.blocked_id = ?)
       )`;
     params.push(viewerUserId, viewerUserId);
+  }
+
+  if (sort === 'hot_day') {
+    sql += ` AND p.day_key = ?`;
+    params.push(dayKeyFromDate());
+  } else if (sort === 'hot_week') {
+    const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    sql += ` AND p.created_at >= ?`;
+    params.push(toMysqlDateTimeUtc(since));
   }
 
   if (scope === 'flag') {
@@ -333,11 +386,32 @@ async function getFeed(queryIn = {}, opts = {}) {
   }
 
   if (cursor) {
-    sql += ` AND (p.created_at < ? OR (p.created_at = ? AND p.id < ?))`;
-    params.push(new Date(cursor.createdAt), new Date(cursor.createdAt), cursor.id);
+    if (cursor.kind === 'hot') {
+      sql += ` AND (
+        p.resonance_count < ?
+        OR (p.resonance_count = ? AND p.created_at < ?)
+        OR (p.resonance_count = ? AND p.created_at = ? AND p.id < ?)
+      )`;
+      const at = new Date(cursor.createdAt);
+      params.push(
+        cursor.resonanceCount,
+        cursor.resonanceCount,
+        at,
+        cursor.resonanceCount,
+        at,
+        cursor.id
+      );
+    } else {
+      sql += ` AND (p.created_at < ? OR (p.created_at = ? AND p.id < ?))`;
+      params.push(new Date(cursor.createdAt), new Date(cursor.createdAt), cursor.id);
+    }
   }
 
-  sql += ` ORDER BY p.created_at DESC, p.id DESC LIMIT ?`;
+  if (isHotSort(sort)) {
+    sql += ` ORDER BY p.resonance_count DESC, p.created_at DESC, p.id DESC LIMIT ?`;
+  } else {
+    sql += ` ORDER BY p.created_at DESC, p.id DESC LIMIT ?`;
+  }
   params.push(limit + 1);
 
   const rows = await query(sql, params);
@@ -345,9 +419,17 @@ async function getFeed(queryIn = {}, opts = {}) {
   const page = hasMore ? rows.slice(0, limit) : rows;
   const items = page.map((r) => rowToPost(r, { includeResonatedByMe: true }));
   const last = page[page.length - 1];
-  const nextCursor = hasMore && last ? encodeCursor(last.created_at, last.id) : null;
+  const nextCursor =
+    hasMore && last
+      ? encodeCursor({
+          sort,
+          resonanceCount: last.resonance_count,
+          createdAt: last.created_at,
+          id: last.id,
+        })
+      : null;
 
-  return { scope, items, nextCursor };
+  return { scope, sort, items, nextCursor };
 }
 
 module.exports = {
