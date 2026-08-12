@@ -1,11 +1,19 @@
-import { useState, useCallback, useLayoutEffect } from 'react';
+import { useRef, useState, useCallback, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
+import PhotoViewer from '../PhotoViewer';
+import { uploadService } from '../../services/uploadService';
+import {
+  enrichUploadedPhotoFromFile,
+  formatCaptureTimeDisplay,
+  getPhotoCaptureIso
+} from '../../utils/photoCaptureTime';
 import {
   newGalleryShareToken,
   copyGalleryShareUrl,
   buildGalleryShareUrl
 } from '../../utils/accountingGalleryShare';
-import { normalizeGalleryDriveFolderUrl } from '../../utils/galleryDriveLink';
+// Drive 方案暂时停用（保留字段与工具，便于日后恢复）
+// import { normalizeGalleryDriveFolderUrl } from '../../utils/galleryDriveLink';
 import {
   normalizeGalleryListing,
   GALLERY_LAYOUT_OPTIONS,
@@ -13,13 +21,13 @@ import {
   GALLERY_INTERNET_OPTIONS,
   GALLERY_OCCUPANCY_OPTIONS
 } from '../../utils/galleryListing';
+import { config } from '../../config';
 
 const PANEL_MAX_WIDTH = 672;
 const VIEWPORT_PAD = 12;
 
 /**
  * 图库弹窗定位：优先在视口内居中，保证完整可见。
- * 宽表右缘「图」按钮旁锚定会在 4K 下把面板挤到右下角并裁切底部「保存」。
  */
 function useGalleryPanelStyle(isOpen) {
   const [panelStyle, setPanelStyle] = useState(null);
@@ -60,12 +68,14 @@ const fieldCls =
   'w-full text-xs px-2 py-1.5 border border-gray-300 rounded focus:outline-none focus:border-blue-500';
 
 /**
- * 账目单租金行 — 图库（Google Drive + 房源说明 + 分享）
+ * 账目单租金行 — 图库（OSS 上传 + 房源说明 + 分享）
+ * Google Drive 方案已注释停用。
  */
 export function AccountingRowGalleryModal({
   isOpen,
   row,
-  // 仍由父组件传入（打开时滚入视区）；面板改为视口居中，不再用锚点定位
+  savedRow,
+  // 仍由父组件传入（打开时滚入视区）；面板改为视口居中
   anchorEl: _anchorEl,
   galleryUnsaved,
   saving = false,
@@ -73,12 +83,16 @@ export function AccountingRowGalleryModal({
   onClose,
   onUpdateRow
 }) {
+  const fileInputRef = useRef(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(null);
+  const [viewerIndex, setViewerIndex] = useState(null);
   const [shareHint, setShareHint] = useState('');
 
+  const photos = row?.photos || [];
   const roomLabel = row?.room?.trim() || '（未填房号）';
   const panelStyle = useGalleryPanelStyle(isOpen);
   const listing = normalizeGalleryListing(row?.galleryListing);
-  const driveUrl = (row?.galleryDriveFolderUrl || '').trim();
 
   const patchRow = useCallback(
     (patch) => {
@@ -107,6 +121,81 @@ export function AccountingRowGalleryModal({
     return token;
   }, [row?.galleryShareToken, patchRow]);
 
+  const handlePickFiles = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (e) => {
+    const files = Array.from(e.target.files || []);
+    e.target.value = '';
+    if (!files.length) return;
+
+    const maxBytes = config.oss.maxFileSize;
+    for (const f of files) {
+      if (f.size > maxBytes) {
+        alert(`「${f.name}」超过 ${maxBytes / 1024 / 1024}MB 上限`);
+        return;
+      }
+      if (!config.oss.allowedTypes.includes(f.type)) {
+        alert(`「${f.name}」格式不支持，请使用 JPG / PNG`);
+        return;
+      }
+    }
+
+    setUploading(true);
+    setUploadProgress({ current: 0, total: files.length, fileName: files[0]?.name || '' });
+    try {
+      const results = await uploadService.uploadPhotosUnlimited(files, (p) => setUploadProgress(p));
+      const newPhotos = [];
+      for (let i = 0; i < results.length; i += 1) {
+        newPhotos.push(await enrichUploadedPhotoFromFile(results[i].photo, files[i]));
+      }
+      const nextPhotos = [...photos, ...newPhotos];
+      const patch = { photos: nextPhotos };
+      if (!row.galleryShareToken && nextPhotos.length > 0) {
+        patch.galleryShareToken = newGalleryShareToken();
+      }
+      patchRow(patch);
+    } catch (err) {
+      console.error(err);
+      alert(`上传失败：${err.message || '未知错误'}`);
+    } finally {
+      setUploading(false);
+      setUploadProgress(null);
+    }
+  };
+
+  const handleDeletePhoto = async (photoId) => {
+    if (!confirm('确定删除这张照片？删除后请点下方「保存到服务器」。')) return;
+    try {
+      await uploadService.deletePhoto(photoId);
+      patchRow({ photos: photos.filter((p) => p.id !== photoId) });
+    } catch (err) {
+      alert(`删除失败：${err.message || '未知错误'}`);
+    }
+  };
+
+  const handleDeleteAllPhotos = async () => {
+    if (!photos.length || uploading) return;
+    if (
+      !confirm(
+        `确定删除全部 ${photos.length} 张图片？\n\n云端会立即删除；删完后请点「保存到服务器」同步账目单。`
+      )
+    ) {
+      return;
+    }
+    try {
+      await uploadService.deletePhotos(photos.map((p) => p.id));
+      patchRow({ photos: [] });
+      setShareHint('已全部删除，请保存到服务器');
+      setTimeout(() => setShareHint(''), 4000);
+    } catch (err) {
+      alert(`删除失败：${err.message || '未知错误'}`);
+    }
+  };
+
+  /*
+  // —— Google Drive 链接处理（暂时停用）——
   const handleDriveUrlBlur = (raw) => {
     const normalized = normalizeGalleryDriveFolderUrl(raw);
     const patch = { galleryDriveFolderUrl: normalized };
@@ -115,10 +204,11 @@ export function AccountingRowGalleryModal({
     }
     patchRow(patch);
   };
+  */
 
   const handleShare = async () => {
-    if (!driveUrl) {
-      alert('请先粘贴 Google 云端硬盘文件夹链接');
+    if (!photos.length) {
+      alert('请先上传照片，再分享');
       return;
     }
     if (galleryUnsaved) {
@@ -138,7 +228,7 @@ export function AccountingRowGalleryModal({
   };
 
   const handleRegenerateLink = () => {
-    if (!driveUrl) return;
+    if (!photos.length) return;
     if (
       !confirm(
         '重新生成链接后，旧链接将立即失效。确定继续？\n\n生成后请保存到服务器，再点「分享」复制新链接。'
@@ -161,13 +251,47 @@ export function AccountingRowGalleryModal({
     }
   };
 
+  const handleRequestClose = async () => {
+    if (uploading) return;
+
+    const savedPhotos = savedRow?.photos || [];
+    const savedIds = new Set(savedPhotos.map((p) => p.id));
+    const orphanIds = photos.filter((p) => !savedIds.has(p.id)).map((p) => p.id);
+
+    if (orphanIds.length > 0) {
+      const ok = window.confirm(
+        `有 ${orphanIds.length} 张图片已上传到云端，但尚未保存到服务器。\n\n关闭后将删除这些图片；若想保留，请先点「保存到服务器」。\n\n确定关闭？`
+      );
+      if (!ok) return;
+      try {
+        await uploadService.deletePhotos(orphanIds);
+      } catch (err) {
+        const stillClose = window.confirm(
+          `云端删除失败（${err.message || '未知错误'}）。仍要关闭吗？未保存的图片可能残留在云端。`
+        );
+        if (!stillClose) return;
+      }
+      patchRow({
+        photos: savedPhotos,
+        galleryShareToken: savedRow?.galleryShareToken || '',
+        galleryListing: savedRow?.galleryListing || row?.galleryListing
+      });
+    }
+
+    onClose();
+  };
+
   if (!isOpen || !row || !panelStyle) return null;
 
   const shareUrl = row.galleryShareToken ? buildGalleryShareUrl(row.galleryShareToken) : '';
+  const progressPct =
+    uploadProgress && uploadProgress.total > 0
+      ? Math.round((uploadProgress.current / uploadProgress.total) * 100)
+      : 0;
 
   const panel = (
     <>
-      <div className="fixed inset-0 z-40 bg-black/40" onClick={onClose} aria-hidden="true" />
+      <div className="fixed inset-0 z-40 bg-black/40" onClick={handleRequestClose} aria-hidden="true" />
       <div
         className="fixed z-50 flex flex-col bg-white rounded-lg shadow-2xl border border-gray-200 overflow-hidden"
         style={panelStyle}
@@ -180,11 +304,13 @@ export function AccountingRowGalleryModal({
             <h3 id="gallery-modal-title" className="text-base font-semibold truncate">
               图片库 · {roomLabel}
             </h3>
-            <p className="text-[11px] text-white/85 mt-0.5">Google 云端硬盘 · 填写说明后保存</p>
+            <p className="text-[11px] text-white/85 mt-0.5">
+              OSS · 单张 ≤{config.oss.maxFileSize / 1024 / 1024}MB · 上传后请保存
+            </p>
           </div>
           <button
             type="button"
-            onClick={onClose}
+            onClick={handleRequestClose}
             className="shrink-0 text-2xl leading-none hover:opacity-80"
             aria-label="关闭"
           >
@@ -202,22 +328,55 @@ export function AccountingRowGalleryModal({
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
-              onClick={handleShare}
-              disabled={!driveUrl}
-              className="px-3 py-2 text-sm rounded bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50"
+              onClick={handlePickFiles}
+              disabled={uploading}
+              className="px-3 py-2 text-sm rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
             >
-              分享
+              {uploading ? '上传中…' : photos.length ? '继续上传' : '选择图片'}
             </button>
-            {driveUrl ? (
-              <button
-                type="button"
-                onClick={handleRegenerateLink}
-                className="px-3 py-2 text-sm rounded border border-gray-300 text-gray-700 hover:bg-gray-50"
-              >
-                重新生成链接
-              </button>
+            {photos.length > 0 ? (
+              <>
+                <button
+                  type="button"
+                  onClick={handleShare}
+                  className="px-3 py-2 text-sm rounded bg-emerald-600 text-white hover:bg-emerald-700"
+                >
+                  分享
+                </button>
+                <button
+                  type="button"
+                  onClick={handleRegenerateLink}
+                  className="px-3 py-2 text-sm rounded border border-gray-300 text-gray-700 hover:bg-gray-50"
+                >
+                  重新生成链接
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDeleteAllPhotos}
+                  disabled={uploading}
+                  className="px-3 py-2 text-sm rounded bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
+                >
+                  全部删除
+                </button>
+              </>
             ) : null}
           </div>
+
+          {uploading && uploadProgress ? (
+            <div className="space-y-1.5">
+              <p className="text-xs text-gray-600">
+                正在上传 {uploadProgress.current}/{uploadProgress.total}
+                {uploadProgress.fileName ? ` · ${uploadProgress.fileName}` : ''}
+              </p>
+              <div className="h-2 w-full bg-gray-200 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-blue-600 transition-[width] duration-200 ease-out"
+                  style={{ width: `${progressPct}%` }}
+                />
+              </div>
+              <p className="text-[11px] text-gray-500">{progressPct}%</p>
+            </div>
+          ) : null}
 
           {shareHint ? <p className="text-sm text-emerald-700">{shareHint}</p> : null}
           {shareUrl ? (
@@ -226,9 +385,11 @@ export function AccountingRowGalleryModal({
             </p>
           ) : null}
 
+          {/*
+          // —— Google 云端硬盘文件夹（暂时停用）——
           <div className="space-y-1.5 pt-1 border-t border-gray-100">
             <label htmlFor="gallery-drive-url" className="block text-xs font-medium text-gray-700">
-              Google 云端硬盘文件夹 <span className="text-red-600">*</span>
+              Google 云端硬盘文件夹
             </label>
             <input
               id="gallery-drive-url"
@@ -239,10 +400,55 @@ export function AccountingRowGalleryModal({
               placeholder="https://drive.google.com/drive/folders/…"
               className={fieldCls}
             />
-            <p className="text-[10px] text-gray-500 leading-snug">
-              在 Drive 上传图片后，粘贴「知道链接的人可查看」的文件夹链接。图片仅存放在 Google，不在本站上传。
-            </p>
           </div>
+          */}
+
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/jpg"
+            multiple
+            className="hidden"
+            onChange={handleFileChange}
+          />
+
+          {photos.length === 0 ? (
+            <div className="py-8 text-center text-gray-500 border border-dashed border-gray-300 rounded-lg text-sm">
+              暂无图片，点击「选择图片」上传到 OSS
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {photos.map((photo, index) => (
+                <div
+                  key={photo.id}
+                  className="relative border border-gray-200 rounded-lg overflow-hidden bg-gray-50"
+                >
+                  <button
+                    type="button"
+                    className="block w-full aspect-square"
+                    onClick={() => setViewerIndex(index)}
+                  >
+                    <img
+                      src={photo.url}
+                      alt={photo.name || `图片 ${index + 1}`}
+                      className="w-full h-full object-cover"
+                    />
+                  </button>
+                  <div className="px-2 py-1 text-[10px] text-gray-600 bg-white border-t border-gray-100">
+                    {formatCaptureTimeDisplay(getPhotoCaptureIso(photo))}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleDeletePhoto(photo.id)}
+                    className="absolute top-1 right-1 w-6 h-6 rounded-full bg-red-600/90 text-white text-xs hover:bg-red-700"
+                    title="删除"
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
 
           <div className="space-y-2 pt-1 border-t border-gray-100">
             <p className="text-xs font-medium text-gray-700">房源说明（分享页展示）</p>
@@ -429,7 +635,7 @@ export function AccountingRowGalleryModal({
           <button
             type="button"
             onClick={handleSaveToServer}
-            disabled={saving || !onSaveToServer}
+            disabled={saving || uploading || !onSaveToServer}
             className="w-full py-2.5 px-4 rounded-lg bg-blue-600 text-white font-medium text-sm hover:bg-blue-700 disabled:opacity-50"
           >
             {saving ? '保存中…' : '保存到服务器'}
@@ -439,6 +645,14 @@ export function AccountingRowGalleryModal({
           </p>
         </div>
       </div>
+
+      {viewerIndex !== null && photos.length > 0 ? (
+        <PhotoViewer
+          photos={photos}
+          initialIndex={viewerIndex}
+          onClose={() => setViewerIndex(null)}
+        />
+      ) : null}
     </>
   );
 

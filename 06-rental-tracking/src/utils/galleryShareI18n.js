@@ -11,6 +11,20 @@ const MESSAGES = {
     roomLabel: '房号',
     loading: '加载中…',
     listingTitle: '房源说明',
+    saveAll: '下载全部图片',
+    savingAll: '准备中…',
+    saveAllHint:
+      '手机端会优先打开系统分享面板（可保存到相册）；若无法一次全部保存，可点单张「下载」或长按图片保存。',
+    savePreparing: '准备中…',
+    saveProgress: '正在保存 {cur}/{total}…',
+    saveDoneShare: '已通过系统分享面板保存',
+    saveDoneSequential: '已全部触发下载',
+    saveFailed: '保存失败，请尝试逐张下载或长按图片保存',
+    downloadOne: '下载',
+    downloadFailed: '下载失败，请长按图片保存',
+    capturedLabel: '拍摄',
+    photoAlt: '图片',
+    // Drive 文案保留（方案停用，暂不展示）
     drivePreviewTitle: 'Google 云端硬盘预览',
     drivePreviewHint:
       '点击下方网格可放大；批量下载请用下方按钮在 Google App 中打开（尤其安卓）。若预览空白，请确认文件夹已设为「知道链接的人可查看」。',
@@ -20,8 +34,9 @@ const MESSAGES = {
     openInDriveHint: '下载、保存到相册请在 Google 页面操作',
     emptyGallery: '图库暂无内容',
     errorInvalidLink:
-      '链接无效或尚未生效。常见原因：填写后还没有点「保存到服务器」，或链接已被重新生成。请让分享方保存后再发链接。',
+      '链接无效或尚未生效。常见原因：上传/分享后还没有点「保存到服务器」，或链接已被重新生成。请让分享方保存后再发链接。',
     errorNoDrive: '分享方尚未配置 Google 云端硬盘文件夹链接，请让对方在图库中粘贴链接并保存。',
+    errorNoPhotos: '该图库目前没有图片，请让分享方重新上传并保存。',
     errorLoadFailed: '加载图库失败',
     labelCondo: '公寓',
     labelBuilding: '楼栋',
@@ -53,6 +68,19 @@ const MESSAGES = {
     roomLabel: 'Room',
     loading: 'Loading…',
     listingTitle: 'Listing details',
+    saveAll: 'Download all photos',
+    savingAll: 'Preparing…',
+    saveAllHint:
+      'On mobile, the system share sheet opens first (you can save to Photos). If that fails, tap Download on each photo or long-press to save.',
+    savePreparing: 'Preparing…',
+    saveProgress: 'Saving {cur}/{total}…',
+    saveDoneShare: 'Saved via the system share sheet',
+    saveDoneSequential: 'All downloads started',
+    saveFailed: 'Save failed. Try downloading one by one or long-press a photo.',
+    downloadOne: 'Download',
+    downloadFailed: 'Download failed. Long-press the photo to save.',
+    capturedLabel: 'Taken',
+    photoAlt: 'Photo',
     drivePreviewTitle: 'Google Drive preview',
     drivePreviewHint:
       'Tap the grid below to enlarge. For bulk download, use the button below to open in the Google app (especially on Android). If the preview is blank, make sure the folder is shared as “Anyone with the link can view”.',
@@ -65,6 +93,7 @@ const MESSAGES = {
       'This link is invalid or not active yet. Common causes: changes were not saved to the server, or the link was regenerated. Ask the sender to save and share again.',
     errorNoDrive:
       'The sender has not configured a Google Drive folder link. Ask them to paste the link in the gallery and save.',
+    errorNoPhotos: 'This gallery has no photos yet. Ask the sender to upload and save again.',
     errorLoadFailed: 'Failed to load gallery',
     labelCondo: 'Condo',
     labelBuilding: 'Building',
@@ -96,6 +125,19 @@ const MESSAGES = {
     roomLabel: 'ห้อง',
     loading: 'กำลังโหลด…',
     listingTitle: 'รายละเอียดที่พัก',
+    saveAll: 'ดาวน์โหลดรูปทั้งหมด',
+    savingAll: 'กำลังเตรียม…',
+    saveAllHint:
+      'บนมือถือจะเปิดแผงแชร์ของระบบก่อน (บันทึกลงอัลบั้มได้) หากไม่ได้ ให้กดดาวน์โหลดทีละรูป หรือกดค้างที่รูปเพื่อบันทึก',
+    savePreparing: 'กำลังเตรียม…',
+    saveProgress: 'กำลังบันทึก {cur}/{total}…',
+    saveDoneShare: 'บันทึกผ่านแผงแชร์ของระบบแล้ว',
+    saveDoneSequential: 'เริ่มดาวน์โหลดทั้งหมดแล้ว',
+    saveFailed: 'บันทึกไม่สำเร็จ ลองดาวน์โหลดทีละรูป หรือกดค้างที่รูป',
+    downloadOne: 'ดาวน์โหลด',
+    downloadFailed: 'ดาวน์โหลดไม่สำเร็จ กรุณากดค้างที่รูปเพื่อบันทึก',
+    capturedLabel: 'ถ่ายเมื่อ',
+    photoAlt: 'รูป',
     drivePreviewTitle: 'ตัวอย่าง Google Drive',
     drivePreviewHint:
       'แตะตารางด้านล่างเพื่อขยาย สำหรับดาวน์โหลดหลายไฟล์ ให้ใช้ปุ่มด้านล่างเปิดในแอป Google (โดยเฉพาะ Android) หากตัวอย่างว่าง ให้ตรวจสอบว่าโฟลเดอร์ตั้งค่าเป็น “ทุกคนที่มีลิงก์ดูได้”',
@@ -108,6 +150,7 @@ const MESSAGES = {
       'ลิงก์ไม่ถูกต้องหรือยังไม่มีผล สาเหตุที่พบบ่อย: ยังไม่ได้กดบันทึกไปยังเซิร์ฟเวอร์ หรือลิงก์ถูกสร้างใหม่ กรุณาให้ผู้แชร์บันทึกแล้วส่งลิงก์อีกครั้ง',
     errorNoDrive:
       'ผู้แชร์ยังไม่ได้ตั้งค่าลิงก์โฟลเดอร์ Google Drive กรุณาให้วางลิงก์ในคลังแล้วบันทึก',
+    errorNoPhotos: 'คลังนี้ยังไม่มีรูป กรุณาให้ผู้แชร์อัปโหลดแล้วบันทึกอีกครั้ง',
     errorLoadFailed: 'โหลดคลังรูปไม่สำเร็จ',
     labelCondo: 'คอนโด',
     labelBuilding: 'อาคาร',
@@ -181,6 +224,9 @@ export function translateGalleryShareError(locale, msg) {
   }
   if (text.includes('未配置 Google') || text.includes('云端硬盘')) {
     return galleryShareT(locale, 'errorNoDrive');
+  }
+  if (text.includes('图库暂无图片') || text.includes('没有图片')) {
+    return galleryShareT(locale, 'errorNoPhotos');
   }
   if (text === '加载图库失败') {
     return galleryShareT(locale, 'errorLoadFailed');

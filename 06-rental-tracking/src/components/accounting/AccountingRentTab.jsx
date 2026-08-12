@@ -26,6 +26,7 @@ import { evaluateArithmeticExpression, formatAccountingNumber } from '../../util
 import { isIsoDateString, sanitizeIsoDateField, isMonthBeforeActualRent } from '../../utils/accountingDates';
 import { AccountingRowGalleryModal } from './AccountingRowGalleryModal';
 import { AccountingAutoTextareaCell } from './AccountingAutoTextareaCell';
+import { uploadService } from '../../services/uploadService';
 
 /** dnd-kit 在静止时也可能给出恒等 transform；写在 tr 上会给子格新建包含块，恒等时勿写 transform */
 function sortableTransformIsActive(t) {
@@ -272,9 +273,9 @@ function SortableRentRow({
             type="button"
             onClick={(e) => onOpenGallery(row.id, e.currentTarget)}
             className="text-blue-600 hover:text-blue-800 text-xs px-0.5"
-            title={row.galleryDriveFolderUrl?.trim() ? '图片库（已配置 Google Drive）' : '图片库'}
+            title={row.photos?.length ? `图片库（${row.photos.length} 张）` : '上传图片'}
           >
-            图{row.galleryDriveFolderUrl?.trim() ? '●' : ''}
+            图{row.photos?.length ? `(${row.photos.length})` : ''}
           </button>
           <button
             type="button"
@@ -289,7 +290,14 @@ function SortableRentRow({
   );
 }
 
-export function AccountingRentTab({ sheet, setSheet, isRentRowGalleryUnsaved, onSaveToServer, saving }) {
+export function AccountingRentTab({
+  sheet,
+  savedSheet,
+  setSheet,
+  isRentRowGalleryUnsaved,
+  onSaveToServer,
+  saving
+}) {
   const [m0, m1] = sheet.monthKeys;
   const [filterPendingPayRent, setFilterPendingPayRent] = useState(false);
   /** 开启筛选时固定的行 id：补录交租后仍保留在列表中，避免行瞬间消失像「输入无效」 */
@@ -314,6 +322,11 @@ export function AccountingRentTab({ sheet, setSheet, isRentRowGalleryUnsaved, on
   const galleryRow = useMemo(
     () => (galleryRowId ? sheet.rentRows.find((r) => r.id === galleryRowId) : null),
     [galleryRowId, sheet.rentRows]
+  );
+
+  const gallerySavedRow = useMemo(
+    () => (galleryRowId ? savedSheet?.rentRows?.find((r) => r.id === galleryRowId) : null),
+    [galleryRowId, savedSheet?.rentRows]
   );
 
   const displayRows = useMemo(() => {
@@ -462,7 +475,22 @@ export function AccountingRentTab({ sheet, setSheet, isRentRowGalleryUnsaved, on
       }))
     );
 
-  const removeRow = (rowId) => {
+  const removeRow = async (rowId) => {
+    const row = sheet.rentRows.find((r) => r.id === rowId);
+    if (!row) return;
+    if (!confirm(`确定删除房号「${row.room || '（未填）'}」这一行？`)) return;
+
+    if (row.photos?.length) {
+      try {
+        await uploadService.deletePhotos(row.photos.map((p) => p.id));
+      } catch (err) {
+        const stillRemove = window.confirm(
+          `该行有 ${row.photos.length} 张云端图片，删除失败（${err.message || '未知错误'}）。仍从表格移除该行？`
+        );
+        if (!stillRemove) return;
+      }
+    }
+
     setSheet((prev) => ({
       ...prev,
       rentRows: prev.rentRows.filter((r) => r.id !== rowId)
@@ -644,6 +672,7 @@ export function AccountingRentTab({ sheet, setSheet, isRentRowGalleryUnsaved, on
       <AccountingRowGalleryModal
         isOpen={!!galleryRow}
         row={galleryRow}
+        savedRow={gallerySavedRow}
         anchorEl={galleryAnchorEl}
         galleryUnsaved={galleryRow ? isRentRowGalleryUnsaved?.(galleryRow.id) : false}
         saving={saving}
