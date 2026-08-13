@@ -186,6 +186,50 @@ async function getTodayMine(userId) {
   };
 }
 
+/** Author's live posts (not soft-deleted, not expired). Newest first. */
+async function listMine(userId, queryIn = {}) {
+  await requireActiveUser(userId);
+  let limit = parseInt(queryIn.limit, 10);
+  if (!Number.isFinite(limit) || limit <= 0) limit = FEED_DEFAULT_LIMIT;
+  limit = Math.min(limit, FEED_MAX_LIMIT);
+  const cursor = decodeCursor(queryIn.cursor, 'new');
+
+  const params = [userId, userId];
+  let sql = `
+    SELECT p.id, p.user_id, p.body, p.flag_id, p.stamp_id, p.resonance_count, p.edit_used,
+           p.day_key, p.created_at, p.updated_at, p.expires_at, p.deleted_at,
+           u.nick_name, u.gender, u.avatar_id,
+           (r.user_id IS NOT NULL) AS resonated_by_me
+    FROM posts p
+    INNER JOIN users u ON u.id = p.user_id
+    LEFT JOIN resonances r ON r.post_id = p.id AND r.user_id = ?
+    WHERE p.user_id = ?
+      AND p.deleted_at IS NULL
+      AND p.expires_at > UTC_TIMESTAMP()`;
+  if (cursor) {
+    sql += ` AND (p.created_at < ? OR (p.created_at = ? AND p.id < ?))`;
+    params.push(new Date(cursor.createdAt), new Date(cursor.createdAt), cursor.id);
+  }
+  sql += ` ORDER BY p.created_at DESC, p.id DESC LIMIT ?`;
+  params.push(limit + 1);
+
+  const rows = await query(sql, params);
+  const hasMore = rows.length > limit;
+  const page = hasMore ? rows.slice(0, limit) : rows;
+  const items = page.map((r) => rowToPost(r, { includeResonatedByMe: true }));
+  const last = page[page.length - 1];
+  const nextCursor =
+    hasMore && last
+      ? encodeCursor({
+          sort: 'new',
+          resonanceCount: last.resonance_count,
+          createdAt: last.created_at,
+          id: last.id,
+        })
+      : null;
+  return { items, nextCursor };
+}
+
 /** Feed sort: new (default) · hot_day · hot_week */
 const FEED_SORTS = new Set(['new', 'hot_day', 'hot_week']);
 
@@ -437,6 +481,7 @@ module.exports = {
   patchPost,
   deletePost,
   getTodayMine,
+  listMine,
   getFeed,
   rowToPost,
 };

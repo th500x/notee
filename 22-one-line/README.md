@@ -62,7 +62,10 @@ npm run jobs:daily
 | 方法 | 路径 | 说明 |
 |------|------|------|
 | … | auth / me / posts / feed / resonance / report / blocks | P1–P4 |
+| GET | `/api/oneline/posts/mine` | 作者现存帖（未软删、未过期）；`created_at DESC` |
 | GET | `/api/oneline/board?month=YYYY-MM` | 默认**当月** live Top 30；往月读快照（缺则固化） |
+
+正文：统一预算 100（汉字占 2，其余占 1）。客户端 + 服务端双拦。
 
 日界 / 月界：**UTC+7**。每日 **00:15 Asia/Bangkok**：软删过期帖 + 固化上月榜。  
 月榜为快照（`monthly_board`），帖过期后榜仍在。

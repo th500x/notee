@@ -1,11 +1,14 @@
 /**
  * Post body rules (server half of client+server dual gate).
- * ≤100 Unicode code points; block links / phones / @ handles / empty spam.
+ * One budget of 100: each Han (Chinese) code point costs 2; everything else costs 1.
+ * Block links / phones / @ / spam.
  */
 
 const { httpError } = require('./httpError');
 
-const MAX_CODE_POINTS = 100;
+const BUDGET = 100;
+const HAN_COST = 2;
+const HAN_RE = /\p{Script=Han}/u;
 
 /** Loose TLD / host sniffs — not a full URL parser. */
 const LINK_RE =
@@ -14,6 +17,14 @@ const LINK_RE =
 const AT_HANDLE_RE = /@[A-Za-z0-9_]{2,}/;
 const LONG_DIGIT_RE = /\d{8,}/;
 const PHONEISH_RE = /\d[\d\s\-()]{6,}\d/;
+
+function weightedLength(body) {
+  let n = 0;
+  for (const ch of Array.from(body)) {
+    n += HAN_RE.test(ch) ? HAN_COST : 1;
+  }
+  return n;
+}
 
 /**
  * @returns {string} NFC-trimmed body
@@ -27,9 +38,8 @@ function assertPostBody(raw) {
     throw httpError(400, '正文不能为空', 'BAD_BODY');
   }
 
-  const codePoints = Array.from(body);
-  if (codePoints.length > MAX_CODE_POINTS) {
-    throw httpError(400, `正文最多 ${MAX_CODE_POINTS} 字`, 'BODY_TOO_LONG');
+  if (weightedLength(body) > BUDGET) {
+    throw httpError(400, `正文最多 ${BUDGET}（汉字算 ${HAN_COST}）`, 'BODY_TOO_LONG');
   }
 
   // Must contain at least one letter or number (any script)
@@ -65,7 +75,9 @@ function assertStampId(raw) {
 }
 
 module.exports = {
-  MAX_CODE_POINTS,
+  BUDGET,
+  HAN_COST,
+  weightedLength,
   assertPostBody,
   assertStampId,
 };

@@ -11,6 +11,7 @@ const {
   patchPost,
   deletePost,
   getTodayMine,
+  listMine,
 } = require('../services/postService');
 const { addResonance, removeResonance } = require('../services/resonanceService');
 const { reportPost } = require('../services/reportService');
@@ -20,6 +21,15 @@ const router = express.Router();
 router.get('/today/me', requireAuth, publicReadLimiter, async (req, res) => {
   try {
     const data = await getTodayMine(req.player.sub);
+    res.json({ success: true, data });
+  } catch (err) {
+    sendServiceError(res, err, '[one-line/posts]');
+  }
+});
+
+router.get('/mine', requireAuth, publicReadLimiter, async (req, res) => {
+  try {
+    const data = await listMine(req.player.sub, req.query);
     res.json({ success: true, data });
   } catch (err) {
     sendServiceError(res, err, '[one-line/posts]');
