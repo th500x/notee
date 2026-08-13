@@ -21,7 +21,7 @@ import {
 } from '../../utils/galleryListing';
 import { config } from '../../config';
 import { buildOssImageUrl } from '../../utils/ossImageUrl';
-import { prepareGalleryUploadFile } from '../../utils/galleryUploadFileName';
+import { resolveGalleryUploadFileName } from '../../utils/galleryUploadFileName';
 
 /** 与后端 sanitizeRoomFolderName 口径一致（用于判断是否需迁移） */
 function roomFolderSlug(room) {
@@ -45,42 +45,76 @@ function photosNeedRoomRelocate(photos, room) {
 const PANEL_MAX_WIDTH = 672;
 const VIEWPORT_PAD = 12;
 
+function isMobileGalleryViewport() {
+  if (typeof window === 'undefined') return false;
+  return window.matchMedia('(pointer: coarse)').matches || window.matchMedia('(max-width: 768px)').matches;
+}
+
 /**
- * 图库弹窗定位：优先在视口内居中，保证完整可见。
+ * PC：固定在布局视口顶部居中（原行为）。
+ * 手机：按 visualViewport 定位到「当前看见的屏幕」正中，避免缩放/横滑后弹窗跑出视野。
  */
 function useGalleryPanelStyle(isOpen) {
-  const [panelStyle, setPanelStyle] = useState(null);
+  const [styles, setStyles] = useState(null);
 
   useLayoutEffect(() => {
     if (!isOpen) {
-      setPanelStyle(null);
+      setStyles(null);
       return undefined;
     }
 
     const update = () => {
-      const vw = window.innerWidth;
-      const vh = window.innerHeight;
-      const panelWidth = Math.min(PANEL_MAX_WIDTH, vw - VIEWPORT_PAD * 2);
+      const mobile = isMobileGalleryViewport();
+      const vv = window.visualViewport;
+      const useVisual = mobile && vv;
+      const vw = useVisual ? vv.width : window.innerWidth;
+      const vh = useVisual ? vv.height : window.innerHeight;
+      const ox = useVisual ? vv.offsetLeft : 0;
+      const oy = useVisual ? vv.offsetTop : 0;
+      const panelWidth = Math.min(PANEL_MAX_WIDTH, Math.max(240, vw - VIEWPORT_PAD * 2));
       const maxPanelHeight = Math.min(vh - VIEWPORT_PAD * 2, Math.round(vh * 0.92));
-      const left = Math.max(VIEWPORT_PAD, Math.round((vw - panelWidth) / 2));
-      const top = VIEWPORT_PAD;
+      const left = ox + Math.max(VIEWPORT_PAD, Math.round((vw - panelWidth) / 2));
+      const top = useVisual
+        ? oy + Math.max(VIEWPORT_PAD, Math.round((vh - maxPanelHeight) / 2))
+        : VIEWPORT_PAD;
 
-      setPanelStyle({
-        top: `${top}px`,
-        left: `${left}px`,
-        width: `${panelWidth}px`,
-        maxHeight: `${maxPanelHeight}px`
+      setStyles({
+        overlay: useVisual
+          ? {
+              position: 'fixed',
+              top: `${oy}px`,
+              left: `${ox}px`,
+              width: `${vw}px`,
+              height: `${vh}px`
+            }
+          : {
+              position: 'fixed',
+              inset: 0
+            },
+        panel: {
+          top: `${top}px`,
+          left: `${left}px`,
+          width: `${panelWidth}px`,
+          maxHeight: `${maxPanelHeight}px`
+        }
       });
     };
 
     update();
     window.addEventListener('resize', update);
+    window.addEventListener('scroll', update, true);
+    const vv = window.visualViewport;
+    vv?.addEventListener('resize', update);
+    vv?.addEventListener('scroll', update);
     return () => {
       window.removeEventListener('resize', update);
+      window.removeEventListener('scroll', update, true);
+      vv?.removeEventListener('resize', update);
+      vv?.removeEventListener('scroll', update);
     };
   }, [isOpen]);
 
-  return panelStyle;
+  return styles;
 }
 
 const fieldCls =
@@ -114,7 +148,7 @@ export function AccountingRowGalleryModal({
   const canShareGallery = photos.length > 0;
   const roomLabel = row?.room?.trim() || '（未填房号）';
   const roomValue = row?.room?.trim() || '';
-  const panelStyle = useGalleryPanelStyle(isOpen);
+  const panelStyles = useGalleryPanelStyle(isOpen);
   const listing = normalizeGalleryListing(row?.galleryListing);
 
   const patchRow = useCallback(
@@ -241,25 +275,24 @@ export function AccountingRowGalleryModal({
     setUploadProgress({ current: 0, total: files.length, fileName: '准备中…' });
     let nextPhotos = photos;
     try {
-      // 注意：不要在上传前异步清理（keep 列表会过期，可能误删刚上传的文件）
-      const prepared = [];
+      const fileNames = [];
       for (let i = 0; i < files.length; i += 1) {
         setUploadProgress({
           current: i + 1,
           total: files.length,
           fileName: `处理文件名 ${files[i].name || i + 1}`
         });
-        prepared.push(await prepareGalleryUploadFile(files[i]));
+        fileNames.push(await resolveGalleryUploadFileName(files[i]));
       }
 
       const results = await uploadService.uploadPhotosUnlimited(
-        prepared,
+        files,
         (p) => setUploadProgress(p),
-        { room: roomValue }
+        { room: roomValue, fileNames }
       );
       const newPhotos = [];
       for (let i = 0; i < results.length; i += 1) {
-        newPhotos.push(await enrichUploadedPhotoFromFile(results[i].photo, prepared[i]));
+        newPhotos.push(await enrichUploadedPhotoFromFile(results[i].photo, files[i]));
       }
       nextPhotos = [...photos, ...newPhotos];
       const patch = { photos: nextPhotos };
@@ -267,7 +300,6 @@ export function AccountingRowGalleryModal({
         patch.galleryShareToken = newGalleryShareToken();
       }
       patchRow(patch);
-      syncGalleryOssInBackground(nextPhotos);
     } catch (err) {
       console.error(err);
       const partial = Array.isArray(err?.partialResults) ? err.partialResults : [];
@@ -284,12 +316,9 @@ export function AccountingRowGalleryModal({
         }
         patchRow(patch);
       }
-      syncGalleryOssInBackground(nextPhotos);
       const keepHint =
-        partial.length > 0 ? `已保留成功上传的 ${partial.length} 张；` : '';
-      alert(
-        `上传失败：${err.message || '未知错误'}\n\n${keepHint}云端多余文件将在后台清理。请保存到服务器后再继续。`
-      );
+        partial.length > 0 ? `已保留成功上传的 ${partial.length} 张。` : '';
+      alert(`上传失败：${err.message || '未知错误'}\n\n${keepHint}请保存到服务器后再继续。`);
     } finally {
       setUploading(false);
       setUploadProgress(null);
@@ -365,6 +394,7 @@ export function AccountingRowGalleryModal({
     if (result?.success) {
       setShareHint('已保存到服务器，现在可以点「分享」复制链接');
       setTimeout(() => setShareHint(''), 4000);
+      syncGalleryOssInBackground(photos);
     } else if (result?.error) {
       alert(result.error);
     }
@@ -400,7 +430,7 @@ export function AccountingRowGalleryModal({
     onClose();
   };
 
-  if (!isOpen || !row || !panelStyle) return null;
+  if (!isOpen || !row || !panelStyles) return null;
 
   const shareUrl = row.galleryShareToken ? buildGalleryShareUrl(row.galleryShareToken) : '';
   const progressPct =
@@ -410,10 +440,15 @@ export function AccountingRowGalleryModal({
 
   const panel = (
     <>
-      <div className="fixed inset-0 z-40 bg-black/40" onClick={handleRequestClose} aria-hidden="true" />
+      <div
+        className="z-40 bg-black/40"
+        style={panelStyles.overlay}
+        onClick={handleRequestClose}
+        aria-hidden="true"
+      />
       <div
         className="fixed z-50 flex flex-col bg-white rounded-lg shadow-2xl border border-gray-200 overflow-hidden"
-        style={panelStyle}
+        style={panelStyles.panel}
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-labelledby="gallery-modal-title"

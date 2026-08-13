@@ -88,46 +88,15 @@ function publicObjectUrl(objectKey) {
   }
 }
 
-async function objectExists(objectKey) {
-  const client = requireOssClient();
-  try {
-    // 低频存储 head 偶发很慢，加超时避免上传卡死
-    await Promise.race([
-      client.head(objectKey),
-      new Promise((_, reject) => {
-        setTimeout(() => {
-          const err = new Error('OSS head timeout');
-          err.code = 'HeadTimeout';
-          reject(err);
-        }, 4000);
-      })
-    ]);
-    return true;
-  } catch (err) {
-    if (err && (err.status === 404 || err.code === 'NoSuchKey')) return false;
-    if (err && err.code === 'HeadTimeout') return null;
-    throw err;
-  }
-}
-
-async function allocateUniqueObjectKey(folderPrefix, originalFileName) {
+/**
+ * 图库对象键：本地生成唯一后缀，禁止 head/list 查重。
+ * 低频存储对已有对象做 HEAD 会非常慢（数分钟），这是上传卡住的主因。
+ */
+function allocateGalleryObjectKey(folderPrefix, originalFileName) {
   const { base, ext } = sanitizeOriginalBaseName(originalFileName);
   const prefix = folderPrefix.endsWith('/') ? folderPrefix : `${folderPrefix}/`;
-  let candidate = `${prefix}${base}${ext}`;
-  const exists = await objectExists(candidate);
-  if (exists === false) return candidate;
-  if (exists === null) {
-    return `${prefix}${base}_${Date.now().toString(36)}${ext}`;
-  }
-  for (let i = 2; i <= 20; i += 1) {
-    candidate = `${prefix}${base}_${i}${ext}`;
-    const hit = await objectExists(candidate);
-    if (hit === false) return candidate;
-    if (hit === null) {
-      return `${prefix}${base}_${Date.now().toString(36)}${ext}`;
-    }
-  }
-  return `${prefix}${base}_${Date.now().toString(36)}${ext}`;
+  const uniq = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+  return `${prefix}${base}_${uniq}${ext}`;
 }
 
 /**
@@ -144,7 +113,7 @@ async function uploadPhoto(fileBuffer, fileName, options = {}) {
 
     if (purpose === 'gallery') {
       const roomFolder = sanitizeRoomFolderName(options.room);
-      uniqueFileName = await allocateUniqueObjectKey(`photos/gallery/${roomFolder}`, fileName);
+      uniqueFileName = allocateGalleryObjectKey(`photos/gallery/${roomFolder}`, fileName);
     } else {
       const timestamp = Date.now();
       const randomStr = Math.random().toString(36).substring(2, 9);
@@ -292,7 +261,7 @@ async function relocateGalleryPhotosToRoom(photos, newRoom) {
     }
 
     const preferredName = photo.name || path.basename(oldKey);
-    const newKey = await allocateUniqueObjectKey(`photos/gallery/${roomFolder}`, preferredName);
+    const newKey = allocateGalleryObjectKey(`photos/gallery/${roomFolder}`, preferredName);
 
     try {
       await client.copy(newKey, oldKey);
@@ -328,7 +297,7 @@ async function listGalleryObjectKeys(room) {
   const seenMarkers = new Set();
   let marker;
   let pages = 0;
-  const maxPages = 50;
+  const maxPages = 8;
 
   while (pages < maxPages) {
     pages += 1;
@@ -336,11 +305,16 @@ async function listGalleryObjectKeys(room) {
       if (seenMarkers.has(marker)) break;
       seenMarkers.add(marker);
     }
-    const result = await client.list({
-      prefix,
-      marker,
-      'max-keys': 200
-    });
+    const result = await Promise.race([
+      client.list({
+        prefix,
+        marker,
+        'max-keys': 100
+      }),
+      new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('OSS list timeout')), 5000);
+      })
+    ]);
     for (const obj of result.objects || []) {
       if (obj?.name && !String(obj.name).endsWith('/')) {
         keys.push(obj.name);

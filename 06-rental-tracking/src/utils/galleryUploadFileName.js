@@ -74,18 +74,3 @@ export async function resolveGalleryUploadFileName(file) {
 
   return `IMG_${Date.now()}${ext}`;
 }
-
-/**
- * 若需改名则返回新 File（内容相同），否则返回原 File
- * @param {File} file
- * @returns {Promise<File>}
- */
-export async function prepareGalleryUploadFile(file) {
-  if (!file) throw new Error('无效文件');
-  const nextName = await resolveGalleryUploadFileName(file);
-  if (nextName === file.name) return file;
-  return new File([file], nextName, {
-    type: file.type || 'image/jpeg',
-    lastModified: file.lastModified || Date.now()
-  });
-}

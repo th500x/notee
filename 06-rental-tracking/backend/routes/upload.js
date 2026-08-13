@@ -67,7 +67,11 @@ router.post(
       });
     }
 
-    const result = await ossService.uploadPhoto(req.file.buffer, req.file.originalname, {
+    const fileName =
+      (typeof req.body?.fileName === 'string' && req.body.fileName.trim()) ||
+      req.file.originalname;
+
+    const result = await ossService.uploadPhoto(req.file.buffer, fileName, {
       purpose,
       room
     });

@@ -28,6 +28,9 @@ export const uploadService = {
     
     const formData = new FormData()
     formData.append('photo', file)
+    if (options.fileName) {
+      formData.append('fileName', options.fileName)
+    }
     if (options.purpose === 'gallery') {
       formData.append('purpose', 'gallery')
       formData.append('room', options.room || '')
@@ -141,11 +144,16 @@ export const uploadService = {
     const total = files.length
     for (let i = 0; i < total; i += 1) {
       const file = files[i]
+      const fileName = options.fileNames?.[i] || file.name || `图片 ${i + 1}`
       if (onProgress) {
-        onProgress({ current: i + 1, total, fileName: file.name || `图片 ${i + 1}` })
+        onProgress({ current: i + 1, total, fileName })
       }
       try {
-        const data = await uploadService.uploadPhoto(file, { purpose: 'gallery', room })
+        const data = await uploadService.uploadPhoto(file, {
+          purpose: 'gallery',
+          room,
+          fileName
+        })
         results.push(data)
         uploadedFiles.push(file)
       } catch (error) {
