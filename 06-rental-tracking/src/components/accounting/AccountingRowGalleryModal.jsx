@@ -117,6 +117,18 @@ function useGalleryPanelStyle(isOpen) {
   return styles;
 }
 
+function formatMb(bytes) {
+  return `${((Number(bytes) || 0) / 1024 / 1024).toFixed(1)}MB`;
+}
+
+/** 实时上传速度，便于判断是网络慢还是服务端卡住 */
+function formatSpeed(bytes, elapsedMs) {
+  if (!elapsedMs || bytes <= 0) return '';
+  const kbps = bytes / 1024 / (elapsedMs / 1000);
+  if (!Number.isFinite(kbps) || kbps <= 0) return '';
+  return kbps >= 1024 ? `${(kbps / 1024).toFixed(1)}MB/s` : `${Math.round(kbps)}KB/s`;
+}
+
 const fieldCls =
   'w-full text-xs px-2 py-1.5 border border-gray-300 rounded focus:outline-none focus:border-blue-500';
 
@@ -138,6 +150,7 @@ export function AccountingRowGalleryModal({
   const fileInputRef = useRef(null);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(null);
+  const [uploadClock, setUploadClock] = useState(0);
   const [viewerIndex, setViewerIndex] = useState(null);
   const [shareHint, setShareHint] = useState('');
   const [relocating, setRelocating] = useState(false);
@@ -158,6 +171,14 @@ export function AccountingRowGalleryModal({
     },
     [row?.id, onUpdateRow]
   );
+
+  /** 上传期间每秒走一次，保证「已用时间/速度」在等服务器时也在动 */
+  useEffect(() => {
+    if (!uploading) return undefined;
+    setUploadClock(Date.now());
+    const timer = setInterval(() => setUploadClock(Date.now()), 500);
+    return () => clearInterval(timer);
+  }, [uploading]);
 
   /** ROOM 变更或历史月份目录 → 同步迁到 photos/gallery/{ROOM}/ */
   useEffect(() => {
@@ -271,23 +292,34 @@ export function AccountingRowGalleryModal({
       }
     }
 
+    const startedAt = Date.now();
     setUploading(true);
-    setUploadProgress({ current: 0, total: files.length, fileName: '准备中…' });
+    setUploadProgress({
+      stage: 'naming',
+      done: 0,
+      total: files.length,
+      fileName: files[0]?.name || '',
+      bytesLoaded: 0,
+      bytesTotal: files.reduce((sum, f) => sum + (f.size || 0), 0),
+      startedAt
+    });
     let nextPhotos = photos;
     try {
       const fileNames = [];
       for (let i = 0; i < files.length; i += 1) {
-        setUploadProgress({
-          current: i + 1,
-          total: files.length,
-          fileName: `处理文件名 ${files[i].name || i + 1}`
-        });
+        setUploadProgress((prev) => ({
+          ...prev,
+          stage: 'naming',
+          done: i,
+          fileName: files[i].name || `图片 ${i + 1}`
+        }));
         fileNames.push(await resolveGalleryUploadFileName(files[i]));
       }
 
+      const sendStartedAt = Date.now();
       const results = await uploadService.uploadPhotosUnlimited(
         files,
-        (p) => setUploadProgress(p),
+        (p) => setUploadProgress({ ...p, startedAt: sendStartedAt }),
         { room: roomValue, fileNames }
       );
       const newPhotos = [];
@@ -434,9 +466,11 @@ export function AccountingRowGalleryModal({
 
   const shareUrl = row.galleryShareToken ? buildGalleryShareUrl(row.galleryShareToken) : '';
   const progressPct =
-    uploadProgress && uploadProgress.total > 0
-      ? Math.round((uploadProgress.current / uploadProgress.total) * 100)
+    uploadProgress && uploadProgress.bytesTotal > 0
+      ? Math.min(100, Math.round(((uploadProgress.bytesLoaded || 0) / uploadProgress.bytesTotal) * 100))
       : 0;
+  const uploadElapsedMs = uploadProgress?.startedAt ? Math.max(0, uploadClock - uploadProgress.startedAt) : 0;
+  const uploadSpeed = formatSpeed(uploadProgress?.bytesLoaded || 0, uploadElapsedMs);
 
   const panel = (
     <>
@@ -523,7 +557,9 @@ export function AccountingRowGalleryModal({
           {uploading && uploadProgress ? (
             <div className="space-y-1.5">
               <p className="text-xs text-gray-600">
-                正在上传 {uploadProgress.current}/{uploadProgress.total}
+                {uploadProgress.stage === 'naming'
+                  ? `读取文件信息 ${Math.min(uploadProgress.done + 1, uploadProgress.total)}/${uploadProgress.total}`
+                  : `正在上传 ${Math.min(uploadProgress.done + 1, uploadProgress.total)}/${uploadProgress.total}`}
                 {uploadProgress.fileName ? ` · ${uploadProgress.fileName}` : ''}
               </p>
               <div className="h-2 w-full bg-gray-200 rounded-full overflow-hidden">
@@ -532,7 +568,19 @@ export function AccountingRowGalleryModal({
                   style={{ width: `${progressPct}%` }}
                 />
               </div>
-              <p className="text-[11px] text-gray-500">{progressPct}%</p>
+              <p className="text-[11px] text-gray-500">
+                {progressPct}%
+                {uploadProgress.bytesTotal > 0
+                  ? ` · ${formatMb(uploadProgress.bytesLoaded)} / ${formatMb(uploadProgress.bytesTotal)}`
+                  : ''}
+                {uploadSpeed ? ` · ${uploadSpeed}` : ''}
+                {uploadElapsedMs >= 1000 ? ` · 已用 ${Math.round(uploadElapsedMs / 1000)}s` : ''}
+              </p>
+              {uploadProgress.stage === 'server' ? (
+                <p className="text-[11px] text-amber-600">
+                  本张已发完，服务器正在转存到 OSS…
+                </p>
+              ) : null}
             </div>
           ) : null}
 

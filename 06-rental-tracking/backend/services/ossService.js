@@ -38,7 +38,10 @@ function getOssClient() {
     region: process.env.OSS_REGION || 'oss-cn-heyuan',
     accessKeyId: process.env.OSS_ACCESS_KEY_ID.trim(),
     accessKeySecret: process.env.OSS_ACCESS_KEY_SECRET.trim(),
-    bucket: process.env.OSS_BUCKET || '06-rental-tracking'
+    bucket: process.env.OSS_BUCKET || '06-rental-tracking',
+    // 默认 60s 对跨境上传 5~10MB 原图不够，超时后整包白传
+    timeout: Number(process.env.OSS_TIMEOUT_MS) || 180000,
+    secure: true
   });
   return ossClient;
 }
@@ -124,15 +127,21 @@ async function uploadPhoto(fileBuffer, fileName, options = {}) {
       uniqueFileName = `photos/${y}/${m}/${photoId}${ext.startsWith('.') ? ext : `.${ext}`}`;
     }
 
+    const putStartedAt = Date.now();
     const result = await client.put(uniqueFileName, fileBuffer);
+    const putMs = Date.now() - putStartedAt;
     const httpsUrl = result.url.replace(/^http:/, 'https:');
+    console.log(
+      `[OSS] put ${uniqueFileName} ${(fileBuffer.length / 1024 / 1024).toFixed(2)}MB 用时 ${putMs}ms`
+    );
 
     return {
       id: uniqueFileName,
       url: httpsUrl,
       name: path.basename(String(fileName || 'photo')),
       size: fileBuffer.length,
-      uploadedAt: new Date().toISOString()
+      uploadedAt: new Date().toISOString(),
+      putMs
     };
   } catch (error) {
     console.error('OSS upload failed:', error);

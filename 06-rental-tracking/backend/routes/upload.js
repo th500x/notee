@@ -29,6 +29,24 @@ const upload = multer({
 });
 
 /**
+ * 上传链路版本标记：确认线上后端是否已加载最新修复（排查「上传卡住」用）
+ * GET /api/upload/health
+ */
+const UPLOAD_PIPELINE_BUILD = '2026-08-13-progress-timing';
+
+router.get('/health', (req, res) => {
+  res.json({
+    success: true,
+    build: UPLOAD_PIPELINE_BUILD,
+    oss: ossService.isOssAvailable() ? 'configured' : 'missing',
+    ossTimeoutMs: Number(process.env.OSS_TIMEOUT_MS) || 180000,
+    // 上传路径不再有任何 head/list 元数据请求
+    metadataLookupOnUpload: false,
+    startedAt: new Date().toISOString()
+  });
+});
+
+/**
  * 上传照片到OSS
  * POST /api/upload/photos
  *
@@ -48,9 +66,15 @@ router.post(
     }
     next();
   },
+  (req, res, next) => {
+    // 记录「接收请求体」耗时：区分是浏览器上传慢还是服务器转存 OSS 慢
+    req.uploadStartedAt = Date.now();
+    next();
+  },
   upload.single('photo'),
   async (req, res) => {
   try {
+    const receiveMs = Date.now() - (req.uploadStartedAt || Date.now());
     if (!req.file) {
       return res.status(400).json({
         success: false,
@@ -84,9 +108,15 @@ router.post(
       uploadedAt: result.uploadedAt
     };
 
+    const totalMs = Date.now() - (req.uploadStartedAt || Date.now());
+    console.log(
+      `[Upload] ${fileName} ${(req.file.size / 1024 / 1024).toFixed(2)}MB 接收 ${receiveMs}ms · 转存 ${result.putMs}ms · 合计 ${totalMs}ms`
+    );
+
     res.json({
       success: true,
-      photo
+      photo,
+      timings: { receiveMs, putMs: result.putMs, totalMs }
     });
   } catch (error) {
     console.error('照片上传失败:', error);
@@ -156,6 +186,13 @@ router.post('/photos/sync-gallery', express.json(), async (req, res) => {
       const k = item.trim();
       if (!isValidPhotoObjectKey(k) || keepKeys.includes(k)) continue;
       keepKeys.push(k);
+    }
+    // 空清单会把整个 ROOM 目录清空，只能是调用方状态异常
+    if (keepKeys.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: '保留清单为空，已拒绝清理（避免误删整个房号目录）'
+      });
     }
     const result = await ossService.syncGalleryFolderKeep(room, keepKeys);
     return res.json({
