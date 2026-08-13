@@ -12,7 +12,7 @@ import { AccountingExpenseTab } from '../components/accounting/AccountingExpense
 import { AccountingSummaryTab } from '../components/accounting/AccountingSummaryTab';
 
 const TABS = [
-  { id: 'rent', label: '租金记录' },
+  { id: 'rent', label: '房源一览' },
   { id: 'expense', label: '支出记录' },
   { id: 'summary', label: '收支账目' }
 ];

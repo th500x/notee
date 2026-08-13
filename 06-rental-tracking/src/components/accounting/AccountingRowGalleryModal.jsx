@@ -199,6 +199,23 @@ export function AccountingRowGalleryModal({
     [roomValue]
   );
 
+  /** 孤儿清理不阻塞上传进度（避免卡在 100%） */
+  const syncGalleryOssInBackground = useCallback(
+    (keepPhotos) => {
+      syncGalleryOssKeep(keepPhotos)
+        .then((cleaned) => {
+          if (cleaned > 0) {
+            setShareHint(`已清理云端多余图片 ${cleaned} 张`);
+            setTimeout(() => setShareHint(''), 4000);
+          }
+        })
+        .catch((syncErr) => {
+          console.warn('[Gallery] 后台同步 OSS 失败:', syncErr);
+        });
+    },
+    [syncGalleryOssKeep]
+  );
+
   const handleFileChange = async (e) => {
     const files = Array.from(e.target.files || []);
     e.target.value = '';
@@ -224,17 +241,7 @@ export function AccountingRowGalleryModal({
     setUploadProgress({ current: 0, total: files.length, fileName: '准备中…' });
     let nextPhotos = photos;
     try {
-      // 先清掉上次中断上传残留在 OSS、但不在当前图库列表里的文件
-      try {
-        const cleaned = await syncGalleryOssKeep(photos);
-        if (cleaned > 0) {
-          setShareHint(`已清理云端多余图片 ${cleaned} 张`);
-          setTimeout(() => setShareHint(''), 4000);
-        }
-      } catch (syncErr) {
-        console.warn('[Gallery] 上传前同步 OSS 失败:', syncErr);
-      }
-
+      // 注意：不要在上传前异步清理（keep 列表会过期，可能误删刚上传的文件）
       const prepared = [];
       for (let i = 0; i < files.length; i += 1) {
         setUploadProgress({
@@ -260,12 +267,7 @@ export function AccountingRowGalleryModal({
         patch.galleryShareToken = newGalleryShareToken();
       }
       patchRow(patch);
-
-      try {
-        await syncGalleryOssKeep(nextPhotos);
-      } catch (syncErr) {
-        console.warn('[Gallery] 上传后同步 OSS 失败:', syncErr);
-      }
+      syncGalleryOssInBackground(nextPhotos);
     } catch (err) {
       console.error(err);
       const partial = Array.isArray(err?.partialResults) ? err.partialResults : [];
@@ -282,21 +284,12 @@ export function AccountingRowGalleryModal({
         }
         patchRow(patch);
       }
-      try {
-        const cleaned = await syncGalleryOssKeep(nextPhotos);
-        const keepHint =
-          partial.length > 0
-            ? `已保留成功上传的 ${partial.length} 张`
-            : '未保留新图片';
-        const cleanHint = cleaned > 0 ? `，并清理云端多余 ${cleaned} 张` : '';
-        alert(`上传失败：${err.message || '未知错误'}\n\n${keepHint}${cleanHint}。请保存到服务器后再继续。`);
-      } catch (syncErr) {
-        alert(
-          `上传失败：${err.message || '未知错误'}${
-            partial.length ? `（已保留成功的 ${partial.length} 张）` : ''
-          }\n\n云端清理失败：${syncErr.message || '未知错误'}`
-        );
-      }
+      syncGalleryOssInBackground(nextPhotos);
+      const keepHint =
+        partial.length > 0 ? `已保留成功上传的 ${partial.length} 张；` : '';
+      alert(
+        `上传失败：${err.message || '未知错误'}\n\n${keepHint}云端多余文件将在后台清理。请保存到服务器后再继续。`
+      );
     } finally {
       setUploading(false);
       setUploadProgress(null);

@@ -91,10 +91,21 @@ function publicObjectUrl(objectKey) {
 async function objectExists(objectKey) {
   const client = requireOssClient();
   try {
-    await client.head(objectKey);
+    // 低频存储 head 偶发很慢，加超时避免上传卡死
+    await Promise.race([
+      client.head(objectKey),
+      new Promise((_, reject) => {
+        setTimeout(() => {
+          const err = new Error('OSS head timeout');
+          err.code = 'HeadTimeout';
+          reject(err);
+        }, 4000);
+      })
+    ]);
     return true;
   } catch (err) {
     if (err && (err.status === 404 || err.code === 'NoSuchKey')) return false;
+    if (err && err.code === 'HeadTimeout') return null;
     throw err;
   }
 }
@@ -103,13 +114,20 @@ async function allocateUniqueObjectKey(folderPrefix, originalFileName) {
   const { base, ext } = sanitizeOriginalBaseName(originalFileName);
   const prefix = folderPrefix.endsWith('/') ? folderPrefix : `${folderPrefix}/`;
   let candidate = `${prefix}${base}${ext}`;
-  if (!(await objectExists(candidate))) return candidate;
-  for (let i = 2; i <= 999; i += 1) {
-    candidate = `${prefix}${base}_${i}${ext}`;
-    if (!(await objectExists(candidate))) return candidate;
+  const exists = await objectExists(candidate);
+  if (exists === false) return candidate;
+  if (exists === null) {
+    return `${prefix}${base}_${Date.now().toString(36)}${ext}`;
   }
-  const stamp = `${Date.now().toString(36)}`;
-  return `${prefix}${base}_${stamp}${ext}`;
+  for (let i = 2; i <= 20; i += 1) {
+    candidate = `${prefix}${base}_${i}${ext}`;
+    const hit = await objectExists(candidate);
+    if (hit === false) return candidate;
+    if (hit === null) {
+      return `${prefix}${base}_${Date.now().toString(36)}${ext}`;
+    }
+  }
+  return `${prefix}${base}_${Date.now().toString(36)}${ext}`;
 }
 
 /**
@@ -299,7 +317,7 @@ function galleryFolderPrefixForRoom(room) {
 }
 
 /**
- * 列出某 ROOM 图库目录下全部对象键
+ * 列出某 ROOM 图库目录下全部对象键（带页数上限，避免 list 卡死）
  * @param {string} room
  * @returns {Promise<string[]>}
  */
@@ -307,20 +325,32 @@ async function listGalleryObjectKeys(room) {
   const client = requireOssClient();
   const prefix = galleryFolderPrefixForRoom(room);
   const keys = [];
+  const seenMarkers = new Set();
   let marker;
-  do {
+  let pages = 0;
+  const maxPages = 50;
+
+  while (pages < maxPages) {
+    pages += 1;
+    if (marker) {
+      if (seenMarkers.has(marker)) break;
+      seenMarkers.add(marker);
+    }
     const result = await client.list({
       prefix,
       marker,
-      'max-keys': 1000
+      'max-keys': 200
     });
     for (const obj of result.objects || []) {
       if (obj?.name && !String(obj.name).endsWith('/')) {
         keys.push(obj.name);
       }
     }
-    marker = result.isTruncated ? result.nextMarker : undefined;
-  } while (marker);
+    if (!result.isTruncated) break;
+    const next = result.nextMarker || result.nextContinuationToken;
+    if (!next || next === marker) break;
+    marker = next;
+  }
   return keys;
 }
 

@@ -513,7 +513,7 @@ export function AccountingRentTab({
     <div className="w-full min-w-0">
       <div className="inline-block min-w-full max-w-none align-top bg-white rounded-lg shadow-md box-border">
         <div className="w-full min-w-0 bg-gradient-to-r from-blue-500 to-purple-600 px-4 sm:px-6 py-3 sm:py-4 text-white box-border">
-          <h3 className="text-lg font-semibold">租金记录 · INCOME</h3>
+          <h3 className="text-lg font-semibold">房源一览 · INCOME</h3>
         </div>
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
           <table
