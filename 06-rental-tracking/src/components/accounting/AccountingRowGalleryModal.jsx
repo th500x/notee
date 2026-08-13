@@ -21,6 +21,7 @@ import {
 } from '../../utils/galleryListing';
 import { config } from '../../config';
 import { buildOssImageUrl } from '../../utils/ossImageUrl';
+import { prepareGalleryUploadFile } from '../../utils/galleryUploadFileName';
 
 /** 与后端 sanitizeRoomFolderName 口径一致（用于判断是否需迁移） */
 function roomFolderSlug(room) {
@@ -188,6 +189,16 @@ export function AccountingRowGalleryModal({
     fileInputRef.current?.click();
   };
 
+  const syncGalleryOssKeep = useCallback(
+    async (keepPhotos) => {
+      if (!roomValue) return 0;
+      const keepKeys = (keepPhotos || []).map((p) => p?.id).filter(Boolean);
+      const result = await uploadService.syncGalleryFolder(roomValue, keepKeys);
+      return Number(result?.deleted) || 0;
+    },
+    [roomValue]
+  );
+
   const handleFileChange = async (e) => {
     const files = Array.from(e.target.files || []);
     e.target.value = '';
@@ -210,26 +221,82 @@ export function AccountingRowGalleryModal({
     }
 
     setUploading(true);
-    setUploadProgress({ current: 0, total: files.length, fileName: files[0]?.name || '' });
+    setUploadProgress({ current: 0, total: files.length, fileName: '准备中…' });
+    let nextPhotos = photos;
     try {
+      // 先清掉上次中断上传残留在 OSS、但不在当前图库列表里的文件
+      try {
+        const cleaned = await syncGalleryOssKeep(photos);
+        if (cleaned > 0) {
+          setShareHint(`已清理云端多余图片 ${cleaned} 张`);
+          setTimeout(() => setShareHint(''), 4000);
+        }
+      } catch (syncErr) {
+        console.warn('[Gallery] 上传前同步 OSS 失败:', syncErr);
+      }
+
+      const prepared = [];
+      for (let i = 0; i < files.length; i += 1) {
+        setUploadProgress({
+          current: i + 1,
+          total: files.length,
+          fileName: `处理文件名 ${files[i].name || i + 1}`
+        });
+        prepared.push(await prepareGalleryUploadFile(files[i]));
+      }
+
       const results = await uploadService.uploadPhotosUnlimited(
-        files,
+        prepared,
         (p) => setUploadProgress(p),
         { room: roomValue }
       );
       const newPhotos = [];
       for (let i = 0; i < results.length; i += 1) {
-        newPhotos.push(await enrichUploadedPhotoFromFile(results[i].photo, files[i]));
+        newPhotos.push(await enrichUploadedPhotoFromFile(results[i].photo, prepared[i]));
       }
-      const nextPhotos = [...photos, ...newPhotos];
+      nextPhotos = [...photos, ...newPhotos];
       const patch = { photos: nextPhotos };
       if (!row.galleryShareToken && nextPhotos.length > 0) {
         patch.galleryShareToken = newGalleryShareToken();
       }
       patchRow(patch);
+
+      try {
+        await syncGalleryOssKeep(nextPhotos);
+      } catch (syncErr) {
+        console.warn('[Gallery] 上传后同步 OSS 失败:', syncErr);
+      }
     } catch (err) {
       console.error(err);
-      alert(`上传失败：${err.message || '未知错误'}`);
+      const partial = Array.isArray(err?.partialResults) ? err.partialResults : [];
+      const partialFiles = Array.isArray(err?.partialFiles) ? err.partialFiles : [];
+      if (partial.length > 0) {
+        const newPhotos = [];
+        for (let i = 0; i < partial.length; i += 1) {
+          newPhotos.push(await enrichUploadedPhotoFromFile(partial[i].photo, partialFiles[i]));
+        }
+        nextPhotos = [...photos, ...newPhotos];
+        const patch = { photos: nextPhotos };
+        if (!row.galleryShareToken && nextPhotos.length > 0) {
+          patch.galleryShareToken = newGalleryShareToken();
+        }
+        patchRow(patch);
+      }
+      try {
+        const cleaned = await syncGalleryOssKeep(nextPhotos);
+        const keepHint =
+          partial.length > 0
+            ? `已保留成功上传的 ${partial.length} 张`
+            : '未保留新图片';
+        const cleanHint = cleaned > 0 ? `，并清理云端多余 ${cleaned} 张` : '';
+        alert(`上传失败：${err.message || '未知错误'}\n\n${keepHint}${cleanHint}。请保存到服务器后再继续。`);
+      } catch (syncErr) {
+        alert(
+          `上传失败：${err.message || '未知错误'}${
+            partial.length ? `（已保留成功的 ${partial.length} 张）` : ''
+          }\n\n云端清理失败：${syncErr.message || '未知错误'}`
+        );
+      }
     } finally {
       setUploading(false);
       setUploadProgress(null);
@@ -364,7 +431,8 @@ export function AccountingRowGalleryModal({
               图片库 · {roomLabel}
             </h3>
             <p className="text-[11px] text-white/85 mt-0.5">
-              OSS · 按 ROOM 目录 · 尽量保留原文件名 · 单张 ≤{config.oss.maxFileSize / 1024 / 1024}MB
+              OSS · 按 ROOM 目录 · 尽量保留原文件名（手机无意义数字名会按拍摄时间改为 IMG_…）· 单张 ≤
+              {config.oss.maxFileSize / 1024 / 1024}MB
             </p>
           </div>
           <button

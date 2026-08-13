@@ -129,6 +129,46 @@ router.post('/photos/relocate-gallery', express.json(), async (req, res) => {
 });
 
 /**
+ * 同步 ROOM 图库目录：删除 OSS 中不在 keepKeys 内的对象（清理中断上传残留）
+ * POST /api/upload/photos/sync-gallery
+ * Body: { room: string, keepKeys: string[] }
+ */
+router.post('/photos/sync-gallery', express.json(), async (req, res) => {
+  try {
+    if (!ossService.isOssAvailable()) {
+      return res.status(503).json({
+        success: false,
+        error: '未配置阿里云 OSS 密钥，无法同步图库目录'
+      });
+    }
+    const room = typeof req.body?.room === 'string' ? req.body.room.trim() : '';
+    if (!room) {
+      return res.status(400).json({ success: false, error: '缺少房号（ROOM）' });
+    }
+    const rawKeep = Array.isArray(req.body?.keepKeys) ? req.body.keepKeys : [];
+    const keepKeys = [];
+    for (const item of rawKeep) {
+      if (typeof item !== 'string') continue;
+      const k = item.trim();
+      if (!isValidPhotoObjectKey(k) || keepKeys.includes(k)) continue;
+      keepKeys.push(k);
+    }
+    const result = await ossService.syncGalleryFolderKeep(room, keepKeys);
+    return res.json({
+      success: true,
+      deleted: result.deleted,
+      deletedKeys: result.deletedKeys
+    });
+  } catch (error) {
+    console.error('同步图库目录失败:', error);
+    return res.status(500).json({
+      success: false,
+      error: error.message || '同步失败'
+    });
+  }
+});
+
+/**
  * 删除 OSS 上的照片
  * DELETE /api/upload/photos?key=photos/YYYY/MM/filename.jpg
  *

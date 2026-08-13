@@ -125,6 +125,7 @@ export const uploadService = {
 
   /**
    * 账目图库：不限张数（逐张调用单文件上传，按 ROOM 目录）
+   * 中途失败时 Error.partialResults 带已成功结果，便于前端保留并清理 OSS 孤儿
    * @param {File[]} files
    * @param {(p: { current: number, total: number, fileName: string }) => void} [onProgress]
    * @param {{ room: string }} options
@@ -136,17 +137,50 @@ export const uploadService = {
       throw new Error('请先填写房号（ROOM）再上传图库图片')
     }
     const results = []
+    const uploadedFiles = []
     const total = files.length
     for (let i = 0; i < total; i += 1) {
       const file = files[i]
       if (onProgress) {
         onProgress({ current: i + 1, total, fileName: file.name || `图片 ${i + 1}` })
       }
-      results.push(
-        await uploadService.uploadPhoto(file, { purpose: 'gallery', room })
-      )
+      try {
+        const data = await uploadService.uploadPhoto(file, { purpose: 'gallery', room })
+        results.push(data)
+        uploadedFiles.push(file)
+      } catch (error) {
+        error.partialResults = results
+        error.partialFiles = uploadedFiles
+        throw error
+      }
     }
     return results
+  },
+
+  /**
+   * 清理 ROOM 图库目录中不在 keepKeys 内的 OSS 对象
+   * @param {string} room
+   * @param {string[]} keepKeys photo.id 列表
+   */
+  syncGalleryFolder: async (room, keepKeys = []) => {
+    const response = await fetch(
+      `${config.api.uploadBaseUrl}${config.api.uploadPrefix}/photos/sync-gallery`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ room, keepKeys: keepKeys || [] })
+      }
+    )
+    let data = {}
+    try {
+      data = await response.json()
+    } catch {
+      data = {}
+    }
+    if (!response.ok || !data.success) {
+      throw new Error(data.error || '同步图库目录失败')
+    }
+    return data
   },
 
   /**

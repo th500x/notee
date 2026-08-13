@@ -298,6 +298,54 @@ function galleryFolderPrefixForRoom(room) {
   return `photos/gallery/${sanitizeRoomFolderName(room)}/`;
 }
 
+/**
+ * 列出某 ROOM 图库目录下全部对象键
+ * @param {string} room
+ * @returns {Promise<string[]>}
+ */
+async function listGalleryObjectKeys(room) {
+  const client = requireOssClient();
+  const prefix = galleryFolderPrefixForRoom(room);
+  const keys = [];
+  let marker;
+  do {
+    const result = await client.list({
+      prefix,
+      marker,
+      'max-keys': 1000
+    });
+    for (const obj of result.objects || []) {
+      if (obj?.name && !String(obj.name).endsWith('/')) {
+        keys.push(obj.name);
+      }
+    }
+    marker = result.isTruncated ? result.nextMarker : undefined;
+  } while (marker);
+  return keys;
+}
+
+/**
+ * 删除 ROOM 图库目录中不在 keepKeys 内的对象（孤儿清理）
+ * @param {string} room
+ * @param {string[]} keepKeys
+ * @returns {Promise<{ deleted: number, deletedKeys: string[] }>}
+ */
+async function syncGalleryFolderKeep(room, keepKeys) {
+  const prefix = galleryFolderPrefixForRoom(room);
+  const keep = new Set();
+  for (const item of Array.isArray(keepKeys) ? keepKeys : []) {
+    if (typeof item !== 'string') continue;
+    const k = item.trim();
+    if (k.startsWith(prefix)) keep.add(k);
+  }
+  const all = await listGalleryObjectKeys(room);
+  const toDelete = all.filter((k) => !keep.has(k));
+  if (toDelete.length > 0) {
+    await deletePhotos(toDelete);
+  }
+  return { deleted: toDelete.length, deletedKeys: toDelete };
+}
+
 module.exports = {
   uploadPhoto,
   deletePhoto,
@@ -310,5 +358,7 @@ module.exports = {
   sanitizeOriginalBaseName,
   relocateGalleryPhotosToRoom,
   galleryFolderPrefixForRoom,
+  listGalleryObjectKeys,
+  syncGalleryFolderKeep,
   publicObjectUrl
 };
