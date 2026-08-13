@@ -32,7 +32,7 @@ const upload = multer({
  * 上传链路版本标记：确认线上后端是否已加载最新修复（排查「上传卡住」用）
  * GET /api/upload/health
  */
-const UPLOAD_PIPELINE_BUILD = '2026-08-13-progress-timing';
+const UPLOAD_PIPELINE_BUILD = '2026-08-14-keep-original-name';
 
 router.get('/health', (req, res) => {
   res.json({

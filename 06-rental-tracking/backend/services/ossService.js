@@ -92,14 +92,13 @@ function publicObjectUrl(objectKey) {
 }
 
 /**
- * 图库对象键：本地生成唯一后缀，禁止 head/list 查重。
- * 低频存储对已有对象做 HEAD 会非常慢（数分钟），这是上传卡住的主因。
+ * 图库对象键：只用清洗后的原文件名，禁止 head/list 查重，也不再拼随机后缀。
+ * 同名再次上传会覆盖 OSS 上的旧对象（低频存储对 HEAD 查重极慢，不能走存在性检查）。
  */
 function allocateGalleryObjectKey(folderPrefix, originalFileName) {
   const { base, ext } = sanitizeOriginalBaseName(originalFileName);
   const prefix = folderPrefix.endsWith('/') ? folderPrefix : `${folderPrefix}/`;
-  const uniq = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
-  return `${prefix}${base}_${uniq}${ext}`;
+  return `${prefix}${base}${ext}`;
 }
 
 /**
