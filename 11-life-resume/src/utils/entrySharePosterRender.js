@@ -190,13 +190,16 @@ function buildPhotoGridHtml(photos) {
   if (photos.length === 0) return '';
   const cell = POSTER_PHOTO_CELL_PX;
   const cells = photos
-    .map(
-      (item) =>
-        `<div style="width:${cell}px;height:${cell}px;overflow:hidden;border-radius:12px;background:#f1f5f9;border:1px solid #e2e8f0;">
+    .map((item) => {
+      const videoBadge = item.isVideoFrame
+        ? `<div style="position:absolute;left:10px;bottom:10px;padding:4px 10px;border-radius:6px;background:rgba(15,23,42,0.72);color:#ffffff;font-size:18px;font-weight:700;letter-spacing:0.08em;line-height:1.2;">VIDEO</div>`
+        : '';
+      return `<div style="position:relative;width:${cell}px;height:${cell}px;overflow:hidden;border-radius:12px;background:#f1f5f9;border:1px solid #e2e8f0;">
           <img src="${escapeHtml(item.dataUrl)}" alt="" width="${cell}" height="${cell}"
             style="display:block;width:${cell}px;height:${cell}px;" />
-        </div>`
-    )
+          ${videoBadge}
+        </div>`;
+    })
     .join('');
   return `<div style="margin-top:24px;display:grid;grid-template-columns:repeat(${POSTER_PHOTO_COLUMNS},${cell}px);gap:${POSTER_PHOTO_GAP}px;">${cells}</div>`;
 }
@@ -257,7 +260,7 @@ export async function renderEntrySharePosterBlob({ entry, accountId, displayName
     if (video) {
       const dataUrl = await loadVideoFirstFrameSquareThumb(video);
       if (dataUrl) {
-        loadedPhotos.push({ ...video, dataUrl });
+        loadedPhotos.push({ ...video, dataUrl, isVideoFrame: true });
       }
     }
   }
