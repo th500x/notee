@@ -12,6 +12,7 @@ if (process.env.NODE_ENV === 'production') {
 const express = require('express');
 const cors = require('cors');
 const { testConnection, dbConfig } = require('./database/connection');
+const { testAccountsConnection, accountsDbConfig } = require('./database/sanStormAccountsConnection');
 const lifeResumeRouter = require('./routes/lifeResume');
 const authRouter = require('./routes/auth');
 const profilesRouter = require('./routes/profiles');
@@ -54,13 +55,17 @@ app.use('/api/life-resume/entry-series', entrySeriesRouter);
 
 app.get('/health', async (req, res) => {
   const dbConnected = await testConnection();
+  const accountsDbConnected = await testAccountsConnection();
+  const ok = dbConnected && accountsDbConnected;
   res.json({
     success: true,
-    status: dbConnected ? 'ok' : 'degraded',
+    status: ok ? 'ok' : 'degraded',
     service: 'life-resume',
     phase: 'P13',
     database: dbConnected ? 'connected' : 'disconnected',
     databaseName: dbConfig.database,
+    accountsDatabase: accountsDbConnected ? 'connected' : 'disconnected',
+    accountsDatabaseName: accountsDbConfig.database,
     timestamp: new Date().toISOString(),
   });
 });
@@ -81,11 +86,17 @@ app.listen(PORT, async () => {
   console.log(`🌐 http://localhost:${PORT}`);
   console.log(`💚 /health`);
   console.log(`📊 /api/life-resume`);
+  console.log(`🔐 /api/life-resume/auth`);
   console.log(`🗄️  DB: ${dbConfig.database} @ ${dbConfig.host}:${dbConfig.port}`);
+  console.log(`🪪  Accounts: ${accountsDbConfig.database} @ ${accountsDbConfig.host}:${accountsDbConfig.port}`);
 
   const dbConnected = await testConnection();
   if (!dbConnected) {
-    console.log('⚠️  数据库未连接（P1 执行 npm run db:migrate 后重试）');
+    console.log('⚠️  业务库未连接（执行 npm run db:migrate 后重试）');
+  }
+  const accountsDbConnected = await testAccountsConnection();
+  if (!accountsDbConnected) {
+    console.log('⚠️  账号库未连接（登录/注册需要能读 05_san_storm.accounts）');
   }
 
   console.log('========================================');

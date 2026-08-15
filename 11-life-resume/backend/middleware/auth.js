@@ -16,6 +16,27 @@ function getSecret() {
   return secret;
 }
 
+function getTokenTtlSeconds() {
+  const raw = parseInt(process.env.PLAYER_TOKEN_TTL_SECONDS, 10);
+  if (!Number.isFinite(raw) || raw <= 0) return DEFAULT_TTL_SECONDS;
+  return raw;
+}
+
+/**
+ * 签发玩家会话 JWT（须与 05 signPlayerToken 同算法、同 secret，旧 token 才能继续用）。
+ * @param {{ id: string, role?: string }} account
+ * @returns {{ token: string, expiresAt: number }}
+ */
+function signPlayerToken(account) {
+  const ttl = getTokenTtlSeconds();
+  const token = jwt.sign(
+    { sub: String(account.id), role: account.role || 'player' },
+    getSecret(),
+    { algorithm: 'HS256', expiresIn: ttl }
+  );
+  return { token, expiresAt: Date.now() + ttl * 1000 };
+}
+
 function isDevBypassOn() {
   return process.env.NODE_ENV !== 'production' && process.env.JWT_DEV_BYPASS === '1';
 }
@@ -64,6 +85,7 @@ module.exports = {
   requireAuth,
   optionalAuth,
   getSecret,
+  signPlayerToken,
   isDevBypassOn,
   DEFAULT_TTL_SECONDS,
 };

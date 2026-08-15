@@ -113,7 +113,7 @@ export default function RegisterPage() {
               <p className="text-sm text-slate-500">正在获取候选 ID…</p>
             ) : candidateIds.length === 0 ? (
               <div className="text-center py-6">
-                <p className="text-sm text-slate-600 mb-3">暂无可选 ID，请稍后重试或检查 05 后端（3005）</p>
+                <p className="text-sm text-slate-600 mb-3">暂无可选 ID，请稍后重试或检查人生片段后端</p>
                 <button
                   type="button"
                   onClick={() => window.location.reload()}

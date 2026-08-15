@@ -1,6 +1,6 @@
 /**
- * 05-san-storm auth API (register / login).
- * 错误文案原样透传，与 05 gameUserAPI 一致（含 429 冷却、429 限流）。
+ * 人生片段认证 API（11 后端 /api/life-resume/auth；校验 05 同一张 accounts 表）。
+ * 错误文案原样透传（含 429 冷却、429 限流）。
  */
 
 import { appConfig } from '@/config/appConfig';
@@ -81,9 +81,9 @@ export async function getRegisterCandidates(count = 5, excludeIds = []) {
     };
   } catch (err) {
     if (err.name === 'AbortError') {
-      return { success: false, error: '请求超时，请检查 05 后端是否已启动（3005）' };
+      return { success: false, error: '请求超时，请检查人生片段后端是否已启动' };
     }
-    return { success: false, error: '无法连接认证服务，请确认 05 后端已运行' };
+    return { success: false, error: '无法连接认证服务，请确认人生片段后端已运行' };
   }
 }
 
@@ -97,9 +97,9 @@ export async function registerAccount(body) {
     return parseAuthJsonResponse(res, text, '注册失败');
   } catch (err) {
     if (err.name === 'AbortError') {
-      return { success: false, error: '请求超时，请检查 05 后端是否已启动（3005）' };
+      return { success: false, error: '请求超时，请检查人生片段后端是否已启动' };
     }
-    return { success: false, error: '无法连接认证服务，请确认 05 后端已运行' };
+    return { success: false, error: '无法连接认证服务，请确认人生片段后端已运行' };
   }
 }
 
@@ -113,13 +113,13 @@ export async function loginAccount(id, password) {
     return parseAuthJsonResponse(res, text, '登录失败');
   } catch (err) {
     if (err.name === 'AbortError') {
-      return { success: false, error: '请求超时，请检查 05 后端是否已启动（3005）' };
+      return { success: false, error: '请求超时，请检查人生片段后端是否已启动' };
     }
-    return { success: false, error: '无法连接认证服务，请确认 05 后端已运行' };
+    return { success: false, error: '无法连接认证服务，请确认人生片段后端已运行' };
   }
 }
 
-/** POST /api/auth/change-password — 须 JWT；与 05 个人中心一致，不校验旧密码 */
+/** POST /api/life-resume/auth/change-password — 须 JWT；与真三风云同一账号，不校验旧密码 */
 export async function changePassword({ password, confirmPassword }) {
   const token = lifeResumeSession.getToken();
   if (!token) {
@@ -159,6 +159,6 @@ export async function changePassword({ password, confirmPassword }) {
     if (err.name === 'AbortError') {
       return { success: false, error: '请求超时，请稍后重试' };
     }
-    return { success: false, error: '无法连接认证服务，请确认 05 后端已运行' };
+    return { success: false, error: '无法连接认证服务，请确认人生片段后端已运行' };
   }
 }

@@ -22,6 +22,28 @@ const publicReadLimiter = rateLimit({
   message: { success: false, error: '请求过于频繁，请稍后再试', code: 'RATE_LIMITED' },
 });
 
+/** 登录 / 注册（per IP，10 分钟 20 次；与 05 同口径） */
+const loginLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  limit: 20,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  keyGenerator: ipKey,
+  message: { success: false, error: '注册或登录尝试过于频繁，请稍后再试', code: 'RATE_LIMITED' },
+});
+
+/** 注册候选 ID 抽取（per IP，1 分钟 30 次；与 05 同口径） */
+const registerCandidatesLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 30,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  keyGenerator: ipKey,
+  message: { success: false, error: '请求过于频繁，请稍后再试', code: 'RATE_LIMITED' },
+});
+
 module.exports = {
   publicReadLimiter,
+  loginLimiter,
+  registerCandidatesLimiter,
 };
