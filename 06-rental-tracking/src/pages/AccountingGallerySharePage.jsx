@@ -14,7 +14,7 @@ import {
   copyCurrentPageUrl
 } from '../utils/inAppBrowser';
 import { formatCaptureTimeDisplay, getPhotoCaptureIso } from '../utils/photoCaptureTime';
-import { buildGalleryListingDisplayLines } from '../utils/galleryListing';
+import { buildGalleryListingDisplayLines, normalizeGalleryGpsUrl } from '../utils/galleryListing';
 import {
   resolveGalleryShareLocale,
   getGalleryShareMessages,
@@ -238,6 +238,14 @@ export default function AccountingGallerySharePage({ token }) {
     () => buildGalleryListingDisplayLines(listing, locale),
     [listing, locale]
   );
+  const gpsUrl = useMemo(() => normalizeGalleryGpsUrl(listing?.gpsUrl), [listing]);
+  const handleOpenInMaps = useCallback(() => {
+    if (!gpsUrl) return;
+    const opened = window.open(gpsUrl, '_blank', 'noopener,noreferrer');
+    if (!opened) {
+      window.location.href = gpsUrl;
+    }
+  }, [gpsUrl]);
   const readyCount = preparedFiles?.length || 0;
   const appLabel = inApp.label || 'App';
   const busy = downloading || preparing || (sharing && !shareContinue);
@@ -288,9 +296,28 @@ export default function AccountingGallerySharePage({ token }) {
                   >
                     {t.copyPageLink}
                   </button>
+                  {gpsUrl ? (
+                    <button
+                      type="button"
+                      onClick={handleOpenInMaps}
+                      className="px-4 py-2.5 rounded-lg bg-white border border-amber-400 text-amber-950 font-medium hover:bg-amber-100"
+                    >
+                      {t.openInMaps}
+                    </button>
+                  ) : null}
                 </div>
                 {copyHint ? <p className="text-xs text-amber-900">{copyHint}</p> : null}
               </section>
+            ) : gpsUrl ? (
+              <div className="mb-4">
+                <button
+                  type="button"
+                  onClick={handleOpenInMaps}
+                  className="w-full sm:w-auto px-4 py-2.5 rounded-lg bg-white border border-gray-300 text-gray-900 font-medium shadow-sm hover:bg-gray-50"
+                >
+                  {t.openInMaps}
+                </button>
+              </div>
             ) : null}
 
             {listingLines.length > 0 ? (

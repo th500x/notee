@@ -671,6 +671,16 @@ export function AccountingRowGalleryModal({
                   })}
                 </div>
               </div>
+              <label className="block space-y-0.5 sm:col-span-2">
+                <span className="text-[10px] text-gray-600">GPS（谷歌地图链接）</span>
+                <input
+                  type="url"
+                  value={listing.gpsUrl}
+                  onChange={(e) => patchListing('gpsUrl', e.target.value)}
+                  className={fieldCls}
+                  placeholder="粘贴 maps.app.goo.gl 短链接"
+                />
+              </label>
               <label className="block space-y-0.5">
                 <span className="text-[10px] text-gray-600">公寓</span>
                 <input

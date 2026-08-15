@@ -28,8 +28,11 @@ export const GALLERY_OCCUPANCY_OPTIONS = [
   { value: 'rented', label: '已出租' }
 ];
 
+export const GALLERY_GPS_URL_MAX = 500
+
 export function emptyGalleryListing() {
   return {
+    gpsUrl: '',
     condo: '',
     building: '',
     occupancy: '',
@@ -84,10 +87,21 @@ function normalizeOccupancy(raw) {
   return '';
 }
 
+/** 谷歌地图短链 / 完整链接；无协议时补 https */
+export function normalizeGalleryGpsUrl(raw) {
+  let v = trimField(raw, GALLERY_GPS_URL_MAX);
+  if (!v) return '';
+  if (!/^https?:\/\//i.test(v)) {
+    v = `https://${v}`;
+  }
+  return v.slice(0, GALLERY_GPS_URL_MAX);
+}
+
 export function normalizeGalleryListing(raw) {
   const base = emptyGalleryListing();
   if (!raw || typeof raw !== 'object') return base;
   return {
+    gpsUrl: sliceField(raw.gpsUrl, GALLERY_GPS_URL_MAX),
     condo: sliceField(raw.condo, 100),
     building: sliceField(raw.building, 100),
     occupancy: normalizeOccupancy(raw.occupancy),

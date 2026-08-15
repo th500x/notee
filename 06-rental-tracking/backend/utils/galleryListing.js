@@ -4,8 +4,11 @@
 
 const { sanitizeIsoDateField } = require('./accountingDates');
 
+const GALLERY_GPS_URL_MAX = 500;
+
 function emptyGalleryListing() {
   return {
+    gpsUrl: '',
     condo: '',
     building: '',
     occupancy: '',
@@ -55,10 +58,20 @@ function normalizeOccupancy(raw) {
   return '';
 }
 
+function normalizeGalleryGpsUrl(raw) {
+  let v = trimField(raw, GALLERY_GPS_URL_MAX);
+  if (!v) return '';
+  if (!/^https?:\/\//i.test(v)) {
+    v = `https://${v}`;
+  }
+  return v.slice(0, GALLERY_GPS_URL_MAX);
+}
+
 function normalizeGalleryListing(raw) {
   const base = emptyGalleryListing();
   if (!raw || typeof raw !== 'object') return base;
   return {
+    gpsUrl: normalizeGalleryGpsUrl(raw.gpsUrl),
     condo: trimField(raw.condo, 100),
     building: trimField(raw.building, 100),
     occupancy: normalizeOccupancy(raw.occupancy),

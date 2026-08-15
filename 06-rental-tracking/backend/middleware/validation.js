@@ -97,6 +97,7 @@ const accountingGalleryPhotoSchema = Joi.object({
 });
 
 const accountingGalleryListingSchema = Joi.object({
+  gpsUrl: Joi.string().max(500).allow('').default(''),
   condo: Joi.string().max(100).allow('').default(''),
   building: Joi.string().max(100).allow('').default(''),
   occupancy: Joi.string().valid('', 'rented', 'vacant').default(''),
