@@ -39,6 +39,91 @@ function listShareablePhotos(media) {
     .slice(0, 3);
 }
 
+function findShareableVideo(media) {
+  return (Array.isArray(media) ? media : []).find(
+    (item) => item.mediaType === 'video' && item.url
+  );
+}
+
+/**
+ * 从视频拉首帧，裁成与照片格相同的正方形（失败则跳过，不挡整张海报）。
+ * @returns {Promise<string|null>}
+ */
+async function loadVideoFirstFrameSquareThumb(videoItem, sizePx = POSTER_PHOTO_CELL_PX) {
+  const sourceUrl = videoItem?.url;
+  if (!sourceUrl) return null;
+
+  let objectUrl = null;
+  const video = document.createElement('video');
+  video.muted = true;
+  video.playsInline = true;
+  video.preload = 'auto';
+
+  try {
+    const response = await fetch(sourceUrl, { mode: 'cors', credentials: 'omit', cache: 'no-store' });
+    if (!response.ok) return null;
+    const blob = await response.blob();
+    objectUrl = URL.createObjectURL(blob);
+    video.src = objectUrl;
+
+    await new Promise((resolve, reject) => {
+      const timer = window.setTimeout(() => reject(new Error('video load timeout')), 15000);
+      const done = (err) => {
+        window.clearTimeout(timer);
+        if (err) reject(err);
+        else resolve();
+      };
+      video.addEventListener('loadeddata', () => done(), { once: true });
+      video.addEventListener('error', () => done(new Error('video load failed')), { once: true });
+      video.load();
+    });
+
+    const seekTo =
+      video.duration && Number.isFinite(video.duration)
+        ? Math.min(0.1, Math.max(video.duration * 0.01, 0.01))
+        : 0.05;
+
+    await new Promise((resolve) => {
+      const timer = window.setTimeout(resolve, 2000);
+      video.addEventListener(
+        'seeked',
+        () => {
+          window.clearTimeout(timer);
+          resolve();
+        },
+        { once: true }
+      );
+      try {
+        video.currentTime = seekTo;
+      } catch {
+        window.clearTimeout(timer);
+        resolve();
+      }
+    });
+
+    const w = video.videoWidth;
+    const h = video.videoHeight;
+    if (!w || !h) return null;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = sizePx;
+    canvas.height = sizePx;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+    const scale = Math.max(sizePx / w, sizePx / h);
+    const drawW = w * scale;
+    const drawH = h * scale;
+    ctx.drawImage(video, (sizePx - drawW) / 2, (sizePx - drawH) / 2, drawW, drawH);
+    return canvas.toDataURL('image/jpeg', 0.92);
+  } catch {
+    return null;
+  } finally {
+    video.removeAttribute('src');
+    video.load();
+    if (objectUrl) URL.revokeObjectURL(objectUrl);
+  }
+}
+
 function getPhotoCandidateUrls(item) {
   return [...new Set([item.url, item.thumbUrl].filter(Boolean))];
 }
@@ -165,6 +250,15 @@ export async function renderEntrySharePosterBlob({ entry, accountId, displayName
     const dataUrl = await loadPhotoSquareThumbForPoster(photo);
     if (dataUrl) {
       loadedPhotos.push({ ...photo, dataUrl });
+    }
+  }
+  if (loadedPhotos.length === 0) {
+    const video = findShareableVideo(entry.media);
+    if (video) {
+      const dataUrl = await loadVideoFirstFrameSquareThumb(video);
+      if (dataUrl) {
+        loadedPhotos.push({ ...video, dataUrl });
+      }
     }
   }
 

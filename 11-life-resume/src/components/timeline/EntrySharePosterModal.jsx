@@ -1,5 +1,23 @@
 import { useEffect, useMemo } from 'react';
 
+const SHARE_DOWNLOAD_SEQ_KEY = 'life-resume-share-download-seq';
+
+function nextShareDownloadFilename() {
+  let n = 0;
+  try {
+    n = parseInt(window.localStorage.getItem(SHARE_DOWNLOAD_SEQ_KEY), 10) || 0;
+  } catch {
+    n = 0;
+  }
+  n += 1;
+  try {
+    window.localStorage.setItem(SHARE_DOWNLOAD_SEQ_KEY, String(n));
+  } catch {
+    /* 配额满时仍用本次序号，避免永远同名 */
+  }
+  return `life-entry-share-${n}.png`;
+}
+
 function triggerDownload(blob, filename) {
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
@@ -30,7 +48,7 @@ export default function EntrySharePosterModal({ open, blob, onClose, generating 
 
   const handleSave = () => {
     if (!blob) return;
-    triggerDownload(blob, 'life-entry-share.png');
+    triggerDownload(blob, nextShareDownloadFilename());
   };
 
   return (
