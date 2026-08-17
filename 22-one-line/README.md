@@ -64,16 +64,16 @@ npm run jobs:daily
 | … | auth / me / posts / feed / resonance / report / blocks | P1–P4 |
 | GET | `/api/oneline/posts/mine` | 作者现存帖（未软删、未过期）；`created_at DESC` |
 | GET | `/api/oneline/board?month=YYYY-MM` | 默认**当月** live Top 30；往月读快照（缺则固化） |
-| POST | `/api/oneline/posts/pour` | 酒局结构化卡；与写一句分计日配额；拒图片字段 |
-| GET | `/api/oneline/posts/today/me` | `{ canPost, canPostLine, canPostPour, post, pourPost }`；旧 `canPost` = 写一句 |
+| POST | `/api/oneline/posts/pour` | 酒局结构化卡；与写一句分计；每天最多 2 局；拒图片字段 |
+| GET | `/api/oneline/posts/today/me` | `{ canPost, canPostLine, canPostPour, pourLimit, pourUsed, post, pourPost, pourPosts[] }`；旧 `canPost` = 写一句；`pourPost` 兼容第一条 |
 
-酒局帖 `PATCH` → `POUR_NO_EDIT`。软删仍占该 `kind` 当日名额。
+酒局帖 `PATCH` → `POUR_NO_EDIT`。写一句每天 1；酒局每天最多 2。软删仍占该名额。
 
-**QA 临时开关（测完必须 `false`）：**  
+**QA 临时开关（测完必须 `false`，与 App 一起关）：**  
 - `backend/services/postService.js` → `POUR_TEST_RESYNC_AFTER_DELETE`：删酒局帖释放当天名额。App 对应 `PourRules.TEST_RESYNC_AFTER_DELETE`。  
 - `backend/lib/pourPayload.js` → `POUR_TEST_SHORT_PUBLISH_GAP`：可发布时长下限改为 **5 分钟**（正本 2 小时，上限仍 6h）。App 对应 `PourRules.TEST_SHORT_PUBLISH_GAP`。  
 
-说明见 sibling `notee-go` → `docs/04-1-Pour-Check-Plan.md`。
+测完这两处都改回 `false`，并同时把 App 那两个开关也改回 `false`。漏关任一端，线上会按测试规则走。清单见 sibling `notee-go` → `docs/04-Pour-Check.md`。
 
 正文：统一预算 100（汉字占 2，其余占 1）。客户端 + 服务端双拦。
 

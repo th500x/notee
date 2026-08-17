@@ -14,8 +14,10 @@ const { requireActiveUser } = require('./userService');
 const FEED_DEFAULT_LIMIT = 20;
 const FEED_MAX_LIMIT = 50;
 
-/** TEST-ONLY. Deleting a pour post (or a leftover unique hit) frees that kind's UTC+7 day slot. Set false after QA. */
+/** TEST-ONLY. Deleting a pour post frees that UTC+7 day slot. Set false after QA. */
 const POUR_TEST_RESYNC_AFTER_DELETE = true;
+/** Pours per user per UTC+7 day. Lines stay 1. Soft-delete still occupies a slot unless the test flag is on. */
+const POUR_DAY_LIMIT = 2;
 
 async function purgePourRows(userId, postIds) {
   for (const postId of postIds) {
@@ -25,12 +27,15 @@ async function purgePourRows(userId, postIds) {
   }
 }
 
-async function purgePourDaySlot(userId, dayKey) {
-  const old = await query(
-    `SELECT id FROM posts WHERE user_id = ? AND day_key = ? AND kind = 'pour'`,
+async function occupyingPourRows(userId, dayKey) {
+  const rows = await query(
+    `SELECT ${postCols()}
+     FROM posts WHERE user_id = ? AND day_key = ? AND kind = 'pour'`,
     [userId, dayKey]
   );
-  await purgePourRows(userId, old.map((r) => r.id));
+  return POUR_TEST_RESYNC_AFTER_DELETE
+    ? rows.filter((r) => !r.deleted_at)
+    : rows;
 }
 
 function postCols(alias = '') {
@@ -188,6 +193,10 @@ async function createPourPost(userId, bodyIn) {
   const pour = assertPourPayload(bodyIn.pour);
   const flagId = assertFlagId(user.flag_id);
   const dayKey = dayKeyFromDate();
+  const used = await occupyingPourRows(userId, dayKey);
+  if (used.length >= POUR_DAY_LIMIT) {
+    throw httpError(409, `今日已同步满 ${POUR_DAY_LIMIT} 局`, 'POUR_DAY_QUOTA');
+  }
   const id = crypto.randomUUID();
   const now = new Date();
   const createdSql = toMysqlDateTimeUtc(now);
@@ -203,23 +212,9 @@ async function createPourPost(userId, bodyIn) {
     );
   } catch (err) {
     if (err && err.code === 'ER_DUP_ENTRY') {
-      // --- TEST-ONLY pour resync after delete (start) ---
-      if (POUR_TEST_RESYNC_AFTER_DELETE) {
-        await purgePourDaySlot(userId, dayKey);
-        await query(
-          `INSERT INTO posts
-             (id, user_id, kind, body, pour, flag_id, stamp_id, resonance_count, edit_used,
-              day_key, created_at, expires_at)
-           VALUES (?, ?, 'pour', ?, ?, ?, ?, 0, 1, ?, ?, ?)`,
-          [id, userId, body, JSON.stringify(pour), flagId, stampId, dayKey, createdSql, expiresSql]
-        );
-      } else {
-        throw httpError(409, '今日已同步过一局（含已删除）', 'POUR_DAY_QUOTA');
-      }
-      // --- TEST-ONLY pour resync after delete (end) ---
-    } else {
-      throw err;
+      throw httpError(409, `今日已同步满 ${POUR_DAY_LIMIT} 局`, 'POUR_DAY_QUOTA');
     }
+    throw err;
   }
 
   const rows = await query(
@@ -305,22 +300,26 @@ async function getTodayMine(userId) {
   const dayKey = dayKeyFromDate();
   const rows = await query(
     `SELECT ${postCols()}, hidden_at
-     FROM posts WHERE user_id = ? AND day_key = ?`,
+     FROM posts WHERE user_id = ? AND day_key = ?
+     ORDER BY created_at DESC`,
     [userId, dayKey]
   );
   const line = rows.find((r) => postKind(r) === 'line') || null;
-  const pourAny = rows.find((r) => postKind(r) === 'pour') || null;
-  const pourLive = rows.find((r) => postKind(r) === 'pour' && !r.deleted_at) || null;
-  // TEST-ONLY: deleted pour does not occupy the day slot (comment with the flag).
-  const pour = POUR_TEST_RESYNC_AFTER_DELETE ? pourLive : pourAny;
+  const occupyingPours = POUR_TEST_RESYNC_AFTER_DELETE
+    ? rows.filter((r) => postKind(r) === 'pour' && !r.deleted_at)
+    : rows.filter((r) => postKind(r) === 'pour');
   const canPostLine = !line;
+  const pourPosts = occupyingPours.map((r) => rowToPost(r, { includeDeleted: true }));
   return {
     dayKey,
     canPost: canPostLine,
     canPostLine,
-    canPostPour: !pour,
+    canPostPour: occupyingPours.length < POUR_DAY_LIMIT,
+    pourLimit: POUR_DAY_LIMIT,
+    pourUsed: occupyingPours.length,
     post: line ? rowToPost(line, { includeDeleted: true }) : null,
-    pourPost: pour ? rowToPost(pour, { includeDeleted: true }) : null,
+    pourPost: pourPosts[0] || null,
+    pourPosts,
   };
 }
 
