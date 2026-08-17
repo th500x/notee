@@ -23,6 +23,7 @@ const MIGRATION_FILES = [
   '004-resonances.sql',
   '005-governance.sql',
   '006-monthly-board.sql',
+  '007-posts-pour.sql',
 ];
 
 const DEFAULT_DB_NAME = '22_one_line';

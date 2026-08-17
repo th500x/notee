@@ -8,6 +8,7 @@ const { publicReadLimiter, authWriteLimiter } = require('../middleware/rateLimit
 const { sendServiceError } = require('../lib/sendServiceError');
 const {
   createPost,
+  createPourPost,
   patchPost,
   deletePost,
   getTodayMine,
@@ -39,6 +40,15 @@ router.get('/mine', requireAuth, publicReadLimiter, async (req, res) => {
 router.post('/', requireAuth, authWriteLimiter, async (req, res) => {
   try {
     const post = await createPost(req.player.sub, req.body);
+    res.status(201).json({ success: true, data: { post } });
+  } catch (err) {
+    sendServiceError(res, err, '[one-line/posts]');
+  }
+});
+
+router.post('/pour', requireAuth, authWriteLimiter, async (req, res) => {
+  try {
+    const post = await createPourPost(req.player.sub, req.body);
     res.status(201).json({ success: true, data: { post } });
   } catch (err) {
     sendServiceError(res, err, '[one-line/posts]');

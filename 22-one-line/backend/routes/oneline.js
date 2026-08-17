@@ -22,7 +22,7 @@ router.get('/health', publicReadLimiter, async (req, res) => {
     success: true,
     status: dbConnected ? 'ok' : 'degraded',
     service: 'one-line',
-    phase: 'P5',
+    phase: 'P6',
     database: dbConnected ? 'connected' : 'disconnected',
     databaseName: dbConfig.database,
     timestamp: new Date().toISOString(),

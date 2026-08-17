@@ -7,7 +7,8 @@
     "start": "node server.js",
     "dev": "nodemon server.js",
     "db:migrate": "node scripts/apply-pending-local-ddl.js",
-    "jobs:daily": "node scripts/run-daily-maintenance.js"
+    "jobs:daily": "node scripts/run-daily-maintenance.js",
+    "test:pour": "node scripts/assert-pour-payload.js"
   },
   "license": "UNLICENSED",
   "private": true,

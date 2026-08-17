@@ -27,22 +27,24 @@ function weightedLength(body) {
 }
 
 /**
- * @returns {string} NFC-trimmed body
+ * Same spam / link / phone rules as a One Line body, with a caller-chosen budget.
+ * @returns {string} NFC-trimmed text
  */
-function assertPostBody(raw) {
+function assertWeightedText(raw, budget, { allowEmpty = false } = {}) {
   if (typeof raw !== 'string') {
+    if (allowEmpty && (raw == null || raw === undefined)) return '';
     throw httpError(400, '正文无效', 'BAD_BODY');
   }
   const body = raw.normalize('NFC').trim();
   if (!body) {
+    if (allowEmpty) return '';
     throw httpError(400, '正文不能为空', 'BAD_BODY');
   }
 
-  if (weightedLength(body) > BUDGET) {
-    throw httpError(400, `正文最多 ${BUDGET}（汉字算 ${HAN_COST}）`, 'BODY_TOO_LONG');
+  if (weightedLength(body) > budget) {
+    throw httpError(400, `正文最多 ${budget}（汉字算 ${HAN_COST}）`, 'BODY_TOO_LONG');
   }
 
-  // Must contain at least one letter or number (any script)
   if (!/[\p{L}\p{N}]/u.test(body)) {
     throw httpError(400, '正文不能为纯空白或标点', 'BODY_SPAM');
   }
@@ -63,6 +65,13 @@ function assertPostBody(raw) {
 }
 
 /**
+ * @returns {string} NFC-trimmed body
+ */
+function assertPostBody(raw, opts = {}) {
+  return assertWeightedText(raw, BUDGET, opts);
+}
+
+/**
  * Optional stamp id (client-declared ownership until inventory verify exists).
  * @returns {string|null}
  */
@@ -78,6 +87,7 @@ module.exports = {
   BUDGET,
   HAN_COST,
   weightedLength,
+  assertWeightedText,
   assertPostBody,
   assertStampId,
 };

@@ -7,11 +7,54 @@ const { query } = require('../database/connection');
 const { httpError } = require('../lib/httpError');
 const { dayKeyFromDate, expiresAtFrom, toMysqlDateTimeUtc } = require('../lib/dayKey');
 const { assertPostBody, assertStampId } = require('../lib/postBody');
+const { assertPourPayload, rejectBannedKeys } = require('../lib/pourPayload');
 const { assertFlagId } = require('../lib/profileRules');
 const { requireActiveUser } = require('./userService');
 
 const FEED_DEFAULT_LIMIT = 20;
 const FEED_MAX_LIMIT = 50;
+
+/** TEST-ONLY. Deleting a pour post (or a leftover unique hit) frees that kind's UTC+7 day slot. Set false after QA. */
+const POUR_TEST_RESYNC_AFTER_DELETE = true;
+
+async function purgePourRows(userId, postIds) {
+  for (const postId of postIds) {
+    await query(`DELETE FROM resonances WHERE post_id = ?`, [postId]);
+    await query(`DELETE FROM reports WHERE post_id = ?`, [postId]);
+    await query(`DELETE FROM posts WHERE id = ? AND user_id = ?`, [postId, userId]);
+  }
+}
+
+async function purgePourDaySlot(userId, dayKey) {
+  const old = await query(
+    `SELECT id FROM posts WHERE user_id = ? AND day_key = ? AND kind = 'pour'`,
+    [userId, dayKey]
+  );
+  await purgePourRows(userId, old.map((r) => r.id));
+}
+
+function postCols(alias = '') {
+  const a = alias ? `${alias}.` : '';
+  return `${a}id, ${a}user_id, ${a}kind, ${a}body, ${a}pour, ${a}flag_id, ${a}stamp_id, ${a}resonance_count, ${a}edit_used,
+            ${a}day_key, ${a}created_at, ${a}updated_at, ${a}expires_at, ${a}deleted_at`;
+}
+
+function parsePourColumn(raw) {
+  if (raw == null) return null;
+  if (typeof raw === 'string') {
+    try {
+      return JSON.parse(raw);
+    } catch {
+      return null;
+    }
+  }
+  if (typeof raw === 'object') return raw;
+  return null;
+}
+
+function postKind(row) {
+  return row && row.kind ? row.kind : 'line';
+}
 
 function toIso(value) {
   if (value == null) return null;
@@ -20,10 +63,13 @@ function toIso(value) {
 
 function rowToPost(row, { includeDeleted = false, includeResonatedByMe = false } = {}) {
   if (!row) return null;
+  const kind = postKind(row);
   const post = {
     id: row.id,
     userId: row.user_id,
+    kind,
     body: row.body,
+    pour: kind === 'pour' ? parsePourColumn(row.pour) : null,
     flagId: row.flag_id,
     stampId: row.stamp_id,
     resonanceCount: Number(row.resonance_count) || 0,
@@ -62,8 +108,7 @@ function requireCompleteProfile(user) {
 
 async function getPostRowForAuthor(postId, userId) {
   const rows = await query(
-    `SELECT id, user_id, body, flag_id, stamp_id, resonance_count, edit_used,
-            day_key, created_at, updated_at, expires_at, deleted_at, hidden_at
+    `SELECT ${postCols()}, hidden_at
      FROM posts WHERE id = ? LIMIT 1`,
     [postId]
   );
@@ -77,12 +122,26 @@ async function getPostRowForAuthor(postId, userId) {
   return row;
 }
 
+function assertLineCreateBody(bodyIn) {
+  if (!bodyIn || typeof bodyIn !== 'object' || Array.isArray(bodyIn)) {
+    throw httpError(400, '请求体无效', 'BAD_BODY');
+  }
+  rejectBannedKeys(bodyIn);
+  if (bodyIn.kind != null && bodyIn.kind !== 'line') {
+    throw httpError(400, '写一句接口不可发酒局帖', 'BAD_KIND');
+  }
+  if (bodyIn.pour != null) {
+    throw httpError(400, '写一句接口不可带 pour 字段', 'BAD_KIND');
+  }
+}
+
 async function createPost(userId, bodyIn) {
   const user = await requireActiveUser(userId);
   requireCompleteProfile(user);
+  assertLineCreateBody(bodyIn);
 
-  const body = assertPostBody(bodyIn && bodyIn.body);
-  const stampId = assertStampId(bodyIn && bodyIn.stampId);
+  const body = assertPostBody(bodyIn.body);
+  const stampId = assertStampId(bodyIn.stampId);
   const flagId = assertFlagId(user.flag_id);
   const dayKey = dayKeyFromDate();
   const id = crypto.randomUUID();
@@ -93,9 +152,9 @@ async function createPost(userId, bodyIn) {
   try {
     await query(
       `INSERT INTO posts
-         (id, user_id, body, flag_id, stamp_id, resonance_count, edit_used,
+         (id, user_id, kind, body, pour, flag_id, stamp_id, resonance_count, edit_used,
           day_key, created_at, expires_at)
-       VALUES (?, ?, ?, ?, ?, 0, 0, ?, ?, ?)`,
+       VALUES (?, ?, 'line', ?, NULL, ?, ?, 0, 0, ?, ?, ?)`,
       [id, userId, body, flagId, stampId, dayKey, createdSql, expiresSql]
     );
   } catch (err) {
@@ -106,8 +165,65 @@ async function createPost(userId, bodyIn) {
   }
 
   const rows = await query(
-    `SELECT id, user_id, body, flag_id, stamp_id, resonance_count, edit_used,
-            day_key, created_at, updated_at, expires_at, deleted_at
+    `SELECT ${postCols()}
+     FROM posts WHERE id = ? LIMIT 1`,
+    [id]
+  );
+  return rowToPost(rows[0]);
+}
+
+async function createPourPost(userId, bodyIn) {
+  const user = await requireActiveUser(userId);
+  requireCompleteProfile(user);
+  if (!bodyIn || typeof bodyIn !== 'object' || Array.isArray(bodyIn)) {
+    throw httpError(400, '请求体无效', 'BAD_BODY');
+  }
+  rejectBannedKeys(bodyIn);
+  if (bodyIn.kind != null && bodyIn.kind !== 'pour') {
+    throw httpError(400, 'kind 无效', 'BAD_KIND');
+  }
+
+  const body = assertPostBody(bodyIn.body == null ? '' : bodyIn.body, { allowEmpty: true });
+  const stampId = assertStampId(bodyIn.stampId);
+  const pour = assertPourPayload(bodyIn.pour);
+  const flagId = assertFlagId(user.flag_id);
+  const dayKey = dayKeyFromDate();
+  const id = crypto.randomUUID();
+  const now = new Date();
+  const createdSql = toMysqlDateTimeUtc(now);
+  const expiresSql = toMysqlDateTimeUtc(expiresAtFrom(now));
+
+  try {
+    await query(
+      `INSERT INTO posts
+         (id, user_id, kind, body, pour, flag_id, stamp_id, resonance_count, edit_used,
+          day_key, created_at, expires_at)
+       VALUES (?, ?, 'pour', ?, ?, ?, ?, 0, 1, ?, ?, ?)`,
+      [id, userId, body, JSON.stringify(pour), flagId, stampId, dayKey, createdSql, expiresSql]
+    );
+  } catch (err) {
+    if (err && err.code === 'ER_DUP_ENTRY') {
+      // --- TEST-ONLY pour resync after delete (start) ---
+      if (POUR_TEST_RESYNC_AFTER_DELETE) {
+        await purgePourDaySlot(userId, dayKey);
+        await query(
+          `INSERT INTO posts
+             (id, user_id, kind, body, pour, flag_id, stamp_id, resonance_count, edit_used,
+              day_key, created_at, expires_at)
+           VALUES (?, ?, 'pour', ?, ?, ?, ?, 0, 1, ?, ?, ?)`,
+          [id, userId, body, JSON.stringify(pour), flagId, stampId, dayKey, createdSql, expiresSql]
+        );
+      } else {
+        throw httpError(409, '今日已同步过一局（含已删除）', 'POUR_DAY_QUOTA');
+      }
+      // --- TEST-ONLY pour resync after delete (end) ---
+    } else {
+      throw err;
+    }
+  }
+
+  const rows = await query(
+    `SELECT ${postCols()}
      FROM posts WHERE id = ? LIMIT 1`,
     [id]
   );
@@ -118,12 +234,20 @@ async function patchPost(userId, postId, bodyIn) {
   await requireActiveUser(userId);
   const row = await getPostRowForAuthor(postId, userId);
 
+  if (postKind(row) === 'pour') {
+    throw httpError(409, '酒局帖不可编辑', 'POUR_NO_EDIT');
+  }
+
   if (row.edit_used) {
     throw httpError(409, '本条已用过编辑次数', 'EDIT_USED');
   }
 
   if (!bodyIn || typeof bodyIn !== 'object') {
     throw httpError(400, '请求体无效', 'BAD_BODY');
+  }
+  rejectBannedKeys(bodyIn);
+  if (bodyIn.pour !== undefined) {
+    throw httpError(400, '不可改 pour 字段', 'BAD_BODY');
   }
 
   let nextBody = row.body;
@@ -149,8 +273,7 @@ async function patchPost(userId, postId, bodyIn) {
   );
 
   const rows = await query(
-    `SELECT id, user_id, body, flag_id, stamp_id, resonance_count, edit_used,
-            day_key, created_at, updated_at, expires_at, deleted_at
+    `SELECT ${postCols()}
      FROM posts WHERE id = ? LIMIT 1`,
     [postId]
   );
@@ -159,7 +282,15 @@ async function patchPost(userId, postId, bodyIn) {
 
 async function deletePost(userId, postId) {
   await requireActiveUser(userId);
-  await getPostRowForAuthor(postId, userId);
+  const row = await getPostRowForAuthor(postId, userId);
+
+  // --- TEST-ONLY pour resync after delete (start) ---
+  if (POUR_TEST_RESYNC_AFTER_DELETE && postKind(row) === 'pour') {
+    await purgePourRows(userId, [postId]);
+    return { deleted: true };
+  }
+  // --- TEST-ONLY pour resync after delete (end) ---
+
   await query(
     `UPDATE posts SET deleted_at = CURRENT_TIMESTAMP
      WHERE id = ? AND user_id = ? AND deleted_at IS NULL`,
@@ -173,16 +304,23 @@ async function getTodayMine(userId) {
   await requireActiveUser(userId);
   const dayKey = dayKeyFromDate();
   const rows = await query(
-    `SELECT id, user_id, body, flag_id, stamp_id, resonance_count, edit_used,
-            day_key, created_at, updated_at, expires_at, deleted_at, hidden_at
-     FROM posts WHERE user_id = ? AND day_key = ? LIMIT 1`,
+    `SELECT ${postCols()}, hidden_at
+     FROM posts WHERE user_id = ? AND day_key = ?`,
     [userId, dayKey]
   );
-  const row = rows[0];
+  const line = rows.find((r) => postKind(r) === 'line') || null;
+  const pourAny = rows.find((r) => postKind(r) === 'pour') || null;
+  const pourLive = rows.find((r) => postKind(r) === 'pour' && !r.deleted_at) || null;
+  // TEST-ONLY: deleted pour does not occupy the day slot (comment with the flag).
+  const pour = POUR_TEST_RESYNC_AFTER_DELETE ? pourLive : pourAny;
+  const canPostLine = !line;
   return {
     dayKey,
-    canPost: !row,
-    post: row ? rowToPost(row, { includeDeleted: true }) : null,
+    canPost: canPostLine,
+    canPostLine,
+    canPostPour: !pour,
+    post: line ? rowToPost(line, { includeDeleted: true }) : null,
+    pourPost: pour ? rowToPost(pour, { includeDeleted: true }) : null,
   };
 }
 
@@ -196,8 +334,7 @@ async function listMine(userId, queryIn = {}) {
 
   const params = [userId, userId];
   let sql = `
-    SELECT p.id, p.user_id, p.body, p.flag_id, p.stamp_id, p.resonance_count, p.edit_used,
-           p.day_key, p.created_at, p.updated_at, p.expires_at, p.deleted_at,
+    SELECT ${postCols('p')},
            u.nick_name, u.gender, u.avatar_id,
            (r.user_id IS NOT NULL) AS resonated_by_me
     FROM posts p
@@ -334,8 +471,7 @@ async function getFeed(queryIn = {}, opts = {}) {
 
   const params = [];
   let sql = `
-    SELECT p.id, p.user_id, p.body, p.flag_id, p.stamp_id, p.resonance_count, p.edit_used,
-           p.day_key, p.created_at, p.updated_at, p.expires_at, p.deleted_at,
+    SELECT ${postCols('p')},
            u.nick_name, u.gender, u.avatar_id`;
 
   if (viewerUserId) {
@@ -478,6 +614,7 @@ async function getFeed(queryIn = {}, opts = {}) {
 
 module.exports = {
   createPost,
+  createPourPost,
   patchPost,
   deletePost,
   getTodayMine,
