@@ -24,7 +24,7 @@ export default class ErrorBoundary extends Component {
             请刷新重试。若持续失败，可从首页重新进入。
           </p>
           <a
-            href="/10-game-guides/"
+            href="/03-game-guides/"
             className="mt-6 inline-block text-sm text-[var(--accent)] hover:underline"
           >
             返回游戏攻略首页

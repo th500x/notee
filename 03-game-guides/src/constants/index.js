@@ -1,7 +1,7 @@
 /** 站点与内容常量 */
 
 export const SITE = {
-  id: '10-game-guides',
+  id: '03-game-guides',
   name: '游戏攻略',
   nameEn: 'Game Guides',
   tagline: '复杂游戏的攻略与资讯汇总 · 无广告',
@@ -33,4 +33,4 @@ export const GAMES = [
   },
 ]
 
-export const LOG_PREFIX = '[10-game-guides]'
+export const LOG_PREFIX = '[03-game-guides]'

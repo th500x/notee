@@ -90,12 +90,12 @@ export const PROJECTS = [
     adminOnly: true
   },
   {
-    id: '10-game-guides',
+    id: '03-game-guides',
     name: '游戏攻略',
     icon: '📘',
     description: '复杂游戏的攻略与资讯汇总\n纯阅读、无广告',
     gradient: 'linear-gradient(135deg, #0f1419 0%, #6cb6ff 100%)',
-    path: '/10-game-guides/'
+    path: '/03-game-guides/'
   }
 ]
 
