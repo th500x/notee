@@ -69,7 +69,11 @@ npm run jobs:daily
 
 酒局帖 `PATCH` → `POUR_NO_EDIT`。软删仍占该 `kind` 当日名额。
 
-**QA 临时开关（测完必须 `false`）：** `backend/services/postService.js` → `POUR_TEST_RESYNC_AFTER_DELETE`。开着时删酒局帖会释放当天名额（硬删 + 再发撞 unique 会清旧行）。App 侧对应 `PourRules.TEST_RESYNC_AFTER_DELETE`。说明见 sibling `notee-go` → `docs/04-1-Pour-Check-Plan.md`。
+**QA 临时开关（测完必须 `false`）：**  
+- `backend/services/postService.js` → `POUR_TEST_RESYNC_AFTER_DELETE`：删酒局帖释放当天名额。App 对应 `PourRules.TEST_RESYNC_AFTER_DELETE`。  
+- `backend/lib/pourPayload.js` → `POUR_TEST_SHORT_PUBLISH_GAP`：可发布时长下限改为 **5 分钟**（正本 2 小时，上限仍 6h）。App 对应 `PourRules.TEST_SHORT_PUBLISH_GAP`。  
+
+说明见 sibling `notee-go` → `docs/04-1-Pour-Check-Plan.md`。
 
 正文：统一预算 100（汉字占 2，其余占 1）。客户端 + 服务端双拦。
 

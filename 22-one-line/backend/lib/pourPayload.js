@@ -37,6 +37,13 @@ const BOTTLE_MAX = 36;
 const ML_MAX = 2000;
 const DURATION_MIN_SEC = 2 * 60 * 60;
 const DURATION_MAX_SEC = 6 * 60 * 60;
+/** TEST-ONLY. Pair with App PourRules.TEST_SHORT_PUBLISH_GAP. Set false after QA. */
+const POUR_TEST_SHORT_PUBLISH_GAP = true;
+const TEST_DURATION_MIN_SEC = 5 * 60;
+
+function durationMinSec() {
+  return POUR_TEST_SHORT_PUBLISH_GAP ? TEST_DURATION_MIN_SEC : DURATION_MIN_SEC;
+}
 const CONSUMED_MAX = BOTTLE_MAX * ML_MAX;
 
 const BANNED_KEY_RE = /image|photo|picture|gps|lat|lng|lon|exif|uri|url|file|path/i;
@@ -128,12 +135,13 @@ function assertPourPayload(raw) {
   const tableName = assertTableName(raw.tableName);
   const people = assertInt(raw.people, PEOPLE_MIN, PEOPLE_MAX, 'BAD_POUR', '人数无效');
   const names = assertNames(raw.names, people);
+  const minSec = durationMinSec();
   const durationSec = assertInt(
     raw.durationSec,
-    DURATION_MIN_SEC,
+    minSec,
     DURATION_MAX_SEC,
     'BAD_POUR',
-    '时长须在 2–6 小时'
+    POUR_TEST_SHORT_PUBLISH_GAP ? '时长须在 5 分钟–6 小时' : '时长须在 2–6 小时'
   );
   const place = assertWeightedText(raw.place, PLACE_BUDGET, { allowEmpty: false });
   const bottleCount = assertInt(
@@ -163,6 +171,9 @@ module.exports = {
   PLACE_BUDGET,
   DURATION_MIN_SEC,
   DURATION_MAX_SEC,
+  POUR_TEST_SHORT_PUBLISH_GAP,
+  TEST_DURATION_MIN_SEC,
+  durationMinSec,
   rejectBannedKeys,
   assertPourPayload,
 };

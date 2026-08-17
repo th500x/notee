@@ -5,7 +5,12 @@
 
 const assert = require('assert');
 const { assertPostBody } = require('../lib/postBody');
-const { assertPourPayload, rejectBannedKeys } = require('../lib/pourPayload');
+const {
+  assertPourPayload,
+  rejectBannedKeys,
+  DURATION_MIN_SEC,
+  durationMinSec,
+} = require('../lib/pourPayload');
 
 function throwsCode(fn, code) {
   try {
@@ -35,7 +40,10 @@ assert.strictEqual(assertPostBody('', { allowEmpty: true }), '');
 assert.strictEqual(assertPostBody('quiet night', { allowEmpty: true }), 'quiet night');
 
 throwsCode(() => assertPostBody(''), 'BAD_BODY');
-throwsCode(() => assertPourPayload({ ...ok, durationSec: 7199 }), 'BAD_POUR');
+assert.strictEqual(DURATION_MIN_SEC, 7200);
+const minSec = durationMinSec();
+assert.strictEqual(assertPourPayload({ ...ok, durationSec: minSec }).durationSec, minSec);
+throwsCode(() => assertPourPayload({ ...ok, durationSec: minSec - 1 }), 'BAD_POUR');
 throwsCode(() => assertPourPayload({ ...ok, durationSec: 21601 }), 'BAD_POUR');
 throwsCode(() => assertPourPayload({ ...ok, tableName: 'man' }), 'BAD_POUR');
 throwsCode(() => assertPourPayload({ ...ok, tableName: 'TOOLONGNAMEZ' }), 'BAD_POUR');
