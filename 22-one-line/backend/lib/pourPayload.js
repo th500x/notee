@@ -21,6 +21,7 @@ const KIND_IDS = new Set([
 const POUR_KEYS = new Set([
   'tableName',
   'people',
+  'names',
   'durationSec',
   'place',
   'bottleCount',
@@ -30,7 +31,7 @@ const POUR_KEYS = new Set([
 
 const PLACE_BUDGET = 40;
 const PEOPLE_MIN = 1;
-const PEOPLE_MAX = 99;
+const PEOPLE_MAX = 20;
 const BOTTLE_MIN = 1;
 const BOTTLE_MAX = 36;
 const ML_MAX = 2000;
@@ -72,6 +73,18 @@ function assertTableName(raw) {
   return raw;
 }
 
+function assertNames(raw, people) {
+  if (!Array.isArray(raw) || raw.length !== people) {
+    throw httpError(400, '同行昵称无效', 'BAD_POUR');
+  }
+  return raw.map((n) => {
+    if (typeof n !== 'string' || !/^[A-Z0-9]{1,10}$/.test(n)) {
+      throw httpError(400, '同行昵称无效', 'BAD_POUR');
+    }
+    return n;
+  });
+}
+
 function assertKinds(raw) {
   if (!Array.isArray(raw) || raw.length === 0) {
     throw httpError(400, '品类无效', 'BAD_POUR');
@@ -93,6 +106,7 @@ function assertKinds(raw) {
  * @returns {{
  *   tableName: string,
  *   people: number,
+ *   names: string[],
  *   durationSec: number,
  *   place: string,
  *   bottleCount: number,
@@ -113,6 +127,7 @@ function assertPourPayload(raw) {
 
   const tableName = assertTableName(raw.tableName);
   const people = assertInt(raw.people, PEOPLE_MIN, PEOPLE_MAX, 'BAD_POUR', '人数无效');
+  const names = assertNames(raw.names, people);
   const durationSec = assertInt(
     raw.durationSec,
     DURATION_MIN_SEC,
@@ -134,6 +149,7 @@ function assertPourPayload(raw) {
   return {
     tableName,
     people,
+    names,
     durationSec,
     place,
     bottleCount,
