@@ -4,6 +4,7 @@
 import QRCode from 'qrcode';
 import { appConfig } from '@/config/appConfig';
 import { formatEntryTimeLabel } from '@shared/utils/lifeResumeEntryTime.js';
+import { countGraphemes } from '@shared/utils/lifeResumeGraphemeCount.js';
 import { captureSharePosterElementToBlob } from '@/utils/entrySharePosterCapture.js';
 import jyhphsFontUrl from '@/assets/fonts/JYHPHS.woff2?url';
 
@@ -17,6 +18,72 @@ const POSTER_PHOTO_CELL_PX = Math.floor(
   (POSTER_CONTENT_WIDTH - POSTER_PHOTO_GAP * (POSTER_PHOTO_COLUMNS - 1)) / POSTER_PHOTO_COLUMNS
 );
 const FONT_FAMILY = '"JYHPHS","Microsoft YaHei","PingFang SC",Arial,sans-serif';
+
+const POSTER_BODY_FONT_PX = 28;
+const POSTER_BODY_LINE_HEIGHT = 1.65;
+const POSTER_BODY_LINE_PX = Math.round(POSTER_BODY_FONT_PX * POSTER_BODY_LINE_HEIGHT);
+const POSTER_CHARS_PER_LINE = Math.max(
+  1,
+  Math.floor(POSTER_CONTENT_WIDTH / POSTER_BODY_FONT_PX)
+);
+/** 档位高度在满字数之外再留几行空行，避免段间距把图撑出档 */
+const POSTER_TIER_EXTRA_BLANK_LINES = 3;
+/** 150 / 300 / 500：与正文上限 500 字素对齐 */
+export const SHARE_POSTER_BODY_TIER_CAPS = [150, 300, 500];
+
+/**
+ * 页眉 + 位置/标签/标题预留 + 媒体一行 + 底栏。
+ * 实际缺项时由 spacer 补白，同档分享图总高度一致。
+ */
+const POSTER_CHROME_PX =
+  40 +
+  (22 + 20) +
+  Math.round(36 * 1.35) +
+  (10 + 24) +
+  (14 + Math.round(24 * 1.45) * 2) +
+  (12 + 8 + Math.round(22 * 1.3)) +
+  (20 + Math.round(30 * 1.4)) +
+  16 +
+  (24 + POSTER_PHOTO_CELL_PX) +
+  (32 + 24 + 120) +
+  36 +
+  48;
+
+/**
+ * @param {string} bodyText
+ * @returns {number}
+ */
+export function resolveSharePosterBodyTierCap(bodyText) {
+  const count = countGraphemes(String(bodyText ?? '').trim());
+  for (const cap of SHARE_POSTER_BODY_TIER_CAPS) {
+    if (count <= cap) return cap;
+  }
+  return SHARE_POSTER_BODY_TIER_CAPS[SHARE_POSTER_BODY_TIER_CAPS.length - 1];
+}
+
+/**
+ * @param {string} bodyText
+ * @returns {number}
+ */
+export function sharePosterMinHeightPxForBody(bodyText) {
+  const cap = resolveSharePosterBodyTierCap(bodyText);
+  const textLines = Math.ceil(cap / POSTER_CHARS_PER_LINE);
+  const bodyLines = textLines + POSTER_TIER_EXTRA_BLANK_LINES;
+  return Math.ceil(POSTER_CHROME_PX + bodyLines * POSTER_BODY_LINE_PX);
+}
+
+/**
+ * 把海报垫到档位高度（内容更高则不裁切、随内容加高）。
+ * @param {HTMLElement} card
+ * @param {HTMLElement} spacer
+ * @param {string} bodyText
+ */
+function applySharePosterTierHeight(card, spacer, bodyText) {
+  spacer.style.height = '0px';
+  const minHeight = sharePosterMinHeightPxForBody(bodyText);
+  const extra = Math.max(0, minHeight - card.scrollHeight);
+  spacer.style.height = `${extra}px`;
+}
 
 function escapeHtml(value) {
   return String(value ?? '')
@@ -290,15 +357,16 @@ export async function renderEntrySharePosterBlob({ entry, accountId, displayName
         font-display: block;
       }
     </style>
-    <div style="box-sizing:border-box;width:${POSTER_WIDTH_PX}px;padding:40px 36px 36px;background:#ffffff;">
+    <div data-share-poster-card style="box-sizing:border-box;width:${POSTER_WIDTH_PX}px;padding:40px 36px 36px;background:#ffffff;">
       <div style="font-size:22px;color:#6366f1;letter-spacing:0.08em;margin-bottom:20px;">人生片段</div>
       <div style="font-size:36px;font-weight:700;line-height:1.35;color:#0f172a;">${escapeHtml(authorLabel)}</div>
       <div style="margin-top:10px;font-size:24px;color:#64748b;">${escapeHtml(timeLabel)}</div>
       ${buildLocationHtml(entry)}
       ${buildTagsHtml(entry.tags)}
       ${title ? `<div style="margin-top:20px;font-size:30px;font-weight:700;line-height:1.4;color:#0f172a;">${escapeHtml(title)}</div>` : ''}
-      <div style="margin-top:${title ? 16 : 20}px;font-size:28px;line-height:1.65;color:#334155;white-space:pre-wrap;word-break:break-word;">${escapeHtml(body)}</div>
+      <div style="margin-top:${title ? 16 : 20}px;font-size:${POSTER_BODY_FONT_PX}px;line-height:${POSTER_BODY_LINE_HEIGHT};color:#334155;white-space:pre-wrap;word-break:break-word;">${escapeHtml(body)}</div>
       ${buildPhotoGridHtml(loadedPhotos)}
+      <div data-share-poster-spacer style="height:0;margin:0;padding:0;line-height:0;font-size:0;"></div>
       <div style="margin-top:32px;padding-top:24px;border-top:1px solid #e2e8f0;display:flex;align-items:center;gap:20px;">
         <img src="${qrDataUrl}" alt="" width="120" height="120" style="display:block;flex-shrink:0;border-radius:8px;" />
         <div style="min-width:0;">
@@ -323,6 +391,12 @@ export async function renderEntrySharePosterBlob({ entry, accountId, displayName
     }
     if (loadedPhotos.length > 0) {
       await new Promise((r) => setTimeout(r, 120));
+    }
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const card = root.querySelector('[data-share-poster-card]');
+    const spacer = root.querySelector('[data-share-poster-spacer]');
+    if (card && spacer) {
+      applySharePosterTierHeight(card, spacer, body);
     }
     await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
     return await captureSharePosterElementToBlob(root, { backgroundColor: '#ffffff', scale: 2 });
