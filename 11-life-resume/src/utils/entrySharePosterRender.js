@@ -365,9 +365,9 @@ export async function renderEntrySharePosterBlob({ entry, accountId, displayName
       ${buildTagsHtml(entry.tags)}
       ${title ? `<div style="margin-top:20px;font-size:30px;font-weight:700;line-height:1.4;color:#0f172a;">${escapeHtml(title)}</div>` : ''}
       <div style="margin-top:${title ? 16 : 20}px;font-size:${POSTER_BODY_FONT_PX}px;line-height:${POSTER_BODY_LINE_HEIGHT};color:#334155;white-space:pre-wrap;word-break:break-word;">${escapeHtml(body)}</div>
-      ${buildPhotoGridHtml(loadedPhotos)}
       <div data-share-poster-spacer style="height:0;margin:0;padding:0;line-height:0;font-size:0;"></div>
-      <div style="margin-top:32px;padding-top:24px;border-top:1px solid #e2e8f0;display:flex;align-items:center;gap:20px;">
+      ${buildPhotoGridHtml(loadedPhotos)}
+      <div style="margin-top:${POSTER_BODY_LINE_PX}px;padding-top:24px;border-top:1px solid #e2e8f0;display:flex;align-items:center;gap:20px;">
         <img src="${qrDataUrl}" alt="" width="120" height="120" style="display:block;flex-shrink:0;border-radius:8px;" />
         <div style="min-width:0;">
           <div style="font-size:24px;font-weight:600;color:#0f172a;margin-bottom:8px;">扫码看我的片段</div>
