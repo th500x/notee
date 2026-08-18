@@ -31,11 +31,13 @@ const POUR_KEYS = new Set([
 
 const PLACE_BUDGET = 40;
 const PEOPLE_MIN = 1;
-const PEOPLE_MAX = 20;
+const PEOPLE_MAX = 12;
 const BOTTLE_MIN = 1;
 const BOTTLE_MAX = 36;
+/** New posts. Stored rows with more kinds still render on the client. */
+const KINDS_MAX = 3;
 const ML_MAX = 2000;
-const DURATION_MIN_SEC = 2 * 60 * 60;
+const DURATION_MIN_SEC = 30 * 60;
 const DURATION_MAX_SEC = 6 * 60 * 60;
 /** TEST-ONLY. Pair with App PourRules.TEST_SHORT_PUBLISH_GAP. Set false after QA. */
 const POUR_TEST_SHORT_PUBLISH_GAP = true;
@@ -84,8 +86,11 @@ function assertNames(raw, people) {
   if (!Array.isArray(raw) || raw.length !== people) {
     throw httpError(400, '同行昵称无效', 'BAD_POUR');
   }
-  return raw.map((n) => {
+  return raw.map((n, i) => {
     if (typeof n !== 'string' || !/^[A-Z0-9]{1,10}$/.test(n)) {
+      throw httpError(400, '同行昵称无效', 'BAD_POUR');
+    }
+    if (i > 0 && n === 'SOLO') {
       throw httpError(400, '同行昵称无效', 'BAD_POUR');
     }
     return n;
@@ -105,6 +110,9 @@ function assertKinds(raw) {
     if (seen.has(id)) continue;
     seen.add(id);
     kinds.push(id);
+  }
+  if (kinds.length > KINDS_MAX) {
+    throw httpError(400, '品类无效', 'BAD_POUR');
   }
   return kinds;
 }
@@ -141,7 +149,7 @@ function assertPourPayload(raw) {
     minSec,
     DURATION_MAX_SEC,
     'BAD_POUR',
-    POUR_TEST_SHORT_PUBLISH_GAP ? '时长须在 5 分钟–6 小时' : '时长须在 2–6 小时'
+    POUR_TEST_SHORT_PUBLISH_GAP ? '时长须在 5 分钟–6 小时' : '时长须在 30 分钟–6 小时'
   );
   const place = assertWeightedText(raw.place, PLACE_BUDGET, { allowEmpty: false });
   const bottleCount = assertInt(
@@ -168,6 +176,7 @@ function assertPourPayload(raw) {
 
 module.exports = {
   KIND_IDS,
+  KINDS_MAX,
   PLACE_BUDGET,
   DURATION_MIN_SEC,
   DURATION_MAX_SEC,

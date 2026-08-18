@@ -71,7 +71,7 @@ npm run jobs:daily
 
 **QA 临时开关（测完必须 `false`，与 App 一起关）：**  
 - `backend/services/postService.js` → `POUR_TEST_RESYNC_AFTER_DELETE`：删酒局帖释放当天名额。App 对应 `PourRules.TEST_RESYNC_AFTER_DELETE`。  
-- `backend/lib/pourPayload.js` → `POUR_TEST_SHORT_PUBLISH_GAP`：可发布时长下限改为 **5 分钟**（正本 2 小时，上限仍 6h）。App 对应 `PourRules.TEST_SHORT_PUBLISH_GAP`。  
+- `backend/lib/pourPayload.js` → `POUR_TEST_SHORT_PUBLISH_GAP`：可发布时长下限改为 **5 分钟**（正本 30 分钟，上限仍 6h）。App 对应 `PourRules.TEST_SHORT_PUBLISH_GAP`。  
 
 测完这两处都改回 `false`，并同时把 App 那两个开关也改回 `false`。漏关任一端，线上会按测试规则走。清单见 sibling `notee-go` → `docs/04-Pour-Check.md`。
 
