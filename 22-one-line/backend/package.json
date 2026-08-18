@@ -8,11 +8,13 @@
     "dev": "nodemon server.js",
     "db:migrate": "node scripts/apply-pending-local-ddl.js",
     "jobs:daily": "node scripts/run-daily-maintenance.js",
-    "test:pour": "node scripts/assert-pour-payload.js"
+    "test:pour": "node scripts/assert-pour-payload.js",
+    "smoke:login-id": "node scripts/smoke-login-id.js"
   },
   "license": "UNLICENSED",
   "private": true,
   "dependencies": {
+    "bcryptjs": "^3.0.3",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
     "express": "^4.18.2",

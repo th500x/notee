@@ -25,6 +25,7 @@ const MIGRATION_FILES = [
   '006-monthly-board.sql',
   '007-posts-pour.sql',
   '008-posts-pour-quota.sql',
+  '009-users-login-id.sql',
 ];
 
 const DEFAULT_DB_NAME = '22_one_line';

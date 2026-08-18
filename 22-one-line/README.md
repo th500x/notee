@@ -12,7 +12,7 @@ Notee Go「今日一句」后端。产品设计见 sibling `KIRO/notee-go` → `
 | 对外 | `https://notee.vip/api/oneline/*` |
 | 库名 | `22_one_line` |
 | PM2 | `one-line-backend` |
-| 阶段 | **P6** — + 酒局打卡帖 `kind=pour` |
+| 阶段 | **P7** — + 短号注册 / 登录（`login_id` + 密码） |
 
 ## 常用命令（与 05 同形式）
 
@@ -66,6 +66,12 @@ npm run jobs:daily
 | GET | `/api/oneline/board?month=YYYY-MM` | 默认**当月** live Top 30；往月读快照（缺则固化） |
 | POST | `/api/oneline/posts/pour` | 酒局结构化卡；与写一句分计；每天最多 2 局；拒图片字段 |
 | GET | `/api/oneline/posts/today/me` | `{ canPost, canPostLine, canPostPour, pourLimit, pourUsed, post, pourPost, pourPosts[] }`；旧 `canPost` = 写一句；`pourPost` 兼容第一条 |
+| GET | `/api/oneline/auth/login-id/candidates` | `?count=5&exclude=AB12,CD34` → `{ loginIds[], partial }`；只出字母开头未占用号 |
+| POST | `/api/oneline/auth/register` | `{ loginId, password }` + Bearer → 短号绑**当前**户；无 Bearer 401 |
+| POST | `/api/oneline/auth/login` | `{ loginId, password, deviceKey? }` → `{ token, expiresAt, user }`；带 `deviceKey` 则本机改挂该户 |
+
+账号规则正本：sibling `notee-go` → `docs/00-2-Account.md`。冒烟 `npm run smoke:login-id`。  
+短号软删即回池；`password_hash` 不出参。
 
 酒局帖 `PATCH` → `POUR_NO_EDIT`。写一句每天 1；酒局每天最多 2。软删仍占该名额。
 

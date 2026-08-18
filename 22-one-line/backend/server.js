@@ -1,6 +1,6 @@
 /**
  * 22-one-line backend — Notee Go One Line / 今日一句 (port 3022).
- * Phase 5: + TTL purge + monthly board.
+ * Phase 5: + TTL purge + monthly board. Phase 7: + login id sign-up / sign-in.
  */
 
 const path = require('path');
@@ -66,7 +66,7 @@ app.listen(PORT, async () => {
   console.log(`🌐 http://localhost:${PORT}`);
   console.log(`💚 /health`);
   console.log(`📊 /api/oneline/health`);
-  console.log(`🔑 /api/oneline/auth/anonymous`);
+  console.log(`🔑 /api/oneline/auth/anonymous · login-id/candidates · register · login`);
   console.log(`👤 /api/oneline/me`);
   console.log(`📝 /api/oneline/posts · /feed · board · blocks`);
   console.log(`🗄️  DB: ${dbConfig.database} @ ${dbConfig.host}:${dbConfig.port}`);
