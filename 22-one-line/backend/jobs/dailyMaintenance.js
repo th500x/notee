@@ -5,6 +5,7 @@
 const cron = require('node-cron');
 const { purgeExpiredPosts } = require('../services/ttlService');
 const { freezePreviousMonthIfNeeded } = require('../services/boardService');
+const { purgeIdleSilentAccounts } = require('../services/userService');
 
 async function runDailyMaintenance(reason = 'manual') {
   console.log(`[one-line/jobs] daily start (${reason})`);
@@ -13,6 +14,12 @@ async function runDailyMaintenance(reason = 'manual') {
     console.log(`[one-line/jobs] ttl purged=${ttl.purged}`);
   } catch (err) {
     console.error('[one-line/jobs] ttl failed:', err.message);
+  }
+  try {
+    const silent = await purgeIdleSilentAccounts();
+    console.log(`[one-line/jobs] silent idle purged=${silent.purged}`);
+  } catch (err) {
+    console.error('[one-line/jobs] silent idle failed:', err.message);
   }
   try {
     const board = await freezePreviousMonthIfNeeded();
@@ -37,7 +44,7 @@ function startDailyMaintenanceJobs() {
     },
     { timezone: 'Asia/Bangkok' }
   );
-  console.log('[one-line/jobs] scheduled 00:15 Asia/Bangkok (TTL + month board)');
+  console.log('[one-line/jobs] scheduled 00:15 Asia/Bangkok (TTL + silent idle + month board)');
 
   setTimeout(() => {
     runDailyMaintenance('startup').catch((err) => {

@@ -11,6 +11,7 @@ const {
   registerLoginId,
   loginWithLoginId,
   deleteMe,
+  purgeIdleSilentAccounts,
 } = require('../services/userService');
 
 const PASSWORD = 'smoke-pass-1';
@@ -81,8 +82,26 @@ async function main() {
   const reused = await registerLoginId(b.user.id, { loginId, password: PASSWORD });
   checks.idReturnsToPool = reused.loginId === loginId;
 
+  const silentOnly = await authAnonymous(`smoke-s-${crypto.randomUUID()}`);
+  Object.assign(checks, await expectCode('deleteSilent', () => deleteMe(silentOnly.user.id)));
+  await query(
+    `UPDATE users SET last_seen_at = DATE_SUB(UTC_TIMESTAMP(), INTERVAL 31 DAY) WHERE id = ?`,
+    [silentOnly.user.id]
+  );
+  const idle = await purgeIdleSilentAccounts();
+  const silentRow = await query('SELECT status FROM users WHERE id = ?', [silentOnly.user.id]);
+  checks.purgeIdleSilent = idle.purged >= 1 && silentRow[0].status === 'deleted';
+
+  await query(
+    `UPDATE users SET last_seen_at = DATE_SUB(UTC_TIMESTAMP(), INTERVAL 31 DAY) WHERE id = ?`,
+    [b.user.id]
+  );
+  await purgeIdleSilentAccounts();
+  const bAfterIdle = await query('SELECT status FROM users WHERE id = ?', [b.user.id]);
+  checks.registeredSurvivesIdle = bAfterIdle[0].status === 'active';
+
   await deleteMe(b.user.id);
-  await query('DELETE FROM users WHERE id IN (?, ?)', [a.user.id, b.user.id]);
+  await query('DELETE FROM users WHERE id IN (?, ?, ?)', [a.user.id, b.user.id, silentOnly.user.id]);
 
   const expected = {
     silentOpen: true,
@@ -100,6 +119,9 @@ async function main() {
     loginBindsDevice: true,
     deleteClearsCredentials: true,
     idReturnsToPool: true,
+    deleteSilent: 'SILENT_NO_DELETE',
+    purgeIdleSilent: true,
+    registeredSurvivesIdle: true,
   };
 
   const failed = Object.keys(expected).filter((k) => checks[k] !== expected[k]);

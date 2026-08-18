@@ -25,6 +25,8 @@ const CANDIDATES_DEFAULT = 5;
 const CANDIDATES_MAX = 10;
 /** Probe rounds before giving up; each round tests a batch against the taken set. */
 const CANDIDATE_ROUNDS = 8;
+/** Silent accounts (no login_id) idle this many days are soft-deleted. Short-id accounts never are. */
+const SILENT_IDLE_DAYS = 30;
 
 function rowToUser(row) {
   if (!row) return null;
@@ -65,7 +67,14 @@ async function requireActiveUser(userId) {
   if (row.status !== 'active') {
     throw httpError(401, '账号已删除或不可用', 'USER_GONE');
   }
+  await touchLastSeen(userId);
   return row;
+}
+
+async function touchLastSeen(userId) {
+  await query(`UPDATE users SET last_seen_at = UTC_TIMESTAMP() WHERE id = ? AND status = 'active'`, [
+    userId,
+  ]);
 }
 
 /**
@@ -91,6 +100,7 @@ async function authAnonymous(deviceKeyRaw) {
     if (row.status !== 'active') {
       throw httpError(401, '账号已删除或不可用', 'USER_GONE');
     }
+    await touchLastSeen(row.id);
   } else {
     const id = crypto.randomUUID();
     await query(
@@ -240,6 +250,7 @@ async function loginWithLoginId(body) {
   if (body.deviceKey !== undefined) {
     await bindDeviceKey(row.id, hashDeviceKey(assertDeviceKey(body.deviceKey)));
   }
+  await touchLastSeen(row.id);
 
   return signSession(row);
 }
@@ -272,20 +283,39 @@ async function patchMe(userId, body) {
 }
 
 /**
- * Soft delete: clear device_key_hash so the same device may open a new account, and clear
- * the credentials so the login id returns to the pool.
+ * Soft delete a **short-id** account. Silent rows have nothing to reclaim — they expire
+ * via purgeIdleSilentAccounts after SILENT_IDLE_DAYS with no heartbeat.
  */
 async function deleteMe(userId) {
-  await requireActiveUser(userId);
+  const current = await requireActiveUser(userId);
+  if (!current.login_id) {
+    throw httpError(400, '静默户无需删除，闲置后将自动清除', 'SILENT_NO_DELETE');
+  }
   await query(
     `UPDATE users
      SET status = 'deleted', deleted_at = CURRENT_TIMESTAMP, device_key_hash = NULL,
          login_id = NULL, password_hash = NULL,
          nick_name = NULL, flag_id = NULL, gender = NULL, avatar_id = NULL
-     WHERE id = ? AND status = 'active'`,
+     WHERE id = ? AND status = 'active' AND login_id IS NOT NULL`,
     [userId]
   );
   return { deleted: true };
+}
+
+/**
+ * Soft-delete silent accounts that have not been seen for SILENT_IDLE_DAYS.
+ * Registered short-id accounts are never swept — they can still sign in after losing the device.
+ */
+async function purgeIdleSilentAccounts() {
+  const result = await query(
+    `UPDATE users
+     SET status = 'deleted', deleted_at = CURRENT_TIMESTAMP, device_key_hash = NULL,
+         nick_name = NULL, flag_id = NULL, gender = NULL, avatar_id = NULL
+     WHERE status = 'active'
+       AND login_id IS NULL
+       AND last_seen_at < DATE_SUB(UTC_TIMESTAMP(), INTERVAL ${SILENT_IDLE_DAYS} DAY)`
+  );
+  return { purged: Number(result.affectedRows) || 0 };
 }
 
 module.exports = {
@@ -297,6 +327,7 @@ module.exports = {
   getMe,
   patchMe,
   deleteMe,
+  purgeIdleSilentAccounts,
   requireActiveUser,
   findActiveById,
   findUserById,
