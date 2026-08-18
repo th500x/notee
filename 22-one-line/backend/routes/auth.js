@@ -34,7 +34,7 @@ router.post('/anonymous', authWriteLimiter, async (req, res) => {
   }
 });
 
-/** GET /auth/login-id/candidates?count=5&exclude=AB12,CD34 */
+/** GET /auth/login-id/candidates?count=9&exclude=AB12,CD34 */
 router.get('/login-id/candidates', loginIdCandidateLimiter, async (req, res) => {
   try {
     const raw = typeof req.query.exclude === 'string' ? req.query.exclude : '';

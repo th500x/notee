@@ -1,7 +1,7 @@
 /**
  * One Line users: silent open by deviceKey hash; explicit login id + password; profile PATCH;
  * soft delete. One row per person — signing up binds credentials to the existing silent UUID
- * instead of creating a second account (notee-go/docs/00-2-Account.md).
+ * instead of creating a second account (notee-go/docs/00-1-Account.md).
  */
 
 const crypto = require('crypto');
@@ -12,6 +12,8 @@ const {
   assertRegularLoginId,
   normalizeLoginId,
   randomLoginIdBatch,
+  charsetForPool,
+  capacityOfPrefix,
 } = require('../lib/loginId');
 const { assertPassword, hashPassword, verifyPassword } = require('../lib/password');
 const { signPlayerToken } = require('../middleware/auth');
@@ -21,8 +23,8 @@ const { httpError } = require('../lib/httpError');
 const USER_COLS = `id, login_id, nick_name, flag_id, gender, avatar_id, status,
                    created_at, updated_at, deleted_at`;
 
-const CANDIDATES_DEFAULT = 5;
-const CANDIDATES_MAX = 10;
+const CANDIDATES_DEFAULT = 9;
+const CANDIDATES_MAX = 9;
 /** Probe rounds before giving up; each round tests a batch against the taken set. */
 const CANDIDATE_ROUNDS = 8;
 /** Silent accounts (no login_id) idle this many days are soft-deleted. Short-id accounts never are. */
@@ -130,26 +132,61 @@ async function takenLoginIds(candidates) {
 }
 
 /**
- * Server-authoritative pick: generate, drop the taken ones, retry until we have enough.
- * The client never invents ids — a locally guessed pool cannot know what is claimed.
+ * How many claimed login ids sit under each first character of this pool.
+ * Soft-deleted rows have login_id NULL, so they do not occupy a prefix.
+ */
+async function occupancyByPrefix(charset) {
+  const occupancy = Object.create(null);
+  for (const ch of charset) occupancy[ch] = 0;
+  const placeholders = [...charset].map(() => '?').join(',');
+  const rows = await query(
+    `SELECT LEFT(login_id, 1) AS prefix, COUNT(*) AS n
+     FROM users
+     WHERE login_id IS NOT NULL
+       AND LEFT(login_id, 1) IN (${placeholders})
+     GROUP BY LEFT(login_id, 1)`,
+    [...charset]
+  );
+  for (const row of rows) {
+    occupancy[row.prefix] = Number(row.n) || 0;
+  }
+  return occupancy;
+}
+
+/**
+ * Server-authoritative pick: stay on the earliest unexhausted prefix batch, randomize the
+ * last three chars, drop taken ids, retry. Only spill into the next prefix when this one
+ * cannot fill the request (A nearly full → leftover chips from B).
  * @param {{ count?: number, exclude?: string[], pool?: string }} opts
- * @returns {Promise<{ loginIds: string[], partial: boolean }>}
+ * @returns {Promise<{ loginIds: string[], partial: boolean, prefix: string|null }>}
  */
 async function pickLoginIdCandidates({ count, exclude = [], pool = 'regular' } = {}) {
   const parsed = parseInt(count, 10);
   const want = Math.min(Math.max(Number.isFinite(parsed) ? parsed : CANDIDATES_DEFAULT, 1), CANDIDATES_MAX);
+  const charset = charsetForPool(pool);
+  const occupancy = await occupancyByPrefix(charset);
 
-  // Seen doubles as the "already shown this round" filter, so a refresh returns new ids.
   const seen = new Set(exclude.map(normalizeLoginId).filter(Boolean));
   const picked = [];
+  let usedPrefix = null;
 
-  for (let round = 0; round < CANDIDATE_ROUNDS && picked.length < want; round += 1) {
-    const batch = randomLoginIdBatch({ size: Math.max(want * 4, 20), pool, skip: seen });
-    if (batch.length === 0) break;
+  for (const prefix of charset) {
+    if (picked.length >= want) break;
+    if ((occupancy[prefix] || 0) >= capacityOfPrefix(prefix)) continue;
+    if (!usedPrefix) usedPrefix = prefix;
 
-    const taken = await takenLoginIds(batch);
-    for (const loginId of batch) {
-      if (!taken.has(loginId) && picked.length < want) picked.push(loginId);
+    for (let round = 0; round < CANDIDATE_ROUNDS && picked.length < want; round += 1) {
+      const batch = randomLoginIdBatch({
+        size: Math.max(want * 4, 20),
+        prefix,
+        skip: seen,
+      });
+      if (batch.length === 0) break;
+
+      const taken = await takenLoginIds(batch);
+      for (const loginId of batch) {
+        if (!taken.has(loginId) && picked.length < want) picked.push(loginId);
+      }
     }
   }
 
@@ -157,12 +194,12 @@ async function pickLoginIdCandidates({ count, exclude = [], pool = 'regular' } =
     throw httpError(503, '暂时无法分配短号，请稍后重试', 'LOGIN_ID_POOL_BUSY');
   }
 
-  return { loginIds: picked, partial: picked.length < want };
+  return { loginIds: picked, partial: picked.length < want, prefix: usedPrefix };
 }
 
 /**
  * Bind login id + password to the caller's existing account. One per account, forever —
- * changing it is the paid VIP rename, not this endpoint.
+ * changing it is the paid honor rename, not this endpoint.
  */
 async function registerLoginId(userId, body) {
   const loginId = assertRegularLoginId(body && body.loginId);

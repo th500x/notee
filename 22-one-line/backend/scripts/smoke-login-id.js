@@ -35,12 +35,14 @@ async function main() {
   const b = await authAnonymous(deviceB);
   checks.silentOpen = Boolean(a.user.id && b.user.id) && a.user.loginId === null;
 
-  const first = await pickLoginIdCandidates({ count: 5 });
-  checks.candidateCount = first.loginIds.length === 5 && first.partial === false;
+  const first = await pickLoginIdCandidates({ count: 9 });
+  checks.candidateCount = first.loginIds.length === 9 && first.partial === false;
   checks.candidateFormat = first.loginIds.every((id) => REGULAR.test(id));
+  checks.candidateSamePrefix = first.loginIds.every((id) => id[0] === first.loginIds[0]);
 
-  const refreshed = await pickLoginIdCandidates({ count: 5, exclude: first.loginIds });
+  const refreshed = await pickLoginIdCandidates({ count: 9, exclude: first.loginIds });
   checks.refreshExcludes = refreshed.loginIds.every((id) => !first.loginIds.includes(id));
+  checks.refreshSamePrefix = refreshed.loginIds.every((id) => id[0] === first.loginIds[0]);
 
   const loginId = first.loginIds[0];
   const registered = await registerLoginId(a.user.id, { loginId, password: PASSWORD });
@@ -107,7 +109,9 @@ async function main() {
     silentOpen: true,
     candidateCount: true,
     candidateFormat: true,
+    candidateSamePrefix: true,
     refreshExcludes: true,
+    refreshSamePrefix: true,
     registerBindsSameUuid: true,
     registerTwice: 'ALREADY_REGISTERED',
     registerTaken: 'LOGIN_ID_TAKEN',

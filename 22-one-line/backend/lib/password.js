@@ -1,6 +1,6 @@
 /**
  * Password rules + hashing. Plaintext never leaves this module.
- * There is no email recovery (see notee-go/docs/00-2-Account.md) — the login id plus this
+ * There is no email recovery (see notee-go/docs/00-1-Account.md) — the login id plus this
  * password is the only way back in, so keep the rules predictable rather than strict.
  */
 

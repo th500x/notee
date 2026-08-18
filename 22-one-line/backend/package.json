@@ -9,6 +9,7 @@
     "db:migrate": "node scripts/apply-pending-local-ddl.js",
     "jobs:daily": "node scripts/run-daily-maintenance.js",
     "test:pour": "node scripts/assert-pour-payload.js",
+    "test:login-id": "node scripts/assert-login-id.js",
     "smoke:login-id": "node scripts/smoke-login-id.js"
   },
   "license": "UNLICENSED",
