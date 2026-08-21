@@ -4,7 +4,7 @@
 
 const express = require('express');
 const { requireAuth } = require('../middleware/auth');
-const { publicReadLimiter, authWriteLimiter } = require('../middleware/rateLimit');
+const { publicReadLimiter, giftClaimLimiter } = require('../middleware/rateLimit');
 const { sendServiceError } = require('../lib/sendServiceError');
 const { listInbox, claim } = require('../services/giftService');
 
@@ -19,7 +19,7 @@ router.get('/inbox', requireAuth, publicReadLimiter, async (req, res) => {
   }
 });
 
-router.post('/:id/claim', requireAuth, authWriteLimiter, async (req, res) => {
+router.post('/:id/claim', requireAuth, giftClaimLimiter, async (req, res) => {
   try {
     const campaign = await claim(req.player.sub, req.params.id);
     res.json({ success: true, data: { campaign } });
