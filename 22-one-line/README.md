@@ -82,19 +82,19 @@ npm run jobs:daily
 
 ```bash
 # 单个短号 + 领取页标题（--title 显示在 App 领取行）
-npm run gift:create -- --audience login_ids --ids AB12 --kind stamp --id th_lopburi --title "New Year Gift"
+npm run gift:create -- --audience login_ids --ids TTGO --kind stamp --id th_lopburi --title "New Year Gift"
 
 # Region 泰国 12 城
-npm run gift:create -- --audience login_ids --ids AB12 --kind stamp --series region --country th --title "Thailand Region"
+npm run gift:create -- --audience login_ids --ids TTGO --kind stamp --series region --country th --title "Thailand Region"
 
 # Limited 泰国（现 1 枚：th_lopburi）
-npm run gift:create -- --audience login_ids --ids AB12 --kind stamp --series limited --country th --title "Lopburi Limited"
+npm run gift:create -- --audience login_ids --ids TTGO --kind stamp --series limited --country th --title "Lopburi Limited"
 
 # 全员发章；--require-login = 必须已注册短号才能领（Limited 建议打开）
 npm run gift:create -- --audience all --kind stamp --id th_lopburi --require-login --title "New Year Gift"
 
 # 查某号待领（不领取）
-npm run gift:inbox -- AB12
+npm run gift:inbox -- TTGO
 
 # 取消活动（已领的章不收回）
 npm run gift:cancel -- <campaignId>
@@ -104,7 +104,7 @@ npm run test:gifts
 
 Pass / 荣耀受众等 `users.pass_at` / `honor_at` 再开。客户端认 `kind=stamp`；PET 袋未开时 inbox 里的 `pet` 会被 App 滤掉。
 
-整袋上云（库存 + 签到窗 + 开户自选）：`GET/PUT /stamp/bag`，跟 JWT `sub` 走。短号登录拉的是这户的袋，不是本机空袋。规则正本：sibling `notee-go` → `docs/00-3-STAMP.md` §6.2。`npm run test:stamp-bag`。
+整袋上云（库存 + 签到窗 + 开户自选）：`GET/PUT /stamp/bag`，跟 JWT `sub` 走。短号登录拉的是这户的袋，不是本机空袋。库存 blob 收 `v1` / `v2` / `v3`（v3 末段为特化 stamp id）。规则正本：sibling `notee-go` → `docs/00-3-STAMP.md` §6.2。`npm run test:stamp-bag`。
 
 酒局帖 `PATCH` → `POUR_NO_EDIT`。写一句每天 1；酒局每天最多 2。软删仍占该名额。
 

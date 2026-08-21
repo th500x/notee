@@ -14,6 +14,10 @@ const {
 } = require('../lib/stampBagRules');
 
 assert.strictEqual(
+  assertInventoryBlob('v3||th_bangkok|0|0|th_bangkok'),
+  'v3||th_bangkok|0|0|th_bangkok'
+);
+assert.strictEqual(
   assertInventoryBlob('v2|th_bangkok:3|th_lopburi|2|0'),
   'v2|th_bangkok:3|th_lopburi|2|0'
 );

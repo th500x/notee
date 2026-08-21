@@ -52,6 +52,21 @@ function assertInventoryBlob(raw) {
   if (raw == null || raw === '') return '';
   const blob = asString(raw, INVENTORY_MAX, 'STAMP_BAG_BAD_BLOB');
   const parts = blob.split('|');
+  if (parts[0] === 'v3') {
+    if (parts.length < 6) throw httpError(400, '库存格式无效', 'STAMP_BAG_BAD_BLOB');
+    parseFrags(parts[1]);
+    parseOwned(parts[2]);
+    const craft = Number(parts[3]);
+    const uni = Number(parts[4]);
+    if (!Number.isInteger(craft) || craft < 0 || craft > COUNT_MAX) {
+      throw httpError(400, '合成库无效', 'STAMP_BAG_BAD_BLOB');
+    }
+    if (!Number.isInteger(uni) || uni < 0 || uni > COUNT_MAX) {
+      throw httpError(400, '通用邮票无效', 'STAMP_BAG_BAD_BLOB');
+    }
+    parseOwned(parts[5]);
+    return blob;
+  }
   if (parts[0] === 'v2') {
     if (parts.length < 5) throw httpError(400, '库存格式无效', 'STAMP_BAG_BAD_BLOB');
     parseFrags(parts[1]);

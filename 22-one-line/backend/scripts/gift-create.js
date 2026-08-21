@@ -3,9 +3,9 @@
  * Usage:
  *   node scripts/gift-create.js --audience all --kind stamp --id th_lopburi [--require-login] [--title "New Year Gift"]
  *   # Region 泰国 12 城
- *   node scripts/gift-create.js --audience login_ids --ids AB12 --kind stamp --series region --country th --title "Thailand Region"
+ *   node scripts/gift-create.js --audience login_ids --ids TTGO --kind stamp --series region --country th --title "Thailand Region"
  *   # Limited 泰国（现 1 枚：th_lopburi）
- *   node scripts/gift-create.js --audience login_ids --ids AB12 --kind stamp --series limited --country th --title "Lopburi Limited"
+ *   node scripts/gift-create.js --audience login_ids --ids TTGO --kind stamp --series limited --country th --title "Lopburi Limited"
  */
 
 const { createCampaign } = require('../services/giftService');
@@ -39,7 +39,7 @@ async function main() {
   const args = parseArgs(process.argv.slice(2));
   if (!args.audience || !args.kind) {
     console.error(
-      'Usage: node scripts/gift-create.js --audience all|login_ids --kind stamp (--id <stampId> | --series region|limited --country th) [--ids AB12,CD34] [--require-login] [--title "New Year Gift"]'
+      'Usage: node scripts/gift-create.js --audience all|login_ids --kind stamp (--id <stampId> | --series region|limited --country th) [--ids TTGO,CD34] [--require-login] [--title "New Year Gift"]'
     );
     process.exit(1);
   }
