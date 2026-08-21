@@ -372,6 +372,7 @@ async function deleteMe(userId) {
      WHERE id = ? AND status = 'active' AND login_id IS NOT NULL`,
     [userId]
   );
+  await query(`DELETE FROM stamp_bags WHERE user_id = ?`, [userId]);
   return { deleted: true };
 }
 
@@ -380,6 +381,13 @@ async function deleteMe(userId) {
  * Registered short-id accounts are never swept — they can still sign in after losing the device.
  */
 async function purgeIdleSilentAccounts() {
+  await query(
+    `DELETE sb FROM stamp_bags sb
+     INNER JOIN users u ON u.id = sb.user_id
+     WHERE u.status = 'active'
+       AND u.login_id IS NULL
+       AND u.last_seen_at < DATE_SUB(UTC_TIMESTAMP(), INTERVAL ${SILENT_IDLE_DAYS} DAY)`
+  );
   const result = await query(
     `UPDATE users
      SET status = 'deleted', deleted_at = CURRENT_TIMESTAMP, device_key_hash = NULL,

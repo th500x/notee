@@ -12,6 +12,7 @@ const {
   buildPayload,
   publicCampaign,
   sanitizeTitle,
+  resolveGiftStampIds,
 } = require('../lib/giftRules');
 
 assert.ok(STAMP_ID_RE.test('th_lopburi'));
@@ -52,5 +53,17 @@ const titled = publicCampaign({
   note: '  New Year Gift  ',
 });
 assert.strictEqual(titled.title, 'New Year Gift');
+
+assert.deepStrictEqual(resolveGiftStampIds({ series: 'limited', country: 'th' }), ['th_lopburi']);
+assert.strictEqual(resolveGiftStampIds({ series: 'region', country: 'TH' }).length, 12);
+assert.ok(resolveGiftStampIds({ series: 'region', country: 'th' }).includes('th_bangkok'));
+assert.throws(
+  () => resolveGiftStampIds({ itemId: 'th_lopburi', series: 'limited', country: 'th' }),
+  (err) => err.code === 'GIFT_ID_OR_SERIES'
+);
+assert.throws(
+  () => resolveGiftStampIds({ series: 'limited', country: 'xx' }),
+  (err) => err.code === 'GIFT_SERIES_EMPTY'
+);
 
 console.log('assert-gifts: ok');

@@ -2,10 +2,12 @@
  * Create a gift campaign. Not a public API.
  * Usage:
  *   node scripts/gift-create.js --audience all --kind stamp --id th_lopburi [--require-login] [--title "New Year Gift"]
- *   node scripts/gift-create.js --audience login_ids --ids AB12,CD34 --kind stamp --id th_bangkok --title "New Year Gift"
+ *   node scripts/gift-create.js --audience login_ids --ids AB12 --kind stamp --series region --country th
+ *   node scripts/gift-create.js --audience login_ids --ids AB12 --kind stamp --series limited --country th
  */
 
 const { createCampaign } = require('../services/giftService');
+const { resolveGiftStampIds } = require('../lib/giftRules');
 const { pool } = require('../database/connection');
 
 function parseArgs(argv) {
@@ -33,22 +35,32 @@ function parseArgs(argv) {
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
-  if (!args.audience || !args.kind || !args.id) {
+  if (!args.audience || !args.kind) {
     console.error(
-      'Usage: node scripts/gift-create.js --audience all|login_ids --kind stamp --id <stampId> [--ids AB12,CD34] [--require-login] [--title "New Year Gift"]'
+      'Usage: node scripts/gift-create.js --audience all|login_ids --kind stamp (--id <stampId> | --series region|limited --country th) [--ids AB12,CD34] [--require-login] [--title "New Year Gift"]'
     );
     process.exit(1);
   }
   try {
-    const created = await createCampaign({
-      audience: args.audience,
-      kind: args.kind,
+    const stampIds = resolveGiftStampIds({
       itemId: args.id,
-      loginIds: args.ids,
-      requireLoginId: Boolean(args.requireLogin),
-      note: typeof args.title === 'string' ? args.title : typeof args.note === 'string' ? args.note : null,
+      series: args.series,
+      country: args.country,
     });
-    console.log(JSON.stringify({ ok: true, ...created }, null, 2));
+    const note = typeof args.title === 'string' ? args.title : typeof args.note === 'string' ? args.note : null;
+    const campaigns = [];
+    for (const stampId of stampIds) {
+      const created = await createCampaign({
+        audience: args.audience,
+        kind: args.kind,
+        itemId: stampId,
+        loginIds: args.ids,
+        requireLoginId: Boolean(args.requireLogin),
+        note,
+      });
+      campaigns.push(created);
+    }
+    console.log(JSON.stringify({ ok: true, count: campaigns.length, campaigns }, null, 2));
   } catch (err) {
     console.error(err.code || err.message);
     if (err.missing) console.error(err.missing.join(','));

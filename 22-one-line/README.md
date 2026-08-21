@@ -71,6 +71,8 @@ npm run jobs:daily
 | POST | `/api/oneline/auth/login` | `{ loginId, password, deviceKey? }` → `{ token, expiresAt, user }`；带 `deviceKey` 则本机改挂该户 |
 | GET | `/api/oneline/gifts/inbox` | Bearer；当前户待领运营赠品（`stamp` / 日后 `pet`） |
 | POST | `/api/oneline/gifts/:id/claim` | Bearer；先记领取再返回 payload；已领过仍 200（崩溃重放） |
+| GET | `/api/oneline/stamp/bag` | Bearer；当前户整袋（库存 + 签到窗 + 开户自选 flag）。无行则 `revision: 0` |
+| PUT | `/api/oneline/stamp/bag` | Bearer；`revision` 必须大于云端；否则 409 `STAMP_BAG_STALE` |
 
 账号规则正本：sibling `notee-go` → `docs/00-1-Account.md`。冒烟 `npm run smoke:login-id`。  
 短号软删即回池（狮子号回活动池，不进自动出号）；`password_hash` 不出参。  
@@ -82,8 +84,11 @@ npm run jobs:daily
 # 单个短号 + 领取页标题（--title 显示在 App 领取行）
 npm run gift:create -- --audience login_ids --ids AB12 --kind stamp --id th_lopburi --title "New Year Gift"
 
-# 多个短号同样写法，逗号分隔
-npm run gift:create -- --audience login_ids --ids AB12,CD34 --kind stamp --id th_lopburi --title "New Year Gift"
+# Limited 泰国（现为 泰 - 华富里）
+npm run gift:create -- --audience login_ids --ids AB12 --kind stamp --series limited --country th --title "Lopburi Limited"
+
+# Region 泰国 12 城（一张活动一枚章）
+npm run gift:create -- --audience login_ids --ids AB12 --kind stamp --series region --country th --title "Thailand Region"
 
 # 全员发章；--require-login = 必须已注册短号才能领（Limited 建议打开）
 npm run gift:create -- --audience all --kind stamp --id th_lopburi --require-login --title "New Year Gift"
@@ -98,6 +103,8 @@ npm run test:gifts
 ```
 
 Pass / 荣耀受众等 `users.pass_at` / `honor_at` 再开。客户端认 `kind=stamp`；PET 袋未开时 inbox 里的 `pet` 会被 App 滤掉。
+
+整袋上云（库存 + 签到窗 + 开户自选）：`GET/PUT /stamp/bag`，跟 JWT `sub` 走。短号登录拉的是这户的袋，不是本机空袋。规则正本：sibling `notee-go` → `docs/00-3-STAMP.md` §6.2。`npm run test:stamp-bag`。
 
 酒局帖 `PATCH` → `POUR_NO_EDIT`。写一句每天 1；酒局每天最多 2。软删仍占该名额。
 

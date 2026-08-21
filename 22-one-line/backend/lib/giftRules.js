@@ -5,6 +5,7 @@
 
 const { httpError } = require('./httpError');
 const { normalizeLoginId } = require('./loginId');
+const stampGiftCatalog = require('./stampGiftCatalog');
 
 const KINDS = new Set(['stamp', 'stamp_pick', 'pet']);
 const AUDIENCES = new Set(['all', 'pass', 'honor', 'login_ids']);
@@ -40,6 +41,31 @@ function assertStampId(raw) {
     throw httpError(400, '邮票 id 无效', 'GIFT_BAD_STAMP_ID');
   }
   return id;
+}
+
+/** One stamp id, or every stamp in a series+country (region/th, limited/th). */
+function resolveGiftStampIds(input) {
+  const itemId = input.itemId ? String(input.itemId).trim() : '';
+  const series = input.series ? String(input.series).trim().toLowerCase() : '';
+  const country = input.country ? String(input.country).trim().toLowerCase() : '';
+  if (itemId && (series || country)) {
+    throw httpError(400, '不要同时写 --id 和 --series', 'GIFT_ID_OR_SERIES');
+  }
+  if (itemId) return [assertStampId(itemId)];
+  if (!series || !country) {
+    throw httpError(400, '需要 --id <stampId>，或 --series region|limited --country th', 'GIFT_STAMP_TARGET_REQUIRED');
+  }
+  if (series !== 'region' && series !== 'limited') {
+    throw httpError(400, '系列只能是 region 或 limited', 'GIFT_BAD_SERIES');
+  }
+  if (!/^[a-z]{2}$/.test(country)) {
+    throw httpError(400, '国家码无效', 'GIFT_BAD_COUNTRY');
+  }
+  const ids = (stampGiftCatalog[series] && stampGiftCatalog[series][country]) || [];
+  if (!ids.length) {
+    throw httpError(400, `该系列没有 ${country} 的票`, 'GIFT_SERIES_EMPTY');
+  }
+  return ids.map(assertStampId);
 }
 
 function assertPetId(raw) {
@@ -124,6 +150,7 @@ module.exports = {
   assertKind,
   assertAudience,
   assertStampId,
+  resolveGiftStampIds,
   assertPetId,
   assertCampaignId,
   buildPayload,
