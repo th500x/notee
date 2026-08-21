@@ -10,7 +10,12 @@
     "jobs:daily": "node scripts/run-daily-maintenance.js",
     "test:pour": "node scripts/assert-pour-payload.js",
     "test:login-id": "node scripts/assert-login-id.js",
-    "smoke:login-id": "node scripts/smoke-login-id.js"
+    "smoke:login-id": "node scripts/smoke-login-id.js",
+    "grant:lion": "node scripts/grant-lion-login-id.js",
+    "test:gifts": "node scripts/assert-gifts.js",
+    "gift:create": "node scripts/gift-create.js",
+    "gift:cancel": "node scripts/gift-cancel.js",
+    "gift:inbox": "node scripts/gift-inbox.js"
   },
   "license": "UNLICENSED",
   "private": true,

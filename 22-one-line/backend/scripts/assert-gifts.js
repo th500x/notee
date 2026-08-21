@@ -1,0 +1,44 @@
+/**
+ * Offline checks for gift campaign rules. No DB.
+ * Usage: node scripts/assert-gifts.js
+ */
+
+const assert = require('assert');
+const {
+  STAMP_ID_RE,
+  parseLoginIds,
+  assertAudience,
+  assertStampId,
+  buildPayload,
+  publicCampaign,
+} = require('../lib/giftRules');
+
+assert.ok(STAMP_ID_RE.test('th_lopburi'));
+assert.ok(STAMP_ID_RE.test('th_chiang_mai'));
+assert.ok(!STAMP_ID_RE.test('TH_BANGKOK'));
+assert.ok(!STAMP_ID_RE.test('lopburi'));
+assert.strictEqual(assertStampId('th_bangkok'), 'th_bangkok');
+
+assert.deepStrictEqual(parseLoginIds('ab12, cd34 AB12'), ['AB12', 'CD34']);
+assert.deepStrictEqual(parseLoginIds('xy,ABCD'), ['ABCD']);
+
+assert.strictEqual(assertAudience('all'), 'all');
+assert.strictEqual(assertAudience('login_ids'), 'login_ids');
+assert.throws(() => assertAudience('pass'), (err) => err.code === 'GIFT_AUDIENCE_NOT_READY');
+assert.throws(() => assertAudience('honor'), (err) => err.code === 'GIFT_AUDIENCE_NOT_READY');
+assert.throws(() => assertAudience('vip'), (err) => err.code === 'GIFT_BAD_AUDIENCE');
+
+const built = buildPayload('stamp', 'th_lopburi');
+assert.deepStrictEqual(built, { kind: 'stamp', payload: { stampId: 'th_lopburi' } });
+assert.throws(() => buildPayload('stamp_pick', 'x'), (err) => err.code === 'GIFT_KIND_NOT_WIRED');
+assert.throws(() => buildPayload('pet', 'Bad Id'), (err) => err.code === 'GIFT_BAD_PET_ID');
+
+const pub = publicCampaign({
+  id: '11111111-1111-4111-8111-111111111111',
+  kind: 'stamp',
+  payload: { stampId: 'th_lopburi' },
+});
+assert.strictEqual(pub.stampId, 'th_lopburi');
+assert.strictEqual(pub.petId, null);
+
+console.log('assert-gifts: ok');

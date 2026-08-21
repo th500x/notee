@@ -69,9 +69,32 @@ npm run jobs:daily
 | GET | `/api/oneline/auth/login-id/candidates` | `?count=9&exclude=AB12,CD34` → `{ loginIds[], partial, prefix }`；当前字母档内抽 9 个（3×3）；App 刷新一次并保留两批 |
 | POST | `/api/oneline/auth/register` | `{ loginId, password }` + Bearer → 短号绑**当前**户；无 Bearer 401 |
 | POST | `/api/oneline/auth/login` | `{ loginId, password, deviceKey? }` → `{ token, expiresAt, user }`；带 `deviceKey` 则本机改挂该户 |
+| GET | `/api/oneline/gifts/inbox` | Bearer；当前户待领运营赠品（`stamp` / 日后 `pet`） |
+| POST | `/api/oneline/gifts/:id/claim` | Bearer；先记领取再返回 payload；已领过仍 200（崩溃重放） |
 
 账号规则正本：sibling `notee-go` → `docs/00-1-Account.md`。冒烟 `npm run smoke:login-id`。  
-短号软删即回池；`password_hash` 不出参。
+短号软删即回池（狮子号回活动池，不进自动出号）；`password_hash` 不出参。  
+狮子号（`0000`…`9999` / `AAAA`…`ZZZZ`）不进候选；发放：`npm run grant:lion -- <userUuid> AAAA`（户须已有普通短号）。
+
+运营赠品（无公开发放口，与狮子号同形）。参数中文说明见 sibling `notee-go` → `docs/00-2-Home-Top-Bar.md` §3.5。
+
+```bash
+# 指定短号发一枚章（创建时把短号解析成 user_id）
+npm run gift:create -- --audience login_ids --ids AB12,CD34 --kind stamp --id th_lopburi
+
+# 全员发章；--require-login = 必须已注册短号才能领（Limited 建议打开）
+npm run gift:create -- --audience all --kind stamp --id th_lopburi --require-login
+
+# 查某号待领（不领取）
+npm run gift:inbox -- AB12
+
+# 取消活动（已领的章不收回）
+npm run gift:cancel -- <campaignId>
+
+npm run test:gifts
+```
+
+Pass / 荣耀受众等 `users.pass_at` / `honor_at` 再开。客户端认 `kind=stamp`；PET 袋未开时 inbox 里的 `pet` 会被 App 滤掉。
 
 酒局帖 `PATCH` → `POUR_NO_EDIT`。写一句每天 1；酒局每天最多 2。软删仍占该名额。
 

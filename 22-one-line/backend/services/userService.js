@@ -10,6 +10,7 @@ const { assertDeviceKey, hashDeviceKey } = require('../lib/deviceKey');
 const { mergeProfilePatch } = require('../lib/profileRules');
 const {
   assertRegularLoginId,
+  assertLionLoginId,
   normalizeLoginId,
   randomLoginIdBatch,
   charsetForPool,
@@ -238,6 +239,41 @@ async function registerLoginId(userId, body) {
 }
 
 /**
+ * Operator / event grant. Not a public route.
+ * Target must already have a short id (password stays). Old id returns to its pool;
+ * lions stay out of auto-pick after release as well.
+ */
+async function grantLionLoginId(userId, rawLoginId) {
+  const loginId = assertLionLoginId(rawLoginId);
+  const current = await requireActiveUser(userId);
+  if (!current.login_id) {
+    throw httpError(409, '该户还没有短号，请先普通注册再发放狮子号', 'LION_NEEDS_LOGIN_ID');
+  }
+  if (current.login_id === loginId) {
+    return getMe(userId);
+  }
+
+  let result;
+  try {
+    result = await query(
+      `UPDATE users SET login_id = ? WHERE id = ? AND status = 'active' AND login_id IS NOT NULL`,
+      [loginId, userId]
+    );
+  } catch (err) {
+    if (err && (err.code === 'ER_DUP_ENTRY' || err.errno === 1062)) {
+      throw httpError(409, '该狮子号已被占用', 'LOGIN_ID_TAKEN');
+    }
+    throw err;
+  }
+
+  if (result.affectedRows === 0) {
+    throw httpError(409, '发放未生效，请重试', 'GRANT_FAILED');
+  }
+
+  return getMe(userId);
+}
+
+/**
  * The device belongs to whoever signed in last. Without this the silent account opened on
  * this phone would win the next `auth/anonymous` recovery (expired token, USER_GONE) and
  * quietly replace the account the user just signed into.
@@ -360,6 +396,7 @@ module.exports = {
   authAnonymous,
   pickLoginIdCandidates,
   registerLoginId,
+  grantLionLoginId,
   loginWithLoginId,
   getMe,
   patchMe,

@@ -27,6 +27,7 @@ const MIGRATION_FILES = [
   '008-posts-pour-quota.sql',
   '009-users-login-id.sql',
   '010-users-last-seen.sql',
+  '011-gifts.sql',
 ];
 
 const DEFAULT_DB_NAME = '22_one_line';
