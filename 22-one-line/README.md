@@ -79,11 +79,14 @@ npm run jobs:daily
 运营赠品（无公开发放口，与狮子号同形）。参数中文说明见 sibling `notee-go` → `docs/00-2-Home-Top-Bar.md` §3.5。
 
 ```bash
-# 指定短号发一枚章（创建时把短号解析成 user_id）
-npm run gift:create -- --audience login_ids --ids AB12,CD34 --kind stamp --id th_lopburi
+# 单个短号 + 领取页标题（--title 显示在 App 领取行）
+npm run gift:create -- --audience login_ids --ids AB12 --kind stamp --id th_lopburi --title "New Year Gift"
+
+# 多个短号同样写法，逗号分隔
+npm run gift:create -- --audience login_ids --ids AB12,CD34 --kind stamp --id th_lopburi --title "New Year Gift"
 
 # 全员发章；--require-login = 必须已注册短号才能领（Limited 建议打开）
-npm run gift:create -- --audience all --kind stamp --id th_lopburi --require-login
+npm run gift:create -- --audience all --kind stamp --id th_lopburi --require-login --title "New Year Gift"
 
 # 查某号待领（不领取）
 npm run gift:inbox -- AB12

@@ -11,6 +11,7 @@ const {
   assertStampId,
   buildPayload,
   publicCampaign,
+  sanitizeTitle,
 } = require('../lib/giftRules');
 
 assert.ok(STAMP_ID_RE.test('th_lopburi'));
@@ -40,5 +41,16 @@ const pub = publicCampaign({
 });
 assert.strictEqual(pub.stampId, 'th_lopburi');
 assert.strictEqual(pub.petId, null);
+assert.strictEqual(pub.title, null);
+
+assert.strictEqual(sanitizeTitle('  New Year Gift  '), 'New Year Gift');
+assert.strictEqual(sanitizeTitle(''), null);
+const titled = publicCampaign({
+  id: '11111111-1111-4111-8111-111111111111',
+  kind: 'stamp',
+  payload: { stampId: 'th_lopburi' },
+  note: '  New Year Gift  ',
+});
+assert.strictEqual(titled.title, 'New Year Gift');
 
 console.log('assert-gifts: ok');

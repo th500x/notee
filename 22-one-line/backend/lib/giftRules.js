@@ -14,6 +14,8 @@ const READY_AUDIENCES = new Set(['all', 'login_ids']);
 const STAMP_ID_RE = /^[a-z]{2}_[a-z0-9_]{1,48}$/;
 const PET_ID_RE = /^[a-z][a-z0-9_]{0,63}$/;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+/** Player-facing headline on the claim row, e.g. "New Year Gift". */
+const TITLE_MAX = 80;
 
 function assertKind(kind) {
   if (!KINDS.has(kind)) {
@@ -87,6 +89,12 @@ function asObject(value) {
   return null;
 }
 
+function sanitizeTitle(raw) {
+  if (raw == null) return null;
+  const text = String(raw).replace(/\s+/g, ' ').trim().slice(0, TITLE_MAX);
+  return text || null;
+}
+
 function parseLoginIds(raw) {
   const text = Array.isArray(raw) ? raw.join(',') : String(raw || '');
   const ids = text
@@ -103,6 +111,7 @@ function publicCampaign(row) {
     kind: row.kind,
     stampId: payload.stampId || null,
     petId: payload.petId || null,
+    title: sanitizeTitle(row.note),
   };
 }
 
@@ -121,5 +130,7 @@ module.exports = {
   parsePayload,
   asObject,
   parseLoginIds,
+  sanitizeTitle,
   publicCampaign,
+  TITLE_MAX,
 };

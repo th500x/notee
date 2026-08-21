@@ -1,8 +1,8 @@
 /**
  * Create a gift campaign. Not a public API.
  * Usage:
- *   node scripts/gift-create.js --audience all --kind stamp --id th_lopburi [--require-login]
- *   node scripts/gift-create.js --audience login_ids --ids AB12,CD34 --kind stamp --id th_bangkok
+ *   node scripts/gift-create.js --audience all --kind stamp --id th_lopburi [--require-login] [--title "New Year Gift"]
+ *   node scripts/gift-create.js --audience login_ids --ids AB12,CD34 --kind stamp --id th_bangkok --title "New Year Gift"
  */
 
 const { createCampaign } = require('../services/giftService');
@@ -35,7 +35,7 @@ async function main() {
   const args = parseArgs(process.argv.slice(2));
   if (!args.audience || !args.kind || !args.id) {
     console.error(
-      'Usage: node scripts/gift-create.js --audience all|login_ids --kind stamp --id <stampId> [--ids AB12,CD34] [--require-login] [--note "..."]'
+      'Usage: node scripts/gift-create.js --audience all|login_ids --kind stamp --id <stampId> [--ids AB12,CD34] [--require-login] [--title "New Year Gift"]'
     );
     process.exit(1);
   }
@@ -46,7 +46,7 @@ async function main() {
       itemId: args.id,
       loginIds: args.ids,
       requireLoginId: Boolean(args.requireLogin),
-      note: typeof args.note === 'string' ? args.note : null,
+      note: typeof args.title === 'string' ? args.title : typeof args.note === 'string' ? args.note : null,
     });
     console.log(JSON.stringify({ ok: true, ...created }, null, 2));
   } catch (err) {

@@ -13,6 +13,7 @@ const {
   parsePayload,
   publicCampaign,
   asObject,
+  sanitizeTitle,
 } = require('../lib/giftRules');
 const { requireActiveUser } = require('./userService');
 
@@ -24,7 +25,7 @@ async function createCampaign(input) {
   const audience = assertAudience(input.audience);
   const requireLoginId = Boolean(input.requireLoginId);
   const { kind, payload } = buildPayload(input.kind, input.itemId);
-  const note = input.note ? String(input.note).slice(0, 255) : null;
+  const note = sanitizeTitle(input.note);
   const id = randomUUID();
 
   let targets = [];
@@ -72,6 +73,7 @@ async function createCampaign(input) {
     requireLoginId,
     targetCount: targets.length,
     note,
+    title: note,
   };
 }
 
@@ -151,6 +153,7 @@ async function claim(userId, campaignId) {
         id,
         kind: row ? row.kind : asObject(existing[0].payload_snapshot)?.kind,
         payload: existing[0].payload_snapshot,
+        note: row ? row.note : null,
       });
     }
     throw httpError(404, '没有这件待领赠品', 'GIFT_UNAVAILABLE');
@@ -169,7 +172,12 @@ async function claim(userId, campaignId) {
     `SELECT payload_snapshot FROM gift_claims WHERE campaign_id = ? AND user_id = ? LIMIT 1`,
     [id, userId]
   );
-  return publicCampaign({ id, kind: row.kind, payload: claimed[0].payload_snapshot });
+  return publicCampaign({
+    id,
+    kind: row.kind,
+    payload: claimed[0].payload_snapshot,
+    note: row.note,
+  });
 }
 
 async function inboxForLoginId(loginIdRaw) {
