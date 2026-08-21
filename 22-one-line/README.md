@@ -84,11 +84,11 @@ npm run jobs:daily
 # 单个短号 + 领取页标题（--title 显示在 App 领取行）
 npm run gift:create -- --audience login_ids --ids AB12 --kind stamp --id th_lopburi --title "New Year Gift"
 
-# Limited 泰国（现为 泰 - 华富里）
-npm run gift:create -- --audience login_ids --ids AB12 --kind stamp --series limited --country th --title "Lopburi Limited"
-
-# Region 泰国 12 城（一张活动一枚章）
+# Region 泰国 12 城
 npm run gift:create -- --audience login_ids --ids AB12 --kind stamp --series region --country th --title "Thailand Region"
+
+# Limited 泰国（现 1 枚：th_lopburi）
+npm run gift:create -- --audience login_ids --ids AB12 --kind stamp --series limited --country th --title "Lopburi Limited"
 
 # 全员发章；--require-login = 必须已注册短号才能领（Limited 建议打开）
 npm run gift:create -- --audience all --kind stamp --id th_lopburi --require-login --title "New Year Gift"

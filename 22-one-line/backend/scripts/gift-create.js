@@ -2,8 +2,10 @@
  * Create a gift campaign. Not a public API.
  * Usage:
  *   node scripts/gift-create.js --audience all --kind stamp --id th_lopburi [--require-login] [--title "New Year Gift"]
- *   node scripts/gift-create.js --audience login_ids --ids AB12 --kind stamp --series region --country th
- *   node scripts/gift-create.js --audience login_ids --ids AB12 --kind stamp --series limited --country th
+ *   # Region 泰国 12 城
+ *   node scripts/gift-create.js --audience login_ids --ids AB12 --kind stamp --series region --country th --title "Thailand Region"
+ *   # Limited 泰国（现 1 枚：th_lopburi）
+ *   node scripts/gift-create.js --audience login_ids --ids AB12 --kind stamp --series limited --country th --title "Lopburi Limited"
  */
 
 const { createCampaign } = require('../services/giftService');
