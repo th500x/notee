@@ -45,15 +45,6 @@ const publicReadLimiter = limiter({ windowMs: 60 * 1000, limit: 60 });
 /** Anonymous open / profile write — tighter than public read. */
 const authWriteLimiter = limiter({ windowMs: 60 * 1000, limit: 20 });
 
-/**
- * Gift claim is one POST per campaign. A Region country pack is 12 campaigns,
- * each followed by a stamp-bag PUT; they must not share the 20/min post limiter.
- */
-const giftClaimLimiter = limiter({ windowMs: 60 * 1000, limit: 60 });
-
-/** Bag sync after each local mutation (gift / check-in / craft). */
-const stampBagWriteLimiter = limiter({ windowMs: 60 * 1000, limit: 60 });
-
 /** Login id candidates: cheap, but a refresh button invites tapping. */
 const loginIdCandidateLimiter = limiter({ windowMs: 60 * 1000, limit: 30 });
 
@@ -75,8 +66,6 @@ const loginIdAttemptLimiter = limiter({
 module.exports = {
   publicReadLimiter,
   authWriteLimiter,
-  giftClaimLimiter,
-  stampBagWriteLimiter,
   loginIdCandidateLimiter,
   credentialLimiter,
   loginIdAttemptLimiter,

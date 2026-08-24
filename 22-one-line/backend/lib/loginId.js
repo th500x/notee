@@ -6,14 +6,14 @@
  *   honor   = 0→9 (paid rename). 0 is exhausted before 1 is offered.
  * Trailing 3 chars are random A–Z / 0–9 inside the current prefix.
  *
- * Auto-pick skips reservedLoginIds.js: blocked (brand/slurs) and lion (0000–9999 / AAAA–ZZZZ).
- * Design matches 05's original batch-id rule. Do not copy 05's later random first-char.
+ * Design matches 05's original batch-id rule (authUtils getCurrentBatchInfo). Do not copy
+ * 05 accountAuthCore's later `random() * 10` first-char, which abandoned that rule.
  * See notee-go/docs/00-1-Account.md.
  */
 
 const crypto = require('crypto');
 const { httpError } = require('./httpError');
-const { isReservedLoginId, isLionLoginId, RESERVED_LOGIN_IDS } = require('./reservedLoginIds');
+const { isReservedLoginId, RESERVED_LOGIN_IDS } = require('./reservedLoginIds');
 
 const LOGIN_ID_LENGTH = 4;
 const REGULAR_FIRST_CHARSET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
@@ -62,18 +62,6 @@ function assertRegularLoginId(raw) {
   }
   if (isReservedLoginId(loginId)) {
     throw httpError(400, '该短号不可注册，请另选一个', 'RESERVED_LOGIN_ID');
-  }
-  return loginId;
-}
-
-/**
- * Operator grant only. Lions are out of auto-pick / self-register.
- * @returns {string} normalized lion id
- */
-function assertLionLoginId(raw) {
-  const loginId = normalizeLoginId(raw);
-  if (!isLionLoginId(loginId)) {
-    throw httpError(400, '只能发放狮子号（0000–9999 / AAAA–ZZZZ）', 'NOT_LION_LOGIN_ID');
   }
   return loginId;
 }
@@ -129,7 +117,6 @@ module.exports = {
   charsetForPool,
   normalizeLoginId,
   assertRegularLoginId,
-  assertLionLoginId,
   capacityOfPrefix,
   currentPrefixFromOccupancy,
   randomLoginIdBatch,

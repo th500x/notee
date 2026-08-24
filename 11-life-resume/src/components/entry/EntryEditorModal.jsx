@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   countGraphemes,
@@ -232,12 +232,31 @@ export default function EntryEditorModal({
   const [initialPersistedOssKeys, setInitialPersistedOssKeys] = useState(() => new Set());
   const saveCommittedRef = useRef(false);
   const bodyTextareaRef = useRef(null);
+  const pendingBodyCaretRef = useRef(null);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
   const bodyCount = useMemo(() => countGraphemes(form.body), [form.body]);
   const titleCount = useMemo(() => countGraphemes(form.title), [form.title]);
   const isEdit = !!entry?.id;
+
+  useLayoutEffect(() => {
+    const pending = pendingBodyCaretRef.current;
+    if (!pending) return;
+    pendingBodyCaretRef.current = null;
+    const el = bodyTextareaRef.current;
+    if (!el) return;
+    el.focus({ preventScroll: true });
+    try {
+      el.setSelectionRange(pending.pos, pending.pos);
+    } catch {
+      /* 部分环境不支持选区 */
+    }
+    el.scrollTop = pending.scrollTop;
+    if (pending.modalScrollTop != null && pending.scroller) {
+      pending.scroller.scrollTop = pending.modalScrollTop;
+    }
+  }, [form.body]);
 
   useEffect(() => {
     if (!open) return;
@@ -265,6 +284,7 @@ export default function EntryEditorModal({
       new Set((entry?.media || []).map((item) => item.ossKey).filter(Boolean))
     );
     saveCommittedRef.current = false;
+    pendingBodyCaretRef.current = null;
     setError('');
 
     fetchEntrySeries()
@@ -291,13 +311,14 @@ export default function EntryEditorModal({
     if (countGraphemes(next) > LIFE_ENTRY_BODY_MAX) {
       return;
     }
+    const scroller = el?.closest('[data-entry-editor-scroll]');
+    pendingBodyCaretRef.current = {
+      pos: start + emoji.length,
+      scrollTop: el?.scrollTop ?? 0,
+      scroller,
+      modalScrollTop: scroller?.scrollTop ?? null,
+    };
     setField('body', next);
-    requestAnimationFrame(() => {
-      if (!el) return;
-      el.focus();
-      const pos = start + emoji.length;
-      el.setSelectionRange(pos, pos);
-    });
   };
 
   const selectTag = (tag) => {
@@ -428,7 +449,10 @@ export default function EntryEditorModal({
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
       <div className="absolute inset-0 bg-slate-900/40" aria-hidden="true" />
-      <div className="relative w-full sm:max-w-2xl max-h-[92vh] overflow-y-auto bg-white rounded-t-2xl sm:rounded-2xl shadow-xl border border-slate-200">
+      <div
+        data-entry-editor-scroll
+        className="relative w-full sm:max-w-2xl max-h-[92vh] overflow-y-auto bg-white rounded-t-2xl sm:rounded-2xl shadow-xl border border-slate-200"
+      >
         <div className="sticky top-0 bg-white border-b border-slate-100 px-5 py-4 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-slate-900">
             {isEdit ? '编辑片段' : '新建片段'}

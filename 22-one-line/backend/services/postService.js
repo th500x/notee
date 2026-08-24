@@ -10,7 +10,6 @@ const { assertPostBody, assertStampId } = require('../lib/postBody');
 const { assertPourPayload, rejectBannedKeys } = require('../lib/pourPayload');
 const { assertFlagId } = require('../lib/profileRules');
 const { requireActiveUser } = require('./userService');
-const stampGiftCatalog = require('../lib/stampGiftCatalog');
 
 const FEED_DEFAULT_LIMIT = 20;
 const FEED_MAX_LIMIT = 50;
@@ -437,19 +436,10 @@ function decodeCursor(raw, sort) {
  * @param {object} queryIn
  * @param {{ viewerUserId?: string|null }} [opts]
  */
-const STAMP_COUNTRY_IDS = new Set([
-  ...Object.keys(stampGiftCatalog.region || {}),
-  ...Object.keys(stampGiftCatalog.limited || {}),
-]);
+const STAMP_COUNTRY_IDS = new Set(['th', 'my', 'vn', 'id', 'cn', 'kr', 'jp']);
 /** Product series ids — keep in sync with app StampSeries. */
-const STAMP_SERIES_IDS = new Set(['all', 'region', 'limited', 'scenery', 'treasure']);
-const COUNTRY_PREFIX_SERIES = new Set(['region', 'limited']);
-
-function catalogStampIds(series, country) {
-  const byCountry = stampGiftCatalog[series] || {};
-  if (country) return byCountry[country] || [];
-  return Object.values(byCountry).flat();
-}
+const STAMP_SERIES_IDS = new Set(['all', 'region', 'scenery', 'treasure']);
+const REGION_COUNTRY_PREFIXES = [...STAMP_COUNTRY_IDS].map((c) => `${c}_`);
 
 function assertStampCountry(raw) {
   if (typeof raw !== 'string' || !STAMP_COUNTRY_IDS.has(raw)) {
@@ -539,24 +529,24 @@ async function getFeed(queryIn = {}, opts = {}) {
 
     if (stampSeries === 'all') {
       // Any series — no further stamp filters.
-    } else if (COUNTRY_PREFIX_SERIES.has(stampSeries)) {
-      const country =
-        queryIn.stampCountry != null && queryIn.stampCountry !== ''
-          ? assertStampCountry(queryIn.stampCountry)
-          : null;
-      const ids = catalogStampIds(stampSeries, country);
-      if (queryIn.stampId != null && queryIn.stampId !== '') {
-        const stampId = assertStampId(queryIn.stampId);
-        if (!ids.includes(stampId)) {
-          throw httpError(400, 'stampId 与 stampSeries / stampCountry 不匹配', 'BAD_STAMP');
+    } else if (stampSeries === 'region') {
+      if (queryIn.stampCountry != null && queryIn.stampCountry !== '') {
+        const country = assertStampCountry(queryIn.stampCountry);
+        if (queryIn.stampId != null && queryIn.stampId !== '') {
+          const stampId = assertStampId(queryIn.stampId);
+          if (!stampId.startsWith(`${country}_`)) {
+            throw httpError(400, 'stampId 与 stampCountry 不匹配', 'BAD_STAMP');
+          }
+          sql += ` AND p.stamp_id = ?`;
+          params.push(stampId);
+        } else {
+          sql += ` AND p.stamp_id LIKE ?`;
+          params.push(`${country}_%`);
         }
-        sql += ` AND p.stamp_id = ?`;
-        params.push(stampId);
-      } else if (!ids.length) {
-        sql += ` AND 1=0`;
       } else {
-        sql += ` AND p.stamp_id IN (${ids.map(() => '?').join(',')})`;
-        params.push(...ids);
+        // Whole Region series (all countries).
+        sql += ` AND (${REGION_COUNTRY_PREFIXES.map(() => 'p.stamp_id LIKE ?').join(' OR ')})`;
+        REGION_COUNTRY_PREFIXES.forEach((p) => params.push(`${p}%`));
       }
     } else {
       // Reserved non-region series: id prefix = series id (e.g. scenery_fuji).

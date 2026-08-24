@@ -28,6 +28,7 @@ export default function EntryBodyEmojiBar({ disabled = false, onPick }) {
               disabled={disabled}
               className="h-8 w-8 rounded-md text-lg leading-none hover:bg-white hover:shadow-sm disabled:opacity-40 active:scale-95 transition-transform"
               title={`插入 ${emoji}`}
+              onMouseDown={(event) => event.preventDefault()}
               onClick={() => onPick?.(emoji)}
             >
               {emoji}
