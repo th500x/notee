@@ -7,7 +7,7 @@ const { query } = require('../database/connection');
 const { httpError } = require('../lib/httpError');
 const { dayKeyFromDate, expiresAtFrom, toMysqlDateTimeUtc } = require('../lib/dayKey');
 const { assertPostBody, assertStampId } = require('../lib/postBody');
-const { assertPourPayload, rejectBannedKeys } = require('../lib/pourPayload');
+const { assertPourPayload, rejectBannedKeys, POUR_TEST_EDIT_STATS } = require('../lib/pourPayload');
 const { assertFlagId } = require('../lib/profileRules');
 const { requireActiveUser } = require('./userService');
 const stampGiftCatalog = require('../lib/stampGiftCatalog');
@@ -231,7 +231,7 @@ async function patchPost(userId, postId, bodyIn) {
   const row = await getPostRowForAuthor(postId, userId);
 
   if (postKind(row) === 'pour') {
-    throw httpError(409, '酒局帖不可编辑', 'POUR_NO_EDIT');
+    return patchPourStatsQa(userId, postId, row, bodyIn);
   }
 
   if (row.edit_used) {
@@ -268,6 +268,50 @@ async function patchPost(userId, postId, bodyIn) {
     [nextBody, nextStamp, postId, userId]
   );
 
+  const rows = await query(
+    `SELECT ${postCols()}
+     FROM posts WHERE id = ? LIMIT 1`,
+    [postId]
+  );
+  return rowToPost(rows[0]);
+}
+
+function stripPourStatsEdited(pour) {
+  if (!pour || typeof pour !== 'object' || Array.isArray(pour)) return {};
+  const { statsEdited, ...rest } = pour;
+  return rest;
+}
+
+/** TEST-ONLY. Pair with POUR_TEST_EDIT_STATS. Once per pour post. */
+async function patchPourStatsQa(userId, postId, row, bodyIn) {
+  if (!POUR_TEST_EDIT_STATS) {
+    throw httpError(409, '酒局帖不可编辑', 'POUR_NO_EDIT');
+  }
+  const stored = parsePourColumn(row.pour) || {};
+  if (stored.statsEdited) {
+    throw httpError(409, '本条已用过编辑次数', 'EDIT_USED');
+  }
+  if (!bodyIn || typeof bodyIn !== 'object' || Array.isArray(bodyIn)) {
+    throw httpError(400, '请求体无效', 'BAD_BODY');
+  }
+  rejectBannedKeys(bodyIn);
+  const patch = bodyIn.pour;
+  if (!patch || typeof patch !== 'object' || Array.isArray(patch)) {
+    throw httpError(400, '请求体无效', 'BAD_BODY');
+  }
+  const base = stripPourStatsEdited(stored);
+  const nextRaw = {
+    ...base,
+    bottleCount: patch.bottleCount !== undefined ? patch.bottleCount : base.bottleCount,
+    consumedMl: patch.consumedMl !== undefined ? patch.consumedMl : base.consumedMl,
+    kinds: patch.kinds !== undefined ? patch.kinds : base.kinds,
+  };
+  const validated = assertPourPayload(nextRaw);
+  await query(
+    `UPDATE posts SET pour = ?
+     WHERE id = ? AND user_id = ? AND deleted_at IS NULL`,
+    [JSON.stringify({ ...validated, statsEdited: true }), postId, userId]
+  );
   const rows = await query(
     `SELECT ${postCols()}
      FROM posts WHERE id = ? LIMIT 1`,

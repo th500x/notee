@@ -42,6 +42,8 @@ const DURATION_MAX_SEC = 6 * 60 * 60;
 /** TEST-ONLY. Pair with App PourRules.TEST_SHORT_PUBLISH_GAP. Set false after QA. */
 const POUR_TEST_SHORT_PUBLISH_GAP = true;
 const TEST_DURATION_MIN_SEC = 5 * 60;
+/** TEST-ONLY. Pair with App PourRules.TEST_EDIT_POUR_STATS. Set false after QA. */
+const POUR_TEST_EDIT_STATS = true;
 
 function durationMinSec() {
   return POUR_TEST_SHORT_PUBLISH_GAP ? TEST_DURATION_MIN_SEC : DURATION_MIN_SEC;
@@ -185,4 +187,5 @@ module.exports = {
   durationMinSec,
   rejectBannedKeys,
   assertPourPayload,
+  POUR_TEST_EDIT_STATS,
 };

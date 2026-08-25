@@ -106,13 +106,14 @@ Pass / 荣耀受众等 `users.pass_at` / `honor_at` 再开。客户端认 `kind=
 
 整袋上云（库存 + 签到窗 + 开户自选）：`GET/PUT /stamp/bag`，跟 JWT `sub` 走。短号登录拉的是这户的袋，不是本机空袋。库存 blob 收 `v1` / `v2` / `v3`（v3 末段为特化 stamp id）。规则正本：sibling `notee-go` → `docs/00-3-STAMP.md` §6.2。`npm run test:stamp-bag`。
 
-酒局帖 `PATCH` → `POUR_NO_EDIT`。写一句每天 1；酒局每天最多 2。软删仍占该名额。
+酒局帖默认 `PATCH` → `POUR_NO_EDIT`。写一句每天 1；酒局每天最多 2。软删仍占该名额。结束同步的瓶数只计有消耗的瓶。
 
 **QA 临时开关（测完必须 `false`，与 App 一起关）：**  
 - `backend/services/postService.js` → `POUR_TEST_RESYNC_AFTER_DELETE`：删酒局帖释放当天名额。App 对应 `PourRules.TEST_RESYNC_AFTER_DELETE`。  
 - `backend/lib/pourPayload.js` → `POUR_TEST_SHORT_PUBLISH_GAP`：可发布时长下限改为 **5 分钟**（正本 30 分钟，上限仍 6h）。App 对应 `PourRules.TEST_SHORT_PUBLISH_GAP`。  
+- `backend/lib/pourPayload.js` → `POUR_TEST_EDIT_STATS`：允许酒局帖 `PATCH` 瓶数 / 消耗 ml **一次**。App 对应 `PourRules.TEST_EDIT_POUR_STATS`。  
 
-测完这两处都改回 `false`，并同时把 App 那两个开关也改回 `false`。漏关任一端，线上会按测试规则走。清单见 sibling `notee-go` → `docs/04-Pour-Check.md`。
+测完这三处都改回 `false`，并同时把 App 对应开关也改回 `false`。漏关任一端，线上会按测试规则走。清单见 sibling `notee-go` → `docs/03-Pour-Check.md` §8.1。
 
 正文：统一预算 100（汉字占 2，其余占 1）。客户端 + 服务端双拦。
 
