@@ -73,6 +73,8 @@ npm run jobs:daily
 | POST | `/api/oneline/gifts/:id/claim` | Bearer；先记领取再返回 payload；已领过仍 200（崩溃重放） |
 | GET | `/api/oneline/stamp/bag` | Bearer；当前户整袋（库存 + 签到窗 + 开户自选 flag）。无行则 `revision: 0` |
 | PUT | `/api/oneline/stamp/bag` | Bearer；`revision` 必须大于云端；否则 409 `STAMP_BAG_STALE` |
+| GET | `/api/oneline/pour/bag` | Bearer；开瓶账 + 最近 30 条无图历史。无行则 `revision: 0`。原片不上云 |
+| PUT | `/api/oneline/pour/bag` | Bearer；`revision` 必须大于云端；否则 409 `POUR_BAG_STALE`。拒图片字段；历史最多 30 条 |
 
 账号规则正本：sibling `notee-go` → `docs/00-1-Account.md`。冒烟 `npm run smoke:login-id`。  
 短号软删即回池（狮子号回活动池，不进自动出号）；`password_hash` 不出参。  
@@ -106,12 +108,14 @@ Pass / 荣耀受众等 `users.pass_at` / `honor_at` 再开。客户端认 `kind=
 
 整袋上云（库存 + 签到窗 + 开户自选）：`GET/PUT /stamp/bag`，跟 JWT `sub` 走。短号登录拉的是这户的袋，不是本机空袋。库存 blob 收 `v1` / `v2` / `v3`（v3 末段为特化 stamp id）。规则正本：sibling `notee-go` → `docs/00-3-STAMP.md` §6.2。`npm run test:stamp-bag`。
 
+酒局袋（开瓶账 + 最近 30 条结构化历史，**无原片**）：`GET/PUT /pour/bag`，同样跟 JWT `sub`。短号登录拉云袋；云端 `revision = 0` 则清空本机袋，不把上一身份推上去。JSON 体上限 256kb。规则正本：sibling `notee-go` → `docs/03-Pour-Check.md` §3.7。`npm run test:pour-bag`。
+
 酒局帖默认 `PATCH` → `POUR_NO_EDIT`。写一句每天 1；酒局每天最多 2。软删仍占该名额。结束同步的瓶数只计有消耗的瓶。
 
 **QA 临时开关（测完必须 `false`，与 App 一起关）：**  
 - `backend/services/postService.js` → `POUR_TEST_RESYNC_AFTER_DELETE`：删酒局帖释放当天名额。App 对应 `PourRules.TEST_RESYNC_AFTER_DELETE`。  
 - `backend/lib/pourPayload.js` → `POUR_TEST_SHORT_PUBLISH_GAP`：可发布时长下限改为 **5 分钟**（正本 30 分钟，上限仍 6h）。App 对应 `PourRules.TEST_SHORT_PUBLISH_GAP`。  
-- `backend/lib/pourPayload.js` → `POUR_TEST_EDIT_STATS`：允许酒局帖 `PATCH` 瓶数 / 消耗 ml **一次**。App 对应 `PourRules.TEST_EDIT_POUR_STATS`。  
+- `backend/lib/pourPayload.js` → `POUR_TEST_EDIT_STATS`：允许酒局帖 `PATCH` 瓶数 / 消耗 ml **一次**，以及 `stampId` **一次**（两槽独立）。App 对应 `PourRules.TEST_EDIT_POUR_STATS`。  
 
 测完这三处都改回 `false`，并同时把 App 对应开关也改回 `false`。漏关任一端，线上会按测试规则走。清单见 sibling `notee-go` → `docs/03-Pour-Check.md` §8.1。
 

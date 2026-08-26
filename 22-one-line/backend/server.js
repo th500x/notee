@@ -33,7 +33,8 @@ app.use(
   })
 );
 
-app.use(express.json({ limit: '32kb' }));
+/** 256kb: pour bag PUT (ledger + 30 photo-less history records). Stamp bag stays tiny. */
+app.use(express.json({ limit: '256kb' }));
 
 app.use('/api/oneline', onelineRouter);
 

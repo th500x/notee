@@ -276,41 +276,60 @@ async function patchPost(userId, postId, bodyIn) {
   return rowToPost(rows[0]);
 }
 
-function stripPourStatsEdited(pour) {
+function stripPourQaFlags(pour) {
   if (!pour || typeof pour !== 'object' || Array.isArray(pour)) return {};
-  const { statsEdited, ...rest } = pour;
+  const { statsEdited, stampEdited, ...rest } = pour;
   return rest;
 }
 
-/** TEST-ONLY. Pair with POUR_TEST_EDIT_STATS. Once per pour post. */
+function qaFlagsFrom(stored) {
+  const flags = {};
+  if (stored.statsEdited) flags.statsEdited = true;
+  if (stored.stampEdited) flags.stampEdited = true;
+  return flags;
+}
+
+/** TEST-ONLY. Pair with POUR_TEST_EDIT_STATS. Stats once; STAMP once (separate). */
 async function patchPourStatsQa(userId, postId, row, bodyIn) {
   if (!POUR_TEST_EDIT_STATS) {
     throw httpError(409, '酒局帖不可编辑', 'POUR_NO_EDIT');
   }
   const stored = parsePourColumn(row.pour) || {};
-  if (stored.statsEdited) {
-    throw httpError(409, '本条已用过编辑次数', 'EDIT_USED');
-  }
   if (!bodyIn || typeof bodyIn !== 'object' || Array.isArray(bodyIn)) {
     throw httpError(400, '请求体无效', 'BAD_BODY');
   }
   rejectBannedKeys(bodyIn);
-  const patch = bodyIn.pour;
-  if (!patch || typeof patch !== 'object' || Array.isArray(patch)) {
+  const hasPourPatch =
+    bodyIn.pour != null && typeof bodyIn.pour === 'object' && !Array.isArray(bodyIn.pour);
+  const hasStamp = Object.prototype.hasOwnProperty.call(bodyIn, 'stampId');
+  if (!hasPourPatch && !hasStamp) {
     throw httpError(400, '请求体无效', 'BAD_BODY');
   }
-  const base = stripPourStatsEdited(stored);
-  const nextRaw = {
-    ...base,
-    bottleCount: patch.bottleCount !== undefined ? patch.bottleCount : base.bottleCount,
-    consumedMl: patch.consumedMl !== undefined ? patch.consumedMl : base.consumedMl,
-    kinds: patch.kinds !== undefined ? patch.kinds : base.kinds,
-  };
+  if (hasPourPatch && stored.statsEdited) {
+    throw httpError(409, '本条已用过编辑次数', 'EDIT_USED');
+  }
+  if (hasStamp && stored.stampEdited) {
+    throw httpError(409, '本条已用过编辑次数', 'EDIT_USED');
+  }
+  let nextRaw = stripPourQaFlags(stored);
+  if (hasPourPatch) {
+    const patch = bodyIn.pour;
+    nextRaw = {
+      ...nextRaw,
+      bottleCount: patch.bottleCount !== undefined ? patch.bottleCount : nextRaw.bottleCount,
+      consumedMl: patch.consumedMl !== undefined ? patch.consumedMl : nextRaw.consumedMl,
+      kinds: patch.kinds !== undefined ? patch.kinds : nextRaw.kinds,
+    };
+  }
   const validated = assertPourPayload(nextRaw);
+  const flags = qaFlagsFrom(stored);
+  if (hasPourPatch) flags.statsEdited = true;
+  if (hasStamp) flags.stampEdited = true;
+  const nextStamp = hasStamp ? assertStampId(bodyIn.stampId) : row.stamp_id;
   await query(
-    `UPDATE posts SET pour = ?
+    `UPDATE posts SET pour = ?, stamp_id = ?
      WHERE id = ? AND user_id = ? AND deleted_at IS NULL`,
-    [JSON.stringify({ ...validated, statsEdited: true }), postId, userId]
+    [JSON.stringify({ ...validated, ...flags }), nextStamp, postId, userId]
   );
   const rows = await query(
     `SELECT ${postCols()}

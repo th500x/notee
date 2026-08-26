@@ -373,6 +373,7 @@ async function deleteMe(userId) {
     [userId]
   );
   await query(`DELETE FROM stamp_bags WHERE user_id = ?`, [userId]);
+  await query(`DELETE FROM pour_bags WHERE user_id = ?`, [userId]);
   return { deleted: true };
 }
 
@@ -384,6 +385,13 @@ async function purgeIdleSilentAccounts() {
   await query(
     `DELETE sb FROM stamp_bags sb
      INNER JOIN users u ON u.id = sb.user_id
+     WHERE u.status = 'active'
+       AND u.login_id IS NULL
+       AND u.last_seen_at < DATE_SUB(UTC_TIMESTAMP(), INTERVAL ${SILENT_IDLE_DAYS} DAY)`
+  );
+  await query(
+    `DELETE pb FROM pour_bags pb
+     INNER JOIN users u ON u.id = pb.user_id
      WHERE u.status = 'active'
        AND u.login_id IS NULL
        AND u.last_seen_at < DATE_SUB(UTC_TIMESTAMP(), INTERVAL ${SILENT_IDLE_DAYS} DAY)`

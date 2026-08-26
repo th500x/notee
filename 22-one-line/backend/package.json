@@ -16,7 +16,8 @@
     "gift:create": "node scripts/gift-create.js",
     "gift:cancel": "node scripts/gift-cancel.js",
     "gift:inbox": "node scripts/gift-inbox.js",
-    "test:stamp-bag": "node scripts/assert-stamp-bag.js"
+    "test:stamp-bag": "node scripts/assert-stamp-bag.js",
+    "test:pour-bag": "node scripts/assert-pour-bag.js"
   },
   "license": "UNLICENSED",
   "private": true,
