@@ -395,11 +395,25 @@ export async function renderEntrySharePosterBlob({ entry, accountId, displayName
     await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
     const card = root.querySelector('[data-share-poster-card]');
     const spacer = root.querySelector('[data-share-poster-spacer]');
+    const minHeight = sharePosterMinHeightPxForBody(body);
     if (card && spacer) {
       applySharePosterTierHeight(card, spacer, body);
     }
     await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
-    return await captureSharePosterElementToBlob(root, { backgroundColor: '#ffffff', scale: 2 });
+    const captureTarget = card || root;
+    const naturalHeight = Math.round(captureTarget.scrollHeight || minHeight);
+    const cssHeight = naturalHeight > minHeight ? naturalHeight : minHeight;
+    if (card) {
+      card.style.boxSizing = 'border-box';
+      card.style.height = `${cssHeight}px`;
+      card.style.overflow = 'hidden';
+    }
+    return await captureSharePosterElementToBlob(captureTarget, {
+      backgroundColor: '#ffffff',
+      scale: 2,
+      targetWidth: POSTER_WIDTH_PX,
+      targetHeight: cssHeight,
+    });
   } finally {
     root.remove();
   }

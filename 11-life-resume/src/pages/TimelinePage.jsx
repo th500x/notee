@@ -31,6 +31,12 @@ import {
 import { formatLifeResumeError, isAuthError } from '@/utils/lifeResumeErrors';
 import { buildPublicSeoFromEntries } from '@/utils/pageMeta';
 
+function timelineSectionIdForEntry(entry) {
+  if (entry?.isPinned) return 'pinned';
+  if (entry?.year != null) return `year:${entry.year}`;
+  return 'unknown';
+}
+
 export default function TimelinePage() {
   const { accountId: routeAccountId } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -52,6 +58,7 @@ export default function TimelinePage() {
   const [findReplaceOpen, setFindReplaceOpen] = useState(false);
   const [bodySearchFind, setBodySearchFind] = useState('');
   const [replacingBodies, setReplacingBodies] = useState(false);
+  const [pendingScrollEntryId, setPendingScrollEntryId] = useState(null);
 
   const ownerId = (routeAccountId || '').toUpperCase();
   const isOwner = isLoggedIn && myAccountId && myAccountId.toUpperCase() === ownerId;
@@ -78,7 +85,7 @@ export default function TimelinePage() {
     return list[0]?.id ?? null;
   }, [searchParams, timeline?.profile?.defaultEntrySeriesId, timeline?.entrySeriesList]);
 
-  const { isSectionCollapsed, toggleSectionCollapsed } = useTimelineSectionCollapse(
+  const { isSectionCollapsed, toggleSectionCollapsed, ensureSectionExpanded } = useTimelineSectionCollapse(
     ownerId,
     activeEntrySeriesId
   );
@@ -107,24 +114,33 @@ export default function TimelinePage() {
 
   usePageMeta(pageMeta);
 
-  const loadTimeline = useCallback(async () => {
-    setLoading(true);
+  const loadTimeline = useCallback(async (options = {}) => {
+    const silent = options.silent === true;
+    if (!silent) {
+      setLoading(true);
+    }
     setLoadError('');
     setNotAvailable(false);
     try {
       const res = await fetchPublicTimeline(ownerId);
       setTimeline(res.data);
+      return res.data;
     } catch (err) {
-      setTimeline(null);
+      if (!silent) {
+        setTimeline(null);
+      }
       if (err.code === 'PROFILE_NOT_AVAILABLE' || err.status === 404) {
-        setNotAvailable(true);
+        if (!silent) setNotAvailable(true);
       } else {
         const message = formatLifeResumeError(err);
-        setLoadError(message);
+        if (!silent) setLoadError(message);
         showToast(message, { type: 'error' });
       }
+      return null;
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
     }
   }, [ownerId, showToast]);
 
@@ -195,14 +211,76 @@ export default function TimelinePage() {
 
   const handleSaved = (entry, status) => {
     showToast(status === 'published' ? '已发布' : '已保存', { type: 'success' });
-    loadTimeline();
+    if (entry?.id != null) {
+      const savedSeries = normalizeEntrySeriesId(entry.entrySeriesId);
+      if (!Number.isNaN(savedSeries) && savedSeries !== activeEntrySeriesId) {
+        handleSeriesChange(savedSeries);
+      }
+    }
+    loadTimeline({ silent: true }).then(() => {
+      setBodySearchFind('');
+      if (entry?.id != null) {
+        setPendingScrollEntryId(entry.id);
+      }
+    });
   };
+
+  useEffect(() => {
+    if (pendingScrollEntryId == null) return;
+    const entry = (timeline?.entries || []).find(
+      (item) => Number(item.id) === Number(pendingScrollEntryId)
+    );
+    if (!entry) return;
+
+    const savedSeries = normalizeEntrySeriesId(entry.entrySeriesId);
+    if (Number.isNaN(savedSeries) || savedSeries !== activeEntrySeriesId) return;
+
+    const sectionId = timelineSectionIdForEntry(entry);
+    if (isSectionCollapsed(sectionId)) {
+      ensureSectionExpanded(sectionId);
+      return;
+    }
+
+    let cancelled = false;
+    let attempts = 0;
+    const tryScroll = () => {
+      if (cancelled) return;
+      const el = document.querySelector(`[data-timeline-entry-id="${pendingScrollEntryId}"]`);
+      if (!el) {
+        attempts += 1;
+        if (attempts < 20) {
+          window.requestAnimationFrame(tryScroll);
+        } else {
+          setPendingScrollEntryId(null);
+        }
+        return;
+      }
+      const rect = el.getBoundingClientRect();
+      const vh = window.innerHeight || 0;
+      const visible = rect.top >= 8 && rect.bottom <= vh - 8;
+      if (!visible) {
+        el.scrollIntoView({ block: 'start', behavior: 'smooth', inline: 'nearest' });
+      }
+      setPendingScrollEntryId(null);
+    };
+    const frame = window.requestAnimationFrame(tryScroll);
+    return () => {
+      cancelled = true;
+      window.cancelAnimationFrame(frame);
+    };
+  }, [
+    pendingScrollEntryId,
+    timeline,
+    activeEntrySeriesId,
+    isSectionCollapsed,
+    ensureSectionExpanded,
+  ]);
 
   const handleDelete = async (entry) => {
     try {
       await deleteEntry(entry.id);
       showToast('已删除', { type: 'success' });
-      loadTimeline();
+      loadTimeline({ silent: true });
     } catch (err) {
       showToast(formatLifeResumeError(err), { type: 'error' });
       if (isAuthError(err)) {
@@ -241,7 +319,7 @@ export default function TimelinePage() {
           type: 'error',
         });
       }
-      await loadTimeline();
+      await loadTimeline({ silent: true });
     } catch (err) {
       showToast(formatLifeResumeError(err), { type: 'error' });
       if (isAuthError(err)) {
@@ -315,7 +393,7 @@ export default function TimelinePage() {
     }
   };
 
-  if (bootstrapping || loading) {
+  if (bootstrapping || (loading && !timeline)) {
     return (
       <div className="max-w-3xl mx-auto px-4 py-16 text-center text-slate-500">
         正在加载片段…
@@ -495,7 +573,7 @@ export default function TimelinePage() {
         defaultEntrySeriesId={activeEntrySeriesId}
         onClose={() => setEditorOpen(false)}
         onSaved={handleSaved}
-        onEntrySeriesCreated={loadTimeline}
+        onEntrySeriesCreated={() => loadTimeline({ silent: true })}
       />
 
       {viewerIsOwner && (

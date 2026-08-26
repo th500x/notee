@@ -41,5 +41,20 @@ export function useTimelineSectionCollapse(ownerAccountId, entrySeriesId = null)
     [ownerId, entrySeriesId]
   );
 
-  return { isSectionCollapsed, toggleSectionCollapsed };
+  const ensureSectionExpanded = useCallback(
+    (sectionId) => {
+      const id = String(sectionId || '');
+      if (!id) return;
+      setCollapsedBySectionId((prev) => {
+        if (!prev[id]) return prev;
+        const next = { ...prev };
+        delete next[id];
+        writeTimelineSectionCollapse(ownerId, entrySeriesId, next);
+        return next;
+      });
+    },
+    [ownerId, entrySeriesId]
+  );
+
+  return { isSectionCollapsed, toggleSectionCollapsed, ensureSectionExpanded };
 }

@@ -94,7 +94,10 @@ export default function TimelineEntryCard({
       : null;
 
   return (
-    <article className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+    <article
+      data-timeline-entry-id={entry.id}
+      className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm scroll-mt-4"
+    >
       <div className="flex flex-wrap items-start justify-between gap-2 mb-2">
         <div className="min-w-0 flex-1">
           {entry.title && (
