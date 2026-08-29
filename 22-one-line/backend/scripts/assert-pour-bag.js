@@ -53,6 +53,24 @@ const withPhoto = JSON.stringify({
 });
 assert.throws(() => assertHistoryBlob(withPhoto), (err) => err.code === 'POUR_NO_MEDIA' || err.code === 'POUR_BAG_BAD_BLOB');
 
+const legacy = {
+  id: 'not-a-uuid',
+  outcome: 'Expired',
+  startedTapMs: 1,
+  startTakenMs: 2,
+  endedTapMs: 3,
+  tableName: 'MAN',
+  people: 4,
+  names: [],
+  place: '',
+  mood: 'late @ the bar',
+  stampId: 'bkk',
+  syncedPostId: 'post-1',
+  kinds: [],
+  bottles: [{ startMl: 330, remainMl: 20, kindId: 'beer' }],
+};
+assert.ok(assertHistoryBlob(JSON.stringify({ v: 1, records: [legacy] })));
+
 const tooMany = {
   v: 1,
   records: Array.from({ length: HISTORY_MAX + 1 }, (_, i) => ({
@@ -60,7 +78,8 @@ const tooMany = {
     id: `11111111-1111-4111-8111-${String(i).padStart(12, '0')}`,
   })),
 };
-assert.throws(() => assertHistoryBlob(JSON.stringify(tooMany)), (err) => err.code === 'POUR_BAG_BAD_BLOB');
+const trimmed = JSON.parse(assertHistoryBlob(JSON.stringify(tooMany)));
+assert.strictEqual(trimmed.records.length, HISTORY_MAX);
 
 assert.strictEqual(assertRevision(3), 3);
 assert.throws(() => assertRevision(0), (err) => err.code === 'POUR_BAG_BAD_REVISION');
