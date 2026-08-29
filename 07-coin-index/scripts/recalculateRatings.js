@@ -1,5 +1,6 @@
-// 重新计算所有周的个人评级
+// 重新计算所有周的个人评级 + T0「必」
 import { loadWeeklyData, saveWeeklyData } from './lib/weeklyDataStore.js'
+import { applyT0MustToData } from '../src/utils/t0Must.js'
 
 // 按照COMPLETE_GUIDE.md定义计算个人评级
 const calculatePersonalRating = (weekData) => {
@@ -128,6 +129,12 @@ const main = () => {
     }
   })
   
+  const t0Signals = applyT0MustToData(data)
+  const t0Buy = Object.entries(t0Signals).filter(([, signal]) => signal === 'buy').map(([id]) => id)
+  const t0Sell = Object.entries(t0Signals).filter(([, signal]) => signal === 'sell').map(([id]) => id)
+  console.log(`\n🎯 T0 必买 (${t0Buy.length}): ${t0Buy.join(', ') || '无'}`)
+  console.log(`🎯 T0 必卖 (${t0Sell.length}): ${t0Sell.join(', ') || '无'}`)
+
   saveWeeklyData(data)
 
   console.log(`\n✅ 完成！`)

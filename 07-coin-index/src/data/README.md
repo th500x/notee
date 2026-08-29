@@ -8,6 +8,10 @@
 - `cache/` - API响应缓存目录
 - `backup/` - 数据备份目录
 
+## T0「必」
+
+`t0Must` 由 `src/utils/t0Must.js` 计算，经 `npm run recalc-ratings` 写入：`buy` / `sell` / `null`。不计入 `personalRating`。完整规则见 `docs/README.md` §2.3.1。
+
 ## 数据更新
 
 使用以下命令更新数据：
@@ -32,6 +36,7 @@ npm run update-data
     "weekEnd": "2026-01-11",
     "btcWeeklyAvgPrice": 95420.50,
     "ethWeeklyAvgPrice": 3280.75,
+    "t0Must": null,
     "rawData": {
       "btc": {
         "average": 95420.50,

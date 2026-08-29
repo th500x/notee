@@ -33,6 +33,15 @@ export const RATING_LEVELS = {
   EXTREME_BEARISH: -10   // 极度看空
 }
 
+// T0「必」三道门（不计入 personalRating）
+export const T0_MUST_RULES = {
+  MIN_EXTREME_SCORE_COUNT: 4,
+  TAIL_PERCENT: 20,
+  Z_THRESHOLD: 1,
+  MIN_SAME_SIDE_SAMPLE: 8,
+  LOOKBACK_WEEKS: 52
+}
+
 // 指标阈值
 export const INDICATOR_THRESHOLDS = {
   // 恐惧贪婪指数

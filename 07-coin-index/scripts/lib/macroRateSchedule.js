@@ -4,6 +4,7 @@
 
 /** @type {{ effectiveFrom: string, rate: number, note?: string }[]} 生效日 YYYY-MM-DD（含当日）起适用 */
 export const BOJ_POLICY_TIMELINE = [
+  { effectiveFrom: '2026-06-17', rate: 1.0, note: '2026年6月MPM加息至1.0%，6/17生效' },
   { effectiveFrom: '2025-12-19', rate: 0.75, note: '2025年12月MPM加息至0.75%' },
   { effectiveFrom: '2025-01-24', rate: 0.5, note: '2025年1月MPM加息至0.50%' },
   { effectiveFrom: '2024-07-31', rate: 0.25, note: '2024年7月MPM加息至0.25%' },

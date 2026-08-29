@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import './App.css'
 import WeeklyCalendar from './components/WeeklyCalendar'
 import DataDisplay from './components/DataDisplay'
@@ -7,6 +7,7 @@ import YearSummary from './components/YearSummary'
 import { useWeeklyData, useYearlyData, useSelectedWeekData } from './hooks/useWeeklyData'
 import { useCurrentWeek } from './hooks/useCurrentWeek'
 import { YEAR_RANGE } from './constants'
+import { computeT0MustMap } from './utils/t0Must'
 
 function App() {
   // 使用自定义Hooks管理数据
@@ -23,6 +24,7 @@ function App() {
   // 从allWeeklyData计算派生数据
   const weeklyData = useYearlyData(allWeeklyData, currentYear)
   const selectedWeekData = useSelectedWeekData(allWeeklyData, selectedWeek)
+  const t0MustByWeek = useMemo(() => computeT0MustMap(allWeeklyData), [allWeeklyData])
 
   // 年份范围
   const minYear = YEAR_RANGE.MIN
@@ -112,6 +114,7 @@ function App() {
                 onYearChange={handleYearChange}
                 minYear={minYear}
                 maxYear={maxYear}
+                t0MustByWeek={t0MustByWeek}
               />
             </div>
           </div>
@@ -122,6 +125,7 @@ function App() {
               <DataDisplay 
                 selectedWeek={selectedWeek}
                 weeklyData={selectedWeekData}
+                t0Must={selectedWeek ? t0MustByWeek[selectedWeek] : null}
               />
             </div>
           </div>

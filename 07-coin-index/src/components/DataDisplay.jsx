@@ -1,7 +1,7 @@
 // DataDisplay 组件 - 更新版本 v3.0
 import { getRatingTextClass, getRatingLabel } from '../utils/ratingColors'
 
-function DataDisplay({ selectedWeek, weeklyData }) {
+function DataDisplay({ selectedWeek, weeklyData, t0Must = null }) {
   
   // 格式化周ID显示
   const formatWeekDisplay = (weekId) => {
@@ -393,13 +393,24 @@ function DataDisplay({ selectedWeek, weeklyData }) {
             <h3 className="text-sm font-medium text-gray-700">个人评级</h3>
             <span className="text-xs text-gray-500">★</span>
           </div>
-          <div className={`text-2xl font-bold mt-2 ${getRatingTextClass(calculateTotalRating())}`}>
-            {calculateTotalRating() !== null 
-              ? `${calculateTotalRating() > 0 ? '+' : ''}${calculateTotalRating()}★` 
-              : '--'}
+          <div className="flex items-center gap-2 mt-2">
+            <div className={`text-2xl font-bold ${getRatingTextClass(calculateTotalRating())}`}>
+              {calculateTotalRating() !== null 
+                ? `${calculateTotalRating() > 0 ? '+' : ''}${calculateTotalRating()}★` 
+                : '--'}
+            </div>
+            {t0Must && (
+              <div
+                className={`week-t0-must week-t0-must--${t0Must === 'buy' ? 'extreme-bullish' : 'extreme-bearish'}`}
+                style={{ position: 'static' }}
+                title={t0Must === 'buy' ? 'T0 必买' : 'T0 必卖'}
+              >
+                必
+              </div>
+            )}
           </div>
           <div className={`text-xs mt-1 font-medium ${getRatingTextClass(calculateTotalRating())}`}>
-            {getRatingLabel(calculateTotalRating())}
+            {t0Must === 'buy' ? '极度看多 · 必买' : t0Must === 'sell' ? '极度看空 · 必卖' : getRatingLabel(calculateTotalRating())}
           </div>
         </div>
 

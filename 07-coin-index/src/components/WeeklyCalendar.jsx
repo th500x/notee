@@ -14,7 +14,8 @@ function WeeklyCalendar({
   onWeekChange, 
   onYearChange, 
   minYear, 
-  maxYear 
+  maxYear,
+  t0MustByWeek = {},
 }) {
   const [weeks, setWeeks] = useState([])
   const currentWeekId = useCurrentWeek()
@@ -67,6 +68,7 @@ function WeeklyCalendar({
           const isCurrent = currentWeekId === week.id
           const hasData = weekIndicators.has(week.id)
           const weekStatus = weekStatuses[week.id] || null
+          const t0Must = t0MustByWeek[week.id] || null
           
           return (
             <div
@@ -82,6 +84,15 @@ function WeeklyCalendar({
                 {formatDateRange(week.startDate, week.endDate)}
               </div>
               
+              {t0Must && weekStatus && (
+                <div
+                  className={`week-t0-must week-t0-must--${weekStatus}`}
+                  title={t0Must === 'buy' ? 'T0 必买' : 'T0 必卖'}
+                >
+                  必
+                </div>
+              )}
+
               {/* 数据指示器 */}
               {hasData && weekStatus && (
                 <div className={`week-indicator week-indicator--${weekStatus}`}></div>
@@ -112,6 +123,10 @@ function WeeklyCalendar({
         <div className="flex items-center gap-2">
           <div className="w-3 h-3 rounded-full bg-red-800"></div>
           <span>极度看空 (≤-10★)</span>
+        </div>
+        <div className="flex items-center gap-2 pt-1">
+          <div className="week-t0-must week-t0-must--legend week-t0-must--extreme-bullish">必</div>
+          <span>T0 必买 / 必卖（右上角，颜色随评级圆点）</span>
         </div>
         <div className="flex items-center gap-2 pt-1">
           <div className="w-3 h-3 bg-yellow-400 rounded-full"></div>
