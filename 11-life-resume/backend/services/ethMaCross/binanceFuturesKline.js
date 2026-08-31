@@ -1,12 +1,114 @@
 /**
  * 币安 U 本位永续 K 线：REST 灌入 + WS 收盘事件。
+ * REST 用 HTTPS/1.1 + IPv4（不用 Node fetch：国内机常见 fetch failed / HTTP2 被拦）。
  */
 
+const https = require('https');
+const { URL } = require('url');
 const { ETH_MA_CROSS } = require('../../constants/ethMaCross');
 
 function toFiniteNumber(value) {
   const n = Number(value);
   return Number.isFinite(n) ? n : null;
+}
+
+function formatNetError(err) {
+  if (!err) return 'unknown error';
+  const bits = [err.message];
+  if (err.code && String(err.code) !== String(err.message)) bits.push(String(err.code));
+  if (err.cause) {
+    const cause = err.cause;
+    if (cause.code) bits.push(String(cause.code));
+    if (cause.message) bits.push(String(cause.message));
+  }
+  return bits.filter(Boolean).join(' | ');
+}
+
+function getProxyUrl() {
+  return String(
+    process.env.BINANCE_HTTPS_PROXY || process.env.HTTPS_PROXY || process.env.https_proxy || ''
+  ).trim();
+}
+
+function getHttpsProxyAgent() {
+  const proxy = getProxyUrl();
+  if (!proxy) return undefined;
+  let loaded;
+  try {
+    loaded = require('https-proxy-agent');
+  } catch (err) {
+    throw new Error(`BINANCE_HTTPS_PROXY 已设置但未安装 https-proxy-agent: ${err.message}`);
+  }
+  const HttpsProxyAgent = loaded.HttpsProxyAgent || loaded;
+  return new HttpsProxyAgent(proxy);
+}
+
+function resolveRestKlinesUrl(symbol, interval, limit) {
+  const override = String(process.env.BINANCE_KLINES_URL || '').trim();
+  const url = new URL(override || ETH_MA_CROSS.REST_KLINES_URL);
+  url.searchParams.set('symbol', symbol);
+  url.searchParams.set('interval', interval);
+  url.searchParams.set('limit', String(limit));
+  return url.toString();
+}
+
+function resolveWsKlineUrl() {
+  return String(process.env.BINANCE_WS_KLINE_URL || '').trim() || ETH_MA_CROSS.WS_KLINE_URL;
+}
+
+function getWsConnectOptions() {
+  const agent = getHttpsProxyAgent();
+  return {
+    family: 4,
+    handshakeTimeout: ETH_MA_CROSS.REST_TIMEOUT_MS,
+    headers: { 'User-Agent': ETH_MA_CROSS.USER_AGENT },
+    ...(agent ? { agent } : {}),
+  };
+}
+
+function httpsGetJson(urlString) {
+  const agent = getHttpsProxyAgent();
+  return new Promise((resolve, reject) => {
+    const url = new URL(urlString);
+    const req = https.request(
+      {
+        protocol: url.protocol,
+        hostname: url.hostname,
+        port: url.port || 443,
+        path: `${url.pathname}${url.search}`,
+        method: 'GET',
+        family: 4,
+        timeout: ETH_MA_CROSS.REST_TIMEOUT_MS,
+        agent,
+        headers: {
+          Accept: 'application/json',
+          'User-Agent': ETH_MA_CROSS.USER_AGENT,
+        },
+      },
+      (res) => {
+        const chunks = [];
+        res.on('data', (chunk) => chunks.push(chunk));
+        res.on('end', () => {
+          const body = Buffer.concat(chunks).toString('utf8');
+          if (res.statusCode < 200 || res.statusCode >= 300) {
+            reject(new Error(`Binance klines HTTP ${res.statusCode}`));
+            return;
+          }
+          try {
+            resolve(JSON.parse(body));
+          } catch {
+            reject(new Error('Binance klines: unexpected payload'));
+          }
+        });
+      }
+    );
+    req.on('timeout', () => {
+      req.destroy();
+      reject(new Error('Binance klines timeout'));
+    });
+    req.on('error', reject);
+    req.end();
+  });
 }
 
 function normalizeClosedKline(partial) {
@@ -69,12 +171,8 @@ async function fetchClosedKlines(options = {}) {
   const symbol = options.symbol || ETH_MA_CROSS.SYMBOL;
   const interval = options.interval || ETH_MA_CROSS.KLINE_INTERVAL;
   const limit = options.limit || ETH_MA_CROSS.REST_LIMIT;
-  const url = `${ETH_MA_CROSS.REST_KLINES_URL}?symbol=${encodeURIComponent(symbol)}&interval=${encodeURIComponent(interval)}&limit=${limit}`;
-  const res = await fetch(url, { headers: { Accept: 'application/json' } });
-  if (!res.ok) {
-    throw new Error(`Binance klines HTTP ${res.status}`);
-  }
-  const rows = await res.json();
+  const url = resolveRestKlinesUrl(symbol, interval, limit);
+  const rows = await httpsGetJson(url);
   if (!Array.isArray(rows)) {
     throw new Error('Binance klines: unexpected payload');
   }
@@ -90,4 +188,9 @@ module.exports = {
   isClosedKline,
   upsertClosedKline,
   fetchClosedKlines,
+  formatNetError,
+  resolveRestKlinesUrl,
+  resolveWsKlineUrl,
+  getWsConnectOptions,
+  getProxyUrl,
 };

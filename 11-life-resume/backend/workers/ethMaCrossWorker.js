@@ -13,7 +13,14 @@ if (process.env.NODE_ENV === 'production') {
 const WebSocket = require('ws');
 const { ETH_MA_CROSS } = require('../constants/ethMaCross');
 const { evaluateClosedCloses } = require('../services/ethMaCross/smaCross');
-const { fetchClosedKlines, parseWsKlinePayload, upsertClosedKline } = require('../services/ethMaCross/binanceFuturesKline');
+const {
+  fetchClosedKlines,
+  parseWsKlinePayload,
+  upsertClosedKline,
+  formatNetError,
+  resolveWsKlineUrl,
+  getWsConnectOptions,
+} = require('../services/ethMaCross/binanceFuturesKline');
 const { formatPushPayload, isFreshClosedBar } = require('../services/ethMaCross/formatSignal');
 const {
   ensureStateRow,
@@ -122,6 +129,10 @@ async function processClosedKline(kline, { allowStaleNotify = false } = {}) {
   }
 }
 
+function minBarsForSma() {
+  return ETH_MA_CROSS.SMA_SLOW + 1;
+}
+
 async function hydrateFromRest() {
   const closed = await fetchClosedKlines();
   klines = closed.reduce((acc, item) => upsertClosedKline(acc, item), []);
@@ -144,12 +155,13 @@ function connectWs() {
   if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) {
     return;
   }
-  socket = new WebSocket(ETH_MA_CROSS.WS_KLINE_URL);
+  const wsUrl = resolveWsKlineUrl();
+  socket = new WebSocket(wsUrl, getWsConnectOptions());
 
   socket.on('open', () => {
     wsHealthy = true;
     wsRetryMs = ETH_MA_CROSS.WS_RETRY_MIN_MS;
-    log('WS open', ETH_MA_CROSS.WS_KLINE_URL);
+    log('WS open', wsUrl);
   });
 
   socket.on('message', (raw) => {
@@ -159,7 +171,7 @@ function connectWs() {
   });
 
   socket.on('error', (err) => {
-    logError('WS error', err.message);
+    logError('WS error', formatNetError(err));
   });
 
   socket.on('close', (code) => {
@@ -171,13 +183,12 @@ function connectWs() {
 }
 
 async function pollRestFallback() {
-  if (wsHealthy || shuttingDown) return;
+  if (shuttingDown) return;
+  if (wsHealthy && klines.length >= minBarsForSma()) return;
   try {
-    const closed = await fetchClosedKlines();
-    if (!closed.length) return;
-    await processClosedKline(closed[closed.length - 1]);
+    await hydrateFromRest();
   } catch (err) {
-    logError('REST poll', err.message);
+    logError('REST', formatNetError(err));
   }
 }
 
@@ -204,12 +215,12 @@ async function shutdown(signal) {
 async function main() {
   assertVapidConfigured('eth-ma-cross-worker');
   await ensureStateRow();
-  await hydrateFromRest();
   connectWs();
   pollTimer = setInterval(() => {
-    pollRestFallback().catch((err) => logError('poll', err.message));
+    pollRestFallback().catch((err) => logError('poll', formatNetError(err)));
   }, ETH_MA_CROSS.REST_POLL_MS);
   log('worker ready', ETH_MA_CROSS.SYMBOL, ETH_MA_CROSS.KLINE_INTERVAL);
+  await pollRestFallback();
 }
 
 process.on('SIGINT', () => shutdown('SIGINT'));

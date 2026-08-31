@@ -5,6 +5,9 @@ const {
   parseWsKlinePayload,
   isClosedKline,
   upsertClosedKline,
+  formatNetError,
+  resolveRestKlinesUrl,
+  resolveWsKlineUrl,
 } = require('./binanceFuturesKline');
 
 describe('parseRestKline', () => {
@@ -47,5 +50,31 @@ describe('isClosedKline / upsertClosedKline', () => {
       third.map((k) => k.close),
       [1, 3]
     );
+  });
+});
+
+describe('formatNetError / URL overrides', () => {
+  it('joins message, code, and cause', () => {
+    const err = new Error('fetch failed');
+    err.code = 'UND_ERR';
+    err.cause = { code: 'ENOTFOUND', message: 'fapi.binance.com' };
+    assert.equal(formatNetError(err), 'fetch failed | UND_ERR | ENOTFOUND | fapi.binance.com');
+  });
+
+  it('builds the default kline URL and accepts an override', () => {
+    const original = process.env.BINANCE_KLINES_URL;
+    delete process.env.BINANCE_KLINES_URL;
+    assert.match(
+      resolveRestKlinesUrl('ETHUSDT', '15m', 50),
+      /^https:\/\/fapi\.binance\.com\/fapi\/v1\/klines\?symbol=ETHUSDT&interval=15m&limit=50$/
+    );
+    process.env.BINANCE_KLINES_URL = 'https://example.test/fapi/v1/klines';
+    assert.equal(
+      resolveRestKlinesUrl('ETHUSDT', '15m', 10),
+      'https://example.test/fapi/v1/klines?symbol=ETHUSDT&interval=15m&limit=10'
+    );
+    if (original == null) delete process.env.BINANCE_KLINES_URL;
+    else process.env.BINANCE_KLINES_URL = original;
+    assert.equal(resolveWsKlineUrl().includes('ethusdt@kline_15m'), true);
   });
 });

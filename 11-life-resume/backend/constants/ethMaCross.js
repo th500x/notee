@@ -14,6 +14,8 @@ const ETH_MA_CROSS = {
   REST_KLINES_URL: 'https://fapi.binance.com/fapi/v1/klines',
   WS_KLINE_URL: 'wss://fstream.binance.com/ws/ethusdt@kline_15m',
   REST_LIMIT: 50,
+  REST_TIMEOUT_MS: 15000,
+  USER_AGENT: 'Mozilla/5.0 (compatible; notee-eth-ma-cross/1.0)',
   /** 重启后只补发「刚收盘」的交叉，避免刷历史信号 */
   FRESH_CLOSE_MS: 3 * 60 * 1000,
   REST_POLL_MS: 20 * 1000,
