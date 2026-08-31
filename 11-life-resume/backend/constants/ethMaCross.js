@@ -16,8 +16,10 @@ const ETH_MA_CROSS = {
   REST_LIMIT: 50,
   REST_TIMEOUT_MS: 15000,
   USER_AGENT: 'Mozilla/5.0 (compatible; notee-eth-ma-cross/1.0)',
-  /** 重启后只补发「刚收盘」的交叉，避免刷历史信号 */
+  /** 本机工人：刚收盘才推 */
   FRESH_CLOSE_MS: 3 * 60 * 1000,
+  /** GitHub Actions 投递：允许收盘后最多 14 分钟内补推（避开 GH cron 抖动） */
+  INGEST_FRESH_CLOSE_MS: 14 * 60 * 1000,
   REST_POLL_MS: 20 * 1000,
   WS_RETRY_MIN_MS: 1000,
   WS_RETRY_MAX_MS: 30 * 1000,

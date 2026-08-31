@@ -1,6 +1,6 @@
 /**
  * ETHUSDT 15m SMA(7)/SMA(25) 金叉死叉工人。
- * 独立进程；PM2 必须单实例。收盘后立即推送。
+ * 独立进程；PM2 必须单实例。国内机访问不了币安时请停掉本进程，改用 GitHub Actions ingest。
  */
 
 const path = require('path');
@@ -12,7 +12,6 @@ if (process.env.NODE_ENV === 'production') {
 
 const WebSocket = require('ws');
 const { ETH_MA_CROSS } = require('../constants/ethMaCross');
-const { evaluateClosedCloses } = require('../services/ethMaCross/smaCross');
 const {
   fetchClosedKlines,
   parseWsKlinePayload,
@@ -21,14 +20,8 @@ const {
   resolveWsKlineUrl,
   getWsConnectOptions,
 } = require('../services/ethMaCross/binanceFuturesKline');
-const { formatPushPayload, isFreshClosedBar } = require('../services/ethMaCross/formatSignal');
-const {
-  ensureStateRow,
-  getStateRow,
-  saveClosedBar,
-  markNotified,
-} = require('../services/ethMaCross/signalStateStore');
-const { sendMaCrossToSubscribers } = require('../services/webPush/sendService');
+const { MIN_BARS, applyClosedKlineSeries } = require('../services/ethMaCross/processBar');
+const { ensureStateRow } = require('../services/ethMaCross/signalStateStore');
 const { assertVapidConfigured } = require('../services/webPush/vapid');
 const { closePool } = require('../database/connection');
 
@@ -39,7 +32,6 @@ let socket = null;
 let wsRetryMs = ETH_MA_CROSS.WS_RETRY_MIN_MS;
 let wsHealthy = false;
 let pollTimer = null;
-let processing = false;
 let shuttingDown = false;
 
 function log(...args) {
@@ -50,96 +42,19 @@ function logError(...args) {
   console.error(LOG, ...args);
 }
 
-async function processClosedKline(kline, { allowStaleNotify = false } = {}) {
-  if (!kline || processing) return;
-  processing = true;
-  try {
-    const next = upsertClosedKline(klines, kline);
-    const last = next[next.length - 1];
-    if (!last || last.openTime !== kline.openTime) {
-      klines = next;
-      return;
-    }
-    klines = next;
-
-    const state = await getStateRow();
-    const alreadySaved = Number(state.last_closed_open_time) === kline.openTime;
-    let bar;
-
-    if (alreadySaved) {
-      bar = {
-        closedOpenTime: kline.openTime,
-        closedCloseTime: Number(state.last_closed_close_time) || kline.closeTime,
-        close: Number(state.last_close),
-        sma7: Number(state.last_sma7),
-        sma25: Number(state.last_sma25),
-        cross: state.last_bar_cross || null,
-      };
-    } else {
-      const evaluation = evaluateClosedCloses(klines.map((item) => item.close));
-      if (!evaluation.ok) {
-        return;
-      }
-      bar = {
-        closedOpenTime: kline.openTime,
-        closedCloseTime: kline.closeTime,
-        close: evaluation.close,
-        sma7: evaluation.sma7,
-        sma25: evaluation.sma25,
-        cross: evaluation.cross,
-      };
-      await saveClosedBar(bar);
-      log(
-        `closed ${new Date(kline.openTime).toISOString()} close=${bar.close} sma7=${bar.sma7.toFixed(4)} sma25=${bar.sma25.toFixed(4)} cross=${bar.cross || 'none'}`
-      );
-    }
-
-    if (!bar.cross) {
-      return;
-    }
-
-    const alreadyNotified = Number(state.last_notified_open_time) === kline.openTime;
-    const fresh = allowStaleNotify || isFreshClosedBar(kline.closeTime);
-    if (alreadyNotified || !fresh) {
-      if (!alreadySaved) {
-        log(`skip notify ${bar.cross} open=${kline.openTime} notified=${alreadyNotified} fresh=${fresh}`);
-      }
-      return;
-    }
-
-    const payload = formatPushPayload({
-      symbol: ETH_MA_CROSS.SYMBOL,
-      klineInterval: ETH_MA_CROSS.KLINE_INTERVAL,
-      cross: bar.cross,
-      close: bar.close,
-      sma7: bar.sma7,
-      sma25: bar.sma25,
-      closedOpenTime: bar.closedOpenTime,
-      closedCloseTime: bar.closedCloseTime,
-    });
-    const result = await sendMaCrossToSubscribers(payload);
-    await markNotified(kline.openTime);
-    log(
-      `notify ${bar.cross} close=${bar.close} sent=${result.sent}/${result.total} gone=${result.gone} failed=${result.failed}`
-    );
-  } catch (err) {
-    logError('processClosedKline', err.message);
-  } finally {
-    processing = false;
-  }
-}
-
-function minBarsForSma() {
-  return ETH_MA_CROSS.SMA_SLOW + 1;
+async function applyBuffer() {
+  return applyClosedKlineSeries(klines, {
+    freshCloseMs: ETH_MA_CROSS.FRESH_CLOSE_MS,
+    log: (message) => log(message),
+  });
 }
 
 async function hydrateFromRest() {
   const closed = await fetchClosedKlines();
   klines = closed.reduce((acc, item) => upsertClosedKline(acc, item), []);
   log(`REST hydrated ${klines.length} closed ${ETH_MA_CROSS.KLINE_INTERVAL} bars`);
-  if (!klines.length) return;
-  const latest = klines[klines.length - 1];
-  await processClosedKline(latest, { allowStaleNotify: false });
+  if (klines.length < MIN_BARS) return;
+  await applyBuffer();
 }
 
 function scheduleWsReconnect() {
@@ -167,7 +82,8 @@ function connectWs() {
   socket.on('message', (raw) => {
     const kline = parseWsKlinePayload(raw.toString());
     if (!kline) return;
-    processClosedKline(kline).catch((err) => logError('ws message', err.message));
+    klines = upsertClosedKline(klines, kline);
+    applyBuffer().catch((err) => logError('ws message', err.message));
   });
 
   socket.on('error', (err) => {
@@ -184,7 +100,7 @@ function connectWs() {
 
 async function pollRestFallback() {
   if (shuttingDown) return;
-  if (wsHealthy && klines.length >= minBarsForSma()) return;
+  if (wsHealthy && klines.length >= MIN_BARS) return;
   try {
     await hydrateFromRest();
   } catch (err) {

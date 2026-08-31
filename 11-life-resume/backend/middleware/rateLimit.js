@@ -52,9 +52,20 @@ const pushSubscribeLimiter = rateLimit({
   message: { success: false, error: '请求过于频繁，请稍后再试', code: 'RATE_LIMITED' },
 });
 
+/** 海外 ingest 投递（per IP，10 分钟 60 次） */
+const ethMaIngestLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  limit: 60,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  keyGenerator: ipKey,
+  message: { success: false, error: '请求过于频繁，请稍后再试', code: 'RATE_LIMITED' },
+});
+
 module.exports = {
   publicReadLimiter,
   loginLimiter,
   registerCandidatesLimiter,
   pushSubscribeLimiter,
+  ethMaIngestLimiter,
 };
