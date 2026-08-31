@@ -1,12 +1,13 @@
 /**
- * GitHub Actions 用：在海外拉币安已收盘 K 线，POST 到 11 ingest。
+ * GitHub Actions 用：在海外拉 ETHUSDT 永续已收盘 K 线，POST 到 11 ingest。
+ * GitHub runner 在美国，币安 fapi 会 451；改拉 Bitget / Gate / Bybit。
  * Usage:
  *   ETH_MA_INGEST_URL=https://notee.vip/api/life-resume/eth-ma-cross/ingest \
  *   ETH_MA_INGEST_SECRET=... \
  *   node scripts/push-eth-ma-klines.js
  */
 
-const { fetchClosedKlines } = require('../services/ethMaCross/binanceFuturesKline');
+const { fetchClosedKlinesForIngest } = require('../services/ethMaCross/ingestPublicKlines');
 
 async function main() {
   const url = String(process.env.ETH_MA_INGEST_URL || '').trim();
@@ -16,9 +17,9 @@ async function main() {
     process.exit(1);
   }
 
-  const klines = await fetchClosedKlines();
+  const { source, klines } = await fetchClosedKlinesForIngest();
   if (!klines.length) {
-    console.error('no closed klines from Binance');
+    console.error('no closed klines from ingest sources');
     process.exit(1);
   }
 
@@ -28,7 +29,7 @@ async function main() {
       'Content-Type': 'application/json',
       'X-Eth-Ma-Ingest-Secret': secret,
     },
-    body: JSON.stringify({ klines }),
+    body: JSON.stringify({ source, klines }),
   });
   const text = await res.text();
   console.log(res.status, text);

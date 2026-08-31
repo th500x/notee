@@ -66,7 +66,8 @@ function getWsConnectOptions() {
   };
 }
 
-function httpsGetJson(urlString) {
+function httpsGetJson(urlString, options = {}) {
+  const label = options.label || 'Binance klines';
   const agent = getHttpsProxyAgent();
   return new Promise((resolve, reject) => {
     const url = new URL(urlString);
@@ -91,20 +92,20 @@ function httpsGetJson(urlString) {
         res.on('end', () => {
           const body = Buffer.concat(chunks).toString('utf8');
           if (res.statusCode < 200 || res.statusCode >= 300) {
-            reject(new Error(`Binance klines HTTP ${res.statusCode}`));
+            reject(new Error(`${label} HTTP ${res.statusCode}`));
             return;
           }
           try {
             resolve(JSON.parse(body));
           } catch {
-            reject(new Error('Binance klines: unexpected payload'));
+            reject(new Error(`${label}: unexpected payload`));
           }
         });
       }
     );
     req.on('timeout', () => {
       req.destroy();
-      reject(new Error('Binance klines timeout'));
+      reject(new Error(`${label} timeout`));
     });
     req.on('error', reject);
     req.end();
@@ -193,4 +194,5 @@ module.exports = {
   resolveWsKlineUrl,
   getWsConnectOptions,
   getProxyUrl,
+  httpsGetJson,
 };

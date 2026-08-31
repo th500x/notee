@@ -1,4 +1,5 @@
-# 海外拉币安 ETHUSDT 15m K 线，投递到 11 ingest（国内机访问不了交易所）。
+# GitHub 美国 IP 访问币安 fapi 会 HTTP 451；改拉 Bitget/Gate/Bybit 永续 ETHUSDT 15m，再 POST 到 11 ingest。
+# 国内机访问不了交易所，所以由本工作流投递。
 # 需在 GitHub repo Settings → Secrets 配置：
 #   ETH_MA_INGEST_URL=https://notee.vip/api/life-resume/eth-ma-cross/ingest
 #   ETH_MA_INGEST_SECRET=与生产 backend/.env 中同一串
@@ -21,7 +22,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - name: Fetch Binance klines and ingest
+      - name: Fetch perp klines and ingest
         working-directory: 11-life-resume/backend
         env:
           ETH_MA_INGEST_URL: ${{ secrets.ETH_MA_INGEST_URL }}

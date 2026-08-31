@@ -51,10 +51,10 @@ function EthMaSubscribePanel() {
     <div className="eth-ma-subscribe">
       <h3 className="eth-ma-subscribe__title">订阅 ETH 均线</h3>
       <p className="eth-ma-subscribe__meta">
-        币安 {ETH_MA_CROSS.SYMBOL} 永续 · {ETH_MA_CROSS.KLINE_INTERVAL} · MA{ETH_MA_CROSS.SMA_FAST} / MA{ETH_MA_CROSS.SMA_SLOW}
+        {ETH_MA_CROSS.SYMBOL} 永续 · {ETH_MA_CROSS.KLINE_INTERVAL} · MA{ETH_MA_CROSS.SMA_FAST} / MA{ETH_MA_CROSS.SMA_SLOW}
       </p>
       <p className="eth-ma-subscribe__hint">
-        金叉看多 · 死叉看空。只认已收盘 K 线；交叉后通常数秒内推到本机（Android Chrome 最稳）。
+        金叉看多 · 死叉看空。只认已收盘 K 线；收盘后大约几分钟内推到本机（Android Chrome 最稳）。
       </p>
 
       {lastSignal && (

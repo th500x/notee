@@ -10,7 +10,7 @@
     "purge:deactivated": "node scripts/purge-deactivated-profiles.js",
     "vapid:generate": "node scripts/generate-vapid-keys.js",
     "worker:eth-ma": "node workers/ethMaCrossWorker.js",
-    "test:eth-ma": "node --test services/ethMaCross/smaCross.test.js services/ethMaCross/binanceFuturesKline.test.js services/ethMaCross/processBar.test.js"
+    "test:eth-ma": "node --test services/ethMaCross/smaCross.test.js services/ethMaCross/binanceFuturesKline.test.js services/ethMaCross/ingestPublicKlines.test.js services/ethMaCross/processBar.test.js"
   },
   "license": "MIT",
   "dependencies": {
