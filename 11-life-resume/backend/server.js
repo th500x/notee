@@ -22,6 +22,8 @@ const locationRouter = require('./routes/location');
 const homeRouter = require('./routes/home');
 const lifePathRouter = require('./routes/lifePath');
 const entrySeriesRouter = require('./routes/entrySeries');
+const pushRouter = require('./routes/push');
+const ethMaCrossRouter = require('./routes/ethMaCross');
 const { assertJwtSecret } = require('./utils/startupChecks');
 
 assertJwtSecret();
@@ -52,6 +54,8 @@ app.use('/api/life-resume/upload', uploadRouter);
 app.use('/api/life-resume/location', locationRouter);
 app.use('/api/life-resume/home', homeRouter);
 app.use('/api/life-resume/entry-series', entrySeriesRouter);
+app.use('/api/life-resume/push', pushRouter);
+app.use('/api/life-resume/eth-ma-cross', ethMaCrossRouter);
 
 app.get('/health', async (req, res) => {
   const dbConnected = await testConnection();
@@ -87,6 +91,8 @@ app.listen(PORT, async () => {
   console.log(`💚 /health`);
   console.log(`📊 /api/life-resume`);
   console.log(`🔐 /api/life-resume/auth`);
+  console.log(`🔔 /api/life-resume/push`);
+  console.log(`📈 /api/life-resume/eth-ma-cross`);
   console.log(`🗄️  DB: ${dbConfig.database} @ ${dbConfig.host}:${dbConfig.port}`);
   console.log(`🪪  Accounts: ${accountsDbConfig.database} @ ${accountsDbConfig.host}:${accountsDbConfig.port}`);
 

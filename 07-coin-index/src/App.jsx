@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import './App.css'
 import WeeklyCalendar from './components/WeeklyCalendar'
+import EthMaSubscribePanel from './components/EthMaSubscribePanel'
 import DataDisplay from './components/DataDisplay'
 import SimulationTable from './components/SimulationTable'
 import YearSummary from './components/YearSummary'
@@ -116,6 +117,7 @@ function App() {
                 maxYear={maxYear}
                 t0MustByWeek={t0MustByWeek}
               />
+              <EthMaSubscribePanel />
             </div>
           </div>
 

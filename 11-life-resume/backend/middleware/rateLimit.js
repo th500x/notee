@@ -42,8 +42,19 @@ const registerCandidatesLimiter = rateLimit({
   message: { success: false, error: '请求过于频繁，请稍后再试', code: 'RATE_LIMITED' },
 });
 
+/** 推送订阅 / 退订（per IP，1 分钟 20 次） */
+const pushSubscribeLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 20,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  keyGenerator: ipKey,
+  message: { success: false, error: '请求过于频繁，请稍后再试', code: 'RATE_LIMITED' },
+});
+
 module.exports = {
   publicReadLimiter,
   loginLimiter,
   registerCandidatesLimiter,
+  pushSubscribeLimiter,
 };

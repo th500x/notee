@@ -12,6 +12,8 @@
 
 `t0Must` 由 `src/utils/t0Must.js` 计算，经 `npm run recalc-ratings` 写入：`buy` / `sell` / `null`。不计入 `personalRating`。完整规则见 `docs/README.md` §2.3.1。
 
+ETH 15m 均线金叉/死叉 Web Push 不在本 JSON 内，见 `docs/ETH-MA-CROSS-PUSH.md`。
+
 ## 数据更新
 
 使用以下命令更新数据：

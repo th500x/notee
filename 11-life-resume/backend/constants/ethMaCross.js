@@ -1,0 +1,25 @@
+/**
+ * ETH 15m SMA 金叉/死叉 — 与 07 前端常量同名同值。
+ * 周期钉死 15m；品种钉死 U 本位永续 ETHUSDT。
+ */
+
+const ETH_MA_CROSS = {
+  SYMBOL: 'ETHUSDT',
+  MARKET: 'usdm_perp',
+  KLINE_INTERVAL: '15m',
+  SMA_FAST: 7,
+  SMA_SLOW: 25,
+  TOPIC: 'eth_ma_15m',
+  STATE_ROW_ID: 1,
+  REST_KLINES_URL: 'https://fapi.binance.com/fapi/v1/klines',
+  WS_KLINE_URL: 'wss://fstream.binance.com/ws/ethusdt@kline_15m',
+  REST_LIMIT: 50,
+  /** 重启后只补发「刚收盘」的交叉，避免刷历史信号 */
+  FRESH_CLOSE_MS: 3 * 60 * 1000,
+  REST_POLL_MS: 20 * 1000,
+  WS_RETRY_MIN_MS: 1000,
+  WS_RETRY_MAX_MS: 30 * 1000,
+  OPEN_URL: '/07-coin-index/',
+};
+
+module.exports = { ETH_MA_CROSS };

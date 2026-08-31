@@ -152,6 +152,131 @@
   text-align: center;
 }
 
+/* 周历旁 · ETH 15m 均线订阅 */
+.eth-ma-subscribe {
+  margin-top: 1.5rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid #e5e7eb;
+}
+
+.eth-ma-subscribe__title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #111827;
+  margin: 0 0 0.25rem;
+}
+
+.eth-ma-subscribe__meta,
+.eth-ma-subscribe__hint,
+.eth-ma-subscribe__muted {
+  font-size: 0.75rem;
+  color: #6b7280;
+  margin: 0 0 0.35rem;
+  line-height: 1.5;
+}
+
+.eth-ma-subscribe__signal {
+  font-size: 0.75rem;
+  border-radius: 0.375rem;
+  padding: 0.4rem 0.5rem;
+  margin: 0.5rem 0;
+}
+
+.eth-ma-subscribe__signal--golden {
+  background: #ecfdf5;
+  color: #166534;
+}
+
+.eth-ma-subscribe__signal--death {
+  background: #fef2f2;
+  color: #991b1b;
+}
+
+.eth-ma-subscribe__form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-top: 0.5rem;
+}
+
+.eth-ma-subscribe__label {
+  font-size: 0.75rem;
+  color: #374151;
+}
+
+.eth-ma-subscribe__input {
+  border: 1px solid #d1d5db;
+  border-radius: 0.375rem;
+  padding: 0.4rem 0.5rem;
+  font-size: 0.875rem;
+}
+
+.eth-ma-subscribe__input:focus {
+  outline: 2px solid #93c5fd;
+  border-color: #3b82f6;
+}
+
+.eth-ma-subscribe__btn {
+  margin-top: 0.35rem;
+  padding: 0.45rem 0.75rem;
+  border-radius: 0.375rem;
+  border: none;
+  background: #2563eb;
+  color: #fff;
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+.eth-ma-subscribe__btn:hover:not(:disabled) {
+  background: #1d4ed8;
+}
+
+.eth-ma-subscribe__btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.eth-ma-subscribe__btn--ghost {
+  background: #fff;
+  color: #374151;
+  border: 1px solid #d1d5db;
+}
+
+.eth-ma-subscribe__btn--ghost:hover:not(:disabled) {
+  background: #f3f4f6;
+}
+
+.eth-ma-subscribe__logged {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.35rem;
+}
+
+.eth-ma-subscribe__link {
+  background: none;
+  border: none;
+  padding: 0;
+  color: #6b7280;
+  font-size: 0.75rem;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.eth-ma-subscribe__error,
+.eth-ma-subscribe__warn {
+  font-size: 0.75rem;
+  margin: 0.4rem 0 0;
+}
+
+.eth-ma-subscribe__error {
+  color: #dc2626;
+}
+
+.eth-ma-subscribe__warn {
+  color: #b45309;
+}
+
 /* 响应式调整 */
 @media (max-width: 1024px) {
   .week-tile {

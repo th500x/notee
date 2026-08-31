@@ -27,6 +27,7 @@ const MIGRATION_FILES = [
   '007-life-profiles-life-path.sql',
   '008-life-entry-media-document.sql',
   '009-life-entry-series.sql',
+  '010-eth-ma-web-push.sql',
 ];
 
 const DEFAULT_DB_NAME = '11_life_resume';
