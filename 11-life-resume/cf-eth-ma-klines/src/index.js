@@ -1,7 +1,10 @@
 /**
  * Cloudflare Worker：海外拉 ETHUSDT 永续 15m 已收盘 K 线，POST 到 11 ingest。
- * 默认 Gate → Bybit → 币安。解析须与 ingestPublicKlines.js 同步。
+ * 默认 Gate → Bybit → 币安。交叉时在海外代发 Web Push。
+ * 解析须与 ingestPublicKlines.js 同步。
  */
+
+import { ackUrlFromIngest, sendRelayedPushes, summarizeIngestBody } from './webPushRelay.js';
 
 const SYMBOL = 'ETHUSDT';
 const REST_LIMIT = 50;
@@ -181,11 +184,52 @@ async function runIngest(env) {
     signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
   });
   const text = await res.text();
-  console.log(res.status, text);
+  const summary = summarizeIngestBody(text);
+  console.log(res.status, JSON.stringify(summary));
   if (!res.ok) {
     throw new Error(`ingest HTTP ${res.status}: ${text.slice(0, 300)}`);
   }
-  return { source, barCount: klines.length, ingestStatus: res.status, body: text };
+
+  let ingestJson = null;
+  try {
+    ingestJson = JSON.parse(text);
+  } catch {
+    throw new Error('ingest response is not JSON');
+  }
+  const dispatch = ingestJson && ingestJson.data ? ingestJson.data.pushDispatch : null;
+  let push = null;
+  if (dispatch && Array.isArray(dispatch.subscriptions) && dispatch.subscriptions.length) {
+    push = await sendRelayedPushes(dispatch);
+    console.log(`web-push relay sent=${push.sent} failed=${push.failed} gone=${push.gone}`);
+    const ackRes = await fetch(ackUrlFromIngest(url), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Eth-Ma-Ingest-Secret': secret,
+      },
+      body: JSON.stringify({
+        closedOpenTime: ingestJson.data.closedOpenTime,
+        sent: push.sent,
+        failed: push.failed,
+        gone: push.gone,
+        goneEndpoints: push.goneEndpoints,
+      }),
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    });
+    const ackText = await ackRes.text();
+    console.log(`push-ack HTTP ${ackRes.status}`);
+    if (!ackRes.ok) {
+      console.error(`push-ack failed: ${ackText.slice(0, 200)}`);
+    }
+  }
+
+  return {
+    source,
+    barCount: klines.length,
+    ingestStatus: res.status,
+    ingest: summary,
+    push,
+  };
 }
 
 export default {

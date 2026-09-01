@@ -1,4 +1,4 @@
-# ETH 15m 均线：海外每分钟先拉 Gate（失败则 Bybit/币安），POST 到国内 11 ingest。
+# ETH 15m 均线：海外每分钟先拉 Gate（失败则 Bybit/币安），POST 到国内 11 ingest；交叉则海外代发 Web Push。
 # 密钥用 `npx wrangler secret put`，不要写进本文件。
 
 name = "eth-ma-klines"

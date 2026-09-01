@@ -9,6 +9,7 @@ const { ETH_MA_CROSS } = require('../constants/ethMaCross');
 const { getLatestSnapshot } = require('../services/ethMaCross/signalStateStore');
 const { parseRestKline } = require('../services/ethMaCross/binanceFuturesKline');
 const { applyClosedKlineSeries } = require('../services/ethMaCross/processBar');
+const { completePushRelay } = require('../services/ethMaCross/completePushRelay');
 
 const router = express.Router();
 
@@ -82,6 +83,7 @@ router.post('/ingest', ethMaIngestLimiter, async (req, res, next) => {
     const klines = normalizeIngestKlines(req.body || {});
     const result = await applyClosedKlineSeries(klines, {
       freshCloseMs: ETH_MA_CROSS.INGEST_FRESH_CLOSE_MS,
+      relayPush: true,
     });
     return res.json({
       success: true,
@@ -95,9 +97,45 @@ router.post('/ingest', ethMaIngestLimiter, async (req, res, next) => {
         sma7: result.bar ? result.bar.sma7 : null,
         sma25: result.bar ? result.bar.sma25 : null,
         closedOpenTime: result.bar ? result.bar.closedOpenTime : null,
+        pushDispatch: result.pushDispatch || null,
       },
     });
   } catch (err) {
+    return next(err);
+  }
+});
+
+/** POST /api/life-resume/eth-ma-cross/push-ack — Cloudflare 海外发完 Web Push 后回执 */
+router.post('/push-ack', ethMaIngestLimiter, async (req, res, next) => {
+  try {
+    if (!ingestSecretConfigured()) {
+      return res.status(503).json({
+        success: false,
+        error: '未配置 ETH_MA_INGEST_SECRET',
+        code: 'INGEST_SECRET_MISSING',
+      });
+    }
+    if (!ingestSecretMatches(readIngestSecret(req))) {
+      return res.status(401).json({
+        success: false,
+        error: '投递密钥无效',
+        code: 'INGEST_UNAUTHORIZED',
+      });
+    }
+    const data = await completePushRelay(req.body || {});
+    console.log(
+      '[eth-ma-cross]',
+      `push-ack marked=${data.marked} sent=${data.sent} failed=${data.failed} gone=${data.gone}`
+    );
+    return res.json({ success: true, data });
+  } catch (err) {
+    if (err && err.code === 'BAD_PUSH_ACK') {
+      return res.status(err.status || 400).json({
+        success: false,
+        error: err.message,
+        code: err.code,
+      });
+    }
     return next(err);
   }
 });

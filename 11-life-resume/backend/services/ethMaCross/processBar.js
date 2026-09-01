@@ -1,6 +1,6 @@
 /**
  * 已收盘 K 线序列 → SMA 交叉 → 落库 → Web Push。
- * 本机工人与海外 ingest（Cloudflare Worker）共用，避免两套判定。
+ * 本机工人本地发推；海外 ingest（relayPush）把任务交回 Cloudflare 代发。
  */
 
 const { ETH_MA_CROSS } = require('../../constants/ethMaCross');
@@ -8,6 +8,8 @@ const { evaluateClosedCloses } = require('./smaCross');
 const { formatPushPayload } = require('./formatSignal');
 const { getStateRow, saveClosedBar, markNotified } = require('./signalStateStore');
 const { sendMaCrossToSubscribers } = require('../webPush/sendService');
+const { listSubscriptionsForTopic } = require('../webPush/subscriptionService');
+const { getVapidConfig, isVapidConfigured } = require('../webPush/vapid');
 
 const LOG = '[eth-ma-cross]';
 const MIN_BARS = ETH_MA_CROSS.SMA_SLOW + 1;
@@ -103,6 +105,49 @@ async function applyOnce(klines, options = {}) {
     closedOpenTime: bar.closedOpenTime,
     closedCloseTime: bar.closedCloseTime,
   });
+
+  if (options.relayPush) {
+    if (!isVapidConfigured()) {
+      log(`skip notify ${bar.cross} VAPID missing`);
+      return { ok: true, bar, notified: false, reason: 'VAPID_MISSING', barCount: sorted.length };
+    }
+    const rows = await listSubscriptionsForTopic();
+    if (!rows.length) {
+      await markNotified(latest.openTime);
+      log(`notify ${bar.cross} close=${bar.close} sent=0/0 gone=0 failed=0`);
+      return {
+        ok: true,
+        bar,
+        notified: true,
+        push: { sent: 0, total: 0, gone: 0, failed: 0 },
+        barCount: sorted.length,
+      };
+    }
+    const vapid = getVapidConfig();
+    log(`relay push ${bar.cross} close=${bar.close} subscribers=${rows.length}`);
+    return {
+      ok: true,
+      bar,
+      notified: false,
+      reason: 'PUSH_RELAY',
+      pushDispatch: {
+        vapid: {
+          subject: vapid.subject,
+          publicKey: vapid.publicKey,
+          privateKey: vapid.privateKey,
+        },
+        payload,
+        subscriptions: rows.map((row) => ({
+          endpoint: row.endpoint,
+          p256dh: row.p256dh,
+          auth: row.auth,
+          accountId: row.account_id,
+        })),
+      },
+      barCount: sorted.length,
+    };
+  }
+
   const push = await sendMaCrossToSubscribers(payload);
   await markNotified(latest.openTime);
   log(
