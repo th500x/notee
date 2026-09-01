@@ -1,6 +1,6 @@
 # ETH 均线投递 · Cloudflare Worker
 
-国内机访问不了交易所。本目录是一台挂在 Cloudflare 上的小闹钟：每分钟去 Bitget / Gate / Bybit 拉 ETHUSDT 永续 15 分钟 K 线，再 POST 到 `https://notee.vip/api/life-resume/eth-ma-cross/ingest`。
+国内机访问不了交易所。本目录是一台挂在 Cloudflare 上的小闹钟：每分钟先拉 Gate ETHUSDT 永续 15 分钟 K 线，失败再试 Bybit / 币安，然后 POST 到 `https://notee.vip/api/life-resume/eth-ma-cross/ingest`。
 
 算均线、发手机通知仍在国内 11，这里只负责「跑腿」。
 
@@ -46,7 +46,7 @@ npx wrangler deploy
 ## 怎么确认在跑
 
 1. 打开 [Cloudflare 控制台](https://dash.cloudflare.com/) → **Workers & Pages** → **eth-ma-klines**。
-2. **Logs** 里应大约每分钟有一行；看到 `ingest klines source=bitget` 和 `200` 即投递成功。
+2. **Logs** 里应大约每分钟有一行；看到 `ingest klines source=gate` 和 `200` 即投递成功。
 3. 国内：`pm2 logs life-resume-backend` 搜 `[eth-ma-cross]`，新柱会有 `closed ... cross=`。
 
 ## 手工补跑一次

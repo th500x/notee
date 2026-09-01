@@ -1,13 +1,13 @@
 /**
  * Cloudflare Worker：海外拉 ETHUSDT 永续 15m 已收盘 K 线，POST 到 11 ingest。
- * 解析约定须与 backend/services/ethMaCross/ingestPublicKlines.js 同步。
+ * 默认 Gate → Bybit → 币安。解析须与 ingestPublicKlines.js 同步。
  */
 
 const SYMBOL = 'ETHUSDT';
 const REST_LIMIT = 50;
 const INTERVAL_MS = 15 * 60 * 1000;
 const FETCH_TIMEOUT_MS = 15000;
-const DEFAULT_SOURCES = ['bitget', 'gate', 'bybit'];
+const DEFAULT_SOURCES = ['gate', 'bybit', 'binance'];
 const USER_AGENT = 'Mozilla/5.0 (compatible; notee-eth-ma-cross/1.0)';
 
 function toFiniteNumber(value) {
@@ -36,11 +36,18 @@ function keepClosedSorted(rows, now = Date.now()) {
     .sort((a, b) => a.openTime - b.openTime);
 }
 
-function parseBitgetPayload(json) {
-  if (!json || String(json.code) !== '00000' || !Array.isArray(json.data)) {
-    throw new Error('bitget klines: unexpected payload');
+function parseBinancePayload(json) {
+  if (!Array.isArray(json)) {
+    throw new Error('binance klines: unexpected payload');
   }
-  return json.data.map((row) => (Array.isArray(row) ? barFromOpen(row[0], row[4]) : null));
+  return json.map((row) => {
+    if (!Array.isArray(row) || row.length < 7) return null;
+    const openTime = toFiniteNumber(row[0]);
+    const closeTime = toFiniteNumber(row[6]);
+    const close = toFiniteNumber(row[4]);
+    if (openTime == null || closeTime == null || close == null) return null;
+    return { openTime, closeTime, close };
+  });
 }
 
 function parseGatePayload(json) {
@@ -88,12 +95,12 @@ async function fetchJson(url, label) {
   return res.json();
 }
 
-async function fetchBitgetClosedKlines() {
+async function fetchBinanceClosedKlines() {
   const url =
-    `https://api.bitget.com/api/v2/mix/market/candles` +
-    `?productType=USDT-FUTURES&symbol=${SYMBOL}&granularity=15m&limit=${REST_LIMIT}`;
-  const rows = keepClosedSorted(parseBitgetPayload(await fetchJson(url, 'bitget klines')));
-  if (!rows.length) throw new Error('bitget klines: no closed bars');
+    `https://fapi.binance.com/fapi/v1/klines` +
+    `?symbol=${SYMBOL}&interval=15m&limit=${REST_LIMIT}`;
+  const rows = keepClosedSorted(parseBinancePayload(await fetchJson(url, 'binance klines')));
+  if (!rows.length) throw new Error('binance klines: no closed bars');
   return rows;
 }
 
@@ -116,7 +123,7 @@ async function fetchBybitClosedKlines() {
 }
 
 const SOURCE_FETCHERS = {
-  bitget: fetchBitgetClosedKlines,
+  binance: fetchBinanceClosedKlines,
   gate: fetchGateClosedKlines,
   bybit: fetchBybitClosedKlines,
 };

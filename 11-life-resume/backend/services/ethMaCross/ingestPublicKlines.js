@@ -1,14 +1,14 @@
 /**
  * 海外投递用：从能访问交易所的网络拉 ETHUSDT 永续 15m。
  * 生产由 Cloudflare Worker 调用同等解析（cf-eth-ma-klines/src/index.js 须同步）。
- * 币安 fapi 对部分美国 IP 返回 HTTP 451，故默认 Bitget → Gate → Bybit。
+ * 默认先 Gate（Cloudflare 上币安/Bitget 常 403）；失败再 Bybit → 币安。
  */
 
 const { ETH_MA_CROSS } = require('../../constants/ethMaCross');
-const { httpsGetJson, isClosedKline } = require('./binanceFuturesKline');
+const { httpsGetJson, isClosedKline, fetchClosedKlines } = require('./binanceFuturesKline');
 
 const INTERVAL_MS = 15 * 60 * 1000;
-const DEFAULT_SOURCES = ['bitget', 'gate', 'bybit'];
+const DEFAULT_SOURCES = ['gate', 'bybit', 'binance'];
 
 function toFiniteNumber(value) {
   const n = Number(value);
@@ -32,13 +32,6 @@ function keepClosedSorted(rows, now = Date.now()) {
     .sort((a, b) => a.openTime - b.openTime);
 }
 
-function parseBitgetPayload(json) {
-  if (!json || String(json.code) !== '00000' || !Array.isArray(json.data)) {
-    throw new Error('bitget klines: unexpected payload');
-  }
-  return json.data.map((row) => (Array.isArray(row) ? barFromOpen(row[0], row[4]) : null));
-}
-
 function parseGatePayload(json) {
   if (!Array.isArray(json)) {
     throw new Error('gate klines: unexpected payload');
@@ -59,13 +52,9 @@ function parseBybitPayload(json) {
   return json.result.list.map((row) => (Array.isArray(row) ? barFromOpen(row[0], row[4]) : null));
 }
 
-async function fetchBitgetClosedKlines() {
-  const url =
-    'https://api.bitget.com/api/v2/mix/market/candles' +
-    `?productType=USDT-FUTURES&symbol=${ETH_MA_CROSS.SYMBOL}&granularity=15m&limit=${ETH_MA_CROSS.REST_LIMIT}`;
-  const json = await httpsGetJson(url, { label: 'bitget klines' });
-  const rows = keepClosedSorted(parseBitgetPayload(json));
-  if (!rows.length) throw new Error('bitget klines: no closed bars');
+async function fetchBinanceClosedKlines() {
+  const rows = await fetchClosedKlines();
+  if (!rows.length) throw new Error('binance klines: no closed bars');
   return rows;
 }
 
@@ -90,7 +79,7 @@ async function fetchBybitClosedKlines() {
 }
 
 const SOURCE_FETCHERS = {
-  bitget: fetchBitgetClosedKlines,
+  binance: fetchBinanceClosedKlines,
   gate: fetchGateClosedKlines,
   bybit: fetchBybitClosedKlines,
 };
@@ -131,7 +120,6 @@ module.exports = {
   INTERVAL_MS,
   DEFAULT_SOURCES,
   barFromOpen,
-  parseBitgetPayload,
   parseGatePayload,
   parseBybitPayload,
   keepClosedSorted,

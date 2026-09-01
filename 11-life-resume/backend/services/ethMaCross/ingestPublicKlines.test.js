@@ -3,7 +3,6 @@ const assert = require('node:assert/strict');
 const {
   INTERVAL_MS,
   barFromOpen,
-  parseBitgetPayload,
   parseGatePayload,
   parseBybitPayload,
   keepClosedSorted,
@@ -16,16 +15,6 @@ describe('barFromOpen', () => {
       closeTime: 1_000 + INTERVAL_MS - 1,
       close: 12.5,
     });
-  });
-});
-
-describe('parseBitgetPayload', () => {
-  it('reads timestamp and close', () => {
-    const rows = parseBitgetPayload({
-      code: '00000',
-      data: [['1000', '1', '2', '0.5', '1.5', '10', '20']],
-    });
-    assert.deepEqual(rows, [barFromOpen(1000, 1.5)]);
   });
 });
 
