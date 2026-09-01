@@ -1,0 +1,19 @@
+# ETH 15m 均线：海外每分钟拉 Bitget/Gate/Bybit，POST 到国内 11 ingest。
+# 密钥用 `npx wrangler secret put`，不要写进本文件。
+
+name = "eth-ma-klines"
+main = "src/index.js"
+compatibility_date = "2026-09-01"
+account_id = "91518155899df0898e0781521828ab80"
+workers_dev = true
+preview_urls = false
+
+[triggers]
+crons = ["* * * * *"]
+
+[observability]
+enabled = true
+
+[observability.logs]
+enabled = true
+invocation_logs = true

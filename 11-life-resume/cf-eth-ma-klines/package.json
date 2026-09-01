@@ -1,0 +1,12 @@
+{
+  "name": "cf-eth-ma-klines",
+  "private": true,
+  "description": "Cloudflare Worker: fetch ETHUSDT perp 15m klines and POST to 11 ingest",
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "tail": "wrangler tail"
+  },
+  "devDependencies": {
+    "wrangler": "^4.37.1"
+  }
+}

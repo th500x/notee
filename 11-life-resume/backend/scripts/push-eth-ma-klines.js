@@ -1,6 +1,6 @@
 /**
- * GitHub Actions 用：在海外拉 ETHUSDT 永续已收盘 K 线，POST 到 11 ingest。
- * GitHub runner 在美国，币安 fapi 会 451；改拉 Bitget / Gate / Bybit。
+ * 应急/本机手工投递：在能访问交易所的网络拉 ETHUSDT 永续已收盘 K 线，POST 到 11 ingest。
+ * 生产主路径是 Cloudflare Worker（11-life-resume/cf-eth-ma-klines），不要再用 GitHub Actions。
  * Usage:
  *   ETH_MA_INGEST_URL=https://notee.vip/api/life-resume/eth-ma-cross/ingest \
  *   ETH_MA_INGEST_SECRET=... \

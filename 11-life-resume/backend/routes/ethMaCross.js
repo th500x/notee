@@ -62,7 +62,7 @@ router.get('/latest', publicReadLimiter, async (req, res, next) => {
   }
 });
 
-/** POST /api/life-resume/eth-ma-cross/ingest — GitHub Actions 投递已收盘 K 线 */
+/** POST /api/life-resume/eth-ma-cross/ingest — 海外（Cloudflare Worker）投递已收盘 K 线 */
 router.post('/ingest', ethMaIngestLimiter, async (req, res, next) => {
   try {
     if (!ingestSecretConfigured()) {

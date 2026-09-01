@@ -1,6 +1,6 @@
 /**
  * ETHUSDT 15m SMA(7)/SMA(25) 金叉死叉工人。
- * 独立进程；PM2 必须单实例。国内机访问不了币安时请停掉本进程，改用 GitHub Actions ingest。
+ * 独立进程；PM2 必须单实例。国内机访问不了币安时请停掉本进程，改用 Cloudflare Worker ingest。
  */
 
 const path = require('path');

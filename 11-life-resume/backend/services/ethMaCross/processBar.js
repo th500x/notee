@@ -1,6 +1,6 @@
 /**
  * 已收盘 K 线序列 → SMA 交叉 → 落库 → Web Push。
- * 本机工人与 GitHub Actions 投递共用，避免两套判定。
+ * 本机工人与海外 ingest（Cloudflare Worker）共用，避免两套判定。
  */
 
 const { ETH_MA_CROSS } = require('../../constants/ethMaCross');

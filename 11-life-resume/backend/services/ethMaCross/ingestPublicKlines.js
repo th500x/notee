@@ -1,7 +1,7 @@
 /**
- * GitHub Actions 投递用：从美国 IP 能访问的 U 本位永续拉 ETHUSDT 15m。
- * 币安 fapi 对 GitHub（美国 Azure）返回 HTTP 451，不能作为 Actions 数据源。
- * 须与 ingestPublicKlines 解析约定一致：openTime/closeTime/close。
+ * 海外投递用：从能访问交易所的网络拉 ETHUSDT 永续 15m。
+ * 生产由 Cloudflare Worker 调用同等解析（cf-eth-ma-klines/src/index.js 须同步）。
+ * 币安 fapi 对部分美国 IP 返回 HTTP 451，故默认 Bitget → Gate → Bybit。
  */
 
 const { ETH_MA_CROSS } = require('../../constants/ethMaCross');
