@@ -142,5 +142,5 @@ ehthumbs.db
 # 06：租赁追踪后端本地数据
 06-rental-tracking/backend/data/
 
-# 12：本地小说创作工作室（不进网站、不同步 GitHub）
-12-tale-studio/
+# 02-2：本地小说创作工作室（辅助 02-tale-historical；不进网站、不同步 GitHub）
+02-2-tales/

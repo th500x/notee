@@ -1,6 +1,6 @@
 /**
  * 自动扫描 src/data/books/<id>/ 组装书架数据。
- * 目录由 12-tale-studio 的 publish_to_02 脚本写入，无需手改注册表。
+ * 目录由 02-2-tales 的 publish_to_02 脚本写入，无需手改注册表。
  */
 
 const metaModules = import.meta.glob('./books/*/meta.json', { eager: true })

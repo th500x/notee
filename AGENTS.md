@@ -22,7 +22,7 @@
 
 - 任意 **`docs/`** 目录（含 `05-san-storm/docs/` 等）
 - **`.cursor/`**、**`.kiro/`**
-- **`12-tale-studio/`**（本地小说创作工作室；不上网站、不同步 GitHub）
+- **`02-2-tales/`**（辅助 `02-tale-historical` 的本地小说创作工作室；不上网站、不同步 GitHub）
 
 **禁止**使用 **`git add -f`**（或等价方式）绕过 `.gitignore` 将上述路径纳入提交。用户未用**单独一句原话**明确要求「把某 docs 文件提交入库」时，一律不对 docs 使用 `-f`。
 
