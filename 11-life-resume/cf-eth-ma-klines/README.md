@@ -63,3 +63,27 @@ curl -X POST "https://WORKER地址/" -H "X-Eth-Ma-Ingest-Secret: 密钥"
 仍在本目录执行 `npx wrangler deploy`。GitHub 定时已停用，**不要**再打开 `eth-ma-klines` 那个 Actions 工作流。
 
 上线顺序：**先发布本 Worker，再更新国内 11**。若先更新 11、Worker 仍是旧版，旧日志会把推送密钥打到 Cloudflare。
+
+---
+
+## 换电脑必读 · 2026-09-01 全链路审查摘要
+
+详细表在本地（**不进 GitHub**）：`07-coin-index/docs/ETH-MA-CROSS-PUSH.md` §15.7。换电脑请把 `07-coin-index/docs` 整夹拷走。
+
+**产品**：ETHUSDT 永续 15m，SMA7/SMA25，只认已收盘，贴线不算交叉；金叉看多、死叉看空。不看 MA99。订阅按浏览器/设备，不是账号全局。
+
+**生产路径**：Cloudflare Worker 每分钟拉 Gate（失败再 Bybit/币安）→ POST 国内 11 算线 → 交叉则 Worker 海外发 Web Push → `push-ack`。国内 **不要**跑 `eth-ma-cross-worker`，**不要**对 11 的 ecosystem 整份 `pm2 start`。
+
+**已证实**：K 线进库、金叉死叉判定、国内直连 Google 推送会失败（0996 `sent=0/1 failed=1`）。  
+**未证实**：改代发之后，下一次交叉时手机通知栏是否响起。下午那次死叉不会补推。页面上「最近信号」只是读库，不是系统推送。
+
+**审查结论**：没有必须立刻再改一版才能跑的代码漏洞。仍要盯：
+
+- 07 静态页要单独 rebuild 才会更新文案/`sw.js`
+- `sw.js` 不能被 Nginx 回成网页
+- 换手机/换浏览器必须再点一次订阅
+- Worker 停十多分钟会漏一根交叉（14 分钟不是回放上一根）
+- 价格跟币安图可能差几美金（现在用 Gate）
+
+交叉时应看到：Cloudflare `PUSH_RELAY` + `web-push relay sent=1`；国内 `relay push` + `push-ack marked=true`。不应再出现国内 `[web-push] send failed`。
+
