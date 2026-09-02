@@ -1,6 +1,6 @@
 # ETH 均线投递 · Cloudflare Worker
 
-国内机访问不了交易所，也发不出 Google 的手机通知。本目录是一台挂在 Cloudflare 上的小闹钟：每分钟先拉 Gate ETHUSDT 永续 15 分钟 K 线，失败再试 Bybit / 币安，POST 到国内 11 算均线；若出现金叉/死叉，**由本 Worker 在海外把通知发给手机**。
+国内机访问不了交易所，也发不出 Google 的手机通知。本目录是一台挂在 Cloudflare 上的小闹钟：每分钟先拉 Gate ETHUSDT 永续 **1 小时** K 线，失败再试 Bybit / 币安，POST 到国内 11 算均线；若出现金叉/死叉，**由本 Worker 在海外把通知发给手机**。
 
 ## 你需要准备
 
@@ -70,7 +70,7 @@ curl -X POST "https://WORKER地址/" -H "X-Eth-Ma-Ingest-Secret: 密钥"
 
 详细表在本地（**不进 GitHub**）：`07-coin-index/docs/ETH-MA-CROSS-PUSH.md` §15.7。换电脑请把 `07-coin-index/docs` 整夹拷走。
 
-**产品**：ETHUSDT 永续 15m，SMA7/SMA25，只认已收盘，贴线不算交叉；金叉看多、死叉看空。不看 MA99。订阅按浏览器/设备，不是账号全局。
+**产品**：ETHUSDT 永续 **1h**，SMA7/SMA25，只认已收盘，贴线不算交叉；金叉看多、死叉看空。不看 MA99。订阅按浏览器/设备，不是账号全局。主题 `eth_ma_1h`（旧 `eth_ma_15m` 已迁走）。
 
 **生产路径**：Cloudflare Worker 每分钟拉 Gate（失败再 Bybit/币安）→ POST 国内 11 算线 → 交叉则 Worker 海外发 Web Push → `push-ack`。国内 **不要**跑 `eth-ma-cross-worker`，**不要**对 11 的 ecosystem 整份 `pm2 start`。
 
@@ -82,8 +82,12 @@ curl -X POST "https://WORKER地址/" -H "X-Eth-Ma-Ingest-Secret: 密钥"
 - 07 静态页要单独 rebuild 才会更新文案/`sw.js`
 - `sw.js` 不能被 Nginx 回成网页
 - 换手机/换浏览器必须再点一次订阅
-- Worker 停十多分钟会漏一根交叉（14 分钟不是回放上一根）
+- Worker 停约 50 分钟会漏一根交叉（50 分钟窗口不是回放上一根）
 - 价格跟币安图可能差几美金（现在用 Gate）
 
 交叉时应看到：Cloudflare `PUSH_RELAY` + `web-push relay sent=1`；国内 `relay push` + `push-ack marked=true`。不应再出现国内 `[web-push] send failed`。
+
+编码须为 **aes128gcm**（与国内 `web-push` 默认一致）。旧 Worker 用过 `aesgcm`，现代 Chrome/FCM 会 403，手机收不到。2026-09-01 已改。
+
+可选：`ETH_MA_INGEST_KLINE_SOURCE` 可用 wrangler `[vars]` 覆盖默认 `gate,bybit,binance`。
 

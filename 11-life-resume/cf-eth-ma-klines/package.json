@@ -1,15 +1,14 @@
 {
   "name": "cf-eth-ma-klines",
   "private": true,
-  "description": "Cloudflare Worker: fetch ETHUSDT perp 15m klines and POST to 11 ingest",
+  "description": "Cloudflare Worker: fetch ETHUSDT perp 1h klines and POST to 11 ingest",
+  "type": "module",
   "scripts": {
     "deploy": "wrangler deploy",
-    "tail": "wrangler tail"
+    "tail": "wrangler tail",
+    "test": "node --test src/webPushAes128gcm.test.js"
   },
   "devDependencies": {
     "wrangler": "^4.37.1"
-  },
-  "dependencies": {
-    "@block65/webcrypto-web-push": "^1.0.2"
   }
 }

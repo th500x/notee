@@ -9,7 +9,7 @@ const {
 } = require('./ingestPublicKlines');
 
 describe('barFromOpen', () => {
-  it('sets closeTime to the last ms of a 15m bar', () => {
+  it('sets closeTime to the last ms of a 1h bar', () => {
     assert.deepEqual(barFromOpen(1_000, '12.5'), {
       openTime: 1_000,
       closeTime: 1_000 + INTERVAL_MS - 1,

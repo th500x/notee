@@ -1,14 +1,22 @@
 /**
- * Cloudflare Worker：海外拉 ETHUSDT 永续 15m 已收盘 K 线，POST 到 11 ingest。
+ * Cloudflare Worker：海外拉 ETHUSDT 永续 1h 已收盘 K 线，POST 到 11 ingest。
  * 默认 Gate → Bybit → 币安。交叉时在海外代发 Web Push。
  * 解析须与 ingestPublicKlines.js 同步。
  */
 
-import { ackUrlFromIngest, sendRelayedPushes, summarizeIngestBody } from './webPushRelay.js';
+import {
+  ackUrlFromIngest,
+  sendRelayedPushes,
+  summarizeIngestBody,
+  summarizePushResult,
+} from './webPushRelay.js';
+
+const ACK_ATTEMPTS = 3;
+const ACK_RETRY_MS = 400;
 
 const SYMBOL = 'ETHUSDT';
 const REST_LIMIT = 50;
-const INTERVAL_MS = 15 * 60 * 1000;
+const INTERVAL_MS = 60 * 60 * 1000;
 const FETCH_TIMEOUT_MS = 15000;
 const DEFAULT_SOURCES = ['gate', 'bybit', 'binance'];
 const USER_AGENT = 'Mozilla/5.0 (compatible; notee-eth-ma-cross/1.0)';
@@ -101,7 +109,7 @@ async function fetchJson(url, label) {
 async function fetchBinanceClosedKlines() {
   const url =
     `https://fapi.binance.com/fapi/v1/klines` +
-    `?symbol=${SYMBOL}&interval=15m&limit=${REST_LIMIT}`;
+    `?symbol=${SYMBOL}&interval=1h&limit=${REST_LIMIT}`;
   const rows = keepClosedSorted(parseBinancePayload(await fetchJson(url, 'binance klines')));
   if (!rows.length) throw new Error('binance klines: no closed bars');
   return rows;
@@ -110,7 +118,7 @@ async function fetchBinanceClosedKlines() {
 async function fetchGateClosedKlines() {
   const url =
     `https://api.gateio.ws/api/v4/futures/usdt/candlesticks` +
-    `?contract=ETH_USDT&interval=15m&limit=${REST_LIMIT}`;
+    `?contract=ETH_USDT&interval=1h&limit=${REST_LIMIT}`;
   const rows = keepClosedSorted(parseGatePayload(await fetchJson(url, 'gate klines')));
   if (!rows.length) throw new Error('gate klines: no closed bars');
   return rows;
@@ -119,7 +127,7 @@ async function fetchGateClosedKlines() {
 async function fetchBybitClosedKlines() {
   const url =
     `https://api.bybit.com/v5/market/kline` +
-    `?category=linear&symbol=${SYMBOL}&interval=15&limit=${REST_LIMIT}`;
+    `?category=linear&symbol=${SYMBOL}&interval=60&limit=${REST_LIMIT}`;
   const rows = keepClosedSorted(parseBybitPayload(await fetchJson(url, 'bybit klines')));
   if (!rows.length) throw new Error('bybit klines: no closed bars');
   return rows;
@@ -187,7 +195,7 @@ async function runIngest(env) {
   const summary = summarizeIngestBody(text);
   console.log(res.status, JSON.stringify(summary));
   if (!res.ok) {
-    throw new Error(`ingest HTTP ${res.status}: ${text.slice(0, 300)}`);
+    throw new Error(`ingest HTTP ${res.status}`);
   }
 
   let ingestJson = null;
@@ -201,26 +209,13 @@ async function runIngest(env) {
   if (dispatch && Array.isArray(dispatch.subscriptions) && dispatch.subscriptions.length) {
     push = await sendRelayedPushes(dispatch);
     console.log(`web-push relay sent=${push.sent} failed=${push.failed} gone=${push.gone}`);
-    const ackRes = await fetch(ackUrlFromIngest(url), {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Eth-Ma-Ingest-Secret': secret,
-      },
-      body: JSON.stringify({
-        closedOpenTime: ingestJson.data.closedOpenTime,
-        sent: push.sent,
-        failed: push.failed,
-        gone: push.gone,
-        goneEndpoints: push.goneEndpoints,
-      }),
-      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    await postPushAck(ackUrlFromIngest(url), secret, {
+      closedOpenTime: ingestJson.data.closedOpenTime,
+      sent: push.sent,
+      failed: push.failed,
+      gone: push.gone,
+      goneEndpoints: push.goneEndpoints,
     });
-    const ackText = await ackRes.text();
-    console.log(`push-ack HTTP ${ackRes.status}`);
-    if (!ackRes.ok) {
-      console.error(`push-ack failed: ${ackText.slice(0, 200)}`);
-    }
   }
 
   return {
@@ -228,13 +223,55 @@ async function runIngest(env) {
     barCount: klines.length,
     ingestStatus: res.status,
     ingest: summary,
-    push,
+    push: summarizePushResult(push),
   };
+}
+
+async function sleep(ms) {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function postPushAck(ackUrl, secret, body) {
+  let lastMessage = 'push-ack failed';
+  for (let attempt = 1; attempt <= ACK_ATTEMPTS; attempt += 1) {
+    try {
+      const ackRes = await fetch(ackUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Eth-Ma-Ingest-Secret': secret,
+        },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      });
+      if (ackRes.ok) {
+        console.log(`push-ack HTTP ${ackRes.status}`);
+        return;
+      }
+      lastMessage = `push-ack HTTP ${ackRes.status}`;
+      console.error(`${lastMessage} attempt=${attempt}`);
+    } catch (err) {
+      lastMessage = err && err.message ? err.message : String(err);
+      console.error(`push-ack error attempt=${attempt}: ${lastMessage}`);
+    }
+    if (attempt < ACK_ATTEMPTS) {
+      await sleep(ACK_RETRY_MS);
+    }
+  }
+  if (Number(body.sent) > 0) {
+    throw new Error(lastMessage);
+  }
 }
 
 export default {
   async scheduled(_event, env) {
-    await runIngest(env);
+    try {
+      await runIngest(env);
+    } catch (err) {
+      const message = err && err.message ? err.message : String(err);
+      console.error(`scheduled failed: ${message}`);
+      throw err;
+    }
   },
 
   async fetch(request, env) {

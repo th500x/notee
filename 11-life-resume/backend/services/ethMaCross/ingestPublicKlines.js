@@ -1,5 +1,5 @@
 /**
- * 海外投递用：从能访问交易所的网络拉 ETHUSDT 永续 15m。
+ * 海外投递用：从能访问交易所的网络拉 ETHUSDT 永续 1h。
  * 生产由 Cloudflare Worker 调用同等解析（cf-eth-ma-klines/src/index.js 须同步）。
  * 默认先 Gate（Cloudflare 上币安/Bitget 常 403）；失败再 Bybit → 币安。
  */
@@ -7,7 +7,7 @@
 const { ETH_MA_CROSS } = require('../../constants/ethMaCross');
 const { httpsGetJson, isClosedKline, fetchClosedKlines } = require('./binanceFuturesKline');
 
-const INTERVAL_MS = 15 * 60 * 1000;
+const INTERVAL_MS = 60 * 60 * 1000;
 const DEFAULT_SOURCES = ['gate', 'bybit', 'binance'];
 
 function toFiniteNumber(value) {
@@ -61,7 +61,7 @@ async function fetchBinanceClosedKlines() {
 async function fetchGateClosedKlines() {
   const url =
     'https://api.gateio.ws/api/v4/futures/usdt/candlesticks' +
-    `?contract=ETH_USDT&interval=15m&limit=${ETH_MA_CROSS.REST_LIMIT}`;
+    `?contract=ETH_USDT&interval=1h&limit=${ETH_MA_CROSS.REST_LIMIT}`;
   const json = await httpsGetJson(url, { label: 'gate klines' });
   const rows = keepClosedSorted(parseGatePayload(json));
   if (!rows.length) throw new Error('gate klines: no closed bars');
@@ -71,7 +71,7 @@ async function fetchGateClosedKlines() {
 async function fetchBybitClosedKlines() {
   const url =
     'https://api.bybit.com/v5/market/kline' +
-    `?category=linear&symbol=${ETH_MA_CROSS.SYMBOL}&interval=15&limit=${ETH_MA_CROSS.REST_LIMIT}`;
+    `?category=linear&symbol=${ETH_MA_CROSS.SYMBOL}&interval=60&limit=${ETH_MA_CROSS.REST_LIMIT}`;
   const json = await httpsGetJson(url, { label: 'bybit klines' });
   const rows = keepClosedSorted(parseBybitPayload(json));
   if (!rows.length) throw new Error('bybit klines: no closed bars');

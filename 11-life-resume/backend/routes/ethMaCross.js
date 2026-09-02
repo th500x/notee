@@ -1,5 +1,5 @@
 /**
- * ETH 15m 均线交叉：只读快照 + 海外投递 ingest。
+ * ETH 1h 均线交叉：只读快照 + 海外投递 ingest。
  */
 
 const crypto = require('crypto');

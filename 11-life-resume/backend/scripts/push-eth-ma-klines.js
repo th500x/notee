@@ -32,7 +32,23 @@ async function main() {
     body: JSON.stringify({ source, klines }),
   });
   const text = await res.text();
-  console.log(res.status, text);
+  let summary = text.slice(0, 200);
+  try {
+    const json = JSON.parse(text);
+    const data = json && json.data ? json.data : {};
+    summary = JSON.stringify({
+      ok: data.ok,
+      reason: data.reason || null,
+      cross: data.cross || null,
+      relay:
+        data.pushDispatch && Array.isArray(data.pushDispatch.subscriptions)
+          ? data.pushDispatch.subscriptions.length
+          : 0,
+    });
+  } catch {
+    /* keep truncated text */
+  }
+  console.log(res.status, summary);
   if (!res.ok) {
     process.exit(1);
   }

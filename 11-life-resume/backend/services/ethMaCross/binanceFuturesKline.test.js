@@ -22,9 +22,9 @@ describe('parseRestKline', () => {
 });
 
 describe('parseWsKlinePayload', () => {
-  it('accepts only closed ETHUSDT 15m bars', () => {
+  it('accepts only closed ETHUSDT 1h bars', () => {
     const closed = {
-      k: { t: 1000, T: 1999, c: '12.5', x: true, s: 'ETHUSDT', i: '15m' },
+      k: { t: 1000, T: 1999, c: '12.5', x: true, s: 'ETHUSDT', i: '1h' },
     };
     assert.deepEqual(parseWsKlinePayload(JSON.stringify(closed)), {
       openTime: 1000,
@@ -65,16 +65,16 @@ describe('formatNetError / URL overrides', () => {
     const original = process.env.BINANCE_KLINES_URL;
     delete process.env.BINANCE_KLINES_URL;
     assert.match(
-      resolveRestKlinesUrl('ETHUSDT', '15m', 50),
-      /^https:\/\/fapi\.binance\.com\/fapi\/v1\/klines\?symbol=ETHUSDT&interval=15m&limit=50$/
+      resolveRestKlinesUrl('ETHUSDT', '1h', 50),
+      /^https:\/\/fapi\.binance\.com\/fapi\/v1\/klines\?symbol=ETHUSDT&interval=1h&limit=50$/
     );
     process.env.BINANCE_KLINES_URL = 'https://example.test/fapi/v1/klines';
     assert.equal(
-      resolveRestKlinesUrl('ETHUSDT', '15m', 10),
-      'https://example.test/fapi/v1/klines?symbol=ETHUSDT&interval=15m&limit=10'
+      resolveRestKlinesUrl('ETHUSDT', '1h', 10),
+      'https://example.test/fapi/v1/klines?symbol=ETHUSDT&interval=1h&limit=10'
     );
     if (original == null) delete process.env.BINANCE_KLINES_URL;
     else process.env.BINANCE_KLINES_URL = original;
-    assert.equal(resolveWsKlineUrl().includes('ethusdt@kline_15m'), true);
+    assert.equal(resolveWsKlineUrl().includes('ethusdt@kline_1h'), true);
   });
 });

@@ -1,11 +1,12 @@
 /**
- * 须与 11 sendService 同一套 VAPID + JSON payload。
+ * 须与 11 sendService 同一套 VAPID + JSON payload + aes128gcm。
  * Cloudflare 上用 Web Crypto，不能 require('web-push')。
  */
-import { buildPushPayload } from '@block65/webcrypto-web-push';
+import { buildPushFetchInit } from './webPushAes128gcm.js';
 
 const PUSH_TTL_SEC = 15 * 60;
 const PUSH_TIMEOUT_MS = 15000;
+const GONE_ENDPOINTS_MAX = 50;
 
 function isGoneStatus(status) {
   return status === 404 || status === 410;
@@ -43,13 +44,19 @@ export async function sendRelayedPushes(dispatch) {
       continue;
     }
     try {
-      const init = await buildPushPayload(
-        { data, options: { ttl: PUSH_TTL_SEC, urgency: 'high' } },
-        { endpoint, expirationTime: null, keys: { p256dh, auth } },
-        vapidKeys
-      );
+      const init = await buildPushFetchInit({
+        endpoint,
+        p256dh,
+        auth,
+        body: data,
+        vapid: vapidKeys,
+        ttlSec: PUSH_TTL_SEC,
+        urgency: 'high',
+      });
       const res = await fetch(endpoint, {
-        ...init,
+        method: init.method,
+        headers: init.headers,
+        body: init.body,
         signal: AbortSignal.timeout(PUSH_TIMEOUT_MS),
       });
       if (isOkStatus(res.status)) {
@@ -58,7 +65,9 @@ export async function sendRelayedPushes(dispatch) {
       }
       if (isGoneStatus(res.status)) {
         result.gone += 1;
-        result.goneEndpoints.push(endpoint);
+        if (result.goneEndpoints.length < GONE_ENDPOINTS_MAX) {
+          result.goneEndpoints.push(endpoint);
+        }
         console.error(`web-push gone HTTP ${res.status} account=${accountId}`);
         continue;
       }
@@ -98,4 +107,13 @@ export function summarizeIngestBody(text) {
   } catch {
     return { parse: false };
   }
+}
+
+export function summarizePushResult(push) {
+  if (!push) return null;
+  return {
+    sent: push.sent,
+    failed: push.failed,
+    gone: push.gone,
+  };
 }
