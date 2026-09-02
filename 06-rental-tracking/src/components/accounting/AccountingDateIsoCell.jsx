@@ -5,7 +5,8 @@ import {
   sanitizeIsoDateField,
   parseMdTextToIso,
   isIsoInCurrentCalendarMonth,
-  isIsoDateString
+  isIsoDateString,
+  defaultPayRentIsoFromToday
 } from '../../utils/accountingDates';
 
 const baseCls =
@@ -15,6 +16,7 @@ const baseCls =
  * ISO 日期格：
  * - `ymd`：申报/实际，展示 YYYY/M/D；编辑用原生 date。
  * - `md`：交租，展示 M/D；编辑仅「月/日」文本，年份取自列锚 `anchorMonthKey`（`YYYY-MM`）。
+ *   空值点按/触屏：直接填入当天月/日（如 9/2），不再先进入空编辑框。
  * - `mdEmptyAsRed`：仅 `md`（交租）时，由父级在「实际」有日期、列月不早于入住月且交租仍为空时传 true，空值「—」用红色。
  */
 export function AccountingDateIsoCell({
@@ -54,6 +56,17 @@ export function AccountingDateIsoCell({
   }, [valueIso, editing]);
 
   const display = variant === 'ymd' ? formatYmdSlash(iso) : formatMdSlash(iso);
+
+  const startMdEditOrStampToday = () => {
+    if (!isIsoDateString(iso)) {
+      const stamped = defaultPayRentIsoFromToday(anchorMonthKey);
+      if (stamped) {
+        onCommit(stamped);
+        return;
+      }
+    }
+    setEditing(true);
+  };
 
   if (editing && variant === 'ymd') {
     return (
@@ -131,12 +144,18 @@ export function AccountingDateIsoCell({
         variant === 'md'
           ? iso
             ? `ISO：${iso}（点按编辑月/日）`
-            : `点按输入月/日（年份：${anchorMonthKey?.slice(0, 4) || '—'}）`
+            : `点按填入今天的月/日（年份：${anchorMonthKey?.slice(0, 4) || '—'}）`
           : iso
             ? `ISO：${iso}`
             : '点击选择日期'
       }
-      onClick={() => setEditing(true)}
+      onClick={() => {
+        if (variant === 'md') {
+          startMdEditOrStampToday();
+          return;
+        }
+        setEditing(true);
+      }}
       onKeyDown={(e) => {
         if (
           onGridArrowKeyDown &&

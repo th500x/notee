@@ -69,6 +69,19 @@ export function formatMdSlash(iso) {
   return `${m}/${d}`;
 }
 
+/** 本机当天的「月/日」，如 9/2（不用 UTC，避免跨日错位） */
+export function formatTodayMdSlash(refDate = new Date()) {
+  return `${refDate.getMonth() + 1}/${refDate.getDate()}`;
+}
+
+/**
+ * 交租空格点按：用当天月/日 + 列锚年份拼 ISO。
+ * @returns {string} ISO 或 `''`
+ */
+export function defaultPayRentIsoFromToday(anchorMonthKey, refDate = new Date()) {
+  return parseMdTextToIso(anchorMonthKey, formatTodayMdSlash(refDate));
+}
+
 /**
  * 交租列：列锚 `YYYY-MM` + 用户输入「月/日」→ 用锚点年份拼完整 ISO（不弹出「年」级 date 控件）。
  * @param {string} anchorMonthKey `YYYY-MM`
