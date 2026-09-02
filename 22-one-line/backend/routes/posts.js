@@ -9,6 +9,7 @@ const { sendServiceError } = require('../lib/sendServiceError');
 const {
   createPost,
   createPourPost,
+  createMealPost,
   patchPost,
   deletePost,
   getTodayMine,
@@ -49,6 +50,15 @@ router.post('/', requireAuth, authWriteLimiter, async (req, res) => {
 router.post('/pour', requireAuth, authWriteLimiter, async (req, res) => {
   try {
     const post = await createPourPost(req.player.sub, req.body);
+    res.status(201).json({ success: true, data: { post } });
+  } catch (err) {
+    sendServiceError(res, err, '[one-line/posts]');
+  }
+});
+
+router.post('/meal', requireAuth, authWriteLimiter, async (req, res) => {
+  try {
+    const post = await createMealPost(req.player.sub, req.body);
     res.status(201).json({ success: true, data: { post } });
   } catch (err) {
     sendServiceError(res, err, '[one-line/posts]');

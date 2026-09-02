@@ -8,6 +8,7 @@ const { httpError } = require('../lib/httpError');
 const { dayKeyFromDate, expiresAtFrom, toMysqlDateTimeUtc } = require('../lib/dayKey');
 const { assertPostBody, assertStampId } = require('../lib/postBody');
 const { assertPourPayload, rejectBannedKeys, POUR_TEST_EDIT_STATS } = require('../lib/pourPayload');
+const { assertMealPayload } = require('../lib/mealPayload');
 const { assertFlagId } = require('../lib/profileRules');
 const { requireActiveUser } = require('./userService');
 const stampGiftCatalog = require('../lib/stampGiftCatalog');
@@ -31,7 +32,7 @@ async function purgePourRows(userId, postIds) {
 async function occupyingPourRows(userId, dayKey) {
   const rows = await query(
     `SELECT ${postCols()}
-     FROM posts WHERE user_id = ? AND day_key = ? AND kind = 'pour'`,
+     FROM posts WHERE user_id = ? AND day_key = ? AND kind IN ('pour', 'meal')`,
     [userId, dayKey]
   );
   return POUR_TEST_RESYNC_AFTER_DELETE
@@ -76,6 +77,7 @@ function rowToPost(row, { includeDeleted = false, includeResonatedByMe = false }
     kind,
     body: row.body,
     pour: kind === 'pour' ? parsePourColumn(row.pour) : null,
+    meal: kind === 'meal' ? parsePourColumn(row.pour) : null,
     flagId: row.flag_id,
     stampId: row.stamp_id,
     resonanceCount: Number(row.resonance_count) || 0,
@@ -101,6 +103,7 @@ function rowToPost(row, { includeDeleted = false, includeResonatedByMe = false }
       flagId: row.flag_id,
       gender: row.gender,
       avatarId: row.avatar_id,
+      loginId: row.login_id || null,
     };
   }
   return post;
@@ -138,6 +141,9 @@ function assertLineCreateBody(bodyIn) {
   }
   if (bodyIn.pour != null) {
     throw httpError(400, '写一句接口不可带 pour 字段', 'BAD_KIND');
+  }
+  if (bodyIn.meal != null) {
+    throw httpError(400, '写一句接口不可带 meal 字段', 'BAD_KIND');
   }
 }
 
@@ -188,6 +194,9 @@ async function createPourPost(userId, bodyIn) {
   if (bodyIn.kind != null && bodyIn.kind !== 'pour') {
     throw httpError(400, 'kind 无效', 'BAD_KIND');
   }
+  if (bodyIn.meal != null) {
+    throw httpError(400, '开瓶接口不可带 meal 字段', 'BAD_KIND');
+  }
 
   const body = assertPostBody(bodyIn.body == null ? '' : bodyIn.body, { allowEmpty: true });
   const stampId = assertStampId(bodyIn.stampId);
@@ -226,12 +235,66 @@ async function createPourPost(userId, bodyIn) {
   return rowToPost(rows[0]);
 }
 
+async function createMealPost(userId, bodyIn) {
+  const user = await requireActiveUser(userId);
+  requireCompleteProfile(user);
+  if (!bodyIn || typeof bodyIn !== 'object' || Array.isArray(bodyIn)) {
+    throw httpError(400, '请求体无效', 'BAD_BODY');
+  }
+  rejectBannedKeys(bodyIn);
+  if (bodyIn.kind != null && bodyIn.kind !== 'meal') {
+    throw httpError(400, 'kind 无效', 'BAD_KIND');
+  }
+  if (bodyIn.pour != null) {
+    throw httpError(400, '聚餐接口不可带 pour 字段', 'BAD_KIND');
+  }
+
+  const body = assertPostBody(bodyIn.body == null ? '' : bodyIn.body, { allowEmpty: true });
+  const stampId = assertStampId(bodyIn.stampId);
+  const meal = assertMealPayload(bodyIn.meal);
+  const flagId = assertFlagId(user.flag_id);
+  const dayKey = dayKeyFromDate();
+  const used = await occupyingPourRows(userId, dayKey);
+  if (used.length >= POUR_DAY_LIMIT) {
+    throw httpError(409, `今日已同步满 ${POUR_DAY_LIMIT} 局`, 'POUR_DAY_QUOTA');
+  }
+  const id = crypto.randomUUID();
+  const now = new Date();
+  const createdSql = toMysqlDateTimeUtc(now);
+  const expiresSql = toMysqlDateTimeUtc(expiresAtFrom(now));
+
+  try {
+    await query(
+      `INSERT INTO posts
+         (id, user_id, kind, body, pour, flag_id, stamp_id, resonance_count, edit_used,
+          day_key, created_at, expires_at)
+       VALUES (?, ?, 'meal', ?, ?, ?, ?, 0, 1, ?, ?, ?)`,
+      [id, userId, body, JSON.stringify(meal), flagId, stampId, dayKey, createdSql, expiresSql]
+    );
+  } catch (err) {
+    if (err && err.code === 'ER_DUP_ENTRY') {
+      throw httpError(409, `今日已同步满 ${POUR_DAY_LIMIT} 局`, 'POUR_DAY_QUOTA');
+    }
+    throw err;
+  }
+
+  const rows = await query(
+    `SELECT ${postCols()}
+     FROM posts WHERE id = ? LIMIT 1`,
+    [id]
+  );
+  return rowToPost(rows[0]);
+}
+
 async function patchPost(userId, postId, bodyIn) {
   await requireActiveUser(userId);
   const row = await getPostRowForAuthor(postId, userId);
 
   if (postKind(row) === 'pour') {
     return patchPourStatsQa(userId, postId, row, bodyIn);
+  }
+  if (postKind(row) === 'meal') {
+    throw httpError(409, '聚餐帖不可编辑', 'POUR_NO_EDIT');
   }
 
   if (row.edit_used) {
@@ -370,8 +433,8 @@ async function getTodayMine(userId) {
   );
   const line = rows.find((r) => postKind(r) === 'line') || null;
   const occupyingPours = POUR_TEST_RESYNC_AFTER_DELETE
-    ? rows.filter((r) => postKind(r) === 'pour' && !r.deleted_at)
-    : rows.filter((r) => postKind(r) === 'pour');
+    ? rows.filter((r) => ['pour', 'meal'].includes(postKind(r)) && !r.deleted_at)
+    : rows.filter((r) => ['pour', 'meal'].includes(postKind(r)));
   const canPostLine = !line;
   const pourPosts = occupyingPours.map((r) => rowToPost(r, { includeDeleted: true }));
   return {
@@ -398,7 +461,7 @@ async function listMine(userId, queryIn = {}) {
   const params = [userId, userId];
   let sql = `
     SELECT ${postCols('p')},
-           u.nick_name, u.gender, u.avatar_id,
+           u.nick_name, u.gender, u.avatar_id, u.login_id,
            (r.user_id IS NOT NULL) AS resonated_by_me
     FROM posts p
     INNER JOIN users u ON u.id = p.user_id
@@ -544,7 +607,7 @@ async function getFeed(queryIn = {}, opts = {}) {
   const params = [];
   let sql = `
     SELECT ${postCols('p')},
-           u.nick_name, u.gender, u.avatar_id`;
+           u.nick_name, u.gender, u.avatar_id, u.login_id`;
 
   if (viewerUserId) {
     sql += `,
@@ -687,6 +750,7 @@ async function getFeed(queryIn = {}, opts = {}) {
 module.exports = {
   createPost,
   createPourPost,
+  createMealPost,
   patchPost,
   deletePost,
   getTodayMine,
