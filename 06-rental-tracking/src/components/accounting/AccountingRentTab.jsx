@@ -55,7 +55,7 @@ const ROOM_COL_TH = ROOM_COL_TD;
 /** 可录入格：ROOM(0)…备注(4)、PRICE(5)、DEPOSIT(6)、双月 IN/OUT/交租（右月交租为列 14），不含只读 SETTLE、镜像 ROOM 与删钮 */
 const RENT_GRID_COL_MAX = 14;
 
-/** 「实际」有日期、列月不早于入住月，且该月交租仍为空 — 交租格红横杠；筛选仅看右列 m1 */
+/** 「实际」有日期、列月不早于入住月，且该月交租仍为空 — 交租格红横杠 */
 function shouldHighlightEmptyPayRent(row, monthKey, cell) {
   const actual = sanitizeIsoDateField(row.actualRent);
   if (!isIsoDateString(actual)) return false;
@@ -63,9 +63,21 @@ function shouldHighlightEmptyPayRent(row, monthKey, cell) {
   return !isIsoDateString(sanitizeIsoDateField(cell?.payRent || ''));
 }
 
-function rowHasPendingPayRentPlaceholder(row, currentMonthKey) {
-  const cell = row.months?.[currentMonthKey] || emptyRentMonthCells();
-  return shouldHighlightEmptyPayRent(row, currentMonthKey, cell);
+function rowHasPendingPayRentPlaceholder(row, monthKey) {
+  const cell = row.months?.[monthKey] || emptyRentMonthCells();
+  return shouldHighlightEmptyPayRent(row, monthKey, cell);
+}
+
+/**
+ * 筛选优先看较早月（左列 m0）：只要有任一房间该月交租待登记，就只筛该月；
+ * 较早月都已交（或无需登记）时，再筛当月（右列 m1）。
+ */
+function resolvePendingPayRentFilterMonth(rows, olderMonthKey, newerMonthKey) {
+  const list = Array.isArray(rows) ? rows : [];
+  if (list.some((r) => rowHasPendingPayRentPlaceholder(r, olderMonthKey))) {
+    return olderMonthKey;
+  }
+  return newerMonthKey;
 }
 
 function sumMonthSettleRows(rows, monthKey) {
@@ -300,6 +312,8 @@ export function AccountingRentTab({
 }) {
   const [m0, m1] = sheet.monthKeys;
   const [filterPendingPayRent, setFilterPendingPayRent] = useState(false);
+  /** 开启筛选时锁定的月份：补录后不中途改筛另一月 */
+  const [filterMonthKey, setFilterMonthKey] = useState(null);
   /** 开启筛选时固定的行 id：补录交租后仍保留在列表中，避免行瞬间消失像「输入无效」 */
   const [filterPinnedRowIds, setFilterPinnedRowIds] = useState(null);
   const [galleryRowId, setGalleryRowId] = useState(null);
@@ -331,30 +345,34 @@ export function AccountingRentTab({
 
   const displayRows = useMemo(() => {
     if (!filterPendingPayRent) return sheet.rentRows;
+    const mk = filterMonthKey || resolvePendingPayRentFilterMonth(sheet.rentRows, m0, m1);
     return sheet.rentRows.filter(
       (r) =>
-        rowHasPendingPayRentPlaceholder(r, m1) ||
+        rowHasPendingPayRentPlaceholder(r, mk) ||
         (filterPinnedRowIds != null && filterPinnedRowIds.has(r.id))
     );
-  }, [sheet.rentRows, filterPendingPayRent, m1, filterPinnedRowIds]);
+  }, [sheet.rentRows, filterPendingPayRent, filterMonthKey, m0, m1, filterPinnedRowIds]);
 
   const toggleFilterPendingPayRent = useCallback(() => {
     setFilterPendingPayRent((on) => {
       const next = !on;
       if (next) {
+        const mk = resolvePendingPayRentFilterMonth(sheet.rentRows, m0, m1);
+        setFilterMonthKey(mk);
         setFilterPinnedRowIds(
           new Set(
             sheet.rentRows
-              .filter((r) => rowHasPendingPayRentPlaceholder(r, m1))
+              .filter((r) => rowHasPendingPayRentPlaceholder(r, mk))
               .map((r) => r.id)
           )
         );
       } else {
+        setFilterMonthKey(null);
         setFilterPinnedRowIds(null);
       }
       return next;
     });
-  }, [sheet.rentRows, m1]);
+  }, [sheet.rentRows, m0, m1]);
 
   const sensors = useSensors(
     // 监听器仅在拖动手柄上：Pointer 即可覆盖触控，避免 TouchSensor 与横向滚动条抢 touchmove
@@ -588,7 +606,11 @@ export function AccountingRentTab({
                       ? 'bg-amber-500 text-gray-900 shadow-sm'
                       : 'bg-white/15 text-white hover:bg-white/25'
                   }`}
-                  title="开启后仅列出「实际」有日期且当月（右列）交租仍为空（红横杠）的房间；左月交租不参与筛选。再点恢复全部"
+                  title={
+                    filterPendingPayRent && filterMonthKey
+                      ? `当前筛选「${monthKeyToHeaderLabel(filterMonthKey)}」交租仍为空的房间。再点恢复全部`
+                      : '优先列出较早月（左列）交租仍为空的房间；若较早月都已交租，则改看当月（右列）。再点恢复全部'
+                  }
                 >
                   筛选
                 </button>
