@@ -245,7 +245,7 @@ function SortableRentRow({
                 {formatAccountingNumber(settleVal)}
               </div>
             </td>
-            <td className="p-1 border border-gray-100">
+            <td className={`p-1 border border-gray-100 ${COMPACT_COL_TD}`}>
               <AccountingDateIsoCell
                 valueIso={cell.payRent || ''}
                 onCommit={(v) => patchMonthCell(row.id, mk, 'payRent', v)}

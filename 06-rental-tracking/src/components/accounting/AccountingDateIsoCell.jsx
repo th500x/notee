@@ -104,7 +104,8 @@ export function AccountingDateIsoCell({
       <input
         type="text"
         inputMode="text"
-        className={`${baseCls} bg-white text-left font-mono${mdCls}`}
+        size={1}
+        className={`min-h-[2.25rem] w-full min-w-0 max-w-full box-border border border-gray-200 rounded px-2 py-1.5 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-100 bg-white text-left font-mono${mdCls}`}
         value={draftMd}
         placeholder="月/日"
         onChange={(e) => setDraftMd(e.target.value)}
