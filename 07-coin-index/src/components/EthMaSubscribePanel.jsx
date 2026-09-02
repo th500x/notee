@@ -1,5 +1,5 @@
 /**
- * 周历旁：订阅 ETHUSDT 15m SMA7/SMA25 金叉死叉推送。
+ * 周历旁：订阅 ETHUSDT 1h SMA7/SMA25 金叉死叉推送。
  */
 
 import { useState } from 'react'
