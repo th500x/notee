@@ -11,7 +11,7 @@ Notee Go「今日一句」后端。产品设计见 sibling `KIRO/notee-go` → `
 | 端口 | **3022** |
 | 对外 | `https://notee.vip/api/oneline/*` |
 | 库名 | `22_one_line` |
-| PM2 | `one-line-backend` |
+| PM2 | `22-one-line-backend` |
 | 阶段 | **P7** — + 短号注册 / 登录（`login_id` + 密码） |
 
 ## 常用命令（与 05 同形式）
@@ -27,14 +27,14 @@ cd /www/wwwroot/notee/22-one-line
 pm2 start ecosystem.config.cjs
 
 # 重启 PM2 进程（日常发版）
-pm2 restart one-line-backend
+pm2 restart 22-one-line-backend
 ```
 
 发版常见组合：
 
 ```bash
 cd 22-one-line/backend && npm install
-pm2 restart one-line-backend
+pm2 restart 22-one-line-backend
 ```
 
 建表 / 迁移（配好 `backend/.env` 后）：
@@ -135,7 +135,7 @@ Pass / 荣耀受众等 `users.pass_at` / `honor_at` 再开。客户端认 `kind=
 若以前用旧 `ecosystem`（cwd 在项目根）起过进程，改布局后请：
 
 ```bash
-pm2 delete one-line-backend
+pm2 delete 22-one-line-backend
 cd /www/wwwroot/notee/22-one-line
 pm2 start ecosystem.config.cjs
 pm2 save

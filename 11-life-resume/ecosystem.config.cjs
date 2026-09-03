@@ -3,7 +3,7 @@ const path = require('path');
 module.exports = {
   apps: [
     {
-      name: 'life-resume-backend',
+      name: '11-life-resume-backend',
       script: './backend/server.js',
       cwd: path.join(__dirname),
       instances: 1,
@@ -20,7 +20,7 @@ module.exports = {
       time: true,
     },
     {
-      name: 'eth-ma-cross-worker',
+      name: '11-eth-ma-cross-worker',
       script: './backend/workers/ethMaCrossWorker.js',
       cwd: path.join(__dirname),
       instances: 1,

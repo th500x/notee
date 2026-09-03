@@ -9,7 +9,7 @@
 module.exports = {
   apps: [
     {
-      name: 'san-storm-backend',
+      name: '33-san-storm-backend',
       script: './server.js',
       cwd: '/www/wwwroot/notee/33-san-storm/backend',
       instances: 1,

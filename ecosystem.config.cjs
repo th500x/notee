@@ -11,7 +11,7 @@
 module.exports = {
   apps: [
     {
-      name: 'notee-backend',
+      name: '00-notee-backend',
       script: './server.js',
       cwd: '/www/wwwroot/notee/backend',
       instances: 1,

@@ -34,7 +34,7 @@ const onlyFaction = process.argv[2] ? String(process.argv[2]).trim() : '';
   }
 
   console.log('\n--- pm2 日志检索建议 ---');
-  console.log('grep -E "\\[aiKing\\]\\[dasikong\\]" ~/.pm2/logs/san-storm-backend-out.log | tail -80');
+  console.log('grep -E "\\[aiKing\\]\\[dasikong\\]" ~/.pm2/logs/33-san-storm-backend-out.log | tail -80');
 
   process.exit(0);
 })().catch((e) => {

@@ -48,7 +48,7 @@ npx wrangler deploy
 1. 打开 [Cloudflare 控制台](https://dash.cloudflare.com/) → **Workers & Pages** → **eth-ma-klines**。
 2. **Logs** 里应大约每分钟有一行；看到 `ingest klines source=gate` 和 `{"ok":true,"reason":"NO_CROSS"` 一类摘要即投递成功。
 3. 出现交叉时应有 `web-push relay sent=`，且 **不要**再出现整段 JSON（里面会有密钥）。
-4. 国内：`pm2 logs life-resume-backend` 搜 `[eth-ma-cross]`。交叉时先有 `relay push`，海外发成功后再有 `push-ack marked=true`。
+4. 国内：`pm2 logs 11-life-resume-backend` 搜 `[eth-ma-cross]`。交叉时先有 `relay push`，海外发成功后再有 `push-ack marked=true`。
 
 ## 手工补跑一次
 
@@ -72,7 +72,7 @@ curl -X POST "https://WORKER地址/" -H "X-Eth-Ma-Ingest-Secret: 密钥"
 
 **产品**：ETHUSDT 永续 **1h**，SMA7/SMA25，只认已收盘，贴线不算交叉；金叉看多、死叉看空。不看 MA99。订阅按浏览器/设备，不是账号全局。主题 `eth_ma_1h`（旧 `eth_ma_15m` 已迁走）。
 
-**生产路径**：Cloudflare Worker 每分钟拉 Gate（失败再 Bybit/币安）→ POST 国内 11 算线 → 交叉则 Worker 海外发 Web Push → `push-ack`。国内 **不要**跑 `eth-ma-cross-worker`，**不要**对 11 的 ecosystem 整份 `pm2 start`。
+**生产路径**：Cloudflare Worker 每分钟拉 Gate（失败再 Bybit/币安）→ POST 国内 11 算线 → 交叉则 Worker 海外发 Web Push → `push-ack`。国内 **不要**跑 `11-eth-ma-cross-worker`，**不要**对 11 的 ecosystem 整份 `pm2 start`。
 
 **已证实**：K 线进库、金叉死叉判定、国内直连 Google 推送会失败（0996 `sent=0/1 failed=1`）。  
 **未证实**：改代发之后，下一次交叉时手机通知栏是否响起。下午那次死叉不会补推。页面上「最近信号」只是读库，不是系统推送。

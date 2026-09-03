@@ -6,14 +6,14 @@
  *   cd /www/wwwroot/notee/22-one-line
  *   pm2 start ecosystem.config.cjs
  *   # 之后发版：
- *   pm2 restart one-line-backend
+ *   pm2 restart 22-one-line-backend
  *
  * `cwd` 为 `backend/`，这样 dotenv 默认读到 `backend/.env`；日志在 `backend/logs/`。
  */
 module.exports = {
   apps: [
     {
-      name: 'one-line-backend',
+      name: '22-one-line-backend',
       script: './server.js',
       cwd: '/www/wwwroot/notee/22-one-line/backend',
       instances: 1,
