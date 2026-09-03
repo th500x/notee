@@ -3,7 +3,7 @@
  */
 
 const { query } = require('../database/connection');
-const { validateAccountIdFormat } = require('../../../05-san-storm/shared/utils/lifeResumeUsername.cjs');
+const { validateAccountIdFormat } = require('../../../33-san-storm/shared/utils/lifeResumeUsername.cjs');
 const {
   validateLifePathDraft,
   parseLifePathDraftJson,
@@ -19,7 +19,7 @@ const {
   LIFE_PATH_AI_INPUT_MODES,
   LIFE_PATH_NODE_MIN,
   LIFE_PATH_NODE_MAX,
-} = require('../../../05-san-storm/shared/utils/lifeResumeLifePath.cjs');
+} = require('../../../33-san-storm/shared/utils/lifeResumeLifePath.cjs');
 const { findProfileByAccountId, getProfileForAccount, ProfileServiceError } = require('./lifeProfileService');
 const { listEntriesForOwner, EntryServiceError } = require('./lifeEntryService');
 const { chatCompletionJson, isDashScopeConfigured } = require('./dashscopeClient');

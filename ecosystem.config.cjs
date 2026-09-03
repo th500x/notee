@@ -1,7 +1,7 @@
 /**
  * 全站共享后端（留言板、认证等）— PM2 配置
  *
- * 与 `01-news-calendar` / `05-san-storm` / `06-rental-tracking` 同套路：
+ * 与 `01-news-calendar` / `33-san-storm` / `06-rental-tracking` 同套路：
  * `cwd` = 本进程实际工作目录（此处为 **`backend/`**），`script` = 该目录下的 `server.js`，
  * 这样 `server.js` 里 `dotenv` 默认能读到 **`backend/.env`**。
  *

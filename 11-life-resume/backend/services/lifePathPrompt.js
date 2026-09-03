@@ -8,7 +8,7 @@ const {
   LIFE_PATH_NODE_MAX,
   buildLifePathAiEntrySnapshot,
   filterEntriesForLifePathInputMode,
-} = require('../../../05-san-storm/shared/utils/lifeResumeLifePath.cjs');
+} = require('../../../33-san-storm/shared/utils/lifeResumeLifePath.cjs');
 
 const SYSTEM_PROMPT_RULES = `你是「人生片段」产品的编辑助手。用户会提供 JSON 格式的个人片段列表。
 你的任务：仅根据片段中已有信息，归纳出对外可展示的人生轨迹节点。

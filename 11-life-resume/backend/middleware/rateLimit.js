@@ -1,5 +1,5 @@
 /**
- * 限流中间件（express-rate-limit；单进程内存，与 05-san-storm 同模式）
+ * 限流中间件（express-rate-limit；单进程内存，与 33-san-storm 同模式）
  *
  * 公开读接口 per IP 限流，防批量爬取 / 刷库 / OSS 签名滥用。
  * 多实例时需 Redis store（后续演进）；生产建议在 Nginx 再叠 limit_req。

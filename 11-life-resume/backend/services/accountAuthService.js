@@ -3,7 +3,7 @@
  * 不启动 05 进程；JWT 用 11 自己的 JWT_SECRET（须与 05 相同）。
  */
 
-const { createAccountAuth } = require('../../../05-san-storm/backend/services/accountAuthCore');
+const { createAccountAuth } = require('../../../33-san-storm/backend/services/accountAuthCore');
 const { accountsPool } = require('../database/sanStormAccountsConnection');
 const { signPlayerToken } = require('../middleware/auth');
 

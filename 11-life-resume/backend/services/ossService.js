@@ -8,7 +8,7 @@ require('dotenv').config({ path: path.join(__dirname, '../.env') });
 require('dotenv').config({ path: path.join(__dirname, '../.env.local'), override: true });
 
 const OSS = require('ali-oss');
-const { extensionForMime } = require('../../../05-san-storm/shared/utils/lifeResumeMediaRules.cjs');
+const { extensionForMime } = require('../../../33-san-storm/shared/utils/lifeResumeMediaRules.cjs');
 
 const UPLOAD_SIGN_TTL_SECONDS = 15 * 60;
 const READ_URL_TTL_SECONDS = 2 * 60 * 60;

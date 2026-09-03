@@ -4,14 +4,14 @@
 
 const { query, transaction, pool } = require('../database/connection');
 const { deleteObjects } = require('./ossService');
-const { validateAccountIdFormat } = require('../../../05-san-storm/shared/utils/lifeResumeUsername.cjs');
+const { validateAccountIdFormat } = require('../../../33-san-storm/shared/utils/lifeResumeUsername.cjs');
 const {
   CHRONOLOGICAL_ENTRY_SERIES_NAME,
   MAX_CUSTOM_ENTRY_SERIES_PER_USER,
   normalizeEntrySeriesId,
   validateEntrySeriesName,
   buildEntrySeriesSwitcherList,
-} = require('../../../05-san-storm/shared/utils/lifeResumeEntrySeries.cjs');
+} = require('../../../33-san-storm/shared/utils/lifeResumeEntrySeries.cjs');
 
 class EntrySeriesServiceError extends Error {
   constructor(code, message, status = 400) {

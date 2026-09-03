@@ -6,7 +6,7 @@ export const MODULES = {
   NEWS: '01-news-calendar',
   TALE: '02-tale-historical',
   COIN: '07-coin-index',
-  SAN: '05-san-storm',
+  SAN: '33-san-storm',
   LIFE: '11-life-resume'
 }
 
@@ -40,12 +40,12 @@ export const MODULE_SHORT_NAMES = {
  */
 export const PROJECTS = [
   {
-    id: '05-san-storm',
+    id: '33-san-storm',
     name: '真三風雲',
     icon: '⚔️',
     description: '三国策略战棋游戏\nS1赛季 - 黄巾之乱',
     gradient: 'linear-gradient(135deg, #FF6B6B 0%, #4ECDC4 100%)',
-    path: '/05-san-storm/'
+    path: '/33-san-storm/'
   },
   {
     id: '11-life-resume',

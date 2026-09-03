@@ -10,19 +10,19 @@ const {
   assessUsernameChangeCooldown,
   validateAccountIdFormat,
   USERNAME_CHANGE_COOLDOWN_DAYS,
-} = require('../../../05-san-storm/shared/utils/lifeResumeUsername.cjs');
+} = require('../../../33-san-storm/shared/utils/lifeResumeUsername.cjs');
 const {
   formatProfileDisplayName,
   shouldRefreshProfileRegion,
   isPlaceholderClientIp,
-} = require('../../../05-san-storm/shared/utils/lifeResumeProfileRegion.cjs');
+} = require('../../../33-san-storm/shared/utils/lifeResumeProfileRegion.cjs');
 const { resolveRegionFromIp } = require('./ipGeolocationService');
-const { parseLifePathDraftJson, assessLifePathGenerateCooldown, DEFAULT_LIFE_PATH_COOLDOWN_HOURS } = require('../../../05-san-storm/shared/utils/lifeResumeLifePath.cjs');
+const { parseLifePathDraftJson, assessLifePathGenerateCooldown, DEFAULT_LIFE_PATH_COOLDOWN_HOURS } = require('../../../33-san-storm/shared/utils/lifeResumeLifePath.cjs');
 const {
   listEntrySeriesForOwner,
   findOwnedSeries,
 } = require('./lifeEntrySeriesService');
-const { normalizeEntrySeriesId } = require('../../../05-san-storm/shared/utils/lifeResumeEntrySeries.cjs');
+const { normalizeEntrySeriesId } = require('../../../33-san-storm/shared/utils/lifeResumeEntrySeries.cjs');
 
 const VISIBILITY_VALUES = new Set(['public', 'private', 'specific']);
 

@@ -52,7 +52,7 @@ export function GuestbookList({
           <option value="01-news-calendar">{MODULE_SHORT_NAMES['01-news-calendar']}</option>
           <option value="02-tale-historical">{MODULE_SHORT_NAMES['02-tale-historical']}</option>
           <option value="07-coin-index">{MODULE_SHORT_NAMES['07-coin-index']}</option>
-          <option value="05-san-storm">{MODULE_SHORT_NAMES['05-san-storm']}</option>
+          <option value="33-san-storm">{MODULE_SHORT_NAMES['33-san-storm']}</option>
         </select>
       </div>
 

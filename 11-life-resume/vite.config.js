@@ -11,7 +11,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
-      '@shared': path.resolve(__dirname, '../05-san-storm/shared'),
+      '@shared': path.resolve(__dirname, '../33-san-storm/shared'),
     },
   },
   server: {

@@ -7,7 +7,7 @@ const {
   validateMediaBundle,
   validateMediaUploadRequest,
   extensionForMime,
-} = require('../../../05-san-storm/shared/utils/lifeResumeMediaRules.cjs');
+} = require('../../../33-san-storm/shared/utils/lifeResumeMediaRules.cjs');
 const {
   promoteStagingObject,
   assertAccountOwnsKey,

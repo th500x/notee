@@ -1,5 +1,5 @@
 /**
- * JWT auth (HS256) — must use same JWT_SECRET as 05-san-storm.
+ * JWT auth (HS256) — must use same JWT_SECRET as 33-san-storm.
  */
 
 const jwt = require('jsonwebtoken');

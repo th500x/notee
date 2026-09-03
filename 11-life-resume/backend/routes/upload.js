@@ -4,8 +4,8 @@
 
 const express = require('express');
 const { requireAuth } = require('../middleware/auth');
-const { validateAccountIdFormat } = require('../../../05-san-storm/shared/utils/lifeResumeUsername.cjs');
-const { validateMediaUploadRequest } = require('../../../05-san-storm/shared/utils/lifeResumeMediaRules.cjs');
+const { validateAccountIdFormat } = require('../../../33-san-storm/shared/utils/lifeResumeUsername.cjs');
+const { validateMediaUploadRequest } = require('../../../33-san-storm/shared/utils/lifeResumeMediaRules.cjs');
 const { createUploadSign, isOssAvailable } = require('../services/ossService');
 const { abandonUploadObject, AbandonUploadError } = require('../services/abandonUploadService');
 const { getEntryForOwner, EntryServiceError } = require('../services/lifeEntryService');
