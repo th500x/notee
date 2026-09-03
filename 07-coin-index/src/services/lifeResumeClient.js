@@ -95,6 +95,23 @@ export async function fetchEthMaCrossLatest() {
   return fetchJson('/eth-ma-cross/latest')
 }
 
+export async function fetchEthMaTradesJournal() {
+  return fetchJson('/eth-ma-cross/trades-journal')
+}
+
+export async function saveEthMaTrade(body) {
+  return fetchJson('/eth-ma-cross/trades', {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  })
+}
+
+export async function deleteEthMaTrade(signalOpenTime) {
+  return fetchJson(`/eth-ma-cross/trades/${encodeURIComponent(signalOpenTime)}`, {
+    method: 'DELETE',
+  })
+}
+
 export function urlBase64ToUint8Array(base64String) {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
   const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/')

@@ -55,6 +55,26 @@ function formatMaCrossSnapshot(row) {
   };
 }
 
+function formatCrossSignalRow(row, extra = {}) {
+  if (!row) return null;
+  const cross = row.cross_kind || row.cross || null;
+  const labels = crossLabels(cross);
+  const openTime = Number(row.open_time) || 0;
+  const closeTime = Number(row.close_time) || 0;
+  return {
+    openTime,
+    closeTime,
+    cross,
+    kindLabel: labels.kindLabel,
+    biasLabel: labels.biasLabel,
+    close: toNumberOrNull(row.close),
+    sma7: toNumberOrNull(row.sma7),
+    sma25: toNumberOrNull(row.sma25),
+    at: closeTime ? new Date(closeTime).toISOString() : null,
+    ...extra,
+  };
+}
+
 function formatPushPayload(signal) {
   const labels = crossLabels(signal.cross);
   return {
@@ -81,5 +101,6 @@ module.exports = {
   toNumberOrNull,
   isFreshClosedBar,
   formatMaCrossSnapshot,
+  formatCrossSignalRow,
   formatPushPayload,
 };

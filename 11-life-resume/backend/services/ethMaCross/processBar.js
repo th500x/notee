@@ -7,6 +7,7 @@ const { ETH_MA_CROSS } = require('../../constants/ethMaCross');
 const { evaluateClosedCloses } = require('./smaCross');
 const { formatPushPayload } = require('./formatSignal');
 const { getStateRow, saveClosedBar, markNotified } = require('./signalStateStore');
+const { upsertCrossSignal } = require('./signalHistoryStore');
 const { sendMaCrossToSubscribers } = require('../webPush/sendService');
 const { listSubscriptionsForTopic } = require('../webPush/subscriptionService');
 const { getVapidConfig, isVapidConfigured } = require('../webPush/vapid');
@@ -83,6 +84,8 @@ async function applyOnce(klines, options = {}) {
   if (!bar.cross) {
     return { ok: true, bar, notified: false, reason: 'NO_CROSS', barCount: sorted.length };
   }
+
+  await upsertCrossSignal(bar);
 
   const alreadyNotified = Number(state.last_notified_open_time) === latest.openTime;
   if (alreadyNotified) {

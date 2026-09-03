@@ -1,41 +1,32 @@
-/**
- * 周历旁：订阅 ETHUSDT 1h SMA7/SMA25 金叉死叉推送。
- */
-
 import { useState } from 'react'
 import { ETH_MA_CROSS } from '../constants/ethMaCross'
-import { useEthMaSubscribe } from '../hooks/useEthMaSubscribe'
+import { formatEthPrice, formatSignalTime } from '../utils/ethMaFormat'
 
-function formatSignalTime(iso) {
-  if (!iso) return ''
-  const date = new Date(iso)
-  if (Number.isNaN(date.getTime())) return ''
-  return date.toLocaleString('zh-CN', { hour12: false })
-}
-
-function formatPrice(value) {
-  const n = Number(value)
-  if (!Number.isFinite(n)) return '—'
-  return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-}
-
-function EthMaSubscribePanel() {
+function EthMaSubscribePanel({ auth, ma }) {
   const {
-    ready,
-    busy,
-    error,
+    ready: authReady,
+    busy: authBusy,
+    error: authError,
     accountId,
+    login,
+    logout,
+  } = auth
+  const {
+    ready: maReady,
+    busy: maBusy,
+    error: maError,
     pushSupported,
     thisDeviceSubscribed,
     latest,
-    login,
-    logout,
     subscribe,
     unsubscribe,
-  } = useEthMaSubscribe()
+  } = ma
 
   const [accountInput, setAccountInput] = useState('')
   const [password, setPassword] = useState('')
+  const busy = authBusy || maBusy
+  const error = authError || maError
+  const lastSignal = latest?.lastSignal || null
 
   const handleLogin = async (event) => {
     event.preventDefault()
@@ -44,8 +35,6 @@ function EthMaSubscribePanel() {
       setPassword('')
     }
   }
-
-  const lastSignal = latest?.lastSignal || null
 
   return (
     <div className="eth-ma-subscribe">
@@ -61,11 +50,11 @@ function EthMaSubscribePanel() {
         <div className={`eth-ma-subscribe__signal eth-ma-subscribe__signal--${lastSignal.cross}`}>
           最近信号：{lastSignal.kindLabel} · {lastSignal.biasLabel}
           {lastSignal.at ? ` · ${formatSignalTime(lastSignal.at)}` : ''}
-          {lastSignal.close != null ? ` · 收盘 ${formatPrice(lastSignal.close)}` : ''}
+          {lastSignal.close != null ? ` · 收盘 ${formatEthPrice(lastSignal.close)}` : ''}
         </div>
       )}
 
-      {!ready ? (
+      {!authReady || !maReady ? (
         <p className="eth-ma-subscribe__muted">检查登录与推送状态…</p>
       ) : !accountId ? (
         <form className="eth-ma-subscribe__form" onSubmit={handleLogin}>

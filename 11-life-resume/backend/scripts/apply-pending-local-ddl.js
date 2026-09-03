@@ -30,6 +30,7 @@ const MIGRATION_FILES = [
   '010-eth-ma-web-push.sql',
   '011-eth-ma-1h.sql',
   '012-accounts.sql',
+  '013-eth-ma-trade-logs.sql',
 ];
 
 const DEFAULT_DB_NAME = '11_life_resume';

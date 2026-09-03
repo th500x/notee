@@ -4,14 +4,34 @@
 
 const crypto = require('crypto');
 const express = require('express');
-const { publicReadLimiter, ethMaIngestLimiter } = require('../middleware/rateLimit');
+const { requireAuth } = require('../middleware/auth');
+const { publicReadLimiter, ethMaIngestLimiter, pushSubscribeLimiter } = require('../middleware/rateLimit');
 const { ETH_MA_CROSS } = require('../constants/ethMaCross');
 const { getLatestSnapshot } = require('../services/ethMaCross/signalStateStore');
 const { parseRestKline } = require('../services/ethMaCross/binanceFuturesKline');
 const { applyClosedKlineSeries } = require('../services/ethMaCross/processBar');
 const { completePushRelay } = require('../services/ethMaCross/completePushRelay');
+const { PushSubscriptionError } = require('../services/webPush/subscriptionService');
+const {
+  TradeLogError,
+  getTradesJournal,
+  upsertTrade,
+  deleteTrade,
+} = require('../services/ethMaCross/tradeLogService');
 
 const router = express.Router();
+
+function handleTradeError(res, err) {
+  if (err instanceof TradeLogError || err instanceof PushSubscriptionError) {
+    return res.status(err.status).json({
+      success: false,
+      error: err.message,
+      code: err.code,
+    });
+  }
+  console.error('[life-resume/eth-ma-cross]', err);
+  return res.status(500).json({ success: false, error: '服务器内部错误' });
+}
 
 function readIngestSecret(req) {
   const header = req.get('x-eth-ma-ingest-secret');
@@ -137,6 +157,36 @@ router.post('/push-ack', ethMaIngestLimiter, async (req, res, next) => {
       });
     }
     return next(err);
+  }
+});
+
+/** GET /api/life-resume/eth-ma-cross/trades-journal */
+router.get('/trades-journal', requireAuth, publicReadLimiter, async (req, res) => {
+  try {
+    const data = await getTradesJournal(req.player.sub);
+    return res.json({ success: true, data });
+  } catch (err) {
+    return handleTradeError(res, err);
+  }
+});
+
+/** PUT /api/life-resume/eth-ma-cross/trades */
+router.put('/trades', requireAuth, pushSubscribeLimiter, async (req, res) => {
+  try {
+    const data = await upsertTrade(req.player.sub, req.body || {});
+    return res.json({ success: true, data });
+  } catch (err) {
+    return handleTradeError(res, err);
+  }
+});
+
+/** DELETE /api/life-resume/eth-ma-cross/trades/:signalOpenTime */
+router.delete('/trades/:signalOpenTime', requireAuth, pushSubscribeLimiter, async (req, res) => {
+  try {
+    const data = await deleteTrade(req.player.sub, req.params.signalOpenTime);
+    return res.json({ success: true, data });
+  } catch (err) {
+    return handleTradeError(res, err);
   }
 });
 

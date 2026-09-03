@@ -24,6 +24,8 @@ const ETH_MA_CROSS = {
   WS_RETRY_MIN_MS: 1000,
   WS_RETRY_MAX_MS: 30 * 1000,
   OPEN_URL: '/07-coin-index/',
+  /** 操作记录「待记」列表：最近交叉条数（一年几百次，不自动开空表） */
+  RECENT_SIGNAL_LIMIT: 24,
 };
 
 module.exports = { ETH_MA_CROSS };
