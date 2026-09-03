@@ -8,6 +8,16 @@ function signalDate(trade) {
   return Number.isNaN(date.getTime()) ? null : date
 }
 
+/** 手填最终收益合计；缺字段按 0。 */
+export function sumTradePnl(trades) {
+  let total = 0
+  for (const trade of Array.isArray(trades) ? trades : []) {
+    const n = Number(trade?.pnl)
+    if (Number.isFinite(n)) total += n
+  }
+  return Math.round(total * 100) / 100
+}
+
 export function groupTradesByYearMonth(trades) {
   const years = new Map()
   for (const trade of Array.isArray(trades) ? trades : []) {
@@ -23,12 +33,21 @@ export function groupTradesByYearMonth(trades) {
 
   return [...years.entries()]
     .sort((a, b) => b[0] - a[0])
-    .map(([year, months]) => ({
-      year,
-      months: [...months.entries()]
+    .map(([year, months]) => {
+      const monthGroups = [...months.entries()]
         .sort((a, b) => b[0] - a[0])
-        .map(([month, items]) => ({ year, month, trades: items })),
-    }))
+        .map(([month, items]) => ({
+          year,
+          month,
+          trades: items,
+          pnlTotal: sumTradePnl(items),
+        }))
+      return {
+        year,
+        months: monthGroups,
+        pnlTotal: sumTradePnl(monthGroups.flatMap((item) => item.trades)),
+      }
+    })
 }
 
 export function isCurrentYearMonth(year, month, now = new Date()) {

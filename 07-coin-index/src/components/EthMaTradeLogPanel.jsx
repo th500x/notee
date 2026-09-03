@@ -24,6 +24,24 @@ function signalLine(signal) {
   return [signal.kindLabel, signal.biasLabel, time, close].filter(Boolean).join(' · ')
 }
 
+function pnlTone(value) {
+  if (value > 0) return 'up'
+  if (value < 0) return 'down'
+  return 'zero'
+}
+
+function FoldSummary({ label, pnlTotal }) {
+  const total = Number.isFinite(Number(pnlTotal)) ? Number(pnlTotal) : 0
+  return (
+    <summary className="eth-ma-trade-log__fold-head">
+      <span>{label}</span>
+      <span className={`eth-ma-trade-log__pnl eth-ma-trade-log__pnl--${pnlTone(total)}`}>
+        {formatPnl(total)}
+      </span>
+    </summary>
+  )
+}
+
 function draftFromTrade(trade) {
   if (!trade) return { ...EMPTY_DRAFT }
   return {
@@ -244,14 +262,17 @@ function EthMaTradeLogPanel({ accountId }) {
             ) : (
               grouped.map((yearGroup) => (
                 <details key={yearGroup.year} className="eth-ma-trade-log__fold" open={yearGroup.year === new Date().getFullYear()}>
-                  <summary>{yearGroup.year}年</summary>
+                  <FoldSummary label={`${yearGroup.year}年`} pnlTotal={yearGroup.pnlTotal} />
                   {yearGroup.months.map((monthGroup) => (
                     <details
                       key={`${monthGroup.year}-${monthGroup.month}`}
                       className="eth-ma-trade-log__fold eth-ma-trade-log__fold--month"
                       open={isCurrentYearMonth(monthGroup.year, monthGroup.month)}
                     >
-                      <summary>{monthGroup.month}月 · {monthGroup.trades.length} 笔</summary>
+                      <FoldSummary
+                        label={`${monthGroup.month}月 · ${monthGroup.trades.length} 笔`}
+                        pnlTotal={monthGroup.pnlTotal}
+                      />
                       <ul className="eth-ma-trade-log__list">
                         {monthGroup.trades.map((trade) => (
                           <li key={trade.id} className={`eth-ma-trade-log__row eth-ma-trade-log__row--${trade.signal?.cross}`}>
