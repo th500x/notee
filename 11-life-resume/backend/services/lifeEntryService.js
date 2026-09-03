@@ -4,15 +4,15 @@
 
 const { query, transaction } = require('../database/connection');
 const { getProfileForAccount } = require('./lifeProfileService');
-const { validateAccountIdFormat } = require('../../../33-san-storm/shared/utils/lifeResumeUsername.cjs');
+const { validateAccountIdFormat } = require('../../shared/utils/lifeResumeUsername.cjs');
 const {
   validateEntryBody,
   validateEntryTitle,
   countGraphemes,
   LIFE_ENTRY_BODY_MAX,
-} = require('../../../33-san-storm/shared/utils/lifeResumeGraphemeCount.cjs');
-const { validateEntryTimeFields } = require('../../../33-san-storm/shared/utils/lifeResumeEntryTime.cjs');
-const { normalizeEntryTags } = require('../../../33-san-storm/shared/utils/lifeResumeEntryTags.cjs');
+} = require('../../shared/utils/lifeResumeGraphemeCount.cjs');
+const { validateEntryTimeFields } = require('../../shared/utils/lifeResumeEntryTime.cjs');
+const { normalizeEntryTags } = require('../../shared/utils/lifeResumeEntryTags.cjs');
 const {
   resolveMediaInputForSave,
   bindParsedMediaToNewEntry,
@@ -26,13 +26,13 @@ const {
   parseGoogleDriveShareUrl,
   formatGoogleDriveFromRow,
   normalizeGoogleDriveDisplayLabel,
-} = require('../../../33-san-storm/shared/utils/parseGoogleDriveShareUrl.cjs');
-const { validateCoordinates } = require('../../../33-san-storm/shared/utils/lifeResumeLocation.cjs');
+} = require('../../shared/utils/parseGoogleDriveShareUrl.cjs');
+const { validateCoordinates } = require('../../shared/utils/lifeResumeLocation.cjs');
 const {
   normalizeLocationPlaceName,
   normalizeLocationMapsUrl,
   parseGoogleMapsShareUrl,
-} = require('../../../33-san-storm/shared/utils/parseGoogleMapsShareUrl.cjs');
+} = require('../../shared/utils/parseGoogleMapsShareUrl.cjs');
 const { resolveLocationPublicLabel } = require('./reverseGeocodeService');
 const { resolveGoogleMapsShareUrl, GoogleMapsResolveError } = require('./googleMapsUrlResolveService');
 const {
@@ -41,7 +41,7 @@ const {
 } = require('./lifeEntrySeriesService');
 const {
   normalizeEntrySeriesId,
-} = require('../../../33-san-storm/shared/utils/lifeResumeEntrySeries.cjs');
+} = require('../../shared/utils/lifeResumeEntrySeries.cjs');
 const {
   analyzeFindQuery,
   applyBodyReplace,

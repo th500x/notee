@@ -11,7 +11,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
-      '@shared': path.resolve(__dirname, '../33-san-storm/shared'),
+      '@shared': path.resolve(__dirname, './shared'),
     },
   },
   server: {
@@ -19,9 +19,6 @@ export default defineConfig({
     open: '/11-life-resume/',
     headers: {
       'Cache-Control': 'public, max-age=31536000, immutable',
-    },
-    fs: {
-      allow: ['..'],
     },
     proxy: {
       '/api/life-resume': {

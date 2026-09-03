@@ -1,13 +1,13 @@
 /**
- * 账号认证核心（登录 / 注册 / 候选 ID / 改密）
- * 仅供本项目使用。11 人生片段已自持副本，不再 require 本文件。
- * 须与既有 accountService 行为保持一致。
+ * 人生片段账号认证核心（登录 / 注册 / 候选 ID / 改密）
+ * 11 掌管 Notee 账号；读写本库 accounts。
+ * 由调用方注入 accounts 所在库的 pool。
  */
 
 const bcrypt = require('bcrypt');
 const { validateNewAccountPassword } = require('../../shared/utils/accountPasswordRules.cjs');
 
-/** 系统占位账号（传书 sender_id 外键），禁止注册与登录 */
+/** 系统占位账号（游戏传书 sender_id 外键），禁止注册与登录 */
 const SYSTEM_ACCOUNT_ID = 'sys1';
 
 const BCRYPT_ROUNDS = 10;
@@ -180,16 +180,8 @@ function createAccountAuth(deps) {
 
     const hashedPassword = await bcrypt.hash(password, BCRYPT_ROUNDS);
 
-    let currentSeason = null;
     const resolvedServerId = serverId || null;
-    if (resolvedServerId) {
-      const [serverConfig] = await pool.query(
-        'SELECT current_season FROM config_servers WHERE server_id = ?',
-        [resolvedServerId]
-      );
-      currentSeason =
-        serverConfig.length > 0 ? serverConfig[0].current_season : 'san_0_m1/san_1';
-    }
+    const currentSeason = null;
 
     const connection = await pool.getConnection();
     await connection.beginTransaction();

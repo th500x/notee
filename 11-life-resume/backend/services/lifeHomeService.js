@@ -3,9 +3,9 @@
  */
 
 const { query } = require('../database/connection');
-const { validateAccountIdFormat } = require('../../../33-san-storm/shared/utils/lifeResumeUsername.cjs');
-const { formatProfileDisplayName } = require('../../../33-san-storm/shared/utils/lifeResumeProfileRegion.cjs');
-const { resolvePublishedLifePathForPublic } = require('../../../33-san-storm/shared/utils/lifeResumeLifePath.cjs');
+const { validateAccountIdFormat } = require('../../shared/utils/lifeResumeUsername.cjs');
+const { formatProfileDisplayName } = require('../../shared/utils/lifeResumeProfileRegion.cjs');
+const { resolvePublishedLifePathForPublic } = require('../../shared/utils/lifeResumeLifePath.cjs');
 const { getProfileForAccount, ProfileServiceError } = require('./lifeProfileService');
 
 class HomeServiceError extends Error {

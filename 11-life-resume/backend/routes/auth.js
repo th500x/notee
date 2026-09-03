@@ -1,5 +1,5 @@
 /**
- * 人生片段认证：登录 / 注册 / 候选 ID / 改密走本后端，校验 05 同一张 accounts 表。
+ * 人生片段认证：登录 / 注册 / 候选 ID / 改密；读写本库 accounts。
  */
 
 const express = require('express');

@@ -7,7 +7,7 @@ const {
   normalizeLocationMapsUrl,
   canonicalizeGoogleMapsShareUrl,
   isGoogleMapsShortUrl,
-} = require('../../../33-san-storm/shared/utils/parseGoogleMapsShareUrl.cjs');
+} = require('../../shared/utils/parseGoogleMapsShareUrl.cjs');
 
 const RESOLVE_TIMEOUT_MS = 12000;
 const MAX_REDIRECTS = 10;

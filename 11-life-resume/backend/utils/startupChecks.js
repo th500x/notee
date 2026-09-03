@@ -12,7 +12,7 @@ function assertJwtSecret() {
       return;
     }
     console.error('[life-resume] JWT_SECRET 未配置或过短（>=16 字符）');
-    console.error('  请与 33-san-storm/backend/.env 使用相同 JWT_SECRET');
+    console.error('  请在 11-life-resume/backend/.env 配置 JWT_SECRET（>=16 字符）');
     process.exit(1);
   }
 }

@@ -6,7 +6,7 @@
 const {
   buildRegionPublicLabel,
   isPlaceholderClientIp,
-} = require('../../../33-san-storm/shared/utils/lifeResumeProfileRegion.cjs');
+} = require('../../shared/utils/lifeResumeProfileRegion.cjs');
 
 const FETCH_TIMEOUT_MS = parseInt(process.env.LIFE_RESUME_IP_GEO_TIMEOUT_MS || '4500', 10);
 

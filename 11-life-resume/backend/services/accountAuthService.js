@@ -1,14 +1,14 @@
 /**
- * 人生片段账号认证：复用 05 accountAuthCore，读写 05_san_storm.accounts。
- * 不启动 05 进程；JWT 用 11 自己的 JWT_SECRET（须与 05 相同）。
+ * 人生片段账号认证：读写本库 11_life_resume.accounts（11 掌管）。
+ * 05/33 原表仅作历史，不再读写。
  */
 
-const { createAccountAuth } = require('../../../33-san-storm/backend/services/accountAuthCore');
-const { accountsPool } = require('../database/sanStormAccountsConnection');
+const { createAccountAuth } = require('./accountAuthCore');
+const { pool } = require('../database/connection');
 const { signPlayerToken } = require('../middleware/auth');
 
 const accountAuth = createAccountAuth({
-  pool: accountsPool,
+  pool,
   signPlayerToken,
   requireServerId: false,
 });

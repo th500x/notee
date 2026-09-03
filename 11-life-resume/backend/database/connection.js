@@ -38,6 +38,18 @@ async function testConnection() {
   }
 }
 
+async function testAccountsConnection() {
+  try {
+    const connection = await pool.getConnection();
+    await connection.query('SELECT 1 FROM accounts LIMIT 1');
+    connection.release();
+    return true;
+  } catch (error) {
+    console.error('[life-resume/accounts] table missing or unreadable:', error.message);
+    return false;
+  }
+}
+
 async function query(sql, params = []) {
   const [rows] = await pool.execute(sql, params);
   return rows;
@@ -67,6 +79,7 @@ module.exports = {
   query,
   transaction,
   testConnection,
+  testAccountsConnection,
   closePool,
   dbConfig,
 };

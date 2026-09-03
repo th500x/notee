@@ -1,5 +1,5 @@
 /**
- * 人生片段认证 API（11 后端 /api/life-resume/auth；校验 05 同一张 accounts 表）。
+ * 人生片段认证 API（11 后端 /api/life-resume/auth；本库 accounts）。
  * 错误文案原样透传（含 429 冷却、429 限流）。
  */
 
@@ -58,7 +58,7 @@ export async function getRegisterCandidates(count = 5, excludeIds = []) {
       qs.set('exclude', excludeIds.join(','));
     }
     const res = await fetchWithTimeout(
-      `${appConfig.sanStormAuthBase}/register-candidates?${qs.toString()}`,
+      `${appConfig.lifeResumeAuthBase}/register-candidates?${qs.toString()}`,
       { method: 'GET' }
     );
     const text = await res.text();
@@ -89,7 +89,7 @@ export async function getRegisterCandidates(count = 5, excludeIds = []) {
 
 export async function registerAccount(body) {
   try {
-    const res = await fetchWithTimeout(`${appConfig.sanStormAuthBase}/register`, {
+    const res = await fetchWithTimeout(`${appConfig.lifeResumeAuthBase}/register`, {
       method: 'POST',
       body: JSON.stringify(body),
     });
@@ -105,7 +105,7 @@ export async function registerAccount(body) {
 
 export async function loginAccount(id, password) {
   try {
-    const res = await fetchWithTimeout(`${appConfig.sanStormAuthBase}/login`, {
+    const res = await fetchWithTimeout(`${appConfig.lifeResumeAuthBase}/login`, {
       method: 'POST',
       body: JSON.stringify({ id, password }),
     });
@@ -126,7 +126,7 @@ export async function changePassword({ password, confirmPassword }) {
     return { success: false, error: '请先登录后再修改密码' };
   }
   try {
-    const res = await fetchWithTimeout(`${appConfig.sanStormAuthBase}/change-password`, {
+    const res = await fetchWithTimeout(`${appConfig.lifeResumeAuthBase}/change-password`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${token}`,

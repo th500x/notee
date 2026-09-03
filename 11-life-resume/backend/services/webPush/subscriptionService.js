@@ -1,7 +1,7 @@
 const crypto = require('crypto');
 const { query } = require('../../database/connection');
 const { ETH_MA_CROSS } = require('../../constants/ethMaCross');
-const { validateAccountIdFormat } = require('../../../../33-san-storm/shared/utils/lifeResumeUsername.cjs');
+const { validateAccountIdFormat } = require('../../../shared/utils/lifeResumeUsername.cjs');
 
 const ENDPOINT_MAX = 1024;
 const KEY_MAX = 255;

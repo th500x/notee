@@ -1,5 +1,5 @@
 /**
- * JWT auth (HS256) — must use same JWT_SECRET as 33-san-storm.
+ * JWT auth (HS256)。11 掌管；已签发令牌在密钥不变时继续有效。
  */
 
 const jwt = require('jsonwebtoken');
@@ -23,7 +23,7 @@ function getTokenTtlSeconds() {
 }
 
 /**
- * 签发玩家会话 JWT（须与 05 signPlayerToken 同算法、同 secret，旧 token 才能继续用）。
+ * 签发玩家会话 JWT。
  * @param {{ id: string, role?: string }} account
  * @returns {{ token: string, expiresAt: number }}
  */

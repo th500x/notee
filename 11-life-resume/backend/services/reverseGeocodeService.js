@@ -3,13 +3,13 @@
  * Uses OpenStreetMap Nominatim — no API key; respect rate limits in production.
  */
 
-const { validateCoordinates } = require('../../../33-san-storm/shared/utils/lifeResumeLocation.cjs');
+const { validateCoordinates } = require('../../shared/utils/lifeResumeLocation.cjs');
 const {
   extractGeocodeQueryCandidates,
   buildFallbackPublicLabelFromPlaceName,
   extractKnownCityMentionFromPlaceName,
   isDegeneratePublicLabel,
-} = require('../../../33-san-storm/shared/utils/locationPublicLabelFallback.cjs');
+} = require('../../shared/utils/locationPublicLabelFallback.cjs');
 
 const NOMINATIM_REVERSE = 'https://nominatim.openstreetmap.org/reverse';
 const NOMINATIM_SEARCH = 'https://nominatim.openstreetmap.org/search';

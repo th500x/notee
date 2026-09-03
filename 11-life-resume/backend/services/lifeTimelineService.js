@@ -3,9 +3,9 @@
  */
 
 const { query } = require('../database/connection');
-const { validateAccountIdFormat } = require('../../../33-san-storm/shared/utils/lifeResumeUsername.cjs');
-const { formatProfileDisplayName } = require('../../../33-san-storm/shared/utils/lifeResumeProfileRegion.cjs');
-const { resolvePublishedLifePathForPublic } = require('../../../33-san-storm/shared/utils/lifeResumeLifePath.cjs');
+const { validateAccountIdFormat } = require('../../shared/utils/lifeResumeUsername.cjs');
+const { formatProfileDisplayName } = require('../../shared/utils/lifeResumeProfileRegion.cjs');
+const { resolvePublishedLifePathForPublic } = require('../../shared/utils/lifeResumeLifePath.cjs');
 const { findProfileByAccountId, ensureProfileRegionFromIp } = require('./lifeProfileService');
 const { formatEntryForViewer } = require('./lifeEntryService');
 const { attachMediaMapToEntries } = require('./lifeEntryMediaService');
@@ -14,7 +14,7 @@ const {
 } = require('./lifeEntrySeriesService');
 const {
   buildVisibleEntrySeriesList,
-} = require('../../../33-san-storm/shared/utils/lifeResumeEntrySeries.cjs');
+} = require('../../shared/utils/lifeResumeEntrySeries.cjs');
 
 class TimelineServiceError extends Error {
   constructor(code, message, status = 404) {
