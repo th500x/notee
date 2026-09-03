@@ -114,8 +114,10 @@ export default function EntryMediaUpload({
     onMediaItemsChange(nextItems);
   };
 
-  const uploadMediaFile = async (file, mediaType, originalFilenameOverride = null) => {
+  const uploadMediaFile = async (file, mediaType, originalFilenameOverride = null, options = {}) => {
+    const { baseItems = mediaItems, manageUploading = true } = options;
     const originalFilename = originalFilenameOverride || file.name;
+    const currentPhotoCount = baseItems.filter((item) => item.mediaType === 'photo').length;
     const check = validateMediaUploadRequest({
       mediaType,
       mimeType: file.type,
@@ -124,18 +126,20 @@ export default function EntryMediaUpload({
     });
     if (!check.ok) {
       setUploadError(check.error);
-      return;
+      return null;
     }
 
-    if (mediaType === 'photo' && photoCount >= LIFE_MEDIA_MAX_PHOTOS) {
+    if (mediaType === 'photo' && currentPhotoCount >= LIFE_MEDIA_MAX_PHOTOS) {
       setUploadError(`最多 ${LIFE_MEDIA_MAX_PHOTOS} 张照片`);
-      return;
+      return null;
     }
 
-    setUploading(true);
-    setUploadError('');
+    if (manageUploading) {
+      setUploading(true);
+      setUploadError('');
+    }
     try {
-      const sortOrder = mediaType === 'photo' ? photoCount + 1 : 1;
+      const sortOrder = mediaType === 'photo' ? currentPhotoCount + 1 : 1;
       const sign = await requestUploadSign({
         entryId: entryId || null,
         stagingToken: entryId ? null : stagingTokenRef.current,
@@ -158,26 +162,88 @@ export default function EntryMediaUpload({
         previewUrl: mediaType === 'photo' ? URL.createObjectURL(file) : undefined,
       };
 
-      if (mediaType === 'video' || mediaType === 'document') {
-        onMediaItemsChange([nextItem]);
-      } else {
-        onMediaItemsChange([...mediaItems, nextItem]);
-      }
+      const nextItems =
+        mediaType === 'video' || mediaType === 'document'
+          ? [nextItem]
+          : [...baseItems, nextItem];
+      onMediaItemsChange(nextItems);
+      return nextItems;
     } catch (err) {
       setUploadError(err.message || '上传失败');
+      return null;
     } finally {
-      setUploading(false);
+      if (manageUploading) {
+        setUploading(false);
+      }
     }
   };
 
   const handleFileChange = async (event) => {
-    const file = event.target.files?.[0];
+    const files = Array.from(event.target.files || []);
     event.target.value = '';
-    if (!file || disabled || uploading) return;
+    if (files.length === 0 || disabled || uploading) return;
 
     setUploadError('');
     const mediaType = resolveActiveMediaType(mediaBundleType);
     if (!mediaType) return;
+
+    if (mediaType === 'photo' && autoCrop4k) {
+      const remaining = LIFE_MEDIA_MAX_PHOTOS - photoCount;
+      if (remaining <= 0) {
+        setUploadError(`最多 ${LIFE_MEDIA_MAX_PHOTOS} 张照片`);
+        return;
+      }
+      const picked = files.slice(0, remaining);
+      if (files.length > remaining) {
+        setUploadError(`最多 ${LIFE_MEDIA_MAX_PHOTOS} 张照片，已按选择顺序取前 ${remaining} 张`);
+      }
+
+      setUploading(true);
+      let workingItems = mediaItems;
+      try {
+        for (const file of picked) {
+          const preCheck = validateMediaUploadRequest({
+            mediaType: 'photo',
+            mimeType: file.type,
+            sizeBytes: file.size,
+            skipSizeCheck: true,
+          });
+          if (!preCheck.ok) {
+            setUploadError(preCheck.error);
+            break;
+          }
+          const displayFilename = await resolvePhotoOriginalFilename(file);
+          const processed = await processPhotoFileWithPreset(
+            file,
+            LIFE_PHOTO_AUTO_CROP_4K_PRESET_ID,
+            displayFilename
+          );
+          const sizeCheck = validateMediaUploadRequest({
+            mediaType: 'photo',
+            mimeType: processed.type,
+            sizeBytes: processed.size,
+          });
+          if (!sizeCheck.ok) {
+            setUploadError(sizeCheck.error);
+            break;
+          }
+          const nextItems = await uploadMediaFile(processed, 'photo', displayFilename, {
+            baseItems: workingItems,
+            manageUploading: false,
+          });
+          if (!nextItems) break;
+          workingItems = nextItems;
+        }
+      } catch (err) {
+        setUploadError(err.message || '按 4K 比例处理失败');
+      } finally {
+        setUploading(false);
+      }
+      return;
+    }
+
+    const file = files[0];
+    if (!file) return;
 
     if (mediaType === 'photo') {
       const preCheck = validateMediaUploadRequest({
@@ -195,34 +261,6 @@ export default function EntryMediaUpload({
         return;
       }
       const displayFilename = await resolvePhotoOriginalFilename(file);
-
-      if (autoCrop4k) {
-        setUploadError('');
-        try {
-          setUploading(true);
-          const processed = await processPhotoFileWithPreset(
-            file,
-            LIFE_PHOTO_AUTO_CROP_4K_PRESET_ID,
-            displayFilename
-          );
-          const sizeCheck = validateMediaUploadRequest({
-            mediaType: 'photo',
-            mimeType: processed.type,
-            sizeBytes: processed.size,
-          });
-          setUploading(false);
-          if (!sizeCheck.ok) {
-            setUploadError(sizeCheck.error);
-            return;
-          }
-          await uploadMediaFile(processed, 'photo', displayFilename);
-        } catch (err) {
-          setUploadError(err.message || '按 4K 比例处理失败');
-          setUploading(false);
-        }
-        return;
-      }
-
       setCropSession({ file, displayFilename });
       return;
     }
@@ -256,7 +294,7 @@ export default function EntryMediaUpload({
   const hintText =
     mediaBundleType === 'photos'
       ? autoCrop4k
-        ? `JPG / PNG / WebP，最多 3 张；已勾选「${AUTO_4K_PRESET_LABEL}」，选图后居中裁切直接上传（横竖自动适配）`
+        ? `JPG / PNG / WebP，最多 3 张；已勾选「${AUTO_4K_PRESET_LABEL}」，可一次选最多 3 张（顺序按选择顺序），选图后居中裁切直接上传（横竖自动适配）`
         : 'JPG / PNG / WebP，最多 3 张；先裁剪，裁剪后单张 ≤10MB（1:1 / 4:3 / 16:9，横竖自动适配）'
       : mediaBundleType === 'video'
         ? 'MP4，≤50MB，最多 1 个'
@@ -306,6 +344,7 @@ export default function EntryMediaUpload({
                 type="file"
                 className="sr-only"
                 accept={acceptTypes}
+                multiple={mediaBundleType === 'photos' && autoCrop4k}
                 disabled={disabled || uploading || !!cropSession}
                 onChange={handleFileChange}
               />
