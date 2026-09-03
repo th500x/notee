@@ -19,6 +19,7 @@ const {
 const { assertPassword, hashPassword, verifyPassword } = require('../lib/password');
 const { signPlayerToken } = require('../middleware/auth');
 const { httpError } = require('../lib/httpError');
+const { deleteUser: deletePourMedia } = require('./pourMediaStore');
 
 /** Never select `password_hash` into anything that can reach a response. */
 const USER_COLS = `id, login_id, nick_name, flag_id, gender, avatar_id, status,
@@ -374,6 +375,9 @@ async function deleteMe(userId) {
   );
   await query(`DELETE FROM stamp_bags WHERE user_id = ?`, [userId]);
   await query(`DELETE FROM pour_bags WHERE user_id = ?`, [userId]);
+  await deletePourMedia(userId).catch((err) => {
+    console.error('[one-line/pour-media] deleteMe', err.message);
+  });
   return { deleted: true };
 }
 
@@ -382,6 +386,17 @@ async function deleteMe(userId) {
  * Registered short-id accounts are never swept — they can still sign in after losing the device.
  */
 async function purgeIdleSilentAccounts() {
+  const idle = await query(
+    `SELECT id FROM users
+     WHERE status = 'active'
+       AND login_id IS NULL
+       AND last_seen_at < DATE_SUB(UTC_TIMESTAMP(), INTERVAL ${SILENT_IDLE_DAYS} DAY)`
+  );
+  for (const row of idle) {
+    await deletePourMedia(row.id).catch((err) => {
+      console.error('[one-line/pour-media] idle purge', row.id, err.message);
+    });
+  }
   await query(
     `DELETE sb FROM stamp_bags sb
      INNER JOIN users u ON u.id = sb.user_id

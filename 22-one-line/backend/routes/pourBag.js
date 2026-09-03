@@ -7,8 +7,11 @@ const { requireAuth } = require('../middleware/auth');
 const { publicReadLimiter, stampBagWriteLimiter } = require('../middleware/rateLimit');
 const { sendServiceError } = require('../lib/sendServiceError');
 const { getBag, putBag } = require('../services/pourBagService');
+const pourMediaRouter = require('./pourMedia');
 
 const router = express.Router();
+
+router.use('/media', pourMediaRouter);
 
 router.get('/bag', requireAuth, publicReadLimiter, async (req, res) => {
   try {

@@ -5,6 +5,8 @@
 const { query } = require('../database/connection');
 const { httpError } = require('../lib/httpError');
 const { parseBody, publicBag } = require('../lib/pourBagRules');
+const { historySittingIds } = require('../lib/pourMedia');
+const { pruneToIds, deleteUser: deletePourMedia } = require('./pourMediaStore');
 const { requireActiveUser } = require('./userService');
 
 async function getBag(userId) {
@@ -65,6 +67,9 @@ async function putBag(userId, body) {
     }
     throw err;
   }
+  await pruneToIds(userId, historySittingIds(bag.historyBlob)).catch((err) => {
+    console.error('[one-line/pour-media] prune after bag put', err.message);
+  });
   return publicBag({
     ledger_blob: bag.ledgerBlob,
     history_blob: bag.historyBlob,
@@ -75,6 +80,9 @@ async function putBag(userId, body) {
 
 async function deleteBag(userId) {
   await query(`DELETE FROM pour_bags WHERE user_id = ?`, [userId]);
+  await deletePourMedia(userId).catch((err) => {
+    console.error('[one-line/pour-media] deleteBag', err.message);
+  });
 }
 
 module.exports = { getBag, putBag, deleteBag };

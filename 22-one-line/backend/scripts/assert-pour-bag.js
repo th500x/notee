@@ -53,6 +53,12 @@ const withPhoto = JSON.stringify({
 });
 assert.throws(() => assertHistoryBlob(withPhoto), (err) => err.code === 'POUR_NO_MEDIA' || err.code === 'POUR_BAG_BAD_BLOB');
 
+const withCropFlags = JSON.stringify({
+  v: 1,
+  records: [{ ...record, startCrop: true, endCrop: false }],
+});
+assert.strictEqual(assertHistoryBlob(withCropFlags), withCropFlags);
+
 const legacy = {
   id: 'not-a-uuid',
   outcome: 'Expired',

@@ -54,6 +54,9 @@ const giftClaimLimiter = limiter({ windowMs: 60 * 1000, limit: 60 });
 /** Bag sync after each local mutation (gift / check-in / craft). */
 const stampBagWriteLimiter = limiter({ windowMs: 60 * 1000, limit: 60 });
 
+/** Square-crop PUT/GET: up to 30 sittings × 2 slots after login. */
+const pourMediaLimiter = limiter({ windowMs: 60 * 1000, limit: 180 });
+
 /** Login id candidates: cheap, but a refresh button invites tapping. */
 const loginIdCandidateLimiter = limiter({ windowMs: 60 * 1000, limit: 30 });
 
@@ -77,6 +80,7 @@ module.exports = {
   authWriteLimiter,
   giftClaimLimiter,
   stampBagWriteLimiter,
+  pourMediaLimiter,
   loginIdCandidateLimiter,
   credentialLimiter,
   loginIdAttemptLimiter,

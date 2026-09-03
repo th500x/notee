@@ -110,6 +110,8 @@ Pass / 荣耀受众等 `users.pass_at` / `honor_at` 再开。客户端认 `kind=
 
 酒局袋（开瓶账 + 最近 30 条结构化历史，**无原片**）：`GET/PUT /pour/bag`，同样跟 JWT `sub`。短号登录拉云袋；云端 `revision = 0` 则清空本机袋，不把上一身份推上去。JSON 体上限 256kb。规则正本：sibling `notee-go` → `docs/03-Pour-Check.md` §3.7。`npm run test:pour-bag`。
 
+正方形裁切私有备份（与局卡同一刀，**不是**原片、**不上** Feed）：`PUT/GET/HEAD /pour/media/:sittingId/{start|end}`，JPEG ≤300kb，跟 JWT `sub`。袋里只记 `startCrop` / `endCrop`。删号、闲置清扫、袋 PUT 修剪 30 条都会删磁盘对象。目录 `POUR_MEDIA_DIR`（默认 `22-one-line/data/pour-media`）。`npm run test:pour-media`。
+
 酒局帖默认 `PATCH` → `POUR_NO_EDIT`。写一句每天 1；酒局每天最多 2。软删仍占该名额。结束同步的瓶数只计有消耗的瓶。
 
 **QA 临时开关（测完必须 `false`，与 App 一起关）：**  
