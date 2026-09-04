@@ -119,7 +119,7 @@ export async function loginAccount(id, password) {
   }
 }
 
-/** POST /api/life-resume/auth/change-password — 须 JWT；与真三风云同一账号，不校验旧密码 */
+/** POST /api/life-resume/auth/change-password — 须 JWT；不校验旧密码 */
 export async function changePassword({ password, confirmPassword }) {
   const token = lifeResumeSession.getToken();
   if (!token) {
@@ -153,6 +153,50 @@ export async function changePassword({ password, confirmPassword }) {
       success: false,
       status: res.status,
       error: data.error || data.message || '修改密码失败',
+      code: data.code,
+    };
+  } catch (err) {
+    if (err.name === 'AbortError') {
+      return { success: false, error: '请求超时，请稍后重试' };
+    }
+    return { success: false, error: '无法连接认证服务，请确认人生片段后端已运行' };
+  }
+}
+
+/** POST /api/life-resume/auth/change-birthday — 须 JWT；每人一次 */
+export async function changeBirthday({ birthYear, birthMonth, birthDay }) {
+  const token = lifeResumeSession.getToken();
+  if (!token) {
+    return { success: false, error: '请先登录后再修改生日' };
+  }
+  try {
+    const res = await fetchWithTimeout(`${appConfig.lifeResumeAuthBase}/change-birthday`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ birthYear, birthMonth, birthDay }),
+    });
+    const text = await res.text();
+    let data = {};
+    if (text) {
+      try {
+        data = JSON.parse(text);
+      } catch {
+        return {
+          success: false,
+          status: res.status,
+          error: `修改生日失败（服务暂不可用，HTTP ${res.status}），请稍后重试`,
+        };
+      }
+    }
+    if (data.success) {
+      return { success: true, message: data.message || '生日已更新', data: data.data };
+    }
+    return {
+      success: false,
+      status: res.status,
+      error: data.error || data.message || '修改生日失败',
       code: data.code,
     };
   } catch (err) {

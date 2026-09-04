@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { validateNewAccountPassword } from '@shared/utils/accountPasswordRules';
+import { validateBirthDate } from '@shared/utils/lifeResumeBirthday.js';
+import BirthDateSelects from '@/components/auth/BirthDateSelects';
 import { useLifeAuth } from '@/contexts/LifeAuthContext';
 import usePageMeta from '@/hooks/usePageMeta';
 import { getRegisterCandidates } from '@/services/authApi';
@@ -11,7 +13,6 @@ import {
   rememberRegisteredId,
 } from '@/utils/authUtils';
 
-const MONTHS = Array.from({ length: 12 }, (_, i) => i + 1);
 const CANDIDATE_COUNT = 5;
 
 export default function RegisterPage() {
@@ -23,7 +24,9 @@ export default function RegisterPage() {
   const [selectedId, setSelectedId] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [birthYear, setBirthYear] = useState('');
   const [birthMonth, setBirthMonth] = useState('');
+  const [birthDay, setBirthDay] = useState('');
   const [agreed, setAgreed] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -67,8 +70,9 @@ export default function RegisterPage() {
       setError(pwdCheck.error);
       return;
     }
-    if (!birthMonth) {
-      setError('请选择生日月份');
+    const birthCheck = validateBirthDate({ birthYear, birthMonth, birthDay });
+    if (!birthCheck.ok) {
+      setError(birthCheck.error);
       return;
     }
     if (!agreed) {
@@ -80,7 +84,9 @@ export default function RegisterPage() {
     const result = await register({
       id: selectedId,
       password,
-      birthMonth: parseInt(birthMonth, 10),
+      birthYear: birthCheck.birthYear,
+      birthMonth: birthCheck.birthMonth,
+      birthDay: birthCheck.birthDay,
       machineId: getMachineFingerprint(),
     });
     setLoading(false);
@@ -104,7 +110,7 @@ export default function RegisterPage() {
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-8">
         <h1 className="text-2xl font-bold text-slate-900 mb-2">注册</h1>
         <p className="text-sm text-slate-600 mb-6">
-          注册后可在人生片段与真三风云共用同一 ID；进入游戏前再选区服即可。
+          注册后即可用此 ID 登录人生片段。
         </p>
         <form className="space-y-4" onSubmit={handleSubmit}>
           <div>
@@ -131,7 +137,7 @@ export default function RegisterPage() {
                 )}
                 {idPoolSource === 'local' && (
                   <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1 mb-3">
-                    当前为离线候选；若注册失败，请刷新或确认 05 后端已启动后重试
+                    当前为离线候选；若注册失败，请刷新或确认人生片段后端已启动后重试
                   </p>
                 )}
                 <div className="flex flex-wrap gap-2 mb-3">
@@ -197,22 +203,18 @@ export default function RegisterPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1" htmlFor="reg-month">
-              生日月份
-            </label>
-            <select
-              id="reg-month"
-              className="w-full rounded-lg border border-slate-300 px-3 py-2"
-              value={birthMonth}
-              onChange={(e) => setBirthMonth(e.target.value)}
-            >
-              <option value="">请选择</option>
-              {MONTHS.map((m) => (
-                <option key={m} value={m}>
-                  {m} 月
-                </option>
-              ))}
-            </select>
+            <p className="text-sm font-medium text-slate-700 mb-2">生日</p>
+            <BirthDateSelects
+              idPrefix="reg-birth"
+              year={birthYear}
+              month={birthMonth}
+              day={birthDay}
+              onChange={({ year, month, day }) => {
+                setBirthYear(year);
+                setBirthMonth(month);
+                setBirthDay(day);
+              }}
+            />
           </div>
 
           <label className="flex items-start gap-2 text-sm text-slate-600">

@@ -6,6 +6,7 @@
 
 const bcrypt = require('bcrypt');
 const { validateNewAccountPassword } = require('../../shared/utils/accountPasswordRules.cjs');
+const { validateBirthDate, toPublicBirthday } = require('../../shared/utils/lifeResumeBirthday.cjs');
 
 /** 系统占位账号（游戏传书 sender_id 外键），禁止注册与登录 */
 const SYSTEM_ACCOUNT_ID = 'sys1';
@@ -137,7 +138,9 @@ function createAccountAuth(deps) {
     const {
       id,
       password,
+      birthYear,
       birthMonth,
+      birthDay,
       serverId,
       machineId,
       clientIP,
@@ -145,8 +148,13 @@ function createAccountAuth(deps) {
       city,
     } = body;
 
-    if (!id || !password || birthMonth == null || (requireServerId && !serverId)) {
+    if (!id || !password || (requireServerId && !serverId)) {
       return { ok: false, status: 400, error: '缺少必填字段' };
+    }
+
+    const birthCheck = validateBirthDate({ birthYear, birthMonth, birthDay });
+    if (!birthCheck.ok) {
+      return { ok: false, status: 400, error: birthCheck.error };
     }
 
     const resolvedMachineId = (machineId && String(machineId).trim()) || 'unknown';
@@ -190,15 +198,17 @@ function createAccountAuth(deps) {
         await connection.query(
           `
         INSERT INTO accounts (
-          id, password, birthMonth, serverId,
+          id, password, birthYear, birthMonth, birthDay, serverId,
           current_season, machineId, clientIP,
           province, city, account_type, status
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'real', 'active')
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'real', 'active')
       `,
           [
             id,
             hashedPassword,
-            birthMonth,
+            birthCheck.birthYear,
+            birthCheck.birthMonth,
+            birthCheck.birthDay,
             resolvedServerId,
             currentSeason,
             resolvedMachineId,
@@ -337,12 +347,74 @@ function createAccountAuth(deps) {
     return { ok: true };
   }
 
+  async function getPublicBirthday(accountId) {
+    const id = String(accountId || '').trim();
+    if (!id) {
+      return { ok: false, status: 400, error: '缺少账号 ID' };
+    }
+    const [rows] = await pool.query(
+      'SELECT birthYear, birthMonth, birthDay, birthdayChangedAt FROM accounts WHERE id = ?',
+      [id]
+    );
+    if (!rows.length) {
+      return { ok: false, status: 404, error: '账号不存在' };
+    }
+    return { ok: true, data: toPublicBirthday(rows[0]) };
+  }
+
+  async function changeBirthday(accountId, body) {
+    const id = String(accountId || '').trim();
+    if (!id) {
+      return { ok: false, status: 400, error: '缺少账号 ID' };
+    }
+    if (id === SYSTEM_ACCOUNT_ID) {
+      return { ok: false, status: 400, error: '该账号不可修改生日' };
+    }
+
+    const birthCheck = validateBirthDate(body || {});
+    if (!birthCheck.ok) {
+      return { ok: false, status: 400, error: birthCheck.error };
+    }
+
+    const [rows] = await pool.query(
+      'SELECT id, status, birthdayChangedAt FROM accounts WHERE id = ?',
+      [id]
+    );
+    if (!rows.length) {
+      return { ok: false, status: 404, error: '账号不存在' };
+    }
+    if (rows[0].status !== 'active') {
+      return { ok: false, status: 403, error: '账号已封禁，无法修改生日' };
+    }
+    if (rows[0].birthdayChangedAt) {
+      return {
+        ok: false,
+        status: 403,
+        error: '生日仅可改正一次',
+        code: 'BIRTHDAY_LOCKED',
+      };
+    }
+
+    await pool.query(
+      'UPDATE accounts SET birthYear = ?, birthMonth = ?, birthDay = ?, birthdayChangedAt = NOW() WHERE id = ?',
+      [birthCheck.birthYear, birthCheck.birthMonth, birthCheck.birthDay, id]
+    );
+
+    const [updated] = await pool.query(
+      'SELECT birthYear, birthMonth, birthDay, birthdayChangedAt FROM accounts WHERE id = ?',
+      [id]
+    );
+    return { ok: true, data: toPublicBirthday(updated[0]) };
+  }
+
   return {
     pickRegisterIdCandidates,
     register,
     verifyExists,
     login,
     changePassword,
+    getPublicBirthday,
+    changeBirthday,
   };
 }
 

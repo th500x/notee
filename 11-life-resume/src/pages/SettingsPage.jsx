@@ -11,11 +11,14 @@ import {
 import { USERNAME_CHANGE_COOLDOWN_DAYS } from '@shared/utils/lifeResumeUsername.js';
 import { REGION_REFRESH_DAYS } from '@shared/utils/lifeResumeProfileRegion.js';
 import { normalizeAccountId, validateAccountIdFormat } from '@/utils/authUtils';
-import { changePassword } from '@/services/authApi';
+import { formatBirthDateLabel, validateBirthDate } from '@shared/utils/lifeResumeBirthday.js';
+import BirthDateSelects from '@/components/auth/BirthDateSelects';
+import { changeBirthday, changePassword } from '@/services/authApi';
 import {
   cancelDeactivationProfileMe,
   deactivateProfileMe,
   deleteEntrySeries,
+  fetchAuthMe,
   updateEntrySeries,
 } from '@/services/lifeResumeApi';
 import {
@@ -52,6 +55,13 @@ export default function SettingsPage() {
   const [deactivating, setDeactivating] = useState(false);
   const [deactivateError, setDeactivateError] = useState('');
   const [cancelling, setCancelling] = useState(false);
+  const [birthdayInfo, setBirthdayInfo] = useState(null);
+  const [birthdayLoading, setBirthdayLoading] = useState(true);
+  const [birthYear, setBirthYear] = useState('');
+  const [birthMonth, setBirthMonth] = useState('');
+  const [birthDay, setBirthDay] = useState('');
+  const [birthdayMsg, setBirthdayMsg] = useState(null);
+  const [birthdaySubmitting, setBirthdaySubmitting] = useState(false);
   const [passwordFormOpen, setPasswordFormOpen] = useState(false);
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -75,6 +85,29 @@ export default function SettingsPage() {
     setGranteeId(profile.defaultGranteeAccountId || '');
     setDefaultEntrySeriesId(profile.defaultEntrySeriesId ?? null);
   }, [profile]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setBirthdayLoading(true);
+      try {
+        const res = await fetchAuthMe();
+        const data = res?.data || {};
+        if (cancelled) return;
+        setBirthdayInfo(data);
+        setBirthYear(data.birthYear != null ? String(data.birthYear) : '');
+        setBirthMonth(data.birthMonth != null ? String(data.birthMonth) : '');
+        setBirthDay(data.birthDay != null ? String(data.birthDay) : '');
+      } catch {
+        if (!cancelled) setBirthdayInfo(null);
+      } finally {
+        if (!cancelled) setBirthdayLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -118,6 +151,39 @@ export default function SettingsPage() {
       setDeactivateError(formatLifeResumeError(err));
     } finally {
       setDeactivating(false);
+    }
+  };
+
+  const handleChangeBirthday = async (event) => {
+    event.preventDefault();
+    setBirthdayMsg(null);
+    const validation = validateBirthDate({ birthYear, birthMonth, birthDay });
+    if (!validation.ok) {
+      setBirthdayMsg({ type: 'error', text: validation.error });
+      return;
+    }
+    setBirthdaySubmitting(true);
+    try {
+      const result = await changeBirthday({
+        birthYear: validation.birthYear,
+        birthMonth: validation.birthMonth,
+        birthDay: validation.birthDay,
+      });
+      if (result.success) {
+        const next = result.data || {};
+        setBirthdayInfo(next);
+        setBirthYear(next.birthYear != null ? String(next.birthYear) : '');
+        setBirthMonth(next.birthMonth != null ? String(next.birthMonth) : '');
+        setBirthDay(next.birthDay != null ? String(next.birthDay) : '');
+        setBirthdayMsg({ type: 'success', text: result.message || '生日已更新' });
+        showToast(result.message || '生日已更新', { type: 'success' });
+      } else {
+        setBirthdayMsg({ type: 'error', text: result.error || '修改生日失败' });
+      }
+    } catch {
+      setBirthdayMsg({ type: 'error', text: '修改生日失败，请稍后重试' });
+    } finally {
+      setBirthdaySubmitting(false);
     }
   };
 
@@ -444,6 +510,54 @@ export default function SettingsPage() {
           登录 ID：<span className="font-mono font-semibold text-slate-800">{accountId}</span>
         </p>
 
+        <div className="border-t border-slate-100 pt-4 space-y-3">
+          <p className="text-sm font-medium text-slate-800">生日</p>
+          {birthdayLoading ? (
+            <p className="text-sm text-slate-500">正在加载…</p>
+          ) : birthdayInfo?.canChangeBirthday ? (
+            <form onSubmit={handleChangeBirthday} className="space-y-3">
+              <p className="text-sm text-slate-600">
+                当前：{formatBirthDateLabel(birthdayInfo)}。可改正一次，保存后不可再改。
+              </p>
+              <BirthDateSelects
+                idPrefix="settings-birth"
+                year={birthYear}
+                month={birthMonth}
+                day={birthDay}
+                disabled={birthdaySubmitting}
+                onChange={({ year, month, day }) => {
+                  setBirthYear(year);
+                  setBirthMonth(month);
+                  setBirthDay(day);
+                  if (birthdayMsg) setBirthdayMsg(null);
+                }}
+              />
+              {birthdayMsg && (
+                <p
+                  className={`text-sm ${
+                    birthdayMsg.type === 'success' ? 'text-emerald-700' : 'text-red-600'
+                  }`}
+                  role="status"
+                >
+                  {birthdayMsg.text}
+                </p>
+              )}
+              <button
+                type="submit"
+                disabled={birthdaySubmitting}
+                className="w-full rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-800 py-2 text-sm font-medium hover:bg-indigo-100 transition-colors disabled:opacity-60"
+              >
+                {birthdaySubmitting ? '保存中…' : '保存生日'}
+              </button>
+            </form>
+          ) : (
+            <p className="text-sm text-slate-600">
+              {formatBirthDateLabel(birthdayInfo || {})}
+              {birthdayInfo?.birthdayChangedAt ? '。已改正过，不可再改。' : ''}
+            </p>
+          )}
+        </div>
+
         <div className="border-t border-slate-100 pt-4">
           {!passwordFormOpen ? (
             <button
@@ -460,7 +574,7 @@ export default function SettingsPage() {
             <form onSubmit={handleChangePassword} className="space-y-3">
               <p className="text-sm font-medium text-slate-800">修改密码</p>
               <p className="text-xs text-slate-500">
-                新密码至少 {ACCOUNT_PASSWORD_MIN_LENGTH} 位，无需验证旧密码（与真三风云账号共用）
+                新密码至少 {ACCOUNT_PASSWORD_MIN_LENGTH} 位，无需验证旧密码
               </p>
               <input
                 type="password"
@@ -523,7 +637,7 @@ export default function SettingsPage() {
         {!isDeactivated ? (
           <>
             <p className="text-sm text-slate-500 border-t border-slate-100 pt-4">
-              申请注销后，公开页立即不可见；30 天内可在此撤销，期满将永久删除片段与媒体（游戏账号保留）。
+              申请注销后，公开页立即不可见；30 天内可在此撤销，期满将永久删除片段与媒体（登录账号保留）。
             </p>
             <button
               type="button"
@@ -555,7 +669,7 @@ export default function SettingsPage() {
             <h3 className="text-lg font-semibold text-slate-900">确认申请注销？</h3>
             <p className="text-sm text-slate-600 leading-relaxed">
               公开页将立即不可访问。30 天内你可以在此撤销；若未撤销，系统将永久删除全部片段与 OSS
-              媒体。你的游戏登录 ID 不会被删除。
+              媒体。你的登录 ID 不会被删除。
             </p>
             {deactivateError && (
               <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{deactivateError}</p>
