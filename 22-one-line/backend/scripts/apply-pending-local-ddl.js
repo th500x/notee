@@ -30,6 +30,7 @@ const MIGRATION_FILES = [
   '011-gifts.sql',
   '012-stamp-bag.sql',
   '013-pour-bag.sql',
+  '014-pet-bag.sql',
 ];
 
 const DEFAULT_DB_NAME = '22_one_line';

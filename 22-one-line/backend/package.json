@@ -17,6 +17,7 @@
     "gift:cancel": "node scripts/gift-cancel.js",
     "gift:inbox": "node scripts/gift-inbox.js",
     "test:stamp-bag": "node scripts/assert-stamp-bag.js",
+    "test:pet-bag": "node scripts/assert-pet-bag.js",
     "test:pour-bag": "node scripts/assert-pour-bag.js",
     "test:pour-media": "node scripts/assert-pour-media.js"
   },

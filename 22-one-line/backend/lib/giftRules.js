@@ -73,6 +73,10 @@ function assertPetId(raw) {
   if (!PET_ID_RE.test(id)) {
     throw httpError(400, 'PET id 无效', 'GIFT_BAD_PET_ID');
   }
+  // Operator gifts may only hand out the free 屋 cabinet (docs/00-4 §8).
+  if (!id.startsWith('bar_')) {
+    throw httpError(400, '运营赠品只许屋系', 'GIFT_PET_NOT_BAR');
+  }
   return id;
 }
 

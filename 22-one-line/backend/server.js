@@ -69,7 +69,7 @@ app.listen(PORT, async () => {
   console.log(`📊 /api/oneline/health`);
   console.log(`🔑 /api/oneline/auth/anonymous · login-id/candidates · register · login`);
   console.log(`👤 /api/oneline/me`);
-  console.log(`📝 /api/oneline/posts · /feed · board · blocks · gifts · stamp/bag`);
+  console.log(`📝 /api/oneline/posts · /feed · board · blocks · gifts · stamp/bag · pour/bag · pet/bag`);
   console.log(`🗄️  DB: ${dbConfig.database} @ ${dbConfig.host}:${dbConfig.port}`);
 
   const dbConnected = await testConnection();

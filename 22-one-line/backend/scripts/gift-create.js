@@ -6,6 +6,7 @@
  *   node scripts/gift-create.js --audience login_ids --ids TTGO --kind stamp --series region --country th --title "Thailand Region"
  *   # Limited 泰国（现 1 枚：th_lopburi）
  *   node scripts/gift-create.js --audience login_ids --ids TTGO --kind stamp --series limited --country th --title "Lopburi Limited"
+ *   node scripts/gift-create.js --audience login_ids --ids TTGO --kind pet --id bar_fortune --title "Opening Fortune"
  */
 
 const { createCampaign } = require('../services/giftService');
@@ -39,23 +40,26 @@ async function main() {
   const args = parseArgs(process.argv.slice(2));
   if (!args.audience || !args.kind) {
     console.error(
-      'Usage: node scripts/gift-create.js --audience all|login_ids --kind stamp (--id <stampId> | --series region|limited --country th) [--ids TTGO,CD34] [--require-login] [--title "New Year Gift"]'
+      'Usage: node scripts/gift-create.js --audience all|login_ids --kind stamp|pet (--id <itemId> | stamp --series region|limited --country th) [--ids TTGO,CD34] [--require-login] [--title "New Year Gift"]'
     );
     process.exit(1);
   }
   try {
-    const stampIds = resolveGiftStampIds({
-      itemId: args.id,
-      series: args.series,
-      country: args.country,
-    });
+    const itemIds =
+      args.kind === 'pet'
+        ? [String(args.id || '').trim()]
+        : resolveGiftStampIds({
+            itemId: args.id,
+            series: args.series,
+            country: args.country,
+          });
     const note = typeof args.title === 'string' ? args.title : typeof args.note === 'string' ? args.note : null;
     const campaigns = [];
-    for (const stampId of stampIds) {
+    for (const itemId of itemIds) {
       const created = await createCampaign({
         audience: args.audience,
         kind: args.kind,
-        itemId: stampId,
+        itemId,
         loginIds: args.ids,
         requireLoginId: Boolean(args.requireLogin),
         note,

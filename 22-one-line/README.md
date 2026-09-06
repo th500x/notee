@@ -69,12 +69,14 @@ npm run jobs:daily
 | GET | `/api/oneline/auth/login-id/candidates` | `?count=9&exclude=AB12,CD34` → `{ loginIds[], partial, prefix }`；当前字母档内抽 9 个（3×3）；App 刷新一次并保留两批 |
 | POST | `/api/oneline/auth/register` | `{ loginId, password }` + Bearer → 短号绑**当前**户；无 Bearer 401 |
 | POST | `/api/oneline/auth/login` | `{ loginId, password, deviceKey? }` → `{ token, expiresAt, user }`；带 `deviceKey` 则本机改挂该户 |
-| GET | `/api/oneline/gifts/inbox` | Bearer；当前户待领运营赠品（`stamp` / 日后 `pet`） |
+| GET | `/api/oneline/gifts/inbox` | Bearer；当前户待领运营赠品（`stamp` / `pet`） |
 | POST | `/api/oneline/gifts/:id/claim` | Bearer；先记领取再返回 payload；已领过仍 200（崩溃重放） |
 | GET | `/api/oneline/stamp/bag` | Bearer；当前户整袋（库存 + 签到窗 + 开户自选 flag）。无行则 `revision: 0` |
 | PUT | `/api/oneline/stamp/bag` | Bearer；`revision` 必须大于云端；否则 409 `STAMP_BAG_STALE` |
 | GET | `/api/oneline/pour/bag` | Bearer；开瓶账 + 最近 30 条无图历史。无行则 `revision: 0`。原片不上云 |
 | PUT | `/api/oneline/pour/bag` | Bearer；`revision` 必须大于云端；否则 409 `POUR_BAG_STALE`。拒图片字段；历史最多 30 条 |
+| GET | `/api/oneline/pet/bag` | Bearer；当前户宠物袋（个体 JSON + 首赠闩 + Tonight 日）。无行则 `revision: 0`。已领赠品 id 不在此袋 |
+| PUT | `/api/oneline/pet/bag` | Bearer；`revision` 必须大于云端；否则 409 `PET_BAG_STALE` |
 
 账号规则正本：sibling `notee-go` → `docs/00-1-Account.md`。冒烟 `npm run smoke:login-id`。  
 短号软删即回池（狮子号回活动池，不进自动出号）；`password_hash` 不出参。  
@@ -104,11 +106,18 @@ npm run gift:cancel -- <campaignId>
 npm run test:gifts
 ```
 
-Pass / 荣耀受众等 `users.pass_at` / `honor_at` 再开。客户端认 `kind=stamp`；PET 袋未开时 inbox 里的 `pet` 会被 App 滤掉。
+Pass / 荣耀受众等 `users.pass_at` / `honor_at` 再开。客户端认 `kind=stamp` 与屋系 `kind=pet`（`bar_*`）。
+
+```bash
+# 屋系一只（招财）
+npm run gift:create -- --audience login_ids --ids TTGO --kind pet --id bar_fortune --title "Opening Fortune"
+```
 
 整袋上云（库存 + 签到窗 + 开户自选）：`GET/PUT /stamp/bag`，跟 JWT `sub` 走。短号登录拉的是这户的袋，不是本机空袋。库存 blob 收 `v1` / `v2` / `v3`（v3 末段为特化 stamp id）。规则正本：sibling `notee-go` → `docs/00-3-STAMP.md` §6.2。`npm run test:stamp-bag`。
 
 酒局袋（开瓶账 + 最近 30 条结构化历史，**无原片**）：`GET/PUT /pour/bag`，同样跟 JWT `sub`。短号登录拉云袋；云端 `revision = 0` 则清空本机袋，不把上一身份推上去。JSON 体上限 256kb。规则正本：sibling `notee-go` → `docs/03-Pour-Check.md` §3.7。`npm run test:pour-bag`。
+
+宠物袋（个体 JSON + 首赠闩 + Tonight 日）：`GET/PUT /pet/bag`，同样跟 JWT `sub`。已领赠品 id **不在此袋**，仍挂在邮票文档的 `giftClaimedIds`。删号 / 闲置清扫会清行。规则正本：sibling `notee-go` → `docs/00-4-PET.md` §10.2。`npm run test:pet-bag`。
 
 正方形裁切私有备份（与局卡同一刀，**不是**原片、**不上** Feed）：`PUT/GET/HEAD /pour/media/:sittingId/{start|end}`，JPEG ≤300kb，跟 JWT `sub`。袋里只记 `startCrop` / `endCrop`。删号、闲置清扫、袋 PUT 修剪 30 条都会删磁盘对象。目录 `POUR_MEDIA_DIR`（默认 `22-one-line/data/pour-media`）。`npm run test:pour-media`。
 

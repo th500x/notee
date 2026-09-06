@@ -34,6 +34,11 @@ const built = buildPayload('stamp', 'th_lopburi');
 assert.deepStrictEqual(built, { kind: 'stamp', payload: { stampId: 'th_lopburi' } });
 assert.throws(() => buildPayload('stamp_pick', 'x'), (err) => err.code === 'GIFT_KIND_NOT_WIRED');
 assert.throws(() => buildPayload('pet', 'Bad Id'), (err) => err.code === 'GIFT_BAD_PET_ID');
+assert.throws(() => buildPayload('pet', 'night_glow'), (err) => err.code === 'GIFT_PET_NOT_BAR');
+assert.deepStrictEqual(buildPayload('pet', 'bar_fortune'), {
+  kind: 'pet',
+  payload: { petId: 'bar_fortune' },
+});
 
 const pub = publicCampaign({
   id: '11111111-1111-4111-8111-111111111111',

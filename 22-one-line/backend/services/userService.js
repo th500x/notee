@@ -375,6 +375,7 @@ async function deleteMe(userId) {
   );
   await query(`DELETE FROM stamp_bags WHERE user_id = ?`, [userId]);
   await query(`DELETE FROM pour_bags WHERE user_id = ?`, [userId]);
+  await query(`DELETE FROM pet_bags WHERE user_id = ?`, [userId]);
   await deletePourMedia(userId).catch((err) => {
     console.error('[one-line/pour-media] deleteMe', err.message);
   });
@@ -407,6 +408,13 @@ async function purgeIdleSilentAccounts() {
   await query(
     `DELETE pb FROM pour_bags pb
      INNER JOIN users u ON u.id = pb.user_id
+     WHERE u.status = 'active'
+       AND u.login_id IS NULL
+       AND u.last_seen_at < DATE_SUB(UTC_TIMESTAMP(), INTERVAL ${SILENT_IDLE_DAYS} DAY)`
+  );
+  await query(
+    `DELETE pt FROM pet_bags pt
+     INNER JOIN users u ON u.id = pt.user_id
      WHERE u.status = 'active'
        AND u.login_id IS NULL
        AND u.last_seen_at < DATE_SUB(UTC_TIMESTAMP(), INTERVAL ${SILENT_IDLE_DAYS} DAY)`
