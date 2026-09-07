@@ -4,7 +4,7 @@ import {
   formatMdSlash,
   sanitizeIsoDateField,
   parseMdTextToIso,
-  isIsoOnOrBeforeCurrentCalendarMonth,
+  isIsoInCurrentOrPreviousCalendarMonth,
   isIsoDateString,
   defaultPayRentIsoFromToday
 } from '../../utils/accountingDates';
@@ -39,7 +39,7 @@ export function AccountingDateIsoCell({
   const monthAccentRed =
     variant === 'ymd' &&
     emphasizeIfCurrentMonth &&
-    isIsoOnOrBeforeCurrentCalendarMonth(isoForMonthAccent);
+    isIsoInCurrentOrPreviousCalendarMonth(isoForMonthAccent);
   const monthAccentCls = monthAccentRed ? ' text-red-600 font-semibold' : ' text-gray-900';
 
   const mdEmptyHighlight =
