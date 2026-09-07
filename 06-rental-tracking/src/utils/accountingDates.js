@@ -36,13 +36,13 @@ export function isMonthBeforeActualRent(monthKey, actualRentIso) {
 }
 
 /**
- * 用于申报/实际列：当月相关的日期一律红色提示。
+ * 申报/实际列：日期所在公历月 ≤ 今天所在月则标红（当月 + 更早月份；未来月不标）。
  */
-export function isIsoInCurrentCalendarMonth(iso, refDate = new Date()) {
+export function isIsoOnOrBeforeCurrentCalendarMonth(iso, refDate = new Date()) {
   if (!isIsoDateString(iso)) return false;
-  const mo = Number(iso.slice(5, 7));
-  if (!Number.isInteger(mo) || mo < 1 || mo > 12) return false;
-  return mo === refDate.getMonth() + 1;
+  const dateMonth = iso.slice(0, 7);
+  const refMonth = `${refDate.getFullYear()}-${String(refDate.getMonth() + 1).padStart(2, '0')}`;
+  return dateMonth <= refMonth;
 }
 
 /**
