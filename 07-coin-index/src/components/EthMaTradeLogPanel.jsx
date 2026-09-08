@@ -4,7 +4,7 @@
 
 import { useMemo, useState } from 'react'
 import { useEthMaTradeLogs } from '../hooks/useEthMaTradeLogs'
-import { formatEthPrice, formatPnl, formatSignalTime } from '../utils/ethMaFormat'
+import { formatEthPrice, formatHoldDays, formatPnl, formatSignalTime } from '../utils/ethMaFormat'
 import { groupTradesByYearMonth, isCurrentYearMonth } from '../utils/ethMaTradeGroups'
 import { suggestTradePnl } from '../utils/ethMaTradePnl'
 
@@ -30,11 +30,14 @@ function pnlTone(value) {
   return 'zero'
 }
 
-function FoldSummary({ label, pnlTotal }) {
+function FoldSummary({ label, avgHoldDays, pnlTotal }) {
   const total = Number.isFinite(Number(pnlTotal)) ? Number(pnlTotal) : 0
   return (
     <summary className="eth-ma-trade-log__fold-head">
-      <span>{label}</span>
+      <span className="eth-ma-trade-log__fold-title">
+        <span>{label}</span>
+        <span className="eth-ma-trade-log__hold">平均持仓天数：{formatHoldDays(avgHoldDays)}</span>
+      </span>
       <span className={`eth-ma-trade-log__pnl eth-ma-trade-log__pnl--${pnlTone(total)}`}>
         {formatPnl(total)}
       </span>
@@ -262,7 +265,11 @@ function EthMaTradeLogPanel({ accountId }) {
             ) : (
               grouped.map((yearGroup) => (
                 <details key={yearGroup.year} className="eth-ma-trade-log__fold" open={yearGroup.year === new Date().getFullYear()}>
-                  <FoldSummary label={`${yearGroup.year}年`} pnlTotal={yearGroup.pnlTotal} />
+                  <FoldSummary
+                    label={`${yearGroup.year}年`}
+                    avgHoldDays={yearGroup.avgHoldDays}
+                    pnlTotal={yearGroup.pnlTotal}
+                  />
                   {yearGroup.months.map((monthGroup) => (
                     <details
                       key={`${monthGroup.year}-${monthGroup.month}`}
@@ -271,6 +278,7 @@ function EthMaTradeLogPanel({ accountId }) {
                     >
                       <FoldSummary
                         label={`${monthGroup.month}月 · ${monthGroup.trades.length} 笔`}
+                        avgHoldDays={monthGroup.avgHoldDays}
                         pnlTotal={monthGroup.pnlTotal}
                       />
                       <ul className="eth-ma-trade-log__list">

@@ -379,6 +379,20 @@
   gap: 0.75rem;
 }
 
+.eth-ma-trade-log__fold-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem 0.75rem;
+  min-width: 0;
+}
+
+.eth-ma-trade-log__hold {
+  font-weight: 500;
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
 .eth-ma-trade-log__pnl {
   margin-left: auto;
   flex-shrink: 0;

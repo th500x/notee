@@ -15,6 +15,13 @@ export function formatEthPrice(value) {
   return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
+export function formatHoldDays(value) {
+  if (value == null || value === '') return '—'
+  const n = Number(value)
+  if (!Number.isFinite(n)) return '—'
+  return Number.isInteger(n) ? String(n) : n.toFixed(1)
+}
+
 export function formatPnl(value) {
   if (value == null || value === '') return '—'
   const n = Number(value)

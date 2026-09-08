@@ -1,11 +1,42 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { groupTradesByYearMonth, sumTradePnl } from './ethMaTradeGroups.js'
+import { averageHoldDays, groupTradesByYearMonth, sumTradePnl, tradeHoldDays } from './ethMaTradeGroups.js'
 
 describe('sumTradePnl', () => {
   it('adds filled pnl and treats missing as 0', () => {
     assert.equal(sumTradePnl([{ pnl: 10.1 }, { pnl: -3 }, { pnl: null }, {}]), 7.1)
     assert.equal(sumTradePnl([]), 0)
+  })
+})
+
+describe('tradeHoldDays / averageHoldDays', () => {
+  it('counts calendar days from signal date to closedOn', () => {
+    assert.equal(
+      tradeHoldDays({
+        signalOpenTime: new Date(2026, 8, 6, 16, 59, 59).getTime(),
+        closedOn: '2026-09-07',
+      }),
+      1
+    )
+    assert.equal(
+      tradeHoldDays({
+        signalOpenTime: new Date(2026, 8, 7, 5, 59, 59).getTime(),
+        closedOn: '2026-09-07',
+      }),
+      0
+    )
+  })
+
+  it('skips open trades and averages the rest', () => {
+    assert.equal(
+      averageHoldDays([
+        { signalOpenTime: new Date(2026, 8, 5, 12).getTime(), closedOn: '2026-09-07' },
+        { signalOpenTime: new Date(2026, 8, 6, 12).getTime(), closedOn: '' },
+        { signalOpenTime: new Date(2026, 8, 6, 12).getTime(), closedOn: '2026-09-07' },
+      ]),
+      1.5
+    )
+    assert.equal(averageHoldDays([{ signalOpenTime: Date.now(), closedOn: '' }]), null)
   })
 })
 
@@ -33,6 +64,25 @@ describe('groupTradesByYearMonth', () => {
     const august = year2026.months.find((item) => item.month === 8)
     assert.equal(september.pnlTotal, 12.5)
     assert.equal(august.pnlTotal, -2)
+  })
+
+  it('attaches average hold days from closedOn only', () => {
+    const grouped = groupTradesByYearMonth([
+      {
+        signalOpenTime: new Date(2026, 8, 5, 12).getTime(),
+        closedOn: '2026-09-07',
+        pnl: 1,
+      },
+      {
+        signalOpenTime: new Date(2026, 8, 6, 12).getTime(),
+        closedOn: '',
+        pnl: 2,
+      },
+    ])
+    const year2026 = grouped.find((item) => item.year === 2026)
+    const september = year2026.months.find((item) => item.month === 9)
+    assert.equal(year2026.avgHoldDays, 2)
+    assert.equal(september.avgHoldDays, 2)
   })
 
   it('skips empty months and invalid dates', () => {
