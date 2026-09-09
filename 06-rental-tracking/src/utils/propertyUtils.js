@@ -56,3 +56,75 @@ export function getMonthlyExpenseTipLabel(property, monthKey) {
   if (notesJoined.includes('物业费')) return '物业支出'
   return '大额支出'
 }
+
+/**
+ * 收支记录日期（YYYY-MM）是否落在当前统计视图内。
+ *
+ * @param {string} dateStr
+ * @param {number} selectedYear
+ * @param {number} selectedMonth
+ * @param {'month'|'year'} viewMode
+ */
+export function isYearMonthInView(dateStr, selectedYear, selectedMonth, viewMode) {
+  if (!dateStr) return false
+  const parts = String(dateStr).split('-')
+  const recordYear = parseInt(parts[0], 10)
+  const recordMonth = parseInt(parts[1], 10)
+  if (!Number.isFinite(recordYear) || !Number.isFinite(recordMonth)) return false
+  if (viewMode === 'month') {
+    return recordYear === selectedYear && recordMonth === selectedMonth
+  }
+  return recordYear === selectedYear
+}
+
+const COMMISSION_KEYWORD_RE = /半佣|佣金/
+const COMMISSION_NUMBER_AFTER_RE = /^[\s:：=￥¥$฿]*([\d,]+(?:\.\d+)?)/
+
+/**
+ * 从房源收支备注解析佣金金额。
+ * - 不含「佣金」「半佣」→ null（不计入）
+ * - 关键字后紧跟数字 → 该数字
+ * - 关键字后无数字 → 该房源月租金
+ *
+ * @param {string} note
+ * @param {number} monthlyRent
+ * @returns {number|null}
+ */
+export function parseCommissionAmountFromNote(note, monthlyRent) {
+  const text = String(note || '')
+  const keywordMatch = text.match(COMMISSION_KEYWORD_RE)
+  if (!keywordMatch) return null
+
+  const rest = text.slice(keywordMatch.index + keywordMatch[0].length)
+  const numberMatch = rest.match(COMMISSION_NUMBER_AFTER_RE)
+  if (numberMatch) {
+    const parsed = Number(String(numberMatch[1]).replace(/,/g, ''))
+    if (Number.isFinite(parsed) && parsed >= 0) return parsed
+  }
+
+  const rent = Number(monthlyRent)
+  return Number.isFinite(rent) && rent > 0 ? rent : 0
+}
+
+/**
+ * 当期房源列表备注中的佣金合计（不含项目开支）。
+ *
+ * @param {Array} projects
+ * @param {number} selectedYear
+ * @param {number} selectedMonth
+ * @param {'month'|'year'} viewMode
+ * @returns {number}
+ */
+export function sumCommissionFromProjects(projects, selectedYear, selectedMonth, viewMode) {
+  let total = 0
+  for (const project of projects || []) {
+    for (const property of getAllProperties(project)) {
+      for (const record of property.records || []) {
+        if (!isYearMonthInView(record.date, selectedYear, selectedMonth, viewMode)) continue
+        const amount = parseCommissionAmountFromNote(record.note, property.monthlyRent)
+        if (amount != null) total += amount
+      }
+    }
+  }
+  return total
+}

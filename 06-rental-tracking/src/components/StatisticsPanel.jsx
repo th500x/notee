@@ -2,7 +2,7 @@
  * 统计面板组件
  * 
  * 功能：
- * - 显示总收入、总支出、净利润
+ * - 显示总收入、总支出（下方拆佣金 / 维修etc）、净利润
  * - 月度视图：显示缴租率（已缴租房间数 / 出租中+新合同房间数）
  * - 年度视图：显示出租率（只计算当前月份之前的月份平均出租率）
  * - 根据选择的时间范围计算统计数据
@@ -16,13 +16,18 @@
  */
 import { useMemo } from 'react'
 import { getPropertyStatus } from '../utils/propertyStatus'
-import { getAllProperties } from '../utils/propertyUtils'
+import {
+  getAllProperties,
+  isYearMonthInView,
+  parseCommissionAmountFromNote,
+} from '../utils/propertyUtils'
 
 function StatisticsPanel({ rentalData, selectedYear, selectedMonth, viewMode }) {
   // 计算统计数据（使用 useMemo 缓存）
   const stats = useMemo(() => {
     let totalIncome = 0
     let totalExpenses = 0
+    let totalCommission = 0
     let totalProperties = 0
     let rentedProperties = 0
     let paidProperties = 0 // 已缴租的房间数量
@@ -50,24 +55,14 @@ function StatisticsPanel({ rentalData, selectedYear, selectedMonth, viewMode }) 
           }
         }
 
-        // 计算房源收支
+        // 计算房源收支与佣金（佣金只看房源备注，不含项目开支）
         property.records?.forEach(record => {
-          const recordDate = record.date.split('-')
-          const recordYear = parseInt(recordDate[0])
-          const recordMonth = parseInt(recordDate[1])
-
-          if (viewMode === 'month') {
-            // 月度视图：只统计选中月份
-            if (recordYear === selectedYear && recordMonth === selectedMonth) {
-              totalIncome += record.income || 0
-              totalExpenses += record.expenses || 0
-            }
-          } else {
-            // 年度视图：统计整年
-            if (recordYear === selectedYear) {
-              totalIncome += record.income || 0
-              totalExpenses += record.expenses || 0
-            }
+          if (!isYearMonthInView(record.date, selectedYear, selectedMonth, viewMode)) return
+          totalIncome += record.income || 0
+          totalExpenses += record.expenses || 0
+          const commission = parseCommissionAmountFromNote(record.note, property.monthlyRent)
+          if (commission != null) {
+            totalCommission += commission
           }
         })
       })
@@ -76,23 +71,9 @@ function StatisticsPanel({ rentalData, selectedYear, selectedMonth, viewMode }) 
       const expenses = project.expenses || []
       expenses.forEach(expense => {
         expense.records?.forEach(record => {
-          const recordDate = record.date.split('-')
-          const recordYear = parseInt(recordDate[0])
-          const recordMonth = parseInt(recordDate[1])
-
-          if (viewMode === 'month') {
-            // 月度视图：只统计选中月份
-            if (recordYear === selectedYear && recordMonth === selectedMonth) {
-              totalIncome += record.income || 0
-              totalExpenses += record.expenses || 0
-            }
-          } else {
-            // 年度视图：统计整年
-            if (recordYear === selectedYear) {
-              totalIncome += record.income || 0
-              totalExpenses += record.expenses || 0
-            }
-          }
+          if (!isYearMonthInView(record.date, selectedYear, selectedMonth, viewMode)) return
+          totalIncome += record.income || 0
+          totalExpenses += record.expenses || 0
         })
       })
     })
@@ -152,6 +133,8 @@ function StatisticsPanel({ rentalData, selectedYear, selectedMonth, viewMode }) 
     return {
       totalIncome,
       totalExpenses,
+      totalCommission,
+      maintenanceEtc: totalExpenses - totalCommission,
       netProfit,
       rateValue,
       rateLabel,
@@ -183,6 +166,10 @@ function StatisticsPanel({ rentalData, selectedYear, selectedMonth, viewMode }) 
             <p className="text-2xl font-bold text-orange-600">฿{stats.totalExpenses.toLocaleString()}</p>
           </div>
           <div className="text-3xl">💸</div>
+        </div>
+        <div className="mt-2 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 text-xs text-gray-500">
+          <span>佣金: ฿{stats.totalCommission.toLocaleString()}</span>
+          <span>维修etc: ฿{stats.maintenanceEtc.toLocaleString()}</span>
         </div>
       </div>
 
