@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Notee Go · Scan &amp; Play</title>
+<style>
+  :root {
+    --bg: #10161b;
+    --card: #172128;
+    --line: #24333c;
+    --text: #e8eef1;
+    --dim: #94a7b1;
+    --accent: #f0c04a;
+    --play: #6b4ef0;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+                 "Hiragino Sans GB", "Microsoft YaHei", Roboto, sans-serif;
+    -webkit-text-size-adjust: 100%;
+  }
+  main {
+    max-width: 420px;
+    margin: 0 auto;
+    padding: 32px 20px 48px;
+  }
+  .brand {
+    font-size: 14px;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+    color: var(--dim);
+  }
+  h1 {
+    margin: 8px 0 4px;
+    font-size: 26px;
+    line-height: 1.25;
+  }
+  .sub {
+    margin: 0 0 24px;
+    color: var(--dim);
+    font-size: 14px;
+  }
+  .code-card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 20px;
+    text-align: center;
+  }
+  .code-label {
+    font-size: 12px;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--dim);
+  }
+  .code {
+    margin: 10px 0 2px;
+    font-size: 44px;
+    font-weight: 700;
+    letter-spacing: .22em;
+    color: var(--accent);
+    font-variant-numeric: tabular-nums;
+  }
+  .code.missing {
+    font-size: 20px;
+    letter-spacing: normal;
+    color: var(--dim);
+    font-weight: 500;
+  }
+  .btn {
+    display: block;
+    margin: 20px 0 0;
+    padding: 15px 18px;
+    border-radius: 14px;
+    background: var(--play);
+    color: #fff;
+    font-size: 16px;
+    font-weight: 600;
+    text-align: center;
+    text-decoration: none;
+  }
+  .btn.secondary {
+    background: transparent;
+    color: var(--accent);
+    border: 1px solid var(--accent);
+  }
+  ol {
+    margin: 24px 0 0;
+    padding-left: 20px;
+    color: var(--dim);
+    font-size: 14px;
+    line-height: 1.7;
+  }
+  ol b { color: var(--text); font-weight: 600; }
+  .en {
+    margin-top: 28px;
+    padding-top: 20px;
+    border-top: 1px solid var(--line);
+    color: var(--dim);
+    font-size: 13px;
+    line-height: 1.7;
+  }
+  .en b { color: var(--text); }
+</style>
+</head>
+<body>
+<main>
+  <div class="brand">Notee Go</div>
+  <h1>扫码联机 · Scan &amp; Play</h1>
+  <p class="sub">对面那位已经开好房间了。你需要这个 App 才能坐下。</p>
+
+  <div class="code-card">
+    <div class="code-label">房间号 · Room code</div>
+    <div class="code missing" id="code">在对方屏幕上</div>
+  </div>
+
+  <a class="btn" id="open" href="#" hidden>
+    已安装？打开 App 入座
+  </a>
+
+  <a class="btn" id="store" href="https://play.google.com/store/apps/details?id=com.notee.go">
+    到 Google Play 下载 Notee Go
+  </a>
+
+  <ol>
+    <li>装好 App，打开 <b>酒桌游戏 → 扫码</b>。</li>
+    <li>点右上 <b>加入房间</b>，输入上面的房间号。</li>
+    <li>两台手机都要<b>打开蓝牙</b>，并且坐在同一桌。<b>不需要连同一个 Wi‑Fi。</b></li>
+  </ol>
+
+  <div class="en">
+    <b>Your friend opened a table.</b> If Notee Go is already installed this page opens it.
+    Otherwise install it, open <b>Bar Games → Scan</b>, tap <b>Join a table</b> and type the
+    room code above. Both phones need <b>Bluetooth on</b> and to be at the same table —
+    no shared Wi‑Fi.
+  </div>
+</main>
+<script>
+  // Canonical QR payload is https://notee.vip/sp/1#ABCD — the code rides in the fragment so it
+  // never reaches the server. The older path form (/sp/1/ABCD) is still accepted.
+  (function () {
+    var ALLOWED = /^[A-Z2-9]{4,8}$/;
+    var raw = (location.hash || '').replace(/^#/, '');
+    if (!raw) {
+      var tail = location.pathname.split('/').filter(Boolean).pop() || '';
+      if (tail !== '1' && tail !== 'sp') raw = tail;
+    }
+    var code = decodeURIComponent(raw).toUpperCase();
+    if (!ALLOWED.test(code)) return;
+    var el = document.getElementById('code');
+    el.textContent = code;
+    el.classList.remove('missing');
+    document.title = 'Notee Go · ' + code;
+
+    // Already installed: hand the code to the app. Custom scheme first so OEM camera
+    // WebViews that ignore intent:// still open Notee Go. The Play button stays for
+    // phones that do not have it — we do not auto-redirect to the store, or the
+    // room code on this page would vanish before they can type it.
+    var appUrl = 'noteego://sp/1/' + encodeURIComponent(code);
+    var openBtn = document.getElementById('open');
+    openBtn.href = appUrl;
+    openBtn.hidden = false;
+    openBtn.classList.add('secondary');
+    window.location.href = appUrl;
+  })();
+</script>
+</body>
+</html>

@@ -14,6 +14,21 @@ Notee Go「今日一句」后端。产品设计见 sibling `KIRO/notee-go` → `
 | PM2 | `22-one-line-backend` |
 | 阶段 | **P7** — + 短号注册 / 登录（`login_id` + 密码） |
 
+## 扫码落地页 `/sp/`
+
+`sp/index.html` 是系统相机扫 `https://notee.vip/sp/1#ABCD` 打开的静态页。nginx 直接出文件，**不走** 3022，也不用重启 PM2。
+
+把 nginx 里 `/sp/` 的 `alias` 指到本目录（旧的 `22-notee-go-sp` 可以删）：
+
+```nginx
+location ^~ /sp/ {
+    alias /www/wwwroot/notee/22-one-line/sp/;
+    try_files $uri $uri/ /sp/index.html;
+}
+```
+
+`git pull` 之后刷新即生效。改过 nginx 才需要 `nginx -s reload`。
+
 ## 常用命令（与 05 同形式）
 
 在仓库根目录 `notee/` 下：
