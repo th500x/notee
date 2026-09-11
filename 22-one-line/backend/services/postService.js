@@ -290,11 +290,8 @@ async function patchPost(userId, postId, bodyIn) {
   await requireActiveUser(userId);
   const row = await getPostRowForAuthor(postId, userId);
 
-  if (postKind(row) === 'pour') {
+  if (postKind(row) === 'pour' || postKind(row) === 'meal') {
     return patchPourStatsQa(userId, postId, row, bodyIn);
-  }
-  if (postKind(row) === 'meal') {
-    throw httpError(409, '聚餐帖不可编辑', 'POUR_NO_EDIT');
   }
 
   if (row.edit_used) {
@@ -341,7 +338,7 @@ async function patchPost(userId, postId, bodyIn) {
 
 function stripPourQaFlags(pour) {
   if (!pour || typeof pour !== 'object' || Array.isArray(pour)) return {};
-  const { statsEdited, stampEdited, ...rest } = pour;
+  const { statsEdited, stampEdited, placeEdited, ...rest } = pour;
   return rest;
 }
 
@@ -349,34 +346,45 @@ function qaFlagsFrom(stored) {
   const flags = {};
   if (stored.statsEdited) flags.statsEdited = true;
   if (stored.stampEdited) flags.stampEdited = true;
+  if (stored.placeEdited) flags.placeEdited = true;
   return flags;
 }
 
-/** TEST-ONLY. Pair with POUR_TEST_EDIT_STATS. Stats once; STAMP once (separate). */
+function tablePatchObject(kind, bodyIn) {
+  const key = kind === 'meal' ? 'meal' : 'pour';
+  const raw = bodyIn[key];
+  if (raw != null && typeof raw === 'object' && !Array.isArray(raw)) return raw;
+  return null;
+}
+
+/** TEST-ONLY. Pair with POUR_TEST_EDIT_STATS. Stats / STAMP / place — no count cap. */
 async function patchPourStatsQa(userId, postId, row, bodyIn) {
   if (!POUR_TEST_EDIT_STATS) {
     throw httpError(409, '酒局帖不可编辑', 'POUR_NO_EDIT');
   }
+  const kind = postKind(row);
   const stored = parsePourColumn(row.pour) || {};
   if (!bodyIn || typeof bodyIn !== 'object' || Array.isArray(bodyIn)) {
     throw httpError(400, '请求体无效', 'BAD_BODY');
   }
   rejectBannedKeys(bodyIn);
-  const hasPourPatch =
-    bodyIn.pour != null && typeof bodyIn.pour === 'object' && !Array.isArray(bodyIn.pour);
+  const patch = tablePatchObject(kind, bodyIn);
   const hasStamp = Object.prototype.hasOwnProperty.call(bodyIn, 'stampId');
-  if (!hasPourPatch && !hasStamp) {
+  const hasStatsPatch =
+    kind === 'pour' &&
+    patch &&
+    (patch.bottleCount !== undefined ||
+      patch.consumedMl !== undefined ||
+      patch.kinds !== undefined);
+  const hasPlacePatch = Boolean(patch && patch.place !== undefined);
+  if (!hasStatsPatch && !hasPlacePatch && !hasStamp) {
     throw httpError(400, '请求体无效', 'BAD_BODY');
   }
-  if (hasPourPatch && stored.statsEdited) {
-    throw httpError(409, '本条已用过编辑次数', 'EDIT_USED');
-  }
-  if (hasStamp && stored.stampEdited) {
-    throw httpError(409, '本条已用过编辑次数', 'EDIT_USED');
+  if (kind === 'meal' && hasStatsPatch) {
+    throw httpError(400, '请求体无效', 'BAD_BODY');
   }
   let nextRaw = stripPourQaFlags(stored);
-  if (hasPourPatch) {
-    const patch = bodyIn.pour;
+  if (hasStatsPatch) {
     nextRaw = {
       ...nextRaw,
       bottleCount: patch.bottleCount !== undefined ? patch.bottleCount : nextRaw.bottleCount,
@@ -384,9 +392,13 @@ async function patchPourStatsQa(userId, postId, row, bodyIn) {
       kinds: patch.kinds !== undefined ? patch.kinds : nextRaw.kinds,
     };
   }
-  const validated = assertPourPayload(nextRaw);
+  if (hasPlacePatch) {
+    nextRaw = { ...nextRaw, place: patch.place };
+  }
+  const validated = kind === 'meal' ? assertMealPayload(nextRaw) : assertPourPayload(nextRaw);
   const flags = qaFlagsFrom(stored);
-  if (hasPourPatch) flags.statsEdited = true;
+  if (hasStatsPatch) flags.statsEdited = true;
+  if (hasPlacePatch) flags.placeEdited = true;
   if (hasStamp) flags.stampEdited = true;
   const nextStamp = hasStamp ? assertStampId(bodyIn.stampId) : row.stamp_id;
   await query(

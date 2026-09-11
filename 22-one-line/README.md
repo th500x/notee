@@ -141,7 +141,7 @@ npm run gift:create -- --audience login_ids --ids TTGO --kind pet --id bar_fortu
 **QA 临时开关（测完必须 `false`，与 App 一起关）：**  
 - `backend/services/postService.js` → `POUR_TEST_RESYNC_AFTER_DELETE`：删酒局帖释放当天名额。App 对应 `PourRules.TEST_RESYNC_AFTER_DELETE`。  
 - `backend/lib/pourPayload.js` → `POUR_TEST_SHORT_PUBLISH_GAP`：可发布时长下限改为 **5 分钟**（正本 30 分钟，上限仍 6h）。App 对应 `PourRules.TEST_SHORT_PUBLISH_GAP`。  
-- `backend/lib/pourPayload.js` → `POUR_TEST_EDIT_STATS`：允许酒局帖 `PATCH` 瓶数 / 消耗 ml **一次**，以及 `stampId` **一次**（两槽独立）。App 对应 `PourRules.TEST_EDIT_POUR_STATS`。  
+- `backend/lib/pourPayload.js` → `POUR_TEST_EDIT_STATS`：允许酒局帖 `PATCH` 瓶数 / 消耗 ml、`stampId`、`place`（不限次数；聚餐帖只开放地点）。App 对应 `PourRules.TEST_EDIT_POUR_STATS`。  
 
 测完这三处都改回 `false`，并同时把 App 对应开关也改回 `false`。漏关任一端，线上会按测试规则走。清单见 sibling `notee-go` → `docs/03-Pour-Check.md` §8.1。
 
