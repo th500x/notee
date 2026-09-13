@@ -90,7 +90,7 @@ npm run jobs:daily
 | PUT | `/api/oneline/stamp/bag` | Bearer；`revision` 必须大于云端；否则 409 `STAMP_BAG_STALE` |
 | GET | `/api/oneline/pour/bag` | Bearer；开瓶账 + 最近 30 条无图历史。无行则 `revision: 0`。原片不上云 |
 | PUT | `/api/oneline/pour/bag` | Bearer；`revision` 必须大于云端；否则 409 `POUR_BAG_STALE`。拒图片字段；历史最多 30 条 |
-| GET | `/api/oneline/pet/bag` | Bearer；当前户宠物袋（个体 JSON + 首赠闩 + Tonight 日）。无行则 `revision: 0`。已领赠品 id 不在此袋 |
+| GET | `/api/oneline/pet/bag` | Bearer；当前户宠物袋（个体 JSON + P-Points + 默认出战 + 首赠闩 + Tonight 日）。无行则 `revision: 0`。已领赠品 id 不在此袋 |
 | PUT | `/api/oneline/pet/bag` | Bearer；`revision` 必须大于云端；否则 409 `PET_BAG_STALE` |
 
 账号规则正本：sibling `notee-go` → `docs/00-1-Account.md`。冒烟 `npm run smoke:login-id`。  
@@ -132,7 +132,7 @@ npm run gift:create -- --audience login_ids --ids TTGO --kind pet --id bar_fortu
 
 酒局袋（开瓶账 + 最近 30 条结构化历史，**无原片**）：`GET/PUT /pour/bag`，同样跟 JWT `sub`。短号登录拉云袋；云端 `revision = 0` 则清空本机袋，不把上一身份推上去。JSON 体上限 256kb。规则正本：sibling `notee-go` → `docs/03-Pour-Check.md` §3.7。`npm run test:pour-bag`。
 
-宠物袋（个体 JSON + 首赠闩 + Tonight 日）：`GET/PUT /pet/bag`，同样跟 JWT `sub`。已领赠品 id **不在此袋**，仍挂在邮票文档的 `giftClaimedIds`。删号 / 闲置清扫会清行。规则正本：sibling `notee-go` → `docs/00-4-PET.md` §10.2。`npm run test:pet-bag`。
+宠物袋（个体 JSON + **P-Points `pp`** + **默认出战 `fav`** + 首赠闩 + Tonight 日）：`GET/PUT /pet/bag`，同样跟 JWT `sub`。点数和默认出战写在 `bagBlob` 里，不另开列。已领赠品 id **不在此袋**，仍挂在邮票文档的 `giftClaimedIds`。删号 / 闲置清扫会清行。规则正本：sibling `notee-go` → `docs/00-4-PET.md` §8.4 / §10.2。`npm run test:pet-bag`。
 
 正方形裁切私有备份（与局卡同一刀，**不是**原片、**不上** Feed）：`PUT/GET/HEAD /pour/media/:sittingId/{start|end}`，JPEG ≤300kb，跟 JWT `sub`。袋里只记 `startCrop` / `endCrop`。删号、闲置清扫、袋 PUT 修剪 30 条都会删磁盘对象。目录 `POUR_MEDIA_DIR`（默认 `22-one-line/data/pour-media`）。`npm run test:pour-media`。
 

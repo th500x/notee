@@ -54,6 +54,22 @@ assert.throws(
   (err) => err.code === 'PET_BAG_BAD_BLOB'
 );
 
+const withWallet = JSON.stringify({
+  v: 1,
+  pets: [{ uid: 'abc123def4567890', species: 'bar_glow', size: 's', star: 0, char: 'quick' }],
+  pp: 15,
+  fav: 'abc123def4567890',
+});
+assert.strictEqual(assertBagBlob(withWallet), withWallet);
+assert.throws(
+  () => assertBagBlob(JSON.stringify({ v: 1, pets: [], pp: -1 })),
+  (err) => err.code === 'PET_BAG_BAD_BLOB'
+);
+assert.throws(
+  () => assertBagBlob(JSON.stringify({ v: 1, pets: [], fav: 'gone' })),
+  (err) => err.code === 'PET_BAG_BAD_BLOB'
+);
+
 assert.strictEqual(assertTonightDayKey('2026-09-06'), '2026-09-06');
 assert.strictEqual(assertTonightDayKey(''), null);
 assert.throws(() => assertTonightDayKey('20260906'), (err) => err.code === 'PET_BAG_BAD_DAY');

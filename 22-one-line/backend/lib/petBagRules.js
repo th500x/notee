@@ -5,6 +5,7 @@
  * array that is not an array. Do not re-run intake, fusion, or HP recovery — a leftover
  * individual must not 400 the whole bag.
  *
+ * Wallet fields live in the same JSON: `pp` (P-Points) and `fav` (default-deploy uid).
  * The claimed-gift ledger is not here. It lives on the stamp document.
  */
 
@@ -14,6 +15,7 @@ const { PET_ID_RE } = require('./giftRules');
 const BAG_BLOB_MAX = 32000;
 const PETS_MAX = 80;
 const UID_MAX = 32;
+const MARKS_MAX = 999_999;
 const SIZE_RE = /^[sml]$/;
 const CHAR_RE = /^[a-z]{2,16}$/;
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -51,7 +53,28 @@ function assertBagBlob(raw) {
     throw httpError(400, '宠物袋人数过多', 'PET_BAG_BAD_BLOB');
   }
   pets.forEach(assertPet);
+  assertMarks(parsed.pp);
+  assertFavorite(parsed.fav, pets);
   return blob;
+}
+
+function assertMarks(raw) {
+  if (raw == null || raw === '') return;
+  const n = Number(raw);
+  if (!Number.isInteger(n) || n < 0 || n > MARKS_MAX) {
+    throw httpError(400, 'P-Points 无效', 'PET_BAG_BAD_BLOB');
+  }
+}
+
+function assertFavorite(raw, pets) {
+  if (raw == null || raw === '') return;
+  const uid = String(raw).trim();
+  if (!uid || uid.length > UID_MAX) {
+    throw httpError(400, '默认出战无效', 'PET_BAG_BAD_BLOB');
+  }
+  if (!pets.some((pet) => String(pet.uid || '').trim() === uid)) {
+    throw httpError(400, '默认出战无效', 'PET_BAG_BAD_BLOB');
+  }
 }
 
 function assertPet(pet) {

@@ -1,5 +1,6 @@
 -- Pet bag on the One Line UUID (docs/00-4 §10.2). One row per user.
--- Individuals live in bag_blob. The claimed-gift ledger stays on stamp_bags.
+-- Individuals, P-Points (`pp`) and default-deploy uid (`fav`) live in bag_blob.
+-- The claimed-gift ledger stays on stamp_bags.
 USE `22_one_line`;
 
 CREATE TABLE IF NOT EXISTS `pet_bags` (
