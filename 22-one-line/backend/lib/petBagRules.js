@@ -54,7 +54,7 @@ function assertBagBlob(raw) {
   }
   pets.forEach(assertPet);
   assertMarks(parsed.pp);
-  assertFavorite(parsed.fav, pets);
+  assertFavorite(parsed.fav);
   return blob;
 }
 
@@ -66,15 +66,14 @@ function assertMarks(raw) {
   }
 }
 
-function assertFavorite(raw, pets) {
+function assertFavorite(raw) {
   if (raw == null || raw === '') return;
   const uid = String(raw).trim();
   if (!uid || uid.length > UID_MAX) {
     throw httpError(400, '默认出战无效', 'PET_BAG_BAD_BLOB');
   }
-  if (!pets.some((pet) => String(pet.uid || '').trim() === uid)) {
-    throw httpError(400, '默认出战无效', 'PET_BAG_BAD_BLOB');
-  }
+  // A leftover fav (filtered species, fusion consumed the uid) must not 400 the bag.
+  // The App drops it on decode.
 }
 
 function assertPet(pet) {
@@ -130,6 +129,13 @@ function parseBody(body) {
   };
 }
 
+function bagBlobText(value) {
+  if (value == null || value === '') return '';
+  if (typeof value === 'string') return value;
+  if (typeof value === 'object') return JSON.stringify(value);
+  return String(value);
+}
+
 function publicBag(row) {
   if (!row) {
     return {
@@ -140,7 +146,7 @@ function publicBag(row) {
     };
   }
   return {
-    bagBlob: row.bag_blob || '',
+    bagBlob: bagBlobText(row.bag_blob) || '',
     welcomeClaimed: Boolean(Number(row.welcome_claimed)),
     tonightDayKey: row.tonight_day_key || null,
     revision: Number(row.revision) || 0,

@@ -65,8 +65,12 @@ assert.throws(
   () => assertBagBlob(JSON.stringify({ v: 1, pets: [], pp: -1 })),
   (err) => err.code === 'PET_BAG_BAD_BLOB'
 );
+assert.strictEqual(
+  assertBagBlob(JSON.stringify({ v: 1, pets: [], fav: 'gone' })),
+  JSON.stringify({ v: 1, pets: [], fav: 'gone' })
+);
 assert.throws(
-  () => assertBagBlob(JSON.stringify({ v: 1, pets: [], fav: 'gone' })),
+  () => assertBagBlob(JSON.stringify({ v: 1, pets: [], fav: 'x'.repeat(40) })),
   (err) => err.code === 'PET_BAG_BAD_BLOB'
 );
 
@@ -91,5 +95,15 @@ assert.strictEqual(empty.revision, 0);
 assert.strictEqual(empty.welcomeClaimed, false);
 assert.strictEqual(empty.bagBlob, null);
 assert.strictEqual(empty.tonightDayKey, null);
+
+const parsedRow = publicBag({
+  bag_blob: { v: 1, pets: [] },
+  welcome_claimed: 1,
+  tonight_day_key: null,
+  revision: 2,
+});
+assert.strictEqual(parsedRow.bagBlob, JSON.stringify({ v: 1, pets: [] }));
+assert.strictEqual(parsedRow.welcomeClaimed, true);
+assert.strictEqual(parsedRow.revision, 2);
 
 console.log('assert-pet-bag: ok');
