@@ -157,31 +157,9 @@ function publicBag(row) {
   };
 }
 
-function bagSummary(bag) {
-  const blob = bag && bag.bagBlob != null ? String(bag.bagBlob) : '';
-  let pets = -1;
-  let pp = 0;
-  try {
-    const parsed = blob ? JSON.parse(blob) : {};
-    pets = Array.isArray(parsed.pets) ? parsed.pets.length : 0;
-    pp = Number(parsed.pp) || 0;
-  } catch (_) {
-    pets = -1;
-  }
-  return {
-    rev: bag && bag.revision != null ? bag.revision : 0,
-    pets,
-    pp,
-    blob: blob.length,
-    welcome: bag && bag.welcomeClaimed ? 1 : 0,
-    tonight: (bag && bag.tonightDayKey) || '',
-  };
-}
-
 module.exports = {
   parseBody,
   publicBag,
-  bagSummary,
   assertBagBlob,
   assertTonightDayKey,
   assertRevision,
