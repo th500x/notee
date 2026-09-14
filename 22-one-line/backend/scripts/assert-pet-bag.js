@@ -33,6 +33,10 @@ const glow = JSON.stringify({
 });
 
 assert.strictEqual(assertBagBlob(glow), glow);
+assert.strictEqual(
+  assertBagBlob({ v: 1, pets: [] }),
+  JSON.stringify({ v: 1, pets: [] })
+);
 assert.strictEqual(assertBagBlob(''), '');
 assert.strictEqual(assertBagBlob(JSON.stringify({ v: 1, pets: [] })), JSON.stringify({ v: 1, pets: [] }));
 assert.throws(() => assertBagBlob('{'), (err) => err.code === 'PET_BAG_BAD_BLOB');
