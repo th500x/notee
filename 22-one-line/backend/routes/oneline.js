@@ -15,6 +15,7 @@ const giftsRouter = require('./gifts');
 const stampBagRouter = require('./stampBag');
 const pourBagRouter = require('./pourBag');
 const petBagRouter = require('./petBag');
+const lyricProposalsRouter = require('./lyricProposals');
 const { getFeed } = require('../services/postService');
 const { sendServiceError } = require('../lib/sendServiceError');
 
@@ -41,6 +42,7 @@ router.use('/gifts', giftsRouter);
 router.use('/stamp', stampBagRouter);
 router.use('/pour', pourBagRouter);
 router.use('/pet', petBagRouter);
+router.use('/lyric', lyricProposalsRouter);
 
 /** Design path: GET /api/oneline/feed — optional Bearer for resonatedByMe + block filter */
 router.get('/feed', publicReadLimiter, optionalAuth, async (req, res) => {

@@ -19,7 +19,8 @@
     "test:stamp-bag": "node scripts/assert-stamp-bag.js",
     "test:pet-bag": "node scripts/assert-pet-bag.js",
     "test:pour-bag": "node scripts/assert-pour-bag.js",
-    "test:pour-media": "node scripts/assert-pour-media.js"
+    "test:pour-media": "node scripts/assert-pour-media.js",
+    "test:lyric-proposals": "node scripts/assert-lyric-proposals.js"
   },
   "license": "UNLICENSED",
   "private": true,

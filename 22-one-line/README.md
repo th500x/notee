@@ -92,6 +92,7 @@ npm run jobs:daily
 | PUT | `/api/oneline/pour/bag` | Bearer；`revision` 必须大于云端；否则 409 `POUR_BAG_STALE`。拒图片字段；历史最多 30 条 |
 | GET | `/api/oneline/pet/bag` | Bearer；当前户宠物袋（个体 JSON + P-Points + 默认出战 + 首赠闩 + Tonight 日）。无行则 `revision: 0`。已领赠品 id 不在此袋 |
 | PUT | `/api/oneline/pet/bag` | Bearer；`revision` 必须大于云端；否则 409 `PET_BAG_STALE` |
+| POST | `/api/oneline/lyric/proposals` | Bearer；灵感库提议 `{ songs: [{ title, artist? }] }` 一次 1–5 首；写入 `lyric_proposals`；无公开 GET |
 
 账号规则正本：sibling `notee-go` → `docs/00-1-Account.md`。冒烟 `npm run smoke:login-id`。  
 短号软删即回池（狮子号回活动池，不进自动出号）；`password_hash` 不出参。  
