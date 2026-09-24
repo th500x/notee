@@ -272,7 +272,7 @@ function SortableRentRow({
         );
       })}
       <td
-        className={`p-1 border border-gray-100 ${COMPACT_COL_TD} bg-slate-50`}
+        className={`p-1 border border-gray-100 ${ROOM_COL_TD} bg-slate-50`}
         title="只读：与左侧房号同步"
       >
         <div className="min-h-[2.25rem] w-full min-w-0 box-border px-2 py-1.5 border border-gray-200 rounded text-sm text-gray-800 truncate tabular-nums">
@@ -550,7 +550,7 @@ export function AccountingRentTab({
                 {monthKeyToHeaderLabel(m1)}
               </th>
               <th
-                className={`p-2 text-center align-middle font-semibold border border-gray-700 text-xs leading-tight ${COMPACT_COL_TD}`}
+                className={`p-2 text-center align-middle font-semibold border border-gray-700 text-xs leading-tight ${ROOM_COL_TH}`}
               >
                 ROOM
                 <span className="mt-0.5 block text-[10px] font-normal opacity-80">（镜像·只读）</span>
@@ -590,7 +590,7 @@ export function AccountingRentTab({
                 </th>
               ))}
               <th
-                className={`p-2 border border-gray-700 text-center align-middle ${COMPACT_COL_TD} bg-gray-800`}
+                className={`p-2 border border-gray-700 text-center align-middle ${ROOM_COL_TH} bg-gray-800`}
                 title="只读：与左侧房号同步"
               >
                 ROOM
@@ -679,7 +679,7 @@ export function AccountingRentTab({
                     {formatAccountingNumber(totals.m1Settle)}
                   </td>
                   <td className="p-2 border border-gray-200 text-center text-gray-400">—</td>
-                  <td className={`p-2 border border-gray-200 ${COMPACT_COL_TD} bg-gray-100 text-center text-gray-400`}>
+                  <td className={`p-2 border border-gray-200 ${ROOM_COL_TD} bg-gray-100 text-center text-gray-400`}>
                     —
                   </td>
                   <td className={`p-2 border border-gray-200 ${COMPACT_COL_TD}`} />

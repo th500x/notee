@@ -29,8 +29,7 @@ export const MONTHLY_EXPENSE_TIP_THRESHOLD = 2000
 
 /**
  * 根据当月收支记录生成房源编号下方的红色提示文案。
- * - 备注含「半佣」的记录不参与合计与分类（不标大额/佣金/物业）
- * - 其余记录当月支出合计不足 2000：无提示
+ * - 当月支出合计不足 2000：无提示
  * - ≥2000 且备注含「佣金」→「佣金支出」
  * - ≥2000 且备注含「物业费」→「物业支出」
  * - 否则 ≥2000 →「大额支出」
@@ -42,10 +41,7 @@ export const MONTHLY_EXPENSE_TIP_THRESHOLD = 2000
  */
 export function getMonthlyExpenseTipLabel(property, monthKey) {
   if (!property || !monthKey) return null
-  const records = (property.records || []).filter((r) => {
-    if (r.date !== monthKey) return false
-    return !String(r.note || '').includes('半佣')
-  })
+  const records = (property.records || []).filter((r) => r.date === monthKey)
   if (records.length === 0) return null
 
   const totalExpenses = records.reduce((sum, r) => sum + (Number(r.expenses) || 0), 0)
@@ -77,14 +73,14 @@ export function isYearMonthInView(dateStr, selectedYear, selectedMonth, viewMode
   return recordYear === selectedYear
 }
 
-const COMMISSION_KEYWORD_RE = /半佣|佣金/
+const COMMISSION_KEYWORD_RE = /佣金/
 const COMMISSION_NUMBER_AFTER_RE = /^[\s:：=￥¥$฿]*([\d,]+(?:\.\d+)?)/
 
 /**
  * 从房源收支备注解析佣金金额。
- * - 不含「佣金」「半佣」→ null（不计入）
- * - 关键字后紧跟数字 → 该数字
- * - 关键字后无数字 → 该房源月租金
+ * - 不含「佣金」→ null（不计入）
+ * - 「佣金」后紧跟数字 → 该数字
+ * - 「佣金」后无数字 → 该房源月租金
  *
  * @param {string} note
  * @param {number} monthlyRent

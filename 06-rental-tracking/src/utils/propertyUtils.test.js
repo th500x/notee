@@ -12,14 +12,14 @@ describe('parseCommissionAmountFromNote', () => {
     assert.equal(parseCommissionAmountFromNote('', 8000), null)
   })
 
-  it('uses monthly rent when 佣金 or 半佣 has no trailing number', () => {
+  it('uses monthly rent when 佣金 has no trailing number', () => {
     assert.equal(parseCommissionAmountFromNote('佣金', 8000), 8000)
-    assert.equal(parseCommissionAmountFromNote('半佣已付', 6500), 6500)
+    assert.equal(parseCommissionAmountFromNote('半佣已付', 6500), null)
   })
 
   it('uses the number immediately after the keyword', () => {
     assert.equal(parseCommissionAmountFromNote('佣金5000', 8000), 5000)
-    assert.equal(parseCommissionAmountFromNote('半佣 2,500', 8000), 2500)
+    assert.equal(parseCommissionAmountFromNote('半佣 2,500', 8000), null)
     assert.equal(parseCommissionAmountFromNote('佣金：4500.5', 8000), 4500.5)
   })
 })
@@ -42,14 +42,14 @@ describe('sumCommissionFromProjects', () => {
           records: [
             { date: '2026-08', note: '佣金', expenses: 10000 },
             { date: '2026-08', note: '维修', expenses: 3000 },
-            { date: '2026-07', note: '半佣 4000', expenses: 4000 },
+            { date: '2026-07', note: '佣金 4000', expenses: 4000 },
           ],
         },
       ],
     },
   ]
 
-  it('sums only in-view property notes with commission keywords', () => {
+  it('sums only in-view property notes with 佣金 keyword', () => {
     assert.equal(sumCommissionFromProjects(projects, 2026, 8, 'month'), 10000)
     assert.equal(sumCommissionFromProjects(projects, 2026, 8, 'year'), 14000)
   })
