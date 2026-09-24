@@ -52,6 +52,14 @@ const COMPACT_COL_TD =
 const ROOM_COL_TD = 'w-[8.5rem] min-w-[4rem] max-w-[8.5rem] align-top box-border';
 const ROOM_COL_TH = ROOM_COL_TD;
 
+/**
+ * 镜像 ROOM：固定宽，只对齐首列「房号输入框」（红框那一块），不含拖动手柄。
+ * 约 8.5rem 首列 − w-7 柄 − gap-1 ≈ 6.5rem（含本格 p-1）；避免筛选时 auto 列宽收缩晃动。
+ */
+const MIRROR_ROOM_COL_TD =
+  'w-[6.5rem] min-w-[6.5rem] max-w-[6.5rem] align-top box-border';
+const MIRROR_ROOM_COL_TH = MIRROR_ROOM_COL_TD;
+
 /** 可录入格：ROOM(0)…备注(4)、PRICE(5)、DEPOSIT(6)、双月 IN/OUT/交租（右月交租为列 14），不含只读 SETTLE、镜像 ROOM 与删钮 */
 const RENT_GRID_COL_MAX = 14;
 
@@ -272,7 +280,7 @@ function SortableRentRow({
         );
       })}
       <td
-        className={`p-1 border border-gray-100 ${ROOM_COL_TD} bg-slate-50`}
+        className={`p-1 border border-gray-100 ${MIRROR_ROOM_COL_TD} bg-slate-50`}
         title="只读：与左侧房号同步"
       >
         <div className="min-h-[2.25rem] w-full min-w-0 box-border px-2 py-1.5 border border-gray-200 rounded text-sm text-gray-800 truncate tabular-nums">
@@ -550,7 +558,7 @@ export function AccountingRentTab({
                 {monthKeyToHeaderLabel(m1)}
               </th>
               <th
-                className={`p-2 text-center align-middle font-semibold border border-gray-700 text-xs leading-tight ${ROOM_COL_TH}`}
+                className={`p-2 text-center align-middle font-semibold border border-gray-700 text-xs leading-tight ${MIRROR_ROOM_COL_TH}`}
               >
                 ROOM
                 <span className="mt-0.5 block text-[10px] font-normal opacity-80">（镜像·只读）</span>
@@ -590,7 +598,7 @@ export function AccountingRentTab({
                 </th>
               ))}
               <th
-                className={`p-2 border border-gray-700 text-center align-middle ${ROOM_COL_TH} bg-gray-800`}
+                className={`p-2 border border-gray-700 text-center align-middle ${MIRROR_ROOM_COL_TH} bg-gray-800`}
                 title="只读：与左侧房号同步"
               >
                 ROOM
@@ -679,7 +687,7 @@ export function AccountingRentTab({
                     {formatAccountingNumber(totals.m1Settle)}
                   </td>
                   <td className="p-2 border border-gray-200 text-center text-gray-400">—</td>
-                  <td className={`p-2 border border-gray-200 ${ROOM_COL_TD} bg-gray-100 text-center text-gray-400`}>
+                  <td className={`p-2 border border-gray-200 ${MIRROR_ROOM_COL_TD} bg-gray-100 text-center text-gray-400`}>
                     —
                   </td>
                   <td className={`p-2 border border-gray-200 ${COMPACT_COL_TD}`} />
