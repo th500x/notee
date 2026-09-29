@@ -1,4 +1,4 @@
-import { Link, NavLink, useNavigate } from 'react-router-dom';
+import { NavLink, useNavigate } from 'react-router-dom';
 import { useLifeAuth } from '@/contexts/LifeAuthContext';
 
 const navLinkClass = ({ isActive }) =>
@@ -19,15 +19,13 @@ export default function SiteHeader() {
   return (
     <header className="border-b border-slate-200 bg-white/90 backdrop-blur sticky top-0 z-10">
       <div className="max-w-3xl mx-auto px-4 h-14 flex items-center justify-between gap-4">
-        <div className="flex items-center gap-3 min-w-0">
-          <a href="/" className="text-sm text-slate-500 hover:text-slate-800 shrink-0">
-            Notee
-          </a>
-          <span className="text-slate-300">/</span>
-          <Link to="/" className="font-semibold text-slate-900 truncate">
-            人生片段
-          </Link>
-        </div>
+        <a
+          href="/"
+          title="返回主页"
+          className="font-semibold text-slate-900 truncate hover:text-indigo-700"
+        >
+          人生片段
+        </a>
         <nav className="flex items-center gap-1 shrink-0">
           <NavLink to="/" className={navLinkClass} end>
             首页

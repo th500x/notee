@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { listGames } from '../services/contentService'
+import { SITE } from '../constants'
 
 export default function HomePage() {
   const games = listGames()
@@ -7,9 +8,9 @@ export default function HomePage() {
   return (
     <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 sm:py-14">
       <section className="max-w-2xl">
-        <p className="text-sm tracking-wide text-[var(--accent)]">10 · Game Guides</p>
+        <p className="text-sm tracking-wide text-[var(--accent)]">{SITE.nameEn}</p>
         <h1 className="mt-2 text-3xl font-semibold tracking-tight text-[var(--text)] sm:text-4xl">
-          游戏攻略
+          {SITE.name}
         </h1>
         <p className="mt-4 text-[var(--muted)] leading-relaxed">
           把分散、易过时的攻略整理成可检索的结构化条目。纯阅读、无广告，适合 PC / 竖屏。

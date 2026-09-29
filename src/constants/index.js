@@ -3,22 +3,6 @@
  */
 export const PROJECTS = [
   {
-    id: '33-san-storm',
-    name: '真三風雲',
-    icon: '⚔️',
-    description: '三国策略战棋游戏\nS1赛季 - 黄巾之乱',
-    gradient: 'linear-gradient(135deg, #FF6B6B 0%, #4ECDC4 100%)',
-    path: '/33-san-storm/'
-  },
-  {
-    id: '08-life-resume',
-    name: '人生片段',
-    icon: '📖',
-    description: '按年份记录人生片段\n支持隐私分级与 Google 云盘链接',
-    gradient: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-    path: '/08-life-resume/'
-  },
-  {
     id: '01-news-calendar',
     name: '新聞筆記',
     icon: '📰',
@@ -33,6 +17,14 @@ export const PROJECTS = [
     description: '游戏人生的点滴记录\n支持阅读进度记忆和PDF导出',
     gradient: 'linear-gradient(135deg, #8B4513 0%, #D2691E 100%)',
     path: '/02-tale-historical/'
+  },
+  {
+    id: '03-lost-pearls',
+    name: '歷史遺珠',
+    icon: '📘',
+    description: '复杂游戏的攻略与资讯汇总\n纯阅读、无广告',
+    gradient: 'linear-gradient(135deg, #0f1419 0%, #6cb6ff 100%)',
+    path: '/03-lost-pearls/'
   },
   {
     id: '06-rental-tracking',
@@ -53,12 +45,12 @@ export const PROJECTS = [
     adminOnly: true
   },
   {
-    id: '03-game-guides',
-    name: '游戏攻略',
-    icon: '📘',
-    description: '复杂游戏的攻略与资讯汇总\n纯阅读、无广告',
-    gradient: 'linear-gradient(135deg, #0f1419 0%, #6cb6ff 100%)',
-    path: '/03-game-guides/'
+    id: '08-life-resume',
+    name: '人生片段',
+    icon: '📖',
+    description: '按年份记录人生片段\n支持隐私分级与 Google 云盘链接',
+    gradient: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+    path: '/08-life-resume/'
   }
 ]
 

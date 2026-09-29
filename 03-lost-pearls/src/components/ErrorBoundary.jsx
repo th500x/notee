@@ -24,10 +24,10 @@ export default class ErrorBoundary extends Component {
             请刷新重试。若持续失败，可从首页重新进入。
           </p>
           <a
-            href="/03-game-guides/"
+            href="/03-lost-pearls/"
             className="mt-6 inline-block text-sm text-[var(--accent)] hover:underline"
           >
-            返回游戏攻略首页
+            返回歷史遺珠首页
           </a>
           {import.meta.env.DEV && this.state.error && (
             <pre className="mt-8 overflow-auto rounded-lg bg-[var(--surface)] p-4 text-left text-xs text-red-300">
