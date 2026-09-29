@@ -32,6 +32,7 @@ const MIGRATION_FILES = [
   '012-accounts.sql',
   '013-eth-ma-trade-logs.sql',
   '014-accounts-birthday.sql',
+  '015-wallet-asset-daily.sql',
 ];
 
 const DEFAULT_DB_NAME = '11_life_resume';

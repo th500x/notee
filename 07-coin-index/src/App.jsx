@@ -8,6 +8,7 @@ import SimulationTable from './components/SimulationTable'
 import YearSummary from './components/YearSummary'
 import { useWeeklyData, useYearlyData, useSelectedWeekData } from './hooks/useWeeklyData'
 import { useCurrentWeek } from './hooks/useCurrentWeek'
+import { useLifeResumeAuth } from './hooks/useLifeResumeAuth'
 import { YEAR_RANGE } from './constants'
 import { computeT0MustMap } from './utils/t0Must'
 
@@ -15,6 +16,7 @@ function App() {
   // 使用自定义Hooks管理数据
   const { allWeeklyData, loading } = useWeeklyData()
   const currentWeekId = useCurrentWeek()
+  const auth = useLifeResumeAuth()
   
   // 状态管理
   const [selectedWeek, setSelectedWeek] = useState(null)
@@ -130,10 +132,10 @@ function App() {
                 t0Must={selectedWeek ? t0MustByWeek[selectedWeek] : null}
               />
             </div>
-            <WalletAssetsPanel />
+            <WalletAssetsPanel auth={auth} />
           </div>
         </div>
-        <EthMaWorkbench />
+        <EthMaWorkbench auth={auth} />
       </main>
 
       {/* 模拟演练模态框 */}

@@ -106,9 +106,19 @@ export async function saveEthMaTrade(body) {
   })
 }
 
-export async function fetchWalletAssets(address) {
-  const query = new URLSearchParams({ address: String(address || '').trim() })
-  return fetchJson(`/wallet-assets?${query.toString()}`)
+export async function fetchWalletWatch() {
+  return fetchJson('/wallet-assets')
+}
+
+export async function saveWalletWatch(address) {
+  return fetchJson('/wallet-assets', {
+    method: 'PUT',
+    body: JSON.stringify({ address }),
+  })
+}
+
+export async function clearWalletWatch() {
+  return fetchJson('/wallet-assets', { method: 'DELETE' })
 }
 
 export async function deleteEthMaTrade(signalOpenTime) {

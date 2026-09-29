@@ -25,6 +25,7 @@ const pushRouter = require('./routes/push');
 const ethMaCrossRouter = require('./routes/ethMaCross');
 const walletAssetsRouter = require('./routes/walletAssets');
 const { assertJwtSecret } = require('./utils/startupChecks');
+const { startWalletAssetDailyJob } = require('./services/walletAssetDailyJob');
 
 assertJwtSecret();
 
@@ -107,6 +108,7 @@ app.listen(PORT, async () => {
   }
 
   console.log('========================================');
+  startWalletAssetDailyJob();
 });
 
 module.exports = app;

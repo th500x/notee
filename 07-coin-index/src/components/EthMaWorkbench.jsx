@@ -5,10 +5,8 @@
 import EthMaSubscribePanel from './EthMaSubscribePanel'
 import EthMaTradeLogPanel from './EthMaTradeLogPanel'
 import { useEthMaSubscribe } from '../hooks/useEthMaSubscribe'
-import { useLifeResumeAuth } from '../hooks/useLifeResumeAuth'
 
-function EthMaWorkbench() {
-  const auth = useLifeResumeAuth()
+function EthMaWorkbench({ auth }) {
   const ma = useEthMaSubscribe(auth)
   const split = Boolean(auth.accountId)
 

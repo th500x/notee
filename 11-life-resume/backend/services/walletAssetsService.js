@@ -174,12 +174,16 @@ async function fetchPositions(address) {
   };
 }
 
-async function loadWalletAssets(address) {
+function normalizeWalletAddress(address) {
   const normalized = String(address || '').trim();
   if (!ADDRESS_RE.test(normalized)) {
     throw new WalletAssetsError('请填写完整的以太坊地址（0x 开头、共 42 位）', 400);
   }
-  const key = normalized.toLowerCase();
+  return normalized.toLowerCase();
+}
+
+async function loadWalletAssets(address) {
+  const key = normalizeWalletAddress(address);
   const hit = cache.get(key);
   if (hit && Date.now() - hit.at < CACHE_MS) return hit.payload;
 
@@ -203,6 +207,7 @@ async function loadWalletAssets(address) {
 
 module.exports = {
   WalletAssetsError,
+  normalizeWalletAddress,
   estimatePositionUsd,
   loadWalletAssets,
 };
