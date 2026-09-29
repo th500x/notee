@@ -1,7 +1,7 @@
 /**
  * 全站 00 后端 + 行情工人。
  *
- * 00-notee-backend：管理员口令与人生片段，端口 3001。
+ * 00-notee-backend：管理员口令与人生片段，端口 3000。
  * 08-eth-ma-cross-worker：独立进程。国内机访问不了币安时不要启动这一项。
  *
  * 启动 API：pm2 start ecosystem.config.cjs --only 00-notee-backend
@@ -25,7 +25,7 @@ module.exports = {
       max_memory_restart: '512M',
       env: {
         NODE_ENV: 'production',
-        PORT: 3001,
+        PORT: 3000,
       },
       error_file: './logs/backend-error.log',
       out_file: './logs/backend-out.log',

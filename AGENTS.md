@@ -30,8 +30,8 @@
 
 ## Notee 网页后端（2026-09-29）
 
-- 全站进程是 **`08-life-resume/backend`**（PM2 `00-notee-backend`，端口 **3001**）：管理员口令 `/api/auth`，人生片段 `/api/life-resume`。
+- 全站进程是 **`08-life-resume/backend`**（PM2 `00-notee-backend`，端口 **3000**）：管理员口令 `/api/auth`，人生片段 `/api/life-resume`。
 - 目录由 `11-life-resume` 改为 `08-life-resume`。库名仍是 **`11_life_resume`**，对象存储桶名仍是 **`11-life-resume`**。
 - 管理员密钥是 `ADMIN_JWT_SECRET`，账号密钥是 `JWT_SECRET`，不能相同。
-- 留言板与 `01` 新闻后端已撤。新闻页读静态 JSON。`06` 租赁后端仍独立（端口 3003）。
+- 留言板与 `01` 新闻后端已撤。新闻页读静态 JSON。`06` 租赁后端仍独立（端口 3006）。
 - 主页子项目为 `01`、`03-lost-pearls`、`06`、`07`、`08`。`02-tale-historical` 已删除。`33-san-storm` 不再由本站托管。

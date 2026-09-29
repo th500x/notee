@@ -6,7 +6,7 @@
 import { YEAR_RANGE, DATA_PATHS } from '../constants'
 
 export const config = {
-  /** 人生片段 API；开发环境走 Vite proxy → 3001 */
+  /** 人生片段 API；开发环境走 Vite proxy → 3000 */
   lifeResumeApiBase: String(import.meta.env.VITE_LIFE_RESUME_API_BASE || '/api/life-resume').replace(/\/$/, ''),
 
   // 数据配置

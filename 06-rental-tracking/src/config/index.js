@@ -22,7 +22,7 @@ function getApiBaseUrl() {
   }
   
   // 本地开发环境
-  return 'http://localhost:3003'
+  return 'http://localhost:3006'
 }
 
 /**
@@ -42,7 +42,7 @@ function getUploadApiBaseUrl() {
   }
   
   // 本地开发环境
-  return 'http://localhost:3003'
+  return 'http://localhost:3006'
 }
 
 /**

@@ -14,7 +14,7 @@ const cors = require('cors');
 const { testConnection } = require('./database/connection');
 
 const app = express();
-const PORT = process.env.PORT || 3003;
+const PORT = process.env.PORT || 3006;
 
 // CORS配置 - 开发环境允许所有来源
 app.use(cors({

@@ -13,7 +13,7 @@ function getAuthApiUrl() {
   }
 
   if (hostname === 'localhost' || hostname === '127.0.0.1') {
-    return 'http://localhost:3001/api/auth'
+    return 'http://localhost:3000/api/auth'
   }
 
   return `${protocol}//${hostname}/api/auth`

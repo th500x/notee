@@ -83,7 +83,7 @@ function delay(ms) {
 }
 
 function apiBaseForBrowser() {
-  return typeof window !== 'undefined' && window.location.origin ? '' : 'http://localhost:3003';
+  return typeof window !== 'undefined' && window.location.origin ? '' : 'http://localhost:3006';
 }
 
 /** 经后端代理下载，避免 OSS 直链 CORS */
@@ -304,7 +304,7 @@ export async function fetchPublicGallery(token) {
   const base =
     typeof window !== 'undefined' && window.location.origin
       ? ''
-      : 'http://localhost:3003';
+      : 'http://localhost:3006';
   const res = await fetch(
     `${base}/api/rental-tracking/public/gallery/${encodeURIComponent(token)}`
   );
