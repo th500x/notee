@@ -53,15 +53,16 @@ function loadLegacyAdminEnv() {
 }
 
 function assertAdminAuthConfig() {
-  const admin = process.env.ADMIN_JWT_SECRET || '';
   const player = process.env.JWT_SECRET || '';
+  let admin = process.env.ADMIN_JWT_SECRET || '';
   const hash = process.env.GLOBAL_PASSWORD_HASH || '';
 
   if (admin && player && admin === player) {
     console.error(
-      '[00] ADMIN_JWT_SECRET 与账号 JWT_SECRET 相同。06 只要验过签名就会当成总管理员，普通账号会变成租赁后台管理员。请换成另一把密钥。'
+      '[00] ADMIN_JWT_SECRET 与账号 JWT_SECRET 相同，已停用 /api/auth。请换成另一把管理员密钥，否则普通账号会被 06 当成总管理员。'
     );
-    process.exit(1);
+    delete process.env.ADMIN_JWT_SECRET;
+    admin = '';
   }
 
   const ready = admin.length >= 16 && hash.length > 0;
@@ -69,16 +70,12 @@ function assertAdminAuthConfig() {
     return;
   }
 
-  const msg =
-    '[00] 管理员口令未配齐（需要 ADMIN_JWT_SECRET>=16 与 GLOBAL_PASSWORD_HASH）。/api/auth 不可用。';
-  if (process.env.NODE_ENV === 'production') {
-    console.error(msg);
-    console.error(
-      '  生产请把旧 backend/.env 的 JWT_SECRET 写入 ADMIN_JWT_SECRET，GLOBAL_PASSWORD_HASH 一并写入 08-life-resume/backend/.env'
-    );
-    process.exit(1);
-  }
-  console.warn(msg);
+  console.error(
+    '[00] 管理员口令未配齐（需要 ADMIN_JWT_SECRET>=16 与 GLOBAL_PASSWORD_HASH）。人生片段继续运行，/api/auth 暂不可用。'
+  );
+  console.error(
+    '  请把旧 backend/.env 的 JWT_SECRET 写入 08-life-resume/backend/.env 的 ADMIN_JWT_SECRET，GLOBAL_PASSWORD_HASH 原样复制。'
+  );
 }
 
 module.exports = {
