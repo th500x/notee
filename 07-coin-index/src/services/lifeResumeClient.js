@@ -106,6 +106,11 @@ export async function saveEthMaTrade(body) {
   })
 }
 
+export async function fetchWalletAssets(address) {
+  const query = new URLSearchParams({ address: String(address || '').trim() })
+  return fetchJson(`/wallet-assets?${query.toString()}`)
+}
+
 export async function deleteEthMaTrade(signalOpenTime) {
   return fetchJson(`/eth-ma-cross/trades/${encodeURIComponent(signalOpenTime)}`, {
     method: 'DELETE',

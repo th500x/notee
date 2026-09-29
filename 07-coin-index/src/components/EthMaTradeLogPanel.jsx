@@ -2,7 +2,8 @@
  * 登录后：待记交叉 + 已记操作（按年/月折叠）。同一信号最多一笔。
  */
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useEthMaTradeLogs } from '../hooks/useEthMaTradeLogs'
 import { formatEthPrice, formatHoldDays, formatPnl, formatSignalTime } from '../utils/ethMaFormat'
 import { groupTradesByYearMonth, isCurrentYearMonth } from '../utils/ethMaTradeGroups'
@@ -192,6 +193,17 @@ function EthMaTradeLogPanel({ accountId }) {
     setDraft({ ...EMPTY_DRAFT })
   }
 
+  const formOpen = editingOpenTime != null && editingSignal != null
+
+  useEffect(() => {
+    if (!formOpen) return undefined
+    const onKey = (event) => {
+      if (event.key === 'Escape') closeForm()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [formOpen, editingOpenTime])
+
   const handleSave = async () => {
     if (editingOpenTime == null) return
     const ok = await save({
@@ -223,17 +235,6 @@ function EthMaTradeLogPanel({ accountId }) {
           <p className="eth-ma-subscribe__muted">加载操作记录…</p>
         ) : (
           <>
-            {editingOpenTime != null && editingSignal && (
-              <TradeForm
-                signal={editingSignal}
-                draft={draft}
-                setDraft={setDraft}
-                busy={busy}
-                error={error}
-                onSave={handleSave}
-                onCancel={closeForm}
-              />
-            )}
             {editingOpenTime == null && error && (
               <p className="eth-ma-subscribe__error">{error}</p>
             )}
@@ -308,6 +309,26 @@ function EthMaTradeLogPanel({ accountId }) {
           </>
         )}
       </div>
+      {formOpen &&
+        createPortal(
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" role="dialog" aria-modal="true" aria-label="编辑操作记录">
+            <div className="bg-white rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] overflow-auto p-4">
+              <h4 className="text-base font-semibold text-gray-900 mb-2">
+                {tradesByOpenTime.has(editingOpenTime) ? '修改这笔记录' : '记一笔'}
+              </h4>
+              <TradeForm
+                signal={editingSignal}
+                draft={draft}
+                setDraft={setDraft}
+                busy={busy}
+                error={error}
+                onSave={handleSave}
+                onCancel={closeForm}
+              />
+            </div>
+          </div>,
+          document.body
+        )}
     </div>
   )
 }

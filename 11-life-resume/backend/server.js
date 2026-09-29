@@ -23,6 +23,7 @@ const lifePathRouter = require('./routes/lifePath');
 const entrySeriesRouter = require('./routes/entrySeries');
 const pushRouter = require('./routes/push');
 const ethMaCrossRouter = require('./routes/ethMaCross');
+const walletAssetsRouter = require('./routes/walletAssets');
 const { assertJwtSecret } = require('./utils/startupChecks');
 
 assertJwtSecret();
@@ -55,6 +56,7 @@ app.use('/api/life-resume/home', homeRouter);
 app.use('/api/life-resume/entry-series', entrySeriesRouter);
 app.use('/api/life-resume/push', pushRouter);
 app.use('/api/life-resume/eth-ma-cross', ethMaCrossRouter);
+app.use('/api/life-resume/wallet-assets', walletAssetsRouter);
 
 app.get('/health', async (req, res) => {
   const dbConnected = await testConnection();

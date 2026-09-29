@@ -3,6 +3,7 @@ import './App.css'
 import WeeklyCalendar from './components/WeeklyCalendar'
 import EthMaWorkbench from './components/EthMaWorkbench'
 import DataDisplay from './components/DataDisplay'
+import WalletAssetsPanel from './components/WalletAssetsPanel'
 import SimulationTable from './components/SimulationTable'
 import YearSummary from './components/YearSummary'
 import { useWeeklyData, useYearlyData, useSelectedWeekData } from './hooks/useWeeklyData'
@@ -129,6 +130,7 @@ function App() {
                 t0Must={selectedWeek ? t0MustByWeek[selectedWeek] : null}
               />
             </div>
+            <WalletAssetsPanel />
           </div>
         </div>
         <EthMaWorkbench />
