@@ -3,7 +3,6 @@ import Calendar from 'react-calendar'
 import 'react-calendar/dist/Calendar.css'
 import './App.css'
 import NewsDisplay from './components/NewsDisplay'
-import HotNews from './components/HotNews'
 import { formatDateKey } from './utils/dateUtils'
 import { loadNewsData } from './utils/newsData'
 import { DATE_CONSTANTS, LOG_PREFIX } from './constants'
@@ -14,8 +13,7 @@ function App() {
   const [newsData, setNewsData] = useState({}) // 存储所有新闻数据
   const [newsIndicators, setNewsIndicators] = useState(new Set()) // 存储有新闻的日期
   const [indicatorsLoaded, setIndicatorsLoaded] = useState(false) // 标记指示器是否已加载
-  const [selectedDateNews, setSelectedDateNews] = useState({}) // 存储当前选中日期的新闻
-  const [hotNewsRefresh, setHotNewsRefresh] = useState(0) // 热门新闻刷新触发器
+  const [selectedDateNews, setSelectedDateNews] = useState({})
   
   // 错误和加载状态
   const [loading, setLoading] = useState(true)
@@ -24,11 +22,6 @@ function App() {
   // 使用配置常量设置日期范围
   const minDate = DATE_CONSTANTS.MIN_DATE
   const maxDate = DATE_CONSTANTS.MAX_DATE
-
-  // Refresh hot news function
-  const refreshHotNews = () => {
-    setHotNewsRefresh(prev => prev + 1)
-  }
 
   // 加载新闻数据并提取有新闻的日期
   useEffect(() => {
@@ -254,11 +247,6 @@ function App() {
                 locale="zh-CN"
               />
             </div>
-            
-            {/* 热门新闻区域 - 在桌面端显示在日历下方，手机端显示在新闻上方 */}
-            <div className="hidden lg:block">
-              <HotNews refreshTrigger={hotNewsRefresh} />
-            </div>
           </div>
 
           {/* 新闻显示区域 */}
@@ -268,13 +256,7 @@ function App() {
               <NewsDisplay 
                 selectedDate={selectedDate}
                 newsData={selectedDateNews}
-                onEmojiUpdate={refreshHotNews}
               />
-            </div>
-            
-            {/* 手机端热门新闻 - 显示在新闻内容之后 */}
-            <div className="lg:hidden">
-              <HotNews refreshTrigger={hotNewsRefresh} />
             </div>
           </div>
         </div>

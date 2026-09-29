@@ -1,5 +1,3 @@
-import { MODULES } from '../constants'
-
 /**
  * 验证器集合
  */
@@ -24,20 +22,6 @@ export const validators = {
     return null
   },
   
-  /**
-   * 模块验证
-   */
-  module: (value) => {
-    const validModules = Object.values(MODULES)
-    if (!validModules.includes(value)) {
-      return '无效的模块'
-    }
-    return null
-  },
-  
-  /**
-   * HTML标签验证
-   */
   noHtml: (value) => {
     if (/<[^>]*>/g.test(value)) {
       return '不允许包含HTML标签'
@@ -72,50 +56,6 @@ export function validate(value, rules) {
     }
   }
   return null
-}
-
-/**
- * 验证留言表单
- * 
- * @param {string} module - 留言所属模块
- * @param {string} content - 留言内容
- * @returns {Object} 验证结果
- * @returns {boolean} returns.valid - 是否验证通过
- * @returns {Object} returns.errors - 错误信息对象，key为字段名，value为错误消息
- * 
- * @example
- * const result = validateMessageForm('general', '这是一条留言')
- * // { valid: true, errors: {} }
- * 
- * const result = validateMessageForm('', '')
- * // { valid: false, errors: { module: '此字段为必填项', content: '此字段为必填项' } }
- */
-export function validateMessageForm(module, content) {
-  const errors = {}
-  
-  // 验证模块
-  const moduleError = validate(module, [
-    validators.required,
-    validators.module
-  ])
-  if (moduleError) {
-    errors.module = moduleError
-  }
-  
-  // 验证内容
-  const contentError = validate(content, [
-    validators.required,
-    validators.maxLength(50),
-    validators.noHtml
-  ])
-  if (contentError) {
-    errors.content = contentError
-  }
-  
-  return {
-    valid: Object.keys(errors).length === 0,
-    errors
-  }
 }
 
 /**

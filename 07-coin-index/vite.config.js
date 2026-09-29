@@ -9,7 +9,7 @@ export default defineConfig({
     port: 5174,
     proxy: {
       '/api/life-resume': {
-        target: 'http://localhost:3011',
+        target: 'http://localhost:3001',
         changeOrigin: true,
       },
     },
@@ -17,7 +17,7 @@ export default defineConfig({
   preview: {
     proxy: {
       '/api/life-resume': {
-        target: 'http://localhost:3011',
+        target: 'http://localhost:3001',
         changeOrigin: true,
       },
     },

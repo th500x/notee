@@ -1,14 +1,14 @@
 {
   "name": "notee-shared-backend",
   "version": "1.0.0",
-  "description": "Notee共享后端服务 - 留言板等功能",
+  "description": "已停用。全站后端在 08-life-resume/backend",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js"
   },
   "keywords": [
-    "guestbook",
+    "notee",
     "api",
     "express"
   ],

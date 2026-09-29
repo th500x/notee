@@ -61,7 +61,7 @@ function EthMaSubscribePanel({ auth, ma }) {
           <p className="eth-ma-subscribe__muted">
             使用与「真三风云 / 人生片段」相同的 4 位 ID 登录后授权通知。没有账号请先到
             {' '}
-            <a href="/11-life-resume/" className="eth-ma-subscribe__link">人生片段</a>
+            <a href="/08-life-resume/" className="eth-ma-subscribe__link">人生片段</a>
             {' '}注册。
           </p>
           <label className="eth-ma-subscribe__label" htmlFor="eth-ma-account">

@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { Header } from './components/Header'
 import { ProjectCard } from './components/ProjectCard'
-import { Guestbook } from './components/Guestbook'
 import { Footer } from './components/Footer'
 import { AdminLoginModal } from './components/AdminLoginModal'
 import { Notification } from './components/Notification'
@@ -105,12 +104,6 @@ function App() {
               onClick={handleComingSoon}
             />
           ))}
-          
-          {/* 留言板 */}
-          <Guestbook
-            isAdmin={isLoggedIn}
-            onNotification={showNotification}
-          />
         </div>
       </main>
       

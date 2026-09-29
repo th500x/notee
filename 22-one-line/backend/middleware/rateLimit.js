@@ -1,5 +1,5 @@
 /**
- * Route-level limiters (same shape as 11-life-resume). In-process store: single instance only.
+ * Route-level limiters (same shape as 08-life-resume). In-process store: single instance only.
  */
 
 const rateLimit = require('express-rate-limit');

@@ -4,7 +4,8 @@
 
 ## 子代理模型
 
-调用子代理时 **`model` 默认 `inherit`（与主代理同一模型）**；未获用户当轮明文指定前，**禁止**自行换用其他模型。完整条款见 **`.cursor/rules/subagent-model-inherit.mdc`**。
+调用子代理时 **`model` 默认 `inherit`（与主代理同一模型）**；未获用户当轮明文指定前，**禁止**自行换用其他模型。完整条款见 **`.cursor/rules/subagent-model-inherit.mdc`**。  
+**经典精读**从初稿到所有校验轮次，开启子代理时同样必须 `inherit`，禁止换模。p2 顺序：r1–r3 之后，**仅当用户指定旧稿路径**才做 **r3+**（只采集，不准改新稿、不准整段抄旧稿），迁入编撰并入 **r4**。管线：`02-2-tales/prompts/08-经典精读-pipeline.md`。
 
 ## P0：33-san-storm · Vite 前端禁止 import 共享 `.cjs`（防白屏）
 
@@ -29,6 +30,13 @@
 **`.gitignore` 默认不由助手改动，但用户在对话中明确许可后可改**（含提交其创建/删除/重命名）；未获许可时只给建议片段。注意：`docs/`、`.cursor/`、`.kiro/` 的永久排除入库仍为绝对无例外，不得借改 `.gitignore` 纳入这些目录。
 
 提交前应对 `git status` 做核对；避免在仓库根不经筛选地 `git add -A` / `git add .` 后直接提交。
+
+## Notee 网页后端（2026-09-29）
+
+- 全站进程是 **`08-life-resume/backend`**（PM2 `00-notee-backend`，端口 **3001**）：管理员口令 `/api/auth`，人生片段 `/api/life-resume`。
+- 目录由 `11-life-resume` 改为 `08-life-resume`。库名仍是 **`11_life_resume`**，对象存储桶名仍是 **`11-life-resume`**。
+- 管理员密钥是 `ADMIN_JWT_SECRET`，账号密钥是 `JWT_SECRET`，不能相同。
+- 留言板与 `01` 新闻后端已撤。新闻页读静态 JSON。`06` 租赁后端仍独立（端口 3003）。
 
 ## 设计文档（33-san-storm）
 

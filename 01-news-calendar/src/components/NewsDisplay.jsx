@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react'
-import { formatDate, formatDateKey } from '../utils/dateUtils'
-import EmojiReaction from './EmojiReaction'
+import { formatDate } from '../utils/dateUtils'
 
 const NEWS_CATEGORIES = {
   world_politics: { title: '世界政治新闻', color: 'bg-red-100 text-red-800' },
@@ -11,7 +10,7 @@ const NEWS_CATEGORIES = {
   thailand_society: { title: '中泰民生新闻', color: 'bg-pink-100 text-pink-800' }
 }
 
-function NewsDisplay({ selectedDate, newsData, onEmojiUpdate }) {
+function NewsDisplay({ selectedDate, newsData }) {
   const hasNews = newsData && Object.keys(newsData).some(category => newsData[category]?.length > 0)
 
   return (
@@ -44,22 +43,16 @@ function NewsDisplay({ selectedDate, newsData, onEmojiUpdate }) {
                 
                 <div className="space-y-3">
                   {categoryNews.map((item, index) => {
-                    const newsId = `${formatDateKey(selectedDate)}-${categoryKey}-${index}`
-                    
                     return (
                       <div key={index} className="bg-gray-50 rounded-lg p-4">
                         <h3 className="font-medium text-gray-900 mb-2">
                           {item.title}
                         </h3>
                         {item.summary && (
-                          <p className="text-gray-600 text-sm leading-relaxed mb-3">
+                          <p className="text-gray-600 text-sm leading-relaxed">
                             {item.summary}
                           </p>
                         )}
-                        <EmojiReaction 
-                          newsId={newsId} 
-                          onUpdate={onEmojiUpdate}
-                        />
                       </div>
                     )
                   })}

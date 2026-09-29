@@ -1,41 +1,4 @@
 /**
- * 留言板模块常量
- */
-export const MODULES = {
-  GENERAL: 'general',
-  NEWS: '01-news-calendar',
-  TALE: '02-tale-historical',
-  COIN: '07-coin-index',
-  SAN: '33-san-storm',
-  LIFE: '11-life-resume'
-}
-
-/**
- * 模块显示名称
- */
-export const MODULE_NAMES = {
-  [MODULES.GENERAL]: '綜合留言',
-  [MODULES.NEWS]: '新聞筆記',
-  [MODULES.TALE]: '佚事雜錄',
-  [MODULES.COIN]: '區塊指標',
-  [MODULES.SAN]: '真三風雲',
-  [MODULES.LIFE]: '人生片段'
-}
-
-/**
- * 模块简称（用于筛选显示）
- */
-export const MODULE_SHORT_NAMES = {
-  all: '全部',
-  [MODULES.GENERAL]: '綜合',
-  [MODULES.NEWS]: '新聞',
-  [MODULES.TALE]: '佚事',
-  [MODULES.COIN]: '區塊',
-  [MODULES.SAN]: '真三',
-  [MODULES.LIFE]: '片段'
-}
-
-/**
  * 项目配置
  */
 export const PROJECTS = [
@@ -48,18 +11,18 @@ export const PROJECTS = [
     path: '/33-san-storm/'
   },
   {
-    id: '11-life-resume',
+    id: '08-life-resume',
     name: '人生片段',
     icon: '📖',
     description: '按年份记录人生片段\n支持隐私分级与 Google 云盘链接',
     gradient: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-    path: '/11-life-resume/'
+    path: '/08-life-resume/'
   },
   {
     id: '01-news-calendar',
     name: '新聞筆記',
     icon: '📰',
-    description: '浏览每日重要新闻，了解世界动态\n支持日历视图和热门新闻排行',
+    description: '浏览每日重要新闻，了解世界动态\n支持日历视图',
     gradient: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
     path: '/01-news-calendar/'
   },
@@ -98,15 +61,6 @@ export const PROJECTS = [
     path: '/03-game-guides/'
   }
 ]
-
-/**
- * 留言板配置
- */
-export const GUESTBOOK_CONFIG = {
-  MAX_MESSAGE_LENGTH: 50,
-  MESSAGES_PER_PAGE: 20,
-  CACHE_DURATION: 5 * 60 * 1000 // 5分钟
-}
 
 /**
  * 通知类型

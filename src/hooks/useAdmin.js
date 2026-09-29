@@ -80,7 +80,7 @@ export function useAdmin() {
       
       logger.info('useAdmin', '尝试登录')
       
-      const result = await authAPI.login(password, 'guestbook')
+      const result = await authAPI.login(password, 'notee')
       
       if (result.success) {
         setIsLoggedIn(true)

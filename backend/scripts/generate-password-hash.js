@@ -20,10 +20,10 @@ async function generateHash() {
   try {
     const hash = await bcrypt.hash(password, 10);
     console.log('\n✅ 密码哈希生成成功！\n');
-    console.log('请将以下内容添加到 backend/.env 文件中：\n');
+    console.log('请将以下内容写入 08-life-resume/backend/.env：\n');
     console.log(`GLOBAL_PASSWORD_HASH=${hash}`);
-    console.log(`JWT_SECRET=${generateRandomSecret()}`);
-    console.log('\n⚠️  注意：请妥善保管这些密钥，不要提交到Git仓库！\n');
+    console.log(`ADMIN_JWT_SECRET=${generateRandomSecret()}`);
+    console.log('\nADMIN_JWT_SECRET 是全站管理员凭证的密钥，不要和账号 JWT_SECRET 用同一个值。\n');
   } catch (error) {
     console.error('❌ 生成哈希失败:', error);
     process.exit(1);
