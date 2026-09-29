@@ -6,6 +6,9 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../database/connection');
+const { verifyToken } = require('../middleware/auth');
+
+router.use(verifyToken);
 
 /**
  * 导出所有数据

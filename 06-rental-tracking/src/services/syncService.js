@@ -4,6 +4,18 @@
  */
 
 import { config } from '../config'
+import { tokenManager } from '../utils/tokenManager'
+
+function adminHeaders(extra = {}) {
+  const token = tokenManager.get()
+  if (!token) {
+    throw new Error('请先以管理员身份登录')
+  }
+  return {
+    Authorization: `Bearer ${token}`,
+    ...extra,
+  }
+}
 
 export const syncService = {
   /**
@@ -12,7 +24,9 @@ export const syncService = {
    */
   exportLocal: async () => {
     try {
-      const response = await fetch(`${config.api.baseUrl}/api/rental-tracking/sync/export`)
+      const response = await fetch(`${config.api.baseUrl}/api/rental-tracking/sync/export`, {
+        headers: adminHeaders(),
+      })
       const result = await response.json()
       
       if (!result.success) {
@@ -36,9 +50,9 @@ export const syncService = {
     try {
       const response = await fetch(`${config.api.baseUrl}/api/rental-tracking/sync/import`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: adminHeaders({
+          'Content-Type': 'application/json',
+        }),
         body: JSON.stringify({ data, mode })
       })
       
@@ -61,7 +75,9 @@ export const syncService = {
    */
   getLocalStats: async () => {
     try {
-      const response = await fetch(`${config.api.baseUrl}/api/rental-tracking/sync/stats`)
+      const response = await fetch(`${config.api.baseUrl}/api/rental-tracking/sync/stats`, {
+        headers: adminHeaders(),
+      })
       const result = await response.json()
       
       if (!result.success) {
@@ -82,7 +98,9 @@ export const syncService = {
    */
   exportProduction: async (productionUrl) => {
     try {
-      const response = await fetch(`${productionUrl}/api/rental-tracking/sync/export`)
+      const response = await fetch(`${productionUrl}/api/rental-tracking/sync/export`, {
+        headers: adminHeaders(),
+      })
       const result = await response.json()
       
       if (!result.success) {
@@ -107,9 +125,9 @@ export const syncService = {
     try {
       const response = await fetch(`${productionUrl}/api/rental-tracking/sync/import`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: adminHeaders({
+          'Content-Type': 'application/json',
+        }),
         body: JSON.stringify({ data, mode })
       })
       
@@ -133,7 +151,9 @@ export const syncService = {
    */
   getProductionStats: async (productionUrl) => {
     try {
-      const response = await fetch(`${productionUrl}/api/rental-tracking/sync/stats`)
+      const response = await fetch(`${productionUrl}/api/rental-tracking/sync/stats`, {
+        headers: adminHeaders(),
+      })
       const result = await response.json()
       
       if (!result.success) {
