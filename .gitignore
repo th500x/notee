@@ -91,14 +91,8 @@ jspm_packages/
 public
 !news-calendar/public
 !01-news-calendar/public
-!02-tale-historical/public
 !04-coin-index/public
-!05-san-storm/public
-!05-san-storm/game/public
-!11-life-resume/public
-
-# 05 wiki：public 为本地 junction → 05-san-storm/public；vite 用 ../public，勿跟踪
-05-san-storm/wiki/public/
+!08-life-resume/public
 
 # Storybook build outputs
 .out
@@ -135,12 +129,5 @@ ehthumbs.db
 
 # --- 子项目运行时目录（原各子目录 .gitignore 独有规则）---
 
-# 05：战斗纪念图运行时落盘（POST /api/memorial/battle）
-05-san-storm/backend/storage/memorial/battle/*
-!05-san-storm/backend/storage/memorial/battle/.gitkeep
-
 # 06：租赁追踪后端本地数据
 06-rental-tracking/backend/data/
-
-# 02-2：本地小说创作工作室（辅助 02-tale-historical；不进网站、不同步 GitHub）
-02-2-tales/

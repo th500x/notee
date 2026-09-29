@@ -11,14 +11,6 @@ export const PROJECTS = [
     path: '/01-news-calendar/'
   },
   {
-    id: '02-tale-historical',
-    name: '佚事雜錄',
-    icon: '📚',
-    description: '游戏人生的点滴记录\n支持阅读进度记忆和PDF导出',
-    gradient: 'linear-gradient(135deg, #8B4513 0%, #D2691E 100%)',
-    path: '/02-tale-historical/'
-  },
-  {
     id: '03-lost-pearls',
     name: '歷史遺珠',
     icon: '📘',
