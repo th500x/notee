@@ -92,7 +92,7 @@ async function main() {
   );
   const idle = await purgeIdleSilentAccounts();
   const silentRow = await query('SELECT status FROM users WHERE id = ?', [silentOnly.user.id]);
-  checks.purgeIdleSilent = idle.purged >= 1 && silentRow[0].status === 'deleted';
+  checks.purgeIdleSilent = idle.purged >= 1 && silentRow.length === 0;
 
   await query(
     `UPDATE users SET last_seen_at = DATE_SUB(UTC_TIMESTAMP(), INTERVAL 31 DAY) WHERE id = ?`,

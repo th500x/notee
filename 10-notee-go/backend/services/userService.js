@@ -29,7 +29,10 @@ const CANDIDATES_DEFAULT = 9;
 const CANDIDATES_MAX = 9;
 /** Probe rounds before giving up; each round tests a batch against the taken set. */
 const CANDIDATE_ROUNDS = 8;
-/** Silent accounts (no login_id) idle this many days are soft-deleted. Short-id accounts never are. */
+/**
+ * Unregistered accounts idle this many days are removed, row and dependents.
+ * Short-id accounts are never swept.
+ */
 const SILENT_IDLE_DAYS = 30;
 
 function rowToUser(row) {
@@ -357,8 +360,9 @@ async function patchMe(userId, body) {
 }
 
 /**
- * Soft delete a **short-id** account. Silent rows have nothing to reclaim — they expire
- * via purgeIdleSilentAccounts after SILENT_IDLE_DAYS with no heartbeat.
+ * Soft delete a **short-id** account and release the id immediately.
+ * The row, posts, and the rest are physically removed on the next idle sweep
+ * (login_id is already NULL). Silent rows are not deleted here — purgeIdleSilentAccounts does that.
  */
 async function deleteMe(userId) {
   const current = await requireActiveUser(userId);
@@ -383,51 +387,83 @@ async function deleteMe(userId) {
 }
 
 /**
- * Soft-delete silent accounts that have not been seen for SILENT_IDLE_DAYS.
- * Registered short-id accounts are never swept — they can still sign in after losing the device.
+ * Drop one unregistered account and everything hanging off that UUID.
+ * Refuses a row that gained a short id or a ban between the select and the delete.
+ */
+async function eraseUnregisteredUser(userId) {
+  await transaction(async (connection) => {
+    const exec = (sql, params = []) => connection.execute(sql, params);
+    await exec(
+      `DELETE r FROM resonances r
+       INNER JOIN posts p ON p.id = r.post_id
+       WHERE p.user_id = ?`,
+      [userId]
+    );
+    await exec(`DELETE FROM resonances WHERE user_id = ?`, [userId]);
+    await exec(
+      `DELETE rep FROM reports rep
+       INNER JOIN posts p ON p.id = rep.post_id
+       WHERE p.user_id = ?`,
+      [userId]
+    );
+    await exec(`DELETE FROM reports WHERE reporter_id = ?`, [userId]);
+    await exec(
+      `DELETE FROM blocks WHERE blocker_id = ? OR blocked_id = ?`,
+      [userId, userId]
+    );
+    await exec(`DELETE FROM monthly_board WHERE user_id = ?`, [userId]);
+    await exec(`DELETE FROM posts WHERE user_id = ?`, [userId]);
+    await exec(`DELETE FROM stamp_bags WHERE user_id = ?`, [userId]);
+    await exec(`DELETE FROM pour_bags WHERE user_id = ?`, [userId]);
+    await exec(`DELETE FROM pet_bags WHERE user_id = ?`, [userId]);
+    await exec(`DELETE FROM lyric_proposals WHERE user_id = ?`, [userId]);
+    await exec(`DELETE FROM gift_claims WHERE user_id = ?`, [userId]);
+    await exec(`DELETE FROM gift_campaign_targets WHERE user_id = ?`, [userId]);
+    const [result] = await exec(
+      `DELETE FROM users
+       WHERE id = ? AND login_id IS NULL AND status <> 'banned'`,
+      [userId]
+    );
+    if (!result.affectedRows) {
+      const err = new Error('refuse to erase a registered or banned account');
+      err.code = 'ERASE_REFUSED';
+      throw err;
+    }
+  });
+  await deletePourMedia(userId).catch((err) => {
+    console.error('[notee-go/pour-media] idle purge', userId, err.message);
+  });
+}
+
+/**
+ * Physically remove unregistered accounts.
+ * Active rows wait until last_seen_at is older than SILENT_IDLE_DAYS.
+ * Rows already marked deleted (idle sweep leftovers, or a short id released by DELETE /me)
+ * go on the same pass. Banned rows stay. Short-id rows stay.
  */
 async function purgeIdleSilentAccounts() {
   const idle = await query(
     `SELECT id FROM users
-     WHERE status = 'active'
-       AND login_id IS NULL
-       AND last_seen_at < DATE_SUB(UTC_TIMESTAMP(), INTERVAL ${SILENT_IDLE_DAYS} DAY)`
+     WHERE login_id IS NULL
+       AND status <> 'banned'
+       AND (
+         status = 'deleted'
+         OR (
+           status = 'active'
+           AND last_seen_at < DATE_SUB(UTC_TIMESTAMP(), INTERVAL ${SILENT_IDLE_DAYS} DAY)
+         )
+       )`
   );
+  let purged = 0;
   for (const row of idle) {
-    await deletePourMedia(row.id).catch((err) => {
-      console.error('[notee-go/pour-media] idle purge', row.id, err.message);
-    });
+    try {
+      await eraseUnregisteredUser(row.id);
+      purged += 1;
+    } catch (err) {
+      console.error('[notee-go] idle erase', row.id, err.message);
+    }
   }
-  await query(
-    `DELETE sb FROM stamp_bags sb
-     INNER JOIN users u ON u.id = sb.user_id
-     WHERE u.status = 'active'
-       AND u.login_id IS NULL
-       AND u.last_seen_at < DATE_SUB(UTC_TIMESTAMP(), INTERVAL ${SILENT_IDLE_DAYS} DAY)`
-  );
-  await query(
-    `DELETE pb FROM pour_bags pb
-     INNER JOIN users u ON u.id = pb.user_id
-     WHERE u.status = 'active'
-       AND u.login_id IS NULL
-       AND u.last_seen_at < DATE_SUB(UTC_TIMESTAMP(), INTERVAL ${SILENT_IDLE_DAYS} DAY)`
-  );
-  await query(
-    `DELETE pt FROM pet_bags pt
-     INNER JOIN users u ON u.id = pt.user_id
-     WHERE u.status = 'active'
-       AND u.login_id IS NULL
-       AND u.last_seen_at < DATE_SUB(UTC_TIMESTAMP(), INTERVAL ${SILENT_IDLE_DAYS} DAY)`
-  );
-  const result = await query(
-    `UPDATE users
-     SET status = 'deleted', deleted_at = CURRENT_TIMESTAMP, device_key_hash = NULL,
-         nick_name = NULL, flag_id = NULL, gender = NULL, avatar_id = NULL
-     WHERE status = 'active'
-       AND login_id IS NULL
-       AND last_seen_at < DATE_SUB(UTC_TIMESTAMP(), INTERVAL ${SILENT_IDLE_DAYS} DAY)`
-  );
-  return { purged: Number(result.affectedRows) || 0 };
+  return { purged };
 }
 
 module.exports = {
