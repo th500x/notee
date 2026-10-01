@@ -17,7 +17,7 @@ const dbConfig = {
   port: process.env.DB_PORT || 3306,
   user: process.env.DB_USER || 'root',
   password: process.env.DB_PASSWORD || '',
-  database: process.env.DB_NAME || '06_rental_tracking',
+  database: process.env.DB_NAME || '06_rental',
   charset: 'utf8mb4',
   waitForConnections: true,
   connectionLimit: 10,
@@ -60,7 +60,8 @@ async function testConnection() {
  */
 async function query(sql, params = []) {
   try {
-    const [rows] = await pool.execute(sql, params);
+    // MySQL 8 的预处理语句不接受 LIMIT ?。query 仍会转义参数。
+    const [rows] = await pool.query(sql, params);
     return rows;
   } catch (error) {
     console.error('[Database] 查询失败:', error.message);

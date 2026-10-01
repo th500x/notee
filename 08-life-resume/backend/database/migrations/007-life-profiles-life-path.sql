@@ -1,6 +1,6 @@
 -- lifePath：AI 人生轨迹草稿与发布文本
 
-USE `11_life_resume`;
+USE `00_notee`;
 
 ALTER TABLE life_profiles
   ADD COLUMN life_path_status ENUM('none', 'draft', 'published') NOT NULL DEFAULT 'none'

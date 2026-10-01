@@ -1,5 +1,5 @@
 /**
- * MySQL pool for 22_one_line (One Line / 今日一句).
+ * MySQL pool for 10_notee_go (One Line / 今日一句).
  */
 
 const path = require('path');
@@ -16,7 +16,7 @@ const dbConfig = {
   port: parseInt(process.env.DB_PORT || '3306', 10),
   user: process.env.DB_USER || 'root',
   password: process.env.DB_PASSWORD || '',
-  database: process.env.DB_NAME || '22_one_line',
+  database: process.env.DB_NAME || '10_notee_go',
   charset: 'utf8mb4',
   waitForConnections: true,
   connectionLimit: 10,
@@ -39,7 +39,8 @@ async function testConnection() {
 }
 
 async function query(sql, params = []) {
-  const [rows] = await pool.execute(sql, params);
+  // MySQL 8 的预处理语句不接受 LIMIT ?。query 仍会转义参数。
+  const [rows] = await pool.query(sql, params);
   return rows;
 }
 

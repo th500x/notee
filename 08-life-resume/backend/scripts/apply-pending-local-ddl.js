@@ -4,7 +4,7 @@
  *
  * Production (宝塔已建空库):
  *   backend/.env 设 DB_USER/DB_PASSWORD/DB_NAME，并 MIGRATION_ASSUME_DB_EXISTS=1
- *   库名须与 DB_NAME 一致，推荐 11_life_resume（与 05_san_storm 同风格）
+ *   库名须与 DB_NAME 一致，推荐 00_notee（与 05_san_storm 同风格）
  */
 
 const fs = require('fs');
@@ -35,14 +35,14 @@ const MIGRATION_FILES = [
   '015-wallet-asset-daily.sql',
 ];
 
-const DEFAULT_DB_NAME = '11_life_resume';
+const DEFAULT_DB_NAME = '00_notee';
 
 function resolveDbName() {
   return String(process.env.DB_NAME || DEFAULT_DB_NAME).trim() || DEFAULT_DB_NAME;
 }
 
 function prepareSql(rawSql, dbName) {
-  let sql = rawSql.replace(/`11_life_resume`/g, `\`${dbName}\``);
+  let sql = rawSql.replace(/`00_notee`/g, `\`${dbName}\``);
   if (process.env.MIGRATION_ASSUME_DB_EXISTS === '1') {
     sql = sql
       .replace(/CREATE DATABASE IF NOT EXISTS[^;]+;\s*/gi, '')

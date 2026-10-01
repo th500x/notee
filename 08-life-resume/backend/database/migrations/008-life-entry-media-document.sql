@@ -1,6 +1,6 @@
--- 11-life-resume: 条目媒体支持 document bundle（单文件 ≤10MB）
+-- 00-notee: 条目媒体支持 document bundle（单文件 ≤10MB）
 
-USE `11_life_resume`;
+USE `00_notee`;
 
 ALTER TABLE life_entries
   MODIFY COLUMN media_bundle_type ENUM('none','photos','video','document') NOT NULL DEFAULT 'none';

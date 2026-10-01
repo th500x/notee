@@ -1,7 +1,7 @@
 -- Pour Check: two pours per UTC+7 day; still one line.
 -- Drop kind-unique so a second pour can insert. Line stays unique via a
 -- generated lock (NULL for pours; InnoDB unique allows multiple NULLs).
-USE `22_one_line`;
+USE `10_notee_go`;
 
 ALTER TABLE `posts`
   DROP INDEX `uk_posts_user_day_kind`,

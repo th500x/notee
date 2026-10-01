@@ -1,5 +1,5 @@
 -- Pour Check: one line + one pour per UTC+7 day (soft-delete still occupies that kind's slot).
-USE `22_one_line`;
+USE `10_notee_go`;
 
 ALTER TABLE `posts`
   ADD COLUMN `kind` VARCHAR(16) NOT NULL DEFAULT 'line' AFTER `user_id`,

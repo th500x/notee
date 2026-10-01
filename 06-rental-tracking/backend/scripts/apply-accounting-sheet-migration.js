@@ -42,7 +42,7 @@ async function main() {
     process.exit(1);
   }
 
-  const dbName = process.env.DB_NAME || '06_rental_tracking';
+  const dbName = process.env.DB_NAME || '06_rental';
 
   const conn = await mysql.createConnection({
     host: process.env.DB_HOST || 'localhost',

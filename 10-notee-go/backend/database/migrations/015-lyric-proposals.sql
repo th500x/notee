@@ -1,6 +1,6 @@
 -- Operator inbox for Party Catalog title suggestions (Go Tonight 「提议新曲目」).
 -- Not a Feed post: no body/kind/pour, no TTL, no public GET.
-USE `22_one_line`;
+USE `10_notee_go`;
 
 CREATE TABLE IF NOT EXISTS `lyric_proposals` (
   `id` CHAR(36) NOT NULL,

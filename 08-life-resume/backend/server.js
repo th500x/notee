@@ -2,7 +2,7 @@
  * 全站 00 后端（端口 3000）。
  * 1. 管理员口令 /api/auth
  * 2. 人生片段 /api/life-resume（原 11 的全部接口）
- * 数据库名仍是 11_life_resume，海外搬迁前不改。
+ * 数据库名 `00_notee`。对象存储桶名 `00-notee`。
  */
 
 const path = require('path');

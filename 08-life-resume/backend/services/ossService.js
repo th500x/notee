@@ -1,5 +1,5 @@
 /**
- * Aliyun OSS。桶名仍是 11-life-resume（海外搬迁前不改）。浏览器 PUT 直传 + 签名读 URL。
+ * Aliyun OSS。桶 `00-notee`，地域 `oss-ap-southeast-7`。浏览器 PUT 直传 + 签名读 URL。
  */
 
 const crypto = require('crypto');
@@ -36,10 +36,10 @@ function getOssClient() {
     return null;
   }
   ossClient = new OSS({
-    region: process.env.OSS_REGION || 'oss-cn-heyuan',
+    region: process.env.OSS_REGION || 'oss-ap-southeast-7',
     accessKeyId: process.env.OSS_ACCESS_KEY_ID.trim(),
     accessKeySecret: process.env.OSS_ACCESS_KEY_SECRET.trim(),
-    bucket: process.env.OSS_BUCKET || '11-life-resume',
+    bucket: process.env.OSS_BUCKET || '00-notee',
     secure: true,
   });
   return ossClient;
@@ -64,7 +64,7 @@ function randomToken() {
 }
 
 /**
- * Object key inside bucket 11-life-resume: {accountId}/{entryId|_staging/...}/...
+ * Object key inside bucket 00-notee: {accountId}/{entryId|_staging/...}/...
  */
 function buildObjectKey({ accountId, entryId, stagingToken, mediaType, sortOrder, ext }) {
   const folder = entryId
@@ -190,8 +190,8 @@ async function checkConnection() {
     return {
       success: true,
       message: 'OSS 连接正常',
-      bucket: process.env.OSS_BUCKET || '11-life-resume',
-      region: process.env.OSS_REGION || 'oss-cn-heyuan',
+      bucket: process.env.OSS_BUCKET || '00-notee',
+      region: process.env.OSS_REGION || 'oss-ap-southeast-7',
     };
   } catch (error) {
     return { success: false, message: error.message };

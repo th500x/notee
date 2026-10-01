@@ -51,7 +51,7 @@ async function main() {
     process.exit(1);
   }
 
-  const dbName = process.env.DB_NAME || '06_rental_tracking';
+  const dbName = process.env.DB_NAME || '06_rental';
 
   let conn;
   try {
@@ -66,9 +66,9 @@ async function main() {
     if (err.code === 'ER_BAD_DB_ERROR' || err.errno === 1049) {
       console.error('数据库不存在:', dbName);
       console.error('');
-      console.error('库名来自 backend/.env 的 DB_NAME；未配置时默认 06_rental_tracking。');
+      console.error('库名来自 backend/.env 的 DB_NAME；未配置时默认 06_rental。');
       console.error('可执行 backend/init-database.sql，或本地一键：npm run db:reset-local（需先 cd backend）');
-      console.error('然后设 backend/.env 中 DB_NAME=06_rental_tracking。');
+      console.error('然后设 backend/.env 中 DB_NAME=06_rental。');
       console.error('');
       process.exit(1);
     }

@@ -1,6 +1,6 @@
 -- Phase 4: reports + blocks; mod hide via posts.hidden_at; ban via users.status='banned'.
 -- No admin_audit table (v1: operator uses SQL — see docs/MODERATION.md).
-USE `22_one_line`;
+USE `10_notee_go`;
 
 ALTER TABLE `posts`
   ADD COLUMN `hidden_at` TIMESTAMP NULL DEFAULT NULL AFTER `deleted_at`;

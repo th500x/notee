@@ -10,7 +10,7 @@ Notee Go「今日一句」后端。产品设计见 sibling `KIRO/notee-go` → `
 |----|-----|
 | 端口 | **3010** |
 | 对外 | `https://notee.vip/api/notee-go/*` |
-| 库名 | `22_one_line` |
+| 库名 | `10_notee_go` |
 | PM2 | `10-notee-go-backend` |
 | 阶段 | **P7** — + 短号注册 / 登录（`login_id` + 密码） |
 
@@ -157,7 +157,7 @@ npm run gift:create -- --audience login_ids --ids TTGO --kind pet --id bar_fortu
 
 简版：建库 → `backend/.env`（独立 `JWT_SECRET`、`MIGRATION_ASSUME_DB_EXISTS=1`）→ `npm run db:migrate` → Nginx `/api/notee-go` → `3010` → 上方 PM2 命令。
 
-2026-09-29 目录由 `22-one-line` 改为 `10-notee-go`，PM2 进程由 `22-one-line-backend` 改为 `10-notee-go-backend`。服务器上做一次（库名仍是 `22_one_line`，不用改）：
+2026-09-29 目录由 `22-one-line` 改为 `10-notee-go`，PM2 进程由 `22-one-line-backend` 改为 `10-notee-go-backend`。库名是 `10_notee_go`。
 
 ```bash
 pm2 delete 22-one-line-backend

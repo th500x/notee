@@ -1,6 +1,6 @@
 -- Heartbeat for silent-account idle sweep. Existing rows get "now" so deploy
 -- does not wipe everyone whose created_at is already older than 30 days.
-USE `22_one_line`;
+USE `10_notee_go`;
 
 ALTER TABLE `users`
   ADD COLUMN `last_seen_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP AFTER `updated_at`,

@@ -1,5 +1,5 @@
 -- Phase 5: monthly Top-30 snapshot (UTC+7 month_key). Board reads snapshot; TTL soft-deletes expired posts.
-USE `22_one_line`;
+USE `10_notee_go`;
 
 CREATE TABLE IF NOT EXISTS `monthly_board` (
   `month_key` CHAR(7) NOT NULL,

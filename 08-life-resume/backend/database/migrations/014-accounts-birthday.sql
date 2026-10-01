@@ -1,5 +1,5 @@
 -- 账号生日：年、日 + 一次改正标记（月列 birthMonth 已有）
--- 数据库: 11_life_resume
+-- 数据库: 00_notee
 -- 老用户 year/day 可空；新注册由应用层必填
 
 ALTER TABLE accounts

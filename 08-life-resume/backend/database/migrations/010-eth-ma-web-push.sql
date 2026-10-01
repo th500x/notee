@@ -1,5 +1,5 @@
 -- ETH 15m 均线交叉：Web Push 订阅 + 信号工人状态
--- 数据库: 11_life_resume
+-- 数据库: 00_notee
 
 CREATE TABLE IF NOT EXISTS web_push_subscriptions (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,

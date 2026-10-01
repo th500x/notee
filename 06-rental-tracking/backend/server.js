@@ -85,8 +85,8 @@ app.listen(PORT, async () => {
   console.log(`💚 健康检查: http://localhost:${PORT}/health`);
   console.log('');
   console.log('📦 存储配置:');
-  console.log(`   🗄️  数据库: MySQL (${process.env.DB_NAME || '06_rental_tracking'})`);
-  console.log(`   ☁️  照片: 阿里云OSS (${process.env.OSS_BUCKET || '06-rental-tracking'})`);
+  console.log(`   🗄️  数据库: MySQL (${process.env.DB_NAME || '06_rental'})`);
+  console.log(`   ☁️  照片: 阿里云OSS (${process.env.OSS_BUCKET || '06-rental'})`);
   console.log('');
   
   // 测试数据库连接

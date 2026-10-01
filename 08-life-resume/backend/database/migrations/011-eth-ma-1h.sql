@@ -1,5 +1,5 @@
 -- ETH 均线交叉：15m → 1h（清状态 + 订阅主题）
--- 数据库: 11_life_resume
+-- 数据库: 00_notee
 -- 已跑过 010 的库执行一次。kline_interval 已是 1h 时不重复清状态。
 
 ALTER TABLE web_push_subscriptions

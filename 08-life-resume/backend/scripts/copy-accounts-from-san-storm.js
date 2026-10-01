@@ -1,5 +1,5 @@
 /**
- * 一次性：把 05_san_storm.accounts 拷进 11_life_resume.accounts（INSERT IGNORE，不改源表）。
+ * 一次性：把 05_san_storm.accounts 拷进 00_notee.accounts（INSERT IGNORE，不改源表）。
  * 须能 SELECT 源库、INSERT 目标库（本地 root 即可；生产可用 root 跑一次）。
  *
  *   node scripts/copy-accounts-from-san-storm.js
@@ -14,7 +14,7 @@ if (process.env.NODE_ENV === 'production') {
   require('dotenv').config({ path: path.join(__dirname, '../.env.production'), override: true });
 }
 
-const destDb = String(process.env.DB_NAME || '11_life_resume').trim();
+const destDb = String(process.env.DB_NAME || '00_notee').trim();
 const sourceDb = String(process.env.COPY_ACCOUNTS_SOURCE_DB || '05_san_storm').trim();
 
 async function main() {

@@ -1,6 +1,6 @@
 -- Pour Check bag on the One Line UUID (docs/03 §3.7). One row per user.
 -- Ledger + last 30 photo-less history records. Originals never leave the device.
-USE `22_one_line`;
+USE `10_notee_go`;
 
 CREATE TABLE IF NOT EXISTS `pour_bags` (
   `user_id` CHAR(36) NOT NULL,

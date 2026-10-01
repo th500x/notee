@@ -1,5 +1,5 @@
 -- ETH 1h 交叉信号史 + 按账号操作记录
--- 数据库: 11_life_resume
+-- 数据库: 00_notee
 -- 012 已被 accounts 占用。已跑过 010/011 的库执行一次。
 
 CREATE TABLE IF NOT EXISTS eth_ma_cross_signals (

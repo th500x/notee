@@ -1,8 +1,8 @@
--- 与 connection.js、init-database.sql、schema.sql 一致：库名 06_rental_tracking
+-- 与 connection.js、init-database.sql、schema.sql 一致：库名 06_rental
 
-CREATE DATABASE IF NOT EXISTS `06_rental_tracking` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE DATABASE IF NOT EXISTS `06_rental` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
-USE `06_rental_tracking`;
+USE `06_rental`;
 
 CREATE TABLE IF NOT EXISTS projects (
   id VARCHAR(50) PRIMARY KEY,

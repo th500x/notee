@@ -1,5 +1,5 @@
 -- Stamp bag on the One Line UUID (docs/00-3 §6.2). One row per user.
-USE `22_one_line`;
+USE `10_notee_go`;
 
 CREATE TABLE IF NOT EXISTS `stamp_bags` (
   `user_id` CHAR(36) NOT NULL,

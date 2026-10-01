@@ -1,7 +1,7 @@
 module.exports = {
   apps: [
     {
-      name: '06-rental-tracking-backend',
+      name: '06-rental-backend',
       script: './backend/server.js',
       cwd: '/www/wwwroot/notee/06-rental-tracking',
       instances: 1,

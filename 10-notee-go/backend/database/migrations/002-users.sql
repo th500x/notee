@@ -1,5 +1,5 @@
 -- Phase 1: silent accounts (deviceKey → JWT). Profile fields nullable until PATCH /me.
-USE `22_one_line`;
+USE `10_notee_go`;
 
 CREATE TABLE IF NOT EXISTS `users` (
   `id` CHAR(36) NOT NULL,

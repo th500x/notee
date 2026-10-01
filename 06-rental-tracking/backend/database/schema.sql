@@ -7,12 +7,12 @@
 -- ==========================================
 
 -- 创建数据库（如果不存在）；库名与 backend/.env 约定一致
-CREATE DATABASE IF NOT EXISTS `06_rental_tracking`
+CREATE DATABASE IF NOT EXISTS `06_rental`
   CHARACTER SET utf8mb4
   COLLATE utf8mb4_unicode_ci;
 
 -- 使用数据库
-USE `06_rental_tracking`;
+USE `06_rental`;
 
 -- ==========================================
 -- 项目表 (projects)
@@ -63,12 +63,12 @@ DESC projects;
 -- ==========================================
 -- 数据库创建完成，可以开始使用了。
 -- 
--- 数据库名: 06_rental_tracking
+-- 数据库名: 06_rental
 -- 表名: projects
 -- 
 -- 下一步：
 -- 1. 安装 mysql2 依赖: npm install mysql2
--- 2. 配置 .env 文件: DB_NAME=06_rental_tracking
+-- 2. 配置 .env 文件: DB_NAME=06_rental
 -- 3. 水电单等新列：若旧表已存在，可运行 npm run migrate:utility；或本地清空用 npm run db:reset-local
 -- ==========================================
 

@@ -1,5 +1,5 @@
 -- Phase 3: one resonance per (post, user). Count cached on posts.resonance_count.
-USE `22_one_line`;
+USE `10_notee_go`;
 
 CREATE TABLE IF NOT EXISTS `resonances` (
   `post_id` CHAR(36) NOT NULL,

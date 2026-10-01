@@ -1,12 +1,12 @@
 -- 租赁追踪系统数据库初始化脚本
 
 -- 创建数据库（如果不存在）；与文档及 backend/.env 默认 DB_NAME 一致（名称以数字开头需反引号）
-CREATE DATABASE IF NOT EXISTS `06_rental_tracking`
+CREATE DATABASE IF NOT EXISTS `06_rental`
   DEFAULT CHARACTER SET utf8mb4
   COLLATE utf8mb4_unicode_ci;
 
 -- 使用数据库
-USE `06_rental_tracking`;
+USE `06_rental`;
 
 -- 创建项目表
 CREATE TABLE IF NOT EXISTS projects (

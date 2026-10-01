@@ -1,5 +1,5 @@
 -- Phase 2: one post per user per UTC+7 day. Soft-delete keeps the day slot.
-USE `22_one_line`;
+USE `10_notee_go`;
 
 CREATE TABLE IF NOT EXISTS `posts` (
   `id` CHAR(36) NOT NULL,

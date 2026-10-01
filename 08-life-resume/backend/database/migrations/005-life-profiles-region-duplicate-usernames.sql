@@ -1,6 +1,6 @@
 -- 用户名可重名；档案级 IP 地区（国家·省/府）展示后缀
 
-USE `11_life_resume`;
+USE `00_notee`;
 
 ALTER TABLE life_profiles
   DROP INDEX IF EXISTS uk_username_normalized;

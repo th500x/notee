@@ -35,10 +35,10 @@ function getOssClient() {
     return null;
   }
   ossClient = new OSS({
-    region: process.env.OSS_REGION || 'oss-cn-heyuan',
+    region: process.env.OSS_REGION || 'oss-ap-southeast-7',
     accessKeyId: process.env.OSS_ACCESS_KEY_ID.trim(),
     accessKeySecret: process.env.OSS_ACCESS_KEY_SECRET.trim(),
-    bucket: process.env.OSS_BUCKET || '06-rental-tracking',
+    bucket: process.env.OSS_BUCKET || '06-rental',
     // 默认 60s 对跨境上传 5~10MB 原图不够，超时后整包白传
     timeout: Number(process.env.OSS_TIMEOUT_MS) || 180000,
     secure: true
@@ -81,8 +81,8 @@ function sanitizeOriginalBaseName(fileName) {
 
 function publicObjectUrl(objectKey) {
   const client = requireOssClient();
-  const region = process.env.OSS_REGION || 'oss-cn-heyuan';
-  const bucket = process.env.OSS_BUCKET || '06-rental-tracking';
+  const region = process.env.OSS_REGION || 'oss-ap-southeast-7';
+  const bucket = process.env.OSS_BUCKET || '06-rental';
   try {
     const u = client.generateObjectUrl(objectKey);
     return String(u).replace(/^http:/, 'https:');

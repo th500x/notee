@@ -60,8 +60,8 @@ export const config = {
   
   // OSS配置
   oss: {
-    region: import.meta.env.VITE_OSS_REGION || 'oss-ap-southeast-1',
-    bucket: import.meta.env.VITE_OSS_BUCKET || 'notee-rental',
+    region: import.meta.env.VITE_OSS_REGION || 'oss-ap-southeast-7',
+    bucket: import.meta.env.VITE_OSS_BUCKET || '06-rental',
     maxFileSize: 10 * 1024 * 1024, // 10MB
     maxPhotosPerRecord: 3, // 每条记录最多3张照片
     allowedTypes: ['image/jpeg', 'image/png', 'image/jpg'], // 允许的文件类型

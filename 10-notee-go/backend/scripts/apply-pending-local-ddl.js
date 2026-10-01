@@ -34,14 +34,14 @@ const MIGRATION_FILES = [
   '015-lyric-proposals.sql',
 ];
 
-const DEFAULT_DB_NAME = '22_one_line';
+const DEFAULT_DB_NAME = '10_notee_go';
 
 function resolveDbName() {
   return String(process.env.DB_NAME || DEFAULT_DB_NAME).trim() || DEFAULT_DB_NAME;
 }
 
 function prepareSql(rawSql, dbName) {
-  let sql = rawSql.replace(/`22_one_line`/g, `\`${dbName}\``);
+  let sql = rawSql.replace(/`10_notee_go`/g, `\`${dbName}\``);
   if (process.env.MIGRATION_ASSUME_DB_EXISTS === '1') {
     sql = sql
       .replace(/CREATE DATABASE IF NOT EXISTS[^;]+;\s*/gi, '')

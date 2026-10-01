@@ -1,6 +1,6 @@
 /**
  * Run database/reset-local-unified-06.sql (XAMPP / local only).
- * Drops rental_tracking and 06_rental_tracking, recreates 06_rental_tracking + projects.
+ * Drops rental_tracking and 06_rental, recreates 06_rental + projects.
  *
  *   node backend/scripts/reset-local-unified-06.js --yes
  */
@@ -56,7 +56,7 @@ async function main() {
 
   try {
     await conn.query(sql);
-    console.log('OK: local DB unified to 06_rental_tracking (see backend/.env DB_NAME=06_rental_tracking).');
+    console.log('OK: local DB unified to 06_rental (see backend/.env DB_NAME=06_rental).');
   } finally {
     await conn.end();
   }

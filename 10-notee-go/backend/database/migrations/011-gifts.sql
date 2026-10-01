@@ -1,5 +1,5 @@
 -- Gift inbox: campaigns + per-user claims. Product: notee-go docs/00-2 §3.5
-USE `22_one_line`;
+USE `10_notee_go`;
 
 CREATE TABLE IF NOT EXISTS `gift_campaigns` (
   `id` CHAR(36) NOT NULL,

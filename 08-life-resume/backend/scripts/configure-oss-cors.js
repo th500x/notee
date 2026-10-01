@@ -1,5 +1,5 @@
 /**
- * 为对象存储桶写入浏览器直传 CORS。桶名仍是 11-life-resume。
+ * 为对象存储桶写入浏览器直传 CORS。桶名是 `00-notee`。
  * 用法（在 08-life-resume/backend，已配置 .env 中 OSS_*）：
  *   node scripts/configure-oss-cors.js
  * 可选环境变量 OSS_CORS_ORIGINS=https://notee.vip,http://localhost:5177
@@ -28,8 +28,8 @@ async function main() {
     process.exit(1);
   }
 
-  const bucket = process.env.OSS_BUCKET || '11-life-resume';
-  const region = process.env.OSS_REGION || 'oss-cn-heyuan';
+  const bucket = process.env.OSS_BUCKET || '00-notee';
+  const region = process.env.OSS_REGION || 'oss-ap-southeast-7';
 
   const client = new OSS({
     region,

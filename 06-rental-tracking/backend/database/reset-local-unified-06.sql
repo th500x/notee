@@ -1,14 +1,14 @@
--- 本地开发：统一到 06_rental_tracking（删除 rental_tracking 与 06 库内全部数据）
+-- 本地开发：统一到 06_rental（删除 rental_tracking 与 06 库内全部数据）
 -- 勿在生产环境执行。在 phpMyAdmin 中「全选执行」或: node backend/scripts/reset-local-unified-06.js --yes
 
 DROP DATABASE IF EXISTS `rental_tracking`;
-DROP DATABASE IF EXISTS `06_rental_tracking`;
+DROP DATABASE IF EXISTS `06_rental`;
 
-CREATE DATABASE `06_rental_tracking`
+CREATE DATABASE `06_rental`
   DEFAULT CHARACTER SET utf8mb4
   COLLATE utf8mb4_unicode_ci;
 
-USE `06_rental_tracking`;
+USE `06_rental`;
 
 CREATE TABLE `projects` (
   `id` VARCHAR(50) NOT NULL COMMENT '项目ID',
@@ -30,4 +30,4 @@ CREATE TABLE `projects` (
   KEY `idx_updated_at` (`updated_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='租赁追踪项目表';
 
-SELECT 'OK: unified to 06_rental_tracking' AS message;
+SELECT 'OK: unified to 06_rental' AS message;

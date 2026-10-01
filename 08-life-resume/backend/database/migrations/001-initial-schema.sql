@@ -1,13 +1,13 @@
--- 11-life-resume 初始 schema
--- 数据库: 11_life_resume
+-- 00-notee 初始 schema
+-- 数据库: 00_notee
 -- 字符集: utf8mb4
 -- 依赖: MySQL 5.7+ / MariaDB 10.2.1+（CHECK 在 5.7 仅解析不 enforce；JSON 列无 DEFAULT，由应用写入 []）
 
-CREATE DATABASE IF NOT EXISTS `11_life_resume`
+CREATE DATABASE IF NOT EXISTS `00_notee`
   CHARACTER SET utf8mb4
   COLLATE utf8mb4_unicode_ci;
 
-USE `11_life_resume`;
+USE `00_notee`;
 
 -- ---------------------------------------------------------------------------
 -- life_profiles
