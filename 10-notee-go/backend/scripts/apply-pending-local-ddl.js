@@ -47,7 +47,7 @@ function prepareSql(rawSql, dbName) {
   if (process.env.MIGRATION_ASSUME_DB_EXISTS === '1') {
     sql = sql
       .replace(/CREATE DATABASE IF NOT EXISTS[^;]+;\s*/gi, '')
-      .replace(/^\s*USE\s+`[^`]+`\s*;\s*/gim, '');
+      .replace(/^[ \t]*USE\s+`[^`]+`\s*;\s*/gim, '');
   }
   return sql;
 }
@@ -100,6 +100,8 @@ async function main() {
     port,
     user,
     password,
+    // prepareSql strips `USE` in this mode, so the connection selects the database.
+    database: process.env.MIGRATION_ASSUME_DB_EXISTS === '1' ? dbName : undefined,
     multipleStatements: true,
   });
 
