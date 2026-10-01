@@ -1,5 +1,5 @@
 /**
- * Natural day / month keys in UTC+7 (Asia/Bangkok).
+ * Natural day / month keys in UTC+7 (Asia/Bangkok), plus UTC-wall DATETIME in / out.
  * Matches product rule in 02-One-Line.md §2.1 / §2.4.
  */
 
@@ -52,6 +52,15 @@ function toMysqlDateTimeUtc(date = new Date()) {
   return date.toISOString().slice(0, 19).replace('T', ' ');
 }
 
+/**
+ * SELECT expression that reads a UTC-wall DATETIME back as ISO-8601 (`…Z`), aliased `<column>_iso`.
+ * mysql2 would parse DATETIME in the process zone (the Bangkok host runs Asia/Shanghai).
+ * Columns MySQL fills itself (`DEFAULT` / `ON UPDATE CURRENT_TIMESTAMP`) stay on mysql2 `Date`.
+ */
+function sqlIsoUtc(column, alias = `${column.slice(column.lastIndexOf('.') + 1)}_iso`) {
+  return `DATE_FORMAT(${column}, '%Y-%m-%dT%H:%i:%sZ') AS ${alias}`;
+}
+
 module.exports = {
   TZ_OFFSET_MS,
   MONTH_KEY_RE,
@@ -61,4 +70,5 @@ module.exports = {
   assertMonthKey,
   expiresAtFrom,
   toMysqlDateTimeUtc,
+  sqlIsoUtc,
 };

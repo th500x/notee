@@ -12,7 +12,7 @@ Notee Go「今日一句」后端。产品设计见 sibling `KIRO/notee-go` → `
 | 对外 | `https://notee.vip/api/notee-go/*` |
 | 库名 | `10_notee_go` |
 | PM2 | `10-notee-go-backend` |
-| 阶段 | **P7** — + 短号注册 / 登录（`login_id` + 密码） |
+| 阶段 | **P8** — + 新闻笔记 RSS 采集（24 小时清单 + 每区月榜 Top 10） |
 
 ## 扫码落地页 `/sp/`
 
@@ -68,6 +68,8 @@ npm run db:migrate
 npm run dev
 # 手动跑每日任务：
 npm run jobs:daily
+# 手动采一次新闻（会真去请求 RSS，并冻结已结束月份）：
+npm run jobs:news
 ```
 
 `DISABLE_CRON=1` 可关闭进程内定时任务（便于测试）。
@@ -93,6 +95,8 @@ npm run jobs:daily
 | GET | `/api/notee-go/pet/bag` | Bearer；当前户宠物袋（个体 JSON + P-Points + 默认出战 + 首赠闩 + Tonight 日）。无行则 `revision: 0`。已领赠品 id 不在此袋 |
 | PUT | `/api/notee-go/pet/bag` | Bearer；`revision` 必须大于云端；否则 409 `PET_BAG_STALE` |
 | POST | `/api/notee-go/lyric/proposals` | Bearer；灵感库提议 `{ songs: [{ title, artist? }] }` 一次 1–5 首；写入 `lyric_proposals`；无公开 GET |
+| GET | `/api/notee-go/news?region=bkk` | 新闻笔记最近 24 小时，新的在上，最多 8 条 `{ regionId, items: [{ title, publisher, url, publishedAt }] }`；无需登录 |
+| GET | `/api/notee-go/news/board?region=bkk&month=YYYY-MM` | 默认**当月** live Top 10；冻结过的往月读 `news_monthly_board`；`source: live \| frozen`。GET 不写库 |
 
 账号规则正本：sibling `notee-go` → `docs/00-1-Account.md`。冒烟 `npm run smoke:login-id`。  
 短号软删即回池（狮子号回活动池，不进自动出号）；`password_hash` 不出参。  
@@ -150,6 +154,8 @@ npm run gift:create -- --audience login_ids --ids TTGO --kind pet --id bar_fortu
 
 日界 / 月界：**UTC+7**。每日 **00:15 Asia/Bangkok**：软删过期帖 + 物理删除 30 天无心跳且无短号的户（连同其帖、袋、月榜行；已软删且无短号的行一并删）+ 固化上月榜。已注册短号的户不删。  
 月榜为快照（`monthly_board`）。短号户的帖过期后榜仍在。被清掉的临时户若上过榜，那一行跟着删。
+
+新闻笔记：Asia/Bangkok 每个偶数点 **:05** 采一次 RSS（来源在 `lib/newsFeeds.js`），进程启动 5 秒后再补一次。每次采完顺手冻结已结束月份（`news_monthly_board`），所以 1 日 00:05 那次就把上月冻好。单条 feed 失败只打 warn，其余照采。`npm run test:news` 离线断言 RSS 解析与窗口规则。产品规则见 sibling `notee-go` → `docs/06-News-Calendar.md`。
 
 ## 生产
 

@@ -32,6 +32,8 @@ const MIGRATION_FILES = [
   '013-pour-bag.sql',
   '014-pet-bag.sql',
   '015-lyric-proposals.sql',
+  '016-news.sql',
+  '017-posts-utc-datetime.sql',
 ];
 
 const DEFAULT_DB_NAME = '10_notee_go';

@@ -16,6 +16,7 @@ const stampBagRouter = require('./stampBag');
 const pourBagRouter = require('./pourBag');
 const petBagRouter = require('./petBag');
 const lyricProposalsRouter = require('./lyricProposals');
+const newsRouter = require('./news');
 const { getFeed } = require('../services/postService');
 const { sendServiceError } = require('../lib/sendServiceError');
 
@@ -43,6 +44,7 @@ router.use('/stamp', stampBagRouter);
 router.use('/pour', pourBagRouter);
 router.use('/pet', petBagRouter);
 router.use('/lyric', lyricProposalsRouter);
+router.use('/news', newsRouter);
 
 /** Design path: GET /api/notee-go/feed — optional Bearer for resonatedByMe + block filter */
 router.get('/feed', publicReadLimiter, optionalAuth, async (req, res) => {

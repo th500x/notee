@@ -8,6 +8,7 @@
     "dev": "nodemon server.js",
     "db:migrate": "node scripts/apply-pending-local-ddl.js",
     "jobs:daily": "node scripts/run-daily-maintenance.js",
+    "jobs:news": "node scripts/run-news-collection.js",
     "test:pour": "node scripts/assert-pour-payload.js",
     "test:login-id": "node scripts/assert-login-id.js",
     "smoke:login-id": "node scripts/smoke-login-id.js",
@@ -20,7 +21,8 @@
     "test:pet-bag": "node scripts/assert-pet-bag.js",
     "test:pour-bag": "node scripts/assert-pour-bag.js",
     "test:pour-media": "node scripts/assert-pour-media.js",
-    "test:lyric-proposals": "node scripts/assert-lyric-proposals.js"
+    "test:lyric-proposals": "node scripts/assert-lyric-proposals.js",
+    "test:news": "node scripts/assert-news.js"
   },
   "license": "UNLICENSED",
   "private": true,

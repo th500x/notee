@@ -1,6 +1,7 @@
 /**
  * 10-notee-go backend — Notee Go One Line / 今日一句 (port 3010).
  * Phase 5: + TTL purge + monthly board. Phase 7: + login id sign-up / sign-in.
+ * Phase 8: + News Notes RSS collector (24h list + monthly Top 10).
  */
 
 const path = require('path');
@@ -15,6 +16,7 @@ const cors = require('cors');
 const { testConnection, dbConfig } = require('./database/connection');
 const { assertJwtSecret } = require('./utils/startupChecks');
 const { startDailyMaintenanceJobs } = require('./jobs/dailyMaintenance');
+const { startNewsCollectionJobs } = require('./jobs/newsCollection');
 const onelineRouter = require('./routes/oneline');
 
 assertJwtSecret();
@@ -70,6 +72,7 @@ app.listen(PORT, async () => {
   console.log(`🔑 /api/notee-go/auth/anonymous · login-id/candidates · register · login`);
   console.log(`👤 /api/notee-go/me`);
   console.log(`📝 /api/notee-go/posts · /feed · board · blocks · gifts · stamp/bag · pour/bag · pet/bag`);
+  console.log(`📰 /api/notee-go/news · news/board`);
   console.log(`🗄️  DB: ${dbConfig.database} @ ${dbConfig.host}:${dbConfig.port}`);
 
   const dbConnected = await testConnection();
@@ -77,6 +80,7 @@ app.listen(PORT, async () => {
     console.log('⚠️  数据库未连接（配置 .env 后 npm run db:migrate）');
   } else if (process.env.DISABLE_CRON !== '1') {
     startDailyMaintenanceJobs();
+    startNewsCollectionJobs();
   } else {
     console.log('[notee-go/jobs] DISABLE_CRON=1 — skipped');
   }

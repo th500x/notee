@@ -5,7 +5,12 @@
 const crypto = require('crypto');
 const { query } = require('../database/connection');
 const { httpError } = require('../lib/httpError');
-const { dayKeyFromDate, expiresAtFrom, toMysqlDateTimeUtc } = require('../lib/dayKey');
+const {
+  dayKeyFromDate,
+  expiresAtFrom,
+  toMysqlDateTimeUtc,
+  sqlIsoUtc,
+} = require('../lib/dayKey');
 const { assertPostBody, assertStampId } = require('../lib/postBody');
 const { assertPourPayload, rejectBannedKeys, POUR_TEST_EDIT_STATS } = require('../lib/pourPayload');
 const { assertMealPayload } = require('../lib/mealPayload');
@@ -40,10 +45,12 @@ async function occupyingPourRows(userId, dayKey) {
     : rows;
 }
 
+/** Times this service writes (UTC wall) leave SQL as `*_iso`; `updated_at` is MySQL-maintained. */
 function postCols(alias = '') {
   const a = alias ? `${alias}.` : '';
   return `${a}id, ${a}user_id, ${a}kind, ${a}body, ${a}pour, ${a}flag_id, ${a}stamp_id, ${a}resonance_count, ${a}edit_used,
-            ${a}day_key, ${a}created_at, ${a}updated_at, ${a}expires_at, ${a}deleted_at`;
+            ${a}day_key, ${a}updated_at, ${a}deleted_at,
+            ${sqlIsoUtc(`${a}created_at`)}, ${sqlIsoUtc(`${a}expires_at`)}, ${sqlIsoUtc(`${a}deleted_at`)}`;
 }
 
 function parsePourColumn(raw) {
@@ -83,14 +90,14 @@ function rowToPost(row, { includeDeleted = false, includeResonatedByMe = false }
     resonanceCount: Number(row.resonance_count) || 0,
     editUsed: Boolean(row.edit_used),
     dayKey: row.day_key,
-    createdAt: toIso(row.created_at),
+    createdAt: row.created_at_iso,
     updatedAt: toIso(row.updated_at),
-    expiresAt: toIso(row.expires_at),
+    expiresAt: row.expires_at_iso,
   };
   if (includeDeleted) {
-    post.deletedAt = toIso(row.deleted_at);
-    if (row.hidden_at !== undefined) {
-      post.hiddenAt = toIso(row.hidden_at);
+    post.deletedAt = row.deleted_at_iso;
+    if (row.hidden_at_iso !== undefined) {
+      post.hiddenAt = row.hidden_at_iso;
     }
   }
   if (includeResonatedByMe || row.resonated_by_me !== undefined) {
@@ -117,7 +124,7 @@ function requireCompleteProfile(user) {
 
 async function getPostRowForAuthor(postId, userId) {
   const rows = await query(
-    `SELECT ${postCols()}, hidden_at
+    `SELECT ${postCols()}, ${sqlIsoUtc('hidden_at')}
      FROM posts WHERE id = ? LIMIT 1`,
     [postId]
   );
@@ -426,7 +433,7 @@ async function deletePost(userId, postId) {
   // --- TEST-ONLY pour resync after delete (end) ---
 
   await query(
-    `UPDATE posts SET deleted_at = CURRENT_TIMESTAMP
+    `UPDATE posts SET deleted_at = UTC_TIMESTAMP()
      WHERE id = ? AND user_id = ? AND deleted_at IS NULL`,
     [postId, userId]
   );
@@ -438,7 +445,7 @@ async function getTodayMine(userId) {
   await requireActiveUser(userId);
   const dayKey = dayKeyFromDate();
   const rows = await query(
-    `SELECT ${postCols()}, hidden_at
+    `SELECT ${postCols()}, ${sqlIsoUtc('hidden_at')}
      FROM posts WHERE user_id = ? AND day_key = ?
      ORDER BY created_at DESC`,
     [userId, dayKey]
@@ -483,7 +490,7 @@ async function listMine(userId, queryIn = {}) {
       AND p.expires_at > UTC_TIMESTAMP()`;
   if (cursor) {
     sql += ` AND (p.created_at < ? OR (p.created_at = ? AND p.id < ?))`;
-    params.push(new Date(cursor.createdAt), new Date(cursor.createdAt), cursor.id);
+    params.push(cursor.createdAtSql, cursor.createdAtSql, cursor.id);
   }
   sql += ` ORDER BY p.created_at DESC, p.id DESC LIMIT ?`;
   params.push(limit + 1);
@@ -498,7 +505,7 @@ async function listMine(userId, queryIn = {}) {
       ? encodeCursor({
           sort: 'new',
           resonanceCount: last.resonance_count,
-          createdAt: last.created_at,
+          createdAt: last.created_at_iso,
           id: last.id,
         })
       : null;
@@ -521,13 +528,19 @@ function isHotSort(sort) {
 }
 
 function encodeCursor({ sort, resonanceCount, createdAt, id }) {
-  const iso = toIso(createdAt);
   if (isHotSort(sort)) {
-    return Buffer.from(`h|${Number(resonanceCount) || 0}|${iso}|${id}`, 'utf8').toString(
+    return Buffer.from(`h|${Number(resonanceCount) || 0}|${createdAt}|${id}`, 'utf8').toString(
       'base64url'
     );
   }
-  return Buffer.from(`n|${iso}|${id}`, 'utf8').toString('base64url');
+  return Buffer.from(`n|${createdAt}|${id}`, 'utf8').toString('base64url');
+}
+
+/** Cursor ISO → the UTC wall string `created_at` is stored as. */
+function cursorCreatedAtSql(iso) {
+  const ms = Date.parse(iso);
+  if (!iso || !Number.isFinite(ms)) throw new Error('bad');
+  return toMysqlDateTimeUtc(new Date(ms));
 }
 
 /**
@@ -546,26 +559,26 @@ function decodeCursor(raw, sort) {
     if (parts[0] === 'h') {
       if (!isHotSort(sort)) throw new Error('sort mismatch');
       const resonanceCount = Number(parts[1]);
-      const createdAt = parts[2];
+      const createdAtSql = cursorCreatedAtSql(parts[2]);
       const id = parts[3];
-      if (!Number.isFinite(resonanceCount) || !createdAt || !id) throw new Error('bad');
-      return { kind: 'hot', resonanceCount, createdAt, id };
+      if (!Number.isFinite(resonanceCount) || !id) throw new Error('bad');
+      return { kind: 'hot', resonanceCount, createdAtSql, id };
     }
     if (parts[0] === 'n') {
       if (isHotSort(sort)) throw new Error('sort mismatch');
-      const createdAt = parts[1];
+      const createdAtSql = cursorCreatedAtSql(parts[1]);
       const id = parts[2];
-      if (!createdAt || !id) throw new Error('bad');
-      return { kind: 'new', createdAt, id };
+      if (!id) throw new Error('bad');
+      return { kind: 'new', createdAtSql, id };
     }
     // Legacy time cursor: `{iso}|{id}`
     if (isHotSort(sort)) throw new Error('sort mismatch');
     const idx = text.lastIndexOf('|');
     if (idx <= 0) throw new Error('bad');
-    const createdAt = text.slice(0, idx);
+    const createdAtSql = cursorCreatedAtSql(text.slice(0, idx));
     const id = text.slice(idx + 1);
-    if (!createdAt || !id) throw new Error('bad');
-    return { kind: 'new', createdAt, id };
+    if (!id) throw new Error('bad');
+    return { kind: 'new', createdAtSql, id };
   } catch {
     throw httpError(400, 'cursor 无效', 'BAD_CURSOR');
   }
@@ -719,18 +732,17 @@ async function getFeed(queryIn = {}, opts = {}) {
         OR (p.resonance_count = ? AND p.created_at < ?)
         OR (p.resonance_count = ? AND p.created_at = ? AND p.id < ?)
       )`;
-      const at = new Date(cursor.createdAt);
       params.push(
         cursor.resonanceCount,
         cursor.resonanceCount,
-        at,
+        cursor.createdAtSql,
         cursor.resonanceCount,
-        at,
+        cursor.createdAtSql,
         cursor.id
       );
     } else {
       sql += ` AND (p.created_at < ? OR (p.created_at = ? AND p.id < ?))`;
-      params.push(new Date(cursor.createdAt), new Date(cursor.createdAt), cursor.id);
+      params.push(cursor.createdAtSql, cursor.createdAtSql, cursor.id);
     }
   }
 
@@ -751,7 +763,7 @@ async function getFeed(queryIn = {}, opts = {}) {
       ? encodeCursor({
           sort,
           resonanceCount: last.resonance_count,
-          createdAt: last.created_at,
+          createdAt: last.created_at_iso,
           id: last.id,
         })
       : null;

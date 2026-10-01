@@ -8,6 +8,8 @@ const {
   assertMonthKey,
   monthKeyFromDate,
   previousMonthKey,
+  toMysqlDateTimeUtc,
+  sqlIsoUtc,
 } = require('../lib/dayKey');
 
 const BOARD_SIZE = 30;
@@ -27,7 +29,7 @@ function rowToBoardItem(row) {
     flagId: row.flag_id,
     stampId: row.stamp_id,
     resonanceCount: Number(row.resonance_count) || 0,
-    postedAt: toIso(row.posted_at),
+    postedAt: row.posted_at_iso,
     frozenAt: row.frozen_at != null ? toIso(row.frozen_at) : null,
   };
 }
@@ -40,7 +42,7 @@ async function selectTopPostsForMonth(monthKey, limit = BOARD_SIZE) {
   const dayPrefix = `${monthKey}-%`;
   return query(
     `SELECT p.id AS post_id, p.user_id, p.body, p.flag_id, p.stamp_id,
-            p.resonance_count, p.created_at AS posted_at,
+            p.resonance_count, ${sqlIsoUtc('p.created_at', 'posted_at_iso')},
             u.nick_name
      FROM posts p
      INNER JOIN users u ON u.id = p.user_id AND u.status = 'active' AND u.deleted_at IS NULL
@@ -56,7 +58,7 @@ async function selectTopPostsForMonth(monthKey, limit = BOARD_SIZE) {
 async function listFrozenBoard(monthKey) {
   const rows = await query(
     `SELECT month_key, rank_no, post_id, user_id, body, nick_name, flag_id,
-            stamp_id, resonance_count, posted_at, frozen_at
+            stamp_id, resonance_count, ${sqlIsoUtc('posted_at')}, frozen_at
      FROM monthly_board
      WHERE month_key = ?
      ORDER BY rank_no ASC`,
@@ -115,7 +117,7 @@ async function freezeMonth(monthKeyRaw) {
           row.flag_id,
           row.stamp_id,
           row.resonance_count,
-          row.posted_at,
+          toMysqlDateTimeUtc(new Date(row.posted_at_iso)),
         ]
       );
       rank += 1;
