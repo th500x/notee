@@ -35,7 +35,7 @@ Copyright © 2026 Notee.vip
 保留所有权利`}
           </div>
           <p className="mt-4 text-sm">
-            <a className="text-blue-600 hover:text-blue-800" href="/privacy.html">Notee Tv 隐私政策</a>
+            <a className="text-blue-600 hover:text-blue-800" href="/privacy/">隐私政策</a>
           </p>
         </div>
       </div>
