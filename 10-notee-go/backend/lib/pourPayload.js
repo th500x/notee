@@ -6,13 +6,14 @@
 const { httpError } = require('./httpError');
 const { assertWeightedText } = require('./postBody');
 
+/** Same ids as App `PourKind`. Dropped ids are not kept. */
 const KIND_IDS = new Set([
   'beer',
   'whisky',
+  'brandy',
   'soju',
   'baijiu',
   'wine',
-  'sake',
   'cocktail',
   'soft',
   'other',

@@ -34,6 +34,7 @@ const ok = {
 };
 
 assert.deepStrictEqual(assertPourPayload(ok).kinds, ['beer', 'soft']);
+assert.deepStrictEqual(assertPourPayload({ ...ok, kinds: ['brandy'] }).kinds, ['brandy']);
 assert.strictEqual(assertPourPayload({ ...ok, durationSec: 21600 }).durationSec, 21600);
 assert.strictEqual(assertPourPayload({ ...ok, kinds: ['beer', 'beer'] }).kinds.length, 1);
 assert.strictEqual(assertPostBody('', { allowEmpty: true }), '');
@@ -51,8 +52,9 @@ throwsCode(() => assertPourPayload({ ...ok, people: 0 }), 'BAD_POUR');
 throwsCode(() => assertPourPayload({ ...ok, people: 13, names: Array(13).fill('GUESTX3') }), 'BAD_POUR');
 throwsCode(() => assertPourPayload({ ...ok, kinds: [] }), 'BAD_POUR');
 throwsCode(() => assertPourPayload({ ...ok, kinds: ['gin'] }), 'BAD_POUR');
+throwsCode(() => assertPourPayload({ ...ok, kinds: ['sake'] }), 'BAD_POUR');
 throwsCode(
-  () => assertPourPayload({ ...ok, kinds: ['beer', 'whisky', 'wine', 'sake'] }),
+  () => assertPourPayload({ ...ok, kinds: ['beer', 'whisky', 'wine', 'brandy'] }),
   'BAD_POUR'
 );
 assert.strictEqual(
