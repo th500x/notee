@@ -650,6 +650,7 @@ function PropertyListPanel({ project, selectedProperty, onPropertySelect, onAddP
       : `${selectedYear}-01`
     const bgColor = getPropertyBackgroundColor(property, viewMonth)
     const hasPaid = property.records?.some(r => r.date === viewMonth && r.isPaid === true)
+    const status = getPropertyStatus(property, viewMonth)
     // 仅月视图提示当月大额/佣金/物业支出（年视图不汇总）
     const expenseTip =
       viewMode === 'month' ? getMonthlyExpenseTipLabel(property, viewMonth) : null
@@ -688,9 +689,19 @@ function PropertyListPanel({ project, selectedProperty, onPropertySelect, onAddP
             <div>฿{property.deposit || 0}</div>
           </div>
           
-          {/* 右列：缴租状态 + 删除按钮 */}
+          {/* 右列：状态标签 + 删除按钮 */}
           <div className="flex items-center justify-end gap-2">
-            {hasPaid && (
+            {status === 'vacant' && (
+              <span className="px-2 py-0.5 rounded text-xs font-medium bg-gray-200 text-gray-700 whitespace-nowrap">
+                空置中
+              </span>
+            )}
+            {status === 'new-contract' && hasPaid && (
+              <span className="px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 whitespace-nowrap">
+                新合同
+              </span>
+            )}
+            {status === 'rented' && hasPaid && (
               <span className="px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700 whitespace-nowrap">
                 已缴租
               </span>
