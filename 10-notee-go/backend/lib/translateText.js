@@ -8,7 +8,7 @@ const TARGETS = {
 };
 
 const MAX_TEXTS = 20;
-const MAX_CHARS = 500;
+const MAX_CHARS = 1000;
 
 function googleTarget(target) {
   return TARGETS[target] || null;
