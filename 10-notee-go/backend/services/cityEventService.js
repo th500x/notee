@@ -47,19 +47,28 @@ function acceptItems(publisher, rawItems, todayKey) {
   return items;
 }
 
-/** A page's rows become exactly `items`. Rows that stay keep their id and `hidden_at`. */
+/**
+ * A page's rows become exactly `items`. Rows that stay keep their id and `hidden_at`.
+ * A second row with the same key (two runs overlapping) is dropped.
+ */
 async function replacePage(publisherId, url, items) {
   return transaction(async (conn) => {
     const [rows] = await conn.query(
-      `SELECT id, region_id, title, start_day_key FROM city_events WHERE publisher = ? AND url = ?`,
+      `SELECT id, region_id, title, start_day_key FROM city_events WHERE publisher = ? AND url = ? ORDER BY id`,
       [publisherId, url]
     );
-    const stale = new Map(rows.map((row) => [eventKey(row.region_id, row.title, row.start_day_key), row.id]));
+    const existing = new Map();
+    const stale = [];
+    for (const row of rows) {
+      const key = eventKey(row.region_id, row.title, row.start_day_key);
+      if (existing.has(key)) stale.push(row.id);
+      else existing.set(key, row.id);
+    }
     let added = 0;
     for (const [key, item] of items) {
-      const id = stale.get(key);
+      const id = existing.get(key);
       if (id !== undefined) {
-        stale.delete(key);
+        existing.delete(key);
         await conn.query(`UPDATE city_events SET title = ?, end_day_key = ? WHERE id = ?`, [
           item.title,
           item.endDayKey,
@@ -74,10 +83,11 @@ async function replacePage(publisherId, url, items) {
         added += 1;
       }
     }
-    if (stale.size > 0) {
-      await conn.query(`DELETE FROM city_events WHERE id IN (?)`, [[...stale.values()]]);
+    stale.push(...existing.values());
+    if (stale.length > 0) {
+      await conn.query(`DELETE FROM city_events WHERE id IN (?)`, [stale]);
     }
-    return { added, removed: stale.size };
+    return { added, removed: stale.length };
   });
 }
 
