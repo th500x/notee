@@ -105,7 +105,7 @@ function WeeklyCalendar({
       {/* 说明 — 按个人评级分档 */}
       <div className="mt-4 text-xs text-gray-500 space-y-1">
         <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-full bg-green-800"></div>
+          <div className="w-3 h-3 rounded-full bg-teal-700"></div>
           <span>极度看多 (≥10★)</span>
         </div>
         <div className="flex items-center gap-2">

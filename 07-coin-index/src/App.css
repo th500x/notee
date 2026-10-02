@@ -48,7 +48,7 @@
 }
 
 .week-indicator--extreme-bullish {
-  background-color: #166534; /* green-800 深绿 · 极度看多 */
+  background-color: #0f766e; /* teal-700 青绿 · 极度看多（与淡绿看多、灰中性易区分） */
 }
 
 .week-indicator--bullish {
@@ -93,8 +93,8 @@
 }
 
 .week-t0-must--extreme-bullish {
-  color: #166534 !important;
-  border-color: #166534;
+  color: #0f766e !important;
+  border-color: #0f766e;
 }
 
 .week-t0-must--bullish {

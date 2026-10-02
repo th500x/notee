@@ -2,7 +2,7 @@
  * 个人评级分档与配色（全站统一）
  *
  * | 总分范围      | 档位           | 文字色 Tailwind   | 日历点 CSS 修饰符      |
- * | +10 ~ +16    | 极度看多       | text-green-800   | extreme-bullish       |
+ * | +10 ~ +16    | 极度看多       | text-teal-700    | extreme-bullish（青绿） |
  * | +4 ~ +9      | 看多           | text-green-400   | bullish（淡绿）       |
  * | -3 ~ +3      | 中性           | text-gray-900    | neutral               |
  * | -9 ~ -4      | 看空           | text-red-400     | bearish（淡红）       |
@@ -19,7 +19,7 @@ export const RATING_TIERS = {
 }
 
 const TIER_TEXT_CLASS = {
-  [RATING_TIERS.EXTREME_BULLISH]: 'text-green-800',
+  [RATING_TIERS.EXTREME_BULLISH]: 'text-teal-700',
   [RATING_TIERS.BULLISH]: 'text-green-400',
   [RATING_TIERS.NEUTRAL]: 'text-gray-900',
   [RATING_TIERS.BEARISH]: 'text-red-400',

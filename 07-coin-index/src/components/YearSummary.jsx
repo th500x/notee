@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { YEAR_RANGE } from '../constants'
+import { generateSimulationTrades } from '../utils/simulationTrades'
 
 // 年终总结组件
 function YearSummary({ weeklyData, selectedYear = YEAR_RANGE.DEFAULT, simulationData, onClose }) {
@@ -7,98 +8,13 @@ function YearSummary({ weeklyData, selectedYear = YEAR_RANGE.DEFAULT, simulation
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    generateSimulationData()
-  }, [weeklyData, selectedYear])
-
-  // 生成模拟演练数据（如果没有外部传入的话）
-  const generateSimulationData = () => {
-    if (simulationData && simulationData.length > 0) {
-      // 如果有外部传入的模拟数据，直接使用
-      generateSummaryData(simulationData)
-    } else {
-      // 生成模拟数据
-      const results = []
-      const weeks = Object.keys(weeklyData)
-        .filter(key => key.startsWith(`${selectedYear}-W`))
-        .sort()
-
-      let pendingPositions = []
-
-      for (let i = 0; i < weeks.length; i++) {
-        const weekId = weeks[i]
-        const weekData = weeklyData[weekId]
-        
-        if (!weekData) continue
-        
-        const rating = weekData.personalRating
-        const ethPrice = weekData.ethWeeklyAvgPrice
-
-        if (rating === undefined || rating === null || !ethPrice) continue
-
-        const isBuySignal = rating >= 4
-        const isSellSignal = rating <= -4
-
-        if (isBuySignal || isSellSignal) {
-          const direction = isBuySignal ? 'BUY' : 'SELL'
-          
-          // 检查是否有反向持仓需要结算
-          const oppositePositions = pendingPositions.filter(pos => 
-            (pos.direction === 'BUY' && isSellSignal) ||
-            (pos.direction === 'SELL' && isBuySignal)
-          )
-
-          if (oppositePositions.length > 0) {
-            // 结算所有反向持仓
-            results.forEach(record => {
-              if (record.direction !== direction && record.status === 'pending') {
-                const recordIndex = weeks.indexOf(record.week)
-                const recordHoldingWeeks = i - recordIndex
-                const recordProfit = record.direction === 'BUY' 
-                  ? ethPrice - record.ethPrice
-                  : record.ethPrice - ethPrice
-
-                record.settlementWeek = weekId
-                record.settlementPrice = Math.round(ethPrice)
-                record.holdingWeeks = recordHoldingWeeks
-                record.profit = Math.round(recordProfit)
-                record.status = 'settled'
-              }
-            })
-
-            // 从待结算列表中移除已结算的持仓
-            pendingPositions = pendingPositions.filter(pos => 
-              !oppositePositions.some(op => op.direction === pos.direction)
-            )
-          }
-
-          // 创建新的交易记录
-          const record = {
-            week: weekId,
-            rating: rating,
-            direction: direction,
-            ethPrice: Math.round(ethPrice),
-            settlementWeek: 'TBD',
-            settlementPrice: 'TBD',
-            holdingWeeks: 'TBD',
-            profit: 'TBD',
-            status: 'pending'
-          }
-
-          results.push(record)
-          
-          // 添加到待结算列表
-          pendingPositions.push({
-            week: weekId,
-            direction: direction,
-            ethPrice: ethPrice,
-            rating: rating
-          })
-        }
-      }
-
-      generateSummaryData(results)
-    }
-  }
+    // 与模拟演练共用同一生成函数；若本会话已打开过模拟演练则优先用缓存，否则当场重算
+    const trades =
+      simulationData && simulationData.length > 0
+        ? simulationData
+        : generateSimulationTrades(weeklyData, selectedYear)
+    generateSummaryData(trades)
+  }, [weeklyData, selectedYear, simulationData])
 
   // 生成年终总结数据
   const generateSummaryData = (simData = []) => {
@@ -567,7 +483,7 @@ function YearSummary({ weeklyData, selectedYear = YEAR_RANGE.DEFAULT, simulation
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
                   <span>极度看多(≥10★):</span>
-                  <span className="text-green-800 font-medium">{summaryData.ratingCounts.extremeBullish}周</span>
+                  <span className="text-teal-700 font-medium">{summaryData.ratingCounts.extremeBullish}周</span>
                 </div>
                 <div className="flex justify-between">
                   <span>看多(4-9★):</span>

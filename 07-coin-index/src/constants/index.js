@@ -19,8 +19,9 @@ export const WEEK_LIMITS = {
 
 // 交易信号阈值
 export const TRADING_SIGNALS = {
-  BUY_THRESHOLD: 4,      // 个人评级 >= 4 时买入
-  SELL_THRESHOLD: -4     // 个人评级 <= -4 时卖出
+  BUY_THRESHOLD: 4, // 个人评级 >= 4 时买入
+  SELL_THRESHOLD: -4, // 个人评级 <= -4 时卖出
+  TAKE_PROFIT_USD: 500, // 止盈：价差达此金额（USD/ETH）即结算
 }
 
 // 个人评级等级
