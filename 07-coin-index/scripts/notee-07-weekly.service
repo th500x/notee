@@ -1,0 +1,16 @@
+[Unit]
+Description=07 coin-index weekly auto-collect and backfill
+Wants=network-online.target
+After=network-online.target
+StartLimitIntervalSec=1d
+StartLimitBurst=7
+
+[Service]
+Type=oneshot
+Environment=TZ=UTC
+WorkingDirectory=/www/wwwroot/notee/07-coin-index
+ExecStart=/bin/bash /www/wwwroot/notee/07-coin-index/scripts/weekly-auto-collect.sh
+TimeoutStartSec=3h
+Restart=on-failure
+RestartSec=1h
+SyslogIdentifier=notee-07-weekly

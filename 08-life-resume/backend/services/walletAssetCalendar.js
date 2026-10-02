@@ -1,8 +1,10 @@
 /**
- * 钱包月均用的日历。与用户所在日期一致：Asia/Bangkok（UTC+7）。
+ * 钱包月均用的日历：UTC。日记录的日期、起算日、定时轮次都按 UTC 算。
  */
 
-const TIME_ZONE = 'Asia/Bangkok';
+const TIME_ZONE = 'UTC';
+const RUN_EVERY_HOURS = 2;
+const RUN_AT_MINUTE = 5;
 
 function calendarDay(date = new Date()) {
   const parts = new Intl.DateTimeFormat('en-US', {
@@ -13,6 +15,25 @@ function calendarDay(date = new Date()) {
   }).formatToParts(date);
   const pick = (type) => parts.find((part) => part.type === type).value;
   return `${pick('year')}-${pick('month')}-${pick('day')}`;
+}
+
+/** 下一轮：UTC 偶数整点过 5 分（00:05、02:05 … 22:05），严格晚于 now */
+function nextRunAt(now = new Date()) {
+  const ms = now.getTime();
+  const hour = now.getUTCHours();
+  const next = new Date(Date.UTC(
+    now.getUTCFullYear(),
+    now.getUTCMonth(),
+    now.getUTCDate(),
+    hour - (hour % RUN_EVERY_HOURS),
+    RUN_AT_MINUTE,
+    0,
+    0
+  ));
+  while (next.getTime() <= ms) {
+    next.setUTCHours(next.getUTCHours() + RUN_EVERY_HOURS);
+  }
+  return next;
 }
 
 function firstOfNextMonth(day) {
@@ -53,6 +74,7 @@ function summarizeDailyRows(rows) {
 module.exports = {
   TIME_ZONE,
   calendarDay,
+  nextRunAt,
   firstOfNextMonth,
   summarizeDailyRows,
 };
