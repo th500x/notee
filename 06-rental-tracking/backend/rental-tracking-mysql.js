@@ -27,7 +27,6 @@ const {
   normalizeTaxSheet,
   buildTaxSheetFromAccountingRow
 } = require('./utils/taxSheet');
-const { auditLog } = require('./middleware/auditLog');
 const { hashPassword, verifyPassword } = require('./utils/passwordUtils');
 const { verifyToken, decodeTokenOptional } = require('./middleware/auth');
 const { parseJSON } = require('./utils/jsonParser');
@@ -137,9 +136,6 @@ async function verifyProjectPassword(projectId, password) {
 }
 
 // ==================== API 路由 ====================
-
-// 应用审计日志中间件到所有路由
-router.use(auditLog);
 
 /**
  * 健康检查
