@@ -178,23 +178,33 @@ async function collectNews(now = new Date()) {
   return { stored, failed, frozen, purged, shots };
 }
 
-/** Page shots for months this run just froze. A browser failure does not undo the freeze. */
+/** Frozen rows as captureRows() wants them. */
+async function frozenCardRows(monthKey) {
+  const rows = await query(
+    `SELECT month_key, region_id, rank_no, url, title, publisher, ${PUBLISHED_AT_ISO}
+     FROM news_monthly_board
+     WHERE month_key = ?
+     ORDER BY region_id, rank_no`,
+    [monthKey]
+  );
+  return rows.map((row) => ({
+    monthKey: row.month_key,
+    regionId: row.region_id,
+    rank: Number(row.rank_no),
+    url: row.url,
+    title: row.title,
+    publisher: row.publisher,
+    publishedAt: row.published_at_iso,
+  }));
+}
+
+/** Text cards for months this run just froze. A browser failure does not undo the freeze. */
 async function captureFrozenMonths(monthKeys) {
   const totals = { saved: 0, skipped: 0, failed: [] };
   for (const monthKey of monthKeys) {
-    const rows = await query(
-      `SELECT month_key, region_id, rank_no, url
-       FROM news_monthly_board
-       WHERE month_key = ?`,
-      [monthKey]
-    );
+    const rows = await frozenCardRows(monthKey);
     try {
-      const part = await captureRows(rows.map((row) => ({
-        monthKey: row.month_key,
-        regionId: row.region_id,
-        rank: Number(row.rank_no),
-        url: row.url,
-      })));
+      const part = await captureRows(rows);
       totals.saved += part.saved;
       totals.skipped += part.skipped;
       totals.failed.push(...part.failed);
@@ -274,4 +284,5 @@ module.exports = {
   listLatest,
   getNewsBoard,
   freezeMonth,
+  frozenCardRows,
 };

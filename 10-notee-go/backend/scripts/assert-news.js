@@ -14,6 +14,7 @@ const {
   slotStart,
   freshItems,
 } = require('../lib/newsRules');
+const { CARD_HEIGHT, buildCard, bangkokDate } = require('../lib/newsCard');
 
 assert.deepStrictEqual(NEWS_REGION_IDS, ['th', 'bkk', 'pty', 'hkt']);
 assert.strictEqual(LATEST_SIZE, 8);
@@ -108,6 +109,51 @@ assert.strictEqual(slotStart(new Date('2026-10-01T12:00:00Z')).toISOString(), '2
 assert.strictEqual(assertRegionId('bkk'), 'bkk');
 for (const bad of [undefined, '', 'BKK', 'cri', ['bkk']]) {
   assert.throws(() => assertRegionId(bad), (err) => err.code === 'NEWS_BAD_REGION');
+}
+
+// Monthly-board text card: what survives from the page.
+assert.ok(CARD_HEIGHT < 4096);
+assert.strictEqual(bangkokDate('2026-09-30T18:30:00Z'), '1 Oct 2026');
+assert.strictEqual(bangkokDate('nope'), '');
+{
+  const body = 'Officials said the backlog would clear by the end of the week as crews worked overnight.';
+  const card = buildCard({
+    blocks: [
+      { tag: 'h4', text: 'Ministers step in as thousands of bags stay stranded and flights remain… Read More ›', linkRatio: 0 },
+      { tag: 'p', text: 'Discover more', linkRatio: 0 },
+      { tag: 'p', text: body, linkRatio: 0 },
+      { tag: 'p', text: 'The minister visits the airport last month. Photo: Ministry of Transport', linkRatio: 0 },
+      { tag: 'p', text: 'AIR FORCE SENDS MORE CREWS', linkRatio: 0 },
+      { tag: 'p', text: `${body} ${body}`, linkRatio: 0 },
+      { tag: 'h5', text: 'Probe into 11,000 firms to be complete by Sept 30th', linkRatio: 1 },
+      { tag: 'p', text: 'Advertisement', linkRatio: 0 },
+      { tag: 'h5', text: 'Follow Thai Examiner on Google here', linkRatio: 0.1 },
+      { tag: 'h4', text: 'Further reading:', linkRatio: 0 },
+      { tag: 'p', text: 'Another story headline that is only a link', linkRatio: 0 },
+    ],
+    lines: [],
+    byline: 'By Joseph O\' Connor',
+    excerpt: 'unused',
+  }, {
+    title: 'Government takes a stronger hand',
+    publisher: 'Thai Examiner',
+    publishedAt: '2026-09-30T03:00:00Z',
+    url: 'https://www.thaiexaminer.com/x',
+  });
+  assert.strictEqual(card.standfirst, 'Ministers step in as thousands of bags stay stranded and flights remain…');
+  assert.deepStrictEqual(card.blocks.map((b) => b.kind), ['p', 'sub', 'p']);
+  assert.strictEqual(card.meta, 'Thai Examiner · 30 Sep 2026 · Joseph O\' Connor');
+  assert.strictEqual(card.host, 'thaiexaminer.com');
+  const house = buildCard({ blocks: [{ tag: 'p', text: `${body} ${body} ${body}`, linkRatio: 0 }], byline: 'The Phuket News Com' }, {
+    title: 'T', publisher: 'The Phuket News', publishedAt: '', url: 'https://www.thephuketnews.com/x',
+  });
+  assert.strictEqual(house.meta, 'The Phuket News');
+  assert.throws(
+    () => buildCard({ blocks: [{ tag: 'p', text: 'Too short.', linkRatio: 0 }] }, {
+      title: 'T', publisher: 'P', publishedAt: '', url: 'https://a.b/',
+    }),
+    /too little/
+  );
 }
 
 console.log('assert-news: ok');

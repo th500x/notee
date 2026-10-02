@@ -1,5 +1,5 @@
 /**
- * Frozen monthly-board page shots (notee-go docs/06 §4).
+ * Frozen monthly-board text cards (notee-go docs/06 §4). Layout: lib/newsCard.js.
  * JPEG files live on disk. The database keeps the headline row and never the picture.
  *
  *   backend/data/news-board/{YYYY-MM}/{regionId}/{rank}.jpg
@@ -10,11 +10,10 @@
 const fs = require('fs');
 const path = require('path');
 const { NEWS_REGION_IDS } = require('./newsFeeds');
+const { buildCard, readArticle, renderCard } = require('./newsCard');
 
 const SHOT_ROOT = path.join(__dirname, '..', 'data', 'news-board');
 const MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
-const GOTO_TIMEOUT_MS = 20_000;
-const VIEWPORT = { width: 1280, height: 1600, deviceScaleFactor: 1 };
 
 function shotFile(monthKey, regionId, rank) {
   return path.join(SHOT_ROOT, monthKey, regionId, `${rank}.jpg`);
@@ -65,34 +64,36 @@ async function launchBrowser() {
   });
 }
 
-async function shootPage(browser, url, dest) {
-  const page = await browser.newPage();
+async function cardForRow(browser, row, dest) {
+  let card;
   try {
-    await page.setViewport(VIEWPORT);
-    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: GOTO_TIMEOUT_MS });
-    await new Promise((resolve) => setTimeout(resolve, 1200));
-    const buf = await page.screenshot({ type: 'jpeg', quality: 60 });
-    fs.mkdirSync(path.dirname(dest), { recursive: true });
-    const tmp = `${dest}.tmp`;
-    fs.writeFileSync(tmp, buf);
-    fs.renameSync(tmp, dest);
-  } finally {
-    await page.close().catch(() => {});
+    card = buildCard(await readArticle(browser, row.url), row);
+  } catch (_) {
+    card = buildCard(await readArticle(browser, row.url), row);
   }
+  const { buf, fontPx, trimmed } = await renderCard(browser, card);
+  fs.mkdirSync(path.dirname(dest), { recursive: true });
+  const tmp = `${dest}.tmp`;
+  fs.writeFileSync(tmp, buf);
+  fs.renameSync(tmp, dest);
+  return { fontPx, trimmed };
 }
 
 /**
- * One JPEG per frozen row that does not already have a file.
- * A failed page is skipped; the headline link stays the fallback.
- * @param {{ monthKey: string, regionId: string, rank: number, url: string }[]} rows
+ * One card per frozen row. Rows that already have a file are skipped unless [force].
+ * A failed article is skipped and the headline link stays the fallback; with [force]
+ * its old file is removed so no stale picture stays behind.
+ * @param {{ monthKey: string, regionId: string, rank: number, url: string,
+ *   title: string, publisher: string, publishedAt: string }[]} rows
+ * @param {{ force?: boolean, log?: (line: string) => void }} [options]
  * @returns {Promise<{ saved: number, skipped: number, failed: string[] }>}
  */
-async function captureRows(rows) {
+async function captureRows(rows, { force = false, log } = {}) {
   const pending = [];
   let skipped = 0;
   for (const row of rows) {
     if (!isShotKey(row.monthKey, row.regionId, row.rank) || !row.url) continue;
-    if (shotExists(row.monthKey, row.regionId, row.rank)) {
+    if (!force && shotExists(row.monthKey, row.regionId, row.rank)) {
       skipped += 1;
       continue;
     }
@@ -105,13 +106,16 @@ async function captureRows(rows) {
   const failed = [];
   try {
     for (const row of pending) {
+      const key = `${row.monthKey}/${row.regionId}/${row.rank}`;
       const dest = shotFile(row.monthKey, row.regionId, row.rank);
       try {
-        await shootPage(browser, row.url, dest);
+        const { fontPx, trimmed } = await cardForRow(browser, row, dest);
         saved += 1;
+        if (log) log(`${key} font=${fontPx}px${trimmed ? ' trimmed' : ''}`);
       } catch (err) {
-        failed.push(`${row.monthKey}/${row.regionId}/${row.rank} ${err.message}`);
+        failed.push(`${key} ${err.message}`);
         fs.rmSync(`${dest}.tmp`, { force: true });
+        if (force) fs.rmSync(dest, { force: true });
       }
     }
   } finally {
