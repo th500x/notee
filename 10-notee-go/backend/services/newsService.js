@@ -22,6 +22,7 @@ const {
   slotStart,
   freshItems,
 } = require('../lib/newsRules');
+const { shotRelPath, captureRows } = require('../lib/newsShot');
 
 const FETCH_TIMEOUT_MS = 15 * 1000;
 const USER_AGENT = 'Mozilla/5.0 (compatible; NoteeGoNews/1.0; +https://notee.vip)';
@@ -49,8 +50,11 @@ function rowToItem(row) {
   };
 }
 
-function rowToBoardItem(row, rank) {
-  return { rank, ...rowToItem(row) };
+function rowToBoardItem(row, rank, monthKey, regionId, frozen) {
+  const item = { rank, ...rowToItem(row) };
+  if (!frozen) return item;
+  const shotUrl = shotRelPath(monthKey, regionId, rank);
+  return shotUrl ? { ...item, shotUrl } : item;
 }
 
 async function fetchFeedXml(url) {
@@ -170,7 +174,35 @@ async function collectNews(now = new Date()) {
 
   const frozen = await freezeClosedMonths(now);
   const purged = await purgeFrozenItems(now);
-  return { stored, failed, frozen, purged };
+  const shots = await captureFrozenMonths(frozen);
+  return { stored, failed, frozen, purged, shots };
+}
+
+/** Page shots for months this run just froze. A browser failure does not undo the freeze. */
+async function captureFrozenMonths(monthKeys) {
+  const totals = { saved: 0, skipped: 0, failed: [] };
+  for (const monthKey of monthKeys) {
+    const rows = await query(
+      `SELECT month_key, region_id, rank_no, url
+       FROM news_monthly_board
+       WHERE month_key = ?`,
+      [monthKey]
+    );
+    try {
+      const part = await captureRows(rows.map((row) => ({
+        monthKey: row.month_key,
+        regionId: row.region_id,
+        rank: Number(row.rank_no),
+        url: row.url,
+      })));
+      totals.saved += part.saved;
+      totals.skipped += part.skipped;
+      totals.failed.push(...part.failed);
+    } catch (err) {
+      totals.failed.push(`${monthKey} ${err.message}`);
+    }
+  }
+  return totals;
 }
 
 /** Newest first, last 24h, capped per region. */
@@ -211,7 +243,13 @@ async function getNewsBoard(regionRaw, monthQuery, now = new Date()) {
       regionId,
       monthKey,
       source: 'frozen',
-      items: rows.map((row) => rowToBoardItem(row, Number(row.rank_no))),
+      items: rows.map((row) => rowToBoardItem(
+        row,
+        Number(row.rank_no),
+        monthKey,
+        regionId,
+        true
+      )),
     };
   }
 

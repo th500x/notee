@@ -9,6 +9,7 @@
     "db:migrate": "node scripts/apply-pending-local-ddl.js",
     "jobs:daily": "node scripts/run-daily-maintenance.js",
     "jobs:news": "node scripts/run-news-collection.js",
+    "jobs:news-shots": "node scripts/capture-news-shots.js",
     "test:pour": "node scripts/assert-pour-payload.js",
     "test:login-id": "node scripts/assert-login-id.js",
     "smoke:login-id": "node scripts/smoke-login-id.js",
@@ -34,7 +35,8 @@
     "express-rate-limit": "^8.5.2",
     "jsonwebtoken": "^9.0.2",
     "mysql2": "^3.18.2",
-    "node-cron": "^3.0.3"
+    "node-cron": "^3.0.3",
+    "puppeteer": "22.15.0"
   },
   "devDependencies": {
     "nodemon": "^3.0.2"

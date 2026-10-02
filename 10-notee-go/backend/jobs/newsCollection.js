@@ -18,8 +18,10 @@ async function runNewsCollection(reason = 'manual') {
       const run = await collectNews();
       console.log(
         `[notee-go/news] ${reason} stored=${run.stored} failed=${run.failed.length} ` +
-          `frozen=${run.frozen.join(',') || '-'} purged=${run.purged}`
+          `frozen=${run.frozen.join(',') || '-'} purged=${run.purged} ` +
+          `shots=${run.shots.saved}`
       );
+      for (const line of run.shots.failed) console.warn(`[notee-go/news-shot] ${line}`);
       for (const line of run.failed) console.warn(`[notee-go/news] feed ${line}`);
     } catch (err) {
       console.error(`[notee-go/news] ${reason} failed:`, err.message);
