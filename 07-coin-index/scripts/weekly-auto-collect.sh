@@ -25,14 +25,15 @@ cd "$APP" || exit 1
 node scripts/collectMissingWeeks.js
 collect_status=$?
 
-if git diff --quiet -- "${DATA_FILES[@]}"; then
+if git diff --quiet HEAD -- "${DATA_FILES[@]}"; then
   echo "周数据无变化"
   exit "$collect_status"
 fi
 
 npm run build || exit 1
 
-git add -- "${DATA_FILES[@]}" || exit 1
+# public/ 在根 .gitignore 里，数据文件是已跟踪的例外，只能用 -u 暂存
+git add -u -- "${DATA_FILES[@]}" || exit 1
 git -c user.name="notee-bkk" -c user.email="notee-bkk@users.noreply.github.com" \
   commit -m "data(07): weekly auto-collect $(date -u +%Y-%m-%d)" || exit 1
 
