@@ -10,6 +10,8 @@
     "jobs:daily": "node scripts/run-daily-maintenance.js",
     "jobs:news": "node scripts/run-news-collection.js",
     "jobs:news-shots": "node scripts/capture-news-shots.js",
+    "jobs:city-events": "node scripts/run-city-events.js",
+    "city-events": "node scripts/city-events.js",
     "test:pour": "node scripts/assert-pour-payload.js",
     "test:login-id": "node scripts/assert-login-id.js",
     "smoke:login-id": "node scripts/smoke-login-id.js",
@@ -23,7 +25,8 @@
     "test:pour-bag": "node scripts/assert-pour-bag.js",
     "test:pour-media": "node scripts/assert-pour-media.js",
     "test:lyric-proposals": "node scripts/assert-lyric-proposals.js",
-    "test:news": "node scripts/assert-news.js"
+    "test:news": "node scripts/assert-news.js",
+    "test:city-events": "node scripts/assert-city-events.js"
   },
   "license": "UNLICENSED",
   "private": true,

@@ -15,7 +15,8 @@ const {
   freshItems,
 } = require('../lib/newsRules');
 const { CARD_HEIGHT, buildCard, bangkokDate } = require('../lib/newsCard');
-const { googleTarget, sameLanguage, decodeEntities } = require('../lib/translateText');
+const { MAX_CHARS, googleTarget, sameLanguage } = require('../lib/translateText');
+const { decodeEntities, htmlToText } = require('../lib/htmlText');
 
 assert.deepStrictEqual(NEWS_REGION_IDS, ['th', 'bkk', 'pty', 'hkt']);
 assert.strictEqual(LATEST_SIZE, 8);
@@ -162,6 +163,9 @@ assert.strictEqual(googleTarget('en'), 'en');
 assert.strictEqual(googleTarget('th'), null);
 assert.strictEqual(sameLanguage('zh', 'zh-CN'), true);
 assert.strictEqual(sameLanguage('en', 'zh-CN'), false);
+assert.strictEqual(MAX_CHARS, 200);
 assert.strictEqual(decodeEntities('a &amp; b &#39;c&#39;'), "a & b 'c'");
+assert.strictEqual(decodeEntities('&amp;lt;'), '&lt;');
+assert.strictEqual(htmlToText('<p>Fish&nbsp;&amp;\u200B <b>Chips</b></p>'), 'Fish & Chips');
 
 console.log('assert-news: ok');

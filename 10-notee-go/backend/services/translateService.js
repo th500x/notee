@@ -5,13 +5,8 @@
  */
 
 const { httpError } = require('../lib/httpError');
-const {
-  MAX_TEXTS,
-  MAX_CHARS,
-  googleTarget,
-  sameLanguage,
-  decodeEntities,
-} = require('../lib/translateText');
+const { decodeEntities } = require('../lib/htmlText');
+const { MAX_TEXTS, MAX_CHARS, googleTarget, sameLanguage } = require('../lib/translateText');
 
 const CACHE_MAX = 2000;
 const cache = new Map();

@@ -17,6 +17,7 @@ const pourBagRouter = require('./pourBag');
 const petBagRouter = require('./petBag');
 const lyricProposalsRouter = require('./lyricProposals');
 const newsRouter = require('./news');
+const cityEventsRouter = require('./cityEvents');
 const translateRouter = require('./translate');
 const { getFeed } = require('../services/postService');
 const { sendServiceError } = require('../lib/sendServiceError');
@@ -46,6 +47,7 @@ router.use('/pour', pourBagRouter);
 router.use('/pet', petBagRouter);
 router.use('/lyric', lyricProposalsRouter);
 router.use('/news', newsRouter);
+router.use('/city-events', cityEventsRouter);
 router.use('/translate', translateRouter);
 
 /** Design path: GET /api/notee-go/feed — optional Bearer for resonatedByMe + block filter */

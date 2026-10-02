@@ -8,7 +8,8 @@ const TARGETS = {
 };
 
 const MAX_TEXTS = 20;
-const MAX_CHARS = 1000;
+/** Per string, not per batch. Headlines stay under 150; a longer string comes back as sent. */
+const MAX_CHARS = 200;
 
 function googleTarget(target) {
   return TARGETS[target] || null;
@@ -25,23 +26,10 @@ function sameLanguage(detected, target) {
   return a.length > 0 && a === b;
 }
 
-/** Cloud Translation still emits a few entities when format=text. */
-function decodeEntities(text) {
-  return String(text || '')
-    .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)))
-    .replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCodePoint(parseInt(n, 16)))
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;|&apos;/g, "'")
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&amp;/g, '&');
-}
-
 module.exports = {
   TARGETS,
   MAX_TEXTS,
   MAX_CHARS,
   googleTarget,
   sameLanguage,
-  decodeEntities,
 };

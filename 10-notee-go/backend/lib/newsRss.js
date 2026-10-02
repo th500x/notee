@@ -4,40 +4,12 @@
  * free of an XML dependency.
  */
 
+const { decodeEntities, htmlToText } = require('./htmlText');
+
 const ITEM_RE = /<item\b[^>]*>([\s\S]*?)<\/item>/gi;
 /** The Phuket News puts photo captions in <image><title>; media blocks can do the same. */
 const NESTED_RE = /<(image|source|media:[\w-]+)\b[^>]*>[\s\S]*?<\/\1>/gi;
 const CDATA_RE = /^\s*<!\[CDATA\[([\s\S]*?)\]\]>\s*$/;
-const TAG_RE = /<[^>]*>/g;
-const ENTITY_RE = /&(#x[0-9a-f]+|#\d+|[a-z]+);/gi;
-const INVISIBLE_RE = /[\u200B-\u200D\uFEFF]/g;
-const NAMED_ENTITIES = {
-  amp: '&',
-  lt: '<',
-  gt: '>',
-  quot: '"',
-  apos: "'",
-  nbsp: ' ',
-  lsquo: '\u2018',
-  rsquo: '\u2019',
-  ldquo: '\u201C',
-  rdquo: '\u201D',
-  ndash: '\u2013',
-  mdash: '\u2014',
-  hellip: '\u2026',
-};
-
-function decodeEntities(text) {
-  return text.replace(ENTITY_RE, (whole, body) => {
-    if (body[0] === '#') {
-      const hex = body[1] === 'x' || body[1] === 'X';
-      const code = parseInt(body.slice(hex ? 2 : 1), hex ? 16 : 10);
-      return code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : whole;
-    }
-    const named = NAMED_ENTITIES[body.toLowerCase()];
-    return named === undefined ? whole : named;
-  });
-}
 
 /**
  * Plain text of one element. CDATA holds HTML as-is; plain content is XML-escaped
@@ -45,12 +17,7 @@ function decodeEntities(text) {
  */
 function elementText(raw) {
   const cdata = raw.match(CDATA_RE);
-  const html = cdata ? cdata[1] : decodeEntities(raw);
-  return decodeEntities(html.replace(TAG_RE, ' '))
-    .replace(INVISIBLE_RE, '')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .normalize('NFC');
+  return htmlToText(cdata ? cdata[1] : decodeEntities(raw));
 }
 
 function elementRegex(tag, flags) {

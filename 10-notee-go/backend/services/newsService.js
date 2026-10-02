@@ -23,8 +23,8 @@ const {
   freshItems,
 } = require('../lib/newsRules');
 const { shotRelPath, captureRows } = require('../lib/newsShot');
+const { fetchText } = require('../lib/fetchText');
 
-const FETCH_TIMEOUT_MS = 15 * 1000;
 const USER_AGENT = 'Mozilla/5.0 (compatible; NoteeGoNews/1.0; +https://notee.vip)';
 
 /** Live board and freeze share one order, so a frozen month matches its last live view. */
@@ -57,16 +57,11 @@ function rowToBoardItem(row, rank, monthKey, regionId, frozen) {
   return shotUrl ? { ...item, shotUrl } : item;
 }
 
-async function fetchFeedXml(url) {
-  const res = await fetch(url, {
-    headers: {
-      'User-Agent': USER_AGENT,
-      Accept: 'application/rss+xml, application/xml;q=0.9, */*;q=0.1',
-    },
-    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+function fetchFeedXml(url) {
+  return fetchText(url, {
+    userAgent: USER_AGENT,
+    accept: 'application/rss+xml, application/xml;q=0.9, */*;q=0.1',
   });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.text();
 }
 
 async function isMonthFrozen(monthKey) {
