@@ -157,6 +157,11 @@ assert.strictEqual(bangkokDate('nope'), '');
   );
 }
 
+assert.strictEqual(googleTarget('zh'), 'zh-CN');
+assert.strictEqual(googleTarget('en'), 'en');
+assert.strictEqual(googleTarget('th'), null);
+assert.strictEqual(sameLanguage('zh', 'zh-CN'), true);
+assert.strictEqual(sameLanguage('en', 'zh-CN'), false);
 assert.strictEqual(decodeEntities('a &amp; b &#39;c&#39;'), "a & b 'c'");
 
 console.log('assert-news: ok');
