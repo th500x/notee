@@ -15,6 +15,7 @@ const {
   freshItems,
 } = require('../lib/newsRules');
 const { CARD_HEIGHT, buildCard, bangkokDate } = require('../lib/newsCard');
+const { googleTarget, sameLanguage, decodeEntities } = require('../lib/translateText');
 
 assert.deepStrictEqual(NEWS_REGION_IDS, ['th', 'bkk', 'pty', 'hkt']);
 assert.strictEqual(LATEST_SIZE, 8);
@@ -155,5 +156,7 @@ assert.strictEqual(bangkokDate('nope'), '');
     /too little/
   );
 }
+
+assert.strictEqual(decodeEntities('a &amp; b &#39;c&#39;'), "a & b 'c'");
 
 console.log('assert-news: ok');

@@ -57,6 +57,9 @@ const stampBagWriteLimiter = limiter({ windowMs: 60 * 1000, limit: 60 });
 /** Square-crop PUT/GET: up to 30 sittings × 2 slots after login. */
 const pourMediaLimiter = limiter({ windowMs: 60 * 1000, limit: 180 });
 
+/** Cloud Translation burns a paid quota. One screen is one batched POST. */
+const translateLimiter = limiter({ windowMs: 60 * 1000, limit: 20 });
+
 /** Login id candidates: cheap, but a refresh button invites tapping. */
 const loginIdCandidateLimiter = limiter({ windowMs: 60 * 1000, limit: 30 });
 
@@ -81,6 +84,7 @@ module.exports = {
   giftClaimLimiter,
   stampBagWriteLimiter,
   pourMediaLimiter,
+  translateLimiter,
   loginIdCandidateLimiter,
   credentialLimiter,
   loginIdAttemptLimiter,
