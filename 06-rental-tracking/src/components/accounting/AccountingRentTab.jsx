@@ -40,24 +40,25 @@ function sortableTransformIsActive(t) {
 
 /** 与公式格 / 日期格相同的可视高度与边框，保证各行「框体」一致 */
 const inputCls =
-  'w-full min-w-0 box-border h-[2.25rem] px-2 py-0 leading-5 border border-gray-200 rounded text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-100';
+  'w-full min-w-0 box-border h-9 max-h-9 px-2 py-0 leading-5 overflow-hidden border border-gray-200 rounded text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-100';
 
 const narrowTextCls = `${inputCls} truncate cursor-help`;
 
+/** 数据格统一顶对齐，避免交租顶对齐而 IN/OUT 居中导致底边错位 */
+const CELL_TD = 'p-1 border border-gray-100 align-top box-border';
+
 /** 与公式列一致最小宽度 4rem；上限 8rem，避免中介/备注等与日期列被拉得过宽 */
-const COMPACT_COL_TD =
-  'max-w-[8rem] min-w-[4rem] align-top box-border';
+const COMPACT_COL_TD = 'max-w-[8rem] min-w-[4rem]';
 
 /** ROOM：仅满足房号短码；含左侧拖动手柄的整列宽，避免再占 26% 表宽 */
-const ROOM_COL_TD = 'w-[8.5rem] min-w-[4rem] max-w-[8.5rem] align-top box-border';
+const ROOM_COL_TD = 'w-[8.5rem] min-w-[4rem] max-w-[8.5rem]';
 const ROOM_COL_TH = ROOM_COL_TD;
 
 /**
  * 镜像 ROOM：固定宽，只对齐首列「房号输入框」（红框那一块），不含拖动手柄。
  * 约 8.5rem 首列 − w-7 柄 − gap-1 ≈ 6.5rem（含本格 p-1）；避免筛选时 auto 列宽收缩晃动。
  */
-const MIRROR_ROOM_COL_TD =
-  'w-[6.5rem] min-w-[6.5rem] max-w-[6.5rem] align-top box-border';
+const MIRROR_ROOM_COL_TD = 'w-[6.5rem] min-w-[6.5rem] max-w-[6.5rem]';
 const MIRROR_ROOM_COL_TH = MIRROR_ROOM_COL_TD;
 
 /** 可录入格：ROOM(0)…备注(4)、PRICE(5)、DEPOSIT(6)、双月 IN/OUT/交租（右月交租为列 14），不含只读 SETTLE、镜像 ROOM 与删钮 */
@@ -145,7 +146,7 @@ function SortableRentRow({
       className={`border-b border-gray-100 hover:bg-gray-50/80 ${isDragging ? 'bg-blue-50/90 shadow-sm ring-1 ring-blue-200/80' : ''}`}
     >
       <td
-        className={`p-1 border border-gray-100 ${ROOM_COL_TD} ${
+        className={`${CELL_TD} ${ROOM_COL_TD} ${
           isDragging ? 'bg-blue-50/95' : 'bg-white'
         }`}
       >
@@ -179,7 +180,7 @@ function SortableRentRow({
           />
         </div>
       </td>
-      <td className={`p-1 border border-gray-100 ${COMPACT_COL_TD}`}>
+      <td className={`${CELL_TD} ${COMPACT_COL_TD}`}>
         <AccountingDateIsoCell
           valueIso={row.declaration}
           onCommit={(v) => patchDetail(row.id, 'declaration', v)}
@@ -189,7 +190,7 @@ function SortableRentRow({
           onGridArrowKeyDown={(e) => handleRentNavKeyDown(e, rowIndex, 1)}
         />
       </td>
-      <td className={`p-1 border border-gray-100 ${COMPACT_COL_TD}`}>
+      <td className={`${CELL_TD} ${COMPACT_COL_TD}`}>
         <AccountingDateIsoCell
           valueIso={row.actualRent}
           onCommit={(v) => patchDetail(row.id, 'actualRent', v)}
@@ -199,7 +200,7 @@ function SortableRentRow({
           onGridArrowKeyDown={(e) => handleRentNavKeyDown(e, rowIndex, 2)}
         />
       </td>
-      <td className={`p-1 border border-gray-100 ${COMPACT_COL_TD}`}>
+      <td className={`${CELL_TD} ${COMPACT_COL_TD}`}>
         <input
           className={narrowTextCls}
           value={row.agency}
@@ -209,7 +210,7 @@ function SortableRentRow({
           onKeyDown={(e) => handleRentNavKeyDown(e, rowIndex, 3)}
         />
       </td>
-      <td className={`p-1 border border-gray-100 ${COMPACT_COL_TD}`}>
+      <td className={`${CELL_TD} ${COMPACT_COL_TD}`}>
         <AccountingAutoTextareaCell
           value={row.remarks}
           rentNavSlot={`${rowIndex}-4`}
@@ -218,7 +219,7 @@ function SortableRentRow({
           onGridArrowKeyDown={(e) => handleRentNavKeyDown(e, rowIndex, 4)}
         />
       </td>
-      <td className="p-1 border border-gray-100 bg-gray-50">
+      <td className={`${CELL_TD} bg-gray-50`}>
         <AccountingFormulaCell
           valueExpr={row.price}
           onCommit={(v) => patchDetail(row.id, 'price', v)}
@@ -226,7 +227,7 @@ function SortableRentRow({
           onGridArrowKeyDown={(e) => handleRentNavKeyDown(e, rowIndex, 5)}
         />
       </td>
-      <td className="p-1 border border-gray-100 bg-gray-50">
+      <td className={`${CELL_TD} bg-gray-50`}>
         <AccountingFormulaCell
           valueExpr={row.deposit}
           onCommit={(v) => patchDetail(row.id, 'deposit', v)}
@@ -241,7 +242,7 @@ function SortableRentRow({
         const baseCol = 7 + mi * 4;
         return (
           <Fragment key={`${row.id}-${mk}-block`}>
-            <td className="p-1 border border-gray-100">
+            <td className={CELL_TD}>
               <AccountingFormulaCell
                 valueExpr={cell.in || ''}
                 onCommit={(v) => patchMonthCell(row.id, mk, 'in', v)}
@@ -249,7 +250,7 @@ function SortableRentRow({
                 onGridArrowKeyDown={(e) => handleRentNavKeyDown(e, rowIndex, baseCol)}
               />
             </td>
-            <td className="p-1 border border-gray-100">
+            <td className={CELL_TD}>
               <AccountingFormulaCell
                 valueExpr={cell.out || ''}
                 onCommit={(v) => patchMonthCell(row.id, mk, 'out', v)}
@@ -257,15 +258,15 @@ function SortableRentRow({
                 onGridArrowKeyDown={(e) => handleRentNavKeyDown(e, rowIndex, baseCol + 1)}
               />
             </td>
-            <td className="p-1 border border-gray-100 bg-slate-50">
+            <td className={`${CELL_TD} bg-slate-50`}>
               <div
-                className="box-border h-[2.25rem] w-full min-w-[4rem] flex items-center justify-end border border-gray-200 rounded px-2 py-0 leading-5 text-sm text-right font-mono text-gray-800 cursor-help"
+                className="box-border h-9 max-h-9 w-full min-w-0 flex items-center justify-end border border-gray-200 rounded px-2 py-0 leading-5 overflow-hidden text-sm text-right font-mono text-gray-800 cursor-help"
                 title={settleTitle}
               >
                 {formatAccountingNumber(settleVal)}
               </div>
             </td>
-            <td className={`p-1 border border-gray-100 ${COMPACT_COL_TD}`}>
+            <td className={`${CELL_TD} ${COMPACT_COL_TD}`}>
               <AccountingDateIsoCell
                 valueIso={cell.payRent || ''}
                 onCommit={(v) => patchMonthCell(row.id, mk, 'payRent', v)}
@@ -280,15 +281,15 @@ function SortableRentRow({
         );
       })}
       <td
-        className={`p-1 border border-gray-100 ${MIRROR_ROOM_COL_TD} bg-slate-50`}
+        className={`${CELL_TD} ${MIRROR_ROOM_COL_TD} bg-slate-50`}
         title="只读：与左侧房号同步"
       >
-        <div className="box-border h-[2.25rem] w-full min-w-0 flex items-center px-2 py-0 leading-5 border border-gray-200 rounded text-sm text-gray-800 truncate tabular-nums">
+        <div className="box-border h-9 max-h-9 w-full min-w-0 flex items-center px-2 py-0 leading-5 overflow-hidden border border-gray-200 rounded text-sm text-gray-800 truncate tabular-nums">
           {row.room ? String(row.room) : '—'}
         </div>
       </td>
-      <td className={`p-1 border border-gray-100 text-center align-middle ${COMPACT_COL_TD}`}>
-        <div className="flex items-center justify-center gap-1 min-h-[2.25rem]">
+      <td className={`${CELL_TD} text-center ${COMPACT_COL_TD}`}>
+        <div className="flex items-center justify-center gap-1 h-9">
           <button
             type="button"
             onClick={(e) => onOpenGallery(row.id, e.currentTarget)}

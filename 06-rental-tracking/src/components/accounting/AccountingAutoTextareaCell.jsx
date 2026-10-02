@@ -1,8 +1,8 @@
 import { useRef, useEffect, useCallback } from 'react';
 
-/** 与公式格 / 日期格相同的可视高度与边框，保证各行「框体」一致 */
+/** 与公式格 / 日期格同一单行盒高；多行时由 JS 增高 */
 const baseCls =
-  'w-full min-w-0 min-h-[2.25rem] box-border px-2 py-1.5 border border-gray-200 rounded text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-100 resize-none overflow-hidden break-words leading-snug';
+  'w-full min-w-0 min-h-9 box-border px-2 py-0 border border-gray-200 rounded text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-100 resize-none overflow-hidden break-words leading-5';
 
 function syncTextareaHeight(el) {
   if (!el) return;

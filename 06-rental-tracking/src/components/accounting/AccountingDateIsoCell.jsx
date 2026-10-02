@@ -9,9 +9,9 @@ import {
   defaultPayRentIsoFromToday
 } from '../../utils/accountingDates';
 
-/** 与公式格 / ROOM 输入同一盒高，避免 button 默认行高把交租格撑高 */
+/** 与公式格同一盒高；max-h + overflow 防止 button 被内容撑破 */
 const baseCls =
-  'box-border h-[2.25rem] w-full min-w-[4rem] border border-gray-200 rounded px-2 py-0 text-sm leading-5 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-100';
+  'box-border h-9 max-h-9 w-full min-w-0 border border-gray-200 rounded px-2 py-0 text-sm leading-5 overflow-hidden focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-100';
 
 /**
  * ISO 日期格：
@@ -167,11 +167,11 @@ export function AccountingDateIsoCell({
         }
       }}
       data-rent-nav={rentNavSlot}
-      className={`${baseCls} flex items-center text-left bg-white hover:bg-gray-50${
+      className={`${baseCls} flex items-center justify-start text-left bg-white hover:bg-gray-50${
         variant === 'ymd' ? monthAccentCls : mdCls
       }`}
     >
-      {display}
+      <span className="block w-full truncate">{display}</span>
     </button>
   );
 }
